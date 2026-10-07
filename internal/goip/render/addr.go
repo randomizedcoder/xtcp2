@@ -1,6 +1,8 @@
 package render
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"net/netip"
 	"strconv"
@@ -133,11 +135,28 @@ var ifaFlagNames = []struct {
 }
 
 // IfaFlagTokens renders ifa_flags the way print_ifa_flags does, returning the
-// tokens so the JSON renderer can reuse the same decisions.
+// named tokens and, separately, the residue of bits the table does not name.
 //
-// Unrecognized bits become a single `flags %02x` token, the same shape
-// FlagTokens uses for unrecognized IFF_* bits but with a keyword and a width.
-func IfaFlagTokens(flags uint32, family uint8) []string {
+// # Why the residue is returned apart from the names, and not as a token
+//
+// print_ifa_flags has two outputs, not one, and they are the only place in
+// print_addrinfo where the text and JSON forms are not the same value under
+// two spellings (ip/ipaddress.c:1442-1451):
+//
+//	if (is_json_context())
+//		print_string(PRINT_JSON, "ifa_flags", NULL, "%02x" of flags);
+//	else
+//		fprintf(fp, "flags %02x ", flags);
+//
+// The named flags are a keyword in text and a boolean KEY in JSON; the residue
+// is a `flags 1000` token in text and an "ifa_flags": "1000" STRING in JSON.
+// Folding the residue into the token slice — which this function used to do —
+// made the JSON renderer's only honest option parsing its own output back
+// apart, so the two are returned as what they are.
+//
+// The returned string is empty when every bit was named, which is the common
+// case and the whole corpus.
+func IfaFlagTokens(flags uint32, family uint8) (names []string, ifaFlags string) {
 	var out []string
 	rest := flags
 	for _, f := range ifaFlagNames {
@@ -159,9 +178,9 @@ func IfaFlagTokens(flags uint32, family uint8) []string {
 		rest &= ^f.bit
 	}
 	if rest != 0 {
-		out = append(out, fmt.Sprintf("flags %02x", rest))
+		return out, fmt.Sprintf("%02x", rest)
 	}
-	return out
+	return out, ""
 }
 
 // AddrView is one address as `ip addr show` presents it.
@@ -188,11 +207,26 @@ type AddrView struct {
 	Broadcast string `json:"broadcast,omitempty"`
 
 	Scope string `json:"scope"`
-	// Flags are the print_ifa_flags tokens. `ip -j` emits each as its own
-	// boolean key rather than an array; goip emits the array, which is the
-	// one deliberate JSON key-shape divergence in this package, taken because
-	// a caller cannot enumerate booleans it does not know the names of.
-	Flags []string `json:"flags,omitempty"`
+
+	// Flags are the print_ifa_flags named tokens, and they are `json:"-"`
+	// because `ip -j` does not emit an array: every named flag is its own
+	// boolean key (print_bool(PRINT_JSON, flag_data->name, NULL, true),
+	// ip/ipaddress.c:1434-1435). MarshalJSON below expands them.
+	//
+	// This used to be `json:"flags,omitempty"`, described in a comment here
+	// as a deliberate divergence taken so a caller could enumerate flags it
+	// did not know the names of. It was not defensible: goip exists to make
+	// `ip`'s output reproducible, no caller of this package enumerates
+	// anything, and the committed golden dumps/ip_addr_json — which nothing
+	// read until TestAddrShowJSONMatchesCapturedSidecar — says plainly that
+	// `ip` emits "nodad": true.
+	Flags []string `json:"-"`
+
+	// IfaFlags is the "%02x" of the bits the table does not name, which `ip`
+	// emits under a key of its own rather than among the booleans. Empty
+	// means every bit was named. See IfaFlagTokens for why this is a second
+	// field and not a thirteenth token.
+	IfaFlags string `json:"-"`
 
 	Proto string `json:"protocol,omitempty"`
 	Label string `json:"label,omitempty"`
@@ -225,9 +259,9 @@ func AddrViewOf(ai xtcpnl.AddrInfo) AddrView {
 		PrefixLen: ai.Prefixlen,
 		Broadcast: addrString(ai.Broadcast, ai.Family),
 		Scope:     scopeName(ai.Scope),
-		Flags:     IfaFlagTokens(ai.Flags, ai.Family),
 		Label:     ai.Label,
 	}
+	v.Flags, v.IfaFlags = IfaFlagTokens(ai.Flags, ai.Family)
 	if v.Family == "" {
 		fam := ai.Family
 		v.FamilyIndex = &fam
@@ -246,6 +280,73 @@ func AddrViewOf(ai xtcpnl.AddrInfo) AddrView {
 		v.deprecated = ai.Flags&unix.IFA_F_DEPRECATED != 0
 	}
 	return v
+}
+
+// MarshalJSON appends print_ifa_flags's two outputs to the object: one
+// boolean key per named flag, then "ifa_flags" for the unnamed residue.
+//
+// # Why a method here is safe when LinkView cannot have one
+//
+// LinkView deliberately has no MarshalJSON, because AddrGroupView EMBEDS it
+// and encoding/json gives an embedded type's marshaler precedence over field
+// promotion — a LinkView.MarshalJSON would make `ip -j addr show` lose
+// addr_info entirely (link.go:94-104). AddrView is not embedded anywhere; it
+// appears only as AddrGroupView.AddrInfo's element type, where the marshaler
+// is called per element and composes normally. The distinction is the
+// embedding, not the package convention.
+//
+// # Member position, and what is and is not claimed
+//
+// The flag members land at the END of the object, where `ip` prints them
+// between "scope" and "protocol". That is not a divergence being papered
+// over: JSON object member order carries no meaning, `ip -j -p` pretty-prints
+// where goip emits one compact line, and every comparison against a committed
+// `ip -j` golden in this repo is key-by-key (assertJSONEntriesEqual). What is
+// claimed is the key set and the values. Getting the position right would
+// mean splicing into already-marshaled bytes, which buys nothing and can go
+// wrong.
+//
+// Within the group the order is print_ifa_flags's own: names in table order,
+// then the residue.
+func (v AddrView) MarshalJSON() ([]byte, error) {
+	// addrView sheds this method, so json.Marshal below does not recurse.
+	type addrView AddrView
+
+	raw, err := json.Marshal(addrView(v))
+	if err != nil {
+		return nil, err
+	}
+	if len(v.Flags) == 0 && v.IfaFlags == "" {
+		return raw, nil
+	}
+	// Local, PrefixLen and Scope have no omitempty, so the object is never
+	// "{}" and appending a member always needs a leading comma. Checked
+	// rather than assumed, because the alternative is emitting `{,"nodad":…}`.
+	if len(raw) < 2 || raw[len(raw)-1] != '}' || raw[len(raw)-2] == '{' {
+		return nil, fmt.Errorf("render: AddrView marshaled to %q, which has no member to append to", raw)
+	}
+
+	var b bytes.Buffer
+	b.Write(raw[:len(raw)-1])
+	for _, f := range v.Flags {
+		key, err := json.Marshal(f)
+		if err != nil {
+			return nil, err
+		}
+		b.WriteByte(',')
+		b.Write(key)
+		b.WriteString(":true")
+	}
+	if v.IfaFlags != "" {
+		val, err := json.Marshal(v.IfaFlags)
+		if err != nil {
+			return nil, err
+		}
+		b.WriteString(`,"ifa_flags":`)
+		b.Write(val)
+	}
+	b.WriteByte('}')
+	return b.Bytes(), nil
 }
 
 // equalAddrBytes is print_addrinfo's memcmp: four bytes for AF_INET and
@@ -344,6 +445,9 @@ func (v AddrView) Text() string {
 	for _, f := range v.Flags {
 		fmt.Fprintf(&b, "%s ", f)
 	}
+	if v.IfaFlags != "" {
+		fmt.Fprintf(&b, "flags %s ", v.IfaFlags)
+	}
 	if v.Proto != "" {
 		fmt.Fprintf(&b, "proto %s ", v.Proto)
 	}
@@ -384,17 +488,84 @@ func lifetime(v uint32, signed bool) string {
 type AddrGroupView struct {
 	LinkView
 	AddrInfo []AddrView `json:"addr_info"`
+
+	// The `-s` counter block, and the three fields below are declared AFTER
+	// AddrInfo for a reason that is invisible in Go and decisive in JSON.
+	//
+	// # Why these duplicate LinkView's and do not reuse them
+	//
+	// print_link_stats runs at ip/ipaddress.c:2333, which is AFTER
+	// print_selected_addrinfo at :2332. So on this object the counters come
+	// BELOW the address lines, where `ip -s link show` puts them directly
+	// under the link stanza (print_linkinfo, :1297-1300). LinkView renders
+	// the second layout and LinkView.WithStats is the only way to reach it,
+	// so this object deliberately does not call it.
+	//
+	// encoding/json emits an embedded struct's promoted fields at the
+	// position of the embedding, so LinkView's `stats64`/`stats` keys would
+	// land BEFORE `addr_info` — the opposite of iproute2's order. Declaring
+	// the same JSON names here fixes that: on a tag conflict encoding/json
+	// takes the field at the SHALLOWER depth, so these win outright and
+	// LinkView's promoted pair is dropped rather than duplicated.
+	//
+	// The Go names differ from LinkView's on purpose. Naming them Stats and
+	// JSONStats64 would shadow the embedded fields, and then `g.Stats` would
+	// silently mean one of two things depending on how the reader counts
+	// depth. Different names make `g.LinkStats` and `g.LinkView.Stats` two
+	// visibly different expressions, which is what they are.
+	LinkStats *xtcpnl.RtnlLinkStats64 `json:"-"`
+
+	JSONLinkStats64 *LinkStatsJSON `json:"stats64,omitempty"`
+	JSONLinkStats   *LinkStatsJSON `json:"stats,omitempty"`
 }
 
-// Text renders the link stanza and its address lines.
+// WithStats attaches the `-s` counter block to the GROUP, below the addresses.
+//
+// It is AddrGroupView's counterpart to LinkView.WithStats and splits the
+// condition the same way: `!do_link && show_stats` is the caller's half and
+// the attributes being present is the reply's. A reply with neither
+// IFLA_STATS nor IFLA_STATS64 leaves every field nil and prints nothing,
+// which is __print_link_stats returning early on get_rtnl_link_stats_rta's -1
+// (ip/ipaddress.c:832-834) — "asked for and not sent" must print nothing
+// rather than a block of zeros.
+//
+// All three fields move together because they are one fact in three shapes;
+// a view with the text source set and the JSON pair clear would print
+// counters under `ip -s addr show` and emit none under `ip -s -j addr show`.
+func (g AddrGroupView) WithStats(li xtcpnl.LinkInfo) AddrGroupView {
+	if li.Stats == nil {
+		return g
+	}
+	g.LinkStats = li.Stats
+
+	s := linkStatsJSONOf(*li.Stats)
+	if li.StatsIs64 {
+		g.JSONLinkStats64 = &s
+	} else {
+		g.JSONLinkStats = &s
+	}
+	return g
+}
+
+// Text renders the link stanza, its address lines, and the `-s` block last.
 //
 // Ranged by index: AddrView is 176 bytes and Text reads it, so the value form
 // copies every address in the group to call a method on it.
+//
+// The newline is on the other side of the block from the link object's. Here
+// print_link_stats does `__print_link_stats(...); print_nl()`
+// (ip/ipaddress.c:840-848); there print_linkinfo does `print_nl();
+// __print_link_stats(...)` (:1297-1300). LinkStatsText emits neither, so each
+// caller supplies its own and the two differ by exactly that.
 func (g AddrGroupView) Text() string {
 	var b strings.Builder
 	b.WriteString(g.LinkView.Text())
 	for i := range g.AddrInfo {
 		b.WriteString(g.AddrInfo[i].Text())
+	}
+	if g.LinkStats != nil {
+		b.WriteString(LinkStatsText(*g.LinkStats))
+		b.WriteString("\n")
 	}
 	return b.String()
 }

@@ -1,0 +1,11 @@
+[ {
+        "dst": "0.0.0.0",
+        "dev": "gre1",
+        "lladdr": "2.0.0.0",
+        "state": [ "PERMANENT" ]
+    },{
+        "dst": "2001:db8:100::5",
+        "dev": "ip6tnl1",
+        "lladdr": "2001:db8::63",
+        "state": [ "PERMANENT" ]
+    } ]

@@ -15,10 +15,32 @@ If you are looking for the daemon as a whole, start at the
 | [Non-blocking netlink](nonblocking.md) | The design for non-blocking socket reads — why the blocking `recvmsg` path bounds OS-thread scaling, and what replacing it involves. |
 | [Netlink parsing comparison](parsing-comparison.md) | The audit: what `pkg/xtcpnl` parses versus `vishvananda/netlink`, message-type and attribute coverage on both sides, the two test strategies, and the prioritised gaps. |
 | [Netlink coverage expansion](coverage-expansion.md) | The roadmap acting on that audit: the read-only constraint, the target subpackage layout, generalising the `nlmon` capture harness to every protocol family, and the eight phases. |
-| [Netlink coverage status](coverage-status.md) | The live tracker: what has actually landed, the measured baseline, and each phase's exit criteria. |
+| [Netlink coverage status](coverage-status.md) | The live tracker: what has actually landed, the measured baseline, each phase's exit criteria, and the **goip ↔ `ip` parity** state — start at [parity at a glance](coverage-status.md#goip--ip-parity-at-a-glance). |
 
 The last three are a chain — the audit finds the gaps, the roadmap decides the
 order, the status document records reality. Read them in that order.
+
+## The parity harness
+
+The decoders have a second consumer besides the daemon: `cmd/goip`, a read-only
+reimplementation of `ip`'s `show` commands, and `cmd/goip-parity`, which drives
+`ip` and `goip` against the same kernel and compares both the **netlink bytes
+each sent** and the **text each printed**. It is the strongest evidence in the
+tree that `pkg/xtcpnl` decodes what the kernel actually said, because the
+reference is iproute2 itself rather than our reading of iproute2.
+
+Twenty-nine commands are compared and twenty-four are gated. The counts, what
+"gated" costs to earn, and the scope boundaries — read-only, five objects — are
+in [parity at a glance](coverage-status.md#goip--ip-parity-at-a-glance). The
+comparator is `pkg/nlparity` (protocol level) and `internal/goipparity`
+(command level); the accepted-divergence list is
+`pkg/nlparity/goip-parity-allowlist.json`, currently seven entries, all version
+skew against the pinned `ip`, and its header comment is the doctrine for adding
+to it.
+
+```bash
+nix run .#microvm-x86_64-goip-parity      # the live tier; needs /dev/kvm, not root
+```
 
 ## Two constraints worth knowing up front
 

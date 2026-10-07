@@ -19,9 +19,11 @@ package xtcpnl
 //	BuildDumpLinkRequestExt      lib/libnetlink.c rtnl_linkdump_req_filter{,_fn}
 //	BuildGetLinkByIndexRequest   lib/ll_map.c     ll_link_get
 //	BuildGetLinkByNameRequest    lib/ll_map.c     ll_link_get
+//	BuildIplinkGetRequest        ip/iplink.c      iplink_get
 //	BuildDumpAddrRequestIndex    ip/ipaddress.c   ipaddr_list_flush_or_save
-//	BuildDumpRouteRequestTable   ip/iproute.c     iproute_dump_filter
+//	BuildDumpRouteRequestFilter  ip/iproute.c     iproute_dump_filter
 //	BuildDumpNeighRequest        lib/libnetlink.c rtnl_neighdump_req
+//	BuildDumpNeighRequestFilter  ip/ipneigh.c     ipneigh_dump_filter
 //
 // # Oversend is not reproduced, and that is deliberate
 //
@@ -182,6 +184,63 @@ func BuildGetLinkByNameRequest(family uint8, name string, extMask, seq uint32) (
 	return BuildRequest(uint16(unix.RTM_GETLINK), 0, seq, hdr, ab.Bytes())
 }
 
+// BuildIplinkGetRequest is iplink_get (ip/iplink.c:1497-1515), the SECOND and
+// last request `ip link show dev NAME` sends — the one whose reply is printed.
+//
+// It is not BuildGetLinkByNameRequest with different arguments. Three things
+// differ, and pkg/nlparity compares requests for full byte equality, so the
+// first two are divergences rather than details:
+//
+//   - THE ATTRIBUTE ORDER IS REVERSED. iplink_get adds IFLA_IFNAME first and
+//     IFLA_EXT_MASK second; ll_link_get adds the mask first
+//     (lib/ll_map.c:289-293). The same two attributes, opposite order, inside
+//     one command — which is why `ip link show dev lo` cannot be served by
+//     sending one request's bytes twice.
+//   - ifi_family is preferred_family, not AF_UNSPEC, and for this command that
+//     is AF_PACKET: ipaddr_list_link assigns it at ip/ipaddress.c:2416 before
+//     any argument is parsed. That is also why `ip -4 link show dev lo` still
+//     sends AF_PACKET — the -4 is overridden, not honored.
+//   - It goes on the MAIN rtnl socket, where ll_link_get opens a throwaway one
+//     (rtnl_open, lib/ll_map.c:281). nlmon cannot observe socket identity, so
+//     this difference is invisible on the wire; it is recorded so it is not
+//     rediscovered as a bug.
+//
+// # Unlike ll_link_get, this path carries no version skew
+//
+// Commit de91e928 added RTEXT_FILTER_NAME_ONLY to ll_link_get and ll_init_map
+// and NOT to iplink_get, so this request's mask is 0x09 at the pinned 7.1.0
+// and at the reading fork alike. filt_mask arrives as RTEXT_FILTER_VF —
+// filter.vfinfo is set unconditionally at ip/ipaddress.c:2153 and cleared only
+// by `novf` — and iplink_get ors in RTEXT_FILTER_SKIP_STATS when !show_stats.
+// So of the two requests this command sends, only the first one moves when
+// iproute2 does.
+//
+// # The mask attribute is unconditional here
+//
+// BuildGetLinkByNameRequest omits IFLA_EXT_MASK for a zero mask because
+// ll_link_get's addattr32 is reached only with a mask that is never zero.
+// iplink_get calls addattr32 unconditionally (:1514), so a caller passing 0
+// gets a four-byte zero attribute rather than no attribute — which is what
+// `ip -s novf link show dev lo` puts on the wire.
+func BuildIplinkGetRequest(family uint8, name string, extMask, seq uint32) ([]byte, error) {
+	if err := validIfName(name); err != nil {
+		return nil, err
+	}
+
+	hdr := make([]byte, IfInfomsgSizeCst)
+	hdr[0] = family // ifi_family; ifi_index stays 0 — the name is the selector
+
+	var raw [reqAttrBufCst]byte
+	ab := NewAttrBuilder(raw[:])
+	if err := ab.PutString(uint16(unix.IFLA_IFNAME), name); err != nil {
+		return nil, err
+	}
+	if err := ab.PutU32(uint16(unix.IFLA_EXT_MASK), extMask); err != nil {
+		return nil, err
+	}
+	return BuildRequest(uint16(unix.RTM_GETLINK), 0, seq, hdr, ab.Bytes())
+}
+
 // BuildDumpAddrRequestIndex builds an RTM_GETADDR dump filtered to one
 // interface by writing ifa_index into the REQUEST HEADER — there is no
 // attribute for it (ip/ipaddress.c, ipaddr_list_flush_or_save).
@@ -208,8 +267,8 @@ func BuildDumpAddrRequestIndex(family uint8, ifindex, seq uint32) []byte {
 	return BuildDumpRequest(uint16(unix.RTM_GETADDR), seq, hdr)
 }
 
-// BuildDumpRouteRequestTable builds an RTM_GETROUTE dump for one routing table,
-// via an RTA_TABLE attribute.
+// BuildDumpRouteRequestFilter builds an RTM_GETROUTE dump carrying the two
+// attributes iproute_dump_filter can attach: RTA_TABLE and RTA_OIF.
 //
 // table must be an RT_TABLE_* id or a numeric table. RT_TABLE_UNSPEC (0) omits
 // the attribute, which is how `ip route show table all` asks for every table —
@@ -221,22 +280,45 @@ func BuildDumpAddrRequestIndex(family uint8, ifindex, seq uint32) []byte {
 // The attribute is needed because rtm_table is a single byte and cannot hold a
 // table id above 255; RTA_TABLE is the u32 that supersedes it.
 //
-// One captured form (getroute.pcap rec 0, `ip route show table all`): 28 bytes,
-// an all-zero rtmsg, no attributes. Note the family there is AF_UNSPEC, while
-// plain `ip route show` sends AF_INET — ip/iproute.c:1998 promotes AF_UNSPEC to
+// oif is filter.oif, set by `dev NAME` or the synonym `oif NAME`
+// (ip/iproute.c:1911-1913) after ll_name_to_index resolves the name
+// (:2008-2016). Zero omits the attribute, for the same reason and by the same
+// `if (filter.oif)` test (:1731).
+//
+// # One function, because iproute2 has one, and the order is why it matters
+//
+// iproute_dump_filter writes RTA_TABLE first and RTA_OIF second, in that
+// order, each guarded by its own presence test. The parity comparator holds
+// requests to full byte equality, so the order is part of the contract rather
+// than an implementation detail — and two builders, one per attribute, would
+// have no structural reason to agree on it. Keeping the pair in one function
+// makes the order impossible to get wrong at a call site.
+//
+// # Captured forms
+//
+// getroute.pcap rec 0 (`ip route show table all`): 28 bytes, an all-zero
+// rtmsg, no attributes. Note the family there is AF_UNSPEC, while plain
+// `ip route show` sends AF_INET — ip/iproute.c:1998 promotes AF_UNSPEC to
 // AF_INET whenever a table filter is set, so the default command is
-// (AF_INET, 254) and the all-tables command is (AF_UNSPEC, 0). Both are this
-// one function.
-func BuildDumpRouteRequestTable(family uint8, table, seq uint32) ([]byte, error) {
+// (AF_INET, 254, 0) and the all-tables command is (AF_UNSPEC, 0, 0).
+// `ip route show dev NAME` is (AF_INET, 254, idx), 44 bytes.
+func BuildDumpRouteRequestFilter(family uint8, table, oif, seq uint32) ([]byte, error) {
 	hdr := make([]byte, RtMsgSizeCst)
 	hdr[0] = family // rtm_family
 
 	var attrs []byte
-	if table != uint32(unix.RT_TABLE_UNSPEC) {
+	if table != uint32(unix.RT_TABLE_UNSPEC) || oif != 0 {
 		var raw [reqAttrBufCst]byte
 		ab := NewAttrBuilder(raw[:])
-		if err := ab.PutU32(uint16(unix.RTA_TABLE), table); err != nil {
-			return nil, err
+		if table != uint32(unix.RT_TABLE_UNSPEC) {
+			if err := ab.PutU32(uint16(unix.RTA_TABLE), table); err != nil {
+				return nil, err
+			}
+		}
+		if oif != 0 {
+			if err := ab.PutU32(uint16(unix.RTA_OIF), oif); err != nil {
+				return nil, err
+			}
 		}
 		attrs = ab.Bytes()
 	}
@@ -261,6 +343,154 @@ func BuildDumpNeighRequest(family uint8, seq uint32) []byte {
 	hdr[0] = family // ndm_family
 
 	return BuildDumpRequest(uint16(unix.RTM_GETNEIGH), seq, hdr)
+}
+
+// BuildDumpNeighRequestFilter is BuildDumpNeighRequest with the two filters
+// goip can reach: the device of `ip neigh show dev NAME` and the ndm_flags of
+// `ip neigh show proxy`.
+//
+// ifindex 0 and ndmFlags 0 together produce exactly BuildDumpNeighRequest's
+// bytes, which is how the bare command is spelled and why the two cannot
+// disagree.
+//
+// # ndmFlags is a field write, and that makes `proxy` the cheapest selector here
+//
+// NTF_PROXY does not grow the datagram at all: it is one byte at offset 10 of a
+// struct the bare command already sends, so `ip neigh show` and `ip neigh show
+// proxy` are both 28 bytes and differ in exactly one of them. Contrast the
+// device filter below, which adds 8. Neither changes the transaction count.
+//
+// The kernel reads that byte to pick a TABLE, not to filter one
+// (net/core/neighbour.c:2956): it sends neigh_dump_info down pneigh_dump_table
+// instead of neigh_dump_table, so the two commands return disjoint sets rather
+// than a subset and a superset. A request that dropped the byte would answer
+// with the wrong table's contents and still look well-formed.
+//
+// That test is `ndm_flags == NTF_PROXY`, an EQUALITY and not a mask test, so
+// NTF_PROXY may not be or-ed with anything. It is also guarded on
+// `nlmsg_len(nlh) >= sizeof(struct ndmsg)`, which holds here only because this
+// builder always sends the full 12-byte struct — a caller that trimmed the
+// header to the rtgenmsg the kernel will otherwise accept would lose the
+// selector without changing a visible byte of it.
+//
+// # The index is an ATTRIBUTE here, not the ndm_ifindex field
+//
+// This is the trap, and it is worth more than the byte it costs. `struct ndmsg`
+// has an `ndm_ifindex` member sitting at offset 4, exactly where
+// BuildDumpAddrRequestIndex writes `ifa_index` for the addr equivalent — and
+// iproute2 leaves it zero. ipneigh_dump_filter (ip/ipneigh.c:485-504) writes
+// `addattr32(nlh, reqlen, NDA_IFINDEX, filter.index)` instead, so the request
+// grows by 8 bytes rather than filling a field it already has.
+//
+// # Both traps are LOUD, and only because the socket is in strict-dump mode
+//
+// neigh_valid_dump_req (net/core/neighbour.c:2880-2907) rejects a dump request
+// outright under strict check: EINVAL for a nonzero ndm_pad1, ndm_pad2,
+// ndm_ifindex, ndm_state or ndm_type, and a separate EINVAL for
+// `ndm_flags & ~NTF_PROXY`. So a builder that filled ndm_ifindex, or that
+// or-ed NTF_PROXY into some other bit, does not get a well-formed dump of the
+// wrong thing — it gets an error with a message naming the field.
+//
+// That is a property of the SOCKET and not of these bytes. `ip` sets
+// NETLINK_GET_STRICT_CHK on its main handle at ip/ip.c:312 and goip sets it at
+// internal/goip/source.go:93, so the loud behavior is what both sides see;
+// drop the option and the same request is instead parsed leniently, where
+// ndm_ifindex is simply unread and any extra flag bit falls through the
+// equality above and silently returns the REGULAR table. Two failure modes for
+// one mistake, chosen by a setsockopt made somewhere else, which is the reason
+// to write the bytes correctly here rather than rely on either.
+//
+// # The other two things ipneigh_dump_filter writes, and their order
+//
+// Recorded here rather than in a commit message, because the parity comparator
+// holds requests to full byte equality and the order is part of that contract:
+//
+//  1. `ndm->ndm_flags = filter.ndm_flags` (:490) — always, into the base
+//     struct at offset 10, and BEFORE either attribute. That is the ndmFlags
+//     parameter.
+//  2. NDA_MASTER (:497-501), AFTER NDA_IFINDEX, for `master`/`vrf`. Same rule:
+//     it goes here, second, or the byte order stops matching.
+func BuildDumpNeighRequestFilter(family, ndmFlags uint8, ifindex, seq uint32) ([]byte, error) {
+	hdr := make([]byte, NdMsgSizeCst)
+	hdr[0] = family // ndm_family; ndm_ifindex deliberately stays 0, see above
+	// ndm_flags, offset 10. Written unconditionally, exactly as :490 does:
+	// zero is the value the bare command sends, not the absence of a value.
+	hdr[NdMsgFlagsOffCst] = ndmFlags
+
+	var attrs []byte
+	if ifindex != 0 {
+		var raw [reqAttrBufCst]byte
+		ab := NewAttrBuilder(raw[:])
+		if err := ab.PutU32(uint16(unix.NDA_IFINDEX), ifindex); err != nil {
+			return nil, err
+		}
+		attrs = ab.Bytes()
+	}
+	return BuildRequest(uint16(unix.RTM_GETNEIGH), uint16(unix.NLM_F_DUMP), seq, hdr, attrs)
+}
+
+// BuildDumpRuleRequest builds `ip rule show`'s only request: RTM_GETRULE with
+// NLM_F_DUMP and a fib_rule_hdr whose family byte is the only thing set.
+//
+// It is rtnl_ruledump_req (lib/libnetlink.c:407-421) and that function is
+// unusually short, so it is quoted whole rather than paraphrased:
+//
+//	struct {
+//		struct nlmsghdr nlh;
+//		struct fib_rule_hdr frh;
+//	} req = {
+//		.nlh.nlmsg_len = NLMSG_LENGTH(sizeof(struct fib_rule_hdr)),
+//		.nlh.nlmsg_type = RTM_GETRULE,
+//		.nlh.nlmsg_flags = NLM_F_DUMP | NLM_F_REQUEST,
+//		.nlh.nlmsg_seq = rth->dump = ++rth->seq,
+//		.frh.family = family
+//	};
+//	return send(rth->fd, &req, sizeof(req), 0);
+//
+// # Three things make this the simplest dump in the corpus
+//
+// There is no attribute stream, and there CANNOT be one. Every `ip rule show`
+// selector — `from`, `to`, `iif`, `oif`, `fwmark`, `pref`, `uidrange` and the
+// rest — is applied client-side in filter_nlmsg (ip/iprule.c:98-243), against
+// replies; and under strict check the kernel rejects a rule dump carrying any
+// attribute at all, `if (nlmsg_attrlen(nlh, sizeof(*frh)))` →
+// "Invalid data after header in fib rule dump request"
+// (net/core/fib_rules.c:1278-1281). So unlike neigh, where `dev NAME` costs
+// eight bytes of NDA_IFINDEX, and unlike route, where `dev NAME` moves a whole
+// transaction, every form of `ip rule show` sends these same 28 bytes — and
+// the nil attrs argument below is the only value the kernel accepts, not a
+// convenience. That makes the request comparison a statement about the family
+// byte and nothing else.
+//
+// Second, there is no ll_init_map. iprule_list_flush_or_save never calls it,
+// which is why `ip rule show` prints an FRA_IIFNAME as the string the kernel
+// sent rather than resolving an index — the attribute is a NAME on the wire,
+// not an ifindex. One transaction, total.
+//
+// Third, the designated initializer leaves dst_len, src_len, tos, table, res1,
+// res2, action and flags all zero, and fib_valid_dumprule_req tests exactly
+// that eight-way disjunction (net/core/fib_rules.c:1271-1276) before it will
+// dump anything. So the zeros are load-bearing rather than incidental, the
+// same relationship BuildDumpNeighRequestFilter documents for ndm_ifindex.
+// Note which field is NOT in that list: family. The validator never looks at
+// it, so a wrong family byte yields an empty dump rather than an error — the
+// quiet failure mode, and the reason the substitution below is worth a test.
+//
+// # The family byte is never AF_UNSPEC from `ip`, and that is the caller's job
+//
+// iprule_list_flush_or_save substitutes AF_INET for AF_UNSPEC before it gets
+// here (ip/iprule.c:749-752), so a bare `ip rule show` asks for IPv4 rules and
+// not for every family. This builder does NOT do that substitution, because
+// rtnl_ruledump_req does not: it sends whatever family it is handed. The
+// substitution lives with its `ip` counterpart, in internal/goip/obj_rule.go.
+// Splitting it that way keeps each function comparable to the C one it is
+// named after, and leaves this builder usable for the AF_UNSPEC dump that
+// `ip` never sends but the kernel will happily answer.
+func BuildDumpRuleRequest(family uint8, seq uint32) ([]byte, error) {
+	hdr := make([]byte, FibRuleHdrSizeCst)
+	hdr[0] = family // frh.family; every other byte stays zero, see above
+
+	return BuildRequest(uint16(unix.RTM_GETRULE), uint16(unix.NLM_F_DUMP), seq, hdr, nil)
 }
 
 // extMaskAttrs encodes a lone IFLA_EXT_MASK, or nothing at all for mask 0.

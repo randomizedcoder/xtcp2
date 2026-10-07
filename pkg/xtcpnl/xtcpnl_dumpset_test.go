@@ -3,7 +3,9 @@ package xtcpnl
 // go test ./pkg/xtcpnl/ -run TestDumpSet
 
 import (
+	"bytes"
 	"os"
+	"strings"
 	"testing"
 
 	"golang.org/x/sys/unix"
@@ -695,6 +697,19 @@ func neighsIn(t *testing.T, path string) (neighs []NeighInfo, sawDone bool) {
 	return neighs, done
 }
 
+func rulesIn(t *testing.T, path string) (rules []RuleInfo, sawDone bool) {
+	t.Helper()
+	bodies, done := readDumpSetReplies(t, path, uint16(unix.RTM_NEWRULE))
+	for i, b := range bodies {
+		ri, err := ParseRule(b)
+		if err != nil {
+			t.Fatalf("%s: ParseRule(rule[%d]): %v", path, i, err)
+		}
+		rules = append(rules, ri)
+	}
+	return rules, done
+}
+
 // linkByName finds a decoded link by IFLA_IFNAME, failing if it is absent.
 // Relations are asserted by name rather than by slice position because the
 // point of each row is which DEVICE holds the attribute, and a position would
@@ -879,10 +894,14 @@ func TestDumpSetLinkRelations(t *testing.T) {
 				if goip0.Kind != "dummy" {
 					t.Errorf("goip0 Kind = %q, want %q", goip0.Kind, "dummy")
 				}
-				if goip0.Link != 0 || goip0.Master != 0 || goip0.HasLinkNetnsID {
-					t.Errorf("goip0 has relations (link=%d master=%d netnsid=%v); a dummy must have none, "+
+				// HasLink rather than Link != 0: a tunnel sends IFLA_LINK
+				// carrying 0, so "no IFLA_LINK at all" is the stronger
+				// statement, and it is the one that stays correct now that
+				// the corpus contains devices for which zero is a value.
+				if goip0.HasLink || goip0.Master != 0 || goip0.HasLinkNetnsID {
+					t.Errorf("goip0 has relations (hasLink=%v master=%d netnsid=%v); a dummy must have none, "+
 						"because ll_link_get fires on IFLA_LINK and IFLA_MASTER rendering",
-						goip0.Link, goip0.Master, goip0.HasLinkNetnsID)
+						goip0.HasLink, goip0.Master, goip0.HasLinkNetnsID)
 				}
 			},
 		},
@@ -1143,9 +1162,9 @@ func TestDumpSetNeigh(t *testing.T) {
 		{
 			description: "positive: a permanent IPv4 entry decodes dst, lladdr and state",
 			filename:    tdDumpGetNeigh_7_1_4,
-			sidecar:     "ip_neigh_n:1",
+			sidecar:     "ip_neigh_n:192.0.2.50",
 			check: func(t *testing.T, ns []NeighInfo) {
-				ni := ns[0]
+				ni := neighByDst(t, ns, "192.0.2.50")
 				if ni.Family != unix.AF_INET || ni.Ifindex != 3 || ni.Type != unix.RTN_UNICAST {
 					t.Errorf("family/ifindex/type = %d/%d/%d, want %d/3/%d",
 						ni.Family, ni.Ifindex, ni.Type, unix.AF_INET, unix.RTN_UNICAST)
@@ -1164,9 +1183,9 @@ func TestDumpSetNeigh(t *testing.T) {
 		{
 			description: "positive: a stale entry keeps its lladdr, so state is the only thing that distinguishes it",
 			filename:    tdDumpGetNeigh_7_1_4,
-			sidecar:     "ip_neigh_n:2",
+			sidecar:     "ip_neigh_n:192.0.2.51",
 			check: func(t *testing.T, ns []NeighInfo) {
-				ni := ns[1]
+				ni := neighByDst(t, ns, "192.0.2.51")
 				if ipText(ni.Dst) != "192.0.2.51" || hwAddrString(ni.LLAddr) != "02:00:00:00:00:02" {
 					t.Errorf("dst/lladdr = %s/%s, want 192.0.2.51/02:00:00:00:00:02",
 						ipText(ni.Dst), hwAddrString(ni.LLAddr))
@@ -1179,9 +1198,9 @@ func TestDumpSetNeigh(t *testing.T) {
 		{
 			description: "positive: an IPv6 permanent entry decodes the same three attributes",
 			filename:    tdDumpGetNeigh_7_1_4,
-			sidecar:     "ip_neigh_n:4",
+			sidecar:     "ip_neigh_n:2001:db8::50",
 			check: func(t *testing.T, ns []NeighInfo) {
-				ni := ns[4]
+				ni := neighByDst(t, ns, "2001:db8::50")
 				if ni.Family != unix.AF_INET6 {
 					t.Errorf("Family = %d, want AF_INET6", ni.Family)
 				}
@@ -1197,9 +1216,9 @@ func TestDumpSetNeigh(t *testing.T) {
 		{
 			description: "boundary: an incomplete entry has NDA_DST but no hardware address at all",
 			filename:    tdDumpGetNeigh_7_1_4,
-			sidecar:     "ip_neigh_n:3",
+			sidecar:     "ip_neigh_n:192.0.2.52",
 			check: func(t *testing.T, ns []NeighInfo) {
-				ni := ns[2]
+				ni := neighByDst(t, ns, "192.0.2.52")
 				if ipText(ni.Dst) != "192.0.2.52" {
 					t.Errorf("Dst = %q, want %q", ipText(ni.Dst), "192.0.2.52")
 				}
@@ -1213,18 +1232,31 @@ func TestDumpSetNeigh(t *testing.T) {
 			},
 		},
 		{
+			// Keyed by destination, not by position. This row used to carry
+			// `[]bool{true, false, false, true, true}` against the reply
+			// slice, which silently asserted the kernel's hash order as well
+			// as IsReachable's behavior — and a re-capture that reordered
+			// the dump failed it on the part it was not testing.
+			//
+			// The states are what matter and they cover the split: STALE and
+			// INCOMPLETE are the two reachable-looking states that are not
+			// reachable, and NOARP is the one that is.
 			description: "boundary: IsReachable splits the table the way the doc comment claims, excluding NUD_STALE",
 			filename:    tdDumpGetNeigh_7_1_4,
-			sidecar:     "ip_neigh_n:1-4",
+			sidecar:     "ip_neigh_n",
 			check: func(t *testing.T, ns []NeighInfo) {
-				want := []bool{true, false, false, true, true} // PERMANENT, STALE, INCOMPLETE, NOARP, PERMANENT
-				if len(ns) != len(want) {
-					t.Fatalf("got %d replies, want %d", len(ns), len(want))
+				want := map[string]bool{
+					"192.0.2.50":   true,  // PERMANENT
+					"192.0.2.51":   false, // STALE — the whole point of the row
+					"192.0.2.52":   false, // INCOMPLETE
+					"ff02::2":      true,  // NOARP
+					"2001:db8::50": true,  // PERMANENT
 				}
-				for i, w := range want {
-					if got := ns[i].IsReachable(); got != w {
-						t.Errorf("neigh[%d] (%s) IsReachable = %v, want %v",
-							i, NudStateString(ns[i].State), got, w)
+				for dst, w := range want {
+					ni := neighByDst(t, ns, dst)
+					if got := ni.IsReachable(); got != w {
+						t.Errorf("neigh %s (%s) IsReachable = %v, want %v",
+							dst, NudStateString(ni.State), got, w)
 					}
 				}
 			},
@@ -1249,29 +1281,56 @@ func TestDumpSetNeigh(t *testing.T) {
 			filename:    tdDumpGetNeigh_7_1_4,
 			sidecar:     "", // constructed: the kernel does not emit an unknown bit
 			check: func(t *testing.T, ns []NeighInfo) {
-				got := NudStateString(ns[0].State | 0x800)
+				got := NudStateString(neighByDst(t, ns, "192.0.2.50").State | 0x800)
 				if got != "NUD_PERMANENT|0x800" {
 					t.Errorf("NudStateString = %q, want %q", got, "NUD_PERMANENT|0x800")
 				}
 			},
 		},
 		{
-			description: "corner: the dump holds one more reply than ip_neigh_n holds lines, an RTN_MULTICAST entry",
+			// The count relationship is the claim, so the sidecar is COUNTED
+			// rather than a number being written down beside it. It used to
+			// say `const sidecarLines = 4`, which made the row assert the
+			// topology's neighbor count as much as the filtering behavior —
+			// and adding five neighbors broke it while the thing it tests
+			// was unchanged.
+			//
+			// The excess is 2, not 1, as of the capture that added the
+			// flagged entries: `ip neigh show` prints nine lines where the
+			// dump carries eleven replies. The extras are the entries the
+			// default state filter (0xFF & ~NUD_NOARP, ip/ipneigh.c:523)
+			// drops — RTN_MULTICAST entries in NUD_NOARP, which the kernel
+			// reports and `ip` declines to print.
+			description: "corner: the dump holds more replies than ip_neigh_n holds lines, the extras being NUD_NOARP multicast",
 			filename:    tdDumpGetNeigh_7_1_4,
 			sidecar:     "ip_neigh_n",
 			check: func(t *testing.T, ns []NeighInfo) {
-				const sidecarLines = 4
-				if len(ns) != sidecarLines+1 {
-					t.Fatalf("got %d replies, want %d", len(ns), sidecarLines+1)
+				sidecarLines := countLines(t, tdDumpIPNeigh_7_1_4)
+				if len(ns) <= sidecarLines {
+					t.Fatalf("got %d replies and %d sidecar lines; the dump must hold MORE, "+
+						"or there is nothing the state filter is dropping", len(ns), sidecarLines)
 				}
-				extra := ns[3]
-				if extra.Type != unix.RTN_MULTICAST {
-					t.Errorf("neigh[3] ndm_type = %d, want RTN_MULTICAST (%d)",
-						extra.Type, unix.RTN_MULTICAST)
+				hidden := 0
+				for _, ni := range ns {
+					if ni.State&unix.NUD_NOARP == 0 {
+						continue
+					}
+					hidden++
+					if ni.Type != unix.RTN_MULTICAST {
+						t.Errorf("neigh %s is NUD_NOARP but ndm_type = %d, want RTN_MULTICAST (%d)",
+							ipText(ni.Dst), ni.Type, unix.RTN_MULTICAST)
+					}
 				}
-				if ipText(extra.Dst) != "ff02::2" || extra.State != unix.NUD_NOARP {
-					t.Errorf("neigh[3] = %s %s, want ff02::2 NUD_NOARP",
-						ipText(extra.Dst), NudStateString(extra.State))
+				if got := len(ns) - sidecarLines; got != hidden {
+					t.Errorf("dump exceeds the sidecar by %d, but %d replies are NUD_NOARP; "+
+						"something other than the state filter is hiding a line", got, hidden)
+				}
+				// The specific entry the row was written for, still asserted
+				// by name rather than by position.
+				extra := neighByDst(t, ns, "ff02::2")
+				if extra.Type != unix.RTN_MULTICAST || extra.State != unix.NUD_NOARP {
+					t.Errorf("ff02::2 = type %d %s, want RTN_MULTICAST NUD_NOARP",
+						extra.Type, NudStateString(extra.State))
 				}
 			},
 		},
@@ -1304,6 +1363,59 @@ func TestDumpSetNeigh(t *testing.T) {
 			tt.check(t, neighs)
 		})
 	}
+}
+
+// neighByDst returns the entry with the given textual destination, failing the
+// test if it is absent or duplicated.
+//
+// The rows above index neighbors by ADDRESS rather than by position because a
+// neighbor dump has no order to speak of: the kernel walks its hash table, so
+// the sequence is a property of the run and not of the topology. Every one of
+// these rows was originally written as ns[0], ns[1], ns[2], ns[4] and every
+// one of them failed when nltopo::build_clean gained five entries — not
+// because any decoded value changed, but because the entries moved.
+//
+// Requiring exactly one match is the part that keeps this from being a
+// weakening. An indexed lookup at least asserted the reply was THERE; a
+// find-first would quietly pass if the dump held two of something or none of
+// what a later row expects.
+func neighByDst(t *testing.T, ns []NeighInfo, dst string) NeighInfo {
+	t.Helper()
+
+	var found []NeighInfo
+	for _, ni := range ns {
+		if ipText(ni.Dst) == dst {
+			found = append(found, ni)
+		}
+	}
+	switch len(found) {
+	case 1:
+		return found[0]
+	case 0:
+		var have []string
+		for _, ni := range ns {
+			have = append(have, ipText(ni.Dst))
+		}
+		t.Fatalf("no neighbor with dst %s in the dump; it holds %v", dst, have)
+	default:
+		t.Fatalf("%d neighbors with dst %s; the key is meant to be unique", len(found), dst)
+	}
+	return NeighInfo{}
+}
+
+// countLines returns the number of newline-terminated lines in a sidecar, for
+// the rows whose claim is a relationship between a dump and the text `ip`
+// printed from it. Counting beats writing the number down beside the file: a
+// literal is a second copy of a fact the fixture already states, and the two
+// drift on the next capture.
+func countLines(t *testing.T, path string) int {
+	t.Helper()
+
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return bytes.Count(b, []byte("\n"))
 }
 
 // ---------------------------------------------------------------------------
@@ -1398,4 +1510,882 @@ func TestDumpSetLinkSingleGet(t *testing.T) {
 			}
 		})
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Tunnel link-layer addresses (ll_addr_n2a)
+// ---------------------------------------------------------------------------
+
+// TestDumpSetTunnelLinkAddr covers ll_addr_n2a's special cases against the
+// only capture in the repo that produces them.
+//
+// # What ll_addr_n2a actually is
+//
+// It is not a hex formatter with an escape hatch. lib/ll_addr.c:26-44 tests a
+// LENGTH and a TYPE together, three times:
+//
+//	:32-35  alen == 4  && (ARPHRD_TUNNEL | ARPHRD_SIT | ARPHRD_IPGRE)  -> inet_ntop(AF_INET)
+//	:37-38  alen == 16 && (ARPHRD_TUNNEL6 | ARPHRD_IP6GRE)             -> inet_ntop(AF_INET6)
+//	:40-43  otherwise                                                   -> the colon-hex loop
+//
+// and print_linkinfo pushes three separate attributes through it, each with
+// ifi->ifi_type: IFLA_ADDRESS (ip/ipaddress.c:1067-1076), IFLA_BROADCAST
+// (:1077-1093) and IFLA_PERM_ADDRESS (:1094-1111). So one function decides
+// how all three render, and neither length nor type alone is sufficient — a
+// 4-byte address on ARPHRD_ETHER is still colon-hex, and a 6-byte one on
+// ARPHRD_TUNNEL is too.
+//
+// # Why the rows are keyed by name
+//
+// Loading the five modules also creates each family's FALLBACK device from
+// pernet_operations, and how many of those appear depends on the module set
+// the guest kernel actually has. Position would therefore be a hostage to the
+// kernel config; a name is not. See tdDumpsTunnel_7_1_4 for the other
+// stability caveat, the per-boot random v6 permaddr.
+//
+// go test ./pkg/xtcpnl/ -run TestDumpSetTunnelLinkAddr
+func TestDumpSetTunnelLinkAddr(t *testing.T) {
+	tests := []struct {
+		description string
+		sidecar     string
+		check       func(t *testing.T, links []LinkInfo)
+	}{
+		{
+			// The v4 arm, on all three types that take it. Each device was
+			// given a DIFFERENT local on purpose: a decoder that read the
+			// right attribute off the wrong link would still yield a
+			// plausible dotted quad, and five copies of one address would
+			// hide exactly that.
+			description: "positive: a 4-byte address on TUNNEL/SIT/IPGRE renders as a dotted quad, one distinct local each",
+			sidecar:     "tunnel/ip_link:ipip1,sit1,gre1",
+			check: func(t *testing.T, links []LinkInfo) {
+				for _, want := range []struct {
+					name    string
+					ifiType uint16
+					local   string
+					remote  string
+				}{
+					{"ipip1", unix.ARPHRD_TUNNEL, "192.0.2.1", "198.51.100.1"},
+					{"sit1", unix.ARPHRD_SIT, "192.0.2.2", "198.51.100.2"},
+					{"gre1", unix.ARPHRD_IPGRE, "192.0.2.3", "198.51.100.3"},
+				} {
+					li := linkByName(t, links, want.name)
+					if li.Type != want.ifiType {
+						t.Errorf("%s ifi_type = %d, want %d", want.name, li.Type, want.ifiType)
+					}
+					if len(li.Address) != 4 {
+						t.Errorf("%s IFLA_ADDRESS is %d bytes, want 4", want.name, len(li.Address))
+					}
+					if got := li.HWAddr(); got != want.local {
+						t.Errorf("%s HWAddr() = %q, want %q", want.name, got, want.local)
+					}
+					if got := li.BroadcastAddr(); got != want.remote {
+						t.Errorf("%s BroadcastAddr() = %q, want %q", want.name, got, want.remote)
+					}
+				}
+			},
+		},
+		{
+			// The v6 arm. netip rather than net.IP is load-bearing here and
+			// only measurably so on a v4-mapped value, but the type choice
+			// is the same one: net.IP(v4mapped).String() is "1.2.3.4" while
+			// netip.AddrFrom16 gives "::ffff:1.2.3.4", and inet_ntop(AF_INET6)
+			// agrees with netip. The constructed rows in
+			// xtcpnl_arphrd_test.go pin that case; this one pins the
+			// ordinary one against real bytes.
+			description: "positive: a 16-byte address on TUNNEL6/IP6GRE renders as IPv6",
+			sidecar:     "tunnel/ip_link:ip6tnl1,ip6gre1",
+			check: func(t *testing.T, links []LinkInfo) {
+				for _, want := range []struct {
+					name    string
+					ifiType uint16
+					local   string
+					remote  string
+				}{
+					{"ip6tnl1", unix.ARPHRD_TUNNEL6, "2001:db8::1", "2001:db8:100::1"},
+					{"ip6gre1", unix.ARPHRD_IP6GRE, "2001:db8::2", "2001:db8:100::2"},
+				} {
+					li := linkByName(t, links, want.name)
+					if li.Type != want.ifiType {
+						t.Errorf("%s ifi_type = %d, want %d", want.name, li.Type, want.ifiType)
+					}
+					if len(li.Address) != 16 {
+						t.Errorf("%s IFLA_ADDRESS is %d bytes, want 16", want.name, len(li.Address))
+					}
+					if got := li.HWAddr(); got != want.local {
+						t.Errorf("%s HWAddr() = %q, want %q", want.name, got, want.local)
+					}
+					if got := li.BroadcastAddr(); got != want.remote {
+						t.Errorf("%s BroadcastAddr() = %q, want %q", want.name, got, want.remote)
+					}
+				}
+			},
+		},
+		{
+			// The all-zero boundary, which only the fallback devices reach.
+			// Nothing configures tunl0/sit0/gre0, so both their address and
+			// their broadcast are four zero bytes — and four zero bytes is
+			// precisely the input where a decoder that fell through to the
+			// hex loop produces "00:00:00:00" and looks harmless.
+			description: "boundary: the fallback devices carry an all-zero address that must render 0.0.0.0, not 00:00:00:00",
+			sidecar:     "tunnel/ip_link:tunl0,sit0,gre0",
+			check: func(t *testing.T, links []LinkInfo) {
+				for _, name := range []string{"tunl0", "sit0", "gre0"} {
+					li := linkByName(t, links, name)
+					for _, f := range []struct {
+						what string
+						got  string
+					}{
+						{"HWAddr", li.HWAddr()},
+						{"BroadcastAddr", li.BroadcastAddr()},
+					} {
+						if f.got != "0.0.0.0" {
+							t.Errorf("%s %s() = %q, want %q", name, f.what, f.got, "0.0.0.0")
+						}
+					}
+				}
+			},
+		},
+		{
+			// **IFLA_LINK present and zero.** Every device here has it, and
+			// it is the whole reason LinkInfo needs HasLink: index 0 is not
+			// a valid interface, so Link == 0 reads as absence, and
+			// print_name_and_link does not read it that way — it prints
+			// "@NONE" (lib/utils.c:1332-1336).
+			description: "positive: every tunnel device sends IFLA_LINK carrying 0, which is presence and not absence",
+			sidecar:     "tunnel/ip_link",
+			check: func(t *testing.T, links []LinkInfo) {
+				for _, name := range []string{
+					"ipip1", "sit1", "gre1", "ip6tnl1", "ip6gre1",
+					"tunl0", "sit0", "gre0",
+				} {
+					li := linkByName(t, links, name)
+					if !li.HasLink {
+						t.Errorf("%s HasLink = false; `ip` prints @NONE for it, which needs the attribute present", name)
+					}
+					if li.Link != 0 {
+						t.Errorf("%s Link = %d, want 0: a tunnel sits on no underlying interface", name, li.Link)
+					}
+				}
+			},
+		},
+		{
+			// The permaddr half, asserted on SHAPE only.
+			// eth_random_addr(dev->perm_addr) runs in both v6 tunnel setups
+			// (net/ipv6/ip6_tunnel.c:1913, net/ipv6/ip6_gre.c:1443), so the
+			// bytes change on every capture. What does not change: the field
+			// is 16 wide while the random part is 6, so the value always
+			// ends in ten zero bytes and always renders with a trailing "::".
+			description: "corner: the v6 tunnels carry a random 6-byte permaddr in a 16-byte field, so it always ends in ::",
+			sidecar:     "tunnel/ip_link:ip6tnl1,ip6gre1",
+			check: func(t *testing.T, links []LinkInfo) {
+				for _, name := range []string{"ip6tnl1", "ip6gre1"} {
+					li := linkByName(t, links, name)
+					if len(li.PermAddress) != 16 {
+						t.Errorf("%s IFLA_PERM_ADDRESS is %d bytes, want 16", name, len(li.PermAddress))
+						continue
+					}
+					if !li.PermAddrDiffers() {
+						t.Errorf("%s PermAddrDiffers() = false; a random permaddr cannot equal the configured local", name)
+					}
+					for i, b := range li.PermAddress[6:] {
+						if b != 0 {
+							t.Errorf("%s PermAddress[%d] = %#x, want 0: eth_random_addr writes only the first 6",
+								name, i+6, b)
+						}
+					}
+					if got := li.PermAddr(); !strings.HasSuffix(got, "::") {
+						t.Errorf("%s PermAddr() = %q, want a trailing \"::\"", name, got)
+					}
+				}
+			},
+		},
+		{
+			// The negative that makes the positives mean something, and it is
+			// not the one I first wrote. I expected the v4 tunnels to omit
+			// IFLA_PERM_ADDRESS entirely, since ipip/sit/gre never call
+			// eth_random_addr. The capture says otherwise: ipip1 sends
+			// [192 0 2 1], sit1 [192 0 2 2], gre1 [192 0 2 3] — the attribute
+			// is present and EQUAL to IFLA_ADDRESS.
+			//
+			// That is the stronger case. `ip` still prints no permaddr token,
+			// because the guard at ip/ipaddress.c:1097-1100 is a comparison
+			// and not a presence test. A PermAddrDiffers implemented as
+			// len(PermAddress) > 0 passes every other row in this file and
+			// fails only here.
+			description: "negative: the v4 tunnels carry IFLA_PERM_ADDRESS EQUAL to the address, so the token is still suppressed",
+			sidecar:     "tunnel/ip_link:ipip1,sit1,gre1",
+			check: func(t *testing.T, links []LinkInfo) {
+				for _, name := range []string{"ipip1", "sit1", "gre1"} {
+					li := linkByName(t, links, name)
+					if len(li.PermAddress) == 0 {
+						t.Errorf("%s has no IFLA_PERM_ADDRESS; the capture carries one equal to the address, "+
+							"and that equality is what this row exists to pin", name)
+						continue
+					}
+					if !bytes.Equal(li.PermAddress, li.Address) {
+						t.Errorf("%s PermAddress = %v, want it equal to Address = %v",
+							name, li.PermAddress, li.Address)
+					}
+					if li.PermAddrDiffers() {
+						t.Errorf("%s PermAddrDiffers() = true for an identical permaddr; the guard is a comparison, "+
+							"not a presence test", name)
+					}
+				}
+			},
+		},
+		{
+			// The A/B no constructed row can buy: gretap0 and erspan0 sit in
+			// the SAME dump as gre0, carry an all-zero address like gre0, and
+			// are ARPHRD_ETHER rather than ARPHRD_IPGRE. Same bytes, different
+			// type, different render — which is the claim ll_addr_n2a makes
+			// and the one a length-only decoder gets wrong.
+			description: "negative: gretap0 and erspan0 are ARPHRD_ETHER in the same dump, so their all-zero address stays colon-hex",
+			sidecar:     "tunnel/ip_link:gretap0,erspan0",
+			check: func(t *testing.T, links []LinkInfo) {
+				for _, name := range []string{"gretap0", "erspan0"} {
+					li := linkByName(t, links, name)
+					if li.Type != unix.ARPHRD_ETHER {
+						t.Errorf("%s ifi_type = %d, want ARPHRD_ETHER (%d)", name, li.Type, unix.ARPHRD_ETHER)
+					}
+					if got, want := li.HWAddr(), "00:00:00:00:00:00"; got != want {
+						t.Errorf("%s HWAddr() = %q, want %q", name, got, want)
+					}
+					if got, want := li.BroadcastAddr(), "ff:ff:ff:ff:ff:ff"; got != want {
+						t.Errorf("%s BroadcastAddr() = %q, want %q", name, got, want)
+					}
+				}
+			},
+		},
+		{
+			// The v6 all-zero boundary, which is a different render from the
+			// v4 one two rows up: sixteen zero bytes through
+			// inet_ntop(AF_INET6) is "::", where four zero bytes is "0.0.0.0".
+			// The fallback devices also prove the permaddr comparison from the
+			// other side — eth_random_addr ran, so here the value DIFFERS and
+			// the token IS printed, on the same devices whose address is zero.
+			description: "boundary: the v6 fallbacks carry an all-zero 16-byte address that renders ::",
+			sidecar:     "tunnel/ip_link:ip6tnl0,ip6gre0",
+			check: func(t *testing.T, links []LinkInfo) {
+				for _, name := range []string{"ip6tnl0", "ip6gre0"} {
+					li := linkByName(t, links, name)
+					if len(li.Address) != 16 {
+						t.Errorf("%s IFLA_ADDRESS is %d bytes, want 16", name, len(li.Address))
+						continue
+					}
+					for _, f := range []struct {
+						what string
+						got  string
+					}{
+						{"HWAddr", li.HWAddr()},
+						{"BroadcastAddr", li.BroadcastAddr()},
+					} {
+						if f.got != "::" {
+							t.Errorf("%s %s() = %q, want %q", name, f.what, f.got, "::")
+						}
+					}
+					if !li.PermAddrDiffers() {
+						t.Errorf("%s PermAddrDiffers() = false; eth_random_addr ran, so the permaddr cannot be "+
+							"the all-zero address", name)
+					}
+				}
+			},
+		},
+		{
+			// lo is in this namespace too, and it is the control: same dump,
+			// same decoder, an ARPHRD the special cases do not name, and a
+			// 6-byte address. If the type test were dropped and the length
+			// test kept, everything above would still pass and this row
+			// would not notice — which is why the row that matters is the
+			// 6-byte-on-a-tunnel-type case in xtcpnl_arphrd_test.go. What
+			// this one certifies is that adding the special cases did not
+			// disturb the fall-through.
+			description: "control: lo in the same dump still renders colon-hex, so the special cases did not widen",
+			sidecar:     "tunnel/ip_link:1-2",
+			check: func(t *testing.T, links []LinkInfo) {
+				lo := linkByName(t, links, "lo")
+				if lo.Type != unix.ARPHRD_LOOPBACK {
+					t.Errorf("lo ifi_type = %d, want %d", lo.Type, unix.ARPHRD_LOOPBACK)
+				}
+				if got := lo.HWAddr(); got != "00:00:00:00:00:00" {
+					t.Errorf("lo HWAddr() = %q, want %q", got, "00:00:00:00:00:00")
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			links, done := linksIn(t, tdDumpTunnelGetLink_7_1_4)
+			if !done {
+				t.Fatalf("%s: dump not terminated by NLMSG_DONE", tdDumpTunnelGetLink_7_1_4)
+			}
+			tt.check(t, links)
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Rules
+// ---------------------------------------------------------------------------
+
+// TestDumpSetRule covers RuleInfo against the first RTM_GETRULE dump in the
+// repo.
+//
+// The rule dump is the smallest transaction in the corpus and the only one with
+// no side transaction at all: iprule_list_flush_or_save never calls
+// ll_init_map, because FRA_IIFNAME and FRA_OIFNAME carry interface NAMES rather
+// than indexes and there is nothing to resolve. So every value below came out
+// of one request and one multipart reply.
+//
+// The topology (`topology`, the nltopo::build_clean_rules block) was written to
+// reach one arm of print_rule per rule, which is why the rows can be keyed by
+// priority and each name exactly one attribute group.
+//
+// go test ./pkg/xtcpnl/ -run TestDumpSetRule
+func TestDumpSetRule(t *testing.T) {
+	tests := []struct {
+		description string
+		filename    string
+		sidecar     string
+		check       func(t *testing.T, rules []RuleInfo)
+	}{
+		{
+			// The kernel omits FRA_PRIORITY when the preference is 0
+			// (fib_nl_fill_rule only adds it `if (rule->pref)`), so the one
+			// rule whose priority `ip` prints as 0 is the one rule that has no
+			// priority attribute. HasPriority is what tells those apart, and
+			// this is the only reply in the corpus where it is false.
+			description: "positive: the local default rule has no FRA_PRIORITY at all, and its table is in the header",
+			filename:    tdDumpGetRule_7_1_4,
+			sidecar:     "ip_rule_n:1",
+			check: func(t *testing.T, rs []RuleInfo) {
+				ri := ruleByPriority(t, rs, 0)
+				if ri.HasPriority {
+					t.Errorf("HasPriority = true; the kernel does not send FRA_PRIORITY for pref 0")
+				}
+				if ri.Family != unix.AF_INET || ri.Action != unix.FR_ACT_TO_TBL {
+					t.Errorf("family/action = %d/%d, want %d/FR_ACT_TO_TBL",
+						ri.Family, ri.Action, unix.AF_INET)
+				}
+				if ri.RawTable != unix.RT_TABLE_LOCAL || ri.Table != unix.RT_TABLE_LOCAL {
+					t.Errorf("RawTable/Table = %d/%d, want %d/%d (RT_TABLE_LOCAL in the header, no FRA_TABLE)",
+						ri.RawTable, ri.Table, unix.RT_TABLE_LOCAL, unix.RT_TABLE_LOCAL)
+				}
+				if !ri.HasProtocol || ri.Protocol != unix.RTPROT_KERNEL {
+					t.Errorf("Protocol = %d (present %v), want RTPROT_KERNEL present",
+						ri.Protocol, ri.HasProtocol)
+				}
+			},
+		},
+		{
+			description: "positive: a source selector decodes frh_src_len alongside FRA_SRC, which is the only thing that makes the prefix meaningful",
+			filename:    tdDumpGetRule_7_1_4,
+			sidecar:     "ip_rule_n:2",
+			check: func(t *testing.T, rs []RuleInfo) {
+				ri := ruleByPriority(t, rs, 100)
+				if ri.SrcLen != 24 || ipText(ri.Src) != "192.0.2.0" {
+					t.Errorf("src = %s/%d, want 192.0.2.0/24", ipText(ri.Src), ri.SrcLen)
+				}
+				if ri.RawTable != 100 || ri.Table != 100 {
+					t.Errorf("RawTable/Table = %d/%d, want 100/100: a table id below 256 needs no FRA_TABLE",
+						ri.RawTable, ri.Table)
+				}
+			},
+		},
+		{
+			// The reason there is no NameTab anywhere in the rule path. Every
+			// other object in goip renders an interface by resolving an index
+			// through ll_init_map's cache; a rule carries the name itself.
+			description: "positive: iif arrives as a NUL-terminated string, not as an index",
+			filename:    tdDumpGetRule_7_1_4,
+			sidecar:     "ip_rule_n:3",
+			check: func(t *testing.T, rs []RuleInfo) {
+				ri := ruleByPriority(t, rs, 200)
+				if !ri.HasIifName || ri.IifName != "goip0" {
+					t.Errorf("IifName = %q (present %v), want %q present", ri.IifName, ri.HasIifName, "goip0")
+				}
+				if ri.HasOifName {
+					t.Errorf("OifName = %q; this rule selects on iif only", ri.OifName)
+				}
+				if ri.DstLen != 24 || ipText(ri.Dst) != "198.51.100.0" {
+					t.Errorf("dst = %s/%d, want 198.51.100.0/24", ipText(ri.Dst), ri.DstLen)
+				}
+			},
+		},
+		{
+			description: "positive: oif arrives the same way, and the two name attributes are independent",
+			filename:    tdDumpGetRule_7_1_4,
+			sidecar:     "ip_rule_n:5",
+			check: func(t *testing.T, rs []RuleInfo) {
+				ri := ruleByPriority(t, rs, 400)
+				if !ri.HasOifName || ri.OifName != "goip0" {
+					t.Errorf("OifName = %q (present %v), want %q present", ri.OifName, ri.HasOifName, "goip0")
+				}
+				if ri.HasIifName {
+					t.Errorf("IifName = %q; this rule selects on oif only", ri.IifName)
+				}
+				if ri.Flags&unix.FIB_RULE_OIF_DETACHED != 0 {
+					t.Errorf("frh_flags = %#x carries FIB_RULE_OIF_DETACHED; goip0 exists, so it must not",
+						ri.Flags)
+				}
+			},
+		},
+		{
+			// frh_table is eight bits wide. An id that does not fit is sent as
+			// RT_TABLE_COMPAT in the header with the real value in FRA_TABLE,
+			// and frh_get_table (ip/iprule.c:90-96) resolves the pair. Table
+			// 300 is in the topology for exactly this.
+			description: "boundary: a table id above 255 travels in FRA_TABLE while the header carries RT_TABLE_COMPAT",
+			filename:    tdDumpGetRule_7_1_4,
+			sidecar:     "ip_rule_n:4",
+			check: func(t *testing.T, rs []RuleInfo) {
+				ri := ruleByPriority(t, rs, 300)
+				if ri.RawTable != unix.RT_TABLE_COMPAT {
+					t.Errorf("RawTable = %d, want RT_TABLE_COMPAT (%d)", ri.RawTable, unix.RT_TABLE_COMPAT)
+				}
+				if ri.Table != 300 {
+					t.Errorf("Table = %d, want 300 from FRA_TABLE", ri.Table)
+				}
+			},
+		},
+		{
+			description: "positive: fwmark and fwmask are separate attributes, both host byte order",
+			filename:    tdDumpGetRule_7_1_4,
+			sidecar:     "ip_rule_n:4",
+			check: func(t *testing.T, rs []RuleInfo) {
+				ri := ruleByPriority(t, rs, 300)
+				if !ri.HasFwmark || ri.Fwmark != 0x1234 {
+					t.Errorf("Fwmark = %#x (present %v), want 0x1234 present", ri.Fwmark, ri.HasFwmark)
+				}
+				if !ri.HasFwmask || ri.Fwmask != 0xff00 {
+					t.Errorf("Fwmask = %#x (present %v), want 0xff00 present", ri.Fwmask, ri.HasFwmask)
+				}
+			},
+		},
+		{
+			// `ip rule add fwmark 0x10` sends no mask, and the reply carries
+			// one anyway. That is a kernel default, not an echo, and it is why
+			// the renderer has to compare against 0xFFFFFFFF rather than test
+			// for the attribute's absence — print_rule only omits "/MASK" when
+			// the mask is all ones (ip/iprule.c:341-347).
+			description: "corner: a rule added with no mask still arrives carrying FRA_FWMASK set to all ones",
+			filename:    tdDumpGetRule_7_1_4,
+			sidecar:     "ip_rule_n:17",
+			check: func(t *testing.T, rs []RuleInfo) {
+				ri := ruleByPriority(t, rs, 1600)
+				if !ri.HasFwmark || ri.Fwmark != 0x10 {
+					t.Errorf("Fwmark = %#x (present %v), want 0x10 present", ri.Fwmark, ri.HasFwmark)
+				}
+				if !ri.HasFwmask || ri.Fwmask != 0xffffffff {
+					t.Errorf("Fwmask = %#x (present %v), want 0xffffffff present: the kernel supplies the full mask",
+						ri.Fwmask, ri.HasFwmask)
+				}
+			},
+		},
+		{
+			// fib_rule_uid_range has no __be annotation in the uapi header, so
+			// the pair is host byte order — unlike FRA_TUN_ID two rows down.
+			//
+			// This rule is also the reason the topology cannot be built under
+			// `unshare -rn`: fib_rule uid validation resolves the range against
+			// the CALLER's user namespace (net/core/fib_rules.c:681), and a
+			// mapped-root namespace has no uid 1000 to validate against. It
+			// succeeds here because the capture guest is real root.
+			description: "positive: uidrange decodes as a host-byte-order pair",
+			filename:    tdDumpGetRule_7_1_4,
+			sidecar:     "ip_rule_n:6",
+			check: func(t *testing.T, rs []RuleInfo) {
+				ri := ruleByPriority(t, rs, 500)
+				if !ri.HasUidRange {
+					t.Fatalf("HasUidRange = false, want true")
+				}
+				if ri.UidRange.Start != 1000 || ri.UidRange.End != 2000 {
+					t.Errorf("UidRange = %d-%d, want 1000-2000", ri.UidRange.Start, ri.UidRange.End)
+				}
+			},
+		},
+		{
+			// `dport 80` is a single port on the command line and a RANGE on
+			// the wire, with start == end, plus a mask the kernel adds. Both
+			// halves are load-bearing for the renderer: print_rule takes the
+			// "dport %u" branch only when start == end AND the mask is absent
+			// or all ones (ip/iprule.c:455-470).
+			description: "positive: a single dport is a degenerate range, and the kernel attaches FRA_DPORT_MASK unasked",
+			filename:    tdDumpGetRule_7_1_4,
+			sidecar:     "ip_rule_n:7",
+			check: func(t *testing.T, rs []RuleInfo) {
+				ri := ruleByPriority(t, rs, 600)
+				if !ri.HasSportRange || ri.SportRange.Start != 1000 || ri.SportRange.End != 2000 {
+					t.Errorf("SportRange = %d-%d (present %v), want 1000-2000 present",
+						ri.SportRange.Start, ri.SportRange.End, ri.HasSportRange)
+				}
+				if !ri.HasDportRange || ri.DportRange.Start != 80 || ri.DportRange.End != 80 {
+					t.Errorf("DportRange = %d-%d (present %v), want 80-80 present",
+						ri.DportRange.Start, ri.DportRange.End, ri.HasDportRange)
+				}
+				if !ri.HasDportMask || ri.DportMask != 0xffff {
+					t.Errorf("DportMask = %#x (present %v), want 0xffff present", ri.DportMask, ri.HasDportMask)
+				}
+				if ri.HasSportMask {
+					t.Errorf("SportMask = %#x present; a non-degenerate range gets no mask", ri.SportMask)
+				}
+			},
+		},
+		{
+			// The cleanest presence-vs-value case in the corpus. FRA_SUPPRESS_
+			// PREFIXLEN is on EVERY reply — twenty out of twenty — carrying the
+			// sentinel 0xFFFFFFFF that means "suppress nothing". A decoder that
+			// reported presence alone would make every rule print
+			// "suppress_prefixlength 4294967295".
+			description: "corner: FRA_SUPPRESS_PREFIXLEN is present on every rule and only one carries a value that prints",
+			filename:    tdDumpGetRule_7_1_4,
+			sidecar:     "ip_rule_n:8",
+			check: func(t *testing.T, rs []RuleInfo) {
+				printed := 0
+				for _, ri := range rs {
+					if !ri.HasSuppressPrefixlen {
+						t.Errorf("rule pref %d has no FRA_SUPPRESS_PREFIXLEN; the kernel sends it unconditionally",
+							ri.Priority)
+						continue
+					}
+					if ri.SuppressPrefixlen != 0xffffffff {
+						printed++
+					}
+				}
+				if printed != 1 {
+					t.Errorf("%d rules carry a non-sentinel suppress_prefixlen, want exactly 1", printed)
+				}
+				if ri := ruleByPriority(t, rs, 700); ri.SuppressPrefixlen != 0 {
+					t.Errorf("pref 700 SuppressPrefixlen = %d, want 0", ri.SuppressPrefixlen)
+				}
+			},
+		},
+		{
+			description: "positive: suppress_ifgroup is the sibling attribute, and it is absent rather than sentinel-valued when unset",
+			filename:    tdDumpGetRule_7_1_4,
+			sidecar:     "ip_rule_n:15",
+			check: func(t *testing.T, rs []RuleInfo) {
+				ri := ruleByPriority(t, rs, 1400)
+				if !ri.HasSuppressIfgroup || ri.SuppressIfgroup != 5 {
+					t.Errorf("SuppressIfgroup = %d (present %v), want 5 present",
+						ri.SuppressIfgroup, ri.HasSuppressIfgroup)
+				}
+				for _, other := range rs {
+					if other.Priority != 1400 && other.HasSuppressIfgroup {
+						t.Errorf("rule pref %d also carries FRA_SUPPRESS_IFGROUP; unlike its prefixlen "+
+							"sibling this one is sent only when set", other.Priority)
+					}
+				}
+			},
+		},
+		{
+			description: "positive: an action other than FR_ACT_TO_TBL lives in the header, with no table attribute to go with it",
+			filename:    tdDumpGetRule_7_1_4,
+			sidecar:     "ip_rule_n:9",
+			check: func(t *testing.T, rs []RuleInfo) {
+				ri := ruleByPriority(t, rs, 800)
+				if ri.Action != unix.RTN_BLACKHOLE {
+					t.Errorf("Action = %d, want RTN_BLACKHOLE (%d)", ri.Action, unix.RTN_BLACKHOLE)
+				}
+				if ri.RawTable != unix.RT_TABLE_UNSPEC || ri.Table != unix.RT_TABLE_UNSPEC {
+					t.Errorf("RawTable/Table = %d/%d, want unspec on both", ri.RawTable, ri.Table)
+				}
+			},
+		},
+		{
+			description: "positive: goto is an action plus an attribute, and the target is a preference rather than a table",
+			filename:    tdDumpGetRule_7_1_4,
+			sidecar:     "ip_rule_n:10",
+			check: func(t *testing.T, rs []RuleInfo) {
+				ri := ruleByPriority(t, rs, 900)
+				if ri.Action != unix.FR_ACT_GOTO {
+					t.Errorf("Action = %d, want FR_ACT_GOTO (%d)", ri.Action, unix.FR_ACT_GOTO)
+				}
+				if !ri.HasGoto || ri.Goto != 32766 {
+					t.Errorf("Goto = %d (present %v), want 32766 present", ri.Goto, ri.HasGoto)
+				}
+				if ri.Flags&unix.FIB_RULE_UNRESOLVED != 0 {
+					t.Errorf("frh_flags = %#x carries FIB_RULE_UNRESOLVED; pref 32766 exists, so it must not",
+						ri.Flags)
+				}
+			},
+		},
+		{
+			// The only reply in the whole corpus with a nonzero frh_flags, and
+			// therefore the only evidence that the field is read at the right
+			// offset. Everything else in the dump leaves it zero.
+			description: "corner: `not` is a header FLAG, and it is the only nonzero frh_flags in the dump",
+			filename:    tdDumpGetRule_7_1_4,
+			sidecar:     "ip_rule_n:11",
+			check: func(t *testing.T, rs []RuleInfo) {
+				ri := ruleByPriority(t, rs, 1000)
+				if ri.Flags != unix.FIB_RULE_INVERT {
+					t.Errorf("frh_flags = %#x, want FIB_RULE_INVERT (%#x) alone",
+						ri.Flags, unix.FIB_RULE_INVERT)
+				}
+				for _, other := range rs {
+					if other.Priority != 1000 && other.Flags != 0 {
+						t.Errorf("rule pref %d has frh_flags = %#x, want 0", other.Priority, other.Flags)
+					}
+				}
+			},
+		},
+		{
+			description: "positive: nop is an action with no attribute and no table",
+			filename:    tdDumpGetRule_7_1_4,
+			sidecar:     "ip_rule_n:12",
+			check: func(t *testing.T, rs []RuleInfo) {
+				ri := ruleByPriority(t, rs, 1100)
+				if ri.Action != unix.FR_ACT_NOP {
+					t.Errorf("Action = %d, want FR_ACT_NOP (%d)", ri.Action, unix.FR_ACT_NOP)
+				}
+				if ri.Table != unix.RT_TABLE_UNSPEC {
+					t.Errorf("Table = %d, want unspec", ri.Table)
+				}
+			},
+		},
+		{
+			// l3mdev is the one selector whose action is FR_ACT_TO_TBL and
+			// whose table is nevertheless unspec: the table is chosen at lookup
+			// time from the l3mdev the packet arrived on, which is why `ip`
+			// prints the literal "[l3mdev-table]" instead of a number.
+			description: "corner: l3mdev is FR_ACT_TO_TBL with no table, the table being resolved per packet",
+			filename:    tdDumpGetRule_7_1_4,
+			sidecar:     "ip_rule_n:13",
+			check: func(t *testing.T, rs []RuleInfo) {
+				ri := ruleByPriority(t, rs, 1200)
+				if !ri.HasL3mdev || ri.L3mdev != 1 {
+					t.Errorf("L3mdev = %d (present %v), want 1 present", ri.L3mdev, ri.HasL3mdev)
+				}
+				if ri.Action != unix.FR_ACT_TO_TBL {
+					t.Errorf("Action = %d, want FR_ACT_TO_TBL", ri.Action)
+				}
+				if ri.Table != unix.RT_TABLE_UNSPEC {
+					t.Errorf("Table = %d, want unspec", ri.Table)
+				}
+			},
+		},
+		{
+			// FRA_TUN_ID is one of the two big-endian attributes in the rule
+			// space (the flowlabel pair is the other). 42 decoded from a
+			// host-order read would be 3026418949592973312.
+			description: "positive: tun_id is big-endian on the wire and decodes to the value that was set",
+			filename:    tdDumpGetRule_7_1_4,
+			sidecar:     "ip_rule_n:14",
+			check: func(t *testing.T, rs []RuleInfo) {
+				ri := ruleByPriority(t, rs, 1300)
+				if !ri.HasTunID || ri.TunID != 42 {
+					t.Errorf("TunID = %d (present %v), want 42 present: FRA_TUN_ID is network order",
+						ri.TunID, ri.HasTunID)
+				}
+			},
+		},
+		{
+			description: "positive: realms is one attribute holding two values, packed from<<16 | to",
+			filename:    tdDumpGetRule_7_1_4,
+			sidecar:     "ip_rule_n:16",
+			check: func(t *testing.T, rs []RuleInfo) {
+				ri := ruleByPriority(t, rs, 1500)
+				if !ri.HasFlow {
+					t.Fatalf("HasFlow = false, want true")
+				}
+				if ri.Flow>>16 != 1 || ri.Flow&0xffff != 2 {
+					t.Errorf("Flow = %#x, want from 1 to 2 (%#x)", ri.Flow, uint32(1)<<16|2)
+				}
+			},
+		},
+		{
+			// The kernel has carried RTN_NAT as a rule action since before NAT
+			// support was removed, and it still accepts the rule — but it never
+			// echoes the address back, so FRA_UNUSED2 (a.k.a. RTA_GATEWAY, both
+			// are 5) is absent. print_rule then falls through to "masquerade";
+			// its "map-to ADDR" arm cannot be reached from any live kernel and
+			// is covered by constructed bytes instead.
+			description: "corner: a NAT rule survives the round trip without its address, which is why ip prints masquerade and never map-to",
+			filename:    tdDumpGetRule_7_1_4,
+			sidecar:     "ip_rule_n:18",
+			check: func(t *testing.T, rs []RuleInfo) {
+				ri := ruleByPriority(t, rs, 1700)
+				if ri.Action != unix.RTN_NAT {
+					t.Errorf("Action = %d, want RTN_NAT (%d)", ri.Action, unix.RTN_NAT)
+				}
+				if ri.HasGateway {
+					t.Errorf("Gateway = %s present; the topology set `nat 192.0.2.99` and the kernel dropped it",
+						ipText(ri.Gateway))
+				}
+				if ri.Table != unix.RT_TABLE_MAIN {
+					t.Errorf("Table = %d, want RT_TABLE_MAIN", ri.Table)
+				}
+			},
+		},
+		{
+			// Four decoded attributes the clean topology does not reach. Naming
+			// them keeps the gap honest: their only coverage is constructed
+			// bytes in TestParseRule, and a future capture that adds one should
+			// delete its name from here rather than leave the row passing for
+			// the wrong reason.
+			description: "negative: dscp, ipproto, sport_mask and the flowlabel pair appear on no reply in the v4 dump",
+			filename:    tdDumpGetRule_7_1_4,
+			sidecar:     "", // constructed coverage only — see TestParseRule
+			check: func(t *testing.T, rs []RuleInfo) {
+				for _, ri := range rs {
+					switch {
+					case ri.HasDscp || ri.HasDscpMask:
+						t.Errorf("rule pref %d carries FRA_DSCP; the topology sets none", ri.Priority)
+					case ri.HasIPProto:
+						t.Errorf("rule pref %d carries FRA_IP_PROTO; the topology sets none", ri.Priority)
+					case ri.HasSportMask:
+						t.Errorf("rule pref %d carries FRA_SPORT_MASK; the topology sets none", ri.Priority)
+					case ri.HasFlowlabel || ri.HasFlowlabelMask:
+						t.Errorf("rule pref %d carries a flowlabel; it is IPv6 only", ri.Priority)
+					}
+				}
+			},
+		},
+		{
+			// The opposite of TestDumpSetNeigh's count row, and worth stating
+			// for that reason: `ip rule show` applies its selectors client-side
+			// in filter_nlmsg (ip/iprule.c:98-243) but has no DEFAULT filter, so
+			// with no selector on the command line every reply becomes a line.
+			description: "corner: the reply count equals the sidecar line count exactly, because ip rule show hides nothing by default",
+			filename:    tdDumpGetRule_7_1_4,
+			sidecar:     "ip_rule_n",
+			check: func(t *testing.T, rs []RuleInfo) {
+				if got, want := len(rs), countLines(t, tdDumpIPRule_7_1_4); got != want {
+					t.Errorf("dump holds %d replies and ip_rule_n holds %d lines; they must match", got, want)
+				}
+			},
+		},
+		{
+			description: "positive: the v6 dump decodes a 16-byte source prefix and reports AF_INET6 in the header",
+			filename:    tdDumpGetRule6_7_1_4,
+			sidecar:     "ip_rule6_n:2",
+			check: func(t *testing.T, rs []RuleInfo) {
+				ri := ruleByPriority(t, rs, 100)
+				if ri.Family != unix.AF_INET6 {
+					t.Errorf("Family = %d, want AF_INET6 (%d)", ri.Family, unix.AF_INET6)
+				}
+				if len(ri.Src) != 16 || ri.SrcLen != 64 || ipText(ri.Src) != "2001:db8::" {
+					t.Errorf("src = %s/%d over %d bytes, want 2001:db8::/64 over 16",
+						ipText(ri.Src), ri.SrcLen, len(ri.Src))
+				}
+			},
+		},
+		{
+			// Both halves are big-endian (rta_getattr_be32, ip/iprule.c:587-588)
+			// and the kernel sends them as a pair or not at all. The mask here
+			// is LABEL_MAX_MASK, which print_rule emits to JSON and suppresses
+			// in text — a value-dependent choice the decoder must not make for
+			// it, so both are decoded and both are asserted.
+			description: "positive: the flowlabel pair is big-endian and arrives complete",
+			filename:    tdDumpGetRule6_7_1_4,
+			sidecar:     "ip_rule6_n:3",
+			check: func(t *testing.T, rs []RuleInfo) {
+				ri := ruleByPriority(t, rs, 200)
+				if !ri.HasFlowlabel || ri.Flowlabel != 0x12345 {
+					t.Errorf("Flowlabel = %#x (present %v), want 0x12345 present", ri.Flowlabel, ri.HasFlowlabel)
+				}
+				if !ri.HasFlowlabelMask || ri.FlowlabelMask != 0xfffff {
+					t.Errorf("FlowlabelMask = %#x (present %v), want 0xfffff present",
+						ri.FlowlabelMask, ri.HasFlowlabelMask)
+				}
+			},
+		},
+		{
+			// IPv6 has no `default` table rule. fib6_rules_init installs local
+			// at pref 0 and main at 32766 and stops; the IPv4 side adds default
+			// at 32767 (net/ipv4/fib_rules.c). A test that assumed the two
+			// families mirror each other would be wrong by one rule.
+			description: "boundary: IPv6 ships two kernel default rules where IPv4 ships three",
+			filename:    tdDumpGetRule6_7_1_4,
+			sidecar:     "ip_rule6_n:1,4",
+			check: func(t *testing.T, rs []RuleInfo) {
+				kernel := 0
+				for _, ri := range rs {
+					if ri.HasProtocol && ri.Protocol == unix.RTPROT_KERNEL {
+						kernel++
+					}
+				}
+				if kernel != 2 {
+					t.Errorf("%d kernel-owned rules in the v6 dump, want 2 (local, main)", kernel)
+				}
+				for _, pref := range []uint32{0, 32766} {
+					ruleByPriority(t, rs, pref)
+				}
+			},
+		},
+		{
+			// Rules are per network namespace, and the mesh namespace was never
+			// given any. Its dump is therefore the untouched kernel default set,
+			// which is what makes it the control for every row above: the twenty
+			// replies in the clean dump are the topology's doing, not the
+			// kernel's.
+			description: "corner: the mesh namespace carries only the three kernel defaults, no rule having been added there",
+			filename:    tdDumpMeshGetRule_7_1_4,
+			sidecar:     "mesh/ip_rule",
+			check: func(t *testing.T, rs []RuleInfo) {
+				if len(rs) != 3 {
+					t.Fatalf("got %d replies, want 3 (local, main, default)", len(rs))
+				}
+				want := map[uint32]uint8{0: unix.RT_TABLE_LOCAL, 32766: unix.RT_TABLE_MAIN, 32767: unix.RT_TABLE_DEFAULT}
+				for pref, table := range want {
+					ri := ruleByPriority(t, rs, pref)
+					if uint8(ri.Table) != table {
+						t.Errorf("pref %d table = %d, want %d", pref, ri.Table, table)
+					}
+					if !ri.HasProtocol || ri.Protocol != unix.RTPROT_KERNEL {
+						t.Errorf("pref %d protocol = %d (present %v), want RTPROT_KERNEL present",
+							pref, ri.Protocol, ri.HasProtocol)
+					}
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			rules, done := rulesIn(t, tt.filename)
+			if !done {
+				t.Fatalf("%s: dump not terminated by NLMSG_DONE", tt.filename)
+			}
+			tt.check(t, rules)
+		})
+	}
+}
+
+// ruleByPriority returns the rule with the given preference, failing the test
+// if it is absent or duplicated.
+//
+// Preference is the right key here for the reason destination is the right key
+// for a neighbor: it is what the sidecar prints first on every line, so a row
+// can be read against `ip_rule_n` by eye. It is also unique by construction —
+// the kernel orders a rule dump by preference and refuses a duplicate within a
+// family — which position is NOT, since the topology can grow a rule in the
+// middle and shift every later index.
+func ruleByPriority(t *testing.T, rs []RuleInfo, pref uint32) RuleInfo {
+	t.Helper()
+
+	// Indices, not values: RuleInfo is 264 bytes wide, so ranging by value
+	// copies the whole struct on every iteration of both loops below.
+	var found []int
+	for i := range rs {
+		if rs[i].Priority == pref {
+			found = append(found, i)
+		}
+	}
+	switch len(found) {
+	case 1:
+		return rs[found[0]]
+	case 0:
+		have := make([]uint32, len(rs))
+		for i := range rs {
+			have[i] = rs[i].Priority
+		}
+		t.Fatalf("no rule with pref %d in the dump; it holds %v", pref, have)
+	default:
+		t.Fatalf("%d rules with pref %d; the kernel orders a dump by preference and refuses a duplicate",
+			len(found), pref)
+	}
+	return RuleInfo{}
 }

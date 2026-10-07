@@ -90,12 +90,27 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 		t.Fatalf("RTM_NEWLINK count = %d, want 11", len(bodies))
 	}
 
+	// Detail is cleared before comparison, so the rows below say nothing
+	// about it.
+	//
+	// Not a convenience. This test identifies a link by stating ALL of the
+	// fields a link stanza renders from, which is what makes it catch a
+	// decoder that put the right value in the wrong field. Keeping that
+	// property means each want literal has to stay complete — and a complete
+	// one now has to spell out twenty-odd `ip -d` attributes per row, on
+	// eleven rows, none of which is what any row here is asking about.
+	//
+	// The detail group has its own fixture test over the same dump and the
+	// same sidecar: TestParseNewLinkDetailRealFixture. Splitting them is what
+	// keeps each want literal short enough to be checked by eye against the
+	// line of ip_link_n quoted above it.
 	links := make([]LinkInfo, 0, len(bodies))
 	for i, b := range bodies {
 		li, err := ParseNewLink(b)
 		if err != nil {
 			t.Fatalf("ParseNewLink(msg %d): %v", i, err)
 		}
+		li.Detail = LinkDetail{}
 		links = append(links, li)
 	}
 
@@ -161,6 +176,13 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 			// that makes `ip` print no third line for it. It does carry
 			// IFLA_PROP_LIST, which is the udev-assigned MAC-derived altname,
 			// and that one IS printed by a plain `ip link show`.
+			//
+			// PermAddress EQUALS Address, which is the normal case for a NIC
+			// whose MAC has never been overridden — and it is why ip_link_n
+			// has no "permaddr" token anywhere despite three of its links
+			// carrying the attribute. `ip` guards the token on the two values
+			// differing (ip/ipaddress.c:1097-1100), so decoding presence and
+			// rendering on presence would add a token `ip` does not print.
 			description: "positive: primary NIC enp1s0 carries a real MAC, qdisc mq and one altname",
 			want: LinkInfo{
 				Index: 2, Flags: 0x11043, Name: "enp1s0", Type: 1,
@@ -168,9 +190,10 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 				Carrier: 1, HasCarrier: true,
 				MTU: 1500, HasMTU: true,
 				LinkMode: 0, HasLinkMode: true,
-				Address:   []byte{0xe0, 0x4f, 0x43, 0xe6, 0x28, 0xef},
-				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
-				Qdisc:     "mq", TxQLen: 1000, HasTxQLen: true, HasGroup: true,
+				Address:     []byte{0xe0, 0x4f, 0x43, 0xe6, 0x28, 0xef},
+				Broadcast:   []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+				PermAddress: []byte{0xe0, 0x4f, 0x43, 0xe6, 0x28, 0xef},
+				Qdisc:       "mq", TxQLen: 1000, HasTxQLen: true, HasGroup: true,
 				AltNames: []string{"enxe04f43e628ef"},
 			},
 		},
@@ -185,9 +208,10 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 				Carrier: 1, HasCarrier: true,
 				MTU: 1500, HasMTU: true,
 				LinkMode: 0, HasLinkMode: true,
-				Address:   []byte{0x04, 0x09, 0x73, 0xcf, 0xd8, 0xd0},
-				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
-				Qdisc:     "mq", TxQLen: 1000, HasTxQLen: true, HasGroup: true,
+				Address:     []byte{0x04, 0x09, 0x73, 0xcf, 0xd8, 0xd0},
+				Broadcast:   []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+				PermAddress: []byte{0x04, 0x09, 0x73, 0xcf, 0xd8, 0xd0},
+				Qdisc:       "mq", TxQLen: 1000, HasTxQLen: true, HasGroup: true,
 				AltNames: []string{"enx040973cfd8d0"},
 			},
 		},
@@ -216,7 +240,7 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
 				Qdisc:     "noqueue", TxQLen: 1000, HasTxQLen: true, HasGroup: true,
 				Kind: "veth",
-				Link: 2, LinkNetnsID: 1, HasLinkNetnsID: true,
+				Link: 2, HasLink: true, LinkNetnsID: 1, HasLinkNetnsID: true,
 			},
 		},
 		{
@@ -240,8 +264,20 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 				Address:   []byte{0xaa, 0x1f, 0xd4, 0x5f, 0xc8, 0xd6},
 				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
 				Qdisc:     "noqueue", TxQLen: 0, HasTxQLen: true, HasGroup: true,
-				Kind: "veth",
-				Link: 2, Master: 9, LinkNetnsID: 3, HasLinkNetnsID: true,
+				// The only link in the corpus with two kinds, and the pair
+				// does not read the way the sidecar does: ip_link_n:30 says
+				// "    bridge_slave state forwarding …" while the wire
+				// attribute holds plain "bridge". The `_slave` lives in
+				// iproute2's format string, so it reaches the text form and
+				// not the JSON one — see render.LinkView.detailText.
+				//
+				// HasInfoSlaveData without HasInfoData is the other half of
+				// the shape: the port's own kind, veth, sends no per-kind
+				// blob, and everything after "bridge_slave" on that line
+				// comes out of the SLAVE blob. It is why this is one of the
+				// four links `goip -d` refuses.
+				Kind: "veth", SlaveKind: "bridge", HasInfoSlaveData: true,
+				Link: 2, HasLink: true, Master: 9, LinkNetnsID: 3, HasLinkNetnsID: true,
 			},
 		},
 		{
@@ -265,7 +301,14 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 				Address:   []byte{0x52, 0x54, 0x00, 0x52, 0x00, 0x04},
 				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
 				Qdisc:     "noqueue", TxQLen: 1000, HasTxQLen: true, HasGroup: true,
-				Kind: "bridge",
+				// HasInfoData, with no decoded contents behind it: the nest
+				// holds 800-odd bytes of bridge parameters that
+				// ip_link_n:14 prints in full and this package deliberately
+				// does not decode. Recording the presence is what lets
+				// `goip -d` refuse this link instead of printing a bare
+				// "    bridge " where `ip` prints "    bridge forward_delay
+				// 200 hello_time 200 …".
+				Kind: "bridge", HasInfoData: true,
 			},
 		},
 		{
@@ -293,7 +336,7 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
 				Qdisc:     "noqueue", TxQLen: 1000, HasTxQLen: true, HasGroup: true,
 				Kind: "veth",
-				Link: 2, LinkNetnsID: 2, HasLinkNetnsID: true,
+				Link: 2, HasLink: true, LinkNetnsID: 2, HasLinkNetnsID: true,
 				AltNames: []string{"ve-nordlayer-vpn"},
 			},
 		},
@@ -605,7 +648,12 @@ func TestParseNewRouteRealFixture(t *testing.T) {
 			want: RouteInfo{
 				Family: unix.AF_INET, DstLen: 0, Table: unix.RT_TABLE_MAIN,
 				Scope: unix.RT_SCOPE_UNIVERSE, Type: unix.RTN_UNICAST, Protocol: unix.RTPROT_DHCP,
-				Gateway: v4b(172, 16, 50, 1), PrefSrc: v4b(172, 16, 50, 219), Oif: 2, Priority: 100,
+				Gateway: v4b(172, 16, 50, 1), PrefSrc: v4b(172, 16, 50, 219), Oif: 2,
+				Priority: 100, HasPriority: true,
+				// No HasPref: RTA_PREF is an ICMPv6 router preference, so the
+				// kernel attaches it to IPv6 routes only — 48 of the 74 routes
+				// in this dump carry it, which is exactly its IPv6 half. Hence
+				// no `pref` token on any v4 line of ip_route_table_all_n.
 			},
 		},
 		{
@@ -642,7 +690,23 @@ func TestParseNewRouteRealFixture(t *testing.T) {
 			want: RouteInfo{
 				Family: unix.AF_INET6, DstLen: 64, Table: unix.RT_TABLE_MAIN,
 				Scope: unix.RT_SCOPE_UNIVERSE, Type: unix.RTN_UNICAST, Protocol: unix.RTPROT_KERNEL,
-				Dst: mustV6(t, "fd10:10:4::"), Oif: 3, Priority: 256,
+				Dst: mustV6(t, "fd10:10:4::"), Oif: 3,
+				Priority: 256, HasPriority: true,
+				// pref=0 is ICMPV6_ROUTER_PREF_MEDIUM, which renders as
+				// `pref medium` — the value a kernel-installed route gets. The
+				// flag is what makes it printable: Pref 0 alone is
+				// indistinguishable from the attribute being absent, which is
+				// the v4 case immediately above.
+				Pref: 0, HasPref: true,
+				// Every IPv6 route in a dump carries RTA_CACHEINFO, and every
+				// one of them is 32 zero bytes: rt6_fill_node calls
+				// rtnl_put_cacheinfo unconditionally (net/ipv6/route.c:5944)
+				// while the v4 FIB dump never calls it at all, and the three
+				// members `-s` prints are written only behind `if (dst)`,
+				// which a dump never satisfies. So this is a non-nil pointer
+				// to a zero struct, while the v4 rows above are correctly
+				// nil. See TestParseNewRouteCacheinfo.
+				CacheInfo: &RtaCacheinfo{},
 			},
 		},
 		{
@@ -653,12 +717,26 @@ func TestParseNewRouteRealFixture(t *testing.T) {
 			want: RouteInfo{
 				Family: unix.AF_INET6, DstLen: 0, Table: unix.RT_TABLE_MAIN,
 				Scope: unix.RT_SCOPE_UNIVERSE, Type: unix.RTN_UNICAST, Protocol: unix.RTPROT_RA,
-				Gateway: mustV6(t, "fe80::e638:83ff:fe36:8f0d"), Oif: 2, Priority: 100,
+				Gateway: mustV6(t, "fe80::e638:83ff:fe36:8f0d"), Oif: 2,
+				Priority: 100, HasPriority: true,
+				// The one non-medium preference in the corpus, and the reason
+				// Pref is decoded as a value rather than a bool: this route was
+				// learned from a router advertisement that set
+				// ICMPV6_ROUTER_PREF_HIGH (0x1), and the sidecar prints
+				// `pref high`. Every other v6 route here is medium.
+				Pref: 1, HasPref: true,
+				// All-zero RTA_CACHEINFO, as on every v6 route; see the row
+				// above. Notable here because this route was learned from an
+				// RA: had that advertisement carried a finite lifetime,
+				// rta_expires would be non-zero and this row would be the
+				// first in the corpus to prove it.
+				CacheInfo: &RtaCacheinfo{},
 			},
 		},
 		{
 			// ip_route_table_all_n:40
-			// "local ::1 dev lo table local proto kernel scope global metric 0"
+			// "local ::1 dev lo table local proto kernel scope global metric 0
+			//  pref medium"
 			// Note: unlike the IPv4 loopback local route (scope HOST), the v6 ::1
 			// local route is scope GLOBAL.
 			description: "boundary v6: local host route ::1/128 (type LOCAL, table LOCAL, scope GLOBAL)",
@@ -666,6 +744,16 @@ func TestParseNewRouteRealFixture(t *testing.T) {
 				Family: unix.AF_INET6, DstLen: 128, Table: unix.RT_TABLE_LOCAL,
 				Scope: unix.RT_SCOPE_UNIVERSE, Type: unix.RTN_LOCAL, Protocol: unix.RTPROT_KERNEL,
 				Dst: mustV6(t, "::1"), Oif: 1,
+				// The boundary this row is named for, now that presence is
+				// tracked: RTA_PRIORITY is PRESENT and carries 0, and the
+				// sidecar prints `metric 0`. The v4 rows above omit the
+				// attribute entirely and print no metric token. Priority 0 with
+				// HasPriority false and Priority 0 with HasPriority true are
+				// therefore different renderings, which is what the flag buys.
+				Priority: 0, HasPriority: true,
+				Pref: 0, HasPref: true,
+				// All-zero RTA_CACHEINFO, as on every v6 route.
+				CacheInfo: &RtaCacheinfo{},
 			},
 		},
 	}

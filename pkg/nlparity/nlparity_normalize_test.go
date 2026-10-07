@@ -176,17 +176,23 @@ func TestNormalizeMsg(t *testing.T) {
 			wantFound:     6,
 		},
 		{
-			// Measured: e9010000 e9010000 e9010000 00000000, and four more
+			// Measured: e9010000 e9010000 e9010000 00000000, and ten more
 			// with all three counters differing. confirmed/used/updated are
 			// USER_HZ age counters and move between any two captures; refcnt
-			// was 0 on every entry, so it stays compared.
+			// is 0 on every entry, so it stays compared.
+			//
+			// wantFound went 5 -> 11 when nltopo::build_clean gained the five
+			// flagged neighbors. It counts ATTRIBUTES rather than printed
+			// lines, so it matches neither the five added nor the nine `ip
+			// neigh` prints: the dump also carries entries the default state
+			// filter hides.
 			description:   "positive: NDA_CACHEINFO loses its three age counters and keeps refcnt",
 			filename:      tdGuest + "/netlink_route_getneigh.pcap",
 			msgType:       uint16(unix.RTM_NEWNEIGH),
 			find:          topAttr(uint16(unix.NDA_CACHEINFO)),
 			wantZeroed:    []span{{ndaCacheinfoAgeOffCst, ndaCacheinfoAgeLenCst}},
 			wantPreserved: []span{{12, 4}},
-			wantFound:     5,
+			wantFound:     11,
 		},
 		{
 			// Measured: 32 zero bytes on all 9 routes here, and on all 17

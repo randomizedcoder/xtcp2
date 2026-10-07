@@ -84,7 +84,7 @@ func scalarAttribute(attrs []NetlinkAttribute, id uint16, width int) (*NetlinkAt
 	return a, err
 }
 
-func attrU32(attrs []NetlinkAttribute, id uint16) (*uint32, error) {
+func genlAttrU32(attrs []NetlinkAttribute, id uint16) (*uint32, error) {
 	a, err := scalarAttribute(attrs, id, 4)
 	if err != nil || a == nil {
 		return nil, err
@@ -93,7 +93,7 @@ func attrU32(attrs []NetlinkAttribute, id uint16) (*uint32, error) {
 	return &v, nil
 }
 
-func attrU8(attrs []NetlinkAttribute, id uint16) (*uint8, error) {
+func genlAttrU8(attrs []NetlinkAttribute, id uint16) (*uint8, error) {
 	a, err := scalarAttribute(attrs, id, 1)
 	if err != nil || a == nil {
 		return nil, err
@@ -161,7 +161,7 @@ func ParseGenericNetlinkFamily(body []byte) (GenericNetlinkFamily, error) {
 	if f.Name == "" || f.ID < GenlControllerID {
 		return f, fmt.Errorf("%w: invalid family identity", ErrGenericNetlink)
 	}
-	if f.Version, err = attrU32(m.Attributes, 3); err != nil {
+	if f.Version, err = genlAttrU32(m.Attributes, 3); err != nil {
 		return f, err
 	}
 	groups, _, err := attrNested(m.Attributes, 7)
@@ -178,7 +178,7 @@ func ParseGenericNetlinkFamily(body []byte) (GenericNetlinkFamily, error) {
 		if err != nil {
 			return f, err
 		}
-		id, err := attrU32(fields, 2)
+		id, err := genlAttrU32(fields, 2)
 		if err != nil {
 			return f, err
 		}

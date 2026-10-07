@@ -15,7 +15,21 @@ Updated 2026-09-23: **§1, §2, §3 and §4 are now fixed.** All four are kept
 below with their root causes, because several had been mis-filed — both §3
 entries as environmental when each had a specific cause in our own code, and
 §1a as a finding on the destination *constructors* when it was the `Send`
-methods. `golangci-lint-comprehensive` now reports **0 issues**.
+methods. `golangci-lint-comprehensive` reported **0 issues** on that date.
+
+**That last sentence was false from `b2f7c40` (PR #145) until 2026-10-06, and
+the story is in §23.** Tier 2 was red again for weeks, peaking at 46 findings.
+As of 2026-10-06 it reports **0** and is **gated** — as are Tiers 0 and 1, so
+`docs/lint-baseline.txt` holds no finding lines and the `lint-baseline` ratchet
+fails on an added finding in any tier. `deadnix`, `nix-fmt` and `statix` are
+green too. The only reds left in `nix flake check` are the two environmental
+flakes.
+
+Two caveats that have not changed. There is still no CI and no scheduler in this
+repo, so "nightly" names an intention rather than a cron — which is why the
+ratchet, not a nightly run, is what notices a regression. And read any
+"0 issues" claim in this file as "0 issues on the date beside it": that is
+exactly how the 2026-09-23 claim above went stale without anyone noticing.
 
 Two new known-issues were added at the bottom (§5) from doing the work: the
 issue-cap default that made §2 look smaller than it was, and the unpinned
@@ -215,8 +229,12 @@ They were regressions.
 
 Sweeping a fifth time without changing anything would have guaranteed a sixth,
 because the cause is structural: **`misspell` ran only in the comprehensive
-tier**, which is nightly/explicit-invoke and not part of `nix flake check`.
-Nobody saw the finding until long after the comment was written. So `misspell`
+tier**, which is labeled nightly and which nothing schedules. (This entry
+originally said that tier is "not part of `nix flake check`". It is — see §23,
+which made the same mistake from the same stale source comment. The tier was
+being built and reported all along; what nobody could see was one more line in
+an already-red check.) Nobody acted on the finding until long after the comment
+was written. So `misspell`
 is now **enabled in Tier 1** (`.golangci.yml`, CI-gating) with `locale: US`.
 The convention is written down in `CONTRIBUTING.md` — four sweeps failed to
 stick partly because it never was.
@@ -1243,13 +1261,26 @@ goip parity work needed. Its shape is taken from `rtnl_neighdump_req`
 (`lib/libnetlink.c`): `nlmsg_len = 28`, `NLM_F_REQUEST|NLM_F_DUMP`, `ndm_family`
 set, everything else zero.
 
-One caveat to know before relying on it: **there is still no committed
-`RTM_GETNEIGH` capture**, so its test row is structural — it asserts the bytes
-match the iproute2 struct rather than matching a recorded datagram, and it says
-so in its description. `find pkg/xtcpnl/testdata -name '*neigh*'` returns only
-the notifications pcap. Item 7 of the goip plan adds `ip neigh show` to
-`nix/capture-netlink-fixtures.nix`; the row is upgraded to a positive then. The
-builder is nevertheless usable now, which is the point — the listener's
+~~One caveat to know before relying on it: **there is still no committed
+`RTM_GETNEIGH` capture**, so its test row is structural.~~ **That caveat is
+cleared.** `2895600` committed `pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getneigh.pcap`
+(and a `dumps/mesh/` counterpart), captured in the pinned microVM, and
+`TestRequestBuilders` compares `BuildDumpNeighRequest` against iproute2's own
+recorded bytes — a positive, not a structural row.
+
+Upgrading it turned up a second thing worth writing down. The same capture
+carries `ll_init_map`'s link dump, which `ip neigh show` issues first, and its
+`IFLA_EXT_MASK` is **`RTEXT_FILTER_VF` alone, `0x01`** — not the `0x09`
+(`VF|SKIP_STATS`) every other `show` dump sends. The structural row that used
+to stand in for it asserted `0x09` and was simply wrong. iproute2 commit
+`7bd7f335` ("ll_map: add `RTEXT_FILTER_SKIP_STATS` to `ll_init_map()`",
+28 Apr 2026) is what would make it `0x09`, and it is not in the pinned 7.1.0.
+So `ll_init_map`'s mask is a version-skew fault line in its own right,
+alongside `de91e928`'s `RTEXT_FILTER_NAME_ONLY` on `ll_link_get`, and a nixpkgs
+bump moves both. `internal/goip/req/req.go:159` already sends `0x01`, which is
+why `neigh show` measured clean.
+
+The builder was usable before any of this, which was the point — the listener's
 `ENOBUFS` resync no longer has nothing to call.
 
 ---
@@ -1271,14 +1302,27 @@ Three qualifications on that:
   the request sets `RTEXT_FILTER_SKIP_STATS`; they come back only under `ip -s`.
   Adding them means changing the request, which is a separate decision from
   decoding an attribute the kernel already sends.
-- **Item 3 (`RTA_EXPIRES`, `RTA_CACHEINFO`, `RTA_METRICS`) is partly blocked on
-  fixtures.** `RTA_CACHEINFO` is on 48 of the 74 routes in the committed dump,
-  so it has a real capture — but `RTA_METRICS`, `RTA_MULTIPATH` and `RTA_VIA`
-  appear on **none** of them, so their positive rows need the capture extension
-  in Item 7 of the goip plan rather than constructed bytes.
-- **The `RTA_MULTIPATH` note below is superseded in one respect**: §12 now has
-  its first real caller (`IFLA_LINKINFO`), so the "land them together" coupling
-  no longer applies.
+- **Item 3 (`RTA_EXPIRES`, `RTA_CACHEINFO`, `RTA_METRICS`) — `RTA_METRICS` is
+  done, the other two are still open.** The fixture blocker is gone: `2895600`
+  built the gated capture topology
+  (`nix/microvms/scripts/netlink-topology.exp`) with an `mtu 1400 advmss 1300`
+  route, an ECMP pair and an RFC-5549 `via inet6` route, and `e2a47aa` decoded
+  `RTA_METRICS`, `RTA_MULTIPATH` and `RTA_VIA` against it. `RouteMetrics`
+  carries a `Present` bitmask plus `Values`, and `render.RouteMetricsViewOf`
+  reproduces `print_rta_metrics`. `RTA_EXPIRES` and `RTA_CACHEINFO` decode
+  remain outstanding — `RTA_CACHEINFO` is on 48 of the 74 routes in the older
+  committed dump, so it has a real capture whenever it is picked up.
+- **The `RTA_MULTIPATH` note below is superseded twice over.** §12 has its
+  first real caller (`IFLA_LINKINFO`), so the "land them together" coupling no
+  longer applies — and the nested `rtnexthop` list **is** walked now, by
+  `pkg/xtcpnl/xtcpnl_rtnexthop.go`, into `RouteInfo.Multipath []RouteNextHop`.
+  `internal/goip/render/route.go` prints the result as
+  `print_rta_multipath` does, weights included, and
+  `internal/goip/obj_route_test.go` asserts it against the committed
+  `dumps/ip_route_main` sidecar. What the paragraph says about
+  `pkg/localnet/localnet.go:246-250` reporting no egress interface under
+  `HasMultipath || NhID != 0` is still true; that consumer has not been
+  changed.
 
 The original text follows.
 
@@ -1622,3 +1666,323 @@ These are pre-existing on `main` and unrelated to the netlink work — the 41-ch
 tree was fully green (`all checks passed!`) on the quiet run at §21's final pin.
 Related: **§10**, which is the same class for `self-test.nix`'s eight fixed
 `timeout <N>s` calls.
+
+---
+
+## 23. Tier 2 (`golangci-lint-comprehensive`) is red, and its red is unreadable — FIXED 2026-10-06
+
+This supersedes the header note's "`golangci-lint-comprehensive` now reports
+**0 issues**", which was true on 2026-09-23 and has been false since
+`b2f7c40` (PR #145).
+
+**Status 2026-10-06 — CLOSED. Everything below this line is the 2026-10-05
+measurement, kept as the record rather than overwritten.** Five passes ran.
+All three golangci tiers measure **0** and all three are **gated** by the
+`lint-baseline` ratchet, with `gocyclo` and `misspell` promoted into Tier 1 and
+`forbidigo` added to Tier 2 so the tiers genuinely nest. `go-sec`, `statix`,
+`gofmt`, `go-vet`, `deadnix` and `nix-fmt` are green. `docs/lint-baseline.txt`
+holds no finding lines, which makes every tier an equality rather than a
+ceiling. The only reds left in `nix flake check` are the two environmental
+flakes.
+
+So read every present-tense claim below — "all three tiers are red", "prints all
+46 findings", "red on **eight** checks", "the 'nightly' labeling … is still
+live" — as describing 2026-10-05. `docs/lint-baseline.txt` is the live list and
+`docs/static-analysis.md` is the per-class record, including the four places
+where its own prescription turned out to be wrong.
+
+Items **23.1**, **23.2**, **23.3** and **23.6** are done, and so is the lint work
+that was tracked as steps 7 and 9 of `docs/static-analysis.md`'s work order —
+the `funlen` ×3 in `cmd/xtcp2` and the four Nix findings. **23.4** and **23.5**
+(both about `docs/quality-report.md` and how the coverage baseline is quoted)
+remain the only open items in this section; the report has been regenerated, but
+how it quotes the coverage baseline is a separate question from whether its lint
+rows are true.
+
+**The measured baseline.** All three golangci tiers are red at baseline, so a
+non-zero `nix build` on any of them does **not** by itself mean a regression —
+the finding *list* has to be diffed, not the exit code.
+
+Measured on `0101175` (`main`) on 2026-10-05, by building each check and
+normalizing its log to `path | message (linter)`:
+
+| check | tier | config | findings at `0101175` |
+|---|---|---|---|
+| `golangci-lint-quick` | 0 | `.golangci-quick.yml` | 2 (`ST1000` in `pkg/listener`, `pkg/listenerauth`) |
+| `golangci-lint` | 1 | `.golangci.yml` | **36** — misspell 13, errcheck 12, gosec 4, staticcheck 3, gocritic 2, contextcheck 1, noctx 1 |
+| `golangci-lint-comprehensive` | 2 | `.golangci-comprehensive.yml` | **47** — the 36 above plus goconst 4, funlen 3, gocyclo 2, exhaustive 1, unconvert 1 |
+
+**An earlier version of this entry said 22 and 30, and those numbers were real
+but stale.** They were measured at `4bb2975`, which `main` has since passed:
+PR #146 (`9f6be2b`, "feat(ipmeta): add embedded bootstrap lifecycle") added
+`cmd/zstd-probe/` and reworked `pkg/ipasn/`, `internal/ipfeed/` and
+`cmd/ipfeed-collector/`, and it carried **+14 Tier 1 findings with it** —
+errcheck 7, gosec 4, noctx 1, staticcheck 1, gocritic 1, all in those four
+paths. So Tier 1 went 22 → 36 and Tier 2 went 30 → 46 in a single merge, and
+nothing recorded it. That is the same gap this entry is about, hit by a
+different PR a week earlier, and it is the reason the numbers above are dated
+and attributed to a revision rather than left bare.
+
+Counting the `ParseNewRoute` fix: Tier 2 goes **47 → 46** with `gocyclo` 2 → 1.
+A `comm -13`/`comm -23` of the two normalized lists returns **zero added
+findings** and exactly one removed:
+
+```
+pkg/xtcpnl/xtcpnl_rtmsg.go | cyclomatic complexity 32 of func `ParseNewRoute` is high (> 30) (gocyclo)
+```
+
+Tier 1 is **unchanged at 36**, and that is also a list diff rather than a
+matching count — `comm` returns empty in both directions, which a count cannot
+distinguish from one finding being swapped for another.
+
+**Why it matters more than the count, and the thing this entry first got
+wrong.** `gocyclo`, `funlen`, `goconst`, `unconvert` and `exhaustive` are
+enabled **only** in Tier 2. An earlier draft of this entry went on to say that
+Tier 2 "is not part of `nix flake check`", citing the header comment of
+`nix/checks/default.nix`, which said so in as many words.
+
+**Both were wrong.** `golangci-lint-comprehensive` is a plain member of the
+`checks` attrset, so `nix flake check` builds it and prints all 46 findings. A
+full `nix flake check --keep-going` on 2026-10-05 was observed building
+`checks.x86_64-linux.golangci-lint-comprehensive` and reporting `46 issues`
+with `gocyclo: 1`. The stale comment has been corrected at the source rather
+than worked around, because it is what produced the mistaken diagnosis.
+
+The real gap is worse than the one that was written down. `nix flake check` is
+red on **eight** checks at baseline — `deadnix`, `golangci-lint-quick`,
+`go-sec`, `golangci-lint`, `golangci-lint-comprehensive`, `nix-fmt`,
+`test-go-flavor-s3parquet` and `microvm-lifecycle-x86_64`. Its exit code has
+been 1 for longer than any of these findings, so adding a 47th changes nothing
+observable about the command contributors are told to run. The tier is not
+unwatched; it is **unreadable**. That is why every instruction here says to
+diff the finding list and never the count or the status.
+
+The "nightly" labeling is a separate, smaller inaccuracy. **It was fixed in all
+four places on 2026-10-06**; as of 2026-10-05 Tier 2 was called nightly in
+`CONTRIBUTING.md`,
+`nix/lint-tiers.nix`, `nix/devshell.nix` and this file's §5 — and there is **no
+scheduler and no CI in this repo at all** (no `.github/`), so nothing runs on a
+schedule, `nix flake check` very much included.
+
+That cost something real, twice.
+
+`c9660e6` (PR #148) added an `RTA_CACHEINFO` arm to `ParseNewRoute` and took
+its cyclomatic complexity from 29 to **32**, past `gocyclo`'s ceiling of 30.
+Its verification section named Tier 1, which does not enable `gocyclo`, so the
+bar that was checked was honest and simply did not cover the regression. Note
+what this means now that the check set is understood correctly: `nix flake
+check` *would* have printed the finding, in a run whose exit code was already 1
+for eight other reasons. It merged red and was found afterwards. The fix is a
+rewrite, not a suppression — written up in `docs/netlink/coverage-status.md`
+under "`ParseNewRoute` crossed the same ceiling" — and `CONTRIBUTING.md` now
+names the Tier 2 command as a pre-PR step with the list-diff method attached,
+since the command alone is not the thing that was missing.
+
+`9f6be2b` (PR #146) is the larger instance and the one nobody has looked at:
+**+14 findings in Tier 1 and +16 in Tier 2**, in a tier that *is* CI-gating in
+name. Those are untouched by this entry's fix and are the bulk of what makes
+both numbers above look alarming. They need their own sweep — mostly
+`errcheck` on `Close`/`Remove` in `pkg/ipasn` and `cmd/zstd-probe`, four
+`gosec` file-permission findings, and one `noctx` `net.Listen`.
+
+**That sweep has since happened** (2026-10-06): see item 6 below. Tier 1 went to
+**0** and was gated, which took Tier 2 to **4** — `funlen` ×3 and `gocyclo` ×1.
+Item 1 closed the `gocyclo`, item 7 closed the `funlen` ×3, and Tier 2 is now 0
+and gated as well.
+
+This is the same failure mode as **§2**, which diagnosed it for `misspell` and
+fixed it by promoting that linter to Tier 1. `gocyclo` was left behind.
+
+**What is left open.**
+
+1. ~~**`setRuleAttr` is at gocyclo 48**~~ **DONE** (2026-10-06) — it is now
+   **6**, and `gocyclo` reports nothing over 30 anywhere in production code. It
+   landed in `b2f7c40` (PR #145) and was recorded **nowhere** until this entry
+   — not here, not as an exclusion, not as a `//nolint`.
+
+   **This item prescribed the wrong split, and the correction is the useful
+   part.** The plan was one `setRuleScalarAttr` holding the
+   scalars-with-a-length-guard with their case clauses *merged*. Merging is
+   what makes it wrong: the 26 `FRA_*` constants would stop appearing exactly
+   once each, so an attribute handled by two arms, or by none, would stop being
+   obvious from the source. The assumption of one large group was wrong too —
+   measured, the arms divide into four decoding disciplines of roughly equal
+   size.
+
+   What landed is a five-level cascade linked by `default:` arms —
+   `setRuleAttr` 6, `setRuleU32Attr` 17, `setRuleU8Attr` 11,
+   `setRuleRangeAttr` 11, `setRuleBigEndianAttr` 7 — each named for a property
+   true of every arm it holds, 26 arms, each exactly once. A cascade costs
+   nothing per level because `gocyclo` does not count a `default:` arm, which
+   was measured against `setLinkDetailAttr` rather than assumed. The big-endian
+   three get a function named for their byte order, because mixing one into the
+   little-endian level decodes to a plausible wrong number rather than failing.
+   Full write-up in `docs/static-analysis.md`.
+
+   The note this item made is still true and worth keeping:
+   `attrU8`/`attrU16`/`attrU32`/`attrPortRange` buy **zero** gocyclo on their
+   own — `if v, ok := attrU32(val); ok` still has an `if` — so adopting them is
+   a readability win and must not be sold as a complexity fix.
+2. ~~**Promote `gocyclo` to Tier 1**~~ **DONE** (2026-10-06), in the same commit
+   as item 1 and strictly after it. Tier 1 measured **0 with `gocyclo` newly
+   enabled in it**, which had to be checked as its own claim: "the class is
+   empty in Tier 2" is not the same statement, because Tier 1 lints the same
+   tree under a different config with different exclusions.
+
+   This item's own scepticism — "promotion moves the finding from one red tier
+   to another red tier; it does not make anything newly visible" — was correct
+   on 2026-10-05 and is now obsolete, because the ratchet in item 3 changed
+   what gating *means*. Gating is no longer about a tier's red being read by a
+   human; it is about whose ADDED findings fail the build. So the benefit is
+   concrete rather than smaller-than-it-looks: a function that grows past 30
+   now fails `lint-baseline` on the commit that grows it, which is the one
+   moment the split is still cheap. The prescribed sequence — fix
+   `setRuleAttr`, then promote, then item 3 — was followed, except that item 3
+   landed first and is what made this item worth doing at all.
+3. ~~**There is no lint ratchet.**~~ **DONE** (2026-10-05) —
+   `checks.lint-baseline`. `nix run .#update-quality-report` swallows the
+   exit code *by design* (`nix/quality-report/default.nix`: "Never propagates a
+   non-zero exit to the surrounding script — the report itself is the signal"),
+   and the only ratchet it enforced was on coverage
+   (`docs/coverage-baseline.txt`, checked in `tools/quality-report/main.go`).
+   So a findings count could drift upward silently, which is how 0 became 47
+   without anyone being told. **This was the durable fix, and it outranked item
+   2.** Once every check that matters is already red, the only instrument left
+   is a recorded baseline list that a build compares itself against — which is
+   what every "diff both directions" instruction in this entry was doing by
+   hand. Item 2 fixes one linter's visibility; a ratchet fixes the *class*, and
+   it is the only one of the two that would have caught PR #146.
+
+   What landed: `tools/lint-baseline/` does the comparison,
+   `nix/lint-baseline-measure.nix` produces the three tiers' JSON and succeeds
+   whatever they report, `nix/checks/lint-baseline.nix` is the check, and
+   `docs/lint-baseline.txt` is the committed list. It gated **Tier 0 only** on
+   landing — 0 findings, so the gate was honest — and printed Tiers 1 and 2 as
+   advisory until the phases that empty them promote them. Tier 1 was promoted
+   the next day (item 6) and Tier 2 the same day (item 7), so all three are
+   gated and the committed list is empty. It closes no findings; it
+   makes the remaining ones a build's problem instead of a reviewer's. The two
+   silent failure modes this entry worried about are both refusals now, and
+   building it surfaced a third: a tier exit code above 1 is exit 3
+   (**refuse to ratchet** — golangci-lint exits 4 on `run.timeout` *after*
+   printing "0 issues."); a missing or malformed baseline is exit 2, which is
+   the fail-**closed** behavior §521 files as a bug in `readCoverageBaseline`
+   and deliberately does not copy; and a tier that is gated but was never
+   measured is exit 2 as well, because an absent findings set reads as an empty
+   one, every baseline line for it reads as *removed*, and removals never fail —
+   so the tier would have passed while nominally gated and actually unchecked.
+   The tier list is single-sourced from `passthru.tierNames` on the measurement
+   for the same reason: the check silently not gating a tier is indistinguishable
+   from the check passing.
+4. ~~**`docs/quality-report.md` is stale** on exactly this point: its
+   `golangci-lint (comprehensive) | clean | 0` rows are from 2026-09-26.~~
+   **DONE** (2026-10-06) — regenerated with
+   `nix run .#update-quality-report`, and those rows are now true rather than
+   merely old. That file is auto-generated; regenerating it is the command, not
+   a hand edit (`CONTRIBUTING.md`).
+
+   Worth noting what made the stale rows possible, because the mechanism is
+   still there: `nix/quality-report/` is built never to fail — `set +e`, and its
+   `runtool` swallows a non-zero exit — so it can report "clean / 0" from a
+   tool invocation that did not actually succeed. That is deliberate (the
+   report is the signal, not the exit code) and it is exactly why the ratchet in
+   item 3 had to be a separate check.
+5. **The coverage baseline is quoted inconsistently** —
+   `docs/coverage-baseline.txt` holds `78.9` while
+   `docs/netlink/coverage-expansion.md` says `78.6`. Cosmetic, but it is the
+   same class of drift as the "0 issues" claim above. See §6.
+6. ~~**Tier 1 carries 26 findings and cannot be gated.**~~ **DONE**
+   (2026-10-06) — Tier 1 measures **0** and is now in `gatedTiers`, so
+   `checks.lint-baseline` turns red on the commit that adds a Tier 1 finding
+   rather than on a reviewer noticing. The 26 were `errcheck` 12, `misspell`
+   13 and `contextcheck` 1.
+
+   Four things worth keeping out of that, each measured rather than assumed:
+
+   - **`contextcheck` is a Tier 1 linter** (`.golangci.yml:51`), not Tier-2-only
+     as the plan for this work assumed, so it had to be closed here before Tier
+     1 could be gated at all. It was fixed structurally and needed no
+     exclusion: `StreamServerInterceptor` now returns a method value, because
+     `contextcheck` objects to the *closure*, not to the context it passes —
+     `context.Background()` in place of `ss.Context()` is flagged identically,
+     and hoisting only the body into a named `ctx`-taking helper does not
+     silence it.
+   - **`misspell`'s 13 could only be closed by widening an exclusion**, which
+     is a suppression on its own, so `tools/kernel-citation-audit` +
+     `checks.kernel-citation-audit` enforce the invariant the exclusion gives
+     up: `neighbour` only ever directly after `net/core/` or `linux/`. It is
+     strictly stronger than what `misspell` gave, which was satisfied by
+     `net/core/neighbor.c`. If that check is ever deleted, the exclusions go
+     with it, and both config comments say so.
+   - **One new `gosec` exclusion was unavoidable and is an argument, not a
+     concession.** G302 compares a chmod mode against 0600 as a bitmask, so any
+     mode with the execute bit is a finding — and a directory without it cannot
+     be traversed, which makes every traversable directory mode a G302 finding.
+     It joined `G404|G301` on the existing `_test\.go` gosec entry only.
+   - **`net.UnixListener.Close` unlinks its path unconditionally and discards
+     its own unlink error**, so `unixListener.Close`'s `ModeSocket` guard runs
+     after the path is already gone and protects less than it appears to. That
+     came out of writing the table, not out of reading the code, and is now in
+     the function's doc comment.
+
+7. ~~**`funlen` ×3 in `cmd/xtcp2` and the four Nix findings keep Tier 2 and the
+   Nix checks red.**~~ **DONE** (2026-10-06) — and with them Tier 2 reached 0
+   and went into `gatedTiers`, which is what empties `docs/lint-baseline.txt`
+   entirely.
+
+   `defineFlags` 79 → **40**, `printFlags` 74 → **34**,
+   `envOverrideLabeling` 72 → **15**, all statement counts, neither `funlen`
+   number raised. `deadnix` ×2 and `nix-fmt` ×2 fixed at their sites.
+
+   **This item was tracked as a flag table and that prescription was wrong.**
+   One `[]flagSpec` ranged over would have needed roughly eleven columns:
+   `defineFlags` registers 92 flags, `printFlags` prints 73 of them in a
+   different order with 5 hoists, 3 label overrides, 4 secrets handled two
+   different ways and one printed line that is not a flag at all. What the
+   functions wanted was domain splits, following `defineEnrichmentFlags`, which
+   had already made that argument in-tree.
+
+   Three things came out of the work that are worth more than the findings:
+
+   - **`envOverrideLabeling`'s seam was mis-drawn, not just long.** It applied
+     24 env vars and its name covered 5; three more — `IPV4_TTL`,
+     `IPV6_HOP_LIMIT`, `GRPC_PORT` — were simply misfiled and now live in
+     `envOverrideListeners`.
+   - **`forbidigo` was enabled in Tier 1 and absent from Tier 2**, so
+     "Tier 0 ⊂ Tier 1 ⊂ Tier 2" — which the ratchet leans on, treating Tier 2
+     as the superset — was false. Added to Tier 2 after measuring it at 0
+     there. Nothing checks parity between the three configs, and this was the
+     second rule to go missing; a config-parity audit is the obvious sixth
+     tool.
+   - **The ratchet caught this pass's own new test file**, which is the first
+     real demonstration that it works: four findings (`govet` inline,
+     `gosec` G101 ×1, `gosec` G306, `gocritic` builtinShadow) showed up as
+     *additions* in `nix run .#update-lint-baseline` and were fixed by
+     rewriting before anything was committed. The G101 was a false positive
+     from a real rule — placeholder constants named `tokEnrich...` lowercase to
+     `tokenrich...`, which contains `token` — and renaming the prefix was
+     cheaper and narrower than excluding G101 from a file that also holds four
+     deliberate credential sentinels.
+   - **`defineFlags` and `printFlags` have drifted and nothing could see it.**
+     19 of the 92 registered flags are never printed. `TestDefineFlags`
+     spot-checked 6 of 92 pointers; `TestPrintFlags` drained stdout to
+     `io.Discard` and asserted nothing. Two goldens captured *before* the
+     refactor now pin printFlags' whole output and every flag's name, default
+     and usage. The drift itself is still open — it is now merely visible.
+
+**How to check this properly.** On 2026-10-05, when this entry was written, the
+exit code was useless because every tier was red. It is now informative on its
+own, and the list diff below is still the right instrument for a *branch*
+comparison, where the question is what your change added rather than whether the
+tree is clean:
+
+```sh
+nix build .#checks.x86_64-linux.golangci-lint-comprehensive -L 2>&1 | tee /tmp/comp.txt
+# normalize to "file | message (linter)", sort, and diff BOTH directions
+# against the baseline. A count that matches is not the same as a list that
+# matches.
+```
+
+For a change that adds a `case` or an `if` to an already-large switch, the
+cheap pre-check is `nix shell nixpkgs#gocyclo -c gocyclo -top 3 <file>` on the
+file before and after — seconds, and it is what identified this regression.

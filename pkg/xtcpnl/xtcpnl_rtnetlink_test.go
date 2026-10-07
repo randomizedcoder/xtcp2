@@ -69,6 +69,19 @@ func rtmsgHdr(family, dstLen, tos, table, protocol, scope, rtype uint8, flags ui
 	return b
 }
 
+// rtmsgHdrSrc encodes a 12-byte rtmsg family header with rtm_src_len set.
+//
+// rtmsgHdr leaves src_len at 0, which is what every dump reply in the corpus
+// carries, so it is the right default for the route tables. A source-routed
+// entry is the exception, and src_len is part of a route's identity — a
+// (dst, src) pair is a different route from (dst, *) — so it needs a header
+// builder that can say so. Same split as ifinfomsgHdr / ifinfomsgHdrChange.
+func rtmsgHdrSrc(family, dstLen, srcLen, tos, table, protocol, scope, rtype uint8, flags uint32) []byte {
+	b := rtmsgHdr(family, dstLen, tos, table, protocol, scope, rtype, flags)
+	b[2] = srcLen
+	return b
+}
+
 // ifinfomsgHdr encodes a 16-byte ifinfomsg family header.
 func ifinfomsgHdr(family uint8, itype uint16, index int32, flags uint32) []byte {
 	b := make([]byte, IfInfomsgSizeCst)
@@ -571,7 +584,7 @@ func TestParseNewRoute(t *testing.T) {
 			want: RouteInfo{
 				Family: unix.AF_INET, DstLen: 0, Table: unix.RT_TABLE_MAIN,
 				Scope: unix.RT_SCOPE_UNIVERSE, Type: unix.RTN_UNICAST, Protocol: unix.RTPROT_BOOT,
-				Gateway: v4b(10, 0, 0, 1), Oif: 2, Priority: 100,
+				Gateway: v4b(10, 0, 0, 1), Oif: 2, Priority: 100, HasPriority: true,
 			},
 		},
 		{
@@ -694,6 +707,75 @@ func TestParseNewRoute(t *testing.T) {
 			want: RouteInfo{
 				Family: unix.AF_INET, DstLen: 16, Table: unix.RT_TABLE_MAIN,
 				Scope: unix.RT_SCOPE_UNIVERSE, Type: unix.RTN_UNICAST, Dst: v4b(10, 40, 0, 0),
+			},
+		},
+		{
+			// RTA_IIF is the INPUT interface, and it appears only on a cloned
+			// or a multicast route — neither of which an ordinary `route show`
+			// dump contains, which is why this row is constructed rather than
+			// taken from a capture. `ip` renders it as `iif NAME`
+			// (ip/iproute.c:986), so dropping the attribute would silently
+			// shorten the line rather than produce an error.
+			description: "positive: RTA_IIF on a multicast route decodes the input interface",
+			body: concat(
+				rtmsgHdr(unix.AF_INET, 32, 0, unix.RT_TABLE_LOCAL, unix.RTPROT_BOOT, unix.RT_SCOPE_UNIVERSE, unix.RTN_MULTICAST, 0),
+				rtattr(unix.RTA_DST, v4b(224, 0, 0, 1)),
+				rtattr(unix.RTA_IIF, le32(3)),
+				rtattr(unix.RTA_OIF, le32(1)),
+			),
+			want: RouteInfo{
+				Family: unix.AF_INET, DstLen: 32, Table: unix.RT_TABLE_LOCAL,
+				Scope: unix.RT_SCOPE_UNIVERSE, Type: unix.RTN_MULTICAST, Protocol: unix.RTPROT_BOOT,
+				Dst: v4b(224, 0, 0, 1), Iif: 3, Oif: 1,
+			},
+		},
+		{
+			// Iif and Oif are separate fields because a multicast route has
+			// both and they are different interfaces. Folding them into one
+			// would make `ip`'s `iif` and `dev` tokens name the same device.
+			description: "boundary: RTA_IIF and RTA_OIF naming different interfaces are kept apart",
+			body: concat(
+				rtmsgHdr(unix.AF_INET6, 8, 0, unix.RT_TABLE_LOCAL, unix.RTPROT_BOOT, unix.RT_SCOPE_UNIVERSE, unix.RTN_MULTICAST, 0),
+				rtattr(unix.RTA_IIF, le32(7)),
+				rtattr(unix.RTA_OIF, le32(9)),
+			),
+			want: RouteInfo{
+				Family: unix.AF_INET6, DstLen: 8, Table: unix.RT_TABLE_LOCAL,
+				Scope: unix.RT_SCOPE_UNIVERSE, Type: unix.RTN_MULTICAST, Protocol: unix.RTPROT_BOOT,
+				Iif: 7, Oif: 9,
+			},
+		},
+		{
+			// Every ifindex attribute is a u32. A short payload is not
+			// decodable, and storing a fabricated zero would claim the kernel
+			// said "no interface" when what it sent was truncated.
+			description: "corner: short RTA_IIF (2 bytes) is ignored, leaving Iif zero",
+			body: concat(
+				rtmsgHdr(unix.AF_INET, 32, 0, unix.RT_TABLE_LOCAL, unix.RTPROT_BOOT, unix.RT_SCOPE_UNIVERSE, unix.RTN_MULTICAST, 0),
+				rtattr(unix.RTA_DST, v4b(224, 0, 0, 1)),
+				rtattr(unix.RTA_IIF, []byte{0x03, 0x00}),
+			),
+			want: RouteInfo{
+				Family: unix.AF_INET, DstLen: 32, Table: unix.RT_TABLE_LOCAL,
+				Scope: unix.RT_SCOPE_UNIVERSE, Type: unix.RTN_MULTICAST, Protocol: unix.RTPROT_BOOT,
+				Dst: v4b(224, 0, 0, 1),
+			},
+		},
+		{
+			// attrSeen keeps the FIRST occurrence, following iproute2's
+			// parse_rtattr (lib/libnetlink.c:1554) rather than the kernel's
+			// __nla_parse, which keeps the last. The two disagree, and what
+			// this package has to agree with is what `ip` renders.
+			description: "corner: a duplicate RTA_IIF is ignored, because the first attribute wins",
+			body: concat(
+				rtmsgHdr(unix.AF_INET, 32, 0, unix.RT_TABLE_LOCAL, unix.RTPROT_BOOT, unix.RT_SCOPE_UNIVERSE, unix.RTN_MULTICAST, 0),
+				rtattr(unix.RTA_IIF, le32(3)),
+				rtattr(unix.RTA_IIF, le32(4)),
+			),
+			want: RouteInfo{
+				Family: unix.AF_INET, DstLen: 32, Table: unix.RT_TABLE_LOCAL,
+				Scope: unix.RT_SCOPE_UNIVERSE, Type: unix.RTN_MULTICAST, Protocol: unix.RTPROT_BOOT,
+				Iif: 3,
 			},
 		},
 		{
@@ -837,7 +919,7 @@ func TestParseNewLink(t *testing.T) {
 			),
 			want: LinkInfo{
 				Index: 9, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER,
-				Link: 3, LinkNetnsID: -1, HasLinkNetnsID: true,
+				Link: 3, HasLink: true, LinkNetnsID: -1, HasLinkNetnsID: true,
 			},
 		},
 		{
@@ -965,15 +1047,50 @@ func TestParseNewLink(t *testing.T) {
 			// A nest carrying only IFLA_INFO_DATA — which is what `ip` hands to
 			// one of its forty per-kind print_opt bodies, and which this package
 			// deliberately does not decode.
-			description: "corner: IFLA_LINKINFO with no IFLA_INFO_KIND leaves Kind empty",
+			//
+			// The four bytes stay undecoded and HasInfoData records that they
+			// were there, which is the distinction `-d` turns into behavior:
+			// goip refuses a detail render for this link rather than printing
+			// a kind token where `ip` prints a kind token plus print_opt's
+			// whole output on the same line. See checkDetailSupported.
+			description: "corner: IFLA_LINKINFO with no IFLA_INFO_KIND leaves Kind empty but records the data",
 			body: concat(
 				ifinfomsgHdr(unix.AF_UNSPEC, unix.ARPHRD_ETHER, 17, unix.IFF_UP),
 				rtattr(unix.IFLA_LINKINFO, rtattr(unix.IFLA_INFO_DATA, []byte{0x01, 0x02, 0x03, 0x04})),
 			),
-			want: LinkInfo{Index: 17, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER},
+			want: LinkInfo{
+				Index: 17, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER,
+				HasInfoData: true,
+			},
 		},
 		{
-			// A malformed nest must not fail the whole link. linkInfoKind
+			// The bridge-port shape, and the row that says the two kinds are
+			// not alternatives: print_linktype emits IFLA_INFO_KIND on one
+			// continuation line and IFLA_INFO_SLAVE_KIND on the next
+			// (ip/ipaddress.c:221-223, :250-257), so veth179a698 in the 7_1_8
+			// sidecar reads "    veth " and then "    bridge_slave …".
+			//
+			// Both data blobs are present here too, and each is recorded
+			// separately: a link can carry slave data without carrying its own,
+			// and the two refusals name different kinds.
+			description: "positive: IFLA_LINKINFO carries a kind and a slave kind, with both data blobs",
+			body: concat(
+				ifinfomsgHdr(unix.AF_UNSPEC, unix.ARPHRD_ETHER, 19, unix.IFF_UP),
+				rtattr(unix.IFLA_LINKINFO, concat(
+					rtattr(unix.IFLA_INFO_KIND, append([]byte("veth"), 0)),
+					rtattr(unix.IFLA_INFO_DATA, []byte{0x01, 0x02, 0x03, 0x04}),
+					rtattr(unix.IFLA_INFO_SLAVE_KIND, append([]byte("bridge_slave"), 0)),
+					rtattr(unix.IFLA_INFO_SLAVE_DATA, []byte{0x05, 0x06, 0x07, 0x08}),
+				)),
+			),
+			want: LinkInfo{
+				Index: 19, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER,
+				Kind: "veth", SlaveKind: "bridge_slave",
+				HasInfoData: true, HasInfoSlaveData: true,
+			},
+		},
+		{
+			// A malformed nest must not fail the whole link. setLinkInfoNest
 			// swallows the walk error, so the message still decodes and only the
 			// kind is lost — dropping an otherwise good link because a nest it
 			// did not need was truncated is worse for a renderer.

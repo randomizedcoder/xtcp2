@@ -130,16 +130,16 @@ func decodeEthtoolHeader(header *EthtoolHeader, attrs []NetlinkAttribute) error 
 		return err
 	}
 	header.Attributes = h
-	if header.DeviceIndex, err = attrU32(h, 1); err != nil {
+	if header.DeviceIndex, err = genlAttrU32(h, 1); err != nil {
 		return err
 	}
 	if header.DeviceName, err = attrString(h, 2); err != nil {
 		return err
 	}
-	if header.Flags, err = attrU32(h, 3); err != nil {
+	if header.Flags, err = genlAttrU32(h, 3); err != nil {
 		return err
 	}
-	if header.PHYIndex, err = attrU32(h, 4); err != nil {
+	if header.PHYIndex, err = genlAttrU32(h, 4); err != nil {
 		return err
 	}
 	// Capture requests can be intentionally invalid and dump headers can omit
@@ -156,13 +156,13 @@ type ethtoolPayloadDecoder struct {
 
 func (d *ethtoolPayloadDecoder) u8(id uint16, dst **uint8) {
 	if d.err == nil {
-		*dst, d.err = attrU8(d.attrs, id)
+		*dst, d.err = genlAttrU8(d.attrs, id)
 	}
 }
 
 func (d *ethtoolPayloadDecoder) u32(id uint16, dst **uint32) {
 	if d.err == nil {
-		*dst, d.err = attrU32(d.attrs, id)
+		*dst, d.err = genlAttrU32(d.attrs, id)
 	}
 }
 
@@ -285,7 +285,7 @@ func parseEthtoolBitset(attrs []NetlinkAttribute) (*EthtoolBitset, error) {
 		return nil, err
 	}
 	b.NoMask = flag != nil
-	if b.Size, err = attrU32(attrs, 2); err != nil {
+	if b.Size, err = genlAttrU32(attrs, 2); err != nil {
 		return nil, err
 	}
 	value, err := attribute(attrs, 4)
@@ -353,7 +353,7 @@ func decodeEthtoolVerboseBitset(b *EthtoolBitset, entries []NetlinkAttribute) er
 			return err
 		}
 		bit := EthtoolBit{Attributes: fields}
-		if bit.Index, err = attrU32(fields, 1); err != nil {
+		if bit.Index, err = genlAttrU32(fields, 1); err != nil {
 			return err
 		}
 		if bit.Name, err = attrString(fields, 2); err != nil {

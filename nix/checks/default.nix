@@ -2,10 +2,24 @@
 #
 # Aggregates every `nix flake check` target for xtcp2.
 #
-# Two categories:
-#   - Tier 0+1 + audits → run by default `nix flake check`
-#   - Tier 2 (comprehensive) → invoke explicitly:
-#       nix build .#checks.golangci-lint-comprehensive
+# EVERY attribute below is a `nix flake check` target, Tier 2 included.
+#
+# This comment used to claim Tier 2 was excluded and had to be invoked
+# explicitly. It was false, and the falsehood was load-bearing: a reviewer who
+# believed it concluded a gocyclo regression could not have been caught by the
+# one command CONTRIBUTING.md tells contributors to run, when in fact the
+# command built the tier and reported the finding. `nix flake check` still has
+# other reds, so an exit code that is already 1 cannot announce a new finding -
+# that, not the check set, is why Tier 2 findings slip through. (Which reds, and
+# how many, is deliberately not recorded here: it said "eight checks at
+# baseline" and went stale the moment a phase fixed one.) See the Tier 2 section
+# of TODO-SOON.md for the current set, and for how to read the tier - diff the
+# finding list; the count and the exit status are both uninformative.
+#
+# `nix build .#checks.x86_64-linux.golangci-lint-comprehensive` is still the
+# useful command, because it builds that one tier without the microVM and the
+# per-flavor test builds. It is a faster path to the same result, not the only
+# path to it.
 #
 {
   pkgs,
@@ -14,6 +28,7 @@
   vendoredSource,
   binaries,
   xdp2,
+  lintBaselineMeasure,
 }:
 
 let
@@ -55,10 +70,57 @@ in
   };
   go-sec = import ./go-sec.nix { inherit pkgs vendoredSource; };
 
+  # The lint ratchet, and the only check here that is GREEN at baseline. The
+  # three tier checks above report a tier's whole finding list, which has been
+  # non-empty for long enough that their red carries no information; this one
+  # compares against docs/lint-baseline.txt and goes red only on an ADDITION.
+  #
+  # gatedTiers grew one tier at a time, and only after a phase emptied that
+  # tier — the same one-at-a-time discipline as gatedProtocols below. Gating a
+  # tier that still holds findings would make this check permanently red, which
+  # is the same as turning it off.
+  #
+  # All three are gated as of 2026-10-06, each earned by measurement and in that
+  # order. Tier 1: the errcheck/misspell/contextcheck pass closed its last 26
+  # findings, `nix run .#update-lint-baseline` measured it at 0 and removed its
+  # 19 baseline lines, and only then was it listed. The setRuleAttr split then
+  # took gocyclo's last finding from 48 to 6 and gocyclo was promoted INTO
+  # Tier 1, with Tier 1 re-measured at 0 WITH the new linter running in it.
+  # Tier 2 last: the cmd/xtcp2 flag split closed its three funlen findings and
+  # forbidigo was added to its config so the tiers genuinely nest.
+  #
+  # So docs/lint-baseline.txt now holds zero finding lines, and this check goes
+  # red on an addition in any tier. That is the end state this was built for: a
+  # green check whose red means exactly one thing.
+  #
+  # Gating Tier 2 also gates prealloc, dupl, goconst, nakedret, exhaustive and
+  # unconvert, and CONTRIBUTING.md argues prealloc makes a poor GATE because a
+  # single `continue` anywhere in a file silences every prealloc hint in that
+  # file. That objection is about promoting prealloc into Tier 1, where it would
+  # block on its own finding list. The ratchet is a different instrument: it
+  # fails only on an ADDITION and never on a removal, so prealloc's weakness
+  # makes findings vanish — never a failure — and reappear later as legitimately
+  # new ones. The objection does not transfer, which is worth saying out loud
+  # next to the line that appears to contradict it.
+  lint-baseline = import ./lint-baseline.nix {
+    inherit pkgs vendoredSource lintBaselineMeasure;
+    gatedTiers = [
+      "tier0"
+      "tier1"
+      "tier2"
+    ];
+  };
+
   netlink-audit = import ./netlink-audit.nix { inherit pkgs vendoredSource; };
   iouring-audit = import ./iouring-audit.nix { inherit pkgs vendoredSource; };
   metrics-audit = import ./metrics-audit.nix { inherit pkgs vendoredSource; };
   proto-field-audit = import ./proto-field-audit.nix { inherit pkgs vendoredSource; };
+
+  # Paired with the widened `neighbour` misspell exclusions in .golangci.yml and
+  # .golangci-comprehensive.yml: those stop misspell reporting sixteen kernel
+  # citations, and this is what still refuses British prose in the same files.
+  # Removing this check means removing those exclusions.
+  kernel-citation-audit = import ./kernel-citation-audit.nix { inherit pkgs vendoredSource; };
 
   # The netlink layout oracle: are xtcp2's Go structs the shape the kernel
   # actually sends? Every other netlink check starts *from* the struct and so

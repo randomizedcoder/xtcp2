@@ -180,6 +180,8 @@ pkgs.runCommand "xtcp2-quality-report"
       go run ./tools/metrics-audit -root .
     runtool proto-field-audit "$RAW/proto-field-audit.out" -- \
       go run ./tools/proto-field-audit -proto-root proto -go-root .
+    runtool kernel-citation-audit "$RAW/kernel-citation-audit.out" -- \
+      go run ./tools/kernel-citation-audit -root .
 
     # ── go test (some tests require KVM/netlink/caps; will fail in sandbox) ─
     # Coverage is collected against pkg/, tools/, cmd/ — excluding the

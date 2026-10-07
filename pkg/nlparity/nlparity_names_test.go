@@ -313,13 +313,71 @@ func TestAttrNameCoversCorpus(t *testing.T) {
 	captures := []string{
 		"netlink_route_getlink.pcap",
 		"netlink_route_getlink_dev.pcap",
+		// `ip -s link show`, the only capture whose request asked for
+		// counters. It is the corpus's first source of IFLA_STATS and
+		// IFLA_STATS64 on an RTM_GETLINK dump, so an unnamed attribute
+		// arriving with the stats would show here first.
+		"netlink_route_getlink_stats.pcap",
 		"netlink_route_getaddr.pcap",
 		"netlink_route_getaddr_v4.pcap",
 		"netlink_route_getaddr_v6.pcap",
+		// `ip -s addr show`. The second capture whose request asked for
+		// counters, and the first on an addr command. Its RTM_NEWLINK
+		// replies carry IFLA_STATS and IFLA_STATS64 where
+		// netlink_route_getaddr.pcap's do not, because that one's request
+		// set RTEXT_FILTER_SKIP_STATS.
+		"netlink_route_getaddr_stats.pcap",
+		// `ip -s -6 addr show`, whose request is byte-identical to the v6
+		// dump's above — the family arm attaches no IFLA_EXT_MASK — and
+		// whose replies are therefore identical too. Listed anyway, and not
+		// as a duplicate: it is the only AF_INET6 link dump here taken by an
+		// invocation that asked for counters, so a top-level attribute the
+		// kernel attaches only then would show up here. (The IFLA_PROTINFO
+		// nest's interior is not walked; this test's subject is top-level
+		// names.)
+		"netlink_route_getaddr_v6_stats.pcap",
+		// `ip -s addr show dev goip0`. The corpus's only RTM_GETLINK
+		// carrying an ext-mask on the NON-DUMP path, so it is the only place
+		// a doit-only attribute arrives with the counters attached.
+		"netlink_route_getaddr_dev_stats.pcap",
+		// `ip addr show dev goip0`. Its RTM_NEWADDR replies are a subset of
+		// the plain dump's, but its RTM_NEWLINK replies are not: they come
+		// from two single-gets rather than from a dump, so an attribute the
+		// kernel attaches only on the doit path would appear here and
+		// nowhere else in this list.
+		"netlink_route_getaddr_dev.pcap",
 		"netlink_route_getroute.pcap",
 		"netlink_route_getroute6.pcap",
 		"netlink_route_getroute_table_all.pcap",
+		// `ip route show dev goip0`. Its RTM_NEWROUTE replies are a subset of
+		// the plain dump's — the kernel applies RTA_OIF on the dump side — but
+		// its RTM_NEWLINK reply is not: it is ll_link_get's single-get, on the
+		// doit path. Listed for the same reason the addr `dev` capture is.
+		"netlink_route_getroute_dev.pcap",
 		"netlink_route_getneigh.pcap",
+		// `ip -s neigh show`, whose requests are byte-identical to the row
+		// above's — NeighShowDump has no mask parameter and the link dump's
+		// mask is already RTEXT_FILTER_VF without `-s`. The replies are
+		// identical in SHAPE for the same reason, so what this adds is the
+		// pair NDA_PROBES and NDA_CACHEINFO on every entry: neigh_fill_info
+		// emits them in one `||` chain, and no other neighbor capture here
+		// has a consumer that reads either.
+		"netlink_route_getneigh_stats.pcap",
+		// `ip neigh show dev goip0`. Every REPLY in it also appears in the
+		// plain neighbor capture, so on the reply side it adds nothing; it is
+		// listed because its REQUEST carries NDA_IFINDEX, the only attribute
+		// on any RTM_GETNEIGH in the corpus, and the walk below names
+		// attributes on requests as readily as on replies.
+		"netlink_route_getneigh_dev.pcap",
+		// `ip neigh show proxy`. The reverse of the row above: its REQUEST
+		// adds nothing — a bare ndmsg with one flag byte set, no attribute —
+		// and its REPLIES are what is new. They come from pneigh_dump_table
+		// (net/core/neighbour.c:2955-2957), a table no other capture here
+		// touches, so these are the corpus's only RTM_NEWNEIGH messages with
+		// NTF_PROXY in ndm_flags, and its only ones carrying NDA_DST without
+		// an NDA_LLADDR or NDA_CACHEINFO beside it (pneigh_fill_info,
+		// :2722-2749).
+		"netlink_route_getneigh_proxy.pcap",
 	}
 
 	// Both namespaces: the clean one the gate uses, and the mesh one that

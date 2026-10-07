@@ -1,6 +1,6 @@
 # xtcp2 code-quality report
 
-Generated: 2026-09-26T09:15:13Z
+Generated: 2026-10-06T22:22:45Z
 
 Tool versions: go=go1.26.5; golangci-lint=2.12.2; gosec=2.28.0; nixfmt=1.4.0; 
 
@@ -15,13 +15,13 @@ between commits reveals exactly what changed.
 
 | Metric | Value |
 |---|---|
-| Total findings | 10 |
+| Total findings | 14 |
 | Findings (Tier 0) | 0 |
 | Findings (Tier 1) | 0 |
 | Findings (Tier 2) | 0 |
-| Findings (non-tiered) | 10 |
-| Files with at least one finding | 10 |
-| Test failures (new) | 0 |
+| Findings (non-tiered) | 14 |
+| Files with at least one finding | 14 |
+| Test failures (new) | 8 |
 | Test failures (pre-existing) | 0 |
 | Config exclusions reviewed | 4 |
 
@@ -31,19 +31,20 @@ between commits reveals exactly what changed.
 
 | Tool | Status | Findings | Runtime |
 |---|---|---|---|
-| golangci-lint (comprehensive) | clean | 0 | 39s |
-| golangci-lint (standard) | clean | 0 | 60s |
-| golangci-lint (quick) | clean | 0 | 80s |
-| gosec | clean | 0 | 5s |
-| go vet | clean | 0 | 40s |
-| gofmt | clean | 0 | 2s |
-| nixfmt | clean | 0 | 3s |
-| netlink-audit | clean | 0 | 1s |
+| golangci-lint (comprehensive) | clean | 0 | 18s |
+| golangci-lint (standard) | clean | 0 | 16s |
+| golangci-lint (quick) | clean | 0 | 34s |
+| gosec | clean | 0 | 3s |
+| go vet | clean | 0 | 17s |
+| gofmt | clean | 0 | 1s |
+| nixfmt | clean | 0 | 1s |
+| netlink-audit | clean | 0 | 0s |
 | iouring-audit | clean | 0 | 0s |
-| metrics-audit | clean | 0 | 1s |
-| proto-field-audit | clean | 0 | 1s |
-| go test | clean | 0 | 41s |
-| go test -cover | findings | 10 | 1s |
+| metrics-audit | clean | 0 | 0s |
+| proto-field-audit | clean | 0 | 0s |
+| kernel-citation-audit | clean | 0 | 1s |
+| go test | findings | 8 | 19s |
+| go test -cover | findings | 14 | 2s |
 
 
 ---
@@ -53,10 +54,12 @@ between commits reveals exactly what changed.
 | Tier | Linters | Findings | Quick-fixable¹ |
 |---|---|---|---|
 | 0 (`lint-quick`) | govet, errcheck, ineffassign, unused, staticcheck | 0 | 0 |
-| 1 (`lint` / CI) | Tier 0 + gosec, gocritic, revive, noctx, contextcheck, durationcheck, forbidigo, misspell | 0 | 0 |
-| 2 (`lint-comprehensive`) | Tier 1 + exhaustive, prealloc, gocyclo, funlen, goconst, dupl, unconvert, nakedret | 0 | 0 |
+| 1 (`lint` / CI) | Tier 0 + gosec, gocritic, revive, noctx, contextcheck, durationcheck, forbidigo, misspell, gocyclo | 0 | 0 |
+| 2 (`lint-comprehensive`) | Tier 1 + exhaustive, prealloc, funlen, goconst, dupl, unconvert, nakedret | 0 | 0 |
 
 ¹ Quick-fixable = produced by a linter that supports `golangci-lint run --fix` (gofmt, goimports, misspell, unconvert, …).
+
+² The linter NAMES above are hand-maintained in `tools/quality-report/main.go`; only the counts are measured. They went stale once already, when `gocyclo` was promoted to Tier 1. Treat the `.golangci*.yml` files as authoritative if the two disagree.
 
 ---
 
@@ -64,27 +67,27 @@ between commits reveals exactly what changed.
 
 | File | Findings | Top rules |
 |---|---|---|
+| `cmd/goip` | 1 | below-90pct×1 |
+| `cmd/goip-parity` | 1 | below-90pct×1 |
 | `cmd/ipfeed-collector` | 1 | below-90pct×1 |
+| `cmd/ipmeta-bootstrap` | 1 | below-90pct×1 |
 | `cmd/nsTest` | 1 | below-90pct×1 |
 | `cmd/xtcp2` | 1 | below-90pct×1 |
 | `cmd/xtcp2_kafka_client` | 1 | below-90pct×1 |
 | `cmd/xtcp2client` | 1 | below-90pct×1 |
 | `cmd/xtcp2ctl` | 1 | below-90pct×1 |
-| `pkg/xtcp` | 1 | below-90pct×1 |
-| `tools/discovery-bench` | 1 | below-90pct×1 |
-| `tools/idiag-extprobe` | 1 | below-90pct×1 |
-| `tools/tcp_server` | 1 | below-90pct×1 |
+| `cmd/zstd-probe` | 1 | below-90pct×1 |
 
 
 ---
 
 ## 5. Findings by linter
 
-### go-test-cover / below-90pct — 10
+### go-test-cover / below-90pct — 14
 
+- `cmd/ipmeta-bootstrap`: package coverage 68.4% < 90%
+- `cmd/xtcp2`: package coverage 82.7% < 90%
 - `tools/tcp_server`: package coverage 87.8% < 90%
-- `cmd/xtcp2_kafka_client`: package coverage 88.6% < 90%
-- `cmd/xtcp2ctl`: package coverage 79.5% < 90%
 
 ---
 
@@ -106,11 +109,20 @@ between commits reveals exactly what changed.
 
 | Status | Count |
 |---|---|
-| Pass | 2850 |
-| Fail (new) | 0 |
+| Pass | 6246 |
+| Fail (new) | 8 |
 | Fail (pre-existing) | 0 |
 | Skip | 9 |
 
+**Failures:**
+
+- 🔴 `github.com/randomizedcoder/xtcp2/pkg/xtcpnl` / `TestDecoderPerformanceGate`
+- 🔴 `github.com/randomizedcoder/xtcp2/pkg/xtcpnl` / `TestDecoderPerformanceGate/boundary:_CGroupID,_a_bare___u64`
+- 🔴 `github.com/randomizedcoder/xtcp2/pkg/xtcpnl` / `TestDecoderPerformanceGate/boundary:_ClassID,_a_bare___u32`
+- 🔴 `github.com/randomizedcoder/xtcp2/pkg/xtcpnl` / `TestDecoderPerformanceGate/boundary:_Shutdown,_a_single_byte_and_the_smallest_decoder_in_the_package`
+- 🔴 `github.com/randomizedcoder/xtcp2/pkg/xtcpnl` / `TestDecoderPerformanceGate/positive:_SockOpt,_packed_socket-option_bitfield`
+- 🔴 `github.com/randomizedcoder/xtcp2/pkg/xtcpnl` / `TestDecoderPerformanceGate/positive:_TrafficClass,_the_tclass_byte`
+- 🔴 `github.com/randomizedcoder/xtcp2/pkg/xtcpnl` / `TestDecoderPerformanceGate/positive:_TypeOfService,_the_tos_byte`
 
 
 ---
@@ -147,44 +159,50 @@ the adjacent YAML comment. Rows with no justification need review.
 
 ## 12. Recommendations
 
-- Top contributor: **go-test-cover/below-90pct** with 10 findings (100% of total). Concentrate effort here for the biggest quality win.
-- Hotspot file: `cmd/ipfeed-collector` carries 1 findings (below-90pct×1). Refactor here before touching adjacent code.
+- Top contributor: **go-test-cover/below-90pct** with 14 findings (100% of total). Concentrate effort here for the biggest quality win.
+- Hotspot file: `cmd/goip` carries 1 findings (below-90pct×1). Refactor here before touching adjacent code.
 
 
 ---
 
 ## 13. Test coverage
 
-**Overall:** 78.9% of statements (target: 90% per package).
+**Overall:** 79.6% of statements (target: 90% per package).
 
 | Package | Coverage | Status |
 |---|---|---|
 | `cmd/clickhouse_http_insert_protobuflist` | 92.6% | 🟢 OK |
 | `cmd/clickhouse_protobuflist` | 93.2% | 🟢 OK |
 | `cmd/clickhouse_protobuflist_db` | 93.3% | 🟢 OK |
-| `cmd/ipfeed-collector` | 28.5% | 🔴 below 90% |
+| `cmd/goip` | 0.0% | 🔴 below 90% |
+| `cmd/goip-parity` | 0.0% | 🔴 below 90% |
+| `cmd/ipfeed-collector` | 31.8% | 🔴 below 90% |
+| `cmd/ipmeta-bootstrap` | 68.4% | 🔴 below 90% |
 | `cmd/kafka_to_clickhouse` | 91.4% | 🟢 OK |
 | `cmd/ns` | 93.9% | 🟢 OK |
 | `cmd/nsTest` | 17.5% | 🔴 below 90% |
 | `cmd/register_schema` | 91.4% | 🟢 OK |
-| `cmd/xtcp2` | 83.8% | 🔴 below 90% |
+| `cmd/xtcp2` | 82.7% | 🔴 below 90% |
 | `cmd/xtcp2_kafka_client` | 88.6% | 🔴 below 90% |
-| `cmd/xtcp2client` | 82.9% | 🔴 below 90% |
-| `cmd/xtcp2ctl` | 79.5% | 🔴 below 90% |
-| `pkg/io_uring` | 92.6% | 🟢 OK |
+| `cmd/xtcp2client` | 80.8% | 🔴 below 90% |
+| `cmd/xtcp2ctl` | 79.6% | 🔴 below 90% |
+| `cmd/zstd-probe` | 32.8% | 🔴 below 90% |
+| `pkg/io_uring` | 91.2% | 🟢 OK |
 | `pkg/misc` | 94.3% | 🟢 OK |
-| `pkg/xtcp` | 80.5% | 🔴 below 90% |
-| `pkg/xtcpnl` | 93.7% | 🟢 OK |
+| `pkg/xtcp` | 80.4% | 🔴 below 90% |
+| `pkg/xtcpnl` | 94.5% | 🟢 OK |
 | `tools/discovery-bench` | 33.5% | 🔴 below 90% |
 | `tools/idiag-extprobe` | 0.0% | 🔴 below 90% |
 | `tools/iouring-audit` | 95.2% | 🟢 OK |
 | `tools/kafka_topic_reader` | 94.7% | 🟢 OK |
+| `tools/kernel-citation-audit` | 98.0% | 🟢 OK |
+| `tools/lint-baseline` | 95.5% | 🟢 OK |
 | `tools/metrics-audit` | 97.2% | 🟢 OK |
-| `tools/netlink-audit` | 95.8% | 🟢 OK |
+| `tools/netlink-audit` | 95.9% | 🟢 OK |
 | `tools/proto-field-audit` | 96.2% | 🟢 OK |
 | `tools/quality-report` | 92.7% | 🟢 OK |
 | `tools/tcp_client` | 91.3% | 🟢 OK |
 | `tools/tcp_server` | 87.8% | 🔴 below 90% |
-| `tools/udp_receiver_server` | 98.0% | 🟢 OK |
+| `tools/udp_receiver_server` | 92.0% | 🟢 OK |
 
 

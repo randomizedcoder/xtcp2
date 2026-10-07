@@ -1,6 +1,7 @@
 package render
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -28,12 +29,12 @@ type LinkView struct {
 	IfName  string   `json:"ifname"`
 	Flags   []string `json:"flags"`
 
-	// Link is the resolved name of IFLA_LINK's target, set only on the path
-	// where iproute2 resolves it (no IFLA_LINK_NETNSID). LinkIndex is set on
-	// the other path, where the peer lives in another namespace and only its
-	// index is meaningful. At most one is ever set; see LinkViewOf.
-	Link      string `json:"link,omitempty"`
-	LinkIndex *int32 `json:"link_index,omitempty"`
+	// Link is IFLA_LINK's target, set only on the path where iproute2 resolves
+	// it (no IFLA_LINK_NETNSID). LinkIndex is set on the other path, where the
+	// peer lives in another namespace and only its index is meaningful. At
+	// most one is ever set; see LinkViewOf.
+	Link      *LinkTarget `json:"link,omitempty"`
+	LinkIndex *int32      `json:"link_index,omitempty"`
 
 	MTU       uint32  `json:"mtu,omitempty"`
 	Qdisc     string  `json:"qdisc,omitempty"`
@@ -50,10 +51,17 @@ type LinkView struct {
 	Address   string `json:"address,omitempty"`
 	Broadcast string `json:"broadcast,omitempty"`
 
+	// PermAddr is `ip`'s " permaddr …" token, and it is `omitempty` for a
+	// second reason on top of omitLinkLine: `ip` prints it only when
+	// IFLA_PERM_ADDRESS differs from IFLA_ADDRESS (ip/ipaddress.c:1097-1100),
+	// so on an ordinary NIC it is empty even though the attribute arrived.
+	// xtcpnl.LinkInfo.PermAddrDiffers is that test.
+	PermAddr string `json:"permaddr,omitempty"`
+
 	// LinkPointToPoint mirrors `ip -j`'s "link_pointtopoint": on a
 	// point-to-point link the second address is a peer, not a broadcast, and
 	// iproute2 signals that in JSON with a bool rather than by renaming the
-	// key (ip/ipaddress.c:1075-1083).
+	// key (ip/ipaddress.c:1077-1084).
 	LinkPointToPoint bool `json:"link_pointtopoint,omitempty"`
 
 	// LinkNetnsID is a pointer because -1 is a real value meaning "the peer is
@@ -62,6 +70,67 @@ type LinkView struct {
 	LinkNetnsID *int32 `json:"link_netnsid,omitempty"`
 
 	AltNames []string `json:"altnames,omitempty"`
+
+	// Stats is the `-s` counter block, and nil means "do not print one".
+	//
+	// Nil-guarded rather than gated on a flag reaching the renderer, because
+	// carrying counters and being asked for them are different conditions
+	// and iproute2 requires both: print_linkinfo tests `do_link &&
+	// show_stats` before calling __print_link_stats, which then returns early
+	// if the attributes are absent (ip/ipaddress.c:832-834,1297-1300). A
+	// reply can carry counters unasked — `ip -4 addr show`'s link dump does,
+	// because its request sends no IFLA_EXT_MASK — and `ip` prints nothing
+	// for them. So LinkViewOf leaves this nil and only the `-s` path fills
+	// it, which keeps the two conditions distinct here too.
+	//
+	// json:"-" because iproute2's JSON shape for these counters is not this
+	// flat struct: it is a nested rx/tx object, under one of two key names,
+	// and with one counter swapped. JSONStats64 and JSONStats carry that.
+	Stats *xtcpnl.RtnlLinkStats64 `json:"-"`
+
+	// JSONStats64 and JSONStats are the same counters in `ip -j`'s shape,
+	// under the two names iproute2 chooses between. At most one is ever set.
+	//
+	// __print_link_stats passes `(ret == sizeof(*s)) ? "stats64" : "stats"`
+	// (ip/ipaddress.c:836-837), where ret is get_rtnl_link_stats_rta's
+	// return: sizeof(rtnl_link_stats64) when it read IFLA_STATS64, and
+	// sizeof(rtnl_link_stats) when it fell back to IFLA_STATS. So the key
+	// records which attribute the kernel sent; the contents are identical
+	// either way, because the 32-bit form has already been widened. The text
+	// render cannot see this distinction at all.
+	//
+	// # Why two omitempty fields and not a MarshalJSON
+	//
+	// A MarshalJSON on LinkView is the obvious way to pick a key name at
+	// runtime, and it is unusable here: AddrGroupView embeds LinkView, and
+	// encoding/json gives an embedded type's MarshalJSON precedence over
+	// field promotion — so `ip -j addr show` would marshal to the bare link
+	// object and lose addr_info entirely. That is not avoidable with the
+	// usual `type alias` trick, because the alias still has the embedded
+	// LinkView and the method comes back with it. Two mutually exclusive
+	// fields cost one invariant that only WithStats can break, and the
+	// embedding keeps working untouched.
+	JSONStats64 *LinkStatsJSON `json:"stats64,omitempty"`
+	JSONStats   *LinkStatsJSON `json:"stats,omitempty"`
+
+	// LinkDetailView is the `-d` token run, and nil means "do not print one".
+	//
+	// EMBEDDED, and anonymously, because iproute2 puts every one of these keys
+	// at the TOP level of the link object — print_uint(PRINT_ANY,
+	// "promiscuity", …) opens no JSON object around itself. A named field
+	// would nest them one level down and diverge on every key at once.
+	// encoding/json promotes an embedded struct pointer's fields and skips
+	// them entirely when it is nil, which is exactly the two behaviors wanted.
+	//
+	// Nil-guarded rather than gated on a flag reaching the renderer, for the
+	// same reason LinkView.Stats is — except that here the two conditions come
+	// apart in the opposite direction. A reply carries these attributes
+	// whether or not -d was asked for, always, because show_details never
+	// reaches the request (see xtcpnl.LinkDetail). So the reply half of the
+	// condition is satisfied by every link in the corpus and the caller's half
+	// is the whole of it: only WithDetail sets this, and only the -d path
+	// calls WithDetail.
+	*LinkDetailView
 
 	// nameSuffix is the "@peer" or "@if2" part of the first line. It is not a
 	// JSON field: iproute2 puts the bare ifname in JSON and only concatenates
@@ -86,6 +155,53 @@ type LinkView struct {
 	// which is why this is one flag controlling both, rather than an
 	// omitempty on LinkType.
 	omitLinkLine bool
+}
+
+// LinkTarget is IFLA_LINK's target in `ip`'s encoding, which has three states
+// where a plain string has two.
+//
+// print_name_and_link (lib/utils.c:1309-1337) tests the attribute first and
+// its value second, and all three arms render differently:
+//
+//	absent           no "@…" suffix, and no "link" key
+//	present, != 0    "@<peer name>"   / "link": "<peer name>"  (:1321-1326)
+//	present, == 0    "@NONE"          / "link": null           (:1332-1336)
+//
+// The third arm is not a curiosity. A tunnel device sits on no underlying
+// interface and sends IFLA_LINK = 0, so every one of the fourteen links in
+// the tunnel capture set — the five configured devices and the nine fallback
+// ones alike — prints "@NONE". A `string` field with omitempty collapses arms
+// one and three into "key absent", which is a divergence on every line.
+//
+// This is a field type rather than a MarshalJSON on LinkView for the reason
+// recorded at LinkView.JSONStats64: AddrGroupView embeds LinkView, and an
+// embedded MarshalJSON takes precedence over field promotion, so it would
+// swallow addr_info.
+type LinkTarget struct {
+	// Name is the resolved peer name. It is never "" on the resolving path,
+	// because NameTab.IndexToName falls back to "if%u" rather than to the
+	// empty string, so "" unambiguously means the IFLA_LINK = 0 arm.
+	Name string
+}
+
+// LinkNone is the IFLA_LINK = 0 target: "@NONE" in text, null in JSON.
+func LinkNone() *LinkTarget { return &LinkTarget{} }
+
+// MarshalJSON writes the peer name, or null for the IFLA_LINK = 0 arm
+// (print_null at lib/utils.c:1334).
+func (t LinkTarget) MarshalJSON() ([]byte, error) {
+	if t.Name == "" {
+		return []byte("null"), nil
+	}
+	return json.Marshal(t.Name)
+}
+
+// String is the text-form suffix: the peer name, or the literal NONE.
+func (t LinkTarget) String() string {
+	if t.Name == "" {
+		return "NONE"
+	}
+	return t.Name
 }
 
 // LinkViewOf resolves a decoded link against the index cache.
@@ -136,6 +252,13 @@ func LinkViewOf(li xtcpnl.LinkInfo, names NameTab) LinkView {
 		AltNames:  li.AltNames,
 	}
 
+	// Presence is not the condition — see PermAddrDiffers. Setting this from
+	// li.PermAddress != nil would put a permaddr token on nearly every link
+	// in an ordinary dump, where `ip` prints none.
+	if li.PermAddrDiffers() {
+		v.PermAddr = li.PermAddr()
+	}
+
 	// Group and TxQLen are set only when the reply carried the attribute,
 	// because iproute2 tests tb[IFLA_GROUP] and tb[IFLA_TXQLEN] for presence
 	// (ip/ipaddress.c:1045,1155) and a reply with neither is a real case, not
@@ -152,15 +275,23 @@ func LinkViewOf(li xtcpnl.LinkInfo, names NameTab) LinkView {
 		v.LinkPointToPoint = true
 	}
 
+	// The outer test is presence and the inner one is the value, in that
+	// order, because print_name_and_link distinguishes them — see LinkTarget.
 	mdown := false
-	if li.Link != 0 {
-		if li.HasLinkNetnsID {
+	if li.HasLink {
+		switch {
+		case li.Link == 0:
+			// No underlying interface. Note this arm computes no M-DOWN:
+			// there is no peer whose flags could be consulted.
+			v.Link = LinkNone()
+			v.nameSuffix = v.Link.String()
+		case li.HasLinkNetnsID:
 			idx := li.Link
 			v.LinkIndex = &idx
 			v.nameSuffix = "if" + strconv.FormatInt(int64(li.Link), 10)
-		} else {
-			v.Link = names.IndexToName(li.Link)
-			v.nameSuffix = v.Link
+		default:
+			v.Link = &LinkTarget{Name: names.IndexToName(li.Link)}
+			v.nameSuffix = v.Link.String()
 			mdown = names.IndexToFlags(li.Link)&unix.IFF_UP == 0
 		}
 	}
@@ -194,15 +325,60 @@ func LinkViewOf(li xtcpnl.LinkInfo, names NameTab) LinkView {
 // family is the -4/-6/default selection as an AF_*, which for this command
 // reaches the renderer unchanged; `link show`'s AF_PACKET override does not
 // apply here.
-func LinkViewForAddr(li xtcpnl.LinkInfo, names NameTab, family uint8) LinkView {
+//
+// details is show_details, and it belongs to the SECOND difference rather than
+// being a third one: the guard is `if (!filter.family || filter.family ==
+// AF_PACKET || show_details)` (ip/ipaddress.c:1060), so -d is the third way to
+// satisfy it and `ip -d -6 addr show` prints a `link/` line where `ip -6 addr
+// show` prints none. The committed ip_addr_v6_n is that output, and it is the
+// most useful two lines in the corpus for this renderer: the line comes back
+// and NOT ONE detail token comes with it, because an AF_INET6 link dump
+// carries no detail attribute. A renderer that emitted the run from the flag
+// rather than from the attributes passes every other fixture and fails that
+// one.
+func LinkViewForAddr(li xtcpnl.LinkInfo, names NameTab, family uint8, details bool) LinkView {
 	v := LinkViewOf(li, names)
 	v.LinkMode = ""
-	if family != unix.AF_UNSPEC && family != unix.AF_PACKET {
+	if !details && family != unix.AF_UNSPEC && family != unix.AF_PACKET {
 		v.omitLinkLine = true
 		v.LinkType = ""
 		v.Address = ""
 		v.Broadcast = ""
+		v.PermAddr = ""
 		v.LinkPointToPoint = false
+	}
+	return v
+}
+
+// WithStats attaches the `-s` counter block, and is the only way one gets
+// attached.
+//
+// It is a separate step from LinkViewOf because the two conditions iproute2
+// requires are separate: `do_link && show_stats` is the caller's, and the
+// attributes being present is the reply's. LinkViewOf sees only the reply, so
+// a view it built alone would print counters for `ip -4 addr show`, whose
+// link dump carries them unasked. Calling this from the `-s` path and nowhere
+// else keeps the caller's half of the condition where the caller is.
+//
+// A reply that carried no counters still leaves Stats nil, which is
+// __print_link_stats returning early on get_rtnl_link_stats_rta's -1
+// (ip/ipaddress.c:832-834) — so "asked for and not sent" prints nothing
+// rather than printing zeros.
+//
+// It sets all three stats fields together because they are one fact in three
+// shapes, and a view with the text source set and the JSON pair clear would
+// print counters and emit none.
+func (v LinkView) WithStats(li xtcpnl.LinkInfo) LinkView {
+	if li.Stats == nil {
+		return v
+	}
+	v.Stats = li.Stats
+
+	s := linkStatsJSONOf(*li.Stats)
+	if li.StatsIs64 {
+		v.JSONStats64 = &s
+	} else {
+		v.JSONStats = &s
 	}
 	return v
 }
@@ -211,8 +387,7 @@ func LinkViewForAddr(li xtcpnl.LinkInfo, names NameTab, family uint8) LinkView {
 // terminated.
 //
 // The layout is print_linkinfo's call order (ip/ipaddress.c:1016-1333) with
-// every `if (show_details)` branch and every `if (do_link && show_stats)`
-// branch removed, since goip implements neither -d nor -s:
+// every `if (show_details)` branch removed, since goip does not implement -d:
 //
 //	1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
 //	    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
@@ -272,6 +447,13 @@ func (v LinkView) Text() string {
 			}
 			b.WriteString(v.Broadcast)
 		}
+		// Inside the same guard `ip` puts it in: the permaddr token belongs
+		// to the link/ line and closes at ip/ipaddress.c:1112, so -4 and -6
+		// drop it along with the rest of the line.
+		if v.PermAddr != "" {
+			b.WriteString(" permaddr ")
+			b.WriteString(v.PermAddr)
+		}
 	}
 	// Outside the guard above, so with omitLinkLine set this appends to the
 	// stanza line rather than opening a second one. ip/ipaddress.c:1114.
@@ -282,6 +464,26 @@ func (v LinkView) Text() string {
 			b.WriteString(" link-netnsid unknown")
 		}
 	}
+	// The `-d` run, and it lands here rather than anywhere else because
+	// print_linkinfo's `if (show_details)` block opens at ip/ipaddress.c:1153
+	// — AFTER the link-netnsid print at :1114 and BEFORE the stats at :1297.
+	// It is not inside the omitLinkLine guard, and the committed goldens are
+	// the proof: `ip -d -6 addr show` restores the link/ line (the guard at
+	// :1060 tests show_details too) but prints no detail token at all,
+	// because an AF_INET6 link dump carries none of the attributes.
+	b.WriteString(v.detailText())
+
+	// Before the altnames, not after, and that order is iproute2's rather
+	// than arbitrary: print_linkinfo emits the stats block at
+	// ip/ipaddress.c:1297-1300 and the IFLA_PROP_LIST altnames at
+	// :1322-1327. Getting it backwards is invisible on every link in the
+	// clean topology, none of which has an altname, and wrong on four of
+	// the eleven links in the 7_1_8 dump.
+	if v.Stats != nil {
+		b.WriteString("\n")
+		b.WriteString(LinkStatsText(*v.Stats))
+	}
+
 	for _, alt := range v.AltNames {
 		fmt.Fprintf(&b, "\n    altname %s", alt)
 	}

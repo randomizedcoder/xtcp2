@@ -1,13 +1,22 @@
 # .golangci-comprehensive.yml
 #
-# Tier 2 — Comprehensive lint (~10 minutes). Nightly only.
+# Tier 2 — Comprehensive lint (~10 minutes).
 #
 # Surfaces complexity, duplication, allocation, and exhaustiveness findings on
-# top of Tier 1. Findings here become merge-gating once the team accepts them.
+# top of Tier 1.
+#
+# This header used to say "Nightly only" and that findings here "become
+# merge-gating once the team accepts them". Neither was true and the first one
+# was misleading in a way that mattered: nothing in this repository runs on a
+# schedule — there is no .github/, no CI and no cron — so "nightly" named an
+# intention, and a reader who believed it concluded this tier was watched by
+# something. It is watched by `nix flake check`, which builds it like every
+# other check, and by the lint-baseline ratchet, which gates it as of
+# 2026-10-06.
 #
 # Run:
 #   lint-comprehensive            (inside nix develop)
-#   nix build .#checks.golangci-lint-comprehensive
+#   nix build .#checks.x86_64-linux.golangci-lint-comprehensive
 
 version: "2"
 
@@ -50,6 +59,18 @@ linters:
     - noctx
     - contextcheck
     - durationcheck
+    # forbidigo, added 2026-10-06 to make the nesting real. It was enabled in
+    # Tier 1 and NOT here, so "Tier 0 ⊂ Tier 1 ⊂ Tier 2" — which the
+    # lint-baseline ratchet leans on, since it treats this tier as the superset
+    # — was false. A runtime.UnlockOSThread finding was invisible in the tier
+    # the baseline trusts most.
+    #
+    # It reports 0 in Tier 1 today and was MEASURED at 0 here before this line
+    # was added rather than assumed. Nothing in the repo checks parity between
+    # the three golangci configs; this absence was the live proof that
+    # something should, and it is not the first — the two misspell rules at the
+    # bottom of this file were missed the same way once already.
+    - forbidigo
     # Tier 2 additions
     - exhaustive
     - prealloc
@@ -124,12 +145,64 @@ linters:
     gocyclo:
       min-complexity: 30
 
+    # Copied VERBATIM from .golangci.yml, where this rule has lived since the
+    # thread-exhaustion incident. Edit both or neither; there is no mechanism
+    # that would notice a divergence, which is exactly why forbidigo was
+    # missing from this file in the first place.
+    # Forbidigo guards a specific landmine: `runtime.UnlockOSThread` paired
+    # with `unix.Setns` / `unix.Unshare`. If the goroutine modifies
+    # thread-global state (network namespace) and then unconditionally
+    # unlocks, a *tainted* M can be returned to Go's scheduler — the
+    # runtime can't safely reuse it, parks it, and spawns a new one.
+    # Under heavy ns churn this leaks OS threads up to the SetMaxThreads
+    # cap and crashes the daemon (incident: 12 h s3parquet-long soak hit
+    # `fatal error: thread exhaustion` at 1 h 45 min).
+    #
+    # The safe pattern is: do *not* defer UnlockOSThread; instead, inside
+    # the deferred restore func, call UnlockOSThread ONLY after Setns
+    # confirms the original namespace was restored. On restore failure,
+    # exit the goroutine with the lock still held — the Go runtime then
+    # terminates the OS thread (documented LockOSThread behaviour),
+    # which is exactly what we want for a tainted M.
+    #
+    # If you have a legitimate non-netns use of UnlockOSThread (e.g.
+    # io_uring SQ thread pinning), opt in with `//nolint:forbidigo //
+    # <reason>` at the call site. Anyone touching the netns path will
+    # then see why the rule exists.
+    forbidigo:
+      forbid:
+        - pattern: '^runtime\.UnlockOSThread$'
+          msg: |
+            runtime.UnlockOSThread is unsafe to defer unconditionally in
+            code that calls unix.Setns / unix.Unshare — the M can be
+            returned to the scheduler still in a modified namespace,
+            triggering an unbounded thread leak. Pair it with a
+            *conditional* unlock inside the restore defer, or
+            `//nolint:forbidigo // <reason>` if unrelated.
+
     funlen:
-      # defineFlags() and envOverrideMarshalAndDest() are legitimately long but
-      # entirely linear (a flat list of flag definitions / env overrides, no
-      # branching or nesting) — splitting them into helpers hurts readability
-      # more than it helps, so allow a slightly higher budget (defineFlags is
-      # ~65 statements, envOverrideMarshalAndDest ~69, both flat).
+      # This comment used to argue the opposite, and it was wrong on both the
+      # facts and the reasoning. It said "defineFlags is ~65 statements" when
+      # the linter measured 79; it named envOverrideMarshalAndDest, which was
+      # never one of the findings; and it concluded that splitting these
+      # functions "hurts readability more than it helps".
+      #
+      # defineEnrichmentFlags had already abandoned that argument in-tree —
+      # its own doc says it was split out of defineFlags for this ceiling — and
+      # the 2026-10-06 split disproved the rest. The three findings were
+      # defineFlags 79, printFlags 74 and envOverrideLabeling 72. All three
+      # came apart along seams that were already there and in two cases already
+      # mis-drawn: printFlags prints in a different order from the one
+      # defineFlags registers in, and envOverrideLabeling applied 24 env vars
+      # of which its name covered 5.
+      #
+      # So the lesson is the reverse of what was written here: when a flat list
+      # crosses this ceiling, the list has usually grown more than one subject,
+      # and the ceiling is what notices. Neither number below was raised.
+      #
+      # envOverrideMarshalAndDest is nonetheless worth knowing about: it sits at
+      # ~69 of the 70 statements, so it is one statement from being the next
+      # finding. Do not route anything new into it.
       lines: 120
       statements: 70
 
@@ -173,10 +246,24 @@ linters:
           - unused
           - goconst
           - noctx
+      # G404 (math/rand) and G301 (dir perms) in tests, as in .golangci.yml.
+      #
+      # G302 (chmod perms) is here for a sharper reason than either: its
+      # expectation cannot be met by a directory at all. It compares the mode
+      # against 0600 as a bitmask, so ANY mode carrying the execute bit is a
+      # finding — and a directory without the execute bit cannot be traversed.
+      # pkg/listener and pkg/ipasn strip a directory's write bit (0o500) so
+      # that os.Remove inside it fails with EACCES, which is the only way to
+      # reach the unlink errors this phase stopped discarding; 0o500 is
+      # strictly more restrictive than the 0600 the rule asks for, and the
+      # restore to 0o700 is what lets t.TempDir clean up.
+      #
+      # The standalone gosec check never sees these: it defaults to
+      # -tests=false, so no equivalent belongs in its global -exclude list.
       - path: "_test\\.go"
         linters:
           - gosec
-        text: "G404|G301"
+        text: "G404|G301|G302"
       # Kernel-version-tagged names (TCPInfo6_10_3, TCPInfo5_4_281, …) mirror
       # Linux kernel uapi `struct tcp_info` revisions; renaming would defeat
       # the per-version mapping that is the point of pkg/xtcpnl.
@@ -210,10 +297,12 @@ linters:
           # since those ARE the canonical identifiers. Lifting to consts
           # would obscure rather than clarify.
           - goconst
-      # The next three are verbatim-upstream-spelling rules. The first two are
-      # copies of rules already carried by .golangci.yml; they were never
-      # ported here, which is why this tier reported three misspellings the
-      # gating tier does not. Keep the three configs' misspell rules in step.
+      # The next five are verbatim-upstream-spelling rules. The first two were
+      # once copies of rules already carried by .golangci.yml that had never
+      # been ported here, which is why this tier reported three misspellings the
+      # gating tier did not. Keep the three configs' misspell rules in step;
+      # .golangci-quick.yml does not enable misspell at all, so it carries none
+      # of them, and that is the only legitimate difference between the three.
       #
       # `ifa_prefered` is how the Linux kernel spells it. The comment it appears
       # in is a verbatim quotation of `struct ifa_cacheinfo` from
@@ -231,26 +320,92 @@ linters:
       # `matches()` is prefix matching, not fuzzy matching — "neighbour" is not
       # a prefix of "neighbor", so dropping the second entry makes `goip
       # neighbour show` report an unknown object where `ip` works.
-      # internal/goip/dispatch.go holds the alias itself and dispatch_test.go
-      # names the pair in the comment on the row that asserts their order.
-      - path: "internal/goip/dispatch(_test)?\\.go"
+      # internal/goip/dispatch.go holds the alias itself, dispatch_test.go
+      # names the pair in the comment on the row that asserts their order, and
+      # obj_neigh_test.go runs the alias end to end — that row's argv is the
+      # string a user types, so it cannot be respelled without testing a
+      # command that does not exist. Prose in those files is still checked, by
+      # the audit named in the next entry: the exemption there covers only a
+      # quoted command token.
+      - path: "internal/goip/(dispatch(_test)?|obj_neigh_test)\\.go"
         linters:
           - misspell
         text: "`neighbour` is a misspelling of `neighbor`"
+      # The ten files below cite kernel paths that contain the word.
+      # net/core/neighbour.c and include/uapi/linux/neighbour.h are the real
+      # file names, so "correcting" them produces paths that do not exist and
+      # breaks the one thing those comments are for, which is diffing against a
+      # kernel tree. Sixteen occurrences across the ten; misspell reports
+      # thirteen, skipping the two inside torvalds/linux URLs, and the
+      # sixteenth is in obj_neigh_test.go, covered by the entry above.
+      #
+      # On its own this entry would be exactly the suppression the policy
+      # forbids. An exclusion can only match misspell's MESSAGE, which is
+      # identical whether the word sits inside a kernel path or inside British
+      # prose, so widening to ten whole files does give up real coverage inside
+      # them. What replaces it is tools/kernel-citation-audit, a check that
+      # fails unless every occurrence in the tree is directly preceded by
+      # `net/core/` or `linux/`. That is strictly stronger than what misspell
+      # was giving: misspell is satisfied by `net/core/neighbor.c` and the audit
+      # is not, so it also catches a kernel path "fixed" by someone running
+      # lint-fix.
+      #
+      # obj_neigh.go and obj_neigh_test.go are listed in two different entries
+      # deliberately. The first holds only a citation; the second also holds the
+      # argv a user types. A collapsed `obj_neigh(_test)?\.go` would match the
+      # same two files and lose the reason.
+      - path: "(internal/goip/obj_neigh|internal/goip/render/neigh_test|internal/goip/req/req|internal/goipparity/commands|pkg/nlparity/nlparity_(names|segment)_test|pkg/xtcpnl/xtcpnl_(ndmsg|rtnetlink_requests)(_test)?)\\.go"
+        linters:
+          - misspell
+        text: "`neighbour` is a misspelling of `neighbor`"
+      # The audit tool itself, which cannot be written without using the word in
+      # prose: its documentation, its exemption reasons and its fixtures are all
+      # about that word. It is also the one directory the audit skips, for the
+      # same reason, with the argument spelled out at its selfDirCst. The
+      # alternative was to assemble the constant from fragments so neither tool
+      # could see it, which hides the word without making anything more correct
+      # and leaves the file a reader consults for the rule unable to state it.
+      #
+      # The text is matched case-insensitively here and nowhere else: the
+      # fixtures deliberately include `Neighbour` and `NEIGHBOUR`, because the
+      # audit has to be case-insensitive and a test that only ever passes the
+      # lowercase form would not show that. The ten citation files above keep
+      # the exact lowercase text, which is all they contain.
+      - path: "tools/kernel-citation-audit/"
+        linters:
+          - misspell
+        text: "(?i)`neighbour` is a misspelling of `neighbor`"
       # "DORMANT" appears three times in render.go because it is a member of
       # three *different* kernel enums, each transcribed as its own table with
       # its own ip/ipaddress.c citation: IF_OPER_DORMANT in operStates
       # (:120-123), IF_LINK_MODE_DORMANT in linkModes (:170-172), and
       # IFF_DORMANT in linkFlagNames (:94-111). Hoisting them to one constant
       # would assert the three are the same value, which is what makes this
-      # finding wrong rather than merely inconvenient — and three constants
-      # each holding the literal would not satisfy goconst anyway. Scoped to
-      # the one word in the one file, so a genuine repeated literal elsewhere
-      # in internal/goip still fails.
+      # finding wrong rather than merely inconvenient.
+      #
+      # Unlike the "default" case below, three NAMED constants are not the
+      # better answer here: all three sites are rows of a table literal
+      # (`[...]string{...}` twice, a slice of structs once), so a constant in
+      # one row and bare strings in its neighbors would read worse than either
+      # alternative. (An earlier version of this comment claimed three
+      # constants "would not satisfy goconst anyway" — that is false. goconst
+      # ignores literals inside a const declaration; verified against
+      # golangci-lint with min-occurrences 3.)
+      #
+      # Scoped to the one word in the one file, so a genuine repeated literal
+      # elsewhere in internal/goip still fails.
       - path: "internal/goip/render/render\\.go"
         linters:
           - goconst
         text: "string `DORMANT` has 3 occurrences"
+      # There is deliberately NO rule here for "default", which internal/goip/
+      # render also spells three times. goconst does not see literals inside a
+      # const declaration, so two of the three became named constants —
+      # groupZeroName (render.go) and routePrefixWildcard (route.go) — which
+      # says at the call site what an exclusion here could only say in the
+      # config. The third is a row of the routeTableNames map, left as a
+      # literal so it reads like its two siblings, and one occurrence is under
+      # min-occurrences. Prefer that shape over a new exclusion.
       - linters:
           - staticcheck
         text: "ST1003:"

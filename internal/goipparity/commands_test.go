@@ -109,19 +109,26 @@ func TestCommandTable(t *testing.T) {
 			},
 		},
 		{
-			description: "positive: at least one command is implemented and at least one is not, so both report paths are reachable",
+			description: "positive: at least one command is implemented, so the compared branch of the report is reachable from the real table",
 			check: func(t *testing.T) {
-				var impl, notImpl int
+				// This row used to require an unimplemented command too, so
+				// that both branches of the report were exercised by the real
+				// table. Every command in the table is implemented as of
+				// `route show`, and the honest response is to move the SKIP
+				// coverage rather than keep a command unimplemented to feed a
+				// test: TestCompareOneUnimplemented and TestRenderSkip drive
+				// that branch with a synthetic Command, which is stronger
+				// anyway because it does not decay the next time a row is
+				// implemented.
+				var impl int
 				for _, c := range Commands() {
 					if c.Implemented {
 						impl++
-					} else {
-						notImpl++
 					}
 				}
-				if impl == 0 || notImpl == 0 {
-					t.Errorf("implemented = %d, unimplemented = %d; a zero on either "+
-						"side leaves a branch of the report untested", impl, notImpl)
+				if impl == 0 {
+					t.Error("no command is implemented; the whole compared branch of " +
+						"the report is untested")
 				}
 			},
 		},
@@ -162,20 +169,39 @@ func TestCommandTable(t *testing.T) {
 			},
 		},
 		{
-			description: "boundary: exactly one command needs a device, and it is the only one whose Argv grows",
+			description: "boundary: the dev-taking commands are exactly the ones named `... dev`, and only their Argv grows",
 			check: func(t *testing.T) {
-				var needy []string
+				// Named as a set rather than counted, because the count is
+				// not the property. What matters is that NeedsDev and the
+				// trailing `dev` keyword in Name agree in BOTH directions: a
+				// row with the keyword and no flag would run `ip addr show
+				// dev` with no device, and a row with the flag and no keyword
+				// would append a bare name to a command that does not take
+				// one. Either way the driver captures something, the
+				// comparator finds a triple, and the run looks green.
+				want := map[string]bool{
+					"link show dev":  true,
+					"addr show dev":  true,
+					"route show dev": true,
+					"neigh show dev": true,
+				}
 				for _, c := range Commands() {
-					if c.NeedsDev {
-						needy = append(needy, c.Name)
+					named := strings.HasSuffix(c.Name, " dev")
+					if named != c.NeedsDev {
+						t.Errorf("%q: Name ends in %q = %v, NeedsDev = %v; the two must agree",
+							c.Name, " dev", named, c.NeedsDev)
 					}
+					if c.NeedsDev && !want[c.Name] {
+						t.Errorf("%q takes a device and is not in the expected set", c.Name)
+					}
+					delete(want, c.Name)
 					if got := len(c.Argv("goip0")); got != len(c.Args)+boolToInt(c.NeedsDev) {
 						t.Errorf("%q: Argv is %d long, want %d",
 							c.Name, got, len(c.Args)+boolToInt(c.NeedsDev))
 					}
 				}
-				if len(needy) != 1 || needy[0] != "link show dev" {
-					t.Errorf("dev-taking commands = %q, want exactly [link show dev]", needy)
+				for name := range want {
+					t.Errorf("%q is missing from the table", name)
 				}
 			},
 		},
@@ -333,7 +359,15 @@ func TestCommandsCoverAllowlist(t *testing.T) {
 			},
 		},
 		{
-			description: "boundary: gated_commands is allowed to be empty, and is the honest state until the live tiers exist",
+			// The description used to say empty "is the honest state until
+			// the live tiers exist". Tier C exists and twenty-three of the
+			// table's twenty-four commands are gated, so the row is no longer
+			// about emptiness being expected — it is about emptiness still
+			// being LEGAL, which matters because this package must not
+			// require production gating policy to be non-empty. Which names
+			// are gated is settled in pkg/nlparity, where the file lives;
+			// what stays here is the log line, deliberately not a failure.
+			description: "boundary: gated_commands is allowed to be empty, so this package never depends on production gating policy",
 			check: func(t *testing.T) {
 				if len(al.GatedCommands) != 0 {
 					t.Logf("gated_commands is now %q; this row is a reminder to "+
@@ -366,8 +400,11 @@ func TestCommandsCoverAllowlist(t *testing.T) {
 func TestCommandString(t *testing.T) {
 	tests := []struct {
 		description string
-		name        string
-		wantFields  []string
+		// name is looked up in the real table. cmd, when set, is used
+		// instead, for a shape the table no longer holds.
+		name       string
+		cmd        *Command
+		wantFields []string
 	}{
 		{
 			description: "positive: an implemented command with no device renders six fields",
@@ -375,15 +412,21 @@ func TestCommandString(t *testing.T) {
 			wantFields:  []string{"link_show", "2", "yes", "no", "link show", "link show"},
 		},
 		{
+			// Synthetic since `route show` was implemented: the table holds
+			// no unimplemented command any more, and the driver still has to
+			// read `no` correctly the next time one is added.
 			description: "positive: an unimplemented command renders impl=no",
-			name:        "route show",
-			wantFields:  []string{"route_show", "4", "no", "no", "route show", "route show"},
+			cmd: &Command{
+				Name: "rule show", Slug: "rule_show", Floor: 2,
+				Args: []string{"rule", "show"},
+			},
+			wantFields: []string{"rule_show", "2", "no", "no", "rule show", "rule show"},
 		},
 		{
 			description: "boundary: the implemented dev-taking command renders dev=yes and its Args without a device",
 			name:        "link show dev",
 			wantFields: []string{
-				"link_show_dev", "2", "yes", "yes", "link show dev", "link show dev",
+				"link_show_dev", "4", "yes", "yes", "link show dev", "link show dev",
 			},
 		},
 		{
@@ -397,9 +440,15 @@ func TestCommandString(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
-			c, err := Lookup(tt.name)
-			if err != nil {
-				t.Fatalf("Lookup(%q): %v", tt.name, err)
+			var c Command
+			if tt.cmd != nil {
+				c = *tt.cmd
+			} else {
+				var err error
+				c, err = Lookup(tt.name)
+				if err != nil {
+					t.Fatalf("Lookup(%q): %v", tt.name, err)
+				}
 			}
 			got := strings.Split(c.String(), "\t")
 			if len(got) != len(tt.wantFields) {

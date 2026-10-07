@@ -189,7 +189,7 @@ While the worker is in `uploadWithRetry`, it isn't draining `queueCh` (capacity 
 
 ## New configuration surface
 
-Six new `XtcpConfig` fields. Each follows the standard six-touchpoint wiring in `cmd/xtcp2/xtcp2.go` (`*Cst` const → `mainFlags` field → `defineFlags` → `buildConfig` → `printFlags`/`printConfig`) plus proto + env override. Numeric range checks live in the `.proto` `buf.validate` block (enforced by protovalidate); `pkg/xtcp/input_validation.go` is only touched if a cross-field/semantic rule is needed.
+Six new `XtcpConfig` fields. Each follows the standard six-touchpoint wiring in `cmd/xtcp2/xtcp2.go` (`*Cst` const → `mainFlags` field → `defineFlags` → `buildConfig` → `printFlags`/`printConfig`) plus proto + env override. **Since the 2026-10-06 `funlen` split, the register and print touchpoints are usually a domain helper rather than the big function:** an s3 flag goes in `defineS3Flags` + `printS3Flags`, a listener flag in `defineListenerFlags` + `printListenerAuthFlags` or `printListenerEndpointFlags`. `defineFlags` and `printFlags` are still where a flag belonging to no domain goes. Numeric range checks live in the `.proto` `buf.validate` block (enforced by protovalidate); `pkg/xtcp/input_validation.go` is only touched if a cross-field/semantic rule is needed.
 
 | Proto field (tag) | Go type | Flag | Env | Default | Validation |
 |---|---|---|---|---|---|

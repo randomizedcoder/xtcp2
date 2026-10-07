@@ -238,9 +238,11 @@ func (a *AttrBuilder) PutBytes(atype uint16, v []byte) error {
 // to do that.
 //
 // Message types this package does not model — FamilyHdrLen returns -1, e.g.
-// RTM_GETRULE, whose fib_rule_hdr has no decoder here — are not checked. There
-// is nothing to check against, and refusing them would block every family
-// added later.
+// RTM_GETQDISC, whose tcmsg has no decoder here — are not checked. There is
+// nothing to check against, and refusing them would block every family added
+// later. RTM_GETRULE used to be the example in this sentence and is now
+// modeled; when the next family lands, move the example rather than deleting
+// it, because an unchecked type is the interesting case, not a footnote.
 func BuildRequest(msgType, flags uint16, seq uint32, familyHdr, attrs []byte) ([]byte, error) {
 	if !IsBuildableRequestType(msgType) {
 		return nil, ErrNotAGetRequest
@@ -289,6 +291,12 @@ func FamilyHdrLen(msgType uint16) int {
 		return RtMsgSizeCst // struct rtmsg, 12
 	case uint16(unix.RTM_GETNEIGH), uint16(unix.RTM_NEWNEIGH), uint16(unix.RTM_DELNEIGH):
 		return NdMsgSizeCst // struct ndmsg, 12
+	case uint16(unix.RTM_GETRULE), uint16(unix.RTM_NEWRULE), uint16(unix.RTM_DELRULE):
+		// struct fib_rule_hdr, 12. The same length as ndmsg and rtmsg, which
+		// is why the test table pairs a rule request against those two: a
+		// length check alone cannot tell the three apart, and only the
+		// msgType case arm can.
+		return FibRuleHdrSizeCst
 	case uint16(unix.NLMSG_DONE), uint16(unix.NLMSG_NOOP), uint16(unix.NLMSG_ERROR):
 		return 0
 	default:

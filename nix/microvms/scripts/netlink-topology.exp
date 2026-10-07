@@ -130,6 +130,181 @@ namespace eval nltopo {
         topo $ns $subdir neigh add 192.0.2.51 lladdr 02:00:00:00:00:02 dev $dummy nud stale
         topo $ns $subdir neigh add 192.0.2.52 dev $dummy nud incomplete
         topo $ns $subdir -6 neigh add 2001:db8::50 lladdr 02:00:00:00:00:03 dev $dummy nud permanent
+
+        # Two PROXY entries, one per family, and they are not two more
+        # neighbors. A proxy entry lives in the table's pneigh list, which
+        # neigh_dump_table never walks: the kernel picks between
+        # pneigh_dump_table and neigh_dump_table on whether the request's
+        # ndm_flags EQUALS NTF_PROXY (net/core/neighbour.c:2956), so the four
+        # entries above and these two are disjoint sets reached by different
+        # commands. Adding these therefore does not change a single byte of
+        # what `ip neigh show` returns, which is the property that lets them
+        # into an already-gated topology.
+        #
+        # What they are FOR is the shape pneigh_fill_info emits (:2739-2749)
+        # and nothing else in this topology produces: ndm_state NUD_NONE,
+        # i.e. zero. Every regular entry above has a state, so without these
+        # the renderer's zero-state path and print_neigh's NTF_PROXY escape
+        # from the state filter (ip/ipneigh.c:335-339) have no positive.
+        # There is no NDA_LLADDR and no NDA_CACHEINFO either, by construction
+        # rather than by timing.
+        #
+        # Both families, because the proxy dump walks arp_tbl before nd_tbl
+        # and one entry could not show the order is preserved.
+        topo $ns $subdir neigh add proxy 192.0.2.60 dev $dummy
+        topo $ns $subdir -6 neigh add proxy 2001:db8::60 dev $dummy
+
+        # Flagged entries, and the only reason NDA_FLAGS_EXT appears anywhere
+        # in the corpus. The kernel writes that attribute only when the ext
+        # word is non-zero - `if (neigh_flags_ext && nla_put_u32(...))`, at
+        # both net/core/neighbour.c:2697 and :2754 - so no amount of ordinary
+        # traffic produces one. A flag has to be asked for.
+        #
+        # `nud permanent` on every line is load-bearing, not decoration.
+        # Creating an entry with NTF_EXT_VALIDATED is rejected outright unless
+        # ndm_state is in NUD_VALID (:2119-2133, "Cannot create externally
+        # validated neighbor with an invalid state").
+        topo $ns $subdir neigh add 192.0.2.53 lladdr 02:00:00:00:00:04 dev $dummy nud permanent router
+        topo $ns $subdir neigh add 192.0.2.54 lladdr 02:00:00:00:00:05 dev $dummy nud permanent extern_learn
+        topo $ns $subdir neigh add 192.0.2.55 lladdr 02:00:00:00:00:06 dev $dummy nud permanent extern_valid
+
+        # One entry carrying three tokens from TWO different words: router and
+        # extern_learn are ndm_flags bits, extern_valid is an NDA_FLAGS_EXT
+        # bit, and print_neigh emits them from six separate ifs over both
+        # (ip/ipneigh.c:440-451). Nothing else in the topology puts more than
+        # one flag on a line, so without it the renderer's multi-token path
+        # has no captured positive.
+        topo $ns $subdir neigh add 192.0.2.56 lladdr 02:00:00:00:00:07 dev $dummy nud permanent router extern_learn extern_valid
+
+        # The same on the v6 arm, because arp_tbl and nd_tbl are different
+        # tables filled by the same neigh_fill_info: this is what says the ext
+        # word survives the family that actually has a native notion of a
+        # router.
+        topo $ns $subdir -6 neigh add 2001:db8::53 lladdr 02:00:00:00:00:08 dev $dummy nud permanent router extern_valid
+
+        # Three of print_neigh's six tokens are deliberately NOT here, and
+        # each is absent for a different reason:
+        #
+        # `managed` is invisible on THIS device, and the reason is the dummy
+        # rather than the flag. A dummy carries IFF_NOARP, so arp_constructor
+        # puts every neighbor on it into NUD_NOARP with the device's own
+        # dev_addr - and `ip neigh show`'s default filter is
+        # `0xFF & ~NUD_NOARP` (ip/ipneigh.c:523), which drops exactly those.
+        # Measured on the pinned 7.1.0 against a live namespace: `neigh add
+        # ... managed` is accepted with no error, the entry is stable across
+        # repeated samples, it renders `managed NOARP` under `nud all`, and it
+        # is absent from the bare `ip neigh show` this topology captures. The
+        # lladdr asked for is discarded too.
+        #
+        # Reaching it needs an ARP-capable device, i.e. the veth pair in
+        # build_mesh, and the parity harness does not build that namespace
+        # (goip-parity.exp:87-93). Until it does, `managed` stays a
+        # constructed row in render/neigh_test.go.
+        #
+        # `offload` is set by a driver that has pushed the entry into
+        # hardware. There is no such driver in a microVM.
+        #
+        # `locked` is unreachable rather than merely unused, and from both
+        # ends. The kernel does not put NTF_EXT_LOCKED in NTF_EXT_MASK
+        # (include/net/neighbour.h:276), so the NLA_POLICY_MASK on
+        # NDA_FLAGS_EXT would reject it before neigh_add ran
+        # (net/core/neighbour.c:1948) - but it never gets that far, because
+        # `ip neigh` has no such keyword at all. The pinned 7.1.0 answers
+        # `either "to" is duplicate, or "locked" is garbage`. It is a bridge
+        # FDB token, printed at bridge/fdb.c:121 and nowhere in ip/ipneigh.c.
+
+        build_clean_rules $ns $subdir $dummy
+    }
+
+    ###########################################################################
+    # build_clean_rules - the routing policy database, `ip rule`.
+    #
+    # Split out of build_clean only for length; it is part of the same
+    # topology and runs unconditionally at the end of it. The rules reference
+    # tables that hold no routes, on purpose: a rule is visible to RTM_GETRULE
+    # whether or not its table exists, so leaving the tables empty means this
+    # block cannot change what `ip route show table all` captures.
+    #
+    # Every line below exists for exactly one attribute or one print_rule
+    # branch, the contract build_clean's routes are written to. Preferences
+    # are spaced by 100 and assigned in print order, so the golden reads top
+    # to bottom in the order print_rule emits and a renderer diff points at a
+    # branch rather than at a line number.
+    #
+    # Two branches are deliberately NOT here, for one shared reason: their
+    # tokens come from a name table iproute2 loads from a FILE on whichever
+    # host runs it. `ipproto tcp` goes through inet_proto_n2a ->
+    # getprotobynumber -> /etc/protocols, and `dscp AF11` through
+    # rtnl_dscp_n2a -> rtnl_dsfield_get_name -> /etc/iproute2/rt_dsfield
+    # (lib/rt_names.c:634-644). A fixture whose text depends on which files
+    # the guest image happens to ship is not a fixture - the same reason
+    # render/route.go's dsfieldName is pinned to its 0x%02x fallback. goip
+    # DECODES FRA_IP_PROTO and FRA_DSCP and refuses to render them; see
+    # internal/goip/render/rule.go.
+    ###########################################################################
+    proc build_clean_rules {ns subdir dummy} {
+        # FRA_SRC with a prefix shorter than host_len, so print_rule takes the
+        # `/%u` arm at ip/iprule.c:322-324 rather than the bare-address one.
+        # Also FRA_TABLE above 255, which CANNOT fit fib_rule_hdr.table and is
+        # the whole reason frh_get_table exists (:90-96).
+        topo $ns $subdir rule add pref 100 from 192.0.2.0/24 lookup 100
+        # FRA_DST and FRA_IIFNAME. The interface name is a STRING on the wire
+        # here, not an index, which is why `ip rule show` needs no ll_init_map.
+        topo $ns $subdir rule add pref 200 to 198.51.100.0/24 iif $dummy lookup 200
+        # FRA_FWMARK with FRA_FWMASK, the two-token arm (:355-361). The mask is
+        # not 0xFFFFFFFF, which is what selects it over the one-token arm.
+        topo $ns $subdir rule add pref 300 fwmark 0x1234/0xff00 lookup 300
+        topo $ns $subdir rule add pref 400 oif $dummy lookup 400
+        # FRA_UID_RANGE. The kernel validates both ends against the CALLING
+        # user namespace (net/core/fib_rules.c:681), so this step is refused
+        # inside `unshare -r` and accepted here, where the guest is real root.
+        topo $ns $subdir rule add pref 500 uidrange 1000-2000 lookup 500
+        # FRA_SPORT_RANGE with start != end and FRA_DPORT_RANGE with
+        # start == end, which are different arms (:436-440 against :433-435).
+        # No `ipproto` keyword, so nothing here reaches inet_proto_n2a.
+        topo $ns $subdir rule add pref 600 sport 1000-2000 dport 80 lookup 600
+        # FRA_SUPPRESS_PREFIXLEN, which prints only INSIDE the `if (table)`
+        # block (:485-491), so it needs a rule that also looks a table up.
+        topo $ns $subdir rule add pref 700 lookup main suppress_prefixlength 0
+        # An action that is none of the three cased above it, so it falls to
+        # rtnl_rtntype_n2a at :546-548.
+        topo $ns $subdir rule add pref 800 blackhole
+        # FRA_GOTO with FR_ACT_GOTO (:536-541).
+        topo $ns $subdir rule add pref 900 goto 32766
+        # FIB_RULE_INVERT, the `not` token - emitted BEFORE `from` (:313-314),
+        # the one token on any of these lines that precedes the source.
+        topo $ns $subdir rule add pref 1000 not from 203.0.113.0/24 lookup main
+        topo $ns $subdir rule add pref 1100 nop
+        # FRA_L3MDEV. Prints the literal `lookup [l3mdev-table]` (:393-399) and
+        # leaves the table 0, so the line has one `lookup` token and it is not
+        # the one the table block emits.
+        topo $ns $subdir rule add pref 1200 l3mdev
+        # FRA_TUN_ID, the only BIG-ENDIAN integer in the attribute set -
+        # print_rule wraps it in ntohll (:474). A byte-swapped decoder renders
+        # 42 as 3026418949592973312, which is not a plausible tunnel id.
+        topo $ns $subdir rule add pref 1300 tun_id 42 lookup 1300
+        topo $ns $subdir rule add pref 1400 lookup main suppress_ifgroup 5
+        # FRA_FLOW, the realms pair packed as from<<16 | to (:509-521).
+        topo $ns $subdir rule add pref 1500 realms 1/2 lookup 1500
+        # FRA_FWMARK with no FRA_FWMASK, the one-token arm, against pref 300.
+        topo $ns $subdir rule add pref 1600 fwmark 0x10 lookup 1600
+        # RTN_NAT, which is not an FR_ACT_* value at all - it is 10, past
+        # FR_ACT_PROHIBIT at 8 - and the branch prints `masquerade` rather
+        # than `map-to` because the kernel accepts the action and drops the
+        # address, leaving tb[RTA_GATEWAY] absent (:525-534).
+        topo $ns $subdir rule add pref 1700 nat 192.0.2.99
+
+        # IPv6, and the FAMILY is the point: the v6 policy database is a
+        # separate table with its own defaults - two of them, `local` and
+        # `main`, where v4 has three. A decoder tested only against v4 never
+        # learns that the missing `default` rule is absent rather than
+        # filtered.
+        topo $ns $subdir -6 rule add pref 100 from 2001:db8::/64 lookup 100
+        # FRA_FLOWLABEL with FRA_FLOWLABEL_MASK. The mask is LABEL_MAX_MASK,
+        # which sends the mask to JSON ONLY and prints one token to the
+        # terminal (:583-596) - a place where the two output modes emit a
+        # different NUMBER of values, not a different spelling of one.
+        topo $ns $subdir -6 rule add pref 200 flowlabel 0x12345/0xfffff lookup 200
     }
 
     ###########################################################################
@@ -150,5 +325,122 @@ namespace eval nltopo {
         topo $ns $subdir link set br0 up
         topo $ns $subdir link set veth0 up
         topo $ns $subdir route add 198.19.1.0/24 dev br0
+    }
+
+    ###########################################################################
+    # build_tunnel - one device per ARPHRD type that ll_addr_n2a special-cases.
+    #
+    # WHY THIS SET EXISTS
+    #
+    # ll_addr_n2a (lib/ll_addr.c:26-44) does not always print colon-hex. It
+    # returns inet_ntop(AF_INET) when the address is 4 bytes AND the type is
+    # ARPHRD_TUNNEL, ARPHRD_SIT or ARPHRD_IPGRE (:32-35), and
+    # inet_ntop(AF_INET6) when it is 16 bytes AND the type is ARPHRD_TUNNEL6
+    # or ARPHRD_IP6GRE (:37-38). Only after both tests fail does it reach the
+    # generic hex loop at :40-43.
+    #
+    # No device in `clean` or `mesh` has any of those five types, so the two
+    # special cases had no positive anywhere in the corpus - which is why
+    # xtcpnl's hwAddrString implements the fall-through only, and says so in a
+    # doc comment that describes a tunnel as taking it.
+    #
+    # Both IFLA_ADDRESS and IFLA_BROADCAST are rendered through ll_addr_n2a
+    # with ifi->ifi_type (ip/ipaddress.c:1067-1092), so every device below
+    # exercises the divergence twice, on two different attributes.
+    #
+    # WHY ITS OWN NAMESPACE RATHER THAN AN ADDITION TO `clean`
+    #
+    # Adding a device to `clean` rewrites every committed clean fixture and
+    # every sidecar, for a property not one of them is about. A separate set
+    # costs one subdir.
+    #
+    # The namespace is NOT what keeps the clean set intact, though, and it is
+    # worth being exact about that because the first attempt got it wrong.
+    # These five families put their fallback device in every namespace from
+    # pernet_operations, so a module loaded at boot reaches `clean` however
+    # many namespaces are between them. What protects `clean` is that
+    # scripts/capture-netlink-dumps.exp modprobes them only after the clean
+    # and mesh sets are captured; see the comment at that call.
+    #
+    # WHY NOTHING HERE BINDS AN UNDERLYING DEVICE
+    #
+    # A tunnel created without `dev` carries no IFLA_LINK and no IFLA_MASTER,
+    # so it provokes none of the side ll_link_get transactions that keep
+    # `mesh` out of the gated parity run. This set is therefore positionally
+    # comparable in principle; it is ungated here only because the bar is two
+    # measured runs and it has had none.
+    #
+    # DETERMINISM, AND THE ONE PLACE IT DOES NOT HOLD
+    #
+    # A tunnel's link-layer address IS its local endpoint, not a MAC the
+    # kernel randomizes per boot, so IFLA_ADDRESS and IFLA_BROADCAST - the
+    # two attributes this set exists for - are stable across captures where
+    # the dummy in `clean` is not.
+    #
+    # IFLA_PERM_ADDRESS is the exception, and it was found by capturing
+    # rather than predicted: ip6_tunnel.c:1913 and ip6_gre.c:1443 both call
+    # eth_random_addr(dev->perm_addr), so ip6tnl0, ip6tnl1, ip6gre0 and
+    # ip6gre1 carry a fresh permaddr every boot, and `ip` prints it because
+    # it differs from IFLA_ADDRESS (ip/ipaddress.c:1094-1101). The four v4
+    # devices have no permaddr line at all. So the sidecars in this set are
+    # stable except for one token on four lines - the same situation as
+    # ip_link_stats, which is committed anyway and for the same reason.
+    ###########################################################################
+    proc build_tunnel {ns subdir} {
+        # A distinct local per device on purpose: a decoder that reads the
+        # right attribute off the wrong link still yields a plausible dotted
+        # quad, and five copies of one address would hide exactly that.
+        topo $ns $subdir link add ipip1   type ipip   local 192.0.2.1 remote 198.51.100.1
+        topo $ns $subdir link add sit1    type sit    local 192.0.2.2 remote 198.51.100.2
+        topo $ns $subdir link add gre1    type gre    local 192.0.2.3 remote 198.51.100.3
+        topo $ns $subdir link add ip6tnl1 type ip6tnl mode ip6ip6 local 2001:db8::1 remote 2001:db8:100::1
+        topo $ns $subdir link add ip6gre1 type ip6gre local 2001:db8::2 remote 2001:db8:100::2
+
+        # Loading each module also creates that family's FALLBACK device in
+        # the namespace - tunl0, sit0, gre0, ip6tnl0, ip6gre0 - and those earn
+        # their place rather than being noise. Their addresses are all-zero
+        # and they are NOT IFF_POINTOPOINT, so they take the `brd` arm of
+        # ip/ipaddress.c:1077-1084 where the five configured devices take
+        # `peer`. One namespace covers both arms, and the all-zero address is
+        # the boundary case that must render "0.0.0.0" and not "00:00:00:00".
+
+        topo $ns $subdir link set gre1 up
+        topo $ns $subdir addr add 203.0.113.1/24 dev gre1
+        topo $ns $subdir -6 addr add 2001:db8:3::1/64 nodad dev gre1
+        topo $ns $subdir route add 203.0.113.128/25 dev gre1
+
+        # The THIRD consumer of ll_addr_n2a, and the only one these fixtures
+        # could not reach until there was a tunnel device to hang a neighbor
+        # off. print_neigh formats NDA_LLADDR with the type of the neighbor's
+        # DEVICE - ll_index_to_type(r->ndm_ifindex), ip/ipneigh.c:428-430 -
+        # because struct ndmsg carries no type of its own.
+        #
+        # The two entries are a matched pair on ONE device, which is what
+        # makes them worth capturing rather than constructing:
+        #
+        #   .5  four bytes -> ARPHRD_IPGRE and len 4 -> "192.0.2.99"
+        #   .6  six bytes  -> no special case        -> "02:00:00:00:00:07"
+        #
+        # Same device, same ifi_type, different length, different render. That
+        # is ll_addr_n2a testing a length AND a type, and no pair of entries
+        # spread across two devices could show it as cleanly.
+        #
+        # The input side is NOT symmetric with the output side: ll_addr_a2n
+        # (lib/ll_addr.c:47-63) branches on a literal '.' in the STRING and
+        # never looks at the device, so the dotted quad below would be
+        # accepted on any device at all. Only rendering it back needs gre1 to
+        # be ARPHRD_IPGRE.
+        topo $ns $subdir neigh add 203.0.113.5 lladdr 192.0.2.99 nud permanent dev gre1
+        topo $ns $subdir neigh add 203.0.113.6 lladdr 02:00:00:00:00:07 nud permanent dev gre1
+
+        # The v6 arm, on a device deliberately left DOWN. A permanent neighbor
+        # should not need a running device, and bringing ip6tnl1 up would
+        # rewrite its flags and state in every committed tunnel golden for the
+        # sake of one entry. If the kernel refuses this, the driver reports a
+        # refusal rather than failing the run, and the 16-byte arm stays
+        # covered by the constructed rows in render/neigh_test.go.
+        topo $ns $subdir -6 neigh add 2001:db8:100::5 \
+            lladdr 20:01:0d:b8:00:00:00:00:00:00:00:00:00:00:00:63 \
+            nud permanent dev ip6tnl1
     }
 }

@@ -1,0 +1,12 @@
+ok    [nlcapt] ip link add ipip1 type ipip local 192.0.2.1 remote 198.51.100.1
+ok    [nlcapt] ip link add sit1 type sit local 192.0.2.2 remote 198.51.100.2
+ok    [nlcapt] ip link add gre1 type gre local 192.0.2.3 remote 198.51.100.3
+ok    [nlcapt] ip link add ip6tnl1 type ip6tnl mode ip6ip6 local 2001:db8::1 remote 2001:db8:100::1
+ok    [nlcapt] ip link add ip6gre1 type ip6gre local 2001:db8::2 remote 2001:db8:100::2
+ok    [nlcapt] ip link set gre1 up
+ok    [nlcapt] ip addr add 203.0.113.1/24 dev gre1
+ok    [nlcapt] ip -6 addr add 2001:db8:3::1/64 nodad dev gre1
+ok    [nlcapt] ip route add 203.0.113.128/25 dev gre1
+ok    [nlcapt] ip neigh add 203.0.113.5 lladdr 192.0.2.99 nud permanent dev gre1
+ok    [nlcapt] ip neigh add 203.0.113.6 lladdr 02:00:00:00:00:07 nud permanent dev gre1
+ok    [nlcapt] ip -6 neigh add 2001:db8:100::5 lladdr 20:01:0d:b8:00:00:00:00:00:00:00:00:00:00:00:63 nud permanent dev ip6tnl1

@@ -4,10 +4,13 @@
 #
 # Usage:
 #   capture-netlink-dumps.exp <serial-port> <blob-out> [--skip-mesh]
+#                                                      [--skip-tunnel]
 #
 #   <serial-port>  host TCP port qemu bound the guest's serial console to
 #   <blob-out>     file to write the base64 tarball to
-#   --skip-mesh    capture only the clean set (faster; loses the advisory set)
+#   --skip-mesh    skip the mesh set (faster; loses the advisory bridge set)
+#   --skip-tunnel  skip the tunnel set (faster; loses every ARPHRD type that
+#                  ll_addr_n2a special-cases)
 #
 # This file holds the POLICY half of the capture: which namespaces exist,
 # which commands are captured, what each capture's floor is, and which
@@ -44,9 +47,11 @@ if {$argc < 2} {
 set port     [lindex $argv 0]
 set blob_out [lindex $argv 1]
 set skip_mesh 0
+set skip_tunnel 0
 foreach a [lrange $argv 2 end] {
     switch -- $a {
-        --skip-mesh { set skip_mesh 1 }
+        --skip-mesh   { set skip_mesh 1 }
+        --skip-tunnel { set skip_tunnel 1 }
         default {
             puts "unknown argument: $a"
             exit 2
@@ -54,9 +59,16 @@ foreach a [lrange $argv 2 end] {
     }
 }
 
-set NS_CLEAN "nlcapc"
-set NS_MESH  "nlcapm"
-set DUMMY    "goip0"
+set NS_CLEAN  "nlcapc"
+set NS_MESH   "nlcapm"
+set NS_TUNNEL "nlcapt"
+set DUMMY     "goip0"
+
+# The tunnel set's `dev` selector. gre1 rather than one of the other four
+# because it is the only device in that namespace carrying addresses and a
+# route, so `addr show dev` and `route show dev` have something to print;
+# the other four exist for their link-layer address alone.
+set TUNDEV    "gre1"
 
 # Accumulated problems, reported together at the end rather than scrolling
 # past in the middle of the run.
@@ -77,6 +89,31 @@ proc nlcap {args} {
 proc cap {ns subdir name floor command} {
     global short_caps
     lassign [nlcap cap $ns $subdir $name $floor "'$command'"] rc out
+    if {$rc != 0} {
+        lappend short_caps "$subdir/$name"
+        vmlib::log "MISSED FLOOR $subdir/$name: $out"
+        return 0
+    }
+    vmlib::log [string trim $out]
+    return 1
+}
+
+# capio <ns> <subdir> <name> <floor> <command> <stdout-name>
+#
+# A `cap` and a `side` of the SAME invocation: one run of the command, its
+# netlink in the pcap and its stdout in the sidecar. `cap` plus a separate
+# `side` of the same command is two runs, and for anything that prints live
+# counters the two disagree - the committed ip_link_stats and a replay of
+# netlink_route_getlink_stats.pcap differ on exactly the counter lines, which
+# is why internal/goip has a normalizeLinkStatsText at all.
+#
+# So the rule for a `-s` golden below is: `capio` if a test replays the pcap
+# and diffs the sidecar, because then it reproduces byte for byte and needs no
+# normalizer; `side` if the golden is compared against another TEXT file
+# (the no-op pairs) or in a form that drops counter values anyway (JSON).
+proc capio {ns subdir name floor command sout} {
+    global short_caps
+    lassign [nlcap capio $ns $subdir $name $floor "'$command'" $sout] rc out
     if {$rc != 0} {
         lappend short_caps "$subdir/$name"
         vmlib::log "MISSED FLOOR $subdir/$name: $out"
@@ -109,6 +146,25 @@ proc capture_set {ns subdir dev} {
     # A bare `link show` is AF_PACKET and carries IFLA_EXT_MASK = 0x09.
     cap $ns $subdir netlink_route_getlink 2 "ip link show"
 
+    # The same dump with one byte changed. `-s` clears RTEXT_FILTER_SKIP_STATS
+    # from the mask, so this sends 0x01 where the line above sends 0x09
+    # (ip/ipaddress.c:2017-2026) - a one-byte difference at offset 36 of the
+    # same 40-byte datagram - and the kernel answers by attaching IFLA_STATS
+    # and IFLA_STATS64 to every reply.
+    #
+    # Worth its own pcap even though the corpus already contains replies
+    # carrying those attributes: netlink_route_getaddr_v4 and
+    # netlink_route_getneigh have them only as a SIDE EFFECT, because their
+    # link dumps send no IFLA_EXT_MASK at all and rtnl_linkdump_req_filter_fn
+    # then skips the filter entirely (lib/libnetlink.c:595). Nothing in the
+    # corpus records a request that asks for them on purpose, which is the
+    # half goip has to reproduce byte for byte.
+    #
+    # Floor 2, the same as the line above: one dump, one request, at least one
+    # reply. `-s` does not reach ll_link_get or ll_init_map, whose masks are
+    # local constants (lib/ll_map.c:277,395), so it adds no transaction.
+    cap $ns $subdir netlink_route_getlink_stats 2 "ip -s link show"
+
     # Plain `addr show` is AF_UNSPEC, so its link dump DOES carry
     # IFLA_EXT_MASK; the -4/-6 forms do not, because
     # rtnl_linkdump_req_filter_fn skips filter_fn unless the family is
@@ -118,6 +174,40 @@ proc capture_set {ns subdir dev} {
     cap $ns $subdir netlink_route_getaddr 4 "ip addr show"
     cap $ns $subdir netlink_route_getaddr_v4 4 "ip -4 addr show"
     cap $ns $subdir netlink_route_getaddr_v6 4 "ip -6 addr show"
+
+    # `-s addr show`, and it is the ONLY `-s` form in the whole sweep that
+    # changes a request byte no existing capture covers. The AF_UNSPEC addr
+    # dump's link half does carry IFLA_EXT_MASK (see above), so `-s` clears
+    # RTEXT_FILTER_SKIP_STATS there exactly as it does for `ip -s link show`:
+    # 0x01 where netlink_route_getaddr sends 0x09.
+    #
+    # The -4/-6 forms get no pcap of their own because they CANNOT differ -
+    # rtnl_linkdump_req_filter_fn skips filter_fn for a non-AF_UNSPEC family
+    # (lib/libnetlink.c:595), so those two send no mask with or without `-s`.
+    # Their `-s` difference is output-only and lives in a sidecar.
+    #
+    # Floor 4, like the three above: link dump plus addr dump, request and
+    # reply each.
+    #
+    # capio and not cap+side: the replies carry IFLA_STATS64, so the stdout
+    # has to come from the invocation this pcap recorded or a replay cannot
+    # reproduce it exactly.
+    capio $ns $subdir netlink_route_getaddr_stats 4 "ip -s addr show" ip_addr_stats
+
+    # `-s -6 addr show`, and its REQUEST is byte-identical to
+    # netlink_route_getaddr_v6's - rtnl_linkdump_req_filter_fn skips filter_fn
+    # for a non-AF_UNSPEC family (lib/libnetlink.c:595), so neither form sends
+    # a mask. A second pcap with the same request bytes needs a reason, and the
+    # reason is the stdout: this command prints IPv6 MIB counters out of
+    # IFLA_PROTINFO/IFLA_INET6_STATS, which tick, so the only way its golden
+    # can be diffed against a replay is for the two to come from one run.
+    #
+    # Pairing them is also what makes the golden survive a RE-capture. The
+    # guest's dummy device gets a random MAC per boot, so ip_addr_v6's
+    # link-local is a different address in every run; a sidecar captured in one
+    # boot and replayed against another boot's pcap differs on that line and on
+    # nothing else, which reads exactly like a renderer bug.
+    capio $ns $subdir netlink_route_getaddr_v6_stats 4 "ip -s -6 addr show" ip_addr_v6_stats
 
     # Default `route show` sends AF_INET plus RTA_TABLE=254, not the all-zero
     # rtmsg of `table all` (ip/iproute.c:1836,1997). Both, for the same
@@ -130,11 +220,146 @@ proc capture_set {ns subdir dev} {
     # anywhere, only a notifications pcap.
     cap $ns $subdir netlink_route_getneigh 4 "ip neigh show"
 
-    # Captured to SETTLE what a single-get does rather than to confirm it:
-    # whether iproute2 resolves the name through a full dump and filters, or
-    # issues a non-dump RTM_GETLINK, decides whether goip needs
-    # TalkRtnetlink here at all. Floor is the bare structural minimum.
-    cap $ns $subdir netlink_route_getlink_dev 2 "ip link show dev $dev"
+    # `-s neigh show`, whose request is byte-identical to the line above - `-s`
+    # reaches no part of rtnl_neighdump_req - so this pcap exists for its
+    # stdout pairing alone, like the two addr stats captures.
+    #
+    # It is the one `-s` golden in this file that prints a block AND whose
+    # numbers are unbounded: used/confirmed/updated are ticks since, and they
+    # advance between any two invocations. The block also lands mid-line,
+    # between the flag run and the state (ip/ipneigh.c:453-465), so a
+    # normalizer that rewrote the counters would have to rewrite the middle of
+    # a line and would be rewriting the thing under test. capio removes the
+    # need for one.
+    capio $ns $subdir netlink_route_getneigh_stats 4 "ip -s neigh show" ip_neigh_stats
+
+    # Originally captured to SETTLE what a single-get does rather than to
+    # confirm it: whether iproute2 resolves the name through a full dump and
+    # filters, or issues a non-dump RTM_GETLINK, decided whether goip needed
+    # TalkRtnetlink here at all. It does, and the answer turned out to be two
+    # non-dump RTM_GETLINKs, not one — ll_link_get for the index
+    # (ip/ipaddress.c:2254) and then iplink_get for the reply that gets
+    # printed (:2293).
+    #
+    # Hence floor 4 and not the 2 this line carried while the question was
+    # open: two transactions, each a request and a reply. At 2 a capture
+    # window that caught only the first would be written as a good fixture.
+    cap $ns $subdir netlink_route_getlink_dev 4 "ip link show dev $dev"
+
+    # The addr object's `dev` selector, and THREE transactions rather than the
+    # link object's two - hence floor 6.
+    #
+    # `dev NAME` lands in the same catch-all else-arm in every `addr` form
+    # (ip/ipaddress.c:2241-2247) and ll_name_to_index resolves it with the
+    # same throwaway ll_link_get (:2253), so request one is byte-identical to
+    # netlink_route_getlink_dev's first. There the two commands part company:
+    # with filter.ifindex set, :2302 takes ipaddr_link_get, which re-fetches
+    # BY INDEX where iplink_get re-fetched by name, and then :2314 dumps the
+    # addresses with that index written into ifa_index.
+    #
+    # So this is the only capture in the corpus holding an RTM_GETADDR dump
+    # with a non-zero ifa_index, and the only one where a by-index and a
+    # by-name single-get for the SAME interface appear side by side. Both are
+    # request-byte facts with no output consequence at all, which is exactly
+    # why they need a pcap rather than a sidecar.
+    cap $ns $subdir netlink_route_getaddr_dev 6 "ip addr show dev $dev"
+
+    # The same selector with `-s`, and the only capture in the corpus that
+    # records the ext_filter_mask on a NON-DUMP RTM_GETLINK. ipaddr_link_get
+    # (ip/ipaddress.c:2302) writes the mask into a single-get, so this is where
+    # `-s` reaches the get path - a request-byte fact that source reading can
+    # assert and nothing else in the corpus can check. Floor 6, the same three
+    # transactions as the line above.
+    #
+    # capio for the same reason as the two addr stats captures above, and with
+    # a second payoff here: this command's counters come from IFLA_STATS64 on
+    # a non-dump reply while the bare `-s -6` form's come from the IPv6 MIB, so
+    # the two goldens are the evidence that one header covers two sources. That
+    # only holds if each is reproducible from its own pcap.
+    capio $ns $subdir netlink_route_getaddr_dev_stats 6 "ip -s addr show dev $dev" ip_addr_dev_stats
+
+    # The route object's `dev` selector, and the interesting thing about it is
+    # that the selector both ADDS a transaction and REMOVES several.
+    #
+    # It adds ll_name_to_index's throwaway ll_link_get at the front
+    # (ip/iproute.c:2008), byte-identical to the first request of the two
+    # captures above - hence two transactions and floor 4, not the single dump
+    # a bare `route show` needs.
+    #
+    # It removes every lazy by-index side-get at the back. print_route's `dev`
+    # token is guarded by `filter.oifmask != -1` (:900-901) and that token is
+    # the only caller of ll_index_to_name for RTA_OIF, so naming a device means
+    # no name ever has to be resolved. A bare `route show` costs one get per
+    # distinct output interface; this form costs exactly two transactions no
+    # matter how large the answer is, so the saving GROWS with the answer.
+    #
+    # The dump itself is also the only RTM_GETROUTE in the corpus carrying two
+    # attributes: iproute_dump_filter writes RTA_TABLE first (:1726) then
+    # RTA_OIF (:1731), each behind its own presence test, and that order is
+    # part of the byte-equality contract.
+    cap $ns $subdir netlink_route_getroute_dev 4 "ip route show dev $dev"
+
+    # The neigh object's `dev` selector, and the one that costs NOTHING -
+    # which is why the floor here is 4, the same as bare `neigh show` above,
+    # and not the 6 the addr form needed.
+    #
+    # do_show_or_flush calls ll_init_map(&rth) unconditionally at
+    # ip/ipneigh.c:597, before it resolves the name at :600. That dump has
+    # already filled the index cache, so ll_name_to_index's ll_get_by_name
+    # hits and never reaches the throwaway ll_link_get every other `dev` form
+    # in this list pays for (lib/ll_map.c:354-359). Two transactions, and the
+    # first is byte-identical to netlink_route_getneigh's.
+    #
+    # So the whole on-the-wire difference between this capture and
+    # netlink_route_getneigh is 8 bytes on the second request - and they are
+    # bytes worth a pcap, because ipneigh_dump_filter writes the index as an
+    # NDA_IFINDEX ATTRIBUTE (:493) while `struct ndmsg` has an ndm_ifindex
+    # field sitting unused at offset 4. This is the corpus's only RTM_GETNEIGH
+    # carrying an attribute at all.
+    cap $ns $subdir netlink_route_getneigh_dev 4 "ip neigh show dev $dev"
+
+    # The neigh object's OTHER free selector, and the narrowest request delta
+    # in the whole set: ONE byte.
+    #
+    # ipneigh_dump_filter writes filter.ndm_flags into the base struct at
+    # offset 10 (ip/ipneigh.c:490), unconditionally and before either
+    # attribute, so `ip neigh show proxy` and `ip neigh show` send the same
+    # 28-byte datagram differing in a single position. The `dev` form above
+    # needed 8 bytes to say what it wanted; this one needs one.
+    #
+    # The REPLY side is the opposite of narrow. The kernel tests that byte
+    # for equality with NTF_PROXY (net/core/neighbour.c:2956) and walks
+    # pneigh_dump_table instead of neigh_dump_table, so this capture and
+    # netlink_route_getneigh hold DISJOINT entry sets rather than a subset
+    # and a superset. It is the corpus's only RTM_GETNEIGH reply stream with
+    # ndm_state NUD_NONE, no NDA_LLADDR and no NDA_CACHEINFO
+    # (pneigh_fill_info, :2739-2749) - the shape a decoder that assumes every
+    # neighbor has a state gets wrong.
+    #
+    # Floor 4, the same as the two above, because the byte changes which
+    # table is walked and not how many dumps are sent.
+    cap $ns $subdir netlink_route_getneigh_proxy 4 "ip neigh show proxy"
+
+    # The fifth object, and the corpus's first RTM_GETRULE and first
+    # fib_rule_hdr. Floor 2, the lowest in this table, because
+    # iprule_list_flush_or_save sends exactly one dump and calls no
+    # ll_init_map at all - `ip rule show` resolves no interface name, since
+    # FRA_IIFNAME and FRA_OIFNAME arrive as STRINGS rather than as indices.
+    #
+    # The request is 28 bytes and carries no attribute, and cannot: under
+    # strict check the kernel rejects a rule dump carrying any attribute
+    # (net/core/fib_rules.c:1278-1281). So the only byte that varies across
+    # every form of this command is frh.family, which makes the v6 capture
+    # below a one-byte delta - the narrowest in this set apart from
+    # netlink_route_getneigh_proxy's.
+    #
+    # That family byte is never AF_UNSPEC. iprule_list_flush_or_save
+    # substitutes AF_INET first (ip/iprule.c:749-752), so a BARE `ip rule
+    # show` asks for IPv4. Which is why there is no separate `-4` capture
+    # here: `ip -4 rule show` sends the same 28 bytes and prints the same
+    # output, and that equality is worth a parity row rather than a pcap.
+    cap $ns $subdir netlink_route_getrule 2 "ip rule show"
+    cap $ns $subdir netlink_route_getrule6 2 "ip -6 rule show"
 }
 
 # PLAIN AND -d, IN PAIRS.
@@ -144,9 +369,40 @@ proc capture_set {ns subdir dev} {
 # difference made entirely of -d-only attributes the renderer never decodes.
 # Both forms are written, under distinct names: the `_n` suffix keeps meaning
 # `-d`, so existing line-number citations keep their meaning.
+#
+# Every `_n` sidecar this proc writes is now READ, in all three namespaces,
+# which it was not when the paragraph above was written: goip implements -d,
+# and the eight sidecars of the CLEAN set were the first to get readers, in
+# internal/goip/goip_details_test.go. The mesh and tunnel copies followed, and
+# four of those are read in a different shape — goip REFUSES -d per-command on
+# per-kind IFLA_INFO_DATA, so mesh/ip_addr_v4_n, tunnel/ip_addr_v4_n,
+# tunnel/ip_addr_n and tunnel/ip_link_n cannot be reproduced at all and are
+# instead asserted to CARRY the per-kind tokens the refusal declines to print.
+#
+# Note the one comparison none of them can make: nlmon0's promiscuity, which a
+# `cap` records as 1 because tcpdump holds a packet socket on it and a `side`
+# records as 0 because it does not. No re-capture reconciles that, since
+# capturing is what sets the bit.
 proc sidecar_set {ns subdir dev} {
     side $ns $subdir ip_link                "ip link show"
     side $ns $subdir ip_link_n              "ip -d link show"
+
+    # The `-s` stanza, which is the only sidecar in this list whose CONTENT
+    # is expected to differ between two captures on the same topology: it
+    # prints live byte and packet counters. It is committed anyway, because
+    # what is being reviewed is the block's LAYOUT - print_stats64 widens
+    # every column to the widest value in it (ip/ipaddress.c:530-550), so the
+    # whitespace is a function of the traffic and is exactly the part a
+    # renderer gets wrong.
+    #
+    # Still no `-d -s` pair, and the reason has changed now that goip has -d.
+    # What that sidecar would add over the two already captured is the ORDER
+    # of the detail run against the stats block, and print_linkinfo settles
+    # that statically: the show_details block closes at ip/ipaddress.c:1284
+    # and __print_link_stats is called at :1297. A capture cannot disagree
+    # with a call order, so it would cost a sidecar to restate one.
+    side $ns $subdir ip_link_stats          "ip -s link show"
+    side $ns $subdir ip_link_stats_json     "ip -j -p -s link show"
     side $ns $subdir ip_addr                "ip addr show"
     side $ns $subdir ip_addr_n              "ip -d addr show"
     side $ns $subdir ip_addr_v4             "ip -4 addr show"
@@ -163,6 +419,48 @@ proc sidecar_set {ns subdir dev} {
     side $ns $subdir ip_neigh_n             "ip -d neigh show"
     side $ns $subdir ip_link_dev            "ip link show dev $dev"
 
+    # The addr `dev` stanza. Not a slice of ip_addr: `addr show dev X` prints
+    # the link through print_linkinfo with do_link still 0, so it has no
+    # `mode DEFAULT`, and it is the one form whose link stanza comes from a
+    # single-get rather than from a dump. Committed so the renderer has
+    # something to diff against that was produced by the same code path.
+    side $ns $subdir ip_addr_dev            "ip addr show dev $dev"
+
+    # The route `dev` stanza, and it is NOT the `dev`-matching lines of
+    # ip_route_main with the rest deleted. Two differences, both from
+    # print_route: the main line loses its `dev NAME` token entirely
+    # (ip/iproute.c:900-901 guards it on filter.oifmask), while a multipath
+    # route KEEPS `dev NAME` on every nexthop, including nexthops on other
+    # interfaces, because the nexthop tokens at :743 and :751 have no guard.
+    # So the one word the command named appears nowhere on the lines it
+    # selected and everywhere on the lines it did not.
+    side $ns $subdir ip_route_dev           "ip route show dev $dev"
+
+    # The neigh `dev` stanza. Unlike the route one this IS the matching lines
+    # of ip_neigh with the rest deleted - minus one token per line, because
+    # print_neigh's `dev NAME` is guarded on filter.index the same way
+    # print_route's is guarded on filter.oifmask (ip/ipneigh.c:415). There is
+    # no nexthop half to keep the word alive, so here the device the command
+    # named really does appear nowhere in the output.
+    side $ns $subdir ip_neigh_dev           "ip neigh show dev $dev"
+
+    # The proxy stanza, and it is not a slice of ip_neigh in either
+    # direction: the two commands read different tables, so not one line is
+    # shared. Every line here is short — destination, `dev NAME`, `proxy`,
+    # and then nothing, because pneigh_fill_info sends no NDA_LLADDR and
+    # ndm_state NUD_NONE, and print_neigh guards the state on
+    # `if (r->ndm_state)` (ip/ipneigh.c:462). That trailing absence is the
+    # part worth committing: it is the only sidecar in this list where a
+    # line ENDS at a flag token, so a renderer that emitted a placeholder
+    # for the empty state diverges here and nowhere else.
+    #
+    # No `-d` pair, for the reason the `-s` stanza above has none. The JSON
+    # form IS captured because the flags are where the two output modes
+    # disagree most: print_null writes `"proxy": null`, not the `true`
+    # print_bool writes for an address flag.
+    side $ns $subdir ip_neigh_proxy         "ip neigh show proxy"
+    side $ns $subdir ip_neigh_proxy_json    "ip -j -p neigh show proxy"
+
     # JSON, which is what turns "does goip -json use ip -j's key names?" from
     # an eyeball question into a diff. -p pretty-prints so the committed file
     # is reviewable line by line.
@@ -170,6 +468,69 @@ proc sidecar_set {ns subdir dev} {
     side $ns $subdir ip_addr_json           "ip -j -p addr show"
     side $ns $subdir ip_route_main_json     "ip -j -p route show"
     side $ns $subdir ip_neigh_json          "ip -j -p neigh show"
+
+    # The rule stanzas. `ip_rule_v4` is captured even though it must equal
+    # ip_rule byte for byte - the bare form forces AF_INET at
+    # ip/iprule.c:749-752 - because "must equal" is the claim, and a sidecar
+    # that is diffed against another sidecar is how it gets checked without
+    # trusting the reading of one C line.
+    #
+    # The `-d` pair is the useful one here in a way the neigh pair was not.
+    # Every rule in the topology carries FRA_PROTOCOL, and for the sixteen
+    # user-added ones it carries ZERO; print_rule suppresses the token unless
+    # `protocol && protocol != RTPROT_KERNEL` or show_details (:552-557). So
+    # ip_rule holds an attribute that is present, decoded, and printed
+    # nowhere, and ip_rule_n is the only file that proves it was there. That
+    # is the cleanest presence-versus-value case in the corpus: a renderer
+    # that stored FRA_PROTOCOL as a bare uint8 cannot tell the sixteen
+    # `proto unspec` rules from a rule that never sent the attribute, and
+    # both goldens are needed to catch it.
+    side $ns $subdir ip_rule                "ip rule show"
+    side $ns $subdir ip_rule_v4             "ip -4 rule show"
+    side $ns $subdir ip_rule_n              "ip -d rule show"
+    side $ns $subdir ip_rule6               "ip -6 rule show"
+    side $ns $subdir ip_rule6_n             "ip -d -6 rule show"
+    side $ns $subdir ip_rule_json           "ip -j -p rule show"
+
+    # The `-s` stanzas. Four of this sweep's goldens are NOT here - they are
+    # written by the `capio` lines in capture_set, because a test replays
+    # their pcap and diffs the sidecar byte for byte, which only works if both
+    # came from one invocation. What is left is the five that do not need
+    # that: two JSON forms, where the comparison drops counter values anyway,
+    # and three no-ops, where the golden is diffed against another golden and
+    # no pcap is involved.
+    side $ns $subdir ip_addr_stats_json     "ip -j -p -s addr show"
+    side $ns $subdir ip_neigh_stats_json    "ip -j -p -s neigh show"
+
+    # route: expected byte-identical to ip_route_main and ip_route6, and that
+    # is the claim. print_rta_cacheinfo gates only `users`, `used` and `age`
+    # on show_stats (ip/iproute.c:500-532), and all three come from
+    # rtnl_put_cacheinfo's `if (dst)` arm (net/core/rtnetlink.c:1028-1052),
+    # which no route DUMP ever takes - rt_fill_info passes a dst only on a
+    # `route get` and the v4 FIB dump never calls it at all, while
+    # rt6_fill_node passes one only on the get. So the three members `-s`
+    # prints are structurally zero on every dump and `-s route show` renders
+    # nothing new.
+    #
+    # ip_route6_stats is the more valuable of the two, even though it is the
+    # one the sweep's plan did not list: the v6 dump is the only command here
+    # that puts RTA_CACHEINFO on the wire at all, so it is the only file whose
+    # being identical to its non-`-s` pair rules out a renderer that prints
+    # the attribute merely because it arrived.
+    #
+    # `side` and not `capio` precisely BECAUSE these are no-ops: the pair they
+    # are compared against is ip_route_main and ip_route6, text against text,
+    # and holding across two different boots is stronger evidence than holding
+    # within one. A capio would tie each golden to its own fresh pcap and make
+    # the comparison same-boot, which is the weaker claim.
+    side $ns $subdir ip_route_main_stats    "ip -s route show"
+    side $ns $subdir ip_route6_stats        "ip -s -6 route show"
+
+    # rule: expected byte-identical to ip_rule, and the evidence is an empty
+    # grep - `grep -n show_stats ip/iprule.c` returns nothing, against 5 hits
+    # in iproute.c, 4 in ipneigh.c and 15 in ipaddress.c. `-s` cannot reach
+    # the rule request either, so this is the cheapest no-op in the sweep.
+    side $ns $subdir ip_rule_stats          "ip -s rule show"
 }
 
 ###############################################################################
@@ -212,6 +573,44 @@ if {!$skip_mesh} {
     sidecar_set $NS_MESH "mesh" "veth0"
 }
 
+if {!$skip_tunnel} {
+    vmlib::log "=== tunnel namespace (ll_addr_n2a) ==="
+
+    # Load the five tunnel modules HERE, and not in boot.kernelModules, and
+    # not before the two sets above have been captured. The ordering is
+    # load-bearing, not tidiness.
+    #
+    # Each module creates its family's fallback device from
+    # pernet_operations, which runs for every network namespace that exists
+    # when the module loads as well as every one created afterwards. So
+    # loading these at boot puts tunl0, gre0, gretap0, erspan0, sit0,
+    # ip6tnl0 and ip6gre0 in the CLEAN and MESH namespaces as well as this
+    # one. Measured, on the run that found it: the clean set went from three
+    # links to ten and goip0 moved from ifindex 3 to ifindex 10, which
+    # rewrites every committed fixture and every NDA_IFINDEX / RTA_OIF /
+    # ifa_index byte that names it. Putting the tunnels in their own
+    # namespace does not avoid that, because a module is kernel-wide.
+    #
+    # Loading them at this point puts the fallback devices where they are
+    # wanted - they are half this set's coverage, being the all-zero,
+    # non-IFF_POINTOPOINT arm of ip/ipaddress.c:1077-1084 - and nowhere that
+    # has anything left to capture.
+    #
+    # Not vmlib::must: a failure here must not abort a run whose clean and
+    # mesh fixtures are already recorded but not yet packed. build_tunnel's
+    # own refusals report it, and NLCAP_TOPO_REFUSED names every step.
+    set modprobe_rc [vmlib::run "modprobe ipip ip_gre sit ip6_tunnel ip6_gre"]
+    if {$modprobe_rc != 0} {
+        vmlib::log "WARNING: modprobe of the tunnel modules returned $modprobe_rc;"
+        vmlib::log "         expect every build_tunnel step below to be refused."
+    }
+
+    vmlib::must "xtcp2-nlcap ns-add $NS_TUNNEL"
+    nltopo::build_tunnel $NS_TUNNEL "tunnel"
+    capture_set $NS_TUNNEL "tunnel" $TUNDEV
+    sidecar_set $NS_TUNNEL "tunnel" $TUNDEV
+}
+
 # Inventory before pack, so a missing file is named here rather than inferred
 # from a short tar on the host.
 lassign [nlcap inventory] inv_rc inventory
@@ -238,6 +637,9 @@ vmlib::log "wrote [string length $blob] bytes of base64 to $blob_out"
 vmlib::run "xtcp2-nlcap ns-del $NS_CLEAN"
 if {!$skip_mesh} {
     vmlib::run "xtcp2-nlcap ns-del $NS_MESH"
+}
+if {!$skip_tunnel} {
+    vmlib::run "xtcp2-nlcap ns-del $NS_TUNNEL"
 }
 
 vmlib::poweroff

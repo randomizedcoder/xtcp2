@@ -303,11 +303,19 @@ pkgs.writeShellApplication {
     gen_addr_unspec() { "$IP" addr show; }
     gen_route_main() { "$IP" route show; }
 
-    # `ip link show dev lo` is captured to SETTLE what it does rather than to
+    # `ip link show dev lo` was captured to SETTLE what it does rather than to
     # confirm it: whether iproute2 resolves the name through a full ll_init_map
-    # dump and then filters, or issues a single non-dump RTM_GETLINK, decides
-    # whether goip needs TalkRtnetlink here at all. The floor is therefore the
-    # bare structural minimum of two datagrams.
+    # dump and then filters, or issues a single non-dump RTM_GETLINK, decided
+    # whether goip needs TalkRtnetlink here at all.
+    #
+    # Settled, and the answer was neither of the two on offer: it issues TWO
+    # non-dump RTM_GETLINKs. ll_link_get resolves the name to an index on a
+    # throwaway socket (ip/ipaddress.c:2254), and iplink_get then re-fetches
+    # the same link on the main socket, whose reply is the one print_linkinfo
+    # renders (:2293). Hence a floor of four datagrams — two transactions,
+    # each a request and a reply — and not the two this carried while the
+    # question was open, which a window catching only the first transaction
+    # would have cleared.
     gen_link_dev() { "$IP" link show dev lo; }
 
     cap netlink_route_getaddr        8 "$OUT" - gen_addr
@@ -316,7 +324,7 @@ pkgs.writeShellApplication {
     cap netlink_route_getneigh       4 "$OUT" - gen_neigh
     cap netlink_route_getaddr_unspec 4 "$OUT" - gen_addr_unspec
     cap netlink_route_getroute_main  4 "$OUT" - gen_route_main
-    cap netlink_route_getlink_dev_lo 2 "$OUT" - gen_link_dev
+    cap netlink_route_getlink_dev_lo 4 "$OUT" - gen_link_dev
 
     # --- part 2: the deterministic topology namespace --------------------
 

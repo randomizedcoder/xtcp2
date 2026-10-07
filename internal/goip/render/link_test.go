@@ -2,6 +2,7 @@ package render
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -17,6 +18,12 @@ import (
 type fakeNames map[int32]struct {
 	name  string
 	flags uint32
+	// typ is the entry's ifi_type, and it stays zero in almost every literal
+	// below. That is not laziness: ll_index_to_type answers 0 on a miss, 0 is
+	// ARPHRD_NETROM, and neither has a special case in ll_addr_n2a — so an
+	// unset typ renders exactly as an uncached index does. Only the neigh
+	// lladdr rows that need a tunnel type set it.
+	typ uint16
 }
 
 func (f fakeNames) IndexToName(idx int32) string {
@@ -37,6 +44,12 @@ func (f fakeNames) IndexToFlags(idx int32) int64 {
 		return int64(e.flags)
 	}
 	return -1
+}
+
+// IndexToType has no -1 arm because ll_index_to_type has none: a miss is 0,
+// the same as a cached ARPHRD_NETROM.
+func (f fakeNames) IndexToType(idx int32) uint16 {
+	return f[idx].typ
 }
 
 func itoa(v int32) string {
@@ -286,7 +299,7 @@ func TestLinkViewText(t *testing.T) {
 				Index: 60, Name: "veth179a698", Type: unix.ARPHRD_ETHER, Flags: 0x11043,
 				HasTxQLen: true, HasGroup: true,
 				MTU: 1500, Qdisc: "noqueue", OperState: 6, Master: 9,
-				Link: 2, LinkNetnsID: 3, HasLinkNetnsID: true,
+				Link: 2, HasLink: true, LinkNetnsID: 3, HasLinkNetnsID: true,
 				Address:   []byte{0xaa, 0x1f, 0xd4, 0x5f, 0xc8, 0xd6},
 				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
 			},
@@ -326,9 +339,9 @@ func TestLinkViewText(t *testing.T) {
 				"    link/netlink \n",
 		},
 		{
-			// A shape the fixture has none of: IFF_POINTOPOINT makes the
+			// A shape the clean fixture has none of: IFF_POINTOPOINT makes the
 			// second address a peer rather than a broadcast, and iproute2
-			// prints " peer " instead of " brd " (ip/ipaddress.c:1075-1083).
+			// prints " peer " instead of " brd " (ip/ipaddress.c:1077-1084).
 			description: "boundary: a point-to-point link prints ` peer ` instead of ` brd `",
 			link: xtcpnl.LinkInfo{
 				Index: 20, Name: "ppp0", Type: unix.ARPHRD_PPP,
@@ -356,7 +369,7 @@ func TestLinkViewText(t *testing.T) {
 				Index: 61, Name: "vethx", Type: unix.ARPHRD_ETHER, Flags: 0x11043,
 				HasTxQLen: true, HasGroup: true,
 				MTU: 1500, Qdisc: "noqueue", OperState: 6, TxQLen: 1000,
-				Link: 2, LinkNetnsID: -1, HasLinkNetnsID: true,
+				Link: 2, HasLink: true, LinkNetnsID: -1, HasLinkNetnsID: true,
 				Address:   []byte{0x02, 0, 0, 0, 0, 0x01},
 				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
 			},
@@ -374,7 +387,7 @@ func TestLinkViewText(t *testing.T) {
 				Index: 70, Name: "macvlan0", Type: unix.ARPHRD_ETHER, Flags: 0x11043,
 				HasTxQLen: true, HasGroup: true,
 				MTU: 1500, Qdisc: "noqueue", OperState: 6, TxQLen: 1000,
-				Link:      5,
+				Link: 5, HasLink: true,
 				Address:   []byte{0x02, 0, 0, 0, 0, 0x02},
 				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
 			},
@@ -390,7 +403,7 @@ func TestLinkViewText(t *testing.T) {
 				Index: 71, Name: "macvlan1", Type: unix.ARPHRD_ETHER, Flags: 0x11043,
 				HasTxQLen: true, HasGroup: true,
 				MTU: 1500, Qdisc: "noqueue", OperState: 6, TxQLen: 1000,
-				Link:      404,
+				Link: 404, HasLink: true,
 				Address:   []byte{0x02, 0, 0, 0, 0, 0x03},
 				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
 			},
@@ -414,6 +427,137 @@ func TestLinkViewText(t *testing.T) {
 				"    link/ether 02:00:00:00:00:04 brd ff:ff:ff:ff:ff:ff\n" +
 				"    altname enp0s1\n" +
 				"    altname enx020000000004\n",
+		},
+		{
+			// **The @NONE row.** print_name_and_link tests the attribute and
+			// then its value, and present-with-zero is its own arm:
+			// `else link = "NONE"` (lib/utils.c:1332-1336). Reading Link == 0
+			// as absence — the obvious Go instinct, since 0 is not a valid
+			// ifindex — drops the suffix from every tunnel line.
+			//
+			// This row is also the ll_addr_n2a special case in its simplest
+			// form: 4 bytes on ARPHRD_IPGRE render as a dotted quad
+			// (lib/ll_addr.c:32-35), and the fallback device's all-zero
+			// address is the boundary that must come out "0.0.0.0" rather
+			// than the colon-hex "00:00:00:00".
+			description: "positive: a tunnel fallback device gets @NONE and a dotted-quad link/gre address",
+			link: xtcpnl.LinkInfo{
+				Index: 4, Name: "gre0", Type: unix.ARPHRD_IPGRE, Flags: unix.IFF_NOARP,
+				HasTxQLen: true, HasGroup: true,
+				MTU: 1476, Qdisc: "noop", OperState: 2, TxQLen: 1000,
+				Link: 0, HasLink: true,
+				Address:   []byte{0, 0, 0, 0},
+				Broadcast: []byte{0, 0, 0, 0},
+			},
+			want: "4: gre0@NONE: <NOARP> mtu 1476 qdisc noop state DOWN mode DEFAULT group default qlen 1000\n" +
+				"    link/gre 0.0.0.0 brd 0.0.0.0\n",
+		},
+		{
+			// A configured tunnel: `local`/`remote` land in IFLA_ADDRESS and
+			// IFLA_BROADCAST, and IFF_POINTOPOINT turns the second one into
+			// `peer`. So the same two attributes that read as a MAC and its
+			// broadcast on an Ethernet link read as the two ends of a tunnel
+			// here, and nothing but ifi_type distinguishes them.
+			description: "positive: a configured ipip tunnel renders both endpoints as dotted quads",
+			link: xtcpnl.LinkInfo{
+				Index: 10, Name: "ipip1", Type: unix.ARPHRD_TUNNEL,
+				Flags:     unix.IFF_POINTOPOINT | unix.IFF_NOARP,
+				HasTxQLen: true, HasGroup: true,
+				MTU: 1480, Qdisc: "noop", OperState: 2, TxQLen: 1000,
+				Link: 0, HasLink: true,
+				Address:   []byte{192, 0, 2, 1},
+				Broadcast: []byte{198, 51, 100, 1},
+			},
+			want: "10: ipip1@NONE: <POINTOPOINT,NOARP> mtu 1480 qdisc noop state DOWN mode DEFAULT group default qlen 1000\n" +
+				"    link/ipip 192.0.2.1 peer 198.51.100.1\n",
+		},
+		{
+			// **The permaddr row, and why its value looks odd.** ip6_tunnel's
+			// setup calls eth_random_addr(dev->perm_addr)
+			// (net/ipv6/ip6_tunnel.c:1913), which writes six random bytes —
+			// but addr_len is 16 (:1903), so the attribute arrives as six
+			// bytes of MAC followed by ten zeros and ll_addr_n2a renders the
+			// whole 16 as an IPv6 address (lib/ll_addr.c:37-38). That is
+			// where a trailing "::" on a permaddr comes from; it is not a
+			// truncation.
+			//
+			// Fixed bytes here on purpose. The real value is random per boot,
+			// so the captured fixture can assert the *shape* of this line but
+			// never its content — this row is where the content is pinned.
+			description: "positive: an ip6tnl prints permaddr, and 6 random bytes in a 16-byte field render as a trailing ::",
+			link: xtcpnl.LinkInfo{
+				Index: 13, Name: "ip6tnl1", Type: unix.ARPHRD_TUNNEL6,
+				Flags:     unix.IFF_POINTOPOINT | unix.IFF_NOARP,
+				HasTxQLen: true, HasGroup: true,
+				MTU: 1452, Qdisc: "noop", OperState: 2, TxQLen: 1000,
+				Link: 0, HasLink: true,
+				Address: []byte{
+					0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+					0, 0, 0, 0, 0, 0, 0, 0x01,
+				},
+				Broadcast: []byte{
+					0x20, 0x01, 0x0d, 0xb8, 0x01, 0x00, 0, 0,
+					0, 0, 0, 0, 0, 0, 0, 0x01,
+				},
+				PermAddress: []byte{
+					0x32, 0x12, 0xe6, 0x08, 0x1c, 0xd7, 0, 0,
+					0, 0, 0, 0, 0, 0, 0, 0,
+				},
+			},
+			want: "13: ip6tnl1@NONE: <POINTOPOINT,NOARP> mtu 1452 qdisc noop state DOWN mode DEFAULT group default qlen 1000\n" +
+				"    link/tunnel6 2001:db8::1 peer 2001:db8:100::1 permaddr 3212:e608:1cd7::\n",
+		},
+		{
+			// The guard is a comparison, not a presence test
+			// (ip/ipaddress.c:1097-1100). Three of the eleven links in the
+			// committed 7.1.8 dump carry IFLA_PERM_ADDRESS and `ip` prints
+			// permaddr for none of them, because each equals IFLA_ADDRESS —
+			// grep -c permaddr on that sidecar is 0. A nil check here would
+			// put the token on most of an ordinary dump.
+			description: "negative: permaddr equal to the address prints no permaddr token at all",
+			link: xtcpnl.LinkInfo{
+				Index: 2, Name: "enp1s0", Type: unix.ARPHRD_ETHER, Flags: 0x11043,
+				HasTxQLen: true, HasGroup: true,
+				MTU: 1500, Qdisc: "mq", OperState: 6, TxQLen: 1000,
+				Address:     []byte{0xe0, 0x4f, 0x43, 0xe6, 0x28, 0xef},
+				Broadcast:   []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+				PermAddress: []byte{0xe0, 0x4f, 0x43, 0xe6, 0x28, 0xef},
+			},
+			want: "2: enp1s0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP mode DEFAULT group default qlen 1000\n" +
+				"    link/ether e0:4f:43:e6:28:ef brd ff:ff:ff:ff:ff:ff\n",
+		},
+		{
+			// The first of the guard's three disjuncts — `!tb[IFLA_ADDRESS]`
+			// — which no capture produces, because a device with a permanent
+			// address reports a current one too. It is reachable only here,
+			// and it is the arm a naive bytes.Equal against a nil slice would
+			// still get right while a `len(Address) > 0 &&` prefix would not.
+			description: "boundary: permaddr with NO address prints the token, and the link/ line has no address before it",
+			link: xtcpnl.LinkInfo{
+				Index: 30, Name: "odd0", Type: unix.ARPHRD_ETHER,
+				Flags:     unix.IFF_UP | unix.IFF_RUNNING | unix.IFF_LOWER_UP,
+				HasTxQLen: true, HasGroup: true,
+				MTU: 1500, Qdisc: "noop", OperState: 6,
+				PermAddress: []byte{0x02, 0, 0, 0, 0, 0x05},
+			},
+			want: "30: odd0: <UP,LOWER_UP> mtu 1500 qdisc noop state UP mode DEFAULT group default \n" +
+				"    link/ether  permaddr 02:00:00:00:00:05\n",
+		},
+		{
+			// The second disjunct: same leading bytes, different *length*.
+			// memcmp is only reached when the lengths match, so a decoder
+			// that compared min(len) prefixes would print nothing here.
+			description: "boundary: permaddr that differs from the address only in length still prints",
+			link: xtcpnl.LinkInfo{
+				Index: 31, Name: "odd1", Type: unix.ARPHRD_ETHER,
+				Flags:     unix.IFF_UP | unix.IFF_RUNNING | unix.IFF_LOWER_UP,
+				HasTxQLen: true, HasGroup: true,
+				MTU: 1500, Qdisc: "noop", OperState: 6,
+				Address:     []byte{0x02, 0x00, 0x00},
+				PermAddress: []byte{0x02, 0x00, 0x00, 0x00},
+			},
+			want: "31: odd1: <UP,LOWER_UP> mtu 1500 qdisc noop state UP mode DEFAULT group default \n" +
+				"    link/ether 02:00:00 permaddr 02:00:00:00\n",
 		},
 		{
 			// An unnamed ARPHRD. ll_type_n2a's fallback is "[%d]" — decimal
@@ -502,6 +646,15 @@ func TestLinkViewJSON(t *testing.T) {
 		link        xtcpnl.LinkInfo
 		wantKeys    []string
 		wantAbsent  []string
+
+		// wantValues is checked for the keys it names and nothing else.
+		//
+		// It exists because presence is not enough for one of `ip -j`'s keys:
+		// print_null(PRINT_JSON, "link", …) at lib/utils.c:1334 emits
+		// `"link": null`, which unmarshals into map[string]any as a present
+		// key with a nil value. A wantKeys entry passes for that *and* for a
+		// resolved peer name, so it cannot tell the two arms apart.
+		wantValues map[string]any
 	}{
 		{
 			description: "positive: lo carries the base key set",
@@ -530,7 +683,7 @@ func TestLinkViewJSON(t *testing.T) {
 				Index: 58, Name: "ve-nfb-vpn", Type: unix.ARPHRD_ETHER, Flags: 0x11043,
 				HasTxQLen: true, HasGroup: true,
 				MTU: 1500, Qdisc: "noqueue", OperState: 6, TxQLen: 1000,
-				Link: 2, LinkNetnsID: 1, HasLinkNetnsID: true,
+				Link: 2, HasLink: true, LinkNetnsID: 1, HasLinkNetnsID: true,
 			},
 			wantKeys:   []string{"link_index", "link_netnsid"},
 			wantAbsent: []string{"link"},
@@ -540,10 +693,89 @@ func TestLinkViewJSON(t *testing.T) {
 			link: xtcpnl.LinkInfo{
 				Index: 70, Name: "macvlan0", Type: unix.ARPHRD_ETHER, Flags: 0x11043,
 				HasTxQLen: true, HasGroup: true,
-				MTU: 1500, Link: 5,
+				MTU: 1500, Link: 5, HasLink: true,
 			},
 			wantKeys:   []string{"link"},
 			wantAbsent: []string{"link_index", "link_netnsid"},
+			// Pinned as a value so this row stays distinguishable from the
+			// IFLA_LINK = 0 row below, which also has a "link" key.
+			wantValues: map[string]any{"link": "downlink0"},
+		},
+		{
+			// **The JSON half of @NONE.** IFLA_LINK present with value 0 is
+			// `print_null(PRINT_JSON, "link", …)` (lib/utils.c:1333-1334): the
+			// key is emitted, and its value is null. Both halves matter —
+			// omitting the key entirely is what a `string` field with
+			// omitempty does, and it is what the third arm must not collapse
+			// to. See render.LinkTarget.
+			description: "boundary: IFLA_LINK of 0 emits link as JSON null, not as an absent key",
+			link: xtcpnl.LinkInfo{
+				Index: 10, Name: "ipip1", Type: unix.ARPHRD_TUNNEL,
+				Flags:     unix.IFF_POINTOPOINT | unix.IFF_NOARP,
+				HasTxQLen: true, HasGroup: true,
+				MTU: 1480, Link: 0, HasLink: true,
+				Address:   []byte{192, 0, 2, 1},
+				Broadcast: []byte{198, 51, 100, 1},
+			},
+			wantKeys:   []string{"link", "address", "broadcast", "link_pointtopoint"},
+			wantAbsent: []string{"link_index", "link_netnsid"},
+			wantValues: map[string]any{
+				"link": nil,
+				// The same ll_addr_n2a special case the text form takes, and
+				// worth pinning here too: `ip -j` does not switch to hex for
+				// JSON, it prints the identical string.
+				"address":   "192.0.2.1",
+				"broadcast": "198.51.100.1",
+			},
+		},
+		{
+			// The contrast row for the one above: IFLA_LINK absent, which is
+			// the *first* arm and drops the key. Without this, a decoder that
+			// set HasLink unconditionally would still pass the null row.
+			description: "negative: IFLA_LINK absent omits the link key entirely rather than emitting null",
+			link: xtcpnl.LinkInfo{
+				Index: 1, Name: "lo", Type: unix.ARPHRD_LOOPBACK, Flags: 0x10049,
+				HasTxQLen: true, HasGroup: true,
+				MTU: 65536, Link: 0, HasLink: false,
+			},
+			wantAbsent: []string{"link", "link_index"},
+		},
+		{
+			// permaddr is PRINT_ANY (ip/ipaddress.c:1101-1109), so the key
+			// tracks the text token exactly: present when the comparison
+			// fires, absent when it does not. The two rows below are that
+			// pair.
+			description: "positive: a permaddr that differs from the address emits the permaddr key",
+			link: xtcpnl.LinkInfo{
+				Index: 13, Name: "ip6tnl1", Type: unix.ARPHRD_TUNNEL6,
+				HasTxQLen: true, HasGroup: true,
+				MTU: 1452, Link: 0, HasLink: true,
+				Address: []byte{
+					0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+					0, 0, 0, 0, 0, 0, 0, 0x01,
+				},
+				PermAddress: []byte{
+					0x32, 0x12, 0xe6, 0x08, 0x1c, 0xd7, 0, 0,
+					0, 0, 0, 0, 0, 0, 0, 0,
+				},
+			},
+			wantKeys: []string{"permaddr"},
+			wantValues: map[string]any{
+				"address":  "2001:db8::1",
+				"permaddr": "3212:e608:1cd7::",
+			},
+		},
+		{
+			description: "negative: a permaddr equal to the address omits the permaddr key",
+			link: xtcpnl.LinkInfo{
+				Index: 2, Name: "enp1s0", Type: unix.ARPHRD_ETHER, Flags: 0x11043,
+				HasTxQLen: true, HasGroup: true,
+				MTU:         1500,
+				Address:     []byte{0xe0, 0x4f, 0x43, 0xe6, 0x28, 0xef},
+				PermAddress: []byte{0xe0, 0x4f, 0x43, 0xe6, 0x28, 0xef},
+			},
+			wantKeys:   []string{"address"},
+			wantAbsent: []string{"permaddr"},
 		},
 		{
 			// **txqlen 0 is present in JSON even though the text form omits
@@ -567,7 +799,7 @@ func TestLinkViewJSON(t *testing.T) {
 			link: xtcpnl.LinkInfo{
 				Index: 61, Name: "vethx", Type: unix.ARPHRD_ETHER,
 				HasTxQLen: true, HasGroup: true,
-				Link: 2, LinkNetnsID: -1, HasLinkNetnsID: true,
+				Link: 2, HasLink: true, LinkNetnsID: -1, HasLinkNetnsID: true,
 			},
 			wantKeys: []string{"link_netnsid"},
 		},
@@ -612,6 +844,16 @@ func TestLinkViewJSON(t *testing.T) {
 			for _, k := range tc.wantAbsent {
 				if _, ok := m[k]; ok {
 					t.Errorf("key %q should be absent, got %s", k, b)
+				}
+			}
+			for k, want := range tc.wantValues {
+				got, ok := m[k]
+				if !ok {
+					t.Errorf("key %q missing from %s", k, b)
+					continue
+				}
+				if !reflect.DeepEqual(got, want) {
+					t.Errorf("key %q = %#v, want %#v (in %s)", k, got, want, b)
 				}
 			}
 		})

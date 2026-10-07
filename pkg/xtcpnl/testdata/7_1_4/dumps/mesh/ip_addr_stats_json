@@ -1,0 +1,189 @@
+[ {
+        "ifindex": 1,
+        "ifname": "lo",
+        "flags": [ "LOOPBACK","UP","LOWER_UP" ],
+        "mtu": 65536,
+        "qdisc": "noqueue",
+        "operstate": "UNKNOWN",
+        "group": "default",
+        "txqlen": 1000,
+        "link_type": "loopback",
+        "address": "00:00:00:00:00:00",
+        "broadcast": "00:00:00:00:00:00",
+        "addr_info": [ {
+                "family": "inet",
+                "local": "127.0.0.1",
+                "prefixlen": 8,
+                "scope": "host",
+                "label": "lo",
+                "valid_life_time": 4294967295,
+                "preferred_life_time": 4294967295
+            },{
+                "family": "inet6",
+                "local": "::1",
+                "prefixlen": 128,
+                "scope": "host",
+                "protocol": "kernel_lo",
+                "valid_life_time": 4294967295,
+                "preferred_life_time": 4294967295
+            } ],
+        "stats64": {
+            "rx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "over_errors": 0,
+                "multicast": 0
+            },
+            "tx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "carrier_errors": 0,
+                "collisions": 0
+            }
+        }
+    },{
+        "ifindex": 2,
+        "ifname": "nlmon0",
+        "flags": [ "NOARP","UP","LOWER_UP" ],
+        "mtu": 3776,
+        "qdisc": "noqueue",
+        "operstate": "UNKNOWN",
+        "group": "default",
+        "txqlen": 1000,
+        "link_type": "netlink",
+        "addr_info": [ ],
+        "stats64": {
+            "rx": {
+                "bytes": 262144,
+                "packets": 375,
+                "errors": 0,
+                "dropped": 0,
+                "over_errors": 0,
+                "multicast": 0
+            },
+            "tx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "carrier_errors": 0,
+                "collisions": 0
+            }
+        }
+    },{
+        "ifindex": 3,
+        "ifname": "br0",
+        "flags": [ "NO-CARRIER","BROADCAST","MULTICAST","UP" ],
+        "mtu": 1500,
+        "qdisc": "noqueue",
+        "operstate": "DOWN",
+        "group": "default",
+        "txqlen": 1000,
+        "link_type": "ether",
+        "address": "a2:23:89:7a:46:4c",
+        "broadcast": "ff:ff:ff:ff:ff:ff",
+        "addr_info": [ {
+                "family": "inet",
+                "local": "198.19.0.1",
+                "prefixlen": 24,
+                "scope": "global",
+                "label": "br0",
+                "valid_life_time": 4294967295,
+                "preferred_life_time": 4294967295
+            },{
+                "family": "inet6",
+                "local": "2001:db8:ff::1",
+                "prefixlen": 64,
+                "scope": "global",
+                "nodad": true,
+                "valid_life_time": 4294967295,
+                "preferred_life_time": 4294967295
+            } ],
+        "stats64": {
+            "rx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "over_errors": 0,
+                "multicast": 0
+            },
+            "tx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 2,
+                "carrier_errors": 0,
+                "collisions": 0
+            }
+        }
+    },{
+        "ifindex": 4,
+        "link": "veth0",
+        "ifname": "veth1",
+        "flags": [ "BROADCAST","MULTICAST" ],
+        "mtu": 1500,
+        "qdisc": "noop",
+        "operstate": "DOWN",
+        "group": "default",
+        "txqlen": 1000,
+        "link_type": "ether",
+        "address": "02:c1:0c:59:24:0d",
+        "broadcast": "ff:ff:ff:ff:ff:ff",
+        "addr_info": [ ],
+        "stats64": {
+            "rx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "over_errors": 0,
+                "multicast": 0
+            },
+            "tx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "carrier_errors": 0,
+                "collisions": 0
+            }
+        }
+    },{
+        "ifindex": 5,
+        "link": "veth1",
+        "ifname": "veth0",
+        "flags": [ "NO-CARRIER","BROADCAST","MULTICAST","UP","M-DOWN" ],
+        "mtu": 1500,
+        "qdisc": "noqueue",
+        "master": "br0",
+        "operstate": "LOWERLAYERDOWN",
+        "group": "default",
+        "txqlen": 1000,
+        "link_type": "ether",
+        "address": "a2:23:89:7a:46:4c",
+        "broadcast": "ff:ff:ff:ff:ff:ff",
+        "addr_info": [ ],
+        "stats64": {
+            "rx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "over_errors": 0,
+                "multicast": 0
+            },
+            "tx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "carrier_errors": 0,
+                "collisions": 0
+            }
+        }
+    } ]

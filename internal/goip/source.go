@@ -1,6 +1,7 @@
 package goip
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"os"
@@ -228,7 +229,28 @@ func NewReplayFromBytes(data []byte) (*ReplaySource, error) {
 // ParseNewLink as if it were a reply, since RTM_GETLINK and RTM_NEWLINK are
 // different types but a GETADDR/NEWADDR mix-up of the same shape is easy to
 // write.
-func (s *ReplaySource) Dump(_ []byte, msgType uint16) ([][]byte, error) {
+//
+// # An empty dump is an answer, and a missing fixture is not
+//
+// No replies of msgType used to mean ErrNoReplay unconditionally, which
+// conflated two different things. `ip route show dev veth0` on the mesh
+// topology is answered by NLMSG_DONE alone — the device owns no routes — and
+// the real `ip` prints nothing and exits 0. Reporting that as a missing
+// fixture made the corpus's only empty dump unusable, and would have made any
+// future capture of an empty answer look like a broken pcap.
+//
+// The discriminator is the REQUEST, which is why this method's first parameter
+// is no longer ignored. If the capture recorded a request of the same
+// nlmsg_type the caller is sending, then this dump did happen and its answer
+// was genuinely empty. If it recorded no such request, the capture is of some
+// other command and the fixture really is missing.
+//
+// Matching on the caller's own nlmsg_type rather than deriving the GET type
+// from msgType keeps this free of arithmetic on the RTM_ enum. The derivation
+// would have been sound — `RTM_FAM` (include/uapi/linux/rtnetlink.h:211)
+// depends on the NEW/DEL/GET/SET grouping, so GET is always NEW+2 — but the
+// request is direct evidence and the enum layout is not evidence at all.
+func (s *ReplaySource) Dump(request []byte, msgType uint16) ([][]byte, error) {
 	var out [][]byte
 	for _, m := range s.cap.Msgs() {
 		if m.IsRequest() || m.Hdr.Type != msgType {
@@ -239,10 +261,30 @@ func (s *ReplaySource) Dump(_ []byte, msgType uint16) ([][]byte, error) {
 		}
 		out = append(out, xtcpnl.CopyBytes(m.Body))
 	}
-	if len(out) == 0 {
+	if len(out) == 0 && !s.recordedRequest(request) {
 		return nil, fmt.Errorf("%w: type %d", ErrNoReplay, msgType)
 	}
 	return out, nil
+}
+
+// recordedRequest reports whether the capture holds a request with the same
+// nlmsg_type as the one being sent.
+//
+// A short or absent request is reported as not recorded, which keeps the old
+// ErrNoReplay behavior for any caller that has no request bytes to offer:
+// without evidence that the dump was asked for, "no replies" stays a missing
+// fixture.
+func (s *ReplaySource) recordedRequest(request []byte) bool {
+	if len(request) < xtcpnl.NlMsgHdrSizeCst {
+		return false
+	}
+	typ := binary.LittleEndian.Uint16(request[4:6])
+	for _, m := range s.cap.Msgs() {
+		if m.IsRequest() && m.Hdr.Type == typ {
+			return true
+		}
+	}
+	return false
 }
 
 // replayPathFromEnv reports the capture a replay run should read, and whether

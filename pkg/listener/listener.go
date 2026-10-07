@@ -1,7 +1,17 @@
+// Package listener builds the network listeners the xtcp2 gRPC, Prometheus and
+// healthcheck endpoints are served on, for both TCP and unix domain sockets.
+//
+// It converts an xtcp_config.ListenerEndpoint into a concrete net.Listener,
+// applying the IPv4 TTL / IPv6 hop-limit socket options for TCP and, for unix
+// sockets, the parent-directory check, the stale-socket unlink policy and the
+// socket mode (DefaultUnixSocketMode, 0o600). A unix listener returned from
+// Listen unlinks its own path on Close, once, and only if the path is still a
+// socket.
 package listener
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -153,8 +163,12 @@ func listenUnix(ctx context.Context, ep Endpoint) (net.Listener, error) {
 		mode = DefaultUnixSocketMode
 	}
 	if err := os.Chmod(ep.Address, mode); err != nil {
-		_ = ln.Close()
-		return nil, fmt.Errorf("chmod unix listener socket %q: %w", ep.Address, err)
+		// The chmod error stays first so errors.Is still matches it: a caller
+		// diagnosing "socket came up with the wrong mode" must not have to dig
+		// past a close error to find the cause. Join reports the close failure
+		// too, which previously vanished and would have left the listener bound
+		// to a path this function claims it did not create.
+		return nil, errors.Join(fmt.Errorf("chmod unix listener socket %q: %w", ep.Address, err), ln.Close())
 	}
 	return &unixListener{Listener: ln, path: ep.Address}, nil
 }
@@ -165,11 +179,39 @@ type unixListener struct {
 	once sync.Once
 }
 
+// Close closes the listener and unlinks its socket path, reporting both.
+//
+// The unlink error is joined rather than discarded, which is a real behavior
+// change and the point of it: a socket that fails to unlink was previously
+// invisible, and it leaves behind a path that the next bind trips over with a
+// much less obvious "already exists" error at a point far from the cause.
+//
+// The Lstat guard decides whether to unlink at all, and both of its refusals
+// are deliberate non-errors: a path that is already gone is the normal outcome
+// when something else cleaned up, and a path that is no longer a socket belongs
+// to somebody else and must not be removed. Neither joins anything, so Close
+// does not invent an error for a state it is choosing to tolerate.
+//
+// Be careful what that guard is worth, though, because it is less than it
+// looks. net.UnixListener.Close unlinks its own path first, unconditionally and
+// whatever is sitting there, and it discards the result of that unlink. So for
+// every listener listenUnix built, the path is already gone one line above and
+// this guard finds nothing — see the measured rows in
+// TestUnixListenerClose_table, where a regular file and another process's
+// socket are both removed by the stdlib before the guard is consulted. What is
+// left for the Remove here is the case the stdlib's unlink failed, which is
+// also the only case the join can report. Narrow, and the narrowness is the
+// reason it is reported rather than discarded: it fires when something is
+// actually wrong with the directory.
+//
+// once makes a second Close a no-op here, so the unlink error is reported from
+// the call that attempted it and is never doubled — and so a path rebound by
+// somebody else between two Closes is not unlinked out from under them.
 func (l *unixListener) Close() error {
 	err := l.Listener.Close()
 	l.once.Do(func() {
 		if st, statErr := os.Lstat(l.path); statErr == nil && st.Mode()&os.ModeSocket != 0 {
-			_ = os.Remove(l.path)
+			err = errors.Join(err, os.Remove(l.path))
 		}
 	})
 	return err

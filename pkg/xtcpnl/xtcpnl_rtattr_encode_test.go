@@ -671,6 +671,13 @@ func TestBuildRequest(t *testing.T) {
 
 	linkHdr := ifinfomsgHdr(unix.AF_PACKET, 0, 0, 0)
 
+	// A fib_rule_hdr with only the family byte set — every other byte has to
+	// be zero or the kernel's strict-mode validator refuses the dump
+	// (net/core/fib_rules.c:1271-1276). Built by hand rather than through
+	// BuildDumpRuleRequest so this table stays a test of BuildRequest.
+	ruleHdr := make([]byte, FibRuleHdrSizeCst)
+	ruleHdr[0] = unix.AF_INET
+
 	tests := []struct {
 		description string
 		msgType     uint16
@@ -821,16 +828,29 @@ func TestBuildRequest(t *testing.T) {
 				concat(linkHdr, threeAttrs)),
 		},
 		{
-			// FamilyHdrLen returns -1 here, so there is nothing to check against
-			// and the header is passed through. Refusing unmodeled types would
-			// block every family added later.
-			description: "corner: RTM_GETRULE is unmodeled, so its family header is passed through unchecked",
+			// This row used to assert the opposite — that RTM_GETRULE was
+			// unmodeled and its header passed through unchecked. fib_rule_hdr
+			// now has a decoder, so the check applies, and the four-byte
+			// header that used to be accepted is the exact mistake the check
+			// exists to catch: an rtgenmsg where a 12-byte struct belongs
+			// leaves the kernel reading frh.flags and the first rta_len out
+			// of whatever follows. The unmodeled-passthrough property has not
+			// gone untested; the RTM_GETNSID row below carries it.
+			description: "corner: RTM_GETRULE is modeled now, so a 4-byte rtgenmsg is ErrBadFamilyHdr",
 			msgType:     uint16(unix.RTM_GETRULE),
 			flags:       uint16(unix.NLM_F_DUMP),
 			seq:         testSeq,
 			familyHdr:   []byte{unix.AF_INET, 0, 0, 0},
+			wantErr:     ErrBadFamilyHdr,
+		},
+		{
+			description: "positive: RTM_GETRULE with a full fib_rule_hdr is the 28-byte rule dump",
+			msgType:     uint16(unix.RTM_GETRULE),
+			flags:       uint16(unix.NLM_F_DUMP),
+			seq:         testSeq,
+			familyHdr:   ruleHdr,
 			want: nlmsg(uint16(unix.RTM_GETRULE), uint16(unix.NLM_F_REQUEST|unix.NLM_F_DUMP), testSeq,
-				[]byte{unix.AF_INET, 0, 0, 0}),
+				ruleHdr),
 		},
 		{
 			// The request pkg/nsdiscover builds by hand today: a single get with a
@@ -967,13 +987,21 @@ func TestFamilyHdrLen(t *testing.T) {
 		{"positive: RTM_GETNEIGH is struct ndmsg, 12", uint16(unix.RTM_GETNEIGH), NdMsgSizeCst},
 		{"positive: RTM_NEWNEIGH is struct ndmsg, 12", uint16(unix.RTM_NEWNEIGH), NdMsgSizeCst},
 
+		// Three families now answer 12, so this function's value alone can no
+		// longer identify which struct a caller meant. That is fine for what
+		// it is for — the length is all BuildRequest needs — but it is why
+		// the rows are spelled out per message type rather than grouped.
+		{"positive: RTM_GETRULE is struct fib_rule_hdr, 12", uint16(unix.RTM_GETRULE), FibRuleHdrSizeCst},
+		{"positive: RTM_NEWRULE is struct fib_rule_hdr, 12", uint16(unix.RTM_NEWRULE), FibRuleHdrSizeCst},
+		{"positive: RTM_DELRULE is struct fib_rule_hdr, 12", uint16(unix.RTM_DELRULE), FibRuleHdrSizeCst},
+
 		// 0 and -1 are different answers: a zero-length family header is a real
 		// thing in netlink and must not be confused with "no idea".
 		{"boundary: NLMSG_DONE has no family header, 0", uint16(unix.NLMSG_DONE), 0},
 		{"boundary: NLMSG_NOOP has no family header, 0", uint16(unix.NLMSG_NOOP), 0},
 		{"boundary: NLMSG_ERROR has no family header, 0", uint16(unix.NLMSG_ERROR), 0},
 
-		{"negative: RTM_GETRULE is not modeled, -1", uint16(unix.RTM_GETRULE), -1},
+		{"negative: RTM_GETQDISC is not modeled, -1", uint16(unix.RTM_GETQDISC), -1},
 		{"negative: RTM_GETNSID is not modeled, -1", uint16(unix.RTM_GETNSID), -1},
 		{"negative: RTM_NEWSTATS is not modeled, -1", uint16(unix.RTM_NEWSTATS), -1},
 		{"negative: message type 0 is not modeled, -1", 0, -1},

@@ -88,17 +88,92 @@ const (
 	// concatenates the suffix for the text form, so keeping the suffix would
 	// make this facet disagree with itself across -json.
 	FacetIfNames StdoutFacet = "ifnames"
+	// FacetDevNames is the set of device names taken from `dev NAME` tokens.
+	//
+	// This is what route and neighbor listings use in place of FacetIfNames,
+	// which they cannot: reStanza is anchored on a `N: name` header and neither
+	// object prints one, so without this facet both commands compare little
+	// more than a line count. It is what catches "goip printed the right
+	// number of route lines with no device on any of them".
+	//
+	// It is a separate facet rather than a keyword because a device name must
+	// not be allowlistable — Facets() are DivergencePresence, keywords are
+	// DivergenceValue.
+	FacetDevNames StdoutFacet = "devnames"
 	// FacetIfIndexes is the set of `N:` stanza prefixes.
 	FacetIfIndexes StdoutFacet = "ifindexes"
 	// FacetCIDRs is the set of address/prefixlen tokens, v4 and v6.
 	FacetCIDRs StdoutFacet = "cidrs"
 	// FacetMACs is the set of six-octet hardware addresses.
 	FacetMACs StdoutFacet = "macs"
+	// FacetNextHops counts the `nexthop` words that open each continuation
+	// line of a multipath route (print_rta_multipath, ip/iproute.c:694).
+	//
+	// It is a bare-token count and not a keyword for a concrete reason: the
+	// keyword pattern consumes the token after the name, and the token after
+	// `nexthop` is `via`. Making `nexthop` a keyword therefore ate the `via`
+	// on exactly the lines where the gateway matters most, and the ECMP pair
+	// 192.0.2.10/192.0.2.11 vanished from the via facet entirely. Counting
+	// the word on its own leaves `via` and `weight` to be read normally.
+	FacetNextHops StdoutFacet = "nexthops"
+	// FacetFlags is the set of route flag tokens print_rt_flags emits
+	// (ip/iproute.c:388-417): linkdown, onlink, dead and the rest.
+	//
+	// These are bare positional tokens, not `<keyword> <value>` pairs, so a
+	// keyword facet cannot carry them. `linkdown` is the clearest case and the
+	// reason this exists: on a v4 route it is the last token on the line, so
+	// reKeyword's trailing `\s+(\S+)` never matches it, and on a v6 route it
+	// precedes `pref medium` and would be recorded with the meaningless value
+	// `pref`. A locus that matches on v6 and never on v4, carrying a value
+	// that is not the flag, is the dead-locus mistake this file's header is
+	// about. The whole point of the mesh/ topology is that every route in it
+	// is linkdown, so the token has to be compared somewhere.
+	FacetFlags StdoutFacet = "flags"
+	// FacetStatsHeaders is the `-s` block's column HEADINGS, one element per
+	// RX or TX header line, as `RX:bytes,packets,errors,dropped,missed,mcast`.
+	//
+	// # Why the headings and not the counters
+	//
+	// `ip -s link show` is the first command here whose output is expected to
+	// differ between two runs on an idle machine: every value on both value
+	// lines is a live counter. Comparing those values is not merely useless,
+	// it is invisible — a locus that differs between the two reference `ip`
+	// captures lands in D_control and is subtracted from the test, so it
+	// would report clean while asserting nothing. The same mechanism that
+	// makes valid_lft safe to compare makes the counters pointless to.
+	//
+	// The column WIDTHS are equally unstable, and for the same reason: each
+	// is grown to the widest value in it (size_columns, ip/ipaddress.c:530-550),
+	// so the header's whitespace moves when a counter crosses a power of ten.
+	// That rules out comparing the header lines verbatim.
+	//
+	// What is left is stable, and is also the part a renderer gets wrong:
+	// which headings appear, in what order, for which direction, and how
+	// many times. Splitting on whitespace discards exactly the widths and
+	// keeps exactly that. Per-line rather than per-command, so a stats block
+	// missing from one link of eleven is a count of 10 against 11 rather
+	// than a set that still matches.
+	//
+	// It also catches the one conditional column: `compressed` is printed
+	// only when the counter is non-zero (:751,791), and it is the seventh
+	// element when present.
+	//
+	// # What it deliberately does not catch
+	//
+	// Placement. A block emitted after the altnames instead of before
+	// produces the same headings in the same order, and FacetLines is
+	// likewise blind to a reordering. That belongs to a render unit test,
+	// where it has one (TestLinkViewTextStatsBeforeAltnames), and not here.
+	FacetStatsHeaders StdoutFacet = "statsheaders"
 )
 
 // Facets returns the set facets in report order.
 func Facets() []StdoutFacet {
-	return []StdoutFacet{FacetLines, FacetIfNames, FacetIfIndexes, FacetCIDRs, FacetMACs}
+	return []StdoutFacet{
+		FacetLines, FacetIfNames, FacetDevNames, FacetIfIndexes,
+		FacetCIDRs, FacetMACs, FacetNextHops, FacetFlags,
+		FacetStatsHeaders,
+	}
 }
 
 // FacetKeyword is the facet for one `<keyword> <value>` pair family.
@@ -120,9 +195,46 @@ func (f StdoutFacet) Locus() string { return "stdout:" + string(f) }
 // reference captures is in the control and is subtracted from the test. A
 // hand-written exclusion would also hide a goip that printed the lifetime of
 // the wrong address.
+//
+// The second line is the route set. `mtu`, `proto` and `scope` are already
+// here for link and addr and are reused rather than repeated — a duplicate
+// would put the same locus in StdoutLoci twice and emit the finding twice.
+//
+// `nexthop` is NOT here, even though it is a route keyword, because the
+// pattern consumes the token after the name and that token is `via`; see
+// FacetNextHops.
+//
+// `pref` is not in the original list for this step but is required: every
+// line of ip_route6 and every v6 line of ip_route_table_all ends in
+// `pref medium`, so leaving it out would leave RTA_PREF — which had to be
+// implemented for those goldens to match at all — uncompared.
+//
+// The route flag tokens (`linkdown` and friends) are deliberately NOT here;
+// see FacetFlags for why a bare positional token cannot be a keyword.
+//
+// The third line is the ll_addr_n2a set, and it is here because the renders
+// that produce those tokens now exist. `brd` was on the first line from the
+// start, so the link half of a link-layer address divergence was caught and
+// the other three were not:
+//
+//	peer      the IFF_POINTOPOINT arm of ip/ipaddress.c:1077-1084, which
+//	          takes the place of `brd` rather than joining it
+//	permaddr  ip/ipaddress.c:1101, printed only when it DIFFERS from the
+//	          address, so its absence is as meaningful as its value
+//	lladdr    ip/ipneigh.c:432, the neighbor half — formatted through the
+//	          DEVICE's ifi_type, which is the divergence that made the
+//	          whole ll_addr_n2a thread worth pulling
+//
+// None of the three appears in the clean or mesh topologies the parity tier
+// builds, so adding them changes no current run. That is the point: they are
+// here so the facet is CAPABLE when a topology that produces them is
+// compared, rather than being added at the same time as the thing they are
+// supposed to catch.
 var keywords = []string{
 	"mtu", "qdisc", "state", "mode", "group", "qlen", "master",
 	"scope", "brd", "link-netnsid", "proto", "valid_lft", "preferred_lft",
+	"via", "metric", "src", "table", "advmss", "weight", "pref",
+	"peer", "permaddr", "lladdr",
 }
 
 // Keywords returns the compared keywords, sorted, so a report's line order is
@@ -211,7 +323,90 @@ var (
 	// Exactly six two-digit octets, which a compressed IPv6 address cannot
 	// be: `ip` prints v6 with up to four digits per group.
 	reMAC = regexp.MustCompile(`\b([0-9a-fA-F]{2}(?::[0-9a-fA-F]{2}){5})\b`)
+	// `dev NAME`, as route, neigh and the nexthop continuation lines print
+	// it. The leading \b is what keeps a name ending in `dev` — `netdev`, and
+	// `ve-dev` is a plausible veth — from contributing its peer's name.
+	//
+	// A device literally named `dev` yields one match, not two: Go's regexp
+	// scans for non-overlapping matches, so `dev dev` is consumed whole and
+	// contributes the single element `dev`.
+	reDev = regexp.MustCompile(`\bdev\s+(\S+)`)
 )
+
+// flagTokens are the bare flag words, spelled as render.RtFlagTokens /
+// print_rt_flags and render.NeighFlagTokens / print_neigh spell them.
+//
+// The \b on both sides is doing real work: `offload` must not match inside
+// `rt_offload`, and it does not, because `_` is a word character. The same
+// boundary is what keeps `proxy` out of `proxy_arp`.
+//
+// # Two sources, one facet, and why that is not a conflation
+//
+// The first two lines are print_rt_flags (ip/iproute.c:388-417); the third is
+// print_neigh's flag run (ip/ipneigh.c:440-451). They share a facet because
+// they share a SHAPE — bare positional tokens, compared for presence — and
+// because no single command emits both: a route listing has no neighbors in
+// it and a neighbor listing has no routes. `offload` is in both vocabularies
+// and was already here as the route spelling; one entry serves both, since
+// the facet is a set of words and not a map to their origin.
+//
+// # Four of the five are live; one is not
+//
+// `proxy` was live the moment it was listed. `neigh show proxy` is a compared
+// and GATED command, and both lines of its committed golden end in the token:
+//
+//	192.0.2.60 dev goip0 proxy
+//	2001:db8::60 dev goip0 proxy
+//
+// That it was missing is the point — the command whose entire reason for
+// existing is that `proxy` dispatches the kernel to a DIFFERENT table
+// (pneigh_dump_table) was comparing the token that says so only as part of a
+// line count.
+//
+// `router`, `extern_learn` and `extern_valid` became live with the flagged
+// neighbors added to nltopo::build_clean. That proc is shared: the capture
+// script builds the `dumps/` namespace from it (capture-netlink-dumps.exp:374)
+// and the parity harness builds its own from the same code
+// (goip-parity.exp:265), so a topology entry becomes a fixture and a compared
+// line in one move. `neigh show` is gated, so all three are enforced rather
+// than advisory. The combined entry puts all three on one line, which is the
+// only place the facet sees tokens from both ndm_flags and NDA_FLAGS_EXT
+// adjacent.
+//
+// `managed` is the one that stays dormant, and the obstacle is the device
+// rather than the flag. A dummy carries IFF_NOARP, so every neighbor on it is
+// NUD_NOARP, and `ip neigh show`'s default filter is `0xFF & ~NUD_NOARP`
+// (ip/ipneigh.c:523) — the entry exists and is simply not printed. Reaching
+// it needs the veth pair in build_mesh, a namespace the parity tier does not
+// build. Listed for completeness of print_neigh's run, as `peer` and
+// `permaddr` are in keywords: the facet is capable before the thing it
+// catches exists, rather than arriving with it.
+//
+// `locked` is deliberately ABSENT, and it is the one token in print_neigh's
+// vocabulary that a future topology still could not produce: iproute2 prints
+// it from bridge/fdb.c:121 only, so it belongs to `bridge fdb` output and not
+// to any `ip` command this harness compares. Listing it would create a locus
+// that can never match.
+var flagTokens = []string{
+	"dead", "onlink", "pervasive", "offload", "trap", "notify",
+	"linkdown", "unresolved", "rt_offload", "rt_trap", "rt_offload_failed",
+	"router", "proxy", "managed", "extern_learn", "extern_valid",
+}
+
+var reFlag = regexp.MustCompile(`\b(` + strings.Join(flagTokens, "|") + `)\b`)
+
+// reNextHop matches the bare `nexthop` word; see FacetNextHops.
+var reNextHop = regexp.MustCompile(`\bnexthop\b`)
+
+// reStatsHeader matches an `    RX: …` or `    TX: …` column-heading line and
+// captures the direction and the headings.
+//
+// The leading `^\s+` is load-bearing twice over. It excludes a stanza line,
+// which opens at column zero — an interface really can be named `RX` — and it
+// excludes `ip -s -s`'s `    RX errors:` line, where the colon does not
+// follow the direction. goip rejects `-s -s`, but `ip` does not, and this
+// pattern runs over `ip`'s output too.
+var reStatsHeader = regexp.MustCompile(`^\s+(RX|TX):\s+(\S.*)$`)
 
 // reKeyword matches `<keyword> <value>` for the compared keywords, built once
 // from the table so the two cannot drift.
@@ -294,6 +489,22 @@ func stdoutFacets(s string) (sets map[StdoutFacet]multiset) {
 		}
 		for _, m := range reMAC.FindAllString(line, -1) {
 			sets[FacetMACs].add(strings.ToLower(m))
+		}
+		for _, m := range reDev.FindAllStringSubmatch(line, -1) {
+			sets[FacetDevNames].add(m[1])
+		}
+		for _, m := range reFlag.FindAllString(line, -1) {
+			sets[FacetFlags].add(m)
+		}
+		for _, m := range reNextHop.FindAllString(line, -1) {
+			sets[FacetNextHops].add(m)
+		}
+		// strings.Fields is what discards the widths: it collapses every
+		// run of spaces, so the same headings at two different column
+		// widths produce the same element. See FacetStatsHeaders.
+		if m := reStatsHeader.FindStringSubmatch(line); m != nil {
+			sets[FacetStatsHeaders].add(
+				m[1] + ":" + strings.Join(strings.Fields(m[2]), ","))
 		}
 		for _, m := range reKeyword.FindAllStringSubmatch(line, -1) {
 			sets[FacetKeyword(m[1])].add(m[2])

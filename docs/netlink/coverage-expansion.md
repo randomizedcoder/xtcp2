@@ -269,7 +269,7 @@ version in `go.mod`:
 | `IFLA_BRPORT_*` | 45 | ✅ cheap |
 | `RTA_*` | 47 | ✅ cheap |
 | `IFA_*` | 27 | ✅ cheap |
-| `FRA_*` | 25 | ✅ cheap |
+| `FRA_*` | 25 | ◑ six short — see below |
 | `TCA_*` | **23** | ◑ see below |
 | `NFNL_*` | 20 | ✅ cheap |
 | `NDA_*` | 12 | ✅ cheap |
@@ -297,6 +297,33 @@ version that introduced it, all in the comment.
 constants than the fork actually references (467 `IFLA_*` vs the fork's 412, 47
 `RTA_*` vs 24). For rtnetlink, constants have never been the bottleneck — decode
 depth is.
+
+### The `FRA_*` note, and what a count cannot tell you
+
+This row was marked ✅ cheap on its count alone, and the count was right while
+the conclusion was not. `unix` v0.47.0 has 25 `FRA_*`, which is `FRA_UNSPEC`
+through `FRA_DPORT_RANGE = 24` — a complete prefix of the enum with nothing
+missing in the middle. What it is missing is the **tail**: the current UAPI
+continues `FRA_DSCP 25`, `FRA_FLOWLABEL 26`, `FRA_FLOWLABEL_MASK 27`,
+`FRA_SPORT_MASK 28`, `FRA_DPORT_MASK 29`, `FRA_DSCP_MASK 30`, and `print_rule`
+reads five of those six.
+
+Two of them are not optional for a correct render. The kernel attaches
+`FRA_DPORT_MASK = 0xffff` to a plain `dport N` rule **without being asked**, so
+a decoder without the constant silently drops an attribute every such rule
+carries; and `FRA_FLOWLABEL`/`FRA_FLOWLABEL_MASK` are the whole of IPv6
+flowlabel matching.
+
+So the constant count predicts the cost of the attributes `unix` knows about and
+says nothing about the ones it does not. The six are hand-declared in
+`pkg/xtcpnl/xtcpnl_fib_rule_hdr.go`, pinned by `TestFraUnexportedValues` to
+offsets from `FRA_DPORT_RANGE` — which matters more here than for the other
+hand-declared blocks, because every value in the run is a plausible attribute
+type and a miscount decodes a *neighbor* of the intended one. `FRA_SPORT_MASK`
+and `FRA_DPORT_MASK` are both u16 and sit one apart.
+
+The general lesson for the rows above: a prefix is cheap when `unix` has the
+enum's tail, not when it has a lot of the enum.
 
 ### The tc note
 
@@ -620,7 +647,7 @@ unblocking first, hand-declared-constant families last.
 |---|---|---|---|
 | **0** | Export the core wire layer; create the subpackage skeleton; generalise the capture harness | Everything else depends on it; also retires the `pkg/nsdiscover` duplicate | ~~§12~~, ~~§15~~ |
 | **1** | **Multicast listener** + ~~`BuildDumpNeighRequest`~~ (landed) + the in-guest smoke check | Only phase that changes runtime behaviour; the existing event parsers have no feed | §13, ~~§17~~ |
-| **2** | In-mission audit gaps: ~~`IFA_CACHEINFO`/`IFA_FLAGS`~~ (landed), then ~~`IFLA_ADDRESS`~~ (landed) / `IFLA_STATS64` (**closed, out of scope** — `SKIP_STATS`), then `RTA_EXPIRES`/`RTA_CACHEINFO`/`RTA_METRICS`; resolve the orphaned `INET_DIAG_PRAGUEINFO` | Highest value per line — address validity feeds source-address selection | §18, §19 |
+| **2** | In-mission audit gaps: ~~`IFA_CACHEINFO`/`IFA_FLAGS`~~ (landed), then ~~`IFLA_ADDRESS`~~ (landed) / ~~`IFLA_STATS64`~~ (landed — recorded here as "closed, out of scope" on a premise `coverage-status.md` has since measured as wrong), then `RTA_EXPIRES` (the attribute; no `show` path reads it) / ~~`RTA_CACHEINFO`~~ (landed; its fixtures are all-zero by kernel construction, which is the finding) / ~~`RTA_METRICS`~~ (landed); resolve the orphaned `INET_DIAG_PRAGUEINFO` | Highest value per line — address validity feeds source-address selection | §18, §19 |
 | **3** | Adjacent rtnetlink: rules (`FRA_*`), nexthop (`NHA_*` + nested `rtnexthop`), bridge/VLAN, ~~`IFLA_LINKINFO` descent~~ — `IFLA_INFO_DATA` sub-nest only, the kind landed | All constants and structs already in `unix` | ~~§12~~ |
 | **4** | tc **telemetry only** — the 23 top-level `TCA_*`, not the 344 config nests | Cheap once scoped correctly; needs `Tcmsg`/`TCStats`/`TCStats2` declared | — |
 | **5** | genetlink: `nlctrl` `GETFAMILY` resolution **first**, then ethtool, devlink, netdev, vdpa, fou, gtp | Dynamic family-ID resolution is a hard prerequisite for all of them | — |

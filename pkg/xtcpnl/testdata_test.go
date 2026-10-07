@@ -196,13 +196,57 @@ const (
 	tdDumpGetRouteAll_7_1_4 = tdDumps_7_1_4 + "/netlink_route_getroute_table_all.pcap"
 	tdDumpGetNeigh_7_1_4    = tdDumps_7_1_4 + "/netlink_route_getneigh.pcap"
 
+	// `ip -s link show`. The same 40-byte request as tdDumpGetLink_7_1_4 with
+	// one byte changed: IFLA_EXT_MASK is 0x01 rather than 0x09, because -s
+	// clears RTEXT_FILTER_SKIP_STATS (ip/ipaddress.c:2017-2026). It is the
+	// only capture in the corpus that reaches IFLA_STATS/IFLA_STATS64 through
+	// a request that ASKED for them, rather than through a dump that simply
+	// carried no mask — which makes it the fixture that pins the request
+	// delta, and the two getlink pcaps together are the assertion.
+	tdDumpGetLinkStats_7_1_4 = tdDumps_7_1_4 + "/netlink_route_getlink_stats.pcap"
+
+	// `ip rule show` and `ip -6 rule show`. The smallest captures in the
+	// corpus — two datagrams each, one request and one multipart reply — and
+	// smallest for a structural reason rather than an incidental one:
+	// iprule_list_flush_or_save calls no ll_init_map, because FRA_IIFNAME and
+	// FRA_OIFNAME travel as strings and there is no index to resolve. Every
+	// other dump in this set pays for at least one side transaction.
+	//
+	// The request is 28 bytes with ZERO attributes: nlmsghdr plus a bare
+	// fib_rule_hdr (lib/libnetlink.c:407-421). That is not a stylistic choice
+	// by iproute2 — under strict checking the kernel REFUSES a rule dump that
+	// carries any attribute at all (net/core/fib_rules.c:1278-1281), so these
+	// two pcaps pin the one dump shape in the corpus where an extra attribute
+	// is an error rather than an addition.
+	//
+	// There is deliberately no `-4` pcap. iprule_list_flush_or_save
+	// substitutes AF_INET for AF_UNSPEC before building the request
+	// (ip/iprule.c:748-752), so `ip rule show` and `ip -4 rule show` emit
+	// identical bytes; the committed ip_rule and ip_rule_v4 sidecars are
+	// byte-identical for the same reason. A third pcap would assert nothing.
+	tdDumpGetRule_7_1_4  = tdDumps_7_1_4 + "/netlink_route_getrule.pcap"
+	tdDumpGetRule6_7_1_4 = tdDumps_7_1_4 + "/netlink_route_getrule6.pcap"
+
 	// Sidecars for the dump set: the source of truth its expectations cite.
 	tdDumpIPLink_7_1_4   = tdDumps_7_1_4 + "/ip_link_n"
 	tdDumpIPAddr_7_1_4   = tdDumps_7_1_4 + "/ip_addr_n"
 	tdDumpIPRoute_7_1_4  = tdDumps_7_1_4 + "/ip_route_main_n"
 	tdDumpIPRoute6_7_1_4 = tdDumps_7_1_4 + "/ip_route6_n"
 	tdDumpIPNeigh_7_1_4  = tdDumps_7_1_4 + "/ip_neigh_n"
-	tdDumpTopology_7_1_4 = tdDumps_7_1_4 + "/topology"
+	tdDumpIPRule_7_1_4   = tdDumps_7_1_4 + "/ip_rule_n"
+
+	// The three provenance sidecars, and the only files in the corpus that
+	// describe the CAPTURE rather than an answer to a command.
+	//
+	// topology is the transcript of every `ip` command the driver ran to build
+	// the namespace, one line each, tagged with the namespace it ran in. uname
+	// and ip_version are the kernel and the `ip` that produced everything
+	// beside them. All three are claims the rest of the corpus rests on —
+	// which kernel answered, which iproute2 rendered, and what was configured
+	// — and TestCaptureProvenance is what turns them into assertions.
+	tdDumpTopology_7_1_4  = tdDumps_7_1_4 + "/topology"
+	tdDumpUname_7_1_4     = tdDumps_7_1_4 + "/uname"
+	tdDumpIPVersion_7_1_4 = tdDumps_7_1_4 + "/ip_version"
 
 	// The mesh half of the same capture run: a bridge with a veth member whose
 	// peer is left down. It is the only source in the repo of IFLA_MASTER,
@@ -221,10 +265,53 @@ const (
 	tdDumpMeshGetAddr_7_1_4    = tdDumpsMesh_7_1_4 + "/netlink_route_getaddr.pcap"
 	tdDumpMeshGetRoute_7_1_4   = tdDumpsMesh_7_1_4 + "/netlink_route_getroute.pcap"
 	tdDumpMeshGetNeigh_7_1_4   = tdDumpsMesh_7_1_4 + "/netlink_route_getneigh.pcap"
+	tdDumpMeshGetRule_7_1_4    = tdDumpsMesh_7_1_4 + "/netlink_route_getrule.pcap"
 
 	tdDumpMeshIPLink_7_1_4  = tdDumpsMesh_7_1_4 + "/ip_link_n"
 	tdDumpMeshIPAddr_7_1_4  = tdDumpsMesh_7_1_4 + "/ip_addr_n"
 	tdDumpMeshIPNeigh_7_1_4 = tdDumpsMesh_7_1_4 + "/ip_neigh_n"
+
+	tdDumpMeshTopology_7_1_4 = tdDumpsMesh_7_1_4 + "/topology"
+
+	// The tunnel half of the same capture run: five configured tunnel devices
+	// — ipip, sit, gre, ip6tnl, ip6gre — plus the fallback device each of
+	// those five modules creates from pernet_operations when it loads.
+	//
+	// It is the only source in the repo of ll_addr_n2a's SPECIAL cases
+	// (lib/ll_addr.c:32-38), where a 4- or 16-byte link-layer address renders
+	// as an IP rather than as colon-hex, and the only one of IFLA_LINK
+	// present with value 0 — `ip`'s "@NONE" suffix, which every device here
+	// carries because a tunnel sits on no underlying interface.
+	//
+	// # Two things this set cannot promise
+	//
+	//  1. **The v6 permaddrs are random per boot.** ip6_tunnel and ip6_gre
+	//     call eth_random_addr(dev->perm_addr) in their setup
+	//     (net/ipv6/ip6_tunnel.c:1913, net/ipv6/ip6_gre.c:1443), so the four
+	//     " permaddr …" tokens in tunnel/ip_link change on every capture.
+	//     Assert their shape, never their bytes; the bytes are pinned in
+	//     internal/goip/render's table instead.
+	//  2. **Interface indexes depend on module load order.** The modules are
+	//     loaded by the capture driver AFTER the clean and mesh sets are
+	//     recorded, precisely so their fallback devices cannot renumber those
+	//     namespaces. Cite devices here by name, not by position.
+	tdDumpsTunnel_7_1_4 = tdDumps_7_1_4 + "/tunnel"
+
+	tdDumpTunnelGetLink_7_1_4  = tdDumpsTunnel_7_1_4 + "/netlink_route_getlink.pcap"
+	tdDumpTunnelGetNeigh_7_1_4 = tdDumpsTunnel_7_1_4 + "/netlink_route_getneigh.pcap"
+
+	// The tunnel namespace's four route dumps. They were predicted to be the
+	// one place in the corpus where a non-zero rta_expires could appear — a
+	// tunnel route is the kind that can carry a lifetime — and measurement
+	// says otherwise: every RTA_CACHEINFO in all four is 32 zero bytes.
+	// TestParseNewRouteCacheinfo carries them as the rows that say so.
+	tdDumpTunnelGetRoute_7_1_4    = tdDumpsTunnel_7_1_4 + "/netlink_route_getroute.pcap"
+	tdDumpTunnelGetRoute6_7_1_4   = tdDumpsTunnel_7_1_4 + "/netlink_route_getroute6.pcap"
+	tdDumpTunnelGetRouteDev_7_1_4 = tdDumpsTunnel_7_1_4 + "/netlink_route_getroute_dev.pcap"
+	tdDumpTunnelGetRouteAll_7_1_4 = tdDumpsTunnel_7_1_4 + "/netlink_route_getroute_table_all.pcap"
+	tdDumpTunnelIPLink_7_1_4      = tdDumpsTunnel_7_1_4 + "/ip_link_n"
+	tdDumpTunnelIPNeigh_7_1_4     = tdDumpsTunnel_7_1_4 + "/ip_neigh"
+	tdDumpTunnelTopology_7_1_4    = tdDumpsTunnel_7_1_4 + "/topology"
 
 	// Sidecars: the source of truth the event expectations are derived from.
 	// ip_monitor_all is the event-side counterpart to ip_link_n — `ip monitor`

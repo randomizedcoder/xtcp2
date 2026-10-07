@@ -2,8 +2,11 @@ package goip
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"io"
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -717,8 +720,51 @@ func TestRunAddrArgs(t *testing.T) {
 			wantErrHas:  "not implemented",
 		},
 		{
-			description: "negative: a filter argument is refused rather than silently ignored",
+			// This row used to assert the opposite — that `dev` was refused
+			// along with every other filter. The refusal was right while the
+			// request was unfiltered, because answering a filtered query with
+			// an unfiltered dump is a wrong answer; now that the three
+			// transactions exist, the refusal would be the wrong answer.
+			description: "positive: `dev NAME` is served rather than refused, and renders that link",
 			args:        []string{"-4", "addr", "show", "dev", "lo"},
+			wantExit:    ExitOK,
+			wantOutHas:  "1: lo: <LOOPBACK,UP,LOWER_UP>",
+		},
+		{
+			description: "negative: a filter argument other than `dev` is still refused rather than silently ignored",
+			args:        []string{"-4", "addr", "show", "scope", "host"},
+			wantExit:    ExitUsage,
+			wantErrHas:  "not implemented",
+		},
+		{
+			// len(args) == 1, so the dev arm does not match and the generic
+			// refusal names the argument. `ip` fails here too, with
+			// "Command line is not complete" out of NEXT_ARG().
+			description: "negative: `dev` with no name is refused, not read as a device called \"dev\"",
+			args:        []string{"addr", "show", "dev"},
+			wantExit:    ExitUsage,
+			wantErrHas:  "not implemented",
+		},
+		{
+			// `ip` compares this keyword with strcmp and not matches()
+			// (ip/ipaddress.c:2241), so `d` is NOT an abbreviation of `dev`:
+			// it falls through to the else-arm as a device NAME, and the
+			// following `lo` then trips duparg2. goip must not accept as a
+			// keyword what `ip` reads as a device.
+			description: "negative: `d lo` is not `dev lo`, because iproute2 matches this keyword with strcmp",
+			args:        []string{"addr", "show", "d", "lo"},
+			wantExit:    ExitUsage,
+			wantErrHas:  "not implemented",
+		},
+		{
+			// `ip addr show lo` works — the else-arm takes a bare name. goip
+			// refuses it deliberately: that arm is reached only after every
+			// keyword test above it has failed, so implementing it before
+			// `scope`, `up`, `label` and the rest would turn
+			// `goip addr show up` from an honest refusal into
+			// `Device "up" does not exist`.
+			description: "negative: a bare device name is refused, because the keywords it must not shadow are not implemented",
+			args:        []string{"addr", "show", "lo"},
 			wantExit:    ExitUsage,
 			wantErrHas:  "not implemented",
 		},
@@ -780,6 +826,268 @@ func TestRunAddrArgs(t *testing.T) {
 			if tc.wantErrHas != "" && !strings.Contains(errOut.String(), tc.wantErrHas) {
 				t.Errorf("stderr = %q, want it to contain %q", errOut.String(), tc.wantErrHas)
 			}
+		})
+	}
+}
+
+// TestAddrShowJSONMatchesCapturedSidecars compares `goip -json addr show`
+// against the `ip -j -p addr show` sidecar captured from the same guest
+// namespace at the same moment as the pcap it replays.
+//
+// # This is the comparison that found the flags divergence
+//
+// dumps/ip_addr_json has been committed since the in-guest capture was
+// written (capture-netlink-dumps.exp:207) and nothing read it. The first run
+// of this test failed on two v6 addresses: the sidecar has
+//
+//	"nodad": true, "mngtmpaddr": true, "noprefixroute": true
+//
+// where goip had `"flags": ["nodad","mngtmpaddr","noprefixroute"]`. The array
+// was deliberate and documented as such in render/addr.go — see the
+// AddrView.Flags comment for why the justification did not survive contact
+// with the golden. print_ifa_flags emits print_bool(PRINT_JSON, name, NULL,
+// true) per flag (ip/ipaddress.c:1434-1435).
+//
+// Everything else matched on the first run, which is what makes the one
+// failure a finding rather than a sign the comparison is too strict.
+//
+// go test ./internal/goip/ -run TestAddrShowJSONMatchesCapturedSidecars
+func TestAddrShowJSONMatchesCapturedSidecars(t *testing.T) {
+	tests := []struct {
+		description string
+		pcap        string
+		sidecar     string
+		// args defaults to the plain `-json addr show`. The `-s` rows set it,
+		// because the stats block is the only thing a global option adds to
+		// this command's JSON.
+		args []string
+		// zeroCounters replaces every number under a `stats`/`stats64` key
+		// with 0 on both sides. Set on the `-s` rows alone, whose sidecar is
+		// a `side` capture — a second invocation, so its counters have
+		// ticked. See zeroLinkStats.
+		zeroCounters bool
+	}{
+		{
+			// Five links, and the topology that has a link with no address
+			// at all — the case where addr_info is an empty array rather
+			// than an absent key.
+			description: "positive: the clean topology reproduces ip_addr_json key for key",
+			pcap:        guestDumpsDir + "netlink_route_getaddr.pcap",
+			sidecar:     "ip_addr_json",
+		},
+		{
+			// The mesh namespace is where the hand-configured 2001:db8::
+			// addresses live, and they are the only ones in either corpus
+			// carrying IFA_F_NODAD or IFA_F_MANAGETEMPADDR — so this is the
+			// row that fails when the flag keys are wrong, and the row above
+			// is the one that shows everything else still agrees.
+			description: "positive: the mesh topology reproduces mesh/ip_addr_json, nodad and mngtmpaddr included",
+			pcap:        guestDumpsDir + "mesh/netlink_route_getaddr.pcap",
+			sidecar:     "mesh/ip_addr_json",
+		},
+		{
+			// This row exists to falsify a design decision, not to confirm
+			// one. `ip addr show` prints the SAME link header as `ip link
+			// show`, so all thirteen tunnel devices carry "link": null here
+			// too — and render.LinkTarget is a field type rather than a
+			// MarshalJSON on LinkView precisely because AddrGroupView embeds
+			// LinkView and encoding/json gives an embedded type's MarshalJSON
+			// precedence over field promotion (render/link.go:101-111).
+			//
+			// If that reasoning were wrong, this is where it shows: the whole
+			// addr_info array would vanish and every entry would marshal to a
+			// bare link object. gre1 is the device that makes the check bite,
+			// because it is the only UP tunnel and carries three addresses —
+			// a v4, a nodad v6, and the kernel_ll fe80::5efe:c000:203 that
+			// only a SIT-style device generates.
+			description: "positive: the tunnel topology reproduces tunnel/ip_addr_json, so null link and addr_info coexist",
+			pcap:        guestDumpsDir + "tunnel/netlink_route_getaddr.pcap",
+			sidecar:     "tunnel/ip_addr_json",
+		},
+		{
+			// The `-s` form, and what it asserts beyond the text goldens is
+			// the KEY: `stats64`, because IFLA_STATS64 was on the wire. The
+			// text block is identical whichever attribute it came from, so
+			// which of the two keys a document carries is invisible there and
+			// is the whole of PR A's StatsIs64 trap.
+			//
+			// Values are zeroed, so this is a claim about shape. They are
+			// pinned exactly by TestAddrShowStatsMatchesCapturedSidecars,
+			// whose sidecar came from the same invocation as its pcap.
+			description:  "positive: -s -json addr show reproduces ip_addr_stats_json's shape, keyed stats64",
+			pcap:         addrStatsPcap,
+			sidecar:      "ip_addr_stats_json",
+			args:         []string{"-s", "-json", "addr", "show"},
+			zeroCounters: true,
+		},
+		{
+			description:  "positive: the mesh topology reproduces mesh/ip_addr_stats_json, including the link with no addresses",
+			pcap:         guestDumpsDir + "mesh/netlink_route_getaddr_stats.pcap",
+			sidecar:      "mesh/ip_addr_stats_json",
+			args:         []string{"-s", "-json", "addr", "show"},
+			zeroCounters: true,
+		},
+		{
+			description:  "positive: the tunnel topology reproduces tunnel/ip_addr_stats_json over thirteen devices",
+			pcap:         guestDumpsDir + "tunnel/netlink_route_getaddr_stats.pcap",
+			sidecar:      "tunnel/ip_addr_stats_json",
+			args:         []string{"-s", "-json", "addr", "show"},
+			zeroCounters: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			want, err := os.ReadFile(guestDumpsDir + tc.sidecar)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("GOIP_REPLAY", tc.pcap)
+			var stdout, stderr bytes.Buffer
+			args := tc.args
+			if args == nil {
+				args = []string{"-json", "addr", "show"}
+			}
+			if code := Run(args, &stdout, &stderr); code != ExitOK {
+				t.Fatalf("Run(%q) = %d, stderr=%s", args, code, stderr.String())
+			}
+			got := stdout.Bytes()
+			if tc.zeroCounters {
+				got, want = zeroLinkStats(t, got), zeroLinkStats(t, want)
+			}
+			assertJSONEntriesEqual(t, got, want, false)
+		})
+	}
+}
+
+// TestAddrShowTextMatchesCapturedSidecars diffs `goip addr show`'s TEXT output
+// against the plain `ip addr show` sidecar from the same capture, line by line.
+//
+// # Why this did not exist before
+//
+// dumps/ip_addr, mesh/ip_addr and tunnel/ip_addr have all been committed since
+// their captures were written and nothing read any of them — the addr object
+// had a JSON sidecar comparison and no text one, which is the gap that let the
+// flags divergence live in the JSON half undetected until
+// TestAddrShowJSONMatchesCapturedSidecars was written. This is the same debt on
+// the other encoding.
+//
+// # What the text form asserts that the JSON form cannot
+//
+// `ip addr show` prints the link header through the same code as `ip link
+// show` and then indents an addr stanza under it, so the text is the only
+// place two layout facts are visible:
+//
+//   - the `inet`/`inet6` continuation lines' indentation and their trailing
+//     `valid_lft forever preferred_lft forever`, which in JSON are separate
+//     numeric keys and carry no layout at all;
+//   - `@NONE` and ` permaddr `, which are text-only for the reasons recorded on
+//     TestLinkShowTextMatchesCapturedSidecars, now asserted a second time on a
+//     code path that reaches them through AddrGroupView rather than LinkView.
+//
+// The clean and mesh rows are controls on the same argument as the link test:
+// with the tunnel row alone a failure cannot be attributed between "the tunnel
+// work is wrong" and "goip's plain addr text has always differed".
+//
+// # The per-family rows, and why they are not duplicates of the AF_UNSPEC ones
+//
+// `ip -4 addr show` and `ip -6 addr show` are answered by DIFFERENT kernel
+// functions than the bare form: the v6 link dump goes to inet6_dump_ifinfo
+// (net/ipv6/addrconf.c), which emits six attribute types and no IFLA_TXQLEN,
+// no IFLA_LINKINFO, no IFLA_STATS64. So the same three topologies rendered
+// per-family exercise a reply shape the AF_UNSPEC rows never see, and the
+// mesh and tunnel sidecars for it were committed unread.
+//
+// The v6 rows need sidecarWithoutIoctlQlen for the reason recorded on that
+// helper: iproute2 7.1.0 fills the absent IFLA_TXQLEN in from
+// ioctl(SIOCGIFTXQLEN), which a netlink-only goip cannot see. That is the
+// pre-existing `stdout:keyword:qlen` allowlist entry, not a new divergence,
+// and the helper fails if there is nothing to remove.
+//
+// go test ./internal/goip/ -run TestAddrShowTextMatchesCapturedSidecars
+func TestAddrShowTextMatchesCapturedSidecars(t *testing.T) {
+	tests := []struct {
+		description string
+		pcap        string
+		sidecar     string
+		// args defaults to the AF_UNSPEC form.
+		args []string
+		// dropIoctlQlen removes the `qlen 1000` that 7.1.0's print_queuelen
+		// supplies from an ioctl when IFLA_TXQLEN is absent from the reply.
+		dropIoctlQlen bool
+	}{
+		{
+			description: "control: the clean topology reproduces ip_addr line for line",
+			pcap:        guestDumpsDir + "netlink_route_getaddr.pcap",
+			sidecar:     "ip_addr",
+		},
+		{
+			description: "control: the mesh topology reproduces mesh/ip_addr line for line",
+			pcap:        guestDumpsDir + "mesh/netlink_route_getaddr.pcap",
+			sidecar:     "mesh/ip_addr",
+		},
+		{
+			// gre1 is the only tunnel carrying addresses, so it is the only
+			// device here whose link header and addr stanzas must both be
+			// right at once — @NONE and `peer 198.51.100.3` on the first
+			// line, three indented stanzas under it.
+			description: "positive: the tunnel topology reproduces tunnel/ip_addr, @NONE header over gre1's stanzas",
+			pcap:        guestDumpsDir + "tunnel/netlink_route_getaddr.pcap",
+			sidecar:     "tunnel/ip_addr",
+		},
+		{
+			// The -4 arm suppresses the `link/` line entirely — the guard at
+			// ip/ipaddress.c:1060 wants AF_UNSPEC or -d, and this is
+			// neither — so these rows are the only committed evidence of the
+			// header without it.
+			description: "boundary: -4 addr show on the mesh topology, where the link/ line is suppressed",
+			pcap:        guestDumpsDir + "mesh/netlink_route_getaddr_v4.pcap",
+			sidecar:     "mesh/ip_addr_v4",
+			args:        []string{"-4", "addr", "show"},
+		},
+		{
+			description: "boundary: -4 addr show on the tunnel topology, fourteen devices with one address between them",
+			pcap:        guestDumpsDir + "tunnel/netlink_route_getaddr_v4.pcap",
+			sidecar:     "tunnel/ip_addr_v4",
+			args:        []string{"-4", "addr", "show"},
+		},
+		{
+			// And the -6 arm, whose replies come from inet6_dump_ifinfo.
+			description:   "corner: -6 addr show on the mesh topology, off a reply with six attribute types",
+			pcap:          guestDumpsDir + "mesh/netlink_route_getaddr_v6.pcap",
+			sidecar:       "mesh/ip_addr_v6",
+			args:          []string{"-6", "addr", "show"},
+			dropIoctlQlen: true,
+		},
+		{
+			description:   "corner: -6 addr show on the tunnel topology, where ip6tnl1 and ip6gre1 carry v6 addresses",
+			pcap:          guestDumpsDir + "tunnel/netlink_route_getaddr_v6.pcap",
+			sidecar:       "tunnel/ip_addr_v6",
+			args:          []string{"-6", "addr", "show"},
+			dropIoctlQlen: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			raw, err := os.ReadFile(guestDumpsDir + tc.sidecar)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := string(raw)
+			if tc.dropIoctlQlen {
+				want = sidecarWithoutIoctlQlen(t, want)
+			}
+			t.Setenv("GOIP_REPLAY", tc.pcap)
+			var stdout, stderr bytes.Buffer
+			args := tc.args
+			if args == nil {
+				args = []string{"addr", "show"}
+			}
+			if code := Run(args, &stdout, &stderr); code != ExitOK {
+				t.Fatalf("Run(%q) = %d, stderr=%s", args, code, stderr.String())
+			}
+			assertLinesEqual(t, stdout.String(), want)
 		})
 	}
 }
@@ -1040,6 +1348,356 @@ func TestAddrShowTransactions(t *testing.T) {
 			s1 := uint32(rec.requests[1][8]) | uint32(rec.requests[1][9])<<8
 			if s0 == s1 {
 				t.Errorf("both requests carry nlmsg_seq %d; they must differ", s0)
+			}
+		})
+	}
+}
+
+// The `addr show dev` fixture and the interface it was taken on.
+//
+// devIndexCst is 3 and not 1 or 2: the capture namespace holds lo, then the
+// nlmon0 the capture tooling itself creates, then the dummy. It is spelled out
+// rather than read off the reply, because the ifindex is what request three
+// carries and a test that derived it from the reply could not tell a
+// correctly-filtered dump from an unfiltered one.
+const (
+	addrDevPcap    = guestDumpsDir + "netlink_route_getaddr_dev.pcap"
+	addrDevSidecar = guestDumpsDir + "ip_addr_dev"
+	devNameCst     = "goip0"
+	devIndexCst    = 3
+)
+
+// runAddressWith drives runAddress over a chosen source, bypassing Run so the
+// test can supply a TalkSource and read its counters back — the addr-side
+// twin of runLinkWith.
+func runAddressWith(t *testing.T, src Source, family uint8, args []string) (string, error) {
+	t.Helper()
+	var out bytes.Buffer
+	c := &runCtx{
+		src:    src,
+		lltab:  NewLLTab(),
+		out:    &out,
+		errOut: io.Discard,
+		family: family,
+	}
+	err := runAddress(c, args)
+	return out.String(), err
+}
+
+// TestAddrShowDevTransactionShape is the assertion no output can make: that
+// `ip addr show dev NAME` is two single-gets AND a dump, in that order, and
+// that its two single-gets are not the two `link show dev` sends.
+//
+// # The three requests, and what each of them is not
+//
+//  1. ll_link_get(name, 0) — ip/ipaddress.c:2253 into lib/ll_map.c:264. By
+//     NAME, ifi_family AF_UNSPEC because the request struct is a designated
+//     initializer that never names it, ext-mask attribute first. Identical to
+//     `link show dev`'s first request, because it is the same function.
+//  2. ipaddr_link_get(index) — :2302 into :2052. By INDEX, and ifi_family is
+//     filter.family. This is where the two commands part: `link show dev`
+//     sends iplink_get here, by NAME with ifi_family AF_PACKET and the
+//     attributes in the other order.
+//  3. ip_addr_list — :2314, the RTM_GETADDR dump, with the resolved index in
+//     ifa_index.
+//
+// The wantDumps column is the half that a transaction count alone would miss.
+// A goip that dumped the links instead of getting them would send three
+// requests too, and print the same stanza, and be wrong at L2 twice over.
+//
+// go test ./internal/goip/ -run TestAddrShowDevTransactionShape
+func TestAddrShowDevTransactionShape(t *testing.T) {
+	llLinkGet := func(name string) getShape {
+		return getShape{
+			flags:     uint16(unix.NLM_F_REQUEST),
+			family:    unix.AF_UNSPEC,
+			firstAttr: uint16(unix.IFLA_EXT_MASK),
+			name:      name,
+		}
+	}
+	addrLinkGet := func(family uint8, index int32) getShape {
+		return getShape{
+			flags:     uint16(unix.NLM_F_REQUEST),
+			family:    family,
+			firstAttr: uint16(unix.IFLA_EXT_MASK),
+			index:     index,
+		}
+	}
+
+	tests := []struct {
+		description      string
+		family           uint8
+		args             []string
+		wantDumps        int
+		wantGets         []getShape
+		wantStdoutPrefix string
+		wantNoStdout     string
+	}{
+		{
+			description: "positive: `addr show dev goip0` is ll_link_get, then a by-index get, then one dump",
+			family:      unix.AF_UNSPEC,
+			args:        []string{"show", "dev", devNameCst},
+			wantDumps:   1,
+			wantGets: []getShape{
+				llLinkGet(devNameCst),
+				addrLinkGet(unix.AF_UNSPEC, devIndexCst),
+			},
+			wantStdoutPrefix: "3: goip0: ",
+		},
+		{
+			// The family DOES reach request two here, where `link show dev`
+			// has it overwritten with AF_PACKET before argument parsing
+			// (ip/ipaddress.c:2416). Request one is unmoved, because
+			// ll_link_get has no family knob at all — so this row is the one
+			// that shows the two gets disagreeing about the family inside a
+			// single command.
+			description: "positive: -4 reaches the second get and not the first",
+			family:      unix.AF_INET,
+			args:        []string{"show", "dev", devNameCst},
+			wantDumps:   1,
+			wantGets: []getShape{
+				llLinkGet(devNameCst),
+				addrLinkGet(unix.AF_INET, devIndexCst),
+			},
+			wantStdoutPrefix: "3: goip0: ",
+			wantNoStdout:     "inet6 ",
+		},
+		{
+			description: "positive: -6 does the same with the other family, so the row above is not passing on AF_INET's value",
+			family:      unix.AF_INET6,
+			args:        []string{"show", "dev", devNameCst},
+			wantDumps:   1,
+			wantGets: []getShape{
+				llLinkGet(devNameCst),
+				addrLinkGet(unix.AF_INET6, devIndexCst),
+			},
+			wantStdoutPrefix: "3: goip0: ",
+			wantNoStdout:     "    inet ",
+		},
+		{
+			// AF_PACKET skips the address dump entirely — ip/ipaddress.c:2310
+			// guards it — so the command degenerates to two single-gets and
+			// no dump at all. That makes this the only `dev` form whose
+			// transaction count matches `link show dev`'s while its requests
+			// differ from it.
+			description: "boundary: -0 drops the third transaction, because AF_PACKET skips the address dump",
+			family:      unix.AF_PACKET,
+			args:        []string{"show", "dev", devNameCst},
+			wantDumps:   0,
+			wantGets: []getShape{
+				llLinkGet(devNameCst),
+				addrLinkGet(unix.AF_PACKET, devIndexCst),
+			},
+			wantStdoutPrefix: "3: goip0: ",
+			wantNoStdout:     "inet",
+		},
+		{
+			description: "boundary: `addr lst dev goip0` abbreviates to the same three requests",
+			family:      unix.AF_UNSPEC,
+			args:        []string{"lst", "dev", devNameCst},
+			wantDumps:   1,
+			wantGets: []getShape{
+				llLinkGet(devNameCst),
+				addrLinkGet(unix.AF_UNSPEC, devIndexCst),
+			},
+			wantStdoutPrefix: "3: goip0: ",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			src := newLinkReplay(t, addrDevPcap)
+			out, err := runAddressWith(t, src, tc.family, tc.args)
+			if err != nil {
+				t.Fatalf("runAddress(%q): %v", tc.args, err)
+			}
+			if src.dumps != tc.wantDumps {
+				t.Errorf("sent %d dumps, want %d", src.dumps, tc.wantDumps)
+			}
+			if len(src.gets) != len(tc.wantGets) {
+				t.Fatalf("sent %d single-gets, want %d", len(src.gets), len(tc.wantGets))
+			}
+			for i, want := range tc.wantGets {
+				if got := selectorOf(src.gets[i]); got != want {
+					t.Errorf("single-get %d = %+v, want %+v", i+1, got, want)
+				}
+			}
+			if !strings.HasPrefix(out, tc.wantStdoutPrefix) {
+				t.Errorf("stdout does not start with %q\ngot:\n%s", tc.wantStdoutPrefix, firstLines(out, 6))
+			}
+			if tc.wantNoStdout != "" && strings.Contains(out, tc.wantNoStdout) {
+				t.Errorf("stdout contains %q, which this family must not print\ngot:\n%s",
+					tc.wantNoStdout, firstLines(out, 8))
+			}
+			// One stanza, always: the selector resolved to one link and
+			// ipaddr_filter cannot add any.
+			for i, line := range strings.Split(strings.TrimRight(out, "\n"), "\n") {
+				if i > 0 && !strings.HasPrefix(line, " ") {
+					t.Errorf("line %d starts a second stanza: %q", i+1, line)
+				}
+			}
+		})
+	}
+
+	// The negative the rows above cannot state. getShape keeps five fields;
+	// two requests agreeing on all five can still differ in the ext-mask
+	// value, in a trailing attribute, or in nlmsg_len. Comparing the raw
+	// bytes is what closes that gap, and it is cheap here because both
+	// requests came out of the same run moments apart.
+	t.Run("negative: the two single-gets differ in full, not merely in the fields getShape keeps", func(t *testing.T) {
+		src := newLinkReplay(t, addrDevPcap)
+		if _, err := runAddressWith(t, src, unix.AF_UNSPEC, []string{"show", "dev", devNameCst}); err != nil {
+			t.Fatalf("runAddress: %v", err)
+		}
+		if len(src.gets) != 2 {
+			t.Fatalf("sent %d single-gets, want 2", len(src.gets))
+		}
+		if bytes.Equal(src.gets[0], src.gets[1]) {
+			t.Errorf("both single-gets are %x; ll_link_get and ipaddr_link_get have collapsed into one", src.gets[0])
+		}
+	})
+
+	// And the one `link show dev` asserts from the other side: this command's
+	// second request is NOT iplink_get's. Same interface, same moment, two
+	// commands, two different bytes.
+	t.Run("corner: the second get is not the iplink_get `link show dev` sends", func(t *testing.T) {
+		addrSrc := newLinkReplay(t, addrDevPcap)
+		if _, err := runAddressWith(t, addrSrc, unix.AF_UNSPEC, []string{"show", "dev", devNameCst}); err != nil {
+			t.Fatalf("runAddress: %v", err)
+		}
+		linkSrc := newLinkReplay(t, addrDevPcap)
+		if _, err := runLinkWith(t, linkSrc, unix.AF_PACKET, []string{"show", "dev", devNameCst}); err != nil {
+			t.Fatalf("runLink: %v", err)
+		}
+		if len(addrSrc.gets) != 2 || len(linkSrc.gets) != 2 {
+			t.Fatalf("gets = %d and %d, want 2 each", len(addrSrc.gets), len(linkSrc.gets))
+		}
+		if !bytes.Equal(addrSrc.gets[0], linkSrc.gets[0]) {
+			t.Errorf("the two commands' FIRST requests differ, and they must not — both are ll_link_get\n"+
+				"addr: %x\nlink: %x", addrSrc.gets[0], linkSrc.gets[0])
+		}
+		if bytes.Equal(addrSrc.gets[1], linkSrc.gets[1]) {
+			t.Errorf("the two commands' SECOND requests are identical; ipaddr_link_get and iplink_get "+
+				"are different functions with different selectors and families: %x", addrSrc.gets[1])
+		}
+	})
+}
+
+// TestAddrShowDevMatchesCapturedOutput diffs `goip addr show dev goip0`
+// against the `ip addr show dev goip0` sidecar written in the same guest
+// namespace, in the same window, as the pcap it replays.
+//
+// A matched pair, so this is a verbatim comparison rather than the
+// reconstruction the 7_1_8 corpus needs — ip_addr_dev was written by a plain
+// `ip`, not by `ip -d`.
+//
+// What it certifies beyond `addr show`'s own golden: the stanza here comes
+// from a single-get reply rather than from a dump reply, and `do_link` is
+// still 0, so it must have the address lines AND no `mode DEFAULT`. Those two
+// facts pull in opposite directions — the reply looks like `link show dev`'s
+// and the rendering must look like `addr show`'s — and only a golden taken
+// from this exact command can hold both.
+//
+// # Three namespaces, and the two new ones carry what the dummy cannot
+//
+// The clean row is the control. The other two were committed unread, and each
+// adds a device shape a dummy cannot express:
+//
+//   - mesh/ip_addr_dev is veth0, so the single-get must resolve IFLA_MASTER
+//     to `master br0` and IFLA_LINK to `@veth1` through SIDE transactions,
+//     off a reply that carries only the two indexes. It is also the only
+//     `dev` form in the corpus with no address at all, which makes it a
+//     negative: the stanza is one link header with nothing indented under it,
+//     where a renderer that rendered an empty address list as a zero stanza
+//     would print an `inet` line.
+//   - tunnel/ip_addr_dev is gre1, whose header carries both `@NONE` and
+//     `link/gre 192.0.2.3 peer 198.51.100.3` — ll_addr_n2a's 4-byte special
+//     case, reached here through the single-get path rather than through a
+//     dump.
+//
+// go test ./internal/goip/ -run TestAddrShowDevMatchesCapturedOutput
+func TestAddrShowDevMatchesCapturedOutput(t *testing.T) {
+	tests := []struct {
+		description string
+		pcap        string
+		sidecar     string
+		dev         string
+		// wantAddrLines is the number of indented inet/inet6 lines, asserted
+		// separately from the line-for-line diff so that "the header is right
+		// and the stanza is empty" is a stated expectation rather than
+		// something inferred from a passing diff.
+		wantAddrLines int
+	}{
+		{
+			description:   "control: the clean topology reproduces ip_addr_dev, four addresses under one header",
+			pcap:          addrDevPcap,
+			sidecar:       addrDevSidecar,
+			dev:           devNameCst,
+			wantAddrLines: 4,
+		},
+		{
+			description:   "negative: mesh/ip_addr_dev is veth0, which carries NO address — one header, nothing indented",
+			pcap:          guestDumpsDir + "mesh/netlink_route_getaddr_dev.pcap",
+			sidecar:       guestDumpsDir + "mesh/ip_addr_dev",
+			dev:           "veth0",
+			wantAddrLines: 0,
+		},
+		{
+			description:   "positive: tunnel/ip_addr_dev is gre1, @NONE and a dotted-quad link/gre over three stanzas",
+			pcap:          guestDumpsDir + "tunnel/netlink_route_getaddr_dev.pcap",
+			sidecar:       guestDumpsDir + "tunnel/ip_addr_dev",
+			dev:           "gre1",
+			wantAddrLines: 3,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			raw, err := os.ReadFile(tc.sidecar)
+			if err != nil {
+				t.Fatalf("read %s: %v", tc.sidecar, err)
+			}
+			want := strings.Split(strings.TrimRight(string(raw), "\n"), "\n")
+
+			out, err := runAddressWith(t, newLinkReplay(t, tc.pcap), unix.AF_UNSPEC,
+				[]string{"show", "dev", tc.dev})
+			if err != nil {
+				t.Fatalf("runAddress: %v", err)
+			}
+			got := strings.Split(strings.TrimRight(out, "\n"), "\n")
+
+			if len(got) != len(want) {
+				t.Errorf("rendered %d lines, want %d\ngot:\n%s\nwant:\n%s",
+					len(got), len(want), out, string(raw))
+			}
+
+			// Asserted on its own because it is the one token that separates
+			// this output from `ip link show dev NAME`'s, and a line-by-line
+			// diff reports it as "line 1 differs" with no hint of why.
+			if strings.Contains(out, "mode DEFAULT") {
+				t.Errorf("output carries `mode DEFAULT`, which print_linkmode emits only under do_link "+
+					"(ip/ipaddress.c:1043):\n%s", firstLines(out, 3))
+			}
+
+			addrLines := 0
+			for _, l := range got {
+				if strings.HasPrefix(strings.TrimLeft(l, " "), "inet") {
+					addrLines++
+				}
+			}
+			if addrLines != tc.wantAddrLines {
+				t.Errorf("rendered %d inet/inet6 lines, want %d\n%s",
+					addrLines, tc.wantAddrLines, out)
+			}
+
+			for i, wantLine := range want {
+				if i >= len(got) {
+					t.Errorf("missing output line %d; want %q", i+1, wantLine)
+					continue
+				}
+				if got[i] != wantLine {
+					t.Errorf("line %d mismatch\n got: %q\nwant: %q", i+1, got[i], wantLine)
+				}
 			}
 		})
 	}
@@ -1507,6 +2165,657 @@ func TestAddrBulkPcapSeqCannotAttribute(t *testing.T) {
 			if got := tc.count(); got != tc.want {
 				t.Errorf("got %d, want %d", got, tc.want)
 			}
+		})
+	}
+}
+
+// TestAddrShowV6StatsFromMIB drives the third stats arm end to end, from the
+// committed AF_INET6 capture to rendered output.
+//
+// # Why this needs no new capture, which is the whole point of the step
+//
+// `ip -6 addr show` and `ip -s -6 addr show` exchange identical bytes in both
+// directions. The AF_INET6 arm of rtnl_linkdump_req_filter_fn sends no
+// IFLA_EXT_MASK, and the kernel's inet6_fill_ifinfo hardcodes ext_filter_mask
+// to zero (net/ipv6/addrconf.c:6110), so IFLA_INET6_STATS is on the wire
+// whether or not anyone asked for stats. netlink_route_getaddr_v6.pcap has
+// carried the attribute since it was captured; `-s` only decides whether goip
+// renders it. That is why the negative row below is load-bearing: the gate has
+// to be show_stats, and an implementation that gated on attribute presence
+// would print the block for both commands and pass every positive row here.
+//
+// go test ./internal/goip/ -run TestAddrShowV6StatsFromMIB
+func TestAddrShowV6StatsFromMIB(t *testing.T) {
+	const v6pcap = guestDumpsDir + "netlink_route_getaddr_v6.pcap"
+
+	// run replays the v6 capture and returns stdout.
+	run := func(t *testing.T, args ...string) string {
+		t.Helper()
+		t.Setenv("GOIP_REPLAY", v6pcap)
+		var stdout, stderr bytes.Buffer
+		if code := Run(args, &stdout, &stderr); code != ExitOK {
+			t.Fatalf("Run(%q) = %d, stderr=%s", args, code, stderr.String())
+		}
+		return stdout.String()
+	}
+
+	tests := []struct {
+		description string
+		check       func(t *testing.T)
+	}{
+		{
+			description: "positive: -s -6 addr show renders one RX/TX block per link, from IFLA_PROTINFO because there is no IFLA_STATS64 to read",
+			check: func(t *testing.T) {
+				out := run(t, "-s", "-6", "addr", "show")
+				links := strings.Count(out, "mtu ")
+				if links == 0 {
+					t.Fatal("no links rendered; the replay produced nothing to gate")
+				}
+				if got := strings.Count(out, "RX:  bytes"); got != links {
+					t.Errorf("%d RX blocks over %d links, want one each", got, links)
+				}
+				if got := strings.Count(out, "TX:  bytes"); got != links {
+					t.Errorf("%d TX blocks over %d links, want one each", got, links)
+				}
+			},
+		},
+		{
+			// The row that pins VALUES, per link and in both directions,
+			// reading the expectation out of the pcap at literal byte
+			// offsets rather than through xtcpnl's IPSTATS_MIB_* constants.
+			//
+			// The offsets are the point. Going through the constants would
+			// compare the mapping against itself — transpose two and both
+			// sides move together. Indices 1/2 are INPKTS/INOCTETS and 9/10
+			// are OUTPKTS/OUTOCTETS, counted off include/uapi/linux/snmp.h
+			// by hand.
+			//
+			// Both directions, because this capture's only traffic is
+			// outbound: goip0 sent 432 octets in 7 packets and received
+			// nothing, lo moved nothing either way. An earlier version of
+			// this row compared the RX line alone and was therefore VACUOUS
+			// — every RX pair in the fixture is "0 0", so transposing INPKTS
+			// and INOCTETS left it green.
+			//
+			// Per link, because a comparison against a SET of pairs cannot
+			// tell a correct render from one that prints one link's counters
+			// twice.
+			//
+			// # What this row cannot catch, measured rather than assumed
+			//
+			// Four single-index transpositions were tried against it. It
+			// caught TxBytes <- INOCTETS and missed RxPackets <- INOCTETS
+			// and TxPackets <- OUTREQUESTS, both for fixture reasons: the
+			// two rx entries are zero on every link here, and OutRequests
+			// equals OutTransmits on a host that originates all its traffic.
+			// TestInet6StatsSnmpCounters caught all four, because its
+			// fixtures set one index at a time with a distinct value.
+			//
+			// So the division of labor is deliberate: the unit table pins
+			// WHICH index each member reads, and this row pins that the
+			// numbers survive decode, render and column formatting on their
+			// way to the right link. Neither is redundant and neither alone
+			// is sufficient.
+			description: "positive: each link's rendered RX and TX counters equal that link's own IFLA_INET6_STATS, read at raw offsets rather than through the constants under test",
+			check: func(t *testing.T) {
+				type pair struct{ rx, tx string }
+				want := map[string]pair{}
+
+				capt, err := nlparity.ParseRouteCaptureFile(v6pcap)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, m := range capt.Msgs() {
+					if m.IsRequest() || m.Hdr.Type != uint16(unix.RTM_NEWLINK) {
+						continue
+					}
+					var name string
+					var mib []byte
+					_ = xtcpnl.WalkRTAttrs(m.Body[xtcpnl.IfInfomsgSizeCst:],
+						func(atype uint16, val []byte) {
+							switch atype {
+							case uint16(unix.IFLA_IFNAME):
+								name = string(bytes.TrimRight(val, "\x00"))
+							case uint16(unix.IFLA_PROTINFO):
+								_ = xtcpnl.WalkRTAttrs(val, func(inner uint16, iv []byte) {
+									if inner == uint16(unix.IFLA_INET6_STATS) {
+										mib = iv
+									}
+								})
+							}
+						})
+					if name == "" {
+						t.Fatal("a link reply carries no IFLA_IFNAME")
+					}
+					// 88 bytes reaches index 10, OUTOCTETS, the highest this
+					// row reads.
+					if len(mib) < 88 {
+						t.Fatalf("link %q: IFLA_INET6_STATS is %d bytes, too short to "+
+							"reach IPSTATS_MIB_OUTOCTETS", name, len(mib))
+					}
+					at := func(idx int) uint64 {
+						return binary.LittleEndian.Uint64(mib[idx*8 : idx*8+8])
+					}
+					want[name] = pair{
+						// `ip` prints bytes before packets on both lines.
+						rx: fmt.Sprintf("%d %d", at(2), at(1)),  // INOCTETS, INPKTS
+						tx: fmt.Sprintf("%d %d", at(10), at(9)), // OUTOCTETS, OUTPKTS
+					}
+				}
+				if len(want) == 0 {
+					t.Fatal("no RTM_NEWLINK replies in the capture")
+				}
+
+				// counters returns the two leading fields of the line after
+				// the heading at index i.
+				lines := strings.Split(run(t, "-s", "-6", "addr", "show"), "\n")
+				counters := func(i int) string {
+					if i+1 >= len(lines) {
+						t.Fatalf("heading at line %d has no counter line under it", i)
+					}
+					f := strings.Fields(lines[i+1])
+					if len(f) < 2 {
+						t.Fatalf("line %d is not a counter line: %q", i+1, lines[i+1])
+					}
+					return f[0] + " " + f[1]
+				}
+
+				stanza := regexp.MustCompile(`^\d+: ([^:@]+)[:@]`)
+				var link string
+				checked, rendered := 0, 0
+				for i, l := range lines {
+					if m := stanza.FindStringSubmatch(l); m != nil {
+						link = m[1]
+						rendered++
+						continue
+					}
+					w, ok := want[link]
+					if !ok {
+						continue
+					}
+					switch {
+					case strings.Contains(l, "RX:") && strings.Contains(l, "bytes"):
+						if got := counters(i); got != w.rx {
+							t.Errorf("link %q RX = %q, want %q from "+
+								"IFLA_INET6_STATS[INOCTETS]/[INPKTS]", link, got, w.rx)
+						}
+						checked++
+					case strings.Contains(l, "TX:") && strings.Contains(l, "bytes"):
+						if got := counters(i); got != w.tx {
+							t.Errorf("link %q TX = %q, want %q from "+
+								"IFLA_INET6_STATS[OUTOCTETS]/[OUTPKTS]", link, got, w.tx)
+						}
+						checked++
+					}
+				}
+
+				// Two lines per rendered link, and fewer rendered links than
+				// replies — which is correct rather than a shortfall: under a
+				// family filter `ip` drops a link whose address list came back
+				// empty, so nlmon0 is in the capture and not in the output.
+				// The committed ip_addr_v6 sidecar shows the same two links.
+				if checked != 2*rendered {
+					t.Errorf("checked %d counter lines over %d rendered links, want %d",
+						checked, rendered, 2*rendered)
+				}
+				if rendered == 0 || rendered > len(want) {
+					t.Errorf("%d links rendered against %d in the capture", rendered, len(want))
+				}
+			},
+		},
+		{
+			description: "negative: -6 addr show renders NO block, even though the same reply carries the same MIB — the gate is show_stats, not attribute presence",
+			check: func(t *testing.T) {
+				out := run(t, "-6", "addr", "show")
+				if strings.Contains(out, "RX:") || strings.Contains(out, "TX:") {
+					t.Errorf("a stats block was rendered without -s:\n%s", firstLines(out, 12))
+				}
+			},
+		},
+		{
+			description: "negative: -6 addr show still matches ip_addr_v6 line for line, so adding the arm changed nothing about the ungated form",
+			check: func(t *testing.T) {
+				raw, err := os.ReadFile(guestDumpsDir + "ip_addr_v6")
+				if err != nil {
+					t.Fatal(err)
+				}
+				// The qlen is an ioctl `ip` makes and goip cannot; it is the
+				// pre-existing skew on this command and has nothing to do
+				// with stats. See sidecarWithoutIoctlQlen.
+				assertLinesEqual(t, run(t, "-6", "addr", "show"),
+					sidecarWithoutIoctlQlen(t, string(raw)))
+			},
+		},
+		{
+			description: "boundary: -s -6 -j addr show keys the object on stats64, because upstream's third arm returns sizeof(*stats64)",
+			check: func(t *testing.T) {
+				out := run(t, "-s", "-6", "-j", "addr", "show")
+				var groups []map[string]any
+				if err := json.Unmarshal([]byte(out), &groups); err != nil {
+					t.Fatalf("unmarshal: %v\n%s", err, firstLines(out, 3))
+				}
+				if len(groups) == 0 {
+					t.Fatal("no groups decoded")
+				}
+				for _, g := range groups {
+					if _, ok := g["stats64"]; !ok {
+						t.Errorf("link %v has no stats64 key", g["ifname"])
+					}
+					if _, ok := g["stats"]; ok {
+						t.Errorf("link %v carries a stats key; `ip` emits stats64 "+
+							"here even though no IFLA_STATS64 was on the wire",
+							g["ifname"])
+					}
+				}
+			},
+		},
+		{
+			description: "boundary: -6 -j addr show carries neither key, so the JSON form is gated the same way the text form is",
+			check: func(t *testing.T) {
+				out := run(t, "-6", "-j", "addr", "show")
+				var groups []map[string]any
+				if err := json.Unmarshal([]byte(out), &groups); err != nil {
+					t.Fatalf("unmarshal: %v\n%s", err, firstLines(out, 3))
+				}
+				for _, g := range groups {
+					if _, ok := g["stats64"]; ok {
+						t.Errorf("link %v carries stats64 without -s", g["ifname"])
+					}
+					if _, ok := g["stats"]; ok {
+						t.Errorf("link %v carries stats without -s", g["ifname"])
+					}
+				}
+			},
+		},
+		{
+			description: "corner: the block sits BELOW the inet6 lines, where print_link_stats runs (ipaddress.c:2333) — one line after print_selected_addrinfo, not under the stanza like `ip -s link show`",
+			check: func(t *testing.T) {
+				out := run(t, "-s", "-6", "addr", "show")
+				lines := strings.Split(out, "\n")
+				rx := -1
+				lastAddr := -1
+				for i, l := range lines {
+					if strings.HasPrefix(l, "    inet6 ") {
+						lastAddr = i
+					}
+					if strings.Contains(l, "RX:  bytes") && rx == -1 {
+						rx = i
+						break
+					}
+				}
+				if rx == -1 || lastAddr == -1 {
+					t.Fatalf("expected both an inet6 line and an RX block, got rx=%d addr=%d", rx, lastAddr)
+				}
+				if rx < lastAddr {
+					t.Errorf("the first RX block is at line %d, above the inet6 line at %d; "+
+						"the addr object puts stats after the addresses", rx, lastAddr)
+				}
+			},
+		},
+		{
+			description: "corner: -s -6 addr show and -6 addr show differ ONLY by the block — the request is identical, so nothing else may move",
+			check: func(t *testing.T) {
+				withS := run(t, "-s", "-6", "addr", "show")
+				without := run(t, "-6", "addr", "show")
+				stripped := []string{}
+				for _, l := range strings.Split(withS, "\n") {
+					if strings.Contains(l, "RX:  bytes") || strings.Contains(l, "TX:  bytes") {
+						continue
+					}
+					// The counter line follows each heading; it is the only
+					// other line made entirely of spaces and digits.
+					if regexp.MustCompile(`^\s*\d[\d\s]*$`).MatchString(l) {
+						continue
+					}
+					stripped = append(stripped, l)
+				}
+				assertLinesEqual(t, strings.Join(stripped, "\n"), without)
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) { tc.check(t) })
+	}
+}
+
+// The three `-s addr` captures, one per namespace, and the devices they were
+// taken against.
+//
+// Each pcap was written by `capio` rather than `cap` — see
+// nix/microvms/scripts/capture-netlink-dumps.exp — which records the pcap AND
+// the stdout of ONE invocation. That pairing is what makes the comparisons
+// below byte-exact without a counter normalizer: the numbers in the sidecar
+// came off the same replies that are in the pcap. A `side` sidecar is a second
+// invocation, so its counters have ticked, and every earlier stats golden in
+// this corpus needed normalizeLinkStatsText or zeroLinkStats for exactly that
+// reason.
+const (
+	addrStatsPcap   = guestDumpsDir + "netlink_route_getaddr_stats.pcap"
+	addrStatsV6Pcap = guestDumpsDir + "netlink_route_getaddr_v6_stats.pcap"
+)
+
+// TestAddrShowStatsMatchesCapturedSidecars replays the `ip -s addr show` and
+// `ip -s -6 addr show` captures and diffs goip's output against the stdout
+// each capture recorded alongside its own replies.
+//
+// # What these rows certify that PR A's unit tables cannot
+//
+// TestAddrShowV6StatsFromMIB reads its expectation out of the pcap at literal
+// MIB byte offsets, which pins WHICH counter each member comes from and is
+// deliberately independent of any sidecar. What it cannot see is column
+// layout: print_num's width selection, the two heading lines, and where the
+// block sits relative to the address stanzas. Only a transcript a real `ip`
+// wrote can fail on those, and these are the first goldens in the corpus that
+// hold one for the addr object.
+//
+// # The four-way asymmetry, visible between two files
+//
+// goip0's TX line reads `530 7` in ip_addr_stats and `432 7` in
+// ip_addr_v6_stats. Same link, same boot, same heading — and two different
+// counter sets, because the AF_INET6 link dump is answered by
+// inet6_fill_ifinfo (net/ipv6/addrconf.c:6073-6117) and carries
+// IFLA_INET6_STATS instead of IFLA_STATS64. 530 is the L2 frame total from
+// sysfs; 432 is Ip6OutOctets. The corner row below asserts the two disagree,
+// because a port that read one source for both families would render
+// plausible numbers on every line and be wrong on half of them.
+//
+// go test ./internal/goip/ -run TestAddrShowStatsMatchesCapturedSidecars
+func TestAddrShowStatsMatchesCapturedSidecars(t *testing.T) {
+	tests := []struct {
+		description string
+		pcap        string
+		sidecar     string
+		args        []string
+		// dropIoctlQlen removes the one token `ip` gets from a
+		// SIOCGIFTXQLEN ioctl rather than from netlink. See
+		// sidecarWithoutIoctlQlen, and the row that sets it for why it is
+		// the v6 form alone.
+		dropIoctlQlen bool
+	}{
+		{
+			// The positive, and the one row in this file that is byte-exact
+			// against a stats transcript with nothing subtracted from either
+			// side. Three links, two heading lines and two counter lines
+			// each, column widths included.
+			description: "positive: the clean topology reproduces ip_addr_stats byte for byte",
+			pcap:        addrStatsPcap,
+			sidecar:     "ip_addr_stats",
+			args:        []string{"-s", "addr", "show"},
+		},
+		{
+			// The mesh namespace adds a bridge, a veth pair and a link with
+			// no address, so the block must render under a stanza that has
+			// no `inet` lines at all — the position claim with the address
+			// lines removed from under it.
+			description: "positive: the mesh topology reproduces mesh/ip_addr_stats, block included on an address-less link",
+			pcap:        guestDumpsDir + "mesh/netlink_route_getaddr_stats.pcap",
+			sidecar:     "mesh/ip_addr_stats",
+			args:        []string{"-s", "addr", "show"},
+		},
+		{
+			// Thirteen tunnel devices, which is the widest rendering in the
+			// corpus and the only one where `@NONE`, ` permaddr ` and a
+			// stats block appear in one stanza.
+			description: "positive: the tunnel topology reproduces tunnel/ip_addr_stats across thirteen devices",
+			pcap:        guestDumpsDir + "tunnel/netlink_route_getaddr_stats.pcap",
+			sidecar:     "tunnel/ip_addr_stats",
+			args:        []string{"-s", "addr", "show"},
+		},
+		{
+			// The MIB arm against a transcript. PR A verified this form on
+			// the host and in a unit table; this is the first committed `ip`
+			// stdout for it.
+			description: "positive: -s -6 addr show reproduces ip_addr_v6_stats, which is the IFLA_PROTINFO arm rendered",
+			pcap:        addrStatsV6Pcap,
+			sidecar:     "ip_addr_v6_stats",
+			args:        []string{"-s", "-6", "addr", "show"},
+			// The v6 rows alone, and not the AF_UNSPEC rows above:
+			// inet6_fill_ifinfo emits no IFLA_TXQLEN, so print_linkinfo
+			// falls back to a SIOCGIFTXQLEN ioctl that a netlink-only goip
+			// has no way to make. Structural, pre-existing, already the
+			// `stdout:keyword:qlen` allowlist entry for this command, and
+			// nothing to do with `-s` — the non-`-s` row at
+			// TestAddrShowV6StatsFromMIB subtracts the same token.
+			dropIoctlQlen: true,
+		},
+		{
+			description:   "positive: the mesh topology reproduces mesh/ip_addr_v6_stats on the same arm",
+			pcap:          guestDumpsDir + "mesh/netlink_route_getaddr_v6_stats.pcap",
+			sidecar:       "mesh/ip_addr_v6_stats",
+			args:          []string{"-s", "-6", "addr", "show"},
+			dropIoctlQlen: true,
+		},
+		{
+			description:   "positive: the tunnel topology reproduces tunnel/ip_addr_v6_stats on the same arm",
+			pcap:          guestDumpsDir + "tunnel/netlink_route_getaddr_v6_stats.pcap",
+			sidecar:       "tunnel/ip_addr_v6_stats",
+			args:          []string{"-s", "-6", "addr", "show"},
+			dropIoctlQlen: true,
+		},
+		{
+			// The negative, and it is a claim about the GATE rather than
+			// about the attribute. This pcap's replies carry IFLA_STATS64
+			// and IFLA_STATS on every link — the request asked for them with
+			// ext_filter_mask 0x01 — so a renderer keyed on attribute
+			// presence rather than on show_stats renders a block here and
+			// fails against ip_addr, which came from a request that set
+			// RTEXT_FILTER_SKIP_STATS instead.
+			//
+			// Compared line for line, but NOT against the committed
+			// ip_addr. That file is from an earlier boot with a different
+			// random MAC, so its lladdr and
+			// its derived fe80 link-local would differ for a reason that has
+			// nothing to do with stats. The assertion is the subtraction
+			// instead: the `-s` output minus its RX/TX heading and counter
+			// lines IS the non-`-s` output, from the same bytes.
+			description: "negative: addr show on the -s capture renders no block, even though every reply carries IFLA_STATS64",
+			pcap:        addrStatsPcap,
+			sidecar:     "",
+			args:        []string{"addr", "show"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			t.Setenv("GOIP_REPLAY", tc.pcap)
+			var stdout, stderr bytes.Buffer
+			if code := Run(tc.args, &stdout, &stderr); code != ExitOK {
+				t.Fatalf("Run(%q) = %d, stderr=%s", tc.args, code, stderr.String())
+			}
+
+			// The negative row has no sidecar of its own: there is no
+			// committed `ip addr show` transcript from THIS boot to diff
+			// against, and the one from the previous boot differs on the MAC.
+			// So it asserts against the `-s` form of itself.
+			if tc.sidecar == "" {
+				assertLinesEqual(t, stdout.String(),
+					statsBlockRemoved(t, withStatsFrom(t, tc.pcap)))
+				return
+			}
+
+			raw, err := os.ReadFile(guestDumpsDir + tc.sidecar)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := string(raw)
+			if tc.dropIoctlQlen {
+				want = sidecarWithoutIoctlQlen(t, want)
+			}
+			assertLinesEqual(t, stdout.String(), want)
+		})
+	}
+}
+
+// withStatsFrom is `goip -s addr show` over one capture, for the rows whose
+// expectation is goip's own gated output rather than a committed file.
+func withStatsFrom(t *testing.T, pcap string) string {
+	t.Helper()
+	t.Setenv("GOIP_REPLAY", pcap)
+	var stdout, stderr bytes.Buffer
+	args := []string{"-s", "addr", "show"}
+	if code := Run(args, &stdout, &stderr); code != ExitOK {
+		t.Fatalf("Run(%q) = %d, stderr=%s", args, code, stderr.String())
+	}
+	return stdout.String()
+}
+
+// statsBlockRemoved drops the four lines print_link_stats64 adds per link: two
+// headings and the two counter lines under them.
+//
+// It is the inverse of the thing under test, which is the only way to compare
+// a gated render against an ungated one taken from the same bytes. A heading
+// is recognized by its `RX:`/`TX:` prefix and a counter line by being made
+// entirely of spaces and digits — the same two shapes
+// TestAddrShowV6StatsFromMIB's subtraction row uses, and neither can collide
+// with an address stanza, which always carries a `/` and a scope.
+func statsBlockRemoved(t *testing.T, s string) string {
+	t.Helper()
+	counter := regexp.MustCompile(`^\s*\d[\d\s]*$`)
+	var out []string
+	for _, l := range strings.Split(s, "\n") {
+		trimmed := strings.TrimLeft(l, " ")
+		if strings.HasPrefix(trimmed, "RX:") || strings.HasPrefix(trimmed, "TX:") {
+			continue
+		}
+		if counter.MatchString(l) {
+			continue
+		}
+		out = append(out, l)
+	}
+	if len(out) == len(strings.Split(s, "\n")) {
+		t.Fatal("statsBlockRemoved removed nothing; the input carries no stats block, " +
+			"so the row comparing against it would be vacuous")
+	}
+	return strings.Join(out, "\n")
+}
+
+// runAddressStatsWith is runAddressWith with show_stats set, for the rows that
+// must supply a TalkSource and cannot go through Run.
+//
+// `-s` is a global option parsed in Run's own loop, so a test that drives
+// runAddress directly has no way to pass it other than setting the field. The
+// dev-path rows need both at once: a TalkSource, because `addr show dev NAME`
+// is two single-gets and a dump, and show_stats, because that is the subject.
+func runAddressStatsWith(t *testing.T, src Source, family uint8, args []string) (string, error) {
+	t.Helper()
+	var out bytes.Buffer
+	c := &runCtx{
+		src:       src,
+		lltab:     NewLLTab(),
+		out:       &out,
+		errOut:    io.Discard,
+		family:    family,
+		showStats: 1,
+	}
+	err := runAddress(c, args)
+	return out.String(), err
+}
+
+// TestAddrShowDevStatsMatchesCapturedSidecars diffs `goip -s addr show dev
+// NAME` against the ip_addr_dev_stats transcript from the same invocation.
+//
+// # Why this is the only `-s` row in the sweep that needed a harness fix
+//
+// It is the only one whose capture holds TWO RTM_NEWLINK replies for the same
+// link. ll_link_get asks by name on a throwaway socket with its mask hardcoded
+// to RTEXT_FILTER_VF | RTEXT_FILTER_SKIP_STATS (lib/ll_map.c:264), purely to
+// turn `dev NAME` into an index; ipaddr_link_get then asks again by index
+// carrying show_stats' mask, and only that second reply has IFLA_STATS64.
+// linkReplay used to answer both from the first reply it found with a matching
+// selector, so this command replayed a stats-free reply and rendered no block.
+// linkReplay.Talk pairs each request with the reply that follows it now, and
+// its comment has the transcript.
+//
+// The live command was byte-identical to `ip`'s throughout, which is the point
+// worth keeping: the failure was in the fixture reader, and the only thing
+// that distinguished the two was running `goip` against a real socket.
+//
+// # Why this capture exists at all, when netlink_route_getaddr_dev.pcap does
+//
+// It is the corpus's only record of an ext_filter_mask on a NON-DUMP
+// RTM_GETLINK. Step 2's corner row could otherwise argue only from source
+// that the get path is stats-sensitive for every family; this is the byte.
+//
+// go test ./internal/goip/ -run TestAddrShowDevStatsMatchesCapturedSidecars
+func TestAddrShowDevStatsMatchesCapturedSidecars(t *testing.T) {
+	tests := []struct {
+		description string
+		pcap        string
+		sidecar     string
+		dev         string
+		// wantNoStats asserts the negative: no block at all, for the row
+		// that drops show_stats.
+		wantNoStats bool
+	}{
+		{
+			description: "positive: the clean topology reproduces ip_addr_dev_stats, block under a single-get stanza",
+			pcap:        guestDumpsDir + "netlink_route_getaddr_dev_stats.pcap",
+			sidecar:     "ip_addr_dev_stats",
+			dev:         devNameCst,
+		},
+		{
+			// The row the harness fix was found on, and the one that proves
+			// it: veth0 has a master AND a peer, so print_linkinfo issues two
+			// more by-index gets for br0 and veth1 on top of the two for
+			// veth0 itself. Four gets, four replies, and the right one has to
+			// be picked for each. A reply-first match renders `veth0@if4
+			// master if3` with no block and no `M-DOWN` — plausible on every
+			// token and wrong on four of them.
+			description: "positive: the mesh topology reproduces mesh/ip_addr_dev_stats across four single-gets",
+			pcap:        guestDumpsDir + "mesh/netlink_route_getaddr_dev_stats.pcap",
+			sidecar:     "mesh/ip_addr_dev_stats",
+			dev:         "veth0",
+		},
+		{
+			// gre1 is the only UP tunnel and the only device in the corpus
+			// that carries addresses, `@NONE`, a permaddr and a stats block
+			// in one stanza.
+			description: "positive: the tunnel topology reproduces tunnel/ip_addr_dev_stats under an @NONE header",
+			pcap:        guestDumpsDir + "tunnel/netlink_route_getaddr_dev_stats.pcap",
+			sidecar:     "tunnel/ip_addr_dev_stats",
+			dev:         "gre1",
+		},
+		{
+			// The negative, and on this command it is sharper than on the
+			// dump forms. The reply goip renders here was fetched BECAUSE
+			// show_stats set the mask, so "the attribute is on the wire" and
+			// "the user asked for stats" are as close to the same thing as
+			// they ever get — and they are still two decisions. Dropping
+			// show_stats must drop the block even though the bytes that
+			// arrived are unchanged.
+			description: "negative: the same capture with show_stats unset renders no block, though the reply still carries IFLA_STATS64",
+			pcap:        guestDumpsDir + "netlink_route_getaddr_dev_stats.pcap",
+			dev:         devNameCst,
+			wantNoStats: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			src := newLinkReplay(t, tc.pcap)
+			args := []string{"show", "dev", tc.dev}
+
+			if tc.wantNoStats {
+				out, err := runAddressWith(t, src, unix.AF_UNSPEC, args)
+				if err != nil {
+					t.Fatalf("runAddress: %v", err)
+				}
+				if strings.Contains(out, "RX:") || strings.Contains(out, "TX:") {
+					t.Errorf("a stats block was rendered without show_stats:\n%s", firstLines(out, 12))
+				}
+				return
+			}
+
+			out, err := runAddressStatsWith(t, src, unix.AF_UNSPEC, args)
+			if err != nil {
+				t.Fatalf("runAddress: %v", err)
+			}
+			raw, err := os.ReadFile(guestDumpsDir + tc.sidecar)
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertLinesEqual(t, out, string(raw))
 		})
 	}
 }

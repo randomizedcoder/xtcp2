@@ -37,8 +37,50 @@ const (
 	NdMsgSizeCst = 12
 	NdMsgReadCst = NdMsgSizeCst
 
+	// NdMsgFlagsOffCst is the byte offset of ndm_family's third neighbor:
+	// ndm_flags, at 10, after the 4-byte ndm_ifindex at 4 and the 2-byte
+	// ndm_state at 8. It is the only member of this struct that a REQUEST
+	// ever sets — `ip neigh show proxy` writes NTF_PROXY here and nothing
+	// else (ip/ipneigh.c:490) — so the builder needs it by offset while the
+	// decoder below reads it by field. Naming it keeps the two from drifting.
+	NdMsgFlagsOffCst = 10
+
 	// NdaCacheInfoSizeCst is `struct nda_cacheinfo`: four __u32 counters.
 	NdaCacheInfoSizeCst = 16
+)
+
+// NdaFlagsExt is NDA_FLAGS_EXT from include/uapi/linux/neighbour.h (Linux
+// 5.16+): a __u32 of flags that did not fit in the 8-bit ndm_flags. Declared
+// here because golang.org/x/sys/unix does not export it, as RtaNhID is in
+// xtcpnl_rtmsg.go.
+//
+// The value is 15, and the arithmetic is worth writing down because x/sys is
+// no help in checking it: its NDA_* run stops at NDA_SRC_VNI = 11, four short.
+// The enum continues NDA_PROTOCOL 12, NDA_NH_ID 13, NDA_FDB_EXT_ATTRS 14,
+// NDA_FLAGS_EXT 15. TestNdaFlagsExtValue pins that offset against the last
+// constant x/sys does define, so a miscount fails a test rather than silently
+// decoding NDA_FDB_EXT_ATTRS — a nested attribute whose first four bytes would
+// parse as a perfectly plausible flag word.
+//
+// Reference: https://github.com/torvalds/linux/blob/master/include/uapi/linux/neighbour.h
+const NdaFlagsExt uint16 = 15
+
+// NTF_EXT_* are the NDA_FLAGS_EXT bits. They share no numbering with the
+// ndm_flags NTF_* constants — both sets start at bit 0 — so the two must never
+// be tested against the same word. That is the whole reason NeighInfo keeps
+// FlagsExt separate from Flags rather than widening one field: NTF_EXT_MANAGED
+// and NTF_USE are both 1.
+//
+// Only two of the three are printed by `ip neigh`. NTF_EXT_LOCKED appears in
+// iproute2 exactly once, at bridge/fdb.c:121, and never in ip/ipneigh.c — it
+// describes a bridge FDB entry rather than a neighbor — so it is declared for
+// completeness of the UAPI and deliberately has no token in the renderer.
+//
+// Reference: https://github.com/torvalds/linux/blob/master/include/uapi/linux/neighbour.h
+const (
+	NtfExtManaged      uint32 = 1 << 0
+	NtfExtLocked       uint32 = 1 << 1
+	NtfExtExtValidated uint32 = 1 << 2
 )
 
 var (
@@ -57,7 +99,7 @@ func DeserializeNdMsg(data []byte, m *NdMsg) (n int, err error) {
 	m.Pad2 = binary.LittleEndian.Uint16(data[2:4])
 	m.Ifindex = int32(binary.LittleEndian.Uint32(data[4:8]))
 	m.State = binary.LittleEndian.Uint16(data[8:10])
-	m.Flags = data[10]
+	m.Flags = data[NdMsgFlagsOffCst]
 	m.Type = data[11]
 
 	return NdMsgReadCst, nil
@@ -105,15 +147,40 @@ func DeserializeNdaCacheInfo(data []byte, c *NdaCacheInfo) (n int, err error) {
 // commonly arrives with State NUD_FAILED rather than the entry's last good
 // state, so do not infer reachability from a delete.
 type NeighInfo struct {
-	Family       uint8
-	Ifindex      int32
-	State        uint16
-	Flags        uint8
-	Type         uint8
-	Dst          []byte // NDA_DST
-	LLAddr       []byte // NDA_LLADDR
-	HasCacheInfo bool   // NDA_CACHEINFO present and well-formed
+	Family  uint8
+	Ifindex int32
+	State   uint16
+	Flags   uint8
+	Type    uint8
+	Dst     []byte // NDA_DST
+	LLAddr  []byte // NDA_LLADDR
+
+	// FlagsExt is NDA_FLAGS_EXT, the NTF_EXT_* word. It is a separate field
+	// from Flags and not a widening of it because the two bit sets overlap
+	// numerically — see the NtfExt* constants.
+	//
+	// There is no HasFlagsExt companion, and the asymmetry with HasCacheInfo
+	// is deliberate rather than an oversight. print_neigh initializes
+	// ext_flags to 0 and overwrites it only when the attribute is present
+	// (ip/ipneigh.c:356-357), then tests individual bits; absent and
+	// present-but-zero take the same branch at every use, so a presence bit
+	// would be a field no caller could act on. HasCacheInfo earns its keep
+	// because a zero nda_cacheinfo is a real, printable value under `-s`.
+	FlagsExt uint32 // NDA_FLAGS_EXT
+
+	HasCacheInfo bool // NDA_CACHEINFO present and well-formed
 	CacheInfo    NdaCacheInfo
+
+	// Probes is NDA_PROBES, the count of unanswered solicitations for this
+	// entry, and HasProbes records its presence.
+	//
+	// The presence bit is load-bearing here for the same reason as
+	// HasCacheInfo and unlike FlagsExt above: print_neigh emits the token
+	// whenever the attribute exists, with no test on its value
+	// (ip/ipneigh.c:457-459), so `probes 0` and no token at all are two
+	// different outputs for two different wire states.
+	Probes    uint32 // NDA_PROBES
+	HasProbes bool   // NDA_PROBES present
 }
 
 // nudStateNames maps each single NUD_* bit to its kernel name. ndm_state is a
@@ -187,7 +254,11 @@ func ParseNeigh(body []byte) (NeighInfo, error) {
 		Flags:   m.Flags,
 		Type:    m.Type,
 	}
+	var seen attrSeen
 	err := WalkRTAttrs(body[NdMsgSizeCst:], func(atype uint16, val []byte) {
+		if !seen.first(atype) {
+			return
+		}
 		switch atype {
 		case uint16(unix.NDA_DST):
 			ni.Dst = CopyBytes(val)
@@ -196,6 +267,26 @@ func ParseNeigh(body []byte) (NeighInfo, error) {
 		case uint16(unix.NDA_CACHEINFO):
 			if _, cerr := DeserializeNdaCacheInfo(val, &ni.CacheInfo); cerr == nil {
 				ni.HasCacheInfo = true
+			}
+		case uint16(unix.NDA_PROBES):
+			// Same length guard as NDA_FLAGS_EXT below, and the same
+			// divergence from iproute2's unchecked rta_getattr_u32. Note the
+			// presence bit is set only for a well-formed attribute, so a
+			// short NDA_PROBES renders no token here while `ip` would print
+			// one built from over-read bytes.
+			if len(val) >= 4 {
+				ni.Probes = binary.LittleEndian.Uint32(val[0:4])
+				ni.HasProbes = true
+			}
+		case NdaFlagsExt:
+			// The length guard is this package's convention for a u32
+			// attribute and it is stricter than iproute2, which reaches
+			// straight for rta_getattr_u32 with no check at all. A short
+			// NDA_FLAGS_EXT would over-read in `ip` and decode as zero here;
+			// the kernel never emits one, so the divergence is confined to a
+			// malformed message, where being the defensive one is correct.
+			if len(val) >= 4 {
+				ni.FlagsExt = binary.LittleEndian.Uint32(val[0:4])
 			}
 		}
 	})

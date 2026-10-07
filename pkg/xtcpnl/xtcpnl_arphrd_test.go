@@ -206,21 +206,30 @@ func TestARPHRDNameCoversTheRealFixture(t *testing.T) {
 // TestHWAddr covers the hardware-address formatter for LinkInfo.Address and
 // LinkInfo.Broadcast.
 //
+// The answer depends on BOTH the byte length and the link's ifi_type, because
+// ll_addr_n2a (lib/ll_addr.c:26-44) special-cases five ARPHRD types and falls
+// through to colon-hex for every other. Every row therefore states its type
+// rather than leaving it at the zero value, which is ARPHRD_NETROM and was
+// quietly what the whole table used to assert.
+//
 // go test ./pkg/xtcpnl/ -run TestHWAddr
 func TestHWAddr(t *testing.T) {
 	tests := []struct {
 		description string
+		ifiType     uint16
 		in          []byte
 		want        string
 	}{
 		{
 			// ip_link_n:4 "    link/ether e0:4f:43:e6:28:ef brd ff:ff:ff:ff:ff:ff"
 			description: "positive: enp1s0's 6-byte MAC, lower hex, colon separated",
+			ifiType:     unix.ARPHRD_ETHER,
 			in:          []byte{0xe0, 0x4f, 0x43, 0xe6, 0x28, 0xef},
 			want:        "e0:4f:43:e6:28:ef",
 		},
 		{
 			description: "positive: the all-ones broadcast address",
+			ifiType:     unix.ARPHRD_ETHER,
 			in:          []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
 			want:        "ff:ff:ff:ff:ff:ff",
 		},
@@ -228,6 +237,7 @@ func TestHWAddr(t *testing.T) {
 			// lo really has this address; it is not an absent attribute. Both
 			// rows exist so the two states stay distinguishable.
 			description: "positive: lo's all-zero MAC prints in full, per ip_link_n:2",
+			ifiType:     unix.ARPHRD_LOOPBACK,
 			in:          []byte{0, 0, 0, 0, 0, 0},
 			want:        "00:00:00:00:00:00",
 		},
@@ -235,6 +245,7 @@ func TestHWAddr(t *testing.T) {
 			// Every byte is rendered whatever the length — the property that
 			// makes a [6]byte field or a val[:6] slice wrong.
 			description: "boundary: a 20-byte InfiniBand address renders all 20 bytes",
+			ifiType:     unix.ARPHRD_INFINIBAND,
 			in: []byte{
 				0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09,
 				0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13,
@@ -243,6 +254,7 @@ func TestHWAddr(t *testing.T) {
 		},
 		{
 			description: "boundary: a single byte has no separator",
+			ifiType:     unix.ARPHRD_ETHER,
 			in:          []byte{0xab},
 			want:        "ab",
 		},
@@ -250,27 +262,149 @@ func TestHWAddr(t *testing.T) {
 			// nlmon0 in the committed dump: no IFLA_ADDRESS, and `ip` prints
 			// "link/netlink" with nothing after it (ip_link_n:33).
 			description: "boundary: nil is the empty string, matching ip_link_n:33",
+			ifiType:     unix.ARPHRD_NETLINK,
 			in:          nil,
 			want:        "",
 		},
 		{
 			description: "boundary: a zero-length non-nil slice is also the empty string",
+			ifiType:     unix.ARPHRD_ETHER,
 			in:          []byte{},
 			want:        "",
 		},
 		{
 			description: "corner: high nibbles use lower-case hex digits",
+			ifiType:     unix.ARPHRD_ETHER,
 			in:          []byte{0xde, 0xad, 0xbe, 0xef},
 			want:        "de:ad:be:ef",
+		},
+
+		// The five special cases (lib/ll_addr.c:32-38). Each address below is
+		// the `local` endpoint the tunnel namespace configures, so these rows
+		// and dumps/tunnel/ip_link assert the same bytes from two directions.
+		{
+			description: "positive: ARPHRD_TUNNEL renders 4 bytes as a dotted quad, not hex",
+			ifiType:     unix.ARPHRD_TUNNEL,
+			in:          []byte{192, 0, 2, 1},
+			want:        "192.0.2.1",
+		},
+		{
+			description: "positive: ARPHRD_SIT renders 4 bytes as a dotted quad",
+			ifiType:     unix.ARPHRD_SIT,
+			in:          []byte{192, 0, 2, 2},
+			want:        "192.0.2.2",
+		},
+		{
+			description: "positive: ARPHRD_IPGRE renders 4 bytes as a dotted quad",
+			ifiType:     unix.ARPHRD_IPGRE,
+			in:          []byte{192, 0, 2, 3},
+			want:        "192.0.2.3",
+		},
+		{
+			description: "positive: ARPHRD_TUNNEL6 renders 16 bytes as an IPv6 literal",
+			ifiType:     unix.ARPHRD_TUNNEL6,
+			in: []byte{
+				0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+				0, 0, 0, 0, 0, 0, 0, 0x01,
+			},
+			want: "2001:db8::1",
+		},
+		{
+			description: "positive: ARPHRD_IP6GRE renders 16 bytes as an IPv6 literal",
+			ifiType:     unix.ARPHRD_IP6GRE,
+			in: []byte{
+				0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+				0, 0, 0, 0, 0, 0, 0, 0x02,
+			},
+			want: "2001:db8::2",
+		},
+
+		// The fallback devices each module creates in every namespace. Their
+		// address is present and all-zero, which is a different thing from
+		// absent, and it must not come out as "00:00:00:00".
+		{
+			description: "boundary: tunl0's all-zero 4-byte address is 0.0.0.0, not 00:00:00:00",
+			ifiType:     unix.ARPHRD_TUNNEL,
+			in:          []byte{0, 0, 0, 0},
+			want:        "0.0.0.0",
+		},
+		{
+			description: "boundary: ip6tnl0's all-zero 16-byte address is ::",
+			ifiType:     unix.ARPHRD_TUNNEL6,
+			in:          make([]byte, 16),
+			want:        "::",
+		},
+
+		// Both halves of each test are load-bearing: the conversion needs the
+		// length AND the type, so three of the four combinations stay hex.
+		{
+			description: "negative: 4 bytes on ARPHRD_ETHER stay hex — the length alone is not enough",
+			ifiType:     unix.ARPHRD_ETHER,
+			in:          []byte{192, 0, 2, 1},
+			want:        "c0:00:02:01",
+		},
+		{
+			description: "negative: 6 bytes on ARPHRD_SIT stay hex — the type alone is not enough",
+			ifiType:     unix.ARPHRD_SIT,
+			in:          []byte{0xe0, 0x4f, 0x43, 0xe6, 0x28, 0xef},
+			want:        "e0:4f:43:e6:28:ef",
+		},
+		{
+			description: "negative: 16 bytes on ARPHRD_TUNNEL stay hex — it is a v4-only special case",
+			ifiType:     unix.ARPHRD_TUNNEL,
+			in: []byte{
+				0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+				0, 0, 0, 0, 0, 0, 0, 0x01,
+			},
+			want: "20:01:0d:b8:00:00:00:00:00:00:00:00:00:00:00:01",
+		},
+		{
+			description: "negative: 4 bytes on ARPHRD_TUNNEL6 stay hex — it is a v6-only special case",
+			ifiType:     unix.ARPHRD_TUNNEL6,
+			in:          []byte{192, 0, 2, 1},
+			want:        "c0:00:02:01",
+		},
+		{
+			// The reason LLAddrN2A uses netip and not net.IP: net.IP.String()
+			// would answer "1.2.3.4" here, where inet_ntop(AF_INET6) — the
+			// function actually being mirrored — answers this.
+			description: "corner: a v4-mapped 16-byte address keeps its ::ffff: prefix, as inet_ntop does",
+			ifiType:     unix.ARPHRD_IP6GRE,
+			in: []byte{
+				0, 0, 0, 0, 0, 0, 0, 0,
+				0, 0, 0xff, 0xff, 1, 2, 3, 4,
+			},
+			want: "::ffff:1.2.3.4",
+		},
+		{
+			description: "corner: 255.255.255.255 on ARPHRD_IPGRE is an address, not a broadcast MAC",
+			ifiType:     unix.ARPHRD_IPGRE,
+			in:          []byte{0xff, 0xff, 0xff, 0xff},
+			want:        "255.255.255.255",
+		},
+		{
+			// inet_ntop compresses the longest zero run exactly once; a second
+			// run stays written out. Worth a row because it is the one place a
+			// hand-rolled v6 formatter would diverge.
+			description: "corner: only the longest zero run is compressed on ARPHRD_TUNNEL6",
+			ifiType:     unix.ARPHRD_TUNNEL6,
+			in: []byte{
+				0x20, 0x01, 0, 0, 0, 0x01, 0, 0,
+				0, 0, 0, 0, 0, 0, 0, 0x01,
+			},
+			want: "2001:0:1::1",
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			li := LinkInfo{Address: tc.in, Broadcast: tc.in}
+			li := LinkInfo{Type: tc.ifiType, Address: tc.in, Broadcast: tc.in}
 			if got := li.HWAddr(); got != tc.want {
 				t.Errorf("HWAddr() = %q, want %q", got, tc.want)
 			}
+			// `ip` passes IFLA_BROADCAST through the same function with the
+			// same ifi_type (ip/ipaddress.c:1085-1092), so the two can never
+			// legitimately disagree.
 			if got := li.BroadcastAddr(); got != tc.want {
 				t.Errorf("BroadcastAddr() = %q, want %q", got, tc.want)
 			}

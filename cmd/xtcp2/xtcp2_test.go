@@ -328,6 +328,11 @@ func TestEnvOverrideKafka(t *testing.T) {
 	}
 }
 
+// TestEnvOverrideLabeling covers the five vars that stamp identity on every
+// record. It used to cover eight: IPV4_TTL, IPV6_HOP_LIMIT and GRPC_PORT were
+// moved to envOverrideListeners when envOverrideLabeling was split for funlen,
+// and their assertions moved to TestEnvOverrideListeners with them rather than
+// being dropped.
 func TestEnvOverrideLabeling(t *testing.T) {
 	c := &xtcp_config.XtcpConfig{}
 	t.Setenv("LABEL", "prod")
@@ -335,18 +340,20 @@ func TestEnvOverrideLabeling(t *testing.T) {
 	t.Setenv("LOCATION", "eu-ro-1")
 	t.Setenv("XTCP_HOSTNAME", "runpod435")
 	t.Setenv("CONTAINER_ID_RESOLVE", "true")
-	t.Setenv("IPV4_TTL", "3")
-	t.Setenv("IPV6_HOP_LIMIT", "9")
-	t.Setenv("GRPC_PORT", "9000")
 	envOverrideLabeling(c, 0)
-	if c.Label != "prod" || c.Tag != "host=foo" || c.GrpcPort != 9000 {
+	if c.Label != "prod" || c.Tag != "host=foo" {
 		t.Errorf("envOverrideLabeling mismatch: %+v", c)
-	}
-	if c.Ipv4Ttl != 3 || c.Ipv6HopLimit != 9 {
-		t.Errorf("envOverrideLabeling ttl mismatch: Ipv4Ttl=%d Ipv6HopLimit=%d", c.Ipv4Ttl, c.Ipv6HopLimit)
 	}
 	if c.Location != "eu-ro-1" || c.Hostname != "runpod435" || !c.ResolveContainerId {
 		t.Errorf("envOverrideLabeling identity mismatch: Location=%q Hostname=%q Resolve=%v", c.Location, c.Hostname, c.ResolveContainerId)
+	}
+	// The three moved vars must no longer be applied here. Asserting their
+	// absence is what makes the move a move rather than a duplication: if a
+	// later edit re-adds one, the field it writes is no longer owned by one
+	// function and the two could disagree.
+	if c.Ipv4Ttl != 0 || c.Ipv6HopLimit != 0 || c.GrpcPort != 0 {
+		t.Errorf("envOverrideLabeling still applies the three listener vars it handed to envOverrideListeners: Ipv4Ttl=%d Ipv6HopLimit=%d GrpcPort=%d",
+			c.Ipv4Ttl, c.Ipv6HopLimit, c.GrpcPort)
 	}
 }
 
@@ -360,8 +367,22 @@ func TestEnvOverrideListeners(t *testing.T) {
 	t.Setenv("PROM_LISTEN", "/run/xtcp2/prom.sock")
 	t.Setenv("PROM_UNIX_SOCKET_MODE", "384")
 	t.Setenv("PROM_UNLINK_STALE_UNIX_SOCKET", "true")
+	// Moved here from TestEnvOverrideLabeling along with the vars themselves.
+	// All three write top-level scalars rather than going through
+	// ensureGrpcListener/ensurePrometheusListener, which is why they need no
+	// endpoint to exist first.
+	t.Setenv("IPV4_TTL", "3")
+	t.Setenv("IPV6_HOP_LIMIT", "9")
+	t.Setenv("GRPC_PORT", "9000")
 
 	envOverrideListeners(c, 0)
+
+	if c.Ipv4Ttl != 3 || c.Ipv6HopLimit != 9 {
+		t.Errorf("envOverrideListeners ttl mismatch: Ipv4Ttl=%d Ipv6HopLimit=%d", c.Ipv4Ttl, c.Ipv6HopLimit)
+	}
+	if c.GrpcPort != 9000 {
+		t.Errorf("envOverrideListeners GrpcPort = %d, want 9000", c.GrpcPort)
+	}
 
 	tests := []struct {
 		description     string
@@ -1373,8 +1394,13 @@ func TestDefaultDestFor(t *testing.T) {
 }
 
 // TestEnvOverrideEnrichmentAsnLocality covers the ASN + locality environment
-// overrides handled by envOverrideLabeling: valid values are applied, unset and
-// unparseable values leave the config untouched.
+// overrides handled by envOverrideEnrichment: valid values are applied, unset
+// and unparseable values leave the config untouched.
+//
+// These used to be handled by envOverrideLabeling, whose name covered five of
+// the twenty-four vars it applied. The funlen split moved all sixteen
+// enrichment vars out, and this test re-points at the function that owns them
+// now rather than at the one it was written against.
 func TestEnvOverrideEnrichmentAsnLocality(t *testing.T) {
 	tests := []struct {
 		description string
@@ -1442,11 +1468,11 @@ func TestEnvOverrideEnrichmentAsnLocality(t *testing.T) {
 					t.Setenv(k, v)
 				} else {
 					t.Setenv(k, "")
-					os.Unsetenv(k) //nolint:errcheck,usetesting // t.Setenv registered the restore; Unsetenv makes "absent" observable
+					_ = os.Unsetenv(k) // t.Setenv registered the restore; Unsetenv makes "absent" observable
 				}
 			}
 			c := &xtcp_config.XtcpConfig{}
-			envOverrideLabeling(c, 0)
+			envOverrideEnrichment(c, 0)
 			if !tc.want(c) {
 				t.Errorf("config after env override does not match expectation: %+v", c)
 			}

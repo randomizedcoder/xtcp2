@@ -53,7 +53,7 @@ let
       Static analysis (fix issues, do not ignore):
         lint-quick                              Tier 0  (~90s, pre-commit)
         lint                                    Tier 1  (~2min, CI gating)
-        lint-comprehensive                      Tier 2  (~10min, nightly)
+        lint-comprehensive                      Tier 2  (~10min, ratchet-gated)
         lint-fix                                Apply auto-fixable findings
         lint-new                                Lint only the diff since HEAD~1
                                                 All five take relative config
@@ -65,6 +65,22 @@ let
         nix run .#update-quality-report         Refresh docs/quality-report.md
         nix build .#quality-report              Build the report artifact (result/)
         nix run .#lint-fix-one -- <linter>      Auto-fix one linter at a time
+
+      Lint ratchet (the one check that is green at baseline, so its red means a
+      regression landed rather than inherited debt):
+        nix build .#checks.x86_64-linux.lint-baseline
+                                                Diff every tier against
+                                                docs/lint-baseline.txt. Fails
+                                                only when a GATED tier gains a
+                                                finding; Tier 1 and 2 print as
+                                                advisory until a phase empties
+                                                them.
+        nix run .#update-lint-baseline          Regenerate docs/lint-baseline.txt.
+                                                Not doable by hand: the tier
+                                                configs use vendor mode and there
+                                                is no committed vendor/ tree, so
+                                                golangci-lint only runs inside
+                                                the Nix sandbox.
 
       Tests:
         go test ./...                           Unit tests

@@ -302,13 +302,19 @@ func TestFamilyName(t *testing.T) {
 // it more than a bit-to-name map: IFA_F_PERMANENT prints on absence, and
 // IFA_F_SECONDARY renames itself on AF_INET6.
 //
+// wantIfaFlags is the second return, the residue of unnamed bits. It is the
+// one value in print_addrinfo that is spelled differently in text and in
+// JSON — `flags 1000` against "ifa_flags": "1000" — which is why it comes
+// back apart from the names rather than as a token among them.
+//
 // go test ./internal/goip/render/ -run TestIfaFlagTokens
 func TestIfaFlagTokens(t *testing.T) {
 	tests := []struct {
-		description string
-		flags       uint32
-		family      uint8
-		want        []string
+		description  string
+		flags        uint32
+		family       uint8
+		want         []string
+		wantIfaFlags string
 	}{
 		{
 			// ip_addr_n:3 — "inet 127.0.0.1/8 scope host lo" has no flag
@@ -404,27 +410,39 @@ func TestIfaFlagTokens(t *testing.T) {
 		},
 		{
 			// 0x1000 is one bit above IFA_F_STABLE_PRIVACY (0x800).
-			description: "negative: the first bit above the table becomes a single flags token",
-			flags:       0x1000 | unix.IFA_F_PERMANENT,
-			family:      unix.AF_INET6,
-			want:        []string{"flags 1000"},
+			description:  "negative: the first bit above the table names nothing and becomes the residue",
+			flags:        0x1000 | unix.IFA_F_PERMANENT,
+			family:       unix.AF_INET6,
+			want:         nil,
+			wantIfaFlags: "1000",
 		},
 		{
 			// %02x is a minimum width, so a wide residue is not truncated and
 			// a narrow one is padded; both halves need a row.
-			description: "corner: unrecognized bits are accumulated into one token, not one per bit",
-			flags:       0x1000 | 0x8000 | unix.IFA_F_PERMANENT,
-			family:      unix.AF_INET6,
-			want:        []string{"flags 9000"},
+			description:  "corner: unrecognized bits are accumulated into one residue, not one per bit",
+			flags:        0x1000 | 0x8000 | unix.IFA_F_PERMANENT,
+			family:       unix.AF_INET6,
+			want:         nil,
+			wantIfaFlags: "9000",
 		},
 		{
 			// There is no bit between 0x800 and 0x1000, so this residue is
 			// only constructible, never captured. Reasoned from the %02x in
 			// print_ifa_flags.
-			description: "corner: a residue below 0x10 is zero-padded to two digits by %02x",
-			flags:       0x1000_0000 | unix.IFA_F_PERMANENT,
-			family:      unix.AF_INET6,
-			want:        []string{"flags 10000000"},
+			description:  "corner: a residue below 0x10 is zero-padded to two digits by %02x",
+			flags:        0x1000_0000 | unix.IFA_F_PERMANENT,
+			family:       unix.AF_INET6,
+			want:         nil,
+			wantIfaFlags: "10000000",
+		},
+		{
+			// The two outputs are independent, so a row needs to show them
+			// together: nothing about having a residue suppresses the names.
+			description:  "corner: named flags and a residue are returned side by side",
+			flags:        unix.IFA_F_NODAD | 0x4000,
+			family:       unix.AF_INET6,
+			want:         []string{"nodad", "dynamic"},
+			wantIfaFlags: "4000",
 		},
 		{
 			description: "corner: every named bit at once, in table order, with no hex residue",
@@ -443,7 +461,11 @@ func TestIfaFlagTokens(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
-			got := IfaFlagTokens(tt.flags, tt.family)
+			got, gotIfaFlags := IfaFlagTokens(tt.flags, tt.family)
+			if gotIfaFlags != tt.wantIfaFlags {
+				t.Errorf("IfaFlagTokens(%#x, %d) residue = %q, want %q",
+					tt.flags, tt.family, gotIfaFlags, tt.wantIfaFlags)
+			}
 			if len(got) == 0 && len(tt.want) == 0 {
 				return
 			}
@@ -1015,27 +1037,46 @@ func TestAddrViewJSON(t *testing.T) {
 			wantAbsent: []string{"valid_life_time", "preferred_life_time"},
 		},
 		{
-			description: "positive: flags are an array, the one deliberate key-shape divergence from ip -j",
+			// The shape the committed dumps/ip_addr_json golden actually has,
+			// and the one this row used to assert the opposite of: it wanted
+			// a "flags" ARRAY, described in its own name as a deliberate
+			// divergence. print_bool(PRINT_JSON, flag_data->name, NULL, true)
+			// makes each name a key of its own (ip/ipaddress.c:1434-1435).
+			description: "positive: each named flag is its own boolean key, and there is no flags array",
 			in: xtcpnl.AddrInfo{
 				Family: unix.AF_INET6, Prefixlen: 64, Index: 2,
 				Local:   v6(t, "2603:8002:ea00:6800:6adf:8a2f:21ae:d6a7"),
 				Address: v6(t, "2603:8002:ea00:6800:6adf:8a2f:21ae:d6a7"),
 				Flags:   unix.IFA_F_MANAGETEMPADDR | unix.IFA_F_NOPREFIXROUTE,
 			},
-			wantKeys: []string{"flags"},
+			wantKeys:   []string{"dynamic", "mngtmpaddr", "noprefixroute"},
+			wantAbsent: []string{"flags", "ifa_flags", "nodad"},
 			check: func(t *testing.T, m map[string]any) {
-				got, ok := m["flags"].([]any)
-				if !ok {
-					t.Fatalf("flags is %T, want an array", m["flags"])
-				}
-				want := []string{"dynamic", "mngtmpaddr", "noprefixroute"}
-				if len(got) != len(want) {
-					t.Fatalf("flags = %v, want %v", got, want)
-				}
-				for i, w := range want {
-					if got[i] != w {
-						t.Errorf("flags[%d] = %v, want %q", i, got[i], w)
+				for _, k := range []string{"dynamic", "mngtmpaddr", "noprefixroute"} {
+					if m[k] != true {
+						t.Errorf("%s = %#v, want true", k, m[k])
 					}
+				}
+			},
+		},
+		{
+			// The other half of print_ifa_flags, and the half that is spelled
+			// differently in the two contexts: the unnamed residue is a
+			// `flags 4000` token in text and an "ifa_flags" STRING in JSON
+			// (ip/ipaddress.c:1442-1451). A string, not a number — `ip`
+			// print_string's the "%02x" it just formatted.
+			description: "boundary: unnamed bits become the ifa_flags string, alongside the named booleans",
+			in: xtcpnl.AddrInfo{
+				Family: unix.AF_INET6, Prefixlen: 64, Index: 2,
+				Local:   v6(t, "2603:8002:ea00:6800:6adf:8a2f:21ae:d6a7"),
+				Address: v6(t, "2603:8002:ea00:6800:6adf:8a2f:21ae:d6a7"),
+				Flags:   unix.IFA_F_NODAD | unix.IFA_F_PERMANENT | 0x4000,
+			},
+			wantKeys:   []string{"nodad", "ifa_flags"},
+			wantAbsent: []string{"flags", "dynamic"},
+			check: func(t *testing.T, m map[string]any) {
+				if m["ifa_flags"] != "4000" {
+					t.Errorf("ifa_flags = %#v, want the string \"4000\"", m["ifa_flags"])
 				}
 			},
 		},
@@ -1057,16 +1098,25 @@ func TestAddrViewJSON(t *testing.T) {
 		{
 			// The unexported deprecated field selects a format string and is
 			// not part of the object; if it ever became exported the JSON
-			// would gain a key `ip -j` does not have.
+			// would gain a key at a position `ip` does not put one.
+			//
+			// IFA_F_DEPRECATED is deliberately NOT set on this input, which
+			// it used to be. Now that the named flags are boolean keys,
+			// "deprecated" is a key print_ifa_flags legitimately emits, so an
+			// input carrying the bit cannot tell the two sources apart — both
+			// spell it `"deprecated": true`. With the bit clear the unexported
+			// field is false, and exporting it without omitempty would show up
+			// as `"deprecated": false` on an address `ip` says nothing about.
 			description: "corner: the deprecated selector is unexported and contributes no key",
 			in: xtcpnl.AddrInfo{
 				Family: unix.AF_INET6, Prefixlen: 64, Index: 2,
 				Local:        v6(t, "2603:8002:ea00:6800:827f:e158:2c1c:13b4"),
 				Address:      v6(t, "2603:8002:ea00:6800:827f:e158:2c1c:13b4"),
-				Flags:        unix.IFA_F_SECONDARY | unix.IFA_F_DEPRECATED,
+				Flags:        unix.IFA_F_SECONDARY,
 				CacheInfo:    xtcpnl.IfaCacheinfo{Preferred: 0, Valid: 34941},
 				HasCacheInfo: true,
 			},
+			wantKeys:   []string{"temporary", "dynamic"},
 			wantAbsent: []string{"deprecated"},
 			check: func(t *testing.T, m map[string]any) {
 				if m["preferred_life_time"] != float64(0) {
@@ -1263,7 +1313,7 @@ func TestLinkViewForAddr(t *testing.T) {
 			family:      unix.AF_INET6,
 			wantLines:   1,
 			check: func(t *testing.T, v LinkView, text string) {
-				want := firstLine(LinkViewForAddr(veth, names, unix.AF_UNSPEC).Text())
+				want := firstLine(LinkViewForAddr(veth, names, unix.AF_UNSPEC, false).Text())
 				got := firstLine(text)
 				// AF_UNSPEC keeps link-netnsid on line two; the other
 				// families append it to line one, so compare up to it.
@@ -1277,7 +1327,7 @@ func TestLinkViewForAddr(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
-			v := LinkViewForAddr(veth, names, tt.family)
+			v := LinkViewForAddr(veth, names, tt.family, false)
 			text := v.Text()
 			if n := len(strings.Split(strings.TrimRight(text, "\n"), "\n")); n != tt.wantLines {
 				t.Errorf("stanza has %d lines, want %d:\n%s", n, tt.wantLines, text)
@@ -1449,7 +1499,7 @@ func TestLinkViewForAddrPresence(t *testing.T) {
 				defer func(prev bool) { RenderQlenZero = prev }(RenderQlenZero)
 				RenderQlenZero = true
 			}
-			v := LinkViewForAddr(tt.in, names, tt.family)
+			v := LinkViewForAddr(tt.in, names, tt.family, false)
 			text := v.Text()
 			if tt.check != nil {
 				tt.check(t, v)
@@ -1559,7 +1609,7 @@ func TestAddrGroupViewText(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
 			g := AddrGroupView{
-				LinkView: LinkViewForAddr(lo, names, unix.AF_UNSPEC),
+				LinkView: LinkViewForAddr(lo, names, unix.AF_UNSPEC, false),
 				AddrInfo: tt.addrs,
 			}
 			got := strings.Split(strings.TrimRight(g.Text(), "\n"), "\n")
@@ -1657,7 +1707,7 @@ func TestAddrGroupViewJSON(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
 			g := AddrGroupView{
-				LinkView: LinkViewForAddr(lo, names, unix.AF_UNSPEC),
+				LinkView: LinkViewForAddr(lo, names, unix.AF_UNSPEC, false),
 				AddrInfo: tt.addrs,
 			}
 			b, err := json.Marshal(g)
@@ -1670,5 +1720,212 @@ func TestAddrGroupViewJSON(t *testing.T) {
 			}
 			tt.check(t, string(b), m)
 		})
+	}
+}
+
+// TestAddrGroupViewWithStats covers the `-s addr show` block: whether it is
+// emitted, where it lands, and under which JSON key.
+//
+// The placement rows are the reason this is a separate table from
+// TestLinkViewWithStats rather than more rows in it. The two objects emit the
+// SAME block in DIFFERENT positions — print_link_stats runs at
+// ip/ipaddress.c:2333, one line after print_selected_addrinfo at :2332, so
+// the counters land below the address lines; print_linkinfo emits them at
+// :1297-1300, directly under the stanza and above any altname. A block
+// appended by the wrong mechanism would satisfy every keyword check and fail
+// the ordering rows alone.
+//
+// go test ./internal/goip/render/ -run TestAddrGroupViewWithStats
+func TestAddrGroupViewWithStats(t *testing.T) {
+	full := rxtx([6]uint64{1, 2, 3, 4, 5, 6}, [6]uint64{7, 8, 9, 10, 11, 12})
+
+	// One address so the "below the addresses" claim has something to be
+	// below. The payload is a real v4 address shape rather than a round
+	// number, per this file's header.
+	addr := AddrViewOf(xtcpnl.AddrInfo{
+		Index:     2,
+		Family:    unix.AF_INET,
+		Prefixlen: 24,
+		Address:   v4(192, 0, 2, 10),
+		Local:     v4(192, 0, 2, 10),
+		Scope:     0,
+	})
+
+	tests := []struct {
+		description string
+		li          xtcpnl.LinkInfo
+		withStats   bool
+		// wantBlock is whether Text() carries an "RX:" line.
+		wantBlock bool
+		// wantKey is the JSON key expected, or "" for neither.
+		wantKey string
+	}{
+		{
+			description: "positive: IFLA_STATS64 under -s renders the block and the stats64 key",
+			li:          xtcpnl.LinkInfo{Index: 2, Name: "enp1s0", Stats: &full, StatsIs64: true},
+			withStats:   true,
+			wantBlock:   true,
+			wantKey:     "stats64",
+		},
+		{
+			// The key records which attribute arrived, not which counters
+			// (ip/ipaddress.c:836-837).
+			description: "positive: a widened IFLA_STATS under -s renders the same block under the stats key",
+			li:          xtcpnl.LinkInfo{Index: 2, Name: "enp1s0", Stats: &full, StatsIs64: false},
+			withStats:   true,
+			wantBlock:   true,
+			wantKey:     "stats",
+		},
+		{
+			// The whole point of threading showStats rather than reading the
+			// reply: `ip -4 addr show` gets counters it never asked for,
+			// because its 32-byte dump carries no RTEXT_FILTER_SKIP_STATS,
+			// and prints none of them.
+			description: "negative: counters present but -s absent renders no block and no key",
+			li:          xtcpnl.LinkInfo{Index: 2, Name: "enp1s0", Stats: &full, StatsIs64: true},
+			withStats:   false,
+			wantBlock:   false,
+			wantKey:     "",
+		},
+		{
+			// `-s` asked, kernel sent neither attribute. Constructed: under
+			// both the 0x01 mask and no mask at all the kernel attaches both
+			// IFLA_STATS and IFLA_STATS64, so no capture on this topology can
+			// produce a counter-less reply to a command that wanted one.
+			description: "negative: -s with neither attribute prints nothing, not a block of zeros",
+			li:          xtcpnl.LinkInfo{Index: 2, Name: "enp1s0"},
+			withStats:   true,
+			wantBlock:   false,
+			wantKey:     "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			g := AddrGroupView{
+				LinkView: LinkViewForAddr(tt.li, fakeNames{}, unix.AF_INET, false),
+				AddrInfo: []AddrView{addr},
+			}
+			if tt.withStats {
+				g = g.WithStats(tt.li)
+			}
+
+			text := g.Text()
+			if got := strings.Contains(text, "    RX: "); got != tt.wantBlock {
+				t.Errorf("Text() has an RX line = %v, want %v:\n%s", got, tt.wantBlock, text)
+			}
+
+			// Placement, asserted only when there is a block to place. The
+			// keyword check above passes for a block anywhere in the output;
+			// this is the half that says WHERE.
+			if tt.wantBlock {
+				rx := strings.Index(text, "    RX: ")
+				ia := strings.Index(text, "    inet ")
+				if ia < 0 {
+					t.Fatalf("no address line to position the block against:\n%s", text)
+				}
+				if rx < ia {
+					t.Errorf("stats block at %d precedes the address line at %d; "+
+						"ip/ipaddress.c:2333 runs AFTER :2332:\n%s", rx, ia, text)
+				}
+				if !strings.HasSuffix(text, "\n") {
+					t.Errorf("block-then-newline is print_link_stats' order "+
+						"(ip/ipaddress.c:840-848); output does not end in a newline:\n%q", text)
+				}
+			}
+
+			b, err := json.Marshal(g)
+			if err != nil {
+				t.Fatalf("Marshal: %v", err)
+			}
+			var obj map[string]json.RawMessage
+			if uerr := json.Unmarshal(b, &obj); uerr != nil {
+				t.Fatalf("Unmarshal: %v", uerr)
+			}
+			for _, k := range []string{"stats", "stats64"} {
+				_, present := obj[k]
+				if present != (k == tt.wantKey) {
+					t.Errorf("JSON key %q present = %v, want %v: %s",
+						k, present, k == tt.wantKey, b)
+				}
+			}
+
+			// The key must follow addr_info, matching :2332 then :2333.
+			// encoding/json would otherwise emit the embedded LinkView's
+			// promoted stats keys at the position of the embedding, which is
+			// BEFORE addr_info — the opposite order. Only a check on the raw
+			// bytes can see this; the map above has no order.
+			if tt.wantKey != "" {
+				ai := strings.Index(string(b), `"addr_info"`)
+				sk := strings.Index(string(b), `"`+tt.wantKey+`"`)
+				if ai < 0 || sk < 0 {
+					t.Fatalf("expected both addr_info and %q in %s", tt.wantKey, b)
+				}
+				if sk < ai {
+					t.Errorf("JSON key %q at %d precedes addr_info at %d, "+
+						"but ip emits stats after the address array: %s",
+						tt.wantKey, sk, ai, b)
+				}
+			}
+		})
+	}
+}
+
+// TestAddrGroupViewStatsPlacementDiffersFromLink is the corner the plan named:
+// one block, two objects, two positions, asserted side by side in one test so
+// that a change to either renderer has to confront the other.
+//
+// `ip -s link show` puts the counters directly under the link stanza
+// (print_linkinfo, ip/ipaddress.c:1297-1300, newline-then-block). `ip -s addr
+// show` puts them under the ADDRESSES (print_link_stats at :2333, called after
+// print_selected_addrinfo at :2332, block-then-newline). Reusing
+// LinkView.WithStats on the addr object would produce the link layout and
+// pass every other assertion in this file.
+//
+// go test ./internal/goip/render/ -run TestAddrGroupViewStatsPlacementDiffersFromLink
+func TestAddrGroupViewStatsPlacementDiffersFromLink(t *testing.T) {
+	full := rxtx([6]uint64{1, 2, 3, 4, 5, 6}, [6]uint64{7, 8, 9, 10, 11, 12})
+	li := xtcpnl.LinkInfo{Index: 2, Name: "enp1s0", Stats: &full, StatsIs64: true}
+
+	addrText := AddrGroupView{
+		LinkView: LinkViewForAddr(li, fakeNames{}, unix.AF_INET, false),
+		AddrInfo: []AddrView{AddrViewOf(xtcpnl.AddrInfo{
+			Index:     2,
+			Family:    unix.AF_INET,
+			Prefixlen: 24,
+			Address:   v4(192, 0, 2, 10),
+			Local:     v4(192, 0, 2, 10),
+		})},
+	}.WithStats(li).Text()
+
+	linkText := LinkViewOf(li, fakeNames{}).WithStats(li).Text()
+
+	// Same block, both times. If these ever differ the two renderers have
+	// forked and the rest of this test is measuring the wrong thing.
+	block := LinkStatsText(full)
+	if !strings.Contains(addrText, block) {
+		t.Fatalf("addr object does not contain the shared block:\n%s", addrText)
+	}
+	if !strings.Contains(linkText, block) {
+		t.Fatalf("link object does not contain the shared block:\n%s", linkText)
+	}
+
+	// Different position. On the addr object the block is last; on the link
+	// object nothing of the address list exists at all, and the block follows
+	// the link/ether line immediately.
+	if ia := strings.Index(addrText, "    inet "); ia < 0 || strings.Index(addrText, "    RX: ") < ia {
+		t.Errorf("addr object must put the block below its addresses:\n%s", addrText)
+	}
+	if strings.Contains(linkText, "    inet ") {
+		t.Fatalf("link object unexpectedly rendered an address line:\n%s", linkText)
+	}
+
+	// The LinkView inside the group must stay clear. This is what makes the
+	// position a property of the group rather than an accident of ordering:
+	// if WithStats had been called on the embedded view too, the block would
+	// appear twice and the first copy would be in the link position.
+	if n := strings.Count(addrText, "    RX: "); n != 1 {
+		t.Errorf("block appears %d times, want 1 — the embedded LinkView "+
+			"must not also carry stats:\n%s", n, addrText)
 	}
 }

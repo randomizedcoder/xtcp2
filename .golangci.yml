@@ -60,6 +60,15 @@ linters:
     # finding until long after the comment was written. Gating it here
     # catches the next `behaviour` on the commit that introduces it.
     - misspell
+    # Promoted from Tier 2 on 2026-10-06, after setRuleAttr's 48 came down to
+    # 6 and nothing in production code was left over 30. While it ran in Tier 2
+    # only, `ParseNewRoute` crossed the ceiling TWICE and reached `main` both
+    # times — not because the tier was unwatched but because its red was
+    # unreadable: `nix flake check` had other reds, so the exit code was
+    # already 1 before the regression and 1 after. Gating it here makes a
+    # function that grows past 30 fail on the commit that grows it, which is
+    # the only moment the split is still cheap.
+    - gocyclo
 
   settings:
     errcheck:
@@ -135,6 +144,32 @@ linters:
         - name: increment-decrement
         - name: var-declaration
 
+    gocyclo:
+      # 30, matching .golangci-comprehensive.yml exactly. The number is not
+      # arbitrary and it is deliberately NOT raised: every finding this linter
+      # has ever produced in this repo was a switch over kernel attributes that
+      # had outgrown one function, and in all three cases — ParseNewRoute,
+      # setLinkAttr and setRuleAttr — the fix was a split that made the code
+      # better, not a ceiling that made the finding go away. Raising it to
+      # accommodate the next one would retire the only instrument that has
+      # noticed.
+      #
+      # What the number actually buys, measured on this repo: the next closest
+      # production function is (RouteView).Text at 26, so there are four points
+      # of headroom. That is about one `case` plus one `if`. Expect this to
+      # bite, and treat it as the signal it is.
+      #
+      # gocyclo does not count a `default:` arm — measured against
+      # setLinkDetailAttr, which scores 22 with one present — so a cascade of
+      # switches linked by their default arms costs nothing per level. That is
+      # what makes splitting a large attribute switch cheap enough to be the
+      # standard answer here; see setRuleAttr for the five-level example.
+      #
+      # _test.go files are already exempt further down, which is pre-wired for
+      # exactly this promotion: table-driven tests in this repo are long by
+      # design and their complexity is in the data, not the control flow.
+      min-complexity: 30
+
     # Forbidigo guards a specific landmine: `runtime.UnlockOSThread` paired
     # with `unix.Setns` / `unix.Unshare`. If the goroutine modifies
     # thread-global state (network namespace) and then unconditionally
@@ -191,10 +226,28 @@ linters:
       # default in tests. G301 (0o755 dir perms): tempdirs created by
       # t.TempDir() are already private to the test user; the perms on
       # subdirs created inside don't materially affect anything.
+      #
+      # G302 (chmod perms) is here for a sharper reason than either: its
+      # expectation cannot be met by a directory at all. It compares the mode
+      # against 0600 as a bitmask, so ANY mode carrying the execute bit is a
+      # finding — and a directory without the execute bit cannot be traversed,
+      # which makes every traversable directory mode a G302 finding. The tests
+      # that need it are pkg/listener and pkg/ipasn, where a directory has its
+      # write bit stripped (0o500) so that os.Remove inside it fails with
+      # EACCES. That is the only way to reach the unlink errors this phase
+      # stopped discarding, and 0o500 is strictly more restrictive than the
+      # 0600 the rule is asking for. The restore to 0o700 afterwards is what
+      # lets t.TempDir clean up.
+      #
+      # Scoped to tests, where it was already scoped. The standalone gosec
+      # check (nix/checks/go-sec.nix) does not see these at all: gosec defaults
+      # to -tests=false, so it never reads a _test.go file, which is why no
+      # equivalent entry belongs in its global -exclude list — putting G302
+      # there would disable the rule for production code too.
       - path: "_test\\.go"
         linters:
           - gosec
-        text: "G404|G301"
+        text: "G404|G301|G302"
       # gosec G404 (math/rand): the fleet jitter helpers (JitterDuration /
       # JitterIntN) intentionally use math/rand/v2 — jitter is a load-spreading
       # concern, not a security one, and rand/v2's per-process auto-seeding is
@@ -237,14 +290,61 @@ linters:
       # is prefix matching, not fuzzy matching — "neighbour" is not a prefix of
       # "neighbor", so dropping the second entry makes `goip neighbour show`
       # report an unknown object where `ip` works. internal/goip/dispatch.go
-      # holds the alias itself and dispatch_test.go names the pair in the
-      # comment on the row that asserts their order. Scoped to the one word in
-      # those two files, like the `prefered` entry above, so a genuine
-      # "neighbour" in prose anywhere else still fails.
-      - path: "internal/goip/dispatch(_test)?\\.go"
+      # holds the alias itself, dispatch_test.go names the pair in the comment
+      # on the row that asserts their order, and obj_neigh_test.go runs the
+      # alias end to end — that row's argv is the string a user types, so it
+      # cannot be respelled without testing a command that does not exist.
+      # Scoped to the one word in those three files, like the `prefered` entry
+      # above. Prose in those files is still checked, by the audit named in the
+      # next entry: the exemption there covers only a quoted command token.
+      - path: "internal/goip/(dispatch(_test)?|obj_neigh_test)\\.go"
         linters:
           - misspell
         text: "`neighbour` is a misspelling of `neighbor`"
+      # The ten files below cite kernel paths that contain the word.
+      # net/core/neighbour.c and include/uapi/linux/neighbour.h are the real
+      # file names, so "correcting" them produces paths that do not exist and
+      # breaks the one thing those comments are for, which is diffing against a
+      # kernel tree. Sixteen occurrences across the ten; misspell reports
+      # thirteen, skipping the two inside torvalds/linux URLs, and the
+      # sixteenth is in obj_neigh_test.go, covered by the entry above.
+      #
+      # On its own this entry would be exactly the suppression the policy
+      # forbids. An exclusion can only match misspell's MESSAGE, which is
+      # identical whether the word sits inside a kernel path or inside British
+      # prose, so widening to ten whole files does give up real coverage inside
+      # them. What replaces it is tools/kernel-citation-audit, a check that
+      # fails unless every occurrence in the tree is directly preceded by
+      # `net/core/` or `linux/`. That is strictly stronger than what misspell
+      # was giving: misspell is satisfied by `net/core/neighbor.c` and the audit
+      # is not, so it also catches a kernel path "fixed" by someone running
+      # lint-fix.
+      #
+      # obj_neigh.go and obj_neigh_test.go are listed in two different entries
+      # deliberately. The first holds only a citation; the second also holds the
+      # argv a user types. A collapsed `obj_neigh(_test)?\.go` would match the
+      # same two files and lose the reason.
+      - path: "(internal/goip/obj_neigh|internal/goip/render/neigh_test|internal/goip/req/req|internal/goipparity/commands|pkg/nlparity/nlparity_(names|segment)_test|pkg/xtcpnl/xtcpnl_(ndmsg|rtnetlink_requests)(_test)?)\\.go"
+        linters:
+          - misspell
+        text: "`neighbour` is a misspelling of `neighbor`"
+      # The audit tool itself, which cannot be written without using the word in
+      # prose: its documentation, its exemption reasons and its fixtures are all
+      # about that word. It is also the one directory the audit skips, for the
+      # same reason, with the argument spelled out at its selfDirCst. The
+      # alternative was to assemble the constant from fragments so neither tool
+      # could see it, which hides the word without making anything more correct
+      # and leaves the file a reader consults for the rule unable to state it.
+      #
+      # The text is matched case-insensitively here and nowhere else: the
+      # fixtures deliberately include `Neighbour` and `NEIGHBOUR`, because the
+      # audit has to be case-insensitive and a test that only ever passes the
+      # lowercase form would not show that. The ten citation files above keep
+      # the exact lowercase text, which is all they contain.
+      - path: "tools/kernel-citation-audit/"
+        linters:
+          - misspell
+        text: "(?i)`neighbour` is a misspelling of `neighbor`"
 
 issues:
   # golangci-lint defaults to max-issues-per-linter: 50 and max-same-issues: 3,
