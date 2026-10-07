@@ -1,0 +1,946 @@
+{
+  "schema": 1,
+  "profile": "vm-all",
+  "byteorder": "little",
+  "scenarios": [
+    {
+      "required": true,
+      "evidence": "kernel-virtual",
+      "expected": "PASS",
+      "id": "route-lifecycle",
+      "description": "Inventory, admin/carrier transitions, rename and deletion",
+      "events": true,
+      "dump": true,
+      "queries": [],
+      "messages": [
+        {
+          "protocol": 0,
+          "type": 18,
+          "flags": 5
+        },
+        {
+          "protocol": 0,
+          "type": 16,
+          "ifname": "nlv0",
+          "carrier": 1
+        },
+        {
+          "protocol": 0,
+          "type": 16,
+          "ifname": "nlv0",
+          "carrier": 0
+        },
+        {
+          "protocol": 0,
+          "type": 16,
+          "ifname": "nlv0",
+          "admin_up": true
+        },
+        {
+          "protocol": 0,
+          "type": 16,
+          "ifname": "nlv0",
+          "admin_up": false
+        },
+        {
+          "protocol": 0,
+          "type": 17,
+          "ifname": "nlrenamed"
+        }
+      ],
+      "raw": "route-lifecycle/raw.pcap",
+      "command_log": "route-lifecycle/commands.jsonl",
+      "capture_log": "route-lifecycle/tcpdump.stderr",
+      "namespace": "nlcap-607",
+      "status": "PASS",
+      "namespace_identity": "net:[4026532258]",
+      "capture_ready": true,
+      "capture_buffer_kib": 32768,
+      "subscribers_ready": true,
+      "sentinel": true,
+      "drops": 0
+    },
+    {
+      "required": true,
+      "evidence": "kernel-virtual",
+      "expected": "PASS",
+      "id": "cli-query",
+      "description": "Independent ethtool CLI settings query",
+      "queries": [
+        {
+          "kind": "modes",
+          "device": "nltest0",
+          "present": [
+            "speed",
+            "duplex",
+            "autoneg"
+          ]
+        }
+      ],
+      "raw": "cli-query/raw.pcap",
+      "command_log": "cli-query/commands.jsonl",
+      "capture_log": "cli-query/tcpdump.stderr",
+      "namespace": "nlcap-607",
+      "status": "PASS",
+      "namespace_identity": "net:[4026532258]",
+      "capture_ready": true,
+      "capture_buffer_kib": 32768,
+      "sentinel": true,
+      "drops": 0
+    },
+    {
+      "required": true,
+      "evidence": "kernel-virtual",
+      "expected": "PASS",
+      "id": "info",
+      "description": "Link identity query",
+      "queries": [
+        {
+          "kind": "info",
+          "device": "nltest0"
+        }
+      ],
+      "raw": "info/raw.pcap",
+      "command_log": "info/commands.jsonl",
+      "capture_log": "info/tcpdump.stderr",
+      "namespace": "nlcap-607",
+      "status": "PASS",
+      "namespace_identity": "net:[4026532258]",
+      "capture_ready": true,
+      "capture_buffer_kib": 32768,
+      "sentinel": true,
+      "drops": 0
+    },
+    {
+      "required": true,
+      "evidence": "kernel-virtual",
+      "expected": "PASS",
+      "id": "modes-compact",
+      "description": "Explicit compact settings query",
+      "queries": [
+        {
+          "kind": "modes",
+          "device": "nltest0",
+          "encoding": "compact",
+          "present": [
+            "speed",
+            "duplex",
+            "autoneg"
+          ]
+        }
+      ],
+      "raw": "modes-compact/raw.pcap",
+      "command_log": "modes-compact/commands.jsonl",
+      "capture_log": "modes-compact/tcpdump.stderr",
+      "namespace": "nlcap-607",
+      "status": "PASS",
+      "namespace_identity": "net:[4026532258]",
+      "capture_ready": true,
+      "capture_buffer_kib": 32768,
+      "sentinel": true,
+      "drops": 0
+    },
+    {
+      "required": true,
+      "evidence": "kernel-virtual",
+      "expected": "PASS",
+      "id": "modes-verbose",
+      "description": "Explicit verbose settings query",
+      "queries": [
+        {
+          "kind": "modes",
+          "device": "nltest0",
+          "encoding": "verbose",
+          "present": [
+            "speed",
+            "duplex",
+            "autoneg"
+          ]
+        }
+      ],
+      "raw": "modes-verbose/raw.pcap",
+      "command_log": "modes-verbose/commands.jsonl",
+      "capture_log": "modes-verbose/tcpdump.stderr",
+      "namespace": "nlcap-607",
+      "status": "PASS",
+      "namespace_identity": "net:[4026532258]",
+      "capture_ready": true,
+      "capture_buffer_kib": 32768,
+      "sentinel": true,
+      "drops": 0
+    },
+    {
+      "required": true,
+      "evidence": "kernel-virtual",
+      "expected": "PASS",
+      "id": "state",
+      "description": "Link detection query",
+      "queries": [
+        {
+          "kind": "state",
+          "device": "nltest0",
+          "present": [
+            "link"
+          ]
+        }
+      ],
+      "raw": "state/raw.pcap",
+      "command_log": "state/commands.jsonl",
+      "capture_log": "state/tcpdump.stderr",
+      "namespace": "nlcap-607",
+      "status": "PASS",
+      "namespace_identity": "net:[4026532258]",
+      "capture_ready": true,
+      "capture_buffer_kib": 32768,
+      "sentinel": true,
+      "drops": 0
+    },
+    {
+      "required": true,
+      "evidence": "kernel-virtual",
+      "id": "unsupported",
+      "description": "Unsupported loopback settings query",
+      "expected": "EXPECTED_ERROR",
+      "queries": [
+        {
+          "kind": "modes",
+          "device": "lo",
+          "errno": [
+            95
+          ]
+        }
+      ],
+      "raw": "unsupported/raw.pcap",
+      "command_log": "unsupported/commands.jsonl",
+      "capture_log": "unsupported/tcpdump.stderr",
+      "namespace": "nlcap-607",
+      "status": "EXPECTED_ERROR",
+      "namespace_identity": "net:[4026532258]",
+      "capture_ready": true,
+      "capture_buffer_kib": 32768,
+      "sentinel": true,
+      "drops": 0
+    },
+    {
+      "required": true,
+      "evidence": "kernel-virtual",
+      "id": "removed",
+      "description": "Query after actual interface removal",
+      "expected": "EXPECTED_ERROR",
+      "queries": [
+        {
+          "kind": "modes",
+          "device": "nlgone",
+          "errno": [
+            19
+          ]
+        }
+      ],
+      "raw": "removed/raw.pcap",
+      "command_log": "removed/commands.jsonl",
+      "capture_log": "removed/tcpdump.stderr",
+      "namespace": "nlcap-607",
+      "status": "EXPECTED_ERROR",
+      "namespace_identity": "net:[4026532258]",
+      "capture_ready": true,
+      "capture_buffer_kib": 32768,
+      "sentinel": true,
+      "drops": 0
+    },
+    {
+      "required": true,
+      "evidence": "kernel-virtual",
+      "id": "invalid",
+      "description": "Unknown request flags rejected",
+      "expected": "EXPECTED_ERROR",
+      "queries": [
+        {
+          "kind": "modes",
+          "device": "nltest0",
+          "errno": [
+            22
+          ]
+        }
+      ],
+      "raw": "invalid/raw.pcap",
+      "command_log": "invalid/commands.jsonl",
+      "capture_log": "invalid/tcpdump.stderr",
+      "namespace": "nlcap-607",
+      "status": "EXPECTED_ERROR",
+      "namespace_identity": "net:[4026532258]",
+      "capture_ready": true,
+      "capture_buffer_kib": 32768,
+      "sentinel": true,
+      "drops": 0
+    },
+    {
+      "required": true,
+      "evidence": "kernel-virtual",
+      "expected": "PASS",
+      "id": "speed-100000",
+      "description": "Virtual scalar readback 100000 Mbps / duplex 1",
+      "events": true,
+      "queries": [
+        {
+          "kind": "modes",
+          "device": "nltest0",
+          "values": {
+            "speed": 100000,
+            "duplex": 1
+          }
+        }
+      ],
+      "settings": [
+        {
+          "kind": "modes",
+          "device": "nltest0",
+          "values": {
+            "speed": 100000,
+            "duplex": 1
+          }
+        }
+      ],
+      "raw": "speed-100000/raw.pcap",
+      "command_log": "speed-100000/commands.jsonl",
+      "capture_log": "speed-100000/tcpdump.stderr",
+      "namespace": "nlcap-607",
+      "status": "PASS",
+      "namespace_identity": "net:[4026532258]",
+      "capture_ready": true,
+      "capture_buffer_kib": 32768,
+      "subscribers_ready": true,
+      "sentinel": true,
+      "drops": 0
+    },
+    {
+      "required": true,
+      "evidence": "kernel-virtual",
+      "expected": "PASS",
+      "id": "speed-200000",
+      "description": "Virtual scalar readback 200000 Mbps / duplex 1",
+      "events": true,
+      "queries": [
+        {
+          "kind": "modes",
+          "device": "nltest0",
+          "values": {
+            "speed": 200000,
+            "duplex": 1
+          }
+        }
+      ],
+      "settings": [
+        {
+          "kind": "modes",
+          "device": "nltest0",
+          "values": {
+            "speed": 200000,
+            "duplex": 1
+          }
+        }
+      ],
+      "raw": "speed-200000/raw.pcap",
+      "command_log": "speed-200000/commands.jsonl",
+      "capture_log": "speed-200000/tcpdump.stderr",
+      "namespace": "nlcap-607",
+      "status": "PASS",
+      "namespace_identity": "net:[4026532258]",
+      "capture_ready": true,
+      "capture_buffer_kib": 32768,
+      "subscribers_ready": true,
+      "sentinel": true,
+      "drops": 0
+    },
+    {
+      "required": true,
+      "evidence": "kernel-virtual",
+      "expected": "PASS",
+      "id": "speed-400000",
+      "description": "Virtual scalar readback 400000 Mbps / duplex 1",
+      "events": true,
+      "queries": [
+        {
+          "kind": "modes",
+          "device": "nltest0",
+          "values": {
+            "speed": 400000,
+            "duplex": 1
+          }
+        }
+      ],
+      "settings": [
+        {
+          "kind": "modes",
+          "device": "nltest0",
+          "values": {
+            "speed": 400000,
+            "duplex": 1
+          }
+        }
+      ],
+      "raw": "speed-400000/raw.pcap",
+      "command_log": "speed-400000/commands.jsonl",
+      "capture_log": "speed-400000/tcpdump.stderr",
+      "namespace": "nlcap-607",
+      "status": "PASS",
+      "namespace_identity": "net:[4026532258]",
+      "capture_ready": true,
+      "capture_buffer_kib": 32768,
+      "subscribers_ready": true,
+      "sentinel": true,
+      "drops": 0
+    },
+    {
+      "required": true,
+      "evidence": "kernel-virtual",
+      "expected": "PASS",
+      "id": "speed-800000",
+      "description": "Virtual scalar readback 800000 Mbps / duplex 1",
+      "events": true,
+      "queries": [
+        {
+          "kind": "modes",
+          "device": "nltest0",
+          "values": {
+            "speed": 800000,
+            "duplex": 1
+          }
+        }
+      ],
+      "settings": [
+        {
+          "kind": "modes",
+          "device": "nltest0",
+          "values": {
+            "speed": 800000,
+            "duplex": 1
+          }
+        }
+      ],
+      "raw": "speed-800000/raw.pcap",
+      "command_log": "speed-800000/commands.jsonl",
+      "capture_log": "speed-800000/tcpdump.stderr",
+      "namespace": "nlcap-607",
+      "status": "PASS",
+      "namespace_identity": "net:[4026532258]",
+      "capture_ready": true,
+      "capture_buffer_kib": 32768,
+      "subscribers_ready": true,
+      "sentinel": true,
+      "drops": 0
+    },
+    {
+      "required": true,
+      "evidence": "kernel-virtual",
+      "expected": "PASS",
+      "id": "duplex-half",
+      "description": "Virtual scalar readback 100 Mbps / duplex 0",
+      "events": true,
+      "queries": [
+        {
+          "kind": "modes",
+          "device": "nltest0",
+          "values": {
+            "speed": 100,
+            "duplex": 0
+          }
+        }
+      ],
+      "settings": [
+        {
+          "kind": "modes",
+          "device": "nltest0",
+          "values": {
+            "speed": 100,
+            "duplex": 0
+          }
+        }
+      ],
+      "raw": "duplex-half/raw.pcap",
+      "command_log": "duplex-half/commands.jsonl",
+      "capture_log": "duplex-half/tcpdump.stderr",
+      "namespace": "nlcap-607",
+      "status": "PASS",
+      "namespace_identity": "net:[4026532258]",
+      "capture_ready": true,
+      "capture_buffer_kib": 32768,
+      "subscribers_ready": true,
+      "sentinel": true,
+      "drops": 0
+    },
+    {
+      "required": true,
+      "evidence": "kernel-virtual",
+      "expected": "PASS",
+      "id": "settings-unknown",
+      "description": "Virtual scalar readback 4294967295 Mbps / duplex 255",
+      "events": true,
+      "queries": [
+        {
+          "kind": "modes",
+          "device": "nltest0",
+          "values": {
+            "speed": 4294967295,
+            "duplex": 255
+          }
+        }
+      ],
+      "settings": [
+        {
+          "kind": "modes",
+          "device": "nltest0",
+          "values": {
+            "speed": 4294967295,
+            "duplex": 255
+          }
+        }
+      ],
+      "raw": "settings-unknown/raw.pcap",
+      "command_log": "settings-unknown/commands.jsonl",
+      "capture_log": "settings-unknown/tcpdump.stderr",
+      "namespace": "nlcap-607",
+      "status": "PASS",
+      "namespace_identity": "net:[4026532258]",
+      "capture_ready": true,
+      "capture_buffer_kib": 32768,
+      "subscribers_ready": true,
+      "sentinel": true,
+      "drops": 0
+    },
+    {
+      "required": true,
+      "evidence": "kernel-virtual",
+      "expected": "PASS",
+      "id": "route-move-source",
+      "description": "Departure from source namespace",
+      "events": true,
+      "messages": [
+        {
+          "protocol": 0,
+          "type": 17,
+          "ifname": "nlmove"
+        }
+      ],
+      "raw": "route-move-source/raw.pcap",
+      "command_log": "route-move-source/commands.jsonl",
+      "capture_log": "route-move-source/tcpdump.stderr",
+      "namespace": "nlcap-607",
+      "status": "PASS",
+      "namespace_identity": "net:[4026532258]",
+      "capture_ready": true,
+      "capture_buffer_kib": 32768,
+      "subscribers_ready": true,
+      "sentinel": true,
+      "drops": 0
+    },
+    {
+      "required": true,
+      "evidence": "kernel-virtual",
+      "expected": "PASS",
+      "id": "route-move-target",
+      "description": "Arrival in target namespace",
+      "events": true,
+      "messages": [
+        {
+          "protocol": 0,
+          "type": 16,
+          "ifname": "nlmove"
+        }
+      ],
+      "raw": "route-move-target/raw.pcap",
+      "command_log": "route-move-target/commands.jsonl",
+      "capture_log": "route-move-target/tcpdump.stderr",
+      "namespace": "nlpeer-607",
+      "status": "PASS",
+      "namespace_identity": "net:[4026532312]",
+      "capture_ready": true,
+      "capture_buffer_kib": 32768,
+      "subscribers_ready": true,
+      "sentinel": true,
+      "drops": 0
+    },
+    {
+      "id": "sim-fec",
+      "description": "netdevsim fec GET/SET/notification/readback",
+      "required": false,
+      "evidence": "kernel-simulator",
+      "expected": "PASS",
+      "events": true,
+      "queries": [
+        {
+          "kind": "fec",
+          "device": "nlsim0",
+          "values": {
+            "fec_auto": 0,
+            "fec_active": 51
+          }
+        }
+      ],
+      "settings": [
+        {
+          "kind": "fec",
+          "device": "nlsim0",
+          "values": {
+            "fec_auto": 0,
+            "fec_active": 51
+          }
+        }
+      ],
+      "raw": "sim-fec/raw.pcap",
+      "command_log": "sim-fec/commands.jsonl",
+      "capture_log": "sim-fec/tcpdump.stderr",
+      "namespace": "nlcap-607",
+      "status": "PASS",
+      "namespace_identity": "net:[4026532258]",
+      "capture_ready": true,
+      "capture_buffer_kib": 32768,
+      "subscribers_ready": true,
+      "sentinel": true,
+      "drops": 0
+    },
+    {
+      "id": "sim-pause",
+      "description": "netdevsim pause GET/SET/notification/readback",
+      "required": false,
+      "evidence": "kernel-simulator",
+      "expected": "PASS",
+      "events": true,
+      "queries": [
+        {
+          "kind": "pause",
+          "device": "nlsim0",
+          "values": {
+            "autoneg": 0,
+            "rx": 1,
+            "tx": 1
+          }
+        }
+      ],
+      "settings": [
+        {
+          "kind": "pause",
+          "device": "nlsim0",
+          "values": {
+            "autoneg": 0,
+            "rx": 1,
+            "tx": 1
+          }
+        }
+      ],
+      "raw": "sim-pause/raw.pcap",
+      "command_log": "sim-pause/commands.jsonl",
+      "capture_log": "sim-pause/tcpdump.stderr",
+      "namespace": "nlcap-607",
+      "status": "PASS",
+      "namespace_identity": "net:[4026532258]",
+      "capture_ready": true,
+      "capture_buffer_kib": 32768,
+      "subscribers_ready": true,
+      "sentinel": true,
+      "drops": 0
+    },
+    {
+      "id": "sim-rings",
+      "description": "netdevsim rings GET/SET/notification/readback",
+      "required": false,
+      "evidence": "kernel-simulator",
+      "expected": "PASS",
+      "events": true,
+      "queries": [
+        {
+          "kind": "rings",
+          "device": "nlsim0",
+          "values": {
+            "rx": 128,
+            "tx": 128
+          }
+        }
+      ],
+      "settings": [
+        {
+          "kind": "rings",
+          "device": "nlsim0",
+          "values": {
+            "rx": 128,
+            "tx": 128
+          }
+        }
+      ],
+      "raw": "sim-rings/raw.pcap",
+      "command_log": "sim-rings/commands.jsonl",
+      "capture_log": "sim-rings/tcpdump.stderr",
+      "namespace": "nlcap-607",
+      "status": "PASS",
+      "namespace_identity": "net:[4026532258]",
+      "capture_ready": true,
+      "capture_buffer_kib": 32768,
+      "subscribers_ready": true,
+      "sentinel": true,
+      "drops": 0
+    }
+  ],
+  "provenance": {
+    "uname": [
+      "Linux",
+      "xtcp2-vm-x8664",
+      "6.8.12",
+      "#1-NixOS SMP PREEMPT_DYNAMIC Thu May 30 07:49:53 UTC 2024",
+      "x86_64"
+    ],
+    "timebase": "pcap realtime + command realtime/monotonic ns",
+    "start_ns": 1791255850816851213,
+    "namespace": "net:[4026531840]",
+    "ethtool": "ethtool version 7.0",
+    "iproute2": "ip utility, iproute2-7.1.0, libbpf 1.7.0",
+    "tcpdump": "tcpdump version 4.99.6\nlibpcap version 1.10.6 (64-bit time_t, with TPACKET_V3)\n64-bit build, 64-bit time_t",
+    "nix": {
+      "captureSources": "/nix/store/9bk9g948k959cwgqw04b8dlvpkq7q0hf-xtcp2-netlink-capture-sources",
+      "ethtool": {
+        "drv": "/nix/store/jhd17czxr6d6zbxmsi2dgc8k9iz8w4zd-ethtool-7.0.drv",
+        "path": "/nix/store/8plx2f70g6r7r8xg5cmdv343h50kf2l6-ethtool-7.0",
+        "source": "/nix/store/5ryv0k0vharvn5284n296kzd007wjhd8-ethtool-7.0.tar.xz",
+        "version": "7.0"
+      },
+      "flakeLockSHA256": "924d27e93d4a54d095ebf3359d08229b675568773139d17a014979d1881f5a73",
+      "iproute2": "/nix/store/hs7f3v7j8z1w8xagq72y3510d2ad65n2-iproute2-7.1.0",
+      "kernelTarget": {
+        "description": "Upstream 6.8 compatibility baseline; not Ubuntu's patched 6.8 kernel",
+        "id": "6_8",
+        "kernelDrv": "/nix/store/hxaq3jqcdy8f08s0ayrm8l9vzvnvh23v-linux-6.8.12.drv",
+        "kernelSource": "/nix/store/9aadcfdwxsd2ggz893yaaclqiyzpjghr-linux-6.8.12.tar.xz",
+        "release": "6.8.12",
+        "sourceInput": "nixpkgsKernel68",
+        "sourceRevision": "7dca15289a1c2990efbe4680f0923ce14139b042",
+        "version": "6.8.12"
+      },
+      "nixpkgsRevision": "e2587caef70cea85dd97d7daab492899902dbf5d",
+      "probe": "/nix/store/8azg8gw7gzvf8y923d248sznxfjfzjvm-xtcp2-nlprobe-1",
+      "tcpdump": "/nix/store/0s8318csw67zlpcgabw9r5pcfsgazkqw-tcpdump-4.99.6"
+    },
+    "kernel_capabilities": {
+      "ETHTOOL_NETLINK": "y",
+      "NET_NS": "y",
+      "PACKET": "m",
+      "NLMON": "m",
+      "VETH": "m",
+      "DUMMY": "m",
+      "VIRTIO_NET": "m",
+      "NETDEVSIM": "m"
+    }
+  },
+  "files": {
+    "kernel.config.gz": "515ae1d69d9ef17df6127200a8c5e283fe822995ead9b9e108c21212dbe74869",
+    "route-lifecycle/commands.jsonl": "cbba62cd91443d9a7e9062799573b150696ad59ebb40039217ba42a9498ba7e6",
+    "route-lifecycle/tcpdump.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "route-lifecycle/tcpdump.stderr": "50a766ae73a1b9b8c8f874e8cd026814a0abc1ffcab329a1b36d4e303ff43fd2",
+    "route-lifecycle/raw.pcap": "6e4b1352cf664dc0ed59bf21573166ad3bfe625ff117ed88254a9dd5f442a930",
+    "route-lifecycle/route-monitor.stdout": "1740e4e01098e5c38ab345359bf457fc95bd220b0205c0f97fd9cc606267bef7",
+    "route-lifecycle/route-monitor.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "route-lifecycle/monitor.stdout": "aeb0bfe620c276aa92687d5a8f2fe5e75244409ceccb4e8af46b73496659846a",
+    "route-lifecycle/monitor.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "route-lifecycle/ip-monitor.stdout": "1e8ff8bfd0707ade39a016a4fc8f6773e3e0fac600fdfcd848c23fc45f54d349",
+    "route-lifecycle/ip-monitor.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "route-lifecycle/route.pcap": "e0346cf2ed82637044cad226759b83fdcde051ce5d4b3d30514960efdaf609e0",
+    "route-lifecycle/generic.pcap": "399277731b3fafb81f700593b11598cff208635b9bf7339d5d3ef2bc7bb9039e",
+    "route-lifecycle/scenario.json": "cd31acd2e680dd1d1a6f869e9e740a8039ac240d8ff4025000002159d86d640e",
+    "cli-query/commands.jsonl": "28e6c1b261795a05339c46324b3011d7e0bbbe5ca2f5b4a1ff527ef5f1c3e50f",
+    "cli-query/tcpdump.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "cli-query/tcpdump.stderr": "ab9ad2947d8d010073b47127f5ce12a452783ca06080617a7fd61de05d5fd846",
+    "cli-query/raw.pcap": "7dbd54eef23b0f4bb1040e663938e8ab41e7712038edc71568cee8434854806f",
+    "cli-query/route.pcap": "c25ba4a5cdf48fa4b6a01a7a9b10da4d94fe853fdfc49bab5ffa8f895b9ad85b",
+    "cli-query/generic.pcap": "2b63d55ea094e63c4f798302da692fa32be938a489c44feebb0c7418d04bcc7f",
+    "cli-query/scenario.json": "944913ba30765c3ecd5dfab05282080d61085466c2dc53ae58adc4a359c68a9c",
+    "info/commands.jsonl": "dc35d30f144f303baaa22251537d709c7bd4ec98e9db65d87ce0d031ae4ce03a",
+    "info/tcpdump.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "info/tcpdump.stderr": "ce7d217d15023328d697f648a0559eb2d14537c2fc4d883b6c4d2aa1b285d149",
+    "info/raw.pcap": "f85038941982490a654281f7703cb5148ada8e0c6011c7deebb8c36f4c6b1338",
+    "info/route.pcap": "f2f6316b78c8defe17c8fcc3e8eb6bf7b75575b61d92ddce86e8f0e866063be4",
+    "info/generic.pcap": "12a5dc0400a851631895b9f9cbe0942c7f1eff86c238b57f04e2ee7d5a08516a",
+    "info/scenario.json": "8bf4aa5a4946005c16b3a8f0c48eb61a8413be069920228bfb101b45555b5fa4",
+    "modes-compact/commands.jsonl": "196e7edd77cb3bf7b1a3a80ec69937b74e32c08a8ac6471df665200693122c8c",
+    "modes-compact/tcpdump.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "modes-compact/tcpdump.stderr": "ce7d217d15023328d697f648a0559eb2d14537c2fc4d883b6c4d2aa1b285d149",
+    "modes-compact/raw.pcap": "ae9e9a814bc9cdb62bd5810c71a7111a5d8904cc0935d1f9259922526d82968f",
+    "modes-compact/route.pcap": "02b282480e4882112a11cb4522bb118bd21ddc7021fd5b970c808d9ff9308032",
+    "modes-compact/generic.pcap": "c3e4dd22279c00e4238a0f6d4fb14d98bd7771cede94d91da42af157c44d451f",
+    "modes-compact/scenario.json": "b21b9659b83c6148d58ce11dc107488bd76cd383609e2bd71eb6cc3a5c8f1d09",
+    "modes-verbose/commands.jsonl": "0f7fd83a8a5264dbc1df71e3bbc9c324918c8778f712ba9f33a2e7587bfbf1e0",
+    "modes-verbose/tcpdump.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "modes-verbose/tcpdump.stderr": "ce7d217d15023328d697f648a0559eb2d14537c2fc4d883b6c4d2aa1b285d149",
+    "modes-verbose/raw.pcap": "683a22f19aeee7c85c3ab7c076af0e2fdff1a8d3a25faff4f331dc917de4a46d",
+    "modes-verbose/route.pcap": "45c700e5d70af4e540683a4e1c379fbabeffaa561ce16a167e371e7549d33ffb",
+    "modes-verbose/generic.pcap": "7cec2c111c835592555bced2655f95a73aa0c5eb1bd4a0a8a715c213cf8e2595",
+    "modes-verbose/scenario.json": "b3266bb226aceac6ca9f995186095c6e0cde00a691cdb0cc5287b3cb7d8706c3",
+    "state/commands.jsonl": "7e300099e7e0db694741ade04f88e28d5f897eb7b5659a6025e2ba9297e8f23d",
+    "state/tcpdump.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "state/tcpdump.stderr": "ce7d217d15023328d697f648a0559eb2d14537c2fc4d883b6c4d2aa1b285d149",
+    "state/raw.pcap": "f7df2aa90c99060c288f4b72fc01d27c60f0b820e27178e53efd07bd574e30f6",
+    "state/route.pcap": "c8b0c8e23cb9f0d9741d834cb7e758d2b935192809d571e31e2b10937c96ec81",
+    "state/generic.pcap": "08ca401d42023d9982ca9c0329a508f4b4bd9a480bc3c53a43a372965571e7ab",
+    "state/scenario.json": "b85bbea00489ee1efd2a1d348e04a0e5524954781fcbe11e64feb06f73860fb0",
+    "unsupported/commands.jsonl": "572d1664821ddd82550eccb2cf2952acf2675f556d4303c2826c0f85438a2094",
+    "unsupported/tcpdump.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "unsupported/tcpdump.stderr": "e8b0c7d5dfb9511cfd502497da5cbdb6cc32da229b964dc1d71e2207afbb926d",
+    "unsupported/raw.pcap": "029885f98b164ddebf37bd1ff52c2b457e3ccfee01e6ca6b2ee41be91d1899e1",
+    "unsupported/route.pcap": "13cdc57a866ff155aebe62130b77dfbd57b3a0027ef9c61b592df40bace514c2",
+    "unsupported/generic.pcap": "2eb2935db7a43f4a2cfd610764963359617944762af96255430eae57bc74545a",
+    "unsupported/scenario.json": "b055f8474b302600e86ce941ad3ebdf3ce2c2cd2eec9b81ea5799643d5cd57cd",
+    "removed/commands.jsonl": "6afd330a3c4b597c101f8662d34666107ca771de9c94361f41c46b606db75886",
+    "removed/tcpdump.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "removed/tcpdump.stderr": "313f15603399aa07fe93563115e7e25790ff406ae8f12c63fac843f0fb8cd6a0",
+    "removed/raw.pcap": "464f91ed017aadb27474cc6ab9ea4a57b480239b7a539a114e7f5d1fcdcaf044",
+    "removed/route.pcap": "83ad072c9dd959060e467f660a035b715758c6d250bd96479e5e0144032304c6",
+    "removed/generic.pcap": "4bd53ba37bcfa90a64508913db51bf99eba44470e16f8ef41ca6c38b5300570f",
+    "removed/scenario.json": "7f290976d519031ef1958baa8ad3d6f0a2b004ec50335e8ca626573a1329099b",
+    "invalid/commands.jsonl": "7e5b4c01d9e9e200fc6869a1b2998144e1870befa3c0a63d63b11984c61bb80a",
+    "invalid/tcpdump.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "invalid/tcpdump.stderr": "e8b0c7d5dfb9511cfd502497da5cbdb6cc32da229b964dc1d71e2207afbb926d",
+    "invalid/raw.pcap": "6902964f8557ba7f2a3bdd7f5f617349e7f5b67c2bc342310d744c681c25e598",
+    "invalid/route.pcap": "1cf941c991727925c622931a66bfd9241784f49033b1a45b2a25a6fab0e10ce7",
+    "invalid/generic.pcap": "1d8397daeb22a3b8b1f5dc72ae6c225a0ca7b657a9b3da53c493d5da646dbc91",
+    "invalid/scenario.json": "6bcf02a7edbb25fa4fc13917603bd0466daad33129c9c7f304fd2a7ceb0255a4",
+    "speed-100000/commands.jsonl": "8b1f339fc2ddbf07d467dcf1c0913a0be5fff1a0ea3ac1cede10c12c8319ee0a",
+    "speed-100000/tcpdump.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "speed-100000/tcpdump.stderr": "f416d6360ab9c20570c1c7b6caab5cc702d5ca7f101819243599dff37ca28aa1",
+    "speed-100000/raw.pcap": "03f725efb730c7e02b80cf08b1fb1fb3296ff5d92bb5ae729c965bfe5603f7cd",
+    "speed-100000/route-monitor.stdout": "f7409f40ed2586a1d7d41e4c5b721eec3ad962623d023405636bbdb5b4fe3230",
+    "speed-100000/route-monitor.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "speed-100000/monitor.stdout": "e88953db33b682bcf99ff949b7f453bdf4373c8ee2197fb6f256a64be65e3a3c",
+    "speed-100000/monitor.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "speed-100000/ip-monitor.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "speed-100000/ip-monitor.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "speed-100000/route.pcap": "4c526c221b8204b1fd2dbe731d264dcfef4cc889b750cad2903b4e4f90153f4f",
+    "speed-100000/generic.pcap": "b8cfbf2f3d087e79d09d59ccd83a336d85824d5a41e71950d8f2991e33361bac",
+    "speed-100000/scenario.json": "82746a2313e9cf10869a4730d3d2cd65190b81177d0bfd3fabacf58c79533800",
+    "speed-200000/commands.jsonl": "3ef692697a98886d902198c11b06322e5708545a2f48d01c41bb8f15fdc8f356",
+    "speed-200000/tcpdump.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "speed-200000/tcpdump.stderr": "f416d6360ab9c20570c1c7b6caab5cc702d5ca7f101819243599dff37ca28aa1",
+    "speed-200000/raw.pcap": "26839630c4edb2fc2f0e761b2d1e3e869aeb55aeecb23776592780fc3ae4d738",
+    "speed-200000/route-monitor.stdout": "f7409f40ed2586a1d7d41e4c5b721eec3ad962623d023405636bbdb5b4fe3230",
+    "speed-200000/route-monitor.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "speed-200000/monitor.stdout": "b3bdeffc1a0c52d7f81362cebb10dc5c48ed6ddba286be49b66f1ef49cc7aef8",
+    "speed-200000/monitor.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "speed-200000/ip-monitor.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "speed-200000/ip-monitor.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "speed-200000/route.pcap": "d68c14a684189ecba2283b9fe7a4aef4f687d664ed482dbd29e35e12062f41a0",
+    "speed-200000/generic.pcap": "08fa339b76c6587d643b0327579c1809a0b8827896b601490762a810e2bb97be",
+    "speed-200000/scenario.json": "4e686dad300922c9f8394d0799ec0b40af1652c4e1912035a2394797353b59f2",
+    "speed-400000/commands.jsonl": "d9cdd6e80891bfef9f864ad8e84d47285b3f93a93bb2b93e41e3cb6044ecb324",
+    "speed-400000/tcpdump.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "speed-400000/tcpdump.stderr": "f416d6360ab9c20570c1c7b6caab5cc702d5ca7f101819243599dff37ca28aa1",
+    "speed-400000/raw.pcap": "c87bb5fcee31ab79e5f9c2882324515e4b60b2020fc675d6fcc160a17280c163",
+    "speed-400000/route-monitor.stdout": "f7409f40ed2586a1d7d41e4c5b721eec3ad962623d023405636bbdb5b4fe3230",
+    "speed-400000/route-monitor.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "speed-400000/monitor.stdout": "56d4a013b261a8988a0c3945f4a8d66d7ef97702458fcb985337d32e370e92e7",
+    "speed-400000/monitor.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "speed-400000/ip-monitor.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "speed-400000/ip-monitor.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "speed-400000/route.pcap": "f1583a9a906822a839090f765ad1e00db8479f88020e7bee77c249e3032825de",
+    "speed-400000/generic.pcap": "39cfc90126f5cde44059373fe8aa121404d18b7f5992be44c266f36052afc0b0",
+    "speed-400000/scenario.json": "06ae67f3d5c40fe7bc63da5be71ea999c31bb6164c51e1380a4fb143093f5a93",
+    "speed-800000/commands.jsonl": "21529a6b6a9a0ca327cdc787baf47e664b4f20529799102bb7b75152db75fe87",
+    "speed-800000/tcpdump.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "speed-800000/tcpdump.stderr": "f416d6360ab9c20570c1c7b6caab5cc702d5ca7f101819243599dff37ca28aa1",
+    "speed-800000/raw.pcap": "0ad87e8fb16eca2d7c5a0169f075a14a0942d843b1395eef752ea1e94a773556",
+    "speed-800000/route-monitor.stdout": "f7409f40ed2586a1d7d41e4c5b721eec3ad962623d023405636bbdb5b4fe3230",
+    "speed-800000/route-monitor.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "speed-800000/monitor.stdout": "ea4da20cb9f73d4e75f6ccc905c50b41dbcc806ef3433085d96a56cee7371691",
+    "speed-800000/monitor.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "speed-800000/ip-monitor.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "speed-800000/ip-monitor.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "speed-800000/route.pcap": "cea84b1230093e422072ca1bb82ce64dd3a782da2272a16c586fd725db1921c1",
+    "speed-800000/generic.pcap": "c7b427e18915285f7f5cb0296cabb051e06abb571e3cb33433095a2f37de74eb",
+    "speed-800000/scenario.json": "1f8971cae6bd4fcc21c17a23b68a462a37ffa4f76d6e4dd61b44cdd0ffe56261",
+    "duplex-half/commands.jsonl": "4bca8e18d83e0d1d9be24b6f85342ac6639ca2fa68785356bf6a331badd698cb",
+    "duplex-half/tcpdump.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "duplex-half/tcpdump.stderr": "f416d6360ab9c20570c1c7b6caab5cc702d5ca7f101819243599dff37ca28aa1",
+    "duplex-half/raw.pcap": "69ae6ecaaf1171d868f9066317bd360faf4d9b5af533e47db669282631f0a028",
+    "duplex-half/route-monitor.stdout": "f7409f40ed2586a1d7d41e4c5b721eec3ad962623d023405636bbdb5b4fe3230",
+    "duplex-half/route-monitor.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "duplex-half/monitor.stdout": "d059d05691fd560c7f2db4a891123e1bff23061617ffa47704b6cfbe4e44d362",
+    "duplex-half/monitor.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "duplex-half/ip-monitor.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "duplex-half/ip-monitor.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "duplex-half/route.pcap": "1f7aeac1db493314d33de490575a82876ef75f6fb81794e7eef094b36e08d0f6",
+    "duplex-half/generic.pcap": "91f87aad8d6fc62a576c5a7693dfdaef613b78349a3fcf3145fc1d762c9bafa1",
+    "duplex-half/scenario.json": "d013cfa471eff1134ab31dd2f51f483b4bef030dcb605186b49212d7f50361b0",
+    "settings-unknown/commands.jsonl": "b71b04ca8bf211f931c43066966be55feafc30419e603458a995991f53c76c63",
+    "settings-unknown/tcpdump.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "settings-unknown/tcpdump.stderr": "f416d6360ab9c20570c1c7b6caab5cc702d5ca7f101819243599dff37ca28aa1",
+    "settings-unknown/raw.pcap": "aed50878c2863f3f3c1bdf375b1f7cc115230f6e6129bd71781140f09868302f",
+    "settings-unknown/route-monitor.stdout": "f7409f40ed2586a1d7d41e4c5b721eec3ad962623d023405636bbdb5b4fe3230",
+    "settings-unknown/route-monitor.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "settings-unknown/monitor.stdout": "dd6e16d7a569e9e3c798808349da9de1e077360530ff1e115c177855ca40e0b8",
+    "settings-unknown/monitor.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "settings-unknown/ip-monitor.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "settings-unknown/ip-monitor.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "settings-unknown/route.pcap": "cf0a313e72745fd8e9790ee569e5d5821a0e2a785ed9f14532eebf7cfda48999",
+    "settings-unknown/generic.pcap": "34f6fa372847ed22ec881ec0ccc59c47595700d4b13d49404699b3791e38a374",
+    "settings-unknown/scenario.json": "2d789b52042718c609f6c42b53d2893ddbef01e0e7eef1af5c4953b831908517",
+    "route-move-source/commands.jsonl": "12960dcf3246208fb537bfe0e1185272b8a4890860b16163edb0b77ccb13a680",
+    "route-move-source/tcpdump.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "route-move-source/tcpdump.stderr": "8db0bdea90a2aeace8790c8dda378ebcb60fd879dbd3942d271e075f7ca9ffcf",
+    "route-move-source/raw.pcap": "7f3c181ff80ee6d1f6556f75c4963cefe60893de3939f49c767dc357abd18b8a",
+    "route-move-source/route-monitor.stdout": "a896ae39009d86e5dfb31cb4e10064491356b833456f8a31e033b43036ffb06b",
+    "route-move-source/route-monitor.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "route-move-source/monitor.stdout": "02e550f1d5732311defb7b7414abcb82ba189be3fb7e1d997d4e26a227806ec6",
+    "route-move-source/monitor.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "route-move-source/ip-monitor.stdout": "250a00ceccdadf3788bf2ad68f3e9877b0f58270465f30a941f3dee2351af60f",
+    "route-move-source/ip-monitor.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "route-move-source/route.pcap": "a0e731b5860f6f179afb936a06c14686c912961a708170776e0665c8b6a119ed",
+    "route-move-source/generic.pcap": "2181f85c80ee745606552aea01b193b2286a2244641739f294c00eaecc17f9ce",
+    "route-move-source/scenario.json": "11b6f7d7d2bb0737b52861bf0ce73f02d6bec0b9dde3736a3a42dc9f2ad94ea2",
+    "route-move-target/commands.jsonl": "5a6afa8b5af8eb2480be7a20e9de865f8a454b5a723b70fc7351fbe750f649ee",
+    "route-move-target/tcpdump.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "route-move-target/tcpdump.stderr": "73587b8d15e5e0d613373cb29671db7de0940f19e36a3d34d857cdb464412e23",
+    "route-move-target/raw.pcap": "8daf51541e79247518e69833ce6c99b2097c5664ba1d22fbdc0412b0d30219ca",
+    "route-move-target/route-monitor.stdout": "f7a0282310de5428124fb3e4dc3a66029ac13b834a8abf4c9e05a590c6bb2060",
+    "route-move-target/route-monitor.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "route-move-target/monitor.stdout": "abbbb1b5700134107012511fa7821f7b9e8681ed4474a121f53f60b708a98e5c",
+    "route-move-target/monitor.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "route-move-target/ip-monitor.stdout": "88c6060772dec78838f721bb0feafe0026c3eed542a9d84f2e1b3ae0efe5e5e8",
+    "route-move-target/ip-monitor.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "route-move-target/route.pcap": "582abf4c828e110e172c8ff1379256ff65935f881c7001f8bce3e3aa3faa6c5a",
+    "route-move-target/generic.pcap": "e9bba099a686ff37d251a357b2f1e3465c9b86d6f4a87160c152c0181dd507df",
+    "route-move-target/scenario.json": "938aefb3f32bdd38bdac86a6ee813e6749cc931132630d78b28b81bb8602b754",
+    "sim-fec/commands.jsonl": "9051395827e64900ba06d0fcae2b6462d011c3ec39c8baf81794b581d1cbadd1",
+    "sim-fec/tcpdump.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "sim-fec/tcpdump.stderr": "1c24dd35ad270f6e9c4308720a30181881296f8b7607432122ba7577d5d7c242",
+    "sim-fec/raw.pcap": "c53c907ed8fb99bef1cf0810c3b26f17f68689f202188dfcc741a33d1374d4a9",
+    "sim-fec/route-monitor.stdout": "f7409f40ed2586a1d7d41e4c5b721eec3ad962623d023405636bbdb5b4fe3230",
+    "sim-fec/route-monitor.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "sim-fec/monitor.stdout": "5c26242418fab1a7ddcc9686f7b527ce1d68100dadc402aeaea8562b2a08dbef",
+    "sim-fec/monitor.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "sim-fec/ip-monitor.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "sim-fec/ip-monitor.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "sim-fec/route.pcap": "81302f7e17270e3f0bb070d8e9945fdaefbbde63c4384bc79372755bf401025e",
+    "sim-fec/generic.pcap": "8ce50329f4cba2823b6bb46f652bc4abeef8fde5d8fd8ef7a1009ecf00a25fbe",
+    "sim-fec/scenario.json": "b751befcd89bac3fb0e3e7de90ad00cc9a521e90152d1a117cdbf53b48748b68",
+    "sim-pause/commands.jsonl": "be30cdcc58cc4bc6ddd368cce1ebb14b58cf7e8fb9f15a29f7a119f00e00212e",
+    "sim-pause/tcpdump.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "sim-pause/tcpdump.stderr": "f8ad63bd46d351057abfa6c35094b64b6fc928ba2d18410f5a965b7c24b2741e",
+    "sim-pause/raw.pcap": "74315dc2b74fae77af6fa2b018213399ffe6301f8f1b7b2ce720dabbf61c39b9",
+    "sim-pause/route-monitor.stdout": "f7409f40ed2586a1d7d41e4c5b721eec3ad962623d023405636bbdb5b4fe3230",
+    "sim-pause/route-monitor.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "sim-pause/monitor.stdout": "21a19dcdf0cca7080ac1678bf0f9a635051da6a2ce0b283d4dd6403a092556c1",
+    "sim-pause/monitor.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "sim-pause/ip-monitor.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "sim-pause/ip-monitor.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "sim-pause/route.pcap": "43723130f831530dd21565bd04674e3db9ac2fb62554a26230a6ab231be43280",
+    "sim-pause/generic.pcap": "a0762e24b6ecf9426aa6cea9f16a58c610b041c9594073d8aa053ad6f3b0f489",
+    "sim-pause/scenario.json": "8012f7034f5fede03233db045eb479c50adccde867fce64dc543030d7caf7146",
+    "sim-rings/commands.jsonl": "54a9b13a7bc9a4825fa7c04f2a18dc75ef6b8a63ca92a81d8ce500885b6c2fae",
+    "sim-rings/tcpdump.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "sim-rings/tcpdump.stderr": "1c24dd35ad270f6e9c4308720a30181881296f8b7607432122ba7577d5d7c242",
+    "sim-rings/raw.pcap": "b559ec182dd59c3c245f84e6b3c3b484c61cb7a36c0b45b7a4e3d4a15f2937e7",
+    "sim-rings/route-monitor.stdout": "f7409f40ed2586a1d7d41e4c5b721eec3ad962623d023405636bbdb5b4fe3230",
+    "sim-rings/route-monitor.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "sim-rings/monitor.stdout": "f2643b2300873d88413a6378d1aad96342734f100a40c938d33f82b07eb4b462",
+    "sim-rings/monitor.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "sim-rings/ip-monitor.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "sim-rings/ip-monitor.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "sim-rings/route.pcap": "ef61e18aada71e2d2787a2f500705964422769ac6a79a6f4615c51ada35eaf1d",
+    "sim-rings/generic.pcap": "449e9d68fce57b9e52b78ebf3858b293f54ffe4bafaf53bea5c98ab3abb588c7",
+    "sim-rings/scenario.json": "cbae6b934e5ad04a19d50c7374032e8ba5216deee85ca536f74f29f4e0786aac"
+  }
+}

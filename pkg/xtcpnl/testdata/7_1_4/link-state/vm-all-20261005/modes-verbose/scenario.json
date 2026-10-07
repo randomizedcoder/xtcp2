@@ -1,0 +1,29 @@
+{
+  "required": true,
+  "evidence": "kernel-virtual",
+  "expected": "PASS",
+  "id": "modes-verbose",
+  "description": "Explicit verbose settings query",
+  "queries": [
+    {
+      "kind": "modes",
+      "device": "nltest0",
+      "encoding": "verbose",
+      "present": [
+        "speed",
+        "duplex",
+        "autoneg"
+      ]
+    }
+  ],
+  "raw": "modes-verbose/raw.pcap",
+  "command_log": "modes-verbose/commands.jsonl",
+  "capture_log": "modes-verbose/tcpdump.stderr",
+  "namespace": "nlcap-633",
+  "status": "PASS",
+  "namespace_identity": "net:[4026532256]",
+  "capture_ready": true,
+  "capture_buffer_kib": 32768,
+  "sentinel": true,
+  "drops": 0
+}

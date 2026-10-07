@@ -1,0 +1,39 @@
+{
+  "required": true,
+  "evidence": "kernel-virtual",
+  "expected": "PASS",
+  "id": "settings-unknown",
+  "description": "Virtual scalar readback 4294967295 Mbps / duplex 255",
+  "events": true,
+  "queries": [
+    {
+      "kind": "modes",
+      "device": "nltest0",
+      "values": {
+        "speed": 4294967295,
+        "duplex": 255
+      }
+    }
+  ],
+  "settings": [
+    {
+      "kind": "modes",
+      "device": "nltest0",
+      "values": {
+        "speed": 4294967295,
+        "duplex": 255
+      }
+    }
+  ],
+  "raw": "settings-unknown/raw.pcap",
+  "command_log": "settings-unknown/commands.jsonl",
+  "capture_log": "settings-unknown/tcpdump.stderr",
+  "namespace": "nlcap-614",
+  "status": "PASS",
+  "namespace_identity": "net:[4026532256]",
+  "capture_ready": true,
+  "capture_buffer_kib": 32768,
+  "subscribers_ready": true,
+  "sentinel": true,
+  "drops": 0
+}

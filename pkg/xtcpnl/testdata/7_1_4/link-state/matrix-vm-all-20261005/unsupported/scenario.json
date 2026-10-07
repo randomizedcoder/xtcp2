@@ -1,0 +1,26 @@
+{
+  "required": true,
+  "evidence": "kernel-virtual",
+  "id": "unsupported",
+  "description": "Unsupported loopback settings query",
+  "expected": "EXPECTED_ERROR",
+  "queries": [
+    {
+      "kind": "modes",
+      "device": "lo",
+      "errno": [
+        95
+      ]
+    }
+  ],
+  "raw": "unsupported/raw.pcap",
+  "command_log": "unsupported/commands.jsonl",
+  "capture_log": "unsupported/tcpdump.stderr",
+  "namespace": "nlcap-614",
+  "status": "EXPECTED_ERROR",
+  "namespace_identity": "net:[4026532256]",
+  "capture_ready": true,
+  "capture_buffer_kib": 32768,
+  "sentinel": true,
+  "drops": 0
+}

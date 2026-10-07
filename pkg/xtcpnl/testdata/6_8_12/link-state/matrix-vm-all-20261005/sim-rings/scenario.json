@@ -1,0 +1,39 @@
+{
+  "id": "sim-rings",
+  "description": "netdevsim rings GET/SET/notification/readback",
+  "required": false,
+  "evidence": "kernel-simulator",
+  "expected": "PASS",
+  "events": true,
+  "queries": [
+    {
+      "kind": "rings",
+      "device": "nlsim0",
+      "values": {
+        "rx": 128,
+        "tx": 128
+      }
+    }
+  ],
+  "settings": [
+    {
+      "kind": "rings",
+      "device": "nlsim0",
+      "values": {
+        "rx": 128,
+        "tx": 128
+      }
+    }
+  ],
+  "raw": "sim-rings/raw.pcap",
+  "command_log": "sim-rings/commands.jsonl",
+  "capture_log": "sim-rings/tcpdump.stderr",
+  "namespace": "nlcap-607",
+  "status": "PASS",
+  "namespace_identity": "net:[4026532258]",
+  "capture_ready": true,
+  "capture_buffer_kib": 32768,
+  "subscribers_ready": true,
+  "sentinel": true,
+  "drops": 0
+}

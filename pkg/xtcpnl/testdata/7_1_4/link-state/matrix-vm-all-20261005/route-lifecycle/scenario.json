@@ -1,0 +1,57 @@
+{
+  "required": true,
+  "evidence": "kernel-virtual",
+  "expected": "PASS",
+  "id": "route-lifecycle",
+  "description": "Inventory, admin/carrier transitions, rename and deletion",
+  "events": true,
+  "dump": true,
+  "queries": [],
+  "messages": [
+    {
+      "protocol": 0,
+      "type": 18,
+      "flags": 5
+    },
+    {
+      "protocol": 0,
+      "type": 16,
+      "ifname": "nlv0",
+      "carrier": 1
+    },
+    {
+      "protocol": 0,
+      "type": 16,
+      "ifname": "nlv0",
+      "carrier": 0
+    },
+    {
+      "protocol": 0,
+      "type": 16,
+      "ifname": "nlv0",
+      "admin_up": true
+    },
+    {
+      "protocol": 0,
+      "type": 16,
+      "ifname": "nlv0",
+      "admin_up": false
+    },
+    {
+      "protocol": 0,
+      "type": 17,
+      "ifname": "nlrenamed"
+    }
+  ],
+  "raw": "route-lifecycle/raw.pcap",
+  "command_log": "route-lifecycle/commands.jsonl",
+  "capture_log": "route-lifecycle/tcpdump.stderr",
+  "namespace": "nlcap-614",
+  "status": "PASS",
+  "namespace_identity": "net:[4026532256]",
+  "capture_ready": true,
+  "capture_buffer_kib": 32768,
+  "subscribers_ready": true,
+  "sentinel": true,
+  "drops": 0
+}

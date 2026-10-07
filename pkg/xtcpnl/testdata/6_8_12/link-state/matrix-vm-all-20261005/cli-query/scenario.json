@@ -1,0 +1,28 @@
+{
+  "required": true,
+  "evidence": "kernel-virtual",
+  "expected": "PASS",
+  "id": "cli-query",
+  "description": "Independent ethtool CLI settings query",
+  "queries": [
+    {
+      "kind": "modes",
+      "device": "nltest0",
+      "present": [
+        "speed",
+        "duplex",
+        "autoneg"
+      ]
+    }
+  ],
+  "raw": "cli-query/raw.pcap",
+  "command_log": "cli-query/commands.jsonl",
+  "capture_log": "cli-query/tcpdump.stderr",
+  "namespace": "nlcap-607",
+  "status": "PASS",
+  "namespace_identity": "net:[4026532258]",
+  "capture_ready": true,
+  "capture_buffer_kib": 32768,
+  "sentinel": true,
+  "drops": 0
+}

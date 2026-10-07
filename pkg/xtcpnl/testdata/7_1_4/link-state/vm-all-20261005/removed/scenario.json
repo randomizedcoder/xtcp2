@@ -1,0 +1,26 @@
+{
+  "required": true,
+  "evidence": "kernel-virtual",
+  "id": "removed",
+  "description": "Query after actual interface removal",
+  "expected": "EXPECTED_ERROR",
+  "queries": [
+    {
+      "kind": "modes",
+      "device": "nlgone",
+      "errno": [
+        19
+      ]
+    }
+  ],
+  "raw": "removed/raw.pcap",
+  "command_log": "removed/commands.jsonl",
+  "capture_log": "removed/tcpdump.stderr",
+  "namespace": "nlcap-633",
+  "status": "EXPECTED_ERROR",
+  "namespace_identity": "net:[4026532256]",
+  "capture_ready": true,
+  "capture_buffer_kib": 32768,
+  "sentinel": true,
+  "drops": 0
+}

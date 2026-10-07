@@ -1,0 +1,26 @@
+{
+  "required": true,
+  "evidence": "kernel-virtual",
+  "expected": "PASS",
+  "id": "state",
+  "description": "Link detection query",
+  "queries": [
+    {
+      "kind": "state",
+      "device": "nltest0",
+      "present": [
+        "link"
+      ]
+    }
+  ],
+  "raw": "state/raw.pcap",
+  "command_log": "state/commands.jsonl",
+  "capture_log": "state/tcpdump.stderr",
+  "namespace": "nlcap-633",
+  "status": "PASS",
+  "namespace_identity": "net:[4026532256]",
+  "capture_ready": true,
+  "capture_buffer_kib": 32768,
+  "sentinel": true,
+  "drops": 0
+}
