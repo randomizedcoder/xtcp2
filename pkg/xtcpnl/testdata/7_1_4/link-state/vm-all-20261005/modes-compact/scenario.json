@@ -1,0 +1,29 @@
+{
+  "required": true,
+  "evidence": "kernel-virtual",
+  "expected": "PASS",
+  "id": "modes-compact",
+  "description": "Explicit compact settings query",
+  "queries": [
+    {
+      "kind": "modes",
+      "device": "nltest0",
+      "encoding": "compact",
+      "present": [
+        "speed",
+        "duplex",
+        "autoneg"
+      ]
+    }
+  ],
+  "raw": "modes-compact/raw.pcap",
+  "command_log": "modes-compact/commands.jsonl",
+  "capture_log": "modes-compact/tcpdump.stderr",
+  "namespace": "nlcap-633",
+  "status": "PASS",
+  "namespace_identity": "net:[4026532256]",
+  "capture_ready": true,
+  "capture_buffer_kib": 32768,
+  "sentinel": true,
+  "drops": 0
+}

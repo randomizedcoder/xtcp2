@@ -1,0 +1,39 @@
+{
+  "required": true,
+  "evidence": "kernel-virtual",
+  "expected": "PASS",
+  "id": "speed-100000",
+  "description": "Virtual scalar readback 100000 Mbps / duplex 1",
+  "events": true,
+  "queries": [
+    {
+      "kind": "modes",
+      "device": "nltest0",
+      "values": {
+        "speed": 100000,
+        "duplex": 1
+      }
+    }
+  ],
+  "settings": [
+    {
+      "kind": "modes",
+      "device": "nltest0",
+      "values": {
+        "speed": 100000,
+        "duplex": 1
+      }
+    }
+  ],
+  "raw": "speed-100000/raw.pcap",
+  "command_log": "speed-100000/commands.jsonl",
+  "capture_log": "speed-100000/tcpdump.stderr",
+  "namespace": "nlcap-633",
+  "status": "PASS",
+  "namespace_identity": "net:[4026532256]",
+  "capture_ready": true,
+  "capture_buffer_kib": 32768,
+  "subscribers_ready": true,
+  "sentinel": true,
+  "drops": 0
+}

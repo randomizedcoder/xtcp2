@@ -1,0 +1,26 @@
+{
+  "required": true,
+  "evidence": "kernel-virtual",
+  "expected": "PASS",
+  "id": "route-move-target",
+  "description": "Arrival in target namespace",
+  "events": true,
+  "messages": [
+    {
+      "protocol": 0,
+      "type": 16,
+      "ifname": "nlmove"
+    }
+  ],
+  "raw": "route-move-target/raw.pcap",
+  "command_log": "route-move-target/commands.jsonl",
+  "capture_log": "route-move-target/tcpdump.stderr",
+  "namespace": "nlpeer-614",
+  "status": "PASS",
+  "namespace_identity": "net:[4026532308]",
+  "capture_ready": true,
+  "capture_buffer_kib": 32768,
+  "subscribers_ready": true,
+  "sentinel": true,
+  "drops": 0
+}

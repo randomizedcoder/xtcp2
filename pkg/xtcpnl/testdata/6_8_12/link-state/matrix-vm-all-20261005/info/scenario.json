@@ -1,0 +1,23 @@
+{
+  "required": true,
+  "evidence": "kernel-virtual",
+  "expected": "PASS",
+  "id": "info",
+  "description": "Link identity query",
+  "queries": [
+    {
+      "kind": "info",
+      "device": "nltest0"
+    }
+  ],
+  "raw": "info/raw.pcap",
+  "command_log": "info/commands.jsonl",
+  "capture_log": "info/tcpdump.stderr",
+  "namespace": "nlcap-607",
+  "status": "PASS",
+  "namespace_identity": "net:[4026532258]",
+  "capture_ready": true,
+  "capture_buffer_kib": 32768,
+  "sentinel": true,
+  "drops": 0
+}

@@ -1,0 +1,6 @@
+Timestamp: Tue Oct  6 03:04:54 2026 513126 usec
+8: nlmove: <BROADCAST,NOARP> mtu 1500 qdisc noop state DOWN group default 
+    link/ether e2:5f:fb:d8:41:de brd ff:ff:ff:ff:ff:ff
+Timestamp: Tue Oct  6 03:04:54 2026 542259 usec
+Deleted 8: nlmove: <BROADCAST,NOARP> mtu 1500 qdisc noop state DOWN group default 
+    link/ether e2:5f:fb:d8:41:de brd ff:ff:ff:ff:ff:ff new-netnsid 0 new-ifindex 8

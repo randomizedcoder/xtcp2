@@ -1,0 +1,4094 @@
+{
+  "schema": 1,
+  "profile": "vm-all",
+  "scenarios": [
+    {
+      "id": "route-lifecycle",
+      "description": "Inventory, admin/carrier transitions, rename and deletion",
+      "status": "PASS",
+      "evidence": "kernel-virtual",
+      "transactions": [],
+      "message_inventory": [
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": null,
+          "command": 3,
+          "direction": "request",
+          "records": 2,
+          "attributes": [
+            "2"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": "ethtool",
+          "command": 1,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 2,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 18,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 16,
+          "attributes": [
+            "3",
+            "29"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 16,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 48,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "13",
+            "14",
+            "16",
+            "17",
+            "18",
+            "21",
+            "23",
+            "26",
+            "27",
+            "30",
+            "31",
+            "32",
+            "33",
+            "35",
+            "39",
+            "40",
+            "41",
+            "43",
+            "47",
+            "48",
+            "50",
+            "51",
+            "52",
+            "54",
+            "56",
+            "57",
+            "58",
+            "59",
+            "60",
+            "61",
+            "62",
+            "63",
+            "64",
+            "65",
+            "66",
+            "67",
+            "68",
+            "69"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 5,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 90,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 2,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 88,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 16,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 7,
+          "attributes": [
+            "3",
+            "18"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 2,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 10,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 17,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 2,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 17,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 6,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "13",
+            "14",
+            "16",
+            "17",
+            "18",
+            "23",
+            "26",
+            "27",
+            "30",
+            "31",
+            "32",
+            "33",
+            "35",
+            "39",
+            "40",
+            "41",
+            "43",
+            "47",
+            "48",
+            "50",
+            "51",
+            "58",
+            "59",
+            "60",
+            "61",
+            "62",
+            "63",
+            "64",
+            "65",
+            "66",
+            "67",
+            "68",
+            "69"
+          ]
+        },
+        {
+          "protocol": 4,
+          "type": 20,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 1,
+          "attributes": []
+        },
+        {
+          "protocol": 4,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": []
+        }
+      ]
+    },
+    {
+      "id": "cli-query",
+      "description": "Independent ethtool CLI settings query",
+      "status": "PASS",
+      "evidence": "kernel-virtual",
+      "transactions": [
+        {
+          "request": 10,
+          "reply": 11,
+          "reply_offset": 0
+        }
+      ],
+      "message_inventory": [
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": null,
+          "command": 3,
+          "direction": "request",
+          "records": 2,
+          "attributes": [
+            "2"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": "ethtool",
+          "command": 1,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 2,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 9,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 18,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 2,
+          "attributes": [
+            "29"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 16,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 6,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "6",
+            "7",
+            "13",
+            "14",
+            "16",
+            "17",
+            "18",
+            "21",
+            "23",
+            "26",
+            "27",
+            "30",
+            "31",
+            "32",
+            "33",
+            "35",
+            "39",
+            "40",
+            "41",
+            "43",
+            "47",
+            "48",
+            "50",
+            "51",
+            "52",
+            "54",
+            "56",
+            "57",
+            "58",
+            "59",
+            "60",
+            "61",
+            "62",
+            "63",
+            "64",
+            "65",
+            "66",
+            "67",
+            "68",
+            "69"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": []
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 4,
+          "direction": "request",
+          "records": 1,
+          "attributes": [
+            "1"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 4,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "5",
+            "6",
+            "10"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 2,
+          "direction": "request",
+          "records": 1,
+          "attributes": [
+            "1"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 2,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 9,
+          "direction": "request",
+          "records": 1,
+          "attributes": [
+            "1"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 39,
+          "direction": "request",
+          "records": 1,
+          "attributes": [
+            "1"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 7,
+          "direction": "request",
+          "records": 1,
+          "attributes": [
+            "1"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 6,
+          "direction": "request",
+          "records": 1,
+          "attributes": [
+            "1"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 6,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": [
+            "1",
+            "2"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 41,
+          "direction": "request",
+          "records": 1,
+          "attributes": [
+            "1"
+          ]
+        },
+        {
+          "protocol": 4,
+          "type": 20,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 1,
+          "attributes": []
+        },
+        {
+          "protocol": 4,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": []
+        }
+      ]
+    },
+    {
+      "id": "info",
+      "description": "Link identity query",
+      "status": "PASS",
+      "evidence": "kernel-virtual",
+      "transactions": [
+        {
+          "request": 10,
+          "reply": 11,
+          "reply_offset": 0
+        }
+      ],
+      "message_inventory": [
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": null,
+          "command": 3,
+          "direction": "request",
+          "records": 2,
+          "attributes": [
+            "2"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": "ethtool",
+          "command": 1,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 2,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 3,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 18,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 2,
+          "attributes": [
+            "29"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 16,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 6,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "6",
+            "7",
+            "13",
+            "14",
+            "16",
+            "17",
+            "18",
+            "21",
+            "23",
+            "26",
+            "27",
+            "30",
+            "31",
+            "32",
+            "33",
+            "35",
+            "39",
+            "40",
+            "41",
+            "43",
+            "47",
+            "48",
+            "50",
+            "51",
+            "52",
+            "54",
+            "56",
+            "57",
+            "58",
+            "59",
+            "60",
+            "61",
+            "62",
+            "63",
+            "64",
+            "65",
+            "66",
+            "67",
+            "68",
+            "69"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": []
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 2,
+          "direction": "request",
+          "records": 1,
+          "attributes": [
+            "1"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 2,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "protocol": 4,
+          "type": 20,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 1,
+          "attributes": []
+        },
+        {
+          "protocol": 4,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": []
+        }
+      ]
+    },
+    {
+      "id": "modes-compact",
+      "description": "Explicit compact settings query",
+      "status": "PASS",
+      "evidence": "kernel-virtual",
+      "transactions": [
+        {
+          "request": 10,
+          "reply": 11,
+          "reply_offset": 0
+        }
+      ],
+      "message_inventory": [
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": null,
+          "command": 3,
+          "direction": "request",
+          "records": 2,
+          "attributes": [
+            "2"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": "ethtool",
+          "command": 1,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 2,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 3,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 18,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 2,
+          "attributes": [
+            "29"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 16,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 6,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "6",
+            "7",
+            "13",
+            "14",
+            "16",
+            "17",
+            "18",
+            "21",
+            "23",
+            "26",
+            "27",
+            "30",
+            "31",
+            "32",
+            "33",
+            "35",
+            "39",
+            "40",
+            "41",
+            "43",
+            "47",
+            "48",
+            "50",
+            "51",
+            "52",
+            "54",
+            "56",
+            "57",
+            "58",
+            "59",
+            "60",
+            "61",
+            "62",
+            "63",
+            "64",
+            "65",
+            "66",
+            "67",
+            "68",
+            "69"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": []
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 4,
+          "direction": "request",
+          "records": 1,
+          "attributes": [
+            "1"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 4,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "5",
+            "6",
+            "10"
+          ]
+        },
+        {
+          "protocol": 4,
+          "type": 20,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 1,
+          "attributes": []
+        },
+        {
+          "protocol": 4,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": []
+        }
+      ]
+    },
+    {
+      "id": "modes-verbose",
+      "description": "Explicit verbose settings query",
+      "status": "PASS",
+      "evidence": "kernel-virtual",
+      "transactions": [
+        {
+          "request": 10,
+          "reply": 11,
+          "reply_offset": 0
+        }
+      ],
+      "message_inventory": [
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": null,
+          "command": 3,
+          "direction": "request",
+          "records": 2,
+          "attributes": [
+            "2"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": "ethtool",
+          "command": 1,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 2,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 3,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 18,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 2,
+          "attributes": [
+            "29"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 16,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 6,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "6",
+            "7",
+            "13",
+            "14",
+            "16",
+            "17",
+            "18",
+            "21",
+            "23",
+            "26",
+            "27",
+            "30",
+            "31",
+            "32",
+            "33",
+            "35",
+            "39",
+            "40",
+            "41",
+            "43",
+            "47",
+            "48",
+            "50",
+            "51",
+            "52",
+            "54",
+            "56",
+            "57",
+            "58",
+            "59",
+            "60",
+            "61",
+            "62",
+            "63",
+            "64",
+            "65",
+            "66",
+            "67",
+            "68",
+            "69"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": []
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 4,
+          "direction": "request",
+          "records": 1,
+          "attributes": [
+            "1"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 4,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "5",
+            "6",
+            "10"
+          ]
+        },
+        {
+          "protocol": 4,
+          "type": 20,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 1,
+          "attributes": []
+        },
+        {
+          "protocol": 4,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": []
+        }
+      ]
+    },
+    {
+      "id": "state",
+      "description": "Link detection query",
+      "status": "PASS",
+      "evidence": "kernel-virtual",
+      "transactions": [
+        {
+          "request": 10,
+          "reply": 11,
+          "reply_offset": 0
+        }
+      ],
+      "message_inventory": [
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": null,
+          "command": 3,
+          "direction": "request",
+          "records": 2,
+          "attributes": [
+            "2"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": "ethtool",
+          "command": 1,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 2,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 3,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 18,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 2,
+          "attributes": [
+            "29"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 16,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 6,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "6",
+            "7",
+            "13",
+            "14",
+            "16",
+            "17",
+            "18",
+            "21",
+            "23",
+            "26",
+            "27",
+            "30",
+            "31",
+            "32",
+            "33",
+            "35",
+            "39",
+            "40",
+            "41",
+            "43",
+            "47",
+            "48",
+            "50",
+            "51",
+            "52",
+            "54",
+            "56",
+            "57",
+            "58",
+            "59",
+            "60",
+            "61",
+            "62",
+            "63",
+            "64",
+            "65",
+            "66",
+            "67",
+            "68",
+            "69"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": []
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 6,
+          "direction": "request",
+          "records": 1,
+          "attributes": [
+            "1"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 6,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": [
+            "1",
+            "2"
+          ]
+        },
+        {
+          "protocol": 4,
+          "type": 20,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 1,
+          "attributes": []
+        },
+        {
+          "protocol": 4,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": []
+        }
+      ]
+    },
+    {
+      "id": "unsupported",
+      "description": "Unsupported loopback settings query",
+      "status": "EXPECTED_ERROR",
+      "evidence": "kernel-virtual",
+      "transactions": [
+        {
+          "request": 10,
+          "reply": 11,
+          "reply_offset": 0
+        }
+      ],
+      "message_inventory": [
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": null,
+          "command": 3,
+          "direction": "request",
+          "records": 2,
+          "attributes": [
+            "2"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": "ethtool",
+          "command": 1,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 2,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 3,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 18,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 2,
+          "attributes": [
+            "29"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 16,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 6,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "6",
+            "7",
+            "13",
+            "14",
+            "16",
+            "17",
+            "18",
+            "21",
+            "23",
+            "26",
+            "27",
+            "30",
+            "31",
+            "32",
+            "33",
+            "35",
+            "39",
+            "40",
+            "41",
+            "43",
+            "47",
+            "48",
+            "50",
+            "51",
+            "52",
+            "54",
+            "56",
+            "57",
+            "58",
+            "59",
+            "60",
+            "61",
+            "62",
+            "63",
+            "64",
+            "65",
+            "66",
+            "67",
+            "68",
+            "69"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": []
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 4,
+          "direction": "request",
+          "records": 1,
+          "attributes": [
+            "1"
+          ]
+        },
+        {
+          "protocol": 4,
+          "type": 20,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 1,
+          "attributes": []
+        },
+        {
+          "protocol": 4,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": []
+        }
+      ]
+    },
+    {
+      "id": "removed",
+      "description": "Query after actual interface removal",
+      "status": "EXPECTED_ERROR",
+      "evidence": "kernel-virtual",
+      "transactions": [
+        {
+          "request": 16,
+          "reply": 17,
+          "reply_offset": 0
+        }
+      ],
+      "message_inventory": [
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": null,
+          "command": 3,
+          "direction": "request",
+          "records": 2,
+          "attributes": [
+            "2"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": "ethtool",
+          "command": 1,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 2,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 3,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 18,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 3,
+          "attributes": [
+            "3",
+            "29"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 16,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 7,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "6",
+            "7",
+            "13",
+            "14",
+            "16",
+            "17",
+            "18",
+            "21",
+            "23",
+            "26",
+            "27",
+            "30",
+            "31",
+            "32",
+            "33",
+            "35",
+            "39",
+            "40",
+            "41",
+            "43",
+            "47",
+            "48",
+            "50",
+            "51",
+            "52",
+            "54",
+            "56",
+            "57",
+            "58",
+            "59",
+            "60",
+            "61",
+            "62",
+            "63",
+            "64",
+            "65",
+            "66",
+            "67",
+            "68",
+            "69"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 16,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 1,
+          "attributes": [
+            "3",
+            "18"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 2,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 17,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 1,
+          "attributes": []
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 4,
+          "direction": "request",
+          "records": 1,
+          "attributes": [
+            "1"
+          ]
+        },
+        {
+          "protocol": 4,
+          "type": 20,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 1,
+          "attributes": []
+        },
+        {
+          "protocol": 4,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": []
+        }
+      ]
+    },
+    {
+      "id": "invalid",
+      "description": "Unknown request flags rejected",
+      "status": "EXPECTED_ERROR",
+      "evidence": "kernel-virtual",
+      "transactions": [
+        {
+          "request": 10,
+          "reply": 11,
+          "reply_offset": 0
+        }
+      ],
+      "message_inventory": [
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": null,
+          "command": 3,
+          "direction": "request",
+          "records": 2,
+          "attributes": [
+            "2"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": "ethtool",
+          "command": 1,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 2,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 3,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 18,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 2,
+          "attributes": [
+            "29"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 16,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 6,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "6",
+            "7",
+            "13",
+            "14",
+            "16",
+            "17",
+            "18",
+            "21",
+            "23",
+            "26",
+            "27",
+            "30",
+            "31",
+            "32",
+            "33",
+            "35",
+            "39",
+            "40",
+            "41",
+            "43",
+            "47",
+            "48",
+            "50",
+            "51",
+            "52",
+            "54",
+            "56",
+            "57",
+            "58",
+            "59",
+            "60",
+            "61",
+            "62",
+            "63",
+            "64",
+            "65",
+            "66",
+            "67",
+            "68",
+            "69"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": []
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 4,
+          "direction": "request",
+          "records": 1,
+          "attributes": [
+            "1"
+          ]
+        },
+        {
+          "protocol": 4,
+          "type": 20,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 1,
+          "attributes": []
+        },
+        {
+          "protocol": 4,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": []
+        }
+      ]
+    },
+    {
+      "id": "speed-100000",
+      "description": "Virtual scalar readback 100000 Mbps / duplex 1",
+      "status": "PASS",
+      "evidence": "kernel-virtual",
+      "transactions": [
+        {
+          "request": 27,
+          "reply": 28,
+          "reply_offset": 0
+        }
+      ],
+      "message_inventory": [
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": null,
+          "command": 3,
+          "direction": "request",
+          "records": 4,
+          "attributes": [
+            "2"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": "ethtool",
+          "command": 1,
+          "direction": "kernel-delivery",
+          "records": 4,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 2,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 6,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 18,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 3,
+          "attributes": [
+            "29"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 16,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 9,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "6",
+            "7",
+            "13",
+            "14",
+            "16",
+            "17",
+            "18",
+            "21",
+            "23",
+            "26",
+            "27",
+            "30",
+            "31",
+            "32",
+            "33",
+            "35",
+            "39",
+            "40",
+            "41",
+            "43",
+            "47",
+            "48",
+            "50",
+            "51",
+            "52",
+            "54",
+            "56",
+            "57",
+            "58",
+            "59",
+            "60",
+            "61",
+            "62",
+            "63",
+            "64",
+            "65",
+            "66",
+            "67",
+            "68",
+            "69"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 3,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 90,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 2,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 88,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": []
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 5,
+          "direction": "request",
+          "records": 1,
+          "attributes": [
+            "1",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 5,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "5",
+            "6",
+            "10"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 4,
+          "direction": "request",
+          "records": 1,
+          "attributes": [
+            "1"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 4,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "5",
+            "6",
+            "10"
+          ]
+        },
+        {
+          "protocol": 4,
+          "type": 20,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 1,
+          "attributes": []
+        },
+        {
+          "protocol": 4,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": []
+        }
+      ]
+    },
+    {
+      "id": "speed-200000",
+      "description": "Virtual scalar readback 200000 Mbps / duplex 1",
+      "status": "PASS",
+      "evidence": "kernel-virtual",
+      "transactions": [
+        {
+          "request": 27,
+          "reply": 28,
+          "reply_offset": 0
+        }
+      ],
+      "message_inventory": [
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": null,
+          "command": 3,
+          "direction": "request",
+          "records": 4,
+          "attributes": [
+            "2"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": "ethtool",
+          "command": 1,
+          "direction": "kernel-delivery",
+          "records": 4,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 2,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 6,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 18,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 3,
+          "attributes": [
+            "29"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 16,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 9,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "6",
+            "7",
+            "13",
+            "14",
+            "16",
+            "17",
+            "18",
+            "21",
+            "23",
+            "26",
+            "27",
+            "30",
+            "31",
+            "32",
+            "33",
+            "35",
+            "39",
+            "40",
+            "41",
+            "43",
+            "47",
+            "48",
+            "50",
+            "51",
+            "52",
+            "54",
+            "56",
+            "57",
+            "58",
+            "59",
+            "60",
+            "61",
+            "62",
+            "63",
+            "64",
+            "65",
+            "66",
+            "67",
+            "68",
+            "69"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 3,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 90,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 2,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 88,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": []
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 5,
+          "direction": "request",
+          "records": 1,
+          "attributes": [
+            "1",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 5,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "5",
+            "6",
+            "10"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 4,
+          "direction": "request",
+          "records": 1,
+          "attributes": [
+            "1"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 4,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "5",
+            "6",
+            "10"
+          ]
+        },
+        {
+          "protocol": 4,
+          "type": 20,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 1,
+          "attributes": []
+        },
+        {
+          "protocol": 4,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": []
+        }
+      ]
+    },
+    {
+      "id": "speed-400000",
+      "description": "Virtual scalar readback 400000 Mbps / duplex 1",
+      "status": "PASS",
+      "evidence": "kernel-virtual",
+      "transactions": [
+        {
+          "request": 27,
+          "reply": 28,
+          "reply_offset": 0
+        }
+      ],
+      "message_inventory": [
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": null,
+          "command": 3,
+          "direction": "request",
+          "records": 4,
+          "attributes": [
+            "2"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": "ethtool",
+          "command": 1,
+          "direction": "kernel-delivery",
+          "records": 4,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 2,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 6,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 18,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 3,
+          "attributes": [
+            "29"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 16,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 9,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "6",
+            "7",
+            "13",
+            "14",
+            "16",
+            "17",
+            "18",
+            "21",
+            "23",
+            "26",
+            "27",
+            "30",
+            "31",
+            "32",
+            "33",
+            "35",
+            "39",
+            "40",
+            "41",
+            "43",
+            "47",
+            "48",
+            "50",
+            "51",
+            "52",
+            "54",
+            "56",
+            "57",
+            "58",
+            "59",
+            "60",
+            "61",
+            "62",
+            "63",
+            "64",
+            "65",
+            "66",
+            "67",
+            "68",
+            "69"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 3,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 90,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 2,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 88,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": []
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 5,
+          "direction": "request",
+          "records": 1,
+          "attributes": [
+            "1",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 5,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "5",
+            "6",
+            "10"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 4,
+          "direction": "request",
+          "records": 1,
+          "attributes": [
+            "1"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 4,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "5",
+            "6",
+            "10"
+          ]
+        },
+        {
+          "protocol": 4,
+          "type": 20,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 1,
+          "attributes": []
+        },
+        {
+          "protocol": 4,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": []
+        }
+      ]
+    },
+    {
+      "id": "speed-800000",
+      "description": "Virtual scalar readback 800000 Mbps / duplex 1",
+      "status": "PASS",
+      "evidence": "kernel-virtual",
+      "transactions": [
+        {
+          "request": 27,
+          "reply": 28,
+          "reply_offset": 0
+        }
+      ],
+      "message_inventory": [
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": null,
+          "command": 3,
+          "direction": "request",
+          "records": 4,
+          "attributes": [
+            "2"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": "ethtool",
+          "command": 1,
+          "direction": "kernel-delivery",
+          "records": 4,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 2,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 6,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 18,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 3,
+          "attributes": [
+            "29"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 16,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 9,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "6",
+            "7",
+            "13",
+            "14",
+            "16",
+            "17",
+            "18",
+            "21",
+            "23",
+            "26",
+            "27",
+            "30",
+            "31",
+            "32",
+            "33",
+            "35",
+            "39",
+            "40",
+            "41",
+            "43",
+            "47",
+            "48",
+            "50",
+            "51",
+            "52",
+            "54",
+            "56",
+            "57",
+            "58",
+            "59",
+            "60",
+            "61",
+            "62",
+            "63",
+            "64",
+            "65",
+            "66",
+            "67",
+            "68",
+            "69"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 3,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 90,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 2,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 88,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": []
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 5,
+          "direction": "request",
+          "records": 1,
+          "attributes": [
+            "1",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 5,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "5",
+            "6",
+            "10"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 4,
+          "direction": "request",
+          "records": 1,
+          "attributes": [
+            "1"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 4,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "5",
+            "6",
+            "10"
+          ]
+        },
+        {
+          "protocol": 4,
+          "type": 20,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 1,
+          "attributes": []
+        },
+        {
+          "protocol": 4,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": []
+        }
+      ]
+    },
+    {
+      "id": "duplex-half",
+      "description": "Virtual scalar readback 100 Mbps / duplex 0",
+      "status": "PASS",
+      "evidence": "kernel-virtual",
+      "transactions": [
+        {
+          "request": 27,
+          "reply": 28,
+          "reply_offset": 0
+        }
+      ],
+      "message_inventory": [
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": null,
+          "command": 3,
+          "direction": "request",
+          "records": 4,
+          "attributes": [
+            "2"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": "ethtool",
+          "command": 1,
+          "direction": "kernel-delivery",
+          "records": 4,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 2,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 6,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 18,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 3,
+          "attributes": [
+            "29"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 16,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 9,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "6",
+            "7",
+            "13",
+            "14",
+            "16",
+            "17",
+            "18",
+            "21",
+            "23",
+            "26",
+            "27",
+            "30",
+            "31",
+            "32",
+            "33",
+            "35",
+            "39",
+            "40",
+            "41",
+            "43",
+            "47",
+            "48",
+            "50",
+            "51",
+            "52",
+            "54",
+            "56",
+            "57",
+            "58",
+            "59",
+            "60",
+            "61",
+            "62",
+            "63",
+            "64",
+            "65",
+            "66",
+            "67",
+            "68",
+            "69"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 3,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 90,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 2,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 88,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": []
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 5,
+          "direction": "request",
+          "records": 1,
+          "attributes": [
+            "1",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 5,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "5",
+            "6",
+            "10"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 4,
+          "direction": "request",
+          "records": 1,
+          "attributes": [
+            "1"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 4,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "5",
+            "6",
+            "10"
+          ]
+        },
+        {
+          "protocol": 4,
+          "type": 20,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 1,
+          "attributes": []
+        },
+        {
+          "protocol": 4,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": []
+        }
+      ]
+    },
+    {
+      "id": "settings-unknown",
+      "description": "Virtual scalar readback 4294967295 Mbps / duplex 255",
+      "status": "PASS",
+      "evidence": "kernel-virtual",
+      "transactions": [
+        {
+          "request": 27,
+          "reply": 28,
+          "reply_offset": 0
+        }
+      ],
+      "message_inventory": [
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": null,
+          "command": 3,
+          "direction": "request",
+          "records": 4,
+          "attributes": [
+            "2"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": "ethtool",
+          "command": 1,
+          "direction": "kernel-delivery",
+          "records": 4,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 2,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 6,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 18,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 3,
+          "attributes": [
+            "29"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 16,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 9,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "6",
+            "7",
+            "13",
+            "14",
+            "16",
+            "17",
+            "18",
+            "21",
+            "23",
+            "26",
+            "27",
+            "30",
+            "31",
+            "32",
+            "33",
+            "35",
+            "39",
+            "40",
+            "41",
+            "43",
+            "47",
+            "48",
+            "50",
+            "51",
+            "52",
+            "54",
+            "56",
+            "57",
+            "58",
+            "59",
+            "60",
+            "61",
+            "62",
+            "63",
+            "64",
+            "65",
+            "66",
+            "67",
+            "68",
+            "69"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 3,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 90,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 2,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 88,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": []
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 5,
+          "direction": "request",
+          "records": 1,
+          "attributes": [
+            "1",
+            "5",
+            "6"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 5,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "5",
+            "6",
+            "10"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 4,
+          "direction": "request",
+          "records": 1,
+          "attributes": [
+            "1"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 4,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "5",
+            "6",
+            "10"
+          ]
+        },
+        {
+          "protocol": 4,
+          "type": 20,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 1,
+          "attributes": []
+        },
+        {
+          "protocol": 4,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": []
+        }
+      ]
+    },
+    {
+      "id": "route-move-source",
+      "description": "Departure from source namespace",
+      "status": "PASS",
+      "evidence": "kernel-virtual",
+      "transactions": [],
+      "message_inventory": [
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": null,
+          "command": 3,
+          "direction": "request",
+          "records": 2,
+          "attributes": [
+            "2"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": "ethtool",
+          "command": 1,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 2,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 18,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 4,
+          "attributes": [
+            "3",
+            "29"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 16,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 12,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "6",
+            "7",
+            "13",
+            "14",
+            "16",
+            "17",
+            "18",
+            "21",
+            "23",
+            "26",
+            "27",
+            "30",
+            "31",
+            "32",
+            "33",
+            "35",
+            "39",
+            "40",
+            "41",
+            "43",
+            "47",
+            "48",
+            "50",
+            "51",
+            "52",
+            "54",
+            "56",
+            "57",
+            "58",
+            "59",
+            "60",
+            "61",
+            "62",
+            "63",
+            "64",
+            "65",
+            "66",
+            "67",
+            "68",
+            "69"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 3,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 90,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 2,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 88,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 16,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 2,
+          "attributes": [
+            "3",
+            "18",
+            "28"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 2,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 17,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "6",
+            "7",
+            "13",
+            "14",
+            "16",
+            "17",
+            "18",
+            "23",
+            "26",
+            "27",
+            "30",
+            "31",
+            "32",
+            "33",
+            "35",
+            "39",
+            "40",
+            "41",
+            "43",
+            "45",
+            "47",
+            "48",
+            "49",
+            "50",
+            "51",
+            "58",
+            "59",
+            "60",
+            "61",
+            "62",
+            "63",
+            "64",
+            "65",
+            "66",
+            "67",
+            "68",
+            "69"
+          ]
+        },
+        {
+          "protocol": 4,
+          "type": 20,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 1,
+          "attributes": []
+        },
+        {
+          "protocol": 4,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": []
+        }
+      ]
+    },
+    {
+      "id": "route-move-target",
+      "description": "Arrival in target namespace",
+      "status": "PASS",
+      "evidence": "kernel-virtual",
+      "transactions": [],
+      "message_inventory": [
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": null,
+          "command": 3,
+          "direction": "request",
+          "records": 2,
+          "attributes": [
+            "2"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": "ethtool",
+          "command": 1,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 2,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 18,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 5,
+          "attributes": [
+            "3",
+            "29"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 16,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 11,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "6",
+            "7",
+            "13",
+            "14",
+            "16",
+            "17",
+            "18",
+            "23",
+            "26",
+            "27",
+            "30",
+            "31",
+            "32",
+            "33",
+            "35",
+            "39",
+            "40",
+            "41",
+            "43",
+            "47",
+            "48",
+            "50",
+            "51",
+            "58",
+            "59",
+            "60",
+            "61",
+            "62",
+            "63",
+            "64",
+            "65",
+            "66",
+            "67",
+            "68",
+            "69"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 3,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 90,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 2,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 88,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": []
+        },
+        {
+          "protocol": 4,
+          "type": 20,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 1,
+          "attributes": []
+        },
+        {
+          "protocol": 4,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": []
+        }
+      ]
+    },
+    {
+      "id": "sim-fec",
+      "description": "netdevsim fec GET/SET/notification/readback",
+      "status": "PASS",
+      "evidence": "kernel-simulator",
+      "transactions": [
+        {
+          "request": 39,
+          "reply": 40,
+          "reply_offset": 0
+        }
+      ],
+      "message_inventory": [
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": null,
+          "command": 3,
+          "direction": "request",
+          "records": 6,
+          "attributes": [
+            "2"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": "ethtool",
+          "command": 1,
+          "direction": "kernel-delivery",
+          "records": 6,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 2,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 10,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 18,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 3,
+          "attributes": [
+            "29"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 16,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 12,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "6",
+            "7",
+            "13",
+            "14",
+            "16",
+            "17",
+            "18",
+            "21",
+            "22",
+            "23",
+            "26",
+            "27",
+            "30",
+            "31",
+            "32",
+            "33",
+            "35",
+            "36",
+            "38",
+            "39",
+            "40",
+            "41",
+            "43",
+            "47",
+            "48",
+            "50",
+            "51",
+            "52",
+            "54",
+            "56",
+            "57",
+            "58",
+            "59",
+            "60",
+            "61",
+            "62",
+            "63",
+            "64",
+            "65",
+            "66",
+            "67",
+            "68",
+            "69"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 3,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 90,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 2,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 88,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": []
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 29,
+          "direction": "request",
+          "records": 2,
+          "attributes": [
+            "1"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 30,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 30,
+          "direction": "request",
+          "records": 2,
+          "attributes": [
+            "1",
+            "2",
+            "3"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 31,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4"
+          ]
+        },
+        {
+          "protocol": 4,
+          "type": 20,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 1,
+          "attributes": []
+        },
+        {
+          "protocol": 4,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": []
+        }
+      ]
+    },
+    {
+      "id": "sim-pause",
+      "description": "netdevsim pause GET/SET/notification/readback",
+      "status": "PASS",
+      "evidence": "kernel-simulator",
+      "transactions": [
+        {
+          "request": 38,
+          "reply": 39,
+          "reply_offset": 0
+        }
+      ],
+      "message_inventory": [
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": null,
+          "command": 3,
+          "direction": "request",
+          "records": 6,
+          "attributes": [
+            "2"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": "ethtool",
+          "command": 1,
+          "direction": "kernel-delivery",
+          "records": 6,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 2,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 10,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 18,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 3,
+          "attributes": [
+            "29"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 16,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 12,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "6",
+            "7",
+            "13",
+            "14",
+            "16",
+            "17",
+            "18",
+            "21",
+            "22",
+            "23",
+            "26",
+            "27",
+            "30",
+            "31",
+            "32",
+            "33",
+            "35",
+            "36",
+            "38",
+            "39",
+            "40",
+            "41",
+            "43",
+            "47",
+            "48",
+            "50",
+            "51",
+            "52",
+            "54",
+            "56",
+            "57",
+            "58",
+            "59",
+            "60",
+            "61",
+            "62",
+            "63",
+            "64",
+            "65",
+            "66",
+            "67",
+            "68",
+            "69"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 3,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 90,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 2,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 88,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": []
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 21,
+          "direction": "request",
+          "records": 2,
+          "attributes": [
+            "1"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 22,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 22,
+          "direction": "request",
+          "records": 2,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 23,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4"
+          ]
+        },
+        {
+          "protocol": 4,
+          "type": 20,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 1,
+          "attributes": []
+        },
+        {
+          "protocol": 4,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": []
+        }
+      ]
+    },
+    {
+      "id": "sim-rings",
+      "description": "netdevsim rings GET/SET/notification/readback",
+      "status": "PASS",
+      "evidence": "kernel-simulator",
+      "transactions": [
+        {
+          "request": 39,
+          "reply": 40,
+          "reply_offset": 0
+        }
+      ],
+      "message_inventory": [
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": null,
+          "command": 3,
+          "direction": "request",
+          "records": 6,
+          "attributes": [
+            "2"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 16,
+          "family": "ethtool",
+          "command": 1,
+          "direction": "kernel-delivery",
+          "records": 6,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 2,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 10,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 18,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 3,
+          "attributes": [
+            "29"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 16,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 12,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "6",
+            "7",
+            "13",
+            "14",
+            "16",
+            "17",
+            "18",
+            "21",
+            "22",
+            "23",
+            "26",
+            "27",
+            "30",
+            "31",
+            "32",
+            "33",
+            "35",
+            "36",
+            "38",
+            "39",
+            "40",
+            "41",
+            "43",
+            "47",
+            "48",
+            "50",
+            "51",
+            "52",
+            "54",
+            "56",
+            "57",
+            "58",
+            "59",
+            "60",
+            "61",
+            "62",
+            "63",
+            "64",
+            "65",
+            "66",
+            "67",
+            "68",
+            "69"
+          ]
+        },
+        {
+          "protocol": 0,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 3,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 90,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 2,
+          "attributes": []
+        },
+        {
+          "protocol": 0,
+          "type": 88,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": []
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 15,
+          "direction": "request",
+          "records": 2,
+          "attributes": [
+            "1"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 16,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "11",
+            "13",
+            "14",
+            "17",
+            "18"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 16,
+          "direction": "request",
+          "records": 2,
+          "attributes": [
+            "1",
+            "6",
+            "9"
+          ]
+        },
+        {
+          "protocol": 16,
+          "type": 23,
+          "family": "ethtool",
+          "command": 17,
+          "direction": "kernel-delivery",
+          "records": 2,
+          "attributes": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "11",
+            "13",
+            "14",
+            "17",
+            "18"
+          ]
+        },
+        {
+          "protocol": 4,
+          "type": 20,
+          "family": null,
+          "command": null,
+          "direction": "request",
+          "records": 1,
+          "attributes": []
+        },
+        {
+          "protocol": 4,
+          "type": 3,
+          "family": null,
+          "command": null,
+          "direction": "kernel-delivery",
+          "records": 1,
+          "attributes": []
+        }
+      ]
+    }
+  ],
+  "hardware_and_followup_gaps": [
+    {
+      "id": "physical-100GE",
+      "status": "MISSING"
+    },
+    {
+      "id": "physical-200GE",
+      "status": "MISSING"
+    },
+    {
+      "id": "physical-400GE",
+      "status": "MISSING"
+    },
+    {
+      "id": "physical-800GE",
+      "status": "MISSING"
+    },
+    {
+      "id": "physical-half-duplex",
+      "status": "MISSING"
+    },
+    {
+      "id": "peer-renegotiation",
+      "status": "MISSING"
+    },
+    {
+      "id": "linkinfo-set-notify",
+      "status": "MISSING"
+    },
+    {
+      "id": "populated-high-mode-bitsets",
+      "status": "MISSING"
+    },
+    {
+      "id": "physical-extended-diagnostics",
+      "status": "MISSING"
+    },
+    {
+      "id": "listener-loss-and-resync",
+      "status": "MISSING"
+    },
+    {
+      "id": "older-kernel-matrix",
+      "status": "MISSING"
+    }
+  ],
+  "valid": true
+}

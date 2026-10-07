@@ -1,0 +1,26 @@
+{
+  "required": true,
+  "evidence": "kernel-virtual",
+  "id": "invalid",
+  "description": "Unknown request flags rejected",
+  "expected": "EXPECTED_ERROR",
+  "queries": [
+    {
+      "kind": "modes",
+      "device": "nltest0",
+      "errno": [
+        22
+      ]
+    }
+  ],
+  "raw": "invalid/raw.pcap",
+  "command_log": "invalid/commands.jsonl",
+  "capture_log": "invalid/tcpdump.stderr",
+  "namespace": "nlcap-607",
+  "status": "EXPECTED_ERROR",
+  "namespace_identity": "net:[4026532258]",
+  "capture_ready": true,
+  "capture_buffer_kib": 32768,
+  "sentinel": true,
+  "drops": 0
+}

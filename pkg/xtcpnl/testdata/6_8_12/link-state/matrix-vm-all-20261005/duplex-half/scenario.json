@@ -1,0 +1,39 @@
+{
+  "required": true,
+  "evidence": "kernel-virtual",
+  "expected": "PASS",
+  "id": "duplex-half",
+  "description": "Virtual scalar readback 100 Mbps / duplex 0",
+  "events": true,
+  "queries": [
+    {
+      "kind": "modes",
+      "device": "nltest0",
+      "values": {
+        "speed": 100,
+        "duplex": 0
+      }
+    }
+  ],
+  "settings": [
+    {
+      "kind": "modes",
+      "device": "nltest0",
+      "values": {
+        "speed": 100,
+        "duplex": 0
+      }
+    }
+  ],
+  "raw": "duplex-half/raw.pcap",
+  "command_log": "duplex-half/commands.jsonl",
+  "capture_log": "duplex-half/tcpdump.stderr",
+  "namespace": "nlcap-607",
+  "status": "PASS",
+  "namespace_identity": "net:[4026532258]",
+  "capture_ready": true,
+  "capture_buffer_kib": 32768,
+  "subscribers_ready": true,
+  "sentinel": true,
+  "drops": 0
+}

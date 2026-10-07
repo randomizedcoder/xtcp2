@@ -1,0 +1,4 @@
+tcpdump: listening on nlmon0, link-type NETLINK (Linux netlink), snapshot length 262144 bytes
+28 packets captured
+28 packets received by filter
+0 packets dropped by kernel

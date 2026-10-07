@@ -1,0 +1,39 @@
+{
+  "id": "sim-fec",
+  "description": "netdevsim fec GET/SET/notification/readback",
+  "required": false,
+  "evidence": "kernel-simulator",
+  "expected": "PASS",
+  "events": true,
+  "queries": [
+    {
+      "kind": "fec",
+      "device": "nlsim0",
+      "values": {
+        "fec_auto": 0,
+        "fec_active": 51
+      }
+    }
+  ],
+  "settings": [
+    {
+      "kind": "fec",
+      "device": "nlsim0",
+      "values": {
+        "fec_auto": 0,
+        "fec_active": 51
+      }
+    }
+  ],
+  "raw": "sim-fec/raw.pcap",
+  "command_log": "sim-fec/commands.jsonl",
+  "capture_log": "sim-fec/tcpdump.stderr",
+  "namespace": "nlcap-607",
+  "status": "PASS",
+  "namespace_identity": "net:[4026532258]",
+  "capture_ready": true,
+  "capture_buffer_kib": 32768,
+  "subscribers_ready": true,
+  "sentinel": true,
+  "drops": 0
+}

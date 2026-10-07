@@ -1,0 +1,42 @@
+Timestamp: Tue Oct  6 03:04:48 2026 189480 usec
+4: nlv1@NONE: <BROADCAST,MULTICAST> mtu 1500 qdisc noop state DOWN group default 
+    link/ether ee:6a:45:5f:de:fb brd ff:ff:ff:ff:ff:ff
+Timestamp: Tue Oct  6 03:04:48 2026 191213 usec
+5: nlv0@nlv1: <BROADCAST,MULTICAST,M-DOWN> mtu 1500 qdisc noop state DOWN group default 
+    link/ether d6:cb:8a:dd:89:11 brd ff:ff:ff:ff:ff:ff
+Timestamp: Tue Oct  6 03:04:48 2026 217277 usec
+5: nlv0@nlv1: <NO-CARRIER,BROADCAST,MULTICAST,UP,M-DOWN> mtu 1500 qdisc noqueue state LOWERLAYERDOWN group default 
+    link/ether d6:cb:8a:dd:89:11 brd ff:ff:ff:ff:ff:ff
+Timestamp: Tue Oct  6 03:04:48 2026 245182 usec
+4: nlv1@nlv0: <NO-CARRIER,BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state LOWERLAYERDOWN group default 
+    link/ether ee:6a:45:5f:de:fb brd ff:ff:ff:ff:ff:ff
+Timestamp: Tue Oct  6 03:04:48 2026 245246 usec
+4: nlv1@nlv0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default 
+    link/ether ee:6a:45:5f:de:fb brd ff:ff:ff:ff:ff:ff
+Timestamp: Tue Oct  6 03:04:48 2026 245253 usec
+5: nlv0@nlv1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default 
+    link/ether d6:cb:8a:dd:89:11 brd ff:ff:ff:ff:ff:ff
+Timestamp: Tue Oct  6 03:04:48 2026 302169 usec
+4: nlv1@nlv0: <BROADCAST,MULTICAST> mtu 1500 qdisc noqueue state DOWN group default 
+    link/ether ee:6a:45:5f:de:fb brd ff:ff:ff:ff:ff:ff
+Timestamp: Tue Oct  6 03:04:48 2026 302211 usec
+5: nlv0@nlv1: <NO-CARRIER,BROADCAST,MULTICAST,UP,M-DOWN> mtu 1500 qdisc noqueue state LOWERLAYERDOWN group default 
+    link/ether d6:cb:8a:dd:89:11 brd ff:ff:ff:ff:ff:ff
+Timestamp: Tue Oct  6 03:04:48 2026 349358 usec
+5: nlv0@nlv1: <BROADCAST,MULTICAST,M-DOWN> mtu 1500 qdisc noqueue state DOWN group default 
+    link/ether d6:cb:8a:dd:89:11 brd ff:ff:ff:ff:ff:ff
+Timestamp: Tue Oct  6 03:04:48 2026 379058 usec
+5: nlrenamed@nlv1: <BROADCAST,MULTICAST,M-DOWN> mtu 1500 qdisc noqueue state DOWN group default 
+    link/ether d6:cb:8a:dd:89:11 brd ff:ff:ff:ff:ff:ff
+Timestamp: Tue Oct  6 03:04:48 2026 404967 usec
+Deleted 5: nlrenamed@NONE: <BROADCAST,MULTICAST> mtu 1500 qdisc noop state DOWN group default 
+    link/ether d6:cb:8a:dd:89:11 brd ff:ff:ff:ff:ff:ff
+Timestamp: Tue Oct  6 03:04:48 2026 405158 usec
+Deleted 4: nlv1@NONE: <BROADCAST,MULTICAST> mtu 1500 qdisc noop state DOWN group default 
+    link/ether ee:6a:45:5f:de:fb brd ff:ff:ff:ff:ff:ff
+Timestamp: Tue Oct  6 03:04:48 2026 440426 usec
+6: nlrenamed: <BROADCAST,NOARP> mtu 1500 qdisc noop state DOWN group default 
+    link/ether 76:8a:e4:ec:1c:59 brd ff:ff:ff:ff:ff:ff
+Timestamp: Tue Oct  6 03:04:48 2026 465895 usec
+Deleted 6: nlrenamed: <BROADCAST,NOARP> mtu 1500 qdisc noop state DOWN group default 
+    link/ether 76:8a:e4:ec:1c:59 brd ff:ff:ff:ff:ff:ff

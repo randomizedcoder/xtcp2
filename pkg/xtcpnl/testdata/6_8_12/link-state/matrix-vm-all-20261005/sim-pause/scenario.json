@@ -1,0 +1,41 @@
+{
+  "id": "sim-pause",
+  "description": "netdevsim pause GET/SET/notification/readback",
+  "required": false,
+  "evidence": "kernel-simulator",
+  "expected": "PASS",
+  "events": true,
+  "queries": [
+    {
+      "kind": "pause",
+      "device": "nlsim0",
+      "values": {
+        "autoneg": 0,
+        "rx": 1,
+        "tx": 1
+      }
+    }
+  ],
+  "settings": [
+    {
+      "kind": "pause",
+      "device": "nlsim0",
+      "values": {
+        "autoneg": 0,
+        "rx": 1,
+        "tx": 1
+      }
+    }
+  ],
+  "raw": "sim-pause/raw.pcap",
+  "command_log": "sim-pause/commands.jsonl",
+  "capture_log": "sim-pause/tcpdump.stderr",
+  "namespace": "nlcap-607",
+  "status": "PASS",
+  "namespace_identity": "net:[4026532258]",
+  "capture_ready": true,
+  "capture_buffer_kib": 32768,
+  "subscribers_ready": true,
+  "sentinel": true,
+  "drops": 0
+}

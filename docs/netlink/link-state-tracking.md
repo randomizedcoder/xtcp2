@@ -1,5 +1,181 @@
 # Link state, speed and duplex tracking: xtcp2 and go-link-monitor
 
+## Capture implementation follow-up
+
+The modular capture implementation is now under
+[`nix/netlink-capture/`](../../nix/netlink-capture/README.md). It adds the
+`microvm-x86_64-netlink-capture`, `capture-netlink-hardware` and
+`validate-netlink-fixtures` apps, plus the offline `netlink-fixtures` check.
+The README gives commands, profiles, evidence formats and promotion criteria.
+
+Kernel selection is now a declarative matrix in
+[`nix/netlink-capture/kernels.nix`](../../nix/netlink-capture/kernels.nix):
+`6_8` pins upstream 6.8.12 and `7_1_4` pins 7.1.4. Each entry generates its
+own capture app; `microvm-x86_64-netlink-capture-all-kernels` runs all targets
+sequentially with identical userspace. New captures verify and record the
+actual kernel release against the selected target. Adding a future release
+such as 7.3 means extending this table and providing a pinned package, not
+copying VM or runner definitions. See the README's kernel-matrix section.
+The 6.8 baseline is not a substitute for Ubuntu/vendor-kernel fleet captures.
+Both matrix targets subsequently passed three consecutive full-profile runs
+on 2026-10-05 (20 scenarios per kernel, zero reported drops). The final pair
+is preserved under `testdata/{6_8_12,7_1_4}/link-state/matrix-vm-all-20261005/`.
+The original 7.1.4 bundle below remains unchanged.
+
+The capture tooling and independent corpus validation are now complemented
+by stateless production decoders and Go fixture tests (see below). There is
+still no live ethtool monitor or reconciled link-state cache. Constructed
+validator tests are not real kernel fixtures. Three consecutive `vm-all`
+guest runs on 2026-10-05 passed all 20 scenarios on kernel 7.1.4 with zero
+reported capture drops. The final run is preserved in
+[`testdata/7_1_4/link-state/vm-all-20261005`](../../pkg/xtcpnl/testdata/7_1_4/link-state/vm-all-20261005/manifest.json),
+with 17 positive scenarios and three expected-error scenarios. It includes
+kernel-virtual speed/duplex and netdevsim diagnostic evidence, not physical
+negotiation. Hardware coverage remains explicitly outstanding. Existing
+capture/parity interfaces are kept.
+
+## Static-analysis cleanup: 2026-10-05–06
+
+The production ethtool decoder now separates command classification, device
+headers, per-kind payloads, and compact/verbose bitsets into private helpers.
+Public decoder signatures, presence semantics, unknown attributes and error
+classifications are preserved. Test buffers derive their capacities from the
+input words and scenario collections. Function-length and complexity limits,
+audit policies, allowlists and all three lint configurations are unchanged.
+
+The redundant untracked production reflection decoder was removed after a
+byte-for-byte backup to
+`/tmp/xtcp2-reflection-decoder-backup-4zec91xa/xtcpnl_decode_netlink_request.go`
+(SHA-256 `c32ac42ec59675d5c6f3fb3bd24520b17e86459a197531a515fecff6ca38f8b0`).
+The existing test-only reference decoder and benchmarks remain. No Go overlay
+is required or used for this validation; the historical compilation blocker
+recorded in the original analysis below is resolved.
+
+Lookup-cache publication and zstd-probe output now create directories with
+mode `0750`, subject to the caller's umask. Table-driven tests cover missing and
+nested directories, absence of world access, preservation of existing directory
+permissions, readable output/cache rotation, and a file blocking a required
+path component. Production code does not chmod existing directories or change
+the process umask. Nix module cleanup removes only unused arguments and formats
+the bootstrap test with the pinned formatter.
+
+Removing the compilation blocker also exposed findings outside the decoder.
+Cleanup errors are now retained alongside primary errors; authentication jitter
+honors cancellation; stream authentication uses each RPC's context. CLI flag
+helpers were split without changing flags or defaults, and repeated renderer
+names and the existing British CLI alias have single definitions. Test-created
+feed files use private permissions. Authentication regression tests check both
+unary and streaming rejection/cancellation and prevent calls to protected
+handlers. No captures or fixture expectations were regenerated.
+
+Verified with the flake-pinned Go 1.26.5 and Nix formatter 1.4.0; the final
+race run also explicitly used the flake-pinned GCC 15.3.0 (`pkgs.stdenv.cc`):
+
+| Check | Result |
+|---|---|
+| Complete `pkg/xtcpnl`, `pkg/ipasn`, `cmd/zstd-probe` suites, without overlays | Passed |
+| Link-state replay | Passed all 40 kernel/scenario combinations: 20 each on 6.8.12 and 7.1.4 |
+| Targeted race tests for decoding/replay, cache publication, decompression and authentication | Passed |
+| `FuzzParseEthtool`, 30 seconds, two workers | Passed, 196,191 executions |
+| Flake evaluation (`nix flake check --no-build path:$PWD`) and bootstrap VM module evaluation | Passed on x86_64-linux with untracked files included |
+| All 17 static/offline flake checks | Passed; all three lint tiers report zero issues |
+| Pinned listener-security, bootstrap artifact and bootstrap OCI content tests | Passed |
+| Retained test-only reflection decoder benchmark, one-iteration smoke run | Passed |
+
+The 17 checks are `gofmt`, `nix-fmt`, `deadnix`, `statix`, `go-vet`,
+`golangci-lint-quick`, `golangci-lint`, `golangci-lint-comprehensive`, `go-sec`,
+`netlink-audit`, `iouring-audit`, `metrics-audit`, `proto-field-audit`,
+`upstream-pins`, `proto-audit-netlink`, `netlink-fixtures` and
+`netlink-capture-matrix`. The final combined Nix build exited successfully with
+20 outputs, including the three integration tests. Local run evidence is in
+`/tmp/xtcp2-static-cleanup-final-results.json` and
+`/tmp/xtcp2-static-cleanup-final.log`.
+
+The collector, goip/rendering and file-fetch test packages also passed.
+Daemon/listener integration was verified through Nix with its pinned giouring
+source: a supplementary direct Go run against the unrelated local giouring
+replacement could not link `pkg/xtcp` or `cmd/xtcp2` (`syscall.munmap`). No local
+dependency replacement or linker-check bypass was introduced.
+
+The layout oracle retains its existing `NL_Diag_TCPInfo` gate; it does not
+validate ethtool layouts. Live monitoring and physical-NIC coverage remain
+outside this cleanup.
+
+## Production decoder tests: 2026-10-05 follow-up
+
+[`xtcpnl_genetlink.go`](../../pkg/xtcpnl/xtcpnl_genetlink.go) now decodes
+generic-netlink headers, attributes and controller family discovery, including
+runtime family and multicast-group IDs.
+[`xtcpnl_ethtool.go`](../../pkg/xtcpnl/xtcpnl_ethtool.go) adds stateless
+LINKINFO, LINKMODES, LINKSTATE, FEC, PAUSE and RINGS decoding, with separate
+user/kernel command interpretation. A RINGS command numbered 16 is a SET in
+the user enum but a GET_REPLY in the kernel enum. Notifications are classified
+by their command, not by an assumption that PID/sequence must be zero.
+Callers must dispatch by socket protocol and resolve the `ethtool` family
+before calling `ParseEthtool`; these functions do not open sockets or
+authenticate senders.
+
+Optional numeric fields are pointers: nil means absent, while present zero
+and present unknown remain distinct. Speed stays uint32 Mbps; `0xffffffff`
+and duplex `255` are retained as raw unknown sentinels. There is no uint16
+narrowing, speed cap, or implicit conversion of `65535` to unknown. Compact
+bitsets retain value/mask words; verbose bitsets retain indices, names and
+values, including NOMASK semantics. Allocations are bounded by actual input,
+not a claimed bitset size. Unknown attributes and flags are retained with
+owned payloads; unsupported commands/versions return an explicit error.
+Known malformed fields and duplicate known singletons fail decoding. This is
+not a complete ethtool implementation: diagnostic statistics, additional ring
+options, and unimplemented commands still need typed decoding if consumers
+require them. Error returns must be checked before consuming partial output.
+
+The Go tables in
+[`xtcpnl_linkstate_fixtures_test.go`](../../pkg/xtcpnl/xtcpnl_linkstate_fixtures_test.go)
+exercise **all 20 scenarios on both 6.8.12 and 7.1.4**. Expectations are explicit
+values derived from the capture operations and independent command sidecars,
+not goldens emitted by the production decoder under test. Each row includes a
+description and expected outcome. Replay checks pcap framing, cooked protocol
+IDs, every aligned message in every record, and equality of the raw stream's
+ROUTE/GENERIC projections with the saved filtered pcaps. Duplicate nlmon
+deliveries are allowed; tests do not require one record per transition.
+
+| Input / class | Expected production-decoder outcome |
+|---|---|
+| Both kernels: lifecycle and namespace-move pcaps / positive | Decode NEWLINK/DELLINK, rename, carrier and admin fields, single GET and multipart DONE. Peer-down veth reports carrier=0 and LOWERLAYERDOWN while still admin-up; admin-down remains distinct. |
+| Both kernels: discovery and CLI/helper queries / positive | Resolve family/group IDs from the capture; decode device identity, link detection and compact/verbose settings. |
+| Both kernels: 100000, 200000, 400000, 800000 Mbps / positive virtual-wire | Preserve the exact speed and full duplex in both GET replies and notifications; do not treat successful ACK alone as readback. |
+| Both kernels: half and unknown / boundary virtual-wire | Retain half=0 at 100 Mbps and unknown speed/duplex sentinels; absence is not zero. |
+| Both kernels: FEC/pause/rings / positive simulator-wire | FEC auto=0, active link-mode index=51 and populated mode bit; pause auto=0/RX=1/TX=1; rings RX=128/TX=128, in replies and notifications. |
+| Both kernels: unsupported/deleted/invalid / negative real-wire | Match EOPNOTSUPP, ENODEV and EINVAL to the embedded original request header; invalid flags retain extended-ACK evidence. No settings reply substitutes for an error. |
+| Constructed scalar boundaries | Preserve 0, 65534/65535/65536, high rates, uint32 max-1/max and future duplex enums. Widen before multiplying 800000 Mbps to 800000000000 bits/s. |
+| Constructed bitmap corners | Preserve bits across indices 31/32, 63/64 and 127, empty sets, separate masks, name-only verbose entries and NOMASK entries without BIT_VALUE. |
+| Constructed malformed inputs | Reject truncated/overrunning attributes, wrong scalar widths, duplicate singletons, malformed nesting, impossible bitmap lengths and out-of-range/duplicate bit indices. |
+| Constructed forward-compatibility / ownership corners | Keep opaque unknown attributes and their flags; reused receive buffers cannot change retained values. Unsupported commands/versions remain explicit. |
+
+Boundary and malformed tables live in
+[`xtcpnl_ethtool_test.go`](../../pkg/xtcpnl/xtcpnl_ethtool_test.go), alongside a
+fuzz target seeded with real compact/verbose/FEC bodies from both kernels.
+Constructed cases are deliberately not classified as physical or kernel-wire
+capture evidence. Existing Nix Go unit and `test-pkg-xtcpnl` targets include
+these package tests automatically; the independent Python corpus check remains
+a separate layer. No capture runner or VM change is needed to run the Go tests.
+
+```sh
+# Offline tests only: no root, KVM, live sockets or NIC required.
+go test ./pkg/xtcpnl -run 'Test(LinkState|Ethtool|GenericNetlink)|FuzzParseEthtool' -count=1
+go test -race ./pkg/xtcpnl -run 'Test(LinkState|Ethtool|GenericNetlink)' -count=1
+go test ./pkg/xtcpnl -run '^$' -fuzz '^FuzzParseEthtool$' -fuzztime=30s -parallel=2
+```
+
+Remaining work is live collection, loss detection/resync, namespace/ifindex
+lifecycle reduction, and representative physical fleet captures. These tests
+do not prove notification delivery completeness, actual 100–800GE negotiation,
+driver-specific diagnostics, or populated high-speed physical mode bitsets.
+The existing `IsUp()` helper requires both IFF_UP and IFF_RUNNING; it is not
+an admin-state accessor. The fixture table checks admin state separately.
+
+The remainder is the original source analysis and recommended coverage scope;
+proposed items there should not all be interpreted as implemented features.
+
 Analysis date: 2026-10-04. This report examines the local working trees of
 xtcp2 (`9f6be2b058b17bb31b4d6557c5fde4450f181de4`, with existing changes) and
 `/home/das/Downloads/go-link-monitor`

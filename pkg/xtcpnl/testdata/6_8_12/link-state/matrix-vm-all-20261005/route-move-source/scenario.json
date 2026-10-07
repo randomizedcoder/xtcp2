@@ -1,0 +1,26 @@
+{
+  "required": true,
+  "evidence": "kernel-virtual",
+  "expected": "PASS",
+  "id": "route-move-source",
+  "description": "Departure from source namespace",
+  "events": true,
+  "messages": [
+    {
+      "protocol": 0,
+      "type": 17,
+      "ifname": "nlmove"
+    }
+  ],
+  "raw": "route-move-source/raw.pcap",
+  "command_log": "route-move-source/commands.jsonl",
+  "capture_log": "route-move-source/tcpdump.stderr",
+  "namespace": "nlcap-607",
+  "status": "PASS",
+  "namespace_identity": "net:[4026532258]",
+  "capture_ready": true,
+  "capture_buffer_kib": 32768,
+  "subscribers_ready": true,
+  "sentinel": true,
+  "drops": 0
+}
