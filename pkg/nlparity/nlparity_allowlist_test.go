@@ -628,9 +628,18 @@ func TestAllowlistCommitted(t *testing.T) {
 			// twenty-fourth was gated - and both intervals ended the same
 			// way, by a new command being compared ungated first. The `-s`
 			// sweep's five ended the second such interval; three of them
-			// have since gated, so what keeps the sentinel load-bearing now
-			// is these two: twenty-seven of twenty-nine gate and two can
-			// warn.
+			// have since gated.
+			//
+			// These two are no longer the whole ungated surface. The matrix
+			// has grown to forty-one rows and twenty-seven are gated, so
+			// fourteen can warn: these two plus the twelve family, table and
+			// `-j` rows added with the JSON facet work, which stay ungated
+			// until a live run measures them.
+			// internal/goipparity's TestUngatedSurfaceIsNotVacuous pins that
+			// set of fourteen by name. What this row still owns is the
+			// narrower claim: these two SPECIFICALLY stay out, for the
+			// reasons below, so a branch gating the twelve cannot sweep
+			// these up with them.
 			//
 			// Naming them rather than asserting a bare count is deliberate.
 			// A count passes if the two held out are a DIFFERENT two, which
@@ -651,7 +660,7 @@ func TestAllowlistCommitted(t *testing.T) {
 			// moves. Both are recorded in goip-parity-allowlist.json's
 			// _comment; gating either on this row's bar would retire a
 			// question rather than answer it.
-			description: "negative: the two -s sweep commands whose noise is unresolved are deliberately NOT gated, so UNGATED_CLEAN is not vacuous",
+			description: "negative: the two -s sweep commands whose noise is unresolved are deliberately NOT gated, so they stay among the rows UNGATED_CLEAN reads",
 			check: func(t *testing.T, a *Allowlist) {
 				heldOut := []string{
 					"-s addr show",

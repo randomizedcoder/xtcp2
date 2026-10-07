@@ -29,7 +29,7 @@ each sent** and the **text each printed**. It is the strongest evidence in the
 tree that `pkg/xtcpnl` decodes what the kernel actually said, because the
 reference is iproute2 itself rather than our reading of iproute2.
 
-Twenty-nine commands are compared and twenty-four are gated. The counts, what
+Forty-one commands are compared and twenty-seven are gated. The counts, what
 "gated" costs to earn, and the scope boundaries — read-only, five objects — are
 in [parity at a glance](coverage-status.md#goip--ip-parity-at-a-glance). The
 comparator is `pkg/nlparity` (protocol level) and `internal/goipparity`
