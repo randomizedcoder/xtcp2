@@ -16,6 +16,10 @@ positive/negative/boundary/corner table conventions, including descriptions and
 explicit expected outcomes. Tests accompany code; P11 is not a reason to defer
 earlier validation.
 
+Use [VALIDATION.md](VALIDATION.md) for the repeatable pinned Nix targets and
+retained evidence format. `test-linkmonitor` covers the focused software checks;
+phase-specific acceptance and the P11 release/hardware gates still apply.
+
 Task IDs are permanent. Existing completed IDs must not be renumbered or reused.
 Add new IDs when scope grows; preserve history and explain superseded tasks.
 Update plan and status together for changed dependencies or deliverables. A

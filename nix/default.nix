@@ -899,6 +899,11 @@ in
       # case, so per-package would be duplicate work.
       test-go-race = tests.go-race;
     }
+    # The focused monitor aggregate includes pure/race suites, its unchanged
+    # comprehensive lint policy, replay, bounded fuzzing and document checks.
+    // {
+      inherit (tests) test-linkmonitor;
+    }
     // (lib.filterAttrs (n: _v: lib.hasPrefix "test-go-flavor-" n) tests);
 
   apps = {

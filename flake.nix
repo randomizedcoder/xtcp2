@@ -3,6 +3,9 @@
 #
 # Thin orchestrator. Every concern lives under ./nix/ and is wired up here.
 # See ./nix/default.nix for the per-system aggregator.
+# Monitor "run all": nix build path:.#test-linkmonitor -L
+# Runs tests, race, vet, lint, formatting, replay, fuzzing and doc checks.
+# See ./nix/README.md for individual targets, logs and Nix policy checks.
 #
 # Quick references:
 #   nix develop                          # dev shell
@@ -10,7 +13,8 @@
 #   nix build .#xtcp2-all                # every cmd/* binary
 #   nix build .#oci-xtcp2                # OCI image (load via `./result | docker load`)
 #   nix run    .#regen-protos            # `buf generate` (needs network)
-#   nix flake check                      # Tier 0+1 lint + go-vet + audits + smokes
+#   nix flake check                      # all registered checks, including monitor suite
+#   nix build path:.#test-linkmonitor -L  # focused monitor gates; includes untracked files
 #   nix run    .#microvm-x86_64-lifecycle  # boot xtcp2 in a VM, run 3-check self-test
 #   nix run    .#microvm-x86_64-discovery-bench  # ns-discovery A/B (dir vs /proc scan)
 #   nix run    .#microvm-x86_64-goip-parity  # ip vs goip netlink comparison (needs /dev/kvm)

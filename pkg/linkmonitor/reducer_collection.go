@@ -3,6 +3,7 @@ package linkmonitor
 import (
 	"fmt"
 	"math"
+	"time"
 
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/model"
 )
@@ -18,6 +19,9 @@ type collectorState struct {
 	history                  map[sampleKey]counterObservation
 	discontinuities          uint64
 	publication              *collectorSnapshot
+	attempted, succeeded     bool
+	hasSuccess, fresh        bool
+	duration                 model.Optional[time.Duration]
 }
 
 // collectorBlock owns immutable schema and value storage. Subsequent results
@@ -83,13 +87,14 @@ func (r *reducer) finishCollection(result model.Result) (bool, error) {
 	if current != result.Job.Token {
 		return false, nil
 	}
-	defer func() {
-		state.publication = nil
-		if i, exists := r.index[result.Job.Key.Device]; exists {
-			r.markDirty(i)
-		}
-	}()
+	defer r.collectionChanged(result.Job.Key, state)
 	state.lastAttempt = result.Finished
+	state.attempted, state.succeeded = true, false
+	state.duration = model.Optional[time.Duration]{}
+	if result.Job.Started.Monotonic < 0 || result.Finished.Monotonic < result.Job.Started.Monotonic {
+		return true, state.malformed(fmt.Errorf("invalid collection time range"))
+	}
+	state.duration = presentValue(result.Finished.Monotonic - result.Job.Started.Monotonic)
 	if result.Err != nil {
 		state.lastError, state.reason = result.Err, result.Reason
 		if state.reason == model.ErrorNone {
@@ -100,15 +105,14 @@ func (r *reducer) finishCollection(result model.Result) (bool, error) {
 		}
 		return true, nil
 	}
-	if result.Finished.Monotonic < result.Job.Started.Monotonic {
-		return true, state.malformed(fmt.Errorf("collection finished before it started"))
-	}
 	if result.Support != model.Supported {
 		if len(result.Samples) != 0 || result.Support > model.NotApplicable {
 			return true, state.malformed(fmt.Errorf("samples without supported collection"))
 		}
 		state.support, state.reason, state.lastError = result.Support, model.ErrorNone, nil
 		state.block = nil
+		state.fresh, state.succeeded = false, true
+		r.deadlines.cancel(deadlineKey{job: result.Job.Key})
 		return true, nil
 	}
 	block, err := freezeSamples(state.block, result.Samples)
@@ -118,6 +122,8 @@ func (r *reducer) finishCollection(result model.Result) (bool, error) {
 	state.updateHistory(block)
 	state.block, state.support, state.reason, state.lastError = block, model.Supported, model.ErrorNone, nil
 	state.lastSuccess = result.Finished
+	state.fresh, state.hasSuccess, state.succeeded = true, true, true
+	r.armExpiry(result.Job, state)
 	return true, nil
 }
 

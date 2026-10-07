@@ -4,6 +4,7 @@ import (
 	"math"
 	"math/bits"
 	"strconv"
+	"time"
 
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/model"
 )
@@ -30,11 +31,15 @@ type collectorSnapshot struct {
 	lastAttempt, lastSuccess model.Stamp
 	discontinuities          uint64
 	block                    *collectorBlock
+	attempted, succeeded     bool
+	hasSuccess, fresh        bool
+	duration                 model.Optional[time.Duration]
 }
 
 type publicationState struct {
 	health   Health
 	expected model.Optional[uint64]
+	now      model.Stamp
 }
 
 func (r *reducer) markDirty(index int) {
@@ -56,11 +61,13 @@ func (r *reducer) publish(m *Monitor, state publicationState) error {
 		}
 		version = previous.version + 1
 	}
+	r.expire(state.now.Monotonic)
 	pageCount := (len(r.slots) + devicesPerPage - 1) / devicesPerPage
 	next := &snapshotRoot{
-		version: version, namespace: r.namespace, health: state.health,
-		counts: LinkCounts{current: model.Optional[uint64]{Value: r.upCount, Present: r.uncertain == 0}, expected: state.expected},
-		host:   freezeCollector(&r.host), pages: make([]*devicePage, pageCount),
+		version: version, namespace: r.namespace, health: r.publicationHealth(state.health.Running, state.expected.Present),
+		lastResync: r.lastResync,
+		counts:     LinkCounts{current: model.Optional[uint64]{Value: r.upCount, Present: r.uncertain == 0}, expected: state.expected},
+		host:       freezeCollector(&r.host), pages: make([]*devicePage, pageCount),
 	}
 	if previous != nil {
 		copy(next.pages, previous.pages)
@@ -110,6 +117,7 @@ func (r *reducer) resetDirty(pageCount int) {
 
 func freezeDevice(slot *deviceSlot) *deviceBlock {
 	d := &slot.device
+	checks := effectiveChecks(slot)
 	identity := "netdev:" + strconv.FormatUint(uint64(d.Key.Index), 10)
 	name := d.Name
 	if d.Key.Kind == model.DeviceNativeRDMA {
@@ -120,8 +128,8 @@ func freezeDevice(slot *deviceSlot) *deviceBlock {
 		view: DeviceView{
 			identity: identity, name: name, generation: d.Token.Generation,
 			up: d.Up.Value, upKnown: d.Up.Present, eligibility: d.Eligibility,
-			maximumSpeed: slot.checks.maximumSpeed, maximumWidth: slot.checks.maximumWidth,
-			fullDuplex: slot.checks.fullDuplex, rdmaReadiness: slot.checks.rdmaReadiness,
+			maximumSpeed: checks.maximumSpeed, maximumWidth: checks.maximumWidth,
+			fullDuplex: checks.fullDuplex, rdmaReadiness: checks.rdmaReadiness,
 			upTransitions: slot.upTransitions, downTransitions: slot.downTransitions,
 		},
 		observed: slot.observed,
@@ -129,6 +137,7 @@ func freezeDevice(slot *deviceSlot) *deviceBlock {
 	for kind := range slot.collectors {
 		block.collectors[kind] = freezeCollector(&slot.collectors[kind])
 	}
+	block.view.collectors = &block.collectors
 	return block
 }
 
@@ -138,6 +147,8 @@ func freezeCollector(state *collectorState) *collectorSnapshot {
 			support: state.support, reason: state.reason,
 			lastAttempt: state.lastAttempt, lastSuccess: state.lastSuccess,
 			discontinuities: state.discontinuities, block: state.block,
+			attempted: state.attempted, succeeded: state.succeeded,
+			hasSuccess: state.hasSuccess, fresh: state.fresh, duration: state.duration,
 		}
 	}
 	return state.publication

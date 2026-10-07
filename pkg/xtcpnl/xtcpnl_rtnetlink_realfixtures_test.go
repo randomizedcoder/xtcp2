@@ -133,6 +133,8 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 	// reachable false: `ip -6 addr show`'s link dump is answered by
 	// inet6_dump_ifinfo, not rtnl_fill_ifinfo, and that one omits it. Which
 	// fill function answered is therefore part of what these flags record.
+	// Carrier counts are transcribed from the committed dump: attributes 35,
+	// 47 and 48 (u32). They are not printed by the plain ip_link_n sidecar.
 	tests := []struct {
 		description string
 		want        LinkInfo
@@ -155,7 +157,10 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 			description: "positive: loopback lo renders every token of ip_link_n:1-2",
 			want: LinkInfo{
 				Index: 1, Flags: 0x10049, Name: "lo", Type: 772,
-				OperState: IfOperUnknown, HasOperState: true,
+				CarrierChanges:   U32Attr{Value: 0, Present: true},
+				CarrierUpCount:   U32Attr{Value: 0, Present: true},
+				CarrierDownCount: U32Attr{Value: 0, Present: true},
+				OperState:        IfOperUnknown, HasOperState: true,
 				Carrier: 1, HasCarrier: true,
 				MTU: 65536, HasMTU: true,
 				LinkMode: 0, HasLinkMode: true,
@@ -186,7 +191,10 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 			description: "positive: primary NIC enp1s0 carries a real MAC, qdisc mq and one altname",
 			want: LinkInfo{
 				Index: 2, Flags: 0x11043, Name: "enp1s0", Type: 1,
-				OperState: IfOperUp, HasOperState: true,
+				CarrierChanges:   U32Attr{Value: 1, Present: true},
+				CarrierUpCount:   U32Attr{Value: 1, Present: true},
+				CarrierDownCount: U32Attr{Value: 0, Present: true},
+				OperState:        IfOperUp, HasOperState: true,
 				Carrier: 1, HasCarrier: true,
 				MTU: 1500, HasMTU: true,
 				LinkMode: 0, HasLinkMode: true,
@@ -204,7 +212,10 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 			description: "positive: NIC enp35s0f0np0, index 3, with its altname",
 			want: LinkInfo{
 				Index: 3, Flags: 0x11043, Name: "enp35s0f0np0", Type: 1,
-				OperState: IfOperUp, HasOperState: true,
+				CarrierChanges:   U32Attr{Value: 5, Present: true},
+				CarrierUpCount:   U32Attr{Value: 3, Present: true},
+				CarrierDownCount: U32Attr{Value: 2, Present: true},
+				OperState:        IfOperUp, HasOperState: true,
 				Carrier: 1, HasCarrier: true,
 				MTU: 1500, HasMTU: true,
 				LinkMode: 0, HasLinkMode: true,
@@ -232,7 +243,10 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 			description: "positive: veth ve-nfb-vpn carries IFLA_LINK, IFLA_LINK_NETNSID and kind veth",
 			want: LinkInfo{
 				Index: 58, Flags: 0x11043, Name: "ve-nfb-vpn", Type: 1,
-				OperState: IfOperUp, HasOperState: true,
+				CarrierChanges:   U32Attr{Value: 2, Present: true},
+				CarrierUpCount:   U32Attr{Value: 1, Present: true},
+				CarrierDownCount: U32Attr{Value: 1, Present: true},
+				OperState:        IfOperUp, HasOperState: true,
 				Carrier: 1, HasCarrier: true,
 				MTU: 1500, HasMTU: true,
 				LinkMode: 0, HasLinkMode: true,
@@ -257,7 +271,10 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 			description: "positive: bridge member veth179a698 carries IFLA_MASTER 9 and txqlen 0",
 			want: LinkInfo{
 				Index: 60, Flags: 0x11043, Name: "veth179a698", Type: 1,
-				OperState: IfOperUp, HasOperState: true,
+				CarrierChanges:   U32Attr{Value: 2, Present: true},
+				CarrierUpCount:   U32Attr{Value: 1, Present: true},
+				CarrierDownCount: U32Attr{Value: 1, Present: true},
+				OperState:        IfOperUp, HasOperState: true,
 				Carrier: 1, HasCarrier: true,
 				MTU: 1500, HasMTU: true,
 				LinkMode: 0, HasLinkMode: true,
@@ -290,6 +307,9 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 			description: "positive: bridge virbr0 decodes kind bridge and carrier 0",
 			want: LinkInfo{
 				Index: 7, Flags: 0x1003, Name: "virbr0", Type: 1,
+				CarrierChanges:   U32Attr{Value: 1, Present: true},
+				CarrierUpCount:   U32Attr{Value: 0, Present: true},
+				CarrierDownCount: U32Attr{Value: 1, Present: true},
 				// Carrier 0 WITH HasCarrier true is the row that earns the
 				// flag: IFLA_CARRIER is present and says zero, which is a
 				// different fact from the attribute being absent, and the
@@ -328,7 +348,10 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 			description: "corner: long veth name truncated in IFNAME but intact in AltNames, index 59",
 			want: LinkInfo{
 				Index: 59, Flags: 0x11043, Name: "ve-nordlayepDd-", Type: 1,
-				OperState: IfOperUp, HasOperState: true,
+				CarrierChanges:   U32Attr{Value: 2, Present: true},
+				CarrierUpCount:   U32Attr{Value: 1, Present: true},
+				CarrierDownCount: U32Attr{Value: 1, Present: true},
+				OperState:        IfOperUp, HasOperState: true,
 				Carrier: 1, HasCarrier: true,
 				MTU: 1500, HasMTU: true,
 				LinkMode: 0, HasLinkMode: true,
@@ -353,7 +376,10 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 			description: "boundary: nlmon0 has no IFLA_ADDRESS and no IFLA_BROADCAST",
 			want: LinkInfo{
 				Index: 161, Flags: 0x100c1, Name: "nlmon0", Type: 824,
-				OperState: IfOperUnknown, HasOperState: true,
+				CarrierChanges:   U32Attr{Value: 0, Present: true},
+				CarrierUpCount:   U32Attr{Value: 0, Present: true},
+				CarrierDownCount: U32Attr{Value: 0, Present: true},
+				OperState:        IfOperUnknown, HasOperState: true,
 				Carrier: 1, HasCarrier: true,
 				MTU: 3776, HasMTU: true,
 				LinkMode: 0, HasLinkMode: true,

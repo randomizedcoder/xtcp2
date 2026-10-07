@@ -22,6 +22,12 @@ type reducer struct {
 	upCount, uncertain                              uint64
 	host                                            collectorState
 	dirtyPages                                      []uint32
+	deadlines                                       deadlineQueue
+	freshness                                       freshnessPolicy
+	lastResync                                      model.Optional[model.Stamp]
+	resyncEpoch                                     uint64
+	routeEvents, rdmaEvents, resyncOverdue          bool
+	requiredRDMA, missingRDMA                       uint64
 }
 
 type deviceSlot struct {
@@ -31,10 +37,13 @@ type deviceSlot struct {
 	upTransitions, downTransitions uint64
 	collectors                     [model.CollectorNetstat + 1]collectorState
 	checks                         deviceChecks
+	requiresRDMA, missingRDMA      bool
 }
 
 func newReducer(namespace uint64) *reducer {
-	return &reducer{namespace: namespace, epoch: 1, index: make(map[model.DeviceKey]int)}
+	cfg := DefaultConfig()
+	return &reducer{namespace: namespace, epoch: 1, index: make(map[model.DeviceKey]int),
+		freshness: freshnessPolicy{poll: 3 * cfg.StatsInterval, configuration: 2 * cfg.Resync}}
 }
 
 // observe accepts an authoritative ordered observation. Event observations use
@@ -78,6 +87,7 @@ func (r *reducer) observe(observation model.Observation) (bool, error) {
 	r.revision++
 	d.Token.Revision, d.Token.SourceEpoch = r.revision, r.epoch
 	if replaced {
+		r.cancelDeviceDeadlines(d.Key)
 		r.generation++
 		d.Token.Generation = r.generation
 		r.unaccount(slot)
@@ -88,6 +98,7 @@ func (r *reducer) observe(observation model.Observation) (bool, error) {
 		r.unaccount(slot)
 	}
 	slot.device, slot.observed = d, observation.Observed
+	slot.checks = deviceChecks{}
 	r.account(slot)
 	r.markDirty(i)
 	return true, nil
@@ -138,6 +149,12 @@ func countDecision(d model.Device) model.Optional[bool] {
 }
 
 func (r *reducer) unaccount(slot *deviceSlot) {
+	if slot.requiresRDMA {
+		r.requiredRDMA--
+	}
+	if slot.missingRDMA {
+		r.missingRDMA--
+	}
 	if slot.counted {
 		r.upCount--
 	}
@@ -147,6 +164,14 @@ func (r *reducer) unaccount(slot *deviceSlot) {
 }
 
 func (r *reducer) account(slot *deviceSlot) {
+	slot.requiresRDMA = slot.device.Eligibility == model.Eligible && (slot.device.Key.Kind == model.DeviceNativeRDMA || slot.device.RDMA)
+	slot.missingRDMA = slot.requiresRDMA && !slot.collectors[model.CollectorRDMAState].fresh
+	if slot.requiresRDMA {
+		r.requiredRDMA++
+	}
+	if slot.missingRDMA {
+		r.missingRDMA++
+	}
 	decision := countDecision(slot.device)
 	if decision.Present {
 		slot.counted = decision.Value
@@ -183,6 +208,7 @@ func (r *reducer) remove(key model.DeviceKey, token model.Token) (bool, error) {
 		return false, errSequenceExhausted
 	}
 	r.revision++
+	r.cancelDeviceDeadlines(key)
 	r.unaccount(r.slots[i])
 	last := len(r.slots) - 1
 	r.markDirty(i)
@@ -224,5 +250,10 @@ func (r *reducer) loseEvents() error {
 	}
 	r.epoch++
 	r.revision++
+	r.routeEvents = false
+	for i, slot := range r.slots {
+		slot.checks = deviceChecks{}
+		r.markDirty(i)
+	}
 	return nil
 }
