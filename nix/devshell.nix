@@ -53,7 +53,7 @@ let
       Static analysis (fix issues, do not ignore):
         lint-quick                              Tier 0  (~90s, pre-commit)
         lint                                    Tier 1  (~2min, CI gating)
-        lint-comprehensive                      Tier 2  (~10min, nightly)
+        lint-comprehensive                      Tier 2  (~10min, ratchet-gated)
         lint-fix                                Apply auto-fixable findings
         lint-new                                Lint only the diff since HEAD~1
                                                 All five take relative config

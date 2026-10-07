@@ -616,17 +616,22 @@ func TestRunMainFlagErrors(t *testing.T) {
 // committed artifact is validated by a test rather than by the reviewer
 // remembering to.
 //
-// The assertions on the gated tiers are the ones that matter. Tiers 0 and 1 are
-// gated, and gating a tier that still has findings would make the check
-// permanently red, which is the same as turning it off — the discipline
-// nix/checks/default.nix already records for proto-audit-netlink's
-// gatedProtocols.
+// ALL THREE tiers are gated as of 2026-10-06, so every ceiling below is 0 and
+// the whole table is an equality by construction. Gating a tier that still has
+// findings would make the check permanently red, which is the same as turning
+// it off — the discipline nix/checks/default.nix already records for
+// proto-audit-netlink's gatedProtocols.
 //
 // A promoted tier's ceiling comes down to 0 in the same commit as the
 // promotion. Otherwise this test keeps certifying a baseline allowed to hold
 // lines for a tier the build now gates, and a line in a gated tier's section is
 // an accepted finding — a decision that belongs in a diff, not in a ceiling
 // nobody lowered.
+//
+// With every ceiling at 0 the CEILING machinery below has no slack left to
+// exercise, which is deliberate rather than vestigial: raising one is how a
+// future finding would be accepted, and that edit has to appear in a diff next
+// to the lines it admits.
 func TestLintBaselineCommitted(t *testing.T) {
 	const path = "../../docs/lint-baseline.txt"
 	data, err := os.ReadFile(path)
@@ -649,11 +654,9 @@ func TestLintBaselineCommitted(t *testing.T) {
 	// of one class in one file collapse to a single line. That mattered while
 	// the tiers were full — 26 and 30 findings were 19 and 23 lines, because
 	// three files held the same flagged spelling twice and errcheck's 12
-	// collapsed to 8 — and it does not today, since tier2's three remaining
-	// findings are three distinct keys. Note they are all in ONE file, which is
-	// the case the collapse would bite: three funlen findings in cmd/xtcp2.go
-	// stay three keys only because their messages name different functions.
-	// See normalizeKey.
+	// collapsed to 8. It cannot matter while every ceiling is 0, but it will
+	// the moment one is raised, so the distinction stays recorded here rather
+	// than only in the commit that last relied on it. See normalizeKey.
 	tests := []struct {
 		description string
 		tier        tier
@@ -670,9 +673,9 @@ func TestLintBaselineCommitted(t *testing.T) {
 			expectedMax: 0,
 		},
 		{
-			description: "boundary: advisory tier2 holds no more than the 3 keys measured when the baseline was last regenerated — funlen x3, all in cmd/xtcp2, with gocyclo gone from here because it is gated in tier1 now",
+			description: "positive: the gated tier2 section is empty, the last of the three — its final three findings were funlen x3 in cmd/xtcp2, closed by the defineFlags/printFlags/envOverrideLabeling split, and this ceiling came down to 0 in the same commit as the promotion",
 			tier:        tier2,
-			expectedMax: 3,
+			expectedMax: 0,
 		},
 	}
 	for _, tc := range tests {

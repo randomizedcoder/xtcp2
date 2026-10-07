@@ -445,6 +445,13 @@ func TestParseBaselineLine_table(t *testing.T) {
 			tier0, "cmd/a/main.go | msg (unused)", nil,
 		},
 		{
+			// This was a REAL tier2 baseline line until 2026-10-06, when the
+			// defineFlags split closed it and tier2 reached zero. It is kept
+			// rather than refreshed because it is the hardest shape the parser
+			// sees — a message carrying parentheses, a `>`, two numbers and a
+			// trailing (linter) group — and because the parser's job is to read
+			// any line this file has ever held, not only outstanding ones. Do
+			// not read it as a live finding.
 			"positive_tier2", "positive",
 			"tier2\tcmd/xtcp2/xtcp2.go | defineFlags is too long (79 > 70) (funlen)",
 			tier2, "cmd/xtcp2/xtcp2.go | defineFlags is too long (79 > 70) (funlen)", nil,

@@ -9,7 +9,18 @@ reaches it measures nothing.* This document extends the same standard to every
 analyzer in the tree, and records what is actually outstanding so the backlog
 is a list rather than a vibe.
 
-This is not a status badge. It is a work list with a diagnosis per item.
+**As of 2026-10-06 the backlog is empty.** It started at 46 Go findings plus 4
+Nix ones, measured 2026-10-05; every one is closed, every golangci tier measures
+0, `docs/lint-baseline.txt` holds no finding lines, and all three tiers are
+gated by the ratchet. Not one of them was closed by raising a ceiling, widening
+a blanket exclusion or adding a `//nolint` to production logic.
+
+This is still not a status badge, and it is deliberately not rewritten into one.
+Each class below keeps its diagnosis, because the diagnosis is what makes the
+next finding of that class cheap — and in four places it keeps a **wrong**
+prescription next to the correction, because what this document got wrong about
+`setRuleAttr`, `funlen`, `statix` and `deadnix`'s line numbers is more useful
+than a clean sheet.
 
 ## Contents
 
@@ -80,7 +91,7 @@ otherwise until 2026-10-05.
 |---|---|---|---|---|
 | `golangci-lint-quick` (Tier 0) | `.golangci-quick.yml` | yes | ~90 s | — (subset) |
 | `golangci-lint` (Tier 1) | `.golangci.yml` | yes | ~2 min | `errcheck`, `gosec`, `misspell`, `contextcheck`, `noctx`, `gocritic`, `gocyclo` (promoted 2026-10-06) |
-| `golangci-lint-comprehensive` (Tier 2) | `.golangci-comprehensive.yml` | yes | ~10 min | **`funlen`, `goconst`, `unconvert`, `exhaustive`** |
+| `golangci-lint-comprehensive` (Tier 2) | `.golangci-comprehensive.yml` | yes | ~10 min | **`funlen`, `goconst`, `unconvert`, `exhaustive`, `prealloc`, `dupl`, `nakedret`** |
 | `go-sec` | gosec directly | yes | ~2 min | gosec standalone; sees **no `_test.go`**, since it does not pass `-tests` and gosec skips them by default |
 | `go-vet` | `enable-all`, minus `fieldalignment` and `shadow` | yes | fast | — |
 | `gofmt` / `nix-fmt` | — | yes | fast | formatting |
@@ -92,15 +103,23 @@ otherwise until 2026-10-05.
 its whole reason for existing. The other nine reported a tier's entire finding
 list, which had been non-empty long enough that their red carried no
 information. This one compares against a committed list and fails only on an
-addition, so one red means one thing: a regression landed. It gates **Tiers 0
-and 1** as of 2026-10-06 — see
+addition, so one red means one thing: a regression landed.
+
+**As of 2026-10-06 every check in that table is green, and `lint-baseline` gates
+all three tiers.** That is the end state this document was written to reach:
+`docs/lint-baseline.txt` holds zero finding lines, so the ratchet is an equality
+rather than a ceiling, and the other checks' exit codes carry information again
+on their own. The order in which they went green was Tier 0, then `go-sec`, then
+Tier 1's last 26 findings, then `gocyclo`'s last 1, then Tier 2's last 3 plus
+the four Nix findings — see
 [the ratchet](#the-ratchet-a-check-that-is-green-at-baseline).
 
-Since that date `golangci-lint-quick` and `golangci-lint` are green too, so
-their exit codes carry information again on their own, and
-`checks.kernel-citation-audit` joins the list as a tenth green one.
-`golangci-lint-comprehensive` is the only lint check still red, at four
-findings.
+The three tiers also genuinely **nest** now. They did not until 2026-10-06:
+`forbidigo` was enabled in Tier 1 and absent from Tier 2, so
+"Tier 0 ⊂ Tier 1 ⊂ Tier 2" — which the ratchet leans on, since it treats Tier 2
+as the superset — was false, and a `runtime.UnlockOSThread` finding was
+invisible in the tier the baseline trusts most. It was added to Tier 2's config
+after being measured at 0 there.
 
 Its ~13 minutes of wall clock live in `nix/lint-baseline-measure.nix`, a package
 rather than a check, because it must produce output even when the tiers are
@@ -121,13 +140,33 @@ instance being noticed at the time.
 6 first, `gocyclo` then measured 0 across production code, and only then was it
 added to `.golangci.yml`. Promoting a linter while one function still holds a
 permanent finding in the destination tier just recreates the problem one tier
-earlier — a red that is always red. The four that remain (`funlen`, `goconst`,
-`unconvert`, `exhaustive`) are promoted the same way, each blocked on emptying
-its own class; `funlen` is next and is tracked in `TODO-SOON.md`.
+earlier — a red that is always red. The classes that remain in Tier 2 only
+(`funlen`, `goconst`, `unconvert`, `exhaustive`, `prealloc`, `dupl`, `nakedret`)
+would be promoted the same way, each after emptying its own class.
+
+**But the bite is much smaller than it was**, because the ratchet gates Tier 2
+as of 2026-10-06. A new `funlen` or `prealloc` finding now fails
+`lint-baseline` on the commit that introduces it. That is strictly weaker than
+Tier 1 promotion — the tier check itself still will not fail, so a finding
+inherited from a branch point stays invisible to `lint` — and it closes the
+specific hole that let `gocyclo` through twice.
+
+`prealloc` is worth a sentence of its own. `CONTRIBUTING.md` argues it makes a
+poor *gate*, because one `continue` anywhere in a file silences every
+`prealloc` hint in that file. That objection is about promoting it into Tier 1,
+where it would block on its own finding list, and it does not transfer to the
+ratchet: the ratchet fails only on an addition, so `prealloc`'s blind spot makes
+findings *vanish* — never a failure — and reappear later as legitimately new
+ones.
 
 **None of this runs on a schedule.** There is no `.github/`, no CI and no cron
-in this repository. "Nightly", which appears in four places, means "when
-someone types the command".
+in this repository. "Nightly" used to appear in four places, each naming an
+intention — `CONTRIBUTING.md`, `.golangci-comprehensive.yml`,
+`nix/lint-tiers.nix` and `nix/devshell.nix`. All four are corrected as of
+2026-10-06, because a reader who believed them concluded that something watched
+Tier 2 on a cadence. The ratchet is the most that can be done without a
+scheduler, and it is enough: it fails on the commit, which is earlier than any
+nightly run would have.
 
 **`go build ./...` on the host fails on two packages, and it is not a finding.**
 `cmd/xtcp2` and `cmd/ns` both end in
@@ -209,6 +248,15 @@ Counted 2026-10-05 from a full `nix flake check --keep-going` on the
 
 Tier 0 ⊂ Tier 1 ⊂ Tier 2 exactly: 3 ⊂ 36 ⊂ 46. **So there are 46 distinct Go
 findings, not 85** — the tiers are nested, and adding the columns double-counts.
+
+That nesting held **by coincidence**, and it was discovered on 2026-10-06 that
+the configs did not actually guarantee it: `forbidigo` was enabled in Tier 1 and
+not in Tier 2. The counts nested anyway because `forbidigo` reported 0, so no
+measurement in this document was wrong — but the property the ratchet leans on
+was not real. Fixed the same day by adding `forbidigo` to
+`.golangci-comprehensive.yml` after measuring it at 0 there. Nothing checks
+parity between the three configs; this was the second rule to go missing, after
+two `misspell` rules.
 
 ### Re-measured after the Tier 0 and one-liner pass
 
@@ -325,6 +373,90 @@ inside a gating tier:
 Four points is about one `case` plus one `if`. The next function to cross will
 be one of these, and the answer is a split, not a ceiling.
 
+### Re-measured after the `cmd/xtcp2` flag split — the end state
+
+Measured 2026-10-06 by `nix run .#update-lint-baseline`, on the branch that
+split `defineFlags`, `printFlags` and `envOverrideLabeling`, fixed the four Nix
+findings, added `forbidigo` to Tier 2 and gated Tier 2:
+
+| check | before | after | |
+|---|---|---|---|
+| `golangci-lint-quick` (Tier 0) | 0 | **0** | gated |
+| `golangci-lint` (Tier 1) | 0 | **0** | gated |
+| `golangci-lint-comprehensive` (Tier 2) | 3 | **0** | gated — the last tier, and `forbidigo` now runs in it |
+| `deadnix` | 2 | **0** | green |
+| `nix-fmt` | 2 files | **0** | green |
+| `statix` | 0 | **0** | was already clean |
+
+**`docs/lint-baseline.txt` now holds zero finding lines.** The ratchet is an
+equality rather than a ceiling, in every tier, and every ceiling in
+`tools/lint-baseline/main_test.go` is 0.
+
+What closed in this pass:
+
+| finding | was | now | how |
+|---|---|---|---|
+| `defineFlags` (funlen) | 79 statements | **40** | `defineS3Flags` 13, `defineListenerFlags` 19, `defineRuntimeFlags` 10 |
+| `printFlags` (funlen) | 74 | **34** | `printS3Flags` 14, `printListenerAuthFlags` 6, `printEnrichmentFlags` 17, `printListenerEndpointFlags` 7 |
+| `envOverrideLabeling` (funlen) | 72 | **15** | `envOverrideEnrichment` 48, and 9 statements moved to `envOverrideListeners` |
+| `deadnix` ×2 | `self-test.nix` `ipmetaDbPath`, `go-listener-security.nix` `lib` | — | argument and its `inherit` at the call site, both |
+| `nix-fmt` ×2 | `nix/default.nix`, `nix/tests/ipmeta-bootstrap.nix` | — | accepted nixfmt 1.4.0's output |
+
+Neither `funlen` number was raised: `lines: 120` and `statements: 70` are
+unchanged, and none of the three findings was near the line budget — all three
+were statement counts.
+
+**Headroom after this pass.** `envOverrideLabeling` has dropped off the gocyclo
+list entirely (25 → 6), so the thin-headroom table in the previous section now
+reads:
+
+| function | gocyclo | |
+|---|---|---|
+| `(RouteView).Text` (`internal/goip/render/route.go`) | 26 | 4 under the ceiling |
+| `RouteViewOf` (same file) | 25 | |
+| `telemetry.Setup` (`internal/ipfeed/telemetry/otel.go`) | 24 | |
+| `envOverrideMarshalAndDest` (`cmd/xtcp2/xtcp2.go`) | 24 | and **~69 of 70 statements** — one statement from being the next `funlen` finding |
+
+`envOverrideMarshalAndDest` is the one to watch: it is close to two ceilings at
+once. Do not route anything new into it.
+
+**The ratchet caught this pass's own author, which is the first real proof it
+works.** The new test file introduced four findings, and
+`nix run .#update-lint-baseline` printed them as *additions* rather than letting
+them land:
+
+```
+tier0  cmd/xtcp2/xtcp2_flags_helpers_test.go | inline: Constant reflect.Ptr should be inlined (govet)
+tier1  cmd/xtcp2/xtcp2_flags_helpers_test.go | G101: Potential hardcoded credentials (gosec)
+tier1  cmd/xtcp2/xtcp2_flags_helpers_test.go | G306: Expect WriteFile permissions to be 0600 or less (gosec)
+tier1  cmd/xtcp2/xtcp2_flags_helpers_test.go | builtinShadow: shadowing of predeclared identifier: real (gocritic)
+```
+
+All four were fixed by rewriting, none by exclusion, and the G101 pair is the
+interesting one. It was a **false positive from a real rule**: the placeholder
+constants were named `tokCompiledInEnrichersCst`, `tokEnrichAsnNoteCst` and so
+on, and `tokEnrich` lowercases to `tokenrich` — which contains `token`, one of
+the words G101's name pattern looks for. Excluding G101 from the file would also
+have turned it off for the four credential sentinels in the same file, where it
+is precisely the rule you want on. Renaming the prefix to `ph` fixed both
+findings and cost nothing.
+
+This is the regression class the whole document is about, caught on the commit
+that introduced it rather than in a later audit, and caught in a `_test.go` file
+— which several linters are excluded from but `gosec`, `gocritic` and `govet`
+are not.
+
+**What this pass did NOT do, and the gap is worth naming.** `defineFlags` and
+`printFlags` have drifted — 19 of the 92 registered flags are never printed —
+and before this pass nothing in the repository could see it. `TestDefineFlags`
+spot-checked 6 of 92 pointers; `TestPrintFlags` drained stdout to `io.Discard`
+and asserted nothing. The split added two goldens,
+`cmd/xtcp2/testdata/defineflags-golden.txt` (every flag's name, default and
+usage) and `cmd/xtcp2/testdata/printflags-golden.txt` (printFlags' complete
+output), which is the first thing in the tree that would notice a rename, a
+changed default or a dropped line. The *drift itself* is still there; it is now
+merely visible.
+
 ## The ratchet: a check that is green at baseline
 
 Added 2026-10-05. **It closes no findings**, and that is deliberate: it makes
@@ -338,7 +470,7 @@ Three pieces:
 |---|---|
 | `tools/lint-baseline/` | the comparator — normalizes, diffs both directions, owns the exit codes |
 | `nix/lint-baseline-measure.nix` | runs all three tiers for their JSON **and succeeds whatever they report** |
-| `nix/checks/lint-baseline.nix` | the check: compares, gates the tiers named in `gatedTiers` at the call site (Tier 0 and Tier 1 today), prints the rest as advisory |
+| `nix/checks/lint-baseline.nix` | the check: compares, gates the tiers named in `gatedTiers` at the call site (**all three** as of 2026-10-06), prints any others as advisory |
 | `docs/lint-baseline.txt` | the committed list — the artifact a PR diff shows you |
 
 Regenerate with `nix run .#update-lint-baseline`. It cannot be done by hand:
@@ -346,20 +478,28 @@ every tier config sets `modules-download-mode: vendor` and this repo has no
 committed `vendor/` tree, so golangci-lint only runs inside the Nix sandbox.
 
 **What the committed baseline holds**, re-measured on 2026-10-06 after the
-`errcheck`/`misspell`/`contextcheck` pass:
+`cmd/xtcp2` flag split:
 
 | tier | findings | baseline lines | gated |
 |---|---|---|---|
 | Tier 0 | 0 | **0** | **yes** |
 | Tier 1 | 0 | **0** | **yes** — promoted 2026-10-06 |
-| Tier 2 | 3 | 3 | no — advisory until the `funlen` ×3 in `cmd/xtcp2` land |
+| Tier 2 | 0 | **0** | **yes** — promoted 2026-10-06, last of the three |
 
-The regeneration was **38 deletions and zero additions**: 19 Tier 1 lines and 19
-of Tier 2's 23. Zero additions is the second thing it certifies — none of the
-new code, tests or tools in that pass introduced a finding in any tier.
+**The file holds no finding lines at all**, only its header. Every tier is an
+equality rather than a ceiling, so an added finding anywhere fails the check on
+the commit that adds it.
 
-For the record, what those three rows said when the ratchet landed the day
-before: Tier 1 at 26 findings / 19 lines, Tier 2 at 30 / 23, both advisory.
+For the record, what those three rows said at each step, because the sequence is
+the argument: when the ratchet landed on 2026-10-05, Tier 0 at 3 findings,
+Tier 1 at 26 / 19 lines and Tier 2 at 30 / 23, all three advisory. After the
+`errcheck`/`misspell`/`contextcheck` pass, 0 / 0 / 4 with Tiers 0 and 1 gated —
+a regeneration of 38 deletions and zero additions. After the `setRuleAttr`
+split, 0 / 0 / 3. Then this pass, 0 / 0 / 0.
+
+Zero additions at every step is the second thing each regeneration certified:
+none of the new code, tests or tools in any of those passes introduced a finding
+in any tier.
 
 **A line count below the finding count is not an error.** Keys drop `line:col`,
 so two findings of the same class in the same file collapse to one line. In the
@@ -369,19 +509,29 @@ price of dropping `line:col`, which is paid knowingly — the alternative is tha
 every finding an unrelated edit merely *moved* reads as new, which is the
 failure mode that made counting useless in the first place. The cost is narrow
 and worth stating: adding a *third* identical finding to a file that already has
-two will not trip the ratchet. The four lines left today are one per finding,
-because `funlen` names the function in its message and so the three
-`cmd/xtcp2/xtcp2.go` findings stay distinct.
+two will not trip the ratchet. That cost is zero today, since there are no lines
+left to collapse, and it returns the moment a line is accepted back in. The last
+state in which it could have bitten was instructive: three `funlen` findings in
+one file, `cmd/xtcp2/xtcp2.go`, which stayed three distinct lines only because
+`funlen` names the function in its message.
 
-**Tiers 0 and 1 are gated**, following the one-at-a-time discipline
+**All three tiers are gated**, following the one-at-a-time discipline
 `nix/checks/default.nix` already records for `proto-audit-netlink`'s
 `gatedProtocols`: gating a tier that still holds findings makes the check
-permanently red, which is the same as turning it off. Each phase promotes the
-tier it empties, in that order — never before. Tier 1's promotion is what that
+permanently red, which is the same as turning it off. Each phase promoted the
+tier it emptied, in that order — never before. Tier 1's promotion is what that
 order looks like in practice: its last 26 findings were closed, then
 `nix run .#update-lint-baseline` measured it at 0 and removed its 19 lines, and
-only then did it go into `gatedTiers`. Tier 2 stays advisory until `setRuleAttr`
-and the `cmd/xtcp2` flag split empty it.
+only then did it go into `gatedTiers`. Tier 2 followed the same way once the
+`funlen` ×3 were gone, with its ceiling in
+`tools/lint-baseline/main_test.go` coming down to 0 in the same commit as the
+promotion.
+
+Gating Tier 2 also gates `prealloc`, `dupl`, `goconst`, `nakedret`,
+`exhaustive`, `unconvert` and `funlen`. See the `prealloc` paragraph in
+[the instruments](#the-instruments-and-where-each-one-runs) for why
+`CONTRIBUTING.md`'s objection to `prealloc` as a *gate* does not transfer to
+the ratchet.
 
 **Three refusals are built in, because all three failure modes are silent.**
 golangci-lint exits **4** on `run.timeout` *after* printing `0 issues.`, so the
@@ -699,23 +849,63 @@ load-bearing and the fix has to be `out := io.Writer(io.Discard)`. It does not:
 already infers the interface. Writing the conversion closes the `staticcheck`
 finding and opens an `unconvert` one in Tier 2, which is a net zero.
 
-### `funlen` — 3 findings, all in one file
+### `funlen` — FIXED 2026-10-06, and Tier 2 is now gated
 
-| location | finding |
-|---|---|
-| `cmd/xtcp2/xtcp2.go:391` | `defineFlags`: 79 statements (> 70) |
-| `cmd/xtcp2/xtcp2.go:506` | `printFlags`: 74 statements (> 70) |
-| `cmd/xtcp2/xtcp2.go:1680` | `envOverrideLabeling`: 72 statements (> 70) |
+All three were in `cmd/xtcp2/xtcp2.go`, and all three were **statement** counts
+against the 70 ceiling; none came close to the 120-line budget. Neither number
+was raised.
 
-All three are flat sequences — one statement per flag — so they are long
-without being complex, and splitting by line count alone would produce
-`defineFlags1`/`defineFlags2`, which is worse code for a better number. **The
-honest fix is a table.** A `[]flagSpec{{name, default, help, target}}` ranged
-over collapses all three functions at once, since `printFlags` and
-`envOverrideLabeling` are walking the same list by hand in two other orders.
-Three findings, one refactor, and the next flag stops touching three functions.
+| function | was | now | split into |
+|---|---|---|---|
+| `defineFlags` | 79 | **40** | `defineS3Flags` 13, `defineListenerFlags` 19, `defineRuntimeFlags` 10 |
+| `printFlags` | 74 | **34** | `printS3Flags` 14, `printListenerAuthFlags` 6, `printEnrichmentFlags` 17, `printListenerEndpointFlags` 7 |
+| `envOverrideLabeling` | 72 | **15** | `envOverrideEnrichment` 48, plus 9 statements moved into `envOverrideListeners` |
 
-Do **not** raise the `funlen` limit for this.
+**The prescription this section used to carry was wrong, and it is corrected in
+place rather than quietly diverged from.** It said the honest fix was one
+`[]flagSpec{{name, default, help, target}}` table ranged over, collapsing all
+three functions at once. Measured, that does not work:
+
+- `defineFlags` registers **92** flags; `printFlags` prints **73** of them, in a
+  materially different order, with 5 hoists, 3 label overrides, 4 secrets
+  handled two different ways, and one printed line that is not a flag at all
+  (`compiledInEnrichers`).
+- `envOverrideLabeling` was not walking the same list in another order. It
+  applied 24 env vars of which its name covered 5, and 16 of those belong to
+  `defineEnrichmentFlags`' set, not `defineFlags`'.
+- One table covering all that would need roughly eleven columns. It would be
+  worse code for a better number — the exact trade this document forbids.
+
+What the three functions actually wanted was **domain splits**, and the
+precedent was already in the file: `defineEnrichmentFlags`, whose own doc says
+it was *"Split out of defineFlags to keep that function under the funlen
+threshold and to group the enrichment knobs together."* Three more of the same
+shape — mutate in place, void return, called as a bare statement.
+
+Two seams turned out to be mis-drawn rather than merely long:
+
+- **`printFlags` does not print in registration order.** The Pyroscope block,
+  the `promListen`/`promPath` pair, `goMaxProcs`, the enrichment block and the
+  gRPC/Prometheus tail are each hoisted or demoted. So the print helpers carve
+  contiguous runs of the *printed* sequence, which makes the define/print
+  pairing partial: `defineListenerFlags` pairs with **two** print helpers, and
+  `printS3Flags` prints `pollJitterPct`, which `defineS3Flags` deliberately does
+  not register.
+- **`envOverrideLabeling`'s name covered five of its twenty-four vars**, and
+  three of the rest were simply misfiled: `IPV4_TTL`, `IPV6_HOP_LIMIT` and
+  `GRPC_PORT` configure xtcp2's own TCP listeners and now live in
+  `envOverrideListeners`.
+
+**Nothing pinned any of this before the split**, which is the part worth
+remembering. `TestDefineFlags` spot-checked 6 of 92 pointers and
+`TestPrintFlags` drained stdout to `io.Discard` asserting only no-panic, so a
+42-statement move had no regression signal at all. Two goldens were captured
+*before* the refactor and are the reason it was safe:
+`cmd/xtcp2/testdata/printflags-golden.txt` (printFlags' complete output) and
+`cmd/xtcp2/testdata/defineflags-golden.txt` (every flag's name, default and
+usage, via `flag.CommandLine.VisitAll`). Both hold placeholder tokens for the
+five values decided by build flavor, expanded at compare time by the same
+production functions, so they are byte-exact without being flavor-locked.
 
 ### `goconst` — 4 findings
 
@@ -861,45 +1051,88 @@ Both are rows in `TestStartMetrics`. The second is the one worth keeping: a
 reader who assumes `noctx` makes a listen cancellable will be wrong for every
 literal address, which is how `-listen` is usually given.
 
-### Nix — 4 findings
+### Nix — FIXED 2026-10-06
 
-| check | location | finding |
+| check | location | fix |
 |---|---|---|
-| `deadnix` | `nix/microvms/self-test.nix:247` | unused lambda pattern `ipmetaDbPath` |
-| `deadnix` | `nix/tests/go-listener-security.nix:9` | unused lambda pattern `lib` |
-| `nix-fmt` | `nix/default.nix` | not nixfmt-formatted |
-| `nix-fmt` | `nix/tests/ipmeta-bootstrap.nix` | not nixfmt-formatted |
+| `deadnix` | `nix/microvms/self-test.nix:246` | removed the `ipmetaDbPath ? ""` argument **and** its `inherit` at `nix/microvms/mkVm.nix:404` |
+| `deadnix` | `nix/tests/go-listener-security.nix:9` | removed the `lib` argument **and** `lib` from the `inherit` at `nix/tests/default.nix:29` |
+| `nix-fmt` | `nix/default.nix` | accepted nixfmt's output: one over-width line broken after the `=` |
+| `nix-fmt` | `nix/tests/ipmeta-bootstrap.nix` | accepted an 81-line reindent of the `oci-contents` `runCommand` block (+1 line net) |
 
-`deadnix`'s own output states the fix and its hazard: remove the binding, or
-rename it with a leading underscore if it must stay in the pattern — and
-removing a lambda argument means removing it from every `inherit` at the call
-sites, so re-run `nix flake show` afterwards.
+`statix` was **already clean** and needed nothing. Earlier drafts of this
+document listed it among the Nix findings to fix; that was wrong.
 
-`nix-fmt` is `nixfmt **/*.nix`, but **check the diff before committing it**: a
-multi-line `${...}` inside a `''…''` shell body makes nixfmt reflow the entire
-script. If that happens, pre-compute the interpolation in a `let` instead of
-accepting a 200-line reindent.
+**The `deadnix` line numbers are off by one in the tool's own output.** The
+`self-test.nix` site is line **246**, `ipmetaDbPath ? "",`. Line 247 is
+`ipmetaCachePath ? "",`, which is *used* — only deadnix's location header prints
+247. Reading the header rather than the span would have removed a live argument.
+
+Neither removal cascaded. In both cases the argument had exactly one caller
+passing it, the `inherit` came out with it, and `nix flake show --all-systems`
+diffed **identical** before and after — 291 attributes each, differing only in
+the flake URL line. Do that diff; `CONTRIBUTING.md` and `TODO-SOON.md` both
+instruct it, and it is the only thing that proves evaluation still works after a
+lambda argument disappears. Note that the `let` binding `ipmetaDbPath` at
+`mkVm.nix:544` **stays** — it has four local readers, including xtcp2's own
+`-asnDbPath` argv.
+
+**On the reflow of `nix/tests/ipmeta-bootstrap.nix`:** 81 lines change, +1 net,
+and `git diff -w` reduces it to exactly one hunk — `oci-contents =` is broken
+onto its own line, which reindents the entire `runCommand` block beneath it.
+Earlier notes called it "indentation-only"; measured, it is one line break plus
+a whole-block reindent, which is not quite the same claim and is the stronger
+reason to look at `-w` before trusting any large nixfmt diff.
+
+The instinct recorded here previously was to pre-compute the multi-line
+`${...}` interpolations in a `let` rather than accept a large reindent. That
+instinct was **not** followed, deliberately: restructuring working test-harness
+code to please a formatter is the larger and riskier change, and this diff is
+semantically null. It landed as its own commit so the reindent does not hide
+anything. The general advice still stands for a case where the reflow would
+*obscure* a real edit — this one carries no real edit to obscure.
+
+Measure with the **pinned** nixfmt, not the host's. `nix/versions.nix` resolves
+`nixfmt-rfc-style`, which is 1.4.0 in this flake's nixpkgs; a host 1.5.0
+disagrees about at least one construct, so the host binary can call a file clean
+that the check rejects.
 
 ## Suppressions that exist today
 
-**`CONTRIBUTING.md` currently says "The codebase does not use `//nolint`
-suppressions."** That is not accurate, and the accurate version is a better
-rule. There are **11** `//nolint` occurrences and **1** `#nosec`:
+**This section has been wrong twice about the same number, so the number is
+gone.** It first recorded `CONTRIBUTING.md`'s claim that *"The codebase does not
+use `//nolint` suppressions"* and corrected it to **11 occurrences, none in
+production logic**. That correction was itself adopted into `CONTRIBUTING.md`
+as the "accurate version", and re-measured on 2026-10-06 it is also false:
 
-| where | count | what |
-|---|---|---|
-| `pkg/io_uring/{bench,ring}_test.go` | 7 | `forbidigo` on `runtime.UnlockOSThread`, each with "no netns mutation" |
-| `pkg/misc/misc_test.go:173` | 1 | `gosec` G306, "0o755 IS the test fixture mode" |
-| `pkg/xtcpnl/xtcpnl_rtattr_encode.go:319-320` | 2 | `revive,staticcheck` on `RTEXT_FILTER_*` — kernel UAPI spelling |
-| `tools/proto-field-audit/main.go:222-223` | 1 + 1 | paired `#nosec G122` and `//nolint:gosec` for the standalone run |
+```sh
+grep -rn '//nolint:' --include='*.go' . | grep -v vendor        # 40
+grep -rn '//nolint:' --include='*_test.go' . | grep -v vendor   # 17
+```
 
-Eight are in `_test.go`, two are kernel UAPI constant names, one is in `tools/`.
-**None is in production logic**, which is the claim worth making. Suggested
-replacement wording:
+**40 directives, 17 in `_test.go`, so 23 in production code** — which the
+"none is in production logic" clause ruled out entirely. Plus 2 `#nosec`. Run
+the greps; do not trust a count here, including this one.
 
-> No `//nolint` in production logic. The directive appears only on kernel-UAPI
-> constant spellings and in tests, always with the reason inline; lint classes
-> in production code are eliminated structurally rather than silenced.
+The useful thing is not the total but the *shape*. The 23 production directives
+group into five, and every one carries its reason at the call site:
+
+| group | count | where | argument |
+|---|---|---|---|
+| `forbidigo` on `runtime.UnlockOSThread` | 5 | `pkg/xtcp/{ns_net_namespace,netlinker_iouring,enrich_locality}.go`, `cmd/nsTest` | **Sanctioned by the rule itself.** `.golangci.yml`'s `forbidigo` block says in as many words: *"If you have a legitimate non-netns use of UnlockOSThread (e.g. io_uring SQ thread pinning), opt in with `//nolint:forbidigo // <reason>` at the call site."* |
+| `gosec` in developer tooling | 5 | `tools/quality-report`, `tools/proto-field-audit`, `cmd/xtcp2` | Paths built from the repo's own layout, not user input. `tools/` is also blanket-excluded from `funlen`/`gocyclo`/`dupl`/`goconst`, so this is consistent with how that directory is already treated |
+| `errcheck` on best-effort closes | 4 | `pkg/{ipasn,lldp,nicinfo,nsdiscover}` | Read-only handles whose close cannot fail in a way the caller could act on |
+| `contextcheck` | 3 | `cmd/ipfeed-collector`, `pkg/dockermeta` | Note: Tier 1's own `contextcheck` finding was closed **structurally** in the 2026-10-06 pass, with no exclusion — so these three are worth re-examining against that precedent |
+| `revive`/`staticcheck` on kernel UAPI spelling | 2 | `pkg/xtcpnl/xtcpnl_rtattr_encode.go` | `RTEXT_FILTER_*`; renaming would stop matching the kernel |
+| `gocritic`, `goconst`, `misspell` | 3 | `cmd/ns`, `cmd/xtcp2`, `pkg/xtcp/prometheus.go` | The `misspell` one is a metric name downstream dashboards key on |
+
+So the honest rule is **"prefer a structural fix; a new directive must fit one
+of those groups and say why"**, not "there are none in production". The
+2026-10-06 pass is the standard it should be held to: 50 findings closed, zero
+by suppression, and **two `//nolint`s removed** from `cmd/xtcp2`'s tests after
+measuring that all three tiers were clean without them. A suppression that
+suppresses nothing is worse than none, because the next reader assumes it is
+load-bearing.
 
 Config-level exclusions, which are the sanctioned instrument: **2** rules in
 Tier 0, **10** in Tier 1, **13** in Tier 2. All of them should be readable as
@@ -925,9 +1158,12 @@ never reads a `_test.go` file, which is why no equivalent belongs in its global
 
 ## Suggested order of work
 
-Sequenced so each step makes the next measurable. Steps 1 and 3 are **done**;
-the re-measured figures are in
-[the baseline section](#re-measured-after-the-tier-0-and-one-liner-pass).
+Sequenced so each step makes the next measurable. **Every step is done as of
+2026-10-06**, and each step's re-measured figures are in its own subsection of
+[the baseline section](#the-measured-baseline) — four re-measures, one per pass.
+The list is kept rather than deleted because the *sequence* is the argument: it
+is why the ratchet landed second rather than last, and why each promotion came
+after the class it gates was empty.
 
 1. ✅ **Tier 0 to zero** — 3 staticcheck findings (2 package comments, 1 type
    elision). The ~90 s pre-commit tier becomes trustworthy, and its exit code
@@ -961,17 +1197,33 @@ the re-measured figures are in
    sites. `zw.Close` turned out not to be a defect at all — see the two
    corrections above — and `contextcheck` was closed in the same pass once it
    was measured to be a Tier 1 linter.
-7. **`funlen`**: the `cmd/xtcp2` flag table. One refactor, three findings, and
-   it stops the next flag touching three functions.
-8. **PR #146's 30 findings** in `cmd/zstd-probe/`, `pkg/ipasn/` and
-   `internal/ipfeed/`. The largest single block, deferred to last only because
-   it is someone else's recent code and wants its own review rather than a
-   drive-by sweep.
-9. **Nix**: `deadnix` ×2 and `nixfmt` ×2, checking the reflow hazard.
-10. **Regenerate `docs/quality-report.md`** (`nix run .#update-quality-report`)
-    once the numbers move. It is auto-generated — never hand-edited — and its
-    `golangci-lint (comprehensive) | clean | 0` rows have been stale since
-    2026-09-26.
+7. ✅ **`funlen`**: three domain splits in `cmd/xtcp2`, **not** the flag table
+   this list first prescribed — that prescription is corrected in place
+   [in the `funlen` section](#funlen--fixed-2026-10-06-and-tier-2-is-now-gated).
+   Tier 2 reached zero and was gated in the same commit, which is the last of
+   the three promotions.
+8. ✅ **PR #146's 30 findings** in `cmd/zstd-probe/`, `pkg/ipasn/` and
+   `internal/ipfeed/`. Closed as part of steps 5 and 6 rather than as the
+   separate review this list anticipated: they were `misspell` and `errcheck`
+   findings like the rest, and splitting them out would have meant two passes
+   over the same classes. Tier 2 measuring 0 is the proof there is nothing left
+   in those paths.
+9. ✅ **Nix**: `deadnix` ×2 and `nixfmt` ×2. The reflow hazard was real and was
+   accepted rather than worked around — see
+   [the Nix section](#nix--fixed-2026-10-06) for why, and for the off-by-one in
+   deadnix's own line numbers.
+10. ✅ **Regenerated `docs/quality-report.md`** (`nix run .#update-quality-report`).
+    It is auto-generated — never hand-edited — and its
+    `golangci-lint (comprehensive) | clean | 0` rows are true for the first time
+    since its 2026-09-26 timestamp.
+
+**What is left is not a finding list.** The two reds remaining in
+`nix flake check` are environmental, tracked in `TODO-SOON.md`. The real gap is
+that nothing checks **parity between the three golangci configs** — `forbidigo`'s
+absence from Tier 2 was the live proof, and two `misspell` rules had already been
+missed the same way. A config-parity audit is the obvious sixth tool, alongside
+`netlink-audit`, `iouring-audit`, `metrics-audit`, `proto-field-audit` and
+`kernel-citation-audit`.
 
 ## See also
 

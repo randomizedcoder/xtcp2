@@ -850,7 +850,8 @@ in
       test-focused-goip = tests.focused.focused-goip;
       test-focused-xtcp-enrich = tests.focused.focused-xtcp-enrich;
       test-microvm-lifecycle-x86_64 = tests.microvm-lifecycle.x86_64.fullTest;
-      test-microvm-lifecycle-x86_64-ipmeta-bootstrap = tests.microvm-lifecycle-ipmeta-bootstrap.x86_64.fullTest;
+      test-microvm-lifecycle-x86_64-ipmeta-bootstrap =
+        tests.microvm-lifecycle-ipmeta-bootstrap.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-uds-security = microvms.lifecycleUdsSecurity.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-s3parquet = microvms.lifecycleS3Parquet.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-clickhouse-http = microvms.lifecycleClickHttp.x86_64.fullTest;

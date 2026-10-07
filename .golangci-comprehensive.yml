@@ -1,13 +1,22 @@
 # .golangci-comprehensive.yml
 #
-# Tier 2 — Comprehensive lint (~10 minutes). Nightly only.
+# Tier 2 — Comprehensive lint (~10 minutes).
 #
 # Surfaces complexity, duplication, allocation, and exhaustiveness findings on
-# top of Tier 1. Findings here become merge-gating once the team accepts them.
+# top of Tier 1.
+#
+# This header used to say "Nightly only" and that findings here "become
+# merge-gating once the team accepts them". Neither was true and the first one
+# was misleading in a way that mattered: nothing in this repository runs on a
+# schedule — there is no .github/, no CI and no cron — so "nightly" named an
+# intention, and a reader who believed it concluded this tier was watched by
+# something. It is watched by `nix flake check`, which builds it like every
+# other check, and by the lint-baseline ratchet, which gates it as of
+# 2026-10-06.
 #
 # Run:
 #   lint-comprehensive            (inside nix develop)
-#   nix build .#checks.golangci-lint-comprehensive
+#   nix build .#checks.x86_64-linux.golangci-lint-comprehensive
 
 version: "2"
 
@@ -50,6 +59,18 @@ linters:
     - noctx
     - contextcheck
     - durationcheck
+    # forbidigo, added 2026-10-06 to make the nesting real. It was enabled in
+    # Tier 1 and NOT here, so "Tier 0 ⊂ Tier 1 ⊂ Tier 2" — which the
+    # lint-baseline ratchet leans on, since it treats this tier as the superset
+    # — was false. A runtime.UnlockOSThread finding was invisible in the tier
+    # the baseline trusts most.
+    #
+    # It reports 0 in Tier 1 today and was MEASURED at 0 here before this line
+    # was added rather than assumed. Nothing in the repo checks parity between
+    # the three golangci configs; this absence was the live proof that
+    # something should, and it is not the first — the two misspell rules at the
+    # bottom of this file were missed the same way once already.
+    - forbidigo
     # Tier 2 additions
     - exhaustive
     - prealloc
@@ -124,12 +145,64 @@ linters:
     gocyclo:
       min-complexity: 30
 
+    # Copied VERBATIM from .golangci.yml, where this rule has lived since the
+    # thread-exhaustion incident. Edit both or neither; there is no mechanism
+    # that would notice a divergence, which is exactly why forbidigo was
+    # missing from this file in the first place.
+    # Forbidigo guards a specific landmine: `runtime.UnlockOSThread` paired
+    # with `unix.Setns` / `unix.Unshare`. If the goroutine modifies
+    # thread-global state (network namespace) and then unconditionally
+    # unlocks, a *tainted* M can be returned to Go's scheduler — the
+    # runtime can't safely reuse it, parks it, and spawns a new one.
+    # Under heavy ns churn this leaks OS threads up to the SetMaxThreads
+    # cap and crashes the daemon (incident: 12 h s3parquet-long soak hit
+    # `fatal error: thread exhaustion` at 1 h 45 min).
+    #
+    # The safe pattern is: do *not* defer UnlockOSThread; instead, inside
+    # the deferred restore func, call UnlockOSThread ONLY after Setns
+    # confirms the original namespace was restored. On restore failure,
+    # exit the goroutine with the lock still held — the Go runtime then
+    # terminates the OS thread (documented LockOSThread behaviour),
+    # which is exactly what we want for a tainted M.
+    #
+    # If you have a legitimate non-netns use of UnlockOSThread (e.g.
+    # io_uring SQ thread pinning), opt in with `//nolint:forbidigo //
+    # <reason>` at the call site. Anyone touching the netns path will
+    # then see why the rule exists.
+    forbidigo:
+      forbid:
+        - pattern: '^runtime\.UnlockOSThread$'
+          msg: |
+            runtime.UnlockOSThread is unsafe to defer unconditionally in
+            code that calls unix.Setns / unix.Unshare — the M can be
+            returned to the scheduler still in a modified namespace,
+            triggering an unbounded thread leak. Pair it with a
+            *conditional* unlock inside the restore defer, or
+            `//nolint:forbidigo // <reason>` if unrelated.
+
     funlen:
-      # defineFlags() and envOverrideMarshalAndDest() are legitimately long but
-      # entirely linear (a flat list of flag definitions / env overrides, no
-      # branching or nesting) — splitting them into helpers hurts readability
-      # more than it helps, so allow a slightly higher budget (defineFlags is
-      # ~65 statements, envOverrideMarshalAndDest ~69, both flat).
+      # This comment used to argue the opposite, and it was wrong on both the
+      # facts and the reasoning. It said "defineFlags is ~65 statements" when
+      # the linter measured 79; it named envOverrideMarshalAndDest, which was
+      # never one of the findings; and it concluded that splitting these
+      # functions "hurts readability more than it helps".
+      #
+      # defineEnrichmentFlags had already abandoned that argument in-tree —
+      # its own doc says it was split out of defineFlags for this ceiling — and
+      # the 2026-10-06 split disproved the rest. The three findings were
+      # defineFlags 79, printFlags 74 and envOverrideLabeling 72. All three
+      # came apart along seams that were already there and in two cases already
+      # mis-drawn: printFlags prints in a different order from the one
+      # defineFlags registers in, and envOverrideLabeling applied 24 env vars
+      # of which its name covered 5.
+      #
+      # So the lesson is the reverse of what was written here: when a flat list
+      # crosses this ceiling, the list has usually grown more than one subject,
+      # and the ceiling is what notices. Neither number below was raised.
+      #
+      # envOverrideMarshalAndDest is nonetheless worth knowing about: it sits at
+      # ~69 of the 70 statements, so it is one statement from being the next
+      # finding. Do not route anything new into it.
       lines: 120
       statements: 70
 

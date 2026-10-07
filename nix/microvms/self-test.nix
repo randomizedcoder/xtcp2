@@ -243,7 +243,11 @@
   # table.
   runIpmetaBootstrapCheck ? false,
   runNsInspectCheck ? true,
-  ipmetaDbPath ? "",
+  # No ipmetaDbPath argument here, deliberately. mkVm.nix has a let binding of
+  # that name and passes the artifact path to xtcp2 itself, as -asnDbPath in its
+  # own argv, so this runner never needed it: the argument was declared, given a
+  # default, and read by nothing. That is what deadnix found. ipmetaCachePath
+  # below looks like a twin and is not — it IS read.
   ipmetaCachePath ? "",
   ipmetaBadMarker ? "",
   ipmetaDialTarget ? "203.0.113.42",

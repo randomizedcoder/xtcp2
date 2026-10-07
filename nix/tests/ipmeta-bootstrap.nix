@@ -100,45 +100,46 @@ in
 {
   artifact = verifyArtifact "xtcp2-test-ipmeta-bootstrap-artifact" fixtureArtifact;
 
-  oci-contents = pkgs.runCommand "xtcp2-test-oci-ipmeta-bootstrap-contents"
-    {
-      nativeBuildInputs = [
-        pkgs.coreutils
-        pkgs.diffutils
-        pkgs.findutils
-        pkgs.gnugrep
-        pkgs.gnutar
-      ];
-    }
-    ''
-      set -eu
+  oci-contents =
+    pkgs.runCommand "xtcp2-test-oci-ipmeta-bootstrap-contents"
+      {
+        nativeBuildInputs = [
+          pkgs.coreutils
+          pkgs.diffutils
+          pkgs.findutils
+          pkgs.gnugrep
+          pkgs.gnutar
+        ];
+      }
+      ''
+        set -eu
 
-      image="$TMPDIR/image.tar"
-      image_dir="$TMPDIR/image"
-      extract_dir="$TMPDIR/extracted"
-      ${fixtureBootstrapImage} > "$image"
+        image="$TMPDIR/image.tar"
+        image_dir="$TMPDIR/image"
+        extract_dir="$TMPDIR/extracted"
+        ${fixtureBootstrapImage} > "$image"
 
-      mkdir -p "$image_dir" "$extract_dir"
-      tar -xf "$image" -C "$image_dir"
+        mkdir -p "$image_dir" "$extract_dir"
+        tar -xf "$image" -C "$image_dir"
 
-      found=""
-      while IFS= read -r layer; do
-        if tar -tf "$layer" | grep -Eq '^(\./)?${bootstrapImagePath}$'; then
-          tar -xf "$layer" -C "$extract_dir" "${bootstrapImagePath}" \
-            || tar -xf "$layer" -C "$extract_dir" "./${bootstrapImagePath}"
-          found="$extract_dir/${bootstrapImagePath}"
-          break
+        found=""
+        while IFS= read -r layer; do
+          if tar -tf "$layer" | grep -Eq '^(\./)?${bootstrapImagePath}$'; then
+            tar -xf "$layer" -C "$extract_dir" "${bootstrapImagePath}" \
+              || tar -xf "$layer" -C "$extract_dir" "./${bootstrapImagePath}"
+            found="$extract_dir/${bootstrapImagePath}"
+            break
+          fi
+        done < <(find "$image_dir" -type f -name layer.tar)
+
+        if [ -z "$found" ]; then
+          echo "missing /${bootstrapImagePath} in bootstrap OCI image" >&2
+          exit 1
         fi
-      done < <(find "$image_dir" -type f -name layer.tar)
+        test -s "$found"
+        cmp ${fixtureArtifact} "$found"
 
-      if [ -z "$found" ]; then
-        echo "missing /${bootstrapImagePath} in bootstrap OCI image" >&2
-        exit 1
-      fi
-      test -s "$found"
-      cmp ${fixtureArtifact} "$found"
-
-      mkdir -p "$out"
-      cp "$found" "$out/bootstrap.lookup.parquet.zst"
-    '';
+        mkdir -p "$out"
+        cp "$found" "$out/bootstrap.lookup.parquet.zst"
+      '';
 }

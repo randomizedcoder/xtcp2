@@ -400,8 +400,11 @@ let
       ;
     runIpmetaBootstrapCheck = isIpmetaBootstrap;
     runNsInspectCheck = !isIpmetaBootstrap;
+    # ipmetaDbPath is NOT inherited into self-test.nix: that runner has no such
+    # argument any more, because it never read one. The let binding below is
+    # still live — xtcp2's own argv passes it as -asnDbPath, and the
+    # ipfeed-collector invocations write to it.
     inherit
-      ipmetaDbPath
       ipmetaCachePath
       ipmetaBadMarker
       ipmetaDialTarget
