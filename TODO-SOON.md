@@ -1287,7 +1287,9 @@ The builder was usable before any of this, which was the point — the listener'
 
 ## 18. rtnetlink attribute coverage is thinner than its consumers need — PARTIAL
 
-**Items 1 and 2 have landed; item 3 is still open.** `IFA_FLAGS`,
+**Items 1 and 2 have landed; item 3 is all but closed — two of its three
+attributes decode and render, leaving only the standalone `RTA_EXPIRES`.**
+`IFA_FLAGS`,
 `IFA_CACHEINFO`, `IFA_BROADCAST` and `IFA_PROTO` are decoded, as are
 `IFLA_ADDRESS`, `IFLA_BROADCAST`, `IFLA_QDISC`, `IFLA_TXQLEN`,
 `IFLA_LINKMODE`, `IFLA_GROUP`, `IFLA_LINK`, `IFLA_MASTER`,
@@ -1302,16 +1304,33 @@ Three qualifications on that:
   the request sets `RTEXT_FILTER_SKIP_STATS`; they come back only under `ip -s`.
   Adding them means changing the request, which is a separate decision from
   decoding an attribute the kernel already sends.
-- **Item 3 (`RTA_EXPIRES`, `RTA_CACHEINFO`, `RTA_METRICS`) — `RTA_METRICS` is
-  done, the other two are still open.** The fixture blocker is gone: `2895600`
-  built the gated capture topology
+- **Item 3 (`RTA_EXPIRES`, `RTA_CACHEINFO`, `RTA_METRICS`) — two of the three
+  are done; only the standalone `RTA_EXPIRES` attribute is still open.** The
+  fixture blocker is gone: `2895600` built the gated capture topology
   (`nix/microvms/scripts/netlink-topology.exp`) with an `mtu 1400 advmss 1300`
   route, an ECMP pair and an RFC-5549 `via inet6` route, and `e2a47aa` decoded
   `RTA_METRICS`, `RTA_MULTIPATH` and `RTA_VIA` against it. `RouteMetrics`
   carries a `Present` bitmask plus `Values`, and `render.RouteMetricsViewOf`
-  reproduces `print_rta_metrics`. `RTA_EXPIRES` and `RTA_CACHEINFO` decode
-  remain outstanding — `RTA_CACHEINFO` is on 48 of the 74 routes in the older
-  committed dump, so it has a real capture whenever it is picked up.
+  reproduces `print_rta_metrics`.
+
+  **`RTA_CACHEINFO` is also done, and this item said otherwise for longer than
+  it was true.** `pkg/xtcpnl/xtcpnl_rta_cacheinfo.go` deserializes all eight
+  members into `RouteInfo.CacheInfo *RtaCacheinfo`, the `ParseNewRoute` arm is
+  in `xtcpnl_rtmsg.go`, and `TestDeserializeRtaCacheinfo` plus the
+  `TestSetRouteAttr` rows cover 31 bytes, exactly 32, 36 bytes from a
+  hypothetical future kernel, and a negative `rta_expires`. The 48 of 74
+  routes in the older committed dump are the positive fixture; the all-zeros
+  corpus is why the non-zero rows say in their own `description` that they are
+  constructed. On the render side `applyRouteCacheinfo`
+  (`internal/goip/render/route.go:840`) fills `RouteView.Expires` from
+  `ci.Expires / xtcpnl.RtaUserHzCst` for `AF_INET`/`AF_INET6` only, matching
+  `print_route`'s two arms, and `RouteView.Text` prints `expires %dsec` — which
+  is how it reached the `-6 route show` parity comparison.
+
+  What remains is the **standalone `RTA_EXPIRES` attribute (type 23)**, which
+  is a different thing from `rta_cacheinfo.rta_expires` and appears in the tree
+  only as a name-table entry at `pkg/nlparity/nlparity_names.go:172`. Nothing
+  decodes it and no committed fixture carries one.
 - **The `RTA_MULTIPATH` note below is superseded twice over.** §12 has its
   first real caller (`IFLA_LINKINFO`), so the "land them together" coupling no
   longer applies — and the nested `rtnexthop` list **is** walked now, by
@@ -1340,7 +1359,9 @@ but three items have a consumer today that is working with less than it should:
    address and no per-interface counters. Wanted for enrichment and for
    correlating socket telemetry against interface-level drops.
 3. **`RTA_EXPIRES`, `RTA_CACHEINFO`, `RTA_METRICS`** (`xtcpnl_rtmsg.go`) —
-   route age and per-route metrics are invisible.
+   route age and per-route metrics are invisible. *(Superseded: `RTA_METRICS`
+   and `RTA_CACHEINFO` both decode and render now; see the qualification
+   above. Only the standalone `RTA_EXPIRES` attribute is left.)*
 
 **`RTA_MULTIPATH` is deliberately excluded from this list.** It is decoded as a
 presence bool (`HasMultipath`) and the nested `rtnexthop` list is never walked,

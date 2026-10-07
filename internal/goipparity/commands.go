@@ -319,6 +319,14 @@ var commands = withArgs([]Command{
 		// (net/ipv6/addrconf.c:6073-6117) and never by rtnl_fill_ifinfo. The
 		// `dev` form of the same command prints real link counters under the
 		// same header; see docs/netlink/coverage-status.md.
+		//
+		// GATED as of runs 4 and 5, so the hold-out two paragraphs up is
+		// history and not current state. The WARN it produced while ungated
+		// is why the hold-out was worth having; it is not an argument
+		// against gating now that an entry carries that divergence. Quiet
+		// on all five runs, and structurally rather than luckily so: this
+		// row cannot turn netlink-noisy unless the kernel starts honoring a
+		// mask `-s` never puts on the wire.
 		Floor: 4, Implemented: true,
 	},
 	{
