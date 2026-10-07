@@ -2,11 +2,10 @@
 
 Last updated: 2026-10-06.
 
-**P01 and P02 are complete: 7 of 34 implementation tasks passed their gates.**
-Current phase: P03, state and snapshots. P03-T01, reducer and counter history,
-is complete. Next task: [P03-T02](IMPLEMENTATION-PLAN.md#p03-t02), immutable
-snapshot publication. Live transport and the standalone
-command remain unimplemented; this is not a runnable monitoring service yet.
+**P01 and P02 are complete: 8 of 34 implementation tasks passed their gates.**
+Current phase: P03, state and snapshots. P03-T01 and P03-T02 are complete.
+Next task: [P03-T03](IMPLEMENTATION-PLAN.md#p03-t03), timers, freshness and health.
+Live transport and the standalone command remain unimplemented; this is not a runnable monitoring service yet.
 
 This is the live tracker for [IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md).
 [DETAILED-DESIGN.md](DETAILED-DESIGN.md), [DESIGN.md](DESIGN.md) and
@@ -18,7 +17,7 @@ This is the live tracker for [IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md).
 |---|---|---|
 | Design documents | Present | DESIGN and METRICS remain contracts; DETAILED-DESIGN now distinguishes implemented foundations from remaining work |
 | Roadmap and tracker | Created | This document and IMPLEMENTATION-PLAN; documentation verification is recorded below |
-| Monitor executable/library | Foundation, pure policies and reducer implemented | pkg/linkmonitor API/private model/fakes, Ethernet/RDMA policy, durable baseline store and single-owner reducer exist; live Run returns ErrBackendUnavailable; command remains unimplemented |
+| Monitor executable/library | Foundation, policies, reducer and immutable publication implemented | pkg/linkmonitor API/private model/fakes, Ethernet/RDMA policy, durable baseline store, single-owner reducer and paged snapshots exist; live Run returns ErrBackendUnavailable; command remains unimplemented |
 | Existing netlink/ring libraries | Reusable prerequisites | xtcpnl/io_uring code exists; it is not proof of implemented monitor transport/reconciliation |
 | Poller software gate | Not met | P03–P09 and P11-T01/P11-T02 outstanding |
 | Optional io_uring gate | Not met | P10 and applicable regression/artifact revalidation outstanding |
@@ -48,7 +47,7 @@ This is the live tracker for [IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md).
 |---|---|---|---|---|
 | P01 | Library foundation | done | 3/3 | V001–V004, V009 |
 | P02 | Policy and persistence | done | 3/3 | V006, V009 |
-| P03 | State and snapshots | in progress | 1/3 | V011; publication and freshness remain |
+| P03 | State and snapshots | in progress | 2/3 | V011, V014; freshness and health remain |
 | P04 | Wire support and transport | not started | 0/3 | None |
 | P05 | Scheduling and reconciliation | not started | 0/3 | None |
 | P06 | Ethernet and host collectors | not started | 0/4 | None |
@@ -72,7 +71,7 @@ plan, not copied here. Add verification IDs to the evidence column as work runs.
 | [x] | [P02-T02](IMPLEMENTATION-PLAN.md#p02-t02) | RDMA policy and exception resolution | done | V006, V009; pure native/RoCE/exception policy, no verbs/UMAD adapter yet |
 | [x] | [P02-T03](IMPLEMENTATION-PLAN.md#p02-t03) | Baseline store | done | V009; durable replacement, lifetime lock, bounded validation and injected failures |
 | [x] | [P03-T01](IMPLEMENTATION-PLAN.md#p03-t01) | Reducer and counter history | done | V011; dense slots, lifetime/revision tokens, ordered transitions and exact per-source counter histories |
-| [ ] | [P03-T02](IMPLEMENTATION-PLAN.md#p03-t02) | Immutable snapshot publication | not started | None |
+| [x] | [P03-T02](IMPLEMENTATION-PLAN.md#p03-t02) | Immutable snapshot publication | done | V014; shared collector blocks, copy-on-write pages, coherent exact counts and read-only iteration |
 | [ ] | [P03-T03](IMPLEMENTATION-PLAN.md#p03-t03) | Timers, freshness and health | not started | None |
 | [ ] | [P04-T01](IMPLEMENTATION-PLAN.md#p04-t01) | Wire primitives and typed additions | not started | None |
 | [ ] | [P04-T02](IMPLEMENTATION-PLAN.md#p04-t02) | Poller socket ownership | not started | None |
@@ -132,9 +131,10 @@ hardware checks have run.
 | V010 | 2026-10-06 | P01/P02 commit checkpoint | Exported HEAD plus only the intended checkpoint files into `/tmp/xtcp2-monitor-checkpoint-8igmt7l3`; pinned `CGO_ENABLED=1 go test -race ./pkg/linkmonitor/...` and `CGO_ENABLED=0 go test ./pkg/xtcpnl -run 'Test(LinkState\|Ethtool\|GenericNetlink)'` | Both exit 0; validates monitor packages and decoder/replay prerequisites independently of unrelated workspace changes | Session output; temporary clean export is ephemeral. Raw captured ip-monitor output retains its original trailing whitespace; captures were not rewritten to satisfy diff whitespace diagnostics |
 | V011 | 2026-10-06 | P03-T01 | Pinned Go/gofmt and lint paths below; `CGO_ENABLED=1 go test -race ./pkg/linkmonitor/...`, `CGO_ENABLED=0 go vet ./pkg/linkmonitor/...`, comprehensive lint command from V001 | All exit 0; 0 lint issues. Rename/reuse, same-count swaps, short down/up batches, unknown eligibility, source/width/lifetime discontinuities, exact uint64 boundaries, stale/duplicate attempts, schema ownership and 65,536/65,537 sample boundaries pass | Session output; source identity below. Initial race/lint checks also passed before adding absent-width validation and the final boundary/support/attempt cases |
 | DOC005 | 2026-10-06 | P03 tracker/design update | `python3 /tmp/xtcp2-check-monitor-docs.py`, Python phase/task count and Go whitespace checks, `git diff --check -- pkg/linkmonitor cmd/go-link-monitor` | All exit 0: 235 metric inventory entries preserved; 34 tasks, 7 done; checkbox states and phase totals consistent | Session output; inventory checker is ephemeral |
-
 | V012 | 2026-10-06 | PR #156 merge with main, initial check | Isolated checkout of `be0b084` merged with main `fb67da4`; pinned monitor race tests and targeted xtcpnl tests | Both exit 1: main independently added `attrU32`/`attrU8` in the rule decoder, colliding with the generic-netlink helpers. Renamed only the private generic-netlink helpers and their callers to `genlAttrU32`/`genlAttrU8` | Session output; `/tmp/xtcp2-linkmonitor-pr-merge-6wnh4apa` is an ephemeral worktree. Original dirty workspace unchanged |
 | V013 | 2026-10-06 | PR #156 merge verification | Pinned `CGO_ENABLED=1 go test -race ./pkg/linkmonitor/...`; `CGO_ENABLED=0 go test ./pkg/xtcpnl -run 'Test(LinkState\|Ethtool\|GenericNetlink)'`; comprehensive lint command from V001 extended to `./pkg/linkmonitor/... ./pkg/xtcpnl` | All exit 0; 0 lint issues. Single add/add document conflict resolved by retaining the branch version, which includes all main text verbatim plus implementation follow-ups; decoder semantics and public APIs unchanged | Session output; isolated merged worktree above, Go 1.26.5/golangci-lint 2.12.2, Linux 7.1.8 x86_64. Imported raw main capture whitespace remains unchanged |
+| V014 | 2026-10-06 | P03-T02 | Pinned `CGO_ENABLED=1 go test -race ./pkg/linkmonitor/...`, `CGO_ENABLED=0 go vet ./pkg/linkmonitor/...`, comprehensive lint command from V001; `CGO_ENABLED=0 go test ./pkg/linkmonitor -run TestPublicationAllocationIndependence -v` | All exit 0; 0 lint issues. Page boundaries 0/1/31/32/33/64/65, retained views, deletion/reuse, batch transitions, concurrent readers, absent/zero samples, native RDMA identity, host scope, rename labels, exact count deltas and version exhaustion pass. Event allocation count stays 6 for 1 and 65,536 statistics; sample iteration allocates zero | Session output; isolated working tree on merged main `c7a9aaf8e61dd42aa66fb91404582b8e86ea47c6`, source identity below. Initial race/lint also passed before the final sample-scope/allocation cases |
+| DOC006 | 2026-10-06 | P03-T02 documentation/tracker | `/tmp/xtcp2-check-monitor-snapshot-docs.py` (same inventory checker, base path set to the isolated checkout), Python task/count and source whitespace checks, `git diff --check` | All exit 0: 235 inventory descriptors preserved; 34 tasks, 8 done; checkbox states and phase totals consistent; local links/anchors and source/document whitespace pass | Session output; checker is ephemeral |
 
 V011 environment: base revision `ef4a72ae5bd8d4ef615b0811c22d255941af607b`
 plus uncommitted P03 implementation; Linux 7.1.8 x86_64, default Go test tags,
@@ -142,6 +142,14 @@ configured lint tags, pure reducer/fake inputs with no live backend. Sorted
 filename/NUL/content digest for all 34 Go files under pkg/linkmonitor:
 `2e66d8a6e4f9719990ab4b290cae98baf682f6b6783bc3e6df4fbcdce2e035e9`.
 No static-analysis policy, fixture or suppression changes were made.
+
+V014 environment: branch `feat/linkmonitor-snapshots` in
+`/tmp/xtcp2-linkmonitor-pr-merge-6wnh4apa`, with uncommitted P03-T02 changes;
+Linux 7.1.8 x86_64, default Go test tags and configured lint tags, no live
+backend. Sorted filename/NUL/content digest for all 38 monitor Go files:
+`922b6e6cff986ebc233a7b4b7a05ac97c1124bfae9e761955d28201cc02ebdec`.
+The allocation check is a regression assertion, not the P09 benchmark gate.
+The original checkout and its unrelated dirty files remain untouched.
 
 V009 environment: base revision `9f6be2b058b17bb31b4d6557c5fde4450f181de4`
 plus the existing dirty working tree and new untracked implementation files;
@@ -202,6 +210,7 @@ owners, deadlines or successful outcomes. Continue independent ready tasks.
 | 2026-10-06 | Completed P01, then pure Ethernet/RDMA policies and baseline persistence in P02. Name-only ethtool entries stay unknown until a numeric capability index is verified; native speed uses explicit supported combinations, not independent maxima. No executable or collection loop is claimed. | V009; next P03-T01, followed by immutable publication/freshness. P04 is also dependency-ready |
 | 2026-10-06 | User authorized a checkpoint commit and push, then continued implementation. Committed monitor docs/library plus uncommitted netlink decoder, fixture and documentation prerequisites. Other workspace changes were left out. | V010; `ef4a72ae5bd8d4ef615b0811c22d255941af607b` pushed to origin/feat/ipmeta-bootstrap; P03-T01 started afterward |
 | 2026-10-06 | Completed P03-T01 after the checkpoint: dense reclaimable device slots, generation/revision/epoch/attempt rejection, ordered transitions and exact independent counter histories. Equivalent collector schemas are shared while values remain owned and immutable. User subsequently requested a separate commit, push and PR for this continuation. | V011; next P03-T02 paged publication, then P03-T03 expiry/health; live coordinator wiring remains P05 |
+| 2026-10-06 | Confirmed PR #156 merged as `c7a9aaf`, then started P03-T02 from that main revision in the isolated checkout. Completed 32-device immutable pages, shared collector snapshots, exact count views and snapshot-bound interface labels; removed device/page references are retired without recycling readers' storage. User subsequently requested a commit, push and PR for this snapshot phase. | V014; next P03-T03 expiry and coherent health/check publication, with live coordinator wiring still P05 |
 
 Established design decisions: public reusable pkg/linkmonitor; small standalone
 command; RDMA required in v1; all statistic fields selected by default; cached

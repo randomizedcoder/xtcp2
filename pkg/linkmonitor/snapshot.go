@@ -12,10 +12,11 @@ type Health struct {
 type Snapshot struct{ root *snapshotRoot }
 
 type snapshotRoot struct {
-	version uint64
-	health  Health
-	devices []DeviceView
-	samples []SampleView
+	version, namespace uint64
+	health             Health
+	counts             LinkCounts
+	host               *collectorSnapshot
+	pages              []*devicePage
 }
 
 // Version returns the publication version, or zero before the first publication.
@@ -39,9 +40,11 @@ func (s Snapshot) RangeDevices(visit func(DeviceView) bool) {
 	if s.root == nil {
 		return
 	}
-	for _, device := range s.root.devices {
-		if !visit(device) {
-			return
+	for _, page := range s.root.pages {
+		for _, device := range page {
+			if device != nil && !visit(device.view) {
+				return
+			}
 		}
 	}
 }
@@ -51,11 +54,43 @@ func (s Snapshot) RangeSamples(visit func(SampleView) bool) {
 	if s.root == nil {
 		return
 	}
-	for _, sample := range s.root.samples {
-		if !visit(sample) {
-			return
+	if !rangeCollectorSamples(s.root.host, "", false, visit) {
+		return
+	}
+	for _, page := range s.root.pages {
+		for _, device := range page {
+			if device == nil {
+				continue
+			}
+			for _, collector := range device.collectors {
+				if !rangeCollectorSamples(collector, device.view.name, true, visit) {
+					return
+				}
+			}
 		}
 	}
+}
+
+func rangeCollectorSamples(collector *collectorSnapshot, name string, deviceScoped bool, visit func(SampleView) bool) bool {
+	if collector == nil || collector.block == nil {
+		return true
+	}
+	block := collector.block
+	for i, number := range block.values {
+		if number.Kind() == model.NumberAbsent {
+			continue
+		}
+		entry := &block.schema.entries[i]
+		view := SampleView{
+			descriptor: entry.key.descriptor, kind: SampleKind(entry.kind),
+			number: Number{value: number}, labels: entry.labels,
+			interfaceName: name, deviceScoped: deviceScoped,
+		}
+		if !visit(view) {
+			return false
+		}
+	}
+	return true
 }
 
 // DeviceView is an immutable device identity and observed operational state.
@@ -66,6 +101,7 @@ type DeviceView struct {
 	up, upKnown                                           bool
 	eligibility                                           model.Eligibility
 	maximumSpeed, maximumWidth, fullDuplex, rdmaReadiness model.Check
+	upTransitions, downTransitions                        uint64
 }
 
 // Eligibility describes whether complete inventory evidence includes a device.
@@ -102,6 +138,12 @@ func (d DeviceView) Name() string { return d.name }
 
 // Generation identifies this device lifetime.
 func (d DeviceView) Generation() uint64 { return d.generation }
+
+// ObservedTransitions returns up/down changes observed within this device
+// lifetime. Kernel/driver counters and the initial inventory are not added.
+func (d DeviceView) ObservedTransitions() (up, down uint64) {
+	return d.upTransitions, d.downTransitions
+}
 
 // Up returns operational state and whether that state is known.
 func (d DeviceView) Up() (bool, bool) { return d.up, d.upKnown }
@@ -162,14 +204,14 @@ func (n Number) Int64() (int64, bool) { return n.value.Int64() }
 // Float64 returns a value only when the stored representation is floating point.
 func (n Number) Float64() (float64, bool) { return n.value.Float64() }
 
-type label struct{ name, value string }
-
 // SampleView retains an immutable descriptor key, labels and exact source value.
 type SampleView struct {
-	descriptor string
-	kind       SampleKind
-	number     Number
-	labels     []label
+	descriptor    string
+	kind          SampleKind
+	number        Number
+	labels        []model.Label
+	interfaceName string
+	deviceScoped  bool
 }
 
 // DescriptorKey identifies the metric schema, without mutable descriptor objects.
@@ -183,8 +225,16 @@ func (s SampleView) Number() Number { return s.number }
 
 // RangeLabels visits immutable label pairs until visit returns false.
 func (s SampleView) RangeLabels(visit func(string, string) bool) {
+	// The interface label belongs to the published device, not to a worker's
+	// historical schema. Renames therefore never copy large statistic arrays.
+	if s.deviceScoped && !visit("interface", s.interfaceName) {
+		return
+	}
 	for _, pair := range s.labels {
-		if !visit(pair.name, pair.value) {
+		if s.deviceScoped && pair.Name == "interface" {
+			continue
+		}
+		if !visit(pair.Name, pair.Value) {
 			return
 		}
 	}

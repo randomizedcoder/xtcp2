@@ -42,9 +42,13 @@ func TestSnapshotViews(t *testing.T) {
 	device := DeviceView{identity: "rdma:mlx5_0:1", name: "rdma:mlx5_0:1", generation: 42, up: true, upKnown: true,
 		eligibility: model.Eligible, maximumSpeed: model.CheckFail, maximumWidth: model.CheckPass,
 		fullDuplex: model.CheckNotApplicable, rdmaReadiness: model.CheckUnknown}
-	sample := SampleView{descriptor: "carrier_down_changes_total", kind: SampleCounter,
-		number: Number{value: model.Unsigned(math.MaxUint64)}, labels: []label{{"interface", "eno1"}, {"source", "kernel"}}}
-	s := Snapshot{root: &snapshotRoot{version: 9, health: Health{Running: true}, devices: []DeviceView{device, device}, samples: []SampleView{sample, sample}}}
+	block, err := freezeSamples(nil, []model.Sample{{Descriptor: "carrier_down_changes_total", Kind: model.SampleCounter,
+		Number: model.Unsigned(math.MaxUint64), Labels: []model.Label{{Name: "interface", Value: "eno1"}, {Name: "source", Value: "kernel"}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := Snapshot{root: &snapshotRoot{version: 9, health: Health{Running: true},
+		pages: []*devicePage{{&deviceBlock{view: device}, &deviceBlock{view: device}}}, host: &collectorSnapshot{block: block}}}
 	if s.Version() != 9 || !s.Health().Running {
 		t.Fatal("snapshot metadata mismatch")
 	}

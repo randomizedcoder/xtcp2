@@ -2,8 +2,8 @@
 
 Status: implementation underway, reviewed against the working tree on 2026-10-06.
 P01/P02 now provide a tested library foundation, pure Ethernet/RDMA policies and
-baseline persistence. P03-T01 adds single-owner reducer state and exact counter
-histories. Live collection, paged publication, freshness, metrics serving and
+baseline persistence. P03-T01/T02 add single-owner reducer state, exact counter
+histories and paged immutable publication. Live collection, freshness, metrics serving and
 the standalone command remain to build. STATUS records completed gates; the
 remaining design and test matrix below are specifications, not verified results.
 
@@ -565,6 +565,19 @@ root copy scales with device pages, not with total metric count. Membership
 changes rebuild ordering/index metadata; ordinary events do not sort all labels.
 Store the new root atomically after applying the turn's updates and policy/count
 changes. Version increments once per publication, not per metric.
+
+P03-T02 implements these pages and collector-block sharing. One dirty bit per
+device slot coalesces the turn's changes; untouched pages and collector schemas
+remain shared. The public count view represents deltas as sign plus unsigned
+magnitude, preserving the entire uint64 range until export. Device sample
+`interface` labels are bound to the immutable device name at iteration time;
+collectors should supply only source-specific labels. This lets a rename update
+labels without copying numeric arrays, while older snapshots keep their names.
+Absent numbers are omitted and known zero values remain present. Namespace-wide
+host samples do not receive a device label. Count presence reflects known device
+classification/state; lifecycle and event readiness remain separate health fields.
+The live coordinator will call publication in P05; P03-T03 supplies expiry and
+health/check transitions. These boundaries do not yet make Run a live service.
 
 Workers can reuse private read/decode scratch after projecting owned results.
 Once a slice is transferred to the reducer it must not be mutated or reused.
