@@ -17,6 +17,7 @@ type snapshotRoot struct {
 	counts             LinkCounts
 	host               *collectorSnapshot
 	pages              []*devicePage
+	lastResync         model.Optional[model.Stamp]
 }
 
 // Version returns the publication version, or zero before the first publication.
@@ -102,6 +103,7 @@ type DeviceView struct {
 	eligibility                                           model.Eligibility
 	maximumSpeed, maximumWidth, fullDuplex, rdmaReadiness model.Check
 	upTransitions, downTransitions                        uint64
+	collectors                                            *[model.CollectorNetstat + 1]*collectorSnapshot
 }
 
 // Eligibility describes whether complete inventory evidence includes a device.

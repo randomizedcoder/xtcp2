@@ -385,6 +385,15 @@ type LinkInfo struct {
 	// easy to lose.
 	StatsIs64 bool
 
+	// StatsFields counts complete counters present in the selected IFLA_STATS64
+	// or IFLA_STATS payload, in RtnlLinkStats64 declaration/UAPI order (0..25).
+	// Trailing absent counters are not observed zeros. Zero also excludes the
+	// IFLA_PROTINFO IPv6 MIB fallback from device traffic observations.
+	StatsFields uint8
+
+	// Carrier counters retain absence separately from a legitimate zero.
+	CarrierChanges, CarrierUpCount, CarrierDownCount U32Attr
+
 	// Detail is the `ip -d` attribute group. Always decoded, because the
 	// kernel always sends it; see LinkDetail.
 	Detail LinkDetail
@@ -633,6 +642,7 @@ func ParseNewLink(body []byte) (LinkInfo, error) {
 		li.StatsIs64 = raw.stats64 != nil ||
 			(raw.stats == nil && raw.protinfo != nil)
 	}
+	li.StatsFields = raw.completeFields()
 	return li, nil
 }
 
@@ -703,6 +713,12 @@ func setLinkAttr(li *LinkInfo, raw *linkStatsRaw, atype uint16, val []byte) {
 	// either arm can evaluate on its own: the kernel emits IFLA_STATS
 	// first, so deciding there would mean deciding before the winner has
 	// been seen.
+	case uint16(unix.IFLA_CARRIER_CHANGES):
+		li.CarrierChanges.setU32(val)
+	case uint16(unix.IFLA_CARRIER_UP_COUNT):
+		li.CarrierUpCount.setU32(val)
+	case uint16(unix.IFLA_CARRIER_DOWN_COUNT):
+		li.CarrierDownCount.setU32(val)
 	case uint16(unix.IFLA_STATS):
 		raw.stats = val
 	case uint16(unix.IFLA_STATS64):
@@ -971,4 +987,14 @@ func linkAltNames(val []byte) []string {
 		}
 	})
 	return names
+}
+
+func (r linkStatsRaw) completeFields() uint8 {
+	if r.stats64 != nil {
+		return uint8(min(len(r.stats64)/8, RtnlLinkStats64SizeCst/8))
+	}
+	if r.stats != nil {
+		return uint8(min(len(r.stats)/4, RtnlLinkStatsSizeCst/4))
+	}
+	return 0
 }

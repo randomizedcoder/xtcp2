@@ -57,7 +57,10 @@ const (
 	CollectorPHY
 	CollectorChannels
 	CollectorRings
-	CollectorRDMA
+	CollectorRDMAState
+	CollectorRDMACapabilities
+	CollectorRDMACounters
+	CollectorRDMAEvents
 	CollectorNetstat
 )
 
@@ -113,6 +116,9 @@ type Device struct {
 	// HardwareID is verified replacement evidence, not a guessed name/driver ID.
 	// Empty means unavailable; it must not erase previously verified identity.
 	HardwareID string
+	// RDMA marks a verified RoCE association on an Ethernet counting identity.
+	// Native RDMA devices require RDMA state regardless of this field.
+	RDMA bool
 }
 
 // Observation transfers ownership to its consumer; the producer must not mutate

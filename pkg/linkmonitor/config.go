@@ -2,6 +2,7 @@ package linkmonitor
 
 import (
 	"fmt"
+	"math"
 	"regexp"
 	"strconv"
 	"strings"
@@ -55,6 +56,9 @@ func validateConfig(cfg Config) (configuration, error) {
 	}
 	if cfg.Settle < 0 || cfg.Resync <= 0 || cfg.StatsInterval <= 0 {
 		return result, fmt.Errorf("settle must be nonnegative; resync and stats interval must be positive")
+	}
+	if cfg.StatsInterval > math.MaxInt64/3 || cfg.Resync > (math.MaxInt64-1)/2 {
+		return result, fmt.Errorf("stats or resync interval exceeds representable freshness deadline")
 	}
 	if cfg.IOBackend != IOBackendPoller && cfg.IOBackend != IOBackendIOUring {
 		return result, fmt.Errorf("invalid I/O backend %q", cfg.IOBackend)

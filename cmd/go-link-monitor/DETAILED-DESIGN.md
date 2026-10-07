@@ -1,10 +1,14 @@
 # go-link-monitor detailed Go design
 
-Status: implementation underway, reviewed against the working tree on 2026-10-06.
+Status: implementation underway, reviewed against the working tree on 2026-10-07.
 P01/P02 now provide a tested library foundation, pure Ethernet/RDMA policies and
-baseline persistence. P03-T01/T02 add single-owner reducer state, exact counter
-histories and paged immutable publication. Live collection, freshness, metrics serving and
-the standalone command remain to build. STATUS records completed gates; the
+baseline persistence. P03 adds single-owner reducer state, exact counter
+histories, paged immutable publication, monotonic expiry and coherent health.
+P04-T01 adds pure netlink wire helpers and strict monitor decoding; P04-T02
+adds private nonblocking socket ownership, bounded receives and cancellation.
+P04-T03 adds typed request transactions, socket epochs and dynamic family/group
+discovery, with completion and recovery checked against the real kernel.
+Live collection, metrics serving and the standalone command remain to build. STATUS records completed gates; the
 remaining design and test matrix below are specifications, not verified results.
 
 [DESIGN.md](DESIGN.md) owns monitoring behavior, eligibility, baseline semantics,
@@ -57,7 +61,8 @@ which parts currently exist and have passed their gates:
 | Other command files | Flag/env conversion, build identity, signal bridge, HTTP lifecycle | Monitoring policy or source counter arithmetic |
 | `pkg/linkmonitor` | Public API; reducer, scheduling, reconciliation, policy and snapshot publication | Global registry, HTTP listener, process exit, signal handlers |
 | `pkg/linkmonitor/internal/model` | Private identities, jobs, observations, schemas and immutable blocks | Kernel I/O or Prometheus objects |
-| `pkg/linkmonitor/internal/linuxio` | Socket owners, request matching, backend selection, message envelopes | Device policy or baseline decisions |
+| `pkg/linkmonitor/internal/linuxio` | Implemented request clients, transaction matching, socket epochs and family discovery; future backend selection/event adapters | Device policy or baseline decisions |
+| `pkg/linkmonitor/internal/netlink` | Ordinary netlink socket ownership, bounded receive/send and cancellation; used by linuxio request clients | Transaction matching, reconciliation or device policy |
 | `pkg/linkmonitor/internal/ethernet` | Classification evidence, ethtool requests/ioctls, stats/name caches | Shared mutable monitor state |
 | `pkg/linkmonitor/internal/rdma` | Discovery, association, event, local capability and counter adapters | Fabric configuration or remote sweeps |
 | `pkg/linkmonitor/internal/hoststats` | Bounded procfs reads, paired-field parsing and compiled field selection | Per-interface attribution |
@@ -205,27 +210,52 @@ client_golang, x/sys and giouring.
 | Existing code | Planned use | Limitation / required work |
 |---|---|---|
 | [Link builders](../../pkg/xtcpnl/xtcpnl_rtnetlink_requests.go): `BuildDumpLinkRequestExt`, `BuildGetLinkByIndexRequest` | AF_UNSPEC inventory and targeted reconciliation | Pure builders; caller owns sockets, sequences and completion |
-| [Link decoder](../../pkg/xtcpnl/xtcpnl_ifinfomsg.go): `ParseNewLink` | Decode identity, flags, operstate, carrier and kind | Add presence-aware typed traffic/carrier counters; the monitor needs strict validation of required attributes before using this tolerant decoder |
+| [Link decoder](../../pkg/xtcpnl/xtcpnl_ifinfomsg.go): `ParseNewLink` | Decode identity, flags, operstate, carrier and kind | Traffic counters retain the existing typed representation; `StatsFields` reports complete wire fields and carrier counters have explicit presence. `ParseMonitorLink` validates monitor input before the tolerant decoder |
 | `LinkInfo.IsUp` in the same file | Do not use for monitor operational-up policy | Tests only IFF_UP and IFF_RUNNING; monitor also uses operstate as specified in DESIGN |
 | [Event decoder](../../pkg/xtcpnl/xtcpnl_rtnetlink_events.go): `IsRtnetlinkNotification`, `ParseRtnetlinkEvent` | Classify and decode link notifications | Sender authentication is separate; NEWLINK can mean down, up or metadata change |
 | [Datagram utilities](../../pkg/xtcpnl/xtcpnl_rtnetlink.go): `WalkNlMsgs`, `WalkRTAttrs`, `CopyBytes` | Reuse framing knowledge, attribute walks and owned-copy utility | `WalkNlMsgs` filters one sequence and collapses ACK/DONE to completion; it does not expose all envelope fields |
 | `DumpRtnetlink`, `TalkRtnetlink` in the same file | Existing reference/tests, not live transport entry points | Blocking Recvfrom, allocated receive buffer, no recvmsg truncation metadata; Talk can return ACK before data |
 | [Generic decoder](../../pkg/xtcpnl/xtcpnl_genetlink.go): `ParseGenericNetlinkFamily`, `ParseGenericNetlink`, `ParseNetlinkAttributes` | Discover dynamic family/group IDs; decode generic payloads | Attributes own payload copies; this is not a zero-allocation parser or live discovery service |
-| [Ethtool decoder](../../pkg/xtcpnl/xtcpnl_ethtool.go): `ParseEthtool` | Decode link modes/state/info, rings, pause and FEC | Pass actual outer flags; add channels/extended ring fields and GET builders; preserve unknown attributes and existing signatures |
+| [Ethtool decoder](../../pkg/xtcpnl/xtcpnl_ethtool.go): `ParseEthtool` | Decode link modes/state/info, rings, pause and FEC | Pass actual outer flags; channels and extended rings are typed, with owned unknown attributes retained. Read-only GET builders are implemented |
 | [nicinfo](../../pkg/nicinfo/nicinfo.go): `Collect`, `PhysicalInterfaces` in uplinks.go | Source evidence for sysfs/driver queries | Best-effort omission, interface limits and unknown-speed behavior do not satisfy monitor inventory/policy |
 | [Ring wrapper](../../pkg/io_uring/ring.go): `New`, `EnqueueRecvMsg`, `Submit`, `DrainBatch`, `WaitOneTimeout`, `Close` | Basis for optional backend after extensions | No sender/msg_flags in Result; owner-only methods; receive/order/lifetime/probe changes below |
 | [Existing xtcp ring loop](../../pkg/xtcp/netlinker_iouring.go) | Reference for integration and benchmarks | Tied to XTCP decoding/destinations; do not reuse its forced GC or concurrent receives as monitor policy |
 
-Add a pure envelope walker to xtcpnl that exposes header, borrowed body and
-control-message identity without deciding request completion. Its callback may
-borrow bytes only for the callback duration. ACK, ERROR, DONE, NOOP and OVERRUN
-must remain distinguishable. Preserve existing walker signatures and behavior.
-Add controller/ethtool read-only request builders with exact nested lengths and
-alignment tests. Add typed counter fields without changing existing presence or
-unknown-attribute semantics. No new reflection-based production decoding.
-Use a strict monitor input validator or additive strict decoder entry point for
-required attributes; do not silently change the existing tolerant link parser's
-duplicate/short-attribute behavior and break other callers or fixture contracts.
+P04-T01 implements [the envelope walker](../../pkg/xtcpnl/xtcpnl_envelope.go),
+`WalkNetlinkEnvelopes`. It exposes the complete header, borrowed body,
+ACK/ERROR/DONE/NOOP/OVERRUN identity and signed control status without sequence
+filtering or deciding completion. Bodies may be borrowed only during the callback.
+Malformed suffixes invalidate the operation even if earlier callbacks ran. Final
+padding may be absent; partial padding and stray bytes fail. Sender authentication
+and transaction policy remain P04-T02/P04-T03 responsibilities.
+
+[Read-only builders](../../pkg/xtcpnl/xtcpnl_genetlink_requests.go)
+`BuildGetFamilyRequest` and `BuildGetEthtoolRequest` emit exact aligned lengths,
+request compact bitsets and do not request an unnecessary ACK. Ethtool family IDs
+must come from discovery; the builder accepts only the supported GET kinds.
+Channels and extended rings preserve optional scalar presence. Ring options through
+the reviewed Linux 7.0 UAPI include RX buffer length, TCP data split, CQE size,
+TX/RX push, TX push-buffer lengths and HDS thresholds; newer unknown attributes
+remain owned raw attributes.
+
+[Strict monitor decoding](../../pkg/xtcpnl/xtcpnl_monitor_link.go),
+`ParseMonitorLink`, validates consumed attribute shapes, scalar flags, duplicates,
+name/index identity, nested kinds and whole traffic counters before calling the
+existing tolerant parser. `MonitorLinkRequirements` independently requires a name
+for inventory and direct statistics for traffic collection; deletion may carry only
+a positive index. Missing optional carrier/operstate remains absent. The validator
+borrows bytes without copying attribute payloads, while returned records remain
+owned. Existing parser signatures, first-wins duplicates, short-attribute tolerance,
+and the legacy IPv6 MIB rendering fallback remain unchanged.
+
+`LinkInfo.StatsFields` counts complete direct traffic fields in UAPI/struct order,
+limited to 25 for IFLA_STATS64 or 24 for widened IFLA_STATS. Older trailing fields
+are absent, not observed zeros. Zero excludes an IPv6 MIB fallback from traffic
+collection. `StatsIs64` retains its existing rendering semantics; together with
+`StatsFields` it identifies direct counter width. `CarrierChanges`, `CarrierUpCount`
+and `CarrierDownCount` use `U32Attr` presence independently. The strict path accepts
+old 23-counter layouts and future whole-field suffixes, rejecting partial counters.
+No production decoder uses reflection.
 
 The P02 Ethernet policy uses a reviewed numeric mode table for all 125 indices
 in the flake-pinned Linux 7.0 headers, including modes through 1.6 Tbit/s.
@@ -242,6 +272,33 @@ borrowed parser needs its own explicit API and evidence from allocation profiles
 ## 4. Transport and request ownership
 
 ### Ordinary backend: poller and recvmsg
+
+P04-T02 implements the socket primitive in
+[`internal/netlink`](../../pkg/linkmonitor/internal/netlink/socket_linux.go).
+`Open(ctx, protocol, groups)` supports separate route, generic and RDMA sockets;
+groups are numeric membership IDs. Its context bounds acquisition. Each later
+`Send(ctx, data)` or `Receive(ctx, visit)` supplies its own context. Overlapping
+I/O operations return `ErrConcurrent`; concurrent `Close` is idempotent and
+wakes a parked operation. The caller must close the connection on every exit.
+Cancellation or timeout retires the connection; the transaction layer must open
+a fresh one. Errors retain context, deadline, syscall and cleanup causes, with
+`os.ErrClosed` classification when the owned connection has closed.
+
+`Receive` waits for the first datagram, then drains immediately available data
+through `RawConn.Control`, which pins the descriptor without another poll wait.
+The visitor receives a borrowed, capacity-limited slice valid only during that
+callback. Its returned count includes each invoked visitor, including a failing
+one; an error after a successful prefix remains visible. Sender validation
+precedes buffer growth, and ancillary truncation is rejected conservatively.
+`Send` sends one datagram to the kernel, rejects empty/over-cap inputs and reports
+short writes without retrying a remainder. P04-T03 adds the request clients
+below; event recovery scheduling and live `Run` integration remain P05.
+
+Read-only kernel tests verify a complete link dump, cancellation, deadlines,
+descriptor cleanup and poller flags. With GOMAXPROCS=2, 64 idle readers kept
+the observed thread count at five and restored the initial descriptor count.
+This is the bounded-thread regression gate recorded in [STATUS.md](STATUS.md),
+not the P09 throughput/latency benchmark or physical RDMA verification.
 
 Create CLOEXEC, nonblocking AF_NETLINK sockets. Wrap the owned fd in `os.File`,
 obtain `SyscallConn`, and issue `unix.Recvmsg` from `RawConn.Read`. Retry EINTR
@@ -290,6 +347,52 @@ recovery. Numeric ethtool IDs are never hard-coded. Read-only devlink and RDMA
 discovery need their own protocol adapters; RDMA netlink is not the generic
 ethtool family. A socket's namespace is established at creation; no `setns` per
 read, per query or per scrape.
+
+### Implemented request clients
+
+P04-T03 implements [`linuxio.Client`](../../pkg/linkmonitor/internal/linuxio/client_linux.go)
+over the poller transport. `NewClient(protocol)` opens lazily and subscribes to
+no event groups. The read-only methods are `DumpLinks`, `GetLink`,
+`DiscoverFamily` and `GetEthtool`. Route inventory uses AF_UNSPEC with no
+SKIP_STATS mask; it retains all devices for later physical-device classification.
+RDMA netlink has its own protocol identity; its discovery adapter remains P07.
+
+One active request owns the client. Overlapping requests or `Reset` return
+`ErrConcurrent`; concurrent `Close` stops I/O and permanently closes the client.
+Each request has a five-second budget, shortened by its caller's deadline.
+Send, receive, decoding and kernel errors retire the socket without retrying
+the operation. The next request opens a new monotonically increasing epoch.
+Sequence zero is never used; the socket is replaced before uint32 sequence
+reuse, and epoch exhaustion fails rather than wrapping. `Reset` retires the
+current socket after an external family/loss notification. Scheduler backoff
+and event resubscription remain P05 responsibilities.
+
+The transaction machine checks epoch, sequence and expected message type,
+then matches the generic command and device index or controller family name.
+ACKs validate the embedded request type and sequence. Single GETs require data;
+requested ACKs are additionally awaited. Multipart replies require successful
+DONE; an empty successful dump is valid. DUMP_INTR, OVERRUN, nonzero control
+status, malformed suffixes and transport loss reject the whole candidate.
+The current datagram and available receive batch are validated before success,
+so completion cannot hide a later error within that input. Old sequence replies
+and unrelated commands/devices do not satisfy the request.
+
+Each transaction accepts at most 65,536 matching records and consumes at most
+64 MiB of datagram input, including unrelated messages. Exceeding either bound
+fails visibly and retires the socket. Projection uses the existing owning
+xtcpnl decoders once per accepted record; no borrowed wire storage escapes.
+`Result[T]` returns owned typed values with socket epoch and sequence only on
+success. No partial candidate is exposed to the reducer; generation/revision
+validation still belongs to the coordinator.
+
+`DiscoverFamily` returns an immutable client/epoch-bound `Family` handle with
+the dynamic ID and named numeric multicast groups. There is no global cache.
+`GetEthtool` requires an ethtool handle from the same client and current epoch;
+a stale handle fails before sending its ID on a replacement socket. Recovery
+therefore requires fresh discovery. Group IDs reject zero, overflow and aliases;
+event adapters must use the new discovery when resubscribing. Tests exercise
+changed family/group IDs, sequence wrap, cancellation, late replies and real
+controller discovery. [STATUS.md](STATUS.md) records the verified scope.
 
 ### Internal transport contracts
 
@@ -576,8 +679,9 @@ labels without copying numeric arrays, while older snapshots keep their names.
 Absent numbers are omitted and known zero values remain present. Namespace-wide
 host samples do not receive a device label. Count presence reflects known device
 classification/state; lifecycle and event readiness remain separate health fields.
-The live coordinator will call publication in P05; P03-T03 supplies expiry and
-health/check transitions. These boundaries do not yet make Run a live service.
+P03-T03 implements expiry and health/check transitions. The live coordinator
+will supply the monotonic publication time and call publication in P05. These
+boundaries do not yet make Run a live service.
 
 Workers can reuse private read/decode scratch after projecting owned results.
 Once a slice is transferred to the reducer it must not be mutated or reused.
@@ -593,6 +697,34 @@ retained last-success diagnostics and unknown applicable checks. It does not
 zero counters. Monotonic time drives deadlines; wall time is used for exported
 timestamps and the baseline record. Retaining an old snapshot intentionally
 retains that historical view; normal scrapes always load the latest root.
+
+P03-T03 uses an indexed heap with one entry per source/device key and one
+resettable wake timer. Refresh replaces an existing deadline; removal/replacement
+cancels device deadlines. Retired queue storage shrinks with live work. Publication
+processes due expiry before deriving health and freezing changed pages, so one
+root cannot report fresh values with expired-source health. Initial lifetime
+configuration uses three stats intervals for poll/settings/RDMA values and two
+resync intervals for identity/channels/rings. Unrepresentable interval products
+are rejected; deadline addition saturates rather than wrapping.
+
+A failed attempt retains the prior values only until their original deadline;
+it does not extend freshness. Expiry omits values, retains last-success and
+latest-attempt diagnostics, and makes applicable checks unknown. New policy
+requires a matching successful generation/revision/epoch/attempt. A link change
+invalidates negotiated-policy evidence; native duplex stays not_applicable.
+Public collector views distinguish an unprobed source, support status, latest
+attempt success, freshness, bounded error reason, monotonic attempt duration,
+last-success wall timestamp and counter discontinuities.
+
+Required RDMA state, capabilities, counters and event diagnostics have separate
+private collector identities. Eligible native ports and verified RoCE associations
+require fresh RDMA state and functioning RDMA events. Optional capability/counter
+failures do not change collection health. Health also requires known inventory,
+route events, current-epoch successful reconciliation and a resync age no greater
+than two intervals; readiness additionally requires a baseline. Restarting a
+subscription alone cannot restore health after loss. The last resync timestamp
+survives failures. These are reducer contracts tested with fake time; P05 still
+owns successful candidate validation, event-source recovery and timer-loop wiring.
 
 ## 8. Prometheus exposition and concurrency
 

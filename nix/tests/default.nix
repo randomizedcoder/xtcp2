@@ -47,6 +47,14 @@ in
 }
 // (import ./go-test-flavors.nix { inherit pkgs lib vendoredSource; })
 // (import ./go-test-per-package.nix { inherit pkgs lib vendoredSource; })
+// (import ./linkmonitor.nix {
+  inherit
+    pkgs
+    lib
+    src
+    vendoredSource
+    ;
+})
 // (lib.mapAttrs' (name: value: {
   name = "test-${name}";
   inherit value;

@@ -17,6 +17,7 @@ const (
 	EthtoolLinkModesKind EthtoolKind = "linkmodes"
 	EthtoolLinkStateKind EthtoolKind = "linkstate"
 	EthtoolRingsKind     EthtoolKind = "rings"
+	EthtoolChannelsKind  EthtoolKind = "channels"
 	EthtoolPauseKind     EthtoolKind = "pause"
 	EthtoolFECKind       EthtoolKind = "fec"
 	EthtoolSpeedUnknown  uint32      = 0xffffffff
@@ -48,10 +49,18 @@ type EthtoolLinkState struct {
 	SQI, SQIMax, ExtendedDownCount        *uint32
 }
 
-// EthtoolRings exposes ring sizes. Diagnostic stats and newer ring options
-// remain in Message.Attributes;
-// these types expose only the fields needed by the link-tracking corpus.
-type EthtoolRings struct{ RXMax, RXMiniMax, RXJumboMax, TXMax, RX, RXMini, RXJumbo, TX *uint32 }
+// EthtoolRings preserves presence for ring sizes and options through Linux 7.0.
+// Unknown future attributes remain available in EthtoolMessage.Attributes.
+type EthtoolRings struct {
+	RXMax, RXMiniMax, RXJumboMax, TXMax, RX, RXMini, RXJumbo, TX              *uint32
+	RXBufLen, CQESize, TXPushBufLen, TXPushBufLenMax, HDSThresh, HDSThreshMax *uint32
+	TCPDataSplit, TXPush, RXPush                                              *uint8
+}
+
+// EthtoolChannels contains maximum and current hardware channel counts.
+type EthtoolChannels struct {
+	RXMax, TXMax, OtherMax, CombinedMax, RX, TX, Other, Combined *uint32
+}
 type EthtoolPause struct{ Autoneg, RX, TX *uint8 }
 type EthtoolFEC struct {
 	Modes  *EthtoolBitset
@@ -68,6 +77,7 @@ type EthtoolMessage struct {
 	LinkModes             *EthtoolLinkModes
 	LinkState             *EthtoolLinkState
 	Rings                 *EthtoolRings
+	Channels              *EthtoolChannels
 	Pause                 *EthtoolPause
 	FEC                   *EthtoolFEC
 }
@@ -109,6 +119,7 @@ func classifyEthtoolCommand(command uint8, request bool) (EthtoolKind, bool) {
 		{EthtoolLinkModesKind, 4, 5, 4, 5},
 		{EthtoolLinkStateKind, 6, 0, 6, 0},
 		{EthtoolRingsKind, 15, 16, 16, 17},
+		{EthtoolChannelsKind, 17, 18, 18, 19},
 		{EthtoolPauseKind, 21, 22, 22, 23},
 		{EthtoolFECKind, 29, 30, 30, 31},
 	}
@@ -188,6 +199,8 @@ func decodeEthtoolPayload(m *EthtoolMessage) error {
 		m.LinkState = d.decodeLinkState()
 	case EthtoolRingsKind:
 		m.Rings = d.decodeRings()
+	case EthtoolChannelsKind:
+		m.Channels = d.decodeChannels()
 	case EthtoolPauseKind:
 		m.Pause = d.decodePause()
 	case EthtoolFECKind:
@@ -241,6 +254,15 @@ func (d *ethtoolPayloadDecoder) decodeRings() *EthtoolRings {
 	d.u32(7, &v.RXMini)
 	d.u32(8, &v.RXJumbo)
 	d.u32(9, &v.TX)
+	d.u32(10, &v.RXBufLen)
+	d.u8(11, &v.TCPDataSplit)
+	d.u32(12, &v.CQESize)
+	d.u8(13, &v.TXPush)
+	d.u8(14, &v.RXPush)
+	d.u32(15, &v.TXPushBufLen)
+	d.u32(16, &v.TXPushBufLenMax)
+	d.u32(17, &v.HDSThresh)
+	d.u32(18, &v.HDSThreshMax)
 	return v
 }
 
@@ -376,4 +398,17 @@ func decodeEthtoolVerboseBitset(b *EthtoolBitset, entries []NetlinkAttribute) er
 		b.Bits = append(b.Bits, bit)
 	}
 	return nil
+}
+
+func (d *ethtoolPayloadDecoder) decodeChannels() *EthtoolChannels {
+	v := &EthtoolChannels{}
+	d.u32(2, &v.RXMax)
+	d.u32(3, &v.TXMax)
+	d.u32(4, &v.OtherMax)
+	d.u32(5, &v.CombinedMax)
+	d.u32(6, &v.RX)
+	d.u32(7, &v.TX)
+	d.u32(8, &v.Other)
+	d.u32(9, &v.Combined)
+	return v
 }
