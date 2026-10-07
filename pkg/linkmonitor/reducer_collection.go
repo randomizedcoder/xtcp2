@@ -17,6 +17,7 @@ type collectorState struct {
 	block                    *collectorBlock
 	history                  map[sampleKey]counterObservation
 	discontinuities          uint64
+	publication              *collectorSnapshot
 }
 
 // collectorBlock owns immutable schema and value storage. Subsequent results
@@ -82,6 +83,12 @@ func (r *reducer) finishCollection(result model.Result) (bool, error) {
 	if current != result.Job.Token {
 		return false, nil
 	}
+	defer func() {
+		state.publication = nil
+		if i, exists := r.index[result.Job.Key.Device]; exists {
+			r.markDirty(i)
+		}
+	}()
 	state.lastAttempt = result.Finished
 	if result.Err != nil {
 		state.lastError, state.reason = result.Err, result.Reason

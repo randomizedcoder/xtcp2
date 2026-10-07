@@ -21,6 +21,7 @@ type reducer struct {
 	slots                                           []*deviceSlot
 	upCount, uncertain                              uint64
 	host                                            collectorState
+	dirtyPages                                      []uint32
 }
 
 type deviceSlot struct {
@@ -29,6 +30,7 @@ type deviceSlot struct {
 	counted                        bool
 	upTransitions, downTransitions uint64
 	collectors                     [model.CollectorNetstat + 1]collectorState
+	checks                         deviceChecks
 }
 
 func newReducer(namespace uint64) *reducer {
@@ -64,6 +66,9 @@ func (r *reducer) observe(observation model.Observation) (bool, error) {
 	d.Token = slot.device.Token
 	d.Token.SourceEpoch = r.epoch
 	if !replaced && d == slot.device {
+		if slot.observed != observation.Observed {
+			r.markDirty(i)
+		}
 		slot.observed = observation.Observed
 		return false, nil
 	}
@@ -84,6 +89,7 @@ func (r *reducer) observe(observation model.Observation) (bool, error) {
 	}
 	slot.device, slot.observed = d, observation.Observed
 	r.account(slot)
+	r.markDirty(i)
 	return true, nil
 }
 
@@ -98,6 +104,7 @@ func (r *reducer) insert(observation model.Observation) (bool, error) {
 	r.index[slot.device.Key] = len(r.slots)
 	r.slots = append(r.slots, slot)
 	r.account(slot)
+	r.markDirty(len(r.slots) - 1)
 	return true, nil
 }
 
@@ -178,6 +185,8 @@ func (r *reducer) remove(key model.DeviceKey, token model.Token) (bool, error) {
 	r.revision++
 	r.unaccount(r.slots[i])
 	last := len(r.slots) - 1
+	r.markDirty(i)
+	r.markDirty(last)
 	if i != last {
 		r.slots[i] = r.slots[last]
 		r.index[r.slots[i].device.Key] = i
