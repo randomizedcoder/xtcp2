@@ -2007,3 +2007,60 @@ nix build .#checks.x86_64-linux.golangci-lint-comprehensive -L 2>&1 | tee /tmp/c
 For a change that adds a `case` or an `if` to an already-large switch, the
 cheap pre-check is `nix shell nixpkgs#gocyclo -c gocyclo -top 3 <file>` on the
 file before and after — seconds, and it is what identified this regression.
+
+## 24. `-j` had no live parity row, and the stdout facets could not have given it one — FIXED 2026-10-06
+
+Branch `feat/goip-parity-json-and-family-rows`. Two items off the goip↔`ip`
+parity roadmap, landed together because they share one Tier C run: six matrix
+rows for already-implemented paths that had never been compared live, and six
+`-j` rows. The matrix goes 29 → **41**, all twelve new rows ungated.
+
+**The part worth recording is a scope change found by measurement.** Item 2 was
+pitched as "~8 new rows in `commands.go`, zero new decoders". It is not: with
+the text-oriented facets in `internal/goipparity/stdout.go`, a `-j` row
+compares almost nothing while printing `PASS`. Measured against the committed
+`pkg/xtcpnl/testdata/7_1_4/dumps/ip_addr_json`, `reStanza` never matches,
+`reKeyword`'s `\s+` never matches `"mtu": 65536`, `reCIDR4` never matches
+(JSON splits `local` and `prefixlen`), `reDev` and `reStatsHeader` never match,
+and `FacetLines` is 1 because bare `-j` is one line. Only `FacetMACs` survived,
+and only because `"address": "00:00:00:00:00:00",` happens to match `reMAC`.
+**A goip that emitted `[]` would have passed.**
+
+Three ways out were weighed. The one taken, **option A**, teaches the extractor
+JSON in a new `internal/goipparity/stdout_json.go` and dispatches on format per
+side in `stdoutFacets`. The decisive property is that it adds **no locus** —
+the same nine facets and 23 keywords, reached from JSON instead of from text —
+so `StdoutLoci()`, `TestStdoutLociAreEnumerable` and the committed `stdout:`
+allowlist entries need no amendment.
+
+**Option B is rejected and should stay rejected**: a structural JSON diff keyed
+on elided-index paths (`[].addr_info[].prefixlen`) compares strictly more, and
+that is exactly its problem. It makes the locus set unbounded, which both the
+allowlist format and `stdout.go`'s header rest on not being. The rejection is
+recorded in `stdout_json.go`'s header and echoed in its test, so it is not
+re-litigated from scratch the next time the JSON half looks thin.
+
+**Option C** — declare the `-j` rows an honest skip and wire up the dead
+`StdoutReport.Compared` field — was not taken, so that field stays dead: set at
+one site in `stdout.go`, read nowhere in `internal/goipparity/` or
+`cmd/goip-parity/`. It is reported here rather than removed, because removing it
+is a separate decision from this branch's.
+
+**What remains open.** None of the twelve rows is in `gated_commands`. Runs 6
+and 7 are the first two runs of the forty-one-row matrix — 41 of 41
+`GOIP_PARITY_PASS` with `stdout=0` on every row, both times — and run 7 ran
+against the identical tree with no edit between them, so it also covers the
+`goconst` extraction that landed after run 6. The one difference between the two
+runs is `CONTROL_NOISY` 27 → 24: three `IFLA_INET6_CACHEINFO` findings on
+`-j link show` did not recur, which measures run 6's reading that they were
+reference-vs-reference lifetime ticking rather than a property of `-j`. **Having
+the evidence is not gating it.** Gating is still a follow-up branch cut from the
+updated `main`, by the same bar every other row cleared; that branch must
+also edit `TestUngatedSurfaceIsNotVacuous`'s named set. Two further `-j` rows
+are deliberately second-wave: `-j neigh show proxy` (`proxy` is in
+`flagTokens`, and `neigh show proxy` is already gated) and `-j -6 addr show`.
+
+Full write-up, including the nine declared cross-format differences and the
+four mapping bugs the calibration found:
+[`docs/netlink/coverage-status.md`](docs/netlink/coverage-status.md) §"The
+twelve rows added for `-j` and the family selectors".

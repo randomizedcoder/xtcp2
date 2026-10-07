@@ -182,6 +182,44 @@ func FacetKeyword(kw string) StdoutFacet { return StdoutFacet("keyword:" + kw) }
 // Locus renders the allowlist key's second half.
 func (f StdoutFacet) Locus() string { return "stdout:" + string(f) }
 
+// The compared keyword spellings, named once.
+//
+// These are the text form's words, and stdout_json.go's jsonKeywordKeys maps
+// iproute2's JSON key names onto them. Fourteen of the twenty-three are
+// spelled the SAME in both formats, so each of those words would otherwise be
+// written three times across this package — once in keywords below and twice
+// as a map entry's key and value — and a typo in any one of the three would
+// create a locus the allowlist cannot name while looking like a working
+// mapping. Naming them removes that failure mode rather than merely satisfying
+// goconst: the identity entries in jsonKeywordKeys share the SAME constant on
+// both sides, so "iproute2 spells this one identically" is stated by the code
+// instead of by two literals that happen to agree today.
+const (
+	kwMtuCst          = "mtu"
+	kwQdiscCst        = "qdisc"
+	kwStateCst        = "state"
+	kwModeCst         = "mode"
+	kwGroupCst        = "group"
+	kwQlenCst         = "qlen"
+	kwMasterCst       = "master"
+	kwScopeCst        = "scope"
+	kwBrdCst          = "brd"
+	kwLinkNetnsidCst  = "link-netnsid"
+	kwProtoCst        = "proto"
+	kwValidLftCst     = "valid_lft"
+	kwPreferredLftCst = "preferred_lft"
+	kwViaCst          = "via"
+	kwMetricCst       = "metric"
+	kwSrcCst          = "src"
+	kwTableCst        = "table"
+	kwAdvmssCst       = "advmss"
+	kwWeightCst       = "weight"
+	kwPrefCst         = "pref"
+	kwPeerCst         = "peer"
+	kwPermaddrCst     = "permaddr"
+	kwLladdrCst       = "lladdr"
+)
+
 // keywords are the iproute2 output keywords whose values are compared.
 //
 // A closed list rather than "every second token", because `ip`'s output is
@@ -230,11 +268,14 @@ func (f StdoutFacet) Locus() string { return "stdout:" + string(f) }
 // here so the facet is CAPABLE when a topology that produces them is
 // compared, rather than being added at the same time as the thing they are
 // supposed to catch.
+//
+// The spellings are the kw*Cst constants above; the three sets this comment
+// describes are the groups in the literal, in that order.
 var keywords = []string{
-	"mtu", "qdisc", "state", "mode", "group", "qlen", "master",
-	"scope", "brd", "link-netnsid", "proto", "valid_lft", "preferred_lft",
-	"via", "metric", "src", "table", "advmss", "weight", "pref",
-	"peer", "permaddr", "lladdr",
+	kwMtuCst, kwQdiscCst, kwStateCst, kwModeCst, kwGroupCst, kwQlenCst, kwMasterCst,
+	kwScopeCst, kwBrdCst, kwLinkNetnsidCst, kwProtoCst, kwValidLftCst, kwPreferredLftCst,
+	kwViaCst, kwMetricCst, kwSrcCst, kwTableCst, kwAdvmssCst, kwWeightCst, kwPrefCst,
+	kwPeerCst, kwPermaddrCst, kwLladdrCst,
 }
 
 // Keywords returns the compared keywords, sorted, so a report's line order is
@@ -460,16 +501,58 @@ func render(k string, n int) string {
 	return fmt.Sprintf("%s x%d", k, n)
 }
 
-// stdoutFacets extracts every facet of one side's output in a single pass.
-func stdoutFacets(s string) (sets map[StdoutFacet]multiset) {
-	sets = map[StdoutFacet]multiset{}
+// stdoutFacets extracts every facet of one side's output.
+//
+// # Two formats, one locus set
+//
+// `ip -j` and `goip -j` emit JSON, where not one of the patterns below
+// matches: reStanza needs an `N: name` header, reKeyword needs whitespace
+// after the keyword rather than `": "`, and an address and its prefix length
+// are separate keys. A text-only extraction over JSON yields empty sets, and
+// empty sets match empty sets — so a `-j` row would have reported PASS
+// against a goip that printed `[]`.
+//
+// jsonFacets closes that by filling the SAME facets and the SAME keywords
+// from JSON. It adds no locus: StdoutLoci() is unchanged, so the allowlist
+// and TestStdoutLociAreEnumerable are untouched by the existence of the
+// second format. See stdout_json.go.
+//
+// # Why the dispatch is per side rather than per command
+//
+// The format is detected from the output, not from the argv, and each side is
+// detected on its own. That is deliberate: a goip that printed text where
+// `ip` printed JSON is a divergence, and detecting per side reports it as
+// one — a large pile of findings across every facet — where a per-command
+// decision would have forced both sides through one extractor and compared
+// the wrong things quietly.
+func stdoutFacets(s string) map[StdoutFacet]multiset {
+	sets := newFacetSets()
+	if entries, ok := jsonEntries(s); ok {
+		jsonFacets(entries, sets)
+		return sets
+	}
+	textFacets(s, sets)
+	return sets
+}
+
+// newFacetSets returns an empty multiset for every locus this file can emit.
+//
+// Every facet is present and empty rather than absent, because multiset.diff
+// over a missing key and an empty one are the same answer and a nil map would
+// make the extractors responsible for initialization.
+func newFacetSets() map[StdoutFacet]multiset {
+	sets := make(map[StdoutFacet]multiset, len(Facets())+len(keywords))
 	for _, f := range Facets() {
 		sets[f] = multiset{}
 	}
 	for _, kw := range keywords {
 		sets[FacetKeyword(kw)] = multiset{}
 	}
+	return sets
+}
 
+// textFacets extracts every facet of one side's TEXT output in a single pass.
+func textFacets(s string, sets map[StdoutFacet]multiset) {
 	for _, line := range splitLines(s) {
 		// The line count is a multiset over the *line numbers*, not over the
 		// lines: comparing the lines themselves would be byte-for-byte
@@ -510,7 +593,6 @@ func stdoutFacets(s string) (sets map[StdoutFacet]multiset) {
 			sets[FacetKeyword(m[1])].add(m[2])
 		}
 	}
-	return sets
 }
 
 // splitLines splits on newlines, treating a trailing newline as a terminator

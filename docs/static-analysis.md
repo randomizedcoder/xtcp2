@@ -657,10 +657,18 @@ path**:
 | `pkg/xtcpnl/xtcpnl_ndmsg_test.go` | 767 | `include/uapi/linux/neighbour.h` |
 | `pkg/nlparity/nlparity_segment_test.go` | 138, 297 | `net/core/neighbour.c` |
 | `pkg/nlparity/nlparity_names_test.go` | 375 | `net/core/neighbour.c` |
-| `internal/goipparity/commands.go` | 629, 642 | `net/core/neighbour.c` |
+| `internal/goipparity/commands.go` | 825, 838 | `net/core/neighbour.c` |
 | `internal/goip/obj_neigh.go` | 151 | `net/core/neighbour.c` |
 | `internal/goip/req/req.go` | 304 | `net/core/neighbour.c` |
 | `internal/goip/render/neigh_test.go` | 42 | `include/uapi/linux/neighbour.h` |
+
+Re-counted on 2026-10-07: **fifteen** sites, not the thirteen this section
+landed with. `xtcpnl_ndmsg.go` gained two in `153808a` (NDA_FLAGS_EXT), both in
+the `https://github.com/torvalds/linux/.../neighbour.h` URL form, and
+`commands.go`'s two moved from 629/642 as that file grew to 41 rows. The file
+list is unchanged, so neither is a coverage hole — the exclusion and the audit
+below are scoped by path, not by line — and the thirteen in the heading and in
+the census arithmetic above are left as the figures that census measured.
 
 **Changing any of them makes the code wrong.** `net/core/neighbor.c` does not
 exist in the kernel tree, and the value of these comments is precisely that

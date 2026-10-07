@@ -9,7 +9,7 @@
 // direct import of internal/goip, no path to it through the import closure,
 // and no socket call written in this package at all.
 //
-// Three files, three jobs:
+// Four files, three jobs:
 //
 //   - commands.go is the command table: the single source of truth for what
 //     gets captured, what the capture files are called, and the allowlist key.
@@ -18,6 +18,9 @@
 //   - stdout.go is the structural stdout comparison, the plan's Risk 1
 //     override. Netlink parity alone is reply-independent: a goip that sends
 //     byte-identical requests and discards every reply is a perfect green.
+//     stdout_json.go is the second half of that one job: it fills the SAME
+//     facets and keywords from `-j` output, which the text patterns cannot
+//     match at all, and adds no locus of its own.
 //   - compare.go walks a capture directory, runs both comparisons per command
 //     and renders the sentinels the in-guest runner greps for.
 //
@@ -246,6 +249,49 @@ var commands = withArgs([]Command{
 		Floor: 4, Implemented: true,
 	},
 	{
+		Name: "-0 addr show", Slug: "addr_show_packet",
+		// TWO, not four, and the halved count is the assertion.
+		//
+		// # The only row in the table that sends ONE dump for `addr show`
+		//
+		// Every other addr row sends two transactions: the link dump, then the
+		// address dump. This one sends the first and not the second, because
+		// ipaddr_list_flush_or_save guards the whole address half on
+		// `filter.family != AF_PACKET` (ip/ipaddress.c:2310) and `-0` sets
+		// preferred_family to AF_PACKET. The same condition appears a second
+		// time, at :2331, where it also suppresses print_selected_addrinfo —
+		// so one comparison removes a transaction AND every address line, and
+		// the output is link stanzas alone.
+		//
+		// goip splits the same condition the same way, which is why this row
+		// is worth a triple rather than a stdout check. service.go:199 is the
+		// wire half: AddressSnapshot never calls s.Addresses, so the second
+		// dump is neither built nor issued. renderAddrGroups is the print
+		// half: obj_addr.go:237-239 skips filterLinksWithAddrs exactly where
+		// `ip` skips ipaddr_filter. The `dev` path guards its own request
+		// separately (obj_addr.go:213), and AddrShowDump carries no guard at
+		// all — req.go:200-203 is the doc note recording that the decision
+		// belongs to its caller.
+		//
+		// A goip that skipped the render but still sent the dump would print
+		// identical text, so the datagram count and the absent request are
+		// the only things that would catch it.
+		//
+		// # The only CLI input in the project that reaches that branch
+		//
+		// The AF_PACKET arm existed in obj_addr.go and in
+		// Service.AddressSnapshot before any option could produce it; goip.go's
+		// `-0` case says so in its own comment. So this row is not an extra
+		// sample of a compared path, it is the first comparison of the path at
+		// all.
+		//
+		// `-0 link show` is deliberately NOT a row: ipaddr_list_link
+		// overwrites preferred_family with AF_PACKET before parsing anything
+		// (ip/ipaddress.c:2416), so it would be a third byte-identical copy of
+		// `link show` after `-4` and `-6`. See the `-4 link show` row.
+		Floor: 2, Implemented: true,
+	},
+	{
 		Name: "-s addr show", Slug: "addr_show_stats",
 		// Four, like the bare form: `-s` adds no transaction, it changes one
 		// byte of one request. The AF_UNSPEC addr dump's link half carries
@@ -400,6 +446,97 @@ var commands = withArgs([]Command{
 		Floor: 4, Implemented: true,
 	},
 	{
+		Name: "route show table main", Slug: "route_show_table_main",
+		// Four, and the request is BYTE-IDENTICAL to `route show`'s — which is
+		// the one thing about this command a reader would not guess, because
+		// the sibling row above it is not.
+		//
+		// iproute_list_flush_or_save assigns `filter.tb = RT_TABLE_MAIN`
+		// before it parses an argument (ip/iproute.c:1836), and
+		// iproute_dump_filter writes RTA_TABLE whenever filter.tb is nonzero
+		// (:1726-1730). So a bare `ip route show` ALREADY carries
+		// RTA_TABLE = 254 on the wire, and `table main` re-assigns the value
+		// it already had. The family promotion is shared for the same reason:
+		// `dump_family == AF_UNSPEC && filter.tb` sends both forms as AF_INET
+		// (:1998-1999).
+		//
+		// That is what separates this row from `route show table all`, where
+		// `all` means RT_TABLE_UNSPEC: zero, so the attribute is absent
+		// ENTIRELY and the promotion does not fire. Three spellings of the
+		// table selector, three different requests — 254, nothing, and 255 —
+		// and only the middle one was compared before this sweep.
+		//
+		// The assertion is therefore an identity, and it is live where the
+		// offline tests cannot be: goip reaches the same bytes through
+		// routeTableID("main") -> unix.RT_TABLE_MAIN and a selector struct,
+		// not through a pre-set default, so the two implementations agree by
+		// construction on neither side. A goip that treated an explicit
+		// `table main` as a client-side filter, or that dropped RTA_TABLE when
+		// the value equalled the default, would print the same routes and
+		// differ here.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "route show table local", Slug: "route_show_table_local",
+		// Four, and the only route row whose request differs from `route
+		// show`'s in a VALUE rather than in a structure: one byte of one
+		// attribute, RTA_TABLE = 255 where every other form sends 254 or
+		// omits it.
+		//
+		// # The row that renders route types past `unicast`
+		//
+		// Table 255 is where the kernel keeps the routes it creates for every
+		// configured address, and they are RTN_LOCAL and RTN_BROADCAST rather
+		// than RTN_UNICAST. print_route prints the type token when it is not
+		// the default (ip/iproute.c:828), so this listing opens every line
+		// with `local` or `broadcast` — and render.routeTypeNames
+		// (internal/goip/render/route.go:133-146) has twelve entries of which
+		// the compared corpus exercises exactly one.
+		//
+		// That makes it the only row in the table that reaches those arms
+		// without `-d`. The `-d route show` row reaches the SUPPRESSION logic
+		// — it unhides `unicast` — which is a different claim: unhiding the
+		// default proves the guard works, printing a non-default proves the
+		// NAME TABLE is right. A renderer with `local` and `broadcast`
+		// transposed passes every existing golden and fails this row on every
+		// line.
+		//
+		// # Why `table default` is not the third row here
+		//
+		// RT_TABLE_DEFAULT = 253 is an equally real request change, but the
+		// parity topology puts no route in table 253, so the stdout half would
+		// be empty on both sides — a facet set that matches because neither
+		// tool printed anything, which is the vacuity this harness exists to
+		// refuse. It is worth a row the moment nltopo::build_clean adds a
+		// `table 253` route, and not before.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-4 route show", Slug: "route_show_v4",
+		// Four, and byte-identical to `route show` in both halves — the
+		// `-4 link show` precedent, reached by a completely different
+		// mechanism and therefore worth its own row.
+		//
+		// There the identity comes from an OVERWRITE: ipaddr_list_link stamps
+		// preferred_family with AF_PACKET and discards whatever `-4` set
+		// (ip/ipaddress.c:2416). Here nothing is overwritten and `-4` is
+		// honored exactly — it is simply honored to the same value the bare
+		// form already computes. `dump_family` starts as preferred_family
+		// (ip/iproute.c:1821) and is promoted from AF_UNSPEC to AF_INET
+		// because filter.tb is nonzero (:1998-1999), so `route show` asks for
+		// IPv4 and `-4 route show` asks for IPv4.
+		//
+		// One identity from a dropped option and one from a redundant option
+		// are different failure modes, and a single row cannot hold both.
+		//
+		// What it can find: `route show table all` is the form where the
+		// promotion does NOT fire, so a goip that hardcoded AF_INET for every
+		// route dump would pass this row and fail that one, and a goip that
+		// hardcoded AF_UNSPEC would do the reverse. The pair is the assertion;
+		// neither row is one on its own.
+		Floor: 4, Implemented: true,
+	},
+	{
 		Name: "-6 route show", Slug: "route_show_v6",
 		Floor: 4, Implemented: true,
 	},
@@ -516,6 +653,57 @@ var commands = withArgs([]Command{
 	},
 	{
 		Name: "neigh show", Slug: "neigh_show",
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-4 neigh show", Slug: "neigh_show_v4",
+		// Four, and the first family row this object has ever had — every
+		// other object in the table carries at least two.
+		//
+		// # One byte changes, and it is in the SECOND request, not the first
+		//
+		// `neigh show` sends two transactions: ll_init_map's link dump, then
+		// the neighbor dump. The family reaches only the second of them.
+		// ll_init_map's request is hardcoded AF_UNSPEC with its own mask
+		// (lib/ll_map.c:395) and takes no family argument at all, which goip
+		// mirrors by having req.NeighShowLinkDump accept only a sequence
+		// number; the neighbor dump takes filter.family, which
+		// do_show_or_flush assigns from preferred_family at ip/ipneigh.c:514
+		// and rtnl_neighdump_req puts in ndm_family at :648.
+		//
+		// The guard there reads `if (!filter.family)`, and it always fires for
+		// a show: ipneigh_reset_filter memsets the struct (:480) immediately
+		// before (:511). So ndm_family is 0 for the bare form and 2 here, one
+		// byte, in the second of two requests — which is a state a comparator
+		// that checked only the first request, or only the datagram count,
+		// could not see.
+		//
+		// This is the opposite of the link object, where `-4` is discarded,
+		// and of the route object, where `-4` is honored to the value the bare
+		// form already had. Here it is honored to a DIFFERENT value, so the
+		// two requests must differ and the comparison asserts inequality
+		// rather than identity. All three shapes now have a row.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-6 neigh show", Slug: "neigh_show_v6",
+		// Four, the other arm, and not a duplicate: `-4` and `-6` are separate
+		// assignments in goip's option loop, so a goip that forwarded one and
+		// not the other is a state this table can reach and a single row
+		// cannot. The same argument the `-6 link show` row makes.
+		//
+		// It also reaches a different kernel cache: ndm_family AF_INET6 is
+		// answered from the IPv6 neighbor table rather than from the ARP
+		// cache, so what this row lists is whatever the namespace's
+		// link-local addresses have resolved.
+		//
+		// The three rows PARTITION the bare form's output, which was measured
+		// rather than reasoned: `neigh show` printed 575 bytes, `-4 neigh
+		// show` 437 and `-6 neigh show` 138, and 437 + 138 = 575. Each family
+		// row is therefore a subset of `neigh show`, not a different listing,
+		// and what the pair buys is that the split falls in the same place on
+		// both sides. A goip that dropped the family would print all 575
+		// bytes here and fail two rows at once.
 		Floor: 4, Implemented: true,
 	},
 	{
@@ -774,6 +962,163 @@ var commands = withArgs([]Command{
 		// MEASURED: `control: nl=0 stdout=0`, identical to `rule show`,
 		// `-4 rule show`, `-6 rule show` and `-d rule show`. Step 5's no-op
 		// claim holds live, on the cheapest row in the table.
+		Floor: 2, Implemented: true,
+	},
+
+	// The `-j` block.
+	//
+	// # What these rows claim, and what they do not
+	//
+	// `-j` provably does not reach the wire. iplink_filter_req's mask depends
+	// on filter.vfinfo and show_stats and on nothing else
+	// (ip/ipaddress.c:2017-2026, :2060-2068), and every is_json_context() call
+	// site in iproute2 is inside a print function. So each row below is
+	// byte-identical to its text twin on the request side and inherits the
+	// twin's floor, and the request half is an ASSERTION of that rather than a
+	// hope: a goip that threaded the output mode into a request would be
+	// caught here and nowhere else.
+	//
+	// The value is on the stdout side, and it is specifically a LIVE `ip`.
+	// JSON is already compared exactly offline — TestAddrShowJSONMatchesCaptured-
+	// Sidecars and its link sibling diff goip's encoder against committed
+	// `ip -j -p` output — but a committed sidecar cannot notice that the
+	// nixpkgs iproute2 pin moved and changed a key's spelling. These rows can,
+	// because both sides run in one capture window against one binary.
+	//
+	// # Why they are not gated in the commit that adds them
+	//
+	// Same bar as everything else here: a command joins gated_commands on its
+	// own measured runs, not on the argument that it ought to be quiet. They
+	// go in ungated, which also makes GOIP_PARITY_UNGATED_CLEAN count twelve
+	// rows instead of two — the check was one gating decision away from its
+	// third vacuity.
+	//
+	// # The facet work these rows depend on
+	//
+	// Until this block was written, stdout.go's extraction patterns were
+	// text-only, and a `-j` row would have compared essentially nothing while
+	// reporting PASS: reStanza, reKeyword, reDev and reStatsHeader match no
+	// JSON at all, reCIDR4 cannot see an address whose prefix length is a
+	// separate key, and FacetLines is 1 because json.NewEncoder emits one
+	// line. Only reMAC survived, by coincidence. See stdout_json.go's
+	// jsonFacets, which makes the SAME nine facets and 23 keywords reachable
+	// from JSON without adding a locus.
+	{
+		Name: "-j addr show", Slug: "addr_show_json",
+		// Four, as `addr show`. The widest stdout row of the six and the
+		// reason the facet work happened at all.
+		//
+		// iproute2 does not print an address as one token in JSON. `local`
+		// and `prefixlen` are separate keys (print_addrinfo,
+		// ip/ipaddress.c), so `127.0.0.1/8` exists only after the comparator
+		// joins them — which is the single mapping in jsonFacets that a
+		// regex could not have done, and the one whose failure is silent:
+		// unjoined, FacetCIDRs is empty and empty matches empty.
+		//
+		// It is also the only row reaching the addr_info nest, and therefore
+		// the only one that compares valid_lft and preferred_lft under their
+		// JSON spellings, valid_life_time and preferred_life_time.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-j link show", Slug: "link_show_json",
+		// Two, as `link show`. Five of the ten renames in jsonKeywordKeys are
+		// link keys — operstate for state, linkmode for mode, txqlen for
+		// qlen, broadcast for brd, and link_netnsid for link-netnsid — and
+		// those spellings are iproute2's choice rather than a
+		// transliteration, so they are exactly what a version bump moves. A
+		// text-only comparison cannot see any of them.
+		//
+		// Only ONE of the five is unique to this row, and it was measured
+		// rather than assumed: against the committed sidecars, operstate,
+		// txqlen and broadcast appear in ip_addr_json as well, because an
+		// addr listing carries the link stanza; linkmode appears in
+		// ip_link_json alone; and link_netnsid appears in neither, which is
+		// the dormant-but-capable case the keyword test classifies. So the
+		// claim here is coverage WIDTH, not exclusivity — `-j addr show`
+		// would catch a broken operstate too, and that redundancy is wanted
+		// on a row whose floor is 2.
+		Floor: 2, Implemented: true,
+	},
+	{
+		Name: "-j route show", Slug: "route_show_json",
+		// Four, as `route show`, and the row with the most container shapes
+		// to walk. Nesting alone is not what singles it out — addr nests
+		// addr_info and `-j -s link show` nests stats64 two deep — it is that
+		// all three of the shapes below are unique to this row.
+		//
+		// Three shapes, each unique in the corpus: `metrics` is an array of
+		// objects carrying mtu and advmss, where the text form prints them as
+		// bare `mtu 1400 advmss 1300` tokens on the route line; `via` is an
+		// OBJECT with family and host members rather than the string the text
+		// form prints; and `nexthops` is an array whose length is the text
+		// form's repeated `nexthop` word. A walker that recursed but recorded
+		// only top-level keys would compare the first and miss all three.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-j neigh show", Slug: "neigh_show_json",
+		// Four, as `neigh show`. The row that exercises the presence-only rule.
+		//
+		// print_neigh's flag run emits bare positional words — `router`,
+		// `extern_learn`, `extern_valid` — through print_null
+		// (ip/ipneigh.c:440-451), and print_null's JSON is the key with a
+		// **null** value, not `true`. That is the trap: a mapping written from
+		// the text output alone would look for a boolean and find none, and a
+		// mapping that read null as absent would drop the flag entirely.
+		// jsonFacets treats null and print_bool's true alike, and records
+		// either only when the key is in flagTokens — which is what keeps the
+		// two formats in agreement, because addr's mngtmpaddr, nodad and
+		// noprefixroute are presence-only too and are in neither flagTokens
+		// nor the text facet, so they contribute nothing on either side.
+		//
+		// The flagged neighbors this depends on are in nltopo::build_clean,
+		// which the parity harness builds from the same proc as the capture
+		// script — so the fixtures and this row see the same entries.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-j rule show", Slug: "rule_show_json",
+		// Two, as `rule show`, and the row with the two most surprising
+		// mappings in jsonFacets — both forced by what the TEXT extractor
+		// already does rather than by what JSON offers.
+		//
+		// A rule's priority is filed under FacetIfIndexes, because the text
+		// form opens each line with `100:` and reStanza is what reads it.
+		// Nothing about a rule is an interface index; the facet is where the
+		// text extractor puts the number, so JSON parity requires the same
+		// filing. And `src`/`srclen` and `dst`/`dstlen` are split key pairs,
+		// as addr's are, where the text form prints `from 192.0.2.0/24`.
+		//
+		// The declared asymmetry is `table`: JSON spells it `table`, text
+		// spells it `lookup`, so the keyword facet is populated on the JSON
+		// side and empty on the text side. That is pinned by a test row in
+		// both directions rather than tolerated.
+		Floor: 2, Implemented: true,
+	},
+	{
+		Name: "-j -s link show", Slug: "link_show_stats_json",
+		// Two, as `-s link show`, whose floor and whose permanent netlink
+		// noise this row inherits — IFLA_STATS and IFLA_STATS64 differ between
+		// any two captures and D_control absorbs them, exactly as the text
+		// twin records.
+		//
+		// # The only row that reaches stats64, and the one most able to lie
+		//
+		// The text form prints an `RX:`/`TX:` heading line and a value line,
+		// and FacetStatsHeaders compares the HEADINGS alone: the counters are
+		// live and the column widths move with them, so comparing either
+		// would report clean while asserting nothing. JSON has no heading
+		// line at all — `stats64` is an object of `rx` and `tx`, each an
+		// object whose KEYS are the headings and whose values are the
+		// counters.
+		//
+		// So the port has to take the key names and discard the values, and
+		// getting that backwards is the one mistake in this whole block that
+		// would not announce itself: the row would simply be noisy forever,
+		// and a permanently-noisy row has a precedent here to be read as
+		// expected rather than as broken. It is not. If this row reports
+		// stdout noise, the mapping is wrong and the fix is in jsonFacets.
 		Floor: 2, Implemented: true,
 	},
 })

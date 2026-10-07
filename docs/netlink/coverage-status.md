@@ -2,7 +2,7 @@
 
 ## goip ↔ `ip` parity at a glance
 
-Counted from the tree on 2026-10-06. Every number has a file behind it, named
+Counted from the tree on 2026-10-07. Every number has a file behind it, named
 in the last column; **if this table and the file disagree, the file is right
 and this table is stale.** That has happened before in this document — see the
 "no route command is in `gated_commands`" line that outlived its own truth by
@@ -10,20 +10,30 @@ several steps, further down under [Remaining](#remaining).
 
 | | count | counted from |
 |---|---|---|
-| commands in the comparison matrix | **29** | `internal/goipparity/commands.go` |
-| of those, `Implemented: true` | **29** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
+| commands in the comparison matrix | **41** | `internal/goipparity/commands.go` |
+| of those, `Implemented: true` | **41** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
 | of those, in `gated_commands` | **27** | `pkg/nlparity/goip-parity-allowlist.json` |
 | allowlisted divergences | **7** | same file, `entries` |
 | of those, `kind=version-skew` | **7** | all against the pinned `ip` 7.1.0 |
 | of those, `kind=accepted-divergence` | **0** | nothing is divergent on purpose and permanently |
 
-The two matrix rows outside `gated_commands` are both `-s` forms:
-**`-s addr show`** and **`-s neigh show`**. The `-s` sweep's other three —
-`-s -6 addr show`, `-s route show`, `-s rule show` — measured
-`control: nl=0 stdout=0` on five runs across two sessions and
+**Fourteen** matrix rows sit outside `gated_commands`, and they fall into two
+groups that are out for unrelated reasons.
+
+**Twelve are new and not yet gated**: six family and table selectors and six
+`-j` forms, added together with the JSON facet extractor they depend on. They
+have two back-to-back clean live runs behind them — runs 6 and 7, both 41 of 41
+with `stdout=0` — which is the evidence the bar asks for and not the decision
+it gates. Gating them is a separate branch cut from the updated `main`. See
+[The twelve rows added for `-j` and the family selectors](#the-twelve-rows-added-for--j-and-the-family-selectors).
+
+**Two are `-s` forms held out on purpose**: **`-s addr show`** and
+**`-s neigh show`**. The `-s` sweep's other three — `-s -6 addr show`,
+`-s route show`, `-s rule show` — measured `control: nl=0 stdout=0` on five
+runs across two sessions and
 [gated on runs 4 and 5](#runs-4-and-5-three--s-forms-gate-and-a-refactor-gets-checked).
 
-The two that remain out are unresolved in **opposite** directions, which is why
+The two `-s` forms that remain out are unresolved in **opposite** directions, which is why
 neither is simply next in a queue. `-s addr show` is noisy *with variance* —
 `nl` of 2, 2, **6**, then 2, 2 — so it clears
 [`-s link show`'s bar](#-s-link-show-gates-on-runs-that-disagree) rather than
@@ -39,8 +49,12 @@ Flipping `Implemented` puts a command in the report; joining `gated_commands`
 requires a live Tier C run (`nix run .#microvm-x86_64-goip-parity`) measured
 clean for it, on two consecutive runs whose every line matches.
 
-The most recent sweep is **runs 4 and 5**, two back-to-back runs at `fb67da4`
-on an unmodified tree, each reporting **29 of 29 `GOIP_PARITY_PASS`** with
+The most recent sweep of the **gated** surface is **runs 4 and 5**, two
+back-to-back runs at `fb67da4`, when the matrix was twenty-nine rows. The
+twelve rows added since are measured by their own run, transcribed in
+[The twelve rows added for `-j` and the family selectors](#the-twelve-rows-added-for--j-and-the-family-selectors).
+
+Runs 4 and 5 ran on an unmodified tree, each reporting **29 of 29 `GOIP_PARITY_PASS`** with
 `HYGIENE_PASS`, `GOIP_PARITY_UNGATED_CLEAN`, `OVERALL_PASS` and `DRIVER_PASS`,
 and zero `FINDINGS`. Transcribed from
 [Runs 4 and 5](#runs-4-and-5-three--s-forms-gate-and-a-refactor-gets-checked);
@@ -119,8 +133,8 @@ notifications that make that fixture fail the comparator's hygiene rule.
 and now
 [`cmd/goip-parity` itself](#cmdgoip-parity--the-comparator-and-the-two-defects-its-own-report-had)
 all exist and gate through `checks.test-go-race`, with no sockets, no root and
-no VM: **253 subtests at 91.6% coverage** in `pkg/nlparity`, plus **128 at
-94.4%** in `internal/goipparity`. **Item 6 is now complete**: the
+no VM: **253 subtests at 91.6% coverage** in `pkg/nlparity`, plus **352 at
+93.5%** in `internal/goipparity`. **Item 6 is now complete**: the
 [`goip-parity` microVM flavor and its driver](#tier-c--the-goip-parity-microvm-flavor)
 produce the `ip → goip → ip` triples the comparator reads, a live run reported
 `GOIP_PARITY_OVERALL_PASS`, and **`link show` is gated** on the strength of that
@@ -1744,7 +1758,11 @@ suppressed audit finding is an audit that stops being evidence.
 `internal/goipparity` plus a thin `cmd/goip-parity` main: **128 subtests, 0
 skips, 94.4% of statements**. Three files with three jobs — `commands.go` is the
 command table, `stdout.go` is the Risk 1 structural stdout comparison, and
-`compare.go` walks a capture directory and renders the sentinels. Nothing here
+`compare.go` walks a capture directory and renders the sentinels.
+(Both numbers are as this section landed. The package is now **352 subtests at
+93.5%** across FOUR files: `stdout_json.go` joined `stdout.go` on the same job
+when the `-j` rows were added, and the coverage moved because that file is new
+production code, not because a test was dropped — 0 skips still holds.) Nothing here
 re-implements comparison; `nlparity.Compare` already does usability, hygiene,
 diff, control subtraction and allowlisting.
 
@@ -1920,6 +1938,242 @@ would need a crafted capture pair to produce a subtracted or allowlisted
 netlink finding — the two committed netlink entries are both for commands goip
 does not implement, so they are never compared. The stdout `AllowSuppressed`
 loop, identical in shape, is covered.
+
+### The twelve rows added for `-j` and the family selectors
+
+Branch `feat/goip-parity-json-and-family-rows`. The matrix goes from 29 rows to
+**41**, all twelve new rows `Implemented: true` and **none gated**. Two
+unrelated holes are closed by one branch because they share a Tier C run, which
+is the expensive part.
+
+**Six rows for paths that were already implemented and had never been
+compared.** Each row's `Floor` is the message count its request produces, and
+the floors are where the claims live:
+
+| row | floor | what it reaches that nothing else did |
+|---|---|---|
+| `-0 addr show` | **2**, not 4 | the AF_PACKET branch. `ip/ipaddress.c:2310` skips the address dump entirely for AF_PACKET, so this sends **one** dump where `addr show` sends two; goip mirrors it at `req/req.go:200-201` and `service/service.go:199`, and no other CLI input in the matrix reaches that branch. |
+| `route show table main` | 4 | the explicit spelling of the default. Byte-identical to `route show` (both RTA_TABLE 254), so it catches `routeTableID("main")` drifting. |
+| `route show table local` | 4 | RTA_TABLE 255, and the only row rendering route types past `unicast` — `render.routeTypeNames` has arms for RTN_LOCAL and RTN_BROADCAST that nothing else produces. |
+| `-4 route show` | 4 | byte-identical to `route show` by the AF_UNSPEC→AF_INET promotion at `ip/iproute.c:1821`, `:1998-1999`. |
+| `-4 neigh show` | 4 | a real request change: `ndm_family` becomes AF_INET (`ip/ipneigh.c:513-514`, `:648`). The `ll_init_map` link dump is unaffected, being hardcoded AF_UNSPEC at `lib/ll_map.c:395`. |
+| `-6 neigh show` | 4 | the v6 half. `neigh` had no family row at all before. |
+
+Two candidates were reasoned out rather than added, and the row comments say
+why so the next reader does not re-derive it. **`-0 link show`** would be a
+third byte-identical copy of `link show`, because `ipaddr_list_link` overwrites
+`preferred_family` with AF_PACKET at `ip/ipaddress.c:2416`. **`route show table
+default`** is a real request change (RTA_TABLE 253) but the parity topology has
+no table-253 routes, so both sides would render nothing; it is worth adding when
+`nltopo::build_clean` grows one.
+
+**Six `-j` rows, and the extractor they turned out to need.** `-j` is the output
+mode that found the only real goip bug this harness has caught, and Tier C never
+ran it. The scope changed on measurement: with the text-oriented facets a `-j`
+row would have reported `PASS` while comparing **almost nothing**. Against the
+committed `ip_addr_json`, `reStanza` never matches, `reKeyword`'s `\s+` never
+matches `"mtu": 65536`, `reCIDR4` never matches because JSON splits `local` and
+`prefixlen`, `reDev` and `reStatsHeader` never match at all, and `FacetLines` is
+1 because bare `-j` is one line on both sides. Only `FacetMACs` survived, by the
+coincidence that `"address": "00:00:00:00:00:00",` happens to match `reMAC`.
+**A goip emitting `[]` would have passed.** So `internal/goipparity/stdout_json.go`
+teaches the extractor JSON, and `stdoutFacets` dispatches on format per side.
+
+The property that makes it safe is that it adds **no locus**: the same nine
+facets and 23 keywords, reached from JSON instead of from text, so
+`StdoutLoci()`, `TestStdoutLociAreEnumerable` and the committed `stdout:`
+allowlist entries are untouched. The stronger design — a structural JSON diff
+keyed on elided-index paths — was rejected for breaking that, not for cost.
+
+| row | floor | what it exercises |
+|---|---|---|
+| `-j addr show` | 4 | the `local`+`prefixlen` composite, `addr_info` nesting, `valid_life_time`/`preferred_life_time`, `protocol`→`proto` |
+| `-j link show` | 2 | the richest keyword row: `operstate`, `linkmode`, `txqlen`, `broadcast`, `permaddr`, `master`, `group` |
+| `-j route show` | 4 | nested `metrics`, `via` as an object, the `nexthops` array, `gateway`→`via`, `prefsrc`→`src` |
+| `-j neigh show` | 4 | flag tokens as JSON **nulls**, `state` as an array, `lladdr` in both `macs` and its keyword |
+| `-j rule show` | 2 | `priority` filed under `ifindexes`, the `src`+`srclen` and `dst`+`dstlen` composites |
+| `-j -s link show` | 2 | the only row reaching `stats64` → `statsheaders`. Noise here would mean the headings/values split failed to port, which is a bug in the mapping and not a reason to gate it noisy. |
+
+Each `-j` row inherits its text twin's floor, because `-j` provably does not
+touch the wire: `filt_mask` (`ip/ipaddress.c:2017-2026`, `:2060-2068`) depends
+only on `filter.vfinfo` and `show_stats`, and every `is_json_context()` hit is
+inside a print function. `-j -p` is not available as a row — `internal/goip/goip.go`
+has no `-p` case, so a `-p` row would exit `ExitUsage`.
+
+**The calibration is the evidence, and it found four bugs reasoning had
+missed.** `TestStdoutJSONFacetsMatchText` runs both extractors over 21
+(object, topology) sidecar pairs and requires agreement on every locus bar an
+enumerated list. Writing it surfaced: the `nexthops` key is plural where the
+text token is singular, so every route row disagreed; flag tokens are JSON
+`null` rather than `true` (`print_null(PRINT_ANY, "router", "%s ", "router")`,
+`ip/ipneigh.c:441`), so a `true` rule matched **none** of them; route flag
+tokens arrive as array *elements* (`"flags": ["linkdown"]`), which no key rule
+sees; and `via` was missing from the identity entries.
+
+Nine cross-format differences remain, and each is asserted in both directions
+rather than tolerated. Three are worth naming here because they are iproute2's
+behavior and not ours:
+
+- **`statsheaders` is not a rename.** Text reports `missed` from
+  `rx_missed_errors` while JSON reports `over_errors` from `rx_over_errors` —
+  two different kernel counters (`ip/ipaddress.c:749-760` against `:638-700`).
+  Translating one to the other would be a lie, so both sides carry iproute2's
+  own spelling for their own format.
+- **`valid_lft`/`preferred_lft`**: `INFINITY_LIFE_TIME` prints as the word
+  `forever` to the text stream and as `4294967295` to the JSON one, from
+  separate `print_string(PRINT_FP)`/`print_uint(PRINT_JSON)` calls at
+  `ip/ipaddress.c:1688-1696`. goip's `render/addr.go` splits the same way, so
+  each format agrees with itself.
+- **`broadcast` is the JSON key for both `brd` and `peer`.** On a
+  point-to-point link the text form chooses the prefix and JSON emits one key
+  either way; `link_pointtopoint` is the only discriminator and is not a
+  compared keyword. So the tunnel topology files these under `brd` in JSON and
+  `peer` in text.
+
+**Twelve ungated rows is also the point.** `GOIP_PARITY_UNGATED_CLEAN`
+(`internal/goipparity/compare.go:265-266`) counts `StatusWarn` outside
+`gated_commands`; it has been vacuous twice, and at two ungated rows it was one
+gating decision from a third. Fourteen keeps it load-bearing, and
+`TestUngatedSurfaceIsNotVacuous` pins that set by name so a future gating
+branch has to edit the list deliberately.
+
+#### Run 6 — the first run of the forty-one-row matrix
+
+One run, `nix run .#microvm-x86_64-goip-parity` on branch
+`feat/goip-parity-json-and-family-rows` at `5af46c6` plus this branch's
+uncommitted changes (the runner warns `Git tree … is dirty`, which is expected
+for a pre-merge run). Exit 0, **41 of 41 `GOIP_PARITY_PASS`**, with
+`HYGIENE_PASS`, `GOIP_PARITY_UNGATED_CLEAN`, `OVERALL_PASS` and `DRIVER_PASS`,
+and no `FINDINGS`. `CONTROL_NOISY 27`.
+
+**`stdout=0` on all 41 rows**, which is the number this branch was built to
+make meaningful. Before the JSON extractor the six `-j` rows would have read
+`stdout=0` as well, and it would have meant nothing.
+
+Three results are worth reading individually:
+
+- **`-0 addr show` sends 3 datagrams where `addr show` sends 6**, and all three
+  sides — `ip_a`, `goip`, `ip_b` — captured 416 bytes against `addr show`'s
+  1002. The AF_PACKET skip is now measured rather than cited, and the row's
+  `Floor` of 2 is the observed count and not a prediction.
+- **`-j -s link show`: `control: nl=2 stdout=0`.** The `nl=2` is
+  `IFLA_STATS64`/`IFLA_STATS` on ifindex 2, which is `-s link show`'s own
+  permanent noise and arrives in the identical shape. The `stdout=0` is the
+  result that mattered: had the stats mapping carried counter VALUES instead of
+  heading names, this row would have been noisy on the stdout side too.
+- **`-j link show`: `nl=3`**, all three
+  `IFLA_AF_SPEC:AF_INET6:IFLA_INET6_CACHEINFO`, on ifindexes 1, 2 and 3. That is
+  a difference between the two *reference* captures — live v6 address lifetimes
+  ticking between `ip_a` and `ip_b` — absorbed by `D_control`, not a goip
+  divergence. Plain `link show` read `nl=0` in the same run, so this is timing
+  rather than a property of `-j`.
+
+The rest: `-j addr show`, `-j route show`, `-j rule show`, `route show table
+main`, `route show table local`, `-4 route show` and `-0 addr show` all read
+`control: nl=0 stdout=0` — identical runs. `-4 neigh show` and `-6 neigh show`
+read `nl=2`, from the `IFLA_STATS` in `ll_init_map`'s link dump, which plain
+`neigh show` also carries.
+
+**On its own this is one run, so nothing gates on it.** The bar is two
+back-to-back runs; run 7 below is the second. Having both on record is not the
+same as gating, and the decision to gate still belongs to the follow-up branch.
+
+One edit landed *after* the run: `lint-baseline` reported 20 new `goconst`
+findings, because fourteen of the 23 keywords are spelled identically in both
+formats and so appeared three times across the package — once in `keywords` and
+twice as a `jsonKeywordKeys` entry's key and value. The fix names each keyword
+once as a constant and has both sides of an identity entry use the *same*
+constant, which states the identity in code rather than in two literals that
+agree today. It is a literal-for-literal substitution with no behavior change,
+and the calibration table is what says so: the same 21 fixture pairs produce the
+same multisets. Run 7 then covered it live, so the caveat is closed rather than
+deferred.
+
+Seven mutations were run against the extractor, six of them reddening the
+intended row plus the fixture rows sharing that mapping: `stats64` values for
+keys, dropping the `prefixlen` pairing, dropping the `flagTokens` restriction,
+`FacetLines` counting lines, a key-driven `address`→`macs` rule, and dropping
+`priority`→`ifindexes`. The seventh — detecting with `any` instead of `[]any` —
+turned out **not** to be observable: the `[` prefix check already declines
+everything the type assertion would, so the assertion is type correctness rather
+than a second gate, and `jsonEntries`' comment now says so. Relaxing the
+**prefix** instead reddens thirty-odd pre-existing text rows, and dropping the
+trailing-content check reddens exactly the concatenated-listings row.
+
+#### Run 7 — the back-to-back second run, and what it falsified
+
+`nix run .#microvm-x86_64-goip-parity` again, same branch, **same working tree**
+— no edit of any kind landed between the two runs, so unlike run 6 this one
+includes the `goconst` constant extraction. Exit 0, **41 of 41
+`GOIP_PARITY_PASS`**, `HYGIENE_PASS`, `GOIP_PARITY_UNGATED_CLEAN`,
+`OVERALL_PASS`, `DRIVER_PASS`, no `FINDINGS`, and **`stdout=0` on all 41 rows**
+for the second time. `CONTROL_NOISY 24`.
+
+**`CONTROL_NOISY` went 27 → 24, and the arithmetic is the point.** It counts
+suppressed control FINDINGS, not noisy rows: run 7's 24 is exactly **twelve rows
+× two findings** — `IFLA_STATS64` and `IFLA_STATS` on ifindex 2, the live
+counter drift between `ip_a` and `ip_b`. Run 6's 27 is those same 24 plus the
+three `IFLA_AF_SPEC:AF_INET6:IFLA_INET6_CACHEINFO` findings on `-j link show`.
+
+So the three cacheinfo findings **did not recur**, and `-j link show` read
+`control: nl=0 stdout=0` in run 7. Run 6 reasoned that they were v6 address
+lifetimes ticking between the two *reference* captures rather than anything to
+do with `-j`, on the evidence that plain `link show` was quiet in the same run.
+Run 7 measures that conclusion instead of arguing it: the same command, the same
+binary, the same topology, and the findings are gone. A property of `-j` would
+not come and go.
+
+Two further readings, both pre-existing and neither caused by this branch:
+
+- **The twelve `nl=2` rows are the stable set**, identical in both runs:
+  `-s link show`, `-4 addr show`, `-s addr show`, all six `neigh` rows,
+  `neigh show proxy`, `-j neigh show` and `-j -s link show`. Every one is the
+  `IFLA_STATS`/`IFLA_STATS64` pair, which is counter drift by construction and
+  is what `D_control` exists to absorb.
+- **`-6 addr show` and `-s -6 addr show` show an `allow-suppressed` stdout
+  entry** — `stdout:keyword:qlen: ip=1000 x2 goip=<absent>` — which is a
+  committed allowlist entry predating this work. It is worth naming because the
+  capture lines make it look like a live divergence: those two rows report
+  goip's stdout 18 bytes shorter than `ip`'s (535 against 553, and 1015 against
+  1033), which is the two missing `qlen 1000` tokens. `stdout=0` is the count of
+  **un**suppressed findings, so a row can be byte-different and still read zero.
+
+A review pass after run 7 corrected six things, **all of them comments**, and
+they are listed because four were wrong claims rather than wording:
+
+- The `kw*Cst` block had been inserted directly beneath `keywords`' doc
+  comment, which left that comment documenting the constants and `var keywords`
+  with no doc of its own. The block moved above the comment.
+- `-0 addr show` credited the AF_PACKET skip to `req.go:200-201`, which is a
+  doc comment and guards nothing. The guards are `service.go:199` for the wire
+  half, `obj_addr.go:237-239` (`renderAddrGroups`) for the print half, and
+  `obj_addr.go:213` for the `dev` path.
+- `-j neigh show` said iproute2 emits those flags as `true`. It emits them
+  through `print_null` (`ip/ipneigh.c:440-451`), so the JSON value is **null**;
+  `jsonIsPresenceOnly` accepts null and `print_bool`'s true alike, which is why
+  the extractor was right while the comment was not.
+- `-j link show` claimed its five renamed link keys "appear nowhere else".
+  Measured against the sidecars: `operstate`, `txqlen` and `broadcast` are in
+  `ip_addr_json` too, `linkmode` is link-only, and `link_netnsid` is in neither.
+  The row's claim is coverage width, not exclusivity.
+- `-6 neigh show` claimed its output is not a subset of `neigh show`'s. Run 7
+  measured the opposite, exactly: 575 bytes bare, 437 for `-4`, 138 for `-6`,
+  and 437 + 138 = 575. The three rows partition, and the comment now says so
+  with the numbers.
+- `-j route show` claimed to be the only row nested more than one level.
+  Measured container depth is 5 for route against 4 for both addr and
+  `-s link` — deepest by one, not uniquely nested — so the row now claims the
+  three container SHAPES that are in fact unique to it.
+
+No statement or expression changed, and the calibration table is what says the
+extraction did not: the same 21 fixture pairs produce the same multisets.
+
+What is now on record is two back-to-back runs, both green on all 41 rows, with
+every difference between them accounted for. **That is the evidence gating needs,
+not the gating.** Moving any of the twelve new rows into `gated_commands` is
+still a separate branch cut from the updated `main`, and it is that branch's job
+to edit `TestUngatedSurfaceIsNotVacuous`'s named fourteen-row set and the counts
+at the top of this document.
 
 ## Tier C — the `goip-parity` microVM flavor
 
@@ -4998,6 +5252,13 @@ Holding those two back is also what keeps `GOIP_PARITY_UNGATED_CLEAN`
 load-bearing. It has been vacuous twice; at **27 of 29** it is still a live
 sentinel, and gating either of the two would make it vacuous a third time —
 which is a cost to weigh against whatever the gate would buy, not a detail.
+
+*(Overtaken, and in the direction that costs nothing: the matrix is now
+forty-one rows with the same twenty-seven gated, so fourteen rows can warn and
+these two are no longer carrying the sentinel alone — see
+[The twelve rows added for `-j` and the family selectors](#the-twelve-rows-added-for--j-and-the-family-selectors).
+The argument above still decides whether these two gate; it no longer decides
+whether the sentinel survives.)*
 
 #### Why these runs happened at all
 

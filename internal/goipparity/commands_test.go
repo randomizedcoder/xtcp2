@@ -3,6 +3,7 @@ package goipparity
 import (
 	"errors"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -485,6 +486,319 @@ func TestCommandString(t *testing.T) {
 			}
 		}
 	})
+}
+
+// TestFamilyTableAndJSONRows pins the twelve rows added for the family and
+// table selectors and for the `-j` output mode.
+//
+// The rest of this file is deliberately property-based — it asserts things true
+// of every row, so implementing a command needs no test edit. These rows get
+// named assertions anyway, for two reasons. Their FLOORS encode a claim about
+// the wire that is not visible from the name: `-0 addr show` sends ONE dump
+// where `addr show` sends two, and each `-j` row sends byte-identical requests
+// to its text twin. And twelve rows landing ungated at once is what takes
+// GOIP_PARITY_UNGATED_CLEAN (compare.go:265-266) from counting two rows to
+// counting fourteen, which is the difference between a gate that can fire and
+// one that cannot.
+//
+// go test ./internal/goipparity/ -run TestFamilyTableAndJSONRows
+func TestFamilyTableAndJSONRows(t *testing.T) {
+	rows := []struct {
+		description string
+		name        string
+		slug        string
+		floor       int
+		implemented bool
+	}{
+		{
+			description: "positive: -0 addr show reaches the AF_PACKET branch no other CLI input produces, and its floor is 2 because ip/ipaddress.c:2310 skips the address dump entirely",
+			name:        "-0 addr show",
+			slug:        "addr_show_packet",
+			floor:       2,
+			implemented: true,
+		},
+		{
+			description: "positive: route show table main is the explicit spelling of the default, so it asserts routeTableID(\"main\") still resolves to 254",
+			name:        "route show table main",
+			slug:        "route_show_table_main",
+			floor:       4,
+			implemented: true,
+		},
+		{
+			description: "positive: route show table local carries RTA_TABLE 255 and is the only row rendering route types past unicast",
+			name:        "route show table local",
+			slug:        "route_show_table_local",
+			floor:       4,
+			implemented: true,
+		},
+		{
+			description: "positive: -4 route show is byte-identical to route show, by the AF_UNSPEC to AF_INET promotion at ip/iproute.c:1998-1999",
+			name:        "-4 route show",
+			slug:        "route_show_v4",
+			floor:       4,
+			implemented: true,
+		},
+		{
+			description: "positive: -4 neigh show is a real request change — ndm_family becomes AF_INET at ip/ipneigh.c:513-514 — and neigh had no family row before",
+			name:        "-4 neigh show",
+			slug:        "neigh_show_v4",
+			floor:       4,
+			implemented: true,
+		},
+		{
+			description: "positive: -6 neigh show, the v6 half of the same pair",
+			name:        "-6 neigh show",
+			slug:        "neigh_show_v6",
+			floor:       4,
+			implemented: true,
+		},
+		{
+			description: "positive: -j addr show, the row the JSON facets were written for — the local+prefixlen composite and addr_info nesting",
+			name:        "-j addr show",
+			slug:        "addr_show_json",
+			floor:       4,
+			implemented: true,
+		},
+		{
+			description: "positive: -j link show, five of the ten jsonKeywordKeys renames are link keys and linkmode is in no other sidecar",
+			name:        "-j link show",
+			slug:        "link_show_json",
+			floor:       2,
+			implemented: true,
+		},
+		{
+			description: "positive: -j route show, nested metrics and the via object",
+			name:        "-j route show",
+			slug:        "route_show_json",
+			floor:       4,
+			implemented: true,
+		},
+		{
+			description: "positive: -j neigh show, flag tokens as JSON nulls",
+			name:        "-j neigh show",
+			slug:        "neigh_show_json",
+			floor:       4,
+			implemented: true,
+		},
+		{
+			description: "positive: -j rule show, priority filed under ifindexes and the src/dst composites",
+			name:        "-j rule show",
+			slug:        "rule_show_json",
+			floor:       2,
+			implemented: true,
+		},
+		{
+			description: "positive: -j -s link show, the only row exercising stats64 to statsheaders; two options that combine because each is its own case in goip's option loop",
+			name:        "-j -s link show",
+			slug:        "link_show_stats_json",
+			floor:       2,
+			implemented: true,
+		},
+	}
+
+	for _, tt := range rows {
+		t.Run(tt.description, func(t *testing.T) {
+			c, err := Lookup(tt.name)
+			if err != nil {
+				t.Fatalf("Lookup(%q): %v", tt.name, err)
+			}
+			if c.Slug != tt.slug {
+				t.Errorf("slug = %q, expected %q", c.Slug, tt.slug)
+			}
+			if c.Floor != tt.floor {
+				t.Errorf("floor = %d, expected %d", c.Floor, tt.floor)
+			}
+			if c.Implemented != tt.implemented {
+				t.Errorf("implemented = %t, expected %t", c.Implemented, tt.implemented)
+			}
+			// withArgs derives Args from Name, so a leading option only reaches
+			// the child process if it is a field of the name. A row named
+			// "-j addr show" whose Args lost the "-j" would compare `addr show`
+			// against `addr show` and pass while testing nothing.
+			//
+			// Compared element by element rather than by length and first
+			// token: "-j -s link show" carries TWO leading options, and a
+			// check on Args[0] alone would not notice the second one going
+			// missing.
+			if want := strings.Fields(tt.name); !slices.Equal(c.Args, want) {
+				t.Errorf("args = %q, expected %q", c.Args, want)
+			}
+		})
+	}
+
+	// Floor equalities, each a claim about the wire rather than about the table.
+	twins := []struct {
+		description string
+		row, twin   string
+		equal       bool
+	}{
+		{
+			description: "corner: -0 addr show does NOT share addr show's floor, because the AF_PACKET guard skips the second dump; this is the row that catches the skip being mis-modeled",
+			row:         "-0 addr show",
+			twin:        "addr show",
+			equal:       false,
+		},
+		{
+			description: "corner: route show table main shares route show's floor, both reaching the wire as RTA_TABLE 254, while keeping a distinct slug and name",
+			row:         "route show table main",
+			twin:        "route show",
+			equal:       true,
+		},
+		{
+			description: "corner: -4 route show shares route show's floor, the family option being absorbed by the promotion rather than changing the request",
+			row:         "-4 route show",
+			twin:        "route show",
+			equal:       true,
+		},
+		{
+			description: "positive: -j addr show sends what addr show sends — filt_mask (ip/ipaddress.c:2017-2026) depends only on filter.vfinfo and show_stats, and every is_json_context() hit is inside a print function",
+			row:         "-j addr show",
+			twin:        "addr show",
+			equal:       true,
+		},
+		{
+			description: "positive: -j link show sends what link show sends",
+			row:         "-j link show",
+			twin:        "link show",
+			equal:       true,
+		},
+		{
+			description: "positive: -j route show sends what route show sends",
+			row:         "-j route show",
+			twin:        "route show",
+			equal:       true,
+		},
+		{
+			description: "positive: -j neigh show sends what neigh show sends",
+			row:         "-j neigh show",
+			twin:        "neigh show",
+			equal:       true,
+		},
+		{
+			description: "positive: -j rule show sends what rule show sends",
+			row:         "-j rule show",
+			twin:        "rule show",
+			equal:       true,
+		},
+		{
+			description: "positive: -j -s link show sends what -s link show sends, so adding -j to a stats row changes the rendering and not the request",
+			row:         "-j -s link show",
+			twin:        "-s link show",
+			equal:       true,
+		},
+	}
+
+	for _, tt := range twins {
+		t.Run(tt.description, func(t *testing.T) {
+			a, err := Lookup(tt.row)
+			if err != nil {
+				t.Fatalf("Lookup(%q): %v", tt.row, err)
+			}
+			b, err := Lookup(tt.twin)
+			if err != nil {
+				t.Fatalf("Lookup(%q): %v", tt.twin, err)
+			}
+			if (a.Floor == b.Floor) != tt.equal {
+				t.Errorf("floor %d for %q and %d for %q: equal = %t, expected %t",
+					a.Floor, tt.row, b.Floor, tt.twin, a.Floor == b.Floor, tt.equal)
+			}
+			if a.Slug == b.Slug || a.Name == b.Name {
+				t.Errorf("%q and %q are not distinct rows: slugs %q/%q",
+					tt.row, tt.twin, a.Slug, b.Slug)
+			}
+		})
+	}
+}
+
+// TestUngatedSurfaceIsNotVacuous pins the set of matrix rows outside
+// gated_commands, because GOIP_PARITY_UNGATED_CLEAN counts exactly those rows
+// and a set that shrinks to nothing turns the gate into a tautology.
+//
+// It has been vacuous twice in this harness's history — both times because a
+// gating branch landed every ungated row at once — so the count is asserted as
+// a named set rather than left to be noticed on a run that cannot fail.
+//
+// go test ./internal/goipparity/ -run TestUngatedSurfaceIsNotVacuous
+func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	gated := make(map[string]bool, len(al.GatedCommands))
+	for _, name := range al.GatedCommands {
+		gated[name] = true
+	}
+	ungated := map[string]bool{}
+	for _, c := range Commands() {
+		if !gated[c.Name] {
+			ungated[c.Name] = true
+		}
+	}
+
+	// The twelve rows this branch adds, plus the two -s sweep commands whose
+	// noise is unresolved and which pkg/nlparity's held-out negative keeps out
+	// of gated_commands on purpose. Gating any of these is a separate branch,
+	// after a measured-clean live run, and that branch edits this list.
+	expected := []string{
+		"-s addr show", "-s neigh show",
+		"-0 addr show", "route show table main", "route show table local",
+		"-4 route show", "-4 neigh show", "-6 neigh show",
+		"-j addr show", "-j link show", "-j route show", "-j neigh show",
+		"-j rule show", "-j -s link show",
+	}
+
+	tests := []struct {
+		description string
+		check       func(t *testing.T)
+	}{
+		{
+			description: "positive: the ungated set is exactly the fourteen named rows, so UNGATED_CLEAN counts fourteen rows and not zero",
+			check: func(t *testing.T) {
+				for _, name := range expected {
+					if !ungated[name] {
+						t.Errorf("%q is expected to be ungated but is in gated_commands; "+
+							"gating it is a separate branch and must edit this list", name)
+					}
+				}
+				for name := range ungated {
+					found := false
+					for _, e := range expected {
+						if e == name {
+							found = true
+							break
+						}
+					}
+					if !found {
+						t.Errorf("%q is ungated and unaccounted for; add it here with a "+
+							"reason or gate it", name)
+					}
+				}
+			},
+		},
+		{
+			description: "negative: an empty ungated set would make GOIP_PARITY_UNGATED_CLEAN a tautology, which is the failure this test exists to prevent",
+			check: func(t *testing.T) {
+				if len(ungated) == 0 {
+					t.Error("every matrix row is gated, so UNGATED_CLEAN counts nothing")
+				}
+			},
+		},
+		{
+			description: "boundary: every ungated row is nonetheless implemented, so UNGATED_CLEAN counts comparisons and not skips",
+			check: func(t *testing.T) {
+				for _, c := range Commands() {
+					if !gated[c.Name] && !c.Implemented {
+						t.Errorf("%q is ungated and unimplemented, so it contributes a SKIP "+
+							"to a gate that is supposed to count warnings", c.Name)
+					}
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.description, tt.check)
+	}
 }
 
 // TestSlugsSorted is a small guard on the helper the report uses to print a
