@@ -2,7 +2,8 @@
 
 Status: implementation underway, reviewed against the working tree on 2026-10-06.
 P01/P02 now provide a tested library foundation, pure Ethernet/RDMA policies and
-baseline persistence. Live collection, reducer/publication, metrics serving and
+baseline persistence. P03-T01 adds single-owner reducer state and exact counter
+histories. Live collection, paged publication, freshness, metrics serving and
 the standalone command remain to build. STATUS records completed gates; the
 remaining design and test matrix below are specifications, not verified results.
 

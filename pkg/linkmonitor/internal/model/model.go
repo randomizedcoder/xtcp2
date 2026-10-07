@@ -110,6 +110,9 @@ type Device struct {
 	Name        string
 	Up          Optional[bool]
 	Eligibility Eligibility
+	// HardwareID is verified replacement evidence, not a guessed name/driver ID.
+	// Empty means unavailable; it must not erase previously verified identity.
+	HardwareID string
 }
 
 // Observation transfers ownership to its consumer; the producer must not mutate

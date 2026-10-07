@@ -58,4 +58,14 @@ type Sample struct {
 	Kind       SampleKind
 	Number     Number
 	Labels     []Label
+	Counter    CounterIdentity
+}
+
+// CounterIdentity identifies the source register and its reset lifetime. Width
+// zero means unknown; known widths are 1..64 bits. A decrease is a discontinuity,
+// never proof of wraparound. Source/lifetime changes also break continuity.
+type CounterIdentity struct {
+	Source   string
+	Width    uint8
+	Lifetime uint64
 }
