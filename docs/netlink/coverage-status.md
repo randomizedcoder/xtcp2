@@ -80,6 +80,182 @@ These are the boundaries of the exercise, not a backlog:
   (`internal/goip/obj_route.go`). Both are `ErrNotImplemented`, so the harness
   records a skip; neither can produce a quietly wrong line.
 
+## Netlink message types: decoded, rendered, compared
+
+Counted from the tree and from `~/Downloads/linux` on 2026-10-07. The commands
+that produce every number in this section are in
+[How to re-measure this document](#how-to-re-measure-this-document); the same
+rule applies as to the table at the top — **if this section and the tree
+disagree, the tree is right.**
+
+### Three claims that are routinely conflated
+
+A message type can sit at any of three levels, and "we support `link`" is true
+at all three while "we support `nexthop`" is false at all three — which hides
+the fact that the levels are independent and that things do sit between them.
+
+1. **Decoded** — `pkg/xtcpnl` has a typed parser for the body and its
+   attributes. The daemon needs this; `goip` is not involved.
+2. **Rendered** — `cmd/goip` turns the decode into a line of text or JSON that
+   is supposed to be byte-identical to `ip`'s.
+3. **Compared live** — a row in `internal/goipparity/commands.go` drives both
+   tools against the same kernel in the Tier C microVM and diffs both the bytes
+   sent and the text printed.
+
+Each is strictly stronger than the one above it, and the interesting entries
+are the ones that stop partway. The rtnetlink **event** types are decoded and
+never rendered, because the daemon's link monitor consumes them and `goip` has
+no `monitor` verb. `RTM_NEWRULE` is decoded for dumps but is not even an event.
+
+### rtnetlink: five body layouts, and they are the five goip needs
+
+| body struct | kernel header | RTM types | decoder | goip | matrix rows |
+|---|---|---|---|---|---|
+| `ifinfomsg` | `rtnetlink.h` | `RTM_{NEW,DEL,GET}LINK` | `ParseNewLink`, `xtcpnl_ifinfomsg.go:589` | `render/link.go` | **8** |
+| `ifaddrmsg` | `if_addr.h` | `RTM_{NEW,DEL,GET}ADDR` | `ParseNewAddr`, `xtcpnl_ifaddrmsg.go:212` | `render/addr.go` | **9** |
+| `rtmsg` | `rtnetlink.h` | `RTM_{NEW,DEL,GET}ROUTE` | `ParseNewRoute`, `xtcpnl_rtmsg.go:140` | `render/route.go` | **10** |
+| `ndmsg` | `neighbour.h` | `RTM_{NEW,DEL,GET}NEIGH` | `ParseNeigh`, `xtcpnl_ndmsg.go:244` | `render/neigh.go` | **8** |
+| `fib_rule_hdr` | `fib_rules.h` | `RTM_{NEW,DEL,GET}RULE` | `ParseRule`, `xtcpnl_fib_rule_hdr.go:270` | `render/rule.go` | **6** |
+
+Headers in this table and the next are all under
+`include/uapi/linux/`, decoder paths are under `pkg/xtcpnl/` and `goip` paths
+under `internal/goip/`; the prefixes are dropped so the columns stay readable.
+`neighbour.h` keeps the kernel's own spelling for the same reason the comments
+in `xtcpnl_ndmsg.go` do — `neighbor.h` does not exist in the tree.
+
+41 rows, which is the matrix total — every row in the comparison matrix lands
+on one of these five, and every one of these five is compared live.
+
+**The request side is narrower than the decode side, on purpose.** Only five
+message types are ever *built*: `RTM_GETLINK`, `RTM_GETADDR`, `RTM_GETROUTE`,
+`RTM_GETNEIGH`, `RTM_GETRULE`, from the nine builders in
+`xtcpnl_rtnetlink_requests.go`. That is not a coincidence of scope — the
+encoder rejects a non-GET type with `ErrNotAGetRequest`, so the read-only
+invariant is executable rather than a convention. `RTM_NEWNEIGH` appears in
+that file only in a comment about what a solicited reply carries.
+
+### rtnetlink: the ten body layouts with no decoder
+
+| body struct | kernel header | RTM types | what would need it |
+|---|---|---|---|
+| `nhmsg` | `nexthop.h` | `RTM_{NEW,DEL,GET}NEXTHOP` | `ip nexthop show`, and the `-d` route refusal explained below |
+| `ndtmsg` | `neighbour.h` | `RTM_{NEW,GET,SET}NEIGHTBL` | `ip ntable show` |
+| `netconfmsg` | `netconf.h` | `RTM_{NEW,GET}NETCONF` | `ip netconf show` |
+| `ifaddrlblmsg` | `if_addrlabel.h` | `RTM_{NEW,DEL,GET}ADDRLABEL` | `ip addrlabel show` |
+| `if_stats_msg` | `if_link.h` | `RTM_GETSTATS` | `ip stats show`, `ip -s -s link xstats` |
+| `prefixmsg` | `rtnetlink.h` | `RTM_NEWPREFIX` | `ip monitor prefix` |
+| `nduseroptmsg` | `rtnetlink.h` | `RTM_NEWNDUSEROPT` | `ip monitor` RA options |
+| `br_port_msg` | `if_bridge.h` | `RTM_{NEW,DEL,GET}MDB` | `bridge mdb` — not an `ip` command |
+| `tcmsg` | `rtnetlink.h` | `RTM_{NEW,DEL,GET}{QDISC,TCLASS,TFILTER}` | `tc` — not an `ip` command |
+| `tcamsg` | `rtnetlink.h` | `RTM_{NEW,DEL,GET}ACTION` | `tc actions` — not an `ip` command |
+
+Three of the ten are `tc`/`bridge` territory and are outside the exercise
+entirely rather than pending. Of the seven that are `ip` commands, **`nhmsg` is
+the only one an already-implemented command can reach**, and the condition is
+narrower than "the attribute is present". A bare `route show` prints `nhid %u`
+straight from `RTA_NH_ID` and sends nothing extra (`ip/iproute.c:859-861`); it
+is **`-d`** that turns the attribute into a transaction, because
+`print_cache_nexthop_id` (`ip/iproute.c:1002-1004`) issues a live
+`RTM_GETNEXTHOP` on a cache miss. `checkRouteDetailSupported`
+(`internal/goip/obj_route.go:290`) refuses exactly that combination with
+`ErrNotImplemented` rather than render the routes and skip the block, which
+would diverge on the wire as well as on stdout. No namespace in
+`netlink-topology.exp` creates a nexthop object, so nothing in the corpus
+triggers it; the check exists because it is three lines and the alternative is
+an assumption about a machine this code has not seen. The other six layouts are
+reachable only through objects that have `run: nil`.
+
+`rtgenmsg` is in neither table: it is the generic dump request header, used on
+the way out, not a reply body.
+
+### Attributes inside the five: no unknown-attribute holes
+
+Diffed enum by enum against `~/Downloads/linux`:
+
+| enum | top-level members in the kernel | absent from the tree |
+|---|---|---|
+| `IFLA_*` | 51 | **none** |
+| `RTA_*` | 32 | **none** |
+| `NDA_*` | 18 | **none** |
+| `IFA_*` | 11 | **none** |
+| `FRA_*` | 31 | `FRA_UNUSED3`, `FRA_UNUSED4`, `FRA_UNUSED5` — kernel placeholders with no wire meaning |
+
+**"Present in the tree" is a weaker claim than "proven against real kernel
+bytes", and the difference is measured for exactly one family.** Five arms —
+`FRA_IP_PROTO`, `FRA_SPORT_MASK`, `FRA_DSCP`, `FRA_DSCP_MASK` and
+`RTA_GATEWAY` — have no real bytes anywhere in the committed corpus and are
+exercised by constructed ones. That set is not written down and trusted: the
+rule test rediscovers it at run time and **fails if real-byte coverage drops
+below 21**, so a re-capture that loses a rule is a failure rather than a quiet
+loss of fixture strength.
+
+There is **no equivalent floor for `IFLA_*`, `RTA_*`, `NDA_*` or `IFA_*`**.
+Those four rely on the committed captures happening to contain the attribute,
+and nothing fails if a re-capture stops producing one. Extending the rule
+family's mechanism to the other four is the single cheapest thing that would
+strengthen this section's top table from "referenced" to "proven", and it is
+recorded under [Remaining](#remaining).
+
+### The event layer: decoded, never rendered
+
+`IsRtnetlinkEventType` (`xtcpnl_rtnetlink_events.go:121-131`) classifies
+**eight** types — `RTM_{NEW,DEL}{LINK,ADDR,ROUTE,NEIGH}`. A dump reply and a
+notification carry the identical body, so the event layer adds only the
+add-versus-delete distinction that a dump never needs.
+
+**`RTM_NEWRULE` and `RTM_DELRULE` are not in that set**, so the rule family is
+decoded for dumps and invisible to the monitor. That is a real asymmetry and
+not a deliberate boundary; it is listed under [Remaining](#remaining) rather
+than under what is out of scope.
+
+None of the eight is rendered or compared, because `goip` has no `monitor`
+verb and the matrix drives `show` commands only.
+
+### sock_diag / inet_diag, which is a different surface and is complete
+
+`goip` never touches this; it is the daemon's reason for existing, and its
+coverage is the opposite shape to rtnetlink's. Of the **41** `INET_DIAG_*`
+constants in `include/uapi/linux/inet_diag.h`, **17** are absent from the tree
+and all 17 are request-side: 13 bytecode opcodes (`INET_DIAG_BC_*`) and four
+request attributes (`INET_DIAG_REQ_*`). **Every response attribute is
+referenced**, and the sixteen that carry a struct payload have a decoder file
+each — `xtcpnl_inet_diag_tcpinfo.go`, `_bbrinfo`, `_dctcpinfo`, `_vegasinfo`,
+`_pragueinfo`, `_meminfo`, `_skmeminfo`, `_conginfo`, `_tosinfo`,
+`_tcclass_info`, `_shutdown`, `_classid`, `_cgroupid`, `_sockopt`, `_msg`,
+`_reqv2`. The message type is `SOCK_DIAG_BY_FAMILY` on `NETLINK_INET_DIAG`.
+
+The bytecode opcodes are a filter language the daemon does not use — it dumps
+and filters in Go — so their absence is a scope boundary, not a gap.
+
+The same caveat as above applies to the word *referenced*: this is an
+enum-level diff, and the per-field proof for the biggest of these structs is a
+different mechanism entirely — the layout oracle in
+`nix build .#checks.x86_64-linux.proto-audit-netlink`, which gates
+`NL_Diag_TCPInfo` and is advisory for the other 25 protocols it audits.
+
+### genetlink and ethtool
+
+`ParseGenericNetlink` and `ParseEthtool` (`xtcpnl_genetlink.go:56`,
+`xtcpnl_ethtool.go:80`) arrived with the link-state work and are the newest
+decoders in the package. They are resolved by family name rather than by a
+fixed message type, so they do not appear in the RTM tables above. Not rendered
+by `goip`, not in the matrix.
+
+### What happens to a type nothing here knows
+
+`WalkNlMsgs` (`xtcpnl_rtnetlink.go:327`, the type switch at `:357`) handles
+`NLMSG_DONE`, `NLMSG_ERROR` and `NLMSG_NOOP` itself and passes **every other
+type** to the caller's callback unexamined. An unrecognized reply type is
+therefore not a parse error and not a panic — it is a message the callback
+declines.
+
+The user-facing refusal happens earlier and elsewhere: `goip` returns
+`ErrNotImplemented` from object dispatch, before a socket is opened, for the
+twenty-six objects with `run: nil`. So the ten uncovered layouts above are a
+backlog rather than a hazard, and the two halves of that — a walker that
+tolerates the unknown and a dispatcher that refuses it up front — are
+independent and should stay that way.
+
 ## Where we are
 
 > The parity paragraphs in this section are a **chronology**: each sentence was
@@ -163,6 +339,12 @@ recollection.
 
 ## Table of contents
 
+- [Netlink message types: decoded, rendered, compared](#netlink-message-types-decoded-rendered-compared)
+  - [rtnetlink: five body layouts, and they are the five goip needs](#rtnetlink-five-body-layouts-and-they-are-the-five-goip-needs)
+  - [rtnetlink: the ten body layouts with no decoder](#rtnetlink-the-ten-body-layouts-with-no-decoder)
+  - [Attributes inside the five: no unknown-attribute holes](#attributes-inside-the-five-no-unknown-attribute-holes)
+  - [The event layer: decoded, never rendered](#the-event-layer-decoded-never-rendered)
+  - [sock_diag / inet_diag, which is a different surface and is complete](#sock_diag--inet_diag-which-is-a-different-surface-and-is-complete)
 - [Where we are](#where-we-are)
 - [Baseline, measured 2026-09-25](#baseline-measured-2026-09-25)
 - [Phase status](#phase-status)
@@ -5508,6 +5690,23 @@ guest to emit that sentinel, so adding it to the lifecycle list would have made
 that list's own description false. `run_job` needs no special case: the runner
 already exits 0/1/2 = PASS/FAIL/TIMEOUT like every other member.
 
+Two items fell out of the message-type census above and are open:
+
+- **Real-byte coverage floors for `IFLA_*`, `RTA_*`, `NDA_*` and `IFA_*`.**
+  The rule family already rediscovers its covered arms at run time and fails
+  below 21; the other four families have nothing equivalent, so a re-capture
+  that stops producing an attribute loses fixture strength silently. Nothing
+  about the mechanism is rule-specific — it is the single cheapest change that
+  would turn
+  [the attribute table](#attributes-inside-the-five-no-unknown-attribute-holes)
+  from "referenced" into "proven".
+- **`RTM_NEWRULE` and `RTM_DELRULE` are not event types.**
+  `IsRtnetlinkEventType` covers link, addr, route and neigh; rule is decoded
+  for dumps and invisible to the monitor. The body is already parsed by
+  `ParseRule`, so this is a classification gap rather than a decoder one, and
+  it should be sized before it is assumed cheap — the event layer has its own
+  fixtures and the rule family would need its own capture trigger.
+
 ## Phase exit criteria
 
 A phase is **done** when all of these hold, not when the decoders compile. These
@@ -5907,6 +6106,34 @@ grep -rn 'Subscribe\|NETLINK_ADD_MEMBERSHIP' pkg/xtcpnl/*.go
 
 # check count
 nix eval .#checks.x86_64-linux --apply 'x: builtins.length (builtins.attrNames x)'
+
+# --- the message-type section ---------------------------------------------
+K=~/Downloads/linux/include/uapi/linux
+
+# which bodies have a decoder, and which RTM types are ever built
+grep -nP '^func Parse[A-Za-z]+' $(ls pkg/xtcpnl/*.go | grep -v _test)
+grep -oP 'RTM_[A-Z0-9_]+' pkg/xtcpnl/xtcpnl_rtnetlink_requests.go | sort | uniq -c
+
+# the eight event types, and the absence of RTM_*RULE among them
+sed -n '/func IsRtnetlinkEventType/,/^}/p' pkg/xtcpnl/xtcpnl_rtnetlink_events.go
+
+# matrix rows per object — must sum to the row count in the table at the top
+go run ./cmd/goip-parity commands | awk -F'\t' '{split($1,a,"_"); print a[1]}' \
+  | sort | uniq -c
+
+# attribute enums: each of these must print nothing but the FRA_UNUSED* three.
+# IFLA needs the IFLA_UNSPEC..IFLA_MAX window because if_link.h holds ~469
+# IFLA_* symbols once the per-link-type nested enums are counted.
+comm -23 \
+  <(sed -n '/^enum {/,/^};/p' $K/if_link.h | awk '/IFLA_UNSPEC/,/IFLA_MAX/' \
+    | grep -oP 'IFLA_[A-Z0-9_]+' | grep -vE 'IFLA_(MAX|UNSPEC)' | sort -u) \
+  <(grep -rhoP 'IFLA_[A-Z0-9_]+' pkg/xtcpnl/ internal/goip/ pkg/nlparity/ | sort -u)
+
+# inet_diag: the only absentees must be the request-side BC_*/REQ_* opcodes
+comm -23 \
+  <(grep -oP '^\s+INET_DIAG_[A-Z0-9_]+' $K/inet_diag.h | tr -d ' \t' \
+    | grep -vE 'INET_DIAG_MAX|^__' | sort -u) \
+  <(grep -rhoP 'INET_DIAG_[A-Z0-9_]+' pkg/xtcpnl/*.go | sort -u)
 
 # no reflection in the shipped library (both must print nothing)
 grep -n 'binary\.Read(' pkg/xtcpnl/*.go | grep -v _test | grep -v ':[0-9]*://'
