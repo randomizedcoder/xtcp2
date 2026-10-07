@@ -2,7 +2,7 @@
 
 ## goip ↔ `ip` parity at a glance
 
-Counted from the tree on 2026-10-05. Every number has a file behind it, named
+Counted from the tree on 2026-10-06. Every number has a file behind it, named
 in the last column; **if this table and the file disagree, the file is right
 and this table is stale.** That has happened before in this document — see the
 "no route command is in `gated_commands`" line that outlived its own truth by
@@ -12,30 +12,40 @@ several steps, further down under [Remaining](#remaining).
 |---|---|---|
 | commands in the comparison matrix | **29** | `internal/goipparity/commands.go` |
 | of those, `Implemented: true` | **29** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
-| of those, in `gated_commands` | **24** | `pkg/nlparity/goip-parity-allowlist.json` |
+| of those, in `gated_commands` | **27** | `pkg/nlparity/goip-parity-allowlist.json` |
 | allowlisted divergences | **7** | same file, `entries` |
 | of those, `kind=version-skew` | **7** | all against the pinned `ip` 7.1.0 |
 | of those, `kind=accepted-divergence` | **0** | nothing is divergent on purpose and permanently |
 
-The five matrix rows outside `gated_commands` are all `-s` forms:
-`-s addr show`, `-s -6 addr show`, `-s route show`, `-s neigh show`,
-`-s rule show`. Three of them have measured `control: nl=0 stdout=0` and are
-waiting only on the gating ritual; `-s addr show` is the one that cannot pass
-the bar as written, because `IFLA_STATS`/`IFLA_STATS64` tick and it measured
-`nl` of 2, 2 and **6** across three runs. `-s link show` is the `-s` form that
-*is* gated, and [its own section](#-s-link-show-gates-on-runs-that-disagree)
-explains what it rests on instead.
+The two matrix rows outside `gated_commands` are both `-s` forms:
+**`-s addr show`** and **`-s neigh show`**. The `-s` sweep's other three —
+`-s -6 addr show`, `-s route show`, `-s rule show` — measured
+`control: nl=0 stdout=0` on five runs across two sessions and
+[gated on runs 4 and 5](#runs-4-and-5-three--s-forms-gate-and-a-refactor-gets-checked).
+
+The two that remain out are unresolved in **opposite** directions, which is why
+neither is simply next in a queue. `-s addr show` is noisy *with variance* —
+`nl` of 2, 2, **6**, then 2, 2 — so it clears
+[`-s link show`'s bar](#-s-link-show-gates-on-runs-that-disagree) rather than
+the identical-runs one, and gating it is a defensible separate decision.
+`-s neigh show` is **stable** at `nl=2` on all five runs, and for a noisy row
+stable is the *weaker* evidence: five runs reading 2 cannot separate
+"`D_control` absorbed the delta" from "there was no delta to absorb". Its
+`nl=2` is not even `-s`'s doing — plain `neigh show` measures 2 from
+`ll_init_map`'s link dump — so it is waiting for a run where the count moves.
 
 **`Implemented` and gated are different claims and must stay different.**
 Flipping `Implemented` puts a command in the report; joining `gated_commands`
 requires a live Tier C run (`nix run .#microvm-x86_64-goip-parity`) measured
 clean for it, on two consecutive runs whose every line matches.
 
-The most recent recorded sweep reported **29 of 29 `GOIP_PARITY_PASS`** with
-`HYGIENE_PASS` and `OVERALL_PASS` on each of three runs, and
-`GOIP_PARITY_UNGATED_CLEAN` on runs 2 and 3. That is transcribed from
-[Three runs, and the third one is the one that mattered](#three-runs-and-the-third-one-is-the-one-that-mattered),
-not re-measured for this summary — the VM has not been re-run since.
+The most recent sweep is **runs 4 and 5**, two back-to-back runs at `fb67da4`
+on an unmodified tree, each reporting **29 of 29 `GOIP_PARITY_PASS`** with
+`HYGIENE_PASS`, `GOIP_PARITY_UNGATED_CLEAN`, `OVERALL_PASS` and `DRIVER_PASS`,
+and zero `FINDINGS`. Transcribed from
+[Runs 4 and 5](#runs-4-and-5-three--s-forms-gate-and-a-refactor-gets-checked);
+the three runs before them are in
+[Three runs, and the third one is the one that mattered](#three-runs-and-the-third-one-is-the-one-that-mattered).
 
 ### What is deliberately not in scope, so it is not a gap
 
@@ -2756,7 +2766,7 @@ test rather than indexed.
 
 > **Superseded.** This section records the defect as it stood when it was
 > found. It is fixed; the measurement that replaced it is
-> [`-s` across the addr object](#s-across-the-addr-object-four-commands-three-different-answers)
+> [`-s` across the addr object](#-s-across-the-addr-object-four-commands-three-different-answers)
 > below. Kept because the prediction it makes about the render position turned
 > out to be right and the one it makes about the request turned out to be
 > incomplete — `-6` sends the same bytes either way, which this did not
@@ -4391,7 +4401,13 @@ different five. They have now been measured, and one of the five warned — see
 real divergence that gating would have hidden, which is the argument for the
 hold-out stated as a result rather than as a policy. None of the five has
 joined `gated_commands`; four need no entry and the fifth earned a locus
-entry instead, which is the narrower instrument.)*
+entry instead, which is the narrower instrument.*
+
+*Overtaken again: three of those five — `-s -6 addr show`, `-s route show` and
+`-s rule show` — gated on runs 4 and 5, so the count is **twenty-seven of
+twenty-nine** and the negative row names the remaining two. The sentinel is
+still load-bearing, and the paragraph above is still the thing to re-read when
+it next stops being.)*
 
 ### `-s` across the addr object: four commands, three different answers
 
@@ -4907,6 +4923,98 @@ row and this is the first time this file has recorded it moving.
 form of the gap named above: it is not that `-s neigh show` happened to be
 quiet, it is that nothing in the table has ever produced stdout control noise,
 across 87 row-runs.
+
+### Runs 4 and 5: three `-s` forms gate, and a refactor gets checked
+
+Two runs at `fb67da4`, the merge of PR #155, launched back to back on a tree with **no uncommitted tracked changes** — the
+commit and a filtered `git status` were recorded before each one, because
+"measured clean on an unmodified tree" is the whole of what a gate rests on and
+it is not re-derivable afterward. Each returned exit 0 with 29 of 29
+`GOIP_PARITY_PASS`, `HYGIENE_PASS`, `GOIP_PARITY_UNGATED_CLEAN`,
+`OVERALL_PASS`, `DRIVER_PASS` and **zero `FINDINGS`**.
+
+`CONTROL_NOISY` **20 then 16**, and the −4 is fully attributed to one row:
+
+| row | run 4 | run 5 |
+|---|---|---|
+| `neigh_show_proxy` | **6** | **2** |
+| `link_show_stats` | 2 | 2 |
+| `addr_show_stats` | 2 | 2 |
+| the other 26 | — | unchanged |
+
+`neigh_show_proxy` is a **new mover** — the fourth row this file has recorded
+moving, after `link_show_stats`, `addr_show_stats` and `neigh_show_dev`. And
+`link_show_stats`, which sampled 6, 2, 6 in the first three runs, read 2 twice
+here; a row that has now been seen at both values in both orders is noisy in
+the way the section above says it is, not drifting toward one of them.
+
+**`stdout=0` on all 29 rows in both runs**, which takes the streak to 145
+row-runs without a single byte of stdout control noise.
+
+#### What gated, and why these three and not the other two
+
+`-s -6 addr show`, `-s route show` and `-s rule show` joined
+`gated_commands`. Each measured `control: nl=0 stdout=0` on **five** runs
+across two sessions — 0/0/0 in runs 1–3, 0/0 in runs 4 and 5 — which is the
+*ordinary* identical-runs bar, the one twenty-three of the first
+twenty-four cleared.
+
+It matters that these two runs were taken **before** the gating edit, while all
+five `-s` forms were still outside `gated_commands`. So their
+`UNGATED_CLEAN` is not the vacuous kind: it is a sentinel with five commands
+in its scope reporting that none of them warned. That is the positive evidence
+the hold-out existed to produce, and it is the reason the three can gate on an
+edit rather than on another pair of runs.
+
+Two of the three are quiet **structurally**, not luckily, which is worth more
+than any number of runs:
+
+- **`-s -6 addr show`** — `inet6_fill_ifinfo` calls
+  `inet6_fill_ifla6_attrs(skb, idev, 0)` (`net/ipv6/addrconf.c:6110`) with
+  `ext_filter_mask` hardcoded to 0, so `-s` never reaches the wire for a
+  `PF_INET6` link dump. This row cannot turn netlink-noisy unless the kernel
+  starts honoring a mask `-s` does not send.
+- **`-s route show`** — `rtnl_put_cacheinfo` writes `rta_lastuse`, `rta_used`
+  and `rta_clntref` only inside `if (dst)`
+  (`net/core/rtnetlink.c:1028-1052`), and no route *dump* takes that arm. Those
+  are exactly the three members `print_rta_cacheinfo` gates on `show_stats`, so
+  `-s` on a route dump is a structural no-op.
+
+The two still held out are unresolved in **opposite** directions, and
+neither is simply next in a queue:
+
+- **`-s addr show`** is noisy *with variance* — `nl` of 2, 2, **6**, then 2, 2.
+  It cannot clear the identical-runs bar, so gating it is the
+  [`-s link show` decision](#-s-link-show-gates-on-runs-that-disagree) taken a
+  second time, which is a separate judgment rather than a follow-through.
+- **`-s neigh show`** is **stable** at `nl=2` on all five runs, and for a noisy
+  row stable is the *weaker* evidence: five identical readings cannot separate
+  "`D_control` absorbed a real delta" from "there was no delta to absorb". Its
+  `nl=2` is not even `-s`'s doing — plain `neigh show` measures 2 as well, from
+  `ll_init_map`'s link dump, whose mask is `RTEXT_FILTER_VF` either way. It is
+  waiting for a run where the count moves.
+
+Holding those two back is also what keeps `GOIP_PARITY_UNGATED_CLEAN`
+load-bearing. It has been vacuous twice; at **27 of 29** it is still a live
+sentinel, and gating either of the two would make it vacuous a third time —
+which is a cost to weigh against whatever the gate would buy, not a detail.
+
+#### Why these runs happened at all
+
+Not for the `-s` sweep. `ad71a3f`, an ancestor of `fb67da4`, split `setRuleAttr` from
+gocyclo 48 to 6 into a five-level `default:` cascade, and the parity harness is
+the only instrument in the tree that can check that refactor against **iproute2
+itself** rather than against our reading of it. All five rule rows measured
+`control: nl=0 stdout=0` in both runs with no findings, which is the strongest
+available statement that the cascade routes identically to the switch it
+replaced: every `FRA_*` constant still lands in exactly one arm, verified by a
+live `ip` on live kernel bytes.
+
+This is the first time a behavior-preserving refactor has been validated this
+way. It is cheaper than it sounds — the runs were going to happen for the
+gating anyway — and it is the answer to "how do you know the cascade did not
+quietly move an attribute between levels" that does not depend on reading the
+diff twice.
 
 ### The fixture-consumer rule, re-closed: a grep replaced by a measurement
 

@@ -364,6 +364,21 @@ func TestAllowlistCommitted(t *testing.T) {
 		"-6 rule show",
 		"-d rule show",
 		"-s link show",
+		// The `-s` sweep's three quiet rows, gated on runs 4 and 5 at
+		// fb67da4 and quiet on all five: 0/0/0 in the first three runs,
+		// 0/0 in these two. `-s -6 addr show` is the one whose quiet is
+		// structural rather than sampled — `-s` cannot reach a PF_INET6
+		// link dump's wire at all, inet6_fill_ifinfo hardcoding
+		// ext_filter_mask to 0.
+		//
+		// The sweep's other two are deliberately still out: `-s addr show`
+		// is noisy with variance (2/2/6 then 2/2) and so belongs to the
+		// `-s link show` bar rather than this one, and `-s neigh show` is
+		// stable at nl=2, which is the weaker evidence for a noisy row.
+		// They are the ungated surface the row below names.
+		"-s -6 addr show",
+		"-s route show",
+		"-s rule show",
 	}
 
 	tests := []struct {
@@ -526,12 +541,25 @@ func TestAllowlistCommitted(t *testing.T) {
 			// would have been the weaker result. The argument and the six
 			// loci are in goip-parity-allowlist.json's _comment.
 			//
-			// With it in, the list IS every command in the table, which makes
-			// the row read as if it could be `len(GatedCommands) ==
-			// len(Commands())`. It still cannot: internal/goipparity owns the
-			// table and imports this package, so reading it back here is an
-			// import cycle. Spelling the names is also what makes adding one
-			// a deliberate edit rather than a silently satisfied count.
+			// The three newest names are the `-s` sweep's quiet rows -
+			// `-s -6 addr show`, `-s route show`, `-s rule show` - gated on
+			// runs 4 and 5 and quiet on all five runs, 0/0/0 then 0/0. They
+			// gate on the ORDINARY bar, the identical-runs one, which is
+			// worth saying beside the paragraph above: `-s link show` needed
+			// disagreeing runs only because it is permanently noisy, and
+			// that inversion applies to noisy rows and not to quiet ones.
+			// Reading it as the new general rule would hold a quiet command
+			// out forever waiting for noise it will never produce.
+			//
+			// This list was briefly EVERY command in the table, during the
+			// interval when twenty-four was the whole of it, which made the
+			// row read as if it could be `len(GatedCommands) ==
+			// len(Commands())`. It still cannot, and not only because the
+			// `-s` sweep took the table to twenty-nine: internal/goipparity
+			// owns the table and imports this package, so reading it back
+			// here is an import cycle. Spelling the names is also what makes
+			// adding one a deliberate edit rather than a silently satisfied
+			// count.
 			description: "positive: every command a measured-clean Tier C run earned is gated",
 			check: func(t *testing.T, a *Allowlist) {
 				for _, c := range earned {
@@ -598,26 +626,36 @@ func TestAllowlistCommitted(t *testing.T) {
 			// while some command is outside. It has been vacuous twice - once
 			// when nine commands were the whole table, once when the
 			// twenty-fourth was gated - and both intervals ended the same
-			// way, by a new command being compared ungated first. These five
-			// are that, for the second such ending: twenty-four of
-			// twenty-nine gate and five can warn.
+			// way, by a new command being compared ungated first. The `-s`
+			// sweep's five ended the second such interval; three of them
+			// have since gated, so what keeps the sentinel load-bearing now
+			// is these two: twenty-seven of twenty-nine gate and two can
+			// warn.
 			//
 			// Naming them rather than asserting a bare count is deliberate.
-			// A count passes if the five held out are a DIFFERENT five, which
-			// is the mistake worth catching: each of these is held out
-			// because its behavior is predicted and not yet measured, and the
-			// predictions differ per command - two no-ops, two expected
-			// netlink-noisy, one expected stdout-noisy, with which is which
-			// recorded in goip-parity-allowlist.json's _comment. Gating one
-			// before its run retires the prediction without testing it.
-			description: "negative: the five -s sweep commands are deliberately NOT gated, so UNGATED_CLEAN is not vacuous",
+			// A count passes if the two held out are a DIFFERENT two, which
+			// is the mistake worth catching. The reason each is out is no
+			// longer "not yet measured" - all five have five runs behind
+			// them now - but that its noise is UNRESOLVED, and the two are
+			// unresolved in opposite directions. `-s addr show` is noisy
+			// with variance, 2/2/6 then 2/2, which is `-s link show`'s shape
+			// and clears that bar rather than the identical-runs one; it is
+			// a defensible gate on a separate decision, not on this one.
+			// `-s neigh show` is stable at nl=2 across all five, and stable
+			// is the WEAKER result for a noisy row, because five runs
+			// reading 2 cannot separate "D_control absorbed the delta" from
+			// "there was no delta to absorb" - the distinction `-s link
+			// show` needed three disagreeing runs to establish. Its nl=2 is
+			// not even `-s`'s doing: plain neigh show measures 2 from
+			// ll_init_map's link dump. So it waits for a run where the count
+			// moves. Both are recorded in goip-parity-allowlist.json's
+			// _comment; gating either on this row's bar would retire a
+			// question rather than answer it.
+			description: "negative: the two -s sweep commands whose noise is unresolved are deliberately NOT gated, so UNGATED_CLEAN is not vacuous",
 			check: func(t *testing.T, a *Allowlist) {
 				heldOut := []string{
 					"-s addr show",
-					"-s -6 addr show",
-					"-s route show",
 					"-s neigh show",
-					"-s rule show",
 				}
 				for _, c := range heldOut {
 					if a.IsGated(c) {
