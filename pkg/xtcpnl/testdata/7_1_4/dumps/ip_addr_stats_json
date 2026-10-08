@@ -58,8 +58,8 @@
         "addr_info": [ ],
         "stats64": {
             "rx": {
-                "bytes": 233660,
-                "packets": 477,
+                "bytes": 235912,
+                "packets": 487,
                 "errors": 0,
                 "dropped": 0,
                 "over_errors": 0,
@@ -84,7 +84,7 @@
         "group": "default",
         "txqlen": 1000,
         "link_type": "ether",
-        "address": "56:31:0e:14:12:40",
+        "address": "46:09:8f:3f:75:c1",
         "broadcast": "ff:ff:ff:ff:ff:ff",
         "altnames": [ "goip0-alt" ],
         "addr_info": [ {
@@ -116,7 +116,7 @@
                 "preferred_life_time": 4294967295
             },{
                 "family": "inet6",
-                "local": "fe80::5431:eff:fe14:1240",
+                "local": "fe80::4409:8fff:fe3f:75c1",
                 "prefixlen": 64,
                 "scope": "link",
                 "protocol": "kernel_ll",

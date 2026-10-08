@@ -328,6 +328,28 @@ func (s *Service) NexthopByID(family uint8, id uint32) (model.Nexthop, error) {
 	return model.Nexthop{}, fmt.Errorf("goip: no nexthop with id %d in the capture", id)
 }
 
+// Nexthops is the RTM_GETNEXTHOP dump behind `ip nexthop show`: every nexthop
+// object the kernel walks, in dump order. family is preferred_family.
+//
+// It leaves the order alone for the same reason Routes does — `ip nexthop show`
+// prints the kernel's walk, not a sorted view — and does not filter, because the
+// bare command sends no selectors.
+func (s *Service) Nexthops(family uint8) ([]model.Nexthop, error) {
+	r, err := req.NexthopDump(family, s.nextSeq())
+	if err != nil {
+		return nil, fmt.Errorf("goip: build nexthop dump request: %w", err)
+	}
+	v, err := decode(s, r, uint16(unix.RTM_NEWNEXTHOP), "RTM_NEWNEXTHOP", xtcpnl.ParseNewNexthop)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.Nexthop, len(v))
+	for i := range v {
+		out[i] = model.Nexthop(v[i])
+	}
+	return out, nil
+}
+
 // Neighbors is the RTM_GETNEIGH dump, optionally filtered to one interface and
 // optionally asking for the proxy table instead of the neighbor table.
 //

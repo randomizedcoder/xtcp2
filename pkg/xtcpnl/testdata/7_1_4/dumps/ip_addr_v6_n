@@ -3,10 +3,10 @@
     inet6 ::1/128 scope host proto kernel_lo 
        valid_lft forever preferred_lft forever
 3: goip0: <BROADCAST,NOARP,UP,LOWER_UP> mtu 1500 state UNKNOWN qlen 1000
-    link/ether 56:31:0e:14:12:40
+    link/ether 46:09:8f:3f:75:c1
     inet6 2001:db8::9/64 scope global nodad mngtmpaddr noprefixroute 
        valid_lft forever preferred_lft forever
     inet6 2001:db8::1/64 scope global nodad 
        valid_lft forever preferred_lft forever
-    inet6 fe80::5431:eff:fe14:1240/64 scope link proto kernel_ll 
+    inet6 fe80::4409:8fff:fe3f:75c1/64 scope link proto kernel_ll 
        valid_lft forever preferred_lft forever

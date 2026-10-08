@@ -3,5 +3,5 @@
 2: nlmon0: <NOARP,UP,LOWER_UP> mtu 3776 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
     link/netlink 
 3: goip0: <BROADCAST,NOARP,UP,LOWER_UP> mtu 1500 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
-    link/ether 56:31:0e:14:12:40 brd ff:ff:ff:ff:ff:ff
+    link/ether 46:09:8f:3f:75:c1 brd ff:ff:ff:ff:ff:ff
     altname goip0-alt

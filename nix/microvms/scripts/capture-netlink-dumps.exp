@@ -224,6 +224,12 @@ proc capture_set {ns subdir dev} {
     capio $ns $subdir netlink_route_getroute_detail 4 "ip -d route show" ip_route_main_n
     capio $ns $subdir netlink_route_getroute_table_all_detail 4 "ip -d route show table all" ip_route_table_all_n
 
+    # `ip nexthop show` dumps the clean topology's one nexthop object (id 1).
+    # Floor 4: the nexthop dump plus the ll_init_map link dump print_rta_ifidx
+    # triggers to turn nh_oif into `dev goip0`. capio pairs the pcap with the
+    # ip_nexthop sidecar so a replay reproduces the listing byte for byte.
+    capio $ns $subdir netlink_route_getnexthop 4 "ip nexthop show" ip_nexthop
+
     # Closes the corpus's last outright gap: there was no RTM_GETNEIGH dump
     # anywhere, only a notifications pcap.
     cap $ns $subdir netlink_route_getneigh 4 "ip neigh show"
@@ -421,6 +427,11 @@ proc sidecar_set {ns subdir dev} {
     side $ns $subdir ip_route_table_all     "ip route show table all"
     side $ns $subdir ip_route6              "ip -6 route show"
     side $ns $subdir ip_route6_n            "ip -d -6 route show"
+
+    # `ip -d nexthop show`. The plain form comes from the capio above; -d adds
+    # the always-on scope and the proto token print_nexthop suppresses when
+    # unspec (ip/ipnexthop.c), neither of which ticks, so a replay reproduces it.
+    side $ns $subdir ip_nexthop_n           "ip -d nexthop show"
     side $ns $subdir ip_neigh               "ip neigh show"
     side $ns $subdir ip_neigh_n             "ip -d neigh show"
     side $ns $subdir ip_link_dev            "ip link show dev $dev"

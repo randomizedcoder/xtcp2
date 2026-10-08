@@ -42,8 +42,8 @@
         "link_type": "netlink",
         "stats64": {
             "rx": {
-                "bytes": 147368,
-                "packets": 339,
+                "bytes": 148524,
+                "packets": 345,
                 "errors": 0,
                 "dropped": 0,
                 "over_errors": 0,
@@ -69,7 +69,7 @@
         "group": "default",
         "txqlen": 1000,
         "link_type": "ether",
-        "address": "56:31:0e:14:12:40",
+        "address": "46:09:8f:3f:75:c1",
         "broadcast": "ff:ff:ff:ff:ff:ff",
         "stats64": {
             "rx": {

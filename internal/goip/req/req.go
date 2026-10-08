@@ -450,3 +450,10 @@ func RuleShowDump(family uint8, seq uint32) ([]byte, error) {
 func NexthopGetByID(family uint8, id, seq uint32) ([]byte, error) {
 	return xtcpnl.BuildGetNexthopByIDRequest(family, id, seq)
 }
+
+// NexthopDump is the RTM_GETNEXTHOP dump behind `ip nexthop show` — the
+// multipart form, terminated by NLMSG_DONE, as opposed to the by-id single-get.
+// family is preferred_family; the bare command passes AF_UNSPEC.
+func NexthopDump(family uint8, seq uint32) ([]byte, error) {
+	return xtcpnl.BuildDumpNexthopRequest(family, seq), nil
+}

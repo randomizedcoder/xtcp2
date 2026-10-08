@@ -1787,15 +1787,19 @@ func TestRouteViewCacheinfoJSON(t *testing.T) {
 	}
 }
 
-// TestNexthopInfoText is print_nexthop (ip/ipnexthop.c) as `ip -d route show`
-// reaches it: the `\n\tnh_info ...` line under a route that delegates to a
-// nexthop object.
+// TestNexthopInfoText is __print_nexthop_entry (ip/ipnexthop.c:549) as
+// `ip -d route show` reaches it: the `\n\tnh_info ...` continuation under a
+// route that delegates to a nexthop object. That path is always show_details>0,
+// so scope and proto always print — even at their RT_SCOPE_UNIVERSE /
+// RTPROT_UNSPEC defaults.
 //
 // The positive row is transcribed from ip_route_main_n's nh_info line in
 // netlink_route_getroute_detail, and its xtcpnl.NexthopInfo is what
 // ParseNewNexthop decodes from that pcap's RTM_NEWNEXTHOP reply. The blackhole,
-// onlink and scope rows reason from print_nexthop because the topology produces
-// only the one simple shape, and the group row is the refusal.
+// onlink and scope rows reason from __print_nexthop_entry's token order (scope,
+// then blackhole, then proto, then the print_rt_flags onlink token last)
+// because the topology produces only the one simple shape, and the group row is
+// the refusal.
 //
 // go test ./internal/goip/render/ -run TestNexthopInfoText
 func TestNexthopInfoText(t *testing.T) {
@@ -1814,27 +1818,27 @@ func TestNexthopInfoText(t *testing.T) {
 			want: "\n\tnh_info id 1 via 192.0.2.10 dev goip0 scope link proto unspec ",
 		},
 		{
-			description: "corner: a universe-scope nexthop suppresses the scope token, as the main line does",
+			description: "corner: show_details forces scope global on a universe-scope nexthop",
 			in: xtcpnl.NexthopInfo{
 				Family: unix.AF_INET, Scope: unix.RT_SCOPE_UNIVERSE,
 				ID: 2, OIF: 3, Gateway: v4(192, 0, 2, 10),
 			},
-			want: "\n\tnh_info id 2 via 192.0.2.10 dev goip0 proto unspec ",
+			want: "\n\tnh_info id 2 via 192.0.2.10 dev goip0 scope global proto unspec ",
 		},
 		{
-			description: "corner: RTNH_F_ONLINK prints the onlink token between dev and scope",
+			description: "corner: RTNH_F_ONLINK prints the onlink token last, after proto",
 			in: xtcpnl.NexthopInfo{
 				Family: unix.AF_INET, Scope: unix.RT_SCOPE_LINK, Flags: unix.RTNH_F_ONLINK,
 				ID: 3, OIF: 3, Gateway: v4(192, 0, 2, 10),
 			},
-			want: "\n\tnh_info id 3 via 192.0.2.10 dev goip0 onlink scope link proto unspec ",
+			want: "\n\tnh_info id 3 via 192.0.2.10 dev goip0 scope link proto unspec onlink ",
 		},
 		{
-			description: "corner: a blackhole nexthop prints the blackhole token and no via or dev",
+			description: "corner: a blackhole nexthop prints the blackhole token after scope and no via or dev",
 			in: xtcpnl.NexthopInfo{
 				Scope: unix.RT_SCOPE_UNIVERSE, ID: 4, Blackhole: true,
 			},
-			want: "\n\tnh_info id 4 blackhole proto unspec ",
+			want: "\n\tnh_info id 4 scope global blackhole proto unspec ",
 		},
 		{
 			description: "corner: a kernel-proto nexthop names the protocol",
@@ -1842,7 +1846,7 @@ func TestNexthopInfoText(t *testing.T) {
 				Family: unix.AF_INET, Scope: unix.RT_SCOPE_UNIVERSE,
 				Protocol: unix.RTPROT_KERNEL, ID: 5, OIF: 3, Gateway: v4(192, 0, 2, 10),
 			},
-			want: "\n\tnh_info id 5 via 192.0.2.10 dev goip0 proto kernel ",
+			want: "\n\tnh_info id 5 via 192.0.2.10 dev goip0 scope global proto kernel ",
 		},
 		{
 			description: "negative: a nexthop group is refused, because goip has no captured recursive render to reproduce",

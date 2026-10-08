@@ -325,6 +325,21 @@ func BuildDumpRouteRequestFilter(family uint8, table, oif, seq uint32) ([]byte, 
 	return BuildRequest(uint16(unix.RTM_GETROUTE), uint16(unix.NLM_F_DUMP), seq, hdr, attrs)
 }
 
+// BuildDumpNexthopRequest builds the RTM_GETNEXTHOP dump `ip nexthop show`
+// sends: rtnl_nexthopdump_req (lib/libnetlink.c:261), REQUEST|DUMP over an
+// nhmsg whose nh_family is preferred_family and no attributes.
+//
+// The captured request is 24 bytes (NLMSG_LENGTH(sizeof(struct nhmsg)) = 24),
+// flags 0x0301, nh_family=AF_UNSPEC for the bare command (preferred_family
+// unset); netlink_route_getnexthop.pcap. Unlike the by-id get above this is a
+// multipart dump terminated by NLMSG_DONE, so it is read with DumpRtnetlink.
+func BuildDumpNexthopRequest(family uint8, seq uint32) []byte {
+	hdr := make([]byte, NhMsgSizeCst)
+	hdr[0] = family // nh_family; scope, protocol, resvd and flags stay 0
+
+	return BuildDumpRequest(uint16(unix.RTM_GETNEXTHOP), seq, hdr)
+}
+
 // BuildGetNexthopByIDRequest builds the single-get RTM_GETNEXTHOP that
 // `ip -d route show` sends for a route carrying RTA_NH_ID: NLM_F_REQUEST with no
 // NLM_F_DUMP, an nhmsg whose nh_family is preferred_family, and two attributes.
