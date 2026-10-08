@@ -11,11 +11,11 @@
 2: nlmon0: <NOARP,UP,LOWER_UP> mtu 3776 qdisc noqueue state UNKNOWN group default qlen 1000
     link/netlink 
     RX:  bytes packets errors dropped  missed   mcast           
-         85168     208      0       0       0       0 
+         85284     210      0       0       0       0 
     TX:  bytes packets errors dropped carrier collsns           
              0       0      0       0       0       0 
 3: goip0: <BROADCAST,NOARP,UP,LOWER_UP> mtu 1500 qdisc noqueue state UNKNOWN group default qlen 1000
-    link/ether 76:87:9c:71:ef:c8 brd ff:ff:ff:ff:ff:ff
+    link/ether 9e:81:52:59:bb:93 brd ff:ff:ff:ff:ff:ff
     altname goip0-alt
     inet 192.0.2.1/24 brd 192.0.2.255 scope global goip0
        valid_lft forever preferred_lft forever
@@ -23,9 +23,9 @@
        valid_lft forever preferred_lft forever
     inet6 2001:db8::1/64 scope global nodad 
        valid_lft forever preferred_lft forever
-    inet6 fe80::7487:9cff:fe71:efc8/64 scope link proto kernel_ll 
+    inet6 fe80::9c81:52ff:fe59:bb93/64 scope link proto kernel_ll 
        valid_lft forever preferred_lft forever
     RX:  bytes packets errors dropped  missed   mcast           
              0       0      0       0       0       0 
     TX:  bytes packets errors dropped carrier collsns           
-           530       7      0       0       0       0 
+           320       4      0       0       0       0 

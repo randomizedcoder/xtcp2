@@ -10,11 +10,10 @@ import (
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
 
-// ErrNexthopGroup marks a group goip declines to render. On the `ip nexthop show`
-// path an mpath group is rendered; a resilient (or unknown-type) group is not,
-// because its buckets/idle_timer args carry jiffies fields no capture grounds. On
-// the route `-d` nh_info path every group is declined, since no captured route
-// delegates to a group nexthop.
+// ErrNexthopGroup marks a group goip declines to render: a group of an
+// unknown type (neither mpath nor resilient), or any group on the route `-d`
+// nh_info path, since no captured route delegates to a group nexthop. mpath and
+// resilient groups are rendered on the `ip nexthop show` path.
 var ErrNexthopGroup = errors.New("nexthop group not implemented by goip")
 
 // nexthopEntryText renders iproute2's __print_nexthop_entry (ip/ipnexthop.c:549)
@@ -33,9 +32,10 @@ var ErrNexthopGroup = errors.New("nexthop group not implemented by goip")
 // neither.
 func nexthopEntryText(nh xtcpnl.NexthopInfo, prefix string, detailed, groups bool, tab NameTab) (string, error) {
 	if nh.HasGroup {
-		// The route nh_info path grounds no group; the show path grounds only
-		// mpath. A resilient or unknown-type group is declined either way.
-		if !groups || nh.HasResGroup || nh.GroupType != xtcpnl.NexthopGrpTypeMpath {
+		// The route nh_info path grounds no group. The show path grounds mpath and
+		// resilient; any other group type is declined.
+		known := nh.GroupType == xtcpnl.NexthopGrpTypeMpath || nh.GroupType == xtcpnl.NexthopGrpTypeRes
+		if !groups || !known {
 			return "", fmt.Errorf("nexthop id %d is a group: %w", nh.ID, ErrNexthopGroup)
 		}
 	}
@@ -45,7 +45,13 @@ func nexthopEntryText(nh xtcpnl.NexthopInfo, prefix string, detailed, groups boo
 	fmt.Fprintf(&b, "id %d ", nh.ID)
 	if nh.HasGroup {
 		writeNexthopGroup(&b, nh.Group)
-		// mpath prints no type token (print_nh_group_type, ip/ipnexthop.c:289).
+		// print_nh_group_type (ip/ipnexthop.c:291): mpath prints no token.
+		if nh.GroupType == xtcpnl.NexthopGrpTypeRes {
+			b.WriteString("type resilient ")
+		}
+		if nh.HasResGroup {
+			writeResGroup(&b, nh.ResGroup)
+		}
 	}
 	if len(nh.Gateway) > 0 {
 		fmt.Fprintf(&b, "via %s ", addrString(nh.Gateway, nh.Family))
@@ -83,6 +89,22 @@ func writeNexthopGroup(b *strings.Builder, members []xtcpnl.GroupMember) {
 		}
 	}
 	b.WriteByte(' ')
+}
+
+// writeResGroup renders print_nh_res_group (ip/ipnexthop.c:358): buckets as a
+// plain uint, then three timers each in seconds. iproute2 prints the timers with
+// print_tv("%g"), where seconds = clock_t/100 (__jiffies_to_tv, USER_HZ=100).
+func writeResGroup(b *strings.Builder, rg xtcpnl.ResGroup) {
+	fmt.Fprintf(b, "buckets %d ", rg.Buckets)
+	fmt.Fprintf(b, "idle_timer %s ", clockSeconds(uint64(rg.IdleTimer)))
+	fmt.Fprintf(b, "unbalanced_timer %s ", clockSeconds(uint64(rg.UnbalancedTimer)))
+	fmt.Fprintf(b, "unbalanced_time %s ", clockSeconds(rg.UnbalancedTime))
+}
+
+// clockSeconds formats a clock_t value (USER_HZ=100 units) as C's "%g" does for
+// the derived seconds: 6 significant figures, trailing zeros stripped.
+func clockSeconds(v uint64) string {
+	return fmt.Sprintf("%.6g", float64(v)/100.0)
 }
 
 // NexthopInfoText is the `nh_info ...` continuation `ip -d route show` prints

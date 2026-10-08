@@ -11,6 +11,7 @@ ok    [nlcapc] ip route add 198.18.3.0/24 nhid 1
 ok    [nlcapc] ip nexthop add id 2 via 192.0.2.11 dev goip0
 ok    [nlcapc] ip nexthop add id 10 group 1/2
 ok    [nlcapc] ip nexthop add id 11 group 1,2/2,3
+ok    [nlcapc] ip nexthop add id 20 group 1/2 type resilient buckets 8 idle_timer 120
 ok    [nlcapc] ip route add 198.18.1.0/24 via 192.0.2.10 dev goip0 mtu 1400 advmss 1300
 ok    [nlcapc] ip route add 203.0.113.0/24 nexthop via 192.0.2.10 dev goip0 weight 1 nexthop via 192.0.2.11 dev goip0 weight 3
 ok    [nlcapc] ip route add 198.18.2.0/24 via inet6 2001:db8::2 dev goip0

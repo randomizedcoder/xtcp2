@@ -22,29 +22,33 @@ import (
 // would hide that link reply and the `dev goip0` token with it; both captures are
 // single-command clean, so replaying the whole file is correct.
 const (
-	nexthopDumpPcap   = "../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getnexthop.pcap"
-	nexthopIDPcap     = "../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getnexthop_id.pcap"
-	nexthopSidecarDir = "../../pkg/xtcpnl/testdata/7_1_4/dumps/"
-	nexthopSidecar    = "ip_nexthop"
-	nexthopSidecarDtl = "ip_nexthop_n"
-	nexthopSidecarID  = "ip_nexthop_id"
-	nexthopSidecarIDN = "ip_nexthop_id_n"
+	nexthopDumpPcap    = "../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getnexthop.pcap"
+	nexthopIDPcap      = "../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getnexthop_id.pcap"
+	nexthopResPcap     = "../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getnexthop_res.pcap"
+	nexthopSidecarDir  = "../../pkg/xtcpnl/testdata/7_1_4/dumps/"
+	nexthopSidecar     = "ip_nexthop"
+	nexthopSidecarDtl  = "ip_nexthop_n"
+	nexthopSidecarID   = "ip_nexthop_id"
+	nexthopSidecarIDN  = "ip_nexthop_id_n"
+	nexthopSidecarRes  = "ip_nexthop_res"
+	nexthopSidecarResN = "ip_nexthop_res_n"
 )
 
 // TestNexthopShowMatchesCapturedSidecars replays the two committed nexthop
 // captures and compares goip's stdout with the `ip nexthop show` sidecars
 // captured beside them.
 //
-// The dump holds the clean topology's four objects: single nexthops id 1 and 2
-// (via/dev/link-scope) and the mpath groups id 10 (`group 1/2`) and id 11
-// (weighted `group 1,2/2,3`). The plain and `-d` rows differ by exactly the
-// show_details gate: proto appears only under `-d`, and for a group `-d` also
-// forces scope global, because a group carries no link scope of its own
-// (ip/ipnexthop.c). The by-id rows fetch id 10 through the point GET
-// (NexthopByID), which under replay dumps the one-object pcap and filters to the
-// id; its line is byte-identical to the group's line in the dump. The bare
-// `nexthop` row proves do_ipnh's argc==0 path lists rather than erroring
-// (ip/ipnexthop.c:1453), and `list`/`lst` prove the verb synonyms.
+// The dump holds the clean topology's objects: single nexthops id 1 and 2
+// (via/dev/link-scope), the mpath groups id 10 (`group 1/2`) and id 11 (weighted
+// `group 1,2/2,3`), and the resilient group id 20 (`type resilient buckets ..`).
+// The plain and `-d` rows differ by exactly the show_details gate: proto appears
+// only under `-d`, and for a group `-d` also forces scope global, because a group
+// carries no link scope of its own (ip/ipnexthop.c). The by-id rows fetch id 10
+// and id 20 through the point GET (NexthopByID), which under replay dumps the
+// one-object pcap and filters to the id; each line is byte-identical to that
+// group's line in the dump. The bare `nexthop` row proves do_ipnh's argc==0 path
+// lists rather than erroring (ip/ipnexthop.c:1453), and `list`/`lst` prove the
+// verb synonyms.
 //
 // go test ./internal/goip/ -run TestNexthopShowMatchesCapturedSidecars
 func TestNexthopShowMatchesCapturedSidecars(t *testing.T) {
@@ -55,7 +59,7 @@ func TestNexthopShowMatchesCapturedSidecars(t *testing.T) {
 		sidecar     string
 	}{
 		{
-			description: "positive: `nexthop show` reproduces ip_nexthop (id 1/2 single, id 10/11 groups)",
+			description: "positive: `nexthop show` reproduces ip_nexthop (id 1/2 single, id 10/11 mpath, id 20 resilient)",
 			args:        []string{"nexthop", "show"},
 			pcap:        nexthopDumpPcap,
 			sidecar:     nexthopSidecar,
@@ -97,6 +101,18 @@ func TestNexthopShowMatchesCapturedSidecars(t *testing.T) {
 			args:        []string{"-d", "nexthop", "show", "id", "10"},
 			pcap:        nexthopIDPcap,
 			sidecar:     nexthopSidecarIDN,
+		},
+		{
+			description: "positive: `nexthop show id 20` fetches the resilient group and renders its type/res args",
+			args:        []string{"nexthop", "show", "id", "20"},
+			pcap:        nexthopResPcap,
+			sidecar:     nexthopSidecarRes,
+		},
+		{
+			description: "positive: `-d nexthop show id 20` adds scope global and proto unspec to the resilient group",
+			args:        []string{"-d", "nexthop", "show", "id", "20"},
+			pcap:        nexthopResPcap,
+			sidecar:     nexthopSidecarResN,
 		},
 	}
 

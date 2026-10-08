@@ -20,10 +20,14 @@ import (
 // The mpath group rows are transcribed from the ip_nexthop and ip_nexthop_n
 // sidecars of the same capture, whose id 10 is `group 1/2` and id 11 is the
 // weighted `group 1,2/2,3`; under -d both gain `scope global proto unspec`
-// because a group carries neither a link scope nor a proto. The blackhole,
-// onlink, detailed-scope, single/three-member and proto rows reason from
-// __print_nexthop_entry's token order; the resilient group is the one refusal
-// goip returns rather than guess a render it never captured.
+// because a group carries neither a link scope nor a proto. The resilient rows
+// are transcribed from ip_nexthop_res/ip_nexthop_res_n, whose id 20 adds
+// `type resilient buckets .. idle_timer .. unbalanced_timer .. unbalanced_time ..`;
+// the %g timer form (seconds = clock_t/100, six significant figures) is verified
+// against C printf. The blackhole, onlink, detailed-scope, single/three-member,
+// proto, and %g-edge rows reason from __print_nexthop_entry's token order. The
+// two refusals goip keeps are an unknown group type and any group on the route
+// nh_info path (NexthopInfoText).
 //
 // go test ./internal/goip/render/ -run TestNexthopText
 func TestNexthopText(t *testing.T) {
@@ -31,6 +35,7 @@ func TestNexthopText(t *testing.T) {
 		description string
 		in          xtcpnl.NexthopInfo
 		detailed    bool
+		infoPath    bool // render via NexthopInfoText (route nh_info path) instead
 		want        string
 		wantErr     bool
 	}{
@@ -150,20 +155,77 @@ func TestNexthopText(t *testing.T) {
 			want: "id 14 group 1/2 proto kernel ",
 		},
 		{
-			description: "negative: a resilient group is refused — its jiffies args have no fixture",
-			in:          xtcpnl.NexthopInfo{ID: 6, HasGroup: true, HasResGroup: true},
+			description: "positive: ip_nexthop_res resilient group id 20 — type token then the four res args",
+			in: xtcpnl.NexthopInfo{
+				ID: 20, HasGroup: true, GroupType: xtcpnl.NexthopGrpTypeRes, HasResGroup: true,
+				Group:    []xtcpnl.GroupMember{{ID: 1, Weight: 1}, {ID: 2, Weight: 1}},
+				ResGroup: xtcpnl.ResGroup{Buckets: 8, IdleTimer: 12000},
+			},
+			want: "id 20 group 1/2 type resilient buckets 8 idle_timer 120 unbalanced_timer 0 unbalanced_time 0 ",
+		},
+		{
+			description: "positive: ip_nexthop_res_n -d resilient group id 20 adds scope global and proto unspec",
+			in: xtcpnl.NexthopInfo{
+				ID: 20, HasGroup: true, GroupType: xtcpnl.NexthopGrpTypeRes, HasResGroup: true,
+				Group:    []xtcpnl.GroupMember{{ID: 1, Weight: 1}, {ID: 2, Weight: 1}},
+				ResGroup: xtcpnl.ResGroup{Buckets: 8, IdleTimer: 12000},
+			},
+			detailed: true,
+			want:     "id 20 group 1/2 type resilient buckets 8 idle_timer 120 unbalanced_timer 0 unbalanced_time 0 scope global proto unspec ",
+		},
+		{
+			description: "positive: a weighted resilient group keeps member ,weight before the type token",
+			in: xtcpnl.NexthopInfo{
+				ID: 21, HasGroup: true, GroupType: xtcpnl.NexthopGrpTypeRes, HasResGroup: true,
+				Group:    []xtcpnl.GroupMember{{ID: 1, Weight: 2}, {ID: 2, Weight: 3}},
+				ResGroup: xtcpnl.ResGroup{Buckets: 8, IdleTimer: 6000},
+			},
+			want: "id 21 group 1,2/2,3 type resilient buckets 8 idle_timer 60 unbalanced_timer 0 unbalanced_time 0 ",
+		},
+		{
+			description: "boundary: buckets at u16 max renders plainly, idle_timer 6000ct renders 60",
+			in: xtcpnl.NexthopInfo{
+				ID: 22, HasGroup: true, GroupType: xtcpnl.NexthopGrpTypeRes, HasResGroup: true,
+				Group:    []xtcpnl.GroupMember{{ID: 1, Weight: 1}},
+				ResGroup: xtcpnl.ResGroup{Buckets: 65535, IdleTimer: 6000},
+			},
+			want: "id 22 group 1 type resilient buckets 65535 idle_timer 60 unbalanced_timer 0 unbalanced_time 0 ",
+		},
+		{
+			description: "corner: unbalanced_time 150ct renders fractional seconds via %g, large idle_timer keeps 6-sig-fig form",
+			in: xtcpnl.NexthopInfo{
+				ID: 23, HasGroup: true, GroupType: xtcpnl.NexthopGrpTypeRes, HasResGroup: true,
+				Group:    []xtcpnl.GroupMember{{ID: 1, Weight: 1}},
+				ResGroup: xtcpnl.ResGroup{Buckets: 1, IdleTimer: 999999999, UnbalancedTime: 150},
+			},
+			want: "id 23 group 1 type resilient buckets 1 idle_timer 1e+07 unbalanced_timer 0 unbalanced_time 1.5 ",
+		},
+		{
+			description: "negative: an unknown group type (neither mpath nor resilient) is refused",
+			in:          xtcpnl.NexthopInfo{ID: 7, HasGroup: true, GroupType: 2},
 			wantErr:     true,
 		},
 		{
-			description: "negative: a non-mpath group type is refused — only mpath is grounded",
-			in:          xtcpnl.NexthopInfo{ID: 7, HasGroup: true, GroupType: 1},
-			wantErr:     true,
+			description: "negative: a resilient group on the route nh_info path is refused (no captured route delegates to a group)",
+			in: xtcpnl.NexthopInfo{
+				ID: 20, HasGroup: true, GroupType: xtcpnl.NexthopGrpTypeRes, HasResGroup: true,
+				Group:    []xtcpnl.GroupMember{{ID: 1, Weight: 1}, {ID: 2, Weight: 1}},
+				ResGroup: xtcpnl.ResGroup{Buckets: 8, IdleTimer: 12000},
+			},
+			infoPath: true,
+			wantErr:  true,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			got, err := NexthopText(tc.in, tc.detailed, routeTabNames)
+			render := func() (string, error) {
+				if tc.infoPath {
+					return NexthopInfoText(tc.in, routeTabNames)
+				}
+				return NexthopText(tc.in, tc.detailed, routeTabNames)
+			}
+			got, err := render()
 			if tc.wantErr {
 				if err == nil {
 					t.Fatal("no error, want one")

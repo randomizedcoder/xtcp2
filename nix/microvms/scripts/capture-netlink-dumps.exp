@@ -225,16 +225,20 @@ proc capture_set {ns subdir dev} {
     capio $ns $subdir netlink_route_getroute_table_all_detail 4 "ip -d route show table all" ip_route_table_all_n
 
     # `ip nexthop show` dumps the clean topology's nexthop objects (id 1/2 single,
-    # id 10/11 mpath groups). Floor 4: the nexthop dump plus the ll_init_map link
-    # dump print_rta_ifidx triggers to turn nh_oif into `dev goip0`. capio pairs
-    # the pcap with the ip_nexthop sidecar so a replay reproduces the listing byte
-    # for byte.
+    # id 10/11 mpath groups, id 20 resilient group). Floor 4: the nexthop dump plus
+    # the ll_init_map link dump print_rta_ifidx triggers to turn nh_oif into `dev
+    # goip0`. capio pairs the pcap with the ip_nexthop sidecar so a replay reproduces
+    # the listing byte for byte.
     capio $ns $subdir netlink_route_getnexthop 4 "ip nexthop show" ip_nexthop
     # `ip nexthop show id 10` is a point GET (NHA_ID, no NLM_F_DUMP), not a dump;
     # id 10 is an mpath group, so this grounds both the by-id request bytes and a
     # group line fetched by id. Floor 2: a group carries no nh_oif, so there is no
     # ll_init_map link lookup, just the GET request and its one RTM_NEWNEXTHOP reply.
     capio $ns $subdir netlink_route_getnexthop_id 2 "ip nexthop show id 10" ip_nexthop_id
+    # `ip nexthop show id 20` is the same point GET of the resilient group, grounding
+    # the `type resilient buckets .. idle_timer .. unbalanced_timer .. unbalanced_time
+    # ..` line. Same floor 2 (a group carries no nh_oif).
+    capio $ns $subdir netlink_route_getnexthop_res 2 "ip nexthop show id 20" ip_nexthop_res
 
     # Closes the corpus's last outright gap: there was no RTM_GETNEIGH dump
     # anywhere, only a notifications pcap.
@@ -441,6 +445,9 @@ proc sidecar_set {ns subdir dev} {
     # `ip -d nexthop show id 10`: the group fetched by id, detailed form. Reuses
     # the getnexthop_id pcap (its netlink is byte-identical to the plain GET).
     side $ns $subdir ip_nexthop_id_n        "ip -d nexthop show id 10"
+    # `ip -d nexthop show id 20`: the resilient group, detailed form (adds scope
+    # global + proto unspec). Reuses the getnexthop_res pcap.
+    side $ns $subdir ip_nexthop_res_n       "ip -d nexthop show id 20"
     side $ns $subdir ip_neigh               "ip neigh show"
     side $ns $subdir ip_neigh_n             "ip -d neigh show"
     side $ns $subdir ip_link_dev            "ip link show dev $dev"

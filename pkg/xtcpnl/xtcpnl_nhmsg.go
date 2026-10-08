@@ -50,8 +50,18 @@ const (
 	NhaOpFlags   uint16 = 14 // NHA_OP_FLAGS: op filter (request) / resvd (reply)
 
 	// NexthopGrpTypeMpath is NEXTHOP_GRP_TYPE_MPATH, the default group type that
-	// iproute2 prints no `type` token for.
+	// iproute2 prints no `type` token for. NexthopGrpTypeRes is
+	// NEXTHOP_GRP_TYPE_RES, the resilient group that prints `type resilient`.
 	NexthopGrpTypeMpath uint16 = 0
+	NexthopGrpTypeRes   uint16 = 1
+
+	// NHA_RES_GROUP_* sub-attrs of the nested NHA_RES_GROUP (include/uapi/linux/
+	// nexthop.h). Type 0 is NHA_RES_GROUP_PAD, a 64-bit alignment pad before the
+	// u64 unbalanced_time; it carries no value and is skipped.
+	NhaResGroupBuckets         uint16 = 1 // u16
+	NhaResGroupIdleTimer       uint16 = 2 // clock_t as u32
+	NhaResGroupUnbalancedTimer uint16 = 3 // clock_t as u32
+	NhaResGroupUnbalancedTime  uint16 = 4 // clock_t as u64
 
 	// NhaOpFlagRespGrpResvd0 is NHA_OP_FLAG_RESP_GRP_RESVD_0: when the reply sets
 	// it in NHA_OP_FLAGS, a group entry's weight_high byte is meaningful.
@@ -78,13 +88,22 @@ type GroupMember struct {
 	Weight uint16
 }
 
+// ResGroup is the decoded NHA_RES_GROUP of a resilient nexthop group. The timer
+// fields are raw clock_t (USER_HZ=100 units); render divides by 100 for seconds.
+type ResGroup struct {
+	Buckets         uint16
+	IdleTimer       uint32
+	UnbalancedTimer uint32
+	UnbalancedTime  uint64
+}
+
 // NexthopInfo is a decoded RTM_NEWNEXTHOP reply: the nhmsg header fields worth
 // keeping plus the attributes a nexthop carries.
 //
 // A group nexthop sets HasGroup and lists its member ids in Group; GroupType
-// distinguishes mpath from resilient. The render layer renders mpath groups and
-// declines resilient/unknown ones (HasResGroup or a non-mpath GroupType), which
-// carry live-ticking args no fixture grounds. See render.NexthopText.
+// distinguishes mpath from resilient. A resilient group also carries ResGroup
+// (HasResGroup). The render layer renders mpath and resilient groups and declines
+// unknown-type groups. See render.NexthopText.
 type NexthopInfo struct {
 	Family      uint8
 	Scope       uint8
@@ -98,6 +117,7 @@ type NexthopInfo struct {
 	Group       []GroupMember // NHA_GROUP members, nil when not a group
 	GroupType   uint16        // NHA_GROUP_TYPE, NEXTHOP_GRP_TYPE_*
 	HasResGroup bool          // NHA_RES_GROUP present (resilient)
+	ResGroup    ResGroup      // decoded NHA_RES_GROUP, valid when HasResGroup
 	RespOpFlags uint32        // NHA_OP_FLAGS from the reply (weight gate)
 }
 
@@ -127,7 +147,8 @@ func ParseNewNexthop(body []byte) (NexthopInfo, error) {
 	nh.Protocol = h.Protocol
 	nh.Flags = h.Flags
 
-	var groupRaw []byte // NHA_GROUP bytes, resolved to members after the walk
+	var groupRaw []byte    // NHA_GROUP bytes, resolved to members after the walk
+	var resGroupRaw []byte // NHA_RES_GROUP nested bytes, decoded after the walk
 	err := WalkRTAttrs(body[NhMsgSizeCst:], func(atype uint16, val []byte) {
 		switch atype {
 		case NhaID:
@@ -151,6 +172,7 @@ func ParseNewNexthop(body []byte) (NexthopInfo, error) {
 			}
 		case NhaResGroup:
 			nh.HasResGroup = true
+			resGroupRaw = CopyBytes(val)
 		case NhaOpFlags:
 			if len(val) >= 4 {
 				nh.RespOpFlags = binary.LittleEndian.Uint32(val[0:4])
@@ -178,6 +200,34 @@ func ParseNewNexthop(body []byte) (NexthopInfo, error) {
 				w = uint16(high)
 			}
 			nh.Group = append(nh.Group, GroupMember{ID: id, Weight: (w<<8 | uint16(low)) + 1})
+		}
+	}
+
+	// Decode the resilient args (parse_nh_res_group_rta, ip/ipnexthop.c:300). The
+	// nested stream may carry NHA_RES_GROUP_PAD (type 0), which matches no case.
+	if resGroupRaw != nil {
+		werr := WalkRTAttrsNested(resGroupRaw, func(atype uint16, val []byte) {
+			switch atype {
+			case NhaResGroupBuckets:
+				if len(val) >= 2 {
+					nh.ResGroup.Buckets = binary.LittleEndian.Uint16(val[0:2])
+				}
+			case NhaResGroupIdleTimer:
+				if len(val) >= 4 {
+					nh.ResGroup.IdleTimer = binary.LittleEndian.Uint32(val[0:4])
+				}
+			case NhaResGroupUnbalancedTimer:
+				if len(val) >= 4 {
+					nh.ResGroup.UnbalancedTimer = binary.LittleEndian.Uint32(val[0:4])
+				}
+			case NhaResGroupUnbalancedTime:
+				if len(val) >= 8 {
+					nh.ResGroup.UnbalancedTime = binary.LittleEndian.Uint64(val[0:8])
+				}
+			}
+		})
+		if werr != nil {
+			return nh, werr
 		}
 	}
 	return nh, nil

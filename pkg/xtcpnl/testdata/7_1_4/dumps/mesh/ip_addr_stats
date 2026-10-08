@@ -15,7 +15,7 @@
     TX:  bytes packets errors dropped carrier collsns           
              0       0      0       0       0       0 
 3: br0: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc noqueue state DOWN group default qlen 1000
-    link/ether d2:eb:08:51:47:c6 brd ff:ff:ff:ff:ff:ff
+    link/ether 62:52:ce:f7:80:32 brd ff:ff:ff:ff:ff:ff
     inet 198.19.0.1/24 scope global br0
        valid_lft forever preferred_lft forever
     inet6 2001:db8:ff::1/64 scope global nodad 
@@ -25,13 +25,13 @@
     TX:  bytes packets errors dropped carrier collsns           
              0       0      0       2       0       0 
 4: veth1@veth0: <BROADCAST,MULTICAST> mtu 1500 qdisc noop state DOWN group default qlen 1000
-    link/ether 4e:27:70:4b:59:52 brd ff:ff:ff:ff:ff:ff
+    link/ether 4a:4b:7f:06:54:1c brd ff:ff:ff:ff:ff:ff
     RX:  bytes packets errors dropped  missed   mcast           
              0       0      0       0       0       0 
     TX:  bytes packets errors dropped carrier collsns           
              0       0      0       0       0       0 
 5: veth0@veth1: <NO-CARRIER,BROADCAST,MULTICAST,UP,M-DOWN> mtu 1500 qdisc noqueue master br0 state LOWERLAYERDOWN group default qlen 1000
-    link/ether d2:eb:08:51:47:c6 brd ff:ff:ff:ff:ff:ff
+    link/ether 62:52:ce:f7:80:32 brd ff:ff:ff:ff:ff:ff
     RX:  bytes packets errors dropped  missed   mcast           
              0       0      0       0       0       0 
     TX:  bytes packets errors dropped carrier collsns           
