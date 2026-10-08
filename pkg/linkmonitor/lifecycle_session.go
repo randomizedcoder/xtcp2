@@ -18,6 +18,7 @@ type lifecycleSession struct {
 	subscribe  subscriptionFactory
 	cleaned    <-chan struct{} // Initialized during shutdown; safe to inspect after Run returns.
 	statistics bool
+	settings   bool
 	sysfsRoot  string
 }
 
@@ -48,13 +49,24 @@ func (s *lifecycleSession) acquire(ctx context.Context, resources *lifecycleReso
 	if resources.err != nil || ctx.Err() != nil {
 		return
 	}
-	source, err := s.inventory(ctx)
+	source, err := s.openInventory(ctx)
 	if err != nil {
 		resources.err = err
 		return
 	}
 	resources.inventory = newInventoryExecutor(ctx, source)
 	resources.events = newEventExecutor(ctx, newEventInbox(1), s.subscribe)
+}
+
+func (s *lifecycleSession) openInventory(ctx context.Context) (inventoryBackend, error) {
+	if s.inventory != nil {
+		return s.inventory(ctx)
+	}
+	root := s.sysfsRoot
+	if root == "" {
+		root = "/sys/class/net"
+	}
+	return newEthernetInventory(s.namespace, root, s.clock)
 }
 
 func (s *lifecycleSession) Run(ctx context.Context, m *Monitor) error {
@@ -104,6 +116,9 @@ func (s *lifecycleSession) prepare(m *Monitor, resources *lifecycleResources) (*
 	r := newReducer(s.namespace)
 	r.freshness = freshnessPolicy{poll: 3 * m.cfg.StatsInterval, configuration: 2 * m.cfg.Resync}
 	scheduler := newScheduler(r, resources.pool, s.clock)
+	if s.settings {
+		scheduler.settings = &settingsSchedule{interval: m.cfg.StatsInterval, devices: make(map[model.DeviceKey]model.Device)}
+	}
 	c, err := newReconciler(scheduler, resources.inventory, resources.events, m.cfg.Resync)
 	if err != nil {
 		return nil, err
@@ -117,13 +132,23 @@ func (s *lifecycleSession) prepare(m *Monitor, resources *lifecycleResources) (*
 }
 
 func (s *lifecycleSession) collectorFactory() workerFactory {
-	if !s.statistics {
+	if !s.statistics && !s.settings {
 		return s.collectors
 	}
 	return func(id int) (workerCollector, error) {
 		base, err := s.collectors(id)
 		if err != nil {
 			return nil, err
+		}
+		if s.settings {
+			wrapped, wrapErr := newSettingsCollector(base)
+			if wrapErr != nil {
+				return nil, errors.Join(wrapErr, base.Close())
+			}
+			base = wrapped
+		}
+		if !s.statistics {
+			return base, nil
 		}
 		root := s.sysfsRoot
 		if root == "" {

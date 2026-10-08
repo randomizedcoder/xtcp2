@@ -72,6 +72,9 @@ func (r *reducer) startCollection(key model.JobKey, now model.Stamp) (model.Job,
 	r.attempt++
 	token.Attempt = r.attempt
 	job := model.Job{Key: key, Token: token, Started: now}
+	if i, exists := r.index[key.Device]; exists {
+		job.Device = r.slots[i].device
+	}
 	state.job, state.running = job, true
 	return job, nil
 }

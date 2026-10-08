@@ -146,6 +146,9 @@ func (s *scheduler) recordResult(result model.Result) {
 		}
 		return
 	}
+	if result.Settings != nil && result.Err == nil && result.Support == model.Supported {
+		s.reducer.setChecks(result.Job, deviceChecks{maximumSpeed: result.Settings.Speed, fullDuplex: result.Settings.Duplex})
+	}
 	if job == nil || !sameRevision(job.token, result.Job.Token) || !job.retryActive {
 		return
 	}

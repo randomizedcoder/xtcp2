@@ -202,6 +202,7 @@ func (c *reconciler) commit(now model.Stamp) error {
 		}
 	}
 	c.abort()
+	c.scheduler.resyncSettings()
 	c.committedSerial = c.dumpSerial
 	c.pending, c.lastError = false, nil
 	c.backoff, c.queryBackoff = time.Second, time.Second

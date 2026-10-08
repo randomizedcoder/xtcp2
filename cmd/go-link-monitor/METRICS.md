@@ -203,6 +203,14 @@ regex defaults to `.*`. Its link settings path uses the legacy EthtoolCmd
 32-bit capability bitmap; this is not adequate evidence of modern high-speed
 capabilities. V1 uses the existing arbitrary-length bitset decoder.
 
+P06-T02 projects reviewed link modes with `mode` equal to the decimal Linux UAPI
+bit index, shared by netlink and modern ioctl responses. Unknown future bits do
+not acquire invented names/speeds and prevent deriving a known maximum.
+Advertisement-only (NOMASK) results can expose advertised modes but cannot
+establish supported capabilities. Supported port labels use `fiber` spelling.
+Driver-known diagnostics must treat unsupported, failed or expired identity
+collection as unavailable; absence of a driver-info sample is not healthy proof.
+
 | Original node_exporter name | Proposed suffix | Type / unit | Labels beyond interface | Profile |
 |---|---|---|---|---|
 | `node_ethtool_info` | `interface_driver_info` | G / 1 | bus_info,driver,expansion_rom_version,firmware_version,version | K |
