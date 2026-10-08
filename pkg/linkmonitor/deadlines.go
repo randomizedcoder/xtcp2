@@ -16,6 +16,9 @@ const (
 	deadlineAttempt
 	deadlineRetry
 	deadlineCoordinator
+	deadlineLifecycle
+	deadlineTrafficPoll
+	deadlineCarrierFields
 )
 
 type deadlineKey struct {

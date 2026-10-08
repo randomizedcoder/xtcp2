@@ -13,6 +13,10 @@ import (
 
 func publish(t *testing.T, r *reducer, m *Monitor) Snapshot {
 	t.Helper()
+	// These page/immutability tests construct a complete inventory directly.
+	if !r.recordResync(model.Token{SourceEpoch: r.epoch, Revision: r.revision}, model.Stamp{}) {
+		t.Fatal("could not establish complete test inventory")
+	}
 	if err := r.publish(m, publicationState{health: Health{Running: true}, expected: presentValue(uint64(1))}); err != nil {
 		t.Fatal(err)
 	}

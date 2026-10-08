@@ -83,7 +83,7 @@ func (s *scheduler) expire(now model.Stamp) {
 			}
 		case deadlineRetry:
 			s.retryDue(entry)
-		case deadlineCoordinator:
+		case deadlineCoordinator, deadlineLifecycle, deadlineTrafficPoll:
 			// The owner calls reconciler.advance after deadlines, including this wake.
 		default:
 			s.reducer.expireEntry(entry)
@@ -97,6 +97,10 @@ func (s *scheduler) timeout(active *runningCollection, now model.Stamp) {
 	}
 	active.timedOut = true
 	active.cancel(context.DeadlineExceeded)
+	if active.traffic != nil {
+		s.traffic.batch = &trafficBatch{attempt: active.traffic, reply: trafficReply{err: context.DeadlineExceeded}, finished: now}
+		return
+	}
 	result := model.Result{Job: active.job, Finished: now, Err: context.DeadlineExceeded, Reason: model.ErrorTimeout}
 	s.recordResult(result)
 }
@@ -113,7 +117,11 @@ func (s *scheduler) complete(completion workerCompletion) {
 		s.timeout(active, completion.result.Finished)
 	}
 	if !active.timedOut {
-		s.recordResult(completion.result)
+		if active.traffic != nil {
+			s.traffic.batch = &trafficBatch{attempt: active.traffic, reply: *completion.traffic, finished: completion.result.Finished}
+		} else {
+			s.recordResult(completion.result)
+		}
 	}
 	active.cancel(context.Canceled)
 	s.reducer.deadlines.cancel(deadlineKey{kind: deadlineAttempt, job: active.job.Key})

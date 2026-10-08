@@ -91,7 +91,7 @@ state or required event-source failure does. Polling continues during event loss
 Profile P, all rows C, label `interface`, source IFLA_STATS64 with presence-aware
 32-bit fallback. Units are bytes for byte rows and packets/events for the others.
 Original detailed names are `node_network_<suffix>`. Proposed names are
-`go_link_monitor_interface_<suffix>`. The fixed rows are listed below.
+`go_link_monitor_interface_<suffix>`. The 25 direct counter fields are listed below.
 
 The node_exporter default is netlink=true and detailed-metrics=false. Its legacy
 conversion folds missed drops into drops, several RX errors into frame errors,
@@ -125,15 +125,11 @@ label is not copied to every traffic series; alias belongs on interface info.
 | `receive_compressed_total` | `interface_receive_compressed_total` | `RxCompressed` |
 | `transmit_compressed_total` | `interface_transmit_compressed_total` | `TxCompressed` |
 | `receive_nohandler_total` | `interface_receive_nohandler_total` | `RXNoHandler` |
-| `receive_fifo_total` | `interface_receive_fifo_total` | `RxFIFO` |
-| `receive_frame_total` | `interface_receive_frame_total` | `RxFrame` |
-| `receive_multicast_total` | `interface_receive_multicast_total` | `RxMulticast` |
-| `transmit_fifo_total` | `interface_transmit_fifo_total` | `TxFIFO` |
-| `transmit_colls_total` | `interface_transmit_colls_total` | `TxCollisions` |
-| `transmit_carrier_total` | `interface_transmit_carrier_total` | `TxCarrier` |
 | none in inspected netdev map | `interface_receive_otherhost_dropped_total` | `rx_otherhost_dropped`, when present in source; do not fabricate from short legacy struct |
 
-Legacy node_exporter mappings (each old name starts `node_network_`):
+Legacy node_exporter mappings for dashboard migration only (each old name starts
+`node_network_`). These duplicate or summed aliases are not additional exported
+go-link-monitor metrics; use the direct fields or expressions below:
 
 | Legacy suffix | Detailed new suffix / expression after `go_link_monitor_interface_` |
 |---|---|

@@ -59,6 +59,7 @@ func (r *reducer) armExpiry(job model.Job, state *collectorState) {
 }
 
 func (r *reducer) cancelDeviceDeadlines(key model.DeviceKey) {
+	r.deadlines.cancel(deadlineKey{kind: deadlineCarrierFields, job: model.JobKey{Namespace: r.namespace, Device: key, Collector: model.CollectorCarrier}})
 	for kind := model.CollectorInventory; kind < model.CollectorNetstat; kind++ {
 		r.deadlines.cancel(deadlineKey{job: model.JobKey{Namespace: r.namespace, Device: key, Collector: kind}})
 	}
@@ -70,7 +71,7 @@ func (r *reducer) cancelDeviceDeadlines(key model.DeviceKey) {
 func (r *reducer) expire(now time.Duration) {
 	for {
 		entry, exists := r.deadlines.first()
-		if !exists || entry.at > now || (entry.key.kind != deadlineCollector && entry.key.kind != deadlineResync) {
+		if !exists || entry.at > now || (entry.key.kind != deadlineCollector && entry.key.kind != deadlineResync && entry.key.kind != deadlineCarrierFields) {
 			return
 		}
 		r.deadlines.cancel(entry.key)
@@ -81,6 +82,12 @@ func (r *reducer) expire(now time.Duration) {
 // expireEntry only handles freshness deadlines; the scheduler routes other kinds.
 func (r *reducer) expireEntry(entry deadlineEntry) {
 	switch entry.key.kind {
+	case deadlineCarrierFields:
+		if i, exists := r.index[entry.key.job.Device]; exists && r.slots[i].device.Token.Generation == entry.generation {
+			if err := r.publishCarrier(entry.key.job.Device, model.Stamp{Monotonic: entry.at}); err != nil {
+				r.slots[i].collectors[model.CollectorCarrier].lastError = err
+			}
+		}
 	case deadlineResync:
 		r.resyncOverdue = true
 	case deadlineCollector:

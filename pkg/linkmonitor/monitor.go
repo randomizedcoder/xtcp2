@@ -74,7 +74,6 @@ func (m *Monitor) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	m.control.start(ctx)
 	m.root.Store(&snapshotRoot{version: 1, health: Health{Running: true}})
 	defer m.stopped()
 	return live.Run(ctx, m)

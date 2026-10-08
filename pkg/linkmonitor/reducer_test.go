@@ -2,8 +2,8 @@ package linkmonitor
 
 import (
 	"errors"
-	"fmt"
 	"math"
+	"strconv"
 	"testing"
 
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/model"
@@ -11,7 +11,7 @@ import (
 
 func observed(r *reducer, index uint32, up bool) model.Observation {
 	return model.Observation{Device: model.Device{Key: model.DeviceKey{Namespace: r.namespace, Kind: model.DeviceEthernet, Index: index},
-		Token: model.Token{SourceEpoch: r.epoch}, Name: fmt.Sprintf("eth%d", index), Eligibility: model.Eligible, Up: present(up)}}
+		Token: model.Token{SourceEpoch: r.epoch}, Name: "eth" + strconv.FormatUint(uint64(index), 10), Eligibility: model.Eligible, Up: present(up)}}
 }
 
 func mustObserve(t *testing.T, r *reducer, observation model.Observation) {

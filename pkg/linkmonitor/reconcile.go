@@ -27,11 +27,13 @@ type reconciler struct {
 	inbox                                            *eventInbox
 	interval                                         time.Duration
 	processed, serial                                uint64
+	dumpSerial, committedSerial                      uint64
 	pending                                          bool
 	request                                          *inventoryRequest
 	waiting                                          *inventoryCompletion
 	watermark                                        uint64
 	candidate                                        map[model.DeviceKey]*model.Observation
+	statistics                                       map[model.DeviceKey]*model.LinkStatistics
 	dirty                                            map[model.DeviceKey]*dirtyIdentity
 	queries                                          list.List
 	nextResync, retryAt, reconnectAt, subscribeUntil time.Duration
@@ -54,8 +56,9 @@ func (c *reconciler) bind(loop *schedulerLoop) {
 }
 
 func (c *reconciler) requestResync() {
-	if c.request == nil && c.dirty == nil {
+	if !c.pending && c.request == nil && c.dirty == nil {
 		c.pending = true
+		c.inbox.signal()
 	}
 }
 
@@ -148,6 +151,11 @@ func (c *reconciler) event(event model.Event) error {
 	if changed {
 		c.scheduler.refreshDevice(key)
 	}
+	if c.scheduler.traffic != nil && event.Kind != model.EventRemove {
+		if err := r.carrierEvent(key, event.Carrier, event.Sequence, c.scheduler.clock.Now()); err != nil {
+			return err
+		}
+	}
 	if wasDown && event.Kind == model.EventChange && event.Observation.Device.Up.Present && event.Observation.Device.Up.Value {
 		kind := model.CollectorSettings
 		if key.Kind == model.DeviceNativeRDMA {
@@ -205,6 +213,7 @@ func (c *reconciler) markDirty(key model.DeviceKey, version uint64) {
 func (c *reconciler) abort() {
 	c.inventory.cancelRequest()
 	c.request, c.waiting, c.candidate, c.dirty = nil, nil, nil, nil
+	c.statistics = nil
 	c.queries.Init()
 }
 

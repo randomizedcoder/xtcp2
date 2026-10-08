@@ -12,12 +12,21 @@ type Health struct {
 type Snapshot struct{ root *snapshotRoot }
 
 type snapshotRoot struct {
-	version, namespace uint64
-	health             Health
-	counts             LinkCounts
-	host               *collectorSnapshot
-	pages              []*devicePage
-	lastResync         model.Optional[model.Stamp]
+	version, namespace  uint64
+	health              Health
+	counts              LinkCounts
+	host                *collectorSnapshot
+	pages               []*devicePage
+	lastResync          model.Optional[model.Stamp]
+	baselineWriteErrors uint64
+}
+
+// BaselineWriteErrors counts unsuccessful saves, including indeterminate durability.
+func (s Snapshot) BaselineWriteErrors() uint64 {
+	if s.root == nil {
+		return 0
+	}
+	return s.root.baselineWriteErrors
 }
 
 // Version returns the publication version, or zero before the first publication.
