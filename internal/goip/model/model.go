@@ -15,6 +15,11 @@ type Address xtcpnl.AddrInfo
 type Route xtcpnl.RouteInfo
 type Neighbor xtcpnl.NeighInfo
 
+// Nexthop is a nexthop object (RTM_NEWNEXTHOP), the thing a route's RTA_NH_ID
+// delegates its next hop to. It has no Sort companion: `ip -d route show`
+// fetches one by id per route, never a list to order.
+type Nexthop xtcpnl.NexthopInfo
+
 // Rule is a routing policy database entry. It has no SortRules companion, and
 // that absence is deliberate rather than pending.
 //

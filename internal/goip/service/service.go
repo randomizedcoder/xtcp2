@@ -283,6 +283,51 @@ func (s *Service) Routes(family uint8, table, oif uint32) ([]model.Route, error)
 	return out, nil
 }
 
+// NexthopByID performs the RTM_GETNEXTHOP single-get `ip -d route show` sends
+// for each distinct RTA_NH_ID (ipnh_cache_add). family is preferred_family.
+//
+// It mirrors linkFromGet's talk-or-fall-back spine: a live source does the
+// kernel single-get, while a dump-only replay source dumps every RTM_NEWNEXTHOP
+// and filters to the id — which works because the committed detail pcap records
+// the one nexthop reply the capture's `ip -d route show` fetched. Either way the
+// reply's own id is checked against the request, because a get that answers with
+// a different nexthop is a kernel- or replay-level surprise worth seeing.
+func (s *Service) NexthopByID(family uint8, id uint32) (model.Nexthop, error) {
+	r, err := req.NexthopGetByID(family, id, s.nextSeq())
+	if err != nil {
+		return model.Nexthop{}, fmt.Errorf("goip: build nexthop get request: %w", err)
+	}
+	if talk, ok := s.src.(TalkSource); ok {
+		body, terr := talk.Talk(r, uint16(unix.RTM_NEWNEXTHOP))
+		if terr != nil {
+			return model.Nexthop{}, terr
+		}
+		nh, perr := xtcpnl.ParseNewNexthop(body)
+		if perr != nil {
+			return model.Nexthop{}, fmt.Errorf("goip: decode RTM_NEWNEXTHOP: %w", perr)
+		}
+		if nh.ID != id {
+			return model.Nexthop{}, fmt.Errorf("goip: nexthop reply id %d does not match requested %d", nh.ID, id)
+		}
+		return model.Nexthop(nh), nil
+	}
+
+	bodies, derr := s.src.Dump(r, uint16(unix.RTM_NEWNEXTHOP))
+	if derr != nil {
+		return model.Nexthop{}, derr
+	}
+	for _, body := range bodies {
+		nh, perr := xtcpnl.ParseNewNexthop(body)
+		if perr != nil {
+			return model.Nexthop{}, fmt.Errorf("goip: decode RTM_NEWNEXTHOP: %w", perr)
+		}
+		if nh.ID == id {
+			return model.Nexthop(nh), nil
+		}
+	}
+	return model.Nexthop{}, fmt.Errorf("goip: no nexthop with id %d in the capture", id)
+}
+
 // Neighbors is the RTM_GETNEIGH dump, optionally filtered to one interface and
 // optionally asking for the proxy table instead of the neighbor table.
 //

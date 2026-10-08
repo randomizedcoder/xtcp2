@@ -89,7 +89,8 @@ namespace eval nltopo {
     ###########################################################################
     proc build_clean {ns subdir dummy} {
         topo $ns $subdir link add $dummy type dummy
-        topo $ns $subdir addr add 192.0.2.1/24 dev $dummy
+        # brd +: IFA_BROADCAST, which the kernel omits unless a broadcast is set.
+        topo $ns $subdir addr add 192.0.2.1/24 brd + dev $dummy
         # nodad: without it the address is IFA_F_TENTATIVE for a moment and
         # every capture becomes a race against duplicate address detection.
         topo $ns $subdir -6 addr add 2001:db8::1/64 nodad dev $dummy
@@ -103,9 +104,15 @@ namespace eval nltopo {
         # what is being tested.
         topo $ns $subdir -6 addr add 2001:db8::9/64 nodad mngtmpaddr noprefixroute dev $dummy
         topo $ns $subdir link set $dummy up
+        # IFLA_PROP_LIST / IFLA_ALT_IFNAME: the clean set's only altname, whose
+        # render path (link.go:480) otherwise has no captured positive.
+        topo $ns $subdir link property add dev $dummy altname goip0-alt
 
         topo $ns $subdir route add 198.51.100.0/24 dev $dummy
         topo $ns $subdir route add 198.18.0.0/24 via 192.0.2.10 dev $dummy
+        # RTA_NH_ID: a route delegating to a nexthop object (Linux 5.3+).
+        topo $ns $subdir nexthop add id 1 via 192.0.2.10 dev $dummy
+        topo $ns $subdir route add 198.18.3.0/24 nhid 1
         # RTA_METRICS, two nested values so a decoder cannot pass by returning
         # the first one it finds.
         topo $ns $subdir route add 198.18.1.0/24 via 192.0.2.10 dev $dummy mtu 1400 advmss 1300
@@ -122,6 +129,9 @@ namespace eval nltopo {
         topo $ns $subdir -6 route add 2001:db8:2::/64 \
             nexthop via 2001:db8::2 dev $dummy weight 1 \
             nexthop via 2001:db8::3 dev $dummy weight 3
+        # RTA_SRC: an IPv6 source-specific route, the only thing that puts a
+        # source prefix on a dump reply.
+        topo $ns $subdir -6 route add 2001:db8:4::/64 from 2001:db8:5::/64 dev $dummy
 
         # Three NUD states plus one entry with no lladdr at all, which is the
         # case that decides whether an absent NDA_LLADDR is handled or

@@ -48,12 +48,14 @@
         "group": "default",
         "txqlen": 1000,
         "link_type": "ether",
-        "address": "5e:c9:4c:d7:ab:ef",
+        "address": "56:31:0e:14:12:40",
         "broadcast": "ff:ff:ff:ff:ff:ff",
+        "altnames": [ "goip0-alt" ],
         "addr_info": [ {
                 "family": "inet",
                 "local": "192.0.2.1",
                 "prefixlen": 24,
+                "broadcast": "192.0.2.255",
                 "scope": "global",
                 "label": "goip0",
                 "valid_life_time": 4294967295,
@@ -78,7 +80,7 @@
                 "preferred_life_time": 4294967295
             },{
                 "family": "inet6",
-                "local": "fe80::5cc9:4cff:fed7:abef",
+                "local": "fe80::5431:eff:fe14:1240",
                 "prefixlen": 64,
                 "scope": "link",
                 "protocol": "kernel_ll",

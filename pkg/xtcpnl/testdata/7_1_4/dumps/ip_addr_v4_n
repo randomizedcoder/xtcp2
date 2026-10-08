@@ -3,7 +3,8 @@
     inet 127.0.0.1/8 scope host lo
        valid_lft forever preferred_lft forever
 3: goip0: <BROADCAST,NOARP,UP,LOWER_UP> mtu 1500 qdisc noqueue state UNKNOWN group default qlen 1000
-    link/ether 5e:c9:4c:d7:ab:ef brd ff:ff:ff:ff:ff:ff promiscuity 0 allmulti 0 minmtu 0 maxmtu 0 
+    link/ether 56:31:0e:14:12:40 brd ff:ff:ff:ff:ff:ff promiscuity 0 allmulti 0 minmtu 0 maxmtu 0 
     dummy numtxqueues 1 numrxqueues 1 gso_max_size 65536 gso_max_segs 65535 tso_max_size 65536 tso_max_segs 65535 gro_max_size 65536 gso_ipv4_max_size 65536 gro_ipv4_max_size 65536 
-    inet 192.0.2.1/24 scope global goip0
+    altname goip0-alt
+    inet 192.0.2.1/24 brd 192.0.2.255 scope global goip0
        valid_lft forever preferred_lft forever

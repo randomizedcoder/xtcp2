@@ -42,8 +42,8 @@
         "link_type": "netlink",
         "stats64": {
             "rx": {
-                "bytes": 117192,
-                "packets": 227,
+                "bytes": 147368,
+                "packets": 339,
                 "errors": 0,
                 "dropped": 0,
                 "over_errors": 0,
@@ -69,7 +69,7 @@
         "group": "default",
         "txqlen": 1000,
         "link_type": "ether",
-        "address": "5e:c9:4c:d7:ab:ef",
+        "address": "56:31:0e:14:12:40",
         "broadcast": "ff:ff:ff:ff:ff:ff",
         "stats64": {
             "rx": {
@@ -81,12 +81,13 @@
                 "multicast": 0
             },
             "tx": {
-                "bytes": 600,
-                "packets": 8,
+                "bytes": 390,
+                "packets": 5,
                 "errors": 0,
                 "dropped": 0,
                 "carrier_errors": 0,
                 "collisions": 0
             }
-        }
+        },
+        "altnames": [ "goip0-alt" ]
     } ]

@@ -325,6 +325,34 @@ func BuildDumpRouteRequestFilter(family uint8, table, oif, seq uint32) ([]byte, 
 	return BuildRequest(uint16(unix.RTM_GETROUTE), uint16(unix.NLM_F_DUMP), seq, hdr, attrs)
 }
 
+// BuildGetNexthopByIDRequest builds the single-get RTM_GETNEXTHOP that
+// `ip -d route show` sends for a route carrying RTA_NH_ID: NLM_F_REQUEST with no
+// NLM_F_DUMP, an nhmsg whose nh_family is preferred_family, and two attributes.
+//
+// This is ipnh_get_id (ip/ipnexthop.c), reached from print_cache_nexthop_id ->
+// ipnh_cache_add (ip/iproute.c:1002). The captured request is 40 bytes with
+// flags=0x0001, nh_family=AF_UNSPEC (plain `route show` leaves preferred_family
+// unset), NHA_ID then NHA_OP_FLAGS=0 — the op-flags attribute the reading fork
+// sends unconditionally, so it is emitted here to match rather than guessed
+// away (netlink_route_getroute_detail.pcap).
+//
+// The reply is a single non-multipart message, so reading it needs
+// TalkRtnetlink; DumpRtnetlink would block on a NLMSG_DONE that never comes.
+func BuildGetNexthopByIDRequest(family uint8, id, seq uint32) ([]byte, error) {
+	hdr := make([]byte, NhMsgSizeCst)
+	hdr[0] = family // nh_family; scope, protocol, resvd and flags stay 0
+
+	var raw [reqAttrBufCst]byte
+	ab := NewAttrBuilder(raw[:])
+	if err := ab.PutU32(NhaID, id); err != nil {
+		return nil, err
+	}
+	if err := ab.PutU32(NhaOpFlags, 0); err != nil {
+		return nil, err
+	}
+	return BuildRequest(uint16(unix.RTM_GETNEXTHOP), 0, seq, hdr, ab.Bytes())
+}
+
 // BuildDumpNeighRequest builds an RTM_GETNEIGH dump request (ndmsg) for the
 // given address family, completing the set of four dump builders and closing
 // TODO-SOON.md §17.

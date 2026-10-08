@@ -366,11 +366,11 @@ func TestCaptureTopologyTranscripts(t *testing.T) {
 		wantCommandCounts map[string]int
 	}{
 		{
-			description: "positive: the clean namespace, 42 commands under the nlcapc tag",
+			description: "positive: the clean namespace, 46 commands under the nlcapc tag",
 			file:        tdDumpTopology_7_1_4,
 			subdir:      "",
 			wantTag:     "nlcapc",
-			wantLines:   42,
+			wantLines:   46,
 			wantCommandCounts: map[string]int{
 				// 11 neighbor adds across both families, of which 2 are
 				// proxy entries — one per family, and the clean namespace is
@@ -611,11 +611,11 @@ func TestFixtureLineCitationsResolve(t *testing.T) {
 			wantText:    "3: goip0: <BROADCAST,NOARP,UP,LOWER_UP>",
 		},
 		{
-			// xtcpnl_dumpset_test.go:971 cites "ip_addr_n:3,5,13,15,17,19".
-			description: "positive: ip_addr_n:13 is the IPv4 address on goip0",
+			// xtcpnl_dumpset_test.go:971 cites "ip_addr_n:3,5,14,16,18,20".
+			description: "positive: ip_addr_n:14 is the IPv4 address on goip0",
 			file:        tdDumpIPAddr_7_1_4,
-			line:        13,
-			wantText:    "inet 192.0.2.1/24 scope global goip0",
+			line:        14,
+			wantText:    "inet 192.0.2.1/24 brd 192.0.2.255 scope global goip0",
 		},
 		{
 			// Boundary: the first line. A sidecar that gained a line at the
@@ -630,9 +630,9 @@ func TestFixtureLineCitationsResolve(t *testing.T) {
 			// Boundary: the last line. Citing exactly the file's length is
 			// what catches a truncated re-capture, which a mid-file row
 			// cannot.
-			description: "boundary: ip_route_main_n:8 is the last line, the second nexthop of the multipath route",
+			description: "boundary: ip_route_main_n:10 is the last line, the second nexthop of the multipath route",
 			file:        tdDumpIPRoute_7_1_4,
-			line:        8,
+			line:        10,
 			wantText:    "nexthop via 192.0.2.11 dev goip0 weight 3",
 		},
 		{

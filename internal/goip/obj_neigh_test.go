@@ -75,7 +75,7 @@ const neighTunnelDevPcap = "../../pkg/xtcpnl/testdata/7_1_4/dumps/tunnel/netlink
 // on it goes quiet — an empty listing compared against a non-empty sidecar,
 // which fails loudly, but for a reason that looks nothing like its cause.
 // Read it back out of the new pcap rather than guessing.
-const neighDumpPortid = "978"
+const neighDumpPortid = "1163"
 
 const neighSidecarDir = "../../pkg/xtcpnl/testdata/7_1_4/dumps/"
 
@@ -1325,7 +1325,7 @@ func TestNeighShowStatsGate(t *testing.T) {
 			description: "corner: the lladdr-less INCOMPLETE entry still prints the block, after a doubled space",
 			check: func(t *testing.T) {
 				out := run(t, "-s", "neigh", "show")
-				const want = "192.0.2.52 dev goip0  used 124/184/124probes 0 INCOMPLETE "
+				const want = "192.0.2.52 dev goip0  used 11/71/11probes 0 INCOMPLETE "
 				for _, l := range strings.Split(out, "\n") {
 					if strings.HasPrefix(l, "192.0.2.52 ") {
 						if l != want {
@@ -1345,7 +1345,7 @@ func TestNeighShowStatsGate(t *testing.T) {
 			description: "corner: the block sits between the flag run and the state, not at the end of the line",
 			check: func(t *testing.T) {
 				out := run(t, "-s", "neigh", "show")
-				const want = "192.0.2.56 dev goip0 lladdr 02:00:00:00:00:07 router extern_learn extern_valid  used 114/114/114probes 0 PERMANENT "
+				const want = "192.0.2.56 dev goip0 lladdr 02:00:00:00:00:07 router extern_learn extern_valid  used 11/11/11probes 0 PERMANENT "
 				for _, l := range strings.Split(out, "\n") {
 					if strings.HasPrefix(l, "192.0.2.56 ") {
 						if l != want {

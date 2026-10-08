@@ -2,12 +2,17 @@ package goip
 
 import (
 	"bytes"
+	"encoding/hex"
 	"errors"
 	"os"
 	"strings"
 	"testing"
 
 	"github.com/randomizedcoder/xtcp2/internal/goip/model"
+	"github.com/randomizedcoder/xtcp2/internal/goip/render"
+	"github.com/randomizedcoder/xtcp2/internal/goip/service"
+	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
+	"golang.org/x/sys/unix"
 )
 
 // This file is `ip -d`, end to end: goip's rendering of a committed pcap
@@ -333,9 +338,9 @@ func TestRouteShowDetailMatchesSidecars(t *testing.T) {
 		{
 			// Adds `unicast` to all six lines, and `proto boot scope global`
 			// to the five that were defaulting.
-			description: "positive: -d route show reproduces ip_route_main_n, type proto and scope unsuppressed",
+			description: "positive: -d route show reproduces ip_route_main_n, including the nhid route's nh_info line",
 			args:        []string{"-d", "route", "show"},
-			pcap:        guestDumpsDir + "netlink_route_getroute.pcap",
+			pcap:        guestDumpsDir + "netlink_route_getroute_detail.pcap",
 			sidecar:     guestDumpsDir + "ip_route_main_n",
 		},
 		{
@@ -351,9 +356,9 @@ func TestRouteShowDetailMatchesSidecars(t *testing.T) {
 			// filter.tb == 0 as well as -d (ip/iproute.c:903), so `table
 			// main` appears here and nowhere else — and the local-table lines
 			// that already carried `table local` gain `scope global` instead.
-			description: "positive: -d route show table all reproduces ip_route_table_all_n, table token included",
+			description: "positive: -d route show table all reproduces ip_route_table_all_n, table token and the nhid route's nh_info",
 			args:        []string{"-d", "route", "show", "table", "all"},
-			pcap:        guestDumpsDir + "netlink_route_getroute_table_all.pcap",
+			pcap:        guestDumpsDir + "netlink_route_getroute_table_all_detail.pcap",
 			sidecar:     guestDumpsDir + "ip_route_table_all_n",
 		},
 
@@ -873,74 +878,66 @@ func TestRunDetailsOption(t *testing.T) {
 	}
 }
 
-// TestCheckRouteDetailSupported covers the refusal `-d` needs on the route
-// object, which is a different KIND of gap from the link one.
+// nexthopReplay is a Dump-only Source answering RTM_NEWNEXTHOP with fixed reply
+// bodies, standing in for the replay path of service.NexthopByID. RTM_NEWLINK
+// returns nothing, which is fine: the test pre-fills the index cache so no link
+// single-get is attempted.
+type nexthopReplay struct{ bodies [][]byte }
+
+func (s nexthopReplay) Dump(_ []byte, msgType uint16) ([][]byte, error) {
+	if msgType != uint16(unix.RTM_NEWNEXTHOP) {
+		return nil, nil
+	}
+	return s.bodies, nil
+}
+
+// TestResolveRouteNexthops covers the -d route transaction that used to be a
+// flat refusal. print_route follows RTA_NH_ID into print_cache_nexthop_id, which
+// sends a live RTM_GETNEXTHOP per distinct id (ip/iproute.c:1002); goip now
+// fetches and renders that nexthop on the route's `nh_info` line. Only a group —
+// which iproute2 renders by recursively fetching its members, and which no
+// topology the harness builds creates — is still refused, as ErrNotImplemented.
 //
-// The link refusal is about rendering. This one is about TRAFFIC: under -d,
-// print_route follows RTA_NH_ID into print_cache_nexthop_id, which calls
-// ipnh_cache_add and sends a live RTM_GETNEXTHOP (ip/iproute.c:1002-1004,
-// ip/ipnexthop.c:784-798). So -d on such a route turns one dump into a dump
-// plus a single-get per distinct nexthop id, and a goip that rendered the
-// routes and skipped the block would diverge on the wire — the harness's
-// highest-value assertion — as well as on stdout.
-//
-// It is driven directly rather than through Run because no topology the
-// capture builds creates a nexthop object, so no committed pcap can reach it.
-// That is the same reason the check is three lines rather than an assumption.
-//
-// go test ./internal/goip/ -run TestCheckRouteDetailSupported
-func TestCheckRouteDetailSupported(t *testing.T) {
+// go test ./internal/goip/ -run TestResolveRouteNexthops
+func TestResolveRouteNexthops(t *testing.T) {
+	// The captured simple nexthop (id 1, via 192.0.2.10, dev index 3) and a
+	// synthetic group nexthop (id 1). Both pin the real wire shape; see
+	// pkg/xtcpnl.TestParseNewNexthop for the byte-level reading.
+	simpleBody := mustDecodeHex(t, "02fd0000000000000800010001000000080005000300000008000600c000020a")
+	groupBody := mustDecodeHex(t, "020000000000000008000100010000000c0002000100000001000000")
+
 	tests := []struct {
 		description string
-		details     bool
-		nhIDs       []uint32
+		body        []byte
 		wantErr     bool
-		wantStderr  string
+		wantNhInfo  string
 	}{
 		{
-			description: "negative: -d over a route carrying RTA_NH_ID is refused, and the id is named",
-			details:     true,
-			nhIDs:       []uint32{0, 17, 0},
+			description: "positive: the nhid route is expanded into its nexthop object's nh_info line",
+			body:        simpleBody,
+			wantNhInfo:  "\n\tnh_info id 1 via 192.0.2.10 dev goip0 scope link proto unspec ",
+		},
+		{
+			description: "negative: a group nexthop is refused as ErrNotImplemented, naming the id",
+			body:        groupBody,
 			wantErr:     true,
-			wantStderr:  "nhid 17",
-		},
-		{
-			// Without -d the same route is fine: print_route's `nhid %u`
-			// token sits OUTSIDE the guard (ip/iproute.c:859-861) and sends
-			// nothing, so goip renders it as it always has. The refusal is
-			// conditioned on the option, not on the attribute, and this row
-			// is what says so.
-			description: "control: the same route without -d is not refused, because only the -d block is a transaction",
-			details:     false,
-			nhIDs:       []uint32{0, 17, 0},
-			wantErr:     false,
-		},
-		{
-			// The committed corpus, in effect: every route in it has NhID 0.
-			description: "control: -d over routes with no RTA_NH_ID is fine, which is every route in the corpus",
-			details:     true,
-			nhIDs:       []uint32{0, 0, 0},
-			wantErr:     false,
-		},
-		{
-			description: "boundary: an empty route set is not refused",
-			details:     true,
-			nhIDs:       nil,
-			wantErr:     false,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			c := &runCtx{}
-			if tc.details {
-				c.showDetails = 1
-			}
-			routes := make([]model.Route, 0, len(tc.nhIDs))
-			for _, id := range tc.nhIDs {
-				routes = append(routes, model.Route{NhID: id})
-			}
-			err := checkRouteDetailSupported(c, routes)
+			c := &runCtx{src: nexthopReplay{bodies: [][]byte{tc.body}}, lltab: NewLLTab()}
+			c.showDetails = 1
+			// Pre-fill goip0 at index 3 so the nexthop's NHA_OIF resolves from
+			// the cache, the way the route dump's own lazy get would have filled
+			// it before print_route reached the nh_info line.
+			c.lltab.Fill([]xtcpnl.LinkInfo{{Index: 3, Name: "goip0"}})
+
+			svc := service.New(c.src, c.nextSeq)
+			routes := []model.Route{{NhID: 1, Oif: 3}}
+			views := []render.RouteView{{}}
+			err := resolveRouteNexthops(c, svc, routes, views)
+
 			if tc.wantErr {
 				if err == nil {
 					t.Fatal("no error, want one")
@@ -948,14 +945,27 @@ func TestCheckRouteDetailSupported(t *testing.T) {
 				if !errors.Is(err, ErrNotImplemented) {
 					t.Errorf("error is not ErrNotImplemented: %v", err)
 				}
-				if !strings.Contains(err.Error(), tc.wantStderr) {
-					t.Errorf("error does not mention %q: %v", tc.wantStderr, err)
+				if !strings.Contains(err.Error(), "nhid 1") {
+					t.Errorf("error does not name the nhid: %v", err)
 				}
 				return
 			}
 			if err != nil {
-				t.Errorf("unexpected error: %v", err)
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if views[0].NhInfo != tc.wantNhInfo {
+				t.Errorf("NhInfo =\n%q\nwant\n%q", views[0].NhInfo, tc.wantNhInfo)
 			}
 		})
 	}
+}
+
+// mustDecodeHex decodes a captured datagram body for a test fixture.
+func mustDecodeHex(t *testing.T, s string) []byte {
+	t.Helper()
+	b, err := hex.DecodeString(s)
+	if err != nil {
+		t.Fatalf("bad hex %q: %v", s, err)
+	}
+	return b
 }

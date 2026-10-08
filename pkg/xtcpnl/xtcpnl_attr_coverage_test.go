@@ -39,11 +39,14 @@ import (
 // Measured 2026-10-07 by enumerating every top-level rtattr in the committed
 // clean, mesh and tunnel dumps for each family. Raise these when a richer
 // capture lands; never lower them without recording why the corpus shrank.
+//
+// Raised 2026-10-07 after the corpus-enrichment capture added IFA_BROADCAST,
+// RTA_SRC, RTA_NH_ID and IFLA_PROP_LIST to the clean set (netlink-topology.exp).
 const (
-	iflaCaptureCoverageCst = 42
-	rtaCaptureCoverageCst  = 11
+	iflaCaptureCoverageCst = 43
+	rtaCaptureCoverageCst  = 13
 	ndaCaptureCoverageCst  = 5
-	ifaCaptureCoverageCst  = 6
+	ifaCaptureCoverageCst  = 7
 )
 
 // captureAttrSet returns the distinct top-level attribute numbers a real kernel

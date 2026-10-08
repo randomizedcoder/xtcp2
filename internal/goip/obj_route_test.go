@@ -670,11 +670,11 @@ func TestRouteShowTransactionShape(t *testing.T) {
 		wantStdout   string // when non-empty, the exact expected output
 	}{
 		{
-			// Six routes, every one of them on ifindex 3, and exactly one get.
-			// This is the lltab cache assertion: routes 2 through 6 must send
+			// Seven routes, every one of them on ifindex 3, and exactly one get.
+			// This is the lltab cache assertion: routes 2 through 7 must send
 			// nothing, and the ECMP route's two nexthops — which also name
 			// index 3 — must not send anything either.
-			description: "positive: six routes on one device produce one dump and exactly one single-get",
+			description: "positive: seven routes on one device produce one dump and exactly one single-get",
 			pcap:        routeDumpPcap,
 			family:      unix.AF_UNSPEC,
 			args:        []string{"show"},
@@ -703,9 +703,9 @@ func TestRouteShowTransactionShape(t *testing.T) {
 		},
 		{
 			// ll_index_to_name caches NOTHING when the get fails
-			// (lib/ll_map.c:321-327), so the next reference retries. Seven
-			// references to index 3 — five RTA_OIFs plus the ECMP route's two
-			// nexthops — therefore send seven gets, and every device renders
+			// (lib/ll_map.c:321-327), so the next reference retries. Eight
+			// references to index 3 — six RTA_OIFs plus the ECMP route's two
+			// nexthops — therefore send eight gets, and every device renders
 			// as the `if%u` fallback. Reproducing the retry matters more than
 			// saving it: the retry is what a parity capture would show.
 			description:  "negative: a single-get that resolves nothing is not cached, so every reference retries",
@@ -714,11 +714,12 @@ func TestRouteShowTransactionShape(t *testing.T) {
 			args:         []string{"show"},
 			unresolvable: []int32{3},
 			wantDumps:    1,
-			wantGets:     []int32{3, 3, 3, 3, 3, 3, 3},
+			wantGets:     []int32{3, 3, 3, 3, 3, 3, 3, 3},
 			wantStdout: "192.0.2.0/24 dev if3 proto kernel scope link src 192.0.2.1 \n" +
 				"198.18.0.0/24 via 192.0.2.10 dev if3 \n" +
 				"198.18.1.0/24 via 192.0.2.10 dev if3 mtu 1400 advmss 1300 \n" +
 				"198.18.2.0/24 via inet6 2001:db8::2 dev if3 \n" +
+				"198.18.3.0/24 nhid 1 via 192.0.2.10 dev if3 \n" +
 				"198.51.100.0/24 dev if3 scope link \n" +
 				"203.0.113.0/24 " +
 				"\n\tnexthop via 192.0.2.10 dev if3 weight 1 " +
@@ -734,14 +735,14 @@ func TestRouteShowTransactionShape(t *testing.T) {
 			args:         []string{"show", "table", "all"},
 			unresolvable: []int32{3},
 			wantDumps:    1,
-			// Five v4 RTA_OIFs on index 3 plus the ECMP route's two nexthops,
+			// Six v4 RTA_OIFs on index 3 plus the ECMP route's two nexthops,
 			// then lo — which resolves, and so is asked for ONCE even though
-			// three loopback routes name it — then the remaining eleven
+			// three loopback routes name it — then the remaining twelve
 			// references to index 3, each of which retries.
 			wantGets: []int32{
-				3, 3, 3, 3, 3, 3, 3,
+				3, 3, 3, 3, 3, 3, 3, 3,
 				1,
-				3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+				3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
 			},
 		},
 		{
@@ -789,7 +790,7 @@ func TestRouteShowTransactionShape(t *testing.T) {
 // no matter how many routes come back — and the saving grows with the size of
 // the answer, which is the opposite of what an added filter usually does.
 //
-// Every row shares netlink_route_getroute.pcap, whose six routes are all on
+// Every row shares netlink_route_getroute.pcap, whose seven routes are all on
 // goip0. The replay answers whatever is asked; what varies is what goip asks.
 //
 // go test ./internal/goip/ -run TestRouteShowDevTransactionShape
@@ -830,6 +831,7 @@ func TestRouteShowDevTransactionShape(t *testing.T) {
 				"198.18.0.0/24 via 192.0.2.10 \n" +
 				"198.18.1.0/24 via 192.0.2.10 mtu 1400 advmss 1300 \n" +
 				"198.18.2.0/24 via inet6 2001:db8::2 \n" +
+				"198.18.3.0/24 nhid 1 via 192.0.2.10 \n" +
 				"198.51.100.0/24 scope link \n" +
 				"203.0.113.0/24 " +
 				"\n\tnexthop via 192.0.2.10 dev goip0 weight 1 " +

@@ -2,6 +2,7 @@
 198.18.0.0/24 via 192.0.2.10 dev goip0 
 198.18.1.0/24 via 192.0.2.10 dev goip0 mtu 1400 advmss 1300 
 198.18.2.0/24 via inet6 2001:db8::2 dev goip0 
+198.18.3.0/24 nhid 1 via 192.0.2.10 dev goip0 
 198.51.100.0/24 dev goip0 scope link 
 203.0.113.0/24 
 	nexthop via 192.0.2.10 dev goip0 weight 1 
@@ -16,9 +17,10 @@ broadcast 192.0.2.255 dev goip0 table local proto kernel scope link src 192.0.2.
 2001:db8:2::/64 metric 1024 pref medium
 	nexthop via 2001:db8::2 dev goip0 weight 1 
 	nexthop via 2001:db8::3 dev goip0 weight 3 
+2001:db8:4::/64 from 2001:db8:5::/64 dev goip0 metric 1024 pref medium
 fe80::/64 dev goip0 proto kernel metric 256 pref medium
 local ::1 dev lo table local proto kernel metric 0 pref medium
 local 2001:db8::1 dev goip0 table local proto kernel metric 0 pref medium
 local 2001:db8::9 dev goip0 table local proto kernel metric 0 pref medium
-local fe80::5cc9:4cff:fed7:abef dev goip0 table local proto kernel metric 0 pref medium
+local fe80::5431:eff:fe14:1240 dev goip0 table local proto kernel metric 0 pref medium
 multicast ff00::/8 dev goip0 table local proto kernel metric 256 pref medium

@@ -650,16 +650,16 @@ func TestStdoutRouteFacets(t *testing.T) {
 		countOnly int
 	}{
 		{
-			description: "positive: every `dev goip0` in ip_route_main is extracted, the five route lines and the two nexthop continuations",
+			description: "positive: every `dev goip0` in ip_route_main is extracted, the six route lines and the two nexthop continuations",
 			golden:      "ip_route_main",
 			facet:       FacetDevNames,
-			want:        map[string]int{"goip0": 7},
+			want:        map[string]int{"goip0": 8},
 		},
 		{
 			description: "positive: ip_route_table_all reaches lo as well as goip0, which is the second interface the lazy name resolution has to fetch",
 			golden:      "ip_route_table_all",
 			facet:       FacetDevNames,
-			want:        map[string]int{"goip0": 18, "lo": 4},
+			want:        map[string]int{"goip0": 20, "lo": 4},
 		},
 		{
 			description: "positive: the via facet separates the two ECMP gateways and records `inet6` for the RFC-5549 route",
@@ -668,7 +668,7 @@ func TestStdoutRouteFacets(t *testing.T) {
 			// `via inet6 2001:db8::2` contributes `inet6`, not the address:
 			// print_rta_via prints the family word first. The address is
 			// still compared, by the netlink side, which sees RTA_VIA whole.
-			want: map[string]int{"192.0.2.10": 3, "192.0.2.11": 1, "inet6": 1},
+			want: map[string]int{"192.0.2.10": 4, "192.0.2.11": 1, "inet6": 1},
 		},
 		{
 			description: "positive: the ECMP weights are extracted apart, so rendering both legs with weight 1 is a finding",
@@ -710,13 +710,13 @@ func TestStdoutRouteFacets(t *testing.T) {
 			description: "positive: the v6 metrics are extracted, the kernel's 256 and the topology's 1024",
 			golden:      "ip_route6",
 			facet:       FacetKeyword("metric"),
-			want:        map[string]int{"256": 2, "1024": 2},
+			want:        map[string]int{"256": 2, "1024": 3},
 		},
 		{
 			description: "positive: RTA_PREF ends every v6 line and is compared, which is why pref is a keyword at all",
 			golden:      "ip_route6",
 			facet:       FacetKeyword("pref"),
-			want:        map[string]int{"medium": 4},
+			want:        map[string]int{"medium": 5},
 		},
 		{
 			description: "positive: `table local` is extracted from every table-all line that carries it",

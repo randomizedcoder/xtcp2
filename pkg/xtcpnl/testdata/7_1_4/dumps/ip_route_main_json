@@ -28,6 +28,12 @@
         "dev": "goip0",
         "flags": [ ]
     },{
+        "dst": "198.18.3.0/24",
+        "nhid": 1,
+        "gateway": "192.0.2.10",
+        "dev": "goip0",
+        "flags": [ ]
+    },{
         "dst": "198.51.100.0/24",
         "dev": "goip0",
         "scope": "link",

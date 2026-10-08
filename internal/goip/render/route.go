@@ -3,6 +3,7 @@ package render
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -708,6 +709,13 @@ type RouteView struct {
 	prefText string
 
 	NextHops []NextHopView `json:"nexthops,omitempty"`
+
+	// NhInfo is the `\n\tnh_info ...` continuation line `ip -d route show` prints
+	// below a route that delegates to a nexthop object (RTA_NH_ID). It is set by
+	// the object handler after the per-id RTM_GETNEXTHOP get, not by RouteViewOf,
+	// which has only the route's own attributes. Text-only: no -d JSON form is
+	// captured, and the key is already carried by NhID. See NexthopInfoText.
+	NhInfo string `json:"-"`
 }
 
 // RouteViewOf resolves a decoded route for rendering.
@@ -1053,6 +1061,57 @@ func (v RouteView) Text() string {
 	for i := range v.NextHops {
 		b.WriteString(v.NextHops[i].Text())
 	}
+	// print_cache_nexthop_id runs near the end of print_route (ip/iproute.c:1002),
+	// after the main line's tokens and on its own `\n\t`-prefixed line. A route
+	// never carries both a multipath list and an nhid, so its position relative to
+	// the NextHops loop above is moot.
+	b.WriteString(v.NhInfo)
 	b.WriteString("\n")
 	return b.String()
+}
+
+// ErrNexthopGroup marks a nexthop goip declines to render: a group references
+// other nexthop ids that iproute2 fetches and renders recursively, and no
+// committed capture exercises that, so emitting a line for it would be a guess
+// rather than a reproduction.
+var ErrNexthopGroup = errors.New("nexthop group not implemented by goip")
+
+// NexthopInfoText renders the `nh_info ...` line `ip -d route show` prints for a
+// nexthop object (print_cache_nexthop_id -> print_nexthop, ip/ipnexthop.c). The
+// result is a `\n\t`-prefixed continuation the caller appends to the route's
+// RouteView.NhInfo, and every token carries the same trailing space the rest of
+// print_route does.
+//
+// tab names NHA_OIF, filled by the route dump's own lazy index resolution. The
+// token order is print_nexthop's: id, (blackhole |) via, dev, onlink, scope,
+// proto — verified against netlink_route_getroute_detail's ip_route_main_n line
+// for the simple via/dev shape; the blackhole and onlink arms are the single
+// literal tokens print_nexthop emits and are covered by unit tests.
+func NexthopInfoText(nh xtcpnl.NexthopInfo, tab NameTab) (string, error) {
+	if nh.HasGroup {
+		return "", fmt.Errorf("nexthop id %d is a group: %w", nh.ID, ErrNexthopGroup)
+	}
+
+	var b strings.Builder
+	b.WriteString("\n\tnh_info ")
+	fmt.Fprintf(&b, "id %d ", nh.ID)
+	if nh.Blackhole {
+		b.WriteString("blackhole ")
+	}
+	if len(nh.Gateway) > 0 {
+		fmt.Fprintf(&b, "via %s ", addrString(nh.Gateway, nh.Family))
+	}
+	if nh.OIF != 0 {
+		fmt.Fprintf(&b, "dev %s ", tab.IndexToName(nh.OIF))
+	}
+	if nh.Flags&unix.RTNH_F_ONLINK != 0 {
+		b.WriteString("onlink ")
+	}
+	// nh_scope is "return only" and RT_SCOPE_UNIVERSE is suppressed, exactly as
+	// print_route suppresses scope global on the main line.
+	if nh.Scope != unix.RT_SCOPE_UNIVERSE {
+		fmt.Fprintf(&b, "scope %s ", scopeName(nh.Scope))
+	}
+	fmt.Fprintf(&b, "proto %s ", routeProtoName(nh.Protocol))
+	return b.String(), nil
 }

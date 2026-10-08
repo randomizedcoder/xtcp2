@@ -216,6 +216,14 @@ proc capture_set {ns subdir dev} {
     cap $ns $subdir netlink_route_getroute_table_all 4 "ip route show table all"
     cap $ns $subdir netlink_route_getroute6 4 "ip -6 route show"
 
+    # The -d forms of the two IPv4 route shows need a pcap, not just a sidecar.
+    # The clean topology's nhid route makes `ip -d route show` follow RTA_NH_ID
+    # into a live RTM_GETNEXTHOP single-get (ip/iproute.c:1002), whose reply only
+    # reaches a replay if this run's netlink is recorded; capio writes the pcap
+    # and the `_n` sidecar from one run, as the `-s` captures above do.
+    capio $ns $subdir netlink_route_getroute_detail 4 "ip -d route show" ip_route_main_n
+    capio $ns $subdir netlink_route_getroute_table_all_detail 4 "ip -d route show table all" ip_route_table_all_n
+
     # Closes the corpus's last outright gap: there was no RTM_GETNEIGH dump
     # anywhere, only a notifications pcap.
     cap $ns $subdir netlink_route_getneigh 4 "ip neigh show"
@@ -410,9 +418,7 @@ proc sidecar_set {ns subdir dev} {
     side $ns $subdir ip_addr_v6             "ip -6 addr show"
     side $ns $subdir ip_addr_v6_n           "ip -d -6 addr show"
     side $ns $subdir ip_route_main          "ip route show"
-    side $ns $subdir ip_route_main_n        "ip -d route show"
     side $ns $subdir ip_route_table_all     "ip route show table all"
-    side $ns $subdir ip_route_table_all_n   "ip -d route show table all"
     side $ns $subdir ip_route6              "ip -6 route show"
     side $ns $subdir ip_route6_n            "ip -d -6 route show"
     side $ns $subdir ip_neigh               "ip neigh show"
