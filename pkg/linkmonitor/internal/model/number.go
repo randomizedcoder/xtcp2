@@ -46,13 +46,23 @@ const (
 	SampleUnknown SampleKind = iota
 	SampleGauge
 	SampleCounter
+	SampleUntyped
 )
+
+// StatisticSchema is immutable after construction and shared across workers.
+// Names retain original bytes; Selected contains source indices in source order.
+type StatisticSchema struct {
+	Names    []string
+	Selected []int
+	Labels   [][]Label
+}
 
 // Label is an owned immutable string pair.
 type Label struct{ Name, Value string }
 
-// Sample contains an owned value and schema reference. Slices transfer ownership
-// with the sample and must be frozen before publishing an immutable snapshot.
+// Sample contains an owned value and schema reference. Labels are either owned
+// by the result or shared from an immutable StatisticSchema. The reducer reads
+// them without mutation and freezes them before publishing a snapshot.
 type Sample struct {
 	Descriptor string
 	Kind       SampleKind

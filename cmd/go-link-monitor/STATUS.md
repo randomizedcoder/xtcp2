@@ -2,14 +2,16 @@
 
 Last updated: 2026-10-08.
 
-**P01–P05 and P06-T01/T02 are complete: 17 of 34 implementation tasks passed their gates.**
-Next task: [P06-T03](IMPLEMENTATION-PLAN.md#p06-t03), driver and PHY statistics.
+**P01–P05 and P06-T01/T02/T03 are complete: 18 of 34 implementation tasks passed their gates.**
+Next task: [P06-T04](IMPLEMENTATION-PLAN.md#p06-t04), host protocol statistics.
 Bounded scheduling, four collector workers, independent inventory execution,
 convergence, event-source recovery, baseline learning/replacement and bounded
 shutdown are implemented with injected sources. Standard traffic/carrier adapters
 are implemented with shared sweeps and selective fallback. Ethernet hardware
 identity, settings, channels and rings now have private read-only adapters and
-scheduler integration. Production source bindings and the
+scheduler integration. Driver/PHY statistics now have bounded private ioctl
+adapters, independent support, cached immutable names, filters and resync-safe
+publication. Production source bindings and the
 standalone command remain unimplemented. This is not a runnable monitoring service yet.
 
 This is the live tracker for [IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md).
@@ -56,7 +58,7 @@ This is the live tracker for [IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md).
 | P03 | State and snapshots | done | 3/3 | V011, V014, V016 |
 | P04 | Wire support and transport | done | 3/3 | V018, V020, V022; additive wire/fixture and ordinary transport unit/real-fd gates passed |
 | P05 | Scheduling and reconciliation | done | 3/3 | V028/V030/V033 close scheduling, convergence and injected lifecycle |
-| P06 | Ethernet and host collectors | in progress | 2/4 | V035 closes traffic/carrier; V039 closes identity/settings/channels/rings |
+| P06 | Ethernet and host collectors | in progress | 3/4 | V035 closes traffic/carrier; V039 closes identity/settings/channels/rings; V041 closes driver/PHY statistics |
 | P07 | RDMA collection and builds | not started | 0/4 | None |
 | P08 | Exporter and standalone command | not started | 0/3 | None |
 | P09 | Performance baseline | not started | 0/2 | None |
@@ -87,7 +89,7 @@ plan, not copied here. Add verification IDs to the evidence column as work runs.
 | [x] | [P05-T03](IMPLEMENTATION-PLAN.md#p05-t03) | Learning, rebaseline and shutdown | done | V031–V033; stable/zero learning, restart delta, fresh rebaseline, fixed-record retries, startup/control races and normal/incomplete shutdown pass; lock/resource ownership retained |
 | [x] | [P06-T01](IMPLEMENTATION-PLAN.md#p06-t01) | Standard traffic and carrier | done | V034/V035; shared bounded sweeps, targeted queries, inventory reuse with original freshness, direct counter presence/width, short flaps, per-field event ordering and selective sysfs fallback pass |
 | [x] | [P06-T02](IMPLEMENTATION-PLAN.md#p06-t02) | Identity, settings, channels and rings | done | V036–V039; bounded hardware/devlink evidence, modern ioctl fallback, configuration presence, supported maxima/duplex, retries, down invalidation and ownership tables pass |
-| [ ] | [P06-T03](IMPLEMENTATION-PLAN.md#p06-t03) | Driver and PHY statistics | not started | None |
+| [x] | [P06-T03](IMPLEMENTATION-PLAN.md#p06-t03) | Driver and PHY statistics | done | V040–V041; independent bounded ioctls, cached immutable names, untyped exact values, filters, schema invalidation and ownership tables pass |
 | [ ] | [P06-T04](IMPLEMENTATION-PLAN.md#p06-t04) | Host protocol statistics | not started | None |
 | [ ] | [P07-T01](IMPLEMENTATION-PLAN.md#p07-t01) | Discovery, associations and state | not started | None |
 | [ ] | [P07-T02](IMPLEMENTATION-PLAN.md#p07-t02) | Verbs event adapter | not started | None |
@@ -170,6 +172,39 @@ hardware checks have run.
 | V037 | 2026-10-08 | P06-T02 first aggregate | Unchanged `nix build path:.#test-linkmonitor --no-link --print-out-paths --keep-going --max-jobs 4 -L`; pinned affected race tests repeated ten times | All eight leaves and targeted race repetitions passed. Added final association-cache/original-timestamp regressions and boolean/enum validation afterwards; final-source aggregate required before completion | Aggregate `/nix/store/q6s0faay0a9bdksvah1kbz4fybyhb38c-xtcp2-test-linkmonitor`; ephemeral `/tmp/linkmonitor-t02-aggregate.log` and `/tmp/linkmonitor-t02-race.log` |
 | V038 | 2026-10-08 | P06-T02 association/validation gate | Unchanged aggregate and ten affected race repetitions | All eight leaves and race repetitions passed. Final review then added cancellation between ioctl handshake calls, explicit unknown/native routing, family rediscovery fallback, and FX/T1S half-duplex label coverage. These focused regression tables pass; final-source aggregate pending | Aggregate `/nix/store/z8lb0kkdsy3la3zyi6dv4zsz3h3d7vdl-xtcp2-test-linkmonitor`; ephemeral `/tmp/linkmonitor-t02-final-aggregate.log` and `/tmp/linkmonitor-t02-final-race.log` |
 | V039 | 2026-10-08 | P06-T02 completion gate | Unchanged pinned aggregate; `CGO_ENABLED=1 go test -race ./pkg/linkmonitor/... -run 'Settings\|Identity\|Devlink\|Scheduler\|Freshness\|Exception\|Publication\|Shutdown' -count=10`; final documentation checker and its tests | Exit 0: all eight leaves pass. Complete pure-Go/race suites each pass 2,680 tests/subtests with zero test skips; vet, zero-issue comprehensive lint, format/docs and all 40 replay combinations pass. Three 30-second/two-worker fuzz sessions pass: ethtool 201,764 executions, envelopes 194,677, strict links 227,631. Final-source targeted race repetitions pass | Aggregate `/nix/store/1qcw7sczbbivk2j7x4ycmc9hmndilh3w-xtcp2-test-linkmonitor`; ephemeral `/tmp/linkmonitor-t02-completion-aggregate.log` and `/tmp/linkmonitor-t02-completion-race.log`; source identity below |
+| V040 | 2026-10-08 | P06-T03 development | Pinned Go focused statistics tests and full monitor packages; comprehensive lint and first aggregate | Full monitor packages passed outside the netlink-restricting sandbox. Corrected test type names and scheduler expiry routing. Removed a redundant unchecked lookup; first aggregate passed seven leaves and failed only import grouping, subsequently fixed. Review added epoch fencing, all token dimensions, maximum-size ioctl and configuration/resource regressions | `/tmp/linkmonitor-t03-unit.log`, `/tmp/linkmonitor-t03-lint.log`, `/tmp/linkmonitor-t03-aggregate.log`; branch `feat/linkmonitor-driver-statistics` from merged main `c311090` |
+| V041 | 2026-10-08 | P06-T03 completion gate | Unchanged pinned `nix build path:.#test-linkmonitor --no-link --print-out-paths --keep-going --max-jobs 4 -L`; ten affected race repetitions; 30-second/two-worker schema fuzz; allocation benchmarks | Exit 0: all eight leaves pass. Unit and race each pass 2,798 tests/subtests, zero test skips; vet, zero-issue comprehensive lint, format/docs and all 40 replay combinations pass. Existing three 30-second fuzz sessions pass; new schema fuzz passes 366,279 executions. Targeted race repetitions and synthetic benchmarks pass | Aggregate `/nix/store/y1xns1mn73j62ry44ciksj0wndny2qy3-xtcp2-test-linkmonitor`; `/tmp/linkmonitor-t03-final-aggregate.log`, `/tmp/linkmonitor-t03-race.log`, `/tmp/linkmonitor-t03-schema-fuzz.log`, `/tmp/linkmonitor-t03-bench.log`; source identity below |
+
+V041 uses merged main `c311090` (including PR166) plus uncommitted P06-T03
+changes in `/tmp/xtcp2-linkmonitor-pr-merge-6wnh4apa`, branch
+`feat/linkmonitor-driver-statistics`. All 131 monitor Go files were compared
+byte-for-byte with retained source
+`/nix/store/s1ax5k5i9lannc8fqfj3jw8r00sc82i7-s3jxgqm8k1j39s3dq1v1c12zvldgzwl9-source`.
+Sorted filename/NUL/content Go source digest:
+`6760667b848269ceeef019fe733390c5ac82db4de3a482940a5727694ab3f163`.
+Completion tracking edits are newer than that retained source and receive a
+separate final documentation check; the tested Go source is unchanged.
+
+Additional V041 commands use pinned Go 1.26.5 with `GOTOOLCHAIN=local`, the
+existing module/cache directories, and no overlays:
+
+```sh
+CGO_ENABLED=1 go test -race ./pkg/linkmonitor/... \
+  -run 'Statistic|Scheduler|Freshness|Publication|Shutdown' -count=10
+GOMAXPROCS=2 go test ./pkg/linkmonitor -run '^$' \
+  -fuzz '^FuzzStatisticSchema$' -fuzztime=30s -parallel=2 -timeout=5m
+GOMAXPROCS=2 go test ./pkg/linkmonitor -run '^$' \
+  -bench '^BenchmarkStatistic' -benchmem -benchtime=100ms -count=1
+```
+
+The aggregate's ethtool, strict-link and envelope fuzz sessions completed
+394,291, 417,222 and 398,291 executions respectively. Synthetic cached collection
+measured two allocations for each nonempty size (64, 1,024, 8,192, 65,536), versus
+135, 2,057, 16,424 and 131,350 allocations for schema discovery. At 65,536 entries,
+cached sample construction allocated 7,340,240 bytes/op; discovery allocated
+11,958,368 bytes/op. Empty cached collection/discovery each allocated once.
+These short, concurrent-build benchmarks describe allocation behavior of fake
+sources, not real ioctl latency, total publication cost or fleet readiness.
 
 V039 uses merged main `505a970` (including PRs #163 and #164) plus uncommitted
 P06-T02 changes in `/tmp/xtcp2-linkmonitor-pr-merge-6wnh4apa`, branch
@@ -421,6 +456,7 @@ owners, deadlines or successful outcomes. Continue independent ready tasks.
 | 2026-10-07 | Implemented P05-T03 from merged PR #162: private lifecycle session, serial baseline writer, stable/final-verified learning, fresh rebaseline, exact-record retries and five-second shutdown with deferred ownership-safe cleanup. Added immutable baseline-write error diagnostics and startup inventory presence. Updated design and tracker using direct patches. | V031–V033 close P05-T03 and P05; 15/34 tasks complete. Next P06-T01 standard traffic and carrier. Changes remain uncommitted in the isolated checkout; unrelated workspace changes preserved |
 | 2026-10-07 | Implemented P06-T01 in the existing isolated checkout: shared traffic/carrier reads in the four-worker pool, bounded fan-out, inventory statistics reuse, per-field carrier event freshness/order and guarded selective sysfs fallback. METRICS lists only the 25 direct counters; six legacy aliases remain migration references only. Updated detailed design and tracking with verified evidence. | V034/V035 close P06-T01; 16/34 tasks complete, P06 at 1/4. Next P06-T02 identity, settings, channels and rings. P05-T03 and P06-T01 remain uncommitted; unrelated workspace changes preserved |
 | 2026-10-08 | Implemented P06-T02 from merged main in an isolated branch: dedicated Ethernet inventory/devlink evidence, sysfs identity validation, worker-owned modern ethtool/ioctl adapters, immutable settings/configuration projection and bounded scheduling. Added explicit positive/negative/boundary/corner tables with descriptions and expected outcomes, including stale association, cancellation and modern half-duplex regressions. Updated detailed design, metrics semantics and tracking. | V036–V039 close P06-T02; 17/34 tasks complete, P06 at 2/4. Next P06-T03 driver and PHY statistics. Changes remain uncommitted; unrelated workspace changes preserved |
+| 2026-10-08 | Implemented P06-T03 from merged PR166: guarded bounded driver/PHY ioctls, independent support/failure, immutable filtered schemas shared across workers, exact untyped samples, resync/configuration/epoch invalidation, and explicit positive/negative/boundary/corner tests. Added parser fuzzing and discovery/cached collection benchmarks; updated detailed design and metrics. | V040–V041 close P06-T03; 18/34 tasks complete, P06 at 3/4. Next P06-T04 host protocol statistics. Changes remain uncommitted; no push or PR action; unrelated workspace changes preserved |
 
 Established design decisions: public reusable pkg/linkmonitor; small standalone
 command; RDMA required in v1; all statistic fields selected by default; cached

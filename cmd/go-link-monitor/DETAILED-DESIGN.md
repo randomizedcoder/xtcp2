@@ -823,6 +823,67 @@ An empty selection still validates files. Do not infer counter semantics from
 names. Never use `/proc/net/dev` aggregates as replacements for the detailed
 traffic fields contracted in METRICS.
 
+### P06-T03 driver and PHY implementation
+
+The private statistics decorator shares the existing four optional collector
+workers. Each worker owns an ethtool socket and lazily allocated reusable ioctl
+scratch mapping. Driver collection uses GDRVINFO/GSTRINGS/GSTATS; PHY collection
+uses GSSET_INFO with ETH_SS_PHY_STATS, its own GSTRINGS names and GPHYSTATS.
+The two collectors have independent support, failure, freshness and schema state.
+Eligible Ethernet and RoCE netdevs are queried even when down; native RDMA ports
+remain the P07 adapter's responsibility. Public production bindings remain pending.
+
+The reducer owns each accepted immutable schema: original name bytes, selected
+source indices and encoded label definitions. Jobs carry a read-only reference,
+so another worker can reuse it without a second name query. Worker results carry
+a candidate schema; only accepted results install it. Numeric samples retain
+exact uint64 values and use the additive public `SampleUntyped` kind. Publication
+copies values and shares equal frozen schemas; ioctl scratch is never published.
+
+Each poll verifies the source count. Full resync and device/configuration changes
+invalidate names even when the count is unchanged. Changed driver identity,
+channels or rings also request rediscovery. A private schema revision makes a
+refresh remain pending during an active request and rejects its obsolete result.
+Generation, observation revision and source epoch also fence schema reuse.
+Removed/excluded devices release their cache. Failures drop the affected name
+cache while previously accepted samples retain their ordinary freshness deadline.
+
+Counts are bounded at 65,536 before size arithmetic and allocation. Variable
+requests use nonzero expected counts; a zero-sized discovered set succeeds without
+issuing variable-data requests. Count mismatches permit one complete rediscovery
+within the existing five-second budget, then fail visibly. Modern kernels return
+zero-length replies on a nonzero-count mismatch; older kernels may ignore the
+input count. Each payload ends immediately before a PROT_NONE page, so an
+oversized kernel copy cannot overwrite the Go heap. Mappings and sockets remain
+owned by a blocked worker until its call returns; logical timeout never replaces
+that worker. These guards do not bound time spent inside a defective driver.
+
+Names use the bytes before the first NUL in a 32-byte slot, or all 32 bytes if
+unterminated. Exact duplicates invalidate the whole set before filtering. Compiled
+Go regexps match original names, including Go's replacement-rune treatment of
+invalid UTF-8. Selected invalid names become lowercase hex with `encoding=hex`;
+valid names remain unchanged with `encoding=utf8`. A single empty name is valid
+but excluded by the default `^$` exclusion. No-match filters still validate names
+and query values. Filtering does not promise reduced driver-side work.
+
+#### P06-T03 test tables
+
+Each behavioral table includes `name`, `category`, `description`,
+`expectedOutcome`, typed input and executable assertions. Fake clocks and barriers
+control timing; no physical-interface count or hardware support is assumed.
+
+| Table family | Positive | Negative | Boundary | Corner |
+|---|---|---|---|---|
+| Names/filters | Original names, queue selections | Duplicates including filtered duplicates, short replies | Empty selection/name, 31/32 bytes, 65,536/65,537 | Invalid UTF-8, hex lookalikes, NUL padding |
+| Ioctls | Independent driver/PHY replies | Permissions, command/set/mask errors | Zero counts, uint64 precision/max, allocation bounds | Count races, bounded rediscovery, cancellation, replacement |
+| Cache/publication | Cross-worker schema reuse, exact untyped values | Malformed refresh rejection | Freshness deadline, buffer guard | Same-count rename, old snapshots, source epoch |
+| Scheduling/ownership | Two periodic jobs, independent support | Exclusion, stale result | Four blocked workers, five-second timeout | Resync during collection, down links, shutdown |
+| Lifecycle | Private adapter startup/cleanup | Read-only identity mismatch | Empty inventory | Combined traffic/settings/statistics resources |
+
+Schema-parser fuzzing and discovery/cached-collection allocation benchmarks cover
+0, 64, 1,024, 8,192 and 65,536 entries. Synthetic benchmark timings do not establish
+fleet hardware throughput. No semantic driver flap mapping is guessed.
+
 ### RDMA adapter implementation boundary
 
 Use typed Go discovery, correlation, sysfs parsing and policy. For verbs async
