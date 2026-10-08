@@ -184,6 +184,8 @@ const (
 	SampleGauge
 	// SampleCounter is a source's cumulative value, not an increment to add.
 	SampleCounter
+	// SampleUntyped preserves a value whose counter/gauge semantics are unknown.
+	SampleUntyped
 )
 
 // NumberKind identifies the exact representation of a sample value.

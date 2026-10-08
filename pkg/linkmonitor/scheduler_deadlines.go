@@ -133,6 +133,7 @@ func (s *scheduler) complete(completion workerCompletion) {
 }
 
 func (s *scheduler) recordResult(result model.Result) {
+	before := s.configurationBlock(result.Job.Key)
 	accepted, err := s.reducer.finishCollection(result)
 	// Malformed samples are already recorded by the reducer as collector errors;
 	// they must not terminate scheduling for unrelated sources.
@@ -149,6 +150,7 @@ func (s *scheduler) recordResult(result model.Result) {
 	if result.Settings != nil && result.Err == nil && result.Support == model.Supported {
 		s.reducer.setChecks(result.Job, deviceChecks{maximumSpeed: result.Settings.Speed, fullDuplex: result.Settings.Duplex})
 	}
+	s.statisticsConfigurationChanged(result, before)
 	if job == nil || !sameRevision(job.token, result.Job.Token) || !job.retryActive {
 		return
 	}

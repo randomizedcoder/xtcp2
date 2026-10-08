@@ -168,22 +168,26 @@ type JobKey struct {
 
 // Job describes one attempt. It contains no references to mutable reducer state.
 type Job struct {
-	Key     JobKey
-	Token   Token
-	Started Stamp
-	Device  Device // Immutable request-time identity for name-based adapters.
+	Key             JobKey
+	Token           Token
+	Started         Stamp
+	Device          Device // Immutable request-time identity for name-based adapters.
+	StatisticSchema *StatisticSchema
+	SchemaRevision  uint64
 }
 
 // Result transfers ownership of samples to the reducer. The adapter must not
 // reuse their storage after return. Support and Err carry independent meanings.
 type Result struct {
-	Job      Job
-	Finished Stamp
-	Support  Support
-	Reason   ErrorReason
-	Err      error
-	Samples  []Sample
-	Settings *SettingsChecks
+	Job              Job
+	Finished         Stamp
+	Support          Support
+	Reason           ErrorReason
+	Err              error
+	Samples          []Sample
+	Settings         *SettingsChecks
+	StatisticSchema  *StatisticSchema
+	InvalidateSchema bool
 }
 
 // SettingsChecks accompanies the exact settings samples that established it.

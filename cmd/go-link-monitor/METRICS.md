@@ -233,6 +233,20 @@ invalidate the set. Raw statistics retain driver-specific units; they are not
 automatically `_total` counters. Known mappings such as driver_link_down_events_total
 are additional semantic views, not summed with the raw values.
 
+P06-T03 implements the private driver and PHY sources and snapshot samples;
+Prometheus exposition remains P08. Both use the public `SampleUntyped` kind and
+retain exact uint64 values until exporter conversion. No driver-specific semantic
+flap mapping is enabled by this increment. Existing carrier counters remain
+independent.
+
+Names end at the first NUL in each 32-byte slot, or use all 32 bytes when no NUL
+exists. Invalid UTF-8 uses lowercase hex without a prefix. Filters match original
+names before encoding, with Go regexp semantics; include must match and exclude
+must not match. A single empty name is valid but excluded by default. Duplicate
+names invalidate the whole set even if filtered out. An empty source or selection
+is supported with no samples; failures and unsupported sources never manufacture
+zero values. Driver and PHY support and freshness remain independent.
+
 Node normalizes names by sanitizing, lowercasing, trimming leading underscores
 and replacing token rx/tx with received/transmitted. It drops colliding normalized
 names. The following predeclared aliases are still emitted as U by its raw

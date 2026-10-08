@@ -78,7 +78,7 @@ func newSchema(samples []model.Sample) (*sampleSchema, error) {
 	schema := &sampleSchema{entries: make([]sampleDefinition, len(samples)), index: make(map[sampleKey]int, len(samples))}
 	for i := range samples {
 		sample := &samples[i]
-		if sample.Descriptor == "" || (sample.Kind != model.SampleCounter && sample.Kind != model.SampleGauge) {
+		if sample.Descriptor == "" || (sample.Kind != model.SampleCounter && sample.Kind != model.SampleGauge && sample.Kind != model.SampleUntyped) {
 			return nil, fmt.Errorf("invalid sample descriptor or kind")
 		}
 		labels, key, err := canonicalLabels(sample.Labels)

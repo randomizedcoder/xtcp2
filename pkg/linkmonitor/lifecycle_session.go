@@ -10,16 +10,18 @@ import (
 // lifecycleSession supplies ownership policy without choosing production
 // adapters. Factories acquire resources only during Run, never during New.
 type lifecycleSession struct {
-	clock      model.Clock
-	namespace  uint64
-	store      model.BaselineStore
-	collectors workerFactory
-	inventory  func(context.Context) (inventoryBackend, error)
-	subscribe  subscriptionFactory
-	cleaned    <-chan struct{} // Initialized during shutdown; safe to inspect after Run returns.
-	statistics bool
-	settings   bool
-	sysfsRoot  string
+	clock            model.Clock
+	namespace        uint64
+	store            model.BaselineStore
+	collectors       workerFactory
+	inventory        func(context.Context) (inventoryBackend, error)
+	subscribe        subscriptionFactory
+	cleaned          <-chan struct{} // Initialized during shutdown; safe to inspect after Run returns.
+	statistics       bool
+	settings         bool
+	driverStatistics bool
+	statisticsConfig configuration
+	sysfsRoot        string
 }
 
 type lifecycleResources struct {
@@ -70,6 +72,7 @@ func (s *lifecycleSession) openInventory(ctx context.Context) (inventoryBackend,
 }
 
 func (s *lifecycleSession) Run(ctx context.Context, m *Monitor) error {
+	s.statisticsConfig = m.cfg
 	child, cancel := context.WithCancel(ctx)
 	defer cancel()
 	resources := &lifecycleResources{}
@@ -116,6 +119,9 @@ func (s *lifecycleSession) prepare(m *Monitor, resources *lifecycleResources) (*
 	r := newReducer(s.namespace)
 	r.freshness = freshnessPolicy{poll: 3 * m.cfg.StatsInterval, configuration: 2 * m.cfg.Resync}
 	scheduler := newScheduler(r, resources.pool, s.clock)
+	if s.driverStatistics {
+		scheduler.statisticsInterval = m.cfg.StatsInterval
+	}
 	if s.settings {
 		scheduler.settings = &settingsSchedule{interval: m.cfg.StatsInterval, devices: make(map[model.DeviceKey]model.Device)}
 	}
@@ -132,13 +138,20 @@ func (s *lifecycleSession) prepare(m *Monitor, resources *lifecycleResources) (*
 }
 
 func (s *lifecycleSession) collectorFactory() workerFactory {
-	if !s.statistics && !s.settings {
+	if !s.statistics && !s.settings && !s.driverStatistics {
 		return s.collectors
 	}
 	return func(id int) (workerCollector, error) {
 		base, err := s.collectors(id)
 		if err != nil {
 			return nil, err
+		}
+		if s.driverStatistics {
+			wrapped, wrapErr := newStatisticsCollector(base, s.statisticsConfig)
+			if wrapErr != nil {
+				return nil, errors.Join(wrapErr, base.Close())
+			}
+			base = wrapped
 		}
 		if s.settings {
 			wrapped, wrapErr := newSettingsCollector(base)

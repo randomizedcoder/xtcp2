@@ -9,6 +9,8 @@ import (
 )
 
 type collectorState struct {
+	statisticSchema          *model.StatisticSchema
+	schemaRevision           uint64
 	job                      model.Job
 	running                  bool
 	support                  model.Support
@@ -71,7 +73,11 @@ func (r *reducer) startCollection(key model.JobKey, now model.Stamp) (model.Job,
 	}
 	r.attempt++
 	token.Attempt = r.attempt
+	if !sameRevision(state.job.Token, token) {
+		state.statisticSchema = nil
+	}
 	job := model.Job{Key: key, Token: token, Started: now}
+	job.StatisticSchema, job.SchemaRevision = state.statisticSchema, state.schemaRevision
 	if i, exists := r.index[key.Device]; exists {
 		job.Device = r.slots[i].device
 	}
@@ -88,7 +94,7 @@ func (r *reducer) finishCollection(result model.Result) (bool, error) {
 	}
 	state.running = false
 	current.Attempt = result.Job.Token.Attempt
-	if current != result.Job.Token {
+	if current != result.Job.Token || state.schemaRevision != result.Job.SchemaRevision {
 		return false, nil
 	}
 	defer r.collectionChanged(result.Job.Key, state)
@@ -100,6 +106,9 @@ func (r *reducer) finishCollection(result model.Result) (bool, error) {
 	}
 	state.duration = presentValue(result.Finished.Monotonic - result.Job.Started.Monotonic)
 	if result.Err != nil {
+		if result.InvalidateSchema {
+			state.statisticSchema = nil
+		}
 		state.lastError, state.reason = result.Err, result.Reason
 		if state.reason == model.ErrorNone {
 			state.reason = model.ErrorIO
@@ -115,6 +124,7 @@ func (r *reducer) finishCollection(result model.Result) (bool, error) {
 		}
 		state.support, state.reason, state.lastError = result.Support, model.ErrorNone, nil
 		state.block = nil
+		state.statisticSchema = nil
 		state.fresh, state.succeeded = false, true
 		r.deadlines.cancel(deadlineKey{job: result.Job.Key})
 		return true, nil
@@ -124,6 +134,7 @@ func (r *reducer) finishCollection(result model.Result) (bool, error) {
 		return true, state.malformed(err)
 	}
 	state.updateHistory(block)
+	state.statisticSchema = result.StatisticSchema
 	state.block, state.support, state.reason, state.lastError = block, model.Supported, model.ErrorNone, nil
 	state.lastSuccess = result.Finished
 	state.fresh, state.hasSuccess, state.succeeded = true, true, true
