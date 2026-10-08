@@ -136,7 +136,7 @@ func TestSetRouteAttr(t *testing.T) {
 		{
 			description: "positive: a real RTA_MULTIPATH from the ECMP route appends both next hops and records presence",
 			atype:       uint16(unix.RTA_MULTIPATH),
-			val:         routeAttrValFromFixture(t, tdDumpGetRoute_7_1_4, 5, uint16(unix.RTA_MULTIPATH)),
+			val:         routeAttrValFromFixture(t, tdDumpGetRoute_7_1_4, 6, uint16(unix.RTA_MULTIPATH)),
 			want: RouteInfo{
 				HasMultipath: true,
 				Multipath: []RouteNextHop{

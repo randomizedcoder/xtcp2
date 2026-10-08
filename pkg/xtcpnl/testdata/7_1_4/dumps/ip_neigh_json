@@ -1,8 +1,29 @@
 [ {
+        "dst": "192.0.2.53",
+        "dev": "goip0",
+        "lladdr": "02:00:00:00:00:04",
+        "router": null,
+        "state": [ "PERMANENT" ]
+    },{
+        "dst": "192.0.2.52",
+        "dev": "goip0",
+        "state": [ "INCOMPLETE" ]
+    },{
         "dst": "192.0.2.51",
         "dev": "goip0",
         "lladdr": "02:00:00:00:00:02",
         "state": [ "STALE" ]
+    },{
+        "dst": "192.0.2.55",
+        "dev": "goip0",
+        "lladdr": "02:00:00:00:00:06",
+        "extern_valid": null,
+        "state": [ "PERMANENT" ]
+    },{
+        "dst": "192.0.2.50",
+        "dev": "goip0",
+        "lladdr": "02:00:00:00:00:01",
+        "state": [ "PERMANENT" ]
     },{
         "dst": "192.0.2.56",
         "dev": "goip0",
@@ -16,27 +37,6 @@
         "dev": "goip0",
         "lladdr": "02:00:00:00:00:05",
         "extern_learn": null,
-        "state": [ "PERMANENT" ]
-    },{
-        "dst": "192.0.2.52",
-        "dev": "goip0",
-        "state": [ "INCOMPLETE" ]
-    },{
-        "dst": "192.0.2.50",
-        "dev": "goip0",
-        "lladdr": "02:00:00:00:00:01",
-        "state": [ "PERMANENT" ]
-    },{
-        "dst": "192.0.2.55",
-        "dev": "goip0",
-        "lladdr": "02:00:00:00:00:06",
-        "extern_valid": null,
-        "state": [ "PERMANENT" ]
-    },{
-        "dst": "192.0.2.53",
-        "dev": "goip0",
-        "lladdr": "02:00:00:00:00:04",
-        "router": null,
         "state": [ "PERMANENT" ]
     },{
         "dst": "2001:db8::50",

@@ -3,4 +3,5 @@
 2001:db8:2::/64 metric 1024 pref medium
 	nexthop via 2001:db8::2 dev goip0 weight 1 
 	nexthop via 2001:db8::3 dev goip0 weight 3 
+2001:db8:4::/64 from 2001:db8:5::/64 dev goip0 metric 1024 pref medium
 fe80::/64 dev goip0 proto kernel metric 256 pref medium

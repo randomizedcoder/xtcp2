@@ -708,6 +708,13 @@ type RouteView struct {
 	prefText string
 
 	NextHops []NextHopView `json:"nexthops,omitempty"`
+
+	// NhInfo is the `\n\tnh_info ...` continuation line `ip -d route show` prints
+	// below a route that delegates to a nexthop object (RTA_NH_ID). It is set by
+	// the object handler after the per-id RTM_GETNEXTHOP get, not by RouteViewOf,
+	// which has only the route's own attributes. Text-only: no -d JSON form is
+	// captured, and the key is already carried by NhID. See NexthopInfoText.
+	NhInfo string `json:"-"`
 }
 
 // RouteViewOf resolves a decoded route for rendering.
@@ -1053,6 +1060,11 @@ func (v RouteView) Text() string {
 	for i := range v.NextHops {
 		b.WriteString(v.NextHops[i].Text())
 	}
+	// print_cache_nexthop_id runs near the end of print_route (ip/iproute.c:1002),
+	// after the main line's tokens and on its own `\n\t`-prefixed line. A route
+	// never carries both a multipath list and an nhid, so its position relative to
+	// the NextHops loop above is moot.
+	b.WriteString(v.NhInfo)
 	b.WriteString("\n")
 	return b.String()
 }

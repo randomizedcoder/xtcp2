@@ -58,8 +58,8 @@
         "addr_info": [ ],
         "stats64": {
             "rx": {
-                "bytes": 227532,
-                "packets": 455,
+                "bytes": 235912,
+                "packets": 487,
                 "errors": 0,
                 "dropped": 0,
                 "over_errors": 0,
@@ -84,12 +84,14 @@
         "group": "default",
         "txqlen": 1000,
         "link_type": "ether",
-        "address": "62:d8:f6:d1:d9:fd",
+        "address": "46:09:8f:3f:75:c1",
         "broadcast": "ff:ff:ff:ff:ff:ff",
+        "altnames": [ "goip0-alt" ],
         "addr_info": [ {
                 "family": "inet",
                 "local": "192.0.2.1",
                 "prefixlen": 24,
+                "broadcast": "192.0.2.255",
                 "scope": "global",
                 "label": "goip0",
                 "valid_life_time": 4294967295,
@@ -114,7 +116,7 @@
                 "preferred_life_time": 4294967295
             },{
                 "family": "inet6",
-                "local": "fe80::60d8:f6ff:fed1:d9fd",
+                "local": "fe80::4409:8fff:fe3f:75c1",
                 "prefixlen": 64,
                 "scope": "link",
                 "protocol": "kernel_ll",
@@ -131,8 +133,8 @@
                 "multicast": 0
             },
             "tx": {
-                "bytes": 600,
-                "packets": 8,
+                "bytes": 390,
+                "packets": 5,
                 "errors": 0,
                 "dropped": 0,
                 "carrier_errors": 0,

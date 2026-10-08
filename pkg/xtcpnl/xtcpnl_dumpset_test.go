@@ -142,8 +142,8 @@ func TestDumpSetMultipath(t *testing.T) {
 		{
 			description: "positive: an IPv4 ECMP route lists both next hops at their configured weights",
 			filename:    tdDumpGetRoute_7_1_4,
-			routeIdx:    5,
-			sidecar:     "ip_route_main_n:6-8",
+			routeIdx:    6,
+			sidecar:     "ip_route_main_n:8-10",
 			wantHops: []nhWant{
 				{weight: 1, ifindex: 3, gateway: "192.0.2.10"},
 				{weight: 3, ifindex: 3, gateway: "192.0.2.11"},
@@ -968,7 +968,7 @@ func TestDumpSetAddrFamilyFilter(t *testing.T) {
 		{
 			description: "positive: the unspec dump returns every address on the namespace, both families",
 			filename:    tdDumpGetAddr_7_1_4,
-			sidecar:     "ip_addr_n:3,5,13,15,17,19",
+			sidecar:     "ip_addr_n:3,5,14,16,18,20",
 			check: func(t *testing.T, addrs []AddrInfo) {
 				var v4, v6 int
 				for _, ai := range addrs {
@@ -1070,15 +1070,29 @@ func TestDumpSetAddrFamilyFilter(t *testing.T) {
 			},
 		},
 		{
-			description: "negative: no address here carries IFA_BROADCAST, so a /24 on a dummy is not enough to produce one",
+			// The clean topology's v4 address is added with `brd +`, so the
+			// kernel derives IFA_BROADCAST from the prefix. Exactly one address
+			// carries it — the /24 on goip0 — and it is 192.0.2.255. Every
+			// other address (loopback, the v6 ones) carries none.
+			description: "positive: the `brd +` /24 on goip0 carries IFA_BROADCAST 192.0.2.255, and nothing else does",
 			filename:    tdDumpGetAddr_7_1_4,
-			sidecar:     "ip_addr_n:13",
+			sidecar:     "ip_addr_n:14",
 			check: func(t *testing.T, addrs []AddrInfo) {
+				var withBrd int
 				for _, ai := range addrs {
-					if len(ai.Broadcast) != 0 {
-						t.Errorf("%s carries IFA_BROADCAST %s, want absent",
-							ipText(ai.Address), ipText(ai.Broadcast))
+					if len(ai.Broadcast) == 0 {
+						continue
 					}
+					withBrd++
+					if ipText(ai.Address) != "192.0.2.1" {
+						t.Errorf("%s carries IFA_BROADCAST, want only 192.0.2.1 to", ipText(ai.Address))
+					}
+					if ipText(ai.Broadcast) != "192.0.2.255" {
+						t.Errorf("broadcast = %s, want 192.0.2.255", ipText(ai.Broadcast))
+					}
+				}
+				if withBrd != 1 {
+					t.Errorf("%d addresses carry IFA_BROADCAST, want exactly 1", withBrd)
 				}
 			},
 		},

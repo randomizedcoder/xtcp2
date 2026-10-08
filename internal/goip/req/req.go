@@ -443,3 +443,17 @@ func LinkShowDev(name string, extMask, seq uint32) ([]byte, error) {
 func RuleShowDump(family uint8, seq uint32) ([]byte, error) {
 	return xtcpnl.BuildDumpRuleRequest(family, seq)
 }
+
+// NexthopGetByID is the single-get RTM_GETNEXTHOP `ip -d route show` sends for a
+// route delegating its next hop to a nexthop object (ipnh_cache_add). family is
+// preferred_family, which for a plain `route show` is AF_UNSPEC.
+func NexthopGetByID(family uint8, id, seq uint32) ([]byte, error) {
+	return xtcpnl.BuildGetNexthopByIDRequest(family, id, seq)
+}
+
+// NexthopDump is the RTM_GETNEXTHOP dump behind `ip nexthop show` — the
+// multipart form, terminated by NLMSG_DONE, as opposed to the by-id single-get.
+// family is preferred_family; the bare command passes AF_UNSPEC.
+func NexthopDump(family uint8, seq uint32) ([]byte, error) {
+	return xtcpnl.BuildDumpNexthopRequest(family, seq), nil
+}

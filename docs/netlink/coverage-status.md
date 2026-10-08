@@ -189,12 +189,22 @@ rule test rediscovers it at run time and **fails if real-byte coverage drops
 below 21**, so a re-capture that loses a rule is a failure rather than a quiet
 loss of fixture strength.
 
-There is **no equivalent floor for `IFLA_*`, `RTA_*`, `NDA_*` or `IFA_*`**.
-Those four rely on the committed captures happening to contain the attribute,
-and nothing fails if a re-capture stops producing one. Extending the rule
-family's mechanism to the other four is the single cheapest thing that would
-strengthen this section's top table from "referenced" to "proven", and it is
-recorded under [Remaining](#remaining).
+The other four now have a floor too, in
+`pkg/xtcpnl/xtcpnl_attr_coverage_test.go`. `TestAttrCoverageFloors` walks the
+committed clean, mesh and tunnel dumps for each family, counts the distinct
+top-level attributes the kernel really sent, and **fails if the count drops**:
+`IFLA_*` at **42**, `RTA_*` at **11**, `NDA_*` at **5**, `IFA_*` at **6**,
+measured 2026-10-07. So a re-capture that stops producing an attribute is a
+test failure for all five families rather than a quiet loss of fixture strength.
+
+One framing difference from the rule floor is deliberate. The rule floor counts
+decoder-cascade *arms* exercised by real bytes, because `setRuleAttr` is a
+standalone per-attribute function; `ParseNeigh` and `ParseNewAddr` decode in an
+inline switch with no such function, so the four new floors count distinct
+*attribute types present* in the captures instead — the quantity the
+[Remaining](#remaining) item was actually about. `TestCaptureAttrSetIsHonest`
+pins the counter, since a floor is only as trustworthy as the thing counting
+below it.
 
 ### The event layer: decoded, never rendered
 
@@ -5690,16 +5700,16 @@ guest to emit that sentinel, so adding it to the lifecycle list would have made
 that list's own description false. `run_job` needs no special case: the runner
 already exits 0/1/2 = PASS/FAIL/TIMEOUT like every other member.
 
-Two items fell out of the message-type census above and are open:
+Two items fell out of the message-type census above. One has landed; one is open:
 
-- **Real-byte coverage floors for `IFLA_*`, `RTA_*`, `NDA_*` and `IFA_*`.**
-  The rule family already rediscovers its covered arms at run time and fails
-  below 21; the other four families have nothing equivalent, so a re-capture
-  that stops producing an attribute loses fixture strength silently. Nothing
-  about the mechanism is rule-specific — it is the single cheapest change that
-  would turn
+- **Real-byte coverage floors for `IFLA_*`, `RTA_*`, `NDA_*` and `IFA_*`** —
+  **done.** `pkg/xtcpnl/xtcpnl_attr_coverage_test.go` now floors all four at
+  their measured counts (IFLA 42, RTA 11, NDA 5, IFA 6), so a re-capture that
+  stops producing an attribute fails a test rather than silently losing fixture
+  strength. See
   [the attribute table](#attributes-inside-the-five-no-unknown-attribute-holes)
-  from "referenced" into "proven".
+  for the one framing difference from the rule floor (presence count, not
+  decoder-arm count) and why.
 - **`RTM_NEWRULE` and `RTM_DELRULE` are not event types.**
   `IsRtnetlinkEventType` covers link, addr, route and neigh; rule is decoded
   for dumps and invisible to the monitor. The body is already parsed by

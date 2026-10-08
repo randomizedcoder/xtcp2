@@ -297,6 +297,8 @@ func FamilyHdrLen(msgType uint16) int {
 		// length check alone cannot tell the three apart, and only the
 		// msgType case arm can.
 		return FibRuleHdrSizeCst
+	case uint16(unix.RTM_GETNEXTHOP), uint16(unix.RTM_NEWNEXTHOP), uint16(unix.RTM_DELNEXTHOP):
+		return NhMsgSizeCst // struct nhmsg, 8
 	case uint16(unix.NLMSG_DONE), uint16(unix.NLMSG_NOOP), uint16(unix.NLMSG_ERROR):
 		return 0
 	default:

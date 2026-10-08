@@ -55,7 +55,7 @@ func TestReplaySourceDumpEmptyVsMissing(t *testing.T) {
 			pcap:        routeDevPcap,
 			request:     requestHeaderOfType(unix.RTM_GETROUTE),
 			msgType:     unix.RTM_NEWROUTE,
-			wantLen:     6,
+			wantLen:     7,
 		},
 		{
 			// The case this rule exists for. Four datagrams in the capture:

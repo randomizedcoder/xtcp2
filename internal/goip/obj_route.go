@@ -238,10 +238,6 @@ func routeShow(c *runCtx, sel routeSelectors) error {
 	routes = routeFilter(routes, c.family, sel.Table, oif)
 	resolveRouteNames(c, svc, routes, oif != 0)
 
-	if err := checkRouteDetailSupported(c, routes); err != nil {
-		return err
-	}
-
 	f := render.RouteShowFilter{
 		Table:   sel.Table,
 		OifMask: oif != 0,
@@ -251,6 +247,11 @@ func routeShow(c *runCtx, sel routeSelectors) error {
 	views := make([]render.RouteView, 0, len(routes))
 	for i := range routes {
 		views = append(views, render.RouteViewOf(xtcpnl.RouteInfo(routes[i]), c.lltab, f))
+	}
+	if c.detailed() {
+		if err := resolveRouteNexthops(c, svc, routes, views); err != nil {
+			return err
+		}
 	}
 	if c.json {
 		return json.NewEncoder(c.out).Encode(views)
@@ -263,39 +264,49 @@ func routeShow(c *runCtx, sel routeSelectors) error {
 	return nil
 }
 
-// checkRouteDetailSupported refuses `-d` on a dump holding a route that
-// delegates its next hop to a nexthop object.
+// resolveRouteNexthops is print_cache_nexthop_id (ip/iproute.c:1002): under -d,
+// a route that carries RTA_NH_ID is expanded into the nexthop object the id
+// names, which `ip` fetches with one live RTM_GETNEXTHOP single-get per DISTINCT
+// id (ipnh_cache_add) and prints on the route's own `\n\tnh_info ` line. A bare
+// `route show` prints `nhid %u` from the attribute alone and sends nothing
+// (ip/iproute.c:859-861, outside the guard), which is why this runs only under
+// -d and RouteViewOf renders the `nhid` token regardless.
 //
-// # This one is not a rendering gap, it is a TRANSACTION
+// # The cache is reproduced, not optimized away
 //
-// Under -d, print_route follows RTA_NH_ID: `if (tb[RTA_NH_ID] &&
-// show_details)` calls print_cache_nexthop_id (ip/iproute.c:1002-1004), which
-// on a cache miss calls ipnh_cache_add — and that sends a live RTM_GETNEXTHOP
-// and prints the whole nexthop entry under an "\n\tnh_info " prefix. So -d
-// turns one dump into one dump plus a single-get per distinct nexthop id, and
-// a goip that rendered the routes and skipped the block would diverge on the
-// wire as well as on stdout. That is the harness's highest-value assertion,
-// and failing it silently is worse than not implementing the form.
+// ipnh_cache_add keys on the id, so a second route on the same nexthop sends no
+// second get; seen[] does the same. The get runs AFTER resolveRouteNames'
+// oif resolution, matching netlink_route_getroute_detail's order, and the
+// nexthop's own NHA_OIF is resolved before it is named — a fresh index there
+// costs its own link get, exactly as print_nexthop's ll_index_to_name would.
 //
-// Unreachable on every topology the harness builds: no namespace in
-// netlink-topology.exp creates a nexthop object, so no route in the corpus
-// carries RTA_NH_ID and nothing is refused. It is checked rather than assumed
-// because the check is three lines and the assumption is about a machine this
-// code has not seen.
+// # A group nexthop is still refused
 //
-// Note that a bare `route show` prints `nhid %u` from the same attribute
-// (ip/iproute.c:859-861, outside the guard) and sends nothing. Only the -d
-// block is a transaction, which is why this refusal is conditioned on the
-// option and not on the attribute.
-func checkRouteDetailSupported(c *runCtx, routes []model.Route) error {
-	if !c.detailed() {
-		return nil
-	}
+// render.NexthopInfoText declines a nexthop group: it references other ids `ip`
+// fetches and renders recursively, and no topology the harness builds creates
+// one, so there is no captured output to reproduce. That refusal surfaces here
+// as ErrNotImplemented, the same exit the per-kind IFLA_INFO_DATA refusal uses.
+func resolveRouteNexthops(c *runCtx, svc *service.Service, routes []model.Route, views []render.RouteView) error {
+	seen := map[uint32]string{}
 	for i := range routes {
-		if routes[i].NhID != 0 {
-			return fmt.Errorf("-d on a route with nhid %d: iproute2 fetches and renders the "+
-				"nexthop object and goip does not: %w", routes[i].NhID, ErrNotImplemented)
+		id := routes[i].NhID
+		if id == 0 {
+			continue
 		}
+		text, ok := seen[id]
+		if !ok {
+			nh, err := svc.NexthopByID(c.family, id)
+			if err != nil {
+				return err
+			}
+			resolveIndexName(c, svc, nh.OIF)
+			text, err = render.NexthopInfoText(xtcpnl.NexthopInfo(nh), c.lltab)
+			if err != nil {
+				return fmt.Errorf("-d on a route with nhid %d: %v: %w", id, err, ErrNotImplemented)
+			}
+			seen[id] = text
+		}
+		views[i].NhInfo = text
 	}
 	return nil
 }

@@ -2,6 +2,8 @@ unicast 192.0.2.0/24 dev goip0 table main proto kernel scope link src 192.0.2.1
 unicast 198.18.0.0/24 via 192.0.2.10 dev goip0 table main proto boot scope global 
 unicast 198.18.1.0/24 via 192.0.2.10 dev goip0 table main proto boot scope global mtu 1400 advmss 1300 
 unicast 198.18.2.0/24 via inet6 2001:db8::2 dev goip0 table main proto boot scope global 
+unicast 198.18.3.0/24 nhid 1 via 192.0.2.10 dev goip0 table main proto boot scope global 
+	nh_info id 1 via 192.0.2.10 dev goip0 scope link proto unspec 
 unicast 198.51.100.0/24 dev goip0 table main proto boot scope link 
 unicast 203.0.113.0/24 table main proto boot scope global 
 	nexthop via 192.0.2.10 dev goip0 weight 1 
@@ -16,9 +18,10 @@ unicast 2001:db8:1::/64 via 2001:db8::2 dev goip0 table main proto boot scope gl
 unicast 2001:db8:2::/64 table main proto boot scope global metric 1024 pref medium
 	nexthop via 2001:db8::2 dev goip0 weight 1 
 	nexthop via 2001:db8::3 dev goip0 weight 3 
+unicast 2001:db8:4::/64 from 2001:db8:5::/64 dev goip0 table main proto boot scope global metric 1024 pref medium
 unicast fe80::/64 dev goip0 table main proto kernel scope global metric 256 pref medium
 local ::1 dev lo table local proto kernel scope global metric 0 pref medium
 local 2001:db8::1 dev goip0 table local proto kernel scope global metric 0 pref medium
 local 2001:db8::9 dev goip0 table local proto kernel scope global metric 0 pref medium
-local fe80::5cc9:4cff:fed7:abef dev goip0 table local proto kernel scope global metric 0 pref medium
+local fe80::4409:8fff:fe3f:75c1 dev goip0 table local proto kernel scope global metric 0 pref medium
 multicast ff00::/8 dev goip0 table local proto kernel scope global metric 256 pref medium

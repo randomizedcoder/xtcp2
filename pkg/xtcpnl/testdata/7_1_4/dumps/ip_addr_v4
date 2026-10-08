@@ -2,5 +2,6 @@
     inet 127.0.0.1/8 scope host lo
        valid_lft forever preferred_lft forever
 3: goip0: <BROADCAST,NOARP,UP,LOWER_UP> mtu 1500 qdisc noqueue state UNKNOWN group default qlen 1000
-    inet 192.0.2.1/24 scope global goip0
+    altname goip0-alt
+    inet 192.0.2.1/24 brd 192.0.2.255 scope global goip0
        valid_lft forever preferred_lft forever

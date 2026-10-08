@@ -1,15 +1,19 @@
 ok    [nlcapc] ip link add goip0 type dummy
-ok    [nlcapc] ip addr add 192.0.2.1/24 dev goip0
+ok    [nlcapc] ip addr add 192.0.2.1/24 brd + dev goip0
 ok    [nlcapc] ip -6 addr add 2001:db8::1/64 nodad dev goip0
 ok    [nlcapc] ip -6 addr add 2001:db8::9/64 nodad mngtmpaddr noprefixroute dev goip0
 ok    [nlcapc] ip link set goip0 up
+ok    [nlcapc] ip link property add dev goip0 altname goip0-alt
 ok    [nlcapc] ip route add 198.51.100.0/24 dev goip0
 ok    [nlcapc] ip route add 198.18.0.0/24 via 192.0.2.10 dev goip0
+ok    [nlcapc] ip nexthop add id 1 via 192.0.2.10 dev goip0
+ok    [nlcapc] ip route add 198.18.3.0/24 nhid 1
 ok    [nlcapc] ip route add 198.18.1.0/24 via 192.0.2.10 dev goip0 mtu 1400 advmss 1300
 ok    [nlcapc] ip route add 203.0.113.0/24 nexthop via 192.0.2.10 dev goip0 weight 1 nexthop via 192.0.2.11 dev goip0 weight 3
 ok    [nlcapc] ip route add 198.18.2.0/24 via inet6 2001:db8::2 dev goip0
 ok    [nlcapc] ip -6 route add 2001:db8:1::/64 via 2001:db8::2 dev goip0
 ok    [nlcapc] ip -6 route add 2001:db8:2::/64 nexthop via 2001:db8::2 dev goip0 weight 1 nexthop via 2001:db8::3 dev goip0 weight 3
+ok    [nlcapc] ip -6 route add 2001:db8:4::/64 from 2001:db8:5::/64 dev goip0
 ok    [nlcapc] ip neigh add 192.0.2.50 lladdr 02:00:00:00:00:01 dev goip0 nud permanent
 ok    [nlcapc] ip neigh add 192.0.2.51 lladdr 02:00:00:00:00:02 dev goip0 nud stale
 ok    [nlcapc] ip neigh add 192.0.2.52 dev goip0 nud incomplete

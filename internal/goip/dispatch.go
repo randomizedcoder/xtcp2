@@ -73,7 +73,7 @@ var objects = []object{
 	{name: "netconf"},
 	{name: "vrf"},
 	{name: "sr"},
-	{name: "nexthop"},
+	{name: "nexthop", run: runNexthop},
 	{name: "mptcp"},
 	{name: "ioam"},
 	{name: "stats"},

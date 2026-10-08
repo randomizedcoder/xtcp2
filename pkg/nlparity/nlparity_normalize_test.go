@@ -216,7 +216,7 @@ func TestNormalizeMsg(t *testing.T) {
 			},
 			wantPreserved:     []span{{0, 4}, {12, 12}},
 			wantZeroedWasZero: true,
-			wantFound:         9,
+			wantFound:         10,
 		},
 		{
 			// Measured: ffff0000 85060000 94a00000 e8030000 and two more

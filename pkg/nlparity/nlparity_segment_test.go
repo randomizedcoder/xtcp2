@@ -214,10 +214,10 @@ func TestSegment(t *testing.T) {
 			sidecar:     "dumps/topology; seqs 1790540819 then 1790540820",
 			wantTxns:    2,
 			wantClean:   true,
-			wantPids:    []uint32{825},
+			wantPids:    []uint32{883},
 			wantStates:  []TxnState{TxnClosedByDone, TxnClosedByDone},
 			wantReplies: []int{4, 7},
-			wantTxnPids: []uint32{825, 825},
+			wantTxnPids: []uint32{883, 883},
 			check: func(t *testing.T, _ Capture, s Segmentation) {
 				if got := s.Txns[0].Request.Hdr.Type; got != uint16(unix.RTM_GETLINK) {
 					t.Errorf("txn 0 request type = %d, want RTM_GETLINK (%d)", got, unix.RTM_GETLINK)
@@ -268,7 +268,7 @@ func TestSegment(t *testing.T) {
 			sidecar:     "ip/ipneigh.c:601; dumps/ip_neigh",
 			wantTxns:    2,
 			wantClean:   true,
-			wantPids:    []uint32{978},
+			wantPids:    []uint32{1198},
 			wantStates:  []TxnState{TxnClosedByDone, TxnClosedByDone},
 			// 12 neighbor replies, not the 6 this row carried before
 			// nltopo::build_clean gained five flagged entries. The count is
@@ -303,7 +303,7 @@ func TestSegment(t *testing.T) {
 			sidecar:     "dumps/ip_neigh_proxy; txn 1 body 00*10 08 00 vs the bare command's 00*12",
 			wantTxns:    2,
 			wantClean:   true,
-			wantPids:    []uint32{1107},
+			wantPids:    []uint32{1388},
 			wantStates:  []TxnState{TxnClosedByDone, TxnClosedByDone},
 			wantReplies: []int{4, 3},
 			check: func(t *testing.T, _ Capture, s Segmentation) {
