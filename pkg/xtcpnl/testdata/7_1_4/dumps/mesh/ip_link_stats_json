@@ -42,8 +42,8 @@
         "link_type": "netlink",
         "stats64": {
             "rx": {
-                "bytes": 102244,
-                "packets": 161,
+                "bytes": 135280,
+                "packets": 234,
                 "errors": 0,
                 "dropped": 0,
                 "over_errors": 0,
@@ -69,7 +69,7 @@
         "group": "default",
         "txqlen": 1000,
         "link_type": "ether",
-        "address": "1e:89:0f:e7:c1:8c",
+        "address": "d2:eb:08:51:47:c6",
         "broadcast": "ff:ff:ff:ff:ff:ff",
         "stats64": {
             "rx": {
@@ -101,7 +101,7 @@
         "group": "default",
         "txqlen": 1000,
         "link_type": "ether",
-        "address": "4e:cd:78:76:1a:01",
+        "address": "4e:27:70:4b:59:52",
         "broadcast": "ff:ff:ff:ff:ff:ff",
         "stats64": {
             "rx": {
@@ -134,7 +134,7 @@
         "group": "default",
         "txqlen": 1000,
         "link_type": "ether",
-        "address": "1e:89:0f:e7:c1:8c",
+        "address": "d2:eb:08:51:47:c6",
         "broadcast": "ff:ff:ff:ff:ff:ff",
         "stats64": {
             "rx": {

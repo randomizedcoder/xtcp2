@@ -33,7 +33,7 @@
         "group": "default",
         "txqlen": 1000,
         "link_type": "ether",
-        "address": "46:09:8f:3f:75:c1",
+        "address": "76:87:9c:71:ef:c8",
         "broadcast": "ff:ff:ff:ff:ff:ff",
         "altnames": [ "goip0-alt" ]
     } ]

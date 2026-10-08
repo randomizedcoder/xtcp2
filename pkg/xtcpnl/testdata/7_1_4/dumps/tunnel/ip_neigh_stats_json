@@ -2,18 +2,18 @@
         "dst": "0.0.0.0",
         "dev": "gre1",
         "lladdr": "2.0.0.0",
-        "used": 257,
-        "confirmed": 255,
-        "updated": 255,
+        "used": 217,
+        "confirmed": 217,
+        "updated": 217,
         "probes": 0,
         "state": [ "PERMANENT" ]
     },{
         "dst": "2001:db8:100::5",
         "dev": "ip6tnl1",
         "lladdr": "2001:db8::63",
-        "used": 254,
-        "confirmed": 254,
-        "updated": 254,
+        "used": 216,
+        "confirmed": 216,
+        "updated": 216,
         "probes": 0,
         "state": [ "PERMANENT" ]
     } ]

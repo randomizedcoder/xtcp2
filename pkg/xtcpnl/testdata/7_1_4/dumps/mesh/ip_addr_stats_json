@@ -58,8 +58,8 @@
         "addr_info": [ ],
         "stats64": {
             "rx": {
-                "bytes": 262144,
-                "packets": 375,
+                "bytes": 263160,
+                "packets": 395,
                 "errors": 0,
                 "dropped": 0,
                 "over_errors": 0,
@@ -84,7 +84,7 @@
         "group": "default",
         "txqlen": 1000,
         "link_type": "ether",
-        "address": "a2:23:89:7a:46:4c",
+        "address": "d2:eb:08:51:47:c6",
         "broadcast": "ff:ff:ff:ff:ff:ff",
         "addr_info": [ {
                 "family": "inet",
@@ -132,7 +132,7 @@
         "group": "default",
         "txqlen": 1000,
         "link_type": "ether",
-        "address": "02:c1:0c:59:24:0d",
+        "address": "4e:27:70:4b:59:52",
         "broadcast": "ff:ff:ff:ff:ff:ff",
         "addr_info": [ ],
         "stats64": {
@@ -165,7 +165,7 @@
         "group": "default",
         "txqlen": 1000,
         "link_type": "ether",
-        "address": "a2:23:89:7a:46:4c",
+        "address": "d2:eb:08:51:47:c6",
         "broadcast": "ff:ff:ff:ff:ff:ff",
         "addr_info": [ ],
         "stats64": {

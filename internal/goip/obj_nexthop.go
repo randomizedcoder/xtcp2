@@ -2,6 +2,7 @@ package goip
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/randomizedcoder/xtcp2/internal/goip/render"
 	"github.com/randomizedcoder/xtcp2/internal/goip/service"
@@ -32,9 +33,49 @@ func runNexthop(c *runCtx, args []string) error {
 		args = args[1:]
 	}
 	if len(args) > 0 {
+		// `id N` is a point GET (ip/ipnexthop.c:1241), not a filtered dump; the
+		// other selectors (dev/master/vrf/groups/fdb/protocol) have no captured
+		// request to reproduce and are refused.
+		if args[0] == "id" {
+			if len(args) < 2 {
+				return fmt.Errorf("nexthop show id: missing id value: %w", ErrNotImplemented)
+			}
+			id, perr := strconv.ParseUint(args[1], 0, 32)
+			if perr != nil {
+				return fmt.Errorf("nexthop show id %q: invalid id: %w", args[1], ErrNotImplemented)
+			}
+			if len(args) > 2 {
+				return fmt.Errorf("nexthop show id %q: %w", args[2], ErrNotImplemented)
+			}
+			return nexthopShowID(c, uint32(id))
+		}
 		return fmt.Errorf("nexthop show %q: %w", args[0], ErrNotImplemented)
 	}
 	return nexthopShow(c)
+}
+
+// nexthopShowID is `ip nexthop show id N` (ip/ipnexthop.c:1241 -> __ipnh_get_id):
+// a single RTM_GETNEXTHOP carrying NHA_ID, rendered by the same print_nexthop as
+// the dump. A group id renders its group line; a resilient group is declined.
+func nexthopShowID(c *runCtx, id uint32) error {
+	if c.json {
+		return fmt.Errorf("nexthop show id -json: %w", ErrNotImplemented)
+	}
+
+	svc := service.New(c.src, c.nextSeq)
+	nh, err := svc.NexthopByID(c.family, id)
+	if err != nil {
+		return err
+	}
+	resolveIndexName(c, svc, nh.OIF)
+	line, rerr := render.NexthopText(xtcpnl.NexthopInfo(nh), c.detailed(), c.lltab)
+	if rerr != nil {
+		return fmt.Errorf("nexthop id %d: %v: %w", nh.ID, rerr, ErrNotImplemented)
+	}
+	if _, werr := fmt.Fprintln(c.out, line); werr != nil {
+		return werr
+	}
+	return nil
 }
 
 // nexthopShow is ipnh_list_flush's dump-and-print for the bare command: the

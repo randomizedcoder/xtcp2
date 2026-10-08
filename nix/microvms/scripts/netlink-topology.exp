@@ -113,6 +113,13 @@ namespace eval nltopo {
         # RTA_NH_ID: a route delegating to a nexthop object (Linux 5.3+).
         topo $ns $subdir nexthop add id 1 via 192.0.2.10 dev $dummy
         topo $ns $subdir route add 198.18.3.0/24 nhid 1
+        # A second member plus mpath groups: id 10 is equal-weight (weights
+        # suppressed in output), id 11 carries weights so NHA_GROUP's weight byte
+        # (stored value-1) cannot be ignored. These ground `ip nexthop show` group
+        # lines and the `show id 10` point GET of a group.
+        topo $ns $subdir nexthop add id 2 via 192.0.2.11 dev $dummy
+        topo $ns $subdir nexthop add id 10 group 1/2
+        topo $ns $subdir nexthop add id 11 group 1,2/2,3
         # RTA_METRICS, two nested values so a decoder cannot pass by returning
         # the first one it finds.
         topo $ns $subdir route add 198.18.1.0/24 via 192.0.2.10 dev $dummy mtu 1400 advmss 1300
