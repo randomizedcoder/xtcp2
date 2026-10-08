@@ -483,6 +483,46 @@ failed/indeterminate saves and retry the same intended record where required.
 
 ### Runtime ownership and bounds
 
+P05-T01 implements the private scheduler, fixed collector pool, serial inventory
+executor, and owner-loop driver in `pkg/linkmonitor/scheduler*.go`. They run with
+injected clocks, worker-local collector factories, and owner-side policy hooks.
+P05-T02 adds subscription ordering, convergence and recovery through the private
+coordinator described below. The live `Monitor.Run` backend remains unavailable:
+P05-T03 must supply baseline and shutdown lifecycle policy. Ethernet/host and RDMA adapter registration remains
+P06/P07; these foundations do not introduce per-device traffic dumps.
+
+Ready queues rotate devices within each urgency class and allow one removable
+entry per job. Event refresh precedes reconciliation work; after eight urgent
+dispatches, runnable periodic work gets the next slot. Worker assignment channels
+hold one item each, but the owner never assigns another job until it consumes
+that worker's completion. Each worker owns its collector resources; partial
+factory failure closes already acquired resources and retains cleanup errors.
+
+Polling uses stable FNV-1a phases over canonical device identity, excluding
+mutable interface names. Startup is immediate; the first phased poll is at least
+one interval later. Subsequent deadlines skip elapsed intervals in constant time.
+Host netstat has one namespace key and no device phase. A private negotiation
+policy requests settings retries 1, 2, and 4 seconds after failed/unknown attempts;
+periodic ticks cannot bypass that backoff. A new revision or successful settings
+result ends the old sequence. Adapters determine whether negotiation needs retry.
+
+Poll, retry, request-budget and freshness deadlines share the indexed heap and
+single wake timer. The owner routes all due kinds before publication; standalone
+reducer expiry leaves scheduling entries for their owner. Completion at or after
+the five-second budget is a timeout even if the completion channel wins the wake
+race. Logical timeout cancels the context with a deadline cause, while physical
+occupancy remains until the call returns. Late results cannot free another
+attempt, update a replacement device, or reuse still-owned resources. Pool stop
+is nonblocking, with completion signals and cleanup errors available for P05-T03.
+
+The independent inventory executor permits one submitted operation through result
+consumption, with a one-entry completion channel. The owner driver services it,
+controls, collector completions and deadlines after at most 64 ordered events.
+Tests demonstrate that these paths and snapshot publication continue while all
+four optional workers remain blocked. P05-T02 adds bounded event ingestion, loss
+signaling and candidate commit policy; inventory readiness requires a successful
+coordinator commit, not just a completed executor operation.
+
 | Component | Ownership and bounds |
 |---|---|
 | Event readers | One reader per open source; no goroutine per message; RDMA event fds scale with discovered adapters, not counters |
@@ -530,6 +570,56 @@ replacement goroutine. Exhaustion of all four workers prevents optional
 progress, while event processing and inventory continue. Reconnect failed event
 sources at 1s, doubling to a 30s cap; reset after successful recovery. No
 NETLINK_NO_ENOBUFS, silent event dropping, or suppression of errors.
+
+### Implemented convergence coordinator
+
+P05-T02 implements the private coordinator in `pkg/linkmonitor/reconcile*.go`.
+It binds the existing scheduler driver to injected subscription and inventory
+sources. A subscription factory must join required groups before returning and
+rediscover dynamic families/groups on every attempt. Only its ready status permits
+the first dump. Protocol-specific source projection/registration remains P06/P07;
+these tests exercise real coordinator goroutines with deterministic sources,
+not a runnable production backend or physical hardware.
+
+The ingress queue holds 4,096 bounded scalar records. A short mutex serializes
+sequence assignment and enqueue across producers; enqueue never waits for queue
+capacity. An atomic source epoch and separate capacity-one wake preserve loss
+notification when the queue is full. Old readers cannot enqueue under a new epoch.
+Oversized metadata, queue overflow, malformed required events and reader failure
+invalidate the epoch and current collection health. The reducer continues ordered
+live updates and schedules optional refreshes; up transitions start registered
+Ethernet-settings or native-RDMA-state retries. Duplicate unchanged observations
+do not create unnecessary optional refreshes.
+
+A dump remains private until complete and validated. Candidate and dirty-identity
+sets each have a 65,536-identity bound, matching the request-layer record bound.
+One removable dirty-queue entry per identity coalesces changes during a dump or
+query. Inventory completions record an ingress watermark and wait across bounded
+owner turns until those events have been consumed. Before querying or committing,
+the coordinator checks another watermark. Query attempt, source epoch, identity
+generation, revision and dirty version must still match. Authoritative current
+ENODEV removes a candidate entry; an obsolete ENODEV cannot delete a replacement.
+Continuous churn keeps reconciliation incomplete while live events still apply.
+
+Candidate ingestion rejects errors, incomplete dumps, duplicate identities and
+invalid metadata before modifying live inventory. Commit preflights sequence/time
+bounds, then applies the complete candidate and removals in one owner turn before
+publication. Immutable statistic blocks are not cloned. Only that commit records
+a successful resync; reopening the event stream alone cannot restore health.
+Native RDMA identities use their canonical HCA/port key and are not interpreted as
+Ethernet interface names. Required RDMA state/event health remains independently
+gated by the reducer.
+
+Source loss cancels obsolete inventory work without releasing the executor slot
+before it returns. Subscriptions have a five-second acquisition budget; a stuck
+attempt gets no replacement before its terminal status. Cancellation closes/wakes
+the source and joins its close callback before another subscription opens.
+Recovery starts after one second, doubles to a 30-second cap, and resets after a
+successful converged inventory. Failed dumps/queries use the same bounded retry
+sequence. Recovery, periodic resync and retry wakes share the scheduler timer
+heap. Resync requests join compatible work; missed intervals never create a
+catch-up backlog. Baseline learning, public control completion, shutdown grace
+and final cleanup joins remain P05-T03 responsibilities.
 
 ### Shutdown
 
@@ -723,8 +813,9 @@ failures do not change collection health. Health also requires known inventory,
 route events, current-epoch successful reconciliation and a resync age no greater
 than two intervals; readiness additionally requires a baseline. Restarting a
 subscription alone cannot restore health after loss. The last resync timestamp
-survives failures. These are reducer contracts tested with fake time; P05 still
-owns successful candidate validation, event-source recovery and timer-loop wiring.
+survives failures. P05-T01 supplies the injected timer-loop driver and P05-T02
+supplies successful candidate validation and event-source recovery. Production
+source bindings and live lifecycle integration remain outstanding.
 
 ## 8. Prometheus exposition and concurrency
 

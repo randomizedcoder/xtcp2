@@ -2,11 +2,13 @@
 
 Last updated: 2026-10-07.
 
-**P01–P04 are complete: 12 of 34 implementation tasks passed their gates.**
-Next phase: P05, scheduling and reconciliation. Next task:
-[P05-T01](IMPLEMENTATION-PLAN.md#p05-t01), bounded scheduler and workers.
-Socket primitives and request transactions are implemented; live coordinator integration and the standalone
-command remain unimplemented. This is not a runnable monitoring service yet.
+**P01–P04 and P05-T01/T02 are complete: 14 of 34 implementation tasks passed their gates.**
+P05, scheduling and reconciliation, is in progress. Next task:
+[P05-T03](IMPLEMENTATION-PLAN.md#p05-t03), learning, rebaseline and shutdown.
+Bounded scheduling, four collector workers, independent inventory execution,
+convergence and event-source recovery are implemented with injected sources.
+Production source bindings, baseline/shutdown lifecycle integration and the
+standalone command remain unimplemented. This is not a runnable monitoring service yet.
 
 This is the live tracker for [IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md).
 [DETAILED-DESIGN.md](DETAILED-DESIGN.md), [DESIGN.md](DESIGN.md) and
@@ -19,8 +21,8 @@ This is the live tracker for [IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md).
 |---|---|---|
 | Design documents | Present | DESIGN and METRICS remain contracts; DETAILED-DESIGN now distinguishes implemented foundations from remaining work |
 | Roadmap and tracker | Created | This document and IMPLEMENTATION-PLAN; documentation verification is recorded below |
-| Monitor executable/library | Foundation, policy, immutable state and freshness implemented | pkg/linkmonitor API/private model/fakes, Ethernet/RDMA policy, durable baseline store, single-owner reducer, paged snapshots, monotonic expiry and health reduction exist; live Run returns ErrBackendUnavailable; command remains unimplemented |
-| Existing netlink/ring libraries | Monitor wire support and ordinary request transport implemented | P04 passes wire/fixture, socket ownership and strict transaction/discovery gates, including read-only real-kernel checks; reconciliation and ring backend remain outstanding |
+| Monitor executable/library | Foundation, policy, immutable state, freshness, bounded scheduling and convergence implemented | pkg/linkmonitor API/private model/fakes, Ethernet/RDMA policy, durable baseline store, single-owner reducer, paged snapshots, monotonic expiry, health reduction, fair scheduling, four fixed workers, independent inventory execution and epoch-based recovery exist; live Run returns ErrBackendUnavailable; command remains unimplemented |
+| Existing netlink/ring libraries | Monitor wire support and ordinary request transport implemented | P04 passes wire/fixture, socket ownership and strict transaction/discovery gates, including read-only real-kernel checks; P05-T02 converges injected sources; production bindings, lifecycle integration and ring backend remain outstanding |
 | Poller software gate | Not met | P05–P09 and P11-T01/P11-T02 outstanding |
 | Optional io_uring gate | Not met | P10 and applicable regression/artifact revalidation outstanding |
 | Mixed-fleet hardware gate | Unverified | No go-link-monitor physical Ethernet/RoCEv2/native-IB results; P11-T03 outstanding |
@@ -51,7 +53,7 @@ This is the live tracker for [IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md).
 | P02 | Policy and persistence | done | 3/3 | V006, V009 |
 | P03 | State and snapshots | done | 3/3 | V011, V014, V016 |
 | P04 | Wire support and transport | done | 3/3 | V018, V020, V022; additive wire/fixture and ordinary transport unit/real-fd gates passed |
-| P05 | Scheduling and reconciliation | not started | 0/3 | None |
+| P05 | Scheduling and reconciliation | in progress | 2/3 | V028/V030 close P05-T01/T02; learning, rebaseline and shutdown remain |
 | P06 | Ethernet and host collectors | not started | 0/4 | None |
 | P07 | RDMA collection and builds | not started | 0/4 | None |
 | P08 | Exporter and standalone command | not started | 0/3 | None |
@@ -78,8 +80,8 @@ plan, not copied here. Add verification IDs to the evidence column as work runs.
 | [x] | [P04-T01](IMPLEMENTATION-PLAN.md#p04-t01) | Wire primitives and typed additions | done | V017 initial findings; V018 closes the gate: strict/tolerant compatibility, exact builders, all 40 replay combinations and three fuzz targets |
 | [x] | [P04-T02](IMPLEMENTATION-PLAN.md#p04-t02) | Poller socket ownership | done | V019 initial findings; V020 closes the gate: bounded nonblocking I/O, cancellation/deadlines, sender validation, descriptor ownership and idle-thread bounds |
 | [x] | [P04-T03](IMPLEMENTATION-PLAN.md#p04-t03) | Transactions and family discovery | done | V021 initial verification; V022 closes the gate: atomic candidates, strict completion, epoch/sequence ownership, family/group rediscovery and timeout/error recovery |
-| [ ] | [P05-T01](IMPLEMENTATION-PLAN.md#p05-t01) | Bounded scheduler and workers | not started | None |
-| [ ] | [P05-T02](IMPLEMENTATION-PLAN.md#p05-t02) | Inventory convergence and recovery | not started | None |
+| [x] | [P05-T01](IMPLEMENTATION-PLAN.md#p05-t01) | Bounded scheduler and workers | done | V025–V028; coalescing, device fairness, staggered polls/retries, logical timeout versus physical occupancy, independent event/inventory progress and bounded cleanup pass |
+| [x] | [P05-T02](IMPLEMENTATION-PLAN.md#p05-t02) | Inventory convergence and recovery | done | V029/V030; bounded ingress, watermark/dirty-query convergence, stale-result isolation, native-RDMA identity, epoch loss and joined recovery pass |
 | [ ] | [P05-T03](IMPLEMENTATION-PLAN.md#p05-t03) | Learning, rebaseline and shutdown | not started | None |
 | [ ] | [P06-T01](IMPLEMENTATION-PLAN.md#p06-t01) | Standard traffic and carrier | not started | None |
 | [ ] | [P06-T02](IMPLEMENTATION-PLAN.md#p06-t02) | Identity, settings, channels and rings | not started | None |
@@ -151,6 +153,58 @@ hardware checks have run.
 | DOC010 | 2026-10-07 | P04-T03 design/tracker | `/tmp/xtcp2-check-monitor-snapshot-docs.py`, task/phase count and whitespace checks, `git diff --check` | All exit 0: 235 metric inventory entries preserved; 34 tasks, 12 done; P04 at 3/3 and done. Links/anchors, checkbox/phase states and whitespace consistent; source digest still matches V022 | Session output; checker is ephemeral |
 | V023 | 2026-10-07 | Repeatable Nix verification, initial build | `nix build path:.#test-linkmonitor` plus existing nix-fmt/deadnix/statix checks, with `--keep-going` | All eight monitor leaves passed. Combined command exited 1 because Nix formatting/statix found three unformatted modules and an assignment better written with inherit; corrected using the flake-pinned formatter, then rerun | Nix build logs and session output; existing policies unchanged |
 | V024 | 2026-10-07 | Repeatable Nix verification, completion | Aggregate plus nix-fmt/deadnix/statix targets documented in VALIDATION.md, `--no-link --print-out-paths -L --keep-going` | Exit 0: all eight monitor leaves and all three Nix policy checks pass. Complete pure-Go/race suites have no skipped test cases; all 40 replay leaves and three 30-second fuzz sessions pass. Nine package targets exported. Final completion-only tracker edit also passes the pinned repository documentation checker | Aggregate `/nix/store/hnrgvcpdhlw7w7gyl5a8c6ky0n8pmq7b-xtcp2-test-linkmonitor`; policy outputs below |
+| V025 | 2026-10-07 | P05-T01 initial verification | Pinned scheduler tests/race tests, comprehensive lint, and `nix build path:.#test-linkmonitor path:.#checks.x86_64-linux.nix-fmt path:.#checks.x86_64-linux.deadnix path:.#checks.x86_64-linux.statix --no-link -L` | Scheduler tests and repeated race tests passed. Initial aggregate exited 1 on twelve lint findings: unchecked fake-clock errors, a context-ownership finding and conditional style. Corrected without suppressions; added retry/poll collision and obsolete-deadline regressions. Pinned comprehensive lint now exits 0. Sandbox blocked existing real netlink tests; their unsandboxed rerun passed. Full aggregate rerun required | Initial lint derivation `/nix/store/w3ay24mzcj390abs0nnan0l4n58wp61c-xtcp2-test-linkmonitor-lint.drv`; session output retains local test/lint results |
+| V026 | 2026-10-07 | P05-T01 intermediate aggregate | V025 targets with `--no-link --print-out-paths --keep-going --max-jobs 4 -L` | Exit 0: all eight leaves and three Nix policy checks passed; 2,381 test/subtest passes in each complete unit/race suite, no test skips, 40 replay leaves, three 30-second fuzz sessions. This snapshot precedes the final publication-error propagation and worker-cancellation regressions | Aggregate `/nix/store/gnhjfnidkvzaazm0w5yyib7jx5xf1b2a-xtcp2-test-linkmonitor` retains source, commands and logs |
+| V027 | 2026-10-07 | P05-T01 final-source verification, initial attempt | Same aggregate/policy command as V026, including final cancellation and publication-error tests | Exit 1: unit/race each passed 2,385 tests/subtests with no test skips, and vet/lint/format/docs/replay plus Nix policies passed. Envelope fuzz completed 390,225 executions then returned `context deadline exceeded` at the 30-second cutoff; no crashing input or parser assertion was reported. The unchanged target is being rerun; no fuzz budget, assertion, fixture or policy change | Failure retained in session output; fuzz derivation `/nix/store/kpl7v4p112w3gi3jjsrbangwvivpnxl3-xtcp2-test-linkmonitor-fuzz.drv`; source identity below |
+| V028 | 2026-10-07 | P05-T01 completion gate | Unchanged V027 aggregate/policy command rerun; final tracker checked with pinned Python documentation checker and its unit tests | Exit 0: all eight monitor leaves and all three Nix policy checks pass. Complete unit/race suites each pass 2,385 tests/subtests, including 46 scheduler tests/subtests, with no test skips; model has no standalone tests. Zero lint issues, all 40 replay leaves, and three 30-second/two-worker fuzz sessions pass: ethtool 407,217 executions, envelopes 400,070, strict links 366,879. V027 remains a recorded cutoff failure, not a suppressed result | Aggregate `/nix/store/hxhhn07992y75dfwa5z3q7ls26lllhdl-xtcp2-test-linkmonitor`; source identity and policy outputs below |
+| V029 | 2026-10-07 | P05-T02 initial verification | Pinned targeted unit/race suites and comprehensive lint, including ten repetitions of scheduler/reconciliation/ingress tests | Initial lint identified two avoidable observation copies, a conditional-style finding and an unchecked test error; corrected without exclusions. A native-RDMA regression exposed Ethernet-name validation rejecting canonical RDMA selectors; corrected with explicit native identity handling. Targeted repeated race suite now passes; full aggregate required | Session output; no fixture, capture, suppression or threshold changes |
+| V030 | 2026-10-07 | Combined P05-T01/T02 completion gate | V025 aggregate/policy targets with `--no-link --print-out-paths --keep-going --max-jobs 4 -L`; final tracker checked with pinned documentation checker and its unit tests | Exit 0: all eight monitor leaves and all three Nix policy checks pass. Complete pure-Go/race suites, vet, zero-issue comprehensive lint, format/docs and all 40 replay combinations pass. Three 30-second/two-worker fuzz sessions pass: ethtool 302,241 executions, strict links 195,204, envelopes 199,424. Targeted scheduler/reconciliation/ingress race suite also passes ten repetitions | Aggregate `/nix/store/rl9pm45rlscvzww75qh56hzxr31gjy97-xtcp2-test-linkmonitor`; source identity and policy outputs below |
+
+V030 uses base `82826cc4cb4591250375918d800dc6058ed3f690` plus P05-T01/T02
+work on `feat/linkmonitor-scheduler` in `/tmp/xtcp2-linkmonitor-pr-merge-6wnh4apa`.
+Linux 7.1.8 x86_64, pinned Go 1.26.5 and golangci-lint 2.12.2; unchanged check
+configuration. The retained source is
+`/nix/store/zcixa1gxwlgawwxxlxy595ivs6sbyayc-mcl6rbqsqqc2pq31hcizb6fiq6q5zfr5-source`.
+All 79 monitor Go files have sorted filename/NUL/content SHA256
+`b9099695e8744bbf57505c585b4c56237c67aa69550cd4d41fe51bdfcc5ae840`.
+The snapshot precedes only this completion-tracker update; source equality and
+the final tracker are checked separately. Each aggregate leaf retains commands,
+source paths, tool versions, environment, kernel and logs. Coordinator tests use
+injected sources; no physical NIC/RDMA hardware or performance gate is claimed.
+
+V030 policy outputs:
+
+- nix-fmt: `/nix/store/1cbhvk4pyh8w02z4ahp8754vkhhzcrwg-xtcp2-nix-fmt`.
+- deadnix: `/nix/store/d3xj8wgfrzy4ll38fdrgwxpz30h8d152-xtcp2-deadnix`.
+- statix: `/nix/store/5gjx5lzz3fdvm7qc8bhiqjspq0j9rfa7-xtcp2-statix`.
+
+V027/V028 use clean base `82826cc4cb4591250375918d800dc6058ed3f690` plus
+uncommitted P05-T01 work on `feat/linkmonitor-scheduler`, in the isolated checkout
+`/tmp/xtcp2-linkmonitor-pr-merge-6wnh4apa`. Linux 7.1.8 x86_64; pinned Go 1.26.5
+and golangci-lint 2.12.2; standard pure-Go/race and unchanged comprehensive lint
+tags. Scheduler cases use injected clocks, collectors and inventory; existing
+read-only netlink tests also run. No physical NIC, RDMA hardware, io_uring or
+performance gate is claimed.
+
+The retained source is
+`/nix/store/8cb85kki941c8l3i0c81a36nvi7v3vjk-7ww5a5sy0ahf5l6qirzg6nvm34122vzg-source`.
+All 71 monitor Go files have sorted filename/NUL/content SHA256
+`1ca01a11cd8432d5e2290b730848347290b3850f2ab14ce07e11b07e0d5aa15a`, verified equal
+between that snapshot and the working tree. The snapshot precedes only this
+verification-ledger/completion update; the final tracker receives a separate
+pinned documentation check. Each aggregate leaf retains its exact command,
+source paths, tool versions, environment, kernel and log.
+
+V028 policy outputs:
+
+- nix-fmt: `/nix/store/laswq7n15hywlviilnmzjckmbzjm5mfd-xtcp2-nix-fmt`.
+- deadnix: `/nix/store/fsrwbrm1iwy02gk47i0n59v5fmf2vgiw-xtcp2-deadnix`.
+- statix: `/nix/store/g9dwfmwmgszgbyhq5vkpsy6pdxdfa1ia-xtcp2-statix`.
+
+The final documentation commands use the pinned Python recorded in the Nix
+closure: `python3 -m unittest discover -s nix/tests -p test_linkmonitor_report.py`
+and `python3 nix/tests/linkmonitor_report.py docs .`. No source, fixture, audit
+allowlist, lint threshold or check configuration changed during the fuzz rerun.
 
 V011 environment: base revision `ef4a72ae5bd8d4ef615b0811c22d255941af607b`
 plus uncommitted P03 implementation; Linux 7.1.8 x86_64, default Go test tags,
@@ -314,6 +368,8 @@ owners, deadlines or successful outcomes. Continue independent ready tasks.
 | 2026-10-06 | Completed P04-T02 in private internal/netlink. Added single-owner nonblocking sockets, bounded receives, authenticated kernel senders, datagram sends and cancellation/deadline retirement with exact descriptor ownership. Verified real read-only kernel I/O and bounded idle threads. Changes remain uncommitted in the isolated checkout alongside P03-T03 and P04-T01. | V019 records initial findings; V020 and DOC009 close the task. Next P04-T03 transactions and family discovery; coordinator integration remains P05 |
 | 2026-10-07 | Completed P04-T03 in private internal/linuxio. Added typed read-only route/ethtool transactions, strict completion, bounded candidates, epoch/sequence renewal, dynamic family/group discovery and stale-handle rejection. Real-kernel and scripted tests pass. P04 is complete; changes remain uncommitted in the isolated checkout with the earlier work. | V021 records initial findings/tool restoration; V022 and DOC010 close the task. Next P05-T01 bounded scheduler and workers, followed by reconciliation and lifecycle integration |
 | 2026-10-07 | Added modular Nix targets for the recurring monitor gates and an aggregate included in flake check. Replaced temporary documentation/replay check scripts with repository-owned checks and negative regression cases; documented commands and retained provenance in VALIDATION.md. No implementation phase advanced. | V023/V024; next implementation task remains P05-T01. Work remains uncommitted in the isolated checkout |
+| 2026-10-07 | Implemented P05-T01 from merged PR #161 in the isolated scheduler worktree: four fixed workers, coalesced keyed work, fair dispatch, staggered polling/settings retries, one timer heap and independent event/inventory progress. Timeout retains physical occupancy and late-result isolation; publication and cleanup failures propagate. No live Run or executable is claimed. | V025–V028 close P05-T01; 13/34 tasks complete. Next P05-T02 inventory convergence and recovery. Changes remain uncommitted; unrelated workspace changes preserved |
+| 2026-10-07 | Completed P05-T02 alongside T01: subscribe-before-dump, bounded ingress with independent loss notification, private candidates, dirty-query/watermark convergence, native-RDMA identity validation and joined event recovery with bounded backoff. Public APIs and production backend availability remain unchanged. Prepared the combined T01/T02 PR requested by the user. | V029/V030 close P05-T02; 14/34 tasks complete, P05 at 2/3. Next P05-T03 learning, rebaseline and shutdown; unrelated workspace changes preserved |
 
 Established design decisions: public reusable pkg/linkmonitor; small standalone
 command; RDMA required in v1; all statistic fields selected by default; cached

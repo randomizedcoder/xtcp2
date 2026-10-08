@@ -56,7 +56,8 @@ func (r *reducer) collector(key model.JobKey) (*collectorState, model.Token, err
 	return &slot.collectors[key.Collector], token, nil
 }
 
-// startCollection allocates one attempt, never replacing an occupied worker.
+// startCollection allocates one logical attempt. The scheduler separately keeps
+// a timed-out physical worker occupied until its original call returns.
 func (r *reducer) startCollection(key model.JobKey, now model.Stamp) (model.Job, error) {
 	state, token, err := r.collector(key)
 	if err != nil {
