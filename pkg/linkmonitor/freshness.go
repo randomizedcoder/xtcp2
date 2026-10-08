@@ -64,22 +64,34 @@ func (r *reducer) cancelDeviceDeadlines(key model.DeviceKey) {
 	}
 }
 
+// expire supports standalone reducer publication. With a scheduler attached,
+// its owner must route all due deadlines before publishing; never consume a
+// scheduling entry here and accidentally erase a poll or attempt timeout.
 func (r *reducer) expire(now time.Duration) {
 	for {
-		entry, exists := r.deadlines.due(now)
-		if !exists {
+		entry, exists := r.deadlines.first()
+		if !exists || entry.at > now || (entry.key.kind != deadlineCollector && entry.key.kind != deadlineResync) {
 			return
 		}
-		if entry.key.kind == deadlineResync {
-			r.resyncOverdue = true
-			continue
-		}
+		r.deadlines.cancel(entry.key)
+		r.expireEntry(entry)
+	}
+}
+
+// expireEntry only handles freshness deadlines; the scheduler routes other kinds.
+func (r *reducer) expireEntry(entry deadlineEntry) {
+	switch entry.key.kind {
+	case deadlineResync:
+		r.resyncOverdue = true
+	case deadlineCollector:
 		state, token, err := r.collector(entry.key.job)
 		if err != nil || token.Generation != entry.generation || !state.fresh {
-			continue
+			return
 		}
 		state.fresh, state.block = false, nil
 		r.collectionChanged(entry.key.job, state)
+	default:
+		// Scheduling deadlines are consumed by scheduler.expire.
 	}
 }
 

@@ -12,6 +12,10 @@ type deadlineKind uint8
 const (
 	deadlineCollector deadlineKind = iota
 	deadlineResync
+	deadlinePoll
+	deadlineAttempt
+	deadlineRetry
+	deadlineCoordinator
 )
 
 type deadlineKey struct {
@@ -23,6 +27,7 @@ type deadlineEntry struct {
 	key        deadlineKey
 	at         time.Duration
 	generation uint64
+	token      model.Token
 }
 
 // deadlineQueue has exactly one entry per live key. Replacing a deadline fixes

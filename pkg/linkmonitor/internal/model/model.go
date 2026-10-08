@@ -142,6 +142,8 @@ const (
 // Event is bounded independently of the number of statistics an interface has.
 // Adapters validate identity string lengths before constructing an event.
 type Event struct {
+	// Sequence is assigned by the bounded ingress queue, never by a wire decoder.
+	Sequence    uint64
 	Kind        EventKind
 	Observation Observation
 }
