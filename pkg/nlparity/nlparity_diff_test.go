@@ -996,17 +996,17 @@ func TestObjectKey(t *testing.T) {
 			want:        "addr/family=2/index=1/prefixlen=8/addr=7f000001",
 		},
 		{
-			// c0000235 is 192.0.2.53, and WHICH entry that is depends on the
+			// c0000234 is 192.0.2.52, and WHICH entry that is depends on the
 			// capture rather than the topology: `first` takes the first
 			// RTM_NEWNEIGH in the pcap and the kernel walks its hash table
 			// in hash order. The claim under test is the key's SHAPE — that
 			// NDA_DST is hex-encoded and joins family and ifindex — so a
 			// re-capture that reorders the dump moves this literal without
-			// anything being wrong. It read c0000232 (192.0.2.50) under the
+			// anything being wrong. It read c0000235 (192.0.2.53) under the
 			// previous clean capture.
 			description: "positive: a neighbor keys on family, ifindex and NDA_DST",
 			msg:         func(t *testing.T) Msg { return first(t, tdGuestGetNeigh, uint16(unix.RTM_NEWNEIGH)) },
-			want:        "neigh/family=2/ifindex=3/dst=c0000235",
+			want:        "neigh/family=2/ifindex=3/dst=c0000234",
 		},
 		{
 			description: "positive: a route keys on family, table, dst_len, RTA_DST, RTA_OIF and RTA_PRIORITY",

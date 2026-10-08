@@ -1,2 +1,2 @@
-0.0.0.0 dev gre1 lladdr 2.0.0.0  used 93/91/91probes 0 PERMANENT 
-2001:db8:100::5 dev ip6tnl1 lladdr 2001:db8::63  used 90/90/90probes 0 PERMANENT 
+0.0.0.0 dev gre1 lladdr 2.0.0.0  used 93/92/92probes 0 PERMANENT 
+2001:db8:100::5 dev ip6tnl1 lladdr 2001:db8::63  used 91/91/91probes 0 PERMANENT 

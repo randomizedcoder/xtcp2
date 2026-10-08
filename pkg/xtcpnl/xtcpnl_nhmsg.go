@@ -42,34 +42,63 @@ const (
 	// carry NhaOpFlags, as RtaNhID is declared in xtcpnl_rtmsg.go.
 	NhaID        uint16 = 1  // NHA_ID: the nexthop's own id
 	NhaGroup     uint16 = 2  // NHA_GROUP: a group of other nexthops
+	NhaGroupType uint16 = 3  // NHA_GROUP_TYPE: u16, NEXTHOP_GRP_TYPE_*
 	NhaBlackhole uint16 = 4  // NHA_BLACKHOLE: a flag attribute, no payload
 	NhaOIF       uint16 = 5  // NHA_OIF: the outgoing interface index
 	NhaGateway   uint16 = 6  // NHA_GATEWAY: the next hop, network order
-	NhaOpFlags   uint16 = 14 // NHA_OP_FLAGS: request-only operation filter
+	NhaResGroup  uint16 = 12 // NHA_RES_GROUP: nested resilient-group args
+	NhaOpFlags   uint16 = 14 // NHA_OP_FLAGS: op filter (request) / resvd (reply)
+
+	// NexthopGrpTypeMpath is NEXTHOP_GRP_TYPE_MPATH, the default group type that
+	// iproute2 prints no `type` token for.
+	NexthopGrpTypeMpath uint16 = 0
+
+	// NhaOpFlagRespGrpResvd0 is NHA_OP_FLAG_RESP_GRP_RESVD_0: when the reply sets
+	// it in NHA_OP_FLAGS, a group entry's weight_high byte is meaningful.
+	NhaOpFlagRespGrpResvd0 uint32 = 0x80000000
+
+	// NexthopGrpSizeCst is sizeof(struct nexthop_grp): u32 id, u8 weight,
+	// u8 weight_high, u16 resvd.
+	NexthopGrpSizeCst = 8
 )
 
 var (
 	// ErrNhmsgSmall is a reply body shorter than the fixed nhmsg header.
 	ErrNhmsgSmall = errors.New("data too small for Nhmsg")
+
+	// ErrNhGroupBad is an NHA_GROUP payload that is not a whole number of
+	// nexthop_grp entries.
+	ErrNhGroupBad = errors.New("NHA_GROUP payload not a multiple of nexthop_grp")
 )
 
+// GroupMember is one entry of an NHA_GROUP array: a member nexthop id and its
+// decoded weight (1-based, weight_high folded in per nhgrp_weight).
+type GroupMember struct {
+	ID     uint32
+	Weight uint16
+}
+
 // NexthopInfo is a decoded RTM_NEWNEXTHOP reply: the nhmsg header fields worth
-// keeping plus the attributes a single (non-group) nexthop carries.
+// keeping plus the attributes a nexthop carries.
 //
-// A group nexthop sets HasGroup and references OTHER ids that iproute2 fetches
-// and renders recursively; goip keeps the flag so the renderer can decline a
-// shape it has no fixture for rather than emit a wrong line. See
-// render.NexthopInfoText.
+// A group nexthop sets HasGroup and lists its member ids in Group; GroupType
+// distinguishes mpath from resilient. The render layer renders mpath groups and
+// declines resilient/unknown ones (HasResGroup or a non-mpath GroupType), which
+// carry live-ticking args no fixture grounds. See render.NexthopText.
 type NexthopInfo struct {
-	Family    uint8
-	Scope     uint8
-	Protocol  uint8
-	Flags     uint32
-	ID        uint32
-	OIF       int32  // 0 is absent: index 0 is not a device
-	Gateway   []byte // network order, nil when absent
-	Blackhole bool
-	HasGroup  bool
+	Family      uint8
+	Scope       uint8
+	Protocol    uint8
+	Flags       uint32
+	ID          uint32
+	OIF         int32  // 0 is absent: index 0 is not a device
+	Gateway     []byte // network order, nil when absent
+	Blackhole   bool
+	HasGroup    bool
+	Group       []GroupMember // NHA_GROUP members, nil when not a group
+	GroupType   uint16        // NHA_GROUP_TYPE, NEXTHOP_GRP_TYPE_*
+	HasResGroup bool          // NHA_RES_GROUP present (resilient)
+	RespOpFlags uint32        // NHA_OP_FLAGS from the reply (weight gate)
 }
 
 // DeserializeNhmsg does an offset read of the fixed nhmsg header.
@@ -98,6 +127,7 @@ func ParseNewNexthop(body []byte) (NexthopInfo, error) {
 	nh.Protocol = h.Protocol
 	nh.Flags = h.Flags
 
+	var groupRaw []byte // NHA_GROUP bytes, resolved to members after the walk
 	err := WalkRTAttrs(body[NhMsgSizeCst:], func(atype uint16, val []byte) {
 		switch atype {
 		case NhaID:
@@ -114,10 +144,41 @@ func ParseNewNexthop(body []byte) (NexthopInfo, error) {
 			nh.Blackhole = true
 		case NhaGroup:
 			nh.HasGroup = true
+			groupRaw = CopyBytes(val)
+		case NhaGroupType:
+			if len(val) >= 2 {
+				nh.GroupType = binary.LittleEndian.Uint16(val[0:2])
+			}
+		case NhaResGroup:
+			nh.HasResGroup = true
+		case NhaOpFlags:
+			if len(val) >= 4 {
+				nh.RespOpFlags = binary.LittleEndian.Uint32(val[0:4])
+			}
 		}
 	})
 	if err != nil {
 		return nh, err
+	}
+
+	// Resolve group members now that RespOpFlags (whichever order it arrived in)
+	// is known: nhgrp_weight gates weight_high on NHA_OP_FLAG_RESP_GRP_RESVD_0.
+	if groupRaw != nil {
+		if len(groupRaw) == 0 || len(groupRaw)%NexthopGrpSizeCst != 0 {
+			return nh, ErrNhGroupBad
+		}
+		highOK := nh.RespOpFlags&NhaOpFlagRespGrpResvd0 != 0
+		nh.Group = make([]GroupMember, 0, len(groupRaw)/NexthopGrpSizeCst)
+		for off := 0; off < len(groupRaw); off += NexthopGrpSizeCst {
+			id := binary.LittleEndian.Uint32(groupRaw[off : off+4])
+			low := groupRaw[off+4]
+			high := groupRaw[off+5]
+			var w uint16
+			if highOK {
+				w = uint16(high)
+			}
+			nh.Group = append(nh.Group, GroupMember{ID: id, Weight: (w<<8 | uint16(low)) + 1})
+		}
 	}
 	return nh, nil
 }

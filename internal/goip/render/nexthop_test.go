@@ -17,10 +17,13 @@ import (
 // show_details gate: scope link prints either way (link != universe), but proto
 // unspec appears only under `-d`.
 //
-// The blackhole, onlink and detailed-scope rows reason from
-// __print_nexthop_entry's token order, since the one captured object exercises
-// none of them; the group row is the refusal goip returns rather than guess a
-// recursive render it never captured.
+// The mpath group rows are transcribed from the ip_nexthop and ip_nexthop_n
+// sidecars of the same capture, whose id 10 is `group 1/2` and id 11 is the
+// weighted `group 1,2/2,3`; under -d both gain `scope global proto unspec`
+// because a group carries neither a link scope nor a proto. The blackhole,
+// onlink, detailed-scope, single/three-member and proto rows reason from
+// __print_nexthop_entry's token order; the resilient group is the one refusal
+// goip returns rather than guess a render it never captured.
 //
 // go test ./internal/goip/render/ -run TestNexthopText
 func TestNexthopText(t *testing.T) {
@@ -89,8 +92,71 @@ func TestNexthopText(t *testing.T) {
 			want: "id 5 via 192.0.2.10 dev goip0 proto kernel ",
 		},
 		{
-			description: "negative: a nexthop group is refused",
-			in:          xtcpnl.NexthopInfo{ID: 6, HasGroup: true},
+			description: "positive: ip_nexthop mpath group id 10 — equal weights, no scope or proto",
+			in: xtcpnl.NexthopInfo{
+				ID: 10, HasGroup: true,
+				Group: []xtcpnl.GroupMember{{ID: 1, Weight: 1}, {ID: 2, Weight: 1}},
+			},
+			want: "id 10 group 1/2 ",
+		},
+		{
+			description: "positive: ip_nexthop weighted mpath group id 11 — a ,weight only where weight > 1",
+			in: xtcpnl.NexthopInfo{
+				ID: 11, HasGroup: true,
+				Group: []xtcpnl.GroupMember{{ID: 1, Weight: 2}, {ID: 2, Weight: 3}},
+			},
+			want: "id 11 group 1,2/2,3 ",
+		},
+		{
+			description: "positive: ip_nexthop_n -d mpath group id 10 adds scope global and proto unspec",
+			in: xtcpnl.NexthopInfo{
+				ID: 10, HasGroup: true,
+				Group: []xtcpnl.GroupMember{{ID: 1, Weight: 1}, {ID: 2, Weight: 1}},
+			},
+			detailed: true,
+			want:     "id 10 group 1/2 scope global proto unspec ",
+		},
+		{
+			description: "positive: ip_nexthop_n -d weighted group id 11 keeps its weights under -d",
+			in: xtcpnl.NexthopInfo{
+				ID: 11, HasGroup: true,
+				Group: []xtcpnl.GroupMember{{ID: 1, Weight: 2}, {ID: 2, Weight: 3}},
+			},
+			detailed: true,
+			want:     "id 11 group 1,2/2,3 scope global proto unspec ",
+		},
+		{
+			description: "boundary: a single-member group prints one id and no slash",
+			in: xtcpnl.NexthopInfo{
+				ID: 12, HasGroup: true,
+				Group: []xtcpnl.GroupMember{{ID: 1, Weight: 1}},
+			},
+			want: "id 12 group 1 ",
+		},
+		{
+			description: "boundary: a three-member group joins all three ids with slashes",
+			in: xtcpnl.NexthopInfo{
+				ID: 13, HasGroup: true,
+				Group: []xtcpnl.GroupMember{{ID: 1, Weight: 1}, {ID: 2, Weight: 1}, {ID: 3, Weight: 1}},
+			},
+			want: "id 13 group 1/2/3 ",
+		},
+		{
+			description: "corner: a group carrying a non-unspec proto names it after the group list",
+			in: xtcpnl.NexthopInfo{
+				ID: 14, HasGroup: true, Protocol: unix.RTPROT_KERNEL,
+				Group: []xtcpnl.GroupMember{{ID: 1, Weight: 1}, {ID: 2, Weight: 1}},
+			},
+			want: "id 14 group 1/2 proto kernel ",
+		},
+		{
+			description: "negative: a resilient group is refused — its jiffies args have no fixture",
+			in:          xtcpnl.NexthopInfo{ID: 6, HasGroup: true, HasResGroup: true},
+			wantErr:     true,
+		},
+		{
+			description: "negative: a non-mpath group type is refused — only mpath is grounded",
+			in:          xtcpnl.NexthopInfo{ID: 7, HasGroup: true, GroupType: 1},
 			wantErr:     true,
 		},
 	}

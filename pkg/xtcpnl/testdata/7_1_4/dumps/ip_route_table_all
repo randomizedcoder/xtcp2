@@ -22,5 +22,5 @@ fe80::/64 dev goip0 proto kernel metric 256 pref medium
 local ::1 dev lo table local proto kernel metric 0 pref medium
 local 2001:db8::1 dev goip0 table local proto kernel metric 0 pref medium
 local 2001:db8::9 dev goip0 table local proto kernel metric 0 pref medium
-local fe80::4409:8fff:fe3f:75c1 dev goip0 table local proto kernel metric 0 pref medium
+local fe80::7487:9cff:fe71:efc8 dev goip0 table local proto kernel metric 0 pref medium
 multicast ff00::/8 dev goip0 table local proto kernel metric 256 pref medium
