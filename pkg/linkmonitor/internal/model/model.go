@@ -171,6 +171,7 @@ type Job struct {
 	Key     JobKey
 	Token   Token
 	Started Stamp
+	Device  Device // Immutable request-time identity for name-based adapters.
 }
 
 // Result transfers ownership of samples to the reducer. The adapter must not
@@ -182,4 +183,10 @@ type Result struct {
 	Reason   ErrorReason
 	Err      error
 	Samples  []Sample
+	Settings *SettingsChecks
+}
+
+// SettingsChecks accompanies the exact settings samples that established it.
+type SettingsChecks struct {
+	Speed, Duplex Check
 }

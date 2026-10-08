@@ -30,15 +30,16 @@ type scheduledJob struct {
 // scheduler is owned with the reducer. Physical occupancy is separate from
 // reducer attempt state: a logical timeout cannot make a blocked worker free.
 type scheduler struct {
-	traffic *trafficSchedule
-	reducer *reducer
-	pool    *collectorPool
-	clock   model.Clock
-	jobs    map[model.JobKey]*scheduledJob
-	peak    int
-	queues  [urgencyCount]readyQueue
-	active  [collectorWorkers]*runningCollection
-	urgent  int
+	settings *settingsSchedule
+	traffic  *trafficSchedule
+	reducer  *reducer
+	pool     *collectorPool
+	clock    model.Clock
+	jobs     map[model.JobKey]*scheduledJob
+	peak     int
+	queues   [urgencyCount]readyQueue
+	active   [collectorWorkers]*runningCollection
+	urgent   int
 }
 
 type runningCollection struct {
@@ -142,6 +143,7 @@ func (s *scheduler) unregister(key model.JobKey) {
 // refreshDevice is called after an authoritative observation or removal.
 // It touches the bounded collector vocabulary, not the whole inventory.
 func (s *scheduler) refreshDevice(key model.DeviceKey) {
+	s.refreshSettings(key)
 	if s.traffic != nil {
 		s.traffic.request(key, 0)
 	}

@@ -1,13 +1,15 @@
 # go-link-monitor implementation status
 
-Last updated: 2026-10-07.
+Last updated: 2026-10-08.
 
-**P01–P05 and P06-T01 are complete: 16 of 34 implementation tasks passed their gates.**
-Next task: [P06-T02](IMPLEMENTATION-PLAN.md#p06-t02), identity, settings, channels and rings.
+**P01–P05 and P06-T01/T02 are complete: 17 of 34 implementation tasks passed their gates.**
+Next task: [P06-T03](IMPLEMENTATION-PLAN.md#p06-t03), driver and PHY statistics.
 Bounded scheduling, four collector workers, independent inventory execution,
 convergence, event-source recovery, baseline learning/replacement and bounded
 shutdown are implemented with injected sources. Standard traffic/carrier adapters
-are implemented with shared sweeps and selective fallback. Production source bindings and the
+are implemented with shared sweeps and selective fallback. Ethernet hardware
+identity, settings, channels and rings now have private read-only adapters and
+scheduler integration. Production source bindings and the
 standalone command remain unimplemented. This is not a runnable monitoring service yet.
 
 This is the live tracker for [IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md).
@@ -54,7 +56,7 @@ This is the live tracker for [IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md).
 | P03 | State and snapshots | done | 3/3 | V011, V014, V016 |
 | P04 | Wire support and transport | done | 3/3 | V018, V020, V022; additive wire/fixture and ordinary transport unit/real-fd gates passed |
 | P05 | Scheduling and reconciliation | done | 3/3 | V028/V030/V033 close scheduling, convergence and injected lifecycle |
-| P06 | Ethernet and host collectors | in progress | 1/4 | V034/V035 close standard traffic and carrier |
+| P06 | Ethernet and host collectors | in progress | 2/4 | V035 closes traffic/carrier; V039 closes identity/settings/channels/rings |
 | P07 | RDMA collection and builds | not started | 0/4 | None |
 | P08 | Exporter and standalone command | not started | 0/3 | None |
 | P09 | Performance baseline | not started | 0/2 | None |
@@ -84,7 +86,7 @@ plan, not copied here. Add verification IDs to the evidence column as work runs.
 | [x] | [P05-T02](IMPLEMENTATION-PLAN.md#p05-t02) | Inventory convergence and recovery | done | V029/V030; bounded ingress, watermark/dirty-query convergence, stale-result isolation, native-RDMA identity, epoch loss and joined recovery pass |
 | [x] | [P05-T03](IMPLEMENTATION-PLAN.md#p05-t03) | Learning, rebaseline and shutdown | done | V031–V033; stable/zero learning, restart delta, fresh rebaseline, fixed-record retries, startup/control races and normal/incomplete shutdown pass; lock/resource ownership retained |
 | [x] | [P06-T01](IMPLEMENTATION-PLAN.md#p06-t01) | Standard traffic and carrier | done | V034/V035; shared bounded sweeps, targeted queries, inventory reuse with original freshness, direct counter presence/width, short flaps, per-field event ordering and selective sysfs fallback pass |
-| [ ] | [P06-T02](IMPLEMENTATION-PLAN.md#p06-t02) | Identity, settings, channels and rings | not started | None |
+| [x] | [P06-T02](IMPLEMENTATION-PLAN.md#p06-t02) | Identity, settings, channels and rings | done | V036–V039; bounded hardware/devlink evidence, modern ioctl fallback, configuration presence, supported maxima/duplex, retries, down invalidation and ownership tables pass |
 | [ ] | [P06-T03](IMPLEMENTATION-PLAN.md#p06-t03) | Driver and PHY statistics | not started | None |
 | [ ] | [P06-T04](IMPLEMENTATION-PLAN.md#p06-t04) | Host protocol statistics | not started | None |
 | [ ] | [P07-T01](IMPLEMENTATION-PLAN.md#p07-t01) | Discovery, associations and state | not started | None |
@@ -164,6 +166,23 @@ hardware checks have run.
 | V033 | 2026-10-07 | P05-T03 and P05 completion gate | Unchanged V032 aggregate command on final source; pinned complete pkg/linkmonitor race suite repeated ten times; final tracker checked separately with pinned documentation checker and its unit tests | Exit 0: all eight aggregate leaves pass. Complete unit/race suites each pass 2,462 tests/subtests with no test skips; vet, comprehensive lint (zero issues), formatting, docs, all 40 replay combinations and three 30-second/two-worker fuzz sessions pass. Ten complete local package race repetitions pass, including the unchanged allocation assertion | Aggregate `/nix/store/pwxsd1psbir3rfk8fjvf79jdpm0gfbkc-xtcp2-test-linkmonitor`; source identity below; local race log `/tmp/linkmonitor-p05-t03-local-race-final.log` |
 | V034 | 2026-10-07 | P06-T01 initial verification | Pinned targeted traffic/carrier/scheduler tests, ten race repetitions, comprehensive lint | Targeted race suite passed with read-only netlink access after sandbox denied AF_NETLINK. Initial lint findings (unchecked list assertions, repeated literal and formatting) corrected without suppressions. Partial-expiry regression corrected to exercise scheduler-owned deadlines. Added capability and inventory observation-time regressions; both pass. Full aggregate and final-source race rerun pending | `/tmp/linkmonitor-p06-race-final.log`, `/tmp/linkmonitor-p06-lint-initial.log`, `/tmp/linkmonitor-p06-lint-second.log`; failures retained |
 | V035 | 2026-10-07 | P06-T01 completion gate | `nix build path:.#test-linkmonitor --no-link --print-out-paths --keep-going --max-jobs 4 -L`; pinned traffic/carrier/scheduler race suite repeated ten times; completion tracker checked separately | Exit 0: all eight leaves pass. Complete unit/race suites each pass 2,525 tests/subtests with zero test skips; vet, comprehensive lint, formatting, docs and all 40 replay combinations pass. Three 30-second/two-worker fuzz sessions pass: ethtool 404,312 executions, strict links 216,169, envelopes 406,304. Final-source targeted race repetitions pass | Aggregate `/nix/store/785nzmp0w37fkvm8wig0lc5hj7k0si8g-xtcp2-test-linkmonitor`; local logs `/tmp/linkmonitor-p06-aggregate.log` and `/tmp/linkmonitor-p06-race-completion.log`; source identity below |
+| V036 | 2026-10-07 | P06-T02 development verification | Pinned complete monitor Go suite, targeted identity/settings tables and comprehensive lint | Initial sandbox denied read-only netlink; rerun with access passed. Corrected detail-field access, a high-speed test UAPI index, NOMASK advertisement projection, stale devlink association reuse and lint findings without suppressions. Added explicit table descriptions/expected outcomes and blocked-ioctl ownership coverage. Final aggregate and race verification pending | Ephemeral `/tmp/linkmonitor-t02-unit.log` and `/tmp/linkmonitor-t02-lint.log`; initial failures retained in session output. Base `505a970`, isolated branch `feat/linkmonitor-identity-settings` |
+| V037 | 2026-10-08 | P06-T02 first aggregate | Unchanged `nix build path:.#test-linkmonitor --no-link --print-out-paths --keep-going --max-jobs 4 -L`; pinned affected race tests repeated ten times | All eight leaves and targeted race repetitions passed. Added final association-cache/original-timestamp regressions and boolean/enum validation afterwards; final-source aggregate required before completion | Aggregate `/nix/store/q6s0faay0a9bdksvah1kbz4fybyhb38c-xtcp2-test-linkmonitor`; ephemeral `/tmp/linkmonitor-t02-aggregate.log` and `/tmp/linkmonitor-t02-race.log` |
+| V038 | 2026-10-08 | P06-T02 association/validation gate | Unchanged aggregate and ten affected race repetitions | All eight leaves and race repetitions passed. Final review then added cancellation between ioctl handshake calls, explicit unknown/native routing, family rediscovery fallback, and FX/T1S half-duplex label coverage. These focused regression tables pass; final-source aggregate pending | Aggregate `/nix/store/z8lb0kkdsy3la3zyi6dv4zsz3h3d7vdl-xtcp2-test-linkmonitor`; ephemeral `/tmp/linkmonitor-t02-final-aggregate.log` and `/tmp/linkmonitor-t02-final-race.log` |
+| V039 | 2026-10-08 | P06-T02 completion gate | Unchanged pinned aggregate; `CGO_ENABLED=1 go test -race ./pkg/linkmonitor/... -run 'Settings\|Identity\|Devlink\|Scheduler\|Freshness\|Exception\|Publication\|Shutdown' -count=10`; final documentation checker and its tests | Exit 0: all eight leaves pass. Complete pure-Go/race suites each pass 2,680 tests/subtests with zero test skips; vet, zero-issue comprehensive lint, format/docs and all 40 replay combinations pass. Three 30-second/two-worker fuzz sessions pass: ethtool 201,764 executions, envelopes 194,677, strict links 227,631. Final-source targeted race repetitions pass | Aggregate `/nix/store/1qcw7sczbbivk2j7x4ycmc9hmndilh3w-xtcp2-test-linkmonitor`; ephemeral `/tmp/linkmonitor-t02-completion-aggregate.log` and `/tmp/linkmonitor-t02-completion-race.log`; source identity below |
+
+V039 uses merged main `505a970` (including PRs #163 and #164) plus uncommitted
+P06-T02 changes in `/tmp/xtcp2-linkmonitor-pr-merge-6wnh4apa`, branch
+`feat/linkmonitor-identity-settings`. All 118 monitor Go files match retained
+source `/nix/store/ccv6x6bhh6aliflr43df0ibfxhzvxwnn-s50c6wbmzmdmy1gjvw5bh2mi9yiiw8qz-source`.
+The sorted Go source digest, using the same filename/NUL/content convention as
+earlier entries, is
+`12af823f4dd0344e3f4956f6ea800724015d3b3e0ff3839453211a9441d7b298`.
+Environment: Linux 7.1.8 x86_64; pinned Go 1.26.5 and golangci-lint 2.12.2;
+pure-Go and cgo race builds use the unchanged target commands. Final tracking
+edits follow the aggregate and are checked separately with the pinned Python
+documentation checker, its three tests, and `git diff --check`. Read-only live
+inventory/ioctl checks passed; physical hardware/RDMA readiness remains unverified.
 
 V035 uses merged PR #162 base `ef0c2ee80539b609b2db3d6803d11122b0d84d86`
 plus uncommitted P05-T03/P06-T01 work in `/tmp/xtcp2-linkmonitor-pr-merge-6wnh4apa`.
@@ -401,6 +420,7 @@ owners, deadlines or successful outcomes. Continue independent ready tasks.
 | 2026-10-07 | Completed P05-T02 alongside T01: subscribe-before-dump, bounded ingress with independent loss notification, private candidates, dirty-query/watermark convergence, native-RDMA identity validation and joined event recovery with bounded backoff. Public APIs and production backend availability remain unchanged. Prepared the combined T01/T02 PR requested by the user. | V029/V030 close P05-T02; 14/34 tasks complete, P05 at 2/3. Next P05-T03 learning, rebaseline and shutdown; unrelated workspace changes preserved |
 | 2026-10-07 | Implemented P05-T03 from merged PR #162: private lifecycle session, serial baseline writer, stable/final-verified learning, fresh rebaseline, exact-record retries and five-second shutdown with deferred ownership-safe cleanup. Added immutable baseline-write error diagnostics and startup inventory presence. Updated design and tracker using direct patches. | V031–V033 close P05-T03 and P05; 15/34 tasks complete. Next P06-T01 standard traffic and carrier. Changes remain uncommitted in the isolated checkout; unrelated workspace changes preserved |
 | 2026-10-07 | Implemented P06-T01 in the existing isolated checkout: shared traffic/carrier reads in the four-worker pool, bounded fan-out, inventory statistics reuse, per-field carrier event freshness/order and guarded selective sysfs fallback. METRICS lists only the 25 direct counters; six legacy aliases remain migration references only. Updated detailed design and tracking with verified evidence. | V034/V035 close P06-T01; 16/34 tasks complete, P06 at 1/4. Next P06-T02 identity, settings, channels and rings. P05-T03 and P06-T01 remain uncommitted; unrelated workspace changes preserved |
+| 2026-10-08 | Implemented P06-T02 from merged main in an isolated branch: dedicated Ethernet inventory/devlink evidence, sysfs identity validation, worker-owned modern ethtool/ioctl adapters, immutable settings/configuration projection and bounded scheduling. Added explicit positive/negative/boundary/corner tables with descriptions and expected outcomes, including stale association, cancellation and modern half-duplex regressions. Updated detailed design, metrics semantics and tracking. | V036–V039 close P06-T02; 17/34 tasks complete, P06 at 2/4. Next P06-T03 driver and PHY statistics. Changes remain uncommitted; unrelated workspace changes preserved |
 
 Established design decisions: public reusable pkg/linkmonitor; small standalone
 command; RDMA required in v1; all statistic fields selected by default; cached

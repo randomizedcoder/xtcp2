@@ -721,6 +721,66 @@ are introduced by this phase.
 
 ### Collection schedule
 
+P06-T02 implements a private Ethernet inventory backend and settings worker
+decorator. Inventory owns separate route/devlink clients: each full pass takes
+one devlink port dump and one route dump, then returns the route statistics with
+their original observation time for P06-T01 reuse. Targeted queries reuse the
+devlink snapshot only while hardware ancestry and physical-port evidence still
+match. Conflicting associations, oversized metadata and interrupted dumps never
+authorize partial inventory removal. Sysfs reads validate name/index before and
+after; missing optional devlink support is distinct from permission/I/O failure.
+Physical/VF/guest/USB ancestry and switch-port evidence feed the existing policy;
+wireless, virtual devices and representors are excluded. Native RDMA discovery
+remains P07 and will compose with this Ethernet backend.
+
+The private lifecycle `settings` opt-in installs identity, settings, channels and
+rings jobs on the existing four workers. Identity uses `CollectorInventory`;
+`CollectorDriver` remains reserved for arbitrary driver statistics. Accepted
+driver strings/configuration blocks are the generation-scoped immutable cache;
+startup, relevant events and resync refresh them. No optional ioctl runs on the
+inventory lane. Each job carries its immutable device identity and each settings
+result carries the checks derived from the same samples. The reducer's existing
+generation/revision/epoch/attempt fence precedes installation of those checks.
+
+LINKMODES_GET supplies the settings needed for speed/duplex policy and capability
+metrics; existing LINKINFO/LINKSTATE requests remain available when another
+field requires them. CHANNELS_GET and RINGS_GET preserve optional and extended
+fields. Only unavailable families or unsupported operations select modern
+read-only ioctl fallback. GLINKSETTINGS validates its signed bitmap handshake
+and caps allocation at 127 words per bitmap; legacy GSET cannot establish the
+maximum. A blocked ioctl retains its worker, descriptor and memory until return,
+including after logical timeout or shutdown. Fixed descriptor strings and mode
+labels are shared; published numeric blocks remain immutable.
+
+Settings refresh each statistics interval and use the existing bounded 1/2/4s
+negotiation retries on unresolved up transitions. Identity/channels/rings refresh
+at startup, relevant events and every committed resync. Down invalidates active
+settings immediately; old completions cannot restore them. Existing three-poll
+and two-resync freshness deadlines remain unchanged. Exact-name exceptions
+continue to affect alarm policy, never the raw speed checks or maximum values.
+
+#### P06-T02 test tables
+
+New behavioral tables carry `name`, `category`, `description`,
+`expectedOutcome`, typed inputs and executable expected-value assertions.
+Categories are positive, negative, boundary and corner. Fake sources and clocks
+control failure/ordering cases; barriers control blocked calls without sleeps.
+
+| Table family | Positive | Negative | Boundary | Corner |
+|---|---|---|---|---|
+| Identity | PCI/USB/guest/RoCE/bond-member evidence | Wireless/virtual/representor, denied metadata | Metadata bounds | Own VF, conflicting association, rename/index reuse |
+| Devlink | Complete multipart dump | Duplicate/missing attributes, wrong version | Scalar widths, existing transaction limits | Unknown attributes, interrupted dump |
+| Settings projection | Maximum speed/full duplex, modern high speeds | Below maximum, half duplex | Zero/sentinel, highest reviewed mode, future bit | Supported versus advertised, NOMASK, down |
+| Ioctl | Modern bitmap/configuration reads | Unsupported/permission, invalid handshake | 1/127/128 words, zero count | Changed count and name/index during call |
+| Source selection | Netlink success | Permission/timeout/malformed/disappearance without fallback | Deadline | Family absent, both APIs unsupported, independent collector failures |
+| Configuration | Channels/rings and extensions | Absent fields | Present zero, uint32 maximum, exact expiry | Enum preservation, legacy omissions, schema reuse |
+| Scheduling/ownership | Startup/resync, atomic checks | Unsupported retry stop, excluded eligibility | Existing 1/2/4s retry and expiry tables, logical timeout | Late replies, down, blocked syscall shutdown, immutable retained snapshots |
+
+Existing policy, exception, scheduler, freshness, snapshot, lifecycle and traffic
+tables remain part of the complete aggregate. Read-only live tests assert API
+behavior without assuming a physical device count or particular NIC capability.
+These tests do not establish mixed-fleet hardware readiness or throughput.
+
 | Source | Schedule and collection shape | Caching / correctness |
 |---|---|---|
 | Standard Ethernet traffic + carrier | One complete RTM_GETLINK AF_UNSPEC sweep each stats pass; targeted queries on events | Decode IFLA_STATS64 once per link; presence-aware 32-bit fallback; sysfs carrier fallback only if needed |
