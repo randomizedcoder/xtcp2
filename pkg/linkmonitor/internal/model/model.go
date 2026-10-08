@@ -142,6 +142,7 @@ const (
 // Event is bounded independently of the number of statistics an interface has.
 // Adapters validate identity string lengths before constructing an event.
 type Event struct {
+	Carrier CarrierValues
 	// Sequence is assigned by the bounded ingress queue, never by a wire decoder.
 	Sequence    uint64
 	Kind        EventKind
@@ -151,6 +152,7 @@ type Event struct {
 // Candidate owns a complete dump candidate. Only a successful complete dump can
 // authorize removals; reconciliation validates its token against later events.
 type Candidate struct {
+	Statistics        []LinkStatistics
 	Token             Token
 	Started, Finished Stamp
 	Devices           []Observation

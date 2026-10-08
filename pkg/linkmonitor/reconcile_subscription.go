@@ -40,6 +40,7 @@ type eventExecutor struct {
 	inbox     *eventInbox
 	busy      bool // Owner-only; remains true until the terminal status is consumed.
 	interrupt context.CancelFunc
+	closeErr  error // Read only after done closes.
 }
 
 func newEventExecutor(ctx context.Context, inbox *eventInbox, factory subscriptionFactory) *eventExecutor {
@@ -100,10 +101,16 @@ func (e *eventExecutor) serve(ctx context.Context, epoch uint64, factory subscri
 		err = fmt.Errorf("event source stopped")
 	}
 	e.inbox.lose(epoch)
+	var closeErr error
 	if stopClose() {
-		return errors.Join(err, subscription.source.Close())
+		closeErr = subscription.source.Close()
+	} else {
+		closeErr = <-closed
 	}
-	return errors.Join(err, <-closed)
+	if closeErr != nil {
+		e.closeErr = closeErr // Retain one bounded cleanup diagnostic across reconnects.
+	}
+	return errors.Join(err, closeErr)
 }
 
 func (e *eventExecutor) stop() { e.cancel() }

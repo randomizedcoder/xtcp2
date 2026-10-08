@@ -37,9 +37,10 @@ type collectorSnapshot struct {
 }
 
 type publicationState struct {
-	health   Health
-	expected model.Optional[uint64]
-	now      model.Stamp
+	health              Health
+	expected            model.Optional[uint64]
+	now                 model.Stamp
+	baselineWriteErrors uint64
 }
 
 func (r *reducer) markDirty(index int) {
@@ -65,9 +66,10 @@ func (r *reducer) publish(m *Monitor, state publicationState) error {
 	pageCount := (len(r.slots) + devicesPerPage - 1) / devicesPerPage
 	next := &snapshotRoot{
 		version: version, namespace: r.namespace, health: r.publicationHealth(state.health.Running, state.expected.Present),
-		lastResync: r.lastResync,
-		counts:     LinkCounts{current: model.Optional[uint64]{Value: r.upCount, Present: r.uncertain == 0}, expected: state.expected},
-		host:       freezeCollector(&r.host), pages: make([]*devicePage, pageCount),
+		lastResync:          r.lastResync,
+		baselineWriteErrors: state.baselineWriteErrors,
+		counts:              LinkCounts{current: model.Optional[uint64]{Value: r.upCount, Present: r.lastResync.Present && r.uncertain == 0}, expected: state.expected},
+		host:                freezeCollector(&r.host), pages: make([]*devicePage, pageCount),
 	}
 	if previous != nil {
 		copy(next.pages, previous.pages)

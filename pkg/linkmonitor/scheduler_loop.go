@@ -15,6 +15,7 @@ type schedulerHooks struct {
 	inventory func(inventoryCompletion) error
 	control   func() error
 	publish   func(model.Stamp) error
+	saved     func(model.SaveResult) error
 }
 
 type schedulerLoop struct {
@@ -23,6 +24,7 @@ type schedulerLoop struct {
 	events    <-chan model.Event
 	controls  <-chan struct{}
 	notices   <-chan struct{}
+	storage   <-chan model.SaveResult
 	hooks     schedulerHooks
 	wake      deadlineWake
 }
@@ -32,6 +34,7 @@ type schedulerWake struct {
 	collection *workerCompletion
 	inventory  *inventoryCompletion
 	control    bool
+	saved      *model.SaveResult
 }
 
 func (l *schedulerLoop) run(ctx context.Context) error {
@@ -71,6 +74,8 @@ func (l *schedulerLoop) run(ctx context.Context) error {
 			}
 		case <-l.notices:
 			wake = schedulerWake{}
+		case result := <-l.storage:
+			wake = schedulerWake{saved: &result}
 		case <-l.wake.channel():
 			l.wake.consumed()
 			wake = schedulerWake{}
@@ -97,10 +102,18 @@ func (l *schedulerLoop) turn(wake schedulerWake) error {
 	if err := l.drainControl(wake.control); err != nil {
 		return err
 	}
+	if err := l.drainStorage(wake.saved); err != nil {
+		return err
+	}
 	now := l.scheduler.clock.Now()
 	l.scheduler.expire(now)
 	if l.hooks.advance != nil {
 		if err := l.hooks.advance(now); err != nil {
+			return err
+		}
+	}
+	if l.scheduler.traffic != nil {
+		if err := l.scheduler.traffic.advance(now); err != nil {
 			return err
 		}
 	}
@@ -111,6 +124,18 @@ func (l *schedulerLoop) turn(wake schedulerWake) error {
 		return l.hooks.publish(now)
 	}
 	return nil
+}
+
+func (l *schedulerLoop) drainStorage(first *model.SaveResult) error {
+	if first != nil {
+		return l.hooks.saved(*first)
+	}
+	select {
+	case result := <-l.storage:
+		return l.hooks.saved(result)
+	default:
+		return nil
+	}
 }
 
 func (l *schedulerLoop) drainEvents(first *model.Event) error {

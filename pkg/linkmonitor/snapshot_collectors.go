@@ -15,7 +15,7 @@ type CollectorView struct {
 
 // Name is the bounded collector name used by diagnostics.
 func (v CollectorView) Name() string {
-	names := [...]string{"", "identity", "standard", "carrier", "settings", "driver", "phy", "channels", "rings",
+	names := [...]string{"", "identity", "standard", carrierCollectorName, "settings", "driver", "phy", "channels", "rings",
 		"rdma_state", "rdma_capabilities", "rdma_counters", "rdma_events", "netstat"}
 	if int(v.kind) >= len(names) {
 		return ""

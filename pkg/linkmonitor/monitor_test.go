@@ -85,6 +85,7 @@ func TestLifecycleAndConcurrentControls(t *testing.T) {
 	entered, stopping, release := make(chan struct{}), make(chan struct{}), make(chan struct{})
 	m.open = func(context.Context) (session, error) {
 		return sessionFunc(func(ctx context.Context, _ *Monitor) error {
+			m.control.start(ctx)
 			close(entered)
 			<-ctx.Done()
 			close(stopping)

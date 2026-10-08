@@ -488,7 +488,8 @@ executor, and owner-loop driver in `pkg/linkmonitor/scheduler*.go`. They run wit
 injected clocks, worker-local collector factories, and owner-side policy hooks.
 P05-T02 adds subscription ordering, convergence and recovery through the private
 coordinator described below. The live `Monitor.Run` backend remains unavailable:
-P05-T03 must supply baseline and shutdown lifecycle policy. Ethernet/host and RDMA adapter registration remains
+P05-T03 supplies baseline and shutdown lifecycle policy with injected sources.
+Ethernet/host and RDMA adapter registration remains
 P06/P07; these foundations do not introduce per-device traffic dumps.
 
 Ready queues rotate devices within each urgency class and allow one removable
@@ -513,7 +514,7 @@ the five-second budget is a timeout even if the completion channel wins the wake
 race. Logical timeout cancels the context with a deadline cause, while physical
 occupancy remains until the call returns. Late results cannot free another
 attempt, update a replacement device, or reuse still-owned resources. Pool stop
-is nonblocking, with completion signals and cleanup errors available for P05-T03.
+is nonblocking; the lifecycle session joins completion signals and cleanup errors.
 
 The independent inventory executor permits one submitted operation through result
 consumption, with a one-entry completion channel. The owner driver services it,
@@ -618,8 +619,42 @@ Recovery starts after one second, doubles to a 30-second cap, and resets after a
 successful converged inventory. Failed dumps/queries use the same bounded retry
 sequence. Recovery, periodic resync and retry wakes share the scheduler timer
 heap. Resync requests join compatible work; missed intervals never create a
-catch-up backlog. Baseline learning, public control completion, shutdown grace
-and final cleanup joins remain P05-T03 responsibilities.
+catch-up backlog. P05-T03 connects baseline learning, public control completion,
+shutdown grace and final cleanup joins through the private lifecycle session.
+
+### Implemented learning and persistence lifecycle
+
+P05-T03 implements a private session with injected clock, storage and source
+factories. Acquisition runs separately from the owner so cancellation can bound
+even a stuck startup load or factory. A loaded baseline is published before
+source acquisition finishes; controls are accepted only after acquisition.
+Current count and delta remain unavailable until the first complete inventory.
+The public production opener still returns `ErrBackendUnavailable` until P06/P07
+provide the concrete source bindings.
+
+One serial storage worker owns at most one save through completion consumption.
+Storage never occupies collector slots or blocks the reducer. The existing store
+owns the lifetime lock, and the session releases it after all workers join.
+Learning tracks count-relevant revisions separately from names and statistics:
+eligible membership, identity replacement, operational state and source loss
+invalidate stability, including changes that leave the aggregate count equal.
+Known native-RDMA port state participates without requiring optional statistics.
+
+After the configured settle period, a fresh converged dump must confirm the same
+count-relevant revision. Zero settle still requires that final verification.
+Rebaseline skips settling but cannot use a dump started before its request.
+Changes before dispatch cause renewed verification; requests during a dispatched
+save join its fixed observation point. All failed saves, including indeterminate
+durability, retry the identical count and timestamp after 1, 2, 4, 8, 16, then
+30 seconds, capped at 30 seconds. An occupied writer receives no replacement.
+Settle and retry deadlines share the scheduler heap and timer.
+
+Only a durable result changes the expected count. Later link changes produce
+the normal delta. `Snapshot.BaselineWriteErrors()` supplies an immutable exact
+counter for `baseline_write_errors_total`; every unsuccessful save completion
+increments it once. Save/cleanup errors are also logged. Control bits remain
+active across retries and are completed after publishing the successful result.
+Resync does not replace an existing baseline.
 
 ### Shutdown
 
@@ -637,7 +672,54 @@ embedding must report the incomplete shutdown and must not repeatedly restart
 such monitors to accumulate stuck workers. Never free or reuse kernel-owned
 memory merely because a timeout elapsed.
 
+The implemented session applies this grace to startup cancellation and blocked
+Close operations as well. One cleanup task joins the original acquisition and
+workers before releasing storage. Normal shutdown consumes completed save
+outcomes before final stopped publication; after an incomplete shutdown returns,
+deferred cleanup may only release resources and log errors, never publish again.
+
 ## 6. Source-specific collection and efficiency
+
+### Implemented standard traffic and carrier adapters
+
+P06-T01 adds private `trafficCollector` adapters around the existing four worker
+collectors. Each owns a lazy ordinary rtnetlink request client from
+`internal/linuxio`, using `DumpLinks` and `GetLink` with `pkg/xtcpnl` decoding.
+One shared AF_UNSPEC dump supplies both traffic and carrier per stats interval;
+events coalesce targeted refreshes by device. Missed intervals produce one sweep,
+not accumulated catch-up jobs. The private lifecycle session opts into these
+adapters; the public production opener and standalone command remain future work.
+
+The scheduler permits one physical traffic request and one result batch at a
+time in the existing pool. Results are bounded to 65,536 identities, with at most
+64 targets reduced per owner turn before yielding. Every target carries its own
+generation, revision, source epoch and attempt. A timeout retains the physical
+worker until its original completion. A stats-only response never changes
+inventory membership. Useful in-flight inventory delays a duplicate sweep;
+failed inventory backoff permits independent statistics collection. Complete,
+converged inventory can supply statistics with their original observation times,
+including dirty-query replacements. Missing or invalid reused observations queue
+a targeted refresh; resync does not renew old observations' freshness.
+
+Fixed arrays preserve the 25 direct counters and `StatsFields`/`StatsIs64`
+presence and width. Missing fields are absent, zero remains a real value, and
+32-bit input cannot claim the newer 25th field. Descriptor strings are shared.
+Raw carrier state and three carrier counters are separate from monitor-observed
+transitions. Partial events update only reported fields; each field has its own
+expiry and ingress sequence so an older poll cannot overwrite a later event.
+Counter decreases and source/width changes use the existing discontinuity model;
+request-socket reconnects do not create a new counter lifetime.
+
+Only missing carrier attributes trigger sysfs reads. The adapter validates the
+interface name, reads only selected bounded decimal files, and checks ifindex
+before and after. Missing files indicate unsupported fields; malformed values,
+permissions and identity changes remain errors. A carrier boolean alone does
+not establish flap-counter capability. Ethernet netdevs, including RoCE, use
+these adapters once per eligible identity; native InfiniBand statistics remain
+not applicable here and belong to P07. No ioctl, MIB fallback or alias counters
+are introduced by this phase.
+
+### Collection schedule
 
 | Source | Schedule and collection shape | Caching / correctness |
 |---|---|---|
@@ -815,7 +897,7 @@ than two intervals; readiness additionally requires a baseline. Restarting a
 subscription alone cannot restore health after loss. The last resync timestamp
 survives failures. P05-T01 supplies the injected timer-loop driver and P05-T02
 supplies successful candidate validation and event-source recovery. Production
-source bindings and live lifecycle integration remain outstanding.
+source bindings remain outstanding; P05-T03 supplies the injected lifecycle.
 
 ## 8. Prometheus exposition and concurrency
 

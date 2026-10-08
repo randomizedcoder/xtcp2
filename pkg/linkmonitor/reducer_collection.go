@@ -134,10 +134,14 @@ func (s *collectorState) malformed(err error) error {
 }
 
 func (s *collectorState) updateHistory(block *collectorBlock) {
+	s.recordHistory(block, true)
+}
+
+func (s *collectorState) recordHistory(block *collectorBlock, prune bool) {
 	if s.history == nil {
 		s.history = make(map[sampleKey]counterObservation)
 	}
-	if s.block == nil || s.block.schema != block.schema {
+	if prune && (s.block == nil || s.block.schema != block.schema) {
 		// Prune removed fields rather than retaining every historical schema key.
 		for key := range s.history {
 			i, exists := block.schema.index[key]

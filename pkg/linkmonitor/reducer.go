@@ -17,6 +17,7 @@ var (
 // results; only immutable publications will cross the reader boundary in P03-T02.
 type reducer struct {
 	namespace, epoch, revision, generation, attempt uint64
+	countRevision                                   uint64 // Last revision changing eligible identity/state, not statistics or names.
 	index                                           map[model.DeviceKey]int
 	slots                                           []*deviceSlot
 	upCount, uncertain                              uint64
@@ -31,6 +32,7 @@ type reducer struct {
 }
 
 type deviceSlot struct {
+	carrier                        [4]carrierField
 	device                         model.Device
 	observed                       model.Stamp
 	counted                        bool
@@ -85,6 +87,9 @@ func (r *reducer) observe(observation model.Observation) (bool, error) {
 		return false, errSequenceExhausted
 	}
 	r.revision++
+	if countIdentityChanged(slot.device, d, replaced) {
+		r.countRevision = r.revision
+	}
 	d.Token.Revision, d.Token.SourceEpoch = r.revision, r.epoch
 	if replaced {
 		r.cancelDeviceDeadlines(d.Key)
@@ -110,6 +115,9 @@ func (r *reducer) insert(observation model.Observation) (bool, error) {
 	}
 	r.revision++
 	r.generation++
+	if observation.Device.Eligibility != model.Excluded {
+		r.countRevision = r.revision
+	}
 	observation.Device.Token = model.Token{Generation: r.generation, Revision: r.revision, SourceEpoch: r.epoch}
 	slot := &deviceSlot{device: observation.Device, observed: observation.Observed}
 	r.index[slot.device.Key] = len(r.slots)
@@ -209,6 +217,9 @@ func (r *reducer) remove(key model.DeviceKey, token model.Token) (bool, error) {
 	}
 	r.revision++
 	r.cancelDeviceDeadlines(key)
+	if r.slots[i].device.Eligibility != model.Excluded {
+		r.countRevision = r.revision
+	}
 	r.unaccount(r.slots[i])
 	last := len(r.slots) - 1
 	r.markDirty(i)
@@ -250,6 +261,7 @@ func (r *reducer) loseEvents() error {
 	}
 	r.epoch++
 	r.revision++
+	r.countRevision = r.revision
 	r.routeEvents = false
 	for i, slot := range r.slots {
 		slot.checks = deviceChecks{}

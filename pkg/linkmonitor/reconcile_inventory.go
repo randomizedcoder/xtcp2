@@ -40,9 +40,15 @@ func (c *reconciler) submit(key model.DeviceKey, query bool, version uint64) err
 	token.Attempt = c.serial
 	request := inventoryRequest{token: token, key: key, query: query, version: version}
 	if !c.inventory.submit(request) {
+		if err := c.inventory.ctx.Err(); err != nil {
+			return err
+		}
 		return fmt.Errorf("inventory executor occupied")
 	}
 	c.request = &request
+	if !query {
+		c.dumpSerial = c.serial
+	}
 	return nil
 }
 
@@ -79,6 +85,9 @@ func (c *reconciler) acceptResult() {
 		candidate[key] = observation
 	}
 	c.candidate = candidate
+	if err := c.acceptStatistics(result.candidate.Statistics); err != nil {
+		c.fail(err)
+	}
 }
 
 func (c *reconciler) acceptQuery(result *inventoryCompletion) {
@@ -94,6 +103,7 @@ func (c *reconciler) acceptQuery(result *inventoryCompletion) {
 	switch {
 	case errors.Is(result.err, syscall.ENODEV):
 		delete(c.candidate, request.key)
+		delete(c.statistics, request.key)
 	case result.err != nil:
 		c.fail(result.err)
 		return
@@ -111,6 +121,17 @@ func (c *reconciler) acceptQuery(result *inventoryCompletion) {
 			return
 		}
 		c.candidate[request.key] = &result.observation
+		delete(c.statistics, request.key)
+		if result.statistics != nil {
+			if err := validTraffic(result.statistics); err != nil || result.statistics.Key != request.key || !result.statistics.Observed.Present || result.statistics.Observed.Value.Monotonic < 0 {
+				c.fail(fmt.Errorf("invalid query statistics"))
+				return
+			}
+			if c.statistics == nil {
+				c.statistics = make(map[model.DeviceKey]*model.LinkStatistics)
+			}
+			c.statistics[request.key] = result.statistics
+		}
 	}
 	if entry.queued != nil {
 		c.queries.Remove(entry.queued)
@@ -175,7 +196,13 @@ func (c *reconciler) commit(now model.Stamp) error {
 	if !r.recordResync(model.Token{SourceEpoch: r.epoch, Revision: r.revision}, now) {
 		return fmt.Errorf("reconciliation commit rejected")
 	}
+	if c.scheduler.traffic != nil {
+		if err := c.scheduler.traffic.reuse(c.statistics, now); err != nil {
+			return err
+		}
+	}
 	c.abort()
+	c.committedSerial = c.dumpSerial
 	c.pending, c.lastError = false, nil
 	c.backoff, c.queryBackoff = time.Second, time.Second
 	c.retryAt = 0

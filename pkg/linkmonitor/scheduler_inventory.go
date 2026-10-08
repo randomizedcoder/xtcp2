@@ -13,6 +13,12 @@ type inventoryBackend interface {
 	Close() error
 }
 
+// inventoryStatistics keeps query data attached to its authoritative identity.
+// Implementations without this extension invalidate old dump statistics.
+type inventoryStatistics interface {
+	QueryStatistics(context.Context, model.DeviceKey) (model.Observation, *model.LinkStatistics, error)
+}
+
 type inventoryRequest struct {
 	token   model.Token
 	key     model.DeviceKey
@@ -26,6 +32,7 @@ type inventoryAssignment struct {
 }
 
 type inventoryCompletion struct {
+	statistics  *model.LinkStatistics
 	request     inventoryRequest
 	candidate   model.Candidate
 	observation model.Observation
@@ -73,7 +80,7 @@ func (e *inventoryExecutor) run(source inventoryBackend) {
 			result := inventoryCompletion{request: request, err: work.ctx.Err()}
 			if result.err == nil {
 				if request.query {
-					result.observation, result.err = source.Query(work.ctx, request.key)
+					result.observation, result.statistics, result.err = queryInventory(work.ctx, source, request.key)
 				} else {
 					result.candidate, result.err = source.Dump(work.ctx)
 				}
@@ -82,6 +89,14 @@ func (e *inventoryExecutor) run(source inventoryBackend) {
 			e.results <- result
 		}
 	}
+}
+
+func queryInventory(ctx context.Context, source inventoryBackend, key model.DeviceKey) (model.Observation, *model.LinkStatistics, error) {
+	if extended, ok := source.(inventoryStatistics); ok {
+		return extended.QueryStatistics(ctx, key)
+	}
+	observation, err := source.Query(ctx, key)
+	return observation, nil, err
 }
 
 func (e *inventoryExecutor) stop() { e.cancel() }

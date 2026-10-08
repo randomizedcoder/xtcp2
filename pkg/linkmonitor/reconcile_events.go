@@ -84,6 +84,9 @@ func (q *eventInbox) push(epoch uint64, event model.Event) bool {
 }
 
 func validEvent(r *reducer, event model.Event) error {
+	if err := validCarrier(event.Carrier); err != nil {
+		return err
+	}
 	switch event.Kind {
 	case model.EventChange:
 		return validateObservation(r, event.Observation)

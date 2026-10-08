@@ -20,13 +20,15 @@ type workerCollector interface {
 type workerFactory func(int) (workerCollector, error)
 
 type workerAssignment struct {
-	ctx context.Context
-	job model.Job
+	traffic *trafficRequest
+	ctx     context.Context
+	job     model.Job
 }
 
 type workerCompletion struct {
-	worker int
-	result model.Result
+	traffic *trafficReply
+	worker  int
+	result  model.Result
 }
 
 type collectorPool struct {
@@ -73,6 +75,10 @@ func (p *collectorPool) run(clock model.Clock, id int, collector workerCollector
 		case <-p.ctx.Done():
 			return
 		case work := <-p.inbox[id]:
+			if work.traffic != nil {
+				p.collectTraffic(clock, id, collector, work)
+				continue
+			}
 			result := model.Result{Err: work.ctx.Err()}
 			if result.Err == nil {
 				result = collector.Collect(work.ctx, work.job)
@@ -82,6 +88,22 @@ func (p *collectorPool) run(clock model.Clock, id int, collector workerCollector
 			p.results <- workerCompletion{worker: id, result: result}
 		}
 	}
+}
+
+func (p *collectorPool) collectTraffic(clock model.Clock, id int, collector workerCollector, work workerAssignment) {
+	reply := trafficReply{err: work.ctx.Err()}
+	if reply.err == nil {
+		if source, ok := collector.(trafficReader); ok {
+			reply = source.readTraffic(work.ctx, *work.traffic)
+		} else {
+			reply.err = errors.New("traffic adapter unavailable")
+		}
+	}
+	now := clock.Now()
+	for _, record := range reply.records {
+		record.Observed = presentValue(now)
+	}
+	p.results <- workerCompletion{worker: id, result: model.Result{Job: work.job, Finished: now}, traffic: &reply}
 }
 
 // stop never waits for an uncancellable call and never closes its descriptors.
