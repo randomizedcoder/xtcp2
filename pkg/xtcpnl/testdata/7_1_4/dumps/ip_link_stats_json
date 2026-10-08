@@ -42,8 +42,8 @@
         "link_type": "netlink",
         "stats64": {
             "rx": {
-                "bytes": 150024,
-                "packets": 357,
+                "bytes": 150456,
+                "packets": 363,
                 "errors": 0,
                 "dropped": 0,
                 "over_errors": 0,
@@ -69,7 +69,7 @@
         "group": "default",
         "txqlen": 1000,
         "link_type": "ether",
-        "address": "76:87:9c:71:ef:c8",
+        "address": "9e:81:52:59:bb:93",
         "broadcast": "ff:ff:ff:ff:ff:ff",
         "stats64": {
             "rx": {
@@ -81,8 +81,8 @@
                 "multicast": 0
             },
             "tx": {
-                "bytes": 600,
-                "packets": 8,
+                "bytes": 390,
+                "packets": 5,
                 "errors": 0,
                 "dropped": 0,
                 "carrier_errors": 0,

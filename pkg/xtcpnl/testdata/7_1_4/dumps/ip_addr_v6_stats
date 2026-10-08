@@ -10,9 +10,9 @@
        valid_lft forever preferred_lft forever
     inet6 2001:db8::1/64 scope global nodad 
        valid_lft forever preferred_lft forever
-    inet6 fe80::7487:9cff:fe71:efc8/64 scope link proto kernel_ll 
+    inet6 fe80::9c81:52ff:fe59:bb93/64 scope link proto kernel_ll 
        valid_lft forever preferred_lft forever
     RX:  bytes packets errors dropped  missed   mcast           
              0       0      0       0       0       0 
     TX:  bytes packets errors dropped carrier collsns           
-           432       7      0       0       0       0 
+           264       4      0       0       0       0 

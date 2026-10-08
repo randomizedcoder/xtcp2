@@ -1,47 +1,28 @@
 [ {
-        "dst": "192.0.2.52",
-        "dev": "goip0",
-        "used": 242,
-        "confirmed": 302,
-        "updated": 242,
-        "probes": 0,
-        "state": [ "INCOMPLETE" ]
-    },{
-        "dst": "192.0.2.51",
-        "dev": "goip0",
-        "lladdr": "02:00:00:00:00:02",
-        "used": 243,
-        "confirmed": 303,
-        "updated": 243,
-        "probes": 0,
-        "state": [ "STALE" ]
-    },{
-        "dst": "192.0.2.55",
-        "dev": "goip0",
-        "lladdr": "02:00:00:00:00:06",
-        "extern_valid": null,
-        "used": 236,
-        "confirmed": 236,
-        "updated": 236,
-        "probes": 0,
-        "state": [ "PERMANENT" ]
-    },{
         "dst": "192.0.2.50",
         "dev": "goip0",
         "lladdr": "02:00:00:00:00:01",
-        "used": 244,
-        "confirmed": 244,
-        "updated": 244,
+        "used": 25,
+        "confirmed": 25,
+        "updated": 25,
         "probes": 0,
         "state": [ "PERMANENT" ]
+    },{
+        "dst": "192.0.2.52",
+        "dev": "goip0",
+        "used": 24,
+        "confirmed": 84,
+        "updated": 24,
+        "probes": 0,
+        "state": [ "INCOMPLETE" ]
     },{
         "dst": "192.0.2.54",
         "dev": "goip0",
         "lladdr": "02:00:00:00:00:05",
         "extern_learn": null,
-        "used": 237,
-        "confirmed": 237,
-        "updated": 237,
+        "used": 24,
+        "confirmed": 24,
+        "updated": 24,
         "probes": 0,
         "state": [ "PERMANENT" ]
     },{
@@ -51,28 +32,38 @@
         "router": null,
         "extern_learn": null,
         "extern_valid": null,
-        "used": 236,
-        "confirmed": 236,
-        "updated": 236,
+        "used": 24,
+        "confirmed": 24,
+        "updated": 24,
         "probes": 0,
         "state": [ "PERMANENT" ]
+    },{
+        "dst": "192.0.2.51",
+        "dev": "goip0",
+        "lladdr": "02:00:00:00:00:02",
+        "used": 24,
+        "confirmed": 84,
+        "updated": 24,
+        "probes": 0,
+        "state": [ "STALE" ]
     },{
         "dst": "192.0.2.53",
         "dev": "goip0",
         "lladdr": "02:00:00:00:00:04",
         "router": null,
-        "used": 238,
-        "confirmed": 238,
-        "updated": 238,
+        "used": 24,
+        "confirmed": 24,
+        "updated": 24,
         "probes": 0,
         "state": [ "PERMANENT" ]
     },{
-        "dst": "2001:db8::50",
+        "dst": "192.0.2.55",
         "dev": "goip0",
-        "lladdr": "02:00:00:00:00:03",
-        "used": 241,
-        "confirmed": 241,
-        "updated": 241,
+        "lladdr": "02:00:00:00:00:06",
+        "extern_valid": null,
+        "used": 24,
+        "confirmed": 24,
+        "updated": 24,
         "probes": 0,
         "state": [ "PERMANENT" ]
     },{
@@ -81,9 +72,18 @@
         "lladdr": "02:00:00:00:00:08",
         "router": null,
         "extern_valid": null,
-        "used": 234,
-        "confirmed": 234,
-        "updated": 234,
+        "used": 23,
+        "confirmed": 23,
+        "updated": 23,
+        "probes": 0,
+        "state": [ "PERMANENT" ]
+    },{
+        "dst": "2001:db8::50",
+        "dev": "goip0",
+        "lladdr": "02:00:00:00:00:03",
+        "used": 24,
+        "confirmed": 24,
+        "updated": 24,
         "probes": 0,
         "state": [ "PERMANENT" ]
     } ]

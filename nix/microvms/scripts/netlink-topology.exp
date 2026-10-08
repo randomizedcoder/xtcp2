@@ -120,6 +120,10 @@ namespace eval nltopo {
         topo $ns $subdir nexthop add id 2 via 192.0.2.11 dev $dummy
         topo $ns $subdir nexthop add id 10 group 1/2
         topo $ns $subdir nexthop add id 11 group 1,2/2,3
+        # A resilient group over the same members. Created balanced over up
+        # nexthops, so unbalanced_time stays 0; buckets/idle_timer are the
+        # configured constants, so the `type resilient ...` line is byte-stable.
+        topo $ns $subdir nexthop add id 20 group 1/2 type resilient buckets 8 idle_timer 120
         # RTA_METRICS, two nested values so a decoder cannot pass by returning
         # the first one it finds.
         topo $ns $subdir route add 198.18.1.0/24 via 192.0.2.10 dev $dummy mtu 1400 advmss 1300

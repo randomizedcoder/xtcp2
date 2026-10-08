@@ -3,6 +3,6 @@
     inet6 ::1/128 scope host proto kernel_lo 
        valid_lft forever preferred_lft forever
 3: br0: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 state DOWN qlen 1000
-    link/ether d2:eb:08:51:47:c6
+    link/ether 62:52:ce:f7:80:32
     inet6 2001:db8:ff::1/64 scope global nodad 
        valid_lft forever preferred_lft forever

@@ -151,7 +151,7 @@
         "link_type": "tunnel6",
         "address": "::",
         "broadcast": "::",
-        "permaddr": "c221:3d8:2bf2::"
+        "permaddr": "5eda:58b2:77c3::"
     },{
         "ifindex": 12,
         "link": null,
@@ -167,7 +167,7 @@
         "address": "2001:db8::1",
         "link_pointtopoint": true,
         "broadcast": "2001:db8:100::1",
-        "permaddr": "5299:3f23:8fa6::"
+        "permaddr": "b6a2:7670:89d7::"
     },{
         "ifindex": 13,
         "link": null,
@@ -182,7 +182,7 @@
         "link_type": "gre6",
         "address": "::",
         "broadcast": "::",
-        "permaddr": "a69:2f63:acb4::"
+        "permaddr": "fa12:486b:13c::"
     },{
         "ifindex": 14,
         "link": null,
@@ -198,5 +198,5 @@
         "address": "2001:db8::2",
         "link_pointtopoint": true,
         "broadcast": "2001:db8:100::2",
-        "permaddr": "e2e5:dd64:7e88::"
+        "permaddr": "5a14:f01f:e1b9::"
     } ]

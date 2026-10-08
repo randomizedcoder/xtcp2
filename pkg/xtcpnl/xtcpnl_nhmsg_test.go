@@ -2,6 +2,7 @@ package xtcpnl
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"reflect"
@@ -28,8 +29,11 @@ func mustHex(t *testing.T, s string) []byte {
 //
 // The boundary, corner and negative rows are hand-crafted wire edges —
 // single-member and oversize-weight groups, the weight_high gate toggled by the
-// op-flag, a resilient group type, NHA_RES_GROUP, and a group payload that is not
-// a whole number of nexthop_grp entries — none of which the one capture exercises.
+// op-flag, resilient groups with their NHA_RES_GROUP args (buckets, the three
+// timers, the 64-bit PAD, an unknown sub-attr, a truncated sub-attr), and a group
+// payload that is not a whole number of nexthop_grp entries — none of which the
+// bare-show capture exercises. The real id-20 resilient reply is its own positive
+// row, verified byte-for-byte against netlink_route_getnexthop_res.pcap.
 //
 // go test ./pkg/xtcpnl/ -run TestParseNewNexthop
 func TestParseNewNexthop(t *testing.T) {
@@ -41,6 +45,34 @@ func TestParseNewNexthop(t *testing.T) {
 	group10 := "0000000000000000080001000a0000000600030000000000140002000100000000000000020000000000000008000e0000000080"
 	// Same shape, id 11, NHA_GROUP weights {low 1, low 2} -> rendered 2 and 3.
 	group11 := "0000000000000000080001000b0000000600030000000000140002000100000001000000020000000200000008000e0000000080"
+	// The captured resilient group id 20: NHA_GROUP_TYPE resilient(1), members
+	// {1,2} equal weight, and NHA_RES_GROUP {buckets 8, idle_timer 12000ct,
+	// unbalanced_timer 0, unbalanced_time 0}. Verified byte-for-byte against
+	// netlink_route_getnexthop_res.pcap.
+	group20res := "000000000000000008000100140000000600030001000000140002000100000000000000020000000000000028000c80060001000800000008000200e02e000008000300000000000c000400000000000000000008000e0000000080"
+
+	// Builders for the crafted resilient rows, which are easier to read as
+	// structured attrs than as one long hex string.
+	nhmsg := []byte{unix.AF_INET, 0, 0, 0, 0, 0, 0, 0}
+	cat := func(parts ...[]byte) []byte {
+		var b []byte
+		for _, p := range parts {
+			b = append(b, p...)
+		}
+		return b
+	}
+	le64 := func(v uint64) []byte { return append(le32(uint32(v)), le32(uint32(v>>32))...) }
+	grpMember := func(id uint32, low, high uint8) []byte {
+		return cat(le32(id), []byte{low, high, 0, 0})
+	}
+	resNested := func(buckets uint16, idle, unbTimer uint32, unbTime uint64) []byte {
+		return cat(
+			rtattr(NhaResGroupBuckets, le16(buckets)),
+			rtattr(NhaResGroupIdleTimer, le32(idle)),
+			rtattr(NhaResGroupUnbalancedTimer, le32(unbTimer)),
+			rtattr(NhaResGroupUnbalancedTime, le64(unbTime)),
+		)
+	}
 
 	tests := []struct {
 		description  string
@@ -57,6 +89,7 @@ func TestParseNewNexthop(t *testing.T) {
 		wantMembers  []GroupMember
 		wantGrpType  uint16
 		wantResGroup bool
+		wantRes      ResGroup
 		wantOpFlags  uint32
 	}{
 		{
@@ -131,6 +164,17 @@ func TestParseNewNexthop(t *testing.T) {
 			wantMembers: []GroupMember{{ID: 1, Weight: 6}}, // 5+1, high ignored
 		},
 		{
+			description:  "positive: captured resilient group id 20 — members {1,2}, type resilient, buckets 8, idle_timer 12000ct",
+			body:         mustHex(t, group20res),
+			wantID:       20,
+			wantGroup:    true,
+			wantMembers:  []GroupMember{{ID: 1, Weight: 1}, {ID: 2, Weight: 1}},
+			wantGrpType:  NexthopGrpTypeRes,
+			wantResGroup: true,
+			wantRes:      ResGroup{Buckets: 8, IdleTimer: 12000, UnbalancedTimer: 0, UnbalancedTime: 0},
+			wantOpFlags:  NhaOpFlagRespGrpResvd0,
+		},
+		{
 			description: "corner: NHA_GROUP_TYPE resilient is parsed (the refusal lives at the renderer, not here)",
 			// NHA_ID 20 + NHA_GROUP_TYPE 1 + NHA_GROUP {id 9}
 			body:        mustHex(t, "02000000000000000800010"+"0140000000600030001000000"+"0c0002000900000000000000"),
@@ -141,7 +185,7 @@ func TestParseNewNexthop(t *testing.T) {
 			wantGrpType: 1,
 		},
 		{
-			description: "corner: NHA_RES_GROUP present sets HasResGroup (payload not decoded)",
+			description: "boundary: NHA_RES_GROUP with an empty nested payload sets HasResGroup, leaves ResGroup zero",
 			// NHA_ID 21 + NHA_GROUP {id 9} + NHA_RES_GROUP (empty nested attr)
 			body:         mustHex(t, "02000000000000000800010"+"0150000000c0002000900000000000000"+"04000c00"),
 			wantFamily:   unix.AF_INET,
@@ -149,6 +193,123 @@ func TestParseNewNexthop(t *testing.T) {
 			wantGroup:    true,
 			wantMembers:  []GroupMember{{ID: 9, Weight: 1}},
 			wantResGroup: true,
+			wantRes:      ResGroup{},
+		},
+		{
+			description: "positive: crafted resilient group — weighted members and all four res args decoded",
+			body: cat(nhmsg,
+				rtattr(NhaID, le32(20)),
+				rtattr(NhaGroup, cat(grpMember(1, 1, 0), grpMember(2, 2, 0))),
+				rtattr(NhaGroupType, le16(NexthopGrpTypeRes)),
+				rtattr(NhaResGroup, resNested(16, 6000, 3000, 12345)),
+				rtattr(NhaOpFlags, le32(NhaOpFlagRespGrpResvd0)),
+			),
+			wantFamily:   unix.AF_INET,
+			wantID:       20,
+			wantGroup:    true,
+			wantMembers:  []GroupMember{{ID: 1, Weight: 2}, {ID: 2, Weight: 3}},
+			wantGrpType:  NexthopGrpTypeRes,
+			wantResGroup: true,
+			wantRes:      ResGroup{Buckets: 16, IdleTimer: 6000, UnbalancedTimer: 3000, UnbalancedTime: 12345},
+			wantOpFlags:  NhaOpFlagRespGrpResvd0,
+		},
+		{
+			description: "boundary: NHA_RES_GROUP carrying only BUCKETS leaves the timers zero",
+			body: cat(nhmsg,
+				rtattr(NhaID, le32(22)),
+				rtattr(NhaGroup, grpMember(1, 0, 0)),
+				rtattr(NhaGroupType, le16(NexthopGrpTypeRes)),
+				rtattr(NhaResGroup, rtattr(NhaResGroupBuckets, le16(8))),
+			),
+			wantFamily:   unix.AF_INET,
+			wantID:       22,
+			wantGroup:    true,
+			wantMembers:  []GroupMember{{ID: 1, Weight: 1}},
+			wantGrpType:  NexthopGrpTypeRes,
+			wantResGroup: true,
+			wantRes:      ResGroup{Buckets: 8},
+		},
+		{
+			description: "boundary: NHA_RES_GROUP_UNBALANCED_TIME at u64 max decodes without overflow",
+			body: cat(nhmsg,
+				rtattr(NhaID, le32(23)),
+				rtattr(NhaGroup, grpMember(1, 0, 0)),
+				rtattr(NhaGroupType, le16(NexthopGrpTypeRes)),
+				rtattr(NhaResGroup, rtattr(NhaResGroupUnbalancedTime, le64(^uint64(0)))),
+			),
+			wantFamily:   unix.AF_INET,
+			wantID:       23,
+			wantGroup:    true,
+			wantMembers:  []GroupMember{{ID: 1, Weight: 1}},
+			wantGrpType:  NexthopGrpTypeRes,
+			wantResGroup: true,
+			wantRes:      ResGroup{UnbalancedTime: ^uint64(0)},
+		},
+		{
+			description: "corner: a type-0 PAD attr before the u64 is skipped, the real sub-attrs still decode",
+			body: cat(nhmsg,
+				rtattr(NhaID, le32(24)),
+				rtattr(NhaGroup, grpMember(1, 0, 0)),
+				rtattr(NhaGroupType, le16(NexthopGrpTypeRes)),
+				rtattr(NhaResGroup, cat(
+					rtattr(NhaResGroupIdleTimer, le32(12000)),
+					rtattr(0, nil), // NHA_RES_GROUP_PAD
+					rtattr(NhaResGroupUnbalancedTime, le64(0)),
+				)),
+			),
+			wantFamily:   unix.AF_INET,
+			wantID:       24,
+			wantGroup:    true,
+			wantMembers:  []GroupMember{{ID: 1, Weight: 1}},
+			wantGrpType:  NexthopGrpTypeRes,
+			wantResGroup: true,
+			wantRes:      ResGroup{IdleTimer: 12000},
+		},
+		{
+			description: "corner: an unknown NHA_RES_GROUP sub-attr is skipped, known fields still decode",
+			body: cat(nhmsg,
+				rtattr(NhaID, le32(25)),
+				rtattr(NhaGroup, grpMember(1, 0, 0)),
+				rtattr(NhaGroupType, le16(NexthopGrpTypeRes)),
+				rtattr(NhaResGroup, cat(
+					rtattr(NhaResGroupBuckets, le16(4)),
+					rtattr(99, le32(0xdeadbeef)),
+				)),
+			),
+			wantFamily:   unix.AF_INET,
+			wantID:       25,
+			wantGroup:    true,
+			wantMembers:  []GroupMember{{ID: 1, Weight: 1}},
+			wantGrpType:  NexthopGrpTypeRes,
+			wantResGroup: true,
+			wantRes:      ResGroup{Buckets: 4},
+		},
+		{
+			description: "corner: NHA_RES_GROUP alongside NHA_GROUP_TYPE mpath is parsed verbatim (parser does not reconcile)",
+			body: cat(nhmsg,
+				rtattr(NhaID, le32(26)),
+				rtattr(NhaGroup, grpMember(1, 0, 0)),
+				rtattr(NhaGroupType, le16(NexthopGrpTypeMpath)),
+				rtattr(NhaResGroup, rtattr(NhaResGroupBuckets, le16(2))),
+			),
+			wantFamily:   unix.AF_INET,
+			wantID:       26,
+			wantGroup:    true,
+			wantMembers:  []GroupMember{{ID: 1, Weight: 1}},
+			wantGrpType:  NexthopGrpTypeMpath,
+			wantResGroup: true,
+			wantRes:      ResGroup{Buckets: 2},
+		},
+		{
+			description: "negative: a truncated sub-attr inside NHA_RES_GROUP is a parse error, not a zero ResGroup",
+			body: cat(nhmsg,
+				rtattr(NhaID, le32(27)),
+				rtattr(NhaGroup, grpMember(1, 0, 0)),
+				rtattr(NhaGroupType, le16(NexthopGrpTypeRes)),
+				// BUCKETS claims 8 bytes but only the 4-byte header is present.
+				rtattr(NhaResGroup, rtattrOverrunning(NhaResGroupBuckets, 8)),
+			),
+			wantErr: ErrRTAttrSmall,
 		},
 		{
 			description: "negative: a body shorter than the nhmsg header is an error, not a zero nexthop",
@@ -225,6 +386,9 @@ func TestParseNewNexthop(t *testing.T) {
 			if nh.HasResGroup != tc.wantResGroup {
 				t.Errorf("HasResGroup = %v, want %v", nh.HasResGroup, tc.wantResGroup)
 			}
+			if nh.ResGroup != tc.wantRes {
+				t.Errorf("ResGroup = %+v, want %+v", nh.ResGroup, tc.wantRes)
+			}
 			if nh.RespOpFlags != tc.wantOpFlags {
 				t.Errorf("RespOpFlags = 0x%x, want 0x%x", nh.RespOpFlags, tc.wantOpFlags)
 			}
@@ -232,23 +396,75 @@ func TestParseNewNexthop(t *testing.T) {
 	}
 }
 
-// TestBuildGetNexthopByIDRequest pins the single-get `ip -d route show` sends
-// for a route with RTA_NH_ID, byte-for-byte against the request
-// netlink_route_getroute_detail recorded.
+// TestBuildGetNexthopByIDRequest pins the single-get RTM_GETNEXTHOP byte-for-byte.
+// The id-20 row is grounded against the real request netlink_route_getnexthop_res
+// recorded (its time-seeded seq passed through, since the capture carries it); the
+// id-1 row mirrors what netlink_route_getroute_detail recorded for a route's
+// RTA_NH_ID. Every built request is also checked structurally: NLM_F_REQUEST set
+// and NLM_F_DUMP clear (a point-GET is not a dump), and its only attributes
+// NHA_ID + NHA_OP_FLAGS (no dump-only NHA_OIF/MASTER/GROUPS).
 //
 // go test ./pkg/xtcpnl/ -run TestBuildGetNexthopByIDRequest
 func TestBuildGetNexthopByIDRequest(t *testing.T) {
-	// nlmsghdr{len 40, type RTM_GETNEXTHOP, flags REQUEST, seq 1, pid 0} +
-	// nhmsg{all zero} + NHA_ID 1 + NHA_OP_FLAGS 0. seq is the one field the
-	// comparator zeroes, so this fixes it at 1 and compares the rest.
-	want := mustHex(t, "28000000"+"6a00"+"0100"+"01000000"+"00000000"+
-		"0000000000000000"+"0800010001000000"+"08000e0000000000")
-
-	got, err := BuildGetNexthopByIDRequest(unix.AF_UNSPEC, 1, 1)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	tests := []struct {
+		description string
+		family      uint8
+		id          uint32
+		seq         uint32
+		want        string
+	}{
+		{
+			description: "positive: id 20 matches the request netlink_route_getnexthop_res recorded (capture seq)",
+			family:      unix.AF_UNSPEC, id: 20, seq: 1791472176,
+			want: "280000006a00010030b2c76a000000000000000000000000080001001400000008000e0000000000",
+		},
+		{
+			description: "positive: id 1 mirrors the single-get netlink_route_getroute_detail recorded",
+			family:      unix.AF_UNSPEC, id: 1, seq: 1,
+			want: "28000000" + "6a00" + "0100" + "01000000" + "00000000" +
+				"0000000000000000" + "0800010001000000" + "08000e0000000000",
+		},
+		{
+			description: "boundary: NHA_ID at u32 max still encodes as one 8-byte NHA_ID attribute",
+			family:      unix.AF_UNSPEC, id: ^uint32(0), seq: 1,
+			want: "28000000" + "6a00" + "0100" + "01000000" + "00000000" +
+				"0000000000000000" + "08000100ffffffff" + "08000e0000000000",
+		},
 	}
-	if !bytes.Equal(got, want) {
-		t.Fatalf("request mismatch\ngot  %s\nwant %s", hex.EncodeToString(got), hex.EncodeToString(want))
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			want := mustHex(t, tc.want)
+			got, err := BuildGetNexthopByIDRequest(tc.family, tc.id, tc.seq)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !bytes.Equal(got, want) {
+				t.Fatalf("request mismatch\ngot  %s\nwant %s", hex.EncodeToString(got), hex.EncodeToString(want))
+			}
+			// negative: a point-GET must carry NLM_F_REQUEST and NOT NLM_F_DUMP,
+			// which is what separates it from the bare-show dump.
+			flags := binary.LittleEndian.Uint16(got[4+2 : 4+4])
+			if flags&unix.NLM_F_REQUEST == 0 {
+				t.Errorf("flags %#x lack NLM_F_REQUEST", flags)
+			}
+			if flags&unix.NLM_F_DUMP != 0 {
+				t.Errorf("flags %#x set NLM_F_DUMP; a point-GET is not a dump", flags)
+			}
+			// boundary: the attribute set is exactly {NHA_ID, NHA_OP_FLAGS}.
+			var types []uint16
+			for b := got[NlMsgHdrSizeCst+8:]; len(b) >= 4; {
+				al := binary.LittleEndian.Uint16(b[0:2])
+				types = append(types, binary.LittleEndian.Uint16(b[2:4])&0x3fff)
+				adv := (int(al) + 3) &^ 3
+				if al < 4 || adv > len(b) {
+					break
+				}
+				b = b[adv:]
+			}
+			if len(types) != 2 || types[0] != NhaID || types[1] != NhaOpFlags {
+				t.Errorf("attribute types = %v, want [%d %d]", types, NhaID, NhaOpFlags)
+			}
+		})
 	}
 }

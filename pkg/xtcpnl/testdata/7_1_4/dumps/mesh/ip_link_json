@@ -33,7 +33,7 @@
         "group": "default",
         "txqlen": 1000,
         "link_type": "ether",
-        "address": "d2:eb:08:51:47:c6",
+        "address": "62:52:ce:f7:80:32",
         "broadcast": "ff:ff:ff:ff:ff:ff"
     },{
         "ifindex": 4,
@@ -47,7 +47,7 @@
         "group": "default",
         "txqlen": 1000,
         "link_type": "ether",
-        "address": "4e:27:70:4b:59:52",
+        "address": "4a:4b:7f:06:54:1c",
         "broadcast": "ff:ff:ff:ff:ff:ff"
     },{
         "ifindex": 5,
@@ -62,6 +62,6 @@
         "group": "default",
         "txqlen": 1000,
         "link_type": "ether",
-        "address": "d2:eb:08:51:47:c6",
+        "address": "62:52:ce:f7:80:32",
         "broadcast": "ff:ff:ff:ff:ff:ff"
     } ]

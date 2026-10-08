@@ -2,3 +2,4 @@ id 1 via 192.0.2.10 dev goip0 scope link proto unspec
 id 2 via 192.0.2.11 dev goip0 scope link proto unspec 
 id 10 group 1/2 scope global proto unspec 
 id 11 group 1,2/2,3 scope global proto unspec 
+id 20 group 1/2 type resilient buckets 8 idle_timer 120 unbalanced_timer 0 unbalanced_time 0 scope global proto unspec 

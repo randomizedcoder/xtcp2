@@ -366,11 +366,11 @@ func TestCaptureTopologyTranscripts(t *testing.T) {
 		wantCommandCounts map[string]int
 	}{
 		{
-			description: "positive: the clean namespace, 49 commands under the nlcapc tag",
+			description: "positive: the clean namespace, 50 commands under the nlcapc tag",
 			file:        tdDumpTopology_7_1_4,
 			subdir:      "",
 			wantTag:     "nlcapc",
-			wantLines:   49,
+			wantLines:   50,
 			wantCommandCounts: map[string]int{
 				// 11 neighbor adds across both families, of which 2 are
 				// proxy entries — one per family, and the clean namespace is
