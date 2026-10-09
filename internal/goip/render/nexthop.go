@@ -1,6 +1,8 @@
 package render
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -125,4 +127,198 @@ func NexthopInfoText(nh xtcpnl.NexthopInfo, tab NameTab) (string, error) {
 // groups are rendered here (groups=true); the route nh_info path is not.
 func NexthopText(nh xtcpnl.NexthopInfo, detailed bool, tab NameTab) (string, error) {
 	return nexthopEntryText(nh, "", detailed, true, tab)
+}
+
+// NexthopView is the `ip -j nexthop show` object for one nexthop. It is JSON-only;
+// the text path keeps nexthopEntryText so the grounded route nh_info rendering is
+// untouched. Both read the same decoded NexthopInfo and the same
+// __print_nexthop_entry key order (ip/ipnexthop.c:549); MarshalJSON is hand-rolled
+// because the shape has null-valued keys, a suppressed-for-mpath `type`, and
+// numeric `%g` timers that struct tags cannot reproduce.
+type NexthopView struct {
+	ID        uint32
+	Group     []nhGroupMember // nil when not a group
+	Resilient bool            // emits "type":"resilient"
+	ResArgs   *nhResArgs      // non-nil for a resilient group with NHA_RES_GROUP
+	Gateway   string          // "" when absent
+	Dev       string          // "" when absent
+	Scope     string          // "" when suppressed (universe and not -d)
+	Blackhole bool
+	Protocol  string   // "" when suppressed (unspec and not -d)
+	Flags     []string // always non-nil; empty renders []
+	Fdb       bool
+}
+
+// nhGroupMember is one NHA_GROUP entry: weight is 0 when it is 1, which
+// print_nh_group omits (ip/ipnexthop.c:271).
+type nhGroupMember struct {
+	ID     uint32
+	Weight uint16
+}
+
+// nhResArgs is the NHA_RES_GROUP object; timers are raw clock_t rendered as the
+// %g seconds print_nh_res_group emits (ip/ipnexthop.c:358).
+type nhResArgs struct {
+	Buckets         uint16
+	IdleTimer       uint64
+	UnbalancedTimer uint64
+	UnbalancedTime  uint64
+}
+
+// NexthopViewOf builds the JSON view, declining an unknown-type group exactly as
+// the text path does (nexthopEntryText). detailed forces scope and protocol on.
+func NexthopViewOf(nh xtcpnl.NexthopInfo, detailed bool, tab NameTab) (NexthopView, error) {
+	v := NexthopView{ID: nh.ID, Flags: nexthopFlagList(nh.Flags)}
+	if nh.HasGroup {
+		known := nh.GroupType == xtcpnl.NexthopGrpTypeMpath || nh.GroupType == xtcpnl.NexthopGrpTypeRes
+		if !known {
+			return NexthopView{}, fmt.Errorf("nexthop id %d is a group: %w", nh.ID, ErrNexthopGroup)
+		}
+		v.Group = make([]nhGroupMember, len(nh.Group))
+		for i, m := range nh.Group {
+			w := uint16(0)
+			if m.Weight > 1 {
+				w = m.Weight
+			}
+			v.Group[i] = nhGroupMember{ID: m.ID, Weight: w}
+		}
+		if nh.GroupType == xtcpnl.NexthopGrpTypeRes {
+			v.Resilient = true
+			if nh.HasResGroup {
+				v.ResArgs = &nhResArgs{
+					Buckets:         nh.ResGroup.Buckets,
+					IdleTimer:       uint64(nh.ResGroup.IdleTimer),
+					UnbalancedTimer: uint64(nh.ResGroup.UnbalancedTimer),
+					UnbalancedTime:  nh.ResGroup.UnbalancedTime,
+				}
+			}
+		}
+	}
+	if len(nh.Gateway) > 0 {
+		v.Gateway = addrString(nh.Gateway, nh.Family)
+	}
+	if nh.OIF != 0 {
+		v.Dev = tab.IndexToName(nh.OIF)
+	}
+	if nh.Scope != unix.RT_SCOPE_UNIVERSE || detailed {
+		v.Scope = scopeName(nh.Scope)
+	}
+	v.Blackhole = nh.Blackhole
+	if nh.Protocol != unix.RTPROT_UNSPEC || detailed {
+		v.Protocol = routeProtoName(nh.Protocol)
+	}
+	v.Fdb = nh.Fdb
+	return v, nil
+}
+
+// nexthopFlagList mirrors the text path, which renders only RTNH_F_ONLINK; the
+// slice is non-nil so an empty set marshals to [] as print_rt_flags does.
+func nexthopFlagList(flags uint32) []string {
+	out := []string{}
+	if flags&unix.RTNH_F_ONLINK != 0 {
+		out = append(out, "onlink")
+	}
+	return out
+}
+
+// MarshalJSON writes the keys in __print_nexthop_entry order.
+func (v NexthopView) MarshalJSON() ([]byte, error) {
+	var b bytes.Buffer
+	b.WriteByte('{')
+	first := true
+	sep := func() {
+		if !first {
+			b.WriteByte(',')
+		}
+		first = false
+	}
+	str := func(key, val string) error {
+		sep()
+		q, err := json.Marshal(val)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(&b, "%q:", key)
+		b.Write(q)
+		return nil
+	}
+
+	sep()
+	fmt.Fprintf(&b, `"id":%d`, v.ID)
+	if v.Group != nil {
+		sep()
+		b.WriteString(`"group":`)
+		g, err := json.Marshal(v.Group)
+		if err != nil {
+			return nil, err
+		}
+		b.Write(g)
+	}
+	if v.Resilient {
+		sep()
+		b.WriteString(`"type":"resilient"`)
+	}
+	if v.ResArgs != nil {
+		sep()
+		b.WriteString(`"resilient_args":`)
+		r, err := json.Marshal(v.ResArgs)
+		if err != nil {
+			return nil, err
+		}
+		b.Write(r)
+	}
+	if v.Gateway != "" {
+		if err := str("gateway", v.Gateway); err != nil {
+			return nil, err
+		}
+	}
+	if v.Dev != "" {
+		if err := str("dev", v.Dev); err != nil {
+			return nil, err
+		}
+	}
+	if v.Scope != "" {
+		if err := str("scope", v.Scope); err != nil {
+			return nil, err
+		}
+	}
+	if v.Blackhole {
+		sep()
+		b.WriteString(`"blackhole":null`)
+	}
+	if v.Protocol != "" {
+		if err := str("protocol", v.Protocol); err != nil {
+			return nil, err
+		}
+	}
+	sep()
+	b.WriteString(`"flags":`)
+	f, err := json.Marshal(v.Flags)
+	if err != nil {
+		return nil, err
+	}
+	b.Write(f)
+	if v.Fdb {
+		sep()
+		b.WriteString(`"fdb":null`)
+	}
+	b.WriteByte('}')
+	return b.Bytes(), nil
+}
+
+// MarshalJSON emits {"id":N} or {"id":N,"weight":W}, omitting weight when 1.
+func (m nhGroupMember) MarshalJSON() ([]byte, error) {
+	if m.Weight > 0 {
+		return fmt.Appendf(nil, `{"id":%d,"weight":%d}`, m.ID, m.Weight), nil
+	}
+	return fmt.Appendf(nil, `{"id":%d}`, m.ID), nil
+}
+
+// MarshalJSON emits the four keys in print_nh_res_group order; timers are the
+// %g seconds clockSeconds derives from clock_t, as bare JSON numbers.
+func (r nhResArgs) MarshalJSON() ([]byte, error) {
+	return fmt.Appendf(nil,
+		`{"buckets":%d,"idle_timer":%s,"unbalanced_timer":%s,"unbalanced_time":%s}`,
+		r.Buckets, clockSeconds(r.IdleTimer), clockSeconds(r.UnbalancedTimer),
+		clockSeconds(r.UnbalancedTime)), nil
 }

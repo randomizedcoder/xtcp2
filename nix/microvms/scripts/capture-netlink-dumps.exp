@@ -474,6 +474,30 @@ proc sidecar_set {ns subdir dev} {
     side $ns $subdir ip_nexthop_fdb_n       "ip -d nexthop show fdb"
     side $ns $subdir ip_nexthop_proto       "ip nexthop show protocol 4"
     side $ns $subdir ip_nexthop_proto_n     "ip -d nexthop show protocol 4"
+
+    # nexthop JSON. nexthop is the one object the JSON set above skipped, so these
+    # answer "does goip -json use ip -j's nexthop key names?" for id/group/
+    # resilient_args/gateway/dev/scope/protocol/flags and the null-valued
+    # blackhole/fdb. Each is the `-j -p` twin of a text golden and replays that
+    # golden's pcap, since -j changes only client-side rendering, not the request.
+    side $ns $subdir ip_nexthop_json          "ip -j -p nexthop show"
+    side $ns $subdir ip_nexthop_n_json        "ip -j -p -d nexthop show"
+    side $ns $subdir ip_nexthop_id_json       "ip -j -p nexthop show id 10"
+    side $ns $subdir ip_nexthop_id_n_json     "ip -j -p -d nexthop show id 10"
+    side $ns $subdir ip_nexthop_res_json      "ip -j -p nexthop show id 20"
+    side $ns $subdir ip_nexthop_res_n_json    "ip -j -p -d nexthop show id 20"
+    side $ns $subdir ip_nexthop_dev_json      "ip -j -p nexthop show dev goip0"
+    side $ns $subdir ip_nexthop_dev_n_json    "ip -j -p -d nexthop show dev goip0"
+    side $ns $subdir ip_nexthop_master_json   "ip -j -p nexthop show master goipvrf"
+    side $ns $subdir ip_nexthop_master_n_json "ip -j -p -d nexthop show master goipvrf"
+    side $ns $subdir ip_nexthop_vrf_json      "ip -j -p nexthop show vrf goipvrf"
+    side $ns $subdir ip_nexthop_vrf_n_json    "ip -j -p -d nexthop show vrf goipvrf"
+    side $ns $subdir ip_nexthop_groups_json   "ip -j -p nexthop show groups"
+    side $ns $subdir ip_nexthop_groups_n_json "ip -j -p -d nexthop show groups"
+    side $ns $subdir ip_nexthop_fdb_json      "ip -j -p nexthop show fdb"
+    side $ns $subdir ip_nexthop_fdb_n_json    "ip -j -p -d nexthop show fdb"
+    side $ns $subdir ip_nexthop_proto_json    "ip -j -p nexthop show protocol 4"
+    side $ns $subdir ip_nexthop_proto_n_json  "ip -j -p -d nexthop show protocol 4"
     side $ns $subdir ip_neigh               "ip neigh show"
     side $ns $subdir ip_neigh_n             "ip -d neigh show"
     side $ns $subdir ip_link_dev            "ip link show dev $dev"

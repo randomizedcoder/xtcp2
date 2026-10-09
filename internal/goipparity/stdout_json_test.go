@@ -208,6 +208,16 @@ func TestStdoutJSONFacetsMatchText(t *testing.T) {
 			diffs:       nil,
 		},
 		{
+			description: "positive: nexthop show, clean topology — gateway/dev/scope/protocol agree and the group array joins to the text form's slash token; id/type/buckets/timers are uncompared on both sides",
+			topo:        "",
+			object:      "ip_nexthop",
+			textLines:   8,
+			jsonEntries: 8,
+			textLoci:    5,
+			jsonLoci:    5,
+			diffs:       nil,
+		},
+		{
 			description: "positive: -s link show, clean topology — statsheaders carries headings only, so the sole difference is iproute2's own cross-format counter choice and no counter VALUE appears anywhere",
 			topo:        "",
 			object:      "ip_link_stats",

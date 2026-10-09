@@ -2,7 +2,7 @@
 
 ## goip ↔ `ip` parity at a glance
 
-Counted from the tree on 2026-10-07. Every number has a file behind it, named
+Counted from the tree on 2026-10-08. Every number has a file behind it, named
 in the last column; **if this table and the file disagree, the file is right
 and this table is stale.** That has happened before in this document — see the
 "no route command is in `gated_commands`" line that outlived its own truth by
@@ -10,14 +10,14 @@ several steps, further down under [Remaining](#remaining).
 
 | | count | counted from |
 |---|---|---|
-| commands in the comparison matrix | **41** | `internal/goipparity/commands.go` |
-| of those, `Implemented: true` | **41** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
+| commands in the comparison matrix | **43** | `internal/goipparity/commands.go` |
+| of those, `Implemented: true` | **43** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
 | of those, in `gated_commands` | **27** | `pkg/nlparity/goip-parity-allowlist.json` |
 | allowlisted divergences | **7** | same file, `entries` |
 | of those, `kind=version-skew` | **7** | all against the pinned `ip` 7.1.0 |
 | of those, `kind=accepted-divergence` | **0** | nothing is divergent on purpose and permanently |
 
-**Fourteen** matrix rows sit outside `gated_commands`, and they fall into two
+**Sixteen** matrix rows sit outside `gated_commands`, and they fall into three
 groups that are out for unrelated reasons.
 
 **Twelve are new and not yet gated**: six family and table selectors and six
@@ -43,6 +43,27 @@ stable is the *weaker* evidence: five runs reading 2 cannot separate
 "`D_control` absorbed the delta" from "there was no delta to absorb". Its
 `nl=2` is not even `-s`'s doing — plain `neigh show` measures 2 from
 `ll_init_map`'s link dump — so it is waiting for a run where the count moves.
+
+**Two are nexthop's first matrix rows**: `nexthop show` and `-j nexthop show`,
+added together with the nexthop JSON renderer and the `group`-array facet
+mapping they depend on. They are **replay-grounded, not yet live-grounded**:
+`internal/goip`'s `TestNexthopShowMatchesCapturedSidecars` and
+`TestNexthopShowJSONMatchesCapturedSidecars` diff `goip` byte-for-byte and
+structurally against the committed `ip_nexthop`/`ip_nexthop_json` sidecars, so
+the stdout is known correct offline, but no measured live `goip-parity` run backs
+them yet. Like every row before gating, they go in ungated; gating is a separate
+branch after two clean live runs. See
+[Where we are](#where-we-are).
+
+**The rest of the nexthop read surface and VRF link-detail are implemented but
+are not matrix rows, so they do not move the counts above.** `nexthop show id N`,
+the other five `nexthop show` selectors — `dev`, `master`, `vrf`, `groups`,
+`fdb` (new `fdb ` render), and the client-side `protocol N` — and `-d
+link`/`addr show` descent into a `vrf`-kind link (`IFLA_VRF_TABLE`) and its
+enslaved port (`IFLA_VRF_PORT_TABLE`) are all grounded on captured bytes and
+covered by replay + table-driven unit tests in `internal/goip` and `pkg/xtcpnl`.
+They are exercised by that replay, not by `goip-parity` triples, so they are not
+`gated_commands` rows and the gated/divergence figures are unchanged by them.
 
 **`Implemented` and gated are different claims and must stay different.**
 Flipping `Implemented` puts a command in the report; joining `gated_commands`
@@ -107,7 +128,7 @@ are the ones that stop partway. The rtnetlink **event** types are decoded and
 never rendered, because the daemon's link monitor consumes them and `goip` has
 no `monitor` verb. `RTM_NEWRULE` is decoded for dumps but is not even an event.
 
-### rtnetlink: five body layouts, and they are the five goip needs
+### rtnetlink: six body layouts, and they are the six goip needs
 
 | body struct | kernel header | RTM types | decoder | goip | matrix rows |
 |---|---|---|---|---|---|
@@ -116,6 +137,7 @@ no `monitor` verb. `RTM_NEWRULE` is decoded for dumps but is not even an event.
 | `rtmsg` | `rtnetlink.h` | `RTM_{NEW,DEL,GET}ROUTE` | `ParseNewRoute`, `xtcpnl_rtmsg.go:140` | `render/route.go` | **10** |
 | `ndmsg` | `neighbour.h` | `RTM_{NEW,DEL,GET}NEIGH` | `ParseNeigh`, `xtcpnl_ndmsg.go:244` | `render/neigh.go` | **8** |
 | `fib_rule_hdr` | `fib_rules.h` | `RTM_{NEW,DEL,GET}RULE` | `ParseRule`, `xtcpnl_fib_rule_hdr.go:270` | `render/rule.go` | **6** |
+| `nhmsg` | `nexthop.h` | `RTM_{NEW,DEL,GET}NEXTHOP` | `ParseNewNexthop`, `xtcpnl_nhmsg.go:143` | `render/nexthop.go` | **2** |
 
 Headers in this table and the next are all under
 `include/uapi/linux/`, decoder paths are under `pkg/xtcpnl/` and `goip` paths
@@ -123,22 +145,24 @@ under `internal/goip/`; the prefixes are dropped so the columns stay readable.
 `neighbour.h` keeps the kernel's own spelling for the same reason the comments
 in `xtcpnl_ndmsg.go` do — `neighbor.h` does not exist in the tree.
 
-41 rows, which is the matrix total — every row in the comparison matrix lands
-on one of these five, and every one of these five is compared live.
+43 rows, which is the matrix total — every row in the comparison matrix lands
+on one of these six, and every one of these six is compared live. `nhmsg`'s two
+rows are the newest: they are in the matrix and replay-grounded (see the glance
+above), awaiting their first measured live run before gating.
 
-**The request side is narrower than the decode side, on purpose.** Only five
+**The request side is narrower than the decode side, on purpose.** Only six
 message types are ever *built*: `RTM_GETLINK`, `RTM_GETADDR`, `RTM_GETROUTE`,
-`RTM_GETNEIGH`, `RTM_GETRULE`, from the nine builders in
-`xtcpnl_rtnetlink_requests.go`. That is not a coincidence of scope — the
+`RTM_GETNEIGH`, `RTM_GETRULE`, `RTM_GETNEXTHOP`, from the twelve builders in
+`xtcpnl_rtnetlink_requests.go` (`RTM_GETNEXTHOP` has three — a dump, a
+wire-filtered dump, and a by-id get). That is not a coincidence of scope — the
 encoder rejects a non-GET type with `ErrNotAGetRequest`, so the read-only
 invariant is executable rather than a convention. `RTM_NEWNEIGH` appears in
 that file only in a comment about what a solicited reply carries.
 
-### rtnetlink: the ten body layouts with no decoder
+### rtnetlink: the nine body layouts with no decoder
 
 | body struct | kernel header | RTM types | what would need it |
 |---|---|---|---|
-| `nhmsg` | `nexthop.h` | `RTM_{NEW,DEL,GET}NEXTHOP` | `ip nexthop show`, and the `-d` route refusal explained below |
 | `ndtmsg` | `neighbour.h` | `RTM_{NEW,GET,SET}NEIGHTBL` | `ip ntable show` |
 | `netconfmsg` | `netconf.h` | `RTM_{NEW,GET}NETCONF` | `ip netconf show` |
 | `ifaddrlblmsg` | `if_addrlabel.h` | `RTM_{NEW,DEL,GET}ADDRLABEL` | `ip addrlabel show` |
@@ -149,21 +173,26 @@ that file only in a comment about what a solicited reply carries.
 | `tcmsg` | `rtnetlink.h` | `RTM_{NEW,DEL,GET}{QDISC,TCLASS,TFILTER}` | `tc` — not an `ip` command |
 | `tcamsg` | `rtnetlink.h` | `RTM_{NEW,DEL,GET}ACTION` | `tc actions` — not an `ip` command |
 
-Three of the ten are `tc`/`bridge` territory and are outside the exercise
-entirely rather than pending. Of the seven that are `ip` commands, **`nhmsg` is
-the only one an already-implemented command can reach**, and the condition is
-narrower than "the attribute is present". A bare `route show` prints `nhid %u`
-straight from `RTA_NH_ID` and sends nothing extra (`ip/iproute.c:859-861`); it
-is **`-d`** that turns the attribute into a transaction, because
-`print_cache_nexthop_id` (`ip/iproute.c:1002-1004`) issues a live
-`RTM_GETNEXTHOP` on a cache miss. `checkRouteDetailSupported`
-(`internal/goip/obj_route.go:290`) refuses exactly that combination with
-`ErrNotImplemented` rather than render the routes and skip the block, which
-would diverge on the wire as well as on stdout. No namespace in
-`netlink-topology.exp` creates a nexthop object, so nothing in the corpus
-triggers it; the check exists because it is three lines and the alternative is
-an assumption about a machine this code has not seen. The other six layouts are
-reachable only through objects that have `run: nil`.
+Three of the nine are `tc`/`bridge` territory and are outside the exercise
+entirely rather than pending. The other six are reachable only through objects
+that have `run: nil`.
+
+**`nhmsg` used to head this table and no longer belongs in it.** It is decoded
+in `xtcpnl_nhmsg.go` (`ParseNewNexthop`, the `nhmsg` header plus the `NHA_*`
+attributes a nexthop carries, groups and resilient groups included) and rendered
+by the nexthop render path, so `ip nexthop show` and its selectors are
+implemented objects now, not a `run: nil` backlog. The `-d` route transaction it
+was paired with here is likewise implemented, not refused: a bare `route show`
+prints `nhid %u` straight from `RTA_NH_ID` and sends nothing extra
+(`ip/iproute.c:859-861`), and under **`-d`** `print_cache_nexthop_id`
+(`ip/iproute.c:1002-1004`) issues a live `RTM_GETNEXTHOP` on a cache miss, which
+`resolveRouteNexthops` (`internal/goip/obj_route.go`) now performs — resolving
+each distinct `nhid` through `svc.NexthopByID` and rendering the object inline.
+What stays refused is narrower: `checkRouteDetailSupported` returns
+`ErrNotImplemented` for a `-d` route whose resolved nexthop is a **group** or
+carries per-kind data that has no verified render shape, rather than render the
+routes and silently skip the block. That is a per-shape refusal, not a missing
+decoder. See the nexthop arc in [Where we are](#where-we-are).
 
 `rtgenmsg` is in neither table: it is the generic dump request header, used on
 the way out, not a reply body.
@@ -261,7 +290,7 @@ declines.
 
 The user-facing refusal happens earlier and elsewhere: `goip` returns
 `ErrNotImplemented` from object dispatch, before a socket is opened, for the
-twenty-six objects with `run: nil`. So the ten uncovered layouts above are a
+twenty-six objects with `run: nil`. So the nine uncovered layouts above are a
 backlog rather than a hazard, and the two halves of that — a walker that
 tolerates the unknown and a dispatcher that refuses it up front — are
 independent and should stay that way.
@@ -332,6 +361,44 @@ time, in the two committed `stdout:` allowlist entries, and two defects in the
 harness's own report — a command with an L1 divergence that printed
 `GOIP_PARITY_PASS`.
 
+**The nexthop object landed next, as a five-commit arc, and VRF link-detail
+rode in on its tail.** `nhmsg` had sat in the "no decoder" table above as the one
+layout an implemented command could reach; that is no longer true.
+`59757e6` (2026-10-07) enriched the Tier-1 capture topology with real nexthop
+objects and taught the `-d` route path to render a resolved nexthop inline rather
+than refuse it — `resolveRouteNexthops` follows each `RTA_NH_ID` through a live
+`RTM_GETNEXTHOP`, which is the transaction `print_cache_nexthop_id`
+(`ip/iproute.c:1002`) describes. `86962b6` (2026-10-07) then made `nexthop` an
+implemented object in its own right: read-only `ip nexthop show`/`list`,
+grounded on captured `RTM_NEWNEXTHOP` replies. `c695074` (2026-10-08) added group
+rendering and `show id N`, and `dba0196` (2026-10-08) the resilient group —
+`NHA_GROUP`, `NHA_GROUP_TYPE` and the nested `NHA_RES_GROUP` (`xtcpnl_nhmsg.go`,
+decoded after the attribute walk so weight gating sees `NHA_OP_FLAGS` whatever
+order it arrived in). `57e02da` (2026-10-08) closed the arc with all six
+`nexthop show` wire-filter selectors — `dev` and `master`/`vrf` (`NHA_OIF`,
+`NHA_MASTER`, the last validated client-side as a `vrf`-kind device the way
+`name_is_vrf` does), the `groups` and `fdb` flag filters, and the client-side
+`protocol N` — plus the new `fdb ` render token and, as the same commit's VRF
+dependency, the `IFLA_INFO_DATA` → `IFLA_VRF_TABLE` and
+`IFLA_INFO_SLAVE_DATA` → `IFLA_VRF_PORT_TABLE` decode that lets `-d link`/`addr
+show` print `vrf table 100` on a master and `vrf_slave table 100` on its port.
+Every one of these is grounded on captured bytes and covered by replay plus
+table-driven unit tests; none of the arc's own features is a Tier C matrix row,
+so the arc left the gated counts unchanged. What stays refused is narrow and
+deliberate: a `-d` route whose nexthop resolves to a **group** or to per-kind
+data with no verified shape, and `nexthop bucket show`, whose `idle_time` is a
+live-ticking jiffies value with no byte-stable expected.
+
+A follow-up then gave `nexthop` its first JSON: `ip -j nexthop show` and
+`show id N` render from a `render.NexthopView` whose `MarshalJSON` emits
+`__print_nexthop_entry`'s key order (`id`, `group`, `type`, `resilient_args`,
+`gateway`, `dev`, `scope`, `blackhole`, `protocol`, `flags`, `fdb`), transcribed
+from newly captured `ip_nexthop*_json` sidecars and diffed structurally in
+`TestNexthopShowJSONMatchesCapturedSidecars`. That PR also enlisted `nexthop
+show` and `-j nexthop show` as the first two nexthop rows in the Tier C matrix
+(ungated, replay-grounded), taking it to 43, and taught the JSON facet extractor
+to rejoin the `group` array to the text form's `group 1/2` token.
+
 This is the live progress tracker for the roadmap in
 [coverage-expansion](coverage-expansion.md). The division of labour between the
 three netlink planning documents:
@@ -350,8 +417,8 @@ recollection.
 ## Table of contents
 
 - [Netlink message types: decoded, rendered, compared](#netlink-message-types-decoded-rendered-compared)
-  - [rtnetlink: five body layouts, and they are the five goip needs](#rtnetlink-five-body-layouts-and-they-are-the-five-goip-needs)
-  - [rtnetlink: the ten body layouts with no decoder](#rtnetlink-the-ten-body-layouts-with-no-decoder)
+  - [rtnetlink: six body layouts, and they are the six goip needs](#rtnetlink-six-body-layouts-and-they-are-the-six-goip-needs)
+  - [rtnetlink: the nine body layouts with no decoder](#rtnetlink-the-nine-body-layouts-with-no-decoder)
   - [Attributes inside the five: no unknown-attribute holes](#attributes-inside-the-five-no-unknown-attribute-holes)
   - [The event layer: decoded, never rendered](#the-event-layer-decoded-never-rendered)
   - [sock_diag / inet_diag, which is a different surface and is complete](#sock_diag--inet_diag-which-is-a-different-surface-and-is-complete)
@@ -400,7 +467,7 @@ Phases and scope are as defined in
 | **0** | Reflection removal (0a), AccECN (0b), layout oracle (0c), perf gate (0d), upstream pin guard (0e), then core wire export, subpackage skeleton, capture generalization | **partial** | 0a–0e — see [Phase 0](#phase-0). Plus the rtnetlink-only capture flavor that Phase 0 generalizes, and the five core wire primitives, exported in [`b4428c7`](#b4428c7--the-five-core-wire-primitives-are-exported) | Gating the other 17 protocols that currently report deltas, one per phase as each is triaged; package still flat; BPF filter still pins family 0. `pkg/nsdiscover/nsid.go` no longer hand-rolls its own wire layer — it went through `xtcpnl.NewAttrBuilder`/`BuildRequest`/`WalkNlMsgs`/`WalkRTAttrs` in [`b4428c7`](#b4428c7--the-five-core-wire-primitives-are-exported), closing `TODO-SOON.md` §15 |
 | **1** | Multicast listener, `BuildDumpNeighRequest`, in-guest smoke check | **partial** | Event parsing layer, `ndmsg` decoder, `ParseNeigh`, real captured event fixtures, and `BuildDumpNeighRequest` as of [`1beb2b8`](#1beb2b8--the-per-family-request-builders-and-the-single-get-primitive) | The listener itself (no `Subscribe`, no `NETLINK_ADD_MEMBERSHIP` anywhere), the `ENOBUFS` resync *logic* that calls the new builder, the self-test check |
 | **2** | `IFA_CACHEINFO`/`IFA_FLAGS`, `IFLA_ADDRESS`/`IFLA_STATS64`, `RTA_EXPIRES`/`RTA_CACHEINFO`/`RTA_METRICS`, orphaned `INET_DIAG_PRAGUEINFO` | **partial** | `IFA_CACHEINFO` (with `struct ifa_cacheinfo` and the two lifetime predicates), `IFA_FLAGS` (replacing the u8 header field, not extending it), `IFLA_ADDRESS`/`IFLA_BROADCAST` and nine more `IFLA_*`, as of [`4494b42`](#4494b42--the-ifla_-and-ifa_-attribute-decoders-a-show-line-needs). `IFLA_STATS`/`IFLA_STATS64` are **done**: decoded in `xtcpnl_link_stats.go`, rendered by `render.LinkStatsText`, and driven by `ip -s link show` as the tenth parity command. They were previously recorded here as out of scope on a premise that was wrong — see [below](#what-ifla_stats64-was-actually-blocked-on) | the `RTA_EXPIRES` *attribute* (distinct from `rta_cacheinfo`'s `rta_expires` member; `print_route` never reads it, so nothing on a `show` path needs it), and `INET_DIAG_PRAGUEINFO`. **`RTA_METRICS` is done**, with real fixtures: the gated capture topology carries an `mtu 1400 advmss 1300` route, so `dumps/netlink_route_getroute.pcap` has one and `RouteMetrics` decodes it. **`RTA_CACHEINFO` is done** too, in `xtcpnl_rta_cacheinfo.go` — and its real fixtures (48 of 74 captured routes) turn out to be all-zero by kernel construction, which is a finding in itself: see [below](#-s-on-route-neigh-and-rule-two-no-ops-and-a-bug-in-the-ungated-form) |
-| **3** | Rules (`FRA_*`), nexthop (`NHA_*`), bridge/VLAN, `IFLA_LINKINFO` descent | **partial** | the `IFLA_LINKINFO` descent, as far as `IFLA_INFO_KIND` — [`4494b42`](#4494b42--the-ifla_-and-ifa_-attribute-decoders-a-show-line-needs), the first production caller of `WalkRTAttrsNested`. **`FRA_*` is done**: `struct fib_rule_hdr` and all 30 attributes decode in `xtcpnl_fib_rule_hdr.go`, `render.RuleView` prints them, and `ip rule show` drives four parity commands — see [below](#ip-rule-show-the-object-with-no-name-table) | `NHA_*`, bridge/VLAN, and the `IFLA_INFO_DATA` sub-nest, which is a separate attribute space per link kind |
+| **3** | Rules (`FRA_*`), nexthop (`NHA_*`), bridge/VLAN, `IFLA_LINKINFO` descent | **partial** | the `IFLA_LINKINFO` descent, as far as `IFLA_INFO_KIND` — [`4494b42`](#4494b42--the-ifla_-and-ifa_-attribute-decoders-a-show-line-needs), the first production caller of `WalkRTAttrsNested`. **`FRA_*` is done**: `struct fib_rule_hdr` and all 30 attributes decode in `xtcpnl_fib_rule_hdr.go`, `render.RuleView` prints them, and `ip rule show` drives four parity commands — see [below](#ip-rule-show-the-object-with-no-name-table). **`NHA_*` is done**: `struct nhmsg` and the nexthop attributes — id, oif, gateway, blackhole, fdb, group, group-type and the nested `NHA_RES_GROUP` — decode in `xtcpnl_nhmsg.go` and render for `ip nexthop show` and `-d` route nhid resolution; see the nexthop arc in [Where we are](#where-we-are). **The `IFLA_INFO_DATA` sub-nest is decoded for kind `vrf`** (`IFLA_VRF_TABLE`), together with `IFLA_INFO_SLAVE_DATA`'s `IFLA_VRF_PORT_TABLE`, driving `-d link`/`addr show` of a VRF master and its port | bridge/VLAN, and the `IFLA_INFO_DATA` sub-nest for link kinds other than `vrf`, each a separate attribute space per kind |
 | **4** | tc telemetry only (23 top-level `TCA_*`) | not started | — | all of it |
 | **5** | genetlink: `nlctrl` `GETFAMILY` first, then ethtool/devlink/netdev/vdpa/fou/gtp | not started | — | all of it |
 | **6** | xfrm, conntrack, ipset, proc_event, rdma | not started | — | all of it, plus a hand-declared constant block per family |

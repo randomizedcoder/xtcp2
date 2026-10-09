@@ -1,0 +1,8 @@
+[ {
+        "id": 8,
+        "gateway": "192.0.2.23",
+        "dev": "goip0",
+        "scope": "link",
+        "protocol": "static",
+        "flags": [ ]
+    } ]

@@ -965,6 +965,24 @@ var commands = withArgs([]Command{
 		Floor: 2, Implemented: true,
 	},
 
+	{
+		Name: "nexthop show", Slug: "nexthop_show",
+		// Four: the nexthop dump plus the ll_init_map link dump print_rta_ifidx
+		// triggers to turn nh_oif into `dev goip0` — the floor the capture
+		// driver already uses for this command
+		// (nix/microvms/scripts/capture-netlink-dumps.exp).
+		//
+		// nexthop's first row in this matrix. It is REPLAY-GROUNDED, not yet
+		// live-grounded: internal/goip's TestNexthopShowMatchesCapturedSidecars
+		// diffs goip byte-for-byte against the committed ip_nexthop sidecar, so
+		// the stdout is known correct offline. What a live run adds — and the
+		// reason the row exists — is the same the `-j` block cites: a committed
+		// sidecar cannot notice the iproute2 pin moving a token. No measured live
+		// run backs it yet, so it goes in ungated, like every other row until its
+		// own runs earn gating.
+		Floor: 4, Implemented: true,
+	},
+
 	// The `-j` block.
 	//
 	// # What these rows claim, and what they do not
@@ -1120,6 +1138,24 @@ var commands = withArgs([]Command{
 		// expected rather than as broken. It is not. If this row reports
 		// stdout noise, the mapping is wrong and the fix is in jsonFacets.
 		Floor: 2, Implemented: true,
+	},
+	{
+		Name: "-j nexthop show", Slug: "nexthop_show_json",
+		// Four, as `nexthop show`: `-j` does not reach the wire, so the request
+		// is byte-identical to the text twin and the floor is inherited.
+		//
+		// The group is the one locus this row adds over its text twin's facets.
+		// print_nh_group writes `group 1/2` as a single slash-joined token to the
+		// text stream (ip/ipnexthop.c:255) and an array of {id[,weight]} objects
+		// to the JSON stream, so jsonFacets rejoins the array to that token — the
+		// same local+prefixlen synthesis `-j addr show` needs, and the reason a
+		// walker that faced the array's inner `weight` keys would fill
+		// keyword:weight on the JSON side alone. id/type/buckets/timers are
+		// uncompared on both sides, as the text twin's are.
+		//
+		// Offline-grounded by internal/goip's TestNexthopShowJSONMatchesCaptured-
+		// Sidecars; ungated pending its own live runs, as the block above.
+		Floor: 4, Implemented: true,
 	},
 })
 

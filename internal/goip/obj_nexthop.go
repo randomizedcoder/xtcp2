@@ -1,6 +1,7 @@
 package goip
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 
@@ -117,16 +118,21 @@ func parseNexthopShowArgs(args []string) (nexthopSelectors, error) {
 // a single RTM_GETNEXTHOP carrying NHA_ID, rendered by the same print_nexthop as
 // the dump. A group id renders its group line; a resilient group is declined.
 func nexthopShowID(c *runCtx, id uint32) error {
-	if c.json {
-		return fmt.Errorf("nexthop show id -json: %w", ErrNotImplemented)
-	}
-
 	svc := service.New(c.src, c.nextSeq)
 	nh, err := svc.NexthopByID(c.family, id)
 	if err != nil {
 		return err
 	}
 	resolveIndexName(c, svc, nh.OIF)
+	if c.json {
+		// ip -j nexthop show id N keeps the dump's array wrapper around the one
+		// object (ip_nexthop_id_json), so encode a one-element slice.
+		view, verr := render.NexthopViewOf(xtcpnl.NexthopInfo(nh), c.detailed(), c.lltab)
+		if verr != nil {
+			return fmt.Errorf("nexthop id %d: %v: %w", nh.ID, verr, ErrNotImplemented)
+		}
+		return json.NewEncoder(c.out).Encode([]render.NexthopView{view})
+	}
 	line, rerr := render.NexthopText(xtcpnl.NexthopInfo(nh), c.detailed(), c.lltab)
 	if rerr != nil {
 		return fmt.Errorf("nexthop id %d: %v: %w", nh.ID, rerr, ErrNotImplemented)
@@ -149,12 +155,6 @@ func nexthopShowID(c *runCtx, id uint32) error {
 // flag and take no name. protocol is a client-side filter over the reply, so it
 // sends the bare dump and drops non-matching entries after render resolution.
 func nexthopShow(c *runCtx, sel nexthopSelectors) error {
-	if c.json {
-		// `ip nexthop show -json` has no captured sidecar, so there is no
-		// ground truth to reproduce; refuse rather than emit an unverified shape.
-		return fmt.Errorf("nexthop show -json: %w", ErrNotImplemented)
-	}
-
 	svc := service.New(c.src, c.nextSeq)
 
 	var filter xtcpnl.NexthopDumpFilter
@@ -215,11 +215,21 @@ func nexthopShow(c *runCtx, sel nexthopSelectors) error {
 	for i := range nhs {
 		resolveIndexName(c, svc, nhs[i].OIF)
 	}
+
+	var views []render.NexthopView
 	for i := range nhs {
 		// Client-side protocol filter (print_cache_nexthop, ip/ipnexthop.c:821):
 		// proto 0 is unspec and disables the filter, matching `if (filter.proto &&
 		// ...)`.
 		if sel.proto != 0 && nhs[i].Protocol != sel.proto {
+			continue
+		}
+		if c.json {
+			view, verr := render.NexthopViewOf(xtcpnl.NexthopInfo(nhs[i]), c.detailed(), c.lltab)
+			if verr != nil {
+				return fmt.Errorf("nexthop id %d: %v: %w", nhs[i].ID, verr, ErrNotImplemented)
+			}
+			views = append(views, view)
 			continue
 		}
 		line, rerr := render.NexthopText(xtcpnl.NexthopInfo(nhs[i]), c.detailed(), c.lltab)
@@ -229,6 +239,12 @@ func nexthopShow(c *runCtx, sel nexthopSelectors) error {
 		if _, werr := fmt.Fprintln(c.out, line); werr != nil {
 			return werr
 		}
+	}
+	if c.json {
+		if views == nil {
+			views = []render.NexthopView{}
+		}
+		return json.NewEncoder(c.out).Encode(views)
 	}
 	return nil
 }

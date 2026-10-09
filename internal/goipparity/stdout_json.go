@@ -401,6 +401,20 @@ func jsonObjectFacets(obj jsonObject, sets map[StdoutFacet]multiset) {
 				}
 			}
 		}
+		// `ip nexthop show`'s group is an array of {id[,weight]} objects, where
+		// the text form prints the one slash-joined token `group 1/2` or the
+		// weighted `group 1,2/2,3` (print_nh_group, ip/ipnexthop.c:255). Join it
+		// to that token and do NOT descend: the inner id and weight members are
+		// not separate text tokens, and weight IS a keyword, so facing them would
+		// fill keyword:weight on the JSON side of a row whose text side is empty.
+		// Link's `group default` is a scalar and falls through to the generic
+		// path below.
+		if m.Key == kwGroupCst {
+			if arr, ok := m.Val.([]any); ok {
+				sets[FacetKeyword(kwGroupCst)].add(jsonNexthopGroup(arr))
+				continue
+			}
+		}
 		jsonMemberFacets(m, sets)
 		jsonWalk(m.Val, sets)
 	}
@@ -515,6 +529,38 @@ func jsonScalars(v any) []string {
 		return out
 	}
 	return nil
+}
+
+// jsonNexthopGroup renders an `ip nexthop show` group array as the one
+// slash-joined token the text form prints: each member its id, plus `,weight`
+// only where the weight exceeds one, members joined by `/` (print_nh_group,
+// ip/ipnexthop.c:255-277). iproute2 omits the weight key when it is one, so a
+// present weight is reproduced and an absent one left off, which is the JSON
+// spelling of the text form's own `weight > 1` guard.
+func jsonNexthopGroup(arr []any) string {
+	parts := make([]string, 0, len(arr))
+	for _, e := range arr {
+		obj, ok := e.(jsonObject)
+		if !ok {
+			continue
+		}
+		id, ok := obj.lookup("id")
+		if !ok {
+			continue
+		}
+		ids := jsonScalars(id)
+		if len(ids) != 1 {
+			continue
+		}
+		part := ids[0]
+		if w, ok := obj.lookup(kwWeightCst); ok {
+			if ws := jsonScalars(w); len(ws) == 1 {
+				part += "," + ws[0]
+			}
+		}
+		parts = append(parts, part)
+	}
+	return strings.Join(parts, "/")
 }
 
 // jsonPairedCIDRs joins the split address/prefix-length key pairs.
