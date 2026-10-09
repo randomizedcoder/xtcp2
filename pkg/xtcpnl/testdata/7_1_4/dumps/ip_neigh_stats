@@ -1,9 +1,9 @@
-192.0.2.50 dev goip0 lladdr 02:00:00:00:00:01  used 13/13/13probes 0 PERMANENT 
-192.0.2.52 dev goip0  used 13/73/13probes 0 INCOMPLETE 
-192.0.2.54 dev goip0 lladdr 02:00:00:00:00:05 extern_learn  used 12/12/12probes 0 PERMANENT 
-192.0.2.56 dev goip0 lladdr 02:00:00:00:00:07 router extern_learn extern_valid  used 12/12/12probes 0 PERMANENT 
-192.0.2.51 dev goip0 lladdr 02:00:00:00:00:02  used 13/73/13probes 0 STALE 
-192.0.2.53 dev goip0 lladdr 02:00:00:00:00:04 router  used 12/12/12probes 0 PERMANENT 
-192.0.2.55 dev goip0 lladdr 02:00:00:00:00:06 extern_valid  used 12/12/12probes 0 PERMANENT 
-2001:db8::53 dev goip0 lladdr 02:00:00:00:00:08 router extern_valid  used 12/12/12probes 0 PERMANENT 
-2001:db8::50 dev goip0 lladdr 02:00:00:00:00:03  used 12/12/12probes 0 PERMANENT 
+192.0.2.55 dev goip0 lladdr 02:00:00:00:00:06 extern_valid  used 250/250/250probes 0 PERMANENT 
+192.0.2.56 dev goip0 lladdr 02:00:00:00:00:07 router extern_learn extern_valid  used 249/249/249probes 0 PERMANENT 
+192.0.2.51 dev goip0 lladdr 02:00:00:00:00:02  used 262/322/262probes 0 STALE 
+192.0.2.52 dev goip0  used 261/321/261probes 0 INCOMPLETE 
+192.0.2.54 dev goip0 lladdr 02:00:00:00:00:05 extern_learn  used 252/252/252probes 0 PERMANENT 
+192.0.2.53 dev goip0 lladdr 02:00:00:00:00:04 router  used 254/254/254probes 0 PERMANENT 
+192.0.2.50 dev goip0 lladdr 02:00:00:00:00:01  used 264/264/264probes 0 PERMANENT 
+2001:db8::53 dev goip0 lladdr 02:00:00:00:00:08 router extern_valid  used 247/247/247probes 0 PERMANENT 
+2001:db8::50 dev goip0 lladdr 02:00:00:00:00:03  used 259/259/259probes 0 PERMANENT 

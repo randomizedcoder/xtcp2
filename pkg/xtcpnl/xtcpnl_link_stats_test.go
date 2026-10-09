@@ -562,17 +562,17 @@ func TestLinkStatsRealFixtures(t *testing.T) {
 		{
 			description: "positive: `ip -4 addr show`'s link dump carries stats on every link, because its request has no IFLA_EXT_MASK",
 			filename:    tdStatsV4,
-			wantLinks:   3,
+			wantLinks:   5,
 		},
 		{
 			description: "positive: `ip neigh show`'s ll_init_map dump carries them for the same reason",
 			filename:    tdStatsNeigh,
-			wantLinks:   3,
+			wantLinks:   5,
 		},
 		{
 			description: "positive: `ip -s link show` carries them because its request ASKED, which is the only fixture here that did",
 			filename:    tdDumpGetLinkStats_7_1_4,
-			wantLinks:   3,
+			wantLinks:   5,
 		},
 	}
 

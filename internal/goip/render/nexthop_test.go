@@ -201,6 +201,31 @@ func TestNexthopText(t *testing.T) {
 			want: "id 23 group 1 type resilient buckets 1 idle_timer 1e+07 unbalanced_timer 0 unbalanced_time 1.5 ",
 		},
 		{
+			description: "positive: ip_nexthop_fdb id 5 — the fdb token ends the line with no trailing space",
+			in: xtcpnl.NexthopInfo{
+				Family: unix.AF_INET, Scope: unix.RT_SCOPE_LINK,
+				ID: 5, Gateway: v4(192, 0, 2, 20), Fdb: true,
+			},
+			want: "id 5 via 192.0.2.20 scope link fdb",
+		},
+		{
+			description: "positive: ip_nexthop_fdb_n -d id 5 — proto unspec prints before the fdb token",
+			in: xtcpnl.NexthopInfo{
+				Family: unix.AF_INET, Scope: unix.RT_SCOPE_LINK,
+				ID: 5, Gateway: v4(192, 0, 2, 20), Fdb: true,
+			},
+			detailed: true,
+			want:     "id 5 via 192.0.2.20 scope link proto unspec fdb",
+		},
+		{
+			description: "corner: the fdb token follows the onlink flag",
+			in: xtcpnl.NexthopInfo{
+				Family: unix.AF_INET, Scope: unix.RT_SCOPE_UNIVERSE, Flags: unix.RTNH_F_ONLINK,
+				ID: 6, Gateway: v4(192, 0, 2, 21), Fdb: true,
+			},
+			want: "id 6 via 192.0.2.21 onlink fdb",
+		},
+		{
 			description: "negative: an unknown group type (neither mpath nor resilient) is refused",
 			in:          xtcpnl.NexthopInfo{ID: 7, HasGroup: true, GroupType: 2},
 			wantErr:     true,

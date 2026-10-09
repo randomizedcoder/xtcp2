@@ -656,10 +656,10 @@ func TestStdoutRouteFacets(t *testing.T) {
 			want:        map[string]int{"goip0": 8},
 		},
 		{
-			description: "positive: ip_route_table_all reaches lo as well as goip0, which is the second interface the lazy name resolution has to fetch",
+			description: "positive: ip_route_table_all reaches lo and goip0, plus goipv in the VRF table-100 routes",
 			golden:      "ip_route_table_all",
 			facet:       FacetDevNames,
-			want:        map[string]int{"goip0": 20, "lo": 4},
+			want:        map[string]int{"goip0": 20, "lo": 4, "goipv": 6},
 		},
 		{
 			description: "positive: the via facet separates the two ECMP gateways and records `inet6` for the RFC-5549 route",
@@ -719,10 +719,10 @@ func TestStdoutRouteFacets(t *testing.T) {
 			want:        map[string]int{"medium": 5},
 		},
 		{
-			description: "positive: `table local` is extracted from every table-all line that carries it",
+			description: "positive: `table local` and the VRF `table 100` are extracted from every table-all line that carries them",
 			golden:      "ip_route_table_all",
 			facet:       FacetKeyword("table"),
-			want:        map[string]int{"local": 10},
+			want:        map[string]int{"local": 10, "100": 6},
 		},
 		{
 			description: "positive: linkdown at end of line is extracted, which no keyword facet could do",
@@ -973,9 +973,9 @@ func TestStdoutStatsHeaderFacet(t *testing.T) {
 		want        map[string]int
 	}{
 		{
-			description: "positive: the clean topology's three links each contribute one RX and one TX heading",
+			description: "positive: the clean topology's five links each contribute one RX and one TX heading",
 			golden:      "ip_link_stats",
-			want:        map[string]int{rx: 3, tx: 3},
+			want:        map[string]int{rx: 5, tx: 5},
 		},
 		{
 			description: "positive: the mesh topology's five links scale the same way, which is what makes this per-line rather than per-command",

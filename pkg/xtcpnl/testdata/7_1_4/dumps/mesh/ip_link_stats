@@ -7,23 +7,23 @@
 2: nlmon0: <NOARP,UP,LOWER_UP> mtu 3776 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
     link/netlink 
     RX:  bytes packets errors dropped  missed   mcast           
-        127180     233      0       0       0       0 
+        128716     265      0       0       0       0 
     TX:  bytes packets errors dropped carrier collsns           
              0       0      0       0       0       0 
 3: br0: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc noqueue state DOWN mode DEFAULT group default qlen 1000
-    link/ether 62:52:ce:f7:80:32 brd ff:ff:ff:ff:ff:ff
+    link/ether da:fb:fa:0a:e6:ae brd ff:ff:ff:ff:ff:ff
     RX:  bytes packets errors dropped  missed   mcast           
              0       0      0       0       0       0 
     TX:  bytes packets errors dropped carrier collsns           
              0       0      0       2       0       0 
 4: veth1@veth0: <BROADCAST,MULTICAST> mtu 1500 qdisc noop state DOWN mode DEFAULT group default qlen 1000
-    link/ether 4a:4b:7f:06:54:1c brd ff:ff:ff:ff:ff:ff
+    link/ether 8a:73:b6:06:62:98 brd ff:ff:ff:ff:ff:ff
     RX:  bytes packets errors dropped  missed   mcast           
              0       0      0       0       0       0 
     TX:  bytes packets errors dropped carrier collsns           
              0       0      0       0       0       0 
 5: veth0@veth1: <NO-CARRIER,BROADCAST,MULTICAST,UP,M-DOWN> mtu 1500 qdisc noqueue master br0 state LOWERLAYERDOWN mode DEFAULT group default qlen 1000
-    link/ether 62:52:ce:f7:80:32 brd ff:ff:ff:ff:ff:ff
+    link/ether da:fb:fa:0a:e6:ae brd ff:ff:ff:ff:ff:ff
     RX:  bytes packets errors dropped  missed   mcast           
              0       0      0       0       0       0 
     TX:  bytes packets errors dropped carrier collsns           

@@ -124,6 +124,22 @@ namespace eval nltopo {
         # nexthops, so unbalanced_time stays 0; buckets/idle_timer are the
         # configured constants, so the `type resilient ...` line is byte-stable.
         topo $ns $subdir nexthop add id 20 group 1/2 type resilient buckets 8 idle_timer 120
+        # Wire-filter dump selectors. A VRF master with an enslaved, addressed
+        # dummy grounds BOTH `vrf NAME` and `master DEV`: a VRF is a master, so
+        # the NHA_MASTER request bytes are identical and both return id 7. A
+        # standalone L2 bridge-fdb nexthop (no dev) grounds `fdb`. A nexthop
+        # carrying an explicit proto grounds the client-side `protocol` filter.
+        # `dev` and `groups` need no new object - id 1/2 are on goip0 and id
+        # 10/11/20 are the groups.
+        topo $ns $subdir link add goipvrf type vrf table 100
+        topo $ns $subdir link add goipv type dummy
+        topo $ns $subdir link set goipv master goipvrf
+        topo $ns $subdir addr add 198.18.11.1/24 dev goipv
+        topo $ns $subdir link set goipv up
+        topo $ns $subdir link set goipvrf up
+        topo $ns $subdir nexthop add id 7 via 198.18.11.2 dev goipv
+        topo $ns $subdir nexthop add id 5 via 192.0.2.20 fdb
+        topo $ns $subdir nexthop add id 8 via 192.0.2.23 dev $dummy protocol static
         # RTA_METRICS, two nested values so a decoder cannot pass by returning
         # the first one it finds.
         topo $ns $subdir route add 198.18.1.0/24 via 192.0.2.10 dev $dummy mtu 1400 advmss 1300

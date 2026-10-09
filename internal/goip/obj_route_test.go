@@ -682,16 +682,18 @@ func TestRouteShowTransactionShape(t *testing.T) {
 			wantGets:    []int32{3},
 		},
 		{
-			// `table all` reaches the loopback routes too, so a SECOND distinct
-			// index appears — and it appears after index 3, because resolution
-			// walks routes in dump order. Two gets is exactly what the capture
-			// recorded: an 816-byte reply for goip0 and a 796-byte one for lo.
-			description: "positive: `table all` resolves a second device, in dump order, for two single-gets",
+			// `table all` reaches two more tables than `show` does, and both add
+			// a distinct index: the VRF table 100 leads the dump with goipv's
+			// three local/subnet routes (index 5), then the main table's goip0
+			// routes (index 3), then the local table's loopback routes (index 1).
+			// Three gets, in dump order — resolution walks the replies as they
+			// arrive, so the VRF device is asked for first.
+			description: "positive: `table all` resolves two more devices, in dump order, for three single-gets",
 			pcap:        routeDumpAllPcap,
 			family:      unix.AF_UNSPEC,
 			args:        []string{"show", "table", "all"},
 			wantDumps:   1,
-			wantGets:    []int32{3, 1},
+			wantGets:    []int32{5, 3, 1},
 		},
 		{
 			description: "positive: the v6 dump names one device and sends one single-get",
@@ -726,20 +728,20 @@ func TestRouteShowTransactionShape(t *testing.T) {
 				"\n\tnexthop via 192.0.2.11 dev if3 weight 3 \n",
 		},
 		{
-			// The loopback routes still print, `lo` still resolves, and only
+			// goipv and lo still resolve and cache after one get each, and only
 			// the goip0 references retry — a failed lookup must not poison the
-			// whole listing.
-			description:  "corner: one unresolvable index does not stop the other from resolving",
+			// whole listing. goipv (index 5) leads with the VRF table 100
+			// routes and is asked once; then eight index-3 references before lo;
+			// then lo (index 1), asked once; then the remaining twelve index-3
+			// references, each of which retries.
+			description:  "corner: one unresolvable index does not stop the others from resolving",
 			pcap:         routeDumpAllPcap,
 			family:       unix.AF_UNSPEC,
 			args:         []string{"show", "table", "all"},
 			unresolvable: []int32{3},
 			wantDumps:    1,
-			// Six v4 RTA_OIFs on index 3 plus the ECMP route's two nexthops,
-			// then lo — which resolves, and so is asked for ONCE even though
-			// three loopback routes name it — then the remaining twelve
-			// references to index 3, each of which retries.
 			wantGets: []int32{
+				5,
 				3, 3, 3, 3, 3, 3, 3, 3,
 				1,
 				3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,

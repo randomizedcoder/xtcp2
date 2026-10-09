@@ -1,4 +1,5 @@
 0:	from all lookup local
 100:	from 2001:db8::/64 lookup 100
 200:	from all lookup 200 flowlabel 0x12345
+1000:	from all lookup [l3mdev-table]
 32766:	from all lookup main

@@ -33,7 +33,34 @@
         "group": "default",
         "txqlen": 1000,
         "link_type": "ether",
-        "address": "9e:81:52:59:bb:93",
+        "address": "06:a4:15:8d:1e:e0",
         "broadcast": "ff:ff:ff:ff:ff:ff",
         "altnames": [ "goip0-alt" ]
+    },{
+        "ifindex": 4,
+        "ifname": "goipvrf",
+        "flags": [ "NOARP","MASTER","UP","LOWER_UP" ],
+        "mtu": 65575,
+        "qdisc": "noqueue",
+        "operstate": "UP",
+        "linkmode": "DEFAULT",
+        "group": "default",
+        "txqlen": 1000,
+        "link_type": "ether",
+        "address": "9a:62:a4:62:cb:7c",
+        "broadcast": "ff:ff:ff:ff:ff:ff"
+    },{
+        "ifindex": 5,
+        "ifname": "goipv",
+        "flags": [ "BROADCAST","NOARP","UP","LOWER_UP" ],
+        "mtu": 1500,
+        "qdisc": "noqueue",
+        "master": "goipvrf",
+        "operstate": "UNKNOWN",
+        "linkmode": "DEFAULT",
+        "group": "default",
+        "txqlen": 1000,
+        "link_type": "ether",
+        "address": "92:27:3f:4d:54:d4",
+        "broadcast": "ff:ff:ff:ff:ff:ff"
     } ]

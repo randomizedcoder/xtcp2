@@ -48,7 +48,7 @@
         "group": "default",
         "txqlen": 1000,
         "link_type": "ether",
-        "address": "62:52:ce:f7:80:32",
+        "address": "da:fb:fa:0a:e6:ae",
         "broadcast": "ff:ff:ff:ff:ff:ff",
         "addr_info": [ {
                 "family": "inet",
@@ -78,7 +78,7 @@
         "group": "default",
         "txqlen": 1000,
         "link_type": "ether",
-        "address": "4a:4b:7f:06:54:1c",
+        "address": "8a:73:b6:06:62:98",
         "broadcast": "ff:ff:ff:ff:ff:ff",
         "addr_info": [ ]
     },{
@@ -93,7 +93,7 @@
         "group": "default",
         "txqlen": 1000,
         "link_type": "ether",
-        "address": "62:52:ce:f7:80:32",
+        "address": "da:fb:fa:0a:e6:ae",
         "broadcast": "ff:ff:ff:ff:ff:ff",
         "addr_info": [ ]
     } ]

@@ -132,8 +132,22 @@ type LinkDetailView struct {
 // continuation line and `bridge_slave` on the next — and iproute2 emits them as
 // two keys of one object (ip/ipaddress.c:222-224, :250-258).
 type LinkKindView struct {
-	Kind      string `json:"info_kind,omitempty"`
-	SlaveKind string `json:"info_slave_kind,omitempty"`
+	Kind string `json:"info_kind,omitempty"`
+	// InfoData is print_linktype's open_json_object("info_data") (:237): the
+	// per-kind print_opt output. goip fills it only for the vrf kind, whose
+	// vrf_print_opt emits a single `table %u ` (ip/iplink_vrf.c:55).
+	InfoData  *LinkKindData `json:"info_data,omitempty"`
+	SlaveKind string        `json:"info_slave_kind,omitempty"`
+	// SlaveData is the vrf_slave_print_opt counterpart (:67), a single
+	// `table %u ` from IFLA_VRF_PORT_TABLE.
+	SlaveData *LinkKindData `json:"info_slave_data,omitempty"`
+}
+
+// LinkKindData is a VRF nest's one rendered attribute, the routing table id. A
+// pointer so an absent table drops the token and the JSON key alike, matching
+// vrf_print_opt's `if (tb[IFLA_VRF_TABLE])` guard.
+type LinkKindData struct {
+	Table *uint32 `json:"table,omitempty"`
 }
 
 // addrGenModeNoneCst is print_af_spec's spelling of IN6_ADDR_GEN_MODE_NONE
@@ -220,7 +234,14 @@ func (v LinkView) WithDetail(li xtcpnl.LinkInfo, linkObject bool) LinkView {
 	// neither kind is an empty JSON object rather than a missing key. lo
 	// carries no IFLA_LINKINFO at all, which is the same render.
 	if li.Kind != "" || li.SlaveKind != "" {
-		dv.LinkInfo = &LinkKindView{Kind: li.Kind, SlaveKind: li.SlaveKind}
+		kv := &LinkKindView{Kind: li.Kind, SlaveKind: li.SlaveKind}
+		if t := u32Ptr(li.VrfTable); t != nil {
+			kv.InfoData = &LinkKindData{Table: t}
+		}
+		if t := u32Ptr(li.VrfPortTable); t != nil {
+			kv.SlaveData = &LinkKindData{Table: t}
+		}
+		dv.LinkInfo = kv
 	}
 	if linkObject && d.HasAddrGenMode {
 		dv.AddrGenMode = addrGenModeName(d.AddrGenMode)
@@ -278,6 +299,13 @@ func (v LinkView) detailText() string {
 		// looks like.
 		if d.LinkInfo.Kind != "" {
 			fmt.Fprintf(&b, "\n    %s ", d.LinkInfo.Kind)
+			// print_opt runs onto the SAME line as the kind token
+			// (ip/ipaddress.c:238). For vrf that is vrf_print_opt's
+			// `table %u ` (ip/iplink_vrf.c:60-64); other kinds are refused
+			// upstream, so nothing else reaches here.
+			if d.LinkInfo.InfoData != nil && d.LinkInfo.InfoData.Table != nil {
+				fmt.Fprintf(&b, "table %d ", *d.LinkInfo.InfoData.Table)
+			}
 		}
 		if d.LinkInfo.SlaveKind != "" {
 			// The `_slave` suffix is in iproute2's FORMAT STRING —
@@ -294,6 +322,11 @@ func (v LinkView) detailText() string {
 			// veth179a698's IFLA_INFO_SLAVE_KIND in the 7_1_8 dump holds
 			// "bridge", and its ip_link_n line reads "    bridge_slave ".
 			fmt.Fprintf(&b, "\n    %s_slave ", d.LinkInfo.SlaveKind)
+			// vrf_slave_print_opt's `table %u ` (ip/iplink_vrf.c:73-78), on
+			// the same continuation line as the slave kind token.
+			if d.LinkInfo.SlaveData != nil && d.LinkInfo.SlaveData.Table != nil {
+				fmt.Fprintf(&b, "table %d ", *d.LinkInfo.SlaveData.Table)
+			}
 		}
 	}
 	if d.AddrGenMode != "" {

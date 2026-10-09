@@ -968,7 +968,7 @@ func TestDumpSetAddrFamilyFilter(t *testing.T) {
 		{
 			description: "positive: the unspec dump returns every address on the namespace, both families",
 			filename:    tdDumpGetAddr_7_1_4,
-			sidecar:     "ip_addr_n:3,5,14,16,18,20",
+			sidecar:     "ip_addr_n:3,5,14,16,18,20,29,31",
 			check: func(t *testing.T, addrs []AddrInfo) {
 				var v4, v6 int
 				for _, ai := range addrs {
@@ -981,18 +981,18 @@ func TestDumpSetAddrFamilyFilter(t *testing.T) {
 						t.Errorf("unexpected family %d", ai.Family)
 					}
 				}
-				if len(addrs) != 6 || v4 != 2 || v6 != 4 {
-					t.Errorf("got %d addresses (%d v4, %d v6), want 6 (2 v4, 4 v6)", len(addrs), v4, v6)
+				if len(addrs) != 8 || v4 != 3 || v6 != 5 {
+					t.Errorf("got %d addresses (%d v4, %d v6), want 8 (3 v4, 5 v6)", len(addrs), v4, v6)
 				}
 			},
 		},
 		{
 			description: "positive: the -4 dump returns exactly the AF_INET addresses",
 			filename:    tdDumpGetAddrV4_7_1_4,
-			sidecar:     "ip_addr_v4_n:3,8",
+			sidecar:     "ip_addr_v4_n:3,9,15",
 			check: func(t *testing.T, addrs []AddrInfo) {
-				if len(addrs) != 2 {
-					t.Fatalf("got %d addresses, want 2", len(addrs))
+				if len(addrs) != 3 {
+					t.Fatalf("got %d addresses, want 3", len(addrs))
 				}
 				for _, ai := range addrs {
 					if ai.Family != unix.AF_INET {
@@ -1004,10 +1004,10 @@ func TestDumpSetAddrFamilyFilter(t *testing.T) {
 		{
 			description: "positive: the -6 dump returns exactly the AF_INET6 addresses",
 			filename:    tdDumpGetAddrV6_7_1_4,
-			sidecar:     "ip_addr_v6_n:3,7,9,11",
+			sidecar:     "ip_addr_v6_n:3,7,9,11,15",
 			check: func(t *testing.T, addrs []AddrInfo) {
-				if len(addrs) != 4 {
-					t.Fatalf("got %d addresses, want 4", len(addrs))
+				if len(addrs) != 5 {
+					t.Fatalf("got %d addresses, want 5", len(addrs))
 				}
 				for _, ai := range addrs {
 					if ai.Family != unix.AF_INET6 {
@@ -1266,8 +1266,12 @@ func TestDumpSetNeigh(t *testing.T) {
 					"ff02::2":      true,  // NOARP
 					"2001:db8::50": true,  // PERMANENT
 				}
+				// Every cited destination is on goip0; ff02::2 is now also on
+				// the VRF slave goipv, so look each up on goip0's ifindex, taken
+				// from one of the unicast entries rather than hardcoded.
+				goip0 := neighByDst(t, ns, "192.0.2.50").Ifindex
 				for dst, w := range want {
-					ni := neighByDst(t, ns, dst)
+					ni := neighByDstDev(t, ns, dst, goip0)
 					if got := ni.IsReachable(); got != w {
 						t.Errorf("neigh %s (%s) IsReachable = %v, want %v",
 							dst, NudStateString(ni.State), got, w)
@@ -1340,8 +1344,11 @@ func TestDumpSetNeigh(t *testing.T) {
 						"something other than the state filter is hiding a line", got, hidden)
 				}
 				// The specific entry the row was written for, still asserted
-				// by name rather than by position.
-				extra := neighByDst(t, ns, "ff02::2")
+				// by name rather than by position. ff02::2 is now on both goip0
+				// and goipv, so it is keyed by (ifindex, dst) against goip0's
+				// index, read from a unicast entry on the same device.
+				goip0 := neighByDst(t, ns, "192.0.2.50").Ifindex
+				extra := neighByDstDev(t, ns, "ff02::2", goip0)
 				if extra.Type != unix.RTN_MULTICAST || extra.State != unix.NUD_NOARP {
 					t.Errorf("ff02::2 = type %d %s, want RTN_MULTICAST NUD_NOARP",
 						extra.Type, NudStateString(extra.State))
@@ -1393,6 +1400,31 @@ func TestDumpSetNeigh(t *testing.T) {
 // weakening. An indexed lookup at least asserted the reply was THERE; a
 // find-first would quietly pass if the dump held two of something or none of
 // what a later row expects.
+// neighByDstDev is neighByDst keyed by (ifindex, dst). ff02::2 is a per-device
+// all-routers multicast entry, so goip0 and the VRF-enslaved goipv each carry
+// one and the destination alone stopped being unique; the real neighbor key is
+// (family, ifindex, dst), the one pkg/nlparity's ObjectKey uses.
+func neighByDstDev(t *testing.T, ns []NeighInfo, dst string, ifindex int32) NeighInfo {
+	t.Helper()
+
+	var found []NeighInfo
+	for _, ni := range ns {
+		if ipText(ni.Dst) == dst && ni.Ifindex == ifindex {
+			found = append(found, ni)
+		}
+	}
+	switch len(found) {
+	case 1:
+		return found[0]
+	case 0:
+		t.Fatalf("no neighbor with dst %s on ifindex %d", dst, ifindex)
+	default:
+		t.Fatalf("%d neighbors with dst %s on ifindex %d; the (ifindex, dst) key is meant to be unique",
+			len(found), dst, ifindex)
+	}
+	return NeighInfo{}
+}
+
 func neighByDst(t *testing.T, ns []NeighInfo, dst string) NeighInfo {
 	t.Helper()
 
@@ -1486,8 +1518,8 @@ func TestDumpSetLinkSingleGet(t *testing.T) {
 			description: "negative: the full dump of the same namespace IS terminated, so the absence above is not a capture defect",
 			filename:    tdDumpGetLink_7_1_4,
 			sidecar:     "ip_link_n",
-			wantReplies: 3,
-			wantNames:   []string{"lo", "nlmon0", "goip0"},
+			wantReplies: 5,
+			wantNames:   []string{"lo", "nlmon0", "goip0", "goipvrf", "goipv"},
 			wantDone:    true,
 		},
 		{
@@ -1985,7 +2017,7 @@ func TestDumpSetRule(t *testing.T) {
 			// the mask is all ones (ip/iprule.c:341-347).
 			description: "corner: a rule added with no mask still arrives carrying FRA_FWMASK set to all ones",
 			filename:    tdDumpGetRule_7_1_4,
-			sidecar:     "ip_rule_n:17",
+			sidecar:     "ip_rule_n:18",
 			check: func(t *testing.T, rs []RuleInfo) {
 				ri := ruleByPriority(t, rs, 1600)
 				if !ri.HasFwmark || ri.Fwmark != 0x10 {
@@ -2078,7 +2110,7 @@ func TestDumpSetRule(t *testing.T) {
 		{
 			description: "positive: suppress_ifgroup is the sibling attribute, and it is absent rather than sentinel-valued when unset",
 			filename:    tdDumpGetRule_7_1_4,
-			sidecar:     "ip_rule_n:15",
+			sidecar:     "ip_rule_n:16",
 			check: func(t *testing.T, rs []RuleInfo) {
 				ri := ruleByPriority(t, rs, 1400)
 				if !ri.HasSuppressIfgroup || ri.SuppressIfgroup != 5 {
@@ -2131,24 +2163,34 @@ func TestDumpSetRule(t *testing.T) {
 			// offset. Everything else in the dump leaves it zero.
 			description: "corner: `not` is a header FLAG, and it is the only nonzero frh_flags in the dump",
 			filename:    tdDumpGetRule_7_1_4,
-			sidecar:     "ip_rule_n:11",
+			sidecar:     "ip_rule_n:12",
 			check: func(t *testing.T, rs []RuleInfo) {
-				ri := ruleByPriority(t, rs, 1000)
-				if ri.Flags != unix.FIB_RULE_INVERT {
-					t.Errorf("frh_flags = %#x, want FIB_RULE_INVERT (%#x) alone",
-						ri.Flags, unix.FIB_RULE_INVERT)
-				}
-				for _, other := range rs {
-					if other.Priority != 1000 && other.Flags != 0 {
-						t.Errorf("rule pref %d has frh_flags = %#x, want 0", other.Priority, other.Flags)
+				// The VRF's kernel l3mdev rule also lands at pref 1000 (flags 0),
+				// so pref no longer keys the `not` rule uniquely; it is found by
+				// its flag instead, and is still the one nonzero frh_flags in the
+				// dump.
+				var invert []RuleInfo
+				for _, ri := range rs {
+					if ri.Flags != 0 {
+						invert = append(invert, ri)
 					}
+				}
+				if len(invert) != 1 {
+					t.Fatalf("%d rules carry a nonzero frh_flags, want exactly 1 (the `not` rule)", len(invert))
+				}
+				if invert[0].Flags != unix.FIB_RULE_INVERT {
+					t.Errorf("frh_flags = %#x, want FIB_RULE_INVERT (%#x) alone",
+						invert[0].Flags, unix.FIB_RULE_INVERT)
+				}
+				if invert[0].Priority != 1000 {
+					t.Errorf("the `not` rule is at pref %d, want 1000", invert[0].Priority)
 				}
 			},
 		},
 		{
 			description: "positive: nop is an action with no attribute and no table",
 			filename:    tdDumpGetRule_7_1_4,
-			sidecar:     "ip_rule_n:12",
+			sidecar:     "ip_rule_n:13",
 			check: func(t *testing.T, rs []RuleInfo) {
 				ri := ruleByPriority(t, rs, 1100)
 				if ri.Action != unix.FR_ACT_NOP {
@@ -2166,7 +2208,7 @@ func TestDumpSetRule(t *testing.T) {
 			// prints the literal "[l3mdev-table]" instead of a number.
 			description: "corner: l3mdev is FR_ACT_TO_TBL with no table, the table being resolved per packet",
 			filename:    tdDumpGetRule_7_1_4,
-			sidecar:     "ip_rule_n:13",
+			sidecar:     "ip_rule_n:14",
 			check: func(t *testing.T, rs []RuleInfo) {
 				ri := ruleByPriority(t, rs, 1200)
 				if !ri.HasL3mdev || ri.L3mdev != 1 {
@@ -2186,7 +2228,7 @@ func TestDumpSetRule(t *testing.T) {
 			// host-order read would be 3026418949592973312.
 			description: "positive: tun_id is big-endian on the wire and decodes to the value that was set",
 			filename:    tdDumpGetRule_7_1_4,
-			sidecar:     "ip_rule_n:14",
+			sidecar:     "ip_rule_n:15",
 			check: func(t *testing.T, rs []RuleInfo) {
 				ri := ruleByPriority(t, rs, 1300)
 				if !ri.HasTunID || ri.TunID != 42 {
@@ -2198,7 +2240,7 @@ func TestDumpSetRule(t *testing.T) {
 		{
 			description: "positive: realms is one attribute holding two values, packed from<<16 | to",
 			filename:    tdDumpGetRule_7_1_4,
-			sidecar:     "ip_rule_n:16",
+			sidecar:     "ip_rule_n:17",
 			check: func(t *testing.T, rs []RuleInfo) {
 				ri := ruleByPriority(t, rs, 1500)
 				if !ri.HasFlow {
@@ -2218,7 +2260,7 @@ func TestDumpSetRule(t *testing.T) {
 			// is covered by constructed bytes instead.
 			description: "corner: a NAT rule survives the round trip without its address, which is why ip prints masquerade and never map-to",
 			filename:    tdDumpGetRule_7_1_4,
-			sidecar:     "ip_rule_n:18",
+			sidecar:     "ip_rule_n:19",
 			check: func(t *testing.T, rs []RuleInfo) {
 				ri := ruleByPriority(t, rs, 1700)
 				if ri.Action != unix.RTN_NAT {
@@ -2313,16 +2355,20 @@ func TestDumpSetRule(t *testing.T) {
 			// families mirror each other would be wrong by one rule.
 			description: "boundary: IPv6 ships two kernel default rules where IPv4 ships three",
 			filename:    tdDumpGetRule6_7_1_4,
-			sidecar:     "ip_rule6_n:1,4",
+			sidecar:     "ip_rule6_n:1,5",
 			check: func(t *testing.T, rs []RuleInfo) {
+				// The VRF adds a proto-kernel l3mdev rule at pref 1000, so the
+				// base defaults are counted by excluding it: fib6_rules_init
+				// installs only local (0) and main (32766), where the IPv4 side
+				// also gets default (32767).
 				kernel := 0
 				for _, ri := range rs {
-					if ri.HasProtocol && ri.Protocol == unix.RTPROT_KERNEL {
+					if ri.HasProtocol && ri.Protocol == unix.RTPROT_KERNEL && !ri.HasL3mdev {
 						kernel++
 					}
 				}
 				if kernel != 2 {
-					t.Errorf("%d kernel-owned rules in the v6 dump, want 2 (local, main)", kernel)
+					t.Errorf("%d base kernel rules in the v6 dump, want 2 (local, main)", kernel)
 				}
 				for _, pref := range []uint32{0, 32766} {
 					ruleByPriority(t, rs, pref)

@@ -1,3 +1,6 @@
+198.18.11.0/24 dev goipv table 100 proto kernel scope link src 198.18.11.1 
+local 198.18.11.1 dev goipv table 100 proto kernel scope host src 198.18.11.1 
+broadcast 198.18.11.255 dev goipv table 100 proto kernel scope link src 198.18.11.1 
 192.0.2.0/24 dev goip0 proto kernel scope link src 192.0.2.1 
 198.18.0.0/24 via 192.0.2.10 dev goip0 
 198.18.1.0/24 via 192.0.2.10 dev goip0 mtu 1400 advmss 1300 
@@ -12,6 +15,9 @@ local 127.0.0.1 dev lo table local proto kernel scope host src 127.0.0.1
 broadcast 127.255.255.255 dev lo table local proto kernel scope link src 127.0.0.1 
 local 192.0.2.1 dev goip0 table local proto kernel scope host src 192.0.2.1 
 broadcast 192.0.2.255 dev goip0 table local proto kernel scope link src 192.0.2.1 
+local fe80::9027:3fff:fe4d:54d4 dev goipv table 100 proto kernel metric 0 pref medium
+fe80::/64 dev goipv table 100 proto kernel metric 256 pref medium
+multicast ff00::/8 dev goipv table 100 proto kernel metric 256 pref medium
 2001:db8::/64 dev goip0 proto kernel metric 256 pref medium
 2001:db8:1::/64 via 2001:db8::2 dev goip0 metric 1024 pref medium
 2001:db8:2::/64 metric 1024 pref medium
@@ -22,5 +28,5 @@ fe80::/64 dev goip0 proto kernel metric 256 pref medium
 local ::1 dev lo table local proto kernel metric 0 pref medium
 local 2001:db8::1 dev goip0 table local proto kernel metric 0 pref medium
 local 2001:db8::9 dev goip0 table local proto kernel metric 0 pref medium
-local fe80::9c81:52ff:fe59:bb93 dev goip0 table local proto kernel metric 0 pref medium
+local fe80::4a4:15ff:fe8d:1ee0 dev goip0 table local proto kernel metric 0 pref medium
 multicast ff00::/8 dev goip0 table local proto kernel metric 256 pref medium

@@ -42,8 +42,8 @@
         "link_type": "netlink",
         "stats64": {
             "rx": {
-                "bytes": 150456,
-                "packets": 363,
+                "bytes": 238816,
+                "packets": 460,
                 "errors": 0,
                 "dropped": 0,
                 "over_errors": 0,
@@ -69,7 +69,7 @@
         "group": "default",
         "txqlen": 1000,
         "link_type": "ether",
-        "address": "9e:81:52:59:bb:93",
+        "address": "06:a4:15:8d:1e:e0",
         "broadcast": "ff:ff:ff:ff:ff:ff",
         "stats64": {
             "rx": {
@@ -81,8 +81,8 @@
                 "multicast": 0
             },
             "tx": {
-                "bytes": 390,
-                "packets": 5,
+                "bytes": 670,
+                "packets": 9,
                 "errors": 0,
                 "dropped": 0,
                 "carrier_errors": 0,
@@ -90,4 +90,67 @@
             }
         },
         "altnames": [ "goip0-alt" ]
+    },{
+        "ifindex": 4,
+        "ifname": "goipvrf",
+        "flags": [ "NOARP","MASTER","UP","LOWER_UP" ],
+        "mtu": 65575,
+        "qdisc": "noqueue",
+        "operstate": "UP",
+        "linkmode": "DEFAULT",
+        "group": "default",
+        "txqlen": 1000,
+        "link_type": "ether",
+        "address": "9a:62:a4:62:cb:7c",
+        "broadcast": "ff:ff:ff:ff:ff:ff",
+        "stats64": {
+            "rx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "over_errors": 0,
+                "multicast": 0
+            },
+            "tx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "carrier_errors": 0,
+                "collisions": 0
+            }
+        }
+    },{
+        "ifindex": 5,
+        "ifname": "goipv",
+        "flags": [ "BROADCAST","NOARP","UP","LOWER_UP" ],
+        "mtu": 1500,
+        "qdisc": "noqueue",
+        "master": "goipvrf",
+        "operstate": "UNKNOWN",
+        "linkmode": "DEFAULT",
+        "group": "default",
+        "txqlen": 1000,
+        "link_type": "ether",
+        "address": "92:27:3f:4d:54:d4",
+        "broadcast": "ff:ff:ff:ff:ff:ff",
+        "stats64": {
+            "rx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "over_errors": 0,
+                "multicast": 0
+            },
+            "tx": {
+                "bytes": 490,
+                "packets": 7,
+                "errors": 0,
+                "dropped": 0,
+                "carrier_errors": 0,
+                "collisions": 0
+            }
+        }
     } ]

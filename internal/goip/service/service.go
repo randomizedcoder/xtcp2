@@ -350,6 +350,47 @@ func (s *Service) Nexthops(family uint8) ([]model.Nexthop, error) {
 	return out, nil
 }
 
+// NexthopShowLinks is ll_init_map's link dump before a filtered `ip nexthop show
+// { dev | master | vrf }`. It is the nexthop-path twin of NeighborLinks: the same
+// ll_init_map request, split out so a `dev`/`master`/`vrf` name is resolved from
+// its replies between the link dump and the filtered nexthop dump.
+func (s *Service) NexthopShowLinks() ([]model.Link, error) {
+	r, err := req.NexthopShowLinkDump(s.nextSeq())
+	if err != nil {
+		return nil, fmt.Errorf("goip: build nexthop link dump request: %w", err)
+	}
+	ls, err := decode(s, r, uint16(unix.RTM_NEWLINK), "RTM_NEWLINK", xtcpnl.ParseNewLink)
+	if err != nil {
+		return nil, err
+	}
+	links := make([]model.Link, len(ls))
+	for i := range ls {
+		links[i] = model.Link(ls[i])
+	}
+	return links, nil
+}
+
+// NexthopsFiltered is the wire-filtered RTM_GETNEXTHOP dump behind
+// `ip nexthop show { dev | master | vrf | groups | fdb }`: the kernel narrows the
+// set by the filter attrs, and the replies are decoded in dump order exactly as
+// Nexthops does for the bare command. `protocol` is a client-side filter the
+// caller applies after render, not part of this request.
+func (s *Service) NexthopsFiltered(family uint8, f xtcpnl.NexthopDumpFilter) ([]model.Nexthop, error) {
+	r, err := req.NexthopDumpFiltered(family, f, s.nextSeq())
+	if err != nil {
+		return nil, fmt.Errorf("goip: build nexthop dump request: %w", err)
+	}
+	v, err := decode(s, r, uint16(unix.RTM_NEWNEXTHOP), "RTM_NEWNEXTHOP", xtcpnl.ParseNewNexthop)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.Nexthop, len(v))
+	for i := range v {
+		out[i] = model.Nexthop(v[i])
+	}
+	return out, nil
+}
+
 // Neighbors is the RTM_GETNEIGH dump, optionally filtered to one interface and
 // optionally asking for the proxy table instead of the neighbor table.
 //

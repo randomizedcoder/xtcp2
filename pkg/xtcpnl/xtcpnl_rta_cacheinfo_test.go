@@ -294,8 +294,8 @@ func TestParseNewRouteCacheinfo(t *testing.T) {
 			description: "corner: the mixed-family `table all` dump splits — only its v6 routes carry the attribute, which is the family dependence stated as one fixture",
 			path:        tdDumpGetRouteAll_7_1_4,
 			dumpSet:     true,
-			wantWith:    10,
-			wantTotal:   22,
+			wantWith:    13,
+			wantTotal:   28,
 		},
 		{
 			description: "negative: the mesh namespace's v4 dump carries none either — the absence tracks the family, not the topology",

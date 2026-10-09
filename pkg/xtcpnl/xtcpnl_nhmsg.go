@@ -46,6 +46,9 @@ const (
 	NhaBlackhole uint16 = 4  // NHA_BLACKHOLE: a flag attribute, no payload
 	NhaOIF       uint16 = 5  // NHA_OIF: the outgoing interface index
 	NhaGateway   uint16 = 6  // NHA_GATEWAY: the next hop, network order
+	NhaGroups    uint16 = 9  // NHA_GROUPS: dump flag, return only groups
+	NhaMaster    uint16 = 10 // NHA_MASTER: dump filter, master dev index
+	NhaFdb       uint16 = 11 // NHA_FDB: flag, nexthop belongs to a bridge fdb
 	NhaResGroup  uint16 = 12 // NHA_RES_GROUP: nested resilient-group args
 	NhaOpFlags   uint16 = 14 // NHA_OP_FLAGS: op filter (request) / resvd (reply)
 
@@ -113,6 +116,7 @@ type NexthopInfo struct {
 	OIF         int32  // 0 is absent: index 0 is not a device
 	Gateway     []byte // network order, nil when absent
 	Blackhole   bool
+	Fdb         bool // NHA_FDB present: an L2 bridge-fdb nexthop (via, no oif)
 	HasGroup    bool
 	Group       []GroupMember // NHA_GROUP members, nil when not a group
 	GroupType   uint16        // NHA_GROUP_TYPE, NEXTHOP_GRP_TYPE_*
@@ -163,6 +167,8 @@ func ParseNewNexthop(body []byte) (NexthopInfo, error) {
 			nh.Gateway = CopyBytes(val)
 		case NhaBlackhole:
 			nh.Blackhole = true
+		case NhaFdb:
+			nh.Fdb = true
 		case NhaGroup:
 			nh.HasGroup = true
 			groupRaw = CopyBytes(val)
@@ -182,53 +188,65 @@ func ParseNewNexthop(body []byte) (NexthopInfo, error) {
 	if err != nil {
 		return nh, err
 	}
-
-	// Resolve group members now that RespOpFlags (whichever order it arrived in)
-	// is known: nhgrp_weight gates weight_high on NHA_OP_FLAG_RESP_GRP_RESVD_0.
-	if groupRaw != nil {
-		if len(groupRaw) == 0 || len(groupRaw)%NexthopGrpSizeCst != 0 {
-			return nh, ErrNhGroupBad
-		}
-		highOK := nh.RespOpFlags&NhaOpFlagRespGrpResvd0 != 0
-		nh.Group = make([]GroupMember, 0, len(groupRaw)/NexthopGrpSizeCst)
-		for off := 0; off < len(groupRaw); off += NexthopGrpSizeCst {
-			id := binary.LittleEndian.Uint32(groupRaw[off : off+4])
-			low := groupRaw[off+4]
-			high := groupRaw[off+5]
-			var w uint16
-			if highOK {
-				w = uint16(high)
-			}
-			nh.Group = append(nh.Group, GroupMember{ID: id, Weight: (w<<8 | uint16(low)) + 1})
-		}
+	if err := resolveNhGroup(&nh, groupRaw); err != nil {
+		return nh, err
 	}
-
-	// Decode the resilient args (parse_nh_res_group_rta, ip/ipnexthop.c:300). The
-	// nested stream may carry NHA_RES_GROUP_PAD (type 0), which matches no case.
-	if resGroupRaw != nil {
-		werr := WalkRTAttrsNested(resGroupRaw, func(atype uint16, val []byte) {
-			switch atype {
-			case NhaResGroupBuckets:
-				if len(val) >= 2 {
-					nh.ResGroup.Buckets = binary.LittleEndian.Uint16(val[0:2])
-				}
-			case NhaResGroupIdleTimer:
-				if len(val) >= 4 {
-					nh.ResGroup.IdleTimer = binary.LittleEndian.Uint32(val[0:4])
-				}
-			case NhaResGroupUnbalancedTimer:
-				if len(val) >= 4 {
-					nh.ResGroup.UnbalancedTimer = binary.LittleEndian.Uint32(val[0:4])
-				}
-			case NhaResGroupUnbalancedTime:
-				if len(val) >= 8 {
-					nh.ResGroup.UnbalancedTime = binary.LittleEndian.Uint64(val[0:8])
-				}
-			}
-		})
-		if werr != nil {
-			return nh, werr
-		}
+	if err := decodeResGroup(&nh, resGroupRaw); err != nil {
+		return nh, err
 	}
 	return nh, nil
+}
+
+// resolveNhGroup fills nh.Group from the raw NHA_GROUP bytes once RespOpFlags is
+// known (whichever order it arrived in): nhgrp_weight gates weight_high on
+// NHA_OP_FLAG_RESP_GRP_RESVD_0.
+func resolveNhGroup(nh *NexthopInfo, groupRaw []byte) error {
+	if groupRaw == nil {
+		return nil
+	}
+	if len(groupRaw) == 0 || len(groupRaw)%NexthopGrpSizeCst != 0 {
+		return ErrNhGroupBad
+	}
+	highOK := nh.RespOpFlags&NhaOpFlagRespGrpResvd0 != 0
+	nh.Group = make([]GroupMember, 0, len(groupRaw)/NexthopGrpSizeCst)
+	for off := 0; off < len(groupRaw); off += NexthopGrpSizeCst {
+		id := binary.LittleEndian.Uint32(groupRaw[off : off+4])
+		low := groupRaw[off+4]
+		high := groupRaw[off+5]
+		var w uint16
+		if highOK {
+			w = uint16(high)
+		}
+		nh.Group = append(nh.Group, GroupMember{ID: id, Weight: (w<<8 | uint16(low)) + 1})
+	}
+	return nil
+}
+
+// decodeResGroup fills nh.ResGroup from the nested NHA_RES_GROUP stream
+// (parse_nh_res_group_rta, ip/ipnexthop.c:300). The stream may carry
+// NHA_RES_GROUP_PAD (type 0), which matches no case.
+func decodeResGroup(nh *NexthopInfo, resGroupRaw []byte) error {
+	if resGroupRaw == nil {
+		return nil
+	}
+	return WalkRTAttrsNested(resGroupRaw, func(atype uint16, val []byte) {
+		switch atype {
+		case NhaResGroupBuckets:
+			if len(val) >= 2 {
+				nh.ResGroup.Buckets = binary.LittleEndian.Uint16(val[0:2])
+			}
+		case NhaResGroupIdleTimer:
+			if len(val) >= 4 {
+				nh.ResGroup.IdleTimer = binary.LittleEndian.Uint32(val[0:4])
+			}
+		case NhaResGroupUnbalancedTimer:
+			if len(val) >= 4 {
+				nh.ResGroup.UnbalancedTimer = binary.LittleEndian.Uint32(val[0:4])
+			}
+		case NhaResGroupUnbalancedTime:
+			if len(val) >= 8 {
+				nh.ResGroup.UnbalancedTime = binary.LittleEndian.Uint64(val[0:8])
+			}
+		}
+	})
 }

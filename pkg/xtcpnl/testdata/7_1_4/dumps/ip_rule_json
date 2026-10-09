@@ -54,6 +54,10 @@
         "goto": 32766
     },{
         "priority": 1000,
+        "src": "all",
+        "l3mdev": null
+    },{
+        "priority": 1000,
         "not": null,
         "src": "203.0.113.0",
         "srclen": 24,

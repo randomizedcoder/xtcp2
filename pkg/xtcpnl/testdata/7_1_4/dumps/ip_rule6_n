@@ -1,4 +1,5 @@
 0:	from all lookup local proto kernel
 100:	from 2001:db8::/64 lookup 100 proto unspec
 200:	from all lookup 200 proto unspec flowlabel 0x12345
+1000:	from all lookup [l3mdev-table] proto kernel
 32766:	from all lookup main proto kernel

@@ -71,6 +71,13 @@ func nexthopEntryText(nh xtcpnl.NexthopInfo, prefix string, detailed, groups boo
 	if nh.Flags&unix.RTNH_F_ONLINK != 0 {
 		b.WriteString("onlink ")
 	}
+	// print_null fdb (ip/ipnexthop.c:597), after the rt_flags, for a nexthop that
+	// belongs to a bridge fdb (via but no dev). iproute2 7.1.0 emits "fdb" with no
+	// trailing space (the captured ip_nexthop_fdb line ends "fdb\n"); it is the
+	// terminal token here, so no later token needs the separator.
+	if nh.Fdb {
+		b.WriteString("fdb")
+	}
 	return b.String(), nil
 }
 

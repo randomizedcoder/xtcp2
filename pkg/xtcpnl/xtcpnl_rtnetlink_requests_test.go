@@ -62,7 +62,7 @@ const (
 	// because that capture was taken in a microVM with nothing else on
 	// netlink.
 	recNeighLinkDumpCst = 0
-	recNeighDumpCst     = 4
+	recNeighDumpCst     = 5
 
 	// The gated-topology route captures, one command per file. Record 0 is
 	// the RTM_GETROUTE dump in all three; the RTM_GETLINK single-gets that

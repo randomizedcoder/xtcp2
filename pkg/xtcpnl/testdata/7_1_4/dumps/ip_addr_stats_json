@@ -58,8 +58,8 @@
         "addr_info": [ ],
         "stats64": {
             "rx": {
-                "bytes": 238392,
-                "packets": 509,
+                "bytes": 380004,
+                "packets": 657,
                 "errors": 0,
                 "dropped": 0,
                 "over_errors": 0,
@@ -84,7 +84,7 @@
         "group": "default",
         "txqlen": 1000,
         "link_type": "ether",
-        "address": "9e:81:52:59:bb:93",
+        "address": "06:a4:15:8d:1e:e0",
         "broadcast": "ff:ff:ff:ff:ff:ff",
         "altnames": [ "goip0-alt" ],
         "addr_info": [ {
@@ -116,7 +116,7 @@
                 "preferred_life_time": 4294967295
             },{
                 "family": "inet6",
-                "local": "fe80::9c81:52ff:fe59:bb93",
+                "local": "fe80::4a4:15ff:fe8d:1ee0",
                 "prefixlen": 64,
                 "scope": "link",
                 "protocol": "kernel_ll",
@@ -133,8 +133,87 @@
                 "multicast": 0
             },
             "tx": {
-                "bytes": 460,
-                "packets": 6,
+                "bytes": 740,
+                "packets": 10,
+                "errors": 0,
+                "dropped": 0,
+                "carrier_errors": 0,
+                "collisions": 0
+            }
+        }
+    },{
+        "ifindex": 4,
+        "ifname": "goipvrf",
+        "flags": [ "NOARP","MASTER","UP","LOWER_UP" ],
+        "mtu": 65575,
+        "qdisc": "noqueue",
+        "operstate": "UP",
+        "group": "default",
+        "txqlen": 1000,
+        "link_type": "ether",
+        "address": "9a:62:a4:62:cb:7c",
+        "broadcast": "ff:ff:ff:ff:ff:ff",
+        "addr_info": [ ],
+        "stats64": {
+            "rx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "over_errors": 0,
+                "multicast": 0
+            },
+            "tx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "carrier_errors": 0,
+                "collisions": 0
+            }
+        }
+    },{
+        "ifindex": 5,
+        "ifname": "goipv",
+        "flags": [ "BROADCAST","NOARP","UP","LOWER_UP" ],
+        "mtu": 1500,
+        "qdisc": "noqueue",
+        "master": "goipvrf",
+        "operstate": "UNKNOWN",
+        "group": "default",
+        "txqlen": 1000,
+        "link_type": "ether",
+        "address": "92:27:3f:4d:54:d4",
+        "broadcast": "ff:ff:ff:ff:ff:ff",
+        "addr_info": [ {
+                "family": "inet",
+                "local": "198.18.11.1",
+                "prefixlen": 24,
+                "scope": "global",
+                "label": "goipv",
+                "valid_life_time": 4294967295,
+                "preferred_life_time": 4294967295
+            },{
+                "family": "inet6",
+                "local": "fe80::9027:3fff:fe4d:54d4",
+                "prefixlen": 64,
+                "scope": "link",
+                "protocol": "kernel_ll",
+                "valid_life_time": 4294967295,
+                "preferred_life_time": 4294967295
+            } ],
+        "stats64": {
+            "rx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "over_errors": 0,
+                "multicast": 0
+            },
+            "tx": {
+                "bytes": 490,
+                "packets": 7,
                 "errors": 0,
                 "dropped": 0,
                 "carrier_errors": 0,
