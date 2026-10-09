@@ -37,6 +37,12 @@ type Rule xtcpnl.RuleInfo
 // so wire order is the order to render.
 type AddrLabel xtcpnl.AddrLabelInfo
 
+// NeighTbl is one neighbor table of the RTM_GETNEIGHTBL dump
+// (RTM_NEWNEIGHTBL). Like AddrLabel it has no Sort companion: the kernel dumps
+// the table list in a stable order (per-family tables then device-specific
+// parameter sets) and iproute2 does no sorting, so wire order is render order.
+type NeighTbl xtcpnl.NeighTblInfo
+
 func SortLinks(v []Link) { sort.SliceStable(v, func(i, j int) bool { return v[i].Index < v[j].Index }) }
 
 func SortAddresses(v []Address) {

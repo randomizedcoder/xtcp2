@@ -608,6 +608,27 @@ func TestFamilyTableAndJSONRows(t *testing.T) {
 			floor:       2,
 			implemented: true,
 		},
+		{
+			description: "positive: ntable show, the ll_init_map link dump then the RTM_GETNEIGHTBL dump — floor 4, the neigh shape — and ntable's first row in this matrix",
+			name:        "ntable show",
+			slug:        "ntable_show",
+			floor:       4,
+			implemented: true,
+		},
+		{
+			description: "positive: -s ntable show, the request twin of ntable show that only ungates the config and stats blocks in print",
+			name:        "-s ntable show",
+			slug:        "ntable_show_stats",
+			floor:       4,
+			implemented: true,
+		},
+		{
+			description: "positive: -j ntable show, the JSON stream whose only reconciled locus is the device dev names; ntable's JSON row in this matrix",
+			name:        "-j ntable show",
+			slug:        "ntable_show_json",
+			floor:       4,
+			implemented: true,
+		},
 	}
 
 	for _, tt := range rows {
@@ -718,6 +739,18 @@ func TestFamilyTableAndJSONRows(t *testing.T) {
 			twin:        "addrlabel show",
 			equal:       true,
 		},
+		{
+			description: "positive: -s ntable show shares ntable show's floor, `-s` only ungating the config and stats blocks in print and reaching no part of rtnl_neightbldump_req",
+			row:         "-s ntable show",
+			twin:        "ntable show",
+			equal:       true,
+		},
+		{
+			description: "positive: -j ntable show sends what ntable show sends — ntable's text and JSON rows share the link+table dumps, differing only in the renderer",
+			row:         "-j ntable show",
+			twin:        "ntable show",
+			equal:       true,
+		},
 	}
 
 	for _, tt := range twins {
@@ -769,10 +802,11 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 
 	// The twelve rows the `-j`/family branch added, plus the two -s sweep
 	// commands whose noise is unresolved and which pkg/nlparity's held-out
-	// negative keeps out of gated_commands on purpose, plus the two nexthop rows
-	// and the three addrlabel rows (show, -6 show, -j show) each object's branch
-	// adds as its first matrix entries. Gating any of these is a separate branch,
-	// after a measured-clean live run, and that branch edits this list.
+	// negative keeps out of gated_commands on purpose, plus the two nexthop rows,
+	// the three addrlabel rows (show, -6 show, -j show) and the three ntable rows
+	// (show, -s show, -j show) each object's branch adds as its first matrix
+	// entries. Gating any of these is a separate branch, after a measured-clean
+	// live run, and that branch edits this list.
 	expected := []string{
 		"-s addr show", "-s neigh show",
 		"-0 addr show", "route show table main", "route show table local",
@@ -781,6 +815,7 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 		"-j rule show", "-j -s link show",
 		"nexthop show", "-j nexthop show",
 		"addrlabel show", "-6 addrlabel show", "-j addrlabel show",
+		"ntable show", "-s ntable show", "-j ntable show",
 	}
 
 	tests := []struct {
@@ -788,7 +823,7 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 		check       func(t *testing.T)
 	}{
 		{
-			description: "positive: the ungated set is exactly the nineteen named rows, so UNGATED_CLEAN counts nineteen rows and not zero",
+			description: "positive: the ungated set is exactly the twenty-two named rows, so UNGATED_CLEAN counts twenty-two rows and not zero",
 			check: func(t *testing.T) {
 				for _, name := range expected {
 					if !ungated[name] {

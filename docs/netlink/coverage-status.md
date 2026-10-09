@@ -2,7 +2,7 @@
 
 ## goip ↔ `ip` parity at a glance
 
-Counted from the tree on 2026-10-08. Every number has a file behind it, named
+Counted from the tree on 2026-10-09. Every number has a file behind it, named
 in the last column; **if this table and the file disagree, the file is right
 and this table is stale.** That has happened before in this document — see the
 "no route command is in `gated_commands`" line that outlived its own truth by
@@ -10,14 +10,14 @@ several steps, further down under [Remaining](#remaining).
 
 | | count | counted from |
 |---|---|---|
-| commands in the comparison matrix | **46** | `internal/goipparity/commands.go` |
-| of those, `Implemented: true` | **46** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
+| commands in the comparison matrix | **49** | `internal/goipparity/commands.go` |
+| of those, `Implemented: true` | **49** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
 | of those, in `gated_commands` | **27** | `pkg/nlparity/goip-parity-allowlist.json` |
 | allowlisted divergences | **7** | same file, `entries` |
 | of those, `kind=version-skew` | **7** | all against the pinned `ip` 7.1.0 |
 | of those, `kind=accepted-divergence` | **0** | nothing is divergent on purpose and permanently |
 
-**Nineteen** matrix rows sit outside `gated_commands`, and they fall into four
+**Twenty-two** matrix rows sit outside `gated_commands`, and they fall into five
 groups that are out for unrelated reasons.
 
 **Twelve are new and not yet gated**: six family and table selectors and six
@@ -66,6 +66,21 @@ diffs `goip` byte-for-byte (text) and structurally (`-j`) against the committed
 the output level, the `rule`/`-4` pattern. No measured live run backs them yet,
 so they go in ungated until their own runs earn gating.
 
+**Three are ntable's first matrix rows**: `ntable show`, `-s ntable show` and
+`-j ntable show`, added together with the `ndtmsg` decoder, the ntable render
+view and an injected clock for the two wall-clock config timestamps. They are
+**replay-grounded, not yet live-grounded**, as the nexthop and addrlabel rows
+above: `internal/goip`'s `TestNeighTblShowMatchesCapturedSidecars` diffs `goip`
+byte-for-byte (text, including the `-s` config/stats blocks) and structurally
+(`-j`) against the committed `ip_ntable`/`ip_ntable_s`/`ip_ntable_json` sidecars
+in all three topologies. The `-s` row carries one caveat a live run must expect:
+`print_ndtconfig` renders `ndtc_last_flush`/`ndtc_last_rand` as absolute dates
+from `gettimeofday` (`ip/ipntable.c:310-336`), so those two tokens are
+wall-clock, not a function of the bytes — `goip` reproduces the captured dates
+offline through an injected clock, but a live gate must normalize or ignore
+them. No measured live run backs the three yet, so they go in ungated until
+their own runs earn gating.
+
 **The rest of the nexthop read surface and VRF link-detail are implemented but
 are not matrix rows, so they do not move the counts above.** `nexthop show id N`,
 the other five `nexthop show` selectors — `dev`, `master`, `vrf`, `groups`,
@@ -101,8 +116,9 @@ These are the boundaries of the exercise, not a backlog:
   write verb with `goip is read-only: ErrNotImplemented` rather than treating
   it as unknown, because the harness drives both tools with the same argv and
   needs "not got there yet" to be distinguishable from "typo".
-- **Seven objects.** `address`, `route`, `rule`, `neigh`/`neighbour`, `link`,
-  `nexthop` and `addrlabel` have a `run` function; the other twenty-five rows of
+- **Eight objects.** `address`, `route`, `rule`, `neigh`/`neighbour`, `link`,
+  `nexthop`, `addrlabel` and `ntable`/`ntbl` have a `run` function; the other
+  twenty-three rows of
   `internal/goip`'s copy of iproute2's `cmds[]` are present with no `run`
   **on purpose**. Matching is
   unanchored-prefix and first-match-wins, so deleting the unimplemented rows
@@ -140,7 +156,7 @@ are the ones that stop partway. The rtnetlink **event** types are decoded and
 never rendered, because the daemon's link monitor consumes them and `goip` has
 no `monitor` verb. `RTM_NEWRULE` is decoded for dumps but is not even an event.
 
-### rtnetlink: seven body layouts, and they are the seven goip needs
+### rtnetlink: eight body layouts, and they are the eight goip needs
 
 | body struct | kernel header | RTM types | decoder | goip | matrix rows |
 |---|---|---|---|---|---|
@@ -151,6 +167,7 @@ no `monitor` verb. `RTM_NEWRULE` is decoded for dumps but is not even an event.
 | `fib_rule_hdr` | `fib_rules.h` | `RTM_{NEW,DEL,GET}RULE` | `ParseRule`, `xtcpnl_fib_rule_hdr.go:270` | `render/rule.go` | **6** |
 | `nhmsg` | `nexthop.h` | `RTM_{NEW,DEL,GET}NEXTHOP` | `ParseNewNexthop`, `xtcpnl_nhmsg.go:143` | `render/nexthop.go` | **2** |
 | `ifaddrlblmsg` | `if_addrlabel.h` | `RTM_{NEW,DEL,GET}ADDRLABEL` | `ParseNewAddrLabel`, `xtcpnl_ifaddrlblmsg.go:91` | `render/addrlabel.go` | **3** |
+| `ndtmsg` | `neighbour.h` | `RTM_{NEW,GET,SET}NEIGHTBL` | `ParseNewNeighTbl`, `xtcpnl_ndtmsg.go:299` | `render/ntable.go` | **3** |
 
 Headers in this table and the next are all under
 `include/uapi/linux/`, decoder paths are under `pkg/xtcpnl/` and `goip` paths
@@ -158,26 +175,26 @@ under `internal/goip/`; the prefixes are dropped so the columns stay readable.
 `neighbour.h` keeps the kernel's own spelling for the same reason the comments
 in `xtcpnl_ndmsg.go` do — `neighbor.h` does not exist in the tree.
 
-46 rows, which is the matrix total — every row in the comparison matrix lands
-on one of these seven, and every one of these seven is compared live.
-`ifaddrlblmsg`'s three rows are the newest, with `nhmsg`'s two just before them:
-all five are in the matrix and replay-grounded (see the glance above), awaiting
-their first measured live run before gating.
+49 rows, which is the matrix total — every row in the comparison matrix lands
+on one of these eight, and every one of these eight is compared live.
+`ndtmsg`'s three rows are the newest, with `ifaddrlblmsg`'s three and `nhmsg`'s
+two just before them: all eight are in the matrix and replay-grounded (see the
+glance above), awaiting their first measured live run before gating.
 
-**The request side is narrower than the decode side, on purpose.** Only seven
+**The request side is narrower than the decode side, on purpose.** Only eight
 message types are ever *built*: `RTM_GETLINK`, `RTM_GETADDR`, `RTM_GETROUTE`,
-`RTM_GETNEIGH`, `RTM_GETRULE`, `RTM_GETNEXTHOP`, `RTM_GETADDRLABEL`, from the
-thirteen builders in `xtcpnl_rtnetlink_requests.go` (`RTM_GETNEXTHOP` has three —
+`RTM_GETNEIGH`, `RTM_GETRULE`, `RTM_GETNEXTHOP`, `RTM_GETADDRLABEL`,
+`RTM_GETNEIGHTBL`, from the
+fourteen builders in `xtcpnl_rtnetlink_requests.go` (`RTM_GETNEXTHOP` has three —
 a dump, a wire-filtered dump, and a by-id get). That is not a coincidence of scope — the
 encoder rejects a non-GET type with `ErrNotAGetRequest`, so the read-only
 invariant is executable rather than a convention. `RTM_NEWNEIGH` appears in
 that file only in a comment about what a solicited reply carries.
 
-### rtnetlink: the eight body layouts with no decoder
+### rtnetlink: the seven body layouts with no decoder
 
 | body struct | kernel header | RTM types | what would need it |
 |---|---|---|---|
-| `ndtmsg` | `neighbour.h` | `RTM_{NEW,GET,SET}NEIGHTBL` | `ip ntable show` |
 | `netconfmsg` | `netconf.h` | `RTM_{NEW,GET}NETCONF` | `ip netconf show` |
 | `if_stats_msg` | `if_link.h` | `RTM_GETSTATS` | `ip stats show`, `ip -s -s link xstats` |
 | `prefixmsg` | `rtnetlink.h` | `RTM_NEWPREFIX` | `ip monitor prefix` |
@@ -186,15 +203,26 @@ that file only in a comment about what a solicited reply carries.
 | `tcmsg` | `rtnetlink.h` | `RTM_{NEW,DEL,GET}{QDISC,TCLASS,TFILTER}` | `tc` — not an `ip` command |
 | `tcamsg` | `rtnetlink.h` | `RTM_{NEW,DEL,GET}ACTION` | `tc actions` — not an `ip` command |
 
-Three of the eight are `tc`/`bridge` territory and are outside the exercise
-entirely rather than pending. The other five are reachable only through objects
-that have `run: nil`.
+Three of the seven are `tc`/`bridge` territory and are outside the exercise
+entirely rather than pending. The other four are reachable only through objects
+that have `run: nil` — `netconf` and `stats` on NETLINK_ROUTE, and the two
+monitor-only layouts.
 
 **`ifaddrlblmsg` used to sit in this table and no longer belongs in it.** It is
 decoded in `xtcpnl_ifaddrlblmsg.go` (`ParseNewAddrLabel`, the `ifaddrlblmsg`
 header plus `IFAL_ADDRESS`/`IFAL_LABEL`) and rendered by `render/addrlabel.go`,
 so `ip addrlabel show` is an implemented object now, not a `run: nil` backlog
 entry. It moved up into the decoded-layouts table above.
+
+**`ndtmsg` used to sit in this table and no longer belongs in it.** It is decoded
+in `xtcpnl_ndtmsg.go` (`ParseNewNeighTbl`, the `ndtmsg` header plus the top-level
+`NDTA_*` attributes, the fixed `ndt_config`/`ndt_stats` structs and the nested
+`NDTA_PARMS`/`NDTPA_*` set) and rendered by `render/ntable.go`, so `ip ntable
+show` — with `-s` and `-j` — is an implemented object now, not a `run: nil`
+backlog entry. It moved up into the decoded-layouts table above. It is the first
+dump object whose output carries a wall-clock value (`ndtc_last_flush`/
+`ndtc_last_rand`, rendered from `gettimeofday`), which `render/ntable.go` reads
+from an injected clock so a replay reproduces a captured date; see the glance.
 
 **`nhmsg` used to head this table and no longer belongs in it.** It is decoded
 in `xtcpnl_nhmsg.go` (`ParseNewNexthop`, the `nhmsg` header plus the `NHA_*`
@@ -309,7 +337,7 @@ declines.
 
 The user-facing refusal happens earlier and elsewhere: `goip` returns
 `ErrNotImplemented` from object dispatch, before a socket is opened, for the
-twenty-five objects with no `run`. So the eight uncovered layouts above are a
+twenty-three objects with no `run`. So the seven uncovered layouts above are a
 backlog rather than a hazard, and the two halves of that — a walker that
 tolerates the unknown and a dispatcher that refuses it up front — are
 independent and should stay that way.
@@ -438,6 +466,28 @@ facet extractor the `address`/`prefixlen` composite — six of the ten CIDRs agr
 across formats, the four `::`-leading and IPv4-mapped forms being declared regex
 artifacts, not goip defects.
 
+**`ip ntable show` landed next, the eighth object and the first with a nested
+renderer.** `ndtmsg` moved out of the no-decoder table into the decoded set:
+`ParseNewNeighTbl` (`xtcpnl_ndtmsg.go`) decodes the header, the top-level
+`NDTA_*` attributes, the fixed `ndt_config`/`ndt_stats` structs and the nested
+`NDTA_PARMS`/`NDTPA_*` set, and `render/ntable.go` reproduces `print_ntable`'s
+config/params/stats blocks with the `-s` gating. It is the structural twin of
+`neigh` on the wire — `do_ipntable` runs `ll_init_map` first, so the capture
+bundles the link dump ahead of the table dump and a device-specific parameter
+set resolves its `NDTPA_IFINDEX` from it. `dev`/`name` selectors (client-side
+print filters) and the `change`/`chg` write verbs stay refused with a rationale.
+`TestNeighTblShowMatchesCapturedSidecars` diffs `goip` byte-for-byte against the
+committed `ip_ntable`/`ip_ntable_s`/`ip_ntable_json` sidecars in all three
+topologies. It enlisted `ntable show`, `-s ntable show` and `-j ntable show` as
+the first three ntable rows in the Tier C matrix (ungated, replay-grounded),
+taking it to 49. The JSON facet extractor needed nothing new — the device `dev`
+names are the one reconciled locus and already map to `FacetDevNames`. The one
+wrinkle is the `-s` config block's `ndtc_last_flush`/`ndtc_last_rand`: iproute2
+renders them from `gettimeofday`, so they are wall-clock, not a function of the
+bytes; `goip` reads render-time "now" from an injected clock, set in the replay
+test to the instant recovered from the committed pcap, so the captured dates
+reproduce exactly without runtime pcap parsing.
+
 This is the live progress tracker for the roadmap in
 [coverage-expansion](coverage-expansion.md). The division of labour between the
 three netlink planning documents:
@@ -456,8 +506,8 @@ recollection.
 ## Table of contents
 
 - [Netlink message types: decoded, rendered, compared](#netlink-message-types-decoded-rendered-compared)
-  - [rtnetlink: six body layouts, and they are the six goip needs](#rtnetlink-six-body-layouts-and-they-are-the-six-goip-needs)
-  - [rtnetlink: the nine body layouts with no decoder](#rtnetlink-the-nine-body-layouts-with-no-decoder)
+  - [rtnetlink: eight body layouts, and they are the eight goip needs](#rtnetlink-eight-body-layouts-and-they-are-the-eight-goip-needs)
+  - [rtnetlink: the seven body layouts with no decoder](#rtnetlink-the-seven-body-layouts-with-no-decoder)
   - [Attributes inside the five: no unknown-attribute holes](#attributes-inside-the-five-no-unknown-attribute-holes)
   - [The event layer: decoded, never rendered](#the-event-layer-decoded-never-rendered)
   - [sock_diag / inet_diag, which is a different surface and is complete](#sock_diag--inet_diag-which-is-a-different-surface-and-is-complete)

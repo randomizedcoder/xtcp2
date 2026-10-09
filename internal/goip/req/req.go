@@ -453,6 +453,23 @@ func AddrLabelShowDump(family uint8, seq uint32) []byte {
 	return xtcpnl.BuildDumpAddrLabelRequest(family, seq)
 }
 
+// NeighTblShowDump is `ip ntable show`'s dump, rtnl_neightbldump_req
+// (ip/ipntable.c:668): an ndtmsg with only ndtm_family set, no attributes and no
+// family substitution (ipntable passes preferred_family straight through, unlike
+// addrlabel/rule). The dev/name selectors reach no part of this request — they
+// filter the replies client-side.
+func NeighTblShowDump(family uint8, seq uint32) []byte {
+	return xtcpnl.BuildDumpNeighTblRequest(family, seq)
+}
+
+// NeighTblShowLinkDump is ll_init_map's link dump before the ntable dump
+// (ip/ipntable.c:685). It is byte-identical to NeighShowLinkDump: ll_init_map
+// builds one request regardless of caller — AF_UNSPEC, RTEXT_FILTER_VF, no
+// SKIP_STATS.
+func NeighTblShowLinkDump(seq uint32) ([]byte, error) {
+	return xtcpnl.BuildDumpLinkRequestExt(unix.AF_UNSPEC, xtcpnl.RTEXT_FILTER_VF, seq)
+}
+
 // NexthopGetByID is the single-get RTM_GETNEXTHOP `ip -d route show` sends for a
 // route delegating its next hop to a nexthop object (ipnh_cache_add). family is
 // preferred_family, which for a plain `route show` is AF_UNSPEC.
