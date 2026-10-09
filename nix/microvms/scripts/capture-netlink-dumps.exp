@@ -224,11 +224,11 @@ proc capture_set {ns subdir dev} {
     capio $ns $subdir netlink_route_getroute_detail 4 "ip -d route show" ip_route_main_n
     capio $ns $subdir netlink_route_getroute_table_all_detail 4 "ip -d route show table all" ip_route_table_all_n
 
-    # `ip nexthop show` dumps the clean topology's nexthop objects (id 1/2 single,
-    # id 10/11 mpath groups, id 20 resilient group). Floor 4: the nexthop dump plus
-    # the ll_init_map link dump print_rta_ifidx triggers to turn nh_oif into `dev
-    # goip0`. capio pairs the pcap with the ip_nexthop sidecar so a replay reproduces
-    # the listing byte for byte.
+    # `ip nexthop show` dumps the clean topology's nexthop objects (id 1/2/8 single,
+    # id 5 fdb, id 7 on the VRF-enslaved goipv, id 10/11 mpath groups, id 20 resilient
+    # group). Floor 4: the nexthop dump plus the ll_init_map link dump print_rta_ifidx
+    # triggers to turn nh_oif into `dev goip0`. capio pairs the pcap with the ip_nexthop
+    # sidecar so a replay reproduces the listing byte for byte.
     capio $ns $subdir netlink_route_getnexthop 4 "ip nexthop show" ip_nexthop
     # `ip nexthop show id 10` is a point GET (NHA_ID, no NLM_F_DUMP), not a dump;
     # id 10 is an mpath group, so this grounds both the by-id request bytes and a
@@ -239,6 +239,22 @@ proc capture_set {ns subdir dev} {
     # the `type resilient buckets .. idle_timer .. unbalanced_timer .. unbalanced_time
     # ..` line. Same floor 2 (a group carries no nh_oif).
     capio $ns $subdir netlink_route_getnexthop_res 2 "ip nexthop show id 20" ip_nexthop_res
+    # Wire-filter dump selectors (nh_dump_filter, ip/ipnexthop.c:70). `dev`, `master`
+    # and `vrf` each resolve a name via ll_init_map before the filtered dump, and
+    # render a `dev` on the reply, so they are floor 4 like the bare dump. `vrf` also
+    # sends a name_is_vrf link single-get first (ip/iplink_vrf.c:170) to confirm the
+    # kind, so its pcap carries one extra transaction over `master`. `master goipvrf`
+    # and `vrf goipvrf` send the same NHA_MASTER dump and both return id 7 (a VRF is a
+    # master). `groups` and `fdb` send a zero-length flag and their replies carry no
+    # nh_oif, so no ll_init_map and no link get - floor 2; this kernel's NHA_FDB does
+    # not narrow the set, so `fdb` returns every nexthop (id 5 among them). `protocol`
+    # is a client-side stdout filter over the bare dump (a NUMBER, get_unsigned at
+    # :1248), so it reuses the bare pcap and takes side sidecars only (below).
+    capio $ns $subdir netlink_route_getnexthop_dev    4 "ip nexthop show dev goip0"      ip_nexthop_dev
+    capio $ns $subdir netlink_route_getnexthop_master 4 "ip nexthop show master goipvrf" ip_nexthop_master
+    capio $ns $subdir netlink_route_getnexthop_vrf    4 "ip nexthop show vrf goipvrf"    ip_nexthop_vrf
+    capio $ns $subdir netlink_route_getnexthop_groups 2 "ip nexthop show groups"         ip_nexthop_groups
+    capio $ns $subdir netlink_route_getnexthop_fdb    2 "ip nexthop show fdb"            ip_nexthop_fdb
 
     # Closes the corpus's last outright gap: there was no RTM_GETNEIGH dump
     # anywhere, only a notifications pcap.
@@ -448,6 +464,16 @@ proc sidecar_set {ns subdir dev} {
     # `ip -d nexthop show id 20`: the resilient group, detailed form (adds scope
     # global + proto unspec). Reuses the getnexthop_res pcap.
     side $ns $subdir ip_nexthop_res_n       "ip -d nexthop show id 20"
+    # `-d` sidecars for the wire-filter selectors (reuse the capio pcaps above) and
+    # the two `protocol` sidecars, which replay the bare netlink_route_getnexthop pcap
+    # and are filtered client-side (print_cache_nexthop, ip/ipnexthop.c:821).
+    side $ns $subdir ip_nexthop_dev_n       "ip -d nexthop show dev goip0"
+    side $ns $subdir ip_nexthop_master_n    "ip -d nexthop show master goipvrf"
+    side $ns $subdir ip_nexthop_vrf_n       "ip -d nexthop show vrf goipvrf"
+    side $ns $subdir ip_nexthop_groups_n    "ip -d nexthop show groups"
+    side $ns $subdir ip_nexthop_fdb_n       "ip -d nexthop show fdb"
+    side $ns $subdir ip_nexthop_proto       "ip nexthop show protocol 4"
+    side $ns $subdir ip_nexthop_proto_n     "ip -d nexthop show protocol 4"
     side $ns $subdir ip_neigh               "ip neigh show"
     side $ns $subdir ip_neigh_n             "ip -d neigh show"
     side $ns $subdir ip_link_dev            "ip link show dev $dev"

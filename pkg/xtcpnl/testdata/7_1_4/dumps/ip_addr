@@ -7,7 +7,7 @@
 2: nlmon0: <NOARP,UP,LOWER_UP> mtu 3776 qdisc noqueue state UNKNOWN group default qlen 1000
     link/netlink 
 3: goip0: <BROADCAST,NOARP,UP,LOWER_UP> mtu 1500 qdisc noqueue state UNKNOWN group default qlen 1000
-    link/ether 9e:81:52:59:bb:93 brd ff:ff:ff:ff:ff:ff
+    link/ether 06:a4:15:8d:1e:e0 brd ff:ff:ff:ff:ff:ff
     altname goip0-alt
     inet 192.0.2.1/24 brd 192.0.2.255 scope global goip0
        valid_lft forever preferred_lft forever
@@ -15,5 +15,13 @@
        valid_lft forever preferred_lft forever
     inet6 2001:db8::1/64 scope global nodad 
        valid_lft forever preferred_lft forever
-    inet6 fe80::9c81:52ff:fe59:bb93/64 scope link proto kernel_ll 
+    inet6 fe80::4a4:15ff:fe8d:1ee0/64 scope link proto kernel_ll 
+       valid_lft forever preferred_lft forever
+4: goipvrf: <NOARP,MASTER,UP,LOWER_UP> mtu 65575 qdisc noqueue state UP group default qlen 1000
+    link/ether 9a:62:a4:62:cb:7c brd ff:ff:ff:ff:ff:ff
+5: goipv: <BROADCAST,NOARP,UP,LOWER_UP> mtu 1500 qdisc noqueue master goipvrf state UNKNOWN group default qlen 1000
+    link/ether 92:27:3f:4d:54:d4 brd ff:ff:ff:ff:ff:ff
+    inet 198.18.11.1/24 scope global goipv
+       valid_lft forever preferred_lft forever
+    inet6 fe80::9027:3fff:fe4d:54d4/64 scope link proto kernel_ll 
        valid_lft forever preferred_lft forever

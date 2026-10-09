@@ -472,10 +472,13 @@ func TestParseNewLinkDetailRealFixture(t *testing.T) {
 // per-kind data blob, because that set is what decides where `-d` is refused.
 //
 // It is an assertion about the FIXTURES as much as about the decoder, and that
-// is the point: render/link_detail.go's claim that nothing in the guest
-// topology is refused is only true for as long as the guest topology has no
-// device with INFO_DATA. A re-capture that added one would make `-d link show`
-// start erroring in the parity harness, and this fails first and says why.
+// is the point: `-d link show` is refused for a link whose per-kind blob goip
+// cannot render, so this set is what decides where the refusal fires. The guest
+// topology's two carriers are the VRF master goipvrf and its slave goipv, whose
+// kind is "vrf" — the one kind goip DOES render (obj_link.renderableInfoData) —
+// so they are present here but not refused. A re-capture that added a device of
+// some other kind would make `-d link show` start erroring in the parity
+// harness, and this fails first and says which link and kind.
 //
 // go test ./pkg/xtcpnl/ -run TestLinkInfoDataPresenceRealFixture
 func TestLinkInfoDataPresenceRealFixture(t *testing.T) {
@@ -488,14 +491,15 @@ func TestLinkInfoDataPresenceRealFixture(t *testing.T) {
 		wantData []string
 	}{
 		{
-			// The clean guest namespace, and the row that licenses the
-			// refusal being cheap. lo has no IFLA_LINKINFO; nlmon0 and goip0
-			// have one holding IFLA_INFO_KIND alone. So `goip -d link show`
-			// renders all three in full, and the parity harness — which runs
-			// only in this namespace — never meets the refusal.
-			description: "negative: no link in the 7_1_4 guest topology carries a per-kind data blob",
+			// The clean guest namespace. lo has no IFLA_LINKINFO; nlmon0 and
+			// goip0 have one holding IFLA_INFO_KIND alone. The two carriers are
+			// the VRF master goipvrf (IFLA_INFO_DATA, kind vrf) and its slave
+			// goipv (IFLA_INFO_SLAVE_DATA, slave kind vrf) — both the one kind
+			// goip renders, so `goip -d link show` renders all five in full and
+			// the parity harness meets no refusal here.
+			description: "positive: only the VRF master and its slave carry a per-kind data blob, and goip renders both",
 			fixture:     tdDumpGetLink_7_1_4,
-			wantData:    nil,
+			wantData:    []string{"goipvrf", "goipv"},
 		},
 		{
 			// The host dump, where four of eleven do: three bridges by their
@@ -536,6 +540,133 @@ func TestLinkInfoDataPresenceRealFixture(t *testing.T) {
 				if !want[n] {
 					t.Errorf("link %q carries a per-kind data blob and was not expected to", n)
 				}
+			}
+		})
+	}
+}
+
+// TestVrfTableDecodeRealFixture pins the VRF table id goip decodes from the one
+// per-kind blob it renders, against the captured guest link dump.
+//
+// The positive values are transcribed from the capture: the ip_link_n sidecar
+// prints "    vrf table 100" for goipvrf and "    vrf_slave table 100" for its
+// slave goipv, so VrfTable and VrfPortTable must decode to 100 from the same
+// IFLA_INFO_DATA / IFLA_INFO_SLAVE_DATA bytes. The negative rows are the links
+// that carry no VRF nest at all, which is what keeps the decode from firing on
+// the wrong kind (goipv is itself a dummy whose Kind is NOT vrf, so its VrfTable
+// — the master-side field — must stay absent while its VrfPortTable is set).
+//
+// go test ./pkg/xtcpnl/ -run TestVrfTableDecodeRealFixture
+func TestVrfTableDecodeRealFixture(t *testing.T) {
+	links, done := linksIn(t, tdDumpGetLink_7_1_4)
+	if !done {
+		t.Fatalf("%s: dump not terminated by NLMSG_DONE", tdDumpGetLink_7_1_4)
+	}
+	byName := make(map[string]LinkInfo, len(links))
+	for i := range links {
+		byName[links[i].Name] = links[i]
+	}
+
+	tests := []struct {
+		description   string
+		name          string
+		wantTable     U32Attr
+		wantPortTable U32Attr
+	}{
+		{
+			description:   "positive: the VRF master goipvrf decodes IFLA_VRF_TABLE 100 and carries no port table",
+			name:          "goipvrf",
+			wantTable:     U32Attr{100, true},
+			wantPortTable: U32Attr{0, false},
+		},
+		{
+			description:   "positive: the VRF slave goipv decodes IFLA_VRF_PORT_TABLE 100 and carries no master table",
+			name:          "goipv",
+			wantTable:     U32Attr{0, false},
+			wantPortTable: U32Attr{100, true},
+		},
+		{
+			description:   "negative: goip0 is a plain dummy, so neither VRF table field is present",
+			name:          "goip0",
+			wantTable:     U32Attr{0, false},
+			wantPortTable: U32Attr{0, false},
+		},
+		{
+			description:   "boundary: lo has no IFLA_LINKINFO at all, so the decode yields absent rather than zero-present",
+			name:          "lo",
+			wantTable:     U32Attr{0, false},
+			wantPortTable: U32Attr{0, false},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			li, ok := byName[tc.name]
+			if !ok {
+				t.Fatalf("no link named %q in %s", tc.name, tdDumpGetLink_7_1_4)
+			}
+			if li.VrfTable != tc.wantTable {
+				t.Errorf("%s VrfTable = %+v, want %+v", tc.name, li.VrfTable, tc.wantTable)
+			}
+			if li.VrfPortTable != tc.wantPortTable {
+				t.Errorf("%s VrfPortTable = %+v, want %+v", tc.name, li.VrfPortTable, tc.wantPortTable)
+			}
+		})
+	}
+}
+
+// TestVrfTableAttr drives the nest parser in isolation, so the boundary and
+// corner shapes the capture does not contain are still pinned.
+//
+// The positive row uses the same u32 encoding the kernel writes; the parser
+// mechanics (first match wins, short/empty/wrong-attr yield absent) are what a
+// malformed capture would exercise and what the fixture test cannot reach.
+//
+// go test ./pkg/xtcpnl/ -run TestVrfTableAttr
+func TestVrfTableAttr(t *testing.T) {
+	tests := []struct {
+		description string
+		nest        []byte
+		attr        uint16
+		want        U32Attr
+	}{
+		{
+			description: "positive: a one-attribute nest holding IFLA_VRF_TABLE 100 decodes to 100",
+			nest:        rtattr(IflaVrfTable, []byte{100, 0, 0, 0}),
+			attr:        IflaVrfTable,
+			want:        U32Attr{100, true},
+		},
+		{
+			description: "boundary: a table id of 0 is present-and-zero, distinct from absent",
+			nest:        rtattr(IflaVrfTable, []byte{0, 0, 0, 0}),
+			attr:        IflaVrfTable,
+			want:        U32Attr{0, true},
+		},
+		{
+			description: "negative: a nest holding only some other attribute yields absent",
+			nest:        rtattr(IflaVrfTable+7, []byte{100, 0, 0, 0}),
+			attr:        IflaVrfTable,
+			want:        U32Attr{0, false},
+		},
+		{
+			description: "corner: a nil nest yields absent rather than panicking",
+			nest:        nil,
+			attr:        IflaVrfTable,
+			want:        U32Attr{0, false},
+		},
+		{
+			description: "corner: a u32 attribute truncated to 2 bytes is not accepted as a value",
+			nest:        rtattr(IflaVrfTable, []byte{100, 0}),
+			attr:        IflaVrfTable,
+			want:        U32Attr{0, false},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			got := vrfTableAttr(tc.nest, tc.attr)
+			if got != tc.want {
+				t.Errorf("vrfTableAttr = %+v, want %+v", got, tc.want)
 			}
 		})
 	}

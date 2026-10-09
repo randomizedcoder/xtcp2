@@ -8,6 +8,7 @@
 700:	from all lookup main suppress_prefixlength 0
 800:	from all blackhole
 900:	from all goto 32766
+1000:	from all lookup [l3mdev-table]
 1000:	not from 203.0.113.0/24 lookup main
 1100:	from all nop
 1200:	from all lookup [l3mdev-table]

@@ -25,6 +25,11 @@ const (
 	nexthopDumpPcap    = "../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getnexthop.pcap"
 	nexthopIDPcap      = "../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getnexthop_id.pcap"
 	nexthopResPcap     = "../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getnexthop_res.pcap"
+	nexthopDevPcap     = "../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getnexthop_dev.pcap"
+	nexthopMasterPcap  = "../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getnexthop_master.pcap"
+	nexthopVrfPcap     = "../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getnexthop_vrf.pcap"
+	nexthopGroupsPcap  = "../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getnexthop_groups.pcap"
+	nexthopFdbPcap     = "../../pkg/xtcpnl/testdata/7_1_4/dumps/netlink_route_getnexthop_fdb.pcap"
 	nexthopSidecarDir  = "../../pkg/xtcpnl/testdata/7_1_4/dumps/"
 	nexthopSidecar     = "ip_nexthop"
 	nexthopSidecarDtl  = "ip_nexthop_n"
@@ -39,8 +44,10 @@ const (
 // captured beside them.
 //
 // The dump holds the clean topology's objects: single nexthops id 1 and 2
-// (via/dev/link-scope), the mpath groups id 10 (`group 1/2`) and id 11 (weighted
-// `group 1,2/2,3`), and the resilient group id 20 (`type resilient buckets ..`).
+// (via/dev/link-scope), the fdb nexthop id 5 (`via .. fdb`), the mpath groups id
+// 10 (`group 1/2`) and id 11 (weighted `group 1,2/2,3`), the VRF-slave nexthop id
+// 7 (`dev goipv`, master goipvrf), the proto-tagged nexthop id 8 (`proto static`,
+// NHA_PROTOCOL 4), and the resilient group id 20 (`type resilient buckets ..`).
 // The plain and `-d` rows differ by exactly the show_details gate: proto appears
 // only under `-d`, and for a group `-d` also forces scope global, because a group
 // carries no link scope of its own (ip/ipnexthop.c). The by-id rows fetch id 10
@@ -49,6 +56,13 @@ const (
 // group's line in the dump. The bare `nexthop` row proves do_ipnh's argc==0 path
 // lists rather than erroring (ip/ipnexthop.c:1453), and `list`/`lst` prove the
 // verb synonyms.
+//
+// The wire-filter selectors each replay their own capture: `dev goip0`
+// (NHA_OIF), `master goipvrf` and `vrf goipvrf` (NHA_MASTER, vrf validating the
+// kind first), `groups` (NHA_GROUPS), and `fdb` (NHA_FDB, which this kernel does
+// not narrow, so the whole list comes back and id 5 carries the `fdb` token).
+// `protocol 4` is the one client-side filter: it replays the bare dump and drops
+// every entry whose nh_protocol is not 4, leaving id 8 (ip/ipnexthop.c:821).
 //
 // go test ./internal/goip/ -run TestNexthopShowMatchesCapturedSidecars
 func TestNexthopShowMatchesCapturedSidecars(t *testing.T) {
@@ -114,6 +128,78 @@ func TestNexthopShowMatchesCapturedSidecars(t *testing.T) {
 			pcap:        nexthopResPcap,
 			sidecar:     nexthopSidecarResN,
 		},
+		{
+			description: "positive: `nexthop show dev goip0` filters to id 1/2/8 (NHA_OIF after ll_init_map)",
+			args:        []string{"nexthop", "show", "dev", "goip0"},
+			pcap:        nexthopDevPcap,
+			sidecar:     "ip_nexthop_dev",
+		},
+		{
+			description: "positive: `-d nexthop show dev goip0` adds proto to the dev-filtered set",
+			args:        []string{"-d", "nexthop", "show", "dev", "goip0"},
+			pcap:        nexthopDevPcap,
+			sidecar:     "ip_nexthop_dev_n",
+		},
+		{
+			description: "positive: `nexthop show master goipvrf` filters to id 7 (NHA_MASTER)",
+			args:        []string{"nexthop", "show", "master", "goipvrf"},
+			pcap:        nexthopMasterPcap,
+			sidecar:     "ip_nexthop_master",
+		},
+		{
+			description: "positive: `-d nexthop show master goipvrf` adds proto to the one entry",
+			args:        []string{"-d", "nexthop", "show", "master", "goipvrf"},
+			pcap:        nexthopMasterPcap,
+			sidecar:     "ip_nexthop_master_n",
+		},
+		{
+			description: "positive: `nexthop show vrf goipvrf` validates the VRF then filters to id 7",
+			args:        []string{"nexthop", "show", "vrf", "goipvrf"},
+			pcap:        nexthopVrfPcap,
+			sidecar:     "ip_nexthop_vrf",
+		},
+		{
+			description: "positive: `-d nexthop show vrf goipvrf` adds proto to the one entry",
+			args:        []string{"-d", "nexthop", "show", "vrf", "goipvrf"},
+			pcap:        nexthopVrfPcap,
+			sidecar:     "ip_nexthop_vrf_n",
+		},
+		{
+			description: "positive: `nexthop show groups` returns only the groups id 10/11/20 (NHA_GROUPS)",
+			args:        []string{"nexthop", "show", "groups"},
+			pcap:        nexthopGroupsPcap,
+			sidecar:     "ip_nexthop_groups",
+		},
+		{
+			description: "positive: `-d nexthop show groups` adds scope global and proto to the groups",
+			args:        []string{"-d", "nexthop", "show", "groups"},
+			pcap:        nexthopGroupsPcap,
+			sidecar:     "ip_nexthop_groups_n",
+		},
+		{
+			description: "positive: `nexthop show fdb` (NHA_FDB does not narrow in this kernel) lists every nexthop, id 5 with its fdb token",
+			args:        []string{"nexthop", "show", "fdb"},
+			pcap:        nexthopFdbPcap,
+			sidecar:     "ip_nexthop_fdb",
+		},
+		{
+			description: "positive: `-d nexthop show fdb` adds proto across the full list",
+			args:        []string{"-d", "nexthop", "show", "fdb"},
+			pcap:        nexthopFdbPcap,
+			sidecar:     "ip_nexthop_fdb_n",
+		},
+		{
+			description: "positive: `nexthop show protocol 4` filters the bare dump client-side to id 8",
+			args:        []string{"nexthop", "show", "protocol", "4"},
+			pcap:        nexthopDumpPcap,
+			sidecar:     "ip_nexthop_proto",
+		},
+		{
+			description: "positive: `-d nexthop show protocol 4` is the same one entry under -d",
+			args:        []string{"-d", "nexthop", "show", "protocol", "4"},
+			pcap:        nexthopDumpPcap,
+			sidecar:     "ip_nexthop_proto_n",
+		},
 	}
 
 	for _, tc := range tests {
@@ -135,9 +221,12 @@ func TestNexthopShowMatchesCapturedSidecars(t *testing.T) {
 }
 
 // TestNexthopShowRefusals pins the shapes goip declines rather than guesses: the
-// write and single-get verbs, the dump selectors no capture exercises, and
-// `-json` for which there is no sidecar. Each is ErrNotImplemented, so Run exits
-// ExitUsage and prints nothing to stdout.
+// write and single-get verbs, a selector goip does not implement, and `-json` for
+// which there is no sidecar. Each is ErrNotImplemented, so Run exits ExitUsage and
+// prints nothing to stdout. The implemented selectors (dev/master/vrf/groups/fdb/
+// protocol) have moved to TestNexthopShowMatchesCapturedSidecars; their MALFORMED
+// forms are in TestNexthopShowSelectorErrors (a bad command line, ExitFailure, not
+// a missing feature).
 //
 // go test ./internal/goip/ -run TestNexthopShowRefusals
 func TestNexthopShowRefusals(t *testing.T) {
@@ -158,28 +247,8 @@ func TestNexthopShowRefusals(t *testing.T) {
 			args:        []string{"nexthop", "flush"},
 		},
 		{
-			description: "negative: `nexthop show dev goip0` is a wire-filtered dump no capture grounds",
-			args:        []string{"nexthop", "show", "dev", "goip0"},
-		},
-		{
-			description: "negative: `nexthop show master goip0` is a wire-filtered dump no capture grounds",
-			args:        []string{"nexthop", "show", "master", "goip0"},
-		},
-		{
-			description: "negative: `nexthop show vrf red` is a wire-filtered dump no capture grounds",
-			args:        []string{"nexthop", "show", "vrf", "red"},
-		},
-		{
-			description: "negative: `nexthop show groups` is a wire-filtered dump no capture grounds",
-			args:        []string{"nexthop", "show", "groups"},
-		},
-		{
-			description: "negative: `nexthop show fdb` is a wire-filtered dump no capture grounds",
-			args:        []string{"nexthop", "show", "fdb"},
-		},
-		{
-			description: "negative: `nexthop show protocol kernel` is a client-side filter no capture grounds",
-			args:        []string{"nexthop", "show", "protocol", "kernel"},
+			description: "negative: `nexthop show nomaster` is a selector goip does not implement",
+			args:        []string{"nexthop", "show", "nomaster"},
 		},
 		{
 			description: "boundary: `nexthop show id` with no value is a usage error",
@@ -212,6 +281,61 @@ func TestNexthopShowRefusals(t *testing.T) {
 			}
 			if !strings.Contains(stderr.String(), "not implemented") {
 				t.Errorf("Run(%q) stderr = %q, want an ErrNotImplemented message", tc.args, stderr.String())
+			}
+		})
+	}
+}
+
+// TestNexthopShowSelectorErrors pins the MALFORMED forms of the implemented
+// selectors. Unlike a refusal these are bad command lines, not missing features:
+// goip implements dev/vrf/protocol, so a missing value, a non-numeric protocol, or
+// a non-VRF name is a plain failure (ExitFailure) with no "not implemented", the
+// same split neigh draws for a malformed `dev`.
+//
+// go test ./internal/goip/ -run TestNexthopShowSelectorErrors
+func TestNexthopShowSelectorErrors(t *testing.T) {
+	tests := []struct {
+		description string
+		args        []string
+		pcap        string
+		wantErr     string
+	}{
+		{
+			description: "boundary: `nexthop show dev` with no value is a malformed command line",
+			args:        []string{"nexthop", "show", "dev"},
+			pcap:        nexthopDumpPcap,
+			wantErr:     "missing its value",
+		},
+		{
+			description: "corner: `nexthop show protocol kernel` wants a number, not a proto name (get_unsigned)",
+			args:        []string{"nexthop", "show", "protocol", "kernel"},
+			pcap:        nexthopDumpPcap,
+			wantErr:     "invalid protocol value",
+		},
+		{
+			description: "negative: `nexthop show vrf goip0` is rejected because goip0 is not a VRF",
+			args:        []string{"nexthop", "show", "vrf", "goip0"},
+			pcap:        nexthopDevPcap,
+			wantErr:     "is not a VRF",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			t.Setenv("GOIP_REPLAY", tc.pcap)
+			var stdout, stderr bytes.Buffer
+			code := Run(tc.args, &stdout, &stderr)
+			if code != ExitFailure {
+				t.Fatalf("Run(%q) = %d, want ExitFailure (%d); stderr=%s", tc.args, code, ExitFailure, stderr.String())
+			}
+			if stdout.Len() != 0 {
+				t.Errorf("Run(%q) printed to stdout: %q", tc.args, stdout.String())
+			}
+			if !strings.Contains(stderr.String(), tc.wantErr) {
+				t.Errorf("Run(%q) stderr = %q, want %q", tc.args, stderr.String(), tc.wantErr)
+			}
+			if strings.Contains(stderr.String(), "not implemented") {
+				t.Errorf("Run(%q) stderr = %q, should not be an ErrNotImplemented", tc.args, stderr.String())
 			}
 		})
 	}

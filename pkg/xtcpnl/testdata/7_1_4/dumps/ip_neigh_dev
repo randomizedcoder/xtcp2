@@ -1,9 +1,9 @@
-192.0.2.50 lladdr 02:00:00:00:00:01 PERMANENT 
-192.0.2.52 INCOMPLETE 
-192.0.2.54 lladdr 02:00:00:00:00:05 extern_learn PERMANENT 
+192.0.2.55 lladdr 02:00:00:00:00:06 extern_valid PERMANENT 
 192.0.2.56 lladdr 02:00:00:00:00:07 router extern_learn extern_valid PERMANENT 
 192.0.2.51 lladdr 02:00:00:00:00:02 STALE 
+192.0.2.52 INCOMPLETE 
+192.0.2.54 lladdr 02:00:00:00:00:05 extern_learn PERMANENT 
 192.0.2.53 lladdr 02:00:00:00:00:04 router PERMANENT 
-192.0.2.55 lladdr 02:00:00:00:00:06 extern_valid PERMANENT 
+192.0.2.50 lladdr 02:00:00:00:00:01 PERMANENT 
 2001:db8::53 lladdr 02:00:00:00:00:08 router extern_valid PERMANENT 
 2001:db8::50 lladdr 02:00:00:00:00:03 PERMANENT 

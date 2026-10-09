@@ -19,10 +19,10 @@
 10: gre1@NONE: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 1476 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
     link/gre 192.0.2.3 peer 198.51.100.3
 11: ip6tnl0@NONE: <NOARP> mtu 1452 qdisc noop state DOWN mode DEFAULT group default qlen 1000
-    link/tunnel6 :: brd :: permaddr 5eda:58b2:77c3::
+    link/tunnel6 :: brd :: permaddr 9e32:20d9:c741::
 12: ip6tnl1@NONE: <POINTOPOINT,NOARP> mtu 1452 qdisc noop state DOWN mode DEFAULT group default qlen 1000
-    link/tunnel6 2001:db8::1 peer 2001:db8:100::1 permaddr b6a2:7670:89d7::
+    link/tunnel6 2001:db8::1 peer 2001:db8:100::1 permaddr aa4b:37ea:7de6::
 13: ip6gre0@NONE: <NOARP> mtu 1448 qdisc noop state DOWN mode DEFAULT group default qlen 1000
-    link/gre6 :: brd :: permaddr fa12:486b:13c::
+    link/gre6 :: brd :: permaddr ea19:976d:41cc::
 14: ip6gre1@NONE: <POINTOPOINT,NOARP> mtu 1448 qdisc noop state DOWN mode DEFAULT group default qlen 1000
-    link/gre6 2001:db8::2 peer 2001:db8:100::2 permaddr 5a14:f01f:e1b9::
+    link/gre6 2001:db8::2 peer 2001:db8:100::2 permaddr 1a18:a1ad:87ee::

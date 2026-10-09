@@ -309,6 +309,15 @@ type LinkInfo struct {
 	HasInfoData      bool
 	HasInfoSlaveData bool
 
+	// VrfTable and VrfPortTable are the one per-kind blob goip decodes: the VRF
+	// routing table id. VrfTable is IFLA_INFO_DATA -> IFLA_VRF_TABLE when Kind is
+	// "vrf" (vrf_print_opt, ip/iplink_vrf.c:55); VrfPortTable is
+	// IFLA_INFO_SLAVE_DATA -> IFLA_VRF_PORT_TABLE when SlaveKind is "vrf"
+	// (vrf_slave_print_opt, :67). Decoded only for the vrf kind; every other
+	// kind's blob stays undecoded and its HasInfoData refuses the -d render.
+	VrfTable     U32Attr
+	VrfPortTable U32Attr
+
 	Link int32 // IFLA_LINK — peer/lower interface index
 
 	// HasLink separates "IFLA_LINK absent" from "IFLA_LINK carrying 0", which
@@ -914,6 +923,7 @@ func setAddrGenMode(d *LinkDetail, val []byte) {
 // otherwise good link because a nest it did not need was malformed — is worse
 // for a renderer.
 func setLinkInfoNest(li *LinkInfo, val []byte) {
+	var infoData, slaveData []byte
 	walkNestTolerant(val, func(atype uint16, inner []byte) {
 		switch atype {
 		case uint16(unix.IFLA_INFO_KIND):
@@ -926,10 +936,48 @@ func setLinkInfoNest(li *LinkInfo, val []byte) {
 			}
 		case uint16(unix.IFLA_INFO_DATA):
 			li.HasInfoData = true
+			infoData = inner
 		case uint16(unix.IFLA_INFO_SLAVE_DATA):
 			li.HasInfoSlaveData = true
+			slaveData = inner
 		}
 	})
+	// Decode the one per-kind blob goip renders, once the kind is known. The
+	// kernel sends IFLA_INFO_KIND before IFLA_INFO_DATA, but this is done after
+	// the walk so it does not rely on that order.
+	if li.Kind == vrfKindCst {
+		li.VrfTable = vrfTableAttr(infoData, IflaVrfTable)
+	}
+	if li.SlaveKind == vrfKindCst {
+		li.VrfPortTable = vrfTableAttr(slaveData, IflaVrfPortTable)
+	}
+}
+
+// vrfKindCst is IFLA_INFO_KIND / IFLA_INFO_SLAVE_KIND for a VRF device and its
+// enslaved ports.
+const vrfKindCst = "vrf"
+
+// IflaVrfTable and IflaVrfPortTable are the single attribute each VRF nest
+// carries: the routing table id (include/uapi/linux/if_link.h IFLA_VRF_TABLE,
+// IFLA_VRF_PORT_TABLE).
+const (
+	IflaVrfTable     uint16 = 1
+	IflaVrfPortTable uint16 = 1
+)
+
+// vrfTableAttr returns the u32 at attr within a VRF nest, absent on a short or
+// missing one. The nest holds only the table id, so a single lookup suffices.
+func vrfTableAttr(nest []byte, attr uint16) U32Attr {
+	var out U32Attr
+	if nest == nil {
+		return out
+	}
+	walkNestTolerant(nest, func(atype uint16, inner []byte) {
+		if atype == attr && !out.Present {
+			out.setU32(inner)
+		}
+	})
+	return out
 }
 
 // walkNestTolerant walks a nested attribute stream and keeps whatever fn

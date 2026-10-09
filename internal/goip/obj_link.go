@@ -215,15 +215,24 @@ func checkDetailSupported(c *runCtx, links []xtcpnl.LinkInfo) error {
 	for i := range links {
 		li := &links[i]
 		switch {
-		case li.HasInfoData:
+		case li.HasInfoData && !renderableInfoData(li.Kind):
 			return fmt.Errorf("-d on %s: iproute2 renders IFLA_INFO_DATA for kind %q "+
 				"and goip does not: %w", li.Name, li.Kind, ErrNotImplemented)
-		case li.HasInfoSlaveData:
+		case li.HasInfoSlaveData && !renderableInfoData(li.SlaveKind):
 			return fmt.Errorf("-d on %s: iproute2 renders IFLA_INFO_SLAVE_DATA for slave kind %q "+
 				"and goip does not: %w", li.Name, li.SlaveKind, ErrNotImplemented)
 		}
 	}
 	return nil
+}
+
+// renderableInfoData reports whether goip reproduces the per-kind print_opt
+// output for a kind. Only "vrf" is grounded (its nest holds a single table id,
+// decoded into LinkInfo.VrfTable/VrfPortTable); every other kind's blob stays
+// undecoded and its -d render refused, which keeps the gate kind-agnostic for
+// everything goip has not verified against a capture.
+func renderableInfoData(kind string) bool {
+	return kind == "vrf"
 }
 
 // resolveLinkRefs sends the side-gets print_linkinfo issues for the two

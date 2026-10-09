@@ -1,0 +1,3 @@
+id 1 via 192.0.2.10 dev goip0 scope link proto unspec 
+id 2 via 192.0.2.11 dev goip0 scope link proto unspec 
+id 8 via 192.0.2.23 dev goip0 scope link proto static 

@@ -173,29 +173,30 @@ func TestNormalizeMsg(t *testing.T) {
 			find:          topAttr(uint16(unix.IFA_CACHEINFO)),
 			wantZeroed:    []span{{ifaCacheinfoStampsOffCst, ifaCacheinfoStampsLenCst}},
 			wantPreserved: []span{{0, 8}},
-			wantFound:     6,
+			wantFound:     8,
 		},
 		{
-			// Measured: e9010000 e9010000 e9010000 00000000, and ten more
+			// Measured: e9010000 e9010000 e9010000 00000000, and eleven more
 			// with all three counters differing. confirmed/used/updated are
 			// USER_HZ age counters and move between any two captures; refcnt
 			// is 0 on every entry, so it stays compared.
 			//
-			// wantFound went 5 -> 11 when nltopo::build_clean gained the five
-			// flagged neighbors. It counts ATTRIBUTES rather than printed
-			// lines, so it matches neither the five added nor the nine `ip
-			// neigh` prints: the dump also carries entries the default state
-			// filter hides.
+			// wantFound went 11 -> 12 when build_clean gained the VRF slave
+			// goipv, which carries its own ff02::2 multicast neighbor. It
+			// counts ATTRIBUTES rather than printed lines, so it matches
+			// neither the added devices nor the `ip neigh` prints: the dump
+			// also carries entries the default state filter hides.
 			description:   "positive: NDA_CACHEINFO loses its three age counters and keeps refcnt",
 			filename:      tdGuest + "/netlink_route_getneigh.pcap",
 			msgType:       uint16(unix.RTM_NEWNEIGH),
 			find:          topAttr(uint16(unix.NDA_CACHEINFO)),
 			wantZeroed:    []span{{ndaCacheinfoAgeOffCst, ndaCacheinfoAgeLenCst}},
 			wantPreserved: []span{{12, 4}},
-			wantFound:     11,
+			wantFound:     12,
 		},
 		{
-			// Measured: 32 zero bytes on all 9 routes here, and on all 17
+			// Measured: 32 zero bytes on all 13 routes here (the VRF table-100
+			// routes on goipv add to the table-all dump), and on every route
 			// across the corpus. Nothing here needs
 			// normalizing today, which is exactly why the conservative choice
 			// costs nothing — and why clntref, error and used stay compared:
@@ -216,14 +217,14 @@ func TestNormalizeMsg(t *testing.T) {
 			},
 			wantPreserved:     []span{{0, 4}, {12, 12}},
 			wantZeroedWasZero: true,
-			wantFound:         10,
+			wantFound:         13,
 		},
 		{
-			// Measured: ffff0000 85060000 94a00000 e8030000 and two more
-			// here, eight across both namespaces.
+			// Measured: ffff0000 85060000 94a00000 e8030000 and four more
+			// here (the VRF master goipvrf and its slave goipv add two links).
 			// max_reasm_len is 0xffff and retrans_time 1000 on every link;
-			// tstamp moves. reachable_time differs per link (41108, 35660,
-			// 18022) and is LEFT COMPARED on purpose: the kernel recomputes it
+			// tstamp moves. reachable_time differs per link and is LEFT
+			// COMPARED on purpose: the kernel recomputes it
 			// every few minutes, so two adjacent captures can straddle a
 			// recompute, and that is the case D_control exists to catch.
 			// Letting it surface as a volatile-fallback entry with a reason
@@ -236,7 +237,7 @@ func TestNormalizeMsg(t *testing.T) {
 			find:          inet6Attr(uint16(unix.IFLA_INET6_CACHEINFO)),
 			wantZeroed:    []span{{inet6CacheinfoTstampOffCst, inet6CacheinfoTstampLenCst}},
 			wantPreserved: []span{{0, 4}, {8, 8}},
-			wantFound:     3,
+			wantFound:     5,
 		},
 		{
 			// The mesh topology's links carry the same nest, and there are

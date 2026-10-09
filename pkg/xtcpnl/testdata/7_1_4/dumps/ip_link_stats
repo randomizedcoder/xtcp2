@@ -7,13 +7,25 @@
 2: nlmon0: <NOARP,UP,LOWER_UP> mtu 3776 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
     link/netlink 
     RX:  bytes packets errors dropped  missed   mcast           
-        145956     359      0       0       0       0 
+        231304     455      0       0       0       0 
     TX:  bytes packets errors dropped carrier collsns           
              0       0      0       0       0       0 
 3: goip0: <BROADCAST,NOARP,UP,LOWER_UP> mtu 1500 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
-    link/ether 9e:81:52:59:bb:93 brd ff:ff:ff:ff:ff:ff
+    link/ether 06:a4:15:8d:1e:e0 brd ff:ff:ff:ff:ff:ff
     RX:  bytes packets errors dropped  missed   mcast           
              0       0      0       0       0       0 
     TX:  bytes packets errors dropped carrier collsns           
-           390       5      0       0       0       0 
+           670       9      0       0       0       0 
     altname goip0-alt
+4: goipvrf: <NOARP,MASTER,UP,LOWER_UP> mtu 65575 qdisc noqueue state UP mode DEFAULT group default qlen 1000
+    link/ether 9a:62:a4:62:cb:7c brd ff:ff:ff:ff:ff:ff
+    RX:  bytes packets errors dropped  missed   mcast           
+             0       0      0       0       0       0 
+    TX:  bytes packets errors dropped carrier collsns           
+             0       0      0       0       0       0 
+5: goipv: <BROADCAST,NOARP,UP,LOWER_UP> mtu 1500 qdisc noqueue master goipvrf state UNKNOWN mode DEFAULT group default qlen 1000
+    link/ether 92:27:3f:4d:54:d4 brd ff:ff:ff:ff:ff:ff
+    RX:  bytes packets errors dropped  missed   mcast           
+             0       0      0       0       0       0 
+    TX:  bytes packets errors dropped carrier collsns           
+           490       7      0       0       0       0 

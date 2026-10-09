@@ -211,13 +211,13 @@ func TestSegment(t *testing.T) {
 			// instead of 2.
 			description: "positive: `ip addr show` is the ll_init_map link dump then the addr dump, one socket",
 			filename:    tdGuestGetAddr,
-			sidecar:     "dumps/topology; seqs 1791447081 then 1791447082",
+			sidecar:     "dumps/topology; two consecutive seqs on one socket",
 			wantTxns:    2,
 			wantClean:   true,
-			wantPids:    []uint32{898},
+			wantPids:    []uint32{994},
 			wantStates:  []TxnState{TxnClosedByDone, TxnClosedByDone},
-			wantReplies: []int{4, 7},
-			wantTxnPids: []uint32{898, 898},
+			wantReplies: []int{6, 9},
+			wantTxnPids: []uint32{994, 994},
 			check: func(t *testing.T, _ Capture, s Segmentation) {
 				if got := s.Txns[0].Request.Hdr.Type; got != uint16(unix.RTM_GETLINK) {
 					t.Errorf("txn 0 request type = %d, want RTM_GETLINK (%d)", got, unix.RTM_GETLINK)
@@ -268,13 +268,14 @@ func TestSegment(t *testing.T) {
 			sidecar:     "ip/ipneigh.c:601; dumps/ip_neigh",
 			wantTxns:    2,
 			wantClean:   true,
-			wantPids:    []uint32{1266},
+			wantPids:    []uint32{1495},
 			wantStates:  []TxnState{TxnClosedByDone, TxnClosedByDone},
-			// 12 neighbor replies, not the 6 this row carried before
-			// nltopo::build_clean gained five flagged entries. The count is
-			// the dump's, not `ip neigh`'s nine printed lines: the default
-			// state filter hides some of what the kernel sends.
-			wantReplies: []int{4, 12},
+			// 13 neighbor replies: the five flagged entries plus goipv's own
+			// ff02::2 multicast neighbor. The count is the dump's, not `ip
+			// neigh`'s printed lines: the default state filter hides some of
+			// what the kernel sends. txn 0 is the 6-reply link dump (5 links
+			// plus NLMSG_DONE).
+			wantReplies: []int{6, 13},
 			check: func(t *testing.T, _ Capture, s Segmentation) {
 				if got := s.Txns[0].Request.Hdr.Type; got != uint16(unix.RTM_GETLINK) {
 					t.Errorf("txn 0 request type = %d, want RTM_GETLINK (%d)", got, unix.RTM_GETLINK)
@@ -303,9 +304,9 @@ func TestSegment(t *testing.T) {
 			sidecar:     "dumps/ip_neigh_proxy; txn 1 body 00*10 08 00 vs the bare command's 00*12",
 			wantTxns:    2,
 			wantClean:   true,
-			wantPids:    []uint32{1463},
+			wantPids:    []uint32{1684},
 			wantStates:  []TxnState{TxnClosedByDone, TxnClosedByDone},
-			wantReplies: []int{4, 3},
+			wantReplies: []int{6, 3},
 			check: func(t *testing.T, _ Capture, s Segmentation) {
 				if got := s.Txns[0].Request.Hdr.Type; got != uint16(unix.RTM_GETLINK) {
 					t.Errorf("txn 0 request type = %d, want RTM_GETLINK (%d)", got, unix.RTM_GETLINK)

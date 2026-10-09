@@ -38,14 +38,14 @@
     inet6 fe80::5efe:c000:203/64 scope link proto kernel_ll 
        valid_lft forever preferred_lft forever
 11: ip6tnl0@NONE: <NOARP> mtu 1452 qdisc noop state DOWN group default qlen 1000
-    link/tunnel6 :: brd :: permaddr 5eda:58b2:77c3:: promiscuity 0 allmulti 0 minmtu 68 maxmtu 65535 netns-immutable 
+    link/tunnel6 :: brd :: permaddr 9e32:20d9:c741:: promiscuity 0 allmulti 0 minmtu 68 maxmtu 65535 netns-immutable 
     ip6tnl ip6ip6 remote any local any hoplimit inherit encaplimit 0 tclass 0x00 flowlabel 0x00000 numtxqueues 1 numrxqueues 1 gso_max_size 65536 gso_max_segs 65535 tso_max_size 65536 tso_max_segs 65535 gro_max_size 65536 gso_ipv4_max_size 65536 gro_ipv4_max_size 65536 
 12: ip6tnl1@NONE: <POINTOPOINT,NOARP> mtu 1452 qdisc noop state DOWN group default qlen 1000
-    link/tunnel6 2001:db8::1 peer 2001:db8:100::1 permaddr b6a2:7670:89d7:: promiscuity 0 allmulti 0 minmtu 68 maxmtu 65535 
+    link/tunnel6 2001:db8::1 peer 2001:db8:100::1 permaddr aa4b:37ea:7de6:: promiscuity 0 allmulti 0 minmtu 68 maxmtu 65535 
     ip6tnl ip6ip6 remote 2001:db8:100::1 local 2001:db8::1 hoplimit 64 encaplimit 4 tclass 0x00 flowlabel 0x00000 numtxqueues 1 numrxqueues 1 gso_max_size 65536 gso_max_segs 65535 tso_max_size 65536 tso_max_segs 65535 gro_max_size 65536 gso_ipv4_max_size 65536 gro_ipv4_max_size 65536 
 13: ip6gre0@NONE: <NOARP> mtu 1448 qdisc noop state DOWN group default qlen 1000
-    link/gre6 :: brd :: permaddr fa12:486b:13c:: promiscuity 0 allmulti 0 minmtu 0 maxmtu 0 netns-immutable 
+    link/gre6 :: brd :: permaddr ea19:976d:41cc:: promiscuity 0 allmulti 0 minmtu 0 maxmtu 0 netns-immutable 
     ip6gre remote any local any hoplimit inherit encaplimit 0 tclass 0x00 flowlabel 0x00000 numtxqueues 1 numrxqueues 1 gso_max_size 65536 gso_max_segs 65535 tso_max_size 65536 tso_max_segs 65535 gro_max_size 65536 gso_ipv4_max_size 65536 gro_ipv4_max_size 65536 
 14: ip6gre1@NONE: <POINTOPOINT,NOARP> mtu 1448 qdisc noop state DOWN group default qlen 1000
-    link/gre6 2001:db8::2 peer 2001:db8:100::2 permaddr 5a14:f01f:e1b9:: promiscuity 0 allmulti 0 minmtu 0 maxmtu 0 
+    link/gre6 2001:db8::2 peer 2001:db8:100::2 permaddr 1a18:a1ad:87ee:: promiscuity 0 allmulti 0 minmtu 0 maxmtu 0 
     ip6gre remote 2001:db8:100::2 local 2001:db8::2 hoplimit 64 encaplimit 4 tclass 0x00 flowlabel 0x00000 numtxqueues 1 numrxqueues 1 gso_max_size 65536 gso_max_segs 65535 tso_max_size 65536 tso_max_segs 65535 gro_max_size 65536 gso_ipv4_max_size 65536 gro_ipv4_max_size 65536 

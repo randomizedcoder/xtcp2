@@ -50,6 +50,10 @@ func TestParseNewNexthop(t *testing.T) {
 	// unbalanced_timer 0, unbalanced_time 0}. Verified byte-for-byte against
 	// netlink_route_getnexthop_res.pcap.
 	group20res := "000000000000000008000100140000000600030001000000140002000100000000000000020000000000000028000c80060001000800000008000200e02e000008000300000000000c000400000000000000000008000e0000000080"
+	// The captured fdb nexthop id 5: nhmsg {AF_INET, scope link} + NHA_ID 5 +
+	// NHA_FDB (zero-length flag) + NHA_GATEWAY 192.0.2.20, no NHA_OIF. Verified
+	// byte-for-byte against netlink_route_getnexthop_fdb.pcap.
+	fdb5 := "02fd000000000000080001000500000004000b0008000600c0000214"
 
 	// Builders for the crafted resilient rows, which are easier to read as
 	// structured attrs than as one long hex string.
@@ -85,6 +89,7 @@ func TestParseNewNexthop(t *testing.T) {
 		wantOIF      int32
 		wantGateway  []byte
 		wantBlack    bool
+		wantFdb      bool
 		wantGroup    bool
 		wantMembers  []GroupMember
 		wantGrpType  uint16
@@ -173,6 +178,15 @@ func TestParseNewNexthop(t *testing.T) {
 			wantResGroup: true,
 			wantRes:      ResGroup{Buckets: 8, IdleTimer: 12000, UnbalancedTimer: 0, UnbalancedTime: 0},
 			wantOpFlags:  NhaOpFlagRespGrpResvd0,
+		},
+		{
+			description: "positive: captured fdb nexthop id 5 — NHA_FDB flag, gateway, link scope, no oif",
+			body:        mustHex(t, fdb5),
+			wantFamily:  unix.AF_INET,
+			wantScope:   unix.RT_SCOPE_LINK,
+			wantID:      5,
+			wantGateway: []byte{192, 0, 2, 20},
+			wantFdb:     true,
 		},
 		{
 			description: "corner: NHA_GROUP_TYPE resilient is parsed (the refusal lives at the renderer, not here)",
@@ -374,6 +388,9 @@ func TestParseNewNexthop(t *testing.T) {
 			if nh.Blackhole != tc.wantBlack {
 				t.Errorf("Blackhole = %v, want %v", nh.Blackhole, tc.wantBlack)
 			}
+			if nh.Fdb != tc.wantFdb {
+				t.Errorf("Fdb = %v, want %v", nh.Fdb, tc.wantFdb)
+			}
 			if nh.HasGroup != tc.wantGroup {
 				t.Errorf("HasGroup = %v, want %v", nh.HasGroup, tc.wantGroup)
 			}
@@ -467,4 +484,85 @@ func TestBuildGetNexthopByIDRequest(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestBuildGetNexthopDumpRequest pins the wire-filtered RTM_GETNEXTHOP dump
+// `ip nexthop show SELECTOR` sends, byte-for-byte against the per-selector pcaps.
+// The captured filter indices are goip0=3 (NHA_OIF) and goipvrf=4 (NHA_MASTER);
+// `master` and `vrf` send the identical NHA_MASTER dump. The flag selectors carry
+// a single zero-length NHA_GROUPS or NHA_FDB. protocol is absent on purpose: it is
+// a client-side filter and sends the bare dump. Every request is NLM_F_DUMP, which
+// the by-id point-GET above is not.
+//
+// go test ./pkg/xtcpnl/ -run TestBuildGetNexthopDumpRequest
+func TestBuildGetNexthopDumpRequest(t *testing.T) {
+	tests := []struct {
+		description string
+		filter      NexthopDumpFilter
+		seq         uint32
+		want        string
+	}{
+		{
+			description: "positive: `dev goip0` matches netlink_route_getnexthop_dev (NHA_OIF=3)",
+			filter:      NexthopDumpFilter{OIF: 3}, seq: 1791497365,
+			want: "200000006a0001039514c86a0000000000000000000000000800050003000000",
+		},
+		{
+			description: "positive: `master goipvrf` matches netlink_route_getnexthop_master (NHA_MASTER=4)",
+			filter:      NexthopDumpFilter{Master: 4}, seq: 1791497366,
+			want: "200000006a0001039614c86a00000000000000000000000008000a0004000000",
+		},
+		{
+			description: "positive: `vrf goipvrf` sends the same NHA_MASTER dump as master",
+			filter:      NexthopDumpFilter{Master: 4}, seq: 1791497368,
+			want: "200000006a0001039814c86a00000000000000000000000008000a0004000000",
+		},
+		{
+			description: "positive: `groups` matches netlink_route_getnexthop_groups (NHA_GROUPS flag)",
+			filter:      NexthopDumpFilter{Groups: true}, seq: 1791497367,
+			want: "1c0000006a0001039714c86a00000000000000000000000004000900",
+		},
+		{
+			description: "positive: `fdb` matches netlink_route_getnexthop_fdb (NHA_FDB flag)",
+			filter:      NexthopDumpFilter{Fdb: true}, seq: 1791497368,
+			want: "1c0000006a0001039814c86a00000000000000000000000004000b00",
+		},
+		{
+			description: "corner: OIF and Master both set serialize in nh_dump_filter order (OIF before MASTER)",
+			filter:      NexthopDumpFilter{OIF: 3, Master: 4}, seq: 1,
+			want: "280000006a00010301000000000000000000000000000000" +
+				"0800050003000000" + "08000a0004000000",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			want := mustHex(t, tc.want)
+			got, err := BuildGetNexthopDumpRequest(unix.AF_UNSPEC, tc.filter, tc.seq)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !bytes.Equal(got, want) {
+				t.Fatalf("request mismatch\ngot  %s\nwant %s", hex.EncodeToString(got), hex.EncodeToString(want))
+			}
+			// negative: a dump request carries NLM_F_DUMP (it is not a point-GET).
+			flags := binary.LittleEndian.Uint16(got[6:8])
+			if flags&unix.NLM_F_DUMP == 0 {
+				t.Errorf("flags %#x lack NLM_F_DUMP", flags)
+			}
+		})
+	}
+
+	// boundary: an empty filter is byte-identical to the bare dump BuildDumpNexthop
+	// sends, so `ip nexthop show` and `ip nexthop show` with every selector off are
+	// the same request.
+	t.Run("boundary: empty filter equals the bare dump request", func(t *testing.T) {
+		got, err := BuildGetNexthopDumpRequest(unix.AF_UNSPEC, NexthopDumpFilter{}, 7)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if bare := BuildDumpNexthopRequest(unix.AF_UNSPEC, 7); !bytes.Equal(got, bare) {
+			t.Fatalf("empty filter != bare dump\ngot  %s\nbare %s", hex.EncodeToString(got), hex.EncodeToString(bare))
+		}
+	})
 }

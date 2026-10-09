@@ -74,8 +74,8 @@
         "link_type": "netlink",
         "stats64": {
             "rx": {
-                "bytes": 335748,
-                "packets": 255,
+                "bytes": 337284,
+                "packets": 287,
                 "errors": 0,
                 "dropped": 0,
                 "over_errors": 0,
@@ -311,9 +311,9 @@
             "tx": {
                 "bytes": 0,
                 "packets": 0,
-                "errors": 3,
+                "errors": 4,
                 "dropped": 0,
-                "carrier_errors": 3,
+                "carrier_errors": 4,
                 "collisions": 0
             }
         }
@@ -331,7 +331,7 @@
         "link_type": "tunnel6",
         "address": "::",
         "broadcast": "::",
-        "permaddr": "5eda:58b2:77c3::",
+        "permaddr": "9e32:20d9:c741::",
         "stats64": {
             "rx": {
                 "bytes": 0,
@@ -365,7 +365,7 @@
         "address": "2001:db8::1",
         "link_pointtopoint": true,
         "broadcast": "2001:db8:100::1",
-        "permaddr": "b6a2:7670:89d7::",
+        "permaddr": "aa4b:37ea:7de6::",
         "stats64": {
             "rx": {
                 "bytes": 0,
@@ -398,7 +398,7 @@
         "link_type": "gre6",
         "address": "::",
         "broadcast": "::",
-        "permaddr": "fa12:486b:13c::",
+        "permaddr": "ea19:976d:41cc::",
         "stats64": {
             "rx": {
                 "bytes": 0,
@@ -432,7 +432,7 @@
         "address": "2001:db8::2",
         "link_pointtopoint": true,
         "broadcast": "2001:db8:100::2",
-        "permaddr": "5a14:f01f:e1b9::",
+        "permaddr": "1a18:a1ad:87ee::",
         "stats64": {
             "rx": {
                 "bytes": 0,

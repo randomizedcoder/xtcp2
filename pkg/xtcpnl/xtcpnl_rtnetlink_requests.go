@@ -368,6 +368,52 @@ func BuildGetNexthopByIDRequest(family uint8, id, seq uint32) ([]byte, error) {
 	return BuildRequest(uint16(unix.RTM_GETNEXTHOP), 0, seq, hdr, ab.Bytes())
 }
 
+// NexthopDumpFilter is the wire-filter set `ip nexthop show` appends to the dump
+// request (nh_dump_filter, ip/ipnexthop.c:70): OIF for `dev`, Master for `master`
+// and `vrf` (a VRF is just a master), and the zero-length flag attributes Groups
+// and Fdb. `protocol` is NOT here — iproute2 filters it client-side on the reply
+// (print_cache_nexthop, :821), so it never reaches the request.
+type NexthopDumpFilter struct {
+	OIF    uint32 // NHA_OIF, 0 absent (index 0 is not a device)
+	Master uint32 // NHA_MASTER, 0 absent
+	Groups bool   // NHA_GROUPS flag
+	Fdb    bool   // NHA_FDB flag
+}
+
+// BuildGetNexthopDumpRequest builds the filtered RTM_GETNEXTHOP dump
+// (NLM_F_REQUEST|NLM_F_DUMP) `ip nexthop show SELECTOR` sends: an nhmsg whose
+// nh_family is preferred_family, then the filter attrs in nh_dump_filter order —
+// NHA_OIF, NHA_GROUPS, NHA_MASTER, NHA_FDB. An empty filter is byte-identical to
+// BuildDumpNexthopRequest's bare dump.
+func BuildGetNexthopDumpRequest(family uint8, f NexthopDumpFilter, seq uint32) ([]byte, error) {
+	hdr := make([]byte, NhMsgSizeCst)
+	hdr[0] = family // nh_family; scope, protocol, resvd and flags stay 0
+
+	var raw [reqAttrBufCst]byte
+	ab := NewAttrBuilder(raw[:])
+	if f.OIF != 0 {
+		if err := ab.PutU32(NhaOIF, f.OIF); err != nil {
+			return nil, err
+		}
+	}
+	if f.Groups {
+		if err := ab.PutBytes(NhaGroups, nil); err != nil {
+			return nil, err
+		}
+	}
+	if f.Master != 0 {
+		if err := ab.PutU32(NhaMaster, f.Master); err != nil {
+			return nil, err
+		}
+	}
+	if f.Fdb {
+		if err := ab.PutBytes(NhaFdb, nil); err != nil {
+			return nil, err
+		}
+	}
+	return BuildRequest(uint16(unix.RTM_GETNEXTHOP), uint16(unix.NLM_F_DUMP), seq, hdr, ab.Bytes())
+}
+
 // BuildDumpNeighRequest builds an RTM_GETNEIGH dump request (ndmsg) for the
 // given address family, completing the set of four dump builders and closing
 // TODO-SOON.md §17.
