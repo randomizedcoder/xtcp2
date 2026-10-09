@@ -1016,6 +1016,38 @@ var commands = withArgs([]Command{
 		Floor: 2, Implemented: true,
 	},
 
+	{
+		Name: "ntable show", Slug: "ntable_show",
+		// Four, the neigh shape rather than the addrlabel one: do_ipntable calls
+		// ll_init_map (ip/ipntable.c:685) before the RTM_GETNEIGHTBL dump, so the
+		// command is a link dump then the table dump — two requests and two
+		// NLMSG_DONEs, the floor the capture driver uses for this command and the
+		// reason a device-specific parameter set can resolve its NDTPA_IFINDEX.
+		//
+		// ntable's first row in this matrix, and REPLAY-GROUNDED, not yet
+		// live-grounded, as the addrlabel and nexthop rows above: internal/goip's
+		// TestNeighTblShowMatchesCapturedSidecars diffs goip byte-for-byte against
+		// the committed ip_ntable sidecar across three topologies. No measured live
+		// run backs it yet, so it goes ungated until its own runs earn gating.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-s ntable show", Slug: "ntable_show_stats",
+		// Four, and byte-identical to the row above in the REQUEST half: `-s`
+		// reaches no part of rtnl_neightbldump_req, it only ungates print_ndtconfig
+		// and print_ndtstats (ip/ipntable.c:624,630). So this row's request parity
+		// is the same assertion as `ntable show`; the stdout adds the config and
+		// stats blocks.
+		//
+		// One caveat the live comparison must expect: print_ndtconfig renders
+		// ndtc_last_flush/ndtc_last_rand as absolute dates from gettimeofday
+		// (ntable_strtime_delta, :310-336), so those two tokens are wall-clock, not
+		// a function of the bytes, and a live `ip` run minutes after the capture
+		// prints different dates. goip reproduces the captured dates offline via an
+		// injected clock; a live gate must normalize or ignore the two tokens.
+		Floor: 4, Implemented: true,
+	},
+
 	// The `-j` block.
 	//
 	// # What these rows claim, and what they do not
@@ -1205,6 +1237,23 @@ var commands = withArgs([]Command{
 		// Offline-grounded by internal/goip's TestAddrLabelShowJSONMatchesCaptured-
 		// Sidecars; ungated pending its own live runs, as the block above.
 		Floor: 2, Implemented: true,
+	},
+	{
+		Name: "-j ntable show", Slug: "ntable_show_json",
+		// Four, as `ntable show`: `-j` does not reach the wire, so the request is
+		// byte-identical to the text twin and the floor is inherited (the bundled
+		// link dump is still there).
+		//
+		// The reconciled loci are the dev names on device-specific sets: the text
+		// `dev NAME` token and the JSON `dev` key both land in FacetDevNames, which
+		// jsonFacetKeys already maps. Every other ntable token — thresholds, the
+		// parameter counters, the config and stats numbers — is a bare value under
+		// a named key that is a compared keyword on neither side, so it adds no
+		// locus (the measured calibration in stdout_json_test confirms this).
+		//
+		// Offline-grounded by internal/goip's jsonEquivalent row against the
+		// ip_ntable_json sidecar; ungated pending its own live runs.
+		Floor: 4, Implemented: true,
 	},
 })
 

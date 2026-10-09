@@ -302,6 +302,9 @@ func FamilyHdrLen(msgType uint16) int {
 	case uint16(unix.RTM_GETADDRLABEL), uint16(unix.RTM_NEWADDRLABEL),
 		uint16(unix.RTM_DELADDRLABEL):
 		return IfAddrlblmsgSizeCst // struct ifaddrlblmsg, 12
+	case uint16(unix.RTM_GETNEIGHTBL), uint16(unix.RTM_NEWNEIGHTBL),
+		uint16(unix.RTM_SETNEIGHTBL):
+		return NdtMsgSizeCst // struct ndtmsg, 4
 	case uint16(unix.NLMSG_DONE), uint16(unix.NLMSG_NOOP), uint16(unix.NLMSG_ERROR):
 		return 0
 	default:

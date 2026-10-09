@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/randomizedcoder/xtcp2/internal/goip/req"
 )
@@ -53,8 +54,8 @@ var objects = []object{
 	{name: "rule", run: runRule},
 	{name: "neighbor", run: runNeigh},
 	{name: "neighbour", run: runNeigh},
-	{name: "ntable"},
-	{name: "ntbl"},
+	{name: "ntable", run: runNTable},
+	{name: "ntbl", run: runNTable},
 	{name: "link", run: runLink},
 	{name: "l2tp"},
 	{name: "fou"},
@@ -182,6 +183,10 @@ type runCtx struct {
 	// increments, because the parity comparator zeroes nlmsg_seq before
 	// comparing and a wall-clock seed would only add noise to a capture.
 	seq uint32
+	// now is the wall clock the one timestamp-rendering object (ntable's `-s`
+	// config block) reads, so a replay can reproduce a captured date. Set once
+	// in Run from GOIP_NOW (a test seam, like GOIP_REPLAY) or time.Now.
+	now time.Time
 }
 
 // linkExtMask is the IFLA_EXT_MASK an `ip link show` dump carries under this

@@ -171,6 +171,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 
 	c.src = src
 	c.lltab = NewLLTab()
+	c.now = nowFromEnv()
 
 	if err := obj.run(c, args[1:]); err != nil {
 		fmt.Fprintf(stderr, "goip: %v\n", err)

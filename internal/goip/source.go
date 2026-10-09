@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/randomizedcoder/xtcp2/pkg/nlparity"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
@@ -315,4 +316,17 @@ func replayPortidFromEnv() uint32 {
 		return 0
 	}
 	return uint32(v)
+}
+
+// nowFromEnv is the wall clock a run renders timestamps against. GOIP_NOW (an
+// RFC3339 instant) exists for the same reason GOIP_REPLAY does — to reproduce a
+// captured timestamp without runtime pcap parsing, the argv staying identical to
+// `ip`'s. Unset or unparseable yields time.Now, the production clock: only the
+// ntable `-s` config block reads this, and failing a command over a typo in a
+// debugging variable would be worse than using the real time.
+func nowFromEnv() time.Time {
+	if t, err := time.Parse(time.RFC3339, os.Getenv("GOIP_NOW")); err == nil {
+		return t
+	}
+	return time.Now()
 }

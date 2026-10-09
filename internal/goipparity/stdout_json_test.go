@@ -440,6 +440,36 @@ func TestStdoutJSONFacetsMatchText(t *testing.T) {
 				{locus: "cidrs", textOnly: "0.0.0.0/96", jsonOnly: "::/0,::/96,::1/128,::ffff:0.0.0.0/96"},
 			},
 		},
+		{
+			description: "positive: ntable show, clean topology — the only reconciled locus is the device dev names (text `dev NAME`, JSON `dev` key), which agree; every other token is a bare value under a key compared on neither side",
+			topo:        "",
+			object:      "ip_ntable",
+			textLines:   84,
+			jsonEntries: 12,
+			textLoci:    1,
+			jsonLoci:    1,
+			diffs:       nil,
+		},
+		{
+			description: "positive: ntable show, mesh topology — the same two tables plus the mesh device sets; dev names agree, no other locus",
+			topo:        "mesh/",
+			object:      "ip_ntable",
+			textLines:   84,
+			jsonEntries: 12,
+			textLoci:    1,
+			jsonLoci:    1,
+			diffs:       nil,
+		},
+		{
+			description: "positive: ntable show, tunnel topology — more interfaces than the base, so more device parameter sets, and still the dev names as the one agreeing locus",
+			topo:        "tunnel/",
+			object:      "ip_ntable",
+			textLines:   196,
+			jsonEntries: 28,
+			textLoci:    1,
+			jsonLoci:    1,
+			diffs:       nil,
+		},
 	}
 
 	for _, tt := range tests {

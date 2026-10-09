@@ -483,3 +483,38 @@ func (s *Service) AddrLabels(family uint8) ([]model.AddrLabel, error) {
 	}
 	return out, nil
 }
+
+// NeighTableLinks is ll_init_map's link dump before the ntable dump
+// (ip/ipntable.c:685), the NeighborLinks twin. It is split out so obj_ntable can
+// Fill the index cache between the link dump and the table dump, which is how a
+// device-specific parameter set's NDTPA_IFINDEX resolves with no extra request.
+func (s *Service) NeighTableLinks() ([]model.Link, error) {
+	r, err := req.NeighTblShowLinkDump(s.nextSeq())
+	if err != nil {
+		return nil, fmt.Errorf("goip: build ntable link dump request: %w", err)
+	}
+	ls, err := decode(s, r, uint16(unix.RTM_NEWLINK), "RTM_NEWLINK", xtcpnl.ParseNewLink)
+	if err != nil {
+		return nil, err
+	}
+	links := make([]model.Link, len(ls))
+	for i := range ls {
+		links[i] = model.Link(ls[i])
+	}
+	return links, nil
+}
+
+// NeighTables is `ip ntable show`'s dump. Like Rules it has no Sort companion:
+// the kernel's table list is in a stable order, so wire order is render order.
+func (s *Service) NeighTables(family uint8) ([]model.NeighTbl, error) {
+	r := req.NeighTblShowDump(family, s.nextSeq())
+	v, err := decode(s, r, uint16(unix.RTM_NEWNEIGHTBL), "RTM_NEWNEIGHTBL", xtcpnl.ParseNewNeighTbl)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.NeighTbl, len(v))
+	for i := range v {
+		out[i] = model.NeighTbl(v[i])
+	}
+	return out, nil
+}

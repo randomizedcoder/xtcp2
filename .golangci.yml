@@ -301,13 +301,13 @@ linters:
         linters:
           - misspell
         text: "`neighbour` is a misspelling of `neighbor`"
-      # The ten files below cite kernel paths that contain the word.
+      # The eleven files below cite kernel paths that contain the word.
       # net/core/neighbour.c and include/uapi/linux/neighbour.h are the real
       # file names, so "correcting" them produces paths that do not exist and
       # breaks the one thing those comments are for, which is diffing against a
-      # kernel tree. Sixteen occurrences across the ten; misspell reports
-      # thirteen, skipping the two inside torvalds/linux URLs, and the
-      # sixteenth is in obj_neigh_test.go, covered by the entry above.
+      # kernel tree. Eighteen occurrences across the eleven; misspell reports
+      # fifteen, skipping the two inside torvalds/linux URLs, and the last
+      # is in obj_neigh_test.go, covered by the entry above.
       #
       # On its own this entry would be exactly the suppression the policy
       # forbids. An exclusion can only match misspell's MESSAGE, which is
@@ -324,7 +324,7 @@ linters:
       # deliberately. The first holds only a citation; the second also holds the
       # argv a user types. A collapsed `obj_neigh(_test)?\.go` would match the
       # same two files and lose the reason.
-      - path: "(internal/goip/obj_neigh|internal/goip/render/neigh_test|internal/goip/req/req|internal/goipparity/commands|pkg/nlparity/nlparity_(names|segment)_test|pkg/xtcpnl/xtcpnl_(ndmsg|rtnetlink_requests)(_test)?)\\.go"
+      - path: "(internal/goip/obj_neigh|internal/goip/render/neigh_test|internal/goip/req/req|internal/goipparity/commands|pkg/nlparity/nlparity_(names|segment)_test|pkg/xtcpnl/xtcpnl_(ndmsg|ndtmsg|rtnetlink_requests)(_test)?)\\.go"
         linters:
           - misspell
         text: "`neighbour` is a misspelling of `neighbor`"

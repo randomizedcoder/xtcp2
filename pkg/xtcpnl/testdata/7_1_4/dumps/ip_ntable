@@ -1,0 +1,84 @@
+inet arp_cache 
+    thresh1 128 thresh2 512 thresh3 1024 gc_int 30000 
+    refcnt 1 reachable 28789 base_reachable 30000 retrans 1000 
+    gc_stale 60000 delay_probe 5000 queue 101 
+    app_probes 0 ucast_probes 3 mcast_probes 3 mcast_reprobes 0 
+    anycast_delay 1000 proxy_delay 800 proxy_queue 64 locktime 1000 
+
+inet arp_cache 
+    dev goipv 
+    refcnt 1 reachable 20940 base_reachable 30000 retrans 1000 
+    gc_stale 60000 delay_probe 5000 queue 101 
+    app_probes 0 ucast_probes 3 mcast_probes 3 mcast_reprobes 0 
+    anycast_delay 1000 proxy_delay 800 proxy_queue 64 locktime 1000 
+
+inet arp_cache 
+    dev goipvrf 
+    refcnt 1 reachable 18229 base_reachable 30000 retrans 1000 
+    gc_stale 60000 delay_probe 5000 queue 101 
+    app_probes 0 ucast_probes 3 mcast_probes 3 mcast_reprobes 0 
+    anycast_delay 1000 proxy_delay 800 proxy_queue 64 locktime 1000 
+
+inet arp_cache 
+    dev goip0 
+    refcnt 8 reachable 43584 base_reachable 30000 retrans 1000 
+    gc_stale 60000 delay_probe 5000 queue 101 
+    app_probes 0 ucast_probes 3 mcast_probes 3 mcast_reprobes 0 
+    anycast_delay 1000 proxy_delay 800 proxy_queue 64 locktime 1000 
+
+inet arp_cache 
+    dev nlmon0 
+    refcnt 1 reachable 28325 base_reachable 30000 retrans 1000 
+    gc_stale 60000 delay_probe 5000 queue 101 
+    app_probes 0 ucast_probes 3 mcast_probes 3 mcast_reprobes 0 
+    anycast_delay 1000 proxy_delay 800 proxy_queue 64 locktime 1000 
+
+inet arp_cache 
+    dev lo 
+    refcnt 1 reachable 37144 base_reachable 30000 retrans 1000 
+    gc_stale 60000 delay_probe 5000 queue 101 
+    app_probes 0 ucast_probes 3 mcast_probes 3 mcast_reprobes 0 
+    anycast_delay 1000 proxy_delay 800 proxy_queue 64 locktime 1000 
+
+inet6 ndisc_cache 
+    thresh1 128 thresh2 512 thresh3 1024 gc_int 30000 
+    refcnt 1 reachable 19897 base_reachable 30000 retrans 1000 
+    gc_stale 60000 delay_probe 5000 queue 101 
+    app_probes 0 ucast_probes 3 mcast_probes 3 mcast_reprobes 0 
+    anycast_delay 1000 proxy_delay 800 proxy_queue 64 locktime 0 
+
+inet6 ndisc_cache 
+    dev goipv 
+    refcnt 2 reachable 18714 base_reachable 30000 retrans 1000 
+    gc_stale 60000 delay_probe 5000 queue 101 
+    app_probes 0 ucast_probes 3 mcast_probes 3 mcast_reprobes 0 
+    anycast_delay 1000 proxy_delay 800 proxy_queue 64 locktime 0 
+
+inet6 ndisc_cache 
+    dev goipvrf 
+    refcnt 1 reachable 43289 base_reachable 30000 retrans 1000 
+    gc_stale 60000 delay_probe 5000 queue 101 
+    app_probes 0 ucast_probes 3 mcast_probes 3 mcast_reprobes 0 
+    anycast_delay 1000 proxy_delay 800 proxy_queue 64 locktime 0 
+
+inet6 ndisc_cache 
+    dev goip0 
+    refcnt 5 reachable 28563 base_reachable 30000 retrans 1000 
+    gc_stale 60000 delay_probe 5000 queue 101 
+    app_probes 0 ucast_probes 3 mcast_probes 3 mcast_reprobes 0 
+    anycast_delay 1000 proxy_delay 800 proxy_queue 64 locktime 0 
+
+inet6 ndisc_cache 
+    dev nlmon0 
+    refcnt 1 reachable 44901 base_reachable 30000 retrans 1000 
+    gc_stale 60000 delay_probe 5000 queue 101 
+    app_probes 0 ucast_probes 3 mcast_probes 3 mcast_reprobes 0 
+    anycast_delay 1000 proxy_delay 800 proxy_queue 64 locktime 0 
+
+inet6 ndisc_cache 
+    dev lo 
+    refcnt 1 reachable 24481 base_reachable 30000 retrans 1000 
+    gc_stale 60000 delay_probe 5000 queue 101 
+    app_probes 0 ucast_probes 3 mcast_probes 3 mcast_reprobes 0 
+    anycast_delay 1000 proxy_delay 800 proxy_queue 64 locktime 0 
+

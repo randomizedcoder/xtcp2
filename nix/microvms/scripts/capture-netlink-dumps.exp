@@ -263,6 +263,17 @@ proc capture_set {ns subdir dev} {
     # ip_addrlabel sidecar so a replay reproduces the listing byte for byte.
     capio $ns $subdir netlink_route_getaddrlabel 2 "ip addrlabel show" ip_addrlabel
 
+    # `ip ntable show` dumps the neighbour tables (RTM_GETNEIGHTBL). do_ipntable
+    # runs ll_init_map first, so the pcap holds the link dump ahead of the table
+    # dump - floor 4, the neigh shape - and that link dump resolves the
+    # NDTPA_IFINDEX a device-specific parameter set carries. The `-s` form adds
+    # the config and stats blocks; its reply bytes match the plain form (the
+    # kernel always sends config/stats), so the second pcap exists for its
+    # ip_ntable_s pairing. capio both so each sidecar is captured at the same
+    # instant as its bytes - ndtc_last_flush/last_rand are wall-clock deltas.
+    capio $ns $subdir netlink_route_getneightbl   4 "ip ntable show"    ip_ntable
+    capio $ns $subdir netlink_route_getneightbl_s 4 "ip -s ntable show" ip_ntable_s
+
     # Closes the corpus's last outright gap: there was no RTM_GETNEIGH dump
     # anywhere, only a notifications pcap.
     cap $ns $subdir netlink_route_getneigh 4 "ip neigh show"
@@ -508,6 +519,9 @@ proc sidecar_set {ns subdir dev} {
     # addrlabel JSON replays netlink_route_getaddrlabel.pcap; the default table is
     # static, so a separate `-j -p` run matches the capio'd text listing.
     side $ns $subdir ip_addrlabel_json      "ip -j -p addrlabel show"
+    # ntable JSON replays netlink_route_getneightbl.pcap; -j does not reach the
+    # wire, and the reply bytes are the plain form's, so a `-j -p` run matches.
+    side $ns $subdir ip_ntable_json         "ip -j -p ntable show"
     side $ns $subdir ip_neigh               "ip neigh show"
     side $ns $subdir ip_neigh_n             "ip -d neigh show"
     side $ns $subdir ip_link_dev            "ip link show dev $dev"

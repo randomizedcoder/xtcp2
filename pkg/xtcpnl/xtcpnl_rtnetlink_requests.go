@@ -597,6 +597,17 @@ func BuildDumpAddrLabelRequest(family uint8, seq uint32) []byte {
 	return BuildDumpRequest(uint16(unix.RTM_GETADDRLABEL), seq, hdr)
 }
 
+// BuildDumpNeighTblRequest builds the RTM_GETNEIGHTBL dump `ip ntable show`
+// sends (rtnl_neightbldump_req): a 4-byte ndtmsg with only ndtm_family set, no
+// oversend and no family substitution — the one rule and addrlabel make has no
+// parallel here (ipntable passes preferred_family straight through).
+func BuildDumpNeighTblRequest(family uint8, seq uint32) []byte {
+	hdr := make([]byte, NdtMsgSizeCst)
+	hdr[0] = family // ndtm_family; the three pad bytes stay zero
+
+	return BuildDumpRequest(uint16(unix.RTM_GETNEIGHTBL), seq, hdr)
+}
+
 // extMaskAttrs encodes a lone IFLA_EXT_MASK, or nothing at all for mask 0.
 func extMaskAttrs(extMask uint32) ([]byte, error) {
 	if extMask == 0 {
