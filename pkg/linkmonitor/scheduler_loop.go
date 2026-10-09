@@ -19,17 +19,20 @@ type schedulerHooks struct {
 }
 
 type schedulerLoop struct {
-	scheduler *scheduler
-	inventory *inventoryExecutor
-	events    <-chan model.Event
-	controls  <-chan struct{}
-	notices   <-chan struct{}
-	storage   <-chan model.SaveResult
-	hooks     schedulerHooks
-	wake      deadlineWake
+	rdma        *rdmaSchedule
+	rdmaResults <-chan rdmaCompletion
+	scheduler   *scheduler
+	inventory   *inventoryExecutor
+	events      <-chan model.Event
+	controls    <-chan struct{}
+	notices     <-chan struct{}
+	storage     <-chan model.SaveResult
+	hooks       schedulerHooks
+	wake        deadlineWake
 }
 
 type schedulerWake struct {
+	rdma       *rdmaCompletion
 	event      *model.Event
 	collection *workerCompletion
 	inventory  *inventoryCompletion
@@ -52,6 +55,8 @@ func (l *schedulerLoop) run(ctx context.Context) error {
 		}
 		l.wake.sync(&l.scheduler.reducer.deadlines)
 		select {
+		case result := <-l.rdmaResults:
+			wake = schedulerWake{rdma: &result}
 		case <-ctx.Done():
 			return ctx.Err()
 		case event, ok := <-l.events:
@@ -92,6 +97,11 @@ func (l *schedulerLoop) turn(wake schedulerWake) error {
 	if err := l.drainEvents(wake.event); err != nil {
 		return err
 	}
+	if wake.rdma != nil {
+		if err := l.rdma.complete(*wake.rdma); err != nil {
+			return err
+		}
+	}
 	if wake.collection != nil {
 		l.scheduler.complete(*wake.collection)
 	}
@@ -114,6 +124,11 @@ func (l *schedulerLoop) turn(wake schedulerWake) error {
 	}
 	if l.scheduler.traffic != nil {
 		if err := l.scheduler.traffic.advance(now); err != nil {
+			return err
+		}
+	}
+	if l.rdma != nil {
+		if err := l.rdma.advance(now); err != nil {
 			return err
 		}
 	}

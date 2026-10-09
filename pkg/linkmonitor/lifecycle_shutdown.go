@@ -52,6 +52,10 @@ func (s *lifecycleSession) shutdown(m *Monitor, resources *lifecycleResources, r
 }
 
 func (r *lifecycleResources) join() error {
+	if r.rdma != nil {
+		r.rdma.cancel()
+		<-r.rdma.done
+	}
 	if r.pool != nil {
 		r.pool.stop()
 		<-r.pool.done
@@ -71,6 +75,9 @@ func (r *lifecycleResources) join() error {
 	err := r.err
 	if err == context.Canceled || err == context.DeadlineExceeded {
 		err = nil
+	}
+	if r.rdma != nil {
+		err = errors.Join(err, r.rdma.closeErr)
 	}
 	if r.pool != nil {
 		err = errors.Join(err, r.pool.closeError())

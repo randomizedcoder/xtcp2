@@ -143,6 +143,11 @@ func (l *lifecycle) saved(result model.SaveResult) error {
 }
 
 func (l *lifecycle) publish(now model.Stamp) error {
+	r := l.coordinator.scheduler.reducer
+	if r.exceptionRevision != r.revision {
+		r.exceptions = resolveExceptions(l.monitor.cfg.MaxSpeedExceptions, r.rdmaExceptionDevices())
+		r.exceptionRevision = r.revision
+	}
 	if err := l.coordinator.scheduler.reducer.publish(l.monitor, publicationState{
 		health: Health{Running: true}, expected: l.expected, now: now, baselineWriteErrors: l.writeErrors,
 	}); err != nil {

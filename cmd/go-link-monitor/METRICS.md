@@ -312,6 +312,15 @@ and [verbs events](https://github.com/linux-rdma/rdma-core/blob/master/libibverb
 (accessed 2026-10-06; moving upstream references).
 
 The following new metrics have no exact node_exporter policy equivalent.
+P07-T01 now projects the port/association information, observed RoCE versions,
+port up and per-port readiness families below into immutable library samples.
+Native duplex information is transport-defined. Polling and inventory supply
+these values; verbs events remain P07-T02, native speed/width capabilities and
+counters remain P07-T03, and Prometheus exposition remains P08. Several ports
+sharing Ethernet retain distinct device/port labels and contribute one counted
+Ethernet link. Missing GID metadata means unknown version, not absent RoCEv2
+capability. No new metric names or label contracts are introduced here.
+
 `interface` is the canonical monitored link identity; `device,port` are the RDMA
 identity. Several metadata associations must not multiply link counts.
 
@@ -736,6 +745,14 @@ explicitly anchored. Invalid regexps fail startup, empty regexps match everythin
 and `^$` selects none successfully. No fields are excluded by a built-in allowlist.
 Driver/PHY filters do not apply. Filter changes require restart. See
 [field selection and examples](DESIGN.md#host-protocol-statistics-and-field-selection).
+
+Collection accepts at most 4 MiB per proc file and 65,536 source fields combined,
+before filtering. Invalid identifiers, duplicate final field keys, integer
+overflow and malformed pairs reject the complete host update even with a no-match
+filter. Missing optional `snmp6` is supported; other read/close failures retain the
+previous successful values until expiry. All host protocol samples are untyped
+with exact signed/unsigned internal integers and no labels. Publication is atomic
+across the files; the sequential reads are not a simultaneous kernel snapshot.
 
 This includes the fields behind `netstat -s`: Ip, Icmp, IcmpMsg (including
 InType/OutType histograms), Tcp, Udp, TcpExt, IpExt and MPTcpExt, wherever the

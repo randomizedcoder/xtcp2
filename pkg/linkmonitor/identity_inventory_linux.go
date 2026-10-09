@@ -88,12 +88,15 @@ func (s *ethernetInventory) Dump(ctx context.Context) (model.Candidate, error) {
 	}
 	c.Devices = make([]model.Observation, 0, len(result.Values))
 	c.Statistics = make([]model.LinkStatistics, 0, len(result.Values))
+	c.NetdevLinks = make([]model.NetdevLink, 0, len(result.Values))
 	for i := range result.Values {
 		observation, statistics, err := s.project(ctx, &result.Values[i], observed, true)
 		if err != nil {
 			return model.Candidate{}, err
 		}
 		c.Devices = append(c.Devices, observation)
+		link := &result.Values[i]
+		c.NetdevLinks = append(c.NetdevLinks, model.NetdevLink{Index: uint32(link.Index), Lower: uint32(link.Link), Foreign: link.HasLinkNetnsID || link.Link < 0})
 		c.Statistics = append(c.Statistics, *statistics)
 	}
 	c.Complete, c.Finished = true, s.clock.Now()

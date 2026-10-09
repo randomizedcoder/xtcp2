@@ -68,7 +68,7 @@ func (r *reducer) publish(m *Monitor, state publicationState) error {
 		version: version, namespace: r.namespace, health: r.publicationHealth(state.health.Running, state.expected.Present),
 		lastResync:          r.lastResync,
 		baselineWriteErrors: state.baselineWriteErrors,
-		counts:              LinkCounts{current: model.Optional[uint64]{Value: r.upCount, Present: r.lastResync.Present && r.uncertain == 0}, expected: state.expected},
+		counts:              LinkCounts{current: model.Optional[uint64]{Value: r.upCount, Present: r.lastResync.Present && r.uncertain == 0 && r.rdmaUncertain == 0}, expected: state.expected},
 		host:                freezeCollector(&r.host), pages: make([]*devicePage, pageCount),
 	}
 	if previous != nil {

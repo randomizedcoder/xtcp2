@@ -823,6 +823,54 @@ An empty selection still validates files. Do not infer counter semantics from
 names. Never use `/proc/net/dev` aggregates as replacements for the detailed
 traffic fields contracted in METRICS.
 
+### P06-T04 host protocol implementation
+
+The private host collector decorates the existing four optional workers. One
+namespace job, with no device key, runs at startup, every `StatsInterval` (15s by
+default) and after successful full reconciliation, including empty inventories.
+Full resync advances the host schema revision and preserves one pending refresh
+if a read is active. Obsolete results cannot publish. Device changes do not
+invalidate host statistics. Production source bindings remain pending.
+
+Each worker opens `snmp`, `netstat` and optional `snmp6` beneath `/proc/net` in
+sequence. A private root/opener seam supports tests. Reads use reusable scratch
+storage growing from 32 KiB to at most 4 MiB plus one overflow-detection byte;
+file sizes and Scanner token limits are not used. Each file closes before parsing
+or opening the next. Read/close errors reject the complete collection; only
+`ENOENT` while opening `snmp6` is supported absence. Cancellation is checked around
+I/O and during parsing. A blocked read retains its worker and file through logical
+timeout until physical return; no replacement worker or premature close is used.
+
+Paired files require matching colon-terminated protocols and equal header/value
+counts. Whitespace, paired empty groups and a final line without newline are
+accepted. IPv6 lines require two tokens and split the name after its first `6`.
+Protocol/field names must be ASCII identifiers (`[A-Za-z_][A-Za-z0-9_]*`); invalid
+names are rejected, never sanitized. Repeated paired-file groups and duplicate
+final `protocol_field` keys (including cross-file/underscore collisions) fail.
+The combined schema is bounded to 65,536 source fields before filtering. Decimal
+negative values retain int64 signedness; other values retain uint64 precision,
+including an optional leading plus. Overflow and noninteger forms fail even when
+excluded by the filter. Empty files and empty selections are successful snapshots.
+
+Workers retain one owned schema cache and reusable parse storage, comparing every
+incoming protocol/field in order. Matching schemas reuse selected descriptors and
+compiled-filter decisions; changes rebuild only changed entries. Obsolete string
+references are cleared. Results own selected numeric samples and use descriptor
+keys `netstat_<protocol>_<field>`, `SampleUntyped`, no labels and no counter history.
+Only complete successful results replace the host block; failures retain previous
+values until the ordinary three-interval expiry. The reducer shares equal frozen
+schemas and preserves older snapshots. Publication is atomic, but the three
+sequential kernel reads are not a simultaneous snapshot. No scrape-time I/O,
+subprocess, io_uring transport, sockstat or lnstat collector is added.
+
+Explicit positive/negative/boundary/corner test tables include descriptions and
+expected outcomes: protocol parsing/filtering, exact numeric boundaries, malformed
+pairs/names/duplicates, optional IPv6 and I/O failures, 4 MiB/65,536-field limits,
+schema replacement and ownership, resync/epoch fencing, freshness, resource
+delegation and blocked-worker shutdown. Parser fuzz targets exercise paired and
+IPv6 formats. Synthetic cold-schema/cached benchmarks cover 0, 64, 1,024, 8,192 and
+65,536 fields with all-fields/no-match filters; they do not measure kernel latency.
+
 ### P06-T03 driver and PHY implementation
 
 The private statistics decorator shares the existing four optional collector
@@ -885,6 +933,78 @@ Schema-parser fuzzing and discovery/cached-collection allocation benchmarks cove
 fleet hardware throughput. No semantic driver flap mapping is guessed.
 
 ### RDMA adapter implementation boundary
+
+P07-T01 supplies private Linux NLDEV device/port requests on a dedicated
+`NETLINK_RDMA` socket, bounded sysfs metadata readers, and composition with the
+Ethernet inventory. Device indices may be zero; host ports start at one. Unknown
+optional attributes are ignored, consumed attributes are strictly validated, and
+failed/interrupted transactions return no partial candidate. No generic-netlink
+header or family discovery is used for NLDEV.
+
+The candidate owns a separate RDMA-port table and canonical associations.
+Native ports use `rdma:<device>:<port>` without requiring IPoIB; verified IPoIB
+and P_Key aliases do not create links. RoCE ports resolve to eligible Ethernet
+identities using NLDEV netdevice evidence, GID metadata and verified local route
+lower links. Foreign lowers, conflicting targets and missing evidence remain
+unknown. GID types establish observed RoCE versions, independently of readiness.
+Unknown hardware associations block baseline readiness and authoritative count
+publication. Complete empty RDMA inventories remain valid.
+
+Bounds are 4 KiB per scalar, 63 bytes per RDMA name, 1,024 bytes per hardware
+identity, and 65,536 ports/association records. Existing netlink transaction and
+sample limits also apply. Sysfs class links may resolve inside the configured
+sysfs tree. Unsupported NLDEV operations may use a private sysfs fallback only
+when the embedding has explicitly verified namespace agreement; the default
+session does not assert that agreement. Permission errors do not enable fallback.
+
+A single dedicated state executor is independent of the optional worker pool
+and inventory lane. It queries ports synchronously, grouping ports of one
+canonical link for atomic publication. One active operation and one coalesced
+pending request per canonical link bound work; periodic requests use FIFO
+ordering. Discovery, full resync and the stats interval request state refresh.
+The default logical budget is five seconds and freshness is three stats
+intervals. Cancellation never frees physical occupancy or closes an active
+source early. The owner joins this executor during shutdown.
+
+Every committed topology advances an association revision. Requests retain
+canonical generation/revision, source epoch and attempt identity; obsolete
+completions cannot update diagnostics or values. Native ACTIVE/LINK_UP updates
+the counted state. RoCE state cannot change Ethernet carrier/count. Per-port
+readiness is retained; canonical readiness gives fail precedence over unknown,
+then pass, then not_applicable. Physical-down readiness is not_applicable;
+missing or future enum values stay unknown. Native duplex is transport-defined
+full with a not_applicable negotiated-duplex check. Alias exception resolution
+uses the current committed inventory and never changes raw readiness checks.
+
+Concurrent route changes during an RDMA-correlated inventory candidate restart
+the complete discovery pass with the existing bounded retry policy. This keeps
+association metadata and scalar inventory from different topologies from being
+committed together. Cached metadata is reused by ordinary state polls; snapshot
+reads perform no I/O. This does not claim an atomic kernel-wide snapshot.
+
+Table-driven tests include executable expected outcomes in addition to category,
+description and expectedOutcome text:
+
+| Category | Description | Expected outcome |
+|---|---|---|
+| Positive | Complete/empty device dumps, native without IPoIB, hardware RoCE | Owned inventory; canonical counting identities; no double count |
+| Negative | Malformed/duplicate attributes, wrong reply port, interrupted dump | No partial candidate or removal |
+| Boundary | Zero device index, 63/64-byte names, exact/excess scalar bound | Preserve valid zero; accept exact limits; reject excess |
+| Corner | Huge advertised count, future optional attributes | Allocate from received bounded records; preserve known evidence |
+| Positive/negative | Unsupported NLDEV with verified/unverified namespace | Verified fallback succeeds; unverified discovery fails visibly |
+| Corner | IPoIB parent/P_Key aliases, duplicate GID aliases | One canonical link and deduplicated aliases |
+| Negative | Foreign/missing/cyclic lowers, software providers, path escape | Unknown or excluded as appropriate; no invented hardware identity |
+| Positive/negative | ACTIVE, INIT/ARMED, physical down, future state | Correct up/count and pass/fail/not_applicable/unknown readiness |
+| Corner | Multiple RDMA ports share Ethernet | Independent samples and aggregate readiness; one count |
+| Corner | Resync, epoch loss, rename or timeout during state read | Obsolete completion ignored; one bounded follow-up |
+| Boundary | Freshness immediately before/at expiry | Fresh before; unknown policy at expiry; retained count |
+| Corner | All optional workers occupied; required read blocked at shutdown | Independent required-state progress; physical ownership retained |
+| Negative | State factory/close failure; missing verbs events | Errors preserved and resources joined; event health stays unhealthy |
+
+P07-T02 still owns verbs events and RDMA lifecycle notification integration;
+P07-T03 owns native speed/width capabilities and counters. P07-T01 polling does
+not claim working RDMA events or a complete mixed-fleet artifact. Production
+backend binding remains pending, and no hardware validation is claimed.
 
 Use typed Go discovery, correlation, sysfs parsing and policy. For verbs async
 events and local UMAD operations, use a narrow rdma-core binding isolated in the
