@@ -31,6 +31,12 @@ type Nexthop xtcpnl.NexthopInfo
 // the neighbor hash has no such property and its order varies across boots.
 type Rule xtcpnl.RuleInfo
 
+// AddrLabel is one entry of the IPv6 address-label policy table
+// (RTM_NEWADDRLABEL). It has no Sort companion: the kernel dumps the per-netns
+// table in a stable order (net/ipv6/addrlabel.c) and iproute2 does no sorting,
+// so wire order is the order to render.
+type AddrLabel xtcpnl.AddrLabelInfo
+
 func SortLinks(v []Link) { sort.SliceStable(v, func(i, j int) bool { return v[i].Index < v[j].Index }) }
 
 func SortAddresses(v []Address) {

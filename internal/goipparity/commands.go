@@ -983,6 +983,39 @@ var commands = withArgs([]Command{
 		Floor: 4, Implemented: true,
 	},
 
+	{
+		Name: "addrlabel show", Slug: "addrlabel_show",
+		// Two, the rule shape rather than the nexthop one: ipaddrlabel_list calls
+		// no ll_init_map (ip/ipaddrlabel.c:99-125) because every default entry has
+		// ifal_index 0, so print_addrlabel resolves no name and there is no link
+		// dump — one request and the multipart reply carrying NLMSG_DONE, the floor
+		// the capture driver uses for this command.
+		//
+		// addrlabel's first row in this matrix, and REPLAY-GROUNDED, not yet
+		// live-grounded, exactly as the nexthop rows above: internal/goip's
+		// TestAddrLabelShowMatchesCapturedSidecars diffs goip byte-for-byte against
+		// the committed ip_addrlabel sidecar, so the stdout is known correct
+		// offline. A live run adds what a committed sidecar cannot — noticing the
+		// iproute2 pin moving a token. No measured live run backs it yet, so it
+		// goes in ungated until its own runs earn gating.
+		Floor: 2, Implemented: true,
+	},
+	{
+		Name: "-6 addrlabel show", Slug: "addrlabel_show_v6",
+		// Two, and byte-identical to the row above in BOTH halves — the rule/`-4`
+		// relationship, mirrored onto the other family.
+		//
+		// ipaddrlabel_list substitutes AF_INET6 for AF_UNSPEC before it builds
+		// anything (ip/ipaddrlabel.c:101-104), the addrlabel table being IPv6-only,
+		// so a bare `ip addrlabel show` already asks for AF_INET6 and `-6` changes
+		// nothing — not one request byte, not one output character. Hence no `-6`
+		// pcap in the corpus: this row asserts the identity instead. It is load
+		// bearing the same way `-4 rule show` is — a goip that skipped the
+		// substitution would send AF_UNSPEC, be answered, and the request halves
+		// would no longer match.
+		Floor: 2, Implemented: true,
+	},
+
 	// The `-j` block.
 	//
 	// # What these rows claim, and what they do not
@@ -1156,6 +1189,22 @@ var commands = withArgs([]Command{
 		// Offline-grounded by internal/goip's TestNexthopShowJSONMatchesCaptured-
 		// Sidecars; ungated pending its own live runs, as the block above.
 		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-j addrlabel show", Slug: "addrlabel_show_json",
+		// Two, as `addrlabel show`: `-j` does not reach the wire, so the request is
+		// byte-identical to the text twin and the floor is inherited.
+		//
+		// The prefix is the one locus this row's mapping has to reconcile. The text
+		// stream glues address and length into `prefix ADDR/LEN` (ip/ipaddrlabel.c:
+		// 71-77) while the JSON stream splits them into `address` + `prefixlen`, so
+		// jsonFacets synthesizes the text token from the two keys — the same
+		// address/prefixlen synthesis `-j addr show` already does. `label` maps to
+		// the text `label` token; both sides leave it as a value, not a locus.
+		//
+		// Offline-grounded by internal/goip's TestAddrLabelShowJSONMatchesCaptured-
+		// Sidecars; ungated pending its own live runs, as the block above.
+		Floor: 2, Implemented: true,
 	},
 })
 

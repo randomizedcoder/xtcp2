@@ -308,10 +308,17 @@ var jsonKeywordKeys = map[string]string{
 // joined, so the blanket string scan finds it and a pair entry would need a
 // `dstlen` that route never emits. Rule's `dst` IS here, because print_rule
 // splits it — the same key name, two shapes, in two objects.
+// `address`/`prefixlen` is print_addrlabel's split (ip/ipaddrlabel.c:44-97): the
+// text form glues `prefix ADDR/LEN` while the JSON form writes the two as separate
+// members of one entry. The key name `address` is also a link's MAC and a tunnel's
+// endpoint, but never in an object that ALSO carries `prefixlen` — those sit on the
+// top-level link object while prefixlen sits in nested addr_info — so the pair joins
+// only the addrlabel entry it is here for, which the calibration row proves.
 var jsonCIDRPairs = []struct{ addr, length string }{
-	{addr: "local", length: "prefixlen"}, // print_addrinfo
-	{addr: "src", length: "srclen"},      // print_rule's `from`
-	{addr: "dst", length: "dstlen"},      // print_rule's `to`
+	{addr: "local", length: "prefixlen"},   // print_addrinfo
+	{addr: "src", length: "srclen"},        // print_rule's `from`
+	{addr: "dst", length: "dstlen"},        // print_rule's `to`
+	{addr: "address", length: "prefixlen"}, // print_addrlabel
 }
 
 // jsonStatsDirections maps the stats64 sub-object names to the direction
