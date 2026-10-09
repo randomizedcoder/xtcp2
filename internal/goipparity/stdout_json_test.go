@@ -16,7 +16,7 @@ import (
 // differently in its two output formats. A claim like that cannot be verified
 // by reading the extractor; it is verified by running BOTH extractors over the
 // SAME captured state and requiring them to agree. That is
-// TestStdoutJSONFacetsMatchText below: 21 (object, topology) pairs from
+// TestStdoutJSONFacetsMatchText below: 24 (object, topology) pairs from
 // pkg/xtcpnl/testdata/7_1_4/dumps, each with an `ip` text sidecar and an
 // `ip -j -p` JSON sidecar of the same netns at the same moment.
 //
@@ -468,6 +468,36 @@ func TestStdoutJSONFacetsMatchText(t *testing.T) {
 			jsonEntries: 28,
 			textLoci:    1,
 			jsonLoci:    1,
+			diffs:       nil,
+		},
+		{
+			description: "positive: netconf show, clean topology — fourteen records (inet+inet6 of five devices plus all/default) and ZERO reconciled loci: the device name is a bare positional token the text extractor ignores and the JSON `interface` key is unmapped to match, so only the entry count agrees",
+			topo:        "",
+			object:      "ip_netconf",
+			textLines:   14,
+			jsonEntries: 14,
+			textLoci:    0,
+			jsonLoci:    0,
+			diffs:       nil,
+		},
+		{
+			description: "positive: netconf show, mesh topology — the same fourteen records, still no reconciled locus",
+			topo:        "mesh/",
+			object:      "ip_netconf",
+			textLines:   14,
+			jsonEntries: 14,
+			textLoci:    0,
+			jsonLoci:    0,
+			diffs:       nil,
+		},
+		{
+			description: "positive: netconf show, tunnel topology — thirty records, more devices than the base, and still zero loci on both sides",
+			topo:        "tunnel/",
+			object:      "ip_netconf",
+			textLines:   30,
+			jsonEntries: 30,
+			textLoci:    0,
+			jsonLoci:    0,
 			diffs:       nil,
 		},
 	}

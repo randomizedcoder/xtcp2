@@ -274,6 +274,22 @@ proc capture_set {ns subdir dev} {
     capio $ns $subdir netlink_route_getneightbl   4 "ip ntable show"    ip_ntable
     capio $ns $subdir netlink_route_getneightbl_s 4 "ip -s ntable show" ip_ntable_s
 
+    # `ip netconf show` dumps the per-interface forwarding/rp_filter config
+    # (RTM_GETNETCONF). do_ipnetconf runs ll_init_map first, so the pcap holds the
+    # link dump ahead of the netconf dump - floor 4, the ntable shape - and that
+    # link dump resolves the NETCONFA_IFINDEX each record carries. The plain form
+    # is a single AF_UNSPEC dump that a modern kernel answers with every family
+    # (inet, inet6) in one dump, not the old-kernel two-pass fallback.
+    #
+    # The `_dev4` form is the one genuinely new shape: `ip -4 netconf show dev X`
+    # has an ifindex AND an explicit family, so it is a non-dump point GET
+    # (NLM_F_REQUEST|ACK, one NETCONFA_IFINDEX attr, no NLM_F_DUMP) read via
+    # rtnl_talk - the first attribute-carrying point get in the corpus. The `_dev`
+    # form (no family flag) stays a dump and filters to the ifindex client-side.
+    capio $ns $subdir netlink_route_getnetconf      4 "ip netconf show"            ip_netconf
+    capio $ns $subdir netlink_route_getnetconf_dev  4 "ip netconf show dev $dev"   ip_netconf_dev
+    capio $ns $subdir netlink_route_getnetconf_dev4 4 "ip -4 netconf show dev $dev" ip_netconf_dev4
+
     # Closes the corpus's last outright gap: there was no RTM_GETNEIGH dump
     # anywhere, only a notifications pcap.
     cap $ns $subdir netlink_route_getneigh 4 "ip neigh show"
@@ -522,6 +538,10 @@ proc sidecar_set {ns subdir dev} {
     # ntable JSON replays netlink_route_getneightbl.pcap; -j does not reach the
     # wire, and the reply bytes are the plain form's, so a `-j -p` run matches.
     side $ns $subdir ip_ntable_json         "ip -j -p ntable show"
+    # netconf JSON replays netlink_route_getnetconf.pcap; -j does not reach the
+    # wire and the reply bytes are the plain form's, so a `-j -p` run matches the
+    # capio'd text listing.
+    side $ns $subdir ip_netconf_json        "ip -j -p netconf show"
     side $ns $subdir ip_neigh               "ip neigh show"
     side $ns $subdir ip_neigh_n             "ip -d neigh show"
     side $ns $subdir ip_link_dev            "ip link show dev $dev"

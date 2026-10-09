@@ -608,6 +608,37 @@ func BuildDumpNeighTblRequest(family uint8, seq uint32) []byte {
 	return BuildDumpRequest(uint16(unix.RTM_GETNEIGHTBL), seq, hdr)
 }
 
+// BuildDumpNetconfRequest builds the RTM_GETNETCONF dump `ip netconf show` sends
+// (rtnl_netconfdump_req, lib/libnetlink.c:500-515): a 4-byte netconfmsg with only
+// ncm_family set, no attributes and no family substitution — ipnetconf passes
+// preferred_family straight through, the ntable pattern rather than the rule and
+// addrlabel one. A modern kernel answers an AF_UNSPEC request with every family.
+func BuildDumpNetconfRequest(family uint8, seq uint32) []byte {
+	hdr := make([]byte, NetconfMsgSizeCst)
+	hdr[0] = family // ncm_family; the three pad bytes stay zero
+
+	return BuildDumpRequest(uint16(unix.RTM_GETNETCONF), seq, hdr)
+}
+
+// BuildGetNetconfByIndexRequest builds the non-dump RTM_GETNETCONF point get
+// `ip -4 netconf show dev X` sends (ipnetconf.c:190-193): NLM_F_REQUEST|NLM_F_ACK
+// (rtnl_talk adds the ACK) with no NLM_F_DUMP, a netconfmsg whose ncm_family is
+// the caller's, and a single NETCONFA_IFINDEX attribute carrying the ifindex as a
+// 4-byte int. The flag set is the point where this differs on the wire from the
+// nexthop by-id get, which carries NLM_F_REQUEST alone. The reply is one
+// non-multipart message with no NLMSG_DONE, so it is read with TalkRtnetlink.
+func BuildGetNetconfByIndexRequest(family uint8, ifindex int32, seq uint32) ([]byte, error) {
+	hdr := make([]byte, NetconfMsgSizeCst)
+	hdr[0] = family // ncm_family; the three pad bytes stay zero
+
+	var raw [reqAttrBufCst]byte
+	ab := NewAttrBuilder(raw[:])
+	if err := ab.PutU32(NetconfaIfindex, uint32(ifindex)); err != nil {
+		return nil, err
+	}
+	return BuildRequest(uint16(unix.RTM_GETNETCONF), uint16(unix.NLM_F_ACK), seq, hdr, ab.Bytes())
+}
+
 // extMaskAttrs encodes a lone IFLA_EXT_MASK, or nothing at all for mask 0.
 func extMaskAttrs(extMask uint32) ([]byte, error) {
 	if extMask == 0 {

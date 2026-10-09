@@ -470,6 +470,32 @@ func NeighTblShowLinkDump(seq uint32) ([]byte, error) {
 	return xtcpnl.BuildDumpLinkRequestExt(unix.AF_UNSPEC, xtcpnl.RTEXT_FILTER_VF, seq)
 }
 
+// NetconfShowDump is `ip netconf show`'s dump, rtnl_netconfdump_req
+// (lib/libnetlink.c:500-515): a netconfmsg with only ncm_family set, no
+// attributes and no family substitution (ipnetconf passes preferred_family
+// straight through, the ntable pattern). A modern kernel answers an AF_UNSPEC
+// request with every family; the two-pass AF_INET/AF_INET6 fallback for an older
+// kernel lives in service.Netconfs, beside the `ip` goto-dump loop it mirrors.
+func NetconfShowDump(family uint8, seq uint32) []byte {
+	return xtcpnl.BuildDumpNetconfRequest(family, seq)
+}
+
+// NetconfShowLinkDump is ll_init_map's link dump, called unconditionally before
+// the netconf transaction (ip/ipnetconf.c:186). It is byte-identical to
+// NeighTblShowLinkDump: ll_init_map builds one request regardless of caller.
+func NetconfShowLinkDump(seq uint32) ([]byte, error) {
+	return xtcpnl.BuildDumpLinkRequestExt(unix.AF_UNSPEC, xtcpnl.RTEXT_FILTER_VF, seq)
+}
+
+// NetconfGetByIndex is the non-dump RTM_GETNETCONF point get `ip -4 netconf show
+// dev X` sends (ip/ipnetconf.c:190-193): a netconfmsg whose ncm_family is the
+// caller's and a single NETCONFA_IFINDEX attribute. iproute2 takes this path only
+// when both an ifindex and an explicit family are set; a bare `netconf show dev X`
+// (AF_UNSPEC) dumps and filters client-side instead.
+func NetconfGetByIndex(family uint8, ifindex int32, seq uint32) ([]byte, error) {
+	return xtcpnl.BuildGetNetconfByIndexRequest(family, ifindex, seq)
+}
+
 // NexthopGetByID is the single-get RTM_GETNEXTHOP `ip -d route show` sends for a
 // route delegating its next hop to a nexthop object (ipnh_cache_add). family is
 // preferred_family, which for a plain `route show` is AF_UNSPEC.

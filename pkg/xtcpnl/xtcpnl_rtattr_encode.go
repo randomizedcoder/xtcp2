@@ -305,6 +305,12 @@ func FamilyHdrLen(msgType uint16) int {
 	case uint16(unix.RTM_GETNEIGHTBL), uint16(unix.RTM_NEWNEIGHTBL),
 		uint16(unix.RTM_SETNEIGHTBL):
 		return NdtMsgSizeCst // struct ndtmsg, 4
+	case uint16(unix.RTM_GETNETCONF), uint16(unix.RTM_NEWNETCONF),
+		uint16(unix.RTM_DELNETCONF):
+		// struct netconfmsg, 4 after NLMSG_ALIGN — the same length as ndtmsg,
+		// which is why only the msgType case arm, not a length check, tells the
+		// two apart (the ndmsg/rtmsg/fib_rule_hdr note above).
+		return NetconfMsgSizeCst
 	case uint16(unix.NLMSG_DONE), uint16(unix.NLMSG_NOOP), uint16(unix.NLMSG_ERROR):
 		return 0
 	default:

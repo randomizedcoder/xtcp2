@@ -1,0 +1,227 @@
+[ {
+        "family": "inet",
+        "interface": "lo",
+        "forwarding": false,
+        "rp_filter": "loose",
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet",
+        "interface": "tunl0",
+        "forwarding": false,
+        "rp_filter": "loose",
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet",
+        "interface": "nlmon0",
+        "forwarding": false,
+        "rp_filter": "loose",
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet",
+        "interface": "ipip1",
+        "forwarding": false,
+        "rp_filter": "loose",
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet",
+        "interface": "sit0",
+        "forwarding": false,
+        "rp_filter": "loose",
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet",
+        "interface": "sit1",
+        "forwarding": false,
+        "rp_filter": "loose",
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet",
+        "interface": "gre0",
+        "forwarding": false,
+        "rp_filter": "loose",
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet",
+        "interface": "gretap0",
+        "forwarding": false,
+        "rp_filter": "loose",
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet",
+        "interface": "erspan0",
+        "forwarding": false,
+        "rp_filter": "loose",
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet",
+        "interface": "gre1",
+        "forwarding": false,
+        "rp_filter": "loose",
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet",
+        "interface": "ip6tnl0",
+        "forwarding": false,
+        "rp_filter": "loose",
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet",
+        "interface": "ip6tnl1",
+        "forwarding": false,
+        "rp_filter": "loose",
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet",
+        "interface": "ip6gre0",
+        "forwarding": false,
+        "rp_filter": "loose",
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet",
+        "interface": "ip6gre1",
+        "forwarding": false,
+        "rp_filter": "loose",
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet",
+        "interface": "all",
+        "forwarding": false,
+        "rp_filter": "off",
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet",
+        "interface": "default",
+        "forwarding": false,
+        "rp_filter": "loose",
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet6",
+        "interface": "lo",
+        "forwarding": false,
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet6",
+        "interface": "nlmon0",
+        "forwarding": false,
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet6",
+        "interface": "ipip1",
+        "forwarding": false,
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet6",
+        "interface": "sit0",
+        "forwarding": false,
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet6",
+        "interface": "sit1",
+        "forwarding": false,
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet6",
+        "interface": "gretap0",
+        "forwarding": false,
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet6",
+        "interface": "erspan0",
+        "forwarding": false,
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet6",
+        "interface": "gre1",
+        "forwarding": false,
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet6",
+        "interface": "ip6tnl0",
+        "forwarding": false,
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet6",
+        "interface": "ip6tnl1",
+        "forwarding": false,
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet6",
+        "interface": "ip6gre0",
+        "forwarding": false,
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet6",
+        "interface": "ip6gre1",
+        "forwarding": false,
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet6",
+        "interface": "all",
+        "forwarding": false,
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet6",
+        "interface": "default",
+        "forwarding": false,
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    } ]

@@ -10,14 +10,14 @@ several steps, further down under [Remaining](#remaining).
 
 | | count | counted from |
 |---|---|---|
-| commands in the comparison matrix | **49** | `internal/goipparity/commands.go` |
-| of those, `Implemented: true` | **49** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
+| commands in the comparison matrix | **53** | `internal/goipparity/commands.go` |
+| of those, `Implemented: true` | **53** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
 | of those, in `gated_commands` | **27** | `pkg/nlparity/goip-parity-allowlist.json` |
 | allowlisted divergences | **7** | same file, `entries` |
 | of those, `kind=version-skew` | **7** | all against the pinned `ip` 7.1.0 |
 | of those, `kind=accepted-divergence` | **0** | nothing is divergent on purpose and permanently |
 
-**Twenty-two** matrix rows sit outside `gated_commands`, and they fall into five
+**Twenty-six** matrix rows sit outside `gated_commands`, and they fall into six
 groups that are out for unrelated reasons.
 
 **Twelve are new and not yet gated**: six family and table selectors and six
@@ -79,6 +79,22 @@ from `gettimeofday` (`ip/ipntable.c:310-336`), so those two tokens are
 wall-clock, not a function of the bytes — `goip` reproduces the captured dates
 offline through an injected clock, but a live gate must normalize or ignore
 them. No measured live run backs the three yet, so they go in ungated until
+their own runs earn gating.
+
+**Four are netconf's first matrix rows**: `netconf show`, `netconf show dev`,
+`-4 netconf show dev` and `-j netconf show`, added together with the `netconfmsg`
+decoder and the netconf render view. They are **replay-grounded, not yet
+live-grounded**, as the addrlabel and ntable rows above: `internal/goip`'s
+`TestNetconfShowMatchesCapturedSidecars` diffs `goip` byte-for-byte (text,
+including the `dev`-filtered and point-get forms) and structurally (`-j`) against
+the committed `ip_netconf`/`ip_netconf_dev`/`ip_netconf_dev4`/`ip_netconf_json`
+sidecars in all three topologies. `-4 netconf show dev` is the first
+attribute-carrying point get in the matrix: with a family AND an ifindex set,
+`do_show` sends a non-dump `RTM_GETNETCONF` with a `NETCONFA_IFINDEX` attribute
+read through `rtnl_talk` (`ip/ipnetconf.c:188-198`), not a dump. The old-kernel
+EOPNOTSUPP two-pass fallback (`AF_UNSPEC`→`AF_INET`+`AF_INET6`) cannot run on the
+capture kernel, so it is contract-tested in the service layer rather than
+captured. No measured live run backs the four yet, so they go in ungated until
 their own runs earn gating.
 
 **The rest of the nexthop read surface and VRF link-detail are implemented but
@@ -156,7 +172,7 @@ are the ones that stop partway. The rtnetlink **event** types are decoded and
 never rendered, because the daemon's link monitor consumes them and `goip` has
 no `monitor` verb. `RTM_NEWRULE` is decoded for dumps but is not even an event.
 
-### rtnetlink: eight body layouts, and they are the eight goip needs
+### rtnetlink: nine body layouts, and they are the nine goip needs
 
 | body struct | kernel header | RTM types | decoder | goip | matrix rows |
 |---|---|---|---|---|---|
@@ -168,6 +184,7 @@ no `monitor` verb. `RTM_NEWRULE` is decoded for dumps but is not even an event.
 | `nhmsg` | `nexthop.h` | `RTM_{NEW,DEL,GET}NEXTHOP` | `ParseNewNexthop`, `xtcpnl_nhmsg.go:143` | `render/nexthop.go` | **2** |
 | `ifaddrlblmsg` | `if_addrlabel.h` | `RTM_{NEW,DEL,GET}ADDRLABEL` | `ParseNewAddrLabel`, `xtcpnl_ifaddrlblmsg.go:91` | `render/addrlabel.go` | **3** |
 | `ndtmsg` | `neighbour.h` | `RTM_{NEW,GET,SET}NEIGHTBL` | `ParseNewNeighTbl`, `xtcpnl_ndtmsg.go:299` | `render/ntable.go` | **3** |
+| `netconfmsg` | `netconf.h` | `RTM_{NEW,GET,DEL}NETCONF` | `ParseNewNetconf`, `xtcpnl_netconfmsg.go:107` | `render/netconf.go` | **4** |
 
 Headers in this table and the next are all under
 `include/uapi/linux/`, decoder paths are under `pkg/xtcpnl/` and `goip` paths
@@ -175,27 +192,27 @@ under `internal/goip/`; the prefixes are dropped so the columns stay readable.
 `neighbour.h` keeps the kernel's own spelling for the same reason the comments
 in `xtcpnl_ndmsg.go` do — `neighbor.h` does not exist in the tree.
 
-49 rows, which is the matrix total — every row in the comparison matrix lands
-on one of these eight, and every one of these eight is compared live.
-`ndtmsg`'s three rows are the newest, with `ifaddrlblmsg`'s three and `nhmsg`'s
-two just before them: all eight are in the matrix and replay-grounded (see the
+53 rows, which is the matrix total — every row in the comparison matrix lands
+on one of these nine, and every one of these nine is compared live.
+`netconfmsg`'s four rows are the newest, with `ndtmsg`'s three and `ifaddrlblmsg`'s
+three just before them: all nine are in the matrix and replay-grounded (see the
 glance above), awaiting their first measured live run before gating.
 
-**The request side is narrower than the decode side, on purpose.** Only eight
+**The request side is narrower than the decode side, on purpose.** Only nine
 message types are ever *built*: `RTM_GETLINK`, `RTM_GETADDR`, `RTM_GETROUTE`,
 `RTM_GETNEIGH`, `RTM_GETRULE`, `RTM_GETNEXTHOP`, `RTM_GETADDRLABEL`,
-`RTM_GETNEIGHTBL`, from the
-fourteen builders in `xtcpnl_rtnetlink_requests.go` (`RTM_GETNEXTHOP` has three —
-a dump, a wire-filtered dump, and a by-id get). That is not a coincidence of scope — the
+`RTM_GETNEIGHTBL`, `RTM_GETNETCONF`, from the
+sixteen builders in `xtcpnl_rtnetlink_requests.go` (`RTM_GETNEXTHOP` has three —
+a dump, a wire-filtered dump, and a by-id get — and `RTM_GETNETCONF` has two, a
+dump and a by-ifindex point get). That is not a coincidence of scope — the
 encoder rejects a non-GET type with `ErrNotAGetRequest`, so the read-only
 invariant is executable rather than a convention. `RTM_NEWNEIGH` appears in
 that file only in a comment about what a solicited reply carries.
 
-### rtnetlink: the seven body layouts with no decoder
+### rtnetlink: the six body layouts with no decoder
 
 | body struct | kernel header | RTM types | what would need it |
 |---|---|---|---|
-| `netconfmsg` | `netconf.h` | `RTM_{NEW,GET}NETCONF` | `ip netconf show` |
 | `if_stats_msg` | `if_link.h` | `RTM_GETSTATS` | `ip stats show`, `ip -s -s link xstats` |
 | `prefixmsg` | `rtnetlink.h` | `RTM_NEWPREFIX` | `ip monitor prefix` |
 | `nduseroptmsg` | `rtnetlink.h` | `RTM_NEWNDUSEROPT` | `ip monitor` RA options |
@@ -203,10 +220,10 @@ that file only in a comment about what a solicited reply carries.
 | `tcmsg` | `rtnetlink.h` | `RTM_{NEW,DEL,GET}{QDISC,TCLASS,TFILTER}` | `tc` — not an `ip` command |
 | `tcamsg` | `rtnetlink.h` | `RTM_{NEW,DEL,GET}ACTION` | `tc actions` — not an `ip` command |
 
-Three of the seven are `tc`/`bridge` territory and are outside the exercise
-entirely rather than pending. The other four are reachable only through objects
-that have `run: nil` — `netconf` and `stats` on NETLINK_ROUTE, and the two
-monitor-only layouts.
+Three of the six are `tc`/`bridge` territory and are outside the exercise
+entirely rather than pending. The other three are reachable only through objects
+that have `run: nil` — `stats` on NETLINK_ROUTE and the two monitor-only
+layouts. `stats` is the last read-only object left.
 
 **`ifaddrlblmsg` used to sit in this table and no longer belongs in it.** It is
 decoded in `xtcpnl_ifaddrlblmsg.go` (`ParseNewAddrLabel`, the `ifaddrlblmsg`
@@ -223,6 +240,17 @@ backlog entry. It moved up into the decoded-layouts table above. It is the first
 dump object whose output carries a wall-clock value (`ndtc_last_flush`/
 `ndtc_last_rand`, rendered from `gettimeofday`), which `render/ntable.go` reads
 from an injected clock so a replay reproduces a captured date; see the glance.
+
+**`netconfmsg` used to sit in this table and no longer belongs in it.** It is
+decoded in `xtcpnl_netconfmsg.go` (`ParseNewNetconf`, the one-byte `netconfmsg`
+header plus the `NETCONFA_*` attributes `print_netconf` renders) and rendered by
+`render/netconf.go`, so `ip netconf show` — with `dev`, `-4`/`-6` and `-j` — is
+an implemented object now, not a `run: nil` backlog entry. It moved up into the
+decoded-layouts table above. It is the first object with an attribute-carrying
+point get (`NETCONFA_IFINDEX` on a non-dump `RTM_GETNETCONF`) and the first with a
+kernel-capability fallback (the EOPNOTSUPP two-pass dump), the latter
+contract-tested rather than captured because the capture kernel never triggers
+it.
 
 **`nhmsg` used to head this table and no longer belongs in it.** It is decoded
 in `xtcpnl_nhmsg.go` (`ParseNewNexthop`, the `nhmsg` header plus the `NHA_*`
@@ -488,6 +516,36 @@ bytes; `goip` reads render-time "now" from an injected clock, set in the replay
 test to the instant recovered from the committed pcap, so the captured dates
 reproduce exactly without runtime pcap parsing.
 
+**`ip netconf show` landed next, the ninth object and two firsts.** `netconfmsg`
+moved out of the no-decoder table into the decoded set: `ParseNewNetconf`
+(`xtcpnl_netconfmsg.go`) decodes the one-byte header and the `NETCONFA_*`
+attributes `print_netconf` renders — the per-family, per-interface
+`forwarding`/`rp_filter`/… settings — and `render/netconf.go` reproduces the
+token-at-a-time text line (bare device name, no `dev ` prefix; `all`/`default`
+for the −1/−2 pseudo-ifindexes) and the flat JSON object. Like `ntable` it runs
+`ll_init_map` first, so the capture bundles the link dump ahead of the netconf
+transaction and each record's `NETCONFA_IFINDEX` resolves to a name from it. The
+two firsts are on the request side: `-4 netconf show dev X` is the first
+**attribute-carrying point get** — with a family AND an ifindex set, `do_show`
+sends a non-dump `RTM_GETNETCONF` with a `NETCONFA_IFINDEX` attribute through
+`rtnl_talk` (`NLM_F_REQUEST|ACK`, no `NLM_F_DUMP`), read with `TalkRtnetlink` live
+and dump-and-filtered under replay (the `NexthopByID` precedent); and the bare
+`netconf show` carries the first **kernel-capability fallback**, the EOPNOTSUPP
+two-pass loop (`AF_UNSPEC`→`AF_INET`+`AF_INET6`) that a kernel too old to dump
+`AF_UNSPEC` forces — unreachable on the capture kernel, so it is contract-tested
+in the service layer against a fake error-injecting source rather than captured.
+The `change` write verbs stay refused with a rationale, and the old-kernel
+double-array `-j` quirk is deliberately not reproduced (`goip` always emits one
+array). `TestNetconfShowMatchesCapturedSidecars` diffs `goip` byte-for-byte
+against the committed `ip_netconf`/`ip_netconf_dev`/`ip_netconf_dev4` sidecars and
+structurally against `ip_netconf_json` in all three topologies. It enlisted
+`netconf show`, `netconf show dev`, `-4 netconf show dev` and `-j netconf show`
+as the first four netconf rows in the Tier C matrix (ungated, replay-grounded),
+taking it to 53. The JSON facet extractor needed nothing new: the device token is
+a bare positional word the text extractor does not file, so the JSON `interface`
+key is left unmapped to match, and the measured calibration fills zero reconciled
+loci on both sides. **`stats` is the last read-only object.**
+
 This is the live progress tracker for the roadmap in
 [coverage-expansion](coverage-expansion.md). The division of labour between the
 three netlink planning documents:
@@ -506,8 +564,8 @@ recollection.
 ## Table of contents
 
 - [Netlink message types: decoded, rendered, compared](#netlink-message-types-decoded-rendered-compared)
-  - [rtnetlink: eight body layouts, and they are the eight goip needs](#rtnetlink-eight-body-layouts-and-they-are-the-eight-goip-needs)
-  - [rtnetlink: the seven body layouts with no decoder](#rtnetlink-the-seven-body-layouts-with-no-decoder)
+  - [rtnetlink: nine body layouts, and they are the nine goip needs](#rtnetlink-nine-body-layouts-and-they-are-the-nine-goip-needs)
+  - [rtnetlink: the six body layouts with no decoder](#rtnetlink-the-six-body-layouts-with-no-decoder)
   - [Attributes inside the five: no unknown-attribute holes](#attributes-inside-the-five-no-unknown-attribute-holes)
   - [The event layer: decoded, never rendered](#the-event-layer-decoded-never-rendered)
   - [sock_diag / inet_diag, which is a different surface and is complete](#sock_diag--inet_diag-which-is-a-different-surface-and-is-complete)
