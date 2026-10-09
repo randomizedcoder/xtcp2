@@ -46,7 +46,7 @@ func invalidateChecks(slot *deviceSlot, kind model.CollectorKind) {
 		}
 	case model.CollectorRDMAState:
 		slot.checks.rdmaReadiness = model.CheckUnknown
-		if slot.device.Key.Kind == model.DeviceNativeRDMA {
+		if slot.device.Key.Kind == model.DeviceNativeRDMA && !slot.collectors[kind].fresh {
 			slot.checks.maximumSpeed, slot.checks.maximumWidth = model.CheckUnknown, model.CheckUnknown
 		}
 	case model.CollectorRDMACapabilities:

@@ -21,6 +21,7 @@ type dirtyIdentity struct {
 // reconciler owns one private candidate and dirty identities. The reducer keeps
 // applying ordered events while inventory work runs on its dedicated executor.
 type reconciler struct {
+	rdmaEvents                                       *rdmaEventSchedule
 	rdma                                             *rdmaSchedule
 	rdmaPorts                                        []model.RDMAPort
 	rdmaUncertain                                    uint64
@@ -66,6 +67,11 @@ func (c *reconciler) requestResync() {
 }
 
 func (c *reconciler) before() error {
+	if c.rdmaEvents != nil {
+		if err := c.rdmaEvents.before(); err != nil {
+			return err
+		}
+	}
 	if err := c.syncLoss(); err != nil {
 		return err
 	}
@@ -84,7 +90,10 @@ func (c *reconciler) before() error {
 				continue
 			}
 			if status.ready && c.inbox.epoch.Load() == status.epoch {
-				c.scheduler.reducer.routeEvents, c.scheduler.reducer.rdmaEvents = true, status.rdma
+				c.scheduler.reducer.routeEvents = true
+				if c.rdmaEvents == nil {
+					c.scheduler.reducer.rdmaEvents = status.rdma
+				}
 				c.subscribeUntil = 0
 			} else if !status.ready {
 				c.lastError = status.err

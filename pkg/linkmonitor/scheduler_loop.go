@@ -19,6 +19,7 @@ type schedulerHooks struct {
 }
 
 type schedulerLoop struct {
+	rdmaNotices <-chan struct{}
 	rdma        *rdmaSchedule
 	rdmaResults <-chan rdmaCompletion
 	scheduler   *scheduler
@@ -55,6 +56,8 @@ func (l *schedulerLoop) run(ctx context.Context) error {
 		}
 		l.wake.sync(&l.scheduler.reducer.deadlines)
 		select {
+		case <-l.rdmaNotices:
+			wake = schedulerWake{}
 		case result := <-l.rdmaResults:
 			wake = schedulerWake{rdma: &result}
 		case <-ctx.Done():

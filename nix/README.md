@@ -7,7 +7,7 @@ See [FLAVORS.md](FLAVORS.md) for binary and container variants.
 
 ## Link-monitor verification
 
-Run all eight focused monitor checks with one target:
+Run all eleven focused monitor checks with one target:
 
 ```sh
 nix build path:.#test-linkmonitor -L
@@ -30,6 +30,21 @@ The targets are defined in [tests/linkmonitor.nix](tests/linkmonitor.nix):
 | `test-linkmonitor-replay` | All 40 link-state kernel/scenario fixture combinations; no skips |
 | `test-linkmonitor-fuzz` | Three 30-second decoder fuzz sessions, two workers each |
 | `test-linkmonitor-docs` | Monitor documentation links, metric references and tracker consistency; checker regression tests |
+| `test-linkmonitor-rdma-unit` | Full monitor suite with the `rdma` tag and cgo, then tagged race tests |
+| `test-linkmonitor-rdma-lint` | Tagged vet and unchanged comprehensive lint policy |
+| `test-linkmonitor-rdma-runtime` | Packaged test executable, pinned libibverbs/libibumad/providers, ELF resolution and provider loading |
+
+The three RDMA targets are defined in `tests/linkmonitor-rdma.nix`. They use
+rdma-core from the existing nixpkgs lock; the eight core gates retain their
+original commands. The runtime output contains `bin/rdmaevents.test`, `bin/rdmacaps.test`, a `runtime`
+dependency bundle, provider inventory and logs. Device enumeration opens no HCA
+contexts and explicitly does not count as hardware validation. This is a test
+artifact; the standalone command remains a later increment. P07-T03 adds C UMAD
+ownership tests and pinned PortInfo decoder checks, alongside capability fuzzing,
+repeated races and cached-counter benchmarks in the unit target. These software
+checks send no real management packets. Cgo is restricted to the verbs and local
+UMAD adapters; decoding, metric publication and scraping remain Go code. P09
+tracks boundary overhead, including serialized UMAD acquisition/query/cleanup.
 
 Each target can also be built independently:
 

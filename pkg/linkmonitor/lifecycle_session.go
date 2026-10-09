@@ -13,6 +13,7 @@ type lifecycleSession struct {
 	rdma             bool
 	rdmaRoot         string
 	rdmaSource       func(context.Context) (rdmaStateSource, error)
+	rdmaEventSource  rdmaEventFactory
 	clock            model.Clock
 	namespace        uint64
 	store            model.BaselineStore
@@ -30,14 +31,15 @@ type lifecycleSession struct {
 }
 
 type lifecycleResources struct {
-	rdma      *rdmaExecutor
-	pool      *collectorPool
-	inventory *inventoryExecutor
-	events    *eventExecutor
-	storage   *storageExecutor
-	baseline  model.Baseline
-	present   bool
-	err       error
+	rdmaEvents *rdmaEventWorker
+	rdma       *rdmaExecutor
+	pool       *collectorPool
+	inventory  *inventoryExecutor
+	events     *eventExecutor
+	storage    *storageExecutor
+	baseline   model.Baseline
+	present    bool
+	err        error
 }
 
 type loadedBaseline struct {
@@ -70,6 +72,7 @@ func (s *lifecycleSession) acquire(ctx context.Context, resources *lifecycleReso
 			return
 		}
 		resources.rdma = newRDMAExecutor(ctx, s.clock, state)
+		resources.rdmaEvents = newRDMAEventWorker(ctx, s.openRDMAEvents)
 	}
 	resources.events = newEventExecutor(ctx, newEventInbox(1), s.subscribe)
 }
@@ -146,6 +149,9 @@ func (s *lifecycleSession) prepare(m *Monitor, resources *lifecycleResources) (*
 	if s.driverStatistics {
 		scheduler.statisticsInterval = m.cfg.StatsInterval
 	}
+	if s.rdma {
+		scheduler.rdmaInterval = m.cfg.StatsInterval
+	}
 	if s.settings {
 		scheduler.settings = &settingsSchedule{interval: m.cfg.StatsInterval, devices: make(map[model.DeviceKey]model.Device)}
 	}
@@ -159,6 +165,9 @@ func (s *lifecycleSession) prepare(m *Monitor, resources *lifecycleResources) (*
 	if resources.rdma != nil {
 		c.rdma = newRDMASchedule(r, resources.rdma, m.cfg.StatsInterval)
 		c.rdma.resync = c.requestResync
+		c.rdma.changed = func(key model.DeviceKey) { scheduler.refreshRDMAOptional(key, true) }
+		c.rdmaEvents = newRDMAEventSchedule(c, resources.rdmaEvents)
+		c.rdmaEvents.report = func(err error) { m.logger.Warn("RDMA event coverage unavailable", "error", err) }
 	}
 	l := &lifecycle{monitor: m, coordinator: c, store: resources.storage,
 		expected: model.Optional[uint64]{Value: resources.baseline.Count, Present: resources.present}}
@@ -166,7 +175,7 @@ func (s *lifecycleSession) prepare(m *Monitor, resources *lifecycleResources) (*
 }
 
 func (s *lifecycleSession) collectorFactory() workerFactory {
-	if !s.statistics && !s.settings && !s.driverStatistics && !s.hostStatistics {
+	if !s.statistics && !s.settings && !s.driverStatistics && !s.hostStatistics && !s.rdma {
 		return s.collectors
 	}
 	return func(id int) (workerCollector, error) {
@@ -176,6 +185,9 @@ func (s *lifecycleSession) collectorFactory() workerFactory {
 		}
 		if s.hostStatistics {
 			base = newHostCollector(base, s.procRoot, s.statisticsConfig)
+		}
+		if s.rdma {
+			base = newRDMAOptionalCollector(base, s.rdmaFiles())
 		}
 		if s.driverStatistics {
 			wrapped, wrapErr := newStatisticsCollector(base, s.statisticsConfig)
@@ -213,6 +225,7 @@ func (l *lifecycle) run(ctx context.Context) error {
 	c.bind(loop)
 	if c.rdma != nil {
 		loop.rdma, loop.rdmaResults = c.rdma, c.rdma.executor.results
+		loop.rdmaNotices = resourcesWake(c.rdmaEvents)
 	}
 	loop.hooks.control, loop.hooks.publish, loop.hooks.saved = l.control, l.publish, l.saved
 	loop.hooks.advance = func(now model.Stamp) error {

@@ -15,6 +15,7 @@ import (
 // rdmaSchedule owns a separate required-state lane. A job groups all ports of
 // one canonical link so independent ports cannot overwrite each other's health.
 type rdmaSchedule struct {
+	changed                      func(model.DeviceKey)
 	resync                       func()
 	epoch                        uint64
 	targets                      map[model.DeviceKey]model.Device
@@ -190,7 +191,11 @@ func (s *rdmaSchedule) accept(result rdmaCompletion) error {
 		p := result.ports[0]
 		d := job.Device
 		d.Token, d.Up = job.Token, nativeRDMAUp(p.State, p.Physical)
-		_, err = s.r.observe(model.Observation{Device: d, Observed: result.finished})
+		var changed bool
+		changed, err = s.r.observe(model.Observation{Device: d, Observed: result.finished})
+		if changed && s.changed != nil {
+			s.changed(d.Key)
+		}
 		// observe clears policy when the scalar state changes; this accepted
 		// sample established readiness for exactly that same state.
 		if err == nil {
@@ -204,7 +209,7 @@ func (s *rdmaSchedule) accept(result rdmaCompletion) error {
 func boundedRDMASamples(ports []model.RDMAPort) bool {
 	count := 0
 	for i := range ports {
-		count += 7 + len(ports[i].Aliases) + len(ports[i].Versions)
+		count += 9 + len(ports[i].Aliases) + len(ports[i].Versions)
 		if count > maximumSamples {
 			return false
 		}

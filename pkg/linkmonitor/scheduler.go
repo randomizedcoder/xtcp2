@@ -30,6 +30,7 @@ type scheduledJob struct {
 // scheduler is owned with the reducer. Physical occupancy is separate from
 // reducer attempt state: a logical timeout cannot make a blocked worker free.
 type scheduler struct {
+	rdmaInterval       time.Duration
 	statisticsInterval time.Duration
 	settings           *settingsSchedule
 	traffic            *trafficSchedule
@@ -144,6 +145,7 @@ func (s *scheduler) unregister(key model.JobKey) {
 // refreshDevice is called after an authoritative observation or removal.
 // It touches the bounded collector vocabulary, not the whole inventory.
 func (s *scheduler) refreshDevice(key model.DeviceKey) {
+	s.refreshRDMAOptional(key, false)
 	s.refreshStatistics(key)
 	s.refreshSettings(key)
 	if s.traffic != nil {
