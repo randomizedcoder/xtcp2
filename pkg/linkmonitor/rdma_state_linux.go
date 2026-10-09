@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
-	"strconv"
+	"syscall"
 
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/linuxio"
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/model"
@@ -171,7 +171,7 @@ func rdmaSamples(ports []model.RDMAPort, up model.Optional[bool]) ([]model.Sampl
 		p := &ports[index]
 		ready := rdmaReady(*p, up)
 		check = combineRDMAReady(check, ready)
-		labels := []model.Label{{Name: "device", Value: p.Device}, {Name: "port", Value: strconv.FormatUint(uint64(p.Port), 10)}}
+		labels := rdmaLabels(*p)
 		add := func(name string, value uint64, extra ...model.Label) {
 			owned := make([]model.Label, 0, len(labels)+len(extra))
 			owned = append(owned, labels...)
@@ -179,6 +179,7 @@ func rdmaSamples(ports []model.RDMAPort, up model.Optional[bool]) ([]model.Sampl
 			samples = append(samples, model.Sample{Descriptor: name, Kind: model.SampleGauge, Number: model.Unsigned(value), Labels: owned})
 		}
 		add("rdma_port_info", 1, model.Label{Name: "link_layer", Value: p.Layer})
+		samples = append(samples, rdmaStateCompatibility(*p)...)
 		for _, alias := range p.Aliases {
 			add("rdma_netdev_info", 1, model.Label{Name: "netdev", Value: alias})
 		}
@@ -220,7 +221,7 @@ func combineRDMAReady(a, b model.Check) model.Check {
 
 func rdmaError(err error) model.ErrorReason {
 	switch {
-	case errors.Is(err, context.DeadlineExceeded):
+	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, syscall.ETIMEDOUT):
 		return model.ErrorTimeout
 	case errors.Is(err, linuxio.ErrLimit):
 		return model.ErrorOversize

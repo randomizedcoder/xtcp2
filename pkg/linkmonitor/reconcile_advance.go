@@ -9,6 +9,11 @@ import (
 )
 
 func (c *reconciler) advance(now model.Stamp) error {
+	if c.rdmaEvents != nil {
+		if err := c.rdmaEvents.advance(now); err != nil {
+			return err
+		}
+	}
 	if now.Monotonic < 0 || now.Monotonic == math.MaxInt64 {
 		return fmt.Errorf("reconciliation clock exhausted")
 	}
@@ -45,6 +50,9 @@ func (c *reconciler) advance(now model.Stamp) error {
 }
 
 func (c *reconciler) advanceInventory(now model.Stamp) error {
+	if c.rdmaEvents != nil && len(c.rdmaEvents.w.records) != 0 {
+		return nil
+	}
 	// Capture a fresh watermark before querying or committing. Events produced
 	// later are ordinary post-watermark changes, not an atomic kernel snapshot.
 	if c.processed < c.inbox.produced.Load() {

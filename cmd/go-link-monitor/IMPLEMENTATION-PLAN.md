@@ -234,9 +234,9 @@ Done when: Fake/sysfs/integration association tests pass for native without IPoI
 
 **Verbs event adapter.** Depends on: [P07-T01](#p07-t01).
 
-Deliver: Implement narrow rdma-core event binding, pollable event fds, bounded event delivery, acknowledgement and device-fatal recovery.
+Deliver: Implement narrow rdma-core event binding, pollable event fds, bounded event delivery, acknowledgement and device-fatal recovery. Include NLDEV lifecycle notifications and independent event health with a post-subscription reconciliation barrier. Bring forward P07-T04 library/provider runtime packaging and software checks; preserve the eight core gates.
 
-Done when: Adapter lifetime/event acknowledgement/loss tests pass; unsupported or denied events remain visible and affect required health.
+Done when: Explicit positive/negative/boundary/corner test tables state descriptions and executable expected outcomes. Adapter lifetime, exact acknowledgement, loss, bounded fairness, stale-result fencing, subscription barriers and joined recovery tests pass; unsupported or denied events remain visible and affect required health. Pinned core/tagged/runtime gates, repeated races and notification fuzzing pass with evidence in STATUS.md. Track cgo overhead measurement under P09; no hardware performance claim.
 
 #### P07-T03
 
@@ -244,13 +244,15 @@ Done when: Adapter lifetime/event acknowledgement/loss tests pass; unsupported o
 
 Deliver: Implement bounded local read-only UMAD capability queries and counter readers; preserve supported/enabled/active and source semantics.
 
-Done when: Known/unknown mode/width, permission, units, reset and source-lifetime tests pass; no configuration or fabric sweep operations.
+Done when: Explicit positive/negative/boundary/corner tables include descriptions and executable expected outcomes for known/unknown mode/width, permission, units/overflow, reset, source lifetime, association removal, cancellation and stale completion. Pinned core/tagged tests, repeated races, PortInfo fuzzing, C ownership tests, header/decoder cross-checks and all 40 replay combinations pass. No configuration or fabric sweep operations; record coverage limits and evidence in STATUS.md.
 
 #### P07-T04
 
 **Full RDMA build and dependencies.** Depends on: [P07-T02](#p07-t02), [P07-T03](#p07-t03).
 
-Deliver: Add pinned Linux rdma-tag/cgo build with libraries/providers and explicit no-RDMA build diagnostics; retain core pure-Go checks.
+Deliver: Add pinned Linux rdma-tag/cgo build with libraries/providers and explicit no-RDMA build diagnostics; retain core pure-Go checks. Library/provider packaging and software loading checks start in P07-T02. Complete this task only after P07-T03 capability bindings and final production artifact integration are validated.
+
+Integration follow-up: Reuse the existing flake and `nix/microvms/mkVm.nix` infrastructure for a repeatable guest when local kernel modules or device permissions prevent meaningful integration testing. Evaluate software RDMA coverage for device discovery, event delivery, recovery and permission failures; record unsupported scenarios explicitly. Software RDMA complements the P11-T03 physical RoCEv2/InfiniBand checks and the P09-T01 cgo performance measurements.
 
 Done when: Full artifact builds/links and software load/permission diagnostics pass; no-cgo core tests pass; missing hardware is not a successful hardware test.
 
@@ -286,7 +288,7 @@ Done when: Disposable Linux integration and duplicate/dynamic registry collision
 
 **Benchmark harness and baseline.** Depends on: [P08-T03](#p08-t03).
 
-Deliver: Add decoder/schema/reducer/publication/Gather/HTTP benchmarks and end-to-end synthetic matrix from detailed design section 11.
+Deliver: Add decoder/schema/reducer/publication/Gather/HTTP benchmarks and end-to-end synthetic matrix from detailed design section 11. Measure the narrow rdma-core/cgo boundary separately from provider/kernel I/O and Go delivery/publication/scraping: calls/event, allocations/event, CPU and burst latency. Include calls/query, serialized UMAD lane contention and per-query resource acquisition/cleanup. Compare batched retrieval if boundary overhead is material; retain equivalent acknowledgement and lifecycle behavior.
 
 Done when: Record pinned environment, at least ten microbenchmark repetitions and variance; all compared workloads produce equivalent metrics.
 

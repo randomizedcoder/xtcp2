@@ -1001,8 +1001,8 @@ description and expectedOutcome text:
 | Corner | All optional workers occupied; required read blocked at shutdown | Independent required-state progress; physical ownership retained |
 | Negative | State factory/close failure; missing verbs events | Errors preserved and resources joined; event health stays unhealthy |
 
-P07-T02 still owns verbs events and RDMA lifecycle notification integration;
-P07-T03 owns native speed/width capabilities and counters. P07-T01 polling does
+P07-T02 adds verbs events and RDMA lifecycle notification integration;
+P07-T03 adds native speed/width capabilities and counters. P07-T01 polling does
 not claim working RDMA events or a complete mixed-fleet artifact. Production
 backend binding remains pending, and no hardware validation is claimed.
 
@@ -1022,8 +1022,64 @@ build explicitly reports unavailable RDMA events/capability queries when RDMA
 hardware exists and is not accepted as a complete mixed-fleet artifact. Add
 separate full-build checks without weakening existing pure-Go checks. Runtime
 packaging includes matching providers and uverbs/umad access; permissions and
-ABI compatibility require integration validation. These dependencies are proposed,
-not already provided by current xtcp2 packaging.
+ABI compatibility require integration validation. P07-T02 brings forward the
+pinned library/provider bundle and tagged test artifact; capability and final
+production artifact validation remain P07-T03/P07-T04.
+
+### P07-T02 event implementation
+
+`internal/rdmaevents` isolates the Linux `rdma && cgo` binding. One context per
+eligible HCA supplies a nonblocking async fd. A level-triggered epoll loop uses
+an eventfd for cancellation, descriptor tokens that are not reused within a
+subscription, and a 64-event budget per descriptor. The C boundary copies valid
+port/type fields and acknowledges every consumed event before delivery; no C
+pointer enters the reducer, snapshots or scrape path. Unknown/object events do
+not reinterpret pointer union members as ports.
+
+The owner receives a 4,096-entry queue, drains at most 64 records per turn, and
+observes loss through an independent atomic generation and wakeup. Acquisition,
+event polling and cleanup occur off the reducer. A logical acquisition timeout
+keeps its physical resource slot occupied until the operation returns. Required
+state refresh continues to use its separate executor, independently of optional
+collector saturation. Cached device/port-to-canonical-key maps avoid whole
+inventory scans for ordinary port events.
+
+NLDEV lifecycle notifications use a separate authenticated NETLINK_RDMA socket,
+joined before a read-only SYS_GET checks monitor mode. Unsupported/disabled or
+denied monitoring never changes kernel settings and cannot claim event coverage.
+The observer continues periodic discovery/state collection and reports unhealthy
+required coverage and a bounded retry diagnostic. This notification reader is
+joined with the verbs event loop on every generation change.
+The existing `rdma_events` collector view publishes support, freshness and bounded
+error categories; raw errors are logged and never become metric label values.
+
+Discovery supplies an immutable HCA identity set. A changed set cancels and joins
+the previous subscription before replacement; readiness requires a subsequent
+inventory dump begun after subscription establishment. Queued records carry
+subscription generation and association revision. Old generations are discarded;
+old association hints request fresh topology rather than targeting a stale link.
+Loss/fatal/refresh processing fences in-flight state results before completions
+can publish. RoCE counting remains Ethernet-based; native IB counting uses the
+verified port state. Event hints do not fabricate authoritative state or flap
+counters.
+
+Per-HCA acquisition/read/fatal errors retire affected resources and leave other
+opened descriptors processing during backoff. Recovery conservatively recycles
+the subscription set after rediscovery, joining the old set before opening any
+replacement. Retry starts at one second and caps at 30 seconds; only successful
+subscription plus reconciliation resets it. Queue loss instead immediately
+cancels the incomplete stream. Expected counts and last-known link counts remain
+intact while required event health is false. Shutdown wakes the poller, joins
+callbacks/readers, and only then closes remaining contexts.
+
+The Nix aggregate adds tagged unit/race, tagged vet/lint, and a runtime closure
+check to the eight existing core gates. Runtime testing loads packaged providers
+and enumerates devices without opening HCA contexts. It does not establish
+hardware compatibility or performance. P09 must measure cgo call overhead,
+allocations, CPU and burst latency separately from kernel/provider I/O, Go
+delivery, publication and Prometheus scraping; consider batching only if the
+measurement justifies it. The user explicitly accepted this narrow binding with
+that measurement follow-up.
 
 RDMA counters often require individual sysfs reads. Use bounded workers and
 per-generation discovered paths, reopen files for each sample, and invalidate
@@ -1032,6 +1088,59 @@ device. Counter failures do not fabricate zero. Required RDMA state expiry or
 event failure makes collection unhealthy; inaccessible optional maximum-speed
 capabilities produce unknown policy. Native InfiniBand duplex is transport-defined
 and its negotiated-duplex check is not_applicable; RoCE uses Ethernet duplex.
+
+### Native capabilities and counter adapter
+
+P07-T03 uses the existing four optional workers, separately from the required
+state executor and event poller. Immutable job requests carry all RDMA ports
+associated with one canonical link. Resync, port events and association removal
+invalidate the optional source revision before queued completions can publish.
+The existing logical timeout retains physical worker occupancy until return.
+
+`internal/rdmacaps` constructs a zero-hop directed-route PortInfo GET and validates
+the reply class, method, transaction, port modifier, status and local hop count.
+The tagged libibumad shim performs one send with zero retries and a receive timeout
+of at most 250ms. It never follows redirects, supplies a remote path or sends SET.
+The worker owns allocation, agent registration, unregister and fd cleanup;
+cleanup failures remain errors. The fd is marked close-on-exec. The pinned
+libibumad uses global ABI/buffer-layout state, so this adapter serializes its
+library calls across monitor instances with a cancellable lane. No C storage
+enters a snapshot. P09 measurement includes this serialization and per-query
+open/close cost, in addition to event cgo overhead.
+
+Pure-Go decoding retains supported, enabled and active speed/width masks
+independently, including extended FDR/EDR/HDR/NDR/XDR fields. Maximum policy uses
+supported masks. An advertised speed/width-pairs table is currently unrecognized
+and makes maxima unknown rather than inventing combinations. Unknown encodings
+also remain unknown. Standard PortInfo cannot distinguish the QDR/FDR10 generation
+names; their common nominal 10 Gbit/s per-lane rate is usable, while the generation
+label remains unknown. RoCE never issues these native queries and keeps Ethernet
+speed/duplex policy. No native negotiated-duplex test is introduced.
+
+The counter reader discovers the reviewed fixed sysfs fields once per source
+revision, shares the immutable schema between workers, and reopens files on each
+sample. Hardware identity, port inode and link layer are checked around reads.
+Failures discard the candidate sample set and invalidate its discovered paths;
+they never manufacture zeros. Legacy/current/hardware registers retain distinct
+source identities (including hardware, kernel RDMA index and discovery domain),
+exact uint64 values and generation-based reset lifetimes.
+Four-octet counters multiply by four with an overflow check, independently of lane
+count. Lifespan preserves node_exporter's integer milliseconds-to-seconds mapping;
+transmit-wait remains ticks. Downed/recovery counters reveal short transitions on
+the next poll without inventing event timestamps. A deterministic lowest-port
+owner emits each HCA information series once. State compatibility gauges reuse
+required state reads; the optional rate gauge never establishes maximum speed.
+Raw compatibility samples explicitly retain their device/port labels without
+the canonical interface projection; policy metrics retain the interface label.
+
+The packet layout and counter units were checked against the local Linux tree at
+`af32da41b0327b9c6a37856ba82b6760d6c8d10e` (`include/rdma/ib_smi.h`,
+`include/rdma/ib_mad.h`, `drivers/infiniband/hw/mlx5/mad.c`, and
+`Documentation/ABI/stable/sysfs-class-infiniband`). The inspected files had no
+local changes. The repeatable gate checks field fixtures with the pinned
+rdma-core decoder and UAPI constants with pinned headers; the Downloads checkout
+is research evidence, not a build dependency. Library ownership review uses
+[rdma-core v63.0 libibumad](https://github.com/linux-rdma/rdma-core/blob/v63.0/libibumad/umad.c).
 
 ## 7. State representation and immutable publication
 

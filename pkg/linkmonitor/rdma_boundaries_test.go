@@ -90,11 +90,11 @@ func TestRDMAStateReaderTable(t *testing.T) {
 }
 
 func TestRDMASampleBound(t *testing.T) {
-	for _, size := range []int{maximumSamples - 7, maximumSamples - 6} {
+	for _, size := range []int{maximumSamples - 9, maximumSamples - 8} {
 		t.Run(fmt.Sprint(size), func(t *testing.T) {
 			t.Log("boundary: projected sample count at/above limit; expected bounded result before allocating samples")
 			p := model.RDMAPort{Aliases: make([]string, size)}
-			if boundedRDMASamples([]model.RDMAPort{p}) != (size+7 <= maximumSamples) {
+			if boundedRDMASamples([]model.RDMAPort{p}) != (size+9 <= maximumSamples) {
 				t.Fatal("sample bound")
 			}
 		})

@@ -94,7 +94,7 @@ func rangeCollectorSamples(collector *collectorSnapshot, name string, deviceScop
 		view := SampleView{
 			descriptor: entry.key.descriptor, kind: SampleKind(entry.kind),
 			number: Number{value: number}, labels: entry.labels,
-			interfaceName: name, deviceScoped: deviceScoped,
+			interfaceName: name, deviceScoped: deviceScoped && !entry.noInterfaceLabel,
 		}
 		if !visit(view) {
 			return false

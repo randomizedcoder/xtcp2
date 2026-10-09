@@ -83,7 +83,7 @@ func (s *scheduler) expire(now model.Stamp) {
 			}
 		case deadlineRetry:
 			s.retryDue(entry)
-		case deadlineCoordinator, deadlineLifecycle, deadlineTrafficPoll, deadlineRDMA:
+		case deadlineCoordinator, deadlineLifecycle, deadlineTrafficPoll, deadlineRDMA, deadlineRDMAEvents:
 			// The owner calls reconciler.advance after deadlines, including this wake.
 		default:
 			s.reducer.expireEntry(entry)
@@ -148,7 +148,7 @@ func (s *scheduler) recordResult(result model.Result) {
 		return
 	}
 	if result.Settings != nil && result.Err == nil && result.Support == model.Supported {
-		s.reducer.setChecks(result.Job, deviceChecks{maximumSpeed: result.Settings.Speed, fullDuplex: result.Settings.Duplex})
+		s.reducer.setChecks(result.Job, deviceChecks{maximumSpeed: result.Settings.Speed, fullDuplex: result.Settings.Duplex, maximumWidth: result.Settings.Width})
 	}
 	s.statisticsConfigurationChanged(result, before)
 	if job == nil || !sameRevision(job.token, result.Job.Token) || !job.retryActive {

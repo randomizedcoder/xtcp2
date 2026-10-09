@@ -13,10 +13,11 @@ const maximumSamples = 65536
 
 type sampleKey struct{ descriptor, labels string }
 type sampleDefinition struct {
-	key     sampleKey
-	kind    model.SampleKind
-	labels  []model.Label
-	counter model.CounterIdentity
+	noInterfaceLabel bool
+	key              sampleKey
+	kind             model.SampleKind
+	labels           []model.Label
+	counter          model.CounterIdentity
 }
 type sampleSchema struct {
 	entries []sampleDefinition
@@ -53,7 +54,7 @@ func sameSchema(schema *sampleSchema, samples []model.Sample) bool {
 	}
 	for i := range samples {
 		entry, sample := &schema.entries[i], &samples[i]
-		if entry.key.descriptor != sample.Descriptor || entry.kind != sample.Kind || entry.counter != sample.Counter || !sameLabels(entry.labels, sample.Labels) {
+		if entry.noInterfaceLabel != sample.NoInterfaceLabel || entry.key.descriptor != sample.Descriptor || entry.kind != sample.Kind || entry.counter != sample.Counter || !sameLabels(entry.labels, sample.Labels) {
 			return false
 		}
 	}
@@ -85,7 +86,7 @@ func newSchema(samples []model.Sample) (*sampleSchema, error) {
 		if err != nil {
 			return nil, err
 		}
-		entry := sampleDefinition{key: sampleKey{sample.Descriptor, key}, kind: sample.Kind, labels: labels, counter: sample.Counter}
+		entry := sampleDefinition{key: sampleKey{sample.Descriptor, key}, kind: sample.Kind, labels: labels, counter: sample.Counter, noInterfaceLabel: sample.NoInterfaceLabel}
 		if _, duplicate := schema.index[entry.key]; duplicate {
 			return nil, fmt.Errorf("duplicate sample %q", sample.Descriptor)
 		}

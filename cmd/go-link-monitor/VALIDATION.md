@@ -21,7 +21,7 @@ successful derivation for the same inputs.
 
 | Target | Checks and retained evidence |
 |---|---|
-| `test-linkmonitor` | Aggregate linking all eight outputs below |
+| `test-linkmonitor` | Aggregate linking eight core outputs plus three RDMA outputs below |
 | `test-linkmonitor-unit` | Complete `pkg/linkmonitor/...` and `pkg/xtcpnl` suites, CGO disabled; Go JSON in `check.log` |
 | `test-linkmonitor-race` | Same complete package set with CGO and `-race`; Go JSON in `check.log` |
 | `test-linkmonitor-vet` | Vet over the same package set |
@@ -30,6 +30,20 @@ successful derivation for the same inputs.
 | `test-linkmonitor-replay` | Both link-state kernel fixture suites; requires 40 passing kernel/scenario leaves, both passing suites and no skips; `replay.jsonl` |
 | `test-linkmonitor-fuzz` | Three 30-second sessions, two workers each: `FuzzParseEthtool`, `FuzzWalkNetlinkEnvelopes`, `FuzzParseMonitorLink`; separate logs |
 | `test-linkmonitor-docs` | Local links/anchors, whitespace, alert metric references, plan/checklist IDs, checkbox states, phase totals and headline count; checker regression tests |
+
+The aggregate also includes `test-linkmonitor-rdma-unit` (tagged unit and race),
+`test-linkmonitor-rdma-lint` (tagged vet and comprehensive lint), and
+`test-linkmonitor-rdma-runtime` (linked test executable and pinned provider
+loading). Their module is
+[`nix/tests/linkmonitor-rdma.nix`](../../nix/tests/linkmonitor-rdma.nix).
+These checks use `CGO_ENABLED=1 -tags rdma`; the eight core commands are unchanged.
+The runtime check enumerates devices without opening hardware contexts and
+explicitly does not establish physical RDMA behavior. P07-T03 adds a linked
+UMAD test executable, C allocation/agent/fd ownership tables and a pinned
+libibmad PortInfo field cross-check. The tagged unit target also runs capability
+and counter race repetitions, a 30-second PortInfo fuzz session and a cached
+counter benchmark. No runtime test sends a real management packet. Final
+production artifact integration remains P07-T04.
 
 Build an individual target when iterating, for example:
 

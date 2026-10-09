@@ -45,6 +45,7 @@ let
         }
         echo 'PASS: test-linkmonitor-${name}'
       '';
+  rdma = import ./linkmonitor-rdma.nix { inherit pkgs src vendoredSource; };
   leaves = {
     test-linkmonitor-unit = mkCheck "unit" {
       command = "go test -json -count=1 -timeout=5m ${paths}";
@@ -104,7 +105,8 @@ let
         python3 nix/tests/linkmonitor_report.py docs .
       '';
     };
-  };
+  }
+  // rdma;
 in
 leaves
 // {

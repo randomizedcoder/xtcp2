@@ -4,7 +4,8 @@
 # Thin orchestrator. Every concern lives under ./nix/ and is wired up here.
 # See ./nix/default.nix for the per-system aggregator.
 # Monitor "run all": nix build path:.#test-linkmonitor -L
-# Runs tests, race, vet, lint, formatting, replay, fuzzing and doc checks.
+# Runs core tests, race, vet, lint, formatting, replay, fuzzing and doc checks,
+# plus tagged RDMA tests/lint and rdma-core/provider runtime packaging checks.
 # See ./nix/README.md for individual targets, logs and Nix policy checks.
 #
 # Quick references:

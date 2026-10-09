@@ -171,6 +171,7 @@ type JobKey struct {
 
 // Job describes one attempt. It contains no references to mutable reducer state.
 type Job struct {
+	RDMA            *RDMARequest
 	Key             JobKey
 	Token           Token
 	Started         Stamp
@@ -195,5 +196,5 @@ type Result struct {
 
 // SettingsChecks accompanies the exact settings samples that established it.
 type SettingsChecks struct {
-	Speed, Duplex Check
+	Speed, Duplex, Width Check
 }

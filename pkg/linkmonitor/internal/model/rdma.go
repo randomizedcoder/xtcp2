@@ -1,5 +1,11 @@
 package model
 
+// RDMARequest shares immutable inventory associations with optional workers.
+type RDMARequest struct {
+	Ports       []RDMAPort
+	InfoDevices []string // One deterministic owner per HCA avoids duplicate info series.
+}
+
 // RDMAPort is immutable discovery evidence, independent of counting identity.
 // Generation and Revision are assigned by the owner after a complete inventory.
 type RDMAPort struct {

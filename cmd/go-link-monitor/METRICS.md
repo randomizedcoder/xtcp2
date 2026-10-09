@@ -315,7 +315,12 @@ The following new metrics have no exact node_exporter policy equivalent.
 P07-T01 now projects the port/association information, observed RoCE versions,
 port up and per-port readiness families below into immutable library samples.
 Native duplex information is transport-defined. Polling and inventory supply
-these values; verbs events remain P07-T02, native speed/width capabilities and
+these values; P07-T02 verbs and NLDEV lifecycle events invalidate cached state
+and request prompt refresh. Event loss, denial or unavailable support keeps
+required collection health false until subscription and reconciliation recover.
+The existing `collector="rdma_events"` diagnostics expose support, freshness and
+bounded error categories; raw error strings are not labels.
+Event hints do not directly change counts or fabricate flap counters. Native speed/width capabilities and
 counters remain P07-T03, and Prometheus exposition remains P08. Several ports
 sharing Ethernet retain distinct device/port labels and contribute one counted
 Ethernet link. Missing GID metadata means unknown version, not absent RoCEv2
@@ -431,6 +436,22 @@ Source: [infiniband_linux.go](https://github.com/prometheus/node_exporter/blob/c
 | `node_infiniband_info` | `go_link_monitor_infiniband_info` | G | Constant 1; labels device,board_id,firmware_version,hca_type |
 
 The reference divides hw-counter lifespan milliseconds by 1000 using integer arithmetic before exposing lifespan_seconds. Rate is bytes/s; port_transmit_wait_total counts device ticks, not seconds. RDMA throughput counters can describe shared physical resources and must not be added to Ethernet totals.
+
+P07-T03 implements the fixed mappings above. It caches discovered counter paths
+until resync, an RDMA event or a failed read, and retains exact unsigned values.
+Byte-counter conversion rejects overflow; the factor of four comes from the
+register's four-octet unit and does not depend on link width. A failed candidate
+does not publish partial/zero values. Counter decreases or source-lifetime changes
+increment the existing discontinuity diagnostic. Link-downed/recovery increases
+can reveal flaps between state polls; they are not summed with event counts.
+Driver/PHY name filters do not apply to these fixed RDMA mappings. Unknown vendor
+fields are outside this reviewed catalog. One lowest-port owner emits HCA info.
+
+Native maximum gauges use supported PortInfo masks, never enabled masks or sysfs
+active rate. Unknown encodings, unrecognized speed/width-pairs constraints and
+unavailable UMAD access leave maximum checks unknown. QDR/FDR10 share a nominal
+rate but require vendor evidence to distinguish their generation names; the
+PortInfo adapter emits generation=unknown for that ambiguous case.
 
 
 ## Other node_exporter network collectors

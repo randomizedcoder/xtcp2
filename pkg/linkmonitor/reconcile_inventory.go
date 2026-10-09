@@ -217,6 +217,7 @@ func (c *reconciler) commit(now model.Stamp) error {
 		}
 	}
 	r.rdmaPorts, r.rdmaUncertain = c.rdmaPorts, c.rdmaUncertain
+	c.scheduler.replaceRDMAOptional()
 	r.exceptionRevision = 0
 	if c.rdma != nil {
 		if err := c.rdma.replace(c.rdmaPorts, now); err != nil {
@@ -229,6 +230,9 @@ func (c *reconciler) commit(now model.Stamp) error {
 	c.scheduler.resyncHost()
 	c.committedSerial = c.dumpSerial
 	c.pending, c.lastError = false, nil
+	if c.rdmaEvents != nil {
+		c.rdmaEvents.committed(r.rdmaPorts, c.dumpSerial)
+	}
 	c.backoff, c.queryBackoff = time.Second, time.Second
 	c.retryAt = 0
 	c.nextResync = deadlineAfter(now.Monotonic, c.interval)

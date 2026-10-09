@@ -64,11 +64,13 @@ type Label struct{ Name, Value string }
 // by the result or shared from an immutable StatisticSchema. The reducer reads
 // them without mutation and freezes them before publishing a snapshot.
 type Sample struct {
-	Descriptor string
-	Kind       SampleKind
-	Number     Number
-	Labels     []Label
-	Counter    CounterIdentity
+	// NoInterfaceLabel preserves independent RDMA device/port metric identity.
+	NoInterfaceLabel bool
+	Descriptor       string
+	Kind             SampleKind
+	Number           Number
+	Labels           []Label
+	Counter          CounterIdentity
 }
 
 // CounterIdentity identifies the source register and its reset lifetime. Width

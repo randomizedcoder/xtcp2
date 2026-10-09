@@ -2,8 +2,10 @@
 
 Last updated: 2026-10-08.
 
-**P01–P06 and P07-T01 are complete: 20 of 34 implementation tasks passed their gates.**
-Next task: [P07-T02](IMPLEMENTATION-PLAN.md#p07-t02), verbs event adapter.
+**P01–P06 and P07-T01/P07-T02/P07-T03 are complete: 22 of 34 implementation tasks passed their gates.**
+Next task: [P07-T04](IMPLEMENTATION-PLAN.md#p07-t04), full RDMA build and
+dependencies. Library/provider packaging and capability software checks have
+been brought forward; final production artifact integration remains.
 Bounded scheduling, four collector workers, independent inventory execution,
 convergence, event-source recovery, baseline learning/replacement and bounded
 shutdown are implemented with injected sources. Standard traffic/carrier adapters
@@ -16,10 +18,24 @@ values, all-fields-default filtering, cached schemas and one namespace job with
 atomic publication and resync/expiry handling. RDMA now has typed discovery,
 bounded sysfs metadata, canonical native/RoCE associations and an independent
 required-state executor with freshness, stale-result rejection and joined cleanup.
-Verbs events, native capabilities/counters, production source bindings and the
-standalone command remain unimplemented. This is not a runnable monitoring service yet.
+Verbs events now have a narrow tagged rdma-core binding, bounded epoll delivery,
+NLDEV lifecycle notifications, independent collector diagnostics, reconciliation
+barriers and joined recovery. Native capabilities/counters now have bounded
+optional worker adapters, a read-only local UMAD binding, cached sysfs paths,
+exact counters and independent freshness/policy checks. Production source
+bindings and the standalone command remain unimplemented. This is not a runnable
+monitoring service yet.
 
 This is the live tracker for [IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md).
+
+Follow-up (P09 performance validation): measure the narrow rdma-core/cgo
+boundary separately from kernel/provider I/O, Go event delivery, snapshot
+publication and Prometheus scraping. Report calls/event, allocations/event,
+CPU and burst latency; compare batched retrieval if boundary cost is material.
+Include calls/query, serialized UMAD lane contention and per-query open/close
+cost. The cached sysfs benchmark is synthetic and does not measure those costs.
+The user approved this binding on 2026-10-08 subject to tracking this measurement;
+no claim of negligible cgo overhead is made.
 [DETAILED-DESIGN.md](DETAILED-DESIGN.md), [DESIGN.md](DESIGN.md) and
 [METRICS.md](METRICS.md) remain the design/behavior/metric sources of truth.
 [VALIDATION.md](VALIDATION.md) documents the pinned, repeatable Nix checks.
@@ -64,7 +80,7 @@ This is the live tracker for [IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md).
 | P04 | Wire support and transport | done | 3/3 | V018, V020, V022; additive wire/fixture and ordinary transport unit/real-fd gates passed |
 | P05 | Scheduling and reconciliation | done | 3/3 | V028/V030/V033 close scheduling, convergence and injected lifecycle |
 | P06 | Ethernet and host collectors | done | 4/4 | V035 closes traffic/carrier; V039 closes identity/settings/channels/rings; V041 closes driver/PHY; V043 closes host protocol statistics |
-| P07 | RDMA collection and builds | in progress | 1/4 | V045–V046 close P07-T01; verbs events, capabilities/counters and full-build packaging remain |
+| P07 | RDMA collection and builds | in progress | 3/4 | V050 closes P07-T03 and validates capability runtime packaging; final production artifact integration remains |
 | P08 | Exporter and standalone command | not started | 0/3 | None |
 | P09 | Performance baseline | not started | 0/2 | None |
 | P10 | Optional io_uring | not started | 0/3 | None |
@@ -97,9 +113,9 @@ plan, not copied here. Add verification IDs to the evidence column as work runs.
 | [x] | [P06-T03](IMPLEMENTATION-PLAN.md#p06-t03) | Driver and PHY statistics | done | V040–V041; independent bounded ioctls, cached immutable names, untyped exact values, filters, schema invalidation and ownership tables pass |
 | [x] | [P06-T04](IMPLEMENTATION-PLAN.md#p06-t04) | Host protocol statistics | done | V042–V043; bounded paired/IPv6 parsing, exact integers, default-all filtering, schema ownership, atomic publication, resync/epoch fencing, expiry and blocked-read ownership pass |
 | [x] | [P07-T01](IMPLEMENTATION-PLAN.md#p07-t01) | Discovery, associations and state | done | V044–V046; typed NLDEV/sysfs discovery, native/P_Key/RoCE identities, required state lane, lifecycle and metric-label tests pass; no hardware claim |
-| [ ] | [P07-T02](IMPLEMENTATION-PLAN.md#p07-t02) | Verbs event adapter | not started | None |
-| [ ] | [P07-T03](IMPLEMENTATION-PLAN.md#p07-t03) | Capabilities and counters | not started | None |
-| [ ] | [P07-T04](IMPLEMENTATION-PLAN.md#p07-t04) | Full RDMA build and dependencies | not started | None |
+| [x] | [P07-T02](IMPLEMENTATION-PLAN.md#p07-t02) | Verbs event adapter | done | V048; ownership/acknowledgement, bounded delivery, loss/recovery, event diagnostics, tagged/runtime checks and explicit test tables |
+| [x] | [P07-T03](IMPLEMENTATION-PLAN.md#p07-t03) | Capabilities and counters | done | V049–V050; local read-only UMAD, supported/enabled/active decoding, cached exact counters, ownership/fencing/label tables, pinned core/tagged gates and fuzz pass |
+| [ ] | [P07-T04](IMPLEMENTATION-PLAN.md#p07-t04) | Full RDMA build and dependencies | in progress | V048/V050 validate library/provider and capability test artifacts; final production artifact integration remains |
 | [ ] | [P08-T01](IMPLEMENTATION-PLAN.md#p08-t01) | Prometheus adapter | not started | None |
 | [ ] | [P08-T02](IMPLEMENTATION-PLAN.md#p08-t02) | Thin command and HTTP lifecycle | not started | None |
 | [ ] | [P08-T03](IMPLEMENTATION-PLAN.md#p08-t03) | Embedding compatibility and integration | not started | None |
@@ -185,6 +201,128 @@ hardware checks have run.
 | V045 | 2026-10-08 | P07-T01 completion gate | Unchanged `nix build path:.#test-linkmonitor --no-link --print-out-paths --keep-going --max-jobs 4 -L`; pinned targeted race suite repeated ten times; final tracker checked separately | All eight leaves pass. Unit and race each pass 3,033 tests/subtests, zero test skips; all 40 replay combinations pass. RDMA decoder and sysfs-state fuzz pass. Final-source repeated races pass | Aggregate `/nix/store/h1clz98ibvdvjz55zfnflg69wi8kb8g9-xtcp2-test-linkmonitor`; `/tmp/linkmonitor-p07-t01-completion-aggregate.log`, `/tmp/linkmonitor-p07-t01-completion-race.log`; source identity below |
 | V046 | 2026-10-08 | P07-T01 final metric-contract correction | Unchanged pinned eight-target aggregate; ten targeted RDMA/reconciliation/freshness/shutdown race repetitions; final docs check | Native interface_duplex_info now has only its documented duplex/source labels before canonical-interface projection; regression assertions pass. All eight targets pass; unit/race each pass 3,033 tests/subtests with zero skips, and all 40 replay combinations pass | Aggregate `/nix/store/n72pv0w6gwmz18d26zlsd4si8hjhm9f9-xtcp2-test-linkmonitor`; `/tmp/linkmonitor-p07-t01-metrics-aggregate.log`, `/tmp/linkmonitor-p07-t01-metrics-race.log` |
 | V047 | 2026-10-08 | Publication integration gate | Rebase onto main `3c8fa9b` including PR169; unchanged pinned eight-target monitor aggregate; final documentation check | All eight targets pass against the rebased tree. Unit/race each pass 3,053 tests/subtests, zero skips; all 40 replay combinations pass. All 155 monitor Go files match retained source; monitor source digest unchanged from V046 | Aggregate `/nix/store/rvzhxmxr0m4r2wfnb53v4v0s64r2fmd7-xtcp2-test-linkmonitor`; `/tmp/linkmonitor-publication-aggregate.log`; retained source `/nix/store/n07s1dddlsqqvv3ca325i42k4ac18x7m-55zgkczqanz4ja1bzlyd9xvd487y3kaz-source` |
+
+V049 — P07-T03 development verification (2026-10-08): local pinned package
+tests initially encountered sandbox-denied netlink sockets; the unrestricted
+suite passed after updating the projected RDMA state sample-bound assertion.
+Initial comprehensive lint found constant/large-range-copy issues; direct fixes
+passed without suppressions. Source review verified capability flags against
+the local Linux checkout and pinned headers. Added regression coverage for
+state/capability completion ordering, metric label scope, association removal,
+enabled-field sentinels and kernel-index counter lifetime changes. Preliminary
+tagged checks and two aggregate runs passed before the final lifetime fix.
+Ephemeral logs: `/tmp/linkmonitor-p07-t03-dev.log`,
+`/tmp/linkmonitor-p07-t03-unrestricted.log`,
+`/tmp/linkmonitor-p07-t03-lint.log`, `/tmp/linkmonitor-p07-t03-tagged.log`,
+`/tmp/linkmonitor-p07-t03-aggregate.log`,
+`/tmp/linkmonitor-p07-t03-completion.log`.
+
+V051 — Combined P07-T02/P07-T03 PR preparation (2026-10-09): committed the
+implementation and rebased cleanly onto main `44d0ef6`. Repeated the exact V050
+command against commit `1f1dab44d93e9dd1b0bd3960bde2fd6e2adce1a4`; exit 0,
+all eleven monitor targets and all three Nix policy checks passed.
+Aggregate: `/nix/store/zb7kib8i83blf2ykcv13cg09cfrv81ra-xtcp2-test-linkmonitor`.
+Ephemeral runner log: `/tmp/linkmonitor-p07-pr-final-aggregate.log`.
+The subsequent publication-tracking edit is documentation-only and is checked
+with the pinned documentation checker and its regression tests. Hardware,
+microVM and cgo-performance follow-ups remain unchanged.
+
+V050 — P07-T03 completion (2026-10-08): the final command below exited 0;
+all eleven monitor targets and all three Nix policy checks passed. The source
+remains based on merged main `e6d247f` in `feat/linkmonitor-rdma-events`.
+
+```sh
+nix build path:.#test-linkmonitor \
+  path:.#checks.x86_64-linux.nix-fmt \
+  path:.#checks.x86_64-linux.deadnix \
+  path:.#checks.x86_64-linux.statix \
+  --no-link --print-out-paths --keep-going --max-jobs 4 -L
+```
+
+Aggregate: `/nix/store/1gb1qh22w0xdhh9m3idwcd4wdwgpian0-xtcp2-test-linkmonitor`.
+Ephemeral runner log: `/tmp/linkmonitor-p07-t03-final-aggregate.log`.
+Core unit/race each passed 3,218 tests/subtests; tagged monitor unit/race each
+passed 1,361, with zero failed or skipped tests. The no-test `internal/model`
+package is still reported separately by Go. All 40 replay combinations passed.
+Tagged targeted races passed ten repetitions. Thirty-second/two-worker fuzzing
+passed 2,957,419 PortInfo executions and 450,353 notification executions; the
+original three decoder fuzz gates also passed. Pinned Go 1.26.5, golangci-lint
+2.12.2 and rdma-core 63.0 are unchanged.
+
+The runtime gate passed all 12 C ownership/error scenarios and the pinned
+PortInfo decoder/header cross-check, resolved both test executables' ELF
+dependencies, and loaded all 18 packaged providers. Device enumeration found
+zero devices and opened no hardware contexts; no real management packet was
+sent. Native/RoCE hardware behavior and a software-RDMA microVM remain unverified.
+Unrecognized speed/width-pairs tables intentionally leave maxima unknown;
+QDR/FDR10 generation names remain unknown without vendor evidence.
+
+All 193 monitor Go/header files matched retained source
+`/nix/store/ambbsjdl0nmb1b75app3v27r4flynp9j-7rdz7p7h4dwc843ajih4cdbxssxgs9zi-source`.
+Sorted filename/NUL/content SHA256:
+`a8d4b8e9c3b13bdfbc6fca7cdddc02fe0f51b1b66bd8dabda8d81394dc394e43`.
+Both new C test files and the RDMA Nix module also matched that source.
+Final task-state/evidence edits are documentation-only and are checked separately
+with the pinned documentation checker and its regression tests.
+
+The cached 60-counter fixture benchmark measured approximately 603 microseconds,
+94,541 B and 766 allocations per sweep (100ms, GOMAXPROCS=2, AMD Ryzen Threadripper
+PRO 3945WX). This includes fixture file I/O and identity guards; it is not a
+hardware or cgo benchmark. Retain scalar-read allocations, UMAD acquisition/lane
+contention and boundary overhead as P09 measurement/optimization work. Counter
+and capability checks leave required-state/event execution independent.
+No fixture, allowlist, suppression, threshold or dependency-pin changes were made.
+
+V048 — P07-T02 completion (2026-10-08): all eleven focused targets and the
+three Nix policy checks passed, exit 0, against the implementation based on
+merged main `e6d247f` in `feat/linkmonitor-rdma-events`. Command:
+
+```sh
+nix build path:.#test-linkmonitor \
+  path:.#checks.x86_64-linux.nix-fmt \
+  path:.#checks.x86_64-linux.deadnix \
+  path:.#checks.x86_64-linux.statix \
+  --no-link --print-out-paths --keep-going --max-jobs 4 -L
+```
+
+Aggregate: `/nix/store/1q8r853zshpblxzdqypbndiwfpq550wn-xtcp2-test-linkmonitor`.
+Log: `/tmp/linkmonitor-p07-t02-diagnostics-aggregate.log` (ephemeral).
+Core unit/race each passed 3,113 tests/subtests; tagged monitor unit/race each
+passed 1,256. No tests were skipped: Go also emits one package-level skip for
+`internal/model`, which has no test files. All 40 replay combinations passed
+without skips. Tagged targeted races passed ten repetitions. Notification fuzzing
+passed 30 seconds with two workers and 423,353 executions; the original three
+decoder fuzz gates also passed. Pinned tools: Go 1.26.5, golangci-lint 2.12.2,
+rdma-core 63.0; runtime kernel Linux 7.1.8, x86_64.
+
+The runtime gate checks consumed constants against pinned Linux headers, ELF
+dependencies, and loading of all 18 packaged providers. It enumerated zero
+devices and opened no HCA contexts; physical hardware behavior is unverified.
+Tests include explicit positive/negative/boundary/corner tables, a C copy/ack
+shim, pipe-backed epoll, partial coverage, stale associations/generations,
+native lifecycle readiness, queue bounds, fatal-context isolation, diagnostics,
+timeout occupancy and joined shutdown.
+
+All 175 monitor Go/header files matched the retained source
+`/nix/store/29apn1pp3svgah2gq45i5nw0jwfk7685-5acd183m73rmy2z7rnzvqpxk33dysjw0-source`.
+Sorted filename/NUL/content SHA256:
+`344eac0d0a1c3dcf4f33451dd984a560f441e8608fcc37da11fe207bbc6d7cb0`.
+Final evidence/task-state and P09 follow-up edits change documentation only;
+the pinned documentation checker is rerun after those edits.
+
+Synthetic pipe delivery measured zero allocations: approximately 1.48 microseconds
+for one event and 31.4 microseconds for a 64-event batch; cached target lookup was
+17.6 ns with zero allocations. These 100ms samples ran with GOMAXPROCS=2 on an
+AMD Ryzen Threadripper PRO 3945WX and are not the P09 performance baseline.
+They do not measure cgo calls or real provider/kernel event latency. P09-T01
+explicitly tracks that follow-up. Bench/fuzz/race logs are retained under
+`test-linkmonitor-rdma-unit` in the aggregate.
+
+Development validation caught and corrected two notification attribute numbers
+through the new header assertions and a test assumption about cancellation
+before factory entry. One earlier 30-second fuzz run ended with a deadline error
+without a failing input; the unchanged gate passed in V048. No suppression,
+threshold, fixture, allowlist or dependency-pin changes were made.
 
 V047 verifies publication of the combined P06-T04/P07-T01 implementation after
 rebasing onto current main. The integration adds the upstream shared-netlink
@@ -517,7 +655,8 @@ not failed checks and not reasons to mark all phases blocked in advance.
 
 | Requirement | Affected tasks | Action when work reaches it |
 |---|---|---|
-| Pinned cgo/rdma-core libraries and providers | P07-T04, P11-T02 | Add full-build dependencies and verify runtime loading while retaining pure-Go checks |
+| RDMA production artifact integration | P07-T04, P11-T02 | V048/V050 validate event/capability bindings and library/provider test artifacts; complete production artifact validation |
+| Repeatable RDMA kernel/device integration environment | P07-T04, P11-T02 | Reuse flake microVM infrastructure when local modules or permissions limit integration tests; evaluate software RDMA discovery/events/recovery and permission failures, recording coverage limits. No RDMA microVM test has run yet; physical validation remains P11-T03 |
 | Suitable io_uring-enabled test kernels | P10-T01 through P10-T03 | Record supported-kernel results; denied/unavailable environments do not prove backend correctness |
 | Authorized physical Ethernet/RoCEv2/IB lab | P11-T03 | Obtain actual hardware/access/scenario authorization and record coverage limits |
 
@@ -549,6 +688,9 @@ owners, deadlines or successful outcomes. Continue independent ready tasks.
 | 2026-10-08 | Implemented P06-T03 from merged PR166: guarded bounded driver/PHY ioctls, independent support/failure, immutable filtered schemas shared across workers, exact untyped samples, resync/configuration/epoch invalidation, and explicit positive/negative/boundary/corner tests. Added parser fuzzing and discovery/cached collection benchmarks; updated detailed design and metrics. | V040–V041 close P06-T03; 18/34 tasks complete, P06 at 3/4. Next P06-T04 host protocol statistics. Changes remain uncommitted; no push or PR action; unrelated workspace changes preserved |
 | 2026-10-08 | Implemented P06-T04 from merged PR168: bounded host procfs collection, exact untyped integers, cached dynamic schemas, all-fields filtering, one namespace job, atomic snapshots and ownership-safe timeouts/shutdown. Added explicit positive/negative/boundary/corner tables, two parser fuzz targets and cold-schema/cached benchmarks; updated design, metric contract and implementation gate. | V042–V043 close P06-T04 and P06; 19/34 tasks complete. Next P07-T01 RDMA discovery, associations and state. Changes remain uncommitted; no push or PR action; unrelated workspace preserved |
 | 2026-10-08 | Completed P07-T01 while preserving the uncommitted P06-T04 work: typed RDMA discovery, bounded sysfs metadata, native/P_Key/RoCE associations, independent required state collection, immutable samples, alias resolution, stale-result rejection and joined cleanup. Expanded explicit test tables and updated design/metric source notes. | V044–V045; 20/34 tasks complete, P07 at 1/4. Next P07-T02 verbs event adapter. Changes remain uncommitted; no push or PR; no hardware validation claimed |
+| 2026-10-08 | Completed P07-T02 from merged PR170: narrow authorized cgo event binding, single-owner acknowledgement and cleanup, bounded epoll delivery, NLDEV notifications, reconciliation barriers, loss/recovery and independent event health. Added explicit test tables and three pinned RDMA targets. Recorded cgo measurement and microVM integration follow-ups. | V048; all eleven monitor targets and three Nix policy checks pass. 21/34 tasks complete, P07 at 2/4; P07-T04 packaging partially complete. Next P07-T03 capabilities and counters. Changes remain uncommitted; no physical hardware validation claimed |
+| 2026-10-08 | Completed P07-T03 alongside the uncommitted P07-T02 work: bounded zero-hop UMAD queries, independent supported/enabled/active decoding, native maximum policy, fixed RDMA counter mappings, source lifetime tracking, cached schemas, resync/event fencing and exact metric label scope. Added explicit Go/C test tables and expanded pinned targets; used the local Linux source for ABI review. | V049–V050; 22/34 tasks complete, P07 at 3/4. Next P07-T04 build/dependency completion. Changes remain uncommitted; physical and microVM RDMA validation and cgo performance measurements remain follow-ups |
+| 2026-10-09 | Prepared the combined P07-T02/P07-T03 commit and PR using the randomizedcoder identity; rebased cleanly onto main `44d0ef6` and repeated the pinned validation suite. | V051; all eleven monitor targets and three Nix policy checks pass. 22/34 tasks complete; next P07-T04 |
 
 Established design decisions: public reusable pkg/linkmonitor; small standalone
 command; RDMA required in v1; all statistic fields selected by default; cached

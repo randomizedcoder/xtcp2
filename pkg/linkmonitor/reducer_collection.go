@@ -9,6 +9,7 @@ import (
 )
 
 type collectorState struct {
+	rdmaRequest              *model.RDMARequest
 	statisticSchema          *model.StatisticSchema
 	schemaRevision           uint64
 	job                      model.Job
@@ -77,6 +78,7 @@ func (r *reducer) startCollection(key model.JobKey, now model.Stamp) (model.Job,
 		state.statisticSchema = nil
 	}
 	job := model.Job{Key: key, Token: token, Started: now}
+	job.RDMA = state.rdmaRequest
 	job.StatisticSchema, job.SchemaRevision = state.statisticSchema, state.schemaRevision
 	if i, exists := r.index[key.Device]; exists {
 		job.Device = r.slots[i].device
