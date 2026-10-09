@@ -601,6 +601,13 @@ func TestFamilyTableAndJSONRows(t *testing.T) {
 			floor:       4,
 			implemented: true,
 		},
+		{
+			description: "positive: -j addrlabel show, the JSON stream that splits text's glued prefix ADDR/LEN into address+prefixlen and addrlabel's JSON row in this matrix",
+			name:        "-j addrlabel show",
+			slug:        "addrlabel_show_json",
+			floor:       2,
+			implemented: true,
+		},
 	}
 
 	for _, tt := range rows {
@@ -699,6 +706,18 @@ func TestFamilyTableAndJSONRows(t *testing.T) {
 			twin:        "nexthop show",
 			equal:       true,
 		},
+		{
+			description: "positive: -6 addrlabel show shares addrlabel show's floor, the family option being absorbed by the AF_UNSPEC to AF_INET6 substitution rather than changing the request",
+			row:         "-6 addrlabel show",
+			twin:        "addrlabel show",
+			equal:       true,
+		},
+		{
+			description: "positive: -j addrlabel show sends what addrlabel show sends — addrlabel's text and JSON rows share the dump, differing only in the renderer",
+			row:         "-j addrlabel show",
+			twin:        "addrlabel show",
+			equal:       true,
+		},
 	}
 
 	for _, tt := range twins {
@@ -751,9 +770,9 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	// The twelve rows the `-j`/family branch added, plus the two -s sweep
 	// commands whose noise is unresolved and which pkg/nlparity's held-out
 	// negative keeps out of gated_commands on purpose, plus the two nexthop rows
-	// this branch adds as nexthop's first matrix entries. Gating any of these is
-	// a separate branch, after a measured-clean live run, and that branch edits
-	// this list.
+	// and the three addrlabel rows (show, -6 show, -j show) each object's branch
+	// adds as its first matrix entries. Gating any of these is a separate branch,
+	// after a measured-clean live run, and that branch edits this list.
 	expected := []string{
 		"-s addr show", "-s neigh show",
 		"-0 addr show", "route show table main", "route show table local",
@@ -761,6 +780,7 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 		"-j addr show", "-j link show", "-j route show", "-j neigh show",
 		"-j rule show", "-j -s link show",
 		"nexthop show", "-j nexthop show",
+		"addrlabel show", "-6 addrlabel show", "-j addrlabel show",
 	}
 
 	tests := []struct {
@@ -768,7 +788,7 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 		check       func(t *testing.T)
 	}{
 		{
-			description: "positive: the ungated set is exactly the sixteen named rows, so UNGATED_CLEAN counts sixteen rows and not zero",
+			description: "positive: the ungated set is exactly the nineteen named rows, so UNGATED_CLEAN counts nineteen rows and not zero",
 			check: func(t *testing.T) {
 				for _, name := range expected {
 					if !ungated[name] {

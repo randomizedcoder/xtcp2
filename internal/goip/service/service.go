@@ -468,3 +468,18 @@ func (s *Service) Rules(family uint8) ([]model.Rule, error) {
 	}
 	return out, nil
 }
+
+// AddrLabels runs the `ip addrlabel show` dump (RTM_GETADDRLABEL). No sort: the
+// kernel dump order is stable and iproute2 renders it as-is.
+func (s *Service) AddrLabels(family uint8) ([]model.AddrLabel, error) {
+	r := req.AddrLabelShowDump(family, s.nextSeq())
+	v, err := decode(s, r, uint16(unix.RTM_NEWADDRLABEL), "RTM_NEWADDRLABEL", xtcpnl.ParseNewAddrLabel)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.AddrLabel, len(v))
+	for i := range v {
+		out[i] = model.AddrLabel(v[i])
+	}
+	return out, nil
+}

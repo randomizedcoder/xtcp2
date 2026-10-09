@@ -47,7 +47,7 @@ type object struct {
 // Order transcribed from ip/ip.c's cmds[].
 var objects = []object{
 	{name: "address", run: runAddress},
-	{name: "addrlabel"},
+	{name: "addrlabel", run: runAddrLabel},
 	{name: "maddress"},
 	{name: "route", run: runRoute},
 	{name: "rule", run: runRule},

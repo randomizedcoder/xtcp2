@@ -10,14 +10,14 @@ several steps, further down under [Remaining](#remaining).
 
 | | count | counted from |
 |---|---|---|
-| commands in the comparison matrix | **43** | `internal/goipparity/commands.go` |
-| of those, `Implemented: true` | **43** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
+| commands in the comparison matrix | **46** | `internal/goipparity/commands.go` |
+| of those, `Implemented: true` | **46** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
 | of those, in `gated_commands` | **27** | `pkg/nlparity/goip-parity-allowlist.json` |
 | allowlisted divergences | **7** | same file, `entries` |
 | of those, `kind=version-skew` | **7** | all against the pinned `ip` 7.1.0 |
 | of those, `kind=accepted-divergence` | **0** | nothing is divergent on purpose and permanently |
 
-**Sixteen** matrix rows sit outside `gated_commands`, and they fall into three
+**Nineteen** matrix rows sit outside `gated_commands`, and they fall into four
 groups that are out for unrelated reasons.
 
 **Twelve are new and not yet gated**: six family and table selectors and six
@@ -55,6 +55,17 @@ them yet. Like every row before gating, they go in ungated; gating is a separate
 branch after two clean live runs. See
 [Where we are](#where-we-are).
 
+**Three are addrlabel's first matrix rows**: `addrlabel show`, `-6 addrlabel
+show` and `-j addrlabel show`, added together with the `ifaddrlblmsg` decoder,
+the addrlabel render view and the `address`/`prefixlen` JSON facet pair they
+depend on. They are **replay-grounded, not yet live-grounded**, exactly as the
+nexthop rows above: `internal/goip`'s `TestAddrLabelShowMatchesCapturedSidecars`
+diffs `goip` byte-for-byte (text) and structurally (`-j`) against the committed
+`ip_addrlabel`/`ip_addrlabel_json` sidecars in all three topologies, and the
+`-6` row grounds the AF_UNSPEC→AF_INET6 identity (`ip/ipaddrlabel.c:101-104`) at
+the output level, the `rule`/`-4` pattern. No measured live run backs them yet,
+so they go in ungated until their own runs earn gating.
+
 **The rest of the nexthop read surface and VRF link-detail are implemented but
 are not matrix rows, so they do not move the counts above.** `nexthop show id N`,
 the other five `nexthop show` selectors — `dev`, `master`, `vrf`, `groups`,
@@ -90,9 +101,10 @@ These are the boundaries of the exercise, not a backlog:
   write verb with `goip is read-only: ErrNotImplemented` rather than treating
   it as unknown, because the harness drives both tools with the same argv and
   needs "not got there yet" to be distinguishable from "typo".
-- **Five objects.** `address`, `route`, `rule`, `neigh`/`neighbour` and `link`
-  have a `run` function; the other twenty-six rows of `internal/goip`'s copy of
-  iproute2's `cmds[]` are present with `run: nil` **on purpose**. Matching is
+- **Seven objects.** `address`, `route`, `rule`, `neigh`/`neighbour`, `link`,
+  `nexthop` and `addrlabel` have a `run` function; the other twenty-five rows of
+  `internal/goip`'s copy of iproute2's `cmds[]` are present with no `run`
+  **on purpose**. Matching is
   unanchored-prefix and first-match-wins, so deleting the unimplemented rows
   would silently change what `r`, `n`, `net` and `l` resolve to.
 - **Two render refusals, which error rather than guess**: `-d` on a link
@@ -128,7 +140,7 @@ are the ones that stop partway. The rtnetlink **event** types are decoded and
 never rendered, because the daemon's link monitor consumes them and `goip` has
 no `monitor` verb. `RTM_NEWRULE` is decoded for dumps but is not even an event.
 
-### rtnetlink: six body layouts, and they are the six goip needs
+### rtnetlink: seven body layouts, and they are the seven goip needs
 
 | body struct | kernel header | RTM types | decoder | goip | matrix rows |
 |---|---|---|---|---|---|
@@ -138,6 +150,7 @@ no `monitor` verb. `RTM_NEWRULE` is decoded for dumps but is not even an event.
 | `ndmsg` | `neighbour.h` | `RTM_{NEW,DEL,GET}NEIGH` | `ParseNeigh`, `xtcpnl_ndmsg.go:244` | `render/neigh.go` | **8** |
 | `fib_rule_hdr` | `fib_rules.h` | `RTM_{NEW,DEL,GET}RULE` | `ParseRule`, `xtcpnl_fib_rule_hdr.go:270` | `render/rule.go` | **6** |
 | `nhmsg` | `nexthop.h` | `RTM_{NEW,DEL,GET}NEXTHOP` | `ParseNewNexthop`, `xtcpnl_nhmsg.go:143` | `render/nexthop.go` | **2** |
+| `ifaddrlblmsg` | `if_addrlabel.h` | `RTM_{NEW,DEL,GET}ADDRLABEL` | `ParseNewAddrLabel`, `xtcpnl_ifaddrlblmsg.go:91` | `render/addrlabel.go` | **3** |
 
 Headers in this table and the next are all under
 `include/uapi/linux/`, decoder paths are under `pkg/xtcpnl/` and `goip` paths
@@ -145,27 +158,27 @@ under `internal/goip/`; the prefixes are dropped so the columns stay readable.
 `neighbour.h` keeps the kernel's own spelling for the same reason the comments
 in `xtcpnl_ndmsg.go` do — `neighbor.h` does not exist in the tree.
 
-43 rows, which is the matrix total — every row in the comparison matrix lands
-on one of these six, and every one of these six is compared live. `nhmsg`'s two
-rows are the newest: they are in the matrix and replay-grounded (see the glance
-above), awaiting their first measured live run before gating.
+46 rows, which is the matrix total — every row in the comparison matrix lands
+on one of these seven, and every one of these seven is compared live.
+`ifaddrlblmsg`'s three rows are the newest, with `nhmsg`'s two just before them:
+all five are in the matrix and replay-grounded (see the glance above), awaiting
+their first measured live run before gating.
 
-**The request side is narrower than the decode side, on purpose.** Only six
+**The request side is narrower than the decode side, on purpose.** Only seven
 message types are ever *built*: `RTM_GETLINK`, `RTM_GETADDR`, `RTM_GETROUTE`,
-`RTM_GETNEIGH`, `RTM_GETRULE`, `RTM_GETNEXTHOP`, from the twelve builders in
-`xtcpnl_rtnetlink_requests.go` (`RTM_GETNEXTHOP` has three — a dump, a
-wire-filtered dump, and a by-id get). That is not a coincidence of scope — the
+`RTM_GETNEIGH`, `RTM_GETRULE`, `RTM_GETNEXTHOP`, `RTM_GETADDRLABEL`, from the
+thirteen builders in `xtcpnl_rtnetlink_requests.go` (`RTM_GETNEXTHOP` has three —
+a dump, a wire-filtered dump, and a by-id get). That is not a coincidence of scope — the
 encoder rejects a non-GET type with `ErrNotAGetRequest`, so the read-only
 invariant is executable rather than a convention. `RTM_NEWNEIGH` appears in
 that file only in a comment about what a solicited reply carries.
 
-### rtnetlink: the nine body layouts with no decoder
+### rtnetlink: the eight body layouts with no decoder
 
 | body struct | kernel header | RTM types | what would need it |
 |---|---|---|---|
 | `ndtmsg` | `neighbour.h` | `RTM_{NEW,GET,SET}NEIGHTBL` | `ip ntable show` |
 | `netconfmsg` | `netconf.h` | `RTM_{NEW,GET}NETCONF` | `ip netconf show` |
-| `ifaddrlblmsg` | `if_addrlabel.h` | `RTM_{NEW,DEL,GET}ADDRLABEL` | `ip addrlabel show` |
 | `if_stats_msg` | `if_link.h` | `RTM_GETSTATS` | `ip stats show`, `ip -s -s link xstats` |
 | `prefixmsg` | `rtnetlink.h` | `RTM_NEWPREFIX` | `ip monitor prefix` |
 | `nduseroptmsg` | `rtnetlink.h` | `RTM_NEWNDUSEROPT` | `ip monitor` RA options |
@@ -173,9 +186,15 @@ that file only in a comment about what a solicited reply carries.
 | `tcmsg` | `rtnetlink.h` | `RTM_{NEW,DEL,GET}{QDISC,TCLASS,TFILTER}` | `tc` — not an `ip` command |
 | `tcamsg` | `rtnetlink.h` | `RTM_{NEW,DEL,GET}ACTION` | `tc actions` — not an `ip` command |
 
-Three of the nine are `tc`/`bridge` territory and are outside the exercise
-entirely rather than pending. The other six are reachable only through objects
+Three of the eight are `tc`/`bridge` territory and are outside the exercise
+entirely rather than pending. The other five are reachable only through objects
 that have `run: nil`.
+
+**`ifaddrlblmsg` used to sit in this table and no longer belongs in it.** It is
+decoded in `xtcpnl_ifaddrlblmsg.go` (`ParseNewAddrLabel`, the `ifaddrlblmsg`
+header plus `IFAL_ADDRESS`/`IFAL_LABEL`) and rendered by `render/addrlabel.go`,
+so `ip addrlabel show` is an implemented object now, not a `run: nil` backlog
+entry. It moved up into the decoded-layouts table above.
 
 **`nhmsg` used to head this table and no longer belongs in it.** It is decoded
 in `xtcpnl_nhmsg.go` (`ParseNewNexthop`, the `nhmsg` header plus the `NHA_*`
@@ -290,7 +309,7 @@ declines.
 
 The user-facing refusal happens earlier and elsewhere: `goip` returns
 `ErrNotImplemented` from object dispatch, before a socket is opened, for the
-twenty-six objects with `run: nil`. So the nine uncovered layouts above are a
+twenty-five objects with no `run`. So the eight uncovered layouts above are a
 backlog rather than a hazard, and the two halves of that — a walker that
 tolerates the unknown and a dispatcher that refuses it up front — are
 independent and should stay that way.
@@ -398,6 +417,26 @@ from newly captured `ip_nexthop*_json` sidecars and diffed structurally in
 show` and `-j nexthop show` as the first two nexthop rows in the Tier C matrix
 (ungated, replay-grounded), taking it to 43, and taught the JSON facet extractor
 to rejoin the `group` array to the text form's `group 1/2` token.
+
+**`addrlabel` landed next, the smallest dump-only object and a structural twin of
+`rule`.** `ifaddrlblmsg` moved out of the no-decoder table into the decoded set:
+`ParseNewAddrLabel` (`xtcpnl_ifaddrlblmsg.go`) decodes the header plus
+`IFAL_ADDRESS`/`IFAL_LABEL`, and `render/addrlabel.go` renders the text line
+`prefix ADDR/LEN label N ` (trailing space and all) and the JSON object
+`{address, prefixlen, label}` in `print_addrlabel`'s key order
+(`ip/ipaddrlabel.c:44-97`). `ip addrlabel show`/`list`/`lst` is read-only with the
+`AF_UNSPEC → AF_INET6` substitution done in the handler (`ipaddrlabel.c:101-104`),
+the table being IPv6-only; per-device entries (`ifal_index != 0`) and the write
+verbs stay refused with a rationale. The capture driver dumps the kernel's
+ten-entry default table — this kernel adds Teredo (`2001::/32`) and ORCHID
+(`2001:10::/28`) to the classic eight — identically in all three topologies, and
+`TestAddrLabelShowMatchesCapturedSidecars` diffs `goip` against the committed
+`ip_addrlabel`/`ip_addrlabel_json` sidecars. It enlisted `addrlabel show`, `-6
+addrlabel show` and `-j addrlabel show` as the first three addrlabel rows in the
+Tier C matrix (ungated, replay-grounded), taking it to 46, and taught the JSON
+facet extractor the `address`/`prefixlen` composite — six of the ten CIDRs agree
+across formats, the four `::`-leading and IPv4-mapped forms being declared regex
+artifacts, not goip defects.
 
 This is the live progress tracker for the roadmap in
 [coverage-expansion](coverage-expansion.md). The division of labour between the

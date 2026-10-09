@@ -444,6 +444,15 @@ func RuleShowDump(family uint8, seq uint32) ([]byte, error) {
 	return xtcpnl.BuildDumpRuleRequest(family, seq)
 }
 
+// AddrLabelShowDump is `ip addrlabel show`'s only request, rtnl_addrlbldump_req
+// (lib/libnetlink.c:365-379): an ifaddrlblmsg with only ifal_family set, no
+// attributes. Like RuleShowDump the family byte is the caller's; the AF_UNSPEC
+// -> AF_INET6 substitution iproute2 makes lives in internal/goip/obj_addrlabel.go
+// beside the `ip` line it comes from.
+func AddrLabelShowDump(family uint8, seq uint32) []byte {
+	return xtcpnl.BuildDumpAddrLabelRequest(family, seq)
+}
+
 // NexthopGetByID is the single-get RTM_GETNEXTHOP `ip -d route show` sends for a
 // route delegating its next hop to a nexthop object (ipnh_cache_add). family is
 // preferred_family, which for a plain `route show` is AF_UNSPEC.

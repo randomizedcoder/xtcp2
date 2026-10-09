@@ -256,6 +256,13 @@ proc capture_set {ns subdir dev} {
     capio $ns $subdir netlink_route_getnexthop_groups 2 "ip nexthop show groups"         ip_nexthop_groups
     capio $ns $subdir netlink_route_getnexthop_fdb    2 "ip nexthop show fdb"            ip_nexthop_fdb
 
+    # `ip addrlabel show` dumps the kernel's built-in IPv6 address-label policy
+    # table (ip6addrlbl_net_init), which a fresh netns carries identically. One
+    # RTM_GETADDRLABEL dump; every default entry has ifal_index 0, so there is no
+    # ll_init_map dev/ifname lookup - floor 2. capio pairs the pcap with the
+    # ip_addrlabel sidecar so a replay reproduces the listing byte for byte.
+    capio $ns $subdir netlink_route_getaddrlabel 2 "ip addrlabel show" ip_addrlabel
+
     # Closes the corpus's last outright gap: there was no RTM_GETNEIGH dump
     # anywhere, only a notifications pcap.
     cap $ns $subdir netlink_route_getneigh 4 "ip neigh show"
@@ -498,6 +505,9 @@ proc sidecar_set {ns subdir dev} {
     side $ns $subdir ip_nexthop_fdb_n_json    "ip -j -p -d nexthop show fdb"
     side $ns $subdir ip_nexthop_proto_json    "ip -j -p nexthop show protocol 4"
     side $ns $subdir ip_nexthop_proto_n_json  "ip -j -p -d nexthop show protocol 4"
+    # addrlabel JSON replays netlink_route_getaddrlabel.pcap; the default table is
+    # static, so a separate `-j -p` run matches the capio'd text listing.
+    side $ns $subdir ip_addrlabel_json      "ip -j -p addrlabel show"
     side $ns $subdir ip_neigh               "ip neigh show"
     side $ns $subdir ip_neigh_n             "ip -d neigh show"
     side $ns $subdir ip_link_dev            "ip link show dev $dev"

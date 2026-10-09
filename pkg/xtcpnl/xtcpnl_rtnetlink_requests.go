@@ -582,6 +582,21 @@ func BuildDumpRuleRequest(family uint8, seq uint32) ([]byte, error) {
 	return BuildRequest(uint16(unix.RTM_GETRULE), uint16(unix.NLM_F_DUMP), seq, hdr, nil)
 }
 
+// BuildDumpAddrLabelRequest builds the RTM_GETADDRLABEL dump behind
+// `ip addrlabel show`: an ifaddrlblmsg whose ifal_family is the caller's and no
+// attributes, the bare form rtnl_addrlbldump_req sends (lib/libnetlink.c:365-379).
+//
+// The AF_UNSPEC -> AF_INET6 substitution iproute2 makes lives with its `ip`
+// counterpart in internal/goip/obj_addrlabel.go, not here, for the reason
+// BuildDumpRuleRequest documents: this builder sends whatever family it is
+// handed, matching the C helper it is named after.
+func BuildDumpAddrLabelRequest(family uint8, seq uint32) []byte {
+	hdr := make([]byte, IfAddrlblmsgSizeCst)
+	hdr[0] = family // ifal_family; every other byte stays zero
+
+	return BuildDumpRequest(uint16(unix.RTM_GETADDRLABEL), seq, hdr)
+}
+
 // extMaskAttrs encodes a lone IFLA_EXT_MASK, or nothing at all for mask 0.
 func extMaskAttrs(extMask uint32) ([]byte, error) {
 	if extMask == 0 {

@@ -299,6 +299,9 @@ func FamilyHdrLen(msgType uint16) int {
 		return FibRuleHdrSizeCst
 	case uint16(unix.RTM_GETNEXTHOP), uint16(unix.RTM_NEWNEXTHOP), uint16(unix.RTM_DELNEXTHOP):
 		return NhMsgSizeCst // struct nhmsg, 8
+	case uint16(unix.RTM_GETADDRLABEL), uint16(unix.RTM_NEWADDRLABEL),
+		uint16(unix.RTM_DELADDRLABEL):
+		return IfAddrlblmsgSizeCst // struct ifaddrlblmsg, 12
 	case uint16(unix.NLMSG_DONE), uint16(unix.NLMSG_NOOP), uint16(unix.NLMSG_ERROR):
 		return 0
 	default:

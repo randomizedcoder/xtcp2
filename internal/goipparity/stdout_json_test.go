@@ -396,6 +396,50 @@ func TestStdoutJSONFacetsMatchText(t *testing.T) {
 				{locus: "statsheaders", textOnly: "RX:bytes,packets,errors,dropped,missed,mcast x14,TX:bytes,packets,errors,dropped,carrier,collsns x14", jsonOnly: "RX:bytes,packets,errors,dropped,over_errors,multicast x14,TX:bytes,packets,errors,dropped,carrier_errors,collisions x14"},
 			},
 		},
+		{
+			// The address/prefixlen composite, the only locus addrlabel fills.
+			// Six of the ten entries agree; the four that differ are iproute2 and
+			// regex artifacts, not a goip defect: `::/0`, `::/96` and `::1/128`
+			// are the reCIDR6 `\b`-after-`::` blind spot already declared on the
+			// addr rows, and `::ffff:0.0.0.0/96` is the IPv4-mapped entry, which
+			// JSON keeps whole while text's reCIDR4 extracts the dotted tail
+			// `0.0.0.0/96`. Both halves of that one show up, text-only and
+			// JSON-only.
+			description: "positive: addrlabel show, clean topology — the address/prefixlen composite; six of ten CIDRs agree, the four `::`-leading and IPv4-mapped forms are the declared regex artifacts",
+			topo:        "",
+			object:      "ip_addrlabel",
+			textLines:   10,
+			jsonEntries: 10,
+			textLoci:    1,
+			jsonLoci:    1,
+			diffs: []facetDiff{
+				{locus: "cidrs", textOnly: "0.0.0.0/96", jsonOnly: "::/0,::/96,::1/128,::ffff:0.0.0.0/96"},
+			},
+		},
+		{
+			description: "positive: addrlabel show, mesh topology — the kernel default table is per-netns, so mesh carries the identical ten entries and the identical four declared differences",
+			topo:        "mesh/",
+			object:      "ip_addrlabel",
+			textLines:   10,
+			jsonEntries: 10,
+			textLoci:    1,
+			jsonLoci:    1,
+			diffs: []facetDiff{
+				{locus: "cidrs", textOnly: "0.0.0.0/96", jsonOnly: "::/0,::/96,::1/128,::ffff:0.0.0.0/96"},
+			},
+		},
+		{
+			description: "positive: addrlabel show, tunnel topology — the same default table once more, neither namespace having been given a label",
+			topo:        "tunnel/",
+			object:      "ip_addrlabel",
+			textLines:   10,
+			jsonEntries: 10,
+			textLoci:    1,
+			jsonLoci:    1,
+			diffs: []facetDiff{
+				{locus: "cidrs", textOnly: "0.0.0.0/96", jsonOnly: "::/0,::/96,::1/128,::ffff:0.0.0.0/96"},
+			},
+		},
 	}
 
 	for _, tt := range tests {
