@@ -83,7 +83,7 @@ func (s *scheduler) expire(now model.Stamp) {
 			}
 		case deadlineRetry:
 			s.retryDue(entry)
-		case deadlineCoordinator, deadlineLifecycle, deadlineTrafficPoll:
+		case deadlineCoordinator, deadlineLifecycle, deadlineTrafficPoll, deadlineRDMA:
 			// The owner calls reconciler.advance after deadlines, including this wake.
 		default:
 			s.reducer.expireEntry(entry)

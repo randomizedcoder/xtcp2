@@ -19,6 +19,7 @@ const (
 	deadlineLifecycle
 	deadlineTrafficPoll
 	deadlineCarrierFields
+	deadlineRDMA
 )
 
 type deadlineKey struct {

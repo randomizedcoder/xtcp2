@@ -16,6 +16,10 @@ var (
 // reducer is owned by one goroutine. Workers receive values and return owned
 // results; only immutable publications will cross the reader boundary in P03-T02.
 type reducer struct {
+	rdmaPorts                                       []model.RDMAPort
+	rdmaUncertain                                   uint64
+	exceptions                                      []exceptionResolution
+	exceptionRevision                               uint64
 	namespace, epoch, revision, generation, attempt uint64
 	countRevision                                   uint64 // Last revision changing eligible identity/state, not statistics or names.
 	index                                           map[model.DeviceKey]int

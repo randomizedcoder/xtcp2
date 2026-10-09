@@ -152,6 +152,9 @@ type Event struct {
 // Candidate owns a complete dump candidate. Only a successful complete dump can
 // authorize removals; reconciliation validates its token against later events.
 type Candidate struct {
+	RDMAPorts         []RDMAPort
+	NetdevLinks       []NetdevLink
+	RDMAUncertain     uint64
 	Statistics        []LinkStatistics
 	Token             Token
 	Started, Finished Stamp

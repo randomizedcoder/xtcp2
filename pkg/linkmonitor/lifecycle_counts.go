@@ -13,5 +13,5 @@ func countIdentityChanged(old, next model.Device, replaced bool) bool {
 // operational state and eligibility must be known, with current required events.
 func (r *reducer) countReady() bool {
 	return r.lastResync.Present && r.resyncEpoch == r.epoch && !r.resyncOverdue &&
-		r.routeEvents && r.uncertain == 0 && (r.requiredRDMA == 0 || r.rdmaEvents)
+		r.routeEvents && r.uncertain == 0 && r.rdmaUncertain == 0 && (r.requiredRDMA == 0 || r.rdmaEvents)
 }

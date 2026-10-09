@@ -33,12 +33,12 @@ func interfaceCatalog() map[string]string {
 func modeLabelCatalog() [len(ethernetModes)][]model.Label {
 	var labels [len(ethernetModes)][]model.Label
 	for index := range labels {
-		duplex := "full"
+		duplex := fullDuplexLabel
 		switch index {
 		case 0, 2, 4, 90, 100, 101: // All reviewed UAPI half-duplex modes, including FX/T1S.
 			duplex = "half"
 		}
-		labels[index] = []model.Label{{Name: "duplex", Value: duplex}, {Name: "mode", Value: strconv.Itoa(index)}}
+		labels[index] = []model.Label{{Name: duplexLabel, Value: duplex}, {Name: "mode", Value: strconv.Itoa(index)}}
 	}
 	return labels
 }

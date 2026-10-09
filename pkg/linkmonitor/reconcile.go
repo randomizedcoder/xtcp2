@@ -21,6 +21,9 @@ type dirtyIdentity struct {
 // reconciler owns one private candidate and dirty identities. The reducer keeps
 // applying ordered events while inventory work runs on its dedicated executor.
 type reconciler struct {
+	rdma                                             *rdmaSchedule
+	rdmaPorts                                        []model.RDMAPort
+	rdmaUncertain                                    uint64
 	scheduler                                        *scheduler
 	inventory                                        *inventoryExecutor
 	events                                           *eventExecutor
@@ -140,6 +143,13 @@ func (c *reconciler) event(event model.Event) error {
 	}
 
 	key := event.Observation.Device.Key
+	if c.rdma != nil && key.Kind == model.DeviceEthernet {
+		if i, exists := r.index[key]; exists && event.Kind == model.EventChange {
+			event.Observation.Device.RDMA = r.slots[i].device.RDMA
+		}
+		c.rdma.invalidate(key)
+		c.rdma.request(key)
+	}
 	wasDown := false
 	if i, exists := r.index[key]; exists {
 		wasDown = r.slots[i].device.Up.Present && !r.slots[i].device.Up.Value
@@ -211,6 +221,7 @@ func (c *reconciler) markDirty(key model.DeviceKey, version uint64) {
 }
 
 func (c *reconciler) abort() {
+	c.rdmaPorts, c.rdmaUncertain = nil, 0
 	c.inventory.cancelRequest()
 	c.request, c.waiting, c.candidate, c.dirty = nil, nil, nil, nil
 	c.statistics = nil

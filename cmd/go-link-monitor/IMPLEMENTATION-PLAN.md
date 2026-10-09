@@ -218,7 +218,7 @@ Done when: Schema/name/count changes, 65,536-entry bound, invalid UTF-8, duplica
 
 Deliver: Implement bounded snmp/netstat/snmp6 parsing, dynamic schemas and compiled protocol_field filtering with all fields default.
 
-Done when: Malformed pairs, signed values, optional IPv6, file bounds and empty-filter tests pass; publish atomically without NIC labels.
+Done when: Explicit positive/negative/boundary/corner tables with descriptions and expected outcomes cover malformed pairs, duplicate/name collisions, exact signed/unsigned values, optional IPv6, 4 MiB file and 65,536-field bounds, empty filters, schema ownership, resync/epoch fencing, freshness and blocked reads. Publish atomically without NIC labels; parser fuzzing, cold/cached benchmarks and the unchanged pinned aggregate pass.
 
 ### P07 — RDMA collection and builds
 
@@ -228,7 +228,7 @@ Done when: Malformed pairs, signed values, optional IPv6, file bounds and empty-
 
 Deliver: Implement typed RDMA netlink/sysfs discovery, canonical port/netdev association and required state refresh independent of optional saturation.
 
-Done when: Fake/sysfs/integration association tests pass for native without IPoIB, P_Keys, RoCE, VF and excluded software providers.
+Done when: Fake/sysfs/integration association tests pass for native without IPoIB, P_Keys, RoCE, VF and excluded software providers. Explicit positive/negative/boundary/corner tables include descriptions and executable expected outcomes. Required state runs independently of optional saturation; obsolete associations/results, freshness and joined shutdown pass. Run the pinned eight-target aggregate, existing 40 replay combinations, targeted repeated races and RDMA parser fuzz sessions; record evidence in STATUS.md. Verbs events and native capability/counter collection remain T02/T03.
 
 #### P07-T02
 

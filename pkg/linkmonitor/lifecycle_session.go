@@ -10,6 +10,9 @@ import (
 // lifecycleSession supplies ownership policy without choosing production
 // adapters. Factories acquire resources only during Run, never during New.
 type lifecycleSession struct {
+	rdma             bool
+	rdmaRoot         string
+	rdmaSource       func(context.Context) (rdmaStateSource, error)
 	clock            model.Clock
 	namespace        uint64
 	store            model.BaselineStore
@@ -20,11 +23,14 @@ type lifecycleSession struct {
 	statistics       bool
 	settings         bool
 	driverStatistics bool
+	hostStatistics   bool
+	procRoot         string
 	statisticsConfig configuration
 	sysfsRoot        string
 }
 
 type lifecycleResources struct {
+	rdma      *rdmaExecutor
 	pool      *collectorPool
 	inventory *inventoryExecutor
 	events    *eventExecutor
@@ -57,6 +63,14 @@ func (s *lifecycleSession) acquire(ctx context.Context, resources *lifecycleReso
 		return
 	}
 	resources.inventory = newInventoryExecutor(ctx, source)
+	if s.rdma {
+		state, err := s.openRDMAState(ctx)
+		if err != nil {
+			resources.err = err
+			return
+		}
+		resources.rdma = newRDMAExecutor(ctx, s.clock, state)
+	}
 	resources.events = newEventExecutor(ctx, newEventInbox(1), s.subscribe)
 }
 
@@ -66,9 +80,13 @@ func (s *lifecycleSession) openInventory(ctx context.Context) (inventoryBackend,
 	}
 	root := s.sysfsRoot
 	if root == "" {
-		root = "/sys/class/net"
+		root = defaultNetRoot
 	}
-	return newEthernetInventory(s.namespace, root, s.clock)
+	ethernet, err := newEthernetInventory(s.namespace, root, s.clock)
+	if err != nil || !s.rdma {
+		return ethernet, err
+	}
+	return s.wrapRDMAInventory(ethernet)
 }
 
 func (s *lifecycleSession) Run(ctx context.Context, m *Monitor) error {
@@ -119,6 +137,12 @@ func (s *lifecycleSession) prepare(m *Monitor, resources *lifecycleResources) (*
 	r := newReducer(s.namespace)
 	r.freshness = freshnessPolicy{poll: 3 * m.cfg.StatsInterval, configuration: 2 * m.cfg.Resync}
 	scheduler := newScheduler(r, resources.pool, s.clock)
+	if s.hostStatistics {
+		key := model.JobKey{Namespace: s.namespace, Collector: model.CollectorNetstat}
+		if err := scheduler.register(key, schedulePolicy{interval: m.cfg.StatsInterval}); err != nil {
+			return nil, err
+		}
+	}
 	if s.driverStatistics {
 		scheduler.statisticsInterval = m.cfg.StatsInterval
 	}
@@ -132,19 +156,26 @@ func (s *lifecycleSession) prepare(m *Monitor, resources *lifecycleResources) (*
 	if s.statistics {
 		newTrafficSchedule(scheduler, c, m.cfg.StatsInterval)
 	}
+	if resources.rdma != nil {
+		c.rdma = newRDMASchedule(r, resources.rdma, m.cfg.StatsInterval)
+		c.rdma.resync = c.requestResync
+	}
 	l := &lifecycle{monitor: m, coordinator: c, store: resources.storage,
 		expected: model.Optional[uint64]{Value: resources.baseline.Count, Present: resources.present}}
 	return l, l.publish(s.clock.Now())
 }
 
 func (s *lifecycleSession) collectorFactory() workerFactory {
-	if !s.statistics && !s.settings && !s.driverStatistics {
+	if !s.statistics && !s.settings && !s.driverStatistics && !s.hostStatistics {
 		return s.collectors
 	}
 	return func(id int) (workerCollector, error) {
 		base, err := s.collectors(id)
 		if err != nil {
 			return nil, err
+		}
+		if s.hostStatistics {
+			base = newHostCollector(base, s.procRoot, s.statisticsConfig)
 		}
 		if s.driverStatistics {
 			wrapped, wrapErr := newStatisticsCollector(base, s.statisticsConfig)
@@ -165,7 +196,7 @@ func (s *lifecycleSession) collectorFactory() workerFactory {
 		}
 		root := s.sysfsRoot
 		if root == "" {
-			root = "/sys/class/net"
+			root = defaultNetRoot
 		}
 		collector, err := newTrafficCollector(base, s.namespace, root)
 		if err != nil {
@@ -180,6 +211,9 @@ func (l *lifecycle) run(ctx context.Context) error {
 	loop := &schedulerLoop{scheduler: c.scheduler, inventory: c.inventory,
 		controls: l.monitor.control.wake, storage: l.store.results}
 	c.bind(loop)
+	if c.rdma != nil {
+		loop.rdma, loop.rdmaResults = c.rdma, c.rdma.executor.results
+	}
 	loop.hooks.control, loop.hooks.publish, loop.hooks.saved = l.control, l.publish, l.saved
 	loop.hooks.advance = func(now model.Stamp) error {
 		if err := c.advance(now); err != nil {

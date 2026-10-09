@@ -84,13 +84,25 @@ func (c *reconciler) acceptResult() {
 		}
 		candidate[key] = observation
 	}
+	if err := validateRDMACandidate(&result.candidate, candidate); err != nil {
+		c.fail(err)
+		return
+	}
 	c.candidate = candidate
+	c.rdmaPorts, c.rdmaUncertain = result.candidate.RDMAPorts, result.candidate.RDMAUncertain
 	if err := c.acceptStatistics(result.candidate.Statistics); err != nil {
 		c.fail(err)
 	}
 }
 
 func (c *reconciler) acceptQuery(result *inventoryCompletion) {
+	if len(c.rdmaPorts) != 0 {
+		// A query cannot replace one member of a correlated topology snapshot.
+		// Restart discovery after concurrent link changes instead of committing
+		// associations from an earlier topology next to a newer scalar query.
+		c.fail(fmt.Errorf("RDMA topology changed during inventory"))
+		return
+	}
 	request := result.request
 	entry := c.dirty[request.key]
 	if entry == nil {
@@ -162,6 +174,9 @@ func (c *reconciler) nextQuery() error {
 // No full clone of the potentially large immutable statistic blocks is needed.
 func (c *reconciler) commit(now model.Stamp) error {
 	r := c.scheduler.reducer
+	if c.rdma != nil && c.rdma.revision == math.MaxUint64 {
+		return errSequenceExhausted
+	}
 	mutations := uint64(len(r.slots)) + uint64(len(c.candidate))
 	if r.revision > math.MaxUint64-mutations || r.generation > math.MaxUint64-uint64(len(c.candidate)) {
 		return errSequenceExhausted
@@ -201,9 +216,17 @@ func (c *reconciler) commit(now model.Stamp) error {
 			return err
 		}
 	}
+	r.rdmaPorts, r.rdmaUncertain = c.rdmaPorts, c.rdmaUncertain
+	r.exceptionRevision = 0
+	if c.rdma != nil {
+		if err := c.rdma.replace(c.rdmaPorts, now); err != nil {
+			return err
+		}
+	}
 	c.abort()
 	c.scheduler.resyncSettings()
 	c.scheduler.resyncStatistics()
+	c.scheduler.resyncHost()
 	c.committedSerial = c.dumpSerial
 	c.pending, c.lastError = false, nil
 	c.backoff, c.queryBackoff = time.Second, time.Second
