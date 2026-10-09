@@ -1,0 +1,22 @@
+[ {
+        "id": 1,
+        "gateway": "192.0.2.10",
+        "dev": "goip0",
+        "scope": "link",
+        "protocol": "unspec",
+        "flags": [ ]
+    },{
+        "id": 2,
+        "gateway": "192.0.2.11",
+        "dev": "goip0",
+        "scope": "link",
+        "protocol": "unspec",
+        "flags": [ ]
+    },{
+        "id": 8,
+        "gateway": "192.0.2.23",
+        "dev": "goip0",
+        "scope": "link",
+        "protocol": "static",
+        "flags": [ ]
+    } ]

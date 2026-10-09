@@ -594,6 +594,13 @@ func TestFamilyTableAndJSONRows(t *testing.T) {
 			floor:       2,
 			implemented: true,
 		},
+		{
+			description: "positive: -j nexthop show, the group array rejoined to the text form's slash token and nexthop's first row in this matrix",
+			name:        "-j nexthop show",
+			slug:        "nexthop_show_json",
+			floor:       4,
+			implemented: true,
+		},
 	}
 
 	for _, tt := range rows {
@@ -686,6 +693,12 @@ func TestFamilyTableAndJSONRows(t *testing.T) {
 			twin:        "-s link show",
 			equal:       true,
 		},
+		{
+			description: "positive: -j nexthop show sends what nexthop show sends — nexthop's text and JSON rows share the dump, differing only in the renderer",
+			row:         "-j nexthop show",
+			twin:        "nexthop show",
+			equal:       true,
+		},
 	}
 
 	for _, tt := range twins {
@@ -735,16 +748,19 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 		}
 	}
 
-	// The twelve rows this branch adds, plus the two -s sweep commands whose
-	// noise is unresolved and which pkg/nlparity's held-out negative keeps out
-	// of gated_commands on purpose. Gating any of these is a separate branch,
-	// after a measured-clean live run, and that branch edits this list.
+	// The twelve rows the `-j`/family branch added, plus the two -s sweep
+	// commands whose noise is unresolved and which pkg/nlparity's held-out
+	// negative keeps out of gated_commands on purpose, plus the two nexthop rows
+	// this branch adds as nexthop's first matrix entries. Gating any of these is
+	// a separate branch, after a measured-clean live run, and that branch edits
+	// this list.
 	expected := []string{
 		"-s addr show", "-s neigh show",
 		"-0 addr show", "route show table main", "route show table local",
 		"-4 route show", "-4 neigh show", "-6 neigh show",
 		"-j addr show", "-j link show", "-j route show", "-j neigh show",
 		"-j rule show", "-j -s link show",
+		"nexthop show", "-j nexthop show",
 	}
 
 	tests := []struct {
@@ -752,7 +768,7 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 		check       func(t *testing.T)
 	}{
 		{
-			description: "positive: the ungated set is exactly the fourteen named rows, so UNGATED_CLEAN counts fourteen rows and not zero",
+			description: "positive: the ungated set is exactly the sixteen named rows, so UNGATED_CLEAN counts sixteen rows and not zero",
 			check: func(t *testing.T) {
 				for _, name := range expected {
 					if !ungated[name] {

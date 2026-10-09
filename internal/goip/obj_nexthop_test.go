@@ -220,13 +220,161 @@ func TestNexthopShowMatchesCapturedSidecars(t *testing.T) {
 	}
 }
 
+// TestNexthopShowJSONMatchesCapturedSidecars is `ip -j nexthop show` across the
+// same forms the text test covers, each replaying its text twin's pcap and
+// comparing goip's stdout with the ip_nexthop*_json sidecar captured from
+// `ip -j -p` beside it. goip emits compact JSON and `ip -j -p` pretty-prints, so
+// the compare is structural (assertJSONEntriesEqual), key by key in both
+// directions. Ordering is the dump's own (by id), so it is not relaxed.
+//
+// These sidecars replay the committed pcaps unchanged: JSON is a client-side
+// rendering of the same RTM_NEWNEXTHOP replies the text path decodes, so no new
+// pcap is captured and the by-id/selector pcaps are reused as-is. The resilient
+// idle_timer renders as the bare number 120, blackhole/fdb as JSON null, and an
+// empty flag set as `[]`, matching __print_nexthop_entry (ip/ipnexthop.c:549).
+//
+// go test ./internal/goip/ -run TestNexthopShowJSONMatchesCapturedSidecars
+func TestNexthopShowJSONMatchesCapturedSidecars(t *testing.T) {
+	tests := []struct {
+		description string
+		args        []string
+		pcap        string
+		sidecar     string
+	}{
+		{
+			description: "positive: `-j nexthop show` reproduces ip_nexthop_json (singles, mpath, resilient)",
+			args:        []string{"-j", "nexthop", "show"},
+			pcap:        nexthopDumpPcap,
+			sidecar:     "ip_nexthop_json",
+		},
+		{
+			description: "positive: `-j -d nexthop show` reproduces ip_nexthop_n_json (adds protocol, group scope)",
+			args:        []string{"-j", "-d", "nexthop", "show"},
+			pcap:        nexthopDumpPcap,
+			sidecar:     "ip_nexthop_n_json",
+		},
+		{
+			description: "positive: `-j nexthop show id 10` is the one mpath group as a one-element array",
+			args:        []string{"-j", "nexthop", "show", "id", "10"},
+			pcap:        nexthopIDPcap,
+			sidecar:     "ip_nexthop_id_json",
+		},
+		{
+			description: "positive: `-j -d nexthop show id 10` adds scope global and protocol unspec",
+			args:        []string{"-j", "-d", "nexthop", "show", "id", "10"},
+			pcap:        nexthopIDPcap,
+			sidecar:     "ip_nexthop_id_n_json",
+		},
+		{
+			description: "positive: `-j nexthop show id 20` is the resilient group with type and resilient_args",
+			args:        []string{"-j", "nexthop", "show", "id", "20"},
+			pcap:        nexthopResPcap,
+			sidecar:     "ip_nexthop_res_json",
+		},
+		{
+			description: "positive: `-j -d nexthop show id 20` adds scope global and protocol unspec",
+			args:        []string{"-j", "-d", "nexthop", "show", "id", "20"},
+			pcap:        nexthopResPcap,
+			sidecar:     "ip_nexthop_res_n_json",
+		},
+		{
+			description: "positive: `-j nexthop show dev goip0` filters to id 1/2/8",
+			args:        []string{"-j", "nexthop", "show", "dev", "goip0"},
+			pcap:        nexthopDevPcap,
+			sidecar:     "ip_nexthop_dev_json",
+		},
+		{
+			description: "positive: `-j -d nexthop show dev goip0` adds protocol to the dev-filtered set",
+			args:        []string{"-j", "-d", "nexthop", "show", "dev", "goip0"},
+			pcap:        nexthopDevPcap,
+			sidecar:     "ip_nexthop_dev_n_json",
+		},
+		{
+			description: "positive: `-j nexthop show master goipvrf` filters to id 7",
+			args:        []string{"-j", "nexthop", "show", "master", "goipvrf"},
+			pcap:        nexthopMasterPcap,
+			sidecar:     "ip_nexthop_master_json",
+		},
+		{
+			description: "positive: `-j -d nexthop show master goipvrf` adds protocol to the one entry",
+			args:        []string{"-j", "-d", "nexthop", "show", "master", "goipvrf"},
+			pcap:        nexthopMasterPcap,
+			sidecar:     "ip_nexthop_master_n_json",
+		},
+		{
+			description: "positive: `-j nexthop show vrf goipvrf` validates the VRF then filters to id 7",
+			args:        []string{"-j", "nexthop", "show", "vrf", "goipvrf"},
+			pcap:        nexthopVrfPcap,
+			sidecar:     "ip_nexthop_vrf_json",
+		},
+		{
+			description: "positive: `-j -d nexthop show vrf goipvrf` adds protocol to the one entry",
+			args:        []string{"-j", "-d", "nexthop", "show", "vrf", "goipvrf"},
+			pcap:        nexthopVrfPcap,
+			sidecar:     "ip_nexthop_vrf_n_json",
+		},
+		{
+			description: "positive: `-j nexthop show groups` returns only id 10/11/20",
+			args:        []string{"-j", "nexthop", "show", "groups"},
+			pcap:        nexthopGroupsPcap,
+			sidecar:     "ip_nexthop_groups_json",
+		},
+		{
+			description: "positive: `-j -d nexthop show groups` adds scope global and protocol",
+			args:        []string{"-j", "-d", "nexthop", "show", "groups"},
+			pcap:        nexthopGroupsPcap,
+			sidecar:     "ip_nexthop_groups_n_json",
+		},
+		{
+			description: "positive: `-j nexthop show fdb` lists every nexthop, id 5 with fdb null",
+			args:        []string{"-j", "nexthop", "show", "fdb"},
+			pcap:        nexthopFdbPcap,
+			sidecar:     "ip_nexthop_fdb_json",
+		},
+		{
+			description: "positive: `-j -d nexthop show fdb` adds protocol across the full list",
+			args:        []string{"-j", "-d", "nexthop", "show", "fdb"},
+			pcap:        nexthopFdbPcap,
+			sidecar:     "ip_nexthop_fdb_n_json",
+		},
+		{
+			description: "positive: `-j nexthop show protocol 4` filters client-side to id 8",
+			args:        []string{"-j", "nexthop", "show", "protocol", "4"},
+			pcap:        nexthopDumpPcap,
+			sidecar:     "ip_nexthop_proto_json",
+		},
+		{
+			description: "positive: `-j -d nexthop show protocol 4` is the same one entry under -d",
+			args:        []string{"-j", "-d", "nexthop", "show", "protocol", "4"},
+			pcap:        nexthopDumpPcap,
+			sidecar:     "ip_nexthop_proto_n_json",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			want, err := os.ReadFile(nexthopSidecarDir + tc.sidecar)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("GOIP_REPLAY", tc.pcap)
+			var stdout, stderr bytes.Buffer
+			if code := Run(tc.args, &stdout, &stderr); code != ExitOK {
+				t.Fatalf("Run(%q) = %d, stderr=%s", tc.args, code, stderr.String())
+			}
+			assertJSONEntriesEqual(t, stdout.Bytes(), want, false)
+		})
+	}
+}
+
 // TestNexthopShowRefusals pins the shapes goip declines rather than guesses: the
-// write and single-get verbs, a selector goip does not implement, and `-json` for
-// which there is no sidecar. Each is ErrNotImplemented, so Run exits ExitUsage and
-// prints nothing to stdout. The implemented selectors (dev/master/vrf/groups/fdb/
-// protocol) have moved to TestNexthopShowMatchesCapturedSidecars; their MALFORMED
-// forms are in TestNexthopShowSelectorErrors (a bad command line, ExitFailure, not
-// a missing feature).
+// write and single-get verbs and a selector goip does not implement. Each is
+// ErrNotImplemented, so Run exits ExitUsage and prints nothing to stdout. The
+// implemented selectors (dev/master/vrf/groups/fdb/protocol) have moved to
+// TestNexthopShowMatchesCapturedSidecars, and `-json` to
+// TestNexthopShowJSONMatchesCapturedSidecars now that it is grounded; their
+// MALFORMED forms are in TestNexthopShowSelectorErrors (a bad command line,
+// ExitFailure, not a missing feature).
 //
 // go test ./internal/goip/ -run TestNexthopShowRefusals
 func TestNexthopShowRefusals(t *testing.T) {
@@ -261,10 +409,6 @@ func TestNexthopShowRefusals(t *testing.T) {
 		{
 			description: "corner: `nexthop show id 1 extra` rejects the trailing argument",
 			args:        []string{"nexthop", "show", "id", "1", "extra"},
-		},
-		{
-			description: "negative: `-json nexthop show` has no captured sidecar to reproduce",
-			args:        []string{"-json", "nexthop", "show"},
 		},
 	}
 
