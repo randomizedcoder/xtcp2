@@ -1,0 +1,2 @@
+inet goip0 forwarding off rp_filter loose mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet6 goip0 forwarding off mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 

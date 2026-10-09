@@ -1,0 +1,14 @@
+inet lo forwarding off rp_filter loose mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet nlmon0 forwarding off rp_filter loose mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet goip0 forwarding off rp_filter loose mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet goipvrf forwarding off rp_filter loose mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet goipv forwarding off rp_filter loose mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet all forwarding off rp_filter off mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet default forwarding off rp_filter loose mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet6 lo forwarding off mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet6 nlmon0 forwarding off mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet6 goip0 forwarding off mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet6 goipvrf forwarding off mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet6 goipv forwarding off mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet6 all forwarding off mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet6 default forwarding off mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 

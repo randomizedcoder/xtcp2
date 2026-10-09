@@ -480,6 +480,17 @@ func (w *jsonObj) num(key string, val uint64) {
 	w.b.WriteString(strconv.FormatUint(val, 10))
 }
 
+// boolean emits a JSON true/false, the type print_on_off/print_bool write under
+// PRINT_JSON (lib/json_print.c) where the text form prints on/off.
+func (w *jsonObj) boolean(key string, val bool) {
+	w.sep(key)
+	if val {
+		w.b.WriteString("true")
+		return
+	}
+	w.b.WriteString("false")
+}
+
 func (w *jsonObj) numP(key string, val *uint64) {
 	if val == nil {
 		return

@@ -43,6 +43,11 @@ type AddrLabel xtcpnl.AddrLabelInfo
 // parameter sets) and iproute2 does no sorting, so wire order is render order.
 type NeighTbl xtcpnl.NeighTblInfo
 
+// Netconf is one per-family, per-interface netconf record (RTM_NEWNETCONF). Like
+// NeighTbl it has no Sort companion: the kernel dumps the records in a stable
+// order and iproute2 does no sorting, so wire order is render order.
+type Netconf xtcpnl.NetconfInfo
+
 func SortLinks(v []Link) { sort.SliceStable(v, func(i, j int) bool { return v[i].Index < v[j].Index }) }
 
 func SortAddresses(v []Address) {

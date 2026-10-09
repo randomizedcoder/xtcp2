@@ -932,3 +932,114 @@ func TestNeighborDumps(t *testing.T) {
 		})
 	}
 }
+
+// netconfFakeSource answers a netconf dump by the ncm_family byte of the request
+// (byte 16, the start of the netconfmsg), which is the only thing that
+// distinguishes the AF_UNSPEC, AF_INET and AF_INET6 dumps the two-pass fallback
+// issues. The shared fakeSource keys on msgType alone and so cannot tell them
+// apart; this one records every family it was asked for, in order.
+type netconfFakeSource struct {
+	bodies map[uint8][][]byte
+	errs   map[uint8]error
+	dumps  []uint8
+}
+
+func (f *netconfFakeSource) Dump(request []byte, _ uint16) ([][]byte, error) {
+	fam := request[16]
+	f.dumps = append(f.dumps, fam)
+	if e := f.errs[fam]; e != nil {
+		return nil, e
+	}
+	return f.bodies[fam], nil
+}
+
+func netconfFamilyBody(family uint8) []byte { return []byte{family, 0, 0, 0} }
+
+// TestNetconfFallbackTwoPass drives the EOPNOTSUPP goto-dump loop
+// (ip/ipnetconf.c:200-227) through a request-inspecting fake source. The fallback
+// cannot run on the modern capture kernel and so is a contract, not capture bytes:
+// an AF_UNSPEC dump that answers EOPNOTSUPP is retried as AF_INET then AF_INET6
+// and the results concatenated, any other outcome propagates unchanged.
+//
+// go test ./internal/goip/service/ -run TestNetconfFallbackTwoPass
+func TestNetconfFallbackTwoPass(t *testing.T) {
+	v4 := netconfFamilyBody(unix.AF_INET)
+	v6 := netconfFamilyBody(unix.AF_INET6)
+	unspec := netconfFamilyBody(unix.AF_UNSPEC)
+
+	tests := []struct {
+		description string
+		family      uint8
+		bodies      map[uint8][][]byte
+		errs        map[uint8]error
+		wantErr     error
+		wantDumps   []uint8 // families dumped, in order
+		wantFams    []uint8 // decoded record families, in order
+	}{
+		{
+			description: "positive: an AF_UNSPEC dump that succeeds is returned as-is, no fallback",
+			family:      unix.AF_UNSPEC,
+			bodies:      map[uint8][][]byte{unix.AF_UNSPEC: {unspec, unspec}},
+			wantDumps:   []uint8{unix.AF_UNSPEC},
+			wantFams:    []uint8{unix.AF_UNSPEC, unix.AF_UNSPEC},
+		},
+		{
+			description: "corner: AF_UNSPEC EOPNOTSUPP retries AF_INET then AF_INET6, concatenated in order",
+			family:      unix.AF_UNSPEC,
+			bodies:      map[uint8][][]byte{unix.AF_INET: {v4}, unix.AF_INET6: {v6, v6}},
+			errs:        map[uint8]error{unix.AF_UNSPEC: unix.EOPNOTSUPP},
+			wantDumps:   []uint8{unix.AF_UNSPEC, unix.AF_INET, unix.AF_INET6},
+			wantFams:    []uint8{unix.AF_INET, unix.AF_INET6, unix.AF_INET6},
+		},
+		{
+			description: "positive: an explicit AF_INET6 request is a single dump with no fallback",
+			family:      unix.AF_INET6,
+			bodies:      map[uint8][][]byte{unix.AF_INET6: {v6}},
+			wantDumps:   []uint8{unix.AF_INET6},
+			wantFams:    []uint8{unix.AF_INET6},
+		},
+		{
+			description: "negative: a non-EOPNOTSUPP AF_UNSPEC error propagates, no fallback",
+			family:      unix.AF_UNSPEC,
+			errs:        map[uint8]error{unix.AF_UNSPEC: errSource},
+			wantErr:     errSource,
+			wantDumps:   []uint8{unix.AF_UNSPEC},
+		},
+		{
+			description: "negative: EOPNOTSUPP then an AF_INET re-dump error propagates",
+			family:      unix.AF_UNSPEC,
+			errs:        map[uint8]error{unix.AF_UNSPEC: unix.EOPNOTSUPP, unix.AF_INET: errSource},
+			wantErr:     errSource,
+			wantDumps:   []uint8{unix.AF_UNSPEC, unix.AF_INET},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			f := &netconfFakeSource{bodies: tc.bodies, errs: tc.errs}
+			got, err := newService(f).Netconfs(tc.family)
+			if tc.wantErr != nil {
+				if !errors.Is(err, tc.wantErr) {
+					t.Fatalf("err = %v, want %v", err, tc.wantErr)
+				}
+				if !reflect.DeepEqual(f.dumps, tc.wantDumps) {
+					t.Errorf("dumps = %v, want %v", f.dumps, tc.wantDumps)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Netconfs: %v", err)
+			}
+			if !reflect.DeepEqual(f.dumps, tc.wantDumps) {
+				t.Errorf("dumps = %v, want %v", f.dumps, tc.wantDumps)
+			}
+			fams := make([]uint8, 0, len(got))
+			for i := range got {
+				fams = append(fams, got[i].Family)
+			}
+			if !reflect.DeepEqual(fams, tc.wantFams) {
+				t.Errorf("record families = %v, want %v", fams, tc.wantFams)
+			}
+		})
+	}
+}

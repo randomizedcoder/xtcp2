@@ -123,6 +123,13 @@ func TestLookupObject(t *testing.T) {
 			arg:         "net", wantName: "netns", wantErr: ErrNotImplemented,
 		},
 		{
+			// "netc" outruns netns ("net" is not a prefix of "netc"), so it is the
+			// shortest arg that reaches netconf — and netconf is implemented, so no
+			// ErrNotImplemented.
+			description: "positive: \"netc\" is netconf, which is implemented",
+			arg:         "netc", wantName: "netconf",
+		},
+		{
 			// link precedes l2tp.
 			description: "positive: \"l\" is link, not l2tp",
 			arg:         "l", wantName: "link",

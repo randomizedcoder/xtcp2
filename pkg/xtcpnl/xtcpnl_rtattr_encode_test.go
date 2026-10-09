@@ -995,6 +995,12 @@ func TestFamilyHdrLen(t *testing.T) {
 		{"positive: RTM_NEWRULE is struct fib_rule_hdr, 12", uint16(unix.RTM_NEWRULE), FibRuleHdrSizeCst},
 		{"positive: RTM_DELRULE is struct fib_rule_hdr, 12", uint16(unix.RTM_DELRULE), FibRuleHdrSizeCst},
 
+		// netconf and ntable both answer 4 (struct netconfmsg / struct ndtmsg),
+		// so the msgType arm, not the length, is what disambiguates them.
+		{"positive: RTM_GETNETCONF is struct netconfmsg, 4", uint16(unix.RTM_GETNETCONF), NetconfMsgSizeCst},
+		{"positive: RTM_NEWNETCONF is struct netconfmsg, 4", uint16(unix.RTM_NEWNETCONF), NetconfMsgSizeCst},
+		{"positive: RTM_DELNETCONF is struct netconfmsg, 4", uint16(unix.RTM_DELNETCONF), NetconfMsgSizeCst},
+
 		// 0 and -1 are different answers: a zero-length family header is a real
 		// thing in netlink and must not be confused with "no idea".
 		{"boundary: NLMSG_DONE has no family header, 0", uint16(unix.NLMSG_DONE), 0},

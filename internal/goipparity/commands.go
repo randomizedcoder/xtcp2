@@ -1048,6 +1048,44 @@ var commands = withArgs([]Command{
 		Floor: 4, Implemented: true,
 	},
 
+	{
+		Name: "netconf show", Slug: "netconf_show",
+		// Four, the ntable shape: do_ipnetconf calls ll_init_map
+		// (ip/ipnetconf.c:186) before the netconf dump, so the command is a link
+		// dump then the RTM_GETNETCONF dump — two requests and two NLMSG_DONEs. A
+		// modern kernel answers the AF_UNSPEC dump with every family in one pass;
+		// the old-kernel two-pass fallback is unreachable here (contract-tested in
+		// the service layer, not part of this row).
+		//
+		// REPLAY-GROUNDED, not yet live-grounded, as the ntable rows above:
+		// internal/goip's TestNetconfShowMatchesCapturedSidecars diffs goip
+		// byte-for-byte against the committed ip_netconf sidecar across three
+		// topologies. Ungated until its own live runs earn gating.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "netconf show dev", Slug: "netconf_show_dev",
+		NeedsDev: true,
+		// Four: the ll_init_map link dump then the AF_UNSPEC netconf dump, which
+		// print_netconf filters to the named ifindex client-side
+		// (ip/ipnetconf.c:78-79) — the dev name resolves from the link dump's own
+		// replies, so the selector costs no extra transaction. Byte-grounded
+		// offline against the ip_netconf_dev sidecar.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-4 netconf show dev", Slug: "netconf_show_dev4",
+		NeedsDev: true,
+		// The one genuinely new wire shape in this matrix: with an explicit family
+		// AND an ifindex, do_show takes the point get (ip/ipnetconf.c:188-198) — a
+		// non-dump RTM_GETNETCONF carrying a NETCONFA_IFINDEX attribute, read with
+		// rtnl_talk (NLM_F_REQUEST|ACK, no NLM_F_DUMP), the first
+		// attribute-carrying point get here. Still a link dump first, so the floor
+		// is the ntable shape. Byte-grounded offline against the ip_netconf_dev4
+		// sidecar.
+		Floor: 4, Implemented: true,
+	},
+
 	// The `-j` block.
 	//
 	// # What these rows claim, and what they do not
@@ -1253,6 +1291,24 @@ var commands = withArgs([]Command{
 		//
 		// Offline-grounded by internal/goip's jsonEquivalent row against the
 		// ip_ntable_json sidecar; ungated pending its own live runs.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-j netconf show", Slug: "netconf_show_json",
+		// Four, as `netconf show`: `-j` does not reach the wire, so the request is
+		// byte-identical to the text twin and the floor is inherited (the bundled
+		// link dump is still there).
+		//
+		// No locus is reconciled — the measured calibration in stdout_json_test
+		// fills zero non-lines loci on both sides, so the agreeing axis is the
+		// entry count alone. The device token is the one value that could match,
+		// but the text form prints it as a bare positional word with no `dev`
+		// keyword (unlike ntable's `dev NAME`), so the text extractor ignores it
+		// and the JSON `interface` key is left unmapped to stay symmetric; every
+		// other netconf token is a bare value under a key compared on neither side.
+		//
+		// Offline-grounded by internal/goip's jsonEquivalent row against the
+		// ip_netconf_json sidecar; ungated pending its own live runs.
 		Floor: 4, Implemented: true,
 	},
 })

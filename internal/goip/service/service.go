@@ -3,6 +3,7 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/randomizedcoder/xtcp2/internal/goip/model"
@@ -517,4 +518,114 @@ func (s *Service) NeighTables(family uint8) ([]model.NeighTbl, error) {
 		out[i] = model.NeighTbl(v[i])
 	}
 	return out, nil
+}
+
+// NetconfLinks is ll_init_map's link dump (ip/ipnetconf.c:186), called
+// unconditionally before the netconf transaction, the NeighTableLinks twin. It is
+// split out so obj_netconf can Fill the index cache between the link dump and the
+// netconf dump, which is how NETCONFA_IFINDEX resolves to a name — and how a
+// `dev NAME` selector resolves to an ifindex — with no extra request.
+func (s *Service) NetconfLinks() ([]model.Link, error) {
+	r, err := req.NetconfShowLinkDump(s.nextSeq())
+	if err != nil {
+		return nil, fmt.Errorf("goip: build netconf link dump request: %w", err)
+	}
+	ls, err := decode(s, r, uint16(unix.RTM_NEWLINK), "RTM_NEWLINK", xtcpnl.ParseNewLink)
+	if err != nil {
+		return nil, err
+	}
+	links := make([]model.Link, len(ls))
+	for i := range ls {
+		links[i] = model.Link(ls[i])
+	}
+	return links, nil
+}
+
+// Netconfs is `ip netconf show`'s dump. family is preferred_family: AF_UNSPEC for
+// a bare show, which a modern kernel answers with every family (inet, inet6, and
+// mpls if loaded) in one dump. Like NeighTables it does no sorting — wire order is
+// render order.
+//
+// The two-pass fallback mirrors do_show's goto-dump loop (ip/ipnetconf.c:200-227):
+// a kernel too old to dump AF_UNSPEC answers EOPNOTSUPP, so the request is retried
+// as AF_INET and then AF_INET6 and the results concatenated. That path cannot run
+// on a kernel new enough to dump AF_UNSPEC and is uncapturable here, so it is
+// tested as a contract (a fake error-injecting Source), not claimed as
+// capture-grounded. EOPNOTSUPP matches through the error chain because netlinkErr
+// wraps syscall.Errno and NetlinkSource.Dump wraps it with %w.
+func (s *Service) Netconfs(family uint8) ([]model.Netconf, error) {
+	if family != unix.AF_UNSPEC {
+		return s.netconfDump(family)
+	}
+	out, err := s.netconfDump(unix.AF_UNSPEC)
+	if err == nil {
+		return out, nil
+	}
+	if !errors.Is(err, unix.EOPNOTSUPP) {
+		return nil, err
+	}
+	v4, err := s.netconfDump(unix.AF_INET)
+	if err != nil {
+		return nil, err
+	}
+	v6, err := s.netconfDump(unix.AF_INET6)
+	if err != nil {
+		return nil, err
+	}
+	return append(v4, v6...), nil
+}
+
+func (s *Service) netconfDump(family uint8) ([]model.Netconf, error) {
+	r := req.NetconfShowDump(family, s.nextSeq())
+	v, err := decode(s, r, uint16(unix.RTM_NEWNETCONF), "RTM_NEWNETCONF", xtcpnl.ParseNewNetconf)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.Netconf, len(v))
+	for i := range v {
+		out[i] = model.Netconf(v[i])
+	}
+	return out, nil
+}
+
+// NetconfByIndex is the non-dump RTM_GETNETCONF point get `ip -4 netconf show dev
+// X` sends (ip/ipnetconf.c:188-198). It mirrors NexthopByID's talk-or-fall-back
+// spine: a live source does the kernel single-get, a dump-only replay source (no
+// Talk) dumps every RTM_NEWNETCONF and filters to the ifindex — the committed
+// dev4 pcap records the one reply the capture's point get fetched. The reply's own
+// NETCONFA_IFINDEX is checked against the request.
+func (s *Service) NetconfByIndex(family uint8, ifindex int32) (model.Netconf, error) {
+	r, err := req.NetconfGetByIndex(family, ifindex, s.nextSeq())
+	if err != nil {
+		return model.Netconf{}, fmt.Errorf("goip: build netconf get request: %w", err)
+	}
+	if talk, ok := s.src.(TalkSource); ok {
+		body, terr := talk.Talk(r, uint16(unix.RTM_NEWNETCONF))
+		if terr != nil {
+			return model.Netconf{}, terr
+		}
+		ni, perr := xtcpnl.ParseNewNetconf(body)
+		if perr != nil {
+			return model.Netconf{}, fmt.Errorf("goip: decode RTM_NEWNETCONF: %w", perr)
+		}
+		if !ni.HasIfindex || ni.Ifindex != ifindex {
+			return model.Netconf{}, fmt.Errorf("goip: netconf reply ifindex %d does not match requested %d", ni.Ifindex, ifindex)
+		}
+		return model.Netconf(ni), nil
+	}
+
+	bodies, derr := s.src.Dump(r, uint16(unix.RTM_NEWNETCONF))
+	if derr != nil {
+		return model.Netconf{}, derr
+	}
+	for _, body := range bodies {
+		ni, perr := xtcpnl.ParseNewNetconf(body)
+		if perr != nil {
+			return model.Netconf{}, fmt.Errorf("goip: decode RTM_NEWNETCONF: %w", perr)
+		}
+		if ni.HasIfindex && ni.Ifindex == ifindex {
+			return model.Netconf(ni), nil
+		}
+	}
+	return model.Netconf{}, fmt.Errorf("goip: no netconf record for ifindex %d in the capture", ifindex)
 }

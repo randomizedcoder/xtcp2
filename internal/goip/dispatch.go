@@ -71,7 +71,7 @@ var objects = []object{
 	{name: "mroute"},
 	{name: "mrule"},
 	{name: "netns"},
-	{name: "netconf"},
+	{name: "netconf", run: runNetconf},
 	{name: "vrf"},
 	{name: "sr"},
 	{name: "nexthop", run: runNexthop},

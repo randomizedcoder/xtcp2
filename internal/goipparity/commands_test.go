@@ -181,10 +181,12 @@ func TestCommandTable(t *testing.T) {
 				// one. Either way the driver captures something, the
 				// comparator finds a triple, and the run looks green.
 				want := map[string]bool{
-					"link show dev":  true,
-					"addr show dev":  true,
-					"route show dev": true,
-					"neigh show dev": true,
+					"link show dev":       true,
+					"addr show dev":       true,
+					"route show dev":      true,
+					"neigh show dev":      true,
+					"netconf show dev":    true,
+					"-4 netconf show dev": true,
 				}
 				for _, c := range Commands() {
 					named := strings.HasSuffix(c.Name, " dev")
@@ -629,6 +631,34 @@ func TestFamilyTableAndJSONRows(t *testing.T) {
 			floor:       4,
 			implemented: true,
 		},
+		{
+			description: "positive: netconf show, the ll_init_map link dump then the RTM_GETNETCONF AF_UNSPEC dump — floor 4, the ntable shape — and netconf's first row in this matrix",
+			name:        "netconf show",
+			slug:        "netconf_show",
+			floor:       4,
+			implemented: true,
+		},
+		{
+			description: "positive: netconf show dev, the dump filtered to the named ifindex client-side, the dev resolved from the bundled link dump",
+			name:        "netconf show dev",
+			slug:        "netconf_show_dev",
+			floor:       4,
+			implemented: true,
+		},
+		{
+			description: "positive: -4 netconf show dev, the attribute-carrying point get (NETCONFA_IFINDEX, no NLM_F_DUMP) taken when a family and an ifindex are both set",
+			name:        "-4 netconf show dev",
+			slug:        "netconf_show_dev4",
+			floor:       4,
+			implemented: true,
+		},
+		{
+			description: "positive: -j netconf show, the JSON twin whose only agreeing axis is the entry count; netconf's JSON row in this matrix",
+			name:        "-j netconf show",
+			slug:        "netconf_show_json",
+			floor:       4,
+			implemented: true,
+		},
 	}
 
 	for _, tt := range rows {
@@ -803,10 +833,11 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	// The twelve rows the `-j`/family branch added, plus the two -s sweep
 	// commands whose noise is unresolved and which pkg/nlparity's held-out
 	// negative keeps out of gated_commands on purpose, plus the two nexthop rows,
-	// the three addrlabel rows (show, -6 show, -j show) and the three ntable rows
-	// (show, -s show, -j show) each object's branch adds as its first matrix
-	// entries. Gating any of these is a separate branch, after a measured-clean
-	// live run, and that branch edits this list.
+	// the three addrlabel rows (show, -6 show, -j show), the three ntable rows
+	// (show, -s show, -j show) and the four netconf rows (show, show dev, -4 show
+	// dev, -j show) each object's branch adds as its first matrix entries. Gating
+	// any of these is a separate branch, after a measured-clean live run, and that
+	// branch edits this list.
 	expected := []string{
 		"-s addr show", "-s neigh show",
 		"-0 addr show", "route show table main", "route show table local",
@@ -816,6 +847,7 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 		"nexthop show", "-j nexthop show",
 		"addrlabel show", "-6 addrlabel show", "-j addrlabel show",
 		"ntable show", "-s ntable show", "-j ntable show",
+		"netconf show", "netconf show dev", "-4 netconf show dev", "-j netconf show",
 	}
 
 	tests := []struct {
@@ -823,7 +855,7 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 		check       func(t *testing.T)
 	}{
 		{
-			description: "positive: the ungated set is exactly the twenty-two named rows, so UNGATED_CLEAN counts twenty-two rows and not zero",
+			description: "positive: the ungated set is exactly the twenty-six named rows, so UNGATED_CLEAN counts twenty-six rows and not zero",
 			check: func(t *testing.T) {
 				for _, name := range expected {
 					if !ungated[name] {
