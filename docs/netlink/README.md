@@ -16,6 +16,7 @@ If you are looking for the daemon as a whole, start at the
 | [Netlink parsing comparison](parsing-comparison.md) | The audit: what `pkg/xtcpnl` parses versus `vishvananda/netlink`, message-type and attribute coverage on both sides, the two test strategies, and the prioritised gaps. |
 | [Netlink coverage expansion](coverage-expansion.md) | The roadmap acting on that audit: the read-only constraint, the target subpackage layout, generalising the `nlmon` capture harness to every protocol family, and the eight phases. |
 | [Netlink coverage status](coverage-status.md) | The live tracker: what has actually landed, the measured baseline, each phase's exit criteria, and the **goip ↔ `ip` parity** state — start at [parity at a glance](coverage-status.md#goip--ip-parity-at-a-glance). |
+| [Route write path](route-write-path.md) | The design for goip's first write capability: generating `ip route add/change/replace/del` requests with per-route TCP tuning, to byte-parity with iproute2. Proposed; narrows the read-only invariant below. |
 
 The last three are a chain — the audit finds the gaps, the roadmap decides the
 order, the status document records reality. Read them in that order.
@@ -46,6 +47,12 @@ nix run .#microvm-x86_64-goip-parity      # the live tier; needs /dev/kvm, not r
 
 > **Read-only.** Decode messages, and build dump requests to solicit them.
 > Never create, delete, or set. There is no write path in scope, now or later.
+
+A write path for `ip route` is now *proposed* — see
+[route-write-path.md](route-write-path.md), which narrows this invariant rather
+than deleting it (the read path stays `RTM_GET*`-only and test-enforced, and no
+automated path applies a write to a live kernel). This statement holds until that
+design's Phase 1 lands.
 
 This is what makes a twenty-family surface finite, and it is the main reason
 coverage numbers here are not comparable with `vishvananda/netlink` — that
