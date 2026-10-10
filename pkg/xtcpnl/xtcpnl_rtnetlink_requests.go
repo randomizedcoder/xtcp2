@@ -118,6 +118,48 @@ func BuildDumpLinkRequestExt(family uint8, extMask, seq uint32) ([]byte, error) 
 	return BuildRequest(uint16(unix.RTM_GETLINK), uint16(unix.NLM_F_DUMP), seq, hdr, attrs)
 }
 
+// BuildDumpLinkRequestKind builds the RTM_GETLINK dump `ip vrf show` sends: an
+// AF_UNSPEC dump carrying no IFLA_EXT_MASK but an IFLA_LINKINFO nest whose only
+// entry is IFLA_INFO_KIND = kind. It is rtnl_linkdump_req_filter_fn's AF_UNSPEC
+// path with ipvrf_filter_req as the filter (ip/ipvrf.c:482-499).
+//
+// Two things keep the bytes exact. First, IFLA_INFO_KIND is written with
+// PutBytes, not PutString: iproute2 uses addattr_l(..., strlen(kind)) here, so
+// the payload is len(kind) bytes with NO trailing NUL — "vrf" is three bytes,
+// rta_len 7, padded to 8 — and the NUL that PutString (addattrstrz) would append
+// is a wire difference the parity comparator catches. Second, the kernel does
+// NOT filter the dump by this kind (ip/ipvrf.c:550-552); it returns the full
+// link list and iproute2 filters kind == "vrf" in userspace, so goip does the
+// same on the reply side (see obj_vrf.go).
+func BuildDumpLinkRequestKind(family uint8, kind string, seq uint32) ([]byte, error) {
+	hdr := make([]byte, IfInfomsgSizeCst)
+	hdr[0] = family // ifi_family
+
+	attrs, err := linkInfoKindAttrs(kind)
+	if err != nil {
+		return nil, err
+	}
+	return BuildRequest(uint16(unix.RTM_GETLINK), uint16(unix.NLM_F_DUMP), seq, hdr, attrs)
+}
+
+// linkInfoKindAttrs encodes a one-entry IFLA_LINKINFO nest holding
+// IFLA_INFO_KIND = kind, the filter ipvrf_filter_req appends. The inner
+// attribute is built first and wrapped with PutBytes so the nest is a pre-encoded
+// blob, matching addattr_nest / addattr_nest_end.
+func linkInfoKindAttrs(kind string) ([]byte, error) {
+	var innerRaw [reqAttrBufCst]byte
+	inner := NewAttrBuilder(innerRaw[:])
+	if err := inner.PutBytes(uint16(unix.IFLA_INFO_KIND), []byte(kind)); err != nil {
+		return nil, err
+	}
+	var outerRaw [reqAttrBufCst]byte
+	outer := NewAttrBuilder(outerRaw[:])
+	if err := outer.PutBytes(uint16(unix.IFLA_LINKINFO), inner.Bytes()); err != nil {
+		return nil, err
+	}
+	return outer.Bytes(), nil
+}
+
 // BuildGetLinkByIndexRequest builds a single-get RTM_GETLINK for one interface
 // index: NLM_F_REQUEST with no NLM_F_DUMP, ifi_index set, and IFLA_EXT_MASK.
 //

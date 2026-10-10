@@ -709,6 +709,20 @@ func TestFamilyTableAndJSONRows(t *testing.T) {
 			floor:       4,
 			implemented: true,
 		},
+		{
+			description: "positive: vrf show, the filtered link dump (IFLA_LINKINFO/INFO_KIND vrf), floor 2 with no ll_init_map side transaction",
+			name:        "vrf show",
+			slug:        "vrf_show",
+			floor:       2,
+			implemented: true,
+		},
+		{
+			description: "positive: -j vrf show, the flat {name,table} array, request byte-identical to the text twin so the floor is inherited",
+			name:        "-j vrf show",
+			slug:        "vrf_show_json",
+			floor:       2,
+			implemented: true,
+		},
 	}
 
 	for _, tt := range rows {
@@ -831,6 +845,12 @@ func TestFamilyTableAndJSONRows(t *testing.T) {
 			twin:        "ntable show",
 			equal:       true,
 		},
+		{
+			description: "positive: -j vrf show sends what vrf show sends — vrf's text and JSON rows share the one filtered link dump, differing only in the renderer",
+			row:         "-j vrf show",
+			twin:        "vrf show",
+			equal:       true,
+		},
 	}
 
 	for _, tt := range twins {
@@ -886,9 +906,10 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	// the three addrlabel rows (show, -6 show, -j show), the three ntable rows
 	// (show, -s show, -j show), the four netconf rows (show, show dev, -4 show
 	// dev, -j show), the four stats link rows (show, -s show, show dev, -j show)
-	// and the three stats xstats rows (show, -s show, -j show) each object's branch
-	// adds as its first matrix entries. Gating any of these is a separate branch,
-	// after a measured-clean live run, and that branch edits this list.
+	// and the three stats xstats rows (show, -s show, -j show), plus the two vrf
+	// rows (show, -j show) each object's branch adds as its first matrix entries.
+	// Gating any of these is a separate branch, after a measured-clean live run,
+	// and that branch edits this list.
 	expected := []string{
 		"-s addr show", "-s neigh show",
 		"-0 addr show", "route show table main", "route show table local",
@@ -903,6 +924,7 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 		"stats show group link dev", "-j stats show group link",
 		"stats show group xstats", "-s stats show group xstats",
 		"-j stats show group xstats",
+		"vrf show", "-j vrf show",
 	}
 
 	tests := []struct {
@@ -910,7 +932,7 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 		check       func(t *testing.T)
 	}{
 		{
-			description: "positive: the ungated set is exactly the thirty-three named rows, so UNGATED_CLEAN counts thirty-three rows and not zero",
+			description: "positive: the ungated set is exactly the thirty-five named rows, so UNGATED_CLEAN counts thirty-five rows and not zero",
 			check: func(t *testing.T) {
 				for _, name := range expected {
 					if !ungated[name] {

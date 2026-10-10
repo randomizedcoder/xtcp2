@@ -2,7 +2,7 @@
 
 ## goip ↔ `ip` parity at a glance
 
-Counted from the tree on 2026-10-09. Every number has a file behind it, named
+Counted from the tree on 2026-10-10. Every number has a file behind it, named
 in the last column; **if this table and the file disagree, the file is right
 and this table is stale.** That has happened before in this document — see the
 "no route command is in `gated_commands`" line that outlived its own truth by
@@ -10,14 +10,14 @@ several steps, further down under [Remaining](#remaining).
 
 | | count | counted from |
 |---|---|---|
-| commands in the comparison matrix | **60** | `internal/goipparity/commands.go` |
-| of those, `Implemented: true` | **60** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
+| commands in the comparison matrix | **62** | `internal/goipparity/commands.go` |
+| of those, `Implemented: true` | **62** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
 | of those, in `gated_commands` | **27** | `pkg/nlparity/goip-parity-allowlist.json` |
 | allowlisted divergences | **7** | same file, `entries` |
 | of those, `kind=version-skew` | **7** | all against the pinned `ip` 7.1.0 |
 | of those, `kind=accepted-divergence` | **0** | nothing is divergent on purpose and permanently |
 
-**Thirty-three** matrix rows sit outside `gated_commands`, and they fall into eight
+**Thirty-five** matrix rows sit outside `gated_commands`, and they fall into nine
 groups that are out for unrelated reasons.
 
 **Twelve are new and not yet gated**: six family and table selectors and six
@@ -128,6 +128,26 @@ byte-for-byte (plain and `-s`, which equals plain — the bridge bodies have no
 `ip_stats_xstats`/`_s`/`_json` sidecars in all three topologies. No measured live
 run backs them yet, so they go in ungated until their own runs earn gating.
 
+**Two are vrf's first matrix rows**: `vrf show` and `-j vrf show`, the eleventh
+grounded object. The request is the first in the corpus that **filters a link
+dump by linkinfo kind**: `RTM_GETLINK`, `AF_UNSPEC`, one `IFLA_LINKINFO` nest
+holding `IFLA_INFO_KIND = "vrf"` (three bytes, no NUL — `addattr_l` with
+`strlen`, so a new `BuildDumpLinkRequestKind`) and no `IFLA_EXT_MASK`. The kernel
+does not honor the kind filter, so the reply is a full link dump and goip filters
+`kind=="vrf"` client-side exactly as `ipvrf_print` does (`ip/ipvrf.c:516-578`). No
+new decoder: the `IFLA_VRF_TABLE` body was already decoded for the `-d link show`
+descent, so this is the first **reuse of the link decoder under a different
+object**. They are **replay-grounded, not yet live-grounded**:
+`TestVrfShowMatchesCapturedSidecars` diffs `goip` byte-for-byte (text) and
+structurally (`-j`) against the committed `ip_vrf`/`ip_vrf_json` sidecars in all
+three topologies — base carries `goipvrf` (table 100), mesh and tunnel are the
+empty "No VRF has been configured" form (`[]` in JSON). `vrf show NAME` (the
+`ipvrf_get_table` single-lookup path), the family selectors `-4`/`-6` (they change
+the dump family to a minimal `inet6_dump_ifinfo` whose replies carry no
+`IFLA_LINKINFO`) and the `identify`/`pids`/`exec` subcommands (not read-only
+netlink queries) are refused with a rationale. No measured live run backs them
+yet, so they go in ungated until their own runs earn gating.
+
 **The rest of the nexthop read surface and VRF link-detail are implemented but
 are not matrix rows, so they do not move the counts above.** `nexthop show id N`,
 the other five `nexthop show` selectors — `dev`, `master`, `vrf`, `groups`,
@@ -163,9 +183,9 @@ These are the boundaries of the exercise, not a backlog:
   write verb with `goip is read-only: ErrNotImplemented` rather than treating
   it as unknown, because the harness drives both tools with the same argv and
   needs "not got there yet" to be distinguishable from "typo".
-- **Ten objects.** `address`, `route`, `rule`, `neigh`/`neighbour`, `link`,
-  `nexthop`, `addrlabel`, `ntable`/`ntbl`, `netconf` and `stats` have a `run`
-  function; the other twenty-one rows of
+- **Eleven objects.** `address`, `route`, `rule`, `neigh`/`neighbour`, `link`,
+  `nexthop`, `addrlabel`, `ntable`/`ntbl`, `netconf`, `stats` and `vrf` have a
+  `run` function; the other twenty rows of
   `internal/goip`'s copy of iproute2's `cmds[]` are present with no `run`
   **on purpose**. Matching is
   unanchored-prefix and first-match-wins, so deleting the unimplemented rows
@@ -207,7 +227,7 @@ no `monitor` verb. `RTM_NEWRULE` is decoded for dumps but is not even an event.
 
 | body struct | kernel header | RTM types | decoder | goip | matrix rows |
 |---|---|---|---|---|---|
-| `ifinfomsg` | `rtnetlink.h` | `RTM_{NEW,DEL,GET}LINK` | `ParseNewLink`, `xtcpnl_ifinfomsg.go:589` | `render/link.go` | **8** |
+| `ifinfomsg` | `rtnetlink.h` | `RTM_{NEW,DEL,GET}LINK` | `ParseNewLink`, `xtcpnl_ifinfomsg.go:589` | `render/link.go`, `render/vrf.go` | **10** |
 | `ifaddrmsg` | `if_addr.h` | `RTM_{NEW,DEL,GET}ADDR` | `ParseNewAddr`, `xtcpnl_ifaddrmsg.go:212` | `render/addr.go` | **9** |
 | `rtmsg` | `rtnetlink.h` | `RTM_{NEW,DEL,GET}ROUTE` | `ParseNewRoute`, `xtcpnl_rtmsg.go:140` | `render/route.go` | **10** |
 | `ndmsg` | `neighbour.h` | `RTM_{NEW,DEL,GET}NEIGH` | `ParseNeigh`, `xtcpnl_ndmsg.go:244` | `render/neigh.go` | **8** |
@@ -224,20 +244,25 @@ under `internal/goip/`; the prefixes are dropped so the columns stay readable.
 `neighbour.h` keeps the kernel's own spelling for the same reason the comments
 in `xtcpnl_ndmsg.go` do — `neighbor.h` does not exist in the tree.
 
-60 rows, which is the matrix total — every row in the comparison matrix lands
-on one of these ten, and every one of these ten is compared live.
-`if_stats_msg`'s seven rows are the newest (four `group link` and three `group
-xstats`), with `netconfmsg`'s four and `ndtmsg`'s three just before them: all ten
-are in the matrix and replay-grounded (see the glance above), awaiting their first
-measured live run before gating.
+62 rows, which is the matrix total — every row in the comparison matrix lands
+on one of these ten, and every one of these ten is compared live. `vrf`'s two
+rows are the newest and the first to **reuse a body layout under a second
+object**: `ip vrf show` is a filtered `ifinfomsg`/`RTM_GETLINK` dump rendered by
+`render/vrf.go`, so it joins the `ifinfomsg` row without a new decoder.
+`if_stats_msg`'s seven rows (four `group link` and three `group xstats`), with
+`netconfmsg`'s four and `ndtmsg`'s three, come just before: all are in the matrix
+and replay-grounded (see the glance above), awaiting their first measured live run
+before gating.
 
 **The request side is narrower than the decode side, on purpose.** Only ten
 message types are ever *built*: `RTM_GETLINK`, `RTM_GETADDR`, `RTM_GETROUTE`,
 `RTM_GETNEIGH`, `RTM_GETRULE`, `RTM_GETNEXTHOP`, `RTM_GETADDRLABEL`,
 `RTM_GETNEIGHTBL`, `RTM_GETNETCONF`, `RTM_GETSTATS`, from the
-eighteen builders in `xtcpnl_rtnetlink_requests.go` (`RTM_GETNEXTHOP` has three —
-a dump, a wire-filtered dump, and a by-id get — and `RTM_GETNETCONF` and
-`RTM_GETSTATS` each have two, a dump and a by-ifindex point get). That is not a
+nineteen builders in `xtcpnl_rtnetlink_requests.go` (`RTM_GETNEXTHOP` has three —
+a dump, a wire-filtered dump, and a by-id get — `RTM_GETNETCONF` and
+`RTM_GETSTATS` each have two, a dump and a by-ifindex point get, and `RTM_GETLINK`
+now carries `BuildDumpLinkRequestKind`, the kind-filtered dump `ip vrf show` sends,
+alongside its ext-mask dump and three single-gets). That is not a
 coincidence of scope — the
 encoder rejects a non-GET type with `ErrNotAGetRequest`, so the read-only
 invariant is executable rather than a convention. `RTM_NEWNEIGH` appears in
@@ -256,8 +281,11 @@ that file only in a comment about what a solicited reply carries.
 Three of the five are `tc`/`bridge` territory and are outside the exercise
 entirely rather than pending. The other two (`prefixmsg`, `nduseroptmsg`) are
 reachable only through `ip monitor`, the one object class goip does not
-implement — both are event-only layouts with no `show` path. With `stats` done,
-**no read-only object remains**: the backlog is closed.
+implement — both are event-only layouts with no `show` path. **No read-only object
+needs a new body-layout decoder**: `vrf`, the eleventh object, landed after `stats`
+by *reusing* the `ifinfomsg` decoder (`ip vrf show` is a filtered link dump), which
+confirms rather than reopens the point — the decoder backlog is closed even as the
+object count grows.
 
 **`ifaddrlblmsg` used to sit in this table and no longer belongs in it.** It is
 decoded in `xtcpnl_ifaddrlblmsg.go` (`ParseNewAddrLabel`, the `ifaddrlblmsg`

@@ -227,6 +227,14 @@ const (
 	tdDumpGetRule_7_1_4  = tdDumps_7_1_4 + "/netlink_route_getrule.pcap"
 	tdDumpGetRule6_7_1_4 = tdDumps_7_1_4 + "/netlink_route_getrule6.pcap"
 
+	// `ip vrf show`. A filtered link dump: RTM_GETLINK with ifi_family AF_UNSPEC
+	// carrying one IFLA_LINKINFO nest holding IFLA_INFO_KIND = "vrf" and NO
+	// IFLA_EXT_MASK (ip/ipvrf.c:482-499, ipvrf_filter_req). The kind payload is
+	// three bytes with no NUL (addattr_l with strlen), the one shape in the
+	// corpus whose request filters a link dump by linkinfo kind. The kernel does
+	// not honor the filter, so the reply is a full link dump.
+	tdDumpGetVrf_7_1_4 = tdDumps_7_1_4 + "/netlink_route_getvrf.pcap"
+
 	// Sidecars for the dump set: the source of truth its expectations cite.
 	tdDumpIPLink_7_1_4   = tdDumps_7_1_4 + "/ip_link_n"
 	tdDumpIPAddr_7_1_4   = tdDumps_7_1_4 + "/ip_addr_n"

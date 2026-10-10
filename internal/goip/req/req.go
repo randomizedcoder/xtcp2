@@ -100,6 +100,17 @@ func LinkShowDump(extMask, seq uint32) ([]byte, error) {
 	return xtcpnl.BuildDumpLinkRequestExt(unix.AF_PACKET, extMask, seq)
 }
 
+// VrfShowDump is `ip vrf show`'s only request, ip_link_list with the
+// ipvrf_filter_req filter (ip/ipvrf.c:580-602): an AF_UNSPEC RTM_GETLINK dump
+// carrying no IFLA_EXT_MASK but an IFLA_LINKINFO nest holding IFLA_INFO_KIND =
+// "vrf". The family is AF_UNSPEC because `ip vrf show` leaves preferred_family
+// unset; -4/-6 would change the dump shape and are refused in obj_vrf.go. The
+// kernel does not honor the kind filter, so the reply is a full link dump and the
+// kind == "vrf" filter is applied client-side (see obj_vrf.go).
+func VrfShowDump(seq uint32) ([]byte, error) {
+	return xtcpnl.BuildDumpLinkRequestKind(unix.AF_UNSPEC, "vrf", seq)
+}
+
 // AddrShowLinkDump builds the FIRST of the two requests `ip addr show` sends:
 // the link dump, whose replies supply the stanza line every address is printed
 // under.

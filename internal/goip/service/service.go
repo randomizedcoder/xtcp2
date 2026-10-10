@@ -70,6 +70,29 @@ func (s *Service) Links(extMask uint32) ([]model.Link, error) {
 	return out, nil
 }
 
+// Vrfs runs `ip vrf show`'s dump: the kind-filtered RTM_GETLINK (req.VrfShowDump).
+// The kernel ignores the kind filter and answers with the full link list, so this
+// returns every decoded link in dump order; the caller selects the VRF devices
+// (Kind == "vrf"), exactly as ipvrf_print filters client-side.
+func (s *Service) Vrfs() ([]model.Link, error) {
+	r, err := req.VrfShowDump(s.nextSeq())
+	if err != nil {
+		return nil, fmt.Errorf("goip: build vrf dump request: %w", err)
+	}
+	v, err := decode(s, r, uint16(unix.RTM_NEWLINK), "RTM_NEWLINK", xtcpnl.ParseNewLink)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.Link, len(v))
+	for i := range v {
+		out[i] = model.Link(v[i])
+	}
+	// ipvrf_show prints in dump order; a kernel dump is already ifindex-ordered
+	// and SortLinks only normalizes a reordered replay, matching Links.
+	model.SortLinks(out)
+	return out, nil
+}
+
 // linkFromGet is the body every single-get link accessor shares: send the
 // caller's request over Talk when the source can do single-gets, otherwise fall
 // back to one dump plus exact filtering, and hold both answers to the same

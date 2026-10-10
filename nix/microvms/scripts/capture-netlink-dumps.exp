@@ -314,6 +314,15 @@ proc capture_set {ns subdir dev} {
     # one object per leaf per device; both replay netlink_route_getstats_xstats.pcap.
     capio $ns $subdir netlink_route_getstats_xstats 4 "ip stats show group xstats"     ip_stats_xstats
 
+    # `ip vrf show` is a kind-filtered link dump: an AF_UNSPEC RTM_GETLINK carrying
+    # an IFLA_LINKINFO{IFLA_INFO_KIND:"vrf"} nest and no IFLA_EXT_MASK. The kernel
+    # ignores the kind filter, so the reply is the full link list and iproute2
+    # filters kind=="vrf" client-side; the base topology's goipvrf is the only VRF,
+    # so base prints one row and mesh/tunnel print "No VRF has been configured".
+    # Floor 2 (one request, replies) - vrf does not ll_init_map, so not floor 4.
+    # ip_vrf_json replays this pcap; -j never reaches the wire.
+    capio $ns $subdir netlink_route_getvrf 2 "ip vrf show" ip_vrf
+
     # Closes the corpus's last outright gap: there was no RTM_GETNEIGH dump
     # anywhere, only a notifications pcap.
     cap $ns $subdir netlink_route_getneigh 4 "ip neigh show"
@@ -575,6 +584,10 @@ proc sidecar_set {ns subdir dev} {
     # both replay netlink_route_getstats_xstats.pcap, as -s/-j never reach the wire.
     side $ns $subdir ip_stats_xstats_s      "ip -s stats show group xstats"
     side $ns $subdir ip_stats_xstats_json   "ip -j -p stats show group xstats"
+    # vrf JSON replays netlink_route_getvrf.pcap; -j does not reach the wire, so a
+    # `-j -p` run matches the capio'd text listing (a flat array of {name,table},
+    # or [] where no VRF exists).
+    side $ns $subdir ip_vrf_json            "ip -j -p vrf show"
     side $ns $subdir ip_neigh               "ip neigh show"
     side $ns $subdir ip_neigh_n             "ip -d neigh show"
     side $ns $subdir ip_link_dev            "ip link show dev $dev"
