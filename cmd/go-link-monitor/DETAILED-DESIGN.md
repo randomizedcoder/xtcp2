@@ -203,6 +203,36 @@ to that same namespace. This API does not promise automatic traversal or a
 per-namespace monitor factory. Those would require explicit namespace handles
 and lifecycle design in a later extension.
 
+### Embedding compatibility contract
+
+The compiling `ExampleNewCollector` in
+[`pkg/linkmonitor/prometheus/example_test.go`](../../pkg/linkmonitor/prometheus/example_test.go)
+shows the host wiring. Use one collector registration per monitor registry.
+`NewCollector` is an unchecked Prometheus collector because future protocol
+field names cannot be enumerated at registration. A successful `Register` is
+therefore not proof of collision freedom: check errors on every `Gather` and
+configure HTTP exposition with `HTTPErrorOnError`. A newly published dynamic
+family can conflict after earlier successful scrapes. Compatible families with
+distinct label sets are allowed; duplicate series and inconsistent help/types
+are errors. Unchecked collectors cannot be removed by normal `Unregister`;
+replace the affected registry when replacing its monitor rather than registering
+another monitor into the old registry.
+
+The host owns logger, context, registry, signal handling and HTTP lifetime.
+Canceling a monitor does not stop the host server; its last snapshot remains
+scrapable with stopped health. Join `Run`, report any cleanup error, and do not
+discard joined errors merely because they contain `context.Canceled`. Actual
+xtcp2 runtime wiring remains D01: the compatibility test initializes only its
+existing metric subsystem with a private registry.
+
+P08-T03 uses separate deterministic and disposable Linux gates, documented in
+[VALIDATION.md](VALIDATION.md). The guest starts fresh network/mount/PID
+namespaces and matching procfs/sysfs before constructing the monitor. Real
+veth devices must remain excluded under production classification. A test-only
+inventory decorator admits named fixture links for lifecycle assertions while
+retaining real route transactions and event subscriptions. This is transport
+and embedding evidence, not physical Ethernet or RDMA validation.
+
 ## 3. Existing library functions and required additions
 
 The repository currently targets little-endian Linux amd64/arm64 in these

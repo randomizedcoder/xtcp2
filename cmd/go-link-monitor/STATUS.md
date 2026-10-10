@@ -2,8 +2,8 @@
 
 Last updated: 2026-10-09.
 
-**P01–P07 and P08-T01/T02 are complete: 25 of 34 implementation tasks passed their gates.**
-Next task: [P08-T03](IMPLEMENTATION-PLAN.md#p08-t03), embedding compatibility and integration.
+**P01–P08 are complete: 26 of 34 implementation tasks passed their gates.**
+Next task: [P09-T01](IMPLEMENTATION-PLAN.md#p09-t01), benchmark harness and baseline.
 P07-T04 connects the live library and validates its pinned RDMA runtime with a
 software harness. P08-T02 now validates the final standalone full/core artifacts.
 The software-RDMA guest builds, but execution is unverified
@@ -30,7 +30,10 @@ now serves cached metrics, health/readiness and build identity, with documented
 CLI/environment precedence, signal controls and bounded HTTP/joined shutdown.
 Full-RDMA and explicit core-only executables are available as pinned Nix packages.
 The reusable Prometheus adapter now exposes immutable source samples, policy
-and diagnostics through caller-owned registries. Remaining netclass metadata
+and diagnostics through caller-owned registries. P08-T03 verifies embedding
+with actual xtcp collectors, caller-owned lifecycle/HTTP/logging/signals and
+dynamic collision handling. Core and RDMA builds pass disposable Linux
+integration under explicit QEMU TCG emulation. Remaining netclass metadata
 collection is an explicit follow-up before claiming full v1 metric coverage.
 
 This is the live tracker for [IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md).
@@ -49,11 +52,91 @@ no claim of negligible cgo overhead is made.
 
 ## Current evidence and readiness
 
-P08-T02 is complete on `feat/linkmonitor-standalone`, based on main
-`3d6a9ed`. [PR #177](https://github.com/randomizedcoder/xtcp2/pull/177) includes
-the preserved P07-T04 and P08-T01 work and is open for review.
-CLI/HTTP wiring and full/core executable packages pass the final thirteen-gate
-aggregate and three Nix policy checks. Netclass coverage and release gates remain open.
+V058 — P08-T03 acceptance (2026-10-09): embedding compatibility is complete.
+The fourteen-gate aggregate and three Nix policies pass. Core unit/race each
+report 3,466 passing tests/subtests; tagged unit/race each report 1,532. The
+embedding gate passes all 682 xtcp tests/subtests and 270 repeated embedding/
+lifecycle race cases per core/RDMA build. These reports contain no failures or
+skips. All 40 replay combinations and the existing decoder/RDMA fuzz gates pass.
+Tables cover positive, negative, boundary and corner cases with descriptions and
+expected outcomes. No production APIs, runtime wiring, lint policies, exclusions,
+fixtures or dependency pins changed.
+
+The corrected disposable guest passes both core and RDMA variants with
+`--accel=tcg`, including production virtual-device exclusion, test-only eligible
+inventory, real route up/down/rename/removal/recreation, one discarded event and
+periodic recovery, baseline lock/restart, and host HTTP/signal/logger/registry
+ownership. All twelve guest tests/subtests pass without skips; the runner exits
+zero after guest poweroff. Invalid accelerator/extra arguments both exit two.
+Guest kernel: pinned Linux 6.18.39; Go 1.26.5; QEMU 11.0.2. This proves software
+integration, not physical Ethernet/RoCE/InfiniBand behavior or performance.
+
+Retained evidence:
+
+- Aggregate: `/nix/store/llrcljxq5piv823m31vbynv8fxgn23b4-xtcp2-test-linkmonitor`;
+  invocation/log: `/tmp/linkmonitor-embedding-final.log`.
+- Corrected embedding gate: `/nix/store/lpi9zzc6xvrfm91d06sn4g2wi266if4n-xtcp2-test-linkmonitor-embedding`.
+- VM runner: `/nix/store/95gyw37ic6qsw5r2cic11i7ssm42xs87-test-linkmonitor-embedding-vm`;
+  build log: `/tmp/linkmonitor-embedding-guest-final.log`.
+- TCG execution: `/tmp/linkmonitor-embedding-TZCs42/serial.log`, with artifact,
+  guest and QEMU-option records in that directory; runner log:
+  `/tmp/linkmonitor-embedding-vm-completion.log`.
+- Corrected guest Nix policies: `/nix/store/ni4vz55b272pvz3ajgjr8nrjvg7l7lpi-xtcp2-nix-fmt`,
+  `/nix/store/ns3vrdcmg16admpfsqfas6mig4sp0dgj-xtcp2-deadnix`,
+  `/nix/store/8qyvwgxc7wa4vzd16y2068hmyjl3fl9j-xtcp2-statix`.
+- Final source: `/nix/store/0rmn84ls9milk5aclgs1cbfk2n86y62j-2pkfsfb19xwkdnrvis8ivxqn24yk1cpa-source`.
+  Working-tree Go/C/header sources match the passing aggregate byte-for-byte;
+  Go/C/header/Nix sources match the corrected guest build. After the aggregate,
+  only guest loopback setup and documentation changed; the guest/embedding gate
+  and all three Nix policies were rerun for that correction. Completion docs
+  are checked separately with the pinned documentation checker and regressions.
+
+P08 is 3/3 complete; overall 26/34. Next P09-T01. Actual xtcp2 runtime enablement
+remains D01; netclass coverage, prior software-RDMA guest execution, physical
+validation, cgo/performance measurement and io_uring follow-ups remain open.
+
+V057 — P08-T03 development verification (2026-10-09): embedding implementation
+was in progress, based on merged PR177. Added actual xtcp metric coexistence,
+late dynamic/fixed collision tests, a compiling host example, independent
+lifecycles, blocked-inventory scrapes and an isolated host ownership test.
+Pinned local embedding races pass, including real netlink/HTTP; repeated
+blocked-inventory races pass. Initial Nix embedding output
+`/nix/store/8yzz3mmqlxm821capsz4hsfahvgm1b35-xtcp2-test-linkmonitor-embedding`
+passed the earlier compatibility suite and comprehensive lint. It predates
+the final host/barrier tests and strengthened guest assertions and is not final
+acceptance evidence. Guest evaluation exposed a redundant store mount; the
+guest build caught shell quoting, both fixed without suppressions. Full updated
+fourteen-gate and disposable guest verification are pending. Development logs:
+`/tmp/linkmonitor-embedding-build.log`, `/tmp/linkmonitor-embedding-host.log`,
+`/tmp/linkmonitor-embedding-blocked.log`, `/tmp/linkmonitor-embedding-lint.log`.
+The xtcp test uses its existing `-checklinkname=0` linker convention for giouring;
+the monitor-only code does not require it. No runtime integration or physical
+device validation is claimed.
+
+Development guest execution also passed for both core and RDMA builds using
+`/nix/store/rlnx9wgnxf4wlw7anmjsim51sqyww790-test-linkmonitor-embedding-vm`
+with `--accel=auto`; retained serial evidence is
+`/tmp/linkmonitor-embedding-rjVmNf/serial.log`. Final verification additionally
+preserves the production RDMA inventory/statistics query paths in the test
+decorator, checks the host's signal handler during and after monitoring, checks
+default HTTP routes, populates all xtcp metric kinds, and executes the public
+HTTP host test inside the guest. An explicit TCG run remains required for final
+acceptance; this development run does not close P08-T03.
+
+The strengthened TCG run (`/tmp/linkmonitor-embedding-7sQGKh/serial.log`)
+passed real-link integration, including the unchanged production RDMA inventory
+path, then correctly failed the host HTTP test because fresh namespaces start
+with loopback down. The namespace launcher now explicitly brings `lo` up before
+running tests. This changes only the disposable guest setup; no Go implementation
+or test assertions were relaxed. Rebuilt guest execution and Nix policy checks
+are pending for that correction.
+
+P07-T04 and P08-T01/T02 are merged through
+[PR #177](https://github.com/randomizedcoder/xtcp2/pull/177), merge commit
+`96d29fb770342fb26f306d2fdae30b9352eccea6`. The isolated checkout is based on
+that merged main revision; V058 closes P08-T03 with executed TCG guest evidence.
+CLI/HTTP wiring, full/core packages and embedding pass the expanded fourteen-gate
+aggregate. Netclass coverage and release gates remain open.
 
 V055 — P08-T02 development verification (2026-10-09): sandboxed loopback
 tests initially failed with EPERM; unrestricted tests exposed a supervisor
@@ -155,7 +238,7 @@ integration remains deferred under D01.
 | P05 | Scheduling and reconciliation | done | 3/3 | V028/V030/V033 close scheduling, convergence and injected lifecycle |
 | P06 | Ethernet and host collectors | done | 4/4 | V035 closes traffic/carrier; V039 closes identity/settings/channels/rings; V041 closes driver/PHY; V043 closes host protocol statistics |
 | P07 | RDMA collection and builds | done | 4/4 | V052 closes live library/runtime gates; software-RDMA guest builds, KVM execution unavailable; standalone command artifact acceptance is P08-T02 |
-| P08 | Exporter and standalone command | in progress | 2/3 | V054 closes the adapter; V056 closes command/HTTP and artifacts; embedding compatibility remains |
+| P08 | Exporter and standalone command | done | 3/3 | V054 adapter; V056 command/artifacts; V058 embedding compatibility and executed core/RDMA TCG integration |
 | P09 | Performance baseline | not started | 0/2 | None |
 | P10 | Optional io_uring | not started | 0/3 | None |
 | P11 | Release verification | not started | 0/3 | None |
@@ -192,7 +275,7 @@ plan, not copied here. Add verification IDs to the evidence column as work runs.
 | [x] | [P07-T04](IMPLEMENTATION-PLAN.md#p07-t04) | Full RDMA build and dependencies | done | V052; production poller wiring, four build combinations, clean library/provider closure, permission/availability diagnostics, twelve offline gates and three Nix policies pass; opt-in guest builds, execution unverified |
 | [x] | [P08-T01](IMPLEMENTATION-PLAN.md#p08-t01) | Prometheus adapter | done | V054; immutable diagnostics/catalogs, exact source exposition, expiry/schema/label/numeric/concurrency tables, all twelve pinned gates and three Nix policies pass |
 | [x] | [P08-T02](IMPLEMENTATION-PLAN.md#p08-t02) | Thin command and HTTP lifecycle | done | V055–V056: CLI/HTTP, signals, race/limits, full/core artifacts and thirteen-gate aggregate |
-| [ ] | [P08-T03](IMPLEMENTATION-PLAN.md#p08-t03) | Embedding compatibility and integration | not started | None |
+| [x] | [P08-T03](IMPLEMENTATION-PLAN.md#p08-t03) | Embedding compatibility and integration | done | V058: xtcp coexistence, lifecycle/registry ownership, collision tables, fourteen-gate aggregate and executed core/RDMA TCG guest |
 | [ ] | [P09-T01](IMPLEMENTATION-PLAN.md#p09-t01) | Benchmark harness and baseline | not started | None |
 | [ ] | [P09-T02](IMPLEMENTATION-PLAN.md#p09-t02) | Profiles, soak and remediation | not started | None |
 | [ ] | [P10-T01](IMPLEMENTATION-PLAN.md#p10-t01) | Ring wrapper prerequisites | not started | None |
@@ -905,6 +988,8 @@ owners, deadlines or successful outcomes. Continue independent ready tasks.
 | 2026-10-09 | Completed P08-T01 alongside preserved P07-T04 work: caller-owned Prometheus adapter, immutable diagnostics and descriptor catalogs, schema validation, explicit Gather/race/boundary tables and retained benchmarks. Recorded missing netclass source projections as a follow-up before standalone release. | V053–V054; twelve monitor gates and three Nix policies pass. 24/34 tasks complete; P08 at 1/3. Next P08-T02; changes uncommitted, no push or PR |
 | 2026-10-09 | Completed P08-T02 on a fresh branch based on main, preserving P07-T04/P08-T01: thin command, private registry/HTTP lifecycle, flags/env, signals, bounded scrapes/draining and pinned full/core artifacts. Added explicit test tables, real subprocess tests and a thirteenth run-all gate. Preparing one combined PR using randomizedcoder as requested. | V055–V056; all thirteen monitor gates and three Nix policies pass. 25/34 complete; P08 at 2/3. Next P08-T03; netclass/KVM/physical/performance follow-ups retained |
 | 2026-10-09 | Committed and pushed the combined library/exporter, command/artifact and comment fixes; opened [PR #177](https://github.com/randomizedcoder/xtcp2/pull/177) using the randomizedcoder profile. No merge performed. | V056 remains the implementation evidence; only completion/publication documentation changed afterward. Next P08-T03 |
+| 2026-10-09 | Confirmed PR #177 merged as `96d29fb770342fb26f306d2fdae30b9352eccea6` and moved the isolated checkout to merged main. Recorded the merge locally for the next increment. | 25/34 complete; next P08-T03, embedding compatibility and integration. No new implementation or hardware validation claimed |
+| 2026-10-09 | Completed P08-T03: actual xtcp collector coexistence, compiling embedding example, explicit collision/lifecycle tables, host ownership tests and repeatable KVM/TCG guest. Corrected loopback setup after the TCG HTTP test exposed it; retained the failed and successful evidence. | V057–V058; all fourteen monitor gates, three Nix policies and both corrected TCG guest variants pass. P08 3/3, overall 26/34; next P09-T01. D01 and existing release/performance follow-ups remain open |
 
 Established design decisions: public reusable pkg/linkmonitor; small standalone
 command; RDMA required in v1; all statistic fields selected by default; cached

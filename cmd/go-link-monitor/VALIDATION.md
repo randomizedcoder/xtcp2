@@ -4,7 +4,8 @@ P08-T02 adds the standalone command to core/tagged tests, races, vet, lint and
 formatting. `test-linkmonitor-command` runs the exact pinned full/core executables
 in a clean environment, verifies their ELF dependencies, exercises HTTP host
 metrics, SIGUSR1, termination and restart, and covers four RDMA-tag/cgo builds.
-The aggregate now contains thirteen gates. Table-driven command tests cover
+P08-T03 adds embedding compatibility; the aggregate now contains fourteen gates.
+Table-driven command and embedding tests cover
 positive, negative, boundary and corner cases with descriptions and expected outcomes.
 
 P08-T01 adds Prometheus Gather tables and concurrent publication/scrape tests to
@@ -44,6 +45,23 @@ successful derivation for the same inputs.
 | `test-linkmonitor-fuzz` | Three 30-second sessions, two workers each: `FuzzParseEthtool`, `FuzzWalkNetlinkEnvelopes`, `FuzzParseMonitorLink`; separate logs |
 | `test-linkmonitor-docs` | Local links/anchors, whitespace, alert metric references, plan/checklist IDs, checkbox states, phase totals and headline count; checker regression tests |
 | `test-linkmonitor-command` | Packaged full/core binaries and their process tests, clean environment, four build combinations and ELF dependency evidence |
+| `test-linkmonitor-embedding` | Actual xtcp collectors with a private registry; complete xtcp unit tests, repeated core/RDMA embedding race tests, vet/lint and compiled guest tests |
+
+P08-T03 additionally requires executed disposable Linux integration:
+
+```sh
+nix run path:.#test-linkmonitor-embedding-vm -- --accel=auto
+```
+
+The aggregate builds test artifacts; it does not boot this guest. The VM runner
+uses KVM when available, falls back to TCG, and accepts explicit `--accel=kvm`
+or `--accel=tcg`. It retains serial logs and source/artifact provenance, requires
+both core and RDMA success markers without skipped scenarios, and fails after
+15 minutes. Production classification must exclude virtual links; only a
+test-local inventory decorator admits veth for real transport/lifecycle tests.
+The launcher brings loopback up for the host HTTP tests. V058 in
+[STATUS.md](STATUS.md) records passing core/RDMA execution with `--accel=tcg`,
+separate from the earlier software-RDMA guest's outstanding execution gate.
 
 The aggregate also includes `test-linkmonitor-rdma-unit` (tagged unit and race),
 `test-linkmonitor-rdma-lint` (tagged vet and comprehensive lint), and

@@ -7,7 +7,7 @@ See [FLAVORS.md](FLAVORS.md) for binary and container variants.
 
 ## Link-monitor verification
 
-Run all thirteen focused monitor checks with one target:
+Run all fourteen focused monitor checks with one target:
 
 ```sh
 nix build path:.#test-linkmonitor -L
@@ -35,6 +35,23 @@ The targets are defined in [tests/linkmonitor.nix](tests/linkmonitor.nix):
 | `test-linkmonitor-rdma-runtime` | Packaged test executable, pinned libibverbs/libibumad/providers, ELF resolution and provider loading |
 | `test-linkmonitor-rdma-build` | Public-library smoke executable, clean runtime closure, four build combinations and explicit missing-sysfs diagnostics with continued host publication |
 | `test-linkmonitor-command` | Full/core executable artifacts, help/version, clean-environment live HTTP/host metrics, signals, shutdown/restart, dependency checks and command tests in all four tag/cgo combinations |
+| `test-linkmonitor-embedding` | Actual xtcp collector coexistence, repeated core/RDMA embedding races, xtcp unit/vet/lint and compiled disposable guest tests |
+
+The aggregate compiles the embedding guest test executables but does not boot a
+VM. Execute the disposable integration gate separately:
+
+```sh
+nix run path:.#test-linkmonitor-embedding-vm -- --accel=auto
+```
+
+`auto` tries KVM and falls back to QEMU software emulation. Use `--accel=tcg`
+to force software execution or `--accel=kvm` to require acceleration. The runner
+has a 15-minute deadline, isolates temporary files, preserves its serial log
+and artifact paths, and requires both core and RDMA guest success sentinels.
+Missing KVM never counts as a passing skipped integration test. The guest tests
+real veth events, classification exclusion, test-only eligible inventory,
+missed-event recovery, baseline ownership and restart in disposable namespaces.
+No host network changes or physical/RDMA hardware claims are involved.
 
 The four RDMA targets and executable gate are defined in `tests/linkmonitor-rdma.nix`.
 They use rdma-core from the existing nixpkgs lock; the eight core gates retain
