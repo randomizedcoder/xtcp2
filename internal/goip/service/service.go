@@ -667,6 +667,22 @@ func (s *Service) IfStats() ([]model.IfStats, error) {
 	return out, nil
 }
 
+// IfStatsXstats is `ip stats show group xstats`'s dump: the same plain single
+// dump as IfStats but requesting the link-xstats group (filter_mask 0x2). The
+// decode is the same ParseNewStats, which descends the bridge vlan/mcast bodies.
+func (s *Service) IfStatsXstats() ([]model.IfStats, error) {
+	r := req.StatsShowXstatsDump(s.nextSeq())
+	v, err := decode(s, r, uint16(unix.RTM_NEWSTATS), "RTM_NEWSTATS", xtcpnl.ParseNewStats)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.IfStats, len(v))
+	for i := range v {
+		out[i] = model.IfStats(v[i])
+	}
+	return out, nil
+}
+
 // IfStatsByIndex is the non-dump RTM_GETSTATS point get `ip stats show group link
 // dev X` sends (ip/ipstats.c:831-851). It mirrors NetconfByIndex's talk-or-fall-
 // back spine: a live source does the kernel single-get, a dump-only replay source

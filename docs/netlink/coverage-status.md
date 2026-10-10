@@ -10,14 +10,14 @@ several steps, further down under [Remaining](#remaining).
 
 | | count | counted from |
 |---|---|---|
-| commands in the comparison matrix | **53** | `internal/goipparity/commands.go` |
-| of those, `Implemented: true` | **53** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
+| commands in the comparison matrix | **60** | `internal/goipparity/commands.go` |
+| of those, `Implemented: true` | **60** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
 | of those, in `gated_commands` | **27** | `pkg/nlparity/goip-parity-allowlist.json` |
 | allowlisted divergences | **7** | same file, `entries` |
 | of those, `kind=version-skew` | **7** | all against the pinned `ip` 7.1.0 |
 | of those, `kind=accepted-divergence` | **0** | nothing is divergent on purpose and permanently |
 
-**Thirty** matrix rows sit outside `gated_commands`, and they fall into seven
+**Thirty-three** matrix rows sit outside `gated_commands`, and they fall into eight
 groups that are out for unrelated reasons.
 
 **Twelve are new and not yet gated**: six family and table selectors and six
@@ -110,6 +110,24 @@ spells `group link` so the reply stays link-only on the mesh bridge. No measured
 live run backs the four yet, so they go in ungated until their own runs earn
 gating.
 
+**Three are stats' xstats rows**: `stats show group xstats`, `-s stats show group
+xstats` and `-j stats show group xstats`, added together with the nested
+`xtcpnl_bridge_xstats.go` decoder and the `render/bridge_xstats.go` multi-stanza
+view. This is the first grounded command that reads a *nested* stat attribute
+(`IFLA_STATS_LINK_XSTATS` → `LINK_XSTATS_TYPE_BRIDGE` → suite) and the first that
+emits **multiple stanzas per interface**: the whole group expands to four leaves
+in the pointer-sorted golden order bond/802.3ad, bridge/vlan, bridge/mcast,
+bridge/stp, so every device prints four header stanzas with bodies only on a
+bridge (mesh's br0: a vlan per-VID block and an all-zero mcast block). goip
+grounds the vlan and mcast bodies and the empty bond/stp headers; a reply
+carrying an stp or bond *body* is refused (`HasUngroundedXstatsBody`), the
+strict-parity boundary at the sub-attribute level. They are **replay-grounded,
+not yet live-grounded**: `TestStatsShowMatchesCapturedSidecars` diffs `goip`
+byte-for-byte (plain and `-s`, which equals plain — the bridge bodies have no
+`show_stats>1` branch) and structurally (`-j`) against the committed
+`ip_stats_xstats`/`_s`/`_json` sidecars in all three topologies. No measured live
+run backs them yet, so they go in ungated until their own runs earn gating.
+
 **The rest of the nexthop read surface and VRF link-detail are implemented but
 are not matrix rows, so they do not move the counts above.** `nexthop show id N`,
 the other five `nexthop show` selectors — `dev`, `master`, `vrf`, `groups`,
@@ -198,7 +216,7 @@ no `monitor` verb. `RTM_NEWRULE` is decoded for dumps but is not even an event.
 | `ifaddrlblmsg` | `if_addrlabel.h` | `RTM_{NEW,DEL,GET}ADDRLABEL` | `ParseNewAddrLabel`, `xtcpnl_ifaddrlblmsg.go:91` | `render/addrlabel.go` | **3** |
 | `ndtmsg` | `neighbour.h` | `RTM_{NEW,GET,SET}NEIGHTBL` | `ParseNewNeighTbl`, `xtcpnl_ndtmsg.go:299` | `render/ntable.go` | **3** |
 | `netconfmsg` | `netconf.h` | `RTM_{NEW,GET,DEL}NETCONF` | `ParseNewNetconf`, `xtcpnl_netconfmsg.go:107` | `render/netconf.go` | **4** |
-| `if_stats_msg` | `if_link.h` | `RTM_{NEW,GET}STATS` | `ParseNewStats`, `xtcpnl_ifstatsmsg.go:87` | `render/stats.go` | **4** |
+| `if_stats_msg` | `if_link.h` | `RTM_{NEW,GET}STATS` | `ParseNewStats`, `xtcpnl_ifstatsmsg.go:87`; `xtcpnl_bridge_xstats.go` (nested xstats) | `render/stats.go`, `render/bridge_xstats.go` | **7** |
 
 Headers in this table and the next are all under
 `include/uapi/linux/`, decoder paths are under `pkg/xtcpnl/` and `goip` paths
@@ -206,11 +224,12 @@ under `internal/goip/`; the prefixes are dropped so the columns stay readable.
 `neighbour.h` keeps the kernel's own spelling for the same reason the comments
 in `xtcpnl_ndmsg.go` do — `neighbor.h` does not exist in the tree.
 
-57 rows, which is the matrix total — every row in the comparison matrix lands
+60 rows, which is the matrix total — every row in the comparison matrix lands
 on one of these ten, and every one of these ten is compared live.
-`if_stats_msg`'s four rows are the newest, with `netconfmsg`'s four and `ndtmsg`'s
-three just before them: all ten are in the matrix and replay-grounded (see the
-glance above), awaiting their first measured live run before gating.
+`if_stats_msg`'s seven rows are the newest (four `group link` and three `group
+xstats`), with `netconfmsg`'s four and `ndtmsg`'s three just before them: all ten
+are in the matrix and replay-grounded (see the glance above), awaiting their first
+measured live run before gating.
 
 **The request side is narrower than the decode side, on purpose.** Only ten
 message types are ever *built*: `RTM_GETLINK`, `RTM_GETADDR`, `RTM_GETROUTE`,
@@ -275,12 +294,22 @@ link` — with `dev`, `-s` (the extended RX-errors/TX-errors block) and `-j` —
 an implemented object now, not a `run: nil` backlog entry. It moved up into the
 decoded-layouts table above. It carries the first request with a 12-byte
 `filter_mask`-bearing header, and its point get is the first that is
-`NLM_F_REQUEST` alone (no ACK, unlike netconf's). goip grounds only the `link`
-group; the other twelve leaves of ipstats's descriptor tree (bridge/bond xstats,
-offload, afstats mpls) and `stats set` are refused with `ErrNotImplemented` and a
-rationale — the strict-parity boundary — and a reply carrying any group beyond
-link is refused rather than under-rendered (`HasUnsupportedGroup`). **It is the
-tenth read-only object and closes the read-only backlog.**
+`NLM_F_REQUEST` alone (no ACK, unlike netconf's). The **xstats** group
+(`filter_mask 0x2`, the whole `ip stats show group xstats` command) is grounded
+too, in the nested `xtcpnl_bridge_xstats.go` decoder and the
+`render/bridge_xstats.go` multi-stanza view: the first nested stat attribute
+(`IFLA_STATS_LINK_XSTATS` → `LINK_XSTATS_TYPE_BRIDGE` → the `bridge_vlan_xstats`
+per-VID array and the `br_mcast_stats` block), the first multi-stanza record, and
+a leaf order (bond/802.3ad, bridge/vlan, bridge/mcast, bridge/stp) that is
+pointer-sorted in ipstats and so pinned from the golden rather than source. goip
+grounds the `link` group and the xstats vlan/mcast bodies with the empty bond/stp
+headers; the other ungrounded leaves of ipstats's descriptor tree (bridge stp/bond
+bodies, offload, afstats mpls, the `xstats_slave` port path) and `stats set` are
+refused with `ErrNotImplemented` and a rationale — the strict-parity boundary,
+applied down to the sub-attribute (`HasUngroundedXstatsBody`) — and a reply
+carrying any group beyond link/xstats is refused rather than under-rendered
+(`HasUnsupportedGroup`). **It is the tenth read-only object and closes the
+read-only backlog.**
 
 **`nhmsg` used to head this table and no longer belongs in it.** It is decoded
 in `xtcpnl_nhmsg.go` (`ParseNewNexthop`, the `nhmsg` header plus the `NHA_*`

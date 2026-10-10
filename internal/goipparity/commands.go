@@ -1358,6 +1358,36 @@ var commands = withArgs([]Command{
 		// ip_stats_json sidecar; ungated pending its own live runs.
 		Floor: 4, Implemented: true,
 	},
+
+	// The xstats block — `ip stats show group xstats` (filter_mask 0x2, no
+	// GET_FILTERS nest). The whole group expands to four leaves, in the
+	// pointer-sorted golden order bond/802.3ad, bridge/vlan, bridge/mcast,
+	// bridge/stp, so every device prints four header stanzas with bodies only on
+	// bridges (mesh's br0: vlan + mcast). goip grounds the vlan/mcast bodies and
+	// the empty bond/stp headers; stp/bond bodies are refused. There is no dev
+	// row: the xstats point get is deferred (the link group already grounds the
+	// non-dump path).
+	{
+		Name: "stats show group xstats", Slug: "stats_show_xstats",
+		// Four, the stats shape: a link dump resolves names before the RTM_GETSTATS
+		// xstats dump. REPLAY-GROUNDED against the committed ip_stats_xstats sidecar
+		// across three topologies; ungated until its own live runs earn gating.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-s stats show group xstats", Slug: "stats_show_xstats_stats",
+		// `-s` does not reach the wire and the bridge bodies have no show_stats>1
+		// branch, so the render equals the plain form; grounded against
+		// ip_stats_xstats_s. Floor inherited.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-j stats show group xstats", Slug: "stats_show_xstats_json",
+		// The flat `-j` array, one object per leaf per device; `-j` does not reach
+		// the wire, so the request is byte-identical to the text twin. Grounded
+		// against ip_stats_xstats_json; ungated pending its own live runs.
+		Floor: 4, Implemented: true,
+	},
 })
 
 // withArgs fills every row's Args from its Name.

@@ -1,0 +1,173 @@
+[ {
+        "ifindex": 1,
+        "ifname": "lo",
+        "group": "xstats",
+        "subgroup": "bond",
+        "suite": "802.3ad"
+    },{
+        "ifindex": 1,
+        "ifname": "lo",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "vlan",
+        "vlans": [ ]
+    },{
+        "ifindex": 1,
+        "ifname": "lo",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "mcast"
+    },{
+        "ifindex": 1,
+        "ifname": "lo",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "stp"
+    },{
+        "ifindex": 2,
+        "ifname": "nlmon0",
+        "group": "xstats",
+        "subgroup": "bond",
+        "suite": "802.3ad"
+    },{
+        "ifindex": 2,
+        "ifname": "nlmon0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "vlan",
+        "vlans": [ ]
+    },{
+        "ifindex": 2,
+        "ifname": "nlmon0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "mcast"
+    },{
+        "ifindex": 2,
+        "ifname": "nlmon0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "stp"
+    },{
+        "ifindex": 3,
+        "ifname": "br0",
+        "group": "xstats",
+        "subgroup": "bond",
+        "suite": "802.3ad"
+    },{
+        "ifindex": 3,
+        "ifname": "br0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "vlan",
+        "vlans": [ {
+                "vid": 1,
+                "flags": [ "PVID","Egress Untagged" ],
+                "rx_bytes": 0,
+                "rx_packets": 0,
+                "tx_bytes": 0,
+                "tx_packets": 0
+            } ]
+    },{
+        "ifindex": 3,
+        "ifname": "br0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "mcast",
+        "multicast": {
+            "igmp_queries": {
+                "rx_v1": 0,
+                "rx_v2": 0,
+                "rx_v3": 0,
+                "tx_v1": 0,
+                "tx_v2": 0,
+                "tx_v3": 0
+            },
+            "igmp_reports": {
+                "rx_v1": 0,
+                "rx_v2": 0,
+                "rx_v3": 0,
+                "tx_v1": 0,
+                "tx_v2": 0,
+                "tx_v3": 0
+            },
+            "igmp_leaves": {
+                "rx": 0,
+                "tx": 0
+            },
+            "igmp_parse_errors": 0,
+            "mld_queries": {
+                "rx_v1": 0,
+                "rx_v2": 0,
+                "tx_v1": 0,
+                "tx_v2": 0
+            },
+            "mld_reports": {
+                "rx_v1": 0,
+                "rx_v2": 0,
+                "tx_v1": 0,
+                "tx_v2": 0
+            },
+            "mld_leaves": {
+                "rx": 0,
+                "tx": 0
+            },
+            "mld_parse_errors": 0
+        }
+    },{
+        "ifindex": 3,
+        "ifname": "br0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "stp"
+    },{
+        "ifindex": 4,
+        "ifname": "veth1",
+        "group": "xstats",
+        "subgroup": "bond",
+        "suite": "802.3ad"
+    },{
+        "ifindex": 4,
+        "ifname": "veth1",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "vlan",
+        "vlans": [ ]
+    },{
+        "ifindex": 4,
+        "ifname": "veth1",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "mcast"
+    },{
+        "ifindex": 4,
+        "ifname": "veth1",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "stp"
+    },{
+        "ifindex": 5,
+        "ifname": "veth0",
+        "group": "xstats",
+        "subgroup": "bond",
+        "suite": "802.3ad"
+    },{
+        "ifindex": 5,
+        "ifname": "veth0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "vlan",
+        "vlans": [ ]
+    },{
+        "ifindex": 5,
+        "ifname": "veth0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "mcast"
+    },{
+        "ifindex": 5,
+        "ifname": "veth0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "stp"
+    } ]
