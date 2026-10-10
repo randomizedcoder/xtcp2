@@ -16,7 +16,7 @@ import (
 // differently in its two output formats. A claim like that cannot be verified
 // by reading the extractor; it is verified by running BOTH extractors over the
 // SAME captured state and requiring them to agree. That is
-// TestStdoutJSONFacetsMatchText below: 24 (object, topology) pairs from
+// TestStdoutJSONFacetsMatchText below: 37 (object, topology) pairs from
 // pkg/xtcpnl/testdata/7_1_4/dumps, each with an `ip` text sidecar and an
 // `ip -j -p` JSON sidecar of the same netns at the same moment.
 //
@@ -68,7 +68,15 @@ const dumpsDir = "../../pkg/xtcpnl/testdata/7_1_4/dumps"
 //	                      vs `multicast`, `carrier` vs `carrier_errors` and
 //	                      `collsns` vs `collisions` are spelling. Carried
 //	                      verbatim on both sides rather than translated, because
-//	                      translating the first pair would be a lie.
+//	                      translating the first pair would be a lie. The mesh
+//	                      xstats row files a SECOND, unrelated shape here, and
+//	                      it is text-only: the bridge vlan/mcast bodies print
+//	                      `RX: …`/`TX: …` body lines that reStatsHeader matches,
+//	                      where the JSON bodies are structured objects under no
+//	                      stats64 key. Pinned rather than suppressed — the shape
+//	                      is an artifact of reStatsHeader, the same way ifnames
+//	                      is an artifact of reStanza, and changing it would move
+//	                      every link -s row.
 //	keyword:valid_lft     INFINITY_LIFE_TIME prints as the word `forever` to the
 //	keyword:preferred_lft text stream and as 4294967295 to the JSON one —
 //	                      ip/ipaddress.c:1688-1696 writes the two with separate
@@ -117,9 +125,10 @@ type facetDiff struct {
 // same captured state, with every disagreement enumerated.
 //
 // textLines/jsonEntries and textLoci/jsonLoci are the anti-vacuity half. Three
-// of the 21 pairs are genuinely empty captures and are labeled corner rows;
-// for every other row the counts assert that the JSON extractor filled ten to
-// sixteen loci. Before stdout_json.go existed it filled two — FacetMACs by the
+// of the 37 pairs are genuinely empty captures and are labeled corner rows;
+// for every other row the counts assert how many loci each extractor filled,
+// up to sixteen on the richest addr rows. Before stdout_json.go existed it
+// filled two for every JSON side — FacetMACs by the
 // coincidence described in its header, and FacetLines with the constant 1 — so
 // these numbers are what distinguishes the extractor working from the `-j` rows
 // passing while comparing nothing.
@@ -541,6 +550,40 @@ func TestStdoutJSONFacetsMatchText(t *testing.T) {
 					textOnly: "RX:bytes,packets,errors,dropped,missed,mcast x14,TX:bytes,packets,errors,dropped,carrier,collsns x14",
 					jsonOnly: "RX:bytes,packets,errors,dropped,over_errors,multicast x14,TX:bytes,packets,errors,dropped,carrier_errors,collisions x14"},
 			},
+		},
+		{
+			description: "positive: stats show group xstats, clean topology — five devices, each printing the four empty leaf stanzas (no bridge in the netns), so the only loci are ifindexes/ifnames/keyword:group and they agree; no body means no statsheaders artifact",
+			topo:        "",
+			object:      "ip_stats_xstats",
+			textLines:   25,
+			jsonEntries: 20,
+			textLoci:    3,
+			jsonLoci:    3,
+			diffs:       nil,
+		},
+		{
+			description: "positive: stats show group xstats, mesh topology — br0 carries the vlan and mcast bodies; their `RX:`/`TX:` body lines are what the text reStatsHeader scoops into statsheaders, where the JSON bodies are structured objects under no stats64 key, so the facet is text-only — the one declared difference",
+			topo:        "mesh/",
+			object:      "ip_stats_xstats",
+			textLines:   46,
+			jsonEntries: 20,
+			textLoci:    4,
+			jsonLoci:    3,
+			diffs: []facetDiff{
+				{locus: "statsheaders",
+					textOnly: "RX:0,bytes,0,packets,RX:v1,0,v2,0 x2,RX:v1,0,v2,0,v3,0 x2,TX:0,bytes,0,packets,TX:v1,0,v2,0 x2,TX:v1,0,v2,0,v3,0 x2",
+					jsonOnly: ""},
+			},
+		},
+		{
+			description: "positive: stats show group xstats, tunnel topology — fourteen devices, all header-only (no bridge), scaling the entry and line counts to x14 with no body and so no statsheaders artifact",
+			topo:        "tunnel/",
+			object:      "ip_stats_xstats",
+			textLines:   70,
+			jsonEntries: 56,
+			textLoci:    3,
+			jsonLoci:    3,
+			diffs:       nil,
 		},
 	}
 

@@ -7,6 +7,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
 
@@ -25,6 +26,12 @@ const (
 	statsPcapMeshDev   = guestDumpsDir + "mesh/netlink_route_getstats_dev.pcap"
 	statsPcapTunnel    = guestDumpsDir + "tunnel/netlink_route_getstats.pcap"
 	statsPcapTunnelDev = guestDumpsDir + "tunnel/netlink_route_getstats_dev.pcap"
+
+	// The whole-group xstats dumps (filter_mask 0x2). Every device prints four
+	// leaf stanzas; only mesh's br0 carries vlan/mcast bodies.
+	xstatsPcapBase   = guestDumpsDir + "netlink_route_getstats_xstats.pcap"
+	xstatsPcapMesh   = guestDumpsDir + "mesh/netlink_route_getstats_xstats.pcap"
+	xstatsPcapTunnel = guestDumpsDir + "tunnel/netlink_route_getstats_xstats.pcap"
 )
 
 // statsCompareMode selects how a row's output is matched against its sidecar.
@@ -116,6 +123,51 @@ func TestStatsShowMatchesCapturedSidecars(t *testing.T) {
 			args:        []string{"stats", "show", "group", "link", "dev", "gre1"},
 			pcap:        statsPcapTunnelDev, sidecar: "tunnel/ip_stats_dev", mode: statsByteExact,
 		},
+		{
+			description: "positive: mesh xstats plain — br0 vlan+mcast bodies, empty stanzas elsewhere",
+			args:        []string{"stats", "show", "group", "xstats"},
+			pcap:        xstatsPcapMesh, sidecar: "mesh/ip_stats_xstats", mode: statsByteExact,
+		},
+		{
+			description: "positive: mesh xstats -s equals plain (no extended branch)",
+			args:        []string{"-s", "stats", "show", "group", "xstats"},
+			pcap:        xstatsPcapMesh, sidecar: "mesh/ip_stats_xstats_s", mode: statsByteExact,
+		},
+		{
+			description: "positive: mesh xstats JSON flat array, one object per leaf per device",
+			args:        []string{"-j", "stats", "show", "group", "xstats"},
+			pcap:        xstatsPcapMesh, sidecar: "mesh/ip_stats_xstats_json", mode: statsJSON,
+		},
+		{
+			description: "corner: base xstats plain — no bridge, four empty stanzas per device",
+			args:        []string{"stats", "show", "group", "xstats"},
+			pcap:        xstatsPcapBase, sidecar: "ip_stats_xstats", mode: statsByteExact,
+		},
+		{
+			description: "corner: base xstats -s equals plain",
+			args:        []string{"-s", "stats", "show", "group", "xstats"},
+			pcap:        xstatsPcapBase, sidecar: "ip_stats_xstats_s", mode: statsByteExact,
+		},
+		{
+			description: "corner: base xstats JSON",
+			args:        []string{"-j", "stats", "show", "group", "xstats"},
+			pcap:        xstatsPcapBase, sidecar: "ip_stats_xstats_json", mode: statsJSON,
+		},
+		{
+			description: "corner: tunnel xstats plain — same empty-stanza shape",
+			args:        []string{"stats", "show", "group", "xstats"},
+			pcap:        xstatsPcapTunnel, sidecar: "tunnel/ip_stats_xstats", mode: statsByteExact,
+		},
+		{
+			description: "corner: tunnel xstats -s equals plain",
+			args:        []string{"-s", "stats", "show", "group", "xstats"},
+			pcap:        xstatsPcapTunnel, sidecar: "tunnel/ip_stats_xstats_s", mode: statsByteExact,
+		},
+		{
+			description: "corner: tunnel xstats JSON",
+			args:        []string{"-j", "stats", "show", "group", "xstats"},
+			pcap:        xstatsPcapTunnel, sidecar: "tunnel/ip_stats_xstats_json", mode: statsJSON,
+		},
 	}
 
 	for _, tc := range tests {
@@ -184,12 +236,102 @@ func TestStatsUnsupportedGroupRefused(t *testing.T) {
 	var out bytes.Buffer
 	c := &runCtx{src: src, lltab: NewLLTab(), out: &out, errOut: &out}
 
-	err := statsShow(c, "")
+	err := statsShow(c, "link", "")
 	if !errors.Is(err, ErrNotImplemented) {
 		t.Fatalf("statsShow with an unsupported group = %v, want ErrNotImplemented", err)
 	}
 	if out.Len() != 0 {
 		t.Errorf("a refused record still produced output: %q", out.String())
+	}
+}
+
+// goipRtattr builds a 4-byte-padded rtattr, for the synthetic xstats bodies
+// below.
+func goipRtattr(atype uint16, val []byte) []byte {
+	l := 4 + len(val)
+	b := make([]byte, l)
+	binary.LittleEndian.PutUint16(b[0:2], uint16(l))
+	binary.LittleEndian.PutUint16(b[2:4], atype)
+	copy(b[4:], val)
+	for len(b)%4 != 0 {
+		b = append(b, 0)
+	}
+	return b
+}
+
+// xstatsBody wraps a LINK_XSTATS group attr around inner bytes, after the 12-byte
+// if_stats_msg header (ifindex, filter_mask 0x2).
+func xstatsBody(ifindex uint32, inner []byte) []byte {
+	b := make([]byte, 12)
+	binary.LittleEndian.PutUint32(b[4:8], ifindex)
+	binary.LittleEndian.PutUint32(b[8:12], xtcpnl.StatsFilterXstats)
+	return append(b, goipRtattr(uint16(unix.IFLA_STATS_LINK_XSTATS), inner)...)
+}
+
+// TestStatsXstatsUngroundedBodyRefused is the sub-attribute safety: an xstats
+// reply carrying a bridge stp or bond body makes statsShow refuse rather than
+// drop it, while the grounded vlan body renders. The stp/bond shapes need
+// synthetic bodies — the grounded topology has STP disabled and no bond.
+//
+// go test ./internal/goip/ -run TestStatsXstatsUngroundedBodyRefused
+func TestStatsXstatsUngroundedBodyRefused(t *testing.T) {
+	bridgeVlan := goipRtattr(xtcpnl.LinkXstatsTypeBridge, goipRtattr(xtcpnl.BridgeXstatsVlan, make([]byte, xtcpnl.BrVlanXstatsSizeCst)))
+	bond := goipRtattr(xtcpnl.LinkXstatsTypeBond, nil)
+	bridgeStp := goipRtattr(xtcpnl.LinkXstatsTypeBridge, goipRtattr(xtcpnl.BridgeXstatsStp, make([]byte, 48)))
+
+	tests := []struct {
+		description string
+		body        []byte
+		wantRefuse  bool
+	}{
+		{
+			description: "positive: a bridge vlan body renders, no refusal",
+			body:        xstatsBody(5, bridgeVlan),
+			wantRefuse:  false,
+		},
+		{
+			description: "negative: a bond xstats type is refused",
+			body:        xstatsBody(5, bond),
+			wantRefuse:  true,
+		},
+		{
+			description: "negative: a bridge stp body is refused",
+			body:        xstatsBody(5, bridgeStp),
+			wantRefuse:  true,
+		},
+		{
+			description: "corner: an empty bridge nest renders the empty stanzas, no refusal",
+			body:        xstatsBody(5, goipRtattr(xtcpnl.LinkXstatsTypeBridge, nil)),
+			wantRefuse:  false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			src := typedStatsSource{
+				uint16(unix.RTM_NEWLINK):  nil,
+				uint16(unix.RTM_NEWSTATS): {tc.body},
+			}
+			var out bytes.Buffer
+			c := &runCtx{src: src, lltab: NewLLTab(), out: &out, errOut: &out}
+			err := statsShow(c, "xstats", "")
+			switch {
+			case tc.wantRefuse:
+				if !errors.Is(err, ErrNotImplemented) {
+					t.Fatalf("err = %v, want ErrNotImplemented", err)
+				}
+				if out.Len() != 0 {
+					t.Errorf("a refused record still produced output: %q", out.String())
+				}
+			default:
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				if out.Len() == 0 {
+					t.Error("expected rendered stanzas, got no output")
+				}
+			}
+		})
 	}
 }
 
@@ -273,6 +415,38 @@ func TestRunStatsArgs(t *testing.T) {
 			wantCode:         ExitUsage,
 			wantStderrSubstr: "not implemented",
 		},
+		{
+			// Against the link replay pcap lo carries no bridge xstats, so the first
+			// leaf renders header-only — a deterministic prefix for the xstats path.
+			description:      "positive: `stats show group xstats` runs the xstats path (empty-header leaves on a non-bridge)",
+			args:             []string{"stats", "show", "group", "xstats"},
+			wantCode:         ExitOK,
+			wantStdoutPrefix: "1: lo: group xstats subgroup bond suite 802.3ad\n",
+		},
+		{
+			description:      "negative: `group xstats subgroup bridge` partial selection is refused",
+			args:             []string{"stats", "show", "group", "xstats", "subgroup", "bridge"},
+			wantCode:         ExitUsage,
+			wantStderrSubstr: "not implemented",
+		},
+		{
+			description:      "negative: `group xstats ... suite stp` partial selection is refused",
+			args:             []string{"stats", "show", "group", "xstats", "subgroup", "bridge", "suite", "stp"},
+			wantCode:         ExitUsage,
+			wantStderrSubstr: "not implemented",
+		},
+		{
+			description:      "negative: `group xstats dev br0` has no grounded point get",
+			args:             []string{"stats", "show", "group", "xstats", "dev", "br0"},
+			wantCode:         ExitUsage,
+			wantStderrSubstr: "not implemented",
+		},
+		{
+			description:      "negative: `-j -s group xstats` is refused by the extended-JSON guard",
+			args:             []string{"-j", "-s", "stats", "show", "group", "xstats"},
+			wantCode:         ExitUsage,
+			wantStderrSubstr: "not implemented",
+		},
 	}
 
 	for _, tt := range tests {
@@ -318,6 +492,22 @@ func TestStatsSidecarsAreDistinct(t *testing.T) {
 		{
 			description: "corner: the base and tunnel dumps differ",
 			a:           "ip_stats", b: "tunnel/ip_stats", wantEqual: false,
+		},
+		{
+			description: "negative: xstats text differs from the link-group text",
+			a:           "mesh/ip_stats_xstats", b: "mesh/ip_stats", wantEqual: false,
+		},
+		{
+			description: "boundary: mesh xstats (br0 bodies) differs from the all-empty base xstats",
+			a:           "mesh/ip_stats_xstats", b: "ip_stats_xstats", wantEqual: false,
+		},
+		{
+			description: "positive: xstats -s equals plain (the bridge bodies have no extended branch)",
+			a:           "mesh/ip_stats_xstats", b: "mesh/ip_stats_xstats_s", wantEqual: true,
+		},
+		{
+			description: "negative: xstats text and JSON forms differ",
+			a:           "mesh/ip_stats_xstats", b: "mesh/ip_stats_xstats_json", wantEqual: false,
 		},
 	}
 

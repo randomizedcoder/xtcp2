@@ -173,10 +173,13 @@ func TestParseNewStats(t *testing.T) {
 			},
 		},
 		{
-			description: "corner: IFLA_STATS_LINK_XSTATS(2) alongside LINK_64 sets HasUnsupportedGroup, keeps HasLink64",
+			// IFLA_STATS_LINK_XSTATS(2) is no longer unsupported — it is the bridge
+			// group, decoded by parseBridgeXstats (see TestParseNewStatsXstats).
+			// LINK_XSTATS_SLAVE(3) is the still-unsupported group this row now guards.
+			description: "corner: IFLA_STATS_LINK_XSTATS_SLAVE(3) alongside LINK_64 sets HasUnsupportedGroup, keeps HasLink64",
 			body: cat(ifsmHdr(unix.AF_UNSPEC, 6, StatsFilterLink64),
 				rtattr(uint16(unix.IFLA_STATS_LINK_64), link64Payload(1, 2)),
-				rtattr(uint16(unix.IFLA_STATS_LINK_XSTATS), le32(0))),
+				rtattr(uint16(unix.IFLA_STATS_LINK_XSTATS_SLAVE), le32(0))),
 			check: func(t *testing.T, si IfStatsInfo) {
 				if !si.HasLink64 || !si.HasUnsupportedGroup {
 					t.Errorf("flags = link64 %v/unsup %v, want true/true", si.HasLink64, si.HasUnsupportedGroup)
@@ -323,6 +326,18 @@ func TestBuildStatsRequests(t *testing.T) {
 	}
 	if len(gotDump) != NlMsgHdrSizeCst+IfStatsMsgSizeCst {
 		t.Errorf("dump request len = %d, want %d (no attributes)", len(gotDump), NlMsgHdrSizeCst+IfStatsMsgSizeCst)
+	}
+
+	// Captured whole-group xstats dump: identical to the link dump but filter_mask
+	// 0x2, and crucially NO IFLA_STATS_GET_FILTERS nest (the attribute-free header
+	// is `group xstats`'s request — the nest appears only for partial selection).
+	wantXstats := mustHex(t, "1c0000005e0001031eb5c96a00000000000000000000000002000000")
+	gotXstats := BuildDumpStatsRequest(unix.AF_UNSPEC, 0, StatsFilterXstats, 1791603998)
+	if !bytes.Equal(gotXstats, wantXstats) {
+		t.Errorf("xstats dump request mismatch\ngot  %s\nwant %s", hex.EncodeToString(gotXstats), hex.EncodeToString(wantXstats))
+	}
+	if len(gotXstats) != NlMsgHdrSizeCst+IfStatsMsgSizeCst {
+		t.Errorf("xstats dump len = %d, want %d (no GET_FILTERS nest)", len(gotXstats), NlMsgHdrSizeCst+IfStatsMsgSizeCst)
 	}
 
 	// Captured point get: len 28, RTM_GETSTATS, REQUEST only (no DUMP, no ACK),

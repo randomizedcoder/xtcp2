@@ -8,11 +8,12 @@ import (
 )
 
 // This file decodes RTM_NEWSTATS, the reply to the RTM_GETSTATS dump (and point
-// get) that `ip stats show` issues. goip grounds only the link group
-// (IFLA_STATS_LINK_64, a rtnl_link_stats64); the other twelve leaves of
-// ipstats's descriptor tree (bridge/bond xstats, offload, afstats mpls) are
-// refused rather than decoded. See internal/goip/obj_stats.go for the
-// transaction and render/stats.go for the output.
+// get) that `ip stats show` issues. goip grounds the link group
+// (IFLA_STATS_LINK_64, a rtnl_link_stats64) and the bridge xstats group
+// (IFLA_STATS_LINK_XSTATS → vlan + mcast, in xtcpnl_bridge_xstats.go); the
+// remaining leaves (bridge stp/bond bodies, xstats_slave, offload, afstats
+// mpls) are refused rather than decoded. See internal/goip/obj_stats.go for the
+// transaction and render/stats.go + render/bridge_xstats.go for the output.
 
 // IfStatsMsg mirrors the kernel's `struct if_stats_msg`, the fixed header of an
 // RTM_*STATS message.
@@ -45,6 +46,12 @@ const (
 	// link group alone; the full default `ip stats show` mask is 0x1F (all five
 	// groups), which goip does not request — see obj_stats.go.
 	StatsFilterLink64 uint32 = 1 << (unix.IFLA_STATS_LINK_64 - 1)
+
+	// StatsFilterXstats is IFLA_STATS_FILTER_BIT(IFLA_STATS_LINK_XSTATS) = bit 1
+	// = 0x2, the group `ip stats show group xstats` requests. The whole-group
+	// request carries only this top-level bit, no IFLA_STATS_GET_FILTERS nest
+	// (ipstats_req_add_filters, ip/ipstats.c:793-828).
+	StatsFilterXstats uint32 = 1 << (unix.IFLA_STATS_LINK_XSTATS - 1)
 )
 
 // ErrIfStatsMsgSmall is a reply body shorter than the fixed if_stats_msg header.
@@ -64,6 +71,19 @@ type IfStatsInfo struct {
 	Link64    RtnlLinkStats64
 	HasLink64 bool
 
+	// Bridge xstats (IFLA_STATS_LINK_XSTATS → LINK_XSTATS_TYPE_BRIDGE). goip
+	// grounds the vlan and mcast bodies; HasBridgeXstats records the group was
+	// present even when neither body was (an empty nest still prints headers).
+	HasBridgeXstats bool
+	BridgeVlans     []BridgeVlanXstats
+	HasBridgeVlan   bool
+	BridgeMcast     BrMcastStats
+	HasBridgeMcast  bool
+
+	// HasUngroundedXstatsBody records a bridge body goip does not ground (stp)
+	// or a non-bridge xstats type (bond); obj_stats refuses such a record.
+	HasUngroundedXstatsBody bool
+
 	HasUnsupportedGroup bool
 }
 
@@ -82,8 +102,9 @@ func DeserializeIfStatsMsg(data []byte, h *IfStatsMsg) (n int, err error) {
 // ParseNewStats decodes an RTM_NEWSTATS reply body: the if_stats_msg header then
 // its IFLA_STATS_* attributes. The link group (IFLA_STATS_LINK_64) is read via
 // DeserializeRtnlLinkStats64, which tolerates a short or long payload exactly as
-// get_rtnl_link_stats_rta does. Any other group attribute (2..5) sets
-// HasUnsupportedGroup; unknown types are ignored.
+// get_rtnl_link_stats_rta does. The xstats group (IFLA_STATS_LINK_XSTATS) is
+// descended for the bridge type's vlan/mcast bodies (parseBridgeXstats). The
+// remaining groups (3..5) set HasUnsupportedGroup; unknown types are ignored.
 func ParseNewStats(body []byte) (IfStatsInfo, error) {
 	var si IfStatsInfo
 	var h IfStatsMsg
@@ -94,14 +115,18 @@ func ParseNewStats(body []byte) (IfStatsInfo, error) {
 	si.Ifindex = h.Ifindex
 	si.FilterMask = h.FilterMask
 
+	var nestErr error
 	err := WalkRTAttrs(body[IfStatsMsgSizeCst:], func(atype uint16, val []byte) {
 		switch atype {
 		case uint16(unix.IFLA_STATS_LINK_64):
 			if _, derr := DeserializeRtnlLinkStats64(val, &si.Link64); derr == nil {
 				si.HasLink64 = true
 			}
-		case uint16(unix.IFLA_STATS_LINK_XSTATS),
-			uint16(unix.IFLA_STATS_LINK_XSTATS_SLAVE),
+		case uint16(unix.IFLA_STATS_LINK_XSTATS):
+			if e := si.parseBridgeXstats(val); e != nil && nestErr == nil {
+				nestErr = e
+			}
+		case uint16(unix.IFLA_STATS_LINK_XSTATS_SLAVE),
 			uint16(unix.IFLA_STATS_LINK_OFFLOAD_XSTATS),
 			uint16(unix.IFLA_STATS_AF_SPEC):
 			si.HasUnsupportedGroup = true
@@ -110,5 +135,45 @@ func ParseNewStats(body []byte) (IfStatsInfo, error) {
 	if err != nil {
 		return si, err
 	}
-	return si, nil
+	return si, nestErr
+}
+
+// parseBridgeXstats descends IFLA_STATS_LINK_XSTATS. Only LINK_XSTATS_TYPE_BRIDGE
+// is grounded (its vlan and mcast bodies); a bond type, or the bridge stp body,
+// sets HasUngroundedXstatsBody. Each BRIDGE_XSTATS_VLAN attr is one VLAN and
+// appends to BridgeVlans. HasBridgeXstats marks the group present even when the
+// bridge nest carried no body goip renders. A malformed nest returns the rtattr
+// error, as the top-level walk does.
+func (si *IfStatsInfo) parseBridgeXstats(val []byte) error {
+	var innerErr error
+	outerErr := WalkRTAttrsNested(val, func(ltype uint16, inner []byte) {
+		switch ltype {
+		case LinkXstatsTypeBridge:
+			si.HasBridgeXstats = true
+			if e := WalkRTAttrsNested(inner, func(btype uint16, body []byte) {
+				switch btype {
+				case BridgeXstatsVlan:
+					var v BridgeVlanXstats
+					if _, derr := DeserializeBridgeVlanXstats(body, &v); derr == nil {
+						si.BridgeVlans = append(si.BridgeVlans, v)
+						si.HasBridgeVlan = true
+					}
+				case BridgeXstatsMcast:
+					if _, derr := DeserializeBrMcastStats(body, &si.BridgeMcast); derr == nil {
+						si.HasBridgeMcast = true
+					}
+				case BridgeXstatsStp:
+					si.HasUngroundedXstatsBody = true
+				}
+			}); e != nil && innerErr == nil {
+				innerErr = e
+			}
+		case LinkXstatsTypeBond:
+			si.HasUngroundedXstatsBody = true
+		}
+	})
+	if outerErr != nil {
+		return outerErr
+	}
+	return innerErr
 }

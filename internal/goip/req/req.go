@@ -504,6 +504,15 @@ func StatsShowDump(seq uint32) []byte {
 	return xtcpnl.BuildDumpStatsRequest(unix.AF_UNSPEC, 0, xtcpnl.StatsFilterLink64, seq)
 }
 
+// StatsShowXstatsDump is `ip stats show group xstats`'s dump: the same
+// rtnl_statsdump_req_filter as StatsShowDump but with filter_mask
+// StatsFilterXstats (the link-xstats group, 0x2). The whole-group request adds no
+// IFLA_STATS_GET_FILTERS nest (ip/ipstats.c:793-828), so it is byte-identical to
+// the link dump except the mask value.
+func StatsShowXstatsDump(seq uint32) []byte {
+	return xtcpnl.BuildDumpStatsRequest(unix.AF_UNSPEC, 0, xtcpnl.StatsFilterXstats, seq)
+}
+
 // StatsShowLinkDump is the link dump ipstats triggers lazily via ll_index_to_name
 // (ip/ipstats.c:761) to turn an ifindex into a name. goip issues it up front, the
 // netconf idiom; it is byte-identical to NetconfShowLinkDump.
