@@ -991,6 +991,12 @@ owners, deadlines or successful outcomes. Continue independent ready tasks.
 | 2026-10-09 | Confirmed PR #177 merged as `96d29fb770342fb26f306d2fdae30b9352eccea6` and moved the isolated checkout to merged main. Recorded the merge locally for the next increment. | 25/34 complete; next P08-T03, embedding compatibility and integration. No new implementation or hardware validation claimed |
 | 2026-10-09 | Completed P08-T03: actual xtcp collector coexistence, compiling embedding example, explicit collision/lifecycle tables, host ownership tests and repeatable KVM/TCG guest. Corrected loopback setup after the TCG HTTP test exposed it; retained the failed and successful evidence. | V057–V058; all fourteen monitor gates, three Nix policies and both corrected TCG guest variants pass. P08 3/3, overall 26/34; next P09-T01. D01 and existing release/performance follow-ups remain open |
 
+Publication: P08-T03 was committed as `cb958fb` and pushed on
+`test/linkmonitor-embedding`; [PR #178](https://github.com/randomizedcoder/xtcp2/pull/178)
+was opened using the randomizedcoder identity. V058 remains the implementation
+evidence; only this publication note changed afterward. Progress remains 26/34,
+with P09-T01 next. The PR has not been merged.
+
 Established design decisions: public reusable pkg/linkmonitor; small standalone
 command; RDMA required in v1; all statistic fields selected by default; cached
 immutable snapshots; ordinary poller default with optional io_uring; actual xtcp2
