@@ -303,7 +303,14 @@ actual xtcp2 runtime enablement remains D01.
 
 Deliver: Add decoder/schema/reducer/publication/Gather/HTTP benchmarks and end-to-end synthetic matrix from detailed design section 11. Measure the narrow rdma-core/cgo boundary separately from provider/kernel I/O and Go delivery/publication/scraping: calls/event, allocations/event, CPU and burst latency. Include calls/query, serialized UMAD lane contention and per-query resource acquisition/cleanup. Compare batched retrieval if boundary overhead is material; retain equivalent acknowledgement and lifecycle behavior.
 
-Done when: Record pinned environment, at least ten microbenchmark repetitions and variance; all compared workloads produce equivalent metrics.
+Done when: Record pinned environment, at least ten microbenchmark repetitions and variance; all compared workloads produce equivalent metrics. Run-all builds and verifies the harness; `bench-linkmonitor` runs measurements freshly outside the Nix build cache. Retain raw evidence and explicit unavailable provider/kernel measurements; update STATUS only after the correctness gates and full runner pass.
+
+Implementation note (2026-10-10): P09-T01 is complete under STATUS V061–V062.
+All fifteen monitor gates, three Nix policies, 156 microbenchmark cases with ten
+repetitions and 60 core/RDMA lifecycle scenarios pass. A focused owner-only
+schema-validation cache was brought forward to address the initial recovery
+failure. Combined-workload cold population and second-scale publication delays
+remain P09-T02 profiling/soak inputs; this baseline establishes no latency SLO.
 
 #### P09-T02
 

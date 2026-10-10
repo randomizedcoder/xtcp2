@@ -21,6 +21,7 @@ type collectorState struct {
 	lastError                error
 	lastAttempt, lastSuccess model.Stamp
 	block                    *collectorBlock
+	validation               *collectionValidation
 	history                  map[sampleKey]counterObservation
 	discontinuities          uint64
 	publication              *collectorSnapshot

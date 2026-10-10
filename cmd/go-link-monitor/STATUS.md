@@ -1,9 +1,111 @@
 # go-link-monitor implementation status
 
-Last updated: 2026-10-09.
+Last updated: 2026-10-10.
 
-**P01–P08 are complete: 26 of 34 implementation tasks passed their gates.**
-Next task: [P09-T01](IMPLEMENTATION-PLAN.md#p09-t01), benchmark harness and baseline.
+**P01–P08 and P09-T01 are complete: 27 of 34 implementation tasks passed their gates.**
+Next task: [P09-T02](IMPLEMENTATION-PLAN.md#p09-t02), profiles, soak and remediation.
+
+P09-T01 adds decoder/schema/reducer/publication/refresh/exporter benchmarks,
+synthetic lifecycle scenarios, cgo boundary probes, a fifteenth correctness leaf
+and a separate fresh-measurement runner. A focused production schema-validation
+cache fixes the repeated global work exposed by the initial baseline while
+preserving collision checks. Final pinned correctness and fresh baseline gates
+pass (V061–V062). The two largest combined workloads have incomplete five-second
+warmup and second-scale publication latency; these remain explicit P09-T02
+findings, not fully warmed comparisons or fleet performance guarantees.
+
+V062 — P09-T01 baseline acceptance (2026-10-10): the fresh runner exits zero
+and records `status: complete` in `/tmp/linkmonitor-baseline-xd5g273b/manifest.json`.
+All 156 microbenchmark cases have ten repetitions: 74 each for core/RDMA, six
+event/boundary cases and two simulated UMAD cases. Four benchstat reports retain
+variance. All 60 lifecycle scenarios pass, and all 72 command records are complete.
+The run uses pinned Go 1.26.5, Linux 7.1.8 x86_64, GOMAXPROCS=4, GOGC=100 and
+the pinned RDMA runtime; source/tool/CPU/affinity metadata and command-level CPU,
+wall time and host load are retained. Total command wall time is 4,655.65 seconds.
+This is shared-host evidence: sampled one-minute load averages range from
+38.53 to 74.70. No timing speedup or hardware/provider latency claim is made.
+
+Warmup outcomes: 32 fully populated, 26 deliberately injected source behaviors,
+and two capacity-limited combined cases. For core/RDMA respectively, the combined
+256-port, 1,024-field, ten-scraper cases have 262,144/258,048 of 524,288 samples
+at warmup; both reach all 524,288 samples by the final assertion. Fresh resync
+recovery takes 26.922/7.458 seconds, and sampled maximum publication latency is
+2.677/2.954 seconds. These delays require P09-T02 profiling and warmed soaks.
+Every scenario verifies present sample values, pedantic Gather, fresh complete
+reconciliation and exact final link count. Peak source-worker occupancy never
+exceeds four. This short matrix does not establish retained-memory bounds.
+
+In both builds, a publication down/up pair costs 1,856 B/op and 14 allocations
+at every tested field count through 65,536; the reducer pair costs zero allocations.
+Synthetic batches of 1/8/32/64 events use one Go/C call per batch and zero Go
+allocations. The simulated UMAD lane uses three Go/C calls, 512 B/op and two
+allocations per query, including contended runs. Provider/kernel I/O and actual
+registration/open/close costs remain unavailable, explicitly separate from these
+boundary measurements. Raw `.txt` logs, four `*-benchstat.txt` reports,
+`commands.json` and `scenarios.json` are retained in the evidence directory;
+`/tmp/linkmonitor-p09-final-baseline.log` records the invocation output. These
+`/tmp` artifacts are ephemeral and should be copied before host cleanup.
+Only completion documentation changed after the pinned checks. All 325 monitor,
+command and Nix Go/C/header/Nix/Python files match the tested source. The pinned
+documentation checker verifies all six documents and the 27/34 task totals;
+all seven documentation/performance report tests and `git diff --check` pass.
+
+V061 — P09-T01 final correctness acceptance (2026-10-10): all fifteen monitor
+gates and the three Nix policies pass. Core unit/race each report 3,513 passing
+tests/subtests; tagged unit/race each report 1,579, with no failures or skips.
+All 40 replay combinations, decoder/RDMA fuzzing, repeated performance races,
+tagged comprehensive lint and report checks pass. The final source includes
+grouped validation caches and isolation of churn from the latency-probe device.
+All 244 monitor/command Go/C/header files match the pinned source byte-for-byte.
+Evidence: `/tmp/linkmonitor-p09-final-aggregate.log`; aggregate
+`/nix/store/czz8p06ylippklvasxygnbhp70dm33af-xtcp2-test-linkmonitor`; source
+`/nix/store/dnbq1vn3if1h9h61dbg0hkaiqsc7x4x1-ykps9xk9ggwb8nxxmlm4hblkng4naz4a-source`.
+Fresh measurements started after the builds finished using
+`/nix/store/f8k7m4l1gmxibvf41pzj337p74087rdc-bench-linkmonitor/bin/bench-linkmonitor`,
+with evidence in `/tmp/linkmonitor-baseline-xd5g273b` and invocation log
+`/tmp/linkmonitor-p09-final-baseline.log`. V062 records its successful completion.
+
+V060 — P09-T01 recovery investigation (2026-10-10): the combined workload still
+failed with a five-minute recovery bound: count 256 was known and correct, but
+the last complete reconciliation remained the startup result. The 342-second
+diagnostic CPU profile attributes 57.65% of sampled CPU to
+`validateCollectionSchema`, primarily repeated global series construction.
+Evidence: `/tmp/linkmonitor-p09-combined-diagnostic2.log`,
+`/tmp/linkmonitor-p09-combined-cpu.pprof`, `/tmp/linkmonitor-p09-profile-top.log`.
+The focused fix caches owner-only validation metadata per current schema/name/
+scope, groups series by final metric and interface identity, and retains every
+duplicate-series, descriptor and reserved-name check. Cache metadata is released
+when its collector block is replaced or removed. Explicit admission/cache
+tables cover collisions, renames, removal, replacement, shared groups, exact
+labels, empty schemas and 65,536 fields. Initial diagnostic and local tests pass;
+V061–V062 subsequently close the pinned gates and fresh baseline. Detailed
+profiling, soaks and further scheduling changes remain P09-T02.
+
+V059 — P09-T01 correctness acceptance (2026-10-09): the unchanged aggregate plus
+the new performance leaf and all three Nix policies pass against the implementation.
+Core unit/race each pass 3,490 tests/subtests; tagged unit/race each pass 1,556,
+with no failures or skips. All 40 kernel replay combinations, existing decoder
+and RDMA fuzz gates, repeated performance races, actual Go/C call-count checks,
+comprehensive tagged lint and four report tests pass. Evidence:
+`/tmp/linkmonitor-p09-completion-aggregate.log`, aggregate
+`/nix/store/nmajk1j1h6xng7ga460l6bqk0hwbciyv-xtcp2-test-linkmonitor`, performance
+artifact `/nix/store/amqz1dy6wb56kbhajpww50yg8kai2kf8-xtcp2-test-linkmonitor-performance`.
+Source: `/nix/store/73wfj8nir5jabvhd2vnp30gl1i2d4rm0-6f11j944zaym7dcyqj0amfz4pkpwzw3i-source`.
+The runner `/nix/store/6mnwcy8mdv89n6msjdq74s4ih333gq7w-bench-linkmonitor`
+collected fresh evidence in `/tmp/linkmonitor-baseline-xv3v8x26` after the
+builds/tests finished. Both core/RDMA suites completed 74 cases with ten repetitions
+each and benchstat variance; boundary probes also completed. The initial runner
+then stopped at the 256-port recovery check: the harness's ten-second cutoff
+was exceeded. An isolated repeat completed correctly in 9.25 seconds, while the
+largest combined case also exceeded the ten-second publication probe cutoff.
+These initial failed results remain in the evidence directory and
+`/tmp/linkmonitor-p09-{recovery-repeat,recovery-diagnostic,combined-diagnostic}.log`.
+The harness now gives individual probes and final recovery five-minute safety
+bounds within the ten-minute scenario deadline, retaining actual elapsed times
+and the original correctness assertions. This defines no latency objective;
+large-schema delays remain P09-T02 findings. The changed harness and a fresh
+complete baseline must pass before P09-T01 is marked done.
+
 P07-T04 connects the live library and validates its pinned RDMA runtime with a
 software harness. P08-T02 now validates the final standalone full/core artifacts.
 The software-RDMA guest builds, but execution is unverified
@@ -38,14 +140,12 @@ collection is an explicit follow-up before claiming full v1 metric coverage.
 
 This is the live tracker for [IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md).
 
-Follow-up (P09 performance validation): measure the narrow rdma-core/cgo
-boundary separately from kernel/provider I/O, Go event delivery, snapshot
-publication and Prometheus scraping. Report calls/event, allocations/event,
-CPU and burst latency; compare batched retrieval if boundary cost is material.
-Include calls/query, serialized UMAD lane contention and per-query open/close
-cost. The cached sysfs benchmark is synthetic and does not measure those costs.
-The user approved this binding on 2026-10-08 subject to tracking this measurement;
-no claim of negligible cgo overhead is made.
+The cgo measurement follow-up authorized on 2026-10-08 now has a reproducible
+synthetic boundary baseline (V062), including batching and UMAD lane contention.
+Actual provider/kernel delivery and resource acquisition/cleanup still require
+the authorized RDMA lab; the cached sysfs and simulated UMAD benchmarks do not
+measure those costs. P09-T02 retains detailed profiles and ten-minute soaks;
+no claim of negligible production cgo overhead is made.
 [DETAILED-DESIGN.md](DETAILED-DESIGN.md), [DESIGN.md](DESIGN.md) and
 [METRICS.md](METRICS.md) remain the design/behavior/metric sources of truth.
 [VALIDATION.md](VALIDATION.md) documents the pinned, repeatable Nix checks.
@@ -205,7 +305,7 @@ integration remains deferred under D01.
 | Monitor executable/library | Implemented and packaged | V056: full/core CLI artifacts, cached HTTP, signals and joined shutdown pass; explicit io_uring remains unavailable; OCI/service deployment remains P11-T02 |
 | Prometheus adapter | Implemented | V054: one-root Gather, immutable descriptor catalogs, diagnostics and concurrent-scrape tests; no scrape I/O or global registration. Netclass source-coverage follow-up remains open |
 | Existing netlink/ring libraries | Monitor wire support, poller requests and production events implemented | P04 wire/fixture and transport checks preserved; P07-T04 connects production sources; ring backend remains P10 |
-| Poller software gate | Not met | Remaining P08 tasks, P09 and P11-T01/P11-T02 outstanding |
+| Poller software gate | Not met | P09-T01 baseline passes; P09-T02 profiles/soaks and P11-T01/P11-T02 remain outstanding |
 | Optional io_uring gate | Not met | P10 and applicable regression/artifact revalidation outstanding |
 | Mixed-fleet hardware gate | Unverified | No go-link-monitor physical Ethernet/RoCEv2/native-IB results; P11-T03 outstanding |
 
@@ -239,7 +339,7 @@ integration remains deferred under D01.
 | P06 | Ethernet and host collectors | done | 4/4 | V035 closes traffic/carrier; V039 closes identity/settings/channels/rings; V041 closes driver/PHY; V043 closes host protocol statistics |
 | P07 | RDMA collection and builds | done | 4/4 | V052 closes live library/runtime gates; software-RDMA guest builds, KVM execution unavailable; standalone command artifact acceptance is P08-T02 |
 | P08 | Exporter and standalone command | done | 3/3 | V054 adapter; V056 command/artifacts; V058 embedding compatibility and executed core/RDMA TCG integration |
-| P09 | Performance baseline | not started | 0/2 | None |
+| P09 | Performance baseline | in progress | 1/2 | V061–V062 close P09-T01; profiles, soaks and capacity remediation remain P09-T02 |
 | P10 | Optional io_uring | not started | 0/3 | None |
 | P11 | Release verification | not started | 0/3 | None |
 
@@ -276,7 +376,7 @@ plan, not copied here. Add verification IDs to the evidence column as work runs.
 | [x] | [P08-T01](IMPLEMENTATION-PLAN.md#p08-t01) | Prometheus adapter | done | V054; immutable diagnostics/catalogs, exact source exposition, expiry/schema/label/numeric/concurrency tables, all twelve pinned gates and three Nix policies pass |
 | [x] | [P08-T02](IMPLEMENTATION-PLAN.md#p08-t02) | Thin command and HTTP lifecycle | done | V055–V056: CLI/HTTP, signals, race/limits, full/core artifacts and thirteen-gate aggregate |
 | [x] | [P08-T03](IMPLEMENTATION-PLAN.md#p08-t03) | Embedding compatibility and integration | done | V058: xtcp coexistence, lifecycle/registry ownership, collision tables, fourteen-gate aggregate and executed core/RDMA TCG guest |
-| [ ] | [P09-T01](IMPLEMENTATION-PLAN.md#p09-t01) | Benchmark harness and baseline | not started | None |
+| [x] | [P09-T01](IMPLEMENTATION-PLAN.md#p09-t01) | Benchmark harness and baseline | done | V061–V062: fifteen pinned gates, three Nix policies, 156 cases × ten repetitions and 60 lifecycle scenarios pass |
 | [ ] | [P09-T02](IMPLEMENTATION-PLAN.md#p09-t02) | Profiles, soak and remediation | not started | None |
 | [ ] | [P10-T01](IMPLEMENTATION-PLAN.md#p10-t01) | Ring wrapper prerequisites | not started | None |
 | [ ] | [P10-T02](IMPLEMENTATION-PLAN.md#p10-t02) | Monitor ring backend | not started | None |
@@ -947,6 +1047,8 @@ not failed checks and not reasons to mark all phases blocked in advance.
 
 | Requirement | Affected tasks | Action when work reaches it |
 |---|---|---|
+| Cold schema population, publication latency and shared-host timing variance | P09-T02 | V062 combined cases populate only about half their samples during five-second warmup and show 2.68–2.95-second maximum sampled publication delays. Profile remaining owner/exporter work and repeat equal-size warmed measurements on a quiet host. Preserve partial-population results as capacity evidence; do not compare them as equivalent steady-state workloads |
+| Event-triggered reconciliation work | P09-T02 | The reference lifecycle run records frequent resyncs and collector queries. `reconciler.event` requests reconciliation on each link event, using the periodic reason label even before the hourly timer is due. Profile this work and preserve convergence semantics when considering coalescing or scheduling changes |
 | Netclass metadata collection coverage | Follow-up before standalone release | P08-T01 found that MTU, flags, addresses, alternate names and related netclass properties are specified but not projected by the existing sources. Keep METRICS coverage explicit and implement collection before claiming complete v1 coverage; the adapter must not synthesize missing values |
 | Standalone deployment artifacts | P11-T02 | Full/core executables pass V056; OCI/service deployment and deployment permission verification remain |
 | Software-RDMA guest execution | P11-T02 | V052 builds the opt-in guest/runner; run `test-linkmonitor-rdma-vm` on a host with accessible KVM and retain actual results. No RDMA guest test has run here; physical validation remains P11-T03 |
@@ -990,14 +1092,15 @@ owners, deadlines or successful outcomes. Continue independent ready tasks.
 | 2026-10-09 | Committed and pushed the combined library/exporter, command/artifact and comment fixes; opened [PR #177](https://github.com/randomizedcoder/xtcp2/pull/177) using the randomizedcoder profile. No merge performed. | V056 remains the implementation evidence; only completion/publication documentation changed afterward. Next P08-T03 |
 | 2026-10-09 | Confirmed PR #177 merged as `96d29fb770342fb26f306d2fdae30b9352eccea6` and moved the isolated checkout to merged main. Recorded the merge locally for the next increment. | 25/34 complete; next P08-T03, embedding compatibility and integration. No new implementation or hardware validation claimed |
 | 2026-10-09 | Completed P08-T03: actual xtcp collector coexistence, compiling embedding example, explicit collision/lifecycle tables, host ownership tests and repeatable KVM/TCG guest. Corrected loopback setup after the TCG HTTP test exposed it; retained the failed and successful evidence. | V057–V058; all fourteen monitor gates, three Nix policies and both corrected TCG guest variants pass. P08 3/3, overall 26/34; next P09-T01. D01 and existing release/performance follow-ups remain open |
+| 2026-10-10 | Completed P09-T01: reusable benchmark fixtures, explicit correctness tables, fresh pinned runner and full core/RDMA baseline. Brought forward an owner-only schema-validation cache after profiling a failed initial run; retained failures and all collision checks. | V059–V062: final fifteen gates, three Nix policies, 1,560 microbenchmark samples and 60 lifecycle scenarios pass. Overall 27/34; next P09-T02 for profiles, ten-minute soaks and measured capacity/latency findings. Changes remain uncommitted |
 
 Publication: P08-T03 was committed as `cb958fb` and pushed on
 `test/linkmonitor-embedding`; [PR #178](https://github.com/randomizedcoder/xtcp2/pull/178)
 was opened using the randomizedcoder identity. V058 remains the implementation
-evidence; only this publication note changed afterward. Progress remains 26/34,
-with P09-T01 next. PR #178 merged on 2026-10-10 at 04:06:23 UTC as
+evidence; only this publication note changed afterward. At that checkpoint,
+progress was 26/34, with P09-T01 next. PR #178 merged on 2026-10-10 at 04:06:23 UTC as
 `4cf1db1be18ee03c38ef50cfb81fc03adf7e1439`. P08-T03 is now on main;
-P09-T01 remains the next implementation increment.
+P09-T01 was the subsequent implementation increment, completed under V061–V062.
 
 Established design decisions: public reusable pkg/linkmonitor; small standalone
 command; RDMA required in v1; all statistic fields selected by default; cached

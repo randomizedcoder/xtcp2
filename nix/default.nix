@@ -792,6 +792,10 @@ in
     // (removeAttrs lintTiers [ "all" ])
     // {
       regen-protos = protos.regenerate;
+      bench-linkmonitor = import ./tests/linkmonitor-benchmark-runner.nix {
+        inherit pkgs;
+        artifact = tests.test-linkmonitor-performance;
+      };
       test-linkmonitor-embedding-vm = import ./microvms/linkmonitor-embedding.nix {
         inherit pkgs lib nixpkgs;
         artifact = tests.test-linkmonitor-embedding;

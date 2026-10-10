@@ -36,6 +36,9 @@ func (p freshnessPolicy) lifetime(kind model.CollectorKind) time.Duration {
 }
 
 func (r *reducer) collectionChanged(key model.JobKey, state *collectorState) {
+	if state.block == nil || state.validation != nil && state.validation.schema != state.block.schema {
+		state.validation = nil
+	}
 	state.publication = nil
 	if i, exists := r.index[key.Device]; exists {
 		slot := r.slots[i]

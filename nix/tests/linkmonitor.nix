@@ -55,6 +55,9 @@ let
       ;
   };
   leaves = {
+    test-linkmonitor-performance = import ./linkmonitor-performance.nix {
+      inherit pkgs src vendoredSource;
+    };
     test-linkmonitor-embedding = import ./linkmonitor-embedding.nix {
       inherit pkgs src vendoredSource;
     };

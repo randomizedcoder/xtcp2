@@ -7,7 +7,7 @@ See [FLAVORS.md](FLAVORS.md) for binary and container variants.
 
 ## Link-monitor verification
 
-Run all fourteen focused monitor checks with one target:
+Run all fifteen focused monitor checks with one target:
 
 ```sh
 nix build path:.#test-linkmonitor -L
@@ -65,6 +65,44 @@ repeated races and cached-counter benchmarks in the unit target. These software
 checks send no real management packets. Cgo is restricted to the verbs and local
 UMAD adapters; decoding, metric publication and scraping remain Go code. P09
 tracks boundary overhead, including serialized UMAD acquisition/query/cleanup.
+
+### Monitor performance measurements
+
+`test-linkmonitor-performance` joins the run-all target as its fifteenth leaf.
+It builds core/RDMA benchmark executables and checks equivalence, synthetic
+lifecycle behavior, races, benchmark probes and report validation with pinned
+tools. Build caching applies to these correctness checks and executables.
+
+Run fresh measurements separately, without other builds or tests:
+
+```sh
+nix run path:.#bench-linkmonitor -- --output /tmp/linkmonitor-baseline
+```
+
+The output directory must not exist. The default is a unique temporary directory.
+The runner uses ten one-second microbenchmark repetitions, a separate warmup,
+and sequential synthetic scenarios with five-second warmup and thirty-second
+measurement. `--gomaxprocs` defaults to at most four permitted CPUs; affinity is
+recorded, not changed. `--smoke` exercises the runner but produces **smoke-only**
+evidence. `--baseline /path/to/previous` requires a compatible completed manifest
+and runs the pinned benchstat comparison. Raw logs, per-command provenance,
+CPU/resource summaries, scenario reports and benchstat variance are retained.
+Incorrect metrics, failed tests and incomplete execution leave an incomplete
+manifest and return nonzero. A scenario that has not populated its full schema
+after warmup is retained as `capacity-limited`, with present/expected counts;
+this can reflect cold-start cost or host contention, not just steady-state
+capacity. Its latency is not an equal-size steady-state comparison. Benchstat
+compares the fully populated microbenchmarks only. P09-T02 investigates these
+limitations rather than the runner silently dropping the workload.
+Individual latency probes and final reconciliation have five-minute safety
+bounds within the ten-minute scenario timeout. Actual elapsed time is reported; this is not a
+recovery-latency service-level objective. Recovery must still produce a fresh
+complete reconciliation and the exact expected link count.
+
+These are synthetic source and cgo-boundary measurements, not physical Ethernet,
+RoCE or InfiniBand/provider latency. The UMAD probe simulates buffer allocation
+and copying under the real serialization lane; it performs no management I/O.
+P09-T02 retains detailed profiles, syscall accounting and ten-minute soaks.
 
 Build the standalone artifacts independently:
 
