@@ -6,6 +6,8 @@
 # Monitor "run all": nix build path:.#test-linkmonitor -L
 # Runs core tests, race, vet, lint, formatting, replay, fuzzing and doc checks,
 # plus tagged RDMA tests/lint, runtime packaging, library and executable checks.
+# Includes embedding checks/artifacts; execute the disposable integration with
+# nix run path:.#test-linkmonitor-embedding-vm -- --accel=auto (KVM or TCG).
 # Standalone: nix build path:.#go-link-monitor (full RDMA) or #go-link-monitor-core.
 # Opt-in software RDMA guest: nix run path:.#test-linkmonitor-rdma-vm (needs KVM).
 # See ./nix/README.md for individual targets, logs and Nix policy checks.

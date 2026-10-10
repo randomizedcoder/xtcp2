@@ -55,6 +55,9 @@ let
       ;
   };
   leaves = {
+    test-linkmonitor-embedding = import ./linkmonitor-embedding.nix {
+      inherit pkgs src vendoredSource;
+    };
     test-linkmonitor-unit = mkCheck "unit" {
       command = ''
         go test -json -count=1 -timeout=5m ${paths}

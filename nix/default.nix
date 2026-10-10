@@ -792,6 +792,10 @@ in
     // (removeAttrs lintTiers [ "all" ])
     // {
       regen-protos = protos.regenerate;
+      test-linkmonitor-embedding-vm = import ./microvms/linkmonitor-embedding.nix {
+        inherit pkgs lib nixpkgs;
+        artifact = tests.test-linkmonitor-embedding;
+      };
       test-linkmonitor-rdma-vm = import ./microvms/linkmonitor-rdma.nix {
         inherit
           pkgs

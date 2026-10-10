@@ -280,7 +280,20 @@ Done when: CLI precedence/help/version, bind/baseline failure, SIGUSR1, terminat
 
 Deliver: Test caller-owned context/logger/registry and xtcp2 collector coexistence; document embedding without enabling it in xtcp2.
 
+Implementation: exercise actual xtcp metric initialization in a private registry;
+test delayed dynamic collisions, unchecked registration lifetime, independent
+contexts/loggers and host HTTP lifetime. Add `test-linkmonitor-embedding` to the
+aggregate for compatibility tests and compiled guest artifacts. Execute
+`test-linkmonitor-embedding-vm` separately with KVM/TCG fallback, real disposable
+namespace/veth transport and test-only eligibility injection. Tables explicitly
+state category, description and expected outcome. Retain guest logs and update
+STATUS as implementation and verification progress.
+
 Done when: Disposable Linux integration and duplicate/dynamic registry collision checks pass; no hidden server, signal handler or global state.
+
+Completed with V058 in [STATUS.md](STATUS.md): fourteen-gate aggregate, Nix
+policies and executed core/RDMA TCG guest pass. Next increment is P09-T01;
+actual xtcp2 runtime enablement remains D01.
 
 ### P09 — Performance baseline
 
