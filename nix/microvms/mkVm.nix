@@ -39,6 +39,8 @@
   # Required when sink == "tcp-stress". The OCI image (streamLayeredImage
   # script) that the in-VM container spawn unit loads via `docker load`.
   tcpStressImage ? null,
+  # Additional isolated validation modules; ordinary flavors remain unchanged.
+  extraModules ? [ ],
 }:
 
 let
@@ -2436,6 +2438,7 @@ in
     microvm.nixosModules.microvm
     ../modules/xtcp2-service.nix
   ]
+  ++ extraModules
   ++ lib.optionals isAnyS3Parquet s3ParquetModules
   ++ lib.optionals isValkey valkeyModules
   ++ lib.optionals isNats natsModules

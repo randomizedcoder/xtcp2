@@ -3,25 +3,23 @@
   pkgs,
   src,
   vendoredSource,
+  linkmonitorPackages,
 }:
 let
   versions = import ../versions.nix { inherit pkgs; };
-  runtime = pkgs.symlinkJoin {
-    name = "xtcp2-linkmonitor-rdma-runtime";
-    paths = [ pkgs.rdma-core ];
-  };
+  rdma = import ../lib/linkmonitor-rdma.nix { inherit pkgs; };
+  inherit (rdma) runtime;
   mkCheck =
     name: command:
     pkgs.runCommand "xtcp2-test-linkmonitor-rdma-${name}"
       {
         nativeBuildInputs = [
           versions.go
-          pkgs.gcc
-          pkgs.pkg-config
           versions.golangci-lint
           pkgs.binutils
-        ];
-        buildInputs = [ pkgs.rdma-core ];
+        ]
+        ++ rdma.nativeBuildInputs;
+        inherit (rdma) buildInputs;
       }
       ''
         set -euo pipefail
@@ -47,11 +45,34 @@ let
       '';
 in
 {
+  test-linkmonitor-rdma-build = mkCheck "build" ''
+    mkdir -p "$out/bin"
+    go build -tags rdma -trimpath -o "$out/bin/linkmonitor-smoke" ./nix/tests/linkmonitor-smoke
+    go test -tags rdma,rdma_vm -c -o "$out/bin/rdma-vm.test" ./pkg/linkmonitor
+    ln -s ${runtime} "$out/runtime"
+    readelf -d "$out/bin/linkmonitor-smoke" > "$out/elf.txt"
+    ldd "$out/bin/linkmonitor-smoke" > "$out/ldd.txt"
+    if grep -q 'not found' "$out/ldd.txt"; then cat "$out/ldd.txt"; exit 1; fi
+    grep 'libibverbs.so' "$out/ldd.txt"
+    grep 'libibumad.so' "$out/ldd.txt"
+    if grep -q 'libibmad.so' "$out/ldd.txt"; then exit 1; fi
+    env -i HOME="$TMPDIR" TMPDIR="$TMPDIR" "$out/bin/linkmonitor-smoke" -sandbox > "$out/smoke.log" 2>&1
+    go test -tags rdma -c -o "$out/bin/rdmaevents.test" ./pkg/linkmonitor/internal/rdmaevents
+    env -i HOME="$TMPDIR" LINKMONITOR_RDMA_RUNTIME=${runtime} \
+      "$out/bin/rdmaevents.test" -test.run '^TestVerbsRuntime$' -test.v > "$out/providers.log" 2>&1
+    for cgo in 0 1; do
+      CGO_ENABLED=$cgo go test ./pkg/linkmonitor/... -run 'TestProduction|TestRunFailures|Unavailable' -count=1
+    done
+    CGO_ENABLED=0 go test -tags rdma ./pkg/linkmonitor/... -run 'TestProduction|TestRunFailures|Unavailable' -count=1
+    CGO_ENABLED=0 go build -tags rdma -trimpath -o "$out/bin/linkmonitor-core-smoke" ./nix/tests/linkmonitor-smoke
+    if readelf -d "$out/bin/linkmonitor-core-smoke" | grep -q NEEDED; then exit 1; fi
+    env -i HOME="$TMPDIR" TMPDIR="$TMPDIR" "$out/bin/linkmonitor-core-smoke" -sandbox > "$out/core-smoke.log" 2>&1
+  '';
   test-linkmonitor-rdma-unit = mkCheck "unit" ''
-    go test -tags rdma -json -count=1 -timeout=5m ./pkg/linkmonitor/... | tee "$out/unit.jsonl"
-    go test -tags rdma -race -json -count=1 -timeout=5m ./pkg/linkmonitor/... | tee "$out/race.jsonl"
+    go test -tags rdma -json -count=1 -timeout=5m ./cmd/go-link-monitor ./pkg/linkmonitor/... | tee "$out/unit.jsonl"
+    go test -tags rdma -race -json -count=1 -timeout=5m ./cmd/go-link-monitor ./pkg/linkmonitor/... | tee "$out/race.jsonl"
     go test -tags rdma -race -count=10 -timeout=5m ./pkg/linkmonitor/... \
-      -run 'RDMAEvent|PollSource|FatalContext|VerbsCopy|RDMANotif|RDMAMonitorMode|RDMAOptional|RDMACapability|RDMACounter|LocalQuery|CapabilityEncoding|UMAD' > "$out/repeated-race.log" 2>&1
+      -run 'Prometheus|Production|Lifecycle|RDMAEvent|PollSource|FatalContext|VerbsCopy|RDMANotif|RDMAMonitorMode|RDMAOptional|RDMACapability|RDMACounter|LocalQuery|CapabilityEncoding|UMAD' > "$out/repeated-race.log" 2>&1
     GOMAXPROCS=2 go test ./pkg/linkmonitor/internal/linuxio -run '^$' \
       -fuzz '^FuzzRDMANotifications$' -fuzztime=30s -parallel=2 -timeout=5m > "$out/fuzz.log" 2>&1
     GOMAXPROCS=2 go test ./pkg/linkmonitor/internal/rdmacaps -run '^$' \
@@ -64,8 +85,34 @@ in
       -bench '^BenchmarkRDMACounterRead$' -benchmem -benchtime=100ms >> "$out/bench.log" 2>&1
   '';
   test-linkmonitor-rdma-lint = mkCheck "lint" ''
-    go vet -tags rdma ./pkg/linkmonitor/...
-    golangci-lint run --config .golangci-comprehensive.yml --build-tags rdma ./pkg/linkmonitor/...
+    go vet -tags rdma ./cmd/go-link-monitor ./pkg/linkmonitor/... ./nix/tests/linkmonitor-smoke
+    golangci-lint run --config .golangci-comprehensive.yml --build-tags rdma ./cmd/go-link-monitor ./pkg/linkmonitor/... ./nix/tests/linkmonitor-smoke
+  '';
+  test-linkmonitor-command = mkCheck "command" ''
+    for package in ${linkmonitorPackages.go-link-monitor} ${linkmonitorPackages.go-link-monitor-core}; do
+      binary="$package/bin/go-link-monitor"
+      name=$(basename "$package")
+      env -i "$binary" -help > "$out/$name-help.txt"
+      env -i "$binary" -version > "$out/$name-version.txt"
+      readelf -d "$binary" > "$out/$name-elf.txt"
+      ln -sfn "$binary" cmd/go-link-monitor/go-link-monitor-artifact
+      expected=true
+      if [ "$package" = '${linkmonitorPackages.go-link-monitor-core}' ]; then expected=false; fi
+      LINKMONITOR_TEST_ARTIFACT=1 LINKMONITOR_EXPECT_RDMA=$expected go test -tags rdma -v -count=1 -timeout=90s \
+        ./cmd/go-link-monitor -run '^TestExecutable' > "$out/$name-process.log" 2>&1
+    done
+    ldd ${linkmonitorPackages.go-link-monitor}/bin/go-link-monitor > "$out/ldd.txt"
+    grep 'libibverbs.so' "$out/ldd.txt"
+    grep 'libibumad.so' "$out/ldd.txt"
+    if grep -E 'not found|libibmad.so' "$out/ldd.txt"; then exit 1; fi
+    if readelf -d ${linkmonitorPackages.go-link-monitor-core}/bin/go-link-monitor | grep NEEDED; then exit 1; fi
+    for cgo in 0 1; do
+      for tags in "" rdma; do
+        CGO_ENABLED=$cgo go test -tags "$tags" ./cmd/go-link-monitor -count=1 -timeout=90s
+      done
+    done
+    ln -s ${linkmonitorPackages.go-link-monitor} "$out/full"
+    ln -s ${linkmonitorPackages.go-link-monitor-core} "$out/core"
   '';
   test-linkmonitor-rdma-runtime = mkCheck "runtime" ''
     cc -I${pkgs.linuxHeaders}/include -x c -fsyntax-only - <<'HEADER'

@@ -452,7 +452,7 @@ interval plus query time; full resync is the inventory/configuration safety net.
 A count can stay constant when one interface goes down and another comes up:
 per-interface state and counters provide the missing detail.
 
-Proposed command flags:
+Standalone command flags:
 
 | Flag | Default | Contract |
 |---|---|---|
@@ -467,6 +467,19 @@ Proposed command flags:
 | `-max-speed-exceptions` | empty | Exact names/selectors; overrides GO_LINK_MONITOR_MAX_SPEED_EXCEPTIONS when present |
 | `-version` | false | Print build identity and exit |
 | `-io-backend` | `poller` | Ordinary nonblocking sockets by default; explicit `io_uring` requires supported backend initialization |
+
+Both single- and double-dash forms work. Only maximum-speed exceptions have an
+environment override. Unknown flags and positional arguments fail with exit 2;
+configuration errors also exit 2, runtime errors exit 1, and help/version or clean
+termination exit 0. Help/version perform no monitoring or baseline I/O. Version
+output reports version, revision and build date; the build metric has only the
+documented version/revision labels. Logs use structured text on stderr.
+
+Build the full Linux RDMA executable with `nix build path:.#go-link-monitor`;
+`path:.#go-link-monitor-core` explicitly omits the native bindings. Both install
+`bin/go-link-monitor`. No additional capabilities are granted by these packages.
+The remaining netclass metadata gap in STATUS still prevents a claim of complete
+v1 metric coverage. Service/OCI deployment is a later increment.
 
 Run with a dedicated service identity and writable state directory. Determine
 read and multicast permissions against target kernels; retain explicit permission

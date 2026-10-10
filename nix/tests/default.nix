@@ -9,6 +9,7 @@
   vendoredSource,
   binaries,
   microvms,
+  linkmonitorPackages,
 }:
 
 let
@@ -53,6 +54,7 @@ in
     lib
     src
     vendoredSource
+    linkmonitorPackages
     ;
 })
 // (lib.mapAttrs' (name: value: {

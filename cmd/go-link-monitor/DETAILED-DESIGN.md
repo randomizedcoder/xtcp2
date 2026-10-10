@@ -1,6 +1,6 @@
 # go-link-monitor detailed Go design
 
-Status: implementation underway, reviewed against the working tree on 2026-10-07.
+Status: implementation underway, reviewed against the working tree on 2026-10-09.
 P01/P02 now provide a tested library foundation, pure Ethernet/RDMA policies and
 baseline persistence. P03 adds single-owner reducer state, exact counter
 histories, paged immutable publication, monotonic expiry and coherent health.
@@ -8,7 +8,9 @@ P04-T01 adds pure netlink wire helpers and strict monitor decoding; P04-T02
 adds private nonblocking socket ownership, bounded receives and cancellation.
 P04-T03 adds typed request transactions, socket epochs and dynamic family/group
 discovery, with completion and recovery checked against the real kernel.
-Live collection, metrics serving and the standalone command remain to build. STATUS records completed gates; the
+P07-T04 wires live Linux collection. P08-T01 adds the reusable Prometheus adapter;
+P08-T02 implements standalone CLI/HTTP wiring and executable packaging.
+STATUS records completed gates; the
 remaining design and test matrix below are specifications, not verified results.
 
 [DESIGN.md](DESIGN.md) owns monitoring behavior, eligibility, baseline semantics,
@@ -83,8 +85,9 @@ concrete value types rather than introducing interfaces for every struct.
 These sketches describe the public API now introduced by P01, with private
 internals developed in subsequent phases. All public slices/maps passed to
 constructors are copied. Configuration becomes immutable after construction.
-The current live `Run` returns `ErrBackendUnavailable` until the real adapters
-are wired; fake sessions exercise the lifecycle without pretending to collect.
+The Linux poller `Run` now connects the real adapters. Explicit io_uring
+selection still returns `ErrBackendUnavailable`; fake sessions separately
+exercise failure, timing and ownership cases.
 
 ```go
 type IOBackend string
@@ -487,10 +490,10 @@ P05-T01 implements the private scheduler, fixed collector pool, serial inventory
 executor, and owner-loop driver in `pkg/linkmonitor/scheduler*.go`. They run with
 injected clocks, worker-local collector factories, and owner-side policy hooks.
 P05-T02 adds subscription ordering, convergence and recovery through the private
-coordinator described below. The live `Monitor.Run` backend remains unavailable:
+coordinator described below. P07-T04 connects the live `Monitor.Run` backend;
 P05-T03 supplies baseline and shutdown lifecycle policy with injected sources.
-Ethernet/host and RDMA adapter registration remains
-P06/P07; these foundations do not introduce per-device traffic dumps.
+Ethernet/host and RDMA adapter registration uses the P06/P07 sources;
+these foundations do not introduce per-device periodic traffic dumps.
 
 Ready queues rotate devices within each urgency class and allow one removable
 entry per job. Event refresh precedes reconciliation work; after eight urgent
@@ -629,8 +632,7 @@ factories. Acquisition runs separately from the owner so cancellation can bound
 even a stuck startup load or factory. A loaded baseline is published before
 source acquisition finishes; controls are accepted only after acquisition.
 Current count and delta remain unavailable until the first complete inventory.
-The public production opener still returns `ErrBackendUnavailable` until P06/P07
-provide the concrete source bindings.
+P07-T04 supplies the public production opener with the P06/P07 source bindings.
 
 One serial storage worker owns at most one save through completion consumption.
 Storage never occupies collector slots or blocks the reducer. The existing store
@@ -688,7 +690,8 @@ collectors. Each owns a lazy ordinary rtnetlink request client from
 One shared AF_UNSPEC dump supplies both traffic and carrier per stats interval;
 events coalesce targeted refreshes by device. Missed intervals produce one sweep,
 not accumulated catch-up jobs. The private lifecycle session opts into these
-adapters; the public production opener and standalone command remain future work.
+adapters; P07-T04 enables them in the public production opener. P08-T02 connects
+the standalone command to that lifecycle.
 
 The scheduler permits one physical traffic request and one result batch at a
 time in the existing pool. Results are bounded to 65,536 identities, with at most
@@ -830,7 +833,7 @@ namespace job, with no device key, runs at startup, every `StatsInterval` (15s b
 default) and after successful full reconciliation, including empty inventories.
 Full resync advances the host schema revision and preserves one pending refresh
 if a read is active. Obsolete results cannot publish. Device changes do not
-invalidate host statistics. Production source bindings remain pending.
+invalidate host statistics. P07-T04 enables the production source binding.
 
 Each worker opens `snmp`, `netstat` and optional `snmp6` beneath `/proc/net` in
 sequence. A private root/opener seam supports tests. Reads use reusable scratch
@@ -879,7 +882,7 @@ scratch mapping. Driver collection uses GDRVINFO/GSTRINGS/GSTATS; PHY collection
 uses GSSET_INFO with ETH_SS_PHY_STATS, its own GSTRINGS names and GPHYSTATS.
 The two collectors have independent support, failure, freshness and schema state.
 Eligible Ethernet and RoCE netdevs are queried even when down; native RDMA ports
-remain the P07 adapter's responsibility. Public production bindings remain pending.
+remain the P07 adapter's responsibility. P07-T04 enables production bindings.
 
 The reducer owns each accepted immutable schema: original name bytes, selected
 source indices and encoded label definitions. Jobs carry a read-only reference,
@@ -1004,7 +1007,7 @@ description and expectedOutcome text:
 P07-T02 adds verbs events and RDMA lifecycle notification integration;
 P07-T03 adds native speed/width capabilities and counters. P07-T01 polling does
 not claim working RDMA events or a complete mixed-fleet artifact. Production
-backend binding remains pending, and no hardware validation is claimed.
+backend binding is supplied by P07-T04; no physical fleet validation is claimed.
 
 Use typed Go discovery, correlation, sysfs parsing and policy. For verbs async
 events and local UMAD operations, use a narrow rdma-core binding isolated in the
@@ -1024,7 +1027,8 @@ separate full-build checks without weakening existing pure-Go checks. Runtime
 packaging includes matching providers and uverbs/umad access; permissions and
 ABI compatibility require integration validation. P07-T02 brings forward the
 pinned library/provider bundle and tagged test artifact; capability and final
-production artifact validation remain P07-T03/P07-T04.
+library runtime validation are completed by P07-T03/P07-T04. Final standalone
+command artifact acceptance belongs to P08-T02, per the agreed task boundary.
 
 ### P07-T02 event implementation
 
@@ -1247,9 +1251,88 @@ than two intervals; readiness additionally requires a baseline. Restarting a
 subscription alone cannot restore health after loss. The last resync timestamp
 survives failures. P05-T01 supplies the injected timer-loop driver and P05-T02
 supplies successful candidate validation and event-source recovery. Production
-source bindings remain outstanding; P05-T03 supplies the injected lifecycle.
+source bindings are supplied by P07-T04; P05-T03 supplies the injected lifecycle.
+
+### P07-T04 production library and runtime
+
+`New` remains free of I/O. The Linux poller opener resolves the current network
+namespace during `Run`, creates the durable baseline store and real monotonic
+clock, and registers the existing four worker decorators plus independent
+inventory, RDMA required-state and event executors. The host must establish its
+network/mount namespace before calling Run and must not change it during the
+monitor lifetime; sysfs-only RDMA discovery is not enabled without verified
+namespace agreement. Explicit io_uring remains unavailable.
+
+Route event sockets join RTNLGRP_LINK before the first inventory. Readers use
+the existing authenticated, bounded netlink transport and strict xtcpnl
+decoders. A matching known interface gets prompt scalar/carrier updates without
+doing hardware I/O in the reader; unknown or renamed interfaces wait for the
+inventory lane. Topology changes and refresh hints request coalesced resyncs.
+Ethtool notifications use dynamically discovered family/group IDs and a separate
+socket. Optional failures log diagnostics and request reconciliation while route
+events continue. Retry delay grows from one to thirty seconds; periodic renewal
+at Resync rediscovers registrations. A global hint discards any earlier candidate,
+so a pre-subscription dump cannot satisfy the new reconciliation barrier.
+
+The shared Nix RDMA definition supplies pinned build inputs and matching runtime
+libraries/providers. The validation harness links the public library and runs
+without host library-path variables. Tagged cgo enables verbs/UMAD; other build
+combinations report unavailable support while retaining discovery and readable
+statistics. Required event coverage affects health; optional capabilities remain
+unknown on failure. Build capability and operation errors are logged separately.
+No process automatically changes device permissions or fabric settings.
+
+Linux's GID sysfs ABI returns EINVAL for unused entries or entries without a
+netdev. Those entries are absent associations, not a failed inventory. Permission,
+I/O and joined errors while reading netdev associations still fail inventory;
+GID type-read failures retain the existing unknown-version semantics. Cancellation
+still aborts collection. Tests distinguish absence from multiple operation errors
+and preserve the existing empty-table and same-name replacement coverage.
+
+The opt-in software-RDMA guest reuses the existing microVM constructor and serial
+runner. It checks NLDEV discovery/association, provider context opening, denied
+access and removal/recreation. Virtual links remain excluded by production
+classification. It does not establish real verbs event delivery, native UMAD
+success or physical maximum speed. See VALIDATION and STATUS for executed gates
+and explicit limits; P09 retains the cgo performance measurements.
 
 ## 8. Prometheus exposition and concurrency
+
+P08-T01 implements `pkg/linkmonitor/prometheus.NewCollector`. It is an unchecked,
+caller-registered collector: construction and Describe perform no collection.
+A nil monitor produces a Gather error rather than a panic. P08-T02 implements
+host-owned build identity in the command's private registry.
+
+Snapshots expose read-only descriptor views and a schema revision independent
+of their publication version. Value-only changes reuse descriptor definitions.
+The adapter's current catalog is loaded atomically; only cache misses serialize
+construction. Fixed source names come from the finite application catalogs and
+retain their descriptors; dynamic names live only in the current catalog and
+in-flight scrapes. An older scrape cannot replace a newer catalog. No sample
+iteration holds the construction lock.
+
+The owner publishes cumulative collector errors, known filtered/stale omissions,
+resync outcomes and exception resolutions. Diagnostics saturate at uint64 maximum
+rather than wrapping. Accepted logical failures count once; unsupported sources
+are support diagnostics, and obsolete/duplicate replies do not count. Failed
+reads retain previously known omission counts; unknown sizes remain absent.
+Expiry counts previously present samples, including observed zeroes.
+
+Resync reasons are fixed at dispatch. Pending requests coalesce with priority
+rebaseline, loss, startup, periodic; explicit ordinary resync uses periodic.
+Each completed convergence attempt records one outcome; shutdown cancellation
+does not manufacture an error. Exceptions do not rewrite raw policy checks.
+
+Source admission rejects invalid identifiers, reserved policy names, conflicting
+family schemas and duplicate final series. Existing short descriptor keys map
+explicitly to the contracted names. Prometheus conversion happens only while
+emitting immutable const metrics; unexpected adapter inconsistencies fail Gather.
+
+Coverage limitation found during P08-T01: the existing sources do not yet project
+the remaining netclass metadata families (MTU, flags, addresses, alternate names
+and related properties listed in METRICS). The adapter exposes collected samples;
+it does not fabricate these fields. Complete that collection follow-up before
+claiming the standalone release covers the entire v1 metric inventory.
 
 `Collect` loads one Snapshot exactly once and streams that snapshot's samples.
 It does no source I/O, policy changes, registry mutation, baseline access or
@@ -1290,6 +1373,17 @@ actual concurrent gathers and retained roots under slow clients, including work
 that outlives an HTTP timeout. The embedding owns its handler settings and should
 apply equivalent limits. Do not pre-encode an entire response on every event:
 that would make a link flap cost proportional to all statistics.
+
+The standalone command owns a private registry containing the monitor adapter
+and build_info only. It binds before starting `Run`, uses an explicit mux and
+reads published readiness. Liveness stays healthy through collection errors.
+SIGUSR1 logs acceptance/rejection without claiming durable completion. SIGINT,
+SIGTERM, monitor return or serving failure immediately make readiness false,
+cancel collection and drain HTTP concurrently with library cleanup. HTTP gets
+five seconds before remaining connections are closed; cleanup failures are
+returned. Signal subscriptions are stopped on exit. No global mux/registry,
+scrape-time collection, experimental Gather coalescing or library signal handlers
+are introduced. Private command interfaces allow deterministic lifecycle tests.
 
 One snapshot guarantees internal consistency, not simultaneous hardware samples.
 Each collector retains its own freshness timestamp. Prometheus observes a brief

@@ -250,11 +250,11 @@ Done when: Explicit positive/negative/boundary/corner tables include description
 
 **Full RDMA build and dependencies.** Depends on: [P07-T02](#p07-t02), [P07-T03](#p07-t03).
 
-Deliver: Add pinned Linux rdma-tag/cgo build with libraries/providers and explicit no-RDMA build diagnostics; retain core pure-Go checks. Library/provider packaging and software loading checks start in P07-T02. Complete this task only after P07-T03 capability bindings and final production artifact integration are validated.
+Deliver: Connect the Linux poller production library lifecycle and validate a pinned Linux rdma-tag/cgo software harness with libraries/providers and explicit no-RDMA diagnostics; retain core pure-Go checks. Reuse the P07-T02/T03 adapters and packaging. Per the agreed P07-T04 scope, final standalone command artifact acceptance belongs to P08-T02, where the CLI/exporter become available.
 
 Integration follow-up: Reuse the existing flake and `nix/microvms/mkVm.nix` infrastructure for a repeatable guest when local kernel modules or device permissions prevent meaningful integration testing. Evaluate software RDMA coverage for device discovery, event delivery, recovery and permission failures; record unsupported scenarios explicitly. Software RDMA complements the P11-T03 physical RoCEv2/InfiniBand checks and the P09-T01 cgo performance measurements.
 
-Done when: Full artifact builds/links and software load/permission diagnostics pass; no-cgo core tests pass; missing hardware is not a successful hardware test.
+Done when: Public library wiring, harness build/link/loading, four build combinations and software permission diagnostics pass; all twelve offline monitor gates and Nix policies pass. Supply and evaluate an opt-in software-RDMA microVM runner; record unavailable KVM execution explicitly. No-cgo core tests pass; missing hardware is not a successful hardware test.
 
 ### P08 — Exporter and standalone command
 
@@ -262,7 +262,7 @@ Done when: Full artifact builds/links and software load/permission diagnostics p
 
 **Prometheus adapter.** Depends on: [P06-T01](#p06-t01), [P06-T02](#p06-t02), [P06-T03](#p06-t03), [P06-T04](#p06-t04), [P07-T03](#p07-t03).
 
-Deliver: Implement one-root collection, stable/dynamic descriptor catalogs and exact metric contracts without global registration.
+Deliver: Implement one-root collection, stable/dynamic descriptor catalogs and exact metric contracts without global registration. Publish the prerequisite immutable error/omission/resync/exception diagnostics. Keep executable build_info host-owned in P08-T02; track the discovered missing netclass source projections explicitly before standalone release.
 
 Done when: Gather/type/label/uniqueness/expiry/concurrent-scrape tests pass; no collection I/O or policy mutation during scrape.
 
@@ -270,9 +270,9 @@ Done when: Gather/type/label/uniqueness/expiry/concurrent-scrape tests pass; no 
 
 **Thin command and HTTP lifecycle.** Depends on: [P08-T01](#p08-t01), [P05-T03](#p05-t03), [P07-T04](#p07-t04).
 
-Deliver: Add small main and command wiring for flags/env, signals, explicit mux, health/readiness, scrape limits and graceful shutdown.
+Deliver: Add small main and command wiring for flags/env, signals, explicit mux, health/readiness, scrape limits and graceful shutdown. Reuse P07-T04's pinned RDMA build/runtime definition for full `go-link-monitor` and explicit `go-link-monitor-core` artifacts. Extend the run-all gate with executable process tests; retain the missing netclass follow-up before complete v1 coverage.
 
-Done when: CLI precedence/help/version, bind failure, SIGUSR1, termination, HTTP limits and cached scrape tests pass.
+Done when: CLI precedence/help/version, bind/baseline failure, SIGUSR1, termination, HTTP limits and cached scrape tests pass. Positive/negative/boundary/corner tables include descriptions and expected outcomes; clean-environment full/core process tests, four build combinations, races, lint and Nix policy checks pass. Update STATUS with evidence and next P08-T03.
 
 #### P08-T03
 
