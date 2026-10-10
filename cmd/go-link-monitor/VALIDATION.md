@@ -4,7 +4,8 @@ P08-T02 adds the standalone command to core/tagged tests, races, vet, lint and
 formatting. `test-linkmonitor-command` runs the exact pinned full/core executables
 in a clean environment, verifies their ELF dependencies, exercises HTTP host
 metrics, SIGUSR1, termination and restart, and covers four RDMA-tag/cgo builds.
-P08-T03 adds embedding compatibility; the aggregate now contains fourteen gates.
+P08-T03 adds embedding compatibility; P09-T01 adds performance harness correctness,
+bringing the aggregate to fifteen gates. Fresh timing runs remain separate.
 Table-driven command and embedding tests cover
 positive, negative, boundary and corner cases with descriptions and expected outcomes.
 
@@ -35,7 +36,9 @@ successful derivation for the same inputs.
 
 | Target | Checks and retained evidence |
 |---|---|
-| `test-linkmonitor` | Aggregate linking eight core outputs, four RDMA outputs and the executable gate below |
+| `test-linkmonitor-performance` | Core/RDMA benchmark binaries, equivalence/scenario tests, benchmark-only cgo probes, repeated races, tagged lint and runner report tests |
+| `bench-linkmonitor` | Fresh ten-repetition microbenchmarks and synthetic scenario matrix; optional compatible-baseline benchstat comparison; see the Nix README |
+| `test-linkmonitor` | Aggregate linking eight core outputs, four RDMA outputs, executable, embedding and performance correctness gates |
 | `test-linkmonitor-unit` | Complete command, `pkg/linkmonitor/...` and `pkg/xtcpnl` suites, CGO disabled; Go JSON in `check.log` |
 | `test-linkmonitor-race` | Same complete package set with CGO and `-race`; Go JSON in `check.log` |
 | `test-linkmonitor-vet` | Vet over the same package set |

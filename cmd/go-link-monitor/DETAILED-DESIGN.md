@@ -1634,6 +1634,37 @@ do not suppress failures introduced by new packages.
 
 ## 11. Benchmark and profiling plan
 
+P09-T01 implements test-only benchmarks beside the owning packages, with a
+`test-linkmonitor-performance` correctness leaf and a separate `bench-linkmonitor`
+runner. The latter executes pinned binaries afresh rather than interpreting a
+cached Nix derivation as new measurements. Defaults are ten one-second repetitions,
+five-second scenario warmup and thirty-second scenario measurement. The source,
+workload, environment, raw output and benchstat variance remain with each run.
+Synthetic lifecycle sources use the actual reducer, bounded scheduler, worker
+pool and immutable exporter. Their latency includes the sampling observer and
+excludes kernel/provider delivery. The `monitor_bench` tag isolates added cgo
+probes from production artifacts; simulated UMAD buffer work is distinguished
+from real provider registration, query and cleanup costs. The performance gate
+does not claim those hardware-dependent measurements or P09-T02 soak completion.
+Each lifecycle report records the populated schema at the end of warmup and
+measurement. Incomplete population is an explicit capacity/cold-start outcome,
+not a fully warmed equal-size comparison; all present values remain subject to
+correctness checks. Such outcomes remain in the baseline for P09-T02 profiling.
+Individual latency probes and final recovery allow up to five minutes within
+the runner's ten-minute scenario deadline and report actual durations. Recovery
+requires a fresh complete resync
+and the expected link count; the safety timeout does not establish a latency
+guarantee.
+
+The first full baseline exposed repeated global schema validation as a cold-start
+bottleneck. Admission now caches validated series and descriptor metadata in
+owner-only collector state, keyed by schema, final interface name and scope.
+Series with different final metric names or interface-label identities cannot
+collide and share cached groups without rescanning their fields. Overlapping
+groups still check every key; unions copy before mutation. Renames rebuild the
+projection, and discarded collector blocks release their metadata. This does
+not change sample schemas, collision rules or the immutable public snapshot.
+
 Performance is measured, not inferred from backend choice. Use identical source
 data, selected fields and metric output for all comparisons. The matrix below
 is representative coverage plus isolated boundary tests, not a requirement to
