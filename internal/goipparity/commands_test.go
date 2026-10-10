@@ -906,16 +906,17 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	// and the three addrlabel rows (show, -6 show, -j show), all still awaiting
 	// their own measured-clean live run.
 	//
-	// The remaining nine are ntable/netconf/stats/vrf rows that runs 8 and 9
-	// measured live and found DIVERGENT, so they stay ungated for a different
-	// reason than the rows above: not "not yet measured" but "measured and the
-	// netlink conversation differs". The seven stats rows issue a plain
-	// RTM_GETLINK dump where `ip stats` issues RTM_GETSTATS (type 94); the two
-	// netconf-dev rows dump where `ip` resolves the device by name. The other
-	// seven rows those objects added - ntable's three, `netconf show`,
-	// `-j netconf show`, `vrf show`, `-j vrf show` - gated on those same runs
-	// and so left this list. Gating any row here is a separate branch, after a
-	// measured-clean live run, and that branch edits this list.
+	// The remaining nine are the stats and netconf-dev rows runs 8 and 9 measured
+	// DIVERGENT, and they stay ungated for a reason the rows above do not share:
+	// not "not yet measured" but "measured, and permanently divergent on the
+	// wire". Both sides issue RTM_GETSTATS; the gap is name resolution — goip's
+	// one up-front bulk RTM_GETLINK dump versus `ip`'s lazy per-index gets (stats)
+	// and redundant per-name get (netconf-dev). That is class
+	// DivergenceTransactionCount, which the allowlist cannot suppress, so these
+	// nine can never gate — unlike the nineteen above, which each await their own
+	// clean live run. TestPermanentWireDivergences pins the nine; the seven rows
+	// those objects added that DID gate (ntable's three, `netconf show`,
+	// `-j netconf show`, `vrf show`, `-j vrf show`) left this list on runs 8/9.
 	expected := []string{
 		"-s addr show", "-s neigh show",
 		"-0 addr show", "route show table main", "route show table local",
@@ -993,8 +994,10 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 // bare count cannot: gating is a per-ROW decision, not an object-wide one.
 // netconf gated its base and `-j` forms while its two `dev` forms stayed
 // ungated, and stats gated nothing, because runs 8 and 9 found those rows
-// divergent on the wire (RTM_GETSTATS type 94 and a per-name RTM_GETLINK that
-// goip answers from a plain dump) even though their stdout matches.
+// divergent on the wire — a name-resolution difference, not a message-type one
+// (both sides issue RTM_GETSTATS; `ip` adds lazy/redundant RTM_GETLINK gets) —
+// even though their stdout matches. TestPermanentWireDivergences records that
+// those nine are permanent and unallowlistable.
 //
 // go test ./internal/goipparity/ -run TestObjectGatingStatus
 func TestObjectGatingStatus(t *testing.T) {
@@ -1019,7 +1022,7 @@ func TestObjectGatingStatus(t *testing.T) {
 		{"boundary: vrf show gates although its Floor is 2, so gating is independent of floor", "vrf show", true},
 		{"boundary: netconf show dev is NeedsDev in a partly-gated object, yet stays ungated because it diverges", "netconf show dev", false},
 
-		{"negative: stats show group link dumps where ip issues RTM_GETSTATS, so it stays ungated", "stats show group link", false},
+		{"negative: stats show group link diverges on name resolution (both sides issue RTM_GETSTATS), so it stays ungated", "stats show group link", false},
 		{"negative: -s stats show group link diverges likewise", "-s stats show group link", false},
 		{"negative: stats show group link dev diverges likewise", "stats show group link dev", false},
 		{"negative: -j stats show group link diverges likewise", "-j stats show group link", false},
@@ -1055,6 +1058,124 @@ func TestObjectGatingStatus(t *testing.T) {
 			if !c.Implemented {
 				t.Errorf("gated %q is not Implemented, so gating it would fire on a skip", name)
 			}
+		}
+	})
+}
+
+// TestPermanentWireDivergences pins the nine rows runs 8 and 9 measured as a
+// PERMANENT wire divergence — the seven stats forms and the two netconf-dev
+// forms. They are not a queue awaiting a cleaner run: both sides issue
+// RTM_GETSTATS, and the gap is name resolution (goip's one up-front bulk
+// RTM_GETLINK dump versus `ip`'s lazy per-index gets for stats and redundant
+// per-name get for netconf-dev). That is class DivergenceTransactionCount,
+// which the allowlist cannot suppress, so no run and no entry can gate them.
+//
+// TestUngatedSurfaceIsNotVacuous pins the whole twenty-eight-row ungated SET;
+// this marks the nine that are ungated by DESIGN (versus the nineteen awaiting
+// their own clean run), so an edit that tries to gate or allowlist one trips
+// here with the reason. The last subtest ties the decision to the mechanism —
+// a transaction-count divergence is unsuppressible while a value one is not —
+// complementing pkg/nlparity's allowlist_test.go, which asserts the same from
+// the Suppresses side.
+//
+// go test ./internal/goipparity/ -run TestPermanentWireDivergences
+func TestPermanentWireDivergences(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+
+	// The nine, by command Name — what compare.go passes to IsGated/EntriesFor.
+	permanent := []string{
+		"stats show group link", "-s stats show group link",
+		"stats show group link dev", "-j stats show group link",
+		"stats show group xstats", "-s stats show group xstats",
+		"-j stats show group xstats",
+		"netconf show dev", "-4 netconf show dev",
+	}
+	inSet := make(map[string]bool, len(permanent))
+	for _, n := range permanent {
+		inSet[n] = true
+	}
+
+	rows := []struct {
+		description string
+		command     string
+		wantInSet   bool
+		wantGated   bool
+	}{
+		{"positive: a stats row is a permanent divergence (stdout correct, only the wire differs)", "stats show group link", true, false},
+		{"positive: the xstats base row is a permanent divergence too", "stats show group xstats", true, false},
+		{"positive: netconf show dev is a permanent divergence", "netconf show dev", true, false},
+		{"boundary: -4 netconf show dev is in the set and is the one FAIL (hygiene orphans), still permanent", "-4 netconf show dev", true, false},
+		{"boundary: a row that DID gate on runs 8/9 is not in the set", "netconf show", false, true},
+		{"boundary: vrf show gated and is not a permanent divergence", "vrf show", false, true},
+		{"negative: -s addr show is ungated for an unrelated reason (may gate later), not in the set", "-s addr show", false, false},
+		{"negative: nexthop show is replay-grounded, not in the permanent set", "nexthop show", false, false},
+		{"corner: a name not in the matrix is neither in the set nor gated", "bogus show", false, false},
+	}
+
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			if got := inSet[r.command]; got != r.wantInSet {
+				t.Errorf("inSet[%q] = %v, want %v", r.command, got, r.wantInSet)
+			}
+			if got := al.IsGated(r.command); got != r.wantGated {
+				t.Errorf("IsGated(%q) = %v, want %v", r.command, got, r.wantGated)
+			}
+		})
+	}
+
+	// negative: each permanent row is ungated AND unallowlisted — it cannot gate
+	// and cannot carry an allowlist entry, by design.
+	t.Run("negative: each permanent row is ungated and unallowlisted", func(t *testing.T) {
+		for _, name := range permanent {
+			if al.IsGated(name) {
+				t.Errorf("%q is a permanent wire divergence but is gated; it cannot gate "+
+					"(DivergenceTransactionCount is unsuppressible) — remove it from gated_commands", name)
+			}
+			if entries := al.EntriesFor(name); len(entries) != 0 {
+				t.Errorf("%q is a permanent wire divergence but carries %d allowlist entr(ies); a "+
+					"transaction-count divergence cannot be allowlisted", name, len(entries))
+			}
+		}
+	})
+
+	// positive: each permanent row is in the matrix and Implemented — goip
+	// produces correct stdout; only the netlink conversation differs.
+	t.Run("positive: each permanent row is in the matrix and Implemented", func(t *testing.T) {
+		for _, name := range permanent {
+			c, lookupErr := Lookup(name)
+			if lookupErr != nil {
+				t.Errorf("permanent row %q is not in the table: %v", name, lookupErr)
+				continue
+			}
+			if !c.Implemented {
+				t.Errorf("permanent row %q is not Implemented; the divergence is on the wire, "+
+					"not in whether goip runs the command", name)
+			}
+		}
+	})
+
+	// corner: the mechanism that makes the nine permanent — a transaction-count
+	// divergence is unsuppressible, while a value divergence may be allowlisted.
+	t.Run("corner: transaction-count is unsuppressible, value is suppressible", func(t *testing.T) {
+		cases := []struct {
+			description string
+			class       nlparity.DivergenceClass
+			expected    bool // want Suppressible
+		}{
+			{"a transaction-count divergence can never be allowlisted", nlparity.DivergenceTransactionCount, false},
+			{"a value divergence is the one class that may be", nlparity.DivergenceValue, true},
+			{"a presence divergence cannot be", nlparity.DivergencePresence, false},
+			{"a hygiene finding cannot be", nlparity.DivergenceHygiene, false},
+		}
+		for _, tc := range cases {
+			t.Run(tc.description, func(t *testing.T) {
+				if got := tc.class.Suppressible(); got != tc.expected {
+					t.Errorf("%v.Suppressible() = %v, want %v", tc.class, got, tc.expected)
+				}
+			})
 		}
 	})
 }

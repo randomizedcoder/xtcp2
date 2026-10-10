@@ -15,10 +15,13 @@ several steps, further down under [Remaining](#remaining).
 | of those, in `gated_commands` | **34** | `pkg/nlparity/goip-parity-allowlist.json` |
 | allowlisted divergences | **7** | same file, `entries` |
 | of those, `kind=version-skew` | **7** | all against the pinned `ip` 7.1.0 |
-| of those, `kind=accepted-divergence` | **0** | nothing is divergent on purpose and permanently |
+| of those, `kind=accepted-divergence` | **0** | nothing is *allowlisted* as a permanent divergence — the nine intentional wire divergences below **cannot** be, because a transaction-count divergence is unsuppressible (`nlparity_allowlist.go:143`) |
 
 **Twenty-eight** matrix rows sit outside `gated_commands`, and they fall into
-seven groups that are out for unrelated reasons.
+seven groups that are out for unrelated reasons. Nineteen are a queue, each
+awaiting its own measured-clean live run; the other **nine** — the stats and
+netconf-dev rows — are **not** a queue but a closed, permanent, intentional wire
+divergence (see [Runs 8 & 9](#runs-8-and-9-ntable-netconf-and-vrf-gate-stats-and-netconf-dev-diverge)).
 
 **Twelve are new and not yet gated**: six family and table selectors and six
 `-j` forms, added together with the JSON facet extractor they depend on. They
@@ -96,14 +99,16 @@ structurally (`-j`) against the committed
 `ip_netconf`/`ip_netconf_dev`/`ip_netconf_dev4`/`ip_netconf_json` sidecars in all
 three topologies. The two base forms measured `GOIP_PARITY_PASS`, `stdout=0`,
 `txns: ip=2 goip=2` on both runs. The two `dev` forms read `txns: ip=3 goip=2`:
-`ip` resolves the device with a per-name `RTM_GETLINK` carrying `IFLA_IFNAME`
-while `goip` dumps and filters client-side — identical stdout, different netlink
-conversation. `-4 netconf show dev` is the first attribute-carrying point get in
-the matrix (with a family AND an ifindex, `do_show` sends a non-dump
-`RTM_GETNETCONF` with a `NETCONFA_IFINDEX` attribute through `rtnl_talk`,
-`ip/ipnetconf.c:188-198`) and additionally trips hygiene orphans, so it is a FAIL
-rather than a WARN. Both `dev` rows stay ungated with that reason recorded; the
-wire divergence is deterministic, so no further runs clear it.
+`ip` resolves the device with a **redundant** per-name `RTM_GETLINK` carrying
+`IFLA_IFNAME` (`ll_name_to_index` on an empty cache) *before* its own
+`ll_init_map` dump, while `goip` resolves the name from the single link dump it
+already issues — identical stdout, one fewer transaction. `-4 netconf show dev`
+is the first attribute-carrying point get in the matrix (with a family AND an
+ifindex, `do_show` sends a non-dump `RTM_GETNETCONF` with a `NETCONFA_IFINDEX`
+attribute through `rtnl_talk`, `ip/ipnetconf.c:188-198`) and additionally trips
+hygiene orphans, so it is a FAIL rather than a WARN. Both `dev` rows stay ungated
+**permanently and by design**: the transaction-count gap is unsuppressible
+(`nlparity_allowlist.go:143`), and so are the `-4` hygiene orphans.
 
 **Four stats-link rows stay ungated, all four measured divergent**: `stats show
 group link`, `-s stats show group link`, `stats show group link dev` and `-j
@@ -114,15 +119,18 @@ layout against the extended `ip_stats_s` (counters normalized, error lines
 exact), and structurally against `ip_stats_json`, in all three topologies — so
 the stdout is known correct.
 [Runs 8 and 9](#runs-8-and-9-ntable-netconf-and-vrf-gate-stats-and-netconf-dev-diverge)
-then measured the **wire**, and the whole group diverges: `ip stats` issues
-`RTM_GETSTATS` (type 94) with a type-92 reply (`txns: ip=6 goip=2`) while `goip`
-answers the same stdout from a plain `RTM_GETLINK` dump. `ip`'s point get is the
-first in the matrix that is `NLM_F_REQUEST` alone (no ACK), and every row spells
-`group link` so the reply stays link-only on the mesh bridge — but `goip` reaches
-none of that on the wire. All four read `GOIP_PARITY_WARN` on both runs and stay
-ungated with that reason: the divergence is a property of `goip`'s stats
-implementation, not a sampling artifact, so it is a deferred decision, not a
-queue.
+then measured the **wire**, and the whole group diverges — but on name
+resolution, not message type. **Both** sides issue `RTM_GETSTATS` (type 94, a
+type-92 reply). `goip` resolves names with one up-front bulk `RTM_GETLINK` dump
+then the stats dump (`goip=2`), while `ip stats` uniquely skips `ll_init_map` and
+names each returned ifindex lazily with one `RTM_GETLINK`-by-index
+(`ip/ipstats.c:761`, `ll_index_to_name`), so it reads `ip=6` on a five-interface
+host and is topology-dependent. (`ip`'s per-`dev` point get is the first in the
+matrix that is `NLM_F_REQUEST` alone, no ACK.) All four read `GOIP_PARITY_WARN`
+on both runs and stay ungated **permanently and by design**: the gap is class
+`DivergenceTransactionCount`, which the allowlist cannot suppress
+(`nlparity_allowlist.go:143`), so no run and no entry clears it — and `goip`'s
+up-front resolution is the deliberate, more-efficient idiom, not a defect.
 
 **Three are stats' xstats rows**: `stats show group xstats`, `-s stats show group
 xstats` and `-j stats show group xstats`, added together with the nested
@@ -141,9 +149,11 @@ strict-parity boundary at the sub-attribute level.
 structurally (`-j`) against the committed `ip_stats_xstats`/`_s`/`_json` sidecars
 in all three topologies, so the stdout is known correct. But like the link group
 above, all three read `GOIP_PARITY_WARN` on
-[runs 8 and 9](#runs-8-and-9-ntable-netconf-and-vrf-gate-stats-and-netconf-dev-diverge):
-`ip` issues `RTM_GETSTATS` (`txns: ip=6 goip=2`) where `goip` link-dumps. They
-stay ungated with that measured wire divergence on record.
+[runs 8 and 9](#runs-8-and-9-ntable-netconf-and-vrf-gate-stats-and-netconf-dev-diverge)
+for the same reason: both sides issue `RTM_GETSTATS` (`txns: ip=6 goip=2`), and
+the divergence is `ip`'s lazy per-ifindex name resolution against `goip`'s single
+up-front dump. They stay ungated **permanently and by design** — a
+transaction-count divergence the allowlist cannot suppress.
 
 **Two are vrf's first matrix rows**: `vrf show` and `-j vrf show`, the eleventh
 grounded object. The request is the first in the corpus that **filters a link
@@ -2764,18 +2774,23 @@ across runs (ntable `nl` 5→4 and 4→6) is the disagreeing-runs evidence a noi
 row wants. None gates on stdout: all seven print byte-identical text to `ip`.
 
 **Nine rows stay ungated, and for a different reason than a row awaiting its
-second clean run — they diverge on the wire, deterministically.** The seven stats
-rows (`stats show group link` and its `-s`/`dev`/`-j` forms, and the three `stats
-show group xstats` forms) all read `txns: ip=6 goip=2`: `ip stats` issues
-`RTM_GETSTATS` (type 94) with a type-92 reply while `goip` answers the same stdout
-from a plain `RTM_GETLINK` dump. `netconf show dev` and `-4 netconf show dev` read
-`ip=3 goip=2`: `ip` resolves the device with a per-name `RTM_GETLINK` carrying
-`IFLA_IFNAME` while `goip` dumps; the `-4` form additionally trips the two hygiene
-orphans and so is the one FAIL rather than a WARN. Every one prints correct
-stdout, which is exactly why the hermetic replay tiers passed them and only a live
-run surfaces the difference. They stay ungated with that reason recorded — a
-deferred decision, not a queue, since no number of runs clears a deterministic
-divergence.
+second clean run — they diverge on the wire by design, and the difference is name
+resolution, not message type.** The seven stats rows (`stats show group link` and
+its `-s`/`dev`/`-j` forms, and the three `stats show group xstats` forms) all read
+`txns: ip=6 goip=2`. **Both** sides issue `RTM_GETSTATS` (type 94, a type-92
+reply); `goip` resolves names with one up-front bulk `RTM_GETLINK` dump then the
+stats dump, while `ip stats` uniquely skips `ll_init_map` and names each returned
+ifindex lazily with one `RTM_GETLINK`-by-index (`ip/ipstats.c:761`), so `ip`'s
+count is 1 + N interfaces and topology-dependent. `netconf show dev` and `-4
+netconf show dev` read `ip=3 goip=2`: `ip` issues a **redundant** per-name
+`RTM_GETLINK` (`ll_name_to_index` on an empty cache) before its `ll_init_map`
+dump, where `goip` resolves from the dump it already sends; the `-4` form
+additionally trips the two hygiene orphans and so is the one FAIL rather than a
+WARN. Every one prints correct stdout. They stay ungated **permanently and by
+design** — the gap is class `DivergenceTransactionCount`, which the allowlist
+cannot suppress (`nlparity_allowlist.go:143`), so no run and no entry clears it;
+`goip`'s up-front name resolution is the deliberate, more-efficient idiom, not a
+defect. A closed decision, not a queue.
 
 **On the smoke check**: the plan called for one more live run after the edits to
 confirm the gated rows stay green. It is omitted deliberately, because it cannot
@@ -2788,11 +2803,12 @@ so they stay `PASS` by construction. `internal/goipparity`'s
 
 What is now on record is two back-to-back runs with identical per-row verdicts,
 seven rows measured clean twice and gated, nine measured divergent and held out
-with the wire difference named. **That is the evidence the gate needs.** The
-remaining twenty-eight ungated rows — the nine here plus the twelve `-j`/family
+with the wire difference named. **That is the evidence the gate needs.** Of the
+twenty-eight rows outside `gated_commands`, nineteen — the twelve `-j`/family
 rows, the two held-out `-s` forms, the two nexthop and three addrlabel rows —
-each wait on their own branch, and `TestUngatedSurfaceIsNotVacuous` pins that set
-by name.
+each wait on their own branch; the nine here do not, being permanent by design.
+`TestUngatedSurfaceIsNotVacuous` pins the whole set by name, and
+`TestPermanentWireDivergences` pins the nine as permanent and unallowlistable.
 
 ## Tier C — the `goip-parity` microVM flavor
 
