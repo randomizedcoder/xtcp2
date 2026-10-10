@@ -1072,7 +1072,10 @@ var commands = withArgs([]Command{
 		// print_netconf filters to the named ifindex client-side
 		// (ip/ipnetconf.c:78-79) — the dev name resolves from the link dump's own
 		// replies, so the selector costs no extra transaction. Byte-grounded
-		// offline against the ip_netconf_dev sidecar.
+		// offline against the ip_netconf_dev sidecar. Runs 8 and 9 read ip=3
+		// goip=2: `ip` issues a redundant per-name RTM_GETLINK (ll_name_to_index on
+		// an empty cache) before its ll_init_map dump; goip resolves from its own
+		// dump. PERMANENT, ungated by design (txn-count class, unsuppressible).
 		Floor: 4, Implemented: true,
 	},
 	{
@@ -1084,7 +1087,9 @@ var commands = withArgs([]Command{
 		// rtnl_talk (NLM_F_REQUEST|ACK, no NLM_F_DUMP), the first
 		// attribute-carrying point get here. Still a link dump first, so the floor
 		// is the ntable shape. Byte-grounded offline against the ip_netconf_dev4
-		// sidecar.
+		// sidecar. Runs 8 and 9: ip=3 goip=2 (the same redundant per-name
+		// RTM_GETLINK as `netconf show dev`) AND two hygiene orphans, so this row
+		// is the one FAIL not a WARN — both causes unsuppressible, PERMANENT.
 		Floor: 4, Implemented: true,
 	},
 
@@ -1320,16 +1325,20 @@ var commands = withArgs([]Command{
 	// a shape goip refuses). The first 12-byte filter_mask-carrying request here.
 	{
 		Name: "stats show group link", Slug: "stats_show",
-		// Four, the netconf/ntable shape: do_ipstats resolves names via a link dump
-		// (ip/ipstats.c) before the RTM_GETSTATS dump, so the command is a link dump
-		// then the stats dump — two requests and two NLMSG_DONEs.
+		// goip resolves names with one up-front bulk RTM_GETLINK dump, then the
+		// RTM_GETSTATS dump (type 94) — two requests, two NLMSG_DONEs. `ip stats`
+		// uniquely does NOT call ll_init_map: it issues the RTM_GETSTATS dump first,
+		// then names each returned ifindex lazily with one RTM_GETLINK-by-index
+		// (ip/ipstats.c:761 ll_index_to_name), so its count is 1 + N interfaces
+		// (6 on a 5-iface host) and topology-dependent.
 		//
 		// internal/goip's TestStatsShowMatchesCapturedSidecars diffs goip
 		// byte-for-byte against the committed ip_stats sidecar across three
-		// topologies. Runs 8 and 9 measured it DIVERGENT, not clean: `ip` issues
-		// RTM_GETSTATS (type 94, ip=6 txns) where goip answers the same stdout
-		// from a plain RTM_GETLINK dump (goip=2). Stays ungated with that reason;
-		// its stdout matches, so only a live run surfaces the wire difference.
+		// topologies; stdout matches. Runs 8 and 9 read ip=6 goip=2 — a
+		// name-resolution difference, not a message-type one: BOTH sides issue
+		// RTM_GETSTATS. PERMANENT and ungated by design — the gap is class
+		// DivergenceTransactionCount, which the allowlist cannot suppress
+		// (nlparity_allowlist.go:143). See coverage-status.md.
 		Floor: 4, Implemented: true,
 	},
 	{
@@ -1359,8 +1368,8 @@ var commands = withArgs([]Command{
 		// are not grounded, so goip refuses `-j -s` rather than emit a short object.
 		//
 		// Offline-grounded by internal/goip's jsonEquivalent row against the
-		// ip_stats_json sidecar; ungated — runs 8 and 9 measured the same
-		// RTM_GETSTATS wire divergence as its text twin.
+		// ip_stats_json sidecar; ungated — runs 8 and 9 read the same
+		// name-resolution divergence as its text twin, permanent by design.
 		Floor: 4, Implemented: true,
 	},
 
@@ -1374,10 +1383,11 @@ var commands = withArgs([]Command{
 	// non-dump path).
 	{
 		Name: "stats show group xstats", Slug: "stats_show_xstats",
-		// Four, the stats shape: a link dump resolves names before the RTM_GETSTATS
-		// xstats dump. Grounded against the committed ip_stats_xstats sidecar across
-		// three topologies; ungated — runs 8 and 9 measured the RTM_GETSTATS wire
-		// divergence (ip=6 goip=2), as the link group above.
+		// Four, the stats shape: goip's up-front bulk link dump resolves names
+		// before the RTM_GETSTATS xstats dump. Grounded against the committed
+		// ip_stats_xstats sidecar across three topologies; ungated — runs 8 and 9
+		// read ip=6 goip=2, the same name-resolution divergence as the link group
+		// above (permanent by design; both sides issue RTM_GETSTATS).
 		Floor: 4, Implemented: true,
 	},
 	{
@@ -1391,8 +1401,8 @@ var commands = withArgs([]Command{
 		Name: "-j stats show group xstats", Slug: "stats_show_xstats_json",
 		// The flat `-j` array, one object per leaf per device; `-j` does not reach
 		// the wire, so the request is byte-identical to the text twin. Grounded
-		// against ip_stats_xstats_json; ungated — runs 8 and 9 measured the same
-		// wire divergence as its text twin.
+		// against ip_stats_xstats_json; ungated — runs 8 and 9 read the same
+		// name-resolution divergence as its text twin, permanent by design.
 		Floor: 4, Implemented: true,
 	},
 
