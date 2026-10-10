@@ -159,6 +159,7 @@ func (s *lifecycleSession) prepare(m *Monitor, resources *lifecycleResources) (*
 	if err != nil {
 		return nil, err
 	}
+	c.report = func(err error) { m.logger.Warn("link inventory reconciliation failed", "error", err) }
 	if s.statistics {
 		newTrafficSchedule(scheduler, c, m.cfg.StatsInterval)
 	}

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/model"
 )
@@ -79,7 +81,7 @@ func newSchema(samples []model.Sample) (*sampleSchema, error) {
 	schema := &sampleSchema{entries: make([]sampleDefinition, len(samples)), index: make(map[sampleKey]int, len(samples))}
 	for i := range samples {
 		sample := &samples[i]
-		if sample.Descriptor == "" || (sample.Kind != model.SampleCounter && sample.Kind != model.SampleGauge && sample.Kind != model.SampleUntyped) {
+		if !hostIdentifier([]byte(sample.Descriptor)) || (sample.Kind != model.SampleCounter && sample.Kind != model.SampleGauge && sample.Kind != model.SampleUntyped) {
 			return nil, fmt.Errorf("invalid sample descriptor or kind")
 		}
 		labels, key, err := canonicalLabels(sample.Labels)
@@ -101,7 +103,7 @@ func canonicalLabels(input []model.Label) ([]model.Label, string, error) {
 	slices.SortFunc(labels, func(a, b model.Label) int { return cmp.Compare(a.Name, b.Name) })
 	var encoded []byte
 	for i, pair := range labels {
-		if pair.Name == "" || (i > 0 && labels[i-1].Name == pair.Name) {
+		if !hostIdentifier([]byte(pair.Name)) || strings.HasPrefix(pair.Name, "__") || !utf8.ValidString(pair.Value) || (i > 0 && labels[i-1].Name == pair.Name) {
 			return nil, "", fmt.Errorf("empty or duplicate label name")
 		}
 		// Length prefixes avoid collisions even if source strings contain NULs.

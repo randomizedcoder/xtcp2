@@ -2,6 +2,7 @@ package linkmonitor
 
 import (
 	"errors"
+	"strconv"
 	"testing"
 	"time"
 
@@ -20,7 +21,7 @@ func timedResult(t *testing.T, r *reducer, clock model.Clock, kind model.Collect
 		t.Fatal(err)
 	}
 	result := model.Result{Job: job, Finished: clock.Now(), Support: model.Supported, Err: failure,
-		Samples: []model.Sample{counter("sample", 7, 64)}}
+		Samples: []model.Sample{counter("sample_"+strconv.Itoa(int(kind)), 7, 64)}}
 	if ok, err := r.finishCollection(result); !ok || err != nil {
 		t.Fatalf("completion=%v,%v", ok, err)
 	}

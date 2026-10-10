@@ -16,6 +16,7 @@ var (
 // reducer is owned by one goroutine. Workers receive values and return owned
 // results; only immutable publications will cross the reader boundary in P03-T02.
 type reducer struct {
+	resyncs                                         [4][2]uint64
 	rdmaPorts                                       []model.RDMAPort
 	rdmaUncertain                                   uint64
 	exceptions                                      []exceptionResolution

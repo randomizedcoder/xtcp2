@@ -2,7 +2,7 @@
 //
 // Construction validates and copies configuration without I/O. The caller owns
 // context cancellation, logging, signal handling and any metrics HTTP server.
-// Live Linux collection is not yet wired: Run currently returns
-// ErrBackendUnavailable. The lifecycle is exercised with private fake sessions
-// while the transport and reconciliation phases are implemented.
+// Run connects the Linux poller, collectors and durable baseline lifecycle.
+// Full RDMA events and native capabilities require the rdma tag and cgo.
+// Explicit io_uring selection returns ErrBackendUnavailable until implemented.
 package linkmonitor

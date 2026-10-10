@@ -95,6 +95,7 @@ func (r *reducer) expireEntry(entry deadlineEntry) {
 		if err != nil || token.Generation != entry.generation || !state.fresh {
 			return
 		}
+		state.stale = presentValue(presentSamples(state.block))
 		state.fresh, state.block = false, nil
 		r.collectionChanged(entry.key.job, state)
 	default:

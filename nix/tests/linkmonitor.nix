@@ -5,10 +5,11 @@
   lib,
   src,
   vendoredSource,
+  linkmonitorPackages,
 }:
 let
   versions = import ../versions.nix { inherit pkgs; };
-  paths = "./pkg/linkmonitor/... ./pkg/xtcpnl";
+  paths = "./cmd/go-link-monitor ./pkg/linkmonitor/... ./pkg/xtcpnl ./nix/tests/linkmonitor-smoke";
   mkCheck =
     name:
     {
@@ -45,10 +46,21 @@ let
         }
         echo 'PASS: test-linkmonitor-${name}'
       '';
-  rdma = import ./linkmonitor-rdma.nix { inherit pkgs src vendoredSource; };
+  rdma = import ./linkmonitor-rdma.nix {
+    inherit
+      pkgs
+      src
+      vendoredSource
+      linkmonitorPackages
+      ;
+  };
   leaves = {
     test-linkmonitor-unit = mkCheck "unit" {
-      command = "go test -json -count=1 -timeout=5m ${paths}";
+      command = ''
+        go test -json -count=1 -timeout=5m ${paths}
+        go test ./pkg/linkmonitor -run '^$' -bench '^BenchmarkPrometheus' \
+          -benchmem -benchtime=100ms > "$out/prometheus-benchmarks.txt"
+      '';
     };
     test-linkmonitor-race = mkCheck "race" {
       race = true;
@@ -66,7 +78,7 @@ let
     };
     test-linkmonitor-format = mkCheck "format" {
       command = ''
-        unformatted=$(gofmt -l pkg/linkmonitor pkg/xtcpnl)
+        unformatted=$(gofmt -l cmd/go-link-monitor pkg/linkmonitor pkg/xtcpnl nix/tests/linkmonitor-smoke)
         if [ -n "$unformatted" ]; then
           printf '%s\n' "$unformatted"
           exit 1

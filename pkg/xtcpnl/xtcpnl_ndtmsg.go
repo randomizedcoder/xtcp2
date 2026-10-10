@@ -22,7 +22,7 @@ import (
 //		__u16	ndtm_pad2;
 //	};
 //
-// Reference: linux/include/uapi/linux/neighbour.h
+// Reference: Linux UAPI neighbor-table declarations.
 type Ndtmsg struct {
 	Family uint8
 }
@@ -39,7 +39,7 @@ const (
 	NdtConfigSizeCst = 32 // ndt_config: u16,u16,u32×7
 	NdtStatsSizeCst  = 88 // ndt_stats: u64×11
 
-	// NDTA_* top-level attributes (include/uapi/linux/neighbour.h). NDTA_PAD=9
+	// NDTA_* top-level attributes (Linux neighbor-table UAPI). NDTA_PAD=9
 	// is a 64-bit alignment pad with no value and is not decoded.
 	NdtaName       uint16 = 1 // char*, table name
 	NdtaThresh1    uint16 = 2 // u32

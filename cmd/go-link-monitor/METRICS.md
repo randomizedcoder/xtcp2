@@ -1,7 +1,10 @@
 # go-link-monitor metric contract and reference inventory
 
-Status: proposed, 2026-10-06. No metrics in this document are implemented by a
-command in this directory yet. [DESIGN.md](DESIGN.md) defines behavior, persistence,
+Status: implementation underway, 2026-10-09. The standalone command serves the
+implemented source/policy/diagnostic families and executable build_info through
+the reusable adapter. Missing netclass metadata remains explicitly tracked in
+STATUS; the broader reference inventory below is not a claim of full v1 coverage.
+[DESIGN.md](DESIGN.md) defines behavior, persistence,
 collection and acceptance tests.
 [DETAILED-DESIGN.md](DETAILED-DESIGN.md) specifies collector ownership,
 immutable snapshots, concurrent exposition and performance verification.
@@ -152,6 +155,12 @@ family (`address-info` defaults false); mapping is
 deferred with address inventory, not a v1 series.
 
 ## Interface properties: netclass
+
+Implementation coverage (P08-T01): carrier, speed, maximum-speed and duplex
+samples are collected and exposed. The remaining netclass metadata rows below
+are still a collection follow-up before standalone release; their presence in
+this reference inventory is not a claim that current Gather output contains them.
+Unknown/uncollected values are omitted, not synthesized as zero.
 
 Source is sysfs by default in node_exporter (`netclass.netlink=false`), with an
 optional rtnetlink path. V1 uses route data and read-only sysfs/ethtool metadata.

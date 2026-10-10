@@ -42,6 +42,7 @@ func (c *statisticsCollector) Collect(ctx context.Context, job model.Job) model.
 	samples, schema, err := c.source.read(ctx, job)
 	if err == nil {
 		result.Support, result.Samples, result.StatisticSchema = model.Supported, samples, schema
+		result.Filtered = presentValue(uint64(len(schema.Names) - len(schema.Selected)))
 		return result
 	}
 	result.InvalidateSchema = true

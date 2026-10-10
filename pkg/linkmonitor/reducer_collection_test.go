@@ -92,7 +92,7 @@ func TestReducerCounterSets(t *testing.T) {
 	if state.discontinuities != 2 {
 		t.Fatal("temporary absence erased comparison history")
 	}
-	carrier := collect(t, r, model.CollectorCarrier, counter("a", 100, 64))
+	carrier := collect(t, r, model.CollectorCarrier, counter("carrier_a", 100, 64))
 	if carrier.discontinuities != 0 || state.discontinuities != 2 {
 		t.Fatal("overlapping collectors shared histories")
 	}
@@ -198,7 +198,7 @@ func TestReducerSchemaLimit(t *testing.T) {
 	t.Log("boundary: exactly 65,536 distinct samples; expected: accept complete schema, preserve final uint64 maximum")
 	samples := make([]model.Sample, maximumSamples)
 	for i := range samples {
-		samples[i] = counter(strconv.Itoa(i), math.MaxUint64, 64)
+		samples[i] = counter("stat_"+strconv.Itoa(i), math.MaxUint64, 64)
 	}
 	r := newReducer(1)
 	mustObserve(t, r, observed(r, 1, true))

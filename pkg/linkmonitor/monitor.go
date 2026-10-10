@@ -55,7 +55,7 @@ func New(cfg Config, opts Options) (*Monitor, error) {
 	}
 	m := &Monitor{cfg: validated, logger: logger}
 	m.control.wake = make(chan struct{}, 1)
-	m.open = func(context.Context) (session, error) { return nil, ErrBackendUnavailable }
+	m.open = m.openProduction
 	return m, nil
 }
 

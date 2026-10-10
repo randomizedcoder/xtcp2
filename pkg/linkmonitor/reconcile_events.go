@@ -88,8 +88,10 @@ func validEvent(r *reducer, event model.Event) error {
 		return err
 	}
 	switch event.Kind {
-	case model.EventChange:
+	case model.EventChange, model.EventLink:
 		return validateObservation(r, event.Observation)
+	case model.EventResync:
+		return nil
 	case model.EventRemove, model.EventRefresh:
 		if !r.validKey(event.Observation.Device.Key) {
 			return fmt.Errorf("invalid event identity")

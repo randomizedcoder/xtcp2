@@ -48,6 +48,7 @@ func (c *reconciler) submit(key model.DeviceKey, query bool, version uint64) err
 	c.request = &request
 	if !query {
 		c.dumpSerial = c.serial
+		c.activeReason, c.resyncActive = c.pendingReason, true
 	}
 	return nil
 }
@@ -224,6 +225,7 @@ func (c *reconciler) commit(now model.Stamp) error {
 			return err
 		}
 	}
+	c.finishResync(true)
 	c.abort()
 	c.scheduler.resyncSettings()
 	c.scheduler.resyncStatistics()

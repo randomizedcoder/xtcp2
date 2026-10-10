@@ -36,6 +36,15 @@ let
   };
   inherit (goMods) vendoredSource;
 
+  linkmonitorPackages = import ./lib/linkmonitor-packages.nix {
+    inherit
+      pkgs
+      lib
+      src
+      vendoredSource
+      ;
+  };
+
   # OCI image(s) — three variants in lockstep with the Go build variants.
   containers = import ./containers {
     inherit
@@ -121,6 +130,7 @@ let
       vendoredSource
       binaries
       microvms
+      linkmonitorPackages
       ;
   };
 
@@ -776,11 +786,22 @@ in
     #   oci-xtcp2-tcp-stress           TCP_MODE-dispatched stress image
     // (lib.filterAttrs (n: _v: lib.hasPrefix "oci-" n) containers)
     // containersWithIpmetaBootstrap
+    // linkmonitorPackages
     # lint-quick / lint / lint-comprehensive / lint-fix / lint-new. `all` is
     # a convenience list for nix/devshell.nix, not a package, so drop it.
     // (removeAttrs lintTiers [ "all" ])
     // {
       regen-protos = protos.regenerate;
+      test-linkmonitor-rdma-vm = import ./microvms/linkmonitor-rdma.nix {
+        inherit
+          pkgs
+          lib
+          microvm
+          nixpkgs
+          binaries
+          ;
+        artifact = tests.test-linkmonitor-rdma-build;
+      };
       microvm-x86_64 = microvms.vms.x86_64;
       microvm-x86_64-coverage = microvms.vmsCoverage.x86_64;
       microvm-x86_64-coverage-iouring = microvms.vmsCoverageIoUring.x86_64;

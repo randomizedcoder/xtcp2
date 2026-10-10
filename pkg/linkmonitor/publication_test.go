@@ -82,7 +82,7 @@ func TestPublicationSharesLargeSamples(t *testing.T) {
 	}
 	samples := make([]model.Sample, maximumSamples)
 	for i := range samples {
-		samples[i] = counter(strconv.Itoa(i), math.MaxUint64, 64)
+		samples[i] = counter("stat_"+strconv.Itoa(i), math.MaxUint64, 64)
 	}
 	collect(t, r, model.CollectorDriver, samples...)
 	before := publish(t, r, m)
@@ -121,7 +121,7 @@ func TestPublicationSharesLargeSamples(t *testing.T) {
 	collect(t, r, model.CollectorDriver, counter("replacement", 1, 64))
 	publish(t, r, m)
 	runtime.GC()
-	if value, _ := oldView.Number().Uint64(); value != math.MaxUint64 || oldView.DescriptorKey() != "0" {
+	if value, _ := oldView.Number().Uint64(); value != math.MaxUint64 || oldView.DescriptorKey() != "stat_0" {
 		t.Fatal("retained sample view changed after schema replacement and GC")
 	}
 }
