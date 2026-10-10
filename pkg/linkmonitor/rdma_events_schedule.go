@@ -147,8 +147,9 @@ func (s *rdmaEventSchedule) before() error {
 func (s *rdmaEventSchedule) resync() {
 	// RDMA hints can invalidate an already running inventory candidate. Cancel
 	// it and fence its token rather than letting a pre-event dump commit.
+	s.c.finishResync(false)
 	s.c.abort()
-	s.c.pending = true
+	s.c.requestReason(resyncLoss)
 	s.c.inbox.signal()
 }
 

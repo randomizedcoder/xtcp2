@@ -9,6 +9,8 @@ import (
 )
 
 type collectorState struct {
+	errors                   [6]uint64
+	filtered, stale          model.Optional[uint64]
 	rdmaRequest              *model.RDMARequest
 	statisticSchema          *model.StatisticSchema
 	schemaRevision           uint64
@@ -100,6 +102,11 @@ func (r *reducer) finishCollection(result model.Result) (bool, error) {
 		return false, nil
 	}
 	defer r.collectionChanged(result.Job.Key, state)
+	defer func() {
+		if result.Support != model.Unsupported || state.reason == model.ErrorMalformed {
+			state.countFailure()
+		}
+	}()
 	state.lastAttempt = result.Finished
 	state.attempted, state.succeeded = true, false
 	state.duration = model.Optional[time.Duration]{}
@@ -135,7 +142,13 @@ func (r *reducer) finishCollection(result model.Result) (bool, error) {
 	if err != nil {
 		return true, state.malformed(err)
 	}
+	if state.block == nil || state.block.schema != block.schema {
+		if err := r.validateCollectionSchema(result.Job.Key, block); err != nil {
+			return true, state.malformed(err)
+		}
+	}
 	state.updateHistory(block)
+	state.filtered, state.stale = result.Filtered, presentValue(uint64(0))
 	state.statisticSchema = result.StatisticSchema
 	state.block, state.support, state.reason, state.lastError = block, model.Supported, model.ErrorNone, nil
 	state.lastSuccess = result.Finished

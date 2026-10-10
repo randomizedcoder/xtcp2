@@ -40,7 +40,7 @@ func TestRunFailures(t *testing.T) {
 		startup                               error
 		cancel                                bool
 	}{
-		{"unavailable", "negative", "live transport is not wired", "ErrBackendUnavailable, then ErrAlreadyRun", ErrBackendUnavailable, false},
+		{"unavailable", "negative", "explicit io_uring transport is not wired", "ErrBackendUnavailable, then ErrAlreadyRun", ErrBackendUnavailable, false},
 		{"startup failure", "negative", "resource acquisition fails", "original error, then ErrAlreadyRun", startupError, false},
 		{"already canceled", "boundary", "context canceled before acquisition", "context.Canceled without acquisition", context.Canceled, true},
 	}
@@ -48,6 +48,7 @@ func TestRunFailures(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expected)
 			m := newTestMonitor(t)
+			m.cfg.IOBackend = IOBackendIOUring
 			calls := 0
 			if tc.startup != ErrBackendUnavailable {
 				m.open = func(context.Context) (session, error) { calls++; return nil, tc.startup }

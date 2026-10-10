@@ -21,6 +21,9 @@ type dirtyIdentity struct {
 // reconciler owns one private candidate and dirty identities. The reducer keeps
 // applying ordered events while inventory work runs on its dedicated executor.
 type reconciler struct {
+	pendingReason, activeReason                      resyncReason
+	resyncActive                                     bool
+	report                                           func(error)
 	rdmaEvents                                       *rdmaEventSchedule
 	rdma                                             *rdmaSchedule
 	rdmaPorts                                        []model.RDMAPort
@@ -50,7 +53,7 @@ func newReconciler(s *scheduler, inventory *inventoryExecutor, events *eventExec
 		return nil, fmt.Errorf("invalid reconciliation interval")
 	}
 	return &reconciler{scheduler: s, inventory: inventory, events: events, inbox: events.inbox,
-		interval: interval, pending: true, backoff: time.Second, queryBackoff: time.Second}, nil
+		interval: interval, pending: true, pendingReason: resyncStartup, backoff: time.Second, queryBackoff: time.Second}, nil
 }
 
 func (c *reconciler) bind(loop *schedulerLoop) {
@@ -60,10 +63,7 @@ func (c *reconciler) bind(loop *schedulerLoop) {
 }
 
 func (c *reconciler) requestResync() {
-	if !c.pending && c.request == nil && c.dirty == nil {
-		c.pending = true
-		c.inbox.signal()
-	}
+	c.requestReason(resyncPeriodic)
 }
 
 func (c *reconciler) before() error {
@@ -121,7 +121,13 @@ func (c *reconciler) syncLoss() error {
 		return err
 	}
 	r.rdmaEvents = false
+	c.finishResync(false)
 	c.abort()
+	if c.pending {
+		c.pendingReason = max(c.pendingReason, resyncLoss)
+	} else {
+		c.pendingReason = resyncLoss
+	}
 	c.pending = true
 	c.subscribeUntil = 0
 	c.reconnectAt = deadlineAfter(c.scheduler.clock.Now().Monotonic, c.backoff)
@@ -149,6 +155,21 @@ func (c *reconciler) event(event model.Event) error {
 		c.inbox.lose(r.epoch)
 		c.lastError = err
 		return c.syncLoss()
+	}
+	if event.Kind == model.EventResync {
+		// A global hint has no identity to add to the dirty set. Discard any
+		// candidate started before the subscription barrier or optional loss.
+		c.finishResync(false)
+		c.abort()
+		c.requestReason(resyncLoss)
+		return nil
+	}
+	if event.Kind == model.EventRemove || event.Kind == model.EventRefresh {
+		c.requestResync()
+	}
+	if event.Kind == model.EventLink {
+		c.requestResync()
+		event = c.knownLink(event)
 	}
 
 	key := event.Observation.Device.Key
@@ -186,6 +207,22 @@ func (c *reconciler) event(event model.Event) error {
 		c.markDirty(key, event.Sequence)
 	}
 	return nil
+}
+
+// knownLink preserves inventory classification only for a matching identity.
+// New or renamed devices wait for authoritative inventory before being counted.
+func (c *reconciler) knownLink(event model.Event) model.Event {
+	r := c.scheduler.reducer
+	d := event.Observation.Device
+	if i, exists := r.index[d.Key]; exists && r.slots[i].device.Name == d.Name {
+		known := r.slots[i].device
+		known.Up, known.Token = d.Up, d.Token
+		event.Observation.Device = known
+		event.Kind = model.EventChange
+	} else {
+		event.Kind = model.EventRefresh
+	}
+	return event
 }
 
 func (c *reconciler) applyEvent(event model.Event) (bool, error) {
@@ -238,6 +275,10 @@ func (c *reconciler) abort() {
 }
 
 func (c *reconciler) fail(err error) {
+	c.finishResync(false)
+	if c.report != nil {
+		c.report(err)
+	}
 	c.lastError = err
 	c.abort()
 	c.pending = true

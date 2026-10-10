@@ -44,7 +44,11 @@ func (l *lifecycle) beginVerification() {
 	c := l.coordinator
 	l.verifying, l.verifyAfter = true, c.serial
 	l.stableRevision = c.scheduler.reducer.countRevision
-	c.requestResync()
+	if l.rebaseline {
+		c.requestReason(resyncRebaseline)
+	} else {
+		c.requestResync()
+	}
 }
 
 func (l *lifecycle) advance(now model.Stamp) error {

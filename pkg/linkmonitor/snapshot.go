@@ -2,6 +2,8 @@ package linkmonitor
 
 import "github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/model"
 
+const interfaceLabel = "interface"
+
 // Health describes the lifecycle and collection readiness of a snapshot.
 type Health struct {
 	Running, Ready, CollectionHealthy, BaselineReady bool
@@ -12,6 +14,10 @@ type Health struct {
 type Snapshot struct{ root *snapshotRoot }
 
 type snapshotRoot struct {
+	exceptions          []exceptionResolution
+	exemptions          map[string]uint64
+	resyncs             [4][2]uint64
+	descriptors         *descriptorCatalog
 	version, namespace  uint64
 	health              Health
 	counts              LinkCounts
@@ -240,11 +246,11 @@ func (s SampleView) Number() Number { return s.number }
 func (s SampleView) RangeLabels(visit func(string, string) bool) {
 	// The interface label belongs to the published device, not to a worker's
 	// historical schema. Renames therefore never copy large statistic arrays.
-	if s.deviceScoped && !visit("interface", s.interfaceName) {
+	if s.deviceScoped && !visit(interfaceLabel, s.interfaceName) {
 		return
 	}
 	for _, pair := range s.labels {
-		if s.deviceScoped && pair.Name == "interface" {
+		if s.deviceScoped && pair.Name == interfaceLabel {
 			continue
 		}
 		if !visit(pair.Name, pair.Value) {

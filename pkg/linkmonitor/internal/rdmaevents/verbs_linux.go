@@ -59,6 +59,10 @@ import (
 )
 
 type verbsProvider struct{ root string }
+
+// Available reports whether this build contains the verbs binding.
+const Available = true
+
 type verbsHandle struct {
 	context *C.struct_ibv_context
 	name    string

@@ -105,7 +105,7 @@ func TestPublicationAllocationIndependence(t *testing.T) {
 		mustObserve(t, r, observed(r, 1, true))
 		samples := make([]model.Sample, count)
 		for i := range samples {
-			samples[i] = counter(strconv.Itoa(i), uint64(i), 64)
+			samples[i] = counter("stat_"+strconv.Itoa(i), uint64(i), 64)
 		}
 		collect(t, r, model.CollectorDriver, samples...)
 		snapshot := publish(t, r, m)

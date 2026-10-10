@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/linuxio"
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/model"
@@ -167,6 +168,9 @@ func (s rdmaFilesystem) gids(ctx context.Context, path string, p *model.RDMAPort
 			return linuxio.ErrReply
 		}
 		value, err := rdmaScalar(ctx, filepath.Join(path, "gid_attrs", "types", entry.Name()))
+		if emptyGIDSlot(err) {
+			continue
+		}
 		if err != nil {
 			versions[unknownSetting] = true
 		} else {
@@ -180,7 +184,7 @@ func (s rdmaFilesystem) gids(ctx context.Context, path string, p *model.RDMAPort
 			}
 		}
 		name, err := rdmaScalar(ctx, filepath.Join(path, "gid_attrs", "ndevs", entry.Name()))
-		if errors.Is(err, fs.ErrNotExist) {
+		if emptyGIDSlot(err) {
 			continue
 		}
 		if err != nil {
@@ -206,4 +210,14 @@ func (s rdmaFilesystem) gids(ctx context.Context, path string, p *model.RDMAPort
 		p.Aliases = append(p.Aliases, name)
 	}
 	return nil
+}
+
+// Linux core/sysfs.c returns EINVAL for an empty GID or one without a netdev.
+// A joined cleanup/cancellation error must never be mistaken for an empty slot.
+func emptyGIDSlot(err error) bool {
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		children := joined.Unwrap()
+		return len(children) == 1 && emptyGIDSlot(children[0])
+	}
+	return errors.Is(err, syscall.EINVAL) || errors.Is(err, fs.ErrNotExist)
 }

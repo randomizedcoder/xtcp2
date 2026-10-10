@@ -49,7 +49,9 @@ func (c *hostCollector) Collect(ctx context.Context, job model.Job) model.Result
 		result.Err, result.Reason = err, hostReason(err)
 		return result
 	}
+	total := len(c.parser.fields)
 	result.Support, result.Samples = model.Supported, c.parser.samples()
+	result.Filtered = presentValue(uint64(total - len(result.Samples)))
 	return result
 }
 

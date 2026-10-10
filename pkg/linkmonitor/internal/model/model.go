@@ -137,6 +137,10 @@ const (
 	EventRemove
 	EventRefresh
 	EventLoss
+	// EventLink updates known scalar state without doing hardware I/O in a reader.
+	EventLink
+	// EventResync requests an authoritative dump after optional event loss.
+	EventResync
 )
 
 // Event is bounded independently of the number of statistics an interface has.
@@ -183,6 +187,7 @@ type Job struct {
 // Result transfers ownership of samples to the reducer. The adapter must not
 // reuse their storage after return. Support and Err carry independent meanings.
 type Result struct {
+	Filtered         Optional[uint64]
 	Job              Job
 	Finished         Stamp
 	Support          Support

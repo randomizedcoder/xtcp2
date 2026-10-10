@@ -14,6 +14,7 @@ var carrierNames = [...]string{carrierCollectorName, "carrier_changes_total", "c
 var carrierDescriptors = [...]string{"go_link_monitor_interface_carrier", "go_link_monitor_interface_carrier_changes_total", "go_link_monitor_interface_carrier_up_changes_total", "go_link_monitor_interface_carrier_down_changes_total"}
 
 type carrierField struct {
+	expired  bool
 	value    model.Optional[uint64]
 	source   string
 	until    time.Duration
@@ -58,6 +59,7 @@ func (r *reducer) publishCarrier(key model.DeviceKey, now model.Stamp) error {
 		}
 		if field.until <= now.Monotonic {
 			field.value.Present = false
+			field.expired = true
 			continue
 		}
 		if next == 0 || field.until < next {
@@ -75,6 +77,7 @@ func (r *reducer) publishCarrier(key model.DeviceKey, now model.Stamp) error {
 	if err != nil {
 		return err
 	}
+	state.carrierOmissions(slot.carrier)
 	state.recordHistory(block, false) // Four fixed fields retain continuity across independent expiry.
 	state.block, state.fresh = block, len(samples) != 0
 	if !state.fresh {
@@ -113,6 +116,7 @@ func (t *trafficSchedule) applyCarrier(target *trafficTarget, values model.Carri
 			*field = carrierField{value: value, source: source, until: deadlineAfter(now.Monotonic, r.freshness.poll), sequence: target.sequence}
 		} else if mask&(1<<i) != 0 {
 			field.value.Present = false
+			field.expired = false
 		}
 	}
 	state.lastAttempt, state.attempted, state.duration = now, true, presentValue(now.Monotonic-target.carrier.Started.Monotonic)
@@ -123,6 +127,7 @@ func (t *trafficSchedule) applyCarrier(target *trafficTarget, values model.Carri
 		state.lastSuccess, state.hasSuccess = now, true
 	} else {
 		state.reason = trafficReason(state.lastError)
+		state.countFailure()
 	}
 	if err := r.publishCarrier(target.carrier.Key.Device, now); err != nil {
 		return err

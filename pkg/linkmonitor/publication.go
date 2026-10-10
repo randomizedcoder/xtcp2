@@ -26,6 +26,8 @@ type deviceBlock struct {
 // collectorSnapshot contains no mutable working state or error objects. Its
 // sample block and schema are shared across publications until a new result.
 type collectorSnapshot struct {
+	errors                   [6]uint64
+	filtered, stale          model.Optional[uint64]
 	support                  model.Support
 	reason                   model.ErrorReason
 	lastAttempt, lastSuccess model.Stamp
@@ -81,6 +83,11 @@ func (r *reducer) publish(m *Monitor, state publicationState) error {
 		if mask != 0 {
 			next.pages[pageIndex] = r.freezePage(next.pages[pageIndex], pageIndex, mask)
 		}
+	}
+	next.freezeExceptions(previous, r.exceptions)
+	next.resyncs = r.resyncs
+	if err := next.freezeDescriptors(previous); err != nil {
+		return err
 	}
 	r.resetDirty(pageCount)
 	m.root.Store(next)
@@ -146,6 +153,7 @@ func freezeDevice(slot *deviceSlot) *deviceBlock {
 func freezeCollector(state *collectorState) *collectorSnapshot {
 	if state.publication == nil {
 		state.publication = &collectorSnapshot{
+			errors: state.errors, filtered: state.filtered, stale: state.stale,
 			support: state.support, reason: state.reason,
 			lastAttempt: state.lastAttempt, lastSuccess: state.lastSuccess,
 			discontinuities: state.discontinuities, block: state.block,
