@@ -995,7 +995,9 @@ Publication: P08-T03 was committed as `cb958fb` and pushed on
 `test/linkmonitor-embedding`; [PR #178](https://github.com/randomizedcoder/xtcp2/pull/178)
 was opened using the randomizedcoder identity. V058 remains the implementation
 evidence; only this publication note changed afterward. Progress remains 26/34,
-with P09-T01 next. The PR has not been merged.
+with P09-T01 next. PR #178 merged on 2026-10-10 at 04:06:23 UTC as
+`4cf1db1be18ee03c38ef50cfb81fc03adf7e1439`. P08-T03 is now on main;
+P09-T01 remains the next implementation increment.
 
 Established design decisions: public reusable pkg/linkmonitor; small standalone
 command; RDMA required in v1; all statistic fields selected by default; cached
