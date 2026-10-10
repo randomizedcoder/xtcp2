@@ -768,7 +768,33 @@
     "permanent by design. docs/netlink/coverage-status.md transcribes runs 8 and 9",
     "with the per-row counts, internal/goipparity's TestUngatedSurfaceIsNotVacuous",
     "and TestObjectGatingStatus pin the flip by name, and TestPermanentWireDivergences",
-    "pins the nine as permanent and unallowlistable."
+    "pins the nine as permanent and unallowlistable.",
+    "",
+    "Runs 10 and 11 are the first live grounding of nexthop and addrlabel, two",
+    "objects that were replay-grounded only (internal/goip's *MatchesCapturedSidecars",
+    "tests diff goip byte-for-byte against the committed sidecars). Both runs off",
+    "merged main 82859a9c, `nix run .#microvm-x86_64-goip-parity` twice back to back,",
+    "same per-row verdicts each time. OVERALL_FAIL both times - the pre-existing",
+    "state of the sixty-two-row matrix, the nine permanent rows above, not these",
+    "runs. They gate FIVE rows: `nexthop show`, `-j nexthop show`, `addrlabel show`,",
+    "`-6 addrlabel show`, `-j addrlabel show`. Every one reported GOIP_PARITY_PASS",
+    "with `stdout=0` and ZERO unsuppressed findings on both runs, transaction counts",
+    "matching ip: nexthop 3/3 on both forms, addrlabel 1/1 on all three. All five",
+    "are the pristine kind - `control: nl=0 stdout=0`, nothing suppressed, the bar",
+    "`vrf show` set - not the noisy ntable/netconf kind. nexthop's 3/3 is worth a",
+    "note: `ip` opens three netlink sockets (three pids) where goip reuses one, but",
+    "the TRANSACTION count is three each, which is what the gate reads; a socket",
+    "count is not a transaction count. The `-j` forms do not reach the wire and",
+    "inherit their text twins; `-6 addrlabel show` is byte-identical to `addrlabel",
+    "show` in both halves (the addrlabel table is IPv6-only, so bare show already",
+    "asks AF_INET6). None gates on stdout: all five print byte-identical text to ip.",
+    "",
+    "The ungated surface is twenty-three rows after this branch, still load-bearing",
+    "for GOIP_PARITY_UNGATED_CLEAN: the nine permanent rows plus a FOURTEEN-row",
+    "queue - the twelve `-j`/family rows and the two held-out `-s` forms - each",
+    "awaiting its own clean run. docs/netlink/coverage-status.md transcribes runs 10",
+    "and 11 with the per-row counts, and internal/goipparity's",
+    "TestNexthopAddrlabelGated pins the five-row flip by name."
   ],
   "_note_version_skew": [
     "THE ENTRIES BELOW CITE COMMITS THAT ARE IN NO RELEASE, AND THE EVIDENCE IS",
@@ -881,6 +907,11 @@
     "netconf show",
     "-j netconf show",
     "vrf show",
-    "-j vrf show"
+    "-j vrf show",
+    "nexthop show",
+    "-j nexthop show",
+    "addrlabel show",
+    "-6 addrlabel show",
+    "-j addrlabel show"
   ]
 }

@@ -396,6 +396,17 @@ func TestAllowlistCommitted(t *testing.T) {
 		"-j netconf show",
 		"vrf show",
 		"-j vrf show",
+		// nexthop and addrlabel, gated on runs 10 and 11 - the first live
+		// grounding of those two objects, which were replay-grounded only.
+		// Both runs GOIP_PARITY_PASS with stdout=0 and no unsuppressed findings,
+		// txns matching ip: nexthop 3/3, addrlabel 1/1. All five are pristine
+		// (control: nl=0), the vrf bar; the -j forms do not reach the wire and
+		// -6 addrlabel show is byte-identical to addrlabel show.
+		"nexthop show",
+		"-j nexthop show",
+		"addrlabel show",
+		"-6 addrlabel show",
+		"-j addrlabel show",
 	}
 
 	tests := []struct {

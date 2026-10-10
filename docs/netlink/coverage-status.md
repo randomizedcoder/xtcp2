@@ -12,13 +12,13 @@ several steps, further down under [Remaining](#remaining).
 |---|---|---|
 | commands in the comparison matrix | **62** | `internal/goipparity/commands.go` |
 | of those, `Implemented: true` | **62** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
-| of those, in `gated_commands` | **34** | `pkg/nlparity/goip-parity-allowlist.json` |
+| of those, in `gated_commands` | **39** | `pkg/nlparity/goip-parity-allowlist.json` |
 | allowlisted divergences | **7** | same file, `entries` |
 | of those, `kind=version-skew` | **7** | all against the pinned `ip` 7.1.0 |
 | of those, `kind=accepted-divergence` | **0** | nothing is *allowlisted* as a permanent divergence — the nine intentional wire divergences below **cannot** be, because a transaction-count divergence is unsuppressible (`nlparity_allowlist.go:143`) |
 
-**Twenty-eight** matrix rows sit outside `gated_commands`, and they fall into
-seven groups that are out for unrelated reasons. Nineteen are a queue, each
+**Twenty-three** matrix rows sit outside `gated_commands`, and they fall into
+five groups that are out for unrelated reasons. Fourteen are a queue, each
 awaiting its own measured-clean live run; the other **nine** — the stats and
 netconf-dev rows — are **not** a queue but a closed, permanent, intentional wire
 divergence (see [Runs 8 & 9](#runs-8-and-9-ntable-netconf-and-vrf-gate-stats-and-netconf-dev-diverge)).
@@ -47,27 +47,28 @@ stable is the *weaker* evidence: five runs reading 2 cannot separate
 `nl=2` is not even `-s`'s doing — plain `neigh show` measures 2 from
 `ll_init_map`'s link dump — so it is waiting for a run where the count moves.
 
-**Two are nexthop's first matrix rows**: `nexthop show` and `-j nexthop show`,
-added together with the nexthop JSON renderer and the `group`-array facet
-mapping they depend on. They are **replay-grounded, not yet live-grounded**:
-`internal/goip`'s `TestNexthopShowMatchesCapturedSidecars` and
+**Two nexthop rows are now gated**: `nexthop show` and `-j nexthop show`, added
+together with the nexthop JSON renderer and the `group`-array facet mapping they
+depend on. `internal/goip`'s `TestNexthopShowMatchesCapturedSidecars` and
 `TestNexthopShowJSONMatchesCapturedSidecars` diff `goip` byte-for-byte and
-structurally against the committed `ip_nexthop`/`ip_nexthop_json` sidecars, so
-the stdout is known correct offline, but no measured live `goip-parity` run backs
-them yet. Like every row before gating, they go in ungated; gating is a separate
-branch after two clean live runs. See
-[Where we are](#where-we-are).
+structurally against the committed `ip_nexthop`/`ip_nexthop_json` sidecars
+offline, and [runs 10 and 11](#runs-10-and-11-nexthop-and-addrlabel-gate)
+grounded them live: `GOIP_PARITY_PASS` with `stdout=0` and no unsuppressed
+findings on both, `txns: ip=3 goip=3`. `ip` opens three netlink sockets where
+`goip` reuses one, but the transaction count matches, which is what the gate
+reads. The pristine kind, `control: nl=0`, the `vrf show` bar.
 
-**Three are addrlabel's first matrix rows**: `addrlabel show`, `-6 addrlabel
-show` and `-j addrlabel show`, added together with the `ifaddrlblmsg` decoder,
-the addrlabel render view and the `address`/`prefixlen` JSON facet pair they
-depend on. They are **replay-grounded, not yet live-grounded**, exactly as the
-nexthop rows above: `internal/goip`'s `TestAddrLabelShowMatchesCapturedSidecars`
-diffs `goip` byte-for-byte (text) and structurally (`-j`) against the committed
-`ip_addrlabel`/`ip_addrlabel_json` sidecars in all three topologies, and the
-`-6` row grounds the AF_UNSPEC→AF_INET6 identity (`ip/ipaddrlabel.c:101-104`) at
-the output level, the `rule`/`-4` pattern. No measured live run backs them yet,
-so they go in ungated until their own runs earn gating.
+**Three addrlabel rows are now gated**: `addrlabel show`, `-6 addrlabel show` and
+`-j addrlabel show`, added together with the `ifaddrlblmsg` decoder, the addrlabel
+render view and the `address`/`prefixlen` JSON facet pair they depend on.
+`internal/goip`'s `TestAddrLabelShowMatchesCapturedSidecars` diffs `goip`
+byte-for-byte (text) and structurally (`-j`) against the committed
+`ip_addrlabel`/`ip_addrlabel_json` sidecars in all three topologies, the `-6` row
+grounding the AF_UNSPEC→AF_INET6 identity (`ip/ipaddrlabel.c:101-104`) at the
+output level, the `rule`/`-4` pattern. [Runs 10 and
+11](#runs-10-and-11-nexthop-and-addrlabel-gate) gated all three:
+`GOIP_PARITY_PASS` with `stdout=0` and no unsuppressed findings on both,
+`txns: ip=1 goip=1`, pristine `control: nl=0`.
 
 **Three ntable rows are now gated**: `ntable show`, `-s ntable show` and
 `-j ntable show`, added together with the `ndtmsg` decoder, the ntable render
@@ -193,12 +194,15 @@ Flipping `Implemented` puts a command in the report; joining `gated_commands`
 requires a live Tier C run (`nix run .#microvm-x86_64-goip-parity`) measured
 clean for it, on two consecutive runs whose every line matches.
 
-The most recent sweep of the **gated** surface is **runs 8 and 9**, the first
-live grounding of ntable/netconf/stats/vrf, which gated seven of the sixteen
-rows those objects added and found the other nine divergent on the wire —
+The most recent sweep of the **gated** surface is **runs 10 and 11**, the first
+live grounding of nexthop and addrlabel, which gated all five of their rows —
 transcribed in
+[Runs 10 and 11](#runs-10-and-11-nexthop-and-addrlabel-gate). Before them,
+**runs 8 and 9** were the first live grounding of ntable/netconf/stats/vrf, which
+gated seven of the sixteen rows those objects added and found the other nine
+divergent on the wire —
 [Runs 8 and 9](#runs-8-and-9-ntable-netconf-and-vrf-gate-stats-and-netconf-dev-diverge).
-Before them, **runs 4 and 5** were two back-to-back runs at `fb67da4`, when the
+Before those, **runs 4 and 5** were two back-to-back runs at `fb67da4`, when the
 matrix was twenty-nine rows, and the twelve `-j`/family rows added between then
 and the five objects are measured by
 [their own run](#the-twelve-rows-added-for--j-and-the-family-selectors) but not
@@ -2804,11 +2808,50 @@ so they stay `PASS` by construction. `internal/goipparity`'s
 What is now on record is two back-to-back runs with identical per-row verdicts,
 seven rows measured clean twice and gated, nine measured divergent and held out
 with the wire difference named. **That is the evidence the gate needs.** Of the
-twenty-eight rows outside `gated_commands`, nineteen — the twelve `-j`/family
-rows, the two held-out `-s` forms, the two nexthop and three addrlabel rows —
-each wait on their own branch; the nine here do not, being permanent by design.
-`TestUngatedSurfaceIsNotVacuous` pins the whole set by name, and
+rows outside `gated_commands` after runs 8 and 9, the twelve `-j`/family rows,
+the two held-out `-s` forms, and the two nexthop and three addrlabel rows each
+waited on their own branch; the nine divergent rows did not, being permanent by
+design. The nexthop and addrlabel five have since gated on
+[runs 10 and 11](#runs-10-and-11-nexthop-and-addrlabel-gate), leaving a fourteen-row
+queue. `TestUngatedSurfaceIsNotVacuous` pins the whole set by name, and
 `TestPermanentWireDivergences` pins the nine as permanent and unallowlistable.
+
+#### Runs 10 and 11: nexthop and addrlabel gate
+
+The next sweep ran `nix run .#microvm-x86_64-goip-parity` twice back to back off
+merged `main` (`82859a9c`), the first live grounding of nexthop and addrlabel —
+two objects that until now were replay-grounded only, diffed byte-for-byte against
+committed sidecars (`internal/goip`'s `TestNexthopShowMatchesCapturedSidecars`,
+`TestAddrLabelShowMatchesCapturedSidecars`, and their `-j` siblings). A live run
+adds what a committed sidecar cannot: an `ip` in the same capture window, which
+catches the nixpkgs iproute2 pin moving a token. Both runs `OVERALL_FAIL` — the
+pre-existing state of the sixty-two-row matrix, the nine permanent rows warning
+and `-4 netconf show dev` failing, not anything these runs introduced — with
+identical per-row verdicts. All five target rows gated:
+
+| row | `txns` | run 10 / run 11 control | why it gates |
+|---|---|---|---|
+| `nexthop show` | ip=3 goip=3 | `nl=0` / `nl=0` | pristine; `ip` uses three sockets, `goip` one, txn count equal |
+| `-j nexthop show` | ip=3 goip=3 | `nl=0` / `nl=0` | pristine, inherits the text twin (`-j` never reaches the wire) |
+| `addrlabel show` | ip=1 goip=1 | `nl=0` / `nl=0` | pristine, nothing suppressed |
+| `-6 addrlabel show` | ip=1 goip=1 | `nl=0` / `nl=0` | pristine, byte-identical to `addrlabel show` (AF_INET6-only table) |
+| `-j addrlabel show` | ip=1 goip=1 | `nl=0` / `nl=0` | pristine, inherits the text twin |
+
+All five are the pristine kind — `control: nl=0 stdout=0`, nothing suppressed —
+the bar `vrf show` set, not the noisy ntable/netconf kind. `nexthop show`'s 3/3 is
+the one line worth a note: `ip` opens three netlink sockets (three pids in the
+transcript) where `goip` reuses one, but the *transaction* count is three each,
+which is what the gate reads — a socket count is not a transaction count. None
+gates on stdout: all five print byte-identical text to `ip`, which the hermetic
+replay tiers already proved and these runs confirm against a live binary.
+
+No extra smoke run followed, for the same reason runs 8 and 9 gave: gating is JSON
+membership that turns WARN→FAIL, the five gated rows have `stdout=0` with no
+netlink failure so they stay `PASS` by construction, and `OVERALL_PASS` is
+unreachable while the nine permanent rows warn. `internal/goipparity`'s
+`TestNexthopAddrlabelGated` and the `earned`/`gated_commands` set-equality pair in
+`pkg/nlparity` pin the flip deterministically, offline. The queue is now fourteen
+rows: the twelve `-j`/family forms and the two held-out `-s` forms.
 
 ## Tier C — the `goip-parity` microVM flavor
 

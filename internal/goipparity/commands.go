@@ -972,14 +972,13 @@ var commands = withArgs([]Command{
 		// driver already uses for this command
 		// (nix/microvms/scripts/capture-netlink-dumps.exp).
 		//
-		// nexthop's first row in this matrix. It is REPLAY-GROUNDED, not yet
-		// live-grounded: internal/goip's TestNexthopShowMatchesCapturedSidecars
-		// diffs goip byte-for-byte against the committed ip_nexthop sidecar, so
-		// the stdout is known correct offline. What a live run adds — and the
-		// reason the row exists — is the same the `-j` block cites: a committed
-		// sidecar cannot notice the iproute2 pin moving a token. No measured live
-		// run backs it yet, so it goes in ungated, like every other row until its
-		// own runs earn gating.
+		// nexthop's first row in this matrix, and its first live grounding.
+		// internal/goip's TestNexthopShowMatchesCapturedSidecars diffs goip
+		// byte-for-byte against the committed ip_nexthop sidecar offline; runs 10
+		// and 11 added the live `ip` a sidecar cannot give, catching a pin that
+		// moved a token. Gated there: GOIP_PARITY_PASS, stdout=0, control nl=0,
+		// txns 3/3 — `ip` opens three sockets and goip reuses one, but the
+		// transaction count matches, which is what the gate reads.
 		Floor: 4, Implemented: true,
 	},
 
@@ -991,13 +990,13 @@ var commands = withArgs([]Command{
 		// dump — one request and the multipart reply carrying NLMSG_DONE, the floor
 		// the capture driver uses for this command.
 		//
-		// addrlabel's first row in this matrix, and REPLAY-GROUNDED, not yet
-		// live-grounded, exactly as the nexthop rows above: internal/goip's
+		// addrlabel's first row in this matrix, and its first live grounding,
+		// exactly as the nexthop rows above: internal/goip's
 		// TestAddrLabelShowMatchesCapturedSidecars diffs goip byte-for-byte against
-		// the committed ip_addrlabel sidecar, so the stdout is known correct
-		// offline. A live run adds what a committed sidecar cannot — noticing the
-		// iproute2 pin moving a token. No measured live run backs it yet, so it
-		// goes in ungated until its own runs earn gating.
+		// the committed ip_addrlabel sidecar offline, and runs 10 and 11 added the
+		// live `ip` that notices a pin moving a token. Gated there:
+		// GOIP_PARITY_PASS, stdout=0, control nl=0, txns 1/1 — the pristine kind,
+		// the vrf bar.
 		Floor: 2, Implemented: true,
 	},
 	{
@@ -1012,7 +1011,8 @@ var commands = withArgs([]Command{
 		// pcap in the corpus: this row asserts the identity instead. It is load
 		// bearing the same way `-4 rule show` is — a goip that skipped the
 		// substitution would send AF_UNSPEC, be answered, and the request halves
-		// would no longer match.
+		// would no longer match. Gated with `addrlabel show` on runs 10 and 11,
+		// txns 1/1 on both.
 		Floor: 2, Implemented: true,
 	},
 
@@ -1264,7 +1264,8 @@ var commands = withArgs([]Command{
 		// uncompared on both sides, as the text twin's are.
 		//
 		// Offline-grounded by internal/goip's TestNexthopShowJSONMatchesCaptured-
-		// Sidecars; ungated pending its own live runs, as the block above.
+		// Sidecars; gated on runs 10 and 11 with its text twin, txns 3/3 and
+		// `-j` not reaching the wire.
 		Floor: 4, Implemented: true,
 	},
 	{
@@ -1280,7 +1281,8 @@ var commands = withArgs([]Command{
 		// the text `label` token; both sides leave it as a value, not a locus.
 		//
 		// Offline-grounded by internal/goip's TestAddrLabelShowJSONMatchesCaptured-
-		// Sidecars; ungated pending its own live runs, as the block above.
+		// Sidecars; gated on runs 10 and 11 with its text twin, txns 1/1 and
+		// `-j` not reaching the wire.
 		Floor: 2, Implemented: true,
 	},
 	{
