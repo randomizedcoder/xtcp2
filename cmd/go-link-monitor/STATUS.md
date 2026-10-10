@@ -50,7 +50,8 @@ no claim of negligible cgo overhead is made.
 ## Current evidence and readiness
 
 P08-T02 is complete on `feat/linkmonitor-standalone`, based on main
-`3d6a9ed`. The combined PR will include the preserved P07-T04 and P08-T01 work.
+`3d6a9ed`. [PR #177](https://github.com/randomizedcoder/xtcp2/pull/177) includes
+the preserved P07-T04 and P08-T01 work and is open for review.
 CLI/HTTP wiring and full/core executable packages pass the final thirteen-gate
 aggregate and three Nix policy checks. Netclass coverage and release gates remain open.
 
@@ -903,6 +904,7 @@ owners, deadlines or successful outcomes. Continue independent ready tasks.
 | 2026-10-09 | Completed P07-T04: wired the live library, bounded route/ethtool subscriptions and recovery; added shared pinned RDMA build definitions, clean-runtime smoke/build matrix and an opt-in software-RDMA guest. Fixed Linux empty-GID handling exposed by real discovery. Moved final standalone artifact acceptance to P08-T02 as agreed. | V052; twelve monitor gates, three Nix policies and VM build pass. 23/34 tasks complete; next P08-T01. KVM execution and physical validation remain unverified; changes uncommitted |
 | 2026-10-09 | Completed P08-T01 alongside preserved P07-T04 work: caller-owned Prometheus adapter, immutable diagnostics and descriptor catalogs, schema validation, explicit Gather/race/boundary tables and retained benchmarks. Recorded missing netclass source projections as a follow-up before standalone release. | V053–V054; twelve monitor gates and three Nix policies pass. 24/34 tasks complete; P08 at 1/3. Next P08-T02; changes uncommitted, no push or PR |
 | 2026-10-09 | Completed P08-T02 on a fresh branch based on main, preserving P07-T04/P08-T01: thin command, private registry/HTTP lifecycle, flags/env, signals, bounded scrapes/draining and pinned full/core artifacts. Added explicit test tables, real subprocess tests and a thirteenth run-all gate. Preparing one combined PR using randomizedcoder as requested. | V055–V056; all thirteen monitor gates and three Nix policies pass. 25/34 complete; P08 at 2/3. Next P08-T03; netclass/KVM/physical/performance follow-ups retained |
+| 2026-10-09 | Committed and pushed the combined library/exporter, command/artifact and comment fixes; opened [PR #177](https://github.com/randomizedcoder/xtcp2/pull/177) using the randomizedcoder profile. No merge performed. | V056 remains the implementation evidence; only completion/publication documentation changed afterward. Next P08-T03 |
 
 Established design decisions: public reusable pkg/linkmonitor; small standalone
 command; RDMA required in v1; all statistic fields selected by default; cached
