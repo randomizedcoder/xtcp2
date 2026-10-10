@@ -1,0 +1,309 @@
+[ {
+        "ifindex": 1,
+        "ifname": "lo",
+        "group": "link",
+        "stats64": {
+            "rx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "over_errors": 0,
+                "multicast": 0
+            },
+            "tx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "carrier_errors": 0,
+                "collisions": 0
+            }
+        }
+    },{
+        "ifindex": 2,
+        "ifname": "tunl0",
+        "group": "link",
+        "stats64": {
+            "rx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "over_errors": 0,
+                "multicast": 0
+            },
+            "tx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "carrier_errors": 0,
+                "collisions": 0
+            }
+        }
+    },{
+        "ifindex": 3,
+        "ifname": "nlmon0",
+        "group": "link",
+        "stats64": {
+            "rx": {
+                "bytes": 668252,
+                "packets": 557,
+                "errors": 0,
+                "dropped": 0,
+                "over_errors": 0,
+                "multicast": 0
+            },
+            "tx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "carrier_errors": 0,
+                "collisions": 0
+            }
+        }
+    },{
+        "ifindex": 4,
+        "ifname": "ipip1",
+        "group": "link",
+        "stats64": {
+            "rx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "over_errors": 0,
+                "multicast": 0
+            },
+            "tx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "carrier_errors": 0,
+                "collisions": 0
+            }
+        }
+    },{
+        "ifindex": 5,
+        "ifname": "sit0",
+        "group": "link",
+        "stats64": {
+            "rx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "over_errors": 0,
+                "multicast": 0
+            },
+            "tx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "carrier_errors": 0,
+                "collisions": 0
+            }
+        }
+    },{
+        "ifindex": 6,
+        "ifname": "sit1",
+        "group": "link",
+        "stats64": {
+            "rx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "over_errors": 0,
+                "multicast": 0
+            },
+            "tx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "carrier_errors": 0,
+                "collisions": 0
+            }
+        }
+    },{
+        "ifindex": 7,
+        "ifname": "gre0",
+        "group": "link",
+        "stats64": {
+            "rx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "over_errors": 0,
+                "multicast": 0
+            },
+            "tx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "carrier_errors": 0,
+                "collisions": 0
+            }
+        }
+    },{
+        "ifindex": 8,
+        "ifname": "gretap0",
+        "group": "link",
+        "stats64": {
+            "rx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "over_errors": 0,
+                "multicast": 0
+            },
+            "tx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "carrier_errors": 0,
+                "collisions": 0
+            }
+        }
+    },{
+        "ifindex": 9,
+        "ifname": "erspan0",
+        "group": "link",
+        "stats64": {
+            "rx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "over_errors": 0,
+                "multicast": 0
+            },
+            "tx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "carrier_errors": 0,
+                "collisions": 0
+            }
+        }
+    },{
+        "ifindex": 10,
+        "ifname": "gre1",
+        "group": "link",
+        "stats64": {
+            "rx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "over_errors": 0,
+                "multicast": 0
+            },
+            "tx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 4,
+                "dropped": 0,
+                "carrier_errors": 4,
+                "collisions": 0
+            }
+        }
+    },{
+        "ifindex": 11,
+        "ifname": "ip6tnl0",
+        "group": "link",
+        "stats64": {
+            "rx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "over_errors": 0,
+                "multicast": 0
+            },
+            "tx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "carrier_errors": 0,
+                "collisions": 0
+            }
+        }
+    },{
+        "ifindex": 12,
+        "ifname": "ip6tnl1",
+        "group": "link",
+        "stats64": {
+            "rx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "over_errors": 0,
+                "multicast": 0
+            },
+            "tx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "carrier_errors": 0,
+                "collisions": 0
+            }
+        }
+    },{
+        "ifindex": 13,
+        "ifname": "ip6gre0",
+        "group": "link",
+        "stats64": {
+            "rx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "over_errors": 0,
+                "multicast": 0
+            },
+            "tx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "carrier_errors": 0,
+                "collisions": 0
+            }
+        }
+    },{
+        "ifindex": 14,
+        "ifname": "ip6gre1",
+        "group": "link",
+        "stats64": {
+            "rx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "over_errors": 0,
+                "multicast": 0
+            },
+            "tx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "carrier_errors": 0,
+                "collisions": 0
+            }
+        }
+    } ]

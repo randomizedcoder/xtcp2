@@ -17,7 +17,7 @@ several steps, further down under [Remaining](#remaining).
 | of those, `kind=version-skew` | **7** | all against the pinned `ip` 7.1.0 |
 | of those, `kind=accepted-divergence` | **0** | nothing is divergent on purpose and permanently |
 
-**Twenty-six** matrix rows sit outside `gated_commands`, and they fall into six
+**Thirty** matrix rows sit outside `gated_commands`, and they fall into seven
 groups that are out for unrelated reasons.
 
 **Twelve are new and not yet gated**: six family and table selectors and six
@@ -97,6 +97,19 @@ capture kernel, so it is contract-tested in the service layer rather than
 captured. No measured live run backs the four yet, so they go in ungated until
 their own runs earn gating.
 
+**Four are stats' first matrix rows**: `stats show group link`, `-s stats show
+group link`, `stats show group link dev` and `-j stats show group link`, added
+together with the `if_stats_msg` decoder and the stats render view. They are
+**replay-grounded, not yet live-grounded**, as the netconf rows above:
+`internal/goip`'s `TestStatsShowMatchesCapturedSidecars` diffs `goip`
+byte-for-byte against the committed `ip_stats`/`ip_stats_dev` sidecars, on layout
+against the extended `ip_stats_s` (counters normalized, error lines exact), and
+structurally against `ip_stats_json`, in all three topologies. The point get is
+the first in the matrix that is `NLM_F_REQUEST` alone (no ACK), and every row
+spells `group link` so the reply stays link-only on the mesh bridge. No measured
+live run backs the four yet, so they go in ungated until their own runs earn
+gating.
+
 **The rest of the nexthop read surface and VRF link-detail are implemented but
 are not matrix rows, so they do not move the counts above.** `nexthop show id N`,
 the other five `nexthop show` selectors — `dev`, `master`, `vrf`, `groups`,
@@ -132,9 +145,9 @@ These are the boundaries of the exercise, not a backlog:
   write verb with `goip is read-only: ErrNotImplemented` rather than treating
   it as unknown, because the harness drives both tools with the same argv and
   needs "not got there yet" to be distinguishable from "typo".
-- **Eight objects.** `address`, `route`, `rule`, `neigh`/`neighbour`, `link`,
-  `nexthop`, `addrlabel` and `ntable`/`ntbl` have a `run` function; the other
-  twenty-three rows of
+- **Ten objects.** `address`, `route`, `rule`, `neigh`/`neighbour`, `link`,
+  `nexthop`, `addrlabel`, `ntable`/`ntbl`, `netconf` and `stats` have a `run`
+  function; the other twenty-one rows of
   `internal/goip`'s copy of iproute2's `cmds[]` are present with no `run`
   **on purpose**. Matching is
   unanchored-prefix and first-match-wins, so deleting the unimplemented rows
@@ -172,7 +185,7 @@ are the ones that stop partway. The rtnetlink **event** types are decoded and
 never rendered, because the daemon's link monitor consumes them and `goip` has
 no `monitor` verb. `RTM_NEWRULE` is decoded for dumps but is not even an event.
 
-### rtnetlink: nine body layouts, and they are the nine goip needs
+### rtnetlink: ten body layouts, and they are the ten goip needs
 
 | body struct | kernel header | RTM types | decoder | goip | matrix rows |
 |---|---|---|---|---|---|
@@ -185,6 +198,7 @@ no `monitor` verb. `RTM_NEWRULE` is decoded for dumps but is not even an event.
 | `ifaddrlblmsg` | `if_addrlabel.h` | `RTM_{NEW,DEL,GET}ADDRLABEL` | `ParseNewAddrLabel`, `xtcpnl_ifaddrlblmsg.go:91` | `render/addrlabel.go` | **3** |
 | `ndtmsg` | `neighbour.h` | `RTM_{NEW,GET,SET}NEIGHTBL` | `ParseNewNeighTbl`, `xtcpnl_ndtmsg.go:299` | `render/ntable.go` | **3** |
 | `netconfmsg` | `netconf.h` | `RTM_{NEW,GET,DEL}NETCONF` | `ParseNewNetconf`, `xtcpnl_netconfmsg.go:107` | `render/netconf.go` | **4** |
+| `if_stats_msg` | `if_link.h` | `RTM_{NEW,GET}STATS` | `ParseNewStats`, `xtcpnl_ifstatsmsg.go:87` | `render/stats.go` | **4** |
 
 Headers in this table and the next are all under
 `include/uapi/linux/`, decoder paths are under `pkg/xtcpnl/` and `goip` paths
@@ -192,38 +206,39 @@ under `internal/goip/`; the prefixes are dropped so the columns stay readable.
 `neighbour.h` keeps the kernel's own spelling for the same reason the comments
 in `xtcpnl_ndmsg.go` do — `neighbor.h` does not exist in the tree.
 
-53 rows, which is the matrix total — every row in the comparison matrix lands
-on one of these nine, and every one of these nine is compared live.
-`netconfmsg`'s four rows are the newest, with `ndtmsg`'s three and `ifaddrlblmsg`'s
-three just before them: all nine are in the matrix and replay-grounded (see the
+57 rows, which is the matrix total — every row in the comparison matrix lands
+on one of these ten, and every one of these ten is compared live.
+`if_stats_msg`'s four rows are the newest, with `netconfmsg`'s four and `ndtmsg`'s
+three just before them: all ten are in the matrix and replay-grounded (see the
 glance above), awaiting their first measured live run before gating.
 
-**The request side is narrower than the decode side, on purpose.** Only nine
+**The request side is narrower than the decode side, on purpose.** Only ten
 message types are ever *built*: `RTM_GETLINK`, `RTM_GETADDR`, `RTM_GETROUTE`,
 `RTM_GETNEIGH`, `RTM_GETRULE`, `RTM_GETNEXTHOP`, `RTM_GETADDRLABEL`,
-`RTM_GETNEIGHTBL`, `RTM_GETNETCONF`, from the
-sixteen builders in `xtcpnl_rtnetlink_requests.go` (`RTM_GETNEXTHOP` has three —
-a dump, a wire-filtered dump, and a by-id get — and `RTM_GETNETCONF` has two, a
-dump and a by-ifindex point get). That is not a coincidence of scope — the
+`RTM_GETNEIGHTBL`, `RTM_GETNETCONF`, `RTM_GETSTATS`, from the
+eighteen builders in `xtcpnl_rtnetlink_requests.go` (`RTM_GETNEXTHOP` has three —
+a dump, a wire-filtered dump, and a by-id get — and `RTM_GETNETCONF` and
+`RTM_GETSTATS` each have two, a dump and a by-ifindex point get). That is not a
+coincidence of scope — the
 encoder rejects a non-GET type with `ErrNotAGetRequest`, so the read-only
 invariant is executable rather than a convention. `RTM_NEWNEIGH` appears in
 that file only in a comment about what a solicited reply carries.
 
-### rtnetlink: the six body layouts with no decoder
+### rtnetlink: the five body layouts with no decoder
 
 | body struct | kernel header | RTM types | what would need it |
 |---|---|---|---|
-| `if_stats_msg` | `if_link.h` | `RTM_GETSTATS` | `ip stats show`, `ip -s -s link xstats` |
 | `prefixmsg` | `rtnetlink.h` | `RTM_NEWPREFIX` | `ip monitor prefix` |
 | `nduseroptmsg` | `rtnetlink.h` | `RTM_NEWNDUSEROPT` | `ip monitor` RA options |
 | `br_port_msg` | `if_bridge.h` | `RTM_{NEW,DEL,GET}MDB` | `bridge mdb` — not an `ip` command |
 | `tcmsg` | `rtnetlink.h` | `RTM_{NEW,DEL,GET}{QDISC,TCLASS,TFILTER}` | `tc` — not an `ip` command |
 | `tcamsg` | `rtnetlink.h` | `RTM_{NEW,DEL,GET}ACTION` | `tc actions` — not an `ip` command |
 
-Three of the six are `tc`/`bridge` territory and are outside the exercise
-entirely rather than pending. The other three are reachable only through objects
-that have `run: nil` — `stats` on NETLINK_ROUTE and the two monitor-only
-layouts. `stats` is the last read-only object left.
+Three of the five are `tc`/`bridge` territory and are outside the exercise
+entirely rather than pending. The other two (`prefixmsg`, `nduseroptmsg`) are
+reachable only through `ip monitor`, the one object class goip does not
+implement — both are event-only layouts with no `show` path. With `stats` done,
+**no read-only object remains**: the backlog is closed.
 
 **`ifaddrlblmsg` used to sit in this table and no longer belongs in it.** It is
 decoded in `xtcpnl_ifaddrlblmsg.go` (`ParseNewAddrLabel`, the `ifaddrlblmsg`
@@ -251,6 +266,21 @@ point get (`NETCONFA_IFINDEX` on a non-dump `RTM_GETNETCONF`) and the first with
 kernel-capability fallback (the EOPNOTSUPP two-pass dump), the latter
 contract-tested rather than captured because the capture kernel never triggers
 it.
+
+**`if_stats_msg` used to sit in this table and no longer belongs in it.** It is
+decoded in `xtcpnl_ifstatsmsg.go` (`ParseNewStats`, the 12-byte `if_stats_msg`
+header plus the `IFLA_STATS_LINK_64` group, a `rtnl_link_stats64` reused from the
+`ip -s link` path) and rendered by `render/stats.go`, so `ip stats show group
+link` — with `dev`, `-s` (the extended RX-errors/TX-errors block) and `-j` — is
+an implemented object now, not a `run: nil` backlog entry. It moved up into the
+decoded-layouts table above. It carries the first request with a 12-byte
+`filter_mask`-bearing header, and its point get is the first that is
+`NLM_F_REQUEST` alone (no ACK, unlike netconf's). goip grounds only the `link`
+group; the other twelve leaves of ipstats's descriptor tree (bridge/bond xstats,
+offload, afstats mpls) and `stats set` are refused with `ErrNotImplemented` and a
+rationale — the strict-parity boundary — and a reply carrying any group beyond
+link is refused rather than under-rendered (`HasUnsupportedGroup`). **It is the
+tenth read-only object and closes the read-only backlog.**
 
 **`nhmsg` used to head this table and no longer belongs in it.** It is decoded
 in `xtcpnl_nhmsg.go` (`ParseNewNexthop`, the `nhmsg` header plus the `NHA_*`
@@ -365,7 +395,7 @@ declines.
 
 The user-facing refusal happens earlier and elsewhere: `goip` returns
 `ErrNotImplemented` from object dispatch, before a socket is opened, for the
-twenty-three objects with no `run`. So the seven uncovered layouts above are a
+twenty-one objects with no `run`. So the uncovered layouts above are a
 backlog rather than a hazard, and the two halves of that — a walker that
 tolerates the unknown and a dispatcher that refuses it up front — are
 independent and should stay that way.
@@ -544,7 +574,37 @@ as the first four netconf rows in the Tier C matrix (ungated, replay-grounded),
 taking it to 53. The JSON facet extractor needed nothing new: the device token is
 a bare positional word the text extractor does not file, so the JSON `interface`
 key is left unmapped to match, and the measured calibration fills zero reconciled
-loci on both sides. **`stats` is the last read-only object.**
+loci on both sides.
+
+**`ip stats show group link` landed last, the tenth object and the close of the
+read-only surface.** `if_stats_msg` moved out of the no-decoder table into the
+decoded set: `ParseNewStats` (`xtcpnl_ifstatsmsg.go`) decodes the 12-byte header
+and the `IFLA_STATS_LINK_64` group — a `rtnl_link_stats64` reused wholesale from
+the `ip -s link` path — and `render/stats.go` reproduces the `ifindex: ifname:
+group link` record, the short stats64 block, the extended `-s`
+RX-errors/TX-errors block (`show_stats > 1`, grounded for the first time), and
+the flat JSON array. Like `ntable`/`netconf` it runs `ll_init_map` first, so the
+capture bundles the link dump ahead of the stats transaction and each record's
+ifindex resolves to a name. The firsts are on the request side: it is the first
+request whose fixed header carries a `filter_mask` (12 bytes, the widest yet),
+and its point get (`stats show group link dev X`) is the first that is
+`NLM_F_REQUEST` **alone** — `ipstats_show_one` sets no ACK and `rtnl_talk` adds
+none, so the captured `_dev` flag word is `0x0001`, unlike netconf's `0x0005`.
+Scope is deliberately one leaf: only the `link` group is grounded (every parity
+command spells `group link`, `filter_mask 0x1`, which keeps the reply link-only
+even on the mesh bridge); the other twelve leaves of ipstats's descriptor tree
+and `stats set` are refused with a rationale, and a reply carrying a group beyond
+link is refused rather than under-rendered. `TestStatsShowMatchesCapturedSidecars`
+diffs `goip` against the committed `ip_stats`/`ip_stats_dev` sidecars byte-for-byte,
+the `ip_stats_s` extended sidecar on layout (counters normalized), and
+`ip_stats_json` structurally, in all three topologies. It enlisted `stats show
+group link`, `-s stats show group link`, `stats show group link dev` and `-j
+stats show group link` as the first four stats rows in the Tier C matrix (ungated,
+replay-grounded), taking it to 57. The one reconciled JSON locus is
+`statsheaders`, whose text `missed`/`mcast`/`carrier`/`collsns` vs JSON
+`over_errors`/`multicast`/`carrier_errors`/`collisions` renames are a declared
+difference, not a new mapping. **With `stats` done, the read-only object backlog
+is closed.**
 
 This is the live progress tracker for the roadmap in
 [coverage-expansion](coverage-expansion.md). The division of labour between the

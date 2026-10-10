@@ -629,3 +629,81 @@ func (s *Service) NetconfByIndex(family uint8, ifindex int32) (model.Netconf, er
 	}
 	return model.Netconf{}, fmt.Errorf("goip: no netconf record for ifindex %d in the capture", ifindex)
 }
+
+// StatsLinks is the link dump ipstats triggers lazily to resolve ifindex to name
+// (ip/ipstats.c:761), the NetconfLinks twin. It is split out so obj_stats can Fill
+// the index cache between the link dump and the stats dump — how a stats record's
+// ifindex resolves to a name, and a `dev NAME` selector to an ifindex.
+func (s *Service) StatsLinks() ([]model.Link, error) {
+	r, err := req.StatsShowLinkDump(s.nextSeq())
+	if err != nil {
+		return nil, fmt.Errorf("goip: build stats link dump request: %w", err)
+	}
+	ls, err := decode(s, r, uint16(unix.RTM_NEWLINK), "RTM_NEWLINK", xtcpnl.ParseNewLink)
+	if err != nil {
+		return nil, err
+	}
+	links := make([]model.Link, len(ls))
+	for i := range ls {
+		links[i] = model.Link(ls[i])
+	}
+	return links, nil
+}
+
+// IfStats is `ip stats show group link`'s dump. Unlike Netconfs it is a plain
+// single dump: stats has no EOPNOTSUPP family fallback (the request is always
+// PF_UNSPEC and the kernel answers every interface). It does no sorting — wire
+// order (ifindex) is render order.
+func (s *Service) IfStats() ([]model.IfStats, error) {
+	r := req.StatsShowDump(s.nextSeq())
+	v, err := decode(s, r, uint16(unix.RTM_NEWSTATS), "RTM_NEWSTATS", xtcpnl.ParseNewStats)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.IfStats, len(v))
+	for i := range v {
+		out[i] = model.IfStats(v[i])
+	}
+	return out, nil
+}
+
+// IfStatsByIndex is the non-dump RTM_GETSTATS point get `ip stats show group link
+// dev X` sends (ip/ipstats.c:831-851). It mirrors NetconfByIndex's talk-or-fall-
+// back spine: a live source does the kernel single-get, a dump-only replay source
+// (no Talk) dumps every RTM_NEWSTATS and filters to the ifindex — the committed
+// dev pcap records the one reply the capture's point get fetched.
+func (s *Service) IfStatsByIndex(ifindex uint32) (model.IfStats, error) {
+	r, err := req.StatsGetByIndex(ifindex, s.nextSeq())
+	if err != nil {
+		return model.IfStats{}, fmt.Errorf("goip: build stats get request: %w", err)
+	}
+	if talk, ok := s.src.(TalkSource); ok {
+		body, terr := talk.Talk(r, uint16(unix.RTM_NEWSTATS))
+		if terr != nil {
+			return model.IfStats{}, terr
+		}
+		si, perr := xtcpnl.ParseNewStats(body)
+		if perr != nil {
+			return model.IfStats{}, fmt.Errorf("goip: decode RTM_NEWSTATS: %w", perr)
+		}
+		if si.Ifindex != ifindex {
+			return model.IfStats{}, fmt.Errorf("goip: stats reply ifindex %d does not match requested %d", si.Ifindex, ifindex)
+		}
+		return model.IfStats(si), nil
+	}
+
+	bodies, derr := s.src.Dump(r, uint16(unix.RTM_NEWSTATS))
+	if derr != nil {
+		return model.IfStats{}, derr
+	}
+	for _, body := range bodies {
+		si, perr := xtcpnl.ParseNewStats(body)
+		if perr != nil {
+			return model.IfStats{}, fmt.Errorf("goip: decode RTM_NEWSTATS: %w", perr)
+		}
+		if si.Ifindex == ifindex {
+			return model.IfStats(si), nil
+		}
+	}
+	return model.IfStats{}, fmt.Errorf("goip: no stats record for ifindex %d in the capture", ifindex)
+}

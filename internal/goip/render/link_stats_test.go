@@ -711,3 +711,122 @@ func TestLinkViewTextStatsBeforeAltnames(t *testing.T) {
 		t.Errorf("stanza must end in exactly one newline: %q", got[len(got)-4:])
 	}
 }
+
+// TestLinkStatsExtendedText pins the extended block (`show_stats > 1`, reached by
+// `ip -s stats show`) against the committed ip_stats_s golden's lo record: the
+// two main lines plus the RX-errors and TX-errors lines, all counters zero so
+// every column sits at its header-word minimum. The value lines are built from
+// printNum's own shape (right-align in width, one trailing space) so the inputs
+// and the layout cannot drift apart.
+//
+// go test ./internal/goip/render/ -run TestLinkStatsExtendedText
+func TestLinkStatsExtendedText(t *testing.T) {
+	// printNum(w, 0) == w-1 spaces, "0", one space.
+	zero := func(w int) string { return sp(w-1) + "0 " }
+
+	headerRX := "    RX:  bytes packets errors dropped  missed   mcast" + sp(11)
+	valRX := "    " + zero(10) + zero(7) + zero(6) + zero(7) + zero(7) + zero(7)
+	errHdrRX := "    RX errors:  length    crc   frame    fifo overrun"
+	errValRX := sp(15) + zero(7) + zero(6) + zero(7) + zero(7) + zero(7)
+	headerTX := "    TX:  bytes packets errors dropped carrier collsns" + sp(11)
+	valTX := "    " + zero(10) + zero(7) + zero(6) + zero(7) + zero(7) + zero(7)
+	errHdrTX := "    TX errors: aborted   fifo  window heartbt" + sp(8)
+	errValTX := sp(15) + zero(7) + zero(6) + zero(7) + zero(7)
+
+	want := strings.Join([]string{
+		headerRX, valRX, errHdrRX, errValRX,
+		headerTX, valTX, errHdrTX, errValTX,
+	}, "\n")
+
+	var lo xtcpnl.RtnlLinkStats64 // the lo golden: every counter zero
+	if got := linkStatsText(lo, true); got != want {
+		t.Errorf("extended lo block mismatch\n got %q\nwant %q", got, want)
+	}
+
+	// The short form is unchanged and is exactly the two main lines — the error
+	// lines are the only addition.
+	if LinkStatsText(lo) != linkStatsText(lo, false) {
+		t.Error("LinkStatsText must equal linkStatsText(s,false)")
+	}
+	short := strings.Split(linkStatsText(lo, false), "\n")
+	if len(short) != 4 {
+		t.Fatalf("short block = %d lines, want 4:\n%q", len(short), linkStatsText(lo, false))
+	}
+	full := strings.Split(linkStatsText(lo, true), "\n")
+	if len(full) != 8 {
+		t.Fatalf("extended block = %d lines, want 8:\n%q", len(full), linkStatsText(lo, true))
+	}
+	// The four main lines are byte-identical between the forms; extended only
+	// interleaves the two error pairs (full[2:4] RX errors, full[6:8] TX errors).
+	if full[0] != short[0] || full[1] != short[1] {
+		t.Errorf("extended changed the RX main lines:\n short %q\n full %q", short[:2], full[:2])
+	}
+	if full[4] != short[2] || full[5] != short[3] {
+		t.Errorf("extended changed the TX main lines:\n short %q\n full %q", short[2:], full[4:6])
+	}
+}
+
+// TestLinkStatsExtendedConditionalColumns covers the extended columns no
+// development-host interface exercises: a non-zero rx_nohandler and
+// rx_otherhost_dropped add their headers and values to the RX-errors line, and
+// non-zero error counters widen the shared columns. Structural, not a width
+// golden — the ip_stats_s capture has every error counter zero.
+//
+// go test ./internal/goip/render/ -run TestLinkStatsExtendedConditionalColumns
+func TestLinkStatsExtendedConditionalColumns(t *testing.T) {
+	s := xtcpnl.RtnlLinkStats64{
+		RxLengthErrors:     11,
+		RxCrcErrors:        22,
+		RxFrameErrors:      33,
+		RxFifoErrors:       44,
+		RxOverErrors:       55,
+		RxNohandler:        66,
+		RxOtherhostDropped: 77,
+		TxAbortedErrors:    88,
+		TxFifoErrors:       99,
+		TxWindowErrors:     111,
+		TxHeartbeatErrors:  222,
+	}
+	ls := strings.Split(linkStatsText(s, true), "\n")
+	if len(ls) != 8 {
+		t.Fatalf("extended block = %d lines, want 8:\n%q", len(ls), linkStatsText(s, true))
+	}
+	rxHdr, rxVal, txHdr, txVal := ls[2], ls[3], ls[6], ls[7]
+
+	// nohandler/otherhost headers appear only because their counters are non-zero.
+	for _, w := range []string{"length", "crc", "frame", "fifo", "overrun", "nohandler", "otherhost"} {
+		if !strings.Contains(rxHdr, w) {
+			t.Errorf("RX errors header missing %q: %q", w, rxHdr)
+		}
+	}
+	for _, n := range []string{"11", "22", "33", "44", "55", "66", "77"} {
+		if !strings.Contains(rxVal, n) {
+			t.Errorf("RX errors values missing %q: %q", n, rxVal)
+		}
+	}
+	// transns is always absent (carrier_changes is NULL for ip stats).
+	if strings.Contains(txHdr, "transns") {
+		t.Errorf("TX errors header has transns; carrier_changes is NULL for stats: %q", txHdr)
+	}
+	for _, w := range []string{"aborted", "fifo", "window", "heartbt"} {
+		if !strings.Contains(txHdr, w) {
+			t.Errorf("TX errors header missing %q: %q", w, txHdr)
+		}
+	}
+	for _, n := range []string{"88", "99", "111", "222"} {
+		if !strings.Contains(txVal, n) {
+			t.Errorf("TX errors values missing %q: %q", n, txVal)
+		}
+	}
+}
+
+// TestLinkStatsExtendedConditionalColumnsAbsent is the complement: with both
+// rx_nohandler and rx_otherhost_dropped zero, neither word appears — the columns
+// are present only when the counter is.
+func TestLinkStatsExtendedConditionalColumnsAbsent(t *testing.T) {
+	var s xtcpnl.RtnlLinkStats64
+	rxHdr := strings.Split(linkStatsText(s, true), "\n")[2]
+	if strings.Contains(rxHdr, "nohandler") || strings.Contains(rxHdr, "otherhost") {
+		t.Errorf("RX errors header shows a conditional column at zero: %q", rxHdr)
+	}
+}

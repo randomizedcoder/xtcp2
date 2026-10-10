@@ -311,6 +311,10 @@ func FamilyHdrLen(msgType uint16) int {
 		// which is why only the msgType case arm, not a length check, tells the
 		// two apart (the ndmsg/rtmsg/fib_rule_hdr note above).
 		return NetconfMsgSizeCst
+	case uint16(unix.RTM_GETSTATS), uint16(unix.RTM_NEWSTATS):
+		// struct if_stats_msg, 12. RTM_GETSTATS has no DEL member (the group
+		// note above), so only the GET and NEW arms exist.
+		return IfStatsMsgSizeCst
 	case uint16(unix.NLMSG_DONE), uint16(unix.NLMSG_NOOP), uint16(unix.NLMSG_ERROR):
 		return 0
 	default:

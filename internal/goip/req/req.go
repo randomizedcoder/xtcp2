@@ -496,6 +496,29 @@ func NetconfGetByIndex(family uint8, ifindex int32, seq uint32) ([]byte, error) 
 	return xtcpnl.BuildGetNetconfByIndexRequest(family, ifindex, seq)
 }
 
+// StatsShowDump is `ip stats show group link`'s dump, rtnl_statsdump_req_filter
+// (ip/ipstats.c:866-883): an if_stats_msg with family PF_UNSPEC, ifindex 0 and
+// filter_mask StatsFilterLink64 (the link group alone). goip never sends the
+// full 0x1F default mask — it grounds only the link group, so only that bit.
+func StatsShowDump(seq uint32) []byte {
+	return xtcpnl.BuildDumpStatsRequest(unix.AF_UNSPEC, 0, xtcpnl.StatsFilterLink64, seq)
+}
+
+// StatsShowLinkDump is the link dump ipstats triggers lazily via ll_index_to_name
+// (ip/ipstats.c:761) to turn an ifindex into a name. goip issues it up front, the
+// netconf idiom; it is byte-identical to NetconfShowLinkDump.
+func StatsShowLinkDump(seq uint32) ([]byte, error) {
+	return xtcpnl.BuildDumpLinkRequestExt(unix.AF_UNSPEC, xtcpnl.RTEXT_FILTER_VF, seq)
+}
+
+// StatsGetByIndex is the non-dump RTM_GETSTATS point get `ip stats show group link
+// dev X` sends (ip/ipstats.c:831-851): an if_stats_msg carrying the ifindex and
+// the link-group filter_mask, no attributes. iproute2 takes this path whenever a
+// dev is named (not keyed on family, unlike netconf).
+func StatsGetByIndex(ifindex uint32, seq uint32) ([]byte, error) {
+	return xtcpnl.BuildGetStatsByIndexRequest(ifindex, xtcpnl.StatsFilterLink64, seq)
+}
+
 // NexthopGetByID is the single-get RTM_GETNEXTHOP `ip -d route show` sends for a
 // route delegating its next hop to a nexthop object (ipnh_cache_add). family is
 // preferred_family, which for a plain `route show` is AF_UNSPEC.

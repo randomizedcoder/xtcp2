@@ -143,6 +143,12 @@ func TestLookupObject(t *testing.T) {
 			arg:         "xfrm", wantName: "xfrm", wantErr: ErrNotImplemented,
 		},
 		{
+			// "s" is sr (first "s" entry in cmds[]), but "st" outruns it and is the
+			// shortest arg that reaches stats — which is implemented, so no error.
+			description: "positive: \"st\" is stats, which is implemented",
+			arg:         "st", wantName: "stats",
+		},
+		{
 			description: "boundary: \"mon\" is monitor, recognized and unimplemented",
 			arg:         "mon", wantName: "monitor", wantErr: ErrNotImplemented,
 		},

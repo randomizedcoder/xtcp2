@@ -7,16 +7,21 @@ import (
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
 
-// The `ip -s link show` statistics block.
+// The `ip -s link show` / `ip stats show group link` statistics block.
 //
-// This file implements print_stats64 (ip/ipaddress.c:624-825) for
-// `show_stats == 1` only. `ip -s -s` sets show_stats to 2 and adds an "RX
-// errors:" and a "TX errors:" line with seven more counters each
-// (:656,697,725,735,763,805); goip rejects `-s -s` at the option loop rather
-// than rendering the narrow form, so those branches are deliberately absent
-// instead of silently unimplemented. The human-readable (`-h`) and IEC
-// (`-iec`) variants of print_num are out of scope for the same reason: goip
-// does not accept the options that reach them.
+// This file implements print_stats64 (ip/ipaddress.c:624-825). The short form
+// (`show_stats == 1`) is what `ip -s link`/`ip -s addr` render; `LinkStatsText`
+// is that form. The extended form (`show_stats > 1`) adds an "RX errors:" and a
+// "TX errors:" line (:763-784,:805-822) and is reached by `ip -s stats show`
+// (the `show` verb bumps show_stats to 2); `linkStatsText(s, true)` renders it.
+// `ip -s -s link` would reach the same extended form but goip rejects `-s -s` at
+// the option loop, so the link/addr callers only ever produce the short form.
+// The human-readable (`-h`) and IEC (`-iec`) variants of print_num are out of
+// scope: goip does not accept the options that reach them.
+//
+// `ip stats` calls print_stats64 with carrier_changes NULL (ip/ipstats.c:167),
+// so the extended TX "transns" column is always absent here — the one extended
+// field that depends on a separate link attribute.
 //
 // # Column widths are DATA-dependent, and that is the whole difficulty
 //
@@ -99,16 +104,33 @@ func (c *statsCols) size(vals ...uint64) {
 // print_linkinfo's `print_nl(); __print_link_stats(...)` at
 // ip/ipaddress.c:1297-1300.
 func LinkStatsText(s xtcpnl.RtnlLinkStats64) string {
+	return linkStatsText(s, false)
+}
+
+// linkStatsText is print_stats64's text branch (ip/ipaddress.c:718-823). extended
+// is `show_stats > 1`: it widens every column over the error counters too and
+// appends the "RX errors:"/"TX errors:" lines. The block carries no leading or
+// trailing newline; the caller supplies the one that opens it.
+func linkStatsText(s xtcpnl.RtnlLinkStats64, extended bool) string {
 	cols := initialStatsCols()
 
-	// Both calls, in iproute2's order, and both before anything is printed —
-	// the RX header cannot be laid out until the TX values have been
-	// measured. The trailing zero64 argument is upstream's, sizing the
-	// otherhost column against nothing at show_stats == 1.
+	// All size_columns calls, in iproute2's order, before anything is printed —
+	// the RX header cannot be laid out until the TX values have been measured.
+	// The trailing zero64 is upstream's. Under extended the two error rows widen
+	// the shared columns too (:725-743); carrier_changes is NULL for stats, so
+	// its sizing value is 0.
 	cols.size(s.RxBytes, s.RxPackets, s.RxErrors, s.RxDropped,
 		s.RxMissedErrors, s.Multicast, s.RxCompressed, 0)
+	if extended {
+		cols.size(0, s.RxLengthErrors, s.RxCrcErrors, s.RxFrameErrors,
+			s.RxFifoErrors, s.RxOverErrors, s.RxNohandler, s.RxOtherhostDropped)
+	}
 	cols.size(s.TxBytes, s.TxPackets, s.TxErrors, s.TxDropped,
 		s.TxCarrierErrors, s.Collisions, s.TxCompressed, 0)
+	if extended {
+		cols.size(0, 0, s.TxAbortedErrors, s.TxFifoErrors,
+			s.TxWindowErrors, s.TxHeartbeatErrors, 0, 0)
+	}
 
 	var b strings.Builder
 
@@ -118,6 +140,11 @@ func LinkStatsText(s xtcpnl.RtnlLinkStats64) string {
 	writeStatsValues(&b, cols, s.RxBytes, s.RxPackets, s.RxErrors,
 		s.RxDropped, s.RxMissedErrors, s.Multicast,
 		s.RxCompressed, s.RxCompressed != 0)
+	if extended {
+		b.WriteString("\n")
+		writeRxErrorsHeader(&b, cols, s)
+		writeRxErrorsValues(&b, cols, s)
+	}
 
 	b.WriteString("\n")
 
@@ -125,8 +152,77 @@ func LinkStatsText(s xtcpnl.RtnlLinkStats64) string {
 	writeStatsValues(&b, cols, s.TxBytes, s.TxPackets, s.TxErrors,
 		s.TxDropped, s.TxCarrierErrors, s.Collisions,
 		s.TxCompressed, s.TxCompressed != 0)
+	if extended {
+		b.WriteString("\n")
+		writeTxErrorsHeader(&b, cols)
+		writeTxErrorsValues(&b, cols, s)
+	}
 
 	return b.String()
+}
+
+// writeRxErrorsHeader writes the `    RX errors: …` line (ip/ipaddress.c:765-773).
+// The nohandler/otherhost columns appear only when their counter is non-zero,
+// each carrying its own leading space inside the field (width cols[n]+1).
+func writeRxErrorsHeader(b *strings.Builder, cols statsCols, s xtcpnl.RtnlLinkStats64) {
+	nohandler, otherhost := "", ""
+	nw, ow := 0, 0
+	if s.RxNohandler != 0 {
+		nohandler, nw = " nohandler", cols[6]+1
+	}
+	if s.RxOtherhostDropped != 0 {
+		otherhost, ow = " otherhost", cols[7]+1
+	}
+	fmt.Fprintf(b, "    RX errors:%*s %*s %*s %*s %*s %*s%*s%*s\n",
+		cols[0]-10, "",
+		cols[1], "length",
+		cols[2], "crc",
+		cols[3], "frame",
+		cols[4], "fifo",
+		cols[5], "overrun",
+		nw, nohandler,
+		ow, otherhost)
+}
+
+// writeRxErrorsValues writes the RX error counters (ip/ipaddress.c:774-783). The
+// line opens with a cols[0]+5 blank — the error rows carry no value in the label
+// column — and the nohandler/otherhost values track the header's guards.
+func writeRxErrorsValues(b *strings.Builder, cols statsCols, s xtcpnl.RtnlLinkStats64) {
+	fmt.Fprintf(b, "%*s", cols[0]+5, "")
+	printNum(b, cols[1], s.RxLengthErrors)
+	printNum(b, cols[2], s.RxCrcErrors)
+	printNum(b, cols[3], s.RxFrameErrors)
+	printNum(b, cols[4], s.RxFifoErrors)
+	printNum(b, cols[5], s.RxOverErrors)
+	if s.RxNohandler != 0 {
+		printNum(b, cols[6], s.RxNohandler)
+	}
+	if s.RxOtherhostDropped != 0 {
+		printNum(b, cols[7], s.RxOtherhostDropped)
+	}
+}
+
+// writeTxErrorsHeader writes the `    TX errors: …` line (ip/ipaddress.c:807-812).
+// carrier_changes is NULL for `ip stats`, so the transns column header is an
+// empty cols[5]-wide field and no transns value follows.
+func writeTxErrorsHeader(b *strings.Builder, cols statsCols) {
+	fmt.Fprintf(b, "    TX errors:%*s %*s %*s %*s %*s %*s\n",
+		cols[0]-10, "",
+		cols[1], "aborted",
+		cols[2], "fifo",
+		cols[3], "window",
+		cols[4], "heartbt",
+		cols[5], "")
+}
+
+// writeTxErrorsValues writes the TX error counters (ip/ipaddress.c:814-821),
+// opening with the same cols[0]+5 blank as the RX error line.
+func writeTxErrorsValues(b *strings.Builder, cols statsCols, s xtcpnl.RtnlLinkStats64) {
+	fmt.Fprintf(b, "%*s", cols[0]+5, "")
+	printNum(b, cols[1], s.TxAbortedErrors)
+	printNum(b, cols[2], s.TxFifoErrors)
+	printNum(b, cols[3], s.TxWindowErrors)
+	printNum(b, cols[4], s.TxHeartbeatErrors)
 }
 
 // writeStatsHeader writes one `    RX: …` or `    TX: …` line and its

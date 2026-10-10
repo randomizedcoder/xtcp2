@@ -500,6 +500,48 @@ func TestStdoutJSONFacetsMatchText(t *testing.T) {
 			jsonLoci:    0,
 			diffs:       nil,
 		},
+		{
+			description: "positive: stats show group link, clean topology — five interfaces, and the one reconciled locus is statsheaders, which differs only in the declared text-missed vs JSON-over_errors (and mcast/carrier/collsns) renames; the stats64 counters are not a locus",
+			topo:        "",
+			object:      "ip_stats",
+			textLines:   30,
+			jsonEntries: 5,
+			textLoci:    4,
+			jsonLoci:    4,
+			diffs: []facetDiff{
+				{locus: "statsheaders",
+					textOnly: "RX:bytes,packets,errors,dropped,missed,mcast x5,TX:bytes,packets,errors,dropped,carrier,collsns x5",
+					jsonOnly: "RX:bytes,packets,errors,dropped,over_errors,multicast x5,TX:bytes,packets,errors,dropped,carrier_errors,collisions x5"},
+			},
+		},
+		{
+			description: "positive: stats show group link, mesh topology — the same five interfaces and the same lone statsheaders rename difference",
+			topo:        "mesh/",
+			object:      "ip_stats",
+			textLines:   30,
+			jsonEntries: 5,
+			textLoci:    4,
+			jsonLoci:    4,
+			diffs: []facetDiff{
+				{locus: "statsheaders",
+					textOnly: "RX:bytes,packets,errors,dropped,missed,mcast x5,TX:bytes,packets,errors,dropped,carrier,collsns x5",
+					jsonOnly: "RX:bytes,packets,errors,dropped,over_errors,multicast x5,TX:bytes,packets,errors,dropped,carrier_errors,collisions x5"},
+			},
+		},
+		{
+			description: "positive: stats show group link, tunnel topology — fourteen interfaces, the rename counts scaling to x14, still the one reconciled locus",
+			topo:        "tunnel/",
+			object:      "ip_stats",
+			textLines:   84,
+			jsonEntries: 14,
+			textLoci:    4,
+			jsonLoci:    4,
+			diffs: []facetDiff{
+				{locus: "statsheaders",
+					textOnly: "RX:bytes,packets,errors,dropped,missed,mcast x14,TX:bytes,packets,errors,dropped,carrier,collsns x14",
+					jsonOnly: "RX:bytes,packets,errors,dropped,over_errors,multicast x14,TX:bytes,packets,errors,dropped,carrier_errors,collisions x14"},
+			},
+		},
 	}
 
 	for _, tt := range tests {

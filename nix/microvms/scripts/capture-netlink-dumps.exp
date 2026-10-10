@@ -290,6 +290,19 @@ proc capture_set {ns subdir dev} {
     capio $ns $subdir netlink_route_getnetconf_dev  4 "ip netconf show dev $dev"   ip_netconf_dev
     capio $ns $subdir netlink_route_getnetconf_dev4 4 "ip -4 netconf show dev $dev" ip_netconf_dev4
 
+    # `ip stats show group link` dumps per-interface stats (RTM_GETSTATS). goip
+    # grounds only the link group (IFLA_STATS_LINK_64, a rtnl_link_stats64); the
+    # explicit `group link` holds filter_mask at 0x1 so the reply carries only that
+    # group on every topology - a bare multi-group show would pull in bridge xstats
+    # on the mesh's br0, a shape goip does not implement. ipstats resolves ifindex
+    # to name lazily via ll_index_to_name, so the pcap holds a link dump ahead of
+    # the stats dump - floor 4, the netconf shape. The `_dev` form is a non-dump
+    # point GET (ipstats_show_one, no NLM_F_DUMP) read via rtnl_talk. ip_stats_s
+    # (extended `-s`) and ip_stats_json replay the plain pcap - -s/-j never reach
+    # the wire, so the reply bytes are the plain form's.
+    capio $ns $subdir netlink_route_getstats     4 "ip stats show group link"          ip_stats
+    capio $ns $subdir netlink_route_getstats_dev 4 "ip stats show group link dev $dev" ip_stats_dev
+
     # Closes the corpus's last outright gap: there was no RTM_GETNEIGH dump
     # anywhere, only a notifications pcap.
     cap $ns $subdir netlink_route_getneigh 4 "ip neigh show"
@@ -542,6 +555,10 @@ proc sidecar_set {ns subdir dev} {
     # wire and the reply bytes are the plain form's, so a `-j -p` run matches the
     # capio'd text listing.
     side $ns $subdir ip_netconf_json        "ip -j -p netconf show"
+    # stats: ip_stats_s is the extended `-s` render and ip_stats_json the JSON form;
+    # both replay netlink_route_getstats.pcap, as -s and -j never reach the wire.
+    side $ns $subdir ip_stats_s             "ip -s stats show group link"
+    side $ns $subdir ip_stats_json          "ip -j -p stats show group link"
     side $ns $subdir ip_neigh               "ip neigh show"
     side $ns $subdir ip_neigh_n             "ip -d neigh show"
     side $ns $subdir ip_link_dev            "ip link show dev $dev"

@@ -48,6 +48,11 @@ type NeighTbl xtcpnl.NeighTblInfo
 // order and iproute2 does no sorting, so wire order is render order.
 type Netconf xtcpnl.NetconfInfo
 
+// IfStats is one interface's statistics record (RTM_NEWSTATS). Like NeighTbl and
+// Netconf it has no Sort companion: the kernel dumps records in ifindex order and
+// ipstats does no sorting, so wire order is render order.
+type IfStats xtcpnl.IfStatsInfo
+
 func SortLinks(v []Link) { sort.SliceStable(v, func(i, j int) bool { return v[i].Index < v[j].Index }) }
 
 func SortAddresses(v []Address) {
