@@ -1311,6 +1311,53 @@ var commands = withArgs([]Command{
 		// ip_netconf_json sidecar; ungated pending its own live runs.
 		Floor: 4, Implemented: true,
 	},
+
+	// The stats block — the tenth and last read-only object. Every row carries an
+	// explicit `group link` (filter_mask 0x1), which keeps the reply link-only on
+	// every topology (a bare multi-group show would print bridge xstats on mesh,
+	// a shape goip refuses). The first 12-byte filter_mask-carrying request here.
+	{
+		Name: "stats show group link", Slug: "stats_show",
+		// Four, the netconf/ntable shape: do_ipstats resolves names via a link dump
+		// (ip/ipstats.c) before the RTM_GETSTATS dump, so the command is a link dump
+		// then the stats dump — two requests and two NLMSG_DONEs.
+		//
+		// REPLAY-GROUNDED, not yet live-grounded, as the netconf rows above:
+		// internal/goip's TestStatsShowMatchesCapturedSidecars diffs goip
+		// byte-for-byte against the committed ip_stats sidecar across three
+		// topologies. Ungated until its own live runs earn gating.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-s stats show group link", Slug: "stats_show_stats",
+		// The request twin of `stats show group link`: `-s` bumps show_stats to 2
+		// (the `show` verb's +1 plus the global -s) and selects the extended
+		// RX-errors/TX-errors render, but does not reach the wire, so the floor is
+		// inherited. Offline-grounded against the ip_stats_s sidecar (counters
+		// normalized, the error lines compared exactly).
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "stats show group link dev", Slug: "stats_show_dev",
+		NeedsDev: true,
+		// The point get: with a dev, ipstats_show_one issues a non-dump RTM_GETSTATS
+		// carrying the ifindex in its 12-byte header (NLM_F_REQUEST alone — no DUMP,
+		// no ACK, unlike netconf's point get), read with rtnl_talk. Still a link dump
+		// first, so the floor is the netconf shape. Byte-grounded offline against the
+		// ip_stats_dev sidecar.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-j stats show group link", Slug: "stats_show_json",
+		// Four, as `stats show group link`: `-j` does not reach the wire, so the
+		// request is byte-identical to the text twin and the floor is inherited. The
+		// short JSON form (ifindex/ifname/group/stats64); the extended `-s` JSON keys
+		// are not grounded, so goip refuses `-j -s` rather than emit a short object.
+		//
+		// Offline-grounded by internal/goip's jsonEquivalent row against the
+		// ip_stats_json sidecar; ungated pending its own live runs.
+		Floor: 4, Implemented: true,
+	},
 })
 
 // withArgs fills every row's Args from its Name.

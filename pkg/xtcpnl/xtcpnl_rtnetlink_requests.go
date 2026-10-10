@@ -639,6 +639,38 @@ func BuildGetNetconfByIndexRequest(family uint8, ifindex int32, seq uint32) ([]b
 	return BuildRequest(uint16(unix.RTM_GETNETCONF), uint16(unix.NLM_F_ACK), seq, hdr, ab.Bytes())
 }
 
+// ifStatsHdr builds the 12-byte if_stats_msg header shared by the stats dump and
+// point get: family at [0], ifindex at [4:8], filter_mask at [8:12], the two pad
+// bytes left zero.
+func ifStatsHdr(family uint8, ifindex, filterMask uint32) []byte {
+	hdr := make([]byte, IfStatsMsgSizeCst)
+	hdr[0] = family
+	binary.LittleEndian.PutUint32(hdr[4:8], ifindex)
+	binary.LittleEndian.PutUint32(hdr[8:12], filterMask)
+	return hdr
+}
+
+// BuildDumpStatsRequest builds the RTM_GETSTATS dump `ip stats show` sends
+// (rtnl_statsdump_req_filter, lib/libnetlink.c:647-673): an if_stats_msg with
+// family (PF_UNSPEC), ifindex 0 and the filter_mask. goip passes
+// StatsFilterLink64 (the link group alone); a whole-group request needs no
+// IFLA_STATS_GET_FILTERS nest, only the mask in the header.
+func BuildDumpStatsRequest(family uint8, ifindex, filterMask, seq uint32) []byte {
+	return BuildDumpRequest(uint16(unix.RTM_GETSTATS), seq, ifStatsHdr(family, ifindex, filterMask))
+}
+
+// BuildGetStatsByIndexRequest builds the non-dump RTM_GETSTATS point get
+// `ip stats show dev X` sends (ip/ipstats.c:831-851): NLM_F_REQUEST alone, with
+// no NLM_F_DUMP and no NLM_F_ACK. ipstats_show_one sets exactly NLM_F_REQUEST
+// (:834) and rtnl_talk does not add an ACK, so the captured _dev request flag
+// word is 0x0001 — unlike netconf's point get. The if_stats_msg carries the
+// ifindex and filter_mask and no attributes (the link group is a whole-group
+// request). The reply is one non-multipart message with no NLMSG_DONE.
+func BuildGetStatsByIndexRequest(ifindex, filterMask, seq uint32) ([]byte, error) {
+	hdr := ifStatsHdr(unix.AF_UNSPEC, ifindex, filterMask)
+	return BuildRequest(uint16(unix.RTM_GETSTATS), 0, seq, hdr, nil)
+}
+
 // extMaskAttrs encodes a lone IFLA_EXT_MASK, or nothing at all for mask 0.
 func extMaskAttrs(extMask uint32) ([]byte, error) {
 	if extMask == 0 {

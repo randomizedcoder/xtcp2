@@ -1,0 +1,111 @@
+[ {
+        "ifindex": 1,
+        "ifname": "lo",
+        "group": "link",
+        "stats64": {
+            "rx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "over_errors": 0,
+                "multicast": 0
+            },
+            "tx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "carrier_errors": 0,
+                "collisions": 0
+            }
+        }
+    },{
+        "ifindex": 2,
+        "ifname": "nlmon0",
+        "group": "link",
+        "stats64": {
+            "rx": {
+                "bytes": 414380,
+                "packets": 759,
+                "errors": 0,
+                "dropped": 0,
+                "over_errors": 0,
+                "multicast": 0
+            },
+            "tx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "carrier_errors": 0,
+                "collisions": 0
+            }
+        }
+    },{
+        "ifindex": 3,
+        "ifname": "goip0",
+        "group": "link",
+        "stats64": {
+            "rx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "over_errors": 0,
+                "multicast": 0
+            },
+            "tx": {
+                "bytes": 460,
+                "packets": 6,
+                "errors": 0,
+                "dropped": 0,
+                "carrier_errors": 0,
+                "collisions": 0
+            }
+        }
+    },{
+        "ifindex": 4,
+        "ifname": "goipvrf",
+        "group": "link",
+        "stats64": {
+            "rx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "over_errors": 0,
+                "multicast": 0
+            },
+            "tx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "carrier_errors": 0,
+                "collisions": 0
+            }
+        }
+    },{
+        "ifindex": 5,
+        "ifname": "goipv",
+        "group": "link",
+        "stats64": {
+            "rx": {
+                "bytes": 0,
+                "packets": 0,
+                "errors": 0,
+                "dropped": 0,
+                "over_errors": 0,
+                "multicast": 0
+            },
+            "tx": {
+                "bytes": 280,
+                "packets": 4,
+                "errors": 0,
+                "dropped": 0,
+                "carrier_errors": 0,
+                "collisions": 0
+            }
+        }
+    } ]

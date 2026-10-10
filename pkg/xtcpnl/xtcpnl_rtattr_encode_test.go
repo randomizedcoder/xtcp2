@@ -1001,6 +1001,9 @@ func TestFamilyHdrLen(t *testing.T) {
 		{"positive: RTM_NEWNETCONF is struct netconfmsg, 4", uint16(unix.RTM_NEWNETCONF), NetconfMsgSizeCst},
 		{"positive: RTM_DELNETCONF is struct netconfmsg, 4", uint16(unix.RTM_DELNETCONF), NetconfMsgSizeCst},
 
+		{"positive: RTM_GETSTATS is struct if_stats_msg, 12", uint16(unix.RTM_GETSTATS), IfStatsMsgSizeCst},
+		{"positive: RTM_NEWSTATS is struct if_stats_msg, 12", uint16(unix.RTM_NEWSTATS), IfStatsMsgSizeCst},
+
 		// 0 and -1 are different answers: a zero-length family header is a real
 		// thing in netlink and must not be confused with "no idea".
 		{"boundary: NLMSG_DONE has no family header, 0", uint16(unix.NLMSG_DONE), 0},
@@ -1009,7 +1012,6 @@ func TestFamilyHdrLen(t *testing.T) {
 
 		{"negative: RTM_GETQDISC is not modeled, -1", uint16(unix.RTM_GETQDISC), -1},
 		{"negative: RTM_GETNSID is not modeled, -1", uint16(unix.RTM_GETNSID), -1},
-		{"negative: RTM_NEWSTATS is not modeled, -1", uint16(unix.RTM_NEWSTATS), -1},
 		{"negative: message type 0 is not modeled, -1", 0, -1},
 		{"corner: 0xffff is not modeled, -1", 0xffff, -1},
 	}
