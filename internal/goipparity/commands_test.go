@@ -902,14 +902,20 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 
 	// The twelve rows the `-j`/family branch added, plus the two -s sweep
 	// commands whose noise is unresolved and which pkg/nlparity's held-out
-	// negative keeps out of gated_commands on purpose, plus the two nexthop rows,
-	// the three addrlabel rows (show, -6 show, -j show), the three ntable rows
-	// (show, -s show, -j show), the four netconf rows (show, show dev, -4 show
-	// dev, -j show), the four stats link rows (show, -s show, show dev, -j show)
-	// and the three stats xstats rows (show, -s show, -j show), plus the two vrf
-	// rows (show, -j show) each object's branch adds as its first matrix entries.
-	// Gating any of these is a separate branch, after a measured-clean live run,
-	// and that branch edits this list.
+	// negative keeps out of gated_commands on purpose, plus the two nexthop rows
+	// and the three addrlabel rows (show, -6 show, -j show), all still awaiting
+	// their own measured-clean live run.
+	//
+	// The remaining nine are ntable/netconf/stats/vrf rows that runs 8 and 9
+	// measured live and found DIVERGENT, so they stay ungated for a different
+	// reason than the rows above: not "not yet measured" but "measured and the
+	// netlink conversation differs". The seven stats rows issue a plain
+	// RTM_GETLINK dump where `ip stats` issues RTM_GETSTATS (type 94); the two
+	// netconf-dev rows dump where `ip` resolves the device by name. The other
+	// seven rows those objects added - ntable's three, `netconf show`,
+	// `-j netconf show`, `vrf show`, `-j vrf show` - gated on those same runs
+	// and so left this list. Gating any row here is a separate branch, after a
+	// measured-clean live run, and that branch edits this list.
 	expected := []string{
 		"-s addr show", "-s neigh show",
 		"-0 addr show", "route show table main", "route show table local",
@@ -918,13 +924,11 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 		"-j rule show", "-j -s link show",
 		"nexthop show", "-j nexthop show",
 		"addrlabel show", "-6 addrlabel show", "-j addrlabel show",
-		"ntable show", "-s ntable show", "-j ntable show",
-		"netconf show", "netconf show dev", "-4 netconf show dev", "-j netconf show",
+		"netconf show dev", "-4 netconf show dev",
 		"stats show group link", "-s stats show group link",
 		"stats show group link dev", "-j stats show group link",
 		"stats show group xstats", "-s stats show group xstats",
 		"-j stats show group xstats",
-		"vrf show", "-j vrf show",
 	}
 
 	tests := []struct {
@@ -932,7 +936,7 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 		check       func(t *testing.T)
 	}{
 		{
-			description: "positive: the ungated set is exactly the thirty-five named rows, so UNGATED_CLEAN counts thirty-five rows and not zero",
+			description: "positive: the ungated set is exactly the twenty-eight named rows, so UNGATED_CLEAN counts twenty-eight rows and not zero",
 			check: func(t *testing.T) {
 				for _, name := range expected {
 					if !ungated[name] {
@@ -979,6 +983,80 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.description, tt.check)
 	}
+}
+
+// TestObjectGatingStatus pins, per command, the production gating decision runs
+// 8 and 9 recorded for ntable/netconf/stats/vrf — the first live grounding of
+// those five objects. The earned/gated_commands set-equality pair in
+// pkg/nlparity guards the SET both directions; this is the readable per-row
+// statement of the flip and of its negative space. The point it makes that a
+// bare count cannot: gating is a per-ROW decision, not an object-wide one.
+// netconf gated its base and `-j` forms while its two `dev` forms stayed
+// ungated, and stats gated nothing, because runs 8 and 9 found those rows
+// divergent on the wire (RTM_GETSTATS type 94 and a per-name RTM_GETLINK that
+// goip answers from a plain dump) even though their stdout matches.
+//
+// go test ./internal/goipparity/ -run TestObjectGatingStatus
+func TestObjectGatingStatus(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+
+	rows := []struct {
+		description string
+		command     string
+		expected    bool // want IsGated
+	}{
+		{"positive: vrf show gates, the pristine nl=0 pair", "vrf show", true},
+		{"positive: ntable show base row gates", "ntable show", true},
+		{"positive: netconf show base row gates", "netconf show", true},
+		{"positive: the -j twin gates with its text twin (vrf)", "-j vrf show", true},
+		{"positive: the -j twin gates with its text twin (ntable)", "-j ntable show", true},
+		{"positive: the -j twin gates with its text twin (netconf)", "-j netconf show", true},
+		{"positive: the one -s twin that gated, ntable's", "-s ntable show", true},
+
+		{"boundary: vrf show gates although its Floor is 2, so gating is independent of floor", "vrf show", true},
+		{"boundary: netconf show dev is NeedsDev in a partly-gated object, yet stays ungated because it diverges", "netconf show dev", false},
+
+		{"negative: stats show group link dumps where ip issues RTM_GETSTATS, so it stays ungated", "stats show group link", false},
+		{"negative: -s stats show group link diverges likewise", "-s stats show group link", false},
+		{"negative: stats show group link dev diverges likewise", "stats show group link dev", false},
+		{"negative: -j stats show group link diverges likewise", "-j stats show group link", false},
+		{"negative: stats show group xstats diverges likewise", "stats show group xstats", false},
+		{"negative: -s stats show group xstats diverges likewise", "-s stats show group xstats", false},
+		{"negative: -j stats show group xstats diverges likewise", "-j stats show group xstats", false},
+		{"negative: -4 netconf show dev is a FAIL on the wire, not merely a WARN", "-4 netconf show dev", false},
+		{"negative: -s addr show is a held-out -s sweep row", "-s addr show", false},
+		{"negative: -s neigh show is the other held-out -s row", "-s neigh show", false},
+		{"negative: nexthop show is replay-grounded, not live-grounded", "nexthop show", false},
+		{"negative: addrlabel show is replay-grounded, not live-grounded", "addrlabel show", false},
+
+		{"corner: a command not in the matrix is not gated", "bogus show", false},
+	}
+
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			if got := al.IsGated(r.command); got != r.expected {
+				t.Errorf("IsGated(%q) = %v, want %v", r.command, got, r.expected)
+			}
+		})
+	}
+
+	// corner: the gating invariant the rows above sample — every gated command is
+	// in the table AND Implemented, so a gate can never fire on a skip sentinel.
+	t.Run("corner: every gated command is in the table and Implemented", func(t *testing.T) {
+		for _, name := range al.GatedCommands {
+			c, lookupErr := Lookup(name)
+			if lookupErr != nil {
+				t.Errorf("gated %q is not in the table: %v", name, lookupErr)
+				continue
+			}
+			if !c.Implemented {
+				t.Errorf("gated %q is not Implemented, so gating it would fire on a skip", name)
+			}
+		}
+	})
 }
 
 // TestSlugsSorted is a small guard on the helper the report uses to print a

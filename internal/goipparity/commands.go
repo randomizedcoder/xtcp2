@@ -1027,8 +1027,9 @@ var commands = withArgs([]Command{
 		// ntable's first row in this matrix, and REPLAY-GROUNDED, not yet
 		// live-grounded, as the addrlabel and nexthop rows above: internal/goip's
 		// TestNeighTblShowMatchesCapturedSidecars diffs goip byte-for-byte against
-		// the committed ip_ntable sidecar across three topologies. No measured live
-		// run backs it yet, so it goes ungated until its own runs earn gating.
+		// the committed ip_ntable sidecar across three topologies. Gated on runs 8
+		// and 9, the first live grounding of this object: GOIP_PARITY_PASS with
+		// stdout=0 and nothing unsuppressed on both, txns 2/2.
 		Floor: 4, Implemented: true,
 	},
 	{
@@ -1060,7 +1061,8 @@ var commands = withArgs([]Command{
 		// REPLAY-GROUNDED, not yet live-grounded, as the ntable rows above:
 		// internal/goip's TestNetconfShowMatchesCapturedSidecars diffs goip
 		// byte-for-byte against the committed ip_netconf sidecar across three
-		// topologies. Ungated until its own live runs earn gating.
+		// topologies. Gated on runs 8 and 9: GOIP_PARITY_PASS, stdout=0, txns 2/2
+		// on both. The `dev` forms below are NOT gated — see their rows.
 		Floor: 4, Implemented: true,
 	},
 	{
@@ -1290,7 +1292,7 @@ var commands = withArgs([]Command{
 		// locus (the measured calibration in stdout_json_test confirms this).
 		//
 		// Offline-grounded by internal/goip's jsonEquivalent row against the
-		// ip_ntable_json sidecar; ungated pending its own live runs.
+		// ip_ntable_json sidecar; gated on runs 8 and 9 with its text twin.
 		Floor: 4, Implemented: true,
 	},
 	{
@@ -1308,7 +1310,7 @@ var commands = withArgs([]Command{
 		// other netconf token is a bare value under a key compared on neither side.
 		//
 		// Offline-grounded by internal/goip's jsonEquivalent row against the
-		// ip_netconf_json sidecar; ungated pending its own live runs.
+		// ip_netconf_json sidecar; gated on runs 8 and 9 with its text twin.
 		Floor: 4, Implemented: true,
 	},
 
@@ -1322,10 +1324,12 @@ var commands = withArgs([]Command{
 		// (ip/ipstats.c) before the RTM_GETSTATS dump, so the command is a link dump
 		// then the stats dump — two requests and two NLMSG_DONEs.
 		//
-		// REPLAY-GROUNDED, not yet live-grounded, as the netconf rows above:
 		// internal/goip's TestStatsShowMatchesCapturedSidecars diffs goip
 		// byte-for-byte against the committed ip_stats sidecar across three
-		// topologies. Ungated until its own live runs earn gating.
+		// topologies. Runs 8 and 9 measured it DIVERGENT, not clean: `ip` issues
+		// RTM_GETSTATS (type 94, ip=6 txns) where goip answers the same stdout
+		// from a plain RTM_GETLINK dump (goip=2). Stays ungated with that reason;
+		// its stdout matches, so only a live run surfaces the wire difference.
 		Floor: 4, Implemented: true,
 	},
 	{
@@ -1355,7 +1359,8 @@ var commands = withArgs([]Command{
 		// are not grounded, so goip refuses `-j -s` rather than emit a short object.
 		//
 		// Offline-grounded by internal/goip's jsonEquivalent row against the
-		// ip_stats_json sidecar; ungated pending its own live runs.
+		// ip_stats_json sidecar; ungated — runs 8 and 9 measured the same
+		// RTM_GETSTATS wire divergence as its text twin.
 		Floor: 4, Implemented: true,
 	},
 
@@ -1370,8 +1375,9 @@ var commands = withArgs([]Command{
 	{
 		Name: "stats show group xstats", Slug: "stats_show_xstats",
 		// Four, the stats shape: a link dump resolves names before the RTM_GETSTATS
-		// xstats dump. REPLAY-GROUNDED against the committed ip_stats_xstats sidecar
-		// across three topologies; ungated until its own live runs earn gating.
+		// xstats dump. Grounded against the committed ip_stats_xstats sidecar across
+		// three topologies; ungated — runs 8 and 9 measured the RTM_GETSTATS wire
+		// divergence (ip=6 goip=2), as the link group above.
 		Floor: 4, Implemented: true,
 	},
 	{
@@ -1385,7 +1391,8 @@ var commands = withArgs([]Command{
 		Name: "-j stats show group xstats", Slug: "stats_show_xstats_json",
 		// The flat `-j` array, one object per leaf per device; `-j` does not reach
 		// the wire, so the request is byte-identical to the text twin. Grounded
-		// against ip_stats_xstats_json; ungated pending its own live runs.
+		// against ip_stats_xstats_json; ungated — runs 8 and 9 measured the same
+		// wire divergence as its text twin.
 		Floor: 4, Implemented: true,
 	},
 
@@ -1402,10 +1409,10 @@ var commands = withArgs([]Command{
 		// do_ipvrf runs no ll_init_map (names come from the same reply's
 		// IFLA_IFNAME), so there is no side transaction — unlike netconf/stats.
 		//
-		// REPLAY-GROUNDED, not yet live-grounded: internal/goip's
-		// TestVrfShowMatchesCapturedSidecars diffs goip byte-for-byte against the
-		// committed ip_vrf sidecar across three topologies. Ungated until its own
-		// live runs earn gating.
+		// internal/goip's TestVrfShowMatchesCapturedSidecars diffs goip
+		// byte-for-byte against the committed ip_vrf sidecar across three
+		// topologies. Gated on runs 8 and 9: the pristine control: nl=0 stdout=0
+		// pair, txns 1/1 on both — the bar `link show` set.
 		Floor: 2, Implemented: true,
 	},
 	{
@@ -1413,7 +1420,7 @@ var commands = withArgs([]Command{
 		// Two, as `vrf show`: `-j` does not reach the wire, so the request is
 		// byte-identical to the text twin and the floor is inherited. The flat
 		// array of {name, table}; the empty topologies render `[]`. Grounded
-		// against ip_vrf_json; ungated pending its own live runs.
+		// against ip_vrf_json; gated on runs 8 and 9 with its text twin.
 		Floor: 2, Implemented: true,
 	},
 })

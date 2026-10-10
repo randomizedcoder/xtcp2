@@ -379,6 +379,23 @@ func TestAllowlistCommitted(t *testing.T) {
 		"-s -6 addr show",
 		"-s route show",
 		"-s rule show",
+		// Seven of the sixteen rows ntable/netconf/stats/vrf added, gated on
+		// runs 8 and 9 - the first live grounding of those objects. Both runs
+		// reported GOIP_PARITY_PASS with stdout=0 and no unsuppressed findings,
+		// txns matching ip: ntable 2/2 on all three forms, netconf 2/2, vrf
+		// 1/1. vrf is the pristine pair (nl=0); ntable and netconf are noisy on
+		// the IFLA_STATS/type-64 counters D_control absorbs, nl moving 5->4 and
+		// 4->6 across runs. The OTHER nine rows (the stats family and the two
+		// netconf-dev forms) diverge on the wire - RTM_GETSTATS type(94) and a
+		// per-name RTM_GETLINK that goip answers from a plain dump - so they
+		// stay ungated with that reason in goip-parity-allowlist.json's _comment.
+		"ntable show",
+		"-s ntable show",
+		"-j ntable show",
+		"netconf show",
+		"-j netconf show",
+		"vrf show",
+		"-j vrf show",
 	}
 
 	tests := []struct {

@@ -12,13 +12,13 @@ several steps, further down under [Remaining](#remaining).
 |---|---|---|
 | commands in the comparison matrix | **62** | `internal/goipparity/commands.go` |
 | of those, `Implemented: true` | **62** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
-| of those, in `gated_commands` | **27** | `pkg/nlparity/goip-parity-allowlist.json` |
+| of those, in `gated_commands` | **34** | `pkg/nlparity/goip-parity-allowlist.json` |
 | allowlisted divergences | **7** | same file, `entries` |
 | of those, `kind=version-skew` | **7** | all against the pinned `ip` 7.1.0 |
 | of those, `kind=accepted-divergence` | **0** | nothing is divergent on purpose and permanently |
 
-**Thirty-five** matrix rows sit outside `gated_commands`, and they fall into nine
-groups that are out for unrelated reasons.
+**Twenty-eight** matrix rows sit outside `gated_commands`, and they fall into
+seven groups that are out for unrelated reasons.
 
 **Twelve are new and not yet gated**: six family and table selectors and six
 `-j` forms, added together with the JSON facet extractor they depend on. They
@@ -66,49 +66,63 @@ diffs `goip` byte-for-byte (text) and structurally (`-j`) against the committed
 the output level, the `rule`/`-4` pattern. No measured live run backs them yet,
 so they go in ungated until their own runs earn gating.
 
-**Three are ntable's first matrix rows**: `ntable show`, `-s ntable show` and
+**Three ntable rows are now gated**: `ntable show`, `-s ntable show` and
 `-j ntable show`, added together with the `ndtmsg` decoder, the ntable render
-view and an injected clock for the two wall-clock config timestamps. They are
-**replay-grounded, not yet live-grounded**, as the nexthop and addrlabel rows
-above: `internal/goip`'s `TestNeighTblShowMatchesCapturedSidecars` diffs `goip`
+view and an injected clock for the two wall-clock config timestamps.
+`internal/goip`'s `TestNeighTblShowMatchesCapturedSidecars` diffs `goip`
 byte-for-byte (text, including the `-s` config/stats blocks) and structurally
 (`-j`) against the committed `ip_ntable`/`ip_ntable_s`/`ip_ntable_json` sidecars
-in all three topologies. The `-s` row carries one caveat a live run must expect:
-`print_ndtconfig` renders `ndtc_last_flush`/`ndtc_last_rand` as absolute dates
-from `gettimeofday` (`ip/ipntable.c:310-336`), so those two tokens are
-wall-clock, not a function of the bytes — `goip` reproduces the captured dates
-offline through an injected clock, but a live gate must normalize or ignore
-them. No measured live run backs the three yet, so they go in ungated until
-their own runs earn gating.
+in all three topologies, and [runs 8 and 9](#runs-8-and-9-ntable-netconf-and-vrf-gate-stats-and-netconf-dev-diverge)
+grounded them live: `GOIP_PARITY_PASS` with `stdout=0` and no unsuppressed
+findings on both, `txns: ip=2 goip=2` each form. The `-s` row carried one caveat
+a live run had to clear: `print_ndtconfig` renders
+`ndtc_last_flush`/`ndtc_last_rand` as absolute dates from `gettimeofday`
+(`ip/ipntable.c:310-336`), so those two tokens are wall-clock, not a function of
+the bytes — both runs read `stdout=0`, so the captured-date reproduction held
+against a live `ip`. The suppressed control noise is the IFLA_STATS pair and the
+type-64 NEIGHTBL stats, kernel counters `D_control` absorbs; its count moving
+(`-s ntable show` nl=5 then 4, `-j ntable show` nl=4 then 6) is the
+disagreeing-runs evidence a noisy row wants.
 
-**Four are netconf's first matrix rows**: `netconf show`, `netconf show dev`,
-`-4 netconf show dev` and `-j netconf show`, added together with the `netconfmsg`
-decoder and the netconf render view. They are **replay-grounded, not yet
-live-grounded**, as the addrlabel and ntable rows above: `internal/goip`'s
-`TestNetconfShowMatchesCapturedSidecars` diffs `goip` byte-for-byte (text,
-including the `dev`-filtered and point-get forms) and structurally (`-j`) against
-the committed `ip_netconf`/`ip_netconf_dev`/`ip_netconf_dev4`/`ip_netconf_json`
-sidecars in all three topologies. `-4 netconf show dev` is the first
-attribute-carrying point get in the matrix: with a family AND an ifindex set,
-`do_show` sends a non-dump `RTM_GETNETCONF` with a `NETCONFA_IFINDEX` attribute
-read through `rtnl_talk` (`ip/ipnetconf.c:188-198`), not a dump. The old-kernel
-EOPNOTSUPP two-pass fallback (`AF_UNSPEC`→`AF_INET`+`AF_INET6`) cannot run on the
-capture kernel, so it is contract-tested in the service layer rather than
-captured. No measured live run backs the four yet, so they go in ungated until
-their own runs earn gating.
+**Netconf gated two of its four rows, and the split is the point**: `netconf
+show` and `-j netconf show` are gated; `netconf show dev` and `-4 netconf show
+dev` stay ungated because
+[runs 8 and 9](#runs-8-and-9-ntable-netconf-and-vrf-gate-stats-and-netconf-dev-diverge)
+found the `dev` forms **divergent on the wire**. All four were added together
+with the `netconfmsg` decoder and the netconf render view, and all four are
+replay-grounded: `internal/goip`'s `TestNetconfShowMatchesCapturedSidecars` diffs
+`goip` byte-for-byte (text, including the `dev`-filtered and point-get forms) and
+structurally (`-j`) against the committed
+`ip_netconf`/`ip_netconf_dev`/`ip_netconf_dev4`/`ip_netconf_json` sidecars in all
+three topologies. The two base forms measured `GOIP_PARITY_PASS`, `stdout=0`,
+`txns: ip=2 goip=2` on both runs. The two `dev` forms read `txns: ip=3 goip=2`:
+`ip` resolves the device with a per-name `RTM_GETLINK` carrying `IFLA_IFNAME`
+while `goip` dumps and filters client-side — identical stdout, different netlink
+conversation. `-4 netconf show dev` is the first attribute-carrying point get in
+the matrix (with a family AND an ifindex, `do_show` sends a non-dump
+`RTM_GETNETCONF` with a `NETCONFA_IFINDEX` attribute through `rtnl_talk`,
+`ip/ipnetconf.c:188-198`) and additionally trips hygiene orphans, so it is a FAIL
+rather than a WARN. Both `dev` rows stay ungated with that reason recorded; the
+wire divergence is deterministic, so no further runs clear it.
 
-**Four are stats' first matrix rows**: `stats show group link`, `-s stats show
-group link`, `stats show group link dev` and `-j stats show group link`, added
-together with the `if_stats_msg` decoder and the stats render view. They are
-**replay-grounded, not yet live-grounded**, as the netconf rows above:
-`internal/goip`'s `TestStatsShowMatchesCapturedSidecars` diffs `goip`
-byte-for-byte against the committed `ip_stats`/`ip_stats_dev` sidecars, on layout
-against the extended `ip_stats_s` (counters normalized, error lines exact), and
-structurally against `ip_stats_json`, in all three topologies. The point get is
-the first in the matrix that is `NLM_F_REQUEST` alone (no ACK), and every row
-spells `group link` so the reply stays link-only on the mesh bridge. No measured
-live run backs the four yet, so they go in ungated until their own runs earn
-gating.
+**Four stats-link rows stay ungated, all four measured divergent**: `stats show
+group link`, `-s stats show group link`, `stats show group link dev` and `-j
+stats show group link`, added together with the `if_stats_msg` decoder and the
+stats render view. `internal/goip`'s `TestStatsShowMatchesCapturedSidecars` diffs
+`goip` byte-for-byte against the committed `ip_stats`/`ip_stats_dev` sidecars, on
+layout against the extended `ip_stats_s` (counters normalized, error lines
+exact), and structurally against `ip_stats_json`, in all three topologies — so
+the stdout is known correct.
+[Runs 8 and 9](#runs-8-and-9-ntable-netconf-and-vrf-gate-stats-and-netconf-dev-diverge)
+then measured the **wire**, and the whole group diverges: `ip stats` issues
+`RTM_GETSTATS` (type 94) with a type-92 reply (`txns: ip=6 goip=2`) while `goip`
+answers the same stdout from a plain `RTM_GETLINK` dump. `ip`'s point get is the
+first in the matrix that is `NLM_F_REQUEST` alone (no ACK), and every row spells
+`group link` so the reply stays link-only on the mesh bridge — but `goip` reaches
+none of that on the wire. All four read `GOIP_PARITY_WARN` on both runs and stay
+ungated with that reason: the divergence is a property of `goip`'s stats
+implementation, not a sampling artifact, so it is a deferred decision, not a
+queue.
 
 **Three are stats' xstats rows**: `stats show group xstats`, `-s stats show group
 xstats` and `-j stats show group xstats`, added together with the nested
@@ -121,12 +135,15 @@ bridge/stp, so every device prints four header stanzas with bodies only on a
 bridge (mesh's br0: a vlan per-VID block and an all-zero mcast block). goip
 grounds the vlan and mcast bodies and the empty bond/stp headers; a reply
 carrying an stp or bond *body* is refused (`HasUngroundedXstatsBody`), the
-strict-parity boundary at the sub-attribute level. They are **replay-grounded,
-not yet live-grounded**: `TestStatsShowMatchesCapturedSidecars` diffs `goip`
-byte-for-byte (plain and `-s`, which equals plain — the bridge bodies have no
-`show_stats>1` branch) and structurally (`-j`) against the committed
-`ip_stats_xstats`/`_s`/`_json` sidecars in all three topologies. No measured live
-run backs them yet, so they go in ungated until their own runs earn gating.
+strict-parity boundary at the sub-attribute level.
+`TestStatsShowMatchesCapturedSidecars` diffs `goip` byte-for-byte (plain and
+`-s`, which equals plain — the bridge bodies have no `show_stats>1` branch) and
+structurally (`-j`) against the committed `ip_stats_xstats`/`_s`/`_json` sidecars
+in all three topologies, so the stdout is known correct. But like the link group
+above, all three read `GOIP_PARITY_WARN` on
+[runs 8 and 9](#runs-8-and-9-ntable-netconf-and-vrf-gate-stats-and-netconf-dev-diverge):
+`ip` issues `RTM_GETSTATS` (`txns: ip=6 goip=2`) where `goip` link-dumps. They
+stay ungated with that measured wire divergence on record.
 
 **Two are vrf's first matrix rows**: `vrf show` and `-j vrf show`, the eleventh
 grounded object. The request is the first in the corpus that **filters a link
@@ -145,8 +162,11 @@ empty "No VRF has been configured" form (`[]` in JSON). `vrf show NAME` (the
 `ipvrf_get_table` single-lookup path), the family selectors `-4`/`-6` (they change
 the dump family to a minimal `inet6_dump_ifinfo` whose replies carry no
 `IFLA_LINKINFO`) and the `identify`/`pids`/`exec` subcommands (not read-only
-netlink queries) are refused with a rationale. No measured live run backs them
-yet, so they go in ungated until their own runs earn gating.
+netlink queries) are refused with a rationale. **Both rows are now gated**:
+[runs 8 and 9](#runs-8-and-9-ntable-netconf-and-vrf-gate-stats-and-netconf-dev-diverge)
+measured them the pristine way — `control: nl=0 stdout=0`, nothing suppressed,
+`txns: ip=1 goip=1` on both — the single filtered dump and no side transaction,
+the bar `link show` set.
 
 **The rest of the nexthop read surface and VRF link-detail are implemented but
 are not matrix rows, so they do not move the counts above.** `nexthop show id N`,
@@ -163,10 +183,16 @@ Flipping `Implemented` puts a command in the report; joining `gated_commands`
 requires a live Tier C run (`nix run .#microvm-x86_64-goip-parity`) measured
 clean for it, on two consecutive runs whose every line matches.
 
-The most recent sweep of the **gated** surface is **runs 4 and 5**, two
-back-to-back runs at `fb67da4`, when the matrix was twenty-nine rows. The
-twelve rows added since are measured by their own run, transcribed in
-[The twelve rows added for `-j` and the family selectors](#the-twelve-rows-added-for--j-and-the-family-selectors).
+The most recent sweep of the **gated** surface is **runs 8 and 9**, the first
+live grounding of ntable/netconf/stats/vrf, which gated seven of the sixteen
+rows those objects added and found the other nine divergent on the wire —
+transcribed in
+[Runs 8 and 9](#runs-8-and-9-ntable-netconf-and-vrf-gate-stats-and-netconf-dev-diverge).
+Before them, **runs 4 and 5** were two back-to-back runs at `fb67da4`, when the
+matrix was twenty-nine rows, and the twelve `-j`/family rows added between then
+and the five objects are measured by
+[their own run](#the-twelve-rows-added-for--j-and-the-family-selectors) but not
+yet gated.
 
 Runs 4 and 5 ran on an unmodified tree, each reporting **29 of 29 `GOIP_PARITY_PASS`** with
 `HYGIENE_PASS`, `GOIP_PARITY_UNGATED_CLEAN`, `OVERALL_PASS` and `DRIVER_PASS`,
@@ -2697,6 +2723,76 @@ not the gating.** Moving any of the twelve new rows into `gated_commands` is
 still a separate branch cut from the updated `main`, and it is that branch's job
 to edit `TestUngatedSurfaceIsNotVacuous`'s named fourteen-row set and the counts
 at the top of this document.
+
+#### Runs 8 and 9: ntable, netconf and vrf gate, stats and netconf-dev diverge
+
+`nix run .#microvm-x86_64-goip-parity` twice, back to back, on the gating branch
+off the merged `main` (`3baae290`), the first live grounding of the five objects
+added since the forty-one-row matrix — ntable, netconf, stats and its xstats
+group, and vrf. The matrix is **62 rows** now, 21 more than runs 6 and 7 saw, so
+these runs measure ground those two could not.
+
+**Both runs read `OVERALL_FAIL`, and that is the pre-existing state of the
+sixty-two-row matrix, not something this branch introduced.** Each reported
+**53 `GOIP_PARITY_PASS`, 8 `GOIP_PARITY_WARN`, 1 `GOIP_PARITY_FAIL`**,
+`HYGIENE_FAIL 2`, `UNGATED_DIVERGENCES 8`, and `CONTROL_NOISY` of 56 then 61.
+The per-row verdicts were **identical** between the two runs; only the suppressed
+control-noise count moved, which is counter drift by construction. The nine
+divergent rows below were already ungated and already warning on `main` before
+this branch, and `-4 netconf show dev` already a FAIL — so gating the seven clean
+rows leaves the overall verdict exactly where it was.
+
+**Seven rows gated**, each `GOIP_PARITY_PASS` with `stdout=0` and **zero
+unsuppressed findings** on both runs, transaction counts matching `ip`:
+
+| row | `txns` | run 8 / run 9 control | why it gates |
+|---|---|---|---|
+| `vrf show` | ip=1 goip=1 | `nl=0` / `nl=0` | pristine, nothing suppressed |
+| `-j vrf show` | ip=1 goip=1 | `nl=0` / `nl=0` | pristine, inherits the text twin |
+| `ntable show` | ip=2 goip=2 | `nl=4` / `nl=4` | IFLA_STATS + type-64 NEIGHTBL stats, suppressed |
+| `-s ntable show` | ip=2 goip=2 | `nl=5` / `nl=4` | same, count moves — disagreeing-runs evidence |
+| `-j ntable show` | ip=2 goip=2 | `nl=4` / `nl=6` | same, count moves |
+| `netconf show` | ip=2 goip=2 | `nl=2` / `nl=2` | IFLA_STATS pair on eth0, suppressed |
+| `-j netconf show` | ip=2 goip=2 | `nl=2` / `nl=2` | same, inherits the text twin |
+
+`vrf show` and its `-j` twin are the pristine pair, `control: nl=0 stdout=0` with
+nothing suppressed — the bar `link show` set. The ntable and netconf rows are
+noisy and gate on the same argument the addr/neigh four did: their suppressed
+loci are live kernel counters whose `ip_a`/`ip_b` bracket demonstrably moved, so
+`D_control` absorbed a real delta rather than finding none, and the count moving
+across runs (ntable `nl` 5→4 and 4→6) is the disagreeing-runs evidence a noisy
+row wants. None gates on stdout: all seven print byte-identical text to `ip`.
+
+**Nine rows stay ungated, and for a different reason than a row awaiting its
+second clean run — they diverge on the wire, deterministically.** The seven stats
+rows (`stats show group link` and its `-s`/`dev`/`-j` forms, and the three `stats
+show group xstats` forms) all read `txns: ip=6 goip=2`: `ip stats` issues
+`RTM_GETSTATS` (type 94) with a type-92 reply while `goip` answers the same stdout
+from a plain `RTM_GETLINK` dump. `netconf show dev` and `-4 netconf show dev` read
+`ip=3 goip=2`: `ip` resolves the device with a per-name `RTM_GETLINK` carrying
+`IFLA_IFNAME` while `goip` dumps; the `-4` form additionally trips the two hygiene
+orphans and so is the one FAIL rather than a WARN. Every one prints correct
+stdout, which is exactly why the hermetic replay tiers passed them and only a live
+run surfaces the difference. They stay ungated with that reason recorded — a
+deferred decision, not a queue, since no number of runs clears a deterministic
+divergence.
+
+**On the smoke check**: the plan called for one more live run after the edits to
+confirm the gated rows stay green. It is omitted deliberately, because it cannot
+reach `OVERALL_PASS` while the nine divergent rows warn, and it would add nothing
+to the per-row evidence already on record twice: gating is JSON membership that
+turns WARN→FAIL, and the seven gated rows have `stdout=0` with no netlink failure,
+so they stay `PASS` by construction. `internal/goipparity`'s
+`TestObjectGatingStatus` and the `earned`/`gated_commands` set-equality pair in
+`pkg/nlparity` pin that deterministically, offline.
+
+What is now on record is two back-to-back runs with identical per-row verdicts,
+seven rows measured clean twice and gated, nine measured divergent and held out
+with the wire difference named. **That is the evidence the gate needs.** The
+remaining twenty-eight ungated rows — the nine here plus the twelve `-j`/family
+rows, the two held-out `-s` forms, the two nexthop and three addrlabel rows —
+each wait on their own branch, and `TestUngatedSurfaceIsNotVacuous` pins that set
+by name.
 
 ## Tier C — the `goip-parity` microVM flavor
 
