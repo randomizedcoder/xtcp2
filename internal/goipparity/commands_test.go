@@ -900,31 +900,28 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 		}
 	}
 
-	// The twelve rows the `-j`/family branch added, plus the two -s sweep
-	// commands whose noise is unresolved and which pkg/nlparity's held-out
-	// negative keeps out of gated_commands on purpose, plus the two nexthop rows
-	// and the three addrlabel rows (show, -6 show, -j show), all still awaiting
-	// their own measured-clean live run.
+	// The queue is fourteen rows: the twelve the `-j`/family branch added, plus
+	// the two -s sweep commands whose noise is unresolved and which pkg/nlparity's
+	// held-out negative keeps out of gated_commands on purpose. Each still awaits
+	// its own measured-clean live run. The two nexthop and three addrlabel rows
+	// left this list on runs 10 and 11, their first live grounding — see
+	// TestNexthopAddrlabelGated.
 	//
 	// The remaining nine are the stats and netconf-dev rows runs 8 and 9 measured
-	// DIVERGENT, and they stay ungated for a reason the rows above do not share:
-	// not "not yet measured" but "measured, and permanently divergent on the
-	// wire". Both sides issue RTM_GETSTATS; the gap is name resolution — goip's
-	// one up-front bulk RTM_GETLINK dump versus `ip`'s lazy per-index gets (stats)
-	// and redundant per-name get (netconf-dev). That is class
+	// DIVERGENT, and they stay ungated for a reason the queue above does not
+	// share: not "not yet measured" but "measured, and permanently divergent on
+	// the wire". Both sides issue RTM_GETSTATS; the gap is name resolution —
+	// goip's one up-front bulk RTM_GETLINK dump versus `ip`'s lazy per-index gets
+	// (stats) and redundant per-name get (netconf-dev). That is class
 	// DivergenceTransactionCount, which the allowlist cannot suppress, so these
-	// nine can never gate — unlike the nineteen above, which each await their own
-	// clean live run. TestPermanentWireDivergences pins the nine; the seven rows
-	// those objects added that DID gate (ntable's three, `netconf show`,
-	// `-j netconf show`, `vrf show`, `-j vrf show`) left this list on runs 8/9.
+	// nine can never gate — unlike the fourteen above, which each await their own
+	// clean live run. TestPermanentWireDivergences pins the nine.
 	expected := []string{
 		"-s addr show", "-s neigh show",
 		"-0 addr show", "route show table main", "route show table local",
 		"-4 route show", "-4 neigh show", "-6 neigh show",
 		"-j addr show", "-j link show", "-j route show", "-j neigh show",
 		"-j rule show", "-j -s link show",
-		"nexthop show", "-j nexthop show",
-		"addrlabel show", "-6 addrlabel show", "-j addrlabel show",
 		"netconf show dev", "-4 netconf show dev",
 		"stats show group link", "-s stats show group link",
 		"stats show group link dev", "-j stats show group link",
@@ -937,7 +934,7 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 		check       func(t *testing.T)
 	}{
 		{
-			description: "positive: the ungated set is exactly the twenty-eight named rows, so UNGATED_CLEAN counts twenty-eight rows and not zero",
+			description: "positive: the ungated set is exactly the twenty-three named rows, so UNGATED_CLEAN counts twenty-three rows and not zero",
 			check: func(t *testing.T) {
 				for _, name := range expected {
 					if !ungated[name] {
@@ -997,7 +994,9 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 // divergent on the wire — a name-resolution difference, not a message-type one
 // (both sides issue RTM_GETSTATS; `ip` adds lazy/redundant RTM_GETLINK gets) —
 // even though their stdout matches. TestPermanentWireDivergences records that
-// those nine are permanent and unallowlistable.
+// those nine are permanent and unallowlistable. Runs 10 and 11 then gated the
+// five nexthop and addrlabel rows (their first live grounding);
+// TestNexthopAddrlabelGated pins that flip.
 //
 // go test ./internal/goipparity/ -run TestObjectGatingStatus
 func TestObjectGatingStatus(t *testing.T) {
@@ -1032,8 +1031,11 @@ func TestObjectGatingStatus(t *testing.T) {
 		{"negative: -4 netconf show dev is a FAIL on the wire, not merely a WARN", "-4 netconf show dev", false},
 		{"negative: -s addr show is a held-out -s sweep row", "-s addr show", false},
 		{"negative: -s neigh show is the other held-out -s row", "-s neigh show", false},
-		{"negative: nexthop show is replay-grounded, not live-grounded", "nexthop show", false},
-		{"negative: addrlabel show is replay-grounded, not live-grounded", "addrlabel show", false},
+		{"positive: nexthop show gates on runs 10 and 11, its first live grounding", "nexthop show", true},
+		{"positive: addrlabel show gates on runs 10 and 11, its first live grounding", "addrlabel show", true},
+		{"positive: -6 addrlabel show gates with its byte-identical twin", "-6 addrlabel show", true},
+		{"positive: the -j twin gates with its text twin (nexthop)", "-j nexthop show", true},
+		{"positive: the -j twin gates with its text twin (addrlabel)", "-j addrlabel show", true},
 
 		{"corner: a command not in the matrix is not gated", "bogus show", false},
 	}
@@ -1111,7 +1113,7 @@ func TestPermanentWireDivergences(t *testing.T) {
 		{"boundary: a row that DID gate on runs 8/9 is not in the set", "netconf show", false, true},
 		{"boundary: vrf show gated and is not a permanent divergence", "vrf show", false, true},
 		{"negative: -s addr show is ungated for an unrelated reason (may gate later), not in the set", "-s addr show", false, false},
-		{"negative: nexthop show is replay-grounded, not in the permanent set", "nexthop show", false, false},
+		{"negative: -s neigh show is ungated for an unrelated reason, not in the permanent set", "-s neigh show", false, false},
 		{"corner: a name not in the matrix is neither in the set nor gated", "bogus show", false, false},
 	}
 
@@ -1176,6 +1178,93 @@ func TestPermanentWireDivergences(t *testing.T) {
 					t.Errorf("%v.Suppressible() = %v, want %v", tc.class, got, tc.expected)
 				}
 			})
+		}
+	})
+}
+
+// TestNexthopAddrlabelGated pins the five-row flip runs 10 and 11 recorded — the
+// first live grounding of nexthop and addrlabel, two objects that had been
+// replay-grounded only (internal/goip's *MatchesCapturedSidecars tests). The live
+// runs added what a committed sidecar cannot, an `ip` in the same capture window,
+// and both measured all five GOIP_PARITY_PASS with stdout=0, no unsuppressed
+// findings, control nl=0, and txns matching ip (nexthop 3/3, addrlabel 1/1). They
+// gate with ZERO allowlist entries — the pristine vrf bar, nothing suppressed, so
+// nothing needing the only suppressible class (DivergenceValue). The earned/
+// gated_commands set-equality pair in pkg/nlparity guards the set; this is the
+// readable per-row statement from the command side, as TestObjectGatingStatus is
+// for runs 8 and 9.
+//
+// go test ./internal/goipparity/ -run TestNexthopAddrlabelGated
+func TestNexthopAddrlabelGated(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	cohort := []string{
+		"nexthop show", "-j nexthop show",
+		"addrlabel show", "-6 addrlabel show", "-j addrlabel show",
+	}
+	inCohort := make(map[string]bool, len(cohort))
+	for _, n := range cohort {
+		inCohort[n] = true
+	}
+
+	rows := []struct {
+		description  string
+		command      string
+		wantInCohort bool
+		wantGated    bool
+	}{
+		{"positive: nexthop's base row gates on its first live run", "nexthop show", true, true},
+		{"positive: addrlabel's base row gates on its first live run", "addrlabel show", true, true},
+		{"positive: the -j nexthop twin gates with its text twin (no wire)", "-j nexthop show", true, true},
+		{"positive: the -j addrlabel twin gates with its text twin (no wire)", "-j addrlabel show", true, true},
+		{"boundary: -6 addrlabel show is a byte-identical identity, gates with addrlabel show", "-6 addrlabel show", true, true},
+		{"boundary: a permanent-divergence row still does not gate (separates cohorts)", "stats show group link", false, false},
+		{"negative: a still-queued -j row is not in this cohort and not gated", "-j addr show", false, false},
+		{"negative: a held-out -s row is not in this cohort and not gated", "-s addr show", false, false},
+		{"corner: a name not in the matrix is neither in the cohort nor gated", "bogus show", false, false},
+	}
+
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			if got := inCohort[r.command]; got != r.wantInCohort {
+				t.Errorf("inCohort[%q] = %v, want %v", r.command, got, r.wantInCohort)
+			}
+			if got := al.IsGated(r.command); got != r.wantGated {
+				t.Errorf("IsGated(%q) = %v, want %v", r.command, got, r.wantGated)
+			}
+		})
+	}
+
+	// positive: each cohort row is gated, in the matrix, and Implemented — a gate
+	// never fires on a skip sentinel.
+	t.Run("positive: each cohort row is gated, in the table, and Implemented", func(t *testing.T) {
+		for _, name := range cohort {
+			if !al.IsGated(name) {
+				t.Errorf("%q is a runs-10/11 gated row but IsGated is false; add it to "+
+					"gated_commands and the earned list together", name)
+			}
+			c, lookupErr := Lookup(name)
+			if lookupErr != nil {
+				t.Errorf("cohort row %q is not in the table: %v", name, lookupErr)
+				continue
+			}
+			if !c.Implemented {
+				t.Errorf("cohort row %q is not Implemented; a gate cannot fire on a skip", name)
+			}
+		}
+	})
+
+	// negative: each cohort row gated with ZERO allowlist entries — the runs were
+	// pristine (nl=0), so nothing needed suppressing, and only DivergenceValue is
+	// suppressible in any case.
+	t.Run("negative: each cohort row gated clean, carrying no allowlist entry", func(t *testing.T) {
+		for _, name := range cohort {
+			if entries := al.EntriesFor(name); len(entries) != 0 {
+				t.Errorf("%q gated clean on runs 10/11 but carries %d allowlist entr(ies); "+
+					"it needed none", name, len(entries))
+			}
 		}
 	})
 }
