@@ -1388,6 +1388,34 @@ var commands = withArgs([]Command{
 		// against ip_stats_xstats_json; ungated pending its own live runs.
 		Floor: 4, Implemented: true,
 	},
+
+	// The vrf block — `ip vrf show`, the eleventh read-only object. The request
+	// is a filtered link dump: RTM_GETLINK, AF_UNSPEC, one IFLA_LINKINFO nest
+	// holding IFLA_INFO_KIND = "vrf" and no IFLA_EXT_MASK. The kernel does not
+	// honor the kind filter, so the reply is a full link dump and goip filters
+	// kind=="vrf" client-side, exactly as ipvrf_print does. Base carries goipvrf;
+	// mesh and tunnel have no VRF (the empty "No VRF has been configured" form).
+	// The first request in the corpus that filters a link dump by linkinfo kind.
+	{
+		Name: "vrf show", Slug: "vrf_show",
+		// Two, the link-dump floor: the filtered dump is the sole request, and
+		// do_ipvrf runs no ll_init_map (names come from the same reply's
+		// IFLA_IFNAME), so there is no side transaction — unlike netconf/stats.
+		//
+		// REPLAY-GROUNDED, not yet live-grounded: internal/goip's
+		// TestVrfShowMatchesCapturedSidecars diffs goip byte-for-byte against the
+		// committed ip_vrf sidecar across three topologies. Ungated until its own
+		// live runs earn gating.
+		Floor: 2, Implemented: true,
+	},
+	{
+		Name: "-j vrf show", Slug: "vrf_show_json",
+		// Two, as `vrf show`: `-j` does not reach the wire, so the request is
+		// byte-identical to the text twin and the floor is inherited. The flat
+		// array of {name, table}; the empty topologies render `[]`. Grounded
+		// against ip_vrf_json; ungated pending its own live runs.
+		Floor: 2, Implemented: true,
+	},
 })
 
 // withArgs fills every row's Args from its Name.

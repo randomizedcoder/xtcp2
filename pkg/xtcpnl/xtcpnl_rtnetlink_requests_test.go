@@ -80,6 +80,11 @@ const (
 	// hand-built expectation could establish on its own.
 	recLinkDevNameGetCst  = 0 // ll_link_get, AF_UNSPEC, ext-mask first
 	recLinkDevPrintGetCst = 2 // iplink_get, AF_PACKET, name first
+
+	// `ip vrf show` in 7_1_4/dumps/netlink_route_getvrf.pcap: the filtered link
+	// dump is the sole request (record 0); do_ipvrf runs no ll_init_map, so no
+	// side transaction precedes it.
+	recVrfLinkDumpCst = 0
 )
 
 // Measured datagram sizes, which are nlmsg_len plus iproute2's oversend. These
@@ -182,6 +187,7 @@ func TestRequestBuilders(t *testing.T) {
 	gatedRouteMsgs, _ := capturedRequests(t, tdDumpGetRoute_7_1_4)
 	gatedRoute6Msgs, _ := capturedRequests(t, tdDumpGetRoute6_7_1_4)
 	linkDevMsgs, linkDevDgrams := capturedRequests(t, tdDumpGetLinkDev_7_1_4)
+	vrfMsgs, _ := capturedRequests(t, tdDumpGetVrf_7_1_4)
 
 	const wantDumpFlags = uint16(unix.NLM_F_REQUEST | unix.NLM_F_DUMP)
 	const wantGetFlags = uint16(unix.NLM_F_REQUEST)
@@ -295,6 +301,15 @@ func TestRequestBuilders(t *testing.T) {
 			description: "positive: ip link show dev, second get — iplink_get (AF_PACKET, name first)",
 			got:         mustBuildReq(BuildIplinkGetRequest(unix.AF_PACKET, "goip0", extMask, 0)),
 			want:        capturedRequest(t, linkDevMsgs, recLinkDevPrintGetCst, uint16(unix.RTM_GETLINK)),
+		},
+		{
+			// `ip vrf show`: the filtered link dump, AF_UNSPEC, carrying the
+			// IFLA_LINKINFO{IFLA_INFO_KIND:"vrf"} nest and no IFLA_EXT_MASK. The
+			// byte-equality pins the no-NUL kind payload all at once — a NUL, an
+			// ext mask or a wrong family would all diverge from iproute2's bytes.
+			description: "positive: ip vrf show filtered link dump (AF_UNSPEC, LINKINFO/INFO_KIND vrf)",
+			got:         mustBuildReq(BuildDumpLinkRequestKind(unix.AF_UNSPEC, "vrf", 0)),
+			want:        capturedRequest(t, vrfMsgs, recVrfLinkDumpCst, uint16(unix.RTM_GETLINK)),
 		},
 
 		// boundary — structural, no capture yet; each names its source
@@ -566,6 +581,76 @@ func TestRequestBuilders(t *testing.T) {
 		t.Run(tc.description, func(t *testing.T) {
 			if tc.got != tc.want {
 				t.Errorf("datagram length = %d, want %d", tc.got, tc.want)
+			}
+		})
+	}
+}
+
+// TestBuildDumpLinkRequestKind is the kind-agnostic structural proof the single
+// captured row (TestRequestBuilders, "ip vrf show") cannot give on its own: that
+// the builder nests ANY kind the same way, with the payload carried verbatim and
+// no trailing NUL. The no-NUL property is the one subtlety — PutString would
+// append one and iproute2's addattr_l does not — so each row asserts the inner
+// IFLA_INFO_KIND payload equals the kind byte-for-byte and the inner rta_len is
+// exactly 4 + len(kind).
+//
+// go test ./pkg/xtcpnl/ -run TestBuildDumpLinkRequestKind
+func TestBuildDumpLinkRequestKind(t *testing.T) {
+	const rtaHdrLen = 4 // sizeof(struct rtattr)
+
+	tests := []struct {
+		description string
+		kind        string
+	}{
+		{"positive: vrf, the three-byte kind ip vrf show sends", "vrf"},
+		{"corner: a longer kind round-trips (builder is kind-agnostic)", "dummy"},
+		{"boundary: a one-byte kind pads to rta_len 5", "x"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			req := mustBuildReq(BuildDumpLinkRequestKind(unix.AF_UNSPEC, tc.kind, 0))
+
+			// ifi_family is the first byte of the ifinfomsg, right after the header.
+			if fam := req[NlMsgHdrSizeCst]; fam != unix.AF_UNSPEC {
+				t.Errorf("ifi_family = %d, want AF_UNSPEC (%d)", fam, unix.AF_UNSPEC)
+			}
+
+			attrs := req[NlMsgHdrSizeCst+IfInfomsgSizeCst:]
+			var topTypes []uint16
+			var innerPayload []byte
+			var innerLen int
+			var innerCount int
+			if err := WalkRTAttrs(attrs, func(atype uint16, val []byte) {
+				topTypes = append(topTypes, atype)
+				if atype == uint16(unix.IFLA_LINKINFO) {
+					_ = WalkRTAttrsNested(val, func(it uint16, iv []byte) {
+						if it == uint16(unix.IFLA_INFO_KIND) {
+							innerCount++
+							innerPayload = iv
+							innerLen = rtaHdrLen + len(iv)
+						}
+					})
+				}
+			}); err != nil {
+				t.Fatalf("WalkRTAttrs: %v", err)
+			}
+
+			if len(topTypes) != 1 || topTypes[0] != uint16(unix.IFLA_LINKINFO) {
+				t.Fatalf("top-level attrs = %v, want exactly [IFLA_LINKINFO]", topTypes)
+			}
+			for _, at := range topTypes {
+				if at == uint16(unix.IFLA_EXT_MASK) {
+					t.Errorf("IFLA_EXT_MASK present; ip vrf show sends none")
+				}
+			}
+			if innerCount != 1 {
+				t.Fatalf("IFLA_INFO_KIND count = %d, want 1", innerCount)
+			}
+			if string(innerPayload) != tc.kind {
+				t.Errorf("IFLA_INFO_KIND payload = %q, want %q (no NUL)", innerPayload, tc.kind)
+			}
+			if innerLen != rtaHdrLen+len(tc.kind) {
+				t.Errorf("IFLA_INFO_KIND rta_len = %d, want %d", innerLen, rtaHdrLen+len(tc.kind))
 			}
 		})
 	}

@@ -87,8 +87,12 @@ const dumpsDir = "../../pkg/xtcpnl/testdata/7_1_4/dumps"
 //	                      `"state":["STALE"]` where the text form prints the
 //	                      bare word with no keyword in front of it, which the
 //	                      text extractor's reKeyword cannot see.
-//	keyword:table         rule only, JSON-only: the text form prints `lookup
-//	                      main`, and `lookup` is not a compared keyword.
+//	keyword:table         rule and vrf, JSON-only. Rule: the text form prints
+//	                      `lookup main`, and `lookup` is not a compared keyword.
+//	                      Vrf: `ip vrf show` prints the table id under a PRINT_FP
+//	                      `Table` column header (ip/ipvrf.c:608-618), so the text
+//	                      stream carries no `table` keyword while the JSON object
+//	                      names one.
 //	ifnames               rule only, text-only, and an ARTIFACT: reStanza is
 //	                      anchored on `^(\d+):` and matches `100:\tfrom all`,
 //	                      taking `from` as the name. The JSON side has no such
@@ -583,6 +587,38 @@ func TestStdoutJSONFacetsMatchText(t *testing.T) {
 			jsonEntries: 56,
 			textLoci:    3,
 			jsonLoci:    3,
+			diffs:       nil,
+		},
+		{
+			description: "positive: vrf show, clean topology — the one goipvrf row; its table id is a JSON `table` key but a PRINT_FP column header in text, so keyword:table is the single declared JSON-only difference (the rule-table precedent). The name/table columns form no text locus at all",
+			topo:        "",
+			object:      "ip_vrf",
+			textLines:   3,
+			jsonEntries: 1,
+			textLoci:    0,
+			jsonLoci:    1,
+			diffs: []facetDiff{
+				{locus: "keyword:table", textOnly: "", jsonOnly: "100"},
+			},
+		},
+		{
+			description: "positive: vrf show, mesh topology — no VRF, so the text is the header/separator/empty-form three lines and the JSON is the empty array; both sides fill zero loci and agree, including keyword:table which is now absent on both",
+			topo:        "mesh/",
+			object:      "ip_vrf",
+			textLines:   3,
+			jsonEntries: 0,
+			textLoci:    0,
+			jsonLoci:    0,
+			diffs:       nil,
+		},
+		{
+			description: "positive: vrf show, tunnel topology — no VRF, the empty form against the empty array, identical on every locus",
+			topo:        "tunnel/",
+			object:      "ip_vrf",
+			textLines:   3,
+			jsonEntries: 0,
+			textLoci:    0,
+			jsonLoci:    0,
 			diffs:       nil,
 		},
 	}
