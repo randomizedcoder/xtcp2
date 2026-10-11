@@ -17,13 +17,19 @@ type collector struct {
 	catalog  atomic.Pointer[catalog]
 	fixed    map[string]*client.Desc
 	sources  map[string]definition
+	match    func(string) bool
+	matched  map[string]bool
 }
+
+// invalidDesc reports scrape failures even when collection_healthy is filtered out.
+var invalidDesc = client.NewDesc("go_link_monitor_collection_healthy", "Link monitor collection_healthy.", nil, nil)
 
 type definition struct {
 	desc       *client.Desc
 	labels     []string
 	labelIndex map[string]int
 	kind       client.ValueType
+	selected   bool
 }
 
 type catalog struct {
@@ -33,10 +39,22 @@ type catalog struct {
 
 // NewCollector constructs an unchecked collector without I/O or registration.
 // The caller owns registry registration, the monitor lifecycle and HTTP serving.
-func NewCollector(m *linkmonitor.Monitor) client.Collector {
+func NewCollector(m *linkmonitor.Monitor, opts ...Option) client.Collector {
 	c := &collector{fixed: fixedDescriptors(), sources: make(map[string]definition)}
 	if m != nil {
 		c.snapshot = m.Snapshot
+	}
+	for _, opt := range opts {
+		opt(c)
+	}
+	if c.match != nil {
+		c.matched = make(map[string]bool, len(c.fixed))
+		// A nil descriptor makes the emitter skip the name without a further lookup.
+		for name := range c.fixed {
+			if !c.selects("go_link_monitor_" + name) {
+				c.fixed[name] = nil
+			}
+		}
 	}
 	return c
 }
@@ -47,13 +65,13 @@ func (c *collector) Describe(chan<- *client.Desc) {}
 // Collect uses exactly one immutable root and never waits for source collection.
 func (c *collector) Collect(out chan<- client.Metric) {
 	if c.snapshot == nil {
-		out <- client.NewInvalidMetric(c.fixed["collection_healthy"], fmt.Errorf("nil link monitor"))
+		out <- client.NewInvalidMetric(invalidDesc, fmt.Errorf("nil link monitor"))
 		return
 	}
 	snapshot := c.snapshot()
 	catalog, err := c.descriptors(snapshot)
 	if err != nil {
-		out <- client.NewInvalidMetric(c.fixed["collection_healthy"], err)
+		out <- client.NewInvalidMetric(invalidDesc, err)
 		return
 	}
 	emit := emitter{out: out, fixed: c.fixed}
@@ -100,7 +118,9 @@ func (c *collector) descriptors(s linkmonitor.Snapshot) (*catalog, error) {
 				return true
 			}
 		}
-		next.definitions[d.Key()] = newDefinition(client.NewDesc(d.Name(), "Cached source value for "+d.Name()+".", labels, nil), labels, kind)
+		created := newDefinition(client.NewDesc(d.Name(), "Cached source value for "+d.Name()+".", labels, nil), labels, kind)
+		created.selected = c.selects(d.Name())
+		next.definitions[d.Key()] = created
 		if d.Fixed() {
 			if c.sources == nil {
 				c.sources = make(map[string]definition)
@@ -123,7 +143,7 @@ func newDefinition(desc *client.Desc, labels []string, kind client.ValueType) de
 	for i, label := range labels {
 		indexes[label] = i
 	}
-	return definition{desc: desc, labels: labels, labelIndex: indexes, kind: kind}
+	return definition{desc: desc, labels: labels, labelIndex: indexes, kind: kind, selected: true}
 }
 
 func metricType(kind linkmonitor.SampleKind) (client.ValueType, error) {
@@ -163,6 +183,9 @@ type emitter struct {
 }
 
 func (e emitter) metric(desc *client.Desc, kind client.ValueType, value float64, labels ...string) {
+	if desc == nil {
+		return
+	}
 	m, err := client.NewConstMetric(desc, kind, value, labels...)
 	if err != nil {
 		m = client.NewInvalidMetric(desc, err)
@@ -173,7 +196,10 @@ func (e emitter) metric(desc *client.Desc, kind client.ValueType, value float64,
 func (e *emitter) sample(s linkmonitor.SampleView, catalog *catalog) {
 	d, ok := catalog.definitions[s.DescriptorKey()]
 	if !ok {
-		e.out <- client.NewInvalidMetric(e.fixed["collection_healthy"], fmt.Errorf("missing descriptor %q", s.DescriptorKey()))
+		e.out <- client.NewInvalidMetric(invalidDesc, fmt.Errorf("missing descriptor %q", s.DescriptorKey()))
+		return
+	}
+	if !d.selected {
 		return
 	}
 	valid := e.bindLabels(d, s.RangeLabels)
@@ -195,8 +221,11 @@ func (e *emitter) bindLabels(d definition, rangeLabels func(func(string, string)
 	clear(e.seen)
 	seen := 0
 	labelError := false
+	// Capture only the index: the per-sample closure would otherwise copy the
+	// whole definition and grow with every field added to it.
+	index := d.labelIndex
 	rangeLabels(func(name, value string) bool {
-		i, ok := d.labelIndex[name]
+		i, ok := index[name]
 		if !ok || e.seen[i] {
 			labelError = true
 			return true

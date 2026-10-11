@@ -11,8 +11,6 @@ import (
 	"syscall"
 	"testing"
 	"time"
-
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 func TestCommandProcess(t *testing.T) {
@@ -76,5 +74,5 @@ func runSignalHelper() error {
 		rebaseline: func() error { fmt.Println("rebaseline"); return nil },
 	}
 	var lc net.ListenConfig
-	return serve(context.Background(), m, prometheus.NewRegistry(), quietLogger(), signals, lc.Listen, "127.0.0.1:0")
+	return serve(context.Background(), m, quietLogger(), signals, lc.Listen, singleEndpoint("127.0.0.1:0"))
 }

@@ -101,6 +101,34 @@ func (f *PrometheusFixture) PerformanceLocalMachine() {
 	}
 }
 
+// PerformanceDeployedHost approximates the deployed three-port host that
+// exposes about 6,100 series: per-port traffic, settings and about 1,600
+// driver statistics, plus about 400 host protocol fields.
+func (f *PrometheusFixture) PerformanceDeployedHost() {
+	f.PerformanceLocalMachine()
+	stats := PerformanceSamples(1615)
+	for index := uint32(1); index <= 3; index++ {
+		if err := f.Samples(index, model.CollectorDriver, stats...); err != nil {
+			f.t.Fatal(err)
+		}
+		settings := []model.Sample{
+			interfaceGauge("max_speed_bits_per_second", 100_000_000_000),
+			interfaceGauge("speed_bits_per_second", 100_000_000_000),
+			interfaceGauge("duplex_info", 1, model.Label{Name: "duplex", Value: "full"}, model.Label{Name: "source", Value: "ethtool"}),
+		}
+		if err := f.Samples(index, model.CollectorSettings, settings...); err != nil {
+			f.t.Fatal(err)
+		}
+	}
+	netstat := make([]model.Sample, 402)
+	for i := range netstat {
+		netstat[i] = model.Sample{Descriptor: fmt.Sprintf("netstat_TcpExt_Field%d", i), Kind: model.SampleUntyped, Number: model.Unsigned(uint64(i))}
+	}
+	if err := f.Samples(0, model.CollectorNetstat, netstat...); err != nil {
+		f.t.Fatal(err)
+	}
+}
+
 func performanceFixture(b testing.TB, ports, fields int) *PrometheusFixture {
 	b.Helper()
 	f := NewPrometheusFixture(b)

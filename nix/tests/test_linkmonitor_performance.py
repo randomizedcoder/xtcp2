@@ -67,6 +67,10 @@ class PerformanceReportTests(unittest.TestCase):
             ("negative", "unsupported scheme rejected", "ftp://127.0.0.1", (90, 5, 5), False, 0),
             ("boundary", "zero health control traffic accepted", "http://localhost", (100, 0, 0), True, 100),
             ("corner", "weights above total rejected", "http://localhost", (90, 10, 1), False, 0),
+            ("positive", "core, health and full-exposition mix", "http://localhost", (89, 5, 5, 1), True, 100),
+            ("boundary", "full exposition only", "http://localhost", (0, 0, 0, 100), True, 100),
+            ("negative", "negative full-exposition weight rejected", "http://localhost", (91, 5, 5, -1), False, 0),
+            ("corner", "full exposition pushes total above 100", "http://localhost", (90, 5, 5, 1), False, 0),
         ]:
             with self.subTest(category=category, description=description, expected=accepted):
                 with tempfile.TemporaryDirectory() as directory:

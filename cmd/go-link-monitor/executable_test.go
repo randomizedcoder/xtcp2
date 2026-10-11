@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -70,6 +71,8 @@ func TestExecutableErrors(t *testing.T) {
 		{"backend", "negative", "explicit unavailable backend", "runtime failure without fallback", []string{"-io-backend=io_uring", "-metrics-addr=127.0.0.1:0"}, 1, "backend unavailable"},
 		{"bind", "negative", "invalid listen address", "runtime failure before monitoring", []string{"-metrics-addr=127.0.0.1:99999"}, 1, "monitor stopped"},
 		{"occupied", "corner", "address already bound", "runtime failure before acquiring baseline", []string{"-metrics-addr=" + occupied.Addr().String(), "-baseline-file=" + corrupt}, 1, "address already in use"},
+		{"all occupied", "corner", "all-metrics address already bound", "runtime failure before acquiring baseline", []string{"-metrics-addr=127.0.0.1:0", "-metrics-all-addr=" + occupied.Addr().String(), "-baseline-file=" + corrupt}, 1, "address already in use"},
+		{"invalid exposure", "negative", "malformed core include", "usage exit before listening", []string{"-metrics.core-include=["}, 2, "include regexp"},
 		{"baseline", "negative", "corrupt baseline", "runtime failure preserves file", []string{"-metrics-addr=127.0.0.1:0", "-baseline-file=" + corrupt}, 1, "monitor stopped"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -104,11 +107,13 @@ type executableProcess struct {
 	control  chan struct{}
 }
 
-func startExecutable(ctx context.Context, t *testing.T, baseline string) *executableProcess {
+func startExecutable(ctx context.Context, t *testing.T, baseline string, args ...string) *executableProcess {
 	t.Helper()
+	args = append([]string{"-metrics-addr=127.0.0.1:0", "-baseline-file=" + baseline, "-settle=0", "-stats-interval=100ms"}, args...)
 	p := &executableProcess{
-		cmd:      executableCommand(ctx, t, "-metrics-addr=127.0.0.1:0", "-baseline-file="+baseline, "-settle=0", "-stats-interval=100ms"),
-		readDone: make(chan struct{}), address: make(chan string, 1), control: make(chan struct{}, 1),
+		// One address is logged per listener.
+		cmd:      executableCommand(ctx, t, args...),
+		readDone: make(chan struct{}), address: make(chan string, 2), control: make(chan struct{}, 1),
 	}
 	stderr, err := p.cmd.StderrPipe()
 	if err != nil {
@@ -185,11 +190,19 @@ func waitExecutableMetrics(ctx context.Context, address string) error {
 	ticker := time.NewTicker(20 * time.Millisecond)
 	defer ticker.Stop()
 	for {
-		body, err := fetchPath(ctx, address, "/metrics")
+		all, err := fetchPath(ctx, address, defaultAllPath)
 		if err != nil {
 			return err
 		}
-		if strings.Contains(body, "go_link_monitor_netstat_") && strings.Contains(body, "go_link_monitor_build_info") {
+		if strings.Contains(all, "go_link_monitor_netstat_") && strings.Contains(all, "go_link_monitor_build_info") {
+			// Bulk host detail is served only on the all-metrics path.
+			core, err := fetchPath(ctx, address, metricsPath)
+			if err != nil {
+				return err
+			}
+			if strings.Contains(core, "go_link_monitor_netstat_") || !strings.Contains(core, "go_link_monitor_build_info") {
+				return fmt.Errorf("core exposition is not the core set:\n%s", core)
+			}
 			return nil
 		}
 		select {
@@ -201,17 +214,103 @@ func waitExecutableMetrics(ctx context.Context, address string) error {
 }
 
 func fetchPath(ctx context.Context, address, path string) (string, error) {
+	_, body, err := fetchStatus(ctx, address, path)
+	return body, err
+}
+
+func freeAddress(t *testing.T) string {
+	t.Helper()
+	var lc net.ListenConfig
+	listener, err := lc.Listen(t.Context(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	address := listener.Addr().String()
+	if err := listener.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return address
+}
+
+func TestExecutableSeparateListener(t *testing.T) {
+	t.Log("positive/corner: live process with -metrics-all-addr; expected: each listener serves only its metrics path plus health")
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+	allAddress := freeAddress(t)
+	p := startExecutable(ctx, t, filepath.Join(t.TempDir(), "baseline.json"), "-metrics-all-addr="+allAddress)
+	var core string
+	for range 2 {
+		select {
+		case address := <-p.address:
+			if address != allAddress {
+				core = address
+			}
+		case <-p.readDone:
+			t.Fatal("startup failed", p.logs.String())
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+	}
+	if core == "" {
+		t.Fatal("core listener not logged", p.logs.String())
+	}
+	// Wait until host detail is cached so absence from /metrics is meaningful.
+	for {
+		_, body, err := fetchStatus(ctx, allAddress, defaultAllPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(body, "go_link_monitor_netstat_") {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		case <-time.After(20 * time.Millisecond):
+		}
+	}
+	for _, tc := range []struct {
+		name, category, description, expectedOutcome string
+		address, path                                string
+		status                                       int
+		contains, absent                             string
+	}{
+		{"core", "positive", "core listener /metrics", "core set without bulk detail", core, metricsPath, 200, "go_link_monitor_build_info", "go_link_monitor_netstat_"},
+		{"all", "positive", "all listener all-path", "full set", allAddress, defaultAllPath, 200, "go_link_monitor_netstat_", ""},
+		{"core health", "positive", "core listener /healthz", "alive", core, "/healthz", 200, "", ""},
+		{"all health", "positive", "all listener /healthz", "alive", allAddress, "/healthz", 200, "", ""},
+		{"core all-path", "negative", "all-path on the core listener", "not found", core, defaultAllPath, 404, "", ""},
+		{"all /metrics", "corner", "/metrics on the all listener", "not found", allAddress, metricsPath, 404, "", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expectedOutcome)
+			status, body, err := fetchStatus(ctx, tc.address, tc.path)
+			if err != nil || status != tc.status || !strings.Contains(body, tc.contains) || (tc.absent != "" && strings.Contains(body, tc.absent)) {
+				t.Fatal(status, err, body)
+			}
+		})
+	}
+	if err := p.cmd.Process.Signal(syscall.SIGTERM); err != nil {
+		t.Fatal(err)
+	}
+	<-p.readDone
+	if err := p.cmd.Wait(); err != nil {
+		t.Fatal(err, p.logs.String())
+	}
+}
+
+func fetchStatus(ctx context.Context, address, path string) (int, string, error) {
 	request, err := http.NewRequestWithContext(ctx, "GET", "http://"+address+path, nil)
 	if err != nil {
-		return "", err
+		return 0, "", err
 	}
 	client := &http.Client{Timeout: 3 * time.Second}
 	defer client.CloseIdleConnections()
 	response, err := client.Do(request)
 	if err != nil {
-		return "", err
+		return 0, "", err
 	}
 	defer response.Body.Close()
 	body, err := io.ReadAll(response.Body)
-	return string(body), err
+	return response.StatusCode, string(body), err
 }

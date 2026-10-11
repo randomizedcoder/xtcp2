@@ -18,29 +18,33 @@ let
     runtimeInputs = [ pkgs.siege pkgs.python3 ];
     text = ''
       set -euo pipefail
-      url=""; output=""; duration="60s"; concurrency="1"
+      url=""; output=""; duration="60s"; concurrency="1"; all_weight="0"
       while [ "$#" -gt 0 ]; do
         case "$1" in
           --url) url="$2"; shift 2;;
           --output) output="$2"; shift 2;;
           --duration) duration="$2"; shift 2;;
           --concurrency) concurrency="$2"; shift 2;;
+          --all-weight) all_weight="$2"; shift 2;;
           *) echo "unknown argument: $1" >&2; exit 2;;
         esac
       done
       if [ -z "$url" ] || [ -z "$output" ]; then
-        echo 'usage: siege-linkmonitor --url URL --output DIR [--duration 60s] [--concurrency N]' >&2
+        echo 'usage: siege-linkmonitor --url URL --output DIR [--duration 60s] [--concurrency N] [--all-weight 0-90]' >&2
         exit 2
       fi
       mkdir -p "$output"
-      python3 - "$url" "$output/urls.txt" <<'PY'
+      python3 - "$url" "$output/urls.txt" "$all_weight" <<'PY'
 import sys
 from pathlib import Path
 from urllib.parse import urljoin
-base, path = sys.argv[1], Path(sys.argv[2])
+base, path, full = sys.argv[1], Path(sys.argv[2]), int(sys.argv[3])
 if not base.startswith(("http://", "https://")):
     raise SystemExit("base URL must use http or https")
-rows = [("/metrics", 90), ("/healthz", 5), ("/readyz", 5)]
+if not 0 <= full <= 90:
+    raise SystemExit("--all-weight must be within 0..90")
+# /metrics-all scrapes replace core scrapes so the mix stays at 100 lines.
+rows = [("/metrics", 90 - full), ("/healthz", 5), ("/readyz", 5), ("/metrics-all", full)]
 path.write_text("".join(urljoin(base.rstrip("/") + "/", item) + "\n" for item, weight in rows for _ in range(weight)))
 PY
       siege --quiet --internet --time="$duration" --concurrent="$concurrency" --file="$output/urls.txt" >"$output/siege.txt" 2>&1

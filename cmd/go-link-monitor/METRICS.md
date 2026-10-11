@@ -815,6 +815,69 @@ coverage. Go-link-monitor already selects `.*` by default. No node_exporter
 settings are modified by this design. Both support narrowing the same field-key
 selection through `collector.netstat.fields`.
 
+## Exposure tiers
+
+The command serves two views of the same immutable snapshot:
+
+| Path | Default contents | Intended use |
+|---|---|---|
+| `/metrics` | Core audit set selected by `-metrics.core-include` minus `-metrics.core-exclude` | Normal scrape interval (example 15s) and alerting |
+| `/metrics-all` | Every family listed in this document; a superset of `/metrics` with identical values | Slow scrape (`1h`/`1d`) or on-demand `curl` when investigating |
+
+The default core include is
+`monitorprom.CoreMetricsPattern`, with each name prefixed `go_link_monitor_`:
+
+- Link count and freshness: `build_info`, `up_links`, `baseline_up_links`,
+  `up_links_delta`, `baseline_ready`, `collection_healthy`,
+  `last_successful_resync_timestamp_seconds`
+- Port state and settings: `interface_up`, `interface_check`,
+  `interface_speed_bits_per_second`, `interface_max_speed_bits_per_second`,
+  `interface_duplex_info`, `interface_max_speed_exception`,
+  `max_speed_exception_match`, `rdma_port_up`, `rdma_port_check`
+- Flaps: `observed_oper_transitions_total`, `interface_carrier_changes_total`,
+  `interface_carrier_up_changes_total`, `interface_carrier_down_changes_total`
+- Link errors: `interface_receive_crc_errors_total`,
+  `interface_receive_errors_total`, `interface_transmit_errors_total`
+- Collector health: `collector_success`
+
+Everything else stays on `/metrics-all` only. That includes traffic counters,
+`ethtool_statistic`/`phy_statistic`, `netstat_*`, RDMA/InfiniBand counters,
+classification/identity info, and the remaining `collector_*` diagnostics. On
+the reference three-port Ethernet host this is 115 core series (12 KB)
+against about 6,100 (720 KB).
+
+Expressions are Go RE2 regular expressions anchored as `^(?:...)$`, so
+`go_link_monitor_up_links` does not also select `go_link_monitor_up_links_delta`.
+An empty include serves no collector families; an empty exclude removes nothing.
+`-metrics.core-include='.*'` restores the previous single full endpoint. Each
+expression is compiled once at startup. The collector evaluates it at most once
+per distinct metric name for the process lifetime: fixed names at construction,
+source names when they first appear in a schema revision. Scrapes only read the
+cached decision and never construct unselected metrics.
+
+`-metrics-all-path=` (empty) disables the full view. `-metrics-all-addr` moves it
+to its own listener, which also serves `/healthz` and `/readyz` but not
+`/metrics`; an address equal to `-metrics-addr` is treated as shared. A failure
+of either listener stops the process. `/metrics` allows 10 concurrent scrapes and
+`/metrics-all` allows 2; further requests receive 503.
+
+A proposed latched, acknowledgeable "any error" signal for the core set is
+described in [ERROR-ACKNOWLEDGEMENT-DESIGN.md](ERROR-ACKNOWLEDGEMENT-DESIGN.md).
+
+Example Prometheus jobs:
+
+```yaml
+- job_name: go-link-monitor
+  scrape_interval: 15s
+  metrics_path: /metrics
+  static_configs: [{targets: ["host:9101"]}]
+- job_name: go-link-monitor-all
+  scrape_interval: 1h
+  scrape_timeout: 30s
+  metrics_path: /metrics-all
+  static_configs: [{targets: ["host:9101"]}]
+```
+
 ## Alert and dashboard examples
 
 All expressions use the new metric names. Example scrape interval is 15 seconds.
@@ -847,6 +910,12 @@ with a healthy zero.
 | Baseline unavailable | `go_link_monitor_baseline_ready == 0` | 5m |
 | Link collection unhealthy | `go_link_monitor_collection_healthy == 0` | 1m |
 | Scrape failure | `up{job="go-link-monitor"} == 0` | 1m |
+
+With the default exposure tiers, these rules need `/metrics-all` (or a wider
+`-metrics.core-include`): missing driver identity, RDMA error-related link down,
+RDMA link recovery, verified driver flap, RX drops, poll-derived source stale,
+no successful probe yet and no flap-counter capability. Every other row uses
+core families.
 
 The table escapes regex pipes for Markdown rendering; the rendered PromQL regex
 uses ordinary `|`. Missing targets require a service-discovery/absent-series rule

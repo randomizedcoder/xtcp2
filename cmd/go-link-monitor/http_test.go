@@ -26,6 +26,14 @@ func (m *fakeMonitor) Health() linkmonitor.Health    { return linkmonitor.Health
 func (m *fakeMonitor) Run(ctx context.Context) error { return m.run(ctx) }
 func (m *fakeMonitor) RequestRebaseline() error      { return m.rebaseline() }
 
+func coreRoute(g prometheus.Gatherer) route {
+	return route{path: metricsPath, gatherer: g, inFlight: coreInFlight}
+}
+
+func singleEndpoint(address string) []endpoint {
+	return []endpoint{{address: address, routes: []route{coreRoute(prometheus.NewRegistry())}}}
+}
+
 func TestHTTPHealth(t *testing.T) {
 	for _, tc := range []struct {
 		name, category, description, expectedOutcome string
@@ -47,7 +55,7 @@ func TestHTTPHealth(t *testing.T) {
 			m.ready.Store(tc.ready)
 			var stop atomic.Bool
 			stop.Store(tc.stop)
-			server := httpServer(m, prometheus.NewRegistry(), &stop)
+			server := httpServer(m, &stop, coreRoute(prometheus.NewRegistry()))
 			response := httptest.NewRecorder()
 			server.Handler.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), "GET", tc.path, nil))
 			if response.Code != tc.status || server.WriteTimeout != 15*time.Second || server.ReadHeaderTimeout != 5*time.Second || server.IdleTimeout != time.Minute {
@@ -62,36 +70,48 @@ type gatherFunc func() ([]*dto.MetricFamily, error)
 func (f gatherFunc) Gather() ([]*dto.MetricFamily, error) { return f() }
 
 func TestHTTPProductionLimit(t *testing.T) {
-	t.Log("boundary: ten active production scrapes; expected: eleventh rejected and accepted scrapes finish after release")
-	entered, release := make(chan struct{}, 10), make(chan struct{})
-	g := gatherFunc(func() ([]*dto.MetricFamily, error) {
-		entered <- struct{}{}
-		<-release
-		return nil, nil
-	})
-	var stop atomic.Bool
-	handler := httpServer(&fakeMonitor{}, g, &stop).Handler
-	responses := make(chan int, 10)
-	for range 10 {
-		go func() {
+	for _, tc := range []struct {
+		name, category, description, expectedOutcome string
+		path                                         string
+		limit                                        int
+	}{
+		{"core", "boundary", "ten active core scrapes", "eleventh rejected and accepted scrapes finish after release", metricsPath, coreInFlight},
+		{"all", "boundary", "two active all-metrics scrapes", "third rejected and accepted scrapes finish after release", defaultAllPath, allInFlight},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expectedOutcome)
+			entered, release := make(chan struct{}, tc.limit), make(chan struct{})
+			g := gatherFunc(func() ([]*dto.MetricFamily, error) {
+				entered <- struct{}{}
+				<-release
+				return nil, nil
+			})
+			var stop atomic.Bool
+			served := endpoints(":9101", exposureOptions{allPath: defaultAllPath}, g, g)
+			handler := httpServer(&fakeMonitor{}, &stop, served[0].routes...).Handler
+			responses := make(chan int, tc.limit)
+			for range tc.limit {
+				go func() {
+					r := httptest.NewRecorder()
+					handler.ServeHTTP(r, httptest.NewRequestWithContext(t.Context(), "GET", tc.path, nil))
+					responses <- r.Code
+				}()
+			}
+			for range tc.limit {
+				<-entered
+			}
 			r := httptest.NewRecorder()
-			handler.ServeHTTP(r, httptest.NewRequestWithContext(t.Context(), "GET", "/metrics", nil))
-			responses <- r.Code
-		}()
-	}
-	for range 10 {
-		<-entered
-	}
-	r := httptest.NewRecorder()
-	handler.ServeHTTP(r, httptest.NewRequestWithContext(t.Context(), "GET", "/metrics", nil))
-	if r.Code != http.StatusServiceUnavailable || !strings.Contains(r.Body.String(), "Limit of concurrent") {
-		t.Error("production limit", r.Code, r.Body.String())
-	}
-	close(release)
-	for range 10 {
-		if code := <-responses; code != http.StatusOK {
-			t.Errorf("accepted scrape: %d", code)
-		}
+			handler.ServeHTTP(r, httptest.NewRequestWithContext(t.Context(), "GET", tc.path, nil))
+			if r.Code != http.StatusServiceUnavailable || !strings.Contains(r.Body.String(), "Limit of concurrent") {
+				t.Error("production limit", r.Code, r.Body.String())
+			}
+			close(release)
+			for range tc.limit {
+				if code := <-responses; code != http.StatusOK {
+					t.Errorf("accepted scrape: %d", code)
+				}
+			}
+		})
 	}
 }
 
@@ -110,12 +130,12 @@ func TestHTTPMetrics(t *testing.T) {
 			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expectedOutcome)
 			metric := prometheus.NewGauge(prometheus.GaugeOpts{Name: "cached_value", Help: "Cached test value."})
 			metric.Set(42)
-			var gatherer prometheus.Gatherer = commandRegistry(metric)
+			var gatherer prometheus.Gatherer = commandRegistry(metric, nil)
 			if tc.fail {
 				gatherer = gatherFunc(func() ([]*dto.MetricFamily, error) { return nil, errors.New("gather failed") })
 			}
 			var stop atomic.Bool
-			server := httpServer(&fakeMonitor{}, gatherer, &stop)
+			server := httpServer(&fakeMonitor{}, &stop, coreRoute(gatherer))
 			for range 2 {
 				response := httptest.NewRecorder()
 				request := httptest.NewRequestWithContext(t.Context(), "GET", "/metrics", nil)
