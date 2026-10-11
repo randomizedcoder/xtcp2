@@ -1,0 +1,62 @@
+From 80987bb2bad3a9ace3b36eda28b3b78559d847e6 Mon Sep 17 00:00:00 2001
+From: Dave Seddon <dave.seddon.ca@gmail.com>
+Date: Sat, 10 Oct 2026 19:54:46 -0700
+Subject: [PATCH iproute2] iplink_bond_slave: read ad_partner_oper_port_state
+ as u16
+To: netdev@vger.kernel.org
+Cc: Stephen Hemminger <stephen@networkplumber.org>,
+    David Ahern <dsahern@kernel.org>,
+    Jay Vosburgh <jv@jvosburgh.net>,
+    Hangbin Liu <liuhangbin@gmail.com>
+
+The kernel sends IFLA_BOND_SLAVE_AD_PARTNER_OPER_PORT_STATE as u16:
+nla_put_u16() in bond_fill_slave_info(), bond_netlink.c, from
+struct port_params.port_state, which is u16. iproute2 reads it with
+rta_getattr_u8(), which returns only the first payload byte.
+
+On little endian that is the low byte, and the output is right because
+the partner state never exceeds 0xff. On big endian it is the high
+byte, which is always zero, so every bond port prints:
+
+    ad_partner_oper_port_state 0 ad_partner_oper_port_state_str <>
+
+Reproduced on s390x under qemu-user by replaying a generated
+RTM_NEWLINK message: partner state 0x3f prints 0 before this change and
+63 after.
+
+The code used rta_getattr_u16() until commit 39ac2d2b802b ("iplink:
+bond: print lacp actor/partner oper states as strings") copied the
+actor (u8) block for the partner.
+
+Fixes: 39ac2d2b802b ("iplink: bond: print lacp actor/partner oper states as strings")
+Assisted-by: LLM
+Signed-off-by: Dave Seddon <dave.seddon.ca@gmail.com>
+---
+Found while using an LLM to help port iproute2's netlink handling to
+Go. The LLM spotted the mismatch and drafted this patch; I tested it
+and can answer for it.
+
+I also have a testsuite test for this (generated bond slave messages
+decoded with "ip -d monitor file", red without this patch and green
+with it, on x86_64 and on s390x) plus a fix to lib/generic.sh
+test_on_not that the test needs. Happy to send them if wanted.
+
+ ip/iplink_bond_slave.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/ip/iplink_bond_slave.c b/ip/iplink_bond_slave.c
+index f4b28fbc..24e73575 100644
+--- a/ip/iplink_bond_slave.c
++++ b/ip/iplink_bond_slave.c
+@@ -145,7 +145,7 @@ static void bond_slave_print_opt(struct link_util *lu, FILE *f, struct rtattr *t
+ 	}
+ 
+ 	if (tb[IFLA_BOND_SLAVE_AD_PARTNER_OPER_PORT_STATE]) {
+-		__u16 state = rta_getattr_u8(tb[IFLA_BOND_SLAVE_AD_PARTNER_OPER_PORT_STATE]);
++		__u16 state = rta_getattr_u16(tb[IFLA_BOND_SLAVE_AD_PARTNER_OPER_PORT_STATE]);
+ 
+ 		print_int(PRINT_ANY,
+ 			  "ad_partner_oper_port_state",
+-- 
+2.55.0
+

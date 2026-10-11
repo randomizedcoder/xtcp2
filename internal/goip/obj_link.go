@@ -7,19 +7,24 @@ import (
 	"github.com/randomizedcoder/xtcp2/internal/goip/render"
 	"github.com/randomizedcoder/xtcp2/internal/goip/service"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
+	"golang.org/x/sys/unix"
 )
 
-// runLink handles `ip link ...`. Only the show verbs are implemented.
+// runLink handles `ip link ...`: the write verbs (link_write.go) and the
+// show verbs.
 //
-// iproute2 accepts "show", "lst" and "list" here, all through matches(), so
-// `ip link s`, `ip link sh` and `ip link l` all work (ip/iplink.c:1834-1837).
-// A bare `ip link` with no verb is also a show — do_iplink falls through to
-// ipaddr_list_link when argc is 0.
+// do_iplink tests the write verbs first, all through matches()
+// (ip/iplink.c:1515-1533), so `ip link s` is `set`, not `show`; `sh` and `l`
+// are the shortest show spellings. A bare `ip link` with no verb is a show:
+// do_iplink calls ipaddr_list_link when argc is 0.
 func runLink(c *runCtx, args []string) error {
 	if len(args) == 0 {
 		return linkShow(c, nil)
 	}
 	verb := args[0]
+	if v := lookupLinkWriteVerb(verb); v != nil {
+		return linkWrite(c, v, args[1:])
+	}
 	switch {
 	case matchesPrefix(verb, "show"), matchesPrefix(verb, "lst"), matchesPrefix(verb, "list"):
 		return linkShow(c, args[1:])
@@ -85,7 +90,7 @@ func linkShow(c *runCtx, args []string) error {
 			v = v.WithStats(links[i])
 		}
 		if c.detailed() {
-			v = v.WithDetail(links[i], true)
+			v = v.WithDetail(links[i], true, c.lltab)
 		}
 		views = append(views, v)
 	}
@@ -166,7 +171,7 @@ func linkShowDev(c *runCtx, name string) error {
 		view = view.WithStats(link)
 	}
 	if c.detailed() {
-		view = view.WithDetail(link, true)
+		view = view.WithDetail(link, true, c.lltab)
 	}
 	if c.json {
 		return json.NewEncoder(c.out).Encode([]render.LinkView{view})
@@ -182,11 +187,11 @@ func linkShowDev(c *runCtx, name string) error {
 //
 // print_linktype emits the kind and then, on the SAME line, the whole output
 // of that kind's print_opt (ip/ipaddress.c:230-244). Forty of those exist and
-// none is implemented here — see the header of render/link_detail.go for why
-// that boundary is where it is. The consequence is that a link with per-kind
-// data has no partially-correct render: a line reading `    bridge ` where
-// `ip`'s reads `    bridge forward_delay 200 hello_time 200 …` is not shorter,
-// it is a different line.
+// only vrf's and bond's are implemented here (renderableInfoData) — see the
+// header of render/link_detail.go for why that boundary is where it is. The
+// consequence is that a link with per-kind data has no partially-correct
+// render: a line reading `    bridge ` where `ip`'s reads `    bridge
+// forward_delay 200 hello_time 200 …` is not shorter, it is a different line.
 //
 // So this follows the `-s -s` precedent rather than the usual omitempty one.
 // An explicit error names the missing feature at the point it was asked for;
@@ -227,12 +232,14 @@ func checkDetailSupported(c *runCtx, links []xtcpnl.LinkInfo) error {
 }
 
 // renderableInfoData reports whether goip reproduces the per-kind print_opt
-// output for a kind. Only "vrf" is grounded (its nest holds a single table id,
-// decoded into LinkInfo.VrfTable/VrfPortTable); every other kind's blob stays
-// undecoded and its -d render refused, which keeps the gate kind-agnostic for
-// everything goip has not verified against a capture.
+// output for a kind: vrf (a single table id) and bond (bond_print_opt and
+// bond_slave_print_opt, grounded on the 7_1_4 link-write fixtures). Every
+// other kind's blob stays undecoded and its -d render refused, which keeps
+// the gate kind-agnostic for everything goip has not verified against a
+// capture. The list is render's, so the gate and the renderer cannot
+// disagree about which kinds have a print_opt.
 func renderableInfoData(kind string) bool {
-	return kind == "vrf"
+	return kind == render.VrfKindCst || kind == render.BondKindCst
 }
 
 // resolveLinkRefs sends the side-gets print_linkinfo issues for the two
@@ -252,9 +259,22 @@ func renderableInfoData(kind string) bool {
 // veth in the committed 7_1_8 dump carries a netnsid, which is why
 // ip_link_n shows `ve-nfb-vpn@if2` and why `link show dev` on one of them
 // sends two requests rather than three.
+//
+// Under -d a bond adds two more, active_slave then primary, which
+// bond_print_opt passes to ll_index_to_name in that order
+// (ip/iplink_bond.c:455-465, :592-600). print_linktype runs after the master
+// block, so they come last. No fixture reaches them: 802.3ad sends neither
+// attribute, and a full dump has every index cached anyway.
 func resolveLinkRefs(c *runCtx, svc *service.Service, li xtcpnl.LinkInfo) {
 	if li.Link != 0 && !li.HasLinkNetnsID {
 		resolveIndexName(c, svc, li.Link)
 	}
 	resolveIndexName(c, svc, li.Master)
+	if c.detailed() && li.Kind == render.BondKindCst && li.Bond != nil {
+		for _, id := range []uint16{unix.IFLA_BOND_ACTIVE_SLAVE, unix.IFLA_BOND_PRIMARY} {
+			if v := li.Bond.Value(id); v.Present {
+				resolveIndexName(c, svc, int32(v.U)) //nolint:gosec // an ifindex: the kernel's int, sent as u32
+			}
+		}
+	}
 }

@@ -280,16 +280,111 @@ let
   # read-only capture window is a capture-hygiene FAILURE by the comparator's
   # design - so a monitor would fail the run it was meant to observe.
   isGoipParity = sink == "goip-parity";
-  # The three driven/quiet netlink flavors, which share a guest shape: no
-  # xtcp2 daemon, no self-test, nlmon + the link-type modules, and the exfil
-  # tools. Named once so a fourth predicate cannot be added to two of the four
-  # places that need it and not the others - which is how a flavor ends up
-  # with a chatty guest and a capture full of somebody else's traffic.
-  isNetlinkQuiet = isNlmonCapture || isNetlinkDumpCapture || isGoipParity;
-  # The two that are driven over the serial console by an expect script, as
+  # link-write-capture = the same quiet root VM, driven to build a bond in one
+  # namespace with a real LACP partner in another (two veth pairs between
+  # them) and capture its readback state as the negotiation reaches each of
+  # three states. Phase 0 of docs/netlink/link-write-path.md; the driver is
+  # scripts/capture-link-writes.exp.
+  #
+  # A fourth flavor rather than a fourth namespace in netlink-dump-capture
+  # for one reason: it needs the bonding module, and a module is
+  # kernel-wide. Loading it in the dump flavor's guest would be a change to
+  # that guest that its fixtures did not ask for - the trap the tunnel
+  # modules already set once (see boot.kernelModules below).
+  isLinkWriteCapture = sink == "link-write-capture";
+  # lacp-a / lacp-b = the two VMs of lacp-pair-capture, Tier 2 of
+  # docs/netlink/link-write-path.md: the same bond as link-write-capture, but
+  # over two virtio-net NICs per VM joined by point-to-point dgram links,
+  # with the partner bond in a second kernel. A is driven over serial by
+  # scripts/capture-lacp-pair.exp. B is a static partner: lacp-partner-bond
+  # below builds its bond at boot and nothing drives it.
+  #
+  # The links are qemu `-netdev dgram` unix-socket pairs rather than any
+  # interface type microvm.nix offers, because a bridge between the two VMs
+  # would never forward a LACPDU (BR_GROUPFWD_LACP is in
+  # BR_GROUPFWD_RESTRICTED, net/bridge/br_private.h), and microvm.nix's
+  # types are user/tap/macvtap/bridge. See lacpNicArgs.
+  isLacpA = sink == "lacp-a";
+  isLacpB = sink == "lacp-b";
+  isLacpPair = isLacpA || isLacpB;
+  # The flavors that load the bonding module (see boot.kernelModules).
+  needsBonding = isLinkWriteCapture || isGoipParity || isLacpPair;
+  # The driven/quiet netlink flavors, which share a guest shape: no xtcp2
+  # daemon, no self-test, nlmon + the link-type modules, and the exfil tools.
+  # Named once so a new predicate cannot be added to some of the places that
+  # need it and not the others - which is how a flavor ends up with a chatty
+  # guest and a capture full of somebody else's traffic. lacp-b is in it for
+  # the guest shape alone: it captures nothing, but a daemon on the partner
+  # would be one more thing that is not the switch it stands in for.
+  isNetlinkQuiet =
+    isNlmonCapture || isNetlinkDumpCapture || isGoipParity || isLinkWriteCapture || isLacpPair;
+  # The ones that are driven over the serial console by an expect script, as
   # opposed to nlmon-capture's baked-in oneshot. These are the ones that need
   # `xtcp2-nlcap` on the guest PATH.
-  isNetlinkDriven = isNetlinkDumpCapture || isGoipParity;
+  isNetlinkDriven = isNetlinkDumpCapture || isGoipParity || isLinkWriteCapture || isLacpA;
+
+  # The VM's identity: hostname (which also names microvm.nix's QMP socket,
+  # <hostname>.sock in the runner's working directory) and the two console
+  # ports. Every flavor but the lacp pair uses the architecture's own.
+  vmId =
+    if isLacpA then
+      {
+        inherit (cfg) serialPort virtioPort;
+        inherit (cfg.lacpA) hostname;
+      }
+    else if isLacpB then
+      cfg.lacpB
+    else
+      {
+        inherit (cfg) hostname serialPort virtioPort;
+      };
+
+  # The two LACP ports of this VM, one per dgram link. Link N joins A's laN
+  # to B's lbN: each end binds its own unix socket and sends to the other's,
+  # so the pair is a wire with exactly two ends, with no tap, no host bridge
+  # and no root. The socket paths are relative, and the runner starts both
+  # qemus in one temporary directory.
+  #
+  # The MACs are the ones the Tier 1 veth ends have
+  # (scripts/link-write-topology.exp), so PERM_HWADDR and PARTNER_MAC read
+  # the same in both tiers and a test can say so. The PCI slots are pinned
+  # so the two ports enumerate, and so take their ifindexes, in a fixed
+  # order. The netdev ids are what the driver's QMP set_link names.
+  lacpPorts =
+    let
+      mk = side: peer: n: {
+        name = "l${side}${toString n}";
+        mac = "02:00:00:00:0${side}:0${toString n}";
+        netdev = "lacp${toString n}";
+        local = "link${toString n}-${side}.sock";
+        remote = "link${toString n}-${peer}.sock";
+        slot = "0x${toString (n + 15)}";
+      };
+    in
+    if isLacpA then
+      map (mk "a" "b") [
+        1
+        2
+      ]
+    else if isLacpB then
+      map (mk "b" "a") [
+        1
+        2
+      ]
+    else
+      [ ];
+
+  # speed and duplex are not decoration. virtio-net reports SPEED_UNKNOWN /
+  # DUPLEX_UNKNOWN unless the device config says otherwise
+  # (drivers/net/virtio_net.c), and 802.3ad disables LACP on a port that is
+  # not full duplex (__get_duplex, drivers/net/bonding/bond_3ad.c), so
+  # without duplex=full the two bonds never aggregate.
+  lacpNicArgs = lib.concatMap (p: [
+    "-netdev"
+    "dgram,id=${p.netdev},local.type=unix,local.path=${p.local},remote.type=unix,remote.path=${p.remote}"
+    "-device"
+    "virtio-net-pci,netdev=${p.netdev},mac=${p.mac},addr=${p.slot},speed=10000,duplex=full,romfile="
+  ]) lacpPorts;
   # valkey = a native in-VM Valkey (Redis-protocol) server + a pre-subscribed
   # consumer; xtcp2 PUBLISHes each record to the pub/sub channel and the
   # self-test proves records flow through end-to-end. No docker, no persistence;
@@ -2448,7 +2543,7 @@ in
       { config, ... }:
       {
         system.stateVersion = "26.05";
-        networking.hostName = cfg.hostname;
+        networking.hostName = vmId.hostname;
 
         # Trim VM surface area
         documentation.enable = false;
@@ -2729,13 +2824,13 @@ in
             package = pkgs.qemu_kvm;
             extraArgs = [
               "-name"
-              "${cfg.hostname},process=${cfg.hostname}"
+              "${vmId.hostname},process=${vmId.hostname}"
               "-serial"
-              "tcp:127.0.0.1:${toString cfg.serialPort},server,nowait"
+              "tcp:127.0.0.1:${toString vmId.serialPort},server,nowait"
               "-device"
               "virtio-serial-pci"
               "-chardev"
-              "socket,id=virtcon,port=${toString cfg.virtioPort},host=127.0.0.1,server=on,wait=off"
+              "socket,id=virtcon,port=${toString vmId.virtioPort},host=127.0.0.1,server=on,wait=off"
               "-device"
               "virtconsole,chardev=virtcon"
               "-append"
@@ -2750,7 +2845,9 @@ in
                 ]
                 ++ config.boot.kernelParams
               ))
-            ];
+            ]
+            # The lacp pair's two dgram links; empty for every other flavor.
+            ++ lacpNicArgs;
           };
         };
 
@@ -3902,7 +3999,108 @@ in
             "dummy"
           ]
           ++ lib.optional isNetlinkDumpCapture "bridge"
+          ++ lib.optional needsBonding "bonding"
         );
+
+        # `bonding` is for link-write-capture, for goip-parity's write rows
+        # (link-write-path.md phase 7) and for both VMs of the lacp pair
+        # (Tier 2, phase 8), and max_bonds=0 is load-bearing
+        # rather than tidy. bonding_init creates max_bonds
+        # devices in init_net at load time (drivers/net/bonding/bond_main.c,
+        # default 1), so without it the guest's root namespace grows a bond0
+        # that no capture asked for. The captures are namespaced and would
+        # not see it, but the root-namespace sidecars would, and it is the
+        # same class of surprise as the tunnel fallback devices above. The
+        # driver checks for a root bond0 and warns if this did not take.
+        boot.extraModprobeConfig = lib.mkIf needsBonding "options bonding max_bonds=0";
+
+        # The lacp pair's ports are named by MAC, la1/la2 on A and lb1/lb2 on
+        # B, the names the Tier 1 veth ends have, so the two tiers' fixtures
+        # and the decode tests over them read alike. Without this they are
+        # ens16/ens17, names that come from the PCI slot rather than the role.
+        # .link files are applied by udev whether or not networkd runs.
+        systemd.network.links = lib.listToAttrs (
+          map (
+            p:
+            lib.nameValuePair "10-${p.name}" {
+              matchConfig.MACAddress = p.mac;
+              linkConfig.Name = p.name;
+            }
+          ) lacpPorts
+        );
+
+        # systemd-networkd must leave the LACP ports and the bond alone.
+        # microvm.nix runs it, and NixOS's 99-ethernet-default-dhcp.network
+        # matches every ethernet link, so without this it runs DHCP and IPv6
+        # autoconfiguration on the ports and brings them up, and
+        # bond_enslave refuses a port that is up. Measured on the first
+        # Tier 2 run: lb1 sent DHCP discovers from inside B's bond, and B's
+        # bond sent one LACPDU and then none.
+        systemd.network.networks."05-lacp-unmanaged" = lib.mkIf isLacpPair {
+          matchConfig.Name = "la* lb* bond*";
+          linkConfig.Unmanaged = true;
+        };
+
+        # lacp-b's partner bond: lacpb of Tier 1, built at boot over the two
+        # NICs instead of by a driver. The options are lwtopo::bond_args with
+        # B's identity, so the two ends cannot disagree on anything else.
+        # Nothing waits on this unit: the driver on A waits for its own ports
+        # to converge, which can only happen once this has run.
+        systemd.services.lacp-partner-bond = lib.mkIf isLacpB {
+          description = "lacp-pair-capture partner bond over lb1 and lb2";
+          wantedBy = [ "multi-user.target" ];
+          requires = [
+            "sys-subsystem-net-devices-lb1.device"
+            "sys-subsystem-net-devices-lb2.device"
+          ];
+          after = [
+            "sys-subsystem-net-devices-lb1.device"
+            "sys-subsystem-net-devices-lb2.device"
+          ];
+          path = [ pkgs.iproute2 ];
+          serviceConfig = {
+            Type = "oneshot";
+            RemainAfterExit = true;
+            StandardOutput = "journal+console";
+            StandardError = "journal+console";
+          };
+          script = ''
+            set -eu
+            ip link add bond0 address 02:00:00:00:0b:00 type bond mode 802.3ad \
+              lacp_rate fast miimon 100 ad_actor_system 02:00:00:00:00:0b
+            # Enslaved while down: bond_enslave refuses a port that is up.
+            for p in lb1 lb2; do
+              ip link set "$p" down
+              ip link set "$p" master bond0
+            done
+            ip link set bond0 up
+            echo "LACP_PARTNER_READY"
+          '';
+        };
+
+        # B's side of the negotiation, on B's console every 5 s. Nothing reads
+        # it but a person: B is not driven, so when A's ports do not converge
+        # this is the only record of what B saw. Read from sysfs, which puts
+        # no traffic on any link.
+        systemd.services.lacp-partner-report = lib.mkIf isLacpB {
+          description = "lacp-pair-capture partner port state, every 5 s";
+          wantedBy = [ "multi-user.target" ];
+          after = [ "lacp-partner-bond.service" ];
+          serviceConfig = {
+            StandardOutput = "journal+console";
+          };
+          script = ''
+            while true; do
+              line="LACP_PARTNER_STATE"
+              for p in lb1 lb2; do
+                d=/sys/class/net/$p/bonding_slave
+                line="$line $p=$(cat /sys/class/net/$p/carrier 2>/dev/null)/$(cat $d/ad_actor_oper_port_state 2>/dev/null)/$(cat $d/ad_partner_oper_port_state 2>/dev/null)"
+              done
+              echo "$line"
+              sleep 5
+            done
+          '';
+        };
 
         # nlmon-capture flavor: trigger a scripted sequence of real kernel
         # network events on boot, capture them off an nlmon device, emit the

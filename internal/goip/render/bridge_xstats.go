@@ -8,13 +8,15 @@ import (
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
 
-// This file renders `ip stats show group xstats`, the bridge xstats group. The
+// This file renders `ip stats show group xstats` and `group xstats_slave`. Each
 // whole group expands to four leaves (bond 802.3ad, bridge vlan/mcast/stp),
 // printed one stanza per leaf per interface with a body only where the
 // sub-attribute is present (ipstats_process_ifsm, ip/ipstats.c:765-779; the
-// bridge printers, ip/iplink_bridge.c + lib/bridge.c). goip renders the vlan and
-// mcast bodies and the empty bond/stp headers; stp/bond bodies are refused
-// upstream in obj_stats.
+// bridge printers, ip/iplink_bridge.c + lib/bridge.c; the bond printer,
+// bond_print_3ad_stats in ip/iplink_bond.c). The two groups share leaves and
+// printers and differ only in the group name and in which attribute carries
+// the bodies. goip renders the vlan, mcast and 802.3ad bodies and the empty stp
+// header; an stp body is refused upstream in obj_stats.
 
 // sp16 is iproute2's `%-16s` of "" — the 16-space field every xstats line opens
 // with (IFNAMSIZ). Labels then add 4 more spaces, mcast value lines 6.
@@ -34,47 +36,71 @@ const (
 	bridgeBodyNone bridgeBodyKind = iota
 	bridgeBodyVlan
 	bridgeBodyMcast
+	bridgeBodyBond3ad
 )
 
-// bridgeXstatsLeaves is the four leaves `group xstats` expands to, in iproute2's
-// emission order. iproute2 qsorts the enabled descriptors by struct pointer
-// (ip/ipstats.c:1053-1059), stable per binary but not derivable from source, so
-// this order is PINNED TO THE CAPTURED GOLDEN (testdata .../ip_stats_xstats):
+// Group names a view renders under, the `group` token of the header and the
+// JSON `group` key.
+const (
+	XstatsGroupCst      = "xstats"
+	XstatsSlaveGroupCst = "xstats_slave"
+)
+
+// bridgeXstatsLeaves is the four leaves `group xstats` (and `group
+// xstats_slave`) expands to, in iproute2's emission order. iproute2 qsorts the
+// enabled descriptors by struct pointer (ip/ipstats.c:1053-1059), stable per
+// binary but not derivable from source, so this order is PINNED TO THE CAPTURED
+// GOLDENS (testdata .../ip_stats_xstats and link-write/*/ip_stats_xstats_slave):
 // bond 802.3ad, bridge vlan, bridge mcast, bridge stp.
 var bridgeXstatsLeaves = []bridgeXstatsLeaf{
-	{subgroup: "bond", suite: "802.3ad", body: bridgeBodyNone},
+	{subgroup: "bond", suite: "802.3ad", body: bridgeBodyBond3ad},
 	{subgroup: "bridge", suite: "vlan", body: bridgeBodyVlan},
 	{subgroup: "bridge", suite: "mcast", body: bridgeBodyMcast},
 	{subgroup: "bridge", suite: "stp", body: bridgeBodyNone},
 }
 
-// BridgeXstatsView is one interface's bridge xstats, decoded. Vlans is the
-// per-VLAN list (the vlan leaf always emits a `vlans` array in JSON, empty on a
-// non-bridge device); Mcast is set only when the reply carried that body.
+// BridgeXstatsView is one interface's xstats (or xstats_slave) group, decoded.
+// Group is XstatsGroupCst or XstatsSlaveGroupCst. Vlans is the per-VLAN list
+// (the vlan leaf always emits a `vlans` array in JSON, empty on a non-bridge
+// device); Mcast and Bond3ad are set only when the reply carried that body.
 type BridgeXstatsView struct {
+	Group   string
 	Ifindex uint32
 	IfName  string
 	Vlans   []xtcpnl.BridgeVlanXstats
 	Mcast   *xtcpnl.BrMcastStats
+	Bond3ad *xtcpnl.Bond3adStats
 }
 
-// BridgeXstatsViewOf builds a view from a decoded message, resolving the ifindex
-// via the bundled link dump (ll_index_to_name).
+// BridgeXstatsViewOf builds the `group xstats` view from a decoded message,
+// resolving the ifindex via the bundled link dump (ll_index_to_name).
 func BridgeXstatsViewOf(info xtcpnl.IfStatsInfo, names NameTab) BridgeXstatsView {
+	return xstatsViewOf(XstatsGroupCst, info.Ifindex, info.XstatsBodies, names)
+}
+
+// BridgeXstatsSlaveViewOf is BridgeXstatsViewOf for `group xstats_slave`: the
+// same leaves, read from the IFLA_STATS_LINK_XSTATS_SLAVE bodies.
+func BridgeXstatsSlaveViewOf(info xtcpnl.IfStatsInfo, names NameTab) BridgeXstatsView {
+	return xstatsViewOf(XstatsSlaveGroupCst, info.Ifindex, info.Slave, names)
+}
+
+func xstatsViewOf(group string, ifindex uint32, x xtcpnl.XstatsBodies, names NameTab) BridgeXstatsView {
 	v := BridgeXstatsView{
-		Ifindex: info.Ifindex,
-		IfName:  names.IndexToName(int32(info.Ifindex)),
-		Vlans:   info.BridgeVlans,
+		Group:   group,
+		Ifindex: ifindex,
+		IfName:  names.IndexToName(int32(ifindex)),
+		Vlans:   x.BridgeVlans,
+		Bond3ad: x.Bond3ad,
 	}
-	if info.HasBridgeMcast {
-		m := info.BridgeMcast
+	if x.HasBridgeMcast {
+		m := x.BridgeMcast
 		v.Mcast = &m
 	}
 	return v
 }
 
 // Text reproduces one interface's stanzas: for each leaf the
-// `%d: %s: group xstats subgroup %s suite %s` header (ipstats_show_group), then,
+// `%d: %s: group %s subgroup %s suite %s` header (ipstats_show_group), then,
 // where a body is present, the leaf body. A body leaf carries a trailing blank
 // line (the print_nl at :778 after show's own print_nl); a bodiless leaf is just
 // its header line. The dump's between-interface blank (:862) is the caller's,
@@ -82,12 +108,8 @@ func BridgeXstatsViewOf(info xtcpnl.IfStatsInfo, names NameTab) BridgeXstatsView
 func (v BridgeXstatsView) Text() string {
 	var b strings.Builder
 	for _, leaf := range bridgeXstatsLeaves {
-		fmt.Fprintf(&b, "%d: %s: group xstats subgroup %s suite %s", v.Ifindex, v.IfName, leaf.subgroup, leaf.suite)
-		switch body := v.bodyText(leaf); body {
-		case "":
-			b.WriteByte('\n')
-		default:
-			b.WriteByte('\n')
+		fmt.Fprintf(&b, "%d: %s: group %s subgroup %s suite %s\n", v.Ifindex, v.IfName, v.Group, leaf.subgroup, leaf.suite)
+		if body, ok := v.bodyText(leaf); ok {
 			b.WriteString(body)
 			b.WriteByte('\n')
 		}
@@ -95,21 +117,70 @@ func (v BridgeXstatsView) Text() string {
 	return b.String()
 }
 
-// bodyText returns the leaf's body, or "" when this view has no body for it. The
-// vlan leaf has a text body only when it carries VLANs (a non-bridge device
-// still emits the empty `vlans` array in JSON, but no text, iplink_bridge.c).
-func (v BridgeXstatsView) bodyText(leaf bridgeXstatsLeaf) string {
+// bodyText returns the leaf's body and whether there is one. The vlan leaf has a
+// text body only when it carries VLANs (a non-bridge device still emits the
+// empty `vlans` array in JSON, but no text, iplink_bridge.c). The 802.3ad body
+// is present whenever BOND_XSTATS_3AD was, even with no counter in it: the
+// print_nl ipstats_stat_desc_show_xstats emits before calling the printer
+// (ip/ipstats.c:603-606) still ends in a blank line.
+func (v BridgeXstatsView) bodyText(leaf bridgeXstatsLeaf) (string, bool) {
 	switch leaf.body {
 	case bridgeBodyVlan:
 		if len(v.Vlans) > 0 {
-			return bridgeVlanText(v.Vlans)
+			return bridgeVlanText(v.Vlans), true
 		}
 	case bridgeBodyMcast:
 		if v.Mcast != nil {
-			return bridgeMcastText(*v.Mcast)
+			return bridgeMcastText(*v.Mcast), true
+		}
+	case bridgeBodyBond3ad:
+		if v.Bond3ad != nil {
+			return bond3adText(*v.Bond3ad), true
 		}
 	}
-	return ""
+	return "", false
+}
+
+// bond3adStatNames are bond_print_3ad_stats's text labels and JSON keys, in
+// counter order (ip/iplink_bond.c). The labels are not derivable from the keys:
+// "Unknown type" is capitalized for LACPDUs and not for markers.
+var bond3adStatNames = [xtcpnl.Bond3adStatCountCst]struct{ label, key string }{
+	{"LACPDU Rx", "lacpdu_rx"},
+	{"LACPDU Tx", "lacpdu_tx"},
+	{"LACPDU Unknown type Rx", "lacpdu_unknown_rx"},
+	{"LACPDU Illegal Rx", "lacpdu_illegal_rx"},
+	{"Marker Rx", "marker_rx"},
+	{"Marker Tx", "marker_tx"},
+	{"Marker response Rx", "marker_response_rx"},
+	{"Marker response Tx", "marker_response_tx"},
+	{"Marker unknown type Rx", "marker_unknown_rx"},
+}
+
+// bond3adText is bond_print_3ad_stats' terminal output: one sp16 + 4-space
+// line per counter present, in counter order.
+func bond3adText(s xtcpnl.Bond3adStats) string {
+	var b strings.Builder
+	for i, n := range bond3adStatNames {
+		if s.Present[i] {
+			fmt.Fprintf(&b, "%s    %s %d\n", sp16, n.label, s.Values[i])
+		}
+	}
+	return b.String()
+}
+
+// bond3adJSON is the `802.3ad` object: the counters present, in counter order.
+type bond3adJSON xtcpnl.Bond3adStats
+
+// MarshalJSON writes only the present counters, so an empty BOND_XSTATS_3AD
+// is `{}`, which is what open_json_object with no print_u64 inside writes.
+func (j bond3adJSON) MarshalJSON() ([]byte, error) {
+	var k KindData
+	for i, n := range bond3adStatNames {
+		if j.Present[i] {
+			k.add(n.key, "", j.Values[i])
+		}
+	}
+	return k.MarshalJSON()
 }
 
 // bridgeVlanText is bridge_print_stats_vlan over each VLAN (lib/bridge.c:22-47):
@@ -192,6 +263,7 @@ type bridgeXstatsLeafJSON struct {
 	Suite     string            `json:"suite"`
 	Vlans     *[]vlanXstatsJSON `json:"vlans,omitempty"`
 	Multicast *bridgeMcastJSON  `json:"multicast,omitempty"`
+	Bond3ad   *bond3adJSON      `json:"802.3ad,omitempty"`
 }
 
 // vlanXstatsJSON is one VLAN object. Flags is a pointer so flags==0 omits the
@@ -245,7 +317,7 @@ func BridgeXstatsJSON(views []BridgeXstatsView) []bridgeXstatsLeafJSON {
 		for _, leaf := range bridgeXstatsLeaves {
 			e := bridgeXstatsLeafJSON{
 				Ifindex: v.Ifindex, Ifname: v.IfName,
-				Group: "xstats", Subgroup: leaf.subgroup, Suite: leaf.suite,
+				Group: v.Group, Subgroup: leaf.subgroup, Suite: leaf.suite,
 			}
 			switch leaf.body {
 			case bridgeBodyVlan:
@@ -257,6 +329,11 @@ func BridgeXstatsJSON(views []BridgeXstatsView) []bridgeXstatsLeafJSON {
 			case bridgeBodyMcast:
 				if v.Mcast != nil {
 					e.Multicast = bridgeMcastJSONOf(*v.Mcast)
+				}
+			case bridgeBodyBond3ad:
+				if v.Bond3ad != nil {
+					j := bond3adJSON(*v.Bond3ad)
+					e.Bond3ad = &j
 				}
 			}
 			out = append(out, e)

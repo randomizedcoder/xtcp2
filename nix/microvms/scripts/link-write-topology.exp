@@ -1,0 +1,266 @@
+###############################################################################
+# link-write-topology.exp - the two-namespace LACP topology (Tier 1)
+#
+# Sourced by scripts/capture-link-writes.exp, AFTER vm-lib.exp and
+# netlink-topology.exp: every step goes through nltopo::topo, so refusals land
+# in the same list and the same per-subdir topology transcript as the dump
+# corpus. scripts/capture-lacp-pair.exp (Tier 2) sources it too, for
+# bond_args and the waits on lacpa's ports; its partner is a second VM, so
+# it builds nothing in lacpb. The goip-parity write rows (link-write-path.md phase 7) do not
+# source it: their preconditions are one bond and one port, carried in the
+# command table's Setup (internal/goipparity/commands.go), not this LACP pair.
+#
+#    netns lacpa (nlmon0 here)                netns lacpb (partner)
+#  +--------------------------+            +--------------------------+
+#  | bond0  802.3ad fast      |            | bond0  802.3ad fast      |
+#  |  ad_actor_system ..:0a   |            |  ad_actor_system ..:0b   |
+#  |   +- la1 ----------------+--- veth ---+---------------- lb1 -+   |
+#  |   +- la2 ----------------+--- veth ---+---------------- lb2 -+   |
+#  +--------------------------+            +--------------------------+
+#
+# WHY A PARTNER AT ALL
+#
+# A bond with no partner reports the all-defaults LACP state: partner MAC
+# zero, partner port state from the admin defaults, the actor DEFAULTED. A
+# fixture captured off `ip link add ... type bond` alone would ground the
+# decoder on the least interesting shape the kernel can produce. veth gives
+# full duplex at SPEED_10000 (drivers/net/veth.c), and 802.3ad disables LACP
+# on a port that is not full duplex (__get_duplex, bond_3ad.c), so these
+# ports really aggregate.
+#
+# nlmon0 lives only in lacpa. Netlink taps are per-netns, so the partner's own
+# configuration traffic is structurally absent from the capture.
+#
+# EVERY MAC IS PINNED
+#
+# The veth ends, both bonds and both ad_actor_system values. Without that the
+# bonds take a random MAC per boot and PARTNER_MAC, PERM_HWADDR and the
+# aggregator keys - the attributes these fixtures exist for - differ in every
+# run. In 802.3ad mode bond_enslave also rewrites each port's MAC to the
+# bond's, so the per-port pins survive only as IFLA_BOND_SLAVE_PERM_HWADDR,
+# which is exactly where they are wanted.
+#
+# miimon IS EXPLICIT
+#
+# A bond created over netlink takes the module's defaults, and whether that
+# includes link monitoring is a property of bond_check_params rather than of
+# this file. lacp_partner_down depends on the bond noticing carrier loss on
+# la2, so the interval is asked for rather than inherited.
+###############################################################################
+
+namespace eval lwtopo {
+
+    variable NS_A "lacpa"
+    variable NS_B "lacpb"
+
+    # LACP port state bits, IEEE 802.1AX / include/net/bond_3ad.h. The waits
+    # below are written in these so a reader does not have to decode 0x3f.
+    variable ACTIVITY     0x01
+    variable TIMEOUT      0x02
+    variable AGGREGATION  0x04
+    variable SYNC         0x08
+    variable COLLECTING   0x10
+    variable DISTRIBUTING 0x20
+    variable DEFAULTED    0x40
+    variable EXPIRED      0x80
+
+    # Fully converged with lacp_rate fast, on both ends of the link: active,
+    # short timeout, aggregatable, in sync, collecting, distributing.
+    variable CONVERGED    0x3f
+
+    # Seconds to wait for any one state. A bound on a pathology, not a tuning
+    # knob: with lacp_rate fast every transition here takes a few seconds.
+    variable LACP_TIMEOUT 60
+
+    ###########################################################################
+    # bond_args <system> - the options both bonds are created with.
+    #
+    # One proc so the two ends cannot disagree on anything but their identity.
+    ###########################################################################
+    proc bond_args {mac system} {
+        return [list address $mac type bond mode 802.3ad lacp_rate fast \
+                    miimon 100 ad_actor_system $system]
+    }
+
+    ###########################################################################
+    # build_partnerless <subdir> - lacpa's bond, both ports enslaved and up,
+    # and lacpb's veth ends up but NOT in a bond.
+    #
+    # That is the "switch port not configured for LACP" case: carrier is up,
+    # LACPDUs go out, nothing comes back. The veth ends in lacpb are brought
+    # up because a veth has carrier only while its peer is up, and a port with
+    # no carrier is a disabled port - a different state from an unanswered one.
+    #
+    # The veth pairs are created FROM lacpa with the peer placed straight into
+    # lacpb, so each pair exists in its final namespaces from the first
+    # message and no ifindex is allocated in one namespace and then moved.
+    ###########################################################################
+    proc build_partnerless {subdir} {
+        variable NS_A
+        variable NS_B
+        foreach n {1 2} {
+            nltopo::topo $NS_A $subdir link add la$n address 02:00:00:00:0a:0$n \
+                type veth peer name lb$n address 02:00:00:00:0b:0$n netns $NS_B
+        }
+        nltopo::topo $NS_A $subdir link add bond0 \
+            {*}[bond_args 02:00:00:00:0a:00 02:00:00:00:00:0a]
+        # Enslaved while down, which a fresh veth is: bond_enslave refuses a
+        # port that is up (-EPERM), and opens it itself once it is a slave.
+        nltopo::topo $NS_A $subdir link set la1 master bond0
+        nltopo::topo $NS_A $subdir link set la2 master bond0
+        nltopo::topo $NS_A $subdir link set bond0 up
+        nltopo::topo $NS_B $subdir link set lb1 up
+        nltopo::topo $NS_B $subdir link set lb2 up
+    }
+
+    ###########################################################################
+    # build_partner <subdir> - the partner bond in lacpb, over lb1 and lb2.
+    #
+    # The ports go down first because they were brought up for the
+    # partnerless state and bond_enslave refuses a port that is up.
+    ###########################################################################
+    proc build_partner {subdir} {
+        variable NS_B
+        nltopo::topo $NS_B $subdir link add bond0 \
+            {*}[bond_args 02:00:00:00:0b:00 02:00:00:00:00:0b]
+        nltopo::topo $NS_B $subdir link set lb1 down
+        nltopo::topo $NS_B $subdir link set lb2 down
+        nltopo::topo $NS_B $subdir link set lb1 master bond0
+        nltopo::topo $NS_B $subdir link set lb2 master bond0
+        nltopo::topo $NS_B $subdir link set bond0 up
+    }
+
+    ###########################################################################
+    # pull_lb2 <subdir> - take lb2 down in the partner namespace.
+    #
+    # The veth analogue of a cable pull: closing one end drops carrier on the
+    # other, so la2 sees link down through miimon while la1 is untouched.
+    ###########################################################################
+    proc pull_lb2 {subdir} {
+        variable NS_B
+        nltopo::topo $NS_B $subdir link set lb2 down
+    }
+
+    ###########################################################################
+    # wait_port <ns> <port> <amask> <awant> <pmask> <pwant> - one port reaching
+    # one state. Returns 1 on success, 0 on timeout.
+    ###########################################################################
+    proc wait_port {ns port amask awant pmask pwant} {
+        variable LACP_TIMEOUT
+        lassign [vmlib::run_out \
+            "xtcp2-nlcap wait-lacp $ns $port $amask $awant $pmask $pwant $LACP_TIMEOUT" \
+            [expr {$LACP_TIMEOUT + 30}]] rc out
+        vmlib::log [string trim $out]
+        if {$rc != 0} {
+            diagnose
+        }
+        return [expr {$rc == 0}]
+    }
+
+    ###########################################################################
+    # diagnose - both namespaces' links and bond state, into the transcript.
+    #
+    # Called when a wait times out, which is the one point where "what state
+    # did it reach instead" is the question and the guest is about to be
+    # packed and powered off. Outside any capture window, so it costs nothing
+    # in the fixtures.
+    ###########################################################################
+    proc diagnose {} {
+        variable NS_A
+        variable NS_B
+        foreach ns [list $NS_A $NS_B] {
+            # Tier 2 has no lacpb: its partner is the other VM.
+            if {[vmlib::run "test -e /run/netns/$ns"] != 0} {
+                continue
+            }
+            foreach cmd {"ip -d link show" "cat /proc/net/bonding/bond0"} {
+                lassign [vmlib::run_out "ip netns exec $ns $cmd"] rc out
+                vmlib::log "diagnose \[$ns\] $cmd (rc=$rc):"
+                foreach line [split [string trim $out] "\n"] {
+                    vmlib::log "  $line"
+                }
+            }
+        }
+    }
+
+    ###########################################################################
+    # wait_defaulted - both lacpa ports settled with no partner.
+    #
+    # The exact states, not just the DEFAULTED bit. On the way there a port
+    # passes through EXPIRED|DEFAULTED with the admin partner state (la2 was
+    # seen at 0xc7/0x02), and la1 shows DEFAULTED a tick before the mux
+    # machine adds SYNC for the aggregator it was selected into, so a mask on
+    # DEFAULTED alone matched states the readback had already left. Settled:
+    #
+    #   la1  0x4f  ACTIVITY|TIMEOUT|AGGREGATION|SYNC|DEFAULTED, partner 0
+    #   la2  0x47  the same less SYNC: it is not in the active aggregator
+    #
+    # la1 being the one in sync is the aggregator selection's tie-break on
+    # the first-enslaved port, which the pinned build order makes fixed.
+    ###########################################################################
+    proc wait_defaulted {} {
+        variable NS_A
+        set ok 1
+        if {![wait_port $NS_A la1 0xff 0x4f 0xff 0x00]} { set ok 0 }
+        if {![wait_port $NS_A la2 0xff 0x47 0xff 0x00]} { set ok 0 }
+        return $ok
+    }
+
+    ###########################################################################
+    # wait_lacp_converged - both lacpa ports at 0x3f actor and partner.
+    #
+    # The positive handshake link-write-path.md calls for: the window closes
+    # on evidence that the negotiation finished, not on a guess at how long it
+    # takes.
+    ###########################################################################
+    proc wait_lacp_converged {} {
+        variable NS_A
+        variable CONVERGED
+        set ok 1
+        foreach p {la1 la2} {
+            if {![wait_port $NS_A $p 0xff $CONVERGED 0xff $CONVERGED]} { set ok 0 }
+        }
+        return $ok
+    }
+
+    ###########################################################################
+    # wait_sysfs <ns> <file> <want> - one sysfs file reaching one value.
+    ###########################################################################
+    proc wait_sysfs {ns file want} {
+        variable LACP_TIMEOUT
+        lassign [vmlib::run_out \
+            "xtcp2-nlcap wait-sysfs $ns $file $want $LACP_TIMEOUT" \
+            [expr {$LACP_TIMEOUT + 30}]] rc out
+        vmlib::log [string trim $out]
+        if {$rc != 0} {
+            diagnose
+        }
+        return [expr {$rc == 0}]
+    }
+
+    ###########################################################################
+    # wait_partner_down - la2 out of the aggregate, la1 still converged.
+    #
+    # NOT on the LACP bits. On the 7.1 guest, carrier loss leaves the port's
+    # actor and partner state as they were: la2 read 0x3f/0x3f with
+    # NO-CARRIER for the whole 60 s timeout, in two runs. Reading
+    # bond_3ad.c, the rx machine's PORT_DISABLED arm should clear partner
+    # SYNC, so this is measured behavior that is not yet explained - which
+    # is a reason not to wait on it. What does change, reliably, is the
+    # miimon view (mii_status down, the port a backup slave) and the actor
+    # oper key, which ad_update_actor_keys zeroes. Those are waited on, then la1 is re-checked so a
+    # capture labelled "one port down" cannot be of a bond that lost both.
+    #
+    # A 0x3f on a dead port is itself worth having in a fixture: a renderer
+    # that reports "partner in sync" from those bits alone is wrong.
+    ###########################################################################
+    proc wait_partner_down {} {
+        variable NS_A
+        variable CONVERGED
+        set d /sys/class/net/la2/bonding_slave
+        set ok [wait_sysfs $NS_A $d/mii_status down]
+        if {![wait_sysfs $NS_A $d/state backup]} { set ok 0 }
+        if {![wait_port $NS_A la1 0xff $CONVERGED 0xff $CONVERGED]} { set ok 0 }
+        return $ok
+    }
+}

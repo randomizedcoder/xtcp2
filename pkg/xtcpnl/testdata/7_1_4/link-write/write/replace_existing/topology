@@ -1,0 +1,1 @@
+ok    [lacpa] ip link add bond0 type bond mode 802.3ad

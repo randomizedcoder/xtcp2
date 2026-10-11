@@ -2,7 +2,11 @@
 
 ## Status
 
-Proposed. No code written. This document is the roadmap for giving `goip` its
+Proposed. Phase 1 (the gate) landed with link-write Phase 4: `BuildWriteRequest`
+admits this design's two types and the link design's two, with the error
+`ErrNotAnAdmittedWrite` rather than `ErrNotARouteWrite`
+([link-write-path decision 1](link-write-path.md#decisions)). No route encoder
+yet. This document is the roadmap for giving `goip` its
 first write capability — generating the netlink messages that
 `ip route add/change/replace/del` sends — with first-class support for Linux's
 per-route TCP tuning metrics.
@@ -138,8 +142,8 @@ whose code makes it false — not by this document, and not up front.
 
 | # | Statement | Location | Amended by |
 |---|---|---|---|
-|1| "only `RTM_GET*` … never `RTM_NEW*`" | `coverage-expansion.md:32-35`, `829-834` | Phase 1 (the `BuildWriteRequest` gate lands) |
-|2| "There is no write path in scope, now or later" | `docs/netlink/README.md:47-48` | Phase 1 |
+|1| "only `RTM_GET*` … never `RTM_NEW*`" | `coverage-expansion.md:32-35`, `829-834` | Phase 1 (the `BuildWriteRequest` gate lands). **Amended** by link-write Phase 4, which landed the gate |
+|2| "There is no write path in scope, now or later" | `docs/netlink/README.md:47-48` | Phase 1. **Amended** by link-write Phase 4 |
 |3| "five objects, no write verbs" | `README.md:129` | Phase 4 (`goip route replace` wired end-to-end) |
 |4| "`show`/`list`/`lst` only … refuses a write verb" | `coverage-status.md:222-225`, `307`, `515` | Phase 4 |
 |5| the glance-table scope line | `coverage-status.md` (parity at a glance) | Phase 5 (write rows enter the matrix) |
@@ -478,13 +482,18 @@ fixture.
 - **Multipath routes** — the `nexthop …` syntax and `RTA_MULTIPATH`
   (`struct rtnexthop`). The single-`dev`/single-`via` route is the first target.
 - **Write paths for other families** — `addr`/`link`/`neigh`/`rule` add/del. Each
-  would be its own design once the route write path proves the pattern.
+  would be its own design once the route write path proves the pattern. `link`
+  now has one: [link-write-path.md](link-write-path.md), which also renames this
+  design's `ErrNotARouteWrite` to `ErrNotAnAdmittedWrite` before Phase 1 lands,
+  because the gate's admitted set grows to include `RTM_NEWLINK`/`RTM_DELLINK`.
 - **`tc`** — the `us`/`usec` time units and the qdisc surface are a different tool.
 
 ## See also
 
 - [coverage-expansion.md](coverage-expansion.md) — the read-path roadmap and the
   read-only invariant this design narrows; read its message-type-gate reasoning.
+- [link-write-path.md](link-write-path.md) — the second write design (`ip link`,
+  bonding and LACP), which extends this one.
 - [coverage-status.md](coverage-status.md) — the live tracker; the five read-only
   statements and the parity-at-a-glance table that this design amends as phases
   land.

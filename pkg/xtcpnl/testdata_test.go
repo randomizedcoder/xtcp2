@@ -186,6 +186,33 @@ const (
 	// machine happened to run the capture.
 	tdDumps_7_1_4 = tdBase + "/7_1_4/dumps"
 
+	// 7.1.4 bond / LACP readback captures, produced in the microVM by
+	// `nix run .#microvm-x86_64-link-write-capture` (scripts/
+	// capture-link-writes.exp, link-write-path.md phase 0). One subdirectory
+	// per LACP state of one two-namespace topology; nlmon0 sits in lacpa, so
+	// only lacpa's bond0, la1 and la2 are in the dumps. Each state also carries
+	// proc_net_bonding_bond0 and sysfs_bonding, which read struct port with no
+	// netlink in between and are the oracle the decode tests are written from.
+	tdLinkWrite_7_1_4 = tdBase + "/7_1_4/link-write"
+
+	tdLacpNoPartnerGetLink_7_1_4   = tdLinkWrite_7_1_4 + "/lacp_no_partner/netlink_route_getlink.pcap"
+	tdLacpConvergedGetLink_7_1_4   = tdLinkWrite_7_1_4 + "/lacp_converged/netlink_route_getlink.pcap"
+	tdLacpPartnerDownGetLink_7_1_4 = tdLinkWrite_7_1_4 + "/lacp_partner_down/netlink_route_getlink.pcap"
+
+	// Tier 2 of the same readback (link-write-path.md phase 8), produced by
+	// `nix run .#microvm-x86_64-lacp-pair-capture` (scripts/
+	// capture-lacp-pair.exp): la1 and la2 are virtio-net ports, the partner
+	// bond is in a second VM across two dgram links, and la2's carrier is
+	// pulled over QMP rather than by closing a veth peer. The same bond
+	// options and MACs as Tier 1, so the decode expectations carry over and
+	// what differs is what the NIC is. Each state adds sysfs_ports and
+	// sysfs_ports_parent to Tier 1's sidecars.
+	tdLacpPair_7_1_4 = tdLinkWrite_7_1_4 + "/lacp-pair"
+
+	tdLacpPairConvergedGetLink_7_1_4 = tdLacpPair_7_1_4 + "/lacp_converged/netlink_route_getlink.pcap"
+	tdLacpPairPulledGetLink_7_1_4    = tdLacpPair_7_1_4 + "/lacp_link_pulled/netlink_route_getlink.pcap"
+	tdLacpPairRestoredGetLink_7_1_4  = tdLacpPair_7_1_4 + "/lacp_link_restored/netlink_route_getlink.pcap"
+
 	tdDumpGetLink_7_1_4     = tdDumps_7_1_4 + "/netlink_route_getlink.pcap"
 	tdDumpGetLinkDev_7_1_4  = tdDumps_7_1_4 + "/netlink_route_getlink_dev.pcap"
 	tdDumpGetAddr_7_1_4     = tdDumps_7_1_4 + "/netlink_route_getaddr.pcap"

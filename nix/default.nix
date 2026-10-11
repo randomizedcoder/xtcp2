@@ -842,6 +842,13 @@ in
       # of having it here. The VM itself only starts under
       # `nix run .#microvm-x86_64-goip-parity`, which needs /dev/kvm.
       microvm-x86_64-goip-parity = microvms.vmsGoipParity.x86_64;
+      # Same: builds the guest closure and shellchecks the runner script; the
+      # VM starts only under `nix run .#microvm-x86_64-link-write-capture`.
+      microvm-x86_64-link-write-capture = microvms.vmsLinkWriteCapture.x86_64;
+      # The two guests of `nix run .#microvm-x86_64-lacp-pair-capture`, which
+      # starts both; built here for the same closure and shellcheck value.
+      microvm-x86_64-lacp-a = microvms.vmsLacpA.x86_64;
+      microvm-x86_64-lacp-b = microvms.vmsLacpB.x86_64;
 
       # Whole-suite aggregator (see `apps.integration-all`). Buildable so
       # `nix build .#integration-all` builds every VM it drives.
@@ -1189,6 +1196,37 @@ in
     microvm-x86_64-goip-parity = {
       type = "app";
       program = "${microvms.goipParity.x86_64.runner}/bin/xtcp2-goip-parity-x86_64";
+    };
+
+    # Bond / LACP readback capture, phase 0 of docs/netlink/link-write-path.md:
+    # boots a quiet root microvm with the bonding module (max_bonds=0), builds
+    # an 802.3ad bond in netns lacpa with a real partner bond in netns lacpb
+    # over two veth pairs, and captures lacpa's `ip -d link show` and xstats
+    # dumps off nlmon0 in three states - no partner, converged at 0x3f, and
+    # one partner port down - each entered by polling the ports' LACP state
+    # in sysfs rather than by sleeping. Writes
+    # pkg/xtcpnl/testdata/<guest kernel>/link-write/<state>/.
+    #
+    # Run from the repo root. `--out <dir>` overrides the destination. Not in
+    # `nix flake check`: /dev/kvm plus a write to the working tree.
+    microvm-x86_64-link-write-capture = {
+      type = "app";
+      program = "${microvms.linkWriteCapture.x86_64.runner}/bin/xtcp2-link-write-capture-x86_64";
+    };
+
+    # Tier 2 bond / LACP readback capture (link-write-path.md phase 8). Boots
+    # two microvms joined by two point-to-point qemu dgram links, no tap and
+    # no bridge: lacp-b builds an 802.3ad bond over its two virtio-net ports
+    # at boot, and lacp-a is driven over serial to build its own over its two
+    # and capture its link and xstats dumps off nlmon0 in three states -
+    # converged, one link pulled with QMP set_link, and that link restored.
+    # Writes pkg/xtcpnl/testdata/<guest kernel>/link-write/lacp-pair/<state>/.
+    #
+    # Run from the repo root. `--out <dir>` overrides the destination. Not in
+    # `nix flake check`: /dev/kvm plus a write to the working tree.
+    microvm-x86_64-lacp-pair-capture = {
+      type = "app";
+      program = "${microvms.lacpPairCapture.x86_64.runner}/bin/xtcp2-lacp-pair-capture-x86_64";
     };
 
     quality-report = {

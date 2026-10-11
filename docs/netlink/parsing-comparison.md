@@ -96,7 +96,7 @@ by four families relative to what the tree actually uses.
 
 | Area | Fork | xtcp2 | Verdict for xtcp2 |
 |---|---|---|---|
-| **link** | ✅ `RTM_NEWLINK`/`DELLINK`/`GETLINK`/`SETLINK`, `NEW`/`DELLINKPROP` (`link_linux.go:2118,2535,2792`) | ◑ `RTM_GETLINK` dump builder (`xtcpnl_rtnetlink.go:74`); `NEWLINK`/`DELLINK` decode | ➖ no write path — read-only by design |
+| **link** | ✅ `RTM_NEWLINK`/`DELLINK`/`GETLINK`/`SETLINK`, `NEW`/`DELLINKPROP` (`link_linux.go:2118,2535,2792`) | ◑ `RTM_GETLINK` dump builder (`xtcpnl_rtnetlink.go:74`); `NEWLINK`/`DELLINK` decode; `NEWLINK`/`DELLINK` builder (`xtcpnl_link_write.go`) | ◑ dry-run write path: `goip link add/set/del` builds `ip`'s request byte for byte and never sends it ([link-write-path.md](link-write-path.md)) |
 | **addr** | ✅ `NEWADDR`/`DELADDR`/`GETADDR` (`addr_linux.go:183,217`) | ◑ `RTM_GETADDR` dump (`:83`); `NEWADDR`/`DELADDR` decode | ➖ read-only |
 | **route** | ✅ `NEWROUTE`/`DELROUTE`/`GETROUTE` (`route_linux.go:912,1772`) | ◑ `RTM_GETROUTE` dump (`:92`); `NEWROUTE`/`DELROUTE` decode | ➖ read-only |
 | **neigh** | ✅ `NEWNEIGH`/`DELNEIGH`/`GETNEIGH` (`neigh_linux.go:267,270`) | ◑ `ParseNeigh` (`xtcpnl_ndmsg.go:200`) + `NEWNEIGH`/`DELNEIGH` events, but **no dump-request builder** | ❌ **real gap** — see [§6](#6-prioritised-gaps-for-xtcp2) |

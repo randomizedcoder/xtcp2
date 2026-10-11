@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/randomizedcoder/xtcp2/pkg/nlparity"
 )
@@ -138,11 +139,9 @@ func compareOne(dir string, c Command, al *nlparity.Allowlist) Result {
 	// Every file, named before any of them is read, so the report can list
 	// all the absentees rather than only the first.
 	var absent []string
-	for _, side := range Sides() {
-		for _, name := range []string{c.CaptureName(side), c.StdoutName(side)} {
-			if !fileExists(filepath.Join(dir, name)) {
-				absent = append(absent, name)
-			}
+	for _, name := range c.expectedFiles() {
+		if !fileExists(filepath.Join(dir, name)) {
+			absent = append(absent, name)
 		}
 	}
 	if len(absent) != 0 {
@@ -181,8 +180,18 @@ func compareOne(dir string, c Command, al *nlparity.Allowlist) Result {
 	// the test diff and passed into Compare, which subtracts it — a difference
 	// visible across a window containing the goip run is by construction not
 	// attributable to goip.
-	control := nlparity.Diff(c.Name, segs[SideIPA], segs[SideIPB])
-	r.Netlink = nlparity.Compare(c.Name, segs[SideIPA], segs[SideGoip], control, al)
+	if c.Write {
+		nl, err := compareWriteNetlink(dir, c, segs, al)
+		if err != nil {
+			r.Status = StatusFail
+			r.Err = err
+			return r
+		}
+		r.Netlink = nl
+	} else {
+		control := nlparity.Diff(c.Name, segs[SideIPA], segs[SideIPB])
+		r.Netlink = nlparity.Compare(c.Name, segs[SideIPA], segs[SideGoip], control, al)
+	}
 	r.Stdout = CompareStdoutWithControl(
 		c.Name, texts[SideIPA], texts[SideGoip], texts[SideIPB], al)
 
@@ -204,6 +213,69 @@ func compareOne(dir string, c Command, al *nlparity.Allowlist) Result {
 	}
 	return r
 }
+
+// expectedFiles names every file a command's comparison reads: a pcap and a
+// stdout per side, and on a write row each side's exit status and goip's
+// GOIP_WRITE_OUT request.
+func (c Command) expectedFiles() []string {
+	var out []string
+	for _, side := range Sides() {
+		out = append(out, c.CaptureName(side), c.StdoutName(side))
+		if c.Write {
+			out = append(out, c.RCName(side))
+		}
+	}
+	if c.Write {
+		out = append(out, c.WriteName())
+	}
+	return out
+}
+
+// compareWriteNetlink is the netlink half of a write row: the lookups as a
+// read row compares them, plus ip_a's write request against the file goip
+// wrote (nlparity.CompareWrite). D_control is the same comparison between
+// ip_a and ip_b.
+//
+// The exit statuses are checked here rather than compared: goip must exit 0,
+// since it wrote its request, and the two `ip` runs must agree, since they
+// met the same precondition. ip's status itself is the kernel's answer,
+// which goip does not claim to know, so a refused write passes on its
+// request.
+func compareWriteNetlink(dir string, c Command, segs map[string]nlparity.Segmentation,
+	al *nlparity.Allowlist) (nlparity.Report, error) {
+	rc := map[string]string{}
+	for _, side := range Sides() {
+		b, err := os.ReadFile(filepath.Join(dir, c.RCName(side)))
+		if err != nil {
+			return nlparity.Report{}, fmt.Errorf("%s: %w", c.RCName(side), err)
+		}
+		rc[side] = strings.TrimSpace(string(b))
+	}
+	if rc[SideGoip] != "0" {
+		return nlparity.Report{}, fmt.Errorf("%w: goip exited %s", ErrWriteSide, rc[SideGoip])
+	}
+	if rc[SideIPA] != rc[SideIPB] {
+		return nlparity.Report{}, fmt.Errorf("%w: ip_a exited %s and ip_b %s",
+			ErrWriteSide, rc[SideIPA], rc[SideIPB])
+	}
+
+	b, err := os.ReadFile(filepath.Join(dir, c.WriteName()))
+	if err != nil {
+		return nlparity.Report{}, fmt.Errorf("%s: %w", c.WriteName(), err)
+	}
+	subWrite, err := nlparity.ParseWriteRequest(b)
+	if err != nil {
+		return nlparity.Report{}, fmt.Errorf("%s: %w", c.WriteName(), err)
+	}
+	control, err := nlparity.WriteControl(c.Name, segs[SideIPA], segs[SideIPB])
+	if err != nil {
+		return nlparity.Report{}, err
+	}
+	return nlparity.CompareWrite(c.Name, segs[SideIPA], segs[SideGoip], subWrite, control, al), nil
+}
+
+// ErrWriteSide is a write row whose exit statuses rule the comparison out.
+var ErrWriteSide = errors.New("goipparity: write row exit status")
 
 // fileExists is a presence probe that does not care why a stat failed.
 //

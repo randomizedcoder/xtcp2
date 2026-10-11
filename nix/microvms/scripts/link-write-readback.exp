@@ -1,0 +1,88 @@
+###############################################################################
+# link-write-readback.exp - what is recorded for one LACP state
+#
+# Sourced by scripts/capture-link-writes.exp (Tier 1) and
+# scripts/capture-lacp-pair.exp (Tier 2), AFTER vm-lib.exp. One copy so the
+# two tiers record the same set for a state, with the same names and floors,
+# and a decode test can run over either tier's directory unchanged.
+#
+# The procs are global, as they were in the Tier 1 driver they came from,
+# and capio appends a short capture to the caller's global `short_caps`,
+# which the caller reports at the end.
+###############################################################################
+
+###############################################################################
+# helpers over vmlib - the same three the dump driver has
+###############################################################################
+
+proc nlcap {args} {
+    return [vmlib::run_out "xtcp2-nlcap [join $args { }]"]
+}
+
+proc capio {ns subdir name floor command sout} {
+    global short_caps
+    lassign [nlcap capio $ns $subdir $name $floor "'$command'" $sout] rc out
+    if {$rc != 0} {
+        lappend short_caps "$subdir/$name"
+        vmlib::log "MISSED FLOOR $subdir/$name: $out"
+        return 0
+    }
+    vmlib::log [string trim $out]
+    return 1
+}
+
+proc side {ns subdir name command} {
+    lassign [nlcap side $ns $subdir $name "'$command'"] rc out
+    if {$rc != 0} {
+        vmlib::log "sidecar failed: $subdir/$name"
+    }
+    return $rc
+}
+
+###############################################################################
+# readback_set - everything recorded for one state.
+#
+# capio for the two dumps, because both carry values that move: the LACPDU
+# counters in the xstats bodies tick once a second per port with lacp_rate
+# fast, and a `-d` link reply is what a replay test diffs ip_link_n against.
+# Each pcap and its text have to be one invocation.
+#
+# FLOORS are structural minima, as in the dump driver: `link show` is one
+# dump, so 2; `stats show` resolves names through a link dump first, so 4.
+# The -d link dump will carry more than that - a bond port's IFLA_MASTER and
+# a veth's IFLA_LINK_NETNSID both send iproute2 off for side lookups - and
+# that side traffic is part of what is being recorded, not noise to filter.
+#
+# The two sysfs/proc sidecars are the ORACLE. They read struct port and
+# struct bonding directly, with no netlink in between, so a decoder test can
+# check what it decoded from the pcap against a source that did not go
+# through the same wire format - which is the comparison that would have
+# caught iproute2 reading the u16 partner state as a u8.
+###############################################################################
+
+proc readback_set {ns subdir} {
+    # -d is what puts IFLA_INFO_DATA / IFLA_INFO_SLAVE_DATA in the TEXT; the
+    # request bytes are the same as a plain `link show`, so one pcap serves
+    # both renders.
+    capio $ns $subdir netlink_route_getlink 2 "ip -d link show" ip_link_n
+    side  $ns $subdir ip_link             "ip link show"
+    side  $ns $subdir ip_link_n_json      "ip -d -j -p link show"
+
+    # The bond's 802.3ad counters (BOND_XSTATS_3AD) on bond0 under `xstats`,
+    # and the per-port copy under `xstats_slave`. link-write-path.md phase 3
+    # renders the first; the second is captured because it is where the
+    # per-port LACPDU counts live and it costs one more dump.
+    capio $ns $subdir netlink_route_getstats_xstats 4 \
+        "ip stats show group xstats" ip_stats_xstats
+    side  $ns $subdir ip_stats_xstats_json "ip -j -p stats show group xstats"
+    capio $ns $subdir netlink_route_getstats_xstats_slave 4 \
+        "ip stats show group xstats_slave" ip_stats_xstats_slave
+    side  $ns $subdir ip_stats_xstats_slave_json \
+        "ip -j -p stats show group xstats_slave"
+
+    side  $ns $subdir proc_net_bonding_bond0 "cat /proc/net/bonding/bond0"
+    # grep -H prints file:value, one line per attribute; -s skips the files
+    # a mode does not implement rather than failing the sidecar on them.
+    side  $ns $subdir sysfs_bonding \
+        "grep -s -H . /sys/class/net/bond0/bonding/* /sys/class/net/la*/bonding_slave/*"
+}

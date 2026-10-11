@@ -720,6 +720,10 @@ func TestRender(t *testing.T) {
 					if !c.Implemented {
 						continue
 					}
+					if c.Write {
+						writeCleanWriteRow(t, dir, c)
+						continue
+					}
 					src, out := tdGuestAddr, addrOut
 					if c.Name == "link show" {
 						src, out = tdGuestLink, linkOut
@@ -774,7 +778,10 @@ func TestRender(t *testing.T) {
 				}, sameAll(linkOut))
 				writeTriple(t, dir, addrShow, sameAll(tdGuestAddr), sameAll(addrOut))
 				for _, c := range Commands() {
-					if c.Implemented && c.Name != "link show" && c.Name != "addr show" {
+					switch {
+					case c.Write:
+						writeCleanWriteRow(t, dir, c)
+					case c.Implemented && c.Name != "link show" && c.Name != "addr show":
 						writeTriple(t, dir, c, sameAll(tdGuestAddr), sameAll(addrOut))
 					}
 				}

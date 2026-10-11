@@ -407,6 +407,31 @@ func TestAllowlistCommitted(t *testing.T) {
 		"addrlabel show",
 		"-6 addrlabel show",
 		"-j addrlabel show",
+		// The twenty-one link write rows, gated on the phase 7 runs: all
+		// GOIP_PARITY_PASS twice with identical verdicts, txns matching ip
+		// with goip's GOIP_WRITE_OUT file counted as its write, control nl=0
+		// on the nine rows with no lookups and nl=2 to 4 on the rest.
+		"link add d0 type dummy",
+		"link add v0 type veth peer name v1",
+		"link add bond0 type bond",
+		"link add bond0 type bond mode 802.3ad lacp_rate fast miimon 100 xmit_hash_policy layer3+4",
+		"link add bond0 type bond mode 802.3ad lacp_rate fast lacp_active on ad_select bandwidth ad_actor_sys_prio 100 ad_user_port_key 7 ad_actor_system 02:00:00:00:00:0a min_links 1",
+		"link add bond0 type bond mode active-backup arp_interval 100 arp_ip_target 10.0.0.1,10.0.0.2 arp_validate all",
+		"link add bond0 type bond mode 4",
+		"link set la1 down master bond0",
+		"link set la1 master bond0",
+		"link set la1 nomaster",
+		"link set la1 type bond_slave queue_id 1",
+		"link set la1 type bond_slave actor_port_prio 200",
+		"link set bond0 type bond lacp_rate slow",
+		"link set bond0 type bond mode balance-rr",
+		"link set bond0 type bond lacp_rate fast",
+		"link add bond0 type bond arp_interval 100 miimon 100",
+		"link replace bond0 type bond",
+		"link set bond0 up",
+		"link set bond0 down",
+		"link set d0 name d1 mtu 9000 alias uplink",
+		"link del bond0",
 	}
 
 	tests := []struct {

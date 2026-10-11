@@ -34,6 +34,14 @@
 #       else, which is worth doing first: it rewrites EVERY fixture it
 #       captures, not only a newly added one, and committed line-number
 #       citations point into those files.
+#   nix run    .#microvm-x86_64-link-write-capture
+#       Bond / LACP readback fixtures from a bond with a real LACP partner
+#       (two namespaces, two veth pairs), in three negotiation states. Writes
+#       pkg/xtcpnl/testdata/<kernel>/link-write/. Needs /dev/kvm, not root.
+#   nix run    .#microvm-x86_64-lacp-pair-capture
+#       The same readback on virtio-net ports, with the LACP partner in a
+#       second microVM across two point-to-point dgram links (Tier 2).
+#       Writes pkg/xtcpnl/testdata/<kernel>/link-write/lacp-pair/.
 #   nix run    .#capture-netlink-fixtures
 #       The same corpus on the HOST. Needs host root (sudo, interactively) and
 #       captures in the host's namespace, where other processes' netlink

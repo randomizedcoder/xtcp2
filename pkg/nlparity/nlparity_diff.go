@@ -306,7 +306,14 @@ func HygieneDiff(command, side string, s Segmentation) []Divergence {
 
 // requestRole distinguishes the two call sites of one request type by the only
 // thing on the wire that separates them: NLM_F_DUMP. See the header.
+//
+// A write is a third role. NLM_F_DUMP would misread it, because a create's
+// NLM_F_CREATE|NLM_F_EXCL (0x600) is NLM_F_ATOMIC|NLM_F_MATCH and so tests
+// as a dump; the admitted write types are told apart by type instead.
 func requestRole(m Msg) string {
+	if xtcpnl.IsAdmittedWriteType(m.Hdr.Type) {
+		return "write"
+	}
 	if m.Hdr.Flags&uint16(unix.NLM_F_DUMP) == uint16(unix.NLM_F_DUMP) {
 		return "dump"
 	}
@@ -965,8 +972,15 @@ func Compare(command string, ref, sub Segmentation, control []Divergence, al *Al
 		return r
 	}
 
-	all := Diff(command, ref, sub)
+	r.suppress(Diff(command, ref, sub), control, al)
+	return r
+}
 
+// suppress files each finding of all under ControlSuppressed,
+// AllowSuppressed or Findings. Compare and CompareWrite share it, so a write
+// row's findings are filtered exactly as a read row's are.
+func (r *Report) suppress(all, control []Divergence, al *Allowlist) {
+	command := r.Command
 	kept := Subtract(all, control)
 	if len(kept) != len(all) {
 		// Recover which ones went, so the report can name them rather than
@@ -991,6 +1005,4 @@ func Compare(command string, ref, sub Segmentation, control []Divergence, al *Al
 		}
 		r.Findings = append(r.Findings, d)
 	}
-
-	return r
 }

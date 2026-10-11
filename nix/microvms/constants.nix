@@ -101,6 +101,21 @@
       vcpu = 2;
       serialPort = 12055;
       virtioPort = 12056;
+      # The two VMs of lacp-pair-capture (link-write-path.md Tier 2) run at
+      # the same time, so they cannot share one identity. A, the driven VM,
+      # keeps the ports above and only renames itself, since its hostname
+      # names its QMP socket and the two sockets share a directory. B, the
+      # static partner, needs ports of its own: nothing attaches to its
+      # serial console, but qemu still binds it, and two qemus cannot bind
+      # one port.
+      lacpA = {
+        hostname = "xtcp2-lacp-a-x86_64";
+      };
+      lacpB = {
+        hostname = "xtcp2-lacp-b-x86_64";
+        serialPort = 12057;
+        virtioPort = 12058;
+      };
       promPort = 9088;
       grpcPort = 8889;
     };

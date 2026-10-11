@@ -692,9 +692,20 @@ func (s *Service) IfStats() ([]model.IfStats, error) {
 
 // IfStatsXstats is `ip stats show group xstats`'s dump: the same plain single
 // dump as IfStats but requesting the link-xstats group (filter_mask 0x2). The
-// decode is the same ParseNewStats, which descends the bridge vlan/mcast bodies.
+// decode is the same ParseNewStats, which descends the bridge vlan/mcast and
+// bond 802.3ad bodies.
 func (s *Service) IfStatsXstats() ([]model.IfStats, error) {
-	r := req.StatsShowXstatsDump(s.nextSeq())
+	return s.ifStatsDump(req.StatsShowXstatsDump(s.nextSeq()))
+}
+
+// IfStatsXstatsSlave is `ip stats show group xstats_slave`'s dump
+// (filter_mask 0x4); ParseNewStats puts its bodies in IfStats.Slave.
+func (s *Service) IfStatsXstatsSlave() ([]model.IfStats, error) {
+	return s.ifStatsDump(req.StatsShowXstatsSlaveDump(s.nextSeq()))
+}
+
+// ifStatsDump sends one RTM_GETSTATS dump request and decodes the replies.
+func (s *Service) ifStatsDump(r []byte) ([]model.IfStats, error) {
 	v, err := decode(s, r, uint16(unix.RTM_NEWSTATS), "RTM_NEWSTATS", xtcpnl.ParseNewStats)
 	if err != nil {
 		return nil, err

@@ -35,6 +35,12 @@ import (
 // plausible-looking wrong line is reported by the parity harness as a rendering
 // bug with nothing to say a whole subsystem was absent.
 //
+// Two kinds are the exception, because they are grounded: vrf, whose
+// print_opt is one token, and bond and bond_slave, whose print_opt runs are
+// in link_bond.go and are compared byte for byte against the 7_1_4
+// link-write fixtures. KindData carries their output; every other kind with
+// a nest is still refused.
+//
 // Measured: no link in the 7_1_4 guest topology carries IFLA_INFO_DATA, so
 // nothing there is refused. Seven of the eleven links in the 7_1_8 host dump
 // are likewise clean — lo, the three NICs, two unenslaved veths and nlmon0 —
@@ -134,20 +140,54 @@ type LinkDetailView struct {
 type LinkKindView struct {
 	Kind string `json:"info_kind,omitempty"`
 	// InfoData is print_linktype's open_json_object("info_data") (:237): the
-	// per-kind print_opt output. goip fills it only for the vrf kind, whose
-	// vrf_print_opt emits a single `table %u ` (ip/iplink_vrf.c:55).
-	InfoData  *LinkKindData `json:"info_data,omitempty"`
-	SlaveKind string        `json:"info_slave_kind,omitempty"`
-	// SlaveData is the vrf_slave_print_opt counterpart (:67), a single
-	// `table %u ` from IFLA_VRF_PORT_TABLE.
-	SlaveData *LinkKindData `json:"info_slave_data,omitempty"`
+	// per-kind print_opt output, and the tokens that follow the kind on its
+	// line. goip fills it for the kinds whose print_opt it reproduces, vrf
+	// and bond, and leaves it nil for a kind with no print_opt at all, such
+	// as veth, which is the one case where iproute2 opens no object either.
+	InfoData  *KindData `json:"info_data,omitempty"`
+	SlaveKind string    `json:"info_slave_kind,omitempty"`
+	// SlaveData is the same for the port side: vrf_slave and bond_slave.
+	SlaveData *KindData `json:"info_slave_data,omitempty"`
 }
 
-// LinkKindData is a VRF nest's one rendered attribute, the routing table id. A
-// pointer so an absent table drops the token and the JSON key alike, matching
-// vrf_print_opt's `if (tb[IFLA_VRF_TABLE])` guard.
-type LinkKindData struct {
-	Table *uint32 `json:"table,omitempty"`
+// kindData is the print_opt for a kind, or nil when goip has none.
+//
+// Non-nil whenever the kind has one, even if the nest it reads is absent:
+// print_linktype opens the JSON object before print_opt tests its argument
+// (ip/ipaddress.c:226-236), so a kind that has a print_opt always gets an
+// info_data object, possibly empty. The kinds listed here are the ones
+// internal/goip's -d gate admits; every other kind with a nest is refused
+// there before this runs.
+func kindData(li *xtcpnl.LinkInfo, names NameTab) *KindData {
+	switch li.Kind {
+	case VrfKindCst:
+		return vrfData(li.VrfTable)
+	case BondKindCst:
+		return bondData(li.Bond, names)
+	}
+	return nil
+}
+
+// slaveKindData is kindData for IFLA_INFO_SLAVE_KIND.
+func slaveKindData(li *xtcpnl.LinkInfo) *KindData {
+	switch li.SlaveKind {
+	case VrfKindCst:
+		return vrfData(li.VrfPortTable)
+	case BondKindCst:
+		return bondSlaveData(li.BondSlave)
+	}
+	return nil
+}
+
+// vrfData is vrf_print_opt and vrf_slave_print_opt, which print the same
+// single token, `table %u ` (ip/iplink_vrf.c:55-78), from IFLA_VRF_TABLE and
+// IFLA_VRF_PORT_TABLE respectively.
+func vrfData(table xtcpnl.U32Attr) *KindData {
+	k := &KindData{}
+	if table.Present {
+		k.add("table", fmt.Sprintf("table %d ", table.Value), table.Value)
+	}
+	return k
 }
 
 // addrGenModeNoneCst is print_af_spec's spelling of IN6_ADDR_GEN_MODE_NONE
@@ -202,7 +242,11 @@ func u32Ptr(a xtcpnl.U32Attr) *uint32 {
 // for `ip addr show`. It gates exactly one token, addrgenmode, and it is a
 // parameter rather than a second constructor because it is the only difference
 // — LinkViewForAddr exists for the two differences that are structural.
-func (v LinkView) WithDetail(li xtcpnl.LinkInfo, linkObject bool) LinkView {
+//
+// names is the same index cache LinkViewOf takes. Only a bond reads it, for
+// active_slave and primary, which bond_print_opt resolves with
+// ll_index_to_name.
+func (v LinkView) WithDetail(li xtcpnl.LinkInfo, linkObject bool, names NameTab) LinkView {
 	d := li.Detail
 	dv := &LinkDetailView{
 		Promiscuity:    u32Ptr(d.Promiscuity),
@@ -235,11 +279,11 @@ func (v LinkView) WithDetail(li xtcpnl.LinkInfo, linkObject bool) LinkView {
 	// carries no IFLA_LINKINFO at all, which is the same render.
 	if li.Kind != "" || li.SlaveKind != "" {
 		kv := &LinkKindView{Kind: li.Kind, SlaveKind: li.SlaveKind}
-		if t := u32Ptr(li.VrfTable); t != nil {
-			kv.InfoData = &LinkKindData{Table: t}
+		if li.Kind != "" {
+			kv.InfoData = kindData(&li, names)
 		}
-		if t := u32Ptr(li.VrfPortTable); t != nil {
-			kv.SlaveData = &LinkKindData{Table: t}
+		if li.SlaveKind != "" {
+			kv.SlaveData = slaveKindData(&li)
 		}
 		dv.LinkInfo = kv
 	}
@@ -300,12 +344,10 @@ func (v LinkView) detailText() string {
 		if d.LinkInfo.Kind != "" {
 			fmt.Fprintf(&b, "\n    %s ", d.LinkInfo.Kind)
 			// print_opt runs onto the SAME line as the kind token
-			// (ip/ipaddress.c:238). For vrf that is vrf_print_opt's
-			// `table %u ` (ip/iplink_vrf.c:60-64); other kinds are refused
-			// upstream, so nothing else reaches here.
-			if d.LinkInfo.InfoData != nil && d.LinkInfo.InfoData.Table != nil {
-				fmt.Fprintf(&b, "table %d ", *d.LinkInfo.InfoData.Table)
-			}
+			// (ip/ipaddress.c:238): vrf's `table %u `, or bond's whole
+			// option run. Kinds with a nest goip does not render are
+			// refused upstream, so nothing else reaches here.
+			b.WriteString(d.LinkInfo.InfoData.Text())
 		}
 		if d.LinkInfo.SlaveKind != "" {
 			// The `_slave` suffix is in iproute2's FORMAT STRING —
@@ -322,11 +364,9 @@ func (v LinkView) detailText() string {
 			// veth179a698's IFLA_INFO_SLAVE_KIND in the 7_1_8 dump holds
 			// "bridge", and its ip_link_n line reads "    bridge_slave ".
 			fmt.Fprintf(&b, "\n    %s_slave ", d.LinkInfo.SlaveKind)
-			// vrf_slave_print_opt's `table %u ` (ip/iplink_vrf.c:73-78), on
-			// the same continuation line as the slave kind token.
-			if d.LinkInfo.SlaveData != nil && d.LinkInfo.SlaveData.Table != nil {
-				fmt.Fprintf(&b, "table %d ", *d.LinkInfo.SlaveData.Table)
-			}
+			// The slave print_opt, on the same continuation line as the
+			// slave kind token.
+			b.WriteString(d.LinkInfo.SlaveData.Text())
 		}
 	}
 	if d.AddrGenMode != "" {
