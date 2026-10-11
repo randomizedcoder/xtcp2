@@ -10,8 +10,6 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
-
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 type commandMonitor interface {
@@ -22,38 +20,73 @@ type commandMonitor interface {
 
 type listenerFactory func(context.Context, string, string) (net.Listener, error)
 
-func serve(ctx context.Context, monitor commandMonitor, registry prometheus.Gatherer,
-	logger *slog.Logger, signals <-chan os.Signal, listen listenerFactory, address string,
+func serve(ctx context.Context, monitor commandMonitor, logger *slog.Logger,
+	signals <-chan os.Signal, listen listenerFactory, endpoints []endpoint,
 ) error {
-	listener, err := listen(ctx, "tcp", address)
-	if err != nil {
-		return err
+	// Bind every listener before the monitor acquires anything.
+	listeners := make([]net.Listener, 0, len(endpoints))
+	for _, e := range endpoints {
+		listener, err := listen(ctx, "tcp", e.address)
+		if err != nil {
+			for _, open := range listeners {
+				err = errors.Join(err, open.Close())
+			}
+			return err
+		}
+		listeners = append(listeners, listener)
 	}
 	var stopping atomic.Bool
-	server := httpServer(monitor, registry, &stopping)
+	servers := make([]*http.Server, len(endpoints))
+	for i, e := range endpoints {
+		servers[i] = httpServer(monitor, &stopping, e.routes...)
+	}
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	monitorDone := make(chan error, 1)
-	httpDone := make(chan error, 1)
+	httpDone := make(chan error, len(servers))
 	go func() { monitorDone <- monitor.Run(runCtx) }()
-	go func() { httpDone <- server.Serve(listener) }()
-	logger.Info("serving cached link metrics", "address", listener.Addr().String())
+	for i, server := range servers {
+		go func() { httpDone <- server.Serve(listeners[i]) }()
+		paths := make([]string, len(endpoints[i].routes))
+		for j, r := range endpoints[i].routes {
+			paths[j] = r.path
+		}
+		logger.Info("serving cached link metrics", "paths", paths, "address", listeners[i].Addr().String())
+	}
 	remainingMonitor, remainingHTTP, err := supervise(ctx, monitor, logger, signals, monitorDone, httpDone)
 	stopping.Store(true)
 	cancel()
 	// Drain concurrently with the monitor's own bounded resource cleanup.
-	shutdownErr := shutdownHTTP(ctx, server, httpShutdownGrace)
+	shutdownErr := shutdownServers(ctx, servers, httpShutdownGrace)
 	if remainingMonitor != nil {
 		if runErr := <-remainingMonitor; runErr != context.Canceled {
 			err = errors.Join(err, runErr)
 		}
 	}
-	if remainingHTTP != nil {
-		if serveErr := <-remainingHTTP; !errors.Is(serveErr, http.ErrServerClosed) {
+	// supervise consumed one result when a server failed first.
+	pending := len(servers)
+	if remainingHTTP == nil {
+		pending--
+	}
+	for range pending {
+		if serveErr := <-httpDone; !errors.Is(serveErr, http.ErrServerClosed) {
 			err = errors.Join(err, serveErr)
 		}
 	}
 	return errors.Join(err, shutdownErr)
+}
+
+// shutdownServers drains every server concurrently within one grace period.
+func shutdownServers(ctx context.Context, servers []*http.Server, grace time.Duration) error {
+	results := make(chan error, len(servers))
+	for _, server := range servers {
+		go func() { results <- shutdownHTTP(ctx, server, grace) }()
+	}
+	var err error
+	for range servers {
+		err = errors.Join(err, <-results)
+	}
+	return err
 }
 
 func shutdownHTTP(ctx context.Context, server *http.Server, grace time.Duration) error {

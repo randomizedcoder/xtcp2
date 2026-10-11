@@ -12,15 +12,17 @@ def endpoint(base, path):
     return urljoin(base.rstrip("/") + "/", path.lstrip("/"))
 
 
-def write_urls(base, path, output, metrics_weight=90, health_weight=5, ready_weight=5):
+def write_urls(base, path, output, metrics_weight=90, health_weight=5, ready_weight=5,
+               all_weight=0, all_path="/metrics-all"):
+    """Write a 100-line siege URL mix; all_weight adds full-exposition scrapes."""
     if not base.startswith(("http://", "https://")):
         raise ValueError("base URL must use http or https")
     weights = [("/metrics", metrics_weight), ("/healthz", health_weight),
-               ("/readyz", ready_weight)]
+               ("/readyz", ready_weight), (all_path, all_weight)]
     if any(weight < 0 for _, weight in weights) or sum(weight for _, weight in weights) != 100:
         raise ValueError("URL weights must be non-negative and sum to 100")
     path.write_text("\n".join(endpoint(base, item) for item, weight in weights for _ in range(weight)) + "\n")
-    return {item: weight for item, weight in weights}
+    return {item: weight for item, weight in weights if weight}
 
 
 def fetch_profile(base, name, output, seconds=30, timeout=60, headers=()):

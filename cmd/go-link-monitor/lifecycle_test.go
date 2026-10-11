@@ -14,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor"
 )
@@ -59,7 +58,7 @@ func TestServeFailures(t *testing.T) {
 				listener, err = lc.Listen(ctx, network, address)
 				return listener, err
 			}
-			err := serve(ctx, m, prometheus.NewRegistry(), quietLogger(), nil, listen, "127.0.0.1:0")
+			err := serve(ctx, m, quietLogger(), nil, listen, singleEndpoint("127.0.0.1:0"))
 			wantFailure := tc.bind || tc.start || tc.cleanup
 			if (err != nil) != wantFailure || started.Load() == tc.bind {
 				t.Fatal(err, started.Load())
@@ -120,7 +119,7 @@ func TestHTTPDrain(t *testing.T) {
 	m.ready.Store(true)
 	entered, release := make(chan struct{}), make(chan struct{})
 	gatherer := gatherFunc(func() ([]*dto.MetricFamily, error) { close(entered); <-release; return nil, nil })
-	server := httpServer(m, gatherer, &stopping)
+	server := httpServer(m, &stopping, coreRoute(gatherer))
 	var lc net.ListenConfig
 	listener, err := lc.Listen(t.Context(), "tcp", "127.0.0.1:0")
 	if err != nil {

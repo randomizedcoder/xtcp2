@@ -144,6 +144,26 @@ Prometheus package passes both ordinary and race tests; representative Gather
 benchmarks remain within the existing variance envelope. Full package testing
 still encounters the existing unprivileged live-netlink failures.
 
+V078 — exposure tiers (2026-10-11): `/metrics` serves the core audit set
+selected in the collector by `WithMetricFilter`; `/metrics-all` serves the
+unfiltered superset from the same snapshot, on the same or a separate listener.
+Regexes compile once at startup and each distinct name is matched at most once
+per process lifetime; tables assert zero match calls on unchanged-schema
+scrapes, identical values to the full view, byte-identical pass-through and
+allocation bounds. Pinned Go 1.26.5 race tests for `./pkg/linkmonitor/...` and
+`./cmd/go-link-monitor/...`, vet, gofmt and all three golangci configurations
+pass. Unfiltered regression guard: an interleaved ten-run A/B of the existing
+Prometheus benchmarks against `origin/main` under `taskset -c 0-3` shows no
+significant sec/op change (all p ≥ 0.48), identical allocs/op, and B/op 0.4–3.5%
+lower after the label closure stopped copying the descriptor definition.
+Filtered matrix (six runs, GOMAXPROCS 4, loaded host): deployed-shape Collect
+92.3k → 1.03k allocs and 3.05 MiB → 35 KiB; HTTP 20 ms → 0.88 ms and
+107.7k → 1.45k allocs; `all` equals `unfiltered` within noise. `nix build path:.#go-link-monitor`
+succeeds; that binary, run unprivileged on the reference host with
+`-metrics-all-addr`, serves 115 core series against 6,128 on the separate
+listener, and each listener returns 404 for the other's path. Physical and
+deployed-pin checks remain to run.
+
 V076 — privileged performance VM wiring (2026-10-10): added the modular
 `test-linkmonitor-performance-vm` runner under `nix/microvms/`. It reuses the
 cached performance test artifact, boots a root NixOS guest, captures filtered
@@ -1247,6 +1267,7 @@ owners, deadlines or successful outcomes. Continue independent ready tasks.
 | 2026-10-10 | Completed P09-T01: reusable benchmark fixtures, explicit correctness tables, fresh pinned runner and full core/RDMA baseline. Brought forward an owner-only schema-validation cache after profiling a failed initial run; retained failures and all collision checks. | V059–V062: final fifteen gates, three Nix policies, 1,560 microbenchmark samples and 60 lifecycle scenarios pass. Overall 27/34; next P09-T02 for profiles, ten-minute soaks and measured capacity/latency findings. Changes remain uncommitted |
 | 2026-10-10 | Started P09-T02. Added modular Nix performance commands, profile/resource collection and explicit validation tables. A bounded 60-second large-schema diagnostic reaches the complete sample set but exposes high exposition memory and multi-second tail latency; the host terminates the ten-minute child before completion. | V063; P09-T02 remains in progress. Complete the `bench-linkmonitor-soak` target on a host with a usable long-run budget, then profile/remediate measured production hot paths |
 | 2026-10-10 | Added and executed the privileged performance microVM target. Root guest collection passed all four live read-only suites, captured rtnetlink traffic and pprof artifacts, and returned a validated evidence bundle after robust journal-prefix extraction. | V076–V077; TCG one-second diagnostic complete. Ten-minute soak and physical NIC/RDMA validation remain open |
+| 2026-10-11 | Split exposition into a core `/metrics` audit set and a full `/metrics-all` superset with flag/environment selection, an optional separate listener and per-route scrape limits. Filtering happens before metric construction with startup-compiled, per-name cached decisions. | V078; Go gates pass and the unfiltered path shows no regression. Nix/deployed verification pending; changes uncommitted |
 
 Publication: P08-T03 was committed as `cb958fb` and pushed on
 `test/linkmonitor-embedding`; [PR #178](https://github.com/randomizedcoder/xtcp2/pull/178)

@@ -465,11 +465,17 @@ Standalone command flags:
 | `-stats-exclude` | `^$` | Original names to exclude; exclusion wins |
 | `-collector.netstat.fields` | `.*` | Case-sensitive Go regexp on protocol_field; all host protocol fields by default |
 | `-max-speed-exceptions` | empty | Exact names/selectors; overrides GO_LINK_MONITOR_MAX_SPEED_EXCEPTIONS when present |
+| `-metrics.core-include` | core audit pattern | Anchored regexp of metric names served on `/metrics`; overrides GO_LINK_MONITOR_METRICS_CORE_INCLUDE |
+| `-metrics.core-exclude` | empty | Anchored regexp removed from `/metrics`, empty removes nothing; overrides GO_LINK_MONITOR_METRICS_CORE_EXCLUDE |
+| `-metrics-all-path` | `/metrics-all` | Exact path serving every metric, empty disables; overrides GO_LINK_MONITOR_METRICS_ALL_PATH |
+| `-metrics-all-addr` | empty | Separate listener for the all-metrics path, empty shares `-metrics-addr`; overrides GO_LINK_MONITOR_METRICS_ALL_ADDR |
 | `-version` | false | Print build identity and exit |
 | `-io-backend` | `poller` | Ordinary nonblocking sockets by default; explicit `io_uring` requires supported backend initialization |
 
-Both single- and double-dash forms work. Only maximum-speed exceptions have an
-environment override. Unknown flags and positional arguments fail with exit 2;
+Both single- and double-dash forms work. Maximum-speed exceptions and the four
+exposure options have environment overrides; an explicit flag, even an empty one,
+wins, and an empty variable keeps the default. See
+[exposure tiers](METRICS.md#exposure-tiers). Unknown flags and positional arguments fail with exit 2;
 configuration errors also exit 2, runtime errors exit 1, and help/version or clean
 termination exit 0. Help/version perform no monitoring or baseline I/O. Version
 output reports version, revision and build date; the build metric has only the

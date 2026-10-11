@@ -125,6 +125,29 @@ show a repeatable allocation or latency improvement without retained-heap or
 parallel-scrape regressions; otherwise the simpler per-scrape scratch path is
 kept.
 
+## Exposure-tier benchmarks and guards
+
+`BenchmarkPrometheusFilteredCollect` and `BenchmarkPrometheusFilteredHTTP`
+cross the filters `unfiltered`, `core` (default pattern), `all` (`.*`) and
+`reject-all` with the `local`, `deployed` (three ports with 1,615 driver
+statistics each and 402 netstat fields, about 6.1k series) and `fleet`
+fixtures. The collector catalog is warmed before timing so the steady-state
+scrape path is measured, matching production where schemas change rarely.
+
+Acceptance:
+
+- `unfiltered` has no statistically significant sec/op or allocs/op increase
+  against the previous main in an interleaved benchstat A/B of ten runs each;
+- `all` matches `unfiltered`, so a pass-through filter costs nothing;
+- `core` allocations scale with emitted series, not with the snapshot size.
+
+Ordinary tests enforce the same properties without benchstat:
+`TestPrometheusFilterNeverMatchesOnScrape` counts matcher calls across
+repeated and schema-changing scrapes, and `TestPrometheusFilterAllocationGuards`
+bounds core, reject-all and accept-all allocations with `testing.AllocsPerRun`.
+`siege-linkmonitor --all-weight N` replaces N of the 90 `/metrics` lines with
+`/metrics-all`; the default 0 keeps earlier runs comparable.
+
 ## Table-driven acceptance cases
 
 Runner tests must include a description and expected outcome for positive,

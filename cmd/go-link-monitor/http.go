@@ -10,18 +10,53 @@ import (
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor"
 )
 
-const httpShutdownGrace = 5 * time.Second
+const (
+	httpShutdownGrace = 5 * time.Second
+	coreInFlight      = 10
+	// The full exposition is large and meant for slow or on-demand collection.
+	allInFlight = 2
+)
 
 type healthSource interface {
 	Health() linkmonitor.Health
 }
 
-func httpServer(source healthSource, gatherer prometheus.Gatherer, stopping *atomic.Bool) *http.Server {
+// route serves one gatherer on one exact path.
+type route struct {
+	path     string
+	gatherer prometheus.Gatherer
+	inFlight int
+}
+
+// endpoint is one listener and the metric routes it serves beside health checks.
+type endpoint struct {
+	address string
+	routes  []route
+}
+
+// endpoints places /metrics on the main address and the all-metrics path on
+// either the same listener or its own.
+func endpoints(address string, o exposureOptions, core, all prometheus.Gatherer) []endpoint {
+	main := endpoint{address: address, routes: []route{{path: metricsPath, gatherer: core, inFlight: coreInFlight}}}
+	if o.allPath == "" {
+		return []endpoint{main}
+	}
+	full := route{path: o.allPath, gatherer: all, inFlight: allInFlight}
+	if o.shared(address) {
+		main.routes = append(main.routes, full)
+		return []endpoint{main}
+	}
+	return []endpoint{main, {address: o.allAddress, routes: []route{full}}}
+}
+
+func httpServer(source healthSource, stopping *atomic.Bool, routes ...route) *http.Server {
 	mux := http.NewServeMux()
-	mux.Handle("/metrics", promhttp.HandlerFor(gatherer, promhttp.HandlerOpts{
-		MaxRequestsInFlight: 10, Timeout: 10 * time.Second,
-		ErrorHandling: promhttp.HTTPErrorOnError,
-	}))
+	for _, r := range routes {
+		mux.Handle(r.path, promhttp.HandlerFor(r.gatherer, promhttp.HandlerOpts{
+			MaxRequestsInFlight: r.inFlight, Timeout: 10 * time.Second,
+			ErrorHandling: promhttp.HTTPErrorOnError,
+		}))
+	}
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeHealth(w, !stopping.Load())
 	})
