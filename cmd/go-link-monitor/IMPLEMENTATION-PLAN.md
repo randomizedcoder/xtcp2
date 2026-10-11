@@ -320,6 +320,34 @@ Deliver: Profile CPU/heap/block/mutex, syscalls, fd/thread counts and event late
 
 Done when: Bounded queues/workers and live-state memory are verified; event cost is independent of per-device statistic count; no performance guarantees invented.
 
+Implementation note (2026-10-10): repeatable commands are provided by
+`nix/tests/linkmonitor-perf/` and exposed as `bench-linkmonitor-smoke`,
+`bench-linkmonitor` and `bench-linkmonitor-soak`. The soak uses a bounded
+256-port/64-field streaming scrape profile; the 256-port/1,024-field and
+ten-scraper cases remain diagnostic matrix entries because this host cannot
+retain ten concurrent full-schema exposition buffers. V063 records the short
+diagnostic and the uncompleted long-run attempt; the task remains in progress
+until a full ten-minute core/RDMA run and any measured production remediation
+are accepted.
+
+#### P09-T03
+
+**Focused exporter optimization and pooling evaluation.** Depends on:
+[P09-T02](#p09-t02).
+
+Deliver: Add narrow Prometheus benchmarks for descriptor plans, label binding,
+scratch reuse, policy/diagnostic emission and direct collector cost. Compile
+label positions per schema revision and reuse bounded per-scrape scratch.
+Evaluate `sync.Pool` only for collector-owned mutable scratch; never pool
+snapshots, schemas, descriptors or emitted metrics.
+
+Done when: Positive, negative, boundary and corner table tests cover label
+ordering, missing/duplicate/unknown labels, schema replacement, stale scratch,
+oversized pool entries and concurrent gathers. Pinned benchmark comparisons
+show a repeatable improvement with no more than 5% regression elsewhere, exact
+metric output is preserved, and STATUS records both promoted and rejected
+pooling results.
+
 ### P10 — Optional io_uring
 
 #### P10-T01

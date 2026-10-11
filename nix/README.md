@@ -73,6 +73,28 @@ It builds core/RDMA benchmark executables and checks equivalence, synthetic
 lifecycle behavior, races, benchmark probes and report validation with pinned
 tools. Build caching applies to these correctness checks and executables.
 
+The repeatable performance commands are assembled in
+[tests/linkmonitor-perf](tests/linkmonitor-perf), while the compiled artifact
+remains the cached `test-linkmonitor-performance` leaf:
+
+| Command | Purpose |
+|---|---|
+| `nix run path:.#bench-linkmonitor-smoke` | Short runner wiring check; evidence is explicitly smoke-only |
+| `nix run path:.#bench-linkmonitor` | Ten-repetition microbenchmarks and the bounded synthetic scenario matrix |
+| `nix run path:.#bench-linkmonitor-soak` | Fresh core/RDMA ten-minute warmed large-schema profiles and resource samples |
+| `nix run path:.#siege-linkmonitor -- --url URL --output DIR` | External Siege load: 90% `/metrics`, 5% `/healthz`, 5% `/readyz` |
+| `nix run path:.#profile-linkmonitor -- --url URL --output DIR --profile` | Capture and validate endpoint CPU/heap/block/mutex pprof data |
+| `nix run path:.#pgo-linkmonitor -- --profile CPU.pprof --output BIN` | Build with pinned Go profile-guided optimization |
+| `nix run path:.#compare-linkmonitor-pgo -- BASE.txt PGO.txt` | Compare identical benchmark outputs with `benchstat` |
+
+Each command accepts `--output DIR`; the directory must not already exist.
+Nix caches compilation and correctness checks, but measurement results are
+written to the requested directory outside the store. The ten-minute soak uses
+256 ports, 64 fields, one scraper and a 15-second cadence so RSS/thread
+plateaus are measurable on the shared host. The 256-port/1,024-field case and
+ten-scraper slow/disconnected cases remain in the bounded diagnostic matrix;
+ten concurrent 524,288-sample gathers exceed this host's memory budget.
+
 Run fresh measurements separately, without other builds or tests:
 
 ```sh
@@ -103,6 +125,22 @@ These are synthetic source and cgo-boundary measurements, not physical Ethernet,
 RoCE or InfiniBand/provider latency. The UMAD probe simulates buffer allocation
 and copying under the real serialization lane; it performs no management I/O.
 P09-T02 retains detailed profiles, syscall accounting and ten-minute soaks.
+
+For root-only live-netlink tests and reproducible kernel evidence, run the
+privileged disposable guest:
+
+```sh
+nix run path:.#test-linkmonitor-performance-vm -- /tmp/linkmonitor-vm-evidence
+```
+
+The guest reuses the cached `test-linkmonitor-performance` artifact, boots with
+four CPUs and 4 GiB of memory, captures rtnetlink traffic through `nlmon0`,
+runs the live tests and representative benchmarks as root, and returns a
+compressed evidence bundle containing the serial log, benchmark output, CPU /
+heap / block / mutex profiles and `netlink.pcap`. Set `QEMU_ACCEL=tcg` when KVM
+is unavailable and `LINKMONITOR_BENCHTIME=30s` for a longer profile window.
+The target is an explicit runner rather than a flake check because it needs
+`/dev/kvm` when accelerated and writes evidence outside the Nix store.
 
 Build the standalone artifacts independently:
 

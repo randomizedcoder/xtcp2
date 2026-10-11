@@ -71,3 +71,59 @@ func BenchmarkPerformanceMixedGather(b *testing.B) {
 		}
 	}
 }
+
+func BenchmarkPerformanceRealisticFleet(b *testing.B) {
+	f := linkmonitor.NewPrometheusFixture(b)
+	f.PerformanceRealisticFleet()
+	f.Publish(4)
+	r := monitorRegistry(b, f.Monitor)
+	h := promhttp.HandlerFor(r, promhttp.HandlerOpts{})
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	for _, encoding := range []string{"gather", "http"} {
+		b.Run(encoding, func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				if encoding == "gather" {
+					if _, err := r.Gather(); err != nil {
+						b.Fatal(err)
+					}
+					continue
+				}
+				w := httptest.NewRecorder()
+				h.ServeHTTP(w, req)
+				if w.Code != http.StatusOK {
+					b.Fatal(w.Body.String())
+				}
+				b.SetBytes(int64(w.Body.Len()))
+			}
+		})
+	}
+}
+
+func BenchmarkPerformanceLocalMachine(b *testing.B) {
+	f := linkmonitor.NewPrometheusFixture(b)
+	f.PerformanceLocalMachine()
+	f.Publish(3)
+	r := monitorRegistry(b, f.Monitor)
+	h := promhttp.HandlerFor(r, promhttp.HandlerOpts{})
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	for _, encoding := range []string{"gather", "http"} {
+		b.Run(encoding, func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				if encoding == "gather" {
+					if _, err := r.Gather(); err != nil {
+						b.Fatal(err)
+					}
+					continue
+				}
+				w := httptest.NewRecorder()
+				h.ServeHTTP(w, req)
+				if w.Code != http.StatusOK {
+					b.Fatal(w.Body.String())
+				}
+				b.SetBytes(int64(w.Body.Len()))
+			}
+		})
+	}
+}

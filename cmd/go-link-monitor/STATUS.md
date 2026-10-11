@@ -3,7 +3,8 @@
 Last updated: 2026-10-10.
 
 **P01–P08 and P09-T01 are complete: 27 of 34 implementation tasks passed their gates.**
-Next task: [P09-T02](IMPLEMENTATION-PLAN.md#p09-t02), profiles, soak and remediation.
+P09-T02 is in progress: repeatable profiling/soak targets and short diagnostic
+evidence are implemented; the required ten-minute run remains outstanding.
 
 P09-T01 adds decoder/schema/reducer/publication/refresh/exporter benchmarks,
 synthetic lifecycle scenarios, cgo boundary probes, a fifteenth correctness leaf
@@ -13,6 +14,157 @@ preserving collision checks. Final pinned correctness and fresh baseline gates
 pass (V061–V062). The two largest combined workloads have incomplete five-second
 warmup and second-scale publication latency; these remain explicit P09-T02
 findings, not fully warmed comparisons or fleet performance guarantees.
+
+V063 — P09-T02 implementation and bounded diagnostics (2026-10-10): added
+scenario validation tables, Go CPU/heap/block/mutex profile flags, process
+RSS/fd/thread sampling, profile artifact validation and modular Nix targets
+`bench-linkmonitor-smoke`, `bench-linkmonitor` and `bench-linkmonitor-soak`.
+The pinned performance artifact and five Python report tests build and pass.
+A 60-second 256-port/1,024-field/ten-scraper diagnostic reaches all 524,288
+samples but records approximately 700 MiB heap, 1.74 GiB encoded scrape bytes
+and multi-second tail publication latency. Ten concurrent full-schema gathers
+are therefore retained as a bounded diagnostic, not the ten-minute soak: the
+soak uses 256 ports, 64 fields, one streaming scraper at 15-second cadence.
+The execution environment terminates long-running child processes near one
+minute, so no ten-minute acceptance is claimed. Evidence: `/tmp/linkmonitor-p09-t02-rebuild4.log`,
+`/tmp/linkmonitor-p09-t02-soak`, `/tmp/linkmonitor-p09-t02-soak-run.log` and
+
+the direct diagnostic command output. P09-T02 remains in progress pending a
+host that can complete the full ten-minute core/RDMA run and any measured
+production remediation. The final pinned Nix build against this tree passes
+the performance artifact and both modular wrappers: `/tmp/linkmonitor-p09-t02-final-build.log`,
+with artifact `/nix/store/mwznrbzgqsbx7dcj03d4fr7p8rmj926n-xtcp2-test-linkmonitor-performance`,
+smoke wrapper `/nix/store/5hk5plkamnd6knd2pcrp1nfnm8j1mlcx-bench-linkmonitor-smoke`
+and soak wrapper `/nix/store/2h1pda8f0d4b5nisf6hcdrwq9xydlgwg-bench-linkmonitor-soak`.
+
+V064 — performance-test design and HTTP/PGO target wiring (2026-10-10): added
+`PERFORMANCE-TESTING-DESIGN.md`, deterministic external Siege URL-mix/profile
+helpers, and modular `siege-linkmonitor`, `profile-linkmonitor`,
+`pgo-linkmonitor` and `compare-linkmonitor-pgo` targets. Table-driven runner
+tests cover valid, rejected, boundary and corner URL-mix cases. Nix evaluation
+and wrapper builds pass; no external endpoint or ten-minute soak was run here.
+P09-T02 remains in progress.
+
+V065 — bounded performance execution (2026-10-10): the pinned
+`bench-linkmonitor-smoke` wrapper completed its command set and retained
+`smoke-only` evidence in `/tmp/linkmonitor-perf-smoke-20261010`; every emitted
+command record completed, while the status remains smoke-only by contract.
+Direct one-repetition `core.test` and `rdma.test` runs both passed with the
+same benchmark selection and `GOMAXPROCS=4`, retaining output in
+`/tmp/linkmonitor-perf-single-20261010`. Representative 256-port/64-field
+HTTP exposition measured about 106–110 ms and 50.6 MB allocation per request
+in this shared-host sample. The ten-repetition matrix was started but stopped
+before completion because the loaded host made the run too long; no full-matrix
+or ten-minute-soak claim is made.
+
+V066 — representative mixed-fleet performance case (2026-10-10): added the
+`PerformanceRealisticFleet` fixture and `BenchmarkPerformanceRealisticFleet`
+for two 100GE Ethernet plus two independent 400GE RoCEv2 links. The explicit
+positive metric test verifies four links, 1,024 driver-statistic series, two
+RoCE port series and four speed series. The pinned artifact test passed; the
+one-repetition benchmark measured 2.38 ms / 1.29 MB allocated for Gather and
+3.36 ms / 1.75 MB allocated for HTTP exposition at `GOMAXPROCS=24`, with an
+approximately 158 KiB HTTP payload. Evidence:
+`/tmp/linkmonitor-realistic-fleet-20261010`.
+
+V067 — representative exposition dump (2026-10-10): generated the complete
+Prometheus text exposition for the mixed-fleet fixture at
+`/tmp/linkmonitor-realistic-fleet-20261010/metrics.prom`. It contains 31 metric
+families and 1,654 series, including all 1,024 driver statistics, four speed
+and four duplex series, and the two RoCEv2 port identities. The temporary dump
+test was removed after generation.
+
+V068 — realistic fleet example documentation (2026-10-10): added
+`REALISTIC-FLEET-EXAMPLE.md`, documenting the two 100GE plus two 400GE RoCEv2
+fixture, representative exposition, and the distinction between emitted zero
+values and absent or unknown samples.
+
+V069 — Docker bridge fixture coverage (2026-10-10): extended the representative
+fixture with `docker0` and `br-0123456789ab` as discovered but excluded virtual
+interfaces. Table coverage verifies they contribute classification diagnostics
+without changing the four-link count or producing physical speed, duplex, RDMA,
+or driver-statistic series.
+
+V070 — Docker bridge exposition and benchmark (2026-10-10): regenerated the
+complete exposition with 1,654 series, including the six one-hot classification
+series for the two bridges. The direct realistic-fleet benchmark passed at one
+iteration: Gather 2.09 ms / 1.30 MB allocated and HTTP exposition 2.76 ms /
+1.75 MB allocated, with an approximately 158 KiB payload.
+
+V071 — local three-interface fixture (2026-10-10): added
+`PerformanceLocalMachine`, `BenchmarkPerformanceLocalMachine`, and
+`LOCAL-ETHERNET-EXAMPLE.md` for `enp1s0`, `enp35s0f0np0`, and `enp35s0f1np1`.
+The fixture publishes all 75 zero-valued traffic counters, counts three links,
+and leaves speed/duplex/RDMA absent because the supplied input does not provide
+that evidence.
+
+V072 — local exposition and benchmark (2026-10-10): generated the local-host
+exposition with 45 families and 507 series at
+`/tmp/linkmonitor-local-machine-20261010/metrics.prom`. The direct benchmark
+passed at one iteration: Gather 0.75 ms / 424 KiB allocated and HTTP exposition
+1.01 ms / 642 KiB allocated, with an approximately 56 KiB payload.
+
+V073 — representative CPU profiling and PGO build (2026-10-10): captured
+20-second local and mixed-fleet benchmark profiles under pinned Go 1.26.5 at
+`/tmp/linkmonitor-pgo-local-20261010`. The run passed both benchmark families
+and retained CPU, heap, block, mutex, and benchmark output. Cumulative CPU
+hotspots are Prometheus `Gather`, `NewConstMetric`, `MakeLabelPairs`, allocator
+work, and the monitor exporter policy/diagnostic traversal. Baseline and
+`-pgo=cpu.pprof` `cmd/go-link-monitor` binaries both build and pass `--version`;
+baseline is 21,217,731 bytes and PGO is 21,471,314 bytes. No optimization is
+promoted without an equivalent correctness, latency, memory, and regression
+comparison.
+
+V074 — profile analysis (2026-10-10): the representative profile attributes
+the dominant cost to Prometheus exposition. `NewConstMetric` and allocator
+work account for roughly 30% cumulative CPU, `MakeLabelPairs` about 21%,
+collector policy/diagnostics traversal about 20%, and `Registry.Gather` plus
+sorting/normalization another substantial share. The next safe candidate is
+precomputed descriptor label positions with reusable per-scrape label storage
+in `prometheus.emitter.sample`; this preserves all metric families and labels.
+Follow-on candidates are reducing diagnostic one-hot construction overhead,
+batching or replacing per-sample `Metric` allocation behind a compatibility
+collector, and measuring sorting/exposition separately. No semantic change or
+optimization promotion is claimed by this analysis.
+
+V075 — focused exporter optimization (2026-10-10): compiled dynamic metric
+definitions now cache label-name positions, and each scrape reuses bounded
+label/value scratch instead of allocating and linearly scanning labels for
+every sample. Added direct collector benchmarks plus focused plan, scratch,
+and `sync.Pool` comparisons. The pinned package tests pass; focused results
+show per-scrape scratch at roughly 7–11 ns with zero allocations for the
+measured label counts, while the generic pool path costs roughly 13–22 ns and
+also reports zero allocations after warm-up. The pool is therefore retained
+as benchmark evidence only; production uses per-scrape scratch until a
+representative concurrent benchmark demonstrates a clear benefit. Direct
+collector benchmarks measure approximately 352 microseconds/244 KiB/6,903
+allocations for the local fixture and 1.34 milliseconds/852 KiB/24,447
+allocations for the mixed fleet at one short-run sample. The focused
+Prometheus package passes both ordinary and race tests; representative Gather
+benchmarks remain within the existing variance envelope. Full package testing
+still encounters the existing unprivileged live-netlink failures.
+
+V076 — privileged performance VM wiring (2026-10-10): added the modular
+`test-linkmonitor-performance-vm` runner under `nix/microvms/`. It reuses the
+cached performance test artifact, boots a root NixOS guest, captures filtered
+rtnetlink traffic through `nlmon0`, runs live permission-sensitive tests and
+representative benchmark profiles, and returns serial, pprof, benchmark and
+pcap evidence as a compressed bundle. The target is intentionally an explicit
+runner rather than a flake check.
+
+V077 — privileged performance VM execution (2026-10-10): built the pinned
+runner and executed it successfully with `QEMU_ACCEL=tcg` and a one-second
+benchmark duration. The guest kernel is 6.18.39 on x86_64; all four live
+read-only netlink tests passed, including settings, identity, driver/PHY
+statistics and traffic. Evidence is retained at
+`/tmp/linkmonitor-vm-evidence-20261010e/linkmonitor-performance`: the bundle
+contains `netlink.pcap` (16,558 bytes), CPU/heap/block/mutex profiles,
+benchmark output, serial output and `live-exit.txt` with `0`. The representative
+benchmarks recorded 9.43 ms Gather / 415 KiB / 8,464 allocations for the local
+fixture and 85.2 ms Gather / 1.34 MiB / 30,174 allocations for the realistic
+fleet under QEMU TCG. This validates the privileged collection path and
+artifact extraction; it is a short TCG diagnostic, not the ten-minute soak or
+hardware performance claim.
 
 V062 — P09-T01 baseline acceptance (2026-10-10): the fresh runner exits zero
 and records `status: complete` in `/tmp/linkmonitor-baseline-xd5g273b/manifest.json`.
@@ -339,7 +491,7 @@ integration remains deferred under D01.
 | P06 | Ethernet and host collectors | done | 4/4 | V035 closes traffic/carrier; V039 closes identity/settings/channels/rings; V041 closes driver/PHY; V043 closes host protocol statistics |
 | P07 | RDMA collection and builds | done | 4/4 | V052 closes live library/runtime gates; software-RDMA guest builds, KVM execution unavailable; standalone command artifact acceptance is P08-T02 |
 | P08 | Exporter and standalone command | done | 3/3 | V054 adapter; V056 command/artifacts; V058 embedding compatibility and executed core/RDMA TCG integration |
-| P09 | Performance baseline | in progress | 1/2 | V061–V062 close P09-T01; profiles, soaks and capacity remediation remain P09-T02 |
+| P09 | Performance baseline | in progress | 1/2 | V061–V063; modular profiling/soak targets and bounded diagnostics pass, ten-minute acceptance and production remediation remain |
 | P10 | Optional io_uring | not started | 0/3 | None |
 | P11 | Release verification | not started | 0/3 | None |
 
@@ -377,7 +529,7 @@ plan, not copied here. Add verification IDs to the evidence column as work runs.
 | [x] | [P08-T02](IMPLEMENTATION-PLAN.md#p08-t02) | Thin command and HTTP lifecycle | done | V055–V056: CLI/HTTP, signals, race/limits, full/core artifacts and thirteen-gate aggregate |
 | [x] | [P08-T03](IMPLEMENTATION-PLAN.md#p08-t03) | Embedding compatibility and integration | done | V058: xtcp coexistence, lifecycle/registry ownership, collision tables, fourteen-gate aggregate and executed core/RDMA TCG guest |
 | [x] | [P09-T01](IMPLEMENTATION-PLAN.md#p09-t01) | Benchmark harness and baseline | done | V061–V062: fifteen pinned gates, three Nix policies, 156 cases × ten repetitions and 60 lifecycle scenarios pass |
-| [ ] | [P09-T02](IMPLEMENTATION-PLAN.md#p09-t02) | Profiles, soak and remediation | not started | None |
+| [ ] | [P09-T02](IMPLEMENTATION-PLAN.md#p09-t02) | Profiles, soak and remediation | in progress | V063; modular targets and short diagnostics pass; ten-minute core/RDMA soak is host-limited |
 | [ ] | [P10-T01](IMPLEMENTATION-PLAN.md#p10-t01) | Ring wrapper prerequisites | not started | None |
 | [ ] | [P10-T02](IMPLEMENTATION-PLAN.md#p10-t02) | Monitor ring backend | not started | None |
 | [ ] | [P10-T03](IMPLEMENTATION-PLAN.md#p10-t03) | Comparative performance evidence | not started | None |
@@ -1093,6 +1245,8 @@ owners, deadlines or successful outcomes. Continue independent ready tasks.
 | 2026-10-09 | Confirmed PR #177 merged as `96d29fb770342fb26f306d2fdae30b9352eccea6` and moved the isolated checkout to merged main. Recorded the merge locally for the next increment. | 25/34 complete; next P08-T03, embedding compatibility and integration. No new implementation or hardware validation claimed |
 | 2026-10-09 | Completed P08-T03: actual xtcp collector coexistence, compiling embedding example, explicit collision/lifecycle tables, host ownership tests and repeatable KVM/TCG guest. Corrected loopback setup after the TCG HTTP test exposed it; retained the failed and successful evidence. | V057–V058; all fourteen monitor gates, three Nix policies and both corrected TCG guest variants pass. P08 3/3, overall 26/34; next P09-T01. D01 and existing release/performance follow-ups remain open |
 | 2026-10-10 | Completed P09-T01: reusable benchmark fixtures, explicit correctness tables, fresh pinned runner and full core/RDMA baseline. Brought forward an owner-only schema-validation cache after profiling a failed initial run; retained failures and all collision checks. | V059–V062: final fifteen gates, three Nix policies, 1,560 microbenchmark samples and 60 lifecycle scenarios pass. Overall 27/34; next P09-T02 for profiles, ten-minute soaks and measured capacity/latency findings. Changes remain uncommitted |
+| 2026-10-10 | Started P09-T02. Added modular Nix performance commands, profile/resource collection and explicit validation tables. A bounded 60-second large-schema diagnostic reaches the complete sample set but exposes high exposition memory and multi-second tail latency; the host terminates the ten-minute child before completion. | V063; P09-T02 remains in progress. Complete the `bench-linkmonitor-soak` target on a host with a usable long-run budget, then profile/remediate measured production hot paths |
+| 2026-10-10 | Added and executed the privileged performance microVM target. Root guest collection passed all four live read-only suites, captured rtnetlink traffic and pprof artifacts, and returned a validated evidence bundle after robust journal-prefix extraction. | V076–V077; TCG one-second diagnostic complete. Ten-minute soak and physical NIC/RDMA validation remain open |
 
 Publication: P08-T03 was committed as `cb958fb` and pushed on
 `test/linkmonitor-embedding`; [PR #178](https://github.com/randomizedcoder/xtcp2/pull/178)

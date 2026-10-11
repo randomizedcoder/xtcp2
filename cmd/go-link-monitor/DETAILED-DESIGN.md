@@ -1394,6 +1394,14 @@ Unknown values are omitted, support/check state is explicit, and no sample
 timestamps are supplied. Rename/deletion naturally removes old series when the
 new snapshot no longer contains them; avoid accumulating vector children.
 
+The exporter compiles an immutable scrape plan for each schema revision. The
+plan owns descriptor, type, ordered-label, and label-position metadata, so the
+hot sample path does not linearly rescan labels. Each Collect call owns its
+mutable label scratch and clears it between samples. A bounded collector-local
+`sync.Pool` may be used for that scratch only after focused benchmarks prove a
+benefit; pooled values never include snapshots, descriptors, schemas, or
+Prometheus metrics, and oversized buffers are discarded.
+
 Standalone HTTP uses `promhttp.HandlerFor`, a ten-request in-flight limit and a
 ten-second handler timeout, with explicit server header/idle/write timeouts.
 Use WriteTimeout=15s, ReadHeaderTimeout=5s and IdleTimeout=60s. A timed-out HTTP
@@ -1736,5 +1744,8 @@ acceptance work, not results of writing the document.
 Verification performed for this documentation: existing source-to-inventory
 coverage (235 fixed descriptors/map entries), local links/anchors, whitespace,
 27 referenced Go function definitions, three Go sketches parsed with gofmt,
-and Markdown table structure passed. The 80 test-table scenarios are
-specifications; no monitor runtime or performance tests were run for this change.
+and Markdown table structure passed. P09-T01 provides the pinned baseline;
+P09-T02 adds modular Nix smoke/microbenchmark/soak runners, profile artifact
+checks, process-resource sampling and explicit validation tables. V063 records
+the short large-schema diagnostic and the host limitation that prevented
+claiming a ten-minute soak; no unmeasured performance guarantee is introduced.
