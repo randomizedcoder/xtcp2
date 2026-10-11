@@ -1,7 +1,11 @@
 """Tables describe both rejected evidence and valid benchmark output."""
 import unittest
 
-from linkmonitor_performance import compatible, scenarios, validate_samples
+from pathlib import Path
+import tempfile
+
+from linkmonitor_performance import compatible, scenarios, validate_profile, validate_samples
+from linkmonitor_http import write_urls
 
 
 class PerformanceReportTests(unittest.TestCase):
@@ -35,3 +39,42 @@ class PerformanceReportTests(unittest.TestCase):
         self.assertEqual(cases["combined"]["Fields"], 1024)
         self.assertLess(len(cases), 40)
         self.assertTrue(all(c["Ports"] * c["Fields"] <= 256 * 1024 for c in cases.values()))
+
+    def test_profile_artifact_table(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "profile.pprof"
+            for category, description, payload, accepted in [
+                ("positive", "complete profile", b"x" * 64, True),
+                ("negative", "missing profile", None, False),
+                ("boundary", "one byte below minimum", b"x" * 63, False),
+                ("corner", "empty profile", b"", False),
+            ]:
+                with self.subTest(category=category, description=description, expected=accepted):
+                    if payload is None:
+                        if path.exists():
+                            path.unlink()
+                    else:
+                        path.write_bytes(payload)
+                    if accepted:
+                        validate_profile(path)
+                    else:
+                        with self.assertRaises(ValueError):
+                            validate_profile(path)
+
+    def test_http_url_mix_table(self):
+        for category, description, base, weights, accepted, expected in [
+            ("positive", "default metrics and health mix", "http://127.0.0.1:9088", (90, 5, 5), True, 100),
+            ("negative", "unsupported scheme rejected", "ftp://127.0.0.1", (90, 5, 5), False, 0),
+            ("boundary", "zero health control traffic accepted", "http://localhost", (100, 0, 0), True, 100),
+            ("corner", "weights above total rejected", "http://localhost", (90, 10, 1), False, 0),
+        ]:
+            with self.subTest(category=category, description=description, expected=accepted):
+                with tempfile.TemporaryDirectory() as directory:
+                    target = Path(directory) / "urls.txt"
+                    if accepted:
+                        result = write_urls(base, target, target, *weights)
+                        self.assertEqual(sum(result.values()), expected)
+                        self.assertEqual(len(target.read_text().splitlines()), 100)
+                    else:
+                        with self.assertRaises(ValueError):
+                            write_urls(base, target, target, *weights)

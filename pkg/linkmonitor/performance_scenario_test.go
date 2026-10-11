@@ -10,6 +10,7 @@ import (
 	"os"
 	"runtime"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -50,15 +51,20 @@ type performanceScrapeResult struct {
 
 type performanceWriter struct {
 	*httptest.ResponseRecorder
-	mode string
+	mode  string
+	bytes int64
 }
 
-func (w performanceWriter) Write(data []byte) (int, error) {
+func (w *performanceWriter) Write(data []byte) (int, error) {
 	if w.mode == "slow-client" {
 		time.Sleep(time.Millisecond)
 	}
 	if w.mode == "disconnected" {
 		return 0, errors.New("scripted disconnected writer")
+	}
+	if strings.HasPrefix(w.mode, "stream") {
+		w.bytes += int64(len(data))
+		return len(data), nil
 	}
 	return w.ResponseRecorder.Write(data)
 }
@@ -74,17 +80,22 @@ func performanceScrapes(ctx context.Context, r *client.Registry, count int, mode
 			for ctx.Err() == nil {
 				start := time.Now()
 				w := httptest.NewRecorder()
-				h.ServeHTTP(performanceWriter{ResponseRecorder: w, mode: mode}, req)
+				writer := &performanceWriter{ResponseRecorder: w, mode: mode}
+				h.ServeHTTP(writer, req)
 				mu.Lock()
 				if len(result.Times) < 100000 {
 					result.Times = append(result.Times, time.Since(start).Nanoseconds())
 				}
-				result.Bytes += int64(w.Body.Len())
+				if strings.HasPrefix(mode, "stream") {
+					result.Bytes += writer.bytes
+				} else {
+					result.Bytes += int64(w.Body.Len())
+				}
 				if w.Code != http.StatusOK {
 					result.Failures++
 				}
 				mu.Unlock()
-				if mode == "cadence" {
+				if strings.HasSuffix(mode, "cadence") {
 					select {
 					case <-ctx.Done():
 						return
@@ -112,10 +123,40 @@ func TestPerformanceScenario(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if cfg.Ports < 1 || cfg.Ports > 256 || cfg.Fields < 0 || cfg.Fields > 65536 || cfg.Ports*cfg.Fields > 256*1024 || cfg.Rate < 0 || cfg.Rate > 10000 || cfg.Scrapers < 0 || cfg.Scrapers > 10 || cfg.MeasureMS <= 0 || cfg.MeasureMS > 120000 || cfg.WarmupMS < 0 || cfg.WarmupMS > 30000 || cfg.DelayMS < 0 || cfg.DelayMS > 5000 || cfg.Burst < 0 || cfg.Burst > 8192 {
-		t.Fatal("invalid bounded scenario")
+	if err := validatePerformanceScenario(cfg); err != nil {
+		t.Fatal(err)
 	}
 	runPerformanceScenario(t, cfg)
+}
+
+func validatePerformanceScenario(cfg performanceScenario) error {
+	if cfg.Ports < 1 || cfg.Ports > 256 || cfg.Fields < 0 || cfg.Fields > 65536 || cfg.Ports*cfg.Fields > 256*1024 || cfg.Rate < 0 || cfg.Rate > 10000 || cfg.Scrapers < 0 || cfg.Scrapers > 10 || cfg.MeasureMS <= 0 || cfg.MeasureMS > 900000 || cfg.WarmupMS < 0 || cfg.WarmupMS > 120000 || cfg.DelayMS < 0 || cfg.DelayMS > 5000 || cfg.Burst < 0 || cfg.Burst > 8192 {
+		return errors.New("invalid bounded scenario")
+	}
+	return nil
+}
+
+func TestPerformanceScenarioValidation(t *testing.T) {
+	base := performanceScenario{Ports: 1, Fields: 0, Rate: 0, Scrapers: 0, WarmupMS: 0, MeasureMS: 1}
+	for _, tc := range []struct {
+		category, description string
+		cfg                   performanceScenario
+		wantErr               bool
+	}{
+		{"positive", "minimal valid scenario", base, false},
+		{"positive", "maximum schema and soak duration", performanceScenario{Ports: 4, Fields: 65536, WarmupMS: 120000, MeasureMS: 900000}, false},
+		{"negative", "zero ports", performanceScenario{Ports: 0, MeasureMS: 1}, true},
+		{"negative", "over-sized schema", performanceScenario{Ports: 5, Fields: 65536, MeasureMS: 1}, true},
+		{"boundary", "one past maximum duration", performanceScenario{Ports: 1, MeasureMS: 900001}, true},
+		{"boundary", "one past maximum warmup", performanceScenario{Ports: 1, WarmupMS: 120001, MeasureMS: 1}, true},
+		{"corner", "negative burst", performanceScenario{Ports: 1, Burst: -1, MeasureMS: 1}, true},
+	} {
+		t.Run(tc.category+"/"+tc.description, func(t *testing.T) {
+			if err := validatePerformanceScenario(tc.cfg); (err != nil) != tc.wantErr {
+				t.Fatalf("validatePerformanceScenario() error = %v, wantErr %t", err, tc.wantErr)
+			}
+		})
+	}
 }
 
 func runPerformanceScenario(t *testing.T, cfg performanceScenario) {

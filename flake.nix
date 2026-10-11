@@ -6,7 +6,17 @@
 # Monitor "run all": nix build path:.#test-linkmonitor -L
 # Runs core tests, race, vet, lint, formatting, replay, fuzzing and doc checks,
 # plus tagged RDMA tests/lint, runtime packaging, library and executable checks.
-# Performance correctness is included; fresh timings: nix run path:.#bench-linkmonitor.
+# Performance correctness is included. Repeatable measurement targets are
+# nix run path:.#bench-linkmonitor-smoke (short),
+# nix run path:.#bench-linkmonitor (microbenchmarks), and
+# nix run path:.#bench-linkmonitor-soak (fresh ten-minute core/RDMA profiles).
+# External HTTP load and profiling use an operator-owned endpoint:
+# nix run path:.#siege-linkmonitor -- --url http://127.0.0.1:9088 --output /tmp/siege
+# nix run path:.#profile-linkmonitor -- --url http://127.0.0.1:9088 --output /tmp/pprof
+# PGO build/compare: nix run path:.#pgo-linkmonitor -- --profile CPU.pprof --output ./go-link-monitor-pgo
+# Privileged performance/live-netlink VM: nix run path:.#test-linkmonitor-performance-vm -- [EVIDENCE_DIR]
+# It boots a root guest, captures an nlmon pcap around live tests, and returns
+# benchmark/pprof evidence without requiring host netlink privileges.
 # Includes embedding checks/artifacts; execute the disposable integration with
 # nix run path:.#test-linkmonitor-embedding-vm -- --accel=auto (KVM or TCG).
 # Standalone: nix build path:.#go-link-monitor (full RDMA) or #go-link-monitor-core.

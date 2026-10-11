@@ -134,6 +134,21 @@ let
       ;
   };
 
+  # Privileged runner for live netlink checks and root-owned performance
+  # profiles. It reuses the cached performance test artifact and only boots
+  # when explicitly invoked.
+  linkmonitorPerformanceVm = import ./microvms/linkmonitor-performance.nix {
+    inherit pkgs lib nixpkgs;
+    artifact = tests.test-linkmonitor-performance;
+  };
+
+  # Repeatable performance commands share the cached compiled artifact but
+  # keep fresh measurements outside Nix build outputs.
+  linkmonitorPerformance = import ./tests/linkmonitor-perf {
+    inherit pkgs src;
+    artifact = tests.test-linkmonitor-performance;
+  };
+
   # Dev shell
   devshell = import ./devshell.nix { inherit pkgs; };
 
@@ -792,14 +807,14 @@ in
     // (removeAttrs lintTiers [ "all" ])
     // {
       regen-protos = protos.regenerate;
-      bench-linkmonitor = import ./tests/linkmonitor-benchmark-runner.nix {
-        inherit pkgs;
-        artifact = tests.test-linkmonitor-performance;
-      };
+    }
+    // linkmonitorPerformance.packages
+    // {
       test-linkmonitor-embedding-vm = import ./microvms/linkmonitor-embedding.nix {
         inherit pkgs lib nixpkgs;
         artifact = tests.test-linkmonitor-embedding;
       };
+      test-linkmonitor-performance-vm = linkmonitorPerformanceVm;
       test-linkmonitor-rdma-vm = import ./microvms/linkmonitor-rdma.nix {
         inherit
           pkgs
@@ -959,6 +974,14 @@ in
     microvm-x86_64-lifecycle = {
       type = "app";
       program = "${microvms.lifecycle.x86_64.fullTest}/bin/xtcp2-lifecycle-full-test-x86_64";
+    };
+    # Privileged link-monitor benchmark/live-netlink VM. The guest captures an
+    # nlmon pcap and returns pprof plus test evidence; it is deliberately a
+    # runner rather than a flake check because it needs /dev/kvm and writes
+    # operator-selected evidence outside the Nix store.
+    test-linkmonitor-performance-vm = {
+      type = "app";
+      program = "${linkmonitorPerformanceVm}/bin/test-linkmonitor-performance-vm";
     };
     microvm-x86_64-lifecycle-uds-security = {
       type = "app";
@@ -1220,6 +1243,7 @@ in
       program = "${ociImageSizeReport}/bin/xtcp2-oci-size-report";
     };
   }
+  // linkmonitorPerformance.apps
   # The five tiers as apps too, so `nix run .#lint-quick` works without
   # entering the dev shell. Each derivation's single binary is named for the
   # attr, so the program path is derivable rather than spelled out.

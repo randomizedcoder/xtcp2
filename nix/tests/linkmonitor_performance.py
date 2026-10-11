@@ -28,6 +28,12 @@ def validate_samples(text, repetitions, expected=None):
     return dict(counts)
 
 
+def validate_profile(path, minimum_bytes=64):
+    """Reject missing or truncated pprof output before accepting a soak."""
+    if not path.is_file() or path.stat().st_size < minimum_bytes:
+        raise ValueError(f"missing or truncated profile: {path}")
+
+
 def scenarios(warmup=5000, measure=30000):
     base = dict(Ports=32, Fields=64, Rate=1000, Scrapers=1, Burst=0, Mode="",
                 DelayMS=0, WarmupMS=warmup, MeasureMS=measure)
@@ -49,15 +55,43 @@ def compatible(old, new):
             raise ValueError(f"incompatible baseline: {key}")
 
 
-def execute(command, output, env, timeout):
+def process_sample(pid):
+    """Capture bounded process-resource evidence while a child is running."""
+    try:
+        statm = Path(f"/proc/{pid}/statm").read_text().split()
+        status = Path(f"/proc/{pid}/status").read_text()
+        rss = next(int(line.split()[1]) for line in status.splitlines()
+                   if line.startswith("VmRSS:"))
+        return {"t": time.monotonic(), "rss_kib": rss,
+                "pages": int(statm[1]),
+                "fds": len(list(Path(f"/proc/{pid}/fd").iterdir())),
+                "threads": len(list(Path(f"/proc/{pid}/task").iterdir()))}
+    except (FileNotFoundError, IndexError, StopIteration, ValueError):
+        return None
+
+
+def execute(command, output, env, timeout, samples=None):
     before = resource.getrusage(resource.RUSAGE_CHILDREN)
     started = time.monotonic()
     metadata = dict(command=command, status="incomplete", load_before=os.getloadavg())
     sidecar = output.with_suffix(".command.json")
     sidecar.write_text(json.dumps(metadata, indent=2))
     with output.open("w") as log:
-        subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, env=env,
-                       timeout=timeout, check=True)
+        child = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT, env=env)
+        started_sample = time.monotonic()
+        while child.poll() is None:
+            if samples is not None and time.monotonic() - started_sample >= 1:
+                sample = process_sample(child.pid)
+                if sample is not None:
+                    samples.append(sample)
+                started_sample = time.monotonic()
+            if time.monotonic() - started > timeout:
+                child.kill()
+                child.wait()
+                raise subprocess.TimeoutExpired(command, timeout)
+            time.sleep(0.05)
+        if child.returncode:
+            raise subprocess.CalledProcessError(child.returncode, command)
     after = resource.getrusage(resource.RUSAGE_CHILDREN)
     metadata.update(status="complete", load_after=os.getloadavg(), wall_seconds=time.monotonic() - started,
                 user_seconds=after.ru_utime - before.ru_utime,
@@ -73,6 +107,7 @@ def arguments():
     parser.add_argument("--baseline", type=Path)
     parser.add_argument("--gomaxprocs", type=int, default=min(4, len(os.sched_getaffinity(0))))
     parser.add_argument("--smoke", action="store_true", help="short incomplete measurements, never a baseline")
+    parser.add_argument("--soak", action="store_true", help="run the ten-minute warmed profile soak")
     args = parser.parse_args()
     if args.gomaxprocs < 1:
         parser.error("gomaxprocs must be positive")
@@ -100,6 +135,42 @@ def run(args, artifact, output):
         compatible(old, manifest)
     env = dict(os.environ, GOMAXPROCS=str(args.gomaxprocs), **manifest["runtime_settings"])
     commands = []
+    if args.soak:
+        # Large schemas are scraped at the production-like 15-second cadence;
+        # the short matrix retains continuous-scrape stress without allowing a
+        # ten-minute run to manufacture unbounded response bytes.
+        # The 256x1024 case remains a bounded diagnostic scenario in the
+        # matrix. The ten-minute profile run uses 256x64 so its RSS/thread
+        # plateau is measurable on the shared host rather than an OOM test.
+        soak = dict(Ports=256, Fields=64, Rate=1000, Scrapers=1, Burst=8192,
+                    Mode="stream-cadence", DelayMS=0, WarmupMS=60000, MeasureMS=600000)
+        scoped = dict(env, LINKMONITOR_BENCH_SCENARIO=json.dumps(soak))
+        reports = {}
+        for variant in ("core", "rdma"):
+            profile_dir = output / variant
+            profile_dir.mkdir()
+            samples = []
+            binary = str(artifact / "bin" / f"{variant}.test")
+            command = [binary, "-test.run=^TestPerformanceScenario$", "-test.v",
+                       "-test.timeout=20m", "-test.cpuprofile", str(profile_dir / "cpu.pprof"),
+                       "-test.memprofile", str(profile_dir / "heap.pprof"),
+                       "-test.blockprofile", str(profile_dir / "block.pprof"),
+                       "-test.mutexprofile", str(profile_dir / "mutex.pprof")]
+            log = output / f"{variant}-soak.txt"
+            commands.append(execute(command, log, scoped, 1500, samples))
+            for profile in ("cpu.pprof", "heap.pprof", "block.pprof", "mutex.pprof"):
+                validate_profile(profile_dir / profile)
+            records = re.findall(r"^PERFORMANCE_RESULT (.+)$", log.read_text(), re.MULTILINE)
+            if len(records) != 1:
+                raise ValueError("missing or ambiguous soak result")
+            reports[variant] = {"scenario": soak, "result": json.loads(records[0]),
+                                "resource_samples": samples}
+        (output / "soak.json").write_text(json.dumps(reports, indent=2))
+        manifest["soak"] = soak
+        manifest["status"] = "complete"
+        (output / "commands.json").write_text(json.dumps(commands, indent=2))
+        (output / "manifest.json").write_text(json.dumps(manifest, indent=2))
+        return
     for variant in ("core", "rdma", "rdmaevents", "rdmacaps"):
         binary = str(artifact / "bin" / f"{variant}.test")
         common = [binary, "-test.run=^$", f"-test.bench=^Benchmark({manifest['benchmarks']})", "-test.benchmem"]

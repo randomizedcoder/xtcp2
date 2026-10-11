@@ -20,9 +20,10 @@ type collector struct {
 }
 
 type definition struct {
-	desc   *client.Desc
-	labels []string
-	kind   client.ValueType
+	desc       *client.Desc
+	labels     []string
+	labelIndex map[string]int
+	kind       client.ValueType
 }
 
 type catalog struct {
@@ -99,7 +100,7 @@ func (c *collector) descriptors(s linkmonitor.Snapshot) (*catalog, error) {
 				return true
 			}
 		}
-		next.definitions[d.Key()] = definition{desc: client.NewDesc(d.Name(), "Cached source value for "+d.Name()+".", labels, nil), labels: labels, kind: kind}
+		next.definitions[d.Key()] = newDefinition(client.NewDesc(d.Name(), "Cached source value for "+d.Name()+".", labels, nil), labels, kind)
 		if d.Fixed() {
 			if c.sources == nil {
 				c.sources = make(map[string]definition)
@@ -115,6 +116,14 @@ func (c *collector) descriptors(s linkmonitor.Snapshot) (*catalog, error) {
 		c.catalog.Store(next)
 	}
 	return next, nil
+}
+
+func newDefinition(desc *client.Desc, labels []string, kind client.ValueType) definition {
+	indexes := make(map[string]int, len(labels))
+	for i, label := range labels {
+		indexes[label] = i
+	}
+	return definition{desc: desc, labels: labels, labelIndex: indexes, kind: kind}
 }
 
 func metricType(kind linkmonitor.SampleKind) (client.ValueType, error) {
@@ -147,8 +156,10 @@ func number(n linkmonitor.Number) (float64, error) {
 }
 
 type emitter struct {
-	out   chan<- client.Metric
-	fixed map[string]*client.Desc
+	out    chan<- client.Metric
+	fixed  map[string]*client.Desc
+	values []string
+	seen   []bool
 }
 
 func (e emitter) metric(desc *client.Desc, kind client.ValueType, value float64, labels ...string) {
@@ -159,31 +170,57 @@ func (e emitter) metric(desc *client.Desc, kind client.ValueType, value float64,
 	e.out <- m
 }
 
-func (e emitter) sample(s linkmonitor.SampleView, catalog *catalog) {
+func (e *emitter) sample(s linkmonitor.SampleView, catalog *catalog) {
 	d, ok := catalog.definitions[s.DescriptorKey()]
 	if !ok {
 		e.out <- client.NewInvalidMetric(e.fixed["collection_healthy"], fmt.Errorf("missing descriptor %q", s.DescriptorKey()))
 		return
 	}
-	values := make([]string, len(d.labels))
-	seen := 0
-	s.RangeLabels(func(name, value string) bool {
-		for i, label := range d.labels {
-			if label == name {
-				values[i] = value
-				seen++
-				break
-			}
-		}
-		return true
-	})
+	valid := e.bindLabels(d, s.RangeLabels)
 	v, err := number(s.Number())
-	if err == nil && seen != len(values) {
+	if err == nil && !valid {
 		err = fmt.Errorf("sample label mismatch for %q", s.DescriptorKey())
 	}
 	if err != nil {
 		e.out <- client.NewInvalidMetric(d.desc, err)
 		return
 	}
-	e.metric(d.desc, d.kind, v, values...)
+	e.metric(d.desc, d.kind, v, e.values...)
+}
+
+func (e *emitter) bindLabels(d definition, rangeLabels func(func(string, string) bool)) bool {
+	e.values = resizeStrings(e.values, len(d.labels))
+	e.seen = resizeBools(e.seen, len(d.labels))
+	clear(e.values)
+	clear(e.seen)
+	seen := 0
+	labelError := false
+	rangeLabels(func(name, value string) bool {
+		i, ok := d.labelIndex[name]
+		if !ok || e.seen[i] {
+			labelError = true
+			return true
+		}
+		if ok && !e.seen[i] {
+			e.values[i] = value
+			e.seen[i] = true
+			seen++
+		}
+		return true
+	})
+	return !labelError && seen == len(e.values)
+}
+
+func resizeStrings(values []string, length int) []string {
+	if cap(values) < length {
+		return make([]string, length)
+	}
+	return values[:length]
+}
+
+func resizeBools(values []bool, length int) []bool {
+	if cap(values) < length {
+		return make([]bool, length)
+	}
+	return values[:length]
 }
