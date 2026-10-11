@@ -89,7 +89,7 @@ const (
 	// mainFlags field must be a registered flag and every registered flag must
 	// have a field. A flag added without a field, or a field that stops being
 	// registered, is the drift this file exists to notice.
-	mainFlagsFieldCountCst = 92
+	mainFlagsFieldCountCst = 107
 
 	printFlagsGoldenCst  = "testdata/printflags-golden.txt"
 	defineFlagsGoldenCst = "testdata/defineflags-golden.txt"
@@ -128,6 +128,8 @@ const (
 	fakeS3SigningSentinelCst  = "FAKE-S3-SECRET-KEY-must-never-be-printed"
 	fakeRawAuthSentinelCst    = "FAKE-RAW-BEARER-TOKEN-must-never-be-printed"
 	fakeHmacSharedSentinelCst = "FAKE-HMAC-SHARED-KEY-must-never-be-printed"
+	fakeAdminRawSentinelCst   = "FAKE-ADMIN-BEARER-TOKEN-must-never-be-printed"
+	fakeAdminHmacSentinelCst  = "FAKE-ADMIN-HMAC-KEY-must-never-be-printed"
 )
 
 // populatedMainFlags returns a mainFlags with all 92 pointers allocated and
@@ -219,6 +221,19 @@ func populatedMainFlags() *mainFlags {
 		enrichLocality:          b(true),
 		localityRefreshInterval: ms(125),
 
+		linkMonitor:                   b(true),
+		linkMonitorBaselineFile:       s("linkMonitorBaselineFile-v"),
+		linkMonitorSettle:             ms(141),
+		linkMonitorResync:             ms(142),
+		linkMonitorStatsInterval:      ms(143),
+		linkMonitorStatsInclude:       s("linkMonitorStatsInclude-v"),
+		linkMonitorStatsExclude:       s("linkMonitorStatsExclude-v"),
+		linkMonitorNetstatFields:      s("linkMonitorNetstatFields-v"),
+		linkMonitorMaxSpeedExceptions: s("linkMonitorMaxSpeedExceptions-v"),
+		linkMonitorMetricsCoreInclude: s("linkMonitorMetricsCoreInclude-v"),
+		linkMonitorMetricsCoreExclude: s("linkMonitorMetricsCoreExclude-v"),
+		linkMonitorMetricsAll:         b(false),
+
 		ipv4Ttl:            u(126),
 		ipv6HopLimit:       u(127),
 		listenerAuthMode:   s("listenerAuthMode-v"),
@@ -227,6 +242,9 @@ func populatedMainFlags() *mainFlags {
 		listenerSignedSkew: u(128),
 		listenerJitterMin:  ms(129),
 		listenerJitterMax:  ms(130),
+		listenerAdminMode:  s("listenerAdminAuthMode-v"),
+		listenerAdminToken: s(fakeAdminRawSentinelCst),
+		listenerAdminHMAC:  s(fakeAdminHmacSentinelCst),
 		grpcPort:           u(131),
 		grpcListenNetwork:  s("grpcListenNetwork-v"),
 		grpcListenAddress:  s("grpcListenAddress-v"),
@@ -444,10 +462,12 @@ func TestPrintFlagsSecrets(t *testing.T) {
 		{
 			description: "negative: real-looking listener auth secrets are reduced to set: true",
 			mutate:      func(_ *mainFlags) {},
-			absent:      []string{fakeRawAuthSentinelCst, fakeHmacSharedSentinelCst},
+			absent:      []string{fakeRawAuthSentinelCst, fakeHmacSharedSentinelCst, fakeAdminRawSentinelCst, fakeAdminHmacSentinelCst},
 			present: []string{
 				"*listenerRawToken: set: true",
 				"*listenerHMACSharedKey: set: true",
+				"*listenerAdminRawToken: set: true",
+				"*listenerAdminHMACSharedKey: set: true",
 			},
 			expected: "the listener auth secrets are derived to a bool, so presence is observable and the value is not",
 		},
@@ -457,11 +477,15 @@ func TestPrintFlagsSecrets(t *testing.T) {
 				empty := ""
 				f.listenerRawToken = &empty
 				f.listenerHMACKey = &empty
+				f.listenerAdminToken = &empty
+				f.listenerAdminHMAC = &empty
 			},
 			absent: []string{"set: true"},
 			present: []string{
 				"*listenerRawToken: set: false",
 				"*listenerHMACSharedKey: set: false",
+				"*listenerAdminRawToken: set: false",
+				"*listenerAdminHMACSharedKey: set: false",
 			},
 			expected: "the derivation is != \"\", so an unset secret is reported as absent rather than hidden",
 		},

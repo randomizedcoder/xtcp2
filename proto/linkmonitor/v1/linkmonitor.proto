@@ -1,0 +1,225 @@
+//
+// go-link-monitor - administration API
+//
+// LinkMonitorService reads link-monitor state and runs operator controls. It is
+// implemented once (pkg/linkmonitor/linkmonitorgrpc) and served by standalone
+// go-link-monitor on its admin listener and by xtcp2 on its gRPC server.
+// Access classes are enforced by pkg/listenerauth.Policy; see
+// docs/design-admin-access.md.
+//
+// Build this using buf build ( https://buf.build/ ), see the buf config in the root folder
+
+syntax = "proto3";
+
+package linkmonitor.v1;
+
+option go_package = "github.com/randomizedcoder/xtcp2/gen/go/linkmonitor";
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+import "buf/validate/validate.proto";
+import "xtcp_auth/v1/xtcp_auth.proto";
+
+service LinkMonitorService {
+
+	// Health, link counts, baseline and control progress from one snapshot.
+	rpc GetStatus(GetStatusRequest) returns (GetStatusResponse) {
+		option (xtcp_auth.v1.access) = ACCESS_READ;
+	};
+
+	// Per-interface identity, operational state and policy checks.
+	rpc ListInterfaces(ListInterfacesRequest) returns (ListInterfacesResponse) {
+		option (xtcp_auth.v1.access) = ACCESS_READ;
+	};
+
+	// Per-interface and host collector diagnostics.
+	rpc ListCollectors(ListCollectorsRequest) returns (ListCollectorsResponse) {
+		option (xtcp_auth.v1.access) = ACCESS_READ;
+	};
+
+	// Reconcile and durably replace the expected link count.
+	rpc Rebaseline(RebaselineRequest) returns (RebaselineResponse) {
+		option (xtcp_auth.v1.access) = ACCESS_ADMIN;
+	};
+
+	// Reconcile inventory against the kernel.
+	rpc Resync(ResyncRequest) returns (ResyncResponse) {
+		option (xtcp_auth.v1.access) = ACCESS_ADMIN;
+	};
+
+	// Reserved for the error ledger (cmd/go-link-monitor/ERROR-ACKNOWLEDGEMENT-DESIGN.md):
+	//   rpc ReviewErrors(ReviewErrorsRequest) returns (ReviewErrorsResponse);           // ACCESS_READ
+	//   rpc AcknowledgeErrors(AcknowledgeErrorsRequest) returns (AcknowledgeErrorsResponse); // ACCESS_ADMIN
+};
+
+// Health mirrors linkmonitor.Health.
+message Health {
+	bool running                                     = 1;
+	bool ready                                       = 2;
+	bool collection_healthy                          = 3;
+	bool baseline_ready                              = 4;
+};
+
+// LinkCounts are exact counts from one publication. Unset means unknown.
+message LinkCounts {
+	optional uint64 current                          = 1;
+	optional uint64 expected                         = 2;
+	// current - expected, set when both are known.
+	optional sint64 delta                            = 3;
+};
+
+// ControlProgress counts passes of one control in this monitoring lifetime.
+message ControlProgress {
+	uint64 requested                                 = 1;
+	uint64 completed                                 = 2;
+};
+
+message GetStatusRequest {};
+
+message GetStatusResponse {
+	uint64 snapshot_version                          = 1;
+	Health health                                    = 2;
+	LinkCounts counts                                = 3;
+	// When the expected count in effect was recorded; unset if unknown.
+	google.protobuf.Timestamp baseline_recorded_at   = 4;
+	uint64 baseline_write_errors                     = 5;
+	google.protobuf.Timestamp last_successful_resync = 6;
+	ControlProgress resync                           = 7;
+	ControlProgress rebaseline                       = 8;
+};
+
+// Eligibility mirrors linkmonitor.Eligibility. UNSPECIFIED means unknown.
+enum Eligibility {
+	ELIGIBILITY_UNSPECIFIED                          = 0;
+	ELIGIBILITY_INCLUDED                             = 1;
+	ELIGIBILITY_EXCLUDED                             = 2;
+};
+
+// CheckStatus mirrors linkmonitor.CheckStatus. UNSPECIFIED means unknown.
+enum CheckStatus {
+	CHECK_STATUS_UNSPECIFIED                         = 0;
+	CHECK_STATUS_PASS                                = 1;
+	CHECK_STATUS_FAIL                                = 2;
+	CHECK_STATUS_NOT_APPLICABLE                      = 3;
+};
+
+message Interface {
+	string name                                      = 1;
+	// Canonical device key within the monitored namespace.
+	string identity                                  = 2;
+	// Distinguishes removal and recreation, even when the kernel reuses IDs.
+	uint64 generation                                = 3;
+	// Unset when the operational state is unknown.
+	optional bool up                                 = 4;
+	Eligibility eligibility                          = 5;
+	CheckStatus maximum_speed                        = 6;
+	CheckStatus maximum_width                        = 7;
+	CheckStatus full_duplex                          = 8;
+	CheckStatus rdma_readiness                       = 9;
+	// A configured maximum-speed exception covers this interface.
+	bool maximum_speed_exception                     = 10;
+	uint64 up_transitions                            = 11;
+	uint64 down_transitions                          = 12;
+};
+
+message ListInterfacesRequest {
+	// Exact interface names; empty lists every interface.
+	repeated string names                            = 1 [
+		(buf.validate.field).repeated = {
+			max_items: 256,
+			items: { string: { min_len: 1, max_len: 64 } }
+	}];
+	// Only interfaces in the physical-link inventory.
+	bool eligible_only                               = 2;
+};
+
+message ListInterfacesResponse {
+	uint64 snapshot_version                          = 1;
+	repeated Interface interfaces                    = 2;
+};
+
+// Support mirrors CollectorView.Support. UNSPECIFIED means unknown.
+enum Support {
+	SUPPORT_UNSPECIFIED                              = 0;
+	SUPPORT_SUPPORTED                                = 1;
+	SUPPORT_UNSUPPORTED                              = 2;
+	SUPPORT_NOT_APPLICABLE                           = 3;
+};
+
+message Collector {
+	// Interface name; empty for the namespace-wide host collector.
+	string interface                                 = 1;
+	string name                                      = 2;
+	Support support                                  = 3;
+	// Latest accepted attempt result; unset before any attempt.
+	optional bool success                            = 4;
+	bool fresh                                       = 5;
+	google.protobuf.Timestamp last_success           = 6;
+	google.protobuf.Duration duration                = 7;
+	string error_reason                              = 8;
+	map<string, uint64> errors                       = 9;
+	map<string, uint64> omissions                    = 10;
+	uint64 discontinuities                           = 11;
+};
+
+message ListCollectorsRequest {
+	// Exact interface names; empty lists every interface and the host collector.
+	repeated string names                            = 1 [
+		(buf.validate.field).repeated = {
+			max_items: 256,
+			items: { string: { min_len: 1, max_len: 64 } }
+	}];
+};
+
+message ListCollectorsResponse {
+	uint64 snapshot_version                          = 1;
+	repeated Collector collectors                    = 2;
+};
+
+message RebaselineRequest {
+	// Why the operator is rebaselining; recorded in the audit log.
+	string reason                                    = 1 [
+		(buf.validate.field).string = {
+			min_len: 1,
+			max_bytes: 512
+	}];
+	// How long to wait for a durable save. Zero returns after acceptance; a
+	// wait that expires returns DEADLINE_EXCEEDED with the write-error count.
+	google.protobuf.Duration wait                    = 2 [
+		(buf.validate.field).duration = {
+			gte: {},
+			lte: { seconds: 60 }
+	}];
+};
+
+message RebaselineResponse {
+	// Ticket generation of the requested pass.
+	uint64 generation                                = 1;
+	// The pass completed; always false when wait is zero.
+	bool completed                                   = 2;
+	// Expected count after the call.
+	optional uint64 expected                         = 3;
+	uint64 baseline_write_errors                     = 4;
+};
+
+message ResyncRequest {
+	// Why the operator is resyncing; recorded in the audit log.
+	string reason                                    = 1 [
+		(buf.validate.field).string = {
+			min_len: 1,
+			max_bytes: 512
+	}];
+	// How long to wait for the reconciliation. Zero returns after acceptance;
+	// a wait that expires returns DEADLINE_EXCEEDED.
+	google.protobuf.Duration wait                    = 2 [
+		(buf.validate.field).duration = {
+			gte: {},
+			lte: { seconds: 60 }
+	}];
+};
+
+message ResyncResponse {
+	uint64 generation                                = 1;
+	bool completed                                   = 2;
+	google.protobuf.Timestamp last_successful_resync = 3;
+};

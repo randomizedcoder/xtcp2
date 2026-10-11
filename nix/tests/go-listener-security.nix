@@ -1,8 +1,10 @@
 # nix/tests/go-listener-security.nix
 #
 # Focused test runner for listener security hardening work: UDS listener
-# binding, client-side UDS dialing, listener protobuf validation, and config
-# redaction/preservation coverage in the daemon package.
+# binding, client-side UDS dialing, listener protobuf validation, config
+# redaction/preservation coverage in the daemon package, and the read/admin
+# credential split (pkg/listenerauth Policy, per-method access classes, and
+# client credential selection in xtcp2ctl/xtcp2client).
 #
 # Takes no `lib`: it declared one as a required argument and then read it
 # nowhere, which is what deadnix found. The sibling runners here that do take
@@ -33,6 +35,7 @@ pkgs.runCommand "xtcp2-test-listener-security"
     set +e
     go test -v -count=1 \
       ./pkg/listener \
+      ./pkg/listenerauth \
       ./pkg/xtcp \
       ./cmd/xtcp2 \
       ./cmd/xtcp2client \

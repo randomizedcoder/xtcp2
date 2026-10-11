@@ -98,6 +98,10 @@ func (x *XTCP) Init(ctx context.Context) {
 	// *CounterVec. Reachable today with -enrichAsn and a missing artifact.
 	x.initEnrichers(ctx)
 
+	// Like the enrichers, after InitPromethus: the collector joins the same
+	// registry.
+	x.initLinkMonitor()
+
 	if x.debugLevel > 10 {
 		log.Printf("Init complete after:%0.3f", time.Since(startTime).Seconds())
 	}

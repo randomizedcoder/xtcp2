@@ -7,6 +7,7 @@ import (
 	"log"
 	"time"
 
+	linkmonitorpb "github.com/randomizedcoder/xtcp2/gen/go/linkmonitor"
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
 	"github.com/randomizedcoder/xtcp2/pkg/health"
@@ -74,12 +75,12 @@ func (x *XTCP) startGRPCflatRecordService(ctx context.Context) {
 				PermitWithoutStream: true,
 			}),
 	}
-	authn, err := listenerauth.New(x.config.GetListenerAuth())
+	policy, err := listenerauth.NewPolicy(x.config.GetListenerAuth(), x.config.GetAdminListenerAuth(), grpcMethodAccess())
 	if err != nil {
 		log.Fatalf("listener auth config invalid: %v", err)
 	}
-	if authn.Enabled() {
-		opts = append(opts, grpc.UnaryInterceptor(authn.UnaryServerInterceptor()), grpc.StreamInterceptor(authn.StreamServerInterceptor()))
+	if policy.Enabled() {
+		opts = append(opts, grpc.UnaryInterceptor(policy.UnaryServerInterceptor()), grpc.StreamInterceptor(policy.StreamServerInterceptor()))
 	}
 	grpcServer := grpc.NewServer(opts...)
 	// grpc.ForceServerCodec(gzip.Name),
@@ -93,6 +94,12 @@ func (x *XTCP) startGRPCflatRecordService(ctx context.Context) {
 
 	x.configService = NewXtcpConfigService(ctx, x.registry, x.config, &x.changePollFrequencyCh, &x.pollRequestCh, &x.pollBurstCh, &x.setS3FlushCh, &x.envelopeMu, x.reconfigureFunc, x.debugLevel)
 	xtcp_config.RegisterConfigServiceServer(grpcServer, x.configService)
+
+	linkMonitorService, err := x.newLinkMonitorService()
+	if err != nil {
+		log.Fatalf("link monitor service: %v", err)
+	}
+	linkmonitorpb.RegisterLinkMonitorServiceServer(grpcServer, linkMonitorService)
 
 	// Standard gRPC health service (grpc.health.v1) so k8s gRPC probes work.
 	// Starts NOT_SERVING; setReady flips it to SERVING once the daemon polls.

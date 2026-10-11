@@ -26,6 +26,8 @@ type route struct {
 	path     string
 	gatherer prometheus.Gatherer
 	inFlight int
+	// protect, when set, wraps the metrics handler, e.g. with read auth.
+	protect func(http.Handler) http.Handler
 }
 
 // endpoint is one listener and the metric routes it serves beside health checks.
@@ -52,10 +54,14 @@ func endpoints(address string, o exposureOptions, core, all prometheus.Gatherer)
 func httpServer(source healthSource, stopping *atomic.Bool, routes ...route) *http.Server {
 	mux := http.NewServeMux()
 	for _, r := range routes {
-		mux.Handle(r.path, promhttp.HandlerFor(r.gatherer, promhttp.HandlerOpts{
+		h := promhttp.HandlerFor(r.gatherer, promhttp.HandlerOpts{
 			MaxRequestsInFlight: r.inFlight, Timeout: 10 * time.Second,
 			ErrorHandling: promhttp.HTTPErrorOnError,
-		}))
+		})
+		if r.protect != nil {
+			h = r.protect(h)
+		}
+		mux.Handle(r.path, h)
 	}
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeHealth(w, !stopping.Load())

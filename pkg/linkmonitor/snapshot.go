@@ -1,6 +1,10 @@
 package linkmonitor
 
-import "github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/model"
+import (
+	"time"
+
+	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/model"
+)
 
 const interfaceLabel = "interface"
 
@@ -25,6 +29,16 @@ type snapshotRoot struct {
 	pages               []*devicePage
 	lastResync          model.Optional[model.Stamp]
 	baselineWriteErrors uint64
+	baselineRecordedAt  int64 // Unix nanoseconds; 0 is unknown
+}
+
+// BaselineRecordedAt reports when the expected count in effect was recorded.
+// It is unknown before a baseline exists and for files that omit the time.
+func (s Snapshot) BaselineRecordedAt() (time.Time, bool) {
+	if s.root == nil || !s.root.counts.expected.Present || s.root.baselineRecordedAt == 0 {
+		return time.Time{}, false
+	}
+	return time.Unix(0, s.root.baselineRecordedAt).UTC(), true
 }
 
 // BaselineWriteErrors counts unsuccessful saves, including indeterminate durability.

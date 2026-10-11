@@ -123,20 +123,10 @@ func (c *xtcpConfigService) Get(
 		return nil, err
 	}
 
-	// Redact S3 credentials: the gRPC surface has no auth, so Get must not
-	// hand out live secrets. Clone first — never mutate the running config —
-	// then blank the credential fields. Set treats empty credentials as
-	// "unchanged", so a Get → edit → Set round-trip preserves them.
-	redacted, ok := proto.Clone(c.config).(*xtcp_config.XtcpConfig)
-	if !ok {
+	redacted, err := c.redactedConfig()
+	if err != nil {
 		c.pC.WithLabelValues("Get", "clone", "error").Inc()
-		return nil, status.Error(codes.Internal, "config clone failed")
-	}
-	redacted.S3SecretKey = ""
-	redacted.S3AccessKey = ""
-	if redacted.ListenerAuth != nil {
-		redacted.ListenerAuth.RawToken = ""
-		redacted.ListenerAuth.HmacSharedKey = ""
+		return nil, err
 	}
 
 	resp := &xtcp_config.GetResponse{
@@ -188,15 +178,9 @@ func (c *xtcpConfigService) Set(
 	if in.Config.S3AccessKey == "" {
 		in.Config.S3AccessKey = c.config.S3AccessKey
 	}
-	if in.Config.ListenerAuth != nil && c.config.ListenerAuth != nil {
-		if in.Config.ListenerAuth.RawToken == "" {
-			in.Config.ListenerAuth.RawToken = c.config.ListenerAuth.RawToken
-		}
-		if in.Config.ListenerAuth.HmacSharedKey == "" {
-			in.Config.ListenerAuth.HmacSharedKey = c.config.ListenerAuth.HmacSharedKey
-		}
-	}
-	if _, err := listenerauth.New(in.Config.ListenerAuth); err != nil {
+	preserveAuthSecrets(in.Config.ListenerAuth, c.config.ListenerAuth)
+	preserveAuthSecrets(in.Config.AdminListenerAuth, c.config.AdminListenerAuth)
+	if _, err := listenerauth.NewPolicy(in.Config.ListenerAuth, in.Config.AdminListenerAuth, nil); err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
@@ -216,10 +200,62 @@ func (c *xtcpConfigService) Set(
 	// and triggers a graceful shutdown ending in syscall.Exec into the new
 	// config. The cancel is delayed slightly there so this response flushes
 	// to the client first.
+	// Clone before handing the config over: the response must not echo the
+	// secrets that were just copied back in, and the hook owns in.Config.
+	resp, ok := proto.Clone(in.Config).(*xtcp_config.XtcpConfig)
+	if !ok {
+		c.pC.WithLabelValues("Set", "clone", "error").Inc()
+		return nil, status.Error(codes.Internal, "config clone failed")
+	}
+	redactSecrets(resp)
+
 	c.reconfigureFunc(in.Config)
 	c.pC.WithLabelValues("Set", "reconfigure", "counter").Inc()
 
-	return &xtcp_config.SetResponse{Config: in.Config}, nil
+	return &xtcp_config.SetResponse{Config: resp}, nil
+}
+
+// redactedConfig clones the running config and blanks every secret. Every
+// ConfigService response that carries a config goes through it, so a read
+// credential (which reaches Get) and the runtime setters never hand out S3
+// credentials or listener auth secrets. The clone is taken under envelopeMu,
+// the lock SetEnvelopeFlush and the deserialize hot path share.
+func (c *xtcpConfigService) redactedConfig() (*xtcp_config.XtcpConfig, error) {
+	c.envelopeMu.Lock()
+	redacted, ok := proto.Clone(c.config).(*xtcp_config.XtcpConfig)
+	c.envelopeMu.Unlock()
+	if !ok {
+		return nil, status.Error(codes.Internal, "config clone failed")
+	}
+	redactSecrets(redacted)
+	return redacted, nil
+}
+
+// redactSecrets blanks secrets in place. Set treats empty secret fields as
+// "unchanged", so a Get → edit → Set round-trip preserves them.
+func redactSecrets(cfg *xtcp_config.XtcpConfig) {
+	cfg.S3SecretKey = ""
+	cfg.S3AccessKey = ""
+	for _, a := range []*xtcp_config.ListenerAuth{cfg.ListenerAuth, cfg.AdminListenerAuth} {
+		if a != nil {
+			a.RawToken = ""
+			a.HmacSharedKey = ""
+		}
+	}
+}
+
+// preserveAuthSecrets copies running secrets into an incoming auth block whose
+// secret fields are empty.
+func preserveAuthSecrets(in, running *xtcp_config.ListenerAuth) {
+	if in == nil || running == nil {
+		return
+	}
+	if in.RawToken == "" {
+		in.RawToken = running.RawToken
+	}
+	if in.HmacSharedKey == "" {
+		in.HmacSharedKey = running.HmacSharedKey
+	}
 }
 
 func (c *xtcpConfigService) SetPollFrequency(
@@ -268,7 +304,12 @@ func (c *xtcpConfigService) SetPollFrequency(
 			c.config.PollFrequency.AsDuration().Seconds(), c.config.PollTimeout.AsDuration().Seconds())
 	}
 
-	return &xtcp_config.SetPollFrequencyResponse{Config: c.config}, nil
+	cfg, err := c.redactedConfig()
+	if err != nil {
+		c.pC.WithLabelValues("SetPollFrequency", "clone", "error").Inc()
+		return nil, err
+	}
+	return &xtcp_config.SetPollFrequencyResponse{Config: cfg}, nil
 }
 
 // TriggerPoll fires a single poll immediately without changing the configured
@@ -411,7 +452,12 @@ func (c *xtcpConfigService) SetS3Upload(
 		log.Printf("SetS3Upload interval:%v thresholdBytes:%d", ctrl.interval, in.S3ParquetFlushThresholdBytes)
 	}
 
-	return &xtcp_config.SetS3UploadResponse{Config: c.config}, nil
+	cfg, err := c.redactedConfig()
+	if err != nil {
+		c.pC.WithLabelValues("SetS3Upload", "clone", "error").Inc()
+		return nil, err
+	}
+	return &xtcp_config.SetS3UploadResponse{Config: cfg}, nil
 }
 
 // SetEnvelopeFlush changes the in-flight protobufList envelope flush
@@ -448,5 +494,10 @@ func (c *xtcpConfigService) SetEnvelopeFlush(
 			in.EnvelopeFlushThresholdBytes, in.EnvelopeFlushThresholdRows)
 	}
 
-	return &xtcp_config.SetEnvelopeFlushResponse{Config: c.config}, nil
+	cfg, err := c.redactedConfig()
+	if err != nil {
+		c.pC.WithLabelValues("SetEnvelopeFlush", "clone", "error").Inc()
+		return nil, err
+	}
+	return &xtcp_config.SetEnvelopeFlushResponse{Config: cfg}, nil
 }

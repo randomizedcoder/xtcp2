@@ -13,6 +13,7 @@ type lifecycle struct {
 	coordinator              *reconciler
 	store                    *storageExecutor
 	expected                 model.Optional[uint64]
+	recordedAt               time.Time
 	intended                 *model.Baseline
 	writeErrors              uint64
 	settling, verifying      bool
@@ -127,6 +128,7 @@ func (l *lifecycle) saved(result model.SaveResult) error {
 	l.store.busy = false
 	if result.Outcome == model.SaveDurable {
 		l.expected = presentValue(l.intended.Count)
+		l.recordedAt = l.intended.RecordedAt
 		l.intended = nil
 		if l.rebaseline {
 			l.completed |= rebaselineRequest
@@ -153,7 +155,7 @@ func (l *lifecycle) publish(now model.Stamp) error {
 		r.exceptionRevision = r.revision
 	}
 	if err := l.coordinator.scheduler.reducer.publish(l.monitor, publicationState{
-		health: Health{Running: true}, expected: l.expected, now: now, baselineWriteErrors: l.writeErrors,
+		health: Health{Running: true}, expected: l.expected, recordedAt: l.recordedAt, now: now, baselineWriteErrors: l.writeErrors,
 	}); err != nil {
 		return err
 	}

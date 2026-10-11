@@ -594,7 +594,8 @@ func TestRunMain_version(t *testing.T) {
 
 	// Stub the prom handler starter so it doesn't bind a port.
 	prevProm := promHandlerStarter
-	promHandlerStarter = func(_ string, _ *xtcp_config.ListenerEndpoint, _ string, _, _ uint32, _ *xtcp_config.ListenerAuth) {}
+	promHandlerStarter = func(_ string, _ *xtcp_config.ListenerEndpoint, _ string, _, _ uint32, _, _ *xtcp_config.ListenerAuth) {
+	}
 	t.Cleanup(func() { promHandlerStarter = prevProm })
 
 	// runMain spawns a signal-handler goroutine that blocks on signal.Notify.
@@ -614,7 +615,8 @@ func TestRunMain_conf(t *testing.T) {
 	t.Cleanup(func() { os.Args = prevArgs })
 
 	prevProm := promHandlerStarter
-	promHandlerStarter = func(_ string, _ *xtcp_config.ListenerEndpoint, _ string, _, _ uint32, _ *xtcp_config.ListenerAuth) {}
+	promHandlerStarter = func(_ string, _ *xtcp_config.ListenerEndpoint, _ string, _, _ uint32, _, _ *xtcp_config.ListenerAuth) {
+	}
 	t.Cleanup(func() { promHandlerStarter = prevProm })
 
 	captureLog(t, func() {
@@ -633,7 +635,8 @@ func TestRunMain_stubbedDaemon(t *testing.T) {
 	t.Cleanup(func() { os.Args = prevArgs })
 
 	prevProm := promHandlerStarter
-	promHandlerStarter = func(_ string, _ *xtcp_config.ListenerEndpoint, _ string, _, _ uint32, _ *xtcp_config.ListenerAuth) {}
+	promHandlerStarter = func(_ string, _ *xtcp_config.ListenerEndpoint, _ string, _, _ uint32, _, _ *xtcp_config.ListenerAuth) {
+	}
 	t.Cleanup(func() { promHandlerStarter = prevProm })
 
 	prevDaemon := daemonRunner
@@ -662,7 +665,7 @@ func TestInitPromHandler_smoke(t *testing.T) {
 	fatalf = func(string, ...any) {} // swallow
 	t.Cleanup(func() { fatalf = prevFatalf })
 
-	initPromHandler("/metrics", nil, ":0", 0, 0, nil)
+	initPromHandler("/metrics", nil, ":0", 0, 0, nil, nil)
 	time.Sleep(10 * time.Millisecond)
 }
 
@@ -905,6 +908,9 @@ func TestPrintFlags(t *testing.T) {
 	f.listenerSignedSkew = &n
 	f.listenerJitterMin = &d
 	f.listenerJitterMax = &d
+	f.listenerAdminMode = &s
+	f.listenerAdminToken = &s
+	f.listenerAdminHMAC = &s
 	f.label = &s
 	f.tag = &s
 	f.grpcPort = &n
@@ -951,6 +957,18 @@ func TestPrintFlags(t *testing.T) {
 	f.ipmetaCachePath = &s
 	f.enrichLocality = &b
 	f.localityRefreshInterval = &d
+	f.linkMonitor = &b
+	f.linkMonitorBaselineFile = &s
+	f.linkMonitorSettle = &d
+	f.linkMonitorResync = &d
+	f.linkMonitorStatsInterval = &d
+	f.linkMonitorStatsInclude = &s
+	f.linkMonitorStatsExclude = &s
+	f.linkMonitorNetstatFields = &s
+	f.linkMonitorMaxSpeedExceptions = &s
+	f.linkMonitorMetricsCoreInclude = &s
+	f.linkMonitorMetricsCoreExclude = &s
+	f.linkMonitorMetricsAll = &b
 	// Redirect stdout so the call doesn't litter test output.
 	r, w, _ := os.Pipe()
 	orig := os.Stdout
@@ -1010,6 +1028,9 @@ func TestBuildConfig(t *testing.T) {
 	authSkew := uint(3)
 	authJitterMin := 10 * time.Millisecond
 	authJitterMax := 40 * time.Millisecond
+	adminMode := "raw"
+	adminToken := "admin-token"
+	adminHMAC := ""
 	ttl := uint(3)
 	hop := uint(9)
 	pl := promAddress
@@ -1035,6 +1056,10 @@ func TestBuildConfig(t *testing.T) {
 	uplinkInterfaces := "eth0,eth1"
 	ipmetaBootstrap := "/share/xtcp2/ipmeta/bootstrap.lookup.parquet.zst"
 	ipmetaCache := "/var/lib/xtcp2/ipmeta/current.lookup.parquet.zst"
+	lmBaseline := "/var/lib/xtcp2/lm.json"
+	lmInclude, lmExclude, lmNetstat := "^mlx", "^lo$", "^Tcp"
+	lmExceptions := "eth8, eth9"
+	lmCoreInclude, lmCoreExclude := "go_link_monitor_up_links", "go_link_monitor_build_info"
 	f := &mainFlags{
 		nltimeout: &nl, pollFrequency: &pf, pollTimeout: &pt, maxLoops: &ml,
 		netlinkers: &nlk, nlmsgSeq: &seq, packetSize: &psz, packetSizeMply: &psm,
@@ -1076,6 +1101,7 @@ func TestBuildConfig(t *testing.T) {
 		listenerAuthMode: &authMode, listenerRawToken: &rawToken,
 		listenerHMACKey: &hmacKey, listenerSignedSkew: &authSkew,
 		listenerJitterMin: &authJitterMin, listenerJitterMax: &authJitterMax,
+		listenerAdminMode: &adminMode, listenerAdminToken: &adminToken, listenerAdminHMAC: &adminHMAC,
 		ipv4Ttl: &ttl, ipv6HopLimit: &hop,
 		deserializers: &ds, promListen: &pl, promListenNetwork: &promNetwork,
 		promUnixSocketMode: &socketMode, promUnlinkStaleUDS: &unlinkStale,
@@ -1085,6 +1111,11 @@ func TestBuildConfig(t *testing.T) {
 		enrichAsn: &iu, asnDbPath: &mar, asnRefreshInterval: &rf,
 		ipmetaBootstrapPath: &ipmetaBootstrap, ipmetaCachePath: &ipmetaCache,
 		enrichLocality: &iu, localityRefreshInterval: &rf,
+		linkMonitor: &iu, linkMonitorBaselineFile: &lmBaseline, linkMonitorSettle: &rf,
+		linkMonitorResync: &subc, linkMonitorStatsInterval: &pf, linkMonitorStatsInclude: &lmInclude,
+		linkMonitorStatsExclude: &lmExclude, linkMonitorNetstatFields: &lmNetstat,
+		linkMonitorMaxSpeedExceptions: &lmExceptions, linkMonitorMetricsCoreInclude: &lmCoreInclude,
+		linkMonitorMetricsCoreExclude: &lmCoreExclude, linkMonitorMetricsAll: &iu,
 	}
 	des := getDeserializers(*f.deserializers)
 	c := buildConfig(f, des)
@@ -1129,6 +1160,18 @@ func TestBuildConfig(t *testing.T) {
 		{"ReconcileBeforePoll", c.ReconcileBeforePoll, false},
 		{"IpmetaBootstrapPath", c.IpmetaBootstrapPath, ipmetaBootstrap},
 		{"IpmetaCachePath", c.IpmetaCachePath, ipmetaCache},
+		{"LinkMonitor.Enable", c.LinkMonitor.GetEnable(), true},
+		{"LinkMonitor.BaselineFile", c.LinkMonitor.GetBaselineFile(), lmBaseline},
+		{"LinkMonitor.Settle", c.LinkMonitor.GetSettle().AsDuration(), 3 * time.Minute},
+		{"LinkMonitor.Resync", c.LinkMonitor.GetResync().AsDuration(), 90 * time.Second},
+		{"LinkMonitor.StatsInterval", c.LinkMonitor.GetStatsInterval().AsDuration(), 7 * time.Second},
+		{"LinkMonitor.StatsInclude", c.LinkMonitor.GetStatsInclude(), lmInclude},
+		{"LinkMonitor.StatsExclude", c.LinkMonitor.GetStatsExclude(), lmExclude},
+		{"LinkMonitor.NetstatFields", c.LinkMonitor.GetNetstatFields(), lmNetstat},
+		{"LinkMonitor.MaxSpeedExceptions", fmt.Sprint(c.LinkMonitor.GetMaxSpeedExceptions()), "[eth8 eth9]"},
+		{"LinkMonitor.MetricsCoreInclude", c.LinkMonitor.GetMetricsCoreInclude(), lmCoreInclude},
+		{"LinkMonitor.MetricsCoreExclude", c.LinkMonitor.GetMetricsCoreExclude(), lmCoreExclude},
+		{"LinkMonitor.MetricsAll", c.LinkMonitor.GetMetricsAll(), true},
 	}
 	for _, ck := range checks {
 		if ck.got != ck.want {
@@ -1160,6 +1203,14 @@ func TestBuildConfig(t *testing.T) {
 		c.ListenerAuth.GetFailureJitterMin().AsDuration() != authJitterMin ||
 		c.ListenerAuth.GetFailureJitterMax().AsDuration() != authJitterMax {
 		t.Errorf("ListenerAuth mismatch: %+v", c.ListenerAuth)
+	}
+	if c.AdminListenerAuth == nil ||
+		c.AdminListenerAuth.Mode != xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_RAW_TOKEN ||
+		c.AdminListenerAuth.RawToken != adminToken ||
+		c.AdminListenerAuth.HmacSharedKey != "" ||
+		c.AdminListenerAuth.GetSignedTokenSkewMinutes() != uint32(authSkew) ||
+		c.AdminListenerAuth.GetFailureJitterMax().AsDuration() != authJitterMax {
+		t.Errorf("AdminListenerAuth mismatch: %+v", c.AdminListenerAuth)
 	}
 }
 

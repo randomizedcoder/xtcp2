@@ -20,6 +20,7 @@ import (
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
 	"github.com/randomizedcoder/xtcp2/pkg/cgroupid"
 	"github.com/randomizedcoder/xtcp2/pkg/dockermeta"
+	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor"
 	"github.com/randomizedcoder/xtcp2/pkg/misc"
 	"github.com/randomizedcoder/xtcp2/pkg/nsdiscover"
 	"github.com/randomizedcoder/xtcp2/pkg/xsync"
@@ -189,6 +190,10 @@ type XTCP struct {
 	// NewXtcp*Service calls within the same process don't panic from
 	// duplicate metrics collector registration.
 	registry prometheus.Registerer
+
+	// linkMonitor is the embedded link monitor, nil unless
+	// config.link_monitor.enable. See linkmonitor.go.
+	linkMonitor *linkmonitor.Monitor
 
 	flatRecordService *xtcpFlatRecordService
 	configService     *xtcpConfigService
@@ -380,6 +385,11 @@ func (x *XTCP) Run(ctx context.Context, wg *sync.WaitGroup, runPoller bool) {
 	x.pC.WithLabelValues("Run", "start", "counter").Inc()
 
 	go x.startGRPCflatRecordService(ctx)
+
+	if x.linkMonitor != nil {
+		workers.Add(1)
+		go x.runLinkMonitor(ctx, &workers)
+	}
 
 	x.openDefaultNetLinkSocket(ctx)
 

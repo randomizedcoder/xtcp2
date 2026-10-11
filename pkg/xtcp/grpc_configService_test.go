@@ -2,6 +2,7 @@ package xtcp
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
@@ -624,11 +626,13 @@ func TestConfigService_Set_secretPreservation(t *testing.T) {
 	}
 }
 
-// An explicit non-empty credential in Set overrides the running value.
+// An explicit non-empty credential in Set overrides the running value. The
+// new value reaches the reconfigure hook but is not echoed in the response.
 func TestConfigService_Set_secretOverride(t *testing.T) {
 	c, _ := newConfigServiceFixture(t)
 	c.config.S3SecretKey = "live-secret"
-	c.reconfigureFunc = func(*xtcp_config.XtcpConfig) {}
+	var got *xtcp_config.XtcpConfig
+	c.reconfigureFunc = func(cfg *xtcp_config.XtcpConfig) { got = cfg }
 
 	in := validSetConfig()
 	in.S3SecretKey = "new-secret"
@@ -636,8 +640,78 @@ func TestConfigService_Set_secretOverride(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Set err: %v", err)
 	}
-	if resp.Config.S3SecretKey != "new-secret" {
-		t.Errorf("S3SecretKey = %q, want 'new-secret'", resp.Config.S3SecretKey)
+	if got.S3SecretKey != "new-secret" {
+		t.Errorf("hook S3SecretKey = %q, want 'new-secret'", got.S3SecretKey)
+	}
+	if resp.Config.S3SecretKey != "" {
+		t.Errorf("response S3SecretKey = %q, want redacted", resp.Config.S3SecretKey)
+	}
+}
+
+// TestConfigService_responsesRedactSecrets checks every RPC that returns a
+// config: none may carry S3 credentials or either listener auth secret, and
+// none may blank the live config.
+func TestConfigService_responsesRedactSecrets(t *testing.T) {
+	withSecrets := func(cfg *xtcp_config.XtcpConfig) {
+		cfg.S3SecretKey = "s3-secret"
+		cfg.S3AccessKey = "s3-access"
+		cfg.ListenerAuth = &xtcp_config.ListenerAuth{
+			Mode: xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_RAW_TOKEN, RawToken: "read-token", HmacSharedKey: "read-key"}
+		cfg.AdminListenerAuth = &xtcp_config.ListenerAuth{
+			Mode: xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_RAW_TOKEN, RawToken: "admin-token", HmacSharedKey: "admin-key"}
+	}
+	tests := []struct {
+		category    string
+		description string
+		call        func(*xtcpConfigService) (*xtcp_config.XtcpConfig, error)
+		expected    string
+	}{
+		{"positive", "Get, the one READ method, returns a redacted config", func(c *xtcpConfigService) (*xtcp_config.XtcpConfig, error) {
+			r, err := c.Get(context.Background(), &xtcp_config.GetRequest{})
+			return r.GetConfig(), err
+		}, "no secrets"},
+		{"negative", "Set does not echo the secrets it copied back in from the running config", func(c *xtcpConfigService) (*xtcp_config.XtcpConfig, error) {
+			c.reconfigureFunc = func(*xtcp_config.XtcpConfig) {}
+			in := validSetConfig()
+			in.ListenerAuth = &xtcp_config.ListenerAuth{Mode: xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_RAW_TOKEN}
+			in.AdminListenerAuth = &xtcp_config.ListenerAuth{Mode: xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_RAW_TOKEN}
+			r, err := c.Set(context.Background(), &xtcp_config.SetRequest{Config: in})
+			return r.GetConfig(), err
+		}, "no secrets"},
+		{"negative", "SetPollFrequency used to return the live config", func(c *xtcpConfigService) (*xtcp_config.XtcpConfig, error) {
+			r, err := c.SetPollFrequency(context.Background(), &xtcp_config.SetPollFrequencyRequest{
+				PollFrequency: durationpb.New(2 * time.Second), PollTimeout: durationpb.New(time.Second)})
+			return r.GetConfig(), err
+		}, "no secrets"},
+		{"negative", "SetS3Upload used to return the live config", func(c *xtcpConfigService) (*xtcp_config.XtcpConfig, error) {
+			c.config.Dest = "s3parquet:bucket"
+			r, err := c.SetS3Upload(context.Background(), &xtcp_config.SetS3UploadRequest{S3FlushInterval: durationpb.New(time.Minute)})
+			return r.GetConfig(), err
+		}, "no secrets"},
+		{"corner", "SetEnvelopeFlush used to return the live config", func(c *xtcpConfigService) (*xtcp_config.XtcpConfig, error) {
+			r, err := c.SetEnvelopeFlush(context.Background(), &xtcp_config.SetEnvelopeFlushRequest{EnvelopeFlushThresholdRows: 10})
+			return r.GetConfig(), err
+		}, "no secrets"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expected)
+			c, _ := newConfigServiceFixture(t)
+			withSecrets(c.config)
+			got, err := tc.call(c)
+			if err != nil {
+				t.Fatal(err)
+			}
+			text := prototext.Format(got)
+			for _, secret := range []string{"s3-secret", "s3-access", "read-token", "read-key", "admin-token", "admin-key"} {
+				if strings.Contains(text, secret) {
+					t.Errorf("response carries %q", secret)
+				}
+			}
+			if c.config.AdminListenerAuth.GetRawToken() != "admin-token" || c.config.S3SecretKey != "s3-secret" {
+				t.Error("redaction mutated the live config")
+			}
+		})
 	}
 }
 

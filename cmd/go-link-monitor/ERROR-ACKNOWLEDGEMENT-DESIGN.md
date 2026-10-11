@@ -140,73 +140,72 @@ ledger, then publishes a new snapshot. Scrapes never wait on it.
 
 The ledger API lives in `pkg/linkmonitor` and knows nothing about transport:
 `Monitor.ReviewErrors(scope) (Review, error)` and
-`Monitor.AcknowledgeErrors(ctx, Ack) (AckResult, error)`. A small adapter,
-`pkg/linkmonitor/admin.Handler(m) http.Handler`, serves that API as one HTTP
-resource, `/acknowledge`. The standalone daemon and xtcp2 both mount the same
-handler, so they behave identically.
+`Monitor.AcknowledgeErrors(ctx, Ack) (AckResult, error)`. It is served as two
+RPCs of the shared `LinkMonitorService` (`proto/linkmonitor/v1`, see
+[`docs/design-admin-access.md`](../../docs/design-admin-access.md)), implemented
+once in `pkg/linkmonitor/linkmonitorgrpc`. Standalone go-link-monitor serves it
+on its admin listener, and xtcp2 serves it on its existing gRPC server, so both
+behave identically.
 
-| Method on `/acknowledge` | Effect | Response |
-|---|---|---|
-| `GET` (query: `class`, `interface`, `match`) | Review only; never changes state | `200` JSON: pending series, first/last increase, review token, expiry |
-| `POST` (JSON body: `token` or `all`, `reason`, `actor`, scope) | Compare-and-subtract | `200` JSON: series and total acked, new generation |
-| anything else | none | `405` with `Allow: GET, POST` |
+| RPC | Access | Effect | Response |
+|---|---|---|---|
+| `ReviewErrors(scope: class, interface, match)` | read | Review only; never changes state | pending series, first/last increase, review token, expiry |
+| `AcknowledgeErrors(token or all, reason, actor, scope)` | admin | Compare-and-subtract | series and total acked, new generation |
 
 Request rules:
 
-- **Body**: strict JSON (`DisallowUnknownFields`), `Content-Type:
-  application/json`, `http.MaxBytesReader` 4 KiB. `reason` is required and
-  1..512 bytes. `actor` is optional, free text, and recorded as self-asserted.
+- **Validation**: protovalidate rules on the request messages. `reason` is
+  required and 1..512 bytes. `actor` is optional, free text, and recorded as
+  self-asserted. Requests are bounded by the gRPC server's receive limit.
 - **Single use**: a token is consumed by its first successful ack. A replay
-  returns `409` and changes nothing. This also neutralises replay of an
-  `HMAC_UTC_MINUTE` bearer within its skew window.
-- **Errors**: `400` malformed body or scope; `401` from `listenerauth`; `409`
-  token expired, consumed or from another ledger (`boot_id`/epoch); `429` when
-  an ack is already in flight (limit 1); `503` while stopping or when the
-  ledger is `unavailable`.
-- **Ordering**: the handler submits a coalesced control request, waits up to 5 s
-  for the session to apply and persist it, then replies. Scrapes never wait on
-  it, and it never runs in a collection.
+  returns `FailedPrecondition` and changes nothing. This also neutralises
+  replay of an `HMAC_UTC_MINUTE` bearer within its skew window.
+- **Errors**: `InvalidArgument` for a malformed scope; `Unauthenticated` or
+  `PermissionDenied` from the `listenerauth.Policy` interceptors;
+  `FailedPrecondition` for a token that is expired, consumed or from another
+  ledger (`boot_id`/epoch); `ResourceExhausted` when an ack is already in
+  flight (limit 1); `Unavailable` while stopping or when the ledger is
+  `unavailable`.
+- **Ordering**: the handler submits a coalesced control ticket and `Await`s it
+  for up to 5 s while the session applies and persists the ack, then replies.
+  Scrapes never wait on it, and it never runs in a collection.
 
-Where it is mounted:
+Where it is served:
 
 | Host | Listener | Authentication | Audit identity |
 |---|---|---|---|
-| go-link-monitor (default) | `-errors.admin-addr`, default `unix:/run/go-link-monitor/admin.sock`, mode 0660 | Socket permissions | `SO_PEERCRED` uid/pid |
-| go-link-monitor (remote) | TCP address from the same flag, via `pkg/listener` | `pkg/listenerauth` (`RAW_TOKEN` or `HMAC_UTC_MINUTE`) | remote address, auth mode, `actor` |
-| xtcp2 (embedded) | xtcp2's existing Prometheus/health mux | xtcp2's existing `WrapHTTP(listener_auth)` | remote address, auth mode, `actor` |
+| go-link-monitor (default) | `-admin.network unix -admin.address /run/go-link-monitor/admin.sock`, mode 0660 | Socket permissions, plus `-auth.*` when set | `SO_PEERCRED` uid/pid |
+| go-link-monitor (remote) | TCP `-admin.address`, via `pkg/listener` | `listenerauth.Policy` (read and admin credentials) | remote address, auth mode, `actor` |
+| xtcp2 (embedded) | xtcp2's existing gRPC listener | xtcp2's `listener_auth` and `admin_listener_auth` | remote address, auth mode, `actor` |
 
 **Fail closed.** `listenerauth` treats `DISABLED` as "allow everyone" on
-purpose. The admin handler refuses to start on a non-loopback TCP address
-while auth is disabled, unless `-errors.admin-insecure` is set. It is never
-mounted on the read-only `/metrics` or `/metrics-all` listeners of
-go-link-monitor.
+purpose. Standalone go-link-monitor refuses to start a non-loopback TCP admin
+listener while admin auth is disabled, unless `-admin.insecure` is set. Nothing
+is mounted on the read-only `/metrics` or `/metrics-all` HTTP listeners.
 
-**Shared credential caveat.** xtcp2 has one `listener_auth` for every surface.
-Mounting `/acknowledge` on its Prometheus mux means any scraper holding the
-bearer token could ack. The design therefore adds an optional
-`admin_listener_auth` (falling back to `listener_auth`), so production can give
-scrapers a read-only token and operators a separate one. See open question 6.
+**Read and admin credentials.** `ReviewErrors` is a read RPC and
+`AcknowledgeErrors` is an admin RPC, declared with the `(xtcp_auth.v1.access)`
+method option. Once an admin credential is configured, a scraper's read token
+can review but gets `PermissionDenied` on ack. With only one credential
+configured, it grants both, as every xtcp2 credential did before the split.
 
-The CLI is a thin client over the same resource: `go-link-monitor errors show`
-and `errors ack` talk to the Unix socket by default, or to `--url` with
-`--token-file`/`--hmac-key-file` through `listenerauth.ClientAuth`. Plain
-`curl` works too:
+The CLI is a thin client over the same RPCs: `go-link-monitor ctl errors show`
+and `ctl errors ack` talk to the admin Unix socket by default, and
+`xtcp2ctl link errors show|ack` reaches the embedded monitor. Both share
+`pkg/linkmonitor/linkmonitorctl`. `grpcurl` works too, through reflection:
 
 ```sh
-curl -s --unix-socket /run/go-link-monitor/admin.sock http://x/acknowledge
-curl -s -H "Authorization: Bearer $(cat tok)" -H 'Content-Type: application/json' \
+grpcurl -plaintext -unix /run/go-link-monitor/admin.sock \
+  linkmonitor.v1.LinkMonitorService/ReviewErrors
+grpcurl -H "authorization: Bearer $(cat admin.tok)" \
   -d '{"token":"r1.…","reason":"RDMA timeout during switch maintenance, INC-1234"}' \
-  https://host:9101/acknowledge
+  host:8889 linkmonitor.v1.LinkMonitorService/AcknowledgeErrors
 ```
 
-Rejected: `SIGUSR2` as the main path (no scope, reason or audit; possible
-later alias for `all`), `POST` on the read-only metrics listeners, and `GET`
-with side effects (link prefetchers, crawlers and scrape misconfiguration
-would ack).
-
-gRPC is not needed for the first version. If `xtcp2ctl` wants it, a
-`LinkMonitorService.ReviewErrors/AcknowledgeErrors` pair can call the same
-library API behind the existing gRPC interceptors.
+Rejected: an HTTP `/acknowledge` resource (a second transport to secure and
+test, when xtcp2 already has authenticated gRPC with per-RPC access classes),
+`SIGUSR2` as the main path (no scope, reason or audit; possible later alias
+for `all`), and anything on the read-only metrics listeners.
 
 ### Audit
 
@@ -299,10 +298,10 @@ These follow the same rules as the exposure work:
   the same boot keeps pending and adds downtime increases.
 - **Negative**: excluded series never count; expired, foreign or replayed
   tokens are rejected; an ack is rejected from a uid without socket access;
-  `GET` never changes state; non-JSON, unknown fields, oversized bodies, an
-  empty or 513-byte reason are `400`; wrong methods are `405`; a missing or
-  wrong bearer is `401`; a non-loopback TCP admin address with auth disabled
-  refuses to start;
+  `ReviewErrors` never changes state; an empty or 513-byte reason is
+  `InvalidArgument`; a missing or wrong bearer is `Unauthenticated`; a read
+  token on `AcknowledgeErrors` is `PermissionDenied`; a non-loopback TCP admin
+  address with admin auth disabled refuses to start;
   corrupt, oversized or unknown-version files give `recovered`; write failures
   give `unavailable` without losing in-memory state.
 - **Boundary**: increase of 0 or 1; `pending` saturating at the uint64 maximum;
@@ -319,12 +318,12 @@ These follow the same rules as the exposure work:
 ## Rollout
 
 1. Ledger, classification, core and full families, startup snapshot,
-   persistence, `/acknowledge` (`GET` review, `POST` ack) on the Unix socket
-   with `errors show`/`errors ack` as its CLI, plus NixOS options.
+   persistence, `ReviewErrors`/`AcknowledgeErrors` on the admin Unix socket
+   with `ctl errors show`/`ctl errors ack` as its CLI, plus NixOS options.
 2. Scoped acks, audit ring exposure, implausible-step diagnostics.
-3. Remote `/acknowledge` over TCP with `listenerauth`, the xtcp2 mount and
-   `admin_listener_auth`; optional Alertmanager webhook that links an alert to
-   its `errors show` output.
+3. Remote admin over TCP with `listenerauth.Policy`, `xtcp2ctl link errors`;
+   optional Alertmanager webhook that links an alert to its `errors show`
+   output.
 
 ## Open questions
 
@@ -338,6 +337,8 @@ These follow the same rules as the exposure work:
 5. Should the classifier also flag series with impossible values, like enp1s0's
    driver counters, so they can be ignored automatically, or must ignores always
    be explicit configuration (proposed)?
-6. In xtcp2, should `/acknowledge` require a separate `admin_listener_auth`
-   (proposed: optional, falling back to `listener_auth`), or always reuse the
-   shared token?
+6. ~~In xtcp2, should acks require a separate `admin_listener_auth`, or always
+   reuse the shared token?~~ **Decided:** acks are an admin RPC. An optional
+   `admin_listener_auth` makes `listener_auth` read-only when set; without it,
+   the shared credential grants both, as before. See
+   [`docs/design-admin-access.md`](../../docs/design-admin-access.md).

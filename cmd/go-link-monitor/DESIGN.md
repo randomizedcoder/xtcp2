@@ -469,17 +469,35 @@ Standalone command flags:
 | `-metrics.core-exclude` | empty | Anchored regexp removed from `/metrics`, empty removes nothing; overrides GO_LINK_MONITOR_METRICS_CORE_EXCLUDE |
 | `-metrics-all-path` | `/metrics-all` | Exact path serving every metric, empty disables; overrides GO_LINK_MONITOR_METRICS_ALL_PATH |
 | `-metrics-all-addr` | empty | Separate listener for the all-metrics path, empty shares `-metrics-addr`; overrides GO_LINK_MONITOR_METRICS_ALL_ADDR |
+| `-admin.address` | empty | Admin gRPC socket path or TCP address, empty disables; overrides GO_LINK_MONITOR_ADMIN_ADDR |
+| `-admin.network` | `unix` | `unix` or `tcp`; overrides GO_LINK_MONITOR_ADMIN_NETWORK |
+| `-admin.unix-socket-mode` | `0660` | Octal socket permission bits; overrides GO_LINK_MONITOR_ADMIN_UNIX_SOCKET_MODE |
+| `-admin.insecure` | false | Allow a non-loopback TCP admin listener without an admin credential |
+| `-auth.read-mode`, `-auth.read-token-file`, `-auth.read-hmac-key-file` | empty | Read credential (`raw` or `hmac-utc-minute`, secret from a file); when set, metrics paths and read RPCs require it; overrides GO_LINK_MONITOR_AUTH_READ_* |
+| `-auth.admin-mode`, `-auth.admin-token-file`, `-auth.admin-hmac-key-file` | empty | Admin credential for rebaseline and resync; requires `-admin.address`; overrides GO_LINK_MONITOR_AUTH_ADMIN_* |
 | `-version` | false | Print build identity and exit |
 | `-io-backend` | `poller` | Ordinary nonblocking sockets by default; explicit `io_uring` requires supported backend initialization |
 
-Both single- and double-dash forms work. Maximum-speed exceptions and the four
-exposure options have environment overrides; an explicit flag, even an empty one,
+Both single- and double-dash forms work. Maximum-speed exceptions, the four
+exposure options and the admin/auth options have environment overrides; an explicit flag, even an empty one,
 wins, and an empty variable keeps the default. See
 [exposure tiers](METRICS.md#exposure-tiers). Unknown flags and positional arguments fail with exit 2;
 configuration errors also exit 2, runtime errors exit 1, and help/version or clean
 termination exit 0. Help/version perform no monitoring or baseline I/O. Version
 output reports version, revision and build date; the build metric has only the
 documented version/revision labels. Logs use structured text on stderr.
+
+The admin listener serves `LinkMonitorService`, gRPC health and reflection; see
+[admin access](../../docs/design-admin-access.md). It is bound with the HTTP
+listeners before monitoring starts, and its exit stops the process like an HTTP
+server's. A non-loopback TCP address without an admin credential exits 2 unless
+`-admin.insecure` is set. Health endpoints never require a credential. On a Unix
+socket the audit record names the caller's `SO_PEERCRED` uid and pid.
+`go-link-monitor ctl [-network] [-address] [-timeout] [-auth.*-file]
+<status|interfaces|collectors|rebaseline|resync>` is the client; it defaults to
+`/run/go-link-monitor/admin.sock`, reads the same environment names and sends the
+admin credential to admin commands when one is configured. SIGUSR1 remains a
+local rebaseline shortcut.
 
 Build the full Linux RDMA executable with `nix build path:.#go-link-monitor`;
 `path:.#go-link-monitor-core` explicitly omits the native bindings. Both install

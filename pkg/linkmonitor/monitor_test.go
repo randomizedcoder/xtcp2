@@ -133,9 +133,17 @@ func TestLifecycleAndConcurrentControls(t *testing.T) {
 		t.Fatal(err)
 	}
 	if m.control.begin() != 0 {
-		t.Fatal("in-flight requests scheduled duplicate work")
+		t.Fatal("in-flight requests began before the active pass completed")
 	}
 	m.control.complete(work)
+	// Requests made while a pass was in flight run as one follow-up pass each.
+	if work = m.control.begin(); work != resyncRequest|rebaselineRequest {
+		t.Fatalf("follow-up operations = %b", work)
+	}
+	m.control.complete(work)
+	if m.control.begin() != 0 {
+		t.Fatal("coalesced requests ran more than one follow-up pass")
+	}
 	if err := m.RequestResync(); err != nil {
 		t.Fatal(err)
 	}

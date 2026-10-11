@@ -27,6 +27,7 @@ type commandOptions struct {
 	monitor  linkmonitor.Config
 	address  string
 	exposure exposureOptions
+	admin    adminOptions
 	version  bool
 }
 
@@ -58,6 +59,7 @@ func parseOptions(args []string, output io.Writer, getenv func(string) string) (
 		"Path serving every metric (empty disables); overrides "+allPathEnvironment)
 	flags.StringVar(&opts.exposure.allAddress, "metrics-all-addr", "",
 		"Separate listen address for the all-metrics path (empty shares -metrics-addr); overrides "+allAddressEnvironment)
+	adminFallbacks := defineAdminFlags(flags, &opts.admin)
 	backend := string(opts.monitor.IOBackend)
 	flags.StringVar(&backend, "io-backend", backend, "Socket backend: poller or io_uring (requires available implementation)")
 	flags.BoolVar(&opts.version, "version", false, "Print build identity and exit")
@@ -72,16 +74,13 @@ func parseOptions(args []string, output io.Writer, getenv func(string) string) (
 	// An unset or empty variable keeps the flag default.
 	explicit := make(map[string]bool)
 	flags.Visit(func(f *flag.Flag) { explicit[f.Name] = true })
-	for _, fallback := range []struct {
-		flag, environment string
-		target            *string
-	}{
+	for _, fallback := range append([]envFallback{
 		{"max-speed-exceptions", exceptionEnvironment, &exceptions},
 		{"metrics.core-include", coreIncludeEnvironment, &opts.exposure.coreInclude},
 		{"metrics.core-exclude", coreExcludeEnvironment, &opts.exposure.coreExclude},
 		{"metrics-all-path", allPathEnvironment, &opts.exposure.allPath},
 		{"metrics-all-addr", allAddressEnvironment, &opts.exposure.allAddress},
-	} {
+	}, adminFallbacks...) {
 		if value := getenv(fallback.environment); !explicit[fallback.flag] && value != "" {
 			*fallback.target = value
 		}

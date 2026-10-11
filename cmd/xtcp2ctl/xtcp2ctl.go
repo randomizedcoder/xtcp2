@@ -20,6 +20,8 @@
 //	set-s3               change the s3parquet flush timer and/or byte cap live
 //	set-envelope-flush   change the envelope flush row/byte caps live
 //	reconfigure          apply a full config from a file/stdin (soft restart)
+//	link                 embedded link monitor: status, interfaces, collectors,
+//	                     rebaseline, resync (LinkMonitorService)
 //
 // Every command accepts -target/-port/-d. Run `xtcp2ctl <command> -h` for
 // per-command flags.
@@ -27,13 +29,16 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
 	"time"
 
+	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_auth"
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
+	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/linkmonitorctl"
 	"github.com/randomizedcoder/xtcp2/pkg/listener"
 	"github.com/randomizedcoder/xtcp2/pkg/listenerauth"
 	"github.com/randomizedcoder/xtcp2/pkg/misc"
@@ -54,6 +59,10 @@ const (
 	// before the daemon actually re-execs (the daemon delays its shutdown so
 	// the response flushes), so this is comfortably long enough.
 	callTimeout = 15 * time.Second
+
+	// linkCallTimeout covers LinkMonitorService's longest server-side wait
+	// (rebaseline/resync -wait, at most 60s) plus slack.
+	linkCallTimeout = 75 * time.Second
 )
 
 var (
@@ -96,6 +105,8 @@ func runMain(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return cmdSetEnvelopeFlush(ctx, args[1:], stdout, stderr)
 	case "reconfigure":
 		return cmdReconfigure(ctx, args[1:], stdout, stderr)
+	case "link":
+		return cmdLink(ctx, args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "xtcp2ctl: unknown command %q\n\n", args[0])
 		usage(stderr)
@@ -117,6 +128,8 @@ Commands:
   set-s3               Change the s3parquet flush timer / byte cap live (no restart)
   set-envelope-flush   Change the envelope flush row / byte caps live (no restart)
   reconfigure          Apply a full config from a file or stdin (soft restart)
+  link                 Embedded link monitor: status, interfaces, collectors,
+                       rebaseline, resync ('xtcp2ctl link [flags] <command> -h')
 
 Common flags (all commands):
   -network string  gRPC network: tcp or unix (default "tcp")
@@ -124,6 +137,12 @@ Common flags (all commands):
   -port string     daemon gRPC port (default "8889", must match -grpcPort)
   -unixSocket path daemon gRPC Unix socket path when -network unix
   -d uint          debug level (default 0)
+  -auth-token, -auth-token-file, -auth-hmac-shared-key, -auth-hmac-shared-key-file
+                   credential; XTCP2_GRPC_AUTH_TOKEN[_FILE] / XTCP2_GRPC_HMAC_SHARED_KEY[_FILE]
+                   override them. Admin commands (everything except get and the
+                   link read commands) send
+                   XTCP2_GRPC_ADMIN_TOKEN[_FILE] / XTCP2_GRPC_ADMIN_HMAC_SHARED_KEY[_FILE]
+                   instead when set.
 
 Run 'xtcp2ctl <command> -h' for per-command flags.
 `)
@@ -155,11 +174,33 @@ func dial(network, target string) (*grpc.ClientConn, error) {
 	)
 }
 
-// withClient parses the shared flags, dials, and hands a ready ConfigService
-// client to fn. Centralizes conn lifecycle + error formatting so each command
-// stays a few lines.
-func withClient(ctx context.Context, fs *flag.FlagSet, args []string, stderr io.Writer,
+// configAccess is ConfigService's access table, read once from the proto.
+var configAccess = listenerauth.ServiceMethods(
+	xtcp_config.File_xtcp_config_v1_xtcp_config_proto.Services().ByName("ConfigService"))
+
+// withClient hands a ready ConfigService client to fn. method selects the
+// credential: an ACCESS_ADMIN method prefers the admin credential.
+func withClient(ctx context.Context, fs *flag.FlagSet, args []string, stderr io.Writer, method string,
 	fn func(context.Context, xtcp_config.ConfigServiceClient) int) int {
+	return withConn(ctx, fs, args, stderr, configAccess[method], func(ctx context.Context, conn grpc.ClientConnInterface) int {
+		return fn(ctx, xtcp_config.NewConfigServiceClient(conn))
+	})
+}
+
+// withConn parses the shared flags, dials, and hands a ready connection to
+// fn. Centralizes conn lifecycle + error formatting so each command stays a
+// few lines. Any access other than ACCESS_READ is treated as admin: when
+// XTCP2_GRPC_ADMIN_TOKEN[_FILE] or XTCP2_GRPC_ADMIN_HMAC_SHARED_KEY[_FILE] is
+// set, that credential is sent instead of the shared one. A read method uses
+// the shared credential, or the admin one when it is the only one set.
+func withConn(ctx context.Context, fs *flag.FlagSet, args []string, stderr io.Writer, access xtcp_auth.Access,
+	fn func(context.Context, grpc.ClientConnInterface) int) int {
+	return withConnTimeout(ctx, fs, args, stderr, access, callTimeout, fn)
+}
+
+// withConnTimeout is withConn with an explicit call deadline.
+func withConnTimeout(ctx context.Context, fs *flag.FlagSet, args []string, stderr io.Writer, access xtcp_auth.Access,
+	timeout time.Duration, fn func(context.Context, grpc.ClientConnInterface) int) int {
 
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -187,6 +228,12 @@ func withClient(ctx context.Context, fs *flag.FlagSet, args []string, stderr io.
 		fmt.Fprintf(stderr, "xtcp2ctl: auth configuration: %v\n", err)
 		return 2
 	}
+	admin, err := adminClientAuth()
+	if err != nil {
+		fmt.Fprintf(stderr, "xtcp2ctl: admin auth configuration: %v\n", err)
+		return 2
+	}
+	auth = listenerauth.ForAccess(auth, admin, access)
 	displayTarget := dialTarget
 	if networkName == listener.NetworkUnix {
 		dialTarget = fs.Lookup("unixSocket").Value.String()
@@ -208,17 +255,50 @@ func withClient(ctx context.Context, fs *flag.FlagSet, args []string, stderr io.
 		}
 	}()
 
-	callCtx, cancel := context.WithTimeout(ctx, callTimeout)
+	callCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	callCtx = listenerauth.ContextWithClientAuth(callCtx, auth, time.Now())
-	return fn(callCtx, xtcp_config.NewConfigServiceClient(conn))
+	return fn(callCtx, conn)
+}
+
+// adminClientAuth reads the admin credential from its environment variables.
+func adminClientAuth() (listenerauth.ClientAuth, error) {
+	return listenerauth.ClientAuthFromEnvAndFlags("", "", "", "",
+		"XTCP2_GRPC_ADMIN_TOKEN", "XTCP2_GRPC_ADMIN_TOKEN_FILE",
+		"XTCP2_GRPC_ADMIN_HMAC_SHARED_KEY", "XTCP2_GRPC_ADMIN_HMAC_SHARED_KEY_FILE")
+}
+
+// cmdLink runs `xtcp2ctl link [common flags] <command> [command flags]`
+// against the daemon's LinkMonitorService. The common flags come first so the
+// subcommand's own flags (-format, -reason, -wait) reach linkmonitorctl.
+func cmdLink(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+	const prog = "xtcp2ctl link"
+	fs := flag.NewFlagSet("link", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	commonFlags(fs)
+	fs.Usage = func() {
+		linkmonitorctl.Usage(stderr, prog+" [flags]")
+		fmt.Fprintln(stderr, "\nFlags:")
+		fs.PrintDefaults()
+	}
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 2
+	}
+	rest := fs.Args()
+	return withConnTimeout(ctx, fs, nil, stderr, linkmonitorctl.Access(rest), linkCallTimeout,
+		func(ctx context.Context, conn grpc.ClientConnInterface) int {
+			return linkmonitorctl.Run(ctx, conn, prog, rest, stdout, stderr)
+		})
 }
 
 func cmdGet(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("get", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	commonFlags(fs)
-	return withClient(ctx, fs, args, stderr, func(ctx context.Context, c xtcp_config.ConfigServiceClient) int {
+	return withClient(ctx, fs, args, stderr, xtcp_config.ConfigService_Get_FullMethodName, func(ctx context.Context, c xtcp_config.ConfigServiceClient) int {
 		resp, err := c.Get(ctx, &xtcp_config.GetRequest{})
 		if err != nil {
 			fmt.Fprintf(stderr, "xtcp2ctl get: %v\n", err)
@@ -234,7 +314,7 @@ func cmdSetPollFrequency(ctx context.Context, args []string, stdout, stderr io.W
 	commonFlags(fs)
 	frequency := fs.Duration("frequency", 0, "new poll frequency, e.g. 30s (required)")
 	timeout := fs.Duration("timeout", 0, "new per-namespace poll timeout, must be < frequency (required)")
-	return withClient(ctx, fs, args, stderr, func(ctx context.Context, c xtcp_config.ConfigServiceClient) int {
+	return withClient(ctx, fs, args, stderr, xtcp_config.ConfigService_SetPollFrequency_FullMethodName, func(ctx context.Context, c xtcp_config.ConfigServiceClient) int {
 		if *frequency <= 0 || *timeout <= 0 {
 			fmt.Fprintln(stderr, "xtcp2ctl set-poll-frequency: -frequency and -timeout are required (>0)")
 			return 2
@@ -255,7 +335,7 @@ func cmdTriggerPoll(ctx context.Context, args []string, stdout, stderr io.Writer
 	fs := flag.NewFlagSet("trigger-poll", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	commonFlags(fs)
-	return withClient(ctx, fs, args, stderr, func(ctx context.Context, c xtcp_config.ConfigServiceClient) int {
+	return withClient(ctx, fs, args, stderr, xtcp_config.ConfigService_TriggerPoll_FullMethodName, func(ctx context.Context, c xtcp_config.ConfigServiceClient) int {
 		if _, err := c.TriggerPoll(ctx, &xtcp_config.TriggerPollRequest{}); err != nil {
 			fmt.Fprintf(stderr, "xtcp2ctl trigger-poll: %v\n", err)
 			return 1
@@ -271,7 +351,7 @@ func cmdPollBurst(ctx context.Context, args []string, stdout, stderr io.Writer) 
 	commonFlags(fs)
 	count := fs.Uint("count", 6, "number of polls in the burst (1-1000)")
 	interval := fs.Duration("interval", 10*time.Second, "spacing between polls; must exceed the daemon's poll timeout")
-	return withClient(ctx, fs, args, stderr, func(ctx context.Context, c xtcp_config.ConfigServiceClient) int {
+	return withClient(ctx, fs, args, stderr, xtcp_config.ConfigService_TriggerPollBurst_FullMethodName, func(ctx context.Context, c xtcp_config.ConfigServiceClient) int {
 		if _, err := c.TriggerPollBurst(ctx, &xtcp_config.TriggerPollBurstRequest{
 			Count:    uint32(*count),
 			Interval: durationpb.New(*interval),
@@ -290,7 +370,7 @@ func cmdSetS3(ctx context.Context, args []string, stdout, stderr io.Writer) int 
 	commonFlags(fs)
 	flushInterval := fs.Duration("flush-interval", 0, "new s3parquet staleness-flush timer, e.g. 5s")
 	thresholdBytes := fs.Uint("threshold-bytes", 0, "new s3parquet byte cap before finalize+upload")
-	return withClient(ctx, fs, args, stderr, func(ctx context.Context, c xtcp_config.ConfigServiceClient) int {
+	return withClient(ctx, fs, args, stderr, xtcp_config.ConfigService_SetS3Upload_FullMethodName, func(ctx context.Context, c xtcp_config.ConfigServiceClient) int {
 		// Only send fields the operator explicitly set. Empty request violates
 		// the server's "at least one" rule, so catch it locally.
 		req := &xtcp_config.SetS3UploadRequest{}
@@ -321,7 +401,7 @@ func cmdSetEnvelopeFlush(ctx context.Context, args []string, stdout, stderr io.W
 	commonFlags(fs)
 	thresholdBytes := fs.Uint("threshold-bytes", 0, "new envelope uncompressed byte cap (0 = daemon default 768 KiB)")
 	thresholdRows := fs.Uint("threshold-rows", 0, "new envelope row-count cap (0 = daemon default 10000)")
-	return withClient(ctx, fs, args, stderr, func(ctx context.Context, c xtcp_config.ConfigServiceClient) int {
+	return withClient(ctx, fs, args, stderr, xtcp_config.ConfigService_SetEnvelopeFlush_FullMethodName, func(ctx context.Context, c xtcp_config.ConfigServiceClient) int {
 		// Only send fields the operator explicitly set. Empty request violates
 		// the server's "at least one" rule, so catch it locally.
 		req := &xtcp_config.SetEnvelopeFlushRequest{}
@@ -351,7 +431,7 @@ func cmdReconfigure(ctx context.Context, args []string, stdout, stderr io.Writer
 	fs.SetOutput(stderr)
 	commonFlags(fs)
 	file := fs.String("file", "-", `config JSON file to apply; "-" reads stdin (default)`)
-	return withClient(ctx, fs, args, stderr, func(ctx context.Context, c xtcp_config.ConfigServiceClient) int {
+	return withClient(ctx, fs, args, stderr, xtcp_config.ConfigService_Set_FullMethodName, func(ctx context.Context, c xtcp_config.ConfigServiceClient) int {
 		raw, err := readConfigInput(*file)
 		if err != nil {
 			fmt.Fprintf(stderr, "xtcp2ctl reconfigure: read %s: %v\n", *file, err)

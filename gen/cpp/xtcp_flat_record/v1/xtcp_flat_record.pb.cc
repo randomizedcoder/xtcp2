@@ -2280,18 +2280,19 @@ const char descriptor_table_protodef_xtcp_5fflat_5frecord_2fv1_2fxtcp_5fflat_5fr
     "cp_flat_record.v1.FlatRecordsResponse0\001\022"
     "p\n\017PollFlatRecords\022+.xtcp_flat_record.v1"
     ".PollFlatRecordsRequest\032,.xtcp_flat_reco"
-    "rd.v1.PollFlatRecordsResponse(\0010\001B\256\001\n\027co"
+    "rd.v1.PollFlatRecordsResponse(\0010\001B\315\001\n\027co"
     "m.xtcp_flat_record.v1B\023XtcpFlatRecordPro"
-    "toP\001Z\031./gen/go/xtcp_flat_record\242\002\003XXX\252\002\021"
-    "XtcpFlatRecord.V1\312\002\021XtcpFlatRecord\\V1\342\002\035"
-    "XtcpFlatRecord\\V1\\GPBMetadata\352\002\022XtcpFlat"
-    "Record::V1b\006proto3"
+    "toP\001Z8github.com/randomizedcoder/xtcp2/g"
+    "en/go/xtcp_flat_record\242\002\003XXX\252\002\021XtcpFlatR"
+    "ecord.V1\312\002\021XtcpFlatRecord\\V1\342\002\035XtcpFlatR"
+    "ecord\\V1\\GPBMetadata\352\002\022XtcpFlatRecord::V"
+    "1b\006proto3"
 };
 static ::absl::once_flag descriptor_table_xtcp_5fflat_5frecord_2fv1_2fxtcp_5fflat_5frecord_2eproto_once;
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_xtcp_5fflat_5frecord_2fv1_2fxtcp_5fflat_5frecord_2eproto = {
     false,
     false,
-    10218,
+    10249,
     descriptor_table_protodef_xtcp_5fflat_5frecord_2fv1_2fxtcp_5fflat_5frecord_2eproto,
     "xtcp_flat_record/v1/xtcp_flat_record.proto",
     &descriptor_table_xtcp_5fflat_5frecord_2fv1_2fxtcp_5fflat_5frecord_2eproto_once,

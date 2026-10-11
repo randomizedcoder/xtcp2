@@ -46,6 +46,9 @@
 *listenerSignedSkewMinutes: 128
 *listenerAuthFailureJitterMin: 129ms
 *listenerAuthFailureJitterMax: 130ms
+*listenerAdminAuthMode: listenerAdminAuthMode-v
+*listenerAdminRawToken: set: true
+*listenerAdminHMACSharedKey: set: true
 *goMaxProcs: 134
 *enrichContainer: false
 *dockerSocket: dockerSocket-v
@@ -64,6 +67,18 @@
 *enrichLocality: true
 *localityRefreshInterval: 125ms
 compiledInEnrichers: {{compiledInEnrichers}}
+*linkMonitor: true
+*linkMonitorBaselineFile: linkMonitorBaselineFile-v
+*linkMonitorSettle: 141ms
+*linkMonitorResync: 142ms
+*linkMonitorStatsInterval: 143ms
+*linkMonitorStatsInclude: linkMonitorStatsInclude-v
+*linkMonitorStatsExclude: linkMonitorStatsExclude-v
+*linkMonitorNetstatFields: linkMonitorNetstatFields-v
+*linkMonitorMaxSpeedExceptions: linkMonitorMaxSpeedExceptions-v
+*linkMonitorMetricsCoreInclude: linkMonitorMetricsCoreInclude-v
+*linkMonitorMetricsCoreExclude: linkMonitorMetricsCoreExclude-v
+*linkMonitorMetricsAll: false
 *grpcListenNetwork: grpcListenNetwork-v
 *grpcListenAddress: grpcListenAddress-v
 *grpcUnixSocketMode: 132

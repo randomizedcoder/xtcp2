@@ -400,6 +400,94 @@ Deliver: Run separately authorized lab coverage for Ethernet/RoCEv2/native IB ca
 
 Done when: Evidence names devices/drivers/firmware/kernel/scenarios and outcomes; uncovered hardware/features remain unverified, never inferred from virtual fixtures.
 
+### P12 — Administration API and xtcp2 integration
+
+Design: [`docs/design-admin-access.md`](../../docs/design-admin-access.md). This
+phase absorbs former deferred item D01.
+
+#### P12-T01
+
+**Admin access design and documentation.** Depends on: [P08-T03](#p08-t03).
+
+Deliver: Access model, credential configuration, `LinkMonitorService` sketch,
+CLI layout and threat table; gRPC-first transport for the error-acknowledgement
+design.
+
+Done when: Documents agree with each other and with the plan; local links and
+anchors resolve.
+
+#### P12-T02
+
+**Read/admin access policy.** Depends on: [P12-T01](#p12-t01).
+
+Deliver: `(xtcp_auth.v1.access)` method option, `listenerauth.Policy` with
+startup-built method table, `admin_listener_auth` with flags/environment, client
+credential selection, and redaction of every `ConfigService` response.
+
+Done when: Positive, negative, boundary and corner tables cover both
+credentials over unary, streaming and HTTP; an annotation-completeness test
+covers every registered method; with no admin credential, behaviour is
+unchanged; the lookup is allocation-free.
+
+#### P12-T03
+
+**Control tickets.** Depends on: [P05-T03](#p05-t03).
+
+Deliver: `Submit`/`Await` with per-kind generation counters and one shared
+change channel; at most one active and one pending pass per kind;
+`RequestRebaseline`/`RequestResync` keep their signatures.
+
+Done when: Tables cover completion, timeout, stop, a request during an active
+pass, concurrent coalescing and failing saves; publication allocations are
+unchanged.
+
+#### P12-T04
+
+**LinkMonitorService proto and gRPC adapter.** Depends on: [P12-T02](#p12-t02),
+[P12-T03](#p12-t03).
+
+Deliver: `proto/linkmonitor/v1` with per-RPC messages, validation and access
+classes; `pkg/linkmonitor/linkmonitorgrpc` over a small monitor interface, with
+its own metrics and admin audit logging. Error-ledger RPCs are reserved.
+
+Done when: Each RPC is covered over bufconn with a fake monitor, including
+validation failures, timeouts and audit fields; the core package imports no
+grpc.
+
+#### P12-T05
+
+**Shared control CLI.** Depends on: [P12-T04](#p12-t04).
+
+Deliver: `pkg/linkmonitor/linkmonitorctl` with `status`, `interfaces`,
+`collectors`, `rebaseline` and `resync`, text and JSON output.
+
+Done when: Each subcommand is covered in both formats; usage errors exit 2 and
+RPC errors exit 1.
+
+#### P12-T06
+
+**Standalone admin listener.** Depends on: [P12-T05](#p12-t05).
+
+Deliver: `-admin.*` and `-auth.*` flags, gRPC admin listener in the bind-first
+lifecycle, `Policy`-wrapped metrics when read auth is set, `go-link-monitor
+ctl`, and NixOS module options.
+
+Done when: Insecure non-loopback TCP is refused; bind and serve failures stop
+the process; an executable test runs `ctl status` and `ctl rebaseline -wait`
+over the Unix socket.
+
+#### P12-T07
+
+**xtcp2 runtime integration (former D01).** Depends on: [P12-T05](#p12-t05).
+
+Deliver: `link_monitor` configuration in `XtcpConfig`, monitor lifecycle in the
+daemon, core-filtered collector on xtcp2's registry, `LinkMonitorService` on the
+xtcp2 gRPC server, and `xtcp2ctl link`.
+
+Done when: The embedding test runs with the monitor enabled and the service
+registered; a disabled monitor returns `FailedPrecondition`; a shared baseline
+file fails with a clear lock error.
+
 ## Verification and evidence requirements
 
 Use the repository's flake-pinned tools and actual working-tree sources,
@@ -549,7 +637,7 @@ integration tasks that share those scenarios.
 
 | ID | Work | Re-entry condition |
 |---|---|---|
-| D01 | Enable monitor in the actual xtcp2 runtime/configuration | Separate implementation request after the public-library and embedding compatibility gates; P08 still tests compatibility |
+| D01 | Enable monitor in the actual xtcp2 runtime/configuration | Moved into [P12-T07](#p12-t07) |
 | D02 | Multishot recvmsg experiment (SC076) | Separate optimization work after P10 evidence, using the detailed-design ownership/rearm tests; not required for the initial optional backend |
 | D03 | Batched procfs/sysfs file reads | Separate experiment after profiles show a useful opportunity and per-file support/namespace/worker-cost validation is defined |
 

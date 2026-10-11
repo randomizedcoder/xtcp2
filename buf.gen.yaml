@@ -20,6 +20,10 @@ plugins:
   # Go — protoc-gen-go (nixpkgs: protoc-gen-go)
   - local: protoc-gen-go
     out: .
+    opt:
+      # go_package is a full import path so protos can import each other
+      # (xtcp_auth's access option); module= strips it back to gen/go/<pkg>.
+      - module=github.com/randomizedcoder/xtcp2
   #--------------------------
   # planetscale/vtprotobuf — reflection-free MarshalVT/SizeVT/UnmarshalVT.
   # Runs after protoc-gen-go (emits *_vtproto.pb.go alongside *.pb.go). Used on
@@ -29,10 +33,13 @@ plugins:
     out: .
     opt:
       - features=marshal+unmarshal+size
+      - module=github.com/randomizedcoder/xtcp2
   #--------------------------
   # Go gRPC — protoc-gen-go-grpc (nixpkgs: protoc-gen-go-grpc)
   - local: protoc-gen-go-grpc
     out: .
+    opt:
+      - module=github.com/randomizedcoder/xtcp2
   #--------------------------
   # OpenAPI v2 (swagger) — protoc-gen-openapiv2 (nixpkgs: grpc-gateway)
   - local: protoc-gen-openapiv2
@@ -43,6 +50,7 @@ plugins:
     out: .
     opt:
       - generate_unbound_methods=true
+      - module=github.com/randomizedcoder/xtcp2
   #--------------------------
   # Dart (Flutter) — protoc-gen-dart (nixpkgs: protoc-gen-dart)
   - local: protoc-gen-dart
