@@ -66,7 +66,7 @@ func TestBridgeXstatsViewText(t *testing.T) {
 	}{
 		{
 			description: "positive: bridge with vlan and mcast bodies, empty bond and stp headers",
-			view:        BridgeXstatsView{Ifindex: 5, IfName: "br0", Vlans: sentinelVlans(), Mcast: sentinelMcast()},
+			view:        BridgeXstatsView{Group: XstatsGroupCst, Ifindex: 5, IfName: "br0", Vlans: sentinelVlans(), Mcast: sentinelMcast()},
 			want: "5: br0: group xstats subgroup bond suite 802.3ad\n" +
 				"5: br0: group xstats subgroup bridge suite vlan\n" + vlanBody + "\n" +
 				"5: br0: group xstats subgroup bridge suite mcast\n" + mcastBody + "\n" +
@@ -88,6 +88,47 @@ func TestBridgeXstatsViewText(t *testing.T) {
 				"0: *: group xstats subgroup bridge suite mcast\n" +
 				"0: *: group xstats subgroup bridge suite stp\n",
 		},
+		{
+			description: "positive: a bond with all nine counters prints the 802.3ad body and its blank line",
+			view:        BridgeXstatsView{Group: XstatsGroupCst, Ifindex: 5, IfName: "bond0", Bond3ad: sentinel3ad()},
+			want: "5: bond0: group xstats subgroup bond suite 802.3ad\n" + bond3adBody + "\n" +
+				"5: bond0: group xstats subgroup bridge suite vlan\n" +
+				"5: bond0: group xstats subgroup bridge suite mcast\n" +
+				"5: bond0: group xstats subgroup bridge suite stp\n",
+		},
+		{
+			description: "positive: the slave group names itself in every header and reads the same body",
+			view:        BridgeXstatsSlaveViewOf(slaveInfo(3), fakeNames{3: {name: "la1"}}),
+			want: "3: la1: group xstats_slave subgroup bond suite 802.3ad\n" + bond3adBody + "\n" +
+				"3: la1: group xstats_slave subgroup bridge suite vlan\n" +
+				"3: la1: group xstats_slave subgroup bridge suite mcast\n" +
+				"3: la1: group xstats_slave subgroup bridge suite stp\n",
+		},
+		{
+			description: "negative: the xstats view of a record whose 3ad body is in the slave group prints none",
+			view:        BridgeXstatsViewOf(slaveInfo(3), fakeNames{3: {name: "la1"}}),
+			want: "3: la1: group xstats subgroup bond suite 802.3ad\n" +
+				"3: la1: group xstats subgroup bridge suite vlan\n" +
+				"3: la1: group xstats subgroup bridge suite mcast\n" +
+				"3: la1: group xstats subgroup bridge suite stp\n",
+		},
+		{
+			description: "boundary: an empty 3ad nest is still a body: header, then a blank line",
+			view:        BridgeXstatsView{Group: XstatsGroupCst, Ifindex: 5, IfName: "bond0", Bond3ad: &xtcpnl.Bond3adStats{}},
+			want: "5: bond0: group xstats subgroup bond suite 802.3ad\n\n" +
+				"5: bond0: group xstats subgroup bridge suite vlan\n" +
+				"5: bond0: group xstats subgroup bridge suite mcast\n" +
+				"5: bond0: group xstats subgroup bridge suite stp\n",
+		},
+		{
+			description: "corner: only the counters present print, in counter order",
+			view:        BridgeXstatsView{Group: XstatsGroupCst, Ifindex: 5, IfName: "bond0", Bond3ad: partial3ad()},
+			want: "5: bond0: group xstats subgroup bond suite 802.3ad\n" +
+				sp20 + "LACPDU Tx 24\n" + sp20 + "Marker unknown type Rx 0\n\n" +
+				"5: bond0: group xstats subgroup bridge suite vlan\n" +
+				"5: bond0: group xstats subgroup bridge suite mcast\n" +
+				"5: bond0: group xstats subgroup bridge suite stp\n",
+		},
 	}
 
 	for _, tc := range tests {
@@ -97,6 +138,48 @@ func TestBridgeXstatsViewText(t *testing.T) {
 			}
 		})
 	}
+}
+
+// sentinel3ad is a 3ad body with every counter present and distinct (1..9), so
+// a label wired to the wrong counter shows. bond3adBody is its text.
+func sentinel3ad() *xtcpnl.Bond3adStats {
+	s := &xtcpnl.Bond3adStats{}
+	for i := range s.Values {
+		s.Values[i] = uint64(i) + 1
+		s.Present[i] = true
+	}
+	return s
+}
+
+// bond3adIndent is the sp16 + 4 every 802.3ad line opens with.
+const bond3adIndent = sp16 + "    "
+
+const bond3adBody = bond3adIndent + "LACPDU Rx 1\n" +
+	bond3adIndent + "LACPDU Tx 2\n" +
+	bond3adIndent + "LACPDU Unknown type Rx 3\n" +
+	bond3adIndent + "LACPDU Illegal Rx 4\n" +
+	bond3adIndent + "Marker Rx 5\n" +
+	bond3adIndent + "Marker Tx 6\n" +
+	bond3adIndent + "Marker response Rx 7\n" +
+	bond3adIndent + "Marker response Tx 8\n" +
+	bond3adIndent + "Marker unknown type Rx 9\n"
+
+// partial3ad has two counters present: lacpdu_tx 24 and a zero
+// marker_unknown_rx, the first and last label the presence check can drop.
+func partial3ad() *xtcpnl.Bond3adStats {
+	s := &xtcpnl.Bond3adStats{}
+	s.Values[xtcpnl.Bond3adStatLacpduTx] = 24
+	s.Present[xtcpnl.Bond3adStatLacpduTx] = true
+	s.Present[xtcpnl.Bond3adStatMarkerUnknownRx] = true
+	return s
+}
+
+// slaveInfo is a decoded record whose sentinel 3ad body is in the xstats_slave
+// group only.
+func slaveInfo(ifindex uint32) xtcpnl.IfStatsInfo {
+	info := xtcpnl.IfStatsInfo{Ifindex: ifindex, HasXstatsSlave: true}
+	info.Slave.Bond3ad = sentinel3ad()
+	return info
 }
 
 // TestBridgeXstatsViewJSON pins the flat array: one object per leaf. The vlan
@@ -112,7 +195,7 @@ func TestBridgeXstatsViewJSON(t *testing.T) {
 	}{
 		{
 			description: "positive: vlan and mcast bodies, empty bond and stp objects",
-			view:        BridgeXstatsView{Ifindex: 5, IfName: "br0", Vlans: sentinelVlans(), Mcast: sentinelMcast()},
+			view:        BridgeXstatsView{Group: XstatsGroupCst, Ifindex: 5, IfName: "br0", Vlans: sentinelVlans(), Mcast: sentinelMcast()},
 			want: `[` +
 				`{"ifindex":5,"ifname":"br0","group":"xstats","subgroup":"bond","suite":"802.3ad"},` +
 				`{"ifindex":5,"ifname":"br0","group":"xstats","subgroup":"bridge","suite":"vlan","vlans":[{"vid":1,"flags":["PVID","Egress Untagged"],"rx_bytes":100,"rx_packets":101,"tx_bytes":200,"tx_packets":201}]},` +
@@ -128,12 +211,44 @@ func TestBridgeXstatsViewJSON(t *testing.T) {
 		},
 		{
 			description: "corner: a non-bridge device emits the empty vlans array and three bodiless objects",
-			view:        BridgeXstatsView{Ifindex: 2, IfName: "eth0"},
+			view:        BridgeXstatsView{Group: XstatsGroupCst, Ifindex: 2, IfName: "eth0"},
 			want: `[` +
 				`{"ifindex":2,"ifname":"eth0","group":"xstats","subgroup":"bond","suite":"802.3ad"},` +
 				`{"ifindex":2,"ifname":"eth0","group":"xstats","subgroup":"bridge","suite":"vlan","vlans":[]},` +
 				`{"ifindex":2,"ifname":"eth0","group":"xstats","subgroup":"bridge","suite":"mcast"},` +
 				`{"ifindex":2,"ifname":"eth0","group":"xstats","subgroup":"bridge","suite":"stp"}` +
+				`]`,
+		},
+		{
+			description: "positive: the slave group's 802.3ad object, keys in counter order",
+			view:        BridgeXstatsView{Group: XstatsSlaveGroupCst, Ifindex: 3, IfName: "la1", Bond3ad: sentinel3ad()},
+			want: `[` +
+				`{"ifindex":3,"ifname":"la1","group":"xstats_slave","subgroup":"bond","suite":"802.3ad","802.3ad":{` +
+				`"lacpdu_rx":1,"lacpdu_tx":2,"lacpdu_unknown_rx":3,"lacpdu_illegal_rx":4,"marker_rx":5,` +
+				`"marker_tx":6,"marker_response_rx":7,"marker_response_tx":8,"marker_unknown_rx":9}},` +
+				`{"ifindex":3,"ifname":"la1","group":"xstats_slave","subgroup":"bridge","suite":"vlan","vlans":[]},` +
+				`{"ifindex":3,"ifname":"la1","group":"xstats_slave","subgroup":"bridge","suite":"mcast"},` +
+				`{"ifindex":3,"ifname":"la1","group":"xstats_slave","subgroup":"bridge","suite":"stp"}` +
+				`]`,
+		},
+		{
+			description: "boundary: an empty 3ad nest is an empty object, not an absent key",
+			view:        BridgeXstatsView{Group: XstatsGroupCst, Ifindex: 5, IfName: "bond0", Bond3ad: &xtcpnl.Bond3adStats{}},
+			want: `[` +
+				`{"ifindex":5,"ifname":"bond0","group":"xstats","subgroup":"bond","suite":"802.3ad","802.3ad":{}},` +
+				`{"ifindex":5,"ifname":"bond0","group":"xstats","subgroup":"bridge","suite":"vlan","vlans":[]},` +
+				`{"ifindex":5,"ifname":"bond0","group":"xstats","subgroup":"bridge","suite":"mcast"},` +
+				`{"ifindex":5,"ifname":"bond0","group":"xstats","subgroup":"bridge","suite":"stp"}` +
+				`]`,
+		},
+		{
+			description: "corner: an absent counter is an absent key, a present zero is 0",
+			view:        BridgeXstatsView{Group: XstatsGroupCst, Ifindex: 5, IfName: "bond0", Bond3ad: partial3ad()},
+			want: `[` +
+				`{"ifindex":5,"ifname":"bond0","group":"xstats","subgroup":"bond","suite":"802.3ad","802.3ad":{"lacpdu_tx":24,"marker_unknown_rx":0}},` +
+				`{"ifindex":5,"ifname":"bond0","group":"xstats","subgroup":"bridge","suite":"vlan","vlans":[]},` +
+				`{"ifindex":5,"ifname":"bond0","group":"xstats","subgroup":"bridge","suite":"mcast"},` +
+				`{"ifindex":5,"ifname":"bond0","group":"xstats","subgroup":"bridge","suite":"stp"}` +
 				`]`,
 		},
 	}
@@ -157,7 +272,7 @@ func TestBridgeXstatsViewJSON(t *testing.T) {
 // go test ./internal/goip/render/ -run TestBridgeXstatsLeafOrder
 func TestBridgeXstatsLeafOrder(t *testing.T) {
 	want := []bridgeXstatsLeaf{
-		{subgroup: "bond", suite: "802.3ad", body: bridgeBodyNone},
+		{subgroup: "bond", suite: "802.3ad", body: bridgeBodyBond3ad},
 		{subgroup: "bridge", suite: "vlan", body: bridgeBodyVlan},
 		{subgroup: "bridge", suite: "mcast", body: bridgeBodyMcast},
 		{subgroup: "bridge", suite: "stp", body: bridgeBodyNone},

@@ -163,6 +163,12 @@ func bridgeXstatsBody(ifindex uint32, inner []byte) []byte {
 	return cat(ifsmHdr(0, ifindex, StatsFilterXstats), rtattr(uint16(unix.IFLA_STATS_LINK_XSTATS), nest))
 }
 
+// bondXstatsBody wraps bond sub-attrs in the TYPE_BOND nest under the given
+// xstats group attribute (LINK_XSTATS or LINK_XSTATS_SLAVE).
+func bondXstatsBody(group uint16, inner []byte) []byte {
+	return cat(ifsmHdr(0, 5, StatsFilterXstats), rtattr(group, rtattr(LinkXstatsTypeBond, inner)))
+}
+
 // TestParseNewStatsXstats covers the nested xstats walk with synthetic bodies —
 // no capture produces these exact shapes, so they are contract rows. The
 // captured-bytes row lives in TestParseNewStatsXstatsCaptured.
@@ -223,11 +229,53 @@ func TestParseNewStatsXstats(t *testing.T) {
 			},
 		},
 		{
-			description: "negative: a bond xstats type is ungrounded",
-			body:        cat(ifsmHdr(0, 5, StatsFilterXstats), rtattr(uint16(unix.IFLA_STATS_LINK_XSTATS), rtattr(LinkXstatsTypeBond, seqU64(9)))),
+			description: "positive: a bond 3ad body decodes into Bond3ad, no refusal",
+			body:        bondXstatsBody(uint16(unix.IFLA_STATS_LINK_XSTATS), rtattr(BondXstats3ad, rtattr(Bond3adStatLacpduTx, le64(24)))),
 			check: func(t *testing.T, si IfStatsInfo) {
-				if !si.HasUngroundedXstatsBody {
-					t.Errorf("HasUngroundedXstatsBody = false, want true")
+				if si.Bond3ad == nil || !si.Bond3ad.Present[Bond3adStatLacpduTx] || si.Bond3ad.Values[Bond3adStatLacpduTx] != 24 {
+					t.Errorf("Bond3ad = %+v, want lacpdu_tx 24", si.Bond3ad)
+				}
+				if si.HasUngroundedXstatsBody || si.HasBridgeXstats || si.HasXstatsSlave {
+					t.Errorf("unexpected flag: %+v", si)
+				}
+			},
+		},
+		{
+			description: "boundary: an empty bond type nest has no Bond3ad",
+			body:        bondXstatsBody(uint16(unix.IFLA_STATS_LINK_XSTATS), nil),
+			check: func(t *testing.T, si IfStatsInfo) {
+				if si.Bond3ad != nil || si.HasUngroundedXstatsBody {
+					t.Errorf("Bond3ad = %+v, ungrounded %v, want nil/false", si.Bond3ad, si.HasUngroundedXstatsBody)
+				}
+			},
+		},
+		{
+			description: "boundary: an empty 3ad nest is a present body with no counters",
+			body:        bondXstatsBody(uint16(unix.IFLA_STATS_LINK_XSTATS), rtattr(BondXstats3ad, nil)),
+			check: func(t *testing.T, si IfStatsInfo) {
+				if si.Bond3ad == nil || *si.Bond3ad != (Bond3adStats{}) {
+					t.Errorf("Bond3ad = %+v, want present and empty", si.Bond3ad)
+				}
+			},
+		},
+		{
+			description: "negative: a second 3ad nest is ungrounded, the first is kept",
+			body: bondXstatsBody(uint16(unix.IFLA_STATS_LINK_XSTATS), cat(
+				rtattr(BondXstats3ad, rtattr(Bond3adStatLacpduRx, le64(1))),
+				rtattr(BondXstats3ad, rtattr(Bond3adStatLacpduRx, le64(2))),
+			)),
+			check: func(t *testing.T, si IfStatsInfo) {
+				if !si.HasUngroundedXstatsBody || si.Bond3ad == nil || si.Bond3ad.Values[Bond3adStatLacpduRx] != 1 {
+					t.Errorf("ungrounded %v Bond3ad %+v, want true and lacpdu_rx 1", si.HasUngroundedXstatsBody, si.Bond3ad)
+				}
+			},
+		},
+		{
+			description: "corner: an unknown bond inner type is ignored",
+			body:        bondXstatsBody(uint16(unix.IFLA_STATS_LINK_XSTATS), rtattr(7, le64(1))),
+			check: func(t *testing.T, si IfStatsInfo) {
+				if si.Bond3ad != nil || si.HasUngroundedXstatsBody {
+					t.Errorf("Bond3ad = %+v, ungrounded %v, want nil/false", si.Bond3ad, si.HasUngroundedXstatsBody)
 				}
 			},
 		},
@@ -241,11 +289,32 @@ func TestParseNewStatsXstats(t *testing.T) {
 			},
 		},
 		{
-			description: "negative: the xstats_slave group stays unsupported",
-			body:        cat(ifsmHdr(0, 5, StatsFilterXstats), rtattr(uint16(unix.IFLA_STATS_LINK_XSTATS_SLAVE), nil)),
+			description: "positive: the xstats_slave group decodes into Slave, not the master bodies",
+			body:        bondXstatsBody(uint16(unix.IFLA_STATS_LINK_XSTATS_SLAVE), rtattr(BondXstats3ad, rtattr(Bond3adStatLacpduRx, le64(6)))),
 			check: func(t *testing.T, si IfStatsInfo) {
-				if !si.HasUnsupportedGroup {
-					t.Errorf("HasUnsupportedGroup = false, want true")
+				if !si.HasXstatsSlave || si.HasUnsupportedGroup {
+					t.Errorf("slave %v unsup %v, want true/false", si.HasXstatsSlave, si.HasUnsupportedGroup)
+				}
+				if si.Bond3ad != nil || si.Slave.Bond3ad == nil || si.Slave.Bond3ad.Values[Bond3adStatLacpduRx] != 6 {
+					t.Errorf("master %+v slave %+v, want slave lacpdu_rx 6 only", si.Bond3ad, si.Slave.Bond3ad)
+				}
+			},
+		},
+		{
+			description: "boundary: an empty xstats_slave nest marks the group present only",
+			body:        cat(ifsmHdr(0, 5, StatsFilterXstatsSlave), rtattr(uint16(unix.IFLA_STATS_LINK_XSTATS_SLAVE), nil)),
+			check: func(t *testing.T, si IfStatsInfo) {
+				if !si.HasXstatsSlave || si.Slave.HasBridgeXstats || si.Slave.Bond3ad != nil || si.HasUnsupportedGroup {
+					t.Errorf("flags = %+v, want HasXstatsSlave only", si)
+				}
+			},
+		},
+		{
+			description: "negative: a bridge stp body under xstats_slave is ungrounded on Slave",
+			body:        cat(ifsmHdr(0, 5, StatsFilterXstatsSlave), rtattr(uint16(unix.IFLA_STATS_LINK_XSTATS_SLAVE), rtattr(LinkXstatsTypeBridge, rtattr(BridgeXstatsStp, seqU64(6))))),
+			check: func(t *testing.T, si IfStatsInfo) {
+				if !si.Slave.HasUngroundedXstatsBody || si.HasUngroundedXstatsBody {
+					t.Errorf("slave/master ungrounded = %v/%v, want true/false", si.Slave.HasUngroundedXstatsBody, si.HasUngroundedXstatsBody)
 				}
 			},
 		},

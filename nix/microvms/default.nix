@@ -516,6 +516,49 @@ let
       sink = "goip-parity";
     };
 
+  # link-write-capture: the same quiet root VM plus the bonding module, driven
+  # to build a bond with a real LACP partner across two namespaces and capture
+  # its readback state in three negotiation states. Phase 0 of
+  # docs/netlink/link-write-path.md; the driver is
+  # scripts/capture-link-writes.exp. See mkVm.nix isLinkWriteCapture for why
+  # this is its own flavor rather than a namespace in netlink-dump-capture.
+  mkOneLinkWriteCapture =
+    arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2Package
+        xtcp2AllPackage
+        ipfeedCollectorPackage
+        ;
+      sink = "link-write-capture";
+    };
+
+  # lacp-a / lacp-b: the two VMs of lacp-pair-capture, Tier 2 of
+  # docs/netlink/link-write-path.md (phase 8). A is the link-write-capture
+  # guest with two virtio-net LACP ports, driven by
+  # scripts/capture-lacp-pair.exp; B is its static partner. See mkVm.nix
+  # isLacpA for the dgram links between them.
+  mkOneLacp =
+    side: arch:
+    import ./mkVm.nix {
+      inherit
+        pkgs
+        lib
+        microvm
+        nixpkgs
+        arch
+        xtcp2Package
+        xtcp2AllPackage
+        ipfeedCollectorPackage
+        ;
+      sink = "lacp-${side}";
+    };
+
   vms = lib.genAttrs constants.supportedArchs mkOne;
 
   vmsUdsSecurity = lib.genAttrs constants.supportedArchs mkOneUdsSecurity;
@@ -582,6 +625,11 @@ let
   vmsNetlinkDumpCapture = lib.genAttrs constants.supportedArchs mkOneNetlinkDumpCapture;
 
   vmsGoipParity = lib.genAttrs constants.supportedArchs mkOneGoipParity;
+
+  vmsLinkWriteCapture = lib.genAttrs constants.supportedArchs mkOneLinkWriteCapture;
+
+  vmsLacpA = lib.genAttrs constants.supportedArchs (mkOneLacp "a");
+  vmsLacpB = lib.genAttrs constants.supportedArchs (mkOneLacp "b");
 
   lifecycle = lib.genAttrs constants.supportedArchs (arch: {
     fullTest = microvmLib.mkLifecycleFullTest {
@@ -850,6 +898,29 @@ let
     };
   });
 
+  # Bond / LACP readback capture runner (link-write-path.md phase 0): boots
+  # the link-write-capture VM and drives it with scripts/capture-link-writes.exp.
+  # A runner and not a check for netlinkDumpCapture's reasons: /dev/kvm, and
+  # the point of the run is to write fixtures into the working tree.
+  linkWriteCapture = lib.genAttrs constants.supportedArchs (arch: {
+    runner = microvmLib.mkLinkWriteCaptureRunner {
+      inherit arch;
+      vm = vmsLinkWriteCapture.${arch};
+    };
+  });
+
+  # Tier 2 LACP capture runner (link-write-path.md phase 8): boots lacp-b and
+  # then lacp-a on two point-to-point dgram links and drives A with
+  # scripts/capture-lacp-pair.exp. A runner for linkWriteCapture's reasons,
+  # and two VMs at once besides.
+  lacpPairCapture = lib.genAttrs constants.supportedArchs (arch: {
+    runner = microvmLib.mkLacpPairRunner {
+      inherit arch;
+      vmA = vmsLacpA.${arch};
+      vmB = vmsLacpB.${arch};
+    };
+  });
+
   # Runtime-control rate test runner: boots the clickhouse-pipeline-rate VM,
   # waits for the in-VM monitor's XTCP2_RATE_DONE (or --timeout), and passes
   # only if the ingest rate responded to set-poll-frequency + poll-burst.
@@ -950,12 +1021,17 @@ in
     vmsNlmonCapture
     vmsNetlinkDumpCapture
     vmsGoipParity
+    vmsLinkWriteCapture
+    vmsLacpA
+    vmsLacpB
     vmsIpmetaBootstrap
     s3parquetLong
     discoveryBench
     nlmonCapture
     netlinkDumpCapture
     goipParity
+    linkWriteCapture
+    lacpPairCapture
     clickPipeRate
     clickPipeStress
     s3ParquetStress

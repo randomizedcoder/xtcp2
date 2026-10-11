@@ -1,0 +1,311 @@
+#!/usr/bin/env expect
+###############################################################################
+# capture-lacp-pair.exp - drive the Tier 2 LACP capture in microVM A
+#
+# Usage:
+#   capture-lacp-pair.exp <serial-port> <blob-out> <qmp-socket>
+#
+#   <serial-port>  host TCP port qemu bound A's serial console to
+#   <blob-out>     file to write the base64 tarball to
+#   <qmp-socket>   A's QMP unix socket, for the link pull
+#
+# Phase 8 of docs/netlink/link-write-path.md: the Tier 1 readback set, taken
+# on virtio-net ports whose LACP partner is a bond in a second VM (lacp-b,
+# built at boot by mkVm.nix lacp-partner-bond), across two point-to-point
+# dgram links. Three states, each the one before plus one change:
+#
+#   lacp_converged      A's bond over la1/la2, both ports at 0x3f/0x3f
+#   lacp_link_pulled    QMP set_link lacp2 off: la2 loses carrier, la1 stays
+#   lacp_link_restored  set_link lacp2 on: both ports converged again, la2
+#                       with one link failure on its count
+#
+# Every state also waits for the churn machines to settle (wait_churn), so
+# churn_actor_state and churn_partner_state read NO_CHURN on every run
+# rather than MONITOR on a fast one.
+#
+# There is no lacp_no_partner here, as there is in Tier 1: B's bond is up
+# before A's exists, and B is not driven, so A never sees a silent partner.
+#
+# WHY A CAPTURES IN A NAMESPACE
+#
+# The two NICs boot in A's root namespace, beside the SLiRP NIC and its
+# dhcpcd. Moving them into lacpa, with nlmon0, keeps the capture to the
+# bond's own traffic, as Tier 1's is. A moved device keeps its ifindex when
+# the target namespace has it free, and lacpa has lo and nlmon0 only, so the
+# ports keep the index PCI enumeration gave them.
+#
+# THE LINK PULL
+#
+# set_link on the netdev drops the link on both halves: A's virtio-net
+# device reports link down to the guest (VIRTIO_NET_S_LINK_UP clear) and the
+# dgram backend stops carrying frames. To A's kernel that is a cable pull on
+# a real NIC driver, which veth cannot give: closing a veth end is a
+# configuration change on the peer, not a carrier event from hardware.
+#
+# A STATE THAT IS NOT REACHED IS NOT CAPTURED, as in Tier 1, and the states
+# after it are skipped, since each is built on the one before.
+###############################################################################
+
+source [file dirname [info script]]/vm-lib.exp
+source [file dirname [info script]]/netlink-topology.exp
+source [file dirname [info script]]/link-write-topology.exp
+source [file dirname [info script]]/link-write-readback.exp
+
+if {$argc != 3} {
+    puts "usage: capture-lacp-pair.exp <serial-port> <blob-out> <qmp-socket>"
+    exit 2
+}
+set port     [lindex $argv 0]
+set blob_out [lindex $argv 1]
+set qmp_sock [lindex $argv 2]
+
+set NS_A $lwtopo::NS_A
+
+# The ports, as mkVm.nix lacpPorts names them, and the netdev each sits on.
+set PORTS {la1 la2}
+set PULLED_PORT    la2
+set PULLED_NETDEV  lacp2
+
+set short_caps    {}
+set lacp_timeouts {}
+set qmp_failures  {}
+
+###############################################################################
+# qmp_set_link <netdev> <up> - one QMP set_link, on a connection of its own.
+#
+# socat rather than a spawned session: the whole exchange is the greeting,
+# qmp_capabilities and the command, and nothing has to be read from it but
+# the two answers. -t 2 keeps the connection open after stdin ends long
+# enough for both to arrive. Returns 1 when both commands returned.
+###############################################################################
+
+proc qmp_set_link {netdev up} {
+    global qmp_sock
+    set cmds "{\"execute\":\"qmp_capabilities\"}\n"
+    append cmds "{\"execute\":\"set_link\",\"arguments\":{\"name\":\"$netdev\",\"up\":$up}}\n"
+    if {[catch {exec socat -t 2 - UNIX-CONNECT:$qmp_sock << $cmds 2>@1} out]} {
+        vmlib::log "QMP set_link $netdev $up failed: $out"
+        return 0
+    }
+    set returns [regexp -all {"return": *\{\}} $out]
+    if {$returns != 2} {
+        vmlib::log "QMP set_link $netdev $up: $returns of 2 commands returned: $out"
+        return 0
+    }
+    vmlib::log "QMP set_link $netdev $up: ok"
+    return 1
+}
+
+###############################################################################
+# ports_set <subdir> - what the virtio-net ports add to Tier 1's readback.
+#
+# The ethtool view the 802.3ad port selection reads (speed and duplex come
+# from the device config, link-write-path.md Tier 2), carrier and the link
+# failure count, and the PCI parent, which is IFLA_PARENT_DEV_NAME's source.
+# sysfs, for readback_set's oracle reason: no netlink in between.
+###############################################################################
+
+proc ports_set {ns subdir} {
+    side $ns $subdir sysfs_ports \
+        "grep -s -H . /sys/class/net/la*/speed /sys/class/net/la*/duplex /sys/class/net/la*/carrier /sys/class/net/la*/operstate /sys/class/net/la*/address /sys/class/net/la*/bonding_slave/link_failure_count"
+    side $ns $subdir sysfs_ports_parent \
+        "for p in /sys/class/net/la*; do echo \$(basename \$p) \$(basename \$(readlink -f \$p/device/..)) \$(basename \$(readlink -f \$p/device)); done"
+}
+
+###############################################################################
+# wait_churn - all four churn machines at NO_CHURN.
+#
+# Up to AD_CHURN_DETECTION_TIME (60 s) after a port joins or comes back, so
+# the bound is that plus LACP_TIMEOUT's margin. A churned port (CHURN, out of
+# sync when the timer ran out) never settles, and times out here.
+###############################################################################
+
+proc wait_churn {} {
+    global NS_A PORTS
+    set timeout [expr {60 + $lwtopo::LACP_TIMEOUT}]
+    lassign [vmlib::run_out \
+        "xtcp2-nlcap wait-churn $NS_A [llength $PORTS] $timeout" \
+        [expr {$timeout + 30}]] rc out
+    vmlib::log [string trim $out]
+    if {$rc != 0} {
+        lwtopo::diagnose
+    }
+    return [expr {$rc == 0}]
+}
+
+proc state_set {subdir} {
+    global NS_A
+    readback_set $NS_A $subdir
+    ports_set $NS_A $subdir
+}
+
+# The ports must say full duplex at 10000: without it 802.3ad never
+# aggregates them, and the run would end in a convergence timeout that says
+# nothing about why. Read once the bond has opened them, because sysfs
+# speed and duplex answer EINVAL for a device that is not running, and
+# networkd leaves these down.
+proc ports_fit {} {
+    global NS_A PORTS
+    foreach p $PORTS {
+        lassign [vmlib::run_out "ip netns exec $NS_A cat /sys/class/net/$p/duplex /sys/class/net/$p/speed"] rc out
+        set out [string trim $out]
+        if {$rc != 0 || ![regexp {^full\s+10000$} $out]} {
+            vmlib::log "FATAL: port $p is missing or not 10000/full (rc=$rc): $out"
+            vmlib::log "       mkVm.nix lacpNicArgs sets speed and duplex on the device,"
+            vmlib::log "       and systemd.network.links names it."
+            puts "NLCAP_PORTS_UNFIT"
+            puts "NLCAP_DRIVER_FAIL"
+            exit 3
+        }
+    }
+}
+
+###############################################################################
+# run
+###############################################################################
+
+vmlib::init
+nltopo::reset
+vmlib::connect $port 300
+
+if {[vmlib::run "command -v xtcp2-nlcap >/dev/null"] != 0} {
+    vmlib::log "FATAL: xtcp2-nlcap is not on the guest PATH."
+    vmlib::log "       The VM was probably built without the lacp-a flavor's"
+    vmlib::log "       environment.systemPackages entry."
+    puts "NLCAP_DRIVER_FAIL"
+    exit 3
+}
+if {[vmlib::run "test -d /sys/module/bonding"] != 0} {
+    vmlib::log "FATAL: the bonding module is not loaded."
+    puts "NLCAP_DRIVER_FAIL"
+    exit 3
+}
+if {[vmlib::run "test -e /sys/class/net/bond0"] == 0} {
+    vmlib::log "WARNING: a bond0 exists in the guest's root namespace; the"
+    vmlib::log "         max_bonds=0 module option did not take effect."
+}
+
+vmlib::must "xtcp2-nlcap side - . uname 'uname -a'"
+vmlib::must "xtcp2-nlcap side - . ip_version 'ip -V'"
+
+vmlib::must "xtcp2-nlcap ns-add $NS_A"
+
+vmlib::log "=== lacp_converged ==="
+foreach p $PORTS {
+    nltopo::topo - . link set $p netns $NS_A
+}
+nltopo::topo $NS_A . link add bond0 \
+    {*}[lwtopo::bond_args 02:00:00:00:0a:00 02:00:00:00:00:0a]
+foreach p $PORTS {
+    # Down first, though nothing in A should have brought it up: networkd is
+    # told to leave the ports alone, and bond_enslave refuses a port that
+    # is up.
+    nltopo::topo $NS_A . link set $p down
+    nltopo::topo $NS_A . link set $p master bond0
+}
+nltopo::topo $NS_A . link set bond0 up
+ports_fit
+
+set reached 0
+if {[lwtopo::wait_lacp_converged] && [wait_churn]} {
+    state_set lacp_converged
+    set reached 1
+} else {
+    lappend lacp_timeouts lacp_converged
+}
+
+if {$reached} {
+    vmlib::log "=== lacp_link_pulled ==="
+    set reached 0
+    if {![qmp_set_link $PULLED_NETDEV false]} {
+        lappend qmp_failures "set_link $PULLED_NETDEV off"
+    } elseif {[lwtopo::wait_partner_down] && [wait_churn]} {
+        state_set lacp_link_pulled
+        set reached 1
+    } else {
+        lappend lacp_timeouts lacp_link_pulled
+    }
+}
+
+if {$reached} {
+    vmlib::log "=== lacp_link_restored ==="
+    if {![qmp_set_link $PULLED_NETDEV true]} {
+        lappend qmp_failures "set_link $PULLED_NETDEV on"
+    } elseif {[lwtopo::wait_lacp_converged] && [wait_churn]} {
+        state_set lacp_link_restored
+    } else {
+        lappend lacp_timeouts lacp_link_restored
+    }
+}
+
+lassign [nlcap inventory] inv_rc inventory
+vmlib::log "captured [llength [split [string trim $inventory] "\n"]] files"
+
+vmlib::log "=== packing ==="
+lassign [vmlib::run_out "xtcp2-nlcap pack" 600] pack_rc blob
+if {$pack_rc != 0} {
+    vmlib::log "FATAL: pack failed (rc=$pack_rc)"
+    puts "NLCAP_DRIVER_FAIL"
+    exit 3
+}
+
+set fh [open $blob_out w]
+puts $fh $blob
+close $fh
+vmlib::log "wrote [string length $blob] bytes of base64 to $blob_out"
+
+vmlib::run "xtcp2-nlcap ns-del $NS_A"
+
+vmlib::poweroff
+
+###############################################################################
+# verdict
+###############################################################################
+
+puts ""
+set failed 0
+set failed_topo [nltopo::refused_steps]
+if {[llength $failed_topo] > 0} {
+    puts "NLCAP_TOPO_REFUSED [llength $failed_topo]"
+    foreach t $failed_topo {
+        puts "  $t"
+    }
+    set failed 1
+}
+
+if {[llength $qmp_failures] > 0} {
+    puts "NLCAP_QMP_FAIL [llength $qmp_failures]"
+    foreach q $qmp_failures {
+        puts "  $q"
+    }
+    puts "  The link was never pulled or never restored, so the states from"
+    puts "  there on were not captured."
+    set failed 1
+}
+
+if {[llength $lacp_timeouts] > 0} {
+    puts "NLCAP_LACP_TIMEOUT [llength $lacp_timeouts]"
+    foreach s $lacp_timeouts {
+        puts "  $s"
+    }
+    puts "  Those states were never reached, so nothing was captured for them"
+    puts "  and any committed fixture of the same name is unchanged."
+    set failed 1
+}
+
+if {[llength $short_caps] > 0} {
+    puts "NLCAP_MISSED_FLOOR [llength $short_caps]"
+    foreach c $short_caps {
+        puts "  $c"
+    }
+    puts "  Those came in short twice and were DISCARDED rather than written."
+    set failed 1
+}
+
+if {$failed} {
+    puts "NLCAP_DRIVER_FAIL"
+    exit 1
+}
+
+puts "NLCAP_DRIVER_PASS"
+exit 0

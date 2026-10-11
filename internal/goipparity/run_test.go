@@ -29,7 +29,12 @@ func TestRun(t *testing.T) {
 			description: "positive: `commands` prints one line per command, exit 0",
 			args:        []string{"commands"},
 			wantCode:    ExitOK,
-			wantStdout:  []string{"link_show\t2\tyes\tno\tlink show\tlink show"},
+			wantStdout: []string{
+				"link_show\t2\tyes\tno\tno\t-\tlink show\tlink show",
+				"link_write_enslave_down\t6\tyes\tno\tyes\t" +
+					"link add bond0 type bond mode 802.3ad;link add la1 type veth peer name lb1\t" +
+					"link set la1 down master bond0\tlink set la1 down master bond0",
+			},
 		},
 		{
 			description: "positive: `compare` on a clean triple is a pass, but exits non-zero while other commands are missing",

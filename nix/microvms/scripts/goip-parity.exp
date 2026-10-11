@@ -91,10 +91,14 @@ foreach a [lrange $argv 2 end] {
 set NS      "goipp"
 set DUMMY   "goip0"
 set SUBDIR  "parity"
+# The write rows' namespace, recreated for every side of every write row; see
+# capture_write_triple.
+set NSW     "goipw"
 
 # Accumulated problems, reported together at the end.
-set short_caps  {}
-set skipped     {}
+set short_caps    {}
+set skipped       {}
+set write_skipped {}
 
 ###############################################################################
 # helpers over vmlib
@@ -126,12 +130,12 @@ proc capio {name floor command sout} {
 #
 # `goip-parity commands` prints one tab-separated row per command:
 #
-#     slug  floor  implemented  needs-dev  args  name
+#     slug  floor  implemented  needs-dev  write  setup  args  name
 #
-# The name is last because it is the only field containing spaces, so a
-# four-field split captures the rest correctly. Parsed with `split ... \t`
-# rather than a regexp so a name with two consecutive spaces cannot be
-# silently reflowed.
+# setup is `-` or a write row's precondition steps joined with ';'. It, args
+# and name hold spaces, which is why the split is on tabs. Parsed with
+# `split ... \t` rather than a regexp so a name with two consecutive spaces
+# cannot be silently reflowed.
 ###############################################################################
 
 proc read_command_table {} {
@@ -150,7 +154,7 @@ proc read_command_table {} {
             continue
         }
         set f [split $line "\t"]
-        if {[llength $f] != 6} {
+        if {[llength $f] != 8} {
             vmlib::log "FATAL: unparseable table row ([llength $f] fields): $line"
             puts "GOIP_PARITY_DRIVER_FAIL"
             exit 3
@@ -180,7 +184,12 @@ proc read_command_table {} {
 
 proc capture_triple {row dev} {
     global skipped
-    lassign $row slug floor impl needs_dev args name
+    lassign $row slug floor impl needs_dev write setup args name
+
+    if {$write eq "yes" && $impl eq "yes"} {
+        capture_write_triple $slug $floor $setup $args
+        return
+    }
 
     set argv_str $args
     if {$needs_dev eq "yes"} {
@@ -215,6 +224,60 @@ proc capture_triple {row dev} {
     }
     if {!$ok} {
         vmlib::log "INCOMPLETE TRIPLE $slug - the comparator will report it MISSING"
+    }
+}
+
+###############################################################################
+# capture one write row's triple
+#
+# EVERY SIDE GETS A NEW NAMESPACE
+#
+# ip_a's write changes the namespace, so ip_b run after it in the same one
+# would meet -EEXIST, or enslave a port that is already enslaved. ns-add
+# deletes and recreates goipw with lo = 1 and nlmon0 = 2, and Setup's steps
+# make the same devices in the same order, so each side sees the same
+# ifindexes. They are in the request bytes (ifi_index, IFLA_MASTER).
+#
+# Setup runs through nltopo::topo, outside the capture window. A refused step
+# skips that side, which the comparator then reports as MISSING.
+#
+# goip sends the lookups and writes its request to GOIP_WRITE_OUT, which is
+# <slug>.goip.write beside the captures. Its floor is two lower than ip's: no
+# write request, no NLMSG_ERROR. Every side is a `write` capture (one attempt,
+# exit status kept), since the comparator reads all three .rc files.
+###############################################################################
+
+proc capture_write_triple {slug floor setup argv_str} {
+    global NSW SUBDIR short_caps write_skipped capture_dir
+    set steps {}
+    if {$setup ne "-"} {
+        set steps [split $setup ";"]
+    }
+    set plan [list \
+        ip_a "ip $argv_str" $floor \
+        goip "GOIP_WRITE_OUT=$capture_dir/$slug.goip.write goip $argv_str" [expr {$floor - 2}] \
+        ip_b "ip $argv_str" $floor]
+
+    foreach {side cmd side_floor} $plan {
+        vmlib::must "xtcp2-nlcap ns-add $NSW"
+        set refused 0
+        foreach step $steps {
+            if {[nltopo::topo $NSW $SUBDIR {*}$step] != 0} {
+                set refused 1
+                break
+            }
+        }
+        if {$refused} {
+            lappend write_skipped "$slug.$side"
+            continue
+        }
+        lassign [nlcap write $NSW $SUBDIR "$slug.$side" $side_floor "'$cmd'"] rc out
+        if {$rc != 0} {
+            lappend short_caps "$SUBDIR/$slug.$side"
+            vmlib::log "MISSED FLOOR $SUBDIR/$slug.$side: $out"
+            continue
+        }
+        vmlib::log [string trim $out]
     }
 }
 
@@ -264,6 +327,16 @@ vmlib::log "=== topology ==="
 vmlib::must "xtcp2-nlcap ns-add $NS"
 nltopo::build_clean $NS $SUBDIR $DUMMY
 
+# Resolved before the captures, not after: a write row's goip side names a
+# file in it for GOIP_WRITE_OUT.
+lassign [nlcap dir $SUBDIR] dir_rc capture_dir
+set capture_dir [string trim [lindex [split $capture_dir "\n"] 0]]
+if {$dir_rc != 0 || $capture_dir eq ""} {
+    vmlib::log "FATAL: could not resolve the capture directory (rc=$dir_rc)"
+    puts "GOIP_PARITY_DRIVER_FAIL"
+    exit 3
+}
+
 set table [read_command_table]
 vmlib::log "=== capturing [llength $table] commands x 3 sides ==="
 
@@ -278,14 +351,6 @@ foreach row $table {
 ###############################################################################
 # compare, in the guest
 ###############################################################################
-
-lassign [nlcap dir $SUBDIR] dir_rc capture_dir
-set capture_dir [string trim [lindex [split $capture_dir "\n"] 0]]
-if {$dir_rc != 0 || $capture_dir eq ""} {
-    vmlib::log "FATAL: could not resolve the capture directory (rc=$dir_rc)"
-    puts "GOIP_PARITY_DRIVER_FAIL"
-    exit 3
-}
 
 set flags ""
 if {$no_allowlist} {
@@ -372,12 +437,22 @@ if {[llength $skipped] > 0} {
     }
 }
 
+if {[llength $write_skipped] > 0} {
+    puts "GOIP_PARITY_WRITE_SETUP_REFUSED [llength $write_skipped]"
+    foreach s $write_skipped {
+        puts "  $s"
+    }
+    puts "  A refused precondition step skipped those sides, so their rows are"
+    puts "  MISSING above."
+}
+
 if {[llength $short_caps] > 0} {
     puts "GOIP_PARITY_MISSED_FLOOR [llength $short_caps]"
     foreach c $short_caps {
         puts "  $c"
     }
-    puts "  Those came in short twice and were DISCARDED rather than written,"
+    puts "  Those came in short (twice for a read, once for a write) and were"
+    puts "  DISCARDED rather than written,"
     puts "  so the command is MISSING above rather than compared against a"
     puts "  truncated capture."
 }

@@ -1,0 +1,41 @@
+From d7091bea291af5921ebe652435df1150bcba01ca Mon Sep 17 00:00:00 2001
+From: Dave Seddon <dave.seddon.ca@gmail.com>
+Date: Sat, 10 Oct 2026 17:08:04 -0700
+Subject: [PATCH iproute2 2/3] testsuite: fix test_on_not on multi-line output
+To: netdev@vger.kernel.org
+Cc: Stephen Hemminger <stephen@networkplumber.org>,
+    David Ahern <dsahern@kernel.org>,
+    Jay Vosburgh <jv@jvosburgh.net>,
+    Hangbin Liu <liuhangbin@gmail.com>
+
+grep -vqE succeeds when any line does not match, even if another line
+contains the forbidden pattern. It also fails on empty output.
+
+Accept only exit status 1 from a non-inverted grep: the pattern was
+not found. A matching line or a grep error must fail the assertion.
+
+Assisted-by: LLM
+Signed-off-by: Dave Seddon <dave.seddon.ca@gmail.com>
+---
+ testsuite/lib/generic.sh | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/testsuite/lib/generic.sh b/testsuite/lib/generic.sh
+index 8b339ec1..ac48f023 100644
+--- a/testsuite/lib/generic.sh
++++ b/testsuite/lib/generic.sh
+@@ -113,8 +113,9 @@ test_on()
+ 
+ test_on_not()
+ {
+-	echo -n "test on: \"$1\""
+-	if cat "$STD_OUT" | grep -vqE "$1"
++	echo -n "test on absence: \"$1\""
++	grep -qE -- "$1" "$STD_OUT"
++	if [ "$?" -eq 1 ]
+ 	then
+ 		pr_success
+ 	else
+-- 
+2.55.0
+

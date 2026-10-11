@@ -1,0 +1,137 @@
+[ {
+        "ifindex": 1,
+        "ifname": "lo",
+        "group": "xstats",
+        "subgroup": "bond",
+        "suite": "802.3ad"
+    },{
+        "ifindex": 1,
+        "ifname": "lo",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "vlan",
+        "vlans": [ ]
+    },{
+        "ifindex": 1,
+        "ifname": "lo",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "mcast"
+    },{
+        "ifindex": 1,
+        "ifname": "lo",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "stp"
+    },{
+        "ifindex": 2,
+        "ifname": "nlmon0",
+        "group": "xstats",
+        "subgroup": "bond",
+        "suite": "802.3ad"
+    },{
+        "ifindex": 2,
+        "ifname": "nlmon0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "vlan",
+        "vlans": [ ]
+    },{
+        "ifindex": 2,
+        "ifname": "nlmon0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "mcast"
+    },{
+        "ifindex": 2,
+        "ifname": "nlmon0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "stp"
+    },{
+        "ifindex": 3,
+        "ifname": "la1",
+        "group": "xstats",
+        "subgroup": "bond",
+        "suite": "802.3ad"
+    },{
+        "ifindex": 3,
+        "ifname": "la1",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "vlan",
+        "vlans": [ ]
+    },{
+        "ifindex": 3,
+        "ifname": "la1",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "mcast"
+    },{
+        "ifindex": 3,
+        "ifname": "la1",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "stp"
+    },{
+        "ifindex": 4,
+        "ifname": "la2",
+        "group": "xstats",
+        "subgroup": "bond",
+        "suite": "802.3ad"
+    },{
+        "ifindex": 4,
+        "ifname": "la2",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "vlan",
+        "vlans": [ ]
+    },{
+        "ifindex": 4,
+        "ifname": "la2",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "mcast"
+    },{
+        "ifindex": 4,
+        "ifname": "la2",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "stp"
+    },{
+        "ifindex": 5,
+        "ifname": "bond0",
+        "group": "xstats",
+        "subgroup": "bond",
+        "suite": "802.3ad",
+        "802.3ad": {
+            "lacpdu_rx": 13,
+            "lacpdu_tx": 25,
+            "lacpdu_unknown_rx": 0,
+            "lacpdu_illegal_rx": 0,
+            "marker_rx": 0,
+            "marker_tx": 0,
+            "marker_response_rx": 0,
+            "marker_response_tx": 0,
+            "marker_unknown_rx": 0
+        }
+    },{
+        "ifindex": 5,
+        "ifname": "bond0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "vlan",
+        "vlans": [ ]
+    },{
+        "ifindex": 5,
+        "ifname": "bond0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "mcast"
+    },{
+        "ifindex": 5,
+        "ifname": "bond0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "stp"
+    } ]

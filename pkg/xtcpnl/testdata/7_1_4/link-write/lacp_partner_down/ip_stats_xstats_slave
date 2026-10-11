@@ -1,0 +1,45 @@
+1: lo: group xstats_slave subgroup bond suite 802.3ad
+1: lo: group xstats_slave subgroup bridge suite vlan
+1: lo: group xstats_slave subgroup bridge suite mcast
+1: lo: group xstats_slave subgroup bridge suite stp
+
+2: nlmon0: group xstats_slave subgroup bond suite 802.3ad
+2: nlmon0: group xstats_slave subgroup bridge suite vlan
+2: nlmon0: group xstats_slave subgroup bridge suite mcast
+2: nlmon0: group xstats_slave subgroup bridge suite stp
+
+3: la1: group xstats_slave subgroup bond suite 802.3ad
+                    LACPDU Rx 10
+                    LACPDU Tx 17
+                    LACPDU Unknown type Rx 0
+                    LACPDU Illegal Rx 0
+                    Marker Rx 0
+                    Marker Tx 0
+                    Marker response Rx 0
+                    Marker response Tx 0
+                    Marker unknown type Rx 0
+
+3: la1: group xstats_slave subgroup bridge suite vlan
+3: la1: group xstats_slave subgroup bridge suite mcast
+3: la1: group xstats_slave subgroup bridge suite stp
+
+4: la2: group xstats_slave subgroup bond suite 802.3ad
+                    LACPDU Rx 8
+                    LACPDU Tx 13
+                    LACPDU Unknown type Rx 0
+                    LACPDU Illegal Rx 0
+                    Marker Rx 0
+                    Marker Tx 0
+                    Marker response Rx 0
+                    Marker response Tx 0
+                    Marker unknown type Rx 0
+
+4: la2: group xstats_slave subgroup bridge suite vlan
+4: la2: group xstats_slave subgroup bridge suite mcast
+4: la2: group xstats_slave subgroup bridge suite stp
+
+5: bond0: group xstats_slave subgroup bond suite 802.3ad
+5: bond0: group xstats_slave subgroup bridge suite vlan
+5: bond0: group xstats_slave subgroup bridge suite mcast
+5: bond0: group xstats_slave subgroup bridge suite stp
+

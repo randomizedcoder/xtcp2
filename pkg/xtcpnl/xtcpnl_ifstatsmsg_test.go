@@ -173,13 +173,13 @@ func TestParseNewStats(t *testing.T) {
 			},
 		},
 		{
-			// IFLA_STATS_LINK_XSTATS(2) is no longer unsupported — it is the bridge
-			// group, decoded by parseBridgeXstats (see TestParseNewStatsXstats).
-			// LINK_XSTATS_SLAVE(3) is the still-unsupported group this row now guards.
-			description: "corner: IFLA_STATS_LINK_XSTATS_SLAVE(3) alongside LINK_64 sets HasUnsupportedGroup, keeps HasLink64",
+			// IFLA_STATS_LINK_XSTATS(2) and LINK_XSTATS_SLAVE(3) are no longer
+			// unsupported: parseXstats decodes both (see TestParseNewStatsXstats).
+			// LINK_OFFLOAD_XSTATS(4) is the still-unsupported group this row guards.
+			description: "corner: IFLA_STATS_LINK_OFFLOAD_XSTATS(4) alongside LINK_64 sets HasUnsupportedGroup, keeps HasLink64",
 			body: cat(ifsmHdr(unix.AF_UNSPEC, 6, StatsFilterLink64),
 				rtattr(uint16(unix.IFLA_STATS_LINK_64), link64Payload(1, 2)),
-				rtattr(uint16(unix.IFLA_STATS_LINK_XSTATS_SLAVE), le32(0))),
+				rtattr(uint16(unix.IFLA_STATS_LINK_OFFLOAD_XSTATS), le32(0))),
 			check: func(t *testing.T, si IfStatsInfo) {
 				if !si.HasLink64 || !si.HasUnsupportedGroup {
 					t.Errorf("flags = link64 %v/unsup %v, want true/true", si.HasLink64, si.HasUnsupportedGroup)

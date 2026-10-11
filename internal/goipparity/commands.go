@@ -84,6 +84,23 @@ type Command struct {
 	// never attempted" is the same one internal/goip draws between
 	// ErrNotImplemented and ErrUnknownObject, and for the same reason.
 	Implemented bool
+
+	// Write marks a command that changes the namespace: `ip link add`, `set`
+	// and `del` (link-write-path.md, "Parity: write rows in the matrix").
+	//
+	// A write row runs each side in a namespace the driver recreates and
+	// prepares with Setup, so ip_a's write does not make ip_b's meet
+	// -EEXIST, and the devices Setup makes take the same ifindexes on every
+	// side. `ip` sends its write; goip writes the same request to the file
+	// GOIP_WRITE_OUT names, WriteName, and sends only the name lookups.
+	// Floor counts ip's datagrams, the lookups plus the write and its
+	// NLMSG_ERROR, so the goip side's floor is Floor-2.
+	Write bool
+
+	// Setup is the precondition of a write row: `ip` argument lists, run in
+	// order outside the capture window. Steps are joined with ';' in String,
+	// so a step may not contain one.
+	Setup []string
 }
 
 // Sides are the three captures of the control triple, in capture order.
@@ -1435,7 +1452,131 @@ var commands = withArgs([]Command{
 		// against ip_vrf_json; gated on runs 8 and 9 with its text twin.
 		Floor: 2, Implemented: true,
 	},
+	// The link write rows (link-write-path.md phase 7): the 21 rows of the
+	// committed corpus in pkg/xtcpnl/testdata/7_1_4/link-write/write/, with
+	// the same preconditions and floors as capture-link-writes.exp. All 21
+	// gated on the phase 7 runs, two back to back with identical verdicts:
+	// txns matching ip (goip's write file counted as its write) and control
+	// nl=0 on the rows with no lookups, nl=2 to 4 on the rest, all of it
+	// reply state of a fresh namespace (a new link's random MAC, cacheinfo).
+	{
+		Name: "link add d0 type dummy", Slug: "link_write_add_dummy",
+		// The request and its ACK; add resolves no name.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add v0 type veth peer name v1", Slug: "link_write_add_veth",
+		// The peer's own ifinfomsg inside VETH_INFO_PEER.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add bond0 type bond", Slug: "link_write_add_bond_bare",
+		// INFO_KIND alone: no arguments, so no INFO_DATA nest.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add bond0 type bond mode 802.3ad lacp_rate fast miimon 100 xmit_hash_policy layer3+4", Slug: "link_write_add_bond_8023ad",
+		// Worked example 1.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add bond0 type bond mode 802.3ad lacp_rate fast lacp_active on ad_select bandwidth ad_actor_sys_prio 100 ad_user_port_key 7 ad_actor_system 02:00:00:00:00:0a min_links 1", Slug: "link_write_add_bond_all_lacp",
+		// Every 802.3ad option, the u16 priorities and key included.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add bond0 type bond mode active-backup arp_interval 100 arp_ip_target 10.0.0.1,10.0.0.2 arp_validate all", Slug: "link_write_add_bond_ab_arp",
+		// The index-numbered ARP_IP_TARGET nest.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link add bond0 type bond mode 4", Slug: "link_write_add_bond_numeric_mode",
+		// Mode 4 is 802.3ad: the same MODE byte.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link set la1 down master bond0", Slug: "link_write_enslave_down",
+		// Worked example 2: master is resolved before dev, two lookups, then the write.
+		Floor: 6, Implemented: true, Write: true, Setup: linkWriteSetupPort,
+	},
+	{
+		Name: "link set la1 master bond0", Slug: "link_write_enslave_up",
+		// Refused EPERM; compared on the request, as goip cannot know the kernel's answer.
+		Floor: 6, Implemented: true, Write: true, Setup: linkWriteSetupPortUp,
+	},
+	{
+		Name: "link set la1 nomaster", Slug: "link_write_nomaster",
+		// IFLA_MASTER 0, after one lookup.
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupEnslaved,
+	},
+	{
+		Name: "link set la1 type bond_slave queue_id 1", Slug: "link_write_slave_queue_id",
+		// INFO_SLAVE_DATA.
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupEnslaved,
+	},
+	{
+		Name: "link set la1 type bond_slave actor_port_prio 200", Slug: "link_write_slave_actor_port_prio",
+		// A u16 port option.
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupEnslaved,
+	},
+	{
+		Name: "link set bond0 type bond lacp_rate slow", Slug: "link_write_set_lacp_rate_up",
+		// Refused EBUSY.
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupBondUp,
+	},
+	{
+		Name: "link set bond0 type bond mode balance-rr", Slug: "link_write_set_mode_with_ports",
+		// Refused ENOTEMPTY.
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupEnslaved,
+	},
+	{
+		Name: "link set bond0 type bond lacp_rate fast", Slug: "link_write_set_lacp_rate_rr",
+		// Refused EACCES.
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupBondRR,
+	},
+	{
+		Name: "link add bond0 type bond arp_interval 100 miimon 100", Slug: "link_write_arp_and_miimon",
+		// Refused EINVAL.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "link replace bond0 type bond", Slug: "link_write_replace_existing",
+		// Refused EOPNOTSUPP, with no extack.
+		Floor: 2, Implemented: true, Write: true, Setup: linkWriteSetupBond,
+	},
+	{
+		Name: "link set bond0 up", Slug: "link_write_set_up",
+		// Ifi_flags and ifi_change 0x1.
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupBond,
+	},
+	{
+		Name: "link set bond0 down", Slug: "link_write_set_down",
+		// Ifi_change 0x1 with the flag clear.
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupBondUp,
+	},
+	{
+		Name: "link set d0 name d1 mtu 9000 alias uplink", Slug: "link_write_rename_mtu_alias",
+		// A rename sends IFLA_IFNAME on a set; IFLA_IFALIAS has no NUL.
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link del bond0", Slug: "link_write_del_bond",
+		// RTM_DELLINK by index.
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupEnslaved,
+	},
 })
+
+// The write rows' preconditions, as capture-link-writes.exp spells them:
+// PRE_BOND, PRE_PORT and PRE_ENSLAVED there.
+var (
+	linkWriteSetupBond     = []string{"link add bond0 type bond mode 802.3ad"}
+	linkWriteSetupBondUp   = []string{"link add bond0 type bond mode 802.3ad", "link set bond0 up"}
+	linkWriteSetupBondRR   = []string{"link add bond0 type bond mode balance-rr"}
+	linkWriteSetupDummy    = []string{"link add d0 type dummy"}
+	linkWriteSetupPort     = []string{"link add bond0 type bond mode 802.3ad", "link add la1 type veth peer name lb1"}
+	linkWriteSetupPortUp   = []string{"link add bond0 type bond mode 802.3ad", "link add la1 type veth peer name lb1", "link set la1 up"}
+	linkWriteSetupEnslaved = []string{"link add bond0 type bond mode 802.3ad", "link add la1 type veth peer name lb1", "link set la1 master bond0"}
+)
 
 // withArgs fills every row's Args from its Name.
 //
@@ -1502,13 +1643,31 @@ func (c Command) StdoutName(side string) string {
 	return c.Slug + "." + side + ".out"
 }
 
+// WriteName is the basename of the request goip wrote to GOIP_WRITE_OUT on a
+// write row. Only the goip side has one.
+func (c Command) WriteName() string {
+	return c.Slug + "." + SideGoip + ".write"
+}
+
+// RCName is the basename of one side's exit status on a write row.
+func (c Command) RCName(side string) string {
+	return c.Slug + "." + side + ".rc"
+}
+
+// noSetupCst is String's Setup field for a row with no precondition, since an
+// empty field between two tabs is easy to misread in a transcript.
+const noSetupCst = "-"
+
 // String renders one table row for `goip-parity commands`, tab-separated so a
-// shell can read it with `read -r name slug floor impl args`.
+// shell can read it with `read -r slug floor impl dev write setup args name`.
+//
+// setup is noSetupCst or the Setup steps joined with ';'. It is the one
+// field before args that holds spaces, which a tab split does not mind.
 //
 // Tab-separated rather than JSON because the consumer is an expect script
 // driving a serial console, where a parser is a liability and `IFS=$'\t'` is
-// not. The name is last precisely because it is the field that contains
-// spaces, so a `read` with four leading fields captures the rest correctly.
+// not. The driver splits on tabs, so the fields that hold spaces (setup,
+// args, name) cannot run into each other; TestCommandString pins the count.
 func (c Command) String() string {
 	impl := "no"
 	if c.Implemented {
@@ -1518,11 +1677,21 @@ func (c Command) String() string {
 	if c.NeedsDev {
 		dev = "yes"
 	}
+	write := "no"
+	if c.Write {
+		write = "yes"
+	}
+	setup := noSetupCst
+	if len(c.Setup) != 0 {
+		setup = strings.Join(c.Setup, ";")
+	}
 	return strings.Join([]string{
 		c.Slug,
 		fmt.Sprint(c.Floor),
 		impl,
 		dev,
+		write,
+		setup,
 		strings.Join(c.Args, " "),
 		c.Name,
 	}, "\t")

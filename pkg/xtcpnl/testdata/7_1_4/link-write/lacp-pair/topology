@@ -1,0 +1,8 @@
+ok    [-] ip link set la1 netns lacpa
+ok    [-] ip link set la2 netns lacpa
+ok    [lacpa] ip link add bond0 address 02:00:00:00:0a:00 type bond mode 802.3ad lacp_rate fast miimon 100 ad_actor_system 02:00:00:00:00:0a
+ok    [lacpa] ip link set la1 down
+ok    [lacpa] ip link set la1 master bond0
+ok    [lacpa] ip link set la2 down
+ok    [lacpa] ip link set la2 master bond0
+ok    [lacpa] ip link set bond0 up

@@ -34,6 +34,16 @@ One axis does **not** change, and it is what keeps this finite:
 > Attributes on a `GET` or `DUMP` request *select and filter*; they do not
 > mutate. There is no write path in scope, now or later.
 
+> **Narrowed by link-write Phase 4** ([link-write-path.md](link-write-path.md#the-read-only-invariant-narrowed-a-second-time)):
+> **the read path emits only `RTM_GET*` plus `NLMSG_NOOP`.** `BuildRequest`
+> still refuses every `RTM_NEW*`/`RTM_DEL*`/`RTM_SET*`, guarded by
+> `TestBuildRequestRejectsEveryNamedWriteType`. The write path goes through
+> `BuildWriteRequest`, which admits exactly `RTM_NEWROUTE`, `RTM_DELROUTE`,
+> `RTM_NEWLINK` and `RTM_DELLINK` (`ErrNotAnAdmittedWrite` for anything else),
+> pinned by `TestBuildWriteRequestAdmitsOnlyListedWrites`. `goip` never applies
+> a write to a live kernel in any automated path. The paragraphs below describe
+> the read gate, which is unchanged.
+
 That wording is narrower than the "never create, delete, or set" it replaces,
 and deliberately so: **it is a rule about message types, so it can be enforced
 in code.** `BuildRequest` (`xtcpnl_rtattr_encode.go`) returns
@@ -831,7 +841,10 @@ byte-identical timings that look like excellent stability and mean nothing.
 - **Write support of any kind** — no create, delete, or set, for any family. This
   is the constraint that makes the scope finite. Since `BuildRequest` landed it
   is enforced by a test rather than by review: `ErrNotAGetRequest` is returned
-  for every `RTM_NEW*`, `RTM_DEL*` and `RTM_SET*` type.
+  for every `RTM_NEW*`, `RTM_DEL*` and `RTM_SET*` type. *Narrowed since:* the
+  route and link write designs add a separate `BuildWriteRequest` gate for four
+  types, building requests that are compared and never sent (see the note under
+  the invariant above). Every other write type stays out of scope.
 - **The 344 per-qdisc `TCA_*` configuration nests**, by the read-only rule.
 - **Depending on, vendoring, or copying code from `vishvananda/netlink`.** It is
   the reference for *shape*; xtcp2 keeps its own parsers. (Apache-2.0, decodes by

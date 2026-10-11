@@ -10,9 +10,9 @@ several steps, further down under [Remaining](#remaining).
 
 | | count | counted from |
 |---|---|---|
-| commands in the comparison matrix | **62** | `internal/goipparity/commands.go` |
-| of those, `Implemented: true` | **62** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
-| of those, in `gated_commands` | **39** | `pkg/nlparity/goip-parity-allowlist.json` |
+| commands in the comparison matrix | **83** | `internal/goipparity/commands.go` — 62 read rows and the 21 link write rows |
+| of those, `Implemented: true` | **83** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
+| of those, in `gated_commands` | **60** | `pkg/nlparity/goip-parity-allowlist.json` |
 | allowlisted divergences | **7** | same file, `entries` |
 | of those, `kind=version-skew` | **7** | all against the pinned `ip` 7.1.0 |
 | of those, `kind=accepted-divergence` | **0** | nothing is *allowlisted* as a permanent divergence — the nine intentional wire divergences below **cannot** be, because a transaction-count divergence is unsuppressible (`nlparity_allowlist.go:143`) |
@@ -142,9 +142,10 @@ emits **multiple stanzas per interface**: the whole group expands to four leaves
 in the pointer-sorted golden order bond/802.3ad, bridge/vlan, bridge/mcast,
 bridge/stp, so every device prints four header stanzas with bodies only on a
 bridge (mesh's br0: a vlan per-VID block and an all-zero mcast block). goip
-grounds the vlan and mcast bodies and the empty bond/stp headers; a reply
-carrying an stp or bond *body* is refused (`HasUngroundedXstatsBody`), the
-strict-parity boundary at the sub-attribute level.
+grounds the vlan and mcast bodies and the empty stp header; a reply carrying an
+stp *body* is refused (`HasUngroundedXstatsBody`), the strict-parity boundary at
+the sub-attribute level. The bond 802.3ad body was refused the same way until
+link-write Phase 3 grounded it (see the phase table below).
 `TestStatsShowMatchesCapturedSidecars` diffs `goip` byte-for-byte (plain and
 `-s`, which equals plain — the bridge bodies have no `show_stats>1` branch) and
 structurally (`-j`) against the committed `ip_stats_xstats`/`_s`/`_json` sidecars
@@ -194,10 +195,12 @@ Flipping `Implemented` puts a command in the report; joining `gated_commands`
 requires a live Tier C run (`nix run .#microvm-x86_64-goip-parity`) measured
 clean for it, on two consecutive runs whose every line matches.
 
-The most recent sweep of the **gated** surface is **runs 10 and 11**, the first
-live grounding of nexthop and addrlabel, which gated all five of their rows —
-transcribed in
-[Runs 10 and 11](#runs-10-and-11-nexthop-and-addrlabel-gate). Before them,
+The most recent sweep of the **gated** surface is the **Phase 7 runs**, which
+added the 21 link write rows and gated all of them —
+[Phase 7 runs](#phase-7-runs-the-21-link-write-rows-gate). Before them, **runs
+10 and 11** were the first live grounding of nexthop and addrlabel, which gated
+all five of their rows —
+[Runs 10 and 11](#runs-10-and-11-nexthop-and-addrlabel-gate). Before those,
 **runs 8 and 9** were the first live grounding of ntable/netconf/stats/vrf, which
 gated seven of the sixteen rows those objects added and found the other nine
 divergent on the wire —
@@ -222,7 +225,10 @@ These are the boundaries of the exercise, not a backlog:
 - **Read-only.** `show`/`list`/`lst` only. `internal/goip/obj_addr.go` refuses a
   write verb with `goip is read-only: ErrNotImplemented` rather than treating
   it as unknown, because the harness drives both tools with the same argv and
-  needs "not got there yet" to be distinguishable from "typo".
+  needs "not got there yet" to be distinguishable from "typo". One exception
+  has landed: `goip link add/set/change/replace/delete` build `ip`'s request
+  and write it to a file, never to the kernel — see
+  [Write path: link writes as a dry run](#write-path-link-writes-as-a-dry-run).
 - **Eleven objects.** `address`, `route`, `rule`, `neigh`/`neighbour`, `link`,
   `nexthop`, `addrlabel`, `ntable`/`ntbl`, `netconf`, `stats` and `vrf` have a
   `run` function; the other twenty rows of
@@ -231,10 +237,60 @@ These are the boundaries of the exercise, not a backlog:
   unanchored-prefix and first-match-wins, so deleting the unimplemented rows
   would silently change what `r`, `n`, `net` and `l` resolve to.
 - **Two render refusals, which error rather than guess**: `-d` on a link
-  carrying `IFLA_INFO_DATA` or `IFLA_INFO_SLAVE_DATA`
-  (`internal/goip/obj_link.go`), and a route with an `RTA_NH_ID`
+  carrying `IFLA_INFO_DATA` or `IFLA_INFO_SLAVE_DATA` of a kind other than
+  `vrf` and `bond` (`internal/goip/obj_link.go`, `renderableInfoData`), and a route with an `RTA_NH_ID`
   (`internal/goip/obj_route.go`). Both are `ErrNotImplemented`, so the harness
   records a skip; neither can produce a quietly wrong line.
+
+### Write path: link writes as a dry run
+
+Counted from the tree on 2026-10-11: **the write gate exists, and only the
+link dry run uses it.** `BuildWriteRequest` (`pkg/xtcpnl/xtcpnl_rtattr_encode.go`)
+admits `RTM_NEWROUTE`, `RTM_DELROUTE`, `RTM_NEWLINK` and `RTM_DELLINK` and
+returns `ErrNotAnAdmittedWrite` for anything else; `BuildRequest` and its
+`ErrNotAGetRequest` still refuse every `RTM_NEW*`/`RTM_DEL*`/`RTM_SET*` on the
+read path. What has landed is link-write Phases 0 to 7: the capture
+target with its readback and write fixtures, the bond read decode, the bond
+`-d` render, the bond 802.3ad xstats body, the gate, the link write encoders
+with the bond argv parser, and `goip link add/set/change/replace/delete`.
+Those verbs never apply anything: they send only the `RTM_GETLINK` name
+lookups `ip` would send, and write the request to the file `GOIP_WRITE_OUT`
+names. Without that variable they exit 1. The 21 corpus write rows are in the
+`goip-parity` matrix and gated
+([Phase 7 runs](#phase-7-runs-the-21-link-write-rows-gate)).
+Two designs are proposed. This table
+records their phases so that a phase landing has a row to flip; per the "status
+records only what landed" rule, a row moves only when its exit evidence exists
+in the tree.
+
+| Design | Phase | Scope | Status |
+|---|---|---|---|
+| [route-write-path](route-write-path.md) | 1 | `BuildWriteRequest` gate (error to be named `ErrNotAnAdmittedWrite`, per [link-write-path decision 1](link-write-path.md#decisions)) | **done**, by link-write Phase 4 (below), which landed the gate with both designs' types in it |
+| | 2 | `BuildRouteWriteRequest`: `rtmsg` defaults + core attrs | not started |
+| | 3 | `RTA_METRICS` encoder | not started |
+| | 4 | `goip route replace …` argv, generate-only | not started |
+| | 5 | dry-run byte-compare harness, matrix read/write axis | not started |
+| [link-write-path](link-write-path.md) | 0 | Tier 1 LACP capture target `microvm-x86_64-link-write-capture` (one VM, two netns, veth pairs, `bonding max_bonds=0`) | **done** — `NLCAP_DRIVER_PASS`; `lacp_no_partner`/`lacp_converged` (`0x3f`/`0x3f`)/`lacp_partner_down` in `pkg/xtcpnl/testdata/7_1_4/link-write/` |
+| | 1 | bond `IFLA_INFO_DATA`/`SLAVE_DATA`/`AD_INFO` decode, shared option table | **done**: `pkg/xtcpnl/xtcpnl_bond.go` (`BondOptions`, `ParseBondInfoData`/`ParseBondSlaveData`/`ParseBondAdInfo`, `LinkInfo.Bond`/`BondSlave`); `TestDecodeBond*` green on the three 7_1_4 states and against the sysfs oracle; statement 6 amended |
+| | 2 | `-d link show` render for `bond`/`bond_slave` — lifts the first render refusal above for bond | **done**: `internal/goip/render/link_bond.go` (`bond_print_opt`/`bond_slave_print_opt` over `BondOptions`), `render/kind_data.go` (one call list, text and `-j`); `TestLinkShowDetailBondMatchesSidecar` byte-identical on `ip_link_n` and structurally equal on `ip_link_n_json` in all three states; statement 7 narrowed. The matrix row still waits: Phase 7's write rows build their preconditions with `Setup`, which read rows do not have |
+| | 3 | populated bond 802.3ad xstats body — lifts `HasUngroundedXstatsBody` for bond | **done**: `pkg/xtcpnl/xtcpnl_bond_xstats.go` (`ParseBond3adStats`), `IfStatsInfo` split into `XstatsBodies` for `group xstats` and `Slave` for `group xstats_slave`; `render/bridge_xstats.go` prints the body for both groups. `TestStatsXstatsBondMatchesSidecar` is byte-identical on `ip_stats_xstats` and `ip_stats_xstats_slave` in all three states, and structurally equal on the `_json` sidecars with the counters zeroed (the `-j` sidecar was taken after the capture window). `TestParseNewStatsBond3adCaptured` checks every decoded counter against the text sidecar. Statement 8 amended. The matrix rows still wait, as Phase 2's does |
+| | 4 | gate admits `RTM_NEWLINK`/`RTM_DELLINK`; `AttrBuilder` nest helper | **done**: `BuildWriteRequest`, `IsAdmittedWriteType` and `ErrNotAnAdmittedWrite` (the route types included, so route Phase 1 is done too); `AttrBuilder.BeginNest`/`EndNest`, `PutU16`, `PutS32`. `TestBuildWriteRequestAdmitsOnlyListedWrites` walks every named type, `TestBuildWriteRequestLayout` the flags and family header, `TestAttrBuilderWriteShapes` the nests and the rta_len overflow; `TestBuildRequestRejectsEveryNamedWriteType` is unchanged and green. Route statements 1 and 2 amended |
+| | 5 | `BuildLinkWriteRequest`: generic attrs, `dummy`/`veth`/`bond`/`bond_slave` encoders | **done**: `pkg/xtcpnl/xtcpnl_link_write.go` (`BuildLinkWriteRequest`, `EncodeBondInfoData`/`EncodeBondSlaveData`, `EncodeVethPeer`), with `BondSlaveOptions` for the three settable port options; `bond_parse_opt`/`bond_slave_parse_opt` in `internal/goip/link_bond_args.go` over the C readers in `cparse.go`. `TestBuildLinkWriteRequestWorkedExamples` matches both worked examples byte for byte; `TestEncodeBondOptions` and `TestEncodeBondSlaveOptions` go from argv to wire. Design table 3 row 17 corrected (a short `ad_actor_system` encodes); `lacp_strict` is not in the 7.1.0 parser. The argv rows of design table 2 move to Phase 6 |
+| | 6 | `goip link add/set/del`, `GOIP_WRITE_OUT` dry-run, golden byte parity | **done**: `internal/goip/link_write.go` (the `iplink_parse` keyword chain, `ll_name_to_index` resolution, `GOIP_WRITE_OUT`); 21 write rows captured into `pkg/xtcpnl/testdata/7_1_4/link-write/write/` (`NLCAP_DRIVER_PASS`, every outcome as designed); `TestLinkWriteMatchesIpBytes` matches `ip`'s lookups and write byte for byte on all 21; `ParseNlMsgErr` plus `TestDecodeNetlinkErrorExtack` decode every ACK and refusal, extack message and offset included. Design table 2 row 9 corrected (a bare 16-byte dev is sent); `ip link s` is set |
+| | 7 | write rows (`Write`/`Setup`) in the `goip-parity` matrix | **done**: `Command.Write`/`Setup` and the 21 `link_write_*` rows (`internal/goipparity/commands.go`); `goip-parity.exp` runs each side in a fresh namespace with `Setup` applied, goip with `GOIP_WRITE_OUT`; `nlparity.CompareWrite` diffs the lookups and compares `ip`'s write request with goip's file at L2, the `.rc` files checked beside it. Two runs, identical verdicts, all 21 `GOIP_PARITY_PASS`; gated with no allowlist entry ([Phase 7 runs](#phase-7-runs-the-21-link-write-rows-gate)). Statement 10 amended |
+| | 8 | Tier 2: two microVMs on point-to-point virtio-net (`-netdev dgram`) links, `microvm-x86_64-lacp-pair-capture` | **done**: sinks `lacp-a`/`lacp-b`, `mkLacpPairRunner`, `capture-lacp-pair.exp` (QMP `set_link` for the cable pull); `NLCAP_DRIVER_PASS` with `lacp_converged`/`lacp_link_pulled`/`lacp_link_restored` in `pkg/xtcpnl/testdata/7_1_4/link-write/lacp-pair/`. Every bond decode and goip render test is green on them with no code change, as rows in the existing tables; `TestDecodeLacpPairPortsMatchSysfs` adds parent device, carrier and operstate against sysfs. The pulled virtio port keeps 0x3f/0x3f, as Tier 1's veth did ([Phase 8 as built](link-write-path.md#phase-8-as-built)) |
+
+Link phases 0–3 are **read-path work** and depend on neither design's gate; they
+needed only the new capture topology, because before Phase 0 no committed
+fixture contained a bond. The bond bytes in the tree are all under
+`pkg/xtcpnl/testdata/7_1_4/link-write/`.
+
+One upstream finding from the link design, relevant to phase 1: `ip` reads
+`IFLA_BOND_SLAVE_AD_PARTNER_OPER_PORT_STATE` as u8 where the kernel sends u16
+(`ip/iplink_bond_slave.c:148`); on big endian it always prints `0 <>`. goip's
+decoder must use the kernel width, and parity on x86_64 is unaffected. The
+verified fix series for netdev is in
+[upstream/iproute2-bond-partner-state-width.md](upstream/iproute2-bond-partner-state-width.md).
 
 ## Netlink message types: decoded, rendered, compared
 
@@ -370,13 +426,15 @@ too, in the nested `xtcpnl_bridge_xstats.go` decoder and the
 per-VID array and the `br_mcast_stats` block), the first multi-stanza record, and
 a leaf order (bond/802.3ad, bridge/vlan, bridge/mcast, bridge/stp) that is
 pointer-sorted in ipstats and so pinned from the golden rather than source. goip
-grounds the `link` group and the xstats vlan/mcast bodies with the empty bond/stp
-headers; the other ungrounded leaves of ipstats's descriptor tree (bridge stp/bond
-bodies, offload, afstats mpls, the `xstats_slave` port path) and `stats set` are
+grounds the `link` group, and the xstats and `xstats_slave` groups' vlan, mcast
+and bond 802.3ad bodies (the bond body and the slave group since link-write
+Phase 3) with the empty stp header. The other ungrounded leaves of ipstats's
+descriptor tree (the bridge stp body, offload, afstats mpls) and `stats set` are
 refused with `ErrNotImplemented` and a rationale — the strict-parity boundary,
 applied down to the sub-attribute (`HasUngroundedXstatsBody`) — and a reply
-carrying any group beyond link/xstats is refused rather than under-rendered
-(`HasUnsupportedGroup`). **It is the tenth read-only object and closes the
+carrying any group besides the one requested is refused rather than
+under-rendered (`HasUnsupportedGroup`, and the cross-group checks in
+`obj_stats.go`). **It is the tenth read-only object and closes the
 read-only backlog.**
 
 **`nhmsg` used to head this table and no longer belongs in it.** It is decoded
@@ -771,7 +829,7 @@ Phases and scope are as defined in
 | **0** | Reflection removal (0a), AccECN (0b), layout oracle (0c), perf gate (0d), upstream pin guard (0e), then core wire export, subpackage skeleton, capture generalization | **partial** | 0a–0e — see [Phase 0](#phase-0). Plus the rtnetlink-only capture flavor that Phase 0 generalizes, and the five core wire primitives, exported in [`b4428c7`](#b4428c7--the-five-core-wire-primitives-are-exported) | Gating the other 17 protocols that currently report deltas, one per phase as each is triaged; package still flat; BPF filter still pins family 0. `pkg/nsdiscover/nsid.go` no longer hand-rolls its own wire layer — it went through `xtcpnl.NewAttrBuilder`/`BuildRequest`/`WalkNlMsgs`/`WalkRTAttrs` in [`b4428c7`](#b4428c7--the-five-core-wire-primitives-are-exported), closing `TODO-SOON.md` §15 |
 | **1** | Multicast listener, `BuildDumpNeighRequest`, in-guest smoke check | **partial** | Event parsing layer, `ndmsg` decoder, `ParseNeigh`, real captured event fixtures, and `BuildDumpNeighRequest` as of [`1beb2b8`](#1beb2b8--the-per-family-request-builders-and-the-single-get-primitive) | The listener itself (no `Subscribe`, no `NETLINK_ADD_MEMBERSHIP` anywhere), the `ENOBUFS` resync *logic* that calls the new builder, the self-test check |
 | **2** | `IFA_CACHEINFO`/`IFA_FLAGS`, `IFLA_ADDRESS`/`IFLA_STATS64`, `RTA_EXPIRES`/`RTA_CACHEINFO`/`RTA_METRICS`, orphaned `INET_DIAG_PRAGUEINFO` | **partial** | `IFA_CACHEINFO` (with `struct ifa_cacheinfo` and the two lifetime predicates), `IFA_FLAGS` (replacing the u8 header field, not extending it), `IFLA_ADDRESS`/`IFLA_BROADCAST` and nine more `IFLA_*`, as of [`4494b42`](#4494b42--the-ifla_-and-ifa_-attribute-decoders-a-show-line-needs). `IFLA_STATS`/`IFLA_STATS64` are **done**: decoded in `xtcpnl_link_stats.go`, rendered by `render.LinkStatsText`, and driven by `ip -s link show` as the tenth parity command. They were previously recorded here as out of scope on a premise that was wrong — see [below](#what-ifla_stats64-was-actually-blocked-on) | the `RTA_EXPIRES` *attribute* (distinct from `rta_cacheinfo`'s `rta_expires` member; `print_route` never reads it, so nothing on a `show` path needs it), and `INET_DIAG_PRAGUEINFO`. **`RTA_METRICS` is done**, with real fixtures: the gated capture topology carries an `mtu 1400 advmss 1300` route, so `dumps/netlink_route_getroute.pcap` has one and `RouteMetrics` decodes it. **`RTA_CACHEINFO` is done** too, in `xtcpnl_rta_cacheinfo.go` — and its real fixtures (48 of 74 captured routes) turn out to be all-zero by kernel construction, which is a finding in itself: see [below](#-s-on-route-neigh-and-rule-two-no-ops-and-a-bug-in-the-ungated-form) |
-| **3** | Rules (`FRA_*`), nexthop (`NHA_*`), bridge/VLAN, `IFLA_LINKINFO` descent | **partial** | the `IFLA_LINKINFO` descent, as far as `IFLA_INFO_KIND` — [`4494b42`](#4494b42--the-ifla_-and-ifa_-attribute-decoders-a-show-line-needs), the first production caller of `WalkRTAttrsNested`. **`FRA_*` is done**: `struct fib_rule_hdr` and all 30 attributes decode in `xtcpnl_fib_rule_hdr.go`, `render.RuleView` prints them, and `ip rule show` drives four parity commands — see [below](#ip-rule-show-the-object-with-no-name-table). **`NHA_*` is done**: `struct nhmsg` and the nexthop attributes — id, oif, gateway, blackhole, fdb, group, group-type and the nested `NHA_RES_GROUP` — decode in `xtcpnl_nhmsg.go` and render for `ip nexthop show` and `-d` route nhid resolution; see the nexthop arc in [Where we are](#where-we-are). **The `IFLA_INFO_DATA` sub-nest is decoded for kind `vrf`** (`IFLA_VRF_TABLE`), together with `IFLA_INFO_SLAVE_DATA`'s `IFLA_VRF_PORT_TABLE`, driving `-d link`/`addr show` of a VRF master and its port | bridge/VLAN, and the `IFLA_INFO_DATA` sub-nest for link kinds other than `vrf`, each a separate attribute space per kind |
+| **3** | Rules (`FRA_*`), nexthop (`NHA_*`), bridge/VLAN, `IFLA_LINKINFO` descent | **partial** | the `IFLA_LINKINFO` descent, as far as `IFLA_INFO_KIND` — [`4494b42`](#4494b42--the-ifla_-and-ifa_-attribute-decoders-a-show-line-needs), the first production caller of `WalkRTAttrsNested`. **`FRA_*` is done**: `struct fib_rule_hdr` and all 30 attributes decode in `xtcpnl_fib_rule_hdr.go`, `render.RuleView` prints them, and `ip rule show` drives four parity commands — see [below](#ip-rule-show-the-object-with-no-name-table). **`NHA_*` is done**: `struct nhmsg` and the nexthop attributes — id, oif, gateway, blackhole, fdb, group, group-type and the nested `NHA_RES_GROUP` — decode in `xtcpnl_nhmsg.go` and render for `ip nexthop show` and `-d` route nhid resolution; see the nexthop arc in [Where we are](#where-we-are). **The `IFLA_INFO_DATA` sub-nest is decoded for kind `vrf`** (`IFLA_VRF_TABLE`), together with `IFLA_INFO_SLAVE_DATA`'s `IFLA_VRF_PORT_TABLE`, driving `-d link`/`addr show` of a VRF master and its port. **And for kind `bond`**: every `IFLA_BOND_*` option, the `AD_INFO` nest and the twelve `IFLA_BOND_SLAVE_*` port attributes decode (link-write-path phase 1). They are not rendered yet, so `-d` on a bond still refuses | bridge/VLAN, the bond `-d` render, and the `IFLA_INFO_DATA` sub-nest for link kinds other than `vrf` and `bond`, each a separate attribute space per kind |
 | **4** | tc telemetry only (23 top-level `TCA_*`) | not started | — | all of it |
 | **5** | genetlink: `nlctrl` `GETFAMILY` first, then ethtool/devlink/netdev/vdpa/fou/gtp | not started | — | all of it |
 | **6** | xfrm, conntrack, ipset, proc_event, rdma | not started | — | all of it, plus a hand-declared constant block per family |
@@ -793,6 +851,8 @@ is `ip -t monitor all label` (`:1757`).
 |---|---|---|---|---|
 | 1–3 link, addr, route, neigh, rule, nexthop | `veth`, `dummy` ✅ | `ip monitor all` ✅ | `iproute2` ✅ | **yes** |
 | 3 bridge / VLAN | `bridge` — **add** | `ip monitor all` ✅ | `bridge vlan` (in `iproute2`) ✅ | no |
+| link-write 0–3 bond / LACP, Tier 1 | `bonding` — **add**, with `options bonding max_bonds=0` (module load creates `bond0` in `init_net`, `drivers/net/bonding/bond_main.c:6629-6630`) | n/a (dump-only readback) | `iproute2` ✅; a **partner** bond in a second netns over veth — **add** | no |
+| link-write 8 bond / LACP, Tier 2 | `bonding` — **add** | n/a | a second microVM and two point-to-point virtio-net links with `speed=10000,duplex=full` — **add**; never a bridge (`BR_GROUPFWD_RESTRICTED` drops LACPDUs) | no |
 | 4 tc telemetry | `sch_netem` or `sch_htb` — **add** | n/a (dump-only) | `tc` (in `iproute2`) ✅ | no |
 | 5 genetlink: ethtool | kernel config — **verify** | n/a (dump-only) | `ethtool` — **add** | no |
 | 5 genetlink: devlink, netdev | kernel config — **verify** | n/a (dump-only) | `devlink` (in `iproute2`) ✅ | no |
@@ -2852,6 +2912,45 @@ unreachable while the nine permanent rows warn. `internal/goipparity`'s
 `TestNexthopAddrlabelGated` and the `earned`/`gated_commands` set-equality pair in
 `pkg/nlparity` pin the flip deterministically, offline. The queue is now fourteen
 rows: the twelve `-j`/family forms and the two held-out `-s` forms.
+
+#### Phase 7 runs: the 21 link write rows gate
+
+[link-write-path.md Phase 7](link-write-path.md#landed-in-phase-7) put the 21
+write rows of the link-write corpus into the matrix, the first rows that change
+kernel state. Each side of a write row runs in a namespace the driver recreates,
+with the row's `Setup` applied outside the capture window; `ip` sends its write,
+and goip sends only the lookups and writes its request to the `GOIP_WRITE_OUT`
+file. `nlparity.CompareWrite` compares the lookups as any read row and the two
+write requests at L2, and the three `.rc` files beside them.
+
+Two runs of `nix run .#microvm-x86_64-goip-parity` off this branch, back to back,
+gave identical per-row verdicts: 74 `GOIP_PARITY_PASS` of 83, including all 21
+write rows. The second run first hit an outer timeout of 2400 s on a heavily
+loaded host (load average near 38 on 24 cores) before printing any verdict, and
+was rerun with `--timeout 6000`; that killed attempt is not counted. Both counted
+runs `OVERALL_FAIL` for the pre-existing reasons, not the write rows: the nine
+permanent rows (eight warn, `-4 netconf show dev` fails), `HYGIENE_FAIL 2` from
+its orphans, and `UNGATED_DIVERGENCES 8`. `CONTROL_NOISY` counts every
+control-suppressed finding across the matrix and moved 91 → 104.
+
+| rows | `txns` | control, both runs | why |
+|---|---|---|---|
+| the seven `link add` rows, `arp_and_miimon`, `replace_existing` | ip=1 goip=1 | `nl=0` | no name to resolve, so the write is the whole capture |
+| `enslave_down`, `enslave_up` | ip=3 goip=3 | `nl=4` | `bond0` then `la1`; each reply carries a fresh link's random `IFLA_ADDRESS` and `IFLA_INET6_CACHEINFO` times |
+| `nomaster`, `slave_queue_id`, `slave_actor_port_prio` | ip=2 goip=2 | `nl=3` | the enslaved port's reply, its MAC inside `IFLA_LINKINFO` too |
+| `set_lacp_rate_up`, `set_mode_with_ports`, `set_lacp_rate_rr`, `set_up`, `set_down`, `rename_mtu_alias`, `del_bond` | ip=2 goip=2 | `nl=2` | one lookup; MAC and cacheinfo |
+
+goip's `txns` counts its write file as its write, so a clean write row reads as
+both sides running the same number of transactions. The six refused rows pass on
+their request: both `ip` runs exit 2 with the kernel's extack, goip exits 0
+having built the same bytes, and the `NLMSG_ERROR` is not compared because goip
+never sends the write. All 21 gate with no allowlist entry. The lookup rows'
+control noise is reply state that `D_control` subtracts, as on the noisy read
+rows, and none of it is in a write request: every write request matched
+byte for byte on both runs. No `GOIP_PARITY_WRITE_SETUP_REFUSED` was printed.
+`internal/goipparity`'s `TestLinkWriteRowsGated` and the `earned`/`gated_commands`
+pair in `pkg/nlparity` pin the flip offline. The ungated surface is the same
+twenty-three rows.
 
 ## Tier C — the `goip-parity` microVM flavor
 

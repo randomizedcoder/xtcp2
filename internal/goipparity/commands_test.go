@@ -401,6 +401,16 @@ func TestCommandsCoverAllowlist(t *testing.T) {
 // with `IFS=$'\t' read`.
 //
 // go test ./internal/goipparity/ -run TestCommandString
+// lookupPtr is Lookup for a table row a test case points at.
+func lookupPtr(t *testing.T, name string) *Command {
+	t.Helper()
+	c, err := Lookup(name)
+	if err != nil {
+		t.Fatalf("Lookup(%q): %v", name, err)
+	}
+	return &c
+}
+
 func TestCommandString(t *testing.T) {
 	tests := []struct {
 		description string
@@ -411,9 +421,9 @@ func TestCommandString(t *testing.T) {
 		wantFields []string
 	}{
 		{
-			description: "positive: an implemented command with no device renders six fields",
+			description: "positive: an implemented command with no device renders eight fields",
 			name:        "link show",
-			wantFields:  []string{"link_show", "2", "yes", "no", "link show", "link show"},
+			wantFields:  []string{"link_show", "2", "yes", "no", "no", "-", "link show", "link show"},
 		},
 		{
 			// Synthetic since `route show` was implemented: the table holds
@@ -424,20 +434,46 @@ func TestCommandString(t *testing.T) {
 				Name: "rule show", Slug: "rule_show", Floor: 2,
 				Args: []string{"rule", "show"},
 			},
-			wantFields: []string{"rule_show", "2", "no", "no", "rule show", "rule show"},
+			wantFields: []string{"rule_show", "2", "no", "no", "no", "-", "rule show", "rule show"},
 		},
 		{
 			description: "boundary: the implemented dev-taking command renders dev=yes and its Args without a device",
 			name:        "link show dev",
 			wantFields: []string{
-				"link_show_dev", "4", "yes", "yes", "link show dev", "link show dev",
+				"link_show_dev", "4", "yes", "yes", "no", "-", "link show dev", "link show dev",
 			},
 		},
 		{
 			description: "corner: a command whose name carries a leading dash keeps it, since that dash is an argument",
 			name:        "-6 addr show",
 			wantFields: []string{
-				"addr_show_v6", "4", "yes", "no", "-6 addr show", "-6 addr show",
+				"addr_show_v6", "4", "yes", "no", "no", "-", "-6 addr show", "-6 addr show",
+			},
+		},
+		{
+			description: "positive: a write row renders write=yes and its setup steps joined with ';'",
+			cmd:         lookupPtr(t, "link set la1 nomaster"),
+			wantFields: []string{
+				"link_write_nomaster", "4", "yes", "no", "yes",
+				"link add bond0 type bond mode 802.3ad;link add la1 type veth peer name lb1;link set la1 master bond0",
+				"link set la1 nomaster", "link set la1 nomaster",
+			},
+		},
+		{
+			description: "boundary: a write row with no precondition renders setup as -",
+			cmd:         lookupPtr(t, "link add d0 type dummy"),
+			wantFields: []string{
+				"link_write_add_dummy", "2", "yes", "no", "yes", "-",
+				"link add d0 type dummy", "link add d0 type dummy",
+			},
+		},
+		{
+			description: "corner: a single setup step has no separator",
+			cmd:         lookupPtr(t, "link replace bond0 type bond"),
+			wantFields: []string{
+				"link_write_replace_existing", "2", "yes", "no", "yes",
+				"link add bond0 type bond mode 802.3ad",
+				"link replace bond0 type bond", "link replace bond0 type bond",
 			},
 		},
 	}
@@ -474,7 +510,7 @@ func TestCommandString(t *testing.T) {
 			// which contain spaces by construction — they are last precisely
 			// so a `read -r slug floor impl dev args name` still works. Every
 			// leading field has to be space-free for that to hold.
-			for i := 0; i < 4; i++ {
+			for i := 0; i < 5; i++ {
 				if strings.ContainsAny(f[i], " \t") {
 					t.Errorf("%q field %d = %q contains whitespace", c.Name, i, f[i])
 				}
@@ -484,8 +520,21 @@ func TestCommandString(t *testing.T) {
 
 	t.Run("corner: no field may contain a tab, or the field count would be wrong", func(t *testing.T) {
 		for _, c := range Commands() {
-			if n := len(strings.Split(c.String(), "\t")); n != 6 {
-				t.Errorf("%q renders %d fields, want 6", c.Name, n)
+			if n := len(strings.Split(c.String(), "\t")); n != 8 {
+				t.Errorf("%q renders %d fields, want 8", c.Name, n)
+			}
+		}
+	})
+
+	t.Run("negative: no setup step may contain ';' or be empty, or the driver's split would change it", func(t *testing.T) {
+		for _, c := range Commands() {
+			for _, step := range c.Setup {
+				if strings.TrimSpace(step) == "" || strings.ContainsAny(step, ";\t") {
+					t.Errorf("%q setup step %q", c.Name, step)
+				}
+			}
+			if len(c.Setup) != 0 && !c.Write {
+				t.Errorf("%q has Setup but is not a write row", c.Name)
 			}
 		}
 	})
@@ -1264,6 +1313,91 @@ func TestNexthopAddrlabelGated(t *testing.T) {
 			if entries := al.EntriesFor(name); len(entries) != 0 {
 				t.Errorf("%q gated clean on runs 10/11 but carries %d allowlist entr(ies); "+
 					"it needed none", name, len(entries))
+			}
+		}
+	})
+}
+
+// TestLinkWriteRowsGated pins the flip the phase 7 runs recorded: the 21 link
+// write rows, the first rows of the matrix that change kernel state. Both runs
+// reported all 21 GOIP_PARITY_PASS with identical verdicts, txns matching ip
+// with goip's GOIP_WRITE_OUT file counted as its write, and control nl=0 on
+// the rows with no lookups, nl=2 to 4 on the rest. Like runs 10 and 11 they
+// gate with ZERO allowlist entries: the lookup rows' control noise is reply
+// state D_control subtracts, not anything suppressed.
+//
+// go test ./internal/goipparity/ -run TestLinkWriteRowsGated
+func TestLinkWriteRowsGated(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	var cohort []Command
+	for _, c := range Commands() {
+		if c.Write {
+			cohort = append(cohort, c)
+		}
+	}
+
+	rows := []struct {
+		description string
+		command     string
+		expected    struct{ write, gated bool }
+	}{
+		{"positive: an add row, the write alone, is gated", "link add d0 type dummy",
+			struct{ write, gated bool }{true, true}},
+		{"positive: an enslave row, two lookups and the write, is gated", "link set la1 down master bond0",
+			struct{ write, gated bool }{true, true}},
+		{"positive: a row the kernel refuses gates on its request", "link set la1 master bond0",
+			struct{ write, gated bool }{true, true}},
+		{"positive: delete is gated", "link del bond0", struct{ write, gated bool }{true, true}},
+		{"boundary: the longest row, every 802.3ad option, is gated",
+			"link add bond0 type bond mode 802.3ad lacp_rate fast lacp_active on ad_select bandwidth " +
+				"ad_actor_sys_prio 100 ad_user_port_key 7 ad_actor_system 02:00:00:00:00:0a min_links 1",
+			struct{ write, gated bool }{true, true}},
+		{"negative: a read row of the same object is not a write row", "link show",
+			struct{ write, gated bool }{false, true}},
+		{"negative: a permanent-divergence row is neither", "stats show group link",
+			struct{ write, gated bool }{false, false}},
+		{"corner: a write the table does not hold is neither", "link add d9 type dummy",
+			struct{ write, gated bool }{false, false}},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			var got struct{ write, gated bool }
+			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				got.write = c.Write
+			}
+			got.gated = al.IsGated(r.command)
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+		})
+	}
+
+	t.Run("boundary: the cohort is the 21 rows of the committed corpus", func(t *testing.T) {
+		if len(cohort) != 21 {
+			t.Fatalf("%d write rows, want 21", len(cohort))
+		}
+	})
+
+	t.Run("positive: each write row is gated and Implemented", func(t *testing.T) {
+		for _, c := range cohort {
+			if !al.IsGated(c.Name) {
+				t.Errorf("%q is a phase 7 write row but IsGated is false; add it to "+
+					"gated_commands and the earned list together", c.Name)
+			}
+			if !c.Implemented {
+				t.Errorf("write row %q is not Implemented; a gate cannot fire on a skip", c.Name)
+			}
+		}
+	})
+
+	t.Run("negative: each write row gated clean, carrying no allowlist entry", func(t *testing.T) {
+		for _, c := range cohort {
+			if entries := al.EntriesFor(c.Name); len(entries) != 0 {
+				t.Errorf("%q gated clean on the phase 7 runs but carries %d allowlist entr(ies)",
+					c.Name, len(entries))
 			}
 		}
 	})

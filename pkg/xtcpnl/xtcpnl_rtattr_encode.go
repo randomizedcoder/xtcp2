@@ -14,7 +14,10 @@ package xtcpnl
 //
 // The read-only invariant is enforced here rather than left as a convention.
 // docs/netlink/coverage-expansion.md states it as prose; BuildRequest turns it
-// into a returned error.
+// into a returned error. The write path has its own, separate entry point,
+// BuildWriteRequest, which admits a closed set of four write types and nothing
+// else (docs/netlink/link-write-path.md, decision 1). goip only ever writes
+// what it builds to a file; nothing here sends.
 //
 // The encoder mirrors iproute2's addattr_l (lib/libnetlink.c): a fixed,
 // caller-provided buffer with a bounds check, rta_len counting its own header,
@@ -43,6 +46,15 @@ var (
 	// what the message type requires. Both too short and too long are errors —
 	// see BuildRequest for why.
 	ErrBadFamilyHdr = errors.New("xtcpnl: family header length wrong for the message type")
+	// ErrNotAnAdmittedWrite indicates a message type outside the write gate:
+	// anything that is not RTM_NEWROUTE, RTM_DELROUTE, RTM_NEWLINK or
+	// RTM_DELLINK. It is named for the set, not a family, so admitting a
+	// type later does not rename it.
+	ErrNotAnAdmittedWrite = errors.New("xtcpnl: only RTM_NEWROUTE, RTM_DELROUTE, RTM_NEWLINK and RTM_DELLINK may be built as writes")
+	// ErrNestNotOpen indicates an EndNest whose mark points past the
+	// builder's cursor, so no nest header can be there: a mark from another
+	// builder, or one taken before a Reset.
+	ErrNestNotOpen = errors.New("xtcpnl: EndNest without a matching BeginNest")
 )
 
 // RtaMaxPayloadCst is the largest payload one rtattr can carry. rta_len is a
@@ -165,6 +177,23 @@ func (a *AttrBuilder) PutU8(atype uint16, v uint8) error {
 	return a.PutBytes(atype, []byte{v})
 }
 
+// PutU16 appends a two-byte host-order attribute, iproute2's addattr16:
+// rta_len is 6 and the two bytes after the value are padding.
+func (a *AttrBuilder) PutU16(atype uint16, v uint16) error {
+	p, err := a.reserve(atype, 2)
+	if err != nil {
+		return err
+	}
+	binary.LittleEndian.PutUint16(p, v)
+	return nil
+}
+
+// PutS32 appends a four-byte signed attribute: the same bytes as PutU32 of
+// the two's complement, which is all addattr32 of an int does.
+func (a *AttrBuilder) PutS32(atype uint16, v int32) error {
+	return a.PutU32(atype, uint32(v))
+}
+
 // PutU32 appends a four-byte host-order attribute. This is the common shape:
 // IFLA_EXT_MASK, IFLA_MASTER, RTA_TABLE and IFA_FLAGS are all u32 selectors.
 func (a *AttrBuilder) PutU32(atype uint16, v uint32) error {
@@ -198,6 +227,50 @@ func (a *AttrBuilder) PutBytes(atype uint16, v []byte) error {
 		return err
 	}
 	copy(p, v)
+	return nil
+}
+
+// NestMark is an open nest: the offset of its header in the builder. It is
+// returned by BeginNest and consumed by EndNest.
+type NestMark struct {
+	off int
+}
+
+// BeginNest opens a nested attribute, iproute2's addattr_nest: a bare 4-byte
+// header whose rta_len EndNest fills in once the inner attributes are written.
+//
+// The type is written as given. iproute2 does not set NLA_F_NESTED on the
+// nests a write carries (IFLA_LINKINFO, IFLA_INFO_DATA, RTA_METRICS), and a
+// byte-for-byte parity comparison would see the bit, so it is the caller's to
+// add if a nest ever needs it.
+func (a *AttrBuilder) BeginNest(atype uint16) (NestMark, error) {
+	m := NestMark{off: a.n}
+	if _, err := a.reserve(atype, 0); err != nil {
+		return NestMark{}, err
+	}
+	return m, nil
+}
+
+// EndNest closes the nest m opened, iproute2's addattr_nest_end: rta_len
+// becomes everything from the nest header to the cursor, inner padding
+// included, because every inner attribute already advanced the cursor by its
+// aligned length.
+//
+// A nest whose contents overflow rta_len is removed whole: the cursor rewinds
+// to m, and ErrAttrTooLong is returned. That keeps the "a failed Put leaves
+// the buffer as it was" rule for the nest as a unit. Nests close innermost
+// first; closing an outer one first leaves the inner rta_len 4 and is a
+// caller bug no check here can see.
+func (a *AttrBuilder) EndNest(m NestMark) error {
+	if m.off < 0 || m.off+RTAttrSizeCst > a.n {
+		return ErrNestNotOpen
+	}
+	l := a.n - m.off
+	if l > 0xffff {
+		a.n = m.off
+		return ErrAttrTooLong
+	}
+	binary.LittleEndian.PutUint16(a.buf[m.off:m.off+2], uint16(l))
 	return nil
 }
 
@@ -254,9 +327,50 @@ func BuildRequest(msgType, flags uint16, seq uint32, familyHdr, attrs []byte) ([
 	return layoutRequest(msgType, flags|uint16(unix.NLM_F_REQUEST), seq, familyHdr, attrs), nil
 }
 
+// IsAdmittedWriteType reports whether BuildWriteRequest will accept msgType.
+//
+// This is a list, where IsGetRequestType is arithmetic, and the difference is
+// the point. The read gate admits every GET because a GET cannot mutate, so a
+// family added upstream should pass. The write gate admits only what goip has
+// an encoder and a parity target for, so a family added upstream must not.
+// RTM_SETLINK is left out: iproute2 sends RTM_NEWLINK for `ip link set`
+// (do_iplink, ip/iplink.c), so it has no parity target.
+func IsAdmittedWriteType(msgType uint16) bool {
+	switch msgType {
+	case uint16(unix.RTM_NEWROUTE), uint16(unix.RTM_DELROUTE),
+		uint16(unix.RTM_NEWLINK), uint16(unix.RTM_DELLINK):
+		return true
+	}
+	return false
+}
+
+// BuildWriteRequest is BuildRequest for the write path: the same layout and
+// the same family-header check, behind a gate that admits only
+// IsAdmittedWriteType. Anything else returns ErrNotAnAdmittedWrite, GETs
+// included, because they belong on BuildRequest.
+//
+// The flags pass through verbatim, plus NLM_F_REQUEST. The gate is on the type
+// for the reason BuildRequest's is: the kernel aliases NLM_F_CREATE|NLM_F_EXCL
+// (0x600) with NLM_F_ATOMIC|NLM_F_MATCH, so the flags cannot say whether a
+// message writes. NLM_F_ACK is the caller's to set, as iproute2's rtnl_talk
+// sets it (lib/libnetlink.c), so a request matches the one `ip` sends.
+//
+// Building is all this does. goip writes the bytes to a file for comparison
+// and never sends them (link-write-path.md, decision 5).
+func BuildWriteRequest(msgType, flags uint16, seq uint32, familyHdr, attrs []byte) ([]byte, error) {
+	if !IsAdmittedWriteType(msgType) {
+		return nil, ErrNotAnAdmittedWrite
+	}
+	if len(familyHdr) != FamilyHdrLen(msgType) {
+		return nil, ErrBadFamilyHdr
+	}
+	return layoutRequest(msgType, flags|uint16(unix.NLM_F_REQUEST), seq, familyHdr, attrs), nil
+}
+
 // layoutRequest writes the bytes, with no validation. It is the single place
-// an nlmsghdr is laid out on the request side, shared by BuildRequest and
-// BuildDumpRequest so the two cannot drift in how they pack a message.
+// an nlmsghdr is laid out on the request side, shared by BuildRequest,
+// BuildWriteRequest and BuildDumpRequest so they cannot drift in how they pack
+// a message.
 func layoutRequest(msgType, flags uint16, seq uint32, familyHdr, attrs []byte) []byte {
 	total := NlMsgHdrSizeCst + len(familyHdr) + len(attrs)
 	b := make([]byte, total)

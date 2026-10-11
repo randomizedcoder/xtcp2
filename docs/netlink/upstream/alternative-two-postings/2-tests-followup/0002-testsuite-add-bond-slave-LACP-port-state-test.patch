@@ -1,0 +1,233 @@
+From 2d41ac0a5b19861e4d6713b9bba0f460f34b68b3 Mon Sep 17 00:00:00 2001
+From: Dave Seddon <dave.seddon.ca@gmail.com>
+Date: Sat, 10 Oct 2026 17:08:55 -0700
+Subject: [PATCH iproute2 2/2] testsuite: add bond slave LACP port state test
+To: netdev@vger.kernel.org
+Cc: Stephen Hemminger <stephen@networkplumber.org>,
+    David Ahern <dsahern@kernel.org>,
+    Jay Vosburgh <jv@jvosburgh.net>,
+    Hangbin Liu <liuhangbin@gmail.com>
+
+Decode generated RTM_NEWLINK messages with ip -d monitor file and
+check the partner state value and flags, the u8 actor state, and
+zero and absent partner attributes.
+
+Use a synthetic 0x0100 partner state to detect a one-byte reader on
+both endian types: it returns 0 on little-endian and 1 on big-endian
+instead of 256. Real LACP states use only the low eight bits.
+
+Check the actor state before asserting partner attribute absence,
+so empty output cannot satisfy that test.
+
+Assisted-by: LLM
+Signed-off-by: Dave Seddon <dave.seddon.ca@gmail.com>
+---
+ .gitignore                                    |   1 +
+ testsuite/Makefile                            |   1 +
+ .../ip/link/show_bond_slave_lacp_state.t      |  33 ++++++
+ testsuite/tools/generate_nlmsg.c              | 103 ++++++++++++++++--
+ 4 files changed, 129 insertions(+), 9 deletions(-)
+ create mode 100755 testsuite/tests/ip/link/show_bond_slave_lacp_state.t
+
+diff --git a/.gitignore b/.gitignore
+index e5234a3d..a16f6362 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -39,3 +39,4 @@ testsuite/results
+ testsuite/iproute2/iproute2-this
+ testsuite/tools/generate_nlmsg
+ testsuite/tests/ip/link/dev_wo_vf_rate.nl
++testsuite/tests/ip/link/bond_slave_partner_*.nl
+diff --git a/testsuite/Makefile b/testsuite/Makefile
+index fb50f618..bef66002 100644
+--- a/testsuite/Makefile
++++ b/testsuite/Makefile
+@@ -48,6 +48,7 @@ testclean:
+ clean: testclean
+ 	@rm -f iproute2/iproute2-this
+ 	@rm -f tests/ip/link/dev_wo_vf_rate.nl
++	@rm -f tests/ip/link/bond_slave_partner_*.nl
+ 	$(MAKE) -C tools clean
+ 
+ distclean: clean
+diff --git a/testsuite/tests/ip/link/show_bond_slave_lacp_state.t b/testsuite/tests/ip/link/show_bond_slave_lacp_state.t
+new file mode 100755
+index 00000000..4ccf3960
+--- /dev/null
++++ b/testsuite/tests/ip/link/show_bond_slave_lacp_state.t
+@@ -0,0 +1,33 @@
++#!/bin/sh
++# SPDX-License-Identifier: GPL-2.0
++
++. lib/generic.sh
++
++# IFLA_BOND_SLAVE_AD_PARTNER_OPER_PORT_STATE is a u16 on the wire; the
++# actor state next to it is a u8. Each row decodes one blob written by
++# tools/generate_nlmsg and checks the printed value.
++#
++# The synthetic 0x0100 state checks the full attribute width on either
++# endian: a u8 reader returns 0 on little-endian and 1 on big-endian.
++#
++# row: file suffix | description | expected regex (!regex: must be absent)
++while IFS='|' read -r suffix desc expect; do
++	[ -z "$suffix" ] && continue
++	NL_FILE="tests/ip/link/bond_slave_partner_${suffix}.nl"
++	ts_ip "$0" "$desc" -d monitor file "$NL_FILE"
++	case "$expect" in
++	!*)
++		test_on "ad_actor_oper_port_state 63[^0-9]"
++		test_on_not "${expect#!}"
++		;;
++	*)
++		test_on "$expect"
++		;;
++	esac
++done <<EOF
++fast|partner state 0x3f|ad_partner_oper_port_state 63 ad_partner_oper_port_state_str <active,short_timeout,aggregating,in_sync,collecting,distributing>
++fast|actor state stays u8|ad_actor_oper_port_state 63[^0-9]
++zero|partner state 0|ad_partner_oper_port_state 0 ad_partner_oper_port_state_str <>
++hionly|partner state 0x0100, high byte only|ad_partner_oper_port_state 256[^0-9]
++absent|no partner attribute|!ad_partner_oper_port_state
++EOF
+diff --git a/testsuite/tools/generate_nlmsg.c b/testsuite/tools/generate_nlmsg.c
+index 106dca63..7c0aed3a 100644
+--- a/testsuite/tools/generate_nlmsg.c
++++ b/testsuite/tools/generate_nlmsg.c
+@@ -11,6 +11,9 @@
+ #include <linux/if.h>
+ #include <errno.h>
+ #include <stdio.h>
++#include <string.h>
++#include <linux/if_link.h>
++#include "utils.h"
+ 
+ int fill_vf_rate_test(void *buf, size_t buflen)
+ {
+@@ -40,6 +43,7 @@ int fill_vf_rate_test(void *buf, size_t buflen)
+ #define ASSERT(x) if (x < 0) return -1
+ #define ATTR_L(t, v, l)	ASSERT(addattr_l(h, buflen, t, v, l))
+ #define ATTR_8(t, v)	ASSERT(addattr8(h, buflen, t, v))
++#define ATTR_16(t, v)	ASSERT(addattr16(h, buflen, t, v))
+ #define ATTR_32(t, v)	ASSERT(addattr32(h, buflen, t, v))
+ #define ATTR_STRZ(t, v)	ASSERT(addattrstrz(h, buflen, t, v))
+ 
+@@ -87,26 +91,107 @@ int fill_vf_rate_test(void *buf, size_t buflen)
+ 	return h->nlmsg_len;
+ }
+ 
++/* The synthetic 0x0100 state detects a u8 reader on either endian. */
++struct bond_slave_case {
++	const char *file;
++	__u16 partner_state;
++	bool has_partner;
++};
++
++static const struct bond_slave_case bond_slave_cases[] = {
++	{ "tests/ip/link/bond_slave_partner_fast.nl",	0x003f, true },
++	{ "tests/ip/link/bond_slave_partner_zero.nl",	0x0000, true },
++	{ "tests/ip/link/bond_slave_partner_hionly.nl",	0x0100, true },
++	{ "tests/ip/link/bond_slave_partner_absent.nl",	0x0000, false },
++};
++
++static int fill_bond_slave_test(void *buf, size_t buflen,
++				const struct bond_slave_case *c)
++{
++	__u8 mac[ETH_ALEN] = { 0x02, 0x00, 0x00, 0x00, 0x00, 0x01 };
++	struct rtattr *linkinfo, *slave_data;
++	struct nlmsghdr *h = buf;
++	struct ifinfomsg *ifi;
++
++	memset(buf, 0, buflen);
++	h->nlmsg_type = RTM_NEWLINK;
++	h->nlmsg_len = NLMSG_LENGTH(sizeof(*ifi));
++
++	ifi = NLMSG_DATA(h);
++	ifi->ifi_type = ARPHRD_ETHER;
++	ifi->ifi_index = 2;
++	ifi->ifi_flags = IFF_RUNNING | IFF_BROADCAST | IFF_MULTICAST |
++			 IFF_UP | IFF_LOWER_UP | IFF_SLAVE;
++
++	ATTR_STRZ(IFLA_IFNAME, "eth1");
++	ATTR_32(IFLA_MTU, 1500);
++	ATTR_L(IFLA_ADDRESS, mac, sizeof(mac));
++
++	linkinfo = NEST(IFLA_LINKINFO);
++	ATTR_STRZ(IFLA_INFO_SLAVE_KIND, "bond");
++	slave_data = NEST(IFLA_INFO_SLAVE_DATA);
++	ATTR_8(IFLA_BOND_SLAVE_STATE, 0);
++	ATTR_8(IFLA_BOND_SLAVE_MII_STATUS, 0);
++	ATTR_32(IFLA_BOND_SLAVE_LINK_FAILURE_COUNT, 0);
++	ATTR_L(IFLA_BOND_SLAVE_PERM_HWADDR, mac, sizeof(mac));
++	ATTR_16(IFLA_BOND_SLAVE_QUEUE_ID, 0);
++	ATTR_16(IFLA_BOND_SLAVE_AD_AGGREGATOR_ID, 1);
++	ATTR_8(IFLA_BOND_SLAVE_AD_ACTOR_OPER_PORT_STATE, 0x3f);
++	if (c->has_partner)
++		ATTR_16(IFLA_BOND_SLAVE_AD_PARTNER_OPER_PORT_STATE,
++			c->partner_state);
++	NEST_END(slave_data);
++	NEST_END(linkinfo);
++
++	return h->nlmsg_len;
++}
++
++static int write_nlmsg(const char *file, const void *buf, int msglen)
++{
++	FILE *fp;
++
++	fp = fopen(file, "wb");
++	if (!fp) {
++		perror("fopen()");
++		return -1;
++	}
++	if (fwrite(buf, msglen, 1, fp) != 1) {
++		perror("fwrite()");
++		fclose(fp);
++		return -1;
++	}
++	if (fclose(fp)) {
++		perror("fclose()");
++		return -1;
++	}
++	return 0;
++}
++
+ int main(void)
+ {
+ 	char buf[16384] = { 0 };
++	unsigned int i;
+ 	int msglen;
+-	FILE *fp;
+ 
+ 	msglen = fill_vf_rate_test(buf, sizeof(buf));
+ 	if (msglen < 0) {
+ 		fprintf(stderr, "fill_vf_rate_test() failed!\n");
+ 		return 1;
+ 	}
+-	fp = fopen("tests/ip/link/dev_wo_vf_rate.nl", "w");
+-	if (!fp) {
+-		perror("fopen()");
+-		return 1;
+-	}
+-	if (fwrite(buf, msglen, 1, fp) != 1) {
+-		perror("fwrite()");
++	if (write_nlmsg("tests/ip/link/dev_wo_vf_rate.nl", buf, msglen))
+ 		return 1;
++
++	for (i = 0; i < ARRAY_SIZE(bond_slave_cases); i++) {
++		const struct bond_slave_case *c = &bond_slave_cases[i];
++
++		msglen = fill_bond_slave_test(buf, sizeof(buf), c);
++		if (msglen < 0) {
++			fprintf(stderr, "fill_bond_slave_test(%s) failed!\n",
++				c->file);
++			return 1;
++		}
++		if (write_nlmsg(c->file, buf, msglen))
++			return 1;
+ 	}
+-	fclose(fp);
+ 	return 0;
+ }
+-- 
+2.55.0
+

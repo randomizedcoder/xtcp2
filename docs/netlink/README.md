@@ -17,6 +17,8 @@ If you are looking for the daemon as a whole, start at the
 | [Netlink coverage expansion](coverage-expansion.md) | The roadmap acting on that audit: the read-only constraint, the target subpackage layout, generalising the `nlmon` capture harness to every protocol family, and the eight phases. |
 | [Netlink coverage status](coverage-status.md) | The live tracker: what has actually landed, the measured baseline, each phase's exit criteria, and the **goip ↔ `ip` parity** state — start at [parity at a glance](coverage-status.md#goip--ip-parity-at-a-glance). |
 | [Route write path](route-write-path.md) | The design for goip's first write capability: generating `ip route add/change/replace/del` requests with per-route TCP tuning, to byte-parity with iproute2. Proposed; narrows the read-only invariant below. |
+| [Link write path](link-write-path.md) | The second write design, extending the route one: `ip link add/set/del` with a focus on bonding and LACP (802.3ad) — the bond `IFLA_INFO_DATA` encoder and decoder, and the two-namespace and two-microVM capture topologies in which LACP actually negotiates, so fixtures carry real partner state. Phases 0 to 8 landed: `goip link add/set/del` builds `ip`'s request byte for byte, as a dry run, the 21 write rows are gated in `goip-parity`, and the bond decode is green unchanged on a second corpus captured on virtio-net ports with the LACP partner in another VM. |
+| [Upstream bug: bond partner state width](upstream/iproute2-bond-partner-state-width.md) | An iproute2 bug found while designing the link write path: `ip` reads the u16 `IFLA_BOND_SLAVE_AD_PARTNER_OPER_PORT_STATE` as a u8, so big-endian hosts always print `0 <>`. |
 
 The last three are a chain — the audit finds the gaps, the roadmap decides the
 order, the status document records reality. Read them in that order.
@@ -48,11 +50,14 @@ nix run .#microvm-x86_64-goip-parity      # the live tier; needs /dev/kvm, not r
 > **Read-only.** Decode messages, and build dump requests to solicit them.
 > Never create, delete, or set. There is no write path in scope, now or later.
 
-A write path for `ip route` is now *proposed* — see
-[route-write-path.md](route-write-path.md), which narrows this invariant rather
-than deleting it (the read path stays `RTM_GET*`-only and test-enforced, and no
-automated path applies a write to a live kernel). This statement holds until that
-design's Phase 1 lands.
+**Narrowed.** Write paths for `ip route` and `ip link` are designed — see
+[route-write-path.md](route-write-path.md) and
+[link-write-path.md](link-write-path.md) — and they narrow this invariant
+rather than delete it. Link-write Phase 4 landed the gate: the read path stays
+`RTM_GET*`-only and test-enforced through `BuildRequest`, and a separate
+`BuildWriteRequest` admits exactly `RTM_NEWROUTE`, `RTM_DELROUTE`,
+`RTM_NEWLINK` and `RTM_DELLINK`. Requests built there are written to a file for
+comparison and never sent; no automated path applies a write to a live kernel.
 
 This is what makes a twenty-family surface finite, and it is the main reason
 coverage numbers here are not comparable with `vishvananda/netlink` — that

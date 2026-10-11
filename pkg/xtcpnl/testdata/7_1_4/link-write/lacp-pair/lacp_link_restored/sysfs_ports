@@ -1,0 +1,12 @@
+/sys/class/net/la1/speed:10000
+/sys/class/net/la2/speed:10000
+/sys/class/net/la1/duplex:full
+/sys/class/net/la2/duplex:full
+/sys/class/net/la1/carrier:1
+/sys/class/net/la2/carrier:1
+/sys/class/net/la1/operstate:up
+/sys/class/net/la2/operstate:up
+/sys/class/net/la1/address:02:00:00:00:0a:00
+/sys/class/net/la2/address:02:00:00:00:0a:00
+/sys/class/net/la1/bonding_slave/link_failure_count:0
+/sys/class/net/la2/bonding_slave/link_failure_count:1

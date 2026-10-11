@@ -1,13 +1,17 @@
 # nix/microvms/netlink-capture.nix
 #
-# Guest-side mechanism for the two driven netlink microVM flavors:
-# netlink-dump-capture, which records the decoder corpus, and goip-parity,
-# which records the ip/goip/ip triples the parity comparator reads.
+# Guest-side mechanism for the four driven netlink microVM flavors:
+# netlink-dump-capture, which records the decoder corpus, goip-parity,
+# which records the ip/goip/ip triples the parity comparator reads,
+# link-write-capture, which records bond and LACP readback state off a
+# topology in which LACP actually negotiates (docs/netlink/link-write-path.md),
+# and lacp-a, which records the same readback over virtio-net ports with the
+# partner in a second VM (Tier 2 of the same document).
 #
 # This exports ONE thing: `xtcp2-nlcap`, a helper installed on the guest's
 # PATH and invoked one subcommand at a time by a host driver
-# (nix/microvms/scripts/capture-netlink-dumps.exp and goip-parity.exp) over
-# the serial console.
+# (nix/microvms/scripts/capture-netlink-dumps.exp, goip-parity.exp,
+# capture-link-writes.exp and capture-lacp-pair.exp) over the serial console.
 #
 # Both flavors capture the same way, from the same namespace topology, and
 # that is deliberate rather than incidental: D_control - the diff between the
@@ -244,11 +248,19 @@ pkgs.writeShellApplication {
     # Writing to $OUT/$subdir/topology puts each transcript where it belongs
     # on the first pass, so there is no copy to get wrong and no window in
     # which two capture sets share a file.
+    #
+    # <ns> `-` is the root namespace, as for side. lacp-pair-capture needs it
+    # for one kind of step: moving a NIC, which exists only in the root
+    # namespace, into the one the capture runs in.
     cmd_topo() {
       local ns=$1 subdir=$2
       shift 2
       mkdir -p "$OUT/$subdir"
-      if ip -n "$ns" "$@" 2>/dev/null; then
+      local nsarg=(-n "$ns")
+      if [ "$ns" = "-" ]; then
+        nsarg=()
+      fi
+      if ip "''${nsarg[@]}" "$@" 2>/dev/null; then
         printf 'ok    [%s] ip %s\n' "$ns" "$*" >>"$OUT/$subdir/topology"
         echo "NLCAP_TOPO_OK $*"
         return 0
@@ -298,17 +310,38 @@ pkgs.writeShellApplication {
       capture "$ns" "$subdir" "$name" "$min" "$command" "$sout"
     }
 
-    # capture — the shared body of cap and capio.
+    # write <ns> <subdir> <name> <min-datagrams> <command>
+    #
+    # One write row of the link-write corpus: `capio` plus the generator's
+    # stderr and exit status, as <name>.out, <name>.err and <name>.rc beside
+    # <name>.pcap. The status and stderr are the point: a write row's
+    # expected outcome is what the kernel answered, and a rejected write's
+    # extack message reaches the operator only on `ip`'s stderr.
+    #
+    # ONE ATTEMPT, NOT TWO
+    #
+    # A read can be retried because running it again asks the same question
+    # of the same kernel. A write cannot: the first attempt has already
+    # changed the namespace, so a second `link add bond0` meets -EEXIST and
+    # records a different transaction under the same name. A write that
+    # comes in under its floor is discarded and reported, and the driver
+    # rebuilds the namespace if it wants another go.
+    cmd_write() {
+      capture "$1" "$2" "$3" "$4" "$5" "$3.out" write
+    }
+
+    # capture — the shared body of cap, capio and write.
     #
     # <sout> is a file name to record the generator's stdout to, or `-` to
-    # discard it. Factored out rather than duplicated because everything that
+    # discard it. <mode> is `write` for cmd_write, which also keeps stderr and
+    # the exit status and takes one attempt; anything else is a read. Factored out rather than duplicated because everything that
     # makes a capture correct lives in here: the bind wait, immediate mode, the
     # stop sentinel, the NETLINK_ROUTE filter and the floor. A second copy of
     # that for the parity captures would be a second place for the sentinel
     # logic to drift, and the symptom of drift is an empty pcap that looks
     # like a clean run.
     capture() {
-      local ns=$1 subdir=$2 name=$3 min=$4 command=$5 sout=$6
+      local ns=$1 subdir=$2 name=$3 min=$4 command=$5 sout=$6 mode=''${7:-read}
       local dir="$OUT/$subdir"
       mkdir -p "$dir"
 
@@ -319,9 +352,14 @@ pkgs.writeShellApplication {
       # fresh text with a stale or absent capture, and the comparator reads
       # the two as one observation.
       local outnew="$dir/.$name.new.out"
-      local attempt err tp n=0
+      local errnew="$dir/.$name.new.err"
+      local attempt=0 attempts=2 err tp n=0 rc=0
+      if [ "$mode" = write ]; then
+        attempts=1
+      fi
 
-      for attempt in 1 2; do
+      while [ "$attempt" -lt "$attempts" ]; do
+        attempt=$((attempt + 1))
         err="$(mktemp)"
         # --immediate-mode: without it libpcap's TPACKET_V3 ring holds a block
         # for up to its 1000 ms retire timeout, so a low-rate capture is not
@@ -337,7 +375,7 @@ pkgs.writeShellApplication {
           wait "$tp" 2>/dev/null || true
           echo "NLCAP_CAP_NOBIND $name attempt=$attempt" >&2
           cat "$err" >&2 || true
-          rm -f "$err" "$raw" "$outnew"
+          rm -f "$err" "$raw" "$outnew" "$errnew"
           continue
         fi
         rm -f "$err"
@@ -351,7 +389,12 @@ pkgs.writeShellApplication {
         # text. The comparator diffs stdout structurally - line counts and
         # extracted name/CIDR/MAC sets - so a warning on stderr folded into
         # the file would read as a rendered object that the other side lacks.
-        if [ "$sout" = "-" ]; then
+        #
+        # A write keeps both, in separate files, and its status: see cmd_write.
+        rc=0
+        if [ "$mode" = write ]; then
+          ip netns exec "$ns" sh -c "$command" >"$outnew" 2>"$errnew" || rc=$?
+        elif [ "$sout" = "-" ]; then
           ip netns exec "$ns" sh -c "$command" >/dev/null 2>&1 || true
         else
           ip netns exec "$ns" sh -c "$command" >"$outnew" 2>/dev/null || true
@@ -404,13 +447,19 @@ pkgs.writeShellApplication {
             # the comparator reports as MISSING - rather than a text with no
             # pcap, which it would have to guess about.
             mv -f "$outnew" "$dir/$sout"
+            if [ "$mode" = write ]; then
+              mv -f "$errnew" "$dir/$name.err"
+              echo "$rc" >"$dir/$name.rc"
+              echo "NLCAP_WRITE_OK $subdir/$name datagrams=$n floor=$min rc=$rc"
+              return 0
+            fi
             echo "NLCAP_CAP_OK $subdir/$name datagrams=$n floor=$min stdout=$subdir/$sout bytes=$(wc -c <"$dir/$sout")"
             return 0
           fi
           echo "NLCAP_CAP_OK $subdir/$name datagrams=$n floor=$min"
           return 0
         fi
-        rm -f "$new" "$outnew"
+        rm -f "$new" "$outnew" "$errnew"
         echo "NLCAP_CAP_RETRY $name attempt=$attempt datagrams=$n floor=$min" >&2
       done
 
@@ -432,6 +481,131 @@ pkgs.writeShellApplication {
         ip netns exec "$ns" sh -c "$command" >"$dir/$name" 2>/dev/null || true
       fi
       echo "NLCAP_SIDE_OK $subdir/$name bytes=$(wc -c <"$dir/$name")"
+    }
+
+    # wait-lacp <ns> <port> <actor-mask> <actor-want> <partner-mask> <partner-want> <timeout-sec>
+    #
+    # Poll one bond port's LACP state until
+    #
+    #     (actor & actor-mask) == actor-want && (partner & partner-mask) == partner-want
+    #
+    # or the deadline passes. The masks and values are the driver's: this
+    # knows how to read a port's state, not which state any capture wants.
+    #
+    # It is the link-write flavor's version of the stop sentinel above. A
+    # bond's LACP state is a function of timers - current_while expiry before
+    # DEFAULTED, the aggregator wait before ATTACHED, one LACPDU a second each
+    # way with lacp_rate fast - so a readback taken after a fixed sleep is a
+    # readback of whichever state the race landed on. This closes the window
+    # on the state itself.
+    #
+    # The state is read from SYSFS, not from `ip -d -j link show`, for two
+    # reasons. It keeps the poll off the wire: sysfs reads produce no netlink
+    # traffic, so a poll can never leak into a capture window. And it is an
+    # oracle independent of the thing under test - iproute2 reads
+    # IFLA_BOND_SLAVE_AD_PARTNER_OPER_PORT_STATE one byte wide, so on a
+    # big-endian guest `ip` would report partner state 0 forever and this
+    # would time out on a converged bond (see
+    # docs/netlink/upstream/iproute2-bond-partner-state-width.md). sysfs
+    # prints the u16 struct field directly.
+    #
+    # `ip netns exec` remounts /sys for the target namespace, which is what
+    # makes /sys/class/net/<port> resolve to that namespace's port.
+    cmd_wait_lacp() {
+      local ns=$1 port=$2 amask=$3 awant=$4 pmask=$5 pwant=$6 timeout=$7
+      local dir="/sys/class/net/$port/bonding_slave"
+      local start deadline a p
+      start=$(date +%s)
+      deadline=$(( start + timeout ))
+      a=""
+      p=""
+      while :; do
+        a="$(ip netns exec "$ns" cat "$dir/ad_actor_oper_port_state" 2>/dev/null)" || a=""
+        p="$(ip netns exec "$ns" cat "$dir/ad_partner_oper_port_state" 2>/dev/null)" || p=""
+        case "$a$p" in
+          "" | *[!0-9]*) ;;
+          *)
+            if [ $(( a & amask )) -eq $(( awant )) ] && [ $(( p & pmask )) -eq $(( pwant )) ]; then
+              printf 'NLCAP_LACP_OK %s/%s actor=0x%02x partner=0x%02x elapsed=%ss\n' \
+                "$ns" "$port" "$a" "$p" "$(( $(date +%s) - start ))"
+              return 0
+            fi
+            ;;
+        esac
+        if [ "$(date +%s)" -ge "$deadline" ]; then
+          break
+        fi
+        # 100 ms: the bond's state machines tick every 100 ms
+        # (AD_TIMER_INTERVAL), so polling faster cannot see a change sooner.
+        sleep 0.1
+      done
+      echo "NLCAP_LACP_TIMEOUT $ns/$port actor=$a partner=$p want actor&$amask==$awant partner&$pmask==$pwant after ''${timeout}s"
+      return 1
+    }
+
+    # wait-sysfs <ns> <file> <want> <timeout-sec>
+    #
+    # Poll one sysfs file in <ns> until its content is exactly <want> or the
+    # deadline passes. wait-lacp's sibling for the states the LACP bits do
+    # not show: a port that loses carrier keeps the actor and partner state
+    # it had (nothing on the carrier-down path rewrites them), so "la2 is out
+    # of the aggregate" has to be read from the port's mii_status and slave
+    # state instead. Same reasons for sysfs as wait-lacp: no netlink traffic,
+    # and no dependence on the decoder under test.
+    cmd_wait_sysfs() {
+      local ns=$1 file=$2 want=$3 timeout=$4
+      local start deadline v
+      start=$(date +%s)
+      deadline=$(( start + timeout ))
+      v=""
+      while :; do
+        v="$(ip netns exec "$ns" cat "$file" 2>/dev/null)" || v=""
+        if [ "$v" = "$want" ]; then
+          echo "NLCAP_SYSFS_OK $ns:$file=$v elapsed=$(( $(date +%s) - start ))s"
+          return 0
+        fi
+        if [ "$(date +%s)" -ge "$deadline" ]; then
+          break
+        fi
+        sleep 0.1
+      done
+      echo "NLCAP_SYSFS_TIMEOUT $ns:$file=$v want $want after ''${timeout}s"
+      return 1
+    }
+
+    # wait-churn <ns> <ports> <timeout-sec>
+    #
+    # Poll /proc/net/bonding/bond0 in <ns> until all <ports> ports show both
+    # churn machines settled ("Churn State: none", AD_NO_CHURN). A port that
+    # joins, or comes back from EXPIRED or DEFAULTED, re-arms the machine to
+    # MONITOR for AD_CHURN_DETECTION_TIME, 60 s (bond_3ad.c ad_churn_machine),
+    # so a capture taken inside that window reads MONITOR and one taken after
+    # it reads NO_CHURN, and which one you get depends on how long the run
+    # took. Waiting it out makes the field the same on every run. The churn
+    # state is in netlink and /proc only, not sysfs; /proc, so nothing here
+    # reads it through the decoder under test.
+    cmd_wait_churn() {
+      local ns=$1 ports=$2 timeout=$3
+      local start deadline f total settled
+      start=$(date +%s)
+      deadline=$(( start + timeout ))
+      total=0
+      settled=0
+      while :; do
+        f="$(ip netns exec "$ns" cat /proc/net/bonding/bond0 2>/dev/null)" || f=""
+        total=$(printf '%s\n' "$f" | grep -c 'Churn State:' || true)
+        settled=$(printf '%s\n' "$f" | grep -c 'Churn State: none' || true)
+        if [ "$total" -eq $(( 2 * ports )) ] && [ "$settled" -eq "$total" ]; then
+          echo "NLCAP_CHURN_OK $ns ports=$ports elapsed=$(( $(date +%s) - start ))s"
+          return 0
+        fi
+        if [ "$(date +%s)" -ge "$deadline" ]; then
+          break
+        fi
+        sleep 0.5
+      done
+      echo "NLCAP_CHURN_TIMEOUT $ns $settled of $total churn machines settled, want $(( 2 * ports )), after ''${timeout}s"
+      return 1
     }
 
     # dir [subdir]
@@ -476,7 +650,7 @@ pkgs.writeShellApplication {
     }
 
     if [ $# -lt 1 ]; then
-      die "usage: xtcp2-nlcap <ns-add|ns-del|topo|cap|capio|side|dir|inventory|pack> ..."
+      die "usage: xtcp2-nlcap <ns-add|ns-del|topo|cap|capio|write|side|wait-lacp|wait-sysfs|wait-churn|dir|inventory|pack> ..."
     fi
 
     sub=$1
@@ -487,7 +661,11 @@ pkgs.writeShellApplication {
       topo)      cmd_topo "$@" ;;
       cap)       cmd_cap "$@" ;;
       capio)     cmd_capio "$@" ;;
+      write)     cmd_write "$@" ;;
       side)      cmd_side "$@" ;;
+      wait-lacp) cmd_wait_lacp "$@" ;;
+      wait-sysfs) cmd_wait_sysfs "$@" ;;
+      wait-churn) cmd_wait_churn "$@" ;;
       dir)       cmd_dir "$@" ;;
       inventory) cmd_inventory "$@" ;;
       pack)      cmd_pack "$@" ;;

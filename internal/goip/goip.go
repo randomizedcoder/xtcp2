@@ -21,8 +21,10 @@ const usage = `Usage: goip [ OPTIONS ] OBJECT { COMMAND | help }
 where  OBJECT := { link | address | route | rule | neigh }
        OPTIONS := { -4 | -6 | -0 | -j[son] | -s[tats] | -d[etails] }
 
-goip is a read-only subset of ip(8), built as a coverage test for
-pkg/xtcpnl. It never creates, deletes or sets anything.
+goip is a subset of ip(8), built as a coverage test for pkg/xtcpnl.
+It never creates, deletes or sets anything: the link write verbs build
+their request and write it to the file GOIP_WRITE_OUT names, and refuse
+to run without it. Only the name lookups they need are sent.
 `
 
 // Run is the whole program, minus os.Args and os.Exit.
@@ -175,7 +177,10 @@ func Run(args []string, stdout, stderr io.Writer) int {
 
 	if err := obj.run(c, args[1:]); err != nil {
 		fmt.Fprintf(stderr, "goip: %v\n", err)
-		if errors.Is(err, ErrNotImplemented) {
+		// `ip` exits 1 for an argument it refuses before sending (do_cmd
+		// negates iplink_modify's -1) and 2 for a kernel refusal (its -2).
+		if errors.Is(err, ErrNotImplemented) || errors.Is(err, ErrInvalidArgument) ||
+			errors.Is(err, ErrWriteNotApplied) {
 			return ExitUsage
 		}
 		return ExitFailure

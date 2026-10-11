@@ -863,9 +863,16 @@ func TestRunLinkArgs(t *testing.T) {
 			wantStdoutPrefix: "1: lo: ",
 		},
 		{
-			description: "positive: `l s` abbreviates both the object and the verb",
-			args:        []string{"l", "s"}, wantCode: ExitOK,
+			description: "positive: `l sh` abbreviates both the object and the verb",
+			args:        []string{"l", "sh"}, wantCode: ExitOK,
 			wantStdoutPrefix: "1: lo: ",
+		},
+		{
+			// do_iplink tries `set` before `show` (ip/iplink.c:1519-1530), so
+			// `s` is a set with no device. goip used to read it as a show.
+			description: "corner: `l s` is `set`, not `show`, because set is tried first",
+			args:        []string{"l", "s"}, wantCode: ExitUsage,
+			wantStderrSubstr: `Not enough information: "dev" argument is required`,
 		},
 		{
 			// All three verbs are in iplink.c's matches() chain, and "lst" is

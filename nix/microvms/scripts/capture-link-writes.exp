@@ -1,0 +1,297 @@
+#!/usr/bin/env expect
+###############################################################################
+# capture-link-writes.exp - drive the bond / LACP capture inside a microVM
+#
+# Usage:
+#   capture-link-writes.exp <serial-port> <blob-out>
+#
+#   <serial-port>  host TCP port qemu bound the guest's serial console to
+#   <blob-out>     file to write the base64 tarball to
+#
+# Phase 0 of docs/netlink/link-write-path.md: the Tier 1 topology and its
+# READBACK rows only. Three states of one two-namespace topology
+# (scripts/link-write-topology.exp), each captured off nlmon0 in lacpa as
+# that state's own subdirectory:
+#
+#   lacp_no_partner    lacpa's bond up, lacpb's ports up but in no bond
+#   lacp_converged     lacpb's bond built, both ports at 0x3f/0x3f
+#   lacp_partner_down  lb2 taken down, la2 out of the aggregate, la1 still in
+#
+# They run in that order because each state is the previous one plus one
+# change, which is cheaper than three topologies and is also how a bond
+# reaches them in production.
+#
+# Then the WRITE rows (phase 6): one `ip link add|set|replace|del` each, in
+# a namespace rebuilt for the row, captured with `xtcp2-nlcap write` so the
+# request, the kernel's answer, `ip`'s stderr and its exit status land
+# together under write/<slug>/. See write_row below.
+#
+# POLICY HERE, MECHANISM IN THE GUEST
+#
+# As for the dump driver: which states exist, what each waits for and what
+# is captured in each is this file; how to capture with a floor, write a
+# sidecar and read a port's LACP state is `xtcp2-nlcap`
+# (nix/microvms/netlink-capture.nix).
+#
+# A STATE THAT IS NOT REACHED IS NOT CAPTURED
+#
+# Every state is entered through a wait on the state itself (wait-lacp). If
+# the wait times out the state's captures are SKIPPED, not taken anyway: a
+# fixture labelled lacp_converged that holds a half-negotiated bond would be
+# a wrong answer that looks like a right one. The states after it are skipped
+# too, since each is built on the one before. The run then reports
+# NLCAP_LACP_TIMEOUT and exits 1, and what was captured before it is still
+# packed.
+###############################################################################
+
+source [file dirname [info script]]/vm-lib.exp
+source [file dirname [info script]]/netlink-topology.exp
+source [file dirname [info script]]/link-write-topology.exp
+source [file dirname [info script]]/link-write-readback.exp
+
+if {$argc != 2} {
+    puts "usage: capture-link-writes.exp <serial-port> <blob-out>"
+    exit 2
+}
+set port     [lindex $argv 0]
+set blob_out [lindex $argv 1]
+
+set NS_A $lwtopo::NS_A
+set NS_B $lwtopo::NS_B
+
+# Accumulated problems, reported together at the end.
+set short_caps    {}
+set lacp_timeouts {}
+
+###############################################################################
+# write_row <slug> <floor> <pre> <command> - one write row of the corpus.
+#
+# THE NAMESPACE IS REBUILT FOR EVERY ROW
+#
+# ns-add deletes and recreates lacpa with lo and nlmon0 only, so every row
+# starts from lo = 1 and nlmon0 = 2, and the devices its precondition makes
+# take the next indexes in the order they are made. The ifindex is in the
+# request bytes (ifi_index on a set, IFLA_MASTER, active_slave), so a
+# namespace carried over from the row before would make a row's bytes
+# depend on its position in this file.
+#
+# <pre> is a list of `ip` argument lists, run through nltopo::topo OUTSIDE
+# the capture window and recorded in write/<slug>/topology. A refused
+# precondition fails the run (it is in nltopo::refused_steps) and the row
+# is skipped, since its write would be answered by the wrong state.
+#
+# FLOORS: two datagrams for the write (the request and its NLMSG_ERROR, an
+# ACK or a refusal) and two for every name `ip` resolves first, each of
+# which is an RTM_GETLINK and its reply on a socket of its own.
+#
+# The rows are link-write-path.md's corpus table, and that table is where
+# each row's expected kernel answer is argued. up_down is two rows here,
+# set_up and set_down, because one capture holds one command.
+###############################################################################
+
+set write_skipped {}
+
+proc write_row {slug floor pre command} {
+    global NS_A short_caps write_skipped
+    set subdir write/$slug
+    vmlib::log "=== write $slug ==="
+    vmlib::must "xtcp2-nlcap ns-add $NS_A"
+    foreach step $pre {
+        if {[nltopo::topo $NS_A $subdir {*}$step] != 0} {
+            lappend write_skipped $slug
+            return 0
+        }
+    }
+    lassign [nlcap write $NS_A $subdir ip $floor "'$command'"] rc out
+    if {$rc != 0} {
+        lappend short_caps "$subdir/ip"
+        vmlib::log "MISSED FLOOR $subdir/ip: $out"
+        return 0
+    }
+    vmlib::log [string trim $out]
+    return 1
+}
+
+# Preconditions shared by several rows.
+set PRE_BOND     {{link add bond0 type bond mode 802.3ad}}
+set PRE_PORT     {{link add la1 type veth peer name lb1}}
+set PRE_ENSLAVED [concat $PRE_BOND $PRE_PORT {{link set la1 master bond0}}]
+
+set write_rows [list \
+    [list add_dummy 2 {} "ip link add d0 type dummy"] \
+    [list add_veth 2 {} "ip link add v0 type veth peer name v1"] \
+    [list add_bond_bare 2 {} "ip link add bond0 type bond"] \
+    [list add_bond_8023ad 2 {} \
+        "ip link add bond0 type bond mode 802.3ad lacp_rate fast miimon 100 xmit_hash_policy layer3+4"] \
+    [list add_bond_all_lacp 2 {} \
+        "ip link add bond0 type bond mode 802.3ad lacp_rate fast lacp_active on ad_select bandwidth ad_actor_sys_prio 100 ad_user_port_key 7 ad_actor_system 02:00:00:00:00:0a min_links 1"] \
+    [list add_bond_ab_arp 2 {} \
+        "ip link add bond0 type bond mode active-backup arp_interval 100 arp_ip_target 10.0.0.1,10.0.0.2 arp_validate all"] \
+    [list add_bond_numeric_mode 2 {} "ip link add bond0 type bond mode 4"] \
+    [list enslave_down 6 [concat $PRE_BOND $PRE_PORT] "ip link set la1 down master bond0"] \
+    [list enslave_up 6 [concat $PRE_BOND $PRE_PORT {{link set la1 up}}] "ip link set la1 master bond0"] \
+    [list nomaster 4 $PRE_ENSLAVED "ip link set la1 nomaster"] \
+    [list slave_queue_id 4 $PRE_ENSLAVED "ip link set la1 type bond_slave queue_id 1"] \
+    [list slave_actor_port_prio 4 $PRE_ENSLAVED "ip link set la1 type bond_slave actor_port_prio 200"] \
+    [list set_lacp_rate_up 4 [concat $PRE_BOND {{link set bond0 up}}] "ip link set bond0 type bond lacp_rate slow"] \
+    [list set_mode_with_ports 4 $PRE_ENSLAVED "ip link set bond0 type bond mode balance-rr"] \
+    [list set_lacp_rate_rr 4 {{link add bond0 type bond mode balance-rr}} "ip link set bond0 type bond lacp_rate fast"] \
+    [list arp_and_miimon 2 {} "ip link add bond0 type bond arp_interval 100 miimon 100"] \
+    [list replace_existing 2 $PRE_BOND "ip link replace bond0 type bond"] \
+    [list set_up 4 $PRE_BOND "ip link set bond0 up"] \
+    [list set_down 4 [concat $PRE_BOND {{link set bond0 up}}] "ip link set bond0 down"] \
+    [list rename_mtu_alias 4 {{link add d0 type dummy}} "ip link set d0 name d1 mtu 9000 alias uplink"] \
+    [list del_bond 4 $PRE_ENSLAVED "ip link del bond0"] \
+]
+
+###############################################################################
+# run
+###############################################################################
+
+vmlib::init
+nltopo::reset
+vmlib::connect $port 300
+
+if {[vmlib::run "command -v xtcp2-nlcap >/dev/null"] != 0} {
+    vmlib::log "FATAL: xtcp2-nlcap is not on the guest PATH."
+    vmlib::log "       The VM was probably built without the link-write-capture"
+    vmlib::log "       flavor's environment.systemPackages entry."
+    puts "NLCAP_DRIVER_FAIL"
+    exit 3
+}
+
+# The bonding module has to be loaded and must NOT have made a bond0 in the
+# root namespace: mkVm.nix loads it with max_bonds=0 for this flavor. A bond0
+# here means that option was lost, and every later `link add bond0` would
+# still work - so check rather than let it pass silently.
+if {[vmlib::run "test -d /sys/module/bonding"] != 0} {
+    vmlib::log "FATAL: the bonding module is not loaded."
+    vmlib::log "       mkVm.nix should load it for the link-write-capture flavor."
+    puts "NLCAP_DRIVER_FAIL"
+    exit 3
+}
+if {[vmlib::run "test -e /sys/class/net/bond0"] == 0} {
+    vmlib::log "WARNING: a bond0 exists in the guest's root namespace; the"
+    vmlib::log "         max_bonds=0 module option did not take effect."
+}
+
+vmlib::must "xtcp2-nlcap side - . uname 'uname -a'"
+vmlib::must "xtcp2-nlcap side - . ip_version 'ip -V'"
+
+vmlib::must "xtcp2-nlcap ns-add $NS_A"
+vmlib::must "xtcp2-nlcap ns-add $NS_B"
+
+set reached 1
+
+vmlib::log "=== lacp_no_partner ==="
+lwtopo::build_partnerless "."
+if {[lwtopo::wait_defaulted]} {
+    readback_set $NS_A lacp_no_partner
+} else {
+    lappend lacp_timeouts lacp_no_partner
+}
+
+# The partner is built whether or not the state above was reached: a bond
+# that never defaulted can still converge, and the converged state is the
+# one the later phases most need.
+vmlib::log "=== lacp_converged ==="
+lwtopo::build_partner lacp_converged
+if {[lwtopo::wait_lacp_converged]} {
+    readback_set $NS_A lacp_converged
+} else {
+    lappend lacp_timeouts lacp_converged
+    set reached 0
+}
+
+if {$reached} {
+    vmlib::log "=== lacp_partner_down ==="
+    lwtopo::pull_lb2 lacp_partner_down
+    if {[lwtopo::wait_partner_down]} {
+        readback_set $NS_A lacp_partner_down
+    } else {
+        lappend lacp_timeouts lacp_partner_down
+    }
+} else {
+    vmlib::log "skipping lacp_partner_down: it starts from lacp_converged"
+    lappend lacp_timeouts lacp_partner_down
+}
+
+# The write rows run last because each one recreates lacpa, which tears
+# down the veth pairs the readback states were built on.
+foreach row $write_rows {
+    write_row {*}$row
+}
+
+lassign [nlcap inventory] inv_rc inventory
+vmlib::log "captured [llength [split [string trim $inventory] "\n"]] files"
+
+vmlib::log "=== packing ==="
+lassign [vmlib::run_out "xtcp2-nlcap pack" 600] pack_rc blob
+if {$pack_rc != 0} {
+    vmlib::log "FATAL: pack failed (rc=$pack_rc)"
+    puts "NLCAP_DRIVER_FAIL"
+    exit 3
+}
+
+set fh [open $blob_out w]
+puts $fh $blob
+close $fh
+vmlib::log "wrote [string length $blob] bytes of base64 to $blob_out"
+
+vmlib::run "xtcp2-nlcap ns-del $NS_A"
+vmlib::run "xtcp2-nlcap ns-del $NS_B"
+
+vmlib::poweroff
+
+###############################################################################
+# verdict
+###############################################################################
+
+puts ""
+set failed 0
+set failed_topo [nltopo::refused_steps]
+if {[llength $failed_topo] > 0} {
+    # Unlike the dump corpus, no step here is optional: every one builds the
+    # bond the readbacks describe, so a refusal fails the run.
+    puts "NLCAP_TOPO_REFUSED [llength $failed_topo]"
+    foreach t $failed_topo {
+        puts "  $t"
+    }
+    set failed 1
+}
+
+if {[llength $lacp_timeouts] > 0} {
+    puts "NLCAP_LACP_TIMEOUT [llength $lacp_timeouts]"
+    foreach s $lacp_timeouts {
+        puts "  $s"
+    }
+    puts "  Those states were never reached, so nothing was captured for them"
+    puts "  and any committed fixture of the same name is unchanged."
+    set failed 1
+}
+
+if {[llength $write_skipped] > 0} {
+    puts "NLCAP_WRITE_SKIPPED [llength $write_skipped]"
+    foreach s $write_skipped {
+        puts "  $s"
+    }
+    puts "  A precondition step was refused, so the row's write was not run."
+    set failed 1
+}
+
+if {[llength $short_caps] > 0} {
+    puts "NLCAP_MISSED_FLOOR [llength $short_caps]"
+    foreach c $short_caps {
+        puts "  $c"
+    }
+    puts "  Those came in short twice and were DISCARDED rather than written."
+    set failed 1
+}
+
+if {$failed} {
+    puts "NLCAP_DRIVER_FAIL"
+    exit 1
+}
+
+puts "NLCAP_DRIVER_PASS"
+exit 0

@@ -67,17 +67,18 @@ Events are parsed but not yet exported — they do not fit `XtcpFlatRecord`, whi
 
 ### Regenerating the fixtures
 
-Three harnesses, all producing real `nlmon` captures under `pkg/xtcpnl/testdata/<kernel>/`. **Both of the primary ones run in a microVM**; the host script is a diagnostic fallback:
+Four harnesses, all producing real `nlmon` captures under `pkg/xtcpnl/testdata/<kernel>/`. **The three primary ones run in a microVM**; the host script is a diagnostic fallback:
 
 | Command | Captures | Where it runs |
 |---|---|---|
 | `nix run .#microvm-x86_64-netlink-dump-capture` | **dumps** — `RTM_GET*` request/reply pairs, into `testdata/<kernel>/dumps/` (clean namespace) and `dumps/mesh/` (bridge + veth pair) | in a hermetic microVM, no `sudo` |
 | `nix run .#microvm-x86_64-nlmon-capture` | **events** — a scripted link / addr / route / neigh sequence | in a hermetic microVM, no `sudo` |
+| `nix run .#microvm-x86_64-link-write-capture` | **bond / LACP readback** — an 802.3ad bond with a real LACP partner in a second namespace, captured in three negotiation states, into `testdata/<kernel>/link-write/<state>/` | in a hermetic microVM, no `sudo` |
 | `nix run .#capture-netlink-fixtures` | **dumps on whatever host you are on** — a diagnostic fallback, not the path for committed fixtures | on the host, via `sudo` |
 
 Run all of them from the repo root.
 
-`nlmon` mirrors *every* netlink datagram in its namespace, so on a workstation the capture drowns in NetworkManager and nl80211 chatter; the guest is quiet by construction (all three netlink flavors disable `xtcp2.service`, whose own periodic dumps would otherwise swamp it — `mkVm.nix`'s `isNetlinkQuiet` names them once so a fourth cannot be added to two of the four places that need it).
+`nlmon` mirrors *every* netlink datagram in its namespace, so on a workstation the capture drowns in NetworkManager and nl80211 chatter; the guest is quiet by construction (all four netlink flavors disable `xtcp2.service`, whose own periodic dumps would otherwise swamp it — `mkVm.nix`'s `isNetlinkQuiet` names them once so a fifth cannot be added to two of the four places that need it).
 
 **A third flavor captures on the same topology but produces no fixtures.** `nix run .#microvm-x86_64-goip-parity` records an `ip → goip → ip` triple per command and runs `goip-parity compare` in the guest, so its output is a verdict rather than committed bytes — which is why it is not in the table above. It matters here because it shares this topology *by definition*, not by convention: the namespace build lives in `nix/microvms/scripts/netlink-topology.exp`, sourced by both drivers. The comparator subtracts `D_control = diff(ip_a, ip_b)` on the grounds that a difference visible across a window containing the goip run is not attributable to goip, and that only holds if the parity captures come off the topology these fixtures came off. Two copies would drift, and the symptom would be a green report measuring the wrong thing. If you add a device or a route below, both consumers get it.
 

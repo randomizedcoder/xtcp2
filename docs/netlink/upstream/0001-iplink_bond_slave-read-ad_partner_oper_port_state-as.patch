@@ -1,0 +1,46 @@
+From dbcb4228e9345abfc91faea0e071b2abb86a0916 Mon Sep 17 00:00:00 2001
+From: Dave Seddon <dave.seddon.ca@gmail.com>
+Date: Sat, 10 Oct 2026 17:08:04 -0700
+Subject: [PATCH iproute2 1/3] iplink_bond_slave: read
+ ad_partner_oper_port_state as u16
+To: netdev@vger.kernel.org
+Cc: Stephen Hemminger <stephen@networkplumber.org>,
+    David Ahern <dsahern@kernel.org>,
+    Jay Vosburgh <jv@jvosburgh.net>,
+    Hangbin Liu <liuhangbin@gmail.com>
+
+The kernel emits IFLA_BOND_SLAVE_AD_PARTNER_OPER_PORT_STATE with
+nla_put_u16() in bond_fill_slave_info(), but iproute2 reads only the
+first payload byte with rta_getattr_u8().
+
+On big-endian systems, valid LACP states have a zero high byte, so
+both the numeric partner state and its decoded flags are displayed
+as zero/empty. Little-endian systems display the low byte correctly
+for the eight defined LACP state bits.
+
+Restore the u16 accessor used before the string formatting change.
+The actor state remains u8, matching the kernel attribute.
+
+Fixes: 39ac2d2b802b ("iplink: bond: print lacp actor/partner oper states as strings")
+Assisted-by: LLM
+Signed-off-by: Dave Seddon <dave.seddon.ca@gmail.com>
+---
+ ip/iplink_bond_slave.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/ip/iplink_bond_slave.c b/ip/iplink_bond_slave.c
+index f4b28fbc..24e73575 100644
+--- a/ip/iplink_bond_slave.c
++++ b/ip/iplink_bond_slave.c
+@@ -145,7 +145,7 @@ static void bond_slave_print_opt(struct link_util *lu, FILE *f, struct rtattr *t
+ 	}
+ 
+ 	if (tb[IFLA_BOND_SLAVE_AD_PARTNER_OPER_PORT_STATE]) {
+-		__u16 state = rta_getattr_u8(tb[IFLA_BOND_SLAVE_AD_PARTNER_OPER_PORT_STATE]);
++		__u16 state = rta_getattr_u16(tb[IFLA_BOND_SLAVE_AD_PARTNER_OPER_PORT_STATE]);
+ 
+ 		print_int(PRINT_ANY,
+ 			  "ad_partner_oper_port_state",
+-- 
+2.55.0
+

@@ -1,0 +1,120 @@
+NOTE (2026-10-10, later): parts of this review are superseded.
+- The cover letter in this folder is now the merged version: the
+  issue / test / fix bullets, plus this review's corrected 0x0100 wording.
+- The full-suite result and the "no other width mismatch" audit, which this
+  review removed because it could not reproduce them, were re-verified on
+  2026-10-10 against the revised series and are back in the letter.
+- The sandbox / netlink-socket paragraph is deliberately NOT in the letter.
+  It describes the reviewer's environment, not the patches.
+- Patches 1 to 3 are exactly as reviewed here.
+
+Review: iproute2 bond partner LACP state width
+
+Conclusion
+The issue is real. The one-line u16 accessor change is the correct fix.
+The regression and Fixes tag were verified against local git history.
+No Linux kernel code or netlink ABI change is needed.
+
+Source evidence
+- Linux drivers/net/bonding/bond_netlink.c, bond_fill_slave_info():
+  actor state is emitted with nla_put_u8(), partner state with nla_put_u16().
+- Linux include/net/bond_3ad.h: port_params.port_state is u16.
+- Linux Documentation/netlink/specs/rt-link.yaml: actor state is u8,
+  partner state is u16. The schema already describes the correct ABI.
+- Linux drivers/net/bonding/bond_3ad.c, record_pdu(): partner port state
+  comes from the one-byte LACPDU actor_state.
+- iproute2 ip/iplink_bond_slave.c: partner state is incorrectly read as u8.
+- 39ac2d2b802b changed the partner accessor from u16 to u8 when adding
+  decoded flag strings. Its subject matches the supplied Fixes tag.
+
+These netlink integers use native byte order. On big-endian machines,
+reading the first byte of a valid eight-bit LACP state yields zero.
+Both the numeric output and decoded flags are affected. The same reader
+feeds the JSON printing path, although this review tested text output.
+
+Corrections and improvements made
+1. Kept patch 1 limited to restoring the correct accessor; tightened the
+   rationale and removed the claim of a negotiated s390x partner test.
+2. Corrected the synthetic test explanation: a u8 reader returns 0 for
+   u16 0x0100 on little-endian, and 1 on big-endian, not 0 on both.
+   This is deliberately outside real eight-bit LACP values, to detect
+   the width error on little-endian hosts too.
+3. test_on_not now accepts only grep exit status 1. Mixed matching and
+   nonmatching lines fail; empty output passes; grep errors fail.
+   Added -- before the pattern so leading '-' patterns are handled.
+4. The absent-partner test checks actor output first, preventing empty
+   output from passing. There are five replay rows and six assertions.
+5. Added a shell SPDX identifier and corrected C continuation alignment.
+   Made the new fill helper static, opened blobs in binary mode and
+   checked fclose() for buffered write errors.
+6. Replaced the long cover letter with a concise explanation, scope and
+   accurate validation summary. Updated both email copies together.
+   Removed claims about a full-suite run and the absence of other width
+   mismatches, which this review did not independently establish.
+
+Validation performed
+Base: iproute2 e11870d5; local Linux HEAD af32da41b032.
+All revised patches apply cleanly to the local iproute2 base.
+Native and s390x cross builds of ip and generate_nlmsg succeeded.
+The s390x generator ran under qemu-user, producing big-endian fixtures;
+native-endian fixtures must be regenerated for each target architecture.
+
+                         without accessor fix    with complete series
+  x86_64 assertions           5 pass, 1 fail          6 pass, 0 fail
+  s390x assertions            4 pass, 2 fail          6 pass, 0 fail
+
+On broken s390x, 0x003f displays 0 with empty flags; synthetic 0x0100
+instead displays 1 with the active flag. The fixed reader displays 63
+and 256 respectively. The actor remains 63 in both builds.
+
+The revised absence helper passed seven focused checks: matching output,
+mixed output, absent pattern, empty output, invalid regex, missing file,
+and a leading-dash pattern. Both revised shell files pass sh -n.
+git diff --check passed.
+
+Linux checkpatch --strict reports no issues for patches 1 and 2. For
+patch 3 it objects to the executable test file and asks whether a new
+file needs MAINTAINERS coverage. Executable .t files are established
+iproute2 testsuite practice (including show_dev_wo_vf_rate.t); the new
+file does not introduce a maintained subsystem. No C alignment or SPDX
+issues remain. Kernel checkpatch is advisory for this userspace project.
+
+Validation limits
+The sandbox denies netlink socket creation. Unmodified ip exits before
+file replay, because main() opens a socket even for monitor file.
+For decoder validation only, temporary native and s390x builds skipped
+that initial socket open and strict-dump setup. The actual replay and
+bond printer were unchanged. This accommodation is not in the patches.
+The final exported source also built with normal socket startup.
+
+This review did not run a live LACP setup, validate JSON output, run the
+bridge VLAN integration test, or rerun the full privileged testsuite.
+Before submission, run the revised regression through the ordinary
+runner on a host that permits netlink sockets. Because patch 2 affects
+a shared helper, also run its existing bridge/vlan/show.t caller where
+network namespace and interface creation are available.
+
+Submission recommendations
+Keep this as an iproute2 bug-fix series to netdev, with the existing
+Stephen Hemminger and David Ahern recipients. The local iproute2
+MAINTAINERS file confirms those addresses and branch roles.
+Cc Jay Vosburgh <jv@jvosburgh.net>, the local Linux bonding maintainer,
+for awareness, as requested. Do not change the partner ABI to u8: consumers and the
+schema already expect u16. No Linux stable Cc is needed for these
+userspace patches. Patch 1 remains independently applicable.
+
+The netdev process documentation also treats iproute2 as a separate
+userspace series: https://kernel.org/doc/html/latest/process/maintainer-netdev.html
+
+The synthetic width case is sufficient to reproduce the decoding error;
+a live big-endian capture would provide additional operational evidence
+if one is available. Describe qemu-user fixture replay as fixture replay,
+not as a negotiated bond or an emulated kernel test.
+
+Local artifacts
+Revised series and synchronized cover letters are in this directory.
+Original files: /tmp/iproute2-lacp-original/
+Native review checkout: /tmp/iproute2-lacp-review/
+s390x validation tree: /tmp/iproute2-lacp-s390x/
+Build and replay logs: /tmp/iproute2-lacp-*.log
+No email was sent. The original iproute2 and Linux clones were not edited.

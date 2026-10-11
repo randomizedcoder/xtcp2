@@ -260,7 +260,7 @@ func renderAddrGroups(c *runCtx, links []xtcpnl.LinkInfo, addrs []xtcpnl.AddrInf
 		// link and ip_addr_n on none.
 		lv := render.LinkViewForAddr(links[i], c.lltab, c.family, c.detailed())
 		if c.detailed() {
-			lv = lv.WithDetail(links[i], false)
+			lv = lv.WithDetail(links[i], false, c.lltab)
 		}
 		g := render.AddrGroupView{
 			LinkView: lv,

@@ -1,0 +1,78 @@
+From 2d41ac0a5b19861e4d6713b9bba0f460f34b68b3 Mon Sep 17 00:00:00 2001
+From: Dave Seddon <dave.seddon.ca@gmail.com>
+Date: Sat, 10 Oct 2026 19:57:15 -0700
+Subject: [PATCH iproute2 0/2] testsuite: test bond slave LACP port state decoding
+To: netdev@vger.kernel.org
+Cc: Stephen Hemminger <stephen@networkplumber.org>,
+    David Ahern <dsahern@kernel.org>,
+    Jay Vosburgh <jv@jvosburgh.net>,
+    Hangbin Liu <liuhangbin@gmail.com>
+
+This follows the one-line fix I sent separately:
+
+  [PATCH iproute2] iplink_bond_slave: read ad_partner_oper_port_state as u16
+  https://lore.kernel.org/netdev/<FILL IN AFTER SENDING THE FIX>/
+
+It adds a test for that bug and applies on top of the fix. The fix
+does not depend on it, so take these or leave them as you prefer.
+
+Test
+- tools/generate_nlmsg writes four RTM_NEWLINK blobs for a bond slave
+  with partner state 0x003f, 0x0000, 0x0100 and absent.
+- tests/ip/link/show_bond_slave_lacp_state.t decodes them with
+  "ip -d monitor file" and checks the printed value. No root needed.
+- 0x0100 cannot occur in real LACP. A one-byte reader prints 0 for it
+  on little endian and 1 on big endian; only a u16 reader prints 256.
+  That makes the bug visible on x86_64 too.
+- this is the testsuite's first bond coverage.
+
+How it was tested
+- x86_64, native: red without the fix (0x0100 prints 0), green with it.
+- s390x, qemu-user: the blobs were written by an s390x build of
+  generate_nlmsg, so they are big endian (partner payload 01 00 for
+  0x0100). ip built with and without the fix:
+    without: 0x3f prints "0 <>", 0x0100 prints "1 <active>"
+    with:    0x3f prints "63 <active,...>", 0x0100 prints "256"
+- results: without the fix, 1 of 6 checks fails on x86_64 and 2 of 6
+  on s390x. With it, all pass on both.
+- whole testsuite, rootless, with these patches: no change.
+  add_tunnel.t and the two netns/set_nsid tests fail (no module load,
+  no /var/run/netns), the same as on unpatched e11870d5.
+- test_on_not fix checked against matching, mixed, absent and empty
+  output, a bad regex and a missing file.
+- builds with no warnings. checkpatch --strict is clean apart from the
+  exec bit on the new .t, which matches the existing .t files.
+- the new .t is shellcheck clean and passes under dash, busybox sh and
+  bash --posix, so it does not depend on what /bin/sh points to.
+
+Patches
+- patch 1: lib/generic.sh test_on_not uses "grep -vqE", which passes
+  whenever any line does not match. Fixed so the new test can use it.
+  Its one caller, tests/bridge/vlan/show.t, still passes.
+- patch 2: the test.
+
+LLM use
+- An LLM wrote these patches and drafted this letter while helping me
+  port iproute2's netlink handling to Go. Each patch carries
+  Assisted-by: LLM.
+- Every result above comes from running the code, natively and under
+  qemu-s390x. I have read all of it and can answer for it.
+
+Dave Seddon (2):
+  testsuite: fix test_on_not on multi-line output
+  testsuite: add bond slave LACP port state test
+
+ .gitignore                                    |   1 +
+ testsuite/Makefile                            |   1 +
+ testsuite/lib/generic.sh                      |   5 +-
+ .../ip/link/show_bond_slave_lacp_state.t      |  33 ++++++
+ testsuite/tools/generate_nlmsg.c              | 103 ++++++++++++++++--
+ 5 files changed, 132 insertions(+), 11 deletions(-)
+ create mode 100755 testsuite/tests/ip/link/show_bond_slave_lacp_state.t
+
+
+base-commit: e11870d5b9414b2e0770463bd6fc2399744dc734
+prerequisite-patch-id: 1b733cff5bac434410d49f9b8c9bb653012a403e
+-- 
+2.55.0
+

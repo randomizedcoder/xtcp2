@@ -12,15 +12,17 @@ import (
 
 const (
 	// groupKeywordCst and the group names are the selectors goip grounds:
-	// `group link` and the whole `group xstats` (bridge vlan/mcast). do_ipstats
-	// and ipstats_show match show/dev/group with strcmp, not matches()
-	// (ip/ipstats.c:1183,1197,1324), so none of them abbreviate.
-	groupKeywordCst     = "group"
-	statsGroupLinkCst   = "link"
-	statsGroupXstatsCst = "xstats"
-	subgroupKeywordCst  = "subgroup"
-	suiteKeywordCst     = "suite"
-	statsShowVerbCst    = "show"
+	// `group link` and the whole `group xstats` and `group xstats_slave`
+	// (bridge vlan/mcast, bond 802.3ad). do_ipstats and ipstats_show match
+	// show/dev/group with strcmp, not matches() (ip/ipstats.c:1183,1197,1324),
+	// so none of them abbreviate.
+	groupKeywordCst          = "group"
+	statsGroupLinkCst        = "link"
+	statsGroupXstatsCst      = render.XstatsGroupCst
+	statsGroupXstatsSlaveCst = render.XstatsSlaveGroupCst
+	subgroupKeywordCst       = "subgroup"
+	suiteKeywordCst          = "suite"
+	statsShowVerbCst         = "show"
 )
 
 // runStats is do_ipstats restricted to the listing path (ip/ipstats.c:1315-1339).
@@ -44,10 +46,10 @@ func runStats(c *runCtx, args []string) error {
 
 // parseStatsShowArgs is ipstats_show's argument loop (ip/ipstats.c:1182-1217)
 // narrowed to what goip grounds: `group link` (with optional `dev NAME`) and the
-// whole `group xstats` (bridge vlan/mcast). A group is required because a bare
-// show requests every group (filter_mask 0x1F) and renders leaves goip does not
-// implement. Partial xstats selection (subgroup/suite), a dev with xstats, any
-// other group, and any unknown token are refused. The group name is returned so
+// whole `group xstats` or `group xstats_slave`. A group is required because a
+// bare show requests every group (filter_mask 0x1F) and renders leaves goip does
+// not implement. Partial xstats selection (subgroup/suite), a dev with either
+// xstats group, any other group, and any unknown token are refused. The group name is returned so
 // statsShow can pick the request and renderer.
 func parseStatsShowArgs(args []string) (group, dev string, err error) {
 	for i := 0; i < len(args); i++ {
@@ -58,13 +60,13 @@ func parseStatsShowArgs(args []string) (group, dev string, err error) {
 			}
 			i++
 			switch args[i] {
-			case statsGroupLinkCst, statsGroupXstatsCst:
+			case statsGroupLinkCst, statsGroupXstatsCst, statsGroupXstatsSlaveCst:
 				group = args[i]
 			default:
-				return "", "", fmt.Errorf("stats show group %q: only the link and xstats groups are grounded: %w", args[i], ErrNotImplemented)
+				return "", "", fmt.Errorf("stats show group %q: only the link, xstats and xstats_slave groups are grounded: %w", args[i], ErrNotImplemented)
 			}
 		case subgroupKeywordCst, suiteKeywordCst:
-			return "", "", fmt.Errorf("stats show %s: goip grounds only the whole xstats group, not partial selection: %w", args[i], ErrNotImplemented)
+			return "", "", fmt.Errorf("stats show %s: goip grounds only whole xstats groups, not partial selection: %w", args[i], ErrNotImplemented)
 		case devKeywordCst:
 			if i+1 >= len(args) {
 				return "", "", fmt.Errorf("stats show dev: missing device name: %w", ErrNotImplemented)
@@ -76,19 +78,19 @@ func parseStatsShowArgs(args []string) (group, dev string, err error) {
 		}
 	}
 	if group == "" {
-		return "", "", fmt.Errorf("stats show: a grounded group (`group link` or `group xstats`) is required, a bare multi-group show is not: %w", ErrNotImplemented)
+		return "", "", fmt.Errorf("stats show: a grounded group (`group link`, `group xstats` or `group xstats_slave`) is required, a bare multi-group show is not: %w", ErrNotImplemented)
 	}
-	if group == statsGroupXstatsCst && dev != "" {
-		return "", "", fmt.Errorf("stats show group xstats dev: the xstats point get is not grounded: %w", ErrNotImplemented)
+	if group != statsGroupLinkCst && dev != "" {
+		return "", "", fmt.Errorf("stats show group %s dev: the xstats point get is not grounded: %w", group, ErrNotImplemented)
 	}
 	return group, dev, nil
 }
 
-// statsShow sends the requests `ip stats show group <link|xstats>` sends — the
-// link dump that resolves ifindex to name (ip/ipstats.c:761) then the stats
-// transaction — and renders the replies. For the link group a named dev is a
-// non-dump point GET (ipstats_show_one, :831), a bare group a dump (ipstats_dump,
-// :866); the xstats group is always a dump. extended is `show_stats > 1`: the
+// statsShow sends the requests `ip stats show group <link|xstats|xstats_slave>`
+// sends — the link dump that resolves ifindex to name (ip/ipstats.c:761) then
+// the stats transaction — and renders the replies. For the link group a named
+// dev is a non-dump point GET (ipstats_show_one, :831), a bare group a dump
+// (ipstats_dump, :866); the xstats groups are always a dump. extended is `show_stats > 1`: the
 // `show` verb makes the base level 1 and any -s or -d pushes it to 2.
 func statsShow(c *runCtx, group, dev string) error {
 	extended := c.showStats+c.showDetails >= 1
@@ -111,8 +113,8 @@ func statsShow(c *runCtx, group, dev string) error {
 	}
 	c.lltab.Fill(decoded)
 
-	if group == statsGroupXstatsCst {
-		return statsShowXstats(c, svc)
+	if group != statsGroupLinkCst {
+		return statsShowXstats(c, svc, group)
 	}
 
 	if dev != "" {
@@ -125,7 +127,7 @@ func statsShow(c *runCtx, group, dev string) error {
 		if gerr != nil {
 			return gerr
 		}
-		if rec.HasUnsupportedGroup {
+		if beyondLink(rec) {
 			return errStatsUnsupportedGroup(rec.Ifindex)
 		}
 		return statsRender(c, []model.IfStats{rec}, extended, false)
@@ -136,11 +138,18 @@ func statsShow(c *runCtx, group, dev string) error {
 		return err
 	}
 	for i := range records {
-		if records[i].HasUnsupportedGroup {
+		if beyondLink(records[i]) {
 			return errStatsUnsupportedGroup(records[i].Ifindex)
 		}
 	}
 	return statsRender(c, records, extended, true)
+}
+
+// beyondLink reports a link-group reply that carried another group: one goip
+// does not ground at all, or an xstats group, which the link renderer would
+// drop. With filter_mask 0x1 the kernel sends neither.
+func beyondLink(rec model.IfStats) bool {
+	return rec.HasUnsupportedGroup || rec.HasBridgeXstats || rec.Bond3ad != nil || rec.HasXstatsSlave
 }
 
 // errStatsUnsupportedGroup refuses a reply carrying a stat group beyond link.
@@ -151,21 +160,38 @@ func errStatsUnsupportedGroup(ifindex uint32) error {
 	return fmt.Errorf("stats show: interface %d reports stat groups beyond link, which goip does not ground: %w", ifindex, ErrNotImplemented)
 }
 
-// statsShowXstats renders `ip stats show group xstats`: the whole group's four
-// leaves per interface, bridge vlan/mcast bodies where present and empty bond/stp
-// headers otherwise. It is always a dump (no point get this PR). A reply carrying
-// a bridge stp or bond body — a shape goip does not ground — is refused.
-func statsShowXstats(c *runCtx, svc *service.Service) error {
-	records, err := svc.IfStatsXstats()
+// statsShowXstats renders `ip stats show group xstats` or `group
+// xstats_slave`: the whole group's four leaves per interface, bridge vlan/mcast
+// and bond 802.3ad bodies where present and empty headers otherwise. It is
+// always a dump (no point get). A reply carrying a body goip does not ground
+// (bridge stp, a repeated 802.3ad nest) in the requested group is refused, and
+// so is one carrying any group besides the requested one, which the renderer
+// would drop.
+func statsShowXstats(c *runCtx, svc *service.Service, group string) error {
+	fetch, viewOf := svc.IfStatsXstats, render.BridgeXstatsViewOf
+	if group == statsGroupXstatsSlaveCst {
+		fetch, viewOf = svc.IfStatsXstatsSlave, render.BridgeXstatsSlaveViewOf
+	}
+	records, err := fetch()
 	if err != nil {
 		return err
 	}
 	views := make([]render.BridgeXstatsView, 0, len(records))
 	for i := range records {
-		if records[i].HasUngroundedXstatsBody {
-			return errStatsUngroundedXstatsBody(records[i].Ifindex)
+		info := xtcpnl.IfStatsInfo(records[i])
+		mine, other := info.XstatsBodies, info.Slave
+		otherPresent := info.HasXstatsSlave
+		if group == statsGroupXstatsSlaveCst {
+			mine, other = info.Slave, info.XstatsBodies
+			otherPresent = other.HasBridgeXstats || other.Bond3ad != nil || other.HasUngroundedXstatsBody
 		}
-		views = append(views, render.BridgeXstatsViewOf(xtcpnl.IfStatsInfo(records[i]), c.lltab))
+		if otherPresent || info.HasLink64 || info.HasUnsupportedGroup {
+			return errStatsUnsupportedGroup(info.Ifindex)
+		}
+		if mine.HasUngroundedXstatsBody {
+			return errStatsUngroundedXstatsBody(group, info.Ifindex)
+		}
+		views = append(views, viewOf(info, c.lltab))
 	}
 	if c.json {
 		return json.NewEncoder(c.out).Encode(render.BridgeXstatsJSON(views))
@@ -182,11 +208,11 @@ func statsShowXstats(c *runCtx, svc *service.Service) error {
 	return nil
 }
 
-// errStatsUngroundedXstatsBody refuses an xstats reply carrying a bridge stp or
-// bond body. goip grounds the vlan and mcast bodies and the empty bond/stp
-// headers; a populated stp/bond body is a shape no capture produced.
-func errStatsUngroundedXstatsBody(ifindex uint32) error {
-	return fmt.Errorf("stats show group xstats: interface %d reports a bridge stp or bond body, which goip does not ground: %w", ifindex, ErrNotImplemented)
+// errStatsUngroundedXstatsBody refuses an xstats reply carrying a body goip
+// does not ground: a populated bridge stp body, or a second 802.3ad nest, shapes
+// no capture produced.
+func errStatsUngroundedXstatsBody(group string, ifindex uint32) error {
+	return fmt.Errorf("stats show group %s: interface %d reports a bridge stp body or a repeated bond 802.3ad body, which goip does not ground: %w", group, ifindex, ErrNotImplemented)
 }
 
 // statsRender builds the views and emits them. The dump path emits one further

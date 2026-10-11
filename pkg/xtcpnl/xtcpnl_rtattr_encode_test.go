@@ -504,7 +504,9 @@ var namedRtmWriteTypes = []struct {
 // and asserts BuildRequest accepts every RTM_GET* and rejects every RTM_NEW*,
 // RTM_DEL* and RTM_SET* x/sys/unix knows about.
 //
-// This is the executable form of "pkg/xtcpnl never creates, deletes or sets".
+// This is the executable form of "the read path never creates, deletes or
+// sets". The write path's gate is separate and has its own test,
+// TestBuildWriteRequestAdmitsOnlyListedWrites; this one is unchanged by it.
 // It is enforced on the message type and not on the flags, because the flags
 // cannot express it: the kernel overloads the same bits by message type, so
 // NLM_F_DUMP (ROOT|MATCH, 0x300) is bit-identical to REPLACE|EXCL

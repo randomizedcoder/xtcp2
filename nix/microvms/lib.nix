@@ -1314,6 +1314,462 @@ rec {
       '';
     };
 
+  # mkLinkWriteCaptureRunner — host runner for the link-write-capture flavor,
+  # phase 0 of docs/netlink/link-write-path.md.
+  #
+  # mkNetlinkDumpCaptureRunner with the flags removed and a different
+  # destination. Everything its header says about the driver owning the
+  # serial port applies unchanged: scripts/capture-link-writes.exp attaches
+  # to it with expect, so diagnostics come off the virtio console.
+  #
+  # The driver's exit status carries one more failure than the dump driver's:
+  # 1 also means a LACP state was never reached (NLCAP_LACP_TIMEOUT), in which
+  # case that state's fixtures were not captured at all. Whatever WAS
+  # captured is still installed, as it is for a missed floor.
+  mkLinkWriteCaptureRunner =
+    {
+      arch,
+      vm,
+    }:
+    let
+      cfg = constants.architectures.${arch};
+
+      # One store directory for all five .exp files, for the dump runner's
+      # reason: the driver sources its siblings relative to itself.
+      # netlink-topology.exp is here for nltopo::topo, which the LACP
+      # topology builds through so its refusals land in the same list.
+      captureScripts =
+        pkgs.runCommand "xtcp2-link-write-capture-scripts"
+          {
+            vmLib = ./scripts/vm-lib.exp;
+            netlinkTopology = ./scripts/netlink-topology.exp;
+            topology = ./scripts/link-write-topology.exp;
+            readback = ./scripts/link-write-readback.exp;
+            driver = ./scripts/capture-link-writes.exp;
+          }
+          ''
+            mkdir -p $out
+            cp $vmLib $out/vm-lib.exp
+            cp $netlinkTopology $out/netlink-topology.exp
+            cp $topology $out/link-write-topology.exp
+            cp $readback $out/link-write-readback.exp
+            cp $driver $out/capture-link-writes.exp
+            chmod +x $out/capture-link-writes.exp
+          '';
+    in
+    pkgs.writeShellApplication {
+      name = "xtcp2-link-write-capture-${arch}";
+      runtimeInputs = with pkgs; [
+        coreutils
+        expect
+        findutils
+        gawk
+        gnutar
+        gzip
+        netcat-gnu
+      ];
+      text = ''
+        set -u
+
+        # 1800 s, as for the dump capture: the budget is dominated by a cold
+        # boot on a loaded host. The capture itself is under a minute, most of
+        # it LACP timers.
+        TIMEOUT_SEC=1800
+        OUT_DIR=""
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --timeout)     TIMEOUT_SEC="$2"; shift 2 ;;
+            --timeout=*)   TIMEOUT_SEC="''${1#--timeout=}"; shift ;;
+            --out)         OUT_DIR="$2"; shift 2 ;;
+            --out=*)       OUT_DIR="''${1#--out=}"; shift ;;
+            -h|--help)
+              echo "usage: $0 [--timeout <seconds>] [--out <dir>]"
+              echo "  Boots the link-write-capture microvm and drives it over the"
+              echo "  serial console with expect: builds an 802.3ad bond in netns"
+              echo "  lacpa with a real LACP partner bond in netns lacpb, and"
+              echo "  captures lacpa's link and xstats dumps off nlmon0, with the"
+              echo "  ip -d / ip -j sidecars and a sysfs + /proc oracle, in three"
+              echo "  states: lacp_no_partner, lacp_converged, lacp_partner_down."
+              echo ""
+              echo "  --out defaults to pkg/xtcpnl/testdata/<guest kernel>/link-write,"
+              echo "  with the kernel derived from the guest's own uname sidecar."
+              echo "  Must be run from the xtcp2 repo root."
+              exit 0
+              ;;
+            *) echo "unknown arg: $1" >&2; exit 1 ;;
+          esac
+        done
+
+        if [ ! -f flake.nix ] || [ ! -d pkg/xtcpnl ]; then
+          echo "link-write-capture: run from the xtcp2 repo root" >&2
+          exit 2
+        fi
+
+        SERIAL_PORT=${toString cfg.serialPort}
+        VIRTCON_PORT=${toString cfg.virtioPort}
+        LOG=$(mktemp -t xtcp2-link-write-capture-XXXX.log)
+        BLOB=$(mktemp -t xtcp2-link-write-blob-XXXX.b64)
+
+        echo "================================================"
+        echo " xtcp2 microvm link-write-capture — arch=${arch}"
+        echo " timeout: $TIMEOUT_SEC s"
+        echo " transcript: $LOG"
+        echo "================================================"
+
+        QEMU_LOG="''${LOG}.qemu"
+        ${vm}/bin/microvm-run > "$QEMU_LOG" 2>&1 &
+        vm_pid=$!
+
+        nc_virtcon_pid=""
+        for _ in $(seq 1 30); do
+          if nc -z 127.0.0.1 "$VIRTCON_PORT" 2>/dev/null; then
+            nc 127.0.0.1 "$VIRTCON_PORT" >> "$QEMU_LOG" 2>&1 &
+            nc_virtcon_pid=$!
+            break
+          fi
+          sleep 1
+        done
+
+        trap '
+          if kill -0 "$vm_pid" 2>/dev/null; then
+            kill "$vm_pid" 2>/dev/null || true
+            wait "$vm_pid" 2>/dev/null || true
+          fi
+          if [ -n "$nc_virtcon_pid" ] && kill -0 "$nc_virtcon_pid" 2>/dev/null; then
+            kill "$nc_virtcon_pid" 2>/dev/null || true
+          fi
+        ' EXIT
+
+        rc=0
+        timeout "$TIMEOUT_SEC" \
+          expect ${captureScripts}/capture-link-writes.exp \
+            "$SERIAL_PORT" "$BLOB" 2>&1 \
+          | tee "$LOG" || rc=$?
+
+        if [ "$rc" -eq 124 ]; then
+          echo "FATAL: the capture driver did not finish within $TIMEOUT_SEC s"
+          echo "       Guest boot log: $QEMU_LOG"
+          exit 2
+        fi
+
+        if [ ! -s "$BLOB" ]; then
+          echo "FATAL: the driver wrote no capture blob (exit $rc)"
+          echo "       Driver transcript: $LOG"
+          echo "       Guest boot log:    $QEMU_LOG"
+          exit 2
+        fi
+
+        STAGE=$(mktemp -d -t xtcp2-nlcap-link-write-XXXX)
+        if ! awk '
+              /XTCP2_NLCAP_DUMP_START/ { flag = 1; next }
+              /XTCP2_NLCAP_DUMP_END/   { flag = 0 }
+              flag
+            ' "$BLOB" \
+          | tr -d '\r\n ' \
+          | base64 -d 2>/dev/null \
+          | gzip -dc 2>/dev/null \
+          | tar x -C "$STAGE" 2>/dev/null; then
+          echo "FATAL: the capture blob did not decode"
+          echo "       $(wc -c < "$BLOB") bytes of base64 kept at $BLOB"
+          exit 2
+        fi
+
+        # The ip_version and uname sidecars make a set attributable, and the
+        # base topology transcript proves the bond was built. No pcap is
+        # required here, unlike the dump runner: a run whose first LACP state
+        # timed out legitimately has none, and the driver's exit status is
+        # what reports that.
+        for required in ip_version uname topology; do
+          if [ ! -s "$STAGE/$required" ]; then
+            echo "FATAL: extracted blob has no $required"
+            echo "       staged files:"
+            find "$STAGE" -type f | sort || true
+            exit 2
+          fi
+        done
+
+        # Versioned by the GUEST kernel, in a `link-write/` subdirectory beside
+        # `dumps/`, for the dump runner's reason: the event capture already
+        # owns sidecar names like ip_link_n in the kernel directory itself.
+        if [ -z "$OUT_DIR" ]; then
+          VER=$(awk '{print $3}' "$STAGE/uname" | cut -d- -f1 | tr . _)
+          if [ -z "$VER" ]; then
+            echo "FATAL: could not derive a kernel version from the uname sidecar"
+            exit 2
+          fi
+          OUT_DIR="pkg/xtcpnl/testdata/$VER/link-write"
+        fi
+
+        mkdir -p "$OUT_DIR"
+        cp -rf "$STAGE"/. "$OUT_DIR"/
+
+        echo ""
+        echo "================================================"
+        echo " wrote fixtures to $OUT_DIR"
+        echo "================================================"
+        find "$OUT_DIR" -type f | sort
+        echo ""
+        echo "Driver transcript: $LOG"
+        echo "Guest boot log:    $QEMU_LOG"
+
+        if [ "$rc" -ne 0 ]; then
+          echo ""
+          echo "FAIL: the driver exited $rc. Fixtures above were still"
+          echo "      installed; a state that was never reached, or a capture"
+          echo "      that missed its floor, wrote nothing, so whatever is on"
+          echo "      disk for it is unchanged. Check NLCAP_LACP_TIMEOUT,"
+          echo "      NLCAP_MISSED_FLOOR and NLCAP_TOPO_REFUSED in the transcript"
+          echo "      before committing."
+          exit "$rc"
+        fi
+
+        echo "PASS: bond / LACP readback capture complete"
+        exit 0
+      '';
+    };
+
+  # mkLacpPairRunner — host runner for lacp-pair-capture, Tier 2 of
+  # docs/netlink/link-write-path.md (phase 8).
+  #
+  # Two VMs at once: B, the static partner, and A, which the driver drives
+  # over serial exactly as mkLinkWriteCaptureRunner's does. They are joined
+  # by two qemu `-netdev dgram` links (mkVm.nix lacpNicArgs) whose unix
+  # socket paths are relative, so both qemus are started in ONE fresh
+  # temporary directory and find each other there. A fresh directory is
+  # also what keeps a stale socket from a killed run from failing the bind.
+  # A's QMP socket, which microvm.nix names <hostname>.sock, lands in the
+  # same directory, and the driver uses it for the link pull.
+  #
+  # B starts first. Nothing waits for it to be up: datagrams sent to a peer
+  # that has not bound yet are dropped, LACP retransmits every second with
+  # lacp_rate fast, and the driver waits for convergence on A's own ports.
+  #
+  # This must never fall back to a bridged tap (link-write-path.md, Risks):
+  # a Linux bridge does not forward LACPDUs, so the run would time out
+  # rather than capture, but the reason would be hard to see.
+  mkLacpPairRunner =
+    {
+      arch,
+      vmA,
+      vmB,
+    }:
+    let
+      cfg = constants.architectures.${arch};
+
+      captureScripts =
+        pkgs.runCommand "xtcp2-lacp-pair-capture-scripts"
+          {
+            vmLib = ./scripts/vm-lib.exp;
+            netlinkTopology = ./scripts/netlink-topology.exp;
+            topology = ./scripts/link-write-topology.exp;
+            readback = ./scripts/link-write-readback.exp;
+            driver = ./scripts/capture-lacp-pair.exp;
+          }
+          ''
+            mkdir -p $out
+            cp $vmLib $out/vm-lib.exp
+            cp $netlinkTopology $out/netlink-topology.exp
+            cp $topology $out/link-write-topology.exp
+            cp $readback $out/link-write-readback.exp
+            cp $driver $out/capture-lacp-pair.exp
+            chmod +x $out/capture-lacp-pair.exp
+          '';
+    in
+    pkgs.writeShellApplication {
+      name = "xtcp2-lacp-pair-capture-${arch}";
+      runtimeInputs = with pkgs; [
+        coreutils
+        expect
+        findutils
+        gawk
+        gnugrep
+        gnutar
+        gzip
+        netcat-gnu
+        socat
+      ];
+      text = ''
+        set -u
+
+        # 1800 s, as for Tier 1, though two cold boots share the host here.
+        TIMEOUT_SEC=1800
+        OUT_DIR=""
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --timeout)     TIMEOUT_SEC="$2"; shift 2 ;;
+            --timeout=*)   TIMEOUT_SEC="''${1#--timeout=}"; shift ;;
+            --out)         OUT_DIR="$2"; shift 2 ;;
+            --out=*)       OUT_DIR="''${1#--out=}"; shift ;;
+            -h|--help)
+              echo "usage: $0 [--timeout <seconds>] [--out <dir>]"
+              echo "  Boots two microvms joined by two point-to-point dgram links:"
+              echo "  lacp-b, whose 802.3ad bond is built at boot, and lacp-a, which"
+              echo "  is driven over its serial console with expect. Builds lacp-a's"
+              echo "  bond over its two virtio-net ports in netns lacpa and captures"
+              echo "  its link and xstats dumps off nlmon0, with the ip -d / ip -j"
+              echo "  sidecars and a sysfs + /proc oracle, in three states:"
+              echo "  lacp_converged, lacp_link_pulled (QMP set_link off) and"
+              echo "  lacp_link_restored."
+              echo ""
+              echo "  --out defaults to pkg/xtcpnl/testdata/<guest kernel>/link-write/lacp-pair,"
+              echo "  with the kernel derived from the guest's own uname sidecar."
+              echo "  Must be run from the xtcp2 repo root."
+              exit 0
+              ;;
+            *) echo "unknown arg: $1" >&2; exit 1 ;;
+          esac
+        done
+
+        if [ ! -f flake.nix ] || [ ! -d pkg/xtcpnl ]; then
+          echo "lacp-pair-capture: run from the xtcp2 repo root" >&2
+          exit 2
+        fi
+
+        SERIAL_PORT=${toString cfg.serialPort}
+        VIRTCON_A=${toString cfg.virtioPort}
+        VIRTCON_B=${toString cfg.lacpB.virtioPort}
+        LOG=$(mktemp -t xtcp2-lacp-pair-capture-XXXX.log)
+        BLOB=$(mktemp -t xtcp2-lacp-pair-blob-XXXX.b64)
+        LINKS=$(mktemp -d -t xtcp2-lacp-pair-links-XXXX)
+        QMP_A="$LINKS/${cfg.lacpA.hostname}.sock"
+
+        echo "================================================"
+        echo " xtcp2 microvm lacp-pair-capture — arch=${arch}"
+        echo " timeout: $TIMEOUT_SEC s"
+        echo " transcript: $LOG"
+        echo " links: $LINKS"
+        echo "================================================"
+
+        LOG_A="''${LOG}.qemu-a"
+        LOG_B="''${LOG}.qemu-b"
+        vm_a_pid=""
+        vm_b_pid=""
+        nc_a_pid=""
+        nc_b_pid=""
+
+        # A first, though it should already have powered itself off: B is
+        # the one nothing ever stops.
+        trap '
+          if [ -n "$vm_a_pid" ] && kill -0 "$vm_a_pid" 2>/dev/null; then
+            kill "$vm_a_pid" 2>/dev/null || true
+            wait "$vm_a_pid" 2>/dev/null || true
+          fi
+          if [ -n "$vm_b_pid" ] && kill -0 "$vm_b_pid" 2>/dev/null; then
+            kill "$vm_b_pid" 2>/dev/null || true
+            wait "$vm_b_pid" 2>/dev/null || true
+          fi
+          if [ -n "$nc_a_pid" ]; then kill "$nc_a_pid" 2>/dev/null || true; fi
+          if [ -n "$nc_b_pid" ]; then kill "$nc_b_pid" 2>/dev/null || true; fi
+          rm -rf "$LINKS"
+        ' EXIT
+
+        # attach_virtcon <port> <log>: tail one guest's virtio console into
+        # its log once qemu is listening, and print the tail's pid.
+        attach_virtcon() {
+          for _ in $(seq 1 30); do
+            if nc -z 127.0.0.1 "$1" 2>/dev/null; then
+              nc 127.0.0.1 "$1" >> "$2" 2>&1 &
+              echo "$!"
+              return 0
+            fi
+            sleep 1
+          done
+          echo "WARNING: no virtio console on port $1; its log is qemu's alone" >&2
+        }
+
+        (cd "$LINKS" && exec ${vmB}/bin/microvm-run) > "$LOG_B" 2>&1 &
+        vm_b_pid=$!
+        nc_b_pid=$(attach_virtcon "$VIRTCON_B" "$LOG_B")
+
+        (cd "$LINKS" && exec ${vmA}/bin/microvm-run) > "$LOG_A" 2>&1 &
+        vm_a_pid=$!
+        nc_a_pid=$(attach_virtcon "$VIRTCON_A" "$LOG_A")
+
+        rc=0
+        timeout "$TIMEOUT_SEC" \
+          expect ${captureScripts}/capture-lacp-pair.exp \
+            "$SERIAL_PORT" "$BLOB" "$QMP_A" 2>&1 \
+          | tee "$LOG" || rc=$?
+
+        if [ "$rc" -eq 124 ]; then
+          echo "FATAL: the capture driver did not finish within $TIMEOUT_SEC s"
+          echo "       Guest boot logs: $LOG_A $LOG_B"
+          exit 2
+        fi
+
+        if ! grep -q LACP_PARTNER_READY "$LOG_B"; then
+          echo "WARNING: lacp-b never printed LACP_PARTNER_READY; see $LOG_B"
+        fi
+
+        if [ ! -s "$BLOB" ]; then
+          echo "FATAL: the driver wrote no capture blob (exit $rc)"
+          echo "       Driver transcript: $LOG"
+          echo "       Guest boot logs:   $LOG_A $LOG_B"
+          exit 2
+        fi
+
+        STAGE=$(mktemp -d -t xtcp2-nlcap-lacp-pair-XXXX)
+        if ! awk '
+              /XTCP2_NLCAP_DUMP_START/ { flag = 1; next }
+              /XTCP2_NLCAP_DUMP_END/   { flag = 0 }
+              flag
+            ' "$BLOB" \
+          | tr -d '\r\n ' \
+          | base64 -d 2>/dev/null \
+          | gzip -dc 2>/dev/null \
+          | tar x -C "$STAGE" 2>/dev/null; then
+          echo "FATAL: the capture blob did not decode"
+          echo "       $(wc -c < "$BLOB") bytes of base64 kept at $BLOB"
+          exit 2
+        fi
+
+        for required in ip_version uname topology; do
+          if [ ! -s "$STAGE/$required" ]; then
+            echo "FATAL: extracted blob has no $required"
+            echo "       staged files:"
+            find "$STAGE" -type f | sort || true
+            exit 2
+          fi
+        done
+
+        # Beside Tier 1's states, in link-write/lacp-pair/, so the two tiers'
+        # fixtures for one kernel sit together.
+        if [ -z "$OUT_DIR" ]; then
+          VER=$(awk '{print $3}' "$STAGE/uname" | cut -d- -f1 | tr . _)
+          if [ -z "$VER" ]; then
+            echo "FATAL: could not derive a kernel version from the uname sidecar"
+            exit 2
+          fi
+          OUT_DIR="pkg/xtcpnl/testdata/$VER/link-write/lacp-pair"
+        fi
+
+        mkdir -p "$OUT_DIR"
+        cp -rf "$STAGE"/. "$OUT_DIR"/
+
+        echo ""
+        echo "================================================"
+        echo " wrote fixtures to $OUT_DIR"
+        echo "================================================"
+        find "$OUT_DIR" -type f | sort
+        echo ""
+        echo "Driver transcript: $LOG"
+        echo "Guest boot logs:   $LOG_A $LOG_B"
+
+        if [ "$rc" -ne 0 ]; then
+          echo ""
+          echo "FAIL: the driver exited $rc. Fixtures above were still"
+          echo "      installed; a state that was never reached wrote nothing,"
+          echo "      so whatever is on disk for it is unchanged. Check"
+          echo "      NLCAP_LACP_TIMEOUT, NLCAP_QMP_FAIL, NLCAP_MISSED_FLOOR and"
+          echo "      NLCAP_TOPO_REFUSED in the transcript before committing."
+          exit "$rc"
+        fi
+
+        echo "PASS: two-VM bond / LACP readback capture complete"
+        exit 0
+      '';
+    };
+
   # mkGoipParityRunner — host runner for the goip-parity flavor, Tier C of the
   # netlink parity harness.
   #
