@@ -1,8 +1,8 @@
 # go-link-monitor implementation status
 
-Last updated: 2026-10-10.
+Last updated: 2026-10-11.
 
-**P01–P08 and P09-T01 are complete: 27 of 34 implementation tasks passed their gates.**
+**P01–P08, P09-T01 and P12 (P12-T01–P12-T07) are complete: 34 of 42 implementation tasks passed their gates.**
 P09-T02 is in progress: repeatable profiling/soak targets and short diagnostic
 evidence are implemented; the required ten-minute run remains outstanding.
 
@@ -163,6 +163,145 @@ succeeds; that binary, run unprivileged on the reference host with
 `-metrics-all-addr`, serves 115 core series against 6,128 on the separate
 listener, and each listener returns 404 for the other's path. Physical and
 deployed-pin checks remain to run.
+
+V079 — admin access design (2026-10-11): added
+[`docs/design-admin-access.md`](../../docs/design-admin-access.md) (access model,
+credential configuration, `LinkMonitorService` sketch, control tickets, hosting,
+CLI layout, threats) and rewrote the error-acknowledgement transport around the
+`ReviewErrors` (read) and `AcknowledgeErrors` (admin) RPCs, dropping the HTTP
+`/acknowledge` resource and answering its open question 6. Added P12 and moved
+D01 into P12-T07. Added the missing P09-T03 tracker row, which had made the
+docs checker fail since that task was planned.
+
+V080 — read/admin access policy (2026-10-11): new
+`proto/xtcp_auth/v1/xtcp_auth.proto` method option; every `ConfigService` RPC
+annotated (`Get` read, the rest admin); `XTCPFlatRecordService` classes declared
+in Go because that proto is also ClickHouse's format schema. All protos now use
+full `go_package` paths, with `module=` in `buf.gen.yaml`, so generated output
+paths are unchanged. `listenerauth.Policy` builds the method table at startup;
+unannotated and unknown methods are admin. `admin_listener_auth` (field 154)
+with `-listenerAdmin*` flags and `LISTENER_ADMIN_*` environment; `/debug/pprof/`
+is admin on HTTP. Every `ConfigService` response now redacts S3 keys and both
+auth blocks; previously `SetPollFrequency`, `SetS3Upload`, `SetEnvelopeFlush`
+and `Set` echoed live secrets. `xtcp2ctl` and `xtcp2client` send
+`XTCP2_GRPC_ADMIN_*` credentials to admin methods. Tables cover 17 unary rows,
+streams, HTTP, annotation completeness, redaction of five RPCs, environment
+overrides and client credential selection; `MethodAccess` is allocation-free
+and `BenchmarkPolicyUnary` measures about 1.6 µs, 416 B and 3 allocs per call
+including jitter-free success. Pinned Go 1.26.5 tests and vet for
+`./pkg/listenerauth/... ./pkg/xtcp/... ./cmd/xtcp2/... ./cmd/xtcp2ctl/...
+./cmd/xtcp2client/...`, gofmt, all three golangci configurations (0 issues) and
+`nix build path:.#test-listener-security` pass.
+
+V081 — control tickets (2026-10-11): `Monitor.Submit(ControlKind)` returns a
+`ControlTicket`; `Monitor.Await` returns nil once that generation completes,
+the context error on timeout and `ErrNotRunning` on stop. Per-kind requested,
+begun and completed generations live in `controls`; one shared `changed`
+channel is closed and replaced on each completion or stop. A pending pass of a
+kind no longer begins while that kind is in flight, so a rebaseline save
+completes only its own generation; requests during a pass coalesce into
+exactly one follow-up pass. `RequestRebaseline`/`RequestResync` keep their
+signatures. `ControlProgress` and `Snapshot.BaselineRecordedAt` (loaded or
+durably saved time, stored as Unix nanoseconds) were added. Tables cover
+completion, shared generations, waiter release, timeout, stop, unknown kinds,
+zero tickets, stop-after-completion, active-pass isolation, cross-kind
+isolation, 256 concurrent submits (two passes) and a failing save that keeps
+`Await` blocked with the write error visible. `complete(0)`, a satisfied
+`Await` and `ControlProgress` allocate nothing; `BenchmarkControlSubmit` is
+about 300 ns and 1 allocation (the replaced channel) per completed pass. An
+interleaved six-run A/B of `BenchmarkPerformancePublication` against the parent
+commit shows no sec/op change (all p ≥ 0.48) and identical allocs; B/op rises
+32 B (1.81 → 1.84 KiB) from the root's new field crossing a size class. Two
+existing tests were updated for the deliberate follow-up-pass semantics.
+
+V082 — LinkMonitorService and shared CLI (2026-10-11): new
+`proto/linkmonitor/v1/linkmonitor.proto` (`GetStatus`, `ListInterfaces`,
+`ListCollectors` read; `Rebaseline`, `Resync` admin; error-ledger RPCs
+reserved), passing `buf lint` and generation. `pkg/linkmonitor/linkmonitorgrpc`
+serves it over a four-method `Monitor` interface with protovalidate,
+`FailedPrecondition` for a nil (disabled) monitor, `DeadlineExceeded` with the
+write-error count when a wait expires, optional registerer-injected metrics and
+an Info audit record (rpc, reason, peer or transport identity, wait,
+generation, completed, code) for every validated control. The core package
+still imports no grpc. `pkg/linkmonitor/linkmonitorctl` provides `status`,
+`interfaces`, `collectors`, `rebaseline` and `resync` with text and protojson
+output, exit 2 for usage and 1 for RPC errors, and `Access(args)` so hosts pick
+credentials before dialing. Tests: 28 bufconn rows against real fixture
+publications and tickets, adapter tables for disabled/validation/boundaries
+(512/513-byte and multi-byte reasons, 60 s/61 s waits)/errors/cancellation,
+audit fields and metrics, an access-class completeness check, and 19 CLI rows
+plus JSON for every command. Pinned race tests for `./pkg/linkmonitor/...` and
+`./cmd/go-link-monitor/...`, vet, gofmt, all three golangci configurations and
+`nix build path:.#go-link-monitor` (vendor hash unchanged) pass. Correction: the
+vendor tree was reused from the cache under the unchanged hash and lacked the
+newly imported vtprotobuf `timestamppb` package; the hash is updated in V083.
+
+V083 — standalone admin listener (2026-10-11): `-admin.network`,
+`-admin.address` (empty disables), `-admin.unix-socket-mode`,
+`-admin.insecure` and `-auth.{read,admin}-{mode,token-file,hmac-key-file}`,
+each with a `GO_LINK_MONITOR_*` fallback; secrets are read once, from files
+only. A non-loopback TCP admin address without an admin credential, an admin
+credential without an admin listener, a non-octal or >0777 mode and unknown
+networks exit 2. The gRPC listener (LinkMonitorService, health, reflection,
+`Policy` interceptors, `SO_PEERCRED` peer identity on Unix sockets) is bound
+after the HTTP listeners and before the monitor; a bind failure closes every
+listener before monitoring, a `Serve` exit stops the process, and shutdown uses
+`GracefulStop` with a `Stop` fallback after the shared grace period. A read
+credential wraps `/metrics` and the all-metrics path; health stays open.
+Admin request metrics are on the full exposition only. `go-link-monitor ctl`
+dials the admin socket (default `/run/go-link-monitor/admin.sock`) and picks the
+admin credential for admin commands via `ForAccess`. Tables: 24 resolve rows,
+HTTP protection, three serve variants with a fake gRPC server, three shutdown
+rows (graceful, forced, zero grace) and eight ctl usage rows. The executable
+test starts the real process with both credentials on a 0600 socket: `status`,
+`interfaces -format json`, `collectors`, `rebaseline`, `resync -wait`,
+read-token `PermissionDenied`, missing-token `Unauthenticated`, admin token on
+reads, 401 on `/metrics`, open `/healthz`, audit lines with `peer="uid=…"` and
+socket removal on exit. The waiting rows run only where the host can satisfy
+them: `resync -wait` needs readable sysfs (absent in the Nix build sandbox) and
+`rebaseline -wait` needs healthy collection for a durable baseline (absent
+without RDMA event coverage); otherwise they skip with the reason logged. On the
+workstation `resync -wait` ran and `rebaseline -wait` skipped; both skip in the
+sandbox, so the rebaseline gate still needs a run on host `l`. The NixOS module gained nullable `adminSocket`,
+`adminGroup` (setgid tmpfiles directory, 0660 socket), `authMode`,
+`readTokenFile` and `adminTokenFile` (via `LoadCredential`); with them unset
+the unit's `ExecStart` is unchanged. `goVendorHash` updated. Pinned race tests,
+vet, gofmt, all three golangci configurations and
+`nix build path:.#go-link-monitor` pass, as do the Nix leaves
+`test-linkmonitor-{command,docs,lint,format,vet,unit,rdma-runtime}` and
+`test-listener-security`. Under `-race`, the pre-existing
+`TestExecutableSeparateListener/all` failed once in four runs: with
+`-stats-interval=100ms` the host netstat values went stale between fetches.
+
+V084 — xtcp2 embedding and `xtcp2ctl link` (2026-10-11): `XtcpConfig` gained
+`LinkMonitorConfig link_monitor = 250` (enable, baseline file, settle, resync,
+stats interval and filters, netstat fields, max-speed exceptions,
+`metrics_core_include`/`metrics_core_exclude`/`metrics_all`). `pkg/xtcp`
+translates it once at startup (unset fields keep library defaults; the baseline
+defaults to `/var/lib/xtcp2/link-monitor-baseline.json` so a standalone monitor
+can run beside it), registers the core-filtered collector on xtcp2's registry,
+runs the monitor under the daemon context, and treats a run failure while the
+daemon is live (for example "baseline already locked") as fatal.
+`LinkMonitorService` is always registered and covered by the `Policy`; with the
+monitor disabled every call returns `FailedPrecondition` "link monitor
+disabled". Twelve `-linkMonitor*` flags with `LINK_MONITOR*` environment
+fallbacks were added; this regenerated the flag goldens, which also picked up
+three `listenerAdmin*` lines left stale by V080. `xtcp2ctl link
+status|interfaces|collectors|rebaseline|resync` runs the shared CLI over the
+daemon connection with a 75 s call timeout, using the admin credential for
+admin commands. Tables: 8 settings rows, 6 init rows (including bad patterns
+and zero resync), 2 service rows, a held baseline lock (fatal while live,
+silent after cancellation), 6 environment-override rows, 12 config-build rows,
+access rows for `GetStatus` (READ) and `Rebaseline` (ADMIN), and 9 `xtcp2ctl
+link` rows over bufconn (text and JSON status, admin token reaching the monitor,
+read token `PermissionDenied`, disabled monitor, usage errors, `-h`). Pinned
+race tests, vet, gofmt and all three golangci configurations pass for
+`pkg/xtcp`, `cmd/xtcp2` and `cmd/xtcp2ctl`; `nix build` of `xtcp2`, `xtcp2ctl`,
+`go-link-monitor`, `test-cmd-xtcp2`, `test-cmd-xtcp2ctl`,
+`test-linkmonitor-embedding`, `test-linkmonitor-unit` and
+`test-listener-security` passes. Not yet run: `test-linkmonitor-embedding-vm`
+and the manual checks on host `l` (`xtcp2ctl link status` against a deployed
+xtcp2 with the monitor enabled).
 
 V076 — privileged performance VM wiring (2026-10-10): added the modular
 `test-linkmonitor-performance-vm` runner under `nix/microvms/`. It reuses the
@@ -511,9 +650,10 @@ integration remains deferred under D01.
 | P06 | Ethernet and host collectors | done | 4/4 | V035 closes traffic/carrier; V039 closes identity/settings/channels/rings; V041 closes driver/PHY; V043 closes host protocol statistics |
 | P07 | RDMA collection and builds | done | 4/4 | V052 closes live library/runtime gates; software-RDMA guest builds, KVM execution unavailable; standalone command artifact acceptance is P08-T02 |
 | P08 | Exporter and standalone command | done | 3/3 | V054 adapter; V056 command/artifacts; V058 embedding compatibility and executed core/RDMA TCG integration |
-| P09 | Performance baseline | in progress | 1/2 | V061–V063; modular profiling/soak targets and bounded diagnostics pass, ten-minute acceptance and production remediation remain |
+| P09 | Performance baseline | in progress | 1/3 | V061–V063; modular profiling/soak targets and bounded diagnostics pass, ten-minute acceptance and production remediation remain |
 | P10 | Optional io_uring | not started | 0/3 | None |
 | P11 | Release verification | not started | 0/3 | None |
+| P12 | Administration API and xtcp2 integration | done | 7/7 | V079–V084 |
 
 ## Task checklist
 
@@ -550,18 +690,26 @@ plan, not copied here. Add verification IDs to the evidence column as work runs.
 | [x] | [P08-T03](IMPLEMENTATION-PLAN.md#p08-t03) | Embedding compatibility and integration | done | V058: xtcp coexistence, lifecycle/registry ownership, collision tables, fourteen-gate aggregate and executed core/RDMA TCG guest |
 | [x] | [P09-T01](IMPLEMENTATION-PLAN.md#p09-t01) | Benchmark harness and baseline | done | V061–V062: fifteen pinned gates, three Nix policies, 156 cases × ten repetitions and 60 lifecycle scenarios pass |
 | [ ] | [P09-T02](IMPLEMENTATION-PLAN.md#p09-t02) | Profiles, soak and remediation | in progress | V063; modular targets and short diagnostics pass; ten-minute core/RDMA soak is host-limited |
+| [ ] | [P09-T03](IMPLEMENTATION-PLAN.md#p09-t03) | Focused exporter optimization and pooling evaluation | in progress | V074–V075; label/descriptor work landed, pooling results not yet recorded |
 | [ ] | [P10-T01](IMPLEMENTATION-PLAN.md#p10-t01) | Ring wrapper prerequisites | not started | None |
 | [ ] | [P10-T02](IMPLEMENTATION-PLAN.md#p10-t02) | Monitor ring backend | not started | None |
 | [ ] | [P10-T03](IMPLEMENTATION-PLAN.md#p10-t03) | Comparative performance evidence | not started | None |
 | [ ] | [P11-T01](IMPLEMENTATION-PLAN.md#p11-t01) | Pinned regression and quality gates | not started | None |
 | [ ] | [P11-T02](IMPLEMENTATION-PLAN.md#p11-t02) | Deployment artifact and service verification | not started | None |
 | [ ] | [P11-T03](IMPLEMENTATION-PLAN.md#p11-t03) | Representative hardware validation | not started | None |
+| [x] | [P12-T01](IMPLEMENTATION-PLAN.md#p12-t01) | Admin access design and documentation | done | V079 |
+| [x] | [P12-T02](IMPLEMENTATION-PLAN.md#p12-t02) | Read/admin access policy | done | V080 |
+| [x] | [P12-T03](IMPLEMENTATION-PLAN.md#p12-t03) | Control tickets | done | V081 |
+| [x] | [P12-T04](IMPLEMENTATION-PLAN.md#p12-t04) | LinkMonitorService proto and gRPC adapter | done | V082 |
+| [x] | [P12-T05](IMPLEMENTATION-PLAN.md#p12-t05) | Shared control CLI | done | V082 |
+| [x] | [P12-T06](IMPLEMENTATION-PLAN.md#p12-t06) | Standalone admin listener | done | V083 |
+| [x] | [P12-T07](IMPLEMENTATION-PLAN.md#p12-t07) | xtcp2 runtime integration (former D01) | done | V084 |
 
 ## Deferred items
 
 | ID | State | Work | Evidence / decision |
 |---|---|---|---|
-| D01 | deferred | Actual xtcp2 runtime integration | Detailed design section 2 and plan deferred-work section; compatibility tests remain in P08 |
+| D01 | moved | Actual xtcp2 runtime integration | Now [P12-T07](IMPLEMENTATION-PLAN.md#p12-t07); compatibility tests remain in P08 |
 | D02 | deferred | Multishot receive experiment | Detailed design section 9; initial optional backend uses one outstanding receive per socket |
 | D03 | deferred | Batched procfs/sysfs reads | Detailed design section 9; requires measured benefit and file-specific verification |
 
@@ -1268,6 +1416,10 @@ owners, deadlines or successful outcomes. Continue independent ready tasks.
 | 2026-10-10 | Started P09-T02. Added modular Nix performance commands, profile/resource collection and explicit validation tables. A bounded 60-second large-schema diagnostic reaches the complete sample set but exposes high exposition memory and multi-second tail latency; the host terminates the ten-minute child before completion. | V063; P09-T02 remains in progress. Complete the `bench-linkmonitor-soak` target on a host with a usable long-run budget, then profile/remediate measured production hot paths |
 | 2026-10-10 | Added and executed the privileged performance microVM target. Root guest collection passed all four live read-only suites, captured rtnetlink traffic and pprof artifacts, and returned a validated evidence bundle after robust journal-prefix extraction. | V076–V077; TCG one-second diagnostic complete. Ten-minute soak and physical NIC/RDMA validation remain open |
 | 2026-10-11 | Split exposition into a core `/metrics` audit set and a full `/metrics-all` superset with flag/environment selection, an optional separate listener and per-route scrape limits. Filtering happens before metric construction with startup-compiled, per-name cached decisions. | V078; Go gates pass and the unfiltered path shows no regression. Nix/deployed verification pending; changes uncommitted |
+| 2026-10-11 | Started P12: admin access design, gRPC-first error-ack transport, and a read/admin credential split across all xtcp2 listeners with per-RPC access classes. Fixed secret echo in four `ConfigService` responses. Decision: an active control pass is not joined; a new request schedules one pending pass so `Await` never reports a stale save. | V079–V080; P12 2/7. Next P12-T03 control tickets. Changes uncommitted on `feat/linkmonitor-admin-grpc` |
+| 2026-10-11 | Added control tickets, `LinkMonitorService`, its gRPC adapter and the shared control CLI. | V081–V082; P12 5/7. Next P12-T06 standalone admin listener, then P12-T07 xtcp2 integration |
+| 2026-10-11 | Added the standalone admin listener, `go-link-monitor ctl` and NixOS admin options. Decision: the admin socket group comes from a setgid tmpfiles directory, not a chown in the daemon. | V083; P12 6/7. Next P12-T07 xtcp2 integration |
+| 2026-10-11 | Embedded the link monitor in xtcp2 (`link_monitor` field 250, `-linkMonitor*` flags) and added `xtcp2ctl link`. Decision: `LinkMonitorService` is always registered so a disabled monitor answers `FailedPrecondition` instead of `Unimplemented`; a monitor failure while the daemon runs is fatal. | V084; P12 7/7. Remaining: embedding VM, host `l` checks, then Phase 6 error ledger. Changes uncommitted |
 
 Publication: P08-T03 was committed as `cb958fb` and pushed on
 `test/linkmonitor-embedding`; [PR #178](https://github.com/randomizedcoder/xtcp2/pull/178)

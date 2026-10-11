@@ -1,0 +1,34 @@
+//
+// xTCP - auth
+//
+// Per-RPC access classes for xtcp2's gRPC surfaces. Each RPC declares whether
+// it only reads state (READ) or changes it (ADMIN). pkg/listenerauth reads
+// these options once at startup and checks each call against the credential
+// it presented: a read credential reaches READ methods only, and an admin
+// credential reaches every method.
+//
+// See docs/design-admin-access.md.
+
+syntax = "proto3";
+
+package xtcp_auth.v1;
+
+option go_package = "github.com/randomizedcoder/xtcp2/gen/go/xtcp_auth";
+
+import "google/protobuf/descriptor.proto";
+
+// Access is the credential class an RPC requires.
+enum Access {
+	// No declaration. Treated as ACCESS_ADMIN so that a forgotten annotation
+	// fails closed.
+	ACCESS_UNSPECIFIED = 0;
+	// Reads state only. Safe for monitoring and scrape credentials.
+	ACCESS_READ = 1;
+	// Changes state, drives work or exposes sensitive detail.
+	ACCESS_ADMIN = 2;
+}
+
+extend google.protobuf.MethodOptions {
+	// Field number from the 50000-99999 range reserved for internal use.
+	Access access = 51001;
+}

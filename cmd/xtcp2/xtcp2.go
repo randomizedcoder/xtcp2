@@ -315,6 +315,19 @@ type mainFlags struct {
 	enrichLocality          *bool
 	localityRefreshInterval *time.Duration
 
+	linkMonitor                   *bool
+	linkMonitorBaselineFile       *string
+	linkMonitorSettle             *time.Duration
+	linkMonitorResync             *time.Duration
+	linkMonitorStatsInterval      *time.Duration
+	linkMonitorStatsInclude       *string
+	linkMonitorStatsExclude       *string
+	linkMonitorNetstatFields      *string
+	linkMonitorMaxSpeedExceptions *string
+	linkMonitorMetricsCoreInclude *string
+	linkMonitorMetricsCoreExclude *string
+	linkMonitorMetricsAll         *bool
+
 	ipv4Ttl            *uint
 	ipv6HopLimit       *uint
 	listenerAuthMode   *string
@@ -323,6 +336,9 @@ type mainFlags struct {
 	listenerSignedSkew *uint
 	listenerJitterMin  *time.Duration
 	listenerJitterMax  *time.Duration
+	listenerAdminMode  *string
+	listenerAdminToken *string
+	listenerAdminHMAC  *string
 	grpcPort           *uint
 	grpcListenNetwork  *string
 	grpcListenAddress  *string
@@ -436,6 +452,7 @@ func defineFlags() *mainFlags {
 	f.hostname = flag.String("hostname", hostnameCst, "hostname stamped on records; defaults to os.Hostname(). Set this in a container, where os.Hostname() returns the container id, not the host. Falls back to XTCP_HOSTNAME env (NOT HOSTNAME).")
 	f.resolveContainerId = flag.Bool("resolveContainerId", resolveContainerIdCst, "resolve each socket's owning container id from its cgroup into container_id/container_runtime; needs /sys/fs/cgroup readable (mount it + --cgroupns=host in a container). Falls back to CONTAINER_ID_RESOLVE env.")
 	defineEnrichmentFlags(f)
+	defineLinkMonitorFlags(f)
 	defineListenerFlags(f)
 	f.deserializers = flag.String("deserializers", deserializersCst, fmt.Sprintf("Deserializers to enable. 'default'=%v ; 'all'=%v ; ''=none ; or a comma-separated subset", xtcp.GetDefaultDeserializers(), xtcp.GetAllDeserializers()))
 	defineRuntimeFlags(f)
@@ -491,6 +508,9 @@ func defineListenerFlags(f *mainFlags) {
 	f.listenerSignedSkew = flag.Uint("listenerSignedSkewMinutes", uint(listenerauth.DefaultSignedTokenSkewMinutes), "HMAC UTC-minute signed token skew in minutes (0-5). Falls back to LISTENER_SIGNED_SKEW_MINUTES env.")
 	f.listenerJitterMin = flag.Duration("listenerAuthFailureJitterMin", listenerauth.DefaultFailureJitterMin, "minimum context-aware auth-failure jitter. Falls back to LISTENER_AUTH_FAILURE_JITTER_MIN env.")
 	f.listenerJitterMax = flag.Duration("listenerAuthFailureJitterMax", listenerauth.DefaultFailureJitterMax, "maximum context-aware auth-failure jitter. Falls back to LISTENER_AUTH_FAILURE_JITTER_MAX env.")
+	f.listenerAdminMode = flag.String("listenerAdminAuthMode", "", "admin listener auth mode: disabled, raw, hmac-utc-minute. When set, admin RPCs and /debug/pprof require this credential and the shared listener credential becomes read-only. Falls back to LISTENER_ADMIN_AUTH_MODE env.")
+	f.listenerAdminToken = flag.String("listenerAdminRawToken", "", "admin listener auth raw bearer token. Prefer LISTENER_ADMIN_RAW_TOKEN or LISTENER_ADMIN_RAW_TOKEN_FILE; never logged.")
+	f.listenerAdminHMAC = flag.String("listenerAdminHMACSharedKey", "", "admin listener auth HMAC shared key. Prefer LISTENER_ADMIN_HMAC_SHARED_KEY or LISTENER_ADMIN_HMAC_SHARED_KEY_FILE; never logged.")
 	f.grpcPort = flag.Uint("grpcPort", grpcPortCst, "GRPC listening port")
 	f.grpcListenNetwork = flag.String("grpcListenNetwork", listenNetworkCst, "gRPC listener network: empty/tcp for TCP, unix for a Unix domain socket. Falls back to GRPC_LISTEN_NETWORK env.")
 	f.grpcListenAddress = flag.String("grpcListenAddress", "", "gRPC TCP address or Unix socket path. Empty derives TCP from -grpcPort. Falls back to GRPC_LISTEN_ADDRESS env.")
@@ -602,6 +622,7 @@ func printFlags(f *mainFlags) {
 	printListenerAuthFlags(f)
 	fmt.Println("*goMaxProcs:", *f.goMaxProcs)
 	printEnrichmentFlags(f)
+	printLinkMonitorFlags(f)
 	printListenerEndpointFlags(f)
 	fmt.Println("*d:", *f.d)
 }
@@ -651,6 +672,9 @@ func printListenerAuthFlags(f *mainFlags) {
 	fmt.Println("*listenerSignedSkewMinutes:", *f.listenerSignedSkew)
 	fmt.Println("*listenerAuthFailureJitterMin:", *f.listenerJitterMin)
 	fmt.Println("*listenerAuthFailureJitterMax:", *f.listenerJitterMax)
+	fmt.Println("*listenerAdminAuthMode:", *f.listenerAdminMode)
+	fmt.Println("*listenerAdminRawToken: set:", *f.listenerAdminToken != "")
+	fmt.Println("*listenerAdminHMACSharedKey: set:", *f.listenerAdminHMAC != "")
 }
 
 // printEnrichmentFlags prints the metadata-enrichment run, enrichContainer
@@ -776,9 +800,11 @@ func buildConfig(f *mainFlags, des *xtcp_config.EnabledDeserializers) *xtcp_conf
 		IpmetaCachePath:         *f.ipmetaCachePath,
 		EnrichLocalityEnable:    *f.enrichLocality,
 		LocalityRefreshInterval: durationpb.New(*f.localityRefreshInterval),
+		LinkMonitor:             buildLinkMonitorConfig(f),
 		Ipv4Ttl:                 uint32(*f.ipv4Ttl),
 		Ipv6HopLimit:            uint32(*f.ipv6HopLimit),
 		ListenerAuth:            buildListenerAuth(f),
+		AdminListenerAuth:       buildAdminListenerAuth(f),
 		GrpcPort:                uint32(*f.grpcPort),
 		GrpcListener:            grpcListener,
 		PrometheusListener:      prometheusListener,
@@ -945,8 +971,8 @@ var daemonRunner = runDaemonDefault
 // promHandlerStarter is the indirection point for the prom-handler
 // goroutine launch. Default starts the real handler; tests swap it for
 // a no-op to skip the port-bind.
-var promHandlerStarter = func(promPath string, prometheusListener *xtcp_config.ListenerEndpoint, promListen string, ipv4TTL, ipv6HopLimit uint32, auth *xtcp_config.ListenerAuth) {
-	go initPromHandler(promPath, prometheusListener, promListen, ipv4TTL, ipv6HopLimit, auth)
+var promHandlerStarter = func(promPath string, prometheusListener *xtcp_config.ListenerEndpoint, promListen string, ipv4TTL, ipv6HopLimit uint32, auth, adminAuth *xtcp_config.ListenerAuth) {
+	go initPromHandler(promPath, prometheusListener, promListen, ipv4TTL, ipv6HopLimit, auth, adminAuth)
 }
 
 func main() {
@@ -1027,11 +1053,11 @@ func runMain(ctx context.Context) int {
 
 	environmentOverrideProm(f.promListen, f.promPath, debugLevel)
 	applyPrometheusListenerAddress(c, *f.promListen)
-	if _, err := listenerauth.New(c.ListenerAuth); err != nil {
+	if _, err := listenerauth.NewPolicy(c.ListenerAuth, c.AdminListenerAuth, nil); err != nil {
 		fatalf("listener auth config invalid: %v", err)
 		return 1
 	}
-	promHandlerStarter(*f.promPath, c.PrometheusListener, *f.promListen, c.Ipv4Ttl, c.Ipv6HopLimit, c.ListenerAuth)
+	promHandlerStarter(*f.promPath, c.PrometheusListener, *f.promListen, c.Ipv4Ttl, c.Ipv6HopLimit, c.ListenerAuth, c.AdminListenerAuth)
 	if debugLevel > 10 {
 		log.Println("Prometheus http listener started on:", *f.promListen, *f.promPath)
 	}
@@ -1202,7 +1228,7 @@ func awaitSignalAndShutdown(
 // ListenAndServe error branch is exercisable without exiting.
 var fatalf = log.Fatalf
 
-func initPromHandler(promPath string, prometheusListener *xtcp_config.ListenerEndpoint, promListen string, ipv4TTL, ipv6HopLimit uint32, auth *xtcp_config.ListenerAuth) {
+func initPromHandler(promPath string, prometheusListener *xtcp_config.ListenerEndpoint, promListen string, ipv4TTL, ipv6HopLimit uint32, auth, adminAuth *xtcp_config.ListenerAuth) {
 	// A dedicated mux (not http.DefaultServeMux) for this listener. This is what
 	// lets pprof be registered EXPLICITLY below without the blank
 	// `_ "net/http/pprof"` side-effect import (which trips gosec G108): that
@@ -1228,12 +1254,14 @@ func initPromHandler(promPath string, prometheusListener *xtcp_config.ListenerEn
 	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
 	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
 	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
-	authn, err := listenerauth.New(auth)
+	// pprof exposes command lines, heap contents and CPU profiles, so it is
+	// an admin path; metrics and health checks are read paths.
+	policy, err := listenerauth.NewPolicy(auth, adminAuth, nil)
 	if err != nil {
 		fatalf("listener auth config invalid: %v", err)
 		return
 	}
-	go servePromHandler(authn.WrapHTTP(mux), prometheusListener, promListen, ipv4TTL, ipv6HopLimit)
+	go servePromHandler(policy.WrapHTTP(mux, listenerauth.PathAccess("/debug/pprof/")), prometheusListener, promListen, ipv4TTL, ipv6HopLimit)
 }
 
 // servePromHandler runs the prom HTTP server on promListen. On
@@ -1423,6 +1451,7 @@ func environmentOverrideConfig(c *xtcp_config.XtcpConfig, debugLevel uint) {
 	envOverrideKafka(c, debugLevel)
 	envOverrideLabeling(c, debugLevel)
 	envOverrideEnrichment(c, debugLevel)
+	envOverrideLinkMonitor(c, debugLevel)
 	envOverrideListeners(c, debugLevel)
 	envOverrideListenerAuth(c, debugLevel)
 }
@@ -1438,6 +1467,16 @@ func buildListenerAuth(f *mainFlags) *xtcp_config.ListenerAuth {
 	}
 }
 
+// buildAdminListenerAuth builds the admin credential from its own mode and
+// secrets. Skew and failure jitter are shared with the read credential.
+func buildAdminListenerAuth(f *mainFlags) *xtcp_config.ListenerAuth {
+	a := buildListenerAuth(f)
+	a.Mode = listenerAuthModeValue(*f.listenerAdminMode)
+	a.RawToken = *f.listenerAdminToken
+	a.HmacSharedKey = *f.listenerAdminHMAC
+	return a
+}
+
 func listenerAuthModeValue(s string) xtcp_config.ListenerAuthMode {
 	mode, err := listenerauth.ParseMode(s)
 	if err != nil {
@@ -1447,25 +1486,11 @@ func listenerAuthModeValue(s string) xtcp_config.ListenerAuthMode {
 }
 
 func envOverrideListenerAuth(c *xtcp_config.XtcpConfig, debugLevel uint) {
+	if c.ListenerAuth == nil {
+		c.ListenerAuth = &xtcp_config.ListenerAuth{}
+	}
 	a := c.ListenerAuth
-	if a == nil {
-		a = &xtcp_config.ListenerAuth{}
-		c.ListenerAuth = a
-	}
-	if v, ok := envString("LISTENER_AUTH_MODE"); ok {
-		if mode, err := listenerauth.ParseMode(v); err == nil {
-			a.Mode = mode
-			logEnv("LISTENER_AUTH_MODE", "listener auth mode set", debugLevel)
-		}
-	}
-	if v, ok := secretEnv("LISTENER_RAW_TOKEN", "LISTENER_RAW_TOKEN_FILE"); ok {
-		a.RawToken = v
-		logEnv("LISTENER_RAW_TOKEN", "listener raw token set", debugLevel)
-	}
-	if v, ok := secretEnv("LISTENER_HMAC_SHARED_KEY", "LISTENER_HMAC_SHARED_KEY_FILE"); ok {
-		a.HmacSharedKey = v
-		logEnv("LISTENER_HMAC_SHARED_KEY", "listener HMAC key set", debugLevel)
-	}
+	envOverrideAuthCredential(a, "LISTENER_", "listener", debugLevel)
 	if v, ok := envUint32("LISTENER_SIGNED_SKEW_MINUTES"); ok {
 		a.SignedTokenSkewMinutes = proto.Uint32(v)
 	}
@@ -1474,6 +1499,34 @@ func envOverrideListenerAuth(c *xtcp_config.XtcpConfig, debugLevel uint) {
 	}
 	if v, ok := envDuration("LISTENER_AUTH_FAILURE_JITTER_MAX"); ok {
 		a.FailureJitterMax = durationpb.New(v)
+	}
+	if c.AdminListenerAuth == nil {
+		c.AdminListenerAuth = &xtcp_config.ListenerAuth{}
+	}
+	admin := c.AdminListenerAuth
+	envOverrideAuthCredential(admin, "LISTENER_ADMIN_", "listener admin", debugLevel)
+	// The admin credential shares the read credential's timing knobs.
+	admin.SignedTokenSkewMinutes = a.SignedTokenSkewMinutes
+	admin.FailureJitterMin = a.FailureJitterMin
+	admin.FailureJitterMax = a.FailureJitterMax
+}
+
+// envOverrideAuthCredential applies <prefix>AUTH_MODE, <prefix>RAW_TOKEN[_FILE]
+// and <prefix>HMAC_SHARED_KEY[_FILE].
+func envOverrideAuthCredential(a *xtcp_config.ListenerAuth, prefix, what string, debugLevel uint) {
+	if v, ok := envString(prefix + "AUTH_MODE"); ok {
+		if mode, err := listenerauth.ParseMode(v); err == nil {
+			a.Mode = mode
+			logEnv(prefix+"AUTH_MODE", what+" auth mode set", debugLevel)
+		}
+	}
+	if v, ok := secretEnv(prefix+"RAW_TOKEN", prefix+"RAW_TOKEN_FILE"); ok {
+		a.RawToken = v
+		logEnv(prefix+"RAW_TOKEN", what+" raw token set", debugLevel)
+	}
+	if v, ok := secretEnv(prefix+"HMAC_SHARED_KEY", prefix+"HMAC_SHARED_KEY_FILE"); ok {
+		a.HmacSharedKey = v
+		logEnv(prefix+"HMAC_SHARED_KEY", what+" HMAC key set", debugLevel)
 	}
 }
 
@@ -1494,6 +1547,12 @@ func warnListenerAuthSecretSource(f *mainFlags) {
 	}
 	if *f.listenerHMACKey != "" && !envSet("LISTENER_HMAC_SHARED_KEY", "LISTENER_HMAC_SHARED_KEY_FILE") {
 		log.Print("listener auth HMAC key came from CLI/config; prefer LISTENER_HMAC_SHARED_KEY or LISTENER_HMAC_SHARED_KEY_FILE")
+	}
+	if *f.listenerAdminToken != "" && !envSet("LISTENER_ADMIN_RAW_TOKEN", "LISTENER_ADMIN_RAW_TOKEN_FILE") {
+		log.Print("listener admin raw token came from CLI/config; prefer LISTENER_ADMIN_RAW_TOKEN or LISTENER_ADMIN_RAW_TOKEN_FILE")
+	}
+	if *f.listenerAdminHMAC != "" && !envSet("LISTENER_ADMIN_HMAC_SHARED_KEY", "LISTENER_ADMIN_HMAC_SHARED_KEY_FILE") {
+		log.Print("listener admin HMAC key came from CLI/config; prefer LISTENER_ADMIN_HMAC_SHARED_KEY or LISTENER_ADMIN_HMAC_SHARED_KEY_FILE")
 	}
 }
 
@@ -2073,6 +2132,7 @@ func printConfig(c *xtcp_config.XtcpConfig, comment string) {
 	fmt.Println("c.EnrichLocalityEnable:", c.EnrichLocalityEnable)
 	fmt.Println("compiledInEnrichers:", xtcp.CompiledInEnrichers())
 	fmt.Println("c.LocalityRefreshInterval:", c.LocalityRefreshInterval)
+	printLinkMonitorConfig(c)
 	fmt.Println("c.GrpcPort:", c.GrpcPort)
 	if c.GrpcListener == nil {
 		fmt.Println("c.GrpcListener: unset")

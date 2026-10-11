@@ -210,6 +210,25 @@ func TestLifecycleLoadedBaselineAndControls(t *testing.T) {
 		t.Fatal(err)
 	}
 	tickLifecycle(t, l)
+	// The 64 requests made during the pass coalesce into exactly one more pass.
+	if got := l.monitor.ControlProgress(ControlRebaseline); got != (ControlProgress{Requested: 2, Completed: 1}) {
+		t.Fatalf("rebaseline progress after first save = %+v", got)
+	}
+	if err := l.control(); err != nil {
+		t.Fatal(err)
+	}
+	lifecycleDump(t, l)
+	receiveTest(t, l.store.inbox)
+	if err := l.saved(model.SaveResult{Outcome: model.SaveDurable}); err != nil {
+		t.Fatal(err)
+	}
+	tickLifecycle(t, l)
+	if got := l.monitor.ControlProgress(ControlRebaseline); got != (ControlProgress{Requested: 2, Completed: 2}) {
+		t.Fatalf("rebaseline progress after follow-up save = %+v", got)
+	}
+	if l.monitor.control.begin() != 0 {
+		t.Fatal("coalesced requests ran more than one follow-up pass")
+	}
 	if err := l.monitor.RequestResync(); err != nil {
 		t.Fatal(err)
 	}
@@ -219,5 +238,78 @@ func TestLifecycleLoadedBaselineAndControls(t *testing.T) {
 	lifecycleDump(t, l)
 	if l.resync || len(l.store.inbox) != 0 {
 		t.Fatal("resync remained active or triggered save")
+	}
+}
+
+func TestSnapshotBaselineRecordedAt(t *testing.T) {
+	loadedAt := time.Date(2026, 10, 11, 1, 2, 3, 0, time.UTC)
+	tests := []struct {
+		category    string
+		description string
+		setup       func(*testing.T, *lifecycle)
+		expected    bool // whether the time is known
+		matchSave   bool // the time equals the saved record's RecordedAt
+	}{
+		{"positive", "a loaded baseline reports its recorded time", func(_ *testing.T, l *lifecycle) {
+			l.expected, l.recordedAt = presentValue(uint64(4)), loadedAt
+		}, true, false},
+		{"positive", "a durable rebaseline replaces the recorded time", func(t *testing.T, l *lifecycle) {
+			l.expected, l.recordedAt = presentValue(uint64(4)), loadedAt
+			tickLifecycle(t, l)
+			if err := l.monitor.RequestRebaseline(); err != nil {
+				t.Fatal(err)
+			}
+			if err := l.control(); err != nil {
+				t.Fatal(err)
+			}
+			lifecycleDump(t, l)
+			receiveTest(t, l.store.inbox)
+			if err := l.saved(model.SaveResult{Outcome: model.SaveDurable}); err != nil {
+				t.Fatal(err)
+			}
+		}, true, true},
+		{"negative", "no baseline means no recorded time", func(*testing.T, *lifecycle) {}, false, false},
+		{"corner", "a baseline file without a time reports unknown", func(_ *testing.T, l *lifecycle) {
+			l.expected = presentValue(uint64(4))
+		}, false, false},
+		{"corner", "a failed rebaseline save keeps the previous time", func(t *testing.T, l *lifecycle) {
+			l.expected, l.recordedAt = presentValue(uint64(4)), loadedAt
+			tickLifecycle(t, l)
+			if err := l.monitor.RequestRebaseline(); err != nil {
+				t.Fatal(err)
+			}
+			if err := l.control(); err != nil {
+				t.Fatal(err)
+			}
+			lifecycleDump(t, l)
+			receiveTest(t, l.store.inbox)
+			if err := l.saved(model.SaveResult{Outcome: model.SaveFailed}); err != nil {
+				t.Fatal(err)
+			}
+		}, true, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			t.Logf("%s: %s; expected known: %v", tc.category, tc.description, tc.expected)
+			l, _ := testLifecycle(t, 30*time.Second)
+			tc.setup(t, l)
+			tickLifecycle(t, l)
+			got, known := l.monitor.Snapshot().BaselineRecordedAt()
+			if known != tc.expected {
+				t.Fatalf("known = %v, want %v", known, tc.expected)
+			}
+			switch {
+			case !known:
+			case tc.matchSave:
+				if got.Equal(loadedAt) || got.IsZero() {
+					t.Fatalf("recorded time %v was not replaced by the save", got)
+				}
+			case !got.Equal(loadedAt):
+				t.Fatalf("recorded time = %v, want %v", got, loadedAt)
+			}
+		})
+	}
+	if _, known := (Snapshot{}).BaselineRecordedAt(); known {
+		t.Fatal("zero snapshot reports a recorded time")
 	}
 }

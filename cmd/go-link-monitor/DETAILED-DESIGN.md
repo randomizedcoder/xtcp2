@@ -221,9 +221,10 @@ another monitor into the old registry.
 The host owns logger, context, registry, signal handling and HTTP lifetime.
 Canceling a monitor does not stop the host server; its last snapshot remains
 scrapable with stopped health. Join `Run`, report any cleanup error, and do not
-discard joined errors merely because they contain `context.Canceled`. Actual
-xtcp2 runtime wiring remains D01: the compatibility test initializes only its
-existing metric subsystem with a private registry.
+discard joined errors merely because they contain `context.Canceled`. xtcp2
+embeds the monitor through `link_monitor` (P12-T07, formerly D01): it runs `Run`
+under the daemon context, treats a failure while the daemon is live as fatal,
+and registers the core-filtered collector on its own registry.
 
 P08-T03 uses separate deterministic and disposable Linux gates, documented in
 [VALIDATION.md](VALIDATION.md). The guest starts fresh network/mount/PID

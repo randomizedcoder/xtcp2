@@ -297,6 +297,61 @@
         }
       }
     },
+    "v1LinkMonitorConfig": {
+      "type": "object",
+      "properties": {
+        "enable": {
+          "type": "boolean",
+          "description": "Start the monitor, serve LinkMonitorService and register its metrics.\nWhen false the service still answers, with FAILED_PRECONDITION."
+        },
+        "baselineFile": {
+          "type": "string",
+          "description": "Persistent link-count baseline and state file."
+        },
+        "settle": {
+          "type": "string",
+          "description": "Initial stable interval before the first baseline. Default 30s."
+        },
+        "resync": {
+          "type": "string",
+          "description": "Full reconciliation interval. Default 1h."
+        },
+        "statsInterval": {
+          "type": "string",
+          "description": "Statistics and settings collection interval. Default 15s."
+        },
+        "statsInclude": {
+          "type": "string",
+          "description": "Driver/PHY statistic names to include and exclude (Go regexps).\nDefaults \".*\" and \"^$\"."
+        },
+        "statsExclude": {
+          "type": "string"
+        },
+        "netstatFields": {
+          "type": "string",
+          "description": "Host protocol fields (Go regexp on protocol_field). Default \".*\"."
+        },
+        "maxSpeedExceptions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Exact interface or RDMA port selectors allowed below maximum speed."
+        },
+        "metricsCoreInclude": {
+          "type": "string",
+          "description": "Anchored regexps selecting the metric names xtcp2 serves. Empty include\nis the core audit set; empty exclude removes nothing. Ignored when\nmetrics_all is set."
+        },
+        "metricsCoreExclude": {
+          "type": "string"
+        },
+        "metricsAll": {
+          "type": "boolean",
+          "description": "Register every link-monitor metric instead of the core set. The full set\nis thousands of series on a large host."
+        }
+      },
+      "description": "Embedded physical link monitor (pkg/linkmonitor), the same one the\nstandalone go-link-monitor runs. Unset durations and empty strings take the\nlibrary defaults (see linkmonitor.DefaultConfig); xtcp2 supplies its own\nbaseline_file default. An embedded and a standalone monitor must not share a\nbaseline file: the second fails to take the lock and xtcp2 exits."
+    },
     "v1ListenerAuth": {
       "type": "object",
       "properties": {
@@ -718,11 +773,15 @@
         },
         "listenerAuth": {
           "$ref": "#/definitions/v1ListenerAuth",
-          "description": "Shared authentication policy for xtcp2's own listener surfaces. Auth is\nwired in a follow-up hardening slice; these fields are present now so\nconfig JSON and generated clients stabilize with the listener endpoint\nschema. Secrets are redacted from ConfigService.Get."
+          "description": "Authentication for xtcp2's own listener surfaces (gRPC and the\nPrometheus/health/pprof listener). When admin_listener_auth is unset this\ncredential reaches every method, as before. When it is set, this becomes\nthe read credential: it reaches only methods marked ACCESS_READ.\nSecrets are redacted from every ConfigService response."
         },
         "prometheusListener": {
           "$ref": "#/definitions/v1ListenerEndpoint",
           "description": "Prometheus / pprof / health listener endpoint. When unset, the daemon\nkeeps the legacy TCP behavior from -promListen / PROM_LISTEN."
+        },
+        "adminListenerAuth": {
+          "$ref": "#/definitions/v1ListenerAuth",
+          "description": "Admin credential. When set, ACCESS_ADMIN methods (ConfigService.Set, the\nruntime triggers, link-monitor rebaseline, /debug/pprof) require it, and\nit also reaches every ACCESS_READ method. Unset keeps the single shared\nlistener_auth behaviour. Secrets are redacted from ConfigService\nresponses."
         },
         "grpcPort": {
           "type": "integer",
@@ -822,9 +881,13 @@
         "localityRefreshInterval": {
           "type": "string",
           "description": "How often to re-discover local addresses/routes per namespace so runtime\nchanges (interfaces up/down, routes added) are picked up. Newly-appeared\nnamespaces are always snapshotted on the next reconcile regardless. 0 =\ndiscover once per namespace, never refresh. Daemon default 60s."
+        },
+        "linkMonitor": {
+          "$ref": "#/definitions/v1LinkMonitorConfig",
+          "description": "Physical link monitor; see LinkMonitorConfig."
         }
       },
-      "description": "Field-number layout (renumbered into subject blocks 2026-09; the binary form\nis never persisted — it only crosses the gRPC hop between xtcp2 and\nxtcp2ctl/xtcp2client, which are built from this repo's gen/go together, and\nprotojson/prototext map by NAME — so renumbering is safe). Add new knobs in\nthe free space of the matching block; open a new block above 250 for a new\nsubject.\n  10-39    polling \u0026 netlink (dump cadence, netlinker plumbing, io_uring)\n  40-49    namespace reconcile\n  50-59    capture / debug\n  60-79    output, destination-agnostic (dest, marshal, csv, envelope)\n  80-99    kafka destination\n  100-129  s3parquet destination\n  130-149  identity \u0026 labels stamped on every record\n  150-159  network knobs for xtcp2's own listeners\n  160-169  gRPC\n  170-179  profiling\n  200-249  best-effort enrichment (container 200s, lldp 210s, nic 220s,\n           nsid 230s, asn 240-244, locality 245-249)",
+      "description": "Field-number layout (renumbered into subject blocks 2026-09; the binary form\nis never persisted — it only crosses the gRPC hop between xtcp2 and\nxtcp2ctl/xtcp2client, which are built from this repo's gen/go together, and\nprotojson/prototext map by NAME — so renumbering is safe). Add new knobs in\nthe free space of the matching block; open a new block above 269 for a new\nsubject.\n  10-39    polling \u0026 netlink (dump cadence, netlinker plumbing, io_uring)\n  40-49    namespace reconcile\n  50-59    capture / debug\n  60-79    output, destination-agnostic (dest, marshal, csv, envelope)\n  80-99    kafka destination\n  100-129  s3parquet destination\n  130-149  identity \u0026 labels stamped on every record\n  150-159  network knobs for xtcp2's own listeners\n  160-169  gRPC\n  170-179  profiling\n  200-249  best-effort enrichment (container 200s, lldp 210s, nic 220s,\n           nsid 230s, asn 240-244, locality 245-249)\n  250-269  embedded subsystems (link monitor 250)",
       "title": "xtcp configuration"
     }
   }

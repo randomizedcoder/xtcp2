@@ -1,6 +1,7 @@
 package linkmonitor
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -113,3 +114,22 @@ func (f *PrometheusFixture) Remove(index uint32) {
 		f.t.Fatal(err)
 	}
 }
+
+// StartControls makes the fixture monitor accept Submit until ctx ends, so
+// adapter tests can drive real control tickets without a session.
+func (f *PrometheusFixture) StartControls(ctx context.Context) {
+	f.Monitor.control.wake = make(chan struct{}, 1)
+	f.Monitor.control.changed = make(chan struct{})
+	f.Monitor.control.start(ctx)
+}
+
+// RunControls begins and completes all pending control work, as one session
+// publication does, and reports whether any work ran.
+func (f *PrometheusFixture) RunControls() bool {
+	work := f.Monitor.control.begin()
+	f.Monitor.control.complete(work)
+	return work != 0
+}
+
+// StopControls stops accepting controls and releases waiters, as shutdown does.
+func (f *PrometheusFixture) StopControls() { f.Monitor.control.stop() }

@@ -128,7 +128,7 @@ func (s *lifecycleSession) waitStartup(ctx context.Context, m *Monitor, resource
 		case result := <-loaded:
 			r := newReducer(s.namespace)
 			if err := r.publish(m, publicationState{health: Health{Running: true}, now: s.clock.Now(),
-				expected: model.Optional[uint64]{Value: result.record.Count, Present: result.present},
+				expected: model.Optional[uint64]{Value: result.record.Count, Present: result.present}, recordedAt: result.record.RecordedAt,
 			}); err != nil {
 				return err
 			}
@@ -172,6 +172,9 @@ func (s *lifecycleSession) prepare(m *Monitor, resources *lifecycleResources) (*
 	}
 	l := &lifecycle{monitor: m, coordinator: c, store: resources.storage,
 		expected: model.Optional[uint64]{Value: resources.baseline.Count, Present: resources.present}}
+	if resources.present {
+		l.recordedAt = resources.baseline.RecordedAt
+	}
 	return l, l.publish(s.clock.Now())
 }
 

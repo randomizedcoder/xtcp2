@@ -13,11 +13,12 @@ syntax = "proto3";
 
 package xtcp_config.v1;
 
-option go_package = "./gen/go/xtcp_config";
+option go_package = "github.com/randomizedcoder/xtcp2/gen/go/xtcp_config";
 
 import "google/protobuf/duration.proto";
 // import "google/protobuf/timestamp.proto";
 import "google/api/annotations.proto";
+import "xtcp_auth/v1/xtcp_auth.proto";
 
 // https://github.com/bufbuild/protovalidate
 // https://buf.build/bufbuild/protovalidate/docs/main:buf.validate
@@ -35,6 +36,7 @@ import "buf/validate/validate.proto";
 service ConfigService {
 
   rpc Get(GetRequest) returns (GetResponse) {
+    option (xtcp_auth.v1.access) = ACCESS_READ;
     option (google.api.http) = {
       put : "/ConfigService/Get"
       body : "*"
@@ -42,6 +44,7 @@ service ConfigService {
   };
 
   rpc Set(SetRequest) returns (SetResponse) {
+    option (xtcp_auth.v1.access) = ACCESS_ADMIN;
     option (google.api.http) = {
       put : "/ConfigService/Set"
       body : "*"
@@ -49,6 +52,7 @@ service ConfigService {
   };
 
   rpc SetPollFrequency(SetPollFrequencyRequest) returns (SetPollFrequencyResponse) {
+    option (xtcp_auth.v1.access) = ACCESS_ADMIN;
     option (google.api.http) = {
       put : "/ConfigService/SetPollFrequency"
       body : "*"
@@ -60,6 +64,7 @@ service ConfigService {
   // connected PollFlatRecords stream). Coalesced if a dump is already in
   // flight. For operator-driven on-demand snapshots.
   rpc TriggerPoll(TriggerPollRequest) returns (TriggerPollResponse) {
+    option (xtcp_auth.v1.access) = ACCESS_ADMIN;
     option (google.api.http) = {
       put : "/ConfigService/TriggerPoll"
       body : "*"
@@ -72,6 +77,7 @@ service ConfigService {
   // destination. `interval` must exceed poll_timeout so each poll completes
   // before the next fires (no coalescing drop).
   rpc TriggerPollBurst(TriggerPollBurstRequest) returns (TriggerPollBurstResponse) {
+    option (xtcp_auth.v1.access) = ACCESS_ADMIN;
     option (google.api.http) = {
       put : "/ConfigService/TriggerPollBurst"
       body : "*"
@@ -83,6 +89,7 @@ service ConfigService {
   // to S3 promptly during an investigation. Only effective when the
   // destination is s3parquet.
   rpc SetS3Upload(SetS3UploadRequest) returns (SetS3UploadResponse) {
+    option (xtcp_auth.v1.access) = ACCESS_ADMIN;
     option (google.api.http) = {
       put : "/ConfigService/SetS3Upload"
       body : "*"
@@ -95,6 +102,7 @@ service ConfigService {
   // daemon (e.g. to reduce flush frequency) without a restart. Takes effect
   // on the next appended record.
   rpc SetEnvelopeFlush(SetEnvelopeFlushRequest) returns (SetEnvelopeFlushResponse) {
+    option (xtcp_auth.v1.access) = ACCESS_ADMIN;
     option (google.api.http) = {
       put : "/ConfigService/SetEnvelopeFlush"
       body : "*"
@@ -345,13 +353,79 @@ message ListenerAuth {
 	};
 }
 
+// Embedded physical link monitor (pkg/linkmonitor), the same one the
+// standalone go-link-monitor runs. Unset durations and empty strings take the
+// library defaults (see linkmonitor.DefaultConfig); xtcp2 supplies its own
+// baseline_file default. An embedded and a standalone monitor must not share a
+// baseline file: the second fails to take the lock and xtcp2 exits.
+message LinkMonitorConfig {
+	// Start the monitor, serve LinkMonitorService and register its metrics.
+	// When false the service still answers, with FAILED_PRECONDITION.
+	bool enable                                     = 1;
+
+	// Persistent link-count baseline and state file.
+	string baseline_file                            = 2 [
+		(buf.validate.field).string = { max_len: 4096 }];
+
+	// Initial stable interval before the first baseline. Default 30s.
+	google.protobuf.Duration settle                 = 3 [
+		(buf.validate.field).duration = {
+			gte: { seconds: 0 }
+			lte: { seconds: 86400 }
+	}];
+
+	// Full reconciliation interval. Default 1h.
+	google.protobuf.Duration resync                 = 4 [
+		(buf.validate.field).duration = {
+			gt: { seconds: 0 }
+			lte: { seconds: 604800 }
+	}];
+
+	// Statistics and settings collection interval. Default 15s.
+	google.protobuf.Duration stats_interval         = 5 [
+		(buf.validate.field).duration = {
+			gt: { seconds: 0 }
+			lte: { seconds: 86400 }
+	}];
+
+	// Driver/PHY statistic names to include and exclude (Go regexps).
+	// Defaults ".*" and "^$".
+	string stats_include                            = 6 [
+		(buf.validate.field).string = { max_len: 4096 }];
+	string stats_exclude                            = 7 [
+		(buf.validate.field).string = { max_len: 4096 }];
+
+	// Host protocol fields (Go regexp on protocol_field). Default ".*".
+	string netstat_fields                           = 8 [
+		(buf.validate.field).string = { max_len: 4096 }];
+
+	// Exact interface or RDMA port selectors allowed below maximum speed.
+	repeated string max_speed_exceptions            = 9 [
+		(buf.validate.field).repeated = {
+			max_items: 256
+			items: { string: { min_len: 1, max_len: 128 } }
+	}];
+
+	// Anchored regexps selecting the metric names xtcp2 serves. Empty include
+	// is the core audit set; empty exclude removes nothing. Ignored when
+	// metrics_all is set.
+	string metrics_core_include                     = 10 [
+		(buf.validate.field).string = { max_len: 4096 }];
+	string metrics_core_exclude                     = 11 [
+		(buf.validate.field).string = { max_len: 4096 }];
+
+	// Register every link-monitor metric instead of the core set. The full set
+	// is thousands of series on a large host.
+	bool metrics_all                                = 12;
+}
+
 // xtcp configuration
 //
 // Field-number layout (renumbered into subject blocks 2026-09; the binary form
 // is never persisted — it only crosses the gRPC hop between xtcp2 and
 // xtcp2ctl/xtcp2client, which are built from this repo's gen/go together, and
 // protojson/prototext map by NAME — so renumbering is safe). Add new knobs in
-// the free space of the matching block; open a new block above 250 for a new
+// the free space of the matching block; open a new block above 269 for a new
 // subject.
 //   10-39    polling & netlink (dump cadence, netlinker plumbing, io_uring)
 //   40-49    namespace reconcile
@@ -365,6 +439,7 @@ message ListenerAuth {
 //   170-179  profiling
 //   200-249  best-effort enrichment (container 200s, lldp 210s, nic 220s,
 //            nsid 230s, asn 240-244, locality 245-249)
+//   250-269  embedded subsystems (link monitor 250)
 message XtcpConfig {
 
 	// ---- polling & netlink (10-39) --------------------------------------------
@@ -891,10 +966,11 @@ message XtcpConfig {
 			lte: 255
 	}];
 
-	// Shared authentication policy for xtcp2's own listener surfaces. Auth is
-	// wired in a follow-up hardening slice; these fields are present now so
-	// config JSON and generated clients stabilize with the listener endpoint
-	// schema. Secrets are redacted from ConfigService.Get.
+	// Authentication for xtcp2's own listener surfaces (gRPC and the
+	// Prometheus/health/pprof listener). When admin_listener_auth is unset this
+	// credential reaches every method, as before. When it is set, this becomes
+	// the read credential: it reaches only methods marked ACCESS_READ.
+	// Secrets are redacted from every ConfigService response.
 	ListenerAuth listener_auth                       = 152 [
 		(buf.validate.field).required = false
 	];
@@ -902,6 +978,15 @@ message XtcpConfig {
 	// Prometheus / pprof / health listener endpoint. When unset, the daemon
 	// keeps the legacy TCP behavior from -promListen / PROM_LISTEN.
 	ListenerEndpoint prometheus_listener             = 153 [
+		(buf.validate.field).required = false
+	];
+
+	// Admin credential. When set, ACCESS_ADMIN methods (ConfigService.Set, the
+	// runtime triggers, link-monitor rebaseline, /debug/pprof) require it, and
+	// it also reaches every ACCESS_READ method. Unset keeps the single shared
+	// listener_auth behaviour. Secrets are redacted from ConfigService
+	// responses.
+	ListenerAuth admin_listener_auth                 = 154 [
 		(buf.validate.field).required = false
 	];
 
@@ -1057,6 +1142,11 @@ message XtcpConfig {
 	// namespaces are always snapshotted on the next reconcile regardless. 0 =
 	// discover once per namespace, never refresh. Daemon default 60s.
 	google.protobuf.Duration locality_refresh_interval = 246;
+
+	// ---- embedded subsystems (250-269) ----------------------------------------
+
+	// Physical link monitor; see LinkMonitorConfig.
+	LinkMonitorConfig link_monitor                     = 250;
 };
 
 message EnabledDeserializers {

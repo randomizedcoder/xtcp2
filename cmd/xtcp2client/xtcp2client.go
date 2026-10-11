@@ -12,6 +12,7 @@ import (
 
 	_ "unsafe"
 
+	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_auth"
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
 	"github.com/randomizedcoder/xtcp2/pkg/listener"
 	"github.com/randomizedcoder/xtcp2/pkg/listenerauth"
@@ -153,6 +154,20 @@ func runMain(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "xtcp2client: auth configuration: %v\n", err)
 		return 2
 	}
+	// -poll drives polls through PollFlatRecords, an admin method; listen
+	// mode only observes them. Send the admin credential where it applies.
+	admin, err := listenerauth.ClientAuthFromEnvAndFlags("", "", "", "",
+		"XTCP2_GRPC_ADMIN_TOKEN", "XTCP2_GRPC_ADMIN_TOKEN_FILE",
+		"XTCP2_GRPC_ADMIN_HMAC_SHARED_KEY", "XTCP2_GRPC_ADMIN_HMAC_SHARED_KEY_FILE")
+	if err != nil {
+		fmt.Fprintf(stderr, "xtcp2client: admin auth configuration: %v\n", err)
+		return 2
+	}
+	access := xtcp_auth.Access_ACCESS_READ
+	if *poll {
+		access = xtcp_auth.Access_ACCESS_ADMIN
+	}
+	auth = listenerauth.ForAccess(auth, admin, access)
 
 	chosen := *format
 	if *jsonFlag {

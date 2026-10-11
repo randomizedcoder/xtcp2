@@ -41,8 +41,18 @@ type collectorSnapshot struct {
 type publicationState struct {
 	health              Health
 	expected            model.Optional[uint64]
+	recordedAt          time.Time
 	now                 model.Stamp
 	baselineWriteErrors uint64
+}
+
+// unixNanos keeps the zero time distinct. UnixNano is undefined outside years
+// 1678–2262; baselines record the current wall time, which is always inside.
+func unixNanos(t time.Time) int64 {
+	if t.IsZero() {
+		return 0
+	}
+	return t.UnixNano()
 }
 
 func (r *reducer) markDirty(index int) {
@@ -70,6 +80,7 @@ func (r *reducer) publish(m *Monitor, state publicationState) error {
 		version: version, namespace: r.namespace, health: r.publicationHealth(state.health.Running, state.expected.Present),
 		lastResync:          r.lastResync,
 		baselineWriteErrors: state.baselineWriteErrors,
+		baselineRecordedAt:  unixNanos(state.recordedAt),
 		counts:              LinkCounts{current: model.Optional[uint64]{Value: r.upCount, Present: r.lastResync.Present && r.uncertain == 0 && r.rdmaUncertain == 0}, expected: state.expected},
 		host:                freezeCollector(&r.host), pages: make([]*devicePage, pageCount),
 	}

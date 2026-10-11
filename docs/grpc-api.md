@@ -1,6 +1,6 @@
 # gRPC API
 
-xtcp2 exposes a gRPC server (default port `8889`) with two services: one to read and change daemon configuration at runtime, and one to stream live TCP records. gRPC server reflection is enabled, so tools like the vendored `grpcurl` can introspect the API without the `.proto` files.
+xtcp2 exposes a gRPC server (default port `8889`) with three services: one to read and change daemon configuration at runtime, one to stream live TCP records, and one to inspect and administer the embedded link monitor. gRPC server reflection is enabled, so tools like the vendored `grpcurl` can introspect the API without the `.proto` files.
 
 ## Table of contents
 
@@ -8,32 +8,35 @@ xtcp2 exposes a gRPC server (default port `8889`) with two services: one to read
 - [ConfigService](#configservice)
 - [Runtime operator control](#runtime-operator-control)
 - [XTCPFlatRecordService](#xtcpflatrecordservice)
+- [LinkMonitorService](#linkmonitorservice)
 - [The xtcp2ctl control CLI](#the-xtcp2ctl-control-cli)
 - [The xtcp2client binary](#the-xtcp2client-binary)
 - [Using grpcurl](#using-grpcurl)
+- [Access control](#access-control)
 - [Configuration](#configuration)
 - [See also](#see-also)
 
 ## The server
 
-`pkg/xtcp/grpc_server.go` listens on `:<grpcPort>` by default and registers both services plus gRPC reflection. It can also listen on a Unix domain socket (UDS) for local-only operation. Each service has its own implementation file:
+`pkg/xtcp/grpc_server.go` listens on `:<grpcPort>` by default and registers the three services plus gRPC health and reflection. It can also listen on a Unix domain socket (UDS) for local-only operation. Each service has its own implementation file:
 
 - `pkg/xtcp/grpc_configService.go` — `ConfigService`.
 - `pkg/xtcp/grpc_flatRecordService.go` — `XTCPFlatRecordService`.
+- `pkg/linkmonitor/linkmonitorgrpc` — `LinkMonitorService`, shared with standalone go-link-monitor; `pkg/xtcp/linkmonitor.go` embeds it.
 
 ## ConfigService
 
 Defined in `proto/xtcp_config/v1/xtcp_config.proto`, this service lets you inspect and modify the running daemon's configuration:
 
-| RPC | Purpose | Disruption |
-|---|---|---|
-| `Get(GetRequest) → GetResponse` | Return the current `XtcpConfig` (S3 credentials redacted). | none |
-| `SetPollFrequency(SetPollFrequencyRequest) → SetPollFrequencyResponse` | Change the poll frequency + timeout live. | none (hot) |
-| `TriggerPoll(TriggerPollRequest) → TriggerPollResponse` | Trigger a single poll immediately, without changing the cadence. | none (hot) |
-| `TriggerPollBurst(TriggerPollBurstRequest) → TriggerPollBurstResponse` | Schedule `count` polls spaced `interval` apart (e.g. a socket snapshot every 10s for a minute). | none (hot) |
-| `SetS3Upload(SetS3UploadRequest) → SetS3UploadResponse` | Change the s3parquet staleness-flush timer and/or byte cap live. | none (hot) |
-| `SetEnvelopeFlush(SetEnvelopeFlushRequest) → SetEnvelopeFlushResponse` | Change the protobufList envelope flush row and/or byte caps live. | none (hot) |
-| `Set(SetRequest) → SetResponse` | Apply a full new `XtcpConfig` via a **soft restart** (see below). | brief (soft restart) |
+| RPC | Purpose | Disruption | Access |
+|---|---|---|---|
+| `Get(GetRequest) → GetResponse` | Return the current `XtcpConfig` (S3 credentials and listener auth secrets redacted). | none | read |
+| `SetPollFrequency(SetPollFrequencyRequest) → SetPollFrequencyResponse` | Change the poll frequency + timeout live. | none (hot) | admin |
+| `TriggerPoll(TriggerPollRequest) → TriggerPollResponse` | Trigger a single poll immediately, without changing the cadence. | none (hot) | admin |
+| `TriggerPollBurst(TriggerPollBurstRequest) → TriggerPollBurstResponse` | Schedule `count` polls spaced `interval` apart (e.g. a socket snapshot every 10s for a minute). | none (hot) | admin |
+| `SetS3Upload(SetS3UploadRequest) → SetS3UploadResponse` | Change the s3parquet staleness-flush timer and/or byte cap live. | none (hot) | admin |
+| `SetEnvelopeFlush(SetEnvelopeFlushRequest) → SetEnvelopeFlushResponse` | Change the protobufList envelope flush row and/or byte caps live. | none (hot) | admin |
+| `Set(SetRequest) → SetResponse` | Apply a full new `XtcpConfig` via a **soft restart** (see below). | brief (soft restart) | admin |
 
 Configuration changes are validated with [buf.validate](https://github.com/bufbuild/protovalidate) CEL constraints declared in the proto (for example, the poll timeout must be shorter than the poll frequency), so invalid updates are rejected at the RPC boundary.
 
@@ -53,16 +56,46 @@ The intended flow is **read → edit → apply**:
 
 **Exported field groups** are controlled by the `enabledDeserializers` map — each key toggles a whole INET_DIAG attribute group (`info` = the tcp_info struct, `bbr` = the BBR fields, plus `vegas`, `cong`, `meminfo`, `skmem`, `dctcp`, `cgroup`, …). Setting a key to `false` disables that group; the full key list is what the daemon's `-deserializers` flag accepts. Individual fields *within* a group are all-or-nothing except for the CSV/TSV `csvColumns` selector.
 
-> **Security.** Listener authentication can protect the gRPC and Prometheus/health/pprof surfaces with raw bearer tokens or HMAC UTC-minute tokens. `Get` redacts S3 credentials and listener auth secrets. For local-only operation, combine authentication with a restrictive UDS mode; the `uds-security` microVM lifecycle test exercises this combination.
+> **Security.** Listener authentication can protect the gRPC and Prometheus/health/pprof surfaces with raw bearer tokens or HMAC UTC-minute tokens, optionally split into a read credential and an admin credential (see [Access control](#access-control)). Every `ConfigService` response redacts S3 credentials and both listener auth blocks. For local-only operation, combine authentication with a restrictive UDS mode; the `uds-security` microVM lifecycle test exercises this combination.
 
 ## XTCPFlatRecordService
 
 Defined in `proto/xtcp_flat_record/v1/xtcp_flat_record.proto`:
 
-| RPC | Shape | Purpose |
+| RPC | Shape | Purpose | Access |
+|---|---|---|---|
+| `FlatRecords(FlatRecordsRequest) → stream FlatRecordsResponse` | server streaming | The daemon pushes records to the client as it collects them. | read |
+| `PollFlatRecords(stream PollFlatRecordsRequest) → stream PollFlatRecordsResponse` | bidirectional streaming | The client drives collection on demand, triggering a poll per request. | admin |
+
+## LinkMonitorService
+
+Defined in `proto/linkmonitor/v1/linkmonitor.proto` and implemented once in `pkg/linkmonitor/linkmonitorgrpc`, so xtcp2 and standalone go-link-monitor serve the same API ([design](design-admin-access.md#linkmonitorservice)).
+
+| RPC | Purpose | Access |
 |---|---|---|
-| `FlatRecords(FlatRecordsRequest) → stream FlatRecordsResponse` | server streaming | The daemon pushes records to the client as it collects them. |
-| `PollFlatRecords(stream PollFlatRecordsRequest) → stream PollFlatRecordsResponse` | bidirectional streaming | The client drives collection on demand, triggering a poll per request. |
+| `GetStatus` | Health (running, ready, collection healthy, baseline ready), link counts current/expected/delta, baseline time and write errors, last resync, control generations. | read |
+| `ListInterfaces` | Per-device identity, eligibility, checks (speed, width, duplex, RDMA readiness) and transitions; filter by exact `names` or `eligible_only`. | read |
+| `ListCollectors` | Per-device and host collector support, success, freshness, errors and discontinuities. | read |
+| `Rebaseline` | Record the current up-link count as the expected count. `reason` is required (≤512 bytes); `wait` (≤60s) blocks until the save completes. | admin |
+| `Resync` | Run a full link resync now; same shape as `Rebaseline`. | admin |
+| `ReviewErrors` / `AcknowledgeErrors` | Reserved for the error ledger; currently `Unimplemented`. | read / admin |
+
+The service is always registered. When the daemon runs without the embedded monitor, every call returns `FailedPrecondition` ("link monitor disabled"). Every admin call is logged with the RPC, reason, peer and result.
+
+**Embedding.** `-linkMonitor` (config `link_monitor.enable`, field 250) starts the monitor for the daemon's lifetime and registers its core metric set on xtcp2's Prometheus registry. A soft restart re-execs the daemon, so the monitor follows a `Set` like every other field. The baseline file is locked: an embedded and a standalone monitor must use different files, and the second one to start on a shared file logs the lock error and exits 1.
+
+| Flag | Environment | Default | Purpose |
+|---|---|---|---|
+| `-linkMonitor` | `LINK_MONITOR` | `false` | Run the embedded link monitor. |
+| `-linkMonitorBaselineFile` | `LINK_MONITOR_BASELINE_FILE` | `/var/lib/xtcp2/link-monitor-baseline.json` | Baseline file. |
+| `-linkMonitorSettle` | `LINK_MONITOR_SETTLE` | `30s` | How long link state must hold before the first baseline. |
+| `-linkMonitorResync` | `LINK_MONITOR_RESYNC` | `1h` | Full resync interval. |
+| `-linkMonitorStatsInterval` | `LINK_MONITOR_STATS_INTERVAL` | `15s` | Statistics collection interval. |
+| `-linkMonitorStatsInclude`, `-linkMonitorStatsExclude` | `LINK_MONITOR_STATS_INCLUDE`, `LINK_MONITOR_STATS_EXCLUDE` | `.*`, `^$` | Interfaces whose statistics are collected. |
+| `-linkMonitorNetstatFields` | `LINK_MONITOR_NETSTAT_FIELDS` | `.*` | Host protocol fields collected. |
+| `-linkMonitorMaxSpeedExceptions` | `LINK_MONITOR_MAX_SPEED_EXCEPTIONS` | — | Comma-separated selectors exempt from the max-speed check. |
+| `-linkMonitorMetricsCoreInclude`, `-linkMonitorMetricsCoreExclude` | `LINK_MONITOR_METRICS_CORE_INCLUDE`, `LINK_MONITOR_METRICS_CORE_EXCLUDE` | core set, — | Anchored metric-name patterns registered on xtcp2's registry. |
+| `-linkMonitorMetricsAll` | `LINK_MONITOR_METRICS_ALL` | `false` | Register every link monitor metric instead of the core set. |
 
 ## The xtcp2ctl control CLI
 
@@ -109,6 +142,10 @@ xtcp2ctl reconfigure -file cfg.new.json
 | `set-s3` | `-flush-interval`, `-threshold-bytes` (at least one) | hot |
 | `set-envelope-flush` | `-threshold-bytes`, `-threshold-rows` (at least one) | hot |
 | `reconfigure` | `-file` (`-` = stdin) | soft restart |
+| `link status\|interfaces\|collectors` | `-format text\|json`; `interfaces`: `-name`, `-eligible-only` | none |
+| `link rebaseline\|resync` | `-reason` (required), `-wait` | hot |
+
+`link` takes the common flags *before* its subcommand, so the subcommand's own flags stay separate: `xtcp2ctl link -port 8889 rebaseline -reason "cabling fixed" -wait 30s`. It allows 75s per call, so the 60s maximum `-wait` fits.
 
 ## The xtcp2client binary
 
@@ -166,6 +203,29 @@ grpcurl -plaintext 127.0.0.1:8889 xtcp_config.v1.ConfigService/Get \
 
 `xtcp2ctl` (above) wraps these same calls with flag-based ergonomics.
 
+## Access control
+
+Each RPC carries an access class, declared as the `(xtcp_auth.v1.access)` method option in the proto (`proto/xtcp_auth/v1/xtcp_auth.proto`). `XTCPFlatRecordService` is also ClickHouse's format schema, so its two classes are declared in `pkg/xtcp/grpc_access.go` instead. A method with no class is treated as **admin**, and a test fails the build if any registered method lacks an explicit one. Health checking and server reflection are read.
+
+| Configured credentials | Read RPCs, `/metrics`, health | Admin RPCs, `/debug/pprof/` |
+|---|---|---|
+| none | open | open |
+| shared only (`-listenerAuthMode`) | shared credential | shared credential (unchanged behaviour) |
+| shared + admin (`-listenerAdminAuthMode`) | shared or admin credential | admin credential only |
+| admin only | open | admin credential only |
+
+Once an admin credential is configured, the shared credential becomes read-only: a valid shared credential presented to an admin RPC gets `PermissionDenied` (HTTP `403`), while a missing or wrong credential gets `Unauthenticated` (HTTP `401`) after the failure jitter. The method table is built once at startup; each call does one map lookup.
+
+| Daemon flag | Environment fallback | Purpose |
+|---|---|---|
+| `-listenerAdminAuthMode` | `LISTENER_ADMIN_AUTH_MODE` | `disabled`, `raw`, or `hmac-utc-minute`. |
+| `-listenerAdminRawToken` | `LISTENER_ADMIN_RAW_TOKEN`, `LISTENER_ADMIN_RAW_TOKEN_FILE` | Admin raw bearer token; never logged. |
+| `-listenerAdminHMACSharedKey` | `LISTENER_ADMIN_HMAC_SHARED_KEY`, `LISTENER_ADMIN_HMAC_SHARED_KEY_FILE` | Admin HMAC shared key; never logged. |
+
+The admin credential shares the HMAC skew and failure jitter of the shared credential. Prefer the `_FILE` variables so secrets stay out of process listings.
+
+Clients keep their existing `-auth-*` flags and `XTCP2_GRPC_AUTH_TOKEN[_FILE]` / `XTCP2_GRPC_HMAC_SHARED_KEY[_FILE]` variables for the shared credential. `xtcp2ctl` and `xtcp2client` also read `XTCP2_GRPC_ADMIN_TOKEN[_FILE]` and `XTCP2_GRPC_ADMIN_HMAC_SHARED_KEY[_FILE]`; when set, they send the admin credential to admin RPCs (every `xtcp2ctl` command except `get` and `link status|interfaces|collectors`, and `xtcp2client` poll mode) and the shared credential everywhere else.
+
 ## Configuration
 
 | Flag | Default | Purpose |
@@ -185,7 +245,7 @@ xtcp2ctl -network unix -unixSocket /run/xtcp2/grpc.sock get
 
 `432` is decimal for `0660`; use `384` for `0600`. The socket parent directory must already exist and should be owned so only trusted local users can traverse it.
 
-The configuration protobuf also exposes `grpc_listener`, `prometheus_listener`, and `listener_auth`. `listener_auth` secret fields are redacted by `ConfigService.Get` and preserved by `ConfigService.Set` when omitted from an update, but token enforcement is planned for the next hardening slice.
+The configuration protobuf also exposes `grpc_listener`, `prometheus_listener`, `listener_auth`, `admin_listener_auth`, and `link_monitor` (field 250, see [LinkMonitorService](#linkmonitorservice)). Secret fields in both auth blocks are redacted from every `ConfigService` response and preserved by `ConfigService.Set` when omitted from an update. Enforcement is described in [Access control](#access-control).
 
 ## See also
 
