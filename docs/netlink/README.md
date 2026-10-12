@@ -58,6 +58,11 @@ rather than delete it. Link-write Phase 4 landed the gate: the read path stays
 `BuildWriteRequest` admits exactly `RTM_NEWROUTE`, `RTM_DELROUTE`,
 `RTM_NEWLINK` and `RTM_DELLINK`. Requests built there are written to a file for
 comparison and never sent; no automated path applies a write to a live kernel.
+Both dry runs have since landed on that gate: `goip link
+add|set|change|replace|delete` and `goip route
+add|change|replace|prepend|append|test|delete` build `ip`'s request
+byte for byte and write it to `GOIP_WRITE_OUT`, and refuse with
+`ErrWriteNotApplied` when the hook is unset.
 
 This is what makes a twenty-family surface finite, and it is the main reason
 coverage numbers here are not comparable with `vishvananda/netlink` — that

@@ -998,13 +998,37 @@ func TestRunRouteArgs(t *testing.T) {
 			wantStderrSubstr: "not implemented",
 		},
 		{
-			// A write verb must stay unreachable: goip is read-only, and
-			// `flush` reaching a handler at all would be the wrong kind of bug.
-			description:      "negative: the write verb `flush` is refused",
+			// flush is a dump and then one delete per route; goip has no
+			// such loop, and the add-through-delete verbs it does have stop
+			// before the kernel anyway (route_write.go).
+			description:      "negative: `flush` is refused",
 			pcap:             routeDumpPcap,
 			args:             []string{"route", "flush"},
 			wantCode:         ExitUsage,
 			wantStderrSubstr: "not implemented",
+		},
+		{
+			description:      "negative: `get` is refused",
+			pcap:             routeDumpPcap,
+			args:             []string{"route", "get", "192.0.2.1"},
+			wantCode:         ExitUsage,
+			wantStderrSubstr: "not implemented",
+		},
+		{
+			// A dev-less add needs no lookup, so it reaches the hook with
+			// nothing on the wire; GOIP_WRITE_OUT is unset here.
+			description:      "positive: `add` parses and stops at the write hook",
+			pcap:             routeDumpPcap,
+			args:             []string{"route", "add", "blackhole", "198.51.100.0/24"},
+			wantCode:         ExitUsage,
+			wantStderrSubstr: "never applies a write",
+		},
+		{
+			description:      "corner: `a` is add, ahead of every other verb",
+			pcap:             routeDumpPcap,
+			args:             []string{"route", "a", "blackhole", "198.51.100.0/24"},
+			wantCode:         ExitUsage,
+			wantStderrSubstr: "never applies a write",
 		},
 		{
 			// The `dev goip0` token is GONE from the first line, which is the

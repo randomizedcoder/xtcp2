@@ -12,7 +12,8 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// runRoute handles `ip route ...`. Only the list verbs are implemented.
+// runRoute handles `ip route ...`: the write verbs (route_write.go) and the
+// list verbs.
 //
 // do_iproute (ip/iproute.c:2418-2462) tests its verbs in a fixed order with
 // matches(), and the order decides what an abbreviation means:
@@ -22,8 +23,10 @@ import (
 //	sa   -> save,  which is NOT show — "sa" is not a prefix of "show"
 //	ls   -> lst,   the third spelling of list, and the only one "ls" matches
 //
-// goip implements list/show/lst and rejects everything else, including the
-// read-only-but-unimplemented get/save/showdump, with ErrNotImplemented. That
+// The write verbs come first in that chain, add through delete, and none
+// starts with 'l' or 's'. After them goip implements list/show/lst and
+// rejects everything else, get/flush/save/restore/showdump included, with
+// ErrNotImplemented. That
 // is a deliberate narrowing of iproute2's two outcomes — it says "command
 // unknown" for a typo and runs the verb otherwise — into the one the parity
 // harness can act on. A bare `ip route` with no verb is a list
@@ -36,6 +39,9 @@ import (
 func runRoute(c *runCtx, args []string) error {
 	if len(args) > 0 {
 		verb := args[0]
+		if v := lookupRouteWriteVerb(verb); v != nil {
+			return routeWrite(c, v, args[1:])
+		}
 		if !matchesPrefix(verb, "list") && !matchesPrefix(verb, "show") && !matchesPrefix(verb, "lst") {
 			return fmt.Errorf("route %q: %w", verb, ErrNotImplemented)
 		}

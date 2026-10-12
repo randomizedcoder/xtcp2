@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/randomizedcoder/xtcp2/pkg/nlparity"
@@ -1854,6 +1855,13 @@ func (s *linkReplay) Talk(request []byte, msgType uint16) ([]byte, error) {
 		for _, r := range msgs[i+1:] {
 			if r.IsRequest() {
 				break
+			}
+			// A refused get (ENODEV for a name that does not exist) is
+			// what the live socket hands back as the errno.
+			if r.Hdr.Type == unix.NLMSG_ERROR && len(r.Body) >= 4 {
+				if e := int32(binary.LittleEndian.Uint32(r.Body)); e < 0 { //nolint:gosec // the wire int
+					return nil, syscall.Errno(-e)
+				}
 			}
 			if r.Hdr.Type == msgType {
 				return xtcpnl.CopyBytes(r.Body), nil
