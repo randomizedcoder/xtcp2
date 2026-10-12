@@ -1,0 +1,169 @@
+#!/usr/bin/env expect
+###############################################################################
+# capture-rdma.exp - drive the RDMA nldev capture inside a microVM
+#
+# Usage:
+#   capture-rdma.exp <serial-port> <blob-out>
+#
+# Records what iproute2's `rdma` tool sends on NETLINK_RDMA and what the
+# kernel answers, against a soft-RoCE (rdma_rxe) device over a veth pair, for
+# the read-only nldev commands pkg/xtcpnl decodes (xtcpnl_rdma.go). The output
+# is pkg/xtcpnl/testdata/<guest kernel>/rdma/.
+#
+# It boots the netlink-dump-capture VM - same pinned kernel, same iproute2,
+# same xtcp2-nlcap helper - and uses that helper's strace subcommands rather
+# than its nlmon captures. nlmon cannot tap NETLINK_RDMA; see "THE RDMA
+# CAPTURES ARE STRACE, NOT NLMON" in nix/microvms/netlink-capture.nix.
+#
+# Everything runs in the VM's own network namespace. rdma_rxe is loaded with
+# modprobe here rather than at boot so no other capture flavor sees an RDMA
+# device, and the RDMA subsystem's default netns mode is shared, so a device
+# made in a throwaway namespace would be visible from every other one anyway.
+# The veth MACs are fixed because rxe derives its node GUID from the netdev's
+# MAC (addrconf_addr_eui48), and an unpinned MAC would make every GUID byte a
+# per-boot value.
+###############################################################################
+
+source [file dirname [info script]]/vm-lib.exp
+
+if {$argc < 2} {
+    puts "usage: capture-rdma.exp <serial-port> <blob-out>"
+    exit 2
+}
+set port     [lindex $argv 0]
+set blob_out [lindex $argv 1]
+
+set NS   "-"
+set SUB  "."
+set short_rows {}
+
+proc nlcap {args} {
+    return [vmlib::run_out "xtcp2-nlcap [join $args { }]"]
+}
+
+# row <name> <command>
+#
+# One `rdma` invocation under strace. A row that recorded no buffer at all is
+# a capture failure (the tool never reached the socket), whatever its exit
+# status says; a non-zero status with buffers is an observation, kept.
+proc row {name command} {
+    global NS SUB short_rows
+    lassign [nlcap strace $NS $SUB $name "'$command'"] rc out
+    vmlib::log [string trim $out]
+    if {$rc != 0 || [regexp {buffers=0\M} $out]} {
+        lappend short_rows $name
+    }
+}
+
+proc topo {args} {
+    global NS SUB
+    lassign [nlcap topo $NS $SUB {*}$args] rc out
+    vmlib::log [string trim $out]
+    return $rc
+}
+
+###############################################################################
+# run
+###############################################################################
+
+vmlib::init
+vmlib::connect $port 300
+
+if {[vmlib::run "command -v xtcp2-nlcap >/dev/null && command -v strace >/dev/null"] != 0} {
+    vmlib::log "FATAL: xtcp2-nlcap or strace is not on the guest PATH."
+    puts "NLCAP_DRIVER_FAIL"
+    exit 3
+}
+
+vmlib::must "xtcp2-nlcap side - . uname 'uname -a'"
+vmlib::must "xtcp2-nlcap side - . ip_version 'ip -V'"
+vmlib::must "xtcp2-nlcap side - . rdma_version 'rdma -V'"
+
+if {[vmlib::run "modprobe rdma_rxe"] != 0} {
+    vmlib::log "FATAL: modprobe rdma_rxe failed"
+    puts "NLCAP_DRIVER_FAIL"
+    exit 3
+}
+
+set topo_failed 0
+foreach step {
+    {link add rx0 address 02:00:00:00:52:00 type veth peer name rx1 address 02:00:00:00:52:01}
+    {link set rx0 up}
+    {link set rx1 up}
+} {
+    if {[topo {*}$step] != 0} {
+        incr topo_failed
+    }
+}
+if {[vmlib::run "rdma link add rxe0 type rxe netdev rx0"] != 0} {
+    vmlib::log "FATAL: rdma link add rxe0 failed"
+    puts "NLCAP_DRIVER_FAIL"
+    exit 3
+}
+vmlib::run "echo 'ok    \[-\] rdma link add rxe0 type rxe netdev rx0' >> /tmp/nlcap/topology"
+vmlib::must "xtcp2-nlcap wait-rdma-port - rxe0/1 ACTIVE 30"
+
+vmlib::log "=== rdma rows ==="
+row sys_show       "rdma system show"
+row dev_show       "rdma dev show"
+row dev_show_one   "rdma dev show rxe0"
+row dev_show_json  "rdma -j dev show"
+row dev_missing    "rdma dev show nosuch"
+row link_show      "rdma link show"
+row link_show_one  "rdma link show rxe0/1"
+row link_missing   "rdma link show rxe0/9"
+row res_show       "rdma res show"
+row stat_show      "rdma statistic show link rxe0/1"
+
+# The monitor row: rxe1 is added and deleted while `rdma monitor` listens,
+# and the row ends on the UNREGISTER that the delete provokes, the last event
+# of the pair.
+lassign [nlcap strace-monitor $NS $SUB monitor_add \
+    "'rdma link add rxe1 type rxe netdev rx1 && rdma link del rxe1'" \
+    "'\[UNREGISTER\]'"] rc out
+vmlib::log [string trim $out]
+if {$rc != 0} {
+    lappend short_rows monitor_add
+}
+
+lassign [nlcap inventory] inv_rc inventory
+vmlib::log "captured [llength [split [string trim $inventory] "\n"]] files"
+
+vmlib::log "=== packing ==="
+lassign [vmlib::run_out "xtcp2-nlcap pack" 600] pack_rc blob
+if {$pack_rc != 0} {
+    vmlib::log "FATAL: pack failed (rc=$pack_rc)"
+    puts "NLCAP_DRIVER_FAIL"
+    exit 3
+}
+
+set fh [open $blob_out w]
+puts $fh $blob
+close $fh
+vmlib::log "wrote [string length $blob] bytes of base64 to $blob_out"
+
+vmlib::poweroff
+
+###############################################################################
+# verdict
+###############################################################################
+
+puts ""
+if {$topo_failed > 0} {
+    puts "NLCAP_TOPO_REFUSED $topo_failed"
+}
+if {[llength $short_rows] > 0} {
+    puts "NLCAP_RDMA_SHORT [llength $short_rows]"
+    foreach r $short_rows {
+        puts "  $r"
+    }
+    puts "NLCAP_DRIVER_FAIL"
+    exit 1
+}
+if {$topo_failed > 0} {
+    puts "NLCAP_DRIVER_FAIL"
+    exit 1
+}
+
+puts "NLCAP_DRIVER_PASS"
+exit 0

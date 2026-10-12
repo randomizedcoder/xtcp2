@@ -909,6 +909,15 @@ let
     };
   });
 
+  # RDMA nldev capture runner: the netlink-dump-capture VM driven by
+  # scripts/capture-rdma.exp. A runner for netlinkDumpCapture's reasons.
+  rdmaCapture = lib.genAttrs constants.supportedArchs (arch: {
+    runner = microvmLib.mkRdmaCaptureRunner {
+      inherit arch;
+      vm = vmsNetlinkDumpCapture.${arch};
+    };
+  });
+
   # Tier 2 LACP capture runner (link-write-path.md phase 8): boots lacp-b and
   # then lacp-a on two point-to-point dgram links and drives A with
   # scripts/capture-lacp-pair.exp. A runner for linkWriteCapture's reasons,
@@ -1031,6 +1040,7 @@ in
     netlinkDumpCapture
     goipParity
     linkWriteCapture
+    rdmaCapture
     lacpPairCapture
     clickPipeRate
     clickPipeStress

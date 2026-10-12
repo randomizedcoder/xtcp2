@@ -1529,6 +1529,187 @@ rec {
       '';
     };
 
+  # mkRdmaCaptureRunner — host runner for the RDMA nldev capture
+  # (scripts/capture-rdma.exp). It boots the netlink-dump-capture VM: same
+  # kernel, same iproute2, same xtcp2-nlcap. mkLinkWriteCaptureRunner with a
+  # different driver and destination; the rows are strace hex dumps rather
+  # than pcaps because nlmon cannot tap NETLINK_RDMA (see
+  # nix/microvms/netlink-capture.nix).
+  mkRdmaCaptureRunner =
+    {
+      arch,
+      vm,
+    }:
+    let
+      cfg = constants.architectures.${arch};
+
+      captureScripts =
+        pkgs.runCommand "xtcp2-rdma-capture-scripts"
+          {
+            vmLib = ./scripts/vm-lib.exp;
+            driver = ./scripts/capture-rdma.exp;
+          }
+          ''
+            mkdir -p $out
+            cp $vmLib $out/vm-lib.exp
+            cp $driver $out/capture-rdma.exp
+            chmod +x $out/capture-rdma.exp
+          '';
+    in
+    pkgs.writeShellApplication {
+      name = "xtcp2-rdma-capture-${arch}";
+      runtimeInputs = with pkgs; [
+        coreutils
+        expect
+        findutils
+        gawk
+        gnutar
+        gzip
+        netcat-gnu
+      ];
+      text = ''
+        set -u
+
+        TIMEOUT_SEC=1800
+        OUT_DIR=""
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --timeout)     TIMEOUT_SEC="$2"; shift 2 ;;
+            --timeout=*)   TIMEOUT_SEC="''${1#--timeout=}"; shift ;;
+            --out)         OUT_DIR="$2"; shift 2 ;;
+            --out=*)       OUT_DIR="''${1#--out=}"; shift ;;
+            -h|--help)
+              echo "usage: $0 [--timeout <seconds>] [--out <dir>]"
+              echo "  Boots the netlink-dump-capture microvm, adds a soft-RoCE"
+              echo "  device (rdma_rxe) over a veth pair, and records each"
+              echo "  read-only rdma command's NETLINK_RDMA traffic under strace,"
+              echo "  with its stdout, stderr and exit status."
+              echo ""
+              echo "  --out defaults to pkg/xtcpnl/testdata/<guest kernel>/rdma,"
+              echo "  with the kernel derived from the guest's own uname sidecar."
+              echo "  Must be run from the xtcp2 repo root."
+              exit 0
+              ;;
+            *) echo "unknown arg: $1" >&2; exit 1 ;;
+          esac
+        done
+
+        if [ ! -f flake.nix ] || [ ! -d pkg/xtcpnl ]; then
+          echo "rdma-capture: run from the xtcp2 repo root" >&2
+          exit 2
+        fi
+
+        SERIAL_PORT=${toString cfg.serialPort}
+        VIRTCON_PORT=${toString cfg.virtioPort}
+        LOG=$(mktemp -t xtcp2-rdma-capture-XXXX.log)
+        BLOB=$(mktemp -t xtcp2-rdma-blob-XXXX.b64)
+
+        echo "================================================"
+        echo " xtcp2 microvm rdma-capture — arch=${arch}"
+        echo " timeout: $TIMEOUT_SEC s"
+        echo " transcript: $LOG"
+        echo "================================================"
+
+        QEMU_LOG="''${LOG}.qemu"
+        ${vm}/bin/microvm-run > "$QEMU_LOG" 2>&1 &
+        vm_pid=$!
+
+        nc_virtcon_pid=""
+        for _ in $(seq 1 30); do
+          if nc -z 127.0.0.1 "$VIRTCON_PORT" 2>/dev/null; then
+            nc 127.0.0.1 "$VIRTCON_PORT" >> "$QEMU_LOG" 2>&1 &
+            nc_virtcon_pid=$!
+            break
+          fi
+          sleep 1
+        done
+
+        trap '
+          if kill -0 "$vm_pid" 2>/dev/null; then
+            kill "$vm_pid" 2>/dev/null || true
+            wait "$vm_pid" 2>/dev/null || true
+          fi
+          if [ -n "$nc_virtcon_pid" ] && kill -0 "$nc_virtcon_pid" 2>/dev/null; then
+            kill "$nc_virtcon_pid" 2>/dev/null || true
+          fi
+        ' EXIT
+
+        rc=0
+        timeout "$TIMEOUT_SEC" \
+          expect ${captureScripts}/capture-rdma.exp \
+            "$SERIAL_PORT" "$BLOB" 2>&1 \
+          | tee "$LOG" || rc=$?
+
+        if [ "$rc" -eq 124 ]; then
+          echo "FATAL: the capture driver did not finish within $TIMEOUT_SEC s"
+          echo "       Guest boot log: $QEMU_LOG"
+          exit 2
+        fi
+
+        if [ ! -s "$BLOB" ]; then
+          echo "FATAL: the driver wrote no capture blob (exit $rc)"
+          echo "       Driver transcript: $LOG"
+          echo "       Guest boot log:    $QEMU_LOG"
+          exit 2
+        fi
+
+        STAGE=$(mktemp -d -t xtcp2-nlcap-rdma-XXXX)
+        if ! awk '
+              /XTCP2_NLCAP_DUMP_START/ { flag = 1; next }
+              /XTCP2_NLCAP_DUMP_END/   { flag = 0 }
+              flag
+            ' "$BLOB" \
+          | tr -d '\r\n ' \
+          | base64 -d 2>/dev/null \
+          | gzip -dc 2>/dev/null \
+          | tar x -C "$STAGE" 2>/dev/null; then
+          echo "FATAL: the capture blob did not decode"
+          echo "       $(wc -c < "$BLOB") bytes of base64 kept at $BLOB"
+          exit 2
+        fi
+
+        for required in ip_version rdma_version uname topology dev_show.strace; do
+          if [ ! -s "$STAGE/$required" ]; then
+            echo "FATAL: extracted blob has no $required"
+            echo "       staged files:"
+            find "$STAGE" -type f | sort || true
+            exit 2
+          fi
+        done
+
+        if [ -z "$OUT_DIR" ]; then
+          VER=$(awk '{print $3}' "$STAGE/uname" | cut -d- -f1 | tr . _)
+          if [ -z "$VER" ]; then
+            echo "FATAL: could not derive a kernel version from the uname sidecar"
+            exit 2
+          fi
+          OUT_DIR="pkg/xtcpnl/testdata/$VER/rdma"
+        fi
+
+        mkdir -p "$OUT_DIR"
+        cp -rf "$STAGE"/. "$OUT_DIR"/
+
+        echo ""
+        echo "================================================"
+        echo " wrote fixtures to $OUT_DIR"
+        echo "================================================"
+        find "$OUT_DIR" -type f | sort
+        echo ""
+        echo "Driver transcript: $LOG"
+        echo "Guest boot log:    $QEMU_LOG"
+
+        if [ "$rc" -ne 0 ]; then
+          echo ""
+          echo "FAIL: the driver exited $rc. Check NLCAP_RDMA_SHORT and"
+          echo "      NLCAP_TOPO_REFUSED in the transcript before committing."
+          exit "$rc"
+        fi
+
+        echo "PASS: rdma nldev capture complete"
+        exit 0
+      '';
+    };
+
   # mkLacpPairRunner — host runner for lacp-pair-capture, Tier 2 of
   # docs/netlink/link-write-path.md (phase 8).
   #

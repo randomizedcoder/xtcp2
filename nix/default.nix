@@ -1237,6 +1237,19 @@ in
       program = "${microvms.linkWriteCapture.x86_64.runner}/bin/xtcp2-link-write-capture-x86_64";
     };
 
+    # RDMA nldev capture (pkg/xtcpnl/xtcpnl_rdma.go). Boots the
+    # netlink-dump-capture VM, adds a soft-RoCE device over a veth pair, and
+    # records each read-only `rdma` command's NETLINK_RDMA traffic under
+    # strace (nlmon cannot tap that protocol). Writes
+    # pkg/xtcpnl/testdata/<guest kernel>/rdma/.
+    #
+    # Run from the repo root. `--out <dir>` overrides the destination. Not in
+    # `nix flake check`: /dev/kvm plus a write to the working tree.
+    microvm-x86_64-rdma-capture = {
+      type = "app";
+      program = "${microvms.rdmaCapture.x86_64.runner}/bin/xtcp2-rdma-capture-x86_64";
+    };
+
     # Tier 2 bond / LACP readback capture (link-write-path.md phase 8). Boots
     # two microvms joined by two point-to-point qemu dgram links, no tap and
     # no bridge: lacp-b builds an 802.3ad bond over its two virtio-net ports

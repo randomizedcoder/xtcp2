@@ -123,6 +123,9 @@ in
     _Static_assert(RDMA_NLDEV_ATTR_EVENT_TYPE == 102, "event attribute");
     _Static_assert(RDMA_NLDEV_SYS_ATTR_MONITOR_MODE == 103, "monitor mode");
     HEADER
+    # Every constant pkg/xtcpnl declares from the same header.
+    cc -I${pkgs.linuxHeaders}/include -x c -fsyntax-only \
+      -include rdma/rdma_netlink.h pkg/xtcpnl/testdata/rdma_consts.h
     mkdir -p "$out/bin"
     cc -Wall -Wextra -Werror $(pkg-config --cflags libibumad) \
       -Ipkg/linkmonitor/internal/rdmacaps nix/tests/linkmonitor-umad-test.c \

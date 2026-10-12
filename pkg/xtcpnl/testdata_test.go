@@ -195,6 +195,13 @@ const (
 	// netlink in between and are the oracle the decode tests are written from.
 	tdLinkWrite_7_1_4 = tdBase + "/7_1_4/link-write"
 
+	// 7.1.4 RDMA nldev captures, produced in the microVM by
+	// `nix run .#microvm-x86_64-rdma-capture` (scripts/capture-rdma.exp).
+	// nlmon cannot tap NETLINK_RDMA, so each row is an strace of one `rdma`
+	// invocation (<slug>.strace, read by parseStrace) with its .out, .err and
+	// .rc beside it.
+	tdRdma_7_1_4 = tdBase + "/7_1_4/rdma"
+
 	tdLacpNoPartnerGetLink_7_1_4   = tdLinkWrite_7_1_4 + "/lacp_no_partner/netlink_route_getlink.pcap"
 	tdLacpConvergedGetLink_7_1_4   = tdLinkWrite_7_1_4 + "/lacp_converged/netlink_route_getlink.pcap"
 	tdLacpPartnerDownGetLink_7_1_4 = tdLinkWrite_7_1_4 + "/lacp_partner_down/netlink_route_getlink.pcap"

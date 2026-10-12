@@ -103,11 +103,13 @@ pkgs.writeShellApplication {
   name = "xtcp2-nlcap";
   runtimeInputs = with pkgs; [
     coreutils
+    gawk
     gnugrep
     gnutar
     gzip
     iproute2
     kmod
+    strace
     tcpdump
   ];
   text = ''
@@ -619,6 +621,159 @@ pkgs.writeShellApplication {
       return 1
     }
 
+    # THE RDMA CAPTURES ARE STRACE, NOT NLMON
+    #
+    # nlmon cannot see NETLINK_RDMA. netlink_filter_tap()
+    # (net/netlink/af_netlink.c) mirrors a fixed list of protocols - ROUTE,
+    # USERSOCK, SOCK_DIAG, NFLOG, XFRM, FIB_LOOKUP, NETFILTER, GENERIC - and
+    # every other protocol is dropped before it reaches a tap, so a tcpdump on
+    # nlmon0 around `rdma dev show` records nothing at all. The bytes the tool
+    # sent and received are instead taken from its own syscalls: strace's
+    # `-e write=all -e read=all` hex-dumps every sendmsg/recvmsg buffer, and
+    # pkg/xtcpnl reads those dumps back into datagrams. Same oracle - what
+    # iproute2 put on the socket and what the kernel answered - recorded one
+    # layer up.
+    #
+    # `socket` is traced too: it is what ties a file descriptor to
+    # NETLINK_RDMA, so a reader can keep that protocol's traffic and nothing
+    # else.
+    STRACE_ARGS=(-qq -f -e "trace=socket,sendto,sendmsg,recvfrom,recvmsg" -e write=all -e read=all)
+
+    in_ns() {
+      local ns=$1
+      shift
+      if [ "$ns" = "-" ]; then
+        "$@"
+      else
+        ip netns exec "$ns" "$@"
+      fi
+    }
+
+    # strace <ns> <subdir> <name> <command>
+    #
+    # One RDMA row: <command> run under strace in <ns> (`-` is the VM's own
+    # namespace), recorded as <name>.strace, <name>.out, <name>.err and
+    # <name>.rc. One attempt: a read row's outcome, error or not, is the
+    # observation.
+    cmd_strace() {
+      local ns=$1 subdir=$2 name=$3 command=$4
+      local dir="$OUT/$subdir" rc=0 n
+      mkdir -p "$dir"
+      in_ns "$ns" strace "''${STRACE_ARGS[@]}" -o "$dir/$name.strace" \
+        sh -c "$command" >"$dir/$name.out" 2>"$dir/$name.err" || rc=$?
+      echo "$rc" >"$dir/$name.rc"
+      n=$(grep -c 'bytes in buffer' "$dir/$name.strace" || true)
+      echo "NLCAP_STRACE_OK $subdir/$name rc=$rc buffers=$n"
+    }
+
+    # strace-monitor <ns> <subdir> <name> <trigger> <until>
+    #
+    # `rdma monitor` under strace while <trigger> runs, stopped once its
+    # stdout shows <until>. Both waits are polls on the condition that
+    # matters: the trigger starts only once a NETLINK_RDMA socket in the
+    # namespace holds group RDMA_NL_GROUP_NOTIFY (4, so bit 0x8 of
+    # /proc/net/netlink's Groups column), and the monitor is stopped only once
+    # it has printed the last event the trigger provokes. rdma fflushes after
+    # every event (rdma/monitor.c), so the line being there means the
+    # datagram has been read.
+    #
+    # The trigger itself is not traced: only the monitor's own socket is the
+    # row.
+    cmd_strace_monitor() {
+      local ns=$1 subdir=$2 name=$3 trigger=$4 until=$5
+      local dir="$OUT/$subdir" spid child deadline joined=0 seen=0 rc=0 n
+      mkdir -p "$dir"
+      # Not through in_ns: a backgrounded function is a subshell, and $! would
+      # name it rather than strace. `ip netns exec` execs, so here $! is
+      # strace and rdma is its child.
+      if [ "$ns" = "-" ]; then
+        strace "''${STRACE_ARGS[@]}" -o "$dir/$name.strace" \
+          rdma monitor >"$dir/$name.out" 2>"$dir/$name.err" &
+      else
+        ip netns exec "$ns" strace "''${STRACE_ARGS[@]}" -o "$dir/$name.strace" \
+          rdma monitor >"$dir/$name.out" 2>"$dir/$name.err" &
+      fi
+      spid=$!
+
+      deadline=$(( $(date +%s) + BIND_TIMEOUT ))
+      while [ "$(date +%s)" -lt "$deadline" ]; do
+        if in_ns "$ns" cat /proc/net/netlink | grep -Eq '^[0-9a-f]+ +20 +[0-9]+ +[0-9a-f]*[89abcdef]( |$)'; then
+          joined=1
+          break
+        fi
+        sleep 0.05
+      done
+      if [ "$joined" -ne 1 ]; then
+        echo "NLCAP_MONITOR_NOJOIN $subdir/$name" >&2
+      fi
+
+      in_ns "$ns" timeout 20 sh -c "$trigger" >/dev/null 2>&1 || true
+
+      deadline=$(( $(date +%s) + SENTINEL_TIMEOUT ))
+      while [ "$(date +%s)" -lt "$deadline" ]; do
+        if grep -qF "$until" "$dir/$name.out" 2>/dev/null; then
+          seen=1
+          break
+        fi
+        sleep 0.05
+      done
+
+      # SIGTERM to rdma, not to strace: strace would detach and leave the
+      # monitor running. Not SIGINT: a non-interactive shell starts a
+      # background job with SIGINT ignored, and exec keeps it ignored, so
+      # rdma would never see it. The children are found by parent pid in
+      # /proc/*/stat rather than /proc/<pid>/task/<pid>/children, which
+      # needs CONFIG_PROC_CHILDREN. The wait is bounded; a monitor that
+      # outlives SIGTERM is killed with strace, and the row reports short.
+      child=$(awk -v p="$spid" '$4 == p { print $1 }' /proc/[0-9]*/stat 2>/dev/null || true)
+      for c in $child; do
+        kill -TERM "$c" 2>/dev/null || true
+      done
+      deadline=$(( $(date +%s) + 5 ))
+      while kill -0 "$spid" 2>/dev/null && [ "$(date +%s)" -lt "$deadline" ]; do
+        sleep 0.05
+      done
+      if kill -0 "$spid" 2>/dev/null; then
+        echo "NLCAP_MONITOR_KILLED $subdir/$name" >&2
+        kill -KILL "$spid" 2>/dev/null || true
+        for c in $child; do
+          kill -KILL "$c" 2>/dev/null || true
+        done
+        seen=0
+      fi
+      wait "$spid" || rc=$?
+      echo "$rc" >"$dir/$name.rc"
+      n=$(grep -c 'bytes in buffer' "$dir/$name.strace" || true)
+      if [ "$joined" -ne 1 ] || [ "$seen" -ne 1 ]; then
+        echo "NLCAP_MONITOR_SHORT $subdir/$name joined=$joined seen=$seen buffers=$n"
+        return 1
+      fi
+      echo "NLCAP_STRACE_OK $subdir/$name rc=$rc buffers=$n"
+    }
+
+    # wait-rdma-port <ns> <dev/port> <state> <timeout>
+    #
+    # Polls `rdma link show` until the port reports <state>, so no capture
+    # races rxe's port coming up.
+    cmd_wait_rdma_port() {
+      local ns=$1 link=$2 want=$3 timeout=$4 start deadline v=""
+      start=$(date +%s)
+      deadline=$(( start + timeout ))
+      while :; do
+        v="$(in_ns "$ns" rdma link show "$link" 2>/dev/null)" || v=""
+        if printf '%s\n' "$v" | grep -q "state $want "; then
+          echo "NLCAP_RDMA_PORT_OK $link=$want elapsed=$(( $(date +%s) - start ))s"
+          return 0
+        fi
+        if [ "$(date +%s)" -ge "$deadline" ]; then
+          break
+        fi
+        sleep 0.1
+      done
+      echo "NLCAP_RDMA_PORT_TIMEOUT $link want $want got: $v"
+      return 1
+    }
+
     # dir [subdir]
     #
     # Where captures live, so a driver can hand the path to another program
@@ -661,7 +816,7 @@ pkgs.writeShellApplication {
     }
 
     if [ $# -lt 1 ]; then
-      die "usage: xtcp2-nlcap <ns-add|ns-del|topo|cap|capio|write|side|wait-lacp|wait-sysfs|wait-churn|dir|inventory|pack> ..."
+      die "usage: xtcp2-nlcap <ns-add|ns-del|topo|cap|capio|write|side|wait-lacp|wait-sysfs|wait-churn|strace|strace-monitor|wait-rdma-port|dir|inventory|pack> ..."
     fi
 
     sub=$1
@@ -677,6 +832,9 @@ pkgs.writeShellApplication {
       wait-lacp) cmd_wait_lacp "$@" ;;
       wait-sysfs) cmd_wait_sysfs "$@" ;;
       wait-churn) cmd_wait_churn "$@" ;;
+      strace)    cmd_strace "$@" ;;
+      strace-monitor) cmd_strace_monitor "$@" ;;
+      wait-rdma-port) cmd_wait_rdma_port "$@" ;;
       dir)       cmd_dir "$@" ;;
       inventory) cmd_inventory "$@" ;;
       pack)      cmd_pack "$@" ;;

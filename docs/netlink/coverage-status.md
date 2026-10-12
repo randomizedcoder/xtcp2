@@ -575,6 +575,23 @@ decoders in the package. They are resolved by family name rather than by a
 fixed message type, so they do not appear in the RTM tables above. Not rendered
 by `goip`, not in the matrix.
 
+### RDMA nldev
+
+`NETLINK_RDMA` has no family header: an nldev message is an nlmsghdr of type
+`RDMA_NL_GET_TYPE(RDMA_NL_NLDEV, cmd)` (`0x1400 + cmd`) and then attributes.
+
+| reply | nldev command | decoder | goip |
+|---|---|---|---|
+| device | `GET` | `ParseRdmaDev` | — |
+| port | `PORT_GET` dump; the doit answers typed `GET` | `ParseRdmaPort` | — |
+| resource summary | `RES_GET` | `ParseRdmaRes` | — |
+| default hardware counters | `STAT_GET` with no `STAT_RES` | `ParseRdmaStat` | — |
+| system modes | `SYS_GET` | `ParseRdmaSys` | — |
+| monitor event (group 4) | `MONITOR` | `ParseRdmaEvent` | — |
+
+`ParseRdmaMsg` dispatches on the type. Decoded, not rendered, not in the
+matrix. See [the RDMA nldev decoder](#the-rdma-nldev-decoder).
+
 ### What happens to a type nothing here knows
 
 `WalkNlMsgs` (`xtcpnl_rtnetlink.go:327`, the type switch at `:357`) handles
@@ -867,7 +884,7 @@ Phases and scope are as defined in
 | **3** | Rules (`FRA_*`), nexthop (`NHA_*`), bridge/VLAN, `IFLA_LINKINFO` descent | **partial** | the `IFLA_LINKINFO` descent, as far as `IFLA_INFO_KIND` — [`4494b42`](#4494b42--the-ifla_-and-ifa_-attribute-decoders-a-show-line-needs), the first production caller of `WalkRTAttrsNested`. **`FRA_*` is done**: `struct fib_rule_hdr` and all 30 attributes decode in `xtcpnl_fib_rule_hdr.go`, `render.RuleView` prints them, and `ip rule show` drives four parity commands — see [below](#ip-rule-show-the-object-with-no-name-table). **`NHA_*` is done**: `struct nhmsg` and the nexthop attributes — id, oif, gateway, blackhole, fdb, group, group-type and the nested `NHA_RES_GROUP` — decode in `xtcpnl_nhmsg.go` and render for `ip nexthop show` and `-d` route nhid resolution; see the nexthop arc in [Where we are](#where-we-are). **The `IFLA_INFO_DATA` sub-nest is decoded for kind `vrf`** (`IFLA_VRF_TABLE`), together with `IFLA_INFO_SLAVE_DATA`'s `IFLA_VRF_PORT_TABLE`, driving `-d link`/`addr show` of a VRF master and its port. **And for kind `bond`**: every `IFLA_BOND_*` option, the `AD_INFO` nest and the twelve `IFLA_BOND_SLAVE_*` port attributes decode (link-write-path phase 1). They are not rendered yet, so `-d` on a bond still refuses | bridge/VLAN, the bond `-d` render, and the `IFLA_INFO_DATA` sub-nest for link kinds other than `vrf` and `bond`, each a separate attribute space per kind |
 | **4** | tc telemetry only (23 top-level `TCA_*`) | not started | — | all of it |
 | **5** | genetlink: `nlctrl` `GETFAMILY` first, then ethtool/devlink/netdev/vdpa/fou/gtp | not started | — | all of it |
-| **6** | xfrm, conntrack, ipset, proc_event, rdma | not started | — | all of it, plus a hand-declared constant block per family |
+| **6** | xfrm, conntrack, ipset, proc_event, rdma | **partial** | **rdma, decode only**: the hand-declared `RDMA_NL*` block (`xtcpnl_rdma_consts.go`, every value C-gated against `<rdma/rdma_netlink.h>`), read-only nldev request builders, and decoders for the device, port, resource summary, hardware counter, system and monitor-event replies, on a strace corpus — see [below](#the-rdma-nldev-decoder) | xfrm, conntrack, ipset, proc_event; for rdma, the per-object `RES_*` entry decoders, a `goip` render, and moving `pkg/linkmonitor/internal/linuxio` onto the shared decoders |
 | **7** | `unix_diag`, `xdp_diag`, and the deferred relocation into `rtnl/` and `diag/` | not started | — | all of it |
 
 ## Capture readiness
@@ -895,6 +912,7 @@ is `ip -t monitor all label` (`:1757`).
 | 6 conntrack | `nf_conntrack_netlink` — **add** | `conntrack -E` — **add** | `conntrack-tools` — **add** | no |
 | 6 ipset | `ip_set` — **add** | n/a (dump-only) | `ipset` — **add** | no |
 | 6 proc_event | `CONFIG_PROC_EVENTS` — **verify** | needs a `PROC_CN_MCAST_LISTEN` subscriber — **add** | — | no |
+| 6 rdma | `rdma_rxe`, by `modprobe` in the capture script ✅ | `rdma monitor` under strace ✅ (nlmon cannot tap `NETLINK_RDMA`) | `rdma` (in `iproute2`) ✅, `strace` ✅ | **yes** |
 | 7 `unix_diag`, `xdp_diag` | `unix_diag` / `xdp_diag` — **verify** | n/a (dump-only) | `ss` (in `iproute2`) ✅ | likely |
 
 The ✅ marks are verified against the tree
@@ -3061,6 +3079,53 @@ request matched byte for byte on both runs, and all 26 gate with no
 allowlist entry. `TestRouteWriteRowsGated` and the `earned`/`gated_commands`
 pair in `pkg/nlparity` pin the flip, and the ungated surface is still
 twenty-two rows.
+
+### The RDMA nldev decoder
+
+Phase 6's first family, decode only, on `feat/xtcpnl-rdma-nldev`.
+
+- **The constants.** `xtcpnl_rdma_consts.go` declares `RDMA_NL_NLDEV`,
+  `RDMA_NL_GROUP_NOTIFY`, every `rdma_nldev_command` and `rdma_nldev_attr`,
+  and the counter-mode and notify-event enums, as the flake-pinned 7.0
+  `linuxHeaders` has them. x/sys/unix v0.47.0 names none. Each one has an
+  `_Static_assert` in `pkg/xtcpnl/testdata/rdma_consts.h`, compiled against
+  `<rdma/rdma_netlink.h>` by `test-linkmonitor-rdma-runtime`, and
+  `TestRdmaConstsHeaderList` keeps that list and the Go block in step. The
+  two bounds, `NUM_OPS` and `ATTR_MAX`, are 7.0's, so a header bump fails
+  the gate on exactly those two.
+- **The requests.** `BuildRdmaRequest` admits only the read commands, with
+  flags limited to `REQUEST|ACK|DUMP`. The `_RAW` dumps (marked
+  `RDMA_NL_ADMIN_PERM`) and `GET_CHARDEV` are refused. The wrappers for
+  dev dump/get, port, res, stat and sys match what `rdma` 7.1.0 sent, byte
+  for byte once seq is zeroed (`TestRdmaRequestsMatchRdma`).
+- **The decoders** validate as `rdma`'s `rd_attr_cb` does: exact widths
+  from `nldev_policy`, NUL-terminated names, and the last duplicate wins.
+  Attributes they do not read go into `Unknown`.
+
+**The corpus is strace, not pcap.** `netlink_filter_tap`
+(`net/netlink/af_netlink.c`) lets nlmon see only ROUTE, USERSOCK,
+SOCK_DIAG, NFLOG, XFRM, FIB_LOOKUP, NETFILTER and GENERIC, so `NETLINK_RDMA`
+never reaches a tap. `nix run .#microvm-x86_64-rdma-capture`
+(`scripts/capture-rdma.exp`) boots the dump-capture VM, loads `rdma_rxe`,
+builds `rxe0` over a veth whose MAC is pinned, and runs each `rdma` command
+under `strace -e write=all -e read=all` through `xtcp2-nlcap strace`. The
+result is `testdata/7_1_4/rdma/<slug>.strace` with `.out`, `.err` and
+`.rc`. The test-only `parseStrace` turns it back into datagrams. Two runs
+were identical, seq and pid aside.
+
+What the corpus showed, where the plan had guessed otherwise:
+
+- **rxe on 7.1.4 reports 15 hardware counters, not 17.**
+- **rxe0 is device index 0.**
+- **`rdma link show rxe0/9` never reaches the kernel.** `rdma` checks the
+  port against the dump and fails with "Wrong device name", so there is no
+  errno in the corpus.
+- **Deleting a device sends `UNREGISTER` and no `NETDEV_DETACH`.**
+- **No attribute in the corpus is unknown** (`TestRdmaCorpusHasNoUnknown`).
+  `RES_SUMMARY_ENTRY_MAX` (118, 7.3 only) is not sent for rxe.
+
+The corpus carries 27 distinct attributes, and that is the floor
+`rdmaCaptureCoverageCst` pins.
 
 ## Tier C — the `goip-parity` microVM flavor
 

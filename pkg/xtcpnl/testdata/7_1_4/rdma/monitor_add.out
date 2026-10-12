@@ -1,0 +1,3 @@
+[REGISTER]	dev 1 rxe1
+[NETDEV_ATTACH]	dev 1 rxe1 port 1 netdev 3 rx1
+[UNREGISTER]	dev 1 rxe1
