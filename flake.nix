@@ -94,6 +94,19 @@
     # Override to a local checkout when iterating on the oracle itself:
     #   nix build .#proto-audit-netlink --override-input xdp2 path:/home/das/Downloads/xdp2
     xdp2.url = "github:randomizedcoder/xdp2/16aa76764c8ab18897de6af13cac37c2fa89bb37";
+
+    # rocm-ernic emulates an AMD Pensando ionic NIC over vfio-user, so the
+    # in-tree ionic/ionic_rdma drivers give test-linkmonitor-ionic-vm real
+    # driver netlink, ethtool and verbs replies without hardware. Consumed
+    # for nixosModules.ernic-guest and packages.ernic-run. Override to a
+    # local checkout when iterating on the emulator:
+    #   nix run .#test-linkmonitor-ionic-vm --override-input rocm-ernic path:/home/das/Downloads/rocm-ernic
+    rocm-ernic = {
+      url = "github:randomizedcoder/rocm-ernic/84f06fe6ed706580b954f4b25832c52ab214444a";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.flake-utils.follows = "flake-utils";
+      inputs.microvm.follows = "microvm";
+    };
   };
 
   nixConfig = {
@@ -111,6 +124,7 @@
       microvm,
       giouring,
       xdp2,
+      rocm-ernic,
     }:
     flake-utils.lib.eachSystem [ "x86_64-linux" ] (
       system:
@@ -137,6 +151,7 @@
             giouring
             xdp2
             ;
+          rocmErnic = rocm-ernic;
           src = ./.;
         };
       in

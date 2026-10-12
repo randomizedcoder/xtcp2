@@ -1,0 +1,12 @@
+[
+  {
+    "call": "DiscoverFamily(\"ethtool\")",
+    "values": 1,
+    "digest": "9f2473ebaf825c26"
+  },
+  {
+    "call": "GetEthtool(fec, 4)",
+    "values": 0,
+    "error": "operation not supported"
+  }
+]

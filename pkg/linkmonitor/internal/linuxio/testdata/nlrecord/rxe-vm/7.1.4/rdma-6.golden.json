@@ -1,0 +1,22 @@
+[
+  {
+    "call": "DumpRDMADevices",
+    "values": 1,
+    "digest": "0bdf398b5cc4809c"
+  },
+  {
+    "call": "DumpRDMAPorts(1)",
+    "values": 1,
+    "digest": "c28cf38c376de5dd"
+  },
+  {
+    "call": "GetRDMAPort(1, 1)",
+    "values": 1,
+    "digest": "c28cf38c376de5dd"
+  },
+  {
+    "call": "monitorMode",
+    "values": 1,
+    "digest": "b5bea41b6c623f7c"
+  }
+]

@@ -2870,6 +2870,13 @@ rec {
       # delete the image here; the long-running soak runner keeps its own disk.
       # null (default) = no reset (flavors without a persistent docker disk).
       resetDockerImg ? null,
+      # Required archives the guest prints as base64(gzip(tar)) between
+      # <marker>_START / <marker>_END lines from the unit whose syslog
+      # identifier is `identifier`. After a passing OVERALL each one is
+      # unpacked into "$<dirVar>" (default: a fresh mktemp directory); a
+      # missing or corrupt block fails the run. Each element:
+      #   { name, marker, identifier, dirVar }
+      scrapeArchives ? [ ],
     }:
     let
       cfg = constants.architectures.${arch};
@@ -3066,6 +3073,29 @@ rec {
           else
             ""
         }
+        ${lib.concatMapStrings (archive: ''
+          if [ "$rc" -eq 0 ]; then
+            archive_dir="''${${archive.dirVar}:-$(mktemp -d -t xtcp2-${archive.name}-XXXX)}"
+            mkdir -p "$archive_dir"
+            for _ in $(seq 1 30); do
+              if grep -q '${archive.marker}_END' "$LOG"; then
+                break
+              fi
+              sleep 1
+            done
+            if awk '/${archive.marker}_START/{flag=1;next} /${archive.marker}_END/{flag=0} flag' "$LOG" \
+              | sed -E 's/^\[[^]]*\] ${archive.identifier}\[[0-9]+\]: //' \
+              | tr -d '\r\n ' \
+              | base64 -d \
+              | gzip -dc \
+              | tar x -C "$archive_dir"; then
+              echo "${archive.name}: extracted $(find "$archive_dir" -type f | wc -l) file(s) into $archive_dir"
+            else
+              echo "FAIL: ${archive.name}: no complete ${archive.marker} block in $LOG"
+              rc=1
+            fi
+          fi
+        '') scrapeArchives}
         exit "$rc"
       '';
     };

@@ -18,7 +18,7 @@ const (
 )
 
 // RDMANotifications owns a kernel-authenticated NLDEV lifecycle subscription.
-type RDMANotifications struct{ conn *netlink.Conn }
+type RDMANotifications struct{ conn transport }
 
 // OpenRDMANotifications joins before probing the read-only system monitor mode.
 // Joining a group alone does not prove that the kernel emits notifications.
@@ -35,7 +35,7 @@ func OpenRDMANotifications(ctx context.Context) (*RDMANotifications, error) {
 	if err != nil {
 		return nil, errors.Join(err, conn.Close())
 	}
-	return &RDMANotifications{conn: conn}, nil
+	return &RDMANotifications{conn: recordTransport(unix.NETLINK_RDMA, conn)}, nil
 }
 
 func (c *Client) monitorMode(ctx context.Context) error {
@@ -105,6 +105,10 @@ func DecodeRDMANotifications(data []byte, emit func() bool) error {
 	})
 }
 
+// decodeNotification requires only EVENT_TYPE. The kernel's
+// rdma_nl_notify_event omits the device handle for NETDEV_RENAME (netdev
+// index and name only) and sends EVENT_TYPE alone when the netdev is in
+// another namespace, so identifiers are validated when present, never required.
 func decodeNotification(body []byte) error {
 	attrs, err := xtcpnl.ParseNetlinkAttributes(body)
 	if err != nil {
@@ -129,7 +133,7 @@ func decodeNotification(body []byte) error {
 			return err
 		}
 	}
-	if !seen[1] || !seen[2] || !seen[rdmaEventType] {
+	if !seen[rdmaEventType] {
 		return ErrReply
 	}
 	return nil

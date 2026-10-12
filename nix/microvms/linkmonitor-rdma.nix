@@ -14,6 +14,8 @@ let
     name = "linkmonitor-rdma-guest-test";
     runtimeInputs = with pkgs; [
       coreutils
+      gnutar
+      gzip
       iproute2
       kmod
       rdma-core
@@ -35,6 +37,8 @@ let
       ${artifact}/bin/rdma-vm.test -test.run '^TestSoftwareRDMADiscovery$' -test.v
       ibv_devinfo -d lm_rxe
       echo XTCP2_SELF_TEST_RDMA_DISCOVERY_PASS
+      ${artifact}/bin/rdma-vm.test -test.run '^TestSoftwareRDMAEventsSurviveRename$' -test.v
+      echo XTCP2_SELF_TEST_RDMA_RENAME_PASS
       # Permission manipulation is confined to disposable guest fixture nodes.
       for node in /dev/infiniband/uverbs*; do chmod 600 "$node"; done
       if runuser -u rdma-denied -- ibv_devinfo -d lm_rxe; then
@@ -50,6 +54,17 @@ let
       ibv_devinfo -d lm_rxe
       ${artifact}/bin/linkmonitor-smoke
       echo XTCP2_SELF_TEST_RDMA_RECOVERY_PASS
+      # Record every linuxio request shape against the guest kernel; the
+      # runner unpacks the dump into replay fixtures (TestRecordedContracts).
+      nlrec=$(mktemp -d)
+      LINKMONITOR_NLRECORD="$nlrec" LINKMONITOR_LIVE_INTERFACE=lm0 \
+        ${artifact}/bin/linuxio-nlrecord.test -test.run '^TestLiveRequestShapes$' -test.v
+      uname -r > "$nlrec/kernel.txt"
+      echo XTCP2_NLREC_DUMP_START
+      tar c -C "$nlrec" . | gzip -n | base64 -w0
+      echo
+      echo XTCP2_NLREC_DUMP_END
+      echo XTCP2_SELF_TEST_RDMA_CONTRACTS_PASS
       echo 'UNVERIFIED: real verbs event delivery and native InfiniBand UMAD/speed/duplex; synthetic adapter tests are separate.'
       echo XTCP2_SELF_TEST_OVERALL_PASS
     '';
@@ -97,8 +112,18 @@ let
     suffix = "-linkmonitor-rdma";
     extraSentinels = [
       "RDMA_DISCOVERY"
+      "RDMA_RENAME"
       "RDMA_PERMISSION"
       "RDMA_RECOVERY"
+      "RDMA_CONTRACTS"
+    ];
+    scrapeArchives = [
+      {
+        name = "nlrecord";
+        marker = "XTCP2_NLREC_DUMP";
+        identifier = "linkmonitor-rdma-guest-test";
+        dirVar = "XTCP2_NLREC_DIR";
+      }
     ];
   };
 in

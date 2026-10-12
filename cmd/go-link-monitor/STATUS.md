@@ -2,7 +2,7 @@
 
 Last updated: 2026-10-11.
 
-**P01–P08, P09-T01 and P12 (P12-T01–P12-T07) are complete: 34 of 42 implementation tasks passed their gates.**
+**P01–P08, P09-T01, P12 (P12-T01–P12-T07) and P13-T01–P13-T04 are complete: 38 of 47 implementation tasks passed their gates.**
 P09-T02 is in progress: repeatable profiling/soak targets and short diagnostic
 evidence are implemented; the required ten-minute run remains outstanding.
 
@@ -331,6 +331,106 @@ required event coverage keeps collection unhealthy, so on an RDMA host such a
 build never learns a first baseline. Pinned race tests, vet and all three
 golangci configurations pass for `pkg/linkmonitor/...` and
 `cmd/go-link-monitor/...`.
+
+V086 — netlink contract audit and RDMA notification decoder fix (2026-10-11):
+V085's bug survived because no test saw a real reply. nlmon cannot capture
+NETLINK_RDMA (`netlink_filter_tap()` mirrors only route, generic, sock_diag
+and a few others), the scripted fakes echoed the request type, no `linuxio`
+test replays recorded bytes, and `test-linkmonitor-rdma-vm` had never been
+run and covered only the dumps. An audit of every request against linux 7.2.9
+found all requests match the kernel. It also found one more reply mismatch:
+`decodeNotification` required `DEV_INDEX`/`DEV_NAME`. The kernel's
+`rdma_nl_notify_event` sends neither for `RDMA_NETDEV_RENAME_EVENT` (only
+`NDEV_INDEX`/`NDEV_NAME`), nor for attach/detach when the netdev is in another
+namespace (`EVENT_TYPE` only). The resulting `ErrReply` ended
+`RDMANotifications.Run` and with it `rdma_events`, so a routine RoCE netdev
+rename removed RDMA event coverage. The decoder now requires only
+`EVENT_TYPE`, still validates the optional attributes when present, and emits a
+topology hint for any well-formed message. `TestRDMANotifications` is a
+26-row table of the kernel's event shapes (positive, negative, boundary and
+corner); six rows fail on the old decoder. `TestRDMAMonitorModeTransaction`
+covers `SYS_GET` (reply typed `SYS_GET`, `MONITOR_MODE` a u8): mode on, off and
+absent, an error reply, a `GET`-typed reply and a bad attribute length. The rxe
+VM now also asserts the single-port GET and runs
+`TestSoftwareRDMAEventsSurviveRename` (`lm0` to `lmr0`, a 15-byte name, down/up
+and back), printing `XTCP2_SELF_TEST_RDMA_RENAME_PASS`. Before the V085 fix the
+GET assertion fails with `context deadline exceeded (5.00s)`. Under KVM the
+fixed tree passes every sentinel, including `RDMA_RENAME`; the pre-fix decoder
+with the same tests passes discovery and then fails the rename step (no
+`RDMA_RENAME_PASS`, then `OVERALL_FAIL`). Real-driver
+coverage comes from `rocm-ernic` (emulated ionic over vfio-user), whose
+`nixosModules.ernic-guest` reaches `PORT_ACTIVE` on the in-tree
+`ionic`/`ionic_rdma` drivers.
+
+V087 — in-process netlink recording and replay (2026-10-11): since nlmon
+cannot see NETLINK_RDMA, `linuxio` records in process. Builds with the
+`nlrecord` tag wrap every socket when `LINKMONITOR_NLRECORD=<dir>` is set and
+write one `<protocol>-<pid>-<serial>.pcap` per socket, in nlmon's DLT_NETLINK
+form (`PACKET_KERNEL` requests, `PACKET_USER` replies), so
+`xtcpnl.ParseNetlinkPcap` and tcpdump read them. One file per socket keeps
+request/reply pairing across the socket retirement that any error reply
+causes. Recording never fails I/O; its first write error is reported by
+`recordError`. Production builds compile a no-op (`record_off_linux.go`).
+`TestLiveRequestShapes` issues every request shape `linuxio` builds once:
+route dump/GET, GETFAMILY, the seven ethtool GETs, the devlink port dump, the
+RDMA device/port dumps, the single-port GET, `SYS_GET` and an ENODEV GET.
+Rows skip only on their listed unsupported errnos.
+`test-linkmonitor-rdma-vm` runs it recorded on the rxe guest (kernel 7.1.4),
+prints the recordings between `XTCP2_NLREC_DUMP_START`/`_END`, and the runner
+unpacks them (new required `scrapeArchives` option, into `$XTCP2_NLREC_DIR`
+or a mktemp directory), with sentinel `RDMA_CONTRACTS`. The run passed
+every sentinel; the guest skipped only veth's unsupported rings, pause and
+FEC. The fixtures are committed under
+`pkg/linkmonitor/internal/linuxio/testdata/nlrecord/rxe-vm/7.1.4/`, next to
+host `l`'s real-driver set (mlx5 RoCE and atlantic, kernel 7.1.8) under
+`host-l/7.1.8/`. `TestRecordedContracts` replays each one through the real
+API: every built request must equal the recorded one (ignoring seq/pid), the
+recorded replies are fed back, and the results must match the
+`.golden.json` next to the pcap (`-update` regenerates).
+`LINKMONITOR_NLRECORD_REPLAY=<dir>` replays an ad-hoc directory without
+goldens. `TestRecordedContractMutations` covers a
+request with one more flag bit, a #192-shaped reply type, the kernel's real
+GET reply, a DONE-only dump and an ENODEV reply. With the V085 fix reverted,
+replay of both the rxe fixtures and host `l`'s mlx5 recording fails:
+`GetRDMAPort(1, 1) … context deadline exceeded`. Replay also stops with an
+error, rather than spinning, when a call never sends its recorded request.
+Race tests, vet (`nlrecord`, `rdma,rdma_vm,nlrecord`), all three golangci
+configurations with and without `nlrecord`, and the Nix
+`test-linkmonitor-rdma-{unit,lint}` checks pass.
+
+V088 — real-driver ionic guest (2026-10-11): `test-linkmonitor-ionic-vm`
+boots a qemu-vm.nix guest (kernel 7.1.4, 4 cores) with the in-tree `ionic` and
+`ionic_rdma` drivers bound to a rocm-ernic emulated AMD Pensando NIC over
+vfio-user. It uses the new `rocm-ernic` flake input (`nixosModules.ernic-guest`
+and `ernic-run`, pinned to the fork until upstream takes them) and the real
+`go-link-monitor` rdma binary, whose `/metrics-all` the `ionic_vm` tests
+scrape (a small table-tested text-format parser, `exposition_parse_test.go`).
+Sentinels: DISCOVERY (port 1 ACTIVE/LINK_UP on the netdev), CONTRACTS
+(`TestLiveRequestShapes` recorded), MONITOR, CLI, EVENTS, UNPLUG, HOTPLUG and
+RECOVERED_EVENTS. MONITOR requires healthy collection, a baseline of one up link,
+and every collector either supported and successful or listed with a reason
+that a check proves on the guest: `rdma_capabilities` is not_applicable
+(`link_layer` Ethernet; the UMAD query is native-InfiniBand only) and
+`rdma_counters` unsupported (no `counters`, `counters_ext` or `hw_counters`
+group on the emulated port). Unlisted collectors and nonzero
+`collector_errors_total` fail. CLI compares speed, duplex, driver, combined
+channels, current rx/tx rings and RoCE port state against `ethtool` and
+`rdma link`. EVENTS covers down, up, a rename to a 15-byte name and back.
+Hot-unplug is a guest PCI remove while the monitor holds its verbs context;
+removal completed without blocking, the monitor reported the lost link
+(`up_links_delta` -1, link metrics gone), and after `pci/rescan` it rediscovered
+`ionic_0`, returned to baseline and healthy, and the event rows passed again
+on the replugged device. QMP `device_del` was tried first and aborts QEMU
+11.0.2 and 11.1.1 (`memory_region_del_subregion: Assertion
+subregion->container == mr`); that is a QEMU vfio-user teardown bug, not a
+guest or monitor fault. The same run passed every sentinel against
+rocm-ernic's refreshed nixpkgs (QEMU 11.1.1, kernel 7.2.9). The recordings
+are committed under `testdata/nlrecord/ionic-vm/7.1.4/` and `7.2.9/`, and the
+two kernels decode to identical goldens; with no error replies one generic
+socket serves every ethtool and devlink request.
+With the V085 fix reverted, its RDMA replay fails (`GetRDMAPort(0, 1) …
+context deadline exceeded`). Not established: verbs async-event delivery (no
+per-event metric) and physical NIC behavior.
 
 V076 — privileged performance VM wiring (2026-10-10): added the modular
 `test-linkmonitor-performance-vm` runner under `nix/microvms/`. It reuses the
@@ -683,6 +783,7 @@ integration remains deferred under D01.
 | P10 | Optional io_uring | not started | 0/3 | None |
 | P11 | Release verification | not started | 0/3 | None |
 | P12 | Administration API and xtcp2 integration | done | 7/7 | V079–V084 |
+| P13 | Netlink contracts | in progress | 4/5 | V085–V088; pre-merge gates documented, host `l` alerts and pin bump remain |
 
 ## Task checklist
 
@@ -733,6 +834,11 @@ plan, not copied here. Add verification IDs to the evidence column as work runs.
 | [x] | [P12-T05](IMPLEMENTATION-PLAN.md#p12-t05) | Shared control CLI | done | V082 |
 | [x] | [P12-T06](IMPLEMENTATION-PLAN.md#p12-t06) | Standalone admin listener | done | V083 |
 | [x] | [P12-T07](IMPLEMENTATION-PLAN.md#p12-t07) | xtcp2 runtime integration (former D01) | done | V084 |
+| [x] | [P13-T01](IMPLEMENTATION-PLAN.md#p13-t01) | Kernel reply audit and RDMA notification decoder | done | V085–V086 |
+| [x] | [P13-T02](IMPLEMENTATION-PLAN.md#p13-t02) | In-process recording and replay | done | V087 |
+| [x] | [P13-T03](IMPLEMENTATION-PLAN.md#p13-t03) | Emulated ionic NIC outputs (rocm-ernic) | done | V088; fork `84f06fe`, upstream ROCm/rocm-ernic#219 |
+| [x] | [P13-T04](IMPLEMENTATION-PLAN.md#p13-t04) | Real-driver ionic guest | done | V088 |
+| [ ] | [P13-T05](IMPLEMENTATION-PLAN.md#p13-t05) | Contract gates and host alerts | in progress | Gates and docs in this tree; host `l` alert rules and xtcp2 pin bump in `~/nixos` pending |
 
 ## Deferred items
 
@@ -1450,6 +1556,9 @@ owners, deadlines or successful outcomes. Continue independent ready tasks.
 | 2026-10-11 | Added the standalone admin listener, `go-link-monitor ctl` and NixOS admin options. Decision: the admin socket group comes from a setgid tmpfiles directory, not a chown in the daemon. | V083; P12 6/7. Next P12-T07 xtcp2 integration |
 | 2026-10-11 | Embedded the link monitor in xtcp2 (`link_monitor` field 250, `-linkMonitor*` flags) and added `xtcp2ctl link`. Decision: `LinkMonitorService` is always registered so a disabled monitor answers `FailedPrecondition` instead of `Unimplemented`; a monitor failure while the daemon runs is fatal. | V084; P12 7/7. Embedding VM and host `l` checks done in V085 |
 | 2026-10-11 | Fixed RDMA single-port GET waiting out the 5 s request budget: the kernel replies with `RDMA_NLDEV_CMD_GET`. The budget is unchanged, since queries take milliseconds. | V085. Open: builds without the `rdma` tag cannot learn a first baseline on RDMA hosts (embedded xtcp2) |
+| 2026-10-11 | Audited every netlink request and reply against linux 7.2.9. Fixed RDMA notifications ending `rdma_events` on netdev rename and other-namespace attach/detach. Decision: reply envelope types in new tests come from recorded kernel replies, never from echoing the request. | V086. Next: in-process netlink recording and replay, then the ionic VM |
+| 2026-10-11 | Added in-process netlink recording (`nlrecord` tag) and replay of committed rxe-VM recordings through the real `linuxio` API. Fixtures come from the rxe VM and host `l` (mlx5, atlantic). | V087. Next: the ionic VM (`test-linkmonitor-ionic-vm`) using rocm-ernic |
+| 2026-10-11 | Added the real-driver ionic guest (`test-linkmonitor-ionic-vm`, rocm-ernic): collector table with checked reasons, CLI differential, events, PCI unplug/replug and recovered events; ionic fixtures committed. | V088. Next: Phase E gates and docs |
 
 Publication: P08-T03 was committed as `cb958fb` and pushed on
 `test/linkmonitor-embedding`; [PR #178](https://github.com/randomizedcoder/xtcp2/pull/178)

@@ -10,6 +10,7 @@
   microvm,
   nixpkgs,
   xdp2,
+  rocmErnic,
 }:
 
 let
@@ -824,6 +825,13 @@ in
           binaries
           ;
         artifact = tests.test-linkmonitor-rdma-build;
+      };
+      test-linkmonitor-ionic-vm = import ./microvms/linkmonitor-ionic.nix {
+        inherit pkgs lib nixpkgs;
+        artifact = tests.test-linkmonitor-rdma-build;
+        monitor = linkmonitorPackages.go-link-monitor;
+        ernicModule = rocmErnic.nixosModules.ernic-guest;
+        ernicRun = rocmErnic.packages.${pkgs.stdenv.hostPlatform.system}.ernic-run;
       };
       microvm-x86_64 = microvms.vms.x86_64;
       microvm-x86_64-coverage = microvms.vmsCoverage.x86_64;

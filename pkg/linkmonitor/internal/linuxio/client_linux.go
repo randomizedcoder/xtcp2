@@ -54,7 +54,11 @@ func NewClient(protocol int) (*Client, error) {
 		return nil, ErrRequest
 	}
 	return &Client{protocol: protocol, open: func(ctx context.Context, p int) (transport, error) {
-		return netlink.Open(ctx, p, nil)
+		conn, err := netlink.Open(ctx, p, nil)
+		if err != nil {
+			return nil, err
+		}
+		return recordTransport(p, conn), nil
 	}}, nil
 }
 

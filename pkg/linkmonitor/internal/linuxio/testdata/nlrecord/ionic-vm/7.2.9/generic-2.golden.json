@@ -1,0 +1,57 @@
+[
+  {
+    "call": "DiscoverFamily(\"nlctrl\")",
+    "values": 1,
+    "digest": "cc40fe17fd8a1a46"
+  },
+  {
+    "call": "DiscoverFamily(\"ethtool\")",
+    "values": 1,
+    "digest": "9f2473ebaf825c26"
+  },
+  {
+    "call": "DiscoverFamily(\"devlink\")",
+    "values": 1,
+    "digest": "c5b06789303298c5"
+  },
+  {
+    "call": "GetEthtool(linkinfo, 2)",
+    "values": 1,
+    "digest": "7926284387f230db"
+  },
+  {
+    "call": "GetEthtool(linkmodes, 2)",
+    "values": 1,
+    "digest": "2b89f35c1520dc97"
+  },
+  {
+    "call": "GetEthtool(linkstate, 2)",
+    "values": 1,
+    "digest": "05e0b278dd45511d"
+  },
+  {
+    "call": "GetEthtool(rings, 2)",
+    "values": 1,
+    "digest": "b8e1250318b4117a"
+  },
+  {
+    "call": "GetEthtool(channels, 2)",
+    "values": 1,
+    "digest": "c57aa0bc31aeb878"
+  },
+  {
+    "call": "GetEthtool(pause, 2)",
+    "values": 1,
+    "digest": "900c0d74c90c2b63"
+  },
+  {
+    "call": "GetEthtool(fec, 2)",
+    "values": 1,
+    "digest": "88e704a0f9695e8f"
+  },
+  {
+    "call": "DumpDevlinkPorts",
+    "values": 1,
+    "digest": "0315098c4ea3778e"
+  }
+]

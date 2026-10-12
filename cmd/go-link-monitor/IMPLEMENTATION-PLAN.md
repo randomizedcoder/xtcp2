@@ -488,6 +488,82 @@ Done when: The embedding test runs with the monitor enabled and the service
 registered; a disabled monitor returns `FailedPrecondition`; a shared baseline
 file fails with a clear lock error.
 
+### P13 — Netlink contracts
+
+Reply envelopes (types, flags, attribute presence) come from recorded kernel
+traffic, never from a fake that echoes the request. nlmon mirrors only
+ROUTE, GENERIC, SOCK_DIAG and a few other families (`netlink_filter_tap()`),
+so it cannot see NETLINK_RDMA; `linuxio` records in process instead.
+
+#### P13-T01
+
+**Kernel reply audit and RDMA notification decoder.** Depends on: [P07-T01](#p07-t01).
+
+Deliver: An audit of every request `linuxio` builds against the kernel source;
+the single-port GET reply type fix; a notification decoder that requires only
+EVENT_TYPE, as `rdma_nl_notify_event` sends.
+
+Done when: Notification and `SYS_GET` tables cover every kernel shape; the
+software-RDMA guest's rename step fails on the old decoder and passes on the
+new one.
+
+#### P13-T02
+
+**In-process recording and replay.** Depends on: [P13-T01](#p13-t01).
+
+Deliver: The `nlrecord` build tag and `LINKMONITOR_NLRECORD`, one DLT_NETLINK
+pcap per socket; `TestLiveRequestShapes` issuing every request shape once;
+`TestRecordedContracts` replaying committed recordings through the real API
+against golden results.
+
+Done when: Recordings from the software-RDMA guest and a real-driver host are
+committed and replay; reverting the single-port GET fix makes replay fail;
+production builds compile no recorder.
+
+#### P13-T03
+
+**Emulated ionic NIC outputs (rocm-ernic).** Depends on: [P13-T02](#p13-t02).
+
+Deliver: A reusable guest module and launcher in the rocm-ernic flake, so a
+qemu-vm.nix guest's in-tree `ionic`/`ionic_rdma` drivers bind to the emulated
+NIC; offered upstream.
+
+Done when: The flake's own guest test reaches PORT_ACTIVE and the outputs are
+consumed unchanged from xtcp2.
+
+#### P13-T04
+
+**Real-driver ionic guest.** Depends on: [P13-T03](#p13-t03).
+
+Deliver: `test-linkmonitor-ionic-vm` running the real binary: discovery,
+recorded contracts, a per-driver collector table, a CLI differential, link and
+rename events, PCI unplug/replug and events after replug; recordings promoted
+into the replay testdata.
+
+Done when: Every sentinel passes; each collector that is not supported and
+successful names a reason that a check proves on the guest; the ionic
+recordings replay.
+
+#### P13-T05
+
+**Contract gates and host alerts.** Depends on: [P13-T04](#p13-t04).
+
+Deliver: Pre-merge gates for `linuxio` and collector changes (below); Prometheus
+rules on monitored hosts for `go_link_monitor_collection_healthy == 0` (1m) and
+`increase(go_link_monitor_collector_errors_total[10m]) > 0`; a deployment that
+includes the P13-T01 fixes.
+
+Done when: The gates are documented and run; the rules are deployed and a host
+reports healthy collection with only explained unsupported collectors.
+
+Pre-merge gate for changes to `pkg/linkmonitor/internal/linuxio` or a
+collector: `test-linkmonitor-rdma-vm` and `test-linkmonitor-ionic-vm` pass and
+their evidence directory is recorded in the STATUS entry, and
+`TestRecordedContracts` passes on every committed recording. A new request
+shape adds a `TestLiveRequestShapes` row and a recording. An unexplained
+`collection_healthy=0` or collector error on a test host is a failure to root
+cause, never a note.
+
 ## Verification and evidence requirements
 
 Use the repository's flake-pinned tools and actual working-tree sources,
