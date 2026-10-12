@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/netlink"
+	"github.com/randomizedcoder/xtcp2/pkg/nlconn"
 	"golang.org/x/sys/unix"
 )
 
@@ -54,7 +54,7 @@ func NewClient(protocol int) (*Client, error) {
 		return nil, ErrRequest
 	}
 	return &Client{protocol: protocol, open: func(ctx context.Context, p int) (transport, error) {
-		conn, err := netlink.Open(ctx, p, nil)
+		conn, err := nlconn.Open(ctx, p, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -93,7 +93,7 @@ func (c *Client) retire() error {
 // Scheduler backoff and resubscription are the caller's responsibility.
 func (c *Client) Reset() error {
 	if !c.busy.CompareAndSwap(false, true) {
-		return netlink.ErrConcurrent
+		return nlconn.ErrConcurrent
 	}
 	defer c.busy.Store(false)
 	return c.retire()
@@ -141,7 +141,7 @@ type Result[T any] struct {
 
 func execute[T any](ctx context.Context, c *Client, r request[T]) (Result[T], error) {
 	if !c.busy.CompareAndSwap(false, true) {
-		return Result[T]{}, netlink.ErrConcurrent
+		return Result[T]{}, nlconn.ErrConcurrent
 	}
 	defer c.busy.Store(false)
 	ctx, cancel := context.WithTimeout(ctx, requestBudget)

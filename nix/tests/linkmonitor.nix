@@ -9,7 +9,9 @@
 }:
 let
   versions = import ../versions.nix { inherit pkgs; };
-  paths = "./cmd/go-link-monitor ./pkg/linkmonitor/... ./pkg/xtcpnl ./nix/tests/linkmonitor-smoke";
+  # pkg/nlconn is linkmonitor's netlink transport, moved out of
+  # pkg/linkmonitor/internal so pkg/rtnlmon can share it; its gates stay here.
+  paths = "./cmd/go-link-monitor ./pkg/linkmonitor/... ./pkg/nlconn ./pkg/xtcpnl ./nix/tests/linkmonitor-smoke";
   mkCheck =
     name:
     {

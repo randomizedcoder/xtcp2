@@ -888,7 +888,7 @@ Phases and scope are as defined in
 | Phase | Scope | Status | What exists | What is missing |
 |---|---|---|---|---|
 | **0** | Reflection removal (0a), AccECN (0b), layout oracle (0c), perf gate (0d), upstream pin guard (0e), then core wire export, subpackage skeleton, capture generalization | **partial** | 0a–0e — see [Phase 0](#phase-0). Plus the rtnetlink-only capture flavor that Phase 0 generalizes, and the five core wire primitives, exported in [`b4428c7`](#b4428c7--the-five-core-wire-primitives-are-exported) | Gating the other 17 protocols that currently report deltas, one per phase as each is triaged; package still flat; BPF filter still pins family 0. `pkg/nsdiscover/nsid.go` no longer hand-rolls its own wire layer — it went through `xtcpnl.NewAttrBuilder`/`BuildRequest`/`WalkNlMsgs`/`WalkRTAttrs` in [`b4428c7`](#b4428c7--the-five-core-wire-primitives-are-exported), closing `TODO-SOON.md` §15 |
-| **1** | Multicast listener, `BuildDumpNeighRequest`, in-guest smoke check | **partial** | Event parsing layer, `ndmsg` decoder, `ParseNeigh`, real captured event fixtures, and `BuildDumpNeighRequest` as of [`1beb2b8`](#1beb2b8--the-per-family-request-builders-and-the-single-get-primitive) | The listener itself (no `Subscribe`, no `NETLINK_ADD_MEMBERSHIP` anywhere), the `ENOBUFS` resync *logic* that calls the new builder, the self-test check |
+| **1** | Multicast listener, `BuildDumpNeighRequest`, in-guest smoke check | **done** | Event parsing layer, `ndmsg` decoder, `ParseNeigh`, real captured event fixtures, and `BuildDumpNeighRequest` as of [`1beb2b8`](#1beb2b8--the-per-family-request-builders-and-the-single-get-primitive). **The listener**: `pkg/rtnlmon` on `pkg/nlconn` (linkmonitor's transport, moved out of `internal/`), `xtcpnl.WalkNotifications`, the `ENOBUFS` resync that drains before it re-dumps, and self-test check 20 (`XTCP2_SELF_TEST_RTNL_EVENTS`) — see [Phase 1: the listener](#phase-1-the-listener) | A consumer: `pkg/localnet` still rebuilds on a timer (`TODO-SOON.md` §13) |
 | **2** | `IFA_CACHEINFO`/`IFA_FLAGS`, `IFLA_ADDRESS`/`IFLA_STATS64`, `RTA_EXPIRES`/`RTA_CACHEINFO`/`RTA_METRICS`, orphaned `INET_DIAG_PRAGUEINFO` | **partial** | `IFA_CACHEINFO` (with `struct ifa_cacheinfo` and the two lifetime predicates), `IFA_FLAGS` (replacing the u8 header field, not extending it), `IFLA_ADDRESS`/`IFLA_BROADCAST` and nine more `IFLA_*`, as of [`4494b42`](#4494b42--the-ifla_-and-ifa_-attribute-decoders-a-show-line-needs). `IFLA_STATS`/`IFLA_STATS64` are **done**: decoded in `xtcpnl_link_stats.go`, rendered by `render.LinkStatsText`, and driven by `ip -s link show` as the tenth parity command. They were previously recorded here as out of scope on a premise that was wrong — see [below](#what-ifla_stats64-was-actually-blocked-on) | the `RTA_EXPIRES` *attribute* (distinct from `rta_cacheinfo`'s `rta_expires` member; `print_route` never reads it, so nothing on a `show` path needs it), and `INET_DIAG_PRAGUEINFO`. **`RTA_METRICS` is done**, with real fixtures: the gated capture topology carries an `mtu 1400 advmss 1300` route, so `dumps/netlink_route_getroute.pcap` has one and `RouteMetrics` decodes it. **`RTA_CACHEINFO` is done** too, in `xtcpnl_rta_cacheinfo.go` — and its real fixtures (48 of 74 captured routes) turn out to be all-zero by kernel construction, which is a finding in itself: see [below](#-s-on-route-neigh-and-rule-two-no-ops-and-a-bug-in-the-ungated-form) |
 | **3** | Rules (`FRA_*`), nexthop (`NHA_*`), bridge/VLAN, `IFLA_LINKINFO` descent | **partial** | the `IFLA_LINKINFO` descent, as far as `IFLA_INFO_KIND` — [`4494b42`](#4494b42--the-ifla_-and-ifa_-attribute-decoders-a-show-line-needs), the first production caller of `WalkRTAttrsNested`. **`FRA_*` is done**: `struct fib_rule_hdr` and all 30 attributes decode in `xtcpnl_fib_rule_hdr.go`, `render.RuleView` prints them, and `ip rule show` drives four parity commands — see [below](#ip-rule-show-the-object-with-no-name-table). **`NHA_*` is done**: `struct nhmsg` and the nexthop attributes — id, oif, gateway, blackhole, fdb, group, group-type and the nested `NHA_RES_GROUP` — decode in `xtcpnl_nhmsg.go` and render for `ip nexthop show` and `-d` route nhid resolution; see the nexthop arc in [Where we are](#where-we-are). **The `IFLA_INFO_DATA` sub-nest is decoded for kind `vrf`** (`IFLA_VRF_TABLE`), together with `IFLA_INFO_SLAVE_DATA`'s `IFLA_VRF_PORT_TABLE`, driving `-d link`/`addr show` of a VRF master and its port. **And for kind `bond`**: every `IFLA_BOND_*` option, the `AD_INFO` nest and the twelve `IFLA_BOND_SLAVE_*` port attributes decode (link-write-path phase 1). They are not rendered yet, so `-d` on a bond still refuses | bridge/VLAN, the bond `-d` render, and the `IFLA_INFO_DATA` sub-nest for link kinds other than `vrf` and `bond`, each a separate attribute space per kind |
 | **4** | tc telemetry only (23 top-level `TCA_*`) | not started | — | all of it |
@@ -6953,6 +6953,62 @@ measured by the ratchet holding and the `nsdiscover` duplicate disappearing.
 that nothing covered, so `docs/coverage-baseline.txt` should be re-baselined
 upward rather than left to drift.
 
+## Phase 1: the listener
+
+`pkg/rtnlmon` joins `RTNLGRP_*` groups and hands its caller a `Snapshot`
+of the tables they cover, then every link, address, route and neighbor
+notification after it, in order. A caller that replaces its state on each
+Snapshot and applies each event as an upsert or a delete holds the kernel's
+tables, across overruns too. `tools/rtnlmon-probe` prints what it is handed,
+for the self-test.
+
+- **The transport is linkmonitor's.** `pkg/linkmonitor/internal/netlink`
+  already joined groups by number, ran on Go's poller, validated the sender
+  and grew its buffer on `MSG_TRUNC`, so it moved to `pkg/nlconn` rather than
+  being written twice. It gained `OpenWithOptions` (`SO_RCVBUFFORCE`, falling
+  back to `SO_RCVBUF`) and `Drain`. linkmonitor's behavior is unchanged, and
+  its gates (`nix/tests/linkmonitor.nix`) now cover `pkg/nlconn` too.
+- **`xtcpnl.WalkNotifications`** walks a datagram and keeps only what
+  `IsRtnetlinkNotification` accepts. It never filters on pid or seq, so it is
+  not a mode of `WalkNlMsgs`.
+- **The groups are joined before the first dump**, so nothing can fall
+  between the snapshot and the stream after it.
+- **An overrun drains before it dumps.** The kernel decides the order
+  (`net/netlink/af_netlink.c`, `net/core/datagram.c`):
+  - `netlink_overrun` (:351) sets `ENOBUFS` once and marks the socket
+    congested;
+  - while it is congested, `netlink_broadcast_deliver` (:1416) drops every
+    further broadcast;
+  - `netlink_rcv_wake` (:363) lifts the congestion only once the queue is
+    empty;
+  - `__skb_try_recv_datagram` (datagram.c:252) reports the `ENOBUFS` before
+    it dequeues anything.
+
+  So what is still queued at the `ENOBUFS` predates the dropped
+  notifications. Applied after a fresh dump, a queued add whose delete was
+  dropped would bring the object back. rtnlmon discards the queue, which
+  also lifts the congestion, then dumps, then resumes. A truncated datagram
+  resyncs the same way. The fork has no such path: any receive error closes
+  its channel, and the caller resubscribes.
+- **Tests:**
+  - `TestRunResyncOrder` pins the call order with a fake socket.
+  - `TestReplayCapturedEventsIntoState` replays the 7_1_4 link and address
+    event captures into a consumer's state. With an overrun injected
+    halfway, a stale queue behind it and dropped notifications after that,
+    it must reach the same state, and no stale event may reach the Handler.
+  - Removing the drain fails both.
+- **Self-test check 20**, in every lifecycle flavor and in a namespace of
+  its own:
+  - **Events:** the probe must see `rtnl0`'s add, its up transition, an
+    address and its delete, in that order.
+  - **Overrun:** it runs with a 4 KiB buffer and stops reading while 200
+    addresses are added and 199 deleted. When it reads again it must report
+    `overrun`, and its snapshot must hold exactly the survivor, with no
+    stale add after it.
+  - Passes in `microvm-x86_64-lifecycle`. With the drain removed, the
+    resync itself was right, and then 7 stale adds arrived after it. Check
+    20 failed and the other 18 passed.
+
 ## Known blockers
 
 - ~~**`BuildDumpNeighRequest` blocks the listener, not just neighbour
@@ -6962,6 +7018,7 @@ upward rather than left to drift.
   resync; there was no resync path for `RTNLGRP_NEIGH` because there was no
   neighbour dump builder. The builder now exists, so what remains is the resync
   logic that calls it — a listener task, not a missing primitive.
+  That listener has landed too: see [Phase 1: the listener](#phase-1-the-listener).
 - ~~**The captured route corpus has no ECMP, no `RTA_VIA` and no
   `RTA_METRICS`.**~~ **Cleared** by `2895600` and `e2a47aa`. The measurement
   held for `getroute_dump.pcap` — `RTA_MULTIPATH` (9), `RTA_VIA` (18) and

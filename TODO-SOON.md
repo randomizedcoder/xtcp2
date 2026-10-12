@@ -1058,7 +1058,19 @@ unmatched — a bug that presents as missing data, not as an error.
 
 ---
 
-## 13. No rtnetlink multicast listener — the event parsers have no live feed — OPEN
+## 13. No rtnetlink multicast listener — the event parsers have no live feed — LISTENER DONE, CONSUMER OPEN
+
+**The listener landed** as `pkg/rtnlmon` (on `pkg/nlconn`, linkmonitor's
+transport moved out of `pkg/linkmonitor/internal/netlink`) with
+`xtcpnl.WalkNotifications`, and the self-test proves it live as
+`XTCP2_SELF_TEST_RTNL_EVENTS`; see coverage-status.md, "Phase 1: the
+listener". What remains open is the consumer below: `pkg/localnet` still
+rebuilds on a timer. The fork turned out not to special-case `ENOBUFS` at all
+(any receive error closes its channel); rtnlmon's drain-then-dump order is
+derived from the kernel instead.
+
+The original item follows.
+
 
 `pkg/xtcpnl` can now parse every rtnetlink event xtcp2 cares about
 (`ParseRtnetlinkEvent` over `RTM_{NEW,DEL}{LINK,ADDR,ROUTE,NEIGH}`), and the

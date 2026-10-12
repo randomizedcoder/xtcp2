@@ -91,6 +91,9 @@
 #                                              records published to a real in-VM
 #                                              nsqd AND finished by an nsq_tail
 #                                              consumer (nsqd /stats finish_count)
+#   XTCP2_SELF_TEST_RTNL_EVENTS_{PASS,FAIL}    rtnetlink listener (pkg/rtnlmon):
+#                                              link/addr events in order, and an
+#                                              overrun drained and resynced
 #   XTCP2_SELF_TEST_OVERALL_{PASS,FAIL}        overall outcome
 #   XTCP2_SELF_TEST_ASN_{PASS,FAIL}           (interface-naming only) ASN
 #                                              enrichment end to end: the record
@@ -243,6 +246,9 @@
   # table.
   runIpmetaBootstrapCheck ? false,
   runNsInspectCheck ? true,
+  # Check 20 (every flavor): pkg/rtnlmon's listener against the real kernel,
+  # in a namespace of its own; see the check for what it asserts.
+  runRtnlEventsCheck ? true,
   # No ipmetaDbPath argument here, deliberately. mkVm.nix has a let binding of
   # that name and passes the artifact path to xtcp2 itself, as -asnDbPath in its
   # own argv, so this runner never needed it: the argument was declared, given a
@@ -2067,6 +2073,97 @@ pkgs.writeShellApplication {
         echo "XTCP2_SELF_TEST_CTL_RESTART_FAIL  (xtcp2ctl or jq not on PATH)"
       fi
       if [ "$check19" -ne 0 ]; then overall_ok=0; fi
+    ''}
+
+    ${lib.optionalString runRtnlEventsCheck ''
+      echo "--- check 20: rtnetlink listener: events, then an overrun resync (pkg/rtnlmon) ---"
+      # rtnlmon-probe runs pkg/rtnlmon in a namespace of its own, so nothing
+      # this check adds can reach the daemon's view of the host. Part a: four
+      # changes must arrive as notifications, in order. Part b: with a tiny
+      # receive buffer and the probe not reading, 399 address changes overrun
+      # it; once it reads again it must report the overrun and resync to the
+      # one surviving address. The queue still holds stale adds for the 199
+      # deleted ones, so a listener that resyncs without draining first would
+      # report them.
+      check20=1
+      rtnl_a="" rtnl_b=""
+      if command -v rtnlmon-probe >/dev/null 2>&1; then
+        ip netns delete rtnl_check 2>/dev/null || true
+        ip netns add rtnl_check
+        rm -f /tmp/rtnl-a.ready /tmp/rtnl-a.log /tmp/rtnl-b.ready /tmp/rtnl-b.log /tmp/rtnl-b.pause
+
+        # Part a: events.
+        ip netns exec rtnl_check rtnlmon-probe -groups link,addr -ready /tmp/rtnl-a.ready \
+          -timeout "$(scaled 60)s" >/tmp/rtnl-a.log 2>&1 &
+        rtnl_pid=$!
+        for _ in $(seq 1 "$(scaled 20)"); do [ -e /tmp/rtnl-a.ready ] && break; sleep 0.5; done
+        ip -n rtnl_check link add rtnl0 type dummy
+        ip -n rtnl_check link set rtnl0 up
+        ip -n rtnl_check addr add 192.0.2.1/32 dev rtnl0
+        ip -n rtnl_check link del rtnl0
+        for _ in $(seq 1 "$(scaled 20)"); do
+          grep -q '^RTNLMON_EVENT link del .* ifname=rtnl0 ' /tmp/rtnl-a.log && break
+          sleep 0.5
+        done
+        kill "$rtnl_pid" 2>/dev/null || true
+        wait "$rtnl_pid" 2>/dev/null || true
+        first() { grep -n -m1 -E "$1" /tmp/rtnl-a.log | cut -d: -f1; }
+        l_add=$(first '^RTNLMON_EVENT link add .* ifname=rtnl0 ')
+        l_up=$(first '^RTNLMON_EVENT link add .* ifname=rtnl0 up$')
+        l_addr=$(first '^RTNLMON_EVENT addr add .* addr=192\.0\.2\.1/32$')
+        l_del=$(first '^RTNLMON_EVENT link del .* ifname=rtnl0 ')
+        if [ -n "$l_add" ] && [ -n "$l_up" ] && [ -n "$l_addr" ] && [ -n "$l_del" ] \
+           && [ "$l_add" -le "$l_up" ] && [ "$l_up" -lt "$l_addr" ] && [ "$l_addr" -lt "$l_del" ]; then
+          rtnl_a="ok"
+        else
+          rtnl_a="events out of order or missing (lines add=$l_add up=$l_up addr=$l_addr del=$l_del)"
+        fi
+
+        # Part b: an overrun.
+        ip -n rtnl_check link add rtnl1 type dummy
+        ip -n rtnl_check link set rtnl1 up
+        rtnl_idx=$(ip netns exec rtnl_check cat /sys/class/net/rtnl1/ifindex)
+        touch /tmp/rtnl-b.pause
+        ip netns exec rtnl_check rtnlmon-probe -groups addr4 -rcvbuf 4096 -ready /tmp/rtnl-b.ready \
+          -pause /tmp/rtnl-b.pause -timeout "$(scaled 120)s" >/tmp/rtnl-b.log 2>&1 &
+        rtnl_pid=$!
+        for _ in $(seq 1 "$(scaled 20)"); do [ -e /tmp/rtnl-b.ready ] && break; sleep 0.5; done
+        for i in $(seq 1 200); do echo "addr add 198.51.100.$i/32 dev rtnl1"; done >/tmp/rtnl-b.add
+        for i in $(seq 2 200); do echo "addr del 198.51.100.$i/32 dev rtnl1"; done >/tmp/rtnl-b.del
+        ip -n rtnl_check -batch /tmp/rtnl-b.add
+        ip -n rtnl_check -batch /tmp/rtnl-b.del
+        rm -f /tmp/rtnl-b.pause
+        for _ in $(seq 1 "$(scaled 30)"); do
+          grep -q '^RTNLMON_SNAPSHOT overrun ' /tmp/rtnl-b.log && break
+          sleep 0.5
+        done
+        sleep 1
+        kill "$rtnl_pid" 2>/dev/null || true
+        wait "$rtnl_pid" 2>/dev/null || true
+        # What the last resync reported for rtnl1, and any address event after it.
+        after=$(awk '/^RTNLMON_SNAPSHOT overrun /{buf=""; on=1; next} on{buf=buf $0 "\n"} END{printf "%s", buf}' /tmp/rtnl-b.log)
+        snap=$(printf '%s' "$after" | grep "^RTNLMON_SNAPSHOT_ADDR overrun ifindex=$rtnl_idx " | sed 's/.* addr=//' | sort | tr '\n' ' ')
+        stale=$(printf '%s' "$after" | grep -c "^RTNLMON_EVENT addr add ifindex=$rtnl_idx addr=198\.51\.100\.\([2-9]\|[1-9][0-9]\)" || true)
+        if ! grep -q '^RTNLMON_SNAPSHOT overrun ' /tmp/rtnl-b.log; then
+          rtnl_b="no overrun reported"
+        elif [ "$snap" != "198.51.100.1/32 " ] || [ "$stale" -ne 0 ]; then
+          rtnl_b="resync for rtnl1 was '$snap' with $stale stale adds after it"
+        else
+          rtnl_b="ok"
+        fi
+        ip netns delete rtnl_check 2>/dev/null || true
+      else
+        rtnl_a="rtnlmon-probe not on PATH"
+      fi
+      if [ "$rtnl_a" = "ok" ] && [ "$rtnl_b" = "ok" ]; then
+        echo "XTCP2_SELF_TEST_RTNL_EVENTS_PASS  (link/addr events in order; overrun drained and resynced to 1 address)"
+        check20=0
+      else
+        echo "XTCP2_SELF_TEST_RTNL_EVENTS_FAIL  (events: $rtnl_a; overrun: ''${rtnl_b:-not run})"
+        sed -n '1,15p' /tmp/rtnl-a.log 2>/dev/null || true
+        grep -v '^RTNLMON_EVENT' /tmp/rtnl-b.log 2>/dev/null | sed -n '1,15p' || true
+      fi
+      if [ "$check20" -ne 0 ]; then overall_ok=0; fi
     ''}
 
     ${lib.optionalString runNlProbeCheck ''

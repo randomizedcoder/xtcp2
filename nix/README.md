@@ -22,7 +22,7 @@ The targets are defined in [tests/linkmonitor.nix](tests/linkmonitor.nix):
 
 | Target | Scope |
 |---|---|
-| `test-linkmonitor-unit` | Complete command, `pkg/linkmonitor/...` and `pkg/xtcpnl` suites with CGO disabled |
+| `test-linkmonitor-unit` | Complete command, `pkg/linkmonitor/...`, `pkg/nlconn` and `pkg/xtcpnl` suites with CGO disabled |
 | `test-linkmonitor-race` | Same packages with CGO and the race detector |
 | `test-linkmonitor-vet` | Go vet over both package trees |
 | `test-linkmonitor-lint` | Existing comprehensive lint policy over both package trees |

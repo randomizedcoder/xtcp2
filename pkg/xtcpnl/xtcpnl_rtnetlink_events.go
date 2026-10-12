@@ -209,3 +209,26 @@ func parseNeighEvent(action EventAction, body []byte) (any, error) {
 	}
 	return NeighEvent{Action: action, Neigh: ni}, nil
 }
+
+// WalkNotifications walks one datagram from a socket joined to RTNLGRP_*
+// groups and visits each message IsRtnetlinkNotification accepts. It does not
+// filter on nlmsg_pid or nlmsg_seq, which is why it is not a mode of
+// WalkNlMsgs: a notification carries the seq of whatever request caused it, so
+// the rule WalkNlMsgs keeps for dumps would drop exactly the events an
+// operator caused (see IsRtnetlinkNotification).
+//
+// Other messages are skipped, except an NLMSG_ERROR with a nonzero errno: a
+// listening socket sends nothing, so the kernel should never address one to
+// it, and one that arrives is returned as that errno. Body is valid only
+// during visit. Malformed framing returns WalkNetlinkEnvelopes' errors.
+func WalkNotifications(data []byte, visit func(h NlMsgHdr, body []byte) error) error {
+	return WalkNetlinkEnvelopes(data, func(e NetlinkEnvelope) error {
+		if e.Control == NetlinkError {
+			return netlinkErr(e.Body)
+		}
+		if !IsRtnetlinkNotification(e.Header) {
+			return nil
+		}
+		return visit(e.Header, e.Body)
+	})
+}

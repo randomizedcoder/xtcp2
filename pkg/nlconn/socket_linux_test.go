@@ -1,4 +1,4 @@
-package netlink
+package nlconn
 
 import (
 	"context"
@@ -128,7 +128,7 @@ func TestOpenOwnership(t *testing.T) {
 					}
 					return nil
 				},
-				join: func(fd, level, opt, value int) error {
+				setInt: func(fd, level, opt, value int) error {
 					if fd != 123 || level != unix.SOL_NETLINK || opt != unix.NETLINK_ADD_MEMBERSHIP || value != int(row.groups[joined]) {
 						t.Fatal("wrong membership")
 					}
@@ -158,7 +158,7 @@ func TestOpenOwnership(t *testing.T) {
 					return f, &fakeRaw{}, nil
 				},
 			}
-			c, err := openSocket(ctx, row.protocol, row.groups, ops)
+			c, err := openSocket(ctx, row.protocol, row.groups, Options{}, ops)
 			if !errors.Is(err, row.wantErr) {
 				t.Fatalf("error=%v want=%v", err, row.wantErr)
 			}

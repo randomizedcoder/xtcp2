@@ -1,4 +1,4 @@
-package netlink
+package nlconn
 
 import (
 	"context"
@@ -35,6 +35,32 @@ func (c *Conn) Receive(ctx context.Context, visit func([]byte) error) (int, erro
 		return nil
 	})
 	return delivered, err
+}
+
+// Drain reads and discards every datagram already queued, without waiting,
+// and returns how many it discarded. A multicast listener calls it after
+// ENOBUFS: what is still queued predates the events the kernel dropped, and
+// the kernel delivers no further broadcast to the socket until its queue is
+// empty (netlink_rcv_wake clears NETLINK_S_CONGESTED only then). A second
+// ENOBUFS or a truncated datagram met while draining is discarded with the
+// rest; the caller is resyncing already.
+func (c *Conn) Drain(ctx context.Context) (int, error) {
+	discarded := 0
+	err := c.operation(ctx, c.file.SetReadDeadline, func() error {
+		for {
+			_, err := c.receiveOne(ctx, false)
+			switch {
+			case err == nil:
+				discarded++
+			case errors.Is(err, unix.EAGAIN):
+				return nil
+			case errors.Is(err, unix.ENOBUFS), errors.Is(err, ErrTruncated):
+			default:
+				return err
+			}
+		}
+	})
+	return discarded, err
 }
 
 func (c *Conn) receiveOne(ctx context.Context, wait bool) ([]byte, error) {

@@ -8,7 +8,7 @@ import (
 
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/linuxio"
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/model"
-	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/netlink"
+	"github.com/randomizedcoder/xtcp2/pkg/nlconn"
 	"golang.org/x/sys/unix"
 )
 
@@ -27,7 +27,7 @@ type productionEventConn interface {
 }
 
 func openProductionEvents(ctx context.Context, namespace uint64, clock model.Clock, logger *slog.Logger, resync time.Duration) (eventSubscription, error) {
-	route, err := netlink.Open(ctx, unix.NETLINK_ROUTE, []uint32{unix.RTNLGRP_LINK})
+	route, err := nlconn.Open(ctx, unix.NETLINK_ROUTE, []uint32{unix.RTNLGRP_LINK})
 	if err != nil {
 		return eventSubscription{}, err
 	}
@@ -105,7 +105,7 @@ func (s *productionEvents) genericAttempt(ctx context.Context, emit func(model.E
 	if !ok {
 		return unix.EOPNOTSUPP
 	}
-	conn, err := netlink.Open(ctx, unix.NETLINK_GENERIC, []uint32{group})
+	conn, err := nlconn.Open(ctx, unix.NETLINK_GENERIC, []uint32{group})
 	if err != nil {
 		return err
 	}
@@ -113,7 +113,7 @@ func (s *productionEvents) genericAttempt(ctx context.Context, emit func(model.E
 	return errors.Join(err, conn.Close())
 }
 
-func receiveEthtoolEvents(ctx context.Context, conn *netlink.Conn, family uint16, namespace uint64, emit func(model.Event) bool) error {
+func receiveEthtoolEvents(ctx context.Context, conn *nlconn.Conn, family uint16, namespace uint64, emit func(model.Event) bool) error {
 	if !emit(model.Event{Kind: model.EventResync}) {
 		return unix.ENOBUFS
 	}
