@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
 
@@ -76,7 +77,10 @@ func TestRDMANotifications(t *testing.T) {
 		{"corner", "unknown future event with an unknown attribute", "conservative topology hint", msg(event(255), [][]byte{notifyAttribute(999, []byte{1})}), 1, true},
 		{"corner", "two notifications in one datagram", "two topology hints", append(msg(event(0), dev("mlx5_0")), msg(event(5), ndev("lmr0"))...), 2, true},
 		{"corner", "valid notification followed by a malformed one", "first hint delivered, then rejected", append(msg(event(0), dev("mlx5_0")), msg(event(0, 0))...), 1, false},
+		{"positive", "the captured monitor_add events: REGISTER, NETDEV_ATTACH and UNREGISTER of rxe1", "three topology hints", capturedRDMAEvents, 3, true},
 		{"negative", "device handle without EVENT_TYPE", "reject before delivery", notification(dev("mlx5_0")...), 0, false},
+		{"negative", "a 4-byte CAP_FLAGS in an event, which xtcpnl checks and linkmonitor used to skip", "reject width", msg(event(0), dev("mlx5_0"), [][]byte{notifyAttribute(4, word(0))}), 0, false},
+		{"negative", "a slash in the device name", "reject name", msg(event(0), dev("mlx/0")), 0, false},
 		{"negative", "nonzero sequence: a request reply on the event socket", "reject before delivery", header(8, 1), 0, false},
 		{"negative", "nonzero header sender", "reject before delivery", header(12, 1), 0, false},
 		{"negative", "nonzero header flags", "reject before delivery", header(6, 1), 0, false},
@@ -104,7 +108,6 @@ func TestRDMANotifications(t *testing.T) {
 }
 
 func TestRDMAMonitorModeTransaction(t *testing.T) {
-	const sysGet = 5<<10 | 6
 	// nldev_sys_get_doit replies with type SYS_GET, flags 0, MONITOR_MODE as u8.
 	for _, tc := range []struct {
 		category, description, expected string
@@ -112,11 +115,15 @@ func TestRDMAMonitorModeTransaction(t *testing.T) {
 		wantErr                         error
 	}{
 		{"positive", "kernel reports monitor mode on", "notifications supported",
-			func(_ []byte, seq uint32) []byte { return frame(sysGet, 0, seq, attribute(rdmaMonitorMode, []byte{1})) }, nil},
+			func(_ []byte, seq uint32) []byte {
+				return frame(rdmaSysGet, 0, seq, attribute(rdmaMonitorMode, []byte{1}))
+			}, nil},
 		{"corner", "kernel reports monitor mode off", "EOPNOTSUPP",
-			func(_ []byte, seq uint32) []byte { return frame(sysGet, 0, seq, attribute(rdmaMonitorMode, []byte{0})) }, unix.EOPNOTSUPP},
+			func(_ []byte, seq uint32) []byte {
+				return frame(rdmaSysGet, 0, seq, attribute(rdmaMonitorMode, []byte{0}))
+			}, unix.EOPNOTSUPP},
 		{"corner", "older kernel without the attribute", "EOPNOTSUPP",
-			func(_ []byte, seq uint32) []byte { return frame(sysGet, 0, seq, nil) }, unix.EOPNOTSUPP},
+			func(_ []byte, seq uint32) []byte { return frame(rdmaSysGet, 0, seq, nil) }, unix.EOPNOTSUPP},
 		{"negative", "kernel rejects the request", "EOPNOTSUPP from the error reply",
 			func(request []byte, seq uint32) []byte {
 				return frame(unix.NLMSG_ERROR, 0, seq, append(word(-int32(unix.EOPNOTSUPP)), request...))
@@ -126,17 +133,17 @@ func TestRDMAMonitorModeTransaction(t *testing.T) {
 				return frame(rdmaDeviceGet, 0, seq, attribute(rdmaMonitorMode, []byte{1}))
 			}, context.DeadlineExceeded},
 		{"boundary", "empty MONITOR_MODE", "reject width",
-			func(_ []byte, seq uint32) []byte { return frame(sysGet, 0, seq, attribute(rdmaMonitorMode, nil)) }, ErrReply},
+			func(_ []byte, seq uint32) []byte { return frame(rdmaSysGet, 0, seq, attribute(rdmaMonitorMode, nil)) }, ErrReply},
 		{"boundary", "two-byte MONITOR_MODE", "reject width",
 			func(_ []byte, seq uint32) []byte {
-				return frame(sysGet, 0, seq, attribute(rdmaMonitorMode, []byte{1, 0}))
+				return frame(rdmaSysGet, 0, seq, attribute(rdmaMonitorMode, []byte{1, 0}))
 			}, ErrReply},
 	} {
 		t.Run(tc.description, func(t *testing.T) {
 			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expected)
 			socket := &scriptSocket{}
 			socket.onSend = func(data []byte) {
-				if typ := binary.LittleEndian.Uint16(data[4:]); typ != sysGet {
+				if typ := binary.LittleEndian.Uint16(data[4:]); typ != rdmaSysGet {
 					t.Errorf("request type %#x, want SYS_GET", typ)
 				}
 				request := append([]byte(nil), data...)
@@ -166,6 +173,12 @@ func TestRDMAMonitorMode(t *testing.T) {
 		{"off", "negative", "monitor mode zero", "coverage unavailable", notifyAttribute(rdmaMonitorMode, []byte{0}), false, true},
 		{"absent", "boundary", "old kernel without mode", "coverage unavailable", nil, false, true},
 		{"future", "corner", "unknown mode value", "malformed mode rejected", notifyAttribute(rdmaMonitorMode, []byte{2}), false, false},
+		{"captured", "positive", "the captured sys_show reply, all four sys attributes", "coverage supported", capturedRDMASys, true, true},
+		{"netnsWidth", "negative", "a 4-byte NETNS_MODE, which xtcpnl checks and linkmonitor used to skip", "malformed reply rejected",
+			append(notifyAttribute(66, word(1)), notifyAttribute(rdmaMonitorMode, []byte{1})...), false, false},
+		{"nested", "corner", "NLA_F_NESTED on MONITOR_MODE", "malformed reply rejected", notifyAttribute(rdmaMonitorMode|unix.NLA_F_NESTED, []byte{1}), false, false},
+		{"duplicate", "negative", "MONITOR_MODE twice", "malformed reply rejected",
+			append(notifyAttribute(rdmaMonitorMode, []byte{1}), notifyAttribute(rdmaMonitorMode, []byte{1})...), false, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expectedOutcome)
@@ -180,5 +193,18 @@ func TestRDMAMonitorMode(t *testing.T) {
 func FuzzRDMANotifications(f *testing.F) {
 	f.Add(notificationFixture())
 	f.Add([]byte{})
-	f.Fuzz(func(_ *testing.T, b []byte) { _ = DecodeRDMANotifications(b, func() bool { return true }) })
+	f.Add(capturedRDMAEvents)
+	// An accepted event is one xtcpnl decodes too: the admission only narrows.
+	f.Fuzz(func(t *testing.T, b []byte) {
+		err := DecodeRDMANotifications(b, func() bool { return true })
+		if err != nil {
+			return
+		}
+		if err := xtcpnl.WalkNetlinkEnvelopes(b, func(e xtcpnl.NetlinkEnvelope) error {
+			_, err := xtcpnl.ParseRdmaEvent(e.Body)
+			return err
+		}); err != nil {
+			t.Fatalf("accepted what xtcpnl refuses: %v", err)
+		}
+	})
 }

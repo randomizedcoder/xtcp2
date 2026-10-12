@@ -9,12 +9,14 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const rdmaMonitor uint16 = 5<<10 | 28
+var (
+	rdmaMonitor = xtcpnl.RdmaNlGetType(xtcpnl.RdmaNlNldev, xtcpnl.RdmaNldevCmdMonitor)
+	rdmaSysGet  = xtcpnl.RdmaNlGetType(xtcpnl.RdmaNlNldev, xtcpnl.RdmaNldevCmdSysGet)
+)
 
-// Checked against the flake-pinned Linux header by the RDMA runtime gate.
 const (
-	rdmaEventType   = 102
-	rdmaMonitorMode = 103
+	rdmaEventType   = xtcpnl.RdmaNldevAttrEventType
+	rdmaMonitorMode = xtcpnl.RdmaNldevSysAttrMonitorMode
 )
 
 // RDMANotifications owns a kernel-authenticated NLDEV lifecycle subscription.
@@ -23,7 +25,7 @@ type RDMANotifications struct{ conn transport }
 // OpenRDMANotifications joins before probing the read-only system monitor mode.
 // Joining a group alone does not prove that the kernel emits notifications.
 func OpenRDMANotifications(ctx context.Context) (*RDMANotifications, error) {
-	conn, err := netlink.Open(ctx, unix.NETLINK_RDMA, []uint32{4})
+	conn, err := netlink.Open(ctx, unix.NETLINK_RDMA, []uint32{xtcpnl.RdmaNlGroupNotify})
 	if err != nil {
 		return nil, err
 	}
@@ -39,9 +41,8 @@ func OpenRDMANotifications(ctx context.Context) (*RDMANotifications, error) {
 }
 
 func (c *Client) monitorMode(ctx context.Context) error {
-	const command = 5<<10 | 6
-	result, err := execute(ctx, c, request[bool]{family: command,
-		build: func(seq uint32, _ uint64) ([]byte, error) { return rdmaRequest(command, 0, 0, seq, false), nil },
+	result, err := execute(ctx, c, request[bool]{family: rdmaSysGet,
+		build: func(seq uint32, _ uint64) ([]byte, error) { return rdmaRequest(rdmaSysGet, 0, 0, seq, false) },
 		match: func(e xtcpnl.NetlinkEnvelope) (bool, bool, error) {
 			mode, err := decodeMonitorMode(e.Body)
 			return mode, true, err
@@ -55,22 +56,21 @@ func (c *Client) monitorMode(ctx context.Context) error {
 	return nil
 }
 
+// decodeMonitorMode reads MONITOR_MODE, which a kernel before it existed
+// does not send. The mode is a boolean; any other value is malformed.
 func decodeMonitorMode(body []byte) (bool, error) {
-	attrs, err := xtcpnl.ParseNetlinkAttributes(body)
+	var seen [rdmaMonitorMode + 1]bool
+	if err := admitRDMAAttrs(body, []uint16{rdmaMonitorMode}, seen[:]); err != nil {
+		return false, err
+	}
+	s, err := xtcpnl.ParseRdmaSys(body)
 	if err != nil {
 		return false, errors.Join(ErrReply, err)
 	}
-	seen, enabled := false, false
-	for _, a := range attrs {
-		if a.ID() != rdmaMonitorMode {
-			continue
-		}
-		if seen || a.Type != rdmaMonitorMode || len(a.Data) != 1 || a.Data[0] > 1 {
-			return false, ErrReply
-		}
-		seen, enabled = true, a.Data[0] == 1
+	if s.MonitorMode > 1 {
+		return false, ErrReply
 	}
-	return enabled, nil
+	return s.MonitorMode == 1, nil
 }
 
 // Run delivers invalidation hints, never authoritative link observations.
@@ -105,36 +105,25 @@ func DecodeRDMANotifications(data []byte, emit func() bool) error {
 	})
 }
 
+// rdmaEventAttrs are the attributes an event is admitted on.
+var rdmaEventAttrs = []uint16{xtcpnl.RdmaNldevAttrDevIndex, xtcpnl.RdmaNldevAttrDevName,
+	xtcpnl.RdmaNldevAttrPortIndex, xtcpnl.RdmaNldevAttrNdevIndex, xtcpnl.RdmaNldevAttrNdevName, rdmaEventType}
+
 // decodeNotification requires only EVENT_TYPE. The kernel's
 // rdma_nl_notify_event omits the device handle for NETDEV_RENAME (netdev
 // index and name only) and sends EVENT_TYPE alone when the netdev is in
 // another namespace, so identifiers are validated when present, never required.
 func decodeNotification(body []byte) error {
-	attrs, err := xtcpnl.ParseNetlinkAttributes(body)
+	var seen [rdmaEventType + 1]bool
+	if err := admitRDMAAttrs(body, rdmaEventAttrs, seen[:]); err != nil {
+		return err
+	}
+	e, err := xtcpnl.ParseRdmaEvent(body)
 	if err != nil {
 		return errors.Join(ErrReply, err)
 	}
-	var seen [rdmaEventType + 1]bool
-	var p RDMAPort
-	for _, a := range attrs {
-		id := a.ID()
-		if id != 1 && id != 2 && id != 3 && id != 50 && id != 51 && id != rdmaEventType {
-			continue
-		}
-		if seen[id] || id != a.Type {
-			return ErrReply
-		}
-		seen[id] = true
-		if id == rdmaEventType {
-			if len(a.Data) != 1 {
-				return ErrReply
-			}
-		} else if err := rdmaAttribute(&p, id, a.Data); err != nil {
-			return err
-		}
-	}
-	if !seen[rdmaEventType] {
+	if !e.HasEventType {
 		return ErrReply
 	}
-	return nil
+	return admitRDMAIdentity(e.RdmaHandle, e.RdmaNetdev)
 }

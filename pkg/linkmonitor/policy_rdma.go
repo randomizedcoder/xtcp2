@@ -1,6 +1,9 @@
 package linkmonitor
 
-import "github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/model"
+import (
+	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/model"
+	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
+)
 
 type rdmaLayer uint8
 
@@ -79,18 +82,28 @@ func nativeRDMAUp(state, physical model.Optional[uint8]) model.Optional[bool] {
 	if !state.Present || !physical.Present {
 		return model.Optional[bool]{}
 	}
-	if state.Value < 1 || state.Value > 5 || physical.Value < 1 || physical.Value > 7 {
+	if !ibPortStateKnown(state.Value) || !ibPortPhysStateKnown(physical.Value) {
 		return model.Optional[bool]{}
 	}
-	return model.Optional[bool]{Value: state.Value == 4 && physical.Value == 5, Present: true}
+	return model.Optional[bool]{Value: state.Value == xtcpnl.IbPortActive && physical.Value == xtcpnl.IbPortPhysStateLinkUp, Present: true}
+}
+
+// ibPortStateKnown is enum ib_port_state without NOP: DOWN to ACTIVE_DEFER.
+func ibPortStateKnown(v uint8) bool {
+	return v >= xtcpnl.IbPortDown && v <= xtcpnl.IbPortActiveDefer
+}
+
+// ibPortPhysStateKnown is enum ib_port_phys_state: SLEEP to PHY_TEST.
+func ibPortPhysStateKnown(v uint8) bool {
+	return v >= xtcpnl.IbPortPhysStateSleep && v <= xtcpnl.IbPortPhysStatePhyTest
 }
 
 // RDMA readiness is separate from Ethernet up and GID protocol availability.
 func roceReadiness(state model.Optional[uint8]) model.Check {
-	if !state.Present || state.Value < 1 || state.Value > 5 {
+	if !state.Present || !ibPortStateKnown(state.Value) {
 		return model.CheckUnknown
 	}
-	return equalCheck(state.Value, uint8(4))
+	return equalCheck(state.Value, xtcpnl.IbPortActive)
 }
 
 // A mode is one supported speed/width combination, normalized by the UMAD

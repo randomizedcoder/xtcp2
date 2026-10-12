@@ -248,7 +248,7 @@ func callFor(protocol int, request []byte, families map[uint16]Family) (replayCa
 				r, err := c.GetRDMAPort(ctx, index, port)
 				return r.Values, len(r.Values), err
 			}}, nil
-		case kind == 5<<10|6:
+		case kind == rdmaSysGet:
 			return replayCall{"monitorMode", func(ctx context.Context, c *Client) (any, int, error) {
 				err := c.monitorMode(ctx)
 				return err == nil, 1, err
@@ -451,7 +451,7 @@ func TestRecordedContractMutations(t *testing.T) {
 				for _, r := range e.replies {
 					eachMessage(r, func(m []byte) {
 						if binary.LittleEndian.Uint16(m[4:]) == rdmaDeviceGet {
-							binary.LittleEndian.PutUint16(m[4:], 5<<10|9)
+							binary.LittleEndian.PutUint16(m[4:], rdmaResGet)
 						}
 					})
 				}
