@@ -362,6 +362,37 @@ coverage comes from `rocm-ernic` (emulated ionic over vfio-user), whose
 `nixosModules.ernic-guest` reaches `PORT_ACTIVE` on the in-tree
 `ionic`/`ionic_rdma` drivers.
 
+V088 — real-driver ionic guest (2026-10-11): `test-linkmonitor-ionic-vm`
+boots a qemu-vm.nix guest (kernel 7.1.4, 4 cores) with the in-tree `ionic` and
+`ionic_rdma` drivers bound to a rocm-ernic emulated AMD Pensando NIC over
+vfio-user. It uses the new `rocm-ernic` flake input (`nixosModules.ernic-guest`
+and `ernic-run`, pinned to the fork until upstream takes them) and the real
+`go-link-monitor` rdma binary, whose `/metrics-all` the `ionic_vm` tests
+scrape (a small table-tested text-format parser, `exposition_parse_test.go`).
+Sentinels: DISCOVERY (port 1 ACTIVE/LINK_UP on the netdev), CONTRACTS
+(`TestLiveRequestShapes` recorded), MONITOR, CLI, EVENTS, UNPLUG, HOTPLUG and
+RECOVERED_EVENTS. MONITOR requires healthy collection, a baseline of one up link,
+and every collector either supported and successful or listed with a reason
+that a check proves on the guest: `rdma_capabilities` is not_applicable
+(`link_layer` Ethernet; the UMAD query is native-InfiniBand only) and
+`rdma_counters` unsupported (no `counters`, `counters_ext` or `hw_counters`
+group on the emulated port). Unlisted collectors and nonzero
+`collector_errors_total` fail. CLI compares speed, duplex, driver, combined
+channels, current rx/tx rings and RoCE port state against `ethtool` and
+`rdma link`. EVENTS covers down, up, a rename to a 15-byte name and back.
+Hot-unplug is a guest PCI remove while the monitor holds its verbs context;
+removal completed without blocking, the monitor reported the lost link
+(`up_links_delta` -1, link metrics gone), and after `pci/rescan` it rediscovered
+`ionic_0`, returned to baseline and healthy, and the event rows passed again
+on the replugged device. QMP `device_del` was tried first and aborts QEMU
+11.0.2 (`memory_region_del_subregion: Assertion subregion->container == mr`);
+that is a QEMU vfio-user teardown bug, not a guest or monitor fault. The
+recordings are committed under `testdata/nlrecord/ionic-vm/7.1.4/`; with no
+error replies one generic socket serves every ethtool and devlink request.
+With the V085 fix reverted, its RDMA replay fails (`GetRDMAPort(0, 1) …
+context deadline exceeded`). Not established: verbs async-event delivery (no
+per-event metric) and physical NIC behavior.
+
 V087 — in-process netlink recording and replay (2026-10-11): since nlmon
 cannot see NETLINK_RDMA, `linuxio` records in process. Builds with the
 `nlrecord` tag wrap every socket when `LINKMONITOR_NLRECORD=<dir>` is set and
@@ -1518,6 +1549,7 @@ owners, deadlines or successful outcomes. Continue independent ready tasks.
 | 2026-10-11 | Fixed RDMA single-port GET waiting out the 5 s request budget: the kernel replies with `RDMA_NLDEV_CMD_GET`. The budget is unchanged, since queries take milliseconds. | V085. Open: builds without the `rdma` tag cannot learn a first baseline on RDMA hosts (embedded xtcp2) |
 | 2026-10-11 | Audited every netlink request and reply against linux 7.2.9. Fixed RDMA notifications ending `rdma_events` on netdev rename and other-namespace attach/detach. Decision: reply envelope types in new tests come from recorded kernel replies, never from echoing the request. | V086. Next: in-process netlink recording and replay, then the ionic VM |
 | 2026-10-11 | Added in-process netlink recording (`nlrecord` tag) and replay of committed rxe-VM recordings through the real `linuxio` API. Fixtures come from the rxe VM and host `l` (mlx5, atlantic). | V087. Next: the ionic VM (`test-linkmonitor-ionic-vm`) using rocm-ernic |
+| 2026-10-11 | Added the real-driver ionic guest (`test-linkmonitor-ionic-vm`, rocm-ernic): collector table with checked reasons, CLI differential, events, PCI unplug/replug and recovered events; ionic fixtures committed. | V088. Next: Phase E gates and docs |
 
 Publication: P08-T03 was committed as `cb958fb` and pushed on
 `test/linkmonitor-embedding`; [PR #178](https://github.com/randomizedcoder/xtcp2/pull/178)

@@ -165,6 +165,15 @@ outside the thirteen-check offline aggregate. Missing KVM is unverified, not pas
 Real verbs event delivery and native/physical InfiniBand capability validation
 remain separate. Production device classification still excludes virtual links.
 
+The opt-in `nix run path:.#test-linkmonitor-ionic-vm` boots a qemu-vm.nix guest
+with the `rocm-ernic` flake input's `nixosModules.ernic-guest`, under its
+`ernic-run` wrapper, so the in-tree `ionic` and `ionic_rdma` drivers bind to an
+emulated AMD Pensando NIC. It needs `/dev/kvm` and no console ports. Hot-unplug
+is a guest PCI remove and rescan: QMP `device_del` of the vfio-user device aborts
+QEMU 11.0.2 (`memory_region_del_subregion` assertion). `--promote` copies the
+recorded netlink fixtures into the linuxio testdata. Try a local rocm-ernic
+checkout with `--override-input rocm-ernic path:$HOME/Downloads/rocm-ernic`.
+
 Individual gate example:
 
 ```sh

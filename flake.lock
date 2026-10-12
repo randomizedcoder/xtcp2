@@ -53,6 +53,22 @@
         "type": "github"
       }
     },
+    "libvfio-user": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1787057784,
+        "narHash": "sha256-VRwnY/JX3NAhXypM5tTZSpEQvWsAWgdrsii5kNkpEYg=",
+        "owner": "nutanix",
+        "repo": "libvfio-user",
+        "rev": "323f4cb6cddc3713fb7aebe44436f28b28b5413a",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nutanix",
+        "repo": "libvfio-user",
+        "type": "github"
+      }
+    },
     "microvm": {
       "inputs": {
         "nixpkgs": [
@@ -128,12 +144,41 @@
         "type": "github"
       }
     },
+    "rocm-ernic": {
+      "inputs": {
+        "flake-utils": [
+          "flake-utils"
+        ],
+        "libvfio-user": "libvfio-user",
+        "microvm": [
+          "microvm"
+        ],
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1791772920,
+        "narHash": "sha256-HXTarzcq8kUIyArdT8B4kVWifvEEN+NDayCidGwYvDI=",
+        "owner": "randomizedcoder",
+        "repo": "rocm-ernic",
+        "rev": "84f06fe6ed706580b954f4b25832c52ab214444a",
+        "type": "github"
+      },
+      "original": {
+        "owner": "randomizedcoder",
+        "repo": "rocm-ernic",
+        "rev": "84f06fe6ed706580b954f4b25832c52ab214444a",
+        "type": "github"
+      }
+    },
     "root": {
       "inputs": {
         "flake-utils": "flake-utils",
         "giouring": "giouring",
         "microvm": "microvm",
         "nixpkgs": "nixpkgs",
+        "rocm-ernic": "rocm-ernic",
         "xdp2": "xdp2"
       }
     },

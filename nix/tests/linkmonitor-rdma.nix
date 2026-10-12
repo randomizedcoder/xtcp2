@@ -49,6 +49,7 @@ in
     mkdir -p "$out/bin"
     go build -tags rdma -trimpath -o "$out/bin/linkmonitor-smoke" ./nix/tests/linkmonitor-smoke
     go test -tags rdma,rdma_vm -c -o "$out/bin/rdma-vm.test" ./pkg/linkmonitor
+    go test -tags rdma,ionic_vm -c -o "$out/bin/ionic-vm.test" ./pkg/linkmonitor
     go test -tags nlrecord -c -o "$out/bin/linuxio-nlrecord.test" ./pkg/linkmonitor/internal/linuxio
     ln -s ${runtime} "$out/runtime"
     readelf -d "$out/bin/linkmonitor-smoke" > "$out/elf.txt"
@@ -88,6 +89,7 @@ in
   test-linkmonitor-rdma-lint = mkCheck "lint" ''
     go vet -tags rdma ./cmd/go-link-monitor ./pkg/linkmonitor/... ./nix/tests/linkmonitor-smoke
     go vet -tags rdma,rdma_vm,nlrecord ./pkg/linkmonitor/...
+    go vet -tags rdma,ionic_vm ./pkg/linkmonitor/...
     golangci-lint run --config .golangci-comprehensive.yml --build-tags rdma ./cmd/go-link-monitor ./pkg/linkmonitor/... ./nix/tests/linkmonitor-smoke
   '';
   test-linkmonitor-command = mkCheck "command" ''

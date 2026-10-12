@@ -100,6 +100,22 @@ confined to disposable guest fixture nodes. The production classifier continues
 to exclude virtual links. Guest execution without KVM is unverified, never pass.
 Real verbs event delivery, native InfiniBand UMAD/speed/duplex and the physical
 fleet gate remain unverified by this software guest.
+A second opt-in guest runs the in-tree `ionic`/`ionic_rdma` drivers against a
+rocm-ernic emulated NIC (vfio-user), so replies come from a real driver:
+
+```sh
+nix run path:.#test-linkmonitor-ionic-vm            # evidence under $TMPDIR
+nix run path:.#test-linkmonitor-ionic-vm -- --promote  # from the checkout root
+```
+
+It requires `/dev/kvm` but no microVM ports. Its sentinels cover discovery,
+recorded live contracts, the real binary's collector table (every non-supported
+row names a reason checked on the guest), a CLI differential against
+`ethtool`/`rdma link`, down/up and 15-byte rename events, a guest PCI remove and
+rescan, and the same events again after replug. `--promote` copies the
+recordings into `testdata/nlrecord/ionic-vm/<kernel>/`. It does not establish
+verbs async-event delivery (the monitor exports no per-event counter) or
+physical NIC behavior.
 The runtime check enumerates devices without opening hardware contexts and
 explicitly does not establish physical RDMA behavior. P07-T03 adds a linked
 UMAD test executable, C allocation/agent/fd ownership tables and a pinned
