@@ -1678,7 +1678,9 @@ rec {
         done
 
         if [ -z "$OUT_DIR" ]; then
-          VER=$(awk '{print $3}' "$STAGE/uname" | cut -d- -f1 | tr . _)
+          # A release candidate keeps its rc: 7.2.0-rc3 is 7_2_0_rc3, so it
+          # cannot be mistaken for the 7.2.0 release's corpus.
+          VER=$(awk '{print $3}' "$STAGE/uname" | sed -E 's/-(rc[0-9]+).*/_\1/; s/-.*//' | tr . _)
           if [ -z "$VER" ]; then
             echo "FATAL: could not derive a kernel version from the uname sidecar"
             exit 2

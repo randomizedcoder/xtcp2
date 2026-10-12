@@ -25,6 +25,15 @@ var (
 	// capturedRDMASys is sys_show.strace's SYS_GET reply: NETNS_MODE 1,
 	// PRIVILEGED_QKEY_MODE 0, MONITOR_MODE 1 and COPY_ON_FORK 1.
 	capturedRDMASys = rdmaHex("05004200010000000500600000000000050067000100000005005d0001000000")
+	// captured61RDMADevice is 6.1.177's link_show.strace device dump reply
+	// (pkg/xtcpnl/testdata/6_1_177/rdma, `nix run
+	// .#microvm-x86_64-rdma-capture-6_1`): no NAME_ASSIGN_TYPE, and a
+	// CAP_FLAGS without the bits from 38 up.
+	captured61RDMADevice = rdmaHex("080001000000000009000200727865300000000008000300010000000c000400763c2201000000000c000600005200feff0000000c000700005200feff00000005000e0001000000050054000000000009004300726f636500000000")
+	// captured66RDMASys is 6.6.144's sys_show.strace SYS_GET reply:
+	// NETNS_MODE and COPY_ON_FORK, and neither PRIVILEGED_QKEY_MODE nor
+	// MONITOR_MODE, which that kernel does not send.
+	captured66RDMASys = rdmaHex("050042000100000005005d0001000000")
 	// capturedRDMAEvents is monitor_add.strace's three MONITOR datagrams, as
 	// one buffer: rxe1's REGISTER, its NETDEV_ATTACH to rx1 and UNREGISTER.
 	capturedRDMAEvents = rdmaHex("2c0000001c140000000000000000000008000100010000000900020072786531000000000500660000000000" +
@@ -140,6 +149,16 @@ func TestRDMACapturedFixtures(t *testing.T) {
 			}},
 		{description: "corner: no fixture body has an attribute xtcpnl does not know", msgType: rdmaDeviceGet, body: capturedRDMADevice,
 			expected: func(v any) bool { d, ok := v.(xtcpnl.RdmaDev); return ok && len(d.Unknown) == 0 }},
+		{description: "boundary: the 6.1 device fixture is rxe0 without NAME_ASSIGN_TYPE", msgType: rdmaDeviceGet, body: captured61RDMADevice,
+			expected: func(v any) bool {
+				d, ok := v.(xtcpnl.RdmaDev)
+				return ok && d.DevName == "rxe0" && !d.HasNameAssignType && d.CapFlags == 0x1223c76 && len(d.Unknown) == 0
+			}},
+		{description: "boundary: the 6.6 sys fixture has no MONITOR_MODE", msgType: rdmaSysGet, body: captured66RDMASys,
+			expected: func(v any) bool {
+				s, ok := v.(xtcpnl.RdmaSys)
+				return ok && s.HasNetnsMode && s.HasCopyOnFork && !s.HasPrivilegedQKeyMode && !s.HasMonitorMode
+			}},
 	} {
 		t.Run(tc.description, func(t *testing.T) {
 			v, err := xtcpnl.ParseRdmaMsg(tc.msgType, tc.body)

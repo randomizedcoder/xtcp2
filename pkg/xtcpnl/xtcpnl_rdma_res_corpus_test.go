@@ -37,15 +37,15 @@ type rdmaResCorpusRow struct {
 	last     any // the last reply, zeroRdmaVolatile'd; nil skips
 }
 
-func rdmaResCorpusSummary(t *testing.T, slug string, entryAt int, wantEntry, wantLast bool) rdmaResCorpusRow {
+func rdmaResCorpusSummary(t *testing.T, k rdmaKernel, slug string, entryAt int, wantEntry, wantLast bool) rdmaResCorpusRow {
 	t.Helper()
 	var r rdmaResCorpusRow
-	for _, m := range rdmaCorpus(t, slug) {
-		if m.send {
-			r.requests = append(r.requests, fmt.Sprintf("%#x/%#x/%d", m.typ, m.flags, len(m.raw)))
+	for _, m := range rdmaCorpus(t, k, slug) {
+		if m.Send {
+			r.requests = append(r.requests, fmt.Sprintf("%#x/%#x/%d", m.Type, m.Flags, len(m.Raw)))
 		}
 	}
-	replies, _, _ := rdmaCorpusReplies(t, slug)
+	replies, _, _ := rdmaCorpusReplies(t, k, slug)
 	var lastObjects reflect.Value
 	for _, v := range replies {
 		rv := reflect.ValueOf(v)
@@ -150,14 +150,17 @@ func TestParseRdmaResCorpus(t *testing.T) {
 			expected: rdmaResCorpusRow{requests: []string{devDump, "0x140a" + dump, "0x140a" + dumpPort},
 				counts: []int{1, 1}, flat: []bool{false, false}, entry: gsi}},
 	}
-	for _, tc := range tests {
-		t.Run(tc.description, func(t *testing.T) {
-			got := rdmaResCorpusSummary(t, tc.slug, tc.expected.entryAt, tc.expected.entry != nil, tc.expected.last != nil)
-			if !reflect.DeepEqual(got, tc.expected) {
-				t.Errorf("got  %+v\nwant %+v", got, tc.expected)
-			}
-		})
-	}
+	// rxe's objects are the same on every kernel the corpus has.
+	forRdmaKernels(t, func(t *testing.T, k rdmaKernel) {
+		for _, tc := range tests {
+			t.Run(tc.description, func(t *testing.T) {
+				got := rdmaResCorpusSummary(t, k, tc.slug, tc.expected.entryAt, tc.expected.entry != nil, tc.expected.last != nil)
+				if !reflect.DeepEqual(got, tc.expected) {
+					t.Errorf("got  %+v\nwant %+v", got, tc.expected)
+				}
+			})
+		}
+	})
 }
 
 // TestRdmaResCorpusSidecars pins what `rdma` printed for each RES row, with
@@ -189,68 +192,72 @@ func TestRdmaResCorpusSidecars(t *testing.T) {
 		{description: "corner: the refused lqpn doit prints what the dump found", slug: "res_qp_lqpn",
 			expected: struct{ rc, out, err string }{rc: "0", out: gsiLine}},
 	}
-	read := func(t *testing.T, name string) string {
-		b, err := os.ReadFile(tdRdma_7_1_4 + "/" + name)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return string(b)
-	}
-	for _, tc := range tests {
-		t.Run(tc.description, func(t *testing.T) {
-			rc := strings.TrimSpace(read(t, tc.slug+".rc"))
-			out := key.ReplaceAllString(pid.ReplaceAllString(read(t, tc.slug+".out"), "pid N "), "key K ")
-			errOut := read(t, tc.slug+".err")
-			if rc != tc.expected.rc || out != tc.expected.out || errOut != tc.expected.err {
-				t.Errorf("got rc %q out %q err %q\nwant %+v", rc, out, errOut, tc.expected)
+	forRdmaKernels(t, func(t *testing.T, k rdmaKernel) {
+		read := func(t *testing.T, name string) string {
+			b, err := os.ReadFile(k.rdma() + "/" + name)
+			if err != nil {
+				t.Fatal(err)
 			}
-		})
-	}
+			return string(b)
+		}
+		for _, tc := range tests {
+			t.Run(tc.description, func(t *testing.T) {
+				rc := strings.TrimSpace(read(t, tc.slug+".rc"))
+				out := key.ReplaceAllString(pid.ReplaceAllString(read(t, tc.slug+".out"), "pid N "), "key K ")
+				errOut := read(t, tc.slug+".err")
+				if rc != tc.expected.rc || out != tc.expected.out || errOut != tc.expected.err {
+					t.Errorf("got rc %q out %q err %q\nwant %+v", rc, out, errOut, tc.expected)
+				}
+			})
+		}
+	})
 }
 
 func TestRdmaCorpusSlugs(t *testing.T) {
-	ents, err := os.ReadDir(tdRdma_7_1_4)
-	if err != nil {
-		t.Fatal(err)
-	}
-	inDir := map[string]bool{}
-	for _, e := range ents {
-		if s, ok := strings.CutSuffix(e.Name(), ".strace"); ok {
-			inDir[s] = true
-		}
-	}
-	listed := map[string]bool{}
-	missing := 0
-	for _, s := range rdmaCorpusSlugs {
-		listed[s] = true
-		for _, ext := range []string{".strace", ".out", ".err", ".rc"} {
-			if _, err := os.Stat(tdRdma_7_1_4 + "/" + s + ext); err != nil {
-				missing++
-				t.Log(err)
-			}
-		}
-	}
 	src, err := os.ReadFile("xtcpnl_rdma_corpus_test.go")
 	if err != nil {
 		t.Fatal(err)
 	}
 	// A slug list of its own in a corpus-wide test starts with the first row.
 	ownLists := strings.Count(string(src), `"dev_show", "`)
-	tests := []struct {
-		description string
-		got         any
-		expected    any
-	}{
-		{description: "positive: every .strace in the directory is listed", got: inDir, expected: listed},
-		{description: "negative: no listed slug lacks a file", got: missing, expected: 0},
-		{description: "boundary: 11 rows and 16 RES rows", got: len(rdmaCorpusSlugs), expected: 27},
-		{description: "corner: the fuzz, Unknown and coverage tests keep no list of their own", got: ownLists, expected: 1},
-	}
-	for _, tc := range tests {
-		t.Run(tc.description, func(t *testing.T) {
-			if !reflect.DeepEqual(tc.got, tc.expected) {
-				t.Errorf("got %v, want %v", tc.got, tc.expected)
+	forRdmaKernels(t, func(t *testing.T, k rdmaKernel) {
+		ents, err := os.ReadDir(k.rdma())
+		if err != nil {
+			t.Fatal(err)
+		}
+		inDir := map[string]bool{}
+		for _, e := range ents {
+			if s, ok := strings.CutSuffix(e.Name(), ".strace"); ok {
+				inDir[s] = true
 			}
-		})
-	}
+		}
+		listed := map[string]bool{}
+		missing := 0
+		for _, s := range rdmaCorpusSlugs {
+			listed[s] = true
+			for _, ext := range []string{".strace", ".out", ".err", ".rc"} {
+				if _, err := os.Stat(k.rdma() + "/" + s + ext); err != nil {
+					missing++
+					t.Log(err)
+				}
+			}
+		}
+		tests := []struct {
+			description string
+			got         any
+			expected    any
+		}{
+			{description: "positive: every .strace in the directory is listed", got: inDir, expected: listed},
+			{description: "negative: no listed slug lacks a file", got: missing, expected: 0},
+			{description: "boundary: 11 rows and 16 RES rows", got: len(rdmaCorpusSlugs), expected: 27},
+			{description: "corner: the fuzz, Unknown and coverage tests keep no list of their own", got: ownLists, expected: 1},
+		}
+		for _, tc := range tests {
+			t.Run(tc.description, func(t *testing.T) {
+				if !reflect.DeepEqual(tc.got, tc.expected) {
+					t.Errorf("got %v, want %v", tc.got, tc.expected)
+				}
+			})
+		}
+	})
 }

@@ -198,8 +198,9 @@ const (
 	// 7.1.4 RDMA nldev captures, produced in the microVM by
 	// `nix run .#microvm-x86_64-rdma-capture` (scripts/capture-rdma.exp).
 	// nlmon cannot tap NETLINK_RDMA, so each row is an strace of one `rdma`
-	// invocation (<slug>.strace, read by parseStrace) with its .out, .err and
-	// .rc beside it.
+	// invocation (<slug>.strace, read by pkg/nlstrace) with its .out, .err and
+	// .rc beside it. rdmaKernels lists this corpus with its siblings on the
+	// other kernels.
 	tdRdma_7_1_4 = tdBase + "/7_1_4/rdma"
 
 	tdLacpNoPartnerGetLink_7_1_4   = tdLinkWrite_7_1_4 + "/lacp_no_partner/netlink_route_getlink.pcap"
@@ -364,3 +365,42 @@ const (
 	// Bare testdata/ (no kernel subdir — placeholder fixtures)
 	tdAttrPragueinfoFake = tdBase + "/attribute_pragueinfo_fake_fixme"
 )
+
+// rdmaKernel is one kernel the RDMA corpus was captured on, and how its nldev
+// replies about rxe0 differ from 7.1.4's. The same capture, rdma 7.1.0 and
+// topology run on each (`nix run .#microvm-x86_64-rdma-capture` for
+// linuxPackages_latest, `-6_1`, `-6_6`, `-6_12`, `-6_18` and `-7_2` for the
+// rest of nix/microvms/default.nix's rdmaCaptureKernels), so a difference is
+// the kernel's. The fields are what the captures show, not what a changelog
+// says: a feature absent on 6.6 and present on 6.12 landed somewhere between.
+type rdmaKernel struct {
+	// dir is the kernel's testdata directory, with the corpus in rdma/.
+	dir string
+	// nameAssignType is whether a device reply carries NAME_ASSIGN_TYPE:
+	// absent on 6.1 and 6.6, present from 6.12.
+	nameAssignType bool
+	// capFlags is rxe0's CAP_FLAGS. 6.1 lacks the three bits from 38 up that
+	// 6.6 and later report.
+	capFlags uint64
+	// sysModes is whether SYS_GET's reply carries PRIVILEGED_QKEY_MODE and
+	// MONITOR_MODE. Without MONITOR_MODE rdma prints "monitor off" and
+	// refuses `rdma monitor` before it sends anything more.
+	sysModes bool
+	// byteCounters is whether rxe's counter table ends with sent_bytes and
+	// rcvd_bytes, as it does on 7.2.
+	byteCounters bool
+}
+
+// rdma is the kernel's corpus directory.
+func (k rdmaKernel) rdma() string { return tdBase + "/" + k.dir + "/rdma" }
+
+// rdmaKernels is every kernel the RDMA corpus was captured on, oldest first.
+// 6.12, 6.18 and 7.1.4 send the same bytes once maskRdmaMsg has run.
+var rdmaKernels = []rdmaKernel{
+	{dir: "6_1_177", capFlags: 0x1223c76},
+	{dir: "6_6_144", capFlags: 0x1c001223c76},
+	{dir: "6_12_96", nameAssignType: true, capFlags: 0x1c001223c76, sysModes: true},
+	{dir: "6_18_39", nameAssignType: true, capFlags: 0x1c001223c76, sysModes: true},
+	{dir: "7_1_4", nameAssignType: true, capFlags: 0x1c001223c76, sysModes: true},
+	{dir: "7_2_0_rc3", nameAssignType: true, capFlags: 0x1c001223c76, sysModes: true, byteCounters: true},
+}

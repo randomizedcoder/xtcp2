@@ -78,6 +78,11 @@ let
     # its closure never reaches internal/goip. Listed here for the same reason
     # as goip: this list is what puts it in the guest.
     "goip-parity"
+    # gordma is goip's sibling for rdma(8): a read-only clone that exists to
+    # exercise pkg/xtcpnl's nldev decoders against rdma's strace corpus
+    # (internal/gordma). Listed for the same reason as goip, so a later live
+    # parity run can find it in the guest beside the pinned rdma.
+    "gordma"
     "ipmeta-bootstrap"
     "ipfeed-collector"
     "kafka_to_clickhouse"

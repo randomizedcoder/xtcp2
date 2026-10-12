@@ -174,6 +174,7 @@ func TestRDMAMonitorMode(t *testing.T) {
 		{"absent", "boundary", "old kernel without mode", "coverage unavailable", nil, false, true},
 		{"future", "corner", "unknown mode value", "malformed mode rejected", notifyAttribute(rdmaMonitorMode, []byte{2}), false, false},
 		{"captured", "positive", "the captured sys_show reply, all four sys attributes", "coverage supported", capturedRDMASys, true, true},
+		{"captured66", "boundary", "6.6's captured sys_show reply, which has no MONITOR_MODE", "coverage unavailable", captured66RDMASys, false, true},
 		{"netnsWidth", "negative", "a 4-byte NETNS_MODE, which xtcpnl checks and linkmonitor used to skip", "malformed reply rejected",
 			append(notifyAttribute(66, word(1)), notifyAttribute(rdmaMonitorMode, []byte{1})...), false, false},
 		{"nested", "corner", "NLA_F_NESTED on MONITOR_MODE", "malformed reply rejected", notifyAttribute(rdmaMonitorMode|unix.NLA_F_NESTED, []byte{1}), false, false},

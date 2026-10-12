@@ -698,13 +698,24 @@ pkgs.writeShellApplication {
       spid=$!
 
       deadline=$(( $(date +%s) + BIND_TIMEOUT ))
-      while [ "$(date +%s)" -lt "$deadline" ]; do
+      while [ "$(date +%s)" -lt "$deadline" ] && kill -0 "$spid" 2>/dev/null; do
         if in_ns "$ns" cat /proc/net/netlink | grep -Eq '^[0-9a-f]+ +20 +[0-9]+ +[0-9a-f]*[89abcdef]( |$)'; then
           joined=1
           break
         fi
         sleep 0.05
       done
+
+      # A kernel before RDMA_NLDEV_SYS_ATTR_MONITOR_MODE (6.6, say) sends
+      # SYS_GET's reply without it, and rdma refuses before joining the group
+      # (rdma/monitor.c). That refusal is the row on such a kernel.
+      if [ "$joined" -ne 1 ] && ! kill -0 "$spid" 2>/dev/null &&
+        grep -qxF "RDMA monitoring is not supported by the kernel" "$dir/$name.err"; then
+        wait "$spid" || rc=$?
+        echo "$rc" >"$dir/$name.rc"
+        echo "NLCAP_MONITOR_UNSUPPORTED $subdir/$name rc=$rc"
+        return 0
+      fi
       if [ "$joined" -ne 1 ]; then
         echo "NLCAP_MONITOR_NOJOIN $subdir/$name" >&2
       fi

@@ -580,24 +580,26 @@ by `goip`, not in the matrix.
 `NETLINK_RDMA` has no family header: an nldev message is an nlmsghdr of type
 `RDMA_NL_GET_TYPE(RDMA_NL_NLDEV, cmd)` (`0x1400 + cmd`) and then attributes.
 
-| reply | nldev command | decoder | goip |
+| reply | nldev command | decoder | gordma |
 |---|---|---|---|
-| device | `GET` | `ParseRdmaDev` | — |
-| port | `PORT_GET` dump; the doit answers typed `GET` | `ParseRdmaPort` | — |
-| resource summary | `RES_GET` | `ParseRdmaRes` | — |
-| default hardware counters | `STAT_GET` with no `STAT_RES` | `ParseRdmaStat` | — |
-| system modes | `SYS_GET` | `ParseRdmaSys` | — |
-| monitor event (group 4) | `MONITOR` | `ParseRdmaEvent` | — |
-| queue pairs | `RES_QP_GET` | `ParseRdmaResQP` | — |
-| CM IDs | `RES_CM_ID_GET` | `ParseRdmaResCMID` | — |
-| completion queues | `RES_CQ_GET` | `ParseRdmaResCQ` | — |
-| memory regions | `RES_MR_GET` | `ParseRdmaResMR` | — |
-| protection domains | `RES_PD_GET` | `ParseRdmaResPD` | — |
-| verbs contexts | `RES_CTX_GET` | `ParseRdmaResCtx` | — |
-| shared receive queues | `RES_SRQ_GET` | `ParseRdmaResSRQ` | — |
+| device | `GET` | `ParseRdmaDev` | `dev show [DEV]` |
+| port | `PORT_GET` dump; the doit answers typed `GET` | `ParseRdmaPort` | `link show [DEV/PORT]` |
+| resource summary | `RES_GET` | `ParseRdmaRes` | `res show [DEV]` |
+| default hardware counters | `STAT_GET` with no `STAT_RES` | `ParseRdmaStat` | `statistic show [link DEV/PORT]` |
+| system modes | `SYS_GET` | `ParseRdmaSys` | `system show` |
+| monitor event (group 4) | `MONITOR` | `ParseRdmaEvent` | `monitor` |
+| queue pairs | `RES_QP_GET` | `ParseRdmaResQP` | `res show qp` |
+| CM IDs | `RES_CM_ID_GET` | `ParseRdmaResCMID` | `res show cm_id` |
+| completion queues | `RES_CQ_GET` | `ParseRdmaResCQ` | `res show cq` |
+| memory regions | `RES_MR_GET` | `ParseRdmaResMR` | `res show mr` |
+| protection domains | `RES_PD_GET` | `ParseRdmaResPD` | `res show pd` |
+| verbs contexts | `RES_CTX_GET` | `ParseRdmaResCtx` | `res show ctx` |
+| shared receive queues | `RES_SRQ_GET` | `ParseRdmaResSRQ` | `res show srq` |
 
-`ParseRdmaMsg` dispatches on the type. Decoded, not rendered, not in the
-matrix. See [the RDMA nldev decoder](#the-rdma-nldev-decoder).
+`ParseRdmaMsg` dispatches on the type. `gordma` renders every row, with
+filters and `-j`, and a replay of the strace corpus checks it against
+`rdma`. It is not in the matrix, which is pcap's. See
+[the RDMA nldev decoder](#the-rdma-nldev-decoder).
 
 ### What happens to a type nothing here knows
 
@@ -891,7 +893,7 @@ Phases and scope are as defined in
 | **3** | Rules (`FRA_*`), nexthop (`NHA_*`), bridge/VLAN, `IFLA_LINKINFO` descent | **partial** | the `IFLA_LINKINFO` descent, as far as `IFLA_INFO_KIND` — [`4494b42`](#4494b42--the-ifla_-and-ifa_-attribute-decoders-a-show-line-needs), the first production caller of `WalkRTAttrsNested`. **`FRA_*` is done**: `struct fib_rule_hdr` and all 30 attributes decode in `xtcpnl_fib_rule_hdr.go`, `render.RuleView` prints them, and `ip rule show` drives four parity commands — see [below](#ip-rule-show-the-object-with-no-name-table). **`NHA_*` is done**: `struct nhmsg` and the nexthop attributes — id, oif, gateway, blackhole, fdb, group, group-type and the nested `NHA_RES_GROUP` — decode in `xtcpnl_nhmsg.go` and render for `ip nexthop show` and `-d` route nhid resolution; see the nexthop arc in [Where we are](#where-we-are). **The `IFLA_INFO_DATA` sub-nest is decoded for kind `vrf`** (`IFLA_VRF_TABLE`), together with `IFLA_INFO_SLAVE_DATA`'s `IFLA_VRF_PORT_TABLE`, driving `-d link`/`addr show` of a VRF master and its port. **And for kind `bond`**: every `IFLA_BOND_*` option, the `AD_INFO` nest and the twelve `IFLA_BOND_SLAVE_*` port attributes decode (link-write-path phase 1). They are not rendered yet, so `-d` on a bond still refuses | bridge/VLAN, the bond `-d` render, and the `IFLA_INFO_DATA` sub-nest for link kinds other than `vrf` and `bond`, each a separate attribute space per kind |
 | **4** | tc telemetry only (23 top-level `TCA_*`) | not started | — | all of it |
 | **5** | genetlink: `nlctrl` `GETFAMILY` first, then ethtool/devlink/netdev/vdpa/fou/gtp | not started | — | all of it |
-| **6** | xfrm, conntrack, ipset, proc_event, rdma | **partial** | **rdma, decode only**: the hand-declared `RDMA_NL*` block (`xtcpnl_rdma_consts.go`, every value C-gated against `<rdma/rdma_netlink.h>`), read-only nldev request builders, and decoders for the device, port, resource summary, per-object `RES_*`, hardware counter, system and monitor-event replies, on a strace corpus, which `pkg/linkmonitor/internal/linuxio` now decodes with — see [below](#the-rdma-nldev-decoder) | xfrm, conntrack, ipset, proc_event; for rdma, a `goip` render |
+| **6** | xfrm, conntrack, ipset, proc_event, rdma | **partial** | **rdma**: the hand-declared `RDMA_NL*` block (`xtcpnl_rdma_consts.go`, every value C-gated against `<rdma/rdma_netlink.h>`), read-only nldev request builders, and decoders for the device, port, resource summary, per-object `RES_*`, hardware counter, system and monitor-event replies, on a strace corpus, which `pkg/linkmonitor/internal/linuxio` now decodes with. **Rendered by `gordma`**, a read-only `rdma` clone that replays every corpus row on all six kernels byte for byte — see [below](#gordma-a-read-only-rdma) | xfrm, conntrack, ipset, proc_event; for rdma, live parity against `rdma` in a VM |
 | **7** | `unix_diag`, `xdp_diag`, and the deferred relocation into `rtnl/` and `diag/` | not started | — | all of it |
 
 ## Capture readiness
@@ -3116,8 +3118,8 @@ never reaches a tap. `nix run .#microvm-x86_64-rdma-capture`
 (`scripts/capture-rdma.exp`) boots the dump-capture VM, loads `rdma_rxe`,
 builds `rxe0` over a veth whose MAC is pinned, and runs each `rdma` command
 under `strace -e write=all -e read=all` through `xtcp2-nlcap strace`. The
-result is `testdata/7_1_4/rdma/<slug>.strace` with `.out`, `.err` and
-`.rc`. The test-only `parseStrace` turns it back into datagrams. Two runs
+result is `testdata/<kernel>/rdma/<slug>.strace` with `.out`, `.err` and
+`.rc`, for each kernel below. `pkg/nlstrace` turns it back into datagrams. Two runs
 were identical, seq and pid aside.
 
 What the corpus showed, where the plan had guessed otherwise:
@@ -3168,6 +3170,28 @@ The corpus carries 68 distinct attributes, nested ones included, and that is
 the floor `rdmaCaptureCoverageCst` pins. The test also fails if the count
 rises without the constant being raised.
 
+**Six kernels.** The same capture runs on every kernel the pinned nixpkgs
+carries: `linuxPackages_latest` (7.1.4) by default, and the LTS and testing
+kernels through `nix run .#microvm-x86_64-rdma-capture-{6_1,6_6,6_12,6_18,7_2}`
+(`rdmaCaptureKernels`, `nix/microvms/default.nix`). Each run uses the same
+rdma 7.1.0 and the same topology, so any difference comes from the kernel.
+`rdmaKernels` (`testdata_test.go`) records what each kernel sends, and every
+corpus test runs once per kernel. `TestRdmaCorpusAcrossKernels` pins which
+message types differ from 7.1.4's once masked:
+
+| kernel | differs from 7.1.4 in |
+|---|---|
+| 6.1.177 | device replies: no `NAME_ASSIGN_TYPE`, and `CAP_FLAGS` lacks bits 38-40. SYS_GET: no `PRIVILEGED_QKEY_MODE` or `MONITOR_MODE` |
+| 6.6.144 | device replies: no `NAME_ASSIGN_TYPE`. SYS_GET: as on 6.1 |
+| 6.12.96, 6.18.39 | nothing |
+| 7.2.0-rc3 | STAT_GET: rxe adds `sent_bytes` and `rcvd_bytes` |
+
+Without `MONITOR_MODE`, `rdma system show` prints `monitor off` and leaves
+out privileged-qkey. `rdma monitor` prints "RDMA monitoring is not supported
+by the kernel" and exits 1 after the SYS_GET. The capture records that
+refusal as the row, `NLCAP_MONITOR_UNSUPPORTED`. linkmonitor's tests use the
+6.1 device reply and the 6.6 SYS_GET reply as real old-kernel fixtures.
+
 **linkmonitor decodes with these.** `pkg/linkmonitor/internal/linuxio`
 (`rdma_linux.go`, `rdma_notify_linux.go`) spells no nldev number of its own
 and builds its requests with `BuildRdmaRequest`. It decodes values with
@@ -3187,6 +3211,47 @@ in `testdata/nlrecord` passes, the mlx5 and ionic hardware ones included.
 The requests still carry no `NLM_F_ACK`, unlike rdma's. They are the bytes
 those recordings pin, and the recordings come from hosts that cannot be
 re-recorded here.
+
+### gordma, a read-only rdma
+
+`cmd/gordma` (`internal/gordma`) is to `rdma` what `goip` is to `ip`: a
+clone of `rdma` 7.1.0's reads, on xtcpnl's builders and decoders. It
+follows `rdma`'s own code (`rdma/*.c` and iproute2's `json_print.c` and
+`json_writer.c`), down to the trailing spaces, the `[ib_core]` brackets,
+the outer JSON array's `\n` before each `,`, and `perror("error")`.
+
+- **Replay.** `GORDMA_REPLAY=<capture>.strace` answers from a capture
+  instead of the kernel. Each request must be the one `rdma` sent next,
+  byte for byte once seq and pid are zeroed, or gordma exits 2.
+  `TestGordmaMatchesCapturedSidecars` replays all 27 rows on all six
+  kernels with `rdma`'s arguments. Every recorded request must be asked
+  for, and stdout, stderr and the exit code must equal `.out`, `.err` and
+  `.rc`. A capture without a row fails the test.
+- **comm comes from the host.** For a user-owned object, `rdma` reads the
+  owner's name from `/proc/<pid>/comm`, not from the wire. `GORDMA_PROC`
+  names another proc root, and the test builds one from the sidecars'
+  `pid N comm X` pairs.
+- **What gordma refuses**, with rc 1: the write verbs; `-r`, because xtcpnl
+  refuses the `_RAW` dumps (so `res_qp_raw` is the one row whose `.err`
+  differs: gordma says so instead of sending the dump); `-dd`, `-b`,
+  `frmr_pools`, and `statistic qp|mr|mode`.
+- **Two places xtcpnl cannot say what rdma checks.** It does not record
+  whether an SRQ sent `RES_QP`, or whether a port sent `STAT_HWCOUNTERS`.
+  `rdma` skips such an SRQ and fails such a port. gordma prints both
+  without the missing part. The kernel sends both in every capture.
+- **What reading rdma showed:**
+  - With no arguments, `rdma` prints its help after `rd_init`'s dump.
+    It does not run `dev show`.
+  - A numeric filter's range, `lqpn 3-5`, matches its ends too. Its
+    comparison is exclusive, but each end also matches as a plain number.
+  - A CM ID with no port, such as a listener on every port, is printed once
+    for each port dumped.
+
+`TestGordmaImports` keeps gordma's imports to the standard library,
+x/sys/unix, `pkg/xtcpnl` and `pkg/nlstrace`, and keeps linkmonitor,
+`pkg/xtcp` and io_uring out of its closure. The binary is in
+`binaryNames` and `cli-help-smoke`, and `nix build
+.#test-focused-gordma` runs its tests.
 
 ## Tier C — the `goip-parity` microVM flavor
 

@@ -252,6 +252,7 @@ let
       nix build --accept-flake-config \
         "$FLAKE_REF#test-focused-asn-locality" \
         "$FLAKE_REF#test-focused-goip" \
+        "$FLAKE_REF#test-focused-gordma" \
         "$FLAKE_REF#test-focused-xtcp-enrich"
 
       echo "==> focused quality checks passed"
@@ -907,6 +908,7 @@ in
       test-oci-ipmeta-bootstrap-contents = tests.oci-ipmeta-bootstrap-contents;
       test-focused-asn-locality = tests.focused.focused-asn-locality;
       test-focused-goip = tests.focused.focused-goip;
+      test-focused-gordma = tests.focused.focused-gordma;
       test-focused-xtcp-enrich = tests.focused.focused-xtcp-enrich;
       test-microvm-lifecycle-x86_64 = tests.microvm-lifecycle.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-ipmeta-bootstrap =
@@ -1257,6 +1259,17 @@ in
       type = "app";
       program = "${microvms.rdmaCapture.x86_64.runner}/bin/xtcp2-rdma-capture-x86_64";
     };
+  }
+  # The RDMA capture on the other kernels of rdmaCaptureKernels
+  # (nix/microvms/default.nix): microvm-x86_64-rdma-capture-7_2 and so on.
+  // lib.mapAttrs' (
+    k: runner:
+    lib.nameValuePair "microvm-x86_64-rdma-capture-${k}" {
+      type = "app";
+      program = "${runner}/bin/xtcp2-rdma-capture-x86_64";
+    }
+  ) microvms.rdmaCapture.x86_64.kernels
+  // {
 
     # Tier 2 bond / LACP readback capture (link-write-path.md phase 8). Boots
     # two microvms joined by two point-to-point qemu dgram links, no tap and

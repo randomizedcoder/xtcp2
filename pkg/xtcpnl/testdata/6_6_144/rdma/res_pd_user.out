@@ -1,0 +1,4 @@
+dev rxe0 pdn 0 local_dma_lkey 0x13b users 1 comm [ib_core] 
+dev rxe0 pdn 1 local_dma_lkey 0x0 users 2 ctxn 0 pid 803 comm ibv_rc_pingpong 
+dev rxe0 pdn 2 local_dma_lkey 0x0 users 18 ctxn 1 pid 845 comm ibv_srq_pingpon 
+dev rxe0 pdn 3 local_dma_lkey 0x0 users 0 ctxn 2 pid 870 comm rping 

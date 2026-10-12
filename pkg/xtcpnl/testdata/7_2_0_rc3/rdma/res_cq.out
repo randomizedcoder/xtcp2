@@ -1,0 +1,1 @@
+dev rxe0 cqn 0 cqe 1023 users 2 poll-ctx WORKQUEUE adaptive-moderation off comm [ib_core] 
