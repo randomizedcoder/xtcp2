@@ -450,6 +450,37 @@ func TestAllowlistCommitted(t *testing.T) {
 		"stats show dev bond0 group xstats subgroup bond suite 802.3ad",
 		"stats show dev la1 group xstats_slave subgroup bond suite 802.3ad",
 		"-j stats show dev la1 group xstats_slave",
+		// The 26 route write rows (route-write-path.md phase 5), gated on
+		// the two runs after those: GOIP_PARITY_PASS both times, stdout=0,
+		// identical on both. A dev row is txns 2/2 with control nl=2 (the
+		// lookup reply's random MAC and cacheinfo of a fresh dummy), a
+		// dev-less row 1/1 with control nl=0.
+		"route replace 192.0.2.50/32 dev d0 congctl lock cubic rto_min 3ms initcwnd 32 initrwnd 32 quickack 1",
+		"route replace 198.51.100.0/24 dev d0",
+		"route add 198.51.100.0/24 dev d0",
+		"route add 198.51.100.0/24 via 192.0.2.254 dev d0",
+		"route add 198.51.100.0/24 via 192.0.2.254",
+		"route replace default via 192.0.2.254",
+		"route change 198.51.100.0/24 dev d0 metric 100",
+		"route append 198.51.100.0/24 dev d0 metric 200",
+		"route prepend 198.51.100.0/24 dev d0 metric 300",
+		"route test 198.51.100.0/24 dev d0",
+		"route del 198.51.100.0/24 dev d0",
+		"route del 198.51.100.0/24",
+		"route del 203.0.113.99/32",
+		"route add 198.51.100.0/24 dev d0 table 100",
+		"route add 198.51.100.0/24 dev d0 table 300",
+		"route add blackhole 198.51.100.0/24",
+		"route add unreachable 198.51.100.0/24",
+		"route add local 192.0.2.77 dev d0",
+		"route add 198.51.100.0/24 dev d0 src 192.0.2.1 proto static scope link metric 50",
+		"route add 198.51.100.0/24 via 203.0.113.1 dev d0 onlink",
+		"route add 198.51.100.0/24 via inet6 2001:db8::2 dev d0",
+		"-6 route replace 2001:db8:1::/64 via 2001:db8::2 dev d0",
+		"-6 route del 2001:db8:1::/64 dev d0",
+		"route replace 198.51.100.0/24 dev d0 mtu lock 1400 advmss 1360 window 65535 rtt 3ms rttvar 10ms ssthresh 100 cwnd 10 reordering 5 hoplimit 64 initcwnd 10 initrwnd 20 features ecn tcp_usec_ts fastopen_no_cookie 1",
+		"route replace 198.51.100.0/24 dev d0 rtt 24 rttvar 40 rto_min 200",
+		"route replace 198.51.100.0/24 dev d0 initcwnd 10 initcwnd 20",
 	}
 
 	tests := []struct {

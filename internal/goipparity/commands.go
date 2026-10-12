@@ -1651,6 +1651,132 @@ var commands = withArgs([]Command{
 		Name: "link del bond0", Slug: "link_write_del_bond",
 		// RTM_DELLINK by index.
 		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupEnslaved,
+	}, // The route write rows (route-write-path.md phase 5): the corpus in
+	// pkg/xtcpnl/testdata/7_1_4/link-write/route/, less `nodev`, with the
+	// same preconditions and floors as capture-link-writes.exp. A dev row is
+	// the d0 lookup and the write (4); a dev-less row is the write alone (2).
+	// `nodev` is not a row: goip stops at the lookup with no write file, as
+	// ip does, and TestRouteWriteNodevCorpus holds it offline.
+	{
+		Name: "route replace 192.0.2.50/32 dev d0 congctl lock cubic rto_min 3ms initcwnd 32 initrwnd 32 quickack 1", Slug: "route_write_replace_nfs",
+		// The NFS block: five metrics and RTAX_LOCK 0x12000, after the d0 lookup.
+		Floor: 4, Implemented: true, Write: true, Setup: routeWriteSetupDev,
+	},
+	{
+		Name: "route replace 198.51.100.0/24 dev d0", Slug: "route_write_replace_dev",
+		// The d0 lookup, then DST and OIF.
+		Floor: 4, Implemented: true, Write: true, Setup: routeWriteSetupDev,
+	},
+	{
+		Name: "route add 198.51.100.0/24 dev d0", Slug: "route_write_add_dev",
+		Floor: 4, Implemented: true, Write: true, Setup: routeWriteSetupDev,
+	},
+	{
+		Name: "route add 198.51.100.0/24 via 192.0.2.254 dev d0", Slug: "route_write_add_via_dev",
+		// A gateway keeps scope universe.
+		Floor: 4, Implemented: true, Write: true, Setup: routeWriteSetupDev,
+	},
+	{
+		Name: "route add 198.51.100.0/24 via 192.0.2.254", Slug: "route_write_add_via_nodev",
+		// No dev, so no lookup: the write alone.
+		Floor: 2, Implemented: true, Write: true, Setup: routeWriteSetupDev,
+	},
+	{
+		Name: "route replace default via 192.0.2.254", Slug: "route_write_replace_default",
+		// dst_len 0 and no RTA_DST.
+		Floor: 2, Implemented: true, Write: true, Setup: routeWriteSetupDev,
+	},
+	{
+		Name: "route change 198.51.100.0/24 dev d0 metric 100", Slug: "route_write_change_metric",
+		// ENOENT: the metric is part of the route's identity.
+		Floor: 4, Implemented: true, Write: true, Setup: routeWriteSetupRoute,
+	},
+	{
+		Name: "route append 198.51.100.0/24 dev d0 metric 200", Slug: "route_write_append_dev",
+		Floor: 4, Implemented: true, Write: true, Setup: routeWriteSetupRoute,
+	},
+	{
+		Name: "route prepend 198.51.100.0/24 dev d0 metric 300", Slug: "route_write_prepend_dev",
+		Floor: 4, Implemented: true, Write: true, Setup: routeWriteSetupRoute,
+	},
+	{
+		Name: "route test 198.51.100.0/24 dev d0", Slug: "route_write_test_dev",
+		// EEXIST, which is what test is for.
+		Floor: 4, Implemented: true, Write: true, Setup: routeWriteSetupRoute,
+	},
+	{
+		Name: "route del 198.51.100.0/24 dev d0", Slug: "route_write_del_dev",
+		// RTM_DELROUTE: proto 0, type 0, scope NOWHERE.
+		Floor: 4, Implemented: true, Write: true, Setup: routeWriteSetupRoute,
+	},
+	{
+		Name: "route del 198.51.100.0/24", Slug: "route_write_del_nodev",
+		Floor: 2, Implemented: true, Write: true, Setup: routeWriteSetupRoute,
+	},
+	{
+		Name: "route del 203.0.113.99/32", Slug: "route_write_del_missing",
+		// ESRCH.
+		Floor: 2, Implemented: true, Write: true, Setup: routeWriteSetupDev,
+	},
+	{
+		Name: "route add 198.51.100.0/24 dev d0 table 100", Slug: "route_write_add_table_100",
+		Floor: 4, Implemented: true, Write: true, Setup: routeWriteSetupDev,
+	},
+	{
+		Name: "route add 198.51.100.0/24 dev d0 table 300", Slug: "route_write_add_table_300",
+		// rtm_table 0 and RTA_TABLE 300, at its argv position.
+		Floor: 4, Implemented: true, Write: true, Setup: routeWriteSetupDev,
+	},
+	{
+		Name: "route add blackhole 198.51.100.0/24", Slug: "route_write_add_blackhole",
+		// No Setup: a fresh namespace has what a blackhole needs.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "route add unreachable 198.51.100.0/24", Slug: "route_write_add_unreachable",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "route add local 192.0.2.77 dev d0", Slug: "route_write_add_local",
+		// Table local and scope host, chosen by the type.
+		Floor: 4, Implemented: true, Write: true, Setup: routeWriteSetupDev,
+	},
+	{
+		Name: "route add 198.51.100.0/24 dev d0 src 192.0.2.1 proto static scope link metric 50", Slug: "route_write_add_src_proto_scope",
+		Floor: 4, Implemented: true, Write: true, Setup: routeWriteSetupDev,
+	},
+	{
+		Name: "route add 198.51.100.0/24 via 203.0.113.1 dev d0 onlink", Slug: "route_write_add_onlink",
+		Floor: 4, Implemented: true, Write: true, Setup: routeWriteSetupDev,
+	},
+	{
+		Name: "route add 198.51.100.0/24 via inet6 2001:db8::2 dev d0", Slug: "route_write_add_via_inet6",
+		// RTA_VIA: a v6 next hop on a v4 route (RFC 5549).
+		Floor: 4, Implemented: true, Write: true, Setup: routeWriteSetupDev6,
+	},
+	{
+		Name: "-6 route replace 2001:db8:1::/64 via 2001:db8::2 dev d0", Slug: "route_write_v6_replace_via",
+		Floor: 4, Implemented: true, Write: true, Setup: routeWriteSetupDev6,
+	},
+	{
+		Name: "-6 route del 2001:db8:1::/64 dev d0", Slug: "route_write_v6_del",
+		// A v6 delete keeps scope universe.
+		Floor: 4, Implemented: true, Write: true, Setup: routeWriteSetupV6Route,
+	},
+	{
+		Name: "route replace 198.51.100.0/24 dev d0 mtu lock 1400 advmss 1360 window 65535 rtt 3ms rttvar 10ms ssthresh 100 cwnd 10 reordering 5 hoplimit 64 initcwnd 10 initrwnd 20 features ecn tcp_usec_ts fastopen_no_cookie 1", Slug: "route_write_metrics_all",
+		// Every u32 metric keyword.
+		Floor: 4, Implemented: true, Write: true, Setup: routeWriteSetupDev,
+	},
+	{
+		Name: "route replace 198.51.100.0/24 dev d0 rtt 24 rttvar 40 rto_min 200", Slug: "route_write_metrics_raw",
+		// Bare numbers are raw; rto_min always locks.
+		Floor: 4, Implemented: true, Write: true, Setup: routeWriteSetupDev,
+	},
+	{
+		Name: "route replace 198.51.100.0/24 dev d0 initcwnd 10 initcwnd 20", Slug: "route_write_metric_repeated",
+		// Both sub-attributes go out, in order.
+		Floor: 4, Implemented: true, Write: true, Setup: routeWriteSetupDev,
 	},
 })
 
@@ -1664,6 +1790,15 @@ var (
 	linkWriteSetupPort     = []string{"link add bond0 type bond mode 802.3ad", "link add la1 type veth peer name lb1"}
 	linkWriteSetupPortUp   = []string{"link add bond0 type bond mode 802.3ad", "link add la1 type veth peer name lb1", "link set la1 up"}
 	linkWriteSetupEnslaved = []string{"link add bond0 type bond mode 802.3ad", "link add la1 type veth peer name lb1", "link set la1 master bond0"}
+)
+
+// The route write rows' preconditions: PRE_DEV, PRE_DEV6 and PRE_ROUTE in
+// capture-link-writes.exp, and v6_del's own.
+var (
+	routeWriteSetupDev     = []string{"link add d0 type dummy", "link set d0 up", "addr add 192.0.2.1/24 dev d0"}
+	routeWriteSetupDev6    = []string{"link add d0 type dummy", "link set d0 up", "addr add 192.0.2.1/24 dev d0", "-6 addr add 2001:db8::1/64 nodad dev d0"}
+	routeWriteSetupRoute   = []string{"link add d0 type dummy", "link set d0 up", "addr add 192.0.2.1/24 dev d0", "route add 198.51.100.0/24 dev d0"}
+	routeWriteSetupV6Route = []string{"link add d0 type dummy", "link set d0 up", "addr add 192.0.2.1/24 dev d0", "-6 addr add 2001:db8::1/64 nodad dev d0", "-6 route add 2001:db8:1::/64 dev d0"}
 )
 
 // bondReadSetup is the bond the `-d link show` bond rows read: two ports

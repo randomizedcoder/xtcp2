@@ -2,7 +2,10 @@
 
 ## Status
 
-Phases 1-4 landed; phase 5 (the matrix write rows) is next. Phase 1, the
+All five phases have landed. Phase 5 put 26 of the corpus rows into the
+`goip-parity` matrix as gated write rows
+([coverage-status: the route write rows gate](coverage-status.md#the-route-write-rows-gate)).
+Phase 1, the
 gate, landed with link-write Phase 4: `BuildWriteRequest` admits this
 design's two types and the link design's two, with the error
 `ErrNotAnAdmittedWrite` rather than `ErrNotARouteWrite`
@@ -157,7 +160,7 @@ whose code makes it false — not by this document, and not up front.
 |2| "There is no write path in scope, now or later" | `docs/netlink/README.md:47-48` | Phase 1. **Amended** by link-write Phase 4 |
 |3| "five objects, no write verbs" | `README.md:129` | Phase 4 (`goip route replace` wired end-to-end). **Amended** by phase 4 |
 |4| "`show`/`list`/`lst` only … refuses a write verb" | `coverage-status.md:222-225`, `307`, `515` | Phase 4. **Amended** by phase 4 |
-|5| the glance-table scope line | `coverage-status.md` (parity at a glance) | Phase 5 (write rows enter the matrix) |
+|5| the glance-table scope line | `coverage-status.md` (parity at a glance) | Phase 5 (write rows enter the matrix). **Amended** by phase 5: 116 rows, 26 of them route writes |
 
 ## Wire encoding (parity to iproute2)
 
@@ -431,13 +434,13 @@ independently reviewable and leaves the tree green.
 | 2 | `BuildRouteWriteRequest`: `rtmsg` defaults + core attrs (`dst`/`gateway`/`oif`/`prefsrc`/`priority`/`table`); byte-compare a metric-free `replace X dev Y` | Proves the header and addressing before the metric complexity. **Landed.** |
 | 3 | The `RTA_METRICS` encoder: full `RTAX_*` table, lock bitmask, `features` bits, unit conversions | The hard part, isolated; `TestEncodeRouteMetrics` is the gate. **Landed.** |
 | 4 | Write-verb argv parser in `route_write.go`; `goip route replace …` end-to-end (generate only), against a captured corpus | Wires the CLI; amends statements 3–4. **Landed.** |
-| 5 | Dry-run byte-compare harness + the matrix read/write axis; gate the write rows | Turns parity into a test that can fail; amends statement 5. |
+| 5 | Dry-run byte-compare harness + the matrix read/write axis; gate the write rows | Turns parity into a test that can fail; amends statement 5. **Landed**: the harness and axis were link-write Phase 7's; this phase added the 26 `route_write_*` rows and gated them on two live runs. |
 
 Phases 2 and 3 landed their encoders with unit tests and no live capture;
 phase 4 added the corpus, captured by `nix run
 .#microvm-x86_64-link-write-capture` (the `route_rows` block of
 `nix/microvms/scripts/capture-link-writes.exp`). Phase 5 runs the same rows
-live through the matrix.
+live through the matrix, all but `nodev`, which writes nothing to compare.
 
 What the 7.1.4 kernel answered, as captured (`ip.rc`/`ip.err` beside each
 `ip.pcap`, decoded by `TestDecodeRouteWriteCorpus`):

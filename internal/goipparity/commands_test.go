@@ -491,6 +491,16 @@ func TestCommandString(t *testing.T) {
 			},
 		},
 		{
+			description: "corner: a route write with a leading -6 keeps it, and its setup carries -6 steps",
+			cmd:         lookupPtr(t, "-6 route del 2001:db8:1::/64 dev d0"),
+			wantFields: []string{
+				"route_write_v6_del", "4", "yes", "no", "yes",
+				"link add d0 type dummy;link set d0 up;addr add 192.0.2.1/24 dev d0;" +
+					"-6 addr add 2001:db8::1/64 nodad dev d0;-6 route add 2001:db8:1::/64 dev d0",
+				"-6 route del 2001:db8:1::/64 dev d0", "-6 route del 2001:db8:1::/64 dev d0",
+			},
+		},
+		{
 			description: "corner: a single setup step has no separator",
 			cmd:         lookupPtr(t, "link replace bond0 type bond"),
 			wantFields: []string{
@@ -1365,7 +1375,7 @@ func TestLinkWriteRowsGated(t *testing.T) {
 	}
 	var cohort []Command
 	for _, c := range Commands() {
-		if c.Write {
+		if c.Write && strings.HasPrefix(c.Slug, linkWriteSlugPrefixCst) {
 			cohort = append(cohort, c)
 		}
 	}
@@ -1429,6 +1439,87 @@ func TestLinkWriteRowsGated(t *testing.T) {
 			if entries := al.EntriesFor(c.Name); len(entries) != 0 {
 				t.Errorf("%q gated clean on the phase 7 runs but carries %d allowlist entr(ies)",
 					c.Name, len(entries))
+			}
+		}
+	})
+}
+
+// TestRouteWriteRowsGated pins the route write rows (route-write-path.md
+// phase 5): the 26 rows of the route corpus that write, each gated on two
+// live runs with no allowlist entry. `nodev` is the corpus's 27th row and is
+// not one: goip stops at the lookup with no write file, which the matrix's
+// write comparison has nothing to compare, so internal/goip's
+// TestRouteWriteNodevCorpus holds it offline.
+//
+// go test ./internal/goipparity/ -run TestRouteWriteRowsGated
+func TestRouteWriteRowsGated(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	var cohort []Command
+	for _, c := range Commands() {
+		if strings.HasPrefix(c.Slug, routeWriteSlugPrefixCst) {
+			cohort = append(cohort, c)
+		}
+	}
+	type result struct{ write, setup, gated, cohort bool }
+
+	tests := []struct {
+		description string
+		command     string
+		expected    result
+	}{
+		{description: "positive: the NFS replace is gated",
+			command:  "route replace 192.0.2.50/32 dev d0 congctl lock cubic rto_min 3ms initcwnd 32 initrwnd 32 quickack 1",
+			expected: result{write: true, setup: true, gated: true, cohort: true}},
+		{description: "positive: a dev-less write with no Setup is gated",
+			command:  "route add blackhole 198.51.100.0/24",
+			expected: result{write: true, gated: true, cohort: true}},
+		{description: "positive: a v6 write is gated",
+			command:  "-6 route replace 2001:db8:1::/64 via 2001:db8::2 dev d0",
+			expected: result{write: true, setup: true, gated: true, cohort: true}},
+		{description: "boundary: a write the kernel refuses gates on its request",
+			command:  "route del 203.0.113.99/32",
+			expected: result{write: true, setup: true, gated: true, cohort: true}},
+		{description: "negative: route show is a read row, not in this cohort",
+			command:  "route show",
+			expected: result{gated: true}},
+		{description: "negative: a link write is the other cohort",
+			command:  "link add d0 type dummy",
+			expected: result{write: true, gated: true}},
+		{description: "corner: nodev is in the corpus but is not a row",
+			command:  "route add 198.51.100.0/24 dev nosuch",
+			expected: result{}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			var got result
+			if c, lookupErr := Lookup(tc.command); lookupErr == nil {
+				got.write, got.setup = c.Write, len(c.Setup) > 0
+				got.cohort = strings.HasPrefix(c.Slug, routeWriteSlugPrefixCst)
+			}
+			got.gated = al.IsGated(tc.command)
+			if got != tc.expected {
+				t.Errorf("%q: got %+v, want %+v", tc.command, got, tc.expected)
+			}
+		})
+	}
+
+	t.Run("corner: the cohort is the route corpus less nodev, each a gated, clean, Implemented write", func(t *testing.T) {
+		if len(cohort) != 26 {
+			t.Fatalf("%d route write rows, want 26", len(cohort))
+		}
+		for _, c := range cohort {
+			if !c.Write || !c.Implemented {
+				t.Errorf("%q: Write %v, Implemented %v", c.Name, c.Write, c.Implemented)
+			}
+			if !al.IsGated(c.Name) {
+				t.Errorf("%q is a route write row but IsGated is false; add it to "+
+					"gated_commands and the earned list together", c.Name)
+			}
+			if entries := al.EntriesFor(c.Name); len(entries) != 0 {
+				t.Errorf("%q carries %d allowlist entr(ies)", c.Name, len(entries))
 			}
 		}
 	})
