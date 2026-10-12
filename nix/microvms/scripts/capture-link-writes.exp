@@ -32,6 +32,10 @@
 # request, the kernel's answer, `ip`'s stderr and its exit status land
 # together under write/<slug>/. See write_row below.
 #
+# Then the ROUTE rows (route-write-path.md phase 4): one `ip route add|
+# change|replace|prepend|append|test|del` each, the same way, under
+# route/<slug>/.
+#
 # POLICY HERE, MECHANISM IN THE GUEST
 #
 # As for the dump driver: which states exist, what each waits for and what
@@ -98,9 +102,9 @@ set lacp_timeouts {}
 
 set write_skipped {}
 
-proc write_row {slug floor pre command} {
+proc write_row {slug floor pre command {dir write}} {
     global NS_A short_caps write_skipped
-    set subdir write/$slug
+    set subdir $dir/$slug
     vmlib::log "=== write $slug ==="
     vmlib::must "xtcp2-nlcap ns-add $NS_A"
     foreach step $pre {
@@ -149,6 +153,61 @@ set write_rows [list \
     [list set_down 4 [concat $PRE_BOND {{link set bond0 up}}] "ip link set bond0 down"] \
     [list rename_mtu_alias 4 {{link add d0 type dummy}} "ip link set d0 name d1 mtu 9000 alias uplink"] \
     [list del_bond 4 $PRE_ENSLAVED "ip link del bond0"] \
+]
+
+###############################################################################
+# route_rows - route-write-path.md phase 4's corpus, under route/<slug>.
+#
+# FLOORS: `dev X` is one RTM_GETLINK by name before the write
+# (ll_name_to_index, after the whole argv has parsed), so a dev route is 4
+# and a dev-less one (via only, a type with no device, a plain del) is 2.
+# nodev is the lookup alone: `ip` stops at "Cannot find device" and never
+# sends the write.
+#
+# d0 is ifindex 3 in every row (lo 1, nlmon0 2, then d0), which is in
+# RTA_OIF. A row the kernel refuses (del_missing; add_via_inet6 or onlink
+# if the kernel says no) is kept for its request, as the refused link rows
+# are.
+###############################################################################
+
+set PRE_DEV   {{link add d0 type dummy} {link set d0 up} {addr add 192.0.2.1/24 dev d0}}
+set PRE_DEV6  [concat $PRE_DEV {{-6 addr add 2001:db8::1/64 nodad dev d0}}]
+set PRE_ROUTE [concat $PRE_DEV {{route add 198.51.100.0/24 dev d0}}]
+
+set P24 198.51.100.0/24
+
+set route_rows [list \
+    [list replace_nfs 4 $PRE_DEV \
+        "ip route replace 192.0.2.50/32 dev d0 congctl lock cubic rto_min 3ms initcwnd 32 initrwnd 32 quickack 1"] \
+    [list replace_dev 4 $PRE_DEV "ip route replace $P24 dev d0"] \
+    [list add_dev 4 $PRE_DEV "ip route add $P24 dev d0"] \
+    [list add_via_dev 4 $PRE_DEV "ip route add $P24 via 192.0.2.254 dev d0"] \
+    [list add_via_nodev 2 $PRE_DEV "ip route add $P24 via 192.0.2.254"] \
+    [list replace_default 2 $PRE_DEV "ip route replace default via 192.0.2.254"] \
+    [list change_metric 4 $PRE_ROUTE "ip route change $P24 dev d0 metric 100"] \
+    [list append_dev 4 $PRE_ROUTE "ip route append $P24 dev d0 metric 200"] \
+    [list prepend_dev 4 $PRE_ROUTE "ip route prepend $P24 dev d0 metric 300"] \
+    [list test_dev 4 $PRE_ROUTE "ip route test $P24 dev d0"] \
+    [list del_dev 4 $PRE_ROUTE "ip route del $P24 dev d0"] \
+    [list del_nodev 2 $PRE_ROUTE "ip route del $P24"] \
+    [list del_missing 2 $PRE_DEV "ip route del 203.0.113.99/32"] \
+    [list add_table_100 4 $PRE_DEV "ip route add $P24 dev d0 table 100"] \
+    [list add_table_300 4 $PRE_DEV "ip route add $P24 dev d0 table 300"] \
+    [list add_blackhole 2 {} "ip route add blackhole $P24"] \
+    [list add_unreachable 2 {} "ip route add unreachable $P24"] \
+    [list add_local 4 $PRE_DEV "ip route add local 192.0.2.77 dev d0"] \
+    [list add_src_proto_scope 4 $PRE_DEV \
+        "ip route add $P24 dev d0 src 192.0.2.1 proto static scope link metric 50"] \
+    [list add_onlink 4 $PRE_DEV "ip route add $P24 via 203.0.113.1 dev d0 onlink"] \
+    [list add_via_inet6 4 $PRE_DEV6 "ip route add $P24 via inet6 2001:db8::2 dev d0"] \
+    [list v6_replace_via 4 $PRE_DEV6 "ip -6 route replace 2001:db8:1::/64 via 2001:db8::2 dev d0"] \
+    [list v6_del 4 [concat $PRE_DEV6 {{-6 route add 2001:db8:1::/64 dev d0}}] \
+        "ip -6 route del 2001:db8:1::/64 dev d0"] \
+    [list metrics_all 4 $PRE_DEV \
+        "ip route replace $P24 dev d0 mtu lock 1400 advmss 1360 window 65535 rtt 3ms rttvar 10ms ssthresh 100 cwnd 10 reordering 5 hoplimit 64 initcwnd 10 initrwnd 20 features ecn tcp_usec_ts fastopen_no_cookie 1"] \
+    [list metrics_raw 4 $PRE_DEV "ip route replace $P24 dev d0 rtt 24 rttvar 40 rto_min 200"] \
+    [list metric_repeated 4 $PRE_DEV "ip route replace $P24 dev d0 initcwnd 10 initcwnd 20"] \
+    [list nodev 2 {} "ip route add $P24 dev nosuch"] \
 ]
 
 ###############################################################################
@@ -227,6 +286,9 @@ if {$reached} {
 # down the veth pairs the readback states were built on.
 foreach row $write_rows {
     write_row {*}$row
+}
+foreach row $route_rows {
+    write_row {*}$row route
 }
 
 lassign [nlcap inventory] inv_rc inventory

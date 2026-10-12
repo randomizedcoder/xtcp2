@@ -226,10 +226,12 @@ These are the boundaries of the exercise, not a backlog:
 - **Read-only.** `show`/`list`/`lst` only. `internal/goip/obj_addr.go` refuses a
   write verb with `goip is read-only: ErrNotImplemented` rather than treating
   it as unknown, because the harness drives both tools with the same argv and
-  needs "not got there yet" to be distinguishable from "typo". One exception
-  has landed: `goip link add/set/change/replace/delete` build `ip`'s request
-  and write it to a file, never to the kernel — see
-  [Write path: link writes as a dry run](#write-path-link-writes-as-a-dry-run).
+  needs "not got there yet" to be distinguishable from "typo". Two exceptions
+  have landed, and both build `ip`'s request and write it to a file, never to
+  the kernel: `goip link add/set/change/replace/delete` (see
+  [Write path: link writes as a dry run](#write-path-link-writes-as-a-dry-run))
+  and `goip route add/change/replace/prepend/append/test/delete` (see
+  [Write path: route writes as a dry run](#write-path-route-writes-as-a-dry-run)).
 - **Eleven objects.** `address`, `route`, `rule`, `neigh`/`neighbour`, `link`,
   `nexthop`, `addrlabel`, `ntable`/`ntbl`, `netconf`, `stats` and `vrf` have a
   `run` function; the other twenty rows of
@@ -245,8 +247,8 @@ These are the boundaries of the exercise, not a backlog:
 
 ### Write path: link writes as a dry run
 
-Counted from the tree on 2026-10-11: **the write gate exists, and only the
-link dry run uses it.** `BuildWriteRequest` (`pkg/xtcpnl/xtcpnl_rtattr_encode.go`)
+Counted from the tree on 2026-10-11: **the write gate exists, and the link
+and route dry runs both use it.** `BuildWriteRequest` (`pkg/xtcpnl/xtcpnl_rtattr_encode.go`)
 admits `RTM_NEWROUTE`, `RTM_DELROUTE`, `RTM_NEWLINK` and `RTM_DELLINK` and
 returns `ErrNotAnAdmittedWrite` for anything else; `BuildRequest` and its
 `ErrNotAGetRequest` still refuse every `RTM_NEW*`/`RTM_DEL*`/`RTM_SET*` on the
@@ -267,9 +269,9 @@ in the tree.
 | Design | Phase | Scope | Status |
 |---|---|---|---|
 | [route-write-path](route-write-path.md) | 1 | `BuildWriteRequest` gate (error to be named `ErrNotAnAdmittedWrite`, per [link-write-path decision 1](link-write-path.md#decisions)) | **done**, by link-write Phase 4 (below), which landed the gate with both designs' types in it |
-| | 2 | `BuildRouteWriteRequest`: `rtmsg` defaults + core attrs | not started |
-| | 3 | `RTA_METRICS` encoder | not started |
-| | 4 | `goip route replace …` argv, generate-only | not started |
+| | 2 | `BuildRouteWriteRequest`: `rtmsg` defaults + core attrs | **done**: `pkg/xtcpnl/xtcpnl_route_write.go` (`RouteWrite`, `EncodeRtMsg`, `BuildRouteWriteRequest`, `ErrRouteWriteType`); `TestBuildRouteWriteRequest`. The defaults live in the parser, not the encoder |
+| | 3 | `RTA_METRICS` encoder | **done**: `EncodeRouteMetrics`, sub-attrs in input order with no dedup and `RTAX_LOCK` last; `TestEncodeRouteMetrics` |
+| | 4 | `goip route replace …` argv, generate-only | **done**: `internal/goip/route_write.go` (the `iproute_modify` keyword chain, all eight verbs, `ll_name_to_index` resolution, `GOIP_WRITE_OUT`); `TestParseRouteWriteArgs`, `TestRunRouteWrite`, and the captured corpus below ([Write path: route writes as a dry run](#write-path-route-writes-as-a-dry-run)) |
 | | 5 | dry-run byte-compare harness, matrix read/write axis | not started |
 | [link-write-path](link-write-path.md) | 0 | Tier 1 LACP capture target `microvm-x86_64-link-write-capture` (one VM, two netns, veth pairs, `bonding max_bonds=0`) | **done** — `NLCAP_DRIVER_PASS`; `lacp_no_partner`/`lacp_converged` (`0x3f`/`0x3f`)/`lacp_partner_down` in `pkg/xtcpnl/testdata/7_1_4/link-write/`, recaptured after the churn wait (`lwtopo::wait_churn`) so the churn fields read `NO_CHURN`/`CHURN` rather than `MONITOR` |
 | | 1 | bond `IFLA_INFO_DATA`/`SLAVE_DATA`/`AD_INFO` decode, shared option table | **done**: `pkg/xtcpnl/xtcpnl_bond.go` (`BondOptions`, `ParseBondInfoData`/`ParseBondSlaveData`/`ParseBondAdInfo`, `LinkInfo.Bond`/`BondSlave`); `TestDecodeBond*` green on the three 7_1_4 states and against the sysfs oracle; statement 6 amended |
@@ -292,6 +294,36 @@ One upstream finding from the link design, relevant to phase 1: `ip` reads
 decoder must use the kernel width, and parity on x86_64 is unaffected. The
 verified fix series for netdev is in
 [upstream/iproute2-bond-partner-state-width.md](upstream/iproute2-bond-partner-state-width.md).
+
+### Write path: route writes as a dry run
+
+Counted from the tree on 2026-10-11. `goip route
+add|change|replace|prepend|append|test|delete` (and every abbreviation
+`do_iproute` accepts, `chg` included) parse argv with `iproute_modify`'s
+keyword chain, in its order, and build `ip`'s `RTM_NEWROUTE`/`RTM_DELROUTE`.
+As with link writes, nothing is applied: goip sends only the `RTM_GETLINK`
+name lookup `ip` sends for `dev X`, writes the request to `GOIP_WRITE_OUT`,
+and exits 1 with `ErrWriteNotApplied` when that is unset. A dev-less route
+(`via` only, `blackhole`) sends no lookup at all.
+
+The ground truth is 27 rows captured from `ip` 7.1.0 into
+`pkg/xtcpnl/testdata/7_1_4/link-write/route/<slug>/`
+(`nix/microvms/scripts/capture-link-writes.exp`, `route_rows`): every verb,
+dev and dev-less, v4 and v6, a cross-family `via inet6`, the table spill
+at 256, the type keywords, `onlink`, every `RTAX_*` keyword, raw and scaled
+`rtt`, a repeated metric, a refused delete, and a missing device.
+`TestRouteWriteMatchesIpBytes` replays each and matches `ip`'s lookups and
+write byte for byte, seq and pid zeroed; `TestRouteWriteMatchesIpEvents`
+does the same against the ten route writes already in
+`7_1_4/netlink_route_events.pcap`; `TestDecodeRouteWriteCorpus` runs the
+captured requests back through `ParseNewRoute` and the kernel's answers
+through `ParseNlMsgErr`.
+
+Not implemented, each refused with `ErrNotImplemented` rather than misread
+as a destination: `nexthop`, `nhid`, `encap`, `vrf`, `tos`/`dsfield`,
+`expires`, `realms`, `as`, `ttl-propagate`, `pref`, MPLS routes, and table,
+protocol or scope names that come only from a file. The matrix rows (phase
+5) are not yet in `goip-parity`.
 
 ## Netlink message types: decoded, rendered, compared
 
