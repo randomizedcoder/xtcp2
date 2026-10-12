@@ -1,0 +1,17 @@
+[
+  {
+    "call": "DumpLinks",
+    "values": 3,
+    "digest": "662246a720c4079f"
+  },
+  {
+    "call": "GetLink(1)",
+    "values": 1,
+    "digest": "dbc1ea174adf0ff7"
+  },
+  {
+    "call": "GetLink(4)",
+    "values": 0,
+    "error": "no such device"
+  }
+]

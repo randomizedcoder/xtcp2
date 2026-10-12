@@ -421,10 +421,13 @@ removal completed without blocking, the monitor reported the lost link
 (`up_links_delta` -1, link metrics gone), and after `pci/rescan` it rediscovered
 `ionic_0`, returned to baseline and healthy, and the event rows passed again
 on the replugged device. QMP `device_del` was tried first and aborts QEMU
-11.0.2 (`memory_region_del_subregion: Assertion subregion->container == mr`);
-that is a QEMU vfio-user teardown bug, not a guest or monitor fault. The
-recordings are committed under `testdata/nlrecord/ionic-vm/7.1.4/`; with no
-error replies one generic socket serves every ethtool and devlink request.
+11.0.2 and 11.1.1 (`memory_region_del_subregion: Assertion
+subregion->container == mr`); that is a QEMU vfio-user teardown bug, not a
+guest or monitor fault. The same run passed every sentinel against
+rocm-ernic's refreshed nixpkgs (QEMU 11.1.1, kernel 7.2.9). The recordings
+are committed under `testdata/nlrecord/ionic-vm/7.1.4/` and `7.2.9/`, and the
+two kernels decode to identical goldens; with no error replies one generic
+socket serves every ethtool and devlink request.
 With the V085 fix reverted, its RDMA replay fails (`GetRDMAPort(0, 1) …
 context deadline exceeded`). Not established: verbs async-event delivery (no
 per-event metric) and physical NIC behavior.
