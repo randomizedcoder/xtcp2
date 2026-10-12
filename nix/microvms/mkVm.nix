@@ -53,6 +53,7 @@ let
   # PATH by those flavors - see isNetlinkDriven in environment.systemPackages
   # below.
   netlinkCaptureHelper = import ./netlink-capture.nix { inherit pkgs; };
+  xtcp2Exec = import ../lib/xtcp2-exec-start.nix { inherit pkgs lib; };
 
   isCoverage = sink == "coverage" || sink == "coverage-iouring";
   isCoverageIoUring = sink == "coverage-iouring";
@@ -2434,8 +2435,9 @@ let
   # URL (destinations_http.go), so the whole ClickHouse insert is baked into
   # -dest: the INSERT query, FORMAT ProtobufList, the existing format_schema
   # mount (same .proto the kafka-engine table uses), and auth via &password.
-  # Spaces are '+'-encoded, NOT %20: ExecStart is subject to systemd specifier
-  # expansion, and a bare '%' would be mangled/rejected; ClickHouse's HTTP
+  # Spaces are '+'-encoded, not %20. ExecStart is now escaped
+  # (nix/lib/xtcp2-exec-start.nix doubles '%'), so %20 would survive too, but
+  # '+' predates that and still works: ClickHouse's HTTP
   # interface decodes '+' as space in the query param, and Go's url.Parse keeps
   # '+' literal in the raw query, so it round-trips. protobufList matches by
   # field NUMBER via the schema (avoids JSONEachRow column-name mismatch).
@@ -3125,7 +3127,7 @@ in
           wantedBy = [ "multi-user.target" ];
           serviceConfig = {
             Type = "simple";
-            ExecStart = "${xtcp2Package}/bin/xtcp2 ${lib.concatStringsSep " " xtcp2ClickPipeParquetArgs}";
+            ExecStart = xtcp2Exec.mkExecStart xtcp2Package xtcp2ClickPipeParquetArgs;
             Restart = "on-failure";
             RestartSec = "2s";
             User = "root";

@@ -1535,3 +1535,81 @@ func TestEnvOverrideEnrichmentAsnLocality(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckNoPositional(t *testing.T) {
+	tests := []struct {
+		description string
+		args        []string
+		expected    string // "" for no error, else a substring of it
+	}{
+		{description: "positive: no arguments left", args: nil, expected: ""},
+		{description: "positive: an empty list", args: []string{}, expected: ""},
+		{
+			description: "negative: a stray path",
+			args:        []string{"/run/xtcp2-asn/current.lookup.parquet.zst"},
+			expected:    `unexpected argument "/run/xtcp2-asn/current.lookup.parquet.zst"`,
+		},
+		{description: "boundary: several name the first", args: []string{"a", "b"}, expected: `unexpected argument "a"`},
+		{description: "corner: an empty string", args: []string{""}, expected: `unexpected argument ""`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			err := checkNoPositional(tc.args)
+			got := ""
+			if err != nil {
+				got = err.Error()
+			}
+			if tc.expected == "" {
+				if err != nil {
+					t.Fatalf("got %q, want nil", got)
+				}
+				return
+			}
+			if !strings.Contains(got, tc.expected) {
+				t.Fatalf("got %q, want it to contain %q", got, tc.expected)
+			}
+		})
+	}
+}
+
+// TestRunMainRejectsPositional drives the real flag set: the argv the old
+// space-joined ExecStart produced for `-ipmetaBootstrapPath ""` must stop the
+// daemon with exit 2 before it starts, not run with the cache path dropped.
+// Every row leads with -v, so a daemon that skipped the check would return 0
+// at the version short-circuit instead of starting.
+func TestRunMainRejectsPositional(t *testing.T) {
+	tests := []struct {
+		description string
+		argv        []string
+		expected    int
+	}{
+		{
+			description: "negative: an empty value lost to joining",
+			argv:        []string{"xtcp2", "-v", "-ipmetaBootstrapPath", "-ipmetaCachePath", "/run/xtcp2-asn/current.lookup.parquet.zst"},
+			expected:    2,
+		},
+		{
+			description: "positive: the empty value quoted",
+			argv:        []string{"xtcp2", "-v", "-ipmetaBootstrapPath", "", "-ipmetaCachePath", "/x"},
+			expected:    0,
+		},
+		{description: "corner: a flag after the positional is dropped", argv: []string{"xtcp2", "-v", "stray", "-frequency", "1s"}, expected: 2},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			envHelperReset(t)
+			prevArgs := os.Args
+			os.Args = tc.argv
+			t.Cleanup(func() { os.Args = prevArgs })
+			prevProm := promHandlerStarter
+			promHandlerStarter = func(_ string, _ *xtcp_config.ListenerEndpoint, _ string, _, _ uint32, _, _ *xtcp_config.ListenerAuth) {
+			}
+			t.Cleanup(func() { promHandlerStarter = prevProm })
+			captureLog(t, func() {
+				if rc := runMain(t.Context()); rc != tc.expected {
+					t.Errorf("rc = %d, want %d", rc, tc.expected)
+				}
+			})
+		})
+	}
+}

@@ -998,6 +998,10 @@ func runMain(ctx context.Context) int {
 
 	f := defineFlags()
 	flag.Parse()
+	if err := checkNoPositional(flag.Args()); err != nil {
+		fmt.Fprintln(os.Stderr, "xtcp2:", err)
+		return 2
+	}
 	healthAuth := buildListenerAuth(f)
 	envOverrideListenerAuth(&xtcp_config.XtcpConfig{ListenerAuth: healthAuth}, 0)
 
@@ -2197,4 +2201,17 @@ func getDeserializers(str string) *xtcp_config.EnabledDeserializers {
 	}
 
 	return des
+}
+
+// checkNoPositional rejects arguments left after flag parsing. xtcp2 takes
+// none, and Go's flag package stops at the first one, so every flag after it
+// is silently dropped too. The usual cause is an empty value lost to unquoted
+// joining: `-ipmetaBootstrapPath "" -ipmetaCachePath /x` run as
+// `-ipmetaBootstrapPath -ipmetaCachePath /x` sets the bootstrap path to
+// "-ipmetaCachePath" and leaves "/x" behind.
+func checkNoPositional(args []string) error {
+	if len(args) == 0 {
+		return nil
+	}
+	return fmt.Errorf("unexpected argument %q: flags take -name value, and an empty value must be quoted (-name \"\" or -name=)", args[0])
 }
