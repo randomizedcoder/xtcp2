@@ -891,7 +891,7 @@ Phases and scope are as defined in
 | **3** | Rules (`FRA_*`), nexthop (`NHA_*`), bridge/VLAN, `IFLA_LINKINFO` descent | **partial** | the `IFLA_LINKINFO` descent, as far as `IFLA_INFO_KIND` — [`4494b42`](#4494b42--the-ifla_-and-ifa_-attribute-decoders-a-show-line-needs), the first production caller of `WalkRTAttrsNested`. **`FRA_*` is done**: `struct fib_rule_hdr` and all 30 attributes decode in `xtcpnl_fib_rule_hdr.go`, `render.RuleView` prints them, and `ip rule show` drives four parity commands — see [below](#ip-rule-show-the-object-with-no-name-table). **`NHA_*` is done**: `struct nhmsg` and the nexthop attributes — id, oif, gateway, blackhole, fdb, group, group-type and the nested `NHA_RES_GROUP` — decode in `xtcpnl_nhmsg.go` and render for `ip nexthop show` and `-d` route nhid resolution; see the nexthop arc in [Where we are](#where-we-are). **The `IFLA_INFO_DATA` sub-nest is decoded for kind `vrf`** (`IFLA_VRF_TABLE`), together with `IFLA_INFO_SLAVE_DATA`'s `IFLA_VRF_PORT_TABLE`, driving `-d link`/`addr show` of a VRF master and its port. **And for kind `bond`**: every `IFLA_BOND_*` option, the `AD_INFO` nest and the twelve `IFLA_BOND_SLAVE_*` port attributes decode (link-write-path phase 1). They are not rendered yet, so `-d` on a bond still refuses | bridge/VLAN, the bond `-d` render, and the `IFLA_INFO_DATA` sub-nest for link kinds other than `vrf` and `bond`, each a separate attribute space per kind |
 | **4** | tc telemetry only (23 top-level `TCA_*`) | not started | — | all of it |
 | **5** | genetlink: `nlctrl` `GETFAMILY` first, then ethtool/devlink/netdev/vdpa/fou/gtp | not started | — | all of it |
-| **6** | xfrm, conntrack, ipset, proc_event, rdma | **partial** | **rdma, decode only**: the hand-declared `RDMA_NL*` block (`xtcpnl_rdma_consts.go`, every value C-gated against `<rdma/rdma_netlink.h>`), read-only nldev request builders, and decoders for the device, port, resource summary, per-object `RES_*`, hardware counter, system and monitor-event replies, on a strace corpus — see [below](#the-rdma-nldev-decoder) | xfrm, conntrack, ipset, proc_event; for rdma, a `goip` render, and moving `pkg/linkmonitor/internal/linuxio` onto the shared decoders |
+| **6** | xfrm, conntrack, ipset, proc_event, rdma | **partial** | **rdma, decode only**: the hand-declared `RDMA_NL*` block (`xtcpnl_rdma_consts.go`, every value C-gated against `<rdma/rdma_netlink.h>`), read-only nldev request builders, and decoders for the device, port, resource summary, per-object `RES_*`, hardware counter, system and monitor-event replies, on a strace corpus, which `pkg/linkmonitor/internal/linuxio` now decodes with — see [below](#the-rdma-nldev-decoder) | xfrm, conntrack, ipset, proc_event; for rdma, a `goip` render |
 | **7** | `unix_diag`, `xdp_diag`, and the deferred relocation into `rtnl/` and `diag/` | not started | — | all of it |
 
 ## Capture readiness
@@ -3167,6 +3167,26 @@ What those rows showed:
 The corpus carries 68 distinct attributes, nested ones included, and that is
 the floor `rdmaCaptureCoverageCst` pins. The test also fails if the count
 rises without the constant being raised.
+
+**linkmonitor decodes with these.** `pkg/linkmonitor/internal/linuxio`
+(`rdma_linux.go`, `rdma_notify_linux.go`) spells no nldev number of its own
+and builds its requests with `BuildRdmaRequest`. It decodes values with
+`ParseRdmaPort`, `ParseRdmaDev`, `ParseRdmaEvent` and `ParseRdmaSys`. What
+it keeps is its admission, which is stricter than xtcpnl's:
+
+- each attribute it reads may appear only once, and with no flag bits;
+- the device index, name and port are required, and the netdev index and
+  name come together or not at all;
+- names must fit the kernel's buffers and contain no `/` or `:`.
+
+One change was deliberate: xtcpnl width-checks every attribute it knows,
+including those linkmonitor ignores (`CAP_FLAGS`, the GUIDs, the other sys
+modes). A reply with a wrong-width one is now refused. Every recorded reply
+in `testdata/nlrecord` passes, the mlx5 and ionic hardware ones included.
+
+The requests still carry no `NLM_F_ACK`, unlike rdma's. They are the bytes
+those recordings pin, and the recordings come from hosts that cannot be
+re-recorded here.
 
 ## Tier C — the `goip-parity` microVM flavor
 

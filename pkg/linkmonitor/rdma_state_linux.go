@@ -8,6 +8,7 @@ import (
 
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/linuxio"
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/model"
+	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
 
 const (
@@ -155,10 +156,10 @@ func rdmaReady(p model.RDMAPort, ethernetUp model.Optional[bool]) model.Check {
 		}
 		return roceReadiness(p.State)
 	}
-	if !p.Physical.Present || p.Physical.Value < 1 || p.Physical.Value > 7 {
+	if !p.Physical.Present || !ibPortPhysStateKnown(p.Physical.Value) {
 		return model.CheckUnknown
 	}
-	if p.Physical.Value != 5 {
+	if p.Physical.Value != xtcpnl.IbPortPhysStateLinkUp {
 		return model.CheckNotApplicable
 	}
 	return roceReadiness(p.State)

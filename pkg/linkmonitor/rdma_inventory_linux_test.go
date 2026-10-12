@@ -14,6 +14,7 @@ import (
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/linuxio"
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/model"
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/testkit"
+	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
 
@@ -78,7 +79,7 @@ func rdmaFixture(t testing.TB, layer string) (*rdmaInventory, *fakeRDMARequests,
 	if err := os.Symlink(hardware, filepath.Join(files.netRoot, "eth1", "device")); err != nil {
 		t.Fatal(err)
 	}
-	p := linuxio.RDMAPort{Name: "mlx5_0", Port: 1, State: 4, Physical: 5, HasState: true, HasPhysical: true}
+	p := linuxio.RDMAPort{Name: "mlx5_0", Port: 1, State: xtcpnl.IbPortActive, Physical: xtcpnl.IbPortPhysStateLinkUp, HasState: true, HasPhysical: true}
 	client := &fakeRDMARequests{devices: []linuxio.RDMAPort{p}, ports: []linuxio.RDMAPort{p}}
 	s := &rdmaInventory{ethernet: rdmaFixtureInventory{model.Candidate{Complete: true, Devices: []model.Observation{o}}}, client: client, files: files, clock: testkit.NewClock(time.Unix(100, 0)), namespace: 1}
 	return s, client, port

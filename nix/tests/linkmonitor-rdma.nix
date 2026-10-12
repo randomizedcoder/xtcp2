@@ -119,15 +119,8 @@ in
     ln -s ${linkmonitorPackages.go-link-monitor-core} "$out/core"
   '';
   test-linkmonitor-rdma-runtime = mkCheck "runtime" ''
-    cc -I${pkgs.linuxHeaders}/include -x c -fsyntax-only - <<'HEADER'
-    #include <rdma/rdma_netlink.h>
-    _Static_assert(RDMA_NL_GROUP_NOTIFY == 4, "notify group");
-    _Static_assert(RDMA_NLDEV_CMD_MONITOR == 28, "monitor command");
-    _Static_assert(RDMA_NLDEV_CMD_SYS_GET == 6, "system get");
-    _Static_assert(RDMA_NLDEV_ATTR_EVENT_TYPE == 102, "event attribute");
-    _Static_assert(RDMA_NLDEV_SYS_ATTR_MONITOR_MODE == 103, "monitor mode");
-    HEADER
-    # Every constant pkg/xtcpnl declares from the same header.
+    # Every constant pkg/xtcpnl declares from the header, which are all the
+    # nldev numbers linkmonitor uses (internal/linuxio/rdma*_linux.go).
     cc -I${pkgs.linuxHeaders}/include -x c -fsyntax-only \
       -include rdma/rdma_netlink.h pkg/xtcpnl/testdata/rdma_consts.h
     mkdir -p "$out/bin"
