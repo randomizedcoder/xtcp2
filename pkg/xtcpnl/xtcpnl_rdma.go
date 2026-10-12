@@ -24,7 +24,8 @@ import (
 // name must be non-empty and NUL-terminated (ErrRdmaAttrString), except
 // PARENT_NAME, which rdma's policy has as MNL_TYPE_STRING and so only
 // requires to be non-empty; a nest is empty or holds at least one attribute
-// header. An attribute this file does not decode is recorded in Unknown, in
+// header; SRC_ADDR and DST_ADDR are a whole sockaddr_storage
+// (xtcpnl_rdma_res.go). An attribute this file does not decode is recorded in Unknown, in
 // wire order, nested ones included, and the rest of the message still
 // decodes.
 
@@ -47,6 +48,8 @@ const (
 	rdmaKindNulString
 	rdmaKindString
 	rdmaKindNested
+	// rdmaKindSockaddr is a whole struct __kernel_sockaddr_storage.
+	rdmaKindSockaddr
 )
 
 // rdmaAttrSlotsCst bounds the attribute types the decoders index; every
@@ -73,8 +76,44 @@ var rdmaPolicy = [rdmaAttrSlotsCst]rdmaKind{
 	RdmaNldevAttrResSummaryEntry:         rdmaKindNested,
 	RdmaNldevAttrResSummaryEntryName:     rdmaKindNulString,
 	RdmaNldevAttrResSummaryEntryCurr:     rdmaKindU64,
+	RdmaNldevAttrResQP:                   rdmaKindNested,
+	RdmaNldevAttrResQPEntry:              rdmaKindNested,
+	RdmaNldevAttrResLQPN:                 rdmaKindU32,
+	RdmaNldevAttrResRQPN:                 rdmaKindU32,
+	RdmaNldevAttrResRqPSN:                rdmaKindU32,
+	RdmaNldevAttrResSqPSN:                rdmaKindU32,
+	RdmaNldevAttrResPathMigState:         rdmaKindU8,
+	RdmaNldevAttrResType:                 rdmaKindU8,
+	RdmaNldevAttrResState:                rdmaKindU8,
+	RdmaNldevAttrResPID:                  rdmaKindU32,
+	RdmaNldevAttrResKernName:             rdmaKindNulString,
+	RdmaNldevAttrResCMID:                 rdmaKindNested,
+	RdmaNldevAttrResCMIDEntry:            rdmaKindNested,
+	RdmaNldevAttrResPS:                   rdmaKindU32,
+	RdmaNldevAttrResSrcAddr:              rdmaKindSockaddr,
+	RdmaNldevAttrResDstAddr:              rdmaKindSockaddr,
+	RdmaNldevAttrResCQ:                   rdmaKindNested,
+	RdmaNldevAttrResCQEntry:              rdmaKindNested,
+	RdmaNldevAttrResCQE:                  rdmaKindU32,
+	RdmaNldevAttrResUsecnt:               rdmaKindU64,
+	RdmaNldevAttrResPollCtx:              rdmaKindU8,
+	RdmaNldevAttrResMR:                   rdmaKindNested,
+	RdmaNldevAttrResMREntry:              rdmaKindNested,
+	RdmaNldevAttrResRKey:                 rdmaKindU32,
+	RdmaNldevAttrResLKey:                 rdmaKindU32,
+	RdmaNldevAttrResIOVA:                 rdmaKindU64,
+	RdmaNldevAttrResMrlen:                rdmaKindU64,
+	RdmaNldevAttrResPD:                   rdmaKindNested,
+	RdmaNldevAttrResPDEntry:              rdmaKindNested,
+	RdmaNldevAttrResLocalDMALKey:         rdmaKindU32,
+	RdmaNldevAttrResUnsafeGlobalRKey:     rdmaKindU32,
 	RdmaNldevAttrNdevIndex:               rdmaKindU32,
 	RdmaNldevAttrNdevName:                rdmaKindNulString,
+	RdmaNldevAttrResPDN:                  rdmaKindU32,
+	RdmaNldevAttrResCQN:                  rdmaKindU32,
+	RdmaNldevAttrResMRN:                  rdmaKindU32,
+	RdmaNldevAttrResCMIDN:                rdmaKindU32,
+	RdmaNldevAttrResCtxn:                 rdmaKindU32,
 	RdmaNldevSysAttrNetnsMode:            rdmaKindU8,
 	RdmaNldevAttrDevProtocol:             rdmaKindNulString,
 	RdmaNldevAttrStatHwcounters:          rdmaKindNested,
@@ -82,10 +121,18 @@ var rdmaPolicy = [rdmaAttrSlotsCst]rdmaKind{
 	RdmaNldevAttrStatHwcounterEntryName:  rdmaKindNulString,
 	RdmaNldevAttrStatHwcounterEntryValue: rdmaKindU64,
 	RdmaNldevAttrDevDIM:                  rdmaKindU8,
+	RdmaNldevAttrResCtx:                  rdmaKindNested,
+	RdmaNldevAttrResCtxEntry:             rdmaKindNested,
+	RdmaNldevAttrResSRQ:                  rdmaKindNested,
+	RdmaNldevAttrResSRQEntry:             rdmaKindNested,
+	RdmaNldevAttrResSRQN:                 rdmaKindU32,
+	RdmaNldevAttrMinRange:                rdmaKindU32,
+	RdmaNldevAttrMaxRange:                rdmaKindU32,
 	RdmaNldevSysAttrCopyOnFork:           rdmaKindU8,
 	RdmaNldevAttrStatHwcounterIndex:      rdmaKindU32,
 	RdmaNldevAttrStatHwcounterDynamic:    rdmaKindU8,
 	RdmaNldevSysAttrPrivilegedQKeyMode:   rdmaKindU8,
+	RdmaNldevAttrResSubtype:              rdmaKindNulString,
 	RdmaNldevAttrDevType:                 rdmaKindU8,
 	RdmaNldevAttrParentName:              rdmaKindString,
 	RdmaNldevAttrNameAssignType:          rdmaKindU8,
@@ -130,6 +177,10 @@ func rdmaValidate(k rdmaKind, v []byte) error {
 		}
 	case rdmaKindNested:
 		if len(v) != 0 && len(v) < RTAttrSizeCst {
+			return ErrRdmaAttrLen
+		}
+	case rdmaKindSockaddr:
+		if len(v) != rdmaSockaddrLenCst {
 			return ErrRdmaAttrLen
 		}
 	case rdmaKindNone:
@@ -514,7 +565,9 @@ func ParseRdmaEvent(body []byte) (RdmaEvent, error) {
 }
 
 // ParseRdmaMsg decodes body by msgType and returns one of RdmaDev, RdmaPort,
-// RdmaRes, RdmaStat, RdmaSys or RdmaEvent.
+// RdmaRes, RdmaStat, RdmaSys, RdmaEvent, or for the resource object GETs
+// RdmaResQPs, RdmaResCMIDs, RdmaResCQs, RdmaResMRs, RdmaResPDs, RdmaResCtxs
+// or RdmaResSRQs.
 //
 // A GET-typed message carrying PORT_STATE is a port: the PORT_GET doit
 // answers with RDMA_NLDEV_CMD_GET (nldev_port_get_doit, nldev.c), and only
@@ -534,6 +587,20 @@ func ParseRdmaMsg(msgType uint16, body []byte) (any, error) {
 		return ParseRdmaPort(body)
 	case RdmaNldevCmdResGet:
 		return ParseRdmaRes(body)
+	case RdmaNldevCmdResQPGet:
+		return ParseRdmaResQP(body)
+	case RdmaNldevCmdResCMIDGet:
+		return ParseRdmaResCMID(body)
+	case RdmaNldevCmdResCQGet:
+		return ParseRdmaResCQ(body)
+	case RdmaNldevCmdResMRGet:
+		return ParseRdmaResMR(body)
+	case RdmaNldevCmdResPDGet:
+		return ParseRdmaResPD(body)
+	case RdmaNldevCmdResCtxGet:
+		return ParseRdmaResCtx(body)
+	case RdmaNldevCmdResSRQGet:
+		return ParseRdmaResSRQ(body)
 	case RdmaNldevCmdStatGet:
 		return ParseRdmaStat(body)
 	case RdmaNldevCmdSysGet:

@@ -118,7 +118,7 @@ func TestParseRdmaMsg(t *testing.T) {
 			body: rdBody(handle, rtattrOverrunning(RdmaNldevAttrNodeGUID, 64)), expectedErr: ErrRTAttrSmall},
 		{description: "negative: a client other than nldev", msgType: RdmaNlGetType(RdmaNlNldev+1, RdmaNldevCmdGet),
 			body: handle, expectedErr: ErrRdmaMsgType},
-		{description: "negative: an nldev command with no decoder", msgType: RdmaNlGetType(RdmaNlNldev, RdmaNldevCmdResQPGet),
+		{description: "negative: an nldev command with no decoder", msgType: RdmaNlGetType(RdmaNlNldev, RdmaNldevCmdResQPGetRaw),
 			body: handle, expectedErr: ErrRdmaMsgType},
 		{description: "negative: an rtnetlink type", msgType: unix.RTM_NEWLINK, body: handle, expectedErr: ErrRdmaMsgType},
 		{description: "boundary: an empty body", msgType: get, expected: RdmaDev{}},
