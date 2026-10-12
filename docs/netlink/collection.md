@@ -93,6 +93,12 @@ Two things about that capture are worth knowing before you read one:
 
 A corollary that bit us once: **the kernel does not emit to a multicast group with no subscriber.** The first version of the capture script recorded zero neighbour notifications — nothing in the guest joins `RTNLGRP_NEIGH` — so the script now runs `ip monitor all` for the duration, both to force the notifications to exist and to save its decoded output as the sidecar.
 
+### What `nlmon` cannot see: NETLINK_RDMA
+
+`nlmon` is not a tap on every netlink family. `netlink_filter_tap()` in `net/netlink/af_netlink.c` mirrors only ROUTE, GENERIC, SOCK_DIAG and a handful of others; NETLINK_RDMA is not on the list. So no `nlmon` capture can contain an RDMA NLDEV request or reply, and the fakes that stood in for them encoded our assumption rather than the kernel's behaviour. That is how go-link-monitor shipped expecting the single-port `RDMA_NLDEV_CMD_PORT_GET` reply to echo the request type, when the kernel types it `RDMA_NLDEV_CMD_GET` (xtcp2 #192): every real host timed out after five seconds, and nothing offline could notice.
+
+go-link-monitor's `linuxio` therefore records in process. A build with the `nlrecord` tag and `LINKMONITOR_NLRECORD=<dir>` set writes every frame of every socket to `<dir>/<protocol>-<pid>-<serial>.pcap`, in the same DLT_NETLINK form `nlmon` produces (requests as `PACKET_KERNEL`, replies as `PACKET_USER`), so `xtcpnl.ParseNetlinkPcap` and `tcpdump` read it. One file per socket, because any error reply retires a socket and pairing must survive that. Production builds compile a no-op. `TestLiveRequestShapes` issues each request shape once; `TestRecordedContracts` replays the committed recordings under `pkg/linkmonitor/internal/linuxio/testdata/nlrecord/<source>/<kernel>/` through the real API, requiring identical request bytes and golden results. The recordings come from the software-RoCE guest, an ionic guest (in-tree drivers on a rocm-ernic emulated NIC) and host `l` (mlx5, atlantic). The rule for new tests follows: reply types and flags come from a recording, never from echoing the request.
+
 ## Netlinkers
 
 Within a namespace, the actual receive loop lives in a *netlinker*:
