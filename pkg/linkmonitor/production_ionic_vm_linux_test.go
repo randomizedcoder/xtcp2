@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -184,8 +185,8 @@ var ionicCollectors = []struct {
 	{"rdma_state", "netdev", "supported", 1, "", nil},
 	{"rdma_capabilities", "netdev", "not_applicable", 1,
 		"the UMAD capability query runs only on native InfiniBand; ionic is RoCE", ionicRoCE},
-	{"rdma_counters", "netdev", "unsupported", 1,
-		"ionic_rdma creates no counters, counters_ext or hw_counters group on the emulated port", ionicNoCounterGroups},
+	{"rdma_counters", "netdev", "supported", 1,
+		"ionic_rdma publishes only hw_counters, from the emulator's STATS_HDRS (rocm-ernic #222)", ionicHWCounters},
 	{"rdma_events", "netdev", "supported", 1, "", nil},
 	{"netstat", "namespace", "supported", 1, "", nil},
 }
@@ -205,11 +206,28 @@ func ionicRoCE(f ionicFixture) error {
 	return nil
 }
 
-func ionicNoCounterGroups(f ionicFixture) error {
-	for _, group := range [...]string{"counters", "counters_ext", "hw_counters"} {
+// ionicHWCounterNames are the device counters rocm-ernic answers STATS_HDRS
+// with, plus the core's lifespan file. None is in rdmaCounterCatalog: they
+// are the emulator's names, not Pensando firmware's.
+var ionicHWCounterNames = []string{"commands", "lifespan", "total_bytes_rdma_read", "total_bytes_rdma_write", "total_bytes_received", "total_bytes_sent"}
+
+func ionicHWCounters(f ionicFixture) error {
+	for _, group := range [...]string{"counters", "counters_ext"} {
 		if _, err := os.Stat(ionicPort(f) + "/" + group); !errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("%s present (err=%v): the collector should have found it", group, err)
+			return fmt.Errorf("%s present (err=%v): ionic_rdma has no PMA counters", group, err)
 		}
+	}
+	entries, err := os.ReadDir(ionicPort(f) + "/hw_counters")
+	if err != nil {
+		return err
+	}
+	var names []string
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+	sort.Strings(names)
+	if !slices.Equal(names, ionicHWCounterNames) {
+		return fmt.Errorf("hw_counters %v, want %v", names, ionicHWCounterNames)
 	}
 	return nil
 }
@@ -287,6 +305,45 @@ func TestIonicMonitorHealthy(t *testing.T) {
 				if err := row.cause(f); err != nil {
 					t.Errorf("reason does not hold: %v", err)
 				}
+			}
+		})
+	}
+	ibPrefix := ionicMetricPrefix + "infiniband_"
+	for _, row := range []struct {
+		category, description, expected string
+		check                           func() error
+	}{
+		{"positive", "the ionic port's rate from ports/1/rate", "one positive rate gauge for the device",
+			func() error {
+				v, err := value(samples, "infiniband_rate_bytes_per_second", "device", f.rdma, "port", "1")
+				if err == nil && v <= 0 {
+					err = fmt.Errorf("rate %v", v)
+				}
+				return err
+			}},
+		{"positive", "hw_counters/lifespan, the one cataloged ionic hw counter", "one lifespan gauge for the device",
+			func() error {
+				_, err := value(samples, "infiniband_lifespan_seconds", "device", f.rdma, "port", "1")
+				return err
+			}},
+		{"corner", "the emulator's own counter names are not in the catalog", "lifespan is the only cataloged counter metric for the device",
+			func() error {
+				var got []string
+				for _, field := range rdmaCounterCatalog {
+					if len(matching(samples, ibPrefix+field.metric, "device", f.rdma)) != 0 {
+						got = append(got, field.metric)
+					}
+				}
+				if !slices.Equal(got, []string{"lifespan_seconds"}) {
+					return fmt.Errorf("cataloged metrics %v, want [lifespan_seconds]", got)
+				}
+				return nil
+			}},
+	} {
+		t.Run(row.category+"/"+row.description, func(t *testing.T) {
+			t.Logf("%s: %s; expected: %s", row.category, row.description, row.expected)
+			if err := row.check(); err != nil {
+				t.Error(err)
 			}
 		})
 	}

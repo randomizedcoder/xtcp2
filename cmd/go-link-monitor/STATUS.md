@@ -432,6 +432,38 @@ With the V085 fix reverted, its RDMA replay fails (`GetRDMAPort(0, 1) …
 context deadline exceeded`). Not established: verbs async-event delivery (no
 per-event metric) and physical NIC behavior.
 
+V089 — real-driver RDMA counters and verbs events (2026-10-12): rocm-ernic
+now answers the ionic STATS_HDRS/STATS_VALS commands (ROCm/rocm-ernic#222), so
+the in-tree `ionic_rdma` driver creates `ports/1/hw_counters`. Tested against
+the fork's local `xtcp2-integration` branch (develop plus #219, #221, #222,
+#223 and #224; `run-ionic-pair-test` passes on it and both servers log
+`Shutdown complete`) through `--override-input rocm-ernic git+file://…`.
+Against the old expectation the ionic MONITOR row failed as intended
+(`rdma_counters` reported supported, "hw_counters present"), so the row now
+expects supported and checks the guest's `hw_counters` names and that
+`lifespan` is the only cataloged counter metric for the device; the
+emulator's `commands` and `total_bytes_*` names are not in the catalog.
+New `testdata/rdmasysfs/capture.sh` records a port's attributes and counter
+groups as `path=value` lines. Snapshots: host `l` `mlx5_0` (ConnectX-4 Lx,
+kernel 7.1.8), the ionic guest and the rxe guest (both 7.1.4), the guests'
+captured inside the VMs and carried out with the nlrecord archive.
+`TestRDMACountersRealSysfs` (14 rows) rebuilds each under the snapshot's own
+link layer (the existing fixture assumed native InfiniBand, which the
+collector's identity check rejects for a RoCE capture) and requires every
+cataloged file to be one sample at its scale and every other file to be named
+in the row. Findings: mlx5 `req_rnr_retries_exceeded` and
+`req_transport_retries_exceeded` are dropped (not in the catalog); rxe puts
+`link_downed` under `hw_counters`, also dropped; neither mlx5 port has
+`counters_ext`. Breaking the catalog (a scale, a dropped name) fails the
+named rows. New VERBS_EVENTS step: `TestIonicVerbsEvents` opens the ionic
+device through `rdmaevents.Open`/`Run` and observed exactly one Refresh for
+port 1 on down and on up, one Topology for port 1 on IPv6 address add and on
+delete, nothing for an unrelated dummy netdev, two Refresh for a fast flap and
+one for a repeated down; ionic keeps its GIDs across down and up, so those rows
+allow no Topology. Every ionic and rxe sentinel passed. This establishes verbs
+async-event delivery on a real driver (V088's open item); per-event metrics
+and physical NIC behavior remain unverified.
+
 V076 — privileged performance VM wiring (2026-10-10): added the modular
 `test-linkmonitor-performance-vm` runner under `nix/microvms/`. It reuses the
 cached performance test artifact, boots a root NixOS guest, captures filtered
@@ -784,6 +816,7 @@ integration remains deferred under D01.
 | P11 | Release verification | not started | 0/3 | None |
 | P12 | Administration API and xtcp2 integration | done | 7/7 | V079–V084 |
 | P13 | Netlink contracts | in progress | 4/5 | V085–V088; pre-merge gates documented, host `l` alerts and pin bump remain |
+| P14 | Real-driver RDMA coverage | in progress | 2/4 | V089; rocm-ernic pin bump to the integration branch pending |
 
 ## Task checklist
 
@@ -839,6 +872,10 @@ plan, not copied here. Add verification IDs to the evidence column as work runs.
 | [x] | [P13-T03](IMPLEMENTATION-PLAN.md#p13-t03) | Emulated ionic NIC outputs (rocm-ernic) | done | V088; fork `84f06fe`, upstream ROCm/rocm-ernic#219 |
 | [x] | [P13-T04](IMPLEMENTATION-PLAN.md#p13-t04) | Real-driver ionic guest | done | V088 |
 | [ ] | [P13-T05](IMPLEMENTATION-PLAN.md#p13-t05) | Contract gates and host alerts | in progress | Gates and docs in this tree; host `l` alert rules and xtcp2 pin bump in `~/nixos` pending |
+| [x] | [P14-T01](IMPLEMENTATION-PLAN.md#p14-t01) | Real sysfs counter fixtures | done | V089 |
+| [x] | [P14-T02](IMPLEMENTATION-PLAN.md#p14-t02) | Verbs async events on a real driver | done | V089 |
+| [ ] | [P14-T03](IMPLEMENTATION-PLAN.md#p14-t03) | Two-guest traffic | not started | Needs rocm-ernic `ernic-pair-node` (#221) |
+| [ ] | [P14-T04](IMPLEMENTATION-PLAN.md#p14-t04) | ionic RES corpus with live QPs | not started | After P14-T03 |
 
 ## Deferred items
 
@@ -1559,6 +1596,7 @@ owners, deadlines or successful outcomes. Continue independent ready tasks.
 | 2026-10-11 | Audited every netlink request and reply against linux 7.2.9. Fixed RDMA notifications ending `rdma_events` on netdev rename and other-namespace attach/detach. Decision: reply envelope types in new tests come from recorded kernel replies, never from echoing the request. | V086. Next: in-process netlink recording and replay, then the ionic VM |
 | 2026-10-11 | Added in-process netlink recording (`nlrecord` tag) and replay of committed rxe-VM recordings through the real `linuxio` API. Fixtures come from the rxe VM and host `l` (mlx5, atlantic). | V087. Next: the ionic VM (`test-linkmonitor-ionic-vm`) using rocm-ernic |
 | 2026-10-11 | Added the real-driver ionic guest (`test-linkmonitor-ionic-vm`, rocm-ernic): collector table with checked reasons, CLI differential, events, PCI unplug/replug and recovered events; ionic fixtures committed. | V088. Next: Phase E gates and docs |
+| 2026-10-12 | Started P14: ionic `rdma_counters` is supported once rocm-ernic answers STATS_HDRS; real sysfs snapshots from host `l`, ionic and rxe; verbs async events verified on the real ionic driver. Decision: the emulator's counter names stay out of the catalog until real Pensando names are known. | V089; P14 2/4. Next: pin bump, then the two-guest traffic test |
 
 Publication: P08-T03 was committed as `cb958fb` and pushed on
 `test/linkmonitor-embedding`; [PR #178](https://github.com/randomizedcoder/xtcp2/pull/178)

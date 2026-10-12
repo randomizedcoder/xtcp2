@@ -15,6 +15,16 @@
 }:
 let
   metricsAddress = "127.0.0.1:9101";
+  # The same capture that produced the host fixtures in
+  # pkg/linkmonitor/testdata/rdmasysfs, for TestRDMACountersRealSysfs.
+  sysfsCapture = pkgs.writeShellApplication {
+    name = "rdmasysfs-capture";
+    runtimeInputs = with pkgs; [
+      coreutils
+      findutils
+    ];
+    text = builtins.readFile ../../pkg/linkmonitor/testdata/rdmasysfs/capture.sh;
+  };
   guestTest = pkgs.writeShellApplication {
     name = "linkmonitor-ionic-guest";
     runtimeInputs = with pkgs; [
@@ -89,6 +99,7 @@ let
       echo LINKMONITOR_IONIC_DISCOVERY_PASS
 
       nlrec=$(mktemp -d)
+      ${sysfsCapture}/bin/rdmasysfs-capture ionic-vm "$rdmadev" > "$nlrec/rdmasysfs-$rdmadev.txt"
       LINKMONITOR_NLRECORD="$nlrec" LINKMONITOR_LIVE_INTERFACE="$netdev" \
         ${artifact}/bin/linuxio-nlrecord.test -test.run '^TestLiveRequestShapes$' -test.v
       echo LINKMONITOR_IONIC_CONTRACTS_PASS
@@ -100,6 +111,9 @@ let
       echo LINKMONITOR_IONIC_CLI_PASS
       run_test TestIonicEvents
       echo LINKMONITOR_IONIC_EVENTS_PASS
+      # Verbs async events from the real driver, through rdmaevents Open/Run.
+      ${artifact}/bin/ionic-vm-events.test -test.run '^TestIonicVerbsEvents$' -test.v -test.timeout=5m
+      echo LINKMONITOR_IONIC_VERBS_EVENTS_PASS
 
       # Removal unregisters the RDMA device while the monitor holds a verbs
       # context; if that blocks, show where instead of waiting for the timeout.
@@ -234,6 +248,7 @@ pkgs.writeShellApplication {
     usage() {
       echo 'usage: test-linkmonitor-ionic-vm [--accel=auto|kvm|tcg] [--promote]' >&2
       echo '  --promote copies the recorded fixtures into ./pkg/linkmonitor/internal/linuxio/testdata/nlrecord/ionic-vm/<kernel>/' >&2
+      echo '  and the sysfs capture into ./pkg/linkmonitor/testdata/rdmasysfs/' >&2
       exit 2
     }
     accel='-machine accel=kvm:tcg'
@@ -248,6 +263,7 @@ pkgs.writeShellApplication {
       esac
     done
     testdata=pkg/linkmonitor/internal/linuxio/testdata/nlrecord
+    sysfsdata=pkg/linkmonitor/testdata/rdmasysfs
     if [ "$promote" -eq 1 ] && [ ! -d "$testdata" ]; then
       echo "--promote must run from the xtcp2 checkout root ($testdata missing)" >&2
       exit 2
@@ -270,7 +286,7 @@ pkgs.writeShellApplication {
       echo "FAIL: launcher exited $rc; evidence $run_dir" >&2
       exit 1
     fi
-    for sentinel in DISCOVERY CONTRACTS MONITOR CLI EVENTS UNPLUG HOTPLUG RECOVERED_EVENTS; do
+    for sentinel in DISCOVERY CONTRACTS MONITOR CLI EVENTS VERBS_EVENTS UNPLUG HOTPLUG RECOVERED_EVENTS; do
       if ! grep -q "LINKMONITOR_IONIC_''${sentinel}_PASS" "$run_dir/serial.log"; then
         echo "FAIL: missing LINKMONITOR_IONIC_''${sentinel}_PASS; evidence $run_dir" >&2
         exit 1
@@ -297,6 +313,11 @@ pkgs.writeShellApplication {
         install -m 644 "$path" "$dest/$(echo "$name" | sed -E 's/^([a-z]+)-[0-9]+-([0-9]+)\.pcap$/\1-\2.pcap/')"
       done
       echo "promoted into $dest; regenerate goldens with: go test ./pkg/linkmonitor/internal/linuxio -run TestRecordedContracts -update"
+      for path in "$run_dir"/fixtures/rdmasysfs-*.txt; do
+        name=''${path##*/rdmasysfs-}
+        install -m 644 "$path" "$sysfsdata/ionic-vm-''${name%.txt}-$kernel.txt"
+        echo "promoted $sysfsdata/ionic-vm-''${name%.txt}-$kernel.txt"
+      done
     fi
     echo "PASS: ionic VM; evidence $run_dir"
   '';

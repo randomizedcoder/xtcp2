@@ -10,6 +10,16 @@
 let
   constants = import ./constants.nix;
   runners = import ./lib.nix { inherit pkgs lib constants; };
+  # The same capture that produced pkg/linkmonitor/testdata/rdmasysfs, for
+  # TestRDMACountersRealSysfs; it rides out in the nlrecord archive.
+  sysfsCapture = pkgs.writeShellApplication {
+    name = "rdmasysfs-capture";
+    runtimeInputs = with pkgs; [
+      coreutils
+      findutils
+    ];
+    text = builtins.readFile ../../pkg/linkmonitor/testdata/rdmasysfs/capture.sh;
+  };
   guestTest = pkgs.writeShellApplication {
     name = "linkmonitor-rdma-guest-test";
     runtimeInputs = with pkgs; [
@@ -59,6 +69,7 @@ let
       nlrec=$(mktemp -d)
       LINKMONITOR_NLRECORD="$nlrec" LINKMONITOR_LIVE_INTERFACE=lm0 \
         ${artifact}/bin/linuxio-nlrecord.test -test.run '^TestLiveRequestShapes$' -test.v
+      ${sysfsCapture}/bin/rdmasysfs-capture rxe-vm lm_rxe > "$nlrec/rdmasysfs-lm_rxe.txt"
       uname -r > "$nlrec/kernel.txt"
       echo XTCP2_NLREC_DUMP_START
       tar c -C "$nlrec" . | gzip -n | base64 -w0
