@@ -252,6 +252,7 @@ let
       nix build --accept-flake-config \
         "$FLAKE_REF#test-focused-asn-locality" \
         "$FLAKE_REF#test-focused-goip" \
+        "$FLAKE_REF#test-focused-gordma" \
         "$FLAKE_REF#test-focused-xtcp-enrich"
 
       echo "==> focused quality checks passed"
@@ -907,6 +908,7 @@ in
       test-oci-ipmeta-bootstrap-contents = tests.oci-ipmeta-bootstrap-contents;
       test-focused-asn-locality = tests.focused.focused-asn-locality;
       test-focused-goip = tests.focused.focused-goip;
+      test-focused-gordma = tests.focused.focused-gordma;
       test-focused-xtcp-enrich = tests.focused.focused-xtcp-enrich;
       test-microvm-lifecycle-x86_64 = tests.microvm-lifecycle.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-ipmeta-bootstrap =

@@ -158,8 +158,8 @@ func TestRdmaRequestsMatchRdma(t *testing.T) {
 			t.Run(tc.description, func(t *testing.T) {
 				var reqs [][]byte
 				for _, m := range rdmaCorpus(t, k, tc.slug) {
-					if m.send {
-						reqs = append(reqs, bytes.Clone(m.raw))
+					if m.Send {
+						reqs = append(reqs, bytes.Clone(m.Raw))
 					}
 				}
 				if tc.nth >= len(reqs) {

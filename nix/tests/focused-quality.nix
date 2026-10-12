@@ -66,6 +66,16 @@ in
     ];
   };
 
+  # gordma's corpus replay reads pkg/xtcpnl/testdata/*/rdma, which the
+  # vendored source carries.
+  focused-gordma = mkFocusedTest "gordma" {
+    paths = [
+      "./internal/gordma/..."
+      "./cmd/gordma"
+      "./pkg/nlstrace/..."
+    ];
+  };
+
   focused-xtcp-enrich = mkFocusedTest "xtcp-enrich" {
     tags = "enrich_asn enrich_locality";
     ldflags = "-checklinkname=0";

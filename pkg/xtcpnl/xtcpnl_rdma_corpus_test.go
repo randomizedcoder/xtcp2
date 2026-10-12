@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/randomizedcoder/xtcp2/pkg/nlstrace"
 	"golang.org/x/sys/unix"
 )
 
@@ -121,25 +122,25 @@ func rdmaCorpusReplies(t *testing.T, k rdmaKernel, slug string) (replies []any, 
 	}
 	for _, m := range rdmaCorpus(t, k, slug) {
 		switch {
-		case m.send:
+		case m.Send:
 			requests++
-		case m.typ == unix.NLMSG_DONE:
-			if len(m.body) >= 4 {
-				check(int32(binary.LittleEndian.Uint32(m.body)), "NLMSG_DONE") //nolint:gosec // the wire int
+		case m.Type == unix.NLMSG_DONE:
+			if len(m.Body) >= 4 {
+				check(int32(binary.LittleEndian.Uint32(m.Body)), "NLMSG_DONE") //nolint:gosec // the wire int
 			}
-		case m.typ == unix.NLMSG_ERROR:
-			e, err := ParseNlMsgErr(m.flags, m.body)
+		case m.Type == unix.NLMSG_ERROR:
+			e, err := ParseNlMsgErr(m.Flags, m.Body)
 			if err != nil {
 				t.Fatal(err)
 			}
 			check(e.Errno, fmt.Sprintf("the NLMSG_ERROR for request type %#x", e.RequestType))
 		default:
-			v, err := ParseRdmaMsg(m.typ, m.body)
+			v, err := ParseRdmaMsg(m.Type, m.Body)
 			if err != nil {
-				t.Fatalf("%s: type %#x: %v", slug, m.typ, err)
+				t.Fatalf("%s: type %#x: %v", slug, m.Type, err)
 			}
 			replies = append(replies, v)
-			types = append(types, m.typ)
+			types = append(types, m.Type)
 		}
 	}
 	if want != 0 && !seen {
@@ -336,8 +337,8 @@ func TestRdmaAttrCoverageFloor(t *testing.T) {
 	for _, k := range rdmaKernels {
 		for _, slug := range rdmaCorpusSlugs {
 			for _, m := range rdmaCorpus(t, k, slug) {
-				if !m.send && RdmaNlGetClient(m.typ) == RdmaNlNldev {
-					walk(m.body)
+				if !m.Send && RdmaNlGetClient(m.Type) == RdmaNlNldev {
+					walk(m.Body)
 				}
 			}
 		}
@@ -388,13 +389,13 @@ func FuzzParseRdmaMsg(f *testing.F) {
 	for _, k := range rdmaKernels {
 		for _, slug := range rdmaCorpusSlugs {
 			for _, m := range rdmaCorpus(f, k, slug) {
-				if RdmaNlGetClient(m.typ) == RdmaNlNldev {
-					if !m.send {
-						if _, err := ParseRdmaMsg(m.typ, m.body); err != nil {
-							f.Fatalf("%s/%s: seed type %#x: %v", k.dir, slug, m.typ, err)
+				if RdmaNlGetClient(m.Type) == RdmaNlNldev {
+					if !m.Send {
+						if _, err := ParseRdmaMsg(m.Type, m.Body); err != nil {
+							f.Fatalf("%s/%s: seed type %#x: %v", k.dir, slug, m.Type, err)
 						}
 					}
-					f.Add(m.typ, m.body)
+					f.Add(m.Type, m.Body)
 				}
 			}
 		}
@@ -572,14 +573,17 @@ func TestRdmaRecaptureMatches(t *testing.T) {
 				t.Error(err)
 			}
 		}()
-		dgs, err := parseStrace(f)
+		dgs, err := nlstrace.Parse(f)
 		if err != nil {
 			t.Fatal(err)
 		}
-		msgs := straceNlMsgs(t, dgs)
+		msgs, err := nlstrace.Msgs(dgs)
+		if err != nil {
+			t.Fatal(err)
+		}
 		out := make([][]byte, 0, len(msgs))
 		for _, m := range msgs {
-			out = append(out, maskRdmaMsg(t, m.raw))
+			out = append(out, maskRdmaMsg(t, m.Raw))
 		}
 		return out
 	}
@@ -625,7 +629,7 @@ func rdmaMaskedCorpus(t *testing.T, k rdmaKernel, slug string) [][]byte {
 	msgs := rdmaCorpus(t, k, slug)
 	out := make([][]byte, 0, len(msgs))
 	for _, m := range msgs {
-		out = append(out, maskRdmaMsg(t, m.raw))
+		out = append(out, maskRdmaMsg(t, m.Raw))
 	}
 	return out
 }

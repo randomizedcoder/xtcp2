@@ -198,7 +198,7 @@ const (
 	// 7.1.4 RDMA nldev captures, produced in the microVM by
 	// `nix run .#microvm-x86_64-rdma-capture` (scripts/capture-rdma.exp).
 	// nlmon cannot tap NETLINK_RDMA, so each row is an strace of one `rdma`
-	// invocation (<slug>.strace, read by parseStrace) with its .out, .err and
+	// invocation (<slug>.strace, read by pkg/nlstrace) with its .out, .err and
 	// .rc beside it. rdmaKernels lists this corpus with its siblings on the
 	// other kernels.
 	tdRdma_7_1_4 = tdBase + "/7_1_4/rdma"

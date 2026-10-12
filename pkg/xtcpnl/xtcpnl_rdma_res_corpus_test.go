@@ -41,8 +41,8 @@ func rdmaResCorpusSummary(t *testing.T, k rdmaKernel, slug string, entryAt int, 
 	t.Helper()
 	var r rdmaResCorpusRow
 	for _, m := range rdmaCorpus(t, k, slug) {
-		if m.send {
-			r.requests = append(r.requests, fmt.Sprintf("%#x/%#x/%d", m.typ, m.flags, len(m.raw)))
+		if m.Send {
+			r.requests = append(r.requests, fmt.Sprintf("%#x/%#x/%d", m.Type, m.Flags, len(m.Raw)))
 		}
 	}
 	replies, _, _ := rdmaCorpusReplies(t, k, slug)
