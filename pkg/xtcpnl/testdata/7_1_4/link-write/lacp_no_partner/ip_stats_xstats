@@ -20,7 +20,7 @@
 
 5: bond0: group xstats subgroup bond suite 802.3ad
                     LACPDU Rx 0
-                    LACPDU Tx 10
+                    LACPDU Tx 14
                     LACPDU Unknown type Rx 0
                     LACPDU Illegal Rx 0
                     Marker Rx 0

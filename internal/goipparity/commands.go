@@ -97,9 +97,15 @@ type Command struct {
 	// NLMSG_ERROR, so the goip side's floor is Floor-2.
 	Write bool
 
-	// Setup is the precondition of a write row: `ip` argument lists, run in
-	// order outside the capture window. Steps are joined with ';' in String,
-	// so a step may not contain one.
+	// Setup is a row's precondition: `ip` argument lists, run in order
+	// outside the capture window. Steps are joined with ';' in String, so a
+	// step may not contain one.
+	//
+	// A write row runs Setup once per side, in that side's new namespace. A
+	// read row runs it once, in one new namespace all three sides then read:
+	// a read changes nothing, so sharing it keeps what Setup made (a random
+	// MAC, an ifindex) the same on every side. Without Setup, a read row
+	// reads the shared dump topology.
 	Setup []string
 }
 
@@ -250,6 +256,37 @@ var commands = withArgs([]Command{
 		// and be written as a good fixture. The capture driver's value moved
 		// with this one (nix/microvms/scripts/capture-netlink-dumps.exp:137).
 		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d link show dev bond0", Slug: "link_show_details_bond",
+		Setup: bondReadSetup,
+		// The bond's IFLA_INFO_DATA rendered by -d: mode, miimon, ad_select,
+		// lacp_rate, ad_actor_system and the IFLA_BOND_AD_INFO block, the
+		// decode link-write-path.md phase 2 added. Four datagrams, as `link
+		// show dev`: the name resolution, then the re-fetch.
+		//
+		// # A read row with a Setup
+		//
+		// The dump topology has no bond, so this row brings its own, and the
+		// driver builds it ONCE for all three sides: a read changes nothing,
+		// and one namespace gives every side the same bond MAC (taken from a
+		// veth with a random one) and the same ifindexes. See bondReadSetup
+		// for why the ports have no carrier.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-d link show dev la1", Slug: "link_show_details_bond_slave",
+		Setup: bondReadSetup,
+		// The port's IFLA_INFO_SLAVE_DATA: state, mii_status, the link
+		// failure count, the aggregator id and the actor and partner port
+		// states, the field the iproute2 width fix is about.
+		//
+		// Eight datagrams, four transactions, measured on the first live run
+		// for ip and goip alike: `link show dev`'s two, then one get each to
+		// name the veth peer (`la1@lb1`, from IFLA_LINK) and the master
+		// (`master bond0`, from IFLA_MASTER). `dev bond0` above prints
+		// neither, so it stays at four.
+		Floor: 8, Implemented: true,
 	},
 	{
 		Name: "addr show", Slug: "addr_show",
@@ -1577,6 +1614,22 @@ var (
 	linkWriteSetupPortUp   = []string{"link add bond0 type bond mode 802.3ad", "link add la1 type veth peer name lb1", "link set la1 up"}
 	linkWriteSetupEnslaved = []string{"link add bond0 type bond mode 802.3ad", "link add la1 type veth peer name lb1", "link set la1 master bond0"}
 )
+
+// bondReadSetup is the bond the `-d link show` bond rows read: two ports
+// enslaved and the bond up, as capture-link-writes.exp's lacp_no_partner
+// builds it, less the step that would make it move. The veth peers lb1 and
+// lb2 stay down, so la1 and la2 have no carrier and the 802.3ad machines
+// have nothing to do: with carrier and no partner, a port goes from
+// defaulted to churned over the next minute, and ip_a, goip and ip_b would
+// each read a different moment of it.
+var bondReadSetup = []string{
+	"link add bond0 type bond mode 802.3ad",
+	"link add la1 type veth peer name lb1",
+	"link add la2 type veth peer name lb2",
+	"link set la1 master bond0",
+	"link set la2 master bond0",
+	"link set bond0 up",
+}
 
 // withArgs fills every row's Args from its Name.
 //

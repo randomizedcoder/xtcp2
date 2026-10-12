@@ -432,6 +432,13 @@ func TestAllowlistCommitted(t *testing.T) {
 		"link set bond0 down",
 		"link set d0 name d1 mtu 9000 alias uplink",
 		"link del bond0",
+		// The two bond `-d link show` read rows, the first read rows with a
+		// Setup, gated on two runs after the phase 7 runs: GOIP_PARITY_PASS
+		// both times with stdout=0, txns matching ip (2/2 and 4/4) and
+		// control nl=0, the setup leaving the veth peers down so nothing
+		// moves between sides.
+		"-d link show dev bond0",
+		"-d link show dev la1",
 	}
 
 	tests := []struct {

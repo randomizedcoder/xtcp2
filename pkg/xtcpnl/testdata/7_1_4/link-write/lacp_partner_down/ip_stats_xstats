@@ -19,8 +19,8 @@
 4: la2: group xstats subgroup bridge suite stp
 
 5: bond0: group xstats subgroup bond suite 802.3ad
-                    LACPDU Rx 17
-                    LACPDU Tx 29
+                    LACPDU Rx 249
+                    LACPDU Tx 269
                     LACPDU Unknown type Rx 0
                     LACPDU Illegal Rx 0
                     Marker Rx 0

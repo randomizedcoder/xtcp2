@@ -573,10 +573,13 @@ pkgs.writeShellApplication {
       return 1
     }
 
-    # wait-churn <ns> <ports> <timeout-sec>
+    # wait-churn <ns> <ports> <timeout-sec> [none|settled]
     #
     # Poll /proc/net/bonding/bond0 in <ns> until all <ports> ports show both
-    # churn machines settled ("Churn State: none", AD_NO_CHURN). A port that
+    # churn machines settled. With `none`, the default, settled is
+    # "Churn State: none" (AD_NO_CHURN) on every machine; with `settled` it is
+    # anything but "monitoring", so a machine that ended at AD_CHURN
+    # ("churned"), as a port whose partner never syncs does, counts too. A port that
     # joins, or comes back from EXPIRED or DEFAULTED, re-arms the machine to
     # MONITOR for AD_CHURN_DETECTION_TIME, 60 s (bond_3ad.c ad_churn_machine),
     # so a capture taken inside that window reads MONITOR and one taken after
@@ -585,8 +588,12 @@ pkgs.writeShellApplication {
     # state is in netlink and /proc only, not sysfs; /proc, so nothing here
     # reads it through the decoder under test.
     cmd_wait_churn() {
-      local ns=$1 ports=$2 timeout=$3
+      local ns=$1 ports=$2 timeout=$3 mode=''${4:-none}
       local start deadline f total settled
+      case "$mode" in
+        none|settled) ;;
+        *) die "wait-churn: mode must be none or settled, not $mode" ;;
+      esac
       start=$(date +%s)
       deadline=$(( start + timeout ))
       total=0
@@ -594,9 +601,13 @@ pkgs.writeShellApplication {
       while :; do
         f="$(ip netns exec "$ns" cat /proc/net/bonding/bond0 2>/dev/null)" || f=""
         total=$(printf '%s\n' "$f" | grep -c 'Churn State:' || true)
-        settled=$(printf '%s\n' "$f" | grep -c 'Churn State: none' || true)
+        if [ "$mode" = none ]; then
+          settled=$(printf '%s\n' "$f" | grep -c 'Churn State: none' || true)
+        else
+          settled=$(printf '%s\n' "$f" | grep 'Churn State:' | grep -vc 'Churn State: monitoring' || true)
+        fi
         if [ "$total" -eq $(( 2 * ports )) ] && [ "$settled" -eq "$total" ]; then
-          echo "NLCAP_CHURN_OK $ns ports=$ports elapsed=$(( $(date +%s) - start ))s"
+          echo "NLCAP_CHURN_OK $ns ports=$ports mode=$mode elapsed=$(( $(date +%s) - start ))s"
           return 0
         fi
         if [ "$(date +%s)" -ge "$deadline" ]; then
@@ -604,7 +615,7 @@ pkgs.writeShellApplication {
         fi
         sleep 0.5
       done
-      echo "NLCAP_CHURN_TIMEOUT $ns $settled of $total churn machines settled, want $(( 2 * ports )), after ''${timeout}s"
+      echo "NLCAP_CHURN_TIMEOUT $ns $settled of $total churn machines settled ($mode), want $(( 2 * ports )), after ''${timeout}s"
       return 1
     }
 

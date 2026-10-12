@@ -1372,8 +1372,9 @@ rec {
         set -u
 
         # 1800 s, as for the dump capture: the budget is dominated by a cold
-        # boot on a loaded host. The capture itself is under a minute, most of
-        # it LACP timers.
+        # boot on a loaded host. The capture itself is two to three minutes,
+        # most of it the churn machines' 60 s detection timer, waited out in
+        # lacp_no_partner and again in lacp_converged.
         TIMEOUT_SEC=1800
         OUT_DIR=""
         while [ $# -gt 0 ]; do

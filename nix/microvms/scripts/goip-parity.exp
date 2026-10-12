@@ -108,14 +108,18 @@ proc nlcap {args} {
     return [vmlib::run_out "xtcp2-nlcap [join $args { }]"]
 }
 
-# capio <name> <floor> <command> <stdout-name> - one side of one triple.
+# capio <name> <floor> <command> <stdout-name> ?ns? - one side of one triple.
 #
-# Returns 1 on success. A miss is recorded and reported at the end; the
+# <ns> is the shared dump topology unless a row with a Setup names the
+# namespace it built. Returns 1 on success. A miss is recorded and reported at the end; the
 # comparator will separately report the command as MISSING, because it checks
 # for all six files of a triple before reading any of them.
-proc capio {name floor command sout} {
+proc capio {name floor command sout {ns ""}} {
     global short_caps NS SUBDIR
-    lassign [nlcap capio $NS $SUBDIR $name $floor "'$command'" $sout] rc out
+    if {$ns eq ""} {
+        set ns $NS
+    }
+    lassign [nlcap capio $ns $SUBDIR $name $floor "'$command'" $sout] rc out
     if {$rc != 0} {
         lappend short_caps "$SUBDIR/$name"
         vmlib::log "MISSED FLOOR $SUBDIR/$name: $out"
@@ -132,7 +136,7 @@ proc capio {name floor command sout} {
 #
 #     slug  floor  implemented  needs-dev  write  setup  args  name
 #
-# setup is `-` or a write row's precondition steps joined with ';'. It, args
+# setup is `-` or a row's precondition steps joined with ';'. It, args
 # and name hold spaces, which is why the split is on tabs. Parsed with
 # `split ... \t` rather than a regexp so a name with two consecutive spaces
 # cannot be silently reflowed.
@@ -216,15 +220,47 @@ proc capture_triple {row dev} {
         return
     }
 
+    # A read row with a Setup reads the namespace it builds instead of the
+    # dump topology: built once, since a read changes nothing, so all three
+    # sides see the same devices, ifindexes and MACs.
+    set ns ""
+    if {$setup ne "-"} {
+        set ns [setup_read_ns $slug $setup]
+        if {$ns eq ""} {
+            return
+        }
+    }
+
     set ok 1
     foreach {side cmd} $plan {
-        if {![capio "$slug.$side" $floor $cmd "$slug.$side.out"]} {
+        if {![capio "$slug.$side" $floor $cmd "$slug.$side.out" $ns]} {
             set ok 0
         }
     }
     if {!$ok} {
         vmlib::log "INCOMPLETE TRIPLE $slug - the comparator will report it MISSING"
     }
+}
+
+###############################################################################
+# setup_read_ns <slug> <setup> - a read row's own namespace.
+#
+# goipw, recreated and prepared with the row's Setup, through nltopo::topo
+# and outside any capture window. Returns the namespace, or "" when a step
+# was refused, in which case the whole row is skipped and the comparator
+# reports it MISSING.
+###############################################################################
+
+proc setup_read_ns {slug setup} {
+    global NSW SUBDIR write_skipped
+    vmlib::must "xtcp2-nlcap ns-add $NSW"
+    foreach step [split $setup ";"] {
+        if {[nltopo::topo $NSW $SUBDIR {*}$step] != 0} {
+            lappend write_skipped $slug
+            return ""
+        }
+    }
+    return $NSW
 }
 
 ###############################################################################
@@ -442,8 +478,8 @@ if {[llength $write_skipped] > 0} {
     foreach s $write_skipped {
         puts "  $s"
     }
-    puts "  A refused precondition step skipped those sides, so their rows are"
-    puts "  MISSING above."
+    puts "  A refused precondition step skipped those sides (or, for a read"
+    puts "  row, the whole row), so their rows are MISSING above."
 }
 
 if {[llength $short_caps] > 0} {

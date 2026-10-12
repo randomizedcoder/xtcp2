@@ -263,4 +263,30 @@ namespace eval lwtopo {
         if {![wait_port $NS_A la1 0xff $CONVERGED 0xff $CONVERGED]} { set ok 0 }
         return $ok
     }
+
+    ###########################################################################
+    # wait_churn ?mode? - all four of lacpa's churn machines out of MONITOR.
+    #
+    # Up to AD_CHURN_DETECTION_TIME (60 s) after a port joins or comes back,
+    # so the bound is that plus LACP_TIMEOUT's margin. Without it the churn
+    # fields read MONITOR on a fast run and something else on a slow one.
+    #
+    #   none     every machine at NO_CHURN, as a converged bond ends. A port
+    #            that churns (out of sync when the timer ran out) times out.
+    #   settled  every machine at NO_CHURN or CHURN, for lacp_no_partner,
+    #            whose partner never syncs and so ends churned.
+    ###########################################################################
+    proc wait_churn {{mode none}} {
+        variable NS_A
+        variable LACP_TIMEOUT
+        set timeout [expr {60 + $LACP_TIMEOUT}]
+        lassign [vmlib::run_out \
+            "xtcp2-nlcap wait-churn $NS_A 2 $timeout $mode" \
+            [expr {$timeout + 30}]] rc out
+        vmlib::log [string trim $out]
+        if {$rc != 0} {
+            diagnose
+        }
+        return [expr {$rc == 0}]
+    }
 }

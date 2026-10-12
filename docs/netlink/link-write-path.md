@@ -31,7 +31,10 @@ verdicts, every row `GOIP_PARITY_PASS` (see
 links, captures three states on virtio-net ports, la2's carrier pulled and
 restored over QMP, into `pkg/xtcpnl/testdata/7_1_4/link-write/lacp-pair/`,
 and every bond decoder and goip renderer is green on them with no code
-change (see [Phase 8 as built](#phase-8-as-built)). This
+change (see [Phase 8 as built](#phase-8-as-built)). Since then Tier 1
+waits out the churn machines too, and `-d link show` on a bond and its port
+are gated in the matrix as read rows with a `Setup` (see
+[Bond read rows in the matrix](#bond-read-rows-in-the-matrix)). This
 document is the roadmap for giving `goip` its
 second write capability — generating the netlink messages that
 `ip link add/set/change/replace/delete` sends — with first-class support for the
@@ -536,9 +539,9 @@ value). A state whose wait times out is not captured.
 
 | state | built by | waited on (measured, 7.1.4 guest) |
 |---|---|---|
-| `lacp_no_partner` | lacpa bond over `la1`/`la2`; `lb1`/`lb2` up, no bond | `la1` `0x4f`/`0x00`, `la2` `0x47`/`0x00` |
-| `lacp_converged` | lacpb bond over `lb1`/`lb2` | both ports `0x3f`/`0x3f`, about 3 s |
-| `lacp_partner_down` | `ip -n lacpb link set lb2 down` | `la2` `mii_status` down, `state` backup; `la1` still `0x3f`/`0x3f` |
+| `lacp_no_partner` | lacpa bond over `la1`/`la2`; `lb1`/`lb2` up, no bond | `la1` `0x4f`/`0x00`, `la2` `0x47`/`0x00`; then no churn machine in MONITOR, about 57 s |
+| `lacp_converged` | lacpb bond over `lb1`/`lb2` | both ports `0x3f`/`0x3f`, about 3 s; then all four churn machines `none`, about 55 s |
+| `lacp_partner_down` | `ip -n lacpb link set lb2 down` | `la2` `mii_status` down, `state` backup; `la1` still `0x3f`/`0x3f`; churn `none`, at once |
 
 Each state's directory holds `ip -d link show` and both `stats show group
 xstats{,_slave}` dumps as pcap plus text from one invocation (`capio`), the
@@ -650,10 +653,16 @@ What the measurements changed from the plan above:
   sysfs) until all four machines read `none`. It took 60 s after
   convergence, 0 s after the pull (a disabled port does not re-arm), and
   61 s after the restore. Two runs then gave identical sidecars apart
-  from the LACPDU counters. Tier 1 has the same exposure: its fixtures
-  read MONITOR because its run is fast, and a slower recapture would read
-  NO_CHURN. Adding the wait there means recapturing a corpus that
-  committed citations point into, so it is left as a follow-up.
+  from the LACPDU counters. Tier 1 now waits too, through the same
+  `lwtopo::wait_churn` (it read MONITOR before, because its run was
+  fast). Its `lacp_no_partner` cannot reach all `none`: the silent partner
+  never syncs, so `wait-churn ... settled` accepts `churned` as well, and
+  the state ends with la1 at actor `none`/partner `churned` and la2
+  `churned` on both, after 57 s. `lacp_converged` settles to `none`
+  after 55 s and `lacp_partner_down` after 1 s. The churned counts from
+  `lacp_no_partner` (la1 partner 1, la2 actor and partner 1) stay on the
+  ports for the rest of the run. Only the three readback states were
+  recaptured: the write rows do not read churn state.
 - **What it showed.** On the pulled link, la2 has `NO-CARRIER`, mii DOWN
   and BACKUP, and its actor and partner state still read 0x3f, as on
   Tier 1's veth. So the stale bits come from the bond, not from how veth
@@ -826,7 +835,7 @@ The route design noted that the matrix needs a read/write axis. This design fixe
 its shape, because link writes have **preconditions** — enslaving needs a bond
 and a down port — that route replaces mostly do not.
 
-- `type Command` (`internal/goipparity/commands.go:51-87`) gains
+- `type Command` (`internal/goipparity/commands.go:51-110`) gains
   `Write bool` and `Setup []string`: the `ip` commands that build the
   precondition. The driver runs each side of the `ip_a → goip → ip_b` triple in
   a **freshly created namespace** with `Setup` applied, so `ip_a`'s write does not
@@ -880,10 +889,33 @@ and a down port — that route replaces mostly do not.
   the same on both runs: the reply state of links made a moment earlier, a
   random `IFLA_ADDRESS` and `IFLA_INET6_CACHEINFO` times, which the control
   subtracts. The rows gate with no allowlist entry (`TestLinkWriteRowsGated`).
-- `-d link show` on a bond is still not in the matrix. The note under
-  test 5 expected it to enter here, but write rows do not source
-  `link-write-topology.exp`, and `Setup` is admitted on write rows only.
-  A read row with a precondition is a follow-up.
+- `-d link show` on a bond did not enter the matrix here: `Setup` was
+  admitted on write rows only. It entered later, as the first read rows
+  with a `Setup` (see [Bond read rows in the matrix](#bond-read-rows-in-the-matrix)).
+
+### Bond read rows in the matrix
+
+- **Read rows may carry `Setup`.** For a read row, the driver
+  (`goip-parity.exp` `setup_read_ns`) recreates `goipw` once, runs the
+  steps, and captures ip_a, goip and ip_b all in it. A read changes
+  nothing, so one namespace gives every side the same bond MAC (the bond
+  takes it from a veth with a random one) and the same ifindexes, where a
+  namespace per side would leave the unsuppressible `macs` facet differing.
+  `commands_test.go` no longer refuses `Setup` on a read row.
+- **Two rows, one precondition.** `-d link show dev bond0`
+  (`link_show_details_bond`, floor 4) and `-d link show dev la1`
+  (`link_show_details_bond_slave`, floor 8: four transactions, the last two
+  naming the veth peer and the master). Both read `bondReadSetup`: an
+  802.3ad bond, up, over `la1`/`la2`, with the veth peers left down.
+- **The ports have no carrier on purpose.** With carrier and no partner, a
+  port moves from defaulted to churned over the next minute, and the three
+  sides would read three moments of it. Without carrier the 802.3ad
+  machines have nothing to do.
+- **Measured, and gated.** Two live runs back to back: both rows
+  `GOIP_PARITY_PASS` both times, `nl=0 stdout=0`, nothing allowlisted, txns
+  matching `ip` (2/2 on `bond0`, 4/4 on `la1`). Every other row's verdict
+  matched the phase 7 runs. They are in `gated_commands` and the `earned`
+  list, and `TestBondReadRowsGated` pins them.
 
 ## The phased roadmap
 
@@ -1081,7 +1113,7 @@ around the peer parse (row 5) is argv handling and lands with Phase 6.
 |---|---|---|---|---|
 |1|positive|converged master options|`lacp_converged`|mode 4, miimon 100, lacp_rate 1, xmit_hash_policy 0 (`layer2`, the default; the topology does not set it)|
 |2|positive|`AD_INFO` present once converged|`lacp_converged`|aggregator ≠ 0, num_ports 2, partner MAC `02:…:0b`|
-|3|positive|converged port state|`lacp_converged` (la1)|actor `0x3f`, partner `0x3f`, churn actor/partner 0 (`MONITOR`, as the sidecar prints)|
+|3|positive|converged port state|`lacp_converged` (la1)|actor `0x3f`, partner `0x3f`, churn actor/partner 2 (`NO_CHURN`, as the sidecar prints, after the churn wait)|
 |4|positive|partner loss is visible|`lacp_partner_down` (la2)|`MiiStatus` 2 (down), state 1 (backup), link_failure_count 2, bond `num_ports` 1, with actor/partner state still `0x3f`, so a renderer must not infer "in sync" from the bits alone. The zeroed actor oper key shows only in `/proc`, not on the wire|
 |5|boundary|no partner still has `AD_INFO`|`lacp_no_partner`|`AdInfo` present: aggregator 1, num_ports 1, partner key 1, partner MAC zero. The bond has an active aggregator with or without a partner, so a missing partner shows up as values, not as nil|
 |6|boundary|`updelay` reads back rounded|readback of `updelay 250 miimon 100`|`200`|
@@ -1149,9 +1181,9 @@ Landed in Phase 3 (`pkg/xtcpnl/xtcpnl_bond_xstats_test.go`,
   A reply that carries a group besides the requested one is refused, not
   dropped.
 - The design asked for `-d link show` on a bond to enter the `goip-parity`
-  matrix. It cannot yet: the matrix runs in the dump topology, which has no
-  bond. Phase 7 did not change that (see
-  [Landed in Phase 7](#landed-in-phase-7)).
+  matrix. The dump topology has no bond, so the rows bring their own
+  through a read row's `Setup` (see
+  [Bond read rows in the matrix](#bond-read-rows-in-the-matrix)).
 
 ### 6. `TestLinkWriteMatchesIpBytes` (Phase 6) — golden parity
 

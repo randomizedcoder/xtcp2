@@ -813,7 +813,20 @@
     "moment earlier (a random IFLA_ADDRESS, IFLA_INET6_CACHEINFO times), which",
     "D_control subtracts. They gate with no allowlist entry, and the ungated",
     "surface is the twenty-three rows above again. internal/goipparity's",
-    "TestLinkWriteRowsGated pins the flip by name."
+    "TestLinkWriteRowsGated pins the flip by name.",
+    "",
+    "Two runs back to back then gate the two bond `-d link show` read rows",
+    "(link-write-path.md, \"Bond read rows in the matrix\"), the first read rows",
+    "with a setup. The driver builds goipw once from the row's setup, a bond0 in",
+    "802.3ad over la1 and la2 whose veth peers stay down, and captures all three",
+    "sides in it, so the bond MAC and ifindexes are the same on every side and no",
+    "carrier means no LACP machine moves between them. Both runs: both rows",
+    "GOIP_PARITY_PASS with stdout=0, control nl=0 and ZERO unsuppressed findings,",
+    "txns matching ip (`dev bond0` 2/2, `dev la1` 4/4, the port's get pulling",
+    "its veth peer and its master). The rest of each run's verdicts matched the",
+    "phase 7 runs row for row. They gate with no allowlist",
+    "entry, and the ungated surface is the twenty-three rows above again.",
+    "internal/goipparity's TestBondReadRowsGated pins the flip by name."
   ],
   "_note_version_skew": [
     "THE ENTRIES BELOW CITE COMMITS THAT ARE IN NO RELEASE, AND THE EVIDENCE IS",
@@ -952,6 +965,8 @@
     "link set bond0 up",
     "link set bond0 down",
     "link set d0 name d1 mtu 9000 alias uplink",
-    "link del bond0"
+    "link del bond0",
+    "-d link show dev bond0",
+    "-d link show dev la1"
   ]
 }

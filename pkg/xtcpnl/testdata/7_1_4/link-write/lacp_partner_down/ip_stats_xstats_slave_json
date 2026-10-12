@@ -55,8 +55,8 @@
         "subgroup": "bond",
         "suite": "802.3ad",
         "802.3ad": {
-            "lacpdu_rx": 10,
-            "lacpdu_tx": 17,
+            "lacpdu_rx": 158,
+            "lacpdu_tx": 169,
             "lacpdu_unknown_rx": 0,
             "lacpdu_illegal_rx": 0,
             "marker_rx": 0,
@@ -91,8 +91,8 @@
         "subgroup": "bond",
         "suite": "802.3ad",
         "802.3ad": {
-            "lacpdu_rx": 8,
-            "lacpdu_tx": 13,
+            "lacpdu_rx": 109,
+            "lacpdu_tx": 118,
             "lacpdu_unknown_rx": 0,
             "lacpdu_illegal_rx": 0,
             "marker_rx": 0,
