@@ -1,0 +1,2 @@
+dev rxe0 mrn 0 rkey 0x2b4 lkey 0x2b4 mrlen 4096 pdn 1 pid 803 comm ibv_rc_pingpong 
+dev rxe0 mrn 1 rkey 0x397 lkey 0x397 mrlen 4096 pdn 2 pid 845 comm ibv_srq_pingpon 

@@ -1,0 +1,42 @@
+900   socket(AF_NETLINK, SOCK_RAW, NETLINK_RDMA) = 3
+900   sendto(3, {nlmsg_len=16, nlmsg_type=0x1401 /* NLMSG_??? */, nlmsg_flags=NLM_F_REQUEST|NLM_F_ACK|0x300, nlmsg_seq=1791788505, nlmsg_pid=0}, 16, 0, {sa_family=AF_NETLINK, nl_pid=0, nl_groups=00000000}, 12) = 16
+ | 00000  10 00 00 00 01 14 05 03  d9 85 cc 6a 00 00 00 00  ...........j.... |
+900   recvmsg(3, {msg_name={sa_family=AF_NETLINK, nl_pid=0, nl_groups=00000000}, msg_namelen=12, msg_iov=[{iov_base=[{nlmsg_len=116, nlmsg_type=0x1401 /* NLMSG_??? */, nlmsg_flags=NLM_F_MULTI, nlmsg_seq=1791788505, nlmsg_pid=900}, "\x08\x00\x01\x00\x00\x00\x00\x00\x09\x00\x02\x00\x72\x78\x65\x30\x00\x00\x00\x00\x08\x00\x03\x00\x01\x00\x00\x00\x0c\x00\x04\x00"...], iov_len=4096}], msg_iovlen=1, msg_controllen=0, msg_flags=0}, 0) = 116
+ * 116 bytes in buffer 0
+ | 00000  74 00 00 00 01 14 02 00  d9 85 cc 6a 84 03 00 00  t..........j.... |
+ | 00010  08 00 01 00 00 00 00 00  09 00 02 00 72 78 65 30  ............rxe0 |
+ | 00020  00 00 00 00 08 00 03 00  01 00 00 00 0c 00 04 00  ................ |
+ | 00030  76 3c 22 01 c0 01 00 00  0c 00 06 00 00 52 00 fe  v<"..........R.. |
+ | 00040  ff 00 00 00 0c 00 07 00  00 52 00 fe ff 00 00 00  .........R...... |
+ | 00050  05 00 0e 00 01 00 00 00  05 00 54 00 00 00 00 00  ..........T..... |
+ | 00060  05 00 65 00 01 00 00 00  09 00 43 00 72 6f 63 65  ..e.......C.roce |
+ | 00070  00 00 00 00                                       ....             |
+900   recvmsg(3, {msg_name={sa_family=AF_NETLINK, nl_pid=0, nl_groups=00000000}, msg_namelen=12, msg_iov=[{iov_base=[{nlmsg_len=20, nlmsg_type=NLMSG_DONE, nlmsg_flags=NLM_F_MULTI, nlmsg_seq=1791788505, nlmsg_pid=900}, 0], iov_len=4096}], msg_iovlen=1, msg_controllen=0, msg_flags=0}, 0) = 20
+ * 20 bytes in buffer 0
+ | 00000  14 00 00 00 03 00 02 00  d9 85 cc 6a 84 03 00 00  ...........j.... |
+ | 00010  00 00 00 00                                       ....             |
+900   socket(AF_NETLINK, SOCK_RAW, NETLINK_RDMA) = 4
+900   sendto(4, [{nlmsg_len=32, nlmsg_type=0x1409 /* NLMSG_??? */, nlmsg_flags=NLM_F_REQUEST|NLM_F_ACK, nlmsg_seq=1791788505, nlmsg_pid=0}, "\x05\x00\x61\x00\x00\x00\x00\x00\x08\x00\x01\x00\x00\x00\x00\x00"], 32, 0, {sa_family=AF_NETLINK, nl_pid=0, nl_groups=00000000}, 12) = 32
+ | 00000  20 00 00 00 09 14 05 00  d9 85 cc 6a 00 00 00 00   ..........j.... |
+ | 00010  05 00 61 00 00 00 00 00  08 00 01 00 00 00 00 00  ..a............. |
+900   recvmsg(4, {msg_name={sa_family=AF_NETLINK, nl_pid=0, nl_groups=00000000}, msg_namelen=12, msg_iov=[{iov_base=[{nlmsg_len=212, nlmsg_type=0x1409 /* NLMSG_??? */, nlmsg_flags=0, nlmsg_seq=1791788505, nlmsg_pid=-1008443188}, "\x08\x00\x01\x00\x00\x00\x00\x00\x09\x00\x02\x00\x72\x78\x65\x30\x00\x00\x00\x00\xb0\x00\x0f\x00\x18\x00\x10\x00\x07\x00\x11\x00"...], iov_len=4096}], msg_iovlen=1, msg_controllen=0, msg_flags=0}, 0) = 212
+ * 212 bytes in buffer 0
+ | 00000  d4 00 00 00 09 14 00 00  d9 85 cc 6a cc 60 e4 c3  ...........j.`.. |
+ | 00010  08 00 01 00 00 00 00 00  09 00 02 00 72 78 65 30  ............rxe0 |
+ | 00020  00 00 00 00 b0 00 0f 00  18 00 10 00 07 00 11 00  ................ |
+ | 00030  70 64 00 00 0c 00 12 00  04 00 00 00 00 00 00 00  pd.............. |
+ | 00040  18 00 10 00 07 00 11 00  63 71 00 00 0c 00 12 00  ........cq...... |
+ | 00050  03 00 00 00 00 00 00 00  18 00 10 00 07 00 11 00  ................ |
+ | 00060  71 70 00 00 0c 00 12 00  12 00 00 00 00 00 00 00  qp.............. |
+ | 00070  1c 00 10 00 0a 00 11 00  63 6d 5f 69 64 00 00 00  ........cm_id... |
+ | 00080  0c 00 12 00 01 00 00 00  00 00 00 00 18 00 10 00  ................ |
+ | 00090  07 00 11 00 6d 72 00 00  0c 00 12 00 02 00 00 00  ....mr.......... |
+ | 000a0  00 00 00 00 18 00 10 00  08 00 11 00 63 74 78 00  ............ctx. |
+ | 000b0  0c 00 12 00 03 00 00 00  00 00 00 00 18 00 10 00  ................ |
+ | 000c0  08 00 11 00 73 72 71 00  0c 00 12 00 01 00 00 00  ....srq......... |
+ | 000d0  00 00 00 00                                       ....             |
+900   recvmsg(4, {msg_name={sa_family=AF_NETLINK, nl_pid=0, nl_groups=00000000}, msg_namelen=12, msg_iov=[{iov_base=[{nlmsg_len=36, nlmsg_type=NLMSG_ERROR, nlmsg_flags=NLM_F_CAPPED, nlmsg_seq=1791788505, nlmsg_pid=-1008443188}, {error=0, msg={nlmsg_len=32, nlmsg_type=0x1409 /* NLMSG_??? */, nlmsg_flags=NLM_F_REQUEST|NLM_F_ACK, nlmsg_seq=1791788505, nlmsg_pid=0}}], iov_len=4096}], msg_iovlen=1, msg_controllen=0, msg_flags=0}, 0) = 36
+ * 36 bytes in buffer 0
+ | 00000  24 00 00 00 02 00 00 01  d9 85 cc 6a cc 60 e4 c3  $..........j.`.. |
+ | 00010  00 00 00 00 20 00 00 00  09 14 05 00 d9 85 cc 6a  .... ..........j |
+ | 00020  00 00 00 00                                       ....             |

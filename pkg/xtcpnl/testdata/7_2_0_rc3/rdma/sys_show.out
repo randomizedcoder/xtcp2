@@ -1,0 +1,1 @@
+netns shared privileged-qkey off monitor on copy-on-fork on

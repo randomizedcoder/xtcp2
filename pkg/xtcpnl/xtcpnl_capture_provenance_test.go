@@ -125,6 +125,24 @@ func TestUnameMatchesKernelDirectory(t *testing.T) {
 		},
 	}
 
+	// Each other kernel's rdma corpus, from the same capture VM on that
+	// kernel (rdmaKernels).
+	for _, k := range rdmaKernels {
+		if k.dir == "7_1_4" {
+			continue
+		}
+		tests = append(tests, struct {
+			description  string
+			file         string
+			dir          string
+			wantHostname string
+			reproducible bool
+		}{
+			description: "boundary: " + k.dir + "/rdma/uname was answered by that kernel inside the capture VM",
+			file:        k.rdma() + "/uname", dir: k.dir, wantHostname: "xtcp2-vm-x8664", reproducible: true,
+		})
+	}
+
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
 			raw, err := os.ReadFile(tt.file)
@@ -144,7 +162,9 @@ func TestUnameMatchesKernelDirectory(t *testing.T) {
 			if fields[1] != tt.wantHostname {
 				t.Errorf("%s names host %q, want %q", tt.file, fields[1], tt.wantHostname)
 			}
-			wantRelease := strings.ReplaceAll(tt.dir, "_", ".")
+			// A release candidate's directory keeps its rc after an
+			// underscore: 7_2_0_rc3 is 7.2.0-rc3.
+			wantRelease := strings.ReplaceAll(strings.ReplaceAll(tt.dir, "_rc", "-rc"), "_", ".")
 			if fields[2] != wantRelease {
 				t.Errorf("%s names kernel %q, but it lives under %s, which claims %q",
 					tt.file, fields[2], tt.dir, wantRelease)
@@ -310,6 +330,18 @@ func TestIPVersionMatchesUpstreamPin(t *testing.T) {
 			description: "corner: the rdma tool that made the corpus is the pinned iproute2 too",
 			file:        tdRdma_7_1_4 + "/rdma_version",
 		},
+	}
+	// The other kernels' rdma corpora ran the same pinned tools.
+	for _, k := range rdmaKernels {
+		if k.dir == "7_1_4" {
+			continue
+		}
+		for _, f := range []string{"ip_version", "rdma_version"} {
+			tests = append(tests, struct {
+				description string
+				file        string
+			}{description: "boundary: " + k.dir + "/rdma/" + f + " is the pinned iproute2", file: k.rdma() + "/" + f})
+		}
 	}
 
 	for _, tt := range tests {

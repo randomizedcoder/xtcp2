@@ -1,0 +1,4 @@
+ok    [-] ip link add rx0 address 02:00:00:00:52:00 type veth peer name rx1 address 02:00:00:00:52:01
+ok    [-] ip link set rx0 up
+ok    [-] ip link set rx1 up
+ok    [-] rdma link add rxe0 type rxe netdev rx0

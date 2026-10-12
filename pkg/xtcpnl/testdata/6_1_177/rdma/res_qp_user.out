@@ -1,0 +1,18 @@
+link rxe0/1 lqpn 17 rqpn 0 type RC state INIT rq-psn 0 sq-psn 0 path-mig-state MIGRATED pdn 1 pid 889 comm ibv_rc_pingpong 
+link rxe0/1 lqpn 18 rqpn 0 type RC state INIT rq-psn 0 sq-psn 0 path-mig-state MIGRATED pdn 2 pid 932 comm ibv_srq_pingpon 
+link rxe0/1 lqpn 19 rqpn 0 type RC state INIT rq-psn 0 sq-psn 0 path-mig-state MIGRATED pdn 2 pid 932 comm ibv_srq_pingpon 
+link rxe0/1 lqpn 20 rqpn 0 type RC state INIT rq-psn 0 sq-psn 0 path-mig-state MIGRATED pdn 2 pid 932 comm ibv_srq_pingpon 
+link rxe0/1 lqpn 21 rqpn 0 type RC state INIT rq-psn 0 sq-psn 0 path-mig-state MIGRATED pdn 2 pid 932 comm ibv_srq_pingpon 
+link rxe0/1 lqpn 22 rqpn 0 type RC state INIT rq-psn 0 sq-psn 0 path-mig-state MIGRATED pdn 2 pid 932 comm ibv_srq_pingpon 
+link rxe0/1 lqpn 23 rqpn 0 type RC state INIT rq-psn 0 sq-psn 0 path-mig-state MIGRATED pdn 2 pid 932 comm ibv_srq_pingpon 
+link rxe0/1 lqpn 24 rqpn 0 type RC state INIT rq-psn 0 sq-psn 0 path-mig-state MIGRATED pdn 2 pid 932 comm ibv_srq_pingpon 
+link rxe0/1 lqpn 25 rqpn 0 type RC state INIT rq-psn 0 sq-psn 0 path-mig-state MIGRATED pdn 2 pid 932 comm ibv_srq_pingpon 
+link rxe0/1 lqpn 26 rqpn 0 type RC state INIT rq-psn 0 sq-psn 0 path-mig-state MIGRATED pdn 2 pid 932 comm ibv_srq_pingpon 
+link rxe0/1 lqpn 27 rqpn 0 type RC state INIT rq-psn 0 sq-psn 0 path-mig-state MIGRATED pdn 2 pid 932 comm ibv_srq_pingpon 
+link rxe0/1 lqpn 28 rqpn 0 type RC state INIT rq-psn 0 sq-psn 0 path-mig-state MIGRATED pdn 2 pid 932 comm ibv_srq_pingpon 
+link rxe0/1 lqpn 29 rqpn 0 type RC state INIT rq-psn 0 sq-psn 0 path-mig-state MIGRATED pdn 2 pid 932 comm ibv_srq_pingpon 
+link rxe0/1 lqpn 30 rqpn 0 type RC state INIT rq-psn 0 sq-psn 0 path-mig-state MIGRATED pdn 2 pid 932 comm ibv_srq_pingpon 
+link rxe0/1 lqpn 31 rqpn 0 type RC state INIT rq-psn 0 sq-psn 0 path-mig-state MIGRATED pdn 2 pid 932 comm ibv_srq_pingpon 
+link rxe0/1 lqpn 32 rqpn 0 type RC state INIT rq-psn 0 sq-psn 0 path-mig-state MIGRATED pdn 2 pid 932 comm ibv_srq_pingpon 
+link rxe0/1 lqpn 33 rqpn 0 type RC state INIT rq-psn 0 sq-psn 0 path-mig-state MIGRATED pdn 2 pid 932 comm ibv_srq_pingpon 
+link rxe0/1 lqpn 1 type GSI state RTS sq-psn 0 comm [ib_core] 

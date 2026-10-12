@@ -1,0 +1,3 @@
+dev rxe0 cqn 0 cqe 1023 users 2 poll-ctx WORKQUEUE adaptive-moderation off comm [ib_core] 
+dev rxe0 cqn 1 cqe 511 users 2 adaptive-moderation off ctxn 0 pid 803 comm ibv_rc_pingpong 
+dev rxe0 cqn 2 cqe 1023 users 32 adaptive-moderation off ctxn 1 pid 845 comm ibv_srq_pingpon 

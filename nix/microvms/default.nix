@@ -479,8 +479,13 @@ let
   # checked against, then emits the lot over the serial console and powers off.
   # Unlike nlmon-capture the sequence is not baked in — the host drives it with
   # scripts/capture-netlink-dumps.exp. See mkVm.nix isNetlinkDumpCapture.
-  mkOneNetlinkDumpCapture =
-    arch:
+  mkOneNetlinkDumpCapture = mkOneNetlinkDumpCaptureOn null;
+
+  # The same VM on another kernel from the pinned nixpkgs; null keeps mkVm's
+  # linuxPackages_latest. Only the RDMA capture boots the others, so its
+  # corpus spans kernels the way the sock_diag pcaps do.
+  mkOneNetlinkDumpCaptureOn =
+    kernelPackages: arch:
     import ./mkVm.nix {
       inherit
         pkgs
@@ -493,7 +498,21 @@ let
         ipfeedCollectorPackage
         ;
       sink = "netlink-dump-capture";
+      extraModules = lib.optional (kernelPackages != null) {
+        boot.kernelPackages = lib.mkForce kernelPackages;
+      };
     };
+
+  # rdmaCaptureKernels are the kernels besides linuxPackages_latest the RDMA
+  # corpus is captured on, by app suffix. Each writes
+  # pkg/xtcpnl/testdata/<its uname>/rdma/.
+  rdmaCaptureKernels = {
+    "6_1" = pkgs.linuxPackages_6_1;
+    "6_6" = pkgs.linuxPackages_6_6;
+    "6_12" = pkgs.linuxPackages_6_12;
+    "6_18" = pkgs.linuxPackages_6_18;
+    "7_2" = pkgs.linuxPackages_testing;
+  };
 
   # goip-parity: the same quiet root VM, driven to capture an ip/goip/ip triple
   # per command from the shared clean topology and then run `goip-parity
@@ -916,6 +935,13 @@ let
       inherit arch;
       vm = vmsNetlinkDumpCapture.${arch};
     };
+    kernels = lib.mapAttrs (
+      _: kernelPackages:
+      microvmLib.mkRdmaCaptureRunner {
+        inherit arch;
+        vm = mkOneNetlinkDumpCaptureOn kernelPackages arch;
+      }
+    ) rdmaCaptureKernels;
   });
 
   # Tier 2 LACP capture runner (link-write-path.md phase 8): boots lacp-b and

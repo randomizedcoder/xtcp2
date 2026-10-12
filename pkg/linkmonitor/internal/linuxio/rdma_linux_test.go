@@ -48,6 +48,8 @@ func TestRDMADecoderTable(t *testing.T) {
 				Netdev: 4, HasNetdev: true, NetdevName: "rx0"}},
 		{description: "positive: the captured device dump reply, whose PORT_INDEX is the port count", device: true,
 			body: capturedRDMADevice, expected: RDMAPort{Name: "rxe0", Port: 1}},
+		{description: "positive: 6.1's captured device dump reply, without NAME_ASSIGN_TYPE", device: true,
+			body: captured61RDMADevice, expected: RDMAPort{Name: "rxe0", Port: 1}},
 		{description: "negative: duplicate state, even equal", body: append(rdmaBody(), attribute(12, []byte{4})...), expectedErr: ErrReply},
 		{description: "negative: short index", body: append(attribute(1, []byte{0}), rdmaBody()[8:]...), expectedErr: ErrReply},
 		{description: "negative: empty body lacks the identifiers", body: nil, expectedErr: ErrReply},
@@ -193,6 +195,7 @@ func FuzzRDMAPort(f *testing.F) {
 	f.Add(rdmaBody())
 	f.Add(capturedRDMAPort)
 	f.Add(capturedRDMADevice)
+	f.Add(captured61RDMADevice)
 	f.Fuzz(func(t *testing.T, b []byte) {
 		p, err := decodeRDMAPort(b)
 		if err != nil {

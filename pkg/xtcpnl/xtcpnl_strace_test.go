@@ -13,11 +13,12 @@ import (
 	"testing"
 )
 
-// The RDMA corpus (testdata/7_1_4/rdma) is strace output, not pcap, because
-// nlmon cannot tap NETLINK_RDMA (netlink_filter_tap, net/netlink/af_netlink.c).
-// xtcp2-nlcap runs `strace -f -e trace=socket,sendto,sendmsg,recvfrom,recvmsg
-// -e write=all -e read=all`, which prints every syscall line followed by a hex
-// dump of the bytes it moved. parseStrace turns that back into datagrams.
+// The RDMA corpus (testdata/<kernel>/rdma, one per rdmaKernels entry) is
+// strace output, not pcap, because nlmon cannot tap NETLINK_RDMA
+// (netlink_filter_tap, net/netlink/af_netlink.c). xtcp2-nlcap runs
+// `strace -f -e trace=socket,sendto,sendmsg,recvfrom,recvmsg -e write=all
+// -e read=all`, which prints every syscall line followed by a hex dump of the
+// bytes it moved. parseStrace turns that back into datagrams.
 
 // straceDatagram is the bytes one sendto/sendmsg sent or one
 // recvfrom/recvmsg received on a NETLINK_RDMA socket.
@@ -137,10 +138,10 @@ func straceNlMsgs(t testing.TB, dgs []straceDatagram) []straceNlMsg {
 	return out
 }
 
-// rdmaCorpus reads testdata/7_1_4/rdma/<slug>.strace.
-func rdmaCorpus(t testing.TB, slug string) []straceNlMsg {
+// rdmaCorpus reads testdata/<k.dir>/rdma/<slug>.strace.
+func rdmaCorpus(t testing.TB, k rdmaKernel, slug string) []straceNlMsg {
 	t.Helper()
-	f, err := os.Open(tdRdma_7_1_4 + "/" + slug + ".strace")
+	f, err := os.Open(k.rdma() + "/" + slug + ".strace")
 	if err != nil {
 		t.Fatal(err)
 	}

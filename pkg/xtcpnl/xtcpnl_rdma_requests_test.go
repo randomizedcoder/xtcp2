@@ -152,22 +152,25 @@ func TestRdmaRequestsMatchRdma(t *testing.T) {
 		{description: "corner: a busy res show sends the same RES_GET", slug: "res_show_busy", nth: 1,
 			expected: BuildRdmaResGetRequest(0, 0, 0)},
 	}
-	for _, tc := range tests {
-		t.Run(tc.description, func(t *testing.T) {
-			var reqs [][]byte
-			for _, m := range rdmaCorpus(t, tc.slug) {
-				if m.send {
-					reqs = append(reqs, bytes.Clone(m.raw))
+	// The one rdma sent the same requests to every kernel.
+	forRdmaKernels(t, func(t *testing.T, k rdmaKernel) {
+		for _, tc := range tests {
+			t.Run(tc.description, func(t *testing.T) {
+				var reqs [][]byte
+				for _, m := range rdmaCorpus(t, k, tc.slug) {
+					if m.send {
+						reqs = append(reqs, bytes.Clone(m.raw))
+					}
 				}
-			}
-			if tc.nth >= len(reqs) {
-				t.Fatalf("%d requests, want request %d", len(reqs), tc.nth)
-			}
-			got := reqs[tc.nth]
-			binary.LittleEndian.PutUint32(got[8:12], 0)
-			if !bytes.Equal(got, tc.expected) {
-				t.Errorf("rdma sent\n%x\nthe builder makes\n%x", got, tc.expected)
-			}
-		})
-	}
+				if tc.nth >= len(reqs) {
+					t.Fatalf("%d requests, want request %d", len(reqs), tc.nth)
+				}
+				got := reqs[tc.nth]
+				binary.LittleEndian.PutUint32(got[8:12], 0)
+				if !bytes.Equal(got, tc.expected) {
+					t.Errorf("rdma sent\n%x\nthe builder makes\n%x", got, tc.expected)
+				}
+			})
+		}
+	})
 }

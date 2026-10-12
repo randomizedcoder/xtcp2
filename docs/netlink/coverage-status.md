@@ -3116,8 +3116,8 @@ never reaches a tap. `nix run .#microvm-x86_64-rdma-capture`
 (`scripts/capture-rdma.exp`) boots the dump-capture VM, loads `rdma_rxe`,
 builds `rxe0` over a veth whose MAC is pinned, and runs each `rdma` command
 under `strace -e write=all -e read=all` through `xtcp2-nlcap strace`. The
-result is `testdata/7_1_4/rdma/<slug>.strace` with `.out`, `.err` and
-`.rc`. The test-only `parseStrace` turns it back into datagrams. Two runs
+result is `testdata/<kernel>/rdma/<slug>.strace` with `.out`, `.err` and
+`.rc`, for each kernel below. The test-only `parseStrace` turns it back into datagrams. Two runs
 were identical, seq and pid aside.
 
 What the corpus showed, where the plan had guessed otherwise:
@@ -3167,6 +3167,28 @@ What those rows showed:
 The corpus carries 68 distinct attributes, nested ones included, and that is
 the floor `rdmaCaptureCoverageCst` pins. The test also fails if the count
 rises without the constant being raised.
+
+**Six kernels.** The same capture runs on every kernel the pinned nixpkgs
+carries: `linuxPackages_latest` (7.1.4) by default, and the LTS and testing
+kernels through `nix run .#microvm-x86_64-rdma-capture-{6_1,6_6,6_12,6_18,7_2}`
+(`rdmaCaptureKernels`, `nix/microvms/default.nix`). Each run uses the same
+rdma 7.1.0 and the same topology, so any difference comes from the kernel.
+`rdmaKernels` (`testdata_test.go`) records what each kernel sends, and every
+corpus test runs once per kernel. `TestRdmaCorpusAcrossKernels` pins which
+message types differ from 7.1.4's once masked:
+
+| kernel | differs from 7.1.4 in |
+|---|---|
+| 6.1.177 | device replies: no `NAME_ASSIGN_TYPE`, and `CAP_FLAGS` lacks bits 38-40. SYS_GET: no `PRIVILEGED_QKEY_MODE` or `MONITOR_MODE` |
+| 6.6.144 | device replies: no `NAME_ASSIGN_TYPE`. SYS_GET: as on 6.1 |
+| 6.12.96, 6.18.39 | nothing |
+| 7.2.0-rc3 | STAT_GET: rxe adds `sent_bytes` and `rcvd_bytes` |
+
+Without `MONITOR_MODE`, `rdma system show` prints `monitor off` and leaves
+out privileged-qkey. `rdma monitor` prints "RDMA monitoring is not supported
+by the kernel" and exits 1 after the SYS_GET. The capture records that
+refusal as the row, `NLCAP_MONITOR_UNSUPPORTED`. linkmonitor's tests use the
+6.1 device reply and the 6.6 SYS_GET reply as real old-kernel fixtures.
 
 **linkmonitor decodes with these.** `pkg/linkmonitor/internal/linuxio`
 (`rdma_linux.go`, `rdma_notify_linux.go`) spells no nldev number of its own
