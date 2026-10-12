@@ -1050,6 +1050,13 @@ const XtcpConfig$json = {
       '10': 'localityRefreshInterval'
     },
     {
+      '1': 'locality_events_enable',
+      '3': 247,
+      '4': 1,
+      '5': 8,
+      '10': 'localityEventsEnable'
+    },
+    {
       '1': 'link_monitor',
       '3': 250,
       '4': 1,
@@ -1143,10 +1150,11 @@ final $typed_data.Uint8List xtcpConfigDescriptor = $convert.base64Decode(
     'F0aBj0ASABKAlCCLpIBXIDGP8BUg9pcG1ldGFDYWNoZVBhdGgSNQoWZW5yaWNoX2xvY2FsaXR5'
     'X2VuYWJsZRj1ASABKAhSFGVucmljaExvY2FsaXR5RW5hYmxlElYKGWxvY2FsaXR5X3JlZnJlc2'
     'hfaW50ZXJ2YWwY9gEgASgLMhkuZ29vZ2xlLnByb3RvYnVmLkR1cmF0aW9uUhdsb2NhbGl0eVJl'
-    'ZnJlc2hJbnRlcnZhbBJFCgxsaW5rX21vbml0b3IY+gEgASgLMiEueHRjcF9jb25maWcudjEuTG'
-    'lua01vbml0b3JDb25maWdSC2xpbmtNb25pdG9yOnO6SHAabgoPWHRjcENvbmZpZy5wb2xsEjJQ'
-    'b2xsIHRpbWVvdXQgbXVzdCBiZSBsZXNzIHRoYW4gcG9sbCBwb2xsX2ZyZXF1ZW5jeRondGhpcy'
-    '5wb2xsX2ZyZXF1ZW5jeSA+IHRoaXMucG9sbF90aW1lb3V0');
+    'ZnJlc2hJbnRlcnZhbBI1ChZsb2NhbGl0eV9ldmVudHNfZW5hYmxlGPcBIAEoCFIUbG9jYWxpdH'
+    'lFdmVudHNFbmFibGUSRQoMbGlua19tb25pdG9yGPoBIAEoCzIhLnh0Y3BfY29uZmlnLnYxLkxp'
+    'bmtNb25pdG9yQ29uZmlnUgtsaW5rTW9uaXRvcjpzukhwGm4KD1h0Y3BDb25maWcucG9sbBIyUG'
+    '9sbCB0aW1lb3V0IG11c3QgYmUgbGVzcyB0aGFuIHBvbGwgcG9sbF9mcmVxdWVuY3kaJ3RoaXMu'
+    'cG9sbF9mcmVxdWVuY3kgPiB0aGlzLnBvbGxfdGltZW91dA==');
 
 @$core.Deprecated('Use enabledDeserializersDescriptor instead')
 const EnabledDeserializers$json = {

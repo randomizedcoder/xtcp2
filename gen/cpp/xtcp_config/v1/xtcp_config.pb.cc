@@ -2174,7 +2174,7 @@ constexpr XtcpConfig::ParseTableT_ XtcpConfig::InternalGenerateParseTable_(const
       offsetof(ParseTableT_, field_lookup_table),
       4278190591,  // skipmap
       offsetof(ParseTableT_, field_entries),
-      78,  // num_field_entries
+      79,  // num_field_entries
       14,  // num_aux_entries
       offsetof(ParseTableT_, aux_entries),
       class_data,
@@ -2296,8 +2296,8 @@ constexpr XtcpConfig::ParseTableT_ XtcpConfig::InternalGenerateParseTable_(const
       65535, 60,
       58360, 60,
       49039, 66,
-      33023, 70,
-      65531, 77,
+      255, 70,
+      65531, 78,
       65535, 65535
     }}, {{
       // uint64 nl_timeout_milliseconds = 10 [json_name = "nlTimeoutMilliseconds", (.buf.validate.field) = {
@@ -2454,6 +2454,8 @@ constexpr XtcpConfig::ParseTableT_ XtcpConfig::InternalGenerateParseTable_(const
       {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.enrich_locality_enable_), _Internal::kHasBitsOffset + 77, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
       // .google.protobuf.Duration locality_refresh_interval = 246 [json_name = "localityRefreshInterval"];
       {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.locality_refresh_interval_), _Internal::kHasBitsOffset + 54, 12, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
+      // bool locality_events_enable = 247 [json_name = "localityEventsEnable"];
+      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.locality_events_enable_), _Internal::kHasBitsOffset + 78, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
       // .xtcp_config.v1.LinkMonitorConfig link_monitor = 250 [json_name = "linkMonitor"];
       {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.link_monitor_), _Internal::kHasBitsOffset + 55, 13, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
     }},
@@ -2704,7 +2706,8 @@ inline constexpr XtcpConfig::Impl_::Impl_(
         uplink_count_{0u},
         populate_nsid_{false},
         enrich_asn_enable_{false},
-        enrich_locality_enable_{false} {}
+        enrich_locality_enable_{false},
+        locality_events_enable_{false} {}
 
 template <typename>
 constexpr XtcpConfig::XtcpConfig(::_pbi::ConstantInitialized,
@@ -3818,7 +3821,7 @@ const ::uint32_t
         11,
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_._has_bits_),
-        81, // hasbit index offset
+        82, // hasbit index offset
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.nl_timeout_milliseconds_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.poll_frequency_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.poll_timeout_),
@@ -3896,6 +3899,7 @@ const ::uint32_t
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.ipmeta_cache_path_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.enrich_locality_enable_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.locality_refresh_interval_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.locality_events_enable_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.link_monitor_),
         8,
         5,
@@ -3974,6 +3978,7 @@ const ::uint32_t
         44,
         77,
         54,
+        78,
         55,
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::EnabledDeserializers_EnabledEntry_DoNotUse, _impl_._has_bits_),
@@ -4009,8 +4014,8 @@ static const ::_pbi::MigrationSchema
         {85, sizeof(::xtcp_config::v1::ListenerAuth)},
         {100, sizeof(::xtcp_config::v1::LinkMonitorConfig)},
         {127, sizeof(::xtcp_config::v1::XtcpConfig)},
-        {286, sizeof(::xtcp_config::v1::EnabledDeserializers_EnabledEntry_DoNotUse)},
-        {293, sizeof(::xtcp_config::v1::EnabledDeserializers)},
+        {288, sizeof(::xtcp_config::v1::EnabledDeserializers_EnabledEntry_DoNotUse)},
+        {295, sizeof(::xtcp_config::v1::EnabledDeserializers)},
 };
 static const ::_pbi::MessageGlobalsBase* PROTOBUF_NONNULL const
     file_message_globals[] = {
@@ -4129,7 +4134,7 @@ const char descriptor_table_protodef_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto[
     "lude\030\n \001(\tB\010\272H\005r\003\030\200 R\022metricsCoreInclude"
     "\022:\n\024metrics_core_exclude\030\013 \001(\tB\010\272H\005r\003\030\200 "
     "R\022metricsCoreExclude\022\037\n\013metrics_all\030\014 \001("
-    "\010R\nmetricsAll\"\241$\n\nXtcpConfig\022F\n\027nl_timeo"
+    "\010R\nmetricsAll\"\330$\n\nXtcpConfig\022F\n\027nl_timeo"
     "ut_milliseconds\030\n \001(\004B\016\272H\0132\006\030\240\215\006(\000\310\001\001R\025n"
     "lTimeoutMilliseconds\022S\n\016poll_frequency\030\013"
     " \001(\0132\031.google.protobuf.DurationB\021\272H\016\252\001\010\""
@@ -4240,51 +4245,52 @@ const char descriptor_table_protodef_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto[
     "hePath\0225\n\026enrich_locality_enable\030\365\001 \001(\010R"
     "\024enrichLocalityEnable\022V\n\031locality_refres"
     "h_interval\030\366\001 \001(\0132\031.google.protobuf.Dura"
-    "tionR\027localityRefreshInterval\022E\n\014link_mo"
-    "nitor\030\372\001 \001(\0132!.xtcp_config.v1.LinkMonito"
-    "rConfigR\013linkMonitor:s\272Hp\032n\n\017XtcpConfig."
-    "poll\0222Poll timeout must be less than pol"
-    "l poll_frequency\032\'this.poll_frequency > "
-    "this.poll_timeout\"\237\001\n\024EnabledDeserialize"
-    "rs\022K\n\007enabled\030\001 \003(\01321.xtcp_config.v1.Ena"
-    "bledDeserializers.EnabledEntryR\007enabled\032"
-    ":\n\014EnabledEntry\022\020\n\003key\030\001 \001(\tR\003key\022\024\n\005val"
-    "ue\030\002 \001(\010R\005value:\0028\001*h\n\017ListenerNetwork\022 "
-    "\n\034LISTENER_NETWORK_UNSPECIFIED\020\000\022\030\n\024LIST"
-    "ENER_NETWORK_TCP\020\001\022\031\n\025LISTENER_NETWORK_U"
-    "NIX\020\002*\241\001\n\020ListenerAuthMode\022\"\n\036LISTENER_A"
-    "UTH_MODE_UNSPECIFIED\020\000\022\037\n\033LISTENER_AUTH_"
-    "MODE_DISABLED\020\001\022 \n\034LISTENER_AUTH_MODE_RA"
-    "W_TOKEN\020\002\022&\n\"LISTENER_AUTH_MODE_HMAC_UTC"
-    "_MINUTE\020\0032\245\007\n\rConfigService\022a\n\003Get\022\032.xtc"
-    "p_config.v1.GetRequest\032\033.xtcp_config.v1."
-    "GetResponse\"!\310\363\030\001\202\323\344\223\002\027\032\022/ConfigService/"
-    "Get:\001*\022a\n\003Set\022\032.xtcp_config.v1.SetReques"
-    "t\032\033.xtcp_config.v1.SetResponse\"!\310\363\030\002\202\323\344\223"
-    "\002\027\032\022/ConfigService/Set:\001*\022\225\001\n\020SetPollFre"
-    "quency\022\'.xtcp_config.v1.SetPollFrequency"
-    "Request\032(.xtcp_config.v1.SetPollFrequenc"
-    "yResponse\".\310\363\030\002\202\323\344\223\002$\032\037/ConfigService/Se"
-    "tPollFrequency:\001*\022\201\001\n\013TriggerPoll\022\".xtcp"
-    "_config.v1.TriggerPollRequest\032#.xtcp_con"
-    "fig.v1.TriggerPollResponse\")\310\363\030\002\202\323\344\223\002\037\032\032"
-    "/ConfigService/TriggerPoll:\001*\022\225\001\n\020Trigge"
-    "rPollBurst\022\'.xtcp_config.v1.TriggerPollB"
-    "urstRequest\032(.xtcp_config.v1.TriggerPoll"
-    "BurstResponse\".\310\363\030\002\202\323\344\223\002$\032\037/ConfigServic"
-    "e/TriggerPollBurst:\001*\022\201\001\n\013SetS3Upload\022\"."
-    "xtcp_config.v1.SetS3UploadRequest\032#.xtcp"
-    "_config.v1.SetS3UploadResponse\")\310\363\030\002\202\323\344\223"
-    "\002\037\032\032/ConfigService/SetS3Upload:\001*\022\225\001\n\020Se"
-    "tEnvelopeFlush\022\'.xtcp_config.v1.SetEnvel"
-    "opeFlushRequest\032(.xtcp_config.v1.SetEnve"
-    "lopeFlushResponse\".\310\363\030\002\202\323\344\223\002$\032\037/ConfigSe"
-    "rvice/SetEnvelopeFlush:\001*B\257\001\n\022com.xtcp_c"
-    "onfig.v1B\017XtcpConfigProtoP\001Z3github.com/"
-    "randomizedcoder/xtcp2/gen/go/xtcp_config"
-    "\242\002\003XXX\252\002\rXtcpConfig.V1\312\002\rXtcpConfig\\V1\342\002"
-    "\031XtcpConfig\\V1\\GPBMetadata\352\002\016XtcpConfig:"
-    ":V1b\006proto3"
+    "tionR\027localityRefreshInterval\0225\n\026localit"
+    "y_events_enable\030\367\001 \001(\010R\024localityEventsEn"
+    "able\022E\n\014link_monitor\030\372\001 \001(\0132!.xtcp_confi"
+    "g.v1.LinkMonitorConfigR\013linkMonitor:s\272Hp"
+    "\032n\n\017XtcpConfig.poll\0222Poll timeout must b"
+    "e less than poll poll_frequency\032\'this.po"
+    "ll_frequency > this.poll_timeout\"\237\001\n\024Ena"
+    "bledDeserializers\022K\n\007enabled\030\001 \003(\01321.xtc"
+    "p_config.v1.EnabledDeserializers.Enabled"
+    "EntryR\007enabled\032:\n\014EnabledEntry\022\020\n\003key\030\001 "
+    "\001(\tR\003key\022\024\n\005value\030\002 \001(\010R\005value:\0028\001*h\n\017Li"
+    "stenerNetwork\022 \n\034LISTENER_NETWORK_UNSPEC"
+    "IFIED\020\000\022\030\n\024LISTENER_NETWORK_TCP\020\001\022\031\n\025LIS"
+    "TENER_NETWORK_UNIX\020\002*\241\001\n\020ListenerAuthMod"
+    "e\022\"\n\036LISTENER_AUTH_MODE_UNSPECIFIED\020\000\022\037\n"
+    "\033LISTENER_AUTH_MODE_DISABLED\020\001\022 \n\034LISTEN"
+    "ER_AUTH_MODE_RAW_TOKEN\020\002\022&\n\"LISTENER_AUT"
+    "H_MODE_HMAC_UTC_MINUTE\020\0032\245\007\n\rConfigServi"
+    "ce\022a\n\003Get\022\032.xtcp_config.v1.GetRequest\032\033."
+    "xtcp_config.v1.GetResponse\"!\310\363\030\001\202\323\344\223\002\027\032\022"
+    "/ConfigService/Get:\001*\022a\n\003Set\022\032.xtcp_conf"
+    "ig.v1.SetRequest\032\033.xtcp_config.v1.SetRes"
+    "ponse\"!\310\363\030\002\202\323\344\223\002\027\032\022/ConfigService/Set:\001*"
+    "\022\225\001\n\020SetPollFrequency\022\'.xtcp_config.v1.S"
+    "etPollFrequencyRequest\032(.xtcp_config.v1."
+    "SetPollFrequencyResponse\".\310\363\030\002\202\323\344\223\002$\032\037/C"
+    "onfigService/SetPollFrequency:\001*\022\201\001\n\013Tri"
+    "ggerPoll\022\".xtcp_config.v1.TriggerPollReq"
+    "uest\032#.xtcp_config.v1.TriggerPollRespons"
+    "e\")\310\363\030\002\202\323\344\223\002\037\032\032/ConfigService/TriggerPol"
+    "l:\001*\022\225\001\n\020TriggerPollBurst\022\'.xtcp_config."
+    "v1.TriggerPollBurstRequest\032(.xtcp_config"
+    ".v1.TriggerPollBurstResponse\".\310\363\030\002\202\323\344\223\002$"
+    "\032\037/ConfigService/TriggerPollBurst:\001*\022\201\001\n"
+    "\013SetS3Upload\022\".xtcp_config.v1.SetS3Uploa"
+    "dRequest\032#.xtcp_config.v1.SetS3UploadRes"
+    "ponse\")\310\363\030\002\202\323\344\223\002\037\032\032/ConfigService/SetS3U"
+    "pload:\001*\022\225\001\n\020SetEnvelopeFlush\022\'.xtcp_con"
+    "fig.v1.SetEnvelopeFlushRequest\032(.xtcp_co"
+    "nfig.v1.SetEnvelopeFlushResponse\".\310\363\030\002\202\323"
+    "\344\223\002$\032\037/ConfigService/SetEnvelopeFlush:\001*"
+    "B\257\001\n\022com.xtcp_config.v1B\017XtcpConfigProto"
+    "P\001Z3github.com/randomizedcoder/xtcp2/gen"
+    "/go/xtcp_config\242\002\003XXX\252\002\rXtcpConfig.V1\312\002\r"
+    "XtcpConfig\\V1\342\002\031XtcpConfig\\V1\\GPBMetadat"
+    "a\352\002\016XtcpConfig::V1b\006proto3"
 };
 static const ::_pbi::DescriptorTable* PROTOBUF_NONNULL const
     descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto_deps[4] = {
@@ -4297,7 +4303,7 @@ static ::absl::once_flag descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2ep
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto = {
     false,
     false,
-    9891,
+    9946,
     descriptor_table_protodef_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto,
     "xtcp_config/v1/xtcp_config.proto",
     &descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto_once,
@@ -8529,9 +8535,9 @@ XtcpConfig::XtcpConfig(
                offsetof(Impl_, write_files_),
            reinterpret_cast<const char*>(&from._impl_) +
                offsetof(Impl_, write_files_),
-           offsetof(Impl_, enrich_locality_enable_) -
+           offsetof(Impl_, locality_events_enable_) -
                offsetof(Impl_, write_files_) +
-               sizeof(Impl_::enrich_locality_enable_));
+               sizeof(Impl_::locality_events_enable_));
 
   // @@protoc_insertion_point(copy_constructor:xtcp_config.v1.XtcpConfig)
 }
@@ -8583,9 +8589,9 @@ inline void XtcpConfig::SharedCtor(::_pb::Arena* PROTOBUF_NULLABLE arena) {
   ::memset(reinterpret_cast<char*>(&_impl_) +
                offsetof(Impl_, reconcile_frequency_),
            0,
-           offsetof(Impl_, enrich_locality_enable_) -
+           offsetof(Impl_, locality_events_enable_) -
                offsetof(Impl_, reconcile_frequency_) +
-               sizeof(Impl_::enrich_locality_enable_));
+               sizeof(Impl_::locality_events_enable_));
 }
 XtcpConfig::~XtcpConfig() {
   // @@protoc_insertion_point(destructor:xtcp_config.v1.XtcpConfig)
@@ -8848,10 +8854,10 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
         reinterpret_cast<char*>(&_impl_.enrich_container_enable_) -
         reinterpret_cast<char*>(&_impl_.s3_upload_max_attempts_)) + sizeof(_impl_.enrich_container_enable_));
   }
-  if (BatchCheckHasBit(cached_has_bits, 0x00003f00U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x00007f00U)) {
     ::memset(&_impl_.enrich_lldp_enable_, 0, static_cast<::size_t>(
-        reinterpret_cast<char*>(&_impl_.enrich_locality_enable_) -
-        reinterpret_cast<char*>(&_impl_.enrich_lldp_enable_)) + sizeof(_impl_.enrich_locality_enable_));
+        reinterpret_cast<char*>(&_impl_.locality_events_enable_) -
+        reinterpret_cast<char*>(&_impl_.enrich_lldp_enable_)) + sizeof(_impl_.locality_events_enable_));
   }
   _impl_._has_bits_.Clear();
   _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
@@ -9601,6 +9607,17 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
         stream);
   }
 
+  cached_has_bits = this_._impl_._has_bits_[2];
+  // bool locality_events_enable = 247 [json_name = "localityEventsEnable"];
+  if (CheckHasBit(cached_has_bits, 0x00004000U)) {
+    if (this_._internal_locality_events_enable() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteBoolToArray(
+          247, this_._internal_locality_events_enable(), target);
+    }
+  }
+
+  cached_has_bits = this_._impl_._has_bits_[1];
   // .xtcp_config.v1.LinkMonitorConfig link_monitor = 250 [json_name = "linkMonitor"];
   if (CheckHasBit(cached_has_bits, 0x00800000U)) {
     target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
@@ -10126,7 +10143,7 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
       }
     }
   }
-  if (BatchCheckHasBit(cached_has_bits, 0x00003f00U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x00007f00U)) {
     // bool enrich_lldp_enable = 210 [json_name = "enrichLldpEnable"];
     if (CheckHasBit(cached_has_bits, 0x00000100U)) {
       if (this_._internal_enrich_lldp_enable() != 0) {
@@ -10161,6 +10178,12 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
     // bool enrich_locality_enable = 245 [json_name = "enrichLocalityEnable"];
     if (CheckHasBit(cached_has_bits, 0x00002000U)) {
       if (this_._internal_enrich_locality_enable() != 0) {
+        total_size += 3;
+      }
+    }
+    // bool locality_events_enable = 247 [json_name = "localityEventsEnable"];
+    if (CheckHasBit(cached_has_bits, 0x00004000U)) {
+      if (this_._internal_locality_events_enable() != 0) {
         total_size += 3;
       }
     }
@@ -10713,7 +10736,7 @@ void XtcpConfig::MergeImpl(::google::protobuf::MessageLite& to_msg,
       }
     }
   }
-  if (BatchCheckHasBit(cached_has_bits, 0x00003f00U)) {
+  if (BatchCheckHasBit(cached_has_bits, 0x00007f00U)) {
     if (CheckHasBit(cached_has_bits, 0x00000100U)) {
       if (from._internal_enrich_lldp_enable() != 0) {
         _this->_impl_.enrich_lldp_enable_ = from._impl_.enrich_lldp_enable_;
@@ -10742,6 +10765,11 @@ void XtcpConfig::MergeImpl(::google::protobuf::MessageLite& to_msg,
     if (CheckHasBit(cached_has_bits, 0x00002000U)) {
       if (from._internal_enrich_locality_enable() != 0) {
         _this->_impl_.enrich_locality_enable_ = from._impl_.enrich_locality_enable_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00004000U)) {
+      if (from._internal_locality_events_enable() != 0) {
+        _this->_impl_.locality_events_enable_ = from._impl_.locality_events_enable_;
       }
     }
   }
@@ -10801,8 +10829,8 @@ void XtcpConfig::InternalSwap(XtcpConfig* PROTOBUF_RESTRICT PROTOBUF_NONNULL oth
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.ipmeta_bootstrap_path_, &other->_impl_.ipmeta_bootstrap_path_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.ipmeta_cache_path_, &other->_impl_.ipmeta_cache_path_, arena);
   ::google::protobuf::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.enrich_locality_enable_)
-      + sizeof(XtcpConfig::_impl_.enrich_locality_enable_)
+      PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.locality_events_enable_)
+      + sizeof(XtcpConfig::_impl_.locality_events_enable_)
       - PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.reconcile_frequency_)>(
           reinterpret_cast<char*>(&_impl_.reconcile_frequency_),
           reinterpret_cast<char*>(&other->_impl_.reconcile_frequency_));

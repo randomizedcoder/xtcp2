@@ -1,4 +1,4 @@
-package netlink
+package nlconn
 
 import (
 	"context"

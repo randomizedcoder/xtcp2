@@ -3287,6 +3287,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
     kPopulateNsidFieldNumber = 230,
     kEnrichAsnEnableFieldNumber = 240,
     kEnrichLocalityEnableFieldNumber = 245,
+    kLocalityEventsEnableFieldNumber = 247,
   };
   // string dest = 60 [json_name = "dest", (.buf.validate.field) = {
   void clear_dest() ;
@@ -4304,11 +4305,21 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
   void _internal_set_enrich_locality_enable(bool value);
 
   public:
+  // bool locality_events_enable = 247 [json_name = "localityEventsEnable"];
+  void clear_locality_events_enable() ;
+  [[nodiscard]] bool locality_events_enable() const;
+  void set_locality_events_enable(bool value);
+
+  private:
+  bool _internal_locality_events_enable() const;
+  void _internal_set_locality_events_enable(bool value);
+
+  public:
   // @@protoc_insertion_point(class_scope:xtcp_config.v1.XtcpConfig)
  private:
   class _Internal;
   using ParseTableT_ =
-      ::google::protobuf::internal::TcParseTable<5, 78,
+      ::google::protobuf::internal::TcParseTable<5, 79,
                           14, 448,
                           33>;
   static constexpr ParseTableT_ InternalGenerateParseTable_(
@@ -4415,6 +4426,7 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED XtcpConfig final : public ::google:
     bool populate_nsid_;
     bool enrich_asn_enable_;
     bool enrich_locality_enable_;
+    bool locality_events_enable_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
   union { Impl_ _impl_; };
@@ -12173,6 +12185,30 @@ inline void XtcpConfig::set_allocated_locality_refresh_interval(::google::protob
 
   _impl_.locality_refresh_interval_ = reinterpret_cast<::google::protobuf::Duration*>(value);
   // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.XtcpConfig.locality_refresh_interval)
+}
+
+// bool locality_events_enable = 247 [json_name = "localityEventsEnable"];
+inline void XtcpConfig::clear_locality_events_enable() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.locality_events_enable_ = false;
+  ClearHasBit(_impl_._has_bits_[2], 0x00004000U);
+}
+inline bool XtcpConfig::locality_events_enable() const {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.XtcpConfig.locality_events_enable)
+  return _internal_locality_events_enable();
+}
+inline void XtcpConfig::set_locality_events_enable(bool value) {
+  _internal_set_locality_events_enable(value);
+  SetHasBit(_impl_._has_bits_[2], 0x00004000U);
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.XtcpConfig.locality_events_enable)
+}
+inline bool XtcpConfig::_internal_locality_events_enable() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.locality_events_enable_;
+}
+inline void XtcpConfig::_internal_set_locality_events_enable(bool value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.locality_events_enable_ = value;
 }
 
 // .xtcp_config.v1.LinkMonitorConfig link_monitor = 250 [json_name = "linkMonitor"];

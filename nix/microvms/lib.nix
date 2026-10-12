@@ -2823,6 +2823,7 @@ rec {
     "CTL_HOT"
     "CTL_TRIGGER"
     "CTL_RESTART"
+    "RTNL_EVENTS"
   ];
 
   mkLifecycleFullTest =

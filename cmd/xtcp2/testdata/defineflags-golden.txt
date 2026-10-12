@@ -57,6 +57,7 @@ listenerRawToken		listener auth raw bearer token. Prefer LISTENER_RAW_TOKEN or L
 listenerSignedSkewMinutes	1	HMAC UTC-minute signed token skew in minutes (0-5). Falls back to LISTENER_SIGNED_SKEW_MINUTES env.
 lldpdSocket	/run/lldpd.socket	path to the lldpd control unix socket used by -enrichLldp. Falls back to LLDPD_SOCKET env.
 lldpdVersionHint		optional lldpd version hint (e.g. "1.0.18") to disambiguate the control-protocol struct layout; empty = auto-detect. Falls back to LLDPD_VERSION_HINT env.
+localityEvents	false	with -enrichLocality, keep each namespace's locality snapshot current from rtnetlink link/address/route notifications (one listener per namespace) so a change shows within about a second; -localityRefreshInterval then becomes a backstop resync. Ignored without -enrichLocality. Falls back to LOCALITY_EVENTS env.
 localityRefreshInterval	1m0s	how often -enrichLocality re-dumps every namespace's addresses/routes on the reconcile path (new namespaces are always dumped on the next reconcile; failed or loopback-only namespaces retry on a 30s-5m backoff); 0 = discover each namespace once, never refresh. Falls back to LOCALITY_REFRESH_INTERVAL env.
 location		deployment grouping/facility this daemon runs in (data center, PoP, region, site, …); stamped on every record's `location`. Falls back to LOCATION env.
 marshal	protobufList	Marshaling of the exported data (protobufList, protoJson, protoText, msgpack, jsonl, csv, tsv)

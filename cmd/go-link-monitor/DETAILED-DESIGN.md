@@ -64,7 +64,7 @@ which parts currently exist and have passed their gates:
 | `pkg/linkmonitor` | Public API; reducer, scheduling, reconciliation, policy and snapshot publication | Global registry, HTTP listener, process exit, signal handlers |
 | `pkg/linkmonitor/internal/model` | Private identities, jobs, observations, schemas and immutable blocks | Kernel I/O or Prometheus objects |
 | `pkg/linkmonitor/internal/linuxio` | Implemented request clients, transaction matching, socket epochs and family discovery; future backend selection/event adapters | Device policy or baseline decisions |
-| `pkg/linkmonitor/internal/netlink` | Ordinary netlink socket ownership, bounded receive/send and cancellation; used by linuxio request clients | Transaction matching, reconciliation or device policy |
+| `pkg/nlconn` | Ordinary netlink socket ownership, bounded receive/send and cancellation; used by linuxio request clients | Transaction matching, reconciliation or device policy |
 | `pkg/linkmonitor/internal/ethernet` | Classification evidence, ethtool requests/ioctls, stats/name caches | Shared mutable monitor state |
 | `pkg/linkmonitor/internal/rdma` | Discovery, association, event, local capability and counter adapters | Fabric configuration or remote sweeps |
 | `pkg/linkmonitor/internal/hoststats` | Bounded procfs reads, paired-field parsing and compiled field selection | Per-interface attribution |
@@ -308,7 +308,7 @@ borrowed parser needs its own explicit API and evidence from allocation profiles
 ### Ordinary backend: poller and recvmsg
 
 P04-T02 implements the socket primitive in
-[`internal/netlink`](../../pkg/linkmonitor/internal/netlink/socket_linux.go).
+[`pkg/nlconn`](../../pkg/nlconn/socket_linux.go).
 `Open(ctx, protocol, groups)` supports separate route, generic and RDMA sockets;
 groups are numeric membership IDs. Its context bounds acquisition. Each later
 `Send(ctx, data)` or `Receive(ctx, visit)` supplies its own context. Overlapping

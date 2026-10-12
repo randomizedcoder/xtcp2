@@ -682,6 +682,7 @@ let
       extraSentinels = [
         "IFNAME"
         "ASN"
+        "LOCALITY_EVENTS"
       ];
       # Checks 5f/5g each poll for up to 2 min (x waitScale). That fits inside
       # the default stall watchdog, and the old 600 s absolute cap is now below

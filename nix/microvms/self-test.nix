@@ -91,6 +91,9 @@
 #                                              records published to a real in-VM
 #                                              nsqd AND finished by an nsq_tail
 #                                              consumer (nsqd /stats finish_count)
+#   XTCP2_SELF_TEST_RTNL_EVENTS_{PASS,FAIL}    rtnetlink listener (pkg/rtnlmon):
+#                                              link/addr events in order, and an
+#                                              overrun drained and resynced
 #   XTCP2_SELF_TEST_OVERALL_{PASS,FAIL}        overall outcome
 #   XTCP2_SELF_TEST_ASN_{PASS,FAIL}           (interface-naming only) ASN
 #                                              enrichment end to end: the record
@@ -98,6 +101,10 @@
 #                                              carries AS15169 / google /
 #                                              LOCALITY_REMOTE from an artifact
 #                                              the real ipfeed-collector built
+#   XTCP2_SELF_TEST_LOCALITY_EVENTS_{PASS,FAIL}  (interface-naming only) an
+#                                              address added after start makes
+#                                              its socket LOCALITY_SELF via the
+#                                              -localityEvents listener
 #   XTCP2_SELF_TEST_IPMETA_BOOTSTRAP_{PASS,FAIL}    bootstrap lookup artifact
 #                                              enriches records before live data
 #   XTCP2_SELF_TEST_IPMETA_RECOVERY_{PASS,FAIL}     delayed in-VM HTTP source
@@ -237,12 +244,22 @@
   asnExpectedAsn ? "15169",
   asnExpectedOwner ? "google",
   asnExpectedPrefixes ? "3",
+  # When true (interface-naming flavor, run with -localityEvents and a 10m
+  # -localityRefreshInterval), the LOCALITY_EVENTS check adds an address to
+  # localityEventsIf after the daemon is up and holds a TCP connection to it:
+  # its record must classify LOCALITY_SELF within seconds, which only the
+  # rtnetlink listener can explain, not the timed re-dump.
+  runLocalityEventsCheck ? false,
+  localityEventsIf ? "",
   # When true (ipmeta-bootstrap flavor), validates the cold-start bootstrap
   # lookup, delayed in-VM HTTP source recovery, cache rotation, and rejection of
   # a later empty/bad update while xtcp2 keeps enriching from the last good
   # table.
   runIpmetaBootstrapCheck ? false,
   runNsInspectCheck ? true,
+  # Check 20 (every flavor): pkg/rtnlmon's listener against the real kernel,
+  # in a namespace of its own; see the check for what it asserts.
+  runRtnlEventsCheck ? true,
   # No ipmetaDbPath argument here, deliberately. mkVm.nix has a let binding of
   # that name and passes the artifact path to xtcp2 itself, as -asnDbPath in its
   # own argv, so this runner never needed it: the argument was declared, given a
@@ -990,6 +1007,79 @@ pkgs.writeShellApplication {
         journalctl --no-pager -u xtcp2-asn-dialer.service -n 8 2>&1 || true
       fi
       if [ "$check5g" -ne 0 ]; then overall_ok=0; fi
+    ''}
+
+    # ─── Check: locality from rtnetlink events ─────────────────────────────
+    # (interface-naming flavor only.) The daemon runs -localityEvents with a
+    # 10m -localityRefreshInterval, so the timed re-dump cannot run inside this
+    # check. 203.0.113.1/24 is added to ${localityEventsIf} only now, after the
+    # daemon took its start snapshot, and a TCP connection is held to it: the
+    # record must classify LOCALITY_SELF, which needs the listener to have
+    # folded the RTM_NEWADDR and published within its 1s debounce.
+    ${lib.optionalString runLocalityEventsCheck ''
+      echo "--- check: locality events (${localityEventsIf} += 203.0.113.1/24) ---"
+      checkLe=1
+      le_metrics() { curl -sf "http://127.0.0.1:${toString promPort}/metrics" 2>/dev/null || true; }
+      le_start=0
+      for _ in $(seq 1 "$(scaled 20)"); do
+        le_start=$(le_metrics | grep -E '^xtcp_counts\{[^}]*function="localityListener"[^}]*type="start"[^}]*variable="snapshot"[^}]*\} ' \
+          | awk '{print $2}' | head -1)
+        [ -n "$le_start" ] && [ "''${le_start%%.*}" -gt 0 ] 2>/dev/null && break
+        le_start=0
+        sleep 1
+      done
+      le_ip=203.0.113.1
+      le_port=47181
+      ip addr add "$le_ip/24" dev ${localityEventsIf}
+      # Each nc's stdin is a sleep, which keeps the connection open. $! is only
+      # the nc, so the sleeps are killed by name below: a later check's bare
+      # `wait` would otherwise block until they end. The odd length is what
+      # makes the name unique, and it bounds them if the kill is never reached.
+      le_hold=$(( $(scaled 30) + 7 ))
+      sleep "$le_hold" | nc -l -p "$le_port" -s "$le_ip" >/dev/null 2>&1 &
+      le_srv=$!
+      sleep 1
+      sleep "$le_hold" | nc "$le_ip" "$le_port" >/dev/null 2>&1 &
+      le_cli=$!
+      le_b64=$({ printf '\313\000\161\001'; head -c 12 /dev/zero; } | base64)
+      le_b64_4=$(printf '\313\000\161\001' | base64)
+      leOk=0
+      for _ in $(seq 1 "$(scaled 20)"); do
+        if [ -s "${fileOutputPath}" ]; then
+          cp "${fileOutputPath}" /tmp/xtcp2-le.snap 2>/dev/null || true
+          if jq -e --arg d16 "$le_b64" --arg d4 "$le_b64_4" --argjson p "$le_port" \
+              'select((.inetDiagMsgSocketDestination == $d16 or .inetDiagMsgSocketDestination == $d4)
+                      and .inetDiagMsgSocketDestinationPort == $p
+                      and .enrichSocketDestLocality == "LOCALITY_SELF")' \
+              /tmp/xtcp2-le.snap >/dev/null 2>&1; then
+            leOk=1
+            break
+          fi
+        fi
+        sleep 1
+      done
+      le_live=$(le_metrics | grep -E '^xtcp_gauges\{[^}]*function="localityListener"[^}]*variable="live"[^}]*\} ' \
+        | awk '{print $2}' | head -1)
+      if [ "$leOk" -eq 1 ] && [ "''${le_start%%.*}" -gt 0 ] 2>/dev/null && [ -n "$le_live" ]; then
+        echo "XTCP2_SELF_TEST_LOCALITY_EVENTS_PASS  ($le_ip:$le_port LOCALITY_SELF; start snapshots=$le_start live=$le_live)"
+        checkLe=0
+      else
+        echo "XTCP2_SELF_TEST_LOCALITY_EVENTS_FAIL  (self_seen=$leOk start_snapshots=''${le_start:-absent} live=''${le_live:-absent})"
+        echo "--- localityListener metrics ---"
+        le_metrics | grep -E 'localityListener|refreshLocality' || echo "(none)"
+        echo "--- records to $le_ip:$le_port ---"
+        jq -c --arg d16 "$le_b64" --arg d4 "$le_b64_4" --argjson p "$le_port" \
+               'select((.inetDiagMsgSocketDestination == $d16 or .inetDiagMsgSocketDestination == $d4)
+                       and .inetDiagMsgSocketDestinationPort == $p)
+               | {state: .inetDiagMsgState, locality: .enrichSocketDestLocality}' \
+          /tmp/xtcp2-le.snap 2>/dev/null | tail -3 || true
+        ss -tn "dst $le_ip" 2>&1 | head -5 || true
+      fi
+      kill "$le_cli" "$le_srv" 2>/dev/null || true
+      pkill -x -f "sleep $le_hold" 2>/dev/null || true
+      wait "$le_cli" "$le_srv" 2>/dev/null || true
+      ip addr del "$le_ip/24" dev ${localityEventsIf} 2>/dev/null || true
+      if [ "$checkLe" -ne 0 ]; then overall_ok=0; fi
     ''}
 
     # ─── Check 5f: raw socket destination → in-VM ncat sink ───────────────
@@ -2067,6 +2157,97 @@ pkgs.writeShellApplication {
         echo "XTCP2_SELF_TEST_CTL_RESTART_FAIL  (xtcp2ctl or jq not on PATH)"
       fi
       if [ "$check19" -ne 0 ]; then overall_ok=0; fi
+    ''}
+
+    ${lib.optionalString runRtnlEventsCheck ''
+      echo "--- check 20: rtnetlink listener: events, then an overrun resync (pkg/rtnlmon) ---"
+      # rtnlmon-probe runs pkg/rtnlmon in a namespace of its own, so nothing
+      # this check adds can reach the daemon's view of the host. Part a: four
+      # changes must arrive as notifications, in order. Part b: with a tiny
+      # receive buffer and the probe not reading, 399 address changes overrun
+      # it; once it reads again it must report the overrun and resync to the
+      # one surviving address. The queue still holds stale adds for the 199
+      # deleted ones, so a listener that resyncs without draining first would
+      # report them.
+      check20=1
+      rtnl_a="" rtnl_b=""
+      if command -v rtnlmon-probe >/dev/null 2>&1; then
+        ip netns delete rtnl_check 2>/dev/null || true
+        ip netns add rtnl_check
+        rm -f /tmp/rtnl-a.ready /tmp/rtnl-a.log /tmp/rtnl-b.ready /tmp/rtnl-b.log /tmp/rtnl-b.pause
+
+        # Part a: events.
+        ip netns exec rtnl_check rtnlmon-probe -groups link,addr -ready /tmp/rtnl-a.ready \
+          -timeout "$(scaled 60)s" >/tmp/rtnl-a.log 2>&1 &
+        rtnl_pid=$!
+        for _ in $(seq 1 "$(scaled 20)"); do [ -e /tmp/rtnl-a.ready ] && break; sleep 0.5; done
+        ip -n rtnl_check link add rtnl0 type dummy
+        ip -n rtnl_check link set rtnl0 up
+        ip -n rtnl_check addr add 192.0.2.1/32 dev rtnl0
+        ip -n rtnl_check link del rtnl0
+        for _ in $(seq 1 "$(scaled 20)"); do
+          grep -q '^RTNLMON_EVENT link del .* ifname=rtnl0 ' /tmp/rtnl-a.log && break
+          sleep 0.5
+        done
+        kill "$rtnl_pid" 2>/dev/null || true
+        wait "$rtnl_pid" 2>/dev/null || true
+        first() { grep -n -m1 -E "$1" /tmp/rtnl-a.log | cut -d: -f1; }
+        l_add=$(first '^RTNLMON_EVENT link add .* ifname=rtnl0 ')
+        l_up=$(first '^RTNLMON_EVENT link add .* ifname=rtnl0 up$')
+        l_addr=$(first '^RTNLMON_EVENT addr add .* addr=192\.0\.2\.1/32$')
+        l_del=$(first '^RTNLMON_EVENT link del .* ifname=rtnl0 ')
+        if [ -n "$l_add" ] && [ -n "$l_up" ] && [ -n "$l_addr" ] && [ -n "$l_del" ] \
+           && [ "$l_add" -le "$l_up" ] && [ "$l_up" -lt "$l_addr" ] && [ "$l_addr" -lt "$l_del" ]; then
+          rtnl_a="ok"
+        else
+          rtnl_a="events out of order or missing (lines add=$l_add up=$l_up addr=$l_addr del=$l_del)"
+        fi
+
+        # Part b: an overrun.
+        ip -n rtnl_check link add rtnl1 type dummy
+        ip -n rtnl_check link set rtnl1 up
+        rtnl_idx=$(ip netns exec rtnl_check cat /sys/class/net/rtnl1/ifindex)
+        touch /tmp/rtnl-b.pause
+        ip netns exec rtnl_check rtnlmon-probe -groups addr4 -rcvbuf 4096 -ready /tmp/rtnl-b.ready \
+          -pause /tmp/rtnl-b.pause -timeout "$(scaled 120)s" >/tmp/rtnl-b.log 2>&1 &
+        rtnl_pid=$!
+        for _ in $(seq 1 "$(scaled 20)"); do [ -e /tmp/rtnl-b.ready ] && break; sleep 0.5; done
+        for i in $(seq 1 200); do echo "addr add 198.51.100.$i/32 dev rtnl1"; done >/tmp/rtnl-b.add
+        for i in $(seq 2 200); do echo "addr del 198.51.100.$i/32 dev rtnl1"; done >/tmp/rtnl-b.del
+        ip -n rtnl_check -batch /tmp/rtnl-b.add
+        ip -n rtnl_check -batch /tmp/rtnl-b.del
+        rm -f /tmp/rtnl-b.pause
+        for _ in $(seq 1 "$(scaled 30)"); do
+          grep -q '^RTNLMON_SNAPSHOT overrun ' /tmp/rtnl-b.log && break
+          sleep 0.5
+        done
+        sleep 1
+        kill "$rtnl_pid" 2>/dev/null || true
+        wait "$rtnl_pid" 2>/dev/null || true
+        # What the last resync reported for rtnl1, and any address event after it.
+        after=$(awk '/^RTNLMON_SNAPSHOT overrun /{buf=""; on=1; next} on{buf=buf $0 "\n"} END{printf "%s", buf}' /tmp/rtnl-b.log)
+        snap=$(printf '%s' "$after" | grep "^RTNLMON_SNAPSHOT_ADDR overrun ifindex=$rtnl_idx " | sed 's/.* addr=//' | sort | tr '\n' ' ')
+        stale=$(printf '%s' "$after" | grep -c "^RTNLMON_EVENT addr add ifindex=$rtnl_idx addr=198\.51\.100\.\([2-9]\|[1-9][0-9]\)" || true)
+        if ! grep -q '^RTNLMON_SNAPSHOT overrun ' /tmp/rtnl-b.log; then
+          rtnl_b="no overrun reported"
+        elif [ "$snap" != "198.51.100.1/32 " ] || [ "$stale" -ne 0 ]; then
+          rtnl_b="resync for rtnl1 was '$snap' with $stale stale adds after it"
+        else
+          rtnl_b="ok"
+        fi
+        ip netns delete rtnl_check 2>/dev/null || true
+      else
+        rtnl_a="rtnlmon-probe not on PATH"
+      fi
+      if [ "$rtnl_a" = "ok" ] && [ "$rtnl_b" = "ok" ]; then
+        echo "XTCP2_SELF_TEST_RTNL_EVENTS_PASS  (link/addr events in order; overrun drained and resynced to 1 address)"
+        check20=0
+      else
+        echo "XTCP2_SELF_TEST_RTNL_EVENTS_FAIL  (events: $rtnl_a; overrun: ''${rtnl_b:-not run})"
+        sed -n '1,15p' /tmp/rtnl-a.log 2>/dev/null || true
+        grep -v '^RTNLMON_EVENT' /tmp/rtnl-b.log 2>/dev/null | sed -n '1,15p' || true
+      fi
+      if [ "$check20" -ne 0 ]; then overall_ok=0; fi
     ''}
 
     ${lib.optionalString runNlProbeCheck ''

@@ -1,7 +1,8 @@
-// Package netlink owns the monitor's nonblocking Linux netlink sockets.
+// Package nlconn owns nonblocking Linux netlink sockets: linkmonitor's
+// subscriptions and request clients, and pkg/rtnlmon's listener.
 // It provides transport only; transaction matching and event policy belong to
 // callers. Socket and receive-buffer ownership never cross the public API.
-package netlink
+package nlconn
 
 import (
 	"context"
@@ -24,13 +25,13 @@ const (
 )
 
 var (
-	ErrConfig     = errors.New("netlink: invalid socket configuration")
-	ErrConcurrent = errors.New("netlink: socket already has an I/O owner")
-	ErrSender     = errors.New("netlink: sender is not the kernel")
-	ErrTruncated  = errors.New("netlink: datagram truncated; next buffer enlarged")
-	ErrOversize   = errors.New("netlink: datagram exceeds buffer cap")
-	ErrAncillary  = errors.New("netlink: ancillary metadata truncated")
-	ErrLength     = errors.New("netlink: invalid datagram length")
+	ErrConfig     = errors.New("nlconn: invalid socket configuration")
+	ErrConcurrent = errors.New("nlconn: socket already has an I/O owner")
+	ErrSender     = errors.New("nlconn: sender is not the kernel")
+	ErrTruncated  = errors.New("nlconn: datagram truncated; next buffer enlarged")
+	ErrOversize   = errors.New("nlconn: datagram exceeds buffer cap")
+	ErrAncillary  = errors.New("nlconn: ancillary metadata truncated")
+	ErrLength     = errors.New("nlconn: invalid datagram length")
 )
 
 type pollFile interface {
@@ -60,7 +61,7 @@ type Conn struct {
 type socketOps struct {
 	socket func(int, int, int) (int, error)
 	bind   func(int, unix.Sockaddr) error
-	join   func(int, int, int, int) error
+	setInt func(int, int, int, int) error
 	close  func(int) error
 	wrap   func(int) (pollFile, syscall.RawConn, error)
 }
@@ -70,13 +71,27 @@ type socketOps struct {
 // Route, generic and RDMA protocols use separate Conn instances. ctx bounds
 // acquisition; each subsequent operation supplies its own cancellation context.
 func Open(ctx context.Context, protocol int, groups []uint32) (*Conn, error) {
-	return openSocket(ctx, protocol, groups, socketOps{
-		socket: unix.Socket, bind: unix.Bind, join: unix.SetsockoptInt,
+	return OpenWithOptions(ctx, protocol, groups, Options{})
+}
+
+// Options are the socket settings Open leaves at the kernel's defaults.
+type Options struct {
+	// RcvBuf, when positive, sizes the receive buffer before bind:
+	// SO_RCVBUFFORCE, which may exceed net.core.rmem_max, and SO_RCVBUF when
+	// the caller lacks CAP_NET_ADMIN. A multicast listener's buffer decides how
+	// large a burst it absorbs before the kernel reports ENOBUFS.
+	RcvBuf int
+}
+
+// OpenWithOptions is Open with Options applied.
+func OpenWithOptions(ctx context.Context, protocol int, groups []uint32, opts Options) (*Conn, error) {
+	return openSocket(ctx, protocol, groups, opts, socketOps{
+		socket: unix.Socket, bind: unix.Bind, setInt: unix.SetsockoptInt,
 		close: unix.Close, wrap: wrapSocket,
 	})
 }
 
-func openSocket(ctx context.Context, protocol int, groups []uint32, ops socketOps) (*Conn, error) {
+func openSocket(ctx context.Context, protocol int, groups []uint32, opts Options, ops socketOps) (*Conn, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -88,11 +103,14 @@ func openSocket(ctx context.Context, protocol int, groups []uint32, ops socketOp
 			return nil, ErrConfig
 		}
 	}
+	if opts.RcvBuf < 0 {
+		return nil, ErrConfig
+	}
 	fd, err := ops.socket(unix.AF_NETLINK, unix.SOCK_RAW|unix.SOCK_NONBLOCK|unix.SOCK_CLOEXEC, protocol)
 	if err != nil {
 		return nil, fmt.Errorf("netlink socket: %w", err)
 	}
-	if err = configureSocket(fd, groups, ops); err != nil {
+	if err = configureSocket(fd, groups, opts, ops); err != nil {
 		return nil, errors.Join(err, ops.close(fd))
 	}
 	// wrap takes ownership even on error; never raw-close fd after this point.
@@ -107,12 +125,21 @@ func openSocket(ctx context.Context, protocol int, groups []uint32, ops socketOp
 	return c, nil
 }
 
-func configureSocket(fd int, groups []uint32, ops socketOps) error {
+func configureSocket(fd int, groups []uint32, opts Options, ops socketOps) error {
+	if opts.RcvBuf > 0 {
+		err := ops.setInt(fd, unix.SOL_SOCKET, unix.SO_RCVBUFFORCE, opts.RcvBuf)
+		if errors.Is(err, unix.EPERM) {
+			err = ops.setInt(fd, unix.SOL_SOCKET, unix.SO_RCVBUF, opts.RcvBuf)
+		}
+		if err != nil {
+			return fmt.Errorf("netlink receive buffer %d: %w", opts.RcvBuf, err)
+		}
+	}
 	if err := ops.bind(fd, &unix.SockaddrNetlink{Family: unix.AF_NETLINK}); err != nil {
 		return fmt.Errorf("netlink bind: %w", err)
 	}
 	for _, group := range groups {
-		if err := ops.join(fd, unix.SOL_NETLINK, unix.NETLINK_ADD_MEMBERSHIP, int(group)); err != nil {
+		if err := ops.setInt(fd, unix.SOL_NETLINK, unix.NETLINK_ADD_MEMBERSHIP, int(group)); err != nil {
 			return fmt.Errorf("netlink membership %d: %w", group, err)
 		}
 	}

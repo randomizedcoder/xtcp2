@@ -1427,6 +1427,7 @@ class XtcpConfig extends $pb.GeneratedMessage {
     $core.String? ipmetaCachePath,
     $core.bool? enrichLocalityEnable,
     $1.Duration? localityRefreshInterval,
+    $core.bool? localityEventsEnable,
     LinkMonitorConfig? linkMonitor,
   }) {
     final result = create();
@@ -1530,6 +1531,8 @@ class XtcpConfig extends $pb.GeneratedMessage {
       result.enrichLocalityEnable = enrichLocalityEnable;
     if (localityRefreshInterval != null)
       result.localityRefreshInterval = localityRefreshInterval;
+    if (localityEventsEnable != null)
+      result.localityEventsEnable = localityEventsEnable;
     if (linkMonitor != null) result.linkMonitor = linkMonitor;
     return result;
   }
@@ -1665,6 +1668,7 @@ class XtcpConfig extends $pb.GeneratedMessage {
     ..aOB(245, _omitFieldNames ? '' : 'enrichLocalityEnable')
     ..aOM<$1.Duration>(246, _omitFieldNames ? '' : 'localityRefreshInterval',
         subBuilder: $1.Duration.create)
+    ..aOB(247, _omitFieldNames ? '' : 'localityEventsEnable')
     ..aOM<LinkMonitorConfig>(250, _omitFieldNames ? '' : 'linkMonitor',
         subBuilder: LinkMonitorConfig.create)
     ..hasRequiredFields = false;
@@ -2671,17 +2675,31 @@ class XtcpConfig extends $pb.GeneratedMessage {
   @$pb.TagNumber(246)
   $1.Duration ensureLocalityRefreshInterval() => $_ensure(76);
 
+  /// Keep each namespace's locality snapshot current from rtnetlink
+  /// notifications (link, address and route changes) instead of waiting for
+  /// the next refresh: an update shows within about a second.
+  /// locality_refresh_interval then becomes the backstop, a resync taken
+  /// after that long. Needs enrich_locality_enable. Default false.
+  @$pb.TagNumber(247)
+  $core.bool get localityEventsEnable => $_getBF(77);
+  @$pb.TagNumber(247)
+  set localityEventsEnable($core.bool value) => $_setBool(77, value);
+  @$pb.TagNumber(247)
+  $core.bool hasLocalityEventsEnable() => $_has(77);
+  @$pb.TagNumber(247)
+  void clearLocalityEventsEnable() => $_clearField(247);
+
   /// Physical link monitor; see LinkMonitorConfig.
   @$pb.TagNumber(250)
-  LinkMonitorConfig get linkMonitor => $_getN(77);
+  LinkMonitorConfig get linkMonitor => $_getN(78);
   @$pb.TagNumber(250)
   set linkMonitor(LinkMonitorConfig value) => $_setField(250, value);
   @$pb.TagNumber(250)
-  $core.bool hasLinkMonitor() => $_has(77);
+  $core.bool hasLinkMonitor() => $_has(78);
   @$pb.TagNumber(250)
   void clearLinkMonitor() => $_clearField(250);
   @$pb.TagNumber(250)
-  LinkMonitorConfig ensureLinkMonitor() => $_ensure(77);
+  LinkMonitorConfig ensureLinkMonitor() => $_ensure(78);
 }
 
 class EnabledDeserializers extends $pb.GeneratedMessage {

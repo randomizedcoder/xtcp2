@@ -1058,7 +1058,27 @@ unmatched — a bug that presents as missing data, not as an error.
 
 ---
 
-## 13. No rtnetlink multicast listener — the event parsers have no live feed — OPEN
+## 13. No rtnetlink multicast listener — the event parsers have no live feed — DONE
+
+**The consumer landed** as `-localityEvents` (`locality_events_enable`, off by
+default): a `pkg/rtnlmon` listener per monitored namespace folds notifications
+into a `localnet.Tracker` and republishes the locality snapshot within a 1s
+debounce, with `locality_refresh_interval` as its periodic-resync backstop.
+The fold drops the IPv4 routes the kernel removes without a notification when
+a device goes down. Self-test `XTCP2_SELF_TEST_LOCALITY_EVENTS` proves it in
+the interface-naming flavor; see docs/locality-enrichment.md, "Event-driven
+updates". Making it the default is a later one-line change.
+
+**The listener landed** as `pkg/rtnlmon` (on `pkg/nlconn`, linkmonitor's
+transport moved out of `pkg/linkmonitor/internal/netlink`) with
+`xtcpnl.WalkNotifications`, and the self-test proves it live as
+`XTCP2_SELF_TEST_RTNL_EVENTS`; see coverage-status.md, "Phase 1: the
+listener". The fork turned out not to special-case `ENOBUFS` at all
+(any receive error closes its channel); rtnlmon's drain-then-dump order is
+derived from the kernel instead.
+
+The original item follows.
+
 
 `pkg/xtcpnl` can now parse every rtnetlink event xtcp2 cares about
 (`ParseRtnetlinkEvent` over `RTM_{NEW,DEL}{LINK,ADDR,ROUTE,NEIGH}`), and the

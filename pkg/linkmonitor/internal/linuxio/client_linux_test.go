@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/netlink"
+	"github.com/randomizedcoder/xtcp2/pkg/nlconn"
 	"golang.org/x/sys/unix"
 )
 
@@ -212,10 +212,10 @@ func TestClientConcurrentCloseAndCancellation(t *testing.T) {
 			if s.budget <= 0 || s.budget > 5*time.Second {
 				t.Fatalf("request budget=%v", s.budget)
 			}
-			if _, err := execute(context.Background(), c, numberRequest(false, false)); !errors.Is(err, netlink.ErrConcurrent) {
+			if _, err := execute(context.Background(), c, numberRequest(false, false)); !errors.Is(err, nlconn.ErrConcurrent) {
 				t.Fatalf("overlap=%v", err)
 			}
-			if err := c.Reset(); !errors.Is(err, netlink.ErrConcurrent) {
+			if err := c.Reset(); !errors.Is(err, nlconn.ErrConcurrent) {
 				t.Fatalf("overlapping reset=%v", err)
 			}
 			if row.cancel {

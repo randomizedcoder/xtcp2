@@ -32,6 +32,8 @@ let
     "ns"
     "nsTest"
     "register_schema"
+    # A tools/ binary, exported beside the cmd ones (nix/binaries.nix).
+    "rtnlmon-probe"
     "xtcp2"
     "xtcp2client"
     "xtcp2ctl"

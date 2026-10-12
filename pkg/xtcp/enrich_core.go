@@ -286,6 +286,10 @@ type localityEnricher interface {
 	// Active reports whether any snapshot has ever been published, so the
 	// stamping path can stay a true no-op until one has.
 	Active() bool
+	// Listen keeps inode's snapshot current from rtnetlink notifications
+	// until ctx ends (-localityEvents). It runs on a goroutine whose OS
+	// thread is in that namespace.
+	Listen(ctx context.Context, inode uint64)
 }
 
 // refreshLocality is the untagged entry point the reconcile path calls, so
@@ -296,4 +300,21 @@ func (x *XTCP) refreshLocality(nss map[uint64]nsIdentity) {
 		return
 	}
 	x.locality.Refresh(nss)
+}
+
+// localityEventsOn reports whether namespaces get a locality listener: the
+// enricher is installed and -localityEvents is set.
+func (x *XTCP) localityEventsOn() bool {
+	return x.locality != nil && x.config.GetLocalityEventsEnable()
+}
+
+// listenLocality is netNamespaceInstance's wait: it runs inode's locality
+// listener on the calling goroutine, whose thread is in that namespace, or
+// just waits for ctx when there is none.
+func (x *XTCP) listenLocality(ctx context.Context, inode uint64) {
+	if !x.localityEventsOn() {
+		<-ctx.Done()
+		return
+	}
+	x.locality.Listen(ctx, inode)
 }

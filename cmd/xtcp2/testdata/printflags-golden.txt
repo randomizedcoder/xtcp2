@@ -66,6 +66,7 @@
 *ipmetaCachePath: ipmetaCachePath-v
 *enrichLocality: true
 *localityRefreshInterval: 125ms
+*localityEvents: true
 compiledInEnrichers: {{compiledInEnrichers}}
 *linkMonitor: true
 *linkMonitorBaselineFile: linkMonitorBaselineFile-v

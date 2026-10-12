@@ -502,6 +502,11 @@ could not be re-dumped — and a listener that cannot re-dump cannot recover fro
 this phase's remaining work is the listener itself — `Subscribe`, the group
 memberships, and the `ENOBUFS` handling that drives the re-dump.
 
+**The listener has landed too**, as `pkg/rtnlmon`, with self-test check 20;
+see coverage-status.md's
+[Phase 1: the listener](coverage-status.md#phase-1-the-listener) for the
+`ENOBUFS` order the kernel forces.
+
 **Do not filter notifications on `nlmsg_pid`/`nlmsg_seq`.** The discriminator is
 `nlmsg_flags`: `NLM_F_REQUEST` clear **and** `NLM_F_MULTI` clear. The kernel
 echoes the *originating* port and sequence into notifications it emits on behalf

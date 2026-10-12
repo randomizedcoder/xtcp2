@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/netlink"
+	"github.com/randomizedcoder/xtcp2/pkg/nlconn"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
@@ -25,7 +25,7 @@ type RDMANotifications struct{ conn transport }
 // OpenRDMANotifications joins before probing the read-only system monitor mode.
 // Joining a group alone does not prove that the kernel emits notifications.
 func OpenRDMANotifications(ctx context.Context) (*RDMANotifications, error) {
-	conn, err := netlink.Open(ctx, unix.NETLINK_RDMA, []uint32{xtcpnl.RdmaNlGroupNotify})
+	conn, err := nlconn.Open(ctx, unix.NETLINK_RDMA, []uint32{xtcpnl.RdmaNlGroupNotify})
 	if err != nil {
 		return nil, err
 	}

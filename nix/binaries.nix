@@ -216,6 +216,10 @@ let
     # ask for is what we get"). Rides xtcp2AllPackage into the clickhouse-pipeline
     # microvm, where the self-test runs it as the IDIAG_EXT_PROBE check.
     "idiag-extprobe"
+    # rtnlmon-probe: runs pkg/rtnlmon's rtnetlink listener and prints its
+    # snapshots and events. Rides xtcp2AllPackage into every lifecycle microvm,
+    # where the self-test runs it as the RTNL_EVENTS check.
+    "rtnlmon-probe"
   ];
   toolBinaries = lib.genAttrs toolBinaryNames (
     name:
@@ -305,6 +309,7 @@ defaultBinaries
     tcp_server
     tcp_client
     discovery-bench
+    rtnlmon-probe
     ;
 
   # Internal nested sets for downstream consumers (containers/).

@@ -14,6 +14,7 @@ import (
 	"log"
 	"net/netip"
 	"runtime"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -100,10 +101,13 @@ func nextLocalityRetry(prev localityRetryState, retrying bool, now time.Time, ha
 type localityIndex struct {
 	x *XTCP
 
-	// byInode maps a socket's netns inode -> that namespace's local
-	// address/route snapshot. Published atomically by Refresh, read lock-free
-	// on the stamping path.
-	byInode atomic.Pointer[map[uint64]*localnet.Snapshot]
+	// byInode maps a socket's netns inode -> that namespace's slot, which
+	// holds its local address/route snapshot. Read lock-free on the stamping
+	// path. The map is copy-on-write and changes only when a namespace
+	// appears or goes; Refresh and Listen both write it, under slotsMu. A
+	// snapshot update is a store into the slot, not a new map.
+	byInode atomic.Pointer[map[uint64]*localitySlot]
+	slotsMu sync.Mutex
 
 	// lastRefresh throttles the full re-dump to locality_refresh_interval;
 	// retry is the per-namespace negative cache. Both are touched only from
@@ -116,6 +120,87 @@ type localityIndex struct {
 	// rtnetlink dumps) and time.Now.
 	dumper func(nsIdentity) (*localnet.Snapshot, bool)
 	clock  func() time.Time
+
+	// listener holds the -localityEvents state; see enrich_locality_listen.go.
+	listener localityListenerSeams
+}
+
+// localitySlot is one namespace's published snapshot, plus the listener
+// state that keeps it current when -localityEvents is on.
+type localitySlot struct {
+	snap atomic.Pointer[localnet.Snapshot]
+
+	// mu orders the listener's publishes against Refresh's: live is set,
+	// and a dump published, only under it, so a dump Refresh started before
+	// the listener's first snapshot cannot overwrite that newer snapshot.
+	mu sync.Mutex
+	// live: a listener owns snap, and Refresh leaves this namespace alone.
+	live bool
+	// tracker is the listener's fold; pending says it has changes not yet
+	// published, with a flush timer set for them.
+	tracker *localnet.Tracker
+	pending bool
+}
+
+// publishDump stores a snapshot Refresh dumped, unless a listener owns the
+// slot.
+func (s *localitySlot) publishDump(snap *localnet.Snapshot) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.live {
+		s.snap.Store(snap)
+	}
+}
+
+func (s *localitySlot) isLive() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.live
+}
+
+// slots returns the current slot map, nil before the first Refresh or Listen.
+func (l *localityIndex) slots() map[uint64]*localitySlot {
+	if p := l.byInode.Load(); p != nil {
+		return *p
+	}
+	return nil
+}
+
+// syncSlots makes the slot map hold exactly the namespaces in nss: it keeps
+// existing slots (and so their snapshots and listeners), adds empty ones and
+// drops those of vanished namespaces. It returns the published map.
+func (l *localityIndex) syncSlots(nss map[uint64]nsIdentity) map[uint64]*localitySlot {
+	l.slotsMu.Lock()
+	defer l.slotsMu.Unlock()
+	cur := l.slots()
+	m := make(map[uint64]*localitySlot, len(nss))
+	for inode := range nss {
+		s := cur[inode]
+		if s == nil {
+			s = &localitySlot{}
+		}
+		m[inode] = s
+	}
+	l.byInode.Store(&m)
+	return m
+}
+
+// slotFor returns inode's slot, adding one if Refresh has not yet.
+func (l *localityIndex) slotFor(inode uint64) *localitySlot {
+	l.slotsMu.Lock()
+	defer l.slotsMu.Unlock()
+	cur := l.slots()
+	if s := cur[inode]; s != nil {
+		return s
+	}
+	m := make(map[uint64]*localitySlot, len(cur)+1)
+	for k, v := range cur {
+		m[k] = v
+	}
+	s := &localitySlot{}
+	m[inode] = s
+	l.byInode.Store(&m)
+	return s
 }
 
 func newLocalityIndex(x *XTCP) *localityIndex {
@@ -129,6 +214,9 @@ func newLocalityIndex(x *XTCP) *localityIndex {
 // initEnrichers gates.
 func (x *XTCP) initLocalityEnricher() {
 	if x.config == nil || !x.config.EnrichLocalityEnable {
+		if x.config.GetLocalityEventsEnable() {
+			log.Printf("initLocalityEnricher: -localityEvents ignored: it needs -enrichLocality")
+		}
 		return
 	}
 	x.locality = newLocalityIndex(x)
@@ -139,9 +227,9 @@ func (x *XTCP) initLocalityEnricher() {
 	}
 }
 
-// Active implements localityEnricher: true once any pass has published a map,
-// which is what keeps the stamping path a true no-op before the first
-// reconcile.
+// Active implements localityEnricher: true once a slot map has been
+// published, which is what keeps the stamping path a true no-op before the
+// first reconcile.
 func (l *localityIndex) Active() bool {
 	return l.byInode.Load() != nil
 }
@@ -149,11 +237,11 @@ func (l *localityIndex) Active() bool {
 // Resolve implements localityEnricher, flattening localnet.Resolution into the
 // untagged localityResult so that type stays inside this build.
 func (l *localityIndex) Resolve(inode uint64, dst netip.Addr, boundIfindex uint32) (localityResult, bool) {
-	m := l.byInode.Load()
-	if m == nil {
+	slot := l.slots()[inode]
+	if slot == nil {
 		return localityResult{}, false
 	}
-	snap := (*m)[inode]
+	snap := slot.snap.Load()
 	if snap == nil {
 		return localityResult{}, false
 	}
@@ -185,7 +273,7 @@ func (l *localityIndex) dump(id nsIdentity) (*localnet.Snapshot, bool) {
 }
 
 // Refresh rebuilds the netns-inode -> locality snapshot for the current
-// namespace set and publishes it atomically for the stamping path. It is called
+// namespace set, publishing each into its slot for the stamping path. It is called
 // only from the single-owner reconcile path (discoverNamespaces) under
 // reconcileMu, so lastRefresh and retry need no additional lock.
 //
@@ -205,19 +293,16 @@ func (l *localityIndex) dump(id nsIdentity) (*localnet.Snapshot, bool) {
 //   - failure (open/setns/dump error): the previous snapshot is kept, and the
 //     namespace is retried on the 30s→5m schedule instead of every reconcile.
 //
-// Retry state for namespaces that vanished is dropped. interval <= 0 means
-// there is never another full pass: each namespace is discovered once (plus
-// its retries) and never refreshed.
+// A namespace whose -localityEvents listener is live is skipped: the
+// listener publishes its snapshot. Slots, and retry state, of namespaces that
+// vanished are dropped. interval <= 0 means there is never another full pass:
+// each namespace is discovered once (plus its retries) and never refreshed.
 func (l *localityIndex) Refresh(nss map[uint64]nsIdentity) {
 	x := l.x
 	start := l.now()
 	interval := x.config.GetLocalityRefreshInterval().AsDuration()
 	full := l.lastRefresh.IsZero() || (interval > 0 && start.Sub(l.lastRefresh) >= interval)
 
-	var cur map[uint64]*localnet.Snapshot
-	if p := l.byInode.Load(); p != nil {
-		cur = *p
-	}
 	if l.retry == nil {
 		l.retry = make(map[uint64]localityRetryState)
 	}
@@ -227,10 +312,16 @@ func (l *localityIndex) Refresh(nss map[uint64]nsIdentity) {
 		budget = -1 // uncapped
 	}
 
-	var dumped, failed, loOnly, deferred, reused int
-	m := make(map[uint64]*localnet.Snapshot, len(nss))
+	slots := l.syncSlots(nss)
+	var dumped, failed, loOnly, deferred, reused, live int
 	for inode, id := range nss {
-		prev, had := cur[inode]
+		slot := slots[inode]
+		if slot.isLive() {
+			// A listener keeps this one current; see enrich_locality_listen.go.
+			live++
+			continue
+		}
+		had := slot.snap.Load() != nil
 		retry, retrying := l.retry[inode]
 
 		need := full || !had
@@ -242,16 +333,12 @@ func (l *localityIndex) Refresh(nss map[uint64]nsIdentity) {
 		}
 		if !need {
 			if had {
-				m[inode] = prev
 				reused++
 			}
 			continue
 		}
 		if budget == 0 {
-			deferred++
-			if had {
-				m[inode] = prev
-			}
+			deferred++ // keeps any previous snapshot meanwhile
 			continue
 		}
 		if budget > 0 {
@@ -262,17 +349,14 @@ func (l *localityIndex) Refresh(nss map[uint64]nsIdentity) {
 		dumped++
 		switch {
 		case !ok:
-			failed++
+			failed++ // keep the last good snapshot on a discovery failure
 			l.retry[inode] = nextLocalityRetry(retry, retrying, start, true)
-			if had {
-				m[inode] = prev // keep the last good snapshot on a discovery failure
-			}
 		case !snap.HasNonLoopbackSelf():
 			loOnly++
-			m[inode] = snap
+			slot.publishDump(snap)
 			l.retry[inode] = nextLocalityRetry(retry, retrying, start, false)
 		default:
-			m[inode] = snap
+			slot.publishDump(snap)
 			delete(l.retry, inode)
 		}
 	}
@@ -283,9 +367,14 @@ func (l *localityIndex) Refresh(nss map[uint64]nsIdentity) {
 		}
 	}
 
-	l.byInode.Store(&m)
 	if full {
 		l.lastRefresh = start
+	}
+	published := 0
+	for _, slot := range slots {
+		if slot.snap.Load() != nil {
+			published++
+		}
 	}
 
 	passType := "partial"
@@ -297,13 +386,14 @@ func (l *localityIndex) Refresh(nss map[uint64]nsIdentity) {
 	x.pC.WithLabelValues("refreshLocality", "failed", "count").Add(float64(failed))
 	x.pC.WithLabelValues("refreshLocality", "loopbackOnly", "count").Add(float64(loOnly))
 	x.pC.WithLabelValues("refreshLocality", "deferred", "count").Add(float64(deferred))
-	x.pGV.WithLabelValues("refreshLocality", "namespaces", "gauge").Set(float64(len(m)))
+	x.pC.WithLabelValues("refreshLocality", "live", "count").Add(float64(live))
+	x.pGV.WithLabelValues("refreshLocality", "namespaces", "gauge").Set(float64(published))
 	x.pGV.WithLabelValues("refreshLocality", "retryBackoff", "gauge").Set(float64(len(l.retry)))
 	x.pH.WithLabelValues("refreshLocality", passType, "duration").Observe(l.now().Sub(start).Seconds())
 
 	if x.debugLevel > 10 {
-		log.Printf("refreshLocality: %s pass namespaces:%d dumped:%d reused:%d failed:%d loopbackOnly:%d deferred:%d inBackoff:%d took:%s",
-			passType, len(m), dumped, reused, failed, loOnly, deferred, len(l.retry), l.now().Sub(start))
+		log.Printf("refreshLocality: %s pass namespaces:%d live:%d dumped:%d reused:%d failed:%d loopbackOnly:%d deferred:%d inBackoff:%d took:%s",
+			passType, published, live, dumped, reused, failed, loOnly, deferred, len(l.retry), l.now().Sub(start))
 	}
 }
 

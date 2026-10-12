@@ -199,6 +199,9 @@ const (
 	// loopback-only namespaces retry on their own 30s-5m backoff. 0 = discover
 	// each namespace once and never refresh (static topologies only).
 	localityRefreshIntervalCst = 60 * time.Second
+	// localityEventsCst keeps -enrichLocality on its timed re-dump until the
+	// rtnetlink listener has soaked.
+	localityEventsCst = false
 	// ASN enrichment is off by default and the artifact path has no sensible
 	// default. asnRefreshIntervalCst re-stats the artifact hourly and reloads it
 	// only when its size/mtime changed, so a refreshed — or late-arriving —
@@ -314,6 +317,7 @@ type mainFlags struct {
 
 	enrichLocality          *bool
 	localityRefreshInterval *time.Duration
+	localityEvents          *bool
 
 	linkMonitor                   *bool
 	linkMonitorBaselineFile       *string
@@ -575,6 +579,7 @@ func defineEnrichmentFlags(f *mainFlags) {
 	f.ipmetaCachePath = flag.String("ipmetaCachePath", ipmetaCachePathCst, "optional writable zstd-compressed lookup artifact used by -enrichAsn before the image bootstrap and refreshed after successful live reloads. Falls back to IPMETA_CACHE_PATH env.")
 	f.enrichLocality = flag.Bool("enrichLocality", enrichLocalityCst, "best-effort: per namespace, dump the local addresses + routing table via rtnetlink and classify each socket's destination as self/local-subnet/remote, stamping the enrich_socket_dest_locality + interface-name columns (bound idiag_if and route egress). Non-fatal on read failure. Falls back to ENRICH_LOCALITY env."+enricherBuildNote(xtcp.EnricherLocality))
 	f.localityRefreshInterval = flag.Duration("localityRefreshInterval", localityRefreshIntervalCst, "how often -enrichLocality re-dumps every namespace's addresses/routes on the reconcile path (new namespaces are always dumped on the next reconcile; failed or loopback-only namespaces retry on a 30s-5m backoff); 0 = discover each namespace once, never refresh. Falls back to LOCALITY_REFRESH_INTERVAL env.")
+	f.localityEvents = flag.Bool("localityEvents", localityEventsCst, "with -enrichLocality, keep each namespace's locality snapshot current from rtnetlink link/address/route notifications (one listener per namespace) so a change shows within about a second; -localityRefreshInterval then becomes a backstop resync. Ignored without -enrichLocality. Falls back to LOCALITY_EVENTS env.")
 }
 
 // printFlags echoes every flag xtcp2 will act on to stdout at startup.
@@ -702,6 +707,7 @@ func printEnrichmentFlags(f *mainFlags) {
 	fmt.Println("*ipmetaCachePath:", *f.ipmetaCachePath)
 	fmt.Println("*enrichLocality:", *f.enrichLocality)
 	fmt.Println("*localityRefreshInterval:", *f.localityRefreshInterval)
+	fmt.Println("*localityEvents:", *f.localityEvents)
 	// Which enrichers this artifact actually contains. Printed next to the
 	// flags because the two together are what determine whether the enrich_*
 	// columns will be populated; either one alone is misleading.
@@ -800,6 +806,7 @@ func buildConfig(f *mainFlags, des *xtcp_config.EnabledDeserializers) *xtcp_conf
 		IpmetaCachePath:         *f.ipmetaCachePath,
 		EnrichLocalityEnable:    *f.enrichLocality,
 		LocalityRefreshInterval: durationpb.New(*f.localityRefreshInterval),
+		LocalityEventsEnable:    *f.localityEvents,
 		LinkMonitor:             buildLinkMonitorConfig(f),
 		Ipv4Ttl:                 uint32(*f.ipv4Ttl),
 		Ipv6HopLimit:            uint32(*f.ipv6HopLimit),
@@ -1953,6 +1960,10 @@ func envOverrideEnrichment(c *xtcp_config.XtcpConfig, debugLevel uint) {
 		c.LocalityRefreshInterval = durationpb.New(d)
 		logEnv("LOCALITY_REFRESH_INTERVAL", fmt.Sprintf("c.LocalityRefreshInterval:%s", c.LocalityRefreshInterval.String()), debugLevel)
 	}
+	if v, ok := envBool("LOCALITY_EVENTS"); ok {
+		c.LocalityEventsEnable = v
+		logEnv("LOCALITY_EVENTS", fmt.Sprintf("c.LocalityEventsEnable:%t", v), debugLevel)
+	}
 	if v, ok := envUint32("UPLINK_COUNT"); ok {
 		c.UplinkCount = v
 		logEnv("UPLINK_COUNT", fmt.Sprintf("c.UplinkCount:%d", v), debugLevel)
@@ -2132,6 +2143,7 @@ func printConfig(c *xtcp_config.XtcpConfig, comment string) {
 	fmt.Println("c.EnrichLocalityEnable:", c.EnrichLocalityEnable)
 	fmt.Println("compiledInEnrichers:", xtcp.CompiledInEnrichers())
 	fmt.Println("c.LocalityRefreshInterval:", c.LocalityRefreshInterval)
+	fmt.Println("c.LocalityEventsEnable:", c.LocalityEventsEnable)
 	printLinkMonitorConfig(c)
 	fmt.Println("c.GrpcPort:", c.GrpcPort)
 	if c.GrpcListener == nil {

@@ -882,6 +882,10 @@
           "type": "string",
           "description": "How often to re-discover local addresses/routes per namespace so runtime\nchanges (interfaces up/down, routes added) are picked up. Newly-appeared\nnamespaces are always snapshotted on the next reconcile regardless. 0 =\ndiscover once per namespace, never refresh. Daemon default 60s."
         },
+        "localityEventsEnable": {
+          "type": "boolean",
+          "description": "Keep each namespace's locality snapshot current from rtnetlink\nnotifications (link, address and route changes) instead of waiting for\nthe next refresh: an update shows within about a second.\nlocality_refresh_interval then becomes the backstop, a resync taken\nafter that long. Needs enrich_locality_enable. Default false."
+        },
         "linkMonitor": {
           "$ref": "#/definitions/v1LinkMonitorConfig",
           "description": "Physical link monitor; see LinkMonitorConfig."
