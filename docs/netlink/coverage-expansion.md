@@ -661,7 +661,7 @@ unblocking first, hand-declared-constant families last.
 | **3** | Adjacent rtnetlink: rules (`FRA_*`), nexthop (`NHA_*` + nested `rtnexthop`), bridge/VLAN, ~~`IFLA_LINKINFO` descent~~ — `IFLA_INFO_DATA` sub-nest only, the kind landed | All constants and structs already in `unix` | ~~§12~~ |
 | **4** | tc **telemetry only** — the 23 top-level `TCA_*`, not the 344 config nests | Cheap once scoped correctly; needs `Tcmsg`/`TCStats`/`TCStats2` declared | — |
 | **5** | genetlink: `nlctrl` `GETFAMILY` resolution **first**, then ethtool, devlink, netdev, vdpa, fou, gtp | Dynamic family-ID resolution is a hard prerequisite for all of them | — |
-| **6** | Hand-declared constant families: xfrm, conntrack, ipset, proc_event, rdma | Each needs its own constant block, subscriber and kernel module | — |
+| **6** | Hand-declared constant families: xfrm, conntrack, ipset, proc_event, rdma (nldev decode landed, the `RES_*` object replies included; see `coverage-status.md`) | Each needs its own constant block, subscriber and kernel module | — |
 | **7** | diag siblings (`unix_diag`, `xdp_diag`) **and** the deferred relocation of the existing families into `rtnl/` and `diag/` | The relocation is mechanical and belongs after the new work, as one commit | — |
 
 ### Two cross-cutting notes

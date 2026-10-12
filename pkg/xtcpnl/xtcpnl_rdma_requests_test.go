@@ -89,6 +89,14 @@ func TestBuildRdmaRequest(t *testing.T) {
 	}
 }
 
+// rdmaMust is a builder's request for a command it admits.
+func rdmaMust(b []byte, err error) []byte {
+	if err != nil {
+		panic(err)
+	}
+	return b
+}
+
 // TestRdmaRequestsMatchRdma holds each wrapper to the request `rdma` sent in
 // the captured corpus, byte for byte once seq is zeroed (rdma's seq is
 // time(NULL), rd_prepare_msg, rdma/utils.c). rxe0 is device 0.
@@ -117,6 +125,32 @@ func TestRdmaRequestsMatchRdma(t *testing.T) {
 			expected: BuildRdmaDevGetRequest(0, 0)},
 		{description: "corner: link show with no argument sends the same doit", slug: "link_show", nth: 1,
 			expected: BuildRdmaPortGetRequest(0, 1, 0)},
+		{description: "positive: res show qp dumps port 0 first", slug: "res_qp", nth: 1,
+			expected: rdmaMust(BuildRdmaResDumpRequest(RdmaNldevCmdResQPGet, 0, 0, 0))},
+		{description: "positive: then port 1", slug: "res_qp", nth: 2,
+			expected: rdmaMust(BuildRdmaResDumpRequest(RdmaNldevCmdResQPGet, 0, 1, 0))},
+		{description: "positive: the cm_id dumps, per port too", slug: "res_cm_id", nth: 2,
+			expected: rdmaMust(BuildRdmaResDumpRequest(RdmaNldevCmdResCMIDGet, 0, 1, 0))},
+		{description: "positive: the cq dump, once per device", slug: "res_cq", nth: 1,
+			expected: rdmaMust(BuildRdmaResDumpRequest(RdmaNldevCmdResCQGet, 0, 0, 0))},
+		{description: "positive: the mr dump", slug: "res_mr", nth: 1,
+			expected: rdmaMust(BuildRdmaResDumpRequest(RdmaNldevCmdResMRGet, 0, 0, 0))},
+		{description: "positive: the pd dump", slug: "res_pd", nth: 1,
+			expected: rdmaMust(BuildRdmaResDumpRequest(RdmaNldevCmdResPDGet, 0, 0, 0))},
+		{description: "positive: the ctx dump", slug: "res_ctx", nth: 1,
+			expected: rdmaMust(BuildRdmaResDumpRequest(RdmaNldevCmdResCtxGet, 0, 0, 0))},
+		{description: "positive: the srq dump", slug: "res_srq", nth: 1,
+			expected: rdmaMust(BuildRdmaResDumpRequest(RdmaNldevCmdResSRQGet, 0, 0, 0))},
+		{description: "positive: the cqn doit, no PORT_INDEX", slug: "res_cq_cqn", nth: 1,
+			expected: rdmaMust(BuildRdmaResDoitRequest(RdmaNldevCmdResCQGet, 0, 0, RdmaNldevAttrResCQN, 1, 0))},
+		{description: "corner: the lqpn doit carries the port", slug: "res_qp_lqpn", nth: 1,
+			expected: rdmaMust(BuildRdmaResDoitRequest(RdmaNldevCmdResQPGet, 0, 1, RdmaNldevAttrResLQPN, 1, 0))},
+		{description: "corner: the fallback dumps the named port only", slug: "res_qp_lqpn", nth: 2,
+			expected: rdmaMust(BuildRdmaResDumpRequest(RdmaNldevCmdResQPGet, 0, 1, 0))},
+		{description: "corner: -j leaves the res dump alone", slug: "res_qp_json", nth: 2,
+			expected: rdmaMust(BuildRdmaResDumpRequest(RdmaNldevCmdResQPGet, 0, 1, 0))},
+		{description: "corner: a busy res show sends the same RES_GET", slug: "res_show_busy", nth: 1,
+			expected: BuildRdmaResGetRequest(0, 0, 0)},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {

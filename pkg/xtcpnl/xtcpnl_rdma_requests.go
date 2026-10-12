@@ -108,15 +108,68 @@ func BuildRdmaSysGetRequest(seq uint32) []byte {
 // device index, because rdma puts it on every resource request. port 0 sends
 // no PORT_INDEX, as rdma does when no port was named.
 func BuildRdmaResGetRequest(dev, port, seq uint32) []byte {
-	// DRIVER_DETAILS: rta_len 5, the u8 0, three bytes of padding.
-	attrs := binary.LittleEndian.AppendUint16(nil, rdmaU8AttrLenCst)
+	return rdmaRequest(RdmaNldevCmdResGet, rdmaDoitFlagsCst, seq, rdmaResAttrs(dev, port))
+}
+
+// rdmaDriverDetails appends DRIVER_DETAILS 0: rta_len 5, the u8, three bytes
+// of padding.
+func rdmaDriverDetails(attrs []byte) []byte {
+	attrs = binary.LittleEndian.AppendUint16(attrs, rdmaU8AttrLenCst)
 	attrs = binary.LittleEndian.AppendUint16(attrs, RdmaNldevAttrDriverDetails)
-	attrs = append(attrs, 0, 0, 0, 0)
+	return append(attrs, 0, 0, 0, 0)
+}
+
+// rdmaResAttrs is _res_send_msg's attributes (rdma/res.c): DRIVER_DETAILS,
+// DEV_INDEX, and PORT_INDEX when port is not 0.
+func rdmaResAttrs(dev, port uint32) []byte {
+	attrs := rdmaDriverDetails(nil)
 	attrs = append(attrs, rdmaIndexAttrs(uint32(RdmaNldevAttrDevIndex), dev)...)
 	if port != 0 {
 		attrs = append(attrs, rdmaIndexAttrs(uint32(RdmaNldevAttrPortIndex), port)...)
 	}
-	return rdmaRequest(RdmaNldevCmdResGet, rdmaDoitFlagsCst, seq, attrs)
+	return attrs
+}
+
+// isRdmaResObjectCmd reports whether cmd is one of the seven per-object
+// resource GETs. Their _RAW variants are not: IsRdmaGetCmd refuses them.
+func isRdmaResObjectCmd(cmd uint16) bool {
+	switch cmd {
+	case RdmaNldevCmdResQPGet, RdmaNldevCmdResCMIDGet, RdmaNldevCmdResCQGet,
+		RdmaNldevCmdResMRGet, RdmaNldevCmdResPDGet, RdmaNldevCmdResCtxGet,
+		RdmaNldevCmdResSRQGet:
+		return true
+	}
+	return false
+}
+
+// BuildRdmaResDumpRequest is `rdma res show <object>`'s per-device dump
+// (_res_send_msg, rdma/res.c). rdma sends the QP and CM ID dumps once per
+// port, port 0 first, and the others once per device with port 0, which
+// sends no PORT_INDEX. cmd must be one of the seven object GETs, or
+// ErrRdmaCmd is returned.
+func BuildRdmaResDumpRequest(cmd uint16, dev, port, seq uint32) ([]byte, error) {
+	if !isRdmaResObjectCmd(cmd) {
+		return nil, ErrRdmaCmd
+	}
+	return rdmaRequest(cmd, rdmaDumpFlagsCst, seq, rdmaResAttrs(dev, port)), nil
+}
+
+// BuildRdmaResDoitRequest is an id filter's doit, `rdma res show cq cqn 3`
+// for instance (_res_send_idx_msg, rdma/res.c): DEV_INDEX, PORT_INDEX when
+// port is not 0, idAttr with id, then DRIVER_DETAILS. The kernel requires a
+// port for the QP and CM ID doits and refuses one for the rest
+// (res_get_common_doit, nldev.c). cmd must be one of the seven object GETs,
+// or ErrRdmaCmd is returned.
+func BuildRdmaResDoitRequest(cmd uint16, dev, port uint32, idAttr uint16, id, seq uint32) ([]byte, error) {
+	if !isRdmaResObjectCmd(cmd) {
+		return nil, ErrRdmaCmd
+	}
+	attrs := rdmaIndexAttrs(uint32(RdmaNldevAttrDevIndex), dev)
+	if port != 0 {
+		attrs = append(attrs, rdmaIndexAttrs(uint32(RdmaNldevAttrPortIndex), port)...)
+	}
+	attrs = append(attrs, rdmaIndexAttrs(uint32(idAttr), id)...)
+	return rdmaRequest(cmd, rdmaDoitFlagsCst, seq, rdmaDriverDetails(attrs)), nil
 }
 
 // BuildRdmaStatGetRequest is `rdma statistic show link <dev>/<port>`

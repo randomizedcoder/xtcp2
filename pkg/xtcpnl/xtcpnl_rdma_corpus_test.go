@@ -1,6 +1,10 @@
 package xtcpnl
 
 import (
+	"bytes"
+	"encoding/binary"
+	"errors"
+	"fmt"
 	"os"
 	"reflect"
 	"strings"
@@ -43,23 +47,60 @@ func corpusRxeCounters() []RdmaHwCounter {
 	return out
 }
 
+// rdmaCorpusSlugs is every row of the committed corpus, in capture order
+// (scripts/capture-rdma.exp). Every corpus-wide test reads this one list,
+// and TestRdmaCorpusSlugs holds it to the directory.
+var rdmaCorpusSlugs = []string{
+	"dev_show", "dev_show_one", "dev_show_json", "dev_missing", "link_show", "link_show_one",
+	"link_missing", "res_show", "stat_show", "sys_show", "monitor_add",
+	// Kernel-owned objects only, before any holder runs.
+	"res_qp", "res_cq", "res_pd", "res_mr_empty", "res_qp_json", "res_qp_lqpn", "res_qp_raw",
+	// With the RC, SRQ and rping holders running.
+	"res_show_busy", "res_qp_user", "res_cq_user", "res_mr", "res_pd_user", "res_ctx", "res_srq",
+	"res_cm_id", "res_cq_cqn",
+}
+
+// rdmaCorpusErrnos is the one errno each row that has one recorded, in a
+// NLMSG_ERROR or NLMSG_DONE. Every other row's errnos are all 0.
+//
+//   - res_qp_lqpn: the doit for `lqpn 1` is refused, because the GSI QP's
+//     restrack id is not its QP number; rdma falls back to the dump.
+//   - res_qp_raw: rxe has no raw QP fill, so the RAW dump ends -EINVAL.
+var rdmaCorpusErrnos = map[string]int32{
+	"res_qp_lqpn": -int32(unix.ENOENT),
+	"res_qp_raw":  -int32(unix.EINVAL),
+}
+
 // rdmaCorpusReplies decodes every nldev message the kernel sent in a row, in
-// order, and checks every NLMSG_ERROR is an ACK of a request in the row.
+// order, and checks every non-zero errno, in an NLMSG_ERROR or an
+// NLMSG_DONE, is the row's rdmaCorpusErrnos entry and that a row with one
+// recorded it.
 func rdmaCorpusReplies(t *testing.T, slug string) (replies []any, types []uint16, requests int) {
 	t.Helper()
+	want, seen := rdmaCorpusErrnos[slug], false
+	check := func(errno int32, what string) {
+		switch errno {
+		case 0:
+		case want:
+			seen = true
+		default:
+			t.Errorf("%s: errno %d in %s, want %d", slug, errno, what, want)
+		}
+	}
 	for _, m := range rdmaCorpus(t, slug) {
 		switch {
 		case m.send:
 			requests++
 		case m.typ == unix.NLMSG_DONE:
+			if len(m.body) >= 4 {
+				check(int32(binary.LittleEndian.Uint32(m.body)), "NLMSG_DONE") //nolint:gosec // the wire int
+			}
 		case m.typ == unix.NLMSG_ERROR:
 			e, err := ParseNlMsgErr(m.flags, m.body)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if e.Errno != 0 {
-				t.Errorf("%s: errno %d for request type %#x", slug, -e.Errno, e.RequestType)
-			}
+			check(e.Errno, fmt.Sprintf("the NLMSG_ERROR for request type %#x", e.RequestType))
 		default:
 			v, err := ParseRdmaMsg(m.typ, m.body)
 			if err != nil {
@@ -68,6 +109,9 @@ func rdmaCorpusReplies(t *testing.T, slug string) (replies []any, types []uint16
 			replies = append(replies, v)
 			types = append(types, m.typ)
 		}
+	}
+	if want != 0 && !seen {
+		t.Errorf("%s: errno %d was not recorded", slug, want)
 	}
 	return replies, types, requests
 }
@@ -178,16 +222,23 @@ func TestRdmaCorpusSidecars(t *testing.T) {
 // TestRdmaCorpusHasNoUnknown is the constant block's coverage claim: every
 // attribute 7.1.4 sent in the corpus is one the decoders read.
 func TestRdmaCorpusHasNoUnknown(t *testing.T) {
-	for _, slug := range []string{"dev_show", "dev_show_one", "dev_show_json", "dev_missing", "link_show",
-		"link_show_one", "link_missing", "res_show", "stat_show", "sys_show", "monitor_add"} {
+	for _, slug := range rdmaCorpusSlugs {
 		t.Run("corner: "+slug, func(t *testing.T) {
 			replies, _, _ := rdmaCorpusReplies(t, slug)
 			if len(replies) == 0 {
 				t.Fatal("no replies")
 			}
 			for i, r := range replies {
-				if u := reflect.ValueOf(r).FieldByName("Unknown"); u.Len() != 0 {
+				v := reflect.ValueOf(r)
+				if u := v.FieldByName("Unknown"); u.Len() != 0 {
 					t.Errorf("reply %d: Unknown %v", i, u.Interface())
+				}
+				if es := v.FieldByName("Entries"); es.IsValid() {
+					for j := range es.Len() {
+						if u := es.Index(j).FieldByName("Unknown"); u.Len() != 0 {
+							t.Errorf("reply %d entry %d: Unknown %v", i, j, u.Interface())
+						}
+					}
 				}
 			}
 		})
@@ -199,9 +250,15 @@ func TestRdmaCorpusHasNoUnknown(t *testing.T) {
 // richer capture lands; never lower it without recording why the corpus
 // shrank. It is the rdma counterpart of TestAttrCoverageFloors, kept here
 // because that test reads pcaps and this corpus is strace.
-const rdmaCaptureCoverageCst = 27
+const rdmaCaptureCoverageCst = 68
 
 func TestRdmaAttrCoverageFloor(t *testing.T) {
+	btoi := func(b bool) int {
+		if b {
+			return 1
+		}
+		return 0
+	}
 	seen := map[uint16]bool{}
 	var walk func(b []byte)
 	walk = func(b []byte) {
@@ -214,7 +271,7 @@ func TestRdmaAttrCoverageFloor(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	for _, slug := range []string{"dev_show", "link_show", "res_show", "stat_show", "sys_show", "monitor_add"} {
+	for _, slug := range rdmaCorpusSlugs {
 		for _, m := range rdmaCorpus(t, slug) {
 			if !m.send && RdmaNlGetClient(m.typ) == RdmaNlNldev {
 				walk(m.body)
@@ -228,7 +285,11 @@ func TestRdmaAttrCoverageFloor(t *testing.T) {
 	}{
 		{description: "positive: the corpus carries at least the floor", got: min(len(seen), rdmaCaptureCoverageCst),
 			expected: rdmaCaptureCoverageCst},
+		{description: "negative: the floor is not stale; raise it when the corpus grows", got: len(seen),
+			expected: rdmaCaptureCoverageCst},
 		{description: "boundary: the floor is not vacuous", got: min(rdmaCaptureCoverageCst, 1), expected: 1},
+		{description: "boundary: attributes inside RES_*_ENTRY nests count", got: btoi(seen[RdmaNldevAttrResLQPN]), expected: 1},
+		{description: "corner: the sockaddr attributes count", got: btoi(seen[RdmaNldevAttrResSrcAddr]), expected: 1},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
@@ -240,19 +301,226 @@ func TestRdmaAttrCoverageFloor(t *testing.T) {
 	t.Logf("real kernel bytes carry %d distinct nldev attributes (floor %d)", len(seen), rdmaCaptureCoverageCst)
 }
 
-// FuzzParseRdmaMsg checks ParseRdmaMsg never panics, seeded with every
-// nldev message in the corpus.
+// rdmaDecodeErrs are the errors ParseRdmaMsg may return; any other is a
+// bug.
+var rdmaDecodeErrs = []error{ErrRdmaAttrLen, ErrRdmaAttrString, ErrRdmaMsgType, ErrRTAttrSmall}
+
+func isRdmaDecodeErr(err error) bool {
+	for _, e := range rdmaDecodeErrs {
+		if errors.Is(err, e) {
+			return true
+		}
+	}
+	return false
+}
+
+// FuzzParseRdmaMsg checks ParseRdmaMsg never panics, returns no error it
+// does not declare, and decodes the same bytes the same way twice. It is
+// seeded with every nldev message in the corpus, each of which decodes.
 //
 // go test ./pkg/xtcpnl/ -run FuzzParseRdmaMsg -fuzz FuzzParseRdmaMsg
 func FuzzParseRdmaMsg(f *testing.F) {
-	for _, slug := range []string{"dev_show", "link_show", "res_show", "stat_show", "sys_show", "monitor_add"} {
+	for _, slug := range rdmaCorpusSlugs {
 		for _, m := range rdmaCorpus(f, slug) {
 			if RdmaNlGetClient(m.typ) == RdmaNlNldev {
+				if !m.send {
+					if _, err := ParseRdmaMsg(m.typ, m.body); err != nil {
+						f.Fatalf("%s: seed type %#x: %v", slug, m.typ, err)
+					}
+				}
 				f.Add(m.typ, m.body)
 			}
 		}
 	}
-	f.Fuzz(func(_ *testing.T, msgType uint16, body []byte) {
-		_, _ = ParseRdmaMsg(msgType, body)
+	f.Fuzz(func(t *testing.T, msgType uint16, body []byte) {
+		a, err := ParseRdmaMsg(msgType, body)
+		if err != nil {
+			if !isRdmaDecodeErr(err) {
+				t.Fatalf("undeclared error %v", err)
+			}
+			return
+		}
+		if b, _ := ParseRdmaMsg(msgType, body); !reflect.DeepEqual(a, b) {
+			t.Fatalf("two decodes differ\n%+v\n%+v", a, b)
+		}
 	})
+}
+
+// TestParseRdmaMsgEmptyBodies is the fuzz target's boundary: every decoded
+// type takes an empty body, and so does nothing else.
+func TestParseRdmaMsgEmptyBodies(t *testing.T) {
+	tests := []struct {
+		description string
+		cmd         uint16
+		expected    error
+	}{
+		{description: "positive: GET", cmd: RdmaNldevCmdGet},
+		{description: "positive: PORT_GET", cmd: RdmaNldevCmdPortGet},
+		{description: "positive: SYS_GET", cmd: RdmaNldevCmdSysGet},
+		{description: "positive: RES_GET", cmd: RdmaNldevCmdResGet},
+		{description: "positive: STAT_GET", cmd: RdmaNldevCmdStatGet},
+		{description: "positive: MONITOR", cmd: RdmaNldevCmdMonitor},
+		{description: "boundary: RES_QP_GET, the first object GET", cmd: RdmaNldevCmdResQPGet},
+		{description: "boundary: RES_SRQ_GET, the last", cmd: RdmaNldevCmdResSRQGet},
+		{description: "negative: RES_QP_GET_RAW", cmd: RdmaNldevCmdResQPGetRaw, expected: ErrRdmaMsgType},
+		{description: "corner: UNSPEC", cmd: RdmaNldevCmdUnspec, expected: ErrRdmaMsgType},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			v, err := ParseRdmaMsg(RdmaNlGetType(RdmaNlNldev, tc.cmd), nil)
+			if !errors.Is(err, tc.expected) {
+				t.Fatalf("err %v, want %v", err, tc.expected)
+			}
+			if err == nil && !reflect.ValueOf(v).IsValid() {
+				t.Error("nil value with a nil error")
+			}
+		})
+	}
+}
+
+// maskRdmaVolatile returns value, or for an attribute whose value differs
+// run to run a zeroed copy of it: the owner's pid, the keys and PSNs the
+// kernel and rdma-core pick, and the object numbers. A sockaddr keeps its
+// family and address and loses its port. Masking keys on the type alone,
+// never on the value.
+func maskRdmaVolatile(attrType uint16, value []byte) []byte {
+	switch attrType {
+	case RdmaNldevAttrResPID, RdmaNldevAttrResLQPN, RdmaNldevAttrResRQPN, RdmaNldevAttrResRqPSN,
+		RdmaNldevAttrResSqPSN, RdmaNldevAttrResRKey, RdmaNldevAttrResLKey, RdmaNldevAttrResLocalDMALKey,
+		RdmaNldevAttrResUnsafeGlobalRKey, RdmaNldevAttrResPDN, RdmaNldevAttrResCQN, RdmaNldevAttrResMRN,
+		RdmaNldevAttrResCtxn, RdmaNldevAttrResSRQN, RdmaNldevAttrResCMIDN, RdmaNldevAttrMinRange,
+		RdmaNldevAttrMaxRange:
+		return make([]byte, len(value))
+	case RdmaNldevAttrResSrcAddr, RdmaNldevAttrResDstAddr:
+		v := bytes.Clone(value)
+		if len(v) >= rdmaSinAddrOffCst {
+			clear(v[rdmaSinPortOffCst:rdmaSinAddrOffCst])
+		}
+		return v
+	}
+	return value
+}
+
+// maskRdmaMsg is a netlink message with its seq and pid zeroed and every
+// attribute, nested ones included, passed through maskRdmaVolatile.
+func maskRdmaMsg(t testing.TB, raw []byte) []byte {
+	t.Helper()
+	m := bytes.Clone(raw)
+	clear(m[8:NlMsgHdrSizeCst])
+	// An NLMSG_ERROR echoes the request's header after its errno.
+	if binary.LittleEndian.Uint16(m[4:6]) == unix.NLMSG_ERROR && len(m) >= NlMsgHdrSizeCst+4+NlMsgHdrSizeCst {
+		clear(m[NlMsgHdrSizeCst+4+8 : NlMsgHdrSizeCst+4+NlMsgHdrSizeCst])
+		return m
+	}
+	if RdmaNlGetClient(binary.LittleEndian.Uint16(m[4:6])) != RdmaNlNldev {
+		return m
+	}
+	var walk func(b []byte)
+	walk = func(b []byte) {
+		if err := WalkRTAttrs(b, func(atype uint16, val []byte) {
+			if rdmaKindOf(atype) == rdmaKindNested {
+				walk(val)
+				return
+			}
+			copy(val, maskRdmaVolatile(atype, val))
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	walk(m[NlMsgHdrSizeCst:])
+	return m
+}
+
+func TestMaskRdmaVolatile(t *testing.T) {
+	listen := make([]byte, rdmaSockaddrLenCst)
+	binary.LittleEndian.PutUint16(listen[0:2], rdmaAfInetCst)
+	binary.BigEndian.PutUint16(listen[2:4], 7174)
+	copy(listen[rdmaSinAddrOffCst:], []byte{10, 99, 0, 1})
+	masked := bytes.Clone(listen)
+	clear(masked[2:4])
+	tests := []struct {
+		description string
+		attrType    uint16
+		value       []byte
+		expected    []byte
+	}{
+		{description: "positive: PID is masked", attrType: RdmaNldevAttrResPID, value: le32(1234), expected: le32(0)},
+		{description: "positive: LQPN is masked", attrType: RdmaNldevAttrResLQPN, value: le32(17), expected: le32(0)},
+		{description: "negative: RES_TYPE is kept", attrType: RdmaNldevAttrResType, value: []byte{2}, expected: []byte{2}},
+		{description: "negative: KERN_NAME is kept", attrType: RdmaNldevAttrResKernName,
+			value: []byte("ib_core\x00"), expected: []byte("ib_core\x00")},
+		{description: "boundary: a sockaddr loses its port and keeps its address", attrType: RdmaNldevAttrResSrcAddr,
+			value: listen, expected: masked},
+		{description: "corner: the GSI QP's LQPN 1 is masked too", attrType: RdmaNldevAttrResLQPN,
+			value: le32(1), expected: le32(0)},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			in := bytes.Clone(tc.value)
+			if got := maskRdmaVolatile(tc.attrType, in); !bytes.Equal(got, tc.expected) {
+				t.Errorf("got %x, want %x", got, tc.expected)
+			}
+			if !bytes.Equal(in, tc.value) {
+				t.Errorf("the input was modified: %x", in)
+			}
+		})
+	}
+}
+
+// TestRdmaRecaptureMatches compares a fresh capture, unpacked with
+// `nix run .#microvm-x86_64-rdma-capture -- --out <dir>`, against the
+// committed corpus: every row's messages equal once masked. It runs only
+// with XTCPNL_RDMA_RECAPTURE=<dir>.
+func TestRdmaRecaptureMatches(t *testing.T) {
+	dir := os.Getenv("XTCPNL_RDMA_RECAPTURE")
+	if dir == "" {
+		t.Skip("XTCPNL_RDMA_RECAPTURE is not set")
+	}
+	// Both trees are opened as roots, so a slug cannot reach outside them.
+	open := func(path string) *os.Root {
+		r, err := os.OpenRoot(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := r.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		return r
+	}
+	corpus, recapture := open(tdRdma_7_1_4), open(dir)
+	read := func(t *testing.T, root *os.Root, name string) [][]byte {
+		f, err := root.Open(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if err := f.Close(); err != nil {
+				t.Error(err)
+			}
+		}()
+		dgs, err := parseStrace(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out [][]byte
+		for _, m := range straceNlMsgs(t, dgs) {
+			out = append(out, maskRdmaMsg(t, m.raw))
+		}
+		return out
+	}
+	for _, slug := range rdmaCorpusSlugs {
+		t.Run("positive: "+slug, func(t *testing.T) {
+			want, got := read(t, corpus, slug+".strace"), read(t, recapture, slug+".strace")
+			if len(got) != len(want) {
+				t.Fatalf("%d messages, the corpus has %d", len(got), len(want))
+			}
+			for i := range want {
+				if !bytes.Equal(got[i], want[i]) {
+					t.Errorf("message %d differs\nrecapture %x\ncorpus    %x", i, got[i], want[i])
+				}
+			}
+		})
+	}
 }

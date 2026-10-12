@@ -109,8 +109,10 @@ pkgs.writeShellApplication {
     gzip
     iproute2
     kmod
+    rdma-core
     strace
     tcpdump
+    util-linux
   ];
   text = ''
     set -euo pipefail
@@ -774,6 +776,115 @@ pkgs.writeShellApplication {
       return 1
     }
 
+    # RDMA object holders. The RES_* object rows need user-owned QPs, CQs,
+    # MRs, PDs, contexts, an SRQ and a CM ID to exist while `rdma res show`
+    # runs. rdma-core's pingpong servers allocate all of them before they
+    # block waiting for a peer, and an rping server holds a listening CM ID,
+    # so each is started with no peer and left waiting. They are not traced:
+    # only the `rdma` command of a row is the row.
+    #
+    # Each holder runs in its own session, so its process group is its pid
+    # and one kill reaches everything it started. Their state lives outside
+    # $OUT so pack never ships it.
+    HOLD=/tmp/nlcap-hold
+
+    # rdma-hold <name> <command>
+    cmd_rdma_hold() {
+      local name=$1 command=$2
+      mkdir -p "$HOLD"
+      setsid sh -c "$command" >"$HOLD/$name.log" 2>&1 </dev/null &
+      echo "$!" >"$HOLD/$name.pid"
+      echo "NLCAP_RDMA_HOLD_STARTED $name pid=$!"
+    }
+
+    # rdma-hold-wait <timeout> <resource>=<min>...
+    #
+    # Polls `rdma res show` until every named resource's count is at least
+    # its minimum, so no row races a holder still allocating. The driver
+    # waits on each holder before starting the next, which makes the object
+    # numbers, a CQN for instance, the same on every run.
+    cmd_rdma_hold_wait() {
+      local timeout=$1 start deadline v="" r n ok
+      shift
+      start=$(date +%s)
+      deadline=$(( start + timeout ))
+      while :; do
+        v="$(rdma res show 2>/dev/null)" || v=""
+        ok=1
+        for r in "$@"; do
+          n=$(printf '%s\n' "$v" | sed -n "s/.* ''${r%=*} \([0-9]*\) .*/\1/p")
+          if [ -z "$n" ] || [ "$n" -lt "''${r#*=}" ]; then
+            ok=0
+          fi
+        done
+        if [ "$ok" -eq 1 ]; then
+          echo "NLCAP_RDMA_HOLD_OK elapsed=$(( $(date +%s) - start ))s $v"
+          return 0
+        fi
+        if [ "$(date +%s)" -ge "$deadline" ]; then
+          break
+        fi
+        sleep 0.1
+      done
+      echo "NLCAP_RDMA_HOLD_TIMEOUT want $* got: $v"
+      for r in "$HOLD"/*.log; do
+        [ -e "$r" ] && sed "s|^|$(basename "$r" .log): |" "$r"
+      done
+      return 1
+    }
+
+    # rdma-hold-stop
+    #
+    # SIGTERM to every holder's process group, a bounded wait, then SIGKILL.
+    cmd_rdma_hold_stop() {
+      local f pid deadline left
+      for f in "$HOLD"/*.pid; do
+        [ -e "$f" ] || continue
+        kill -TERM -- "-$(cat "$f")" 2>/dev/null || true
+      done
+      deadline=$(( $(date +%s) + 5 ))
+      while :; do
+        left=0
+        for f in "$HOLD"/*.pid; do
+          [ -e "$f" ] || continue
+          if kill -0 "$(cat "$f")" 2>/dev/null; then
+            left=1
+          fi
+        done
+        if [ "$left" -eq 0 ] || [ "$(date +%s)" -ge "$deadline" ]; then
+          break
+        fi
+        sleep 0.05
+      done
+      for f in "$HOLD"/*.pid; do
+        [ -e "$f" ] || continue
+        pid=$(cat "$f")
+        if kill -0 "$pid" 2>/dev/null; then
+          echo "NLCAP_RDMA_HOLD_KILLED $(basename "$f" .pid)" >&2
+          kill -KILL -- "-$pid" 2>/dev/null || true
+        fi
+        rm -f -- "$f"
+      done
+      echo "NLCAP_RDMA_HOLD_STOPPED"
+    }
+
+    # rdma-user-cqn <subdir> <row>
+    #
+    # The number of the first user-owned CQ in a captured `rdma res show cq`
+    # row's stdout, so a doit row can name a CQ that exists. Here rather than
+    # in the driver because an awk program survives no quoting over the serial
+    # console.
+    cmd_rdma_user_cqn() {
+      local f="$OUT/$1/$2.out" n
+      n=$(awk '/ pid /{for(i=1;i<NF;i++) if($i=="cqn"){print $(i+1); exit}}' "$f")
+      case "$n" in
+        "" | *[!0-9]*)
+          echo "NLCAP_RDMA_NO_USER_CQN in $f" >&2
+          return 1 ;;
+      esac
+      echo "$n"
+    }
+
     # dir [subdir]
     #
     # Where captures live, so a driver can hand the path to another program
@@ -816,7 +927,7 @@ pkgs.writeShellApplication {
     }
 
     if [ $# -lt 1 ]; then
-      die "usage: xtcp2-nlcap <ns-add|ns-del|topo|cap|capio|write|side|wait-lacp|wait-sysfs|wait-churn|strace|strace-monitor|wait-rdma-port|dir|inventory|pack> ..."
+      die "usage: xtcp2-nlcap <ns-add|ns-del|topo|cap|capio|write|side|wait-lacp|wait-sysfs|wait-churn|strace|strace-monitor|wait-rdma-port|rdma-hold|rdma-hold-wait|rdma-hold-stop|rdma-user-cqn|dir|inventory|pack> ..."
     fi
 
     sub=$1
@@ -835,6 +946,10 @@ pkgs.writeShellApplication {
       strace)    cmd_strace "$@" ;;
       strace-monitor) cmd_strace_monitor "$@" ;;
       wait-rdma-port) cmd_wait_rdma_port "$@" ;;
+      rdma-hold) cmd_rdma_hold "$@" ;;
+      rdma-hold-wait) cmd_rdma_hold_wait "$@" ;;
+      rdma-hold-stop) cmd_rdma_hold_stop "$@" ;;
+      rdma-user-cqn) cmd_rdma_user_cqn "$@" ;;
       dir)       cmd_dir "$@" ;;
       inventory) cmd_inventory "$@" ;;
       pack)      cmd_pack "$@" ;;

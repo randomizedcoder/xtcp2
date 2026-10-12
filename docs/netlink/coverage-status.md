@@ -588,6 +588,13 @@ by `goip`, not in the matrix.
 | default hardware counters | `STAT_GET` with no `STAT_RES` | `ParseRdmaStat` | — |
 | system modes | `SYS_GET` | `ParseRdmaSys` | — |
 | monitor event (group 4) | `MONITOR` | `ParseRdmaEvent` | — |
+| queue pairs | `RES_QP_GET` | `ParseRdmaResQP` | — |
+| CM IDs | `RES_CM_ID_GET` | `ParseRdmaResCMID` | — |
+| completion queues | `RES_CQ_GET` | `ParseRdmaResCQ` | — |
+| memory regions | `RES_MR_GET` | `ParseRdmaResMR` | — |
+| protection domains | `RES_PD_GET` | `ParseRdmaResPD` | — |
+| verbs contexts | `RES_CTX_GET` | `ParseRdmaResCtx` | — |
+| shared receive queues | `RES_SRQ_GET` | `ParseRdmaResSRQ` | — |
 
 `ParseRdmaMsg` dispatches on the type. Decoded, not rendered, not in the
 matrix. See [the RDMA nldev decoder](#the-rdma-nldev-decoder).
@@ -884,7 +891,7 @@ Phases and scope are as defined in
 | **3** | Rules (`FRA_*`), nexthop (`NHA_*`), bridge/VLAN, `IFLA_LINKINFO` descent | **partial** | the `IFLA_LINKINFO` descent, as far as `IFLA_INFO_KIND` — [`4494b42`](#4494b42--the-ifla_-and-ifa_-attribute-decoders-a-show-line-needs), the first production caller of `WalkRTAttrsNested`. **`FRA_*` is done**: `struct fib_rule_hdr` and all 30 attributes decode in `xtcpnl_fib_rule_hdr.go`, `render.RuleView` prints them, and `ip rule show` drives four parity commands — see [below](#ip-rule-show-the-object-with-no-name-table). **`NHA_*` is done**: `struct nhmsg` and the nexthop attributes — id, oif, gateway, blackhole, fdb, group, group-type and the nested `NHA_RES_GROUP` — decode in `xtcpnl_nhmsg.go` and render for `ip nexthop show` and `-d` route nhid resolution; see the nexthop arc in [Where we are](#where-we-are). **The `IFLA_INFO_DATA` sub-nest is decoded for kind `vrf`** (`IFLA_VRF_TABLE`), together with `IFLA_INFO_SLAVE_DATA`'s `IFLA_VRF_PORT_TABLE`, driving `-d link`/`addr show` of a VRF master and its port. **And for kind `bond`**: every `IFLA_BOND_*` option, the `AD_INFO` nest and the twelve `IFLA_BOND_SLAVE_*` port attributes decode (link-write-path phase 1). They are not rendered yet, so `-d` on a bond still refuses | bridge/VLAN, the bond `-d` render, and the `IFLA_INFO_DATA` sub-nest for link kinds other than `vrf` and `bond`, each a separate attribute space per kind |
 | **4** | tc telemetry only (23 top-level `TCA_*`) | not started | — | all of it |
 | **5** | genetlink: `nlctrl` `GETFAMILY` first, then ethtool/devlink/netdev/vdpa/fou/gtp | not started | — | all of it |
-| **6** | xfrm, conntrack, ipset, proc_event, rdma | **partial** | **rdma, decode only**: the hand-declared `RDMA_NL*` block (`xtcpnl_rdma_consts.go`, every value C-gated against `<rdma/rdma_netlink.h>`), read-only nldev request builders, and decoders for the device, port, resource summary, hardware counter, system and monitor-event replies, on a strace corpus — see [below](#the-rdma-nldev-decoder) | xfrm, conntrack, ipset, proc_event; for rdma, the per-object `RES_*` entry decoders, a `goip` render, and moving `pkg/linkmonitor/internal/linuxio` onto the shared decoders |
+| **6** | xfrm, conntrack, ipset, proc_event, rdma | **partial** | **rdma, decode only**: the hand-declared `RDMA_NL*` block (`xtcpnl_rdma_consts.go`, every value C-gated against `<rdma/rdma_netlink.h>`), read-only nldev request builders, and decoders for the device, port, resource summary, per-object `RES_*`, hardware counter, system and monitor-event replies, on a strace corpus — see [below](#the-rdma-nldev-decoder) | xfrm, conntrack, ipset, proc_event; for rdma, a `goip` render, and moving `pkg/linkmonitor/internal/linuxio` onto the shared decoders |
 | **7** | `unix_diag`, `xdp_diag`, and the deferred relocation into `rtnl/` and `diag/` | not started | — | all of it |
 
 ## Capture readiness
@@ -3124,8 +3131,42 @@ What the corpus showed, where the plan had guessed otherwise:
 - **No attribute in the corpus is unknown** (`TestRdmaCorpusHasNoUnknown`).
   `RES_SUMMARY_ENTRY_MAX` (118, 7.3 only) is not sent for rxe.
 
-The corpus carries 27 distinct attributes, and that is the floor
-`rdmaCaptureCoverageCst` pins.
+**The RES_* objects** (`xtcpnl_rdma_res.go`, on
+`feat/xtcpnl-rdma-res-objects`) decode QP, CM_ID, CQ, MR, PD, CTX and SRQ.
+They are one generic `RdmaResObjects[T]`: a dump reply carries a table nest
+of entry nests, while a doit reply (an id filter) is flat, with the entry's
+attributes at top level, and sets `Flat`. `SRC_ADDR` and `DST_ADDR` must be
+exactly a 128-byte `sockaddr_storage`. That is stricter than `rdma`'s own
+policy, which leaves them UNSPEC, as it does PDN, CQN, MRN and CM_IDN.
+`BuildRdmaResDumpRequest` and `BuildRdmaResDoitRequest` admit only the
+seven object GETs.
+
+The capture adds 16 rows. Seven come before anything exists in userspace,
+when the only objects are ib_core's GSI QP, CQ and PD. The rest come while
+`ibv_rc_pingpong`, `ibv_srq_pingpong` and `rping -s` hold objects. Those
+three start one at a time, and each waits on `rdma res show` counts before
+the next, so the object numbers are the same on every run. PIDs and keys
+still vary, and `maskRdmaVolatile` zeroes them for `TestRdmaRecaptureMatches`.
+
+What those rows showed:
+
+- **qp and cm_id are dumped once per port, starting at port 0.** cq, mr,
+  pd, ctx and srq are dumped once per device.
+- **`lqpn 1` tries a doit first.** That gets `-ENOENT`, because the GSI QP's
+  restrack id is `1 | port << 24`, not 1. `rdma` then falls back to a single
+  port-1 dump.
+- **The GSI QP sorts last** in a dump. User QPs are 17 and up.
+- **`rdma -r res show qp` gets `-EINVAL` in DONE.** `rdma` prints "error:
+  Invalid argument" and exits 1.
+- **The kernel CQ polls from a workqueue** (`POLL_CTX` 2), with 1023 CQEs.
+- **A listening CM ID is state 8**, with PS 0x106. It also carries a
+  `DST_ADDR` of AF_INET 0.0.0.0:0.
+- **An SRQ's QPs arrive as one range**, 18-33.
+- **A dump with no objects is DONE alone**, as with `res_mr_empty`.
+
+The corpus carries 68 distinct attributes, nested ones included, and that is
+the floor `rdmaCaptureCoverageCst` pins. The test also fails if the count
+rises without the constant being raised.
 
 ## Tier C — the `goip-parity` microVM flavor
 
