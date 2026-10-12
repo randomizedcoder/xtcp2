@@ -10,9 +10,9 @@ several steps, further down under [Remaining](#remaining).
 
 | | count | counted from |
 |---|---|---|
-| commands in the comparison matrix | **90** | `internal/goipparity/commands.go` — 69 read rows and the 21 link write rows |
-| of those, `Implemented: true` | **90** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
-| of those, in `gated_commands` | **68** | `pkg/nlparity/goip-parity-allowlist.json` |
+| commands in the comparison matrix | **116** | `internal/goipparity/commands.go` — 69 read rows, the 21 link write rows and the 26 route write rows |
+| of those, `Implemented: true` | **116** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
+| of those, in `gated_commands` | **94** | `pkg/nlparity/goip-parity-allowlist.json` |
 | allowlisted divergences | **7** | same file, `entries` |
 | of those, `kind=version-skew` | **7** | all against the pinned `ip` 7.1.0 |
 | of those, `kind=accepted-divergence` | **0** | nothing is *allowlisted* as a permanent divergence — the eight intentional wire divergences below **cannot** be, because a transaction-count divergence is unsuppressible (`nlparity_allowlist.go:143`) |
@@ -272,7 +272,7 @@ in the tree.
 | | 2 | `BuildRouteWriteRequest`: `rtmsg` defaults + core attrs | **done**: `pkg/xtcpnl/xtcpnl_route_write.go` (`RouteWrite`, `EncodeRtMsg`, `BuildRouteWriteRequest`, `ErrRouteWriteType`); `TestBuildRouteWriteRequest`. The defaults live in the parser, not the encoder |
 | | 3 | `RTA_METRICS` encoder | **done**: `EncodeRouteMetrics`, sub-attrs in input order with no dedup and `RTAX_LOCK` last; `TestEncodeRouteMetrics` |
 | | 4 | `goip route replace …` argv, generate-only | **done**: `internal/goip/route_write.go` (the `iproute_modify` keyword chain, all eight verbs, `ll_name_to_index` resolution, `GOIP_WRITE_OUT`); `TestParseRouteWriteArgs`, `TestRunRouteWrite`, and the captured corpus below ([Write path: route writes as a dry run](#write-path-route-writes-as-a-dry-run)) |
-| | 5 | dry-run byte-compare harness, matrix read/write axis | not started |
+| | 5 | dry-run byte-compare harness, matrix read/write axis | **done**: the 26 `route_write_*` rows (`internal/goipparity/commands.go`), every corpus row but `nodev`, on the link rows' `Write`/`Setup` axis with no driver change; two live runs, identical verdicts, all 26 `GOIP_PARITY_PASS`, gated with no allowlist entry ([The route write rows](#the-route-write-rows-gate)). Statement 5 amended |
 | [link-write-path](link-write-path.md) | 0 | Tier 1 LACP capture target `microvm-x86_64-link-write-capture` (one VM, two netns, veth pairs, `bonding max_bonds=0`) | **done** — `NLCAP_DRIVER_PASS`; `lacp_no_partner`/`lacp_converged` (`0x3f`/`0x3f`)/`lacp_partner_down` in `pkg/xtcpnl/testdata/7_1_4/link-write/`, recaptured after the churn wait (`lwtopo::wait_churn`) so the churn fields read `NO_CHURN`/`CHURN` rather than `MONITOR` |
 | | 1 | bond `IFLA_INFO_DATA`/`SLAVE_DATA`/`AD_INFO` decode, shared option table | **done**: `pkg/xtcpnl/xtcpnl_bond.go` (`BondOptions`, `ParseBondInfoData`/`ParseBondSlaveData`/`ParseBondAdInfo`, `LinkInfo.Bond`/`BondSlave`); `TestDecodeBond*` green on the three 7_1_4 states and against the sysfs oracle; statement 6 amended |
 | | 2 | `-d link show` render for `bond`/`bond_slave` — lifts the first render refusal above for bond | **done**: `internal/goip/render/link_bond.go` (`bond_print_opt`/`bond_slave_print_opt` over `BondOptions`), `render/kind_data.go` (one call list, text and `-j`); `TestLinkShowDetailBondMatchesSidecar` byte-identical on `ip_link_n` and structurally equal on `ip_link_n_json` in all three states; statement 7 narrowed. The matrix rows landed later: `-d link show dev bond0` and `-d link show dev la1`, read rows with a `Setup` (link-write-path.md, "Bond read rows in the matrix"), `GOIP_PARITY_PASS` on two live runs and gated (`TestBondReadRowsGated`) |
@@ -322,8 +322,10 @@ through `ParseNlMsgErr`.
 Not implemented, each refused with `ErrNotImplemented` rather than misread
 as a destination: `nexthop`, `nhid`, `encap`, `vrf`, `tos`/`dsfield`,
 `expires`, `realms`, `as`, `ttl-propagate`, `pref`, MPLS routes, and table,
-protocol or scope names that come only from a file. The matrix rows (phase
-5) are not yet in `goip-parity`.
+protocol or scope names that come only from a file. Every corpus row but
+`nodev` is also a gated `goip-parity` write row (phase 5,
+[The route write rows](#the-route-write-rows-gate)); `nodev` has no write
+file to compare, so it stays offline.
 
 ## Netlink message types: decoded, rendered, compared
 
@@ -3027,6 +3029,38 @@ The six bulk stats rows stay permanent. goip still resolves names there with
 one link dump ahead of the stats dump, where ip dumps first and gets each
 ifindex after. Reordering goip to match (`resolveIndexName`,
 `internal/goip/obj_route.go:511`) is the follow-up that would retire them.
+
+### The route write rows gate
+
+Route-write-path phase 5 puts the route corpus into the matrix: 26 rows, every
+directory under `pkg/xtcpnl/testdata/7_1_4/link-write/route/` but `nodev`,
+with the capture script's preconditions as `Setup` (`routeWriteSetupDev`,
+`routeWriteSetupDev6`, `routeWriteSetupRoute`, `routeWriteSetupV6Route`) and
+the same floors. They ride the link write rows' axis unchanged:
+`capture_write_triple` recreates the namespace per side whether or not a row
+has a `Setup`, so `add blackhole` and `add unreachable` need none. `nodev` is
+not a row, because goip, like `ip`, stops at the lookup's ENODEV with no
+write file, and `CompareWrite` needs one; `TestRouteWriteNodevCorpus` holds
+it offline.
+
+Two runs, back to back with `--timeout 4500`, printed 108 `GOIP_PARITY_PASS`
+of 116: the previous runs' 82 and all 26 route rows. Per row, verdict, `txns`
+and control were identical across the runs except `ntable_show_json`'s
+control, `nl` 5 then 4, already gated and `PASS` on both. Both `OVERALL_FAIL`
+for the pre-existing reason (`-4 netconf show dev`, `HYGIENE_FAIL 2`);
+`UNGATED_DIVERGENCES` stays 7 and `CONTROL_NOISY` read 123 and 122.
+
+| rows | `txns` | control, both runs | why |
+|---|---|---|---|
+| `add_via_nodev`, `replace_default`, `del_nodev`, `del_missing`, `add_blackhole`, `add_unreachable` | ip=1 goip=1 | `nl=0` | no `dev`, so no lookup: the write is the whole capture |
+| the other 20 | ip=2 goip=2 | `nl=2` | the `d0` lookup; its reply carries a fresh dummy's random `IFLA_ADDRESS` and `IFLA_INET6_CACHEINFO` times |
+
+The three rows the kernel refuses (`change_metric` ENOENT, `test_dev` EEXIST,
+`del_missing` ESRCH) pass on their request, as the link rows did. Every write
+request matched byte for byte on both runs, and all 26 gate with no
+allowlist entry. `TestRouteWriteRowsGated` and the `earned`/`gated_commands`
+pair in `pkg/nlparity` pin the flip, and the ungated surface is still
+twenty-two rows.
 
 ## Tier C — the `goip-parity` microVM flavor
 

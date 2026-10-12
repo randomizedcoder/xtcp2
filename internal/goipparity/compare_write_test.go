@@ -11,13 +11,16 @@ import (
 	"github.com/randomizedcoder/xtcp2/pkg/nlparity"
 )
 
-// tdLinkWrite is the link-write corpus. Each write row of the table names its
-// corpus directory in its slug, after linkWriteSlugPrefixCst.
+// tdLinkWrite and tdRouteWrite are the link-write corpus's link and route
+// rows. Each write row of the table names its corpus directory in its slug,
+// after linkWriteSlugPrefixCst or routeWriteSlugPrefixCst.
 const (
-	tdLinkWrite            = "../../pkg/xtcpnl/testdata/7_1_4/link-write/write"
-	linkWriteSlugPrefixCst = "link_write_"
-	pcapGlobalHdrCst       = 24
-	pcapRecordHdrCst       = 16
+	tdLinkWrite             = "../../pkg/xtcpnl/testdata/7_1_4/link-write/write"
+	tdRouteWrite            = "../../pkg/xtcpnl/testdata/7_1_4/link-write/route"
+	linkWriteSlugPrefixCst  = "link_write_"
+	routeWriteSlugPrefixCst = "route_write_"
+	pcapGlobalHdrCst        = 24
+	pcapRecordHdrCst        = 16
 	// nlMsgHdrCst is sizeof(struct nlmsghdr). Spelled here because this
 	// package may not import pkg/xtcpnl (TestParityCannotOpenASocket).
 	nlMsgHdrCst = 16
@@ -58,6 +61,9 @@ type writeRowFiles struct {
 func corpusWriteRow(t *testing.T, c Command) writeRowFiles {
 	t.Helper()
 	dir := filepath.Join(tdLinkWrite, strings.TrimPrefix(c.Slug, linkWriteSlugPrefixCst))
+	if slug, ok := strings.CutPrefix(c.Slug, routeWriteSlugPrefixCst); ok {
+		dir = filepath.Join(tdRouteWrite, slug)
+	}
 	ipPcap := mustReadBytes(t, filepath.Join(dir, "ip.pcap"))
 	rc := strings.TrimSpace(mustRead(t, filepath.Join(dir, "ip.rc")))
 
@@ -122,6 +128,8 @@ func TestCompareWriteRow(t *testing.T) {
 	enslave := lookupPtr(t, "link set la1 down master bond0")
 	refused := lookupPtr(t, "link set la1 master bond0")
 	add := lookupPtr(t, "link add d0 type dummy")
+	routeNFS := lookupPtr(t, "route replace 192.0.2.50/32 dev d0 congctl lock cubic rto_min 3ms initcwnd 32 initrwnd 32 quickack 1")
+	blackhole := lookupPtr(t, "route add blackhole 198.51.100.0/24")
 	type result struct {
 		status Status
 		err    error
@@ -138,6 +146,15 @@ func TestCompareWriteRow(t *testing.T) {
 			expected: result{status: StatusPass}},
 		{description: "positive: a write the kernel refused passes on its request", c: refused,
 			expected: result{status: StatusPass}},
+		{description: "positive: a route write, the d0 lookup and the metrics, is a pass", c: routeNFS,
+			expected: result{status: StatusPass}},
+		{description: "positive: a dev-less route write, the file alone, is a pass", c: blackhole,
+			expected: result{status: StatusPass}},
+		// testAllowlist gates only `link show`, so a divergence on this row
+		// is a WARN here; on the committed allowlist it gates and fails.
+		{description: "negative: a route write with RTAX_LOCK changed is a divergence", c: routeNFS,
+			edit:     func(f *writeRowFiles) { f.write[len(f.write)-1] ^= 0xff },
+			expected: result{status: StatusWarn}},
 		{description: "negative: different write flags are an ungated warning", c: enslave,
 			edit: func(f *writeRowFiles) {
 				binary.LittleEndian.PutUint16(f.write[6:8], binary.LittleEndian.Uint16(f.write[6:8])&^0x4)
