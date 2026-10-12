@@ -917,6 +917,50 @@ and a down port — that route replaces mostly do not.
   matched the phase 7 runs. They are in `gated_commands` and the `earned`
   list, and `TestBondReadRowsGated` pins them.
 
+### Bond xstats rows in the matrix
+
+- **What `ip` sends with a `dev`.** `ip stats show dev X group xstats` (or
+  `xstats_slave`) is `ipstats_show_one` (`ip/ipstats.c:832-851`): one
+  RTM_GETLINK by name from `ll_name_to_index` (`lib/ll_map.c:354-372`), then
+  one non-dump RTM_GETSTATS, flags `NLM_F_REQUEST`, filter_mask 0x2 or 0x4.
+  The reply's ifindex is already cached, so there is no third request.
+  That is two transactions, where the bulk dump's lazy per-index gets make it
+  1 + N.
+- **goip sends the same two.** The dev path now resolves the name with
+  `LinkByName`, as `link show dev` does, and sends the point get with the
+  group's mask (`req.StatsGetXstatsByIndex`, `StatsGetXstatsSlaveByIndex`).
+  The same lookup replaced the link dump on `stats show group link dev`.
+  `TestStatsDevRequestsMatchIpBytes` compares goip's requests with the
+  captured ones byte for byte.
+- **`subgroup` and `suite` are render-only.** iproute2 sends no
+  `IFLA_STATS_GET_FILTERS` nest for the xstats groups (`ip/ipstats.c:578-585`),
+  so `subgroup bond suite 802.3ad` changes what is printed and not the
+  request. goip parses them as ipstats.c's selector does (`requested
+  without selecting a group first`, `requested inside leaf group link`, an
+  unknown subgroup or suite refused) and filters the leaves in the renderer,
+  keeping the golden order. The bulk dump takes the filter too.
+- **The point get prints no trailing blank line.** ipstats.c:862 prints it
+  after each interface in the dump only.
+- **Five rows, one precondition.** `stats show dev bond0 group xstats`,
+  `stats show dev la1 group xstats_slave`, the two `subgroup bond suite
+  802.3ad` forms and `-j stats show dev la1 group xstats_slave`, all on
+  `bondReadSetup` and floor 4. The ports have no carrier, so every counter
+  reads zero on all three sides.
+- **Offline grounding.** `readback_set` captures each dev form, both suite
+  forms and the bulk `group xstats_slave subgroup bond` filter, in all six
+  states. `TestStatsXstatsDevBondMatchesSidecar` replays them against their
+  sidecars.
+- **Measured, and gated.** Two live runs back to back: all five rows
+  `GOIP_PARITY_PASS` both times, `nl=0 stdout=0`, nothing allowlisted, txns
+  2/2. `stats show group link dev` read the same on both runs and left the
+  permanent set, which is eight rows now. All six are in `gated_commands`
+  and the `earned` list, and `TestBondXstatsRowsGated` pins them.
+- **Still permanent: the bulk dumps.** `stats show group link|xstats`
+  without a dev keeps goip's up-front link dump. Reordering it to the stats
+  dump first and one get per ifindex after it (`resolveIndexName`,
+  `internal/goip/obj_route.go:511`) would retire the remaining six stats
+  rows, and is a follow-up.
+
 ## The phased roadmap
 
 One cohort per PR. Phases 1–3 are read-only and do not depend on the route
@@ -1184,6 +1228,9 @@ Landed in Phase 3 (`pkg/xtcpnl/xtcpnl_bond_xstats_test.go`,
   matrix. The dump topology has no bond, so the rows bring their own
   through a read row's `Setup` (see
   [Bond read rows in the matrix](#bond-read-rows-in-the-matrix)).
+- The xstats point get and `subgroup`/`suite` followed, with their own
+  captures and matrix rows (see
+  [Bond xstats rows in the matrix](#bond-xstats-rows-in-the-matrix)).
 
 ### 6. `TestLinkWriteMatchesIpBytes` (Phase 6) — golden parity
 

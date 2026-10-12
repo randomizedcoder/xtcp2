@@ -1,0 +1,14 @@
+3: la1: group xstats_slave subgroup bond suite 802.3ad
+                    LACPDU Rx 68
+                    LACPDU Tx 77
+                    LACPDU Unknown type Rx 0
+                    LACPDU Illegal Rx 0
+                    Marker Rx 0
+                    Marker Tx 0
+                    Marker response Rx 0
+                    Marker response Tx 0
+                    Marker unknown type Rx 0
+
+3: la1: group xstats_slave subgroup bridge suite vlan
+3: la1: group xstats_slave subgroup bridge suite mcast
+3: la1: group xstats_slave subgroup bridge suite stp

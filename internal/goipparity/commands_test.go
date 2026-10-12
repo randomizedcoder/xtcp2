@@ -460,6 +460,18 @@ func TestCommandString(t *testing.T) {
 			},
 		},
 		{
+			description: "positive: a stats read row with Setup renders dev=no, write=no and its six setup steps",
+			name:        "stats show dev la1 group xstats_slave subgroup bond suite 802.3ad",
+			wantFields: []string{
+				"stats_show_xstats_slave_dev_bond_3ad", "4", "yes", "no", "no",
+				"link add bond0 type bond mode 802.3ad;link add la1 type veth peer name lb1;" +
+					"link add la2 type veth peer name lb2;link set la1 master bond0;" +
+					"link set la2 master bond0;link set bond0 up",
+				"stats show dev la1 group xstats_slave subgroup bond suite 802.3ad",
+				"stats show dev la1 group xstats_slave subgroup bond suite 802.3ad",
+			},
+		},
+		{
 			description: "boundary: a write row with no precondition renders setup as -",
 			cmd:         lookupPtr(t, "link add d0 type dummy"),
 			wantFields: []string{
@@ -964,17 +976,22 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	// left this list on runs 10 and 11, their first live grounding — see
 	// TestNexthopAddrlabelGated.
 	//
-	// The remaining nine are the stats and netconf-dev rows runs 8 and 9 measured
+	// The remaining eight are the stats and netconf-dev rows runs 8 and 9 measured
 	// DIVERGENT, and they stay ungated for a reason the queue above does not
 	// share: not "not yet measured" but "measured, and permanently divergent on
 	// the wire". Both sides issue RTM_GETSTATS; the gap is name resolution —
 	// goip's one up-front bulk RTM_GETLINK dump versus `ip`'s lazy per-index gets
 	// (stats) and redundant per-name get (netconf-dev). That is class
 	// DivergenceTransactionCount, which the allowlist cannot suppress, so these
-	// nine can never gate — unlike the fourteen above, which each await their own
-	// clean live run. TestPermanentWireDivergences pins the nine. The two bond
+	// eight can never gate — unlike the fourteen above, which each await their own
+	// clean live run. TestPermanentWireDivergences pins the eight. The two bond
 	// `-d link show` rows left this list on their first two live runs — see
 	// TestBondReadRowsGated.
+	//
+	// Runs 8 and 9 measured nine. `stats show group link dev` left the set, and
+	// this list, once goip's dev path sent ip's lookup by name in place of a
+	// link dump. It gated on the same two runs as the five bond xstats point
+	// gets — see TestBondXstatsRowsGated.
 	expected := []string{
 		"-s addr show", "-s neigh show",
 		"-0 addr show", "route show table main", "route show table local",
@@ -983,7 +1000,7 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 		"-j rule show", "-j -s link show",
 		"netconf show dev", "-4 netconf show dev",
 		"stats show group link", "-s stats show group link",
-		"stats show group link dev", "-j stats show group link",
+		"-j stats show group link",
 		"stats show group xstats", "-s stats show group xstats",
 		"-j stats show group xstats",
 	}
@@ -993,7 +1010,7 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 		check       func(t *testing.T)
 	}{
 		{
-			description: "positive: the ungated set is exactly the twenty-three named rows, so UNGATED_CLEAN counts twenty-three rows and not zero",
+			description: "positive: the ungated set is exactly the twenty-two named rows, so UNGATED_CLEAN counts twenty-two rows and not zero",
 			check: func(t *testing.T) {
 				for _, name := range expected {
 					if !ungated[name] {
@@ -1053,7 +1070,8 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 // divergent on the wire — a name-resolution difference, not a message-type one
 // (both sides issue RTM_GETSTATS; `ip` adds lazy/redundant RTM_GETLINK gets) —
 // even though their stdout matches. TestPermanentWireDivergences records that
-// those nine are permanent and unallowlistable. Runs 10 and 11 then gated the
+// those nine are permanent and unallowlistable (eight since `stats show
+// group link dev` resolved its name as ip does and gated). Runs 10 and 11 then gated the
 // five nexthop and addrlabel rows (their first live grounding);
 // TestNexthopAddrlabelGated pins that flip.
 //
@@ -1082,7 +1100,7 @@ func TestObjectGatingStatus(t *testing.T) {
 
 		{"negative: stats show group link diverges on name resolution (both sides issue RTM_GETSTATS), so it stays ungated", "stats show group link", false},
 		{"negative: -s stats show group link diverges likewise", "-s stats show group link", false},
-		{"negative: stats show group link dev diverges likewise", "stats show group link dev", false},
+		{"positive: stats show group link dev gates since it looks the name up as ip does", "stats show group link dev", true},
 		{"negative: -j stats show group link diverges likewise", "-j stats show group link", false},
 		{"negative: stats show group xstats diverges likewise", "stats show group xstats", false},
 		{"negative: -s stats show group xstats diverges likewise", "-s stats show group xstats", false},
@@ -1123,16 +1141,18 @@ func TestObjectGatingStatus(t *testing.T) {
 	})
 }
 
-// TestPermanentWireDivergences pins the nine rows runs 8 and 9 measured as a
-// PERMANENT wire divergence — the seven stats forms and the two netconf-dev
-// forms. They are not a queue awaiting a cleaner run: both sides issue
+// TestPermanentWireDivergences pins the eight rows measured as a PERMANENT
+// wire divergence — six stats forms and the two netconf-dev forms. Runs 8
+// and 9 measured nine; `stats show group link dev` left the set once goip's
+// dev path resolved the name with a get by name, as ip does, rather than a
+// link dump, and gated (see TestBondXstatsRowsGated). They are not a queue awaiting a cleaner run: both sides issue
 // RTM_GETSTATS, and the gap is name resolution (goip's one up-front bulk
 // RTM_GETLINK dump versus `ip`'s lazy per-index gets for stats and redundant
 // per-name get for netconf-dev). That is class DivergenceTransactionCount,
 // which the allowlist cannot suppress, so no run and no entry can gate them.
 //
-// TestUngatedSurfaceIsNotVacuous pins the whole twenty-eight-row ungated SET;
-// this marks the nine that are ungated by DESIGN (versus the nineteen awaiting
+// TestUngatedSurfaceIsNotVacuous pins the whole twenty-two-row ungated SET;
+// this marks the eight that are ungated by DESIGN (versus the fourteen awaiting
 // their own clean run), so an edit that tries to gate or allowlist one trips
 // here with the reason. The last subtest ties the decision to the mechanism —
 // a transaction-count divergence is unsuppressible while a value one is not —
@@ -1146,10 +1166,10 @@ func TestPermanentWireDivergences(t *testing.T) {
 		t.Fatalf("EmbeddedAllowlist: %v", err)
 	}
 
-	// The nine, by command Name — what compare.go passes to IsGated/EntriesFor.
+	// The eight, by command Name — what compare.go passes to IsGated/EntriesFor.
 	permanent := []string{
 		"stats show group link", "-s stats show group link",
-		"stats show group link dev", "-j stats show group link",
+		"-j stats show group link",
 		"stats show group xstats", "-s stats show group xstats",
 		"-j stats show group xstats",
 		"netconf show dev", "-4 netconf show dev",
@@ -1171,6 +1191,7 @@ func TestPermanentWireDivergences(t *testing.T) {
 		{"boundary: -4 netconf show dev is in the set and is the one FAIL (hygiene orphans), still permanent", "-4 netconf show dev", true, false},
 		{"boundary: a row that DID gate on runs 8/9 is not in the set", "netconf show", false, true},
 		{"boundary: vrf show gated and is not a permanent divergence", "vrf show", false, true},
+		{"negative: stats show group link dev left the set once it looked the name up by name", "stats show group link dev", false, true},
 		{"negative: -s addr show is ungated for an unrelated reason (may gate later), not in the set", "-s addr show", false, false},
 		{"negative: -s neigh show is ungated for an unrelated reason, not in the permanent set", "-s neigh show", false, false},
 		{"corner: a name not in the matrix is neither in the set nor gated", "bogus show", false, false},
@@ -1218,7 +1239,7 @@ func TestPermanentWireDivergences(t *testing.T) {
 		}
 	})
 
-	// corner: the mechanism that makes the nine permanent — a transaction-count
+	// corner: the mechanism that makes the eight permanent — a transaction-count
 	// divergence is unsuppressible, while a value divergence may be allowlisted.
 	t.Run("corner: transaction-count is unsuppressible, value is suppressible", func(t *testing.T) {
 		cases := []struct {
@@ -1426,9 +1447,11 @@ func TestBondReadRowsGated(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EmbeddedAllowlist: %v", err)
 	}
+	// The cohort is the `-d link show` read rows with a Setup; the bond
+	// xstats rows share bondReadSetup but are pinned on their own.
 	var cohort []Command
 	for _, c := range Commands() {
-		if !c.Write && len(c.Setup) > 0 {
+		if !c.Write && len(c.Setup) > 0 && strings.HasPrefix(c.Slug, "link_show_details_bond") {
 			cohort = append(cohort, c)
 		}
 	}
@@ -1451,6 +1474,8 @@ func TestBondReadRowsGated(t *testing.T) {
 			want{false, false, false}},
 		{"corner: a permanent-divergence row is neither", "stats show group link",
 			want{false, false, false}},
+		{"negative: a stats row with Setup is not in this cohort", "stats show dev la1 group xstats_slave",
+			want{true, false, true}},
 	}
 	for _, r := range rows {
 		t.Run(r.description, func(t *testing.T) {
@@ -1486,6 +1511,93 @@ func TestBondReadRowsGated(t *testing.T) {
 
 	t.Run("negative: each read row with Setup gated clean, carrying no allowlist entry", func(t *testing.T) {
 		for _, c := range cohort {
+			if entries := al.EntriesFor(c.Name); len(entries) != 0 {
+				t.Errorf("%q gated clean but carries %d allowlist entr(ies)", c.Name, len(entries))
+			}
+		}
+	})
+}
+
+// TestBondXstatsRowsGated pins the flip the two runs after the bond `-d link
+// show` rows recorded: the five bond xstats point gets, on the same
+// bondReadSetup, and `stats show group link dev`, which left the permanent
+// set. Both runs reported all six GOIP_PARITY_PASS with stdout=0, control
+// nl=0 and txns 2/2: ip's RTM_GETLINK by name, then one non-dump
+// RTM_GETSTATS, which goip now sends byte for byte. They gate with ZERO
+// allowlist entries.
+//
+// go test ./internal/goipparity/ -run TestBondXstatsRowsGated
+func TestBondXstatsRowsGated(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	var cohort []Command
+	for _, c := range Commands() {
+		if !c.Write && len(c.Setup) > 0 && strings.HasPrefix(c.Slug, "stats_show_xstats") {
+			cohort = append(cohort, c)
+		}
+	}
+
+	type want struct{ setup, write, gated bool }
+	rows := []struct {
+		description string
+		command     string
+		expected    want
+	}{
+		{"positive: the bond0 xstats point get is gated", "stats show dev bond0 group xstats",
+			want{true, false, true}},
+		{"positive: the la1 xstats_slave point get is gated", "stats show dev la1 group xstats_slave",
+			want{true, false, true}},
+		{"positive: the -j twin is gated", "-j stats show dev la1 group xstats_slave",
+			want{true, false, true}},
+		{"positive: the link group's point get is gated, with no Setup", "stats show group link dev",
+			want{false, false, true}},
+		{"boundary: the bond0 suite form is gated", "stats show dev bond0 group xstats subgroup bond suite 802.3ad",
+			want{true, false, true}},
+		{"boundary: the la1 suite form is gated", "stats show dev la1 group xstats_slave subgroup bond suite 802.3ad",
+			want{true, false, true}},
+		{"negative: the bulk xstats dump stays permanent", "stats show group xstats",
+			want{false, false, false}},
+		{"negative: the -d link show bond row is the other cohort", "-d link show dev bond0",
+			want{true, false, true}},
+		{"corner: la2 is not in the table", "stats show dev la2 group xstats_slave",
+			want{false, false, false}},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			var got want
+			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				got.setup = len(c.Setup) > 0
+				got.write = c.Write
+			}
+			got.gated = al.IsGated(r.command)
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+		})
+	}
+
+	t.Run("boundary: the cohort is the five bond xstats rows", func(t *testing.T) {
+		if len(cohort) != 5 {
+			t.Fatalf("%d stats read rows with Setup, want 5", len(cohort))
+		}
+	})
+
+	t.Run("positive: each row in the cohort is gated and Implemented", func(t *testing.T) {
+		for _, c := range cohort {
+			if !al.IsGated(c.Name) {
+				t.Errorf("%q is a bond xstats row but IsGated is false; add it to "+
+					"gated_commands and the earned list together", c.Name)
+			}
+			if !c.Implemented {
+				t.Errorf("row %q is not Implemented; a gate cannot fire on a skip", c.Name)
+			}
+		}
+	})
+
+	t.Run("negative: each row gated clean, carrying no allowlist entry", func(t *testing.T) {
+		for _, c := range append(cohort, *lookupPtr(t, "stats show group link dev")) {
 			if entries := al.EntriesFor(c.Name); len(entries) != 0 {
 				t.Errorf("%q gated clean but carries %d allowlist entr(ies)", c.Name, len(entries))
 			}

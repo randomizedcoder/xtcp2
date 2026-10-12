@@ -826,7 +826,21 @@
     "its veth peer and its master). The rest of each run's verdicts matched the",
     "phase 7 runs row for row. They gate with no allowlist",
     "entry, and the ungated surface is the twenty-three rows above again.",
-    "internal/goipparity's TestBondReadRowsGated pins the flip by name."
+    "internal/goipparity's TestBondReadRowsGated pins the flip by name.",
+    "",
+    "Two more runs gate six stats rows (link-write-path.md, \"Bond xstats rows in",
+    "the matrix\"). Five are new: the bond xstats point gets `stats show dev bond0",
+    "group xstats` and `stats show dev la1 group xstats_slave`, their `subgroup",
+    "bond suite 802.3ad` forms and `-j stats show dev la1 group xstats_slave`, all",
+    "on the `-d link show` rows' bond. The sixth is `stats show group link dev`,",
+    "until now one of the nine permanent divergences: goip's dev path now resolves",
+    "the name with one RTM_GETLINK by name, as ll_name_to_index does, where it",
+    "used to dump every link, so it sends ip's two requests byte for byte. Both",
+    "runs: all six GOIP_PARITY_PASS with stdout=0, control nl=0, ZERO unsuppressed",
+    "findings and txns 2/2. Every other verdict matched between the two runs, and",
+    "`-4 netconf show dev` is still the one FAIL. The permanent set is eight rows",
+    "now, and the ungated surface twenty-two. internal/goipparity's",
+    "TestBondXstatsRowsGated and TestPermanentWireDivergences pin the flip."
   ],
   "_note_version_skew": [
     "THE ENTRIES BELOW CITE COMMITS THAT ARE IN NO RELEASE, AND THE EVIDENCE IS",
@@ -967,6 +981,12 @@
     "link set d0 name d1 mtu 9000 alias uplink",
     "link del bond0",
     "-d link show dev bond0",
-    "-d link show dev la1"
+    "-d link show dev la1",
+    "stats show group link dev",
+    "stats show dev bond0 group xstats",
+    "stats show dev la1 group xstats_slave",
+    "stats show dev bond0 group xstats subgroup bond suite 802.3ad",
+    "stats show dev la1 group xstats_slave subgroup bond suite 802.3ad",
+    "-j stats show dev la1 group xstats_slave"
   ]
 }

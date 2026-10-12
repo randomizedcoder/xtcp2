@@ -5,8 +5,10 @@ import (
 	"encoding/binary"
 	"errors"
 	"os"
+	"strings"
 	"testing"
 
+	"github.com/randomizedcoder/xtcp2/internal/goip/render"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
@@ -236,7 +238,7 @@ func TestStatsUnsupportedGroupRefused(t *testing.T) {
 	var out bytes.Buffer
 	c := &runCtx{src: src, lltab: NewLLTab(), out: &out, errOut: &out}
 
-	err := statsShow(c, "link", "")
+	err := statsShow(c, statsSel{group: "link"})
 	if !errors.Is(err, ErrNotImplemented) {
 		t.Fatalf("statsShow with an unsupported group = %v, want ErrNotImplemented", err)
 	}
@@ -383,7 +385,7 @@ func TestStatsXstatsUngroundedBodyRefused(t *testing.T) {
 			}
 			var out bytes.Buffer
 			c := &runCtx{src: src, lltab: NewLLTab(), out: &out, errOut: &out}
-			err := statsShow(c, tc.group, "")
+			err := statsShow(c, statsSel{group: tc.group})
 			switch {
 			case tc.expected:
 				if !errors.Is(err, ErrNotImplemented) {
@@ -405,7 +407,8 @@ func TestStatsXstatsUngroundedBodyRefused(t *testing.T) {
 }
 
 // TestRunStatsArgs covers the CLI surface: the one verb runStats accepts, the
-// required `group link` selector, the `dev` filter, and everything it refuses.
+// required group selector, the `subgroup`/`suite` narrowing, the `dev` point
+// get, and everything it refuses.
 // show/group/dev are all strcmp'd (ip/ipstats.c), so NONE of them abbreviate —
 // `stats sh` is not `stats show`, unlike netconf's `netconf sh`.
 //
@@ -456,10 +459,10 @@ func TestRunStatsArgs(t *testing.T) {
 			wantStderrSubstr: "not implemented",
 		},
 		{
-			description:      "negative: subgroup is refused",
+			description:      "negative: a subgroup inside the link leaf is refused",
 			args:             []string{"stats", "show", "group", "link", "subgroup", "bridge"},
 			wantCode:         ExitUsage,
-			wantStderrSubstr: "not implemented",
+			wantStderrSubstr: "inside leaf group link",
 		},
 		{
 			description:      "negative: the write verb `set` is refused",
@@ -504,22 +507,32 @@ func TestRunStatsArgs(t *testing.T) {
 			wantStderrSubstr: "beyond link",
 		},
 		{
-			description:      "negative: `group xstats subgroup bridge` partial selection is refused",
+			description:      "positive: `group xstats subgroup bridge` skips the bond leaf",
 			args:             []string{"stats", "show", "group", "xstats", "subgroup", "bridge"},
-			wantCode:         ExitUsage,
-			wantStderrSubstr: "not implemented",
+			wantCode:         ExitOK,
+			wantStdoutPrefix: "1: lo: group xstats subgroup bridge suite vlan\n1: lo: group xstats subgroup bridge suite mcast\n",
+			replay:           xstatsPcapBase,
 		},
 		{
-			description:      "negative: `group xstats ... suite stp` partial selection is refused",
+			description:      "boundary: `subgroup bridge suite stp`, the last leaf alone",
 			args:             []string{"stats", "show", "group", "xstats", "subgroup", "bridge", "suite", "stp"},
-			wantCode:         ExitUsage,
-			wantStderrSubstr: "not implemented",
+			wantCode:         ExitOK,
+			wantStdoutPrefix: "1: lo: group xstats subgroup bridge suite stp\n\n2: ",
+			replay:           xstatsPcapBase,
 		},
 		{
-			description:      "negative: `group xstats dev br0` has no grounded point get",
-			args:             []string{"stats", "show", "group", "xstats", "dev", "br0"},
+			description:      "negative: a suite from the other subgroup is refused",
+			args:             []string{"stats", "show", "group", "xstats", "subgroup", "bond", "suite", "vlan"},
 			wantCode:         ExitUsage,
-			wantStderrSubstr: "not implemented",
+			wantStderrSubstr: "no such suite",
+			replay:           xstatsPcapBase,
+		},
+		{
+			description:      "positive: `group xstats dev lo` is the point get, one interface and no dump blank line",
+			args:             []string{"stats", "show", "group", "xstats", "dev", "lo"},
+			wantCode:         ExitOK,
+			wantStdoutPrefix: "1: lo: group xstats subgroup bond suite 802.3ad\n1: lo: group xstats subgroup bridge suite vlan\n",
+			replay:           xstatsPcapBase,
 		},
 		{
 			description:      "positive: `stats show group xstats_slave` runs the slave path",
@@ -529,16 +542,25 @@ func TestRunStatsArgs(t *testing.T) {
 			replay:           linkWriteDir + "lacp_converged/netlink_route_getstats_xstats_slave.pcap",
 		},
 		{
-			description:      "negative: `group xstats_slave dev la1` has no grounded point get",
+			description:      "positive: `group xstats_slave dev la1` is the port's point get",
 			args:             []string{"stats", "show", "group", "xstats_slave", "dev", "la1"},
-			wantCode:         ExitUsage,
-			wantStderrSubstr: "not implemented",
+			wantCode:         ExitOK,
+			wantStdoutPrefix: "3: la1: group xstats_slave subgroup bond suite 802.3ad\n                    LACPDU Rx ",
+			replay:           linkWriteDir + "lacp_converged/netlink_route_getstats_xstats_slave.pcap",
 		},
 		{
-			description:      "negative: `group xstats_slave subgroup bond` partial selection is refused",
+			description:      "positive: `group xstats_slave subgroup bond` prints the bond leaf alone per interface",
 			args:             []string{"stats", "show", "group", "xstats_slave", "subgroup", "bond"},
-			wantCode:         ExitUsage,
-			wantStderrSubstr: "not implemented",
+			wantCode:         ExitOK,
+			wantStdoutPrefix: "1: lo: group xstats_slave subgroup bond suite 802.3ad\n\n2: nlmon0: group xstats_slave subgroup bond suite 802.3ad\n\n3: la1: ",
+			replay:           linkWriteDir + "lacp_converged/netlink_route_getstats_xstats_slave.pcap",
+		},
+		{
+			description:      "negative: a dev the capture does not hold is refused",
+			args:             []string{"stats", "show", "group", "xstats_slave", "dev", "nosuch"},
+			wantCode:         ExitFailure,
+			wantStderrSubstr: "cannot find device",
+			replay:           linkWriteDir + "lacp_converged/netlink_route_getstats_xstats_slave.pcap",
 		},
 		{
 			description:      "negative: `group xstats_s` does not abbreviate (strcmp)",
@@ -632,6 +654,131 @@ func TestStatsSidecarsAreDistinct(t *testing.T) {
 			}
 			if got := bytes.Equal(a, b); got != tt.wantEqual {
 				t.Errorf("bytes.Equal(%s, %s) = %v, want %v", tt.a, tt.b, got, tt.wantEqual)
+			}
+		})
+	}
+}
+
+// TestParseStatsShowArgs pins the selection parseStatsShowArgs builds from the
+// words after `stats show`, and which forms it refuses. subgroup and suite are
+// render-only (ip/ipstats.c:578-585 sends no filter nest for xstats), so a
+// wrong pairing is refused here, before anything is sent, as
+// ipstats_enable_find_stat_desc (:999-1029) refuses it in iproute2.
+func TestParseStatsShowArgs(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		description string
+		args        []string
+		expected    statsSel
+		wantErr     string // "" means no error; otherwise a substring
+	}{
+		{
+			description: "positive: xstats with a dev",
+			args:        []string{"group", "xstats", "dev", "bond0"},
+			expected:    statsSel{group: "xstats", dev: "bond0"},
+		},
+		{
+			description: "positive: dev ahead of the group is the same selection",
+			args:        []string{"dev", "la1", "group", "xstats_slave"},
+			expected:    statsSel{group: "xstats_slave", dev: "la1"},
+		},
+		{
+			description: "positive: subgroup and suite",
+			args:        []string{"group", "xstats", "subgroup", "bond", "suite", "802.3ad"},
+			expected:    statsSel{group: "xstats", xsel: render.XstatsSelect{Subgroup: "bond", Suite: "802.3ad"}},
+		},
+		{
+			description: "positive: the link group with a dev is unchanged",
+			args:        []string{"group", "link", "dev", "goip0"},
+			expected:    statsSel{group: "link", dev: "goip0"},
+		},
+		{
+			description: "boundary: a subgroup without a suite",
+			args:        []string{"group", "xstats_slave", "subgroup", "bond"},
+			expected:    statsSel{group: "xstats_slave", xsel: render.XstatsSelect{Subgroup: "bond"}},
+		},
+		{
+			description: "boundary: the last bridge suite",
+			args:        []string{"group", "xstats", "subgroup", "bridge", "suite", "stp"},
+			expected:    statsSel{group: "xstats", xsel: render.XstatsSelect{Subgroup: "bridge", Suite: "stp"}},
+		},
+		{
+			description: "negative: a subgroup on the leaf link group",
+			args:        []string{"group", "link", "subgroup", "bond"},
+			wantErr:     "requested inside leaf group link",
+		},
+		{
+			description: "negative: a suite without a subgroup",
+			args:        []string{"group", "xstats", "suite", "802.3ad"},
+			wantErr:     "without selecting a subgroup first",
+		},
+		{
+			description: "negative: a subgroup before any group",
+			args:        []string{"subgroup", "bond", "group", "xstats"},
+			wantErr:     "without selecting a group first",
+		},
+		{
+			description: "negative: an unknown subgroup",
+			args:        []string{"group", "xstats", "subgroup", "foo"},
+			wantErr:     "no subgroup of that name inside group xstats",
+		},
+		{
+			description: "negative: a suite of the other subgroup",
+			args:        []string{"group", "xstats", "subgroup", "bond", "suite", "vlan"},
+			wantErr:     "no such suite inside that subgroup",
+		},
+		{
+			description: "negative: a second group",
+			args:        []string{"group", "xstats", "group", "link"},
+			wantErr:     "one group per command",
+		},
+		{
+			description: "negative: no group at all",
+			args:        []string{"dev", "bond0"},
+			wantErr:     "a grounded group",
+		},
+		{
+			description: "negative: a second dev",
+			args:        []string{"group", "xstats", "dev", "bond0", "dev", "la1"},
+			wantErr:     "a second dev",
+		},
+		{
+			description: "corner: a trailing dev keyword",
+			args:        []string{"group", "xstats", "dev"},
+			wantErr:     "missing device name",
+		},
+		{
+			description: "corner: a trailing subgroup keyword",
+			args:        []string{"group", "xstats", "subgroup"},
+			wantErr:     "missing subgroup name",
+		},
+		{
+			description: "corner: an unknown keyword",
+			args:        []string{"group", "xstats", "nosuch"},
+			wantErr:     `"nosuch"`,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			t.Parallel()
+			got, err := parseStatsShowArgs(tc.args)
+			if tc.wantErr == "" {
+				if err != nil {
+					t.Fatalf("parseStatsShowArgs(%q): %v", tc.args, err)
+				}
+				if got != tc.expected {
+					t.Fatalf("parseStatsShowArgs(%q) = %+v, want %+v", tc.args, got, tc.expected)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("parseStatsShowArgs(%q) = %+v, want an error containing %q", tc.args, got, tc.wantErr)
+			}
+			if !errors.Is(err, ErrNotImplemented) {
+				t.Fatalf("parseStatsShowArgs(%q): %v, want it to wrap ErrNotImplemented", tc.args, err)
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("parseStatsShowArgs(%q): %v, want it to contain %q", tc.args, err, tc.wantErr)
 			}
 		})
 	}

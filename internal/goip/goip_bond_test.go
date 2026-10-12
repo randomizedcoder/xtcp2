@@ -2,10 +2,16 @@ package goip
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
+	"fmt"
+	"io"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/randomizedcoder/xtcp2/pkg/nlparity"
+	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
 
 // This file is `goip -d link show` on a bond, end to end: each LACP state's
@@ -327,4 +333,282 @@ func TestStatsXstatsBondMatchesSidecar(t *testing.T) {
 			}
 		})
 	}
+}
+
+// statsReplay is a TalkSource over a `stats show dev` capture that records
+// every request goip sends, dump or get, in order, with seq and pid cleared.
+// A get is answered with the reply that follows the byte-identical recorded
+// request, so a request ip did not send gets no answer at all: that, and the
+// recorded list, are what TestStatsDevRequestsMatchIpBytes asserts.
+type statsReplay struct {
+	inner *ReplaySource
+	sent  [][]byte
+	dumps int
+}
+
+func newStatsReplay(t *testing.T, path string) *statsReplay {
+	t.Helper()
+	s, err := OpenReplay(path)
+	if err != nil {
+		t.Fatalf("OpenReplay(%s): %v", path, err)
+	}
+	return &statsReplay{inner: s}
+}
+
+func (s *statsReplay) Dump(request []byte, msgType uint16) ([][]byte, error) {
+	s.dumps++
+	s.sent = append(s.sent, zeroSeqPidCopy(request))
+	return s.inner.Dump(request, msgType)
+}
+
+func (s *statsReplay) Talk(request []byte, msgType uint16) ([]byte, error) {
+	want := zeroSeqPidCopy(request)
+	s.sent = append(s.sent, want)
+	msgs := s.inner.cap.Msgs()
+	for i, m := range msgs {
+		if !m.IsRequest() || !bytes.Equal(capturedRequest(m), want) {
+			continue
+		}
+		for _, r := range msgs[i+1:] {
+			if r.IsRequest() {
+				break
+			}
+			if r.Hdr.Type == msgType {
+				return xtcpnl.CopyBytes(r.Body), nil
+			}
+		}
+	}
+	return nil, fmt.Errorf("%w: no recorded request matches %x", ErrNoReplay, want)
+}
+
+// capturedRequest is a recorded request as the datagram ip sent, with seq and
+// pid cleared the way zeroSeqPidCopy clears goip's.
+func capturedRequest(m nlparity.Msg) []byte {
+	out := requestBytesOf(m)
+	binary.LittleEndian.PutUint32(out[0:4], uint32(len(out)))
+	return out
+}
+
+// runStatsWith drives runStats over a source directly, as runLinkWith does
+// for runLink, so the test can supply a TalkSource and read it back.
+func runStatsWith(t *testing.T, src Source, args []string) (string, error) {
+	t.Helper()
+	var out bytes.Buffer
+	c := &runCtx{src: src, lltab: NewLLTab(), out: &out, errOut: io.Discard}
+	err := runStats(c, args)
+	return out.String(), err
+}
+
+// TestStatsXstatsDevBondMatchesSidecar is goip's xstats point get, `stats
+// show dev X group xstats|xstats_slave [subgroup bond [suite 802.3ad]]`, and
+// the bulk `subgroup bond` filter, against the sidecars captured with each
+// pcap. Text came out of the same capio window, so it is byte for byte with
+// the counters in; `-j` is a later `side` run, so its counters are zeroed on
+// both sides (zeroBond3adCounters).
+//
+// go test ./internal/goip/ -run TestStatsXstatsDevBondMatchesSidecar
+func TestStatsXstatsDevBondMatchesSidecar(t *testing.T) {
+	type form struct {
+		args    string
+		capture string // the pcap and text sidecar slug
+		json    string // the -j sidecar, "" for text
+	}
+	forms := []struct {
+		description string
+		form
+	}{
+		{"positive: bond0 xstats point get", form{"dev bond0 group xstats", "xstats_dev", ""}},
+		{"positive: bond0 xstats point get -j", form{"dev bond0 group xstats", "xstats_dev", "xstats_dev_json"}},
+		{"positive: la1 xstats_slave point get", form{"dev la1 group xstats_slave", "xstats_slave_dev", ""}},
+		{"positive: la1 xstats_slave point get -j", form{"dev la1 group xstats_slave", "xstats_slave_dev", "xstats_slave_dev_json"}},
+		{"positive: bond0 802.3ad suite", form{"dev bond0 group xstats subgroup bond suite 802.3ad", "xstats_dev_3ad", ""}},
+		{"positive: la1 802.3ad suite", form{"dev la1 group xstats_slave subgroup bond suite 802.3ad", "xstats_slave_dev_3ad", ""}},
+		{"positive: la1 802.3ad suite -j", form{"dev la1 group xstats_slave subgroup bond suite 802.3ad", "xstats_slave_dev_3ad", "xstats_slave_dev_3ad_json"}},
+		{"positive: bulk bond subgroup filter", form{"group xstats_slave subgroup bond", "xstats_slave_bond", ""}},
+	}
+	// Tier 1's three states, then Tier 2's (lacp-pair/): the same bond on
+	// virtio-net ports with a partner VM, la2's carrier pulled and restored.
+	states := []string{
+		"lacp_no_partner", "lacp_converged", "lacp_partner_down",
+		"lacp-pair/lacp_converged", "lacp-pair/lacp_link_pulled", "lacp-pair/lacp_link_restored",
+	}
+
+	for _, st := range states {
+		for _, f := range forms {
+			t.Run(f.description+", "+st, func(t *testing.T) {
+				dir := linkWriteDir + st + "/"
+				t.Setenv("GOIP_REPLAY", dir+"netlink_route_getstats_"+f.capture+".pcap")
+				args := append([]string{"stats", "show"}, strings.Fields(f.args)...)
+				if f.json != "" {
+					args = append([]string{"-j"}, args...)
+				}
+				var stdout, stderr bytes.Buffer
+				if code := Run(args, &stdout, &stderr); code != ExitOK {
+					t.Fatalf("Run(%q) = %d, stderr=%s", args, code, stderr.String())
+				}
+				if f.json != "" {
+					raw, err := os.ReadFile(dir + "ip_stats_" + f.json)
+					if err != nil {
+						t.Fatal(err)
+					}
+					assertJSONEntriesEqual(t, zeroBond3adCounters(t, stdout.Bytes()), zeroBond3adCounters(t, raw), false)
+					return
+				}
+				want, err := os.ReadFile(dir + "ip_stats_" + f.capture)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if stdout.String() != string(want) {
+					assertLinesEqual(t, stdout.String(), string(want))
+					t.Fatalf("output differs from ip_stats_%s only in trailing lines:\n got %q\nwant %q", f.capture, stdout.String(), want)
+				}
+			})
+		}
+	}
+
+	t.Run("negative: a dev the capture does not hold is refused, not rendered empty", func(t *testing.T) {
+		t.Setenv("GOIP_REPLAY", linkWriteDir+"lacp_converged/netlink_route_getstats_xstats_dev.pcap")
+		var stdout, stderr bytes.Buffer
+		code := Run([]string{"stats", "show", "dev", "nosuch", "group", "xstats"}, &stdout, &stderr)
+		if code != ExitFailure || !strings.Contains(stderr.String(), "cannot find device") || stdout.Len() != 0 {
+			t.Fatalf("code %d, stdout %q, stderr %q; want %d, no stdout, \"cannot find device\"", code, stdout.String(), stderr.String(), ExitFailure)
+		}
+	})
+
+	t.Run("negative: the point get prints no blank line after its last stanza", func(t *testing.T) {
+		t.Setenv("GOIP_REPLAY", linkWriteDir+"lacp_converged/netlink_route_getstats_xstats_dev.pcap")
+		var stdout, stderr bytes.Buffer
+		if code := Run([]string{"stats", "show", "dev", "bond0", "group", "xstats"}, &stdout, &stderr); code != ExitOK {
+			t.Fatalf("code %d, stderr %s", code, stderr.String())
+		}
+		if strings.HasSuffix(stdout.String(), "\n\n") {
+			t.Fatalf("point get output ends in a blank line (ipstats.c:862 prints it in the dump only):\n%q", stdout.String())
+		}
+	})
+
+	// The two captures are seconds apart, so the counters differ; with the
+	// digits masked, the dump's bond0 stanzas and the point get's are the
+	// same lines, the dump adding only its trailing blank one.
+	t.Run("corner: the dump and the point get render the same bond0 body", func(t *testing.T) {
+		mask := func(s string) string {
+			return strings.Map(func(r rune) rune {
+				if r >= '0' && r <= '9' {
+					return '#'
+				}
+				return r
+			}, s)
+		}
+		dir := linkWriteDir + "lacp_converged/"
+		dump, err := os.ReadFile(dir + "ip_stats_xstats")
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("GOIP_REPLAY", dir+"netlink_route_getstats_xstats_dev.pcap")
+		var stdout, stderr bytes.Buffer
+		if code := Run([]string{"stats", "show", "dev", "bond0", "group", "xstats"}, &stdout, &stderr); code != ExitOK {
+			t.Fatalf("code %d, stderr %s", code, stderr.String())
+		}
+		var stanza strings.Builder
+		for _, block := range strings.SplitAfter(string(dump), "\n\n") {
+			if strings.Contains(block, ": bond0: ") {
+				stanza.WriteString(block)
+			}
+		}
+		if got, want := mask(stdout.String()+"\n"), mask(stanza.String()); got != want {
+			t.Fatalf("point get + blank line != dump's bond0 stanza (digits masked)\n got %q\nwant %q", got, want)
+		}
+	})
+}
+
+// TestStatsDevRequestsMatchIpBytes is the wire half of the dev rows: every
+// request goip sends for `stats show dev X ...`, in order, against the
+// requests ip sent in the same capture, byte for byte with seq and pid
+// cleared. ip sends two (ipstats_show_one, ip/ipstats.c:832-851): the
+// RTM_GETLINK by name ll_name_to_index sends (lib/ll_map.c:354-372) and one
+// non-dump RTM_GETSTATS, 28 bytes, with no IFLA_STATS_GET_FILTERS nest.
+//
+// go test ./internal/goip/ -run TestStatsDevRequestsMatchIpBytes
+func TestStatsDevRequestsMatchIpBytes(t *testing.T) {
+	const (
+		getstats = 94 // RTM_GETSTATS
+		getlink  = 18 // RTM_GETLINK
+	)
+	tests := []struct {
+		description string
+		pcap        string
+		args        string
+		wantMask    uint32 // the RTM_GETSTATS filter_mask
+		expected    int    // requests goip sends, all equal to ip's
+	}{
+		{"positive: bond0 xstats, a get by name then mask 0x2",
+			linkWriteDir + "lacp_converged/netlink_route_getstats_xstats_dev.pcap",
+			"show dev bond0 group xstats", xtcpnl.StatsFilterXstats, 2},
+		{"positive: la1 xstats_slave, mask 0x4",
+			linkWriteDir + "lacp_converged/netlink_route_getstats_xstats_slave_dev.pcap",
+			"show dev la1 group xstats_slave", xtcpnl.StatsFilterXstatsSlave, 2},
+		{"positive: subgroup and suite add nothing to the wire",
+			linkWriteDir + "lacp_converged/netlink_route_getstats_xstats_slave_dev_3ad.pcap",
+			"show dev la1 group xstats_slave subgroup bond suite 802.3ad", xtcpnl.StatsFilterXstatsSlave, 2},
+		{"positive: the bond0 suite form is the plain form's bytes",
+			linkWriteDir + "lacp_no_partner/netlink_route_getstats_xstats_dev_3ad.pcap",
+			"show dev bond0 group xstats subgroup bond suite 802.3ad", xtcpnl.StatsFilterXstats, 2},
+		{"positive: group link dev now looks the name up rather than dumping",
+			statsPcapBaseDev, "show group link dev " + devNameCst, xtcpnl.StatsFilterLink64, 2},
+		{"corner: tier 2, la1 a virtio-net port with its partner's link pulled",
+			linkWriteDir + "lacp-pair/lacp_link_pulled/netlink_route_getstats_xstats_slave_dev.pcap",
+			"show dev la1 group xstats_slave", xtcpnl.StatsFilterXstatsSlave, 2},
+		{"boundary: dev after the group sends the same two",
+			linkWriteDir + "lacp_partner_down/netlink_route_getstats_xstats_slave_dev.pcap",
+			"show group xstats_slave dev la1", xtcpnl.StatsFilterXstatsSlave, 2},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			src := newStatsReplay(t, tc.pcap)
+			if _, err := runStatsWith(t, src, strings.Fields(tc.args)); err != nil {
+				t.Fatalf("runStats(%q): %v", tc.args, err)
+			}
+			c, err := nlparity.ParseRouteCaptureFile(tc.pcap)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var ip [][]byte
+			for _, m := range c.Requests() {
+				ip = append(ip, capturedRequest(m))
+			}
+			if len(src.sent) != tc.expected || len(ip) != tc.expected {
+				t.Fatalf("goip sent %d requests, ip %d; want %d each\ngoip %x\nip   %x", len(src.sent), len(ip), tc.expected, src.sent, ip)
+			}
+			for i := range ip {
+				if !bytes.Equal(src.sent[i], ip[i]) {
+					t.Errorf("request %d differs\ngoip %x\nip   %x", i+1, src.sent[i], ip[i])
+				}
+			}
+			// negative: no dump on the dev path.
+			if src.dumps != 0 {
+				t.Errorf("sent %d dumps; the dev path sends gets only", src.dumps)
+			}
+			if typ := requestTypeOf(src.sent[0]); typ != getlink {
+				t.Errorf("first request type %d, want RTM_GETLINK by name", typ)
+			}
+			// negative: no filter nest, and the mask the group selects.
+			last := src.sent[len(src.sent)-1]
+			if requestTypeOf(last) != getstats || len(last) != xtcpnl.NlMsgHdrSizeCst+xtcpnl.IfStatsMsgSizeCst {
+				t.Errorf("last request type %d len %d, want RTM_GETSTATS of %d bytes", requestTypeOf(last), len(last), xtcpnl.NlMsgHdrSizeCst+xtcpnl.IfStatsMsgSizeCst)
+			} else if mask := binary.LittleEndian.Uint32(last[len(last)-4:]); mask != tc.wantMask {
+				t.Errorf("filter_mask %#x, want %#x", mask, tc.wantMask)
+			}
+		})
+	}
+
+	// The bulk path is out of scope and keeps its up-front link dump: this
+	// row fails the day it is reordered, which is when it should be rewritten.
+	t.Run("corner: the bulk path still opens with a link dump", func(t *testing.T) {
+		src := newStatsReplay(t, linkWriteDir+"lacp_converged/netlink_route_getstats_xstats_slave.pcap")
+		if _, err := runStatsWith(t, src, []string{"show", "group", "xstats_slave"}); err != nil {
+			t.Fatalf("runStats: %v", err)
+		}
+		if src.dumps != 2 || requestTypeOf(src.sent[0]) != getlink {
+			t.Fatalf("dumps %d, first request type %d; want 2 dumps opening with RTM_GETLINK", src.dumps, requestTypeOf(src.sent[0]))
+		}
+	})
 }

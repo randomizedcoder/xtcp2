@@ -59,11 +59,54 @@ var bridgeXstatsLeaves = []bridgeXstatsLeaf{
 	{subgroup: "bridge", suite: "stp", body: bridgeBodyNone},
 }
 
+// XstatsSelect is a `subgroup X [suite Y]` narrowing of the whole group. The
+// zero value selects every leaf. It is render-only: iproute2 sends no
+// IFLA_STATS_GET_FILTERS nest for the xstats groups, since
+// ipstats_stat_desc_pack_xstats enables the group bit with subgroup 0
+// (ip/ipstats.c:578-585), so the request is the whole group's either way and
+// the selection decides only which leaves print.
+type XstatsSelect struct {
+	Subgroup string
+	Suite    string
+}
+
+// matches reports whether leaf is inside the selection.
+func (s XstatsSelect) matches(leaf bridgeXstatsLeaf) bool {
+	return (s.Subgroup == "" || s.Subgroup == leaf.subgroup) &&
+		(s.Suite == "" || s.Suite == leaf.suite)
+}
+
+// Valid reports whether the selection names a subgroup, and a suite inside
+// it, that the xstats groups hold. It is ipstats_enable_find_stat_desc's
+// "no %s named %s found inside %s" check (ip/ipstats.c:999-1029) over the
+// four leaves. A suite with no subgroup is the parser's to refuse.
+func (s XstatsSelect) Valid() bool {
+	for _, leaf := range bridgeXstatsLeaves {
+		if s.matches(leaf) {
+			return true
+		}
+	}
+	return false
+}
+
+// leaves is the selected leaves, in the pinned golden order.
+func (s XstatsSelect) leaves() []bridgeXstatsLeaf {
+	out := make([]bridgeXstatsLeaf, 0, len(bridgeXstatsLeaves))
+	for _, leaf := range bridgeXstatsLeaves {
+		if s.matches(leaf) {
+			out = append(out, leaf)
+		}
+	}
+	return out
+}
+
 // BridgeXstatsView is one interface's xstats (or xstats_slave) group, decoded.
 // Group is XstatsGroupCst or XstatsSlaveGroupCst. Vlans is the per-VLAN list
 // (the vlan leaf always emits a `vlans` array in JSON, empty on a non-bridge
 // device); Mcast and Bond3ad are set only when the reply carried that body.
+// Select narrows the leaves printed; the zero value prints all four.
 type BridgeXstatsView struct {
+	Select  XstatsSelect
 	Group   string
 	Ifindex uint32
 	IfName  string
@@ -107,7 +150,7 @@ func xstatsViewOf(group string, ifindex uint32, x xtcpnl.XstatsBodies, names Nam
 // the IfStatsView precedent.
 func (v BridgeXstatsView) Text() string {
 	var b strings.Builder
-	for _, leaf := range bridgeXstatsLeaves {
+	for _, leaf := range v.Select.leaves() {
 		fmt.Fprintf(&b, "%d: %s: group %s subgroup %s suite %s\n", v.Ifindex, v.IfName, v.Group, leaf.subgroup, leaf.suite)
 		if body, ok := v.bodyText(leaf); ok {
 			b.WriteString(body)
@@ -314,7 +357,7 @@ type bridgeMcastJSON struct {
 func BridgeXstatsJSON(views []BridgeXstatsView) []bridgeXstatsLeafJSON {
 	out := make([]bridgeXstatsLeafJSON, 0, len(views)*len(bridgeXstatsLeaves))
 	for _, v := range views {
-		for _, leaf := range bridgeXstatsLeaves {
+		for _, leaf := range v.Select.leaves() {
 			e := bridgeXstatsLeafJSON{
 				Ifindex: v.Ifindex, Ifname: v.IfName,
 				Group: v.Group, Subgroup: leaf.subgroup, Suite: leaf.suite,

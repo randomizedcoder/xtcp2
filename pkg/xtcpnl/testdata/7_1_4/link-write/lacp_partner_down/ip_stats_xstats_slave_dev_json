@@ -1,0 +1,37 @@
+[ {
+        "ifindex": 3,
+        "ifname": "la1",
+        "group": "xstats_slave",
+        "subgroup": "bond",
+        "suite": "802.3ad",
+        "802.3ad": {
+            "lacpdu_rx": 80,
+            "lacpdu_tx": 90,
+            "lacpdu_unknown_rx": 0,
+            "lacpdu_illegal_rx": 0,
+            "marker_rx": 0,
+            "marker_tx": 0,
+            "marker_response_rx": 0,
+            "marker_response_tx": 0,
+            "marker_unknown_rx": 0
+        }
+    },{
+        "ifindex": 3,
+        "ifname": "la1",
+        "group": "xstats_slave",
+        "subgroup": "bridge",
+        "suite": "vlan",
+        "vlans": [ ]
+    },{
+        "ifindex": 3,
+        "ifname": "la1",
+        "group": "xstats_slave",
+        "subgroup": "bridge",
+        "suite": "mcast"
+    },{
+        "ifindex": 3,
+        "ifname": "la1",
+        "group": "xstats_slave",
+        "subgroup": "bridge",
+        "suite": "stp"
+    } ]
