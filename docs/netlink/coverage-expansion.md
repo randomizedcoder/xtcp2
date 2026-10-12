@@ -291,7 +291,7 @@ version in `go.mod`:
 | `UNIX_DIAG_*` | **0** | ❌ |
 | `XDP_DIAG_*` | **0** | ❌ |
 | `PROC_CN_*` / `PROC_EVENT_*` | **0** | ❌ |
-| `RDMA_NLDEV_*` | **0** | ❌ |
+| `RDMA_NLDEV_*` | **0** | ✅ hand-declared, `pkg/xtcpnl/xtcpnl_rdma_consts.go`, C-gated against `<rdma/rdma_netlink.h>` |
 | `INET_DIAG_*` | **0** | (already hand-declared in-tree) |
 
 Message-type constants are in better shape than expected: `unix` has the full

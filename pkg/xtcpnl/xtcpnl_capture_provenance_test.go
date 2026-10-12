@@ -104,6 +104,15 @@ func TestUnameMatchesKernelDirectory(t *testing.T) {
 			reproducible: true,
 		},
 		{
+			// The rdma corpus is strace, not pcap, and comes from its own
+			// capture app, so it carries its own copy of the claim too.
+			description:  "corner: rdma/uname, the strace corpus, was taken in the same capture VM",
+			file:         tdRdma_7_1_4 + "/uname",
+			dir:          "7_1_4",
+			wantHostname: "xtcp2-vm-x8664",
+			reproducible: true,
+		},
+		{
 			// The negative of the pair: same shape, different provenance.
 			// Nothing about this file is reproducible, which is precisely why
 			// the 7_1_8 expectations are advisory and the 7_1_4 ones are
@@ -290,6 +299,16 @@ func TestIPVersionMatchesUpstreamPin(t *testing.T) {
 		{
 			description: "positive: the 7_1_4 dump set's ip_version is the pinned iproute2",
 			file:        tdDumpIPVersion_7_1_4,
+		},
+		{
+			description: "positive: the rdma corpus's ip_version is the pinned iproute2",
+			file:        tdRdma_7_1_4 + "/ip_version",
+		},
+		{
+			// `rdma -V` is "rdma utility, iproute2-7.1.0": the same
+			// comma-separated shape, so the same parser reads it.
+			description: "corner: the rdma tool that made the corpus is the pinned iproute2 too",
+			file:        tdRdma_7_1_4 + "/rdma_version",
 		},
 	}
 

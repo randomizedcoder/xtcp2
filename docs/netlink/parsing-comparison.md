@@ -81,7 +81,7 @@ number in [§5](#5-test-coverage) says which population it describes.
 | `NETLINK_GENERIC` | ✅ | ➖ | Fork uses it for devlink, ethtool, fou, gtp, netdev, vdpa |
 | `NETLINK_XFRM` | ◑ | ➖ | IPsec. Fork's *monitor* handles `XFRM_MSG_EXPIRE` only |
 | `NETLINK_NETFILTER` | ✅ | ➖ | conntrack, ipset |
-| `NETLINK_RDMA` | ✅ | ➖ | `rdma_link_linux.go` |
+| `NETLINK_RDMA` | ✅ | ◑ | Fork: `rdma_link_linux.go`. xtcp2: the nldev read path, device / port / resource summary / hw counters / system / monitor events (`pkg/xtcpnl/xtcpnl_rdma.go`) |
 | `NETLINK_CONNECTOR` | ✅ | ➖ | proc fork/exec/exit events |
 
 xtcp2 opens `NETLINK_INET_DIAG` in `pkg/xtcpnl/xtcpnl.go:85` and `NETLINK_ROUTE`
@@ -115,7 +115,7 @@ by four families relative to what the tree actually uses.
 | **ipset** | ✅ 9 of 13 commands wired (`ipset_linux.go:129-346`) | — | ➖ |
 | **devlink** | ✅ 15 commands (`nl/devlink_linux.go:12-24`) | — | ➖ |
 | **vdpa** | ✅ (`vdpa_linux.go`) | — | ➖ |
-| **rdma** | ✅ (`rdma_link_linux.go:89`) | — | ➖ |
+| **rdma** | ✅ (`rdma_link_linux.go:89`) | ◑ nldev `GET`/`PORT_GET`/`RES_GET`/`STAT_GET`/`SYS_GET` builders and decoders, `MONITOR` events (`xtcpnl_rdma.go`) | ◑ read-only; no RDMA writes, no per-object `RES_*` decode |
 | **netdev (queues)** | ✅ queue-get / queue-create | — | ➖ |
 | **ethtool** | ◑ features, rings, RSS only (`nl/ethtool_linux.go:15-20`) | — | ➖ xtcp2 gets NIC facts via LLDP/sysfs enrichment instead |
 | **genetlink ctrl** | ✅ family resolution (`genetlink_linux.go`) | — | ➖ needed only by the generic families above |
