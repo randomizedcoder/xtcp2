@@ -138,3 +138,179 @@ func TestLiveRDMAPortGet(t *testing.T) {
 		t.Logf("%s/1 GET in %v: state=%d physical=%d", d.Name, time.Since(start), got.Values[0].State, got.Values[0].Physical)
 	}
 }
+
+// liveShapes is the state shared by TestLiveRequestShapes rows. One client per
+// protocol keeps each protocol's requests on one socket, so an nlrecord run
+// (LINKMONITOR_NLRECORD=<dir> go test -tags nlrecord -run
+// '^TestLiveRequestShapes$') records each as one replayable pcap.
+type liveShapes struct {
+	route, generic, rdma *Client
+	links                []xtcpnl.LinkInfo
+	ether                uint32
+	families             map[string]Family
+	rdmaDevices          []RDMAPort
+}
+
+// liveEtherIndex picks LINKMONITOR_LIVE_INTERFACE, else the first Ethernet link.
+func liveEtherIndex(links []xtcpnl.LinkInfo) uint32 {
+	name := os.Getenv("LINKMONITOR_LIVE_INTERFACE")
+	for i := range links {
+		l := &links[i]
+		if (name != "" && l.Name == name) || (name == "" && l.Type == unix.ARPHRD_ETHER) {
+			return uint32(l.Index)
+		}
+	}
+	return 0
+}
+
+// family rediscovers after an error reply, which retires the socket and with
+// it every family handle of that epoch.
+func (s *liveShapes) family(ctx context.Context, name string) (Family, error) {
+	if f, ok := s.families[name]; ok {
+		return f, nil
+	}
+	f, err := s.generic.DiscoverFamily(ctx, name)
+	if err != nil {
+		return Family{}, errors.Join(errLivePrerequisite, err)
+	}
+	s.families[name] = f
+	return f, nil
+}
+
+var errLivePrerequisite = errors.New("live prerequisite missing")
+
+// TestLiveRequestShapes issues every request shape linuxio builds once against
+// the running kernel. A row skips only on its listed unsupported errnos or a
+// missing prerequisite (no Ethernet link, no RDMA device), and says which.
+func TestLiveRequestShapes(t *testing.T) {
+	s := &liveShapes{
+		route:    liveClient(t, unix.NETLINK_ROUTE),
+		generic:  liveClient(t, unix.NETLINK_GENERIC),
+		rdma:     liveClient(t, unix.NETLINK_RDMA),
+		families: map[string]Family{},
+	}
+	noRDMA := []error{unix.EPROTONOSUPPORT, unix.EAFNOSUPPORT, unix.EOPNOTSUPP}
+	discover := func(name string) func(context.Context, *liveShapes) (int, error) {
+		return func(ctx context.Context, s *liveShapes) (int, error) {
+			f, err := s.generic.DiscoverFamily(ctx, name)
+			if err == nil {
+				s.families[name] = f
+			}
+			return 1, err
+		}
+	}
+	ethtool := func(kind xtcpnl.EthtoolKind) func(context.Context, *liveShapes) (int, error) {
+		return func(ctx context.Context, s *liveShapes) (int, error) {
+			f, err := s.family(ctx, ethtoolFamilyName)
+			if err != nil || s.ether == 0 {
+				return 0, errLivePrerequisite
+			}
+			got, err := s.generic.GetEthtool(ctx, f, kind, s.ether)
+			return len(got.Values), err
+		}
+	}
+	rows := []struct {
+		category, description, expected string
+		unsupported                     []error
+		wantValues                      int // -1: at least one; 0: any count
+		run                             func(context.Context, *liveShapes) (int, error)
+	}{
+		{"positive", "route link dump", "at least one link", nil, -1, func(ctx context.Context, s *liveShapes) (int, error) {
+			got, err := s.route.DumpLinks(ctx)
+			s.links = got.Values
+			s.ether = liveEtherIndex(got.Values)
+			return len(got.Values), err
+		}},
+		{"positive", "route link GET", "exactly the requested link", nil, 1, func(ctx context.Context, s *liveShapes) (int, error) {
+			if len(s.links) == 0 {
+				return 0, errLivePrerequisite
+			}
+			got, err := s.route.GetLink(ctx, s.links[0].Index)
+			return len(got.Values), err
+		}},
+		{"positive", "genl GETFAMILY nlctrl", "controller resolves", nil, 1, discover("nlctrl")},
+		{"positive", "genl GETFAMILY ethtool", "ethtool family resolves", []error{unix.ENOENT}, 1, discover(ethtoolFamilyName)},
+		{"positive", "genl GETFAMILY devlink", "devlink family resolves", []error{unix.ENOENT}, 1, discover("devlink")},
+		{"positive", "ethtool LINKINFO_GET", "one reply for the link", []error{unix.EOPNOTSUPP}, 1, ethtool(xtcpnl.EthtoolLinkInfoKind)},
+		{"positive", "ethtool LINKMODES_GET", "one reply for the link", []error{unix.EOPNOTSUPP}, 1, ethtool(xtcpnl.EthtoolLinkModesKind)},
+		{"positive", "ethtool LINKSTATE_GET", "one reply for the link", []error{unix.EOPNOTSUPP}, 1, ethtool(xtcpnl.EthtoolLinkStateKind)},
+		{"positive", "ethtool RINGS_GET", "one reply for the link", []error{unix.EOPNOTSUPP}, 1, ethtool(xtcpnl.EthtoolRingsKind)},
+		{"positive", "ethtool CHANNELS_GET", "one reply for the link", []error{unix.EOPNOTSUPP}, 1, ethtool(xtcpnl.EthtoolChannelsKind)},
+		{"positive", "ethtool PAUSE_GET", "one reply for the link", []error{unix.EOPNOTSUPP}, 1, ethtool(xtcpnl.EthtoolPauseKind)},
+		{"positive", "ethtool FEC_GET", "one reply for the link", []error{unix.EOPNOTSUPP}, 1, ethtool(xtcpnl.EthtoolFECKind)},
+		{"boundary", "devlink port dump", "zero or more ports, never partial", nil, 0, func(ctx context.Context, s *liveShapes) (int, error) {
+			f, err := s.family(ctx, "devlink")
+			if err != nil {
+				return 0, err
+			}
+			got, err := s.generic.DumpDevlinkPorts(ctx, f)
+			return len(got.Values), err
+		}},
+		{"positive", "RDMA device dump", "at least one device", noRDMA, -1, func(ctx context.Context, s *liveShapes) (int, error) {
+			got, err := s.rdma.DumpRDMADevices(ctx)
+			s.rdmaDevices = got.Values
+			if err == nil && len(got.Values) == 0 {
+				return 0, errLivePrerequisite
+			}
+			return len(got.Values), err
+		}},
+		{"positive", "RDMA port dump", "at least one port of the first device", nil, -1, func(ctx context.Context, s *liveShapes) (int, error) {
+			if len(s.rdmaDevices) == 0 {
+				return 0, errLivePrerequisite
+			}
+			got, err := s.rdma.DumpRDMAPorts(ctx, s.rdmaDevices[0].Index)
+			return len(got.Values), err
+		}},
+		{"corner", "RDMA single-port GET", "one port; the reply is typed RDMA_NLDEV_CMD_GET", nil, 1, func(ctx context.Context, s *liveShapes) (int, error) {
+			if len(s.rdmaDevices) == 0 {
+				return 0, errLivePrerequisite
+			}
+			got, err := s.rdma.GetRDMAPort(ctx, s.rdmaDevices[0].Index, 1)
+			return len(got.Values), err
+		}},
+		{"positive", "RDMA SYS_GET monitor mode", "monitor mode on", noRDMA, 1, func(ctx context.Context, s *liveShapes) (int, error) {
+			return 1, s.rdma.monitorMode(ctx)
+		}},
+		{"negative", "route GET of an unused index", "ENODEV; the socket is retired, so this row is last on route", []error{}, 0, func(ctx context.Context, s *liveShapes) (int, error) {
+			used := make(map[int32]bool, len(s.links))
+			for _, l := range s.links {
+				used[l.Index] = true
+			}
+			missing := int32(1)
+			for used[missing] {
+				missing++
+			}
+			got, err := s.route.GetLink(ctx, missing)
+			if errors.Is(err, unix.ENODEV) && got.Values == nil {
+				return 0, nil
+			}
+			return len(got.Values), errors.Join(errors.New("want ENODEV"), err)
+		}},
+	}
+	for _, row := range rows {
+		t.Run(row.category+"/"+row.description, func(t *testing.T) {
+			t.Logf("%s: %s; expected: %s", row.category, row.description, row.expected)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			n, err := row.run(ctx, s)
+			if err != nil {
+				clear(s.families)
+			}
+			if errors.Is(err, errLivePrerequisite) {
+				t.Skipf("skipped: %v", err)
+			}
+			for _, skip := range row.unsupported {
+				if errors.Is(err, skip) {
+					t.Skipf("skipped: unsupported here: %v", err)
+				}
+			}
+			if err != nil || (row.wantValues < 0 && n == 0) || (row.wantValues > 0 && n != row.wantValues) {
+				t.Fatalf("values=%d want %d error=%v", n, row.wantValues, err)
+			}
+			t.Logf("values=%d", n)
+		})
+	}
+	if err := recordError(); err != nil {
+		t.Fatalf("recording: %v", err)
+	}
+}

@@ -1,0 +1,42 @@
+[
+  {
+    "call": "DiscoverFamily(\"nlctrl\")",
+    "values": 1,
+    "digest": "cc40fe17fd8a1a46"
+  },
+  {
+    "call": "DiscoverFamily(\"ethtool\")",
+    "values": 1,
+    "digest": "9f2473ebaf825c26"
+  },
+  {
+    "call": "DiscoverFamily(\"devlink\")",
+    "values": 1,
+    "digest": "c5b06789303298c5"
+  },
+  {
+    "call": "GetEthtool(linkinfo, 2)",
+    "values": 1,
+    "digest": "90d9047cd8b1872a"
+  },
+  {
+    "call": "GetEthtool(linkmodes, 2)",
+    "values": 1,
+    "digest": "91ffce955baa2437"
+  },
+  {
+    "call": "GetEthtool(linkstate, 2)",
+    "values": 1,
+    "digest": "9400912a03420ba0"
+  },
+  {
+    "call": "GetEthtool(rings, 2)",
+    "values": 1,
+    "digest": "9bcec4fea4036e43"
+  },
+  {
+    "call": "GetEthtool(channels, 2)",
+    "values": 0,
+    "error": "operation not supported"
+  }
+]

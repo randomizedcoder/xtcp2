@@ -1,0 +1,37 @@
+[
+  {
+    "call": "DiscoverFamily(\"nlctrl\")",
+    "values": 1,
+    "digest": "cc40fe17fd8a1a46"
+  },
+  {
+    "call": "DiscoverFamily(\"ethtool\")",
+    "values": 1,
+    "digest": "9f2473ebaf825c26"
+  },
+  {
+    "call": "DiscoverFamily(\"devlink\")",
+    "values": 1,
+    "digest": "c5b06789303298c5"
+  },
+  {
+    "call": "GetEthtool(linkinfo, 4)",
+    "values": 1,
+    "digest": "1a0052f1feb5a729"
+  },
+  {
+    "call": "GetEthtool(linkmodes, 4)",
+    "values": 1,
+    "digest": "fb15aa9372b17ef5"
+  },
+  {
+    "call": "GetEthtool(linkstate, 4)",
+    "values": 1,
+    "digest": "9a2d4b5aa7d99280"
+  },
+  {
+    "call": "GetEthtool(rings, 4)",
+    "values": 0,
+    "error": "operation not supported"
+  }
+]

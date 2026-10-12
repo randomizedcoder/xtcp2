@@ -1,0 +1,12 @@
+[
+  {
+    "call": "DiscoverFamily(\"devlink\")",
+    "values": 1,
+    "digest": "c5b06789303298c5"
+  },
+  {
+    "call": "DumpDevlinkPorts",
+    "values": 2,
+    "digest": "b05a539eafe2a1d9"
+  }
+]
