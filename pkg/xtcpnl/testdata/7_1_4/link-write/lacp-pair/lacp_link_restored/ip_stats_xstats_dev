@@ -1,0 +1,14 @@
+5: bond0: group xstats subgroup bond suite 802.3ad
+                    LACPDU Rx 289
+                    LACPDU Tx 290
+                    LACPDU Unknown type Rx 0
+                    LACPDU Illegal Rx 0
+                    Marker Rx 0
+                    Marker Tx 0
+                    Marker response Rx 0
+                    Marker response Tx 0
+                    Marker unknown type Rx 0
+
+5: bond0: group xstats subgroup bridge suite vlan
+5: bond0: group xstats subgroup bridge suite mcast
+5: bond0: group xstats subgroup bridge suite stp

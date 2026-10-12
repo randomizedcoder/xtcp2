@@ -546,6 +546,20 @@ func StatsGetByIndex(ifindex uint32, seq uint32) ([]byte, error) {
 	return xtcpnl.BuildGetStatsByIndexRequest(ifindex, xtcpnl.StatsFilterLink64, seq)
 }
 
+// StatsGetXstatsByIndex is StatsGetByIndex for `ip stats show dev X group
+// xstats`: the same 28-byte point get with the link-xstats filter_mask (0x2).
+// A `subgroup`/`suite` selection adds nothing: ipstats sends no
+// IFLA_STATS_GET_FILTERS nest for the xstats groups (ip/ipstats.c:578-585).
+func StatsGetXstatsByIndex(ifindex uint32, seq uint32) ([]byte, error) {
+	return xtcpnl.BuildGetStatsByIndexRequest(ifindex, xtcpnl.StatsFilterXstats, seq)
+}
+
+// StatsGetXstatsSlaveByIndex is the `group xstats_slave` point get
+// (filter_mask 0x4).
+func StatsGetXstatsSlaveByIndex(ifindex uint32, seq uint32) ([]byte, error) {
+	return xtcpnl.BuildGetStatsByIndexRequest(ifindex, xtcpnl.StatsFilterXstatsSlave, seq)
+}
+
 // NexthopGetByID is the single-get RTM_GETNEXTHOP `ip -d route show` sends for a
 // route delegating its next hop to a nexthop object (ipnh_cache_add). family is
 // preferred_family, which for a plain `route show` is AF_UNSPEC.

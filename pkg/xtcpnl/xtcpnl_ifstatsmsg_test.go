@@ -365,3 +365,61 @@ func TestBuildStatsRequests(t *testing.T) {
 		t.Errorf("point get (big ifindex) mismatch\ngot  %s\nwant %s", hex.EncodeToString(gotGetBig), hex.EncodeToString(wantGetBig))
 	}
 }
+
+// TestBuildGetStatsXstatsRequests pins the xstats point gets that `ip stats
+// show dev X group xstats|xstats_slave` sends (ipstats_show_one): the same
+// attribute-free header as the link point get with filter_mask 0x2 or 0x4.
+// subgroup and suite never add an IFLA_STATS_GET_FILTERS nest for these
+// groups (ip/ipstats.c:578-585), so the 28-byte length is part of the pin.
+//
+// go test ./pkg/xtcpnl/ -run TestBuildGetStatsXstatsRequests
+func TestBuildGetStatsXstatsRequests(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		description string
+		ifindex     uint32
+		mask        uint32
+		seq         uint32
+		expected    string // the whole request, hex
+	}{
+		{
+			description: "positive: xstats point get for bond0",
+			ifindex:     5, mask: StatsFilterXstats, seq: 1,
+			expected: "1c0000005e000100010000000000000000000000" + "05000000" + "02000000",
+		},
+		{
+			description: "positive: xstats_slave point get for la1",
+			ifindex:     3, mask: StatsFilterXstatsSlave, seq: 2,
+			expected: "1c0000005e000100020000000000000000000000" + "03000000" + "04000000",
+		},
+		{
+			description: "boundary: the largest ifindex is little-endian, no overflow",
+			ifindex:     0xffffffff, mask: StatsFilterXstatsSlave, seq: 0xffffffff,
+			expected: "1c0000005e000100ffffffff0000000000000000" + "ffffffff" + "04000000",
+		},
+		{
+			description: "corner: ifindex 1 (lo) with seq 0",
+			ifindex:     1, mask: StatsFilterXstats, seq: 0,
+			expected: "1c0000005e000100000000000000000000000000" + "01000000" + "02000000",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			t.Parallel()
+			got, err := BuildGetStatsByIndexRequest(tc.ifindex, tc.mask, tc.seq)
+			if err != nil {
+				t.Fatalf("BuildGetStatsByIndexRequest: %v", err)
+			}
+			if want := mustHex(t, tc.expected); !bytes.Equal(got, want) {
+				t.Errorf("request mismatch\ngot  %s\nwant %s", hex.EncodeToString(got), tc.expected)
+			}
+			// negative: no dump, no ack, no trailing attribute.
+			if flags := binary.LittleEndian.Uint16(got[6:8]); flags != uint16(unix.NLM_F_REQUEST) {
+				t.Errorf("flags %#x, want exactly NLM_F_REQUEST", flags)
+			}
+			if len(got) != NlMsgHdrSizeCst+IfStatsMsgSizeCst {
+				t.Errorf("len %d, want %d (no IFLA_STATS_GET_FILTERS nest)", len(got), NlMsgHdrSizeCst+IfStatsMsgSizeCst)
+			}
+		})
+	}
+}

@@ -1411,9 +1411,12 @@ var commands = withArgs([]Command{
 		NeedsDev: true,
 		// The point get: with a dev, ipstats_show_one issues a non-dump RTM_GETSTATS
 		// carrying the ifindex in its 12-byte header (NLM_F_REQUEST alone — no DUMP,
-		// no ACK, unlike netconf's point get), read with rtnl_talk. Still a link dump
-		// first, so the floor is the netconf shape. Byte-grounded offline against the
-		// ip_stats_dev sidecar.
+		// no ACK, unlike netconf's point get), read with rtnl_talk. Ahead of it,
+		// ll_name_to_index resolves the name with one RTM_GETLINK by name
+		// (lib/ll_map.c:354-372). goip used to send a link dump there, which
+		// kept the row in the permanent set; it now sends the same lookup, read
+		// 2/2 with control nl=0 on two runs, and is gated. Byte-grounded
+		// offline against the ip_stats_dev sidecar.
 		Floor: 4, Implemented: true,
 	},
 	{
@@ -1433,10 +1436,9 @@ var commands = withArgs([]Command{
 	// GET_FILTERS nest). The whole group expands to four leaves, in the
 	// pointer-sorted golden order bond/802.3ad, bridge/vlan, bridge/mcast,
 	// bridge/stp, so every device prints four header stanzas with bodies only on
-	// bridges (mesh's br0: vlan + mcast). goip grounds the vlan/mcast bodies and
-	// the empty bond/stp headers; stp/bond bodies are refused. There is no dev
-	// row: the xstats point get is deferred (the link group already grounds the
-	// non-dump path).
+	// bridges (mesh's br0: vlan + mcast). goip grounds the vlan/mcast bodies,
+	// the bond 802.3ad body and the empty stp headers; the stp body is refused.
+	// The dev rows are the bond ones below, which bring their own bond.
 	{
 		Name: "stats show group xstats", Slug: "stats_show_xstats",
 		// Four, the stats shape: goip's up-front bulk link dump resolves names
@@ -1459,6 +1461,55 @@ var commands = withArgs([]Command{
 		// the wire, so the request is byte-identical to the text twin. Grounded
 		// against ip_stats_xstats_json; ungated — runs 8 and 9 read the same
 		// name-resolution divergence as its text twin, permanent by design.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "stats show dev bond0 group xstats", Slug: "stats_show_xstats_dev_bond",
+		Setup: bondReadSetup,
+		// The bond's BOND_XSTATS_3AD counters through the point get, the first
+		// xstats dev row. Two transactions, the `stats show group link dev`
+		// shape: ll_name_to_index's RTM_GETLINK by name, then one non-dump
+		// RTM_GETSTATS with filter_mask 0x2 and no IFLA_STATS_GET_FILTERS nest
+		// (ip/ipstats.c:578-585). The reply's ifindex is then cached, so there
+		// is no third lookup.
+		//
+		// bondReadSetup's ports have no carrier, so every counter is zero and
+		// stays zero across ip_a, goip and ip_b. This row and the four below
+		// read 2/2 with control nl=0 and stdout=0 on their first two live
+		// runs, and are gated (TestBondXstatsRowsGated).
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "stats show dev la1 group xstats_slave", Slug: "stats_show_xstats_slave_dev_bond",
+		Setup: bondReadSetup,
+		// The per-port copy, filter_mask 0x4: the kernel answers an
+		// XSTATS_SLAVE get on an 802.3ad port with LINK_XSTATS_TYPE_BOND
+		// (drivers/net/bonding/bond_netlink.c:933-983). Two transactions:
+		// unlike `-d link show dev la1`, nothing printed here names the veth
+		// peer or the master, so no side lookups.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "stats show dev bond0 group xstats subgroup bond suite 802.3ad", Slug: "stats_show_xstats_dev_bond_3ad",
+		Setup: bondReadSetup,
+		// subgroup and suite are render-only for the xstats groups: the
+		// request is byte-identical to the row above, and only the 802.3ad
+		// stanza is printed where the plain form prints all four leaves.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "stats show dev la1 group xstats_slave subgroup bond suite 802.3ad", Slug: "stats_show_xstats_slave_dev_bond_3ad",
+		Setup: bondReadSetup,
+		// The render-only filter on the port, the same request as its plain
+		// twin above.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-j stats show dev la1 group xstats_slave", Slug: "stats_show_xstats_slave_dev_bond_json",
+		Setup: bondReadSetup,
+		// The flat `-j` array for the port: one object per leaf, the 802.3ad
+		// one carrying the counters. `-j` does not reach the wire, so the
+		// request is the text twin's.
 		Floor: 4, Implemented: true,
 	},
 

@@ -723,7 +723,26 @@ func (s *Service) ifStatsDump(r []byte) ([]model.IfStats, error) {
 // (no Talk) dumps every RTM_NEWSTATS and filters to the ifindex — the committed
 // dev pcap records the one reply the capture's point get fetched.
 func (s *Service) IfStatsByIndex(ifindex uint32) (model.IfStats, error) {
-	r, err := req.StatsGetByIndex(ifindex, s.nextSeq())
+	return s.ifStatsGet(ifindex, req.StatsGetByIndex)
+}
+
+// IfStatsXstatsByIndex is `ip stats show dev X group xstats`'s point get
+// (filter_mask 0x2), the same spine as IfStatsByIndex.
+func (s *Service) IfStatsXstatsByIndex(ifindex uint32) (model.IfStats, error) {
+	return s.ifStatsGet(ifindex, req.StatsGetXstatsByIndex)
+}
+
+// IfStatsXstatsSlaveByIndex is `ip stats show dev X group xstats_slave`'s
+// point get (filter_mask 0x4); ParseNewStats puts its bodies in IfStats.Slave.
+func (s *Service) IfStatsXstatsSlaveByIndex(ifindex uint32) (model.IfStats, error) {
+	return s.ifStatsGet(ifindex, req.StatsGetXstatsSlaveByIndex)
+}
+
+// ifStatsGet builds one point get with build and fetches the record for
+// ifindex: the kernel single-get on a live source, or a filtered dump on a
+// replay source with no Talk.
+func (s *Service) ifStatsGet(ifindex uint32, build func(ifindex, seq uint32) ([]byte, error)) (model.IfStats, error) {
+	r, err := build(ifindex, s.nextSeq())
 	if err != nil {
 		return model.IfStats{}, fmt.Errorf("goip: build stats get request: %w", err)
 	}

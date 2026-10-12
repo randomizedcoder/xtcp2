@@ -2,7 +2,7 @@
 
 ## goip ↔ `ip` parity at a glance
 
-Counted from the tree on 2026-10-10. Every number has a file behind it, named
+Counted from the tree on 2026-10-11. Every number has a file behind it, named
 in the last column; **if this table and the file disagree, the file is right
 and this table is stale.** That has happened before in this document — see the
 "no route command is in `gated_commands`" line that outlived its own truth by
@@ -10,17 +10,17 @@ several steps, further down under [Remaining](#remaining).
 
 | | count | counted from |
 |---|---|---|
-| commands in the comparison matrix | **83** | `internal/goipparity/commands.go` — 62 read rows and the 21 link write rows |
-| of those, `Implemented: true` | **83** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
-| of those, in `gated_commands` | **60** | `pkg/nlparity/goip-parity-allowlist.json` |
+| commands in the comparison matrix | **90** | `internal/goipparity/commands.go` — 69 read rows and the 21 link write rows |
+| of those, `Implemented: true` | **90** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
+| of those, in `gated_commands` | **68** | `pkg/nlparity/goip-parity-allowlist.json` |
 | allowlisted divergences | **7** | same file, `entries` |
 | of those, `kind=version-skew` | **7** | all against the pinned `ip` 7.1.0 |
-| of those, `kind=accepted-divergence` | **0** | nothing is *allowlisted* as a permanent divergence — the nine intentional wire divergences below **cannot** be, because a transaction-count divergence is unsuppressible (`nlparity_allowlist.go:143`) |
+| of those, `kind=accepted-divergence` | **0** | nothing is *allowlisted* as a permanent divergence — the eight intentional wire divergences below **cannot** be, because a transaction-count divergence is unsuppressible (`nlparity_allowlist.go:143`) |
 
-**Twenty-three** matrix rows sit outside `gated_commands`, and they fall into
+**Twenty-two** matrix rows sit outside `gated_commands`, and they fall into
 five groups that are out for unrelated reasons. Fourteen are a queue, each
-awaiting its own measured-clean live run; the other **nine** — the stats and
-netconf-dev rows — are **not** a queue but a closed, permanent, intentional wire
+awaiting its own measured-clean live run; the other **eight** — the bulk stats
+and netconf-dev rows — are **not** a queue but a closed, permanent, intentional wire
 divergence (see [Runs 8 & 9](#runs-8-and-9-ntable-netconf-and-vrf-gate-stats-and-netconf-dev-diverge)).
 
 **Twelve are new and not yet gated**: six family and table selectors and six
@@ -111,9 +111,10 @@ hygiene orphans, so it is a FAIL rather than a WARN. Both `dev` rows stay ungate
 **permanently and by design**: the transaction-count gap is unsuppressible
 (`nlparity_allowlist.go:143`), and so are the `-4` hygiene orphans.
 
-**Four stats-link rows stay ungated, all four measured divergent**: `stats show
-group link`, `-s stats show group link`, `stats show group link dev` and `-j
-stats show group link`, added together with the `if_stats_msg` decoder and the
+**Three stats-link rows stay ungated, measured divergent**: `stats show group
+link`, `-s stats show group link` and `-j stats show group link` (`stats show
+group link dev` was the fourth until it gated; see
+[the bond xstats point gets](#the-bond-xstats-point-gets-and-stats-show-group-link-dev)), added together with the `if_stats_msg` decoder and the
 stats render view. `internal/goip`'s `TestStatsShowMatchesCapturedSidecars` diffs
 `goip` byte-for-byte against the committed `ip_stats`/`ip_stats_dev` sidecars, on
 layout against the extended `ip_stats_s` (counters normalized, error lines
@@ -128,7 +129,7 @@ names each returned ifindex lazily with one `RTM_GETLINK`-by-index
 (`ip/ipstats.c:761`, `ll_index_to_name`), so it reads `ip=6` on a five-interface
 host and is topology-dependent. (`ip`'s per-`dev` point get is the first in the
 matrix that is `NLM_F_REQUEST` alone, no ACK.) All four read `GOIP_PARITY_WARN`
-on both runs and stay ungated **permanently and by design**: the gap is class
+on both runs, and the three bulk forms stay ungated **permanently and by design**: the gap is class
 `DivergenceTransactionCount`, which the allowlist cannot suppress
 (`nlparity_allowlist.go:143`), so no run and no entry clears it — and `goip`'s
 up-front resolution is the deliberate, more-efficient idiom, not a defect.
@@ -273,7 +274,7 @@ in the tree.
 | [link-write-path](link-write-path.md) | 0 | Tier 1 LACP capture target `microvm-x86_64-link-write-capture` (one VM, two netns, veth pairs, `bonding max_bonds=0`) | **done** — `NLCAP_DRIVER_PASS`; `lacp_no_partner`/`lacp_converged` (`0x3f`/`0x3f`)/`lacp_partner_down` in `pkg/xtcpnl/testdata/7_1_4/link-write/`, recaptured after the churn wait (`lwtopo::wait_churn`) so the churn fields read `NO_CHURN`/`CHURN` rather than `MONITOR` |
 | | 1 | bond `IFLA_INFO_DATA`/`SLAVE_DATA`/`AD_INFO` decode, shared option table | **done**: `pkg/xtcpnl/xtcpnl_bond.go` (`BondOptions`, `ParseBondInfoData`/`ParseBondSlaveData`/`ParseBondAdInfo`, `LinkInfo.Bond`/`BondSlave`); `TestDecodeBond*` green on the three 7_1_4 states and against the sysfs oracle; statement 6 amended |
 | | 2 | `-d link show` render for `bond`/`bond_slave` — lifts the first render refusal above for bond | **done**: `internal/goip/render/link_bond.go` (`bond_print_opt`/`bond_slave_print_opt` over `BondOptions`), `render/kind_data.go` (one call list, text and `-j`); `TestLinkShowDetailBondMatchesSidecar` byte-identical on `ip_link_n` and structurally equal on `ip_link_n_json` in all three states; statement 7 narrowed. The matrix rows landed later: `-d link show dev bond0` and `-d link show dev la1`, read rows with a `Setup` (link-write-path.md, "Bond read rows in the matrix"), `GOIP_PARITY_PASS` on two live runs and gated (`TestBondReadRowsGated`) |
-| | 3 | populated bond 802.3ad xstats body — lifts `HasUngroundedXstatsBody` for bond | **done**: `pkg/xtcpnl/xtcpnl_bond_xstats.go` (`ParseBond3adStats`), `IfStatsInfo` split into `XstatsBodies` for `group xstats` and `Slave` for `group xstats_slave`; `render/bridge_xstats.go` prints the body for both groups. `TestStatsXstatsBondMatchesSidecar` is byte-identical on `ip_stats_xstats` and `ip_stats_xstats_slave` in all three states, and structurally equal on the `_json` sidecars with the counters zeroed (the `-j` sidecar was taken after the capture window). `TestParseNewStatsBond3adCaptured` checks every decoded counter against the text sidecar. Statement 8 amended. The matrix rows are unblocked by the read-row `Setup` Phase 2's rows use, and are a follow-up |
+| | 3 | populated bond 802.3ad xstats body — lifts `HasUngroundedXstatsBody` for bond | **done**: `pkg/xtcpnl/xtcpnl_bond_xstats.go` (`ParseBond3adStats`), `IfStatsInfo` split into `XstatsBodies` for `group xstats` and `Slave` for `group xstats_slave`; `render/bridge_xstats.go` prints the body for both groups. `TestStatsXstatsBondMatchesSidecar` is byte-identical on `ip_stats_xstats` and `ip_stats_xstats_slave` in all three states, and structurally equal on the `_json` sidecars with the counters zeroed (the `-j` sidecar was taken after the capture window). `TestParseNewStatsBond3adCaptured` checks every decoded counter against the text sidecar. Statement 8 amended. The matrix rows landed later: the five bond xstats point gets, gated on two live runs, with `subgroup`/`suite` support |
 | | 4 | gate admits `RTM_NEWLINK`/`RTM_DELLINK`; `AttrBuilder` nest helper | **done**: `BuildWriteRequest`, `IsAdmittedWriteType` and `ErrNotAnAdmittedWrite` (the route types included, so route Phase 1 is done too); `AttrBuilder.BeginNest`/`EndNest`, `PutU16`, `PutS32`. `TestBuildWriteRequestAdmitsOnlyListedWrites` walks every named type, `TestBuildWriteRequestLayout` the flags and family header, `TestAttrBuilderWriteShapes` the nests and the rta_len overflow; `TestBuildRequestRejectsEveryNamedWriteType` is unchanged and green. Route statements 1 and 2 amended |
 | | 5 | `BuildLinkWriteRequest`: generic attrs, `dummy`/`veth`/`bond`/`bond_slave` encoders | **done**: `pkg/xtcpnl/xtcpnl_link_write.go` (`BuildLinkWriteRequest`, `EncodeBondInfoData`/`EncodeBondSlaveData`, `EncodeVethPeer`), with `BondSlaveOptions` for the three settable port options; `bond_parse_opt`/`bond_slave_parse_opt` in `internal/goip/link_bond_args.go` over the C readers in `cparse.go`. `TestBuildLinkWriteRequestWorkedExamples` matches both worked examples byte for byte; `TestEncodeBondOptions` and `TestEncodeBondSlaveOptions` go from argv to wire. Design table 3 row 17 corrected (a short `ad_actor_system` encodes); `lacp_strict` is not in the 7.1.0 parser. The argv rows of design table 2 move to Phase 6 |
 | | 6 | `goip link add/set/del`, `GOIP_WRITE_OUT` dry-run, golden byte parity | **done**: `internal/goip/link_write.go` (the `iplink_parse` keyword chain, `ll_name_to_index` resolution, `GOIP_WRITE_OUT`); 21 write rows captured into `pkg/xtcpnl/testdata/7_1_4/link-write/write/` (`NLCAP_DRIVER_PASS`, every outcome as designed); `TestLinkWriteMatchesIpBytes` matches `ip`'s lookups and write byte for byte on all 21; `ParseNlMsgErr` plus `TestDecodeNetlinkErrorExtack` decode every ACK and refusal, extack message and offset included. Design table 2 row 9 corrected (a bare 16-byte dev is sent); `ip link s` is set |
@@ -2968,6 +2969,32 @@ the phase 7 runs: `-4 netconf show dev` fails with `HYGIENE_FAIL 2`, and
 `UNGATED_DIVERGENCES 8`. `CONTROL_NOISY` read 103 and then 109.
 `TestBondReadRowsGated` and the `earned`/`gated_commands` pair pin the flip, and
 the ungated surface is back to the twenty-three rows.
+
+### The bond xstats point gets, and `stats show group link dev`
+
+Two more runs, back to back with `--timeout 4500`, gate six stats rows
+(link-write-path.md, "Bond xstats rows in the matrix"). Five are new: `stats
+show dev bond0 group xstats`, `stats show dev la1 group xstats_slave`, their
+`subgroup bond suite 802.3ad` forms and `-j stats show dev la1 group
+xstats_slave`, on the `-d link show` rows' `bondReadSetup`. The sixth is
+`stats show group link dev`, one of the nine permanent rows until goip's dev
+path resolved the name with one `RTM_GETLINK` by name, as `ll_name_to_index`
+does, in place of a link dump.
+
+Both runs printed 82 `GOIP_PARITY_PASS` of 90: the previous runs' 76, the five
+new rows and `stats show group link dev`. All six passed with `control: nl=0
+stdout=0`, no findings and `txns` 2/2, from 4 datagrams on every side. The two
+runs' verdicts were identical row for row. Both `OVERALL_FAIL` for the
+pre-existing reason: `-4 netconf show dev` fails with `HYGIENE_FAIL 2`.
+`UNGATED_DIVERGENCES` is 7 now, the eight permanent rows less the FAIL, and
+`CONTROL_NOISY` read 87 and then 91. `TestBondXstatsRowsGated`,
+`TestPermanentWireDivergences` and the `earned`/`gated_commands` pair pin the
+flip, and the ungated surface is twenty-two rows.
+
+The six bulk stats rows stay permanent. goip still resolves names there with
+one link dump ahead of the stats dump, where ip dumps first and gets each
+ifindex after. Reordering goip to match (`resolveIndexName`,
+`internal/goip/obj_route.go:511`) is the follow-up that would retire them.
 
 ## Tier C — the `goip-parity` microVM flavor
 

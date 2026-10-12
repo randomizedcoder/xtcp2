@@ -439,6 +439,17 @@ func TestAllowlistCommitted(t *testing.T) {
 		// moves between sides.
 		"-d link show dev bond0",
 		"-d link show dev la1",
+		// Six stats point gets, gated on the two runs after those: the five
+		// bond xstats rows on the same bond, and `stats show group link dev`,
+		// which left the permanent set once goip resolved its name with a
+		// get by name rather than a link dump. All GOIP_PARITY_PASS both
+		// times, stdout=0, control nl=0, txns 2/2.
+		"stats show group link dev",
+		"stats show dev bond0 group xstats",
+		"stats show dev la1 group xstats_slave",
+		"stats show dev bond0 group xstats subgroup bond suite 802.3ad",
+		"stats show dev la1 group xstats_slave subgroup bond suite 802.3ad",
+		"-j stats show dev la1 group xstats_slave",
 	}
 
 	tests := []struct {

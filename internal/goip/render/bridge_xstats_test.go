@@ -2,6 +2,8 @@ package render
 
 import (
 	"encoding/json"
+	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -291,4 +293,111 @@ func TestBridgeXstatsLeafOrder(t *testing.T) {
 		}
 		seen[key] = true
 	}
+}
+
+// TestBridgeXstatsLeafFilter pins what a `subgroup X [suite Y]` selection
+// prints: the matching leaves only, still in the golden order, in both the
+// text and the JSON render. expected lists each printed stanza as
+// "subgroup/suite" plus "+body" when a body followed its header line.
+//
+// go test ./internal/goip/render/ -run TestBridgeXstatsLeafFilter
+func TestBridgeXstatsLeafFilter(t *testing.T) {
+	t.Parallel()
+	bridge := BridgeXstatsView{Group: XstatsGroupCst, Ifindex: 5, IfName: "br0", Vlans: sentinelVlans(), Mcast: sentinelMcast()}
+	bond := BridgeXstatsView{Group: XstatsSlaveGroupCst, Ifindex: 3, IfName: "la1", Bond3ad: sentinel3ad()}
+	tests := []struct {
+		description string
+		view        BridgeXstatsView
+		sel         XstatsSelect
+		expected    []string
+	}{
+		{
+			description: "positive: no filter keeps the golden order",
+			view:        bridge,
+			expected:    []string{"bond/802.3ad", "bridge/vlan+body", "bridge/mcast+body", "bridge/stp"},
+		},
+		{
+			description: "positive: the bond suite alone",
+			view:        bond,
+			sel:         XstatsSelect{Subgroup: "bond", Suite: "802.3ad"},
+			expected:    []string{"bond/802.3ad+body"},
+		},
+		{
+			description: "positive: the bridge subgroup",
+			view:        bridge,
+			sel:         XstatsSelect{Subgroup: "bridge"},
+			expected:    []string{"bridge/vlan+body", "bridge/mcast+body", "bridge/stp"},
+		},
+		{
+			description: "boundary: the bond subgroup with no suite is its one leaf",
+			view:        bond,
+			sel:         XstatsSelect{Subgroup: "bond"},
+			expected:    []string{"bond/802.3ad+body"},
+		},
+		{
+			description: "boundary: the last leaf alone",
+			view:        bridge,
+			sel:         XstatsSelect{Subgroup: "bridge", Suite: "stp"},
+			expected:    []string{"bridge/stp"},
+		},
+		{
+			description: "corner: a bridge suite on a bond port prints the header, no body",
+			view:        bond,
+			sel:         XstatsSelect{Subgroup: "bridge", Suite: "vlan"},
+			expected:    []string{"bridge/vlan"},
+		},
+		{
+			description: "negative: the bond body is not printed under a bridge filter",
+			view:        bond,
+			sel:         XstatsSelect{Subgroup: "bridge"},
+			expected:    []string{"bridge/vlan", "bridge/mcast", "bridge/stp"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			t.Parallel()
+			v := tc.view
+			v.Select = tc.sel
+			if got := textStanzas(t, v); !slices.Equal(got, tc.expected) {
+				t.Errorf("Text stanzas = %q, want %q\n%s", got, tc.expected, v.Text())
+			}
+			var leaves []map[string]any
+			raw, err := json.Marshal(v)
+			if err != nil {
+				t.Fatalf("MarshalJSON: %v", err)
+			}
+			if err := json.Unmarshal(raw, &leaves); err != nil {
+				t.Fatalf("unmarshal %s: %v", raw, err)
+			}
+			got := make([]string, 0, len(leaves))
+			for _, leaf := range leaves {
+				got = append(got, leaf["subgroup"].(string)+"/"+leaf["suite"].(string))
+			}
+			want := make([]string, 0, len(tc.expected))
+			for _, e := range tc.expected {
+				want = append(want, strings.TrimSuffix(e, "+body"))
+			}
+			if !slices.Equal(got, want) {
+				t.Errorf("JSON leaves = %q, want %q\n%s", got, want, raw)
+			}
+		})
+	}
+}
+
+// textStanzas reduces a Text render to "subgroup/suite[+body]" per stanza.
+func textStanzas(t *testing.T, v BridgeXstatsView) []string {
+	t.Helper()
+	prefix := fmt.Sprintf("%d: %s: group %s subgroup ", v.Ifindex, v.IfName, v.Group)
+	var out []string
+	for _, line := range strings.Split(v.Text(), "\n") {
+		if rest, ok := strings.CutPrefix(line, prefix); ok {
+			sub, suite, _ := strings.Cut(rest, " suite ")
+			out = append(out, sub+"/"+suite)
+			continue
+		}
+		if strings.TrimSpace(line) != "" && len(out) > 0 && !strings.HasSuffix(out[len(out)-1], "+body") {
+			out[len(out)-1] += "+body"
+		}
+	}
+	return out
 }

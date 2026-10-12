@@ -42,13 +42,15 @@ proc side {ns subdir name command} {
 ###############################################################################
 # readback_set - everything recorded for one state.
 #
-# capio for the two dumps, because both carry values that move: the LACPDU
-# counters in the xstats bodies tick once a second per port with lacp_rate
-# fast, and a `-d` link reply is what a replay test diffs ip_link_n against.
+# capio for the dumps and the stats point gets, because all carry values that
+# move: the LACPDU counters in the xstats bodies tick once a second per port
+# with lacp_rate fast, and a `-d` link reply is what a replay test diffs
+# ip_link_n against.
 # Each pcap and its text have to be one invocation.
 #
 # FLOORS are structural minima, as in the dump driver: `link show` is one
-# dump, so 2; `stats show` resolves names through a link dump first, so 4.
+# dump, so 2; `stats show` resolves names through a link dump first, so 4,
+# and a `stats show dev` point get is one lookup by name and one get, so 4.
 # The -d link dump will carry more than that - a bond port's IFLA_MASTER and
 # a veth's IFLA_LINK_NETNSID both send iproute2 off for side lookups - and
 # that side traffic is part of what is being recorded, not noise to filter.
@@ -79,6 +81,32 @@ proc readback_set {ns subdir} {
         "ip stats show group xstats_slave" ip_stats_xstats_slave
     side  $ns $subdir ip_stats_xstats_slave_json \
         "ip -j -p stats show group xstats_slave"
+
+    # The same counters through the point get: `dev` makes ip resolve the
+    # name with one RTM_GETLINK by name (ll_name_to_index), then send one
+    # non-dump RTM_GETSTATS for that ifindex (ipstats_show_one). subgroup and
+    # suite never reach the wire (no IFLA_STATS_GET_FILTERS for xstats,
+    # ipstats.c:578-585), so those captures differ from the plain ones only
+    # in what is printed. Each has its own pcap because the counters move.
+    capio $ns $subdir netlink_route_getstats_xstats_dev 4 \
+        "ip stats show dev bond0 group xstats" ip_stats_xstats_dev
+    side  $ns $subdir ip_stats_xstats_dev_json \
+        "ip -j -p stats show dev bond0 group xstats"
+    capio $ns $subdir netlink_route_getstats_xstats_slave_dev 4 \
+        "ip stats show dev la1 group xstats_slave" ip_stats_xstats_slave_dev
+    side  $ns $subdir ip_stats_xstats_slave_dev_json \
+        "ip -j -p stats show dev la1 group xstats_slave"
+    capio $ns $subdir netlink_route_getstats_xstats_dev_3ad 4 \
+        "ip stats show dev bond0 group xstats subgroup bond suite 802.3ad" \
+        ip_stats_xstats_dev_3ad
+    capio $ns $subdir netlink_route_getstats_xstats_slave_dev_3ad 4 \
+        "ip stats show dev la1 group xstats_slave subgroup bond suite 802.3ad" \
+        ip_stats_xstats_slave_dev_3ad
+    side  $ns $subdir ip_stats_xstats_slave_dev_3ad_json \
+        "ip -j -p stats show dev la1 group xstats_slave subgroup bond suite 802.3ad"
+    capio $ns $subdir netlink_route_getstats_xstats_slave_bond 4 \
+        "ip stats show group xstats_slave subgroup bond" \
+        ip_stats_xstats_slave_bond
 
     side  $ns $subdir proc_net_bonding_bond0 "cat /proc/net/bonding/bond0"
     # grep -H prints file:value, one line per attribute; -s skips the files
