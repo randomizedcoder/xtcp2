@@ -1,0 +1,68 @@
+# source: fleet rescan, one ConnectX-6 Ethernet port of 28 with these counter files
+# model: ConnectX-6
+# driver: mlx5_core
+# pci: 15b3:101b
+# kernel: 6.8.0-59-generic
+# ports: 28
+# firmware-seen: 20.27.2008 20.43.2026 20.43.2566 20.43.3608 20.43.8016
+board_id=MT_0000000225
+fw_ver=20.43.2026
+hca_type=MT4123
+node_type=1: CA
+ports/1/link_layer=Ethernet
+ports/1/phys_state=5: LinkUp
+ports/1/rate=100 Gb/sec (4X EDR)
+ports/1/state=4: ACTIVE
+ports/1/counters/VL15_dropped=0
+ports/1/counters/excessive_buffer_overrun_errors=0
+ports/1/counters/link_downed=0
+ports/1/counters/link_error_recovery=0
+ports/1/counters/local_link_integrity_errors=0
+ports/1/counters/multicast_rcv_packets=0
+ports/1/counters/multicast_xmit_packets=0
+ports/1/counters/port_rcv_constraint_errors=0
+ports/1/counters/port_rcv_data=0
+ports/1/counters/port_rcv_errors=0
+ports/1/counters/port_rcv_packets=0
+ports/1/counters/port_rcv_remote_physical_errors=0
+ports/1/counters/port_rcv_switch_relay_errors=0
+ports/1/counters/port_xmit_constraint_errors=0
+ports/1/counters/port_xmit_data=0
+ports/1/counters/port_xmit_discards=0
+ports/1/counters/port_xmit_packets=0
+ports/1/counters/port_xmit_wait=0
+ports/1/counters/symbol_error=0
+ports/1/counters/unicast_rcv_packets=0
+ports/1/counters/unicast_xmit_packets=0
+ports/1/hw_counters/duplicate_request=0
+ports/1/hw_counters/implied_nak_seq_err=0
+ports/1/hw_counters/lifespan=10
+ports/1/hw_counters/local_ack_timeout_err=0
+ports/1/hw_counters/np_cnp_sent=0
+ports/1/hw_counters/np_ecn_marked_roce_packets=0
+ports/1/hw_counters/out_of_buffer=0
+ports/1/hw_counters/out_of_sequence=0
+ports/1/hw_counters/packet_seq_err=0
+ports/1/hw_counters/req_cqe_error=0
+ports/1/hw_counters/req_cqe_flush_error=0
+ports/1/hw_counters/req_remote_access_errors=0
+ports/1/hw_counters/req_remote_invalid_request=0
+ports/1/hw_counters/req_rnr_retries_exceeded=0
+ports/1/hw_counters/req_transport_retries_exceeded=0
+ports/1/hw_counters/resp_cqe_error=0
+ports/1/hw_counters/resp_cqe_flush_error=0
+ports/1/hw_counters/resp_local_length_error=0
+ports/1/hw_counters/resp_remote_access_errors=0
+ports/1/hw_counters/rnr_nak_retry_err=0
+ports/1/hw_counters/roce_adp_retrans=0
+ports/1/hw_counters/roce_adp_retrans_to=0
+ports/1/hw_counters/roce_slow_restart=0
+ports/1/hw_counters/roce_slow_restart_cnps=0
+ports/1/hw_counters/roce_slow_restart_trans=0
+ports/1/hw_counters/rp_cnp_handled=0
+ports/1/hw_counters/rp_cnp_ignored=0
+ports/1/hw_counters/rx_atomic_requests=0
+ports/1/hw_counters/rx_dct_connect=0
+ports/1/hw_counters/rx_icrc_encapsulated=0
+ports/1/hw_counters/rx_read_requests=0
+ports/1/hw_counters/rx_write_requests=0

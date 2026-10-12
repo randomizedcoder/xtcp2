@@ -464,6 +464,40 @@ allow no Topology. Every ionic and rxe sentinel passed. This establishes verbs
 async-event delivery on a real driver (V088's open item); per-event metrics
 and physical NIC behavior remain unverified.
 
+V090 — fleet RDMA counter fixtures (2026-10-12): a read-only fleet rescan
+captured two sysfs samples, about 15 s apart, of 1,625 RDMA ports on 343
+hosts: mlx5 (ConnectX-4 to ConnectX-8, BlueField-2/3, VFs, bonds), irdma (E810,
+X722) and bnxt_re (BCM57414/16/504). New `testdata/rdmasysfs/fleet-export.py`
+groups the ports by model, link layer and the exact set of counter files,
+unreadable files and saturated registers. It writes one fixture per group
+(49), renamed to port 1, with no host, device, PCI address, GUID or LID. It
+also generates `rdma_counters_fleet_generated_linux_test.go`, whose rows pin
+each fixture's rate (parsed by the exporter, not by `rdmaRate`) and the files
+the catalog drops. `TestRDMACountersFleetSysfs` collects every fixture
+through the real collector, then collects the t1 values with the returned
+schema. It requires monotonic counters, data deltas under the link rate,
+and, on bulk InfiniBand traces, 3,500–4,224 bytes per transmitted packet.
+Finding and fix: 28 ConnectX-7 InfiniBand ports on 14 hosts answer EINVAL for
+13 `counters/` files (mlx5 firmware `ACCESS_REG(0x805)` "bad operation";
+each read logs a kernel error). One EINVAL failed the whole counter set, so
+those ports published no RDMA counters and re-read every file each poll.
+`rdmaCounterUnavailable` now skips EINVAL and EOPNOTSUPP per file, as
+node_exporter's procfs does, and the collector returns a pruned copy of the
+schema, so a refused file is read once per schema, not once per poll. EIO,
+ENOENT and EACCES still fail the set. `TestRDMACountersFleetReadErrors`
+(7 rows) covers EINVAL, EOPNOTSUPP, EIO, ENOENT, EACCES, an all-unreadable
+port, and a file that heals after pruning; `TestRDMARateFleet` parses all 13
+fleet rate strings. Mutation proofs:
+- no per-file skip: the ConnectX-7 fixture and 4 error rows fail
+- EINVAL only: the EOPNOTSUPP row fails
+- no schema pruning: 5 rows fail on the second read
+- skip every error: the EIO, ENOENT and EACCES rows fail
+- `port_xmit_data` scale 1 or 8: both bulk ConnectX-7 IB rows fail
+
+Saturated `port_xmit_wait` (4294967295, 61 ports) and `symbol_error` (65535,
+one port) are reported exactly. Not established: names for the irdma and
+bnxt_re counters and for the two mlx5 retry counters, all still dropped.
+
 V076 — privileged performance VM wiring (2026-10-10): added the modular
 `test-linkmonitor-performance-vm` runner under `nix/microvms/`. It reuses the
 cached performance test artifact, boots a root NixOS guest, captures filtered
@@ -816,7 +850,7 @@ integration remains deferred under D01.
 | P11 | Release verification | not started | 0/3 | None |
 | P12 | Administration API and xtcp2 integration | done | 7/7 | V079–V084 |
 | P13 | Netlink contracts | in progress | 4/5 | V085–V088; pre-merge gates documented, host `l` alerts and pin bump remain |
-| P14 | Real-driver RDMA coverage | in progress | 2/4 | V089; rocm-ernic pin bump to the integration branch pending |
+| P14 | Real-driver RDMA coverage | in progress | 3/5 | V089–V090; rocm-ernic pin bump to the integration branch pending |
 
 ## Task checklist
 
@@ -876,6 +910,7 @@ plan, not copied here. Add verification IDs to the evidence column as work runs.
 | [x] | [P14-T02](IMPLEMENTATION-PLAN.md#p14-t02) | Verbs async events on a real driver | done | V089 |
 | [ ] | [P14-T03](IMPLEMENTATION-PLAN.md#p14-t03) | Two-guest traffic | not started | Needs rocm-ernic `ernic-pair-node` (#221) |
 | [ ] | [P14-T04](IMPLEMENTATION-PLAN.md#p14-t04) | ionic RES corpus with live QPs | not started | After P14-T03 |
+| [x] | [P14-T05](IMPLEMENTATION-PLAN.md#p14-t05) | Fleet counter fixtures | done | V090 |
 
 ## Deferred items
 

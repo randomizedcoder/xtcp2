@@ -16,13 +16,19 @@ import (
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/model"
 )
 
-// rdmaSysfsSnapshot is one file written by testdata/rdmasysfs/capture.sh:
-// paths relative to /sys/class/infiniband/<device>, in capture order.
+// rdmaSysfsSnapshot is one file written by testdata/rdmasysfs/capture.sh or
+// fleet-export.py: paths relative to /sys/class/infiniband/<device>, in
+// capture order. Fleet files add "t1:path=value" lines for the counters that
+// moved by the second sample, header "elapsed" seconds later.
 type rdmaSysfsSnapshot struct {
 	header map[string]string
 	paths  []string
 	values map[string]string
+	later  map[string]string
 }
+
+// rdmaReadError is the fleet capture's value for a file whose read failed.
+const rdmaReadError = "READ_ERROR"
 
 func loadRDMASysfsSnapshot(t testing.TB, name string) rdmaSysfsSnapshot {
 	t.Helper()
@@ -31,7 +37,7 @@ func loadRDMASysfsSnapshot(t testing.TB, name string) rdmaSysfsSnapshot {
 		t.Fatal(err)
 	}
 	defer func() { _ = f.Close() }()
-	s := rdmaSysfsSnapshot{header: map[string]string{}, values: map[string]string{}}
+	s := rdmaSysfsSnapshot{header: map[string]string{}, values: map[string]string{}, later: map[string]string{}}
 	scanner := bufio.NewScanner(f)
 	for line := 1; scanner.Scan(); line++ {
 		text := scanner.Text()
@@ -39,7 +45,18 @@ func loadRDMASysfsSnapshot(t testing.TB, name string) rdmaSysfsSnapshot {
 			s.header[key] = value
 			continue
 		}
+		text, later := strings.CutPrefix(text, "t1:")
 		path, value, ok := strings.Cut(text, "=")
+		if later {
+			if _, known := s.values[path]; !known || !ok {
+				t.Fatalf("%s:%d: t1 line for unknown %q", name, line, path)
+			}
+			if _, dup := s.later[path]; dup {
+				t.Fatalf("%s:%d: duplicate t1 %s", name, line, path)
+			}
+			s.later[path] = value
+			continue
+		}
 		if !ok || path == "" || strings.HasPrefix(path, "/") || strings.Contains(path, "..") {
 			t.Fatalf("%s:%d: not a path=value line: %q", name, line, text)
 		}
@@ -65,6 +82,17 @@ func (s rdmaSysfsSnapshot) counterFiles() []string {
 		}
 		if group, _, _ := strings.Cut(rest, "/"); group == "counters" || group == "counters_ext" || group == "hw_counters" {
 			names = append(names, rest)
+		}
+	}
+	return names
+}
+
+// matching returns the snapshot's counter files whose value satisfies keep.
+func (s rdmaSysfsSnapshot) matching(keep func(string) bool) []string {
+	var names []string
+	for _, name := range s.counterFiles() {
+		if keep(s.values["ports/1/"+name]) {
+			names = append(names, name)
 		}
 	}
 	return names
@@ -273,14 +301,15 @@ func TestRDMACountersRealSysfs(t *testing.T) {
 				}
 				return
 			}
-			checkRealSysfsSamples(t, tc.expectedOutcome, port, r.Samples, tc.uncataloged, tc.rate, tc.values, tc.info)
+			checkRealSysfsSamples(t, tc.expectedOutcome, port, r.Samples, tc.uncataloged, nil, tc.rate, tc.values, tc.info)
 		})
 	}
 }
 
 // checkRealSysfsSamples derives the expected samples from the files left in
 // the port directory, so each row only states what is special about it.
-func checkRealSysfsSamples(t *testing.T, expected, port string, samples []model.Sample, uncataloged []string, rate uint64, values map[string]uint64, info bool) {
+// Cataloged files named in unreadable must have no sample.
+func checkRealSysfsSamples(t *testing.T, expected, port string, samples []model.Sample, uncataloged, unreadable []string, rate uint64, values map[string]uint64, info bool) {
 	t.Helper()
 	byMetric := map[string]model.Sample{}
 	for _, s := range samples {
@@ -306,8 +335,14 @@ func checkRealSysfsSamples(t *testing.T, expected, port string, samples []model.
 				dropped = append(dropped, name)
 				continue
 			}
-			want++
 			s, ok := byMetric["go_link_monitor_infiniband_"+field.metric]
+			if slices.Contains(unreadable, name) {
+				if ok {
+					t.Fatalf("%s: unreadable %s published %+v", expected, name, s)
+				}
+				continue
+			}
+			want++
 			if !ok {
 				t.Fatalf("%s: no sample for %s", expected, name)
 			}

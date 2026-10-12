@@ -1,0 +1,70 @@
+# source: fleet rescan, one ConnectX-7 InfiniBand port of 28 with these counter files
+# model: ConnectX-7
+# driver: mlx5_core
+# pci: 15b3:1021
+# kernel: 6.8.0-90-generic
+# ports: 28
+# firmware-seen: 28.42.1280 28.46.5020 28.46.5500 28.97.9930
+# elapsed: 20.987
+board_id=MT_0000001121
+fw_ver=28.46.5020
+hca_type=MT4129
+node_type=1: CA
+ports/1/link_layer=InfiniBand
+ports/1/phys_state=5: LinkUp
+ports/1/rate=100 Gb/sec (2X HDR)
+ports/1/state=4: ACTIVE
+ports/1/counters/VL15_dropped=READ_ERROR
+ports/1/counters/excessive_buffer_overrun_errors=READ_ERROR
+ports/1/counters/link_downed=READ_ERROR
+ports/1/counters/link_error_recovery=READ_ERROR
+ports/1/counters/local_link_integrity_errors=READ_ERROR
+ports/1/counters/multicast_rcv_packets=0
+ports/1/counters/multicast_xmit_packets=0
+ports/1/counters/port_rcv_constraint_errors=READ_ERROR
+ports/1/counters/port_rcv_data=2822062608
+ports/1/counters/port_rcv_errors=READ_ERROR
+ports/1/counters/port_rcv_packets=39195314
+ports/1/counters/port_rcv_remote_physical_errors=READ_ERROR
+ports/1/counters/port_rcv_switch_relay_errors=READ_ERROR
+ports/1/counters/port_xmit_constraint_errors=READ_ERROR
+ports/1/counters/port_xmit_data=2808412848
+ports/1/counters/port_xmit_discards=READ_ERROR
+ports/1/counters/port_xmit_packets=39005734
+ports/1/counters/port_xmit_wait=READ_ERROR
+ports/1/counters/symbol_error=READ_ERROR
+ports/1/counters/unicast_rcv_packets=39195314
+ports/1/counters/unicast_xmit_packets=39005734
+ports/1/hw_counters/duplicate_request=0
+ports/1/hw_counters/implied_nak_seq_err=0
+ports/1/hw_counters/lifespan=10
+ports/1/hw_counters/local_ack_timeout_err=0
+ports/1/hw_counters/out_of_buffer=0
+ports/1/hw_counters/out_of_sequence=0
+ports/1/hw_counters/packet_seq_err=0
+ports/1/hw_counters/req_cqe_error=0
+ports/1/hw_counters/req_cqe_flush_error=0
+ports/1/hw_counters/req_remote_access_errors=0
+ports/1/hw_counters/req_remote_invalid_request=0
+ports/1/hw_counters/req_rnr_retries_exceeded=0
+ports/1/hw_counters/req_transport_retries_exceeded=0
+ports/1/hw_counters/resp_cqe_error=0
+ports/1/hw_counters/resp_cqe_flush_error=0
+ports/1/hw_counters/resp_local_length_error=0
+ports/1/hw_counters/resp_remote_access_errors=0
+ports/1/hw_counters/rnr_nak_retry_err=0
+ports/1/hw_counters/roce_adp_retrans=0
+ports/1/hw_counters/roce_adp_retrans_to=0
+ports/1/hw_counters/roce_slow_restart=0
+ports/1/hw_counters/roce_slow_restart_cnps=0
+ports/1/hw_counters/roce_slow_restart_trans=0
+ports/1/hw_counters/rx_atomic_requests=0
+ports/1/hw_counters/rx_dct_connect=0
+ports/1/hw_counters/rx_read_requests=0
+ports/1/hw_counters/rx_write_requests=0
+t1:ports/1/counters/port_rcv_data=2822115312
+t1:ports/1/counters/port_rcv_packets=39196046
+t1:ports/1/counters/port_xmit_data=2808465408
+t1:ports/1/counters/port_xmit_packets=39006464
+t1:ports/1/counters/unicast_rcv_packets=39196046
+t1:ports/1/counters/unicast_xmit_packets=39006464

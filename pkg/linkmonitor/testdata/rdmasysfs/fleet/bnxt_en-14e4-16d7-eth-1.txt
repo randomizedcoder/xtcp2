@@ -1,0 +1,83 @@
+# source: fleet rescan, one Broadcom BCM57414 Ethernet port of 9 with these counter files
+# model: Broadcom BCM57414
+# driver: bnxt_en
+# pci: 14e4:16d7
+# kernel: 6.8.0-111-generic
+# ports: 9
+# firmware-seen: 214.0.194.0 223.0.161.0
+fw_ver=214.0.194.0
+hca_type=Broadcom NetXtreme-C/E RoCE Driver HCA
+node_type=1: CA
+ports/1/link_layer=Ethernet
+ports/1/phys_state=5: LinkUp
+ports/1/rate=25 Gb/sec (1X EDR)
+ports/1/state=4: ACTIVE
+ports/1/hw_counters/active_ahs=1
+ports/1/hw_counters/active_cqs=1
+ports/1/hw_counters/active_mrs=0
+ports/1/hw_counters/active_mws=1
+ports/1/hw_counters/active_pds=1
+ports/1/hw_counters/active_qps=2
+ports/1/hw_counters/active_rc_qps=0
+ports/1/hw_counters/active_srqs=0
+ports/1/hw_counters/active_ud_qps=0
+ports/1/hw_counters/bad_resp_err=0
+ports/1/hw_counters/dup_req=0
+ports/1/hw_counters/lifespan=10
+ports/1/hw_counters/local_protection_err=0
+ports/1/hw_counters/local_qp_op_err=0
+ports/1/hw_counters/max_retry_exceeded=0
+ports/1/hw_counters/mem_mgmt_op_err=0
+ports/1/hw_counters/missing_resp=0
+ports/1/hw_counters/oos_drop_count=0
+ports/1/hw_counters/recoverable_errors=0
+ports/1/hw_counters/remote_access_err=0
+ports/1/hw_counters/remote_invalid_req_err=0
+ports/1/hw_counters/remote_op_err=0
+ports/1/hw_counters/res_cmp_err=0
+ports/1/hw_counters/res_cq_load_err=0
+ports/1/hw_counters/res_exceed_max=0
+ports/1/hw_counters/res_exceeds_wqe=0
+ports/1/hw_counters/res_invalid_dup_rkey=0
+ports/1/hw_counters/res_irrq_oflow=0
+ports/1/hw_counters/res_length_mismatch=0
+ports/1/hw_counters/res_mem_err=0
+ports/1/hw_counters/res_opcode_err=0
+ports/1/hw_counters/res_rem_inv_err=0
+ports/1/hw_counters/res_rx_domain_err=0
+ports/1/hw_counters/res_rx_invalid_rkey=0
+ports/1/hw_counters/res_rx_no_perm=0
+ports/1/hw_counters/res_rx_pci_err=0
+ports/1/hw_counters/res_rx_range_err=0
+ports/1/hw_counters/res_srq_err=0
+ports/1/hw_counters/res_srq_load_err=0
+ports/1/hw_counters/res_tx_domain_err=0
+ports/1/hw_counters/res_tx_invalid_rkey=0
+ports/1/hw_counters/res_tx_no_perm=0
+ports/1/hw_counters/res_tx_pci_err=0
+ports/1/hw_counters/res_tx_range_err=0
+ports/1/hw_counters/res_unaligned_atomic=0
+ports/1/hw_counters/res_unsup_opcode=0
+ports/1/hw_counters/res_wqe_format_err=0
+ports/1/hw_counters/resize_cq_cnt=0
+ports/1/hw_counters/rnr_naks_rcvd=0
+ports/1/hw_counters/rx_bytes=0
+ports/1/hw_counters/rx_pkts=0
+ports/1/hw_counters/rx_roce_discards=0
+ports/1/hw_counters/rx_roce_errors=0
+ports/1/hw_counters/seq_err_naks_rcvd=0
+ports/1/hw_counters/to_retransmits=0
+ports/1/hw_counters/tx_bytes=0
+ports/1/hw_counters/tx_pkts=0
+ports/1/hw_counters/tx_roce_discards=0
+ports/1/hw_counters/tx_roce_errors=0
+ports/1/hw_counters/unrecoverable_err=0
+ports/1/hw_counters/watermark_ahs=0
+ports/1/hw_counters/watermark_cqs=1
+ports/1/hw_counters/watermark_mrs=0
+ports/1/hw_counters/watermark_mws=1
+ports/1/hw_counters/watermark_pds=1
+ports/1/hw_counters/watermark_qps=2
+ports/1/hw_counters/watermark_rc_qps=0
+ports/1/hw_counters/watermark_srqs=0
+ports/1/hw_counters/watermark_ud_qps=0

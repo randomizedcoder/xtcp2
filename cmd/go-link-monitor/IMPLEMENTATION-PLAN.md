@@ -621,6 +621,21 @@ are in RTS with a peer, decoded by the xtcpnl corpus tests.
 Done when: The ionic corpus decodes with no unknown attributes and its QP
 rows show RTS, RC and a remote QPN.
 
+#### P14-T05
+
+**Fleet counter fixtures.** Depends on: [P14-T01](#p14-t01).
+
+Deliver: `testdata/rdmasysfs/fleet-export.py`, which turns a fleet rescan's
+two sysfs samples into anonymized fixtures, one per distinct port shape, and
+a generated row table; `TestRDMACountersFleetSysfs`,
+`TestRDMACountersFleetReadErrors` and `TestRDMARateFleet`.
+
+Done when: Every fixture is supported and keeps every cataloged readable
+counter; unreadable files are skipped and pruned from the schema; t0 to t1
+counters are monotonic and under the link rate; bulk InfiniBand traces pin
+the four-octet data scale; reverting the skip, the pruning or the scale fails
+named rows.
+
 ## Verification and evidence requirements
 
 Use the repository's flake-pinned tools and actual working-tree sources,
