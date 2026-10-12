@@ -21,6 +21,12 @@
 # change, which is cheaper than three topologies and is also how a bond
 # reaches them in production.
 #
+# Every state also waits for lacpa's churn machines to leave MONITOR
+# (lwtopo::wait_churn), so churn_actor_state and churn_partner_state read the
+# same on every run: NO_CHURN once converged, and CHURN where lacp_no_partner's
+# silent partner leaves a port out of sync. Without the wait they read
+# MONITOR on a run that finishes inside AD_CHURN_DETECTION_TIME (60 s).
+#
 # Then the WRITE rows (phase 6): one `ip link add|set|replace|del` each, in
 # a namespace rebuilt for the row, captured with `xtcp2-nlcap write` so the
 # request, the kernel's answer, `ip`'s stderr and its exit status land
@@ -35,7 +41,8 @@
 #
 # A STATE THAT IS NOT REACHED IS NOT CAPTURED
 #
-# Every state is entered through a wait on the state itself (wait-lacp). If
+# Every state is entered through a wait on the state itself (wait-lacp,
+# then wait-churn). If
 # the wait times out the state's captures are SKIPPED, not taken anyway: a
 # fixture labelled lacp_converged that holds a half-negotiated bond would be
 # a wrong answer that looks like a right one. The states after it are skipped
@@ -185,7 +192,7 @@ set reached 1
 
 vmlib::log "=== lacp_no_partner ==="
 lwtopo::build_partnerless "."
-if {[lwtopo::wait_defaulted]} {
+if {[lwtopo::wait_defaulted] && [lwtopo::wait_churn settled]} {
     readback_set $NS_A lacp_no_partner
 } else {
     lappend lacp_timeouts lacp_no_partner
@@ -196,7 +203,7 @@ if {[lwtopo::wait_defaulted]} {
 # one the later phases most need.
 vmlib::log "=== lacp_converged ==="
 lwtopo::build_partner lacp_converged
-if {[lwtopo::wait_lacp_converged]} {
+if {[lwtopo::wait_lacp_converged] && [lwtopo::wait_churn]} {
     readback_set $NS_A lacp_converged
 } else {
     lappend lacp_timeouts lacp_converged
@@ -206,7 +213,7 @@ if {[lwtopo::wait_lacp_converged]} {
 if {$reached} {
     vmlib::log "=== lacp_partner_down ==="
     lwtopo::pull_lb2 lacp_partner_down
-    if {[lwtopo::wait_partner_down]} {
+    if {[lwtopo::wait_partner_down] && [lwtopo::wait_churn]} {
         readback_set $NS_A lacp_partner_down
     } else {
         lappend lacp_timeouts lacp_partner_down

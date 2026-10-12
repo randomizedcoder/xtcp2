@@ -10,7 +10,7 @@
 
 3: la1: group xstats_slave subgroup bond suite 802.3ad
                     LACPDU Rx 0
-                    LACPDU Tx 5
+                    LACPDU Tx 8
                     LACPDU Unknown type Rx 0
                     LACPDU Illegal Rx 0
                     Marker Rx 0
@@ -25,7 +25,7 @@
 
 4: la2: group xstats_slave subgroup bond suite 802.3ad
                     LACPDU Rx 0
-                    LACPDU Tx 5
+                    LACPDU Tx 8
                     LACPDU Unknown type Rx 0
                     LACPDU Illegal Rx 0
                     Marker Rx 0

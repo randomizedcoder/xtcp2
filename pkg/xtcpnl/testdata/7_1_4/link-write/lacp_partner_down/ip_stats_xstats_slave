@@ -9,8 +9,8 @@
 2: nlmon0: group xstats_slave subgroup bridge suite stp
 
 3: la1: group xstats_slave subgroup bond suite 802.3ad
-                    LACPDU Rx 10
-                    LACPDU Tx 17
+                    LACPDU Rx 151
+                    LACPDU Tx 162
                     LACPDU Unknown type Rx 0
                     LACPDU Illegal Rx 0
                     Marker Rx 0
@@ -24,8 +24,8 @@
 3: la1: group xstats_slave subgroup bridge suite stp
 
 4: la2: group xstats_slave subgroup bond suite 802.3ad
-                    LACPDU Rx 8
-                    LACPDU Tx 13
+                    LACPDU Rx 109
+                    LACPDU Tx 118
                     LACPDU Unknown type Rx 0
                     LACPDU Illegal Rx 0
                     Marker Rx 0

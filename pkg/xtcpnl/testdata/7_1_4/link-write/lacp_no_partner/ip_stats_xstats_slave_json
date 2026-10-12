@@ -56,7 +56,7 @@
         "suite": "802.3ad",
         "802.3ad": {
             "lacpdu_rx": 0,
-            "lacpdu_tx": 5,
+            "lacpdu_tx": 8,
             "lacpdu_unknown_rx": 0,
             "lacpdu_illegal_rx": 0,
             "marker_rx": 0,
@@ -92,7 +92,7 @@
         "suite": "802.3ad",
         "802.3ad": {
             "lacpdu_rx": 0,
-            "lacpdu_tx": 5,
+            "lacpdu_tx": 8,
             "lacpdu_unknown_rx": 0,
             "lacpdu_illegal_rx": 0,
             "marker_rx": 0,

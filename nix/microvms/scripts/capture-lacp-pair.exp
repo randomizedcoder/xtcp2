@@ -19,9 +19,9 @@
 #   lacp_link_restored  set_link lacp2 on: both ports converged again, la2
 #                       with one link failure on its count
 #
-# Every state also waits for the churn machines to settle (wait_churn), so
-# churn_actor_state and churn_partner_state read NO_CHURN on every run
-# rather than MONITOR on a fast one.
+# Every state also waits for the churn machines to settle
+# (lwtopo::wait_churn), so churn_actor_state and churn_partner_state read
+# NO_CHURN on every run rather than MONITOR on a fast one.
 #
 # There is no lacp_no_partner here, as there is in Tier 1: B's bond is up
 # before A's exists, and B is not driven, so A never sees a silent partner.
@@ -112,27 +112,6 @@ proc ports_set {ns subdir} {
         "for p in /sys/class/net/la*; do echo \$(basename \$p) \$(basename \$(readlink -f \$p/device/..)) \$(basename \$(readlink -f \$p/device)); done"
 }
 
-###############################################################################
-# wait_churn - all four churn machines at NO_CHURN.
-#
-# Up to AD_CHURN_DETECTION_TIME (60 s) after a port joins or comes back, so
-# the bound is that plus LACP_TIMEOUT's margin. A churned port (CHURN, out of
-# sync when the timer ran out) never settles, and times out here.
-###############################################################################
-
-proc wait_churn {} {
-    global NS_A PORTS
-    set timeout [expr {60 + $lwtopo::LACP_TIMEOUT}]
-    lassign [vmlib::run_out \
-        "xtcp2-nlcap wait-churn $NS_A [llength $PORTS] $timeout" \
-        [expr {$timeout + 30}]] rc out
-    vmlib::log [string trim $out]
-    if {$rc != 0} {
-        lwtopo::diagnose
-    }
-    return [expr {$rc == 0}]
-}
-
 proc state_set {subdir} {
     global NS_A
     readback_set $NS_A $subdir
@@ -207,7 +186,7 @@ nltopo::topo $NS_A . link set bond0 up
 ports_fit
 
 set reached 0
-if {[lwtopo::wait_lacp_converged] && [wait_churn]} {
+if {[lwtopo::wait_lacp_converged] && [lwtopo::wait_churn]} {
     state_set lacp_converged
     set reached 1
 } else {
@@ -219,7 +198,7 @@ if {$reached} {
     set reached 0
     if {![qmp_set_link $PULLED_NETDEV false]} {
         lappend qmp_failures "set_link $PULLED_NETDEV off"
-    } elseif {[lwtopo::wait_partner_down] && [wait_churn]} {
+    } elseif {[lwtopo::wait_partner_down] && [lwtopo::wait_churn]} {
         state_set lacp_link_pulled
         set reached 1
     } else {
@@ -231,7 +210,7 @@ if {$reached} {
     vmlib::log "=== lacp_link_restored ==="
     if {![qmp_set_link $PULLED_NETDEV true]} {
         lappend qmp_failures "set_link $PULLED_NETDEV on"
-    } elseif {[lwtopo::wait_lacp_converged] && [wait_churn]} {
+    } elseif {[lwtopo::wait_lacp_converged] && [lwtopo::wait_churn]} {
         state_set lacp_link_restored
     } else {
         lappend lacp_timeouts lacp_link_restored

@@ -270,10 +270,10 @@ in the tree.
 | | 3 | `RTA_METRICS` encoder | not started |
 | | 4 | `goip route replace …` argv, generate-only | not started |
 | | 5 | dry-run byte-compare harness, matrix read/write axis | not started |
-| [link-write-path](link-write-path.md) | 0 | Tier 1 LACP capture target `microvm-x86_64-link-write-capture` (one VM, two netns, veth pairs, `bonding max_bonds=0`) | **done** — `NLCAP_DRIVER_PASS`; `lacp_no_partner`/`lacp_converged` (`0x3f`/`0x3f`)/`lacp_partner_down` in `pkg/xtcpnl/testdata/7_1_4/link-write/` |
+| [link-write-path](link-write-path.md) | 0 | Tier 1 LACP capture target `microvm-x86_64-link-write-capture` (one VM, two netns, veth pairs, `bonding max_bonds=0`) | **done** — `NLCAP_DRIVER_PASS`; `lacp_no_partner`/`lacp_converged` (`0x3f`/`0x3f`)/`lacp_partner_down` in `pkg/xtcpnl/testdata/7_1_4/link-write/`, recaptured after the churn wait (`lwtopo::wait_churn`) so the churn fields read `NO_CHURN`/`CHURN` rather than `MONITOR` |
 | | 1 | bond `IFLA_INFO_DATA`/`SLAVE_DATA`/`AD_INFO` decode, shared option table | **done**: `pkg/xtcpnl/xtcpnl_bond.go` (`BondOptions`, `ParseBondInfoData`/`ParseBondSlaveData`/`ParseBondAdInfo`, `LinkInfo.Bond`/`BondSlave`); `TestDecodeBond*` green on the three 7_1_4 states and against the sysfs oracle; statement 6 amended |
-| | 2 | `-d link show` render for `bond`/`bond_slave` — lifts the first render refusal above for bond | **done**: `internal/goip/render/link_bond.go` (`bond_print_opt`/`bond_slave_print_opt` over `BondOptions`), `render/kind_data.go` (one call list, text and `-j`); `TestLinkShowDetailBondMatchesSidecar` byte-identical on `ip_link_n` and structurally equal on `ip_link_n_json` in all three states; statement 7 narrowed. The matrix row still waits: Phase 7's write rows build their preconditions with `Setup`, which read rows do not have |
-| | 3 | populated bond 802.3ad xstats body — lifts `HasUngroundedXstatsBody` for bond | **done**: `pkg/xtcpnl/xtcpnl_bond_xstats.go` (`ParseBond3adStats`), `IfStatsInfo` split into `XstatsBodies` for `group xstats` and `Slave` for `group xstats_slave`; `render/bridge_xstats.go` prints the body for both groups. `TestStatsXstatsBondMatchesSidecar` is byte-identical on `ip_stats_xstats` and `ip_stats_xstats_slave` in all three states, and structurally equal on the `_json` sidecars with the counters zeroed (the `-j` sidecar was taken after the capture window). `TestParseNewStatsBond3adCaptured` checks every decoded counter against the text sidecar. Statement 8 amended. The matrix rows still wait, as Phase 2's does |
+| | 2 | `-d link show` render for `bond`/`bond_slave` — lifts the first render refusal above for bond | **done**: `internal/goip/render/link_bond.go` (`bond_print_opt`/`bond_slave_print_opt` over `BondOptions`), `render/kind_data.go` (one call list, text and `-j`); `TestLinkShowDetailBondMatchesSidecar` byte-identical on `ip_link_n` and structurally equal on `ip_link_n_json` in all three states; statement 7 narrowed. The matrix rows landed later: `-d link show dev bond0` and `-d link show dev la1`, read rows with a `Setup` (link-write-path.md, "Bond read rows in the matrix"), `GOIP_PARITY_PASS` on two live runs and gated (`TestBondReadRowsGated`) |
+| | 3 | populated bond 802.3ad xstats body — lifts `HasUngroundedXstatsBody` for bond | **done**: `pkg/xtcpnl/xtcpnl_bond_xstats.go` (`ParseBond3adStats`), `IfStatsInfo` split into `XstatsBodies` for `group xstats` and `Slave` for `group xstats_slave`; `render/bridge_xstats.go` prints the body for both groups. `TestStatsXstatsBondMatchesSidecar` is byte-identical on `ip_stats_xstats` and `ip_stats_xstats_slave` in all three states, and structurally equal on the `_json` sidecars with the counters zeroed (the `-j` sidecar was taken after the capture window). `TestParseNewStatsBond3adCaptured` checks every decoded counter against the text sidecar. Statement 8 amended. The matrix rows are unblocked by the read-row `Setup` Phase 2's rows use, and are a follow-up |
 | | 4 | gate admits `RTM_NEWLINK`/`RTM_DELLINK`; `AttrBuilder` nest helper | **done**: `BuildWriteRequest`, `IsAdmittedWriteType` and `ErrNotAnAdmittedWrite` (the route types included, so route Phase 1 is done too); `AttrBuilder.BeginNest`/`EndNest`, `PutU16`, `PutS32`. `TestBuildWriteRequestAdmitsOnlyListedWrites` walks every named type, `TestBuildWriteRequestLayout` the flags and family header, `TestAttrBuilderWriteShapes` the nests and the rta_len overflow; `TestBuildRequestRejectsEveryNamedWriteType` is unchanged and green. Route statements 1 and 2 amended |
 | | 5 | `BuildLinkWriteRequest`: generic attrs, `dummy`/`veth`/`bond`/`bond_slave` encoders | **done**: `pkg/xtcpnl/xtcpnl_link_write.go` (`BuildLinkWriteRequest`, `EncodeBondInfoData`/`EncodeBondSlaveData`, `EncodeVethPeer`), with `BondSlaveOptions` for the three settable port options; `bond_parse_opt`/`bond_slave_parse_opt` in `internal/goip/link_bond_args.go` over the C readers in `cparse.go`. `TestBuildLinkWriteRequestWorkedExamples` matches both worked examples byte for byte; `TestEncodeBondOptions` and `TestEncodeBondSlaveOptions` go from argv to wire. Design table 3 row 17 corrected (a short `ad_actor_system` encodes); `lacp_strict` is not in the 7.1.0 parser. The argv rows of design table 2 move to Phase 6 |
 | | 6 | `goip link add/set/del`, `GOIP_WRITE_OUT` dry-run, golden byte parity | **done**: `internal/goip/link_write.go` (the `iplink_parse` keyword chain, `ll_name_to_index` resolution, `GOIP_WRITE_OUT`); 21 write rows captured into `pkg/xtcpnl/testdata/7_1_4/link-write/write/` (`NLCAP_DRIVER_PASS`, every outcome as designed); `TestLinkWriteMatchesIpBytes` matches `ip`'s lookups and write byte for byte on all 21; `ParseNlMsgErr` plus `TestDecodeNetlinkErrorExtack` decode every ACK and refusal, extack message and offset included. Design table 2 row 9 corrected (a bare 16-byte dev is sent); `ip link s` is set |
@@ -2951,6 +2951,23 @@ byte for byte on both runs. No `GOIP_PARITY_WRITE_SETUP_REFUSED` was printed.
 `internal/goipparity`'s `TestLinkWriteRowsGated` and the `earned`/`gated_commands`
 pair in `pkg/nlparity` pin the flip offline. The ungated surface is the same
 twenty-three rows.
+
+### The bond `-d link show` read rows
+
+Two more runs of `nix run .#microvm-x86_64-goip-parity`, back to back, gate
+`-d link show dev bond0` and `-d link show dev la1`, the first read rows with
+a `Setup` (link-write-path.md, "Bond read rows in the matrix"). Both printed
+76 `GOIP_PARITY_PASS` of 85: the phase 7 runs' 74, with the same per-row
+verdicts, plus the two new rows. Both new rows passed with `control: nl=0
+stdout=0` and no findings, `txns` 2/2 on `bond0` and 4/4 on `la1`, from 4
+and 8 datagrams on every side. The host load average was 45 to 56 throughout,
+and the first attempt hit the 1800 s driver timeout before printing any
+verdict. It was rerun with `--timeout 4500`, and the killed attempt is not
+counted. Both counted runs `OVERALL_FAIL` for the same pre-existing reasons as
+the phase 7 runs: `-4 netconf show dev` fails with `HYGIENE_FAIL 2`, and
+`UNGATED_DIVERGENCES 8`. `CONTROL_NOISY` read 103 and then 109.
+`TestBondReadRowsGated` and the `earned`/`gated_commands` pair pin the flip, and
+the ungated surface is back to the twenty-three rows.
 
 ## Tier C — the `goip-parity` microVM flavor
 

@@ -192,10 +192,12 @@ func TestDecodeBondRealFixture(t *testing.T) {
 //
 // Tier 2's la2 has one link failure where Tier 1's had two: Tier 1's veth
 // ports also lost carrier while lacpb's ends were down in lacp_no_partner.
-// Tier 2's churn machines read AD_NO_CHURN (2), Tier 1's AD_CHURN_MONITOR
-// (0): capture-lacp-pair.exp waits out the 60 s churn detection timer
-// before each state, and capture-link-writes.exp does not, so Tier 1's
-// value depends on how quickly its run went.
+// Both drivers wait out the 60 s churn detection timer before each state
+// (lwtopo::wait_churn), so no row reads AD_CHURN_MONITOR (0). A converged
+// port, or one whose partner went away after converging, ends at
+// AD_NO_CHURN (2). lacp_no_partner's silent partner never syncs, so both
+// partner machines end at AD_CHURN (1), and so does la2's actor, which is
+// out of sync in its own aggregator; la1's actor is in sync and ends at 2.
 //
 // go test ./pkg/xtcpnl/ -run TestDecodeBondSlaveRealFixture
 func TestDecodeBondSlaveRealFixture(t *testing.T) {
@@ -214,18 +216,18 @@ func TestDecodeBondSlaveRealFixture(t *testing.T) {
 		port        string
 		expected    slaveWant
 	}{
-		{"positive: no partner, la1 is the active port, in sync with the defaulted partner (0x4f)",
-			tdLacpNoPartnerGetLink_7_1_4, "la1", slaveWant{0, 0, 0, 1, 0x4f, 0, 0, 0, "02:00:00:00:0a:01"}},
-		{"positive: no partner, la2 is a backup in its own aggregator 2 (0x47, no SYNC)",
-			tdLacpNoPartnerGetLink_7_1_4, "la2", slaveWant{1, 0, 0, 2, 0x47, 0, 0, 0, "02:00:00:00:0a:02"}},
+		{"positive: no partner, la1 is the active port, in sync with the defaulted partner (0x4f); its actor settles, its partner churns",
+			tdLacpNoPartnerGetLink_7_1_4, "la1", slaveWant{0, 0, 0, 1, 0x4f, 0, 2, 1, "02:00:00:00:0a:01"}},
+		{"corner: no partner, la2 is a backup in its own aggregator 2 (0x47, no SYNC), so both its churn machines churn",
+			tdLacpNoPartnerGetLink_7_1_4, "la2", slaveWant{1, 0, 0, 2, 0x47, 0, 1, 1, "02:00:00:00:0a:02"}},
 		{"positive: converged la1 - actor and partner 0x3f, the partner decoded at the kernel's u16 width",
-			tdLacpConvergedGetLink_7_1_4, "la1", slaveWant{0, 0, 1, 1, 0x3f, 0x3f, 0, 0, "02:00:00:00:0a:01"}},
+			tdLacpConvergedGetLink_7_1_4, "la1", slaveWant{0, 0, 1, 1, 0x3f, 0x3f, 2, 2, "02:00:00:00:0a:01"}},
 		{"positive: converged la2 - same aggregator as la1, both active",
-			tdLacpConvergedGetLink_7_1_4, "la2", slaveWant{0, 0, 1, 1, 0x3f, 0x3f, 0, 0, "02:00:00:00:0a:02"}},
+			tdLacpConvergedGetLink_7_1_4, "la2", slaveWant{0, 0, 1, 1, 0x3f, 0x3f, 2, 2, "02:00:00:00:0a:02"}},
 		{"positive: partner down, la1 untouched",
-			tdLacpPartnerDownGetLink_7_1_4, "la1", slaveWant{0, 0, 1, 1, 0x3f, 0x3f, 0, 0, "02:00:00:00:0a:01"}},
+			tdLacpPartnerDownGetLink_7_1_4, "la1", slaveWant{0, 0, 1, 1, 0x3f, 0x3f, 2, 2, "02:00:00:00:0a:01"}},
 		{"corner: partner down, la2 mii DOWN (2) and backup with a second failure, LACP bits still 0x3f",
-			tdLacpPartnerDownGetLink_7_1_4, "la2", slaveWant{1, 2, 2, 1, 0x3f, 0x3f, 0, 0, "02:00:00:00:0a:02"}},
+			tdLacpPartnerDownGetLink_7_1_4, "la2", slaveWant{1, 2, 2, 1, 0x3f, 0x3f, 2, 2, "02:00:00:00:0a:02"}},
 		{"positive: tier 2 converged la1 - 0x3f both ends, no failures: the ports had no carrier to lose before",
 			tdLacpPairConvergedGetLink_7_1_4, "la1", slaveWant{0, 0, 0, 1, 0x3f, 0x3f, 2, 2, "02:00:00:00:0a:01"}},
 		{"positive: tier 2 converged la2",
@@ -268,6 +270,54 @@ func TestDecodeBondSlaveRealFixture(t *testing.T) {
 			}
 			if s.ActorPortPrio.Value != 255 || s.PrioInt32() != 0 || s.QueueID.Value != 0 {
 				t.Errorf("actor_port_prio/prio/queue_id = %d/%d/%d, want 255/0/0", s.ActorPortPrio.Value, s.PrioInt32(), s.QueueID.Value)
+			}
+		})
+	}
+}
+
+// TestDecodeBondChurnSettled pins the churn wait itself: every port of every
+// captured state has both churn machines out of AD_CHURN_MONITOR, which is
+// where a capture taken inside the 60 s detection window would leave them.
+// A recapture that dropped lwtopo::wait_churn would pass
+// TestDecodeBondSlaveRealFixture only by editing its expected values; this
+// fails instead.
+//
+// go test ./pkg/xtcpnl/ -run TestDecodeBondChurnSettled
+func TestDecodeBondChurnSettled(t *testing.T) {
+	const adChurnMonitor = 0
+	tests := []struct {
+		description string
+		getlink     string
+		expected    int // ports with both machines settled
+	}{
+		{"corner: no partner, settled to a mix of NO_CHURN and CHURN", tdLacpNoPartnerGetLink_7_1_4, 2},
+		{"positive: converged", tdLacpConvergedGetLink_7_1_4, 2},
+		{"boundary: partner down, the dead port settled too", tdLacpPartnerDownGetLink_7_1_4, 2},
+		{"positive: tier 2 converged", tdLacpPairConvergedGetLink_7_1_4, 2},
+		{"boundary: tier 2 link pulled", tdLacpPairPulledGetLink_7_1_4, 2},
+		{"positive: tier 2 link restored, after the restore re-armed the machine", tdLacpPairRestoredGetLink_7_1_4, 2},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			settled := 0
+			for _, port := range []string{"la1", "la2"} {
+				s := lacpLinksByName(t, tc.getlink)[port].BondSlave
+				if s == nil {
+					t.Fatalf("%s.BondSlave = nil", port)
+				}
+				if !s.AdChurnActorState.Present || !s.AdChurnPartnerState.Present {
+					t.Errorf("%s churn state absent", port)
+					continue
+				}
+				if s.AdChurnActorState.Value == adChurnMonitor || s.AdChurnPartnerState.Value == adChurnMonitor {
+					t.Errorf("%s churn actor/partner = %d/%d: a machine is still in MONITOR, so the capture did not wait",
+						port, s.AdChurnActorState.Value, s.AdChurnPartnerState.Value)
+					continue
+				}
+				settled++
+			}
+			if settled != tc.expected {
+				t.Errorf("%d ports settled, want %d", settled, tc.expected)
 			}
 		})
 	}

@@ -89,8 +89,8 @@
                 "ad_actor_oper_port_state_str": [ "active","short_timeout","aggregating","in_sync","collecting","distributing" ],
                 "ad_partner_oper_port_state": 63,
                 "ad_partner_oper_port_state_str": [ "active","short_timeout","aggregating","in_sync","collecting","distributing" ],
-                "churn_actor_state": "MONITOR",
-                "churn_partner_state": "MONITOR",
+                "churn_actor_state": "NO_CHURN",
+                "churn_partner_state": "NO_CHURN",
                 "actor_port_prio": 255
             }
         },
@@ -139,8 +139,8 @@
                 "ad_actor_oper_port_state_str": [ "active","short_timeout","aggregating","in_sync","collecting","distributing" ],
                 "ad_partner_oper_port_state": 63,
                 "ad_partner_oper_port_state_str": [ "active","short_timeout","aggregating","in_sync","collecting","distributing" ],
-                "churn_actor_state": "MONITOR",
-                "churn_partner_state": "MONITOR",
+                "churn_actor_state": "NO_CHURN",
+                "churn_partner_state": "NO_CHURN",
                 "actor_port_prio": 255
             }
         },

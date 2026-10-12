@@ -468,6 +468,17 @@ func TestCommandString(t *testing.T) {
 			},
 		},
 		{
+			description: "positive: a read row may carry Setup, and renders write=no beside it",
+			cmd:         lookupPtr(t, "-d link show dev bond0"),
+			wantFields: []string{
+				"link_show_details_bond", "4", "yes", "no", "no",
+				"link add bond0 type bond mode 802.3ad;link add la1 type veth peer name lb1;" +
+					"link add la2 type veth peer name lb2;link set la1 master bond0;" +
+					"link set la2 master bond0;link set bond0 up",
+				"-d link show dev bond0", "-d link show dev bond0",
+			},
+		},
+		{
 			description: "corner: a single setup step has no separator",
 			cmd:         lookupPtr(t, "link replace bond0 type bond"),
 			wantFields: []string{
@@ -532,9 +543,6 @@ func TestCommandString(t *testing.T) {
 				if strings.TrimSpace(step) == "" || strings.ContainsAny(step, ";\t") {
 					t.Errorf("%q setup step %q", c.Name, step)
 				}
-			}
-			if len(c.Setup) != 0 && !c.Write {
-				t.Errorf("%q has Setup but is not a write row", c.Name)
 			}
 		}
 	})
@@ -964,7 +972,9 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	// (stats) and redundant per-name get (netconf-dev). That is class
 	// DivergenceTransactionCount, which the allowlist cannot suppress, so these
 	// nine can never gate — unlike the fourteen above, which each await their own
-	// clean live run. TestPermanentWireDivergences pins the nine.
+	// clean live run. TestPermanentWireDivergences pins the nine. The two bond
+	// `-d link show` rows left this list on their first two live runs — see
+	// TestBondReadRowsGated.
 	expected := []string{
 		"-s addr show", "-s neigh show",
 		"-0 addr show", "route show table main", "route show table local",
@@ -1398,6 +1408,86 @@ func TestLinkWriteRowsGated(t *testing.T) {
 			if entries := al.EntriesFor(c.Name); len(entries) != 0 {
 				t.Errorf("%q gated clean on the phase 7 runs but carries %d allowlist entr(ies)",
 					c.Name, len(entries))
+			}
+		}
+	})
+}
+
+// TestBondReadRowsGated pins the flip the two runs after phase 7 recorded:
+// the bond `-d link show` rows, the first read rows with a Setup. Both runs
+// reported both GOIP_PARITY_PASS with stdout=0, txns matching ip (2/2 on the
+// master, 4/4 on the port) and control nl=0, since the driver captures all
+// three sides in one namespace built from the row's Setup. Like the write rows
+// they gate with ZERO allowlist entries.
+//
+// go test ./internal/goipparity/ -run TestBondReadRowsGated
+func TestBondReadRowsGated(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	var cohort []Command
+	for _, c := range Commands() {
+		if !c.Write && len(c.Setup) > 0 {
+			cohort = append(cohort, c)
+		}
+	}
+
+	type want struct{ setup, write, gated bool }
+	rows := []struct {
+		description string
+		command     string
+		expected    want
+	}{
+		{"positive: the bond master's detail row has Setup and is gated", "-d link show dev bond0",
+			want{true, false, true}},
+		{"positive: the bond port's detail row has Setup and is gated", "-d link show dev la1",
+			want{true, false, true}},
+		{"negative: the dump-wide -d link show needs no Setup", "-d link show",
+			want{false, false, true}},
+		{"negative: a write row's Setup does not make it a read row", "link set la1 nomaster",
+			want{true, true, true}},
+		{"boundary: the other port, not in the table, is neither", "-d link show dev la2",
+			want{false, false, false}},
+		{"corner: a permanent-divergence row is neither", "stats show group link",
+			want{false, false, false}},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			var got want
+			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				got.setup = len(c.Setup) > 0
+				got.write = c.Write
+			}
+			got.gated = al.IsGated(r.command)
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+		})
+	}
+
+	t.Run("boundary: the cohort is the two bond rows", func(t *testing.T) {
+		if len(cohort) != 2 {
+			t.Fatalf("%d read rows with Setup, want 2", len(cohort))
+		}
+	})
+
+	t.Run("positive: each read row with Setup is gated and Implemented", func(t *testing.T) {
+		for _, c := range cohort {
+			if !al.IsGated(c.Name) {
+				t.Errorf("%q is a read row with Setup but IsGated is false; add it to "+
+					"gated_commands and the earned list together", c.Name)
+			}
+			if !c.Implemented {
+				t.Errorf("read row %q is not Implemented; a gate cannot fire on a skip", c.Name)
+			}
+		}
+	})
+
+	t.Run("negative: each read row with Setup gated clean, carrying no allowlist entry", func(t *testing.T) {
+		for _, c := range cohort {
+			if entries := al.EntriesFor(c.Name); len(entries) != 0 {
+				t.Errorf("%q gated clean but carries %d allowlist entr(ies)", c.Name, len(entries))
 			}
 		}
 	})
