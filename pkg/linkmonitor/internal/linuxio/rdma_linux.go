@@ -51,7 +51,13 @@ func (c *Client) rdma(ctx context.Context, command uint16, index, port uint32, d
 	if c.protocol != unix.NETLINK_RDMA {
 		return Result[RDMAPort]{}, ErrRequest
 	}
-	return execute(ctx, c, request[RDMAPort]{family: command, dump: dump,
+	var alias uint16
+	if command == rdmaPortGet && !dump {
+		// nldev_port_get_doit replies with RDMA_NLDEV_CMD_GET, not PORT_GET;
+		// only the dump uses PORT_GET. Accept both should the kernel change.
+		alias = rdmaDeviceGet
+	}
+	return execute(ctx, c, request[RDMAPort]{family: command, alias: alias, dump: dump,
 		build: func(sequence uint32, _ uint64) ([]byte, error) {
 			return rdmaRequest(command, index, port, sequence, dump), nil
 		}, match: func(e xtcpnl.NetlinkEnvelope) (RDMAPort, bool, error) {

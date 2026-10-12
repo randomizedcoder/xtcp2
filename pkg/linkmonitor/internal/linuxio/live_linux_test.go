@@ -115,3 +115,26 @@ func TestLiveRequestTimeoutRecovery(t *testing.T) {
 		t.Fatalf("timeout recovery=%+v error=%v", got, err)
 	}
 }
+
+// TestLiveRDMAPortGet checks the single-port GET against the kernel, whose
+// reply type differs from the request's. It skips without RDMA devices.
+func TestLiveRDMAPortGet(t *testing.T) {
+	c := liveClient(t, unix.NETLINK_RDMA)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	devices, err := c.DumpRDMADevices(ctx)
+	if errors.Is(err, unix.EPROTONOSUPPORT) || errors.Is(err, unix.EAFNOSUPPORT) || errors.Is(err, unix.EOPNOTSUPP) || (err == nil && len(devices.Values) == 0) {
+		t.Skipf("no RDMA devices: %v", err)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range devices.Values {
+		start := time.Now()
+		got, err := c.GetRDMAPort(ctx, d.Index, 1)
+		if err != nil || len(got.Values) != 1 || got.Values[0].Index != d.Index || got.Values[0].Port != 1 {
+			t.Fatalf("%s/1 GET=%+v error=%v after %v", d.Name, got, err, time.Since(start))
+		}
+		t.Logf("%s/1 GET in %v: state=%d physical=%d", d.Name, time.Since(start), got.Values[0].State, got.Values[0].Physical)
+	}
+}

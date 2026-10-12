@@ -303,6 +303,35 @@ race tests, vet, gofmt and all three golangci configurations pass for
 and the manual checks on host `l` (`xtcp2ctl link status` against a deployed
 xtcp2 with the monitor enabled).
 
+V085 — host `l` verification and RDMA single-port GET fix (2026-10-11):
+merged `main` (`9a51c28`) passes `test-linkmonitor-embedding-vm` under KVM
+(run with `LD_LIBRARY_PATH` cleared; a host alsa-lib built for a newer glibc
+otherwise breaks QEMU). On host `l` the NixOS service serves 115 core series,
+the admin socket is `root:wheel 0660` in a setgid directory, and
+`ctl rebaseline -wait 30s` and `ctl resync -wait 30s` complete. A temporary
+xtcp2 with `-linkMonitor` and raw read/admin tokens answered `xtcp2ctl link`
+`status`, `interfaces` and `collectors -format json` with the read token,
+`PermissionDenied` for a read-token rebaseline and `Unauthenticated` without a
+token. Its admin rebaseline returned `DeadlineExceeded` because no first
+baseline could be learned, which exposed the bug: `rdma_state` timed out at
+the 5 s request budget on every mlx5 port, in both monitors, although `rdma`
+queries take 3–5 ms. The kernel's `nldev_port_get_doit` answers a single-port
+`RDMA_NLDEV_CMD_PORT_GET` with type `RDMA_NLDEV_CMD_GET` (only the dump uses
+`PORT_GET`), and the transaction ignored data of any other type. The request
+now accepts that reply type as an alias, and still accepts `PORT_GET`. The
+scripted transaction table gained kernel-type, `PORT_GET`-type and
+unrelated-type rows (the old fake echoed the request type, hiding the bug), and
+`TestLiveRDMAPortGet` queries each local RDMA port and skips without devices.
+After the fix a fresh full build on host `l` reaches `ready=true
+collection_healthy=true`, records its first baseline within the 5 s settle,
+reads `rdma_state` in 0.3–0.5 ms and completes `rebaseline -wait` in 37 ms.
+Open: a build without the `rdma` tag (`go-link-monitor-core`, and xtcp2, which
+embeds that build) reports `rdma_events` unsupported; as designed, missing
+required event coverage keeps collection unhealthy, so on an RDMA host such a
+build never learns a first baseline. Pinned race tests, vet and all three
+golangci configurations pass for `pkg/linkmonitor/...` and
+`cmd/go-link-monitor/...`.
+
 V076 — privileged performance VM wiring (2026-10-10): added the modular
 `test-linkmonitor-performance-vm` runner under `nix/microvms/`. It reuses the
 cached performance test artifact, boots a root NixOS guest, captures filtered
@@ -1419,7 +1448,8 @@ owners, deadlines or successful outcomes. Continue independent ready tasks.
 | 2026-10-11 | Started P12: admin access design, gRPC-first error-ack transport, and a read/admin credential split across all xtcp2 listeners with per-RPC access classes. Fixed secret echo in four `ConfigService` responses. Decision: an active control pass is not joined; a new request schedules one pending pass so `Await` never reports a stale save. | V079–V080; P12 2/7. Next P12-T03 control tickets. Changes uncommitted on `feat/linkmonitor-admin-grpc` |
 | 2026-10-11 | Added control tickets, `LinkMonitorService`, its gRPC adapter and the shared control CLI. | V081–V082; P12 5/7. Next P12-T06 standalone admin listener, then P12-T07 xtcp2 integration |
 | 2026-10-11 | Added the standalone admin listener, `go-link-monitor ctl` and NixOS admin options. Decision: the admin socket group comes from a setgid tmpfiles directory, not a chown in the daemon. | V083; P12 6/7. Next P12-T07 xtcp2 integration |
-| 2026-10-11 | Embedded the link monitor in xtcp2 (`link_monitor` field 250, `-linkMonitor*` flags) and added `xtcp2ctl link`. Decision: `LinkMonitorService` is always registered so a disabled monitor answers `FailedPrecondition` instead of `Unimplemented`; a monitor failure while the daemon runs is fatal. | V084; P12 7/7. Remaining: embedding VM, host `l` checks, then Phase 6 error ledger. Changes uncommitted |
+| 2026-10-11 | Embedded the link monitor in xtcp2 (`link_monitor` field 250, `-linkMonitor*` flags) and added `xtcp2ctl link`. Decision: `LinkMonitorService` is always registered so a disabled monitor answers `FailedPrecondition` instead of `Unimplemented`; a monitor failure while the daemon runs is fatal. | V084; P12 7/7. Embedding VM and host `l` checks done in V085 |
+| 2026-10-11 | Fixed RDMA single-port GET waiting out the 5 s request budget: the kernel replies with `RDMA_NLDEV_CMD_GET`. The budget is unchanged, since queries take milliseconds. | V085. Open: builds without the `rdma` tag cannot learn a first baseline on RDMA hosts (embedded xtcp2) |
 
 Publication: P08-T03 was committed as `cb958fb` and pushed on
 `test/linkmonitor-embedding`; [PR #178](https://github.com/randomizedcoder/xtcp2/pull/178)

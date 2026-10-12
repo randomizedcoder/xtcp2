@@ -15,9 +15,11 @@ const (
 )
 
 type request[T any] struct {
-	build     func(sequence uint32, epoch uint64) ([]byte, error)
-	match     func(xtcpnl.NetlinkEnvelope) (T, bool, error)
-	family    uint16
+	build  func(sequence uint32, epoch uint64) ([]byte, error)
+	match  func(xtcpnl.NetlinkEnvelope) (T, bool, error)
+	family uint16
+	// alias is a second accepted reply type; zero accepts only family.
+	alias     uint16
 	dump, ack bool
 }
 
@@ -149,7 +151,7 @@ func statusError(code int32) error {
 }
 
 func (t *transaction[T]) data(e xtcpnl.NetlinkEnvelope) error {
-	if e.Header.Type != t.request.family {
+	if e.Header.Type != t.request.family && (t.request.alias == 0 || e.Header.Type != t.request.alias) {
 		return nil
 	}
 	if e.Header.Flags&unix.NLM_F_REQUEST != 0 {

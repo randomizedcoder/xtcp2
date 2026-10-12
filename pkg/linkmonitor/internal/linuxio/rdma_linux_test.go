@@ -61,7 +61,9 @@ func TestRDMATransactionTable(t *testing.T) {
 	}{
 		{"devices", "positive", "device enumeration", "complete owned dump", unix.NETLINK_RDMA, "devices", false},
 		{"ports", "positive", "port enumeration", "complete owned dump", unix.NETLINK_RDMA, "ports", false},
-		{"single", "positive", "single port query", "one requested port", unix.NETLINK_RDMA, "single", false},
+		{"single", "positive", "single port query answered as the kernel does, with RDMA_NLDEV_CMD_GET", "one requested port", unix.NETLINK_RDMA, "single", false},
+		{"singlePortType", "corner", "single port query answered with the PORT_GET type", "one requested port", unix.NETLINK_RDMA, "singlePortType", false},
+		{"singleOtherType", "negative", "single port reply with an unrelated NLDEV type", "reply ignored; no value", unix.NETLINK_RDMA, "singleOtherType", true},
 		{"empty", "boundary", "empty completed dump", "successful empty inventory", unix.NETLINK_RDMA, "empty", false},
 		{"wrongProtocol", "negative", "generic socket used for RDMA", "reject before send", unix.NETLINK_GENERIC, "ports", true},
 		{"interrupted", "negative", "DUMP_INTR after valid data", "no partial values", unix.NETLINK_RDMA, "interrupted", true},
@@ -77,8 +79,13 @@ func TestRDMATransactionTable(t *testing.T) {
 					seq++
 				}
 				flags := uint16(unix.NLM_F_MULTI)
-				if tc.mode == "single" || tc.mode == "wrongPort" {
+				switch tc.mode {
+				case "single", "wrongPort":
+					flags, typ = 0, rdmaDeviceGet
+				case "singlePortType":
 					flags = 0
+				case "singleOtherType":
+					flags, typ = 0, 5<<10|9
 				}
 				var frames [][]byte
 				if tc.mode != "empty" {
@@ -105,7 +112,7 @@ func TestRDMATransactionTable(t *testing.T) {
 			switch tc.mode {
 			case "devices":
 				result, err = c.DumpRDMADevices(t.Context())
-			case "single":
+			case "single", "singlePortType", "singleOtherType":
 				result, err = c.GetRDMAPort(t.Context(), 0, 1)
 			case "wrongPort":
 				result, err = c.GetRDMAPort(t.Context(), 0, 2)
