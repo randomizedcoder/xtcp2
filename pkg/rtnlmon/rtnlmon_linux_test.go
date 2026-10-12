@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"golang.org/x/sys/unix"
 
@@ -51,6 +52,7 @@ type item struct {
 	data  []byte
 	err   error
 	stale bool
+	at    time.Duration // when set, the fake clock reads epoch+at from this item on
 }
 
 type fakeConn struct {
@@ -58,6 +60,13 @@ type fakeConn struct {
 	log    *[]string
 	cancel context.CancelFunc
 	t      *testing.T
+	now    *time.Time // the fake clock items advance; nil ignores at
+}
+
+var epoch = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+func defaultConfig() runConfig {
+	return runConfig{retries: DefaultMaxDumpRetries, now: time.Now}
 }
 
 func (f *fakeConn) Receive(ctx context.Context, visit func([]byte) error) (int, error) {
@@ -67,6 +76,9 @@ func (f *fakeConn) Receive(ctx context.Context, visit func([]byte) error) (int, 
 	}
 	it := f.items[0]
 	f.items = f.items[1:]
+	if f.now != nil && it.at > 0 {
+		*f.now = epoch.Add(it.at)
+	}
 	if it.err != nil {
 		return 0, it.err
 	}
@@ -331,7 +343,7 @@ func TestRunResyncOrder(t *testing.T) {
 				return Snapshot{}, nil
 			}
 			h := recorder{log: &log, failOn: row.failOn, failWith: boom}
-			err := run(ctx, conn, dump, DefaultMaxDumpRetries, h)
+			err := run(ctx, conn, dump, defaultConfig(), h)
 			if !errors.Is(err, row.expectedErr) {
 				t.Fatalf("err=%v, expected %v", err, row.expectedErr)
 			}
@@ -340,6 +352,86 @@ func TestRunResyncOrder(t *testing.T) {
 			}
 			if dumps != row.dumps {
 				t.Fatalf("%d dumps, expected %d", dumps, row.dumps)
+			}
+		})
+	}
+}
+
+// go test ./pkg/rtnlmon/ -run TestRunPeriodicResync
+func TestRunPeriodicResync(t *testing.T) {
+	link := datagrams(t, tdLink)
+	a, b := link[0], link[1]
+	var h xtcpnl.NlMsgHdr
+	ev := func(d []byte) string {
+		if _, err := xtcpnl.DeserializeNlMsgHdr(d, &h); err != nil {
+			t.Fatal(err)
+		}
+		e, err := xtcpnl.ParseRtnetlinkEvent(h.Type, d[xtcpnl.NlMsgHdrSizeCst:h.Len])
+		if err != nil {
+			t.Fatal(err)
+		}
+		return "event " + describe(e)
+	}
+	for _, row := range []struct {
+		description string
+		resyncAfter time.Duration
+		items       []item
+		expected    []string
+	}{
+		{
+			description: "positive: a batch after ResyncAfter resyncs, without a drain",
+			resyncAfter: time.Minute,
+			items:       []item{{data: a, at: 30 * time.Second}, {data: b, at: 90 * time.Second}},
+			expected:    []string{"snapshot start", ev(a), ev(b), "snapshot periodic"},
+		},
+		{
+			description: "negative: zero disables it",
+			items:       []item{{data: a, at: time.Hour}, {data: b, at: 2 * time.Hour}},
+			expected:    []string{"snapshot start", ev(a), ev(b)},
+		},
+		{
+			description: "boundary: a batch exactly ResyncAfter later resyncs",
+			resyncAfter: time.Minute,
+			items:       []item{{data: a, at: time.Minute}},
+			expected:    []string{"snapshot start", ev(a), "snapshot periodic"},
+		},
+		{
+			description: "boundary: a batch just before ResyncAfter does not",
+			resyncAfter: time.Minute,
+			items:       []item{{data: a, at: time.Minute - time.Nanosecond}},
+			expected:    []string{"snapshot start", ev(a)},
+		},
+		{
+			description: "corner: an overrun's snapshot restarts the clock",
+			resyncAfter: time.Minute,
+			items:       []item{{err: unix.ENOBUFS, at: 50 * time.Second}, {data: a, at: 90 * time.Second}},
+			expected:    []string{"snapshot start", "drain 0", "snapshot overrun", ev(a)},
+		},
+		{
+			description: "corner: the periodic snapshot restarts the clock",
+			resyncAfter: time.Minute,
+			items:       []item{{data: a, at: time.Minute}, {data: b, at: 90 * time.Second}},
+			expected:    []string{"snapshot start", ev(a), "snapshot periodic", ev(b)},
+		},
+		{
+			description: "corner: an idle socket never resyncs",
+			resyncAfter: time.Minute,
+			expected:    []string{"snapshot start"},
+		},
+	} {
+		t.Run(row.description, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			var log []string
+			now := epoch
+			conn := &fakeConn{items: slices.Clone(row.items), log: &log, cancel: cancel, t: t, now: &now}
+			dump := func(context.Context) (Snapshot, error) { return Snapshot{}, nil }
+			cfg := runConfig{retries: DefaultMaxDumpRetries, resyncAfter: row.resyncAfter, now: func() time.Time { return now }}
+			if err := run(ctx, conn, dump, cfg, recorder{log: &log}); !errors.Is(err, context.Canceled) {
+				t.Fatalf("err=%v, expected context.Canceled", err)
+			}
+			if !slices.Equal(log, row.expected) {
+				t.Fatalf("calls:\n  %s\nexpected:\n  %s", strings.Join(log, "\n  "), strings.Join(row.expected, "\n  "))
 			}
 		})
 	}
@@ -450,7 +542,7 @@ func TestReplayCapturedEventsIntoState(t *testing.T) {
 					n++
 					return s, nil
 				}
-				if err := run(ctx, conn, dump, DefaultMaxDumpRetries, recorder{log: &log, state: st}); !errors.Is(err, context.Canceled) {
+				if err := run(ctx, conn, dump, defaultConfig(), recorder{log: &log, state: st}); !errors.Is(err, context.Canceled) {
 					t.Fatal(err)
 				}
 				if slices.Contains(log, "STALE DELIVERED") {

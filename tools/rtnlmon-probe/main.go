@@ -2,7 +2,7 @@
 // kernel and prints what it is handed, one line each, for the microVM
 // self-test's RTNL_EVENTS check:
 //
-//	RTNLMON_SNAPSHOT <start|overrun|truncated> links=N addrs=N routes=N neighs=N
+//	RTNLMON_SNAPSHOT <start|overrun|truncated|periodic> links=N addrs=N routes=N neighs=N
 //	RTNLMON_SNAPSHOT_ADDR <reason> ifindex=N addr=A/P   (one per address)
 //	RTNLMON_EVENT link <add|del> ifindex=N ifname=X <up|down>
 //	RTNLMON_EVENT addr <add|del> ifindex=N addr=A/P

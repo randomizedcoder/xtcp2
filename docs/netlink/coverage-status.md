@@ -888,7 +888,7 @@ Phases and scope are as defined in
 | Phase | Scope | Status | What exists | What is missing |
 |---|---|---|---|---|
 | **0** | Reflection removal (0a), AccECN (0b), layout oracle (0c), perf gate (0d), upstream pin guard (0e), then core wire export, subpackage skeleton, capture generalization | **partial** | 0a–0e — see [Phase 0](#phase-0). Plus the rtnetlink-only capture flavor that Phase 0 generalizes, and the five core wire primitives, exported in [`b4428c7`](#b4428c7--the-five-core-wire-primitives-are-exported) | Gating the other 17 protocols that currently report deltas, one per phase as each is triaged; package still flat; BPF filter still pins family 0. `pkg/nsdiscover/nsid.go` no longer hand-rolls its own wire layer — it went through `xtcpnl.NewAttrBuilder`/`BuildRequest`/`WalkNlMsgs`/`WalkRTAttrs` in [`b4428c7`](#b4428c7--the-five-core-wire-primitives-are-exported), closing `TODO-SOON.md` §15 |
-| **1** | Multicast listener, `BuildDumpNeighRequest`, in-guest smoke check | **done** | Event parsing layer, `ndmsg` decoder, `ParseNeigh`, real captured event fixtures, and `BuildDumpNeighRequest` as of [`1beb2b8`](#1beb2b8--the-per-family-request-builders-and-the-single-get-primitive). **The listener**: `pkg/rtnlmon` on `pkg/nlconn` (linkmonitor's transport, moved out of `internal/`), `xtcpnl.WalkNotifications`, the `ENOBUFS` resync that drains before it re-dumps, and self-test check 20 (`XTCP2_SELF_TEST_RTNL_EVENTS`) — see [Phase 1: the listener](#phase-1-the-listener) | A consumer: `pkg/localnet` still rebuilds on a timer (`TODO-SOON.md` §13) |
+| **1** | Multicast listener, `BuildDumpNeighRequest`, in-guest smoke check | **done** | Event parsing layer, `ndmsg` decoder, `ParseNeigh`, real captured event fixtures, and `BuildDumpNeighRequest` as of [`1beb2b8`](#1beb2b8--the-per-family-request-builders-and-the-single-get-primitive). **The listener**: `pkg/rtnlmon` on `pkg/nlconn` (linkmonitor's transport, moved out of `internal/`), `xtcpnl.WalkNotifications`, the `ENOBUFS` resync that drains before it re-dumps, and self-test check 20 (`XTCP2_SELF_TEST_RTNL_EVENTS`) — see [Phase 1: the listener](#phase-1-the-listener). **The consumer**: `-localityEvents` keeps locality snapshots current from it (`localnet.Tracker`), self-test `XTCP2_SELF_TEST_LOCALITY_EVENTS` | — |
 | **2** | `IFA_CACHEINFO`/`IFA_FLAGS`, `IFLA_ADDRESS`/`IFLA_STATS64`, `RTA_EXPIRES`/`RTA_CACHEINFO`/`RTA_METRICS`, orphaned `INET_DIAG_PRAGUEINFO` | **partial** | `IFA_CACHEINFO` (with `struct ifa_cacheinfo` and the two lifetime predicates), `IFA_FLAGS` (replacing the u8 header field, not extending it), `IFLA_ADDRESS`/`IFLA_BROADCAST` and nine more `IFLA_*`, as of [`4494b42`](#4494b42--the-ifla_-and-ifa_-attribute-decoders-a-show-line-needs). `IFLA_STATS`/`IFLA_STATS64` are **done**: decoded in `xtcpnl_link_stats.go`, rendered by `render.LinkStatsText`, and driven by `ip -s link show` as the tenth parity command. They were previously recorded here as out of scope on a premise that was wrong — see [below](#what-ifla_stats64-was-actually-blocked-on) | the `RTA_EXPIRES` *attribute* (distinct from `rta_cacheinfo`'s `rta_expires` member; `print_route` never reads it, so nothing on a `show` path needs it), and `INET_DIAG_PRAGUEINFO`. **`RTA_METRICS` is done**, with real fixtures: the gated capture topology carries an `mtu 1400 advmss 1300` route, so `dumps/netlink_route_getroute.pcap` has one and `RouteMetrics` decodes it. **`RTA_CACHEINFO` is done** too, in `xtcpnl_rta_cacheinfo.go` — and its real fixtures (48 of 74 captured routes) turn out to be all-zero by kernel construction, which is a finding in itself: see [below](#-s-on-route-neigh-and-rule-two-no-ops-and-a-bug-in-the-ungated-form) |
 | **3** | Rules (`FRA_*`), nexthop (`NHA_*`), bridge/VLAN, `IFLA_LINKINFO` descent | **partial** | the `IFLA_LINKINFO` descent, as far as `IFLA_INFO_KIND` — [`4494b42`](#4494b42--the-ifla_-and-ifa_-attribute-decoders-a-show-line-needs), the first production caller of `WalkRTAttrsNested`. **`FRA_*` is done**: `struct fib_rule_hdr` and all 30 attributes decode in `xtcpnl_fib_rule_hdr.go`, `render.RuleView` prints them, and `ip rule show` drives four parity commands — see [below](#ip-rule-show-the-object-with-no-name-table). **`NHA_*` is done**: `struct nhmsg` and the nexthop attributes — id, oif, gateway, blackhole, fdb, group, group-type and the nested `NHA_RES_GROUP` — decode in `xtcpnl_nhmsg.go` and render for `ip nexthop show` and `-d` route nhid resolution; see the nexthop arc in [Where we are](#where-we-are). **The `IFLA_INFO_DATA` sub-nest is decoded for kind `vrf`** (`IFLA_VRF_TABLE`), together with `IFLA_INFO_SLAVE_DATA`'s `IFLA_VRF_PORT_TABLE`, driving `-d link`/`addr show` of a VRF master and its port. **And for kind `bond`**: every `IFLA_BOND_*` option, the `AD_INFO` nest and the twelve `IFLA_BOND_SLAVE_*` port attributes decode (link-write-path phase 1). They are not rendered yet, so `-d` on a bond still refuses | bridge/VLAN, the bond `-d` render, and the `IFLA_INFO_DATA` sub-nest for link kinds other than `vrf` and `bond`, each a separate attribute space per kind |
 | **4** | tc telemetry only (23 top-level `TCA_*`) | not started | — | all of it |
@@ -7008,6 +7008,30 @@ for the self-test.
   - Passes in `microvm-x86_64-lifecycle`. With the drain removed, the
     resync itself was right, and then 7 stale adds arrived after it. Check
     20 failed and the other 18 passed.
+- **The consumer: `-localityEvents`.** Each monitored namespace's listener
+  folds link, address and route notifications into a `localnet.Tracker` and
+  republishes that namespace's locality snapshot. See
+  docs/locality-enrichment.md, "Event-driven updates".
+  - **The silent IPv4 flush.** A device going down marks its IPv4 nexthops
+    dead, except host-scope ones (`fib_sync_down_dev`,
+    `net/ipv4/fib_semantics.c:1970`). `fib_table_flush` frees those routes
+    and sends `RTM_DELROUTE` only when the preferred source was removed
+    (`net/ipv4/fib_trie.c:2059`), so the fold drops them itself on the up→down
+    transition. The 7_1_4 captures show it: 192.0.2.0/24 leaves with `nlcap0`
+    and no delete is sent. IPv6 notifies its deletions.
+  - **The debounce.** The first change arms a 1s timer, and its goroutine
+    rebuilds, so a burst costs one `BuildSnapshot`.
+  - **The backstop.** rtnlmon's `ResyncAfter` (`ReasonPeriodic`) re-dumps
+    after a batch once the last snapshot is older than
+    `locality_refresh_interval`. Anything the fold gets wrong (an IPv6 route
+    replace, a multipath route losing a device) lasts at most that long.
+  - **Tests:** `TestTrackerMatchesKernel` replays the 7_1_4 link, address and
+    route captures merged by timestamp. Disabling the down flush fails it.
+    `TestLocalityListener` covers the debounce, ownership and restart, and
+    `TestRunPeriodicResync` covers the backstop.
+  - **Self-test `XTCP2_SELF_TEST_LOCALITY_EVENTS`** (interface-naming flavor,
+    10m refresh): an address added after start must make its socket
+    `LOCALITY_SELF`.
 
 ## Known blockers
 

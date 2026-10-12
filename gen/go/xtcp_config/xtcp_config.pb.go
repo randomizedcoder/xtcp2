@@ -1486,6 +1486,12 @@ type XtcpConfig struct {
 	// namespaces are always snapshotted on the next reconcile regardless. 0 =
 	// discover once per namespace, never refresh. Daemon default 60s.
 	LocalityRefreshInterval *durationpb.Duration `protobuf:"bytes,246,opt,name=locality_refresh_interval,json=localityRefreshInterval,proto3" json:"locality_refresh_interval,omitempty"`
+	// Keep each namespace's locality snapshot current from rtnetlink
+	// notifications (link, address and route changes) instead of waiting for
+	// the next refresh: an update shows within about a second.
+	// locality_refresh_interval then becomes the backstop, a resync taken
+	// after that long. Needs enrich_locality_enable. Default false.
+	LocalityEventsEnable bool `protobuf:"varint,247,opt,name=locality_events_enable,json=localityEventsEnable,proto3" json:"locality_events_enable,omitempty"`
 	// Physical link monitor; see LinkMonitorConfig.
 	LinkMonitor   *LinkMonitorConfig `protobuf:"bytes,250,opt,name=link_monitor,json=linkMonitor,proto3" json:"link_monitor,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -2061,6 +2067,13 @@ func (x *XtcpConfig) GetLocalityRefreshInterval() *durationpb.Duration {
 	return nil
 }
 
+func (x *XtcpConfig) GetLocalityEventsEnable() bool {
+	if x != nil {
+		return x.LocalityEventsEnable
+	}
+	return false
+}
+
 func (x *XtcpConfig) GetLinkMonitor() *LinkMonitorConfig {
 	if x != nil {
 		return x.LinkMonitor
@@ -2188,7 +2201,7 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	" \x01(\tB\b\xbaH\x05r\x03\x18\x80 R\x12metricsCoreInclude\x12:\n" +
 	"\x14metrics_core_exclude\x18\v \x01(\tB\b\xbaH\x05r\x03\x18\x80 R\x12metricsCoreExclude\x12\x1f\n" +
 	"\vmetrics_all\x18\f \x01(\bR\n" +
-	"metricsAll\"\xa1$\n" +
+	"metricsAll\"\xd8$\n" +
 	"\n" +
 	"XtcpConfig\x12F\n" +
 	"\x17nl_timeout_milliseconds\x18\n" +
@@ -2289,7 +2302,8 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\x15ipmeta_bootstrap_path\x18\xf3\x01 \x01(\tB\b\xbaH\x05r\x03\x18\xff\x01R\x13ipmetaBootstrapPath\x125\n" +
 	"\x11ipmeta_cache_path\x18\xf4\x01 \x01(\tB\b\xbaH\x05r\x03\x18\xff\x01R\x0fipmetaCachePath\x125\n" +
 	"\x16enrich_locality_enable\x18\xf5\x01 \x01(\bR\x14enrichLocalityEnable\x12V\n" +
-	"\x19locality_refresh_interval\x18\xf6\x01 \x01(\v2\x19.google.protobuf.DurationR\x17localityRefreshInterval\x12E\n" +
+	"\x19locality_refresh_interval\x18\xf6\x01 \x01(\v2\x19.google.protobuf.DurationR\x17localityRefreshInterval\x125\n" +
+	"\x16locality_events_enable\x18\xf7\x01 \x01(\bR\x14localityEventsEnable\x12E\n" +
 	"\flink_monitor\x18\xfa\x01 \x01(\v2!.xtcp_config.v1.LinkMonitorConfigR\vlinkMonitor:s\xbaHp\x1an\n" +
 	"\x0fXtcpConfig.poll\x122Poll timeout must be less than poll poll_frequency\x1a'this.poll_frequency > this.poll_timeout\"\x9f\x01\n" +
 	"\x14EnabledDeserializers\x12K\n" +

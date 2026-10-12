@@ -68,6 +68,17 @@ func walkRealDump(t *testing.T, name string, fn func(mtype uint16, body []byte))
 // Snapshot the same way the runtime locality refresh will.
 func buildRealSnapshot(t *testing.T) *Snapshot {
 	t.Helper()
+	addrs, routes, linkInfos := realDumps(t)
+	links := make(map[uint32]string, len(linkInfos))
+	for i := range linkInfos {
+		links[uint32(linkInfos[i].Index)] = linkInfos[i].Name
+	}
+	return BuildSnapshot(addrs, routes, links)
+}
+
+// realDumps parses the committed 7.1.8 address, route and link dumps.
+func realDumps(t *testing.T) ([]xtcpnl.AddrInfo, []xtcpnl.RouteInfo, []xtcpnl.LinkInfo) {
+	t.Helper()
 	var addrs []xtcpnl.AddrInfo
 	for _, f := range []string{"netlink_route_getaddr_v4_dump.pcap", "netlink_route_getaddr_v6_dump.pcap"} {
 		walkRealDump(t, f, func(mt uint16, body []byte) {
@@ -93,6 +104,7 @@ func buildRealSnapshot(t *testing.T) *Snapshot {
 		routes = append(routes, ri)
 	})
 
+	var linkInfos []xtcpnl.LinkInfo
 	links := make(map[uint32]string)
 	walkRealDump(t, "netlink_route_getlink_dump.pcap", func(mt uint16, body []byte) {
 		if mt != uint16(unix.RTM_NEWLINK) {
@@ -102,6 +114,7 @@ func buildRealSnapshot(t *testing.T) *Snapshot {
 		if err != nil {
 			t.Fatalf("getlink: ParseNewLink: %v", err)
 		}
+		linkInfos = append(linkInfos, li)
 		links[uint32(li.Index)] = li.Name
 	})
 
@@ -117,7 +130,7 @@ func buildRealSnapshot(t *testing.T) *Snapshot {
 			t.Fatalf("links[%d] = %q, want %q", idx, links[idx], name)
 		}
 	}
-	return BuildSnapshot(addrs, routes, links)
+	return addrs, routes, linkInfos
 }
 
 // TestClassifyRealFixture classifies real destination addresses against a

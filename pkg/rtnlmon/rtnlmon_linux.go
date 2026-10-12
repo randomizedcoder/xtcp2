@@ -37,6 +37,9 @@ const (
 	// ReasonTruncated follows a datagram larger than the receive buffer,
 	// which the kernel discarded; the buffer is enlarged for the next one.
 	ReasonTruncated
+	// ReasonPeriodic is a refresh after Options.ResyncAfter, with nothing
+	// lost: it bounds how long a change the caller's fold misses can last.
+	ReasonPeriodic
 )
 
 // String renders a Reason for logs and the probe's output.
@@ -48,6 +51,8 @@ func (r Reason) String() string {
 		return "overrun"
 	case ReasonTruncated:
 		return "truncated"
+	case ReasonPeriodic:
+		return "periodic"
 	default:
 		return fmt.Sprintf("Reason(%d)", uint8(r))
 	}
@@ -84,6 +89,12 @@ type Options struct {
 	// MaxDumpRetries is how often a snapshot is retaken after the kernel
 	// marks a dump NLM_F_DUMP_INTR; zero is DefaultMaxDumpRetries.
 	MaxDumpRetries int
+	// ResyncAfter, when positive, retakes the snapshot (ReasonPeriodic)
+	// once the last one is at least this old. It is checked after each
+	// received datagram has been delivered, not on a timer: Receive blocks
+	// until the kernel sends something, so an idle socket is not
+	// refreshed. Zero never refreshes.
+	ResyncAfter time.Duration
 }
 
 const (
@@ -154,7 +165,14 @@ func Run(ctx context.Context, opts Options, h Handler) (err error) {
 	if retries <= 0 {
 		retries = DefaultMaxDumpRetries
 	}
-	return run(ctx, conn, dump, retries, h)
+	return run(ctx, conn, dump, runConfig{retries: retries, resyncAfter: opts.ResyncAfter, now: time.Now}, h)
+}
+
+// runConfig is run's tuning; now is the clock the periodic resync reads.
+type runConfig struct {
+	retries     int
+	resyncAfter time.Duration
+	now         func() time.Time
 }
 
 // eventConn is the part of nlconn.Conn run uses.
@@ -165,10 +183,11 @@ type eventConn interface {
 
 type dumpFunc func(ctx context.Context) (Snapshot, error)
 
-func run(ctx context.Context, conn eventConn, dump dumpFunc, retries int, h Handler) error {
-	if err := resync(ctx, dump, retries, h, ReasonStart); err != nil {
+func run(ctx context.Context, conn eventConn, dump dumpFunc, cfg runConfig, h Handler) error {
+	if err := resync(ctx, dump, cfg.retries, h, ReasonStart); err != nil {
 		return err
 	}
+	last := cfg.now()
 	deliver := func(data []byte) error {
 		return xtcpnl.WalkNotifications(data, func(hdr xtcpnl.NlMsgHdr, body []byte) error {
 			ev, err := xtcpnl.ParseRtnetlinkEvent(hdr.Type, body)
@@ -183,7 +202,11 @@ func run(ctx context.Context, conn eventConn, dump dumpFunc, retries int, h Hand
 		var reason Reason
 		switch {
 		case err == nil:
-			continue
+			if cfg.resyncAfter <= 0 || cfg.now().Sub(last) < cfg.resyncAfter {
+				continue
+			}
+			// The stream is gap-free, so there is nothing to drain.
+			reason = ReasonPeriodic
 		case ctx.Err() != nil:
 			return ctx.Err()
 		case errors.Is(err, unix.ENOBUFS):
@@ -193,15 +216,18 @@ func run(ctx context.Context, conn eventConn, dump dumpFunc, retries int, h Hand
 		default:
 			return fmt.Errorf("rtnlmon: receive: %w", err)
 		}
-		if _, err := conn.Drain(ctx); err != nil {
-			if ctx.Err() != nil {
-				return ctx.Err()
+		if reason != ReasonPeriodic {
+			if _, err := conn.Drain(ctx); err != nil {
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+				return fmt.Errorf("rtnlmon: drain after %s: %w", reason, err)
 			}
-			return fmt.Errorf("rtnlmon: drain after %s: %w", reason, err)
 		}
-		if err := resync(ctx, dump, retries, h, reason); err != nil {
+		if err := resync(ctx, dump, cfg.retries, h, reason); err != nil {
 			return err
 		}
+		last = cfg.now()
 	}
 }
 

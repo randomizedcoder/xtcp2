@@ -1,11 +1,14 @@
 package xtcp
 
 import (
+	"context"
 	"net/netip"
+	"slices"
 	"testing"
 
 	"golang.org/x/sys/unix"
 
+	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
 )
 
@@ -40,8 +43,9 @@ type fakeLocality struct {
 	lastBound uint32
 }
 
-func (f *fakeLocality) Refresh(map[uint64]nsIdentity) {}
-func (f *fakeLocality) Active() bool                  { return f.active }
+func (f *fakeLocality) Refresh(map[uint64]nsIdentity)  {}
+func (f *fakeLocality) Listen(context.Context, uint64) {}
+func (f *fakeLocality) Active() bool                   { return f.active }
 func (f *fakeLocality) Resolve(inode uint64, _ netip.Addr, boundIfindex uint32) (localityResult, bool) {
 	f.lastBound = boundIfindex
 	r, ok := f.byInode[inode]
@@ -306,12 +310,48 @@ func TestRefreshLocalityDispatch(t *testing.T) {
 	}
 }
 
+// go test -ldflags=-checklinkname=0 ./pkg/xtcp/ -run TestListenLocalityDispatch
+func TestListenLocalityDispatch(t *testing.T) {
+	for _, tc := range []struct {
+		description string
+		install     bool
+		events      bool
+		expected    []uint64 // the inodes Listen was called for
+	}{
+		{description: "positive: an enricher and -localityEvents run the listener", install: true, events: true, expected: []uint64{7}},
+		{description: "negative: -localityEvents off just waits", install: true},
+		{description: "negative: -localityEvents without an enricher just waits", events: true},
+		{description: "corner: neither"},
+	} {
+		t.Run(tc.description, func(t *testing.T) {
+			x := &XTCP{config: &xtcp_config.XtcpConfig{LocalityEventsEnable: tc.events}}
+			r := &recordingLocality{onRefresh: func() {}}
+			if tc.install {
+				x.locality = r
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel() // the wait returns at once; netNamespaceInstance's would block
+			x.listenLocality(ctx, 7)
+			if !slices.Equal(r.listened, tc.expected) {
+				t.Errorf("Listen called for %v, expected %v", r.listened, tc.expected)
+			}
+			if x.localityEventsOn() != (len(tc.expected) > 0) {
+				t.Errorf("localityEventsOn() = %v", x.localityEventsOn())
+			}
+		})
+	}
+}
+
 type recordingLocality struct {
 	onRefresh func()
+	listened  []uint64
 }
 
 func (r *recordingLocality) Refresh(map[uint64]nsIdentity) { r.onRefresh() }
-func (r *recordingLocality) Active() bool                  { return false }
+func (r *recordingLocality) Listen(_ context.Context, inode uint64) {
+	r.listened = append(r.listened, inode)
+}
+func (r *recordingLocality) Active() bool { return false }
 func (r *recordingLocality) Resolve(uint64, netip.Addr, uint32) (localityResult, bool) {
 	return localityResult{}, false
 }

@@ -99,6 +99,7 @@ Precedence: **defaults < flags < env < `XTCP_CONFIG_JSON`** (`cmd/xtcp2/xtcp2.go
 | `-asnRefreshInterval` | `ASN_REFRESH_INTERVAL` | `asn_refresh_interval` | 1h (0 = load once; a missing artifact is retried on this cadence) |
 | `-enrichLocality` | `ENRICH_LOCALITY` | `enrich_locality_enable` | false |
 | `-localityRefreshInterval` | `LOCALITY_REFRESH_INTERVAL` | `locality_refresh_interval` | 60s |
+| `-localityEvents` | `LOCALITY_EVENTS` | `locality_events_enable` | false (needs `-enrichLocality`) |
 
 ## 4. ClickHouse
 

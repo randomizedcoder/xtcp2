@@ -328,11 +328,10 @@ func TestRefreshLocalityLifecycle(t *testing.T) {
 				}
 
 				// published map
-				pub := li.byInode.Load()
-				if pub == nil {
-					t.Fatalf("%s: no snapshot map published", p.description)
+				if !li.Active() {
+					t.Fatalf("%s: no slot map published", p.description)
 				}
-				m := *pub
+				m := li.published()
 				for inode, kind := range p.wantSnaps {
 					got := snapNone
 					switch m[inode] {
@@ -395,6 +394,18 @@ func TestRefreshLocalityLifecycle(t *testing.T) {
 			}
 		})
 	}
+}
+
+// published is the snapshot each namespace's slot holds, omitting slots with
+// none: what Resolve can answer from.
+func (l *localityIndex) published() map[uint64]*localnet.Snapshot {
+	out := make(map[uint64]*localnet.Snapshot)
+	for inode, slot := range l.slots() {
+		if snap := slot.snap.Load(); snap != nil {
+			out[inode] = snap
+		}
+	}
+	return out
 }
 
 func allFail(inodes []uint64) map[uint64]dumpOutcome {

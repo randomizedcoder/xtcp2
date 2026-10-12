@@ -957,6 +957,7 @@ func TestPrintFlags(t *testing.T) {
 	f.ipmetaCachePath = &s
 	f.enrichLocality = &b
 	f.localityRefreshInterval = &d
+	f.localityEvents = &b
 	f.linkMonitor = &b
 	f.linkMonitorBaselineFile = &s
 	f.linkMonitorSettle = &d
@@ -1110,7 +1111,7 @@ func TestBuildConfig(t *testing.T) {
 		ioUring: &iu, ioUringRecvBatch: &iurb, ioUringCqeBatch: &iucb,
 		enrichAsn: &iu, asnDbPath: &mar, asnRefreshInterval: &rf,
 		ipmetaBootstrapPath: &ipmetaBootstrap, ipmetaCachePath: &ipmetaCache,
-		enrichLocality: &iu, localityRefreshInterval: &rf,
+		enrichLocality: &iu, localityRefreshInterval: &rf, localityEvents: &iu,
 		linkMonitor: &iu, linkMonitorBaselineFile: &lmBaseline, linkMonitorSettle: &rf,
 		linkMonitorResync: &subc, linkMonitorStatsInterval: &pf, linkMonitorStatsInclude: &lmInclude,
 		linkMonitorStatsExclude: &lmExclude, linkMonitorNetstatFields: &lmNetstat,
@@ -1477,6 +1478,8 @@ func TestEnvOverrideEnrichmentAsnLocality(t *testing.T) {
 			func(c *xtcp_config.XtcpConfig) bool { return c.EnrichLocalityEnable }},
 		{"LOCALITY_REFRESH_INTERVAL=90s parses as a duration", map[string]string{"LOCALITY_REFRESH_INTERVAL": "90s"},
 			func(c *xtcp_config.XtcpConfig) bool { return c.LocalityRefreshInterval.AsDuration() == 90*time.Second }},
+		{"LOCALITY_EVENTS=true enables the rtnetlink listener", map[string]string{"LOCALITY_EVENTS": "true"},
+			func(c *xtcp_config.XtcpConfig) bool { return c.LocalityEventsEnable && !c.EnrichLocalityEnable }},
 		{"all five together", map[string]string{
 			"ENRICH_ASN": "true", "ASN_DB_PATH": "/f.parquet", "ASN_REFRESH_INTERVAL": "1h",
 			"IPMETA_BOOTSTRAP_PATH": "/bootstrap.zst", "IPMETA_CACHE_PATH": "/cache.zst",
@@ -1491,7 +1494,7 @@ func TestEnvOverrideEnrichmentAsnLocality(t *testing.T) {
 			func(c *xtcp_config.XtcpConfig) bool {
 				return !c.EnrichAsnEnable && c.AsnDbPath == "" && c.AsnRefreshInterval == nil &&
 					c.IpmetaBootstrapPath == "" && c.IpmetaCachePath == "" &&
-					!c.EnrichLocalityEnable && c.LocalityRefreshInterval == nil
+					!c.EnrichLocalityEnable && c.LocalityRefreshInterval == nil && !c.LocalityEventsEnable
 			}},
 		{"ENRICH_ASN=maybe (unparseable bool) is ignored", map[string]string{"ENRICH_ASN": "maybe"},
 			func(c *xtcp_config.XtcpConfig) bool { return !c.EnrichAsnEnable }},
@@ -1500,6 +1503,8 @@ func TestEnvOverrideEnrichmentAsnLocality(t *testing.T) {
 		// boundary
 		{"ENRICH_ASN=false explicitly false", map[string]string{"ENRICH_ASN": "false"},
 			func(c *xtcp_config.XtcpConfig) bool { return !c.EnrichAsnEnable }},
+		{"LOCALITY_EVENTS=0 explicitly false", map[string]string{"LOCALITY_EVENTS": "0"},
+			func(c *xtcp_config.XtcpConfig) bool { return !c.LocalityEventsEnable }},
 		{"ASN_REFRESH_INTERVAL=0 -> zero duration set (load once)", map[string]string{"ASN_REFRESH_INTERVAL": "0"},
 			func(c *xtcp_config.XtcpConfig) bool {
 				return c.AsnRefreshInterval != nil && c.AsnRefreshInterval.AsDuration() == 0
@@ -1514,7 +1519,7 @@ func TestEnvOverrideEnrichmentAsnLocality(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			for _, k := range []string{"ENRICH_ASN", "ASN_DB_PATH", "ASN_REFRESH_INTERVAL", "IPMETA_BOOTSTRAP_PATH", "IPMETA_CACHE_PATH", "ENRICH_LOCALITY", "LOCALITY_REFRESH_INTERVAL"} {
+			for _, k := range []string{"ENRICH_ASN", "ASN_DB_PATH", "ASN_REFRESH_INTERVAL", "IPMETA_BOOTSTRAP_PATH", "IPMETA_CACHE_PATH", "ENRICH_LOCALITY", "LOCALITY_REFRESH_INTERVAL", "LOCALITY_EVENTS"} {
 				if v, ok := tc.env[k]; ok {
 					t.Setenv(k, v)
 				} else {

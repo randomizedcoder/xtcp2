@@ -89,7 +89,7 @@ const (
 	// mainFlags field must be a registered flag and every registered flag must
 	// have a field. A flag added without a field, or a field that stops being
 	// registered, is the drift this file exists to notice.
-	mainFlagsFieldCountCst = 107
+	mainFlagsFieldCountCst = 108
 
 	printFlagsGoldenCst  = "testdata/printflags-golden.txt"
 	defineFlagsGoldenCst = "testdata/defineflags-golden.txt"
@@ -220,6 +220,7 @@ func populatedMainFlags() *mainFlags {
 
 		enrichLocality:          b(true),
 		localityRefreshInterval: ms(125),
+		localityEvents:          b(true),
 
 		linkMonitor:                   b(true),
 		linkMonitorBaselineFile:       s("linkMonitorBaselineFile-v"),

@@ -957,6 +957,18 @@ func (m *XtcpConfig) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0xd2
 	}
+	if m.LocalityEventsEnable {
+		i--
+		if m.LocalityEventsEnable {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0xf
+		i--
+		dAtA[i] = 0xb8
+	}
 	if m.LocalityRefreshInterval != nil {
 		size, err := (*durationpb.Duration)(m.LocalityRefreshInterval).MarshalToSizedBufferVT(dAtA[:i])
 		if err != nil {
@@ -2315,6 +2327,9 @@ func (m *XtcpConfig) SizeVT() (n int) {
 	if m.LocalityRefreshInterval != nil {
 		l = (*durationpb.Duration)(m.LocalityRefreshInterval).SizeVT()
 		n += 2 + l + protohelpers.SizeOfVarint(uint64(l))
+	}
+	if m.LocalityEventsEnable {
+		n += 3
 	}
 	if m.LinkMonitor != nil {
 		l = m.LinkMonitor.SizeVT()
@@ -6481,6 +6496,26 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 247:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field LocalityEventsEnable", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.LocalityEventsEnable = bool(v != 0)
 		case 250:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field LinkMonitor", wireType)

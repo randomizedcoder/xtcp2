@@ -101,6 +101,10 @@
 #                                              carries AS15169 / google /
 #                                              LOCALITY_REMOTE from an artifact
 #                                              the real ipfeed-collector built
+#   XTCP2_SELF_TEST_LOCALITY_EVENTS_{PASS,FAIL}  (interface-naming only) an
+#                                              address added after start makes
+#                                              its socket LOCALITY_SELF via the
+#                                              -localityEvents listener
 #   XTCP2_SELF_TEST_IPMETA_BOOTSTRAP_{PASS,FAIL}    bootstrap lookup artifact
 #                                              enriches records before live data
 #   XTCP2_SELF_TEST_IPMETA_RECOVERY_{PASS,FAIL}     delayed in-VM HTTP source
@@ -240,6 +244,13 @@
   asnExpectedAsn ? "15169",
   asnExpectedOwner ? "google",
   asnExpectedPrefixes ? "3",
+  # When true (interface-naming flavor, run with -localityEvents and a 10m
+  # -localityRefreshInterval), the LOCALITY_EVENTS check adds an address to
+  # localityEventsIf after the daemon is up and holds a TCP connection to it:
+  # its record must classify LOCALITY_SELF within seconds, which only the
+  # rtnetlink listener can explain, not the timed re-dump.
+  runLocalityEventsCheck ? false,
+  localityEventsIf ? "",
   # When true (ipmeta-bootstrap flavor), validates the cold-start bootstrap
   # lookup, delayed in-VM HTTP source recovery, cache rotation, and rejection of
   # a later empty/bad update while xtcp2 keeps enriching from the last good
@@ -996,6 +1007,79 @@ pkgs.writeShellApplication {
         journalctl --no-pager -u xtcp2-asn-dialer.service -n 8 2>&1 || true
       fi
       if [ "$check5g" -ne 0 ]; then overall_ok=0; fi
+    ''}
+
+    # ─── Check: locality from rtnetlink events ─────────────────────────────
+    # (interface-naming flavor only.) The daemon runs -localityEvents with a
+    # 10m -localityRefreshInterval, so the timed re-dump cannot run inside this
+    # check. 203.0.113.1/24 is added to ${localityEventsIf} only now, after the
+    # daemon took its start snapshot, and a TCP connection is held to it: the
+    # record must classify LOCALITY_SELF, which needs the listener to have
+    # folded the RTM_NEWADDR and published within its 1s debounce.
+    ${lib.optionalString runLocalityEventsCheck ''
+      echo "--- check: locality events (${localityEventsIf} += 203.0.113.1/24) ---"
+      checkLe=1
+      le_metrics() { curl -sf "http://127.0.0.1:${toString promPort}/metrics" 2>/dev/null || true; }
+      le_start=0
+      for _ in $(seq 1 "$(scaled 20)"); do
+        le_start=$(le_metrics | grep -E '^xtcp_counts\{[^}]*function="localityListener"[^}]*type="start"[^}]*variable="snapshot"[^}]*\} ' \
+          | awk '{print $2}' | head -1)
+        [ -n "$le_start" ] && [ "''${le_start%%.*}" -gt 0 ] 2>/dev/null && break
+        le_start=0
+        sleep 1
+      done
+      le_ip=203.0.113.1
+      le_port=47181
+      ip addr add "$le_ip/24" dev ${localityEventsIf}
+      # Each nc's stdin is a sleep, which keeps the connection open. $! is only
+      # the nc, so the sleeps are killed by name below: a later check's bare
+      # `wait` would otherwise block until they end. The odd length is what
+      # makes the name unique, and it bounds them if the kill is never reached.
+      le_hold=$(( $(scaled 30) + 7 ))
+      sleep "$le_hold" | nc -l -p "$le_port" -s "$le_ip" >/dev/null 2>&1 &
+      le_srv=$!
+      sleep 1
+      sleep "$le_hold" | nc "$le_ip" "$le_port" >/dev/null 2>&1 &
+      le_cli=$!
+      le_b64=$({ printf '\313\000\161\001'; head -c 12 /dev/zero; } | base64)
+      le_b64_4=$(printf '\313\000\161\001' | base64)
+      leOk=0
+      for _ in $(seq 1 "$(scaled 20)"); do
+        if [ -s "${fileOutputPath}" ]; then
+          cp "${fileOutputPath}" /tmp/xtcp2-le.snap 2>/dev/null || true
+          if jq -e --arg d16 "$le_b64" --arg d4 "$le_b64_4" --argjson p "$le_port" \
+              'select((.inetDiagMsgSocketDestination == $d16 or .inetDiagMsgSocketDestination == $d4)
+                      and .inetDiagMsgSocketDestinationPort == $p
+                      and .enrichSocketDestLocality == "LOCALITY_SELF")' \
+              /tmp/xtcp2-le.snap >/dev/null 2>&1; then
+            leOk=1
+            break
+          fi
+        fi
+        sleep 1
+      done
+      le_live=$(le_metrics | grep -E '^xtcp_gauges\{[^}]*function="localityListener"[^}]*variable="live"[^}]*\} ' \
+        | awk '{print $2}' | head -1)
+      if [ "$leOk" -eq 1 ] && [ "''${le_start%%.*}" -gt 0 ] 2>/dev/null && [ -n "$le_live" ]; then
+        echo "XTCP2_SELF_TEST_LOCALITY_EVENTS_PASS  ($le_ip:$le_port LOCALITY_SELF; start snapshots=$le_start live=$le_live)"
+        checkLe=0
+      else
+        echo "XTCP2_SELF_TEST_LOCALITY_EVENTS_FAIL  (self_seen=$leOk start_snapshots=''${le_start:-absent} live=''${le_live:-absent})"
+        echo "--- localityListener metrics ---"
+        le_metrics | grep -E 'localityListener|refreshLocality' || echo "(none)"
+        echo "--- records to $le_ip:$le_port ---"
+        jq -c --arg d16 "$le_b64" --arg d4 "$le_b64_4" --argjson p "$le_port" \
+               'select((.inetDiagMsgSocketDestination == $d16 or .inetDiagMsgSocketDestination == $d4)
+                       and .inetDiagMsgSocketDestinationPort == $p)
+               | {state: .inetDiagMsgState, locality: .enrichSocketDestLocality}' \
+          /tmp/xtcp2-le.snap 2>/dev/null | tail -3 || true
+        ss -tn "dst $le_ip" 2>&1 | head -5 || true
+      fi
+      kill "$le_cli" "$le_srv" 2>/dev/null || true
+      pkill -x -f "sleep $le_hold" 2>/dev/null || true
+      wait "$le_cli" "$le_srv" 2>/dev/null || true
+      ip addr del "$le_ip/24" dev ${localityEventsIf} 2>/dev/null || true
+      if [ "$checkLe" -ne 0 ]; then overall_ok=0; fi
     ''}
 
     # ─── Check 5f: raw socket destination → in-VM ncat sink ───────────────

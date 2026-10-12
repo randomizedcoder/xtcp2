@@ -1143,6 +1143,13 @@ message XtcpConfig {
 	// discover once per namespace, never refresh. Daemon default 60s.
 	google.protobuf.Duration locality_refresh_interval = 246;
 
+	// Keep each namespace's locality snapshot current from rtnetlink
+	// notifications (link, address and route changes) instead of waiting for
+	// the next refresh: an update shows within about a second.
+	// locality_refresh_interval then becomes the backstop, a resync taken
+	// after that long. Needs enrich_locality_enable. Default false.
+	bool locality_events_enable                        = 247;
+
 	// ---- embedded subsystems (250-269) ----------------------------------------
 
 	// Physical link monitor; see LinkMonitorConfig.

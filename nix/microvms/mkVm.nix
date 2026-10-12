@@ -486,6 +486,10 @@ let
     # record produced by the xtcp2-asn-dialer unit, and the loadAsn/prefixes
     # gauge against the fixture's prefix count.
     runAsnCheck = isInterfaceNaming;
+    # interface-naming flavor only: an address added after start must classify
+    # LOCALITY_SELF through the -localityEvents listener.
+    runLocalityEventsCheck = isInterfaceNaming;
+    localityEventsIf = ifnEgrIf;
     inherit
       asnDbPath
       asnCachePath
@@ -3035,17 +3039,21 @@ in
               xtcp2NsqArgs
             else if isInterfaceNaming then
               # interface-naming: jsonl to a file (so the IFNAME check can read
-              # the enrich_socket_*_ifname fields) + the locality enricher. The
-              # 5s refresh re-dumps the routing table shortly after the veths come
-              # up, so records get the interface names even if xtcp2 raced ahead.
-              # -enrichAsn against the collector-produced artifact; the 5s refresh
-              # is what picks the late-arriving file up (see asnDbPath above).
+              # the enrich_socket_*_ifname fields) + the locality enricher, kept
+              # current by -localityEvents. The 10m refresh is only the
+              # listener's backstop, so it never runs inside the self-test: a
+              # change xtcp2 sees (the veths if it raced ahead, the
+              # LOCALITY_EVENTS check's address) has to come from the listener.
+              # -enrichAsn against the collector-produced artifact; the 5s
+              # -asnRefreshInterval is what picks the late-arriving file up (see
+              # asnDbPath above).
               (
                 xtcp2FileArgs
                 ++ [
                   "-enrichLocality"
+                  "-localityEvents"
                   "-localityRefreshInterval"
-                  "5s"
+                  "10m"
                   "-enrichAsn"
                   "-asnDbPath"
                   asnDbPath

@@ -177,8 +177,10 @@ func (x *XTCP) netNamespaceInstance(nsCtx context.Context, nsCancel context.Canc
 
 	x.closeFD(fd)
 
-	// block waiting for done (per-ns ctx, not parent — see comment above)
-	<-nsCtx.Done()
+	// Block until done (per-ns ctx, not parent — see comment above). With
+	// -localityEvents the wait runs the namespace's locality listener, on
+	// this thread, which is already in the namespace.
+	x.listenLocality(nsCtx, inode)
 
 	x.pC.WithLabelValues("netNamespaceInstance", "ctx.Done", "count").Inc()
 }
@@ -226,6 +228,12 @@ func (x *XTCP) openDefaultNetLinkSocket(ctx context.Context) {
 	df := "default"
 	nsCtx, nsCancel := context.WithCancel(ctx)
 	x.createNetlinkersAndStore(nsCtx, nsCancel, x.selfNsInode, os.Getpid(), &df, socketFD)
+
+	// The host namespace has no netNamespaceInstance to run its locality
+	// listener; any unlocked thread is in it.
+	if x.localityEventsOn() {
+		go x.locality.Listen(nsCtx, x.selfNsInode)
+	}
 
 	if x.debugLevel > 10 {
 		log.Printf("openDefaultNetLinkSocket default net namespace netlink socket stored (inode=%d)", x.selfNsInode)

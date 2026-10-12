@@ -235,17 +235,58 @@ published) and `retryBackoff` (namespaces in the negative cache); summary
 `full`/`partial` `duration`. `dumpLocality/interrupted/retry` counts
 `NLM_F_DUMP_INTR` re-issues.
 
+### Event-driven updates (`-localityEvents`, `pkg/xtcp/enrich_locality_listen.go`)
+
+With `locality_events_enable`, each monitored namespace also gets a
+`pkg/rtnlmon` listener (link, IPv4/IPv6 address and route groups; 1 MiB receive
+buffer), so a change shows in records within about a second instead of on the
+next timed pass. It runs on the namespace's own locked thread
+(`netNamespaceInstance`, which was idle), and on a plain goroutine for the
+daemon's namespace (`openDefaultNetLinkSocket`).
+
+- **The fold** is `localnet.Tracker`: `Reset` from the listener's dump, `Apply`
+  per notification, keyed by the kernel's identity for each address and route,
+  so a refresh of an existing one (an IPv6 lifetime update, a stats-only
+  NEWLINK) changes nothing and schedules nothing. Only main- and local-table,
+  non-cloned routes are kept.
+- **IPv4 routes vanish silently when their device goes down or away.**
+  `fib_sync_down_dev` marks the nexthops dead (except host-scope ones) and
+  `fib_table_flush` frees them, sending `RTM_DELROUTE` only when the route's
+  preferred source was removed (`net/ipv4/fib_trie.c:2059`). The fold drops a
+  link's single-path, non-host-scope IPv4 routes on its up→down transition, and
+  all of its routes and addresses on its delete. IPv6 notifies its deletions.
+- **Debounce:** the first change arms a 1s `time.AfterFunc`; later ones ride on
+  it, and the timer's goroutine rebuilds and publishes the snapshot. A start or
+  resync snapshot publishes at once.
+- **Backstop:** `locality_refresh_interval` becomes the listener's
+  `ResyncAfter`: after a batch, if the last snapshot is older than that, rtnlmon
+  takes a `periodic` one. It rides on activity, so an idle namespace takes none.
+  An overrun (`ENOBUFS`) drains and resyncs, as in `pkg/rtnlmon`.
+- **Ownership:** while a slot's listener is live, `Refresh` leaves it alone
+  (and a late dump for it is discarded). When the listener ends, the slot goes
+  back to `Refresh`, keeping its last snapshot, and the listener restarts on the
+  30s→5m backoff.
+
+Metrics (`function="localityListener"`): counters `snapshot/{start,overrun,
+truncated,periodic}`, `events`, `rebuilds`, `run/error`, `restarts`; summary
+`rebuild/duration`; gauge `live` (namespaces with a live listener).
+`refreshLocality/live` counts namespaces a pass skipped.
+
 ## Configuration (`proto/xtcp_config/v1`)
 
 - `enrich_locality_enable` (245) — opt-in gate, off by default.
 - `locality_refresh_interval` (246, `google.protobuf.Duration`) — full-refresh
   cadence, daemon default 60s; `0` = discover-once (new namespaces and the
   failure/loopback-only retries still run).
+- `locality_events_enable` (247) — keep snapshots current from rtnetlink
+  notifications (above), off by default; ignored, with a log line, without
+  `enrich_locality_enable`. The refresh interval is then only the backstop.
 
-Settable via the CLI flags `-enrichLocality` / `-localityRefreshInterval`, the
-environment variables `ENRICH_LOCALITY` / `LOCALITY_REFRESH_INTERVAL`, the config
-file, or the gRPC config service. (`XtcpConfig` field numbers are grouped by
-subject: enrichment lives in 200–249, locality at 245/246.)
+Settable via the CLI flags `-enrichLocality` / `-localityRefreshInterval` /
+`-localityEvents`, the environment variables `ENRICH_LOCALITY` /
+`LOCALITY_REFRESH_INTERVAL` / `LOCALITY_EVENTS`, the config file, or the gRPC
+config service. (`XtcpConfig` field numbers are grouped by subject: enrichment
+lives in 200–249, locality at 245–247.)
 
 ## Record + downstream schema plumbing
 
