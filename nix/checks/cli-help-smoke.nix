@@ -27,6 +27,7 @@ let
     "goip"
     "goip-parity"
     "gordma"
+    "gordma-parity"
     "ipfeed-collector"
     "kafka_to_clickhouse"
     "ns"

@@ -1,0 +1,248 @@
+#!/usr/bin/env expect
+###############################################################################
+# gordma-parity.exp - compare gordma against rdma, live, inside a microVM
+#
+# Usage:
+#   gordma-parity.exp <serial-port> <blob-out>
+#
+# Builds rdma-topology.exp's soft-RoCE setup, the one the RDMA corpus was
+# captured on, and runs every row of `gordma-parity commands` three times
+# under strace: rdma, then gordma, then rdma again. The second rdma run is
+# the control: whatever the two rdma runs disagree on moved in the kernel
+# during the window that contains the gordma run, and is not gordma's.
+#
+# Then, per row, gordma replays the first rdma capture (GORDMA_REPLAY), while
+# the same holder processes still run, so the names it reads from /proc are
+# the ones rdma read. That is the corpus test, live.
+#
+# The comparison runs in the guest (`gordma-parity compare`), and its report
+# is echoed verbatim: its GORDMA_PARITY_* lines are what the host runner
+# reads. The comparator's exit status is this driver's verdict.
+#
+# The command table comes from `gordma-parity commands`, not from a list here,
+# so a row the driver stopped running is MISSING in the report rather than
+# absent from it. Rows run in table order; the holder processes start at the
+# first busy row and stop at the first idle row after it, as capture-rdma.exp
+# runs them.
+#
+# Exit status: 0 the comparator passed; 1 it did not; 2 no console; 3 a step
+# with no partial result failed.
+###############################################################################
+
+source [file dirname [info script]]/vm-lib.exp
+source [file dirname [info script]]/rdma-topology.exp
+
+if {$argc < 2} {
+    puts "usage: gordma-parity.exp <serial-port> <blob-out>"
+    exit 2
+}
+set port     [lindex $argv 0]
+set blob_out [lindex $argv 1]
+
+set SUB        parity
+set FAIL       GORDMA_PARITY_DRIVER_FAIL
+set short_caps {}
+set skipped    {}
+
+proc nlcap {args} {
+    return [vmlib::run_out "xtcp2-nlcap [join $args { }]"]
+}
+
+# read_command_table returns the table's rows, each a list of its five
+# tab-separated fields: slug, phase, implemented, kind, args.
+proc read_command_table {} {
+    global FAIL
+    lassign [vmlib::run_out "gordma-parity commands"] rc out
+    if {$rc != 0} {
+        vmlib::log "FATAL: `gordma-parity commands` exited $rc"
+        vmlib::log $out
+        puts $FAIL
+        exit 3
+    }
+    set rows {}
+    foreach line [split $out "\n"] {
+        set line [string trimright $line]
+        if {$line eq ""} {
+            continue
+        }
+        set f [split $line "\t"]
+        if {[llength $f] != 5} {
+            vmlib::log "FATAL: unparseable table row ([llength $f] fields): $line"
+            puts $FAIL
+            exit 3
+        }
+        lappend rows $f
+    }
+    # An empty table compares nothing, which would read like a pass.
+    if {[llength $rows] == 0} {
+        vmlib::log "FATAL: `gordma-parity commands` printed no rows"
+        puts $FAIL
+        exit 3
+    }
+    return $rows
+}
+
+# capture_side <slug> <side> <kind> <tool> <cmdargs>
+#
+# One side of a row under strace, as <slug>.<side>.{strace,out,err,rc}. A
+# side that recorded no buffer at all, or whose capture step failed, is
+# noted; the comparator decides what it means.
+proc capture_side {slug side kind tool cmdargs} {
+    global SUB short_caps
+    if {$kind eq "monitor"} {
+        lassign [nlcap strace-monitor - $SUB $slug.$side \
+            "'$rdmatopo::monitor_trigger'" "'$rdmatopo::monitor_until'" $tool] rc out
+    } else {
+        lassign [nlcap strace - $SUB $slug.$side "'$tool $cmdargs'"] rc out
+    }
+    vmlib::log [string trim $out]
+    if {$rc != 0 || [regexp {buffers=0\M} $out]} {
+        lappend short_caps $slug.$side
+    }
+}
+
+# capture_row runs a row's three sides and its replay.
+proc capture_row {row capture_dir} {
+    global SUB skipped
+    lassign $row slug phase implemented kind cmdargs
+    if {$implemented ne "yes"} {
+        vmlib::log "skip $slug: gordma does not implement it"
+        lappend skipped $slug
+        return
+    }
+    if {[string first "<cqn>" $cmdargs] >= 0} {
+        lassign [nlcap rdma-user-cqn $SUB res_cq_user.rdma_a] cqn_rc cqn
+        set cqn [string trim $cqn]
+        if {$cqn_rc != 0 || ![string is integer -strict $cqn]} {
+            vmlib::log "no user CQ number in res_cq_user.rdma_a.out: '$cqn'"
+            lappend skipped $slug
+            return
+        }
+        set cmdargs [string map [list "<cqn>" $cqn] $cmdargs]
+    }
+    foreach {side tool} {rdma_a rdma gordma gordma rdma_b rdma} {
+        capture_side $slug $side $kind $tool $cmdargs
+    }
+    set base $capture_dir/$slug
+    vmlib::run "GORDMA_REPLAY=$base.rdma_a.strace gordma $cmdargs >$base.replay.out 2>$base.replay.err; echo \$? >$base.replay.rc"
+}
+
+###############################################################################
+# run
+###############################################################################
+
+vmlib::init
+vmlib::connect $port 300
+
+set missing {}
+foreach tool {xtcp2-nlcap strace rdma gordma gordma-parity} {
+    if {[vmlib::run "command -v $tool >/dev/null"] != 0} {
+        lappend missing $tool
+    }
+}
+if {[llength $missing] > 0} {
+    vmlib::log "FATAL: not on the guest PATH: [join $missing { }]"
+    puts $FAIL
+    exit 3
+}
+
+vmlib::must "xtcp2-nlcap side - $SUB uname 'uname -a'"
+vmlib::must "xtcp2-nlcap side - $SUB rdma_version 'rdma -V'"
+# gordma -V prints rdma's version string, so its store path is its identity:
+# two runs with the same path compared the same binary.
+vmlib::must "xtcp2-nlcap side - $SUB gordma_store_path 'readlink -f \"\$(command -v gordma)\"'"
+
+vmlib::log "=== topology ==="
+set topo_failed [rdmatopo::build $FAIL]
+
+lassign [nlcap dir $SUB] dir_rc capture_dir
+set capture_dir [string trim [lindex [split $capture_dir "\n"] 0]]
+if {$dir_rc != 0 || $capture_dir eq ""} {
+    vmlib::log "FATAL: could not resolve the capture directory (rc=$dir_rc)"
+    puts $FAIL
+    exit 3
+}
+
+set table [read_command_table]
+vmlib::log "=== capturing [llength $table] commands x 3 sides ==="
+
+set phase idle
+set holders_short {}
+foreach row $table {
+    set want [lindex $row 1]
+    if {$phase eq "idle" && $want eq "busy"} {
+        vmlib::log "=== starting the holders ==="
+        lappend holders_short {*}[rdmatopo::holders_start $FAIL]
+    } elseif {$phase eq "busy" && $want eq "idle"} {
+        vmlib::log "=== stopping the holders ==="
+        rdmatopo::holders_stop
+    }
+    set phase $want
+    capture_row $row $capture_dir
+}
+if {$phase eq "busy"} {
+    rdmatopo::holders_stop
+}
+
+###############################################################################
+# compare, in the guest
+###############################################################################
+
+vmlib::log "=== comparing in $capture_dir ==="
+# Two round trips rather than `| tee`, whose status would be tee's.
+lassign [vmlib::run_out \
+    "gordma-parity compare -dir $capture_dir > $capture_dir/report.txt 2>&1" \
+    300] cmp_rc _cmp_out
+lassign [vmlib::run_out "cat $capture_dir/report.txt" 300] read_rc report
+if {$read_rc != 0} {
+    vmlib::log "FATAL: the comparator wrote no readable report (rc=$read_rc)"
+    puts $FAIL
+    exit 3
+}
+puts ""
+puts $report
+puts ""
+
+###############################################################################
+# ship the evidence
+###############################################################################
+
+lassign [nlcap inventory] inv_rc inventory
+vmlib::log "captured [llength [split [string trim $inventory] "\n"]] files"
+
+vmlib::log "=== packing ==="
+lassign [vmlib::run_out "xtcp2-nlcap pack" 600] pack_rc blob
+if {$pack_rc != 0} {
+    vmlib::log "WARNING: pack failed (rc=$pack_rc); the verdict below still stands"
+} else {
+    set fh [open $blob_out w]
+    puts $fh $blob
+    close $fh
+    vmlib::log "wrote [string length $blob] bytes of base64 to $blob_out"
+}
+
+vmlib::poweroff
+
+###############################################################################
+# verdict: the comparator's. The lines before it are context.
+###############################################################################
+
+puts ""
+if {$topo_failed > 0} {
+    puts "GORDMA_PARITY_TOPO_REFUSED $topo_failed"
+}
+foreach {marker names} [list HOLDERS_SHORT $holders_short DRIVER_SKIPPED $skipped SHORT_CAPTURE $short_caps] {
+    if {[llength $names] > 0} {
+        puts "GORDMA_PARITY_$marker [llength $names]"
+        foreach n $names {
+            puts "  $n"
+        }
+    }
+}
+
+if {$cmp_rc != 0} {
+    puts $FAIL
+    exit 1
+}
+puts "GORDMA_PARITY_DRIVER_PASS"
+exit 0

@@ -1547,11 +1547,13 @@ rec {
         pkgs.runCommand "xtcp2-rdma-capture-scripts"
           {
             vmLib = ./scripts/vm-lib.exp;
+            topology = ./scripts/rdma-topology.exp;
             driver = ./scripts/capture-rdma.exp;
           }
           ''
             mkdir -p $out
             cp $vmLib $out/vm-lib.exp
+            cp $topology $out/rdma-topology.exp
             cp $driver $out/capture-rdma.exp
             chmod +x $out/capture-rdma.exp
           '';
@@ -2188,6 +2190,186 @@ rec {
 
         echo ""
         echo "PASS: goip netlink + stdout parity holds on this kernel"
+        exit 0
+      '';
+    };
+
+  # mkGordmaParityRunner — host runner for gordma's live parity run
+  # (scripts/gordma-parity.exp), mkGoipParityRunner's twin on the
+  # netlink-dump-capture VM, which already carries strace, rdma-core and
+  # xtcp2-nlcap; gordma and gordma-parity come with xtcp2AllPackage.
+  #
+  # A VERDICT runner, as goip-parity's is: the comparison happened in the
+  # guest, so the blob is optional evidence and a blob that fails to decode
+  # still leaves the verdict standing. OVERALL_PASS is required positively.
+  # Not a check, for the same reasons: /dev/kvm and the fixed SERIAL_PORT.
+  mkGordmaParityRunner =
+    {
+      arch,
+      vm,
+    }:
+    let
+      cfg = constants.architectures.${arch};
+
+      # One store directory, because each .exp sources its siblings by
+      # dirname.
+      parityScripts =
+        pkgs.runCommand "xtcp2-gordma-parity-scripts"
+          {
+            vmLib = ./scripts/vm-lib.exp;
+            topology = ./scripts/rdma-topology.exp;
+            driver = ./scripts/gordma-parity.exp;
+          }
+          ''
+            mkdir -p $out
+            cp $vmLib $out/vm-lib.exp
+            cp $topology $out/rdma-topology.exp
+            cp $driver $out/gordma-parity.exp
+            chmod +x $out/gordma-parity.exp
+          '';
+    in
+    pkgs.writeShellApplication {
+      name = "xtcp2-gordma-parity-${arch}";
+      runtimeInputs = with pkgs; [
+        coreutils
+        expect
+        findutils
+        gawk
+        gnugrep
+        gnutar
+        gzip
+        netcat-gnu
+      ];
+      text = ''
+        set -u
+
+        TIMEOUT_SEC=1800
+        OUT_DIR=""
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            --timeout)   TIMEOUT_SEC="$2"; shift 2 ;;
+            --timeout=*) TIMEOUT_SEC="''${1#--timeout=}"; shift ;;
+            --out)       OUT_DIR="$2"; shift 2 ;;
+            --out=*)     OUT_DIR="''${1#--out=}"; shift ;;
+            -h|--help)
+              echo "usage: $0 [--timeout <sec>] [--out <dir>]"
+              echo "  Boots the netlink-dump-capture microvm, adds a soft-RoCE"
+              echo "  device (rdma_rxe) over a veth pair, runs each read-only"
+              echo "  rdma command as rdma, gordma, then rdma again under strace,"
+              echo "  replays the first rdma capture through gordma, and runs"
+              echo "  \`gordma-parity compare\` IN THE GUEST."
+              echo ""
+              echo "  The verdict is the comparator's: this runner exits non-zero"
+              echo "  unless the run reached GORDMA_PARITY_OVERALL_PASS."
+              echo ""
+              echo "  --out saves the strace triples and the in-guest report to a"
+              echo "  directory. Optional: they are evidence, not fixtures."
+              exit 0
+              ;;
+            *) echo "unknown arg: $1" >&2; exit 1 ;;
+          esac
+        done
+
+        SERIAL_PORT=${toString cfg.serialPort}
+        VIRTCON_PORT=${toString cfg.virtioPort}
+        LOG=$(mktemp -t xtcp2-gordma-parity-XXXX.log)
+        BLOB=$(mktemp -t xtcp2-gordma-parity-blob-XXXX.b64)
+
+        echo "================================================"
+        echo " xtcp2 microvm gordma-parity — arch=${arch}"
+        echo " timeout: $TIMEOUT_SEC s"
+        echo " transcript: $LOG"
+        echo "================================================"
+
+        QEMU_LOG="''${LOG}.qemu"
+        ${vm}/bin/microvm-run > "$QEMU_LOG" 2>&1 &
+        vm_pid=$!
+
+        # Virtio console only: the serial console belongs to the driver.
+        nc_virtcon_pid=""
+        for _ in $(seq 1 30); do
+          if nc -z 127.0.0.1 "$VIRTCON_PORT" 2>/dev/null; then
+            nc 127.0.0.1 "$VIRTCON_PORT" >> "$QEMU_LOG" 2>&1 &
+            nc_virtcon_pid=$!
+            break
+          fi
+          sleep 1
+        done
+
+        trap '
+          if kill -0 "$vm_pid" 2>/dev/null; then
+            kill "$vm_pid" 2>/dev/null || true
+            wait "$vm_pid" 2>/dev/null || true
+          fi
+          if [ -n "$nc_virtcon_pid" ] && kill -0 "$nc_virtcon_pid" 2>/dev/null; then
+            kill "$nc_virtcon_pid" 2>/dev/null || true
+          fi
+        ' EXIT
+
+        rc=0
+        timeout "$TIMEOUT_SEC" \
+          expect ${parityScripts}/gordma-parity.exp \
+            "$SERIAL_PORT" "$BLOB" 2>&1 \
+          | tee "$LOG" || rc=$?
+
+        if [ "$rc" -eq 124 ]; then
+          echo "FATAL: the parity driver did not finish within $TIMEOUT_SEC s"
+          echo "       Guest boot log: $QEMU_LOG"
+          exit 2
+        fi
+
+        # Installed before the verdict is read, so a failing run still
+        # leaves its evidence; a missing or bad blob is only a warning.
+        if [ -n "$OUT_DIR" ]; then
+          if [ ! -s "$BLOB" ]; then
+            echo "WARNING: the driver wrote no capture blob; --out has nothing to install"
+          else
+            STAGE=$(mktemp -d -t xtcp2-gordma-parity-XXXX)
+            if awk '
+                  /XTCP2_NLCAP_DUMP_START/ { flag = 1; next }
+                  /XTCP2_NLCAP_DUMP_END/   { flag = 0 }
+                  flag
+                ' "$BLOB" \
+              | tr -d '\r\n ' \
+              | base64 -d 2>/dev/null \
+              | gzip -dc 2>/dev/null \
+              | tar x -C "$STAGE" 2>/dev/null; then
+              mkdir -p "$OUT_DIR"
+              cp -rf "$STAGE"/. "$OUT_DIR"/
+              echo ""
+              echo "strace triples + in-guest report installed to $OUT_DIR"
+              find "$OUT_DIR" -type f | sort
+            else
+              echo "WARNING: the capture blob did not decode"
+              echo "         $(wc -c < "$BLOB") bytes of base64 kept at $BLOB"
+            fi
+          fi
+        fi
+
+        echo ""
+        echo "================================================"
+        echo " verdict"
+        echo "================================================"
+        grep -E '^GORDMA_PARITY_(FAIL|MISSING|OVERALL|HYGIENE|CONTROL|NOTHING)' "$LOG" || true
+        echo ""
+        echo "Driver transcript: $LOG"
+        echo "Guest boot log:    $QEMU_LOG"
+
+        if ! grep -q '^GORDMA_PARITY_OVERALL_PASS$' "$LOG"; then
+          echo ""
+          echo "FAIL: the run did not reach GORDMA_PARITY_OVERALL_PASS (driver exit $rc)"
+          exit 1
+        fi
+
+        if [ "$rc" -ne 0 ]; then
+          echo ""
+          echo "FAIL: OVERALL_PASS was printed but the driver exited $rc."
+          echo "      Those disagree, so neither is trusted. Check the transcript."
+          exit 1
+        fi
+
+        echo ""
+        echo "PASS: gordma matches rdma, live, on this kernel"
         exit 0
       '';
     };

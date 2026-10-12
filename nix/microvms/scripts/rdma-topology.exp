@@ -1,0 +1,104 @@
+###############################################################################
+# rdma-topology.exp - the soft-RoCE topology and holders the rdma runs share
+#
+# Sourced by capture-rdma.exp, which records the corpus, and by
+# gordma-parity.exp, which compares gordma against rdma live on the same
+# setup. Both need the same rxe0 over the same veth pair, and the same
+# holder processes in the same order, or the parity run would compare
+# against objects the corpus never saw.
+#
+# Everything runs in the VM's own network namespace. rdma_rxe is loaded with
+# modprobe here rather than at boot so no other capture flavor sees an RDMA
+# device, and the RDMA subsystem's default netns mode is shared, so a device
+# made in a throwaway namespace would be visible from every other one anyway.
+# The veth MACs are fixed because rxe derives its node GUID from the netdev's
+# MAC (addrconf_addr_eui48), and an unpinned MAC would make every GUID byte a
+# per-boot value.
+#
+# Needs vm-lib.exp sourced first.
+###############################################################################
+
+namespace eval rdmatopo {
+    # build <fail-marker>
+    #
+    # Loads rdma_rxe, adds the rx0/rx1 veth pair and rxe0 over rx0, and waits
+    # for rxe0/1 to be ACTIVE. Each veth step is an `xtcp2-nlcap topo` step,
+    # logged into /tmp/nlcap/topology; returns how many the kernel refused. A
+    # failure with no partial result prints <fail-marker> and exits 3.
+    proc build {fail_marker} {
+        if {[vmlib::run "modprobe rdma_rxe"] != 0} {
+            vmlib::log "FATAL: modprobe rdma_rxe failed"
+            puts $fail_marker
+            exit 3
+        }
+        set failed 0
+        foreach step {
+            {link add rx0 address 02:00:00:00:52:00 type veth peer name rx1 address 02:00:00:00:52:01}
+            {link set rx0 up}
+            {link set rx1 up}
+        } {
+            lassign [vmlib::run_out "xtcp2-nlcap topo - . $step"] rc out
+            vmlib::log [string trim $out]
+            if {$rc != 0} {
+                incr failed
+            }
+        }
+        if {[vmlib::run "rdma link add rxe0 type rxe netdev rx0"] != 0} {
+            vmlib::log "FATAL: rdma link add rxe0 failed"
+            puts $fail_marker
+            exit 3
+        }
+        vmlib::run "echo 'ok    \[-\] rdma link add rxe0 type rxe netdev rx0' >> /tmp/nlcap/topology"
+        vmlib::must "xtcp2-nlcap wait-rdma-port - rxe0/1 ACTIVE 30"
+        return $failed
+    }
+
+    # holders_start <fail-marker>
+    #
+    # Starts the user-owned objects: rdma-core's RC and SRQ pingpong servers
+    # and an rping server, each started with no peer, so they allocate and
+    # wait. The SRQ server gets its own TCP port so the two pingpongs do not
+    # collide. The CM ID binds to rx0's address, added here. Returns the
+    # holders whose objects did not all appear.
+    #
+    # Each holder is waited on before the next starts, so the object numbers
+    # come out in the same order on every run: the RC server's PD, MR, CQ and
+    # QP (the GSI QP is the first QP), then the SRQ server's, whose 16 QPs
+    # share its SRQ, then rping's listening CM ID and the context and PD
+    # librdmacm opens for it.
+    proc holders_start {fail_marker} {
+        foreach step {
+            {modprobe ib_uverbs}
+            {modprobe rdma_ucm}
+            {ip addr add 10.99.0.1/24 dev rx0}
+        } {
+            if {[vmlib::run $step] != 0} {
+                vmlib::log "FATAL: $step failed"
+                puts $fail_marker
+                exit 3
+            }
+        }
+        set short {}
+        foreach {name command want} {
+            rc  {ibv_rc_pingpong -d rxe0 -g 0}               {qp=2 cq=2 mr=1 ctx=1}
+            srq {ibv_srq_pingpong -d rxe0 -g 0 -p 18516}     {qp=18 cq=3 mr=2 srq=1 ctx=2}
+            cm  {rping -s -a 10.99.0.1 -P}                   {cm_id=1 ctx=3 pd=4}
+        } {
+            vmlib::must "xtcp2-nlcap rdma-hold $name '$command'"
+            if {[vmlib::run "xtcp2-nlcap rdma-hold-wait 20 $want"] != 0} {
+                lappend short rdma_hold_$name
+            }
+        }
+        return $short
+    }
+
+    # holders_stop stops every holder: SIGTERM, then SIGKILL after 5 s.
+    proc holders_stop {} {
+        vmlib::must "xtcp2-nlcap rdma-hold-stop"
+    }
+
+    # monitor_trigger is what a monitor row provokes: rxe1 added and deleted,
+    # ending on the UNREGISTER the delete sends, the last event of the pair.
+    variable monitor_trigger {rdma link add rxe1 type rxe netdev rx1 && rdma link del rxe1}
+    variable monitor_until {[UNREGISTER]}
+}

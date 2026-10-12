@@ -98,6 +98,13 @@ func (p *printer) raw(s string) {
 	}
 }
 
+// fflush is fflush(stdout): what has been printed so far is written out.
+func (p *printer) fflush() {
+	if err := p.w.Flush(); err != nil && p.err == nil {
+		p.err = err
+	}
+}
+
 // fp is a PRINT_FP print_string with no value: format is printed as is.
 func (p *printer) fp(s string) {
 	if p.fpCtx(printFP) {

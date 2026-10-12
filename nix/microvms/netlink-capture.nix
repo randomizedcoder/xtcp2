@@ -664,13 +664,16 @@ pkgs.writeShellApplication {
       in_ns "$ns" strace "''${STRACE_ARGS[@]}" -o "$dir/$name.strace" \
         sh -c "$command" >"$dir/$name.out" 2>"$dir/$name.err" || rc=$?
       echo "$rc" >"$dir/$name.rc"
-      n=$(grep -c 'bytes in buffer' "$dir/$name.strace" || true)
+      # Each datagram's dump starts at offset 00000. Not "bytes in buffer",
+      # which only recvmsg's iovs print: gordma reads with recvfrom.
+      n=$(grep -c '^ | 00000 ' "$dir/$name.strace" || true)
       echo "NLCAP_STRACE_OK $subdir/$name rc=$rc buffers=$n"
     }
 
-    # strace-monitor <ns> <subdir> <name> <trigger> <until>
+    # strace-monitor <ns> <subdir> <name> <trigger> <until> [<tool>]
     #
-    # `rdma monitor` under strace while <trigger> runs, stopped once its
+    # `<tool> monitor` under strace while <trigger> runs, <tool> being rdma
+    # unless named (gordma-parity.exp names gordma), stopped once its
     # stdout shows <until>. Both waits are polls on the condition that
     # matters: the trigger starts only once a NETLINK_RDMA socket in the
     # namespace holds group RDMA_NL_GROUP_NOTIFY (4, so bit 0x8 of
@@ -682,7 +685,7 @@ pkgs.writeShellApplication {
     # The trigger itself is not traced: only the monitor's own socket is the
     # row.
     cmd_strace_monitor() {
-      local ns=$1 subdir=$2 name=$3 trigger=$4 until=$5
+      local ns=$1 subdir=$2 name=$3 trigger=$4 until=$5 tool=''${6:-rdma}
       local dir="$OUT/$subdir" spid child deadline joined=0 seen=0 rc=0 n
       mkdir -p "$dir"
       # Not through in_ns: a backgrounded function is a subshell, and $! would
@@ -690,10 +693,10 @@ pkgs.writeShellApplication {
       # strace and rdma is its child.
       if [ "$ns" = "-" ]; then
         strace "''${STRACE_ARGS[@]}" -o "$dir/$name.strace" \
-          rdma monitor >"$dir/$name.out" 2>"$dir/$name.err" &
+          "$tool" monitor >"$dir/$name.out" 2>"$dir/$name.err" &
       else
         ip netns exec "$ns" strace "''${STRACE_ARGS[@]}" -o "$dir/$name.strace" \
-          rdma monitor >"$dir/$name.out" 2>"$dir/$name.err" &
+          "$tool" monitor >"$dir/$name.out" 2>"$dir/$name.err" &
       fi
       spid=$!
 
@@ -756,7 +759,9 @@ pkgs.writeShellApplication {
       fi
       wait "$spid" || rc=$?
       echo "$rc" >"$dir/$name.rc"
-      n=$(grep -c 'bytes in buffer' "$dir/$name.strace" || true)
+      # Each datagram's dump starts at offset 00000. Not "bytes in buffer",
+      # which only recvmsg's iovs print: gordma reads with recvfrom.
+      n=$(grep -c '^ | 00000 ' "$dir/$name.strace" || true)
       if [ "$joined" -ne 1 ] || [ "$seen" -ne 1 ]; then
         echo "NLCAP_MONITOR_SHORT $subdir/$name joined=$joined seen=$seen buffers=$n"
         return 1

@@ -67,11 +67,14 @@ in
   };
 
   # gordma's corpus replay reads pkg/xtcpnl/testdata/*/rdma, which the
-  # vendored source carries.
+  # vendored source carries; gordma-parity's tests read the same corpus and
+  # nix/microvms/scripts/capture-rdma.exp.
   focused-gordma = mkFocusedTest "gordma" {
     paths = [
       "./internal/gordma/..."
       "./cmd/gordma"
+      "./internal/gordmaparity/..."
+      "./cmd/gordma-parity"
       "./pkg/nlstrace/..."
     ];
   };

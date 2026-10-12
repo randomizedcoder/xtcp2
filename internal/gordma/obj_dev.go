@@ -500,5 +500,8 @@ func (r *rd) monLine(m Msg) error {
 	}
 	p.closeObject()
 	p.newline()
+	// rdma flushes every event (mon_show_cb), so a monitor stopped by a
+	// signal has printed each event it read; a buffered one would lose them.
+	p.fflush()
 	return nil
 }

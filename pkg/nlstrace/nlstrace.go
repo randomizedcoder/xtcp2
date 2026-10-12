@@ -24,17 +24,28 @@ import (
 )
 
 // Datagram is the bytes one sendto/sendmsg sent or one recvfrom/recvmsg
-// received on a NETLINK_RDMA socket, Fd being the socket's descriptor.
+// received on a NETLINK_RDMA socket. Fd is the socket's descriptor and Sock
+// the socket itself, numbered in the order the capture opened them: a
+// process that closes a socket gets its descriptor back for the next one
+// (gordma does; rdma keeps its sockets open), so only Sock tells the two
+// apart.
 type Datagram struct {
 	Send bool
 	Fd   int
+	Sock int
 	B    []byte
 }
 
 var (
-	socketRe = regexp.MustCompile(`^(?:\d+ +)?socket\(AF_NETLINK, [A-Z_|]+, NETLINK_RDMA\) = (\d+)$`)
-	callRe   = regexp.MustCompile(`^(?:\d+ +)?(sendto|sendmsg|recvfrom|recvmsg)\((\d+), .* = (-?\d+|\?)(?: .*)?$`)
-	hexRe    = regexp.MustCompile(`^ \| [0-9a-f]{5}  `)
+	// callRe is a whole call: pid (with -f), name, arguments, return value.
+	callRe = regexp.MustCompile(`^(?:(\d+) +)?(socket|sendto|sendmsg|recvfrom|recvmsg)\((.*) = (-?\d+|\?)(?: .*)?$`)
+	// unfinishedRe and resumedRe are a call strace split in two because
+	// another traced thread made a call in between (-f; a Go program's
+	// threads do).
+	unfinishedRe = regexp.MustCompile(`^(?:(\d+) +)?(socket|sendto|sendmsg|recvfrom|recvmsg)\((.*) <unfinished \.\.\.>$`)
+	resumedRe    = regexp.MustCompile(`^(?:(\d+) +)?<\.\.\. (socket|sendto|sendmsg|recvfrom|recvmsg) resumed>(.*) = (-?\d+|\?)(?: .*)?$`)
+	fdRe         = regexp.MustCompile(`^(\d+), `)
+	hexRe        = regexp.MustCompile(`^ \| [0-9a-f]{5}  `)
 
 	// ErrShort is returned when a call's hex dump is not as long as the
 	// call's return value.
@@ -54,9 +65,12 @@ const (
 
 // Parse returns the NETLINK_RDMA datagrams in r, in order. A call that
 // failed, returned nothing, or peeked (MSG_PEEK) is skipped along with its
-// dump, so each datagram is one the process actually consumed.
+// dump, so each datagram is one the process actually consumed. A call strace
+// split into "<unfinished ...>" and "<... resumed>" is joined back, by pid.
 func Parse(r io.Reader) ([]Datagram, error) {
-	rdmaFds := map[int]bool{}
+	rdmaSocks := map[int]int{} // fd -> Sock, for the fds that are RDMA sockets now
+	socks := 0
+	pending := map[string]string{} // pid -> the unfinished call's "name(args"
 	var out []Datagram
 	var cur *Datagram
 	want := 0
@@ -88,27 +102,48 @@ func Parse(r io.Reader) ([]Datagram, error) {
 		if err := flush(); err != nil {
 			return nil, err
 		}
-		if m := socketRe.FindStringSubmatch(line); m != nil {
-			fd, err := strconv.Atoi(m[1])
-			if err != nil {
-				return nil, err
+		var call, args, ret string
+		if m := unfinishedRe.FindStringSubmatch(line); m != nil {
+			pending[m[1]] = m[2] + "(" + m[3]
+			continue
+		} else if m := resumedRe.FindStringSubmatch(line); m != nil {
+			head, ok := pending[m[1]]
+			delete(pending, m[1])
+			if !ok || !strings.HasPrefix(head, m[2]+"(") {
+				continue
 			}
-			rdmaFds[fd] = true
+			call, args, ret = m[2], strings.TrimPrefix(head, m[2]+"(")+m[3], m[4]
+		} else if m := callRe.FindStringSubmatch(line); m != nil {
+			call, args, ret = m[2], m[3], m[4]
+		} else {
 			continue
 		}
-		m := callRe.FindStringSubmatch(line)
-		if m == nil {
+		n, err := strconv.Atoi(ret)
+		if err != nil || n < 0 {
 			continue
 		}
-		fd, err := strconv.Atoi(m[2])
+		if call == "socket" {
+			if strings.HasPrefix(args, "AF_NETLINK, ") && strings.HasSuffix(args, ", NETLINK_RDMA)") {
+				rdmaSocks[n] = socks
+				socks++
+			} else {
+				delete(rdmaSocks, n)
+			}
+			continue
+		}
+		fm := fdRe.FindStringSubmatch(args)
+		if fm == nil {
+			continue
+		}
+		fd, err := strconv.Atoi(fm[1])
 		if err != nil {
 			return nil, err
 		}
-		n, err := strconv.Atoi(m[3])
-		if err != nil || n <= 0 || !rdmaFds[fd] || strings.Contains(line, "MSG_PEEK") {
+		sock, ok := rdmaSocks[fd]
+		if n == 0 || !ok || strings.Contains(args, "MSG_PEEK") {
 			continue
 		}
-		out = append(out, Datagram{Send: strings.HasPrefix(m[1], "send"), Fd: fd})
+		out = append(out, Datagram{Send: strings.HasPrefix(call, "send"), Fd: fd, Sock: sock})
 		cur, want = &out[len(out)-1], n
 	}
 	if err := sc.Err(); err != nil {
@@ -165,4 +200,45 @@ func Msgs(dgs []Datagram) ([]Msg, error) {
 		}
 	}
 	return out, nil
+}
+
+// Txn is one request and every datagram read back on its socket until the
+// socket's next request: what rdma's one-socket-per-request rd_send_msg
+// (rdma/utils.c) sent and received.
+type Txn struct {
+	Fd    int
+	Req   []byte
+	Recvs [][]byte
+}
+
+// Transactions groups datagrams by socket. A send opens a transaction on its
+// socket, and each read on that socket joins the socket's latest
+// transaction. Reads on a socket that never sent are events, `rdma
+// monitor`'s stream, returned in order.
+func Transactions(dgs []Datagram) (txns []Txn, events [][]byte) {
+	open := map[int]int{} // Sock -> index of its latest transaction
+	for _, d := range dgs {
+		if d.Send {
+			open[d.Sock] = len(txns)
+			txns = append(txns, Txn{Fd: d.Fd, Req: d.B})
+			continue
+		}
+		if i, ok := open[d.Sock]; ok {
+			txns[i].Recvs = append(txns[i].Recvs, d.B)
+			continue
+		}
+		events = append(events, d.B)
+	}
+	return txns, events
+}
+
+// ZeroSeqPID is a copy of b with nlmsg_seq and nlmsg_pid zeroed, the two
+// header fields that differ between two runs of the same request. A b
+// shorter than an nlmsghdr is returned as a copy, unchanged.
+func ZeroSeqPID(b []byte) []byte {
+	out := append([]byte(nil), b...)
+	if len(out) >= nlMsgHdrLen {
+		clear(out[8:16])
+	}
+	return out
 }

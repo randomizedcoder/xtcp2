@@ -80,9 +80,14 @@ let
     "goip-parity"
     # gordma is goip's sibling for rdma(8): a read-only clone that exists to
     # exercise pkg/xtcpnl's nldev decoders against rdma's strace corpus
-    # (internal/gordma). Listed for the same reason as goip, so a later live
-    # parity run can find it in the guest beside the pinned rdma.
+    # (internal/gordma). Listed for the same reason as goip, so the live
+    # parity run (scripts/gordma-parity.exp) finds it in the guest beside the
+    # pinned rdma.
     "gordma"
+    # gordma-parity is that run's comparator, separate from gordma for
+    # goip-parity's reason: it must never be able to open a socket while
+    # captures are open (internal/gordmaparity's TestParityCannotOpenASocket).
+    "gordma-parity"
     "ipmeta-bootstrap"
     "ipfeed-collector"
     "kafka_to_clickhouse"

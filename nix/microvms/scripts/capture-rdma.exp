@@ -15,16 +15,12 @@
 # than its nlmon captures. nlmon cannot tap NETLINK_RDMA; see "THE RDMA
 # CAPTURES ARE STRACE, NOT NLMON" in nix/microvms/netlink-capture.nix.
 #
-# Everything runs in the VM's own network namespace. rdma_rxe is loaded with
-# modprobe here rather than at boot so no other capture flavor sees an RDMA
-# device, and the RDMA subsystem's default netns mode is shared, so a device
-# made in a throwaway namespace would be visible from every other one anyway.
-# The veth MACs are fixed because rxe derives its node GUID from the netdev's
-# MAC (addrconf_addr_eui48), and an unpinned MAC would make every GUID byte a
-# per-boot value.
+# The topology and the holder processes are rdma-topology.exp's, shared
+# with gordma-parity.exp.
 ###############################################################################
 
 source [file dirname [info script]]/vm-lib.exp
+source [file dirname [info script]]/rdma-topology.exp
 
 if {$argc < 2} {
     puts "usage: capture-rdma.exp <serial-port> <blob-out>"
@@ -55,13 +51,6 @@ proc row {name command} {
     }
 }
 
-proc topo {args} {
-    global NS SUB
-    lassign [nlcap topo $NS $SUB {*}$args] rc out
-    vmlib::log [string trim $out]
-    return $rc
-}
-
 ###############################################################################
 # run
 ###############################################################################
@@ -79,29 +68,7 @@ vmlib::must "xtcp2-nlcap side - . uname 'uname -a'"
 vmlib::must "xtcp2-nlcap side - . ip_version 'ip -V'"
 vmlib::must "xtcp2-nlcap side - . rdma_version 'rdma -V'"
 
-if {[vmlib::run "modprobe rdma_rxe"] != 0} {
-    vmlib::log "FATAL: modprobe rdma_rxe failed"
-    puts "NLCAP_DRIVER_FAIL"
-    exit 3
-}
-
-set topo_failed 0
-foreach step {
-    {link add rx0 address 02:00:00:00:52:00 type veth peer name rx1 address 02:00:00:00:52:01}
-    {link set rx0 up}
-    {link set rx1 up}
-} {
-    if {[topo {*}$step] != 0} {
-        incr topo_failed
-    }
-}
-if {[vmlib::run "rdma link add rxe0 type rxe netdev rx0"] != 0} {
-    vmlib::log "FATAL: rdma link add rxe0 failed"
-    puts "NLCAP_DRIVER_FAIL"
-    exit 3
-}
-vmlib::run "echo 'ok    \[-\] rdma link add rxe0 type rxe netdev rx0' >> /tmp/nlcap/topology"
-vmlib::must "xtcp2-nlcap wait-rdma-port - rxe0/1 ACTIVE 30"
+set topo_failed [rdmatopo::build NLCAP_DRIVER_FAIL]
 
 vmlib::log "=== rdma rows ==="
 row sys_show       "rdma system show"
@@ -128,38 +95,9 @@ row res_qp_json    "rdma -j res show qp"
 row res_qp_lqpn    "rdma res show qp link rxe0/1 lqpn 1"
 row res_qp_raw     "rdma -r res show qp"
 
-# Then user-owned objects: rdma-core's RC and SRQ pingpong servers and an
-# rping server, each started with no peer, so they allocate and wait. The
-# SRQ server gets its own TCP port so the two pingpongs do not collide. The
-# CM ID binds to rx0's address, added here, after every row above.
+# Then user-owned objects, held by rdma-topology.exp's holder processes.
 vmlib::log "=== rdma res object rows, user-owned ==="
-foreach step {
-    {modprobe ib_uverbs}
-    {modprobe rdma_ucm}
-    {ip addr add 10.99.0.1/24 dev rx0}
-} {
-    if {[vmlib::run $step] != 0} {
-        vmlib::log "FATAL: $step failed"
-        puts "NLCAP_DRIVER_FAIL"
-        exit 3
-    }
-}
-#
-# Each holder is waited on before the next starts, so the object numbers
-# come out in the same order on every run: the RC server's PD, MR, CQ and QP
-# (the GSI QP is the first QP), then the SRQ server's, whose 16 QPs share
-# its SRQ, then rping's listening CM ID and the context and PD librdmacm
-# opens for it.
-foreach {name command want} {
-    rc  {ibv_rc_pingpong -d rxe0 -g 0}               {qp=2 cq=2 mr=1 ctx=1}
-    srq {ibv_srq_pingpong -d rxe0 -g 0 -p 18516}     {qp=18 cq=3 mr=2 srq=1 ctx=2}
-    cm  {rping -s -a 10.99.0.1 -P}                   {cm_id=1 ctx=3 pd=4}
-} {
-    vmlib::must "xtcp2-nlcap rdma-hold $name '$command'"
-    if {[vmlib::run "xtcp2-nlcap rdma-hold-wait 20 $want"] != 0} {
-        lappend short_rows rdma_hold_$name
-    }
-}
+lappend short_rows {*}[rdmatopo::holders_start NLCAP_DRIVER_FAIL]
 row res_show_busy  "rdma res show"
 row res_qp_user    "rdma res show qp"
 row res_cq_user    "rdma res show cq"
@@ -178,14 +116,12 @@ if {$cqn_rc != 0 || ![string is integer -strict $cqn]} {
 } else {
     row res_cq_cqn "rdma res show cq cqn $cqn"
 }
-vmlib::must "xtcp2-nlcap rdma-hold-stop"
+rdmatopo::holders_stop
 
-# The monitor row: rxe1 is added and deleted while `rdma monitor` listens,
-# and the row ends on the UNREGISTER that the delete provokes, the last event
-# of the pair.
+# The monitor row: rxe1 is added and deleted while `rdma monitor` listens
+# (rdma-topology.exp's monitor_trigger).
 lassign [nlcap strace-monitor $NS $SUB monitor_add \
-    "'rdma link add rxe1 type rxe netdev rx1 && rdma link del rxe1'" \
-    "'\[UNREGISTER\]'"] rc out
+    "'$rdmatopo::monitor_trigger'" "'$rdmatopo::monitor_until'"] rc out
 vmlib::log [string trim $out]
 if {$rc != 0} {
     lappend short_rows monitor_add

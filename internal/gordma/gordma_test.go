@@ -37,7 +37,7 @@ func newCorpusSource(t *testing.T) *corpusSource {
 		}
 		r := newReplay(dgs)
 		for _, tx := range r.txs {
-			s.replies[string(zeroSeqPID(tx.req))] = tx.msgs
+			s.replies[string(nlstrace.ZeroSeqPID(tx.req))] = tx.msgs
 		}
 		if len(r.events) != 0 {
 			s.events = r.events
@@ -48,9 +48,9 @@ func newCorpusSource(t *testing.T) *corpusSource {
 
 func (s *corpusSource) Talk(req []byte) (Reply, error) {
 	s.sent++
-	msgs, ok := s.replies[string(zeroSeqPID(req))]
+	msgs, ok := s.replies[string(nlstrace.ZeroSeqPID(req))]
 	if !ok {
-		return Reply{}, fmt.Errorf("%w: no capture made %x", ErrReplay, zeroSeqPID(req))
+		return Reply{}, fmt.Errorf("%w: no capture made %x", ErrReplay, nlstrace.ZeroSeqPID(req))
 	}
 	return Reply{Msgs: msgs}, nil
 }
@@ -504,6 +504,42 @@ func TestStrerror(t *testing.T) {
 		t.Run(tc.description, func(t *testing.T) {
 			if got := strerror(tc.errno); got != tc.expected {
 				t.Fatalf("got %q, want %q", got, tc.expected)
+			}
+		})
+	}
+}
+
+// writeLog records each Write it is handed.
+type writeLog struct{ writes []string }
+
+func (w *writeLog) Write(b []byte) (int, error) {
+	w.writes = append(w.writes, string(b))
+	return len(b), nil
+}
+
+// TestMonitorFlushes pins that monitor writes each event as rdma's
+// fflush(stdout) does (mon_show_cb), so a monitor stopped by SIGTERM has
+// printed everything it read; everything else is written once, at exit.
+func TestMonitorFlushes(t *testing.T) {
+	tests := []struct {
+		description string
+		args        []string
+		expected    int // writes
+	}{
+		{description: "positive: one write per monitor event", args: []string{"monitor"}, expected: 3},
+		{description: "positive: -j monitor flushes per event too", args: []string{"-j", "monitor"}, expected: 3},
+		{description: "negative: dev show is written once, at exit", args: []string{"dev", "show"}, expected: 1},
+		{description: "boundary: an unknown object writes nothing to stdout", args: []string{"nosuch"}, expected: 0},
+		{description: "corner: res show is one write however many lines", args: []string{"res", "show"}, expected: 1},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			var w writeLog
+			var stderr bytes.Buffer
+			run(config{src: newCorpusSource(t), proc: t.TempDir()}, tc.args, &w, &stderr)
+			want, _ := runCorpus(t, tc.args...)
+			if len(w.writes) != tc.expected || strings.Join(w.writes, "") != want.stdout {
+				t.Fatalf("%d writes %q, want %d of %q", len(w.writes), w.writes, tc.expected, want.stdout)
 			}
 		})
 	}

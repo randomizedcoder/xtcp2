@@ -893,7 +893,7 @@ Phases and scope are as defined in
 | **3** | Rules (`FRA_*`), nexthop (`NHA_*`), bridge/VLAN, `IFLA_LINKINFO` descent | **partial** | the `IFLA_LINKINFO` descent, as far as `IFLA_INFO_KIND` — [`4494b42`](#4494b42--the-ifla_-and-ifa_-attribute-decoders-a-show-line-needs), the first production caller of `WalkRTAttrsNested`. **`FRA_*` is done**: `struct fib_rule_hdr` and all 30 attributes decode in `xtcpnl_fib_rule_hdr.go`, `render.RuleView` prints them, and `ip rule show` drives four parity commands — see [below](#ip-rule-show-the-object-with-no-name-table). **`NHA_*` is done**: `struct nhmsg` and the nexthop attributes — id, oif, gateway, blackhole, fdb, group, group-type and the nested `NHA_RES_GROUP` — decode in `xtcpnl_nhmsg.go` and render for `ip nexthop show` and `-d` route nhid resolution; see the nexthop arc in [Where we are](#where-we-are). **The `IFLA_INFO_DATA` sub-nest is decoded for kind `vrf`** (`IFLA_VRF_TABLE`), together with `IFLA_INFO_SLAVE_DATA`'s `IFLA_VRF_PORT_TABLE`, driving `-d link`/`addr show` of a VRF master and its port. **And for kind `bond`**: every `IFLA_BOND_*` option, the `AD_INFO` nest and the twelve `IFLA_BOND_SLAVE_*` port attributes decode (link-write-path phase 1). They are not rendered yet, so `-d` on a bond still refuses | bridge/VLAN, the bond `-d` render, and the `IFLA_INFO_DATA` sub-nest for link kinds other than `vrf` and `bond`, each a separate attribute space per kind |
 | **4** | tc telemetry only (23 top-level `TCA_*`) | not started | — | all of it |
 | **5** | genetlink: `nlctrl` `GETFAMILY` first, then ethtool/devlink/netdev/vdpa/fou/gtp | not started | — | all of it |
-| **6** | xfrm, conntrack, ipset, proc_event, rdma | **partial** | **rdma**: the hand-declared `RDMA_NL*` block (`xtcpnl_rdma_consts.go`, every value C-gated against `<rdma/rdma_netlink.h>`), read-only nldev request builders, and decoders for the device, port, resource summary, per-object `RES_*`, hardware counter, system and monitor-event replies, on a strace corpus, which `pkg/linkmonitor/internal/linuxio` now decodes with. **Rendered by `gordma`**, a read-only `rdma` clone that replays every corpus row on all six kernels byte for byte — see [below](#gordma-a-read-only-rdma) | xfrm, conntrack, ipset, proc_event; for rdma, live parity against `rdma` in a VM |
+| **6** | xfrm, conntrack, ipset, proc_event, rdma | **partial** | **rdma**: the hand-declared `RDMA_NL*` block (`xtcpnl_rdma_consts.go`, every value C-gated against `<rdma/rdma_netlink.h>`), read-only nldev request builders, and decoders for the device, port, resource summary, per-object `RES_*`, hardware counter, system and monitor-event replies, on a strace corpus, which `pkg/linkmonitor/internal/linuxio` now decodes with. **Rendered by `gordma`**, a read-only `rdma` clone that replays every corpus row on all six kernels byte for byte, and matches `rdma` live in a VM on the same six — see [below](#gordma-a-read-only-rdma) | xfrm, conntrack, ipset, proc_event |
 | **7** | `unix_diag`, `xdp_diag`, and the deferred relocation into `rtnl/` and `diag/` | not started | — | all of it |
 
 ## Capture readiness
@@ -3253,11 +3253,66 @@ x/sys/unix, `pkg/xtcpnl` and `pkg/nlstrace`, and keeps linkmonitor,
 `binaryNames` and `cli-help-smoke`, and `nix build
 .#test-focused-gordma` runs its tests.
 
+### gordma live parity
+
+`nix run .#microvm-x86_64-gordma-parity` (and `-6_1`, `-6_6`, `-6_12`,
+`-6_18`, `-7_2`) runs gordma against `rdma` 7.1.0 on the soft-RoCE topology
+the corpus was captured on, the way goip-parity runs goip against `ip`.
+`scripts/rdma-topology.exp` holds that topology and its holder processes,
+and `capture-rdma.exp` and `gordma-parity.exp` both source it.
+
+- **A triple per row.** `gordma-parity commands` prints the table: the 27
+  corpus rows, with capture-rdma.exp's slugs and arguments, in its order.
+  The driver runs each row under strace as `rdma`, `gordma`, `rdma`. Whatever
+  the two `rdma` runs disagree on moved in the kernel, and is not gordma's.
+  `res_qp_raw` is SKIP, because gordma refuses `-r`.
+- **Replay, live.** Each row also replays the first `rdma` capture through
+  `GORDMA_REPLAY`, while the same holders still run, so the names gordma
+  reads from `/proc` are the ones `rdma` read.
+- **The comparison runs in the guest** (`gordma-parity compare`), and the
+  host runner greps `^GORDMA_PARITY_OVERALL_PASS$`. Per row:
+  - L1: the requests, seq and pid zeroed; for the monitor row, also the
+    event count.
+  - L2: stdout, stderr and rc byte for byte. gordma must equal one of the
+    two `rdma` runs; where those differ the row is control-noisy.
+  - L3: the replay must equal the first `rdma` run exactly.
+  - Hygiene: each strace parses, and every transaction ends in DONE or an
+    error.
+- **The monitor row** maps rc 143 (the SIGTERM teardown) to 0 and reads
+  `dev <n>` as `dev N`, because the rxe1 it adds and removes gets a new
+  index on each side.
+- **Runs:** OVERALL_PASS on all six kernels (6.1, 6.6, 6.12, 6.18, 7.1.4
+  and 7.2), each with 26 PASS, `res_qp_raw` SKIP, no control-noisy row and
+  no hygiene failure. On 6.6, which has no monitor mode, all three sides
+  and the replay refuse `monitor` with the same error, and the row passes.
+- `TestParityCannotOpenASocket` keeps the comparator's first-party closure
+  to `cmd/gordma-parity`, `internal/gordmaparity` and `pkg/nlstrace`.
+
+**What the first live run found:**
+
+- **gordma lost monitor output on SIGTERM.** Its stdout was buffered, and
+  `rdma` flushes after every event (`mon_show_cb`). gordma now does too.
+- **`pkg/nlstrace` misread gordma's captures** in two ways `rdma`'s never
+  showed:
+  - Go's threads split a call into `<unfinished ...>` and `<... resumed>`
+    lines; the parser now joins them by pid.
+  - gordma closes each socket, so the monitor socket reused the request
+    socket's fd and its events were read as replies. Transactions are now
+    keyed by socket (which `socket()` call), not by fd number.
+
+  Both captures are fixtures in `pkg/nlstrace/testdata`.
+- **`xtcp2-nlcap`'s buffer count read zero for gordma**, because Go's
+  `recvfrom` prints no "bytes in buffer" line. It counts the hex dump's
+  first lines instead.
+
 ## Tier C — the `goip-parity` microVM flavor
 
 The last piece of Item 6, and the only one that needs a live machine: a third
 netlink microVM flavor that captures the `ip → goip → ip` triples the comparator
 reads, then runs `goip-parity compare` **in the guest**.
+
+`gordma-parity` is the same design for `rdma`, on strace rather than pcap
+(see [gordma live parity](#gordma-live-parity)).
 
 **The comparison happens in the guest, and that is a correctness property, not
 a convenience.** The captures never have to leave for the verdict to exist, so

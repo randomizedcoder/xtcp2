@@ -944,6 +944,23 @@ let
     ) rdmaCaptureKernels;
   });
 
+  # gordma live parity runner: the same VM and kernels as rdmaCapture, driven
+  # by scripts/gordma-parity.exp, which compares gordma against rdma in the
+  # guest. A verdict runner, as goipParity's is.
+  gordmaParity = lib.genAttrs constants.supportedArchs (arch: {
+    runner = microvmLib.mkGordmaParityRunner {
+      inherit arch;
+      vm = vmsNetlinkDumpCapture.${arch};
+    };
+    kernels = lib.mapAttrs (
+      _: kernelPackages:
+      microvmLib.mkGordmaParityRunner {
+        inherit arch;
+        vm = mkOneNetlinkDumpCaptureOn kernelPackages arch;
+      }
+    ) rdmaCaptureKernels;
+  });
+
   # Tier 2 LACP capture runner (link-write-path.md phase 8): boots lacp-b and
   # then lacp-a on two point-to-point dgram links and drives A with
   # scripts/capture-lacp-pair.exp. A runner for linkWriteCapture's reasons,
@@ -1067,6 +1084,7 @@ in
     goipParity
     linkWriteCapture
     rdmaCapture
+    gordmaParity
     lacpPairCapture
     clickPipeRate
     clickPipeStress

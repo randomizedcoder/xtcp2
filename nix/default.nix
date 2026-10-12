@@ -671,6 +671,10 @@ let
           label = "goip-parity";
           drv = microvms.goipParity.x86_64.runner;
         }
+        {
+          label = "gordma-parity";
+          drv = microvms.gordmaParity.x86_64.runner;
+        }
       ];
       toLine = f: "${f.label}\t${lib.getExe f.drv}";
       lifecycleLines = lib.concatStringsSep "\n" (map toLine lifecycleFlavors);
@@ -699,7 +703,8 @@ let
                 "                   clickhouse-http one can take up to ~20m), then the" \
                 "                   verdict runners: goip-parity, which captures an" \
                 "                   ip/goip/ip triple per command and compares them in" \
-                "                   the guest (~5m)." \
+                "                   the guest (~5m), and gordma-parity, the same for" \
+                "                   rdma/gordma/rdma on soft-RoCE." \
                 "  --soak           additionally run the 6 duration-bounded runners:" \
                 "                   soak, tcp-stress, clickhouse-pipeline-stress," \
                 "                   s3parquet-long, s3parquet-stress, s3parquet-lowfreq." \
@@ -1269,6 +1274,26 @@ in
       program = "${runner}/bin/xtcp2-rdma-capture-x86_64";
     }
   ) microvms.rdmaCapture.x86_64.kernels
+  // {
+    # gordma live parity: the rdma capture's VM and topology, each command run
+    # as rdma, gordma, rdma under strace and compared in the guest by
+    # `gordma-parity compare` (internal/gordmaparity). Exits 0 only on
+    # GORDMA_PARITY_OVERALL_PASS. `--out <dir>` keeps the evidence. Needs
+    # /dev/kvm, so not a check.
+    microvm-x86_64-gordma-parity = {
+      type = "app";
+      program = "${microvms.gordmaParity.x86_64.runner}/bin/xtcp2-gordma-parity-x86_64";
+    };
+  }
+  # The parity run on the other rdmaCaptureKernels:
+  # microvm-x86_64-gordma-parity-6_6 and so on.
+  // lib.mapAttrs' (
+    k: runner:
+    lib.nameValuePair "microvm-x86_64-gordma-parity-${k}" {
+      type = "app";
+      program = "${runner}/bin/xtcp2-gordma-parity-x86_64";
+    }
+  ) microvms.gordmaParity.x86_64.kernels
   // {
 
     # Tier 2 bond / LACP readback capture (link-write-path.md phase 8). Boots

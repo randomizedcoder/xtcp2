@@ -204,30 +204,18 @@ func NewReplaySource(path string) (*ReplaySource, error) {
 
 func newReplay(dgs []nlstrace.Datagram) *ReplaySource {
 	s := &ReplaySource{}
-	open := map[int]int{} // fd -> index of its latest transaction
-	for _, d := range dgs {
-		if d.Send {
-			open[d.Fd] = len(s.txs)
-			s.txs = append(s.txs, replayTx{req: d.B})
-			continue
+	txns, events := nlstrace.Transactions(dgs)
+	for _, tx := range txns {
+		r := replayTx{req: tx.Req}
+		for _, b := range tx.Recvs {
+			r.msgs = append(r.msgs, splitMsgs(b)...)
 		}
-		msgs := splitMsgs(d.B)
-		if i, ok := open[d.Fd]; ok {
-			s.txs[i].msgs = append(s.txs[i].msgs, msgs...)
-			continue
-		}
-		s.events = append(s.events, msgs...)
+		s.txs = append(s.txs, r)
+	}
+	for _, b := range events {
+		s.events = append(s.events, splitMsgs(b)...)
 	}
 	return s
-}
-
-// zeroSeqPID is req with nlmsg_seq and nlmsg_pid zeroed.
-func zeroSeqPID(req []byte) []byte {
-	b := bytes.Clone(req)
-	if len(b) >= netlinkHeaderLen {
-		clear(b[8:16])
-	}
-	return b
 }
 
 // Talk answers req with the next recorded transaction, or ErrReplay.
@@ -236,9 +224,9 @@ func (s *ReplaySource) Talk(req []byte) (Reply, error) {
 		return Reply{}, fmt.Errorf("%w: request %d is past the %d the capture has", ErrReplay, s.next, len(s.txs))
 	}
 	tx := s.txs[s.next]
-	if !bytes.Equal(zeroSeqPID(req), zeroSeqPID(tx.req)) {
+	if !bytes.Equal(nlstrace.ZeroSeqPID(req), nlstrace.ZeroSeqPID(tx.req)) {
 		return Reply{}, fmt.Errorf("%w: request %d differs from the capture's\n gordma %x\n rdma   %x",
-			ErrReplay, s.next, zeroSeqPID(req), zeroSeqPID(tx.req))
+			ErrReplay, s.next, nlstrace.ZeroSeqPID(req), nlstrace.ZeroSeqPID(tx.req))
 	}
 	s.next++
 	r := Reply{Msgs: tx.msgs}
