@@ -791,8 +791,9 @@ let
   # greps the pipeline + enrichment self-test verdicts. These sentinels are NOT
   # in baseSentinels, so they must be listed here to surface a FAIL:
   #   CLICKHOUSE_RECORDS/RECONCILE — rows flow end-to-end + reconcile with Prom.
-  #   SCHEMA_VERSION               — rows route to the per-version table (_v1),
-  #                                  legacy _v0 empty, Merge union + daemon_version.
+  #   SCHEMA_VERSION               — rows route to the current epoch's _vN table,
+  #                                  no other epoch or table, Merge union +
+  #                                  daemon_version.
   #   ENRICH_NIC/CONTAINER/LLDP    — the enrichers (nic/container/lldp) land in
   #                                  ClickHouse (or degrade best-effort).
   #   ENRICH_BESTEFFORT_NEGATIVE   — missing enricher sockets are non-fatal.

@@ -53,10 +53,12 @@
 #                                              Prom envelopeRows counter vs
 #                                              ClickHouse row count within 15%
 #   XTCP2_SELF_TEST_SCHEMA_VERSION_{PASS,FAIL} (clickhouse-pipeline only)
-#                                              per-version routing: rows land in
-#                                              xtcp_flat_records_v1 (schema_version
-#                                              =1), v0 empty, Merge union matches,
-#                                              daemon_version populated
+#                                              per-version routing: every row is
+#                                              the current epoch N
+#                                              (XtcpFlatRecordSchemaVersion) and
+#                                              lands in xtcp_flat_records_vN, no
+#                                              other epoch or table, Merge union
+#                                              matches, daemon_version populated
 #   XTCP2_SELF_TEST_ENRICH_NIC_{PASS,FAIL}     (clickhouse-pipeline only) NIC
 #                                              enrichment: uplink1_nic_driver is
 #                                              populated in xtcp.xtcp_flat_records
@@ -274,6 +276,10 @@
   ipmetaLiveExpectedAsn ? "15169",
   ipmetaLiveExpectedOwner ? "google",
   ipmetaExpectedPrefixes ? "1",
+  # The record epoch SCHEMA_VERSION asserts. Read from the Go constant the
+  # daemon stamps, so the check cannot drift from it; override only to prove
+  # the check fails on a wrong epoch.
+  schemaVersion ? (import ../lib/xtcp2-schema-version.nix { inherit lib; }).current,
   # Multiplier applied to every retry budget in the script below. See the
   # "Retry-budget scaling" block in `text` for the reasoning; in short these
   # are poll-until-true loops, so a higher ceiling costs nothing when a check
@@ -284,6 +290,9 @@
   waitScale ? 4,
 }:
 
+let
+  sv = toString schemaVersion;
+in
 pkgs.writeShellApplication {
   name = "xtcp2-self-test";
   runtimeInputs = with pkgs; [
@@ -1930,41 +1939,41 @@ pkgs.writeShellApplication {
       if [ "$checkECont" -ne 0 ]; then overall_ok=0; fi
 
       # ─── SCHEMA_VERSION: per-version routing + provenance ─────────────
-      # The VM daemon is the current binary, so every record carries
-      # schema_version = 1 and routes to xtcp.xtcp_flat_records_v1; the legacy
-      # bucket xtcp.xtcp_flat_records_v0 stays empty. xtcp.xtcp_flat_records is a
-      # Merge view spanning both physical tables. PASS requires:
-      #   * v1 rows > 0 and all of them schema_version = 1
-      #   * v0 rows == 0 (no legacy producer in the VM)
+      # The VM daemon is the current binary, so every record carries the
+      # current epoch N (XtcpFlatRecordSchemaVersion, read at eval time from
+      # pkg/xtcp/schema_version.go) and routes to xtcp.xtcp_flat_records_vN;
+      # the earlier epochs' tables stay empty. xtcp.xtcp_flat_records is a
+      # Merge view spanning every physical version table. PASS requires:
+      #   * epoch-N rows > 0, and no row of any other epoch
       #   * the Merge union spans the physical version tables (proven via the
-      #     _table virtual column: every union row comes from _v1, none from _v0)
+      #     _table virtual column: every union row comes from _vN, none from
+      #     any other table)
       #   * daemon_version populated on every routed row
       #
       # Every metric is derived from a SINGLE scan of the Merge surface. Taking
-      # separate counts of _v1 and the union races (the daemon keeps producing,
+      # separate counts of _vN and the union races (the daemon keeps producing,
       # so a later query sees more rows) — one snapshot is internally consistent.
-      echo "--- schema: SCHEMA_VERSION (per-version routing + daemon_version) ---"
+      echo "--- schema: SCHEMA_VERSION (epoch ${sv} routing + daemon_version) ---"
       checkSV=1
-      v1Rows=0
+      svRows=0
       for _ in $(seq 1 "$(scaled 30)"); do
-        v1Rows=$(chqe "SELECT count() FROM xtcp.xtcp_flat_records_v1 WHERE schema_version = 1")
-        if [ "''${v1Rows:-0}" -gt 0 ] 2>/dev/null; then break; fi
+        svRows=$(chqe "SELECT count() FROM xtcp.xtcp_flat_records_v${sv} WHERE schema_version = ${sv}")
+        if [ "''${svRows:-0}" -gt 0 ] 2>/dev/null; then break; fi
         sleep 3
       done
-      # tab-separated single-row snapshot: v1 v0 bad noDver total fromV1 fromV0
-      svSnap=$(chqe "SELECT countIf(schema_version = 1), countIf(schema_version = 0), countIf(schema_version NOT IN (0, 1)), countIf(length(daemon_version) = 0), count(), countIf(_table = 'xtcp_flat_records_v1'), countIf(_table = 'xtcp_flat_records_v0') FROM xtcp.xtcp_flat_records")
-      read -r svV1 svV0 svBad svNoDver svTotal svFromV1 svFromV0 <<< "$svSnap"
-      if [ "''${svV1:-0}" -gt 0 ] 2>/dev/null \
-        && [ "''${svV0:-1}" -eq 0 ] 2>/dev/null \
-        && [ "''${svBad:-1}" -eq 0 ] 2>/dev/null \
+      # tab-separated single-row snapshot: cur other noDver total fromCur fromOther
+      svSnap=$(chqe "SELECT countIf(schema_version = ${sv}), countIf(schema_version != ${sv}), countIf(length(daemon_version) = 0), count(), countIf(_table = 'xtcp_flat_records_v${sv}'), countIf(_table != 'xtcp_flat_records_v${sv}') FROM xtcp.xtcp_flat_records")
+      read -r svCur svOther svNoDver svTotal svFromCur svFromOther <<< "$svSnap"
+      if [ "''${svCur:-0}" -gt 0 ] 2>/dev/null \
+        && [ "''${svOther:-1}" -eq 0 ] 2>/dev/null \
         && [ "''${svNoDver:-1}" -eq 0 ] 2>/dev/null \
-        && [ "''${svFromV0:-1}" -eq 0 ] 2>/dev/null \
-        && [ "''${svFromV1:-0}" -eq "''${svTotal:-1}" ] 2>/dev/null; then
-        dver=$(chqe "SELECT any(daemon_version) FROM xtcp.xtcp_flat_records_v1 WHERE length(daemon_version) > 0")
-        echo "XTCP2_SELF_TEST_SCHEMA_VERSION_PASS  (v1=$svV1, v0=$svV0, total=$svTotal, from_v1=$svFromV1, daemon_version='$dver')"
+        && [ "''${svFromOther:-1}" -eq 0 ] 2>/dev/null \
+        && [ "''${svFromCur:-0}" -eq "''${svTotal:-1}" ] 2>/dev/null; then
+        dver=$(chqe "SELECT any(daemon_version) FROM xtcp.xtcp_flat_records_v${sv} WHERE length(daemon_version) > 0")
+        echo "XTCP2_SELF_TEST_SCHEMA_VERSION_PASS  (epoch=${sv}, rows=$svCur, total=$svTotal, from_v${sv}=$svFromCur, daemon_version='$dver')"
         checkSV=0
       else
-        echo "XTCP2_SELF_TEST_SCHEMA_VERSION_FAIL  (v1=$svV1, v0=$svV0, bad=$svBad, no_daemon_version=$svNoDver, total=$svTotal, from_v1=$svFromV1, from_v0=$svFromV0)"
+        echo "XTCP2_SELF_TEST_SCHEMA_VERSION_FAIL  (epoch=${sv}, current=$svCur, other_epoch=$svOther, no_daemon_version=$svNoDver, total=$svTotal, from_v${sv}=$svFromCur, from_other_table=$svFromOther)"
       fi
       if [ "$checkSV" -ne 0 ]; then overall_ok=0; fi
 
