@@ -103,10 +103,10 @@
     #   nix run .#test-linkmonitor-ionic-vm --override-input rocm-ernic path:/home/das/Downloads/rocm-ernic
     # Pinned to the fork's xtcp2-integration branch (develop plus
     # ROCm/rocm-ernic#219, #221, #222, #223 and #224, plus the fork's
-    # feat/ionic-eth-faults, feat/ionic-rdma-error-stats and
-    # feat/ernic-run-server-opts) until those merge.
+    # feat/ionic-eth-faults, feat/ionic-rdma-error-stats,
+    # feat/ionic-port-stats and feat/ernic-run-server-opts) until those merge.
     rocm-ernic = {
-      url = "github:randomizedcoder/rocm-ernic/d46e512ec47a9d24829a04dad00bf515b17e0ac5";
+      url = "github:randomizedcoder/rocm-ernic/fe6cf85300c249d9ad9ba2240b0d34406ee29b65";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.flake-utils.follows = "flake-utils";
       inputs.microvm.follows = "microvm";
