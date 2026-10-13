@@ -2132,3 +2132,82 @@ A self-test side effect showed it too: PR K's first draft killed every pid
 - Table tests: `TestScanner_skipPid` (5 rows) and `TestReconcile_selfNamespace`
   (6 rows, one for the reviewed path). With either half of the fix removed,
   the matching rows fail.
+
+---
+
+## 27. The netns checks (8, 10, 16) asserted "delete +1" with fixed waits — FIXED
+
+Found while verifying §25 and §25's hotfix (#209). Two different failures of
+NS_ANONYMOUS (check 16), and a false pass while testing the fix.
+
+**Failure 1: the namespace outlived the kill.** One unix-sink lifecycle run at
+load ~58 failed only NS_ANONYMOUS, with `inst:3→4 del:3→3`. The rerun passed.
+
+| run | namespace discovered | daemon `delete:` | outcome |
+|---|---|---|---|
+| default | 234.8 s | 242.4 s (+7.6 s) | PASS |
+| unix-sink rerun | 256.2 s | 264.0 s (+7.8 s) | PASS |
+| unix-sink, first run | 254.2 s | none; `proc:2` until about 291–300 s | FAIL at 270.3 s |
+
+The daemon's scanner (`pkg/nsdiscover/scanner.go`) is an uncached readlink of
+`/proc/<pid>/ns/net`, so `proc:2` means a live process really was in the
+anonymous namespace for 30–40 s after the self-test's kill. The kill itself is
+aimed correctly once `sh` has exec'd (a local `unshare -rn` test shows `$!` is
+the `sleep`, and `kill` ends it).
+
+Most likely mechanism (a hypothesis):
+1. Check 16 ran `unshare --net sh -c 'ip link set lo up; exec sleep 60'`, so
+   `$!` was `sh` until the exec.
+2. Check 10 deletes a netns just before, and the kernel's async netns cleanup
+   takes `rtnl_lock`.
+3. Under load, `ip link set lo up` blocks on that lock, the kill ends `sh`,
+   and the orphaned `ip` holds the namespace until the lock frees.
+
+**Failure 2: the namespace was never seen.** A uds-security run at load ~12
+failed with `inst:3→3`. The daemon's polls were 7.5–9.7 s apart, so a fixed
+6 s wait sampled before the reconcile found the namespace. Check 8 had already
+replaced its fixed waits with retry loops, with a comment naming exactly this
+race against the jittered reconcile (the NS_LIFECYCLE flake), but checks 10
+and 16 still did `sleep 6` and sampled once. And check 8's loops counted
+iterations of a `curl` of up to 2 s plus `sleep 1`, the same
+not-a-wall-clock budget as §10's first `stream_until`.
+
+**The false pass: "+1" was the wrong assertion.** With wall-clock waits in
+place, a mutant whose check 16 holder outlives the kill
+(`sh -c 'sleep 90 & exec sleep 60'`) still printed `NS_ANONYMOUS_PASS
+(inst:3→4 del:2→3)`. The counters are process-wide, so any namespace's delete
+satisfies "delete went up by one". One was always available: check 9's kill of
+its two `$!`s ended the `ip netns exec` wrappers but not the
+`(echo hello; sleep 8) | nc` pipeline inside, which kept `xtcp_test_ns_b` alive
+past `ip netns delete`. Its late delete was counted by check 10 or 16.
+
+**What the stricter assertion found: §26.** Its first VM runs failed in
+uds-security, with the daemon itself the only process in check 10's
+namespace. Its main thread was locked in there, so the namespace was never
+deleted. §26 fixed that in the daemon, and this PR's runs are on top of it.
+That is not obviously failure 1: the haT6 namespace did go away after 30–40 s,
+and a locked main thread would have held it for good. So the rtnl_lock
+hypothesis stands, still unconfirmed, and the holder diagnostic will tell.
+
+**Fix:**
+- `wait_metric_ge` (`nix/microvms/self-test-wait-metric.nix`) polls a counter
+  against a bash `SECONDS` deadline until it reaches a target. It is
+  table-tested hermetically by `nix/checks/self-test-wait-metric.nix`.
+- **A stricter assertion.** netNamespaceInstance `start` ticks once per
+  namespace added (`pkg/xtcp/ns_net_namespace.go`), and `delete` once per
+  namespace removed (`pkg/xtcp/ns_delete.go`). So `start − delete` is the
+  number the daemon tracks. The self-test records it before check 8. After each
+  check kills its holder, it waits (`$(scaled 20)` s) for
+  `delete ≥ start − baseline`: every namespace it created is gone, its own
+  included, and no leftover can stand in for it.
+- Check 9 kills every process left in its namespace (`ip netns pids`), except
+  the daemon, and waits for its teardown, so check 10 starts with nothing
+  pending. The daemon exception matters: before §26 a per-namespace goroutine
+  could hold xtcp2's main thread inside the namespace, `ip netns pids` then
+  listed xtcp2, and the first draft of this cleanup killed it.
+- Check 16 runs `unshare --net sleep 60`, so nothing can block before the
+  holder exists and `$!` is the only process in the namespace.
+- On failure, checks 10 and 16 list every process still in the namespace,
+  with its pid, `comm`, state and `wchan`. If failure 1 recurs, the log names
+  the holder instead of leaving it to inference; a `D` state with an
+  rtnl-related `wchan` would confirm the hypothesis.

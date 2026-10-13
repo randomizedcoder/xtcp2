@@ -71,6 +71,9 @@ in
   # run*Check flags, so a helper one flavor never calls fails here, not in
   # that flavor's VM build.
   self-test-flavors = import ./self-test-flavors.nix { inherit pkgs lib; };
+  # The self-test's wait_metric_ge (nix/microvms/self-test-wait-metric.nix),
+  # the wall-clock counter wait behind the netns checks 8, 9, 10 and 16.
+  self-test-wait-metric = import ./self-test-wait-metric.nix { inherit pkgs; };
   # proto-lint: NOT in the default check set. `buf lint` reaches out to
   # buf.build for module deps (protovalidate, googleapis), which the hermetic
   # Nix sandbox blocks. Run `buf lint` directly from `nix develop`, where buf
