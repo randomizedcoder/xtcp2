@@ -925,44 +925,39 @@ and point the Makefile at it, and decide whether
 
 ---
 
-## 10. `self-test.nix` scales its poll loops but not its `timeout`s — OPEN
+## 10. `self-test.nix` scales its poll loops but not its `timeout`s — DONE
 
-`nix/microvms/self-test.nix` takes a `waitScale ? 4` parameter (line 231) and
-threads it into the guest as `WAIT_SCALE` (line 287), where it multiplies the
-**polling loops** — the "~22 separate counts" its own comment describes. That is
-what makes the self-test survive a loaded host.
+**Done.** By the time of the fix there were 13 `timeout` calls, not eight, and they needed three different treatments:
 
-It does **not** reach the eight fixed `timeout <N>s` invocations:
-
-| line | call | budget |
+| call | check | treatment |
 |---|---|---|
-| 451 | `timeout 3s xtcp2client …` (check 5, GRPC_ROUNDTRIP) | **3 s** |
-| 483 | `timeout 12s xtcp2client -poll …` | 12 s |
-| 585 | `timeout 12s xtcp2client -format json …` | 12 s |
-| 844 | `timeout 5s ns -help` | 5 s |
-| 861 | `timeout 5s nsTest -help` | 5 s |
-| 954 | `timeout 15s nc -l …` | 15 s |
-| 1606 | `timeout 40s xtcp2 -dest null …` | 40 s |
-| 1670 | `xtcp2ctl set-poll-frequency -frequency 3600s -timeout 1s` | 1 s |
+| `timeout 3s xtcp2client` | 5 GRPC_ROUNDTRIP | `stream_until "$(scaled 3)"`, stopped at the first output line |
+| `timeout 12s xtcp2client -poll …`, `… -format json` | 5b POLL_STREAM, 5e LISTEN_STREAM | `stream_until "$(scaled 12)"`, stopped at the first `^{` record |
+| the two `timeout 12s xtcp2client -network unix …` | UDS_SECURITY | same |
+| `timeout 5s ns -help`, `nsTest -help` | 6, 7 | `timeout "$(scaled 5)s"` |
+| `timeout 15s nc -l` | 9 NS_TRAFFIC | `timeout "$(scaled 15)s"` (teardown kills it) |
+| `timeout 40s xtcp2 -dest null` | ENRICH_BESTEFFORT_NEGATIVE | `$(( $(scaled 30) * 3 + 10 ))s`, see below |
+| `xtcp2ctl set-poll-frequency -timeout 1s` (×2), `xtcp2 … -timeout 1s` | 17/18, UDS, ENRICH_BESTEFFORT_NEGATIVE | **not scaled**: these are daemon poll-timeout settings, not wall-clock guards |
+| `-timeout "$(scaled 60/120)s"` | RTNL_EVENTS | already scaled |
 
-Check 5 has the tightest budget and is correspondingly the first to break: it
-runs `timeout 3s xtcp2client`, then FAILs if `/tmp/xtcp2client.log` is empty
-(`xtcp2client rc=124 but no output`). Under load the process is simply never
-scheduled long enough to write its first line. Observed 2026-09-24 failing
-inside a `nix flake check --keep-going` at load ~86, and **passing in a
-standalone boot of the valkey flavor on the same tree minutes later**.
+Three things the original entry did not anticipate:
 
-This is the load-sensitivity that `mkLifecycleFullTest`'s stall watchdog
-deliberately cannot cover: `stallSec` protects against *silence*, whereas this
-check fails fast and loudly, so the watchdog never sees a stall.
-
-Fix: multiply these by `WAIT_SCALE` the same way the poll loops are, e.g.
-`timeout "$((3 * WAIT_SCALE))s"`. Note two of them are not wall-clock guards
-and must NOT be scaled — line 1670's `-timeout 1s` is an xtcp2ctl RPC deadline,
-and line 1606's `-timeout 1s` likewise — so this is a per-call review, not a
-blind sed. Cross-check against the `lifecycle-full-test` runner, whose
-`stallSec = 600` floor was derived as `45 iterations x 3 s x waitScale 4`; the
-`timeout`s were evidently missed when that scaling was introduced.
+1. **Scaling the stream timeouts blindly would have cost about 2.5 minutes per run.** A streaming xtcp2client never
+   ends by itself, so `timeout` always spent its whole window, and the checks accepted rc 124. At scale 4 each 12 s
+   window would have become 48 s, on every pass. `stream_until` (`nix/microvms/self-test-stream-until.nix`) instead
+   stops the client once the log shows a record and returns 124 as `timeout` did. The scaled value is only a ceiling:
+   a pass costs the time to the first record, and only a failing stream waits out the budget. It is table-tested
+   hermetically by `nix/checks/self-test-stream-until.nix`.
+2. **ENRICH_BESTEFFORT_NEGATIVE had a latent false FAIL.** Its startup loop allows `$(scaled 30)` iterations of up to
+   3 s (`curl --max-time 2` + `sleep 1`), up to 360 s at scale 4. But the throwaway daemon ran under `timeout 40s`, so
+   a cold start slower than 40 s was killed and reported `alive=0`, which is the exact failure the check exists to
+   detect. The window is now the loop's worst case plus 10 s. The check still kills the daemon itself, so a pass costs
+   nothing extra. `mkLifecycleFullTest`'s `stallSec = 600` floor still holds, since 370 s < 540 s.
+3. **A budget counted in polls is not a wall-clock budget.** `stream_until` first counted `secs × 5` polls of
+   `sleep 0.2`. A VM run with POLL_STREAM's regex mutated to `^NEVER`, at host load ~55, showed each poll's forks
+   (`kill`, `grep`, `sleep`) taking about 1 s, so the 48 s ceiling ran for 247 s. Both deadlines now use bash's
+   `SECONDS`. The hermetic check has a row that shadows `sleep` with a 1 s one: the poll-counting version takes 11 s
+   there, against the row's 6 s maximum.
 
 ---
 

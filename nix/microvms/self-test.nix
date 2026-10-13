@@ -359,6 +359,13 @@ pkgs.writeShellApplication {
     # variables is genuinely unused in some builds and shellcheck rejects it
     # (SC2034) at writeShellApplication build time.
     scaled() { echo "$(($1 * WAIT_SCALE))"; }
+    #
+    # Wall-clock `timeout`s scale too, through scaled(). A streaming
+    # xtcp2client never ends by itself, so it runs under stream_until instead
+    # of `timeout`: stopped at its first record, with the scaled value only as
+    # a ceiling. A pass costs the time to the first record; only a failing
+    # stream waits out the budget. (nix/microvms/self-test-stream-until.nix)
+    ${import ./self-test-stream-until.nix}
 
     uds_security_mode=${if runUdsSecurityCheck then "1" else "0"}
 
@@ -537,7 +544,8 @@ pkgs.writeShellApplication {
       # Run xtcp2client briefly. Exit code 0 or 124 (timeout) both acceptable
       # for "it connected"; anything else is a wire/handshake failure.
       # xtcp2client takes -target (host) + -port (numeric), not -addr.
-      timeout 3s xtcp2client -target 127.0.0.1 -port "${toString grpcPort}" >/tmp/xtcp2client.log 2>&1
+      stream_until "$(scaled 3)" /tmp/xtcp2client.log . \
+        xtcp2client -target 127.0.0.1 -port "${toString grpcPort}"
       rc=$?
       if [ "$rc" -eq 0 ] || [ "$rc" -eq 124 ]; then
         if [ -s /tmp/xtcp2client.log ]; then
@@ -572,8 +580,9 @@ pkgs.writeShellApplication {
       check5b=0
     elif command -v xtcp2client >/dev/null 2>&1; then
       before_pfr=$(metric_value "xtcp_counts" 'function="flatRecordServiceSend"' 'variable="pfrSent"')
-      timeout 12s xtcp2client -poll -pollFrequency 2s -format json \
-        -target 127.0.0.1 -port "${toString grpcPort}" >/tmp/xtcp2poll.log 2>&1
+      stream_until "$(scaled 12)" /tmp/xtcp2poll.log '^\{' \
+        xtcp2client -poll -pollFrequency 2s -format json \
+        -target 127.0.0.1 -port "${toString grpcPort}"
       rc=$?
       after_pfr=$(metric_value "xtcp_counts" 'function="flatRecordServiceSend"' 'variable="pfrSent"')
       # Records are single-line JSON objects (printer.record); client debug
@@ -682,8 +691,9 @@ pkgs.writeShellApplication {
       check5e=0
     elif command -v xtcp2client >/dev/null 2>&1; then
       before_fr=$(metric_value "xtcp_counts" 'function="flatRecordServiceSend"' 'variable="frSent"')
-      timeout 12s xtcp2client -format json \
-        -target 127.0.0.1 -port "${toString grpcPort}" >/tmp/xtcp2listen.log 2>&1
+      stream_until "$(scaled 12)" /tmp/xtcp2listen.log '^\{' \
+        xtcp2client -format json \
+        -target 127.0.0.1 -port "${toString grpcPort}"
       rc=$?
       after_fr=$(metric_value "xtcp_counts" 'function="flatRecordServiceSend"' 'variable="frSent"')
       recs=$(grep -c '^{' /tmp/xtcp2listen.log 2>/dev/null || true)
@@ -755,6 +765,7 @@ pkgs.writeShellApplication {
       ctl_get_rc=$?
       ctl_set_rc=1
       if [ "$ctl_get_rc" -eq 0 ]; then
+        # -timeout 1s: the daemon's poll_timeout setting, not scaled.
         xtcp2ctl set-poll-frequency -frequency 7s -timeout 1s \
           "''${ctl_base[@]}" -auth-token "${udsAuthToken}" \
           >/tmp/uds-ctl-set.log 2>&1
@@ -770,18 +781,18 @@ pkgs.writeShellApplication {
       trigger_rc=$?
 
       before_pfr=$(metric_value "xtcp_counts" 'function="flatRecordServiceSend"' 'variable="pfrSent"')
-      timeout 12s xtcp2client -network unix -unixSocket "${udsGrpcSocket}" \
-        -auth-token "${udsAuthToken}" -poll -pollFrequency 2s -format json \
-        >/tmp/uds-poll.log 2>&1
+      stream_until "$(scaled 12)" /tmp/uds-poll.log '^\{' \
+        xtcp2client -network unix -unixSocket "${udsGrpcSocket}" \
+        -auth-token "${udsAuthToken}" -poll -pollFrequency 2s -format json
       poll_rc=$?
       after_pfr=$(metric_value "xtcp_counts" 'function="flatRecordServiceSend"' 'variable="pfrSent"')
       poll_records=$(grep -c '^{' /tmp/uds-poll.log 2>/dev/null || true)
       poll_records=''${poll_records:-0}
 
       before_fr=$(metric_value "xtcp_counts" 'function="flatRecordServiceSend"' 'variable="frSent"')
-      timeout 12s xtcp2client -network unix -unixSocket "${udsGrpcSocket}" \
-        -auth-token "${udsAuthToken}" -format json \
-        >/tmp/uds-listen.log 2>&1
+      stream_until "$(scaled 12)" /tmp/uds-listen.log '^\{' \
+        xtcp2client -network unix -unixSocket "${udsGrpcSocket}" \
+        -auth-token "${udsAuthToken}" -format json
       listen_rc=$?
       after_fr=$(metric_value "xtcp_counts" 'function="flatRecordServiceSend"' 'variable="frSent"')
       listen_records=$(grep -c '^{' /tmp/uds-listen.log 2>/dev/null || true)
@@ -1255,7 +1266,7 @@ pkgs.writeShellApplication {
       echo "--- check 6: ns inspector ---"
       check6=1
       if command -v ns >/dev/null 2>&1; then
-        out=$(timeout 5s ns -help 2>&1)
+        out=$(timeout "$(scaled 5)s" ns -help 2>&1)
         rc=$?
         if [ "$rc" -le 2 ] && [ -n "$out" ]; then
           echo "XTCP2_SELF_TEST_NS_INSPECT_PASS  (ns -help rc=$rc, bytes=''${#out})"
@@ -1273,7 +1284,7 @@ pkgs.writeShellApplication {
     echo "--- check 7: nsTest ---"
     check7=1
     if command -v nsTest >/dev/null 2>&1; then
-      out=$(timeout 5s nsTest -help 2>&1)
+      out=$(timeout "$(scaled 5)s" nsTest -help 2>&1)
       rc=$?
       if [ "$rc" -le 2 ] && [ -n "$out" ]; then
         echo "XTCP2_SELF_TEST_NSTEST_PASS  (nsTest -help rc=$rc, bytes=''${#out})"
@@ -1365,8 +1376,9 @@ pkgs.writeShellApplication {
       ip netns exec xtcp_test_ns_b ip link set lo up 2>&1 || true
       # Listener in the ns — this is the live process Method B keys on. timeout
       # bounds wall-clock so we don't leak a process if the check fails partway;
-      # it must outlast the discovery + poll window below.
-      ip netns exec xtcp_test_ns_b timeout 15s nc -l 127.0.0.1 17322 >/dev/null 2>&1 &
+      # it must outlast the discovery + poll window below, and is scaled so a
+      # slow host cannot cut that window short (teardown kills it either way).
+      ip netns exec xtcp_test_ns_b timeout "$(scaled 15)s" nc -l 127.0.0.1 17322 >/dev/null 2>&1 &
       ns_listener=$!
       sleep 1
       # Client also in the ns (loopback only — the ns has no real iface).
@@ -2014,11 +2026,14 @@ pkgs.writeShellApplication {
       checkENeg=1
       if command -v xtcp2 >/dev/null 2>&1; then
         neg_prom="127.0.0.1:9099"
-        # 40s run window with a 30-iteration (≈30s) startup budget: generous so
-        # a slow cold start under host CPU contention (the VM shares cores with
-        # whatever else is building) can't be mistaken for the non-fatal-abort
-        # bug this check is actually guarding against.
-        timeout 40s xtcp2 -dest null -frequency 2s -timeout 1s \
+        # The run window must outlast the startup loop below, or a slow cold
+        # start under host CPU contention gets killed by `timeout` and reads as
+        # alive=0: the very non-fatal-abort bug this check guards against. The
+        # loop is $(scaled 30) iterations of at most 3 s (curl --max-time 2 +
+        # sleep 1), so the window is that plus 10 s. The check kills the
+        # throwaway itself, so a pass never waits it out. -timeout 1s is
+        # xtcp2's netlink poll timeout, a daemon setting, and is not scaled.
+        timeout "$(($(scaled 30) * 3 + 10))s" xtcp2 -dest null -frequency 2s -timeout 1s \
           -enrichLldp -lldpdSocket /nonexistent/xtcp2-bogus-lldpd.sock \
           -lldpdVersionHint 1.0.22 \
           -enrichContainer -dockerSocket /nonexistent/xtcp2-bogus-docker.sock \
@@ -2086,6 +2101,8 @@ pkgs.writeShellApplication {
       # Park the ticker at 1h with a 1s timeout: the long frequency isolates
       # check 18, and the small timeout lets the burst there use a 2s interval
       # (burst interval must exceed poll_timeout).
+      # -timeout 1s is the daemon's poll_timeout setting, not a wall-clock
+      # guard, so it is not scaled.
       xtcp2ctl set-poll-frequency -frequency 3600s -timeout 1s "''${CTL[@]}" >/tmp/ctl.log 2>&1
       sp_rc=$?
       got=$(xtcp2ctl get "''${CTL[@]}" 2>/dev/null)
