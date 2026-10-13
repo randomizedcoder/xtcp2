@@ -369,7 +369,10 @@ pkgs.writeShellApplication {
     #
     # Checks 5d and 5f validate jsonl in one jq pass, not one jq per line,
     # whose cost grew with the run's length. (nix/microvms/self-test-jsonl-tally.nix)
-    ${import ./self-test-jsonl-tally.nix}
+    # Only defined in flavors that run one of them: shellcheck rejects a
+    # function that is never invoked (SC2329), so defining it everywhere broke
+    # the build of every other flavor.
+    ${lib.optionalString (runFileOutputCheck || runRawSocketCheck) (import ./self-test-jsonl-tally.nix)}
 
     uds_security_mode=${if runUdsSecurityCheck then "1" else "0"}
 

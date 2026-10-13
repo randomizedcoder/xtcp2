@@ -67,6 +67,10 @@ in
   # The self-test's jsonl_tally (nix/microvms/self-test-jsonl-tally.nix), the
   # one-pass jsonl validator behind checks 5d and 5f.
   self-test-jsonl-tally = import ./self-test-jsonl-tally.nix { inherit pkgs; };
+  # The self-test script built (and so shellchecked) once per flavor's set of
+  # run*Check flags, so a helper one flavor never calls fails here, not in
+  # that flavor's VM build.
+  self-test-flavors = import ./self-test-flavors.nix { inherit pkgs lib; };
   # proto-lint: NOT in the default check set. `buf lint` reaches out to
   # buf.build for module deps (protovalidate, googleapis), which the hermetic
   # Nix sandbox blocks. Run `buf lint` directly from `nix develop`, where buf
