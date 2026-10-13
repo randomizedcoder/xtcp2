@@ -565,7 +565,14 @@ cataloged `lifespan`. It passes on the pin (`9893fbf`, 6 guest files, 5
 catch-all series) and with `--override-input rocm-ernic` on the fork's local
 `xtcp2-integration` `d46e512`, which adds rocm-ernic's RDMA error counters
 under the Pensando `ionic_lif_stats` names: 36 guest files, 35 catch-all
-series, the 30 error counters all 0. Not established: real Pensando names for
+series, the 30 error counters all 0. The pin then moved to the pushed
+`d46e512`, and both ionic VMs pass on it with no override: the healthy guest
+has 36 files; the faults guest matches V091 (tx 189 + 21 dropped, rx 172 + 19
+dropped, `eth_tx` eligible 210 fired 21, `eth_rx` eligible 191 fired 19), and
+`stats_vals` is now eligible 14 times rather than 3 (fired 1), because the
+monitor reads the emulator's files and each read is a STATS_VALS command. That
+closes the V091 finding: a `stats_vals` fault now reaches the monitor's
+reads. Not established: real Pensando names for
 the emulator's five pvrdma totals, and nonzero error counters through the
 monitor (needs the two-guest traffic of P14-T03).
 
@@ -921,7 +928,7 @@ integration remains deferred under D01.
 | P11 | Release verification | not started | 0/3 | None |
 | P12 | Administration API and xtcp2 integration | done | 7/7 | V079–V084 |
 | P13 | Netlink contracts | in progress | 4/5 | V085–V088; pre-merge gates documented, host `l` alerts and pin bump remain |
-| P14 | Real-driver RDMA coverage | in progress | 4/6 | V089–V092; rocm-ernic pin bump to the integration branch pending |
+| P14 | Real-driver RDMA coverage | in progress | 4/6 | V089–V092; rocm-ernic pinned to the fork's `xtcp2-integration` `d46e512` |
 
 ## Task checklist
 
@@ -1705,7 +1712,7 @@ owners, deadlines or successful outcomes. Continue independent ready tasks.
 | 2026-10-11 | Added the real-driver ionic guest (`test-linkmonitor-ionic-vm`, rocm-ernic): collector table with checked reasons, CLI differential, events, PCI unplug/replug and recovered events; ionic fixtures committed. | V088. Next: Phase E gates and docs |
 | 2026-10-12 | Started P14: ionic `rdma_counters` is supported once rocm-ernic answers STATS_HDRS; real sysfs snapshots from host `l`, ionic and rxe; verbs async events verified on the real ionic driver. Decision: the emulator's counter names stay out of the catalog until real Pensando names are known. | V089; P14 2/4. Next: pin bump, then the two-guest traffic test |
 | 2026-10-13 | Injected Ethernet loss through the real ionic driver: rocm-ernic `eth_rx`/`eth_tx`/`stats_vals` faults on `generic-100g`; the monitor's drop, over-error and per-queue counters match sysfs and the fault pattern frame for frame. | V091. rocm-ernic pin moved to the fork's `xtcp2-integration` `9893fbf`; both ionic VMs pass on it |
-| 2026-10-13 | Uncataloged `hw_counters` files are exported as the untyped `rdma_hw_counter{counter=…}` catch-all on `/metrics-all`, instead of being dropped. Decision: untyped, raw and unscaled, since vendors mix counters and gauges there; the reviewed catalog remains the place for names and units. | V092; P14 4/6. Next: pin bump to an integration commit with rocm-ernic's RDMA error counters, then P14-T03 |
+| 2026-10-13 | Uncataloged `hw_counters` files are exported as the untyped `rdma_hw_counter{counter=…}` catch-all on `/metrics-all`, instead of being dropped. Decision: untyped, raw and unscaled, since vendors mix counters and gauges there; the reviewed catalog remains the place for names and units. | V092; P14 4/6. rocm-ernic pin moved to `d46e512` (adds the RDMA error counters); both ionic VMs pass on it. Next: P14-T03 |
 
 Publication: P08-T03 was committed as `cb958fb` and pushed on
 `test/linkmonitor-embedding`; [PR #178](https://github.com/randomizedcoder/xtcp2/pull/178)

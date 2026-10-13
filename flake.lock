@@ -158,17 +158,17 @@
         ]
       },
       "locked": {
-        "lastModified": 1791879862,
-        "narHash": "sha256-nuT48u9s6BYIKwb1Q52qzEx9FuW/W062/0Ma2QMY/VQ=",
+        "lastModified": 1791905139,
+        "narHash": "sha256-xMHlCUD83YnhhsXj23FU3BLZ4nDNH/B4zQ2DQxR3ucs=",
         "owner": "randomizedcoder",
         "repo": "rocm-ernic",
-        "rev": "9893fbf348400cdc25c7f1d8575a66426fd7f390",
+        "rev": "d46e512ec47a9d24829a04dad00bf515b17e0ac5",
         "type": "github"
       },
       "original": {
         "owner": "randomizedcoder",
         "repo": "rocm-ernic",
-        "rev": "9893fbf348400cdc25c7f1d8575a66426fd7f390",
+        "rev": "d46e512ec47a9d24829a04dad00bf515b17e0ac5",
         "type": "github"
       }
     },
