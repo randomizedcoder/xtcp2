@@ -8,11 +8,13 @@
 {
   config,
   lib,
+  pkgs,
   ...
 }:
 
 let
   cfg = config.services.xtcp2;
+  xtcp2Exec = import ../lib/xtcp2-exec-start.nix { inherit pkgs lib; };
 in
 {
   options.services.xtcp2 = {
@@ -46,7 +48,11 @@ in
     extraArgs = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [ ];
-      description = "Additional CLI flags appended to the xtcp2 invocation.";
+      description = ''
+        Additional CLI flags appended to the xtcp2 invocation, one argv entry
+        per element, passed verbatim: an empty string, a space, `%` or `$`
+        reaches the daemon unchanged (see nix/lib/xtcp2-exec-start.nix).
+      '';
     };
 
     capabilities = lib.mkOption {
@@ -88,9 +94,7 @@ in
         # `extraArgs` (CLI flags) instead. configFile is kept in the option
         # surface for forward-compatibility — when the daemon learns to
         # parse a JSON config, flip this back to `-config ${cfg.configFile}`.
-        ExecStart =
-          "${cfg.package}/bin/xtcp2"
-          + lib.optionalString (cfg.extraArgs != [ ]) " ${lib.concatStringsSep " " cfg.extraArgs}";
+        ExecStart = xtcp2Exec.mkExecStart cfg.package cfg.extraArgs;
         Restart = "on-failure";
         RestartSec = "2s";
         User = cfg.user;

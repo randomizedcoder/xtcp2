@@ -55,6 +55,9 @@ in
   # shell; see vm-lib-exp.nix's header for why that is a faithful stand-in and
   # what it consequently does not cover.
   vm-lib-exp = import ./vm-lib-exp.nix { inherit pkgs src; };
+  # The xtcp2 unit's ExecStart quoting (nix/lib/xtcp2-exec-start.nix), checked
+  # at evaluation time.
+  xtcp2-exec = import ./xtcp2-exec.nix { inherit pkgs lib; };
   # proto-lint: NOT in the default check set. `buf lint` reaches out to
   # buf.build for module deps (protovalidate, googleapis), which the hermetic
   # Nix sandbox blocks. Run `buf lint` directly from `nix develop`, where buf
