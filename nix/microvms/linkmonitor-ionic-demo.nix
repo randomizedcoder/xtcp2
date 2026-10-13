@@ -3,7 +3,8 @@
 # peer, so go-link-monitor's /metrics and /metrics-all can be compared across
 # profiles. Each guest pings the TAP from every vCPU, sends TCP SYNs that the
 # host answers with RSTs (one flow per port, so the RSTs spread over the RX
-# queues), tries an RDMA loopback, and then scrapes the monitor. The runner
+# queues), runs an RDMA ping-pong and, where rocm-ernic provides it,
+# ernic-rdma-errors, and then scrapes the monitor. The runner
 # collects every guest's scrapes and driver views and writes report.md.
 #
 # This is evidence for review, not a pass/fail test: a scenario that cannot
@@ -213,6 +214,14 @@ let
 
       ethernet_traffic
       rdma_traffic > "$out/rdma-traffic.txt" 2>&1 || true
+      # rocm-ernic's guest module installs ernic-rdma-errors once the RDMA
+      # error counters are in; each of its rows makes one error happen and
+      # checks hw_counters moved by exactly that.
+      if [ -x /run/current-system/sw/bin/ernic-rdma-errors ]; then
+        rc=0
+        /run/current-system/sw/bin/ernic-rdma-errors -d "$rdmadev" > "$out/rdma-errors.txt" 2>&1 || rc=$?
+        echo "exit $rc" >> "$out/rdma-errors.txt"
+      fi
       # Two emulator publish intervals and two monitor stats intervals.
       sleep 6
 

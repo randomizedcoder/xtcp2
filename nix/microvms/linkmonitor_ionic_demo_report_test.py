@@ -288,6 +288,48 @@ class EthtoolTest(unittest.TestCase):
                 self.assertEqual(report.parse_ethtool_channels(case["text"]), case["expected"])
 
 
+class ProbeSummaryTest(unittest.TestCase):
+    """probe_summary counts ernic-rdma-errors result lines."""
+
+    def test_probe_summary(self):
+        """Each output counts its ok, FAIL and skip rows."""
+        cases = [
+            {
+                "category": "positive",
+                "description": "all rows pass",
+                "text": "device ionic_0, GID index 1\nok positive: a\nok negative: b\nexit 0\n",
+                "expected": (2, 0, 0),
+            },
+            {
+                "category": "positive",
+                "description": "a failure and a skip",
+                "text": "ok positive: a\nFAIL boundary: b; expected: x; got: y\nskip positive: c\n",
+                "expected": (1, 1, 1),
+            },
+            {
+                "category": "negative",
+                "description": "words inside a line do not count",
+                "text": "device ok\nQP pair setup failed: ok\n",
+                "expected": (0, 0, 0),
+            },
+            {
+                "category": "boundary",
+                "description": "empty output",
+                "text": "",
+                "expected": (0, 0, 0),
+            },
+            {
+                "category": "corner",
+                "description": "lowercase fail is not a row",
+                "text": "fail positive: a\n",
+                "expected": (0, 0, 0),
+            },
+        ]
+        for case in cases:
+            with self.subTest(category=case["category"], description=case["description"]):
+                self.assertEqual(report.probe_summary(case["text"]), case["expected"])
+
+
 class FormatTest(unittest.TestCase):
     """number and bits cell formatting."""
 
