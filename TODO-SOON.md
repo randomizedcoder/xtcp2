@@ -966,52 +966,37 @@ blind sed. Cross-check against the `lifecycle-full-test` runner, whose
 
 ---
 
-## 11. `self-test.nix` still asserts schema_version ∈ {0,1}; the daemon writes 2 — OPEN
+## 11. `self-test.nix` still asserts schema_version ∈ {0,1}; the daemon writes 2 — DONE
 
-`nix/microvms/self-test.nix:1549` snapshots the ClickHouse rows with
-
-```sql
-SELECT countIf(schema_version = 1), countIf(schema_version = 0),
-       countIf(schema_version NOT IN (0, 1)), …
-FROM xtcp.xtcp_flat_records
-```
-
-and FAILs when that third column ("bad") is non-zero. But
-`pkg/xtcp/schema_version.go:23` declares
-
-```go
-const XtcpFlatRecordSchemaVersion = 2
-```
-
-and `pkg/xtcp/deserialize.go:103` stamps it into every record. So **every row
-is counted as "bad"** and the check can never pass. Observed 2026-09-24 on a
-`clickhouse-pipeline` lifecycle boot:
+**Done.** Only the check had fallen behind. The epoch-2 DDL was already in
+`build/containers/clickhouse/initdb.d/sql/`: the `_v2` table, `_v2_mv`
+(`WHERE length(_error) == 0 AND schema_version = 2`) and a Merge view declared
+`AS _v2`, with `sql/migrations/v2.sql` for existing deployments. That settled
+the three questions this entry used to pose. A clickhouse-pipeline lifecycle
+run from `main` at 37f713fe passed every other check (26 of 27) and failed
+this one alone:
 
 ```
-XTCP2_SELF_TEST_SCHEMA_VERSION_FAIL  (v1=0, v0=0, bad=11252,
-  no_daemon_version=0, total=11252, from_v1=0, from_v0=0)
+SCHEMA_VERSION_FAIL  (v1=0, v0=0, bad=6341, no_daemon_version=0, total=6341,
+  from_v1=0, from_v0=0)
 ```
 
-`v1=0` and `from_v1=0` are the tell: not only is the version unrecognised, no
-row landed in `xtcp_flat_records_v1` at all. `no_daemon_version=0` shows the
-enrichment side is fine — `daemon_version` is populated on all 11252 rows — so
-this is purely the version predicate and its table routing, not missing data.
+So all 6341 rows were epoch 2 and came from `_v2`. The check counted them all
+as "bad" because it hard-coded epoch 1 and `_v1`.
 
-This is the "ClickHouse v2 migration" that was flagged as unverified when the
-enrichment/proto-v2 work landed; the self-test was never moved forward with the
-epoch. It is **not** a `writeShellApplication` regression: it failed on a boot
-whose only `self-test.nix` delta is a comment, and the §8 diff touches no
-proto, no Go outside `tools/quality-report`, and no ClickHouse DDL (the changed
-`mkVm.nix` hunks are at lines 96, 1461, 1495, 2418, 2971, 3045, 3052 and 3220 —
-none of them the ClickHouse config region at 479-595).
+The fix makes it impossible to drift a third time:
 
-Fixing it means deciding all three of: which `schema_version` values are
-acceptable now, whether an `xtcp_flat_records_v2` table + materialized view
-should exist alongside `_v0`/`_v1` (the proto comment at
-`proto/xtcp_flat_record/v1/xtcp_flat_record.proto:43` says adding an epoch means
-adding the matching `_vN` table and MV), and whether the check should assert a
-*specific* epoch or merely a known one. Asserting `= XtcpFlatRecordSchemaVersion`
-from a single generated source would stop this drifting a third time.
+- `nix/lib/xtcp2-schema-version.nix` reads the epoch from
+  `pkg/xtcp/schema_version.go`. Only the whole line
+  `const XtcpFlatRecordSchemaVersion = <digits>` counts, and evaluation fails
+  unless there is exactly one.
+- The SCHEMA_VERSION block asserts that epoch: rows exist in `_vN` with
+  `schema_version = N`, no row of any other epoch, every union row from `_vN`,
+  and `daemon_version` on every row.
+- `nix/checks/xtcp2-schema-version.nix` table-tests the parser and checks that
+  the initdb DDL declares the current epoch's table, MV and routing predicate.
+  An epoch bump without the matching DDL now fails `nix flake check`, not a
+  15-minute VM run.
 
 ---
 
@@ -1145,9 +1130,9 @@ Exporting them means, in order:
   numbering follows the existing allocation style: `ifinfomsg` → 2100,
   `ifaddrmsg` → 2200, `rtmsg` → 2300, `ndmsg` → 2400, plus a batch envelope so
   a burst of events is one message rather than N.
-- **ClickHouse.** A table + materialized view. Note the interaction with §11:
-  that epoch/table-routing drift needs resolving first, or this adds a second
-  place for `schema_version` to disagree with the DDL.
+- **ClickHouse.** A table + materialized view. §11's epoch/table-routing
+  drift, which had to be resolved first, is now DONE: the self-test reads the
+  epoch from the Go constant, so a new table has one source to agree with.
 - **A destination.** Events are bursty and low-volume — the opposite shape to
   the steady per-poll record stream — so batching and flush policy want thought
   rather than copying the record path.
