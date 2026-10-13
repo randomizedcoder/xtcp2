@@ -220,6 +220,28 @@ def hw_counter_cell(capture):
     return f"{len(counters)} ({nonzero})"
 
 
+def probe_summary(text):
+    """Return (ok, failed, skipped) row counts from ernic-rdma-errors output."""
+    counts = {"ok": 0, "FAIL": 0, "skip": 0}
+    for line in text.splitlines():
+        word = line.split(" ", 1)[0]
+        if word in counts:
+            counts[word] += 1
+    return counts["ok"], counts["FAIL"], counts["skip"]
+
+
+def probe_cell(capture):
+    """Return the ernic-rdma-errors summary, or '-' when it did not run."""
+    text = capture.text("rdma-errors.txt")
+    if not text:
+        return "-"
+    ok, failed, skipped = probe_summary(text)
+    cell = f"{ok} ok, {failed} failed"
+    if skipped:
+        cell += f", {skipped} skipped"
+    return cell
+
+
 def comparison():
     """Return the side-by-side table rows: (label, cell function)."""
     rows = [
@@ -257,6 +279,7 @@ def comparison():
     ):
         rows.append((f"/metrics-all {name}, +during traffic", lambda c, n=name: number(c.delta(n))))
     rows += [
+        ("ernic-rdma-errors rows", probe_cell),
         ("/metrics-all rdma_hw_counter series (nonzero)", hw_counter_cell),
         (
             "/metrics-all rdma_hw_counter{counter=total_bytes_sent}",
@@ -276,7 +299,8 @@ def render(captures):
     out.append(
         "Each column is one guest: the in-tree ionic and ionic_rdma drivers bound "
         "to rocm-ernic with the given `--nic-profile`, a TAP peer, ping and TCP "
-        "SYN traffic from every vCPU, and an RDMA RC ping-pong attempt. The "
+        "SYN traffic from every vCPU, an RDMA RC ping-pong, and, where rocm-ernic "
+        "provides it, ernic-rdma-errors making each RDMA error happen once. The "
         "values are what go-link-monitor exported; the driver's own view "
         "(ethtool, ip -s link, sysfs) is beside each guest's scrapes."
     )
@@ -301,6 +325,11 @@ def render(captures):
                 + "."
             )
             out.append("")
+        probe = capture.text("rdma-errors.txt")
+        if probe:
+            out += ["<details><summary>ernic-rdma-errors</summary>", "", "```"]
+            out += [line for line in probe.splitlines() if line]
+            out += ["```", "", "</details>", ""]
         out += ["<details><summary>/metrics (core)</summary>", "", "```"]
         out += [line for line in capture.text("metrics.txt").splitlines() if line]
         out += ["```", "", "</details>", ""]
