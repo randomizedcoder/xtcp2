@@ -102,9 +102,10 @@
     # local checkout when iterating on the emulator:
     #   nix run .#test-linkmonitor-ionic-vm --override-input rocm-ernic path:/home/das/Downloads/rocm-ernic
     # Pinned to the fork's xtcp2-integration branch (develop plus
-    # ROCm/rocm-ernic#219, #221, #222, #223 and #224) until those merge.
+    # ROCm/rocm-ernic#219, #221, #222, #223 and #224, plus the fork's
+    # feat/ionic-eth-faults and feat/ernic-run-server-opts) until those merge.
     rocm-ernic = {
-      url = "github:randomizedcoder/rocm-ernic/3ae9d46d2898e91a6c768fc5579c859d7d104b61";
+      url = "github:randomizedcoder/rocm-ernic/9893fbf348400cdc25c7f1d8575a66426fd7f390";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.flake-utils.follows = "flake-utils";
       inputs.microvm.follows = "microvm";

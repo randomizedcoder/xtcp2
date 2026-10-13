@@ -525,10 +525,13 @@ Mutation proof: with rocm-ernic's nobuf accounting removed, the receive-drops,
 over-errors and eth_rx every-10 rows fail (`0 dropped of 174 events, want
 17`), while the ping row still passes, so the counter rows catch what the
 workload cannot. `test-linkmonitor-ionic-vm` still passes every sentinel on
-the same rocm-ernic. Tested against the fork's local `xtcp2-integration`
+the same rocm-ernic. First run against the fork's local `xtcp2-integration`
 (`bc19d49`: develop plus #219, #221–#224, NIC profiles, LIF stats, queues and
 steering, fault injection, and ernic-run option passthrough) through
-`--override-input rocm-ernic git+file://…`; the pin moves once it is pushed.
+`--override-input rocm-ernic git+file://…`. The pin now points at the pushed
+`9893fbf` (`bc19d49` plus a `const` fix); both VMs pass on the pin with no
+override (200 pings, 162 replies; tx 189 + 21 dropped, rx 172 + 19 dropped;
+`eth_tx` eligible 210 fired 21, `eth_rx` eligible 191 fired 19).
 Finding: the monitor reads only cataloged `hw_counters` files, and for ionic
 that is `lifespan`, which the RDMA core answers without the driver, so a
 `stats_vals` fault cannot reach the monitor's metrics yet. It will once the
@@ -1669,7 +1672,7 @@ owners, deadlines or successful outcomes. Continue independent ready tasks.
 | 2026-10-11 | Added in-process netlink recording (`nlrecord` tag) and replay of committed rxe-VM recordings through the real `linuxio` API. Fixtures come from the rxe VM and host `l` (mlx5, atlantic). | V087. Next: the ionic VM (`test-linkmonitor-ionic-vm`) using rocm-ernic |
 | 2026-10-11 | Added the real-driver ionic guest (`test-linkmonitor-ionic-vm`, rocm-ernic): collector table with checked reasons, CLI differential, events, PCI unplug/replug and recovered events; ionic fixtures committed. | V088. Next: Phase E gates and docs |
 | 2026-10-12 | Started P14: ionic `rdma_counters` is supported once rocm-ernic answers STATS_HDRS; real sysfs snapshots from host `l`, ionic and rxe; verbs async events verified on the real ionic driver. Decision: the emulator's counter names stay out of the catalog until real Pensando names are known. | V089; P14 2/4. Next: pin bump, then the two-guest traffic test |
-| 2026-10-13 | Injected Ethernet loss through the real ionic driver: rocm-ernic `eth_rx`/`eth_tx`/`stats_vals` faults on `generic-100g`; the monitor's drop, over-error and per-queue counters match sysfs and the fault pattern frame for frame. | V091. Next: push the fork's `xtcp2-integration` and move the pin |
+| 2026-10-13 | Injected Ethernet loss through the real ionic driver: rocm-ernic `eth_rx`/`eth_tx`/`stats_vals` faults on `generic-100g`; the monitor's drop, over-error and per-queue counters match sysfs and the fault pattern frame for frame. | V091. rocm-ernic pin moved to the fork's `xtcp2-integration` `9893fbf`; both ionic VMs pass on it |
 
 Publication: P08-T03 was committed as `cb958fb` and pushed on
 `test/linkmonitor-embedding`; [PR #178](https://github.com/randomizedcoder/xtcp2/pull/178)
