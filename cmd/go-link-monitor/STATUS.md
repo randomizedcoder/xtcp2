@@ -498,6 +498,43 @@ Saturated `port_xmit_wait` (4294967295, 61 ports) and `symbol_error` (65535,
 one port) are reported exactly. Not established: names for the irdma and
 bnxt_re counters and for the two mlx5 retry counters, all still dropped.
 
+V091 — injected packet loss through the real ionic driver (2026-10-13):
+new `test-linkmonitor-ionic-faults-vm` (the ionic runner with `faults = true`)
+uses rocm-ernic's NIC profiles and fault injection: `--nic-profile
+generic-100g` (16 queues offered, 8 used on 8 vCPUs), `--inject 'eth_rx: every
+10 effect nobuf'`, `'eth_tx: every 10 effect drop'` and `'stats_vals: after 2
+effect fail'`. ernic-run runs under `unshare --user --map-root-user --net`
+with a TAP whose host end (192.0.2.1) the guest pings, so no host privilege is
+needed. Because each pattern counts every frame since boot, the guest's own
+counters must satisfy dropped == (passed + dropped) / 10, which makes the
+monitor rows exact, not "moved". `TestIonicFaultStatsVals` (3 rows): the first
+guest read of `hw_counters/commands` is EINVAL, the next reads a number, and
+`lifespan` is unaffected. `TestIonicFaultCounters` (11 rows): ping loses some
+replies, not all; `interface_{transmit,receive}_dropped_total` and
+`interface_receive_over_errors_total` equal sysfs and are non-zero; both
+every-10 identities hold; over errors equal receive drops (nobuf is
+`rx_queue_empty`); missed and transmit errors stay 0; the per-queue
+`ethtool_statistic` `rx_N_pkts` sum equals `interface_receive_packets_total`;
+the `tx_N_pkts` sum equals transmit packets + dropped (a dropped frame is
+still completed to the driver); and there are 8 combined channels with
+per-queue statistics for queues 0–7. Observed: 200 pings, 161 replies; tx 190
+sent + 21 dropped, rx 172 delivered + 19 dropped (over 19); queue sums rx 172,
+tx 211; the server's shutdown counts agree (`eth_tx` eligible 211 fired 21,
+`eth_rx` eligible 191 fired 19, `stats_vals` eligible 3 fired 1).
+Mutation proof: with rocm-ernic's nobuf accounting removed, the receive-drops,
+over-errors and eth_rx every-10 rows fail (`0 dropped of 174 events, want
+17`), while the ping row still passes, so the counter rows catch what the
+workload cannot. `test-linkmonitor-ionic-vm` still passes every sentinel on
+the same rocm-ernic. Tested against the fork's local `xtcp2-integration`
+(`bc19d49`: develop plus #219, #221–#224, NIC profiles, LIF stats, queues and
+steering, fault injection, and ernic-run option passthrough) through
+`--override-input rocm-ernic git+file://…`; the pin moves once it is pushed.
+Finding: the monitor reads only cataloged `hw_counters` files, and for ionic
+that is `lifespan`, which the RDMA core answers without the driver, so a
+`stats_vals` fault cannot reach the monitor's metrics yet. It will once the
+emulator offers counters under cataloged names (rocm-ernic NIC-realism phase
+D). Not established: loss on the RDMA path, and real Pensando counter names.
+
 V076 — privileged performance VM wiring (2026-10-10): added the modular
 `test-linkmonitor-performance-vm` runner under `nix/microvms/`. It reuses the
 cached performance test artifact, boots a root NixOS guest, captures filtered
@@ -1632,6 +1669,7 @@ owners, deadlines or successful outcomes. Continue independent ready tasks.
 | 2026-10-11 | Added in-process netlink recording (`nlrecord` tag) and replay of committed rxe-VM recordings through the real `linuxio` API. Fixtures come from the rxe VM and host `l` (mlx5, atlantic). | V087. Next: the ionic VM (`test-linkmonitor-ionic-vm`) using rocm-ernic |
 | 2026-10-11 | Added the real-driver ionic guest (`test-linkmonitor-ionic-vm`, rocm-ernic): collector table with checked reasons, CLI differential, events, PCI unplug/replug and recovered events; ionic fixtures committed. | V088. Next: Phase E gates and docs |
 | 2026-10-12 | Started P14: ionic `rdma_counters` is supported once rocm-ernic answers STATS_HDRS; real sysfs snapshots from host `l`, ionic and rxe; verbs async events verified on the real ionic driver. Decision: the emulator's counter names stay out of the catalog until real Pensando names are known. | V089; P14 2/4. Next: pin bump, then the two-guest traffic test |
+| 2026-10-13 | Injected Ethernet loss through the real ionic driver: rocm-ernic `eth_rx`/`eth_tx`/`stats_vals` faults on `generic-100g`; the monitor's drop, over-error and per-queue counters match sysfs and the fault pattern frame for frame. | V091. Next: push the fork's `xtcp2-integration` and move the pin |
 
 Publication: P08-T03 was committed as `cb958fb` and pushed on
 `test/linkmonitor-embedding`; [PR #178](https://github.com/randomizedcoder/xtcp2/pull/178)

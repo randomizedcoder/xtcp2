@@ -4,6 +4,13 @@
 # remove and rescan: QMP device_del of a vfio-user-pci device aborts QEMU 11.0.2
 # (memory_region_del_subregion assertion), while the guest's driver removal and
 # re-probe paths, which the monitor has to survive, are the same either way.
+#
+# With faults = true it is test-linkmonitor-ionic-faults-vm instead: the
+# generic-100g NIC profile (16 queues, 8 used on 8 vCPUs), injected eth_rx, eth_tx and
+# stats_vals faults, and a TAP in an unprivileged user and network namespace,
+# so the guest has a peer to ping and the emulator has frames to drop. The
+# monitor's interface counters must then agree with sysfs, ethtool and the
+# fault pattern, frame for frame.
 {
   pkgs,
   lib,
@@ -12,9 +19,52 @@
   monitor,
   ernicModule,
   ernicRun,
+  faults ? false,
 }:
 let
   metricsAddress = "127.0.0.1:9101";
+  name = if faults then "linkmonitor-ionic-faults" else "linkmonitor-ionic";
+  # The host end of the TAP lives in the namespace ernic-run starts in; the
+  # guest gives its ionic netdev the other address. RFC 5737 TEST-NET-1.
+  tap = {
+    ifname = "ernic0";
+    host = "192.0.2.1";
+    guest = "192.0.2.2";
+    prefix = "24";
+  };
+  # Every 10th frame each way, so the guest's drop counters are an exact
+  # function of its packet counters. stats_vals event 1 is ionic_rdma's read
+  # at registration, which must succeed or the RDMA device is torn down.
+  injects = [
+    "eth_rx: every 10 effect nobuf"
+    "eth_tx: every 10 effect drop"
+    "stats_vals: after 2 effect fail"
+  ];
+  ernicArgs = lib.optionals faults (
+    [
+      "--nic-profile"
+      "generic-100g"
+      "--tap"
+      tap.ifname
+    ]
+    ++ lib.concatMap (spec: [
+      "--inject"
+      spec
+    ]) injects
+  );
+  # Run inside `unshare --user --map-root-user --net`: root there may create
+  # the TAP, and the server attaches to it after creating its socket.
+  netnsTap = pkgs.writeShellApplication {
+    name = "ernic-netns-tap";
+    runtimeInputs = [ pkgs.iproute2 ];
+    text = ''
+      ip link set lo up
+      ip tuntap add dev ${tap.ifname} mode tap
+      ip addr add ${tap.host}/${tap.prefix} dev ${tap.ifname}
+      ip link set ${tap.ifname} up
+      exec "$@"
+    '';
+  };
   # The same capture that produced the host fixtures in
   # pkg/linkmonitor/testdata/rdmasysfs, for TestRDMACountersRealSysfs.
   sysfsCapture = pkgs.writeShellApplication {
@@ -25,8 +75,95 @@ let
     ];
     text = builtins.readFile ../../pkg/linkmonitor/testdata/rdmasysfs/capture.sh;
   };
+  healthySteps = ''
+    # ernic-rdma-up (guest module) opened the netdev, then loaded ionic_rdma.
+    systemctl is-active --quiet ernic-rdma-up.service
+    discover
+    run_test TestIonicDiscovery
+    echo LINKMONITOR_IONIC_DISCOVERY_PASS
+
+    nlrec=$(mktemp -d)
+    ${sysfsCapture}/bin/rdmasysfs-capture ionic-vm "$rdmadev" > "$nlrec/rdmasysfs-$rdmadev.txt"
+    LINKMONITOR_NLRECORD="$nlrec" LINKMONITOR_LIVE_INTERFACE="$netdev" \
+      ${artifact}/bin/linuxio-nlrecord.test -test.run '^TestLiveRequestShapes$' -test.v
+    echo LINKMONITOR_IONIC_CONTRACTS_PASS
+
+    systemctl start go-link-monitor.service
+    run_test TestIonicMonitorHealthy
+    echo LINKMONITOR_IONIC_MONITOR_PASS
+    run_test TestIonicCLIDifferential
+    echo LINKMONITOR_IONIC_CLI_PASS
+    run_test TestIonicEvents
+    echo LINKMONITOR_IONIC_EVENTS_PASS
+    # Verbs async events from the real driver, through rdmaevents Open/Run.
+    ${artifact}/bin/ionic-vm-events.test -test.run '^TestIonicVerbsEvents$' -test.v -test.timeout=5m
+    echo LINKMONITOR_IONIC_VERBS_EVENTS_PASS
+
+    # Removal unregisters the RDMA device while the monitor holds a verbs
+    # context; if that blocks, show where instead of waiting for the timeout.
+    pci=$(ionic_pci)
+    echo "removing ionic PCI function $pci"
+    echo 1 > "/sys/bus/pci/devices/$pci/remove" &
+    remover=$!
+    for _ in $(seq 1 90); do
+      if [ ! -e "/sys/class/net/$netdev" ] && ! kill -0 "$remover" 2> /dev/null; then
+        break
+      fi
+      sleep 1
+    done
+    if kill -0 "$remover" 2> /dev/null; then
+      echo "PCI remove of $pci still blocked after 90s; kernel stack:" >&2
+      cat "/proc/$remover/stack" >&2 || true
+      echo w > /proc/sysrq-trigger
+      false
+    fi
+    wait "$remover"
+    if [ -e "/sys/class/net/$netdev" ]; then
+      echo "ionic netdev $netdev still present after PCI remove" >&2
+      false
+    fi
+    run_test TestIonicRemoved
+    echo LINKMONITOR_IONIC_UNPLUG_PASS
+
+    # Loaded first, ionic_rdma takes every interrupt for EQs and the netdev's
+    # rx queues fail with -ENOSPC; unload it so ernic-rdma-up can order them.
+    modprobe -r ionic_rdma
+    echo 1 > /sys/bus/pci/rescan
+    for _ in $(seq 1 90); do
+      if ionic_netdev > /dev/null; then
+        break
+      fi
+      sleep 1
+    done
+    systemctl restart ernic-rdma-up.service
+    discover
+    run_test TestIonicRecovered
+    echo LINKMONITOR_IONIC_HOTPLUG_PASS
+    # Coverage must be live again, not just reported: the same transitions
+    # and renames have to be observed on the replugged device.
+    run_test TestIonicEvents
+    echo LINKMONITOR_IONIC_RECOVERED_EVENTS_PASS
+
+    uname -r > "$nlrec/kernel.txt"
+    echo XTCP2_NLREC_DUMP_START
+    tar c -C "$nlrec" . | gzip -n | base64 -w0
+    echo
+    echo XTCP2_NLREC_DUMP_END
+  '';
+  faultSteps = ''
+    systemctl is-active --quiet ernic-rdma-up.service
+    discover
+    # Before the monitor starts, so the guest's own reads are events 2 and 3.
+    run_test TestIonicFaultStatsVals
+    echo LINKMONITOR_IONIC_FAULT_STATS_VALS_PASS
+    ip addr add ${tap.guest}/${tap.prefix} dev "$netdev"
+    export LINKMONITOR_IONIC_PEER=${tap.host}
+    systemctl start go-link-monitor.service
+    run_test TestIonicFaultCounters
+    echo LINKMONITOR_IONIC_FAULT_COUNTERS_PASS
+  '';
   guestTest = pkgs.writeShellApplication {
-    name = "linkmonitor-ionic-guest";
+    name = "${name}-guest";
     runtimeInputs = with pkgs; [
       coreutils
       ethtool
@@ -35,6 +172,7 @@ let
       gnutar
       gzip
       iproute2
+      iputils
       kmod
       rdma-core
       systemd
@@ -92,79 +230,7 @@ let
       }
       export LINKMONITOR_METRICS_URL=http://${metricsAddress}/metrics-all
 
-      # ernic-rdma-up (guest module) opened the netdev, then loaded ionic_rdma.
-      systemctl is-active --quiet ernic-rdma-up.service
-      discover
-      run_test TestIonicDiscovery
-      echo LINKMONITOR_IONIC_DISCOVERY_PASS
-
-      nlrec=$(mktemp -d)
-      ${sysfsCapture}/bin/rdmasysfs-capture ionic-vm "$rdmadev" > "$nlrec/rdmasysfs-$rdmadev.txt"
-      LINKMONITOR_NLRECORD="$nlrec" LINKMONITOR_LIVE_INTERFACE="$netdev" \
-        ${artifact}/bin/linuxio-nlrecord.test -test.run '^TestLiveRequestShapes$' -test.v
-      echo LINKMONITOR_IONIC_CONTRACTS_PASS
-
-      systemctl start go-link-monitor.service
-      run_test TestIonicMonitorHealthy
-      echo LINKMONITOR_IONIC_MONITOR_PASS
-      run_test TestIonicCLIDifferential
-      echo LINKMONITOR_IONIC_CLI_PASS
-      run_test TestIonicEvents
-      echo LINKMONITOR_IONIC_EVENTS_PASS
-      # Verbs async events from the real driver, through rdmaevents Open/Run.
-      ${artifact}/bin/ionic-vm-events.test -test.run '^TestIonicVerbsEvents$' -test.v -test.timeout=5m
-      echo LINKMONITOR_IONIC_VERBS_EVENTS_PASS
-
-      # Removal unregisters the RDMA device while the monitor holds a verbs
-      # context; if that blocks, show where instead of waiting for the timeout.
-      pci=$(ionic_pci)
-      echo "removing ionic PCI function $pci"
-      echo 1 > "/sys/bus/pci/devices/$pci/remove" &
-      remover=$!
-      for _ in $(seq 1 90); do
-        if [ ! -e "/sys/class/net/$netdev" ] && ! kill -0 "$remover" 2> /dev/null; then
-          break
-        fi
-        sleep 1
-      done
-      if kill -0 "$remover" 2> /dev/null; then
-        echo "PCI remove of $pci still blocked after 90s; kernel stack:" >&2
-        cat "/proc/$remover/stack" >&2 || true
-        echo w > /proc/sysrq-trigger
-        false
-      fi
-      wait "$remover"
-      if [ -e "/sys/class/net/$netdev" ]; then
-        echo "ionic netdev $netdev still present after PCI remove" >&2
-        false
-      fi
-      run_test TestIonicRemoved
-      echo LINKMONITOR_IONIC_UNPLUG_PASS
-
-      # Loaded first, ionic_rdma takes every interrupt for EQs and the netdev's
-      # rx queues fail with -ENOSPC; unload it so ernic-rdma-up can order them.
-      modprobe -r ionic_rdma
-      echo 1 > /sys/bus/pci/rescan
-      for _ in $(seq 1 90); do
-        if ionic_netdev > /dev/null; then
-          break
-        fi
-        sleep 1
-      done
-      systemctl restart ernic-rdma-up.service
-      discover
-      run_test TestIonicRecovered
-      echo LINKMONITOR_IONIC_HOTPLUG_PASS
-      # Coverage must be live again, not just reported: the same transitions
-      # and renames have to be observed on the replugged device.
-      run_test TestIonicEvents
-      echo LINKMONITOR_IONIC_RECOVERED_EVENTS_PASS
-
-      uname -r > "$nlrec/kernel.txt"
-      echo XTCP2_NLREC_DUMP_START
-      tar c -C "$nlrec" . | gzip -n | base64 -w0
-      echo
-      echo XTCP2_NLREC_DUMP_END
+      ${if faults then faultSteps else healthySteps}
       echo LINKMONITOR_IONIC_PASS
     '';
   };
@@ -177,14 +243,15 @@ let
       {
         nixpkgs.pkgs = pkgs;
         system.stateVersion = "26.05";
-        networking.hostName = "linkmonitor-ionic";
+        networking.hostName = name;
         networking.useDHCP = false;
         boot.kernelPackages = pkgs.linuxPackages_latest;
         virtualisation = {
           ernic.enable = true;
           graphics = false;
           memorySize = 4096;
-          cores = 4;
+          # generic-100g offers 16 queues; ionic uses one per online CPU, so 8.
+          cores = if faults then 8 else 4;
           diskImage = null;
           qemu.networkingOptions = lib.mkForce [ ];
           qemu.options = [ "-no-reboot" ];
@@ -209,13 +276,13 @@ let
             StandardError = "journal+console";
           };
         };
-        systemd.services.linkmonitor-ionic-test = {
+        systemd.services."${name}-test" = {
           wantedBy = [ "multi-user.target" ];
           wants = [ "ernic-rdma-up.service" ];
           after = [ "ernic-rdma-up.service" ];
           serviceConfig = {
             Type = "oneshot";
-            ExecStart = "${guestTest}/bin/linkmonitor-ionic-guest";
+            ExecStart = "${guestTest}/bin/${name}-guest";
             StandardOutput = "journal+console";
             StandardError = "journal+console";
           };
@@ -227,75 +294,13 @@ let
 
   # Runs under ernic-run, which owns the emulator for the VM's lifetime.
   launcher = pkgs.writeShellApplication {
-    name = "linkmonitor-ionic-launcher";
+    name = "${name}-launcher";
     text = ''
-      exec ${vm}/bin/run-linkmonitor-ionic-vm > "$1/serial.log" 2>&1
+      exec ${vm}/bin/run-${name}-vm > "$1/serial.log" 2>&1
     '';
   };
-in
-pkgs.writeShellApplication {
-  name = "test-linkmonitor-ionic-vm";
-  runtimeInputs = with pkgs; [
-    coreutils
-    findutils
-    gawk
-    gnugrep
-    gnused
-    gnutar
-    gzip
-  ];
-  text = ''
-    usage() {
-      echo 'usage: test-linkmonitor-ionic-vm [--accel=auto|kvm|tcg] [--promote]' >&2
-      echo '  --promote copies the recorded fixtures into ./pkg/linkmonitor/internal/linuxio/testdata/nlrecord/ionic-vm/<kernel>/' >&2
-      echo '  and the sysfs capture into ./pkg/linkmonitor/testdata/rdmasysfs/' >&2
-      exit 2
-    }
-    accel='-machine accel=kvm:tcg'
-    promote=0
-    for arg in "$@"; do
-      case "$arg" in
-        --accel=auto) accel='-machine accel=kvm:tcg' ;;
-        --accel=kvm) accel='-machine accel=kvm' ;;
-        --accel=tcg) accel='-machine accel=tcg' ;;
-        --promote) promote=1 ;;
-        *) usage ;;
-      esac
-    done
-    testdata=pkg/linkmonitor/internal/linuxio/testdata/nlrecord
+  fixtureSteps = ''
     sysfsdata=pkg/linkmonitor/testdata/rdmasysfs
-    if [ "$promote" -eq 1 ] && [ ! -d "$testdata" ]; then
-      echo "--promote must run from the xtcp2 checkout root ($testdata missing)" >&2
-      exit 2
-    fi
-    run_dir=$(mktemp -d -t linkmonitor-ionic-XXXXXX)
-    echo "Evidence: $run_dir"
-    printf '%s\n' '${artifact}' > "$run_dir/artifact.txt"
-    printf '%s\n' '${monitor}' > "$run_dir/monitor.txt"
-    printf '%s\n' '${vm}' > "$run_dir/guest.txt"
-    export QEMU_OPTS="$accel"
-    printf '%s\n' "$QEMU_OPTS" > "$run_dir/qemu-options.txt"
-    export TMPDIR="$run_dir"
-    unset QEMU_KERNEL_PARAMS QEMU_NET_OPTS NIX_DISK_IMAGE
-    rc=0
-    (cd "$run_dir" && timeout --kill-after=10s 30m \
-      ${ernicRun}/bin/ernic-run --socket "$run_dir/ernic.sock" --log-file "$run_dir/ernic.log" -- \
-      ${launcher}/bin/linkmonitor-ionic-launcher "$run_dir") || rc=$?
-    cat "$run_dir/serial.log"
-    if [ "$rc" -ne 0 ]; then
-      echo "FAIL: launcher exited $rc; evidence $run_dir" >&2
-      exit 1
-    fi
-    for sentinel in DISCOVERY CONTRACTS MONITOR CLI EVENTS VERBS_EVENTS UNPLUG HOTPLUG RECOVERED_EVENTS; do
-      if ! grep -q "LINKMONITOR_IONIC_''${sentinel}_PASS" "$run_dir/serial.log"; then
-        echo "FAIL: missing LINKMONITOR_IONIC_''${sentinel}_PASS; evidence $run_dir" >&2
-        exit 1
-      fi
-    done
-    if grep -q LINKMONITOR_IONIC_FAIL "$run_dir/serial.log" || ! grep -q 'LINKMONITOR_IONIC_PASS' "$run_dir/serial.log"; then
-      echo "FAIL: guest test failed; evidence $run_dir" >&2
-      exit 1
-    fi
     mkdir -p "$run_dir/fixtures"
     awk '/XTCP2_NLREC_DUMP_START/{flag=1;next} /XTCP2_NLREC_DUMP_END/{flag=0} flag' "$run_dir/serial.log" \
       | sed -E 's/^\[[^]]*\] linkmonitor-ionic-guest\[[0-9]+\]: //' \
@@ -319,6 +324,93 @@ pkgs.writeShellApplication {
         echo "promoted $sysfsdata/ionic-vm-''${name%.txt}-$kernel.txt"
       done
     fi
-    echo "PASS: ionic VM; evidence $run_dir"
+  '';
+  # The server prints each fault's counts at shutdown. Each must have fired:
+  # a fault that never fired proves nothing about the counters.
+  faultSummary = ''
+    for site in eth_rx eth_tx stats_vals; do
+      line=$(grep -m1 "Fault $site: eligible" "$run_dir/ernic.log" || true)
+      echo "server: ''${line# }"
+      fired=''${line##*fired }
+      if [ -z "$line" ] || [ "$fired" = 0 ]; then
+        echo "FAIL: fault $site did not fire; evidence $run_dir" >&2
+        exit 1
+      fi
+    done
+  '';
+in
+pkgs.writeShellApplication {
+  name = "test-${name}-vm";
+  runtimeInputs = with pkgs; [
+    coreutils
+    util-linux
+    findutils
+    gawk
+    gnugrep
+    gnused
+    gnutar
+    gzip
+  ];
+  text = ''
+    usage() {
+      echo 'usage: test-${name}-vm [--accel=auto|kvm|tcg] [--promote]' >&2
+      echo '  --promote copies the recorded fixtures into ./pkg/linkmonitor/internal/linuxio/testdata/nlrecord/ionic-vm/<kernel>/' >&2
+      echo '  and the sysfs capture into ./pkg/linkmonitor/testdata/rdmasysfs/' >&2
+      exit 2
+    }
+    accel='-machine accel=kvm:tcg'
+    promote=0
+    for arg in "$@"; do
+      case "$arg" in
+        --accel=auto) accel='-machine accel=kvm:tcg' ;;
+        --accel=kvm) accel='-machine accel=kvm' ;;
+        --accel=tcg) accel='-machine accel=tcg' ;;
+        --promote) promote=1 ;;
+        *) usage ;;
+      esac
+    done
+    ${lib.optionalString faults "[ \"$promote\" -eq 0 ] || usage # no recordings in the fault run"}
+    testdata=pkg/linkmonitor/internal/linuxio/testdata/nlrecord
+    if [ "$promote" -eq 1 ] && [ ! -d "$testdata" ]; then
+      echo "--promote must run from the xtcp2 checkout root ($testdata missing)" >&2
+      exit 2
+    fi
+    run_dir=$(mktemp -d -t ${name}-XXXXXX)
+    echo "Evidence: $run_dir"
+    printf '%s\n' '${artifact}' > "$run_dir/artifact.txt"
+    printf '%s\n' '${monitor}' > "$run_dir/monitor.txt"
+    printf '%s\n' '${vm}' > "$run_dir/guest.txt"
+    export QEMU_OPTS="$accel"
+    printf '%s\n' "$QEMU_OPTS" > "$run_dir/qemu-options.txt"
+    export TMPDIR="$run_dir"
+    unset QEMU_KERNEL_PARAMS QEMU_NET_OPTS NIX_DISK_IMAGE
+    rc=0
+    (cd "$run_dir" && timeout --kill-after=10s 30m \
+      ${lib.optionalString faults "unshare --user --map-root-user --net -- ${netnsTap}/bin/ernic-netns-tap"} \
+      ${ernicRun}/bin/ernic-run --socket "$run_dir/ernic.sock" --log-file "$run_dir/ernic.log" \
+      ${lib.escapeShellArgs ernicArgs} -- \
+      ${launcher}/bin/${name}-launcher "$run_dir") || rc=$?
+    cat "$run_dir/serial.log"
+    if [ "$rc" -ne 0 ]; then
+      echo "FAIL: launcher exited $rc; evidence $run_dir" >&2
+      exit 1
+    fi
+    for sentinel in ${
+      if faults then
+        "FAULT_STATS_VALS FAULT_COUNTERS"
+      else
+        "DISCOVERY CONTRACTS MONITOR CLI EVENTS VERBS_EVENTS UNPLUG HOTPLUG RECOVERED_EVENTS"
+    }; do
+      if ! grep -q "LINKMONITOR_IONIC_''${sentinel}_PASS" "$run_dir/serial.log"; then
+        echo "FAIL: missing LINKMONITOR_IONIC_''${sentinel}_PASS; evidence $run_dir" >&2
+        exit 1
+      fi
+    done
+    if grep -q LINKMONITOR_IONIC_FAIL "$run_dir/serial.log" || ! grep -q 'LINKMONITOR_IONIC_PASS' "$run_dir/serial.log"; then
+      echo "FAIL: guest test failed; evidence $run_dir" >&2
+      exit 1
+    fi
+    ${if faults then faultSummary else fixtureSteps}
+    echo "PASS: ${name} VM; evidence $run_dir"
   '';
 }
