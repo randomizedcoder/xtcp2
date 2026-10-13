@@ -1,0 +1,56 @@
+# source: fleet rescan, one Intel X722 Ethernet port of 6 with these counter files
+# model: Intel X722
+# driver: i40e
+# pci: 8086:37d2
+# kernel: 6.8.0-146-generic
+# ports: 6
+# firmware-seen: 0.2
+fw_ver=0.2
+node_type=4: RNIC
+ports/1/link_layer=Ethernet
+ports/1/phys_state=5: LinkUp
+ports/1/rate=10 Gb/sec (1X FDR10)
+ports/1/state=4: ACTIVE
+ports/1/hw_counters/RxUDP=0
+ports/1/hw_counters/TxUDP=0
+ports/1/hw_counters/ip4InDiscards=0
+ports/1/hw_counters/ip4InMcastOctets=0
+ports/1/hw_counters/ip4InMcastPkts=0
+ports/1/hw_counters/ip4InOctets=0
+ports/1/hw_counters/ip4InPkts=0
+ports/1/hw_counters/ip4InReasmRqd=0
+ports/1/hw_counters/ip4InTruncatedPkts=0
+ports/1/hw_counters/ip4OutMcastOctets=0
+ports/1/hw_counters/ip4OutMcastPkts=0
+ports/1/hw_counters/ip4OutNoRoutes=0
+ports/1/hw_counters/ip4OutOctets=0
+ports/1/hw_counters/ip4OutPkts=0
+ports/1/hw_counters/ip4OutSegRqd=0
+ports/1/hw_counters/ip6InDiscards=0
+ports/1/hw_counters/ip6InMcastOctets=0
+ports/1/hw_counters/ip6InMcastPkts=0
+ports/1/hw_counters/ip6InOctets=0
+ports/1/hw_counters/ip6InPkts=0
+ports/1/hw_counters/ip6InReasmRqd=0
+ports/1/hw_counters/ip6InTruncatedPkts=0
+ports/1/hw_counters/ip6OutMcastOctets=0
+ports/1/hw_counters/ip6OutMcastPkts=0
+ports/1/hw_counters/ip6OutNoRoutes=0
+ports/1/hw_counters/ip6OutOctets=0
+ports/1/hw_counters/ip6OutPkts=0
+ports/1/hw_counters/ip6OutSegRqd=0
+ports/1/hw_counters/iwInRdmaReads=0
+ports/1/hw_counters/iwInRdmaSends=0
+ports/1/hw_counters/iwInRdmaWrites=0
+ports/1/hw_counters/iwOutRdmaReads=0
+ports/1/hw_counters/iwOutRdmaSends=0
+ports/1/hw_counters/iwOutRdmaWrites=0
+ports/1/hw_counters/iwRdmaBnd=0
+ports/1/hw_counters/iwRdmaInv=0
+ports/1/hw_counters/lifespan=10
+ports/1/hw_counters/rxVlanErrors=0
+ports/1/hw_counters/tcpInOptErrors=0
+ports/1/hw_counters/tcpInProtoErrors=0
+ports/1/hw_counters/tcpInSegs=0
+ports/1/hw_counters/tcpOutSegs=0
+ports/1/hw_counters/tcpRetransSegs=0

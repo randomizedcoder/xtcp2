@@ -1,0 +1,60 @@
+# source: fleet rescan, one Intel E810-XXV Ethernet port of 4 with these counter files
+# model: Intel E810-XXV
+# driver: ice
+# pci: 8086:159b
+# kernel: 7.0.0-28-generic
+# ports: 4
+# firmware-seen: 1.53 1.74
+fw_ver=1.53
+node_type=1: CA
+ports/1/link_layer=Ethernet
+ports/1/phys_state=5: LinkUp
+ports/1/rate=25 Gb/sec (1X EDR)
+ports/1/state=4: ACTIVE
+ports/1/hw_counters/InOptErrors=0
+ports/1/hw_counters/InProtoErrors=0
+ports/1/hw_counters/InRdmaReads=0
+ports/1/hw_counters/InRdmaSends=0
+ports/1/hw_counters/InRdmaWrites=0
+ports/1/hw_counters/InSegs=0
+ports/1/hw_counters/OutRdmaReads=0
+ports/1/hw_counters/OutRdmaSends=0
+ports/1/hw_counters/OutRdmaWrites=0
+ports/1/hw_counters/OutSegs=0
+ports/1/hw_counters/RdmaBnd=0
+ports/1/hw_counters/RdmaInv=0
+ports/1/hw_counters/RetransSegs=0
+ports/1/hw_counters/RxECNMrkd=0
+ports/1/hw_counters/RxUDP=151
+ports/1/hw_counters/TxUDP=0
+ports/1/hw_counters/cnpHandled=0
+ports/1/hw_counters/cnpIgnored=0
+ports/1/hw_counters/cnpSent=0
+ports/1/hw_counters/ip4InDiscards=1
+ports/1/hw_counters/ip4InMcastOctets=0
+ports/1/hw_counters/ip4InMcastPkts=0
+ports/1/hw_counters/ip4InOctets=395
+ports/1/hw_counters/ip4InPkts=1
+ports/1/hw_counters/ip4InReasmRqd=0
+ports/1/hw_counters/ip4InTruncatedPkts=0
+ports/1/hw_counters/ip4OutMcastOctets=0
+ports/1/hw_counters/ip4OutMcastPkts=0
+ports/1/hw_counters/ip4OutNoRoutes=0
+ports/1/hw_counters/ip4OutOctets=0
+ports/1/hw_counters/ip4OutPkts=0
+ports/1/hw_counters/ip4OutSegRqd=0
+ports/1/hw_counters/ip6InDiscards=0
+ports/1/hw_counters/ip6InMcastOctets=0
+ports/1/hw_counters/ip6InMcastPkts=0
+ports/1/hw_counters/ip6InOctets=0
+ports/1/hw_counters/ip6InPkts=0
+ports/1/hw_counters/ip6InReasmRqd=0
+ports/1/hw_counters/ip6InTruncatedPkts=0
+ports/1/hw_counters/ip6OutMcastOctets=0
+ports/1/hw_counters/ip6OutMcastPkts=0
+ports/1/hw_counters/ip6OutNoRoutes=0
+ports/1/hw_counters/ip6OutOctets=0
+ports/1/hw_counters/ip6OutPkts=0
+ports/1/hw_counters/ip6OutSegRqd=0
+ports/1/hw_counters/lifespan=10
+ports/1/hw_counters/rxVlanErrors=0

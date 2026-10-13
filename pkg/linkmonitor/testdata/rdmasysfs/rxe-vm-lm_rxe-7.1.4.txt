@@ -1,0 +1,26 @@
+# source: rxe-vm
+# device: lm_rxe port 1
+# kernel: 7.1.4
+# driver: unknown
+fw_ver=
+node_type=1: CA
+ports/1/link_layer=Ethernet
+ports/1/phys_state=5: LinkUp
+ports/1/rate=10 Gb/sec (1X FDR10)
+ports/1/state=4: ACTIVE
+ports/1/hw_counters/ack_deferred=0
+ports/1/hw_counters/completer_retry_err=0
+ports/1/hw_counters/duplicate_request=0
+ports/1/hw_counters/lifespan=10
+ports/1/hw_counters/link_downed=0
+ports/1/hw_counters/out_of_seq_request=0
+ports/1/hw_counters/rcvd_pkts=0
+ports/1/hw_counters/rcvd_rnr_err=0
+ports/1/hw_counters/rcvd_seq_err=0
+ports/1/hw_counters/rdma_recvs=0
+ports/1/hw_counters/rdma_sends=0
+ports/1/hw_counters/retry_exceeded_err=0
+ports/1/hw_counters/retry_rnr_exceeded_err=0
+ports/1/hw_counters/send_err=0
+ports/1/hw_counters/send_rnr_err=0
+ports/1/hw_counters/sent_pkts=0

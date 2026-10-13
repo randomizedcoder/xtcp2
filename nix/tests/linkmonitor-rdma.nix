@@ -50,6 +50,7 @@ in
     go build -tags rdma -trimpath -o "$out/bin/linkmonitor-smoke" ./nix/tests/linkmonitor-smoke
     go test -tags rdma,rdma_vm -c -o "$out/bin/rdma-vm.test" ./pkg/linkmonitor
     go test -tags rdma,ionic_vm -c -o "$out/bin/ionic-vm.test" ./pkg/linkmonitor
+    go test -tags rdma,ionic_vm -c -o "$out/bin/ionic-vm-events.test" ./pkg/linkmonitor/internal/rdmaevents
     go test -tags nlrecord -c -o "$out/bin/linuxio-nlrecord.test" ./pkg/linkmonitor/internal/linuxio
     ln -s ${runtime} "$out/runtime"
     readelf -d "$out/bin/linkmonitor-smoke" > "$out/elf.txt"

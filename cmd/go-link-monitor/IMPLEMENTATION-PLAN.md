@@ -564,6 +564,78 @@ shape adds a `TestLiveRequestShapes` row and a recording. An unexplained
 `collection_healthy=0` or collector error on a test host is a failure to root
 cause, never a note.
 
+### P14 — Real-driver RDMA coverage
+
+P13 left three RDMA paths proven only against fakes: `rdma_counters` (ionic
+had no counter group, and unit tests used a synthetic tree), verbs async-event
+delivery, and QPs carrying traffic. rocm-ernic gains hardware statistics
+(ROCm/rocm-ernic#222) so the real `ionic_rdma` driver publishes `hw_counters`,
+and xtcp2 pins a fork integration branch until the upstream PRs merge.
+
+#### P14-T01
+
+**Real sysfs counter fixtures.** Depends on: [P13-T04](#p13-t04).
+
+Deliver: `testdata/rdmasysfs/capture.sh`, a read-only capture of one port's
+attributes and counter groups as `path=value` lines; snapshots from host `l`
+(mlx5), the ionic guest and the rxe guest, captured by the VMs and installed
+by `--promote`; `TestRDMACountersRealSysfs` rebuilding each snapshot under the
+real link layer and collecting it.
+
+Done when: Every cataloged file in a snapshot is one sample at its catalog
+scale, every uncataloged file is named in its row, and the negative,
+boundary and corner rows (no groups, malformed and empty values, u64 and
+four-octet limits, uncataloged-only groups, lifespan) pass.
+
+#### P14-T02
+
+**Verbs async events on a real driver.** Depends on: [P14-T01](#p14-t01).
+
+Deliver: `TestIonicVerbsEvents` (tags `rdma,ionic_vm`) opening the ionic
+device through `rdmaevents.Open`/`Run`, and the VERBS_EVENTS step in
+`test-linkmonitor-ionic-vm`; the ionic collector table expecting
+`rdma_counters` supported.
+
+Done when: Link down and up each deliver exactly one Refresh for port 1,
+IPv6 address add and delete deliver Topology, an unrelated netdev delivers
+nothing, a fast flap delivers two Refresh in order and a repeated down one.
+
+#### P14-T03
+
+**Two-guest traffic.** Depends on: [P14-T02](#p14-t02).
+
+Deliver: `test-linkmonitor-ionic-pair-vm` on rocm-ernic's `ernic-pair-node`
+module: the monitor on node 1, RC ping-pong against node 2, counters scraped
+before and after.
+
+Done when: Traffic moves the device counters by at least the bytes sent,
+counters stay monotonic and `collector_errors_total` stays 0.
+
+#### P14-T04
+
+**ionic RES corpus with live QPs.** Depends on: [P14-T03](#p14-t03).
+
+Deliver: xtcpnl RDMA captures from the pair guest while traffic runs, so QPs
+are in RTS with a peer, decoded by the xtcpnl corpus tests.
+
+Done when: The ionic corpus decodes with no unknown attributes and its QP
+rows show RTS, RC and a remote QPN.
+
+#### P14-T05
+
+**Fleet counter fixtures.** Depends on: [P14-T01](#p14-t01).
+
+Deliver: `testdata/rdmasysfs/fleet-export.py`, which turns a fleet rescan's
+two sysfs samples into anonymized fixtures, one per distinct port shape, and
+a generated row table; `TestRDMACountersFleetSysfs`,
+`TestRDMACountersFleetReadErrors` and `TestRDMARateFleet`.
+
+Done when: Every fixture is supported and keeps every cataloged readable
+counter; unreadable files are skipped and pruned from the schema; t0 to t1
+counters are monotonic and under the link rate; bulk InfiniBand traces pin
+the four-octet data scale; reverting the skip, the pruning or the scale fails
+named rows.
+
 ## Verification and evidence requirements
 
 Use the repository's flake-pinned tools and actual working-tree sources,

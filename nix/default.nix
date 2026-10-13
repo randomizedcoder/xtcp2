@@ -834,6 +834,14 @@ in
         ernicModule = rocmErnic.nixosModules.ernic-guest;
         ernicRun = rocmErnic.packages.${pkgs.stdenv.hostPlatform.system}.ernic-run;
       };
+      test-linkmonitor-ionic-faults-vm = import ./microvms/linkmonitor-ionic.nix {
+        inherit pkgs lib nixpkgs;
+        artifact = tests.test-linkmonitor-rdma-build;
+        monitor = linkmonitorPackages.go-link-monitor;
+        ernicModule = rocmErnic.nixosModules.ernic-guest;
+        ernicRun = rocmErnic.packages.${pkgs.stdenv.hostPlatform.system}.ernic-run;
+        faults = true;
+      };
       microvm-x86_64 = microvms.vms.x86_64;
       microvm-x86_64-coverage = microvms.vmsCoverage.x86_64;
       microvm-x86_64-coverage-iouring = microvms.vmsCoverageIoUring.x86_64;

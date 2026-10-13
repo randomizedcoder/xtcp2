@@ -16,10 +16,13 @@ type rdmaOptionalCollector struct {
 	workerCollector
 	files rdmaFilesystem
 	query func(context.Context, string, uint32) (rdmacaps.Capabilities, error)
+	// read reads one counter file; tests substitute per-file errors that a
+	// temporary directory cannot produce.
+	read func(context.Context, string) (string, error)
 }
 
 func newRDMAOptionalCollector(base workerCollector, files rdmaFilesystem) *rdmaOptionalCollector {
-	return &rdmaOptionalCollector{workerCollector: base, files: files, query: rdmacaps.Query}
+	return &rdmaOptionalCollector{workerCollector: base, files: files, query: rdmacaps.Query, read: rdmaScalar}
 }
 
 func (c *rdmaOptionalCollector) Collect(ctx context.Context, job model.Job) model.Result {

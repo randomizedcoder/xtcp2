@@ -116,6 +116,20 @@ rescan, and the same events again after replug. `--promote` copies the
 recordings into `testdata/nlrecord/ionic-vm/<kernel>/`. It does not establish
 verbs async-event delivery (the monitor exports no per-event counter) or
 physical NIC behavior.
+The same guest with injected faults checks the monitor's loss counters
+against an exact model:
+
+```sh
+nix run path:.#test-linkmonitor-ionic-faults-vm     # evidence under $TMPDIR
+```
+
+rocm-ernic drops every 10th received frame as if no buffer were posted and
+every 10th transmitted frame after completing it, and fails the second
+`STATS_VALS`. The guest pings a TAP peer in an unprivileged network namespace
+and requires `interface_*_dropped_total`, `interface_receive_over_errors_total`
+and the per-queue `ethtool_statistic` sums to equal sysfs and satisfy
+dropped == (passed + dropped) / 10. The runner's socket path must fit in
+`sun_path`, so keep `$TMPDIR` short.
 The runtime check enumerates devices without opening hardware contexts and
 explicitly does not establish physical RDMA behavior. P07-T03 adds a linked
 UMAD test executable, C allocation/agent/fd ownership tables and a pinned

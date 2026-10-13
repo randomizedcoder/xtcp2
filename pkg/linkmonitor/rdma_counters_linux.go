@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"math"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"syscall"
@@ -24,16 +25,25 @@ func (c *rdmaOptionalCollector) counters(ctx context.Context, job model.Job) ([]
 		}
 	}
 	samples := make([]model.Sample, 0, min(maximumSamples, len(schema.Names)+len(job.RDMA.Ports)+len(job.RDMA.InfoDevices)))
+	// kept is a pruned copy of schema once a file proves unavailable, so later
+	// polls do not read it again; the shared schema itself is never modified.
+	var kept *model.StatisticSchema
 	offset := 0
 	for index := range job.RDMA.Ports {
 		p := job.RDMA.Ports[index]
 		err := c.guard(ctx, p, func(path string) error {
-			for offset < len(schema.Names) && schema.Selected[offset] == index {
+			for ; offset < len(schema.Names) && schema.Selected[offset] == index; offset++ {
 				if len(samples) == maximumSamples {
 					return linuxio.ErrLimit
 				}
 				name := schema.Names[offset]
-				text, err := rdmaScalar(ctx, filepath.Join(path, name))
+				text, err := c.read(ctx, filepath.Join(path, name))
+				if rdmaCounterUnavailable(err) {
+					if kept == nil {
+						kept = &model.StatisticSchema{Names: slices.Clone(schema.Names[:offset]), Selected: slices.Clone(schema.Selected[:offset]), Labels: slices.Clone(schema.Labels[:offset])}
+					}
+					continue
+				}
 				if err != nil {
 					return err
 				}
@@ -42,7 +52,9 @@ func (c *rdmaOptionalCollector) counters(ctx context.Context, job model.Job) ([]
 					return err
 				}
 				samples = append(samples, sample)
-				offset++
+				if kept != nil {
+					kept.Names, kept.Selected, kept.Labels = append(kept.Names, name), append(kept.Selected, index), append(kept.Labels, schema.Labels[offset])
+				}
 			}
 			metadata, err := c.portMetadata(ctx, path, p, job.RDMA.InfoDevices)
 			if err != nil {
@@ -58,7 +70,19 @@ func (c *rdmaOptionalCollector) counters(ctx context.Context, job model.Job) ([]
 			return nil, nil, err
 		}
 	}
+	if kept != nil {
+		return samples, kept, nil
+	}
 	return samples, schema, nil
+}
+
+// rdmaCounterUnavailable reports a counter file the kernel lists but cannot
+// read on this port. mlx5 answers EINVAL for the PortCounters error fields on
+// some ConnectX-7 InfiniBand ports (firmware ACCESS_REG 0x805 "bad
+// operation"); node_exporter's procfs skips the same errors. Other errors,
+// including a vanished file or a permission failure, still fail the set.
+func rdmaCounterUnavailable(err error) bool {
+	return errors.Is(err, syscall.EINVAL) || errors.Is(err, syscall.EOPNOTSUPP)
 }
 
 func (c *rdmaOptionalCollector) counterSchema(ctx context.Context, ports []model.RDMAPort) (*model.StatisticSchema, error) {

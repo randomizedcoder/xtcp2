@@ -1,0 +1,17 @@
+# source: ionic-vm
+# device: ionic_0 port 1
+# kernel: 7.1.4
+# driver: ionic
+fw_ver=rocm-ernic-1.0
+hca_type=AMD Pensando RoCE HCA
+node_type=1: CA
+ports/1/link_layer=Ethernet
+ports/1/phys_state=5: LinkUp
+ports/1/rate=100 Gb/sec (4X EDR)
+ports/1/state=4: ACTIVE
+ports/1/hw_counters/commands=9
+ports/1/hw_counters/lifespan=10
+ports/1/hw_counters/total_bytes_rdma_read=0
+ports/1/hw_counters/total_bytes_rdma_write=0
+ports/1/hw_counters/total_bytes_received=0
+ports/1/hw_counters/total_bytes_sent=0
