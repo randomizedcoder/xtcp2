@@ -17,9 +17,14 @@ type Health struct {
 // Do not retain an unbounded history: readers keep the backing state alive.
 type Snapshot struct{ root *snapshotRoot }
 
+// exemption is a matched maximum-speed exception for one device lifetime.
+type exemption struct {
+	generation, expectedBits uint64
+}
+
 type snapshotRoot struct {
 	exceptions          []exceptionResolution
-	exemptions          map[string]uint64
+	exemptions          map[string]exemption
 	resyncs             [4][2]uint64
 	descriptors         *descriptorCatalog
 	version, namespace  uint64
@@ -131,6 +136,7 @@ type DeviceView struct {
 	up, upKnown                                           bool
 	eligibility                                           model.Eligibility
 	maximumSpeed, maximumWidth, fullDuplex, rdmaReadiness model.Check
+	activeBits                                            model.Optional[uint64]
 	upTransitions, downTransitions                        uint64
 	collectors                                            *[model.CollectorNetstat + 1]*collectorSnapshot
 }

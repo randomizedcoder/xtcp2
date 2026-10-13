@@ -21,6 +21,7 @@ func fixedDescriptors() map[string]*client.Desc {
 		"resyncs_total": {reasonLabel, "result"},
 		"interface_up":  {interfaceLabel}, "interface_check": {interfaceLabel, "check", statusLabel},
 		"interface_classification": {interfaceLabel, statusLabel}, "interface_max_speed_exception": {interfaceLabel},
+		"interface_expected_speed_bits_per_second": {interfaceLabel},
 		"max_speed_exception_match":                {"selector", statusLabel},
 		"observed_oper_transitions_total":          {interfaceLabel, "direction"},
 		"collector_support":                        {interfaceLabel, collectorLabel, statusLabel},
@@ -98,6 +99,9 @@ func (e emitter) device(s linkmonitor.Snapshot, d linkmonitor.DeviceView) {
 		e.gauge("interface_up", boolean(up), name)
 	}
 	e.gauge("interface_max_speed_exception", boolean(s.MaximumSpeedException(d)), name)
+	if bits, ok := s.ExpectedSpeed(d); ok {
+		e.gauge("interface_expected_speed_bits_per_second", float64(bits), name)
+	}
 	checks := [...]linkmonitor.CheckStatus{d.MaximumSpeedCheck(), d.FullDuplexCheck(), d.MaximumWidthCheck()}
 	for i, check := range [...]string{"max_speed", "full_duplex", "max_width"} {
 		for j, status := range [...]string{unknownStatus, "pass", "fail", "not_applicable"} {

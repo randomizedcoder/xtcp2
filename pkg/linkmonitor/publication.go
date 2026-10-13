@@ -15,6 +15,7 @@ type devicePage [devicesPerPage]*deviceBlock
 
 type deviceChecks struct {
 	maximumSpeed, maximumWidth, fullDuplex, rdmaReadiness model.Check
+	activeBits                                            model.Optional[uint64] // speed the maximumSpeed check measured
 }
 
 type deviceBlock struct {
@@ -149,7 +150,7 @@ func freezeDevice(slot *deviceSlot) *deviceBlock {
 			identity: identity, name: name, generation: d.Token.Generation,
 			up: d.Up.Value, upKnown: d.Up.Present, eligibility: d.Eligibility,
 			maximumSpeed: checks.maximumSpeed, maximumWidth: checks.maximumWidth,
-			fullDuplex: checks.fullDuplex, rdmaReadiness: checks.rdmaReadiness,
+			fullDuplex: checks.fullDuplex, rdmaReadiness: checks.rdmaReadiness, activeBits: checks.activeBits,
 			upTransitions: slot.upTransitions, downTransitions: slot.downTransitions,
 		},
 		observed: slot.observed,

@@ -21,11 +21,13 @@ func (r *reducer) setChecks(job model.Job, checks deviceChecks) bool {
 			return false
 		}
 		slot.checks.maximumSpeed, slot.checks.fullDuplex = checks.maximumSpeed, checks.fullDuplex
+		slot.checks.activeBits = checks.activeBits
 	case model.CollectorRDMACapabilities:
 		if slot.device.Key.Kind != model.DeviceNativeRDMA {
 			return false
 		}
 		slot.checks.maximumSpeed, slot.checks.maximumWidth = checks.maximumSpeed, checks.maximumWidth
+		slot.checks.activeBits = checks.activeBits
 	case model.CollectorRDMAState:
 		if !slot.requiresRDMA {
 			return false
@@ -43,15 +45,18 @@ func invalidateChecks(slot *deviceSlot, kind model.CollectorKind) {
 	case model.CollectorSettings:
 		if slot.device.Key.Kind == model.DeviceEthernet {
 			slot.checks.maximumSpeed, slot.checks.fullDuplex = model.CheckUnknown, model.CheckUnknown
+			slot.checks.activeBits = model.Optional[uint64]{}
 		}
 	case model.CollectorRDMAState:
 		slot.checks.rdmaReadiness = model.CheckUnknown
 		if slot.device.Key.Kind == model.DeviceNativeRDMA && !slot.collectors[kind].fresh {
 			slot.checks.maximumSpeed, slot.checks.maximumWidth = model.CheckUnknown, model.CheckUnknown
+			slot.checks.activeBits = model.Optional[uint64]{}
 		}
 	case model.CollectorRDMACapabilities:
 		if slot.device.Key.Kind == model.DeviceNativeRDMA {
 			slot.checks.maximumSpeed, slot.checks.maximumWidth = model.CheckUnknown, model.CheckUnknown
+			slot.checks.activeBits = model.Optional[uint64]{}
 		}
 	default:
 		return // Other sources do not own negotiated-link policy.
@@ -100,6 +105,11 @@ func effectiveChecks(slot *deviceSlot) deviceChecks {
 		} else {
 			checks.fullDuplex = model.CheckNotApplicable
 		}
+	}
+	// The speed is only as current as the check that measured it: a stale,
+	// unknown or down link has none to compare with an expected speed.
+	if checks.maximumSpeed != model.CheckPass && checks.maximumSpeed != model.CheckFail {
+		checks.activeBits = model.Optional[uint64]{}
 	}
 	return checks
 }

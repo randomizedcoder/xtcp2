@@ -85,14 +85,31 @@ func (s Snapshot) RangeExceptions(visit func(selector, status string) bool) {
 	}
 }
 
-// MaximumSpeedException reports whether this device lifetime has a matched exemption.
+// MaximumSpeedException reports whether this device lifetime has a matched
+// exemption. An exemption with an expected speed holds only while the link is
+// up at exactly that speed, so a link that falls further is reported again.
 // Raw speed and width checks are not changed by an exemption.
 func (s Snapshot) MaximumSpeedException(d DeviceView) bool {
-	if s.root == nil {
+	expectedBits, matched := s.exemption(d)
+	if !matched {
 		return false
 	}
-	generation, matched := s.root.exemptions[d.identity]
-	return matched && generation == d.generation
+	return expectedBits == 0 || (d.activeBits.Present && d.activeBits.Value == expectedBits)
+}
+
+// ExpectedSpeed returns the speed a matched exception expects of this device
+// lifetime, in bits per second. It is absent for bare-name exceptions.
+func (s Snapshot) ExpectedSpeed(d DeviceView) (uint64, bool) {
+	expectedBits, matched := s.exemption(d)
+	return expectedBits, matched && expectedBits != 0
+}
+
+func (s Snapshot) exemption(d DeviceView) (uint64, bool) {
+	if s.root == nil {
+		return 0, false
+	}
+	entry, matched := s.root.exemptions[d.identity]
+	return entry.expectedBits, matched && entry.generation == d.generation
 }
 
 func (r *snapshotRoot) freezeExceptions(previous *snapshotRoot, entries []exceptionResolution) {
@@ -101,10 +118,10 @@ func (r *snapshotRoot) freezeExceptions(previous *snapshotRoot, entries []except
 		return
 	}
 	r.exceptions = slices.Clone(entries)
-	r.exemptions = make(map[string]uint64, len(entries))
+	r.exemptions = make(map[string]exemption, len(entries))
 	for _, entry := range entries {
 		if entry.status == exceptionMatched {
-			r.exemptions[deviceIdentity(entry.target.key)] = entry.target.generation
+			r.exemptions[deviceIdentity(entry.target.key)] = exemption{entry.target.generation, entry.expectedBits}
 		}
 	}
 }

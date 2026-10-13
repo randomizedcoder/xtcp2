@@ -135,7 +135,7 @@ func settingsSamples(up model.Optional[bool], m *xtcpnl.EthtoolLinkModes) ([]mod
 		}
 	}
 	result = append(result, interfaceGauge("duplex_info", 1, model.Label{Name: "duplex", Value: duplex}, model.Label{Name: "source", Value: "ethtool"}))
-	return result, &model.SettingsChecks{Speed: checks.speed, Duplex: checks.duplex}
+	return result, &model.SettingsChecks{Speed: checks.speed, Duplex: checks.duplex, ActiveBits: checks.activeBits}
 }
 
 func modeSamples(m *xtcpnl.EthtoolLinkModes) []model.Sample {

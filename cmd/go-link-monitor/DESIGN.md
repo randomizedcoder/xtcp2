@@ -193,7 +193,8 @@ channels or PHY statistics. Those collectors are not applicable on that transpor
 
 ## Maximum-speed exceptions
 
-`-max-speed-exceptions` accepts a comma-separated list of exact interface names;
+`-max-speed-exceptions` accepts a comma-separated list of exact interface names,
+each optionally paired with the speed it is expected to run at;
 `GO_LINK_MONITOR_MAX_SPEED_EXCEPTIONS` supplies the same list when the flag is not
 explicitly present. Default is empty. An explicitly supplied flag replaces the
 whole environment value, including an empty flag clearing it. Trim surrounding
@@ -209,6 +210,25 @@ do not exempt anything: emit match status and a warning, and keep monitoring.
 Exceptions do not follow interface renames automatically; resolved targets are
 re-evaluated against current names, never remembered solely by reused ifindex.
 
+Pair a selector with its expected speed as `NAME=SPEED`: `eno1=1G` says eno1 is
+known to link at 1 Gb/s, below its maximum, for example on a 1GE-only switch.
+SPEED is Mb/s as ethtool reports it (`1000`), or a number with an `M` or `G`
+suffix (`100M`, `2.5G`; G takes up to three decimals). It must be 1 Mb/s to
+10 Tb/s and is matched against the active speed that
+`interface_speed_bits_per_second` reports. The name is split off at the last
+`=`, so a name containing `=` needs a speed. Selectors are stored canonically
+(`eno1=1000` becomes `eno1=1G`, `eno1=2.5G` becomes `eno1=2500M`); a name given
+twice must agree on its speed, and a bare name conflicts with a paired one.
+
+A paired exception exempts the port only while it is up at exactly the expected
+speed. If the link falls further (1G to 100M), rises above the expected speed
+without reaching the maximum, goes down or has no current speed, the exemption
+lapses and the speed alert fires again. At the maximum the raw check passes on
+its own. `interface_expected_speed_bits_per_second` exposes the configured speed
+for each matched paired selector. A bare name keeps its original meaning, any
+speed below the maximum, so existing configurations are unchanged; prefer the
+paired form, which still catches a link that degrades further.
+
 An exception permits a known below-maximum speed (including the corresponding
 native IB maximum-width policy). It does not exempt link-down/count changes,
 RDMA readiness, duplex failure, missing/unknown capability data, collector health
@@ -218,8 +238,8 @@ width alert expressions. Do not replace the reported hardware maximum with a
 configured speed, or record exceptions in the count baseline.
 
 ```sh
-go-link-monitor -max-speed-exceptions=eno1,ib0
-GO_LINK_MONITOR_MAX_SPEED_EXCEPTIONS=ens6f0,rdma:mlx5_0:1 go-link-monitor
+go-link-monitor -max-speed-exceptions=eno1=1G,ib0=100G
+GO_LINK_MONITOR_MAX_SPEED_EXCEPTIONS=ens6f0=10G,rdma:mlx5_0:1 go-link-monitor
 ```
 
 ## Baseline lifecycle
@@ -464,7 +484,7 @@ Standalone command flags:
 | `-stats-include` | `.*` | Original driver/PHY names to include |
 | `-stats-exclude` | `^$` | Original names to exclude; exclusion wins |
 | `-collector.netstat.fields` | `.*` | Case-sensitive Go regexp on protocol_field; all host protocol fields by default |
-| `-max-speed-exceptions` | empty | Exact names/selectors; overrides GO_LINK_MONITOR_MAX_SPEED_EXCEPTIONS when present |
+| `-max-speed-exceptions` | empty | Exact names/selectors, each optionally `=SPEED`; overrides GO_LINK_MONITOR_MAX_SPEED_EXCEPTIONS when present |
 | `-metrics.core-include` | core audit pattern | Anchored regexp of metric names served on `/metrics`; overrides GO_LINK_MONITOR_METRICS_CORE_INCLUDE |
 | `-metrics.core-exclude` | empty | Anchored regexp removed from `/metrics`, empty removes nothing; overrides GO_LINK_MONITOR_METRICS_CORE_EXCLUDE |
 | `-metrics-all-path` | `/metrics-all` | Exact path serving every metric, empty disables; overrides GO_LINK_MONITOR_METRICS_ALL_PATH |

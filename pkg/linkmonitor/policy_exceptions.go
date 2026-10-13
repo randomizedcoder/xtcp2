@@ -22,14 +22,17 @@ const (
 )
 
 type exceptionResolution struct {
-	selector string
-	status   exceptionStatus
-	target   exceptionTarget
+	selector     string
+	status       exceptionStatus
+	target       exceptionTarget
+	expectedBits uint64 // 0: any speed is exempt
 }
 
 // Resolve against each current inventory, never a saved ifindex-to-name mapping.
 // Duplicate aliases of the same lifetime are harmless; different targets are
 // ambiguous and exempt neither. Matching alone never changes the raw checks.
+// Selectors are canonical (see normalizeExceptions); one with an expected
+// speed is looked up by its name and carries that speed.
 func resolveExceptions(selectors []string, inventory []exceptionDevice) []exceptionResolution {
 	index := make(map[string]exceptionResolution)
 	for i := range inventory {
@@ -48,8 +51,12 @@ func resolveExceptions(selectors []string, inventory []exceptionDevice) []except
 	}
 	result := make([]exceptionResolution, len(selectors))
 	for i, selector := range selectors {
-		result[i] = index[selector]
-		result[i].selector = selector
+		name, expectedBits, err := parseException(selector)
+		if err != nil {
+			name, expectedBits = selector, 0 // never matches an inventory name
+		}
+		result[i] = index[name]
+		result[i].selector, result[i].expectedBits = selector, expectedBits
 	}
 	return result
 }

@@ -54,6 +54,28 @@ func (f *PrometheusFixture) samples(key model.JobKey, samples []model.Sample) er
 	return err
 }
 
+// Speed completes an Ethernet settings collection that measured activeMbps
+// on a port whose maximum is maximumMbps, installing its checks as the
+// scheduler does.
+func (f *PrometheusFixture) Speed(index uint32, activeMbps, maximumMbps uint64) {
+	f.t.Helper()
+	key := model.JobKey{Namespace: 1, Collector: model.CollectorSettings,
+		Device: model.DeviceKey{Namespace: 1, Kind: model.DeviceEthernet, Index: index}}
+	stamp := model.Stamp{Wall: time.Unix(10, 500000000), Monotonic: f.now}
+	job, err := f.r.startCollection(key, stamp)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	active := presentValue(activeMbps * 1_000_000)
+	settings := &model.SettingsChecks{Speed: equalCheck(activeMbps, maximumMbps), Duplex: model.CheckPass, ActiveBits: active}
+	if _, err := f.r.finishCollection(model.Result{Job: job, Finished: stamp, Support: model.Supported, Settings: settings}); err != nil {
+		f.t.Fatal(err)
+	}
+	if !f.r.setChecks(job, deviceChecks{maximumSpeed: settings.Speed, fullDuplex: settings.Duplex, activeBits: active}) {
+		f.t.Fatal("settings checks rejected")
+	}
+}
+
 // RDMA installs real state projections for two native ports or one shared RoCE link.
 func (f *PrometheusFixture) RDMA(native bool) {
 	f.t.Helper()

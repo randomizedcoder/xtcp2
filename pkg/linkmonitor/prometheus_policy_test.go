@@ -3,6 +3,8 @@ package linkmonitor_test
 import (
 	"testing"
 
+	dto "github.com/prometheus/client_model/go"
+
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor"
 )
 
@@ -109,4 +111,78 @@ func TestPrometheusBeforeInventoryAndDeletion(t *testing.T) {
 	if gathered(t, r)["go_link_monitor_interface_up"] != nil {
 		t.Fatal("deleted series retained")
 	}
+}
+
+func TestPrometheusExpectedSpeedException(t *testing.T) {
+	const absent = -1.0
+	for _, tc := range []struct {
+		name, category, description, expected string
+		selector                              string
+		up                                    bool
+		activeMbps, maximumMbps               uint64
+		check                                 string
+		exception, expectedBits               float64
+	}{
+		{"at expected", "positive", "1G link on a 10G port, exception eth0=1G", "max_speed fails, exempt, expected speed 1e9",
+			"eth0=1G", true, 1000, 10000, "fail", 1, 1e9},
+		{"below expected", "negative", "the same port fallen to 100M", "max_speed fails and is no longer exempt",
+			"eth0=1G", true, 100, 10000, "fail", 0, 1e9},
+		{"above expected", "negative", "2.5G, above the expected 1G but under the 10G maximum", "not exempt: the expected speed is stale",
+			"eth0=1G", true, 2500, 10000, "fail", 0, 1e9},
+		{"at maximum", "boundary", "link at its 10G maximum, exception eth0=10G", "max_speed passes, exempt",
+			"eth0=10G", true, 10000, 10000, "pass", 1, 1e10},
+		{"maximum not expected", "corner", "link at its 10G maximum, exception eth0=1G", "max_speed passes, so nothing alerts; not exempt",
+			"eth0=1G", true, 10000, 10000, "pass", 0, 1e9},
+		{"Mb/s granularity", "boundary", "2.5G link, exception eth0=2500M", "exempt at exactly 2.5e9",
+			"eth0=2500M", true, 2500, 10000, "fail", 1, 2.5e9},
+		{"bare name", "positive", "100M link, bare exception eth0", "exempt at any speed, no expected-speed series (unchanged)",
+			"eth0", true, 100, 10000, "fail", 1, absent},
+		{"down", "corner", "link down, exception eth0=1G", "max_speed not_applicable; no measured speed, so not exempt",
+			"eth0=1G", false, 1000, 10000, "not_applicable", 0, 1e9},
+		{"down bare", "corner", "link down, bare exception eth0", "exempt as before",
+			"eth0", false, 1000, 10000, "not_applicable", 1, absent},
+		{"unmatched", "negative", "exception for an interface that is not present", "no exemption, no expected-speed series",
+			"eth9=1G", true, 1000, 10000, "fail", 0, absent},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expected)
+			f := linkmonitor.NewPrometheusFixture(t)
+			f.Device(1, "eth0", tc.up)
+			f.Speed(1, tc.activeMbps, tc.maximumMbps)
+			f.Exceptions(tc.selector)
+			f.Publish(1)
+			families := gathered(t, monitorRegistry(t, f.Monitor))
+			check := ""
+			for _, metric := range families["go_link_monitor_interface_check"].GetMetric() {
+				if labelValue(metric, "check") == "max_speed" && metricValue(metric) == 1 {
+					check = labelValue(metric, "status")
+				}
+			}
+			exception := seriesValue(families["go_link_monitor_interface_max_speed_exception"], absent)
+			expectedBits := seriesValue(families["go_link_monitor_interface_expected_speed_bits_per_second"], absent)
+			if check != tc.check || exception != tc.exception || expectedBits != tc.expectedBits {
+				t.Fatalf("got max_speed %s, exception %v, expected speed %v; want %s, %v, %v",
+					check, exception, expectedBits, tc.check, tc.exception, tc.expectedBits)
+			}
+		})
+	}
+}
+
+func labelValue(metric *dto.Metric, name string) string {
+	for _, label := range metric.GetLabel() {
+		if label.GetName() == name {
+			return label.GetValue()
+		}
+	}
+	return ""
+}
+
+// seriesValue returns the one eth0 series of a family, or absent.
+func seriesValue(family *dto.MetricFamily, absent float64) float64 {
+	for _, metric := range family.GetMetric() {
+		if labelValue(metric, "interface") == "eth0" {
+			return metricValue(metric)
+		}
+	}
+	return absent
 }
