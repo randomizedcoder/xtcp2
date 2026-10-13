@@ -2064,3 +2064,30 @@ Full write-up, including the nine declared cross-format differences and the
 four mapping bugs the calibration found:
 [`docs/netlink/coverage-status.md`](docs/netlink/coverage-status.md) §"The
 twelve rows added for `-j` and the family selectors".
+
+---
+
+## 25. Checks 5d and 5f forked one `jq` per jsonl line — FIXED
+
+Found while verifying §10. Under host load, check 5d (OUTPUT_CONTENT) took
+325 s for 788 records at load ~45. In a run where POLL_STREAM ran long and the
+daemon's jsonl reached about 1640 records, 5d made no progress for more than
+600 s, close to `mkLifecycleFullTest`'s `stallSec = 600` watchdog.
+
+The loop forked a `printf` and a `jq` for every line. The file holds every
+record since boot, so a slow host had more lines by the time 5d ran *and* paid
+more for each fork, which is why the time grew faster than the record count.
+Check 5f (RAW_SOCKET) had the same loop over the socket-sink capture.
+
+Both now pipe their lines into `jsonl_tally`
+(`nix/microvms/self-test-jsonl-tally.nix`), one `jq -nR` pass that prints
+`<good> <bad>`. It is table-tested hermetically by
+`nix/checks/self-test-jsonl-tally.nix`. The verdicts match the old loop, with
+one deliberate tightening: a line holding two concatenated objects used to be
+judged by its last value, and is now malformed. If jq fails it prints nothing,
+and the callers' `${good:-0}` fails the check rather than passing it.
+
+After: HEALTH → OUTPUT_CONTENT took 1.75 s (107 records) at load ~60.
+
+The ifname, asn and locality checks already run one `jq` per file and are
+unchanged.

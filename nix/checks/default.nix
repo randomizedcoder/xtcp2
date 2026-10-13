@@ -64,6 +64,9 @@ in
   # The self-test's stream_until (nix/microvms/self-test-stream-until.nix),
   # driven against sh stand-ins for a streaming xtcp2client.
   self-test-stream-until = import ./self-test-stream-until.nix { inherit pkgs; };
+  # The self-test's jsonl_tally (nix/microvms/self-test-jsonl-tally.nix), the
+  # one-pass jsonl validator behind checks 5d and 5f.
+  self-test-jsonl-tally = import ./self-test-jsonl-tally.nix { inherit pkgs; };
   # proto-lint: NOT in the default check set. `buf lint` reaches out to
   # buf.build for module deps (protovalidate, googleapis), which the hermetic
   # Nix sandbox blocks. Run `buf lint` directly from `nix develop`, where buf

@@ -366,6 +366,10 @@ pkgs.writeShellApplication {
     # a ceiling. A pass costs the time to the first record; only a failing
     # stream waits out the budget. (nix/microvms/self-test-stream-until.nix)
     ${import ./self-test-stream-until.nix}
+    #
+    # Checks 5d and 5f validate jsonl in one jq pass, not one jq per line,
+    # whose cost grew with the run's length. (nix/microvms/self-test-jsonl-tally.nix)
+    ${import ./self-test-jsonl-tally.nix}
 
     uds_security_mode=${if runUdsSecurityCheck then "1" else "0"}
 
@@ -656,19 +660,13 @@ pkgs.writeShellApplication {
       cp "${fileOutputPath}" /tmp/xtcp2-out.snap 2>/dev/null || true
       total=$(wc -l < /tmp/xtcp2-out.snap 2>/dev/null || echo 0)
       total=''${total:-0}
-      good=0
-      bad=0
-      while IFS= read -r line; do
-        [ -z "$line" ] && continue
-        # protojson: camelCase keys, zero-values omitted, but hostname is
-        # always populated (x.hostname stamped on every record).
-        if printf '%s\n' "$line" \
-          | jq -e 'has("hostname") and (.hostname | length > 0)' >/dev/null 2>&1; then
-          good=$((good + 1))
-        else
-          bad=$((bad + 1))
-        fi
-      done < <(head -n "$total" /tmp/xtcp2-out.snap 2>/dev/null)
+      # One jq pass: the file holds every record since boot, so a per-line jq
+      # cost more the longer the run (325 s for 788 records at load ~45).
+      good=
+      bad=
+      read -r good bad < <(head -n "$total" /tmp/xtcp2-out.snap 2>/dev/null | jsonl_tally)
+      good=''${good:-0}
+      bad=''${bad:-0}
       if [ "$good" -ge 1 ] && [ "$bad" -eq 0 ]; then
         echo "XTCP2_SELF_TEST_OUTPUT_CONTENT_PASS  (jsonl records=$good, malformed=$bad)"
         check5d=0
@@ -1238,17 +1236,12 @@ pkgs.writeShellApplication {
       cp "${socketSinkFile}" /tmp/xtcp2-sink.snap 2>/dev/null || true
       total=$(wc -l < /tmp/xtcp2-sink.snap 2>/dev/null || echo 0)
       total=''${total:-0}
-      good=0
-      bad=0
-      while IFS= read -r obj; do
-        [ -z "$obj" ] && continue
-        if printf '%s\n' "$obj" \
-          | jq -e 'has("hostname") and (.hostname | length > 0)' >/dev/null 2>&1; then
-          good=$((good + 1))
-        else
-          bad=$((bad + 1))
-        fi
-      done < <(head -n "$total" /tmp/xtcp2-sink.snap 2>/dev/null | grep -aoE '\{.*\}')
+      good=
+      bad=
+      read -r good bad < <(head -n "$total" /tmp/xtcp2-sink.snap 2>/dev/null \
+        | grep -aoE '\{.*\}' | jsonl_tally)
+      good=''${good:-0}
+      bad=''${bad:-0}
       # good>=1 + counter>=1 is the proof; a few `bad` are tolerated (a varint
       # length byte can occasionally look like '{' on the unix stream framing).
       if [ "$good" -ge 1 ] && [ "''${writes:-0}" -ge 1 ] 2>/dev/null; then
