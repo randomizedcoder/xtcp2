@@ -14,7 +14,7 @@ const CoreMetricsPattern = "go_link_monitor_(" +
 	"build_info|up_links|baseline_up_links|up_links_delta|baseline_ready|collection_healthy|" +
 	"last_successful_resync_timestamp_seconds|" +
 	"interface_up|interface_check|interface_speed_bits_per_second|interface_max_speed_bits_per_second|" +
-	"interface_duplex_info|interface_max_speed_exception|max_speed_exception_match|" +
+	"interface_duplex_info|interface_max_speed_exception|interface_expected_speed_bits_per_second|max_speed_exception_match|" +
 	"rdma_port_up|rdma_port_check|" +
 	"observed_oper_transitions_total|interface_carrier_changes_total|" +
 	"interface_carrier_up_changes_total|interface_carrier_down_changes_total|" +

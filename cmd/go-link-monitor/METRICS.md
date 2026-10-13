@@ -62,7 +62,8 @@ These are new; there is no node_exporter equivalent with the same semantics.
 | `baseline_write_errors_total` | C / errors | none | M | Failed durable saves |
 | `interface_up` | G / boolean | interface | E | Ethernet predicate from DESIGN; native IB requires ACTIVE and LINK_UP; RoCE counted once |
 | `interface_check` | G / one-hot | interface,check,status | S | check=max_speed/full_duplex/max_width; status=pass/fail/unknown/not_applicable; emit all four with exactly one 1 |
-| `interface_max_speed_exception` | G / boolean | interface | M | 1 when a current exact selector exempts known max-speed/max-width failures; raw checks unchanged |
+| `interface_max_speed_exception` | G / boolean | interface | M | 1 when a current exact selector exempts known max-speed/max-width failures; a `NAME=SPEED` selector only while the link is up at exactly SPEED; raw checks unchanged |
+| `interface_expected_speed_bits_per_second` | G / bits/s | interface | M | the SPEED of a matched `NAME=SPEED` selector; absent for bare names and unmatched selectors |
 | `max_speed_exception_match` | G / one-hot | selector,status | M | status=matched/unmatched/ambiguous; configured selectors only |
 | `interface_classification` | G / one-hot | interface,status | E | status=included/excluded/unknown; diagnostic inventory including excluded devices |
 | `interface_driver_known` | G / boolean | interface | K | Driver identity available for diagnostics; not needed for cross-port speed comparison |
@@ -840,7 +841,8 @@ The default core include is
 - Port state and settings: `interface_up`, `interface_check`,
   `interface_speed_bits_per_second`, `interface_max_speed_bits_per_second`,
   `interface_duplex_info`, `interface_max_speed_exception`,
-  `max_speed_exception_match`, `rdma_port_up`, `rdma_port_check`
+  `interface_expected_speed_bits_per_second`, `max_speed_exception_match`,
+  `rdma_port_up`, `rdma_port_check`
 - Flaps: `observed_oper_transitions_total`, `interface_carrier_changes_total`,
   `interface_carrier_up_changes_total`, `interface_carrier_down_changes_total`
 - Link errors: `interface_receive_crc_errors_total`,
@@ -942,6 +944,8 @@ flap or collector-health rules. There is no same-driver speed mismatch metric or
 alert. Different-speed NICs sharing a driver each pass when at their own maximum.
 The exception selector is `-max-speed-exceptions` or
 `GO_LINK_MONITOR_MAX_SPEED_EXCEPTIONS`; explicit CLI (even empty) replaces env.
+A `NAME=SPEED` selector exempts only while the link runs at exactly SPEED, so
+the same alert expressions fire again if an excepted link degrades further.
 See [exception matching and examples](DESIGN.md#maximum-speed-exceptions).
 
 ## Documentation verification

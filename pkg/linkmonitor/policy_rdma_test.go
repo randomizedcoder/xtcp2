@@ -121,19 +121,23 @@ func TestExceptionResolution(t *testing.T) {
 		inventory                             []exceptionDevice
 		status                                exceptionStatus
 		target                                exceptionTarget
+		expectedBits                          uint64
 	}{
-		{"exact", "positive", "exact Ethernet name", "match current lifetime", "eno1", []exceptionDevice{{first, model.Eligible, []string{"eno1"}}}, exceptionMatched, first},
-		{"RDMA selector", "positive", "RoCE selector aliases underlying Ethernet", "match Ethernet", "rdma:mlx5_0:1", []exceptionDevice{{first, model.Eligible, []string{"eno1", "rdma:mlx5_0:1"}}}, exceptionMatched, first},
-		{"IPoIB alias", "positive", "unique IPoIB alias", "match canonical port", "ib0", []exceptionDevice{{first, model.Eligible, []string{"ib0", "ib0.8001"}}}, exceptionMatched, first},
-		{"ambiguous", "negative", "same alias points at two devices", "exempt neither", "ib0", []exceptionDevice{{first, model.Eligible, []string{"ib0"}}, {second, model.Eligible, []string{"ib0"}}}, exceptionAmbiguous, exceptionTarget{}},
-		{"unresolved", "negative", "name collides with unresolved identity", "exempt neither", "ib0", []exceptionDevice{{first, model.Eligible, []string{"ib0"}}, {second, model.EligibilityUnknown, []string{"ib0"}}}, exceptionAmbiguous, exceptionTarget{}},
-		{"rename", "corner", "same ifindex now has another name", "old exception no longer matches", "eno1", []exceptionDevice{{first, model.Eligible, []string{"eno2"}}}, exceptionUnmatched, exceptionTarget{}},
-		{"excluded", "negative", "exception names an excluded device", "unmatched", "eno1", []exceptionDevice{{first, model.Excluded, []string{"eno1"}}}, exceptionUnmatched, exceptionTarget{}},
+		{"exact", "positive", "exact Ethernet name", "match current lifetime", "eno1", []exceptionDevice{{first, model.Eligible, []string{"eno1"}}}, exceptionMatched, first, 0},
+		{"RDMA selector", "positive", "RoCE selector aliases underlying Ethernet", "match Ethernet", "rdma:mlx5_0:1", []exceptionDevice{{first, model.Eligible, []string{"eno1", "rdma:mlx5_0:1"}}}, exceptionMatched, first, 0},
+		{"IPoIB alias", "positive", "unique IPoIB alias", "match canonical port", "ib0", []exceptionDevice{{first, model.Eligible, []string{"ib0", "ib0.8001"}}}, exceptionMatched, first, 0},
+		{"ambiguous", "negative", "same alias points at two devices", "exempt neither", "ib0", []exceptionDevice{{first, model.Eligible, []string{"ib0"}}, {second, model.Eligible, []string{"ib0"}}}, exceptionAmbiguous, exceptionTarget{}, 0},
+		{"unresolved", "negative", "name collides with unresolved identity", "exempt neither", "ib0", []exceptionDevice{{first, model.Eligible, []string{"ib0"}}, {second, model.EligibilityUnknown, []string{"ib0"}}}, exceptionAmbiguous, exceptionTarget{}, 0},
+		{"rename", "corner", "same ifindex now has another name", "old exception no longer matches", "eno1", []exceptionDevice{{first, model.Eligible, []string{"eno2"}}}, exceptionUnmatched, exceptionTarget{}, 0},
+		{"excluded", "negative", "exception names an excluded device", "unmatched", "eno1", []exceptionDevice{{first, model.Excluded, []string{"eno1"}}}, exceptionUnmatched, exceptionTarget{}, 0},
+		{"expected speed", "positive", "selector with an expected speed", "match by name, carry 1e9", "eno1=1G", []exceptionDevice{{first, model.Eligible, []string{"eno1"}}}, exceptionMatched, first, 1_000_000_000},
+		{"RDMA expected speed", "positive", "RoCE selector with a speed", "match Ethernet, carry 1e11", "rdma:mlx5_0:1=100G", []exceptionDevice{{first, model.Eligible, []string{"eno1", "rdma:mlx5_0:1"}}}, exceptionMatched, first, 100_000_000_000},
+		{"speed unmatched", "negative", "selector with a speed for a missing name", "unmatched, still carries the speed", "eno9=1G", []exceptionDevice{{first, model.Eligible, []string{"eno1"}}}, exceptionUnmatched, exceptionTarget{}, 1_000_000_000},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expected)
 			got := resolveExceptions([]string{tc.selector}, tc.inventory)
-			if len(got) != 1 || got[0].selector != tc.selector || got[0].status != tc.status || got[0].target != tc.target {
+			if len(got) != 1 || got[0].selector != tc.selector || got[0].status != tc.status || got[0].target != tc.target || got[0].expectedBits != tc.expectedBits {
 				t.Fatalf("resolution = %+v", got)
 			}
 		})

@@ -86,20 +86,100 @@ func validateConfig(cfg Config) (configuration, error) {
 	return result, nil
 }
 
+// normalizeExceptions validates selectors and returns them in canonical form:
+// the bare name, or name=SPEED with SPEED in whole Gb/s or Mb/s. A name named
+// twice must agree on its expected speed.
 func normalizeExceptions(input []string) ([]string, error) {
 	result := make([]string, 0, len(input))
-	seen := make(map[string]struct{}, len(input))
+	seen := make(map[string]uint64, len(input))
 	for _, raw := range input {
-		name := strings.TrimSpace(raw)
-		if !validSelector(name) {
-			return nil, fmt.Errorf("invalid maximum-speed exception %q", raw)
+		name, expectedBits, err := parseException(strings.TrimSpace(raw))
+		if err != nil {
+			return nil, fmt.Errorf("invalid maximum-speed exception %q: %w", raw, err)
 		}
-		if _, exists := seen[name]; !exists {
-			result = append(result, name)
-			seen[name] = struct{}{}
+		previous, exists := seen[name]
+		if exists && previous != expectedBits {
+			return nil, fmt.Errorf("maximum-speed exception %q conflicts with an earlier entry for %s", raw, name)
+		}
+		if !exists {
+			result = append(result, formatException(name, expectedBits))
+			seen[name] = expectedBits
 		}
 	}
 	return result, nil
+}
+
+// parseException splits "name" or "name=SPEED" at the last '='. An expected
+// speed of zero means any speed, the bare-name meaning.
+func parseException(selector string) (name string, expectedBits uint64, err error) {
+	name = selector
+	if i := strings.LastIndexByte(selector, '='); i >= 0 {
+		name = selector[:i]
+		if expectedBits, err = parseSpeed(selector[i+1:]); err != nil {
+			return "", 0, err
+		}
+	}
+	if !validSelector(name) {
+		return "", 0, fmt.Errorf("not an exact interface name or rdma:DEVICE:PORT selector")
+	}
+	return name, expectedBits, nil
+}
+
+// maxExpectedMbps bounds an expected speed at 10 Tb/s, past any link today.
+const maxExpectedMbps = 10_000_000
+
+// parseSpeed reads Mb/s as ethtool reports it ("1000"), or a value with an M
+// or G suffix ("100M", "2.5G"). G allows up to three decimals, so every
+// value is a whole number of Mb/s; the result is in bits per second.
+func parseSpeed(text string) (uint64, error) {
+	digits, scale := text, uint64(1)
+	switch {
+	case strings.HasSuffix(text, "G"):
+		digits, scale = strings.TrimSuffix(text, "G"), 1000
+	case strings.HasSuffix(text, "M"):
+		digits = strings.TrimSuffix(text, "M")
+	}
+	whole, fraction, decimal := strings.Cut(digits, ".")
+	if decimal && (scale == 1 || fraction == "" || len(fraction) > 3) {
+		return 0, fmt.Errorf("speed %q: only G takes decimals, at most three", text)
+	}
+	if whole == "" || !allDigits(whole) || !allDigits(fraction) || (len(whole) > 1 && whole[0] == '0') {
+		return 0, fmt.Errorf("speed %q: want Mb/s, or a number with an M or G suffix", text)
+	}
+	units, err := strconv.ParseUint(whole, 10, 64)
+	if err != nil || units > maxExpectedMbps {
+		return 0, fmt.Errorf("speed %q: exceeds %d Mb/s", text, maxExpectedMbps)
+	}
+	mbps := units * scale
+	if fraction != "" {
+		// At most three digits, already checked, so this cannot fail.
+		part, err := strconv.ParseUint((fraction + "00")[:3], 10, 64)
+		if err != nil {
+			return 0, fmt.Errorf("speed %q: %w", text, err)
+		}
+		mbps += part
+	}
+	if mbps == 0 || mbps > maxExpectedMbps {
+		return 0, fmt.Errorf("speed %q: want 1 to %d Mb/s", text, maxExpectedMbps)
+	}
+	return mbps * 1_000_000, nil
+}
+
+func allDigits(text string) bool {
+	return !strings.ContainsFunc(text, func(r rune) bool { return r < '0' || r > '9' })
+}
+
+// formatException renders the canonical selector: whole gigabits as G,
+// anything else as M.
+func formatException(name string, expectedBits uint64) string {
+	if expectedBits == 0 {
+		return name
+	}
+	mbps := expectedBits / 1_000_000
+	if mbps%1000 == 0 {
+		return name + "=" + strconv.FormatUint(mbps/1000, 10) + "G"
+	}
+	return name + "=" + strconv.FormatUint(mbps, 10) + "M"
 }
 
 func validSelector(name string) bool {

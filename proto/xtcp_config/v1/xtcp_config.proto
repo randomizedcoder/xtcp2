@@ -399,7 +399,8 @@ message LinkMonitorConfig {
 	string netstat_fields                           = 8 [
 		(buf.validate.field).string = { max_len: 4096 }];
 
-	// Exact interface or RDMA port selectors allowed below maximum speed.
+	// Exact interface or RDMA port selectors allowed below maximum speed, each
+	// optionally NAME=SPEED to allow only that speed (e.g. eno1=1G).
 	repeated string max_speed_exceptions            = 9 [
 		(buf.validate.field).repeated = {
 			max_items: 256

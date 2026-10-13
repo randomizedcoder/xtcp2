@@ -202,4 +202,5 @@ type Result struct {
 // SettingsChecks accompanies the exact settings samples that established it.
 type SettingsChecks struct {
 	Speed, Duplex, Width Check
+	ActiveBits           Optional[uint64] // negotiated speed the Speed check measured
 }

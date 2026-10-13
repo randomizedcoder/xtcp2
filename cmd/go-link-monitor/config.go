@@ -50,7 +50,7 @@ func parseOptions(args []string, output io.Writer, getenv func(string) string) (
 	flags.StringVar(&opts.monitor.StatsExclude, "stats-exclude", opts.monitor.StatsExclude, "Driver/PHY names to exclude (regexp)")
 	flags.StringVar(&opts.monitor.NetstatFields, "collector.netstat.fields", opts.monitor.NetstatFields, "Host protocol fields (regexp)")
 	var exceptions string
-	flags.StringVar(&exceptions, "max-speed-exceptions", "", "Comma-separated exact selectors; overrides "+exceptionEnvironment)
+	flags.StringVar(&exceptions, "max-speed-exceptions", "", "Comma-separated exact selectors, each optionally NAME=SPEED (1G, 2500M); overrides "+exceptionEnvironment)
 	flags.StringVar(&opts.exposure.coreInclude, "metrics.core-include", defaultCoreInclude,
 		"Metric names served on "+metricsPath+" (anchored regexp); overrides "+coreIncludeEnvironment)
 	flags.StringVar(&opts.exposure.coreExclude, "metrics.core-exclude", "",

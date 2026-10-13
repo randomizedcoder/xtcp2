@@ -63,7 +63,7 @@ func rdmaCapabilitySamples(up model.Optional[bool], p model.RDMAPort, c rdmacaps
 		labels := append(rdmaLabels(p), model.Label{Name: "generation", Value: rdmaSpeedName(c.Active)})
 		samples = append(samples, model.Sample{Descriptor: "go_link_monitor_rdma_port_speed_info", Kind: model.SampleGauge, Number: model.Unsigned(1), Labels: labels})
 	}
-	return samples, &model.SettingsChecks{Speed: checks.speed, Width: checks.width, Duplex: checks.duplex}
+	return samples, &model.SettingsChecks{Speed: checks.speed, Width: checks.width, Duplex: checks.duplex, ActiveBits: checks.activeBits}
 }
 
 func rdmaSpeedName(speed uint32) string {
