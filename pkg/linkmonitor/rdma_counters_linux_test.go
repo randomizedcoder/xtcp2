@@ -57,6 +57,71 @@ func TestRDMACounterUnitsTable(t *testing.T) {
 	}
 }
 
+func TestRDMAHWCounterCatchAll(t *testing.T) {
+	type file struct{ path, text string }
+	type want struct {
+		descriptor, counter string
+		value               uint64
+	}
+	for _, tc := range []struct {
+		name, category, description, expectedOutcome string
+		files                                        []file
+		want                                         []want
+	}{
+		{"vendor", "positive", "uncataloged ionic error counter", "one untyped catch-all sample with its file as the counter label",
+			[]file{{"hw_counters/req_rx_cqe_err", "3"}}, []want{{rdmaHWCounterDescriptor, "req_rx_cqe_err", 3}}},
+		{"beside-catalog", "positive", "cataloged and uncataloged hw_counters side by side", "cataloged file keeps its reviewed metric; the other joins the catch-all",
+			[]file{{"hw_counters/lifespan", "2000"}, {"hw_counters/rdma_req_rx_cqe_err", "4"}}, []want{{"go_link_monitor_infiniband_" + rdmaCounterCatalog["hw_counters/lifespan"].metric, "", 2}, {rdmaHWCounterDescriptor, "rdma_req_rx_cqe_err", 4}}},
+		{"two", "positive", "two uncataloged files", "two series told apart by the counter label, in name order",
+			[]file{{"hw_counters/b_err", "2"}, {"hw_counters/a_err", "1"}}, []want{{rdmaHWCounterDescriptor, "a_err", 1}, {rdmaHWCounterDescriptor, "b_err", 2}}},
+		{"zero", "boundary", "uncataloged file reading zero", "present zero, not skipped",
+			[]file{{"hw_counters/active_qps", "0"}}, []want{{rdmaHWCounterDescriptor, "active_qps", 0}}},
+		{"maximum", "boundary", "largest uint64", "exact value, no scaling",
+			[]file{{"hw_counters/tx_bytes", "18446744073709551615"}}, []want{{rdmaHWCounterDescriptor, "tx_bytes", math.MaxUint64}}},
+		{"overflow", "boundary", "one past uint64", "file skipped; the set still succeeds",
+			[]file{{"hw_counters/tx_bytes", "18446744073709551616"}}, nil},
+		{"standard-group", "negative", "unknown name in the standard counters group", "still dropped; only hw_counters is vendor-defined",
+			[]file{{"counters/vendor_extra", "7"}}, nil},
+		{"text", "negative", "uncataloged file that is not a number", "skipped; the reviewed counter beside it still publishes",
+			[]file{{"hw_counters/fw_state", "N/A"}, {"counters/link_downed", "1"}}, []want{{"go_link_monitor_infiniband_" + rdmaCounterCatalog["counters/link_downed"].metric, "", 1}}},
+		{"signed", "negative", "uncataloged file with signed text", "skipped rather than wrapped",
+			[]file{{"hw_counters/delta", "-1"}}, nil},
+		{"directory", "corner", "uncataloged entry that is a directory", "skipped, not a malformed set",
+			[]file{{"hw_counters/nested/x", "1"}, {"hw_counters/req_rx_cqe_err", "5"}}, []want{{rdmaHWCounterDescriptor, "req_rx_cqe_err", 5}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expectedOutcome)
+			c, job, path := optionalRDMAFixture(t)
+			for _, f := range tc.files {
+				rdmaWrite(t, filepath.Join(path, f.path), f.text)
+			}
+			r := c.Collect(t.Context(), job)
+			if r.Err != nil {
+				t.Fatal(tc.expectedOutcome, r.Err)
+			}
+			if len(r.Samples) != len(tc.want) {
+				t.Fatalf("%s: %d samples %+v", tc.expectedOutcome, len(r.Samples), r.Samples)
+			}
+			for i, w := range tc.want {
+				s := r.Samples[i]
+				counter := ""
+				for _, l := range s.Labels {
+					if l.Name == "counter" {
+						counter = l.Value
+					}
+				}
+				n, ok := s.Number.Uint64()
+				if s.Descriptor != w.descriptor || counter != w.counter || !ok || n != w.value || !s.NoInterfaceLabel {
+					t.Fatalf("%s: sample %d %+v", tc.expectedOutcome, i, s)
+				}
+				if s.Descriptor == rdmaHWCounterDescriptor && (s.Kind != model.SampleUntyped || s.Counter != (model.CounterIdentity{})) {
+					t.Fatalf("%s: catch-all must be untyped with no counter identity: %+v", tc.expectedOutcome, s)
+				}
+			}
+		})
+	}
+}
+
 func TestRDMACounterSchemaLifetime(t *testing.T) {
 	for _, tc := range []struct {
 		name, category, description, expectedOutcome string
@@ -205,12 +270,12 @@ func TestRDMACounterSourceIdentity(t *testing.T) {
 			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expectedOutcome)
 			p := model.RDMAPort{Device: "hca", Hardware: "pci", Port: 1}
 			job := model.Job{Token: model.Token{Generation: 1}}
-			first, err := rdmaCounterSample(job, p, "counters/link_downed", "10", nil)
+			first, _, err := rdmaCounterSample(job, p, "counters/link_downed", "10", nil)
 			if err != nil {
 				t.Fatal(err)
 			}
 			tc.change(&p, &job)
-			second, err := rdmaCounterSample(job, p, "counters/link_downed", "10", nil)
+			second, _, err := rdmaCounterSample(job, p, "counters/link_downed", "10", nil)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -47,11 +47,13 @@ func (c *rdmaOptionalCollector) counters(ctx context.Context, job model.Job) ([]
 				if err != nil {
 					return err
 				}
-				sample, err := rdmaCounterSample(job, p, name, text, schema.Labels[offset])
+				sample, ok, err := rdmaCounterSample(job, p, name, text, schema.Labels[offset])
 				if err != nil {
 					return err
 				}
-				samples = append(samples, sample)
+				if ok {
+					samples = append(samples, sample)
+				}
 				if kept != nil {
 					kept.Names, kept.Selected, kept.Labels = append(kept.Names, name), append(kept.Selected, index), append(kept.Labels, schema.Labels[offset])
 				}
@@ -103,8 +105,15 @@ func (c *rdmaOptionalCollector) counterSchema(ctx context.Context, ports []model
 				sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
 				for _, entry := range entries {
 					name := group + "/" + entry.Name()
+					labels := rdmaLabels(p)
 					if _, exists := rdmaCounterCatalog[name]; !exists {
-						continue
+						// Only hw_counters is vendor-defined; an unknown name in
+						// the standard PortCounters groups stays dropped, and so
+						// does an unknown entry that is not a file.
+						if group != "hw_counters" || !entry.Type().IsRegular() {
+							continue
+						}
+						labels = append(labels, model.Label{Name: "counter", Value: entry.Name()})
 					}
 					if !entry.Type().IsRegular() {
 						return linuxio.ErrReply
@@ -114,7 +123,7 @@ func (c *rdmaOptionalCollector) counterSchema(ctx context.Context, ports []model
 					}
 					schema.Names = append(schema.Names, name)
 					schema.Selected = append(schema.Selected, index)
-					schema.Labels = append(schema.Labels, rdmaLabels(p))
+					schema.Labels = append(schema.Labels, labels)
 				}
 			}
 			return nil
@@ -129,22 +138,37 @@ func (c *rdmaOptionalCollector) counterSchema(ctx context.Context, ports []model
 	return schema, nil
 }
 
-func rdmaCounterSample(job model.Job, p model.RDMAPort, name, text string, labels []model.Label) (model.Sample, error) {
-	field := rdmaCounterCatalog[name]
+// rdmaHWCounterDescriptor carries every hw_counters file outside the reviewed
+// catalog, one series per file named by its counter label. Vendors mix
+// counters and gauges there (bnxt's active_qps beside its error counts), so
+// the value is exported untyped, as ethtool statistics are.
+const rdmaHWCounterDescriptor = "go_link_monitor_rdma_hw_counter"
+
+// rdmaCounterSample converts one counter file. ok is false for an uncataloged
+// file whose text is not a decimal integer: an unknown vendor file must not
+// fail the port's reviewed counters, so it is skipped instead.
+func rdmaCounterSample(job model.Job, p model.RDMAPort, name, text string, labels []model.Label) (model.Sample, bool, error) {
+	field, cataloged := rdmaCounterCatalog[name]
 	n, err := strconv.ParseUint(text, 10, 64)
+	if !cataloged {
+		if err != nil {
+			return model.Sample{}, false, nil
+		}
+		return model.Sample{Descriptor: rdmaHWCounterDescriptor, Kind: model.SampleUntyped, Labels: labels, NoInterfaceLabel: true, Number: model.Unsigned(n)}, true, nil
+	}
 	if err != nil {
-		return model.Sample{}, linuxio.ErrReply
+		return model.Sample{}, false, linuxio.ErrReply
 	}
 	sample := model.Sample{Descriptor: "go_link_monitor_infiniband_" + field.metric, Kind: model.SampleCounter, Labels: labels, NoInterfaceLabel: true}
 	if field.scale == 0 {
 		// Preserve the reviewed node_exporter integer-millisecond conversion.
 		sample.Kind, sample.Number = model.SampleGauge, model.Unsigned(n/1000)
-		return sample, nil
+		return sample, true, nil
 	}
 	if n > math.MaxUint64/field.scale {
-		return model.Sample{}, linuxio.ErrLimit
+		return model.Sample{}, false, linuxio.ErrLimit
 	}
 	sample.Number = model.Unsigned(n * field.scale)
 	sample.Counter = model.CounterIdentity{Source: p.Hardware + "/" + p.Device + "/" + strconv.FormatBool(p.Sysfs) + "/" + strconv.FormatUint(uint64(p.Index), 10) + "/" + strconv.FormatUint(uint64(p.Port), 10) + "/" + name, Lifetime: job.Token.Generation}
-	return sample, nil
+	return sample, true, nil
 }

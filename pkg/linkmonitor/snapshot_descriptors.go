@@ -63,7 +63,7 @@ func fixedSourceCatalog() map[string]struct{} {
 	for _, suffix := range strings.Fields(`ethtool_statistic phy_statistic rdma_port_info rdma_netdev_info
 rdma_roce_version_info rdma_port_up rdma_port_check rdma_port_active_width rdma_port_max_width
 rdma_port_speed_info infiniband_state_id infiniband_physical_state_id infiniband_rate_bytes_per_second
-infiniband_info`) {
+infiniband_info rdma_hw_counter`) {
 		names["go_link_monitor_"+suffix] = struct{}{}
 	}
 	return names

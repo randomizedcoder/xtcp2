@@ -18,7 +18,7 @@ func TestNameMatcherTables(t *testing.T) {
 			[]string{"go_link_monitor_interface_up", "go_link_monitor_interface_check", "go_link_monitor_interface_speed_bits_per_second", "go_link_monitor_interface_duplex_info", "go_link_monitor_up_links", "go_link_monitor_build_info", "go_link_monitor_collector_success",
 				"go_link_monitor_interface_carrier_down_changes_total", "go_link_monitor_rdma_port_up", "go_link_monitor_rdma_port_check"},
 			[]string{"go_link_monitor_ethtool_statistic", "go_link_monitor_netstat_Tcp_ActiveOpens", "go_link_monitor_collector_support", "go_link_monitor_collector_errors_total", "go_link_monitor_infiniband_symbol_error_total",
-				"go_link_monitor_infiniband_link_downed_total", "go_link_monitor_rdma_port_active_width", "go_link_monitor_interface_receive_dropped_total"}},
+				"go_link_monitor_infiniband_link_downed_total", "go_link_monitor_rdma_port_active_width", "go_link_monitor_interface_receive_dropped_total", "go_link_monitor_rdma_hw_counter"}},
 		{"everything", "positive", "include .*", "every name selected", ".*", "", "",
 			[]string{"go_link_monitor_ethtool_statistic", "x", "go_link_monitor_up_links"}, nil},
 		{"alternatives", "positive", "multi-alternative include", "each alternative selected", "a|b_c|d:e", "", "",

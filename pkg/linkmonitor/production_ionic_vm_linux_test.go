@@ -207,9 +207,37 @@ func ionicRoCE(f ionicFixture) error {
 }
 
 // ionicHWCounterNames are the device counters rocm-ernic answers STATS_HDRS
-// with, plus the core's lifespan file. None is in rdmaCounterCatalog: they
-// are the emulator's names, not Pensando firmware's.
+// with, plus the core's lifespan file. Only lifespan is in
+// rdmaCounterCatalog; the rest are the emulator's names, so each is a
+// catch-all sample.
 var ionicHWCounterNames = []string{"commands", "lifespan", "total_bytes_rdma_read", "total_bytes_rdma_write", "total_bytes_received", "total_bytes_sent"}
+
+// ionicRDMAErrorNames are the RDMA error counters a rocm-ernic with error
+// statistics adds to STATS_HDRS, under the Pensando ionic_lif_stats names.
+// A healthy guest posts no failing work, so each must read zero.
+var ionicRDMAErrorNames = []string{
+	"req_rx_cqe_err", "req_rx_cqe_flush_err", "req_rx_dup_responses", "req_rx_implied_nak_seq_err", "req_rx_invalid_packets",
+	"req_rx_pkt_seq_err", "req_rx_remote_access_err", "req_rx_remote_inv_req_err", "req_rx_remote_oper_err", "req_rx_rnr_retry_err",
+	"req_tx_local_access_err", "req_tx_local_oper_err", "req_tx_memory_mgmt_err",
+	"resp_rx_cqe_err", "resp_rx_cqe_flush_err", "resp_rx_dup_requests", "resp_rx_inv_request_err", "resp_rx_local_len_err",
+	"resp_rx_local_qp_oper_err", "resp_rx_out_of_atomic_res", "resp_rx_out_of_buffer", "resp_rx_out_of_seq_pkts",
+	"resp_tx_pkt_seq_err", "resp_tx_remote_access_err", "resp_tx_remote_inv_req_err", "resp_tx_remote_oper_err", "resp_tx_rnr_retry_err",
+	"rx_cnp_pkts", "rx_ecn_pkts", "tx_cnp_pkts",
+}
+
+// ionicGuestHWCounters lists the guest's hw_counters files, sorted.
+func ionicGuestHWCounters(f ionicFixture) ([]string, error) {
+	entries, err := os.ReadDir(ionicPort(f) + "/hw_counters")
+	if err != nil {
+		return nil, err
+	}
+	var names []string
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+	sort.Strings(names)
+	return names, nil
+}
 
 func ionicHWCounters(f ionicFixture) error {
 	for _, group := range [...]string{"counters", "counters_ext"} {
@@ -217,17 +245,13 @@ func ionicHWCounters(f ionicFixture) error {
 			return fmt.Errorf("%s present (err=%v): ionic_rdma has no PMA counters", group, err)
 		}
 	}
-	entries, err := os.ReadDir(ionicPort(f) + "/hw_counters")
+	names, err := ionicGuestHWCounters(f)
 	if err != nil {
 		return err
 	}
-	var names []string
-	for _, entry := range entries {
-		names = append(names, entry.Name())
-	}
-	sort.Strings(names)
-	if !slices.Equal(names, ionicHWCounterNames) {
-		return fmt.Errorf("hw_counters %v, want %v", names, ionicHWCounterNames)
+	withErrors := slices.Sorted(slices.Values(append(slices.Clone(ionicHWCounterNames), ionicRDMAErrorNames...)))
+	if !slices.Equal(names, ionicHWCounterNames) && !slices.Equal(names, withErrors) {
+		return fmt.Errorf("hw_counters %v, want %v or, with error statistics, %v", names, ionicHWCounterNames, withErrors)
 	}
 	return nil
 }
@@ -338,6 +362,50 @@ func TestIonicMonitorHealthy(t *testing.T) {
 					return fmt.Errorf("cataloged metrics %v, want [lifespan_seconds]", got)
 				}
 				return nil
+			}},
+		{"positive", "every uncataloged guest hw_counters file", "exactly one catch-all sample per file, labeled with the file name",
+			func() error {
+				names, err := ionicGuestHWCounters(f)
+				if err != nil {
+					return err
+				}
+				var errs []error
+				for _, name := range names {
+					if name == "lifespan" {
+						continue
+					}
+					if _, err := value(samples, "rdma_hw_counter", "device", f.rdma, "port", "1", "counter", name); err != nil {
+						errs = append(errs, err)
+					}
+				}
+				if got := len(matching(samples, ionicMetricPrefix+"rdma_hw_counter", "device", f.rdma)); got != len(names)-1 {
+					errs = append(errs, fmt.Errorf("%d catch-all samples for %d uncataloged files", got, len(names)-1))
+				}
+				return errors.Join(errs...)
+			}},
+		{"positive", "the emulator's commands counter", "nonzero: the guest's STATS reads are themselves commands",
+			func() error {
+				v, err := value(samples, "rdma_hw_counter", "device", f.rdma, "port", "1", "counter", "commands")
+				if err == nil && v <= 0 {
+					err = fmt.Errorf("commands %v", v)
+				}
+				return err
+			}},
+		{"negative", "the RDMA error counters on a healthy guest", "each present one reads exactly zero",
+			func() error {
+				var errs []error
+				for _, name := range ionicRDMAErrorNames {
+					for _, s := range matching(samples, ionicMetricPrefix+"rdma_hw_counter", "device", f.rdma, "counter", name) {
+						if s.Value != 0 {
+							errs = append(errs, fmt.Errorf("%s=%v", name, s.Value))
+						}
+					}
+				}
+				return errors.Join(errs...)
+			}},
+		{"corner", "the cataloged lifespan file", "no catch-all sample; it keeps its reviewed metric",
+			func() error {
+				return absent(samples, "rdma_hw_counter", "device", f.rdma, "counter", "lifespan")
 			}},
 	} {
 		t.Run(row.category+"/"+row.description, func(t *testing.T) {

@@ -2,7 +2,7 @@
 
 Last updated: 2026-10-11.
 
-**P01–P08, P09-T01, P12 (P12-T01–P12-T07) and P13-T01–P13-T04 are complete: 38 of 47 implementation tasks passed their gates.**
+**P01–P08, P09-T01, P12 (P12-T01–P12-T07), P13-T01–P13-T04, P14-T01, P14-T02, P14-T05 and P14-T06 are complete: 42 of 53 implementation tasks passed their gates.**
 P09-T02 is in progress: repeatable profiling/soak targets and short diagnostic
 evidence are implemented; the required ten-minute run remains outstanding.
 
@@ -538,6 +538,37 @@ that is `lifespan`, which the RDMA core answers without the driver, so a
 emulator offers counters under cataloged names (rocm-ernic NIC-realism phase
 D). Not established: loss on the RDMA path, and real Pensando counter names.
 
+V092 — catch-all for uncataloged RDMA hardware counters (2026-10-13): every
+`hw_counters` file outside `rdmaCounterCatalog` is now one untyped
+`go_link_monitor_rdma_hw_counter{device,port,counter}` sample with the file's
+raw value, on `/metrics-all` only; this supersedes the "dropped (not in the
+catalog)" behavior recorded in V089. It is untyped because vendors mix
+counters and gauges there (the fleet bnxt fixtures have `active_qps` and
+`watermark_*` beside error counts). Unknown names in `counters` and
+`counters_ext` stay dropped, and an uncataloged file whose text is not a
+decimal integer, or an entry that is not a file, is skipped rather than
+failing the port's set. `TestRDMAHWCounterCatchAll` (10 rows: vendor name,
+beside a cataloged file, two files in name order, 0, `UINT64_MAX`, one past
+it, an unknown standard-group name, `N/A`, signed text, a directory) passes,
+and `checkRealSysfsSamples` now requires one catch-all sample per uncataloged
+`hw_counters` file with its exact value, in the ionic, rxe and mlx5 rows and
+all 49 fleet fixtures; the fleet "all" read-error row fails every counter
+file, catch-all ones included. The core pattern rejects the new name
+(`TestNameMatcherTables` "exact core"). Mutation proof, each caught: restoring
+the skip (50 failing tests), typing it as a counter (49), failing the set on
+non-decimal text (`overflow`, `signed`, `text`), admitting the standard groups
+(`standard-group`), failing on a directory (`directory`), and adding it to
+`CoreMetricsPattern` (`exact core`). `test-linkmonitor-ionic-vm` gains four
+rows: one catch-all sample per uncataloged guest file and no more, a nonzero
+`commands`, every RDMA error counter present reads zero, and none for the
+cataloged `lifespan`. It passes on the pin (`9893fbf`, 6 guest files, 5
+catch-all series) and with `--override-input rocm-ernic` on the fork's local
+`xtcp2-integration` `d46e512`, which adds rocm-ernic's RDMA error counters
+under the Pensando `ionic_lif_stats` names: 36 guest files, 35 catch-all
+series, the 30 error counters all 0. Not established: real Pensando names for
+the emulator's five pvrdma totals, and nonzero error counters through the
+monitor (needs the two-guest traffic of P14-T03).
+
 V076 — privileged performance VM wiring (2026-10-10): added the modular
 `test-linkmonitor-performance-vm` runner under `nix/microvms/`. It reuses the
 cached performance test artifact, boots a root NixOS guest, captures filtered
@@ -890,7 +921,7 @@ integration remains deferred under D01.
 | P11 | Release verification | not started | 0/3 | None |
 | P12 | Administration API and xtcp2 integration | done | 7/7 | V079–V084 |
 | P13 | Netlink contracts | in progress | 4/5 | V085–V088; pre-merge gates documented, host `l` alerts and pin bump remain |
-| P14 | Real-driver RDMA coverage | in progress | 3/5 | V089–V090; rocm-ernic pin bump to the integration branch pending |
+| P14 | Real-driver RDMA coverage | in progress | 4/6 | V089–V092; rocm-ernic pin bump to the integration branch pending |
 
 ## Task checklist
 
@@ -951,6 +982,7 @@ plan, not copied here. Add verification IDs to the evidence column as work runs.
 | [ ] | [P14-T03](IMPLEMENTATION-PLAN.md#p14-t03) | Two-guest traffic | not started | Needs rocm-ernic `ernic-pair-node` (#221) |
 | [ ] | [P14-T04](IMPLEMENTATION-PLAN.md#p14-t04) | ionic RES corpus with live QPs | not started | After P14-T03 |
 | [x] | [P14-T05](IMPLEMENTATION-PLAN.md#p14-t05) | Fleet counter fixtures | done | V090 |
+| [x] | [P14-T06](IMPLEMENTATION-PLAN.md#p14-t06) | Uncataloged hw_counters catch-all | done | V092 |
 
 ## Deferred items
 
@@ -1673,6 +1705,7 @@ owners, deadlines or successful outcomes. Continue independent ready tasks.
 | 2026-10-11 | Added the real-driver ionic guest (`test-linkmonitor-ionic-vm`, rocm-ernic): collector table with checked reasons, CLI differential, events, PCI unplug/replug and recovered events; ionic fixtures committed. | V088. Next: Phase E gates and docs |
 | 2026-10-12 | Started P14: ionic `rdma_counters` is supported once rocm-ernic answers STATS_HDRS; real sysfs snapshots from host `l`, ionic and rxe; verbs async events verified on the real ionic driver. Decision: the emulator's counter names stay out of the catalog until real Pensando names are known. | V089; P14 2/4. Next: pin bump, then the two-guest traffic test |
 | 2026-10-13 | Injected Ethernet loss through the real ionic driver: rocm-ernic `eth_rx`/`eth_tx`/`stats_vals` faults on `generic-100g`; the monitor's drop, over-error and per-queue counters match sysfs and the fault pattern frame for frame. | V091. rocm-ernic pin moved to the fork's `xtcp2-integration` `9893fbf`; both ionic VMs pass on it |
+| 2026-10-13 | Uncataloged `hw_counters` files are exported as the untyped `rdma_hw_counter{counter=…}` catch-all on `/metrics-all`, instead of being dropped. Decision: untyped, raw and unscaled, since vendors mix counters and gauges there; the reviewed catalog remains the place for names and units. | V092; P14 4/6. Next: pin bump to an integration commit with rocm-ernic's RDMA error counters, then P14-T03 |
 
 Publication: P08-T03 was committed as `cb958fb` and pushed on
 `test/linkmonitor-embedding`; [PR #178](https://github.com/randomizedcoder/xtcp2/pull/178)
