@@ -195,11 +195,13 @@ func TestReconcile_emptyProc(t *testing.T) {
 	}
 }
 
-// TestReconcile_selfNamespace: xtcp's own pid is skipped by the scan and its
-// own netns (selfNsInode) is always live. Before, a per-namespace goroutine
-// holding the main thread made /proc/<xtcp pid>/ns/net name that namespace,
-// so the namespace was never deleted, and the default entry was deleted when
-// xtcp was alone in its own netns.
+// TestReconcile_selfNamespace: the scan skips xtcp's own pid and reconcile
+// never deletes xtcp's own netns (selfNsInode). Before, a per-namespace
+// goroutine holding the main thread made /proc/<xtcp pid>/ns/net name that
+// namespace, so the namespace was never deleted, and the default entry could
+// be deleted when xtcp was alone in its own netns. Nor may xtcp's own pid be
+// used to (re)add selfNsInode: /proc/<pid>/ns/net is the main thread's
+// current netns, so that would poll another namespace under the host inode.
 func TestReconcile_selfNamespace(t *testing.T) {
 	const (
 		self    = uint64(4026532300)
@@ -240,6 +242,14 @@ func TestReconcile_selfNamespace(t *testing.T) {
 			tracked:      []uint64{self, foreign},
 			expectedDels: 0,
 			expectedKept: []uint64{self, foreign},
+		},
+		{
+			description:  "negative: a missing default entry is not re-added through xtcp's own pid",
+			selfNsInode:  self,
+			pids:         map[int]uint64{me: foreign},
+			tracked:      nil,
+			expectedDels: 0,
+			expectedGone: []uint64{self, foreign},
 		},
 		{
 			description:  "boundary: selfNsInode unknown (0) adds nothing",

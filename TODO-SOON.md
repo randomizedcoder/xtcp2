@@ -2121,9 +2121,14 @@ A self-test side effect showed it too: PR K's first draft killed every pid
 **Fix.**
 - `nsdiscover.Scanner.SkipPid`: Scan ignores one pid, and `initNsDiscovery`
   passes `os.Getpid()`.
-- `discoverNamespaces` always reports `selfNsInode` as live, since the daemon is
-  in it by construction (every unlocked thread is), so the default entry
-  survives without the scan.
+- reconcile never deletes `selfNsInode`, since the daemon is in it by
+  construction (every unlocked thread is), so the default entry survives
+  without the scan.
+- `selfNsInode` is not added to the discovered set under xtcp2's own pid.
+  The first draft did that, and a security review caught it: if the default
+  entry were ever missing, nsAdd would enter `/proc/<xtcp2 pid>/ns/net`, the
+  main thread's *current* netns, and poll a container's sockets under the host
+  inode.
 - Table tests: `TestScanner_skipPid` (5 rows) and `TestReconcile_selfNamespace`
-  (5 rows). With either half of the fix removed, the matching positive rows
-  fail.
+  (6 rows, one for the reviewed path). With either half of the fix removed,
+  the matching rows fail.
