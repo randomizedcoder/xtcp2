@@ -82,6 +82,82 @@ func TestScanner_badProcRoot(t *testing.T) {
 	}
 }
 
+// writeProc creates a synthetic /proc with one ns/net link per pid.
+func writeProc(tb testing.TB, pids map[int]uint64) string {
+	tb.Helper()
+	proc := tb.TempDir()
+	for pid, ino := range pids {
+		nsDir := filepath.Join(proc, strconv.Itoa(pid), "ns")
+		if err := os.MkdirAll(nsDir, 0o755); err != nil {
+			tb.Fatal(err)
+		}
+		target := "net:[" + strconv.FormatUint(ino, 10) + "]"
+		if err := os.Symlink(target, filepath.Join(nsDir, "net")); err != nil {
+			tb.Fatal(err)
+		}
+	}
+	return proc
+}
+
+// TestScanner_skipPid: the skipped pid contributes no namespace of its own,
+// but a namespace another pid is in is still reported, through that pid.
+func TestScanner_skipPid(t *testing.T) {
+	tests := []struct {
+		description string
+		pids        map[int]uint64
+		skip        int
+		expected    map[uint64]int // inode -> representative pid
+	}{
+		{
+			description: "positive: a namespace only the skipped pid is in is not reported",
+			pids:        map[int]uint64{1: 10, 42: 20},
+			skip:        42,
+			expected:    map[uint64]int{10: 1},
+		},
+		{
+			description: "positive: a namespace shared with another pid is reported through it",
+			pids:        map[int]uint64{1: 10, 42: 20, 43: 20},
+			skip:        42,
+			expected:    map[uint64]int{10: 1, 20: 43},
+		},
+		{
+			description: "negative: skipping a pid that is not in /proc changes nothing",
+			pids:        map[int]uint64{1: 10, 42: 20},
+			skip:        99,
+			expected:    map[uint64]int{10: 1, 20: 42},
+		},
+		{
+			description: "boundary: pid 0 (the default) skips nothing",
+			pids:        map[int]uint64{1: 10, 42: 20},
+			skip:        0,
+			expected:    map[uint64]int{10: 1, 20: 42},
+		},
+		{
+			description: "corner: skipping the only pid reports nothing",
+			pids:        map[int]uint64{42: 20},
+			skip:        42,
+			expected:    map[uint64]int{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			s := NewScanner(writeProc(t, tt.pids))
+			t.Cleanup(func() { _ = s.Close() })
+			s.SkipPid(tt.skip)
+			got := make(map[uint64]int)
+			s.Scan(func(ns Namespace) { got[ns.Inode] = ns.Pid })
+			if len(got) != len(tt.expected) {
+				t.Fatalf("got %v, want %v", got, tt.expected)
+			}
+			for ino, pid := range tt.expected {
+				if got[ino] != pid {
+					t.Fatalf("got %v, want %v", got, tt.expected)
+				}
+			}
+		})
+	}
+}
+
 func TestParseNetInode(t *testing.T) {
 	tests := []struct {
 		name   string

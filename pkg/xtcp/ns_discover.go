@@ -2,6 +2,7 @@ package xtcp
 
 import (
 	"log"
+	"os"
 	"time"
 
 	"github.com/randomizedcoder/xtcp2/pkg/nsdiscover"
@@ -22,8 +23,12 @@ import (
 // The /proc-scan entry wins when both passes find the same inode (its live pid
 // is the cheapest entry handle and needs no mount-readiness gate).
 //
-// xtcp's own netns (x.selfNsInode) is included; the reconcile step dedups it
-// against the default socket openDefaultNetLinkSocket already holds.
+// xtcp's own netns (x.selfNsInode) is always included, so reconcile keeps the
+// default socket openDefaultNetLinkSocket holds. It is added here rather than
+// found by the scan, which skips xtcp's own pid (see nsdiscover.Scanner.SkipPid):
+// xtcp's /proc/<pid>/ns/net can name another namespace while a per-namespace
+// goroutine holds the main thread, and when xtcp is the only process in its
+// own netns (a container without pid_mode:host) nothing else would show it.
 //
 // Not safe for concurrent use: nsScanner and nsResolver are reused single-owner
 // state, so only the reconcile owner (mapReconciler) may call this.
@@ -50,6 +55,16 @@ func (x *XTCP) discoverNamespaces() map[uint64]nsIdentity {
 		}
 	})
 	procFound := len(out)
+	if x.selfNsInode != 0 {
+		if _, ok := out[x.selfNsInode]; !ok {
+			pid := os.Getpid()
+			out[x.selfNsInode] = nsIdentity{
+				inode: x.selfNsInode,
+				pid:   pid,
+				name:  x.nsResolver.Name(x.selfNsInode, pid),
+			}
+		}
+	}
 
 	// Pass 2: bind-mount scan (pid-less entry) — only for inodes the /proc scan
 	// did not already cover.

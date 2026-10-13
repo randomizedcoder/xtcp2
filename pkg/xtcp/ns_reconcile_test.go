@@ -194,3 +194,105 @@ func TestReconcile_emptyProc(t *testing.T) {
 		t.Fatalf("empty reconcile = (%d, %d), want (0, 0)", dels, stores)
 	}
 }
+
+// TestReconcile_selfNamespace: xtcp's own pid is skipped by the scan and its
+// own netns (selfNsInode) is always live. Before, a per-namespace goroutine
+// holding the main thread made /proc/<xtcp pid>/ns/net name that namespace,
+// so the namespace was never deleted, and the default entry was deleted when
+// xtcp was alone in its own netns.
+func TestReconcile_selfNamespace(t *testing.T) {
+	const (
+		self    = uint64(4026532300)
+		foreign = uint64(4026532301)
+	)
+	me := os.Getpid()
+	other := me + 1
+	tests := []struct {
+		description  string
+		selfNsInode  uint64
+		pids         map[int]uint64 // the synthetic /proc
+		tracked      []uint64       // nsMap before the reconcile
+		expectedDels int
+		expectedKept []uint64
+		expectedGone []uint64
+	}{
+		{
+			description:  "positive: a namespace only xtcp's main thread is in is deleted",
+			selfNsInode:  self,
+			pids:         map[int]uint64{me: foreign, other: self},
+			tracked:      []uint64{self, foreign},
+			expectedDels: 1,
+			expectedKept: []uint64{self},
+			expectedGone: []uint64{foreign},
+		},
+		{
+			description:  "positive: xtcp alone in its own netns keeps the default entry",
+			selfNsInode:  self,
+			pids:         map[int]uint64{me: foreign},
+			tracked:      []uint64{self},
+			expectedDels: 0,
+			expectedKept: []uint64{self},
+		},
+		{
+			description:  "negative: a namespace another process is in is kept",
+			selfNsInode:  self,
+			pids:         map[int]uint64{me: foreign, other: foreign},
+			tracked:      []uint64{self, foreign},
+			expectedDels: 0,
+			expectedKept: []uint64{self, foreign},
+		},
+		{
+			description:  "boundary: selfNsInode unknown (0) adds nothing",
+			selfNsInode:  0,
+			pids:         map[int]uint64{},
+			tracked:      nil,
+			expectedDels: 0,
+		},
+		{
+			description:  "corner: another process in xtcp's netns is not a second entry",
+			selfNsInode:  self,
+			pids:         map[int]uint64{me: self, other: self},
+			tracked:      []uint64{self},
+			expectedDels: 0,
+			expectedKept: []uint64{self},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			proc := t.TempDir()
+			for pid, ino := range tt.pids {
+				nsDir := filepath.Join(proc, strconv.Itoa(pid), "ns")
+				if err := os.MkdirAll(nsDir, 0o755); err != nil {
+					t.Fatal(err)
+				}
+				target := "net:[" + strconv.FormatUint(ino, 10) + "]"
+				if err := os.Symlink(target, filepath.Join(nsDir, "net")); err != nil {
+					t.Fatal(err)
+				}
+			}
+			x := newReconcileTestXTCP(t, proc)
+			x.selfNsInode = tt.selfNsInode
+			x.nsScanner.SkipPid(me)
+			for _, ino := range tt.tracked {
+				_, cancel := context.WithCancel(context.Background())
+				name := "tracked"
+				x.nsMap.Store(ino, netNSitem{inode: ino, name: &name, cancel: cancel, socketFD: -1})
+			}
+
+			dels, stores := x.reconcile(context.Background())
+			if dels != tt.expectedDels || stores != 0 {
+				t.Fatalf("reconcile = (dels=%d, stores=%d), want (%d, 0)", dels, stores, tt.expectedDels)
+			}
+			for _, ino := range tt.expectedKept {
+				if _, ok := x.nsMap.Load(ino); !ok {
+					t.Errorf("inode %d deleted, want kept", ino)
+				}
+			}
+			for _, ino := range tt.expectedGone {
+				if _, ok := x.nsMap.Load(ino); ok {
+					t.Errorf("inode %d kept, want deleted", ino)
+				}
+			}
+		})
+	}
+}

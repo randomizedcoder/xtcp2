@@ -2091,3 +2091,39 @@ After: HEALTH → OUTPUT_CONTENT took 1.75 s (107 records) at load ~60.
 
 The ifname, asn and locality checks already run one `jq` per file and are
 unchanged.
+
+---
+
+## 26. The daemon's own main thread kept a namespace "live", so it was never deleted — FIXED
+
+Found by PR K's stricter netns self-test, which waits for every namespace the
+self-test created to be deleted. In a uds-security lifecycle run, check 10's
+docker-style namespace stayed in the scan (`proc:2`) for the whole 80 s
+after its holder was killed. The only process left in it was xtcp2 itself
+(`ns holder: pid=571 comm=xtcp2 state=S wchan=futex_do_wait`).
+
+**Mechanism.** `netNamespaceInstance` calls `runtime.LockOSThread`, `setns`es
+into the namespace and blocks there until the namespace is deleted. When Go
+runs that goroutine on the main thread, `/proc/<xtcp2 pid>/ns/net` (the
+thread-group leader's namespace) names that namespace. The `/proc` scan then
+counts xtcp2 as a live process in it, so reconcile never deletes it: the
+namespace, its goroutine and its OS thread leak for the daemon's lifetime.
+
+A second effect of the same thing: the default socket's nsMap entry is keyed by
+`selfNsInode`, and the scan only found that inode through xtcp2's own pid when
+xtcp2 is alone in its netns (a container without `pid_mode:host`). With the
+main thread elsewhere, reconcile would delete the default entry (read from
+the code and pinned by a test row; not observed in a VM).
+
+A self-test side effect showed it too: PR K's first draft killed every pid
+`ip netns pids` listed for check 9's namespace, and that killed the daemon.
+
+**Fix.**
+- `nsdiscover.Scanner.SkipPid`: Scan ignores one pid, and `initNsDiscovery`
+  passes `os.Getpid()`.
+- `discoverNamespaces` always reports `selfNsInode` as live, since the daemon is
+  in it by construction (every unlocked thread is), so the default entry
+  survives without the scan.
+- Table tests: `TestScanner_skipPid` (5 rows) and `TestReconcile_selfNamespace`
+  (5 rows). With either half of the fix removed, the matching positive rows
+  fail.
