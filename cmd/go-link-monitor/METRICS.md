@@ -443,6 +443,7 @@ Source: [infiniband_linux.go](https://github.com/prometheus/node_exporter/blob/c
 | `node_infiniband_rx_write_requests_total` | `go_link_monitor_infiniband_rx_write_requests_total` | C | The number of received WRITE requests for the associated QPs. |
 | `node_infiniband_rx_icrc_encapsulated_errors_total` | `go_link_monitor_infiniband_rx_icrc_encapsulated_errors_total` | C | The number of RoCE packets with ICRC errors. This counter was added in MLNX_OFED 4.4 and kernel 4.19 |
 | `node_infiniband_info` | `go_link_monitor_infiniband_info` | G | Constant 1; labels device,board_id,firmware_version,hca_type |
+| none in inspected collector | `go_link_monitor_rdma_hw_counter` | U / driver-defined | One series per `hw_counters` file the catalog does not map; labels device,port,counter |
 
 The reference divides hw-counter lifespan milliseconds by 1000 using integer arithmetic before exposing lifespan_seconds. Rate is bytes/s; port_transmit_wait_total counts device ticks, not seconds. RDMA throughput counters can describe shared physical resources and must not be added to Ethernet totals.
 
@@ -453,8 +454,14 @@ register's four-octet unit and does not depend on link width. A failed candidate
 does not publish partial/zero values. Counter decreases or source-lifetime changes
 increment the existing discontinuity diagnostic. Link-downed/recovery increases
 can reveal flaps between state polls; they are not summed with event counts.
-Driver/PHY name filters do not apply to these fixed RDMA mappings. Unknown vendor
-fields are outside this reviewed catalog. One lowest-port owner emits HCA info.
+Driver/PHY name filters do not apply to these fixed RDMA mappings. A
+`hw_counters` file the catalog does not map is exported on `/metrics-all` as
+`rdma_hw_counter{counter="<file>"}` with its raw value: vendors mix counters
+and gauges there (bnxt `active_qps` beside its error counts), so it is untyped
+and unscaled, and the reviewed mappings stay the place for units. Such a file
+whose text is not a decimal integer is skipped rather than failing the port's
+set. Unknown names in `counters` and `counters_ext` stay dropped. One
+lowest-port owner emits HCA info.
 
 Native maximum gauges use supported PortInfo masks, never enabled masks or sysfs
 active rate. Unknown encodings, unrecognized speed/width-pairs constraints and
@@ -841,8 +848,8 @@ The default core include is
 - Collector health: `collector_success`
 
 Everything else stays on `/metrics-all` only. That includes traffic counters,
-`ethtool_statistic`/`phy_statistic`, `netstat_*`, RDMA/InfiniBand counters,
-classification/identity info, and the remaining `collector_*` diagnostics. On
+`ethtool_statistic`/`phy_statistic`, `netstat_*`, RDMA/InfiniBand counters
+(including the `rdma_hw_counter` catch-all), classification/identity info, and the remaining `collector_*` diagnostics. On
 the reference three-port Ethernet host this is 115 core series (12 KB)
 against about 6,100 (720 KB).
 

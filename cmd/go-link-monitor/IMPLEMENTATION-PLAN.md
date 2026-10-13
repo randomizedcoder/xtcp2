@@ -636,6 +636,24 @@ counters are monotonic and under the link rate; bulk InfiniBand traces pin
 the four-octet data scale; reverting the skip, the pruning or the scale fails
 named rows.
 
+#### P14-T06
+
+**Catch-all for uncataloged RDMA hardware counters.** Depends on:
+[P14-T05](#p14-t05).
+
+Deliver: every `hw_counters` file outside `rdmaCounterCatalog` exported on
+`/metrics-all` as an untyped `go_link_monitor_rdma_hw_counter` with a
+`counter` label, kept off core `/metrics`; `TestRDMAHWCounterCatchAll`; the
+real-sysfs and fleet checks and the ionic VM extended to the new family.
+
+Done when: every uncataloged `hw_counters` file in the ionic, rxe, mlx5 and
+fleet fixtures is exactly one catch-all sample with its raw value; unknown
+`counters`/`counters_ext` names, non-decimal text and directories are skipped
+without failing the set; the ionic guest exports one sample per emulator file,
+including rocm-ernic's RDMA error counters at zero; restoring the skip,
+counting it as a counter, failing the set on text, or admitting it to the core
+pattern fails named rows.
+
 ## Verification and evidence requirements
 
 Use the repository's flake-pinned tools and actual working-tree sources,

@@ -183,7 +183,7 @@ func TestRDMACountersRealSysfs(t *testing.T) {
 		},
 		{
 			name: "ionic", category: "positive", description: "real ionic_rdma port on rocm-ernic, hw_counters only",
-			expectedOutcome: "lifespan is the one cataloged counter; the emulator's names are dropped; rate 100 Gb/s",
+			expectedOutcome: "lifespan is the one cataloged counter; the emulator's names are catch-all samples; rate 100 Gb/s",
 			snapshot:        ionic, support: model.Supported, uncataloged: ionicUncataloged, rate: 12500000000,
 		},
 		{
@@ -193,7 +193,7 @@ func TestRDMACountersRealSysfs(t *testing.T) {
 		},
 		{
 			name: "rxe", category: "positive", description: "soft-RoCE port, hw_counters only",
-			expectedOutcome: "duplicate_request and lifespan are cataloged, the other rxe names are dropped; rate 10 Gb/s",
+			expectedOutcome: "duplicate_request and lifespan are cataloged, the other rxe names are catch-all samples; rate 10 Gb/s",
 			snapshot:        rxe, support: model.Supported, uncataloged: rxeUncataloged, rate: 1250000000,
 		},
 		{
@@ -252,7 +252,7 @@ func TestRDMACountersRealSysfs(t *testing.T) {
 		},
 		{
 			name: "only-uncataloged", category: "corner", description: "hw_counters holds only names the catalog does not know",
-			expectedOutcome: "supported with the rate sample only: the group exists, so this is not unsupported",
+			expectedOutcome: "supported with the rate sample and one catch-all sample per file: the group exists, so this is not unsupported",
 			snapshot:        hostL, support: model.Supported, uncataloged: mlx5Uncataloged, rate: 3125000000,
 			mutate: func(t *testing.T, port string) {
 				if err := os.RemoveAll(filepath.Join(port, "counters")); err != nil {
@@ -312,7 +312,21 @@ func TestRDMACountersRealSysfs(t *testing.T) {
 func checkRealSysfsSamples(t *testing.T, expected, port string, samples []model.Sample, uncataloged, unreadable []string, rate uint64, values map[string]uint64, info bool) {
 	t.Helper()
 	byMetric := map[string]model.Sample{}
+	byCounter := map[string]model.Sample{}
 	for _, s := range samples {
+		if s.Descriptor == rdmaHWCounterDescriptor {
+			counter := ""
+			for _, l := range s.Labels {
+				if l.Name == "counter" {
+					counter = l.Value
+				}
+			}
+			if _, dup := byCounter[counter]; dup {
+				t.Fatalf("%s: duplicate catch-all counter %q", expected, counter)
+			}
+			byCounter[counter] = s
+			continue
+		}
 		if _, dup := byMetric[s.Descriptor]; dup {
 			t.Fatalf("%s: duplicate %s", expected, s.Descriptor)
 		}
@@ -333,6 +347,27 @@ func checkRealSysfsSamples(t *testing.T, expected, port string, samples []model.
 			field, ok := rdmaCounterCatalog[name]
 			if !ok {
 				dropped = append(dropped, name)
+				// Uncataloged hw_counters files are each one untyped
+				// catch-all sample with the raw value; other groups drop them.
+				s, published := byCounter[entry.Name()]
+				if group != "hw_counters" || slices.Contains(unreadable, name) {
+					if published && group == "hw_counters" {
+						t.Fatalf("%s: unreadable %s published %+v", expected, name, s)
+					}
+					continue
+				}
+				want++
+				text, err := os.ReadFile(filepath.Join(port, name))
+				if err != nil {
+					t.Fatal(err)
+				}
+				raw, err := strconv.ParseUint(strings.TrimSpace(string(text)), 10, 64)
+				if err != nil {
+					t.Fatalf("%s: %s is not decimal: %v", expected, name, err)
+				}
+				if got, _ := s.Number.Uint64(); !published || got != raw || s.Kind != model.SampleUntyped {
+					t.Fatalf("%s: catch-all %s = %+v, want %d untyped", expected, name, s, raw)
+				}
 				continue
 			}
 			s, ok := byMetric["go_link_monitor_infiniband_"+field.metric]

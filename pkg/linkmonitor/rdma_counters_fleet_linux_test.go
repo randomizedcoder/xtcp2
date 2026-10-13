@@ -220,7 +220,7 @@ func TestRDMACountersFleetReadErrors(t *testing.T) {
 			expected: "the whole set fails: the counter set changed", fail: fs.ErrNotExist, support: model.SupportUnknown},
 		{name: "eacces", category: "negative", description: "the files are not readable by the monitor",
 			expected: "the whole set fails rather than silently dropping counters", fail: syscall.EACCES, support: model.SupportUnknown},
-		{name: "all", category: "corner", description: "every counter file on the port answers EINVAL",
+		{name: "all", category: "corner", description: "every counter file on the port answers EINVAL, catch-all files included",
 			expected: "supported with the rate sample only, and an empty pruned schema", fail: syscall.EINVAL, all: true, support: model.Supported},
 		{name: "heal", category: "boundary", description: "the files read again after the first sample pruned them",
 			expected: "still skipped until the schema is rebuilt: each unreadable file costs one read per schema", fail: syscall.EINVAL, heal: true, support: model.Supported},
@@ -233,10 +233,8 @@ func TestRDMACountersFleetReadErrors(t *testing.T) {
 			if tc.all {
 				unreadable = nil
 				for _, name := range snapshot.counterFiles() {
-					if _, ok := rdmaCounterCatalog[name]; ok {
-						rdmaWrite(t, filepath.Join(port, name), rdmaReadError+"\n")
-						unreadable = append(unreadable, name)
-					}
+					rdmaWrite(t, filepath.Join(port, name), rdmaReadError+"\n")
+					unreadable = append(unreadable, name)
 				}
 			}
 			reads := installFleetReads(c, tc.fail)
