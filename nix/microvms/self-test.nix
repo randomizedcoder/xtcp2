@@ -373,6 +373,11 @@ pkgs.writeShellApplication {
     # function that is never invoked (SC2329), so defining it everywhere broke
     # the build of every other flavor.
     ${lib.optionalString (runFileOutputCheck || runRawSocketCheck) (import ./self-test-jsonl-tally.nix)}
+    #
+    # The netns checks (8, 9, 10, 16) wait for a counter against a
+    # wall-clock budget, not a fixed sleep or an iteration count.
+    # (nix/microvms/self-test-wait-metric.nix)
+    ${import ./self-test-wait-metric.nix}
 
     uds_security_mode=${if runUdsSecurityCheck then "1" else "0"}
 
@@ -1301,6 +1306,45 @@ pkgs.writeShellApplication {
     # per-ns netlinker (netNamespaceInstance "start"). When that process exits
     # and the ns is removed, the next reconcile tears it down (the "delete"
     # counter bumps).
+    # ─── Netns checks (8, 9, 10, 16): what "torn down" means ──────────────
+    # The counters are process-wide, so "delete went up by one" can be met by
+    # any namespace's delete, including a late one left over from an earlier
+    # check. That is how a holder that outlived check 16's kill still passed.
+    # Instead: netNamespaceInstance "start" ticks once per namespace added
+    # (pkg/xtcp/ns_net_namespace.go) and "delete" once per namespace removed
+    # (pkg/xtcp/ns_delete.go), so start - delete is the number the daemon
+    # tracks. Record it before these checks; after each one kills its holder,
+    # every namespace started since must be deleted: delete >= start - ns_live0.
+    # A failed scrape reads 0, which can only raise that target, so it fails
+    # the check rather than passing it.
+    ns_live0=$(( $(metric_value "xtcp_counts" 'function="netNamespaceInstance"' 'variable="start"') \
+      - $(metric_value "xtcp_counts" 'function="delete"' 'variable="delete"') ))
+    echo "netns baseline: $ns_live0 namespace(s) tracked before check 8"
+
+    # ns_wait_all_deleted: wait for delete >= start - ns_live0. Sets
+    # ns_del_want (the target) and ns_del_got (the last delete count seen).
+    ns_wait_all_deleted() {
+      local start
+      start=$(metric_value "xtcp_counts" 'function="netNamespaceInstance"' 'variable="start"')
+      ns_del_want=$((start - ns_live0))
+      ns_del_got=$(wait_metric_ge "$(scaled 20)" "$ns_del_want" \
+        "xtcp_counts" 'function="delete"' 'variable="delete"')
+    }
+
+    # ns_holders <ns inode link>: name every process still in that netns, with
+    # its pid, comm, state and wchan, so a failed teardown names its holder.
+    ns_holders() {
+      local p
+      if [ -z "$1" ]; then return 0; fi
+      for p in /proc/[0-9]*; do
+        if [ "$(readlink "$p/ns/net" 2>/dev/null)" = "$1" ]; then
+          echo "  ns holder: pid=''${p#/proc/} comm=$(cat "$p/comm" 2>/dev/null)" \
+            "state=$(cut -d' ' -f3 "$p/stat" 2>/dev/null)" \
+            "wchan=$(cat "$p/wchan" 2>/dev/null)"
+        fi
+      done
+    }
+
     echo "--- check 8: ns lifecycle (live process in a fresh netns) ---"
     check8=1
     if command -v ip >/dev/null 2>&1; then
@@ -1320,33 +1364,27 @@ pkgs.writeShellApplication {
       # A retry loop, not a fixed sleep: the reconcile fires once per poll
       # cycle and that cadence is jittered (pollJitterPct), so a fixed 6s
       # wait races the jitter and intermittently samples before the counter
-      # ticks — the NS_LIFECYCLE flake. Break as soon as it advances (so the
+      # ticks — the NS_LIFECYCLE flake. Return as soon as it advances (so the
       # happy path is faster than the old fixed wait) and cap the wait well
-      # above a jittered cycle. The sleep 60 above outlives this loop.
-      after_inst=$before_inst
-      for _ in $(seq 1 "$(scaled 20)"); do
-        after_inst=$(metric_value "xtcp_counts" 'function="netNamespaceInstance"' 'variable="start"')
-        if [ "$after_inst" -gt "$before_inst" ] 2>/dev/null; then break; fi
-        sleep 1
-      done
+      # above a jittered cycle. The cap is wall clock: this used to count
+      # iterations of a curl of up to 2 s plus a 1 s sleep. The sleep 60 above
+      # outlives this wait.
+      after_inst=$(wait_metric_ge "$(scaled 20)" "$((before_inst + 1))" \
+        "xtcp_counts" 'function="netNamespaceInstance"' 'variable="start"')
       # Drop the process (ns now has no live process) and remove the bind mount.
       kill "$ns_a_pid" 2>/dev/null || true
       wait "$ns_a_pid" 2>/dev/null || true
       ip netns delete xtcp_test_ns_a 2>&1 || true
       # Poll for the daemon to notice the ns is gone (nsDelete) — same
-      # jittered-cadence retry loop as the instantiate side above.
-      after_del=$before_del
-      for _ in $(seq 1 "$(scaled 20)"); do
-        after_del=$(metric_value "xtcp_counts" 'function="delete"' 'variable="delete"')
-        if [ "$after_del" -gt "$before_del" ] 2>/dev/null; then break; fi
-        sleep 1
-      done
+      # jittered-cadence wait as the instantiate side above — and for every
+      # other namespace started since the baseline to be gone too.
+      ns_wait_all_deleted
 
-      if [ "$after_inst" -gt "$before_inst" ] && [ "$after_del" -gt "$before_del" ]; then
-        echo "XTCP2_SELF_TEST_NS_LIFECYCLE_PASS  (inst:$before_inst→$after_inst del:$before_del→$after_del)"
+      if [ "$after_inst" -gt "$before_inst" ] && [ "$ns_del_got" -ge "$ns_del_want" ]; then
+        echo "XTCP2_SELF_TEST_NS_LIFECYCLE_PASS  (inst:$before_inst→$after_inst del:$before_del→$ns_del_got want≥$ns_del_want)"
         check8=0
       else
-        echo "XTCP2_SELF_TEST_NS_LIFECYCLE_FAIL  (inst:$before_inst→$after_inst del:$before_del→$after_del)"
+        echo "XTCP2_SELF_TEST_NS_LIFECYCLE_FAIL  (inst:$before_inst→$after_inst del:$before_del→$ns_del_got want≥$ns_del_want)"
       fi
     else
       echo "XTCP2_SELF_TEST_NS_LIFECYCLE_FAIL  (ip not on PATH)"
@@ -1386,10 +1424,27 @@ pkgs.writeShellApplication {
       sleep 8
       after_packets=$(metric_value "xtcp_counts" 'variable="packets"')
 
-      # Tear down the listener + client and the ns itself.
+      # Tear down the listener + client and the ns itself. Killing the two $!s
+      # ends the `ip netns exec` wrappers but not the `(echo; sleep 8) | nc`
+      # pipeline inside the client, which kept the ns alive past `ip netns
+      # delete`; its late delete then satisfied a later check's "+1". So kill
+      # everything left in the ns too, except the daemon: its per-ns goroutine
+      # is locked to an OS thread inside the ns, and when that thread is the
+      # main one, `ip netns pids` lists xtcp2's own pid.
+      daemon_pid=$(systemctl show -p MainPID --value xtcp2 2>/dev/null || true)
+      for p in $(ip netns pids xtcp_test_ns_b 2>/dev/null); do
+        if [ "$p" != "$daemon_pid" ]; then kill "$p" 2>/dev/null || true; fi
+      done
       kill "$ns_listener" "$ns_client" 2>/dev/null || true
       wait 2>/dev/null || true
       ip netns delete xtcp_test_ns_b 2>&1 || true
+      # Not part of NS_TRAFFIC (that is about packets): wait for the teardown so
+      # check 10 starts with nothing pending. If it times out, check 10's own
+      # delete assertion fails.
+      ns_wait_all_deleted
+      if [ "$ns_del_got" -lt "$ns_del_want" ]; then
+        echo "  xtcp_test_ns_b not torn down (del:$ns_del_got want≥$ns_del_want)"
+      fi
 
       if [ "$after_packets" -gt "$before_packets" ]; then
         echo "XTCP2_SELF_TEST_NS_TRAFFIC_PASS  (Netlinker.packets:$before_packets→$after_packets)"
@@ -1424,22 +1479,25 @@ pkgs.writeShellApplication {
       # Live process holds the ns open for the /proc scan.
       ip netns exec xtcp_docker_ns sleep 60 &
       ns_d_pid=$!
-      sleep 6
-      after_inst=$(metric_value "xtcp_counts" 'function="netNamespaceInstance"' 'variable="start"')
+      # Wait for the counter, not a fixed 6 s: see check 8 for why a fixed wait
+      # races the jittered reconcile.
+      after_inst=$(wait_metric_ge "$(scaled 20)" "$((before_inst + 1))" \
+        "xtcp_counts" 'function="netNamespaceInstance"' 'variable="start"')
+      docker_ino=$(readlink "/proc/$ns_d_pid/ns/net" 2>/dev/null || true)
 
       kill "$ns_d_pid" 2>/dev/null || true
       wait "$ns_d_pid" 2>/dev/null || true
       umount /run/docker/netns/xtcp_docker_ns 2>&1 || true
       rm -f /run/docker/netns/xtcp_docker_ns 2>&1 || true
       ip netns delete xtcp_docker_ns 2>&1 || true
-      sleep 6
-      after_del=$(metric_value "xtcp_counts" 'function="delete"' 'variable="delete"')
+      ns_wait_all_deleted
 
-      if [ "$after_inst" -gt "$before_inst" ] && [ "$after_del" -gt "$before_del" ]; then
-        echo "XTCP2_SELF_TEST_NS_DOCKER_PASS  (inst:$before_inst→$after_inst del:$before_del→$after_del)"
+      if [ "$after_inst" -gt "$before_inst" ] && [ "$ns_del_got" -ge "$ns_del_want" ]; then
+        echo "XTCP2_SELF_TEST_NS_DOCKER_PASS  (inst:$before_inst→$after_inst del:$before_del→$ns_del_got want≥$ns_del_want)"
         check10=0
       else
-        echo "XTCP2_SELF_TEST_NS_DOCKER_FAIL  (inst:$before_inst→$after_inst del:$before_del→$after_del)"
+        echo "XTCP2_SELF_TEST_NS_DOCKER_FAIL  (inst:$before_inst→$after_inst del:$before_del→$ns_del_got want≥$ns_del_want)"
+        ns_holders "$docker_ino"
       fi
     else
       echo "XTCP2_SELF_TEST_NS_DOCKER_FAIL  (ip not on PATH or /run/docker/netns/ missing)"
@@ -1460,25 +1518,32 @@ pkgs.writeShellApplication {
       before_inst=$(metric_value "xtcp_counts" 'function="netNamespaceInstance"' 'variable="start"')
       before_del=$(metric_value "xtcp_counts" 'function="delete"' 'variable="delete"')
       # Anonymous netns held open by a live process; no bind mount anywhere.
-      # exec sleep so the backgrounded pid IS the live process in the ns (kill
-      # then reaches it directly).
-      unshare --net sh -c 'ip link set lo up 2>/dev/null; exec sleep 60' &
+      # unshare execs sleep directly, so the backgrounded pid IS the only
+      # process in the ns and the kill below empties it. This used to be
+      # `sh -c 'ip link set lo up; exec sleep 60'`, and on a loaded host the ns
+      # outlived the kill by 30-40 s. Until the exec, $! was sh, so the most
+      # likely holder is an `ip` still blocked on rtnl_lock (check 10's netns
+      # teardown takes it). The FAIL branch names any holder. Only the
+      # counters are checked, so lo's state does not matter.
+      unshare --net sleep 60 &
       anon_pid=$!
-      # A couple of poll cycles (~2s each) for the pre-poll reconcile to find it.
-      sleep 6
-      after_inst=$(metric_value "xtcp_counts" 'function="netNamespaceInstance"' 'variable="start"')
+      # The pre-poll reconcile finds it within a poll cycle or two; wait for
+      # the counter rather than a fixed 6 s (see check 8).
+      after_inst=$(wait_metric_ge "$(scaled 20)" "$((before_inst + 1))" \
+        "xtcp_counts" 'function="netNamespaceInstance"' 'variable="start"')
+      anon_ino=$(readlink "/proc/$anon_pid/ns/net" 2>/dev/null || true)
       # Drop the process → the anonymous ns now has no live process → reconcile
       # tears it down on a following cycle.
       kill "$anon_pid" 2>/dev/null || true
       wait "$anon_pid" 2>/dev/null || true
-      sleep 6
-      after_del=$(metric_value "xtcp_counts" 'function="delete"' 'variable="delete"')
+      ns_wait_all_deleted
 
-      if [ "$after_inst" -gt "$before_inst" ] && [ "$after_del" -gt "$before_del" ]; then
-        echo "XTCP2_SELF_TEST_NS_ANONYMOUS_PASS  (inst:$before_inst→$after_inst del:$before_del→$after_del)"
+      if [ "$after_inst" -gt "$before_inst" ] && [ "$ns_del_got" -ge "$ns_del_want" ]; then
+        echo "XTCP2_SELF_TEST_NS_ANONYMOUS_PASS  (inst:$before_inst→$after_inst del:$before_del→$ns_del_got want≥$ns_del_want)"
         check16=0
       else
-        echo "XTCP2_SELF_TEST_NS_ANONYMOUS_FAIL  (inst:$before_inst→$after_inst del:$before_del→$after_del)"
+        echo "XTCP2_SELF_TEST_NS_ANONYMOUS_FAIL  (inst:$before_inst→$after_inst del:$before_del→$ns_del_got want≥$ns_del_want)"
+        ns_holders "$anon_ino"
       fi
     else
       echo "XTCP2_SELF_TEST_NS_ANONYMOUS_FAIL  (unshare not on PATH)"
