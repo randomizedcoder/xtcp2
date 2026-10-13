@@ -2326,7 +2326,9 @@ let
   ];
 
   # UDS security flavor: private sockets plus a deterministic fixture token.
-  # This token is test data, not a deployment secret.
+  # This token is test data, not a deployment secret. The two *UnlinkStale*
+  # flags are Go bools, so their value must be attached (`-name=true`): a
+  # separate "true" is a positional argument, which xtcp2 rejects.
   xtcp2UdsSecurityArgs = xtcp2FileArgs ++ [
     "-grpcListenNetwork"
     "unix"
@@ -2334,16 +2336,14 @@ let
     udsGrpcSocket
     "-grpcUnixSocketMode"
     "384"
-    "-grpcUnlinkStaleUnixSocket"
-    "true"
+    "-grpcUnlinkStaleUnixSocket=true"
     "-promListenNetwork"
     "unix"
     "-promListen"
     udsPromSocket
     "-promUnixSocketMode"
     "384"
-    "-promUnlinkStaleUnixSocket"
-    "true"
+    "-promUnlinkStaleUnixSocket=true"
     "-listenerAuthMode"
     "raw"
     "-listenerRawToken"

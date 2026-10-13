@@ -2850,7 +2850,10 @@ rec {
       # Floor: this MUST exceed the longest single in-guest check's silence,
       # or the watchdog fires mid-check and reports TIMEOUT for what is really
       # a FAIL. The longest budget in self-test.nix is 45 iterations x 3 s =
-      # 135 s, multiplied by its waitScale (4) = 540 s. Hence 600.
+      # 135 s, multiplied by its waitScale (4) = 540 s. Hence 600. The
+      # wall-clock `timeout`s there scale too; the largest,
+      # ENRICH_BESTEFFORT_NEGATIVE's window, is 30 x 4 x 3 s + 10 s = 370 s,
+      # and only when that check fails, so the floor still holds.
       #
       # Measured against that floor on this host at load ~46: a full passing
       # run took 561 s of guest time across 18 sentinels, and its largest gap

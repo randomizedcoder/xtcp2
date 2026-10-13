@@ -61,6 +61,9 @@ in
   # The record epoch read from pkg/xtcp/schema_version.go
   # (nix/lib/xtcp2-schema-version.nix) and the DDL that must match it.
   xtcp2-schema-version = import ./xtcp2-schema-version.nix { inherit pkgs lib; };
+  # The self-test's stream_until (nix/microvms/self-test-stream-until.nix),
+  # driven against sh stand-ins for a streaming xtcp2client.
+  self-test-stream-until = import ./self-test-stream-until.nix { inherit pkgs; };
   # proto-lint: NOT in the default check set. `buf lint` reaches out to
   # buf.build for module deps (protovalidate, googleapis), which the hermetic
   # Nix sandbox blocks. Run `buf lint` directly from `nix develop`, where buf
