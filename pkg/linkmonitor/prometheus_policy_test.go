@@ -2,6 +2,7 @@ package linkmonitor_test
 
 import (
 	"testing"
+	"time"
 
 	dto "github.com/prometheus/client_model/go"
 
@@ -165,6 +166,95 @@ func TestPrometheusExpectedSpeedException(t *testing.T) {
 					check, exception, expectedBits, tc.check, tc.exception, tc.expectedBits)
 			}
 		})
+	}
+}
+
+// TestPrometheusExpectedSpeedLifecycle follows one exception across several
+// publications: the exemption must track the speed the link runs at now.
+func TestPrometheusExpectedSpeedLifecycle(t *testing.T) {
+	const absent = -1.0
+	type step func(f *linkmonitor.PrometheusFixture)
+	speed := func(mbps uint64) step {
+		return func(f *linkmonitor.PrometheusFixture) { f.Speed(1, mbps, 10000); f.Publish(1) }
+	}
+	expire := func(at time.Duration) step {
+		return func(f *linkmonitor.PrometheusFixture) { f.Expire(at); f.Publish(1) }
+	}
+	bounce := func(f *linkmonitor.PrometheusFixture) {
+		f.Device(1, "eth0", false)
+		f.Device(1, "eth0", true)
+		f.Publish(1)
+	}
+	remove := func(f *linkmonitor.PrometheusFixture) { f.Remove(1); f.Publish(0) }
+	for _, tc := range []struct {
+		name, category, description, expected string
+		selector                              string
+		steps                                 []step
+		check                                 string
+		exception, expectedBits               float64
+	}{
+		{"drops", "negative", "exempt at 1G, then the link falls to 100M", "no longer exempt",
+			"eth0=1G", []step{speed(1000), speed(100)}, "fail", 0, 1e9},
+		{"recovers", "positive", "1G, down to 100M, back to 1G", "exempt again",
+			"eth0=1G", []step{speed(1000), speed(100), speed(1000)}, "fail", 1, 1e9},
+		{"rises", "negative", "1G, then 2.5G under the 10G maximum", "not exempt: the expected speed no longer holds",
+			"eth0=1G", []step{speed(1000), speed(2500)}, "fail", 0, 1e9},
+		{"before expiry", "boundary", "settings one ns before their 45s lifetime ends", "still exempt",
+			"eth0=1G", []step{speed(1000), expire(45*time.Second - time.Nanosecond)}, "fail", 1, 1e9},
+		{"expired", "corner", "settings reach their 45s lifetime", "max_speed unknown; a stale speed cannot keep the exemption",
+			"eth0=1G", []step{speed(1000), expire(45 * time.Second)}, "unknown", 0, 1e9},
+		{"expired bare", "corner", "the same expiry with a bare exception", "still exempt: bare means any speed",
+			"eth0", []step{speed(100), expire(45 * time.Second)}, "unknown", 1, absent},
+		{"expired then measured", "positive", "settings expire, then a fresh 1G measurement", "exempt again",
+			"eth0=1G", []step{speed(1000), expire(45 * time.Second), speed(1000)}, "fail", 1, 1e9},
+		{"bounce", "corner", "link down and up, not yet re-measured", "max_speed unknown, not exempt",
+			"eth0=1G", []step{speed(1000), bounce}, "unknown", 0, 1e9},
+		{"bounce measured", "positive", "link down and up, re-measured at 1G", "exempt",
+			"eth0=1G", []step{speed(1000), bounce, speed(1000)}, "fail", 1, 1e9},
+		{"removed", "negative", "the interface is removed", "no exemption or expected-speed series left",
+			"eth0=1G", []step{speed(1000), remove}, "", absent, absent},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expected)
+			f := linkmonitor.NewPrometheusFixture(t)
+			f.Device(1, "eth0", true)
+			f.Exceptions(tc.selector)
+			for _, s := range tc.steps {
+				s(f)
+			}
+			families := gathered(t, monitorRegistry(t, f.Monitor))
+			check := ""
+			for _, metric := range families["go_link_monitor_interface_check"].GetMetric() {
+				if labelValue(metric, "check") == "max_speed" && metricValue(metric) == 1 {
+					check = labelValue(metric, "status")
+				}
+			}
+			exception := seriesValue(families["go_link_monitor_interface_max_speed_exception"], absent)
+			expectedBits := seriesValue(families["go_link_monitor_interface_expected_speed_bits_per_second"], absent)
+			if check != tc.check || exception != tc.exception || expectedBits != tc.expectedBits {
+				t.Fatalf("got max_speed %q, exception %v, expected speed %v; want %q, %v, %v",
+					check, exception, expectedBits, tc.check, tc.exception, tc.expectedBits)
+			}
+		})
+	}
+}
+
+func TestPrometheusExpectedSpeedFrozen(t *testing.T) {
+	t.Log("corner: a snapshot published at 1G, then the link falls to 100M; expected: the old snapshot stays exempt, the new one is not")
+	f := linkmonitor.NewPrometheusFixture(t)
+	f.Device(1, "eth0", true)
+	f.Exceptions("eth0=1G")
+	f.Speed(1, 1000, 10000)
+	f.Publish(1)
+	old := f.Monitor.Snapshot()
+	f.Speed(1, 100, 10000)
+	f.Publish(1)
+	exempt := func(s linkmonitor.Snapshot) (got bool) {
+		s.RangeDevices(func(d linkmonitor.DeviceView) bool { got = s.MaximumSpeedException(d); return false })
+		return got
+	}
+	if !exempt(old) || exempt(f.Monitor.Snapshot()) {
+		t.Fatalf("old exempt %v, new exempt %v; want true, false", exempt(old), exempt(f.Monitor.Snapshot()))
 	}
 }
 
