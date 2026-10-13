@@ -39,6 +39,7 @@ type Scanner struct {
 	pbuf []byte              // NUL-terminated relative-path scratch ("<pid>/ns/net\0")
 	lbuf []byte              // readlink target buffer
 	seen map[uint64]struct{} // per-scan dedup set (cleared, not reallocated)
+	skip int                 // pid Scan ignores (0: none); see SkipPid
 }
 
 // NewScanner opens procRoot (typically "/proc"). If the open fails the scanner
@@ -66,6 +67,14 @@ func (s *Scanner) Close() error {
 	s.fd = -1
 	return err
 }
+
+// SkipPid makes every later Scan ignore pid. xtcp2 passes its own pid:
+// /proc/<pid>/ns/net is the namespace of the thread-group leader, and a
+// per-namespace goroutine locks its OS thread inside that namespace until the
+// namespace is deleted. When Go schedules it on the main thread, the scan sees
+// xtcp2 itself as a live process in the namespace, so the namespace never
+// looks gone and is never deleted. pid 0 (the default) skips nothing.
+func (s *Scanner) SkipPid(pid int) { s.skip = pid }
 
 // Scan rewinds procfs and calls fn exactly once per distinct network namespace.
 // It returns the number of pids skipped (the pid exited mid-scan, or readlinkat
@@ -97,7 +106,7 @@ func (s *Scanner) Scan(fn func(Namespace)) (skipped int) {
 				continue
 			}
 			pid, ok := atoiBytes(name)
-			if !ok {
+			if !ok || pid == s.skip {
 				continue
 			}
 

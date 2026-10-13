@@ -101,10 +101,17 @@ func (x *XTCP) reconcile(ctx context.Context) (dels, stores int) {
 
 	live := x.discoverNamespaces()
 
-	// Delete entries whose namespace is no longer live.
+	// Delete entries whose namespace is no longer live. xtcp's own netns is
+	// live by construction (every unlocked thread is in it), and its default
+	// socket belongs to openDefaultNetLinkSocket, so it is never deleted. The
+	// scan cannot vouch for it: it skips xtcp's own pid, and when xtcp is alone
+	// in its netns (a container without pid_mode:host) no other pid shows it.
 	x.nsMap.Range(func(key, _ interface{}) bool {
 		inode, ok := key.(uint64)
 		if !ok {
+			return true
+		}
+		if inode == x.selfNsInode {
 			return true
 		}
 		if _, stillLive := live[inode]; !stillLive {

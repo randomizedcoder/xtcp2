@@ -229,6 +229,9 @@ func (x *XTCP) initNsDiscovery(nameDirs []string) {
 		return
 	}
 	x.selfNsInode = st.Ino
+	// The scan must not see xtcp2's own pid (see Scanner.SkipPid); reconcile
+	// keeps selfNsInode without it.
+	x.nsScanner.SkipPid(os.Getpid())
 }
 
 // CreateNetLinkRequest builds the netlink request

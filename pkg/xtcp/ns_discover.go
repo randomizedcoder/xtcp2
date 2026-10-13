@@ -22,8 +22,12 @@ import (
 // The /proc-scan entry wins when both passes find the same inode (its live pid
 // is the cheapest entry handle and needs no mount-readiness gate).
 //
-// xtcp's own netns (x.selfNsInode) is included; the reconcile step dedups it
-// against the default socket openDefaultNetLinkSocket already holds.
+// The scan skips xtcp's own pid (see nsdiscover.Scanner.SkipPid), so xtcp's own
+// netns (x.selfNsInode) is here only if another process is in it; reconcile
+// never deletes it either way. It is deliberately not added here: an identity
+// built from xtcp's own pid would be entered via /proc/<pid>/ns/net, which is
+// the main thread's CURRENT netns — possibly a container's — and nsAdd would
+// then poll that namespace's sockets under the host inode.
 //
 // Not safe for concurrent use: nsScanner and nsResolver are reused single-owner
 // state, so only the reconcile owner (mapReconciler) may call this.
