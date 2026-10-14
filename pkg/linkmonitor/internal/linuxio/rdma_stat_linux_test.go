@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -401,6 +402,11 @@ func TestLiveRDMAStat(t *testing.T) {
 			}
 			dir := filepath.Join("/sys/class/infiniband", d.Name, "ports", strconv.FormatUint(uint64(port), 10), "hw_counters")
 			entries, err := os.ReadDir(dir)
+			if errors.Is(err, fs.ErrNotExist) {
+				// A build sandbox shares the RDMA netlink namespace but
+				// not the host's sysfs.
+				t.Skipf("no sysfs to compare with: %v", err)
+			}
 			if err != nil {
 				t.Fatal(err)
 			}
