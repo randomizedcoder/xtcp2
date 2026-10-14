@@ -1,6 +1,6 @@
 # Investigation: records dropped after the poll-end flush (`envelopePostFlushDrop`)
 
-**Status: open (root cause confirmed; fix by TDD).** Opened 2026-10-14.
+**Status: open (fix in review: option C, see [the fix and its results](#the-fix-and-its-results)).** Opened 2026-10-14.
 
 **About 19% of the TCP socket records xtcp2 collects in prod never reach S3.** `Deserialize` parses them, finds no current envelope to append to, counts `Deserialize/envelopePostFlushDrop` and throws them away. The loss affects 71% of prod hosts and grows with the number of network namespaces on a host. **The cause is confirmed in the microVMs:** it's a race between the several netlinker goroutines that read each netlink socket. The kernel sends the end-of-dump message as its own tiny packet. The goroutine that reads it signals "done" almost at once, while its siblings are still decoding the large data packets before it, and the poller's final flush runs before they finish. With one reader per socket the loss is zero; with two it halves. This document records the evidence, the reproduction, why multiple readers cause it, and a test-first plan to fix it without giving up parallel decoding: one receiver per socket numbers the packets in kernel order, and a pool of decoders counts them, so "done" is signaled only after the last packet of the dump is decoded ([option C](#fix-directions)).
 
@@ -20,6 +20,7 @@
 - [Why no test caught it](#why-no-test-caught-it)
 - [Fix directions](#fix-directions)
 - [Test-first plan](#test-first-plan)
+- [The fix and its results](#the-fix-and-its-results)
 - [Regression guard](#regression-guard)
 - [Related findings](#related-findings)
 - [Log](#log)
@@ -86,6 +87,8 @@ On dev the trend is weak: the worst host (2du0rmw1czj8, 15.8%) has 8 namespaces,
 - The destination is s3parquet everywhere, and its uploads are healthy: 130,371 uploads, 123 retries and no permanent failures in 24h.
 
 ## How a poll cycle works
+
+This describes the code before the fix; steps 2 and 3 are what [the fix](#the-fix-and-its-results) changed.
 
 1. `pollAllNetlinkSockets` (`poller.go:383-419`) installs a fresh envelope, sends one `inet_diag` dump request on each namespace's netlink socket, and returns `count`, the number of sockets polled.
 2. Each socket has `x.config.Netlinkers` goroutines reading it (`ns_createNetlinkersAndStore.go:77-79`). The default is **4** (`netlinkersCst`, `cmd/xtcp2/xtcp2.go:63`), and no deployment or VM overrides it. Each goroutine loops `Recvfrom` → `Deserialize` (`netlinker.go:150-205`). The kernel hands each packet of the dump to whichever goroutine calls `Recvfrom` next.
@@ -256,7 +259,7 @@ The fix has to keep parallel decoding (see above), so the old option A, defaulti
 |---|---|---|
 | A. **One reader per socket** | default `-netlinkers 1` | removes the race but loses parallel decode on large hosts. **Stopgap only**: setting `NETLINKERS=1` on prod stops the loss today, at the cost of longer polls on hosts with very many sockets |
 | B. **Serialize the receive, number the packets, count the decodes** | per socket and per dump: a mutex held only across `Recvfrom`, which gives each packet a sequence number in kernel order; an atomic count of decoded packets; the reader that meets `NLMSG_DONE` in packet *k* records that the dump has *k*+1 packets, and whichever reader brings the decoded count to *k*+1 signals done | correct, but C gets the same ordering without a lock: with one receiver there is nothing to serialize |
-| C. **One receiver numbers the packets; a decoder pool counts them** | per socket: one goroutine calls `Recvfrom` and numbers each packet 0, 1, 2… in the order the kernel delivered it, then hands it to `-netlinkers` decoder goroutines. Each decoder does the full decode, then increments an atomic per-dump `decoded` count. The decoder that finds `NLMSG_DONE` in packet *k* stores `total` = *k*+1 *before* its own increment, so whichever increment is last sees the total. The decoder that brings `decoded` to `total` signals done, guarded by a compare-and-swap so it's exactly once | **chosen.** Lock-free, keeps parallel decode and the `-netlinkers` meaning. Costs nothing in throughput: the kernel builds dump packets one at a time per socket anyway, and the handoff is one channel send per 32 KB packet (about 1,700 for 100k sockets). Blocks one OS thread per socket in `Recvfrom` instead of up to 4. Packet buffers change hands, so they come from a pool and go back after decode. The done signal moves from `Deserialize` to the decoder loop |
+| C. **One receiver numbers the packets; a decoder pool counts them** | per socket: one goroutine calls `Recvfrom` and numbers each packet 0, 1, 2… in the order the kernel delivered it, then hands it to `-netlinkers` decoder goroutines. The receiver scans each packet's headers for `NLMSG_DONE`; on finding it in packet *k* it stores the dump's `total` = *k*+1 *before* handing that packet off, then starts a new dump. Each decoder does the full decode, then increments an atomic per-dump `decoded` count, so whichever increment is last sees the total. The decoder that brings `decoded` to `total` signals done, guarded by a compare-and-swap so it's exactly once | **implemented** ([below](#the-fix-and-its-results)). Lock-free, keeps parallel decode and the `-netlinkers` meaning. Costs nothing in throughput: the kernel builds dump packets one at a time per socket anyway, and the handoff is one channel send per 32 KB packet (about 1,700 for 100k sockets). Blocks one OS thread per socket in `Recvfrom` instead of up to 4. Packet buffers change hands, so they come from a pool and go back after decode. The done signal moves from `Deserialize` to the decoder loop |
 | D. **The poller waits** | after `count` reaches 0, wait for a per-poll `sync.WaitGroup` of in-flight decodes before flushing | still has to know which packets are in flight before they're received; C answers that by counting at the receiver |
 | E. **Don't drop: append to the next envelope** | keep a spare envelope instead of nil | hides the race, and stamps late records into the next poll (H5); not a fix |
 
@@ -308,6 +311,49 @@ The bug is fixed test-first: write the tests, see them fail on today's code, fix
 3. the fix (option C): the unit tests and the stress runner pass, and the benchmark shows no regression;
 4. update this document's status and the `flushEnvelope` comment.
 
+## The fix and its results
+
+**What changed** (`pkg/xtcp/netlinker.go`):
+- `netlinkerSyscall` is now one receiver goroutine per socket plus `-netlinkers` decoder goroutines. The receiver does `Recvfrom` and numbers the packets of each dump. When `packetHasDone` finds `NLMSG_DONE` (a header walk, no decode) in the *k*-th packet, it stores `total = k` before handing that packet off.
+- Each decoder deserializes, then increments the dump's `decoded` count; the one that reaches `total` signals done, once (`dumpState`). `Deserialize` no longer signals on the syscall path.
+- `createNetlinkers` calls the netlinker once per socket with the count. The io_uring path is unchanged: one ring per netlinker, signaling from `Deserialize`, so **it still has the race when `-netlinkers` > 1**. Prod doesn't use io_uring; it's a follow-up.
+
+**Unit tests** (`netlinker_dump_test.go`), red on the old code and green on the fix:
+
+| row | old code | fix |
+|---|---|---|
+| a sibling held mid-decode, 1 data packet | done while held; rows 0, drops 60 | no done while held; rows 60, drops 0 |
+| a sibling held, 3 data packets | done while held; rows 0, drops 180 | rows 180, drops 0 |
+| 4 netlinkers, 1,000 dumps of 300 records | rows 233,452 of 300,000; drops 66,548 (22%) | rows 300,000, drops 0 (20 runs under `-race`) |
+| done at the end of the last data packet, first held | drops 60 | drops 0 |
+| one netlinker; done-only dumps; done inside a data packet | pass | pass |
+
+**Benchmark** (`BenchmarkNetlinkerDump`: one dump of 102,000 real records in 1,700 packets, until every record is decoded; benchstat, n=8, a 12-core Threadripper):
+
+| decoders-GOMAXPROCS | old code | fix |
+|---|---|---|
+| 1-24 | 273 ms | 237 ms (~) |
+| 2-24 | 260 ms | 204 ms (−21%) |
+| 4-4 | 224 ms | 175 ms (−22%) |
+| 4-24 | 154 ms | 157 ms (~) |
+| 8-24 | 116 ms | 127 ms (+10%) |
+| geomean | 205 ms | 187 ms (−9%) |
+
+Decoding scales with decoders as before, and at the default 4 the fix is no slower; its run-to-run spread is also much smaller (±2–8% against ±12–21%). The one cost is 8 decoders on 24 cores, +10%, which may be the channel handoff.
+
+**MicroVM** (`s3parquet-stress`, 20 minutes; the runner now FAILs on any drop):
+
+| variant | | post-flush drops / appends | rows uploaded | threads | RSS (MB) | result |
+|---|---|---|---|---|---|---|
+| base (netlinkers=4) | before | 7,813 / 489,881 (1.57%) | 418,124 | 5 → 114 | 208 | (no drop check yet) |
+| base (netlinkers=4) | after | 0 / 412,460 | 407,721 | 5 → 51 | 184 | PASS |
+| `-nl1` (netlinkers=1) | before | 0 / 492,758 | 444,995 | 6 → 52 | | (no drop check yet) |
+| `-nl1` (netlinkers=1) | after | 0 / 457,553 | 417,411 | 8 → 51 | 149 | PASS |
+
+The fix makes the default config match `-nl1`: no drops, and the thread count no
+longer doubles. Rows uploaded vary run to run with the stress-container churn;
+the "before" columns come from the A/B runs above.
+
 ## Regression guard
 
 - **Unit:** the test-first rows above, under `-race`, with the benchmark guarding the speedup.
@@ -337,3 +383,4 @@ These came up in the same queries. They aren't causes of the drop, and each may 
 | 2026-10-14 | Opened from the fleet dashboard review ([summary metrics F4](../design-summary-metrics.md#f4-constant-background-of-deserialize-errors)). Fleet queries above; H2–H4 ruled out; H1 leading. Next: Step 1 on `s3parquet-stress`. |
 | 2026-10-14 | Step 1: reproduced on `s3parquet-stress` at about 2%. Step 2: `NETLINKERS=1` gives 0 drops, 2 readers about half the loss; **H1 confirmed**. CPU load and 8 readers didn't amplify it. Added the `xtcp2Environment` and `cpuStress` VM knobs, the variant apps and the drop reporting; fixed the stress-container respawn. Next: the [test-first plan](#test-first-plan), and `s3parquet-long` for the namespace-count effect. |
 | 2026-10-14 | Fix chosen: option C, one receiver per socket numbering the packets and a decoder pool counting them, lock-free. B (a mutex around `Recvfrom`) dropped as unnecessary; `NLMSG_DONE` can't supply the count because every message of a dump carries the request's `nlmsg_seq`. Added the benchmark rows. |
+| 2026-10-14 | Option C implemented test-first: unit tests red (22% dropped over 1,000 dumps) then green; benchmark no slower at the default 4 decoders; the stress and long runners and self-test Check 14c now fail on drops. |

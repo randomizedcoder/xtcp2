@@ -245,9 +245,10 @@ func (x *XTCP) processInetDiagRecord(
 
 	// ProtobufList: record is owned by currentEnvelope until flushEnvelope
 	// at cycle end marshals and pool-returns it. The mutex serializes
-	// appends from N×K parallel netlinkers (one per netns × Netlinkers).
-	// A nil currentEnvelope means a flush has already run (shutdown race);
-	// return the record to its pool so it doesn't leak.
+	// appends from N×K parallel decoders (one per netns × Netlinkers).
+	// A nil currentEnvelope means a terminal flush has already run
+	// (shutdown, poll_timeout, or io_uring's multi-netlinker race; see
+	// flushEnvelope); return the record to its pool so it doesn't leak.
 	//
 	// Size-cap safety valves: row count (primary, cheap, predictable)
 	// + a byte cap (secondary safety net for pathological per-record

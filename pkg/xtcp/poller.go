@@ -126,8 +126,12 @@ func (x *XTCP) Poller(ctx context.Context, wg *sync.WaitGroup) {
 // (poll_end/poll_timeout/shutdown) ends the cycle and leaves currentEnvelope
 // nil; the next pollAllNetlinkSockets re-acquires a fresh envelope. Concurrent
 // appends in deserialize.go take envelopeMu and tolerate nil by dropping the
-// record (no-op + counter bump) — which now only happens for in-flight
-// netlinkers racing the final shutdown flush.
+// record (no-op + counter bump). With the syscall netlinker that should only
+// happen for decoders racing the final shutdown flush or a poll_timeout:
+// poll_end waits for each socket's done signal, which goes out only after
+// the dump's last packet is decoded (dumpState in netlinker.go). The
+// io_uring path with more than one netlinker can still drop here
+// (docs/investigations/envelope-post-flush-drop.md).
 func (x *XTCP) flushEnvelope(ctx context.Context, reason string) {
 	reAcquire := reason == "size_cap" || reason == "rows_cap"
 
