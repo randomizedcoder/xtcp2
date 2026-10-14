@@ -62,7 +62,7 @@ func newNetlinkerLoopFixture(t *testing.T) *XTCP {
 // production but with a 50ms timeout so the loop returns to its ctx
 // check every 50ms (otherwise Recvfrom blocks indefinitely on a
 // socketpair with no more data).
-func setShortRecvTimeout(t *testing.T, fd int) {
+func setShortRecvTimeout(t testing.TB, fd int) {
 	t.Helper()
 	tv := syscall.Timeval{Sec: 0, Usec: 50 * 1000} // 50ms
 	if err := syscall.SetsockoptTimeval(fd, syscall.SOL_SOCKET, syscall.SO_RCVTIMEO, &tv); err != nil {

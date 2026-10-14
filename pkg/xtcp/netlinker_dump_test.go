@@ -3,6 +3,7 @@ package xtcp
 import (
 	"context"
 	"encoding/binary"
+	"fmt"
 	"math"
 	"sync"
 	"syscall"
@@ -101,7 +102,7 @@ type dumpHarness struct {
 	wg      *sync.WaitGroup
 }
 
-func newDumpHarness(t *testing.T, netlinkers uint32, hook func(fd int, packet []byte)) *dumpHarness {
+func newDumpHarness(t testing.TB, netlinkers uint32, hook func(fd int, packet []byte)) *dumpHarness {
 	t.Helper()
 	x := newTestDeserializeXTCP(t)
 	x.fdToNsMap = &sync.Map{}
@@ -153,13 +154,20 @@ func waitGroupTimeout(wg *sync.WaitGroup, d time.Duration) bool {
 	}
 }
 
-func (h *dumpHarness) send(t *testing.T, pkts ...[]byte) {
+func (h *dumpHarness) send(t testing.TB, pkts ...[]byte) {
 	t.Helper()
+	if err := h.write(pkts); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func (h *dumpHarness) write(pkts [][]byte) error {
 	for _, p := range pkts {
 		if _, err := syscall.Write(h.writeFD, p); err != nil {
-			t.Fatalf("write %d-byte packet: %v", len(p), err)
+			return fmt.Errorf("write %d-byte packet: %w", len(p), err)
 		}
 	}
+	return nil
 }
 
 // startDump installs a fresh envelope, as pollAllNetlinkSockets does.
@@ -174,12 +182,16 @@ func (h *dumpHarness) startDump() {
 func (h *dumpHarness) flush() int {
 	h.x.envelopeMu.Lock()
 	defer h.x.envelopeMu.Unlock()
-	rows := 0
-	if h.x.currentEnvelope != nil {
-		rows = len(h.x.currentEnvelope.Row)
-	}
+	e := h.x.currentEnvelope
 	h.x.currentEnvelope = nil
-	return rows
+	if e == nil {
+		return 0
+	}
+	for _, r := range e.Row {
+		r.Reset()
+		h.x.xtcpRecordPool.Put(r)
+	}
+	return len(e.Row)
 }
 
 func (h *dumpHarness) drops() int {
@@ -202,7 +214,7 @@ func (h *dumpHarness) waitDone(d time.Duration) bool {
 
 // quiesce waits until every record sent so far has been either appended
 // or dropped, so the counters are final.
-func (h *dumpHarness) quiesce(t *testing.T, records int) {
+func (h *dumpHarness) quiesce(t testing.TB, records int) {
 	t.Helper()
 	deadline := time.Now().Add(dumpQuiesceWindow)
 	for h.appends()+h.drops() < records {
@@ -426,6 +438,43 @@ func TestNetlinkerDump_shutdownWhileHeld(t *testing.T) {
 			if got := waitGroupTimeout(h.wg, dumpQuiesceWindow); got != tc.expected {
 				t.Errorf("netlinkers exited = %v, expected %v", got, tc.expected)
 			}
+		})
+	}
+}
+
+// BenchmarkNetlinkerDump measures the time for one large dump, about 100k
+// sockets in 1,700 packets of 60 records plus the done packet, from the
+// first write until every record has been decoded, by netlinker count.
+// Records dropped after the flush still count as decoded, so main and a
+// fix do the same work. Compare runs with benchstat.
+func BenchmarkNetlinkerDump(b *testing.B) {
+	const dataPkts = 1700
+	c := loadDumpCorpus(b)
+	pkts := c.dump(dataPkts)
+	perDump := countRecords(pkts)
+
+	for _, netlinkers := range []uint32{1, 2, 4, 8} {
+		b.Run(fmt.Sprintf("netlinkers=%d", netlinkers), func(b *testing.B) {
+			h := newDumpHarness(b, netlinkers, nil)
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				h.startDump()
+				// The socketpair queue is shorter than a dump, so write
+				// from a goroutine while the netlinkers drain it.
+				errCh := make(chan error, 1)
+				go func() { errCh <- h.write(pkts) }()
+				if !h.waitDone(dumpDoneTimeout) {
+					b.Fatalf("dump %d: no done signal", i)
+				}
+				h.flush()
+				h.quiesce(b, (i+1)*perDump)
+				if err := <-errCh; err != nil {
+					b.Fatal(err)
+				}
+			}
+			b.StopTimer()
+			b.ReportMetric(float64(perDump), "records/dump")
 		})
 	}
 }

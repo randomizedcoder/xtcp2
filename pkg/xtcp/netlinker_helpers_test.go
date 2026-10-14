@@ -64,7 +64,7 @@ func newNetlinkerXTCP(t *testing.T) *XTCP {
 // numbers can be recycled by the kernel under parallel tests + race,
 // turning a benign double-close into a stray close of an unrelated
 // socket in another goroutine).
-func makeSocketPair(t *testing.T) (read, write int, closeRead func()) {
+func makeSocketPair(t testing.TB) (read, write int, closeRead func()) {
 	t.Helper()
 	pair, err := syscall.Socketpair(syscall.AF_UNIX, syscall.SOCK_DGRAM, 0)
 	if err != nil {
