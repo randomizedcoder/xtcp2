@@ -84,9 +84,9 @@ func (c *Client) rdma(ctx context.Context, command uint16, index, port uint32, d
 		}})
 }
 
-// rdmaRequest is a doit, of a single port or of SYS_GET, or a dump: of every
-// device, or of one device's ports, which nldev_port_get_dumpit selects by
-// DEV_INDEX.
+// rdmaRequest is a doit, of a single port, of a port's counters (STAT_GET) or
+// of SYS_GET, or a dump: of every device, or of one device's ports, which
+// nldev_port_get_dumpit selects by DEV_INDEX.
 //
 // None asks for an ACK, unlike rdma's (xtcpnl.BuildRdmaPortGetRequest):
 // the bytes are the ones the recordings in testdata/nlrecord pin, from hosts
@@ -99,7 +99,7 @@ func rdmaRequest(command uint16, index, port, sequence uint32, dump bool) ([]byt
 	if dump {
 		flags = unix.NLM_F_DUMP
 	}
-	if op == xtcpnl.RdmaNldevCmdPortGet {
+	if op == xtcpnl.RdmaNldevCmdPortGet || op == xtcpnl.RdmaNldevCmdStatGet {
 		if err := ab.PutU32(xtcpnl.RdmaNldevAttrDevIndex, index); err != nil {
 			return nil, err
 		}
@@ -123,6 +123,12 @@ var rdmaPortAttrs = []uint16{xtcpnl.RdmaNldevAttrDevIndex, xtcpnl.RdmaNldevAttrD
 // checks the widths, of these and of every other attribute it knows; a type
 // outside allowed is otherwise ignored. seen is indexed by attribute type.
 func admitRDMAAttrs(body []byte, allowed []uint16, seen []bool) error {
+	return admitRDMANested(body, allowed, 0, seen)
+}
+
+// admitRDMANested is admitRDMAAttrs that also accepts NLA_F_NESTED on the
+// one attribute nested, which nla_nest_start sets; type zero is none.
+func admitRDMANested(body []byte, allowed []uint16, nested uint16, seen []bool) error {
 	attrs, err := xtcpnl.ParseNetlinkAttributes(body)
 	if err != nil {
 		return errors.Join(ErrReply, err)
@@ -132,7 +138,7 @@ func admitRDMAAttrs(body []byte, allowed []uint16, seen []bool) error {
 		if !rdmaAllowed(allowed, id) {
 			continue
 		}
-		if seen[id] || a.Type != id {
+		if seen[id] || (a.Type != id && (nested == 0 || id != nested || a.Type != id|unix.NLA_F_NESTED)) {
 			return ErrReply
 		}
 		seen[id] = true

@@ -183,6 +183,10 @@ func (s *lifecycleSession) collectorFactory() workerFactory {
 	if !s.statistics && !s.settings && !s.driverStatistics && !s.hostStatistics && !s.rdma {
 		return s.collectors
 	}
+	var handles *rdmaHandles
+	if s.rdma {
+		handles = newRDMAHandles(sysfsFiles{})
+	}
 	return func(id int) (workerCollector, error) {
 		base, err := s.collectors(id)
 		if err != nil {
@@ -192,7 +196,10 @@ func (s *lifecycleSession) collectorFactory() workerFactory {
 			base = newHostCollector(base, s.procRoot, s.statisticsConfig)
 		}
 		if s.rdma {
-			base = newRDMAOptionalCollector(base, s.rdmaFiles())
+			base, err = s.rdmaCollector(base, handles)
+			if err != nil {
+				return nil, err
+			}
 		}
 		if s.driverStatistics {
 			wrapped, wrapErr := newStatisticsCollector(base, s.statisticsConfig)

@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/linuxio"
@@ -51,6 +54,14 @@ func TestRDMAStateReaderTable(t *testing.T) {
 		{"denied", "negative", "netlink permission denied", "no fallback", "denied", unix.EACCES},
 		{"fallback", "positive", "sysfs-origin port and verified namespace", "read sysfs without treating index zero as assigned", "fallback", nil},
 		{"canceled", "corner", "canceled before acquisition", "context error without reading", "canceled", context.Canceled},
+		{"steady-no-sysfs", "positive", "matching netlink reply with the sysfs tree gone", "state from netlink alone: a steady read touches no sysfs file", "no-sysfs", nil},
+		{"removed", "negative", "device removed: GET_PORT fails with EINVAL and its class entry is gone", "ENOENT from the identity, which asks for a resync", "removed", fs.ErrNotExist},
+		{"replaced", "negative", "device re-registered on other hardware: GET_PORT on the old index fails", "ErrEpoch from the identity", "replaced", linuxio.ErrEpoch},
+		{"renamed-removed", "corner", "reply has another name and the class entry is gone", "ENOENT: the identity classifies a mismatched reply", "renamed-removed", fs.ErrNotExist},
+		{"denied-removed", "negative", "netlink permission denied and the device removed", "ENOENT rather than EACCES", "denied-removed", fs.ErrNotExist},
+		{"replaced-reply-matches", "corner", "hardware link changed but the reply matches name, index and port", "accepted: a matching registration cannot change hardware, so it is not rechecked", "replaced-matching", nil},
+		{"missing-replaced", "negative", "optional netlink state absent and the hardware changed", "ErrEpoch from the guard around the sysfs read", "missing-replaced", linuxio.ErrEpoch},
+		{"fallback-replaced", "negative", "sysfs-origin port whose hardware changed", "ErrEpoch before reading sysfs", "fallback-replaced", linuxio.ErrEpoch},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expectedOutcome)
@@ -77,6 +88,28 @@ func TestRDMAStateReaderTable(t *testing.T) {
 				client.err = unix.EACCES
 			case "canceled":
 				cancel()
+			case "no-sysfs":
+				rdmaRemoveAll(t, reader.files.root)
+			case "removed":
+				rdmaRemoveAll(t, filepath.Join(reader.files.root, p.Device))
+				client.err = unix.EINVAL
+			case "replaced":
+				rdmaRelink(t, reader.files, p.Device)
+				client.err = unix.EINVAL
+			case "renamed-removed":
+				client.ports[0].Name = "other"
+				rdmaRemoveAll(t, filepath.Join(reader.files.root, p.Device))
+			case "denied-removed":
+				client.err = unix.EACCES
+				rdmaRemoveAll(t, filepath.Join(reader.files.root, p.Device))
+			case "replaced-matching":
+				rdmaRelink(t, reader.files, p.Device)
+			case "missing-replaced":
+				client.ports[0].HasState, client.ports[0].HasPhysical = false, false
+				rdmaRelink(t, reader.files, p.Device)
+			case "fallback-replaced":
+				p.Sysfs, reader.files.namespaceVerified = true, true
+				rdmaRelink(t, reader.files, p.Device)
 			}
 			got, err := reader.Read(ctx, p)
 			if !errors.Is(err, tc.want) {
@@ -86,6 +119,30 @@ func TestRDMAStateReaderTable(t *testing.T) {
 				t.Fatal(tc.expectedOutcome)
 			}
 		})
+	}
+}
+
+func rdmaRemoveAll(t *testing.T, path string) {
+	t.Helper()
+	if err := os.RemoveAll(path); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// rdmaRelink points device's hardware link at another PCI function, as a
+// device re-registered on other hardware under the same name has.
+func rdmaRelink(t *testing.T, files rdmaFilesystem, device string) {
+	t.Helper()
+	hardware := filepath.Join(filepath.Dir(filepath.Dir(files.root)), "devices", "pci0000:00", "0000:02:00.0")
+	link := filepath.Join(files.root, device, "device")
+	if err := os.MkdirAll(hardware, 0750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(link); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(hardware, link); err != nil {
+		t.Fatal(err)
 	}
 }
 
