@@ -107,7 +107,7 @@ func parseNeighShowArgs(args []string) (neighSelectors, error) {
 // object — ipaddress.c and iproute.c have "show"/"list"/"lst" too, but goip's
 // other objects reach them by different paths. Spelling the set as a slice
 // rather than a chain of conditions keeps the next alias a one-line change.
-var neighShowVerbs = []string{"show", "list", "lst"}
+var neighShowVerbs = []string{showVerbCst, listVerbCst, lstVerbCst}
 
 func runNeigh(c *runCtx, args []string) error {
 	if len(args) > 0 && !matchesAny(args[0], neighShowVerbs) {

@@ -18,7 +18,7 @@ const (
 	// with strcmp, not matches() (ip/ipstats.c:1183,1197,1324), so none of
 	// them abbreviate.
 	groupKeywordCst          = "group"
-	statsGroupLinkCst        = "link"
+	statsGroupLinkCst        = render.LinkGroupCst
 	statsGroupXstatsCst      = render.XstatsGroupCst
 	statsGroupXstatsSlaveCst = render.XstatsSlaveGroupCst
 	subgroupKeywordCst       = "subgroup"

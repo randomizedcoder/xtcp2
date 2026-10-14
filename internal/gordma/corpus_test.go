@@ -26,7 +26,7 @@ func TestCorpusKernels(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var got []string
+	got := make([]string, 0, len(dirs))
 	for _, d := range dirs {
 		got = append(got, filepath.Base(filepath.Dir(d)))
 	}

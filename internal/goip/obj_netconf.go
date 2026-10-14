@@ -15,7 +15,7 @@ import (
 // order (ip/ipnetconf.c:234-239): show, lst, list, all matched with matches() as
 // neigh and ntable are. change/write verbs do not exist for netconf and help is
 // refused, goip being read-only.
-var netconfShowVerbs = []string{"show", "lst", "list"}
+var netconfShowVerbs = []string{showVerbCst, lstVerbCst, listVerbCst}
 
 // runNetconf is do_ipnetconf restricted to the listing path (ip/ipnetconf.c:233).
 // A bare `ip netconf` is do_show(0, NULL) (:243), so an empty verb is the listing.

@@ -2116,16 +2116,7 @@ func printConfig(c *xtcp_config.XtcpConfig, comment string) {
 	fmt.Println("c.DebugLevel:", c.DebugLevel)
 	fmt.Println("c.Ipv4Ttl:", c.Ipv4Ttl)
 	fmt.Println("c.Ipv6HopLimit:", c.Ipv6HopLimit)
-	if c.ListenerAuth == nil {
-		fmt.Println("c.ListenerAuth.Mode: disabled")
-		fmt.Println("c.ListenerAuth.RawToken: set: false")
-		fmt.Println("c.ListenerAuth.HmacSharedKey: set: false")
-	} else {
-		fmt.Println("c.ListenerAuth.Mode:", listenerauth.ModeString(c.ListenerAuth.GetMode()))
-		fmt.Println("c.ListenerAuth.RawToken: set:", c.ListenerAuth.GetRawToken() != "")
-		fmt.Println("c.ListenerAuth.HmacSharedKey: set:", c.ListenerAuth.GetHmacSharedKey() != "")
-		fmt.Println("c.ListenerAuth.SignedTokenSkewMinutes:", c.ListenerAuth.GetSignedTokenSkewMinutes())
-	}
+	printListenerAuthConfig(c)
 	fmt.Println("c.Label:", c.Label)
 	fmt.Println("c.Tag:", c.Tag)
 	fmt.Println("c.Location:", c.Location)
@@ -2161,6 +2152,20 @@ func printConfig(c *xtcp_config.XtcpConfig, comment string) {
 		fmt.Printf("c.PrometheusListener: network=%s address=%s mode=%#o unlinkStale=%t\n", c.PrometheusListener.GetNetwork(), c.PrometheusListener.GetAddress(), c.PrometheusListener.GetUnixSocketMode(), c.PrometheusListener.GetUnlinkStaleUnixSocket())
 	}
 	fmt.Println("c.EnabledDeserializers:", c.EnabledDeserializers)
+}
+
+// printListenerAuthConfig prints whether each credential is set, never its value.
+func printListenerAuthConfig(c *xtcp_config.XtcpConfig) {
+	if c.ListenerAuth == nil {
+		fmt.Println("c.ListenerAuth.Mode: disabled")
+		fmt.Println("c.ListenerAuth.RawToken: set: false")
+		fmt.Println("c.ListenerAuth.HmacSharedKey: set: false")
+	} else {
+		fmt.Println("c.ListenerAuth.Mode:", listenerauth.ModeString(c.ListenerAuth.GetMode()))
+		fmt.Println("c.ListenerAuth.RawToken: set:", c.ListenerAuth.GetRawToken() != "")
+		fmt.Println("c.ListenerAuth.HmacSharedKey: set:", c.ListenerAuth.GetHmacSharedKey() != "")
+		fmt.Println("c.ListenerAuth.SignedTokenSkewMinutes:", c.ListenerAuth.GetSignedTokenSkewMinutes())
+	}
 }
 
 func getDeserializers(str string) *xtcp_config.EnabledDeserializers {

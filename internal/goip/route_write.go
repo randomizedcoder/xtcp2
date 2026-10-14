@@ -119,7 +119,7 @@ var routeParseKeywords = []routeKeyword{
 	{keyword: "priority", prefix: true, arm: routeArmPriority},
 	{keyword: "preference", arm: routeArmPriority},
 	{keyword: "scope", arm: routeArmScope},
-	{keyword: "mtu", arm: routeArmMetric, rtax: unix.RTAX_MTU, name: "mtu"},
+	{keyword: mtuKeywordCst, arm: routeArmMetric, rtax: unix.RTAX_MTU, name: mtuKeywordCst},
 	{keyword: "hoplimit", arm: routeArmMetric, rtax: unix.RTAX_HOPLIMIT, name: "hoplimit", maxVal: math.MaxUint8},
 	{keyword: "advmss", arm: routeArmMetric, rtax: unix.RTAX_ADVMSS, name: "mss"},
 	{keyword: "reordering", prefix: true, arm: routeArmMetric, rtax: unix.RTAX_REORDERING, name: "reordering"},
@@ -140,7 +140,7 @@ var routeParseKeywords = []routeKeyword{
 	{keyword: "nhid", arm: routeArmUnsupported},
 	{keyword: "protocol", prefix: true, arm: routeArmProtocol},
 	{keyword: "table", prefix: true, arm: routeArmTable},
-	{keyword: "vrf", prefix: true, arm: routeArmUnsupported},
+	{keyword: vrfKeywordCst, prefix: true, arm: routeArmUnsupported},
 	{keyword: devKeywordCst, arm: routeArmDev},
 	{keyword: "oif", arm: routeArmDev},
 	{keyword: "pref", prefix: true, arm: routeArmUnsupported},
@@ -248,6 +248,8 @@ func (st *routeParseState) keyword(kw *routeKeyword, args []string, i int) (int,
 		return st.features(args, i)
 	case routeArmVia:
 		return st.via(args, i)
+	default:
+		// Every other arm takes a value, read by NEXT_ARG below.
 	}
 	i, err := nextArg(args, i)
 	if err != nil {
@@ -263,6 +265,8 @@ func (st *routeParseState) keyword(kw *routeKeyword, args []string, i int) (int,
 		}
 	case routeArmRtoMin:
 		st.w.MetricLock |= 1 << kw.rtax
+	default:
+		// Only the metric arms above take a lock.
 	}
 	return i, st.value(kw, args[i])
 }
@@ -581,6 +585,9 @@ func afBitLen(f uint8) int {
 	return 0
 }
 
+// familyLinkCst is AF_PACKET's family word, both ways.
+const familyLinkCst = "link"
+
 // familyNameVerbose is family_name_verbose, for the get_addr and
 // get_prefix messages.
 func familyNameVerbose(f uint8) string {
@@ -592,7 +599,7 @@ func familyNameVerbose(f uint8) string {
 	case unix.AF_INET6:
 		return "inet6"
 	case unix.AF_PACKET:
-		return "link"
+		return familyLinkCst
 	case unix.AF_MPLS:
 		return "mpls"
 	case unix.AF_BRIDGE:
@@ -608,7 +615,7 @@ func readFamily(name string) uint8 {
 		return unix.AF_INET
 	case "inet6":
 		return unix.AF_INET6
-	case "link":
+	case familyLinkCst:
 		return unix.AF_PACKET
 	case "mpls":
 		return unix.AF_MPLS

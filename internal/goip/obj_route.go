@@ -42,7 +42,7 @@ func runRoute(c *runCtx, args []string) error {
 		if v := lookupRouteWriteVerb(verb); v != nil {
 			return routeWrite(c, v, args[1:])
 		}
-		if !matchesPrefix(verb, "list") && !matchesPrefix(verb, "show") && !matchesPrefix(verb, "lst") {
+		if !matchesPrefix(verb, listVerbCst) && !matchesPrefix(verb, showVerbCst) && !matchesPrefix(verb, lstVerbCst) {
 			return fmt.Errorf("route %q: %w", verb, ErrNotImplemented)
 		}
 		args = args[1:]
@@ -144,6 +144,10 @@ func parseRouteShowArgs(args []string) (routeSelectors, error) {
 	return sel, nil
 }
 
+// routeTableLocalCst is RT_TABLE_LOCAL's name. route_write.go's
+// routeTableNames spells it as a literal so the row reads like its siblings.
+const routeTableLocalCst = "local"
+
 // routeTableID is rtnl_rttable_a2n (lib/rt_names.c:552-597) plus the three
 // spellings iproute2 handles only after it fails (ip/iproute.c:1848-1856).
 //
@@ -161,7 +165,7 @@ func routeTableID(arg string) (uint32, error) {
 		return unix.RT_TABLE_DEFAULT, nil
 	case "main":
 		return unix.RT_TABLE_MAIN, nil
-	case "local":
+	case routeTableLocalCst:
 		return unix.RT_TABLE_LOCAL, nil
 	case "all":
 		return unix.RT_TABLE_UNSPEC, nil

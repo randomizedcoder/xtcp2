@@ -15,7 +15,7 @@ import (
 // listing (ip/ipaddrlabel.c, in its order): list, lst, show. The order matches
 // rule's, and like rule the abbreviations fall out of it (l -> list, s -> show,
 // ls -> lst).
-var addrLabelShowVerbs = []string{"list", "lst", "show"}
+var addrLabelShowVerbs = []string{listVerbCst, lstVerbCst, showVerbCst}
 
 func runAddrLabel(c *runCtx, args []string) error {
 	if len(args) > 0 {

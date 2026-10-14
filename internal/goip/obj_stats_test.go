@@ -215,7 +215,7 @@ func (s typedStatsSource) Dump(_ []byte, typ uint16) ([][]byte, error) { return 
 // returns link-only for filter_mask 0x1); it is the bare-show-on-a-bridge shape
 // the refusal exists to catch.
 func ifsmUnsupportedBody(ifindex uint32) []byte {
-	b := make([]byte, 12)
+	b := make([]byte, 12, 12+8) // the ifstatsmsg, then the 8-byte attr below
 	binary.LittleEndian.PutUint32(b[4:8], ifindex)
 	binary.LittleEndian.PutUint32(b[8:12], 0x1f) // all groups requested
 	attr := make([]byte, 8)

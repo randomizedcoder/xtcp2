@@ -36,7 +36,7 @@ func pcapDatagrams(t *testing.T, filename string) [][]byte {
 func TestWalkNotifications(t *testing.T) {
 	// The four per-family captures: their add+del totals are
 	// TestEventFixtureCounts' pins, 355 in all.
-	var events [][]byte
+	events := make([][]byte, 0, 355)
 	for _, f := range []string{tdEventsLink_7_1_4, tdEventsAddr_7_1_4, tdEventsRoute_7_1_4, tdEventsNeigh_7_1_4} {
 		events = append(events, pcapDatagrams(t, f)...)
 	}

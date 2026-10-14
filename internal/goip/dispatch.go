@@ -143,6 +143,21 @@ func matchesAny(arg string, patterns []string) bool {
 // Using this constant with == is therefore the faithful comparison.
 const devKeywordCst = "dev"
 
+// The verbs every list-capable object accepts for its show path. Each object's
+// table keeps its own upstream order (its matches() chain), so only the words
+// are shared, not the tables.
+const (
+	showVerbCst = "show"
+	lstVerbCst  = "lst"
+	listVerbCst = "list"
+)
+
+// The keywords spelled the same in `ip link`, `ip route` and `ip nexthop`.
+const (
+	vrfKeywordCst = "vrf"
+	mtuKeywordCst = "mtu"
+)
+
 // lookupObject resolves an argument to an object, first match in table order.
 func lookupObject(arg string) (object, error) {
 	for _, o := range objects {

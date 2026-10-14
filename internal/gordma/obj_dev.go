@@ -450,7 +450,7 @@ func monShow(r *rd) error {
 	r.p.newJSONObj()
 	var cbErr error
 	ended := false
-	errno, err := r.src.Listen(uint32(xtcpnl.RdmaNlGroupNotify), func(m Msg) bool {
+	errno, err := r.src.Listen(xtcpnl.RdmaNlGroupNotify, func(m Msg) bool {
 		ended, cbErr = r.cbOne(m, 0, 0, r.monLine)
 		return !ended && cbErr == nil
 	})

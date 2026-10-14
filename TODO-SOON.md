@@ -21,7 +21,8 @@ methods. `golangci-lint-comprehensive` reported **0 issues** on that date.
 the story is in §23.** Tier 2 was red again for weeks, peaking at 46 findings.
 As of 2026-10-06 it reports **0** and is **gated** — as are Tiers 0 and 1, so
 `docs/lint-baseline.txt` holds no finding lines and the `lint-baseline` ratchet
-fails on an added finding in any tier. `deadnix`, `nix-fmt` and `statix` are
+fails on an added finding in any tier. **It went red again between 2026-10-09 and
+10-12, with 59 Tier 2 findings; see §28.** `deadnix`, `nix-fmt` and `statix` are
 green too. The only reds left in `nix flake check` are the two environmental
 flakes.
 
@@ -2211,3 +2212,54 @@ hypothesis stands, still unconfirmed, and the holder diagnostic will tell.
   with its pid, `comm`, state and `wchan`. If failure 1 recurs, the log names
   the holder instead of leaving it to inference; a `D` state with an
   rtnl-related `wchan` would confirm the hypothesis.
+
+## 28. The lint ratchet was red on `main` with 59 Tier 2 findings — FIXED 2026-10-13
+
+Found while verifying §26: `lint-baseline` reported
+`tier2 (golangci-lint-comprehensive) [GATED]: 59 finding(s), 59 added`, with
+Tiers 0 and 1 at 0. The findings came in with the goip, gordma and goipparity
+merges of 2026-10-09 to 10-12. Nobody saw them because, as the caveat at the
+top says, there is no CI, so the ratchet only runs when someone runs it.
+
+| linter | findings | where |
+|---|---|---|
+| goconst | 50 | `internal/goip` 24, `internal/gordma` 21, `internal/goipparity` 7 |
+| prealloc | 4 | four `_test.go` slices |
+| exhaustive | 4 sites | `bridgeBodyNone` (render/bridge_xstats.go ×2), `routeArm` (route_write.go ×2) |
+| unconvert | 1 | `uint32(xtcpnl.RdmaNlGroupNotify)`, already a `uint32` |
+| funlen | 1 | `printConfig`, 71 statements against 70 |
+
+(golangci-lint counts 60; the ratchet dedups by message without line numbers.)
+
+**goconst is per package.** Each new object file pushed an older file's literal
+over `min-occurrences: 3`, which is why `obj_rule.go` (2026-10-05) was flagged
+only after later objects landed.
+
+**Fix.** The non-goconst findings were fixed in code. `printConfig` output is
+byte-identical before and after, checked with ListenerAuth both nil and set.
+goconst followed the existing rule for `internal/goip` in
+`.golangci-comprehensive.yml`: named constants where the sites share one
+meaning, and scoped exclusions only where they don't.
+- **goip:** `showVerbCst`/`lstVerbCst`/`listVerbCst`, `vrfKeywordCst`,
+  `mtuKeywordCst`, `familyLinkCst` and `routeTableLocalCst`, plus the existing
+  `vrfKindCst`. In render: `LinkGroupCst`, which `statsGroupLinkCst` now
+  aliases, and `bondSubgroupCst`/`bridgeSubgroupCst`. The three remaining
+  `link` sites are table rows meaning three different things, the DORMANT
+  case, so they get a rule limited to that one message in `internal/goip`'s own
+  files.
+- **goipparity:** `String()`'s three `"yes"` became `yesNo`. The rest are
+  command lines in `commands.go`'s parity table, excluded for that one file.
+- **gordma:** every finding was a row of a table transcribed from rdma/*.c, so
+  goconst is excluded for the package, like `tools/`.
+
+Mutants confirm the exclusions are scoped:
+
+| mutant | finding |
+|---|---|
+| a new literal ×3 in `pkg/xtcp`, `internal/goip`, `goipparity/compare.go` | flagged |
+| a fourth `link` in `internal/goip` | flagged (the rule matches only 3) |
+| `link` ×3 in `internal/goip/render` | flagged |
+| a new literal ×3 in `goipparity/commands.go`, `internal/gordma` | excluded |
+
+**Still open:** without CI this can happen again. Running `lint-baseline` on
+each PR is the actual fix.
