@@ -635,7 +635,8 @@ rec {
         # Records dropped after the poll-end flush vs appended, from the same
         # sample (docs/investigations/envelope-post-flush-drop.md). Counters
         # restart with the daemon (the self-test's reconfigure re-execs it),
-        # so this is the current process's share. Reported, not asserted.
+        # so this is the current process's share. Any drop is lost data and
+        # fails the run.
         drops_last=$(printf '%s' "$last_line" | grep -oE 'drops=[0-9]+' | cut -d= -f2 || true)
         appends_last=$(printf '%s' "$last_line" | grep -oE 'appends=[0-9]+' | cut -d= -f2 || true)
         drop_pct=$(awk -v d="''${drops_last:-0}" -v a="''${appends_last:-0}" \
@@ -687,6 +688,7 @@ rec {
         [ "$disk_peak" -ge 95 ] && { echo "FAIL: minio disk hit ''${disk_peak}% — /var/lib/minio saturated, uploads back-pressured (grow the volume or shorten the retention window)"; rc=1; }
         [ "$disk_peak" -ge 85 ] && [ "$disk_peak" -lt 95 ] && echo "WARN: minio disk peaked at ''${disk_peak}% — approaching saturation; a longer soak may stall"
         [ "$panics" -ne 0 ] && { echo "FAIL: $panics panic(s) in transcript"; rc=1; }
+        [ "''${drops_last:-0}" -ne 0 ] && { echo "FAIL: ''${drops_last} record(s) dropped after the poll-end flush (''${drop_pct}%) — see docs/investigations/envelope-post-flush-drop.md"; rc=1; }
 
         if [ "$rc" -eq 0 ]; then
           echo "PASS: xtcp2 uploaded $files_last parquet files ($rows_last rows) to MinIO over ''${DURATION_SEC}s under $spawned stress containers, 0 restarts, 0 panics"
@@ -2749,13 +2751,17 @@ rec {
           last=''${hourly_lines[$((n_reports - 1))]}
           final_files=$(echo "$last" | sed -nE 's/.*files=([0-9]+).*/\1/p' || true)
           final_bytes=$(echo "$last" | sed -nE 's/.*bytes=([0-9]+).*/\1/p' || true)
+          final_drops=$(echo "$last" | sed -nE 's/.*drops=([0-9]+).*/\1/p' || true)
+          final_appends=$(echo "$last" | sed -nE 's/.*appends=([0-9]+).*/\1/p' || true)
           : "''${final_files:=0}" "''${final_bytes:=0}"
         fi
+        : "''${final_drops:=0}" "''${final_appends:=0}"
 
         echo "  duration:         $DURATION ($DURATION_SEC s)"
         echo "  in-VM sentinels:  $n_reports"
         echo "  final files:      $final_files"
         echo "  final bytes:      $final_bytes"
+        echo "  post-flush drops / appends: $final_drops / $final_appends"
         echo "  xtcp2 panics:     $final_panics"
         echo "  xtcp2 restarts:   $final_restarts"
         echo ""
@@ -2781,6 +2787,12 @@ rec {
         fi
         if [ "$final_restarts" -ne 0 ]; then
           echo "FAIL: xtcp2 restarted $final_restarts time(s)"
+          rc=1
+        fi
+        # Records dropped after the poll-end flush are lost data
+        # (docs/investigations/envelope-post-flush-drop.md).
+        if [ "$final_drops" -ne 0 ]; then
+          echo "FAIL: $final_drops record(s) dropped after the poll-end flush"
           rc=1
         fi
         # Smoke / production pass criterion: at least 1 parquet object
