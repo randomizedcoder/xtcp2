@@ -28,7 +28,8 @@ jobs:
     # The status check name, for branch protection.
     name: lint-baseline
     runs-on: ubuntu-latest
-    # A cold run is about 13 minutes of golangci (nix/lint-baseline-measure.nix).
+    # Measured at 4–5 minutes per run (2026-10-14); the timeout leaves room for
+    # a slow proxy.golang.org or a busy runner.
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

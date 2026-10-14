@@ -91,7 +91,10 @@ let
             qemu.networkingOptions = lib.mkForce [ ];
             qemu.options = [ "-no-reboot" ];
           };
-          environment.systemPackages = [ artifact guest ];
+          environment.systemPackages = [
+            artifact
+            guest
+          ];
           systemd.services.linkmonitor-performance = {
             wantedBy = [ "multi-user.target" ];
             after = [ "systemd-modules-load.service" ];
