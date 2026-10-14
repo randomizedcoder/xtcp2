@@ -5,8 +5,8 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/linuxio"
@@ -138,6 +138,8 @@ func TestRDMACounterSchemaLifetime(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expectedOutcome)
 			c, job, path := optionalRDMAFixture(t)
+			files := newFakeRDMAFiles()
+			useRDMAFiles(t, c, files)
 			file := filepath.Join(path, "counters", "port_rcv_data")
 			rdmaWrite(t, file, "5")
 			first := c.Collect(t.Context(), job)
@@ -152,6 +154,9 @@ func TestRDMACounterSchemaLifetime(t *testing.T) {
 				if err := os.Remove(file); err != nil {
 					t.Fatal(err)
 				}
+				// tmpfs keeps an unlinked file readable; kernfs fails a held
+				// descriptor of a removed node with ENODEV.
+				files.readErr["counters/port_rcv_data"] = syscall.ENODEV
 			case "malformed":
 				rdmaWrite(t, file, "invalid")
 			case "overlap":
@@ -232,25 +237,6 @@ func TestRDMARateTable(t *testing.T) {
 				t.Fatal(tc.expectedOutcome, n, err)
 			}
 		})
-	}
-}
-
-func BenchmarkRDMACounterRead(b *testing.B) {
-	c, job, path := optionalRDMAFixture(b)
-	for name := range rdmaCounterCatalog {
-		rdmaWrite(b, filepath.Join(path, name), strconv.Itoa(42))
-	}
-	first := c.Collect(b.Context(), job)
-	if first.Err != nil {
-		b.Fatal(first.Err)
-	}
-	job.StatisticSchema = first.StatisticSchema
-	b.ReportAllocs()
-	b.ResetTimer()
-	for b.Loop() {
-		if r := c.Collect(b.Context(), job); r.Err != nil {
-			b.Fatal(r.Err)
-		}
 	}
 }
 

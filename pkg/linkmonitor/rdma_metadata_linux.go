@@ -1,12 +1,9 @@
 package linkmonitor
 
 import (
-	"context"
 	"errors"
 	"io/fs"
 	"math"
-	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -27,39 +24,32 @@ func rdmaStateCompatibility(p model.RDMAPort) []model.Sample {
 	return samples
 }
 
-func (c *rdmaOptionalCollector) portMetadata(ctx context.Context, path string, p model.RDMAPort, owners []string) ([]model.Sample, error) {
+// rdmaPortMetadata converts the port's rate and, for the device's info owner,
+// the device attributes. A missing rate is skipped and a missing attribute is
+// an empty label, as on drivers that do not provide them.
+func rdmaPortMetadata(p model.RDMAPort, owner bool, rate rdmaSlotRead, device []rdmaSlotRead) ([]model.Sample, error) {
 	samples := make([]model.Sample, 0, 2)
-	text, err := rdmaScalar(ctx, filepath.Join(path, "rate"))
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return nil, err
+	if rate.err != nil && !errors.Is(rate.err, fs.ErrNotExist) {
+		return nil, rate.err
 	}
-	if err == nil {
-		rate, err := rdmaRate(text)
+	if rate.err == nil {
+		n, err := rdmaRate(rate.text)
 		if err != nil {
 			return nil, err
 		}
-		samples = append(samples, model.Sample{Descriptor: "go_link_monitor_infiniband_rate_bytes_per_second", Kind: model.SampleGauge, Number: model.Unsigned(rate), Labels: rdmaLabels(p), NoInterfaceLabel: true})
+		samples = append(samples, model.Sample{Descriptor: "go_link_monitor_infiniband_rate_bytes_per_second", Kind: model.SampleGauge, Number: model.Unsigned(n), Labels: rdmaLabels(p), NoInterfaceLabel: true})
 	}
-	if slices.Contains(owners, rdmaSelector(p)) {
-		info, err := c.deviceMetadata(ctx, p.Device)
-		if err != nil {
+	if !owner {
+		return samples, nil
+	}
+	labels := []model.Label{{Name: "device", Value: p.Device}}
+	for i, label := range [...]string{"board_id", "firmware_version", "hca_type"} {
+		if err := device[i].err; err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return nil, err
 		}
-		samples = append(samples, info)
+		labels = append(labels, model.Label{Name: label, Value: device[i].text})
 	}
-	return samples, nil
-}
-
-func (c *rdmaOptionalCollector) deviceMetadata(ctx context.Context, device string) (model.Sample, error) {
-	labels := []model.Label{{Name: "device", Value: device}}
-	for _, field := range [...]struct{ file, label string }{{"board_id", "board_id"}, {"fw_ver", "firmware_version"}, {"hca_type", "hca_type"}} {
-		value, err := rdmaScalar(ctx, filepath.Join(c.files.root, device, field.file))
-		if err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return model.Sample{}, err
-		}
-		labels = append(labels, model.Label{Name: field.label, Value: value})
-	}
-	return model.Sample{Descriptor: "go_link_monitor_infiniband_info", Kind: model.SampleGauge, Number: model.Unsigned(1), Labels: labels, NoInterfaceLabel: true}, nil
+	return append(samples, model.Sample{Descriptor: "go_link_monitor_infiniband_info", Kind: model.SampleGauge, Number: model.Unsigned(1), Labels: labels, NoInterfaceLabel: true}), nil
 }
 
 // Parse nominal Gbit/sec without a float round trip. The ABI uses integer or
