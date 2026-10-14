@@ -388,7 +388,7 @@ The second source dominates. That's why "Pipeline latency — fleet averages" sh
 
 ### F4. Constant background of `Deserialize` errors
 
-**To check.** "Errors/sec — fleet" is mostly `Deserialize`: mean 0.18/s, spikes to 3.4/s. The variables that fire in normal operation have very different meanings:
+**Answered (2026-10-14): it's `envelopePostFlushDrop`, about 19% of prod records lost. See the [investigation](investigations/envelope-post-flush-drop.md).** The original note: "Errors/sec — fleet" is mostly `Deserialize`: mean 0.18/s, spikes to 3.4/s. The variables that fire in normal operation have very different meanings:
 
 - `pollTime`: a race after `nsDelete`. Harmless; the record gets `time.Now()`.
 - `envelopePostFlushDrop`: **records dropped**, because they arrived after the terminal flush.
