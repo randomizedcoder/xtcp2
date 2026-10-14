@@ -15,7 +15,7 @@ import (
 // so the order is immaterial to the result; the abbreviations fall out of it (s
 // -> show, l/li -> list, ls -> lst). change/chg (write verbs) and help are not
 // here and so refused, goip being read-only.
-var ntableShowVerbs = []string{"show", "lst", "list"}
+var ntableShowVerbs = []string{showVerbCst, lstVerbCst, listVerbCst}
 
 func runNTable(c *runCtx, args []string) error {
 	if len(args) > 0 {

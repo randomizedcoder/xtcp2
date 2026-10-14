@@ -461,7 +461,7 @@ func (s *talkLinks) Talk(request []byte, _ uint16) ([]byte, error) {
 func newLinkBody(index int32, name string, alts ...string) []byte {
 	b := catBytes(ifinfomsg(index, 0, 0), nla(unix.IFLA_IFNAME, strz(name)))
 	if len(alts) > 0 {
-		var list [][]byte
+		list := make([][]byte, 0, len(alts))
 		for _, a := range alts {
 			list = append(list, nla(unix.IFLA_ALT_IFNAME, strz(a)))
 		}

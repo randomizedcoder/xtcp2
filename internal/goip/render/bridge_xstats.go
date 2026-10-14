@@ -42,8 +42,15 @@ const (
 // Group names a view renders under, the `group` token of the header and the
 // JSON `group` key.
 const (
+	LinkGroupCst        = "link"
 	XstatsGroupCst      = "xstats"
 	XstatsSlaveGroupCst = "xstats_slave"
+)
+
+// The subgroup tokens of bridgeXstatsLeaves.
+const (
+	bondSubgroupCst   = "bond"
+	bridgeSubgroupCst = "bridge"
 )
 
 // bridgeXstatsLeaves is the four leaves `group xstats` (and `group
@@ -53,10 +60,10 @@ const (
 // GOLDENS (testdata .../ip_stats_xstats and link-write/*/ip_stats_xstats_slave):
 // bond 802.3ad, bridge vlan, bridge mcast, bridge stp.
 var bridgeXstatsLeaves = []bridgeXstatsLeaf{
-	{subgroup: "bond", suite: "802.3ad", body: bridgeBodyBond3ad},
-	{subgroup: "bridge", suite: "vlan", body: bridgeBodyVlan},
-	{subgroup: "bridge", suite: "mcast", body: bridgeBodyMcast},
-	{subgroup: "bridge", suite: "stp", body: bridgeBodyNone},
+	{subgroup: bondSubgroupCst, suite: "802.3ad", body: bridgeBodyBond3ad},
+	{subgroup: bridgeSubgroupCst, suite: "vlan", body: bridgeBodyVlan},
+	{subgroup: bridgeSubgroupCst, suite: "mcast", body: bridgeBodyMcast},
+	{subgroup: bridgeSubgroupCst, suite: "stp", body: bridgeBodyNone},
 }
 
 // XstatsSelect is a `subgroup X [suite Y]` narrowing of the whole group. The
@@ -180,6 +187,8 @@ func (v BridgeXstatsView) bodyText(leaf bridgeXstatsLeaf) (string, bool) {
 		if v.Bond3ad != nil {
 			return bond3adText(*v.Bond3ad), true
 		}
+	case bridgeBodyNone:
+		// The stp leaf: only its header renders (obj_stats refuses an stp body).
 	}
 	return "", false
 }
@@ -378,6 +387,8 @@ func BridgeXstatsJSON(views []BridgeXstatsView) []bridgeXstatsLeafJSON {
 					j := bond3adJSON(*v.Bond3ad)
 					e.Bond3ad = &j
 				}
+			case bridgeBodyNone:
+				// The stp leaf: only the header keys (obj_stats refuses an stp body).
 			}
 			out = append(out, e)
 		}

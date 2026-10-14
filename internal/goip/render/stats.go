@@ -28,7 +28,7 @@ func IfStatsViewOf(info xtcpnl.IfStatsInfo, names NameTab, extended bool) IfStat
 	return IfStatsView{
 		Ifindex:  info.Ifindex,
 		IfName:   names.IndexToName(int32(info.Ifindex)),
-		Group:    "link",
+		Group:    LinkGroupCst,
 		Stats:    info.Link64,
 		Extended: extended,
 	}

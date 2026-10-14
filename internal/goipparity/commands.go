@@ -1908,18 +1908,6 @@ const noSetupCst = "-"
 // not. The driver splits on tabs, so the fields that hold spaces (setup,
 // args, name) cannot run into each other; TestCommandString pins the count.
 func (c Command) String() string {
-	impl := "no"
-	if c.Implemented {
-		impl = "yes"
-	}
-	dev := "no"
-	if c.NeedsDev {
-		dev = "yes"
-	}
-	write := "no"
-	if c.Write {
-		write = "yes"
-	}
 	setup := noSetupCst
 	if len(c.Setup) != 0 {
 		setup = strings.Join(c.Setup, ";")
@@ -1927,13 +1915,21 @@ func (c Command) String() string {
 	return strings.Join([]string{
 		c.Slug,
 		fmt.Sprint(c.Floor),
-		impl,
-		dev,
-		write,
+		yesNo(c.Implemented),
+		yesNo(c.NeedsDev),
+		yesNo(c.Write),
 		setup,
 		strings.Join(c.Args, " "),
 		c.Name,
 	}, "\t")
+}
+
+// yesNo is a String() flag field.
+func yesNo(b bool) string {
+	if b {
+		return "yes"
+	}
+	return "no"
 }
 
 // slugsSorted is a test helper's worth of logic kept here so both the table

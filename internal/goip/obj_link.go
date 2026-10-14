@@ -26,7 +26,7 @@ func runLink(c *runCtx, args []string) error {
 		return linkWrite(c, v, args[1:])
 	}
 	switch {
-	case matchesPrefix(verb, "show"), matchesPrefix(verb, "lst"), matchesPrefix(verb, "list"):
+	case matchesPrefix(verb, showVerbCst), matchesPrefix(verb, lstVerbCst), matchesPrefix(verb, listVerbCst):
 		return linkShow(c, args[1:])
 	default:
 		return fmt.Errorf("link %q: %w", verb, ErrNotImplemented)

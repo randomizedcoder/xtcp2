@@ -13,7 +13,7 @@ import (
 
 // nexthopShowVerbs are do_ipnh's listing synonyms (ip/ipnexthop.c:1465-1467),
 // matched with matches() exactly as route and neigh are.
-var nexthopShowVerbs = []string{"list", "show", "lst"}
+var nexthopShowVerbs = []string{listVerbCst, showVerbCst, lstVerbCst}
 
 // nexthopSelectors is the subset of ipnh_list_flush's filter (ip/ipnexthop.c:1217)
 // goip grounds: the wire-filter selectors dev/master/vrf/groups/fdb and the
@@ -90,7 +90,7 @@ func parseNexthopShowArgs(args []string) (nexthopSelectors, error) {
 		case matchesPrefix(args[i], "master"):
 			sel.master, err = takeName(&i)
 			sel.masterSet = err == nil
-		case matchesPrefix(args[i], "vrf"):
+		case matchesPrefix(args[i], vrfKeywordCst):
 			sel.vrf, err = takeName(&i)
 			sel.vrfSet = err == nil
 		case matchesPrefix(args[i], "protocol"):
@@ -167,7 +167,7 @@ func nexthopShow(c *runCtx, sel nexthopSelectors) error {
 			if lerr != nil {
 				return fmt.Errorf("nexthop show vrf %q: %w", sel.vrf, lerr)
 			}
-			if lk.Kind != "vrf" {
+			if lk.Kind != vrfKindCst {
 				return fmt.Errorf("nexthop show: %q is not a VRF", sel.vrf)
 			}
 		}

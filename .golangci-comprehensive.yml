@@ -398,6 +398,38 @@ linters:
         linters:
           - goconst
         text: "string `DORMANT` has 3 occurrences"
+      # "link" is the same case one package up: after the family word became
+      # familyLinkCst, its three remaining sites are rows of three different
+      # tables meaning three different things: the `link` object in
+      # dispatch.go's object table (ip/ip.c), the `link DEV` keyword in
+      # link_write.go's keyword table (ip/iplink.c), and RT_SCOPE_LINK's name in
+      # route_write.go's routeScopeNames (lib/rt_names.c). goconst offers
+      # familyLinkCst for all three, which is the wrong value to assert. Scoped
+      # to the one word in internal/goip's own files (not render/, whose "link"
+      # is LinkGroupCst), so any other repeated literal there still fails.
+      - path: "internal/goip/[^/]+\\.go"
+        linters:
+          - goconst
+        text: "string `link` has 3 occurrences"
+      # internal/gordma is excluded whole, unlike internal/goip. It is a clone
+      # of rdma(8) and every finding in it is a row of a table transcribed from
+      # rdma/*.c: the command tables ({"help", cmdHelp}, {"dev", cmdDev}), the
+      # verb tables ("show", "list", "set"), the res filter names (pid, pdn,
+      # ctxn) and the state-name arrays ("ARMED", "UNKNOWN"). That is the
+      # bare-strings-ARE-the-identifiers case tools/ is excluded for above.
+      # goconst counts per package, so each new object file pushes an older
+      # file's rows over min-occurrences; one constant per word would leave
+      # every table half constants, half literals.
+      - path: "internal/gordma/"
+        linters:
+          - goconst
+      # goipparity's commands.go is the parity command table: each row's Name
+      # and Setup are iproute2 command lines ("link add d0 type dummy"), and
+      # scenarios repeat the same setup lines. They are data, compared as
+      # whole strings; the rest of the package still gates.
+      - path: "internal/goipparity/commands\\.go"
+        linters:
+          - goconst
       # There is deliberately NO rule here for "default", which internal/goip/
       # render also spells three times. goconst does not see literals inside a
       # const declaration, so two of the three became named constants —

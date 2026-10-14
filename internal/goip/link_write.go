@@ -115,7 +115,7 @@ var linkParseKeywords = []linkKeyword{
 	{keyword: "txqueuelen", prefix: true, arm: linkArmTxqlen},
 	{keyword: "qlen", arm: linkArmTxqlen},
 	{keyword: "txqlen", prefix: true, arm: linkArmTxqlen},
-	{keyword: "mtu", arm: linkArmMTU},
+	{keyword: mtuKeywordCst, arm: linkArmMTU},
 	{keyword: "xdpgeneric", arm: linkArmUnsupported},
 	{keyword: "xdpdrv", arm: linkArmUnsupported},
 	{keyword: "xdpoffload", arm: linkArmUnsupported},
@@ -129,7 +129,7 @@ var linkParseKeywords = []linkKeyword{
 	{keyword: "carrier", arm: linkArmUnsupported},
 	{keyword: "vf", arm: linkArmUnsupported},
 	{keyword: "master", prefix: true, arm: linkArmMaster},
-	{keyword: "vrf", arm: linkArmUnsupported},
+	{keyword: vrfKeywordCst, arm: linkArmUnsupported},
 	{keyword: "nomaster", prefix: true, arm: linkArmNomaster},
 	{keyword: "dynamic", prefix: true, arm: linkArmFlag, flag: unix.IFF_DYNAMIC, onSets: true},
 	{keyword: "type", prefix: true, arm: linkArmType},
@@ -356,7 +356,7 @@ func (st *linkParseState) value(kw *linkKeyword, v string) error {
 	case linkArmTxqlen:
 		return st.intAttr(&st.qlen, "txqueuelen", unix.IFLA_TXQLEN, v)
 	case linkArmMTU:
-		return st.intAttr(&st.mtu, "mtu", unix.IFLA_MTU, v)
+		return st.intAttr(&st.mtu, mtuKeywordCst, unix.IFLA_MTU, v)
 	case linkArmFlag:
 		st.out.ifChange |= kw.flag
 		switch v {

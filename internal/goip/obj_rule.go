@@ -23,7 +23,7 @@ import (
 // "show" third, where route tests "show" second. Neither order changes what
 // any of these four abbreviations resolves to, which is worth knowing because
 // it means transcribing the wrong order would not be caught by testing them.
-var ruleShowVerbs = []string{"list", "lst", "show"}
+var ruleShowVerbs = []string{listVerbCst, lstVerbCst, showVerbCst}
 
 func runRule(c *runCtx, args []string) error {
 	if len(args) > 0 {

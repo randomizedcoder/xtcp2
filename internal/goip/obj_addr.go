@@ -32,7 +32,7 @@ func runAddress(c *runCtx, args []string) error {
 	}
 	verb := args[0]
 	switch {
-	case matchesPrefix(verb, "show"), matchesPrefix(verb, "lst"), matchesPrefix(verb, "list"):
+	case matchesPrefix(verb, showVerbCst), matchesPrefix(verb, lstVerbCst), matchesPrefix(verb, listVerbCst):
 		return addrShow(c, args[1:])
 	case matchesPrefix(verb, "add"), matchesPrefix(verb, "change"),
 		matchesPrefix(verb, "replace"), matchesPrefix(verb, "delete"),

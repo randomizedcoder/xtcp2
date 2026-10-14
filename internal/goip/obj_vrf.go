@@ -12,7 +12,7 @@ import (
 
 // vrfShowVerbs are the spellings do_ipvrf accepts for the listing
 // (ip/ipvrf.c:642-644): show, lst, list. All three call ipvrf_show.
-var vrfShowVerbs = []string{"show", "lst", "list"}
+var vrfShowVerbs = []string{showVerbCst, lstVerbCst, listVerbCst}
 
 // vrfRefusedVerbs are do_ipvrf's other subcommands (ip/ipvrf.c:633-640):
 // identify and pids read /proc, exec runs a command under the VRF. None is a
