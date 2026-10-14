@@ -992,12 +992,13 @@ type LinkMonitorConfig struct {
 	NetstatFields string `protobuf:"bytes,8,opt,name=netstat_fields,json=netstatFields,proto3" json:"netstat_fields,omitempty"`
 	// Exact interface or RDMA port selectors allowed below maximum speed.
 	MaxSpeedExceptions []string `protobuf:"bytes,9,rep,name=max_speed_exceptions,json=maxSpeedExceptions,proto3" json:"max_speed_exceptions,omitempty"`
-	// Anchored regexps selecting the metric names xtcp2 serves. Empty include
-	// is the core audit set; empty exclude removes nothing. Ignored when
+	// Anchored regexps selecting the metric names xtcp2 serves. When both are
+	// empty xtcp2 serves the alerting summary; otherwise an empty include is
+	// the core audit set and an empty exclude removes nothing. Ignored when
 	// metrics_all is set.
 	MetricsCoreInclude string `protobuf:"bytes,10,opt,name=metrics_core_include,json=metricsCoreInclude,proto3" json:"metrics_core_include,omitempty"`
 	MetricsCoreExclude string `protobuf:"bytes,11,opt,name=metrics_core_exclude,json=metricsCoreExclude,proto3" json:"metrics_core_exclude,omitempty"`
-	// Register every link-monitor metric instead of the core set. The full set
+	// Register every link-monitor metric instead of the summary. The full set
 	// is thousands of series on a large host.
 	MetricsAll    bool `protobuf:"varint,12,opt,name=metrics_all,json=metricsAll,proto3" json:"metrics_all,omitempty"`
 	unknownFields protoimpl.UnknownFields

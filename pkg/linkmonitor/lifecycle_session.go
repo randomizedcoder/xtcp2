@@ -139,6 +139,7 @@ func (s *lifecycleSession) waitStartup(ctx context.Context, m *Monitor, resource
 func (s *lifecycleSession) prepare(m *Monitor, resources *lifecycleResources) (*lifecycle, error) {
 	r := newReducer(s.namespace)
 	r.freshness = freshnessPolicy{poll: 3 * m.cfg.StatsInterval, configuration: 2 * m.cfg.Resync}
+	r.problems = m.cfg.problems
 	scheduler := newScheduler(r, resources.pool, s.clock)
 	if s.hostStatistics {
 		key := model.JobKey{Namespace: s.namespace, Collector: model.CollectorNetstat}

@@ -66,7 +66,7 @@ func TestRDMAOptionalMetricLabels(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			rangeCollectorSamples(&collectorSnapshot{block: block}, "rdma:mlx5_0:1", true, func(sample SampleView) bool {
+			rangeCollectorSamples(&collectorSnapshot{block: block}, "rdma:mlx5_0:1", true, nil, func(sample SampleView) bool {
 				labels := make(map[string]string)
 				sample.RangeLabels(func(name, value string) bool { labels[name] = value; return true })
 				_, projected := labels["interface"]

@@ -159,7 +159,7 @@ class Capture:
         return read(self.guest / name)
 
     def core(self):
-        """Return the parsed core /metrics scrape."""
+        """Return the parsed summary /metrics scrape."""
         return parse_metrics(self.text("metrics.txt"))
 
     def ethtool(self):
@@ -253,8 +253,8 @@ def comparison():
         ),
         ("ethtool Port", lambda c: field(c.text("ethtool.txt"), "Port") or "-"),
         (
-            "/metrics interface_speed_bits_per_second",
-            lambda c: bits(c.iface("interface_speed_bits_per_second", c.core())),
+            "/metrics-all interface_speed_bits_per_second",
+            lambda c: bits(c.iface("interface_speed_bits_per_second")),
         ),
         (
             "ethtool -l combined (current / max)",
@@ -330,7 +330,7 @@ def render(captures):
             out += ["<details><summary>ernic-rdma-errors</summary>", "", "```"]
             out += [line for line in probe.splitlines() if line]
             out += ["```", "", "</details>", ""]
-        out += ["<details><summary>/metrics (core)</summary>", "", "```"]
+        out += ["<details><summary>/metrics (summary)</summary>", "", "```"]
         out += [line for line in capture.text("metrics.txt").splitlines() if line]
         out += ["```", "", "</details>", ""]
         out += [

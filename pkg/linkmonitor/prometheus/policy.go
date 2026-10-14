@@ -1,6 +1,9 @@
 package prometheus
 
 import (
+	"slices"
+	"time"
+
 	client "github.com/prometheus/client_golang/prometheus"
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor"
 )
@@ -13,30 +16,44 @@ const (
 	unknownStatus  = "unknown"
 )
 
+var fixedLabels = map[string][]string{
+	"baseline_up_links": nil, "up_links": nil, "up_links_delta": nil,
+	"baseline_ready": nil, "baseline_write_errors_total": nil, "collection_healthy": nil,
+	"last_successful_resync_timestamp_seconds": nil,
+	"resyncs_total": {reasonLabel, "result"},
+	"interface_up":  {interfaceLabel}, "interface_check": {interfaceLabel, "check", statusLabel},
+	"interface_classification": {interfaceLabel, statusLabel}, "interface_max_speed_exception": {interfaceLabel},
+	"interface_expected_speed_bits_per_second": {interfaceLabel},
+	"max_speed_exception_match":                {"selector", statusLabel},
+	"observed_oper_transitions_total":          {interfaceLabel, "direction"},
+	"collector_support":                        {interfaceLabel, collectorLabel, statusLabel},
+	"collector_success":                        {interfaceLabel, collectorLabel},
+	"collector_last_success_timestamp_seconds": {interfaceLabel, collectorLabel},
+	"collector_duration_seconds":               {interfaceLabel, collectorLabel},
+	"collector_errors_total":                   {interfaceLabel, collectorLabel, reasonLabel},
+	"collector_omitted_statistics":             {interfaceLabel, collectorLabel, reasonLabel},
+	"counter_discontinuities_total":            {interfaceLabel, "source"},
+	"interface_last_flap_timestamp_seconds":    {interfaceLabel},
+	"interface_last_error_timestamp_seconds":   {interfaceLabel, "class"},
+}
+
 func fixedDescriptors() map[string]*client.Desc {
-	labels := map[string][]string{
-		"baseline_up_links": nil, "up_links": nil, "up_links_delta": nil,
-		"baseline_ready": nil, "baseline_write_errors_total": nil, "collection_healthy": nil,
-		"last_successful_resync_timestamp_seconds": nil,
-		"resyncs_total": {reasonLabel, "result"},
-		"interface_up":  {interfaceLabel}, "interface_check": {interfaceLabel, "check", statusLabel},
-		"interface_classification": {interfaceLabel, statusLabel}, "interface_max_speed_exception": {interfaceLabel},
-		"interface_expected_speed_bits_per_second": {interfaceLabel},
-		"max_speed_exception_match":                {"selector", statusLabel},
-		"observed_oper_transitions_total":          {interfaceLabel, "direction"},
-		"collector_support":                        {interfaceLabel, collectorLabel, statusLabel},
-		"collector_success":                        {interfaceLabel, collectorLabel},
-		"collector_last_success_timestamp_seconds": {interfaceLabel, collectorLabel},
-		"collector_duration_seconds":               {interfaceLabel, collectorLabel},
-		"collector_errors_total":                   {interfaceLabel, collectorLabel, reasonLabel},
-		"collector_omitted_statistics":             {interfaceLabel, collectorLabel, reasonLabel},
-		"counter_discontinuities_total":            {interfaceLabel, "source"},
-	}
-	result := make(map[string]*client.Desc, len(labels))
-	for name, names := range labels {
-		result[name] = client.NewDesc("go_link_monitor_"+name, "Link monitor "+name+".", names, nil)
+	result := make(map[string]*client.Desc, len(fixedLabels))
+	for name, names := range fixedLabels {
+		result[name] = client.NewDesc(metricPrefix+name, "Link monitor "+name+".", names, nil)
 	}
 	return result
+}
+
+// deviceScoped reports whether any selected fixed family is per interface, so
+// collectors that select none skip the device walk entirely.
+func deviceScoped(fixed map[string]*client.Desc) bool {
+	for name, desc := range fixed {
+		if desc != nil && slices.Contains(fixedLabels[name], interfaceLabel) {
+			return true
+		}
+	}
+	return false
 }
 
 func (e emitter) gauge(name string, value float64, labels ...string) {
@@ -52,7 +69,7 @@ func boolean(value bool) float64 {
 	return 0
 }
 
-func (e emitter) policy(s linkmonitor.Snapshot) {
+func (e emitter) policy(s linkmonitor.Snapshot, devices bool) {
 	counts, health := s.Counts(), s.Health()
 	if v, ok := counts.Current(); ok {
 		e.gauge("up_links", float64(v))
@@ -71,7 +88,7 @@ func (e emitter) policy(s linkmonitor.Snapshot) {
 	e.gauge("collection_healthy", boolean(health.CollectionHealthy))
 	e.counter("baseline_write_errors_total", s.BaselineWriteErrors())
 	if stamp, ok := s.LastSuccessfulResync(); ok {
-		e.gauge("last_successful_resync_timestamp_seconds", float64(stamp.Unix())+float64(stamp.Nanosecond())/1e9)
+		e.gauge("last_successful_resync_timestamp_seconds", seconds(stamp))
 	}
 	s.RangeResyncs(func(reason, result string, count uint64) bool {
 		e.counter("resyncs_total", count, reason, result)
@@ -84,8 +101,12 @@ func (e emitter) policy(s linkmonitor.Snapshot) {
 		return true
 	})
 	e.diagnostics("", s.HostCollector())
-	s.RangeDevices(func(d linkmonitor.DeviceView) bool { e.device(s, d); return true })
+	if devices {
+		s.RangeDevices(func(d linkmonitor.DeviceView) bool { e.device(s, d); return true })
+	}
 }
+
+func seconds(t time.Time) float64 { return float64(t.Unix()) + float64(t.Nanosecond())/1e9 }
 
 func (e emitter) device(s linkmonitor.Snapshot, d linkmonitor.DeviceView) {
 	name := d.Name()
@@ -108,6 +129,13 @@ func (e emitter) device(s linkmonitor.Snapshot, d linkmonitor.DeviceView) {
 			e.gauge("interface_check", boolean(int(checks[i]) == j), name, check, status)
 		}
 	}
+	if at, ok := d.LastFlap(); ok {
+		e.gauge("interface_last_flap_timestamp_seconds", seconds(at), name)
+	}
+	d.RangeLastErrors(func(class string, at time.Time) bool {
+		e.gauge("interface_last_error_timestamp_seconds", seconds(at), name, class)
+		return true
+	})
 	up, down := d.ObservedTransitions()
 	e.counter("observed_oper_transitions_total", up, name, "up")
 	e.counter("observed_oper_transitions_total", down, name, "down")
@@ -123,7 +151,7 @@ func (e emitter) diagnostics(name string, v linkmonitor.CollectorView) {
 		e.gauge("collector_success", boolean(success), name, collector)
 	}
 	if stamp, ok := v.LastSuccess(); ok {
-		e.gauge("collector_last_success_timestamp_seconds", float64(stamp.Unix())+float64(stamp.Nanosecond())/1e9, name, collector)
+		e.gauge("collector_last_success_timestamp_seconds", seconds(stamp), name, collector)
 	}
 	if duration, ok := v.Duration(); ok {
 		e.gauge("collector_duration_seconds", duration.Seconds(), name, collector)

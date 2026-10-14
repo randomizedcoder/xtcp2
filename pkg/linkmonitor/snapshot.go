@@ -32,9 +32,16 @@ type snapshotRoot struct {
 	counts              LinkCounts
 	host                *collectorSnapshot
 	pages               []*devicePage
+	names               map[string]uint32 // device name → page index * devicesPerPage + offset
 	lastResync          model.Optional[model.Stamp]
 	baselineWriteErrors uint64
 	baselineRecordedAt  int64 // Unix nanoseconds; 0 is unknown
+	// Problem state: the publication time is the base for scrape-time windows.
+	published       model.Stamp
+	problems        problemPolicy
+	candidates      []uint32
+	hostProblems    Problems
+	baselineWriteAt model.Optional[model.Stamp]
 }
 
 // BaselineRecordedAt reports when the expected count in effect was recorded.
@@ -84,30 +91,88 @@ func (s Snapshot) RangeDevices(visit func(DeviceView) bool) {
 	}
 }
 
+// Device returns the device whose Name is name. One map lookup; the index is
+// rebuilt only when a publication inserts, removes or renames a device.
+func (s Snapshot) Device(name string) (DeviceView, bool) {
+	if s.root == nil {
+		return DeviceView{}, false
+	}
+	index, ok := s.root.names[name]
+	if !ok {
+		return DeviceView{}, false
+	}
+	device := s.root.pages[index/devicesPerPage][index%devicesPerPage]
+	return device.view, true
+}
+
 // RangeSamples visits present samples until visit returns false.
 func (s Snapshot) RangeSamples(visit func(SampleView) bool) {
+	s.RangeSamplesSkipping(nil, visit)
+}
+
+// SchemaID identifies one immutable sample schema. Blocks with equal IDs have
+// identical descriptor keys, so a decision about an ID holds for all of them.
+type SchemaID struct{ schema *sampleSchema }
+
+// RangeSchemas visits each distinct sample schema of this snapshot's
+// descriptor catalog with its descriptor keys. The set is fixed per
+// SchemaRevision, so callers can cache per-schema decisions with the catalog.
+func (s Snapshot) RangeSchemas(visit func(id SchemaID, rangeKeys func(func(key string) bool)) bool) {
+	if s.root == nil || s.root.descriptors == nil {
+		return
+	}
+	for schema := range s.root.descriptors.schemas {
+		keys := func(each func(string) bool) {
+			for i := range schema.entries {
+				if !each(schema.entries[i].key.descriptor) {
+					return
+				}
+			}
+		}
+		if !visit(SchemaID{schema}, keys) {
+			return
+		}
+	}
+}
+
+// RangeSamplesSkipping is RangeSamples without the blocks whose schema skip
+// reports true; those blocks are never walked. A nil skip visits every block.
+func (s Snapshot) RangeSamplesSkipping(skip func(SchemaID) bool, visit func(SampleView) bool) {
 	if s.root == nil {
 		return
 	}
-	if !rangeCollectorSamples(s.root.host, "", false, visit) {
+	if !rangeCollectorSamples(s.root.host, "", false, skip, visit) {
 		return
 	}
 	for _, page := range s.root.pages {
 		for _, device := range page {
-			if device == nil {
-				continue
-			}
-			for _, collector := range device.collectors {
-				if !rangeCollectorSamples(collector, device.view.name, true, visit) {
-					return
-				}
+			if device != nil && !device.view.rangeSamples(skip, visit) {
+				return
 			}
 		}
 	}
 }
 
-func rangeCollectorSamples(collector *collectorSnapshot, name string, deviceScoped bool, visit func(SampleView) bool) bool {
-	if collector == nil || collector.block == nil {
+// RangeSamplesSkipping visits only this device's present samples, skipping
+// blocks as Snapshot.RangeSamplesSkipping does. Other devices are never read.
+func (d DeviceView) RangeSamplesSkipping(skip func(SchemaID) bool, visit func(SampleView) bool) {
+	d.rangeSamples(skip, visit)
+}
+
+func (d *DeviceView) rangeSamples(skip func(SchemaID) bool, visit func(SampleView) bool) bool {
+	if d.collectors == nil {
+		return true
+	}
+	for _, collector := range d.collectors {
+		if !rangeCollectorSamples(collector, d.name, true, skip, visit) {
+			return false
+		}
+	}
+	return true
+}
+
+func rangeCollectorSamples(collector *collectorSnapshot, name string, deviceScoped bool, skip func(SchemaID) bool, visit func(SampleView) bool) bool {
+	if collector == nil || collector.block == nil || (skip != nil && skip(SchemaID{collector.block.schema})) {
 		return true
 	}
 	block := collector.block
@@ -138,6 +203,9 @@ type DeviceView struct {
 	maximumSpeed, maximumWidth, fullDuplex, rdmaReadiness model.Check
 	activeBits                                            model.Optional[uint64]
 	upTransitions, downTransitions                        uint64
+	problems                                              Problems
+	evidence                                              [evidenceClasses]model.Optional[model.Stamp]
+	settledFrom                                           model.Stamp
 	collectors                                            *[model.CollectorNetstat + 1]*collectorSnapshot
 }
 

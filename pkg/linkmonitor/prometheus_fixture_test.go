@@ -2,6 +2,7 @@ package linkmonitor
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -28,7 +29,7 @@ func (f *PrometheusFixture) Device(index uint32, name string, up bool) {
 	_, err := f.r.observe(model.Observation{Device: model.Device{
 		Key:   model.DeviceKey{Namespace: 1, Kind: model.DeviceEthernet, Index: index},
 		Token: model.Token{SourceEpoch: f.r.epoch}, Name: name, Eligibility: model.Eligible, Up: presentValue(up),
-	}})
+	}, Observed: model.Stamp{Wall: time.Unix(10, 500000000), Monotonic: f.now}})
 	if err != nil {
 		f.t.Fatal(err)
 	}
@@ -155,3 +156,60 @@ func (f *PrometheusFixture) RunControls() bool {
 
 // StopControls stops accepting controls and releases waiters, as shutdown does.
 func (f *PrometheusFixture) StopControls() { f.Monitor.control.stop() }
+
+// ProblemConfig applies the problem fields of a configuration edited by
+// mutate, as a validated monitor configuration does.
+func (f *PrometheusFixture) ProblemConfig(mutate func(*Config)) {
+	f.t.Helper()
+	cfg := DefaultConfig()
+	mutate(&cfg)
+	policy, err := newProblemPolicy(cfg)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	f.r.problems = policy
+}
+
+// Fail completes a failed attempt of one collector; index 0 is the host.
+func (f *PrometheusFixture) Fail(index uint32, kind model.CollectorKind) {
+	f.t.Helper()
+	key := model.JobKey{Namespace: 1, Collector: kind}
+	if index != 0 {
+		key.Device = model.DeviceKey{Namespace: 1, Kind: model.DeviceEthernet, Index: index}
+	}
+	stamp := model.Stamp{Wall: time.Unix(10, 500000000), Monotonic: f.now}
+	job, err := f.r.startCollection(key, stamp)
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	if _, err := f.r.finishCollection(model.Result{Job: job, Finished: stamp, Support: model.Supported, Err: errFixture, Reason: model.ErrorReason(1)}); err != nil {
+		f.t.Fatal(err)
+	}
+}
+
+var errFixture = errors.New("fixture failure")
+
+// NativeSamples applies a completed attempt on native RDMA port mlx5_0:port.
+func (f *PrometheusFixture) NativeSamples(port uint32, kind model.CollectorKind, samples ...model.Sample) error {
+	f.t.Helper()
+	return f.samples(model.JobKey{Namespace: 1, Collector: kind,
+		Device: model.DeviceKey{Namespace: 1, Kind: model.DeviceNativeRDMA, RDMADevice: "mlx5_0", Port: port}}, samples)
+}
+
+// Advance moves the owner's monotonic time without running expiry.
+func (f *PrometheusFixture) Advance(at time.Duration) { f.now = at }
+
+// ScrapeTime is the wall clock reading at owner time at, given that every
+// fixture stamp carries the same wall time and the latest monotonic time.
+func (f *PrometheusFixture) ScrapeTime(at time.Duration) time.Time {
+	return time.Unix(10, 500000000).Add(at - f.now)
+}
+
+// FixedSourceNames lists the application-defined source metric names.
+func FixedSourceNames() []string {
+	names := make([]string, 0, len(fixedSourceNames))
+	for name := range fixedSourceNames {
+		names = append(names, name)
+	}
+	return names
+}

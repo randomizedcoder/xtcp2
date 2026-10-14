@@ -21,6 +21,7 @@ func (r *reducer) configureFreshness(cfg Config) error {
 		return fmt.Errorf("freshness configuration must precede collection")
 	}
 	r.freshness = freshnessPolicy{poll: 3 * validated.StatsInterval, configuration: 2 * validated.Resync}
+	r.problems = validated.problems
 	return nil
 }
 

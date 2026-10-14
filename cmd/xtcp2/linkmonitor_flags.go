@@ -25,9 +25,9 @@ func defineLinkMonitorFlags(f *mainFlags) {
 	f.linkMonitorStatsExclude = flag.String("linkMonitorStatsExclude", d.StatsExclude, "regexp of interfaces excluded from statistics. Falls back to LINK_MONITOR_STATS_EXCLUDE env.")
 	f.linkMonitorNetstatFields = flag.String("linkMonitorNetstatFields", d.NetstatFields, "regexp of host protocol (netstat) fields collected. Falls back to LINK_MONITOR_NETSTAT_FIELDS env.")
 	f.linkMonitorMaxSpeedExceptions = flag.String("linkMonitorMaxSpeedExceptions", "", "comma-separated exact selectors exempt from the max-speed check. Falls back to LINK_MONITOR_MAX_SPEED_EXCEPTIONS env.")
-	f.linkMonitorMetricsCoreInclude = flag.String("linkMonitorMetricsCoreInclude", "", "anchored regexp of link monitor metric names registered on xtcp2's registry; empty = the core audit set. Falls back to LINK_MONITOR_METRICS_CORE_INCLUDE env.")
+	f.linkMonitorMetricsCoreInclude = flag.String("linkMonitorMetricsCoreInclude", "", "anchored regexp of link monitor metric names registered on xtcp2's registry; empty with an empty exclude = the alerting summary, otherwise the core audit set. Falls back to LINK_MONITOR_METRICS_CORE_INCLUDE env.")
 	f.linkMonitorMetricsCoreExclude = flag.String("linkMonitorMetricsCoreExclude", "", "anchored regexp of link monitor metric names removed from the selection. Falls back to LINK_MONITOR_METRICS_CORE_EXCLUDE env.")
-	f.linkMonitorMetricsAll = flag.Bool("linkMonitorMetricsAll", false, "register every link monitor metric, including bulk driver, RDMA and netstat counters, instead of the core set. Falls back to LINK_MONITOR_METRICS_ALL env.")
+	f.linkMonitorMetricsAll = flag.Bool("linkMonitorMetricsAll", false, "register every link monitor metric, including bulk driver, RDMA and netstat counters, instead of the alerting summary. Falls back to LINK_MONITOR_METRICS_ALL env.")
 }
 
 // buildLinkMonitorConfig maps the flags onto XtcpConfig.link_monitor.

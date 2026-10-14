@@ -22,8 +22,9 @@ type sampleDefinition struct {
 	counter          model.CounterIdentity
 }
 type sampleSchema struct {
-	entries []sampleDefinition
-	index   map[sampleKey]int
+	entries  []sampleDefinition
+	index    map[sampleKey]int
+	evidence []evidenceEntry
 }
 
 func freezeSamples(previous *collectorBlock, samples []model.Sample) (*collectorBlock, error) {
@@ -95,6 +96,7 @@ func newSchema(samples []model.Sample) (*sampleSchema, error) {
 		schema.entries[i] = entry
 		schema.index[entry.key] = i
 	}
+	tagEvidence(schema)
 	return schema, nil
 }
 

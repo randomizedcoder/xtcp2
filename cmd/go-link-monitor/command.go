@@ -56,12 +56,41 @@ func command(args []string, stdout, stderr io.Writer, getenv func(string) string
 		logger.Error("invalid configuration", "error", err)
 		return 2
 	}
-	coreRegistry := commandRegistry(monitorprom.NewCollector(m, monitorprom.WithMetricFilter(core)), core)
-	allRegistry := commandRegistry(monitorprom.NewCollector(m), nil)
+	coreRegistry := commandRegistry(monitorprom.NewSummaryCollector(m), nil)
+	if opts.exposure.summary == summaryCore {
+		coreRegistry = commandRegistry(monitorprom.NewCollector(m, monitorprom.WithMetricFilter(core)), core)
+	}
+	all, problems := monitorprom.NewCollector(m), monitorprom.NewSummaryCollector(m, monitorprom.WithoutScalars())
+	allRegistry := commandRegistry(all, nil)
+	allRegistry.MustRegister(problems)
+	var interfaces *views
+	if opts.exposure.interfacePaths {
+		// The interface views reuse the path collectors' cached catalogs.
+		interfaces = &views{all: snapshotView(m, all, problems), categories: make(map[string]interfaceView, len(opts.exposure.categories))}
+	}
+	categories := make(map[string]prometheus.Gatherer, len(opts.exposure.categories))
+	adminRegistries := teeRegisterer{allRegistry}
+	for _, category := range opts.exposure.categories {
+		match, err := monitorprom.CategoryMatcher(category)
+		if err != nil {
+			logger.Error("invalid configuration", "error", err)
+			return 2
+		}
+		collector := monitorprom.NewCollector(m, monitorprom.WithMetricFilter(match))
+		registry := commandRegistry(collector, match)
+		categories[category] = registry
+		// Netstat is host scope: it has no interface form.
+		if interfaces != nil && category != monitorprom.CategoryNetstat {
+			interfaces.categories[category] = snapshotView(m, collector)
+		}
+		if category == monitorprom.CategoryCollection {
+			adminRegistries = append(adminRegistries, registry)
+		}
+	}
 	var admins []*adminEndpoint
 	if access.endpoint != nil {
-		// Admin request metrics are served on the full exposition only.
-		admin, err := newAdminEndpoint(*access.endpoint, access.policy, m, logger, allRegistry)
+		// Admin request metrics are served on the collection and full expositions.
+		admin, err := newAdminEndpoint(*access.endpoint, access.policy, m, logger, adminRegistries)
 		if err != nil {
 			logger.Error("invalid configuration", "error", err)
 			return 2
@@ -72,7 +101,7 @@ func command(args []string, stdout, stderr io.Writer, getenv func(string) string
 	signal.Notify(signals, syscall.SIGUSR1, syscall.SIGTERM, os.Interrupt)
 	defer signal.Stop(signals)
 	var lc net.ListenConfig
-	served := protectRoutes(endpoints(opts.address, opts.exposure, coreRegistry, allRegistry), access.policy)
+	served := protectRoutes(endpoints(opts.address, opts.exposure, coreRegistry, allRegistry, categories, interfaces), access.policy)
 	if err := serve(context.Background(), m, logger, signals, lc.Listen, served, admins...); err != nil {
 		logger.Error("monitor stopped", "error", err)
 		return 1
@@ -103,11 +132,64 @@ func commandRegistry(collector prometheus.Collector, match func(string) bool) *p
 	if match != nil && !match(buildInfoName) {
 		return registry
 	}
+	registry.MustRegister(buildIdentity())
+	return registry
+}
+
+func buildIdentity() prometheus.Gauge {
 	identity := prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: buildInfoName, Help: "Executable build identity.",
 		ConstLabels: prometheus.Labels{"version": version, "revision": commit},
 	})
 	identity.Set(1)
-	registry.MustRegister(identity)
-	return registry
+	return identity
+}
+
+// snapshotView serves one interface of the monitor's current snapshot through
+// collectors, with build identity. Each request resolves the name and
+// collects from that one snapshot.
+func snapshotView(m *linkmonitor.Monitor, collectors ...prometheus.Collector) interfaceView {
+	identity := buildIdentity()
+	return func(name string) (prometheus.Gatherer, error) {
+		collector, err := monitorprom.InterfaceCollector(m.Snapshot(), name, collectors...)
+		if err != nil {
+			return nil, err
+		}
+		registry := prometheus.NewRegistry()
+		registry.MustRegister(collector, identity)
+		return registry, nil
+	}
+}
+
+// teeRegisterer registers each collector on every registry, so one set of
+// admin request metrics is served on several paths. A failed registration
+// leaves no registry holding the collector.
+type teeRegisterer []prometheus.Registerer
+
+func (t teeRegisterer) Register(c prometheus.Collector) error {
+	for i, r := range t {
+		if err := r.Register(c); err != nil {
+			for _, registered := range t[:i] {
+				registered.Unregister(c)
+			}
+			return err
+		}
+	}
+	return nil
+}
+
+func (t teeRegisterer) MustRegister(cs ...prometheus.Collector) {
+	for _, c := range cs {
+		if err := t.Register(c); err != nil {
+			panic(err)
+		}
+	}
+}
+
+func (t teeRegisterer) Unregister(c prometheus.Collector) bool {
+	removed := false
+	for _, r := range t {
+		removed = r.Unregister(c) || removed
+	}
+	return removed
 }

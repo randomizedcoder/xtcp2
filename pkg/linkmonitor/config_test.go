@@ -62,6 +62,7 @@ func TestDefaultConfig(t *testing.T) {
 		BaselineFile: "/var/lib/go-link-monitor/baseline.json",
 		Settle:       30 * time.Second, Resync: time.Hour, StatsInterval: 15 * time.Second,
 		StatsInclude: ".*", StatsExclude: "^$", NetstatFields: ".*", IOBackend: IOBackendPoller,
+		ErrorWindow: 180 * time.Second, FlapWindow: 180 * time.Second, ErrorClasses: []string{"link", "rdma"},
 	}
 	if got := DefaultConfig(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("defaults = %#v; want %#v", got, want)

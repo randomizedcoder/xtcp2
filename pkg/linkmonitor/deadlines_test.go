@@ -174,6 +174,8 @@ func TestFreshnessConfigBoundaries(t *testing.T) {
 			t.Logf("boundary: %s; expected: %s", tc.description, tc.expected)
 			cfg := DefaultConfig()
 			cfg.StatsInterval, cfg.Resync = tc.stats, tc.resync
+			// Problem windows must cover a poll; keep them valid for huge intervals.
+			cfg.ErrorWindow, cfg.FlapWindow = max(cfg.ErrorWindow, tc.stats), max(cfg.FlapWindow, tc.stats)
 			if _, err := New(cfg, Options{}); (err == nil) != tc.valid {
 				t.Fatalf("configuration error=%v", err)
 			}

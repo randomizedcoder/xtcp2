@@ -25,13 +25,13 @@ func TestLinkMonitorSettings(t *testing.T) {
 		category, description, expected string
 		config                          *xtcp_config.LinkMonitorConfig
 		check                           func(linkmonitor.Config) error
-		allMetrics                      bool // expect a nil filter
-		core, bulk                      bool // expected filter results
+		exposure                        string // "summary", "all" or "filter"
+		core, bulk                      bool   // expected filter results
 		wantErr                         string
 	}{
 		{
 			category: "positive", description: "nil config keeps library defaults with the xtcp2 baseline",
-			expected: "defaults, xtcp2 baseline, core filter",
+			expected: "defaults, xtcp2 baseline, summary exposure",
 			check: func(c linkmonitor.Config) error {
 				if c.BaselineFile != DefaultLinkMonitorBaseline || c.Settle != defaults.Settle ||
 					c.Resync != defaults.Resync || c.StatsInterval != defaults.StatsInterval ||
@@ -40,7 +40,7 @@ func TestLinkMonitorSettings(t *testing.T) {
 				}
 				return nil
 			},
-			core: true,
+			exposure: "summary",
 		},
 		{
 			category: "positive", description: "every set field overrides its default",
@@ -58,13 +58,13 @@ func TestLinkMonitorSettings(t *testing.T) {
 				}
 				return nil
 			},
-			core: true,
+			exposure: "summary",
 		},
 		{
 			category: "positive", description: "metrics_all registers the unfiltered collector",
-			expected:   "nil filter",
-			config:     &xtcp_config.LinkMonitorConfig{MetricsAll: true, MetricsCoreInclude: "("},
-			allMetrics: true,
+			expected: "all exposure, pattern ignored",
+			config:   &xtcp_config.LinkMonitorConfig{MetricsAll: true, MetricsCoreInclude: "("},
+			exposure: "all",
 		},
 		{
 			category: "negative", description: "an invalid core include pattern is rejected",
@@ -88,24 +88,31 @@ func TestLinkMonitorSettings(t *testing.T) {
 				}
 				return nil
 			},
-			core: true,
+			exposure: "summary",
 		},
 		{
 			category: "corner", description: "a custom include replaces the anchored core pattern",
 			expected: "bulk metric selected, core metric not",
 			config:   &xtcp_config.LinkMonitorConfig{MetricsCoreInclude: "go_link_monitor_collector_errors_.*"},
-			bulk:     true,
+			exposure: "filter", bulk: true,
 		},
 		{
 			category: "corner", description: "the exclude pattern removes a core metric",
 			expected: "core metric rejected",
 			config:   &xtcp_config.LinkMonitorConfig{MetricsCoreExclude: "^go_link_monitor_collection_healthy$"},
+			exposure: "filter",
+		},
+		{
+			category: "boundary", description: "an exclude alone filters the core audit set instead of the summary",
+			expected: "core metric selected, bulk metric not",
+			config:   &xtcp_config.LinkMonitorConfig{MetricsCoreExclude: "^go_link_monitor_up_links$"},
+			exposure: "filter", core: true,
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
 			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expected)
-			cfg, match, err := linkMonitorSettings(tc.config)
+			cfg, exposure, err := linkMonitorSettings(tc.config)
 			if tc.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
 					t.Fatalf("err = %v, want %q", err, tc.wantErr)
@@ -120,15 +127,20 @@ func TestLinkMonitorSettings(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if tc.allMetrics {
-				if match != nil {
-					t.Fatal("filter set, want nil")
-				}
+			got := "filter"
+			switch {
+			case exposure.all:
+				got = "all"
+			case exposure.match == nil:
+				got = "summary"
+			}
+			if got != tc.exposure {
+				t.Fatalf("exposure = %s, want %s", got, tc.exposure)
+			}
+			if got != "filter" {
 				return
 			}
-			if match == nil {
-				t.Fatal("filter nil")
-			}
+			match := exposure.match
 			if got := match("go_link_monitor_collection_healthy"); got != tc.core {
 				t.Errorf("core metric selected = %t, want %t", got, tc.core)
 			}
@@ -144,7 +156,7 @@ func TestInitLinkMonitor(t *testing.T) {
 	tests := []struct {
 		category, description, expected string
 		config                          func(*testing.T) *xtcp_config.LinkMonitorConfig
-		wantMonitor                     bool
+		wantMonitor, wantProblems       bool
 		wantFatal                       string
 	}{
 		{
@@ -153,10 +165,18 @@ func TestInitLinkMonitor(t *testing.T) {
 			config:   func(*testing.T) *xtcp_config.LinkMonitorConfig { return &xtcp_config.LinkMonitorConfig{} },
 		},
 		{
-			category: "positive", description: "enabled builds the monitor and registers core metrics",
-			expected: "monitor and core metrics",
+			category: "positive", description: "enabled builds the monitor and registers the summary",
+			expected: "monitor, collection_healthy and problems",
 			config: func(t *testing.T) *xtcp_config.LinkMonitorConfig {
 				return &xtcp_config.LinkMonitorConfig{Enable: true, BaselineFile: baseline(t)}
+			},
+			wantMonitor: true, wantProblems: true,
+		},
+		{
+			category: "positive", description: "a custom include registers only the filtered collector",
+			expected: "monitor and collection_healthy, no problems",
+			config: func(t *testing.T) *xtcp_config.LinkMonitorConfig {
+				return &xtcp_config.LinkMonitorConfig{Enable: true, BaselineFile: baseline(t), MetricsCoreInclude: "go_link_monitor_collection_healthy"}
 			},
 			wantMonitor: true,
 		},
@@ -190,7 +210,7 @@ func TestInitLinkMonitor(t *testing.T) {
 			config: func(t *testing.T) *xtcp_config.LinkMonitorConfig {
 				return &xtcp_config.LinkMonitorConfig{Enable: true, BaselineFile: baseline(t), MetricsAll: true, MetricsCoreInclude: "("}
 			},
-			wantMonitor: true,
+			wantMonitor: true, wantProblems: true,
 		},
 	}
 	for _, tc := range tests {
@@ -226,6 +246,9 @@ func TestInitLinkMonitor(t *testing.T) {
 			}
 			if found["go_link_monitor_collection_healthy"] != tc.wantMonitor {
 				t.Errorf("core metric gathered = %t, want %t", found["go_link_monitor_collection_healthy"], tc.wantMonitor)
+			}
+			if found["go_link_monitor_problems"] != tc.wantProblems {
+				t.Errorf("problems gathered = %t, want %t", found["go_link_monitor_problems"], tc.wantProblems)
 			}
 		})
 	}

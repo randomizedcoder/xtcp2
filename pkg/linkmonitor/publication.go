@@ -84,19 +84,27 @@ func (r *reducer) publish(m *Monitor, state publicationState) error {
 		baselineRecordedAt:  unixNanos(state.recordedAt),
 		counts:              LinkCounts{current: model.Optional[uint64]{Value: r.upCount, Present: r.lastResync.Present && r.uncertain == 0 && r.rdmaUncertain == 0}, expected: state.expected},
 		host:                freezeCollector(&r.host), pages: make([]*devicePage, pageCount),
+		published: state.now,
+		problems:  r.problems,
 	}
 	if previous != nil {
 		copy(next.pages, previous.pages)
 	}
+	renamed := previous == nil || len(previous.pages) != pageCount
 	for pageIndex, mask := range r.dirtyPages {
 		if pageIndex >= pageCount {
 			break
 		}
 		if mask != 0 {
-			next.pages[pageIndex] = r.freezePage(next.pages[pageIndex], pageIndex, mask)
+			var changed bool
+			next.pages[pageIndex], changed = r.freezePage(next.pages[pageIndex], pageIndex, mask)
+			renamed = renamed || changed
 		}
 	}
+	next.freezeNames(previous, renamed)
 	next.freezeExceptions(previous, r.exceptions)
+	r.freezeCandidates(next, previous, state.now)
+	r.freezeHostProblems(next, previous, state)
 	next.resyncs = r.resyncs
 	if err := next.freezeDescriptors(previous); err != nil {
 		return err
@@ -106,21 +114,49 @@ func (r *reducer) publish(m *Monitor, state publicationState) error {
 	return nil
 }
 
-func (r *reducer) freezePage(previous *devicePage, pageIndex int, mask uint32) *devicePage {
+// freezePage also reports whether any device on the page was inserted,
+// removed or renamed, so the name index is rebuilt only then.
+func (r *reducer) freezePage(previous *devicePage, pageIndex int, mask uint32) (*devicePage, bool) {
 	page := new(devicePage)
 	if previous != nil {
 		*page = *previous
 	}
+	renamed := false
 	for mask != 0 {
 		offset := bits.TrailingZeros32(mask)
 		mask &^= uint32(1) << offset
 		index := pageIndex*devicesPerPage + offset
+		old := page[offset]
 		page[offset] = nil
 		if index < len(r.slots) {
 			page[offset] = freezeDevice(r.slots[index])
 		}
+		renamed = renamed || (old == nil) != (page[offset] == nil) || (old != nil && old.view.name != page[offset].view.name)
 	}
-	return page
+	return page, renamed
+}
+
+// freezeNames shares the previous name index unless a device was inserted,
+// removed or renamed. On a duplicate name the lowest device index wins.
+func (r *snapshotRoot) freezeNames(previous *snapshotRoot, renamed bool) {
+	if !renamed {
+		r.names = previous.names
+		return
+	}
+	r.names = make(map[string]uint32)
+	for pageIndex, page := range r.pages {
+		if page == nil {
+			continue
+		}
+		for offset, device := range page {
+			if device == nil {
+				continue
+			}
+			if _, ok := r.names[device.view.name]; !ok {
+				r.names[device.view.name] = uint32(pageIndex*devicesPerPage + offset)
+			}
+		}
+	}
 }
 
 func (r *reducer) resetDirty(pageCount int) {
@@ -152,6 +188,7 @@ func freezeDevice(slot *deviceSlot) *deviceBlock {
 			maximumSpeed: checks.maximumSpeed, maximumWidth: checks.maximumWidth,
 			fullDuplex: checks.fullDuplex, rdmaReadiness: checks.rdmaReadiness, activeBits: checks.activeBits,
 			upTransitions: slot.upTransitions, downTransitions: slot.downTransitions,
+			problems: staticProblems(slot, checks), evidence: slot.evidence, settledFrom: slot.settledFrom,
 		},
 		observed: slot.observed,
 	}

@@ -407,15 +407,16 @@ message LinkMonitorConfig {
 			items: { string: { min_len: 1, max_len: 128 } }
 	}];
 
-	// Anchored regexps selecting the metric names xtcp2 serves. Empty include
-	// is the core audit set; empty exclude removes nothing. Ignored when
+	// Anchored regexps selecting the metric names xtcp2 serves. When both are
+	// empty xtcp2 serves the alerting summary; otherwise an empty include is
+	// the core audit set and an empty exclude removes nothing. Ignored when
 	// metrics_all is set.
 	string metrics_core_include                     = 10 [
 		(buf.validate.field).string = { max_len: 4096 }];
 	string metrics_core_exclude                     = 11 [
 		(buf.validate.field).string = { max_len: 4096 }];
 
-	// Register every link-monitor metric instead of the core set. The full set
+	// Register every link-monitor metric instead of the summary. The full set
 	// is thousands of series on a large host.
 	bool metrics_all                                = 12;
 }

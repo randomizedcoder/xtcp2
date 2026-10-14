@@ -32,6 +32,14 @@ type Config struct {
 	NetstatFields      string
 	MaxSpeedExceptions []string
 	IOBackend          IOBackend
+	// ErrorWindow and FlapWindow bound how long counter-increase and flap
+	// evidence keeps an interface problem active; zero disables the reason.
+	ErrorWindow, FlapWindow time.Duration
+	// ErrorClasses selects the error classes (link, rdma, drop) that count as
+	// error evidence; ErrorExclude is an anchored regexp of series keys
+	// <metric>[:<statistic>]@<interface> that never count.
+	ErrorClasses []string
+	ErrorExclude string
 }
 
 // DefaultConfig returns independent configuration with all statistics selected.
@@ -40,13 +48,16 @@ func DefaultConfig() Config {
 		BaselineFile: "/var/lib/go-link-monitor/baseline.json",
 		Settle:       30 * time.Second, Resync: time.Hour, StatsInterval: 15 * time.Second,
 		StatsInclude: ".*", StatsExclude: "^$", NetstatFields: ".*",
-		IOBackend: IOBackendPoller,
+		IOBackend:   IOBackendPoller,
+		ErrorWindow: defaultProblemWindow, FlapWindow: defaultProblemWindow,
+		ErrorClasses: []string{"link", "rdma"},
 	}
 }
 
 type configuration struct {
 	Config
 	include, exclude, netstat *regexp.Regexp
+	problems                  problemPolicy
 }
 
 func validateConfig(cfg Config) (configuration, error) {
@@ -68,6 +79,11 @@ func validateConfig(cfg Config) (configuration, error) {
 		return result, err
 	}
 	cfg.MaxSpeedExceptions = exceptions
+	problems, err := newProblemPolicy(cfg)
+	if err != nil {
+		return result, err
+	}
+	result.problems = problems
 	result.Config = cfg
 	for _, field := range []struct {
 		name, expression string
