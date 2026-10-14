@@ -1,0 +1,39 @@
+# The lint ratchet, on every PR to main and every push to main.
+#
+# checks.lint-baseline is the one check that is green at baseline, so its red
+# means a regression landed (nix/checks/lint-baseline.nix). It went red twice
+# with nothing running it: TODO-SOON.md §23 and §28. `nix flake check` is not
+# run here: it already carries environmental reds and its microVMs need
+# /dev/kvm, so it could not announce a new one.
+#
+# Actions are pinned by commit SHA; the comment names the tag it was taken from.
+name: lint-baseline
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lint-baseline-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-baseline:
+    # The status check name, for branch protection.
+    name: lint-baseline
+    runs-on: ubuntu-latest
+    # A cold run is about 13 minutes of golangci (nix/lint-baseline-measure.nix).
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+      - name: lint-baseline
+        run: nix build .#checks.x86_64-linux.lint-baseline -L

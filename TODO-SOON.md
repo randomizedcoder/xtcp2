@@ -26,9 +26,10 @@ fails on an added finding in any tier. **It went red again between 2026-10-09 an
 green too. The only reds left in `nix flake check` are the two environmental
 flakes.
 
-Two caveats that have not changed. There is still no CI and no scheduler in this
-repo, so "nightly" names an intention rather than a cron — which is why the
-ratchet, not a nightly run, is what notices a regression. And read any
+Two caveats. There is still no scheduler in this repo, so "nightly" names an
+intention rather than a cron — which is why the ratchet, not a nightly run, is
+what notices a regression. Since 2026-10-14 CI runs that ratchet, and only it,
+on every PR to main (`.github/workflows/lint-baseline.yml`, §28). And read any
 "0 issues" claim in this file as "0 issues on the date beside it": that is
 exactly how the 2026-09-23 claim above went stale without anyone noticing.
 
@@ -2261,5 +2262,9 @@ Mutants confirm the exclusions are scoped:
 | `link` ×3 in `internal/goip/render` | flagged |
 | a new literal ×3 in `goipparity/commands.go`, `internal/gordma` | excluded |
 
-**Still open:** without CI this can happen again. Running `lint-baseline` on
-each PR is the actual fix.
+**Closed by CI (2026-10-14):** `.github/workflows/lint-baseline.yml` builds
+`checks.x86_64-linux.lint-baseline` on every PR to main and every push to
+main, so a finding like these shows on the PR that adds it. Only the ratchet
+runs there; see CONTRIBUTING.md "Linting" for why not `nix flake check`.
+Making the job a required status check is a branch-protection setting, not
+yet done.
