@@ -180,18 +180,30 @@ func (h *dumpHarness) startDump() {
 // flush ends the poll as flushEnvelope("poll_end") does: it takes the
 // envelope's rows and leaves currentEnvelope nil.
 func (h *dumpHarness) flush() int {
+	e := h.takeEnvelope()
+	if e == nil {
+		return 0
+	}
+	h.recycle(e)
+	return len(e.Row)
+}
+
+// takeEnvelope ends the poll, leaving currentEnvelope nil, and returns the
+// envelope without touching its rows.
+func (h *dumpHarness) takeEnvelope() *xtcp_flat_record.Envelope {
 	h.x.envelopeMu.Lock()
 	defer h.x.envelopeMu.Unlock()
 	e := h.x.currentEnvelope
 	h.x.currentEnvelope = nil
-	if e == nil {
-		return 0
-	}
+	return e
+}
+
+// recycle returns an envelope's rows to the record pool.
+func (h *dumpHarness) recycle(e *xtcp_flat_record.Envelope) {
 	for _, r := range e.Row {
 		r.Reset()
 		h.x.xtcpRecordPool.Put(r)
 	}
-	return len(e.Row)
 }
 
 func (h *dumpHarness) drops() int {
@@ -446,7 +458,10 @@ func TestNetlinkerDump_shutdownWhileHeld(t *testing.T) {
 // sockets in 1,700 packets of 60 records plus the done packet, from the
 // first write until every record has been decoded, by netlinker count.
 // Records dropped after the flush still count as decoded, so main and a
-// fix do the same work. Compare runs with benchstat.
+// fix do the same decode work. The flush only takes the envelope; its
+// rows are recycled with the timer stopped, so the 100k row resets (which
+// on main overlap the decoders still running after the early done signal)
+// don't count against either side. Compare runs with benchstat.
 func BenchmarkNetlinkerDump(b *testing.B) {
 	const dataPkts = 1700
 	c := loadDumpCorpus(b)
@@ -467,14 +482,51 @@ func BenchmarkNetlinkerDump(b *testing.B) {
 				if !h.waitDone(dumpDoneTimeout) {
 					b.Fatalf("dump %d: no done signal", i)
 				}
-				h.flush()
+				e := h.takeEnvelope()
 				h.quiesce(b, (i+1)*perDump)
 				if err := <-errCh; err != nil {
 					b.Fatal(err)
 				}
+				b.StopTimer()
+				if e != nil {
+					h.recycle(e)
+				}
+				b.StartTimer()
 			}
 			b.StopTimer()
 			b.ReportMetric(float64(perDump), "records/dump")
+		})
+	}
+}
+
+// TestPacketHasDone pins the receiver's end-of-dump detection, which walks
+// message headers without decoding bodies.
+func TestPacketHasDone(t *testing.T) {
+	c := loadDumpCorpus(t)
+	// An INET_DIAG header with nlmsg_len 0, followed by a done message the
+	// walk must never reach.
+	zeroLenThenDone := make([]byte, xtcpnl.NlMsgHdrSizeCst+len(c.done))
+	binary.LittleEndian.PutUint16(zeroLenThenDone[4:6], xtcpnl.NlMsgHdrTypeInetDiagCst)
+	copy(zeroLenThenDone[xtcpnl.NlMsgHdrSizeCst:], c.done)
+
+	tests := []struct {
+		description string
+		packet      []byte
+		expected    bool
+	}{
+		{description: "positive: a done-only packet", packet: c.done, expected: true},
+		{description: "positive: data then done in one packet", packet: append(c.dataPacket(3), c.done...), expected: true},
+		{description: "negative: data only", packet: c.dataPacket(dumpRecordsPerPkt), expected: false},
+		{description: "boundary: empty packet", packet: nil, expected: false},
+		{description: "boundary: shorter than a header", packet: c.done[:xtcpnl.NlMsgHdrSizeCst-1], expected: false},
+		{description: "corner: nlmsg_len 0 stops the walk instead of looping", packet: zeroLenThenDone, expected: false},
+		{description: "corner: a done header with a truncated body still counts, as in Deserialize", packet: c.done[:xtcpnl.NlMsgHdrSizeCst], expected: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			if got := packetHasDone(tc.packet); got != tc.expected {
+				t.Errorf("packetHasDone = %v, expected %v", got, tc.expected)
+			}
 		})
 	}
 }

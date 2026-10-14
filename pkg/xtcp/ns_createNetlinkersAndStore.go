@@ -74,11 +74,14 @@ func (x *XTCP) createNetlinkers(ctx context.Context, wg *sync.WaitGroup, nsName 
 
 	defer wg.Done()
 
-	for i := uint32(0); i < netlinkers; i++ {
-		wg.Add(1)
-		go x.Netlinker(ctx, wg, nsName, inode, fd, i)
-		if x.debugLevel > 10 {
-			log.Printf("createNetlinkers Netlinker i:%d, fd:%d", i, fd)
-		}
+	// Zero netlinkers reads nothing, as before the per-socket dispatch.
+	if netlinkers == 0 {
+		return
+	}
+
+	wg.Add(1)
+	go x.Netlinker(ctx, wg, nsName, inode, fd, netlinkers)
+	if x.debugLevel > 10 {
+		log.Printf("createNetlinkers Netlinker netlinkers:%d, fd:%d", netlinkers, fd)
 	}
 }

@@ -29,6 +29,12 @@ type DeserializeArgs struct {
 	pC             *prometheus.CounterVec
 	pH             *prometheus.SummaryVec
 	id             uint32
+	// signalDone makes Deserialize signal the poller when it meets
+	// NLMSG_DONE. Only the io_uring path sets it; the syscall path signals
+	// from the decoder that finishes the dump's last packet (dumpState in
+	// netlinker.go), since the decoder that meets NLMSG_DONE may not be
+	// the last to finish.
+	signalDone bool
 }
 
 func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, err error) {
@@ -136,7 +142,9 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 		offset += length
 
 		if nlh.Type == xtcpnl.NlMsgHdrTypeDoneCst {
-			x.signalNetlinkerDone(d)
+			if d.signalDone {
+				x.signalNetlinkerDone(d.fd)
+			}
 			d.nlhPool.Put(nlh)
 			d.xtcpRecordPool.Put(xtcpRecord)
 			return n, nil
@@ -287,12 +295,12 @@ func (x *XTCP) processInetDiagRecord(
 // is waiting for. Tries a non-blocking send first so we can count
 // instances where the channel is saturated, then falls back to the
 // blocking send to preserve at-least-once delivery.
-func (x *XTCP) signalNetlinkerDone(d DeserializeArgs) {
+func (x *XTCP) signalNetlinkerDone(fd int) {
 	select {
-	case x.netlinkerDoneCh <- netlinkerDone{fd: d.fd, t: time.Now()}:
+	case x.netlinkerDoneCh <- netlinkerDone{fd: fd, t: time.Now()}:
 	default:
-		d.pC.WithLabelValues("Deserialize", "netlinkerDoneCh", "error").Inc()
-		x.netlinkerDoneCh <- netlinkerDone{fd: d.fd, t: time.Now()}
+		x.pC.WithLabelValues("Deserialize", "netlinkerDoneCh", "error").Inc()
+		x.netlinkerDoneCh <- netlinkerDone{fd: fd, t: time.Now()}
 	}
 }
 

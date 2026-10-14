@@ -105,10 +105,9 @@ func TestSignalNetlinkerDone_blockingPath(t *testing.T) {
 	// Pre-fill the channel so the non-blocking send hits `default`.
 	x.netlinkerDoneCh <- netlinkerDone{fd: -1}
 
-	args := DeserializeArgs{fd: 42, pC: x.pC}
 	done := make(chan struct{})
 	go func() {
-		x.signalNetlinkerDone(args)
+		x.signalNetlinkerDone(42)
 		close(done)
 	}()
 	// Sleep before draining so the goroutine has time to hit the

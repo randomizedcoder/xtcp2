@@ -94,27 +94,34 @@ func TestCreateNetlinkersAndStore_zeroNetlinkers(t *testing.T) {
 	}
 }
 
-// createNetlinkers with netlinkers=2 + a no-op Netlinker function: drives
-// the loop body (counter + spawn + debug log) for each iteration.
+// createNetlinkers with netlinkers=2 + a stub Netlinker function: the
+// stub runs once for the socket and is passed the netlinker count (the
+// variant starts its own decoders or rings).
 func TestCreateNetlinkers_nonZero(t *testing.T) {
 	x := newNsExtraFixture(t)
 	x.debugLevel = 11 // hit log branch
-	var ran sync.WaitGroup
-	x.Netlinker = func(_ context.Context, wg *sync.WaitGroup, _ *string, _ uint64, _ int, _ uint32) {
+	var (
+		mu    sync.Mutex
+		calls []uint32
+	)
+	x.Netlinker = func(_ context.Context, wg *sync.WaitGroup, _ *string, _ uint64, _ int, netlinkers uint32) {
 		defer wg.Done()
-		ran.Done()
+		mu.Lock()
+		calls = append(calls, netlinkers)
+		mu.Unlock()
 	}
-	ran.Add(2)
 	wg := new(sync.WaitGroup)
 	wg.Add(1)
 	name := "spawn-ns"
 	x.createNetlinkers(context.Background(), wg, &name, 0, 9, 2)
 	wg.Wait()
-	ran.Wait() // both Netlinker invocations ran
+	if len(calls) != 1 || calls[0] != 2 {
+		t.Errorf("Netlinker calls = %v, want one call with netlinkers=2", calls)
+	}
 }
 
-// createNetlinkersAndStore with netlinkers=2: the spawned netlinkers run
-// the no-op stub, the netNSitem lands in nsMap, and storeCount/generation
+// createNetlinkersAndStore with netlinkers=2: the Netlinker stub runs once
+// with netlinkers=2, the netNSitem lands in nsMap, and storeCount/generation
 // both increment by 1.
 func TestCreateNetlinkersAndStore_spawnsNetlinkers(t *testing.T) {
 	fds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_DGRAM, 0)
@@ -132,9 +139,12 @@ func TestCreateNetlinkersAndStore_spawnsNetlinkers(t *testing.T) {
 		Netlinkers:            2,
 	}
 	var ran sync.WaitGroup
-	ran.Add(2)
-	x.Netlinker = func(_ context.Context, wg *sync.WaitGroup, _ *string, _ uint64, _ int, _ uint32) {
+	ran.Add(1) // one call per socket, passed Netlinkers=2
+	x.Netlinker = func(_ context.Context, wg *sync.WaitGroup, _ *string, _ uint64, _ int, netlinkers uint32) {
 		defer wg.Done()
+		if netlinkers != 2 {
+			t.Errorf("Netlinker netlinkers = %d, want 2", netlinkers)
+		}
 		ran.Done()
 	}
 	x.debugLevel = 11
