@@ -380,22 +380,50 @@ let
   # s3parquet-long + the tcp-stress socket-load containers = the parquet→S3
   # upload analog of clickhouse-pipeline-stress. Needs tcpStressImage (to
   # docker-load and spawn the load containers).
-  mkOneS3ParquetStress =
-    arch:
-    import ./mkVm.nix {
-      inherit
-        pkgs
-        lib
-        microvm
-        nixpkgs
-        arch
-        xtcp2Package
-        xtcp2AllPackage
-        ipfeedCollectorPackage
-        tcpStressImage
-        ;
-      sink = "s3parquet-stress";
+  mkOneS3ParquetStress = arch: mkOneS3ParquetStressWith arch { };
+
+  # mkOneS3ParquetStress plus an investigation variant's mkVm arguments
+  # (xtcp2Environment, cpuStress).
+  mkOneS3ParquetStressWith =
+    arch: variant:
+    import ./mkVm.nix (
+      {
+        inherit
+          pkgs
+          lib
+          microvm
+          nixpkgs
+          arch
+          xtcp2Package
+          xtcp2AllPackage
+          ipfeedCollectorPackage
+          tcpStressImage
+          ;
+        sink = "s3parquet-stress";
+      }
+      // variant
+    );
+
+  # s3parquet-stress variants for docs/investigations/envelope-post-flush-drop.md:
+  # the -netlinkers A/B (NETLINKERS overrides the flag) and stress-ng CPU
+  # contention on both vCPUs. Each is an app,
+  # microvm-x86_64-s3parquet-stress-<name>, run with the stress runner.
+  s3ParquetStressVariantArgs = {
+    nl1.xtcp2Environment.NETLINKERS = "1";
+    nl2.xtcp2Environment.NETLINKERS = "2";
+    nl8.xtcp2Environment.NETLINKERS = "8";
+    cpuload.cpuStress = {
+      workers = 2;
+      loadPct = 90;
     };
+    cpuload-nl1 = {
+      xtcp2Environment.NETLINKERS = "1";
+      cpuStress = {
+        workers = 2;
+        loadPct = 90;
+      };
+    };
+  };
 
   # Low-activity counterpart of s3parquet-stress: 1h poll + 2 sockets/container,
   # so parquet files flush on the staleness timer, not the byte cap. Same
@@ -616,6 +644,13 @@ let
 
   vmsS3ParquetStress = lib.optionalAttrs (tcpStressImage != null) (
     lib.genAttrs constants.supportedArchs mkOneS3ParquetStress
+  );
+
+  # vmsS3ParquetStressVariants.<name>.<arch>
+  vmsS3ParquetStressVariants = lib.optionalAttrs (tcpStressImage != null) (
+    lib.mapAttrs (
+      _name: variant: lib.genAttrs constants.supportedArchs (arch: mkOneS3ParquetStressWith arch variant)
+    ) s3ParquetStressVariantArgs
   );
 
   vmsS3ParquetLowfreq = lib.optionalAttrs (tcpStressImage != null) (
@@ -999,6 +1034,19 @@ let
     })
   );
 
+  # s3ParquetStressVariants.<name>.<arch>.runner: the stress runner over each
+  # investigation variant's VM.
+  s3ParquetStressVariants = lib.mapAttrs (
+    name: vmsByArch:
+    lib.genAttrs constants.supportedArchs (arch: {
+      runner = microvmLib.mkS3ParquetStressRunner {
+        inherit arch;
+        vm = vmsByArch.${arch};
+        label = "s3parquet-stress-${name}";
+      };
+    })
+  ) vmsS3ParquetStressVariants;
+
   # Parquet→S3 low-activity verification: the s3parquet-lowfreq VM (1h poll,
   # 2 sockets/container) wrapped in the SAME host runner as the stress flavor —
   # it asserts uploads still advance (driven by the staleness timer, since the
@@ -1052,6 +1100,7 @@ in
     vmsNsq
     vmsS3ParquetLong
     vmsS3ParquetStress
+    vmsS3ParquetStressVariants
     vmsS3ParquetLowfreq
     vmsCapCheckFail
     vmsDiscoveryBench
@@ -1073,6 +1122,7 @@ in
     clickPipeRate
     clickPipeStress
     s3ParquetStress
+    s3ParquetStressVariants
     s3ParquetLowfreq
     lifecycle
     lifecycleUdsSecurity

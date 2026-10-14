@@ -41,6 +41,14 @@
   tcpStressImage ? null,
   # Additional isolated validation modules; ordinary flavors remain unchanged.
   extraModules ? [ ],
+  # Extra environment for the xtcp2 unit. xtcp2 lets NETLINKERS, DEBUG_LEVEL,
+  # GOMAXPROCS and others override its flags, so a variant can change them
+  # without touching a flavor's arg list. Empty leaves the VM unchanged.
+  xtcp2Environment ? { },
+  # stress-ng CPU contention alongside xtcp2: { workers; loadPct; } runs
+  # `stress-ng --cpu <workers> --cpu-load <loadPct>` for the life of the VM.
+  # null (the default) adds nothing.
+  cpuStress ? null,
 }:
 
 let
@@ -1113,22 +1121,34 @@ let
       sleep_dur=${tcpStressClientSleep}
       pads=${toString tcpStressPads}
 
+      # The s3parquet-stress and clickhouse-pipeline-stress flavors keep
+      # /var/lib/docker on a disk image that outlives the VM, so the previous
+      # boot's stress-N containers are still there and dockerd restarts them
+      # (--restart on-failure). Remove them first: otherwise every `docker run
+      # --name stress-N` below fails on the name conflict, and the containers
+      # left running carry the previous build's image and settings.
+      for i in $(seq 1 "$n"); do
+        if docker rm --force "stress-$i" >/dev/null 2>&1; then
+          echo "  stress-$i: removed the previous boot's container"
+        fi
+      done
+
       echo "spawning $n containers, each with TCP_MODE=both TCP_COUNT=$m"
       for i in $(seq 1 "$n"); do
         # --detach because we want them all live concurrently. Reusing
         # the same image name from `docker load` (xtcp2-tcp-stress:latest).
         # Names stress-1, stress-2, … so cleanup is scriptable.
-        if docker run --detach \
+        if err=$(docker run --detach \
             --name "stress-$i" \
             --restart on-failure \
             --env TCP_MODE=both \
             --env "TCP_COUNT=$m" \
             --env "TCP_SLEEP=$sleep_dur" \
             --env "TCP_PADS=$pads" \
-            xtcp2-tcp-stress:latest >/dev/null 2>&1; then
+            xtcp2-tcp-stress:latest 2>&1 >/dev/null); then
           echo "  stress-$i: started"
         else
-          echo "  stress-$i: FAILED to start"
+          echo "  stress-$i: FAILED to start: $err"
         fi
       done
       # Keep the unit alive — it's Type=simple. Tail the logs of one
@@ -1747,9 +1767,11 @@ let
         files=$(get_counter "$metrics" 'variable="upload"')
         bytes=$(get_counter "$metrics" 'variable="uploadBytes"')
         rows=$(get_counter "$metrics" 'variable="uploadRows"')
+        drops=$(get_counter "$metrics" 'variable="envelopePostFlushDrop"')
+        appends=$(get_counter "$metrics" 'variable="envelopeAppend"')
         gor=$(get_simple "$metrics" 'go_goroutines')
         thr=$(get_simple "$metrics" 'go_threads')
-        : "''${files:=0}" "''${bytes:=0}" "''${rows:=0}" "''${gor:=0}" "''${thr:=0}"
+        : "''${files:=0}" "''${bytes:=0}" "''${rows:=0}" "''${drops:=0}" "''${appends:=0}" "''${gor:=0}" "''${thr:=0}"
         # Prometheus client may print "5.4e+07"; convert through awk so
         # the sentinel shows the integer rather than the scientific-
         # notation prefix (a previous attempt used "''${var%.*}" which
@@ -1757,6 +1779,8 @@ let
         files=$(awk -v n="$files" 'BEGIN { printf "%.0f", n+0 }')
         bytes=$(awk -v n="$bytes" 'BEGIN { printf "%.0f", n+0 }')
         rows=$(awk -v n="$rows" 'BEGIN { printf "%.0f", n+0 }')
+        drops=$(awk -v n="$drops" 'BEGIN { printf "%.0f", n+0 }')
+        appends=$(awk -v n="$appends" 'BEGIN { printf "%.0f", n+0 }')
         gor=$(awk -v n="$gor" 'BEGIN { printf "%.0f", n+0 }')
         thr=$(awk -v n="$thr" 'BEGIN { printf "%.0f", n+0 }')
         # Disk utilization of the MinIO data dir (integer percent, no % sign).
@@ -1766,7 +1790,7 @@ let
         # is the 512 MiB tmpfs — harmless, just reported.
         disk=$(df --output=pcent /var/lib/minio 2>/dev/null | tail -1 | tr -dc '0-9')
         disk=''${disk:-0}
-        echo "XTCP2_S3PARQUET_HOURLY $(date -u +%FT%TZ) files=''${files} bytes=''${bytes} rows=''${rows} goroutines=''${gor} threads=''${thr} disk=''${disk}"
+        echo "XTCP2_S3PARQUET_HOURLY $(date -u +%FT%TZ) files=''${files} bytes=''${bytes} rows=''${rows} drops=''${drops} appends=''${appends} goroutines=''${gor} threads=''${thr} disk=''${disk}"
       done
     '';
   };
@@ -2904,6 +2928,7 @@ in
         # the enricher sockets. Merged because isCoverage and isClickPipe are
         # mutually exclusive but both target systemd.services.xtcp2.
         systemd.services.xtcp2 = lib.mkMerge [
+          { environment = xtcp2Environment; }
           (lib.mkIf isCoverage {
             environment.GOCOVERDIR = coverDir;
           })
@@ -3251,6 +3276,25 @@ in
                 StandardError = "journal+console";
               };
             };
+
+        # CPU contention for investigations that depend on scheduling (the
+        # envelopePostFlushDrop race). Starts with xtcp2 and runs until
+        # poweroff; the start line tells the runner it was active.
+        systemd.services.xtcp2-cpu-stress = lib.mkIf (cpuStress != null) {
+          description = "stress-ng CPU contention alongside xtcp2";
+          after = [ "xtcp2.service" ];
+          wantedBy = [ "multi-user.target" ];
+          script = ''
+            echo "XTCP2_CPU_STRESS_START workers=${toString cpuStress.workers} load=${toString cpuStress.loadPct}"
+            exec ${pkgs.stress-ng}/bin/stress-ng --cpu ${toString cpuStress.workers} \
+              --cpu-load ${toString cpuStress.loadPct} --timeout 0
+          '';
+          serviceConfig = {
+            Type = "simple";
+            StandardOutput = "journal+console";
+            StandardError = "journal+console";
+          };
+        };
 
         # s3parquet-stress: bounded ~1h object retention (analog of the
         # clickhouse-stress 1h table TTL). Keeps the MinIO disk at steady state.

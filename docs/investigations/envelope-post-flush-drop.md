@@ -1,8 +1,8 @@
 # Investigation: records dropped after the poll-end flush (`envelopePostFlushDrop`)
 
-**Status: open (reproducing).** Opened 2026-10-14.
+**Status: open (root cause confirmed; fix by TDD).** Opened 2026-10-14.
 
-**About 19% of the TCP socket records xtcp2 collects in prod never reach S3.** `Deserialize` parses them, finds no current envelope to append to, counts `Deserialize/envelopePostFlushDrop` and throws them away. The loss affects 71% of prod hosts and grows with the number of network namespaces on a host. The leading hypothesis is a race between the several netlinker goroutines that read each netlink socket: the goroutine that reads the end-of-dump message signals "done" while its siblings are still decoding earlier packets of the same dump, and the poller's final flush runs before they finish. This document records the evidence, the hypotheses ruled out, and a plan to reproduce the loss in the MinIO microVMs, where it can be debugged with full control.
+**About 19% of the TCP socket records xtcp2 collects in prod never reach S3.** `Deserialize` parses them, finds no current envelope to append to, counts `Deserialize/envelopePostFlushDrop` and throws them away. The loss affects 71% of prod hosts and grows with the number of network namespaces on a host. **The cause is confirmed in the microVMs:** it's a race between the several netlinker goroutines that read each netlink socket. The kernel sends the end-of-dump message as its own tiny packet. The goroutine that reads it signals "done" almost at once, while its siblings are still decoding the large data packets before it, and the poller's final flush runs before they finish. With one reader per socket the loss is zero; with two it halves. This document records the evidence, the reproduction, why multiple readers cause it, and a test-first plan to fix it without giving up parallel decoding: one receiver per socket numbers the packets in kernel order, and a pool of decoders counts them, so "done" is signaled only after the last packet of the dump is decoded ([option C](#fix-directions)).
 
 ## Table of contents
 
@@ -16,7 +16,10 @@
   - [Step 2: A/B on `-netlinkers`](#step-2-ab-on--netlinkers)
   - [Step 3: debug logging to see the race](#step-3-debug-logging-to-see-the-race)
   - [Step 4: a unit-level reproduction](#step-4-a-unit-level-reproduction)
+- [Why more netlinkers cause it](#why-more-netlinkers-cause-it)
+- [Why no test caught it](#why-no-test-caught-it)
 - [Fix directions](#fix-directions)
+- [Test-first plan](#test-first-plan)
 - [Regression guard](#regression-guard)
 - [Related findings](#related-findings)
 - [Log](#log)
@@ -94,7 +97,7 @@ On dev the trend is weak: the worst host (2du0rmw1czj8, 15.8%) has 8 namespaces,
 
 | # | Hypothesis | Status | Evidence |
 |---|---|---|---|
-| H1 | **Sibling netlinkers are still decoding when the done signal goes out.** Netlinker B reads the `NLMSG_DONE` packet and signals done, while netlinkers A, C and D still hold earlier packets of the same dump in `Deserialize`. If that socket is the last one to finish, the poll-end flush runs and A, C and D's remaining records are dropped. | **leading** | Fits every fleet fact: done signals equal polls; drops need records in flight after the final done; with about 3 packets per namespace, the three siblings can be holding the whole tail of a dump. More namespaces and sockets mean more goroutines decoding at the moment of the last done, so more loss. The default of 4 readers per socket is the precondition. |
+| H1 | **Sibling netlinkers are still decoding when the done signal goes out.** Netlinker B reads the `NLMSG_DONE` packet and signals done, while netlinkers A, C and D still hold earlier packets of the same dump in `Deserialize`. If that socket is the last one to finish, the poll-end flush runs and A, C and D's remaining records are dropped. | **confirmed** (2026-10-14, [Step 2](#step-2-ab-on--netlinkers)) | Fits every fleet fact, and in the stress VM `NETLINKERS=1` gives 0 drops in about 490k records against 1.6–2.3% with 4. See [why more netlinkers cause it](#why-more-netlinkers-cause-it). |
 | H1a | **Variant: a stalled sibling.** A sibling that has read a packet is stalled before decoding it: preempted, waiting on `envelopeMu`, blocked by enrichment, or in the forced `runtime.GC()` in `maybeForceGC` (every 1000 loop iterations, `netlinker.go:95-101`). That widens H1's window. | to measure | `runtime.GC()` fires at 0.056/s fleetwide, too rare to explain most of the loss alone, but it could explain the p99 hosts. |
 | H2 | **The poll timeout flushes mid-dump.** `pollTimeoutTimer` (5 s default, `-timeout`) fires before every socket is done, `poll_timeout` flushes, and the rest of the dump is dropped. | ruled out | No `poll_timeout` flush has ever carried rows. Separately, the timer is never stopped after `poll_end`, so `PollTimeout` fires about 5 s after almost every poll, but with `count` already 0 and a nil envelope that's a no-op ([related findings](#related-findings)). |
 | H3 | **Extra done signals end the poll early.** Two `NLMSG_DONE`s for one socket, or a late done from a previous poll, take `count` to zero before every socket has finished. | ruled out | Done signals equal dump requests: 1,677,038 against 1,677,041 in prod, and 16,100 against 16,100 in dev. One request per socket per poll (`poll`, `poller.go:425-439`). |
@@ -116,6 +119,21 @@ The MinIO s3parquet flavors are listed below. VM attrs are in `nix/microvms/defa
 
 None of them sets `-netlinkers` or the debug level, so all run with 4 netlinkers per socket and `-d 111`, the same as prod.
 
+**Knobs added for this investigation** (`nix/microvms/mkVm.nix`), both defaulting to "unchanged":
+
+- `xtcp2Environment`: extra environment for the xtcp2 unit. xtcp2 lets `NETLINKERS`, `DEBUG_LEVEL`, `GOMAXPROCS` and others override its flags, and the environment survives the self-test's reconfigure re-exec.
+- `cpuStress`: `{ workers; loadPct; }` runs `stress-ng --cpu <workers> --cpu-load <loadPct>` alongside xtcp2 for the life of the VM, and logs `XTCP2_CPU_STRESS_START`.
+
+The s3parquet monitor's `XTCP2_S3PARQUET_HOURLY` sentinel now carries `drops=` and `appends=`, and the stress runner's summary prints the drop percentage (reported, not asserted). The variants are flake apps:
+
+| App | Change from `s3parquet-stress` |
+|---|---|
+| `.#microvm-x86_64-s3parquet-stress-nl1` | `NETLINKERS=1` |
+| `.#microvm-x86_64-s3parquet-stress-nl2` | `NETLINKERS=2` |
+| `.#microvm-x86_64-s3parquet-stress-nl8` | `NETLINKERS=8` |
+| `.#microvm-x86_64-s3parquet-stress-cpuload` | stress-ng, 2 workers at 90% (the VM has 2 vCPUs) |
+| `.#microvm-x86_64-s3parquet-stress-cpuload-nl1` | both |
+
 ### Step 1: measure the existing VMs as they are
 
 Boot `s3parquet-stress` for about 15 minutes (about 90 polls), then read the counters on the VM's `/metrics` (`127.0.0.1:9088`), either by hand or with the self-test's `metric_value` helper (`self-test.nix:400-420`):
@@ -131,9 +149,16 @@ curl -s 127.0.0.1:9088/metrics | grep -E \
 | boundary: lowfreq VM, 4 netlinkers, 2 sockets per container | small or zero drops (about 1 packet per dump, so no sibling has anything in flight) | drops anyway: H1's packet-count reasoning is wrong |
 | corner: done signals equal dump requests | `Poller/done` equals `poller/poll`, as in prod | they differ: revisit H3 |
 
+**Result (2026-10-14): reproduced.** A 20-minute run, scraping `/metrics` every minute from the host:
+
+- **Boot**, while the 20 containers spawn: 262 drops against 116 appends, a one-off.
+- **Steady state:** about 0.25% for the first process, then **2.0% every minute** for the 12 minutes after the self-test's reconfigure soft restart (check 19 re-execs the daemon, which resets the counters). 2% is the prod per-host median.
+- **Done signals equal dump requests** (1,512 = 1,512), as in prod.
+- A dump is about 5 packets: data packets of about 32 KB (about 60 records each), then **`NLMSG_DONE` in a packet of its own, 20 bytes long**. The transcript shows 2,548 20-byte packets, about one per dump.
+
 ### Step 2: A/B on `-netlinkers`
 
-Use the same VM, changing only the number of readers per socket. The daemon takes `NETLINKERS` from the environment (`cmd/xtcp2/xtcp2.go:1718`), and `-netlinkers` as a flag. Neither is wired per flavor today, so this needs a small `mkVm.nix` change: a `netlinkers ? null` argument (or an `extraModules` override of `services.xtcp2.extraArgs`) appended to the s3parquet arg lists. The same change serves Step 3's debug level.
+Use the same VM, changing only the number of readers per socket. The daemon takes `NETLINKERS` from the environment (`cmd/xtcp2/xtcp2.go:1718`), and `-netlinkers` as a flag; the variants above set the environment.
 
 | description | expected if H1 holds |
 |---|---|
@@ -144,6 +169,23 @@ Use the same VM, changing only the number of readers per socket. The daemon take
 | corner: `-netlinkers 1`, compare records/poll with the 4-reader run | records per poll go up by the dropped amount, and poll duration (`Poller/pollToDoneDuration`, per-fd observations only, see [F1](../design-summary-metrics.md#f1-polltodoneduration-is-observed-from-two-places-bug)) stays well under the 10 s interval |
 
 If `-netlinkers 1` gives zero drops, H1 is confirmed. If so, the same flag on one dev host is a mitigation to try while the fix is written. On prod's hourly polls, a single reader per socket costs nothing measurable.
+
+**Result (2026-10-14): H1 confirmed.** 20 minutes each, run one at a time; the figures are from the runner's last sample:
+
+| Variant | Dropped / appended | Dropped | Prediction |
+|---|---|---|---|
+| base, 4 readers | 7,813 / 489,881 | 1.57% | |
+| base, rerun on fresh containers | 9,515 / 407,977 | 2.28% | |
+| **`nl1`** | **0 / 492,758** | **0%** | **met** |
+| `nl2` | 4,564 / 508,303 | 0.89% | met: fewer than 4 |
+| `nl8` | 7,394 / 500,416 | 1.46% | **missed**: about the same as 4, not more |
+| `cpuload` | 6,895 / 480,814 | 1.41% | **missed**: CPU load didn't amplify it |
+| `cpuload-nl1` | 0 / 74,097 | 0% | inconclusive: the serial capture stopped at 190 s, so this covers only the first 3 minutes |
+
+- `NETLINKERS=1` was in effect in both xtcp2 processes of the `nl1` run, before and after the reconfigure re-exec (`key:NETLINKERS, c.Netlinkers:1`).
+- **`nl8`:** with about 5 packets per dump and 2 vCPUs, more than 4 readers adds no real concurrency, so the rate stays put.
+- **`cpuload`:** 2 stress-ng workers at a 90% duty cycle leave idle gaps, and the scheduler favors threads waking from sleep, which the readers are. Contention that bites would need oversubscription (more runnable threads than CPUs).
+- **What the VM doesn't explain:** prod loses about 19% while collecting *fewer* records per poll (about 1,650 per host) than this VM (about 5,000). Two differences remain to test: namespace count (200 with nsTest in `s3parquet-long`, against 21 here; prod hosts above 40 namespaces lose 71%), and the hourly cadence. [Step 3](#step-3-debug-logging-to-see-the-race)'s logs would show how wide the window is.
 
 ### Step 3: debug logging to see the race
 
@@ -184,36 +226,92 @@ For reference, at the default `-d 111`:
 
 ### Step 4: a unit-level reproduction
 
-Once the VM confirms the mechanism, pin it with a deterministic Go test, so the fix can be shown to close it without a VM:
+Superseded by the [test-first plan](#test-first-plan), which turns this step into the unit tests the fix has to pass.
 
-- two netlinker goroutines on a `socketpair` (or the existing netlinker test seams in `netlinker_helpers_test.go`);
-- the first gets a data packet and is held inside `Deserialize` by a test hook (a channel the test controls);
-- the second gets the `NLMSG_DONE` packet;
-- the poller sees the done signal and flushes, then the test releases the first goroutine.
+## Why more netlinkers cause it
 
-| description | expected today | expected after the fix |
-|---|---|---|
-| negative: sibling held past the done signal | `envelopePostFlushDrop` = number of records in the held packet | 0; the records are in the flushed envelope |
-| positive: single netlinker | 0 | 0 |
-| boundary: held packet is empty (only `NLMSG_DONE` elsewhere) | 0 | 0 |
-| corner: two sockets, the held one finishes first | 0 (the other socket's done comes later, so the flush waits) | 0 |
+The reason for several netlinkers per socket is sound. On a host with 100k TCP sockets a dump is thousands of 32 KB packets, and decoding them is CPU-bound, so spreading the decode across cores shortens the poll. That parallelism is worth keeping. The bug is in how the end of a dump is detected, not in having several readers.
+
+1. **Receiving is serial; decoding is parallel.** The kernel builds dump packets one at a time: each `recvmsg` on the socket dequeues one packet and, while the dump is running, calls `netlink_dump` to queue the next under `nl_cb_mutex` (`net/netlink/af_netlink.c`, `netlink_recvmsg` and `netlink_dump`). With 4 readers, each `Recvfrom` hands the next packet to whichever reader asked first, and the 4 then decode their packets at the same time. The order in which they *finish* is no longer the order the kernel sent the packets.
+2. **"Done" is treated as "the dump is finished", but it only means "the last packet arrived".** `Deserialize` signals done as soon as it meets `NLMSG_DONE` (`deserialize.go:138-142`). Nothing checks that the packets received before it have been decoded.
+3. **The done packet is the fastest one to decode.** The kernel sends `NLMSG_DONE` in a packet of its own, 20 bytes, while the packets before it are about 32 KB and about 60 records each. The reader that gets the done packet finishes in microseconds; the readers holding the last data packets need much longer. So the done signal usually overtakes the tail of its own dump.
+4. **The flush waits for every socket, so only the last socket's tail is at risk.** The poller flushes when the done count reaches zero. Records still being decoded at that moment, on the socket that finished last or any other with a straggler, find `currentEnvelope == nil` and are dropped.
+
+With 1 reader the packets are decoded in the order they arrive, so `NLMSG_DONE` is always handled last and the race can't happen: that's the 0 in `nl1`. With 2 readers only one sibling can be in flight, which roughly halves the loss.
+
+**Hypothesis for prod's higher rate (to measure):** prod runs the default `-goMaxProcs 4` on large hosts with many namespaces, so 4 readers × 40 namespaces is 160 reader goroutines polled at the same instant, sharing 4 Go processors. A reader that has received a 32 KB packet can wait in the run queue while done packets for other sockets are decoded, which widens the window well beyond the VM's.
+
+## Why no test caught it
+
+- **No test counts rows end to end.** The lifecycle self-test requires uploaded rows > 0 (`self-test.nix:1580-1602`), and the stress runners require uploads to keep advancing. A 2% or 19% loss passes both.
+- **Nothing asserts on `envelopePostFlushDrop`.** The only test that mentions it, `flush_envelope_reacquire_test.go`, covers the earlier mid-poll `size_cap` window (H4), not the poll-end race.
+- **The lifecycle VMs carry few sockets**, so a dump is one data packet plus the done packet, and there is never a sibling in flight. Only the stress and soak VMs have multi-packet dumps, and they don't look at the counter.
+- **The netlinker unit tests use one reader** (`netlinker_loop_test.go`) and garbage payloads, so they never exercise two readers on one dump.
 
 ## Fix directions
 
-These are to be chosen once Step 2 and Step 3 confirm H1.
+The fix has to keep parallel decoding (see above), so the old option A, defaulting to `-netlinkers 1`, is out except as a stopgap.
 
 | Option | How | Trade-off |
 |---|---|---|
-| A. **One reader per socket** | default `-netlinkers 1`, or reject `> 1` | simplest; it removes the race by construction. A dump is read in order anyway; extra readers only parallelize *decoding* of one namespace's dump. Check the throughput on the stress VM before settling on it ([stability testing](../stability-testing.md) has the thread model behind `-netlinkers`) |
-| B. **Per-socket in-flight count** | each netlinker increments an atomic per-fd counter after `Recvfrom` returns data and decrements it after `Deserialize`; the done signal is sent by whichever goroutine brings the count to zero after `NLMSG_DONE` has been seen | keeps parallel decoding; a few atomics per packet; the done signal moves from `Deserialize` into the netlinker loop |
-| C. **The poller waits** | after `count` reaches 0, wait for a per-poll `sync.WaitGroup` of in-flight decodes before flushing | the same accounting as B, but on the poller side; it couples the poller to netlinker internals |
-| D. **Don't drop: append to the next envelope** | keep a spare envelope instead of nil | hides the race, and stamps late records into the next poll (H5); not a fix |
+| A. **One reader per socket** | default `-netlinkers 1` | removes the race but loses parallel decode on large hosts. **Stopgap only**: setting `NETLINKERS=1` on prod stops the loss today, at the cost of longer polls on hosts with very many sockets |
+| B. **Serialize the receive, number the packets, count the decodes** | per socket and per dump: a mutex held only across `Recvfrom`, which gives each packet a sequence number in kernel order; an atomic count of decoded packets; the reader that meets `NLMSG_DONE` in packet *k* records that the dump has *k*+1 packets, and whichever reader brings the decoded count to *k*+1 signals done | correct, but C gets the same ordering without a lock: with one receiver there is nothing to serialize |
+| C. **One receiver numbers the packets; a decoder pool counts them** | per socket: one goroutine calls `Recvfrom` and numbers each packet 0, 1, 2… in the order the kernel delivered it, then hands it to `-netlinkers` decoder goroutines. Each decoder does the full decode, then increments an atomic per-dump `decoded` count. The decoder that finds `NLMSG_DONE` in packet *k* stores `total` = *k*+1 *before* its own increment, so whichever increment is last sees the total. The decoder that brings `decoded` to `total` signals done, guarded by a compare-and-swap so it's exactly once | **chosen.** Lock-free, keeps parallel decode and the `-netlinkers` meaning. Costs nothing in throughput: the kernel builds dump packets one at a time per socket anyway, and the handoff is one channel send per 32 KB packet (about 1,700 for 100k sockets). Blocks one OS thread per socket in `Recvfrom` instead of up to 4. Packet buffers change hands, so they come from a pool and go back after decode. The done signal moves from `Deserialize` to the decoder loop |
+| D. **The poller waits** | after `count` reaches 0, wait for a per-poll `sync.WaitGroup` of in-flight decodes before flushing | still has to know which packets are in flight before they're received; C answers that by counting at the receiver |
+| E. **Don't drop: append to the next envelope** | keep a spare envelope instead of nil | hides the race, and stamps late records into the next poll (H5); not a fix |
 
-Option A or B, then the regression guard below.
+**Why the count can't come from the kernel or from several readers:**
+
+- **`NLMSG_DONE` carries no count.** The kernel stamps every message of a dump, `NLMSG_DONE` included, with the *request's* `nlmsg_seq` (`inet_diag.c` `nlmsg_put(…, cb->nlh->nlmsg_seq, …)`; `netlink_dump_done` via `nlmsg_put_answer`). xtcp2 sets it to `NlmsgSeq + pollingLoops` (`poller.go:422`). It identifies the dump, not the message.
+- **Several readers lose the kernel's order.** The kernel queues packets in order, but with 4 readers on one fd nothing records which reader got which packet first: reader A can receive packet 5 and reader B packet 6 (the done packet), and B can count before A does. A plain in-flight counter (increment after `Recvfrom` returns, decrement after decode) fails the same way. The packet numbers have to be assigned by something that sees the packets in kernel order: C's single receiver, or B's mutex.
+
+## Test-first plan
+
+The bug is fixed test-first: write the tests, see them fail on today's code, fix, see them pass. Each test asserts behavior (records delivered, drops, the done signal), not the fix's internals, so they don't depend on how option C is built.
+
+**Unit tests** (`pkg/xtcp`, run under `-race`). They feed real `inet_diag` packets through a `SOCK_DGRAM` socketpair, which keeps packet boundaries, to two or more `netlinkerSyscall` goroutines on the same fd. A test-only hook in the decode path, a nil func in production, lets a test hold one reader mid-packet.
+
+| description | setup | expected today (red) | expected after the fix |
+|---|---|---|---|
+| negative: a sibling is held mid-decode when the done packet is read | reader A holds data packet 1 (K records); reader B reads the done packet | the done signal arrives while A is held; after the flush, A's K records are dropped | no done signal while A is held; after A is released: one done signal, envelope rows = K, drops = 0 |
+| positive: one reader | data packets then the done packet, `Netlinkers` = 1 | rows = all records, drops = 0 | the same |
+| positive: many readers, many dumps, no hook | 4 readers, 1,000 dumps of 5 × 60-record packets plus a done packet, flushing on each done signal | drops > 0 in most runs | drops = 0 and rows = 300,000, every run |
+| boundary: a dump with only the done packet | an empty namespace | one done signal, 0 rows | the same |
+| boundary: the done message at the end of a data packet | some kernels append `NLMSG_DONE` to the last data packet | passes or fails depending on timing | rows = K, one done signal |
+| corner: two sockets, the held one isn't the last to finish | socket 1's reader is held; socket 2 finishes later | passes (the flush waits for socket 2) | passes |
+| corner: exactly one done signal per dump | 4 readers, 1,000 dumps | one signal per dump (H3 still holds) | still exactly one per dump: the fix must not double-signal |
+| corner: shutdown while a reader is held | cancel the context while A is held | readers exit | readers exit; no goroutine leak; the held records are counted as a shutdown drop |
+
+**Integration tests** (microVMs):
+
+| description | where | expected today (red) | expected after the fix |
+|---|---|---|---|
+| negative: drops are an error | the stress runner fails when the last sample has `drops > 0`; the `s3parquet-long` runner too | `s3parquet-stress` FAILs (1.6–2.3%) | PASS with drops = 0 |
+| positive: uploaded rows equal flushed rows | the s3parquet self-test counts rows over every uploaded Parquet object (duckdb `count(*)`) and compares with `Poller/envelopeRows` at a quiet point | equal (drops are never flushed, so they don't show here) | equal |
+| positive: parsed records equal flushed rows | the same check, against `Netlinker/p` | fails: `p` exceeds `envelopeRows` by the drop count | equal |
+| corner: one reader still works | `-nl1` | PASS, drops = 0 | PASS |
+| corner: many namespaces | `s3parquet-long` (200 namespaces) | drops > 0, rate to be measured | drops = 0 |
+
+**Performance tests.** C changes who calls `Recvfrom`, so the change has to show it keeps the parallel-decode speedup the multiple netlinkers exist for. A Go benchmark (`pkg/xtcp`, `-bench`) feeds a dump of real `inet_diag` records over a socketpair and measures the time per dump:
+
+| description | input | expected |
+|---|---|---|
+| positive: decode still scales | a 1,700-packet dump (about 100k records), 1, 2, 4 and 8 decoders | time per dump falls as decoders are added, as it does on main |
+| negative: no regression against main | the same benchmark on main's `netlinkerSyscall` (which also skips the work for the records it drops) | C is no slower at 4 decoders, within `benchstat` noise |
+| boundary: one decoder | `-netlinkers 1` | the same records and time as main's single reader |
+| corner: the VM under load | `s3parquet-stress`, before and after | drops go from about 1.6% to 0; `Poller` poll duration no worse |
+
+**Order of work:** one PR, in commits that show red, then green:
+
+1. the unit tests and the test hook: the negative rows fail;
+2. the integration assertions: the stress runner FAILs on drops;
+3. the fix (option C): the unit tests and the stress runner pass, and the benchmark shows no regression;
+4. update this document's status and the `flushEnvelope` comment.
 
 ## Regression guard
 
-- **MicroVM:** a new s3parquet self-test check that `envelopePostFlushDrop` is 0, and that the rows in all uploaded Parquet objects (duckdb `count(*)` over the bucket) equal `Poller/envelopeRows`. No test compares uploaded rows with expected rows today. The lifecycle check (`self-test.nix:1580-1602`) only requires rows > 0.
+- **Unit:** the test-first rows above, under `-race`, with the benchmark guarding the speedup.
+- **MicroVM:** the integration rows above. Once they're green, drops > 0 fail the stress and long runners, and the s3parquet self-test checks that the rows in all uploaded Parquet objects (duckdb `count(*)` over the bucket) equal `Poller/envelopeRows` and `Netlinker/p`. Today the lifecycle check (`self-test.nix:1580-1602`) only requires rows > 0.
 - **Fleet:** with the [summary metrics](../design-summary-metrics.md), a drop counts toward `xtcp2_errors_total`. Until then, `sum(rate(xtcp_counts{variable="envelopePostFlushDrop"}[1h])) > 0` is the alert.
 
 ## Related findings
@@ -227,9 +325,15 @@ These came up in the same queries. They aren't causes of the drop, and each may 
   - The errno isn't recorded. The next step is an errno-class label or an strace on one host.
 - **`Netlinker/nerr`**: about 6,100/s fleetwide, about 3.5% of `Recvfrom` calls, on every host, filed as `type="count"`. It's most likely `EINTR`: a socket with `SO_RCVTIMEO` isn't restarted after a signal even with `SA_RESTART` (signal(7)), and the Go runtime's preemption signal interrupts it. Probably harmless, since the data stays queued.
 - **`PollTimeout` fires after every poll** (134,935 a day against 134,848 polls). `pollTimeoutTimer` is reset on each poll but never stopped at `poll_end`, so the counter says nothing about real timeouts.
+- **MicroVM harness, found while reproducing:**
+  - **Stress containers didn't respawn on a reused Docker disk (fixed).** `s3parquet-stress` keeps `/var/lib/docker` on a disk image that outlives the VM, so the previous boot's `stress-N` containers came back, every `docker run --name stress-N` failed on the name conflict (with the error hidden), and the runner failed with "no stress containers spawned" while the old containers still carried the load. The spawn script now removes them first and prints Docker's error on failure.
+  - **The serial capture can stop mid-run.** In the `cpuload-nl1` run the transcript stopped at 190 s while the VM kept running; the runner's heartbeat kept reprinting the last sample without saying so. The cause isn't known yet.
+  - **The first xtcp2 process exits at boot** because the MinIO bucket doesn't exist yet; systemd restarts it, and the runner's restart count doesn't see it. Harmless.
 
 ## Log
 
 | Date | Entry |
 |---|---|
 | 2026-10-14 | Opened from the fleet dashboard review ([summary metrics F4](../design-summary-metrics.md#f4-constant-background-of-deserialize-errors)). Fleet queries above; H2–H4 ruled out; H1 leading. Next: Step 1 on `s3parquet-stress`. |
+| 2026-10-14 | Step 1: reproduced on `s3parquet-stress` at about 2%. Step 2: `NETLINKERS=1` gives 0 drops, 2 readers about half the loss; **H1 confirmed**. CPU load and 8 readers didn't amplify it. Added the `xtcp2Environment` and `cpuStress` VM knobs, the variant apps and the drop reporting; fixed the stress-container respawn. Next: the [test-first plan](#test-first-plan), and `s3parquet-long` for the namespace-count effect. |
+| 2026-10-14 | Fix chosen: option C, one receiver per socket numbering the packets and a decoder pool counting them, lock-free. B (a mutex around `Recvfrom`) dropped as unnecessary; `NLMSG_DONE` can't supply the count because every message of a dump carries the request's `nlmsg_seq`. Added the benchmark rows. |
