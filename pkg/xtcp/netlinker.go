@@ -178,6 +178,10 @@ func (x *XTCP) netlinkerSyscall(ctx context.Context, wg *sync.WaitGroup, nsName 
 
 		b := (*packetBuffer)[0:n]
 
+		if x.decodeHook != nil {
+			x.decodeHook(fd, b)
+		}
+
 		p, errD := x.Deserialize(
 			ctx,
 			DeserializeArgs{

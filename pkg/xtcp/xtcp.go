@@ -168,6 +168,11 @@ type XTCP struct {
 	Netlinker      NetlinkerFunc
 	NetlinkerReady chan struct{}
 
+	// decodeHook, when non-nil, is called with each received packet just
+	// before it is decoded. Tests use it to hold one decoder mid-dump; it
+	// is always nil in production.
+	decodeHook func(fd int, packet []byte)
+
 	// rings holds the per-Netlinker io_uring rings when config.IoUring is
 	// true. Key is the netlinker id (uint32). Empty / unused on the syscall path.
 	rings sync.Map
