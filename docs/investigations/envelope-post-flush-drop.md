@@ -356,7 +356,12 @@ the "before" columns come from the A/B runs above.
 
 **Default lowered to 2.** With one receiver per socket, `-netlinkers` only sets the decoder count, and 2 decoders finish a 100k-socket dump in about 200 ms (table above), far inside the 5 s poll timeout. The default is now 2. The `-nl2` variant became `-nl4` so the old default can still be compared against.
 
-DEFAULT2_VM_PLACEHOLDER
+| variant | post-flush drops / appends | rows uploaded | threads | RSS (MB) | result |
+|---|---|---|---|---|---|
+| base (netlinkers=2, the new default) | 0 / 485,382 | 413,650 | 6 → 51 | 192 | PASS |
+| `-nl4` (netlinkers=4, the old default) | 0 / 392,354 | 348,370 | 8 → 53 | 148 | PASS |
+
+Both are clean, and the thread count no longer tracks the decoder count.
 
 ## Regression guard
 
