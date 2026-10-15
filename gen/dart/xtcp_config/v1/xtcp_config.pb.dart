@@ -1134,6 +1134,10 @@ class LinkMonitorConfig extends $pb.GeneratedMessage {
     $core.String? metricsCoreInclude,
     $core.String? metricsCoreExclude,
     $core.bool? metricsAll,
+    $core.String? collectionMode,
+    $1.Duration? watchInterval,
+    $1.Duration? slowInterval,
+    $1.Duration? onDemandTtl,
   }) {
     final result = create();
     if (enable != null) result.enable = enable;
@@ -1151,6 +1155,10 @@ class LinkMonitorConfig extends $pb.GeneratedMessage {
     if (metricsCoreExclude != null)
       result.metricsCoreExclude = metricsCoreExclude;
     if (metricsAll != null) result.metricsAll = metricsAll;
+    if (collectionMode != null) result.collectionMode = collectionMode;
+    if (watchInterval != null) result.watchInterval = watchInterval;
+    if (slowInterval != null) result.slowInterval = slowInterval;
+    if (onDemandTtl != null) result.onDemandTtl = onDemandTtl;
     return result;
   }
 
@@ -1182,6 +1190,13 @@ class LinkMonitorConfig extends $pb.GeneratedMessage {
     ..aOS(10, _omitFieldNames ? '' : 'metricsCoreInclude')
     ..aOS(11, _omitFieldNames ? '' : 'metricsCoreExclude')
     ..aOB(12, _omitFieldNames ? '' : 'metricsAll')
+    ..aOS(13, _omitFieldNames ? '' : 'collectionMode')
+    ..aOM<$1.Duration>(14, _omitFieldNames ? '' : 'watchInterval',
+        subBuilder: $1.Duration.create)
+    ..aOM<$1.Duration>(15, _omitFieldNames ? '' : 'slowInterval',
+        subBuilder: $1.Duration.create)
+    ..aOM<$1.Duration>(16, _omitFieldNames ? '' : 'onDemandTtl',
+        subBuilder: $1.Duration.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1290,12 +1305,14 @@ class LinkMonitorConfig extends $pb.GeneratedMessage {
   @$pb.TagNumber(8)
   void clearNetstatFields() => $_clearField(8);
 
-  /// Exact interface or RDMA port selectors allowed below maximum speed.
+  /// Exact interface or RDMA port selectors allowed below maximum speed, each
+  /// optionally NAME=SPEED to allow only that speed (e.g. eno1=1G).
   @$pb.TagNumber(9)
   $pb.PbList<$core.String> get maxSpeedExceptions => $_getList(8);
 
-  /// Anchored regexps selecting the metric names xtcp2 serves. Empty include
-  /// is the core audit set; empty exclude removes nothing. Ignored when
+  /// Anchored regexps selecting the metric names xtcp2 serves. When both are
+  /// empty xtcp2 serves the alerting summary; otherwise an empty include is
+  /// the core audit set and an empty exclude removes nothing. Ignored when
   /// metrics_all is set.
   @$pb.TagNumber(10)
   $core.String get metricsCoreInclude => $_getSZ(9);
@@ -1315,7 +1332,7 @@ class LinkMonitorConfig extends $pb.GeneratedMessage {
   @$pb.TagNumber(11)
   void clearMetricsCoreExclude() => $_clearField(11);
 
-  /// Register every link-monitor metric instead of the core set. The full set
+  /// Register every link-monitor metric instead of the summary. The full set
   /// is thousands of series on a large host.
   @$pb.TagNumber(12)
   $core.bool get metricsAll => $_getBF(11);
@@ -1325,6 +1342,57 @@ class LinkMonitorConfig extends $pb.GeneratedMessage {
   $core.bool hasMetricsAll() => $_has(11);
   @$pb.TagNumber(12)
   void clearMetricsAll() => $_clearField(12);
+
+  /// Collection mode: "poll" (the default when empty) collects every
+  /// collector each stats_interval; "on-demand" polls the error and state
+  /// collectors each watch_interval and the link settings each
+  /// slow_interval, and collects the rest when xtcp2 serves them, reusing
+  /// data younger than on_demand_ttl.
+  @$pb.TagNumber(13)
+  $core.String get collectionMode => $_getSZ(12);
+  @$pb.TagNumber(13)
+  set collectionMode($core.String value) => $_setString(12, value);
+  @$pb.TagNumber(13)
+  $core.bool hasCollectionMode() => $_has(12);
+  @$pb.TagNumber(13)
+  void clearCollectionMode() => $_clearField(13);
+
+  /// On demand: error and state polling interval. Default 60s.
+  @$pb.TagNumber(14)
+  $1.Duration get watchInterval => $_getN(13);
+  @$pb.TagNumber(14)
+  set watchInterval($1.Duration value) => $_setField(14, value);
+  @$pb.TagNumber(14)
+  $core.bool hasWatchInterval() => $_has(13);
+  @$pb.TagNumber(14)
+  void clearWatchInterval() => $_clearField(14);
+  @$pb.TagNumber(14)
+  $1.Duration ensureWatchInterval() => $_ensure(13);
+
+  /// On demand: settings and RDMA capability polling interval. Default 300s.
+  @$pb.TagNumber(15)
+  $1.Duration get slowInterval => $_getN(14);
+  @$pb.TagNumber(15)
+  set slowInterval($1.Duration value) => $_setField(15, value);
+  @$pb.TagNumber(15)
+  $core.bool hasSlowInterval() => $_has(14);
+  @$pb.TagNumber(15)
+  void clearSlowInterval() => $_clearField(15);
+  @$pb.TagNumber(15)
+  $1.Duration ensureSlowInterval() => $_ensure(14);
+
+  /// On demand: how long collected detail is reused. Default 15s; 0
+  /// collects on every scrape.
+  @$pb.TagNumber(16)
+  $1.Duration get onDemandTtl => $_getN(15);
+  @$pb.TagNumber(16)
+  set onDemandTtl($1.Duration value) => $_setField(16, value);
+  @$pb.TagNumber(16)
+  $core.bool hasOnDemandTtl() => $_has(15);
+  @$pb.TagNumber(16)
+  void clearOnDemandTtl() => $_clearField(16);
+  @$pb.TagNumber(16)
+  $1.Duration ensureOnDemandTtl() => $_ensure(15);
 }
 
 /// xtcp configuration

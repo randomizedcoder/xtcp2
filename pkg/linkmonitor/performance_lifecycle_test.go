@@ -168,7 +168,14 @@ func NewPerformanceMonitor(t *testing.T, ports, fields int, delay time.Duration)
 	s.subscribe = p.subscribe
 	// Keep production collection/freshness intervals. Accelerating these during
 	// cold schema discovery can measure artificial expiry instead of steady state.
+	// The harness measures steady polling, so it runs in poll mode.
 	m.cfg.Resync, m.cfg.StatsInterval = DefaultConfig().Resync, DefaultConfig().StatsInterval
+	m.cfg.CollectionMode = CollectionPoll
+	problems, err := newProblemPolicy(m.cfg.Config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.cfg.problems = problems
 	m.open = func(context.Context) (session, error) {
 		return sessionFunc(func(ctx context.Context, m *Monitor) error { return performanceRun(ctx, m, s) }), nil
 	}

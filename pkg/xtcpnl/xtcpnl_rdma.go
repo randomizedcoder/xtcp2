@@ -192,6 +192,14 @@ func rdmaValidate(k rdmaKind, v []byte) error {
 // to *unknown.
 func walkRdmaAttrs(body []byte, unknown *[]uint16) (*rdmaAttrs, error) {
 	a := &rdmaAttrs{}
+	if err := a.walk(body, unknown); err != nil {
+		return nil, err
+	}
+	return a, nil
+}
+
+// walk fills a, which must be empty, from body.
+func (a *rdmaAttrs) walk(body []byte, unknown *[]uint16) error {
 	var verr error
 	err := WalkRTAttrs(body, func(atype uint16, val []byte) {
 		if verr != nil {
@@ -208,12 +216,9 @@ func walkRdmaAttrs(body []byte, unknown *[]uint16) (*rdmaAttrs, error) {
 		a.tb[atype], a.has[atype] = val, true
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
-	if verr != nil {
-		return nil, verr
-	}
-	return a, nil
+	return verr
 }
 
 func (a *rdmaAttrs) u8(t uint16) (uint8, bool) {
@@ -426,19 +431,23 @@ func ParseRdmaRes(body []byte) (RdmaRes, error) {
 
 // rdmaEntries walks a list nest whose members are entry nests of type
 // entry, each parsed as rdma parses it (mnl_attr_parse_nested with
-// rd_attr_cb), and calls fn with each entry's tb in wire order. A member of
-// any other type is Unknown.
+// rd_attr_cb), and calls fn with each entry's tb in wire order; fn must not
+// keep the tb, which the next entry reuses. A member of any other type is
+// Unknown.
 func rdmaEntries(list []byte, entry uint16, unknown *[]uint16, fn func(*rdmaAttrs)) error {
 	l, err := walkRdmaList(list, entry, unknown)
 	if err != nil {
 		return err
 	}
+	// One tb, about 3 KiB, serves every entry: a STAT_GET reply has one entry
+	// per counter, and fn copies what it needs before the next is walked.
+	var e rdmaAttrs
 	for _, v := range l {
-		e, err := walkRdmaAttrs(v, unknown)
-		if err != nil {
+		clear(e.has[:])
+		if err := e.walk(v, unknown); err != nil {
 			return err
 		}
-		fn(e)
+		fn(&e)
 	}
 	return nil
 }

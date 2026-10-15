@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync"
 	"syscall"
 
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/linuxio"
@@ -16,17 +17,57 @@ type rdmaOptionalCollector struct {
 	workerCollector
 	files rdmaFilesystem
 	query func(context.Context, string, uint32) (rdmacaps.Capabilities, error)
-	// read reads one counter file; tests substitute per-file errors that a
-	// temporary directory cannot produce.
-	read func(context.Context, string) (string, error)
+	// handles holds counter descriptors across polls, shared by the workers.
+	handles *rdmaHandles
+	// stats reads hw_counters with STAT_GET; nil reads them from sysfs.
+	stats rdmaStatSource
+	// split, set on demand, divides each counter schema between the
+	// RDMAErrors job (evidence its policy counts) and RDMACounters (the rest).
+	split *problemPolicy
+	// parallel is the PortCounters pool size, rdmaReadParallelism outside
+	// benchmarks.
+	parallel int
+	// Per-port scratch, reused across polls: one buffer per reader.
+	reads    []rdmaSlotRead
+	seq, par []int
+	pool     sync.WaitGroup
+	pooled   bool
+	values   map[string]uint64
+	bufs     [][]byte
 }
 
+// rdmaStatSource is the RDMA netlink client's STAT_GET; tests script it.
+type rdmaStatSource interface {
+	GetRDMAStat(ctx context.Context, index, port uint32) (linuxio.RDMAStat, error)
+	Close() error
+}
+
+// newRDMAOptionalCollector reads every file from sysfs with descriptors of
+// its own; tests use it on fixture trees.
 func newRDMAOptionalCollector(base workerCollector, files rdmaFilesystem) *rdmaOptionalCollector {
-	return &rdmaOptionalCollector{workerCollector: base, files: files, query: rdmacaps.Query, read: rdmaScalar}
+	return newSharedRDMACollector(base, files, newRDMAHandles(sysfsFiles{}).retain(), nil)
+}
+
+// newSharedRDMACollector takes a retained reference to handles and owns
+// stats; Close releases both.
+func newSharedRDMACollector(base workerCollector, files rdmaFilesystem, handles *rdmaHandles, stats rdmaStatSource) *rdmaOptionalCollector {
+	return &rdmaOptionalCollector{workerCollector: base, files: files, query: rdmacaps.Query, handles: handles, stats: stats, parallel: rdmaReadParallelism, values: make(map[string]uint64)}
+}
+
+func (c *rdmaOptionalCollector) Close() error {
+	var err error
+	if c.stats != nil {
+		err = c.stats.Close()
+	}
+	err = errors.Join(err, c.handles.release())
+	if c.workerCollector != nil {
+		err = errors.Join(err, c.workerCollector.Close())
+	}
+	return err
 }
 
 func (c *rdmaOptionalCollector) Collect(ctx context.Context, job model.Job) model.Result {
-	if job.Key.Collector != model.CollectorRDMACapabilities && job.Key.Collector != model.CollectorRDMACounters {
+	if job.Key.Collector != model.CollectorRDMACapabilities && job.Key.Collector != model.CollectorRDMACounters && job.Key.Collector != model.CollectorRDMAErrors {
 		return c.workerCollector.Collect(ctx, job)
 	}
 	r := model.Result{Job: job, Support: model.NotApplicable}
@@ -67,8 +108,8 @@ func rdmaOptionalUnsupported(err error) bool {
 	return errors.Is(err, rdmacaps.ErrUnavailable) || unsupportedRDMA(err)
 }
 
-// guard pins a read to the discovered hardware and the same port inode across
-// the operation; it retains no descriptors across samples or replacements.
+// guard pins an operation to the discovered hardware and the same port inode
+// across it. Counter reads run it only when they open descriptors.
 func (c *rdmaOptionalCollector) guard(ctx context.Context, p model.RDMAPort, read func(string) error) error {
 	if err := ctx.Err(); err != nil {
 		return err

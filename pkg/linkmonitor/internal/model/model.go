@@ -60,6 +60,9 @@ const (
 	CollectorRDMAState
 	CollectorRDMACapabilities
 	CollectorRDMACounters
+	// CollectorRDMAErrors is the error-classified part of RDMACounters, polled
+	// on its own in on-demand mode; poll mode never registers it.
+	CollectorRDMAErrors
 	CollectorRDMAEvents
 	CollectorNetstat
 )

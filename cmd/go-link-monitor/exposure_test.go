@@ -15,6 +15,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
+	monitorprom "github.com/randomizedcoder/xtcp2/pkg/linkmonitor/prometheus"
 )
 
 func environment(values map[string]string) func(string) string {
@@ -22,7 +23,13 @@ func environment(values map[string]string) func(string) string {
 }
 
 func TestExposureOptions(t *testing.T) {
-	defaults := exposureOptions{coreInclude: defaultCoreInclude, allPath: defaultAllPath}
+	all := monitorprom.Categories()
+	// exposure fills the summary and category defaults the cases do not vary.
+	exposure := func(include, exclude, allPath, allAddress string) exposureOptions {
+		return exposureOptions{coreInclude: include, coreExclude: exclude, allPath: allPath, allAddress: allAddress, summary: summaryProblems, categories: all, interfacePaths: true}
+	}
+	defaults := exposure(defaultCoreInclude, "", defaultAllPath, "")
+	with := func(o exposureOptions, mutate func(*exposureOptions)) exposureOptions { mutate(&o); return o }
 	for _, tc := range []struct {
 		name, category, description, expectedOutcome string
 		args                                         []string
@@ -31,19 +38,37 @@ func TestExposureOptions(t *testing.T) {
 	}{
 		{"defaults", "positive", "no flags or environment", "core pattern, nothing excluded, shared /metrics-all", nil, nil, defaults},
 		{"flags", "positive", "every exposure flag", "flag values used", []string{"-metrics.core-include=a|b", "-metrics.core-exclude=b", "-metrics-all-path=/full", "-metrics-all-addr=127.0.0.1:9102"}, nil,
-			exposureOptions{"a|b", "b", "/full", "127.0.0.1:9102"}},
+			exposure("a|b", "b", "/full", "127.0.0.1:9102")},
 		{"environment", "positive", "every exposure variable", "environment values used", nil, map[string]string{
 			coreIncludeEnvironment: "a", coreExcludeEnvironment: "b", allPathEnvironment: "/env", allAddressEnvironment: ":9102"},
-			exposureOptions{"a", "b", "/env", ":9102"}},
+			exposure("a", "b", "/env", ":9102")},
 		{"flag beats environment", "corner", "flag and variable both set", "flag wins per field", []string{"-metrics.core-include=flag", "-metrics-all-path=/flag"}, map[string]string{
 			coreIncludeEnvironment: "env", coreExcludeEnvironment: "env", allPathEnvironment: "/env"},
-			exposureOptions{"flag", "env", "/flag", ""}},
+			exposure("flag", "env", "/flag", "")},
 		{"explicit empty flag", "corner", "empty flag with nonempty variable", "empty flag wins and disables /metrics-all", []string{"-metrics-all-path=", "-metrics.core-include="}, map[string]string{
 			allPathEnvironment: "/env", coreIncludeEnvironment: "env"},
-			exposureOptions{"", "", "", ""}},
+			exposure("", "", "", "")},
 		{"empty environment", "boundary", "variables set to empty", "defaults kept", nil, map[string]string{
 			coreIncludeEnvironment: "", allPathEnvironment: "", allAddressEnvironment: ""}, defaults},
 		{"unrelated environment", "negative", "only other variables set", "defaults kept", nil, map[string]string{"GO_LINK_MONITOR_OTHER": "x"}, defaults},
+		{"summary core", "positive", "-metrics.summary=core", "core summary", []string{"-metrics.summary=core"}, nil,
+			with(defaults, func(o *exposureOptions) { o.summary = summaryCore })},
+		{"summary environment", "positive", "summary variable", "core summary", nil, map[string]string{summaryEnvironment: "core"},
+			with(defaults, func(o *exposureOptions) { o.summary = summaryCore })},
+		{"categories subset", "positive", "-metrics.categories=link,rdma", "two categories in flag order", []string{"-metrics.categories=link,rdma"}, nil,
+			with(defaults, func(o *exposureOptions) { o.categories = []string{"link", "rdma"} })},
+		{"categories empty", "boundary", "explicit empty categories", "no categories", []string{"-metrics.categories="}, nil,
+			with(defaults, func(o *exposureOptions) { o.categories = []string{} })},
+		{"categories env vs flag", "corner", "variable sets categories, explicit empty flag", "flag wins: none", []string{"-metrics.categories="}, map[string]string{categoriesEnvironment: "netstat"},
+			with(defaults, func(o *exposureOptions) { o.categories = []string{} })},
+		{"categories environment", "positive", "variable sets categories", "netstat only", nil, map[string]string{categoriesEnvironment: "netstat"},
+			with(defaults, func(o *exposureOptions) { o.categories = []string{"netstat"} })},
+		{"interface paths off", "positive", "-metrics.interface-paths=false", "interface paths disabled", []string{"-metrics.interface-paths=false"}, nil,
+			with(defaults, func(o *exposureOptions) { o.interfacePaths = false })},
+		{"interface paths environment", "positive", "variable set to false", "interface paths disabled", nil, map[string]string{interfacePathsEnviron: "false"},
+			with(defaults, func(o *exposureOptions) { o.interfacePaths = false })},
+		{"interface paths flag beats environment", "corner", "bare flag with variable false", "flag wins: enabled", []string{"-metrics.interface-paths"}, map[string]string{interfacePathsEnviron: "false"}, defaults},
+		{"interface paths empty environment", "boundary", "variable set to empty", "default enabled", nil, map[string]string{interfacePathsEnviron: ""}, defaults},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expectedOutcome)
@@ -81,9 +106,34 @@ func TestExposureValidation(t *testing.T) {
 		{"same address /metrics", "corner", "all-addr equal to metrics-addr", "treated as shared, so error", exposureOptions{coreInclude: ".*", allPath: "/metrics", allAddress: address}, "core endpoint"},
 		{"bad include", "negative", "malformed include", "error", exposureOptions{coreInclude: "[", allPath: "/metrics-all"}, "include regexp"},
 		{"bad exclude", "negative", "malformed exclude", "error", exposureOptions{coreInclude: ".*", coreExclude: "(", allPath: "/metrics-all"}, "exclude regexp"},
+		{"summary invalid", "negative", "summary bogus", "error", exposureOptions{summary: "bogus", allPath: "/metrics-all"}, "metrics.summary"},
+		{"summary core", "positive", "summary core", "valid", exposureOptions{summary: summaryCore, coreInclude: ".*", allPath: "/metrics-all"}, ""},
+		{"categories all", "positive", "every category", "valid", exposureOptions{allPath: "/metrics-all", categories: monitorprom.Categories()}, ""},
+		{"category unknown", "negative", "link,bogus", "error", exposureOptions{allPath: "/metrics-all", categories: []string{"link", "bogus"}}, "unknown metric category"},
+		{"category duplicate", "negative", "link,link", "error", exposureOptions{allPath: "/metrics-all", categories: []string{"link", "link"}}, "duplicate metric category"},
+		{"category summary", "negative", "summary is not a detail category", "error", exposureOptions{allPath: "/metrics-all", categories: []string{"summary"}}, "unknown metric category"},
+		{"all-path collides", "negative", "all-path /metrics/link with link enabled", "error", exposureOptions{allPath: "/metrics/link", categories: []string{"link"}}, "category path"},
+		{"all-path collides elsewhere", "corner", "all-path /metrics/link on its own listener", "error: categories share that listener", exposureOptions{allPath: "/metrics/link", allAddress: ":9102", categories: []string{"link"}}, "category path"},
+		{"all-path disabled category", "corner", "all-path /metrics/link with link disabled", "valid", exposureOptions{allPath: "/metrics/link", categories: []string{"rdma"}}, ""},
+		{"all-path under metrics", "corner", "all-path /metrics/everything", "valid", exposureOptions{allPath: "/metrics/everything", categories: monitorprom.Categories()}, ""},
+		{"interface paths /metrics", "negative", "separate all-path /metrics with categories and interface paths", "error: /metrics/{interface} shadows categories",
+			exposureOptions{allPath: "/metrics", allAddress: ":9102", categories: []string{"link"}, interfacePaths: true}, "category prefix"},
+		{"interface paths /metrics no categories", "boundary", "separate all-path /metrics, interface paths, no categories", "valid",
+			exposureOptions{allPath: "/metrics", allAddress: ":9102", categories: []string{}, interfacePaths: true}, ""},
+		{"interface paths off /metrics", "corner", "separate all-path /metrics with categories, interface paths off", "valid",
+			exposureOptions{allPath: "/metrics", allAddress: ":9102", categories: []string{"link"}}, ""},
+		{"all-path under interface", "negative", "all-path /metrics/link/all with link interface paths", "error: shadowed by /metrics/link/{interface}",
+			exposureOptions{allPath: "/metrics/link/all", categories: []string{"link"}, interfacePaths: true}, "interface paths"},
+		{"all-path under interface off", "corner", "all-path /metrics/link/all, interface paths off", "valid",
+			exposureOptions{allPath: "/metrics/link/all", categories: []string{"link"}}, ""},
+		{"all-path under other category", "boundary", "all-path /metrics/linkx/all with link interface paths", "valid: prefix is per segment",
+			exposureOptions{allPath: "/metrics/linkx/all", categories: []string{"link"}, interfacePaths: true}, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expectedOutcome)
+			if tc.exposure.summary == "" {
+				tc.exposure.summary = summaryProblems
+			}
 			match, err := tc.exposure.coreMatcher(address)
 			if tc.wantErr == "" {
 				if err != nil || match == nil {
@@ -109,6 +159,16 @@ func TestCommandExposureValidation(t *testing.T) {
 		{"environment regexp", "negative", "malformed core exclude variable", "exit 2 before listening", nil, map[string]string{coreExcludeEnvironment: "("}, "exclude regexp"},
 		{"address without path", "negative", "all-addr with disabled path", "exit 2 before listening", []string{"-metrics-all-path=", "-metrics-all-addr=127.0.0.1:0"}, nil, "requires a nonempty"},
 		{"collision", "corner", "all-path /metrics on the shared listener", "exit 2 before listening", []string{"-metrics-all-path=/metrics"}, nil, "core endpoint"},
+		{"summary invalid", "negative", "-metrics.summary=bogus", "exit 2 before listening", []string{"-metrics.summary=bogus"}, nil, "metrics.summary"},
+		{"category unknown", "negative", "-metrics.categories=link,bogus", "exit 2 before listening", []string{"-metrics.categories=link,bogus"}, nil, "unknown metric category"},
+		{"window below stats", "negative", "-flap-window=5s with 15s stats", "exit 2 before listening", []string{"-flap-window=5s"}, nil, "flap window"},
+		{"window negative", "negative", "-errors.window=-1s", "exit 2 before listening", []string{"-errors.window=-1s"}, nil, "error window"},
+		{"window malformed", "negative", "-errors.window=soon", "exit 2 before listening", []string{"-errors.window=soon"}, nil, "errors.window"},
+		{"window environment", "negative", "flap window variable below stats", "exit 2 before listening", nil, map[string]string{flapWindowEnvironment: "1s"}, "flap window"},
+		{"class unknown", "negative", "-errors.classes=link,bogus", "exit 2 before listening", []string{"-errors.classes=link,bogus"}, nil, "error class"},
+		{"exclude malformed", "negative", "-errors.exclude=(", "exit 2 before listening", []string{"-errors.exclude=("}, nil, "error exclude"},
+		{"interface paths environment", "negative", "interface paths variable not a boolean", "exit 2 before listening", nil, map[string]string{interfacePathsEnviron: "maybe"}, interfacePathsEnviron},
+		{"interface paths flag", "negative", "-metrics.interface-paths=maybe", "exit 2 before listening", []string{"-metrics.interface-paths=maybe"}, nil, "metrics.interface-paths"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expectedOutcome)
@@ -145,11 +205,23 @@ func TestEndpoints(t *testing.T) {
 			exposureOptions{allPath: "/full", allAddress: address}, []layout{{address, []string{metricsPath, "/full"}}}},
 		{"separate /metrics", "corner", "all-path /metrics on its own listener", "each listener has its own /metrics",
 			exposureOptions{allPath: metricsPath, allAddress: ":9102"}, []layout{{address, []string{metricsPath}}, {":9102", []string{metricsPath}}}},
+		{"categories shared", "positive", "default categories on one listener", "summary, every category in order, then all",
+			exposureOptions{allPath: defaultAllPath, categories: monitorprom.Categories()}, []layout{{address, []string{metricsPath,
+				"/metrics/link", "/metrics/traffic", "/metrics/ethtool", "/metrics/driver", "/metrics/rdma", "/metrics/netstat", "/metrics/collection", defaultAllPath}}}},
+		{"categories separate", "positive", "categories with own all-metrics address", "alerting listener serves only /metrics",
+			exposureOptions{allPath: defaultAllPath, allAddress: ":9102", categories: []string{"link", "rdma"}},
+			[]layout{{address, []string{metricsPath}}, {":9102", []string{"/metrics/link", "/metrics/rdma", defaultAllPath}}}},
+		{"categories without all", "boundary", "categories with empty all-path", "categories on the main listener",
+			exposureOptions{categories: []string{"netstat"}}, []layout{{address, []string{metricsPath, "/metrics/netstat"}}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expectedOutcome)
 			core, all := prometheus.NewRegistry(), prometheus.NewRegistry()
-			served := endpoints(address, tc.exposure, core, all)
+			categories := make(map[string]prometheus.Gatherer)
+			for _, category := range tc.exposure.categories {
+				categories[category] = prometheus.NewRegistry()
+			}
+			served := endpoints(address, tc.exposure, core, all, categories, nil)
 			got := make([]layout, 0, len(served))
 			for _, e := range served {
 				l := layout{address: e.address}
@@ -158,6 +230,9 @@ func TestEndpoints(t *testing.T) {
 					wantGatherer, wantLimit := prometheus.Gatherer(all), allInFlight
 					if r.path == metricsPath && e.address == address {
 						wantGatherer, wantLimit = core, coreInFlight
+					}
+					if category, ok := strings.CutPrefix(r.path, categoryPathPrefix); ok && categories[category] != nil {
+						wantGatherer, wantLimit = categories[category], categoryInFlight
 					}
 					if r.gatherer != wantGatherer || r.inFlight != wantLimit {
 						t.Errorf("%s%s: wrong gatherer or limit %d", e.address, r.path, r.inFlight)
@@ -205,13 +280,22 @@ func TestHTTPRoutes(t *testing.T) {
 				{1, defaultAllPath, 200, "all_marker"}, {1, metricsPath, 404, ""}, {1, "/healthz", 200, ""}, {1, "/readyz", 200, ""}}},
 		{"exact path", "boundary", "subpath of the all-metrics path", "not found",
 			exposureOptions{allPath: defaultAllPath}, []probe{{0, defaultAllPath + "/x", 404, ""}, {0, metricsPath + "/x", 404, ""}}},
+		{"category", "positive", "link category enabled", "link marker on /metrics/link; disabled category not found",
+			exposureOptions{allPath: defaultAllPath, categories: []string{"link"}}, []probe{
+				{0, "/metrics/link", 200, "link_marker"}, {0, "/metrics/rdma", 404, ""}, {0, "/metrics/link/", 404, ""}}},
+		{"categories empty", "boundary", "no categories", "category paths not found",
+			exposureOptions{allPath: defaultAllPath, categories: []string{}}, []probe{{0, "/metrics/link", 404, ""}}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expectedOutcome)
 			m := &fakeMonitor{}
 			m.ready.Store(true)
 			var stop atomic.Bool
-			served := endpoints(address, tc.exposure, markedRegistry("core_marker"), markedRegistry("all_marker"))
+			categories := make(map[string]prometheus.Gatherer)
+			for _, category := range tc.exposure.categories {
+				categories[category] = markedRegistry(category + "_marker")
+			}
+			served := endpoints(address, tc.exposure, markedRegistry("core_marker"), markedRegistry("all_marker"), categories, nil)
 			handlers := make([]http.Handler, 0, len(served))
 			for _, e := range served {
 				handlers = append(handlers, httpServer(m, &stop, e.routes...).Handler)

@@ -336,18 +336,34 @@
           "items": {
             "type": "string"
           },
-          "description": "Exact interface or RDMA port selectors allowed below maximum speed."
+          "description": "Exact interface or RDMA port selectors allowed below maximum speed, each\noptionally NAME=SPEED to allow only that speed (e.g. eno1=1G)."
         },
         "metricsCoreInclude": {
           "type": "string",
-          "description": "Anchored regexps selecting the metric names xtcp2 serves. Empty include\nis the core audit set; empty exclude removes nothing. Ignored when\nmetrics_all is set."
+          "description": "Anchored regexps selecting the metric names xtcp2 serves. When both are\nempty xtcp2 serves the alerting summary; otherwise an empty include is\nthe core audit set and an empty exclude removes nothing. Ignored when\nmetrics_all is set."
         },
         "metricsCoreExclude": {
           "type": "string"
         },
         "metricsAll": {
           "type": "boolean",
-          "description": "Register every link-monitor metric instead of the core set. The full set\nis thousands of series on a large host."
+          "description": "Register every link-monitor metric instead of the summary. The full set\nis thousands of series on a large host."
+        },
+        "collectionMode": {
+          "type": "string",
+          "description": "Collection mode: \"poll\" (the default when empty) collects every\ncollector each stats_interval; \"on-demand\" polls the error and state\ncollectors each watch_interval and the link settings each\nslow_interval, and collects the rest when xtcp2 serves them, reusing\ndata younger than on_demand_ttl."
+        },
+        "watchInterval": {
+          "type": "string",
+          "description": "On demand: error and state polling interval. Default 60s."
+        },
+        "slowInterval": {
+          "type": "string",
+          "description": "On demand: settings and RDMA capability polling interval. Default 300s."
+        },
+        "onDemandTtl": {
+          "type": "string",
+          "description": "On demand: how long collected detail is reused. Default 15s; 0\ncollects on every scrape."
         }
       },
       "description": "Embedded physical link monitor (pkg/linkmonitor), the same one the\nstandalone go-link-monitor runs. Unset durations and empty strings take the\nlibrary defaults (see linkmonitor.DefaultConfig); xtcp2 supplies its own\nbaseline_file default. An embedded and a standalone monitor must not share a\nbaseline file: the second fails to take the lock and xtcp2 exits."

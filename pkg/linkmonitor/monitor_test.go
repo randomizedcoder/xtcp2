@@ -12,7 +12,7 @@ type sessionFunc func(context.Context, *Monitor) error
 
 func (f sessionFunc) Run(ctx context.Context, m *Monitor) error { return f(ctx, m) }
 
-func newTestMonitor(t *testing.T) *Monitor {
+func newTestMonitor(t testing.TB) *Monitor {
 	t.Helper()
 	m, err := New(DefaultConfig(), Options{})
 	if err != nil {

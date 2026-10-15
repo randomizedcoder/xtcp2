@@ -104,7 +104,7 @@ func TestProtectRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	served := protectRoutes(endpoints(":0", exposureOptions{allPath: defaultAllPath}, prometheus.NewRegistry(), prometheus.NewRegistry()), access.policy)
+	served := protectRoutes(endpoints(":0", exposureOptions{allPath: defaultAllPath}, prometheus.NewRegistry(), prometheus.NewRegistry(), nil, nil), access.policy)
 	var stopping atomic.Bool
 	handler := httpServer(&fakeMonitor{}, &stopping, served[0].routes...).Handler
 	for _, tc := range []struct {

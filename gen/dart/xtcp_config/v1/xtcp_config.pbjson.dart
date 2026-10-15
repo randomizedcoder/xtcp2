@@ -573,6 +573,41 @@ const LinkMonitorConfig$json = {
       '10': 'metricsCoreExclude'
     },
     {'1': 'metrics_all', '3': 12, '4': 1, '5': 8, '10': 'metricsAll'},
+    {
+      '1': 'collection_mode',
+      '3': 13,
+      '4': 1,
+      '5': 9,
+      '8': {},
+      '10': 'collectionMode'
+    },
+    {
+      '1': 'watch_interval',
+      '3': 14,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Duration',
+      '8': {},
+      '10': 'watchInterval'
+    },
+    {
+      '1': 'slow_interval',
+      '3': 15,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Duration',
+      '8': {},
+      '10': 'slowInterval'
+    },
+    {
+      '1': 'on_demand_ttl',
+      '3': 16,
+      '4': 1,
+      '5': 11,
+      '6': '.google.protobuf.Duration',
+      '8': {},
+      '10': 'onDemandTtl'
+    },
   ],
 };
 
@@ -590,7 +625,12 @@ final $typed_data.Uint8List linkMonitorConfigDescriptor = $convert.base64Decode(
     'ISbWF4U3BlZWRFeGNlcHRpb25zEjoKFG1ldHJpY3NfY29yZV9pbmNsdWRlGAogASgJQgi6SAVy'
     'AxiAIFISbWV0cmljc0NvcmVJbmNsdWRlEjoKFG1ldHJpY3NfY29yZV9leGNsdWRlGAsgASgJQg'
     'i6SAVyAxiAIFISbWV0cmljc0NvcmVFeGNsdWRlEh8KC21ldHJpY3NfYWxsGAwgASgIUgptZXRy'
-    'aWNzQWxs');
+    'aWNzQWxsEkEKD2NvbGxlY3Rpb25fbW9kZRgNIAEoCUIYukgVchNSAFIEcG9sbFIJb24tZGVtYW'
+    '5kUg5jb2xsZWN0aW9uTW9kZRJQCg53YXRjaF9pbnRlcnZhbBgOIAEoCzIZLmdvb2dsZS5wcm90'
+    'b2J1Zi5EdXJhdGlvbkIOukgLqgEIIgQIgKMFKgBSDXdhdGNoSW50ZXJ2YWwSTgoNc2xvd19pbn'
+    'RlcnZhbBgPIAEoCzIZLmdvb2dsZS5wcm90b2J1Zi5EdXJhdGlvbkIOukgLqgEIIgQIgKMFKgBS'
+    'DHNsb3dJbnRlcnZhbBJNCg1vbl9kZW1hbmRfdHRsGBAgASgLMhkuZ29vZ2xlLnByb3RvYnVmLk'
+    'R1cmF0aW9uQg66SAuqAQgiBAiAowUyAFILb25EZW1hbmRUdGw=');
 
 @$core.Deprecated('Use xtcpConfigDescriptor instead')
 const XtcpConfig$json = {

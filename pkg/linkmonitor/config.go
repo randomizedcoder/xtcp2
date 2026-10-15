@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/model"
 )
 
 // IOBackend selects the socket transport. Explicit choices never fall back.
@@ -18,6 +20,18 @@ const (
 	IOBackendPoller IOBackend = "poller"
 	// IOBackendIOUring uses the optional io_uring transport.
 	IOBackendIOUring IOBackend = "io_uring"
+)
+
+// CollectionMode selects when detail collectors run.
+type CollectionMode string
+
+const (
+	// CollectionPoll polls every collector each StatsInterval.
+	CollectionPoll CollectionMode = "poll"
+	// CollectionOnDemand polls the error counters each WatchInterval and the
+	// link settings each SlowInterval; the remaining detail collectors run
+	// at startup, on events and resyncs, and when Monitor.Refresh asks.
+	CollectionOnDemand CollectionMode = "on-demand"
 )
 
 // Config is copied by New. Use DefaultConfig before overriding fields; zero
@@ -32,6 +46,21 @@ type Config struct {
 	NetstatFields      string
 	MaxSpeedExceptions []string
 	IOBackend          IOBackend
+	// ErrorWindow and FlapWindow bound how long counter-increase and flap
+	// evidence keeps an interface problem active; zero disables the reason.
+	ErrorWindow, FlapWindow time.Duration
+	// ErrorClasses selects the error classes (link, rdma, drop) that count as
+	// error evidence; ErrorExclude is an anchored regexp of series keys
+	// <metric>[:<statistic>]@<interface> that never count.
+	ErrorClasses []string
+	ErrorExclude string
+	// CollectionMode is poll or on-demand. The remaining fields apply only
+	// on demand, where StatsInterval is unused: WatchInterval polls the
+	// error and state collectors, SlowInterval the settings, a Refresh
+	// reuses data younger than OnDemandTTL, and waits at most OnDemandWait.
+	CollectionMode              CollectionMode
+	WatchInterval, SlowInterval time.Duration
+	OnDemandTTL, OnDemandWait   time.Duration
 }
 
 // DefaultConfig returns independent configuration with all statistics selected.
@@ -40,13 +69,18 @@ func DefaultConfig() Config {
 		BaselineFile: "/var/lib/go-link-monitor/baseline.json",
 		Settle:       30 * time.Second, Resync: time.Hour, StatsInterval: 15 * time.Second,
 		StatsInclude: ".*", StatsExclude: "^$", NetstatFields: ".*",
-		IOBackend: IOBackendPoller,
+		IOBackend:   IOBackendPoller,
+		ErrorWindow: defaultProblemWindow, FlapWindow: defaultProblemWindow,
+		ErrorClasses:   []string{"link", "rdma"},
+		CollectionMode: CollectionOnDemand, WatchInterval: time.Minute, SlowInterval: 5 * time.Minute,
+		OnDemandTTL: 15 * time.Second, OnDemandWait: 5 * time.Second,
 	}
 }
 
 type configuration struct {
 	Config
 	include, exclude, netstat *regexp.Regexp
+	problems                  problemPolicy
 }
 
 func validateConfig(cfg Config) (configuration, error) {
@@ -60,6 +94,9 @@ func validateConfig(cfg Config) (configuration, error) {
 	if cfg.StatsInterval > math.MaxInt64/3 || cfg.Resync > (math.MaxInt64-1)/2 {
 		return result, fmt.Errorf("stats or resync interval exceeds representable freshness deadline")
 	}
+	if err := validateMode(cfg); err != nil {
+		return result, err
+	}
 	if cfg.IOBackend != IOBackendPoller && cfg.IOBackend != IOBackendIOUring {
 		return result, fmt.Errorf("invalid I/O backend %q", cfg.IOBackend)
 	}
@@ -68,6 +105,11 @@ func validateConfig(cfg Config) (configuration, error) {
 		return result, err
 	}
 	cfg.MaxSpeedExceptions = exceptions
+	problems, err := newProblemPolicy(cfg)
+	if err != nil {
+		return result, err
+	}
+	result.problems = problems
 	result.Config = cfg
 	for _, field := range []struct {
 		name, expression string
@@ -85,6 +127,45 @@ func validateConfig(cfg Config) (configuration, error) {
 	}
 	return result, nil
 }
+
+func validateMode(cfg Config) error {
+	switch cfg.CollectionMode {
+	case CollectionPoll, "": // empty is poll, so configurations predating the mode stay valid
+		return nil
+	case CollectionOnDemand:
+	default:
+		return fmt.Errorf("invalid collection mode %q: want %s or %s", cfg.CollectionMode, CollectionPoll, CollectionOnDemand)
+	}
+	if cfg.WatchInterval <= 0 || cfg.SlowInterval <= 0 || cfg.OnDemandWait <= 0 || cfg.OnDemandTTL < 0 {
+		return fmt.Errorf("watch and slow intervals and on-demand wait must be positive; on-demand TTL must be nonnegative")
+	}
+	if cfg.WatchInterval > math.MaxInt64/3 || cfg.SlowInterval > math.MaxInt64/3 {
+		return fmt.Errorf("watch or slow interval exceeds representable freshness deadline")
+	}
+	return nil
+}
+
+// pollInterval is the period of a polled collector kind: StatsInterval in
+// poll mode. On demand it is WatchInterval for the error and state
+// collectors, SlowInterval for settings and RDMA capabilities, and zero
+// (startup, events, resyncs and refreshes only) for the rest.
+func (c Config) pollInterval(kind model.CollectorKind) time.Duration {
+	if c.CollectionMode != CollectionOnDemand {
+		return c.StatsInterval
+	}
+	switch kind {
+	case model.CollectorNetdev, model.CollectorCarrier, model.CollectorDriver, model.CollectorPHY,
+		model.CollectorRDMAState, model.CollectorRDMAErrors:
+		return c.WatchInterval
+	case model.CollectorSettings, model.CollectorRDMACapabilities:
+		return c.SlowInterval
+	default:
+		return 0
+	}
+}
+
+// onDemand reports whether the RDMA error counters are split from the rest.
+func (c Config) onDemand() bool { return c.CollectionMode == CollectionOnDemand }
 
 // normalizeExceptions validates selectors and returns them in canonical form:
 // the bare name, or name=SPEED with SPEED in whole Gb/s or Mb/s. A name named

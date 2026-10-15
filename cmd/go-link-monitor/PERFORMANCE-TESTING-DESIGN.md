@@ -4,7 +4,9 @@ This document defines the repeatable performance evidence for `go-link-monitor`.
 It complements [DETAILED-DESIGN.md](DETAILED-DESIGN.md), which describes the
 runtime architecture, and [STATUS.md](STATUS.md), which records completed
 verification. The [realistic fleet example](REALISTIC-FLEET-EXAMPLE.md) shows
-the generated exposition and zero-versus-absent semantics. The tests measure
+the generated exposition and zero-versus-absent semantics. A measured
+comparison with node_exporter's network collectors is in
+[NODE-EXPORTER-PERFORMANCE.md](NODE-EXPORTER-PERFORMANCE.md). The tests measure
 the implementation; they do not turn a
 particular host size or scrape rate into a product guarantee.
 

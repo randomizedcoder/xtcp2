@@ -11,14 +11,14 @@ import (
 func TestConfiguredFreshnessAndWallRecovery(t *testing.T) {
 	t.Log("positive/corner: configured two-second poll, wall jumps forward; expected: expiry at six elapsed seconds, timestamp from wall clock on recovery")
 	r, m := newReducer(1), new(Monitor)
-	cfg := DefaultConfig()
+	cfg := pollConfig()
 	cfg.StatsInterval, cfg.Resync = 2*time.Second, 10*time.Second
 	if err := r.configureFreshness(cfg); err != nil {
 		t.Fatal(err)
 	}
 	c := testkit.NewClock(time.Time{}) // A successful sample at wall zero remains present.
 	mustObserve(t, r, observed(r, 1, true))
-	if err := r.configureFreshness(DefaultConfig()); err == nil {
+	if err := r.configureFreshness(pollConfig()); err == nil {
 		t.Fatal("active deadlines could be silently reconfigured")
 	}
 	timedResult(t, r, c, model.CollectorDriver, nil)

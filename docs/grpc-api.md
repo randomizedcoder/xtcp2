@@ -96,6 +96,12 @@ The service is always registered. When the daemon runs without the embedded moni
 | `-linkMonitorMaxSpeedExceptions` | `LINK_MONITOR_MAX_SPEED_EXCEPTIONS` | — | Comma-separated selectors exempt from the max-speed check. |
 | `-linkMonitorMetricsCoreInclude`, `-linkMonitorMetricsCoreExclude` | `LINK_MONITOR_METRICS_CORE_INCLUDE`, `LINK_MONITOR_METRICS_CORE_EXCLUDE` | core set, — | Anchored metric-name patterns registered on xtcp2's registry. |
 | `-linkMonitorMetricsAll` | `LINK_MONITOR_METRICS_ALL` | `false` | Register every link monitor metric instead of the core set. |
+| `-linkMonitorCollectionMode` | `LINK_MONITOR_COLLECTION_MODE` | `poll` (`on-demand` in the OCI images) | `poll` collects everything each stats interval; `on-demand` polls errors and state each watch interval and settings each slow interval, and collects the rest when a scrape of xtcp2's registry serves it. |
+| `-linkMonitorWatchInterval` | `LINK_MONITOR_WATCH_INTERVAL` | `1m` | On demand: error and state polling interval. |
+| `-linkMonitorSlowInterval` | `LINK_MONITOR_SLOW_INTERVAL` | `5m` | On demand: settings and RDMA capability polling interval. |
+| `-linkMonitorOnDemandTTL` | `LINK_MONITOR_ON_DEMAND_TTL` | `15s` | On demand: how long collected detail is reused; `0` collects on every scrape. |
+
+A bare xtcp2 binary keeps polling. The xtcp2 OCI images set `LINK_MONITOR_COLLECTION_MODE=on-demand`, so the monitor in a container collects on demand unless the container overrides it (`-e LINK_MONITOR_COLLECTION_MODE=poll`). With the default summary exposure a scrape never collects; with `-linkMonitorMetricsAll` or a core pattern each scrape first refreshes the monitor's collectors, reusing data younger than the TTL and waiting at most 5 s.
 
 ## The xtcp2ctl control CLI
 

@@ -132,6 +132,7 @@ let
       binaries
       microvms
       linkmonitorPackages
+      containers
       ;
   };
 
@@ -920,6 +921,7 @@ in
       test-proto-deserialize-golden = tests.proto-deserialize-golden;
       test-ipmeta-bootstrap-artifact = tests.ipmeta-bootstrap-artifact;
       test-oci-ipmeta-bootstrap-contents = tests.oci-ipmeta-bootstrap-contents;
+      test-oci-link-monitor-env = tests.oci-link-monitor-env;
       test-focused-asn-locality = tests.focused.focused-asn-locality;
       test-focused-goip = tests.focused.focused-goip;
       test-focused-gordma = tests.focused.focused-gordma;

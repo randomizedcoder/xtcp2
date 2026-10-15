@@ -350,7 +350,8 @@ required data. Log bounded error classes; do not use error strings as labels.
 
 Include the netstat collector in v1. Read `/proc/net/snmp`, `/proc/net/netstat`
 and `/proc/net/snmp6` in the monitored network namespace at startup, every
-`-stats-interval` (15s by default), and during full resync. Do not execute or parse
+`-stats-interval` (15s by default) in poll mode or when a detail path is scraped on
+demand (see Collection modes), and during full resync. Do not execute or parse
 the human-readable `netstat -s` command. Discover protocol/field pairs from the
 files, including Ip, Icmp, IcmpMsg, Tcp, Udp, TcpExt, IpExt and MPTcpExt when
 present, plus IPv6 fields. New kernel fields are eligible automatically.
@@ -391,7 +392,79 @@ freshness diagnostics, expiring values after three polling intervals. Remove
 fields absent from a later successful snapshot. An intentionally empty selection
 still validates source reads. Use the common collector diagnostics with
 `collector="netstat",interface=""` to indicate namespace scope; failure does not
-invalidate link inventory or baseline readiness. Scrapes remain cache-only.
+invalidate link inventory or baseline readiness.
+
+## Collection modes
+
+`-collection.mode` selects when detail is collected.
+
+- **`on-demand`** (default). Only the data the `/metrics` summary needs is kept current.
+  Everything else is collected when a detail path is scraped, then reused for
+  `-on-demand.ttl`. On a fleet where nearly every host is healthy, the detail
+  collectors then run only on the few hosts someone is looking at.
+- **`poll`**. Every collector polls on `-stats-interval`. Scrapes are
+  cache-only: they read the latest published snapshot and never start a
+  collection. Use it when detail paths are scraped continuously, or when an
+  embedder serves detail without a refresh path. The xtcp2 embedding polls
+  unless `-linkMonitorCollectionMode` says otherwise; its OCI images set
+  `on-demand`, and its detail exposures refresh before each scrape.
+
+On demand, collectors are polled by tier:
+
+| Tier | Interval | Collectors | Why |
+|---|---|---|---|
+| Events | immediate | rtnetlink link, ethtool monitor, RDMA notifications and verbs events | Link down within one loop turn, as in poll mode |
+| Watch | `-watch.interval` (60s) | standard, carrier, driver, phy, rdma_state, rdma_errors | Error and flap evidence and RDMA readiness for the summary |
+| Slow | `-watch.slow-interval` (300s) | settings, rdma_capabilities | Speed, duplex and width checks; events still refresh them at once |
+| On demand | when scraped | netstat, rdma_counters, channels, rings | Read only when a detail path needs them and the cached data is older than the TTL |
+| Inventory | `-resync` | unchanged | |
+
+**RDMA errors.** On demand, the RDMA counter schema is split. `rdma_errors`
+reads only the counters that count as error or flap evidence under
+`-errors.classes`, `-flap-window` and `-errors.exclude`. `rdma_counters` reads
+the rest, plus the rate and info metadata. The two partitions are disjoint and
+together give the same series as poll mode. Only the `collector` label of the
+collection health series differs. Poll mode keeps one `rdma_counters` job and
+never shows `rdma_errors`.
+
+**Freshness.** A watch or slow collector expires after three of its own
+intervals. An on-demand collector never expires just because nobody scraped
+detail. A failed attempt still raises the `collector` problem, and
+`collector_last_success_timestamp_seconds` shows how old the data is.
+`check_unknown` waits `-settle` plus `-watch.slow-interval`.
+
+**Windows.** `-errors.window` and `-flap-window` must be 0 or at least the
+watch interval (the stats interval in poll mode). Otherwise evidence could
+expire between two polls.
+
+**Detail scrapes.**
+- `/metrics` never refreshes. Link state comes from events and errors from the
+  watch tier, so a 60s summary scrape stays cheap and correct.
+- `/metrics/<category>` refreshes the collectors behind that category's
+  families: link → carrier, settings, rdma_state, rdma_capabilities; traffic
+  → standard; ethtool → settings, channels, rings; driver → driver, phy; rdma
+  → the four RDMA collectors; netstat → netstat. Collection and summary never
+  refresh.
+- `-metrics-all-path` refreshes every collector.
+- `PATH/{interface}` refreshes that interface only (netstat is host-wide and
+  is not refreshed there). An unknown interface returns 404.
+
+**Refresh mechanics.**
+- The refresh runs inside the in-flight limit and after authentication, so a
+  rejected scrape collects nothing.
+- Concurrent scrapes of overlapping scopes join the same in-flight
+  collections.
+- A scrape waits at most `-on-demand.wait`, which must be below the 10s
+  metrics timeout. It then serves the current snapshot with
+  `X-Link-Monitor-Refresh: timeout`, and the collection finishes for the
+  next scrape.
+- A refresh completes only after the loop publishes, so the response holds
+  data no older than the TTL.
+
+`go_link_monitor_collection_mode{mode}` reports the mode.
+`go_link_monitor_on_demand_refreshes_total{result="cached|collected|timeout"}`
+counts detail scrapes on demand. `-stats-interval` is unused on demand; setting
+it logs a warning.
 
 ## Flaps and counter lifecycle
 
@@ -480,7 +553,12 @@ Standalone command flags:
 | `-baseline-file` | `/var/lib/go-link-monitor/baseline.json` | Persistent state |
 | `-settle` | `30s` | Nonnegative initial stable interval |
 | `-resync` | `1h` | Positive full reconciliation interval |
-| `-stats-interval` | `15s` | Positive statistics/settings interval |
+| `-stats-interval` | `15s` | Positive statistics/settings interval in poll mode; on demand it is unused and setting it logs a warning |
+| `-collection.mode` | `on-demand` | `poll` or `on-demand` (Collection modes); overrides GO_LINK_MONITOR_COLLECTION_MODE |
+| `-watch.interval` | `60s` | On demand: error counter and state poll interval; overrides GO_LINK_MONITOR_WATCH_INTERVAL |
+| `-watch.slow-interval` | `300s` | On demand: link settings poll interval; overrides GO_LINK_MONITOR_WATCH_SLOW_INTERVAL |
+| `-on-demand.ttl` | `15s` | On demand: a detail scrape reuses data this recent, 0 always collects; overrides GO_LINK_MONITOR_ON_DEMAND_TTL |
+| `-on-demand.wait` | `5s` | On demand: longest a detail scrape waits, below the 10s metrics timeout; overrides GO_LINK_MONITOR_ON_DEMAND_WAIT |
 | `-stats-include` | `.*` | Original driver/PHY names to include |
 | `-stats-exclude` | `^$` | Original names to exclude; exclusion wins |
 | `-collector.netstat.fields` | `.*` | Case-sensitive Go regexp on protocol_field; all host protocol fields by default |

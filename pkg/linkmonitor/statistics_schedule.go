@@ -33,7 +33,7 @@ func (s *scheduler) refreshStatistics(key model.DeviceKey) {
 			continue
 		}
 		if s.jobs[job] == nil {
-			if err := s.register(job, schedulePolicy{interval: s.statisticsInterval}); err != nil {
+			if err := s.register(job, schedulePolicy{interval: s.kindInterval(kind, s.statisticsInterval)}); err != nil {
 				panic(err)
 			}
 		}

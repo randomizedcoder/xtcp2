@@ -77,6 +77,7 @@ func TestHTTPProductionLimit(t *testing.T) {
 	}{
 		{"core", "boundary", "ten active core scrapes", "eleventh rejected and accepted scrapes finish after release", metricsPath, coreInFlight},
 		{"all", "boundary", "two active all-metrics scrapes", "third rejected and accepted scrapes finish after release", defaultAllPath, allInFlight},
+		{"category", "boundary", "four active category scrapes", "fifth rejected and accepted scrapes finish after release", "/metrics/link", categoryInFlight},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expectedOutcome)
@@ -87,7 +88,7 @@ func TestHTTPProductionLimit(t *testing.T) {
 				return nil, nil
 			})
 			var stop atomic.Bool
-			served := endpoints(":9101", exposureOptions{allPath: defaultAllPath}, g, g)
+			served := endpoints(":9101", exposureOptions{allPath: defaultAllPath, categories: []string{"link"}}, g, g, map[string]prometheus.Gatherer{"link": g}, nil)
 			handler := httpServer(&fakeMonitor{}, &stop, served[0].routes...).Handler
 			responses := make(chan int, tc.limit)
 			for range tc.limit {

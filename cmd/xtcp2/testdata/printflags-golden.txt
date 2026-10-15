@@ -80,6 +80,10 @@ compiledInEnrichers: {{compiledInEnrichers}}
 *linkMonitorMetricsCoreInclude: linkMonitorMetricsCoreInclude-v
 *linkMonitorMetricsCoreExclude: linkMonitorMetricsCoreExclude-v
 *linkMonitorMetricsAll: false
+*linkMonitorCollectionMode: linkMonitorCollectionMode-v
+*linkMonitorWatchInterval: 144ms
+*linkMonitorSlowInterval: 145ms
+*linkMonitorOnDemandTTL: 146ms
 *grpcListenNetwork: grpcListenNetwork-v
 *grpcListenAddress: grpcListenAddress-v
 *grpcUnixSocketMode: 132

@@ -25,6 +25,7 @@ type collectorState struct {
 	history                  map[sampleKey]counterObservation
 	discontinuities          uint64
 	publication              *collectorSnapshot
+	evidence                 evidenceState
 	attempted, succeeded     bool
 	hasSuccess, fresh        bool
 	duration                 model.Optional[time.Duration]
@@ -149,6 +150,7 @@ func (r *reducer) finishCollection(result model.Result) (bool, error) {
 		}
 	}
 	state.updateHistory(block)
+	r.noteEvidence(result.Job.Key, state, state.block, block, result.Finished)
 	state.filtered, state.stale = result.Filtered, presentValue(uint64(0))
 	state.statisticSchema = result.StatisticSchema
 	state.block, state.support, state.reason, state.lastError = block, model.Supported, model.ErrorNone, nil

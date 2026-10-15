@@ -8,12 +8,15 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const defaultNetRoot = "/sys/class/net"
+const (
+	defaultNetRoot  = "/sys/class/net"
+	defaultRDMARoot = "/sys/class/infiniband"
+)
 
 func (s *lifecycleSession) rdmaFiles() rdmaFilesystem {
 	files := rdmaFilesystem{root: s.rdmaRoot, netRoot: s.sysfsRoot}
 	if files.root == "" {
-		files.root = "/sys/class/infiniband"
+		files.root = defaultRDMARoot
 	}
 	if files.netRoot == "" {
 		files.netRoot = defaultNetRoot
@@ -38,4 +41,25 @@ func (s *lifecycleSession) openRDMAState(ctx context.Context) (rdmaStateSource, 
 		return nil, err
 	}
 	return &rdmaStateReader{client: client, files: s.rdmaFiles()}, nil
+}
+
+// rdmaCollector shares the session's counter descriptors with every worker
+// and gives each its own netlink client, which allows one request at a time.
+// STAT_GET answers for the host's devices, so a fixture root reads sysfs only.
+func (s *lifecycleSession) rdmaCollector(base workerCollector, handles *rdmaHandles) (workerCollector, error) {
+	files := s.rdmaFiles()
+	var stats rdmaStatSource
+	if files.root == defaultRDMARoot {
+		client, err := linuxio.NewClient(unix.NETLINK_RDMA)
+		if err != nil {
+			return nil, errors.Join(err, base.Close())
+		}
+		stats = client
+	}
+	c := newSharedRDMACollector(base, files, handles.retain(), stats)
+	if s.statisticsConfig.onDemand() {
+		problems := s.statisticsConfig.problems
+		c.split = &problems
+	}
+	return c, nil
 }

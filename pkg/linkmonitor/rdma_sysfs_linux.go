@@ -24,23 +24,34 @@ type rdmaFilesystem struct {
 	namespaceVerified bool
 }
 
+// rdmaScalar reads one attribute with a raw descriptor and one pread, three
+// system calls. An *os.File would register the file with the runtime poller
+// (two fcntl and two epoll_ctl calls) and io.ReadAll reads again for EOF; a
+// resync reads every GID slot, 512 files on a two-port mlx5.
 func rdmaScalar(ctx context.Context, path string) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
-	f, err := os.Open(path)
+	fd, err := sysfsFiles{}.open(path)
 	if err != nil {
 		return "", err
 	}
-	b, readErr := io.ReadAll(io.LimitReader(f, rdmaScalarLimit+1))
-	err = errors.Join(readErr, f.Close(), ctx.Err())
-	if err != nil {
+	var buf [rdmaScalarLimit + 1]byte
+	n, readErr := sysfsFiles{}.pread(fd, buf[:])
+	if readErr != nil {
+		readErr = &fs.PathError{Op: "read", Path: path, Err: readErr}
+	}
+	var closeErr error
+	if err := (sysfsFiles{}).close(fd); err != nil {
+		closeErr = &fs.PathError{Op: "close", Path: path, Err: err}
+	}
+	if err := errors.Join(readErr, closeErr, ctx.Err()); err != nil {
 		return "", err
 	}
-	if len(b) > rdmaScalarLimit {
+	if n > rdmaScalarLimit {
 		return "", linuxio.ErrLimit
 	}
-	return strings.TrimSpace(string(b)), nil
+	return strings.TrimSpace(string(buf[:n])), nil
 }
 
 func rdmaEntries(ctx context.Context, path string) ([]os.DirEntry, error) {

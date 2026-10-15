@@ -6,7 +6,16 @@ import (
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/model"
 )
 
-var rdmaOptionalKinds = [...]model.CollectorKind{model.CollectorRDMACapabilities, model.CollectorRDMACounters}
+var rdmaOptionalKinds = [...]model.CollectorKind{model.CollectorRDMACapabilities, model.CollectorRDMACounters, model.CollectorRDMAErrors}
+
+// optionalKinds lists the RDMA optional jobs. The error counters are a job
+// of their own only on demand; in poll mode RDMACounters reads them all.
+func (s *scheduler) optionalKinds() []model.CollectorKind {
+	if s.tiers == nil {
+		return rdmaOptionalKinds[:2]
+	}
+	return rdmaOptionalKinds[:]
+}
 
 func (s *scheduler) replaceRDMAOptional() {
 	if s.rdmaInterval == 0 {
@@ -31,7 +40,7 @@ func (s *scheduler) replaceRDMAOptional() {
 				request.InfoDevices = append(request.InfoDevices, rdmaSelector(p))
 			}
 		}
-		for _, kind := range rdmaOptionalKinds {
+		for _, kind := range s.optionalKinds() {
 			slot.collectors[kind].rdmaRequest = request
 		}
 		s.refreshRDMAOptional(slot.device.Key, true)
@@ -42,7 +51,7 @@ func (s *scheduler) refreshRDMAOptional(key model.DeviceKey, invalidate bool) {
 	if s.rdmaInterval == 0 {
 		return
 	}
-	for _, kind := range rdmaOptionalKinds {
+	for _, kind := range s.optionalKinds() {
 		job := model.JobKey{Namespace: s.reducer.namespace, Device: key, Collector: kind}
 		state, _, err := s.reducer.collector(job)
 		if err != nil {
@@ -63,7 +72,7 @@ func (s *scheduler) refreshRDMAOptional(key model.DeviceKey, invalidate bool) {
 			continue
 		}
 		if s.jobs[job] == nil {
-			if err := s.register(job, schedulePolicy{interval: s.rdmaInterval}); err != nil {
+			if err := s.register(job, schedulePolicy{interval: s.kindInterval(kind, s.rdmaInterval)}); err != nil {
 				panic(err)
 			}
 		}

@@ -36,16 +36,20 @@ kafkaSchemaUrl	http://localhost:18081	kafka schema registry URL
 label		label applied to the protobuf
 linkMonitor	false	run the embedded link monitor: link counts against a baseline, per-interface and RDMA checks and collector health on the Prometheus listener, plus LinkMonitorService on the gRPC listener. Falls back to LINK_MONITOR env.
 linkMonitorBaselineFile	/var/lib/xtcp2/link-monitor-baseline.json	link monitor baseline file; locked, so it must differ from any standalone go-link-monitor's. Falls back to LINK_MONITOR_BASELINE_FILE env.
+linkMonitorCollectionMode	poll	link monitor collection mode: poll collects everything each stats interval; on-demand polls errors and state each watch interval and settings each slow interval, and collects the rest when xtcp2 serves it. Falls back to LINK_MONITOR_COLLECTION_MODE env.
 linkMonitorMaxSpeedExceptions		comma-separated exact selectors exempt from the max-speed check. Falls back to LINK_MONITOR_MAX_SPEED_EXCEPTIONS env.
-linkMonitorMetricsAll	false	register every link monitor metric, including bulk driver, RDMA and netstat counters, instead of the core set. Falls back to LINK_MONITOR_METRICS_ALL env.
+linkMonitorMetricsAll	false	register every link monitor metric, including bulk driver, RDMA and netstat counters, instead of the alerting summary. Falls back to LINK_MONITOR_METRICS_ALL env.
 linkMonitorMetricsCoreExclude		anchored regexp of link monitor metric names removed from the selection. Falls back to LINK_MONITOR_METRICS_CORE_EXCLUDE env.
-linkMonitorMetricsCoreInclude		anchored regexp of link monitor metric names registered on xtcp2's registry; empty = the core audit set. Falls back to LINK_MONITOR_METRICS_CORE_INCLUDE env.
+linkMonitorMetricsCoreInclude		anchored regexp of link monitor metric names registered on xtcp2's registry; empty with an empty exclude = the alerting summary, otherwise the core audit set. Falls back to LINK_MONITOR_METRICS_CORE_INCLUDE env.
 linkMonitorNetstatFields	.*	regexp of host protocol (netstat) fields collected. Falls back to LINK_MONITOR_NETSTAT_FIELDS env.
+linkMonitorOnDemandTTL	15s	on demand: how long collected detail is reused; 0 collects on every scrape. Falls back to LINK_MONITOR_ON_DEMAND_TTL env.
 linkMonitorResync	1h0m0s	full link resync interval (positive). Falls back to LINK_MONITOR_RESYNC env.
 linkMonitorSettle	30s	how long link state must hold before the first baseline is recorded. Falls back to LINK_MONITOR_SETTLE env.
+linkMonitorSlowInterval	5m0s	on demand: settings and RDMA capability polling interval (positive). Falls back to LINK_MONITOR_SLOW_INTERVAL env.
 linkMonitorStatsExclude	^$	regexp of interfaces excluded from statistics. Falls back to LINK_MONITOR_STATS_EXCLUDE env.
 linkMonitorStatsInclude	.*	regexp of interfaces whose statistics are collected. Falls back to LINK_MONITOR_STATS_INCLUDE env.
 linkMonitorStatsInterval	15s	interface statistics collection interval (positive). Falls back to LINK_MONITOR_STATS_INTERVAL env.
+linkMonitorWatchInterval	1m0s	on demand: error and state polling interval (positive). Falls back to LINK_MONITOR_WATCH_INTERVAL env.
 listenerAdminAuthMode		admin listener auth mode: disabled, raw, hmac-utc-minute. When set, admin RPCs and /debug/pprof require this credential and the shared listener credential becomes read-only. Falls back to LISTENER_ADMIN_AUTH_MODE env.
 listenerAdminHMACSharedKey		admin listener auth HMAC shared key. Prefer LISTENER_ADMIN_HMAC_SHARED_KEY or LISTENER_ADMIN_HMAC_SHARED_KEY_FILE; never logged.
 listenerAdminRawToken		admin listener auth raw bearer token. Prefer LISTENER_ADMIN_RAW_TOKEN or LISTENER_ADMIN_RAW_TOKEN_FILE; never logged.

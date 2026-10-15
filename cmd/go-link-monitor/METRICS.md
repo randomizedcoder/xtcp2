@@ -80,10 +80,19 @@ These are new; there is no node_exporter equivalent with the same semantics.
 | `observed_oper_transitions_total` | C / transitions | interface,direction | M | direction=up/down, only changes observed by reducer; initial inventory is not a transition |
 | `driver_link_down_events_total` | C / down events | interface,driver,statistic | P | Raw source count, only when an exact driver mapping has been verified |
 | `build_info` | G / constant 1 | version,revision | M | Executable build identity |
+| `collection_mode` | G / constant 1 | mode | M | mode=poll/on-demand, from `-collection.mode` |
+| `on_demand_refreshes_total` | C / scrapes | result | M | On demand only: detail scrapes by refresh outcome; result=cached (every collector within `-on-demand.ttl`)/collected (any ran)/timeout (`-on-demand.wait` ended first) |
+| `problems` | G / series | none | M | Number of `interface_problem` plus `host_problem` series in the same scrape; always present on `/metrics` |
+| `interface_problem` | G / constant 1 | interface,reason | M | Sparse: present only while the reason is active on an included interface. reason=max_speed/max_width/full_duplex/rdma_not_ready/check_unknown/errors/flap/collector |
+| `host_problem` | G / constant 1 | reason | M | Sparse: reason=collector (netstat source)/exception_unmatched/baseline_write |
+| `interface_last_flap_timestamp_seconds` | G / Unix seconds | interface | M | Latest flap evidence: observed down transition, carrier down change or IB link-down/recovery increase; absent before any |
+| `interface_last_error_timestamp_seconds` | G / Unix seconds | interface,class | M | Latest increase of an enabled error class (class=link/rdma/drop); absent before any |
 
 Collector values are `identity`, `settings`, `standard`, `carrier`, `driver`,
 `phy`, `channels`, `rings`, `rdma_state`, `rdma_capabilities`, `rdma_counters`,
-`rdma_events`, `netstat`. Netstat diagnostics use `interface=""` for namespace
+`rdma_errors`, `rdma_events`, `netstat`. `rdma_errors` appears only in on-demand
+mode, where it reads the error-classified RDMA counters each `-watch.interval`
+and `rdma_counters` reads the rest when scraped. Netstat diagnostics use `interface=""` for namespace
 scope; its data metrics have no interface label. Source values for discontinuities are `standard`, `carrier`,
 `driver`, `phy`, `rdma`. Unknown driver identity has its own diagnostic metric.
 Native IB does not claim support for Ethernet-only collectors; use not_applicable. Optional source failures do not change
@@ -825,15 +834,60 @@ selection through `collector.netstat.fields`.
 
 ## Exposure tiers
 
-The command serves two views of the same immutable snapshot:
+The command serves several views of the same immutable snapshot. The design
+and its test and benchmark plan are in
+[METRICS-PATHS-DESIGN.md](METRICS-PATHS-DESIGN.md).
 
 | Path | Default contents | Intended use |
 |---|---|---|
-| `/metrics` | Core audit set selected by `-metrics.core-include` minus `-metrics.core-exclude` | Normal scrape interval (example 15s) and alerting |
-| `/metrics-all` | Every family listed in this document; a superset of `/metrics` with identical values | Slow scrape (`1h`/`1d`) or on-demand `curl` when investigating |
+| `/metrics` | Problem summary: `problems`, `up_links_delta`, `baseline_ready`, `collection_healthy`, `build_info` and the sparse `interface_problem`/`host_problem` series | Normal scrape interval (example 15s) and alerting |
+| `/metrics/link` | Link counts, `interface_up`, checks, exceptions, speed and duplex, carrier and transition counters, last flap/error timestamps | Drill-down, 1m |
+| `/metrics/traffic` | Netdev `interface_{receive,transmit}_*_total`, multicast and collisions | Drill-down, 1m |
+| `/metrics/ethtool` | Driver identity, link modes, autonegotiation, pause, channels, rings, verified driver link-down events | Drill-down, 5m |
+| `/metrics/driver` | `ethtool_statistic`, `phy_statistic` | 1h or on demand |
+| `/metrics/rdma` | Every `rdma_*` and `infiniband_*` family | Drill-down, 1m |
+| `/metrics/netstat` | Every `netstat_*` family | 5m |
+| `/metrics/collection` | `collector_*`, resync, discontinuity and baseline-write diagnostics, admin gRPC request metrics | Drill-down, 1m |
+| `/metrics-all` | Every family listed in this document, including the summary; identical values | Slow scrape (`1h`/`1d`) or on-demand `curl` when investigating |
 
-The default core include is
-`monitorprom.CoreMetricsPattern`, with each name prefixed `go_link_monitor_`:
+`build_info` and `collection_healthy` are served on every path. Every other
+family is on exactly one category path and on `/metrics-all`; a family the
+category table does not know is served only on `/metrics-all`.
+
+Every category path except `/metrics/netstat`, and `/metrics-all`, also takes
+an interface name as one more segment, for example `/metrics/driver/enp1s0` or
+`/metrics-all/rdma:mlx5_0:1`. It serves only that device's series plus
+`build_info` and `collection_healthy`; `/metrics-all/<interface>` adds its
+active `interface_problem` series. An unknown name returns 404. Disable with
+`-metrics.interface-paths=false` (`GO_LINK_MONITOR_METRICS_INTERFACE_PATHS`).
+See [Per-interface paths](METRICS-PATHS-DESIGN.md#per-interface-paths).
+
+A healthy host serves 5 summary series however many interfaces it has. Each
+active problem adds one `interface_problem{interface,reason}` or
+`host_problem{reason}` series, which disappears when the problem clears:
+
+| Reason | Active when |
+|---|---|
+| `max_speed`, `max_width` | The check fails and no current exception covers it |
+| `full_duplex`, `rdma_not_ready` | The check fails; exceptions never apply |
+| `check_unknown` | The interface is up and a check is unknown `-settle` plus one stats interval after it appeared or came up |
+| `errors` | An enabled error-class counter (`-errors.classes`, default `link,rdma`) increased within `-errors.window` (180s) |
+| `flap` | Flap evidence within `-flap-window` (180s) |
+| `collector` | The interface is up and one of its sources failed its latest attempt or is stale; on the host, the netstat source |
+| `exception_unmatched` | A configured exception selector is unmatched or ambiguous |
+| `baseline_write` | A baseline save failed within `-errors.window` |
+
+Windows are evaluated at scrape time and are inclusive; `0` disables a window.
+Evidence is a strictly increasing step of the same counter identity, so
+restarts, resets and identity changes never raise `errors` or `flap`.
+`-errors.exclude` (an anchored regexp over keys such as
+`go_link_monitor_ethtool_statistic:rx_errors@enp1s0`) removes series from
+every class. Last-evidence times are in memory; after a restart the windows
+start empty.
+
+`-metrics.summary=core` serves the previous core audit set on `/metrics`
+instead: `monitorprom.CoreMetricsPattern`, selected by `-metrics.core-include`
+minus `-metrics.core-exclude`, with each name prefixed `go_link_monitor_`:
 
 - Link count and freshness: `build_info`, `up_links`, `baseline_up_links`,
   `up_links_delta`, `baseline_ready`, `collection_healthy`,
@@ -849,29 +903,29 @@ The default core include is
   `interface_receive_errors_total`, `interface_transmit_errors_total`
 - Collector health: `collector_success`
 
-Everything else stays on `/metrics-all` only. That includes traffic counters,
-`ethtool_statistic`/`phy_statistic`, `netstat_*`, RDMA/InfiniBand counters
-(including the `rdma_hw_counter` catch-all), classification/identity info, and the remaining `collector_*` diagnostics. On
-the reference three-port Ethernet host this is 115 core series (12 KB)
-against about 6,100 (720 KB).
+On the reference three-port Ethernet host that is 115 core series (12 KB)
+against about 6,100 (720 KB) on `/metrics-all`.
 
 Expressions are Go RE2 regular expressions anchored as `^(?:...)$`, so
 `go_link_monitor_up_links` does not also select `go_link_monitor_up_links_delta`.
 An empty include serves no collector families; an empty exclude removes nothing.
-`-metrics.core-include='.*'` restores the previous single full endpoint. Each
-expression is compiled once at startup. The collector evaluates it at most once
+Each expression is compiled once at startup. The collector evaluates it at most once
 per distinct metric name for the process lifetime: fixed names at construction,
 source names when they first appear in a schema revision. Scrapes only read the
 cached decision and never construct unselected metrics.
 
-`-metrics-all-path=` (empty) disables the full view. `-metrics-all-addr` moves it
-to its own listener, which also serves `/healthz` and `/readyz` but not
-`/metrics`; an address equal to `-metrics-addr` is treated as shared. A failure
-of either listener stops the process. `/metrics` allows 10 concurrent scrapes and
-`/metrics-all` allows 2; further requests receive 503.
+`-metrics.categories` (default all seven, comma separated; empty serves none)
+selects the category paths. `-metrics-all-path=` (empty) disables the full
+view. `-metrics-all-addr` moves the category paths and the full view to their
+own listener, which also serves `/healthz` and `/readyz` but not `/metrics`; an
+address equal to `-metrics-addr` is treated as shared. A failure of either
+listener stops the process. `/metrics` allows 10 concurrent scrapes, each
+category path 4 and `/metrics-all` 2; further requests receive 503. Each new flag
+has a `GO_LINK_MONITOR_` environment fallback; an explicit flag, even an empty
+one, wins.
 
-A proposed latched, acknowledgeable "any error" signal for the core set is
-described in [ERROR-ACKNOWLEDGEMENT-DESIGN.md](ERROR-ACKNOWLEDGEMENT-DESIGN.md).
+A proposed latched, acknowledgeable "any error" signal is described in
+[ERROR-ACKNOWLEDGEMENT-DESIGN.md](ERROR-ACKNOWLEDGEMENT-DESIGN.md).
 
 Example Prometheus jobs:
 
@@ -879,6 +933,10 @@ Example Prometheus jobs:
 - job_name: go-link-monitor
   scrape_interval: 15s
   metrics_path: /metrics
+  static_configs: [{targets: ["host:9101"]}]
+- job_name: go-link-monitor-link
+  scrape_interval: 1m
+  metrics_path: /metrics/link
   static_configs: [{targets: ["host:9101"]}]
 - job_name: go-link-monitor-all
   scrape_interval: 1h
@@ -894,37 +952,42 @@ Thresholds and alert hold times belong to deployment configuration. Gate alerts
 against stale/unhealthy sources where indicated; never substitute absent data
 with a healthy zero.
 
-| Condition | PromQL example | Illustrative hold |
-|---|---|---|
-| Count changed in either direction | `(go_link_monitor_up_links_delta != 0) and on(job,instance) (go_link_monitor_collection_healthy == 1)` | 30s |
-| Below supported maximum | `(go_link_monitor_interface_check{check="max_speed",status="fail"} == 1) unless on(job,instance,interface) (go_link_monitor_interface_max_speed_exception == 1)` | 30s |
-| Native IB width reduced | `(go_link_monitor_interface_check{check="max_width",status="fail"} == 1) unless on(job,instance,interface) (go_link_monitor_interface_max_speed_exception == 1)` | 30s |
-| Ethernet/RoCE duplex failure | `go_link_monitor_interface_check{check="full_duplex",status="fail"} == 1` | 30s |
-| RDMA port not ready | `go_link_monitor_rdma_port_check{status="fail"} == 1` | 30s |
-| RDMA state unknown | `go_link_monitor_rdma_port_check{status="unknown"} == 1` | 5m |
-| Unresolved exception selector | `go_link_monitor_max_speed_exception_match{status!="matched"} == 1` | 5m |
-| Unknown required check | `go_link_monitor_interface_check{status="unknown"} == 1` | 5m |
-| Missing driver identity | `go_link_monitor_interface_driver_known == 0` | 5m |
-| Kernel-observed flap | `increase(go_link_monitor_interface_carrier_down_changes_total[5m]) > 0` | 0s |
-| RDMA error-related link down | `increase(go_link_monitor_infiniband_link_downed_total[5m]) > 0` | 0s |
-| RDMA link recovery | `increase(go_link_monitor_infiniband_link_error_recovery_total[5m]) > 0` | 0s |
-| Verified driver flap | `increase(go_link_monitor_driver_link_down_events_total[5m]) > 0` | 0s |
-| Observed operational drop | `increase(go_link_monitor_observed_oper_transitions_total{direction="down"}[5m]) > 0` | 0s |
-| RX errors | `rate(go_link_monitor_interface_receive_errors_total[5m]) > 0` | 1m |
-| RX drops | `rate(go_link_monitor_interface_receive_dropped_total[5m]) > 0` | 1m |
-| Poll-derived source stale | `time() - go_link_monitor_collector_last_success_timestamp_seconds{collector=~"standard\|carrier\|driver\|phy\|settings\|rdma_state\|rdma_capabilities\|rdma_counters\|netstat"} > 45` | 1m |
-| Source failing | `go_link_monitor_collector_success == 0` | 1m |
-| No successful probe yet | `go_link_monitor_collector_support{status="unknown"} == 1` | 5m |
-| No flap-counter capability | `go_link_monitor_collector_support{collector="carrier",status="unsupported"} == 1` | 5m |
-| Baseline unavailable | `go_link_monitor_baseline_ready == 0` | 5m |
-| Link collection unhealthy | `go_link_monitor_collection_healthy == 0` | 1m |
-| Scrape failure | `up{job="go-link-monitor"} == 0` | 1m |
+| Condition | PromQL example | Illustrative hold | Served on |
+|---|---|---|---|
+| Anything needs a look | `go_link_monitor_problems > 0` | 0s | `/metrics` |
+| Link check failing | `go_link_monitor_interface_problem{reason=~"max_speed\|max_width\|full_duplex\|rdma_not_ready"} == 1` | 30s | `/metrics` |
+| Recent errors or flap | `go_link_monitor_interface_problem{reason=~"errors\|flap"} == 1` | 0s | `/metrics` |
+| Source unhealthy or check unknown | `go_link_monitor_interface_problem{reason=~"collector\|check_unknown"} == 1` | 5m | `/metrics` |
+| Host problem | `go_link_monitor_host_problem == 1` | 5m | `/metrics` |
+| Count changed in either direction | `(go_link_monitor_up_links_delta != 0) and on(job,instance) (go_link_monitor_collection_healthy == 1)` | 30s | `/metrics` |
+| Below supported maximum | `(go_link_monitor_interface_check{check="max_speed",status="fail"} == 1) unless on(job,instance,interface) (go_link_monitor_interface_max_speed_exception == 1)` | 30s | `/metrics/link` |
+| Native IB width reduced | `(go_link_monitor_interface_check{check="max_width",status="fail"} == 1) unless on(job,instance,interface) (go_link_monitor_interface_max_speed_exception == 1)` | 30s | `/metrics/link` |
+| Ethernet/RoCE duplex failure | `go_link_monitor_interface_check{check="full_duplex",status="fail"} == 1` | 30s | `/metrics/link` |
+| RDMA port not ready | `go_link_monitor_rdma_port_check{status="fail"} == 1` | 30s | `/metrics/rdma` |
+| RDMA state unknown | `go_link_monitor_rdma_port_check{status="unknown"} == 1` | 5m | `/metrics/rdma` |
+| Unresolved exception selector | `go_link_monitor_max_speed_exception_match{status!="matched"} == 1` | 5m | `/metrics/link` |
+| Unknown required check | `go_link_monitor_interface_check{status="unknown"} == 1` | 5m | `/metrics/link` |
+| Missing driver identity | `go_link_monitor_interface_driver_known == 0` | 5m | `/metrics/ethtool` |
+| Kernel-observed flap | `increase(go_link_monitor_interface_carrier_down_changes_total[5m]) > 0` | 0s | `/metrics/link` |
+| RDMA error-related link down | `increase(go_link_monitor_infiniband_link_downed_total[5m]) > 0` | 0s | `/metrics/rdma` |
+| RDMA link recovery | `increase(go_link_monitor_infiniband_link_error_recovery_total[5m]) > 0` | 0s | `/metrics/rdma` |
+| Verified driver flap | `increase(go_link_monitor_driver_link_down_events_total[5m]) > 0` | 0s | `/metrics/ethtool` |
+| Observed operational drop | `increase(go_link_monitor_observed_oper_transitions_total{direction="down"}[5m]) > 0` | 0s | `/metrics/link` |
+| RX errors | `rate(go_link_monitor_interface_receive_errors_total[5m]) > 0` | 1m | `/metrics/traffic` |
+| RX drops | `rate(go_link_monitor_interface_receive_dropped_total[5m]) > 0` | 1m | `/metrics/traffic` |
+| Poll-derived source stale | `time() - go_link_monitor_collector_last_success_timestamp_seconds{collector=~"standard\|carrier\|driver\|phy\|settings\|rdma_state\|rdma_capabilities\|rdma_counters\|netstat"} > 45` | 1m | `/metrics/collection` |
+| Source failing | `go_link_monitor_collector_success == 0` | 1m | `/metrics/collection` |
+| No successful probe yet | `go_link_monitor_collector_support{status="unknown"} == 1` | 5m | `/metrics/collection` |
+| No flap-counter capability | `go_link_monitor_collector_support{collector="carrier",status="unsupported"} == 1` | 5m | `/metrics/collection` |
+| Baseline unavailable | `go_link_monitor_baseline_ready == 0` | 5m | `/metrics` |
+| Link collection unhealthy | `go_link_monitor_collection_healthy == 0` | 1m | `/metrics` |
+| Scrape failure | `up{job="go-link-monitor"} == 0` | 1m | Prometheus |
 
-With the default exposure tiers, these rules need `/metrics-all` (or a wider
-`-metrics.core-include`): missing driver identity, RDMA error-related link down,
-RDMA link recovery, verified driver flap, RX drops, poll-derived source stale,
-no successful probe yet and no flap-counter capability. Every other row uses
-core families.
+The first five rows and the count, baseline and collection rows are the
+alerting set on `/metrics`; the summary rows subsume the per-family rules
+below them. The remaining rows are drill-down rules for a job scraping the
+named category path (or `/metrics-all`), or for `-metrics.summary=core`, which
+serves the link, flap, error and `collector_success` families listed above.
 
 The table escapes regex pipes for Markdown rendering; the rendered PromQL regex
 uses ordinary `|`. Missing targets require a service-discovery/absent-series rule

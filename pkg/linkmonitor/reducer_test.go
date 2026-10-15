@@ -14,7 +14,7 @@ func observed(r *reducer, index uint32, up bool) model.Observation {
 		Token: model.Token{SourceEpoch: r.epoch}, Name: "eth" + strconv.FormatUint(uint64(index), 10), Eligibility: model.Eligible, Up: present(up)}}
 }
 
-func mustObserve(t *testing.T, r *reducer, observation model.Observation) {
+func mustObserve(t testing.TB, r *reducer, observation model.Observation) {
 	t.Helper()
 	if _, err := r.observe(observation); err != nil {
 		t.Fatal(err)

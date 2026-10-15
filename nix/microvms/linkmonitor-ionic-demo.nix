@@ -280,6 +280,8 @@ let
               "${monitor}/bin/go-link-monitor"
               "-settle"
               "5s"
+              "-collection.mode"
+              "poll"
               "-stats-interval"
               "2s"
               "-metrics-addr"

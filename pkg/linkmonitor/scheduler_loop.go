@@ -30,6 +30,8 @@ type schedulerLoop struct {
 	storage     <-chan model.SaveResult
 	hooks       schedulerHooks
 	wake        deadlineWake
+	// demand runs on-demand refreshes; nil in poll mode.
+	demand *demandOwner
 }
 
 type schedulerWake struct {
@@ -120,6 +122,9 @@ func (l *schedulerLoop) turn(wake schedulerWake) error {
 	}
 	now := l.scheduler.clock.Now()
 	l.scheduler.expire(now)
+	if l.demand != nil {
+		l.demand.begin(now)
+	}
 	if l.hooks.advance != nil {
 		if err := l.hooks.advance(now); err != nil {
 			return err
@@ -139,7 +144,12 @@ func (l *schedulerLoop) turn(wake schedulerWake) error {
 		return err
 	}
 	if l.hooks.publish != nil {
-		return l.hooks.publish(now)
+		if err := l.hooks.publish(now); err != nil {
+			return err
+		}
+	}
+	if l.demand != nil {
+		l.demand.settle()
 	}
 	return nil
 }

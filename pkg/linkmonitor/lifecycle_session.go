@@ -3,6 +3,7 @@ package linkmonitor
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/model"
 )
@@ -106,10 +107,12 @@ func (s *lifecycleSession) Run(ctx context.Context, m *Monitor) error {
 		life, runErr = s.prepare(m, resources)
 		if runErr == nil {
 			m.control.start(ctx)
+			m.demand.start()
 			runErr = life.run(child)
 		}
 	}
 	m.control.stop()
+	m.demand.stop()
 	cancel()
 	// The only ordinary cancellation returned by the loop is its context error.
 	if ctx.Err() != nil && runErr == ctx.Err() {
@@ -138,11 +141,18 @@ func (s *lifecycleSession) waitStartup(ctx context.Context, m *Monitor, resource
 
 func (s *lifecycleSession) prepare(m *Monitor, resources *lifecycleResources) (*lifecycle, error) {
 	r := newReducer(s.namespace)
-	r.freshness = freshnessPolicy{poll: 3 * m.cfg.StatsInterval, configuration: 2 * m.cfg.Resync}
+	r.freshness = newFreshnessPolicy(m.cfg.Config)
+	r.problems = m.cfg.problems
 	scheduler := newScheduler(r, resources.pool, s.clock)
+	if m.cfg.onDemand() {
+		scheduler.tiers = new([model.CollectorNetstat + 1]time.Duration)
+		for kind := range scheduler.tiers {
+			scheduler.tiers[kind] = m.cfg.pollInterval(model.CollectorKind(kind))
+		}
+	}
 	if s.hostStatistics {
 		key := model.JobKey{Namespace: s.namespace, Collector: model.CollectorNetstat}
-		if err := scheduler.register(key, schedulePolicy{interval: m.cfg.StatsInterval}); err != nil {
+		if err := scheduler.register(key, schedulePolicy{interval: m.cfg.pollInterval(model.CollectorNetstat)}); err != nil {
 			return nil, err
 		}
 	}
@@ -153,7 +163,7 @@ func (s *lifecycleSession) prepare(m *Monitor, resources *lifecycleResources) (*
 		scheduler.rdmaInterval = m.cfg.StatsInterval
 	}
 	if s.settings {
-		scheduler.settings = &settingsSchedule{interval: m.cfg.StatsInterval, devices: make(map[model.DeviceKey]model.Device)}
+		scheduler.settings = &settingsSchedule{interval: m.cfg.pollInterval(model.CollectorSettings), devices: make(map[model.DeviceKey]model.Device)}
 	}
 	c, err := newReconciler(scheduler, resources.inventory, resources.events, m.cfg.Resync)
 	if err != nil {
@@ -161,10 +171,10 @@ func (s *lifecycleSession) prepare(m *Monitor, resources *lifecycleResources) (*
 	}
 	c.report = func(err error) { m.logger.Warn("link inventory reconciliation failed", "error", err) }
 	if s.statistics {
-		newTrafficSchedule(scheduler, c, m.cfg.StatsInterval)
+		newTrafficSchedule(scheduler, c, m.cfg.pollInterval(model.CollectorNetdev))
 	}
 	if resources.rdma != nil {
-		c.rdma = newRDMASchedule(r, resources.rdma, m.cfg.StatsInterval)
+		c.rdma = newRDMASchedule(r, resources.rdma, m.cfg.pollInterval(model.CollectorRDMAState))
 		c.rdma.resync = c.requestResync
 		c.rdma.changed = func(key model.DeviceKey) { scheduler.refreshRDMAOptional(key, true) }
 		c.rdmaEvents = newRDMAEventSchedule(c, resources.rdmaEvents)
@@ -182,6 +192,10 @@ func (s *lifecycleSession) collectorFactory() workerFactory {
 	if !s.statistics && !s.settings && !s.driverStatistics && !s.hostStatistics && !s.rdma {
 		return s.collectors
 	}
+	var handles *rdmaHandles
+	if s.rdma {
+		handles = newRDMAHandles(sysfsFiles{})
+	}
 	return func(id int) (workerCollector, error) {
 		base, err := s.collectors(id)
 		if err != nil {
@@ -191,7 +205,10 @@ func (s *lifecycleSession) collectorFactory() workerFactory {
 			base = newHostCollector(base, s.procRoot, s.statisticsConfig)
 		}
 		if s.rdma {
-			base = newRDMAOptionalCollector(base, s.rdmaFiles())
+			base, err = s.rdmaCollector(base, handles)
+			if err != nil {
+				return nil, err
+			}
 		}
 		if s.driverStatistics {
 			wrapped, wrapErr := newStatisticsCollector(base, s.statisticsConfig)
@@ -232,6 +249,9 @@ func (l *lifecycle) run(ctx context.Context) error {
 		loop.rdmaNotices = resourcesWake(c.rdmaEvents)
 	}
 	loop.hooks.control, loop.hooks.publish, loop.hooks.saved = l.control, l.publish, l.saved
+	if l.monitor.cfg.onDemand() {
+		loop.demand = &demandOwner{queue: &l.monitor.demand, ttl: l.monitor.cfg.OnDemandTTL, s: c.scheduler, rdma: c.rdma}
+	}
 	loop.hooks.advance = func(now model.Stamp) error {
 		if err := c.advance(now); err != nil {
 			return err

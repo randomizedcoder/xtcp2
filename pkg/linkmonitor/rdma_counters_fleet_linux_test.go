@@ -1,7 +1,6 @@
 package linkmonitor
 
 import (
-	"context"
 	"errors"
 	"io/fs"
 	"maps"
@@ -39,24 +38,19 @@ func rdmaSaturated(value string) bool {
 	return value == strconv.FormatUint(1<<16-1, 10) || value == strconv.FormatUint(1<<32-1, 10) || value == strconv.FormatUint(^uint64(0), 10)
 }
 
-// rdmaFleetReads replaces the collector's file reader: a file holding
-// READ_ERROR fails with fail, as the fleet port did, and every read is counted.
+// rdmaFleetReads counts the collector's file reads: a file holding
+// READ_ERROR fails with fail, as the fleet port did.
 type rdmaFleetReads struct {
-	fail  error
+	files *fakeRDMAFiles
 	count map[string]int
 }
 
-func installFleetReads(c *rdmaOptionalCollector, fail error) *rdmaFleetReads {
-	r := &rdmaFleetReads{fail: fail, count: map[string]int{}}
-	c.read = func(ctx context.Context, path string) (string, error) {
-		r.count[filepath.Base(filepath.Dir(path))+"/"+filepath.Base(path)]++
-		text, err := rdmaScalar(ctx, path)
-		if err == nil && text == rdmaReadError {
-			return "", &fs.PathError{Op: "read", Path: path, Err: r.fail}
-		}
-		return text, err
-	}
-	return r
+func installFleetReads(t testing.TB, c *rdmaOptionalCollector, fail error) *rdmaFleetReads {
+	t.Helper()
+	files := newFakeRDMAFiles()
+	files.fail = fail
+	useRDMAFiles(t, c, files)
+	return &rdmaFleetReads{files: files, count: files.reads}
 }
 
 func TestRDMAFleetFixturesComplete(t *testing.T) {
@@ -94,7 +88,7 @@ func TestRDMACountersFleetSysfs(t *testing.T) {
 				t.Fatalf("fixture saturated %v, row %v", got, tc.saturated)
 			}
 			c, job, port := snapshotRDMAFixture(t, snapshot)
-			reads := installFleetReads(c, syscall.EINVAL)
+			reads := installFleetReads(t, c, syscall.EINVAL)
 			first := c.Collect(t.Context(), job)
 			if first.Support != model.Supported || first.Err != nil || first.StatisticSchema == nil {
 				t.Fatalf("%s: support %v err %v schema %v", tc.expected, first.Support, first.Err, first.StatisticSchema)
@@ -237,7 +231,7 @@ func TestRDMACountersFleetReadErrors(t *testing.T) {
 					unreadable = append(unreadable, name)
 				}
 			}
-			reads := installFleetReads(c, tc.fail)
+			reads := installFleetReads(t, c, tc.fail)
 			full, err := c.counterSchema(t.Context(), job.RDMA.Ports)
 			if err != nil {
 				t.Fatal(err)

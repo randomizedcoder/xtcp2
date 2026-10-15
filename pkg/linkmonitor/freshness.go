@@ -8,7 +8,24 @@ import (
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/model"
 )
 
-type freshnessPolicy struct{ poll, configuration time.Duration }
+type freshnessPolicy struct {
+	poll, configuration time.Duration
+	// tiers replaces poll per kind on demand: three of the kind's poll
+	// intervals, or zero for a kind collected only when asked, whose data
+	// stays until the next collection rather than expiring unread.
+	tiers *[model.CollectorNetstat + 1]time.Duration
+}
+
+func newFreshnessPolicy(cfg Config) freshnessPolicy {
+	p := freshnessPolicy{poll: 3 * cfg.StatsInterval, configuration: 2 * cfg.Resync}
+	if cfg.onDemand() {
+		p.tiers = new([model.CollectorNetstat + 1]time.Duration)
+		for kind := range p.tiers {
+			p.tiers[kind] = 3 * cfg.pollInterval(model.CollectorKind(kind))
+		}
+	}
+	return p
+}
 
 // configureFreshness is called before inventory/collection begins. Deadlines
 // are not silently reinterpreted midway through a monitor lifetime.
@@ -20,7 +37,8 @@ func (r *reducer) configureFreshness(cfg Config) error {
 	if r.generation != 0 || r.attempt != 0 || r.lastResync.Present {
 		return fmt.Errorf("freshness configuration must precede collection")
 	}
-	r.freshness = freshnessPolicy{poll: 3 * validated.StatsInterval, configuration: 2 * validated.Resync}
+	r.freshness = newFreshnessPolicy(validated.Config)
+	r.problems = validated.problems
 	return nil
 }
 
@@ -31,6 +49,9 @@ func (p freshnessPolicy) lifetime(kind model.CollectorKind) time.Duration {
 	case model.CollectorRDMAEvents:
 		return 0 // Subscription health is explicit, not an expiring sample.
 	default:
+		if p.tiers != nil && int(kind) < len(p.tiers) {
+			return p.tiers[kind]
+		}
 		return p.poll
 	}
 }

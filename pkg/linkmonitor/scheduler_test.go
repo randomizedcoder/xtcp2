@@ -13,7 +13,7 @@ import (
 
 // Manual assignment mailboxes isolate deterministic scheduling from goroutine
 // execution. The worker integration tests below exercise the actual pool.
-func testScheduler(t *testing.T) (*scheduler, *testkit.Clock) {
+func testScheduler(t testing.TB) (*scheduler, *testkit.Clock) {
 	t.Helper()
 	clock := testkit.NewClock(time.Unix(100, 0))
 	ctx, cancel := context.WithCancel(t.Context())
@@ -25,7 +25,7 @@ func testScheduler(t *testing.T) (*scheduler, *testkit.Clock) {
 	return newScheduler(newReducer(1), p, clock), clock
 }
 
-func registerTestJob(t *testing.T, s *scheduler, index uint32, kind model.CollectorKind, policy schedulePolicy) model.JobKey {
+func registerTestJob(t testing.TB, s *scheduler, index uint32, kind model.CollectorKind, policy schedulePolicy) model.JobKey {
 	t.Helper()
 	key := model.JobKey{Namespace: 1, Collector: kind}
 	if kind != model.CollectorNetstat {
@@ -40,7 +40,7 @@ func registerTestJob(t *testing.T, s *scheduler, index uint32, kind model.Collec
 	return key
 }
 
-func dispatchTest(t *testing.T, s *scheduler) {
+func dispatchTest(t testing.TB, s *scheduler) {
 	t.Helper()
 	if err := s.dispatch(); err != nil {
 		t.Fatal(err)
@@ -249,7 +249,7 @@ func TestSchedulerValidation(t *testing.T) {
 	}
 }
 
-func advanceSchedulerClock(t *testing.T, clock *testkit.Clock, elapsed time.Duration) {
+func advanceSchedulerClock(t testing.TB, clock *testkit.Clock, elapsed time.Duration) {
 	t.Helper()
 	if err := clock.Advance(elapsed); err != nil {
 		t.Fatal(err)

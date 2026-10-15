@@ -26,7 +26,7 @@ func TestOptions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expectedOutcome)
 			var out bytes.Buffer
-			opts, err := parseOptions(tc.args, &out, func(string) string { return tc.env })
+			opts, err := parseOptions(tc.args, &out, environment(map[string]string{exceptionEnvironment: tc.env}))
 			if err != nil || !reflect.DeepEqual(opts.monitor.MaxSpeedExceptions, tc.want) {
 				t.Fatal(opts, err)
 			}
@@ -43,7 +43,8 @@ func TestOptions(t *testing.T) {
 func TestOptionsMapping(t *testing.T) {
 	t.Log("positive/boundary: every configurable field; expected: exact values including zero settle")
 	args := []string{"-metrics-addr=127.0.0.1:0", "-baseline-file=/tmp/example", "-settle=0", "-resync=2m",
-		"-stats-interval=2s", "-stats-include=rx", "-stats-exclude=queue", "--collector.netstat.fields=^Tcp_", "-io-backend=io_uring"}
+		"-stats-interval=2s", "-stats-include=rx", "-stats-exclude=queue", "--collector.netstat.fields=^Tcp_", "-io-backend=io_uring",
+		"-errors.window=0", "-flap-window=2s", "-errors.classes=", "-errors.exclude=.*@eno1"}
 	var output bytes.Buffer
 	opts, err := parseOptions(args, &output, func(string) string { return "" })
 	if err != nil {
@@ -52,8 +53,45 @@ func TestOptionsMapping(t *testing.T) {
 	want := linkmonitor.DefaultConfig()
 	want.BaselineFile, want.Settle, want.Resync, want.StatsInterval = "/tmp/example", 0, 2*time.Minute, 2*time.Second
 	want.StatsInclude, want.StatsExclude, want.NetstatFields, want.IOBackend = "rx", "queue", "^Tcp_", linkmonitor.IOBackendIOUring
+	want.ErrorWindow, want.FlapWindow, want.ErrorClasses, want.ErrorExclude = 0, 2*time.Second, []string{}, ".*@eno1"
 	if opts.address != "127.0.0.1:0" || !reflect.DeepEqual(opts.monitor, want) {
 		t.Fatal(opts)
+	}
+}
+
+func TestProblemOptionsEnvironment(t *testing.T) {
+	for _, tc := range []struct {
+		name, category, description, expectedOutcome string
+		args                                         []string
+		env                                          map[string]string
+		errorWindow, flapWindow                      time.Duration
+		classes                                      []string
+		exclude                                      string
+	}{
+		{"defaults", "positive", "no flags or environment", "180s windows, link and rdma", nil, nil, 180 * time.Second, 180 * time.Second, []string{"link", "rdma"}, ""},
+		{"environment", "positive", "every problem variable", "environment values used", nil, map[string]string{
+			errorWindowEnvironment: "5m", flapWindowEnvironment: "0", errorClassEnvironment: "link,drop", errorExcludeEnviron: "x"},
+			5 * time.Minute, 0, []string{"link", "drop"}, "x"},
+		{"flag wins", "corner", "flags and variables both set", "flag values", []string{"-errors.window=1m", "-errors.classes=rdma"}, map[string]string{
+			errorWindowEnvironment: "5m", errorClassEnvironment: "link"}, time.Minute, 180 * time.Second, []string{"rdma"}, ""},
+		{"empty classes", "boundary", "explicit empty classes flag", "no error classes", []string{"-errors.classes="}, map[string]string{errorClassEnvironment: "link"},
+			180 * time.Second, 180 * time.Second, []string{}, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expectedOutcome)
+			var out bytes.Buffer
+			opts, err := parseOptions(tc.args, &out, environment(tc.env))
+			if err != nil {
+				t.Fatal(err)
+			}
+			m := opts.monitor
+			if m.ErrorWindow != tc.errorWindow || m.FlapWindow != tc.flapWindow || !reflect.DeepEqual(m.ErrorClasses, tc.classes) || m.ErrorExclude != tc.exclude {
+				t.Fatalf("problem options = %v %v %q %q", m.ErrorWindow, m.FlapWindow, m.ErrorClasses, m.ErrorExclude)
+			}
+			if _, err := linkmonitor.New(m, linkmonitor.Options{}); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }
 
@@ -80,7 +118,7 @@ func TestCommandValidation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expectedOutcome)
 			var out, diagnostic bytes.Buffer
-			code := command(tc.args, &out, &diagnostic, func(string) string { return "invalid," })
+			code := command(tc.args, &out, &diagnostic, environment(map[string]string{exceptionEnvironment: "invalid,"}))
 			if code != tc.code || !strings.Contains(out.String()+diagnostic.String(), tc.contains) {
 				t.Fatal(code, out.String(), diagnostic.String())
 			}

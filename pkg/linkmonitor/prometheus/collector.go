@@ -19,6 +19,7 @@ type collector struct {
 	sources  map[string]definition
 	match    func(string) bool
 	matched  map[string]bool
+	devices  bool
 }
 
 // invalidDesc reports scrape failures even when collection_healthy is filtered out.
@@ -35,6 +36,9 @@ type definition struct {
 type catalog struct {
 	revision    uint64
 	definitions map[string]definition
+	// skip holds filtered collectors' schemas without a selected descriptor;
+	// their blocks are never walked.
+	skip map[linkmonitor.SchemaID]bool
 }
 
 // NewCollector constructs an unchecked collector without I/O or registration.
@@ -56,6 +60,7 @@ func NewCollector(m *linkmonitor.Monitor, opts ...Option) client.Collector {
 			}
 		}
 	}
+	c.devices = deviceScoped(c.fixed)
 	return c
 }
 
@@ -75,8 +80,12 @@ func (c *collector) Collect(out chan<- client.Metric) {
 		return
 	}
 	emit := emitter{out: out, fixed: c.fixed}
-	emit.policy(snapshot)
-	snapshot.RangeSamples(func(s linkmonitor.SampleView) bool {
+	emit.policy(snapshot, c.devices)
+	var skip func(linkmonitor.SchemaID) bool
+	if len(catalog.skip) != 0 {
+		skip = func(id linkmonitor.SchemaID) bool { return catalog.skip[id] }
+	}
+	snapshot.RangeSamplesSkipping(skip, func(s linkmonitor.SampleView) bool {
 		emit.sample(s, catalog)
 		return true
 	})
@@ -132,10 +141,32 @@ func (c *collector) descriptors(s linkmonitor.Snapshot) (*catalog, error) {
 	if failure != nil {
 		return nil, failure
 	}
+	if c.match != nil {
+		next.skip = skippedSchemas(s, next.definitions)
+	}
 	if current == nil || next.revision > current.revision {
 		c.catalog.Store(next)
 	}
 	return next, nil
+}
+
+func skippedSchemas(s linkmonitor.Snapshot, definitions map[string]definition) map[linkmonitor.SchemaID]bool {
+	skip := make(map[linkmonitor.SchemaID]bool)
+	s.RangeSchemas(func(id linkmonitor.SchemaID, rangeKeys func(func(string) bool)) bool {
+		selected := false
+		rangeKeys(func(key string) bool {
+			// A key missing from the catalog keeps the block so the scrape
+			// reports it rather than hiding it.
+			d, ok := definitions[key]
+			selected = !ok || d.selected
+			return !selected
+		})
+		if !selected {
+			skip[id] = true
+		}
+		return true
+	})
+	return skip
 }
 
 func newDefinition(desc *client.Desc, labels []string, kind client.ValueType) definition {

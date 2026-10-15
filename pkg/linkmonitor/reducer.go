@@ -34,6 +34,8 @@ type reducer struct {
 	resyncEpoch                                     uint64
 	routeEvents, rdmaEvents, resyncOverdue          bool
 	requiredRDMA, missingRDMA                       uint64
+	problems                                        problemPolicy
+	candidates                                      []uint32 // bit per device that may have a problem
 }
 
 type deviceSlot struct {
@@ -45,12 +47,23 @@ type deviceSlot struct {
 	collectors                     [model.CollectorNetstat + 1]collectorState
 	checks                         deviceChecks
 	requiresRDMA, missingRDMA      bool
+	// evidence holds the latest increase per evidence class; settledFrom is
+	// when the device appeared or last came up, starting the unknown grace.
+	evidence    [evidenceClasses]model.Optional[model.Stamp]
+	settledFrom model.Stamp
 }
 
 func newReducer(namespace uint64) *reducer {
+	// A placeholder until configureFreshness or session preparation installs
+	// the monitor's policies: poll mode, matching its StatsInterval freshness.
 	cfg := DefaultConfig()
+	cfg.CollectionMode = CollectionPoll
+	problems, err := newProblemPolicy(cfg)
+	if err != nil {
+		panic(err) // DefaultConfig is valid by construction; TestDefaultConfig guards it
+	}
 	return &reducer{namespace: namespace, epoch: 1, index: make(map[model.DeviceKey]int),
-		freshness: freshnessPolicy{poll: 3 * cfg.StatsInterval, configuration: 2 * cfg.Resync}}
+		freshness: freshnessPolicy{poll: 3 * cfg.StatsInterval, configuration: 2 * cfg.Resync}, problems: problems}
 }
 
 // observe accepts an authoritative ordered observation. Event observations use
@@ -101,10 +114,10 @@ func (r *reducer) observe(observation model.Observation) (bool, error) {
 		r.generation++
 		d.Token.Generation = r.generation
 		r.unaccount(slot)
-		slot = &deviceSlot{}
+		slot = &deviceSlot{settledFrom: observation.Observed}
 		r.slots[i] = slot
 	} else {
-		countTransition(slot, d)
+		countTransition(slot, d, observation.Observed)
 		r.unaccount(slot)
 	}
 	slot.device, slot.observed = d, observation.Observed
@@ -124,7 +137,7 @@ func (r *reducer) insert(observation model.Observation) (bool, error) {
 		r.countRevision = r.revision
 	}
 	observation.Device.Token = model.Token{Generation: r.generation, Revision: r.revision, SourceEpoch: r.epoch}
-	slot := &deviceSlot{device: observation.Device, observed: observation.Observed}
+	slot := &deviceSlot{device: observation.Device, observed: observation.Observed, settledFrom: observation.Observed}
 	r.index[slot.device.Key] = len(r.slots)
 	r.slots = append(r.slots, slot)
 	r.account(slot)
@@ -198,15 +211,17 @@ func (r *reducer) account(slot *deviceSlot) {
 	}
 }
 
-func countTransition(slot *deviceSlot, next model.Device) {
+func countTransition(slot *deviceSlot, next model.Device, observed model.Stamp) {
 	old := slot.device
 	if old.Eligibility != model.Eligible || next.Eligibility != model.Eligible || !old.Up.Present || !next.Up.Present || old.Up.Value == next.Up.Value {
 		return
 	}
 	if next.Up.Value {
 		slot.upTransitions++
+		slot.settledFrom = observed
 	} else {
 		slot.downTransitions++
+		slot.evidence[evidenceFlap] = model.Optional[model.Stamp]{Value: observed, Present: true}
 	}
 }
 

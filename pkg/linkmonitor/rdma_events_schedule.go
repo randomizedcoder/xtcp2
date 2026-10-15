@@ -24,8 +24,12 @@ type rdmaEventSchedule struct {
 	interrupt                      context.CancelFunc
 	generation, barrier            uint64
 	busy, ready, reconciled, dirty bool
-	retryAt, deadline, backoff     time.Duration
-	report                         func(error)
+	// unavailable is set once the build reports no verbs event binding. That
+	// cannot change while the process runs, so the source is not reopened:
+	// each retry would invalidate every RDMA port and force a resync.
+	unavailable                bool
+	retryAt, deadline, backoff time.Duration
+	report                     func(error)
 }
 
 func newRDMAEventSchedule(c *reconciler, w *rdmaEventWorker) *rdmaEventSchedule {
@@ -58,6 +62,11 @@ func (s *rdmaEventSchedule) committed(ports []model.RDMAPort, serial uint64) {
 	ids := rdmaIdentities(ports)
 	if !slices.Equal(ids, s.ids) {
 		s.ids, s.dirty = ids, true
+		if s.unavailable {
+			s.invalidate()
+			s.diagnostics(s.sourceFailure)
+			return
+		}
 		s.sourceFailure = nil
 		s.invalidate()
 		if s.interrupt != nil {
@@ -159,6 +168,7 @@ func (s *rdmaEventSchedule) failed(err error) {
 	}
 	s.failureGeneration = s.generation
 	s.sourceFailure = err
+	s.unavailable = errors.Is(err, rdmaevents.ErrUnavailable)
 	s.invalidate()
 	s.diagnostics(err)
 	if s.interrupt != nil && !s.delayedRestart {
@@ -207,7 +217,7 @@ func (s *rdmaEventSchedule) advance(now model.Stamp) error {
 		s.deadline = 0
 		s.failed(context.DeadlineExceeded)
 	}
-	if !s.busy && !s.ready && (s.dirty || now.Monotonic >= s.retryAt) {
+	if !s.busy && !s.ready && !s.unavailable && (s.dirty || now.Monotonic >= s.retryAt) {
 		if s.generation == math.MaxUint64 {
 			return errSequenceExhausted
 		}
@@ -218,7 +228,7 @@ func (s *rdmaEventSchedule) advance(now model.Stamp) error {
 		s.w.requests <- rdmaEventRequest{ctx: ctx, ids: s.ids, generation: s.generation}
 	}
 	at := s.deadline
-	if (!s.busy && !s.ready) || s.delayedRestart {
+	if (!s.busy && !s.ready && !s.unavailable) || s.delayedRestart {
 		at = s.retryAt
 	}
 	key := deadlineKey{kind: deadlineRDMAEvents}

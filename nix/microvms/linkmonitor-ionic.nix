@@ -144,6 +144,10 @@ let
     run_test TestIonicEvents
     echo LINKMONITOR_IONIC_RECOVERED_EVENTS_PASS
 
+    on_demand
+    run_test TestIonicOnDemand
+    echo LINKMONITOR_IONIC_ON_DEMAND_PASS
+
     uname -r > "$nlrec/kernel.txt"
     echo XTCP2_NLREC_DUMP_START
     tar c -C "$nlrec" . | gzip -n | base64 -w0
@@ -161,6 +165,9 @@ let
     systemctl start go-link-monitor.service
     run_test TestIonicFaultCounters
     echo LINKMONITOR_IONIC_FAULT_COUNTERS_PASS
+    on_demand
+    run_test TestIonicOnDemandErrors
+    echo LINKMONITOR_IONIC_ON_DEMAND_ERRORS_PASS
   '';
   guestTest = pkgs.writeShellApplication {
     name = "${name}-guest";
@@ -222,6 +229,11 @@ let
       run_test() {
         ${artifact}/bin/ionic-vm.test -test.run "^$1\$" -test.v -test.timeout=10m
       }
+      # The same monitor on demand, on the same address and baseline.
+      on_demand() {
+        systemctl stop go-link-monitor.service
+        systemctl start go-link-monitor-on-demand.service
+      }
       discover() {
         netdev=$(ionic_netdev)
         rdmadev=$(rdma_device "$netdev")
@@ -233,6 +245,28 @@ let
       ${if faults then faultSteps else healthySteps}
       echo LINKMONITOR_IONIC_PASS
     '';
+  };
+
+  monitorService = description: flags: {
+    inherit description;
+    after = [ "ernic-rdma-up.service" ];
+    serviceConfig = {
+      ExecStart = lib.escapeShellArgs (
+        [
+          "${monitor}/bin/go-link-monitor"
+          "-settle"
+          "5s"
+          "-metrics-addr"
+          metricsAddress
+          "-baseline-file"
+          "/var/lib/go-link-monitor/baseline.json"
+        ]
+        ++ flags
+      );
+      StateDirectory = "go-link-monitor";
+      StandardOutput = "journal+console";
+      StandardError = "journal+console";
+    };
   };
 
   system = nixpkgs.lib.nixosSystem {
@@ -256,26 +290,29 @@ let
           qemu.networkingOptions = lib.mkForce [ ];
           qemu.options = [ "-no-reboot" ];
         };
-        systemd.services.go-link-monitor = {
-          description = "go-link-monitor under test";
-          after = [ "ernic-rdma-up.service" ];
-          serviceConfig = {
-            ExecStart = lib.escapeShellArgs [
-              "${monitor}/bin/go-link-monitor"
-              "-settle"
-              "5s"
-              "-stats-interval"
-              "2s"
-              "-metrics-addr"
-              metricsAddress
-              "-baseline-file"
-              "/var/lib/go-link-monitor/baseline.json"
-            ];
-            StateDirectory = "go-link-monitor";
-            StandardOutput = "journal+console";
-            StandardError = "journal+console";
+        # Poll mode, so the counter checks see a fresh sample every 2s.
+        systemd.services.go-link-monitor = monitorService "go-link-monitor under test" [
+          "-collection.mode"
+          "poll"
+          "-stats-interval"
+          "2s"
+        ];
+        # Intervals match production_ionic_ondemand_vm_linux_test.go.
+        systemd.services.go-link-monitor-on-demand =
+          monitorService "go-link-monitor under test, on demand" [
+            "-collection.mode"
+            "on-demand"
+            "-watch.interval"
+            "2s"
+            "-watch.slow-interval"
+            "4s"
+            "-on-demand.ttl"
+            "5s"
+          ]
+          // {
+            # Conflicts= works both ways: starting either unit stops the other.
+            conflicts = [ "go-link-monitor.service" ];
           };
-        };
         systemd.services."${name}-test" = {
           wantedBy = [ "multi-user.target" ];
           wants = [ "ernic-rdma-up.service" ];

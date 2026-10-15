@@ -30,19 +30,68 @@ type rdmaStateReader struct {
 
 func (s *rdmaStateReader) Close() error { return s.client.Close() }
 
-func (s *rdmaStateReader) Read(ctx context.Context, p model.RDMAPort) (value model.RDMAPort, err error) {
+// Read takes a netlink port's state from one GET_PORT. A reply matching the
+// inventory's name, index and port is the device the inventory saw: the kernel
+// allocates device indexes cyclically, and a rename keeps the index but not
+// the name. The sysfs identity, about 40 stat and readlink calls a port, runs
+// around sysfs reads and to classify a failed or mismatched reply, so a
+// removed or replaced device still returns the error that asks for a resync.
+func (s *rdmaStateReader) Read(ctx context.Context, p model.RDMAPort) (model.RDMAPort, error) {
 	if err := ctx.Err(); err != nil {
 		return p, err
 	}
-	if _, err := s.files.portPath(p.Device, p.Port); err != nil {
+	if p.Sysfs {
+		return s.sysfsState(ctx, p)
+	}
+	result, err := s.client.GetRDMAPort(ctx, p.Index, p.Port)
+	if unsupportedRDMA(err) && s.files.namespaceVerified {
+		return s.sysfsState(ctx, p)
+	}
+	if err == nil && (len(result.Values) != 1 || result.Values[0].Name != p.Device || result.Values[0].Index != p.Index || result.Values[0].Port != p.Port) {
+		err = linuxio.ErrReply
+	}
+	if err != nil {
+		if ctx.Err() == nil {
+			if _, identityErr := s.identity(p); identityErr != nil {
+				return p, identityErr
+			}
+		}
 		return p, err
+	}
+	v := result.Values[0]
+	if v.HasNetdev != p.Netdev.Present || (v.HasNetdev && (v.Netdev != p.Netdev.Value || v.NetdevName != p.NetdevName)) {
+		return p, linuxio.ErrEpoch
+	}
+	p.State = model.Optional[uint8]{Value: v.State, Present: v.HasState}
+	p.Physical = model.Optional[uint8]{Value: v.Physical, Present: v.HasPhysical}
+	if !p.State.Present || !p.Physical.Present {
+		return s.sysfsState(ctx, p)
+	}
+	return p, nil
+}
+
+// identity checks the port still exists and the device still resolves to the
+// inventory's hardware.
+func (s *rdmaStateReader) identity(p model.RDMAPort) (string, error) {
+	if _, err := s.files.portPath(p.Device, p.Port); err != nil {
+		return "", err
 	}
 	hardware, err := filepath.EvalSymlinks(filepath.Join(s.files.root, p.Device, "device"))
 	if err != nil {
-		return p, err
+		return "", err
 	}
 	if hardware != p.Hardware {
-		return p, linuxio.ErrEpoch
+		return "", linuxio.ErrEpoch
+	}
+	return hardware, nil
+}
+
+// sysfsState reads the state files under the identity guard: a device
+// replaced during the read fails it.
+func (s *rdmaStateReader) sysfsState(ctx context.Context, p model.RDMAPort) (value model.RDMAPort, err error) {
+	hardware, err := s.identity(p)
+	if err != nil {
+		return p, err
 	}
 	defer func() {
 		after, readErr := filepath.EvalSymlinks(filepath.Join(s.files.root, p.Device, "device"))
@@ -52,40 +101,11 @@ func (s *rdmaStateReader) Read(ctx context.Context, p model.RDMAPort) (value mod
 			err = errors.Join(err, linuxio.ErrEpoch)
 		}
 	}()
-	if p.Sysfs {
-		if !s.files.namespaceVerified {
-			return p, linuxio.ErrEpoch
-		}
-		p.State, p.Physical, err = s.files.state(ctx, p)
-		return p, err
-	}
-	result, err := s.client.GetRDMAPort(ctx, p.Index, p.Port)
-	if unsupportedRDMA(err) && s.files.namespaceVerified {
-		p.State, p.Physical, err = s.files.state(ctx, p)
-		return p, err
-	}
-	if err != nil {
-		return p, err
-	}
-	if len(result.Values) != 1 {
-		return p, linuxio.ErrReply
-	}
-	v := result.Values[0]
-	if v.Name != p.Device || v.Index != p.Index || v.Port != p.Port {
-		return p, linuxio.ErrReply
-	}
-	if v.HasNetdev != p.Netdev.Present || (v.HasNetdev && (v.Netdev != p.Netdev.Value || v.NetdevName != p.NetdevName)) {
+	if p.Sysfs && !s.files.namespaceVerified {
 		return p, linuxio.ErrEpoch
 	}
-	p.State = model.Optional[uint8]{Value: v.State, Present: v.HasState}
-	p.Physical = model.Optional[uint8]{Value: v.Physical, Present: v.HasPhysical}
-	if !p.State.Present || !p.Physical.Present {
-		p.State, p.Physical, err = s.files.state(ctx, p)
-		if err != nil {
-			return p, err
-		}
-	}
-	return p, nil
+	p.State, p.Physical, err = s.files.state(ctx, p)
+	return p, err
 }
 
 type rdmaWork struct {

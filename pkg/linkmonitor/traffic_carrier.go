@@ -79,6 +79,8 @@ func (r *reducer) publishCarrier(key model.DeviceKey, now model.Stamp) error {
 	}
 	state.carrierOmissions(slot.carrier)
 	state.recordHistory(block, false) // Four fixed fields retain continuity across independent expiry.
+	carrierKey := model.JobKey{Namespace: r.namespace, Device: key, Collector: model.CollectorCarrier}
+	r.noteEvidence(carrierKey, state, state.block, block, now)
 	state.block, state.fresh = block, len(samples) != 0
 	if !state.fresh {
 		state.block = nil

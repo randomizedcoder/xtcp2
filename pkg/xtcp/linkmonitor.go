@@ -5,24 +5,74 @@ import (
 	"log"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor"
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/linkmonitorgrpc"
 	monitorprom "github.com/randomizedcoder/xtcp2/pkg/linkmonitor/prometheus"
+	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 // DefaultLinkMonitorBaseline is xtcp2's baseline file for the embedded link
 // monitor. It differs from go-link-monitor's, so the two can run side by side.
 const DefaultLinkMonitorBaseline = "/var/lib/xtcp2/link-monitor-baseline.json"
 
+// linkMonitorExposure selects the link monitor collectors xtcp2 registers.
+type linkMonitorExposure struct {
+	all   bool              // every metric plus the sparse problem series
+	match func(string) bool // a name-filtered collector; nil with !all is the summary
+}
+
+// collectors returns the collectors for m. The default is the alerting
+// summary, which costs the same however many interfaces the host has. The
+// detail collectors refresh first, which in poll mode returns at once.
+func (e linkMonitorExposure) collectors(m *linkmonitor.Monitor) []prometheus.Collector {
+	switch {
+	case e.all:
+		return []prometheus.Collector{refreshing{monitorprom.NewCollector(m), m}, monitorprom.NewSummaryCollector(m, monitorprom.WithoutScalars())}
+	case e.match != nil:
+		return []prometheus.Collector{refreshing{monitorprom.NewCollector(m, monitorprom.WithMetricFilter(e.match)), m}}
+	default:
+		return []prometheus.Collector{monitorprom.NewSummaryCollector(m)}
+	}
+}
+
+// linkMonitorRefresher is the part of *linkmonitor.Monitor refreshing uses.
+type linkMonitorRefresher interface {
+	Refresh(context.Context, linkmonitor.RefreshScope) (linkmonitor.RefreshResult, error)
+}
+
+// refreshing brings every collector up to date before each collection, so an
+// on-demand monitor serves current detail on xtcp2's registry. Refresh bounds
+// its own wait by OnDemandWait; on a timeout or an error, such as a monitor
+// not yet running, the last published snapshot is served.
+type refreshing struct {
+	prometheus.Collector
+	monitor linkMonitorRefresher
+}
+
+func (r refreshing) Collect(ch chan<- prometheus.Metric) {
+	if _, err := r.monitor.Refresh(context.Background(), linkmonitor.RefreshScope{Collectors: linkmonitor.AllCollectors()}); err != nil {
+		slog.Debug("link monitor refresh; serving the last snapshot", "err", err)
+	}
+	r.Collector.Collect(ch)
+}
+
 // linkMonitorSettings translates the config into library settings and the
-// metric-name filter, once at startup. Unset fields keep the library
-// defaults. A nil filter registers every metric.
-func linkMonitorSettings(c *xtcp_config.LinkMonitorConfig) (linkmonitor.Config, func(string) bool, error) {
+// metric exposure, once at startup. Unset fields keep the library defaults.
+// Empty include and exclude patterns serve the summary; either pattern
+// selects names, with an empty include meaning the core audit set.
+func linkMonitorSettings(c *xtcp_config.LinkMonitorConfig) (linkmonitor.Config, linkMonitorExposure, error) {
 	cfg := linkmonitor.DefaultConfig()
 	cfg.BaselineFile = DefaultLinkMonitorBaseline
+	// An empty collection mode keeps the embedded monitor polling, as it did
+	// before the mode existed; the OCI images select on-demand.
+	cfg.CollectionMode = linkmonitor.CollectionPoll
+	if mode := c.GetCollectionMode(); mode != "" {
+		cfg.CollectionMode = linkmonitor.CollectionMode(mode)
+	}
 	for _, s := range []struct {
 		value  string
 		target *string
@@ -42,22 +92,35 @@ func linkMonitorSettings(c *xtcp_config.LinkMonitorConfig) (linkmonitor.Config, 
 	if c.GetResync() != nil {
 		cfg.Resync = c.GetResync().AsDuration()
 	}
-	if c.GetStatsInterval() != nil {
-		cfg.StatsInterval = c.GetStatsInterval().AsDuration()
+	for _, d := range []struct {
+		value  *durationpb.Duration
+		target *time.Duration
+	}{
+		{c.GetStatsInterval(), &cfg.StatsInterval},
+		{c.GetWatchInterval(), &cfg.WatchInterval},
+		{c.GetSlowInterval(), &cfg.SlowInterval},
+		{c.GetOnDemandTtl(), &cfg.OnDemandTTL},
+	} {
+		if d.value != nil {
+			*d.target = d.value.AsDuration()
+		}
 	}
 	cfg.MaxSpeedExceptions = append([]string(nil), c.GetMaxSpeedExceptions()...)
 	if c.GetMetricsAll() {
-		return cfg, nil, nil
+		return cfg, linkMonitorExposure{all: true}, nil
 	}
-	include := c.GetMetricsCoreInclude()
+	include, exclude := c.GetMetricsCoreInclude(), c.GetMetricsCoreExclude()
+	if include == "" && exclude == "" {
+		return cfg, linkMonitorExposure{}, nil
+	}
 	if include == "" {
 		include = monitorprom.CoreMetricsPattern
 	}
-	match, err := monitorprom.NameMatcher(include, c.GetMetricsCoreExclude())
+	match, err := monitorprom.NameMatcher(include, exclude)
 	if err != nil {
-		return linkmonitor.Config{}, nil, err
+		return linkmonitor.Config{}, linkMonitorExposure{}, err
 	}
-	return cfg, match, nil
+	return cfg, linkMonitorExposure{match: match}, nil
 }
 
 // promRegisterer is x.registry, or the default registerer when unset, as in
@@ -77,7 +140,7 @@ func (x *XTCP) initLinkMonitor() {
 	if !c.GetEnable() {
 		return
 	}
-	cfg, match, err := linkMonitorSettings(c)
+	cfg, exposure, err := linkMonitorSettings(c)
 	if err != nil {
 		x.callFatalf("link monitor config: %v", err)
 		return
@@ -87,17 +150,15 @@ func (x *XTCP) initLinkMonitor() {
 		x.callFatalf("link monitor config: %v", err)
 		return
 	}
-	var opts []monitorprom.Option
-	if match != nil {
-		opts = append(opts, monitorprom.WithMetricFilter(match))
-	}
-	if err := x.promRegisterer().Register(monitorprom.NewCollector(m, opts...)); err != nil {
-		x.callFatalf("link monitor metrics: %v", err)
-		return
+	for _, collector := range exposure.collectors(m) {
+		if err := x.promRegisterer().Register(collector); err != nil {
+			x.callFatalf("link monitor metrics: %v", err)
+			return
+		}
 	}
 	x.linkMonitor = m
 	if x.debugLevel > 10 {
-		log.Printf("initLinkMonitor: enabled baseline:%s all_metrics:%t", cfg.BaselineFile, match == nil)
+		log.Printf("initLinkMonitor: enabled baseline:%s mode:%s all_metrics:%t summary:%t", cfg.BaselineFile, cfg.CollectionMode, exposure.all, !exposure.all && exposure.match == nil)
 	}
 }
 
