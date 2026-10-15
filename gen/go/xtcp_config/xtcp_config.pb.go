@@ -1187,10 +1187,10 @@ type XtcpConfig struct {
 	// Library-backed destinations (kafka, nsq, nats, valkey) ignore this
 	// flag — they continue to use their own client sockets unchanged.
 	IoUring bool `protobuf:"varint,22,opt,name=io_uring,json=ioUring,proto3" json:"io_uring,omitempty"`
-	// Number of recvmsg SQEs kept in flight per Netlinker ring. Higher
-	// values reduce io_uring_enter syscalls per dump cycle on hosts with
-	// many sockets, at the cost of more pinned buffers from packet pool.
-	// Ignored unless io_uring=true. Default 64.
+	// Number of receive buffers in each socket's io_uring buffer ring,
+	// rounded up to a power of two. Each holds one packet; with all in
+	// use, the multishot recv pauses until they are recycled. Ignored
+	// unless io_uring=true. Default 64.
 	IoUringRecvBatchSize uint32 `protobuf:"varint,23,opt,name=io_uring_recv_batch_size,json=ioUringRecvBatchSize,proto3" json:"io_uring_recv_batch_size,omitempty"`
 	// Maximum CQEs reaped per PeekBatchCQE call. Larger batches amortise
 	// userland loop overhead but increase scheduling latency for the

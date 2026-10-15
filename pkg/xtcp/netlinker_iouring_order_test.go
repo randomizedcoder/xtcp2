@@ -6,6 +6,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
 // TestIoUringReceiveOrder pins what the dump accounting relies on: the
@@ -18,20 +20,24 @@ import (
 // prefix of zeros, which packetHasDone reads as an nlmsg_len of 0 and
 // stops at. Packets are written in bursts onto an idle socket, the case
 // where single-shot recvmsg CQEs were seen out of order (every recv armed,
-// then a burst wakes them all).
+// then a burst wakes them all). With fewer ring buffers than a burst, the
+// multishot recv runs out (ENOBUFS) and is re-armed mid-burst.
 func TestIoUringReceiveOrder(t *testing.T) {
 	const rounds = 2000
 	tests := []struct {
-		description string
-		size        int
-		burst       int
-		expected    int // packets received out of order
+		description    string
+		size           int
+		burst          int
+		recvBufs       uint32 // ring buffers; 0 is the default
+		expected       int    // packets received out of order
+		expectedNoBufs bool   // the recv ran out of buffers and was re-armed
 	}{
 		{description: "boundary: one packet per burst", size: 32, burst: 1, expected: 0},
 		{description: "positive: small packets, bursts of 2", size: 32, burst: 2, expected: 0},
 		{description: "positive: small packets, bursts of 6", size: 32, burst: 6, expected: 0},
 		{description: "positive: dump-sized packets, bursts of 2", size: 40000, burst: 2, expected: 0},
 		{description: "corner: dump-sized packets, bursts of 6 (more than the socket buffer holds at once)", size: 40000, burst: 6, expected: 0},
+		{description: "corner: one ring buffer, bursts of 6: re-armed after every ENOBUFS, still in order", size: 32, burst: 6, recvBufs: 1, expected: 0, expectedNoBufs: true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
@@ -42,6 +48,7 @@ func TestIoUringReceiveOrder(t *testing.T) {
 				return &b
 			})
 			x.config.NlTimeoutMilliseconds = 50
+			x.config.IoUringRecvBatchSize = tc.recvBufs
 			readFD, writeFD, _ := makeSocketPair(t)
 
 			ctx, cancel := context.WithCancel(context.Background())
@@ -88,6 +95,10 @@ func TestIoUringReceiveOrder(t *testing.T) {
 			}
 			if got != tc.expected {
 				t.Errorf("%d of %d packets out of order, expected %d", got, seq, tc.expected)
+			}
+			noBufs := testutil.ToFloat64(x.pC.WithLabelValues("NetlinkerIoUring", "NoBufs", "count"))
+			if (noBufs > 0) != tc.expectedNoBufs {
+				t.Errorf("NoBufs = %v, expected some: %v", noBufs, tc.expectedNoBufs)
 			}
 		})
 	}

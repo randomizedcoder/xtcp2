@@ -4,8 +4,8 @@
 //
 //	netlinkerSyscall  — the synchronous syscall.Recvfrom path: one
 //	                    receiver per socket plus a pool of decoders.
-//	netlinkerIoUring  — opt-in io_uring path with batched recvmsg SQEs,
-//	                    one ring goroutine per netlinker.
+//	netlinkerIoUring  — the opt-in io_uring path: one ring per socket
+//	                    with a multishot recv, feeding the same decoders.
 //
 // Selection happens at init time from config.IoUring. Same dispatch
 // pattern as Marshaller/Destination (sync.Map of closures + chosen
@@ -369,7 +369,7 @@ func nlmsgAlign(l int) int {
 // putPacketBuffer restores the slice header to full capacity before
 // returning it to the pool. (*packetBuffer)[:0] would Put a zero-length
 // slice — a later Get would call syscall.Recvfrom on it, which panics on
-// &p[0] when len(p)==0. iouringPrefillRecvs (netlinker_iouring.go) also
+// &p[0] when len(p)==0. handleRecvCQE (netlinker_iouring.go) also
 // restores cap on Get as a defensive measure.
 func (x *XTCP) putPacketBuffer(packetBuffer *[]byte) {
 	*packetBuffer = (*packetBuffer)[:cap(*packetBuffer)]

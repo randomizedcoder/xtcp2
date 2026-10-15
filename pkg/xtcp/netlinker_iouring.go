@@ -85,19 +85,23 @@ func (x *XTCP) iouringRecordWaitErr(fd int, werr error) {
 }
 
 // iouringProcessResults dispatches each CQE in results to either the
-// recv-CQE handler (which also refills the slot) or the send-CQE
-// handler.
-func (x *XTCP) iouringProcessResults(ring *xio.Ring, fd int, packetCh chan<- dumpPacket, tracker *dumpTracker, results []xio.Result) {
+// recv-CQE handler, which copies the packet out so its buffer can go back
+// to the kernel, or the send-CQE handler. It reports whether a recv CQE
+// came without More: that was the multishot recv's last, so the caller
+// arms it again.
+func (x *XTCP) iouringProcessResults(ring *xio.Ring, fd int, packetCh chan<- dumpPacket, tracker *dumpTracker, results []xio.Result) (recvEnded bool) {
 	for _, res := range results {
 		switch res.Op {
-		case xio.OpRead:
+		case xio.OpRecvMultishot:
 			x.handleRecvCQE(fd, res, packetCh, tracker)
-			if rerr := x.iouringPrefillRecvs(ring, fd, 1); rerr != nil {
-				x.pC.WithLabelValues("NetlinkerIoUring", "Refill", "error").Inc()
-				if x.debugLevel > 10 {
-					log.Printf("netlinkerIoUring fd:%d refill err: %v", fd, rerr)
-				}
+			if res.Data != nil {
+				ring.RecycleRecvBuf(res.BufID)
 			}
+			if !res.More {
+				recvEnded = true
+			}
+		case xio.OpCancel:
+			// Only Close cancels, and it doesn't hand CQEs here.
 		default:
 			// Send CQEs (OpSendUDP/OpSendUnix/OpSendUnixGram) only come
 			// back on a ring that a destination enqueued on (see
@@ -108,6 +112,7 @@ func (x *XTCP) iouringProcessResults(ring *xio.Ring, fd int, packetCh chan<- dum
 			x.handleSendCQE(res)
 		}
 	}
+	return recvEnded
 }
 
 // maybeForceGCIoUring fires runtime.GC every forceGCModulesCst packets.
@@ -149,19 +154,19 @@ func (x *XTCP) netlinkersIoUring(ctx context.Context, wg *sync.WaitGroup, nsName
 	x.pC.WithLabelValues("NetlinkerIoUring", "complete", "count").Inc()
 }
 
-// netlinkerIoUring is the io_uring receiver for one socket. It keeps a
-// configurable batch of recvmsg SQEs in flight on fd, drains CQEs as they
-// arrive, numbers each packet per dump (dumpTracker), hands it to the
-// decoders through packetCh, and refills the slot. It closes packetCh on
-// return, which stops the decoders once they've drained it.
+// netlinkerIoUring is the io_uring receiver for one socket. It keeps one
+// multishot recv armed on fd, receiving into the ring's provided buffers,
+// copies each packet into a packetBufferPool buffer, gives the ring
+// buffer straight back to the kernel, numbers the packet per dump
+// (dumpTracker) and hands it to the decoders through packetCh. It closes
+// packetCh on return, which stops the decoders once they've drained it.
 //
-// Numbering in CQE order relies on CQEs arriving in the order the kernel
-// queued the packets. They do on one ring with single-shot recvmsg: each
-// recvmsg dequeues its packet and posts its CQE in one step, on this
-// ring's task (DEFER_TASKRUN, no SQPOLL, no IOSQE_ASYNC), so the dequeues
-// and the CQEs happen in the same order. A multishot recv would make that
-// a documented guarantee; the dump tests and envelopePostFlushDrop would
-// show it breaking.
+// Numbering in CQE order needs the CQEs in the order the socket queued
+// the packets. One multishot recv posts them in that order: it is a
+// single request, dequeuing one packet per CQE. Several single-shot
+// recvmsg SQEs don't: armed on an idle socket, a burst wakes them all and
+// their CQEs can swap (TestIoUringReceiveOrder), which counted packets
+// into the wrong dump and dropped their records after the flush.
 //
 // Periodic xtcp polling means the loop is mostly idle between dump
 // cycles. WaitCQETimeout caps each wait at config.NlTimeoutMilliseconds
@@ -187,6 +192,7 @@ func (x *XTCP) netlinkerIoUring(ctx context.Context, nsName *string, fd int, pac
 	ring, err := xio.New(xio.Config{
 		RecvBatchSize: batch,
 		CQEBatchSize:  cqeBatch,
+		RecvBufSize:   x.packetBufferSize(),
 	})
 	if err != nil {
 		// Log + return rather than log.Fatalf: in production Fatalf exits
@@ -200,15 +206,12 @@ func (x *XTCP) netlinkerIoUring(ctx context.Context, nsName *string, fd int, pac
 		x.onRingClosedResult(res)
 	})
 
-	// Pre-fill the SQ with `batch` recvmsg SQEs from the pool. Each one
-	// gets pinned in the ring's in-flight map; the kernel will fill them
-	// as netlink datagrams arrive.
-	if perr := x.iouringPrefillRecvs(ring, fd, batch); perr != nil {
-		// Demoted from log.Fatalf: a single namespace's prefill failure
-		// shouldn't kill the whole daemon (gRPC services, poller, every
-		// other namespace's netlinkers). Log + return so the deferred
-		// ring.Close + close(packetCh) + UnlockOSThread fire normally.
-		log.Printf("netlinkerIoUring fd:%d prefill: %v", fd, perr)
+	if aerr := x.iouringArmRecv(ring, fd); aerr != nil {
+		// A single namespace's failure shouldn't kill the whole daemon
+		// (gRPC services, poller, every other namespace's netlinkers).
+		// Log + return so the deferred ring.Close + close(packetCh) +
+		// UnlockOSThread fire normally.
+		log.Printf("netlinkerIoUring fd:%d arm recv: %v", fd, aerr)
 		return
 	}
 	if _, serr := ring.Submit(); serr != nil {
@@ -220,36 +223,50 @@ func (x *XTCP) netlinkerIoUring(ctx context.Context, nsName *string, fd int, pac
 	nlTimeout := iouringResolveTimeout(x.config.NlTimeoutMilliseconds)
 
 	tracker := newDumpTracker()
+	armed := true
 	packets := uint64(0)
 	for !x.checkDoneNonBlocking(ctx) {
+		if !armed {
+			// A failed arm is retried after the next wait times out.
+			x.pC.WithLabelValues("NetlinkerIoUring", "Rearm", "count").Inc()
+			armed = x.iouringArmRecv(ring, fd) == nil
+			if _, serr := ring.Submit(); serr != nil {
+				x.pC.WithLabelValues("NetlinkerIoUring", "Submit", "error").Inc()
+			}
+		}
 		results, werr := x.iouringWaitWithTimeout(ring, nlTimeout)
 		if werr != nil {
 			x.iouringRecordWaitErr(fd, werr)
 			continue
 		}
-		x.iouringProcessResults(ring, fd, packetCh, tracker, results)
-		if _, serr := ring.Submit(); serr != nil {
-			x.pC.WithLabelValues("NetlinkerIoUring", "Submit", "error").Inc()
+		if x.iouringProcessResults(ring, fd, packetCh, tracker, results) {
+			armed = false
 		}
 		packets++
 		x.maybeForceGCIoUring(packets)
 	}
 }
 
-// iouringPrefillRecvs gets n buffers from packetBufferPool and submits
-// one recvmsg SQE per buffer. Each buffer is pinned in the ring's
-// in-flight map until its CQE fires.
-func (x *XTCP) iouringPrefillRecvs(ring *xio.Ring, fd int, n int) error {
-	for i := 0; i < n; i++ {
-		buf := x.packetBufferPool.Get()
-		// Restore full capacity so the kernel sees a writable buffer.
-		*buf = (*buf)[:cap(*buf)]
-		if _, err := ring.EnqueueRecvMsg(fd, buf); err != nil {
-			x.packetBufferPool.Put(buf)
-			return err
+// iouringArmRecv enqueues the multishot recv on fd; the caller submits
+// it. A failure is counted and returned.
+func (x *XTCP) iouringArmRecv(ring *xio.Ring, fd int) error {
+	if _, err := ring.EnqueueRecvMultishot(fd); err != nil {
+		x.pC.WithLabelValues("NetlinkerIoUring", "Arm", "error").Inc()
+		if x.debugLevel > 10 {
+			log.Printf("netlinkerIoUring fd:%d arm recv: %v", fd, err)
 		}
+		return err
 	}
 	return nil
+}
+
+// packetBufferSize is the size of packetBufferPool's buffers, and so of
+// the io_uring ring's receive buffers.
+func (x *XTCP) packetBufferSize() int {
+	buf := x.packetBufferPool.Get()
+	n := cap(*buf)
+	x.packetBufferPool.Put(buf)
+	return n
 }
 
 // iouringWaitWithTimeout wraps WaitCQETimeout + DrainBatch.
@@ -289,42 +306,46 @@ func isETimeError(err error) bool {
 	return false
 }
 
-// handleRecvCQE hands a received packet to the decoders, numbered by
-// tracker, or on a recv error counts it and returns the buffer to the pool.
-// A decoder returns the buffer of a packet it's handed.
+// handleRecvCQE copies a received packet into a packetBufferPool buffer
+// and hands it to the decoders, numbered by tracker, or counts a recv
+// error. A decoder returns the buffer of a packet it's handed; the caller
+// recycles res.Data's ring buffer.
 func (x *XTCP) handleRecvCQE(fd int, res xio.Result, packetCh chan<- dumpPacket, tracker *dumpTracker) {
 	x.pC.WithLabelValues("NetlinkerIoUring", "recv", "count").Inc()
 	if res.Res < 0 {
 		// CQE result is -errno on error.
 		errno := syscall.Errno(-res.Res)
-		if isTimeoutErrno(errno) {
+		switch {
+		case errno == syscall.ENOBUFS:
+			// Every ring buffer was in use; the packets wait in the
+			// socket for the re-armed recv.
+			x.pC.WithLabelValues("NetlinkerIoUring", "NoBufs", "count").Inc()
+		case isTimeoutErrno(errno):
 			x.pC.WithLabelValues("NetlinkerIoUring", "Timeout", "count").Inc()
-		} else {
+		default:
 			x.pC.WithLabelValues("NetlinkerIoUring", "RecvErr", "count").Inc()
 			if x.debugLevel > 10 {
 				log.Printf("netlinkerIoUring fd:%d recv err: %v", fd, errno)
 			}
 		}
-		if res.Buf != nil {
-			x.putPacketBuffer(res.Buf)
-		}
 		return
 	}
 
-	n := int(res.Res)
-	x.pC.WithLabelValues("NetlinkerIoUring", "packets", "count").Inc()
-	x.pC.WithLabelValues("NetlinkerIoUring", "n", "count").Add(float64(n))
-
-	// If drainOnce couldn't match the CQE to an in-flight entry (e.g.
-	// post-Close stragglers, or — at >2^32 SQEs — a request-ID wrap
-	// collision), res.Buf is nil. Dereferencing it would panic. Count
-	// the orphan and skip; the buffer was never ours to return.
-	if res.Buf == nil {
+	// A success CQE that took no ring buffer: a zero-length recv, or a
+	// CQE drainOnce couldn't match. There's no packet to hand over.
+	if res.Data == nil {
 		x.pC.WithLabelValues("NetlinkerIoUring", "OrphanCQE", "error").Inc()
 		return
 	}
 
-	packetCh <- dumpPacket{buf: res.Buf, n: n, dump: tracker.assign((*res.Buf)[:n])}
+	n := len(res.Data)
+	x.pC.WithLabelValues("NetlinkerIoUring", "packets", "count").Inc()
+	x.pC.WithLabelValues("NetlinkerIoUring", "n", "count").Add(float64(n))
+
+	buf := x.packetBufferPool.Get()
+	*buf = (*buf)[:cap(*buf)]
+	n = copy(*buf, res.Data)
+	packetCh <- dumpPacket{buf: buf, n: n, dump: tracker.assign((*buf)[:n])}
 }
 
 // handleSendCQE records the outcome of an io_uring destination write.
@@ -346,18 +367,16 @@ func (x *XTCP) handleSendCQE(res xio.Result) {
 }
 
 // onRingClosedResult is called for each CQE drained during ring.Close —
-// returns leftover buffers to their pools.
-func (x *XTCP) onRingClosedResult(res xio.Result) {
+// returns leftover send buffers to destBytesPool. Recv CQEs carry no pool
+// buffer (their Data is in the ring's own buffers), and a packet still
+// arriving at teardown is dropped with its dump. It reports whether it
+// put a buffer back, for the tests.
+func (x *XTCP) onRingClosedResult(res xio.Result) (put bool) {
 	if res.Buf == nil {
-		return
+		return false
 	}
-	switch res.Op {
-	case xio.OpRead:
-		*res.Buf = (*res.Buf)[:cap(*res.Buf)]
-		x.packetBufferPool.Put(res.Buf)
-	default:
-		x.destBytesPool.Put(res.Buf)
-	}
+	x.destBytesPool.Put(res.Buf)
+	return true
 }
 
 func opLabel(op xio.Operation) string {

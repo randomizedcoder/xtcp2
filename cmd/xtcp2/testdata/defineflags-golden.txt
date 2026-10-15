@@ -24,9 +24,9 @@ grpcUnixSocketMode	384	gRPC Unix socket file mode, e.g. 0600 or 0660. Falls back
 grpcUnlinkStaleUnixSocket	true	remove an existing stale gRPC Unix socket before binding. Falls back to GRPC_UNLINK_STALE_UNIX_SOCKET env.
 healthcheck	false	probe the local /readyz endpoint and exit 0 (ready) / 1 (not ready or unreachable), then exit WITHOUT starting the daemon. For a container HEALTHCHECK on the scratch image (no shell/curl); uses -promListen / PROM_LISTEN to find the port.
 hostname		hostname stamped on records; defaults to os.Hostname(). Set this in a container, where os.Hostname() returns the container id, not the host. Falls back to XTCP_HOSTNAME env (NOT HOSTNAME).
-ioUring	false	Opt in to io_uring for netlink reads and raw-socket destination writes (Linux 6.1+)
+ioUring	false	Opt in to io_uring for netlink reads, one multishot recv per socket (Linux 6.1+). Destination writes stay syscalls
 ioUringCqeBatch	128	io_uring max CQEs reaped per PeekBatchCQE call (1-4096)
-ioUringRecvBatch	64	io_uring recvmsg SQEs kept in flight per Netlinker (1-4096). Higher reduces syscalls on high-fanout hosts.
+ioUringRecvBatch	64	io_uring receive buffers per socket, rounded up to a power of two (1-4096). Each holds one packet; with all in use, receiving pauses until they are recycled.
 ipmetaBootstrapPath	/share/xtcp2/ipmeta/bootstrap.lookup.parquet.zst	optional zstd-compressed lookup artifact baked into the image and used by -enrichAsn before live refresh. Falls back to IPMETA_BOOTSTRAP_PATH env.
 ipmetaCachePath	/var/lib/xtcp2/ipmeta/current.lookup.parquet.zst	optional writable zstd-compressed lookup artifact used by -enrichAsn before the image bootstrap and refreshed after successful live reloads. Falls back to IPMETA_CACHE_PATH env.
 ipv4Ttl	0	outgoing IPv4 TTL for xtcp2's TCP listeners (Prometheus + gRPC); 0 = kernel default. A low value keeps replies from traveling far if the host is internet-exposed. Falls back to IPV4_TTL env.
