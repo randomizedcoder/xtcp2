@@ -64,7 +64,7 @@ marshal	protobufList	Marshaling of the exported data (protobufList, protoJson, p
 maxLoops	0	Maximum number of loops, or zero (0) for forever
 maxThreads	2000	cap on Go runtime OS threads (debug.SetMaxThreads); 0 = use Go default 10000
 modulus	1	modulus. Report every X inetd messages to output
-netlinkers	4	netlinkers which read netlink messages from each socket. increase this if you have many flows
+netlinkers	2	decoders per socket that parse netlink dump packets (one receiver reads each socket). increase this if you have many flows
 nlmsgSeq	666	nlmsgSeq sequence number (start), which should be uint32
 nltimeout	1000	Netlink socket timeout in milliseconds.  Zero(0) for no timeout
 packetSize	0	netlinker packetSize.  buffer size = packetSize * packetSizeMply. Use zero (0) for syscall.Getpagesize()
