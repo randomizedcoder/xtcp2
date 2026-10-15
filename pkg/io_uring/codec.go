@@ -21,7 +21,7 @@ package io_uring
 type Operation uint8
 
 const (
-	// OpRead — a recvmsg SQE submitted against the netlink fd.
+	// OpRead — a recvmsg SQE (EnqueueRecvMsg).
 	OpRead Operation = 0
 	// OpSendUDP — a send SQE submitted against the udp dest fd.
 	OpSendUDP Operation = 1
@@ -30,6 +30,11 @@ const (
 	OpSendUnix Operation = 2
 	// OpSendUnixGram — a send SQE submitted against the unixgram dest fd.
 	OpSendUnixGram Operation = 3
+	// OpRecvMultishot — a multishot recv SQE against the netlink fd,
+	// receiving into the ring's provided buffers (EnqueueRecvMultishot).
+	OpRecvMultishot Operation = 4
+	// OpCancel — the async-cancel SQE Close submits for a multishot recv.
+	OpCancel Operation = 5
 )
 
 // EncodedRequest is the in-memory representation of a CQE userdata.

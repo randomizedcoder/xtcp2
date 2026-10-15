@@ -558,8 +558,8 @@ func defineRuntimeFlags(f *mainFlags) {
 	f.pyroscopeAppName = flag.String("pyroscopeAppName", pyroscopeAppNameCst, "Application name registered with Pyroscope. Falls back to PYROSCOPE_APP_NAME env.")
 	f.pyroscopeSampleHz = flag.Uint("pyroscopeSampleHz", pyroscopeSampleHzCst, "CPU sampling rate in Hz fed to runtime.SetCPUProfileRate.")
 	f.pyroscopeUploadSec = flag.Uint("pyroscopeUploadSec", pyroscopeUploadSecCst, "Seconds between batched profile uploads to Pyroscope.")
-	f.ioUring = flag.Bool("ioUring", false, "Opt in to io_uring for netlink reads and raw-socket destination writes (Linux 6.1+)")
-	f.ioUringRecvBatch = flag.Uint("ioUringRecvBatch", 64, "io_uring recvmsg SQEs kept in flight per Netlinker (1-4096). Higher reduces syscalls on high-fanout hosts.")
+	f.ioUring = flag.Bool("ioUring", false, "Opt in to io_uring for netlink reads, one multishot recv per socket (Linux 6.1+). Destination writes stay syscalls")
+	f.ioUringRecvBatch = flag.Uint("ioUringRecvBatch", 64, "io_uring receive buffers per socket, rounded up to a power of two (1-4096). Each holds one packet; with all in use, receiving pauses until they are recycled.")
 	f.ioUringCqeBatch = flag.Uint("ioUringCqeBatch", 128, "io_uring max CQEs reaped per PeekBatchCQE call (1-4096)")
 }
 

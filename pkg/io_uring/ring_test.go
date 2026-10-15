@@ -53,9 +53,9 @@ func newTestRing(t testing.TB, recvBatch int) *Ring {
 
 	r, err := New(Config{RecvBatchSize: recvBatch, CQEBatchSize: 32})
 	if err != nil {
-		// Probe failure / kernel-too-old / io_uring disabled — skip so
-		// CI on older kernels doesn't fail the suite.
-		t.Skipf("io_uring not available on this kernel: %v", err)
+		// Probe failure / kernel-too-old / io_uring disabled: skip, unless
+		// XTCP2_REQUIRE_IOURING=1 (the nix test derivations) makes it fail.
+		skipNoIoUring(t, err)
 	}
 	t.Cleanup(func() {
 		r.Close(100*time.Millisecond, nil)
@@ -342,7 +342,7 @@ func TestTeardownDrainsCleanly(t *testing.T) {
 
 	r, err := New(Config{RecvBatchSize: 4, CQEBatchSize: 8})
 	if err != nil {
-		t.Skipf("io_uring not available: %v", err)
+		skipNoIoUring(t, err)
 	}
 	srv, cli := socketpair(t)
 
@@ -374,7 +374,7 @@ func TestTeardownReleasesUnacknowledgedBuffers(t *testing.T) {
 
 	r, err := New(Config{RecvBatchSize: 4, CQEBatchSize: 8})
 	if err != nil {
-		t.Skipf("io_uring not available: %v", err)
+		skipNoIoUring(t, err)
 	}
 	srv, cli := socketpair(t)
 	_ = srv // we never write — the recv is intentionally never satisfied

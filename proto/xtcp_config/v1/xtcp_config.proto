@@ -606,10 +606,10 @@ message XtcpConfig {
 		(buf.validate.field).required = false
 	];
 
-	// Number of recvmsg SQEs kept in flight per Netlinker ring. Higher
-	// values reduce io_uring_enter syscalls per dump cycle on hosts with
-	// many sockets, at the cost of more pinned buffers from packet pool.
-	// Ignored unless io_uring=true. Default 64.
+	// Number of receive buffers in each socket's io_uring buffer ring,
+	// rounded up to a power of two. Each holds one packet; with all in
+	// use, the multishot recv pauses until they are recycled. Ignored
+	// unless io_uring=true. Default 64.
 	uint32 io_uring_recv_batch_size                   = 23 [
 		(buf.validate.field).required = false,
 		(buf.validate.field).uint32 = {

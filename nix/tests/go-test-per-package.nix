@@ -111,6 +111,9 @@ let
         export HOME=$(mktemp -d)
         export CGO_ENABLED=${if race then "1" else "0"}
         export GOFLAGS=-mod=vendor
+        # io_uring tests fail instead of skipping when the build host can't
+        # create a ring (skipNoIoUring in pkg/xtcp and pkg/io_uring).
+        export XTCP2_REQUIRE_IOURING=1
 
         mkdir -p $out
         set +e

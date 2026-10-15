@@ -625,7 +625,7 @@
         "ioUringRecvBatchSize": {
           "type": "integer",
           "format": "int64",
-          "description": "Number of recvmsg SQEs kept in flight per Netlinker ring. Higher\nvalues reduce io_uring_enter syscalls per dump cycle on hosts with\nmany sockets, at the cost of more pinned buffers from packet pool.\nIgnored unless io_uring=true. Default 64."
+          "description": "Number of receive buffers in each socket's io_uring buffer ring,\nrounded up to a power of two. Each holds one packet; with all in\nuse, the multishot recv pauses until they are recycled. Ignored\nunless io_uring=true. Default 64."
         },
         "ioUringCqeBatchSize": {
           "type": "integer",

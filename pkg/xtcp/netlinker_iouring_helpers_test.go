@@ -223,9 +223,9 @@ func TestIouringHelpers_concurrent(t *testing.T) {
 				_ = iouringResolveTimeout(uint64(j))
 				x.maybeForceGCIoUring(uint64(i*j) * uint64(forceGCModulesCst))
 				if j%3 == 0 {
-					x.iouringRecordWaitErr(uint32(i), syscall.ETIME)
+					x.iouringRecordWaitErr(i, syscall.ETIME)
 				} else {
-					x.iouringRecordWaitErr(uint32(i), errors.New("nope"))
+					x.iouringRecordWaitErr(i, errors.New("nope"))
 					totalErrs.Add(1)
 				}
 			}

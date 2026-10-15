@@ -23,7 +23,7 @@ This project is a complete rewrite of the original [xtcp](https://github.com/ran
 - **Build-tagged destinations.** Heavy client libraries (Kafka, NATS, NSQ, Valkey) are gated behind `//go:build dest_<scheme>` tags so you can compile a slim binary with only the destinations you need. The stdlib destinations (`null`, `udp`, `unix`, `unixgram`) are always compiled in. See [build flavors](build-flavors.md).
 - **Pooled allocations.** Packet buffers, netlink headers, and protobuf `Envelope` / `XtcpFlatRecord` messages are recycled through type-safe `sync.Pool` wrappers (`pkg/xsync`) to keep GC pressure low under high socket counts.
 - **Parallelism per namespace.** Each namespace gets multiple netlink readers (`-netlinkers`) so a host with many flows isn't bottlenecked on a single goroutine.
-- **Optional `io_uring`.** On Linux 6.1+ an opt-in `io_uring` path batches netlink `recvmsg` and raw-socket writes to cut syscall overhead.
+- **Optional `io_uring`.** On Linux 6.1+ an opt-in `io_uring` path reads netlink with one multishot recv per socket, reaping completions in batches.
 - **Fail fast and loud.** The daemon verifies its Linux capabilities at startup and refuses to run (with a precise message) when a hard requirement is missing.
 
 ## Core features

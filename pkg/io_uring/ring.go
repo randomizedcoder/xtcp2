@@ -31,19 +31,30 @@ const setupFlags uint32 = giouring.SetupSingleIssuer |
 // Centralized here so the panic message and the probe check stay in sync.
 var requiredOps = []uint8{
 	giouring.OpRecvmsg,
+	giouring.OpRecv,
+	giouring.OpAsyncCancel,
 	giouring.OpSend,
 	giouring.OpWritev,
 }
 
 // Config tunes the ring's queue depths.
 type Config struct {
-	// RecvBatchSize is the number of recvmsg SQEs we keep in flight.
-	// Higher reduces syscalls per dump cycle on high-fanout hosts at the
-	// cost of pinned packet-pool buffers.
+	// RecvBatchSize sizes the queues, and with RecvBufSize is the number
+	// of provided receive buffers (rounded up to a power of two).
 	RecvBatchSize int
 	// CQEBatchSize bounds each PeekBatchCQE call.
 	CQEBatchSize int
+	// RecvBufSize, when > 0, gives the ring a provided-buffer ring for
+	// EnqueueRecvMultishot: RecvBatchSize buffers (rounded up to a power
+	// of two) of RecvBufSize bytes each.
+	RecvBufSize int
 }
+
+// recvBufGroup is the buffer group ID of the ring's provided buffers.
+const recvBufGroup = 0
+
+// maxRecvBufs is the kernel's limit on entries in one buffer ring.
+const maxRecvBufs = 1 << 15
 
 // Result is what a drainer hands back to the netlinker for one CQE.
 type Result struct {
@@ -59,6 +70,17 @@ type Result struct {
 	// HdrBytes is the small per-send header for OpSendUnix (varint prefix);
 	// the caller doesn't need to do anything with it — the Ring owns it.
 	HdrBytes []byte
+	// More is set when the request stays armed and will post more CQEs
+	// (IORING_CQE_F_MORE, multishot only). A multishot recv CQE without
+	// it is the request's last; the caller re-arms it.
+	More bool
+	// Data is the received packet, for a CQE that consumed one of the
+	// ring's provided buffers (IORING_CQE_F_BUFFER). It aliases that
+	// buffer: the caller copies what it needs, then hands BufID to
+	// RecycleRecvBuf. Nil otherwise.
+	Data []byte
+	// BufID is the provided buffer Data is in.
+	BufID uint16
 }
 
 // inFlight tracks every SQE we've submitted but whose CQE hasn't arrived.
@@ -87,6 +109,15 @@ type Ring struct {
 	nextReqID   uint32
 	inFlight    map[uint32]inFlight
 	inFlightCap int
+
+	// The provided-buffer ring (Config.RecvBufSize > 0): bufRingMem is
+	// the mmap'd ring the kernel takes buffers from, recvBufs the
+	// buffers themselves, recvBufCount of them, each recvBufSize bytes.
+	bufRing      *giouring.BufAndRing
+	bufRingMem   []byte
+	recvBufs     []byte
+	recvBufCount int
+	recvBufSize  int
 }
 
 // New creates a Ring sized for the given config. sqEntries is
@@ -123,7 +154,86 @@ func New(cfg Config) (*Ring, error) {
 		inFlight:    make(map[uint32]inFlight, sqEntries),
 		inFlightCap: int(sqEntries) * 2, // generous; refuse to leak unbounded
 	}
+	if cfg.RecvBufSize > 0 {
+		if err := r.setupRecvBufs(cfg.RecvBatchSize, cfg.RecvBufSize); err != nil {
+			g.QueueExit()
+			return nil, err
+		}
+	}
 	return r, nil
+}
+
+// recvBufCountFor rounds n up to the power of two a buffer ring needs,
+// capped at maxRecvBufs.
+func recvBufCountFor(n int) int {
+	c := 1
+	for c < n && c < maxRecvBufs {
+		c <<= 1
+	}
+	return c
+}
+
+// setupRecvBufs registers a provided-buffer ring of n (rounded up to a
+// power of two) buffers of size bytes, all handed to the kernel. The ring
+// memory is mmap'd here, rather than by giouring.SetupBufRing, so Close
+// can unmap it.
+func (r *Ring) setupRecvBufs(n, size int) error {
+	count := recvBufCountFor(n)
+	entrySize := int(unsafe.Sizeof(giouring.BufAndRing{}))
+	mem, err := syscall.Mmap(-1, 0, count*entrySize,
+		syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_ANONYMOUS|syscall.MAP_PRIVATE)
+	if err != nil {
+		return fmt.Errorf("io_uring buffer ring mmap(%d entries): %w", count, err)
+	}
+	br := (*giouring.BufAndRing)(unsafe.Pointer(&mem[0]))
+	reg := giouring.BufReg{
+		RingAddr:    uint64(uintptr(unsafe.Pointer(br))),
+		RingEntries: uint32(count),
+		Bgid:        recvBufGroup,
+	}
+	if _, err := r.r.RegisterBufferRing(&reg, 0); err != nil {
+		if uerr := syscall.Munmap(mem); uerr != nil {
+			err = errors.Join(err, uerr)
+		}
+		return fmt.Errorf("io_uring register buffer ring (Linux 5.19+): %w", err)
+	}
+	br.BufRingInit()
+
+	r.bufRing = br
+	r.bufRingMem = mem
+	r.recvBufs = make([]byte, count*size)
+	r.recvBufCount = count
+	r.recvBufSize = size
+	mask := giouring.BufRingMask(uint32(count))
+	for i := range count {
+		br.BufRingAdd(r.recvBufAddr(uint16(i)), uint32(size), uint16(i), mask, i)
+	}
+	br.BufRingAdvance(count)
+	return nil
+}
+
+// recvBufAddr is the address of provided buffer bid.
+func (r *Ring) recvBufAddr(bid uint16) uintptr {
+	return uintptr(unsafe.Pointer(&r.recvBufs[int(bid)*r.recvBufSize]))
+}
+
+// recvBuf is provided buffer bid.
+func (r *Ring) recvBuf(bid uint16) []byte {
+	off := int(bid) * r.recvBufSize
+	return r.recvBufs[off : off+r.recvBufSize : off+r.recvBufSize]
+}
+
+// RecvBufCount is the number of provided buffers, 0 without a buffer ring.
+func (r *Ring) RecvBufCount() int {
+	return r.recvBufCount
+}
+
+// RecycleRecvBuf gives provided buffer bid back to the kernel. Call it
+// once the Result.Data that aliases it has been copied.
+func (r *Ring) RecycleRecvBuf(bid uint16) {
+	r.bufRing.BufRingAdd(r.recvBufAddr(bid), uint32(r.recvBufSize), bid,
+		giouring.BufRingMask(uint32(r.recvBufCount)), 0)
+	r.bufRing.BufRingAdvance(1)
 }
 
 // requireProbe asks the kernel which opcodes are supported and panics
@@ -226,6 +336,12 @@ func (r *Ring) Close(drainTimeout time.Duration, onDrain func(Result)) {
 	if r == nil || r.r == nil {
 		return
 	}
+	// A multishot recv stays armed until canceled, so the drain below
+	// would otherwise wait out drainTimeout for it. If the cancel can't
+	// be submitted, skip the drain: QueueExit cancels everything.
+	if err := r.cancelMultishot(); err != nil {
+		drainTimeout = 0
+	}
 	deadline := time.Now().Add(drainTimeout)
 	for time.Now().Before(deadline) && len(r.inFlight) > 0 {
 		// First reap anything already arrived (non-blocking).
@@ -251,6 +367,45 @@ func (r *Ring) Close(drainTimeout time.Duration, onDrain func(Result)) {
 	r.r.QueueExit()
 	r.r = nil
 	r.dispatchAbandonedInFlight(onDrain)
+	r.freeRecvBufs()
+}
+
+// cancelMultishot submits an async cancel for each armed multishot recv.
+// Each then posts a final -ECANCELED CQE, which the drain reaps.
+func (r *Ring) cancelMultishot() error {
+	queued := false
+	for reqID, entry := range r.inFlight {
+		if entry.op != OpRecvMultishot {
+			continue
+		}
+		sqe := r.r.GetSQE()
+		if sqe == nil {
+			return errors.New("io_uring.Close: SQ full, can't cancel the multishot recv")
+		}
+		sqe.PrepareCancel64(serialize(EncodedRequest{Operation: OpRecvMultishot, RequestID: reqID}), 0)
+		sqe.SetData64(serialize(EncodedRequest{Operation: OpCancel}))
+		queued = true
+	}
+	if !queued {
+		return nil
+	}
+	_, err := r.r.Submit()
+	return err
+}
+
+// freeRecvBufs unmaps the buffer ring. Only after QueueExit: the ring's
+// teardown unregisters it.
+func (r *Ring) freeRecvBufs() {
+	if r.bufRingMem == nil {
+		return
+	}
+	// Munmap only fails for a mapping syscall.Mmap didn't make.
+	if err := syscall.Munmap(r.bufRingMem); err != nil {
+		panic(fmt.Sprintf("io_uring buffer ring munmap: %v", err))
+	}
+	r.bufRing = nil
+	r.bufRingMem = nil
+	r.recvBufs = nil
 }
 
 // NextRequestID returns a fresh per-ring monotonic counter value.
@@ -285,6 +440,32 @@ func (r *Ring) EnqueueRecvMsg(fd int, buf *[]byte) (uint32, error) {
 	sqe.SetData64(serialize(EncodedRequest{Operation: OpRead, RequestID: reqID}))
 
 	r.inFlight[reqID] = inFlight{op: OpRead, buf: buf, msg: msg, iov: iov}
+	return reqID, nil
+}
+
+// EnqueueRecvMultishot arms one multishot recv on fd that receives into
+// the ring's provided buffers (Config.RecvBufSize). It posts a CQE per
+// packet, in the order the socket queued them, each with More set while
+// it stays armed. Once a CQE comes without More (e.g. -ENOBUFS when every
+// buffer is in use), the caller arms it again.
+func (r *Ring) EnqueueRecvMultishot(fd int) (uint32, error) {
+	if r.bufRing == nil {
+		return 0, errors.New("io_uring.EnqueueRecvMultishot: no buffer ring (Config.RecvBufSize is 0)")
+	}
+	if len(r.inFlight) >= r.inFlightCap {
+		return 0, fmt.Errorf("io_uring in-flight cap exceeded (%d) — SQEs submitted faster than CQEs drained", r.inFlightCap)
+	}
+	sqe := r.r.GetSQE()
+	if sqe == nil {
+		return 0, errors.New("io_uring.EnqueueRecvMultishot: SQ full (GetSQE returned nil)")
+	}
+	sqe.PrepareRecvMultishot(fd, 0, 0, 0)
+	sqe.Flags |= giouring.SqeBufferSelect
+	sqe.BufIG = recvBufGroup
+	reqID := r.NextRequestID()
+	sqe.SetData64(serialize(EncodedRequest{Operation: OpRecvMultishot, RequestID: reqID}))
+
+	r.inFlight[reqID] = inFlight{op: OpRecvMultishot}
 	return reqID, nil
 }
 
@@ -403,16 +584,23 @@ func (r *Ring) drainOnce() ([]Result, int) {
 	for i := uint32(0); i < n; i++ {
 		cqe := r.cqeBuf[i]
 		req := deserialize(cqe.GetData64())
+		more := cqe.Flags&giouring.CQEFMore != 0
 		entry, ok := r.inFlight[req.RequestID]
-		if ok {
+		if ok && !more {
 			delete(r.inFlight, req.RequestID)
 		}
-		out = append(out, Result{
+		res := Result{
 			Op:       req.Operation,
 			Res:      cqe.Res,
 			Buf:      entry.buf,
 			HdrBytes: entry.wvHdr,
-		})
+			More:     more,
+		}
+		if cqe.Flags&giouring.CQEFBuffer != 0 && r.recvBufs != nil {
+			res.BufID = uint16(cqe.Flags >> giouring.CQEBufferShift)
+			res.Data = r.recvBuf(res.BufID)[:max(cqe.Res, 0)]
+		}
+		out = append(out, res)
 	}
 	r.r.CQAdvance(n)
 	return out, int(n)

@@ -4,8 +4,8 @@
 //
 //	netlinkerSyscall  — the synchronous syscall.Recvfrom path: one
 //	                    receiver per socket plus a pool of decoders.
-//	netlinkerIoUring  — opt-in io_uring path with batched recvmsg SQEs,
-//	                    one ring goroutine per netlinker.
+//	netlinkerIoUring  — the opt-in io_uring path: one ring per socket
+//	                    with a multishot recv, feeding the same decoders.
 //
 // Selection happens at init time from config.IoUring. Same dispatch
 // pattern as Marshaller/Destination (sync.Map of closures + chosen
@@ -165,20 +165,29 @@ func (x *XTCP) netlinkerSyscall(ctx context.Context, wg *sync.WaitGroup, nsName 
 		log.Printf("Netlinker started ns:%s fd:%d decoders:%d", *nsName, fd, netlinkers)
 	}
 
-	decoders := max(netlinkers, 1)
-	packetCh := make(chan dumpPacket, decoders)
-
-	var decodersWG sync.WaitGroup
-	for id := range decoders {
-		decodersWG.Add(1)
-		go x.netlinkDecoder(ctx, &decodersWG, packetCh, nsName, inode, fd, id)
-	}
+	packetCh, decodersWG := x.startDecoders(ctx, nsName, inode, fd, netlinkers, "Netlinker")
 
 	x.netlinkReceiver(ctx, packetCh, fd)
 
 	decodersWG.Wait()
 
 	x.pC.WithLabelValues("Netlinker", "complete", "count").Inc()
+}
+
+// startDecoders starts max(netlinkers, 1) netlinkDecoder goroutines for fd
+// and returns the channel the receiver feeds them through. The decoders
+// exit once the receiver closes it; wait on the WaitGroup for that. label
+// is the metrics function label, "Netlinker" or "NetlinkerIoUring".
+func (x *XTCP) startDecoders(ctx context.Context, nsName *string, inode uint64, fd int, netlinkers uint32, label string) (chan dumpPacket, *sync.WaitGroup) {
+	decoders := max(netlinkers, 1)
+	packetCh := make(chan dumpPacket, decoders)
+
+	decodersWG := new(sync.WaitGroup)
+	for id := range decoders {
+		decodersWG.Add(1)
+		go x.netlinkDecoder(ctx, decodersWG, packetCh, nsName, inode, fd, id, label)
+	}
+	return packetCh, decodersWG
 }
 
 // dumpState tracks one dump on one socket, so the done signal goes out
@@ -211,6 +220,31 @@ type dumpPacket struct {
 	dump *dumpState
 }
 
+// dumpTracker is a receiver's position in the current dump. Only the
+// receiver goroutine uses it.
+type dumpTracker struct {
+	dump    *dumpState
+	packets uint64
+}
+
+func newDumpTracker() *dumpTracker {
+	return &dumpTracker{dump: new(dumpState)}
+}
+
+// assign numbers packet b, the next one received, and returns the dump it
+// belongs to. If b holds NLMSG_DONE it stores the dump's total before
+// returning, so before b is handed to a decoder, and the next packet starts
+// a new dump.
+func (t *dumpTracker) assign(b []byte) *dumpState {
+	t.packets++
+	d := t.dump
+	if packetHasDone(b) {
+		d.total.Store(t.packets)
+		t.dump, t.packets = new(dumpState), 0
+	}
+	return d
+}
+
 // netlinkReceiver reads packets from fd until ctx is canceled, numbering
 // them per dump (see dumpState) and sending them to the decoders. It
 // closes packetCh on return, which stops the decoders once they've drained
@@ -221,8 +255,7 @@ func (x *XTCP) netlinkReceiver(ctx context.Context, packetCh chan<- dumpPacket, 
 
 	wf := x.config.WriteFiles
 
-	dump := new(dumpState)
-	var dumpPackets uint64
+	tracker := newDumpTracker()
 
 	for packets := 0; ; packets++ {
 
@@ -250,23 +283,16 @@ func (x *XTCP) netlinkReceiver(ctx context.Context, packetCh chan<- dumpPacket, 
 
 		wf = x.captureToFileIfEnabled(wf, (*packetBuffer)[:n], 0)
 
-		dumpPackets++
-		p := dumpPacket{buf: packetBuffer, n: n, dump: dump}
-		if packetHasDone((*packetBuffer)[:n]) {
-			// Store total before the done packet is handed off; the next
-			// packet starts the next dump.
-			dump.total.Store(dumpPackets)
-			dump, dumpPackets = new(dumpState), 0
-		}
-		packetCh <- p
+		packetCh <- dumpPacket{buf: packetBuffer, n: n, dump: tracker.assign((*packetBuffer)[:n])}
 
 		x.maybeForceGC(packets)
 	}
 }
 
 // netlinkDecoder deserializes packets from packetCh until it's closed,
-// then exits. id is stamped on the records as NetlinkerId.
-func (x *XTCP) netlinkDecoder(ctx context.Context, wg *sync.WaitGroup, packetCh <-chan dumpPacket, nsName *string, inode uint64, fd int, id uint32) {
+// then exits. id is stamped on the records as NetlinkerId; label is the
+// metrics function label.
+func (x *XTCP) netlinkDecoder(ctx context.Context, wg *sync.WaitGroup, packetCh <-chan dumpPacket, nsName *string, inode uint64, fd int, id uint32, label string) {
 
 	defer wg.Done()
 
@@ -294,9 +320,9 @@ func (x *XTCP) netlinkDecoder(ctx context.Context, wg *sync.WaitGroup, packetCh 
 				id:             id,
 			})
 		if errD != nil {
-			x.pC.WithLabelValues("Netlinker", "ParseNLPacket", "error").Inc()
+			x.pC.WithLabelValues(label, "ParseNLPacket", "error").Inc()
 		} else {
-			x.pC.WithLabelValues("Netlinker", "p", "count").Add(float64(records))
+			x.pC.WithLabelValues(label, "p", "count").Add(float64(records))
 			x.logProcessedDebug(id, packets, p.n, records, fd)
 		}
 
@@ -343,7 +369,7 @@ func nlmsgAlign(l int) int {
 // putPacketBuffer restores the slice header to full capacity before
 // returning it to the pool. (*packetBuffer)[:0] would Put a zero-length
 // slice — a later Get would call syscall.Recvfrom on it, which panics on
-// &p[0] when len(p)==0. iouringPrefillRecvs (netlinker_iouring.go) also
+// &p[0] when len(p)==0. handleRecvCQE (netlinker_iouring.go) also
 // restores cap on Get as a defensive measure.
 func (x *XTCP) putPacketBuffer(packetBuffer *[]byte) {
 	*packetBuffer = (*packetBuffer)[:cap(*packetBuffer)]

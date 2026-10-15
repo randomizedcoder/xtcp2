@@ -61,12 +61,9 @@ func newUnixDest(ctx context.Context, x *XTCP) (Destination, error) {
 }
 
 func (d *unixDest) Send(ctx context.Context, b *[]byte) (int, error) {
-	if d.x.config.IoUring {
-		ring := ringFromContext(ctx)
-		if ring == nil {
-			d.x.pC.WithLabelValues("destUnixIoUring", "noRing", "error").Inc()
-			return 0, errNoRingInCtx
-		}
+	// With no ring on this goroutine (see ringCtxKey), fall through to the
+	// syscall write.
+	if ring := ringFromContext(ctx); d.x.config.IoUring && ring != nil {
 		// Same varint framing as the syscall path, but delivered atomically
 		// as a single writev SQE so the daemon receiver sees one frame per
 		// record with no chance of partial-write interleaving.

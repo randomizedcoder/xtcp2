@@ -57,12 +57,9 @@ func newUnixGramDest(ctx context.Context, x *XTCP) (Destination, error) {
 }
 
 func (d *unixgramDest) Send(ctx context.Context, b *[]byte) (int, error) {
-	if d.x.config.IoUring {
-		ring := ringFromContext(ctx)
-		if ring == nil {
-			d.x.pC.WithLabelValues("destUnixGramIoUring", "noRing", "error").Inc()
-			return 0, errNoRingInCtx
-		}
+	// With no ring on this goroutine (see ringCtxKey), fall through to the
+	// syscall write.
+	if ring := ringFromContext(ctx); d.x.config.IoUring && ring != nil {
 		if _, err := ring.EnqueueSend(d.fd, b, xio.OpSendUnixGram); err != nil {
 			d.x.pC.WithLabelValues("destUnixGramIoUring", "EnqueueSend", "error").Inc()
 			if d.x.debugLevel > 100 {

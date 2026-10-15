@@ -21,6 +21,7 @@
 - [Fix directions](#fix-directions)
 - [Test-first plan](#test-first-plan)
 - [The fix and its results](#the-fix-and-its-results)
+- [The io_uring path](#the-io_uring-path)
 - [Regression guard](#regression-guard)
 - [Related findings](#related-findings)
 - [Log](#log)
@@ -134,6 +135,7 @@ The s3parquet monitor's `XTCP2_S3PARQUET_HOURLY` sentinel now carries `drops=` a
 | `.#microvm-x86_64-s3parquet-stress-nl1` | `NETLINKERS=1` |
 | `.#microvm-x86_64-s3parquet-stress-nl4` | `NETLINKERS=4`, the old default. This was `-nl2` until the default became 2; Step 2 below ran `-nl2` |
 | `.#microvm-x86_64-s3parquet-stress-nl8` | `NETLINKERS=8` |
+| `.#microvm-x86_64-s3parquet-stress-iouring` | `-ioUring` (through `extraModules`, since the flag has no environment override) |
 | `.#microvm-x86_64-s3parquet-stress-cpuload` | stress-ng, 2 workers at 90% (the VM has 2 vCPUs) |
 | `.#microvm-x86_64-s3parquet-stress-cpuload-nl1` | both |
 
@@ -316,7 +318,7 @@ The bug is fixed test-first: write the tests, see them fail on today's code, fix
 **What changed** (`pkg/xtcp/netlinker.go`):
 - `netlinkerSyscall` is now one receiver goroutine per socket plus `-netlinkers` decoder goroutines. The receiver does `Recvfrom` and numbers the packets of each dump. When `packetHasDone` finds `NLMSG_DONE` (a header walk, no decode) in the *k*-th packet, it stores `total = k` before handing that packet off.
 - Each decoder deserializes, then increments the dump's `decoded` count; the one that reaches `total` signals done, once (`dumpState`). `Deserialize` no longer signals on the syscall path.
-- `createNetlinkers` calls the netlinker once per socket with the count. The io_uring path is unchanged: one ring per netlinker, signaling from `Deserialize`, so **it still has the race when `-netlinkers` > 1**. Prod doesn't use io_uring; it's a follow-up.
+- `createNetlinkers` calls the netlinker once per socket with the count. The io_uring path was left with one ring per netlinker, signaling from `Deserialize`, so it still had the race; [the io_uring path](#the-io_uring-path) below fixes it.
 
 **Unit tests** (`netlinker_dump_test.go`), red on the old code and green on the fix:
 
@@ -363,6 +365,43 @@ the "before" columns come from the A/B runs above.
 
 Both are clean, and the thread count no longer tracks the decoder count.
 
+## The io_uring path
+
+**The race was the same.** `-ioUring` ran one ring per netlinker, each reading and decoding its own packets, and the ring that decoded `NLMSG_DONE` signaled done. The dump tests, run against both paths, showed it: 66,013 of 300,000 records dropped over 1,000 dumps with 4 netlinkers.
+
+**Sharing the decoder pool wasn't enough.** The first change gave each socket one ring that only receives and numbers packets (`dumpTracker`, shared with the syscall path), feeding the same decoders. The 1,000-dump row still dropped, even with one decoder. Single-shot `recvmsg` CQEs on one ring aren't ordered. With every recv armed on an idle socket, a burst wakes them all and adjacent packets can complete swapped: 2 to 18 swaps per 4,000 packets in scratch tests. A packet that completes after the `NLMSG_DONE` behind it is counted into the next dump. That is also why the old io_uring path dropped records with one netlinker.
+
+**The fix: one multishot recv per socket** (`IORING_RECV_MULTISHOT` with a provided-buffer ring, Linux 6.0+; xtcp2 already requires 6.1).
+- It is a single request, so it posts one CQE per packet in the order the socket queued them.
+- The receiver copies each packet into a `packetBufferPool` buffer and gives the ring buffer straight back to the kernel, so the decoders never hold ring memory.
+- When every ring buffer is in use, the recv ends with `ENOBUFS` and the packets wait in the socket. The receiver re-arms it, and the order holds across the re-arm.
+- `Close` cancels the armed recv instead of waiting out its drain timeout.
+- Destination sends were already syscalls: the ring belongs to its receiver goroutine (`SetupSingleIssuer`), and the sends run on the decoders and the poller. They now fall back to a syscall write when there is no ring in the context, instead of failing.
+
+**Unit tests**, red before and green after:
+
+| test | before | after |
+|---|---|---|
+| dump tests, io_uring rows (held sibling, 1,000 dumps of 300 records) | held rows drop; 66,013 of 300,000 dropped | 0 dropped (20 runs under `-race`) |
+| `TestIoUringReceiveOrder`, bursts onto an idle socket | 3 of 5 rows out of order (recvmsg) | 0 out of order, including 1 ring buffer re-armed after every `ENOBUFS` |
+| `TestRecvMultishot` (`pkg/io_uring`) | — | in order; `ENOBUFS` ends the recv; re-arm resumes |
+| `TestCloseCancelsMultishot` | — | `Close` returns well under its 5 s drain timeout |
+| a host that can't create a ring, in the nix test derivations | skipped, so green | fails (`XTCP2_REQUIRE_IOURING=1`) |
+
+**MicroVM** (`s3parquet-stress-iouring`, 20 minutes):
+
+| code | post-flush drops / appends | rows uploaded | threads | RSS (MB) | result |
+|---|---|---|---|---|---|
+| before (one recvmsg per packet) | 3,329 / 429,172 (0.77%) | 357,614 | 8 → 112 | 191 | FAIL |
+| after (one multishot recv) | 0 / 477,671 | 434,715 | 5 → 52 | 223 | PASS |
+
+The lifecycle flavors `s3parquet-iouring`, `udp-sink-iouring`, `unix-sink-iouring` and `coverage-iouring` all pass with NODROP at 0 drops.
+
+**In `integration-all`:**
+- `s3parquet-iouring`, `udp-sink-iouring` and `unix-sink-iouring` are lifecycle flavors, each also a `test-microvm-lifecycle-*` package.
+- `s3parquet-stress-iouring` runs under `--soak`.
+- The no-drop check (`NODROP`) now runs in every flavor, since every record goes through an envelope whatever the destination.
+
 ## Regression guard
 
 - **Unit:** the test-first rows above, under `-race`, with the benchmark guarding the speedup.
@@ -393,3 +432,4 @@ These came up in the same queries. They aren't causes of the drop, and each may 
 | 2026-10-14 | Step 1: reproduced on `s3parquet-stress` at about 2%. Step 2: `NETLINKERS=1` gives 0 drops, 2 readers about half the loss; **H1 confirmed**. CPU load and 8 readers didn't amplify it. Added the `xtcp2Environment` and `cpuStress` VM knobs, the variant apps and the drop reporting; fixed the stress-container respawn. Next: the [test-first plan](#test-first-plan), and `s3parquet-long` for the namespace-count effect. |
 | 2026-10-14 | Fix chosen: option C, one receiver per socket numbering the packets and a decoder pool counting them, lock-free. B (a mutex around `Recvfrom`) dropped as unnecessary; `NLMSG_DONE` can't supply the count because every message of a dump carries the request's `nlmsg_seq`. Added the benchmark rows. |
 | 2026-10-14 | Option C implemented test-first: unit tests red (22% dropped over 1,000 dumps) then green; benchmark no slower at the default 4 decoders; the stress and long runners and self-test Check 14c now fail on drops. |
+| 2026-10-14 | Default `-netlinkers` lowered to 2. io_uring: the same race, plus out-of-order single-shot `recvmsg` CQEs; fixed with one multishot recv per socket feeding the shared decoders. io_uring lifecycle flavors and the stress variant added to `integration-all`; `NODROP` in every flavor. |

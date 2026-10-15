@@ -1914,10 +1914,10 @@ class XtcpConfig extends $pb.GeneratedMessage {
   @$pb.TagNumber(22)
   void clearIoUring() => $_clearField(22);
 
-  /// Number of recvmsg SQEs kept in flight per Netlinker ring. Higher
-  /// values reduce io_uring_enter syscalls per dump cycle on hosts with
-  /// many sockets, at the cost of more pinned buffers from packet pool.
-  /// Ignored unless io_uring=true. Default 64.
+  /// Number of receive buffers in each socket's io_uring buffer ring,
+  /// rounded up to a power of two. Each holds one packet; with all in
+  /// use, the multishot recv pauses until they are recycled. Ignored
+  /// unless io_uring=true. Default 64.
   @$pb.TagNumber(23)
   $core.int get ioUringRecvBatchSize => $_getIZ(13);
   @$pb.TagNumber(23)
