@@ -173,10 +173,6 @@ type XTCP struct {
 	// is always nil in production.
 	decodeHook func(fd int, packet []byte)
 
-	// rings holds the per-Netlinker io_uring rings when config.IoUring is
-	// true. Key is the netlinker id (uint32). Empty / unused on the syscall path.
-	rings sync.Map
-
 	// fatalf is the function used by initialization paths to abort on startup
 	// errors. Defaults to log.Fatalf; tests override it with t.Fatalf so they
 	// can drive the init paths without taking down the process.

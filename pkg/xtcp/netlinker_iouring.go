@@ -12,15 +12,16 @@ import (
 	xio "github.com/randomizedcoder/xtcp2/pkg/io_uring"
 )
 
-// ringCtxKey is the context.WithValue key under which netlinkerIoUring
-// stashes the per-Netlinker ring so that io_uring destination functions
-// (called from Deserialize → Destination chain) can find it.
+// ringCtxKey is the context.WithValue key for a ring that io_uring
+// destination sends may enqueue on. The ring must belong to the goroutine
+// doing the send (rings are SetupSingleIssuer). No production goroutine
+// that sends owns a ring today: flushes run on the decoders and the
+// poller, and the netlinker's ring stays with its receiver goroutine.
 type ringCtxKey struct{}
 
-// ringFromContext returns the io_uring Ring associated with the current
-// netlinker goroutine, or nil if no io_uring path is active. Destination
-// functions use this to decide whether to enqueue an SQE or fall back to
-// the syscall path.
+// ringFromContext returns the io_uring Ring stashed in ctx, or nil.
+// Destination functions enqueue an SQE when there is one and write with
+// a syscall when there isn't.
 func ringFromContext(ctx context.Context) *xio.Ring {
 	v := ctx.Value(ringCtxKey{})
 	if v == nil {
@@ -72,36 +73,38 @@ func iouringResolveTimeout(nlTimeoutMs uint64) time.Duration {
 // ETIME (io_uring wait timeout) bumps the Timeout counter; everything
 // else bumps WaitErr and logs at debug>10. Caller always `continue`s
 // after this returns.
-func (x *XTCP) iouringRecordWaitErr(id uint32, werr error) {
+func (x *XTCP) iouringRecordWaitErr(fd int, werr error) {
 	if isETimeError(werr) {
 		x.pC.WithLabelValues("NetlinkerIoUring", "Timeout", "count").Inc()
 		return
 	}
 	x.pC.WithLabelValues("NetlinkerIoUring", "WaitErr", "count").Inc()
 	if x.debugLevel > 10 {
-		log.Printf("netlinkerIoUring %d WaitOne err: %v", id, werr)
+		log.Printf("netlinkerIoUring fd:%d WaitOne err: %v", fd, werr)
 	}
 }
 
 // iouringProcessResults dispatches each CQE in results to either the
 // recv-CQE handler (which also refills the slot) or the send-CQE
 // handler.
-func (x *XTCP) iouringProcessResults(ctxRing context.Context, ring *xio.Ring, nsName *string, inode uint64, fd int, id uint32, results []xio.Result) {
+func (x *XTCP) iouringProcessResults(ring *xio.Ring, fd int, packetCh chan<- dumpPacket, tracker *dumpTracker, results []xio.Result) {
 	for _, res := range results {
 		switch res.Op {
 		case xio.OpRead:
-			x.handleRecvCQE(ctxRing, ring, nsName, inode, fd, id, res)
+			x.handleRecvCQE(fd, res, packetCh, tracker)
 			if rerr := x.iouringPrefillRecvs(ring, fd, 1); rerr != nil {
 				x.pC.WithLabelValues("NetlinkerIoUring", "Refill", "error").Inc()
 				if x.debugLevel > 10 {
-					log.Printf("netlinkerIoUring %d refill err: %v", id, rerr)
+					log.Printf("netlinkerIoUring fd:%d refill err: %v", fd, rerr)
 				}
 			}
 		default:
-			// Send CQEs (OpSendUDP/OpSendUnix/OpSendUnixGram) come
-			// back here when io_uring destinations are active. The
-			// ring's drain layer already returned res.Buf to the
-			// caller; we just record the outcome.
+			// Send CQEs (OpSendUDP/OpSendUnix/OpSendUnixGram) only come
+			// back on a ring that a destination enqueued on (see
+			// ringFromContext); the netlinker's ring only receives, but
+			// the drain still handles them. The ring's drain layer
+			// already returned res.Buf to the caller; we just record the
+			// outcome.
 			x.handleSendCQE(res)
 		}
 	}
@@ -120,46 +123,57 @@ func (x *XTCP) maybeForceGCIoUring(packets uint64) {
 	runtime.GC()
 }
 
-// netlinkerIoUring is the opt-in io_uring variant of the Netlinker
-// goroutine. It pre-submits a configurable batch of recvmsg SQEs against
-// the netlink fd, drains CQEs as they arrive, refills each completed
-// slot, and feeds the bytes into x.Deserialize exactly like the syscall
-// path. Send SQEs queued by io_uring destination variants share the same
-// ring and are flushed by the same Submit calls (one io_uring_enter per
-// drain iteration).
+// netlinkersIoUring is the io_uring path for one socket: one ring
+// goroutine receives (netlinkerIoUring) and `netlinkers` decoder goroutines
+// deserialize in parallel, with the same dump accounting as the syscall
+// path (dumpState in netlinker.go), so the done signal goes out only after
+// the dump's last packet has been decoded. Earlier, each of `netlinkers`
+// rings read and decoded its own packets, and the ring that decoded
+// NLMSG_DONE signaled done while the others were still decoding
+// (docs/investigations/envelope-post-flush-drop.md).
 //
-// Periodic xtcp polling means the loop is mostly idle between dump
-// cycles. WaitCQETimeout caps each wait at config.NlTimeoutMilliseconds
-// so ctx cancellation is observed within that bound.
-//
-// The body was previously a gocyclo-18 monolith mixing config defaults,
-// ring init, prefill, wait+drain+dispatch, refill, and GC bookkeeping.
-// Each concern moved to a helper above; the remaining shell is just
-// "init, defer cleanup, drive the loop" (gocyclo 7).
-// netlinkersIoUring starts `netlinkers` io_uring netlinkers on fd, one
-// ring each, and calls wg.Done once they have all exited.
-//
-// Known limitation: with netlinkers > 1 the io_uring path still has the
-// end-of-dump race the syscall path fixed with a single receiver
-// (dumpState in netlinker.go): each ring reads and decodes its own
-// packets, and the one that decodes NLMSG_DONE signals done while the
-// others may still be decoding (docs/investigations/envelope-post-flush-drop.md).
+// The ring goroutine only receives. A ring can only be driven by the
+// goroutine that created it (SetupSingleIssuer), and destination sends
+// happen on the decoders (cap flushes) and the poller (poll-end flushes),
+// so those send without a ring (see ringFromContext).
 func (x *XTCP) netlinkersIoUring(ctx context.Context, wg *sync.WaitGroup, nsName *string, inode uint64, fd int, netlinkers uint32) {
 
 	defer wg.Done()
 
-	for id := range netlinkers {
-		wg.Add(1)
-		go x.netlinkerIoUring(ctx, wg, nsName, inode, fd, id)
-	}
+	packetCh, decodersWG := x.startDecoders(ctx, nsName, inode, fd, netlinkers, "NetlinkerIoUring")
+
+	x.netlinkerIoUring(ctx, nsName, fd, packetCh)
+
+	decodersWG.Wait()
+
+	x.pC.WithLabelValues("NetlinkerIoUring", "complete", "count").Inc()
 }
 
-func (x *XTCP) netlinkerIoUring(ctx context.Context, wg *sync.WaitGroup, nsName *string, inode uint64, fd int, id uint32) {
+// netlinkerIoUring is the io_uring receiver for one socket. It keeps a
+// configurable batch of recvmsg SQEs in flight on fd, drains CQEs as they
+// arrive, numbers each packet per dump (dumpTracker), hands it to the
+// decoders through packetCh, and refills the slot. It closes packetCh on
+// return, which stops the decoders once they've drained it.
+//
+// Numbering in CQE order relies on CQEs arriving in the order the kernel
+// queued the packets. They do on one ring with single-shot recvmsg: each
+// recvmsg dequeues its packet and posts its CQE in one step, on this
+// ring's task (DEFER_TASKRUN, no SQPOLL, no IOSQE_ASYNC), so the dequeues
+// and the CQEs happen in the same order. A multishot recv would make that
+// a documented guarantee; the dump tests and envelopePostFlushDrop would
+// show it breaking.
+//
+// Periodic xtcp polling means the loop is mostly idle between dump
+// cycles. WaitCQETimeout caps each wait at config.NlTimeoutMilliseconds
+// so ctx cancellation is observed within that bound.
+func (x *XTCP) netlinkerIoUring(ctx context.Context, nsName *string, fd int, packetCh chan<- dumpPacket) {
 
-	defer wg.Done()
+	// Registered first so it runs last, after ring.Close has returned the
+	// in-flight buffers.
+	defer close(packetCh)
 
 	if x.debugLevel > 10 {
-		log.Printf("NetlinkerIoUring %d started ns:%s fd:%d", id, *nsName, fd)
+		log.Printf("NetlinkerIoUring started ns:%s fd:%d", *nsName, fd)
 	}
 
 	// Pin to the netns'd OS thread for the ring's lifetime. The kernel
@@ -175,31 +189,16 @@ func (x *XTCP) netlinkerIoUring(ctx context.Context, wg *sync.WaitGroup, nsName 
 		CQEBatchSize:  cqeBatch,
 	})
 	if err != nil {
-		// The previous code did `wg.Done(); UnlockOSThread(); log.Fatalf(...)`
-		// with the explicit cleanup justified as "log.Fatalf skips the
-		// deferred Done." That reasoning fails in two directions:
-		//   * Production: log.Fatalf calls os.Exit, killing every
-		//     goroutine — wg cleanup is irrelevant either way.
-		//   * Tests where fatalf is mocked to return: the function would
-		//     continue past Fatalf with ring==nil, panic on ring.Close
-		//     in the deferred teardown, and the deferred wg.Done would
-		//     then DOUBLE-decrement the WaitGroup that the explicit
-		//     wg.Done already touched.
-		// Just log + return; the deferred wg.Done and UnlockOSThread
-		// handle cleanup once, and a mocked fatalf no longer leaves the
-		// function half-initialized.
-		log.Printf("netlinkerIoUring %d ring init: %v", id, err)
+		// Log + return rather than log.Fatalf: in production Fatalf exits
+		// anyway, and in tests where fatalf is mocked to return the
+		// function would carry on with ring==nil. The deferred close,
+		// UnlockOSThread and the caller's wg.Done run once either way.
+		log.Printf("netlinkerIoUring fd:%d ring init: %v", fd, err)
 		return
 	}
-	x.rings.Store(id, ring)
-	defer func() {
-		x.rings.Delete(id)
-		ring.Close(time.Second, func(res xio.Result) {
-			x.onRingClosedResult(res)
-		})
-	}()
-
-	ctxRing := context.WithValue(ctx, ringCtxKey{}, ring)
+	defer ring.Close(time.Second, func(res xio.Result) {
+		x.onRingClosedResult(res)
+	})
 
 	// Pre-fill the SQ with `batch` recvmsg SQEs from the pool. Each one
 	// gets pinned in the ring's in-flight map; the kernel will fill them
@@ -208,34 +207,33 @@ func (x *XTCP) netlinkerIoUring(ctx context.Context, wg *sync.WaitGroup, nsName 
 		// Demoted from log.Fatalf: a single namespace's prefill failure
 		// shouldn't kill the whole daemon (gRPC services, poller, every
 		// other namespace's netlinkers). Log + return so the deferred
-		// ring.Close + wg.Done + UnlockOSThread fire normally.
-		log.Printf("netlinkerIoUring %d prefill: %v", id, perr)
+		// ring.Close + close(packetCh) + UnlockOSThread fire normally.
+		log.Printf("netlinkerIoUring fd:%d prefill: %v", fd, perr)
 		return
 	}
 	if _, serr := ring.Submit(); serr != nil {
-		log.Printf("netlinkerIoUring %d initial Submit: %v", id, serr)
+		log.Printf("netlinkerIoUring fd:%d initial Submit: %v", fd, serr)
 	}
 
 	// Use a Timespec equal to the netlink timeout so cancel polling and
 	// "kernel has no more data" detection share one knob.
 	nlTimeout := iouringResolveTimeout(x.config.NlTimeoutMilliseconds)
 
+	tracker := newDumpTracker()
 	packets := uint64(0)
 	for !x.checkDoneNonBlocking(ctx) {
 		results, werr := x.iouringWaitWithTimeout(ring, nlTimeout)
 		if werr != nil {
-			x.iouringRecordWaitErr(id, werr)
+			x.iouringRecordWaitErr(fd, werr)
 			continue
 		}
-		x.iouringProcessResults(ctxRing, ring, nsName, inode, fd, id, results)
+		x.iouringProcessResults(ring, fd, packetCh, tracker, results)
 		if _, serr := ring.Submit(); serr != nil {
 			x.pC.WithLabelValues("NetlinkerIoUring", "Submit", "error").Inc()
 		}
 		packets++
 		x.maybeForceGCIoUring(packets)
 	}
-
-	x.pC.WithLabelValues("NetlinkerIoUring", "complete", "count").Inc()
 }
 
 // iouringPrefillRecvs gets n buffers from packetBufferPool and submits
@@ -291,9 +289,10 @@ func isETimeError(err error) bool {
 	return false
 }
 
-// handleRecvCQE feeds the recv'd bytes into the deserializer and returns
-// the buffer to the pool, mirroring the syscall path's contract.
-func (x *XTCP) handleRecvCQE(ctx context.Context, ring *xio.Ring, nsName *string, inode uint64, fd int, id uint32, res xio.Result) {
+// handleRecvCQE hands a received packet to the decoders, numbered by
+// tracker, or on a recv error counts it and returns the buffer to the pool.
+// A decoder returns the buffer of a packet it's handed.
+func (x *XTCP) handleRecvCQE(fd int, res xio.Result, packetCh chan<- dumpPacket, tracker *dumpTracker) {
 	x.pC.WithLabelValues("NetlinkerIoUring", "recv", "count").Inc()
 	if res.Res < 0 {
 		// CQE result is -errno on error.
@@ -303,11 +302,11 @@ func (x *XTCP) handleRecvCQE(ctx context.Context, ring *xio.Ring, nsName *string
 		} else {
 			x.pC.WithLabelValues("NetlinkerIoUring", "RecvErr", "count").Inc()
 			if x.debugLevel > 10 {
-				log.Printf("netlinkerIoUring %d recv err: %v", id, errno)
+				log.Printf("netlinkerIoUring fd:%d recv err: %v", fd, errno)
 			}
 		}
 		if res.Buf != nil {
-			x.packetBufferPool.Put(res.Buf)
+			x.putPacketBuffer(res.Buf)
 		}
 		return
 	}
@@ -325,32 +324,7 @@ func (x *XTCP) handleRecvCQE(ctx context.Context, ring *xio.Ring, nsName *string
 		return
 	}
 
-	b := (*res.Buf)[:n]
-	if x.decodeHook != nil {
-		x.decodeHook(fd, b)
-	}
-	p, errD := x.Deserialize(ctx, DeserializeArgs{
-		ns:             nsName,
-		fd:             fd,
-		inode:          inode,
-		NLPacket:       &b,
-		xtcpRecordPool: &x.xtcpRecordPool,
-		nlhPool:        &x.nlhPool,
-		rtaPool:        &x.rtaPool,
-		pC:             x.pC,
-		pH:             x.pH,
-		id:             id,
-		signalDone:     true,
-	})
-	if errD != nil {
-		x.pC.WithLabelValues("NetlinkerIoUring", "ParseNLPacket", "error").Inc()
-	}
-	// Match the syscall netlinker (netlinker.go) — emit the parsed-socket
-	// count so dashboards + the self-test see iouring activity, not just
-	// the per-recv `packets` counter.
-	x.pC.WithLabelValues("NetlinkerIoUring", "p", "count").Add(float64(p))
-	*res.Buf = (*res.Buf)[:cap(*res.Buf)]
-	x.packetBufferPool.Put(res.Buf)
+	packetCh <- dumpPacket{buf: res.Buf, n: n, dump: tracker.assign((*res.Buf)[:n])}
 }
 
 // handleSendCQE records the outcome of an io_uring destination write.

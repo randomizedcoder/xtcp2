@@ -11,11 +11,9 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 
-	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
-	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
 	xio "github.com/randomizedcoder/xtcp2/pkg/io_uring"
-	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
 
 func newIouringFixture(t *testing.T) *XTCP {
@@ -285,59 +283,95 @@ func TestIouringPrefillRecvs(t *testing.T) {
 	}
 }
 
-// handleRecvCQE error paths: Res<0 with timeout errno + non-timeout errno.
-// Buffer return-to-pool fires regardless.
-func TestHandleRecvCQE_timeoutErr(t *testing.T) {
-	x := newIouringFixture(t)
-	b := make([]byte, 64)
-	nsName := "ns"
-	x.handleRecvCQE(context.Background(), nil, &nsName, 0, 3, 0,
-		xio.Result{Op: xio.OpRead, Res: -int32(syscall.EAGAIN), Buf: &b})
-}
+// TestHandleRecvCQE: a received packet goes to the decoders numbered for
+// its dump; a recv error or an orphan CQE sends nothing and is counted.
+func TestHandleRecvCQE(t *testing.T) {
+	done := doneMessage()
+	tests := []struct {
+		description   string
+		res           func(buf *[]byte) xio.Result
+		debugLevel    uint32
+		counter       string
+		expectedSent  int
+		expectedN     int
+		expectedTotal uint64
+	}{
+		{
+			description:  "negative: a timeout errno sends nothing",
+			res:          func(b *[]byte) xio.Result { return xio.Result{Op: xio.OpRead, Res: -int32(syscall.EAGAIN), Buf: b} },
+			counter:      "Timeout",
+			expectedSent: 0,
+		},
+		{
+			description:  "negative: another errno sends nothing, logged at debug>10",
+			res:          func(b *[]byte) xio.Result { return xio.Result{Op: xio.OpRead, Res: -int32(syscall.EINVAL), Buf: b} },
+			debugLevel:   11,
+			counter:      "RecvErr",
+			expectedSent: 0,
+		},
+		{
+			description:  "corner: an error CQE with no buffer sends nothing",
+			res:          func(*[]byte) xio.Result { return xio.Result{Op: xio.OpRead, Res: -int32(syscall.EINVAL)} },
+			counter:      "RecvErr",
+			expectedSent: 0,
+		},
+		{
+			description:  "corner: a success CQE with no buffer is an orphan",
+			res:          func(*[]byte) xio.Result { return xio.Result{Op: xio.OpRead, Res: 4} },
+			counter:      "OrphanCQE",
+			expectedSent: 0,
+		},
+		{
+			description:   "positive: a data packet is sent with its length, its dump still open",
+			res:           func(b *[]byte) xio.Result { return xio.Result{Op: xio.OpRead, Res: 4, Buf: b} },
+			counter:       "packets",
+			expectedSent:  1,
+			expectedN:     4,
+			expectedTotal: 0,
+		},
+		{
+			description: "boundary: a done-only packet closes its dump at one packet",
+			res: func(b *[]byte) xio.Result {
+				copy(*b, done)
+				return xio.Result{Op: xio.OpRead, Res: int32(len(done)), Buf: b}
+			},
+			counter:       "packets",
+			expectedSent:  1,
+			expectedN:     len(done),
+			expectedTotal: 1,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			x := newIouringFixture(t)
+			x.debugLevel = tc.debugLevel
+			b := make([]byte, 64)
+			packetCh := make(chan dumpPacket, 1)
+			x.handleRecvCQE(3, tc.res(&b), packetCh, newDumpTracker())
+			close(packetCh)
 
-func TestHandleRecvCQE_otherErr(t *testing.T) {
-	x := newIouringFixture(t)
-	x.debugLevel = 11 // hit log branch
-	b := make([]byte, 64)
-	nsName := "ns"
-	x.handleRecvCQE(context.Background(), nil, &nsName, 0, 3, 0,
-		xio.Result{Op: xio.OpRead, Res: -int32(syscall.EINVAL), Buf: &b})
-}
-
-func TestHandleRecvCQE_nilBufOnError(t *testing.T) {
-	x := newIouringFixture(t)
-	nsName := "ns"
-	x.handleRecvCQE(context.Background(), nil, &nsName, 0, 3, 0,
-		xio.Result{Op: xio.OpRead, Res: -int32(syscall.EINVAL), Buf: nil})
-}
-
-// handleRecvCQE success path (Res>=0): a too-short buffer (4 bytes < 16
-// NlMsgHdr minimum) makes Deserialize return ErrParseDeserializeNlMsgHdr
-// after the safety check, exercising the errD counter increment + the
-// buffer pool put. Without this, the entire success arm of handleRecvCQE
-// stayed at 0% in host tests.
-func TestHandleRecvCQE_successPathTruncated(t *testing.T) {
-	x := newIouringFixture(t)
-	// Deserialize needs a usable config, pools, and pH on the args.
-	x.config = &xtcp_config.XtcpConfig{Modulus: 1}
-	x.xtcpRecordPool.Init(func() *xtcp_flat_record.XtcpFlatRecord { return new(xtcp_flat_record.XtcpFlatRecord) })
-	x.nlhPool.Init(func() *xtcpnl.NlMsgHdr { return new(xtcpnl.NlMsgHdr) })
-	x.rtaPool.Init(func() *xtcpnl.RTAttr { return new(xtcpnl.RTAttr) })
-	reg := prometheus.NewRegistry()
-	x.pH = promauto.With(reg).NewSummaryVec(
-		prometheus.SummaryOpts{Subsystem: "xtcp_iouring_recv_test",
-			Name: promNameHistograms, Help: "test",
-			Objectives: map[float64]float64{0.5: quantileError},
-			MaxAge:     summaryVecMaxAge},
-		promLabels,
-	)
-
-	b := make([]byte, 64)
-	nsName := "ns"
-	// Res=4 → b[:4] is shorter than NlMsgHdrSizeCst → Deserialize
-	// returns the truncated-header error → handleRecvCQE counter inc.
-	x.handleRecvCQE(context.Background(), nil, &nsName, 0, 7, 0,
-		xio.Result{Op: xio.OpRead, Res: 4, Buf: &b})
+			sent := 0
+			for p := range packetCh {
+				sent++
+				if p.n != tc.expectedN {
+					t.Errorf("n = %d, expected %d", p.n, tc.expectedN)
+				}
+				if got := p.dump.total.Load(); got != tc.expectedTotal {
+					t.Errorf("dump total = %d, expected %d", got, tc.expectedTotal)
+				}
+			}
+			if sent != tc.expectedSent {
+				t.Errorf("sent %d packets, expected %d", sent, tc.expectedSent)
+			}
+			label := "count"
+			if tc.counter == "OrphanCQE" {
+				label = "error"
+			}
+			if got := testutil.ToFloat64(x.pC.WithLabelValues("NetlinkerIoUring", tc.counter, label)); got != 1 {
+				t.Errorf("%s = %v, expected 1", tc.counter, got)
+			}
+		})
+	}
 }
 
 func TestIouringWaitWithTimeout_etime(t *testing.T) {

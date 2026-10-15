@@ -29,12 +29,6 @@ type DeserializeArgs struct {
 	pC             *prometheus.CounterVec
 	pH             *prometheus.SummaryVec
 	id             uint32
-	// signalDone makes Deserialize signal the poller when it meets
-	// NLMSG_DONE. Only the io_uring path sets it; the syscall path signals
-	// from the decoder that finishes the dump's last packet (dumpState in
-	// netlinker.go), since the decoder that meets NLMSG_DONE may not be
-	// the last to finish.
-	signalDone bool
 }
 
 func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, err error) {
@@ -142,9 +136,9 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 		offset += length
 
 		if nlh.Type == xtcpnl.NlMsgHdrTypeDoneCst {
-			if d.signalDone {
-				x.signalNetlinkerDone(d.fd)
-			}
+			// The done signal is the decoder's job, once the dump's last
+			// packet is decoded (dumpState in netlinker.go); the packet
+			// holding NLMSG_DONE may not be the last to finish.
 			d.nlhPool.Put(nlh)
 			d.xtcpRecordPool.Put(xtcpRecord)
 			return n, nil
