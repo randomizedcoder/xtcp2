@@ -16,6 +16,8 @@ xtcp2 is built to run as a long-lived daemon, so it ships first-class observabil
 
 `pkg/xtcp/prometheus.go` registers the daemon's metrics and serves them over HTTP. By default they are exposed at `:9088/metrics` (`-promListen`, `-promPath`). The same HTTP server can listen on a Unix domain socket by setting `-promListenNetwork unix` and using `-promListen` as the socket path. Metrics cover the collection pipeline — netlink reads, deserialization, envelope rows flushed, destination sends, and namespace counts — which is what you scrape to alarm on a stalled collector or a destination backpressure problem. The `metrics-audit` tool/check (`nix build .#test-tools-metrics-audit`) guards metric registration.
 
+Two per-record series are off by default because at 100k sockets they cost more CPU than the decode: `xtcp_counts{function="Deserialize", variable="n"}` and `xtcp_histograms{function="Deserialize", variable="nlPacketComplete"}`. Turn them on with `-debugPrometheus` (or `DEBUG_PROMETHEUS=true`). `flatRecordServiceSend`'s `start` and `complete` series only move while a gRPC client is streaming records. For records decoded, use `xtcp_counts{variable="p"}` (per decoder) or `Deserialize` `envelopeAppend`. See [metrics on the decode path](performance.md#metrics-on-the-decode-path).
+
 ## Health & readiness
 
 For container / Kubernetes deployment the metrics HTTP server also serves two
@@ -62,6 +64,7 @@ In practice this means running xtcp2 as root or under `sudo`. The capability beh
 | `-promUnixSocketMode` | `0600` | UDS permission bits after bind (`PROM_UNIX_SOCKET_MODE`, decimal value). |
 | `-promUnlinkStaleUnixSocket` | `true` | Remove an existing socket at startup if it is a socket (`PROM_UNLINK_STALE_UNIX_SOCKET`). |
 | `-promPath` | `/metrics` | Prometheus metrics path. |
+| `-debugPrometheus` | `false` | Also record the per-record series (`DEBUG_PROMETHEUS`). |
 | `-profile.mode` | `` | One-shot profiling mode: `cpu`, `mem`, `mutex`, `block`. |
 | `-pyroscopeUrl` | — | Pyroscope server URL (or `PYROSCOPE_URL`); empty disables. |
 | `-pyroscopeAppName` | — | App name registered with Pyroscope (or `PYROSCOPE_APP_NAME`). |

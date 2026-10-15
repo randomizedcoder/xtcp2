@@ -7,6 +7,7 @@ Performance is the reason xtcp2 was rewritten. On a busy host with many namespac
 - [Pooled allocations (`pkg/xsync`)](#pooled-allocations-pkgxsync)
 - [Parallel netlink readers](#parallel-netlink-readers)
 - [io_uring fast path (implemented, but not recommended)](#io_uring-fast-path-implemented-but-not-recommended)
+- [Metrics on the decode path](#metrics-on-the-decode-path)
 - [Runtime tuning](#runtime-tuning)
 - [PGO & profiling](#pgo--profiling)
 - [Configuration](#configuration)
@@ -18,7 +19,7 @@ The hot path recycles objects through `sync.Pool` rather than allocating per soc
 
 ## Parallel netlink readers
 
-Each namespace's socket has one receiver goroutine and `-netlinkers` decoder goroutines (default 2), started by `pkg/xtcp/netlinker.go`. The receiver reads packets in the order the kernel sends them and the decoders deserialize them in parallel, so a single namespace with many flows isn't bottlenecked on one goroutine decoding the dump. A 100k-socket dump takes about 200 ms with 2 decoders and 160 ms with 4 ([benchmark](investigations/envelope-post-flush-drop.md#the-fix-and-its-results)). Raise this on hosts with very high per-namespace flow counts. See [netlink collection](netlink/collection.md#netlinkers).
+Each namespace's socket has one receiver goroutine and `-netlinkers` decoder goroutines (default 2), started by `pkg/xtcp/netlinker.go`. The receiver reads packets in the order the kernel sends them and the decoders deserialize them in parallel, so a single namespace with many flows isn't bottlenecked on one goroutine decoding the dump. A 100k-socket dump takes about 95 ms with 2 decoders and 90 ms with 4 ([benchmark](#metrics-on-the-decode-path)); before the decode-path metrics change it was 200 ms and 160 ms. Raise this on hosts with very high per-namespace flow counts. See [netlink collection](netlink/collection.md#netlinkers).
 
 ## io_uring fast path (implemented, but not recommended)
 
@@ -42,6 +43,32 @@ A controlled A/B (1 h each, identical stable workload, `io_uring` the only varia
 io_uring cleanly *replaces* `recvfrom` with `io_uring_enter` but doesn't lower per-packet kernel CPU, because **the cost is dominated by the kernel generating the `inet_diag` dump** (walking the socket table, serializing `tcp_info`/cong/meminfo — ~10 µs/socket), not by syscall entry/exit overhead (~0.1% of the per-packet cost). io_uring optimizes that 0.1%. It also doesn't reduce OS-thread usage: each socket's ring goroutine is pinned with `runtime.LockOSThread()` for the ring's lifetime, one thread per namespace, the same count as the syscall path's receivers ([scaling](network-namespaces.md)). Net: same CPU, same thread count, **3× the memory**. These numbers predate the multishot receiver, which replaced one ring per netlinker with one ring per socket ([investigation](investigations/envelope-post-flush-drop.md#the-io_uring-path)).
 
 **Recommendation: leave `-ioUring` off** (it already defaults off). The real levers for kernel load are reducing what the kernel has to dump — fewer attributes via `-deserializers`, or a lower poll `-frequency` — not the read mechanism. The flag and code are kept (tested, guarded) for completeness and for workloads that may differ.
+
+## Metrics on the decode path
+
+A 100k-socket dump decodes 100k records, so anything done per record is done 100k times. Prometheus metrics were the biggest such cost: `WithLabelValues` hashes and checks its three labels on every call, and a summary `Observe` adds a mutex and two `time.Now()` calls. Before this change they took about a quarter of decode CPU.
+
+- The series the decoders update are looked up once per decoder, not per call (`pkg/xtcp/metrics_decode.go`). Names and labels are unchanged.
+- The two per-record series, `Deserialize` `n` and the `Deserialize` `nlPacketComplete` summary, are off unless `-debugPrometheus` (or `DEBUG_PROMETHEUS=true`) is set. The choice is made once, when a decoder starts, so with the option off they cost an empty method call and no clock read.
+- `flatRecordServiceSend` returns before touching a metric when no gRPC client is streaming records, which is the usual case. Its `start` and `complete` series now count sends to clients, not records decoded.
+- Everything per packet or rarer is always on: `Netlinker` `Recvfrom`, `packets` and `n`; `Deserialize` `start`, `complete` and `envelopeAppend`; the decoders' `p`; and every error counter.
+
+**Measured** with `BenchmarkNetlinkerDump` (100k sockets in 1,700 packets), old and new code interleaved over 8 rounds and compared with `benchstat` (all p=0.000):
+
+| path | decoders | before | after | change |
+|---|---|---|---|---|
+| syscall | 1 | 211.6 ms | 100.7 ms | −52% |
+| syscall | 2 (default) | 199.2 ms | 95.2 ms | −52% |
+| syscall | 4 | 157.5 ms | 90.2 ms | −43% |
+| syscall | 8 | 124.1 ms | 94.5 ms | −24% |
+| io_uring | 1 | 192.7 ms | 87.5 ms | −55% |
+| io_uring | 2 | 182.8 ms | 81.6 ms | −55% |
+| io_uring | 4 | 139.7 ms | 73.0 ms | −48% |
+| io_uring | 8 | 111.5 ms | 77.0 ms | −31% |
+
+That's 46% less time per dump on the geometric mean, with 11% fewer allocations on the syscall path and 26% fewer on io_uring. In a CPU profile of io_uring with 2 decoders, label lookups drop from 25.6% of samples to nothing measurable, `flatRecordServiceSend` from 20.3% to 0.6%, and total CPU for 40 dumps from 21.3 s to 7.1 s. After the change, extra decoders barely help (1 decoder: 101 ms, 8: 95 ms): decoding is no longer what limits a dump in this benchmark.
+
+The 20-minute `s3parquet-stress` microVM, with `-debugPrometheus` off, passes with 0 of 427,518 records dropped, 425,768 rows uploaded, threads 5 → 51 and 185 MB RSS, in line with the run before the change (0 / 485,382, 6 → 51 threads, 192 MB; [investigation](investigations/envelope-post-flush-drop.md)).
 
 ## Runtime tuning
 
@@ -102,6 +129,7 @@ Commit the updated `cmd/xtcp2/default.pgo`; the next build applies it automatica
 | `-ioUringRecvBatch` | `64` | io_uring receive buffers per socket, rounded up to a power of two (1–4096). |
 | `-ioUringCqeBatch` | `128` | Max CQEs reaped per poll (1–4096). |
 | `-netlinkers` | `2` | Parallel decoders per socket (one receiver reads each socket). |
+| `-debugPrometheus` | `false` | Also record the per-record series, `Deserialize` `n` and `nlPacketComplete` (`DEBUG_PROMETHEUS`). See [metrics on the decode path](#metrics-on-the-decode-path). |
 | `-goMaxProcs` | `4` | `GOMAXPROCS`. |
 | `-maxThreads` | `2000` | OS thread cap (`debug.SetMaxThreads`); `0` = Go default. |
 
