@@ -326,6 +326,9 @@ func (x *XTCP) handleRecvCQE(ctx context.Context, ring *xio.Ring, nsName *string
 	}
 
 	b := (*res.Buf)[:n]
+	if x.decodeHook != nil {
+		x.decodeHook(fd, b)
+	}
 	p, errD := x.Deserialize(ctx, DeserializeArgs{
 		ns:             nsName,
 		fd:             fd,

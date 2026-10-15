@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"runtime"
 	"sync"
 	"syscall"
 	"testing"
@@ -13,6 +14,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
+	xio "github.com/randomizedcoder/xtcp2/pkg/io_uring"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
 
@@ -93,6 +95,27 @@ func (c dumpCorpus) dump(dataPkts int) [][]byte {
 	return append(pkts, c.done)
 }
 
+// The netlinker variants the dump tests run against, as InitNetlinkers
+// registers them.
+const (
+	variantSyscall = "syscall"
+	variantIoUring = "io_uring"
+)
+
+var dumpVariants = []string{variantSyscall, variantIoUring}
+
+// requireIoUring skips tb when this kernel can't create a ring.
+func requireIoUring(tb testing.TB) {
+	tb.Helper()
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread() //nolint:forbidigo // safe: pins only for the probe ring's lifetime; no netns mutation.
+	ring, err := xio.New(xio.Config{RecvBatchSize: 1, CQEBatchSize: 1})
+	if err != nil {
+		tb.Skipf("io_uring unavailable: %v", err)
+	}
+	ring.Close(time.Second, nil)
+}
+
 // dumpHarness runs createNetlinkers on the read side of a socketpair and
 // lets the test write packets to the other side and act as the poller.
 type dumpHarness struct {
@@ -102,8 +125,11 @@ type dumpHarness struct {
 	wg      *sync.WaitGroup
 }
 
-func newDumpHarness(t testing.TB, netlinkers uint32, hook func(fd int, packet []byte)) *dumpHarness {
+func newDumpHarness(t testing.TB, variant string, netlinkers uint32, hook func(fd int, packet []byte)) *dumpHarness {
 	t.Helper()
+	if variant == variantIoUring {
+		requireIoUring(t)
+	}
 	x := newTestDeserializeXTCP(t)
 	x.fdToNsMap = &sync.Map{}
 	x.packetBufferPool.Init(func() *[]byte {
@@ -115,8 +141,14 @@ func newDumpHarness(t testing.TB, netlinkers uint32, hook func(fd int, packet []
 	// flushes (which need the real envelope pool and marshaller) out of it.
 	x.config.EnvelopeFlushThresholdRows = math.MaxUint32
 	x.config.EnvelopeFlushThresholdBytes = math.MaxUint32
-	x.Netlinker = func(ctx context.Context, wg *sync.WaitGroup, nsName *string, inode uint64, fd int, id uint32) {
-		x.netlinkerSyscall(ctx, wg, nsName, inode, fd, id)
+	// The io_uring receiver's wait timeout, so cancel is seen quickly.
+	x.config.NlTimeoutMilliseconds = 50
+	x.Netlinker = func(ctx context.Context, wg *sync.WaitGroup, nsName *string, inode uint64, fd int, netlinkers uint32) {
+		if variant == variantIoUring {
+			x.netlinkersIoUring(ctx, wg, nsName, inode, fd, netlinkers)
+			return
+		}
+		x.netlinkerSyscall(ctx, wg, nsName, inode, fd, netlinkers)
 	}
 
 	readFD, writeFD, _ := makeSocketPair(t)
@@ -273,14 +305,7 @@ func TestNetlinkerDump_doneWaitsForDecode(t *testing.T) {
 	c := loadDumpCorpus(t)
 	dataPlusDone := append(c.dataPacket(dumpRecordsPerPkt), c.done...)
 
-	tests := []struct {
-		description string
-		netlinkers  uint32
-		dumps       int
-		packets     [][]byte
-		holdFirst   bool
-		expected    dumpResult
-	}{
+	tests := []dumpRow{
 		{
 			description: "negative: a sibling is held mid-decode when the done packet is read",
 			netlinkers:  4,
@@ -335,80 +360,98 @@ func TestNetlinkerDump_doneWaitsForDecode(t *testing.T) {
 		},
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.description, func(t *testing.T) {
-			var (
-				mu      sync.Mutex
-				holding bool
-				held    chan struct{}
-				release chan struct{}
-			)
-			var hook func(int, []byte)
-			if tc.holdFirst {
-				first := tc.packets[0]
-				hook = func(_ int, p []byte) {
-					mu.Lock()
-					if holding || len(p) != len(first) || held == nil {
-						mu.Unlock()
-						return
-					}
-					holding = true
-					h, r := held, release
-					held = nil
-					mu.Unlock()
-					close(h)
-					<-r
-				}
-			}
-			h := newDumpHarness(t, tc.netlinkers, hook)
-			perDump := countRecords(tc.packets)
+	for _, variant := range dumpVariants {
+		for _, tc := range tests {
+			t.Run(variant+"/"+tc.description, func(t *testing.T) {
+				runDumpRow(t, variant, tc)
+			})
+		}
+	}
+}
 
-			var got dumpResult
-			for i := 0; i < tc.dumps; i++ {
-				h.startDump()
-				if tc.holdFirst {
-					mu.Lock()
-					holding = false
-					held = make(chan struct{})
-					release = make(chan struct{})
-					hc, rc := held, release
-					mu.Unlock()
+// dumpRow is one TestNetlinkerDump_doneWaitsForDecode row.
+type dumpRow struct {
+	description string
+	netlinkers  uint32
+	dumps       int
+	packets     [][]byte
+	holdFirst   bool
+	expected    dumpResult
+}
 
-					h.send(t, tc.packets[0])
-					select {
-					case <-hc:
-					case <-time.After(dumpDoneTimeout):
-						t.Fatalf("dump %d: the first packet never reached a decoder", i)
-					}
-					h.send(t, tc.packets[1:]...)
-					if h.waitDone(dumpHoldWindow) {
-						got.earlyDones++
-						got.dones++
-						got.rows += h.flush()
-					}
-					close(rc)
-				} else {
-					h.send(t, tc.packets...)
-				}
-				if got.dones < i+1 {
-					if !h.waitDone(dumpDoneTimeout) {
-						t.Fatalf("dump %d: no done signal within %s", i, dumpDoneTimeout)
-					}
-					got.dones++
-					got.rows += h.flush()
-				}
-				h.quiesce(t, (i+1)*perDump)
+// runDumpRow runs tc against one netlinker variant.
+func runDumpRow(t *testing.T, variant string, tc dumpRow) {
+	t.Helper()
+	var (
+		mu      sync.Mutex
+		holding bool
+		held    chan struct{}
+		release chan struct{}
+	)
+	var hook func(int, []byte)
+	if tc.holdFirst {
+		first := tc.packets[0]
+		hook = func(_ int, p []byte) {
+			mu.Lock()
+			if holding || len(p) != len(first) || held == nil {
+				mu.Unlock()
+				return
 			}
-			// Any further done signal is a duplicate.
-			for h.waitDone(50 * time.Millisecond) {
+			holding = true
+			h, r := held, release
+			held = nil
+			mu.Unlock()
+			close(h)
+			<-r
+		}
+	}
+	h := newDumpHarness(t, variant, tc.netlinkers, hook)
+	perDump := countRecords(tc.packets)
+
+	var got dumpResult
+	for i := 0; i < tc.dumps; i++ {
+		h.startDump()
+		if tc.holdFirst {
+			mu.Lock()
+			holding = false
+			held = make(chan struct{})
+			release = make(chan struct{})
+			hc, rc := held, release
+			mu.Unlock()
+
+			h.send(t, tc.packets[0])
+			select {
+			case <-hc:
+			case <-time.After(dumpDoneTimeout):
+				t.Fatalf("dump %d: the first packet never reached a decoder", i)
+			}
+			h.send(t, tc.packets[1:]...)
+			if h.waitDone(dumpHoldWindow) {
+				got.earlyDones++
 				got.dones++
+				got.rows += h.flush()
 			}
-			got.drops = h.drops()
+			close(rc)
+		} else {
+			h.send(t, tc.packets...)
+		}
+		if got.dones < i+1 {
+			if !h.waitDone(dumpDoneTimeout) {
+				t.Fatalf("dump %d: no done signal within %s", i, dumpDoneTimeout)
+			}
+			got.dones++
+			got.rows += h.flush()
+		}
+		h.quiesce(t, (i+1)*perDump)
+	}
+	// Any further done signal is a duplicate.
+	for h.waitDone(50 * time.Millisecond) {
+		got.dones++
+	}
+	got.drops = h.drops()
 
-			if got != tc.expected {
-				t.Errorf("got %+v, expected %+v", got, tc.expected)
-			}
-		})
+	if got != tc.expected {
+		t.Errorf("got %+v, expected %+v", got, tc.expected)
 	}
 }
 
@@ -417,27 +460,29 @@ func TestNetlinkerDump_doneWaitsForDecode(t *testing.T) {
 // exit once it's released (the harness cleanup waits on the WaitGroup).
 func TestNetlinkerDump_shutdownWhileHeld(t *testing.T) {
 	c := loadDumpCorpus(t)
-	held := make(chan struct{})
-	release := make(chan struct{})
-	var once sync.Once
-	h := newDumpHarness(t, 4, func(_ int, p []byte) {
-		if len(p) == len(c.done) {
-			return
-		}
-		once.Do(func() {
-			close(held)
-			<-release
-		})
-	})
 
 	tests := []struct {
 		description string
+		variant     string
 		expected    bool
 	}{
-		{description: "corner: cancel while a decoder is held, then release: all netlinkers exit", expected: true},
+		{description: "corner: cancel while a decoder is held, then release: all netlinkers exit", variant: variantSyscall, expected: true},
+		{description: "corner: cancel while a decoder is held, then release: the ring and decoders exit", variant: variantIoUring, expected: true},
 	}
 	for _, tc := range tests {
-		t.Run(tc.description, func(t *testing.T) {
+		t.Run(tc.variant+"/"+tc.description, func(t *testing.T) {
+			held := make(chan struct{})
+			release := make(chan struct{})
+			var once sync.Once
+			h := newDumpHarness(t, tc.variant, 4, func(_ int, p []byte) {
+				if len(p) == len(c.done) {
+					return
+				}
+				once.Do(func() {
+					close(held)
+					<-release
+				})
+			})
 			h.startDump()
 			h.send(t, c.dump(2)...)
 			select {
@@ -468,35 +513,42 @@ func BenchmarkNetlinkerDump(b *testing.B) {
 	pkts := c.dump(dataPkts)
 	perDump := countRecords(pkts)
 
-	for _, netlinkers := range []uint32{1, 2, 4, 8} {
-		b.Run(fmt.Sprintf("netlinkers=%d", netlinkers), func(b *testing.B) {
-			h := newDumpHarness(b, netlinkers, nil)
-			b.ReportAllocs()
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				h.startDump()
-				// The socketpair queue is shorter than a dump, so write
-				// from a goroutine while the netlinkers drain it.
-				errCh := make(chan error, 1)
-				go func() { errCh <- h.write(pkts) }()
-				if !h.waitDone(dumpDoneTimeout) {
-					b.Fatalf("dump %d: no done signal", i)
-				}
-				e := h.takeEnvelope()
-				h.quiesce(b, (i+1)*perDump)
-				if err := <-errCh; err != nil {
-					b.Fatal(err)
-				}
-				b.StopTimer()
-				if e != nil {
-					h.recycle(e)
-				}
-				b.StartTimer()
-			}
-			b.StopTimer()
-			b.ReportMetric(float64(perDump), "records/dump")
-		})
+	for _, variant := range dumpVariants {
+		for _, netlinkers := range []uint32{1, 2, 4, 8} {
+			b.Run(fmt.Sprintf("%s/netlinkers=%d", variant, netlinkers), func(b *testing.B) {
+				benchDump(b, variant, netlinkers, pkts, perDump)
+			})
+		}
 	}
+}
+
+// benchDump runs BenchmarkNetlinkerDump for one variant and decoder count.
+func benchDump(b *testing.B, variant string, netlinkers uint32, pkts [][]byte, perDump int) {
+	h := newDumpHarness(b, variant, netlinkers, nil)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		h.startDump()
+		// The socketpair queue is shorter than a dump, so write
+		// from a goroutine while the netlinkers drain it.
+		errCh := make(chan error, 1)
+		go func() { errCh <- h.write(pkts) }()
+		if !h.waitDone(dumpDoneTimeout) {
+			b.Fatalf("dump %d: no done signal", i)
+		}
+		e := h.takeEnvelope()
+		h.quiesce(b, (i+1)*perDump)
+		if err := <-errCh; err != nil {
+			b.Fatal(err)
+		}
+		b.StopTimer()
+		if e != nil {
+			h.recycle(e)
+		}
+		b.StartTimer()
+	}
+	b.StopTimer()
+	b.ReportMetric(float64(perDump), "records/dump")
 }
 
 // TestPacketHasDone pins the receiver's end-of-dump detection, which walks

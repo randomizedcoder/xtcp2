@@ -361,6 +361,73 @@ func TestDestinationsIoUring(t *testing.T) {
 	}
 }
 
+// TestDestinationsIoUring_noRingFallsBack: under -ioUring, a Send whose ctx
+// carries no ring must still deliver, through the syscall write. The
+// poller's poll_end, poll_timeout and shutdown flushes and the decoders'
+// cap flushes all send from goroutines that own no ring (a ring can only be
+// used by the goroutine that created it), so returning errNoRingInCtx there
+// lost every record those flushes carried.
+func TestDestinationsIoUring_noRingFallsBack(t *testing.T) {
+	identity := func(p []byte) []byte { return p }
+	tests := []struct {
+		description string
+		c           destCase
+		closeFirst  bool
+		expectedErr bool
+	}{
+		{description: "positive: udp delivers without a ring", c: destCase{scheme: schemeUDP, setup: setupUDPDest, expectFrame: identity}},
+		{description: "positive: unixgram delivers without a ring", c: destCase{scheme: schemeUnixgram, setup: setupUnixGramDest, expectFrame: identity}},
+		{description: "positive: unix stream delivers one frame without a ring", c: destCase{scheme: schemeUnix, setup: setupUnixDest, expectFrame: identity}},
+		{description: "negative: udp after Close returns the write error", c: destCase{scheme: schemeUDP, setup: setupUDPDest, expectFrame: identity}, closeFirst: true, expectedErr: true},
+		{description: "negative: unix after Close returns the write error", c: destCase{scheme: schemeUnix, setup: setupUnixDest, expectFrame: identity}, closeFirst: true, expectedErr: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			setup := tc.c.setup(t, t.TempDir())
+			defer setup.cleanup()
+
+			x := newTestXTCP(t, setup.dest)
+			x.config.IoUring = true
+			factory, status := lookupDestinationFactory(tc.c.scheme)
+			if status != destLookupFound {
+				t.Fatalf("scheme %q not registered: status %v", tc.c.scheme, status)
+			}
+			dest, err := factory(context.Background(), x)
+			if err != nil {
+				t.Fatalf("factory(%s): %v", tc.c.scheme, err)
+			}
+			if tc.closeFirst {
+				if cerr := dest.Close(); cerr != nil {
+					t.Fatalf("Close: %v", cerr)
+				}
+			} else {
+				t.Cleanup(func() {
+					if cerr := dest.Close(); cerr != nil {
+						t.Errorf("Close: %v", cerr)
+					}
+				})
+			}
+
+			payload := []byte("no-ring-record")
+			buf := append([]byte(nil), payload...)
+			_, serr := dest.Send(context.Background(), &buf)
+			if gotErr := serr != nil; gotErr != tc.expectedErr {
+				t.Fatalf("Send err = %v, expected error: %v", serr, tc.expectedErr)
+			}
+			if tc.expectedErr {
+				return
+			}
+			got, rerr := setup.recv()
+			if rerr != nil {
+				t.Fatalf("recv: %v", rerr)
+			}
+			if want := tc.c.expectFrame(payload); !bytes.Equal(got, want) {
+				t.Errorf("got %x, expected %x", got, want)
+			}
+		})
+	}
+}
+
 // runIoUringDestRow drives the io_uring write path end-to-end: spins up
 // a Ring, populates the corresponding x.<scheme>FD, calls the io_uring
 // destination function (which enqueues an SQE), Submits, then drains
@@ -559,27 +626,6 @@ func TestUDPDest_SendIoUringHappy(t *testing.T) {
 	}
 }
 
-// udpDest.Send io_uring branch with no ring in ctx returns errNoRingInCtx
-// without trying to enqueue.
-func TestUDPDest_SendIoUringNoRing(t *testing.T) {
-	res := setupUDPDest(t, "")
-	defer res.cleanup()
-
-	x := newTestXTCP(t, res.dest)
-	x.config.IoUring = true
-	d, err := newUDPDest(context.Background(), x)
-	if err != nil {
-		t.Fatalf("newUDPDest: %v", err)
-	}
-	t.Cleanup(func() { _ = d.Close() })
-
-	buf := []byte("ioring")
-	// Pass a bare ctx (no ring stashed) → expect errNoRingInCtx.
-	if _, err := d.Send(context.Background(), &buf); err == nil {
-		t.Error("expected errNoRingInCtx when no ring in context")
-	}
-}
-
 // unixGramDest.Send error path.
 func TestUnixGramDest_SendAfterClose(t *testing.T) {
 	dir := t.TempDir()
@@ -669,25 +715,6 @@ func TestUnixDest_SendAfterClose(t *testing.T) {
 	}
 }
 
-// unixDest.Send io_uring path with no ring in ctx returns errNoRingInCtx.
-func TestUnixDest_SendIoUringNoRing(t *testing.T) {
-	dir := t.TempDir()
-	setup := setupUnixDest(t, dir)
-	defer setup.cleanup()
-
-	x := newTestXTCP(t, setup.dest)
-	x.config.IoUring = true
-	d, err := newUnixDest(context.Background(), x)
-	if err != nil {
-		t.Fatalf("newUnixDest: %v", err)
-	}
-	t.Cleanup(func() { _ = d.Close() })
-	buf := []byte("ioring")
-	if _, err := d.Send(context.Background(), &buf); err == nil {
-		t.Error("expected errNoRingInCtx when no ring in context")
-	}
-}
-
 // unixDest.Send io_uring happy path: real ring + valid fd; EnqueueWritev
 // succeeds (the SQE is queued; we don't drive the kernel side here).
 func TestUnixDest_SendIoUringHappy(t *testing.T) {
@@ -717,26 +744,6 @@ func TestUnixDest_SendIoUringHappy(t *testing.T) {
 	}
 	if n != 1 {
 		t.Errorf("n = %d, want 1", n)
-	}
-}
-
-// unixGramDest.Send io_uring branch with no ring in ctx.
-func TestUnixGramDest_SendIoUringNoRing(t *testing.T) {
-	dir := t.TempDir()
-	res := setupUnixGramDest(t, dir)
-	defer res.cleanup()
-
-	x := newTestXTCP(t, res.dest)
-	x.config.IoUring = true
-	d, err := newUnixGramDest(context.Background(), x)
-	if err != nil {
-		t.Fatalf("newUnixGramDest: %v", err)
-	}
-	t.Cleanup(func() { _ = d.Close() })
-
-	buf := []byte("ioring")
-	if _, err := d.Send(context.Background(), &buf); err == nil {
-		t.Error("expected errNoRingInCtx when no ring in context")
 	}
 }
 
