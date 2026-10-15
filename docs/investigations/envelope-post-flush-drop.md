@@ -390,7 +390,12 @@ Both are clean, and the thread count no longer tracks the decoder count.
 
 **MicroVM** (`s3parquet-stress-iouring`, 20 minutes):
 
-IOURING_VM_PLACEHOLDER
+| code | post-flush drops / appends | rows uploaded | threads | RSS (MB) | result |
+|---|---|---|---|---|---|
+| before (one recvmsg per packet) | 3,329 / 429,172 (0.77%) | 357,614 | 8 → 112 | 191 | FAIL |
+| after (one multishot recv) | 0 / 477,671 | 434,715 | 5 → 52 | 223 | PASS |
+
+The lifecycle flavors `s3parquet-iouring`, `udp-sink-iouring`, `unix-sink-iouring` and `coverage-iouring` all pass with NODROP at 0 drops.
 
 **In `integration-all`:**
 - `s3parquet-iouring`, `udp-sink-iouring` and `unix-sink-iouring` are lifecycle flavors, each also a `test-microvm-lifecycle-*` package.
