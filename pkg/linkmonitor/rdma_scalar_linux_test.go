@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io/fs"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -161,8 +162,13 @@ func TestRDMAGIDScanCostTable(t *testing.T) {
 				}
 			}
 			var p model.RDMAPort
-			overhead := rdmaReadCalls(t)
-			overhead = rdmaReadCalls(t) - overhead
+			// The cost of one counter read, the least of several: another
+			// thread's read inside a sample can only inflate it.
+			overhead := int64(math.MaxInt64)
+			for range 5 {
+				start := rdmaReadCalls(t)
+				overhead = min(overhead, rdmaReadCalls(t)-start)
+			}
 			before := rdmaReadCalls(t)
 			err := rdmaFilesystem{}.gids(t.Context(), port, &p)
 			reads := rdmaReadCalls(t) - before - overhead
