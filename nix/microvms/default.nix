@@ -405,13 +405,16 @@ let
     );
 
   # s3parquet-stress variants for docs/investigations/envelope-post-flush-drop.md:
-  # the -netlinkers A/B (NETLINKERS overrides the flag) and stress-ng CPU
-  # contention on both vCPUs. Each is an app,
+  # the -netlinkers A/B (NETLINKERS overrides the flag), the io_uring
+  # netlinker (-ioUring), and stress-ng CPU contention on both vCPUs. Each is an app,
   # microvm-x86_64-s3parquet-stress-<name>, run with the stress runner.
   s3ParquetStressVariantArgs = {
     nl1.xtcp2Environment.NETLINKERS = "1";
     nl4.xtcp2Environment.NETLINKERS = "4";
     nl8.xtcp2Environment.NETLINKERS = "8";
+    # -ioUring has no environment override; services.xtcp2.extraArgs is a
+    # list option, so this module's flag is appended to the flavor's.
+    iouring.extraModules = [ { services.xtcp2.extraArgs = [ "-ioUring" ]; } ];
     cpuload.cpuStress = {
       workers = 2;
       loadPct = 90;

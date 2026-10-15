@@ -134,6 +134,7 @@ The s3parquet monitor's `XTCP2_S3PARQUET_HOURLY` sentinel now carries `drops=` a
 | `.#microvm-x86_64-s3parquet-stress-nl1` | `NETLINKERS=1` |
 | `.#microvm-x86_64-s3parquet-stress-nl4` | `NETLINKERS=4`, the old default. This was `-nl2` until the default became 2; Step 2 below ran `-nl2` |
 | `.#microvm-x86_64-s3parquet-stress-nl8` | `NETLINKERS=8` |
+| `.#microvm-x86_64-s3parquet-stress-iouring` | `-ioUring` (through `extraModules`, since the flag has no environment override) |
 | `.#microvm-x86_64-s3parquet-stress-cpuload` | stress-ng, 2 workers at 90% (the VM has 2 vCPUs) |
 | `.#microvm-x86_64-s3parquet-stress-cpuload-nl1` | both |
 
