@@ -2,7 +2,6 @@ package xtcp
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -11,11 +10,6 @@ import (
 
 	xio "github.com/randomizedcoder/xtcp2/pkg/io_uring"
 )
-
-// errNoRingInCtx is returned by io_uring send paths when ringFromContext
-// returns nil — indicates a misconfig where config.IoUring=true but the
-// netlinker variant didn't stash a ring in the deserializer context.
-var errNoRingInCtx = errors.New("io_uring destination: no ring in context (config.IoUring=true but netlinker variant disagrees?)")
 
 // extractFD returns the underlying file descriptor from a net.Conn that
 // is *net.UDPConn or *net.UnixConn. Called only when config.IoUring is
@@ -84,12 +78,9 @@ func newUDPDest(ctx context.Context, x *XTCP) (Destination, error) {
 }
 
 func (d *udpDest) Send(ctx context.Context, b *[]byte) (int, error) {
-	if d.x.config.IoUring {
-		ring := ringFromContext(ctx)
-		if ring == nil {
-			d.x.pC.WithLabelValues("destUDPIoUring", "noRing", "error").Inc()
-			return 0, errNoRingInCtx
-		}
+	// With no ring on this goroutine (see ringCtxKey), fall through to the
+	// syscall write.
+	if ring := ringFromContext(ctx); d.x.config.IoUring && ring != nil {
 		if _, err := ring.EnqueueSend(d.fd, b, xio.OpSendUDP); err != nil {
 			d.x.pC.WithLabelValues("destUDPIoUring", "EnqueueSend", "error").Inc()
 			if d.x.debugLevel > 100 {
