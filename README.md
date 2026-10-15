@@ -124,6 +124,7 @@ The daemon is `xtcp2`; the repo also ships supporting tools under `cmd/`:
 | `xtcp2` | The main daemon. |
 | `xtcp2client` | gRPC client; streams live `XtcpFlatRecord`s from a running daemon. |
 | `xtcp2ctl` | gRPC control CLI; changes a running daemon's config over `ConfigService` (poll cadence, on-demand polls/bursts, S3 upload timing, envelope flush caps, soft-restart reconfigure). |
+| `go-link-monitor` | Prometheus exporter for a host's physical Ethernet and RDMA links: expected up count, speed, duplex and width checks, flaps and errors, served as a sparse problem summary on `/metrics` with detail on category paths. Also embedded in `xtcp2 -linkMonitor`. See [go-link-monitor](cmd/go-link-monitor/README.md). |
 | `xtcp2_kafka_client` | Kafka consumer that decodes xtcp2's protobufList messages. |
 | `ns` | Namespace inspector — lists/reads netns state the way the daemon sees it. |
 | `goip` | Reimplementation of `ip`'s `show` commands on `pkg/xtcpnl`, plus `link` and `route` writes as a dry run: goip builds `ip`'s request and writes it to a file, never to the kernel. A test instrument, not a replacement for `ip`. See [route-write-path.md](docs/netlink/route-write-path.md). |
@@ -139,6 +140,7 @@ The daemon is `xtcp2`; the repo also ships supporting tools under `cmd/`:
 ## Documentation
 
 - **[Documentation hub](docs/README.md)** — background, design, and the full feature index.
+- **[go-link-monitor](cmd/go-link-monitor/README.md)** — the link exporter's Prometheus paths, problem summary and collection modes.
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** — Nix build targets, the test suite, linting, and proto regeneration for developers.
 - **[Operations notes](docs/operations.md)** — running the ClickHouse / Redpanda pipeline with docker-compose.
 
