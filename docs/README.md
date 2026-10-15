@@ -50,6 +50,8 @@ Two gRPC services on `:8889`: a `ConfigService` to read and change daemon config
 ### [Observability](observability.md)
 Prometheus metrics, Go `pprof` endpoints, optional Pyroscope continuous profiling, and the startup capability check that explains exactly which Linux capabilities are required.
 
+The [metrics reference](metrics.md) lists every series xtcp2 exports, which ones are on by default, and the per-record ones `-debugPrometheus` adds.
+
 ### [Performance](performance.md)
 The optional `io_uring` reader/writer path, the `pkg/xsync` typed `sync.Pool` / `sync.Map` wrappers, netlinker parallelism, and runtime knobs (`GOMAXPROCS`, OS thread cap).
 

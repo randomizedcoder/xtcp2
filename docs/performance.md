@@ -51,7 +51,9 @@ A 100k-socket dump decodes 100k records, so anything done per record is done 100
 - The series the decoders update are looked up once per decoder, not per call (`pkg/xtcp/metrics_decode.go`). Names and labels are unchanged.
 - The two per-record series, `Deserialize` `n` and the `Deserialize` `nlPacketComplete` summary, are off unless `-debugPrometheus` (or `DEBUG_PROMETHEUS=true`) is set. The choice is made once, when a decoder starts, so with the option off they cost an empty method call and no clock read.
 - `flatRecordServiceSend` returns before touching a metric when no gRPC client is streaming records, which is the usual case. Its `start` and `complete` series now count sends to clients, not records decoded.
-- Everything per packet or rarer is always on: `Netlinker` `Recvfrom`, `packets` and `n`; `Deserialize` `start`, `complete` and `envelopeAppend`; the decoders' `p`; and every error counter.
+- Everything else is always on: the per-packet `Netlinker` `Recvfrom`, `packets` and `n`, `Deserialize` `start` and `complete`, and the decoders' `p`; every error counter; and `Deserialize` `envelopeAppend`, which is per record but is one increment on a counter looked up once.
+
+The [metrics reference](metrics.md) lists every series and which ones are on by default.
 
 **Measured** with `BenchmarkNetlinkerDump` (100k sockets in 1,700 packets), old and new code interleaved over 8 rounds and compared with `benchstat` (all p=0.000):
 
