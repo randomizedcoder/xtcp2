@@ -6543,6 +6543,14 @@ absent from the link listing taken afterwards.
 
 ### Remaining
 
+**`ip address` beyond `show`/`dev`** is designed, not started: the selectors,
+`-br`/`-o`, the `IFA_RT_PRIORITY`/`IFA_ANYCAST`/`IFA_MULTICAST`/`IFA_MC_USERS`
+decode, and a dry-run write path for
+`add`/`change`/`replace`/`delete`/`flush`/`save`/`showdump`/`restore` — see
+[addr-write-path.md](addr-write-path.md). None of the statements in this file
+that say `addr` is read-only change until the phase that makes each false
+lands.
+
 The three `route show` forms are **implemented and compared** as of the
 `route show` work: Item 4's `RTA_MULTIPATH`/`RTA_VIA`/`RTA_METRICS`/`rtm_flags`
 decode landed in `e2a47aa` ("decode the route half of `show` — multipath, via,
