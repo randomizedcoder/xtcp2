@@ -4,6 +4,7 @@ capturePath	./	Write files path
 columns		csv/tsv only: comma-separated subset of XtcpFlatRecord json field names (e.g. hostname,inetDiagMsgSocketSourcePort,inetDiagMsgState,tcpInfoRtt); empty = all
 conf	false	show config
 d	111	debug level
+debugPrometheus	false	also record the per-record Prometheus series (Deserialize n and nlPacketComplete), which cost more CPU than the decode at 100k sockets. Falls back to DEBUG_PROMETHEUS env.
 deserializers	default	{{deserializersUsage}}
 dest	{{defaultDest}}	scheme:addr — kafka:host:9092, nats:..., nsq:..., valkey:..., udp:host:13000, tcp:host:9000, unix:/path, unixgram:/path, file:/path, http(s)://host/ingest, s3parquet:..., stdout, stderr, null (pair stdout/file/tcp with -marshal jsonl|csv|tsv)
 destWriteFiles	10	Write out the marshaled data to destWriteFiles number of files ( for debugging only )

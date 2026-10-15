@@ -372,6 +372,7 @@ type mainFlags struct {
 	ioUring            *bool
 	ioUringRecvBatch   *uint
 	ioUringCqeBatch    *uint
+	debugPrometheus    *bool
 }
 
 // defaultDestFor picks the `-dest` default from the library destinations
@@ -561,6 +562,7 @@ func defineRuntimeFlags(f *mainFlags) {
 	f.ioUring = flag.Bool("ioUring", false, "Opt in to io_uring for netlink reads, one multishot recv per socket (Linux 6.1+). Destination writes stay syscalls")
 	f.ioUringRecvBatch = flag.Uint("ioUringRecvBatch", 64, "io_uring receive buffers per socket, rounded up to a power of two (1-4096). Each holds one packet; with all in use, receiving pauses until they are recycled.")
 	f.ioUringCqeBatch = flag.Uint("ioUringCqeBatch", 128, "io_uring max CQEs reaped per PeekBatchCQE call (1-4096)")
+	f.debugPrometheus = flag.Bool("debugPrometheus", false, "also record the per-record Prometheus series (Deserialize n and nlPacketComplete), which cost more CPU than the decode at 100k sockets. Falls back to DEBUG_PROMETHEUS env.")
 }
 
 // defineEnrichmentFlags registers the best-effort metadata-enrichment flags.
@@ -824,6 +826,7 @@ func buildConfig(f *mainFlags, des *xtcp_config.EnabledDeserializers) *xtcp_conf
 		IoUring:              *f.ioUring,
 		IoUringRecvBatchSize: uint32(*f.ioUringRecvBatch),
 		IoUringCqeBatchSize:  uint32(*f.ioUringCqeBatch),
+		DebugPrometheus:      *f.debugPrometheus,
 	}
 }
 
@@ -1731,6 +1734,10 @@ func envOverrideNetlinker(c *xtcp_config.XtcpConfig, debugLevel uint) {
 	if v, ok := envUint32("NLMSQSEQ"); ok {
 		c.NlmsgSeq = v
 		logEnv("NLMSQSEQ", fmt.Sprintf("c.NlmsgSeq:%d", v), debugLevel)
+	}
+	if v, ok := envBool("DEBUG_PROMETHEUS"); ok {
+		c.DebugPrometheus = v
+		logEnv("DEBUG_PROMETHEUS", fmt.Sprintf("c.DebugPrometheus:%t", v), debugLevel)
 	}
 }
 

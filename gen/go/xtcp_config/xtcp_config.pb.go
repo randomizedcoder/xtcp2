@@ -1266,6 +1266,12 @@ type XtcpConfig struct {
 	DestWriteFiles uint32 `protobuf:"varint,52,opt,name=dest_write_files,json=destWriteFiles,proto3" json:"dest_write_files,omitempty"`
 	// DebugLevel
 	DebugLevel uint32 `protobuf:"varint,53,opt,name=debug_level,json=debugLevel,proto3" json:"debug_level,omitempty"`
+	// Record the per-record Prometheus series too: Deserialize "n" and the
+	// Deserialize "nlPacketComplete" summary, each updated once per socket
+	// record. Off by default: at 100k sockets they cost more CPU than the
+	// decode itself. The per-packet and per-dump series are always on.
+	// Takes effect when the netlinkers start (a restart after a Set).
+	DebugPrometheus bool `protobuf:"varint,54,opt,name=debug_prometheus,json=debugPrometheus,proto3" json:"debug_prometheus,omitempty"`
 	// kafka:127.0.0.1:9092, udp:127.0.0.1:13000, nsq:127.0.0.1:4150,
 	// nats:nats://127.0.0.1:4222, valkey:127.0.0.1:6379, null:,
 	// unix:/path/to/sock (SOCK_STREAM, length-prefixed via varint), or
@@ -1716,6 +1722,13 @@ func (x *XtcpConfig) GetDebugLevel() uint32 {
 		return x.DebugLevel
 	}
 	return 0
+}
+
+func (x *XtcpConfig) GetDebugPrometheus() bool {
+	if x != nil {
+		return x.DebugPrometheus
+	}
+	return false
 }
 
 func (x *XtcpConfig) GetDest() string {
@@ -2248,7 +2261,7 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\x0fcollection_mode\x18\r \x01(\tB\x18\xbaH\x15r\x13R\x00R\x04pollR\ton-demandR\x0ecollectionMode\x12P\n" +
 	"\x0ewatch_interval\x18\x0e \x01(\v2\x19.google.protobuf.DurationB\x0e\xbaH\v\xaa\x01\b\"\x04\b\x80\xa3\x05*\x00R\rwatchInterval\x12N\n" +
 	"\rslow_interval\x18\x0f \x01(\v2\x19.google.protobuf.DurationB\x0e\xbaH\v\xaa\x01\b\"\x04\b\x80\xa3\x05*\x00R\fslowInterval\x12M\n" +
-	"\ron_demand_ttl\x18\x10 \x01(\v2\x19.google.protobuf.DurationB\x0e\xbaH\v\xaa\x01\b\"\x04\b\x80\xa3\x052\x00R\vonDemandTtl\"\xd8$\n" +
+	"\ron_demand_ttl\x18\x10 \x01(\v2\x19.google.protobuf.DurationB\x0e\xbaH\v\xaa\x01\b\"\x04\b\x80\xa3\x052\x00R\vonDemandTtl\"\x8b%\n" +
 	"\n" +
 	"XtcpConfig\x12F\n" +
 	"\x17nl_timeout_milliseconds\x18\n" +
@@ -2285,7 +2298,8 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\xc8\x01\x00*\x05\x18\xe8\a(\x00R\x0edestWriteFiles\x12.\n" +
 	"\vdebug_level\x185 \x01(\rB\r\xbaH\n" +
 	"\xc8\x01\x01*\x05\x18\xe8\a(\x00R\n" +
-	"debugLevel\x12!\n" +
+	"debugLevel\x121\n" +
+	"\x10debug_prometheus\x186 \x01(\bB\x06\xbaH\x03\xc8\x01\x00R\x0fdebugPrometheus\x12!\n" +
 	"\x04dest\x18< \x01(\tB\r\xbaH\n" +
 	"\xc8\x01\x01r\x05\x10\x04\x18\x80\x04R\x04dest\x12+\n" +
 	"\n" +

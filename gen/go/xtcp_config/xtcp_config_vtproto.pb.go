@@ -1541,6 +1541,18 @@ func (m *XtcpConfig) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0xe2
 	}
+	if m.DebugPrometheus {
+		i--
+		if m.DebugPrometheus {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x3
+		i--
+		dAtA[i] = 0xb0
+	}
 	if m.DebugLevel != 0 {
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.DebugLevel))
 		i--
@@ -2176,6 +2188,9 @@ func (m *XtcpConfig) SizeVT() (n int) {
 	}
 	if m.DebugLevel != 0 {
 		n += 2 + protohelpers.SizeOfVarint(uint64(m.DebugLevel))
+	}
+	if m.DebugPrometheus {
+		n += 3
 	}
 	l = len(m.Dest)
 	if l > 0 {
@@ -5115,6 +5130,26 @@ func (m *XtcpConfig) UnmarshalVT(dAtA []byte) error {
 					break
 				}
 			}
+		case 54:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DebugPrometheus", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return protohelpers.ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.DebugPrometheus = bool(v != 0)
 		case 60:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Dest", wireType)
