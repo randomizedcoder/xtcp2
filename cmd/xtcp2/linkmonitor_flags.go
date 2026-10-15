@@ -28,6 +28,10 @@ func defineLinkMonitorFlags(f *mainFlags) {
 	f.linkMonitorMetricsCoreInclude = flag.String("linkMonitorMetricsCoreInclude", "", "anchored regexp of link monitor metric names registered on xtcp2's registry; empty with an empty exclude = the alerting summary, otherwise the core audit set. Falls back to LINK_MONITOR_METRICS_CORE_INCLUDE env.")
 	f.linkMonitorMetricsCoreExclude = flag.String("linkMonitorMetricsCoreExclude", "", "anchored regexp of link monitor metric names removed from the selection. Falls back to LINK_MONITOR_METRICS_CORE_EXCLUDE env.")
 	f.linkMonitorMetricsAll = flag.Bool("linkMonitorMetricsAll", false, "register every link monitor metric, including bulk driver, RDMA and netstat counters, instead of the alerting summary. Falls back to LINK_MONITOR_METRICS_ALL env.")
+	f.linkMonitorCollectionMode = flag.String("linkMonitorCollectionMode", string(linkmonitor.CollectionPoll), "link monitor collection mode: poll collects everything each stats interval; on-demand polls errors and state each watch interval and settings each slow interval, and collects the rest when xtcp2 serves it. Falls back to LINK_MONITOR_COLLECTION_MODE env.")
+	f.linkMonitorWatchInterval = flag.Duration("linkMonitorWatchInterval", d.WatchInterval, "on demand: error and state polling interval (positive). Falls back to LINK_MONITOR_WATCH_INTERVAL env.")
+	f.linkMonitorSlowInterval = flag.Duration("linkMonitorSlowInterval", d.SlowInterval, "on demand: settings and RDMA capability polling interval (positive). Falls back to LINK_MONITOR_SLOW_INTERVAL env.")
+	f.linkMonitorOnDemandTTL = flag.Duration("linkMonitorOnDemandTTL", d.OnDemandTTL, "on demand: how long collected detail is reused; 0 collects on every scrape. Falls back to LINK_MONITOR_ON_DEMAND_TTL env.")
 }
 
 // buildLinkMonitorConfig maps the flags onto XtcpConfig.link_monitor.
@@ -45,11 +49,15 @@ func buildLinkMonitorConfig(f *mainFlags) *xtcp_config.LinkMonitorConfig {
 		MetricsCoreInclude: *f.linkMonitorMetricsCoreInclude,
 		MetricsCoreExclude: *f.linkMonitorMetricsCoreExclude,
 		MetricsAll:         *f.linkMonitorMetricsAll,
+		CollectionMode:     *f.linkMonitorCollectionMode,
+		WatchInterval:      durationpb.New(*f.linkMonitorWatchInterval),
+		SlowInterval:       durationpb.New(*f.linkMonitorSlowInterval),
+		OnDemandTtl:        durationpb.New(*f.linkMonitorOnDemandTTL),
 	}
 }
 
 // printLinkMonitorFlags prints the link monitor run, linkMonitor through
-// linkMonitorMetricsAll, and pairs with defineLinkMonitorFlags.
+// linkMonitorOnDemandTTL, and pairs with defineLinkMonitorFlags.
 func printLinkMonitorFlags(f *mainFlags) {
 	fmt.Println("*linkMonitor:", *f.linkMonitor)
 	fmt.Println("*linkMonitorBaselineFile:", *f.linkMonitorBaselineFile)
@@ -63,6 +71,10 @@ func printLinkMonitorFlags(f *mainFlags) {
 	fmt.Println("*linkMonitorMetricsCoreInclude:", *f.linkMonitorMetricsCoreInclude)
 	fmt.Println("*linkMonitorMetricsCoreExclude:", *f.linkMonitorMetricsCoreExclude)
 	fmt.Println("*linkMonitorMetricsAll:", *f.linkMonitorMetricsAll)
+	fmt.Println("*linkMonitorCollectionMode:", *f.linkMonitorCollectionMode)
+	fmt.Println("*linkMonitorWatchInterval:", *f.linkMonitorWatchInterval)
+	fmt.Println("*linkMonitorSlowInterval:", *f.linkMonitorSlowInterval)
+	fmt.Println("*linkMonitorOnDemandTTL:", *f.linkMonitorOnDemandTTL)
 }
 
 // envOverrideLinkMonitor applies the LINK_MONITOR_* variables. Like the other
@@ -90,6 +102,7 @@ func envOverrideLinkMonitor(c *xtcp_config.XtcpConfig, debugLevel uint) {
 		{"LINK_MONITOR_NETSTAT_FIELDS", &m.NetstatFields},
 		{"LINK_MONITOR_METRICS_CORE_INCLUDE", &m.MetricsCoreInclude},
 		{"LINK_MONITOR_METRICS_CORE_EXCLUDE", &m.MetricsCoreExclude},
+		{"LINK_MONITOR_COLLECTION_MODE", &m.CollectionMode},
 	} {
 		if v, ok := envString(s.key); ok {
 			*s.target = v
@@ -107,6 +120,9 @@ func envOverrideLinkMonitor(c *xtcp_config.XtcpConfig, debugLevel uint) {
 		{"LINK_MONITOR_SETTLE", &m.Settle},
 		{"LINK_MONITOR_RESYNC", &m.Resync},
 		{"LINK_MONITOR_STATS_INTERVAL", &m.StatsInterval},
+		{"LINK_MONITOR_WATCH_INTERVAL", &m.WatchInterval},
+		{"LINK_MONITOR_SLOW_INTERVAL", &m.SlowInterval},
+		{"LINK_MONITOR_ON_DEMAND_TTL", &m.OnDemandTtl},
 	} {
 		if v, ok := envDuration(d.key); ok {
 			*d.target = durationpb.New(v)
@@ -125,4 +141,8 @@ func printLinkMonitorConfig(c *xtcp_config.XtcpConfig) {
 	fmt.Println("c.LinkMonitor.StatsInterval:", m.GetStatsInterval().AsDuration().String())
 	fmt.Println("c.LinkMonitor.MaxSpeedExceptions:", m.GetMaxSpeedExceptions())
 	fmt.Println("c.LinkMonitor.MetricsAll:", m.GetMetricsAll())
+	fmt.Println("c.LinkMonitor.CollectionMode:", m.GetCollectionMode())
+	fmt.Println("c.LinkMonitor.WatchInterval:", m.GetWatchInterval().AsDuration().String())
+	fmt.Println("c.LinkMonitor.SlowInterval:", m.GetSlowInterval().AsDuration().String())
+	fmt.Println("c.LinkMonitor.OnDemandTtl:", m.GetOnDemandTtl().AsDuration().String())
 }

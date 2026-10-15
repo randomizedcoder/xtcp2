@@ -970,6 +970,10 @@ func TestPrintFlags(t *testing.T) {
 	f.linkMonitorMetricsCoreInclude = &s
 	f.linkMonitorMetricsCoreExclude = &s
 	f.linkMonitorMetricsAll = &b
+	f.linkMonitorCollectionMode = &s
+	f.linkMonitorWatchInterval = &d
+	f.linkMonitorSlowInterval = &d
+	f.linkMonitorOnDemandTTL = &d
 	// Redirect stdout so the call doesn't litter test output.
 	r, w, _ := os.Pipe()
 	orig := os.Stdout
@@ -1061,6 +1065,8 @@ func TestBuildConfig(t *testing.T) {
 	lmInclude, lmExclude, lmNetstat := "^mlx", "^lo$", "^Tcp"
 	lmExceptions := "eth8, eth9"
 	lmCoreInclude, lmCoreExclude := "go_link_monitor_up_links", "go_link_monitor_build_info"
+	lmMode := "on-demand"
+	lmWatch, lmSlow, lmTTL := 20*time.Second, 40*time.Second, 5*time.Second
 	f := &mainFlags{
 		nltimeout: &nl, pollFrequency: &pf, pollTimeout: &pt, maxLoops: &ml,
 		netlinkers: &nlk, nlmsgSeq: &seq, packetSize: &psz, packetSizeMply: &psm,
@@ -1117,6 +1123,8 @@ func TestBuildConfig(t *testing.T) {
 		linkMonitorStatsExclude: &lmExclude, linkMonitorNetstatFields: &lmNetstat,
 		linkMonitorMaxSpeedExceptions: &lmExceptions, linkMonitorMetricsCoreInclude: &lmCoreInclude,
 		linkMonitorMetricsCoreExclude: &lmCoreExclude, linkMonitorMetricsAll: &iu,
+		linkMonitorCollectionMode: &lmMode, linkMonitorWatchInterval: &lmWatch,
+		linkMonitorSlowInterval: &lmSlow, linkMonitorOnDemandTTL: &lmTTL,
 	}
 	des := getDeserializers(*f.deserializers)
 	c := buildConfig(f, des)
@@ -1173,6 +1181,10 @@ func TestBuildConfig(t *testing.T) {
 		{"LinkMonitor.MetricsCoreInclude", c.LinkMonitor.GetMetricsCoreInclude(), lmCoreInclude},
 		{"LinkMonitor.MetricsCoreExclude", c.LinkMonitor.GetMetricsCoreExclude(), lmCoreExclude},
 		{"LinkMonitor.MetricsAll", c.LinkMonitor.GetMetricsAll(), true},
+		{"LinkMonitor.CollectionMode", c.LinkMonitor.GetCollectionMode(), lmMode},
+		{"LinkMonitor.WatchInterval", c.LinkMonitor.GetWatchInterval().AsDuration(), lmWatch},
+		{"LinkMonitor.SlowInterval", c.LinkMonitor.GetSlowInterval().AsDuration(), lmSlow},
+		{"LinkMonitor.OnDemandTtl", c.LinkMonitor.GetOnDemandTtl().AsDuration(), lmTTL},
 	}
 	for _, ck := range checks {
 		if ck.got != ck.want {

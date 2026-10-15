@@ -990,7 +990,8 @@ type LinkMonitorConfig struct {
 	StatsExclude string `protobuf:"bytes,7,opt,name=stats_exclude,json=statsExclude,proto3" json:"stats_exclude,omitempty"`
 	// Host protocol fields (Go regexp on protocol_field). Default ".*".
 	NetstatFields string `protobuf:"bytes,8,opt,name=netstat_fields,json=netstatFields,proto3" json:"netstat_fields,omitempty"`
-	// Exact interface or RDMA port selectors allowed below maximum speed.
+	// Exact interface or RDMA port selectors allowed below maximum speed, each
+	// optionally NAME=SPEED to allow only that speed (e.g. eno1=1G).
 	MaxSpeedExceptions []string `protobuf:"bytes,9,rep,name=max_speed_exceptions,json=maxSpeedExceptions,proto3" json:"max_speed_exceptions,omitempty"`
 	// Anchored regexps selecting the metric names xtcp2 serves. When both are
 	// empty xtcp2 serves the alerting summary; otherwise an empty include is
@@ -1000,7 +1001,20 @@ type LinkMonitorConfig struct {
 	MetricsCoreExclude string `protobuf:"bytes,11,opt,name=metrics_core_exclude,json=metricsCoreExclude,proto3" json:"metrics_core_exclude,omitempty"`
 	// Register every link-monitor metric instead of the summary. The full set
 	// is thousands of series on a large host.
-	MetricsAll    bool `protobuf:"varint,12,opt,name=metrics_all,json=metricsAll,proto3" json:"metrics_all,omitempty"`
+	MetricsAll bool `protobuf:"varint,12,opt,name=metrics_all,json=metricsAll,proto3" json:"metrics_all,omitempty"`
+	// Collection mode: "poll" (the default when empty) collects every
+	// collector each stats_interval; "on-demand" polls the error and state
+	// collectors each watch_interval and the link settings each
+	// slow_interval, and collects the rest when xtcp2 serves them, reusing
+	// data younger than on_demand_ttl.
+	CollectionMode string `protobuf:"bytes,13,opt,name=collection_mode,json=collectionMode,proto3" json:"collection_mode,omitempty"`
+	// On demand: error and state polling interval. Default 60s.
+	WatchInterval *durationpb.Duration `protobuf:"bytes,14,opt,name=watch_interval,json=watchInterval,proto3" json:"watch_interval,omitempty"`
+	// On demand: settings and RDMA capability polling interval. Default 300s.
+	SlowInterval *durationpb.Duration `protobuf:"bytes,15,opt,name=slow_interval,json=slowInterval,proto3" json:"slow_interval,omitempty"`
+	// On demand: how long collected detail is reused. Default 15s; 0
+	// collects on every scrape.
+	OnDemandTtl   *durationpb.Duration `protobuf:"bytes,16,opt,name=on_demand_ttl,json=onDemandTtl,proto3" json:"on_demand_ttl,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1117,6 +1131,34 @@ func (x *LinkMonitorConfig) GetMetricsAll() bool {
 		return x.MetricsAll
 	}
 	return false
+}
+
+func (x *LinkMonitorConfig) GetCollectionMode() string {
+	if x != nil {
+		return x.CollectionMode
+	}
+	return ""
+}
+
+func (x *LinkMonitorConfig) GetWatchInterval() *durationpb.Duration {
+	if x != nil {
+		return x.WatchInterval
+	}
+	return nil
+}
+
+func (x *LinkMonitorConfig) GetSlowInterval() *durationpb.Duration {
+	if x != nil {
+		return x.SlowInterval
+	}
+	return nil
+}
+
+func (x *LinkMonitorConfig) GetOnDemandTtl() *durationpb.Duration {
+	if x != nil {
+		return x.OnDemandTtl
+	}
+	return nil
 }
 
 // xtcp configuration
@@ -2187,7 +2229,7 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	"\x12failure_jitter_min\x18\x05 \x01(\v2\x19.google.protobuf.DurationB\b\xbaH\x05\xaa\x01\x022\x00R\x10failureJitterMin\x12Q\n" +
 	"\x12failure_jitter_max\x18\x06 \x01(\v2\x19.google.protobuf.DurationB\b\xbaH\x05\xaa\x01\x022\x00R\x10failureJitterMax:\xe1\x01\xbaH\xdd\x01\x1a\xda\x01\n" +
 	"\x1aListenerAuth.failureJitter\x12Ffailure_jitter_max must be greater than or equal to failure_jitter_min\x1at!has(this.failure_jitter_min) || !has(this.failure_jitter_max) || this.failure_jitter_max >= this.failure_jitter_minB\x1c\n" +
-	"\x1a_signed_token_skew_minutes\"\xa0\x05\n" +
+	"\x1a_signed_token_skew_minutes\"\xd4\a\n" +
 	"\x11LinkMonitorConfig\x12\x16\n" +
 	"\x06enable\x18\x01 \x01(\bR\x06enable\x12-\n" +
 	"\rbaseline_file\x18\x02 \x01(\tB\b\xbaH\x05r\x03\x18\x80 R\fbaselineFile\x12A\n" +
@@ -2202,7 +2244,11 @@ const file_xtcp_config_v1_xtcp_config_proto_rawDesc = "" +
 	" \x01(\tB\b\xbaH\x05r\x03\x18\x80 R\x12metricsCoreInclude\x12:\n" +
 	"\x14metrics_core_exclude\x18\v \x01(\tB\b\xbaH\x05r\x03\x18\x80 R\x12metricsCoreExclude\x12\x1f\n" +
 	"\vmetrics_all\x18\f \x01(\bR\n" +
-	"metricsAll\"\xd8$\n" +
+	"metricsAll\x12A\n" +
+	"\x0fcollection_mode\x18\r \x01(\tB\x18\xbaH\x15r\x13R\x00R\x04pollR\ton-demandR\x0ecollectionMode\x12P\n" +
+	"\x0ewatch_interval\x18\x0e \x01(\v2\x19.google.protobuf.DurationB\x0e\xbaH\v\xaa\x01\b\"\x04\b\x80\xa3\x05*\x00R\rwatchInterval\x12N\n" +
+	"\rslow_interval\x18\x0f \x01(\v2\x19.google.protobuf.DurationB\x0e\xbaH\v\xaa\x01\b\"\x04\b\x80\xa3\x05*\x00R\fslowInterval\x12M\n" +
+	"\ron_demand_ttl\x18\x10 \x01(\v2\x19.google.protobuf.DurationB\x0e\xbaH\v\xaa\x01\b\"\x04\b\x80\xa3\x052\x00R\vonDemandTtl\"\xd8$\n" +
 	"\n" +
 	"XtcpConfig\x12F\n" +
 	"\x17nl_timeout_milliseconds\x18\n" +
@@ -2389,40 +2435,43 @@ var file_xtcp_config_v1_xtcp_config_proto_depIdxs = []int32{
 	22, // 15: xtcp_config.v1.LinkMonitorConfig.settle:type_name -> google.protobuf.Duration
 	22, // 16: xtcp_config.v1.LinkMonitorConfig.resync:type_name -> google.protobuf.Duration
 	22, // 17: xtcp_config.v1.LinkMonitorConfig.stats_interval:type_name -> google.protobuf.Duration
-	22, // 18: xtcp_config.v1.XtcpConfig.poll_frequency:type_name -> google.protobuf.Duration
-	22, // 19: xtcp_config.v1.XtcpConfig.poll_timeout:type_name -> google.protobuf.Duration
-	20, // 20: xtcp_config.v1.XtcpConfig.enabled_deserializers:type_name -> xtcp_config.v1.EnabledDeserializers
-	22, // 21: xtcp_config.v1.XtcpConfig.reconcile_frequency:type_name -> google.protobuf.Duration
-	22, // 22: xtcp_config.v1.XtcpConfig.kafka_produce_timeout:type_name -> google.protobuf.Duration
-	22, // 23: xtcp_config.v1.XtcpConfig.s3_flush_interval:type_name -> google.protobuf.Duration
-	22, // 24: xtcp_config.v1.XtcpConfig.s3_upload_backoff_cap:type_name -> google.protobuf.Duration
-	17, // 25: xtcp_config.v1.XtcpConfig.listener_auth:type_name -> xtcp_config.v1.ListenerAuth
-	16, // 26: xtcp_config.v1.XtcpConfig.prometheus_listener:type_name -> xtcp_config.v1.ListenerEndpoint
-	17, // 27: xtcp_config.v1.XtcpConfig.admin_listener_auth:type_name -> xtcp_config.v1.ListenerAuth
-	16, // 28: xtcp_config.v1.XtcpConfig.grpc_listener:type_name -> xtcp_config.v1.ListenerEndpoint
-	22, // 29: xtcp_config.v1.XtcpConfig.asn_refresh_interval:type_name -> google.protobuf.Duration
-	22, // 30: xtcp_config.v1.XtcpConfig.locality_refresh_interval:type_name -> google.protobuf.Duration
-	18, // 31: xtcp_config.v1.XtcpConfig.link_monitor:type_name -> xtcp_config.v1.LinkMonitorConfig
-	21, // 32: xtcp_config.v1.EnabledDeserializers.enabled:type_name -> xtcp_config.v1.EnabledDeserializers.EnabledEntry
-	2,  // 33: xtcp_config.v1.ConfigService.Get:input_type -> xtcp_config.v1.GetRequest
-	4,  // 34: xtcp_config.v1.ConfigService.Set:input_type -> xtcp_config.v1.SetRequest
-	6,  // 35: xtcp_config.v1.ConfigService.SetPollFrequency:input_type -> xtcp_config.v1.SetPollFrequencyRequest
-	8,  // 36: xtcp_config.v1.ConfigService.TriggerPoll:input_type -> xtcp_config.v1.TriggerPollRequest
-	10, // 37: xtcp_config.v1.ConfigService.TriggerPollBurst:input_type -> xtcp_config.v1.TriggerPollBurstRequest
-	12, // 38: xtcp_config.v1.ConfigService.SetS3Upload:input_type -> xtcp_config.v1.SetS3UploadRequest
-	14, // 39: xtcp_config.v1.ConfigService.SetEnvelopeFlush:input_type -> xtcp_config.v1.SetEnvelopeFlushRequest
-	3,  // 40: xtcp_config.v1.ConfigService.Get:output_type -> xtcp_config.v1.GetResponse
-	5,  // 41: xtcp_config.v1.ConfigService.Set:output_type -> xtcp_config.v1.SetResponse
-	7,  // 42: xtcp_config.v1.ConfigService.SetPollFrequency:output_type -> xtcp_config.v1.SetPollFrequencyResponse
-	9,  // 43: xtcp_config.v1.ConfigService.TriggerPoll:output_type -> xtcp_config.v1.TriggerPollResponse
-	11, // 44: xtcp_config.v1.ConfigService.TriggerPollBurst:output_type -> xtcp_config.v1.TriggerPollBurstResponse
-	13, // 45: xtcp_config.v1.ConfigService.SetS3Upload:output_type -> xtcp_config.v1.SetS3UploadResponse
-	15, // 46: xtcp_config.v1.ConfigService.SetEnvelopeFlush:output_type -> xtcp_config.v1.SetEnvelopeFlushResponse
-	40, // [40:47] is the sub-list for method output_type
-	33, // [33:40] is the sub-list for method input_type
-	33, // [33:33] is the sub-list for extension type_name
-	33, // [33:33] is the sub-list for extension extendee
-	0,  // [0:33] is the sub-list for field type_name
+	22, // 18: xtcp_config.v1.LinkMonitorConfig.watch_interval:type_name -> google.protobuf.Duration
+	22, // 19: xtcp_config.v1.LinkMonitorConfig.slow_interval:type_name -> google.protobuf.Duration
+	22, // 20: xtcp_config.v1.LinkMonitorConfig.on_demand_ttl:type_name -> google.protobuf.Duration
+	22, // 21: xtcp_config.v1.XtcpConfig.poll_frequency:type_name -> google.protobuf.Duration
+	22, // 22: xtcp_config.v1.XtcpConfig.poll_timeout:type_name -> google.protobuf.Duration
+	20, // 23: xtcp_config.v1.XtcpConfig.enabled_deserializers:type_name -> xtcp_config.v1.EnabledDeserializers
+	22, // 24: xtcp_config.v1.XtcpConfig.reconcile_frequency:type_name -> google.protobuf.Duration
+	22, // 25: xtcp_config.v1.XtcpConfig.kafka_produce_timeout:type_name -> google.protobuf.Duration
+	22, // 26: xtcp_config.v1.XtcpConfig.s3_flush_interval:type_name -> google.protobuf.Duration
+	22, // 27: xtcp_config.v1.XtcpConfig.s3_upload_backoff_cap:type_name -> google.protobuf.Duration
+	17, // 28: xtcp_config.v1.XtcpConfig.listener_auth:type_name -> xtcp_config.v1.ListenerAuth
+	16, // 29: xtcp_config.v1.XtcpConfig.prometheus_listener:type_name -> xtcp_config.v1.ListenerEndpoint
+	17, // 30: xtcp_config.v1.XtcpConfig.admin_listener_auth:type_name -> xtcp_config.v1.ListenerAuth
+	16, // 31: xtcp_config.v1.XtcpConfig.grpc_listener:type_name -> xtcp_config.v1.ListenerEndpoint
+	22, // 32: xtcp_config.v1.XtcpConfig.asn_refresh_interval:type_name -> google.protobuf.Duration
+	22, // 33: xtcp_config.v1.XtcpConfig.locality_refresh_interval:type_name -> google.protobuf.Duration
+	18, // 34: xtcp_config.v1.XtcpConfig.link_monitor:type_name -> xtcp_config.v1.LinkMonitorConfig
+	21, // 35: xtcp_config.v1.EnabledDeserializers.enabled:type_name -> xtcp_config.v1.EnabledDeserializers.EnabledEntry
+	2,  // 36: xtcp_config.v1.ConfigService.Get:input_type -> xtcp_config.v1.GetRequest
+	4,  // 37: xtcp_config.v1.ConfigService.Set:input_type -> xtcp_config.v1.SetRequest
+	6,  // 38: xtcp_config.v1.ConfigService.SetPollFrequency:input_type -> xtcp_config.v1.SetPollFrequencyRequest
+	8,  // 39: xtcp_config.v1.ConfigService.TriggerPoll:input_type -> xtcp_config.v1.TriggerPollRequest
+	10, // 40: xtcp_config.v1.ConfigService.TriggerPollBurst:input_type -> xtcp_config.v1.TriggerPollBurstRequest
+	12, // 41: xtcp_config.v1.ConfigService.SetS3Upload:input_type -> xtcp_config.v1.SetS3UploadRequest
+	14, // 42: xtcp_config.v1.ConfigService.SetEnvelopeFlush:input_type -> xtcp_config.v1.SetEnvelopeFlushRequest
+	3,  // 43: xtcp_config.v1.ConfigService.Get:output_type -> xtcp_config.v1.GetResponse
+	5,  // 44: xtcp_config.v1.ConfigService.Set:output_type -> xtcp_config.v1.SetResponse
+	7,  // 45: xtcp_config.v1.ConfigService.SetPollFrequency:output_type -> xtcp_config.v1.SetPollFrequencyResponse
+	9,  // 46: xtcp_config.v1.ConfigService.TriggerPoll:output_type -> xtcp_config.v1.TriggerPollResponse
+	11, // 47: xtcp_config.v1.ConfigService.TriggerPollBurst:output_type -> xtcp_config.v1.TriggerPollBurstResponse
+	13, // 48: xtcp_config.v1.ConfigService.SetS3Upload:output_type -> xtcp_config.v1.SetS3UploadResponse
+	15, // 49: xtcp_config.v1.ConfigService.SetEnvelopeFlush:output_type -> xtcp_config.v1.SetEnvelopeFlushResponse
+	43, // [43:50] is the sub-list for method output_type
+	36, // [36:43] is the sub-list for method input_type
+	36, // [36:36] is the sub-list for extension type_name
+	36, // [36:36] is the sub-list for extension extendee
+	0,  // [0:36] is the sub-list for field type_name
 }
 
 func init() { file_xtcp_config_v1_xtcp_config_proto_init() }

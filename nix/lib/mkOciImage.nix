@@ -27,6 +27,9 @@
   #   { Test = [ "CMD" "/bin/xtcp2" "-healthcheck" ]; Interval = 30000000000; }
   healthcheck ? null,
   extraContents ? [ ],
+  # Extra image-config environment, "NAME=value" strings appended after
+  # SSL_CERT_FILE. A container's own -e settings still override them.
+  env ? [ ],
 }:
 
 let
@@ -66,7 +69,7 @@ pkgs.dockerTools.streamLayeredImage {
     # Point Go's crypto/x509 explicitly at the bundle shipped above — belt-and-
     # suspenders alongside the standard /etc/ssl/certs path, so TLS verification
     # works even if Go's default search paths ever change.
-    Env = [ "SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt" ];
+    Env = [ "SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt" ] ++ env;
   }
   // lib.optionalAttrs (cmd != [ ]) { Cmd = cmd; }
   // lib.optionalAttrs (healthcheck != null) { Healthcheck = healthcheck; };

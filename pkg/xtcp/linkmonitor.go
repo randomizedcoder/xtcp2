@@ -5,12 +5,14 @@ import (
 	"log"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor"
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/linkmonitorgrpc"
 	monitorprom "github.com/randomizedcoder/xtcp2/pkg/linkmonitor/prometheus"
+	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 // DefaultLinkMonitorBaseline is xtcp2's baseline file for the embedded link
@@ -24,16 +26,38 @@ type linkMonitorExposure struct {
 }
 
 // collectors returns the collectors for m. The default is the alerting
-// summary, which costs the same however many interfaces the host has.
+// summary, which costs the same however many interfaces the host has. The
+// detail collectors refresh first, which in poll mode returns at once.
 func (e linkMonitorExposure) collectors(m *linkmonitor.Monitor) []prometheus.Collector {
 	switch {
 	case e.all:
-		return []prometheus.Collector{monitorprom.NewCollector(m), monitorprom.NewSummaryCollector(m, monitorprom.WithoutScalars())}
+		return []prometheus.Collector{refreshing{monitorprom.NewCollector(m), m}, monitorprom.NewSummaryCollector(m, monitorprom.WithoutScalars())}
 	case e.match != nil:
-		return []prometheus.Collector{monitorprom.NewCollector(m, monitorprom.WithMetricFilter(e.match))}
+		return []prometheus.Collector{refreshing{monitorprom.NewCollector(m, monitorprom.WithMetricFilter(e.match)), m}}
 	default:
 		return []prometheus.Collector{monitorprom.NewSummaryCollector(m)}
 	}
+}
+
+// linkMonitorRefresher is the part of *linkmonitor.Monitor refreshing uses.
+type linkMonitorRefresher interface {
+	Refresh(context.Context, linkmonitor.RefreshScope) (linkmonitor.RefreshResult, error)
+}
+
+// refreshing brings every collector up to date before each collection, so an
+// on-demand monitor serves current detail on xtcp2's registry. Refresh bounds
+// its own wait by OnDemandWait; on a timeout or an error, such as a monitor
+// not yet running, the last published snapshot is served.
+type refreshing struct {
+	prometheus.Collector
+	monitor linkMonitorRefresher
+}
+
+func (r refreshing) Collect(ch chan<- prometheus.Metric) {
+	if _, err := r.monitor.Refresh(context.Background(), linkmonitor.RefreshScope{Collectors: linkmonitor.AllCollectors()}); err != nil {
+		slog.Debug("link monitor refresh; serving the last snapshot", "err", err)
+	}
+	r.Collector.Collect(ch)
 }
 
 // linkMonitorSettings translates the config into library settings and the
@@ -43,9 +67,12 @@ func (e linkMonitorExposure) collectors(m *linkmonitor.Monitor) []prometheus.Col
 func linkMonitorSettings(c *xtcp_config.LinkMonitorConfig) (linkmonitor.Config, linkMonitorExposure, error) {
 	cfg := linkmonitor.DefaultConfig()
 	cfg.BaselineFile = DefaultLinkMonitorBaseline
-	// xtcp2 registers the collectors on its own registry, with no detail
-	// path to refresh on demand, so the embedded monitor polls.
+	// An empty collection mode keeps the embedded monitor polling, as it did
+	// before the mode existed; the OCI images select on-demand.
 	cfg.CollectionMode = linkmonitor.CollectionPoll
+	if mode := c.GetCollectionMode(); mode != "" {
+		cfg.CollectionMode = linkmonitor.CollectionMode(mode)
+	}
 	for _, s := range []struct {
 		value  string
 		target *string
@@ -65,8 +92,18 @@ func linkMonitorSettings(c *xtcp_config.LinkMonitorConfig) (linkmonitor.Config, 
 	if c.GetResync() != nil {
 		cfg.Resync = c.GetResync().AsDuration()
 	}
-	if c.GetStatsInterval() != nil {
-		cfg.StatsInterval = c.GetStatsInterval().AsDuration()
+	for _, d := range []struct {
+		value  *durationpb.Duration
+		target *time.Duration
+	}{
+		{c.GetStatsInterval(), &cfg.StatsInterval},
+		{c.GetWatchInterval(), &cfg.WatchInterval},
+		{c.GetSlowInterval(), &cfg.SlowInterval},
+		{c.GetOnDemandTtl(), &cfg.OnDemandTTL},
+	} {
+		if d.value != nil {
+			*d.target = d.value.AsDuration()
+		}
 	}
 	cfg.MaxSpeedExceptions = append([]string(nil), c.GetMaxSpeedExceptions()...)
 	if c.GetMetricsAll() {
@@ -121,7 +158,7 @@ func (x *XTCP) initLinkMonitor() {
 	}
 	x.linkMonitor = m
 	if x.debugLevel > 10 {
-		log.Printf("initLinkMonitor: enabled baseline:%s all_metrics:%t summary:%t", cfg.BaselineFile, exposure.all, !exposure.all && exposure.match == nil)
+		log.Printf("initLinkMonitor: enabled baseline:%s mode:%s all_metrics:%t summary:%t", cfg.BaselineFile, cfg.CollectionMode, exposure.all, !exposure.all && exposure.match == nil)
 	}
 }
 

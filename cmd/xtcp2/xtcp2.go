@@ -331,6 +331,10 @@ type mainFlags struct {
 	linkMonitorMetricsCoreInclude *string
 	linkMonitorMetricsCoreExclude *string
 	linkMonitorMetricsAll         *bool
+	linkMonitorCollectionMode     *string
+	linkMonitorWatchInterval      *time.Duration
+	linkMonitorSlowInterval       *time.Duration
+	linkMonitorOnDemandTTL        *time.Duration
 
 	ipv4Ttl            *uint
 	ipv6HopLimit       *uint

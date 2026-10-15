@@ -42,6 +42,20 @@ func TestEnvOverrideLinkMonitor(t *testing.T) {
 			},
 		},
 		{
+			category: "positive", description: "the on-demand variables override the flags",
+			expected: "mode, watch, slow and TTL replaced",
+			env: map[string]string{
+				"LINK_MONITOR_COLLECTION_MODE": "on-demand", "LINK_MONITOR_WATCH_INTERVAL": "20s",
+				"LINK_MONITOR_SLOW_INTERVAL": "2m", "LINK_MONITOR_ON_DEMAND_TTL": "0s",
+			},
+			start: flagValue(),
+			check: func(m *xtcp_config.LinkMonitorConfig) bool {
+				return m.GetCollectionMode() == "on-demand" && m.GetWatchInterval().AsDuration() == 20*time.Second &&
+					m.GetSlowInterval().AsDuration() == 2*time.Minute && m.GetOnDemandTtl() != nil &&
+					m.GetOnDemandTtl().AsDuration() == 0
+			},
+		},
+		{
 			category: "negative", description: "unparsable bool and duration values leave the flag values",
 			expected: "unchanged", env: map[string]string{"LINK_MONITOR": "maybe", "LINK_MONITOR_RESYNC": "soon"},
 			start: flagValue(),

@@ -2611,9 +2611,13 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED LinkMonitorConfig final : public ::
     kNetstatFieldsFieldNumber = 8,
     kMetricsCoreIncludeFieldNumber = 10,
     kMetricsCoreExcludeFieldNumber = 11,
+    kCollectionModeFieldNumber = 13,
     kSettleFieldNumber = 3,
     kResyncFieldNumber = 4,
     kStatsIntervalFieldNumber = 5,
+    kWatchIntervalFieldNumber = 14,
+    kSlowIntervalFieldNumber = 15,
+    kOnDemandTtlFieldNumber = 16,
     kEnableFieldNumber = 1,
     kMetricsAllFieldNumber = 12,
   };
@@ -2734,6 +2738,21 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED LinkMonitorConfig final : public ::
   ::std::string* PROTOBUF_NONNULL _internal_mutable_metrics_core_exclude();
 
   public:
+  // string collection_mode = 13 [json_name = "collectionMode", (.buf.validate.field) = {
+  void clear_collection_mode() ;
+  [[nodiscard]] const ::std::string& collection_mode() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_collection_mode(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_collection_mode();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_collection_mode();
+  void set_allocated_collection_mode(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_collection_mode() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_collection_mode(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_collection_mode();
+
+  public:
   // .google.protobuf.Duration settle = 3 [json_name = "settle", (.buf.validate.field) = {
   [[nodiscard]] bool has_settle()
       const;
@@ -2782,6 +2801,54 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED LinkMonitorConfig final : public ::
   ::google::protobuf::Duration* PROTOBUF_NONNULL _internal_mutable_stats_interval();
 
   public:
+  // .google.protobuf.Duration watch_interval = 14 [json_name = "watchInterval", (.buf.validate.field) = {
+  [[nodiscard]] bool has_watch_interval()
+      const;
+  void clear_watch_interval() ;
+  [[nodiscard]] const ::google::protobuf::Duration& watch_interval() const;
+  [[nodiscard]] ::google::protobuf::Duration* PROTOBUF_NULLABLE release_watch_interval();
+  ::google::protobuf::Duration* PROTOBUF_NONNULL mutable_watch_interval();
+  void set_allocated_watch_interval(::google::protobuf::Duration* PROTOBUF_NULLABLE value);
+  void unsafe_arena_set_allocated_watch_interval(::google::protobuf::Duration* PROTOBUF_NULLABLE value);
+  ::google::protobuf::Duration* PROTOBUF_NULLABLE unsafe_arena_release_watch_interval();
+
+  private:
+  const ::google::protobuf::Duration& _internal_watch_interval() const;
+  ::google::protobuf::Duration* PROTOBUF_NONNULL _internal_mutable_watch_interval();
+
+  public:
+  // .google.protobuf.Duration slow_interval = 15 [json_name = "slowInterval", (.buf.validate.field) = {
+  [[nodiscard]] bool has_slow_interval()
+      const;
+  void clear_slow_interval() ;
+  [[nodiscard]] const ::google::protobuf::Duration& slow_interval() const;
+  [[nodiscard]] ::google::protobuf::Duration* PROTOBUF_NULLABLE release_slow_interval();
+  ::google::protobuf::Duration* PROTOBUF_NONNULL mutable_slow_interval();
+  void set_allocated_slow_interval(::google::protobuf::Duration* PROTOBUF_NULLABLE value);
+  void unsafe_arena_set_allocated_slow_interval(::google::protobuf::Duration* PROTOBUF_NULLABLE value);
+  ::google::protobuf::Duration* PROTOBUF_NULLABLE unsafe_arena_release_slow_interval();
+
+  private:
+  const ::google::protobuf::Duration& _internal_slow_interval() const;
+  ::google::protobuf::Duration* PROTOBUF_NONNULL _internal_mutable_slow_interval();
+
+  public:
+  // .google.protobuf.Duration on_demand_ttl = 16 [json_name = "onDemandTtl", (.buf.validate.field) = {
+  [[nodiscard]] bool has_on_demand_ttl()
+      const;
+  void clear_on_demand_ttl() ;
+  [[nodiscard]] const ::google::protobuf::Duration& on_demand_ttl() const;
+  [[nodiscard]] ::google::protobuf::Duration* PROTOBUF_NULLABLE release_on_demand_ttl();
+  ::google::protobuf::Duration* PROTOBUF_NONNULL mutable_on_demand_ttl();
+  void set_allocated_on_demand_ttl(::google::protobuf::Duration* PROTOBUF_NULLABLE value);
+  void unsafe_arena_set_allocated_on_demand_ttl(::google::protobuf::Duration* PROTOBUF_NULLABLE value);
+  ::google::protobuf::Duration* PROTOBUF_NULLABLE unsafe_arena_release_on_demand_ttl();
+
+  private:
+  const ::google::protobuf::Duration& _internal_on_demand_ttl() const;
+  ::google::protobuf::Duration* PROTOBUF_NONNULL _internal_mutable_on_demand_ttl();
+
+  public:
   // bool enable = 1 [json_name = "enable"];
   void clear_enable() ;
   [[nodiscard]] bool enable() const;
@@ -2806,8 +2873,8 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED LinkMonitorConfig final : public ::
  private:
   class _Internal;
   using ParseTableT_ =
-      ::google::protobuf::internal::TcParseTable<4, 12,
-                          3, 162,
+      ::google::protobuf::internal::TcParseTable<4, 16,
+                          6, 185,
                           2>;
   static constexpr ParseTableT_ InternalGenerateParseTable_(
       const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL class_data);
@@ -2842,9 +2909,13 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED LinkMonitorConfig final : public ::
     ::google::protobuf::internal::ArenaStringPtr netstat_fields_;
     ::google::protobuf::internal::ArenaStringPtr metrics_core_include_;
     ::google::protobuf::internal::ArenaStringPtr metrics_core_exclude_;
+    ::google::protobuf::internal::ArenaStringPtr collection_mode_;
     ::google::protobuf::Duration* PROTOBUF_NULLABLE settle_;
     ::google::protobuf::Duration* PROTOBUF_NULLABLE resync_;
     ::google::protobuf::Duration* PROTOBUF_NULLABLE stats_interval_;
+    ::google::protobuf::Duration* PROTOBUF_NULLABLE watch_interval_;
+    ::google::protobuf::Duration* PROTOBUF_NULLABLE slow_interval_;
+    ::google::protobuf::Duration* PROTOBUF_NULLABLE on_demand_ttl_;
     bool enable_;
     bool metrics_all_;
     PROTOBUF_TSAN_DECLARE_MEMBER
@@ -7506,7 +7577,7 @@ inline void ListenerAuth::set_allocated_failure_jitter_max(::google::protobuf::D
 inline void LinkMonitorConfig::clear_enable() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.enable_ = false;
-  ClearHasBit(_impl_._has_bits_[0], 0x00000400U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00004000U);
 }
 inline bool LinkMonitorConfig::enable() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.LinkMonitorConfig.enable)
@@ -7514,7 +7585,7 @@ inline bool LinkMonitorConfig::enable() const {
 }
 inline void LinkMonitorConfig::set_enable(bool value) {
   _internal_set_enable(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000400U);
+  SetHasBit(_impl_._has_bits_[0], 0x00004000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.LinkMonitorConfig.enable)
 }
 inline bool LinkMonitorConfig::_internal_enable() const {
@@ -7592,7 +7663,7 @@ inline void LinkMonitorConfig::set_allocated_baseline_file(::std::string* PROTOB
 
 // .google.protobuf.Duration settle = 3 [json_name = "settle", (.buf.validate.field) = {
 inline bool LinkMonitorConfig::has_settle() const {
-  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000080U);
+  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000100U);
   PROTOBUF_ASSUME(!value || _impl_.settle_ != nullptr);
   return value;
 }
@@ -7613,16 +7684,16 @@ inline void LinkMonitorConfig::unsafe_arena_set_allocated_settle(
   }
   _impl_.settle_ = reinterpret_cast<::google::protobuf::Duration*>(value);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000080U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000100U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000100U);
   }
   // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_config.v1.LinkMonitorConfig.settle)
 }
 inline ::google::protobuf::Duration* PROTOBUF_NULLABLE LinkMonitorConfig::release_settle() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000100U);
   ::google::protobuf::Duration* released = _impl_.settle_;
   _impl_.settle_ = nullptr;
   if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
@@ -7642,7 +7713,7 @@ inline ::google::protobuf::Duration* PROTOBUF_NULLABLE LinkMonitorConfig::unsafe
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_config.v1.LinkMonitorConfig.settle)
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000100U);
   ::google::protobuf::Duration* temp = _impl_.settle_;
   _impl_.settle_ = nullptr;
   return temp;
@@ -7657,7 +7728,7 @@ inline ::google::protobuf::Duration* PROTOBUF_NONNULL LinkMonitorConfig::_intern
 }
 inline ::google::protobuf::Duration* PROTOBUF_NONNULL LinkMonitorConfig::mutable_settle()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000080U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000100U);
   ::google::protobuf::Duration* _msg = _internal_mutable_settle();
   // @@protoc_insertion_point(field_mutable:xtcp_config.v1.LinkMonitorConfig.settle)
   return _msg;
@@ -7674,9 +7745,9 @@ inline void LinkMonitorConfig::set_allocated_settle(::google::protobuf::Duration
     if (message_arena != submessage_arena) {
       value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
     }
-    SetHasBit(_impl_._has_bits_[0], 0x00000080U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000100U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000100U);
   }
 
   _impl_.settle_ = reinterpret_cast<::google::protobuf::Duration*>(value);
@@ -7685,7 +7756,7 @@ inline void LinkMonitorConfig::set_allocated_settle(::google::protobuf::Duration
 
 // .google.protobuf.Duration resync = 4 [json_name = "resync", (.buf.validate.field) = {
 inline bool LinkMonitorConfig::has_resync() const {
-  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000100U);
+  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000200U);
   PROTOBUF_ASSUME(!value || _impl_.resync_ != nullptr);
   return value;
 }
@@ -7706,16 +7777,16 @@ inline void LinkMonitorConfig::unsafe_arena_set_allocated_resync(
   }
   _impl_.resync_ = reinterpret_cast<::google::protobuf::Duration*>(value);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000100U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000200U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000100U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000200U);
   }
   // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_config.v1.LinkMonitorConfig.resync)
 }
 inline ::google::protobuf::Duration* PROTOBUF_NULLABLE LinkMonitorConfig::release_resync() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000100U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000200U);
   ::google::protobuf::Duration* released = _impl_.resync_;
   _impl_.resync_ = nullptr;
   if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
@@ -7735,7 +7806,7 @@ inline ::google::protobuf::Duration* PROTOBUF_NULLABLE LinkMonitorConfig::unsafe
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_config.v1.LinkMonitorConfig.resync)
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000100U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000200U);
   ::google::protobuf::Duration* temp = _impl_.resync_;
   _impl_.resync_ = nullptr;
   return temp;
@@ -7750,7 +7821,7 @@ inline ::google::protobuf::Duration* PROTOBUF_NONNULL LinkMonitorConfig::_intern
 }
 inline ::google::protobuf::Duration* PROTOBUF_NONNULL LinkMonitorConfig::mutable_resync()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000100U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000200U);
   ::google::protobuf::Duration* _msg = _internal_mutable_resync();
   // @@protoc_insertion_point(field_mutable:xtcp_config.v1.LinkMonitorConfig.resync)
   return _msg;
@@ -7767,9 +7838,9 @@ inline void LinkMonitorConfig::set_allocated_resync(::google::protobuf::Duration
     if (message_arena != submessage_arena) {
       value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
     }
-    SetHasBit(_impl_._has_bits_[0], 0x00000100U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000200U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000100U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000200U);
   }
 
   _impl_.resync_ = reinterpret_cast<::google::protobuf::Duration*>(value);
@@ -7778,7 +7849,7 @@ inline void LinkMonitorConfig::set_allocated_resync(::google::protobuf::Duration
 
 // .google.protobuf.Duration stats_interval = 5 [json_name = "statsInterval", (.buf.validate.field) = {
 inline bool LinkMonitorConfig::has_stats_interval() const {
-  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000200U);
+  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000400U);
   PROTOBUF_ASSUME(!value || _impl_.stats_interval_ != nullptr);
   return value;
 }
@@ -7799,16 +7870,16 @@ inline void LinkMonitorConfig::unsafe_arena_set_allocated_stats_interval(
   }
   _impl_.stats_interval_ = reinterpret_cast<::google::protobuf::Duration*>(value);
   if (value != nullptr) {
-    SetHasBit(_impl_._has_bits_[0], 0x00000200U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000400U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000200U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000400U);
   }
   // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_config.v1.LinkMonitorConfig.stats_interval)
 }
 inline ::google::protobuf::Duration* PROTOBUF_NULLABLE LinkMonitorConfig::release_stats_interval() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000200U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000400U);
   ::google::protobuf::Duration* released = _impl_.stats_interval_;
   _impl_.stats_interval_ = nullptr;
   if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
@@ -7828,7 +7899,7 @@ inline ::google::protobuf::Duration* PROTOBUF_NULLABLE LinkMonitorConfig::unsafe
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:xtcp_config.v1.LinkMonitorConfig.stats_interval)
 
-  ClearHasBit(_impl_._has_bits_[0], 0x00000200U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00000400U);
   ::google::protobuf::Duration* temp = _impl_.stats_interval_;
   _impl_.stats_interval_ = nullptr;
   return temp;
@@ -7843,7 +7914,7 @@ inline ::google::protobuf::Duration* PROTOBUF_NONNULL LinkMonitorConfig::_intern
 }
 inline ::google::protobuf::Duration* PROTOBUF_NONNULL LinkMonitorConfig::mutable_stats_interval()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  SetHasBit(_impl_._has_bits_[0], 0x00000200U);
+  SetHasBit(_impl_._has_bits_[0], 0x00000400U);
   ::google::protobuf::Duration* _msg = _internal_mutable_stats_interval();
   // @@protoc_insertion_point(field_mutable:xtcp_config.v1.LinkMonitorConfig.stats_interval)
   return _msg;
@@ -7860,9 +7931,9 @@ inline void LinkMonitorConfig::set_allocated_stats_interval(::google::protobuf::
     if (message_arena != submessage_arena) {
       value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
     }
-    SetHasBit(_impl_._has_bits_[0], 0x00000200U);
+    SetHasBit(_impl_._has_bits_[0], 0x00000400U);
   } else {
-    ClearHasBit(_impl_._has_bits_[0], 0x00000200U);
+    ClearHasBit(_impl_._has_bits_[0], 0x00000400U);
   }
 
   _impl_.stats_interval_ = reinterpret_cast<::google::protobuf::Duration*>(value);
@@ -8265,7 +8336,7 @@ inline void LinkMonitorConfig::set_allocated_metrics_core_exclude(::std::string*
 inline void LinkMonitorConfig::clear_metrics_all() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.metrics_all_ = false;
-  ClearHasBit(_impl_._has_bits_[0], 0x00000800U);
+  ClearHasBit(_impl_._has_bits_[0], 0x00008000U);
 }
 inline bool LinkMonitorConfig::metrics_all() const {
   // @@protoc_insertion_point(field_get:xtcp_config.v1.LinkMonitorConfig.metrics_all)
@@ -8273,7 +8344,7 @@ inline bool LinkMonitorConfig::metrics_all() const {
 }
 inline void LinkMonitorConfig::set_metrics_all(bool value) {
   _internal_set_metrics_all(value);
-  SetHasBit(_impl_._has_bits_[0], 0x00000800U);
+  SetHasBit(_impl_._has_bits_[0], 0x00008000U);
   // @@protoc_insertion_point(field_set:xtcp_config.v1.LinkMonitorConfig.metrics_all)
 }
 inline bool LinkMonitorConfig::_internal_metrics_all() const {
@@ -8283,6 +8354,349 @@ inline bool LinkMonitorConfig::_internal_metrics_all() const {
 inline void LinkMonitorConfig::_internal_set_metrics_all(bool value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.metrics_all_ = value;
+}
+
+// string collection_mode = 13 [json_name = "collectionMode", (.buf.validate.field) = {
+inline void LinkMonitorConfig::clear_collection_mode() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.collection_mode_.ClearToEmpty();
+  ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
+}
+inline const ::std::string& LinkMonitorConfig::collection_mode() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.LinkMonitorConfig.collection_mode)
+  return _internal_collection_mode();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void LinkMonitorConfig::set_collection_mode(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  SetHasBit(_impl_._has_bits_[0], 0x00000080U);
+  _impl_.collection_mode_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:xtcp_config.v1.LinkMonitorConfig.collection_mode)
+}
+inline ::std::string* PROTOBUF_NONNULL LinkMonitorConfig::mutable_collection_mode()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000080U);
+  ::std::string* _s = _internal_mutable_collection_mode();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.LinkMonitorConfig.collection_mode)
+  return _s;
+}
+inline const ::std::string& LinkMonitorConfig::_internal_collection_mode() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.collection_mode_.Get();
+}
+inline void LinkMonitorConfig::_internal_set_collection_mode(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.collection_mode_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL LinkMonitorConfig::_internal_mutable_collection_mode() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _impl_.collection_mode_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE LinkMonitorConfig::release_collection_mode() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.LinkMonitorConfig.collection_mode)
+  if (!CheckHasBit(_impl_._has_bits_[0], 0x00000080U)) {
+    return nullptr;
+  }
+  ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
+  auto* released = _impl_.collection_mode_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.collection_mode_.Set("", GetArena());
+  }
+  return released;
+}
+inline void LinkMonitorConfig::set_allocated_collection_mode(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000080U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000080U);
+  }
+  _impl_.collection_mode_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.collection_mode_.IsDefault()) {
+    _impl_.collection_mode_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.LinkMonitorConfig.collection_mode)
+}
+
+// .google.protobuf.Duration watch_interval = 14 [json_name = "watchInterval", (.buf.validate.field) = {
+inline bool LinkMonitorConfig::has_watch_interval() const {
+  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00000800U);
+  PROTOBUF_ASSUME(!value || _impl_.watch_interval_ != nullptr);
+  return value;
+}
+inline const ::google::protobuf::Duration& LinkMonitorConfig::_internal_watch_interval() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  const ::google::protobuf::Duration* p = _impl_.watch_interval_;
+  return p != nullptr ? *p : *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<::google::protobuf::Duration>(&::google::protobuf::Duration_globals_);
+}
+inline const ::google::protobuf::Duration& LinkMonitorConfig::watch_interval() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.LinkMonitorConfig.watch_interval)
+  return _internal_watch_interval();
+}
+inline void LinkMonitorConfig::unsafe_arena_set_allocated_watch_interval(
+    ::google::protobuf::Duration* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (GetArena() == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.watch_interval_);
+  }
+  _impl_.watch_interval_ = reinterpret_cast<::google::protobuf::Duration*>(value);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00000800U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000800U);
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_config.v1.LinkMonitorConfig.watch_interval)
+}
+inline ::google::protobuf::Duration* PROTOBUF_NULLABLE LinkMonitorConfig::release_watch_interval() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+
+  ClearHasBit(_impl_._has_bits_[0], 0x00000800U);
+  ::google::protobuf::Duration* released = _impl_.watch_interval_;
+  _impl_.watch_interval_ = nullptr;
+  if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
+    auto* old = reinterpret_cast<::google::protobuf::MessageLite*>(released);
+    released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    if (GetArena() == nullptr) {
+      delete old;
+    }
+  } else {
+    if (GetArena() != nullptr) {
+      released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    }
+  }
+  return released;
+}
+inline ::google::protobuf::Duration* PROTOBUF_NULLABLE LinkMonitorConfig::unsafe_arena_release_watch_interval() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.LinkMonitorConfig.watch_interval)
+
+  ClearHasBit(_impl_._has_bits_[0], 0x00000800U);
+  ::google::protobuf::Duration* temp = _impl_.watch_interval_;
+  _impl_.watch_interval_ = nullptr;
+  return temp;
+}
+inline ::google::protobuf::Duration* PROTOBUF_NONNULL LinkMonitorConfig::_internal_mutable_watch_interval() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (_impl_.watch_interval_ == nullptr) {
+    auto* p = ::google::protobuf::Message::DefaultConstruct<::google::protobuf::Duration>(GetArena());
+    _impl_.watch_interval_ = reinterpret_cast<::google::protobuf::Duration*>(p);
+  }
+  return _impl_.watch_interval_;
+}
+inline ::google::protobuf::Duration* PROTOBUF_NONNULL LinkMonitorConfig::mutable_watch_interval()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00000800U);
+  ::google::protobuf::Duration* _msg = _internal_mutable_watch_interval();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.LinkMonitorConfig.watch_interval)
+  return _msg;
+}
+inline void LinkMonitorConfig::set_allocated_watch_interval(::google::protobuf::Duration* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::Arena* message_arena = GetArena();
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (message_arena == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.watch_interval_);
+  }
+
+  if (value != nullptr) {
+    ::google::protobuf::Arena* submessage_arena = reinterpret_cast<::google::protobuf::Message*>(value)->GetArena();
+    if (message_arena != submessage_arena) {
+      value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
+    }
+    SetHasBit(_impl_._has_bits_[0], 0x00000800U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00000800U);
+  }
+
+  _impl_.watch_interval_ = reinterpret_cast<::google::protobuf::Duration*>(value);
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.LinkMonitorConfig.watch_interval)
+}
+
+// .google.protobuf.Duration slow_interval = 15 [json_name = "slowInterval", (.buf.validate.field) = {
+inline bool LinkMonitorConfig::has_slow_interval() const {
+  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00001000U);
+  PROTOBUF_ASSUME(!value || _impl_.slow_interval_ != nullptr);
+  return value;
+}
+inline const ::google::protobuf::Duration& LinkMonitorConfig::_internal_slow_interval() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  const ::google::protobuf::Duration* p = _impl_.slow_interval_;
+  return p != nullptr ? *p : *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<::google::protobuf::Duration>(&::google::protobuf::Duration_globals_);
+}
+inline const ::google::protobuf::Duration& LinkMonitorConfig::slow_interval() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.LinkMonitorConfig.slow_interval)
+  return _internal_slow_interval();
+}
+inline void LinkMonitorConfig::unsafe_arena_set_allocated_slow_interval(
+    ::google::protobuf::Duration* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (GetArena() == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.slow_interval_);
+  }
+  _impl_.slow_interval_ = reinterpret_cast<::google::protobuf::Duration*>(value);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00001000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00001000U);
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_config.v1.LinkMonitorConfig.slow_interval)
+}
+inline ::google::protobuf::Duration* PROTOBUF_NULLABLE LinkMonitorConfig::release_slow_interval() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+
+  ClearHasBit(_impl_._has_bits_[0], 0x00001000U);
+  ::google::protobuf::Duration* released = _impl_.slow_interval_;
+  _impl_.slow_interval_ = nullptr;
+  if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
+    auto* old = reinterpret_cast<::google::protobuf::MessageLite*>(released);
+    released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    if (GetArena() == nullptr) {
+      delete old;
+    }
+  } else {
+    if (GetArena() != nullptr) {
+      released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    }
+  }
+  return released;
+}
+inline ::google::protobuf::Duration* PROTOBUF_NULLABLE LinkMonitorConfig::unsafe_arena_release_slow_interval() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.LinkMonitorConfig.slow_interval)
+
+  ClearHasBit(_impl_._has_bits_[0], 0x00001000U);
+  ::google::protobuf::Duration* temp = _impl_.slow_interval_;
+  _impl_.slow_interval_ = nullptr;
+  return temp;
+}
+inline ::google::protobuf::Duration* PROTOBUF_NONNULL LinkMonitorConfig::_internal_mutable_slow_interval() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (_impl_.slow_interval_ == nullptr) {
+    auto* p = ::google::protobuf::Message::DefaultConstruct<::google::protobuf::Duration>(GetArena());
+    _impl_.slow_interval_ = reinterpret_cast<::google::protobuf::Duration*>(p);
+  }
+  return _impl_.slow_interval_;
+}
+inline ::google::protobuf::Duration* PROTOBUF_NONNULL LinkMonitorConfig::mutable_slow_interval()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00001000U);
+  ::google::protobuf::Duration* _msg = _internal_mutable_slow_interval();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.LinkMonitorConfig.slow_interval)
+  return _msg;
+}
+inline void LinkMonitorConfig::set_allocated_slow_interval(::google::protobuf::Duration* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::Arena* message_arena = GetArena();
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (message_arena == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.slow_interval_);
+  }
+
+  if (value != nullptr) {
+    ::google::protobuf::Arena* submessage_arena = reinterpret_cast<::google::protobuf::Message*>(value)->GetArena();
+    if (message_arena != submessage_arena) {
+      value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
+    }
+    SetHasBit(_impl_._has_bits_[0], 0x00001000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00001000U);
+  }
+
+  _impl_.slow_interval_ = reinterpret_cast<::google::protobuf::Duration*>(value);
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.LinkMonitorConfig.slow_interval)
+}
+
+// .google.protobuf.Duration on_demand_ttl = 16 [json_name = "onDemandTtl", (.buf.validate.field) = {
+inline bool LinkMonitorConfig::has_on_demand_ttl() const {
+  bool value = CheckHasBit(_impl_._has_bits_[0], 0x00002000U);
+  PROTOBUF_ASSUME(!value || _impl_.on_demand_ttl_ != nullptr);
+  return value;
+}
+inline const ::google::protobuf::Duration& LinkMonitorConfig::_internal_on_demand_ttl() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  const ::google::protobuf::Duration* p = _impl_.on_demand_ttl_;
+  return p != nullptr ? *p : *::google::protobuf::internal::MessageGlobalsBase::ToDefaultInstance<::google::protobuf::Duration>(&::google::protobuf::Duration_globals_);
+}
+inline const ::google::protobuf::Duration& LinkMonitorConfig::on_demand_ttl() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:xtcp_config.v1.LinkMonitorConfig.on_demand_ttl)
+  return _internal_on_demand_ttl();
+}
+inline void LinkMonitorConfig::unsafe_arena_set_allocated_on_demand_ttl(
+    ::google::protobuf::Duration* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (GetArena() == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.on_demand_ttl_);
+  }
+  _impl_.on_demand_ttl_ = reinterpret_cast<::google::protobuf::Duration*>(value);
+  if (value != nullptr) {
+    SetHasBit(_impl_._has_bits_[0], 0x00002000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00002000U);
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:xtcp_config.v1.LinkMonitorConfig.on_demand_ttl)
+}
+inline ::google::protobuf::Duration* PROTOBUF_NULLABLE LinkMonitorConfig::release_on_demand_ttl() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+
+  ClearHasBit(_impl_._has_bits_[0], 0x00002000U);
+  ::google::protobuf::Duration* released = _impl_.on_demand_ttl_;
+  _impl_.on_demand_ttl_ = nullptr;
+  if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
+    auto* old = reinterpret_cast<::google::protobuf::MessageLite*>(released);
+    released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    if (GetArena() == nullptr) {
+      delete old;
+    }
+  } else {
+    if (GetArena() != nullptr) {
+      released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    }
+  }
+  return released;
+}
+inline ::google::protobuf::Duration* PROTOBUF_NULLABLE LinkMonitorConfig::unsafe_arena_release_on_demand_ttl() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:xtcp_config.v1.LinkMonitorConfig.on_demand_ttl)
+
+  ClearHasBit(_impl_._has_bits_[0], 0x00002000U);
+  ::google::protobuf::Duration* temp = _impl_.on_demand_ttl_;
+  _impl_.on_demand_ttl_ = nullptr;
+  return temp;
+}
+inline ::google::protobuf::Duration* PROTOBUF_NONNULL LinkMonitorConfig::_internal_mutable_on_demand_ttl() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (_impl_.on_demand_ttl_ == nullptr) {
+    auto* p = ::google::protobuf::Message::DefaultConstruct<::google::protobuf::Duration>(GetArena());
+    _impl_.on_demand_ttl_ = reinterpret_cast<::google::protobuf::Duration*>(p);
+  }
+  return _impl_.on_demand_ttl_;
+}
+inline ::google::protobuf::Duration* PROTOBUF_NONNULL LinkMonitorConfig::mutable_on_demand_ttl()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  SetHasBit(_impl_._has_bits_[0], 0x00002000U);
+  ::google::protobuf::Duration* _msg = _internal_mutable_on_demand_ttl();
+  // @@protoc_insertion_point(field_mutable:xtcp_config.v1.LinkMonitorConfig.on_demand_ttl)
+  return _msg;
+}
+inline void LinkMonitorConfig::set_allocated_on_demand_ttl(::google::protobuf::Duration* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::Arena* message_arena = GetArena();
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (message_arena == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.on_demand_ttl_);
+  }
+
+  if (value != nullptr) {
+    ::google::protobuf::Arena* submessage_arena = reinterpret_cast<::google::protobuf::Message*>(value)->GetArena();
+    if (message_arena != submessage_arena) {
+      value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
+    }
+    SetHasBit(_impl_._has_bits_[0], 0x00002000U);
+  } else {
+    ClearHasBit(_impl_._has_bits_[0], 0x00002000U);
+  }
+
+  _impl_.on_demand_ttl_ = reinterpret_cast<::google::protobuf::Duration*>(value);
+  // @@protoc_insertion_point(field_set_allocated:xtcp_config.v1.LinkMonitorConfig.on_demand_ttl)
 }
 
 // -------------------------------------------------------------------

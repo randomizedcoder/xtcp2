@@ -80,6 +80,13 @@ let
     Retries = 3;
   };
 
+  # Image environment for the xtcp2-daemon images. The embedded link monitor
+  # (off unless LINK_MONITOR=true) collects on demand: errors and state each
+  # minute, settings every five, and the rest only when its metrics are
+  # scraped. A bare xtcp2 still polls; `docker run -e
+  # LINK_MONITOR_COLLECTION_MODE=poll` restores that here.
+  xtcp2Env = [ "LINK_MONITOR_COLLECTION_MODE=on-demand" ];
+
   # tcp-stress-only image: just tcp_server + tcp_client + an entrypoint
   # shell script that dispatches on TCP_MODE. Used by the Phase C
   # docker-in-VM lifecycle harness to spin up N containers with
@@ -177,6 +184,7 @@ let
       ];
       entrypoint = "/bin/xtcp2";
       healthcheck = xtcp2Healthcheck;
+      env = xtcp2Env;
       extraContents = ipmetaBootstrapContents;
     };
 
@@ -198,6 +206,7 @@ let
       ];
       entrypoint = "/bin/xtcp2";
       healthcheck = xtcp2Healthcheck;
+      env = xtcp2Env;
       extraContents = ipmetaBootstrapContents;
     };
 

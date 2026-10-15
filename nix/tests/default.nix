@@ -10,6 +10,7 @@
   binaries,
   microvms,
   linkmonitorPackages,
+  containers,
 }:
 
 let
@@ -36,6 +37,7 @@ in
   };
   inherit focused;
   ipmeta-bootstrap-artifact = ipmetaBootstrap.artifact;
+  oci-link-monitor-env = import ./oci-link-monitor-env.nix { inherit pkgs lib containers; };
   oci-ipmeta-bootstrap-contents = ipmetaBootstrap.oci-contents;
 
   # Whole-repo race-detector test (cgo-enabled).

@@ -419,6 +419,36 @@ message LinkMonitorConfig {
 	// Register every link-monitor metric instead of the summary. The full set
 	// is thousands of series on a large host.
 	bool metrics_all                                = 12;
+
+	// Collection mode: "poll" (the default when empty) collects every
+	// collector each stats_interval; "on-demand" polls the error and state
+	// collectors each watch_interval and the link settings each
+	// slow_interval, and collects the rest when xtcp2 serves them, reusing
+	// data younger than on_demand_ttl.
+	string collection_mode                          = 13 [
+		(buf.validate.field).string = { in: ["", "poll", "on-demand"] }];
+
+	// On demand: error and state polling interval. Default 60s.
+	google.protobuf.Duration watch_interval         = 14 [
+		(buf.validate.field).duration = {
+			gt: { seconds: 0 }
+			lte: { seconds: 86400 }
+	}];
+
+	// On demand: settings and RDMA capability polling interval. Default 300s.
+	google.protobuf.Duration slow_interval          = 15 [
+		(buf.validate.field).duration = {
+			gt: { seconds: 0 }
+			lte: { seconds: 86400 }
+	}];
+
+	// On demand: how long collected detail is reused. Default 15s; 0
+	// collects on every scrape.
+	google.protobuf.Duration on_demand_ttl          = 16 [
+		(buf.validate.field).duration = {
+			gte: { seconds: 0 }
+			lte: { seconds: 86400 }
+	}];
 }
 
 // xtcp configuration

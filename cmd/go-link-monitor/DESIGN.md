@@ -405,8 +405,9 @@ invalidate link inventory or baseline readiness.
 - **`poll`**. Every collector polls on `-stats-interval`. Scrapes are
   cache-only: they read the latest published snapshot and never start a
   collection. Use it when detail paths are scraped continuously, or when an
-  embedder serves detail without a refresh path. The xtcp2 embedding always
-  polls.
+  embedder serves detail without a refresh path. The xtcp2 embedding polls
+  unless `-linkMonitorCollectionMode` says otherwise; its OCI images set
+  `on-demand`, and its detail exposures refresh before each scrape.
 
 On demand, collectors are polled by tier:
 
