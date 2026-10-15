@@ -117,7 +117,9 @@ pkgs.writeShellApplication {
   text = ''
     set -euo pipefail
 
-    OUT=/tmp/nlcap
+    # NLCAP_OUT exists for nix/checks/vm-lib-exp.nix, which runs this helper
+    # in a build sandbox where /tmp is not the place to write. No guest sets it.
+    OUT=''${NLCAP_OUT:-/tmp/nlcap}
     IFACE=nlmon0
 
     # Seconds to wait for tcpdump's socket to come up before giving up on a
@@ -577,6 +579,122 @@ pkgs.writeShellApplication {
       return 1
     }
 
+    # wait-addr-flag <ns> <dev> <addr32|*> <mask> <want> <timeout-sec>
+    #
+    # Poll /proc/net/if_inet6 in <ns> until a line for <dev> - and for
+    # <addr32>, or any address with `*` - has (flags & mask) == want, or the
+    # deadline passes. <mask> and <want> are hex; <addr32> is the file's own
+    # form, 32 lowercase hex digits with no colons, which the driver computes
+    # (addrtopo::v6hex) so nothing here parses an IPv6 literal.
+    #
+    # The DAD states' sibling of wait-lacp and wait-sysfs, and /proc for the
+    # same two reasons: no netlink traffic, so a poll can never land in a
+    # capture window, and no dependence on the decoder under test. The fifth
+    # field is `(u8)ifp->flags` (net/ipv6/addrconf.c if6_seq_show), which is
+    # exactly the byte that carries TEMPORARY 0x01, OPTIMISTIC 0x04, DADFAILED
+    # 0x08 and TENTATIVE 0x40 - every flag a DAD state waits on.
+    #
+    # Always polls at least once, so a timeout of 0 is "is it true now".
+    # Device and address are compared as whole fields: v0 never matches v01.
+    #
+    # NLCAP_IF_INET6 replaces the path for nix/checks/vm-lib-exp.nix, which
+    # has no IPv6 addresses of its own to read. <ns> `-` is the root
+    # namespace, as for topo; that is the only way the check can use it.
+    cmd_wait_addr_flag() {
+      local usage="usage: wait-addr-flag <ns> <dev> <addr32|*> <mask> <want> <timeout-sec>"
+      [ $# -eq 6 ] || die "$usage"
+      local ns=$1 dev=$2 addr=$3 mask=''${4#0x} want=''${5#0x} timeout=$6
+      local file=''${NLCAP_IF_INET6:-/proc/net/if_inet6}
+      case "$mask" in "" | *[!0-9a-fA-F]*) die "wait-addr-flag: mask not hex: $4" ;; esac
+      case "$want" in "" | *[!0-9a-fA-F]*) die "wait-addr-flag: want not hex: $5" ;; esac
+      case "$timeout" in "" | *[!0-9]*) die "wait-addr-flag: timeout not a number: $6" ;; esac
+      case "$addr" in
+        "*") ;;
+        *[!0-9a-f]*) die "wait-addr-flag: address not 32 lowercase hex digits: $addr" ;;
+        *) [ "''${#addr}" -eq 32 ] || die "wait-addr-flag: address not 32 lowercase hex digits: $addr" ;;
+      esac
+      local run=(ip netns exec "$ns")
+      if [ "$ns" = "-" ]; then
+        run=()
+      fi
+      local start deadline lines seen a f name
+      start=$(date +%s)
+      deadline=$(( start + timeout ))
+      while :; do
+        seen=absent
+        lines="$("''${run[@]}" cat "$file" 2>/dev/null)" || lines=""
+        while read -r a _ _ _ f name; do
+          if [ "$name" != "$dev" ]; then
+            continue
+          fi
+          if [ "$addr" != "*" ] && [ "$a" != "$addr" ]; then
+            continue
+          fi
+          case "$f" in "" | *[!0-9a-fA-F]*) continue ;; esac
+          seen="0x$f"
+          if [ $(( 16#$f & 16#$mask )) -eq $(( 16#$want )) ]; then
+            echo "NLCAP_ADDR_FLAG_OK $ns/$dev $addr flags=$seen elapsed=$(( $(date +%s) - start ))s"
+            return 0
+          fi
+        done <<<"$lines"
+        if [ "$(date +%s)" -ge "$deadline" ]; then
+          break
+        fi
+        # 100 ms, as wait-sysfs: DAD's own timer is a second per probe
+        # (ND_RETRANS_TIMER, include/net/ndisc.h), so polling faster cannot
+        # see a change sooner.
+        sleep 0.1
+      done
+      echo "NLCAP_DAD_TIMEOUT $ns/$dev $addr flags=$seen want flags&0x$mask==0x$want after ''${timeout}s"
+      return 1
+    }
+
+    # sysctl <ns> <subdir> <key> <value>
+    #
+    # Write one sysctl inside <ns> and record it in $OUT/<subdir>/topology in
+    # topo's format, so a transcript lists every step a state was built from
+    # and not only the `ip` ones. The optimistic and temporary address states
+    # need it (use_tempaddr, optimistic_dad, dad_transmits); `ip` has no verb
+    # for any of them.
+    #
+    # <key> is dotted, as sysctl(8) takes it, and maps to /proc/sys by
+    # turning every dot into a slash - so an interface name with a dot in it
+    # (a VLAN like eth0.100) cannot be addressed this way. None of the states
+    # use one. Written with `ip netns exec`, which is what makes /proc/sys/net
+    # resolve to <ns>'s copy; `-` is the root namespace.
+    cmd_sysctl() {
+      [ $# -eq 4 ] || die "usage: sysctl <ns> <subdir> <key> <value>"
+      local ns=$1 subdir=$2 key=$3 value=$4
+      case "$key" in "" | .* | *..* | *[!A-Za-z0-9._-]*) die "sysctl: bad key: $key" ;; esac
+      mkdir -p "$OUT/$subdir"
+      local run=(ip netns exec "$ns")
+      if [ "$ns" = "-" ]; then
+        run=()
+      fi
+      if printf '%s\n' "$value" | "''${run[@]}" tee "/proc/sys/''${key//.//}" >/dev/null 2>&1; then
+        printf 'ok    [%s] sysctl %s=%s\n' "$ns" "$key" "$value" >>"$OUT/$subdir/topology"
+        echo "NLCAP_SYSCTL_OK $key=$value"
+        return 0
+      fi
+      printf 'FAIL  [%s] sysctl %s=%s\n' "$ns" "$key" "$value" >>"$OUT/$subdir/topology"
+      echo "NLCAP_SYSCTL_FAIL $key=$value"
+      return 1
+    }
+
+    # note <subdir> <text...>
+    #
+    # One free-text line in $OUT/<subdir>/topology. The driver writes one when
+    # it drops a state the kernel would not produce, so the transcript says
+    # why a fixture is missing instead of leaving a silent gap.
+    cmd_note() {
+      [ $# -ge 2 ] || die "usage: note <subdir> <text...>"
+      local subdir=$1
+      shift
+      mkdir -p "$OUT/$subdir"
+      printf 'note  %s\n' "$*" >>"$OUT/$subdir/topology"
+      echo "NLCAP_NOTE_OK"
+    }
+
     # wait-churn <ns> <ports> <timeout-sec> [none|settled]
     #
     # Poll /proc/net/bonding/bond0 in <ns> until all <ports> ports show both
@@ -938,7 +1056,7 @@ pkgs.writeShellApplication {
     }
 
     if [ $# -lt 1 ]; then
-      die "usage: xtcp2-nlcap <ns-add|ns-del|topo|cap|capio|write|side|wait-lacp|wait-sysfs|wait-churn|strace|strace-monitor|wait-rdma-port|rdma-hold|rdma-hold-wait|rdma-hold-stop|rdma-user-cqn|dir|inventory|pack> ..."
+      die "usage: xtcp2-nlcap <ns-add|ns-del|topo|cap|capio|write|side|wait-lacp|wait-sysfs|wait-addr-flag|sysctl|note|wait-churn|strace|strace-monitor|wait-rdma-port|rdma-hold|rdma-hold-wait|rdma-hold-stop|rdma-user-cqn|dir|inventory|pack> ..."
     fi
 
     sub=$1
@@ -953,6 +1071,9 @@ pkgs.writeShellApplication {
       side)      cmd_side "$@" ;;
       wait-lacp) cmd_wait_lacp "$@" ;;
       wait-sysfs) cmd_wait_sysfs "$@" ;;
+      wait-addr-flag) cmd_wait_addr_flag "$@" ;;
+      sysctl)    cmd_sysctl "$@" ;;
+      note)      cmd_note "$@" ;;
       wait-churn) cmd_wait_churn "$@" ;;
       strace)    cmd_strace "$@" ;;
       strace-monitor) cmd_strace_monitor "$@" ;;

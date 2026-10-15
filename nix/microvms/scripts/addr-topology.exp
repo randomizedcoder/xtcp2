@@ -1,0 +1,520 @@
+###############################################################################
+# addr-topology.exp - the address readback states (docs/netlink/addr-write-path.md)
+#
+# Sourced AFTER vm-lib.exp and netlink-topology.exp: every `ip` step goes
+# through nltopo::topo, so refusals land in the same list and the same
+# per-subdir topology transcript as the dump and link-write corpora. The
+# capture driver and the parity driver will both source it, as both source
+# link-write-topology.exp; until A0-T03 and A0-T04 nothing does, and the
+# hermetic check (scripts/addr-topology-test.exp) is its only caller.
+#
+#    netns addra (nlmon0 here)            netns addrb (v6_dadfailed only)
+#  +--------------------------+         +--------------------------+
+#  | d0..d3 dummies, bond0,   |         |                          |
+#  | vrf0 - one state at a    |         |                          |
+#  | time, rebuilt per state  |         |                          |
+#  |   v0 --------------------+-- veth -+-- v1  2001:db8::5 nodad  |
+#  +--------------------------+         +--------------------------+
+#
+# ONE STATE PER NAMESPACE
+#
+# `build` recreates addra before every state (xtcp2-nlcap ns-add deletes and
+# re-adds it), so no state inherits an address, a sysctl or a device from the
+# one before. addrb is DELETED for every state that does not ask for a peer:
+# a leftover v1 holding 2001:db8::5 would answer the next veth state's DAD and
+# turn a tentative address into a failed one.
+#
+# NO KERNEL LINK-LOCALS
+#
+# Every dummy, bond and vrf is set to `addrgenmode none` before it comes up,
+# which is the PRE_ADDR_DEV rule: without it an up device gets an fe80::
+# address from the kernel, and every readback row would carry an address the
+# state did not ask for. The two exceptions are deliberate: v6_stable_privacy
+# exists to read the kernel's link-local, and the veth ends get theirs so DAD
+# runs the way it does on a real port.
+#
+# EVERY MAC IS PINNED, as in link-write-topology.exp, so the readback sidecars
+# are byte-identical between runs.
+#
+# REQUIRED AND MEASURED
+#
+# A required state that is refused or times out is recorded in `failed`, and
+# the driver fails. A measured state - optimistic and temporary, the two the
+# design calls honest unknowns - is dropped instead, with a note line in its
+# topology transcript saying so, and its rows are not claimed.
+###############################################################################
+
+namespace eval addrtopo {
+
+    variable NS_A "addra"
+    variable NS_B "addrb"
+
+    # Seconds to wait for a DAD flag. A bound on a pathology, not a tuning
+    # knob: DAD fails within one probe and one ND_RETRANS_TIMER, about a second.
+    variable DAD_TIMEOUT 30
+
+    # The u8 ifa_flags bits /proc/net/if_inet6 shows (include/uapi/linux/
+    # if_addr.h). The waits are written in these so a reader does not have to
+    # decode 0x48.
+    variable TEMPORARY  0x01
+    variable NODAD      0x02
+    variable OPTIMISTIC 0x04
+    variable DADFAILED  0x08
+    variable HOMEADDR   0x10
+    variable DEPRECATED 0x20
+    variable TENTATIVE  0x40
+    variable PERMANENT  0x80
+
+    # The pinned MACs. Dummies take 02:00:00:00:d0:0N from their index.
+    variable MAC_V0   02:00:00:00:a0:00
+    variable MAC_V1   02:00:00:00:b0:00
+    variable MAC_BOND 02:00:00:00:c0:00
+    variable MAC_VRF  02:00:00:00:e0:00
+
+    # {name kind peer}, in build order. name is also the proc; peer 1 keeps
+    # addrb for the state instead of deleting it.
+    variable states {
+        {v4_secondary      required 0}
+        {v4_peer           required 0}
+        {v4_label          required 0}
+        {v4_brd            required 0}
+        {v4_metric         required 0}
+        {v4_proto          required 0}
+        {v4_lifetimes      required 0}
+        {v4_deprecated     required 0}
+        {v4_host_scope     required 0}
+        {v4_autojoin       required 0}
+        {v6_flags          required 0}
+        {v6_peer           required 0}
+        {v6_tentative      required 0}
+        {v6_stable_privacy required 0}
+        {v6_dadfailed      required 1}
+        {v6_optimistic     measured 0}
+        {v6_temporary      measured 0}
+        {v4_vrf            required 0}
+        {mixed_links       required 0}
+    }
+
+    # States that could not be built, by kind. Read by the driver at the end.
+    variable failed {}
+    variable dropped {}
+
+    ###########################################################################
+    # reset / failed_states / dropped_states - the driver's view of a run.
+    ###########################################################################
+    proc reset {} {
+        variable failed
+        variable dropped
+        set failed {}
+        set dropped {}
+    }
+
+    proc failed_states {} {
+        variable failed
+        return $failed
+    }
+
+    proc dropped_states {} {
+        variable dropped
+        return $dropped
+    }
+
+    proc state_names {} {
+        variable states
+        set names {}
+        foreach row $states {
+            lappend names [lindex $row 0]
+        }
+        return $names
+    }
+
+    ###########################################################################
+    # v6hex <addr> - an IPv6 literal in /proc/net/if_inet6's form: 32
+    # lowercase hex digits, no colons, every group zero-padded.
+    #
+    # Pure Tcl so xtcp2-nlcap never parses an address. Handles one `::` and
+    # leading zeros; refuses anything else, including embedded IPv4, which no
+    # state uses.
+    ###########################################################################
+    proc v6hex {addr} {
+        if {![regexp {^[0-9A-Fa-f:]+$} $addr]} {
+            error "v6hex: not an IPv6 literal: $addr"
+        }
+        set gaps [regsub -all {::} $addr {} _]
+        if {$gaps > 1} {
+            error "v6hex: more than one :: in $addr"
+        }
+        if {$gaps == 1} {
+            set i [string first :: $addr]
+            set head [string range $addr 0 [expr {$i - 1}]]
+            set tail [string range $addr [expr {$i + 2}] end]
+            set hg [expr {$head eq "" ? {} : [split $head :]}]
+            set tg [expr {$tail eq "" ? {} : [split $tail :]}]
+            set fill [expr {8 - [llength $hg] - [llength $tg]}]
+            if {$fill < 1} {
+                error "v6hex: too many groups in $addr"
+            }
+            set groups [concat $hg [lrepeat $fill 0] $tg]
+        } else {
+            set groups [split $addr :]
+            if {[llength $groups] != 8} {
+                error "v6hex: want 8 groups in $addr"
+            }
+        }
+        set out ""
+        foreach g $groups {
+            if {![regexp {^[0-9A-Fa-f]{1,4}$} $g]} {
+                error "v6hex: bad group '$g' in $addr"
+            }
+            append out [format %04x [scan $g %x]]
+        }
+        return $out
+    }
+
+    ###########################################################################
+    # fresh <peer> - the per-state reset: addra recreated, addrb recreated
+    # with peer 1 and deleted otherwise. Returns 1 when both took.
+    ###########################################################################
+    proc fresh {{peer 0}} {
+        variable NS_A
+        variable NS_B
+        lassign [vmlib::run_out "xtcp2-nlcap ns-add $NS_A"] rc out
+        if {$rc != 0} {
+            vmlib::log "addr topology: cannot create $NS_A: $out"
+            return 0
+        }
+        if {$peer} {
+            lassign [vmlib::run_out "xtcp2-nlcap ns-add $NS_B"] rc out
+        } else {
+            lassign [vmlib::run_out "xtcp2-nlcap ns-del $NS_B"] rc out
+        }
+        if {$rc != 0} {
+            vmlib::log "addr topology: cannot reset $NS_B: $out"
+            return 0
+        }
+        return 1
+    }
+
+    ###########################################################################
+    # steps <ns> <subdir> <list> - each element is one `ip` argument list.
+    #
+    # Stops at the first refusal and returns 0: a state is built whole or not
+    # at all, and the steps after a refused one would only add noise to the
+    # transcript.
+    ###########################################################################
+    proc steps {ns subdir list} {
+        foreach step $list {
+            if {[nltopo::topo $ns $subdir {*}$step] != 0} {
+                return 0
+            }
+        }
+        return 1
+    }
+
+    ###########################################################################
+    # dummy <name> ?up? ?genmode? - the steps for one pinned dummy.
+    #
+    # genmode is set before the link comes up, because the link-local is
+    # generated on the up transition and not again.
+    ###########################################################################
+    proc dummy {name {up 1} {genmode none}} {
+        set n [string range $name end end]
+        set list [list \
+            [list link add $name address 02:00:00:00:d0:0$n type dummy] \
+            [list link set $name addrgenmode $genmode]]
+        if {$up} {
+            lappend list [list link set $name up]
+        }
+        return $list
+    }
+
+    ###########################################################################
+    # veth <peer-ns> - the pinned v0/v1 pair, both ends down; v1 placed
+    # straight into <peer-ns> when one is given, as link-write-topology.exp
+    # does, so no ifindex is allocated in one namespace and then moved.
+    ###########################################################################
+    proc veth {{peer_ns ""}} {
+        variable MAC_V0
+        variable MAC_V1
+        set step [list link add v0 address $MAC_V0 type veth peer name v1 address $MAC_V1]
+        if {$peer_ns ne ""} {
+            lappend step netns $peer_ns
+        }
+        return [list $step]
+    }
+
+    ###########################################################################
+    # wait_addr_flag <ns> <dev> <addr|*> <flag> <want> - poll if_inet6 until
+    # the address carries (want != 0) or lacks (want == 0) the flag.
+    #
+    # The console timeout outlasts the guest's own by 30 s, as
+    # lwtopo::wait_port's does, so a slow guest reports NLCAP_DAD_TIMEOUT
+    # instead of the driver giving up on the console first.
+    ###########################################################################
+    proc wait_addr_flag {ns dev addr flag want} {
+        variable DAD_TIMEOUT
+        set hex [expr {$addr eq "*" ? "*" : [v6hex $addr]}]
+        set cmd [format {xtcp2-nlcap wait-addr-flag %s %s '%s' 0x%02x 0x%02x %d} \
+                     $ns $dev $hex $flag $want $DAD_TIMEOUT]
+        lassign [vmlib::run_out $cmd [expr {$DAD_TIMEOUT + 30}]] rc out
+        vmlib::log $out
+        return [expr {$rc == 0}]
+    }
+
+    ###########################################################################
+    # drop <subdir> <state> <reason> - record a measured state as not built.
+    ###########################################################################
+    proc drop {subdir state reason} {
+        variable dropped
+        vmlib::run_out "xtcp2-nlcap note $subdir 'dropped $state: $reason'"
+        lappend dropped $state
+        vmlib::log "addr state $state dropped: $reason"
+        return 0
+    }
+
+    ###########################################################################
+    # build <state> <subdir> - reset the namespaces and build one state.
+    # Returns 1 when built.
+    ###########################################################################
+    proc build {state subdir} {
+        variable NS_A
+        variable states
+        variable failed
+        set row [lsearch -exact -index 0 -inline $states $state]
+        if {$row eq ""} {
+            error "addrtopo: no state $state"
+        }
+        lassign $row name kind peer
+        if {[fresh $peer] && [$name $NS_A $subdir]} {
+            return 1
+        }
+        if {$kind eq "measured"} {
+            return [drop $subdir $state "a step was refused or the flag never appeared"]
+        }
+        lappend failed $state
+        vmlib::log "addr state $state not built"
+        return 0
+    }
+
+    # --- the states, one per row of the design's readback table -----------
+
+    proc v4_secondary {ns subdir} {
+        steps $ns $subdir [concat [dummy d0] {
+            {addr add 192.0.2.1/24 dev d0}
+            {addr add 192.0.2.2/24 dev d0}
+        }]
+    }
+
+    proc v4_peer {ns subdir} {
+        steps $ns $subdir [concat [dummy d0] {
+            {addr add 10.0.0.1 peer 10.0.0.2/32 dev d0}
+        }]
+    }
+
+    proc v4_label {ns subdir} {
+        steps $ns $subdir [concat [dummy d0] {
+            {addr add 192.0.2.1/24 label d0:1 dev d0}
+            {addr add 192.0.2.9/24 label d0:9 dev d0}
+        }]
+    }
+
+    # Separate subnets, so each is a primary and carries its own broadcast:
+    # computed, explicitly absent, and the /31 that has none to compute.
+    proc v4_brd {ns subdir} {
+        steps $ns $subdir [concat [dummy d0] {
+            {addr add 192.0.2.1/24 brd + dev d0}
+            {addr add 198.51.100.1/24 brd - dev d0}
+            {addr add 203.0.113.0/31 brd + dev d0}
+        }]
+    }
+
+    proc v4_metric {ns subdir} {
+        steps $ns $subdir [concat [dummy d0] {
+            {addr add 192.0.2.1/24 metric 50 dev d0}
+        }]
+    }
+
+    proc v4_proto {ns subdir} {
+        steps $ns $subdir [concat [dummy d0] {
+            {addr add 192.0.2.1/24 proto 99 dev d0}
+            {addr add 198.51.100.1/24 proto kernel_lo dev d0}
+        }]
+    }
+
+    proc v4_lifetimes {ns subdir} {
+        steps $ns $subdir [concat [dummy d0] {
+            {addr add 192.0.2.1/24 valid_lft 3600 preferred_lft 1800 dev d0}
+        }]
+    }
+
+    proc v4_deprecated {ns subdir} {
+        steps $ns $subdir [concat [dummy d0] {
+            {addr add 192.0.2.1/24 valid_lft 3600 preferred_lft 0 dev d0}
+        }]
+    }
+
+    # No `scope`: the point is the kernel defaulting 127/8 to host.
+    proc v4_host_scope {ns subdir} {
+        steps $ns $subdir [concat [dummy d0] {
+            {addr add 127.0.0.2/8 dev d0}
+        }]
+    }
+
+    proc v4_autojoin {ns subdir} {
+        steps $ns $subdir [concat [dummy d0] {
+            {addr add 224.0.0.251/32 autojoin dev d0}
+        }]
+    }
+
+    # A dummy is NOARP, so DAD is skipped and `home` without nodad is still
+    # not tentative on the first read.
+    proc v6_flags {ns subdir} {
+        steps $ns $subdir [concat [dummy d0] {
+            {-6 addr add 2001:db8::1/64 nodad dev d0}
+            {-6 addr add 2001:db8:1::1/64 home dev d0}
+            {-6 addr add 2001:db8:2::1/64 nodad mngtmpaddr noprefixroute dev d0}
+            {-6 addr add 2001:db8:3::1/48 nodad dev d0}
+        }]
+    }
+
+    proc v6_peer {ns subdir} {
+        steps $ns $subdir [concat [dummy d0] {
+            {-6 addr add 2001:db8::1 peer 2001:db8::2/128 nodad dev d0}
+        }]
+    }
+
+    # Both ends down: the device is never IF_READY, so addrconf_dad_begin
+    # leaves the address tentative and starts no timer (addrconf.c:4162).
+    # TENTATIVE is set on the first poll; the wait proves it rather than
+    # assuming it.
+    proc v6_tentative {ns subdir} {
+        variable TENTATIVE
+        if {![steps $ns $subdir [concat [veth] {
+            {-6 addr add 2001:db8::5/64 dev v0}
+        }]]} {
+            return 0
+        }
+        wait_addr_flag $ns v0 2001:db8::5 $TENTATIVE $TENTATIVE
+    }
+
+    # No wait: a dummy is NOARP, so the link-local is usable the moment the
+    # link comes up. IFA_F_STABLE_PRIVACY is 0x800, outside if_inet6's byte,
+    # so there would be nothing to poll anyway.
+    proc v6_stable_privacy {ns subdir} {
+        steps $ns $subdir [dummy d0 1 random]
+    }
+
+    # v1 in addrb holds the address first, nodad so it is valid at once; v0
+    # then claims it, DAD's neighbor solicitation reaches v1, v1 answers, and
+    # v0's copy is marked DADFAILED.
+    proc v6_dadfailed {ns subdir} {
+        variable NS_B
+        variable DADFAILED
+        if {![steps $ns $subdir [veth $NS_B]]} {
+            return 0
+        }
+        if {![steps $NS_B $subdir {
+            {-6 addr add 2001:db8::5/64 nodad dev v1}
+            {link set v1 up}
+        }]} {
+            return 0
+        }
+        if {![steps $ns $subdir {
+            {link set v0 up}
+            {-6 addr add 2001:db8::5/64 dev v0}
+        }]} {
+            return 0
+        }
+        wait_addr_flag $ns v0 2001:db8::5 $DADFAILED $DADFAILED
+    }
+
+    # dad_transmits 60 holds the optimistic window open for a minute, so the
+    # readback cannot race DAD completing. Needs CONFIG_IPV6_OPTIMISTIC_DAD,
+    # which is why this state is measured.
+    proc v6_optimistic {ns subdir} {
+        variable OPTIMISTIC
+        if {![steps $ns $subdir [veth]]} {
+            return 0
+        }
+        foreach {key value} {
+            net.ipv6.conf.v0.optimistic_dad 1
+            net.ipv6.conf.v0.dad_transmits 60
+        } {
+            if {![sysctl $ns $subdir $key $value]} {
+                return 0
+            }
+        }
+        if {![steps $ns $subdir {
+            {link set v0 up}
+            {link set v1 up}
+            {-6 addr add 2001:db8::5/64 optimistic dev v0}
+        }]} {
+            return 0
+        }
+        wait_addr_flag $ns v0 2001:db8::5 $OPTIMISTIC $OPTIMISTIC
+    }
+
+    # Whether a temporary address appears with no router advertisement is the
+    # open question this state measures; `*` because its address is random.
+    proc v6_temporary {ns subdir} {
+        variable TEMPORARY
+        if {![steps $ns $subdir [dummy d0]]} {
+            return 0
+        }
+        if {![sysctl $ns $subdir net.ipv6.conf.d0.use_tempaddr 2]} {
+            return 0
+        }
+        if {![steps $ns $subdir {
+            {-6 addr add 2001:db8::1/64 mngtmpaddr dev d0}
+        }]} {
+            return 0
+        }
+        wait_addr_flag $ns d0 * $TEMPORARY $TEMPORARY
+    }
+
+    # d1 holds an address and has no master: the `vrf d1` negative.
+    proc v4_vrf {ns subdir} {
+        variable MAC_VRF
+        steps $ns $subdir [concat [list \
+            [list link add vrf0 address $MAC_VRF type vrf table 10] \
+            {link set vrf0 addrgenmode none} \
+            {link set vrf0 up}] \
+            [dummy d0 0] {
+            {link set d0 master vrf0}
+            {link set d0 up}
+            {addr add 192.0.2.1/24 dev d0}
+        } [dummy d1] {
+            {addr add 198.51.100.1/24 dev d1}
+        }]
+    }
+
+    # d0 up with an address, d1 down with one, d2 up with none, and d3
+    # enslaved to bond0 while down (bond_enslave refuses an up port) with an
+    # IPv4 address of its own.
+    proc mixed_links {ns subdir} {
+        variable MAC_BOND
+        steps $ns $subdir [concat [dummy d0] {
+            {addr add 192.0.2.1/24 dev d0}
+        } [dummy d1 0] {
+            {addr add 198.51.100.1/24 dev d1}
+        } [dummy d2] [list \
+            [list link add bond0 address $MAC_BOND type bond] \
+            {link set bond0 addrgenmode none}] \
+            [dummy d3 0] {
+            {link set d3 master bond0}
+            {link set bond0 up}
+            {addr add 203.0.113.1/24 dev d3}
+        }]
+    }
+
+    ###########################################################################
+    # sysctl <ns> <subdir> <key> <value> - one recorded sysctl write.
+    ###########################################################################
+    proc sysctl {ns subdir key value} {
+        lassign [vmlib::run_out "xtcp2-nlcap sysctl $ns $subdir $key $value"] rc out
+        if {$rc != 0} {
+            vmlib::log "addr topology: sysctl refused: $key=$value in $ns"
+        }
+        return [expr {$rc == 0}]
+    }
+}

@@ -518,8 +518,8 @@ each taking the namespace and the corpus subdirectory, and each built only from
 | `v6_tentative` | veth `v0`/`v1`, both left **down**, `2001:db8::5/64` added to `v0` without `nodad` | `tentative`, `-tentative` |
 | `v6_stable_privacy` | dummy `d0`, `link set d0 addrgenmode random`, then up | `stable-privacy` link-local |
 | `v6_dadfailed` | veth `v0` in `NS_A`, its peer `v1` in `NS_B`, `2001:db8::5/64 nodad` on `v1`, both up, then the same address on `v0` | `dadfailed`; capture driver only |
-| `v6_optimistic` | `optimistic_dad=1` on `v0`, address with `optimistic`, link up | `optimistic`; capture driver only; Phase 0 records whether this kernel shows it |
-| `v6_temporary` | `use_tempaddr=2`, a `/64 mngtmpaddr` address on `v0` | `temporary` on IPv6; capture driver only; Phase 0 records whether one appears without a router |
+| `v6_optimistic` | `optimistic_dad=1` and `dad_transmits=60` on `v0`, link up, address with `optimistic` | `optimistic`; capture driver only; Phase 0 records whether this kernel shows it |
+| `v6_temporary` | `use_tempaddr=2` on dummy `d0`, then a `/64 mngtmpaddr` address | `temporary` on IPv6; capture driver only; Phase 0 records whether one appears without a router |
 | `v4_vrf` | `vrf0` (`type vrf table 10`), `d0` enslaved to it, `192.0.2.1/24` on `d0`, `d1` with an address and no master | `vrf vrf0`, and `vrf d1` as the "Not a valid VRF name" negative |
 | `mixed_links` | `d0` up with addresses, `d1` down with addresses, `d2` up with none, `bond0` as master of `d3`, which has an IPv4 address | `up`, `down`, `master`, `nomaster`, `type`, the zero-address link under `-4` |
 
@@ -548,9 +548,15 @@ race at all, or polled when it cannot be:
   the fixture's sidecars are captured from the same namespace as its pcap.
 - **Poll, never sleep, where a timer is unavoidable.** `v6_dadfailed` needs DAD
   to actually run and fail. A new proc `wait_addr_flag ns dev addr flag want`
-  re-runs `ip -6 addr show dev DEV` until the address does (or does not) carry
-  the flag, bounded by a timeout that prints `NLCAP_DAD_TIMEOUT` and fails the
-  driver, the same shape as `wait_lacp_converged`.
+  polls `/proc/net/if_inet6` in the namespace (through `xtcp2-nlcap
+  wait-addr-flag`) until the address does (or does not) carry the flag. The
+  poll is bounded by a timeout that prints `NLCAP_DAD_TIMEOUT` and fails the
+  driver, the same shape as `wait_lacp_converged`. It reads `/proc` rather
+  than re-running `ip -6 addr show`, as the LACP waits read sysfs. A poll then
+  sends no netlink traffic that could land in a capture window, and never
+  reads through the decoder under test. The file's flags field is the u8
+  `ifa_flags` (`if6_seq_show`, `addrconf.c:4519-4528`), which holds
+  `TEMPORARY`, `OPTIMISTIC`, `DADFAILED` and `TENTATIVE`.
 
 **`Setup` is `ip` argument lists only** (`internal/goipparity/commands.go:100`),
 run with `ip -n NS` through `nltopo::topo`. That is enough for `v6_tentative`
@@ -592,16 +598,19 @@ Concrete changes:
   one datagram — which `cmd_write` already does, since it counts datagrams, not
   ACKs. If Phase 0 shows otherwise, this paragraph is amended by the PR that
   fixes it.
-- **`nix/microvms/mkVm.nix`**: one new kernel module. veth, dummy and
-  (through `needsBonding`, `:320`) bonding are already in `boot.kernelModules`
+- **`nix/microvms/mkVm.nix`**: no change. veth, dummy and (through
+  `needsBonding`, `:320`) bonding are already in `boot.kernelModules`
   (`:4049-4057`) for `isLinkWriteCapture` (`:303`), which is why `mixed_links`
   uses a bond, not a bridge, as its master: `bridge` is loaded only for
   `isNetlinkDumpCapture`. The `vrf` selector needs the `vrf` module, which no
-  flavor loads today, so a `needsVrf = isLinkWriteCapture || isGoipParity`
-  predicate adds `lib.optional needsVrf "vrf"` next to bonding. Loading `vrf`
-  creates no device, unlike `bonding` without `max_bonds=0`, so no
-  root-namespace sidecar should move; Phase 0 diffs the root-namespace
-  sidecars with and without it to confirm that.
+  flavor loads at boot and none needs to. It autoloads on the first `ip link
+  add … type vrf` (`MODULE_ALIAS_RTNL_LINK`, `drivers/net/vrf.c:1968`), as the
+  dump and parity flavors already show: `nltopo::build_clean` creates
+  `goipvrf`, and `pkg/xtcpnl/testdata/7_1_4/dumps/topology:15` records it as
+  `ok`. Its init registers ops and creates no device. This was first planned
+  as a `needsVrf` predicate, with a Phase 0 diff of the root-namespace
+  sidecars with and without it. The finding made both unnecessary
+  ([status V002](addr-write-path-status.md#verification-ledger)).
 - **`nix/microvms/default.nix`**: none for capture. For parity, the save blobs
   are passed as a store path next to the existing parity inputs, so `restore`
   and `showdump` rows read the same bytes `ip` saved.
@@ -1095,9 +1104,11 @@ it against the table's expected column.
 - **`brd +` on /31 and /32** is silent in `ip`; a goip that errors is wrong.
 - **The IPv4 wildcard delete** omits `IFA_ADDRESS` and warns; a goip that
   "helpfully" adds `/32` sends different bytes.
-- **The `vrf` module** is new to the link-write and parity flavors. If loading
-  it moves a root-namespace sidecar after all, the `vrf vrf0` row is dropped
-  and only the client-side negative (`vrf d1`, which needs no module) stays.
+- **The `vrf` module** autoloads inside the capture namespace, as it already
+  does in the dump and parity flavors, so no boot-time load can move a
+  root-namespace sidecar. If a capture shows otherwise, the `vrf vrf0` row is
+  dropped and only the client-side negative (`vrf d1`, which needs no module)
+  stays.
 
 ## Out of scope
 

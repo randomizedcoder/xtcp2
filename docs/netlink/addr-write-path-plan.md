@@ -100,7 +100,9 @@ Deliver:
   - the per-row namespace reset
 - It is sourced the way `link-write-topology.exp` is.
 
-Tests: hermetic cases in `nix/checks/vm-lib-exp.nix`:
+Tests: hermetic cases in `nix/checks/vm-lib-exp.nix`, written as
+`nix/microvms/scripts/addr-topology-test.exp` against the real `xtcp2-nlcap`
+(see the [status log](addr-write-path-status.md#progress-and-decision-log)):
 
 | Category | Case | Expected |
 |---|---|---|
@@ -114,17 +116,18 @@ the expect and shell linters are clean.
 
 #### A0-T02
 
-**`needsVrf` in `mkVm.nix`.** Depends on: none.
+**The `vrf` module.** Depends on: none. **Closed by finding; no `mkVm.nix`
+change.**
 
-Deliver: `needsVrf = isLinkWriteCapture || isGoipParity` in
-`nix/microvms/mkVm.nix`, adding `lib.optional needsVrf "vrf"` next to the
-bonding module.
+As first planned, this task added `needsVrf = isLinkWriteCapture ||
+isGoipParity` to `nix/microvms/mkVm.nix`, then diffed the root-namespace
+sidecars with and without the module. Planning A0-T01 showed it is not needed.
+`vrf` autoloads on `ip link add … type vrf`, which the dump and parity flavors
+already run inside their capture namespace. The committed
+`pkg/xtcpnl/testdata/7_1_4/dumps/topology:15` records that step as `ok`.
 
-Done when:
-- the existing root-namespace sidecars have been captured with and without the
-  module
-- the diff is empty
-- the result is recorded as measurement M4 in the status doc
+Done when: the finding and M4's answer are recorded in the status doc's ledger
+(V002), and the design's `mkVm.nix` bullet is amended. Both are done.
 
 #### A0-T03
 
