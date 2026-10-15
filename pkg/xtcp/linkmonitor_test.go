@@ -471,6 +471,20 @@ func netstatSuccess(m *linkmonitor.Monitor) time.Time {
 	return at
 }
 
+// netstatQuiet is the latest resync, when netstat's collections for it are
+// done. Netstat is collected when its job registers and again after each
+// full reconciliation (resyncHost), and startup runs more than one of those,
+// so a gather can race a follow-up collection. It's quiet once the last
+// success started no earlier than the last resync: a success that only
+// finished after it can be the registration's, with the follow-up to come.
+func netstatQuiet(m *linkmonitor.Monitor) (time.Time, bool) {
+	s := m.Snapshot()
+	resync, ok := s.LastSuccessfulResync()
+	at, succeeded := s.HostCollector().LastSuccess()
+	took, timed := s.HostCollector().Duration()
+	return resync, ok && succeeded && timed && !at.Add(-took).Before(resync)
+}
+
 // TestLinkMonitorOnDemandScrape runs the embedded monitor and gathers xtcp2's
 // registry twice: an on-demand detail exposure collects netstat again when its
 // data is older than the TTL, and only then.
@@ -513,17 +527,26 @@ func TestLinkMonitorOnDemandScrape(t *testing.T) {
 			go x.runLinkMonitor(ctx, &wg)
 			t.Cleanup(func() { cancel(); wg.Wait() })
 
-			for deadline := time.Now().Add(20 * time.Second); netstatSuccess(x.linkMonitor).IsZero(); time.Sleep(50 * time.Millisecond) {
+			// Gather while netstat is quiet. A resync during the gather can
+			// collect netstat by itself, so measure again.
+			var first, second time.Time
+			for deadline := time.Now().Add(20 * time.Second); ; time.Sleep(50 * time.Millisecond) {
 				if time.Now().After(deadline) {
-					t.Fatal("no netstat collection after startup")
+					t.Fatal("netstat never quiet between resyncs")
+				}
+				resync, quiet := netstatQuiet(x.linkMonitor)
+				if !quiet {
+					continue
+				}
+				first = netstatSuccess(x.linkMonitor)
+				if _, err := registry.Gather(); err != nil {
+					t.Fatal(err)
+				}
+				second = netstatSuccess(x.linkMonitor)
+				if after, _ := x.linkMonitor.Snapshot().LastSuccessfulResync(); after.Equal(resync) {
+					break
 				}
 			}
-			time.Sleep(time.Second) // startup collections finish
-			first := netstatSuccess(x.linkMonitor)
-			if _, err := registry.Gather(); err != nil {
-				t.Fatal(err)
-			}
-			second := netstatSuccess(x.linkMonitor)
 			if advanced := second.After(first); advanced != tc.advances {
 				t.Errorf("netstat last success %v then %v: advanced %t, want %t", first, second, advanced, tc.advances)
 			}
