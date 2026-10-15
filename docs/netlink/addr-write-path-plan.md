@@ -1,0 +1,517 @@
+# Implementation plan: completing `ip address` in goip
+
+This plan turns the phases of [addr-write-path.md](addr-write-path.md) into
+ordered tasks, each with its own completion gate. The design says *what* to
+build and why. This plan says in *what order*, *which files*, and *what proves
+a task is done*. [addr-write-path-status.md](addr-write-path-status.md)
+records where each task stands.
+
+Task IDs are `Ann-Tmm`: `A` for address, `nn` for the design phase, `mm` for
+the task within it. IDs are stable. If scope changes, a task is split or
+deferred and given a new ID; existing IDs are never renumbered.
+
+## How to execute and track work
+
+- **Pick a task** whose dependencies are all `done`. At the start of a session,
+  set it to `in progress` in the status doc. At the end, record evidence,
+  blockers and the next action, even if the task is unfinished.
+- **One task, one PR, as a rule.** Each PR goes to the fork for review first.
+  The user decides when it moves on.
+- **"Implemented" and "gated" are separate steps.** A matrix row lands with
+  `Implemented: true`. It is gated only after two consecutive clean live
+  `goip-parity` runs, every row `GOIP_PARITY_PASS`. Each is a separate entry
+  in the status ledger.
+- **A task is done when its "Done when" passes**, as run, with the evidence ID
+  in the ledger. A skipped or unavailable check (no `/dev/kvm`, for example)
+  leaves the task `in progress` or `blocked`, never `done`.
+- **Statements flip with code.** A statement in
+  [Statements this design flips](addr-write-path.md#statements-this-design-flips)
+  is amended by the PR that makes it false, never earlier. The status doc
+  tracks which task owns each one.
+- **`coverage-status.md`** gets a "Write path: address writes as a dry run"
+  section when A6-T02 lands, like the route and link sections. Each later phase
+  updates that section and the glance table.
+
+### Gates every code task inherits
+
+These are not repeated in each task's "Done when". They apply to all of them.
+
+| Gate | Command | Passes when |
+|---|---|---|
+| Unit tests | `go test ./pkg/xtcpnl/... ./pkg/nlparity/... ./internal/goip/... ./internal/goipparity/...` (the packages touched) | green |
+| Focused Nix test | `nix build --no-link .#test-focused-goip` | builds |
+| Wire audit | `nix build --no-link .#checks.x86_64-linux.netlink-audit` | no new finding |
+| Lint ratchet | `nix build --no-link .#checks.x86_64-linux.lint-baseline` | no new finding; no disable directive added |
+| Coverage ratchet | `nix build --no-link .#quality-report` | `evaluateCoverageRatchet` does not exit 3; re-baseline upward at the end of a phase |
+| Conventions | review | US spelling; no reflection; positive fixtures are real captures, and hand bytes appear only in malformed-input rows; iproute2 and kernel claims cite `file:line` |
+| Test shape | review | every new test is table-driven, and each row has a `description` starting `positive:`/`negative:`/`boundary:`/`corner:` and an `expected` (or `want`/`wantErr`) |
+
+Capture and parity gates need `/dev/kvm`:
+
+- `nix run .#microvm-x86_64-link-write-capture` must print `NLCAP_DRIVER_PASS`.
+- `nix run .#microvm-x86_64-goip-parity` must print `GOIP_PARITY_DRIVER_PASS`
+  and `GOIP_PARITY_OVERALL_PASS`.
+
+## Phase overview and dependencies
+
+| Phase | Design phase | Scope | Tasks | Depends on |
+|---|---|---|---|---|
+| A0 | 0 | address topologies, the capture corpus, the Phase 0 measurements | 5 | — |
+| A1 | 1 | decode `IFA_RT_PRIORITY`/`ANYCAST`/`MULTICAST`/`MC_USERS`; render `metric`/`any`/`mcast` | 2 | A0 |
+| A2 | 2 | `addr show` selectors | 3 | A0 |
+| A3 | 3 | `-br` and `-o` | 3 | A0 |
+| A4 | 4 | the gate admits `RTM_NEWADDR`/`RTM_DELADDR` | 1 | A0 |
+| A5 | 5 | `BuildAddrWriteRequest` | 1 | A4 |
+| A6 | 6 | `goip addr add/change/replace/delete` | 2 | A5 |
+| A7 | 7 | write rows in the matrix | 2 | A6 |
+| A8 | 8 | `flush` and the multi-write comparator | 3 | A2, A7 |
+| A9 | 9 | `save`, `showdump`, `restore` | 3 | A8 |
+
+```
+A0 ─┬─ A1
+    ├─ A2 ───────────────────┐
+    ├─ A3                    │
+    └─ A4 ─ A5 ─ A6 ─ A7 ────┴─ A8 ─ A9
+```
+
+A1, A2 and A3 can land in any order once A0 is done. A4 through A7 are
+serial. A8 needs A2's filter, because flush matches with it, and A7's
+write-row axis. A9 needs A8's N-write comparator, because `restore` sends N
+messages.
+
+## Work packages
+
+### A0 — Capture
+
+Design: [Capture topologies](addr-write-path.md#capture-topologies),
+[Nix targets](addr-write-path.md#nix-targets),
+[The capture corpus](addr-write-path.md#the-capture-corpus).
+
+#### A0-T01
+
+**`addr-topology.exp` and `wait_addr_flag`.** Depends on: none.
+
+Deliver:
+- `nix/microvms/scripts/addr-topology.exp`, holding:
+  - the v4, v6 and DAD state procs from the design's
+    [state table](addr-write-path.md#addr-topologyexp)
+  - `wait_addr_flag`, which polls for an address flag with a bounded deadline
+    and never sleeps for a fixed time
+  - the per-row namespace reset
+- It is sourced the way `link-write-topology.exp` is.
+
+Tests: hermetic cases in `nix/checks/vm-lib-exp.nix`:
+
+| Category | Case | Expected |
+|---|---|---|
+| positive | the flag appears after N polls | returns the flag |
+| negative | the deadline passes first | timeout result |
+| boundary | the flag is present on the first poll | returns at once |
+| corner | the flag never appears (optimistic on this kernel) | timeout result, recorded as a dropped state |
+
+Done when: `nix build --no-link .#checks.x86_64-linux.vm-lib-exp` passes, and
+the expect and shell linters are clean.
+
+#### A0-T02
+
+**`needsVrf` in `mkVm.nix`.** Depends on: none.
+
+Deliver: `needsVrf = isLinkWriteCapture || isGoipParity` in
+`nix/microvms/mkVm.nix`, adding `lib.optional needsVrf "vrf"` next to the
+bonding module.
+
+Done when:
+- the existing root-namespace sidecars have been captured with and without the
+  module
+- the diff is empty
+- the result is recorded as measurement M4 in the status doc
+
+#### A0-T03
+
+**The write, flush and save corpus lists.** Depends on: A0-T01.
+
+Deliver:
+- in `nix/microvms/scripts/capture-link-writes.exp`:
+  - the precondition lists `PRE_ADDR_DEV` (with `addrgenmode none`),
+    `PRE_ADDR_V4`, `PRE_ADDR_SECONDARY`, `PRE_ADDR_V6` and `PRE_VETH_PAIR`
+  - the corpus lists `addr_rows`, `addr_flush_rows` and `addr_save_rows`,
+    with every slug from the design's
+    [write](addr-write-path.md#write-rows),
+    [flush](addr-write-path.md#flush-rows) and
+    [save/restore](addr-write-path.md#save-showdump-and-restore-rows) tables
+- `ip.save` added to `pack`'s file list in `nix/microvms/netlink-capture.nix`
+
+Done when:
+- `nix run .#microvm-x86_64-link-write-capture` prints `NLCAP_DRIVER_PASS`
+- the fixtures are committed under
+  `pkg/xtcpnl/testdata/7_1_4/link-write/{addr,addr-flush,addr-save}/<slug>/`
+- every slug has a pcap, `ip.out`, `ip.err` and `ip.rc`
+
+#### A0-T04
+
+**The readback states.** Depends on: A0-T01, A0-T02.
+
+Deliver: an `addr_readback` loop in `capture-link-writes.exp`. It builds each
+[readback state](addr-write-path.md#readback-states) and runs `nlcap capio` for
+the plain, `-j`, `-br`, `-o` and `-d` sidecars and each state's selector
+sidecars, into `link-write/addr-show/<state>/`.
+
+Done when:
+- the capture run prints `NLCAP_DRIVER_PASS`
+- every state's `topology` file records it as built or dropped, with the
+  reason for a dropped one
+- the layout matches `lacp_converged/`
+
+#### A0-T05
+
+**Record the Phase 0 measurements.** Depends on: A0-T02, A0-T03, A0-T04.
+
+Deliver: results for M1–M4 in the status doc. Amend the design paragraphs that
+leave them open (the label errno, optimistic and temporary visibility, the
+namespace's `promote_secondaries` default), citing the fixture path that
+shows each result.
+
+Done when: no "measured in Phase 0" wording is left in the design without a
+result, and the status doc's measurement table is full.
+
+### A1 — Decode and render
+
+Design: [Go design](addr-write-path.md#go-design--what-to-add-and-what-to-reuse).
+
+#### A1-T01
+
+**`ParseNewAddr` gains the four attributes.** Depends on: A0-T04.
+
+Deliver:
+- In `pkg/xtcpnl/xtcpnl_ifaddrmsg.go`, `RtPriority`/`HasRtPriority` (u32),
+  `Anycast`, `Multicast` and `McUsers`, decoded in the existing single pass.
+- A benchmark in `pkg/xtcpnl/xtcpnl_bench_test.go`, plus an allocation guard
+  showing an address without the new attributes allocates no more than before.
+
+Tests: `TestParseNewAddrRichFixtures`
+([table 6](addr-write-path.md#6-testparsenewaddrrichfixtures-phase-1)).
+
+Done when: the table passes over every readback pcap, and the benchmark and
+guard are committed with before/after numbers in the ledger.
+
+#### A1-T02
+
+**Render `metric`, `any` and `mcast`.** Depends on: A1-T01.
+
+Deliver:
+- the text and JSON forms in `internal/goip/render/addr.go`
+- the `addr show` read rows on `v4_metric`, `v4_peer`, `v6_peer` and
+  `v4_autojoin` in `internal/goipparity/commands.go`, `Implemented: true`
+
+Tests: sidecar goldens in `internal/goip/render/addr_test.go`, plain and `-j`
+for every readback state.
+
+Done when:
+- the goldens are byte-identical
+- the rows pass two clean parity runs, and are then gated
+- lifetime states are the exception: they stay ungated, per
+  [Gating](addr-write-path.md#gating)
+
+### A2 — Show selectors
+
+#### A2-T01
+
+**`addrFilter` and its parser.** Depends on: A0-T04.
+
+Deliver: `internal/goip/addr_filter.go`. It holds the `addrFilter` struct with
+iproute2's `filter` fields, and the selector parser in `ipaddr_list_flush_or_save`'s
+order, including the exact-versus-prefix match for each keyword.
+
+Tests: `TestParseAddrShowArgs`
+([table 5](addr-write-path.md#5-testparseaddrshowargs-and-testaddrfilter-phase-2)).
+
+Done when: the table passes.
+
+#### A2-T02
+
+**Apply the filter in `addrShow`.** Depends on: A2-T01.
+
+Deliver:
+- In `internal/goip/obj_addr.go`, `addrShow` and `renderAddrGroups` apply the
+  filter's match functions in `print_addrinfo`'s and `print_linkinfo`'s
+  order.
+- `master`/`vrf` add `IFLA_MASTER` to the link-dump request, and `type` adds
+  `IFLA_LINKINFO{KIND}`, through the request builder in `internal/goip/req`.
+- `novf` changes `IFLA_EXT_MASK`.
+- The bare device name reuses `addrShowDev`.
+
+Tests:
+- `TestAddrFilter`
+- request-shape rows that compare goip's link-dump request with the
+  captured pcap's
+
+Done when: both pass, and `addr show` no longer refuses any selector the
+design lists.
+
+#### A2-T03
+
+**Selector rows in the matrix.** Depends on: A2-T02.
+
+Deliver: one `Command` row with `Setup` per selector in
+[the selector list](addr-write-path.md#selector-and-output-mode-read-rows), in
+`internal/goipparity/commands.go`.
+
+Tests: `TestAddrShowSelectorRowsGated` in `commands_test.go`, which pins the
+gated set
+([table 10](addr-write-path.md#10-commands_testgo-additions)).
+
+Done when:
+- the rows pass two clean parity runs and are then gated
+- statement 15 is amended for the selector rows
+
+### A3 — Output modes
+
+#### A3-T01
+
+**Parse `-br` and `-o`.** Depends on: A0-T04.
+
+Deliver: `-br`/`-brief` and `-o`/`-oneline` in `internal/goip/goip.go`, matched
+the way `ip/ip.c` matches them. They are accepted for `addr`; other objects
+keep refusing them.
+
+Tests: rows in `internal/goip/goip_dash_option_test.go`:
+
+| Category | Case | Expected |
+|---|---|---|
+| positive | `-br` with `addr` | accepted |
+| negative | `-br` with any other object | refused |
+| boundary | the shortest abbreviation `ip` accepts | accepted |
+| corner | `-br -j` together | accepted |
+
+Done when: the rows pass.
+
+#### A3-T02
+
+**Brief and oneline renderers.** Depends on: A3-T01.
+
+Deliver:
+- in `internal/goip/render`, the address brief and the link brief that
+  `print_linkinfo_brief` shares
+- the `-o` form: `\` for each line break, and no link line for addresses
+
+Tests: `TestAddrBriefMatchesSidecar` and `TestAddrOnelineMatchesSidecar`
+([table 7](addr-write-path.md#7-testaddrbriefmatchessidecar-and-testaddronelinematchessidecar-phases-1-and-3)).
+
+Done when: every readback state's `-br`, `-o` and `-br -j` sidecar is
+byte-identical.
+
+#### A3-T03
+
+**Output-mode rows.** Depends on: A3-T02.
+
+Deliver: matrix rows for `-br addr show`, `-o addr show`, `-br -j addr show`
+and `-o -6 addr show`.
+
+Done when: the rows pass two clean parity runs and are then gated.
+
+### A4 — The gate
+
+#### A4-T01
+
+**Admit `RTM_NEWADDR` and `RTM_DELADDR`.** Depends on: A0-T03.
+
+Deliver:
+- in `pkg/xtcpnl/xtcpnl_rtattr_encode.go`, the two types in
+  `IsAdmittedWriteType`, and `ErrNotAnAdmittedWrite`'s text updated
+- two map entries in `admittedWriteTypes`
+  (`pkg/xtcpnl/xtcpnl_write_gate_test.go`)
+
+Tests: `TestBuildWriteRequestAdmitsOnlyListedWrites`
+([table 1](addr-write-path.md#1-testbuildwriterequestadmitsonlylistedwrites-phase-4)).
+Its negative example moves from `RTM_NEWADDR` to `RTM_NEWNEIGH`.
+
+Done when: the table passes, and statements 12, 13, 17 and 18 are amended.
+
+### A5 — The encoder
+
+#### A5-T01
+
+**`BuildAddrWriteRequest`.** Depends on: A4-T01.
+
+Deliver: `pkg/xtcpnl/xtcpnl_addr_write.go`, holding:
+- `AddrWrite`: the header fields and an *ordered* attribute list
+- `BuildAddrWriteRequest`, which calls `BuildWriteRequest`
+- the "flags above 0xff go only in `IFA_FLAGS`" rule, in this file and nowhere
+  else
+
+Tests: `TestBuildAddrWriteRequest`
+([table 2](addr-write-path.md#2-testbuildaddrwriterequest-phase-5-pkgxtcpnl)),
+including the 72-byte
+[worked example](addr-write-path.md#worked-example--wide-ipv6-flags-byte-for-byte)
+as a row.
+
+Done when: the table passes, and the worked-example row matches the captured
+`add_v6_flags_wide` request byte for byte.
+
+### A6 — `goip addr add/change/replace/delete`
+
+#### A6-T01
+
+**The `ipaddr_modify` argument parser.** Depends on: A5-T01.
+
+Deliver: `internal/goip/addr_write.go`. It holds the keyword chain as a table
+in iproute2's order, with an exact-versus-prefix column per keyword, and stops
+at the same three steps as `ip`: during argv, after the loop, and after the
+lookup. The pattern is `route_write.go`'s `parseRouteWriteArgs` and
+`routeKeyword`.
+
+Tests: `TestParseAddrWriteArgs`
+([table 3](addr-write-path.md#3-testparseaddrwriteargs-phase-6)).
+
+Done when: the table passes.
+
+#### A6-T02
+
+**Verb dispatch and the corpus replay.** Depends on: A6-T01.
+
+Deliver:
+- `runAddress` in `internal/goip/obj_addr.go` dispatches the verbs in
+  `do_ipaddr`'s abbreviation order
+- `dev` is resolved through `Service.LinkByName`
+- the request is written to `GOIP_WRITE_OUT`, or goip exits with
+  `ErrWriteNotApplied` when it is unset
+- `internal/goip/addr_write_corpus_test.go`, mirroring
+  `route_write_corpus_test.go`
+
+Tests:
+- `TestAddrWriteMatchesIpBytes`
+- `TestDecodeAddrWriteCorpus`
+- `TestAddrWriteNodevCorpus`
+
+All three are
+[table 4](addr-write-path.md#4-testaddrwritematchesipbytes-and-testdecodeaddrwritecorpus-phase-6).
+
+Done when:
+- every write-corpus slug replays byte for byte, seq and pid zeroed
+- statement 11 is amended for the four verbs, and statement 14 too
+- the `coverage-status.md` address write section has landed
+
+### A7 — Write rows in the matrix
+
+#### A7-T01
+
+**`addr_write_<slug>` rows.** Depends on: A6-T02.
+
+Deliver: in `internal/goipparity/commands.go`:
+- one `Write: true` row with `Setup` for each corpus slug that writes
+- refused slugs as `Write: false` rows with `Setup`, compared as reads
+
+Done when: `commands_test.go` passes with the rows `Implemented: true`.
+
+#### A7-T02
+
+**Gate the write rows.** Depends on: A7-T01.
+
+Tests: `TestAddrWriteRowsGated`
+([table 10](addr-write-path.md#10-commands_testgo-additions)).
+
+Done when:
+- two consecutive clean parity runs are recorded in the ledger
+- the rows are gated
+- statement 15 is amended for the write rows
+
+### A8 — Flush
+
+Design: [`flush`](addr-write-path.md#flush) and
+[decision 5](addr-write-path.md#decisions).
+
+#### A8-T01
+
+**`SplitWrites` and `CompareWrites`.** Depends on: A7-T02.
+
+Deliver: `pkg/nlparity/nlparity_write.go`, where:
+- `SplitWrites` and `CompareWrites` split by datagram and diff by message
+- `SplitWrite` becomes `SplitWrites` with N=1
+
+Tests:
+- `TestCompareWritesBatch`
+  ([table 8](addr-write-path.md#8-testaddrflushmatchesipbytes-and-testcomparewritesbatch-phase-8))
+- a regression row showing every existing link and route write row compares
+  exactly as before
+
+Done when: both pass, and a parity run shows the link and route write rows
+unchanged.
+
+#### A8-T02
+
+**`goip addr flush`.** Depends on: A8-T01, A2-T02.
+
+Deliver: `internal/goip/addr_flush.go`, holding:
+- the filtered dump
+- the copy rule: type `RTM_DELADDR`, flags `REQUEST`, seq incremented
+- 3584-byte batches, sent with no ACK requested
+- a round 2 that subtracts the batch
+- `-loops`
+- `-s` round text
+- the client-side refusals
+
+Tests: `TestAddrFlushMatchesIpBytes`
+([table 8](addr-write-path.md#8-testaddrflushmatchesipbytes-and-testcomparewritesbatch-phase-8)).
+
+Done when:
+- every flush slug matches on the round-1 dump, the batch, and the round-2
+  request
+- the round-2 reply is excluded by rule
+- statement 11 is amended for `flush`
+
+#### A8-T03
+
+**The `Writes` field and the flush rows.** Depends on: A8-T02.
+
+Deliver:
+- a `Writes int` field on `Command`
+- the table test refuses a flush row that does not set it
+- the flush rows
+
+Done when: the rows pass two clean parity runs and are then gated.
+
+### A9 — Save, showdump, restore
+
+Design: [`save`, `showdump` and `restore`](addr-write-path.md#save-showdump-and-restore).
+
+#### A9-T01
+
+**`save` and `showdump`.** Depends on: A8-T01.
+
+Deliver: `internal/goip/addr_save.go`:
+- `save` writes the magic `0x47361222` and the raw dump replies, and refuses a
+  terminal
+- `showdump` reads stdin and sends nothing
+
+Tests: `TestAddrSaveMatchesIpBytes` and `TestAddrShowdumpMatchesSidecar`
+([table 9](addr-write-path.md#9-save-showdump-and-restore-phase-9)).
+
+Done when: both match every `addr-save` slug.
+
+#### A9-T02
+
+**`restore`.** Depends on: A9-T01.
+
+Deliver: `restore` sends one link dump (`ll_init_map`'s static guard), then
+writes each saved message, flagged `|REQUEST|CREATE|ACK`, to
+`GOIP_WRITE_OUT`.
+
+Tests: `TestAddrRestoreMatchesIpBytes`
+([table 9](addr-write-path.md#9-save-showdump-and-restore-phase-9)).
+
+Done when: both restore slugs match, and EEXIST is ignored, matching `ip`'s
+rc.
+
+#### A9-T03
+
+**Restore and showdump in the matrix.** Depends on: A9-T02, A8-T03.
+
+Deliver:
+- the committed `ip.save` blobs passed into the parity guest as a store path
+  in `nix/microvms/default.nix`
+- the restore and showdump rows, with `Writes` set
+
+Done when:
+- the rows pass two clean parity runs and are then gated
+- statement 11 is fully amended
+- the design's Status reads **Implemented**
