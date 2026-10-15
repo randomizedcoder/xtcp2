@@ -4,7 +4,7 @@ Each document here records one production problem: the evidence, the hypotheses 
 
 | Investigation | Status | Summary |
 |---|---|---|
-| [Records dropped after the poll-end flush](envelope-post-flush-drop.md) | open: root cause confirmed, fix by TDD | ~19% of collected records in prod are discarded by `Deserialize/envelopePostFlushDrop`, worse on hosts with more namespaces |
+| [Records dropped after the poll-end flush](envelope-post-flush-drop.md) | open: fix in review (one receiver per socket, decoders count the dump) | ~19% of collected records in prod are discarded by `Deserialize/envelopePostFlushDrop`, worse on hosts with more namespaces |
 
 ## Conventions
 

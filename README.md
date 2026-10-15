@@ -22,7 +22,7 @@ The typical deployment streams length-delimited protobuf batches to Kafka/Redpan
   └─────────────────┘
         │
         ▼
-  ┌─────────────────┐   N parallel netlinkers per ns (-netlinkers)
+  ┌─────────────────┐   one receiver + N decoders per socket (-netlinkers)
   │   netlinker(s)   │  send inet_diag dump, recv raw netlink packets
   └─────────────────┘
         │
@@ -91,7 +91,7 @@ Run `xtcp2 -help` for the full flag list. Common flags:
 | `-topic` | `xtcp` | Kafka / NSQ topic |
 | `-frequency` | `10s` | Poll interval |
 | `-marshal` | `protobufList` | Wire format (`protobufList`, `protoJson`, `protoText`, `msgpack`, `jsonl`, `csv`, `tsv`) |
-| `-netlinkers` | `4` | Parallel netlink readers per namespace |
+| `-netlinkers` | `2` | Parallel decoders per socket (one receiver reads each socket) |
 | `-deserializers` | `all` | Which inet_diag attributes to decode |
 | `-promListen` | `:9088` | Prometheus metrics listener |
 | `-grpcPort` | `8889` | gRPC API port |

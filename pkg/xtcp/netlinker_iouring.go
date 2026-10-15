@@ -136,6 +136,24 @@ func (x *XTCP) maybeForceGCIoUring(packets uint64) {
 // ring init, prefill, wait+drain+dispatch, refill, and GC bookkeeping.
 // Each concern moved to a helper above; the remaining shell is just
 // "init, defer cleanup, drive the loop" (gocyclo 7).
+// netlinkersIoUring starts `netlinkers` io_uring netlinkers on fd, one
+// ring each, and calls wg.Done once they have all exited.
+//
+// Known limitation: with netlinkers > 1 the io_uring path still has the
+// end-of-dump race the syscall path fixed with a single receiver
+// (dumpState in netlinker.go): each ring reads and decodes its own
+// packets, and the one that decodes NLMSG_DONE signals done while the
+// others may still be decoding (docs/investigations/envelope-post-flush-drop.md).
+func (x *XTCP) netlinkersIoUring(ctx context.Context, wg *sync.WaitGroup, nsName *string, inode uint64, fd int, netlinkers uint32) {
+
+	defer wg.Done()
+
+	for id := range netlinkers {
+		wg.Add(1)
+		go x.netlinkerIoUring(ctx, wg, nsName, inode, fd, id)
+	}
+}
+
 func (x *XTCP) netlinkerIoUring(ctx context.Context, wg *sync.WaitGroup, nsName *string, inode uint64, fd int, id uint32) {
 
 	defer wg.Done()
@@ -319,6 +337,7 @@ func (x *XTCP) handleRecvCQE(ctx context.Context, ring *xio.Ring, nsName *string
 		pC:             x.pC,
 		pH:             x.pH,
 		id:             id,
+		signalDone:     true,
 	})
 	if errD != nil {
 		x.pC.WithLabelValues("NetlinkerIoUring", "ParseNLPacket", "error").Inc()

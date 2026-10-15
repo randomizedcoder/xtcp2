@@ -20,11 +20,11 @@ func (x *XTCP) InitNetlinkers(ctx context.Context, wg *sync.WaitGroup) {
 
 	defer wg.Done()
 
-	x.Netlinkers.Store("syscall", NetlinkerFunc(func(ctx context.Context, wg *sync.WaitGroup, nsName *string, inode uint64, fd int, id uint32) {
-		x.netlinkerSyscall(ctx, wg, nsName, inode, fd, id)
+	x.Netlinkers.Store("syscall", NetlinkerFunc(func(ctx context.Context, wg *sync.WaitGroup, nsName *string, inode uint64, fd int, netlinkers uint32) {
+		x.netlinkerSyscall(ctx, wg, nsName, inode, fd, netlinkers)
 	}))
-	x.Netlinkers.Store("io_uring", NetlinkerFunc(func(ctx context.Context, wg *sync.WaitGroup, nsName *string, inode uint64, fd int, id uint32) {
-		x.netlinkerIoUring(ctx, wg, nsName, inode, fd, id)
+	x.Netlinkers.Store("io_uring", NetlinkerFunc(func(ctx context.Context, wg *sync.WaitGroup, nsName *string, inode uint64, fd int, netlinkers uint32) {
+		x.netlinkersIoUring(ctx, wg, nsName, inode, fd, netlinkers)
 	}))
 
 	key := "syscall"

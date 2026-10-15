@@ -1650,6 +1650,22 @@ pkgs.writeShellApplication {
         echo "XTCP2_SELF_TEST_S3PARQUET_EVENTDATE_FAIL  (no parquet file to test)"
       fi
       if [ "$check14b" -ne 0 ]; then overall_ok=0; fi
+
+      # ─── Check 14c: no records dropped after the poll-end flush ──────
+      # Every parsed record must reach an envelope. A record parsed after
+      # the poll-end flush has nowhere to go and is counted as
+      # Deserialize/envelopePostFlushDrop
+      # (docs/investigations/envelope-post-flush-drop.md). Requires appends
+      # > 0 too, so a run that collected nothing doesn't pass vacuously.
+      echo "--- check 14c: s3parquet — no post-flush drops ---"
+      pfDrops=$(metric_value "xtcp_counts" 'function="Deserialize"' 'variable="envelopePostFlushDrop"')
+      pfAppends=$(metric_value "xtcp_counts" 'function="Deserialize"' 'variable="envelopeAppend"')
+      if [ "''${pfDrops:-1}" = "0" ] && [ "''${pfAppends:-0}" -ge 1 ] 2>/dev/null; then
+        echo "XTCP2_SELF_TEST_S3PARQUET_NODROP_PASS  (drops=0, appends=$pfAppends)"
+      else
+        echo "XTCP2_SELF_TEST_S3PARQUET_NODROP_FAIL  (drops=$pfDrops, appends=$pfAppends)"
+        overall_ok=0
+      fi
     ''}
 
     ${lib.optionalString runValkeyCheck ''

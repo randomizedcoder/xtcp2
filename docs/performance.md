@@ -18,7 +18,7 @@ The hot path recycles objects through `sync.Pool` rather than allocating per soc
 
 ## Parallel netlink readers
 
-Each namespace runs `-netlinkers` reader goroutines (default 4) created by `pkg/xtcp/init_netlinkers.go`. Reads and deserialization happen in parallel, so a single namespace with many flows isn't bottlenecked on one goroutine draining the socket. Raise this on hosts with very high per-namespace flow counts. See [netlink collection](netlink/collection.md#netlinkers).
+Each namespace's socket has one receiver goroutine and `-netlinkers` decoder goroutines (default 2), started by `pkg/xtcp/netlinker.go`. The receiver reads packets in the order the kernel sends them and the decoders deserialize them in parallel, so a single namespace with many flows isn't bottlenecked on one goroutine decoding the dump. A 100k-socket dump takes about 200 ms with 2 decoders and 160 ms with 4 ([benchmark](investigations/envelope-post-flush-drop.md#the-fix-and-its-results)). Raise this on hosts with very high per-namespace flow counts. See [netlink collection](netlink/collection.md#netlinkers).
 
 ## io_uring fast path (implemented, but not recommended)
 
@@ -101,7 +101,7 @@ Commit the updated `cmd/xtcp2/default.pgo`; the next build applies it automatica
 | `-ioUring` | `false` | Enable the `io_uring` I/O path (Linux 6.1+). Tested — no measured benefit for this workload; leave off (see [io_uring section](#io_uring-fast-path-implemented-but-not-recommended)). |
 | `-ioUringRecvBatch` | `64` | recvmsg SQEs in flight per netlinker (1–4096). |
 | `-ioUringCqeBatch` | `128` | Max CQEs reaped per poll (1–4096). |
-| `-netlinkers` | `4` | Parallel netlink readers per namespace. |
+| `-netlinkers` | `2` | Parallel decoders per socket (one receiver reads each socket). |
 | `-goMaxProcs` | `4` | `GOMAXPROCS`. |
 | `-maxThreads` | `2000` | OS thread cap (`debug.SetMaxThreads`); `0` = Go default. |
 
