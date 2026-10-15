@@ -2216,7 +2216,7 @@ constexpr XtcpConfig::ParseTableT_ XtcpConfig::InternalGenerateParseTable_(const
       offsetof(ParseTableT_, field_lookup_table),
       4278190591,  // skipmap
       offsetof(ParseTableT_, field_entries),
-      79,  // num_field_entries
+      80,  // num_field_entries
       14,  // num_aux_entries
       offsetof(ParseTableT_, aux_entries),
       class_data,
@@ -2326,20 +2326,20 @@ constexpr XtcpConfig::ParseTableT_ XtcpConfig::InternalGenerateParseTable_(const
         PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.xtcp_proto_file_)}},
     }}, {{
       40, 0, 14,
-      50172, 15,
-      64527, 21,
-      61695, 27,
-      4095, 31,
-      61496, 35,
-      33791, 44,
-      16383, 49,
-      64760, 51,
-      65475, 56,
-      65535, 60,
-      58360, 60,
-      49039, 66,
-      255, 70,
-      65531, 78,
+      33788, 15,
+      64527, 22,
+      61695, 28,
+      4095, 32,
+      61496, 36,
+      33791, 45,
+      16383, 50,
+      64760, 52,
+      65475, 57,
+      65535, 61,
+      58360, 61,
+      49039, 67,
+      255, 71,
+      65531, 79,
       65535, 65535
     }}, {{
       // uint64 nl_timeout_milliseconds = 10 [json_name = "nlTimeoutMilliseconds", (.buf.validate.field) = {
@@ -2384,6 +2384,8 @@ constexpr XtcpConfig::ParseTableT_ XtcpConfig::InternalGenerateParseTable_(const
       {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.dest_write_files_), _Internal::kHasBitsOffset + 57, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
       // uint32 debug_level = 53 [json_name = "debugLevel", (.buf.validate.field) = {
       {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.debug_level_), _Internal::kHasBitsOffset + 58, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      // bool debug_prometheus = 54 [json_name = "debugPrometheus", (.buf.validate.field) = {
+      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.debug_prometheus_), _Internal::kHasBitsOffset + 68, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
       // string dest = 60 [json_name = "dest", (.buf.validate.field) = {
       {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.dest_), _Internal::kHasBitsOffset + 0, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
       // string marshal_to = 61 [json_name = "marshalTo", (.buf.validate.field) = {
@@ -2459,31 +2461,31 @@ constexpr XtcpConfig::ParseTableT_ XtcpConfig::InternalGenerateParseTable_(const
       // string pyroscope_app_name = 171 [json_name = "pyroscopeAppName", (.buf.validate.field) = {
       {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.pyroscope_app_name_), _Internal::kHasBitsOffset + 4, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
       // uint32 pyroscope_sample_hz = 172 [json_name = "pyroscopeSampleHz", (.buf.validate.field) = {
-      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.pyroscope_sample_hz_), _Internal::kHasBitsOffset + 68, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.pyroscope_sample_hz_), _Internal::kHasBitsOffset + 72, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
       // uint32 pyroscope_upload_interval_sec = 173 [json_name = "pyroscopeUploadIntervalSec", (.buf.validate.field) = {
-      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.pyroscope_upload_interval_sec_), _Internal::kHasBitsOffset + 69, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
+      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.pyroscope_upload_interval_sec_), _Internal::kHasBitsOffset + 73, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
       // bool resolve_container_id = 200 [json_name = "resolveContainerId", (.buf.validate.field) = {
-      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.resolve_container_id_), _Internal::kHasBitsOffset + 70, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.resolve_container_id_), _Internal::kHasBitsOffset + 69, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
       // bool enrich_container_enable = 201 [json_name = "enrichContainerEnable"];
-      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.enrich_container_enable_), _Internal::kHasBitsOffset + 71, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.enrich_container_enable_), _Internal::kHasBitsOffset + 70, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
       // string docker_socket_path = 202 [json_name = "dockerSocketPath", (.buf.validate.field) = {
       {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.docker_socket_path_), _Internal::kHasBitsOffset + 39, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
       // bool enrich_lldp_enable = 210 [json_name = "enrichLldpEnable"];
-      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.enrich_lldp_enable_), _Internal::kHasBitsOffset + 72, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.enrich_lldp_enable_), _Internal::kHasBitsOffset + 71, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
       // string lldpd_socket_path = 211 [json_name = "lldpdSocketPath", (.buf.validate.field) = {
       {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.lldpd_socket_path_), _Internal::kHasBitsOffset + 40, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
       // string lldpd_version_hint = 212 [json_name = "lldpdVersionHint", (.buf.validate.field) = {
       {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.lldpd_version_hint_), _Internal::kHasBitsOffset + 41, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
       // bool enrich_nic_enable = 220 [json_name = "enrichNicEnable"];
-      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.enrich_nic_enable_), _Internal::kHasBitsOffset + 73, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.enrich_nic_enable_), _Internal::kHasBitsOffset + 75, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
       // uint32 uplink_count = 221 [json_name = "uplinkCount", (.buf.validate.field) = {
       {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.uplink_count_), _Internal::kHasBitsOffset + 74, 0, (0 | ::_fl::kFcOptional | ::_fl::kUInt32)},
       // repeated string uplink_interfaces = 222 [json_name = "uplinkInterfaces", (.buf.validate.field) = {
       {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.uplink_interfaces_), _Internal::kHasBitsOffset + 22, 0, (0 | ::_fl::kFcRepeated | ::_fl::kUtf8String | ::_fl::kRepSString)},
       // bool populate_nsid = 230 [json_name = "populateNsid"];
-      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.populate_nsid_), _Internal::kHasBitsOffset + 75, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.populate_nsid_), _Internal::kHasBitsOffset + 76, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
       // bool enrich_asn_enable = 240 [json_name = "enrichAsnEnable"];
-      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.enrich_asn_enable_), _Internal::kHasBitsOffset + 76, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.enrich_asn_enable_), _Internal::kHasBitsOffset + 77, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
       // string asn_db_path = 241 [json_name = "asnDbPath", (.buf.validate.field) = {
       {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.asn_db_path_), _Internal::kHasBitsOffset + 42, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
       // .google.protobuf.Duration asn_refresh_interval = 242 [json_name = "asnRefreshInterval"];
@@ -2493,11 +2495,11 @@ constexpr XtcpConfig::ParseTableT_ XtcpConfig::InternalGenerateParseTable_(const
       // string ipmeta_cache_path = 244 [json_name = "ipmetaCachePath", (.buf.validate.field) = {
       {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.ipmeta_cache_path_), _Internal::kHasBitsOffset + 44, 0, (0 | ::_fl::kFcOptional | ::_fl::kUtf8String | ::_fl::kRepAString)},
       // bool enrich_locality_enable = 245 [json_name = "enrichLocalityEnable"];
-      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.enrich_locality_enable_), _Internal::kHasBitsOffset + 77, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.enrich_locality_enable_), _Internal::kHasBitsOffset + 78, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
       // .google.protobuf.Duration locality_refresh_interval = 246 [json_name = "localityRefreshInterval"];
       {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.locality_refresh_interval_), _Internal::kHasBitsOffset + 54, 12, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
       // bool locality_events_enable = 247 [json_name = "localityEventsEnable"];
-      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.locality_events_enable_), _Internal::kHasBitsOffset + 78, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
+      {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.locality_events_enable_), _Internal::kHasBitsOffset + 79, 0, (0 | ::_fl::kFcOptional | ::_fl::kBool)},
       // .xtcp_config.v1.LinkMonitorConfig link_monitor = 250 [json_name = "linkMonitor"];
       {PROTOBUF_FIELD_OFFSET(XtcpConfig, _impl_.link_monitor_), _Internal::kHasBitsOffset + 55, 13, (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
     }},
@@ -2574,7 +2576,7 @@ constexpr XtcpConfig::ParseTableT_ XtcpConfig::InternalGenerateParseTable_(const
         #endif
     }},
     {{
-      "\31\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\14\0\0\4\12\13\17\0\0\5\20\0\21\13\11\11\11\15\15\0\0\0\0\0\0\0\10\10\5\3\16\0\0\0\0\0\0\0\15\22\0\0\0\0\22\0\21\22\0\0\21\0\0\13\0\25\21\0\0\0\0"
+      "\31\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\14\0\0\0\4\12\13\17\0\0\5\20\0\21\13\11\11\11\15\15\0\0\0\0\0\0\0\10\10\5\3\16\0\0\0\0\0\0\0\15\22\0\0\0\0\22\0\21\22\0\0\21\0\0\13\0\25\21\0\0\0\0\0\0\0\0\0\0\0"
       "xtcp_config.v1.XtcpConfig"
       "capture_path"
       "dest"
@@ -2739,13 +2741,14 @@ inline constexpr XtcpConfig::Impl_::Impl_(
         ipv4_ttl_{0u},
         ipv6_hop_limit_{0u},
         grpc_port_{0u},
-        pyroscope_sample_hz_{0u},
-        pyroscope_upload_interval_sec_{0u},
+        debug_prometheus_{false},
         resolve_container_id_{false},
         enrich_container_enable_{false},
         enrich_lldp_enable_{false},
-        enrich_nic_enable_{false},
+        pyroscope_sample_hz_{0u},
+        pyroscope_upload_interval_sec_{0u},
         uplink_count_{0u},
+        enrich_nic_enable_{false},
         populate_nsid_{false},
         enrich_asn_enable_{false},
         enrich_locality_enable_{false},
@@ -3871,7 +3874,7 @@ const ::uint32_t
         13,
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_._has_bits_),
-        82, // hasbit index offset
+        83, // hasbit index offset
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.nl_timeout_milliseconds_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.poll_frequency_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.poll_timeout_),
@@ -3893,6 +3896,7 @@ const ::uint32_t
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.capture_path_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.dest_write_files_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.debug_level_),
+        PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.debug_prometheus_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.dest_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.marshal_to_),
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::XtcpConfig, _impl_.csv_columns_),
@@ -3972,6 +3976,7 @@ const ::uint32_t
         23,
         57,
         58,
+        68,
         0,
         1,
         2,
@@ -4009,26 +4014,26 @@ const ::uint32_t
         52,
         38,
         4,
-        68,
+        72,
+        73,
         69,
         70,
-        71,
         39,
-        72,
+        71,
         40,
         41,
-        73,
+        75,
         74,
         22,
-        75,
         76,
+        77,
         42,
         53,
         43,
         44,
-        77,
-        54,
         78,
+        54,
+        79,
         55,
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::xtcp_config::v1::EnabledDeserializers_EnabledEntry_DoNotUse, _impl_._has_bits_),
@@ -4064,8 +4069,8 @@ static const ::_pbi::MigrationSchema
         {85, sizeof(::xtcp_config::v1::ListenerAuth)},
         {100, sizeof(::xtcp_config::v1::LinkMonitorConfig)},
         {135, sizeof(::xtcp_config::v1::XtcpConfig)},
-        {296, sizeof(::xtcp_config::v1::EnabledDeserializers_EnabledEntry_DoNotUse)},
-        {303, sizeof(::xtcp_config::v1::EnabledDeserializers)},
+        {298, sizeof(::xtcp_config::v1::EnabledDeserializers_EnabledEntry_DoNotUse)},
+        {305, sizeof(::xtcp_config::v1::EnabledDeserializers)},
 };
 static const ::_pbi::MessageGlobalsBase* PROTOBUF_NONNULL const
     file_message_globals[] = {
@@ -4192,7 +4197,7 @@ const char descriptor_table_protodef_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto[
     "buf.DurationB\016\272H\013\252\001\010\"\004\010\200\243\005*\000R\014slowInterv"
     "al\022M\n\ron_demand_ttl\030\020 \001(\0132\031.google.proto"
     "buf.DurationB\016\272H\013\252\001\010\"\004\010\200\243\0052\000R\013onDemandTt"
-    "l\"\330$\n\nXtcpConfig\022F\n\027nl_timeout_milliseco"
+    "l\"\213%\n\nXtcpConfig\022F\n\027nl_timeout_milliseco"
     "nds\030\n \001(\004B\016\272H\0132\006\030\240\215\006(\000\310\001\001R\025nlTimeoutMill"
     "iseconds\022S\n\016poll_frequency\030\013 \001(\0132\031.googl"
     "e.protobuf.DurationB\021\272H\016\252\001\010\"\004\010\200\365$*\000\310\001\001R\r"
@@ -4224,131 +4229,132 @@ const char descriptor_table_protodef_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto[
     "\000R\013capturePath\0227\n\020dest_write_files\0304 \001(\r"
     "B\r\272H\n*\005\030\350\007(\000\310\001\000R\016destWriteFiles\022.\n\013debug"
     "_level\0305 \001(\rB\r\272H\n*\005\030\350\007(\000\310\001\001R\ndebugLevel\022"
-    "!\n\004dest\030< \001(\tB\r\272H\nr\005\020\004\030\200\004\310\001\001R\004dest\022+\n\nma"
-    "rshal_to\030= \001(\tB\014\272H\tr\004\020\003\030(\310\001\001R\tmarshalTo\022"
-    "\'\n\013csv_columns\030> \001(\tB\006\272H\003\310\001\000R\ncsvColumns"
-    "\0224\n\017xtcp_proto_file\030\? \001(\tB\014\272H\tr\004\020\001\030P\310\001\000R"
-    "\rxtcpProtoFile\022K\n\036envelope_flush_thresho"
-    "ld_bytes\030@ \001(\rB\006\272H\003\310\001\000R\033envelopeFlushThr"
-    "esholdBytes\022I\n\035envelope_flush_threshold_"
-    "rows\030A \001(\rB\006\272H\003\310\001\000R\032envelopeFlushThresho"
-    "ldRows\022\"\n\005topic\030P \001(\tB\014\272H\tr\004\020\001\030(\310\001\000R\005top"
-    "ic\0226\n\020kafka_schema_url\030Q \001(\tB\014\272H\tr\004\020\001\030<\310"
-    "\001\000R\016kafkaSchemaUrl\022_\n\025kafka_produce_time"
-    "out\030R \001(\0132\031.google.protobuf.DurationB\020\272H"
-    "\r\252\001\007\"\003\010\330\0042\000\310\001\000R\023kafkaProduceTimeout\0223\n\021k"
-    "afka_compression\030S \001(\tB\006\272H\003\310\001\000R\020kafkaCom"
-    "pression\022\'\n\013s3_endpoint\030d \001(\tB\006\272H\003\310\001\000R\ns"
-    "3Endpoint\022#\n\ts3_region\030e \001(\tB\006\272H\003\310\001\000R\010s3"
-    "Region\022#\n\ts3_bucket\030f \001(\tB\006\272H\003\310\001\000R\010s3Buc"
-    "ket\022#\n\ts3_prefix\030g \001(\tB\006\272H\003\310\001\000R\010s3Prefix"
-    "\022*\n\rs3_access_key\030h \001(\tB\006\272H\003\310\001\000R\013s3Acces"
-    "sKey\022*\n\rs3_secret_key\030i \001(\tB\006\272H\003\310\001\000R\013s3S"
-    "ecretKey\0227\n\024s3_skip_bucket_probe\030j \001(\010B\006"
-    "\272H\003\310\001\000R\021s3SkipBucketProbe\022N\n s3_parquet_"
-    "flush_threshold_bytes\030n \001(\rB\006\272H\003\310\001\000R\034s3P"
-    "arquetFlushThresholdBytes\022R\n\021s3_flush_in"
-    "terval\030o \001(\0132\031.google.protobuf.DurationB"
-    "\013\272H\010\252\001\0022\000\310\001\000R\017s3FlushInterval\0229\n\023s3_flus"
-    "h_jitter_pct\030p \001(\rB\n\272H\007*\002\030d\310\001\000R\020s3FlushJ"
-    "itterPct\022L\n\035s3_flush_threshold_jitter_pc"
-    "t\030q \001(\rB\n\272H\007*\002\030d\310\001\000R\031s3FlushThresholdJit"
-    "terPct\022A\n\026s3_upload_max_attempts\030r \001(\rB\014"
-    "\272H\t*\004\030d(\001\310\001\000R\023s3UploadMaxAttempts\022Y\n\025s3_"
-    "upload_backoff_cap\030s \001(\0132\031.google.protob"
-    "uf.DurationB\013\272H\010\252\001\0022\000\310\001\000R\022s3UploadBackof"
-    "fCap\022(\n\010hostname\030\202\001 \001(\tB\013\272H\010r\003\030\375\001\310\001\000R\010ho"
-    "stname\022(\n\010location\030\203\001 \001(\tB\013\272H\010r\003\030\375\001\310\001\000R\010"
-    "location\022!\n\005label\030\204\001 \001(\tB\n\272H\007r\002\030(\310\001\000R\005la"
-    "bel\022\035\n\003tag\030\205\001 \001(\tB\n\272H\007r\002\030(\310\001\000R\003tag\0223\n\016da"
-    "emon_version\030\206\001 \001(\tB\013\272H\010r\003\030\375\001\310\001\000R\rdaemon"
-    "Version\022\'\n\010ipv4_ttl\030\226\001 \001(\rB\013\272H\010*\003\030\377\001\310\001\000R"
-    "\007ipv4Ttl\0222\n\016ipv6_hop_limit\030\227\001 \001(\rB\013\272H\010*\003"
-    "\030\377\001\310\001\000R\014ipv6HopLimit\022J\n\rlistener_auth\030\230\001"
-    " \001(\0132\034.xtcp_config.v1.ListenerAuthB\006\272H\003\310"
-    "\001\000R\014listenerAuth\022Z\n\023prometheus_listener\030"
-    "\231\001 \001(\0132 .xtcp_config.v1.ListenerEndpoint"
-    "B\006\272H\003\310\001\000R\022prometheusListener\022U\n\023admin_li"
-    "stener_auth\030\232\001 \001(\0132\034.xtcp_config.v1.List"
-    "enerAuthB\006\272H\003\310\001\000R\021adminListenerAuth\022,\n\tg"
-    "rpc_port\030\240\001 \001(\rB\016\272H\013*\006\030\377\377\003(\001\310\001\001R\010grpcPor"
-    "t\022N\n\rgrpc_listener\030\241\001 \001(\0132 .xtcp_config."
-    "v1.ListenerEndpointB\006\272H\003\310\001\000R\014grpcListene"
-    "r\022,\n\rpyroscope_url\030\252\001 \001(\tB\006\272H\003\310\001\000R\014pyros"
-    "copeUrl\0225\n\022pyroscope_app_name\030\253\001 \001(\tB\006\272H"
-    "\003\310\001\000R\020pyroscopeAppName\0227\n\023pyroscope_samp"
-    "le_hz\030\254\001 \001(\rB\006\272H\003\310\001\000R\021pyroscopeSampleHz\022"
-    "J\n\035pyroscope_upload_interval_sec\030\255\001 \001(\rB"
-    "\006\272H\003\310\001\000R\032pyroscopeUploadIntervalSec\0229\n\024r"
-    "esolve_container_id\030\310\001 \001(\010B\006\272H\003\310\001\000R\022reso"
-    "lveContainerId\0227\n\027enrich_container_enabl"
-    "e\030\311\001 \001(\010R\025enrichContainerEnable\0227\n\022docke"
-    "r_socket_path\030\312\001 \001(\tB\010\272H\005r\003\030\377\001R\020dockerSo"
-    "cketPath\022-\n\022enrich_lldp_enable\030\322\001 \001(\010R\020e"
-    "nrichLldpEnable\0225\n\021lldpd_socket_path\030\323\001 "
-    "\001(\tB\010\272H\005r\003\030\377\001R\017lldpdSocketPath\0226\n\022lldpd_"
-    "version_hint\030\324\001 \001(\tB\007\272H\004r\002\030\020R\020lldpdVersi"
-    "onHint\022+\n\021enrich_nic_enable\030\334\001 \001(\010R\017enri"
-    "chNicEnable\022+\n\014uplink_count\030\335\001 \001(\rB\007\272H\004*"
-    "\002\030\002R\013uplinkCount\0226\n\021uplink_interfaces\030\336\001"
-    " \003(\tB\010\272H\005\222\001\002\020\002R\020uplinkInterfaces\022$\n\rpopu"
-    "late_nsid\030\346\001 \001(\010R\014populateNsid\022+\n\021enrich"
-    "_asn_enable\030\360\001 \001(\010R\017enrichAsnEnable\022)\n\013a"
-    "sn_db_path\030\361\001 \001(\tB\010\272H\005r\003\030\377\001R\tasnDbPath\022L"
-    "\n\024asn_refresh_interval\030\362\001 \001(\0132\031.google.p"
-    "rotobuf.DurationR\022asnRefreshInterval\022=\n\025"
-    "ipmeta_bootstrap_path\030\363\001 \001(\tB\010\272H\005r\003\030\377\001R\023"
-    "ipmetaBootstrapPath\0225\n\021ipmeta_cache_path"
-    "\030\364\001 \001(\tB\010\272H\005r\003\030\377\001R\017ipmetaCachePath\0225\n\026en"
-    "rich_locality_enable\030\365\001 \001(\010R\024enrichLocal"
-    "ityEnable\022V\n\031locality_refresh_interval\030\366"
-    "\001 \001(\0132\031.google.protobuf.DurationR\027locali"
-    "tyRefreshInterval\0225\n\026locality_events_ena"
-    "ble\030\367\001 \001(\010R\024localityEventsEnable\022E\n\014link"
-    "_monitor\030\372\001 \001(\0132!.xtcp_config.v1.LinkMon"
-    "itorConfigR\013linkMonitor:s\272Hp\032n\n\017XtcpConf"
-    "ig.poll\0222Poll timeout must be less than "
-    "poll poll_frequency\032\'this.poll_frequency"
-    " > this.poll_timeout\"\237\001\n\024EnabledDeserial"
-    "izers\022K\n\007enabled\030\001 \003(\01321.xtcp_config.v1."
-    "EnabledDeserializers.EnabledEntryR\007enabl"
-    "ed\032:\n\014EnabledEntry\022\020\n\003key\030\001 \001(\tR\003key\022\024\n\005"
-    "value\030\002 \001(\010R\005value:\0028\001*h\n\017ListenerNetwor"
-    "k\022 \n\034LISTENER_NETWORK_UNSPECIFIED\020\000\022\030\n\024L"
-    "ISTENER_NETWORK_TCP\020\001\022\031\n\025LISTENER_NETWOR"
-    "K_UNIX\020\002*\241\001\n\020ListenerAuthMode\022\"\n\036LISTENE"
-    "R_AUTH_MODE_UNSPECIFIED\020\000\022\037\n\033LISTENER_AU"
-    "TH_MODE_DISABLED\020\001\022 \n\034LISTENER_AUTH_MODE"
-    "_RAW_TOKEN\020\002\022&\n\"LISTENER_AUTH_MODE_HMAC_"
-    "UTC_MINUTE\020\0032\245\007\n\rConfigService\022a\n\003Get\022\032."
-    "xtcp_config.v1.GetRequest\032\033.xtcp_config."
-    "v1.GetResponse\"!\310\363\030\001\202\323\344\223\002\027\032\022/ConfigServi"
-    "ce/Get:\001*\022a\n\003Set\022\032.xtcp_config.v1.SetReq"
-    "uest\032\033.xtcp_config.v1.SetResponse\"!\310\363\030\002\202"
-    "\323\344\223\002\027\032\022/ConfigService/Set:\001*\022\225\001\n\020SetPoll"
-    "Frequency\022\'.xtcp_config.v1.SetPollFreque"
-    "ncyRequest\032(.xtcp_config.v1.SetPollFrequ"
-    "encyResponse\".\310\363\030\002\202\323\344\223\002$\032\037/ConfigService"
-    "/SetPollFrequency:\001*\022\201\001\n\013TriggerPoll\022\".x"
-    "tcp_config.v1.TriggerPollRequest\032#.xtcp_"
-    "config.v1.TriggerPollResponse\")\310\363\030\002\202\323\344\223\002"
-    "\037\032\032/ConfigService/TriggerPoll:\001*\022\225\001\n\020Tri"
-    "ggerPollBurst\022\'.xtcp_config.v1.TriggerPo"
-    "llBurstRequest\032(.xtcp_config.v1.TriggerP"
-    "ollBurstResponse\".\310\363\030\002\202\323\344\223\002$\032\037/ConfigSer"
-    "vice/TriggerPollBurst:\001*\022\201\001\n\013SetS3Upload"
-    "\022\".xtcp_config.v1.SetS3UploadRequest\032#.x"
-    "tcp_config.v1.SetS3UploadResponse\")\310\363\030\002\202"
-    "\323\344\223\002\037\032\032/ConfigService/SetS3Upload:\001*\022\225\001\n"
-    "\020SetEnvelopeFlush\022\'.xtcp_config.v1.SetEn"
-    "velopeFlushRequest\032(.xtcp_config.v1.SetE"
-    "nvelopeFlushResponse\".\310\363\030\002\202\323\344\223\002$\032\037/Confi"
-    "gService/SetEnvelopeFlush:\001*B\257\001\n\022com.xtc"
-    "p_config.v1B\017XtcpConfigProtoP\001Z3github.c"
-    "om/randomizedcoder/xtcp2/gen/go/xtcp_con"
-    "fig\242\002\003XXX\252\002\rXtcpConfig.V1\312\002\rXtcpConfig\\V"
-    "1\342\002\031XtcpConfig\\V1\\GPBMetadata\352\002\016XtcpConf"
-    "ig::V1b\006proto3"
+    "1\n\020debug_prometheus\0306 \001(\010B\006\272H\003\310\001\000R\017debug"
+    "Prometheus\022!\n\004dest\030< \001(\tB\r\272H\nr\005\020\004\030\200\004\310\001\001R"
+    "\004dest\022+\n\nmarshal_to\030= \001(\tB\014\272H\tr\004\020\003\030(\310\001\001R"
+    "\tmarshalTo\022\'\n\013csv_columns\030> \001(\tB\006\272H\003\310\001\000R"
+    "\ncsvColumns\0224\n\017xtcp_proto_file\030\? \001(\tB\014\272H"
+    "\tr\004\020\001\030P\310\001\000R\rxtcpProtoFile\022K\n\036envelope_fl"
+    "ush_threshold_bytes\030@ \001(\rB\006\272H\003\310\001\000R\033envel"
+    "opeFlushThresholdBytes\022I\n\035envelope_flush"
+    "_threshold_rows\030A \001(\rB\006\272H\003\310\001\000R\032envelopeF"
+    "lushThresholdRows\022\"\n\005topic\030P \001(\tB\014\272H\tr\004\020"
+    "\001\030(\310\001\000R\005topic\0226\n\020kafka_schema_url\030Q \001(\tB"
+    "\014\272H\tr\004\020\001\030<\310\001\000R\016kafkaSchemaUrl\022_\n\025kafka_p"
+    "roduce_timeout\030R \001(\0132\031.google.protobuf.D"
+    "urationB\020\272H\r\252\001\007\"\003\010\330\0042\000\310\001\000R\023kafkaProduceT"
+    "imeout\0223\n\021kafka_compression\030S \001(\tB\006\272H\003\310\001"
+    "\000R\020kafkaCompression\022\'\n\013s3_endpoint\030d \001(\t"
+    "B\006\272H\003\310\001\000R\ns3Endpoint\022#\n\ts3_region\030e \001(\tB"
+    "\006\272H\003\310\001\000R\010s3Region\022#\n\ts3_bucket\030f \001(\tB\006\272H"
+    "\003\310\001\000R\010s3Bucket\022#\n\ts3_prefix\030g \001(\tB\006\272H\003\310\001"
+    "\000R\010s3Prefix\022*\n\rs3_access_key\030h \001(\tB\006\272H\003\310"
+    "\001\000R\013s3AccessKey\022*\n\rs3_secret_key\030i \001(\tB\006"
+    "\272H\003\310\001\000R\013s3SecretKey\0227\n\024s3_skip_bucket_pr"
+    "obe\030j \001(\010B\006\272H\003\310\001\000R\021s3SkipBucketProbe\022N\n "
+    "s3_parquet_flush_threshold_bytes\030n \001(\rB\006"
+    "\272H\003\310\001\000R\034s3ParquetFlushThresholdBytes\022R\n\021"
+    "s3_flush_interval\030o \001(\0132\031.google.protobu"
+    "f.DurationB\013\272H\010\252\001\0022\000\310\001\000R\017s3FlushInterval"
+    "\0229\n\023s3_flush_jitter_pct\030p \001(\rB\n\272H\007*\002\030d\310\001"
+    "\000R\020s3FlushJitterPct\022L\n\035s3_flush_threshol"
+    "d_jitter_pct\030q \001(\rB\n\272H\007*\002\030d\310\001\000R\031s3FlushT"
+    "hresholdJitterPct\022A\n\026s3_upload_max_attem"
+    "pts\030r \001(\rB\014\272H\t*\004\030d(\001\310\001\000R\023s3UploadMaxAtte"
+    "mpts\022Y\n\025s3_upload_backoff_cap\030s \001(\0132\031.go"
+    "ogle.protobuf.DurationB\013\272H\010\252\001\0022\000\310\001\000R\022s3U"
+    "ploadBackoffCap\022(\n\010hostname\030\202\001 \001(\tB\013\272H\010r"
+    "\003\030\375\001\310\001\000R\010hostname\022(\n\010location\030\203\001 \001(\tB\013\272H"
+    "\010r\003\030\375\001\310\001\000R\010location\022!\n\005label\030\204\001 \001(\tB\n\272H\007"
+    "r\002\030(\310\001\000R\005label\022\035\n\003tag\030\205\001 \001(\tB\n\272H\007r\002\030(\310\001\000"
+    "R\003tag\0223\n\016daemon_version\030\206\001 \001(\tB\013\272H\010r\003\030\375\001"
+    "\310\001\000R\rdaemonVersion\022\'\n\010ipv4_ttl\030\226\001 \001(\rB\013\272"
+    "H\010*\003\030\377\001\310\001\000R\007ipv4Ttl\0222\n\016ipv6_hop_limit\030\227\001"
+    " \001(\rB\013\272H\010*\003\030\377\001\310\001\000R\014ipv6HopLimit\022J\n\rliste"
+    "ner_auth\030\230\001 \001(\0132\034.xtcp_config.v1.Listene"
+    "rAuthB\006\272H\003\310\001\000R\014listenerAuth\022Z\n\023prometheu"
+    "s_listener\030\231\001 \001(\0132 .xtcp_config.v1.Liste"
+    "nerEndpointB\006\272H\003\310\001\000R\022prometheusListener\022"
+    "U\n\023admin_listener_auth\030\232\001 \001(\0132\034.xtcp_con"
+    "fig.v1.ListenerAuthB\006\272H\003\310\001\000R\021adminListen"
+    "erAuth\022,\n\tgrpc_port\030\240\001 \001(\rB\016\272H\013*\006\030\377\377\003(\001\310"
+    "\001\001R\010grpcPort\022N\n\rgrpc_listener\030\241\001 \001(\0132 .x"
+    "tcp_config.v1.ListenerEndpointB\006\272H\003\310\001\000R\014"
+    "grpcListener\022,\n\rpyroscope_url\030\252\001 \001(\tB\006\272H"
+    "\003\310\001\000R\014pyroscopeUrl\0225\n\022pyroscope_app_name"
+    "\030\253\001 \001(\tB\006\272H\003\310\001\000R\020pyroscopeAppName\0227\n\023pyr"
+    "oscope_sample_hz\030\254\001 \001(\rB\006\272H\003\310\001\000R\021pyrosco"
+    "peSampleHz\022J\n\035pyroscope_upload_interval_"
+    "sec\030\255\001 \001(\rB\006\272H\003\310\001\000R\032pyroscopeUploadInter"
+    "valSec\0229\n\024resolve_container_id\030\310\001 \001(\010B\006\272"
+    "H\003\310\001\000R\022resolveContainerId\0227\n\027enrich_cont"
+    "ainer_enable\030\311\001 \001(\010R\025enrichContainerEnab"
+    "le\0227\n\022docker_socket_path\030\312\001 \001(\tB\010\272H\005r\003\030\377"
+    "\001R\020dockerSocketPath\022-\n\022enrich_lldp_enabl"
+    "e\030\322\001 \001(\010R\020enrichLldpEnable\0225\n\021lldpd_sock"
+    "et_path\030\323\001 \001(\tB\010\272H\005r\003\030\377\001R\017lldpdSocketPat"
+    "h\0226\n\022lldpd_version_hint\030\324\001 \001(\tB\007\272H\004r\002\030\020R"
+    "\020lldpdVersionHint\022+\n\021enrich_nic_enable\030\334"
+    "\001 \001(\010R\017enrichNicEnable\022+\n\014uplink_count\030\335"
+    "\001 \001(\rB\007\272H\004*\002\030\002R\013uplinkCount\0226\n\021uplink_in"
+    "terfaces\030\336\001 \003(\tB\010\272H\005\222\001\002\020\002R\020uplinkInterfa"
+    "ces\022$\n\rpopulate_nsid\030\346\001 \001(\010R\014populateNsi"
+    "d\022+\n\021enrich_asn_enable\030\360\001 \001(\010R\017enrichAsn"
+    "Enable\022)\n\013asn_db_path\030\361\001 \001(\tB\010\272H\005r\003\030\377\001R\t"
+    "asnDbPath\022L\n\024asn_refresh_interval\030\362\001 \001(\013"
+    "2\031.google.protobuf.DurationR\022asnRefreshI"
+    "nterval\022=\n\025ipmeta_bootstrap_path\030\363\001 \001(\tB"
+    "\010\272H\005r\003\030\377\001R\023ipmetaBootstrapPath\0225\n\021ipmeta"
+    "_cache_path\030\364\001 \001(\tB\010\272H\005r\003\030\377\001R\017ipmetaCach"
+    "ePath\0225\n\026enrich_locality_enable\030\365\001 \001(\010R\024"
+    "enrichLocalityEnable\022V\n\031locality_refresh"
+    "_interval\030\366\001 \001(\0132\031.google.protobuf.Durat"
+    "ionR\027localityRefreshInterval\0225\n\026locality"
+    "_events_enable\030\367\001 \001(\010R\024localityEventsEna"
+    "ble\022E\n\014link_monitor\030\372\001 \001(\0132!.xtcp_config"
+    ".v1.LinkMonitorConfigR\013linkMonitor:s\272Hp\032"
+    "n\n\017XtcpConfig.poll\0222Poll timeout must be"
+    " less than poll poll_frequency\032\'this.pol"
+    "l_frequency > this.poll_timeout\"\237\001\n\024Enab"
+    "ledDeserializers\022K\n\007enabled\030\001 \003(\01321.xtcp"
+    "_config.v1.EnabledDeserializers.EnabledE"
+    "ntryR\007enabled\032:\n\014EnabledEntry\022\020\n\003key\030\001 \001"
+    "(\tR\003key\022\024\n\005value\030\002 \001(\010R\005value:\0028\001*h\n\017Lis"
+    "tenerNetwork\022 \n\034LISTENER_NETWORK_UNSPECI"
+    "FIED\020\000\022\030\n\024LISTENER_NETWORK_TCP\020\001\022\031\n\025LIST"
+    "ENER_NETWORK_UNIX\020\002*\241\001\n\020ListenerAuthMode"
+    "\022\"\n\036LISTENER_AUTH_MODE_UNSPECIFIED\020\000\022\037\n\033"
+    "LISTENER_AUTH_MODE_DISABLED\020\001\022 \n\034LISTENE"
+    "R_AUTH_MODE_RAW_TOKEN\020\002\022&\n\"LISTENER_AUTH"
+    "_MODE_HMAC_UTC_MINUTE\020\0032\245\007\n\rConfigServic"
+    "e\022a\n\003Get\022\032.xtcp_config.v1.GetRequest\032\033.x"
+    "tcp_config.v1.GetResponse\"!\310\363\030\001\202\323\344\223\002\027\032\022/"
+    "ConfigService/Get:\001*\022a\n\003Set\022\032.xtcp_confi"
+    "g.v1.SetRequest\032\033.xtcp_config.v1.SetResp"
+    "onse\"!\310\363\030\002\202\323\344\223\002\027\032\022/ConfigService/Set:\001*\022"
+    "\225\001\n\020SetPollFrequency\022\'.xtcp_config.v1.Se"
+    "tPollFrequencyRequest\032(.xtcp_config.v1.S"
+    "etPollFrequencyResponse\".\310\363\030\002\202\323\344\223\002$\032\037/Co"
+    "nfigService/SetPollFrequency:\001*\022\201\001\n\013Trig"
+    "gerPoll\022\".xtcp_config.v1.TriggerPollRequ"
+    "est\032#.xtcp_config.v1.TriggerPollResponse"
+    "\")\310\363\030\002\202\323\344\223\002\037\032\032/ConfigService/TriggerPoll"
+    ":\001*\022\225\001\n\020TriggerPollBurst\022\'.xtcp_config.v"
+    "1.TriggerPollBurstRequest\032(.xtcp_config."
+    "v1.TriggerPollBurstResponse\".\310\363\030\002\202\323\344\223\002$\032"
+    "\037/ConfigService/TriggerPollBurst:\001*\022\201\001\n\013"
+    "SetS3Upload\022\".xtcp_config.v1.SetS3Upload"
+    "Request\032#.xtcp_config.v1.SetS3UploadResp"
+    "onse\")\310\363\030\002\202\323\344\223\002\037\032\032/ConfigService/SetS3Up"
+    "load:\001*\022\225\001\n\020SetEnvelopeFlush\022\'.xtcp_conf"
+    "ig.v1.SetEnvelopeFlushRequest\032(.xtcp_con"
+    "fig.v1.SetEnvelopeFlushResponse\".\310\363\030\002\202\323\344"
+    "\223\002$\032\037/ConfigService/SetEnvelopeFlush:\001*B"
+    "\257\001\n\022com.xtcp_config.v1B\017XtcpConfigProtoP"
+    "\001Z3github.com/randomizedcoder/xtcp2/gen/"
+    "go/xtcp_config\242\002\003XXX\252\002\rXtcpConfig.V1\312\002\rX"
+    "tcpConfig\\V1\342\002\031XtcpConfig\\V1\\GPBMetadata"
+    "\352\002\016XtcpConfig::V1b\006proto3"
 };
 static const ::_pbi::DescriptorTable* PROTOBUF_NONNULL const
     descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto_deps[4] = {
@@ -4361,7 +4367,7 @@ static ::absl::once_flag descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2ep
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto = {
     false,
     false,
-    10254,
+    10305,
     descriptor_table_protodef_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto,
     "xtcp_config/v1/xtcp_config.proto",
     &descriptor_table_xtcp_5fconfig_2fv1_2fxtcp_5fconfig_2eproto_once,
@@ -9041,13 +9047,13 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
   cached_has_bits = _impl_._has_bits_[2];
   if (BatchCheckHasBit(cached_has_bits, 0x000000ffU)) {
     ::memset(&_impl_.s3_upload_max_attempts_, 0, static_cast<::size_t>(
-        reinterpret_cast<char*>(&_impl_.enrich_container_enable_) -
-        reinterpret_cast<char*>(&_impl_.s3_upload_max_attempts_)) + sizeof(_impl_.enrich_container_enable_));
+        reinterpret_cast<char*>(&_impl_.enrich_lldp_enable_) -
+        reinterpret_cast<char*>(&_impl_.s3_upload_max_attempts_)) + sizeof(_impl_.enrich_lldp_enable_));
   }
-  if (BatchCheckHasBit(cached_has_bits, 0x00007f00U)) {
-    ::memset(&_impl_.enrich_lldp_enable_, 0, static_cast<::size_t>(
+  if (BatchCheckHasBit(cached_has_bits, 0x0000ff00U)) {
+    ::memset(&_impl_.pyroscope_sample_hz_, 0, static_cast<::size_t>(
         reinterpret_cast<char*>(&_impl_.locality_events_enable_) -
-        reinterpret_cast<char*>(&_impl_.enrich_lldp_enable_)) + sizeof(_impl_.locality_events_enable_));
+        reinterpret_cast<char*>(&_impl_.pyroscope_sample_hz_)) + sizeof(_impl_.locality_events_enable_));
   }
   _impl_._has_bits_.Clear();
   _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
@@ -9256,6 +9262,16 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
           53, this_._internal_debug_level(), target);
+    }
+  }
+
+  cached_has_bits = this_._impl_._has_bits_[2];
+  // bool debug_prometheus = 54 [json_name = "debugPrometheus", (.buf.validate.field) = {
+  if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+    if (this_._internal_debug_prometheus() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteBoolToArray(
+          54, this_._internal_debug_prometheus(), target);
     }
   }
 
@@ -9615,7 +9631,7 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
 
   cached_has_bits = this_._impl_._has_bits_[2];
   // uint32 pyroscope_sample_hz = 172 [json_name = "pyroscopeSampleHz", (.buf.validate.field) = {
-  if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000100U)) {
     if (this_._internal_pyroscope_sample_hz() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
@@ -9624,7 +9640,7 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
   }
 
   // uint32 pyroscope_upload_interval_sec = 173 [json_name = "pyroscopeUploadIntervalSec", (.buf.validate.field) = {
-  if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000200U)) {
     if (this_._internal_pyroscope_upload_interval_sec() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteUInt32ToArray(
@@ -9633,7 +9649,7 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
   }
 
   // bool resolve_container_id = 200 [json_name = "resolveContainerId", (.buf.validate.field) = {
-  if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000020U)) {
     if (this_._internal_resolve_container_id() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteBoolToArray(
@@ -9642,7 +9658,7 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
   }
 
   // bool enrich_container_enable = 201 [json_name = "enrichContainerEnable"];
-  if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000040U)) {
     if (this_._internal_enrich_container_enable() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteBoolToArray(
@@ -9663,7 +9679,7 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
 
   cached_has_bits = this_._impl_._has_bits_[2];
   // bool enrich_lldp_enable = 210 [json_name = "enrichLldpEnable"];
-  if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000080U)) {
     if (this_._internal_enrich_lldp_enable() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteBoolToArray(
@@ -9694,7 +9710,7 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
 
   cached_has_bits = this_._impl_._has_bits_[2];
   // bool enrich_nic_enable = 220 [json_name = "enrichNicEnable"];
-  if (CheckHasBit(cached_has_bits, 0x00000200U)) {
+  if (CheckHasBit(cached_has_bits, 0x00000800U)) {
     if (this_._internal_enrich_nic_enable() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteBoolToArray(
@@ -9724,7 +9740,7 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
 
   cached_has_bits = this_._impl_._has_bits_[2];
   // bool populate_nsid = 230 [json_name = "populateNsid"];
-  if (CheckHasBit(cached_has_bits, 0x00000800U)) {
+  if (CheckHasBit(cached_has_bits, 0x00001000U)) {
     if (this_._internal_populate_nsid() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteBoolToArray(
@@ -9733,7 +9749,7 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
   }
 
   // bool enrich_asn_enable = 240 [json_name = "enrichAsnEnable"];
-  if (CheckHasBit(cached_has_bits, 0x00001000U)) {
+  if (CheckHasBit(cached_has_bits, 0x00002000U)) {
     if (this_._internal_enrich_asn_enable() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteBoolToArray(
@@ -9781,7 +9797,7 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
 
   cached_has_bits = this_._impl_._has_bits_[2];
   // bool enrich_locality_enable = 245 [json_name = "enrichLocalityEnable"];
-  if (CheckHasBit(cached_has_bits, 0x00002000U)) {
+  if (CheckHasBit(cached_has_bits, 0x00004000U)) {
     if (this_._internal_enrich_locality_enable() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteBoolToArray(
@@ -9799,7 +9815,7 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
 
   cached_has_bits = this_._impl_._has_bits_[2];
   // bool locality_events_enable = 247 [json_name = "localityEventsEnable"];
-  if (CheckHasBit(cached_has_bits, 0x00004000U)) {
+  if (CheckHasBit(cached_has_bits, 0x00008000U)) {
     if (this_._internal_locality_events_enable() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteBoolToArray(
@@ -10306,44 +10322,44 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
                                         this_._internal_grpc_port());
       }
     }
-    // uint32 pyroscope_sample_hz = 172 [json_name = "pyroscopeSampleHz", (.buf.validate.field) = {
+    // bool debug_prometheus = 54 [json_name = "debugPrometheus", (.buf.validate.field) = {
     if (CheckHasBit(cached_has_bits, 0x00000010U)) {
+      if (this_._internal_debug_prometheus() != 0) {
+        total_size += 3;
+      }
+    }
+    // bool resolve_container_id = 200 [json_name = "resolveContainerId", (.buf.validate.field) = {
+    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+      if (this_._internal_resolve_container_id() != 0) {
+        total_size += 3;
+      }
+    }
+    // bool enrich_container_enable = 201 [json_name = "enrichContainerEnable"];
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
+      if (this_._internal_enrich_container_enable() != 0) {
+        total_size += 3;
+      }
+    }
+    // bool enrich_lldp_enable = 210 [json_name = "enrichLldpEnable"];
+    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+      if (this_._internal_enrich_lldp_enable() != 0) {
+        total_size += 3;
+      }
+    }
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x0000ff00U)) {
+    // uint32 pyroscope_sample_hz = 172 [json_name = "pyroscopeSampleHz", (.buf.validate.field) = {
+    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
       if (this_._internal_pyroscope_sample_hz() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_pyroscope_sample_hz());
       }
     }
     // uint32 pyroscope_upload_interval_sec = 173 [json_name = "pyroscopeUploadIntervalSec", (.buf.validate.field) = {
-    if (CheckHasBit(cached_has_bits, 0x00000020U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000200U)) {
       if (this_._internal_pyroscope_upload_interval_sec() != 0) {
         total_size += 2 + ::_pbi::WireFormatLite::UInt32Size(
                                         this_._internal_pyroscope_upload_interval_sec());
-      }
-    }
-    // bool resolve_container_id = 200 [json_name = "resolveContainerId", (.buf.validate.field) = {
-    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
-      if (this_._internal_resolve_container_id() != 0) {
-        total_size += 3;
-      }
-    }
-    // bool enrich_container_enable = 201 [json_name = "enrichContainerEnable"];
-    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
-      if (this_._internal_enrich_container_enable() != 0) {
-        total_size += 3;
-      }
-    }
-  }
-  if (BatchCheckHasBit(cached_has_bits, 0x00007f00U)) {
-    // bool enrich_lldp_enable = 210 [json_name = "enrichLldpEnable"];
-    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
-      if (this_._internal_enrich_lldp_enable() != 0) {
-        total_size += 3;
-      }
-    }
-    // bool enrich_nic_enable = 220 [json_name = "enrichNicEnable"];
-    if (CheckHasBit(cached_has_bits, 0x00000200U)) {
-      if (this_._internal_enrich_nic_enable() != 0) {
-        total_size += 3;
       }
     }
     // uint32 uplink_count = 221 [json_name = "uplinkCount", (.buf.validate.field) = {
@@ -10353,26 +10369,32 @@ PROTOBUF_NOINLINE void XtcpConfig::Clear() {
                                         this_._internal_uplink_count());
       }
     }
-    // bool populate_nsid = 230 [json_name = "populateNsid"];
+    // bool enrich_nic_enable = 220 [json_name = "enrichNicEnable"];
     if (CheckHasBit(cached_has_bits, 0x00000800U)) {
+      if (this_._internal_enrich_nic_enable() != 0) {
+        total_size += 3;
+      }
+    }
+    // bool populate_nsid = 230 [json_name = "populateNsid"];
+    if (CheckHasBit(cached_has_bits, 0x00001000U)) {
       if (this_._internal_populate_nsid() != 0) {
         total_size += 3;
       }
     }
     // bool enrich_asn_enable = 240 [json_name = "enrichAsnEnable"];
-    if (CheckHasBit(cached_has_bits, 0x00001000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00002000U)) {
       if (this_._internal_enrich_asn_enable() != 0) {
         total_size += 3;
       }
     }
     // bool enrich_locality_enable = 245 [json_name = "enrichLocalityEnable"];
-    if (CheckHasBit(cached_has_bits, 0x00002000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00004000U)) {
       if (this_._internal_enrich_locality_enable() != 0) {
         total_size += 3;
       }
     }
     // bool locality_events_enable = 247 [json_name = "localityEventsEnable"];
-    if (CheckHasBit(cached_has_bits, 0x00004000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00008000U)) {
       if (this_._internal_locality_events_enable() != 0) {
         total_size += 3;
       }
@@ -10906,35 +10928,35 @@ void XtcpConfig::MergeImpl(::google::protobuf::MessageLite& to_msg,
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000010U)) {
-      if (from._internal_pyroscope_sample_hz() != 0) {
-        _this->_impl_.pyroscope_sample_hz_ = from._impl_.pyroscope_sample_hz_;
+      if (from._internal_debug_prometheus() != 0) {
+        _this->_impl_.debug_prometheus_ = from._impl_.debug_prometheus_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000020U)) {
-      if (from._internal_pyroscope_upload_interval_sec() != 0) {
-        _this->_impl_.pyroscope_upload_interval_sec_ = from._impl_.pyroscope_upload_interval_sec_;
-      }
-    }
-    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
       if (from._internal_resolve_container_id() != 0) {
         _this->_impl_.resolve_container_id_ = from._impl_.resolve_container_id_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000040U)) {
       if (from._internal_enrich_container_enable() != 0) {
         _this->_impl_.enrich_container_enable_ = from._impl_.enrich_container_enable_;
       }
     }
-  }
-  if (BatchCheckHasBit(cached_has_bits, 0x00007f00U)) {
-    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000080U)) {
       if (from._internal_enrich_lldp_enable() != 0) {
         _this->_impl_.enrich_lldp_enable_ = from._impl_.enrich_lldp_enable_;
       }
     }
+  }
+  if (BatchCheckHasBit(cached_has_bits, 0x0000ff00U)) {
+    if (CheckHasBit(cached_has_bits, 0x00000100U)) {
+      if (from._internal_pyroscope_sample_hz() != 0) {
+        _this->_impl_.pyroscope_sample_hz_ = from._impl_.pyroscope_sample_hz_;
+      }
+    }
     if (CheckHasBit(cached_has_bits, 0x00000200U)) {
-      if (from._internal_enrich_nic_enable() != 0) {
-        _this->_impl_.enrich_nic_enable_ = from._impl_.enrich_nic_enable_;
+      if (from._internal_pyroscope_upload_interval_sec() != 0) {
+        _this->_impl_.pyroscope_upload_interval_sec_ = from._impl_.pyroscope_upload_interval_sec_;
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000400U)) {
@@ -10943,21 +10965,26 @@ void XtcpConfig::MergeImpl(::google::protobuf::MessageLite& to_msg,
       }
     }
     if (CheckHasBit(cached_has_bits, 0x00000800U)) {
+      if (from._internal_enrich_nic_enable() != 0) {
+        _this->_impl_.enrich_nic_enable_ = from._impl_.enrich_nic_enable_;
+      }
+    }
+    if (CheckHasBit(cached_has_bits, 0x00001000U)) {
       if (from._internal_populate_nsid() != 0) {
         _this->_impl_.populate_nsid_ = from._impl_.populate_nsid_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00001000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00002000U)) {
       if (from._internal_enrich_asn_enable() != 0) {
         _this->_impl_.enrich_asn_enable_ = from._impl_.enrich_asn_enable_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00002000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00004000U)) {
       if (from._internal_enrich_locality_enable() != 0) {
         _this->_impl_.enrich_locality_enable_ = from._impl_.enrich_locality_enable_;
       }
     }
-    if (CheckHasBit(cached_has_bits, 0x00004000U)) {
+    if (CheckHasBit(cached_has_bits, 0x00008000U)) {
       if (from._internal_locality_events_enable() != 0) {
         _this->_impl_.locality_events_enable_ = from._impl_.locality_events_enable_;
       }

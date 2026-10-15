@@ -214,6 +214,32 @@ func TestEnvOverridePolling_unset(t *testing.T) {
 	}
 }
 
+func TestEnvOverrideDebugPrometheus(t *testing.T) {
+	tests := []struct {
+		description string
+		env         string // "" leaves it unset
+		start       bool
+		expected    bool
+	}{
+		{description: "positive: true turns it on", env: "true", expected: true},
+		{description: "positive: false turns it off", env: "false", start: true, expected: false},
+		{description: "boundary: unset keeps the flag's value", env: "", start: true, expected: true},
+		{description: "negative: not a bool keeps the flag's value", env: "yes please", start: true, expected: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			if tc.env != "" {
+				t.Setenv("DEBUG_PROMETHEUS", tc.env)
+			}
+			c := &xtcp_config.XtcpConfig{DebugPrometheus: tc.start}
+			envOverrideNetlinker(c, 0)
+			if c.DebugPrometheus != tc.expected {
+				t.Errorf("DebugPrometheus = %v, expected %v", c.DebugPrometheus, tc.expected)
+			}
+		})
+	}
+}
+
 func TestEnvOverrideNetlinker(t *testing.T) {
 	c := &xtcp_config.XtcpConfig{}
 	t.Setenv("NETLINKERS", "8")
@@ -941,6 +967,7 @@ func TestPrintFlags(t *testing.T) {
 	f.ioUring = &b
 	f.ioUringRecvBatch = &n
 	f.ioUringCqeBatch = &n
+	f.debugPrometheus = &b
 	f.enrichContainer = &b
 	f.dockerSocket = &s
 	f.enrichLldp = &b
@@ -1114,7 +1141,7 @@ func TestBuildConfig(t *testing.T) {
 		promUnixSocketMode: &socketMode, promUnlinkStaleUDS: &unlinkStale,
 		promPath: &pp, goMaxProcs: &gmp,
 		profileMode: &pm, v: &v, conf: &conf, d: &d,
-		ioUring: &iu, ioUringRecvBatch: &iurb, ioUringCqeBatch: &iucb,
+		ioUring: &iu, ioUringRecvBatch: &iurb, ioUringCqeBatch: &iucb, debugPrometheus: &iu,
 		enrichAsn: &iu, asnDbPath: &mar, asnRefreshInterval: &rf,
 		ipmetaBootstrapPath: &ipmetaBootstrap, ipmetaCachePath: &ipmetaCache,
 		enrichLocality: &iu, localityRefreshInterval: &rf, localityEvents: &iu,

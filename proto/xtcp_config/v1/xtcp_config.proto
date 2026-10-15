@@ -688,6 +688,15 @@ message XtcpConfig {
 			lte: 1000
 	}];
 
+	// Record the per-record Prometheus series too: Deserialize "n" and the
+	// Deserialize "nlPacketComplete" summary, each updated once per socket
+	// record. Off by default: at 100k sockets they cost more CPU than the
+	// decode itself. The per-packet and per-dump series are always on.
+	// Takes effect when the netlinkers start (a restart after a Set).
+	bool debug_prometheus                            = 54 [
+		(buf.validate.field).required = false
+	];
+
 	// ---- output, destination-agnostic (60-79) --------------------------------
 
 	// kafka:127.0.0.1:9092, udp:127.0.0.1:13000, nsq:127.0.0.1:4150,
