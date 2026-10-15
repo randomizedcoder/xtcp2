@@ -27,6 +27,11 @@ const (
 	flapWindowEnvironment  = "GO_LINK_MONITOR_FLAP_WINDOW"
 	errorClassEnvironment  = "GO_LINK_MONITOR_ERRORS_CLASSES"
 	errorExcludeEnviron    = "GO_LINK_MONITOR_ERRORS_EXCLUDE"
+	modeEnvironment        = "GO_LINK_MONITOR_COLLECTION_MODE"
+	watchEnvironment       = "GO_LINK_MONITOR_WATCH_INTERVAL"
+	slowEnvironment        = "GO_LINK_MONITOR_WATCH_SLOW_INTERVAL"
+	ttlEnvironment         = "GO_LINK_MONITOR_ON_DEMAND_TTL"
+	waitEnvironment        = "GO_LINK_MONITOR_ON_DEMAND_WAIT"
 
 	metricsPath        = "/metrics"
 	defaultAllPath     = "/metrics-all"
@@ -45,6 +50,9 @@ type commandOptions struct {
 	exposure exposureOptions
 	admin    adminOptions
 	version  bool
+	// statsIgnored is an explicit -stats-interval on demand, which uses
+	// the watch intervals instead.
+	statsIgnored bool
 }
 
 // exposureOptions selects which metrics each endpoint serves.
@@ -65,7 +73,7 @@ func parseOptions(args []string, output io.Writer, getenv func(string) string) (
 	flags.StringVar(&opts.monitor.BaselineFile, "baseline-file", opts.monitor.BaselineFile, "Persistent baseline file")
 	flags.DurationVar(&opts.monitor.Settle, "settle", opts.monitor.Settle, "Initial stable interval (nonnegative)")
 	flags.DurationVar(&opts.monitor.Resync, "resync", opts.monitor.Resync, "Full reconciliation interval (positive)")
-	flags.DurationVar(&opts.monitor.StatsInterval, "stats-interval", opts.monitor.StatsInterval, "Statistics interval (positive)")
+	flags.DurationVar(&opts.monitor.StatsInterval, "stats-interval", opts.monitor.StatsInterval, "Poll mode: statistics interval (positive); unused on demand")
 	flags.StringVar(&opts.monitor.StatsInclude, "stats-include", opts.monitor.StatsInclude, "Driver/PHY names to include (regexp)")
 	flags.StringVar(&opts.monitor.StatsExclude, "stats-exclude", opts.monitor.StatsExclude, "Driver/PHY names to exclude (regexp)")
 	flags.StringVar(&opts.monitor.NetstatFields, "collector.netstat.fields", opts.monitor.NetstatFields, "Host protocol fields (regexp)")
@@ -93,6 +101,14 @@ func parseOptions(args []string, output io.Writer, getenv func(string) string) (
 	flags.StringVar(&errorClasses, "errors.classes", errorClasses, "Comma-separated error classes: link, rdma, drop; overrides "+errorClassEnvironment)
 	flags.StringVar(&opts.monitor.ErrorExclude, "errors.exclude", "",
 		"Error series keys METRIC[:STATISTIC]@INTERFACE never counted (anchored regexp); overrides "+errorExcludeEnviron)
+	mode := string(opts.monitor.CollectionMode)
+	flags.StringVar(&mode, "collection.mode", mode, "When detail is collected: poll (every collector each -stats-interval) or on-demand (errors and state each -watch.interval, settings each -watch.slow-interval, the rest when a detail path is scraped); overrides "+modeEnvironment)
+	watch, slow := opts.monitor.WatchInterval.String(), opts.monitor.SlowInterval.String()
+	flags.StringVar(&watch, "watch.interval", watch, "On demand: error counter and state poll interval; overrides "+watchEnvironment)
+	flags.StringVar(&slow, "watch.slow-interval", slow, "On demand: link settings poll interval; overrides "+slowEnvironment)
+	ttl, wait := opts.monitor.OnDemandTTL.String(), opts.monitor.OnDemandWait.String()
+	flags.StringVar(&ttl, "on-demand.ttl", ttl, "On demand: a detail scrape reuses data collected this recently (0 always collects); overrides "+ttlEnvironment)
+	flags.StringVar(&wait, "on-demand.wait", wait, "On demand: longest a detail scrape waits for collection before serving what it has; overrides "+waitEnvironment)
 	adminFallbacks := defineAdminFlags(flags, &opts.admin)
 	backend := string(opts.monitor.IOBackend)
 	flags.StringVar(&backend, "io-backend", backend, "Socket backend: poller or io_uring (requires available implementation)")
@@ -120,6 +136,11 @@ func parseOptions(args []string, output io.Writer, getenv func(string) string) (
 		{"flap-window", flapWindowEnvironment, &flapWindow},
 		{"errors.classes", errorClassEnvironment, &errorClasses},
 		{"errors.exclude", errorExcludeEnviron, &opts.monitor.ErrorExclude},
+		{"collection.mode", modeEnvironment, &mode},
+		{"watch.interval", watchEnvironment, &watch},
+		{"watch.slow-interval", slowEnvironment, &slow},
+		{"on-demand.ttl", ttlEnvironment, &ttl},
+		{"on-demand.wait", waitEnvironment, &wait},
 	}, adminFallbacks...) {
 		if value := getenv(fallback.environment); !explicit[fallback.flag] && value != "" {
 			*fallback.target = value
@@ -140,12 +161,24 @@ func parseOptions(args []string, output io.Writer, getenv func(string) string) (
 	for _, window := range [...]struct {
 		name, value string
 		target      *time.Duration
-	}{{"errors.window", errorWindow, &opts.monitor.ErrorWindow}, {"flap-window", flapWindow, &opts.monitor.FlapWindow}} {
+	}{
+		{"errors.window", errorWindow, &opts.monitor.ErrorWindow}, {"flap-window", flapWindow, &opts.monitor.FlapWindow},
+		{"watch.interval", watch, &opts.monitor.WatchInterval}, {"watch.slow-interval", slow, &opts.monitor.SlowInterval},
+		{"on-demand.ttl", ttl, &opts.monitor.OnDemandTTL}, {"on-demand.wait", wait, &opts.monitor.OnDemandWait},
+	} {
 		parsed, err := time.ParseDuration(window.value)
 		if err != nil {
 			return opts, fmt.Errorf("%s: %w", window.name, err)
 		}
 		*window.target = parsed
+	}
+	opts.monitor.CollectionMode = linkmonitor.CollectionMode(mode)
+	// A scrape must be answered inside the metrics timeout after its wait.
+	if opts.monitor.CollectionMode == linkmonitor.CollectionOnDemand && opts.monitor.OnDemandWait >= metricsTimeout {
+		return opts, fmt.Errorf("on-demand.wait %v must be under the %v metrics timeout", opts.monitor.OnDemandWait, metricsTimeout)
+	}
+	if opts.monitor.CollectionMode == linkmonitor.CollectionOnDemand && explicit["stats-interval"] {
+		opts.statsIgnored = true
 	}
 	return opts, nil
 }

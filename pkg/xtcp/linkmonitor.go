@@ -43,6 +43,9 @@ func (e linkMonitorExposure) collectors(m *linkmonitor.Monitor) []prometheus.Col
 func linkMonitorSettings(c *xtcp_config.LinkMonitorConfig) (linkmonitor.Config, linkMonitorExposure, error) {
 	cfg := linkmonitor.DefaultConfig()
 	cfg.BaselineFile = DefaultLinkMonitorBaseline
+	// xtcp2 registers the collectors on its own registry, with no detail
+	// path to refresh on demand, so the embedded monitor polls.
+	cfg.CollectionMode = linkmonitor.CollectionPoll
 	for _, s := range []struct {
 		value  string
 		target *string

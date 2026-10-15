@@ -101,7 +101,12 @@ func command(args []string, stdout, stderr io.Writer, getenv func(string) string
 	signal.Notify(signals, syscall.SIGUSR1, syscall.SIGTERM, os.Interrupt)
 	defer signal.Stop(signals)
 	var lc net.ListenConfig
-	served := protectRoutes(endpoints(opts.address, opts.exposure, coreRegistry, allRegistry, categories, interfaces), access.policy)
+	served, err := collectionMode(endpoints(opts.address, opts.exposure, coreRegistry, allRegistry, categories, interfaces), m, opts, logger, adminRegistries)
+	if err != nil {
+		logger.Error("invalid configuration", "error", err)
+		return 2
+	}
+	served = protectRoutes(served, access.policy)
 	if err := serve(context.Background(), m, logger, signals, lc.Listen, served, admins...); err != nil {
 		logger.Error("monitor stopped", "error", err)
 		return 1

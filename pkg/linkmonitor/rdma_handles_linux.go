@@ -66,9 +66,13 @@ const (
 // to the port directory.
 var rdmaDeviceFiles = [...]string{"../../board_id", "../../fw_ver", "../../hca_type"}
 
+// rdmaHandleKey has the collector kind because on demand the error counters
+// and the rest of a port's files are separate jobs with schemas of their own;
+// one entry for both would reopen every descriptor as they alternate.
 type rdmaHandleKey struct {
 	device, hardware string
 	port             uint32
+	kind             model.CollectorKind
 }
 
 // rdmaHandles holds counter file descriptors across polls, shared by every
@@ -91,8 +95,9 @@ func newRDMAHandles(files rdmaFiles) *rdmaHandles {
 }
 
 // rdmaPortFiles is one port's descriptors, one slot per file a poll reads:
-// the port's schema entries in schema order, then rate, then the device
-// attributes when the port owns the device's info series.
+// the port's schema entries in schema order, then, when the entry carries
+// the port's metadata, rate and the device attributes if the port owns the
+// device's info series.
 type rdmaPortFiles struct {
 	mu      sync.Mutex
 	handles *rdmaHandles
@@ -101,7 +106,7 @@ type rdmaPortFiles struct {
 	cached, retired, transient bool
 	generation                 uint64
 	schema                     *model.StatisticSchema
-	owner                      bool
+	owner, metadata            bool
 	names                      []string
 	fds                        []int
 	// counters is the number of schema slots; hw is whether any of them is a
@@ -150,11 +155,11 @@ func retireRDMAPorts(entries []*rdmaPortFiles) error {
 	return err
 }
 
-// acquire returns p's entry locked. A port from an older generation than one
+// acquire returns the entry of p's files read by kind, locked. A port from an older generation than one
 // already seen, or any port after Close, gets a transient entry that is
 // closed on release.
-func (h *rdmaHandles) acquire(p model.RDMAPort) (*rdmaPortFiles, error) {
-	key := rdmaHandleKey{device: p.Device, hardware: p.Hardware, port: p.Port}
+func (h *rdmaHandles) acquire(p model.RDMAPort, kind model.CollectorKind) (*rdmaPortFiles, error) {
+	key := rdmaHandleKey{device: p.Device, hardware: p.Hardware, port: p.Port, kind: kind}
 	var stale []*rdmaPortFiles
 	h.mu.Lock()
 	if p.Generation > h.newest {
@@ -200,15 +205,19 @@ func (e *rdmaPortFiles) release() error {
 	return err
 }
 
-// remap lays the slots out for schema's entries lo to hi. Descriptors of files
-// still named are kept, so pruning one unreadable file reopens nothing.
-func (e *rdmaPortFiles) remap(schema *model.StatisticSchema, lo, hi int, owner bool) error {
-	if e.schema == schema && e.owner == owner && e.names != nil {
+// remap lays the slots out for schema's entries lo to hi, then the metadata
+// files when metadata is set. Descriptors of files still named are kept, so
+// pruning one unreadable file reopens nothing.
+func (e *rdmaPortFiles) remap(schema *model.StatisticSchema, lo, hi int, owner, metadata bool) error {
+	owner = owner && metadata
+	if e.schema == schema && e.owner == owner && e.metadata == metadata && e.names != nil {
 		return nil
 	}
 	names := make([]string, 0, hi-lo+1+len(rdmaDeviceFiles))
 	names = append(names, schema.Names[lo:hi]...)
-	names = append(names, "rate")
+	if metadata {
+		names = append(names, "rate")
+	}
 	if owner {
 		names = append(names, rdmaDeviceFiles[:]...)
 	}
@@ -231,7 +240,7 @@ func (e *rdmaPortFiles) remap(schema *model.StatisticSchema, lo, hi int, owner b
 	if e.schema != schema {
 		e.netlinkOff = false
 	}
-	e.schema, e.owner, e.names, e.fds, e.counters = schema, owner, names, fds, hi-lo
+	e.schema, e.owner, e.metadata, e.names, e.fds, e.counters = schema, owner, metadata, names, fds, hi-lo
 	e.hw = slices.ContainsFunc(names[:hi-lo], rdmaStatCounter)
 	if e.cached && e.handles.held.Load()+int64(len(names)) > e.handles.limit {
 		e.transient = true

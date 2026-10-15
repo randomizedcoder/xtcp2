@@ -26,6 +26,9 @@ func (c *rdmaOptionalCollector) counters(ctx context.Context, job model.Job) ([]
 		if err != nil {
 			return nil, nil, err
 		}
+		if c.split != nil {
+			schema = rdmaPartition(schema, job, c.split)
+		}
 	}
 	samples := make([]model.Sample, 0, min(maximumSamples, len(schema.Names)+len(job.RDMA.Ports)+len(job.RDMA.InfoDevices)))
 	// kept is a pruned copy of schema once a file proves unavailable, so later
@@ -56,7 +59,7 @@ func (c *rdmaOptionalCollector) port(ctx context.Context, job model.Job, index i
 	if err := ctx.Err(); err != nil {
 		return samples, err
 	}
-	e, err := c.handles.acquire(job.RDMA.Ports[index])
+	e, err := c.handles.acquire(job.RDMA.Ports[index], job.Key.Collector)
 	if err == nil {
 		samples, err = c.portSamples(ctx, job, index, e, schema, lo, hi, samples, kept)
 	}
@@ -69,7 +72,8 @@ func (c *rdmaOptionalCollector) port(ctx context.Context, job model.Job, index i
 func (c *rdmaOptionalCollector) portSamples(ctx context.Context, job model.Job, index int, e *rdmaPortFiles, schema *model.StatisticSchema, lo, hi int, samples []model.Sample, kept **model.StatisticSchema) ([]model.Sample, error) {
 	p := job.RDMA.Ports[index]
 	owner := slices.Contains(job.RDMA.InfoDevices, rdmaSelector(p))
-	if err := e.remap(schema, lo, hi, owner); err != nil {
+	// The error counters' job leaves rate and the info series to the rest.
+	if err := e.remap(schema, lo, hi, owner, job.Key.Collector != model.CollectorRDMAErrors); err != nil {
 		return samples, err
 	}
 	reads := c.slotReads(len(e.names))
@@ -135,7 +139,10 @@ func (c *rdmaOptionalCollector) portSamples(ctx context.Context, job model.Job, 
 			k.Names, k.Selected, k.Labels = append(k.Names, name), append(k.Selected, index), append(k.Labels, schema.Labels[offset])
 		}
 	}
-	metadata, err := rdmaPortMetadata(p, owner, reads[e.counters], reads[e.counters+1:])
+	if !e.metadata {
+		return samples, nil
+	}
+	metadata, err := rdmaPortMetadata(p, e.owner, reads[e.counters], reads[e.counters+1:])
 	if err != nil {
 		return samples, err
 	}

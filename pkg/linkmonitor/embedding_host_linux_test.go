@@ -69,6 +69,7 @@ func TestEmbeddingHostHelper(t *testing.T) {
 	cfg := linkmonitor.DefaultConfig()
 	cfg.BaselineFile = filepath.Join(t.TempDir(), "baseline.json")
 	cfg.Settle, cfg.StatsInterval = 0, 50*time.Millisecond
+	cfg.CollectionMode = linkmonitor.CollectionPoll // the checks below wait on 50 ms polls
 	m, err := linkmonitor.New(cfg, linkmonitor.Options{Logger: slog.New(slog.NewTextHandler(w, nil))})
 	if err != nil {
 		t.Fatal(err)

@@ -31,8 +31,11 @@ func TestLinkMonitorSettings(t *testing.T) {
 	}{
 		{
 			category: "positive", description: "nil config keeps library defaults with the xtcp2 baseline",
-			expected: "defaults, xtcp2 baseline, summary exposure",
+			expected: "defaults, xtcp2 baseline, summary exposure, poll mode (no detail path refreshes)",
 			check: func(c linkmonitor.Config) error {
+				if c.CollectionMode != linkmonitor.CollectionPoll {
+					return fmt.Errorf("collection mode %q, want poll", c.CollectionMode)
+				}
 				if c.BaselineFile != DefaultLinkMonitorBaseline || c.Settle != defaults.Settle ||
 					c.Resync != defaults.Resync || c.StatsInterval != defaults.StatsInterval ||
 					c.StatsInclude != defaults.StatsInclude || c.NetstatFields != defaults.NetstatFields {

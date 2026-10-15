@@ -169,5 +169,7 @@ func (e emitter) diagnostics(name string, v linkmonitor.CollectorView) {
 		e.counter("counter_discontinuities_total", v.Discontinuities(), name, collector)
 	case "rdma_counters":
 		e.counter("counter_discontinuities_total", v.Discontinuities(), name, "rdma")
+	case "rdma_errors":
+		e.counter("counter_discontinuities_total", v.Discontinuities(), name, collector)
 	}
 }

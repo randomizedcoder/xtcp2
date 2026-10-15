@@ -25,7 +25,7 @@ func (c lifecycleClock) NewTimer(delay time.Duration) model.Timer {
 	return timer
 }
 
-func sessionFixture(t *testing.T) (*lifecycleSession, *Monitor, lifecycleClock) {
+func sessionFixture(t testing.TB) (*lifecycleSession, *Monitor, lifecycleClock) {
 	t.Helper()
 	clock := lifecycleClock{Clock: testkit.NewClock(time.Unix(100, 0)), grace: make(chan struct{}, 4)}
 	m := newTestMonitor(t)
@@ -60,7 +60,7 @@ func sessionFixture(t *testing.T) (*lifecycleSession, *Monitor, lifecycleClock) 
 	return s, m, clock
 }
 
-func runSession(t *testing.T, m *Monitor) (context.CancelFunc, <-chan error) {
+func runSession(t testing.TB, m *Monitor) (context.CancelFunc, <-chan error) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
@@ -69,7 +69,7 @@ func runSession(t *testing.T, m *Monitor) (context.CancelFunc, <-chan error) {
 	return cancel, done
 }
 
-func awaitSnapshot(t *testing.T, m *Monitor, match func(Snapshot) bool) Snapshot {
+func awaitSnapshot(t testing.TB, m *Monitor, match func(Snapshot) bool) Snapshot {
 	t.Helper()
 	deadline := time.NewTimer(5 * time.Second)
 	defer deadline.Stop()

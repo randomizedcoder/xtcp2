@@ -30,8 +30,11 @@ type scheduledJob struct {
 // scheduler is owned with the reducer. Physical occupancy is separate from
 // reducer attempt state: a logical timeout cannot make a blocked worker free.
 type scheduler struct {
+	// rdmaInterval and statisticsInterval enable their families when
+	// nonzero; tiers, set on demand, replaces them per collector kind.
 	rdmaInterval       time.Duration
 	statisticsInterval time.Duration
+	tiers              *[model.CollectorNetstat + 1]time.Duration
 	settings           *settingsSchedule
 	traffic            *trafficSchedule
 	reducer            *reducer
@@ -54,6 +57,15 @@ type runningCollection struct {
 
 func newScheduler(r *reducer, p *collectorPool, clock model.Clock) *scheduler {
 	return &scheduler{reducer: r, pool: p, clock: clock, jobs: make(map[model.JobKey]*scheduledJob)}
+}
+
+// kindInterval is kind's poll interval: its family's, unless tiers sets one
+// per kind. Zero polls only at startup and on explicit requests.
+func (s *scheduler) kindInterval(kind model.CollectorKind, family time.Duration) time.Duration {
+	if s.tiers == nil || int(kind) >= len(s.tiers) {
+		return family
+	}
+	return s.tiers[kind]
 }
 
 func (s *scheduler) register(key model.JobKey, policy schedulePolicy) error {

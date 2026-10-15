@@ -1,0 +1,4 @@
+go_link_monitor_baseline_ready{} 1
+go_link_monitor_collection_healthy{} 0
+go_link_monitor_problems{} 0
+go_link_monitor_up_links_delta{} 2

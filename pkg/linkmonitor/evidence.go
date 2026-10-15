@@ -112,13 +112,19 @@ type problemPolicy struct {
 }
 
 func newProblemPolicy(cfg Config) (problemPolicy, error) {
-	p := problemPolicy{errorWindow: cfg.ErrorWindow, flapWindow: cfg.FlapWindow, grace: cfg.Settle + cfg.StatsInterval}
+	// Evidence needs two polls of the error counters inside the window, and
+	// the unknown grace one settings poll after settling.
+	poll, interval := cfg.pollInterval(model.CollectorNetdev), "stats interval"
+	if cfg.onDemand() {
+		interval = "watch interval"
+	}
+	p := problemPolicy{errorWindow: cfg.ErrorWindow, flapWindow: cfg.FlapWindow, grace: cfg.Settle + cfg.pollInterval(model.CollectorSettings)}
 	for _, w := range [...]struct {
 		name  string
 		value time.Duration
 	}{{"error window", cfg.ErrorWindow}, {"flap window", cfg.FlapWindow}} {
-		if w.value < 0 || (w.value > 0 && w.value < cfg.StatsInterval) {
-			return problemPolicy{}, fmt.Errorf("%s must be zero or at least the stats interval", w.name)
+		if w.value < 0 || (w.value > 0 && w.value < poll) {
+			return problemPolicy{}, fmt.Errorf("%s must be zero or at least the %s", w.name, interval)
 		}
 	}
 	for _, name := range cfg.ErrorClasses {

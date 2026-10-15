@@ -162,6 +162,7 @@ func (f *PrometheusFixture) StopControls() { f.Monitor.control.stop() }
 func (f *PrometheusFixture) ProblemConfig(mutate func(*Config)) {
 	f.t.Helper()
 	cfg := DefaultConfig()
+	cfg.CollectionMode = CollectionPoll // the fixture's reducer polls
 	mutate(&cfg)
 	policy, err := newProblemPolicy(cfg)
 	if err != nil {
@@ -203,6 +204,38 @@ func (f *PrometheusFixture) Advance(at time.Duration) { f.now = at }
 // fixture stamp carries the same wall time and the latest monotonic time.
 func (f *PrometheusFixture) ScrapeTime(at time.Duration) time.Time {
 	return time.Unix(10, 500000000).Add(at - f.now)
+}
+
+// SourceCollectors maps each fixed source metric name to the collector that
+// publishes it, by CollectorView name; a name it cannot place maps to "".
+func SourceCollectors() map[string]string {
+	out := make(map[string]string, len(fixedSourceNames))
+	for name := range fixedSourceNames {
+		out[name] = ""
+	}
+	for _, name := range trafficDescriptors {
+		out[name] = "standard"
+	}
+	for _, name := range carrierDescriptors {
+		out[name] = carrierCollectorName
+	}
+	for _, name := range interfaceDescriptors {
+		out[name] = "settings"
+	}
+	for _, field := range rdmaCounterCatalog {
+		out["go_link_monitor_infiniband_"+field.metric] = "rdma_counters"
+	}
+	for suffix, collector := range map[string]string{
+		"ethtool_statistic": "driver", "phy_statistic": "phy", "rdma_hw_counter": "rdma_counters",
+		"infiniband_rate_bytes_per_second": "rdma_counters", "infiniband_info": "rdma_counters",
+		"infiniband_state_id": "rdma_state", "infiniband_physical_state_id": "rdma_state",
+		"rdma_port_info": "rdma_state", "rdma_netdev_info": "rdma_state", "rdma_roce_version_info": "rdma_state",
+		"rdma_port_up": "rdma_state", "rdma_port_check": "rdma_state", "rdma_port_active_width": "rdma_capabilities",
+		"rdma_port_max_width": "rdma_capabilities", "rdma_port_speed_info": "rdma_capabilities",
+	} {
+		out["go_link_monitor_"+suffix] = collector
+	}
+	return out
 }
 
 // FixedSourceNames lists the application-defined source metric names.

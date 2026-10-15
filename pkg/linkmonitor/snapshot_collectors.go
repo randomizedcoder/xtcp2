@@ -15,13 +15,15 @@ type CollectorView struct {
 
 // Name is the bounded collector name used by diagnostics.
 func (v CollectorView) Name() string {
-	names := [...]string{"", "identity", "standard", carrierCollectorName, "settings", "driver", "phy", "channels", "rings",
-		"rdma_state", "rdma_capabilities", "rdma_counters", "rdma_events", "netstat"}
-	if int(v.kind) >= len(names) {
+	if int(v.kind) >= len(collectorNames) {
 		return ""
 	}
-	return names[v.kind]
+	return collectorNames[v.kind]
 }
+
+// collectorNames are the bounded collector names, indexed by kind.
+var collectorNames = [...]string{"", "identity", "standard", carrierCollectorName, "settings", "driver", "phy", "channels", "rings",
+	"rdma_state", "rdma_capabilities", "rdma_counters", "rdma_errors", "rdma_events", "netstat"}
 
 // Support returns unknown, supported, unsupported or not_applicable.
 func (v CollectorView) Support() string {
@@ -84,13 +86,19 @@ func (v CollectorView) Discontinuities() uint64 {
 	return v.state.discontinuities
 }
 
-// RangeCollectors visits device source diagnostics, including unprobed sources.
+// RangeCollectors visits device source diagnostics, including unprobed
+// sources. rdma_errors is visited only once attempted: only on-demand mode
+// runs it, so poll mode's diagnostics stay as they were.
 func (d DeviceView) RangeCollectors(visit func(CollectorView) bool) {
 	if d.collectors == nil {
 		return
 	}
 	for kind := model.CollectorInventory; kind < model.CollectorNetstat; kind++ {
-		if !visit(CollectorView{kind: kind, state: d.collectors[kind]}) {
+		state := d.collectors[kind]
+		if kind == model.CollectorRDMAErrors && (state == nil || !state.attempted) {
+			continue
+		}
+		if !visit(CollectorView{kind: kind, state: state}) {
 			return
 		}
 	}

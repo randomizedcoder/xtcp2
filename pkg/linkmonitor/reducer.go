@@ -54,7 +54,10 @@ type deviceSlot struct {
 }
 
 func newReducer(namespace uint64) *reducer {
+	// A placeholder until configureFreshness or session preparation installs
+	// the monitor's policies: poll mode, matching its StatsInterval freshness.
 	cfg := DefaultConfig()
+	cfg.CollectionMode = CollectionPoll
 	problems, err := newProblemPolicy(cfg)
 	if err != nil {
 		panic(err) // DefaultConfig is valid by construction; TestDefaultConfig guards it

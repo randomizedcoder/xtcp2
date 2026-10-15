@@ -56,5 +56,10 @@ func (s *lifecycleSession) rdmaCollector(base workerCollector, handles *rdmaHand
 		}
 		stats = client
 	}
-	return newSharedRDMACollector(base, files, handles.retain(), stats), nil
+	c := newSharedRDMACollector(base, files, handles.retain(), stats)
+	if s.statisticsConfig.onDemand() {
+		problems := s.statisticsConfig.problems
+		c.split = &problems
+	}
+	return c, nil
 }

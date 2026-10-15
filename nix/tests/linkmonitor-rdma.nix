@@ -75,7 +75,7 @@ in
     go test -tags rdma -json -count=1 -timeout=5m ./cmd/go-link-monitor ./pkg/linkmonitor/... | tee "$out/unit.jsonl"
     go test -tags rdma -race -json -count=1 -timeout=5m ./cmd/go-link-monitor ./pkg/linkmonitor/... | tee "$out/race.jsonl"
     go test -tags rdma -race -count=10 -timeout=5m ./pkg/linkmonitor/... \
-      -run 'Prometheus|Production|Lifecycle|RDMAEvent|PollSource|FatalContext|VerbsCopy|RDMANotif|RDMAMonitorMode|RDMAOptional|RDMACapability|RDMACounter|RDMAHWCounters|RDMAHandle|RDMAIdentityOnReopen|RDMAParallelReads|RDMACollectorsShared|RDMASteadyState|RDMAStat|RDMAScalar|LocalQuery|CapabilityEncoding|UMAD|Summary|Problem|Category|Evidence|Interface|SnapshotDevice' > "$out/repeated-race.log" 2>&1
+      -run 'Prometheus|Production|Lifecycle|RDMAEvent|PollSource|FatalContext|VerbsCopy|RDMANotif|RDMAMonitorMode|RDMAOptional|RDMACapability|RDMACounter|RDMAHWCounters|RDMAHandle|RDMAIdentityOnReopen|RDMAParallelReads|RDMACollectorsShared|RDMASteadyState|RDMAStat|RDMAScalar|LocalQuery|CapabilityEncoding|UMAD|Summary|Problem|Category|Evidence|Interface|SnapshotDevice|OnDemand|Tier|CollectionMode|RDMAWatchPartition|RDMAPartitionHandles|PollModeUnchanged' > "$out/repeated-race.log" 2>&1
     GOMAXPROCS=2 go test ./pkg/linkmonitor/internal/linuxio -run '^$' \
       -fuzz '^FuzzRDMANotifications$' -fuzztime=30s -parallel=2 -timeout=5m > "$out/fuzz.log" 2>&1
     GOMAXPROCS=2 go test ./pkg/linkmonitor/internal/linuxio -run '^$' \

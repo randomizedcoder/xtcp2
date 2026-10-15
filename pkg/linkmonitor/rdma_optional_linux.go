@@ -21,6 +21,9 @@ type rdmaOptionalCollector struct {
 	handles *rdmaHandles
 	// stats reads hw_counters with STAT_GET; nil reads them from sysfs.
 	stats rdmaStatSource
+	// split, set on demand, divides each counter schema between the
+	// RDMAErrors job (evidence its policy counts) and RDMACounters (the rest).
+	split *problemPolicy
 	// parallel is the PortCounters pool size, rdmaReadParallelism outside
 	// benchmarks.
 	parallel int
@@ -64,7 +67,7 @@ func (c *rdmaOptionalCollector) Close() error {
 }
 
 func (c *rdmaOptionalCollector) Collect(ctx context.Context, job model.Job) model.Result {
-	if job.Key.Collector != model.CollectorRDMACapabilities && job.Key.Collector != model.CollectorRDMACounters {
+	if job.Key.Collector != model.CollectorRDMACapabilities && job.Key.Collector != model.CollectorRDMACounters && job.Key.Collector != model.CollectorRDMAErrors {
 		return c.workerCollector.Collect(ctx, job)
 	}
 	r := model.Result{Job: job, Support: model.NotApplicable}

@@ -286,3 +286,46 @@ func TestRDMAEventDiagnostics(t *testing.T) {
 		})
 	}
 }
+
+func TestRDMAEventUnavailable(t *testing.T) {
+	for _, tc := range []struct {
+		name, category, description, expectedOutcome string
+		failure                                      error
+		newIdentity                                  bool
+		at                                           time.Duration
+		requests                                     int
+		support                                      model.Support
+	}{
+		{"no-binding", "positive", "build has no verbs binding, an hour later", "never reopened; unsupported event collector", rdmaevents.ErrUnavailable, false, time.Hour, 0, model.Unsupported},
+		{"lost-retries", "negative", "transient loss, after the 1s backoff", "reopened once, as before", rdmaevents.ErrLost, false, time.Minute, 1, model.SupportUnknown},
+		{"at-retry", "boundary", "no binding, exactly at the retry deadline", "not reopened", rdmaevents.ErrUnavailable, false, time.Second, 0, model.Unsupported},
+		{"new-identity", "corner", "no binding, then a new RDMA device identity", "not reopened; the new inventory still reports unsupported", rdmaevents.ErrUnavailable, true, time.Hour, 0, model.Unsupported},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expectedOutcome)
+			s, p := eventScheduleFixture(t)
+			s.w.status <- rdmaEventStatus{generation: s.generation, err: tc.failure}
+			if err := s.before(); err != nil {
+				t.Fatal(err)
+			}
+			if tc.newIdentity {
+				other := p
+				other.Device, other.Hardware = p.Device+"-new", p.Hardware+"-new"
+				s.committed([]model.RDMAPort{p, other}, s.barrier+1)
+			}
+			if err := s.advance(model.Stamp{Monotonic: tc.at}); err != nil {
+				t.Fatal(err)
+			}
+			if len(s.w.requests) != tc.requests {
+				t.Fatalf("%d source requests, want %d", len(s.w.requests), tc.requests)
+			}
+			state, _, err := s.c.scheduler.reducer.collector(model.JobKey{Namespace: 1, Device: p.Canonical, Collector: model.CollectorRDMAEvents})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if state.support != tc.support || state.fresh {
+				t.Fatal(tc.expectedOutcome, state)
+			}
+		})
+	}
+}

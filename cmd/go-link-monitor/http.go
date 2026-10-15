@@ -48,6 +48,10 @@ type route struct {
 	viewInFlight int
 	// protect, when set, wraps the metrics handler, e.g. with read auth.
 	protect func(http.Handler) http.Handler
+	// refresh, set on demand, wraps the gather, inside the in-flight limit,
+	// with the refresh of what the route serves; view marks the interface
+	// handler.
+	refresh func(h http.Handler, view bool) http.Handler
 }
 
 // views holds the interface view of each detail path; a nil views serves no
@@ -94,14 +98,14 @@ func httpServer(source healthSource, stopping *atomic.Bool, routes ...route) *ht
 	mux := http.NewServeMux()
 	for _, r := range routes {
 		slots := make(chan struct{}, r.inFlight)
-		mux.Handle(r.path, r.wrap(limited(slots, metricsHandler(r.gatherer)), metricsTimeout))
+		mux.Handle(r.path, r.wrap(limited(slots, r.refreshed(metricsHandler(r.gatherer), false)), metricsTimeout))
 		if r.view == nil {
 			continue
 		}
 		if r.viewInFlight != 0 {
 			slots = make(chan struct{}, r.viewInFlight)
 		}
-		h := r.wrap(limited(slots, interfaceHandler(r.view)), metricsTimeout)
+		h := r.wrap(limited(slots, r.refreshed(interfaceHandler(r.view), true)), metricsTimeout)
 		mux.Handle(r.path+"/{interface}", h)
 		mux.Handle(r.path+"/{interface}/{$}", h)
 	}
@@ -115,6 +119,13 @@ func httpServer(source healthSource, stopping *atomic.Bool, routes ...route) *ht
 		Handler: mux, WriteTimeout: 15 * time.Second,
 		ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 60 * time.Second,
 	}
+}
+
+func (r route) refreshed(h http.Handler, view bool) http.Handler {
+	if r.refresh == nil {
+		return h
+	}
+	return r.refresh(h, view)
 }
 
 func metricsHandler(g prometheus.Gatherer) http.Handler {

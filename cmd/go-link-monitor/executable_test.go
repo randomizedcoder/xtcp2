@@ -109,7 +109,7 @@ type executableProcess struct {
 
 func startExecutable(ctx context.Context, t *testing.T, baseline string, args ...string) *executableProcess {
 	t.Helper()
-	args = append([]string{"-metrics-addr=127.0.0.1:0", "-baseline-file=" + baseline, "-settle=0", "-stats-interval=100ms"}, args...)
+	args = append([]string{"-metrics-addr=127.0.0.1:0", "-baseline-file=" + baseline, "-settle=0", "-collection.mode=poll", "-stats-interval=100ms"}, args...)
 	p := &executableProcess{
 		// One address is logged per listener.
 		cmd:      executableCommand(ctx, t, args...),

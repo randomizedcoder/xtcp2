@@ -32,6 +32,7 @@ type Monitor struct {
 	once    atomic.Bool
 	root    atomic.Pointer[snapshotRoot]
 	control controls
+	demand  demands
 	open    func(context.Context) (session, error)
 }
 
@@ -82,6 +83,7 @@ func (m *Monitor) Run(ctx context.Context) error {
 
 func (m *Monitor) stopped() {
 	m.control.stop()
+	m.demand.stop()
 	previous := m.root.Load()
 	next := *previous
 	next.version++

@@ -1,15 +1,15 @@
 package prometheus
 
 import (
-	"errors"
 	"fmt"
 
 	client "github.com/prometheus/client_golang/prometheus"
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor"
 )
 
-// ErrUnknownInterface reports an interface name absent from the snapshot.
-var ErrUnknownInterface = errors.New("unknown interface")
+// ErrUnknownInterface reports an interface name absent from the snapshot. It
+// is linkmonitor.ErrUnknownInterface, which Monitor.Refresh also returns.
+var ErrUnknownInterface = linkmonitor.ErrUnknownInterface
 
 // deviceCollector is implemented by the collectors InterfaceCollector accepts.
 type deviceCollector interface {

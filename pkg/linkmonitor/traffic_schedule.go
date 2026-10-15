@@ -56,7 +56,9 @@ type trafficSchedule struct {
 
 func newTrafficSchedule(s *scheduler, c *reconciler, interval time.Duration) *trafficSchedule {
 	t := &trafficSchedule{scheduler: s, coordinator: c, interval: interval, bulk: true, pending: make(map[model.DeviceKey]*list.Element)}
-	t.nextPoll = deadlineAfter(s.clock.Now().Monotonic, interval)
+	if interval != 0 {
+		t.nextPoll = deadlineAfter(s.clock.Now().Monotonic, interval)
+	}
 	s.traffic = t
 	return t
 }
@@ -109,11 +111,14 @@ func (t *trafficSchedule) forget(key model.DeviceKey) {
 }
 
 func (t *trafficSchedule) advance(now model.Stamp) error {
-	if now.Monotonic >= t.nextPoll {
-		t.bulk = true
-		t.nextPoll = deadlineAfter(now.Monotonic, t.interval-(now.Monotonic-t.nextPoll)%t.interval)
+	// A zero interval sweeps only at startup and on explicit requests.
+	if t.interval != 0 {
+		if now.Monotonic >= t.nextPoll {
+			t.bulk = true
+			t.nextPoll = deadlineAfter(now.Monotonic, t.interval-(now.Monotonic-t.nextPoll)%t.interval)
+		}
+		t.scheduler.reducer.deadlines.set(deadlineEntry{key: deadlineKey{kind: deadlineTrafficPoll}, at: t.nextPoll})
 	}
-	t.scheduler.reducer.deadlines.set(deadlineEntry{key: deadlineKey{kind: deadlineTrafficPoll}, at: t.nextPoll})
 	if t.batch != nil {
 		return t.consume()
 	}

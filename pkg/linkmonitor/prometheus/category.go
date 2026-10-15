@@ -55,6 +55,7 @@ var categoryNames = map[string]string{
 	"collector_errors_total": CategoryCollection, "collector_omitted_statistics": CategoryCollection,
 	"resyncs_total": CategoryCollection, "counter_discontinuities_total": CategoryCollection,
 	"baseline_write_errors_total": CategoryCollection, "last_successful_resync_timestamp_seconds": CategoryCollection,
+	"collection_mode": CategoryCollection, "on_demand_refreshes_total": CategoryCollection,
 }
 
 // categoryPrefixes assign families that are not fixed names, in match order.
@@ -91,6 +92,24 @@ func CategoryOf(name string) string {
 		return CategoryTraffic
 	}
 	return ""
+}
+
+// categoryCollectors names the collectors whose results each detail
+// category serves. Summary and collection families come from published
+// state alone, so they name none.
+var categoryCollectors = map[string][]string{
+	CategoryLink:    {"carrier", "settings", "rdma_state", "rdma_capabilities"},
+	CategoryTraffic: {"standard"},
+	CategoryEthtool: {"settings", "channels", "rings"},
+	CategoryDriver:  {"driver", "phy"},
+	CategoryRDMA:    {"rdma_state", "rdma_capabilities", "rdma_counters", "rdma_errors"},
+	CategoryNetstat: {"netstat"},
+}
+
+// CategoryCollectors returns the collectors, by CollectorView name, whose
+// results category serves: what an on-demand scrape of its path refreshes.
+func CategoryCollectors(category string) []string {
+	return slices.Clone(categoryCollectors[category])
 }
 
 // CategoryMatcher returns a WithMetricFilter matcher selecting the named

@@ -61,7 +61,10 @@ func (s *rdmaSchedule) replace(ports []model.RDMAPort, now model.Stamp) error {
 	for key := range s.ports {
 		s.request(key)
 	}
-	s.nextPoll = deadlineAfter(now.Monotonic, s.interval)
+	s.nextPoll = 0
+	if s.interval != 0 {
+		s.nextPoll = deadlineAfter(now.Monotonic, s.interval)
+	}
 	return nil
 }
 
@@ -84,7 +87,7 @@ func (s *rdmaSchedule) request(key model.DeviceKey) {
 }
 
 func (s *rdmaSchedule) advance(now model.Stamp) error {
-	if s.nextPoll != 0 && now.Monotonic >= s.nextPoll {
+	if s.interval != 0 && s.nextPoll != 0 && now.Monotonic >= s.nextPoll {
 		for key := range s.ports {
 			s.request(key)
 		}

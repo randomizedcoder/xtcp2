@@ -25,7 +25,7 @@ type testInventoryBackend struct {
 
 func (s testInventoryBackend) Close() error { return s.closeFunc() }
 
-func receiveTest[T any](t *testing.T, ch <-chan T) T {
+func receiveTest[T any](t testing.TB, ch <-chan T) T {
 	t.Helper()
 	select {
 	case value := <-ch:

@@ -26,7 +26,7 @@ type problemHarness struct {
 
 func newProblemHarness(t testing.TB, mutate func(*Config)) *problemHarness {
 	t.Helper()
-	cfg := DefaultConfig()
+	cfg := pollConfig()
 	if mutate != nil {
 		mutate(&cfg)
 	}
@@ -187,7 +187,7 @@ func TestProblemPolicyConfig(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expected)
-			cfg := DefaultConfig()
+			cfg := pollConfig()
 			if tc.mutate != nil {
 				tc.mutate(&cfg)
 			}

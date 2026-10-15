@@ -80,6 +80,8 @@ These are new; there is no node_exporter equivalent with the same semantics.
 | `observed_oper_transitions_total` | C / transitions | interface,direction | M | direction=up/down, only changes observed by reducer; initial inventory is not a transition |
 | `driver_link_down_events_total` | C / down events | interface,driver,statistic | P | Raw source count, only when an exact driver mapping has been verified |
 | `build_info` | G / constant 1 | version,revision | M | Executable build identity |
+| `collection_mode` | G / constant 1 | mode | M | mode=poll/on-demand, from `-collection.mode` |
+| `on_demand_refreshes_total` | C / scrapes | result | M | On demand only: detail scrapes by refresh outcome; result=cached (every collector within `-on-demand.ttl`)/collected (any ran)/timeout (`-on-demand.wait` ended first) |
 | `problems` | G / series | none | M | Number of `interface_problem` plus `host_problem` series in the same scrape; always present on `/metrics` |
 | `interface_problem` | G / constant 1 | interface,reason | M | Sparse: present only while the reason is active on an included interface. reason=max_speed/max_width/full_duplex/rdma_not_ready/check_unknown/errors/flap/collector |
 | `host_problem` | G / constant 1 | reason | M | Sparse: reason=collector (netstat source)/exception_unmatched/baseline_write |
@@ -88,7 +90,9 @@ These are new; there is no node_exporter equivalent with the same semantics.
 
 Collector values are `identity`, `settings`, `standard`, `carrier`, `driver`,
 `phy`, `channels`, `rings`, `rdma_state`, `rdma_capabilities`, `rdma_counters`,
-`rdma_events`, `netstat`. Netstat diagnostics use `interface=""` for namespace
+`rdma_errors`, `rdma_events`, `netstat`. `rdma_errors` appears only in on-demand
+mode, where it reads the error-classified RDMA counters each `-watch.interval`
+and `rdma_counters` reads the rest when scraped. Netstat diagnostics use `interface=""` for namespace
 scope; its data metrics have no interface label. Source values for discontinuities are `standard`, `carrier`,
 `driver`, `phy`, `rdma`. Unknown driver identity has its own diagnostic metric.
 Native IB does not claim support for Ethernet-only collectors; use not_applicable. Optional source failures do not change

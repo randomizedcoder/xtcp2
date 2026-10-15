@@ -1,7 +1,9 @@
 # go-link-monitor and node_exporter network collector performance
 
-Status: measurement, 2026-10-14. One run on one host per section; repeat with the
-procedure below before quoting these numbers as general results. The
+Status: measurement, 2026-10-14. On demand is now the default collection
+mode; the poll measurements below were taken in poll mode, then the default.
+One run on one host per section; repeat with the procedure below before
+quoting these numbers as general results. The
 benchmark conventions are in
 [PERFORMANCE-TESTING-DESIGN.md](PERFORMANCE-TESTING-DESIGN.md), and the paths
 measured are described in [METRICS-PATHS-DESIGN.md](METRICS-PATHS-DESIGN.md).
@@ -36,6 +38,10 @@ measured are described in [METRICS-PATHS-DESIGN.md](METRICS-PATHS-DESIGN.md).
   as both exporters do, misses the driver's cache on every file: 8 ms per
   port. One RDMA netlink request, or reading `rx_write_requests` first, takes
   0.3 ms. See [What the mlx5 driver does](#what-the-mlx5-driver-does).
+- On demand (`-collection.mode=on-demand`, watch 60s, slow 300s), idle
+  go-link-monitor uses 110 ms of CPU and 4,055 system calls per 10 minutes,
+  against 270 ms and 14,371 when polling every 15s. A detail scrape then
+  collects in about 18 ms. See [On-demand collection](#on-demand-collection).
 
 ## Why the costs differ
 
@@ -73,7 +79,7 @@ node_exporter --web.listen-address=127.0.0.1:19100 --collector.disable-defaults 
   --collector.netdev --collector.netclass --collector.ethtool \
   --collector.netstat --collector.netstat.fields='.*' --collector.infiniband
 go-link-monitor -metrics-addr=127.0.0.1:19201 -baseline-file=/tmp/baseline.json \
-  -stats-interval=15s -max-speed-exceptions=enp1s0=1G -admin.address=
+  -collection.mode=poll -stats-interval=15s -max-speed-exceptions=enp1s0=1G -admin.address=
 ```
 
 Coverage was comparable: 6,102 node_exporter series against 6,136 on
@@ -235,9 +241,12 @@ At `-stats-interval=15s` a 120 s idle window measured 350 ms of CPU, about
 Two costs that do not depend on the interval made up most of the rest:
 
 - RDMA inventory rescans, including reading every GID, every 30 s: 17%. This
-  build has no `rdma` tag, so RDMA event coverage is unavailable and the
-  inventory falls back to rescanning. A build with RDMA events should mostly
-  avoid it; this was not measured.
+  build has no `rdma` tag, so the RDMA event source cannot open. Each retry,
+  capped at 30 s, invalidated every RDMA port and forced a full resync, which
+  also re-collected every collector on those ports. This was a defect, not a
+  fallback. The `rdma_state` poll and `-resync` already cover state and
+  topology without events. It is fixed in
+  [On-demand collection](#on-demand-collection).
 - `freezeDescriptors` and `describeSchemas` at publication: 18%.
 
 ## RDMA counter reads and io_uring
@@ -556,6 +565,65 @@ profile showed three more RDMA costs. They are fixed on the same branch:
   to `model.Job`, which is compared with `==`. CPU per poll and the GC rate
   (16–17 collections in 47 s) did not move measurably with these fixes.
 
+## On-demand collection
+
+### Method
+
+Two pairs of instances of the same build (no `rdma` tag, `CGO_ENABLED=0`) ran
+side by side on the reference host for 11 minutes:
+- **poll:** `-collection.mode=poll -stats-interval=15s`;
+- **on-demand:** `-collection.mode=on-demand -watch.interval=60s -watch.slow-interval=300s`.
+
+Each pair was scraped on `/metrics` every 60s. One instance of each pair ran
+under `strace -f -qq -ttt`. After a 60 s warm-up, the window was 600 s:
+- CPU as `utime + stime` from `/proc/<pid>/stat`;
+- GC cycles from `GODEBUG=gctrace=1`;
+- system calls counted from the trace's timestamps.
+
+After the window, `/metrics-all` was scraped twice on the on-demand instance.
+
+### The 30 s RDMA retry
+
+The first run showed almost no difference: 1,390 ms against 1,330 ms of CPU,
+and about 103,000 system calls each. Every RDMA collector, `channels` and
+`rings` were re-collected every 30 s with no scrape and no kernel link event.
+The cause was the event source retry described in
+[Background cost at the default interval](#background-cost-at-the-default-interval).
+On demand, the invalidation also left `collector` and `check_unknown`
+problems on both mlx5 ports between collections.
+
+`rdmaevents.ErrUnavailable` means the build has no verbs binding, which
+cannot change while the process runs. The source is now never reopened after
+it. Diagnostics still report `rdma_events` unsupported, and a new RDMA
+identity is reported the same way (`TestRDMAEventUnavailable`).
+
+### Results
+
+| 600 s idle window | Poll, before | Poll | On demand |
+|---|---|---|---|
+| CPU | 1,390 ms | 270 ms | 110 ms |
+| GC cycles | 45 | 6 | 5 |
+| System calls | 102,605 | 14,371 | 4,055 |
+| `pread64` (held RDMA counter files) | 15,960 | 2,080 | 240 |
+| `ioctl` (ethtool) | 1,560 | 840 | 210 |
+| Problems on `/metrics` | 1 | 1 | 1 (the same `enp1s0` errors) |
+
+| Scrape, on demand | Time |
+|---|---|
+| `/metrics` | 0.4 ms |
+| `/metrics-all`, collecting everything | 18.4 ms |
+| `/metrics-all` again inside `-on-demand.ttl` | 14.8 ms, served from the cache |
+| `/metrics-all`, poll mode | 13.4 ms |
+
+- The retry fix alone cut poll mode's idle CPU about 5×.
+- On demand cuts the remainder by 2.5× for CPU and 3.5× for system calls.
+  What is left is the watch tier, the slow tier, rtnetlink and Go runtime
+  timers.
+- The first detail scrape costs one collection, about 5 ms more than a
+  cached scrape. Concurrent scrapes join that collection.
+- These are one run on one host, with a no-`rdma` build. A build with RDMA
+  events adds verbs event handling but not the retry.
+
 ## Caveats
 
 - One run, one host, client and exporters on the same machine. CPU is read
@@ -619,7 +687,8 @@ echo "rss after: node=$(rss "$node")kB glm=$(rss "$glm")kB"
 ```
 
 Collection cost, with the exporters on ports 19100 and 19201, go-link-monitor
-started with `-stats-interval=1s`, and `glm` set to its PID:
+started with `-collection.mode=poll -stats-interval=1s`, and `glm` set to its
+PID:
 
 ```bash
 curl -s -o node.pprof 'http://127.0.0.1:19100/debug/pprof/profile?seconds=30' &

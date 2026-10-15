@@ -137,13 +137,23 @@ Evidence timing differs by source and is documented, not hidden:
 | Evidence | First visible |
 |---|---|
 | Route event with an operational down transition | Immediately on publication |
-| Carrier or driver counter increase | Next standard/carrier/driver poll (`-stats-interval`) |
-| RDMA counter increase | Next RDMA counter poll |
+| Carrier or driver counter increase | Next standard/carrier/driver poll (`-stats-interval`; `-watch.interval` on demand) |
+| RDMA counter increase | Next RDMA counter poll (the `rdma_errors` watch poll on demand) |
 
 A flap shorter than one poll can be invisible to `interface_up` but is still
 caught through the counters. Windows default to 180s and must be at least
-`-stats-interval`; operators should keep them at least twice the scrape
-interval so evidence cannot fall between two scrapes.
+`-stats-interval` (`-watch.interval` on demand); operators should keep them at
+least twice the scrape interval so evidence cannot fall between two scrapes.
+
+Suggested scrape cadences:
+
+| Mode | `/metrics` | Category and interface paths |
+|---|---|---|
+| `poll` | 15–60s | Any cadence; scrapes read the cache |
+| `on-demand` (Y 60s, Z 300s) | 60s; the summary is current within Y | On alarm or by hand. Each scrape older than `-on-demand.ttl` collects, so avoid scraping detail continuously across the fleet |
+
+With the default 180s windows and Y = 60s, evidence of a single counter
+increase stays on `/metrics` for at least two 60s scrapes.
 
 ### Collector health
 
