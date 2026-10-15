@@ -204,7 +204,7 @@ func withPinnedRing(t *testing.T, fn func(ring *xio.Ring)) {
 
 	ring, err := xioRingNew(t)
 	if err != nil {
-		t.Skipf("io_uring unavailable: %v", err)
+		skipNoIoUring(t, err)
 	}
 	defer ring.Close(time.Second, nil)
 

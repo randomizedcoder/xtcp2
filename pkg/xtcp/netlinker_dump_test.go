@@ -111,7 +111,7 @@ func requireIoUring(tb testing.TB) {
 	defer runtime.UnlockOSThread() //nolint:forbidigo // safe: pins only for the probe ring's lifetime; no netns mutation.
 	ring, err := xio.New(xio.Config{RecvBatchSize: 1, CQEBatchSize: 1})
 	if err != nil {
-		tb.Skipf("io_uring unavailable: %v", err)
+		skipNoIoUring(tb, err)
 	}
 	ring.Close(time.Second, nil)
 }

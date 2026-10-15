@@ -37,6 +37,9 @@ pkgs.runCommand "xtcp2-test-go-race"
     export HOME=$(mktemp -d)
     export CGO_ENABLED=1
     export GOFLAGS=-mod=vendor
+    # io_uring tests fail instead of skipping when the build host can't
+    # create a ring (skipNoIoUring in pkg/xtcp and pkg/io_uring).
+    export XTCP2_REQUIRE_IOURING=1
 
     set +e
     go test -race -count=1 -timeout 5m ./... > $out 2>&1

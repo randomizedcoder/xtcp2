@@ -468,7 +468,7 @@ func runIoUringDestRow(t *testing.T, c destCase, payloads [][]byte) {
 	// One ring covers the whole row. Sized small so test exits quickly.
 	ring, rerr := xioRingNew(t)
 	if rerr != nil {
-		t.Skipf("io_uring not available: %v", rerr)
+		skipNoIoUring(t, rerr)
 	}
 	defer ring.Close(100*time.Millisecond, nil)
 	ringCtx := withRing(ctx, ring)
@@ -611,7 +611,7 @@ func TestUDPDest_SendIoUringHappy(t *testing.T) {
 	// Build a real io_uring ring + stash it in ctx via ringCtxKey.
 	ring, err := xioRingNew(t)
 	if err != nil {
-		t.Skipf("io_uring unavailable: %v", err)
+		skipNoIoUring(t, err)
 	}
 	t.Cleanup(func() { ring.Close(time.Second, nil) })
 	ctx := withRing(context.Background(), ring)
@@ -732,7 +732,7 @@ func TestUnixDest_SendIoUringHappy(t *testing.T) {
 
 	ring, err := xioRingNew(t)
 	if err != nil {
-		t.Skipf("io_uring unavailable: %v", err)
+		skipNoIoUring(t, err)
 	}
 	t.Cleanup(func() { ring.Close(time.Second, nil) })
 	ctx := withRing(context.Background(), ring)
