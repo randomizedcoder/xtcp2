@@ -132,7 +132,7 @@ The s3parquet monitor's `XTCP2_S3PARQUET_HOURLY` sentinel now carries `drops=` a
 | App | Change from `s3parquet-stress` |
 |---|---|
 | `.#microvm-x86_64-s3parquet-stress-nl1` | `NETLINKERS=1` |
-| `.#microvm-x86_64-s3parquet-stress-nl2` | `NETLINKERS=2` |
+| `.#microvm-x86_64-s3parquet-stress-nl4` | `NETLINKERS=4`, the old default. This was `-nl2` until the default became 2; Step 2 below ran `-nl2` |
 | `.#microvm-x86_64-s3parquet-stress-nl8` | `NETLINKERS=8` |
 | `.#microvm-x86_64-s3parquet-stress-cpuload` | stress-ng, 2 workers at 90% (the VM has 2 vCPUs) |
 | `.#microvm-x86_64-s3parquet-stress-cpuload-nl1` | both |
@@ -353,6 +353,10 @@ Decoding scales with decoders as before, and at the default 4 the fix is no slow
 The fix makes the default config match `-nl1`: no drops, and the thread count no
 longer doubles. Rows uploaded vary run to run with the stress-container churn;
 the "before" columns come from the A/B runs above.
+
+**Default lowered to 2.** With one receiver per socket, `-netlinkers` only sets the decoder count, and 2 decoders finish a 100k-socket dump in about 200 ms (table above), far inside the 5 s poll timeout. The default is now 2. The `-nl2` variant became `-nl4` so the old default can still be compared against.
+
+DEFAULT2_VM_PLACEHOLDER
 
 ## Regression guard
 

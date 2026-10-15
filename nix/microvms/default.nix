@@ -410,7 +410,7 @@ let
   # microvm-x86_64-s3parquet-stress-<name>, run with the stress runner.
   s3ParquetStressVariantArgs = {
     nl1.xtcp2Environment.NETLINKERS = "1";
-    nl2.xtcp2Environment.NETLINKERS = "2";
+    nl4.xtcp2Environment.NETLINKERS = "4";
     nl8.xtcp2Environment.NETLINKERS = "8";
     cpuload.cpuStress = {
       workers = 2;

@@ -103,8 +103,8 @@ go-link-monitor's `linuxio` therefore records in process. A build with the `nlre
 
 Within a namespace, the actual receive loop lives in a *netlinker*:
 
-- `pkg/xtcp/netlinker.go` — a goroutine that sends the dump request and loops on `recvfrom`, handing each raw packet to the deserializer.
-- `pkg/xtcp/init_netlinkers.go` — spins up `-netlinkers` readers per namespace so hosts with many flows can parse replies in parallel rather than serializing on one goroutine.
+- `pkg/xtcp/netlinker.go` — per socket, one receiver goroutine loops on `recvfrom` and numbers each packet of the dump, and `-netlinkers` decoder goroutines deserialize the packets in parallel. The decoder that finishes the dump's last packet signals done, so the poll-end flush never runs ahead of a decode.
+- `pkg/xtcp/init_netlinkers.go` — registers the syscall and io_uring variants and selects one.
 - `pkg/xtcp/netlinker_iouring.go` — an alternative receive loop that uses `io_uring` instead of blocking `recvfrom` (see [performance](../performance.md)).
 
 ## Attribute deserializers
@@ -246,7 +246,7 @@ Netlink dump replies can be large, so the receive buffer is tunable. The buffer 
 | Flag | Default | Purpose |
 |---|---|---|
 | `-deserializers` | `default` | Attribute decoders to enable: `default` (all except `meminfo`), `all`, `""` (none), or a comma-separated subset (see table above). |
-| `-netlinkers` | `4` | Number of parallel netlink readers per namespace. |
+| `-netlinkers` | `2` | Number of parallel decoders per socket (one receiver reads each socket). |
 | `-nltimeout` | `1000` | Netlink socket timeout in milliseconds; `0` for no timeout. |
 | `-packetSize` | (pagesize) | Base receive buffer size in bytes; `0` = `syscall.Getpagesize()`. |
 | `-packetSizeMply` | — | Buffer multiplier; buffer = `packetSize × packetSizeMply`. |

@@ -60,7 +60,7 @@ const (
 	pollFrequencyCst  = 10 * time.Second
 	pollTimeoutCst    = 5 * time.Second
 	maxLoopsCst       = 0
-	netlinkersCst     = 4
+	netlinkersCst     = 2
 	nlmsgSeqCst       = 666
 	packetSizeCst     = 0
 	packetSizeMplyCst = 8
@@ -428,7 +428,7 @@ func defineFlags() *mainFlags {
 	f.pollTimeout = flag.Duration("timeout", pollTimeoutCst, "Poll timeout per name space")
 	f.pollJitterPct = flag.Uint("pollJitterPct", pollJitterPctCst, "Poll-schedule jitter as a percent (0-100) of -frequency, applied to the startup delay and each tick to avoid a synchronized fleet. 0 disables (immediate first poll, fixed interval).")
 	f.maxLoops = flag.Uint64("maxLoops", maxLoopsCst, "Maximum number of loops, or zero (0) for forever")
-	f.netlinkers = flag.Uint("netlinkers", netlinkersCst, "netlinkers which read netlink messages from each socket. increase this if you have many flows")
+	f.netlinkers = flag.Uint("netlinkers", netlinkersCst, "decoders per socket that parse netlink dump packets (one receiver reads each socket). increase this if you have many flows")
 	f.nlmsgSeq = flag.Uint("nlmsgSeq", nlmsgSeqCst, "nlmsgSeq sequence number (start), which should be uint32")
 	// packetSize of the buffer the netlinkers syscall.Recvfrom to read into
 	f.packetSize = flag.Uint64("packetSize", packetSizeCst, "netlinker packetSize.  buffer size = packetSize * packetSizeMply. Use zero (0) for syscall.Getpagesize()")
@@ -1048,9 +1048,10 @@ func runMain(ctx context.Context) int {
 	// thread-accumulating bug (xtcp2 burned ~1121 threads in a 1h soak with
 	// 4-per-sec ns churn) silently grows until clone(2) returns EAGAIN and
 	// the runtime *fatal-errors* with `failed to create new OS thread`.
-	// 2000 is high enough for legitimate burst load (4 netlinkers × hundreds
-	// of namespaces) but catches the leak before it crashes; SetMaxThreads
-	// converts the leak into a controlled abort with the same diagnostic.
+	// 2000 is high enough for legitimate burst load (one Recvfrom-blocked
+	// receiver per socket × hundreds of namespaces) but catches the leak
+	// before it crashes; SetMaxThreads converts the leak into a controlled
+	// abort with the same diagnostic.
 	// Override via -maxThreads if a future deployment legitimately needs
 	// more (e.g. >500 simultaneous namespaces).
 	if *f.maxThreads > 0 {

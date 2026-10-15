@@ -82,7 +82,12 @@ socket, `SetNonblock`, `os.NewFile`, confirm a dump round-trips and a no-data
 
 ### Key design decision: shared-fd readers must change
 
-Today **4 netlinkers `Recvfrom` the same fd concurrently** — the kernel hands
+> **Update (2026-10-14):** the syscall path now has one receiver per socket and
+> `-netlinkers` (default 2) decoders, which also fixed a dropped-records race
+> ([envelope-post-flush-drop](../investigations/envelope-post-flush-drop.md)).
+> The text below describes the earlier design.
+
+Before that, **4 netlinkers `Recvfrom` the same fd concurrently** — the kernel hands
 each datagram to one caller, giving real read parallelism on one socket. The
 Go poller serializes concurrent `Read`s on a single `*os.File` (the
 `internal/poll.FD` read mutex), so 4 goroutines sharing one `*os.File` would

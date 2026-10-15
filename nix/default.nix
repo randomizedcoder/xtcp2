@@ -1289,7 +1289,7 @@ in
     }
   ) microvms.rdmaCapture.x86_64.kernels
   # s3parquet-stress with an investigation variant (see
-  # docs/investigations/envelope-post-flush-drop.md): -nl1/-nl2/-nl8 set
+  # docs/investigations/envelope-post-flush-drop.md): -nl1/-nl4/-nl8 set
   # NETLINKERS, -cpuload adds stress-ng contention, -cpuload-nl1 both. Same
   # runner and flags as microvm-x86_64-s3parquet-stress; the summary reports
   # the post-flush drop rate. Not in `nix flake check`.
