@@ -231,14 +231,10 @@ func (s *xtcpFlatRecordService) pfrMapCount() (count uint64) {
 func (x *XTCP) flatRecordServiceSend(xtcpRecord *xtcp_flat_record.XtcpFlatRecord) {
 	// func (x *XTCP) flatRecordServiceSend(xtcpRecord *xtcp_flat_record.Envelope_XtcpFlatRecord) {
 
-	startTime := time.Now()
-	defer func() {
-		x.pH.WithLabelValues("flatRecordServiceSend", "complete", "count").Observe(time.Since(startTime).Seconds())
-		x.pC.WithLabelValues("flatRecordServiceSend", "complete", "count").Inc()
-	}()
-	x.pC.WithLabelValues("flatRecordServiceSend", "start", "count").Inc()
-
-	// Check if there are clients
+	// Check if there are clients. This runs once per record, so with none
+	// (the usual case) it returns before touching a metric: the start and
+	// complete counts, the summary and its time.Now cost more than the
+	// decode. They count sends to clients, not records.
 	frClientCount := x.flatRecordService.frMapCount()
 	pfrClientCount := x.flatRecordService.pfrMapCount()
 
@@ -252,6 +248,13 @@ func (x *XTCP) flatRecordServiceSend(xtcpRecord *xtcp_flat_record.XtcpFlatRecord
 		}
 		return
 	}
+
+	startTime := time.Now()
+	defer func() {
+		x.pH.WithLabelValues("flatRecordServiceSend", "complete", "count").Observe(time.Since(startTime).Seconds())
+		x.pC.WithLabelValues("flatRecordServiceSend", "complete", "count").Inc()
+	}()
+	x.pC.WithLabelValues("flatRecordServiceSend", "start", "count").Inc()
 
 	xtcpFlatRecordsResponse := x.flatRecordService.FlatRecordsResponsePool.Get()
 	// Reset the pooled response so its internal proto state (state,

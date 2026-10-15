@@ -257,9 +257,13 @@ func (x *XTCP) netlinkReceiver(ctx context.Context, packetCh chan<- dumpPacket, 
 
 	tracker := newDumpTracker()
 
+	recvfromCalls := x.pC.WithLabelValues("Netlinker", "RecvfromCalls", "count")
+	packetsCount := x.pC.WithLabelValues("Netlinker", "packets", "count")
+	nBytes := x.pC.WithLabelValues("Netlinker", "n", "count")
+
 	for packets := 0; ; packets++ {
 
-		x.pC.WithLabelValues("Netlinker", "RecvfromCalls", "count").Inc()
+		recvfromCalls.Inc()
 
 		if x.checkDoneNonBlocking(ctx) {
 			return
@@ -278,8 +282,8 @@ func (x *XTCP) netlinkReceiver(ctx context.Context, packetCh chan<- dumpPacket, 
 
 		x.logRecvDebug(0, packets, n, fd)
 
-		x.pC.WithLabelValues("Netlinker", "packets", "count").Inc()
-		x.pC.WithLabelValues("Netlinker", "n", "count").Add(float64(n))
+		packetsCount.Inc()
+		nBytes.Add(float64(n))
 
 		wf = x.captureToFileIfEnabled(wf, (*packetBuffer)[:n], 0)
 
@@ -296,6 +300,9 @@ func (x *XTCP) netlinkDecoder(ctx context.Context, wg *sync.WaitGroup, packetCh 
 
 	defer wg.Done()
 
+	m := newDecodeMetrics(x.pC, x.pH, x.config.DebugPrometheus)
+	records := x.pC.WithLabelValues(label, "p", "count")
+
 	packets := 0
 	for p := range packetCh {
 
@@ -305,7 +312,7 @@ func (x *XTCP) netlinkDecoder(ctx context.Context, wg *sync.WaitGroup, packetCh 
 			x.decodeHook(fd, b)
 		}
 
-		records, errD := x.Deserialize(
+		n, errD := x.Deserialize(
 			ctx,
 			DeserializeArgs{
 				ns:             nsName,
@@ -317,13 +324,14 @@ func (x *XTCP) netlinkDecoder(ctx context.Context, wg *sync.WaitGroup, packetCh 
 				rtaPool:        &x.rtaPool,
 				pC:             x.pC,
 				pH:             x.pH,
+				m:              m,
 				id:             id,
 			})
 		if errD != nil {
 			x.pC.WithLabelValues(label, "ParseNLPacket", "error").Inc()
 		} else {
-			x.pC.WithLabelValues(label, "p", "count").Add(float64(records))
-			x.logProcessedDebug(id, packets, p.n, records, fd)
+			records.Add(float64(n))
+			x.logProcessedDebug(id, packets, p.n, n, fd)
 		}
 
 		x.putPacketBuffer(p.buf)

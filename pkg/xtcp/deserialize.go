@@ -28,16 +28,21 @@ type DeserializeArgs struct {
 	rtaPool        *xsync.Pool[*xtcpnl.RTAttr]
 	pC             *prometheus.CounterVec
 	pH             *prometheus.SummaryVec
-	id             uint32
+	// m holds the decoder's metric handles; nil looks them up per call.
+	m  *decodeMetrics
+	id uint32
 }
 
 func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, err error) {
 
+	if d.m == nil {
+		d.m = newDecodeMetrics(d.pC, d.pH, x.config.DebugPrometheus)
+	}
 	startTime := time.Now()
 	defer func() {
-		d.pH.WithLabelValues("Deserialize", "complete", "count").Observe(time.Since(startTime).Seconds())
+		d.m.complete.Observe(time.Since(startTime).Seconds())
 	}()
-	d.pC.WithLabelValues("Deserialize", "start", "count").Inc()
+	d.m.start.Inc()
 
 	var startPollTime time.Time
 	if s, ok := x.pollTime.Load(d.fd); ok {
@@ -73,7 +78,7 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 
 	for n = 0; offset < end; n++ {
 
-		d.pC.WithLabelValues("Deserialize", "n", "count").Inc()
+		d.m.record.msg()
 
 		// Safety net before slicing: if the remaining buffer is shorter than
 		// a netlink header, the packet is truncated. DeserializeNlMsgHdr
@@ -88,12 +93,12 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 
 		if x.config.Modulus != 1 {
 			if n%x.config.Modulus != 1 {
-				d.pC.WithLabelValues("Deserialize", "continue", "count").Inc()
+				d.m.cont.Inc()
 				continue
 			}
 		}
 
-		nlPacketStartTime := time.Now()
+		nlPacketStartTime := d.m.record.now()
 		xtcpRecord := x.xtcpRecordPool.Get()
 
 		xtcpRecord.Hostname = x.hostname
@@ -157,7 +162,7 @@ func (x *XTCP) Deserialize(ctx context.Context, d DeserializeArgs) (n uint64, er
 
 		offset = x.processInetDiagRecord(ctx, d, xtcpRecord, nlh, offset, n)
 		d.nlhPool.Put(nlh)
-		d.pH.WithLabelValues("Deserialize", "nlPacketComplete", "count").Observe(time.Since(nlPacketStartTime).Seconds())
+		d.m.record.done(nlPacketStartTime)
 	}
 	return n, nil
 }
@@ -254,7 +259,7 @@ func (x *XTCP) processInetDiagRecord(
 	x.envelopeMu.Lock()
 	if x.currentEnvelope == nil {
 		x.envelopeMu.Unlock()
-		d.pC.WithLabelValues("Deserialize", "envelopePostFlushDrop", "error").Inc()
+		d.m.envelopePostFlushDrop.Inc()
 		xtcpRecord.Reset()
 		x.xtcpRecordPool.Put(xtcpRecord)
 		return offset
@@ -277,7 +282,7 @@ func (x *XTCP) processInetDiagRecord(
 		flushReason = "size_cap"
 	}
 	x.envelopeMu.Unlock()
-	d.pC.WithLabelValues("Deserialize", "envelopeAppend", "count").Inc()
+	d.m.envelopeAppend.Inc()
 
 	if flushReason != "" {
 		x.flushEnvelope(ctx, flushReason)
