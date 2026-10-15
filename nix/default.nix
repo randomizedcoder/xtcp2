@@ -556,11 +556,11 @@ let
   # command: `nix run .#integration-all`. KVM is a single slot, so every
   # flavor runs SEQUENTIALLY.
   #
-  #   default        the ~12 lifecycle flavors — each self-terminates on
+  #   default        the 17 lifecycle flavors — each self-terminates on
   #                  its XTCP2_SELF_TEST_OVERALL sentinel (minutes each) —
   #                  then the verdict runners, which terminate on a verdict
   #                  of their own rather than on that sentinel.
-  #   --soak         additionally run the 6 duration-bounded runners at
+  #   --soak         additionally run the 7 duration-bounded runners at
   #                  --duration each (soak + the stress/long flavors).
   #   --duration D   per-soak duration (default 1h); ignored without --soak.
   #
@@ -628,6 +628,20 @@ let
           label = "coverage-iouring";
           drv = microvms.lifecycleCoverageIoUring.x86_64.fullTest;
         }
+        # io_uring counterparts: the receiver under the no-drop check, and
+        # the datagram and stream destination sends.
+        {
+          label = "s3parquet-iouring";
+          drv = microvms.lifecycleS3ParquetIoUring.x86_64.fullTest;
+        }
+        {
+          label = "udp-sink-iouring";
+          drv = microvms.lifecycleUdpSinkIoUring.x86_64.fullTest;
+        }
+        {
+          label = "unix-sink-iouring";
+          drv = microvms.lifecycleUnixSinkIoUring.x86_64.fullTest;
+        }
       ];
       soakFlavors = [
         {
@@ -649,6 +663,10 @@ let
         {
           label = "s3parquet-stress";
           drv = microvms.s3ParquetStress.x86_64.runner;
+        }
+        {
+          label = "s3parquet-stress-iouring";
+          drv = microvms.s3ParquetStressVariants.iouring.x86_64.runner;
         }
         {
           label = "s3parquet-lowfreq";
@@ -694,15 +712,16 @@ let
                 "" \
                 "  Runs the xtcp2 microVM integration suite SEQUENTIALLY (KVM is single-slot)." \
                 "" \
-                "  default          the ~12 lifecycle flavors; each self-terminates on its" \
+                "  default          the 17 lifecycle flavors; each self-terminates on its" \
                 "                   XTCP2_SELF_TEST_OVERALL sentinel (minutes each; the" \
                 "                   clickhouse-http one can take up to ~20m), then the" \
                 "                   verdict runners: goip-parity, which captures an" \
                 "                   ip/goip/ip triple per command and compares them in" \
                 "                   the guest (~5m)." \
-                "  --soak           additionally run the 6 duration-bounded runners:" \
+                "  --soak           additionally run the 7 duration-bounded runners:" \
                 "                   soak, tcp-stress, clickhouse-pipeline-stress," \
-                "                   s3parquet-long, s3parquet-stress, s3parquet-lowfreq." \
+                "                   s3parquet-long, s3parquet-stress," \
+                "                   s3parquet-stress-iouring, s3parquet-lowfreq." \
                 "  --duration <D>   per-soak duration (default 1h). Ignored without --soak." \
                 "" \
                 "  Prints a PASS/FAIL/TIMEOUT summary; exits non-zero if any flavor failed." \
@@ -941,6 +960,10 @@ in
       test-microvm-lifecycle-x86_64-interface-naming = microvms.lifecycleInterfaceNaming.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-coverage = microvms.lifecycleCoverage.x86_64.fullTest;
       test-microvm-lifecycle-x86_64-coverage-iouring = microvms.lifecycleCoverageIoUring.x86_64.fullTest;
+      test-microvm-lifecycle-x86_64-s3parquet-iouring =
+        microvms.lifecycleS3ParquetIoUring.x86_64.fullTest;
+      test-microvm-lifecycle-x86_64-udp-sink-iouring = microvms.lifecycleUdpSinkIoUring.x86_64.fullTest;
+      test-microvm-lifecycle-x86_64-unix-sink-iouring = microvms.lifecycleUnixSinkIoUring.x86_64.fullTest;
 
       # Pedantic code-quality report — aggregates every tool's findings.
       quality-report = qualityReport;
@@ -1026,6 +1049,18 @@ in
     microvm-x86_64-lifecycle-s3parquet = {
       type = "app";
       program = "${microvms.lifecycleS3Parquet.x86_64.fullTest}/bin/xtcp2-lifecycle-full-test-x86_64-s3parquet";
+    };
+    microvm-x86_64-lifecycle-s3parquet-iouring = {
+      type = "app";
+      program = "${microvms.lifecycleS3ParquetIoUring.x86_64.fullTest}/bin/xtcp2-lifecycle-full-test-x86_64-s3parquet-iouring";
+    };
+    microvm-x86_64-lifecycle-udp-sink-iouring = {
+      type = "app";
+      program = "${microvms.lifecycleUdpSinkIoUring.x86_64.fullTest}/bin/xtcp2-lifecycle-full-test-x86_64-udp-sink-iouring";
+    };
+    microvm-x86_64-lifecycle-unix-sink-iouring = {
+      type = "app";
+      program = "${microvms.lifecycleUnixSinkIoUring.x86_64.fullTest}/bin/xtcp2-lifecycle-full-test-x86_64-unix-sink-iouring";
     };
     microvm-x86_64-lifecycle-clickhouse-http = {
       type = "app";
@@ -1290,9 +1325,10 @@ in
   ) microvms.rdmaCapture.x86_64.kernels
   # s3parquet-stress with an investigation variant (see
   # docs/investigations/envelope-post-flush-drop.md): -nl1/-nl4/-nl8 set
-  # NETLINKERS, -iouring adds -ioUring, -cpuload adds stress-ng contention, -cpuload-nl1 both. Same
-  # runner and flags as microvm-x86_64-s3parquet-stress; the summary reports
-  # the post-flush drop rate. Not in `nix flake check`.
+  # NETLINKERS, -iouring adds -ioUring, -cpuload adds stress-ng contention,
+  # -cpuload-nl1 both. Same runner and flags as
+  # microvm-x86_64-s3parquet-stress; the runner FAILs on any post-flush drop.
+  # Not in `nix flake check`; -iouring is in `integration-all --soak`.
   // lib.mapAttrs' (
     name: byArch:
     lib.nameValuePair "microvm-x86_64-s3parquet-stress-${name}" {

@@ -2847,6 +2847,7 @@ rec {
     "NS_TRAFFIC"
     "NS_DOCKER"
     "NS_ANONYMOUS"
+    "NODROP"
     "CTL_HOT"
     "CTL_TRIGGER"
     "CTL_RESTART"

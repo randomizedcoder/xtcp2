@@ -44,8 +44,8 @@ xtcp2's automated testing spans four layers; this document covers layers 2-3.
 
    | Group | Flavors | What it exercises |
    |---|---|---|
-   | **Lifecycle / self-test** | `-lifecycle` (+ `-coverage`, `-coverage-iouring`), `-lifecycle-s3parquet` | Fast (~1 min) assertion-scraped boot; `-lifecycle` runs in `nix flake check` |
-   | **Destination lifecycle** | `-lifecycle-valkey`, `-lifecycle-nats`, `-lifecycle-nsq`, `-lifecycle-clickhouse-http`, `-lifecycle-{tcp,udp,unix,unixgram}-sink` | End-to-end destination round-trips: native in-VM broker / raw-socket receiver / direct HTTP→ClickHouse insert, each asserting the records arrived downstream |
+   | **Lifecycle / self-test** | `-lifecycle` (+ `-coverage`, `-coverage-iouring`), `-lifecycle-s3parquet` (+ `-iouring`) | Fast (~1 min) assertion-scraped boot; `-lifecycle` runs in `nix flake check` |
+   | **Destination lifecycle** | `-lifecycle-valkey`, `-lifecycle-nats`, `-lifecycle-nsq`, `-lifecycle-clickhouse-http`, `-lifecycle-{tcp,udp,unix,unixgram}-sink`, `-lifecycle-{udp,unix}-sink-iouring` | End-to-end destination round-trips: native in-VM broker / raw-socket receiver / direct HTTP→ClickHouse insert, each asserting the records arrived downstream |
    | **Soak & long-running** | `-soak`, `-s3parquet-runner` (s3parquet-long) | Hours-long stability (churn / sustained upload). Methodology + measured results: [stability-testing.md](stability-testing.md) |
    | **Stress (under socket load)** | `-tcp-stress`, `-clickhouse-pipeline-stress`, `-s3parquet-stress`, `-s3parquet-lowfreq` | 20 containers × 250 sockets; the `-stress` soaks run 24h |
    | **S3 / MinIO (parquet)** | `-s3parquet-pipeline`, `-s3parquet-runner`, `-s3parquet-stress`, `-s3parquet-lowfreq`, `-clickhouse-pipeline-parquet` | xtcp2 → Parquet → in-VM MinIO, read back with duckdb / ClickHouse `s3()` |
@@ -68,6 +68,13 @@ nix run .#microvm-x86_64-lifecycle-uds-security
 # Same self-test but with coverage instrumentation; merged into quality-report
 nix run .#microvm-x86_64-lifecycle-coverage
 nix run .#microvm-x86_64-lifecycle-coverage-iouring
+
+# io_uring: the receiver under the no-drop check, and the io_uring datagram and
+# stream destination sends
+nix run .#microvm-x86_64-lifecycle-s3parquet-iouring
+nix run .#microvm-x86_64-lifecycle-udp-sink-iouring
+nix run .#microvm-x86_64-lifecycle-unix-sink-iouring
+nix run .#microvm-x86_64-s3parquet-stress-iouring -- --duration 20m
 
 # Destination round-trip lifecycles — native in-VM broker / raw-socket receiver /
 # direct HTTP→ClickHouse, each asserting the records arrived downstream
@@ -186,6 +193,8 @@ Two exposure shapes:
 | `microvm-x86_64-lifecycle-coverage` | `coverage` | runner | 1024 | xtcp2 built `-cover`; scrapes the coverage dump into `$XTCP2_COVERDIR`. |
 | `microvm-x86_64-lifecycle-coverage-iouring` | `coverage-iouring` | runner | 1024 | Coverage + `-ioUring` so the `netlinkerIoUring` path runs. |
 | `microvm-x86_64-lifecycle-s3parquet` | `s3parquet` | runner | 6144 | s3parquet lifecycle; adds the `S3PARQUET_FILES`/`S3PARQUET_ROWS` checks. |
+| `microvm-x86_64-lifecycle-s3parquet-iouring` | `s3parquet` | runner | 6144 | The s3parquet lifecycle with `-ioUring`, so `NODROP` checks the io_uring receiver. |
+| `microvm-x86_64-lifecycle-udp-sink-iouring`, `-unix-sink-iouring` | `udp-sink`, `unix-sink` | runner | 1024 | The raw-socket sinks with `-ioUring`: `RAW_SOCKET` checks records still arrive when the io_uring destinations send, including from the poller's poll-end flush, which owns no ring. |
 | `microvm-x86_64-lifecycle-clickhouse-http` | `clickhouse-http` | runner | 6144 | xtcp2 inserts **directly into ClickHouse over HTTP** (`FORMAT ProtobufList`, no Kafka); adds `CLICKHOUSE_HTTP` (rows grew **and** `destHTTP` posts). Runs under a raised `stallSec` (900 s) because the docker pull + ClickHouse init is one legitimately silent stretch. |
 | `microvm-x86_64-lifecycle-valkey` | `valkey` | runner | 1024 | Native in-VM Valkey + a pre-subscribed consumer; the daemon PUBLISHes each poll's records and `VALKEY_CONSUME` counts them back (pub/sub). |
 | `microvm-x86_64-lifecycle-nats` | `nats` | runner | 1024 | Native in-VM NATS server + subscriber; `NATS_CONSUME` counts consumed records. |
@@ -203,6 +212,7 @@ Two exposure shapes:
 | `microvm-x86_64-clickhouse-pipeline-stress` | `clickhouse-pipeline-stress` | runner | 8192 | Full pipeline **under TCP-stress load** (20 × 250) with a 1h records-table TTL — ProtobufList ingest at rate, disk/RSS guards; 24h soak. |
 | `microvm-x86_64-s3parquet-runner` | `s3parquet-long` | runner | 6144 | Parquet→S3 soak (64 MiB flush, 10s poll, Pyroscope); scrapes `XTCP2_S3PARQUET_HOURLY`, asserts files advanced + no leak. `--duration 12h`. |
 | `microvm-x86_64-s3parquet-stress` | `s3parquet-stress` | runner | 6144 | Parquet→S3 **under TCP-stress load** + ~1h object retention — the S3 analog of `clickhouse-pipeline-stress`; 24h soak. |
+| `microvm-x86_64-s3parquet-stress-iouring` | `s3parquet-stress` | runner | 6144 | The same under `-ioUring`; FAILs on any post-flush drop. In `integration-all --soak`. The other investigation variants (`-nl1`, `-nl4`, `-nl8`, `-cpuload`, `-cpuload-nl1`) are run directly ([investigation](investigations/envelope-post-flush-drop.md#which-vm)). |
 | `microvm-x86_64-s3parquet-lowfreq` | `s3parquet-lowfreq` | runner | 6144 | Parquet→S3 with **1h poll + 2 sockets/container** — the byte cap is never hit, so files land purely via the **staleness timer**. ~2h. |
 | `microvm-x86_64-capcheck-fail` | `capcheck-fail` | raw boot | 6144 | An s3parquet-long VM with `CAP_SYS_ADMIN` **dropped** — xtcp2's startup capability check must refuse to start (inspect the serial console). Sub-second non-VM analog: the `capability-check-*` flake checks. |
 
@@ -226,14 +236,14 @@ This matters because the wall-clock cost of a run is dominated by host load: a 2
 The in-guest side has a matching knob. Every retry budget in `nix/microvms/self-test.nix` is multiplied by `waitScale` (default 4), overridable per boot with the `XTCP2_SELF_TEST_WAIT_SCALE` environment variable. These are poll-until-true loops, so a larger scale does not slow down a check that passes — it only gives a slow guest more room before declaring failure. Keep `stallSec` above (longest single check) × `waitScale`, or the watchdog fires mid-check and reports TIMEOUT for what is really a FAIL.
 
 ```sh
-nix run .#integration-all                          # ~12 lifecycle flavors (default)
-nix run .#integration-all -- --soak                # + the 6 duration runners @ 1h each
+nix run .#integration-all                          # 17 lifecycle flavors (default)
+nix run .#integration-all -- --soak                # + the 7 duration runners @ 1h each
 nix run .#integration-all -- --soak --duration 30m # shorter soaks
 nix run .#integration-all -- --help
 ```
 
 - **default** runs the lifecycle flavors (each self-terminates on its `XTCP2_SELF_TEST_OVERALL` sentinel; minutes each, though `clickhouse-http` can take up to ~20 min).
-- **`--soak`** additionally runs `soak`, `tcp-stress`, `clickhouse-pipeline-stress`, `s3parquet-long`, `s3parquet-stress`, and `s3parquet-lowfreq` at `--duration` each (default `1h`, so ~6 h wall-clock).
+- **`--soak`** additionally runs `soak`, `tcp-stress`, `clickhouse-pipeline-stress`, `s3parquet-long`, `s3parquet-stress`, `s3parquet-stress-iouring`, and `s3parquet-lowfreq` at `--duration` each (default `1h`, so ~7 h wall-clock).
 - The finite, non-soak runners (`clickhouse-pipeline-rate-runner`, `discovery-bench`) are **not** included — run them directly.
 
 `nix build .#integration-all` builds every VM the target drives (each is referenced by store path), so it doubles as a "does the whole harness still build" check.
@@ -480,7 +490,7 @@ The `#` column mirrors the check labels in `self-test.nix`, which are lettered (
 | 13 | `S3PARQUET_FILES` | ≥1 `.parquet` object lands in MinIO within 90s | s3parquet |
 | 14 | `S3PARQUET_ROWS` | duckdb decodes the parquet file and returns ≥1 row | s3parquet |
 | 14b | `S3PARQUET_EVENTDATE` | the derived `event_date` column is present, every value is `YYYY-MM-DD`, and ≥1 distinct date | s3parquet |
-| 14c | `S3PARQUET_NODROP` | `Deserialize/envelopePostFlushDrop` is 0 **and** `envelopeAppend` ≥1: no record was parsed after its poll's flush ([investigation](investigations/envelope-post-flush-drop.md)) | s3parquet |
+| 14c | `NODROP` | `Deserialize/envelopePostFlushDrop` is 0 **and** `envelopeAppend` ≥1: no record was parsed after its poll's flush ([investigation](investigations/envelope-post-flush-drop.md)). Runs before checks 17-19, since `CTL_RESTART` resets the counters | all |
 | 15 | `CLICKHOUSE_PARQUET` | ClickHouse `s3()` table function reads the MinIO parquet, `count() > 0` | clickhouse-pipeline-parquet |
 | 16 | `NS_ANONYMOUS` | **the Method B audit-gap proof**: an anonymous `unshare -n` netns (no `/run/netns` bind mount) held by a live process is discovered purely via `/proc` — the exact case dir-scan/inotify was blind to | all |
 | 17 | `CTL_HOT` | `xtcp2ctl set-poll-frequency` is reflected by a later `get` + bumps the Poller `ticker.Reset` counter | all |

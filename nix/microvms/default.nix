@@ -268,8 +268,13 @@ let
       sink = "clickhouse-pipeline-parquet";
     };
 
-  mkOneS3Parquet =
-    arch:
+  # Runs xtcp2 with -ioUring. The flag has no environment override, and
+  # services.xtcp2.extraArgs is a list option, so this module's flag is
+  # appended to whatever the flavor passes.
+  ioUringModules = [ { services.xtcp2.extraArgs = [ "-ioUring" ]; } ];
+
+  mkOneS3ParquetWith =
+    extraModules: arch:
     import ./mkVm.nix {
       inherit
         pkgs
@@ -280,9 +285,11 @@ let
         xtcp2Package
         xtcp2AllPackage
         ipfeedCollectorPackage
+        extraModules
         ;
       sink = "s3parquet";
     };
+  mkOneS3Parquet = mkOneS3ParquetWith [ ];
 
   # valkey lifecycle flavor: native in-VM Valkey server + pre-subscribed
   # consumer; xtcp2 PUBLISHes to the pub/sub channel and the self-test proves
@@ -307,8 +314,8 @@ let
   # tcp/udp/unix/unixgram dest to an in-VM ncat receiver; the self-test
   # validates the received records + the per-scheme send counter (RAW_SOCKET).
   # Native, no docker/broker.
-  mkOneSocketSink =
-    sinkName: arch:
+  mkOneSocketSinkWith =
+    extraModules: sinkName: arch:
     import ./mkVm.nix {
       inherit
         pkgs
@@ -319,9 +326,11 @@ let
         xtcp2Package
         xtcp2AllPackage
         ipfeedCollectorPackage
+        extraModules
         ;
       sink = sinkName;
     };
+  mkOneSocketSink = mkOneSocketSinkWith [ ];
   mkOneTcpSink = mkOneSocketSink "tcp-sink";
   mkOneUdpSink = mkOneSocketSink "udp-sink";
   mkOneUnixSink = mkOneSocketSink "unix-sink";
@@ -412,9 +421,7 @@ let
     nl1.xtcp2Environment.NETLINKERS = "1";
     nl4.xtcp2Environment.NETLINKERS = "4";
     nl8.xtcp2Environment.NETLINKERS = "8";
-    # -ioUring has no environment override; services.xtcp2.extraArgs is a
-    # list option, so this module's flag is appended to the flavor's.
-    iouring.extraModules = [ { services.xtcp2.extraArgs = [ "-ioUring" ]; } ];
+    iouring.extraModules = ioUringModules;
     cpuload.cpuStress = {
       workers = 2;
       loadPct = 90;
@@ -663,6 +670,16 @@ let
   vmsCapCheckFail = lib.genAttrs constants.supportedArchs mkOneCapCheckFail;
 
   vmsS3Parquet = lib.genAttrs constants.supportedArchs mkOneS3Parquet;
+  # io_uring counterparts of three lifecycle flavors: s3parquet (the receiver
+  # under the no-drop check) and the udp/unix sinks (the io_uring datagram and
+  # stream destination sends).
+  vmsS3ParquetIoUring = lib.genAttrs constants.supportedArchs (mkOneS3ParquetWith ioUringModules);
+  vmsUdpSinkIoUring = lib.genAttrs constants.supportedArchs (
+    mkOneSocketSinkWith ioUringModules "udp-sink"
+  );
+  vmsUnixSinkIoUring = lib.genAttrs constants.supportedArchs (
+    mkOneSocketSinkWith ioUringModules "unix-sink"
+  );
 
   vmsValkey = lib.genAttrs constants.supportedArchs mkOneValkey;
 
@@ -772,6 +789,8 @@ let
   lifecycleUdpSink = mkLifecycleSocketSink vmsUdpSink "-udp-sink";
   lifecycleUnixSink = mkLifecycleSocketSink vmsUnixSink "-unix-sink";
   lifecycleUnixgramSink = mkLifecycleSocketSink vmsUnixgramSink "-unixgram-sink";
+  lifecycleUdpSinkIoUring = mkLifecycleSocketSink vmsUdpSinkIoUring "-udp-sink-iouring";
+  lifecycleUnixSinkIoUring = mkLifecycleSocketSink vmsUnixSinkIoUring "-unix-sink-iouring";
 
   lifecycleNats = lib.genAttrs constants.supportedArchs (arch: {
     fullTest = microvmLib.mkLifecycleFullTest {
@@ -791,23 +810,26 @@ let
     };
   });
 
-  lifecycleS3Parquet = lib.genAttrs constants.supportedArchs (arch: {
-    fullTest = microvmLib.mkLifecycleFullTest {
-      inherit arch;
-      vm = vmsS3Parquet.${arch};
-      suffix = "-s3parquet";
-      # The s3parquet-specific sentinels alongside the baseline set. The
-      # worker accumulates rows for several poll cycles before triggering the
-      # 1 MiB-threshold finalize, but it keeps emitting sentinels while it
-      # does, so the default stall watchdog covers it.
-      extraSentinels = [
-        "S3PARQUET_FILES"
-        "S3PARQUET_ROWS"
-        "S3PARQUET_EVENTDATE"
-        "S3PARQUET_NODROP"
-      ];
-    };
-  });
+  mkLifecycleS3Parquet =
+    vmsAttr: suffixName:
+    lib.genAttrs constants.supportedArchs (arch: {
+      fullTest = microvmLib.mkLifecycleFullTest {
+        inherit arch;
+        vm = vmsAttr.${arch};
+        suffix = suffixName;
+        # The s3parquet-specific sentinels alongside the baseline set. The
+        # worker accumulates rows for several poll cycles before triggering the
+        # 1 MiB-threshold finalize, but it keeps emitting sentinels while it
+        # does, so the default stall watchdog covers it.
+        extraSentinels = [
+          "S3PARQUET_FILES"
+          "S3PARQUET_ROWS"
+          "S3PARQUET_EVENTDATE"
+        ];
+      };
+    });
+  lifecycleS3Parquet = mkLifecycleS3Parquet vmsS3Parquet "-s3parquet";
+  lifecycleS3ParquetIoUring = mkLifecycleS3Parquet vmsS3ParquetIoUring "-s3parquet-iouring";
 
   # Direct HTTP→ClickHouse lifecycle test: boots the clickhouse-http VM
   # (redpanda + clickhouse + xtcp2 inserting over HTTP) and greps the
@@ -1095,6 +1117,9 @@ in
     vmsClickPipeStress
     vmsClickPipeParquet
     vmsS3Parquet
+    vmsS3ParquetIoUring
+    vmsUdpSinkIoUring
+    vmsUnixSinkIoUring
     vmsValkey
     vmsTcpSink
     vmsUdpSink
@@ -1133,6 +1158,9 @@ in
     lifecycleClickHttp
     lifecycleClickPipe
     lifecycleS3Parquet
+    lifecycleS3ParquetIoUring
+    lifecycleUdpSinkIoUring
+    lifecycleUnixSinkIoUring
     lifecycleValkey
     lifecycleTcpSink
     lifecycleUdpSink
