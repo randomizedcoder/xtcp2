@@ -18,6 +18,14 @@ every phase. The statements that assert `ip address` is read-only stay true
 until the code that makes each false lands
 ([Statements this design flips](#statements-this-design-flips)).
 
+Task-level progress is tracked separately.
+[addr-write-path-plan.md](addr-write-path-plan.md) breaks these phases into
+gated tasks (`A0-T01` …), and
+[addr-write-path-status.md](addr-write-path-status.md) records each task's
+state, evidence and the Phase 0 measurements. `coverage-status.md` gains its
+"Write path: address writes as a dry run" section when the first write code
+lands, as it did for routes and links.
+
 | Phase | Scope | State |
 |---|---|---|
 | 0 | `addr-topology.exp`, the readback states and the write corpus captured | proposed |

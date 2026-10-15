@@ -598,6 +598,7 @@ for it.
   now has one: [link-write-path.md](link-write-path.md), which also renamed this
   design's `ErrNotARouteWrite` to `ErrNotAnAdmittedWrite` when Phase 1 landed,
   because the gate's admitted set grew to include `RTM_NEWLINK`/`RTM_DELLINK`.
+  `addr` has one too: [addr-write-path.md](addr-write-path.md).
 - **The keywords goip refuses** in phase 4: `nexthop` (multipath, above),
   `nhid`, `encap`, `vrf` (which costs a lookup of its own), `tos`/`dsfield`,
   `expires`, `realms`, `as`, `pref`, `ttl-propagate`, MPLS and `via link`
