@@ -484,6 +484,9 @@ rec {
       # 1h; the low-frequency flavor overrides to 2h so the ~hourly staleness
       # timer flush is reliably captured even with no explicit --duration.
       defaultDurationSec ? 3600,
+      # Banner, summary and transcript name; the investigation variants pass
+      # s3parquet-stress-<variant> so their transcripts are told apart.
+      label ? "s3parquet-stress",
     }:
     let
       cfg = constants.architectures.${arch};
@@ -539,10 +542,10 @@ rec {
 
         SERIAL_PORT=${toString cfg.serialPort}
         VIRTCON_PORT=${toString cfg.virtioPort}
-        LOG=$(mktemp -t xtcp2-s3parquet-stress-XXXX.log)
+        LOG=$(mktemp -t xtcp2-${label}-XXXX.log)
 
         echo "================================================"
-        echo " xtcp2 s3parquet-stress — arch=${arch}"
+        echo " xtcp2 ${label} — arch=${arch}"
         echo " duration:   ''${DURATION_SEC}s"
         echo " transcript: $LOG"
         echo "================================================"
@@ -605,14 +608,15 @@ rec {
             bytes=$(printf '%s' "$line" | grep -oE 'bytes=[0-9]+' | cut -d= -f2 || true)
             rows=$(printf '%s' "$line" | grep -oE 'rows=[0-9]+' | cut -d= -f2 || true)
             disk=$(printf '%s' "$line" | grep -oE 'disk=[0-9]+' | cut -d= -f2 || true)
+            drops=$(printf '%s' "$line" | grep -oE 'drops=[0-9]+' | cut -d= -f2 || true)
             pnc=$(grep -cE 'panic:|fatal error:' "$LOG" 2>/dev/null || true)
-            echo "  [t=$(printf %6d "$elapsed")s/$DURATION_SEC] parquet files=''${files:-?} rows=''${rows:-?} bytes=''${bytes:-?} disk=''${disk:-?}% panics=''${pnc:-0}"
+            echo "  [t=$(printf %6d "$elapsed")s/$DURATION_SEC] parquet files=''${files:-?} rows=''${rows:-?} bytes=''${bytes:-?} disk=''${disk:-?}% drops=''${drops:-?} panics=''${pnc:-0}"
           fi
         done
 
         echo ""
         echo "================================================"
-        echo " s3parquet-stress summary"
+        echo " ${label} summary"
         echo "================================================"
 
         spawned=$(grep -cE 'stress-[0-9]+: started' "$LOG" 2>/dev/null || true)
@@ -628,6 +632,15 @@ rec {
         files_last=$(printf '%s' "$last_line" | grep -oE 'files=[0-9]+' | cut -d= -f2 || true)
         rows_last=$(printf '%s' "$last_line" | grep -oE 'rows=[0-9]+' | cut -d= -f2 || true)
         bytes_last=$(printf '%s' "$last_line" | grep -oE 'bytes=[0-9]+' | cut -d= -f2 || true)
+        # Records dropped after the poll-end flush vs appended, from the same
+        # sample (docs/investigations/envelope-post-flush-drop.md). Counters
+        # restart with the daemon (the self-test's reconfigure re-execs it),
+        # so this is the current process's share. Reported, not asserted.
+        drops_last=$(printf '%s' "$last_line" | grep -oE 'drops=[0-9]+' | cut -d= -f2 || true)
+        appends_last=$(printf '%s' "$last_line" | grep -oE 'appends=[0-9]+' | cut -d= -f2 || true)
+        drop_pct=$(awk -v d="''${drops_last:-0}" -v a="''${appends_last:-0}" \
+          'BEGIN { if (a + d > 0) printf "%.2f", 100 * d / (a + d); else print "n/a" }')
+        cpu_stress=$(grep -am1 'XTCP2_CPU_STRESS_START' "$LOG" 2>/dev/null | grep -oE 'workers=[0-9]+ load=[0-9]+' || true)
         disk_last=$(printf '%s' "$last_line" | grep -oE 'disk=[0-9]+' | cut -d= -f2 || true)
         # Peak MinIO disk across the whole run (not just the last sample) — a
         # saturation event can recover after the retention sweep yet still have
@@ -644,6 +657,8 @@ rec {
         echo "  stress containers FAILED:      $cfailed"
         echo "  parquet files first -> last:   $files_first -> $files_last"
         echo "  rows uploaded (last sample):   $rows_last"
+        echo "  post-flush drops / appends:    ''${drops_last:-0} / ''${appends_last:-0} (''${drop_pct}% dropped)"
+        echo "  cpu stress:                    ''${cpu_stress:-off}"
         echo "  bytes uploaded (last sample):  $bytes_last"
         echo "  minio disk % (last / peak):    $disk_last / $disk_peak"
         echo "  xtcp2 restarts:                $restarts"

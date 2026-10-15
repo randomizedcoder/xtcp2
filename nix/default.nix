@@ -953,6 +953,11 @@ in
       # measurement has to outlive a red check.
       lint-baseline-measure = lintBaselineMeasure;
     }
+    # The s3parquet-stress investigation variants' VMs:
+    # microvm-x86_64-s3parquet-stress-nl1 and so on.
+    // lib.mapAttrs' (
+      name: vmsByArch: lib.nameValuePair "microvm-x86_64-s3parquet-stress-${name}" vmsByArch.x86_64
+    ) microvms.vmsS3ParquetStressVariants
     # Per-flavor + per-package test targets. The two imports above each
     # return an attrset whose keys already start with `test-` so they
     # merge straight into the flake's packages namespace.
@@ -1285,6 +1290,18 @@ in
       program = "${runner}/bin/xtcp2-rdma-capture-x86_64";
     }
   ) microvms.rdmaCapture.x86_64.kernels
+  # s3parquet-stress with an investigation variant (see
+  # docs/investigations/envelope-post-flush-drop.md): -nl1/-nl2/-nl8 set
+  # NETLINKERS, -cpuload adds stress-ng contention, -cpuload-nl1 both. Same
+  # runner and flags as microvm-x86_64-s3parquet-stress; the summary reports
+  # the post-flush drop rate. Not in `nix flake check`.
+  // lib.mapAttrs' (
+    name: byArch:
+    lib.nameValuePair "microvm-x86_64-s3parquet-stress-${name}" {
+      type = "app";
+      program = "${byArch.x86_64.runner}/bin/xtcp2-s3parquet-stress-runner-x86_64";
+    }
+  ) microvms.s3ParquetStressVariants
   // {
 
     # Tier 2 bond / LACP readback capture (link-write-path.md phase 8). Boots
