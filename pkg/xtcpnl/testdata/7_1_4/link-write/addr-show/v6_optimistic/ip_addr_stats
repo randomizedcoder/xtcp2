@@ -1,0 +1,34 @@
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host proto kernel_lo 
+       valid_lft forever preferred_lft forever
+    RX:  bytes packets errors dropped  missed   mcast           
+             0       0      0       0       0       0 
+    TX:  bytes packets errors dropped carrier collsns           
+             0       0      0       0       0       0 
+2: nlmon0: <NOARP,UP,LOWER_UP> mtu 3776 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/netlink 
+    RX:  bytes packets errors dropped  missed   mcast           
+         26512      64      0       0       0       0 
+    TX:  bytes packets errors dropped carrier collsns           
+             0       0      0       0       0       0 
+3: v1@v0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000
+    link/ether 02:00:00:00:b0:00 brd ff:ff:ff:ff:ff:ff
+    inet6 fe80::ff:fe00:b000/64 scope link proto kernel_ll 
+       valid_lft forever preferred_lft forever
+    RX:  bytes packets errors dropped  missed   mcast           
+          1428      16      0       0       0       0 
+    TX:  bytes packets errors dropped carrier collsns           
+           586       7      0       0       0       0 
+4: v0@v1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000
+    link/ether 02:00:00:00:a0:00 brd ff:ff:ff:ff:ff:ff
+    inet6 2001:db8::5/64 scope global optimistic tentative 
+       valid_lft forever preferred_lft forever
+    inet6 fe80::ff:fe00:a000/64 scope link optimistic tentative proto kernel_ll 
+       valid_lft forever preferred_lft forever
+    RX:  bytes packets errors dropped  missed   mcast           
+           586       7      0       0       0       0 
+    TX:  bytes packets errors dropped carrier collsns           
+          1428      16      0       0       0       0 

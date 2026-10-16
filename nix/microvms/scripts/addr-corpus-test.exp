@@ -1,0 +1,587 @@
+#!/usr/bin/env expect
+###############################################################################
+# addr-corpus-test.exp - table-driven test for addr-corpus.exp, with no
+# microVM and no console
+#
+# Usage: addr-corpus-test.exp
+#
+# Run by nix/checks/vm-lib-exp.nix after addr-topology-test.exp. Everything
+# here is Tcl: the corpus is data, and the two procs that act (pre_step and
+# fatal_refusals) are driven through a recorder that replaces
+# vmlib::run_out outright, so no shell is needed.
+#
+# The design's slug lists are written out again below as literals rather
+# than read from addr-corpus.exp. That is the point: a row dropped from the
+# corpus file has to disagree with something that was not edited with it.
+#
+# What this does NOT cover: whether the guest runs each command from its row
+# directory (xtcp2-nlcap write), or what the kernel answers. The capture run
+# checks the first (a save row without its file fails the driver), and
+# TestAddrCaptureCorpusComplete in pkg/xtcpnl pins both in the committed
+# fixtures.
+#
+# Every row has a name, a description that starts with its class
+# (positive/negative/boundary/corner) and an expected value.
+###############################################################################
+
+set here [file dirname [info script]]
+source $here/vm-lib.exp
+source $here/netlink-topology.exp
+source $here/addr-topology.exp
+source $here/addr-corpus.exp
+
+vmlib::init
+
+set pass 0
+set fail 0
+
+###############################################################################
+# The recorder. ::refuse is a regexp over the command line; a match answers
+# rc 1, as the guest does for a step its kernel will not take.
+###############################################################################
+set ::calls {}
+set ::refuse ""
+proc vmlib::run_out {cmd {cmd_timeout ""} {quiet 0}} {
+    lappend ::calls $cmd
+    if {$::refuse ne "" && [regexp -- $::refuse $cmd]} {
+        return [list 1 "REFUSED"]
+    }
+    return [list 0 "ok"]
+}
+
+###############################################################################
+# Helpers.
+###############################################################################
+
+# check <name> <description> <script> <expected> - the script's result, or
+# ERROR if it raised one, must equal expected.
+proc check {name description script expected} {
+    global pass fail
+    if {[catch {uplevel #0 $script} got]} {
+        set got ERROR
+    }
+    if {$got eq $expected} {
+        puts "PASS: $name - $description"
+        incr pass
+    } else {
+        puts "FAIL: $name - $description"
+        puts "      got \[$got\] want \[$expected\]"
+        incr fail
+    }
+}
+
+proc slugs {rows} {
+    set out {}
+    foreach r $rows {
+        lappend out [lindex $r 0]
+    }
+    return $out
+}
+
+proc row_of {rows slug} {
+    return [lsearch -exact -index 0 -inline $rows $slug]
+}
+
+proc field {rows slug i} {
+    return [lindex [row_of $rows $slug] $i]
+}
+
+# same_set <a> <b> - 1 when the two lists hold the same elements.
+proc same_set {a b} {
+    return [expr {[lsort $a] eq [lsort $b]}]
+}
+
+set W $addrcorpus::write_rows
+set F0 [addrcorpus::flush_rows 0]
+set F1 [addrcorpus::flush_rows 1]
+set S $addrcorpus::save_rows
+set ALL [concat $W $F0 $S]
+
+###############################################################################
+# 5a. corpus slug sets
+###############################################################################
+set design_write {
+    add_v4 add_v4_peer add_v4_brd_plus add_v4_brd_minus add_v4_brd_31
+    add_v4_label add_v4_metric add_v4_pref_is_metric add_v4_proto_name
+    add_v4_lifetimes add_v4_secondary add_v4_loopback_scope add_v4_autojoin
+    add_v6_nodad add_v6_flags_wide add_v6_nodad_first add_v6_mngtmpaddr_48
+    add_v6_nodad_optimistic add_existing change_missing_creates
+    replace_existing del_v4 del_v4_wildcard del_missing nodev no_dev_keyword
+    brd_plus_v6 valid_zero autojoin_unicast scope_conflict
+    v6_mcast_noautojoin label_16
+}
+set design_flush {
+    flush_dev flush_primary flush_primary_flipped flush_secondary
+    flush_scope_link flush_v6 flush_nothing flush_stats flush_many
+    flush_noargs flush_packet
+}
+set design_save {
+    save_dev save_all save_empty showdump showdump_bad_magic restore_fresh
+    restore_existing
+}
+
+check write_slugs_match_design \
+    "positive: write_rows holds exactly the design's 32 write slugs" \
+    {list [llength $W] [same_set [slugs $W] $design_write]} {32 1}
+check flush_slugs_match_design \
+    "positive: flush_rows holds exactly the design's 11 flush slugs" \
+    {list [llength $F0] [same_set [slugs $F0] $design_flush]} {11 1}
+check save_slugs_match_design \
+    "positive: save_rows holds exactly the design's 7 save slugs" \
+    {list [llength $S] [same_set [slugs $S] $design_save]} {7 1}
+check no_duplicate_slugs \
+    "negative: no slug repeats within or across the three lists" \
+    {expr {[llength [lsort -unique [slugs $ALL]]] == [llength $ALL]}} 1
+
+proc quoted_commands {rows} {
+    set out {}
+    foreach r $rows {
+        if {[string first ' [lindex $r 3]] >= 0} {
+            lappend out [lindex $r 0]
+        }
+    }
+    return $out
+}
+check no_single_quote_in_command \
+    "negative: no command holds a ' that would break write_row's quoting" \
+    {quoted_commands $ALL} {}
+
+proc bad_arity {rows} {
+    set out {}
+    foreach r $rows {
+        if {[llength $r] != 4} {
+            lappend out [lindex $r 0]
+        }
+    }
+    return $out
+}
+check row_arity "boundary: every one of the 50 rows is {slug floor pre command}" \
+    {list [llength $ALL] [bad_arity $ALL]} {50 {}}
+
+proc bad_slugs {rows} {
+    set out {}
+    foreach s [slugs $rows] {
+        if {![regexp {^[a-z0-9_]+$} $s]} {
+            lappend out $s
+        }
+    }
+    return $out
+}
+check slug_charset "corner: every slug is a safe directory name" \
+    {bad_slugs $ALL} {}
+
+###############################################################################
+# 5b. floors
+###############################################################################
+proc floors_not {rows slugs want} {
+    set out {}
+    foreach s $slugs {
+        if {[field $rows $s 1] != $want} {
+            lappend out $s
+        }
+    }
+    return $out
+}
+
+# Every write row that names d0 and reaches the kernel: the lookup and the
+# write. The three exceptions stop at or before the lookup.
+proc dev_d0_rows {} {
+    set out {}
+    foreach r $::W {
+        if {[string match "*dev d0*" [lindex $r 3]] &&
+            [lindex $r 0] ni {brd_plus_v6 valid_zero autojoin_unicast}} {
+            lappend out [lindex $r 0]
+        }
+    }
+    return $out
+}
+check dev_rows_floor_4 \
+    "positive: each write that reaches the kernel via dev d0 is lookup + write, floor 4" \
+    {list [llength [dev_d0_rows]] [floors_not $W [dev_d0_rows] 4]} {27 {}}
+check lookup_only_floor_2 \
+    "positive: nodev, valid_zero and autojoin_unicast are the lookup alone, floor 2" \
+    {floors_not $W {nodev valid_zero autojoin_unicast} 2} {}
+check flush_floor_7 \
+    "positive: a flushing row is lookup, dump, DEL batch, dump, floor 7" \
+    {floors_not $F0 {flush_dev flush_secondary flush_scope_link flush_v6 flush_stats
+        flush_many} 7} {}
+check primary_flush_floor_5 \
+    "boundary: a primary flush is one round, lookup, dump, DEL batch, floor 5" \
+    {floors_not $F0 {flush_primary flush_primary_flipped} 5} {}
+
+proc bad_floors {rows} {
+    set out {}
+    foreach r $rows {
+        set f [lindex $r 1]
+        if {![string is integer -strict $f] || $f < 0} {
+            lappend out [lindex $r 0]
+        }
+    }
+    return $out
+}
+check floor_is_integer "negative: no floor is non-integer or negative" \
+    {bad_floors $ALL} {}
+
+proc zero_floor_slugs {rows} {
+    set out {}
+    foreach r $rows {
+        if {[lindex $r 1] == 0} {
+            lappend out [lindex $r 0]
+        }
+    }
+    return [lsort $out]
+}
+check floor_zero_set "boundary: the rows that send nothing are exactly the six" \
+    {zero_floor_slugs $ALL} \
+    [lsort {no_dev_keyword brd_plus_v6 flush_noargs flush_packet showdump showdump_bad_magic}]
+check flush_nothing_floor_4 \
+    "boundary: a flush that matches nothing is one lookup and one dump" \
+    {field $F0 flush_nothing 1} 4
+check restore_floor_minimum \
+    "corner: a restore is a link dump plus at least one write, not an exact count" \
+    {list [field $S restore_fresh 1] [field $S restore_existing 1]} {4 4}
+
+###############################################################################
+# 5c. preconditions
+###############################################################################
+check pre_addr_dev_exact "positive: PRE_ADDR_DEV is the pinned, address-less d0" \
+    {set addrcorpus::PRE_ADDR_DEV} \
+    {{link add d0 address 02:00:00:00:d0:00 type dummy} {link set d0 addrgenmode none} {link set d0 up}}
+
+proc layering {} {
+    set dev $addrcorpus::PRE_ADDR_DEV
+    set v4 $addrcorpus::PRE_ADDR_V4
+    set sec $addrcorpus::PRE_ADDR_SECONDARY
+    set v6 $addrcorpus::PRE_ADDR_V6
+    set n [llength $dev]
+    return [list \
+        [expr {[lrange $v4 0 end-1] eq $dev}] [lindex $v4 end] \
+        [expr {[lrange $sec 0 end-1] eq $v4}] [lindex $sec end] \
+        [expr {[lrange $v6 0 [expr {$n - 1}]] eq $dev}] [llength [lrange $v6 $n end]] \
+        [lsort -unique [lmap s [lrange $v6 $n end] {lrange $s 0 2}]]]
+}
+check pre_layering \
+    "positive: V4 = DEV + one add, SECONDARY = V4 + one add, V6 = DEV + four -6 adds" \
+    {layering} \
+    {1 {addr add 192.0.2.1/24 dev d0} 1 {addr add 192.0.2.2/24 dev d0} 1 4 {{-6 addr add}}}
+
+proc addr_steps {pre} {
+    set out {}
+    foreach s $pre {
+        if {[lindex $s 0] in {addr -6}} {
+            lappend out $s
+        }
+    }
+    return $out
+}
+check pre_addr_dev_has_no_addr \
+    "negative: PRE_ADDR_DEV adds no address a flush or delete row would then see" \
+    {addr_steps $addrcorpus::PRE_ADDR_DEV} {}
+
+proc eui64_rows {} {
+    set out {}
+    foreach r $::ALL {
+        if {[lsearch -exact [lindex $r 2] {link set d0 addrgenmode eui64}] >= 0} {
+            lappend out [lindex $r 0]
+        }
+    }
+    return $out
+}
+check flush_dev_keeps_link_local \
+    "boundary: only flush_dev keeps the kernel link-local (addrgenmode eui64)" \
+    {eui64_rows} flush_dev
+
+proc many_ok {} {
+    set pre [field $::F0 flush_many 2]
+    set n [llength $addrcorpus::PRE_ADDR_DEV]
+    set adds [lrange $pre $n end]
+    set want {}
+    for {set i 1} {$i <= 120} {incr i} {
+        lappend want [list addr add 192.0.2.$i/32 dev d0]
+    }
+    return [list [expr {[lrange $pre 0 [expr {$n - 1}]] eq $addrcorpus::PRE_ADDR_DEV}] \
+                [expr {$adds eq $want}] [llength [lsort -unique $adds]]]
+}
+check flush_many_pre \
+    "boundary: flush_many is PRE_ADDR_DEV then 120 distinct /32 adds, N = 1..120" \
+    {many_ok} {1 1 120}
+check flush_scope_link_distinct_subnets \
+    "corner: the link-scope and global addresses are in different subnets" \
+    {addr_steps [field $F0 flush_scope_link 2]} \
+    {{addr add 169.254.1.1/16 scope link dev d0} {addr add 192.0.2.1/24 dev d0}}
+check restore_existing_pre_is_save_all \
+    "corner: restore_existing restores into the state save_all saved" \
+    {expr {[field $S restore_existing 2] eq [field $S save_all 2]}} 1
+
+###############################################################################
+# 5d. flush_rows <promote_default>
+###############################################################################
+check flipped_from_0 "positive: flush_rows 0 flips promote_secondaries to 1" \
+    {lindex [field $F0 flush_primary_flipped 2] 0} \
+    {sysctl net.ipv4.conf.default.promote_secondaries 1}
+check flipped_from_1 "positive: flush_rows 1 flips promote_secondaries to 0" \
+    {lindex [field $F1 flush_primary_flipped 2] 0} \
+    {sysctl net.ipv4.conf.default.promote_secondaries 0}
+check bad_default_2 "negative: flush_rows 2 is refused" \
+    {addrcorpus::flush_rows 2} ERROR
+check bad_default_x "negative: flush_rows x is refused" \
+    {addrcorpus::flush_rows x} ERROR
+check bad_default_message "negative: and the refusal names the rule" \
+    {catch {addrcorpus::flush_rows 2} msg; set msg} \
+    {addrcorpus: promote_secondaries default must be 0 or 1}
+check sysctl_before_device \
+    "boundary: the sysctl comes before link add d0, so d0 inherits it" \
+    {list [lindex [field $F0 flush_primary_flipped 2] 0 0] \
+          [lrange [lindex [field $F0 flush_primary_flipped 2] 1] 0 2]} \
+    {sysctl {link add d0}}
+
+proc differing {a b} {
+    set out {}
+    foreach ra $a rb $b {
+        if {$ra ne $rb} {
+            lappend out [lindex $ra 0]
+        }
+    }
+    return $out
+}
+check only_flipped_differs \
+    "corner: flush_rows 0 and 1 differ only in flush_primary_flipped" \
+    {differing $F0 $F1} flush_primary_flipped
+check flush_primary_has_no_sysctl \
+    "corner: flush_primary keeps the namespace's own default" \
+    {lsearch -index 0 [field $F0 flush_primary 2] sysctl} -1
+
+###############################################################################
+# 5e. save, showdump and restore rows
+###############################################################################
+check save_writes_ip_save "positive: the three save rows write ./ip.save" \
+    {lmap s {save_dev save_all save_empty} {string match "* > ip.save" [field $S $s 3]}} \
+    {1 1 1}
+check consumers_copy_input \
+    "positive: the readers copy save_all's file in, then read it" \
+    {lmap s {showdump restore_fresh restore_existing} {
+        regexp {^cp \.\./save_all/ip\.save \. && ip addr \S+ < ip\.save$} [field $S $s 3]}} \
+    {1 1 1}
+check bad_magic_input \
+    "negative: showdump_bad_magic reads 4 zero bytes, not a real save" \
+    {field $S showdump_bad_magic 3} \
+    {head -c 4 /dev/zero > bad.save && ip addr showdump < bad.save}
+check save_all_first \
+    "boundary: save_all runs before every row that reads its file" \
+    {set i [lsearch -exact [slugs $S] save_all]
+     lmap s {showdump restore_fresh restore_existing} {
+        expr {$i < [lsearch -exact [slugs $S] $s]}}} \
+    {1 1 1}
+
+proc absolute_paths {rows} {
+    set out {}
+    foreach r $rows {
+        set c [string map {/dev/zero {}} [lindex $r 3]]
+        if {[regexp {(^|[\s<>])/} $c] || [string first {$OUT} $c] >= 0} {
+            lappend out [lindex $r 0]
+        }
+    }
+    return $out
+}
+check no_absolute_paths \
+    "corner: no command reaches outside its row directory" \
+    {absolute_paths $ALL} {}
+check showdump_no_pre "corner: the showdump rows build nothing and send nothing" \
+    {lmap s {showdump showdump_bad_magic} {list [field $S $s 2] [field $S $s 1]}} \
+    {{{} 0} {{} 0}}
+
+###############################################################################
+# 5f. readback table
+###############################################################################
+set base_suffixes {{} _json _br _br_json _o _d _stats}
+
+check every_state_has_entry \
+    "positive: every addrtopo state has a readback entry" \
+    {list [llength [addrcorpus::readback_states]] \
+          [same_set [addrcorpus::readback_states] [addrtopo::state_names]]} {19 1}
+
+proc missing_base {} {
+    set out {}
+    foreach s [addrtopo::state_names] {
+        set have [lmap r [addrcorpus::readback $s] {lindex $r 0}]
+        foreach b $::base_suffixes {
+            if {[lsearch -exact $have $b] < 0} {
+                lappend out "$s:$b"
+            }
+        }
+    }
+    return $out
+}
+check base_set_per_state "positive: every state has the seven base captures" \
+    {missing_base} {}
+
+set design_selectors {
+    v4_secondary {ip addr show secondary}
+    v4_secondary {ip addr show primary}
+    v4_secondary {ip addr show -secondary}
+    v4_secondary {ip addr show to 192.0.2.0/24}
+    v4_secondary {ip addr show d0}
+    v4_label {ip addr show label "d0:*"}
+    v4_proto {ip addr show proto 99}
+    v4_lifetimes {ip addr show dynamic}
+    v4_lifetimes {ip addr show permanent}
+    v4_host_scope {ip addr show scope all}
+    v6_flags {ip -o -6 addr show}
+    v6_flags {ip addr show to 2001:db8::/32}
+    v6_tentative {ip addr show tentative}
+    v6_tentative {ip addr show -tentative}
+    v6_stable_privacy {ip addr show scope link}
+    v4_vrf {ip addr show vrf vrf0}
+    v4_vrf {ip addr show vrf d1}
+    mixed_links {ip addr show up}
+    mixed_links {ip addr show down}
+    mixed_links {ip addr show master bond0}
+    mixed_links {ip -4 addr show master bond0}
+    mixed_links {ip addr show nomaster}
+    mixed_links {ip addr show type dummy}
+    mixed_links {ip addr show type bond_slave}
+    mixed_links {ip addr show group default}
+    mixed_links {ip addr show novf}
+}
+proc missing_selectors {} {
+    set out {}
+    foreach {state cmd} $::design_selectors {
+        if {[lsearch -exact -index 2 [addrcorpus::readback $state] $cmd] < 0} {
+            lappend out "$state: $cmd"
+        }
+    }
+    return $out
+}
+check design_selectors_present \
+    "positive: each selector of the design's parity list is on the state it names" \
+    {missing_selectors} {}
+check unknown_state "negative: no readback entry names a state addrtopo lacks" \
+    {lmap s [addrcorpus::readback_states] {
+        if {$s in [addrtopo::state_names]} continue; set s}} {}
+check unknown_state_lookup "negative: readback of an unknown state is an error" \
+    {addrcorpus::readback nosuch} ERROR
+
+proc dup_suffixes {} {
+    set out {}
+    foreach s [addrcorpus::readback_states] {
+        set have [lmap r [addrcorpus::readback $s] {lindex $r 0}]
+        if {[llength [lsort -unique $have]] != [llength $have]} {
+            lappend out $s
+        }
+    }
+    return $out
+}
+check duplicate_suffix "negative: no state has two captures writing the same files" \
+    {dup_suffixes} {}
+
+proc bad_names {} {
+    set out {}
+    foreach s [addrcorpus::readback_states] {
+        foreach r [addrcorpus::readback $s] {
+            set sfx [lindex $r 0]
+            foreach n [list netlink_route_getaddr$sfx ip_addr$sfx] {
+                if {![regexp {^[a-z0-9_]+$} $n]} {
+                    lappend out $n
+                }
+            }
+        }
+    }
+    return $out
+}
+check name_charset "boundary: every readback file name is safe" {bad_names} {}
+
+proc write_mode_rows {} {
+    set out {}
+    foreach s [addrcorpus::readback_states] {
+        foreach r [addrcorpus::readback $s] {
+            if {[lindex $r 3] ne "capio"} {
+                lappend out "$s:[lindex $r 3]:[lindex $r 2]"
+            }
+        }
+    }
+    return $out
+}
+check mode_write_only_vrf_d1 \
+    "corner: the refused selector alone is write mode, to keep stderr and rc" \
+    {write_mode_rows} {{v4_vrf:write:ip addr show vrf d1}}
+
+proc glob_rows {} {
+    set out {}
+    foreach s [addrcorpus::readback_states] {
+        foreach r [addrcorpus::readback $s] {
+            set c [lindex $r 2]
+            if {[string first * $c] >= 0} {
+                lappend out [expr {[regexp {"[^"']*\*"} $c] && [string first ' $c] < 0}]
+            }
+        }
+    }
+    return $out
+}
+check glob_is_double_quoted \
+    "corner: both label globs are double-quoted and hold no single quote" \
+    {glob_rows} {1 1}
+
+###############################################################################
+# 5g. pre_step dispatch
+###############################################################################
+proc step_run {step} {
+    set ::calls {}
+    nltopo::reset
+    set rc [addrcorpus::pre_step lacpa addr/x $step]
+    return [list $rc $::calls]
+}
+
+set ::refuse ""
+check ip_step_to_topo "positive: an ip step goes to nltopo::topo" \
+    {step_run {link add d0 type dummy}} \
+    {1 {{xtcp2-nlcap topo lacpa addr/x link add d0 type dummy}}}
+check sysctl_step "positive: a sysctl step goes to addrtopo::sysctl and not topo" \
+    {step_run {sysctl net.ipv4.conf.default.promote_secondaries 1}} \
+    {1 {{xtcp2-nlcap sysctl lacpa addr/x net.ipv4.conf.default.promote_secondaries 1}}}
+
+set ::refuse {^xtcp2-nlcap topo }
+check refused_ip_step "negative: a refused ip step returns 0 and is a refusal" \
+    {list [lindex [step_run {link add d0 type dummy}] 0] [nltopo::refused_steps]} \
+    {0 {{ip -n lacpa link add d0 type dummy}}}
+set ::refuse {^xtcp2-nlcap sysctl }
+check refused_sysctl "negative: a refused sysctl returns 0 and is not an ip refusal" \
+    {list [lindex [step_run {sysctl net.ipv4.conf.default.promote_secondaries 1}] 0] \
+          [nltopo::refused_steps]} \
+    {0 {}}
+set ::refuse ""
+
+check malformed_sysctl_short "boundary: {sysctl key} is an error" \
+    {step_run {sysctl net.ipv4.conf.default.promote_secondaries}} ERROR
+check malformed_sysctl_long "boundary: {sysctl k v extra} is an error" \
+    {step_run {sysctl k v extra}} ERROR
+check malformed_sysctl_sends_nothing "boundary: and a malformed step sends nothing" \
+    {set ::calls {}; catch {addrcorpus::pre_step lacpa addr/x {sysctl k}}; set ::calls} {}
+check sysctl_as_argument "corner: only the first word dispatches" \
+    {step_run {link set d0 alias sysctl}} \
+    {1 {{xtcp2-nlcap topo lacpa addr/x link set d0 alias sysctl}}}
+
+###############################################################################
+# 5h. fatal_refusals
+###############################################################################
+foreach {name description all tolerated expected} {
+    none_tolerated        "positive: nothing tolerated keeps every refusal"         {a b}   {}  {a b}
+    drop_tolerated        "positive: a tolerated refusal is removed"                {a b c} {b} {a c}
+    tolerated_not_present "negative: a tolerated entry never refused is ignored"    {a}     {z} {a}
+    empty_all             "boundary: no refusals give none"                         {}      {a} {}
+    duplicates_counted    "corner: one tolerated entry cancels one occurrence only" {a a}   {a} {a}
+    order_kept            "corner: the remaining refusals keep their order"         {c a b} {a} {c b}
+} {
+    check $name $description [list addrcorpus::fatal_refusals $all $tolerated] $expected
+}
+
+###############################################################################
+# summary
+###############################################################################
+puts ""
+puts "=== addr-corpus.exp: $pass passed, $fail failed ==="
+if {$fail > 0} {
+    puts "ADDRCORPUS_TEST_FAIL"
+    exit 1
+}
+puts "ADDRCORPUS_TEST_PASS"
+exit 0

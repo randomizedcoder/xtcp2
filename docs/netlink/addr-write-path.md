@@ -588,16 +588,24 @@ Concrete changes:
   **no** address — without `addrgenmode none` an up dummy gets a kernel
   link-local, and every flush and delete row would see it), `PRE_ADDR_V4`
   (`PRE_ADDR_DEV` plus `192.0.2.1/24`), `PRE_ADDR_SECONDARY` (plus
-  `192.0.2.2/24`), `PRE_ADDR_V6` and `PRE_VETH_PAIR`.
+  `192.0.2.2/24`) and `PRE_ADDR_V6` (`PRE_ADDR_DEV` plus the `v6_flags`
+  addresses). The lists and the readback set are data in a sourced
+  `nix/microvms/scripts/addr-corpus.exp`, so the hermetic check can read
+  them. No row needs a veth precondition; the veth states are built by
+  `addr-topology.exp`.
 - **`nix/microvms/netlink-capture.nix`** (`xtcp2-nlcap`): `cmd_write` (`:333`)
   already runs the command through `sh -c`, keeps `.out`, `.err` and `.rc`,
   and judges the floor as a minimum datagram count, so `save`'s redirection
   (`ip addr save dev d0 > ip.save`) and `restore`'s (`ip addr restore <
-  /input/ip.save`) need no new mode. Two small additions: `ip.save` joins the
-  files `pack` collects, and the flush rows' floor counts the no-ACK batch as
-  one datagram — which `cmd_write` already does, since it counts datagrams, not
-  ACKs. If Phase 0 shows otherwise, this paragraph is amended by the PR that
-  fixes it.
+  ip.save`) need no new mode. One addition: a write row's command runs from
+  its own row directory, so those relative paths name files in the fixture.
+  `pack` already ships every file under `$OUT`, so `ip.save` needs no entry
+  in a file list. The flush rows' floor counts the no-ACK batch as one
+  datagram, which `cmd_write` already does, since it counts datagrams, not
+  ACKs.
+- **`nix/microvms/lib.nix`**: the link-write runner copies its `.exp` files
+  into one store directory by name, so `addr-topology.exp` and
+  `addr-corpus.exp` join that list.
 - **`nix/microvms/mkVm.nix`**: no change. veth, dummy and (through
   `needsBonding`, `:320`) bonding are already in `boot.kernelModules`
   (`:4049-4057`) for `isLinkWriteCapture` (`:303`), which is why `mixed_links`
@@ -687,33 +695,33 @@ selectors (for `v4_secondary`: `secondary`, `primary`, `-secondary`; for
 | Slug | Precondition | Command | Expected |
 |---|---|---|---|
 | `flush_dev` | `d0` up with its kernel link-local, two IPv4 and one IPv6 address | `ip addr flush dev d0` | lookup, dump (index 3), one batch of 4 DELs, dump, empty |
-| `flush_primary` | `PRE_ADDR_SECONDARY`, the namespace's default `promote_secondaries` | `ip addr flush dev d0 primary` | round 1 deletes the primary; round 2's dump decides the rest (see below) |
-| `flush_primary_flipped` | the same, with `promote_secondaries` set to the opposite of the default | `ip addr flush dev d0 primary` | the other outcome; capture driver only, since it needs a sysctl |
+| `flush_primary` | `PRE_ADDR_SECONDARY`, the namespace's default `promote_secondaries` | `ip addr flush dev d0 primary` | one round: lookup, dump, the primary's DEL, and no second dump (see below) |
+| `flush_primary_flipped` | the same, with `promote_secondaries` set to the opposite of the default | `ip addr flush dev d0 primary` | the same request sequence; capture driver only, since it needs a sysctl |
 | `flush_secondary` | `PRE_ADDR_SECONDARY` | `ip addr flush dev d0 secondary` | the secondary only |
 | `flush_scope_link` | a link-scope and a global address | `ip addr flush dev d0 scope link` | the link-scope one only |
 | `flush_v6` | the `v6_flags` state | `ip -6 addr flush dev d0` | IPv6 dump only |
 | `flush_nothing` | `PRE_ADDR_DEV` | `ip addr flush dev d0` | one dump, no DEL |
 | `flush_stats` | two addresses | `ip -s addr flush dev d0` | the round text in `ip.out` |
-| `flush_many` | 120 IPv4 addresses on `d0` | `ip addr flush dev d0` | more than 3584 bytes of DELs, so two datagrams in round 1 |
+| `flush_many` | 120 IPv4 addresses on `d0` | `ip addr flush dev d0` | 120 DELs of 76 bytes in three datagrams in round 1 (47, 47, 26) |
 | `flush_noargs` | none | `ip addr flush` | no traffic, "Flush requires arguments." |
 | `flush_packet` | none | `ip -0 addr flush dev d0` | no traffic, "Cannot flush link addresses." |
 
-`flush_primary` is the row the subtraction model of
-[decision 5](#decisions) is weakest on. With `promote_secondaries` off, deleting
-the primary deletes its secondaries too; the round-2 dump has nothing that
-matches `primary`, and goip's subtracted dump still shows them flagged
-`secondary`, so neither side matches and both stop. With it on, the kernel
-promotes the secondary, `ip`'s round 2 matches it, and goip's does not.
-Phase 0 records which one a fresh namespace gets — IPv4 settings are inherited
-from `init_net` unless `net.core.devconf_inherit_init_net` says otherwise — and
-`flush_primary_flipped` captures the other case on purpose, so the limitation
-is evidence, not a guess. `flush_primary` gets a matrix row only if the
-default is the case goip matches (promotion off); otherwise both are fixtures
-and goldens only.
+`flush_primary` was expected to be the row the subtraction model of
+[decision 5](#decisions) is weakest on, because a promoted secondary would
+match `primary` in round 2. It is not: `ipaddr_flush` stops a `primary` flush
+after one round, whatever it deleted (`ip/ipaddress.c:2004-2010`, "flush only
+a single round … Otherwise, we'll start flushing secondaries that were
+promoted"). The capture shows it: both `flush_primary` and
+`flush_primary_flipped` are the lookup, one dump and one DEL batch, with no
+second dump, whichever way `promote_secondaries` is set. So goip matches `ip`
+by stopping after round 1 for a `primary` filter, and `flush_primary` can
+have a matrix row like any other flush. `flush_primary_flipped` stays as the
+evidence that the setting does not change the request sequence. The
+namespace's default is still recorded, as measurement M3.
 
-`flush_many` sizes itself from the capture: an IPv4 dump reply is about 80
-bytes, so 120 addresses clear the 3584-byte buffer; the row asserts two
-datagrams from the pcap rather than trusting the arithmetic.
+`flush_many` sizes itself from the capture rather than the arithmetic. Each
+IPv4 DEL is 76 bytes, so 47 fit the 3584-byte buffer, and the 120 DELs went
+out as three datagrams of 47, 47 and 26 messages.
 
 ### Save, showdump and restore rows
 
@@ -725,9 +733,15 @@ datagrams from the pcap rather than trusting the arithmetic.
 | `save_all` | `v4_secondary` + `v6_flags` | `ip addr save > ip.save` | all families |
 | `save_empty` | `PRE_ADDR_DEV` | `ip addr save dev d0 > ip.save` | the magic only |
 | `showdump` | none (`ip.save` from `save_all`) | `ip addr showdump < ip.save` | no netlink traffic; text in `ip.out` |
-| `showdump_bad_magic` | none (a 4-byte zero file) | `ip addr showdump < bad.save` | "Magic mismatch", exit 255 |
+| `showdump_bad_magic` | none (a 4-byte zero file) | `head -c 4 /dev/zero > bad.save && ip addr showdump < bad.save` | "Magic mismatch", exit 255 |
 | `restore_fresh` | `PRE_ADDR_DEV` | `ip addr restore < ip.save` | one link dump, then one write per saved message, each ACKed |
 | `restore_existing` | the state `save_all` was taken from | `ip addr restore < ip.save` | every write `EEXIST`, exit 0 |
+
+The readers (`showdump`, `restore_fresh`, `restore_existing`) first copy
+`save_all`'s `ip.save` into their own row directory
+(`cp ../save_all/ip.save . && …`), so each fixture holds the exact bytes its
+command read. `cp` opens no netlink socket, so the capture window is
+unchanged.
 
 `showdump` has no pcap to compare, so its parity is
 `TestAddrShowdumpMatchesSidecar` against `ip.out`.
@@ -1038,13 +1052,13 @@ it against the table's expected column.
 |1|positive|one round|`flush_dev`|DEL batch equal to `ip`'s, message by message|
 |2|positive|stats text|`flush_stats`|`ip.out` byte-identical|
 |3|positive|the copy rule|any flush row|each DEL is the dump reply with type 21, flags `0x001`, seq incremented|
-|4|boundary|batch over 3584 bytes|`flush_many`|two datagrams in round 1, split where `ip` split|
+|4|boundary|batch over 3584 bytes|`flush_many`|three datagrams in round 1 (47, 47, 26), split where `ip` split|
 |5|boundary|round-2 request compared, reply not|`flush_dev`|request byte-identical; reply excluded by rule|
 |6|negative|no arguments|`flush_noargs`|"Flush requires arguments.", no traffic|
 |7|negative|link family|`flush_packet`|"Cannot flush link addresses.", no traffic|
 |8|negative|goip sent a write|a goip pcap holding a DEL|`ErrGoipSentWrite`|
-|9|corner|`primary` without promotion|whichever of `flush_primary`/`flush_primary_flipped` has promotion off|round-2 dump request identical; both stop after it|
-|9a|corner|`primary` with promotion is a known divergence|whichever of `flush_primary`/`flush_primary_flipped` has promotion on|goip's request sequence one round shorter than `ip`'s; the test asserts that and the row is not in the matrix|
+|9|corner|`primary` is one round|`flush_primary`|lookup, dump and DEL batch identical; neither side sends a second dump|
+|9a|corner|the promotion setting does not change it|`flush_primary_flipped`|the same request sequence as row 9|
 |10|corner|nothing to flush|`flush_nothing`|one dump, no DEL|
 |11|corner|`SplitWrites` with N=1 equals `SplitWrite`|every link and route write row|identical result|
 
@@ -1090,11 +1104,10 @@ it against the table's expected column.
 - **Flush's second round.** goip cannot observe a kernel that applied round 1.
   The subtraction model is right when the kernel deletes exactly what was
   asked, and when it deletes more than was asked of addresses the filter would
-  not match again. It is wrong when the kernel *changes* an address so it
-  matches next round — a promoted secondary under `flush … primary` with
-  `promote_secondaries` on. That case is captured (as `flush_primary` or
-  `flush_primary_flipped`, whichever has promotion on), tested as a known
-  divergence, and kept out of the matrix.
+  not match again. It would be wrong when the kernel *changes* an address so
+  it matches next round. The case first feared, a promoted secondary under
+  `flush … primary`, does not arise: `ip` flushes `primary` in one round
+  (`ip/ipaddress.c:2009`), and both captures show it.
 - **DAD timing.** A tentative state that resolves mid-capture makes a flaky
   fixture. `v6_tentative` avoids the timer entirely (a never-ready device);
   `v6_dadfailed` is polled with `wait_addr_flag`, and a `NLCAP_DAD_TIMEOUT`

@@ -1,0 +1,5 @@
+ok    [addra] ip link add d0 address 02:00:00:00:d0:00 type dummy
+ok    [addra] ip link set d0 addrgenmode none
+ok    [addra] ip link set d0 up
+ok    [addra] ip addr add 192.0.2.1/24 proto 99 dev d0
+ok    [addra] ip addr add 198.51.100.1/24 proto kernel_lo dev d0
