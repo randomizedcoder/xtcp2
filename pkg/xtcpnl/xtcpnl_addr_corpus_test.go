@@ -3,6 +3,7 @@ package xtcpnl
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -127,6 +128,71 @@ func stateBuilt(t *testing.T, state string) bool {
 	topo := string(readFixture(t, "addr-show", state, "topology"))
 	return !strings.Contains(topo, "\nFAIL") && !strings.HasPrefix(topo, "FAIL") &&
 		!strings.Contains(topo, "note  dropped") && !strings.Contains(topo, "note  not built")
+}
+
+// requestTypes is the nlmsg type of every request `ip` sent in a capture,
+// in order: the lookups, dumps and writes, without the kernel's replies.
+func requestTypes(t *testing.T, parts ...string) []uint16 {
+	t.Helper()
+	var types []uint16
+	for _, p := range pcapDatagrams(t, addrFixture(parts...)) {
+		for len(p) >= NlMsgHdrSizeCst {
+			var h NlMsgHdr
+			if _, err := DeserializeNlMsgHdr(p, &h); err != nil {
+				t.Fatal(err)
+			}
+			mlen := int(h.Len)
+			if mlen == 0 {
+				// iproute2 sends a dump request's whole buffer: a 24-byte
+				// message, then zeros to the end of the datagram.
+				break
+			}
+			if mlen < NlMsgHdrSizeCst || mlen > len(p) {
+				t.Fatalf("nlmsg_len %d in a %d-byte datagram", mlen, len(p))
+			}
+			if h.Flags&unix.NLM_F_REQUEST != 0 {
+				types = append(types, h.Type)
+			}
+			p = p[min(nlmsgAlign(mlen), len(p)):]
+		}
+	}
+	return types
+}
+
+// kernelAnswer is a write row's last NLMSG_ERROR as "ERRNO \"extack\"
+// off=ATTR", or "ACK" for an ACK; ATTR is the request attribute the
+// extack offset points at, 0 when there is none.
+func kernelAnswer(t *testing.T, dir, slug string) string {
+	t.Helper()
+	flags, body, request := lastNlMsgErr(t, addrFixture(dir, slug, "ip.pcap"))
+	e, err := ParseNlMsgErr(flags, body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e.Errno == 0 {
+		return "ACK"
+	}
+	var off uint16
+	if e.HasOffset {
+		o := int(e.Offset)
+		if o+4 > len(request) {
+			t.Fatalf("offset %d past the %d-byte request", o, len(request))
+		}
+		off = binary.LittleEndian.Uint16(request[o+2:o+4]) & NlaTypeMaskCst
+	}
+	return fmt.Sprintf("%s %q off=%d", unix.ErrnoName(unix.Errno(-e.Errno)), e.Msg, off)
+}
+
+// fixtureLine is the trimmed first line of a fixture that contains substr,
+// or "" when none does.
+func fixtureLine(t *testing.T, substr string, parts ...string) string {
+	t.Helper()
+	for line := range strings.Lines(string(readFixture(t, parts...))) {
+		if strings.Contains(line, substr) {
+			return strings.TrimSpace(line)
+		}
+	}
+	return ""
 }
 
 // go test ./pkg/xtcpnl/ -run TestAddrCaptureCorpusComplete
@@ -306,8 +372,8 @@ func TestAddrCaptureCorpusComplete(t *testing.T) {
 			{name: "client_flush_noargs", description: "negative: flush with no arguments", dir: "addr-flush", slug: "flush_noargs", expected: outcome{stderr: "Flush requires arguments"}},
 			{name: "client_flush_packet", description: "negative: flush of link addresses", dir: "addr-flush", slug: "flush_packet", expected: outcome{stderr: "Cannot flush link addresses"}},
 			{name: "client_bad_magic", description: "negative: showdump of a file without the magic", dir: "addr-save", slug: "showdump_bad_magic", expected: outcome{stderr: "Magic mismatch"}},
-			// M1: the errno is measured, so only the refusal is pinned here.
-			{name: "label_16_refused", description: "boundary: a 16-character label is refused by policy", dir: "addr", slug: "label_16", expected: outcome{}},
+			// M1's errno and offset are pinned in the measurements subtest.
+			{name: "label_16_refused", description: "boundary: a 16-character label is refused by policy", dir: "addr", slug: "label_16", expected: outcome{stderr: "Attribute failed policy validation"}},
 			{name: "wildcard_warning", description: "corner: a wildcard delete succeeds and warns", dir: "addr", slug: "del_v4_wildcard", expected: outcome{ok: true, stderr: "wildcard deletion"}},
 			{name: "nodad_first_warning", description: "corner: a v6 flag before the address warns and is dropped", dir: "addr", slug: "add_v6_nodad_first", expected: outcome{ok: true, stderr: "can be set only for IPv6"}},
 		}
@@ -466,6 +532,92 @@ func TestAddrCaptureCorpusComplete(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				if got := tc.check(t); !slices.Equal(got, tc.expected) {
 					t.Errorf("%s: %v, want %v", tc.description, got, tc.expected)
+				}
+			})
+		}
+	})
+
+	// The Phase 0 measurements (addr-write-path-status.md, M1-M3), pinned
+	// so a recapture on another kernel that changes one fails here first.
+	t.Run("measurements", func(t *testing.T) {
+		tests := []struct {
+			name        string
+			description string
+			check       func(t *testing.T) string
+			expected    string
+		}{
+			{name: "m1_label_16_errno", description: "positive: M1, a 16-character label fails IFA_LABEL's NLA_STRING policy with ERANGE",
+				check:    func(t *testing.T) string { return kernelAnswer(t, "addr", "label_16") },
+				expected: fmt.Sprintf("ERANGE %q off=%d", "Attribute failed policy validation", unix.IFA_LABEL)},
+			{name: "m1_add_v4_acked", description: "negative: the same device with no label is ACKed, so the check reads the kernel's answer",
+				check:    func(t *testing.T) string { return kernelAnswer(t, "addr", "add_v4") },
+				expected: "ACK"},
+			{name: "m1_rc_is_kernel_error", description: "boundary: ip exits 2 for the kernel's refusal and 1 for its own (nodev)",
+				check:    func(t *testing.T) string { return rowRC(t, "addr", "label_16") + "/" + rowRC(t, "addr", "nodev") },
+				expected: "2/1"},
+			{name: "m2_optimistic_shown", description: "positive: M2, this kernel shows optimistic, still tentative while DAD runs",
+				check: func(t *testing.T) string {
+					return fixtureLine(t, "2001:db8::5/64", "addr-show", "v6_optimistic", "ip_addr_optimistic")
+				},
+				expected: "inet6 2001:db8::5/64 scope global optimistic tentative"},
+			{name: "m2_temporary_shown", description: "positive: M2, mngtmpaddr with use_tempaddr=2 makes one temporary address with no router",
+				check: func(t *testing.T) string {
+					n := 0
+					for line := range strings.Lines(string(readFixture(t, "addr-show", "v6_temporary", "ip_addr_temporary"))) {
+						if strings.Contains(line, "inet6 2001:db8::") && strings.Contains(line, "/64 scope global temporary dynamic") &&
+							!strings.Contains(line, "2001:db8::1/64") {
+							n++
+						}
+					}
+					return fmt.Sprint(n)
+				},
+				expected: "1"},
+			{name: "m2_not_dropped", description: "negative: neither measured state was dropped or failed",
+				check: func(t *testing.T) string {
+					return fmt.Sprintf("v6_optimistic=%v v6_temporary=%v", stateBuilt(t, "v6_optimistic"), stateBuilt(t, "v6_temporary"))
+				},
+				expected: "v6_optimistic=true v6_temporary=true"},
+			{name: "m2_link_local_optimistic", description: "corner: optimistic_dad applies to the kernel's own link-local too",
+				check: func(t *testing.T) string {
+					return fixtureLine(t, "fe80::", "addr-show", "v6_optimistic", "ip_addr_optimistic")
+				},
+				expected: "inet6 fe80::ff:fe00:a000/64 scope link optimistic tentative proto kernel_ll"},
+			{name: "m3_default_is_1", description: "positive: M3, a fresh namespace's promote_secondaries default",
+				check: func(t *testing.T) string {
+					return strings.TrimSpace(string(readFixture(t, "addr-flush", "flush_primary", "promote_secondaries_default")))
+				},
+				expected: "1"},
+			{name: "m3_flipped_sysctl_recorded", description: "boundary: the flipped row set the other value before d0 existed",
+				check: func(t *testing.T) string {
+					return fixtureLine(t, "promote_secondaries", "addr-flush", "flush_primary_flipped", "topology")
+				},
+				expected: "ok    [lacpa] sysctl net.ipv4.conf.default.promote_secondaries=0"},
+			{name: "m3_single_dump", description: "negative: a primary flush never dumps a second time",
+				check: func(t *testing.T) string {
+					n := 0
+					for _, typ := range requestTypes(t, "addr-flush", "flush_primary", "ip.pcap") {
+						if typ == unix.RTM_GETADDR {
+							n++
+						}
+					}
+					return fmt.Sprint(n)
+				},
+				expected: "1"},
+			{name: "m3_flipped_same_sequence", description: "corner: promote_secondaries does not change what ip sends",
+				check: func(t *testing.T) string {
+					def := requestTypes(t, "addr-flush", "flush_primary", "ip.pcap")
+					flipped := requestTypes(t, "addr-flush", "flush_primary_flipped", "ip.pcap")
+					if !slices.Equal(def, flipped) {
+						return fmt.Sprintf("default %v, flipped %v", def, flipped)
+					}
+					return fmt.Sprint(def)
+				},
+				expected: fmt.Sprint([]uint16{unix.RTM_GETLINK, unix.RTM_GETADDR, unix.RTM_DELADDR})},
+		}
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				if got := tc.check(t); got != tc.expected {
+					t.Errorf("%s: got %q, want %q", tc.description, got, tc.expected)
 				}
 			})
 		}
