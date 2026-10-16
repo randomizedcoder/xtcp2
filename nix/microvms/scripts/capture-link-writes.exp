@@ -58,6 +58,7 @@
 source [file dirname [info script]]/vm-lib.exp
 source [file dirname [info script]]/netlink-topology.exp
 source [file dirname [info script]]/link-write-topology.exp
+source [file dirname [info script]]/addr-topology.exp
 source [file dirname [info script]]/link-write-readback.exp
 
 if {$argc != 2} {

@@ -1,0 +1,297 @@
+#!/usr/bin/env expect
+###############################################################################
+# addr-topology-test.exp - table-driven test for addr-topology.exp, no VM
+#
+# Usage: addr-topology-test.exp <port>
+#
+# Run by nix/checks/vm-lib-exp.nix against the same local bash-on-a-pty that
+# vm-lib-test.exp uses, with two things on that shell's PATH ahead of the
+# real xtcp2-nlcap:
+#
+#   xtcp2-nlcap  a stub. ns-add, ns-del, topo, sysctl and note are appended
+#                to $STUB_LOG and succeed, unless the argv contains
+#                $STUB_FAIL; every other subcommand runs the real helper.
+#                The sandbox cannot make a namespace, and the steps are what
+#                is under test here, not the kernel's answer to them.
+#   seqread DIR  prints DIR/1 on its first call, DIR/2 on its second, and so
+#                on, then DIR/last for ever; DIR/n counts the calls. The real
+#                wait-addr-flag reads through it (NLCAP_IF_INET6_CMD), so "the
+#                flag appears on the third poll" is exact, with no sleeps.
+#
+# What this does NOT cover: the kernel. Whether each state builds, and shows
+# the flag it is for, is first seen by the capture run (A0-T03/T04 in
+# addr-write-path-plan.md).
+###############################################################################
+
+source [file dirname [info script]]/vm-lib.exp
+source [file dirname [info script]]/netlink-topology.exp
+source [file dirname [info script]]/addr-topology.exp
+
+if {$argc < 1} {
+    puts "usage: addr-topology-test.exp <port>"
+    exit 2
+}
+set port [lindex $argv 0]
+
+foreach v {STUB_LOG FEED_ROOT} {
+    if {![info exists ::env($v)]} {
+        puts "addr-topology-test.exp: $v is not set"
+        exit 2
+    }
+}
+set stub_log  $::env(STUB_LOG)
+set feed_root $::env(FEED_ROOT)
+
+vmlib::init
+nltopo::reset
+vmlib::connect $port 60
+
+set pass 0
+set fail 0
+
+proc check {description got want} {
+    global pass fail
+    if {$got eq $want} {
+        puts "PASS: $description"
+        incr pass
+    } else {
+        puts "FAIL: $description - got \[$got\] want \[$want\]"
+        incr fail
+    }
+}
+
+proc slurp {path} {
+    if {![file exists $path]} {
+        return ""
+    }
+    set f [open $path]
+    set s [read $f]
+    close $f
+    return $s
+}
+
+proc spit {path s} {
+    set f [open $path w]
+    puts -nonewline $f $s
+    close $f
+}
+
+# One if_inet6 line: the 32-hex address, ifindex, prefix length, scope,
+# flags and the device name right-aligned in eight columns.
+proc line {hex flags dev} {
+    return [format "%s 03 40 00 %s %8s\n" $hex $flags $dev]
+}
+
+set A5  20010db8000000000000000000000005
+set LL0 fe800000000000000000000000000001
+
+# feed <name> <table>... - one table per poll, the last repeated after that.
+# Points the shell's wait-addr-flag at it and returns its directory.
+proc feed {name args} {
+    global feed_root
+    set dir $feed_root/$name
+    file delete -force $dir
+    file mkdir $dir
+    set i 0
+    foreach t $args {
+        incr i
+        spit $dir/$i $t
+    }
+    spit $dir/last [lindex $args end]
+    vmlib::must "export NLCAP_IF_INET6_CMD='seqread $dir'"
+    return $dir
+}
+
+proc polls {dir} {
+    return [string trim [slurp $dir/n]]
+}
+
+proc stub_reset {} {
+    global stub_log
+    spit $stub_log ""
+}
+
+proc stub_lines {} {
+    global stub_log
+    return [split [string trim [slurp $stub_log]] "\n"]
+}
+
+# The index of the first stub line matching re, or -1.
+proc first {re} {
+    return [lsearch -regexp [stub_lines] $re]
+}
+
+###############################################################################
+# wait_addr_flag
+###############################################################################
+
+set d [feed appears [line $A5 80 v0] [line $A5 80 v0] [line $A5 c0 v0]]
+check "positive: the flag appears after N polls" \
+    [list [addrtopo::wait_addr_flag - v0 2001:db8::5 tentative present 10] [polls $d]] {1 3}
+
+set d [feed clears [line $A5 c0 v0] [line $A5 c0 v0] [line $A5 80 v0]]
+check "positive: absent returns once the flag clears" \
+    [list [addrtopo::wait_addr_flag - v0 2001:db8::5 tentative absent 10] [polls $d]] {1 3}
+
+set d [feed any [line $LL0 80 d0] [line $LL0 80 d0][line $A5 81 d0]]
+check "positive: any matches whichever address on the device has the flag" \
+    [list [addrtopo::wait_addr_flag - d0 any temporary present 10] [polls $d]] {1 2}
+
+set d [feed never [line $A5 80 v0]]
+set r [addrtopo::wait_addr_flag - v0 2001:db8::5 tentative present 1]
+check "negative: the deadline passes first" \
+    [list $r [expr {[polls $d] >= 1}]] {0 1}
+
+set d [feed bogus [line $A5 c0 v0]]
+lassign [vmlib::run_out "xtcp2-nlcap wait-addr-flag - v0 2001:db8::5 bogus present 1"] rc out
+check "negative: an unknown flag name is an error, with no read" \
+    [list $rc [regexp {NLCAP_ERR.*unknown flag} $out] [polls $d]] {2 1 {}}
+
+lassign [vmlib::run_out "xtcp2-nlcap wait-addr-flag - v0 2001:db8::5::1 tentative present 1"] rc out
+check "negative: a malformed address is an error" \
+    [list $rc [regexp {NLCAP_ERR.*not an IPv6 address} $out]] {2 1}
+
+set d [feed first [line $A5 c8 v0]]
+check "boundary: the flag is present on the first poll" \
+    [list [addrtopo::wait_addr_flag - v0 2001:db8::5 dadfailed present 10] [polls $d]] {1 1}
+
+set d [feed wide [line $A5 c0 v0]]
+lassign [vmlib::run_out "xtcp2-nlcap wait-addr-flag - v0 2001:db8::5 mngtmpaddr present 1"] rc out
+check "boundary: a flag above 0xff is refused, not waited on" \
+    [list $rc [regexp {NLCAP_ERR.*low byte} $out] [polls $d]] {2 1 {}}
+
+feed otherdev [line $A5 c0 v1]
+lassign [vmlib::run_out "xtcp2-nlcap wait-addr-flag - v0 2001:db8::5 tentative present 1"] rc out
+check "boundary: the same address on another device does not count" \
+    [list $rc [regexp {NLCAP_DAD_TIMEOUT .* flags=missing} $out]] {1 1}
+
+feed empty ""
+lassign [vmlib::run_out "xtcp2-nlcap wait-addr-flag - v0 2001:db8::5 tentative absent 1"] rc out
+check "corner: a missing address satisfies neither mode" \
+    [list $rc [regexp {NLCAP_DAD_TIMEOUT .* flags=missing} $out]] {1 1}
+
+feed full [line $A5 80 v0]
+lassign [vmlib::run_out \
+    "xtcp2-nlcap wait-addr-flag - v0 2001:0db8:0:0:0:0:0:5 permanent present 1"] rc out
+check "corner: a fully written address matches its compressed form" \
+    [list $rc [regexp {NLCAP_ADDR_FLAG_OK} $out]] {0 1}
+
+stub_reset
+feed noopt [line $A5 c0 v0]
+check "corner: an optional state that never appears is dropped, not failed" \
+    [list [addrtopo::optional_flag - sub v6_optimistic v0 2001:db8::5 optimistic present 1] \
+         [expr {[first {^note - sub dropped v6_optimistic: }] >= 0}]] {dropped 1}
+
+stub_reset
+feed nodad [line $A5 c0 v0]
+check "corner: a required state that times out says so" \
+    [list [addrtopo::require_flag - sub v6_dadfailed v0 2001:db8::5 dadfailed present 1] \
+         [expr {[first {^note - sub timeout v6_dadfailed: }] >= 0}]] {timeout 1}
+
+###############################################################################
+# build: the reset and the state steps, read back from the stub's log
+#
+# One table satisfies every wait a state has: 2001:db8::5 on v0 with
+# tentative, dadfailed and optimistic all set (0xcc), and a temporary
+# address on d0.
+###############################################################################
+
+feed allflags "[line $A5 cc v0][line $A5 81 d0]"
+
+set built_ok 1
+set reset_ok 1
+foreach state [addrtopo::names] {
+    stub_reset
+    set r [addrtopo::build $state lacpa lacpb addr-show/$state]
+    if {$r ne "built"} {
+        set built_ok 0
+        puts "      $state: $r"
+    }
+    set want_reset [list "ns-add lacpa"]
+    if {[addrtopo::uses_b $state]} {
+        lappend want_reset "ns-add lacpb"
+    }
+    set got_reset [lrange [stub_lines] 0 [expr {[llength $want_reset] - 1}]]
+    if {$got_reset ne $want_reset} {
+        set reset_ok 0
+        puts "      $state: starts with \[$got_reset\]"
+    }
+}
+check "positive: every state builds when no step is refused" $built_ok 1
+check "positive: every state starts from a fresh namespace" $reset_ok 1
+check "positive: there are 19 states, as in the design's table" [llength [addrtopo::names]] 19
+
+stub_reset
+addrtopo::build v6_dadfailed lacpa lacpb sub
+check "positive: v6_dadfailed resets both namespaces, then puts v1 in the second" \
+    [list [lrange [stub_lines] 0 1] \
+         [regexp {^topo lacpa sub link add v0 .* peer name v1 .* netns lacpb$} \
+              [lindex [stub_lines] 2]]] \
+    [list {{ns-add lacpa} {ns-add lacpb}} 1]
+
+stub_reset
+addrtopo::build v4_secondary lacpa lacpb sub
+check "corner: a one-namespace state leaves the second namespace alone" \
+    [first {^ns-add lacpb$}] -1
+
+nltopo::reset
+stub_reset
+vmlib::must "export STUB_FAIL='addr add 192.0.2.2/24'"
+set r [addrtopo::build v4_secondary lacpa lacpb sub]
+vmlib::must "unset STUB_FAIL"
+set note {^note lacpa sub refused v4_secondary: ip addr add 192.0.2.2/24 dev d0$}
+check "negative: a refused step stops the state and says which" \
+    [list $r [expr {[first $note] >= 0}] \
+         [llength [nltopo::refused_steps]]] {refused 1 1}
+
+nltopo::reset
+stub_reset
+vmlib::must "export STUB_FAIL='sysctl lacpa'"
+set r [addrtopo::build v6_optimistic lacpa lacpb sub]
+vmlib::must "unset STUB_FAIL"
+check "negative: a refused sysctl is a refusal too" \
+    [list $r [first {addr add}] [llength [nltopo::refused_steps]]] {refused -1 1}
+nltopo::reset
+
+stub_reset
+addrtopo::build v6_tentative lacpa lacpb sub
+check "boundary: v6_tentative never brings a link up" \
+    [list [first {link set v[01] up}] \
+         [expr {[first {-6 addr add 2001:db8::5/64 dev v0}] > 0}]] {-1 1}
+
+stub_reset
+addrtopo::build v6_optimistic lacpa lacpb sub
+check "boundary: v6_optimistic never brings a link up either" \
+    [first {link set v[01] up}] -1
+
+stub_reset
+addrtopo::build v6_stable_privacy lacpa lacpb sub
+set gen [first {link set d0 addrgenmode random}]
+set up  [first {link set d0 up}]
+check "corner: addrgenmode random comes before the link is up" \
+    [list [expr {$gen > 0}] [expr {$gen < $up}]] {1 1}
+
+foreach {state key} {
+    v6_optimistic net.ipv6.conf.v0.optimistic_dad
+    v6_temporary  net.ipv6.conf.d0.use_tempaddr
+} {
+    stub_reset
+    addrtopo::build $state lacpa lacpb sub
+    set s [first "^sysctl lacpa sub $key "]
+    set a [first {-6 addr add}]
+    check "corner: $state's sysctl is set before its address is added" \
+        [list [expr {$s > 0}] [expr {$s < $a}]] {1 1}
+}
+
+###############################################################################
+# summary
+###############################################################################
+
+puts ""
+puts "=== addr-topology.exp: $pass passed, $fail failed ==="
+if {$fail > 0} {
+    puts "ADDRTOPO_TEST_FAIL"
+    exit 1
+}
+puts "ADDRTOPO_TEST_PASS"
+exit 0

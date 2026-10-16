@@ -1,0 +1,329 @@
+###############################################################################
+# addr-topology.exp - the address readback states (addr-write-path.md)
+#
+# Sourced by scripts/capture-link-writes.exp, AFTER vm-lib.exp and
+# netlink-topology.exp, like link-write-topology.exp. Every `ip` step goes
+# through nltopo::topo, so a refusal lands in the same list and the same
+# per-subdir topology transcript as every other capture set.
+#
+# WHY A FRESH NAMESPACE PER STATE, NOT build_clean
+#
+# The read corpus and the gated read rows are built on build_clean. One more
+# secondary address there changes the dump bytes of every `addr show` row and
+# every `link show` row that counts replies. So each rich address state is
+# built alone, in a namespace that `build` recreates first: lo = 1,
+# nlmon0 = 2, then the state's devices in the order its steps make them.
+#
+# A STATE IS DATA
+#
+# Each state is a list of steps, and one builder runs them, so "every state
+# starts from a fresh namespace" and "every step is recorded" are properties
+# of `build` rather than of nineteen procs that each have to remember. A step
+# is one of
+#
+#   ip     <role> <ip-args...>                 one nltopo::topo step
+#   sysctl <role> <key> <value>                xtcp2-nlcap sysctl
+#   wait   <require|optional> <role> <dev> <addr|any> <flag> <present|absent>
+#
+# <role> is `a` or `b`, the namespaces `build` was given; `%b` inside an ip
+# step's arguments is replaced by b's name, for `netns`.
+#
+# EVERY MAC IS PINNED
+#
+# An up dummy or veth gets an EUI-64 link-local from its MAC, and that
+# address is in every `addr show` reply. A random MAC per boot would make
+# every fixture differ from the last for a reason no test cares about.
+# Dummies are 02:00:00:00:d0:0N, veth ends 02:00:00:00:e0:0N, the bond
+# 02:00:00:00:b0:00 and the vrf 02:00:00:00:f0:00. v6_stable_privacy's
+# link-local is random by design and is the one exception.
+#
+# DAD STATES DO NOT RACE
+#
+# A permanent address on a device that is not IF_READY stays tentative until
+# the device is ready (addrconf_dad_begin, net/ipv6/addrconf.c:4162-4172), and
+# a veth whose two ends are both down is never ready. v6_tentative and
+# v6_optimistic are built that way, so they hold for as long as the capture
+# takes. A dummy cannot do this: it is NOARP, and DAD is skipped for NOARP
+# before readiness is checked (:4143). Where a timer cannot be avoided
+# (v6_dadfailed), the state is polled with wait_addr_flag, never slept for.
+###############################################################################
+
+namespace eval addrtopo {
+
+    # Seconds to wait for one DAD flag. A bound on a pathology, not a tuning
+    # knob: DAD fails one retransmit timer (1 s) after the link comes up.
+    variable DAD_TIMEOUT 30
+
+    variable states [dict create]
+
+    # Device steps shared by several states.
+    proc dummy {n} {
+        return [list ip a link add d$n address 02:00:00:00:d0:0$n type dummy]
+    }
+    proc up {dev} {
+        return [list ip a link set $dev up]
+    }
+    proc veth_pair {} {
+        return [list ip a link add v0 address 02:00:00:00:e0:00 type veth \
+                    peer name v1 address 02:00:00:00:e0:01]
+    }
+    proc v4 {args} {
+        return [list ip a addr add {*}$args dev d0]
+    }
+
+    # One dummy, up, then the given IPv4 address argument lists on it.
+    proc v4_state {args} {
+        set steps [list [dummy 0] [up d0]]
+        foreach a $args {
+            lappend steps [v4 {*}$a]
+        }
+        return $steps
+    }
+
+    # IFA_F_SECONDARY: the second address in the same subnet.
+    dict set states v4_secondary [v4_state {192.0.2.1/24} {192.0.2.2/24}]
+    # IFA_ADDRESS differs from IFA_LOCAL.
+    dict set states v4_peer [v4_state {10.0.0.1 peer 10.0.0.2/32}]
+    # IFA_LABEL, for the `label` glob filter.
+    dict set states v4_label [v4_state {192.0.2.1/24 label d0:1} {192.0.2.9/24 label d0:9}]
+    # The computed broadcast, its absence, and `brd +` on a /31, which `ip`
+    # leaves without one. Separate subnets, so none of them is a secondary.
+    dict set states v4_brd [v4_state {192.0.2.1/24 brd +} {198.51.100.1/24 brd -} \
+                                {203.0.113.1/31 brd +}]
+    # IFA_RT_PRIORITY.
+    dict set states v4_metric [v4_state {192.0.2.1/24 metric 50}]
+    # IFA_PROTO, numeric and named.
+    dict set states v4_proto [v4_state {192.0.2.1/24 proto 99} {198.51.100.1/24 proto kernel_lo}]
+    # Finite IFA_CACHEINFO, which renders `dynamic`.
+    dict set states v4_lifetimes [v4_state {192.0.2.1/24 valid_lft 3600 preferred_lft 1800}]
+    # preferred_lft 0: IPv4's `deprecated`.
+    dict set states v4_deprecated [v4_state {192.0.2.1/24 valid_lft 3600 preferred_lft 0}]
+    # A loopback-range address on a non-loopback device: scope host.
+    dict set states v4_host_scope [v4_state {127.0.0.2/8}]
+    # IFA_F_MCAUTOJOIN and the multicast join it makes.
+    dict set states v4_autojoin [v4_state {224.0.0.251/32 autojoin}]
+
+    # The IPv6 flag render, including flags only IFA_FLAGS can carry.
+    dict set states v6_flags [list [dummy 0] [up d0] \
+        {ip a -6 addr add 2001:db8::1/64 nodad dev d0} \
+        {ip a -6 addr add 2001:db8::2/64 home dev d0} \
+        {ip a -6 addr add 2001:db8::3/64 nodad mngtmpaddr noprefixroute dev d0} \
+        {ip a -6 addr add 2001:db8:1::1/48 nodad dev d0}]
+
+    # The IPv6 two-address fill.
+    dict set states v6_peer [list [dummy 0] [up d0] \
+        {ip a -6 addr add 2001:db8::1 peer 2001:db8::2/128 nodad dev d0}]
+
+    # Tentative with no timer: both veth ends stay DOWN for the whole state.
+    # The wait returns on the first poll; it is there so a kernel that
+    # behaves differently fails the driver instead of shipping a fixture
+    # that is not tentative.
+    dict set states v6_tentative [list [veth_pair] \
+        {ip a -6 addr add 2001:db8::5/64 dev v0} \
+        {wait require a v0 2001:db8::5 tentative present}]
+
+    # IFA_F_STABLE_PRIVACY on the link-local: addrgenmode random is set
+    # before the link comes up, which is when the link-local is generated
+    # (addrconf.c:3454-3460). On a dummy it is usable at once.
+    dict set states v6_stable_privacy [list [dummy 0] \
+        {ip a link set d0 addrgenmode random} \
+        [up d0]]
+
+    # DAD actually runs and fails: v1 in b owns the address (nodad), and v0
+    # in a asks for it once both ends are up. The only state that needs a
+    # timer, and the only one in two namespaces.
+    dict set states v6_dadfailed [list \
+        [concat [veth_pair] {netns %b}] \
+        {ip b -6 addr add 2001:db8::5/64 nodad dev v1} \
+        {ip b link set v1 up} \
+        {ip a link set v0 up} \
+        {ip a -6 addr add 2001:db8::5/64 dev v0} \
+        {wait require a v0 2001:db8::5 dadfailed present}]
+
+    # IFA_F_OPTIMISTIC. The design brings the link up; that makes the flag
+    # last one DAD round, about a second, and a capture would race it. With
+    # both ends down the address is held tentative, and addrconf_dad_stop
+    # sets TENTATIVE without touching OPTIMISTIC (:2143-2148), so the pair
+    # holds still. Whether this kernel shows it at all is measurement M2,
+    # hence `optional`.
+    dict set states v6_optimistic [list [veth_pair] \
+        {sysctl a net.ipv6.conf.v0.optimistic_dad 1} \
+        {ip a -6 addr add 2001:db8::5/64 optimistic dev v0} \
+        {wait optional a v0 2001:db8::5 optimistic present}]
+
+    # IFA_F_TEMPORARY from mngtmpaddr with use_tempaddr=2. On a dummy, not
+    # the design's veth: a temporary address that cannot finish DAD is
+    # deleted and regenerated (addrconf_dad_stop, :2130-2142), and a dummy
+    # skips DAD. The temporary address is random, so the wait is on `any`.
+    # Measurement M2 again, hence `optional`.
+    dict set states v6_temporary [list [dummy 0] \
+        {sysctl a net.ipv6.conf.d0.use_tempaddr 2} \
+        [up d0] \
+        {ip a -6 addr add 2001:db8::5/64 mngtmpaddr dev d0} \
+        {wait optional a d0 any temporary present}]
+
+    # `vrf vrf0` selects d0; `vrf d1` is the "Not a valid VRF name" negative.
+    dict set states v4_vrf [list \
+        {ip a link add vrf0 address 02:00:00:00:f0:00 type vrf table 10} \
+        [up vrf0] \
+        [dummy 0] \
+        {ip a link set d0 master vrf0} \
+        [up d0] \
+        {ip a addr add 192.0.2.1/24 dev d0} \
+        [dummy 1] \
+        [up d1] \
+        {ip a addr add 198.51.100.1/24 dev d1}]
+
+    # up, down, master, nomaster and type. A bond, not a bridge, as d3's
+    # master, because the link-write flavor loads bonding at boot.
+    dict set states mixed_links [list \
+        [dummy 0] [up d0] \
+        {ip a addr add 192.0.2.1/24 dev d0} \
+        [dummy 1] \
+        {ip a addr add 198.51.100.1/24 dev d1} \
+        [dummy 2] [up d2] \
+        {ip a link add bond0 address 02:00:00:00:b0:00 type bond} \
+        [dummy 3] \
+        {ip a link set d3 master bond0} \
+        {ip a addr add 203.0.113.1/24 dev d3} \
+        [up bond0]]
+
+    ###########################################################################
+    # names - every state, in the order the topology table lists them.
+    ###########################################################################
+    proc names {} {
+        variable states
+        return [dict keys $states]
+    }
+
+    ###########################################################################
+    # steps <state> - a state's step list, for tests and for diagnostics.
+    ###########################################################################
+    proc steps {state} {
+        variable states
+        return [dict get $states $state]
+    }
+
+    ###########################################################################
+    # uses_b <state> - whether the state touches the second namespace.
+    ###########################################################################
+    proc uses_b {state} {
+        foreach step [steps $state] {
+            set kind [lindex $step 0]
+            set role [lindex $step [expr {$kind eq "wait" ? 2 : 1}]]
+            if {$role eq "b" || [string first %b $step] >= 0} {
+                return 1
+            }
+        }
+        return 0
+    }
+
+    ###########################################################################
+    # note <ns> <subdir> <text> - a line in the topology transcript.
+    ###########################################################################
+    proc note {ns subdir text} {
+        vmlib::run_out "xtcp2-nlcap note $ns $subdir '$text'"
+    }
+
+    ###########################################################################
+    # wait_addr_flag <ns> <dev> <addr|any> <flag> <present|absent> ?timeout?
+    #
+    # One address reaching one DAD state. Returns 1 on success, 0 on
+    # timeout. The poll runs in the guest and reads /proc/net/if_inet6; see
+    # cmd_wait_addr_flag in nix/microvms/netlink-capture.nix for why not `ip`.
+    ###########################################################################
+    proc wait_addr_flag {ns dev addr flag want {timeout ""}} {
+        variable DAD_TIMEOUT
+        if {$timeout eq ""} {
+            set timeout $DAD_TIMEOUT
+        }
+        lassign [vmlib::run_out \
+            "xtcp2-nlcap wait-addr-flag $ns $dev $addr $flag $want $timeout" \
+            [expr {$timeout + 30}]] rc out
+        vmlib::log [string trim $out]
+        return [expr {$rc == 0}]
+    }
+
+    ###########################################################################
+    # require_flag / optional_flag - what a timeout means.
+    #
+    # require: the state is the point of its fixture, so a timeout is
+    # NLCAP_DAD_TIMEOUT (already in the transcript, from the guest) and the
+    # caller fails the driver rather than commit the wrong state.
+    #
+    # optional: whether this kernel produces the state at all is one of the
+    # Phase 0 measurements. A timeout drops the state, and its topology file
+    # says so; nothing is claimed for a state that was not captured.
+    ###########################################################################
+    proc require_flag {ns subdir state dev addr flag want {timeout ""}} {
+        if {[wait_addr_flag $ns $dev $addr $flag $want $timeout]} {
+            return built
+        }
+        vmlib::log "NLCAP_DAD_TIMEOUT $state: $dev $addr never reached $flag $want"
+        note $ns $subdir "timeout $state: $flag $want never seen on $dev $addr"
+        return timeout
+    }
+
+    proc optional_flag {ns subdir state dev addr flag want {timeout ""}} {
+        if {[wait_addr_flag $ns $dev $addr $flag $want $timeout]} {
+            return built
+        }
+        vmlib::log "dropping $state: $flag never appeared on $dev $addr"
+        note $ns $subdir "dropped $state: $flag never appeared on $dev $addr"
+        return dropped
+    }
+
+    ###########################################################################
+    # build <state> <ns_a> <ns_b> <subdir> - reset, then build one state.
+    #
+    # Returns
+    #   built    every step ran and every wait was met
+    #   refused  an `ip` or sysctl step failed; nltopo has it in its list
+    #   timeout  a required wait timed out; the driver should fail
+    #   dropped  an optional wait timed out; skip the state, keep the note
+    #
+    # ns_b is recreated only for a state that uses it, so the single-namespace
+    # states do not pay for a second namespace they never touch.
+    ###########################################################################
+    proc build {state ns_a ns_b subdir} {
+        vmlib::must "xtcp2-nlcap ns-add $ns_a"
+        if {[uses_b $state]} {
+            vmlib::must "xtcp2-nlcap ns-add $ns_b"
+        }
+        set ns(a) $ns_a
+        set ns(b) $ns_b
+        foreach step [steps $state] {
+            set rest [lassign $step kind]
+            switch -- $kind {
+                ip {
+                    set ipargs [string map [list %b $ns_b] [lrange $rest 1 end]]
+                    if {[nltopo::topo $ns([lindex $rest 0]) $subdir {*}$ipargs] != 0} {
+                        note $ns_a $subdir "refused $state: ip $ipargs"
+                        return refused
+                    }
+                }
+                sysctl {
+                    lassign $rest role key value
+                    lassign [vmlib::run_out \
+                        "xtcp2-nlcap sysctl $ns($role) $subdir $key $value"] rc out
+                    if {$rc != 0} {
+                        lappend nltopo::refused "ip netns exec $ns($role) sysctl $key=$value"
+                        note $ns_a $subdir "refused $state: sysctl $key=$value"
+                        return refused
+                    }
+                }
+                wait {
+                    lassign $rest policy role dev addr flag want
+                    set r [${policy}_flag $ns($role) $subdir $state $dev $addr $flag $want]
+                    if {$r ne "built"} {
+                        return $r
+                    }
+                }
+                default {
+                    error "addrtopo: $state has an unknown step kind: $kind"
+                }
+            }
+        }
+        return built
+    }
+}

@@ -1351,16 +1351,18 @@ rec {
     let
       cfg = constants.architectures.${arch};
 
-      # One store directory for all five .exp files, for the dump runner's
+      # One store directory for all six .exp files, for the dump runner's
       # reason: the driver sources its siblings relative to itself.
-      # netlink-topology.exp is here for nltopo::topo, which the LACP
-      # topology builds through so its refusals land in the same list.
+      # netlink-topology.exp is here for nltopo::topo, which the LACP and
+      # address topologies build through so their refusals land in the same
+      # list.
       captureScripts =
         pkgs.runCommand "xtcp2-link-write-capture-scripts"
           {
             vmLib = ./scripts/vm-lib.exp;
             netlinkTopology = ./scripts/netlink-topology.exp;
             topology = ./scripts/link-write-topology.exp;
+            addrTopology = ./scripts/addr-topology.exp;
             readback = ./scripts/link-write-readback.exp;
             driver = ./scripts/capture-link-writes.exp;
           }
@@ -1369,6 +1371,7 @@ rec {
             cp $vmLib $out/vm-lib.exp
             cp $netlinkTopology $out/netlink-topology.exp
             cp $topology $out/link-write-topology.exp
+            cp $addrTopology $out/addr-topology.exp
             cp $readback $out/link-write-readback.exp
             cp $driver $out/capture-link-writes.exp
             chmod +x $out/capture-link-writes.exp

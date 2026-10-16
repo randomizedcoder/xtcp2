@@ -497,9 +497,12 @@ parity driver both source, as both source `link-write-topology.exp` today.
 
 ### `addr-topology.exp`
 
-`nix/microvms/scripts/addr-topology.exp` defines one proc per readback state,
-each taking the namespace and the corpus subdirectory, and each built only from
-`ip` commands logged through `nltopo::topo` so the topology file records them:
+`nix/microvms/scripts/addr-topology.exp` defines each readback state as a list
+of steps, and one `addrtopo::build` proc that recreates the state's namespaces
+and runs them. Steps are `ip` commands logged through `nltopo::topo`, plus, for
+the two states that need one, a sysctl logged through `xtcp2-nlcap sysctl`, so
+the topology file records everything that built the state. A refused step or a
+dropped state adds a `note` line to the same file:
 
 | State | Built with | Exercises |
 |---|---|---|
@@ -518,8 +521,8 @@ each taking the namespace and the corpus subdirectory, and each built only from
 | `v6_tentative` | veth `v0`/`v1`, both left **down**, `2001:db8::5/64` added to `v0` without `nodad` | `tentative`, `-tentative` |
 | `v6_stable_privacy` | dummy `d0`, `link set d0 addrgenmode random`, then up | `stable-privacy` link-local |
 | `v6_dadfailed` | veth `v0` in `NS_A`, its peer `v1` in `NS_B`, `2001:db8::5/64 nodad` on `v1`, both up, then the same address on `v0` | `dadfailed`; capture driver only |
-| `v6_optimistic` | `optimistic_dad=1` on `v0`, address with `optimistic`, link up | `optimistic`; capture driver only; Phase 0 records whether this kernel shows it |
-| `v6_temporary` | `use_tempaddr=2`, a `/64 mngtmpaddr` address on `v0` | `temporary` on IPv6; capture driver only; Phase 0 records whether one appears without a router |
+| `v6_optimistic` | veth `v0`/`v1`, both left **down**, `optimistic_dad=1` on `v0`, address with `optimistic` | `optimistic`; capture driver only; Phase 0 records whether this kernel shows it |
+| `v6_temporary` | dummy `d0` up, `use_tempaddr=2`, a `/64 mngtmpaddr` address on `d0` | `temporary` on IPv6; capture driver only; Phase 0 records whether one appears without a router |
 | `v4_vrf` | `vrf0` (`type vrf table 10`), `d0` enslaved to it, `192.0.2.1/24` on `d0`, `d1` with an address and no master | `vrf vrf0`, and `vrf d1` as the "Not a valid VRF name" negative |
 | `mixed_links` | `d0` up with addresses, `d1` down with addresses, `d2` up with none, `bond0` as master of `d3`, which has an IPv4 address | `up`, `down`, `master`, `nomaster`, `type`, the zero-address link under `-4` |
 
@@ -546,11 +549,26 @@ race at all, or polled when it cannot be:
   usable at once, because DAD is skipped. The address differs per run, which
   is harmless: a read row's `Setup` runs once and all three sides read it, and
   the fixture's sidecars are captured from the same namespace as its pcap.
+- **Optimistic held the same way.** With the link up, `optimistic` lasts one
+  DAD round, about a second, and a capture would race it. On a never-ready
+  veth the address is held tentative, and `addrconf_dad_stop` sets
+  `IFA_F_TENTATIVE` without clearing `IFA_F_OPTIMISTIC` (`:2143-2148`), so
+  `v6_optimistic` is built with both ends down, like `v6_tentative`.
+- **Temporary on a dummy.** A temporary address that cannot finish DAD is
+  deleted and regenerated (`addrconf_dad_stop`, `:2130-2142`), so on a
+  never-ready veth it would churn. `v6_temporary` uses an up dummy, which skips
+  DAD.
 - **Poll, never sleep, where a timer is unavoidable.** `v6_dadfailed` needs DAD
   to actually run and fail. A new proc `wait_addr_flag ns dev addr flag want`
-  re-runs `ip -6 addr show dev DEV` until the address does (or does not) carry
-  the flag, bounded by a timeout that prints `NLCAP_DAD_TIMEOUT` and fails the
-  driver, the same shape as `wait_lacp_converged`.
+  polls, in the guest, until the address does (or does not) carry the flag,
+  bounded by a timeout that prints `NLCAP_DAD_TIMEOUT` and fails the driver,
+  the same shape as `wait_lacp_converged`. It reads `/proc/net/if_inet6`
+  rather than re-running `ip -6 addr show`, for `wait-lacp`'s reasons: a poll
+  puts no netlink traffic where a capture window could see it, and it does
+  not depend on the iproute2 the fixtures come from. The file is per
+  namespace and prints the low byte of the flags (`if6_seq_show`,
+  `:4522-4528`), which holds every DAD flag. Flags above `0xff` are refused
+  rather than waited on.
 
 **`Setup` is `ip` argument lists only** (`internal/goipparity/commands.go:100`),
 run with `ip -n NS` through `nltopo::topo`. That is enough for `v6_tentative`
@@ -622,7 +640,8 @@ and are confirmed or corrected by the capture.
 `link-write/addr-show/<state>/`, one per state in the
 [topology table](#addr-topologyexp), laid out as the existing readback states
 are (`link-write/lacp_converged/`): a `topology` file recording every step as
-`ok    [ns] ip …`, one `netlink_route_*.pcap` per request shape, and one
+`ok    [ns] ip …` or `ok    [ns] sysctl …`, and any refusal or drop as
+`note  [ns] …`, one `netlink_route_*.pcap` per request shape, and one
 sidecar per command, named from its argv (`ip_addr`, `ip_addr_json`, …). The
 commands are:
 

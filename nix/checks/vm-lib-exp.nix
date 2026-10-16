@@ -24,11 +24,21 @@
 # console, the guest's getty autologin, boot timing, and the base64 exfil path.
 # Those are only exercised by `nix run .#microvm-x86_64-netlink-dump-capture`.
 #
+# addr-topology.exp rides on the same shell. Its procs run `xtcp2-nlcap` in
+# the guest, so the shell gets a stub of that ahead of the real helper: the
+# steps that need a namespace are logged rather than run, and wait-addr-flag,
+# the one piece with logic of its own, runs for real against tables fed in
+# by `seqread`. Building the real helper here also shellchecks it.
+# addr-topology-test.exp's header has the details.
+#
 {
   pkgs,
   src,
 }:
 
+let
+  nlcap = import ../microvms/netlink-capture.nix { inherit pkgs; };
+in
 pkgs.runCommand "xtcp2-vm-lib-exp"
   {
     nativeBuildInputs = with pkgs; [
@@ -43,6 +53,36 @@ pkgs.runCommand "xtcp2-vm-lib-exp"
   ''
     cp -r $src/. ./xtcp2 && chmod -R +w ./xtcp2
     cd ./xtcp2
+
+    # The stub and the feed reader, first on the PATH socat's bash inherits.
+    mkdir -p stubbin feeds
+    # Quoted heredocs: Nix has already put the store paths in, and nothing
+    # else in them is for this shell to expand.
+    cat >stubbin/xtcp2-nlcap <<'EOF'
+    #!${pkgs.bashInteractive}/bin/bash
+    case "$1" in
+      ns-add|ns-del|topo|sysctl|note)
+        printf '%s\n' "$*" >>"$STUB_LOG"
+        if [ -n "''${STUB_FAIL:-}" ]; then
+          case "$*" in *"$STUB_FAIL"*) echo "STUB_FAIL $*"; exit 1 ;; esac
+        fi
+        echo "STUB_OK $*"
+        ;;
+      *) exec ${nlcap}/bin/xtcp2-nlcap "$@" ;;
+    esac
+    EOF
+    cat >stubbin/seqread <<'EOF'
+    #!${pkgs.bashInteractive}/bin/bash
+    n=$(cat "$1/n" 2>/dev/null || echo 0)
+    n=$(( n + 1 ))
+    echo "$n" >"$1/n"
+    if [ -f "$1/$n" ]; then cat "$1/$n"; else cat "$1/last"; fi
+    EOF
+    chmod +x stubbin/*
+    export PATH="$PWD/stubbin:$PATH"
+    export STUB_LOG="$PWD/stub.log"
+    export FEED_ROOT="$PWD/feeds"
+    export NLCAP_OUT="$PWD/nlcap-out"
 
     # Fixed port: the sandbox gets a private network namespace, so nothing
     # else can be holding it and there is no reason to hunt for a free one.
@@ -82,6 +122,8 @@ pkgs.runCommand "xtcp2-vm-lib-exp"
 
     rc=0
     expect nix/microvms/scripts/vm-lib-test.exp "$PORT" > result.log 2>&1 || rc=$?
+    arc=0
+    expect nix/microvms/scripts/addr-topology-test.exp "$PORT" > addr.log 2>&1 || arc=$?
 
     kill "$socat_pid" 2>/dev/null || true
     wait "$socat_pid" 2>/dev/null || true
@@ -97,5 +139,15 @@ pkgs.runCommand "xtcp2-vm-lib-exp"
       exit 1
     fi
 
-    cp result.log $out
+    grep -E '^(PASS|FAIL|===)' addr.log || true
+
+    if [ "$arc" -ne 0 ] || ! grep -q 'ADDRTOPO_TEST_PASS' addr.log; then
+      echo "" >&2
+      echo "vm-lib-exp: addr-topology.exp regressed (expect exited $arc)." >&2
+      echo "            Full transcript:" >&2
+      cat addr.log >&2
+      exit 1
+    fi
+
+    cat result.log addr.log >$out
   ''

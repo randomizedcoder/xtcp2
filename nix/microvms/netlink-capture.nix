@@ -109,6 +109,7 @@ pkgs.writeShellApplication {
     gzip
     iproute2
     kmod
+    procps
     rdma-core
     strace
     tcpdump
@@ -117,7 +118,9 @@ pkgs.writeShellApplication {
   text = ''
     set -euo pipefail
 
-    OUT=/tmp/nlcap
+    # NLCAP_OUT moves the output tree for checks/vm-lib-exp.nix, which runs
+    # this outside a guest, in a sandbox with no /tmp to rely on.
+    OUT=''${NLCAP_OUT:-/tmp/nlcap}
     IFACE=nlmon0
 
     # Seconds to wait for tcpdump's socket to come up before giving up on a
@@ -577,6 +580,162 @@ pkgs.writeShellApplication {
       return 1
     }
 
+    # v6_hex <addr> - an IPv6 address in /proc/net/if_inet6's form: 32
+    # lowercase hex digits, no colons. Returns 1 for anything that is not a
+    # plain colon-hex address; an embedded IPv4 tail is not needed here.
+    v6_hex() {
+      local addr=$1 left right g out="" i missing
+      local -a lg=() rg=()
+      case "$addr" in
+        *::*::*) return 1 ;;
+        *::*) left=''${addr%%::*}; right=''${addr#*::} ;;
+        *) left=$addr; right="" ;;
+      esac
+      if [ -n "$left" ]; then IFS=: read -r -a lg <<<"$left"; fi
+      if [ -n "$right" ]; then IFS=: read -r -a rg <<<"$right"; fi
+      missing=$(( 8 - ''${#lg[@]} - ''${#rg[@]} ))
+      case "$addr" in
+        *::*) [ "$missing" -ge 1 ] || return 1 ;;
+        *) [ "$missing" -eq 0 ] || return 1 ;;
+      esac
+      for g in "''${lg[@]}" "''${rg[@]}"; do
+        [[ $g =~ ^[0-9a-fA-F]{1,4}$ ]] || return 1
+      done
+      for g in "''${lg[@]}"; do out+=$(printf '%04x' "0x$g"); done
+      for (( i = 0; i < missing; i++ )); do out+="0000"; done
+      for g in "''${rg[@]}"; do out+=$(printf '%04x' "0x$g"); done
+      echo "$out"
+    }
+
+    # if_inet6_read <ns> - one read of the namespace's /proc/net/if_inet6.
+    #
+    # NLCAP_IF_INET6_CMD replaces the read with a command, so
+    # checks/vm-lib-exp.nix can hand wait-addr-flag a different table on each
+    # poll and assert how many polls it took. Nothing in a guest sets it.
+    if_inet6_read() {
+      local ns=$1
+      if [ -n "''${NLCAP_IF_INET6_CMD:-}" ]; then
+        sh -c "$NLCAP_IF_INET6_CMD"
+      elif [ "$ns" = "-" ]; then
+        cat /proc/net/if_inet6
+      else
+        ip netns exec "$ns" cat /proc/net/if_inet6
+      fi
+    }
+
+    # wait-addr-flag <ns> <dev> <addr|any> <flag> <present|absent> <timeout-sec>
+    #
+    # Poll until the IPv6 address <addr> on <dev> in <ns> carries (present)
+    # or does not carry (absent) one ifa flag, or the deadline passes. `any`
+    # matches every address on <dev>: present means one of them has the flag,
+    # absent means none has. An address that is not there satisfies neither,
+    # so a typo cannot pass as "the flag is absent".
+    #
+    # wait-lacp's reasons, applied to DAD: the state is read from
+    # /proc/net/if_inet6, not from `ip -6 addr show`, so a poll puts no
+    # netlink traffic on the wire, where a capture window could see it, and
+    # does not depend on the iproute2 the fixtures are captured from. The
+    # file is per namespace and prints `(u8) ifp->flags`
+    # (net/ipv6/addrconf.c, if6_seq_show), which holds every DAD flag.
+    # Flags above 0xff (mngtmpaddr, noprefixroute, autojoin, stable-privacy)
+    # are not in it, so asking for one is an error, not a wait that can
+    # never end.
+    cmd_wait_addr_flag() {
+      local ns=$1 dev=$2 addr=$3 flag=$4 want=$5 timeout=$6
+      local bit hex start deadline polls=0 seen="" has
+      case "$flag" in
+        temporary)  bit=1 ;;
+        nodad)      bit=2 ;;
+        optimistic) bit=4 ;;
+        dadfailed)  bit=8 ;;
+        home)       bit=16 ;;
+        deprecated) bit=32 ;;
+        tentative)  bit=64 ;;
+        permanent)  bit=128 ;;
+        mngtmpaddr | noprefixroute | autojoin | stable-privacy)
+          die "wait-addr-flag: $flag is above 0xff, and /proc/net/if_inet6 prints only the low byte of the flags" ;;
+        *) die "wait-addr-flag: unknown flag: $flag" ;;
+      esac
+      case "$want" in
+        present | absent) ;;
+        *) die "wait-addr-flag: want must be present or absent, not $want" ;;
+      esac
+      if [ "$addr" = any ]; then
+        hex=any
+      else
+        hex="$(v6_hex "$addr")" || die "wait-addr-flag: not an IPv6 address: $addr"
+      fi
+      start=$(date +%s)
+      deadline=$(( start + timeout ))
+      while :; do
+        polls=$(( polls + 1 ))
+        # "missing", or "present|absent <last flags byte>".
+        seen="$(if_inet6_read "$ns" 2>/dev/null | awk -v a="$hex" -v d="$dev" -v bit="$bit" '
+          $6 == d && (a == "any" || $1 == a) {
+            n++
+            if (and(strtonum("0x" $5), bit)) { h = 1 }
+            last = $5
+          }
+          END {
+            if (!n) { print "missing" } else { print (h ? "present" : "absent") " 0x" last }
+          }')" || seen="missing"
+        has=''${seen%% *}
+        if [ "$has" = "$want" ]; then
+          echo "NLCAP_ADDR_FLAG_OK $ns/$dev $addr $flag $want flags=''${seen#* } polls=$polls elapsed=$(( $(date +%s) - start ))s"
+          return 0
+        fi
+        if [ "$(date +%s)" -ge "$deadline" ]; then
+          break
+        fi
+        # 100 ms: DAD's own clock is the retransmit timer, a second by
+        # default, so polling faster cannot see the change sooner.
+        sleep 0.1
+      done
+      if [ "$has" = missing ]; then
+        seen=missing
+      else
+        seen=''${seen#* }
+      fi
+      echo "NLCAP_DAD_TIMEOUT $ns/$dev $addr $flag want $want flags=$seen polls=$polls after ''${timeout}s"
+      return 1
+    }
+
+    # sysctl <ns> <subdir> <key> <value>
+    #
+    # topo's sibling for the one kind of step that is not `ip`: a per-device
+    # IPv6 knob (optimistic_dad, use_tempaddr) that an address state needs.
+    # Recorded in the same transcript, so the topology file still describes
+    # everything that built the state.
+    cmd_sysctl() {
+      local ns=$1 subdir=$2 key=$3 value=$4
+      local -a ex=(ip netns exec "$ns")
+      mkdir -p "$OUT/$subdir"
+      if [ "$ns" = "-" ]; then
+        ex=()
+      fi
+      if "''${ex[@]}" sysctl -q -w "$key=$value" >/dev/null 2>&1; then
+        printf 'ok    [%s] sysctl %s=%s\n' "$ns" "$key" "$value" >>"$OUT/$subdir/topology"
+        echo "NLCAP_SYSCTL_OK $key=$value"
+        return 0
+      fi
+      printf 'FAIL  [%s] sysctl %s=%s\n' "$ns" "$key" "$value" >>"$OUT/$subdir/topology"
+      echo "NLCAP_SYSCTL_FAIL $key=$value"
+      return 1
+    }
+
+    # note <ns> <subdir> <text...>
+    #
+    # A line in the topology transcript that is not a step: why a state was
+    # dropped, or which step refused. A dropped state ships its topology file
+    # and nothing else, and this is what that file says.
+    cmd_note() {
+      local ns=$1 subdir=$2
+      shift 2
+      mkdir -p "$OUT/$subdir"
+      printf 'note  [%s] %s\n' "$ns" "$*" >>"$OUT/$subdir/topology"
+      echo "NLCAP_NOTE $*"
+    }
+
     # wait-churn <ns> <ports> <timeout-sec> [none|settled]
     #
     # Poll /proc/net/bonding/bond0 in <ns> until all <ports> ports show both
@@ -938,7 +1097,7 @@ pkgs.writeShellApplication {
     }
 
     if [ $# -lt 1 ]; then
-      die "usage: xtcp2-nlcap <ns-add|ns-del|topo|cap|capio|write|side|wait-lacp|wait-sysfs|wait-churn|strace|strace-monitor|wait-rdma-port|rdma-hold|rdma-hold-wait|rdma-hold-stop|rdma-user-cqn|dir|inventory|pack> ..."
+      die "usage: xtcp2-nlcap <ns-add|ns-del|topo|cap|capio|write|side|sysctl|note|wait-lacp|wait-sysfs|wait-addr-flag|wait-churn|strace|strace-monitor|wait-rdma-port|rdma-hold|rdma-hold-wait|rdma-hold-stop|rdma-user-cqn|dir|inventory|pack> ..."
     fi
 
     sub=$1
@@ -951,8 +1110,11 @@ pkgs.writeShellApplication {
       capio)     cmd_capio "$@" ;;
       write)     cmd_write "$@" ;;
       side)      cmd_side "$@" ;;
+      sysctl)    cmd_sysctl "$@" ;;
+      note)      cmd_note "$@" ;;
       wait-lacp) cmd_wait_lacp "$@" ;;
       wait-sysfs) cmd_wait_sysfs "$@" ;;
+      wait-addr-flag) cmd_wait_addr_flag "$@" ;;
       wait-churn) cmd_wait_churn "$@" ;;
       strace)    cmd_strace "$@" ;;
       strace-monitor) cmd_strace_monitor "$@" ;;
