@@ -431,8 +431,9 @@ in userspace and change no request; four change what is sent:
 - **Policy** (`ifa_ipv4_policy`, `:99`): `IFA_LABEL` is `NLA_STRING` with
   `.len = IFNAMSIZ - 1` (`:103`), so a 16-character label fails policy
   validation, which for an over-long `NLA_STRING` is `ERANGE` (`lib/nlattr.c`).
-  The corpus row `label_16` records the errno and extack that this kernel
-  actually returns; the design says `ERANGE` until Phase 0 measures it.
+  Measured (M1): on 7.1.4 the corpus row `label_16` gets `ERANGE` with the
+  extack "Attribute failed policy validation", its offset pointing at
+  `IFA_LABEL`, and `ip` exits 2 (`link-write/addr/label_16/`).
 - **Unknown device**: `ENODEV` (`inet_rtm_to_ifa`, `:882`). `ip` normally
   catches this client-side ("Cannot find device"); `restore` into a namespace
   without the device is where it reaches the kernel.
@@ -477,7 +478,10 @@ in userspace and change no request; four change what is sent:
   `tentative` or `dadfailed`**. Those states need a veth.
 - **Optimistic** needs `optimistic_dad` set on the device or `all`
   (`:1565`); without it `optimistic` is accepted and has no effect beyond the
-  flag the kernel echoes. Phase 0 records what this kernel echoes.
+  flag the kernel echoes. Measured (M2): with `optimistic_dad=1` on 7.1.4 the
+  address shows `optimistic tentative` while DAD runs, and so does the
+  kernel's own link-local on that device
+  (`link-write/addr-show/v6_optimistic/ip_addr_optimistic`).
 - **Fill order** (`inet6_fill_ifaddr`, `:5165`): `IFA_LOCAL` and `IFA_ADDRESS`
   when there is a peer, `IFA_ADDRESS` alone otherwise; then
   `IFA_RT_PRIORITY`, `IFA_CACHEINFO`, `IFA_FLAGS`, `IFA_PROTO`. There is no
@@ -518,14 +522,16 @@ each taking the namespace and the corpus subdirectory, and each built only from
 | `v6_tentative` | veth `v0`/`v1`, both left **down**, `2001:db8::5/64` added to `v0` without `nodad` | `tentative`, `-tentative` |
 | `v6_stable_privacy` | dummy `d0`, `link set d0 addrgenmode random`, then up | `stable-privacy` link-local |
 | `v6_dadfailed` | veth `v0` in `NS_A`, its peer `v1` in `NS_B`, `2001:db8::5/64 nodad` on `v1`, both up, then the same address on `v0` | `dadfailed`; capture driver only |
-| `v6_optimistic` | `optimistic_dad=1` and `dad_transmits=60` on `v0`, link up, address with `optimistic` | `optimistic`; capture driver only; Phase 0 records whether this kernel shows it |
-| `v6_temporary` | `use_tempaddr=2` on dummy `d0`, then a `/64 mngtmpaddr` address | `temporary` on IPv6; capture driver only; Phase 0 records whether one appears without a router |
+| `v6_optimistic` | `optimistic_dad=1` and `dad_transmits=60` on `v0`, link up, address with `optimistic` | `optimistic`; capture driver only; built on 7.1.4 (M2) |
+| `v6_temporary` | `use_tempaddr=2` on dummy `d0`, then a `/64 mngtmpaddr` address | `temporary` on IPv6; capture driver only; built on 7.1.4 with no router (M2) |
 | `v4_vrf` | `vrf0` (`type vrf table 10`), `d0` enslaved to it, `192.0.2.1/24` on `d0`, `d1` with an address and no master | `vrf vrf0`, and `vrf d1` as the "Not a valid VRF name" negative |
 | `mixed_links` | `d0` up with addresses, `d1` down with addresses, `d2` up with none, `bond0` as master of `d3`, which has an IPv4 address | `up`, `down`, `master`, `nomaster`, `type`, the zero-address link under `-4` |
 
-The two "Phase 0 records" states are honest unknowns. If the kernel does not
-produce the state in the namespace, the state is dropped from the corpus with a
-note in the topology file, and the filter rows for it use hand-built bytes as
+The two measured states were honest unknowns until Phase 0 built both on
+7.1.4 (M2): one `temporary dynamic` address appears from the `mngtmpaddr` one
+with no router. The rule stays for a recapture on another kernel. If the
+kernel does not produce the state in the namespace, the state is dropped from
+the corpus with a note in the topology file, and the filter rows for it use hand-built bytes as
 malformed-input-style negatives only; nothing is claimed for a state that was
 not captured.
 
@@ -686,7 +692,7 @@ selectors (for `v4_secondary`: `secondary`, `primary`, `-secondary`; for
 | `autojoin_unicast` | `PRE_ADDR_DEV` | `ip addr add 192.0.2.10/24 autojoin dev d0` | the lookup only, "autojoin needs multicast address" |
 | `scope_conflict` | `PRE_ADDR_V4` | `ip addr add 192.0.2.2/24 scope link dev d0` | `EINVAL` "ipv4: Invalid scope value" |
 | `v6_mcast_noautojoin` | `PRE_ADDR_DEV` | `ip -6 addr add ff02::fb/128 dev d0` | `EADDRNOTAVAIL` with the autojoin extack |
-| `label_16` | `PRE_ADDR_DEV` | `ip addr add 192.0.2.10/24 label d0:0123456789abc dev d0` | policy error; errno recorded (expected `ERANGE`) |
+| `label_16` | `PRE_ADDR_DEV` | `ip addr add 192.0.2.10/24 label d0:0123456789abc dev d0` | `ERANGE` "Attribute failed policy validation", rc 2 (M1) |
 
 ### Flush rows
 
@@ -717,7 +723,9 @@ second dump, whichever way `promote_secondaries` is set. So goip matches `ip`
 by stopping after round 1 for a `primary` filter, and `flush_primary` can
 have a matrix row like any other flush. `flush_primary_flipped` stays as the
 evidence that the setting does not change the request sequence. The
-namespace's default is still recorded, as measurement M3.
+namespace's default is still recorded, as measurement M3: `1` in a fresh
+namespace (`link-write/addr-flush/flush_primary/promote_secondaries_default`),
+which does not change the sequence.
 
 `flush_many` sizes itself from the capture rather than the arithmetic. Each
 IPv4 DEL is 76 bytes, so 47 fit the 3584-byte buffer, and the 120 DELs went
@@ -858,7 +866,7 @@ sidecar goldens still run in unit tests against frozen bytes.
 
 | Phase | Scope | Exit evidence |
 |---|---|---|
-| 0 | `addr-topology.exp`, `wait_addr_flag`, the four corpus lists; measure optimistic, temporary and the label errno | fixtures committed; `NLCAP_DRIVER_PASS`; topology files list every state built or dropped |
+| 0 | `addr-topology.exp`, `wait_addr_flag`, the four corpus lists; measure optimistic, temporary and the label errno | fixtures committed; `NLCAP_DRIVER_PASS`; topology files list every state built or dropped; M1–M3 recorded in the status doc |
 | 1 | decode `IFA_RT_PRIORITY`, `IFA_ANYCAST`, `IFA_MULTICAST`, `IFA_MC_USERS`; render `metric`, `any`, `mcast` | `TestParseNewAddrRichFixtures` green; plain and `-j` sidecars byte-identical for every readback state; benchmark guard |
 | 2 | show selectors | `TestParseAddrShowArgs`, `TestAddrFilter`; selector rows `Implemented: true` |
 | 3 | `-br` and `-o` | `TestAddrBriefMatchesSidecar`, `TestAddrOnelineMatchesSidecar`; output-mode rows `Implemented: true` |

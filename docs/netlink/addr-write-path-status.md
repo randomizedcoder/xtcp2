@@ -2,15 +2,15 @@
 
 Last updated: 2026-10-16.
 
-**Phase A0 has started.** The design
+**Phase A0 is done.** The design
 ([addr-write-path.md](addr-write-path.md)) and the plan
-([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. 4 of 25
-tasks are done: A0-T01 (V001), A0-T02 (closed by a finding, V002), and A0-T03
-and A0-T04, closed by one KVM capture (V005).
+([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. 5 of 25
+tasks are done: A0-T01 (V001), A0-T02 (closed by a finding, V002), A0-T03
+and A0-T04, closed by one KVM capture (V005), and A0-T05, which recorded
+M1–M3 from that capture's fixtures (V006).
 
-**Next action:** A0-T05, which records M1–M3 from the committed fixtures and
-amends the design paragraphs that leave them open. The raw results are in
-V005's notes.
+**Next action:** A1-T01, A2-T01 and A3-T01 (each depends on A0-T04) and
+A4-T01 (A0-T03) are unblocked. Pick one; one task, one PR.
 
 ## Update rules
 
@@ -44,7 +44,7 @@ V005's notes.
 
 | Phase | Scope | State | Tasks done | Evidence |
 |---|---|---|---|---|
-| A0 | capture: topologies, corpus, measurements | in progress | 4/5 | V001, V002, V003, V005 |
+| A0 | capture: topologies, corpus, measurements | done | 5/5 | V001, V002, V003, V005, V006 |
 | A1 | decode and render `metric`/`any`/`mcast` | not started | 0/2 | — |
 | A2 | `addr show` selectors | not started | 0/3 | — |
 | A3 | `-br` and `-o` | not started | 0/3 | — |
@@ -66,7 +66,7 @@ Add evidence IDs to the last column as work runs.
 | [x] | [A0-T02](addr-write-path-plan.md#a0-t02) | `vrf` module: closed by finding, no `mkVm.nix` change | done | V002 |
 | [x] | [A0-T03](addr-write-path-plan.md#a0-t03) | write, flush and save corpus lists | done | V003, V005 |
 | [x] | [A0-T04](addr-write-path-plan.md#a0-t04) | readback states | done | V003, V005 |
-| [ ] | [A0-T05](addr-write-path-plan.md#a0-t05) | record the Phase 0 measurements | not started | — |
+| [x] | [A0-T05](addr-write-path-plan.md#a0-t05) | record the Phase 0 measurements | done | V006, DOC004 |
 | [ ] | [A1-T01](addr-write-path-plan.md#a1-t01) | `ParseNewAddr` gains four attributes | not started | — |
 | [ ] | [A1-T02](addr-write-path-plan.md#a1-t02) | render `metric`, `any`, `mcast` | not started | — |
 | [ ] | [A2-T01](addr-write-path-plan.md#a2-t01) | `addrFilter` and its parser | not started | — |
@@ -90,14 +90,16 @@ Add evidence IDs to the last column as work runs.
 
 ## Phase 0 measurements
 
-The design leaves four facts to be measured in a capture rather than assumed.
-A0-T05 fills in this table and amends the design.
+The design left four facts to be measured in a capture rather than assumed.
+A0-T05 filled in this table and amended the design.
+`TestAddrCaptureCorpusComplete/measurements` pins each result against the
+committed fixtures, so a recapture that changes one fails `go test`.
 
 | ID | Question | Why it matters | Result | Evidence |
 |---|---|---|---|---|
-| M1 | Which errno does a 16-character `label` get: the nla-policy EINVAL, or ERANGE? | the expected outcome of the `label_16` row | — | — |
-| M2 | Does this kernel show `optimistic`, and `temporary` from `use_tempaddr` with `mngtmpaddr`? | whether those readback states are built or dropped | — | — |
-| M3 | What is the namespace's `promote_secondaries` default? | how many rounds `flush_primary` takes | — | — |
+| M1 | Which errno does a 16-character `label` get: the nla-policy EINVAL, or ERANGE? | the expected outcome of the `label_16` row | `ERANGE`, with the extack "Attribute failed policy validation" and its offset at `IFA_LABEL`; `ip` exits 2 | V005, V006; `pkg/xtcpnl/testdata/7_1_4/link-write/addr/label_16/` |
+| M2 | Does this kernel show `optimistic`, and `temporary` from `use_tempaddr` with `mngtmpaddr`? | whether those readback states are built or dropped | Both, so neither state is dropped. The `optimistic` address shows `optimistic tentative` while DAD runs, and so does `v0`'s kernel link-local. One `temporary dynamic` address appears from the `mngtmpaddr` one, with no router. | V005, V006; `pkg/xtcpnl/testdata/7_1_4/link-write/addr-show/v6_optimistic/ip_addr_optimistic`, `…/v6_temporary/ip_addr_temporary` |
+| M3 | What is the namespace's `promote_secondaries` default? | whether `flush_primary`'s request sequence depends on it. It does not: a `primary` flush is one round (`ip/ipaddress.c:2004-2010`). | `1` in a fresh namespace. `flush_primary` and `flush_primary_flipped` (set to `0`) send the same lookup, dump and DEL. | V005, V006; `pkg/xtcpnl/testdata/7_1_4/link-write/addr-flush/flush_primary/promote_secondaries_default` |
 | M4 | Does loading `vrf` move any root-namespace sidecar? | whether `needsVrf` is safe for the gated read rows | Moot: nothing loads `vrf` at boot. It autoloads on the first `link add … type vrf`, inside the capture namespace, as it already does in the gated dump and parity flavors. Its init creates no device. | V002 |
 
 ## Statements this design flips
@@ -129,6 +131,8 @@ it.
 | V004 | 2026-10-16 | A0-T03, A0-T04 | `nix run .#microvm-x86_64-link-write-capture -- --out <scratch>` on an x86_64 NixOS host with `/dev/kvm` | Failed: `NLCAP_MISSED_FLOOR 2`, `flush_primary` and `flush_primary_flipped`, 6 datagrams against a floor of 7. Every other address row and state passed. The cause is that `ip` flushes `primary` in one round (`ip/ipaddress.c:2009`), so there is no round-2 dump; the floor became 5. | transcript not kept; the fixtures were discarded, and none from this run are committed |
 | V005 | 2026-10-16 | A0-T03, A0-T04 | the same capture, rerun after the floor fix. `TestAddrCaptureCorpusComplete` (`pkg/xtcpnl`, 62 subtests) then run over the committed fixtures, with `go test ./pkg/xtcpnl/... ./pkg/nlparity/... ./internal/goip/... ./internal/goipparity/...` | Passed: `NLCAP_DRIVER_PASS`; all 19 states built, none dropped; 32 write, 11 flush and 7 save rows captured; Go green. Raw results for A0-T05: M1, `label_16` is `ERANGE` (-34), "Attribute failed policy validation", rc 2. M2, both `v6_optimistic` (flags `0xc4`) and `v6_temporary` (a `0x01` address with no router) were built. M3, a fresh namespace's `promote_secondaries` default is `1`. Also `flush_many`'s 120 DELs went out as 3 datagrams (47, 47, 26). | `pkg/xtcpnl/testdata/7_1_4/link-write/{addr-show,addr,addr-flush,addr-save}/`; only those four directories were copied from the run, and the LACP, link and route fixtures are unchanged |
 | DOC003 | 2026-10-16 | A0-T03/A0-T04 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc: 25 task IDs one to one; local links and anchors resolve; plus `git diff --check` | Passed | Summary retained here; the checker script was session-local |
+| V006 | 2026-10-16 | A0-T05, M1–M3 | `go test ./pkg/xtcpnl/ -run TestAddrCaptureCorpusComplete -v` over the committed fixtures, with its new `measurements` subtest (11 rows), then `go test ./pkg/xtcpnl/... ./pkg/nlparity/... ./internal/goip/... ./internal/goipparity/...`. Mutation check: the errno changed to `EINVAL`, the default to `0` and the `RTM_GETADDR` count to 2 each failed only its row, and were reverted. No recapture. | Passed: all subtests green; Go green | `pkg/xtcpnl/xtcpnl_addr_corpus_test.go`; the fixtures cited in the measurement table |
+| DOC004 | 2026-10-16 | A0-T05 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc: 25 task IDs one to one; local links and anchors resolve; no "Phase 0 measures/records" wording left in the design; plus `git diff --check` | Passed | Summary retained here; the checker script was session-local |
 
 ## Blockers and upcoming requirements
 
@@ -137,6 +141,17 @@ it.
 - **No open blockers.**
 
 ## Progress and decision log
+
+- **2026-10-16.** A0-T05 is done, and with it Phase A0.
+  - **Closed from the committed fixtures, with no recapture.** V005's capture
+    already answered M1–M3; the measurement table and the design's open
+    paragraphs now cite the fixture behind each result.
+  - **The results are pinned in a test**, `TestAddrCaptureCorpusComplete`'s
+    `measurements` subtest, which the plan's A0-T05 entry did not ask for.
+    The doc's claims would otherwise live only in prose.
+  - **Incidental finding:** with `optimistic_dad=1`, the kernel's own
+    link-local on `v0` is optimistic too. The design's optimistic bullet says
+    so.
 
 - **2026-10-16.** A0-T03 and A0-T04 are done.
   - **The corpus is data in `addr-corpus.exp`**, sourced by the capture
