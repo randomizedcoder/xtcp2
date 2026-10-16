@@ -1,0 +1,537 @@
+#!/usr/bin/env expect
+###############################################################################
+# addr-topology-test.exp - table-driven test for addr-topology.exp and the
+# xtcp2-nlcap subcommands it relies on, with no microVM involved
+#
+# Usage: addr-topology-test.exp <port>
+#
+# Run by nix/checks/vm-lib-exp.nix after vm-lib-test.exp, against the same
+# socat pty shell, with the REAL xtcp2-nlcap on that shell's PATH and two
+# seams exported into its environment:
+#
+#   NLCAP_OUT       where xtcp2-nlcap writes transcripts (not /tmp/nlcap)
+#   NLCAP_IF_INET6  the file wait-addr-flag reads instead of /proc/net/if_inet6
+#
+# TWO KINDS OF ROW
+#
+# The wait-addr-flag, sysctl and note rows run end to end: Tcl, the console,
+# the real shell, the real helper, a real file. Only the file's contents are
+# made up, and they are written in the kernel's own if6_seq_show format.
+#
+# The state rows cannot run `ip` - the sandbox has no namespaces to build in -
+# so vmlib::run_out is wrapped by a recorder that answers the topology verbs
+# (topo, ns-add, ns-del, sysctl, note) itself and hands everything else to
+# the real proc. The real nltopo::topo and the real state procs run; what is
+# asserted is the exact `ip` step list each one sends, in order and in the
+# right namespace, which is the design table written down as data.
+#
+# What this therefore does NOT cover: whether the guest kernel accepts those
+# steps, and whether DAD really produces each flag. Those are exercised by the
+# capture run (A0-T03, A0-T04), which records every refusal in the topology
+# transcript it commits.
+#
+# Rows are table-driven with a class prefix, a description and an expected
+# outcome, per the repo's test standard.
+###############################################################################
+
+set here [file dirname [info script]]
+source $here/vm-lib.exp
+source $here/netlink-topology.exp
+source $here/addr-topology.exp
+
+if {$argc < 1} {
+    puts "usage: addr-topology-test.exp <port>"
+    exit 2
+}
+set port [lindex $argv 0]
+
+vmlib::init
+vmlib::connect $port 60
+
+set pass 0
+set fail 0
+set if6 $env(NLCAP_IF_INET6)
+set out_dir $env(NLCAP_OUT)
+
+###############################################################################
+# The recorder. ::refuse is a regexp over the command line; a match answers
+# rc 1, as the guest does for a step its kernel will not take. ::fake_wait
+# decides whether wait-addr-flag is answered here (with ::wait_rc) or sent to
+# the real helper.
+###############################################################################
+rename vmlib::run_out vmlib::real_run_out
+set ::calls {}
+set ::refuse ""
+set ::fake_wait 1
+set ::wait_rc 0
+
+proc vmlib::run_out {cmd {cmd_timeout ""} {quiet 0}} {
+    set waitcmd [string match "xtcp2-nlcap wait-addr-flag *" $cmd]
+    set topocmd [regexp {^xtcp2-nlcap (topo|ns-add|ns-del|sysctl|note) } $cmd]
+    if {$waitcmd || $topocmd} {
+        lappend ::calls [list $cmd $cmd_timeout]
+    }
+    if {!$topocmd && !($waitcmd && $::fake_wait)} {
+        return [::vmlib::real_run_out $cmd $cmd_timeout $quiet]
+    }
+    if {$::refuse ne "" && [regexp -- $::refuse $cmd]} {
+        return [list 1 "REFUSED"]
+    }
+    if {$waitcmd} {
+        return [list $::wait_rc "faked wait"]
+    }
+    return [list 0 "ok"]
+}
+
+###############################################################################
+# Helpers.
+###############################################################################
+proc row {description ok detail} {
+    global pass fail
+    if {$ok} {
+        puts "PASS: $description"
+        incr pass
+    } else {
+        puts "FAIL: $description"
+        puts "      $detail"
+        incr fail
+    }
+}
+
+# tcheck - a Tcl-level row. The script's result, or ERROR if it raised one,
+# must equal expected.
+proc tcheck {description script expected} {
+    if {[catch {uplevel #0 $script} got]} {
+        set got ERROR
+    }
+    row $description [expr {$got eq $expected}] "got \[$got\] want \[$expected\]"
+}
+
+# ccheck - a console row against the real shell.
+proc ccheck {description cmd want_rc want_re} {
+    lassign [vmlib::real_run_out $cmd 30] rc out
+    set ok [expr {$rc == $want_rc && ($want_re eq "" || [regexp -- $want_re $out])}]
+    row $description $ok "cmd: $cmd rc=$rc want=$want_rc re=/$want_re/ out: \[$out\]"
+}
+
+# write_if6 - a stand-in /proc/net/if_inet6. Each row is
+# {address ifindex plen scope flags name}, printed as if6_seq_show does.
+proc write_if6 {rows} {
+    set f [open $::if6 w]
+    foreach r $rows {
+        lassign $r a idx plen scope flags name
+        puts $f [format "%s %02x %02x %02x %02x %8s" $a $idx $plen $scope $flags $name]
+    }
+    close $f
+}
+
+# steps_sent - the recorded calls as "ns: ip ...", "ns: sysctl k=v" and
+# "ns: wait dev addr mask want", leaving out the namespace resets and notes,
+# which have rows of their own.
+proc steps_sent {} {
+    set got {}
+    foreach c $::calls {
+        set cmd [lindex $c 0]
+        if {[regexp {^xtcp2-nlcap topo (\S+) \S+ (.*)$} $cmd -> ns rest]} {
+            lappend got "$ns: ip $rest"
+        } elseif {[regexp {^xtcp2-nlcap sysctl (\S+) \S+ (\S+) (\S+)$} $cmd -> ns k v]} {
+            lappend got "$ns: sysctl $k=$v"
+        } elseif {[regexp {^xtcp2-nlcap wait-addr-flag (\S+) (\S+) '(\S+)' (\S+) (\S+) \S+$} $cmd -> ns dev a m w]} {
+            lappend got "$ns: wait $dev $a $m $w"
+        }
+    }
+    return $got
+}
+
+proc calls_matching {pattern} {
+    set got {}
+    foreach c $::calls {
+        if {[regexp -- $pattern [lindex $c 0]]} {
+            lappend got [lindex $c 0]
+        }
+    }
+    return $got
+}
+
+# build_fresh - one state from a clean slate. Returns build's result.
+proc build_fresh {state} {
+    set ::calls {}
+    addrtopo::reset
+    nltopo::reset
+    return [addrtopo::build $state t]
+}
+
+set H5  20010db8000000000000000000000005
+set H1  20010db8000000000000000000000001
+
+###############################################################################
+# v6hex
+###############################################################################
+foreach {description addr expected} {
+    "positive: v6hex compresses a middle run"          2001:db8::5                 20010db8000000000000000000000005
+    "positive: v6hex pads every group to four digits"  fe80::a:b                   fe8000000000000000000000000a000b
+    "boundary: v6hex of the unspecified address"       ::                          00000000000000000000000000000000
+    "boundary: v6hex of the loopback, :: leading"      ::1                         00000000000000000000000000000001
+    "boundary: v6hex with :: trailing"                 2001:db8::                  20010db8000000000000000000000000
+    "boundary: v6hex of a full 8-group form is identity" 2001:0db8:0000:0000:0000:0000:0000:0005 20010db8000000000000000000000005
+    "corner: v6hex lowercases its output"              2001:DB8::ABCD              20010db800000000000000000000abcd
+    "negative: v6hex refuses two :: runs"              2001:db8::5::1              ERROR
+    "negative: v6hex refuses a non-hex group"          gggg::                      ERROR
+    "negative: v6hex refuses nine groups"              1:2:3:4:5:6:7:8:9           ERROR
+    "negative: v6hex refuses seven groups without ::"  1:2:3:4:5:6:7               ERROR
+    "negative: v6hex refuses :: standing for zero groups" 1::2:3:4:5:6:7:8         ERROR
+    "negative: v6hex refuses a five-digit group"       12345::                     ERROR
+    "negative: v6hex refuses embedded IPv4"            ::ffff:192.0.2.1            ERROR
+    "negative: v6hex refuses the empty string"         {}                          ERROR
+} {
+    tcheck $description [list addrtopo::v6hex $addr] $expected
+}
+
+# The length of every successful result, separately, so a wrong-length
+# answer cannot hide behind a wrong expected string.
+foreach addr {2001:db8::5 :: ::1 fe80::a:b 2001:0db8:0000:0000:0000:0000:0000:0005} {
+    tcheck "boundary: v6hex $addr is exactly 32 digits" \
+        [list string length [addrtopo::v6hex $addr]] 32
+}
+
+###############################################################################
+# xtcp2-nlcap wait-addr-flag, end to end against the real helper
+###############################################################################
+vmlib::real_run_out "set +m"
+
+write_if6 [list [list $H5 5 64 0 0x40 v0]]
+ccheck "positive: TENTATIVE already set is matched on the first poll" \
+    "xtcp2-nlcap wait-addr-flag - v0 $H5 40 40 5" 0 {NLCAP_ADDR_FLAG_OK -/v0 \S+ flags=0x40 elapsed=0s}
+
+ccheck "boundary: timeout 0 still polls once" \
+    "xtcp2-nlcap wait-addr-flag - v0 $H5 0x40 0x40 0" 0 {NLCAP_ADDR_FLAG_OK}
+
+ccheck "boundary: want 0 waits for a flag to clear, and TENTATIVE is not DADFAILED" \
+    "xtcp2-nlcap wait-addr-flag - v0 $H5 08 0 0" 0 {NLCAP_ADDR_FLAG_OK.*flags=0x40}
+
+write_if6 [list [list $H5 5 64 0 0x00 v0]]
+ccheck "negative: a flag that never appears times out with rc 1 and the last flags" \
+    "xtcp2-nlcap wait-addr-flag - v0 $H5 40 40 0" 1 {NLCAP_DAD_TIMEOUT -/v0 \S+ flags=0x00 want flags&0x40==0x40 after 0s}
+
+# The row the poll loop exists for: the wait starts on a file without the
+# flag, is seen to still be running, and only then gets the flag.
+vmlib::real_run_out "xtcp2-nlcap wait-addr-flag - v0 $H5 40 40 10 >bg.out 2>&1 & echo \$! >bg.pid"
+ccheck "positive: a running wait has not given up on a file without the flag" \
+    {kill -0 "$(cat bg.pid)"} 0 {}
+write_if6 [list [list $H5 5 64 0 0x40 v0]]
+ccheck "positive: a flag that appears after the poll starts is seen" \
+    {wait "$(cat bg.pid)"} 0 {}
+ccheck "positive: and the late match says so" \
+    {cat bg.out} 0 {NLCAP_ADDR_FLAG_OK -/v0 \S+ flags=0x40}
+
+write_if6 [list [list $H5 5 64 0 0x48 v0]]
+ccheck "positive: DADFAILED set alongside TENTATIVE matches mask 08" \
+    "xtcp2-nlcap wait-addr-flag - v0 $H5 08 08 0" 0 {flags=0x48}
+
+write_if6 [list \
+    [list $H1 4 64 0 0x00 d0] \
+    [list 20010db8000000001234567890abcdef 4 64 0 0x01 d0]]
+ccheck "positive: * matches any address on the device that has the flag" \
+    "xtcp2-nlcap wait-addr-flag - d0 '*' 01 01 0" 0 {NLCAP_ADDR_FLAG_OK -/d0 \* flags=0x01}
+ccheck "negative: a named address without the flag does not borrow another's" \
+    "xtcp2-nlcap wait-addr-flag - d0 $H1 01 01 0" 1 {NLCAP_DAD_TIMEOUT.*flags=0x00}
+
+write_if6 [list [list $H1 4 64 0 0x00 d0]]
+ccheck "negative: an absent address times out as absent" \
+    "xtcp2-nlcap wait-addr-flag - d0 $H5 40 40 0" 1 {NLCAP_DAD_TIMEOUT -/d0 \S+ flags=absent}
+
+write_if6 [list [list $H5 5 64 0 0x40 v1]]
+ccheck "corner: the same address with the flag on a different device is not matched" \
+    "xtcp2-nlcap wait-addr-flag - v0 $H5 40 40 0" 1 {flags=absent}
+
+write_if6 [list [list $H5 5 64 0 0x00 v0] [list $H5 6 64 0 0x40 v01]]
+ccheck "corner: v0 does not match v01's line, which has the flag" \
+    "xtcp2-nlcap wait-addr-flag - v0 $H5 40 40 0" 1 {flags=0x00}
+ccheck "corner: v01 matches its own line" \
+    "xtcp2-nlcap wait-addr-flag - v01 $H5 40 40 0" 0 {flags=0x40}
+
+ccheck "corner: an unreadable if_inet6 reads as absent, not as an error" \
+    "NLCAP_IF_INET6=/nonexistent xtcp2-nlcap wait-addr-flag - v0 $H5 40 40 0" 1 {flags=absent}
+
+foreach {description cmd} [list \
+    "negative: a missing argument is a usage error" \
+        "xtcp2-nlcap wait-addr-flag - v0 $H5 40 40" \
+    "negative: a non-hex mask is a usage error" \
+        "xtcp2-nlcap wait-addr-flag - v0 $H5 4g 40 0" \
+    "negative: an empty want is a usage error" \
+        "xtcp2-nlcap wait-addr-flag - v0 $H5 40 0x 0" \
+    "negative: a non-numeric timeout is a usage error" \
+        "xtcp2-nlcap wait-addr-flag - v0 $H5 40 40 1s" \
+    "negative: an address with colons is a usage error" \
+        "xtcp2-nlcap wait-addr-flag - v0 2001:db8::5 40 40 0" \
+    "boundary: a 31-digit address is a usage error" \
+        "xtcp2-nlcap wait-addr-flag - v0 [string range $H5 1 end] 40 40 0" \
+    "corner: an uppercase address is a usage error, as if_inet6 is lowercase" \
+        "xtcp2-nlcap wait-addr-flag - v0 [string toupper $H5] 40 40 0" \
+] {
+    ccheck $description $cmd 2 {NLCAP_ERR}
+}
+
+###############################################################################
+# xtcp2-nlcap sysctl and note, end to end
+###############################################################################
+ccheck "negative: sysctl refuses a key that climbs out of /proc/sys" \
+    "xtcp2-nlcap sysctl - s ..net.x 1" 2 {NLCAP_ERR sysctl: bad key}
+ccheck "negative: sysctl refuses a key with a slash" \
+    "xtcp2-nlcap sysctl - s net/ipv6 1" 2 {NLCAP_ERR}
+ccheck "negative: sysctl with a missing value is a usage error" \
+    "xtcp2-nlcap sysctl - s net.ipv6.conf.v0.use_tempaddr" 2 {NLCAP_ERR usage}
+ccheck "negative: a sysctl the kernel does not have fails with rc 1" \
+    "xtcp2-nlcap sysctl - s net.nlcap_test.nonexistent 1" 1 {NLCAP_SYSCTL_FAIL net.nlcap_test.nonexistent=1}
+ccheck "negative: note with no text is a usage error" \
+    "xtcp2-nlcap note s" 2 {NLCAP_ERR usage}
+ccheck "positive: note appends one line" \
+    "xtcp2-nlcap note s 'dropped v6_x: the reason'" 0 {NLCAP_NOTE_OK}
+ccheck "positive: the transcript holds the failed sysctl and the note, in order" \
+    "cat $out_dir/s/topology" 0 \
+    {^FAIL  \[-\] sysctl net.nlcap_test.nonexistent=1\nnote  dropped v6_x: the reason$}
+
+###############################################################################
+# addrtopo::wait_addr_flag, the Tcl wrapper, end to end
+###############################################################################
+set ::fake_wait 0
+set saved_timeout $addrtopo::DAD_TIMEOUT
+set addrtopo::DAD_TIMEOUT 0
+
+write_if6 [list [list $H5 5 64 0 0x40 v0]]
+tcheck "positive: wait_addr_flag returns 1 when the flag is there" \
+    {addrtopo::wait_addr_flag - v0 2001:db8::5 $addrtopo::TENTATIVE $addrtopo::TENTATIVE} 1
+tcheck "negative: wait_addr_flag returns 0 on NLCAP_DAD_TIMEOUT" \
+    {addrtopo::wait_addr_flag - v0 2001:db8::5 $addrtopo::DADFAILED $addrtopo::DADFAILED} 0
+tcheck "boundary: wait_addr_flag with want 0 returns 1 when the flag is clear" \
+    {addrtopo::wait_addr_flag - v0 2001:db8::5 $addrtopo::DADFAILED 0} 1
+write_if6 [list [list $H1 4 64 0 0x01 d0]]
+tcheck "corner: wait_addr_flag passes * through unexpanded and unglobbed" \
+    {addrtopo::wait_addr_flag - d0 * $addrtopo::TEMPORARY $addrtopo::TEMPORARY} 1
+tcheck "negative: wait_addr_flag refuses a malformed address before sending anything" \
+    {addrtopo::wait_addr_flag - v0 2001:db8::5::1 0x40 0x40} ERROR
+
+set addrtopo::DAD_TIMEOUT $saved_timeout
+set ::fake_wait 1
+
+set ::calls {}
+addrtopo::wait_addr_flag addra v0 2001:db8::5 $addrtopo::DADFAILED $addrtopo::DADFAILED
+tcheck "corner: the console timeout outlasts the helper's by 30 s" \
+    {list [lindex $::calls 0 1] [lindex [lindex $::calls 0 0] end]} \
+    [list [expr {$addrtopo::DAD_TIMEOUT + 30}] $addrtopo::DAD_TIMEOUT]
+tcheck "corner: the flag and want go out as two-digit hex" \
+    {lindex [steps_sent] 0} "addra: wait v0 $H5 0x08 0x08"
+
+###############################################################################
+# The state step tables: each state's exact steps, in order, per namespace.
+###############################################################################
+set D0 {
+    "addra: ip link add d0 address 02:00:00:00:d0:00 type dummy"
+    "addra: ip link set d0 addrgenmode none"
+    "addra: ip link set d0 up"
+}
+set VETH "addra: ip link add v0 address 02:00:00:00:a0:00 type veth peer name v1 address 02:00:00:00:b0:00"
+
+set tables [list \
+    v4_secondary [concat $D0 {
+        "addra: ip addr add 192.0.2.1/24 dev d0"
+        "addra: ip addr add 192.0.2.2/24 dev d0"
+    }] \
+    v4_peer [concat $D0 {
+        "addra: ip addr add 10.0.0.1 peer 10.0.0.2/32 dev d0"
+    }] \
+    v4_label [concat $D0 {
+        "addra: ip addr add 192.0.2.1/24 label d0:1 dev d0"
+        "addra: ip addr add 192.0.2.9/24 label d0:9 dev d0"
+    }] \
+    v4_brd [concat $D0 {
+        "addra: ip addr add 192.0.2.1/24 brd + dev d0"
+        "addra: ip addr add 198.51.100.1/24 brd - dev d0"
+        "addra: ip addr add 203.0.113.0/31 brd + dev d0"
+    }] \
+    v4_metric [concat $D0 {
+        "addra: ip addr add 192.0.2.1/24 metric 50 dev d0"
+    }] \
+    v4_proto [concat $D0 {
+        "addra: ip addr add 192.0.2.1/24 proto 99 dev d0"
+        "addra: ip addr add 198.51.100.1/24 proto kernel_lo dev d0"
+    }] \
+    v4_lifetimes [concat $D0 {
+        "addra: ip addr add 192.0.2.1/24 valid_lft 3600 preferred_lft 1800 dev d0"
+    }] \
+    v4_deprecated [concat $D0 {
+        "addra: ip addr add 192.0.2.1/24 valid_lft 3600 preferred_lft 0 dev d0"
+    }] \
+    v4_host_scope [concat $D0 {
+        "addra: ip addr add 127.0.0.2/8 dev d0"
+    }] \
+    v4_autojoin [concat $D0 {
+        "addra: ip addr add 224.0.0.251/32 autojoin dev d0"
+    }] \
+    v6_flags [concat $D0 {
+        "addra: ip -6 addr add 2001:db8::1/64 nodad dev d0"
+        "addra: ip -6 addr add 2001:db8:1::1/64 home dev d0"
+        "addra: ip -6 addr add 2001:db8:2::1/64 nodad mngtmpaddr noprefixroute dev d0"
+        "addra: ip -6 addr add 2001:db8:3::1/48 nodad dev d0"
+    }] \
+    v6_peer [concat $D0 {
+        "addra: ip -6 addr add 2001:db8::1 peer 2001:db8::2/128 nodad dev d0"
+    }] \
+    v6_tentative [list \
+        $VETH \
+        "addra: ip -6 addr add 2001:db8::5/64 dev v0" \
+        "addra: wait v0 $H5 0x40 0x40"] \
+    v6_stable_privacy {
+        "addra: ip link add d0 address 02:00:00:00:d0:00 type dummy"
+        "addra: ip link set d0 addrgenmode random"
+        "addra: ip link set d0 up"
+    } \
+    v6_dadfailed [list \
+        "$VETH netns addrb" \
+        "addrb: ip -6 addr add 2001:db8::5/64 nodad dev v1" \
+        "addrb: ip link set v1 up" \
+        "addra: ip link set v0 up" \
+        "addra: ip -6 addr add 2001:db8::5/64 dev v0" \
+        "addra: wait v0 $H5 0x08 0x08"] \
+    v6_optimistic [list \
+        $VETH \
+        "addra: sysctl net.ipv6.conf.v0.optimistic_dad=1" \
+        "addra: sysctl net.ipv6.conf.v0.dad_transmits=60" \
+        "addra: ip link set v0 up" \
+        "addra: ip link set v1 up" \
+        "addra: ip -6 addr add 2001:db8::5/64 optimistic dev v0" \
+        "addra: wait v0 $H5 0x04 0x04"] \
+    v6_temporary [concat $D0 [list \
+        "addra: sysctl net.ipv6.conf.d0.use_tempaddr=2" \
+        "addra: ip -6 addr add 2001:db8::1/64 mngtmpaddr dev d0" \
+        "addra: wait d0 * 0x01 0x01"]] \
+    v4_vrf {
+        "addra: ip link add vrf0 address 02:00:00:00:e0:00 type vrf table 10"
+        "addra: ip link set vrf0 addrgenmode none"
+        "addra: ip link set vrf0 up"
+        "addra: ip link add d0 address 02:00:00:00:d0:00 type dummy"
+        "addra: ip link set d0 addrgenmode none"
+        "addra: ip link set d0 master vrf0"
+        "addra: ip link set d0 up"
+        "addra: ip addr add 192.0.2.1/24 dev d0"
+        "addra: ip link add d1 address 02:00:00:00:d0:01 type dummy"
+        "addra: ip link set d1 addrgenmode none"
+        "addra: ip link set d1 up"
+        "addra: ip addr add 198.51.100.1/24 dev d1"
+    } \
+    mixed_links [concat $D0 {
+        "addra: ip addr add 192.0.2.1/24 dev d0"
+        "addra: ip link add d1 address 02:00:00:00:d0:01 type dummy"
+        "addra: ip link set d1 addrgenmode none"
+        "addra: ip addr add 198.51.100.1/24 dev d1"
+        "addra: ip link add d2 address 02:00:00:00:d0:02 type dummy"
+        "addra: ip link set d2 addrgenmode none"
+        "addra: ip link set d2 up"
+        "addra: ip link add bond0 address 02:00:00:00:c0:00 type bond"
+        "addra: ip link set bond0 addrgenmode none"
+        "addra: ip link add d3 address 02:00:00:00:d0:03 type dummy"
+        "addra: ip link set d3 addrgenmode none"
+        "addra: ip link set d3 master bond0"
+        "addra: ip link set bond0 up"
+        "addra: ip addr add 203.0.113.1/24 dev d3"
+    }] \
+]
+
+set ::refuse ""
+set ::wait_rc 0
+foreach {state want} $tables {
+    set built [build_fresh $state]
+    set got [steps_sent]
+    # lrange canonicalises the brace-literal tables, so eq compares elements.
+    set want [lrange $want 0 end]
+    row "positive: $state sends exactly its design-table steps, in order" \
+        [expr {$built == 1 && $got eq $want}] \
+        "built=$built\n      got:  [join $got "\n            "]\n      want: [join $want "\n            "]"
+}
+
+tcheck "corner: the step tables cover every state, in build order" \
+    {addrtopo::state_names} [dict keys $tables]
+
+set missing {}
+foreach s [addrtopo::state_names] {
+    if {[info procs ::addrtopo::$s] eq ""} {
+        lappend missing $s
+    }
+}
+tcheck "corner: every state in the table has a proc" {set missing} {}
+
+tcheck "negative: build refuses a state it does not know" \
+    {addrtopo::build v4_nonesuch t} ERROR
+
+###############################################################################
+# The per-state namespace reset
+###############################################################################
+build_fresh v4_secondary
+tcheck "corner: a state without a peer deletes addrb, so no leftover answers DAD" \
+    {calls_matching {^xtcp2-nlcap ns-}} \
+    {{xtcp2-nlcap ns-add addra} {xtcp2-nlcap ns-del addrb}}
+
+build_fresh v6_dadfailed
+tcheck "corner: v6_dadfailed creates addrb, after addra" \
+    {calls_matching {^xtcp2-nlcap ns-}} \
+    {{xtcp2-nlcap ns-add addra} {xtcp2-nlcap ns-add addrb}}
+
+tcheck "positive: the reset comes before any step" \
+    {lindex $::calls 0 0} {xtcp2-nlcap ns-add addra}
+
+###############################################################################
+# Refusals and timeouts: required states fail, measured states are dropped
+###############################################################################
+set ::refuse {addrgenmode}
+tcheck "negative: a refused step in a required state fails the build" \
+    {build_fresh v4_secondary} 0
+tcheck "negative: and no step after the refused one is sent" \
+    {steps_sent} [list [lindex $D0 0] [lindex $D0 1]]
+tcheck "negative: the state is recorded as failed, not dropped" \
+    {list [addrtopo::failed_states] [addrtopo::dropped_states]} {v4_secondary {}}
+tcheck "negative: and nltopo records the refusal for the driver's summary" \
+    {llength [nltopo::refused_steps]} 1
+
+set ::refuse {^xtcp2-nlcap ns-add addra}
+tcheck "negative: a namespace that cannot be created fails the build" \
+    {build_fresh v4_peer} 0
+tcheck "negative: and sends no step at all" {steps_sent} {}
+
+set ::refuse ""
+set ::wait_rc 1
+tcheck "negative: a required DAD state whose wait times out fails the build" \
+    {list [build_fresh v6_dadfailed] [addrtopo::failed_states] [addrtopo::dropped_states]} \
+    {0 v6_dadfailed {}}
+
+tcheck "corner: a measured state whose wait times out is dropped instead" \
+    {list [build_fresh v6_temporary] [addrtopo::failed_states] [addrtopo::dropped_states]} \
+    {0 {} v6_temporary}
+tcheck "corner: and the drop is written to its transcript" \
+    {llength [calls_matching {^xtcp2-nlcap note t 'dropped v6_temporary: }]} 1
+
+set ::wait_rc 0
+set ::refuse {optimistic_dad}
+tcheck "corner: a refused sysctl in a measured state drops it" \
+    {list [build_fresh v6_optimistic] [addrtopo::failed_states] [addrtopo::dropped_states]} \
+    {0 {} v6_optimistic}
+tcheck "corner: and nothing after the refused sysctl is sent" \
+    {steps_sent} [list $VETH "addra: sysctl net.ipv6.conf.v0.optimistic_dad=1"]
+
+set ::refuse ""
+build_fresh v6_tentative
+build_fresh v4_peer
+tcheck "boundary: build_fresh's reset leaves no state from the run before" \
+    {list [addrtopo::failed_states] [addrtopo::dropped_states] [nltopo::refused_steps]} \
+    {{} {} {}}
+
+###############################################################################
+# summary
+###############################################################################
+puts ""
+puts "=== addr-topology.exp: $pass passed, $fail failed ==="
+if {$fail > 0} {
+    puts "ADDRTOPO_TEST_FAIL"
+    exit 1
+}
+puts "ADDRTOPO_TEST_PASS"
+exit 0

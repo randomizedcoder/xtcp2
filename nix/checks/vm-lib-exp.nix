@@ -24,6 +24,18 @@
 # console, the guest's getty autologin, boot timing, and the base64 exfil path.
 # Those are only exercised by `nix run .#microvm-x86_64-netlink-dump-capture`.
 #
+# A SECOND DRIVER, ON THE SAME SHELL
+#
+# scripts/addr-topology-test.exp runs after vm-lib-test.exp and covers
+# addr-topology.exp (docs/netlink/addr-write-path.md): v6hex, the
+# wait_addr_flag wrapper, each address state's exact `ip` step list, the
+# per-state namespace reset, and the required/measured failure handling. The
+# REAL xtcp2-nlcap is on the shell's PATH, so wait-addr-flag, sysctl and note
+# run as the guest runs them; NLCAP_OUT and NLCAP_IF_INET6 point its output
+# and its /proc/net/if_inet6 at files in the build directory. It does not
+# cover whether a kernel accepts the steps or whether DAD sets each flag -
+# the sandbox has no namespaces - which the capture run records instead.
+#
 {
   pkgs,
   src,
@@ -37,6 +49,7 @@ pkgs.runCommand "xtcp2-vm-lib-exp"
       expect
       gnugrep
       socat
+      (import ../microvms/netlink-capture.nix { inherit pkgs; })
     ];
     inherit src;
   }
@@ -47,6 +60,11 @@ pkgs.runCommand "xtcp2-vm-lib-exp"
     # Fixed port: the sandbox gets a private network namespace, so nothing
     # else can be holding it and there is no reason to hunt for a free one.
     PORT=17767
+
+    # The two xtcp2-nlcap seams, exported before socat so every shell it
+    # forks inherits them. vm-lib-test.exp never runs the helper.
+    export NLCAP_OUT=$PWD/nlcap
+    export NLCAP_IF_INET6=$PWD/if_inet6
 
     # `pty,setsid,ctty` is what makes this a faithful stand-in for the guest
     # console: bash only enables job control, line editing and its terminal
@@ -82,6 +100,8 @@ pkgs.runCommand "xtcp2-vm-lib-exp"
 
     rc=0
     expect nix/microvms/scripts/vm-lib-test.exp "$PORT" > result.log 2>&1 || rc=$?
+    arc=0
+    expect nix/microvms/scripts/addr-topology-test.exp "$PORT" > addr.log 2>&1 || arc=$?
 
     kill "$socat_pid" 2>/dev/null || true
     wait "$socat_pid" 2>/dev/null || true
@@ -97,5 +117,16 @@ pkgs.runCommand "xtcp2-vm-lib-exp"
       exit 1
     fi
 
-    cp result.log $out
+    grep -E '^(PASS|FAIL|===)' addr.log || true
+
+    if [ "$arc" -ne 0 ] || ! grep -q 'ADDRTOPO_TEST_PASS' addr.log; then
+      echo "" >&2
+      echo "vm-lib-exp: addr-topology.exp regressed (expect exited $arc)." >&2
+      echo "            The FAIL rows above name the broken behavior. Full" >&2
+      echo "            transcript:" >&2
+      cat addr.log >&2
+      exit 1
+    fi
+
+    cat result.log addr.log > $out
   ''

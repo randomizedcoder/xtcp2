@@ -2,13 +2,14 @@
 
 Last updated: 2026-10-15.
 
-**No implementation task has started.** The design
+**Phase A0 has started.** The design
 ([addr-write-path.md](addr-write-path.md)) and the plan
-([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. 0 of 25
-tasks are done.
+([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. 2 of 25
+tasks are done: A0-T01 (V001) and A0-T02, which was closed by a finding (V002).
 
-**Next action:** A0-T01 (`addr-topology.exp` and `wait_addr_flag`) and A0-T02
-(`needsVrf`). Neither has a dependency, so both can start now.
+**Next action:** A0-T03 (the write, flush and save corpus lists) and A0-T04
+(the readback states). Both depend only on done tasks, so both can start now,
+but both need a host with `/dev/kvm` to close.
 
 ## Update rules
 
@@ -42,7 +43,7 @@ tasks are done.
 
 | Phase | Scope | State | Tasks done | Evidence |
 |---|---|---|---|---|
-| A0 | capture: topologies, corpus, measurements | not started | 0/5 | — |
+| A0 | capture: topologies, corpus, measurements | in progress | 2/5 | V001, V002 |
 | A1 | decode and render `metric`/`any`/`mcast` | not started | 0/2 | — |
 | A2 | `addr show` selectors | not started | 0/3 | — |
 | A3 | `-br` and `-o` | not started | 0/3 | — |
@@ -60,8 +61,8 @@ Add evidence IDs to the last column as work runs.
 
 | Done | Task | Work | State | Evidence / blocker |
 |---|---|---|---|---|
-| [ ] | [A0-T01](addr-write-path-plan.md#a0-t01) | `addr-topology.exp` and `wait_addr_flag` | not started | — |
-| [ ] | [A0-T02](addr-write-path-plan.md#a0-t02) | `needsVrf` in `mkVm.nix` | not started | — |
+| [x] | [A0-T01](addr-write-path-plan.md#a0-t01) | `addr-topology.exp` and `wait_addr_flag` | done | V001 |
+| [x] | [A0-T02](addr-write-path-plan.md#a0-t02) | `vrf` module: closed by finding, no `mkVm.nix` change | done | V002 |
 | [ ] | [A0-T03](addr-write-path-plan.md#a0-t03) | write, flush and save corpus lists | not started | — |
 | [ ] | [A0-T04](addr-write-path-plan.md#a0-t04) | readback states | not started | — |
 | [ ] | [A0-T05](addr-write-path-plan.md#a0-t05) | record the Phase 0 measurements | not started | — |
@@ -96,7 +97,7 @@ A0-T05 fills in this table and amends the design.
 | M1 | Which errno does a 16-character `label` get: the nla-policy EINVAL, or ERANGE? | the expected outcome of the `label_16` row | — | — |
 | M2 | Does this kernel show `optimistic`, and `temporary` from `use_tempaddr` with `mngtmpaddr`? | whether those readback states are built or dropped | — | — |
 | M3 | What is the namespace's `promote_secondaries` default? | how many rounds `flush_primary` takes | — | — |
-| M4 | Does loading `vrf` move any root-namespace sidecar? | whether `needsVrf` is safe for the gated read rows | — | — |
+| M4 | Does loading `vrf` move any root-namespace sidecar? | whether `needsVrf` is safe for the gated read rows | Moot: nothing loads `vrf` at boot. It autoloads on the first `link add … type vrf`, inside the capture namespace, as it already does in the gated dump and parity flavors. Its init creates no device. | V002 |
 
 ## Statements this design flips
 
@@ -120,6 +121,9 @@ it.
 | Evidence ID | Date | Tasks / scope | Command or check and environment | Result | Evidence location |
 |---|---|---|---|---|---|
 | DOC001 | 2026-10-15 | Plan and tracker initialization only | scratchpad consistency check, local Python 3, over the plan, this doc and the design: task IDs one to one between plan and checklist; dependencies acyclic and naming real tasks; local links and anchors resolve; cited design test tables exist; plus `git diff --check` | Passed | Summary retained here; the checker script was session-local |
+| V001 | 2026-10-15 | A0-T01 | `nix build --no-link -L .#checks.x86_64-linux.vm-lib-exp` on an x86_64 NixOS host, no KVM needed. It runs `vm-lib-test.exp` (22 rows) and the new `addr-topology-test.exp` (93 rows) against the real `xtcp2-nlcap`, whose `writeShellApplication` build runs shellcheck. Also `nix-fmt`, `statix` and `deadnix`. A mutation run (v1's steps moved to `addra`, and the device match loosened to a prefix) failed exactly the two rows meant to catch them. | Passed: 22/22 and 93/93; linters clean; the mutations were caught and reverted | the check's `$out` holds both transcripts. Whether the guest kernel accepts each step is not covered here; A0-T03 and A0-T04's capture run records that |
+| V002 | 2026-10-15 | A0-T02, M4 | Finding, no run. `nltopo::build_clean` (`nix/microvms/scripts/netlink-topology.exp:134`) runs `ip link add goipvrf type vrf table 100` in the dump and parity flavors. `vrf` is not in `boot.kernelModules` (`nix/microvms/mkVm.nix:4049-4057`). The committed transcript `pkg/xtcpnl/testdata/7_1_4/dumps/topology:15` reads `ok    [nlcapc] ip link add goipvrf type vrf table 100`. `vrf` has `MODULE_ALIAS_RTNL_LINK` (`drivers/net/vrf.c:1968`), and `vrf_init_module` (`:1933-1946`) registers a notifier, pernet ops, the l3mdev lookup and the link ops, but no device. | Closed: the module autoloads, so no `needsVrf` is needed and there is no boot-time load whose sidecar effect needs measuring | `pkg/xtcpnl/testdata/7_1_4/dumps/topology` and the `ip_vrf_json` fixture beside it |
+| DOC002 | 2026-10-15 | A0-T01/A0-T02 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc: 25 task IDs one to one; local links and anchors resolve; plus `git diff --check` | Passed | Summary retained here; the checker script was session-local |
 
 ## Blockers and upcoming requirements
 
@@ -128,6 +132,29 @@ it.
 - **No open blockers.**
 
 ## Progress and decision log
+
+- **2026-10-15.** A0-T01 and A0-T02 are done.
+  - **`wait_addr_flag` polls `/proc/net/if_inet6`, not `ip -6 addr show`.**
+    The existing waits (`wait-lacp`, `wait-sysfs`) avoid netlink, so a poll
+    can never land in a capture window and the check never reads through the
+    decoder under test. `if_inet6` keeps both properties. Its flags field is
+    the u8 `ifa_flags`, which holds every flag a DAD state waits on. The
+    design's DAD paragraph is amended to match.
+  - **`xtcp2-nlcap` gains `wait-addr-flag`, `sysctl` and `note`, and
+    `NLCAP_OUT`.** `sysctl` records the optimistic and temporary states'
+    sysctl steps in the topology transcript. `note` records why a measured
+    state was dropped. `NLCAP_OUT` and `NLCAP_IF_INET6` exist only so the
+    hermetic check can run the real helper.
+  - **The tests are a new driver, `addr-topology-test.exp`, run by
+    `vm-lib-exp`.** This is the check the plan named. A second file keeps
+    `vm-lib-test.exp` about `vm-lib.exp` alone. The plan's four rows are
+    covered and extended to 93.
+  - **A0-T02 was closed by a finding, not a capture**, by the user's decision.
+    The finding is V002: `vrf` already autoloads in the gated flavors, so the
+    `needsVrf` predicate and the with-and-without diff it would have needed
+    are both unnecessary. The plan's A0-T02 entry and the design's `mkVm.nix`
+    bullet are amended. A0-T04 and A0-T05 keep their dependency on A0-T02,
+    which is now done.
 
 - **2026-10-15.** Plan and tracker created from the merged design (PR #227).
   - Task IDs use the `A` prefix, so they don't collide with
