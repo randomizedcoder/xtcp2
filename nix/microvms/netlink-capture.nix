@@ -332,6 +332,15 @@ pkgs.writeShellApplication {
     # records a different transaction under the same name. A write that
     # comes in under its floor is discarded and reported, and the driver
     # rebuilds the namespace if it wants another go.
+    #
+    # THE COMMAND RUNS FROM THE ROW'S OWN DIRECTORY
+    #
+    # So a relative path in it names a file in the fixture: `ip addr save >
+    # ip.save` leaves the saved bytes beside the pcap of the dump that made
+    # them, and `ip addr restore < ip.save` reads the copy the row ships.
+    # Run from the console's directory, the save would land outside $OUT and
+    # never be packed. A plain `ip` write opens no file, so for the link and
+    # route rows this changes nothing.
     cmd_write() {
       capture "$1" "$2" "$3" "$4" "$5" "$3.out" write
     }
@@ -399,7 +408,7 @@ pkgs.writeShellApplication {
         # A write keeps both, in separate files, and its status: see cmd_write.
         rc=0
         if [ "$mode" = write ]; then
-          ip netns exec "$ns" sh -c "$command" >"$outnew" 2>"$errnew" || rc=$?
+          ( cd "$dir" && ip netns exec "$ns" sh -c "$command" ) >"$outnew" 2>"$errnew" || rc=$?
         elif [ "$sout" = "-" ]; then
           ip netns exec "$ns" sh -c "$command" >/dev/null 2>&1 || true
         else

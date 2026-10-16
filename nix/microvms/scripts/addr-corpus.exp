@@ -1,0 +1,321 @@
+###############################################################################
+# addr-corpus.exp - the address write, flush, save and readback corpus
+# (docs/netlink/addr-write-path.md, "The capture corpus")
+#
+# Sourced AFTER vm-lib.exp, netlink-topology.exp and addr-topology.exp, by
+# scripts/capture-link-writes.exp. It is data plus two small procs, kept out
+# of the driver because the driver runs top-level code the moment it is
+# sourced, and this file is what the hermetic check
+# (scripts/addr-corpus-test.exp) has to read.
+#
+# A ROW IS {slug floor pre command}, the driver's write_row arguments.
+#
+#   slug     the fixture directory, link-write/<dir>/<slug>/
+#   floor    a structural minimum of datagrams, as for the link and route
+#            rows: 2 for every by-name RTM_GETLINK `ip` sends first (request
+#            and reply), 2 for a write and its ACK or error, 2 for a dump
+#            (request and at least one reply), 1 for a no-ACK DEL batch
+#   pre      `ip` argument lists run in the row's fresh namespace before the
+#            capture window opens; a step whose first word is `sysctl` is a
+#            recorded sysctl write instead (pre_step)
+#   command  run with `sh -c` FROM THE ROW'S OWN DIRECTORY (xtcp2-nlcap
+#            write), so `> ip.save` and `< ip.save` name files in the fixture.
+#            write_row wraps it in single quotes, so it must contain none.
+#
+# The order checks in ipaddr_modify (iproute2 ip/ipaddress.c) set the
+# floors of the refused rows: "Not enough information" and "Broadcast can be
+# set only for IPv4 addresses" come before ll_name_to_index, so those rows
+# send nothing; "valid_lft is zero" and "autojoin needs multicast address"
+# come after it, so those rows are the lookup alone.
+###############################################################################
+
+namespace eval addrcorpus {
+
+    # d0 with a pinned MAC (02:00:00:00:d0:00), no kernel link-local, up,
+    # and no address: ifindex 3 in every row (lo 1, nlmon0 2). Without
+    # `addrgenmode none` every flush and delete row would also see an
+    # fe80:: address nobody asked for.
+    variable PRE_ADDR_DEV [addrtopo::dummy d0]
+    variable PRE_ADDR_V4 [concat $PRE_ADDR_DEV {{addr add 192.0.2.1/24 dev d0}}]
+    variable PRE_ADDR_SECONDARY [concat $PRE_ADDR_V4 {{addr add 192.0.2.2/24 dev d0}}]
+    # The v6_flags state's four addresses: plain nodad, home, the wide flags,
+    # and a /48.
+    variable V6_FLAGS_ADDRS {
+        {-6 addr add 2001:db8::1/64 nodad dev d0}
+        {-6 addr add 2001:db8:1::1/64 home dev d0}
+        {-6 addr add 2001:db8:2::1/64 nodad mngtmpaddr noprefixroute dev d0}
+        {-6 addr add 2001:db8:3::1/48 nodad dev d0}
+    }
+    variable PRE_ADDR_V6 [concat $PRE_ADDR_DEV $V6_FLAGS_ADDRS]
+
+    ###########################################################################
+    # write_rows - link-write/addr/<slug>/, the design's "Write rows" table.
+    ###########################################################################
+    variable write_rows [list \
+        [list add_v4 4 $PRE_ADDR_DEV "ip addr add 192.0.2.10/24 dev d0"] \
+        [list add_v4_peer 4 $PRE_ADDR_DEV "ip addr add 10.0.0.1 peer 10.0.0.2/32 dev d0"] \
+        [list add_v4_brd_plus 4 $PRE_ADDR_DEV "ip addr add 192.0.2.10/24 brd + dev d0"] \
+        [list add_v4_brd_minus 4 $PRE_ADDR_DEV "ip addr add 192.0.2.10/24 brd - dev d0"] \
+        [list add_v4_brd_31 4 $PRE_ADDR_DEV "ip addr add 192.0.2.10/31 brd + dev d0"] \
+        [list add_v4_label 4 $PRE_ADDR_DEV "ip addr add 192.0.2.10/24 brd + label d0:1 dev d0"] \
+        [list add_v4_metric 4 $PRE_ADDR_DEV "ip addr add 192.0.2.10/24 metric 50 dev d0"] \
+        [list add_v4_pref_is_metric 4 $PRE_ADDR_DEV "ip addr add 192.0.2.10/24 pref 7 dev d0"] \
+        [list add_v4_proto_name 4 $PRE_ADDR_DEV "ip addr add 192.0.2.10/24 proto kernel_lo dev d0"] \
+        [list add_v4_lifetimes 4 $PRE_ADDR_DEV \
+            "ip addr add 192.0.2.10/24 valid_lft 3600 preferred_lft 1800 dev d0"] \
+        [list add_v4_secondary 4 $PRE_ADDR_V4 "ip addr add 192.0.2.2/24 dev d0"] \
+        [list add_v4_loopback_scope 4 $PRE_ADDR_DEV "ip addr add 127.0.0.2/8 dev d0"] \
+        [list add_v4_autojoin 4 $PRE_ADDR_DEV "ip addr add 224.0.0.251/32 autojoin dev d0"] \
+        [list add_v6_nodad 4 $PRE_ADDR_DEV "ip -6 addr add 2001:db8::5/64 nodad dev d0"] \
+        [list add_v6_flags_wide 4 $PRE_ADDR_DEV \
+            "ip -6 addr add 2001:db8::5/64 nodad noprefixroute dev d0"] \
+        [list add_v6_nodad_first 4 $PRE_ADDR_DEV "ip addr add nodad 2001:db8::5/64 dev d0"] \
+        [list add_v6_mngtmpaddr_48 4 $PRE_ADDR_DEV "ip -6 addr add 2001:db8::5/48 mngtmpaddr dev d0"] \
+        [list add_v6_nodad_optimistic 4 $PRE_ADDR_DEV \
+            "ip -6 addr add 2001:db8::5/64 nodad optimistic dev d0"] \
+        [list add_existing 4 $PRE_ADDR_V4 "ip addr add 192.0.2.1/24 dev d0"] \
+        [list change_missing_creates 4 $PRE_ADDR_DEV "ip addr change 192.0.2.10/24 dev d0"] \
+        [list replace_existing 4 $PRE_ADDR_V4 "ip addr replace 192.0.2.1/24 metric 9 dev d0"] \
+        [list del_v4 4 $PRE_ADDR_V4 "ip addr del 192.0.2.1/24 dev d0"] \
+        [list del_v4_wildcard 4 $PRE_ADDR_V4 "ip addr del 192.0.2.1 dev d0"] \
+        [list del_missing 4 $PRE_ADDR_DEV "ip addr del 192.0.2.99/24 dev d0"] \
+        [list nodev 2 {} "ip addr add 192.0.2.10/24 dev nosuch"] \
+        [list no_dev_keyword 0 {} "ip addr add 192.0.2.10/24"] \
+        [list brd_plus_v6 0 $PRE_ADDR_DEV "ip -6 addr add 2001:db8::5/64 brd + dev d0"] \
+        [list valid_zero 2 $PRE_ADDR_DEV "ip addr add 192.0.2.10/24 valid_lft 0 dev d0"] \
+        [list autojoin_unicast 2 $PRE_ADDR_DEV "ip addr add 192.0.2.10/24 autojoin dev d0"] \
+        [list scope_conflict 4 $PRE_ADDR_V4 "ip addr add 192.0.2.2/24 scope link dev d0"] \
+        [list v6_mcast_noautojoin 4 $PRE_ADDR_DEV "ip -6 addr add ff02::fb/128 dev d0"] \
+        [list label_16 4 $PRE_ADDR_DEV \
+            "ip addr add 192.0.2.10/24 label d0:0123456789abc dev d0"] \
+    ]
+
+    ###########################################################################
+    # flush_rows <promote_default> - link-write/addr-flush/<slug>/.
+    #
+    # A proc because flush_primary_flipped's precondition is the opposite of
+    # a value the driver reads from the guest: the namespace's own
+    # promote_secondaries default (M3). The sysctl is on `default` and comes
+    # first, so d0 inherits it when it is created.
+    #
+    # A flushing row is 7: the lookup (2), the round-1 dump (2), the DEL
+    # batch, which asks for no ACK (1), and the round-2 dump (2).
+    # flush_nothing stops after its first dump, so it is 4. A `primary`
+    # flush is 5: `ip` stops it after one round whatever it deleted
+    # (ipaddr_flush, ip/ipaddress.c:2009), so there is no round-2 dump.
+    #
+    # flush_many's addresses are /32s, each its own primary, so no deletion
+    # takes others with it and the batch is exactly the 120 replies.
+    ###########################################################################
+    proc flush_rows {promote_default} {
+        variable PRE_ADDR_DEV
+        variable PRE_ADDR_SECONDARY
+        variable PRE_ADDR_V6
+        if {$promote_default ni {0 1}} {
+            error "addrcorpus: promote_secondaries default must be 0 or 1"
+        }
+        set flipped [expr {1 - $promote_default}]
+        set many $PRE_ADDR_DEV
+        for {set n 1} {$n <= 120} {incr n} {
+            lappend many [list addr add 192.0.2.$n/32 dev d0]
+        }
+        return [list \
+            [list flush_dev 7 [concat [addrtopo::dummy d0 1 eui64] {
+                {addr add 192.0.2.1/24 dev d0}
+                {addr add 198.51.100.1/24 dev d0}
+                {-6 addr add 2001:db8::1/64 nodad dev d0}
+            }] "ip addr flush dev d0"] \
+            [list flush_primary 5 $PRE_ADDR_SECONDARY "ip addr flush dev d0 primary"] \
+            [list flush_primary_flipped 5 [concat \
+                [list [list sysctl net.ipv4.conf.default.promote_secondaries $flipped]] \
+                $PRE_ADDR_SECONDARY] "ip addr flush dev d0 primary"] \
+            [list flush_secondary 7 $PRE_ADDR_SECONDARY "ip addr flush dev d0 secondary"] \
+            [list flush_scope_link 7 [concat $PRE_ADDR_DEV {
+                {addr add 169.254.1.1/16 scope link dev d0}
+                {addr add 192.0.2.1/24 dev d0}
+            }] "ip addr flush dev d0 scope link"] \
+            [list flush_v6 7 $PRE_ADDR_V6 "ip -6 addr flush dev d0"] \
+            [list flush_nothing 4 $PRE_ADDR_DEV "ip addr flush dev d0"] \
+            [list flush_stats 7 [concat $PRE_ADDR_DEV {
+                {addr add 192.0.2.1/24 dev d0}
+                {addr add 198.51.100.1/24 dev d0}
+            }] "ip -s addr flush dev d0"] \
+            [list flush_many 7 $many "ip addr flush dev d0"] \
+            [list flush_noargs 0 {} "ip addr flush"] \
+            [list flush_packet 0 {} "ip -0 addr flush dev d0"] \
+        ]
+    }
+
+    ###########################################################################
+    # save_rows - link-write/addr-save/<slug>/, in run order: save_all has to
+    # be captured before the three rows that read the file it wrote.
+    #
+    # The readers copy save_all's ip.save into their own directory first, so
+    # each fixture holds the exact bytes its command read. cp opens no
+    # netlink socket, so the capture window is unchanged by it.
+    ###########################################################################
+    variable SAVE_ALL_PRE [concat $PRE_ADDR_SECONDARY $V6_FLAGS_ADDRS]
+    variable save_rows [list \
+        [list save_dev 4 [concat $PRE_ADDR_DEV {
+            {addr add 192.0.2.1/24 label d0:1 dev d0}
+            {addr add 192.0.2.9/24 label d0:9 dev d0}
+        }] "ip addr save dev d0 > ip.save"] \
+        [list save_all 2 $SAVE_ALL_PRE "ip addr save > ip.save"] \
+        [list save_empty 4 $PRE_ADDR_DEV "ip addr save dev d0 > ip.save"] \
+        [list showdump 0 {} "cp ../save_all/ip.save . && ip addr showdump < ip.save"] \
+        [list showdump_bad_magic 0 {} \
+            "head -c 4 /dev/zero > bad.save && ip addr showdump < bad.save"] \
+        [list restore_fresh 4 $PRE_ADDR_DEV \
+            "cp ../save_all/ip.save . && ip addr restore < ip.save"] \
+        [list restore_existing 4 $SAVE_ALL_PRE \
+            "cp ../save_all/ip.save . && ip addr restore < ip.save"] \
+    ]
+
+    ###########################################################################
+    # readback <state> - what is captured for one addr-show state, as
+    # {suffix floor command mode} rows.
+    #
+    # Files: netlink_route_getaddr<suffix>.pcap and ip_addr<suffix> for a
+    # capio row; ip_addr<suffix>.{pcap,out,err,rc} for a write-mode row,
+    # which is how the one refused selector keeps its stderr and status.
+    #
+    # Every row is its own capio, so each pcap and its text are one `ip`
+    # invocation: lifetimes count down, and two runs a second apart would
+    # disagree. Every `addr show` is a link dump and an address dump: 4.
+    ###########################################################################
+    variable BASE {
+        {""        4 {ip addr show}         capio}
+        {_json     4 {ip -j addr show}      capio}
+        {_br       4 {ip -br addr show}     capio}
+        {_br_json  4 {ip -br -j addr show}  capio}
+        {_o        4 {ip -o addr show}      capio}
+        {_d        4 {ip -d addr show}      capio}
+        {_stats    4 {ip -s addr show}      capio}
+    }
+
+    # The design's selector rows, each on the state that exercises it. The
+    # globs are double-quoted so they reach `ip` intact inside sh -c.
+    variable selectors {
+        v4_secondary {
+            {_secondary     4 {ip addr show secondary}       capio}
+            {_primary       4 {ip addr show primary}         capio}
+            {_not_secondary 4 {ip addr show -secondary}      capio}
+            {_to            4 {ip addr show to 192.0.2.0/24} capio}
+            {_label_dev     4 {ip addr show label "d*"}      capio}
+            {_d0            4 {ip addr show d0}              capio}
+        }
+        v4_peer {}
+        v4_label {
+            {_label 4 {ip addr show label "d0:*"} capio}
+        }
+        v4_brd {}
+        v4_metric {}
+        v4_proto {
+            {_proto 4 {ip addr show proto 99} capio}
+        }
+        v4_lifetimes {
+            {_dynamic     4 {ip addr show dynamic}   capio}
+            {_permanent   4 {ip addr show permanent} capio}
+            {_not_dynamic 4 {ip addr show -dynamic}  capio}
+        }
+        v4_deprecated {}
+        v4_host_scope {
+            {_scope_host 4 {ip addr show scope host} capio}
+            {_scope_all  4 {ip addr show scope all}  capio}
+        }
+        v4_autojoin {}
+        v6_flags {
+            {_v6   4 {ip -6 addr show}                 capio}
+            {_o_v6 4 {ip -o -6 addr show}              capio}
+            {_to   4 {ip addr show to 2001:db8::/32}   capio}
+        }
+        v6_peer {}
+        v6_tentative {
+            {_tentative     4 {ip addr show tentative}  capio}
+            {_not_tentative 4 {ip addr show -tentative} capio}
+        }
+        v6_stable_privacy {
+            {_scope_link 4 {ip addr show scope link} capio}
+        }
+        v6_dadfailed {
+            {_dadfailed 4 {ip addr show dadfailed} capio}
+        }
+        v6_optimistic {
+            {_optimistic 4 {ip addr show optimistic} capio}
+        }
+        v6_temporary {
+            {_temporary 4 {ip addr show temporary} capio}
+        }
+        v4_vrf {
+            {_vrf    4 {ip addr show vrf vrf0}    capio}
+            {_master 4 {ip addr show master vrf0} capio}
+            {_vrf_d1 4 {ip addr show vrf d1}      write}
+        }
+        mixed_links {
+            {_up              4 {ip addr show up}                capio}
+            {_down            4 {ip addr show down}              capio}
+            {_up_down         4 {ip addr show up down}           capio}
+            {_master          4 {ip addr show master bond0}      capio}
+            {_v4_master       4 {ip -4 addr show master bond0}   capio}
+            {_nomaster        4 {ip addr show nomaster}          capio}
+            {_type_dummy      4 {ip addr show type dummy}        capio}
+            {_type_bond_slave 4 {ip addr show type bond_slave}   capio}
+            {_v4              4 {ip -4 addr show}                capio}
+            {_group           4 {ip addr show group default}     capio}
+            {_novf            4 {ip addr show novf}              capio}
+        }
+    }
+
+    proc readback {state} {
+        variable BASE
+        variable selectors
+        if {![dict exists $selectors $state]} {
+            error "addrcorpus: no readback for state $state"
+        }
+        return [concat $BASE [dict get $selectors $state]]
+    }
+
+    proc readback_states {} {
+        variable selectors
+        return [dict keys $selectors]
+    }
+
+    ###########################################################################
+    # pre_step <ns> <subdir> <step> - run one precondition step. Returns 1
+    # when it took.
+    #
+    # Only the FIRST word decides: `sysctl KEY VALUE` is a recorded sysctl
+    # write (addrtopo::sysctl), anything else is an `ip` argument list
+    # (nltopo::topo, which also records a refusal in refused_steps).
+    ###########################################################################
+    proc pre_step {ns subdir step} {
+        if {[lindex $step 0] eq "sysctl"} {
+            if {[llength $step] != 3} {
+                error "addrcorpus: a sysctl step is {sysctl KEY VALUE}: $step"
+            }
+            return [addrtopo::sysctl $ns $subdir [lindex $step 1] [lindex $step 2]]
+        }
+        return [expr {[nltopo::topo $ns $subdir {*}$step] == 0}]
+    }
+
+    ###########################################################################
+    # fatal_refusals <all> <tolerated> - the refused steps that fail the run.
+    #
+    # <tolerated> is what was refused while building a measured state that
+    # was then dropped: that refusal is the measurement, not a broken
+    # topology. Each tolerated entry cancels ONE matching refusal, so the same
+    # step refused again somewhere else still counts.
+    ###########################################################################
+    proc fatal_refusals {all tolerated} {
+        set out {}
+        foreach r $all {
+            set i [lsearch -exact $tolerated $r]
+            if {$i >= 0} {
+                set tolerated [lreplace $tolerated $i $i]
+            } else {
+                lappend out $r
+            }
+        }
+        return $out
+    }
+}

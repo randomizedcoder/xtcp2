@@ -36,6 +36,16 @@
 # cover whether a kernel accepts the steps or whether DAD sets each flag -
 # the sandbox has no namespaces - which the capture run records instead.
 #
+# AND A THIRD, WITH NO SHELL AT ALL
+#
+# scripts/addr-corpus-test.exp covers addr-corpus.exp: the address write,
+# flush and save rows and the readback captures, checked against the
+# design's slug lists written out again as literals, plus the two procs the
+# capture driver takes from it (pre_step, fatal_refusals). It replaces
+# vmlib::run_out with a recorder outright, so it needs no console. It does
+# not cover what the guest runs or what the kernel answers;
+# TestAddrCaptureCorpusComplete pins that in the committed fixtures.
+#
 {
   pkgs,
   src,
@@ -102,6 +112,8 @@ pkgs.runCommand "xtcp2-vm-lib-exp"
     expect nix/microvms/scripts/vm-lib-test.exp "$PORT" > result.log 2>&1 || rc=$?
     arc=0
     expect nix/microvms/scripts/addr-topology-test.exp "$PORT" > addr.log 2>&1 || arc=$?
+    crc=0
+    expect nix/microvms/scripts/addr-corpus-test.exp > corpus.log 2>&1 || crc=$?
 
     kill "$socat_pid" 2>/dev/null || true
     wait "$socat_pid" 2>/dev/null || true
@@ -128,5 +140,16 @@ pkgs.runCommand "xtcp2-vm-lib-exp"
       exit 1
     fi
 
-    cat result.log addr.log > $out
+    grep -E '^(PASS|FAIL|===)' corpus.log || true
+
+    if [ "$crc" -ne 0 ] || ! grep -q 'ADDRCORPUS_TEST_PASS' corpus.log; then
+      echo "" >&2
+      echo "vm-lib-exp: addr-corpus.exp regressed (expect exited $crc)." >&2
+      echo "            The FAIL rows above name the broken behavior. Full" >&2
+      echo "            transcript:" >&2
+      cat corpus.log >&2
+      exit 1
+    fi
+
+    cat result.log addr.log corpus.log > $out
   ''

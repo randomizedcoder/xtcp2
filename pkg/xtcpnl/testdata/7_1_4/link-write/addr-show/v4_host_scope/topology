@@ -1,0 +1,4 @@
+ok    [addra] ip link add d0 address 02:00:00:00:d0:00 type dummy
+ok    [addra] ip link set d0 addrgenmode none
+ok    [addra] ip link set d0 up
+ok    [addra] ip addr add 127.0.0.2/8 dev d0

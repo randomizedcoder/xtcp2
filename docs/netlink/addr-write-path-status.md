@@ -1,15 +1,16 @@
 # `ip address` implementation status
 
-Last updated: 2026-10-15.
+Last updated: 2026-10-16.
 
 **Phase A0 has started.** The design
 ([addr-write-path.md](addr-write-path.md)) and the plan
-([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. 2 of 25
-tasks are done: A0-T01 (V001) and A0-T02, which was closed by a finding (V002).
+([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. 4 of 25
+tasks are done: A0-T01 (V001), A0-T02 (closed by a finding, V002), and A0-T03
+and A0-T04, closed by one KVM capture (V005).
 
-**Next action:** A0-T03 (the write, flush and save corpus lists) and A0-T04
-(the readback states). Both depend only on done tasks, so both can start now,
-but both need a host with `/dev/kvm` to close.
+**Next action:** A0-T05, which records M1–M3 from the committed fixtures and
+amends the design paragraphs that leave them open. The raw results are in
+V005's notes.
 
 ## Update rules
 
@@ -43,7 +44,7 @@ but both need a host with `/dev/kvm` to close.
 
 | Phase | Scope | State | Tasks done | Evidence |
 |---|---|---|---|---|
-| A0 | capture: topologies, corpus, measurements | in progress | 2/5 | V001, V002 |
+| A0 | capture: topologies, corpus, measurements | in progress | 4/5 | V001, V002, V003, V005 |
 | A1 | decode and render `metric`/`any`/`mcast` | not started | 0/2 | — |
 | A2 | `addr show` selectors | not started | 0/3 | — |
 | A3 | `-br` and `-o` | not started | 0/3 | — |
@@ -63,8 +64,8 @@ Add evidence IDs to the last column as work runs.
 |---|---|---|---|---|
 | [x] | [A0-T01](addr-write-path-plan.md#a0-t01) | `addr-topology.exp` and `wait_addr_flag` | done | V001 |
 | [x] | [A0-T02](addr-write-path-plan.md#a0-t02) | `vrf` module: closed by finding, no `mkVm.nix` change | done | V002 |
-| [ ] | [A0-T03](addr-write-path-plan.md#a0-t03) | write, flush and save corpus lists | not started | — |
-| [ ] | [A0-T04](addr-write-path-plan.md#a0-t04) | readback states | not started | — |
+| [x] | [A0-T03](addr-write-path-plan.md#a0-t03) | write, flush and save corpus lists | done | V003, V005 |
+| [x] | [A0-T04](addr-write-path-plan.md#a0-t04) | readback states | done | V003, V005 |
 | [ ] | [A0-T05](addr-write-path-plan.md#a0-t05) | record the Phase 0 measurements | not started | — |
 | [ ] | [A1-T01](addr-write-path-plan.md#a1-t01) | `ParseNewAddr` gains four attributes | not started | — |
 | [ ] | [A1-T02](addr-write-path-plan.md#a1-t02) | render `metric`, `any`, `mcast` | not started | — |
@@ -124,6 +125,10 @@ it.
 | V001 | 2026-10-15 | A0-T01 | `nix build --no-link -L .#checks.x86_64-linux.vm-lib-exp` on an x86_64 NixOS host, no KVM needed. It runs `vm-lib-test.exp` (22 rows) and the new `addr-topology-test.exp` (93 rows) against the real `xtcp2-nlcap`, whose `writeShellApplication` build runs shellcheck. Also `nix-fmt`, `statix` and `deadnix`. A mutation run (v1's steps moved to `addra`, and the device match loosened to a prefix) failed exactly the two rows meant to catch them. | Passed: 22/22 and 93/93; linters clean; the mutations were caught and reverted | the check's `$out` holds both transcripts. Whether the guest kernel accepts each step is not covered here; A0-T03 and A0-T04's capture run records that |
 | V002 | 2026-10-15 | A0-T02, M4 | Finding, no run. `nltopo::build_clean` (`nix/microvms/scripts/netlink-topology.exp:134`) runs `ip link add goipvrf type vrf table 100` in the dump and parity flavors. `vrf` is not in `boot.kernelModules` (`nix/microvms/mkVm.nix:4049-4057`). The committed transcript `pkg/xtcpnl/testdata/7_1_4/dumps/topology:15` reads `ok    [nlcapc] ip link add goipvrf type vrf table 100`. `vrf` has `MODULE_ALIAS_RTNL_LINK` (`drivers/net/vrf.c:1968`), and `vrf_init_module` (`:1933-1946`) registers a notifier, pernet ops, the l3mdev lookup and the link ops, but no device. | Closed: the module autoloads, so no `needsVrf` is needed and there is no boot-time load whose sidecar effect needs measuring | `pkg/xtcpnl/testdata/7_1_4/dumps/topology` and the `ip_vrf_json` fixture beside it |
 | DOC002 | 2026-10-15 | A0-T01/A0-T02 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc: 25 task IDs one to one; local links and anchors resolve; plus `git diff --check` | Passed | Summary retained here; the checker script was session-local |
+| V003 | 2026-10-16 | A0-T03, A0-T04 | `nix build --no-link -L .#checks.x86_64-linux.vm-lib-exp` on an x86_64 NixOS host, no KVM needed. It adds `addr-corpus-test.exp` (59 rows) after `vm-lib-test.exp` (22) and `addr-topology-test.exp` (93). Also `nix-fmt`, `statix` and `deadnix`. A mutation run (a write slug dropped, `save_all` moved after `showdump`, `fatal_refusals` cancelling every duplicate) failed exactly the rows meant to catch each. | Passed: 22/22, 93/93, 59/59; linters clean; the mutations were caught and reverted | the check's `$out` holds all three transcripts |
+| V004 | 2026-10-16 | A0-T03, A0-T04 | `nix run .#microvm-x86_64-link-write-capture -- --out <scratch>` on an x86_64 NixOS host with `/dev/kvm` | Failed: `NLCAP_MISSED_FLOOR 2`, `flush_primary` and `flush_primary_flipped`, 6 datagrams against a floor of 7. Every other address row and state passed. The cause is that `ip` flushes `primary` in one round (`ip/ipaddress.c:2009`), so there is no round-2 dump; the floor became 5. | transcript not kept; the fixtures were discarded, and none from this run are committed |
+| V005 | 2026-10-16 | A0-T03, A0-T04 | the same capture, rerun after the floor fix. `TestAddrCaptureCorpusComplete` (`pkg/xtcpnl`, 62 subtests) then run over the committed fixtures, with `go test ./pkg/xtcpnl/... ./pkg/nlparity/... ./internal/goip/... ./internal/goipparity/...` | Passed: `NLCAP_DRIVER_PASS`; all 19 states built, none dropped; 32 write, 11 flush and 7 save rows captured; Go green. Raw results for A0-T05: M1, `label_16` is `ERANGE` (-34), "Attribute failed policy validation", rc 2. M2, both `v6_optimistic` (flags `0xc4`) and `v6_temporary` (a `0x01` address with no router) were built. M3, a fresh namespace's `promote_secondaries` default is `1`. Also `flush_many`'s 120 DELs went out as 3 datagrams (47, 47, 26). | `pkg/xtcpnl/testdata/7_1_4/link-write/{addr-show,addr,addr-flush,addr-save}/`; only those four directories were copied from the run, and the LACP, link and route fixtures are unchanged |
+| DOC003 | 2026-10-16 | A0-T03/A0-T04 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc: 25 task IDs one to one; local links and anchors resolve; plus `git diff --check` | Passed | Summary retained here; the checker script was session-local |
 
 ## Blockers and upcoming requirements
 
@@ -132,6 +137,32 @@ it.
 - **No open blockers.**
 
 ## Progress and decision log
+
+- **2026-10-16.** A0-T03 and A0-T04 are done.
+  - **The corpus is data in `addr-corpus.exp`**, sourced by the capture
+    driver, so `addr-corpus-test.exp` can check it against the design's slug
+    lists. The driver runs top-level code and cannot be sourced by a test.
+    Two pieces of driver logic moved there for the same reason: `pre_step`
+    (a `sysctl` precondition step) and `fatal_refusals` (refusals while
+    building a dropped measured state don't fail the run).
+  - **`pack` needed no change.** It already tars all of `$OUT`. The real gap
+    was the working directory: a write row now runs from its own row
+    directory, so `> ip.save` and `< ip.save` name files in the fixture. The
+    plan's A0-T03 entry and the design's `netlink-capture.nix` bullet are
+    amended.
+  - **The runner's script list** in `nix/microvms/lib.nix` gained
+    `addr-topology.exp` and `addr-corpus.exp`. The design did not mention
+    `lib.nix`; it does now.
+  - **`PRE_VETH_PAIR` was dropped.** No row in the write, flush or save tables
+    uses it; the veth states are `addrtopo`'s.
+  - **`ip addr flush … primary` is one round** (`ip/ipaddress.c:2009`), found
+    by the failed first run (V004). `promote_secondaries` therefore cannot
+    change `ip`'s request sequence, and the design's flush-primary paragraph,
+    its risk bullet and test 8's rows 4, 9 and 9a are amended. M3 is still
+    recorded, but its "why it matters" column is A0-T05's to rewrite.
+  - **`flush_many` is three datagrams, not two**, which the design now says.
+  - **`TestAddrCaptureCorpusComplete`** pins the committed layout, outcomes
+    and save bytes, so a later recapture that loses a row fails `go test`.
 
 - **2026-10-15.** A0-T01 and A0-T02 are done.
   - **`wait_addr_flag` polls `/proc/net/if_inet6`, not `ip -6 addr show`.**

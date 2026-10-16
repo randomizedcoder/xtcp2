@@ -1,0 +1,5 @@
+lo               UNKNOWN        127.0.0.1/8 ::1/128 
+nlmon0           UNKNOWN        
+vrf0             UP             
+d0               UNKNOWN        192.0.2.1/24 
+d1               UNKNOWN        198.51.100.1/24 

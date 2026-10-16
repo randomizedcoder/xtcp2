@@ -1,0 +1,5 @@
+ok    [addra] ip link add v0 address 02:00:00:00:a0:00 type veth peer name v1 address 02:00:00:00:b0:00 netns addrb
+ok    [addrb] ip -6 addr add 2001:db8::5/64 nodad dev v1
+ok    [addrb] ip link set v1 up
+ok    [addra] ip link set v0 up
+ok    [addra] ip -6 addr add 2001:db8::5/64 dev v0

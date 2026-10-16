@@ -1351,10 +1351,12 @@ rec {
     let
       cfg = constants.architectures.${arch};
 
-      # One store directory for all five .exp files, for the dump runner's
+      # One store directory for all seven .exp files, for the dump runner's
       # reason: the driver sources its siblings relative to itself.
       # netlink-topology.exp is here for nltopo::topo, which the LACP
-      # topology builds through so its refusals land in the same list.
+      # topology builds through so its refusals land in the same list;
+      # addr-topology.exp and addr-corpus.exp are the address states and
+      # rows (docs/netlink/addr-write-path.md).
       captureScripts =
         pkgs.runCommand "xtcp2-link-write-capture-scripts"
           {
@@ -1362,6 +1364,8 @@ rec {
             netlinkTopology = ./scripts/netlink-topology.exp;
             topology = ./scripts/link-write-topology.exp;
             readback = ./scripts/link-write-readback.exp;
+            addrTopology = ./scripts/addr-topology.exp;
+            addrCorpus = ./scripts/addr-corpus.exp;
             driver = ./scripts/capture-link-writes.exp;
           }
           ''
@@ -1370,6 +1374,8 @@ rec {
             cp $netlinkTopology $out/netlink-topology.exp
             cp $topology $out/link-write-topology.exp
             cp $readback $out/link-write-readback.exp
+            cp $addrTopology $out/addr-topology.exp
+            cp $addrCorpus $out/addr-corpus.exp
             cp $driver $out/capture-link-writes.exp
             chmod +x $out/capture-link-writes.exp
           '';
@@ -1408,6 +1414,8 @@ rec {
               echo "  captures lacpa's link and xstats dumps off nlmon0, with the"
               echo "  ip -d / ip -j sidecars and a sysfs + /proc oracle, in three"
               echo "  states: lacp_no_partner, lacp_converged, lacp_partner_down."
+              echo "  Then the link, route and address write rows, and the address"
+              echo "  readback states (addr-show/, addr/, addr-flush/, addr-save/)."
               echo ""
               echo "  --out defaults to pkg/xtcpnl/testdata/<guest kernel>/link-write,"
               echo "  with the kernel derived from the guest's own uname sidecar."
@@ -1541,7 +1549,7 @@ rec {
           exit "$rc"
         fi
 
-        echo "PASS: bond / LACP readback capture complete"
+        echo "PASS: bond / LACP readback, link, route and address capture complete"
         exit 0
       '';
     };

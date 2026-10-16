@@ -134,15 +134,23 @@ Done when: the finding and M4's answer are recorded in the status doc's ledger
 **The write, flush and save corpus lists.** Depends on: A0-T01.
 
 Deliver:
-- in `nix/microvms/scripts/capture-link-writes.exp`:
+- `nix/microvms/scripts/addr-corpus.exp`, sourced by
+  `capture-link-writes.exp`, holding:
   - the precondition lists `PRE_ADDR_DEV` (with `addrgenmode none`),
-    `PRE_ADDR_V4`, `PRE_ADDR_SECONDARY`, `PRE_ADDR_V6` and `PRE_VETH_PAIR`
-  - the corpus lists `addr_rows`, `addr_flush_rows` and `addr_save_rows`,
-    with every slug from the design's
-    [write](addr-write-path.md#write-rows),
+    `PRE_ADDR_V4`, `PRE_ADDR_SECONDARY` and `PRE_ADDR_V6`
+  - the corpus lists `write_rows`, `flush_rows` and `save_rows`, with every
+    slug from the design's [write](addr-write-path.md#write-rows),
     [flush](addr-write-path.md#flush-rows) and
     [save/restore](addr-write-path.md#save-showdump-and-restore-rows) tables
-- `ip.save` added to `pack`'s file list in `nix/microvms/netlink-capture.nix`
+- in `nix/microvms/netlink-capture.nix`, a write row runs from its own row
+  directory, so `> ip.save` and `< ip.save` name files in the fixture.
+  `pack` already ships every file under `$OUT`, so it needs no file list.
+- `addr-topology.exp` and `addr-corpus.exp` added to the runner's script
+  directory in `nix/microvms/lib.nix`
+
+Tests: `nix/microvms/scripts/addr-corpus-test.exp` in `vm-lib-exp` (the
+corpus as data, against the design's slug lists), and
+`TestAddrCaptureCorpusComplete` in `pkg/xtcpnl` (the committed fixtures).
 
 Done when:
 - `nix run .#microvm-x86_64-link-write-capture` prints `NLCAP_DRIVER_PASS`

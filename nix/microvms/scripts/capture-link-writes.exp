@@ -36,6 +36,21 @@
 # change|replace|prepend|append|test|del` each, the same way, under
 # route/<slug>/.
 #
+# Then the ADDRESS corpus (addr-write-path.md, "The capture corpus"):
+#
+#   addr-show/<state>/   each addrtopo state (scripts/addr-topology.exp),
+#                        built in its own netns addra and read back with
+#                        `ip addr show`, its output modes and its selectors
+#   addr/<slug>/         one `ip addr add|change|replace|del` each
+#   addr-flush/<slug>/   one `ip addr flush` each
+#   addr-save/<slug>/    `ip addr save|showdump|restore`
+#
+# The rows are data in scripts/addr-corpus.exp, where the hermetic check
+# can read them. A required state that cannot be built fails the run; one of
+# the two measured states (optimistic, temporary) that the kernel will not
+# produce is dropped with a note in its topology file, and the refusals
+# while building it do not count against the run.
+#
 # POLICY HERE, MECHANISM IN THE GUEST
 #
 # As for the dump driver: which states exist, what each waits for and what
@@ -59,6 +74,8 @@ source [file dirname [info script]]/vm-lib.exp
 source [file dirname [info script]]/netlink-topology.exp
 source [file dirname [info script]]/link-write-topology.exp
 source [file dirname [info script]]/link-write-readback.exp
+source [file dirname [info script]]/addr-topology.exp
+source [file dirname [info script]]/addr-corpus.exp
 
 if {$argc != 2} {
     puts "usage: capture-link-writes.exp <serial-port> <blob-out>"
@@ -87,7 +104,8 @@ set lacp_timeouts {}
 # depend on its position in this file.
 #
 # <pre> is a list of `ip` argument lists, run through nltopo::topo OUTSIDE
-# the capture window and recorded in write/<slug>/topology. A refused
+# the capture window and recorded in write/<slug>/topology. An address row
+# may also hold a `sysctl KEY VALUE` step (addrcorpus::pre_step). A refused
 # precondition fails the run (it is in nltopo::refused_steps) and the row
 # is skipped, since its write would be answered by the wrong state.
 #
@@ -108,7 +126,7 @@ proc write_row {slug floor pre command {dir write}} {
     vmlib::log "=== write $slug ==="
     vmlib::must "xtcp2-nlcap ns-add $NS_A"
     foreach step $pre {
-        if {[nltopo::topo $NS_A $subdir {*}$step] != 0} {
+        if {![addrcorpus::pre_step $NS_A $subdir $step]} {
             lappend write_skipped $slug
             return 0
         }
@@ -211,6 +229,67 @@ set route_rows [list \
 ]
 
 ###############################################################################
+# addr_readback - every addrtopo state, built in addra and read back.
+#
+# A state that is not built captures nothing and says why in its topology
+# file: addrtopo::drop writes the note for a measured state, and this writes
+# one for a required state, which also fails the run.
+###############################################################################
+
+set addr_tolerated {}
+
+proc addr_readback {} {
+    global short_caps addr_tolerated
+    set ns $addrtopo::NS_A
+    foreach state [addrtopo::state_names] {
+        set subdir addr-show/$state
+        vmlib::log "=== addr state $state ==="
+        set before [llength [nltopo::refused_steps]]
+        if {![addrtopo::build $state $subdir]} {
+            if {$state in [addrtopo::dropped_states]} {
+                lappend addr_tolerated {*}[lrange [nltopo::refused_steps] $before end]
+            } else {
+                nlcap note $subdir "'not built $state: a step was refused or a wait timed out'"
+            }
+            continue
+        }
+        foreach row [addrcorpus::readback $state] {
+            lassign $row suffix floor command mode
+            if {$mode eq "write"} {
+                lassign [nlcap write $ns $subdir ip_addr$suffix $floor "'$command'"] rc out
+                if {$rc != 0} {
+                    lappend short_caps "$subdir/ip_addr$suffix"
+                    vmlib::log "MISSED FLOOR $subdir/ip_addr$suffix: $out"
+                } else {
+                    vmlib::log [string trim $out]
+                }
+            } else {
+                capio $ns $subdir netlink_route_getaddr$suffix $floor $command ip_addr$suffix
+            }
+        }
+    }
+}
+
+###############################################################################
+# promote_default - M3: the promote_secondaries a fresh namespace gives a new
+# device, recorded beside flush_primary and returned so flush_rows can build
+# flush_primary_flipped from its opposite. Empty when it cannot be read.
+###############################################################################
+proc promote_default {} {
+    global NS_A
+    set key /proc/sys/net/ipv4/conf/default/promote_secondaries
+    vmlib::must "xtcp2-nlcap ns-add $NS_A"
+    side $NS_A addr-flush/flush_primary promote_secondaries_default "cat $key"
+    lassign [vmlib::run_out "ip netns exec $NS_A cat $key"] rc out
+    set value [string trim $out]
+    if {$rc != 0 || $value ni {0 1}} {
+        vmlib::log "cannot read promote_secondaries in $NS_A: rc=$rc \[$out\]"
+        return ""
+    }
+    return $value
+}
+
+###############################################################################
 # run
 ###############################################################################
 
@@ -282,6 +361,11 @@ if {$reached} {
     lappend lacp_timeouts lacp_partner_down
 }
 
+# The address states have namespaces of their own, so they can run here,
+# after the LACP states are done with lacpa and before the rows that
+# rebuild it.
+addr_readback
+
 # The write rows run last because each one recreates lacpa, which tears
 # down the veth pairs the readback states were built on.
 foreach row $write_rows {
@@ -289,6 +373,35 @@ foreach row $write_rows {
 }
 foreach row $route_rows {
     write_row {*}$row route
+}
+foreach row $addrcorpus::write_rows {
+    write_row {*}$row addr
+}
+
+set addr_problems {}
+set promote [promote_default]
+if {$promote eq ""} {
+    lappend addr_problems "promote_secondaries default unreadable; addr-flush rows not run"
+} else {
+    foreach row [addrcorpus::flush_rows $promote] {
+        write_row {*}$row addr-flush
+    }
+}
+
+# A save row's file is written by the row's own redirect, from its own
+# directory. Check it is there: a save that wrote somewhere else would
+# still have a pcap and an rc, and look like a capture.
+lassign [nlcap dir addr-save] dir_rc save_dir
+set save_dir [string trim $save_dir]
+foreach row $addrcorpus::save_rows {
+    set slug [lindex $row 0]
+    if {![write_row {*}$row addr-save]} {
+        continue
+    }
+    set file [expr {$slug eq "showdump_bad_magic" ? "bad.save" : "ip.save"}]
+    if {[vmlib::run "test -s $save_dir/$slug/$file"] != 0} {
+        lappend addr_problems "addr-save/$slug/$file missing or empty"
+    }
 }
 
 lassign [nlcap inventory] inv_rc inventory
@@ -309,6 +422,8 @@ vmlib::log "wrote [string length $blob] bytes of base64 to $blob_out"
 
 vmlib::run "xtcp2-nlcap ns-del $NS_A"
 vmlib::run "xtcp2-nlcap ns-del $NS_B"
+vmlib::run "xtcp2-nlcap ns-del $addrtopo::NS_A"
+vmlib::run "xtcp2-nlcap ns-del $addrtopo::NS_B"
 
 vmlib::poweroff
 
@@ -318,7 +433,7 @@ vmlib::poweroff
 
 puts ""
 set failed 0
-set failed_topo [nltopo::refused_steps]
+set failed_topo [addrcorpus::fatal_refusals [nltopo::refused_steps] $addr_tolerated]
 if {[llength $failed_topo] > 0} {
     # Unlike the dump corpus, no step here is optional: every one builds the
     # bond the readbacks describe, so a refusal fails the run.
@@ -345,6 +460,33 @@ if {[llength $write_skipped] > 0} {
         puts "  $s"
     }
     puts "  A precondition step was refused, so the row's write was not run."
+    set failed 1
+}
+
+if {[llength [addrtopo::failed_states]] > 0} {
+    puts "NLCAP_ADDR_STATE_FAILED [llength [addrtopo::failed_states]]"
+    foreach s [addrtopo::failed_states] {
+        puts "  $s"
+    }
+    puts "  Required address states that were not built; nothing was captured"
+    puts "  for them. Their topology files say which step or wait failed."
+    set failed 1
+}
+
+if {[llength [addrtopo::dropped_states]] > 0} {
+    # Reported, not failed: these are the measured states, and a kernel
+    # that does not produce one is the measurement.
+    puts "NLCAP_ADDR_STATE_DROPPED [llength [addrtopo::dropped_states]]"
+    foreach s [addrtopo::dropped_states] {
+        puts "  $s"
+    }
+}
+
+if {[llength $addr_problems] > 0} {
+    puts "NLCAP_ADDR_MISSING_FILE [llength $addr_problems]"
+    foreach p $addr_problems {
+        puts "  $p"
+    }
     set failed 1
 }
 
