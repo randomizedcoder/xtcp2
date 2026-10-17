@@ -203,19 +203,70 @@ func manyMACs(n int) string {
 }
 
 func TestRedactionMap(t *testing.T) {
-	t.Log("positive: the map holds each real value's sha256 and its documentation value; expected: no real value appears in it")
 	r := testRedactor(t)
 	m := r.Map()
 	// 2 MACs, 1 IPv4, 2 GUIDs (one derived from the link-local GID), 3 IPv6.
+	t.Log("positive: one entry per value, derived ones included; expected: 8 entries")
 	if len(m) != 8 {
 		t.Fatalf("got %d entries, want 8: %v", len(m), m)
 	}
-	for k, v := range m {
-		for _, real := range []string{"98:03:9b", "9803:9b03", "10.1.2.3", "2400:cb00", "9a03:9bff"} {
-			if strings.Contains(k, real) || strings.Contains(v, real) {
-				t.Fatalf("map entry %s -> %s holds real value %s", k, v, real)
+	values, err := ReadValues(strings.NewReader(testValues))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name        string
+		category    string
+		description string
+		check       func(k, v string) bool
+		expected    bool
+	}{
+		{"kind_value", "positive", "every value is a kind name",
+			func(_, v string) bool { return v == "mac" || v == "guid" || v == "ipv4" || v == "ipv6" }, true},
+		{"doc_key", "positive", "every key is a documentation value in its kind's range",
+			func(k, v string) bool {
+				rv, err := ParseValue(v, k)
+				return err == nil && isDoc(rv)
+			}, true},
+		{"real_text", "negative", "a key or value holds a real value's text",
+			func(k, v string) bool {
+				for _, real := range []string{"98:03:9b", "9803:9b03", "10.1.2.3", "2400:cb00", "9a03:9bff"} {
+					if strings.Contains(k, real) || strings.Contains(v, real) {
+						return true
+					}
+				}
+				return false
+			}, false},
+		{"real_hash", "negative", "a key is the sha256 of a real value, which a MAC's 24 free bits would let anyone reverse",
+			func(k, _ string) bool {
+				for _, rv := range values {
+					if k == rv.key() {
+						return true
+					}
+				}
+				return false
+			}, false},
+		{"kept_doc_value", "corner", "the documentation MAC already in the values file maps to itself",
+			func(k, _ string) bool { return k == "00:00:5e:00:53:07" }, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Logf("%s: %s; expected: %v", tt.category, tt.description, tt.expected)
+			some := false
+			every := true
+			for k, v := range m {
+				ok := tt.check(k, v)
+				some = some || ok
+				every = every && ok
 			}
-		}
+			got := some
+			if tt.category == "positive" {
+				got = every
+			}
+			if got != tt.expected {
+				t.Fatalf("got %v over %v", got, m)
+			}
+		})
 	}
 }
 

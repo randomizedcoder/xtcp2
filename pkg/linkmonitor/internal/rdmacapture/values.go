@@ -129,9 +129,9 @@ func ReadValues(r io.Reader) ([]Value, error) {
 	return values, scanner.Err()
 }
 
-// key is the redaction map's key for a value: the sha256 of its kind and
-// bytes, so the manifest records which real value became which documentation
-// value without holding the real value.
+// key orders a kind's values for numbering. It is a sha256 so the order does
+// not depend on the values file; it is never written out, because an unsalted
+// hash of a MAC, GUID or IPv4 address can be brute-forced back to the value.
 func (v Value) key() string {
 	sum := sha256.Sum256(append([]byte(v.Kind.String()+":"), v.Bytes...))
 	return hex.EncodeToString(sum[:])
@@ -199,9 +199,9 @@ func macFromEUI64(id []byte) ([]byte, bool) {
 
 // mapping assigns each real value its documentation value.
 type mapping struct {
-	repl map[string][]byte // kind:hex(real) -> replacement bytes
-	keys map[string]string // Value.key() -> replacement text
-	all  []Value           // every value with a replacement, derived ones included
+	repl  map[string][]byte // kind:hex(real) -> replacement bytes
+	kinds map[string]string // replacement text -> kind, for the manifest
+	all   []Value           // every value with a replacement, derived ones included
 }
 
 func mapKey(v Value) string { return v.Kind.String() + ":" + hex.EncodeToString(v.Bytes) }
@@ -233,7 +233,7 @@ func newMapping(values []Value) (*mapping, error) {
 			}
 		}
 	}
-	m := &mapping{repl: map[string][]byte{}, keys: map[string]string{}}
+	m := &mapping{repl: map[string][]byte{}, kinds: map[string]string{}}
 	assign := func(kind Kind, next func(n int) []byte) error {
 		set := byKind[kind]
 		used := map[string]bool{}
@@ -269,7 +269,7 @@ func newMapping(values []Value) (*mapping, error) {
 			}
 			used[hex.EncodeToString(r)] = true
 			m.repl[mapKey(v)] = r
-			m.keys[v.key()] = formatValue(Value{Kind: kind, Bytes: r})
+			m.kinds[formatValue(Value{Kind: kind, Bytes: r})] = kind.String()
 			m.all = append(m.all, v)
 		}
 		return nil

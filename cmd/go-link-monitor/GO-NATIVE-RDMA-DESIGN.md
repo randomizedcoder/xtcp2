@@ -300,11 +300,11 @@ without a device; `test-linkmonitor-rdma-capture` runs that path.
 
 | Field | Content |
 |---|---|
-| `uname` | `uname -a` of the capture host or guest |
+| `uname` | `uname -srvmo` of the capture host or guest (every field but the hostname) |
 | `driver`, `firmware` | From `ethtool -i` and sysfs `fw_ver` |
 | `rdma_core` | rdma-core version of the capture tools |
 | `files[]` | Path, sha256, command, trigger, and the stream type (`async`, `umad`, `rtnl`, `nldev`, `sysfs`, `verbs`) |
-| `redaction` | sha256 of each real value to its replacement |
+| `redaction` | Each documentation value the capture holds, to its kind (`mac`, `guid`, `ipv4`, `ipv6`). Nothing derived from a real value is recorded: an unsalted hash of a MAC, GUID or IPv4 address can be brute-forced back to it. |
 
 ### Golden files and test discovery
 

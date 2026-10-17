@@ -561,8 +561,12 @@ Captures from `l` contain node GUIDs, port GIDs, MAC addresses and IP
 addresses. The capture tool rewrites them consistently: one real value
 always becomes the same documentation value (2001:db8::/32, 00:00:5e:00:53:xx,
 and a fixed GUID prefix). Lengths and every other byte stay unchanged. The
-redaction map, from the real value's hash to the documentation value, goes
-into the manifest so a capture can be re-run and compared. Netlink
+manifest lists the documentation values in use and their kinds. It holds
+nothing derived from a real value, not even a hash, because a MAC or GUID
+has only about 24 free bits and its hash is easily reversed. Re-runs stay
+comparable because the assignment is deterministic for a given set of
+values. The hostname is not redacted, so the capture leaves it out: `uname`
+is recorded without the nodename and sysfs `node_desc` is not copied. Netlink
 attributes that carry the redacted values keep their lengths, so the
 recorded length and offset of every attribute still holds.
 

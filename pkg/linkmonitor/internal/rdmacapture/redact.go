@@ -47,7 +47,7 @@ type pattern struct {
 type Redactor struct {
 	binary []pattern // byte forms, plus text forms that keep their length
 	text   []pattern // every text form
-	keys   map[string]string
+	kinds  map[string]string
 }
 
 // NewRedactor builds a redactor for values. No values means no change.
@@ -56,7 +56,7 @@ func NewRedactor(values []Value) (*Redactor, error) {
 	if err != nil {
 		return nil, err
 	}
-	r := &Redactor{keys: m.keys}
+	r := &Redactor{kinds: m.kinds}
 	for _, v := range m.all {
 		to := m.repl[mapKey(v)]
 		if bytes.Equal(to, v.Bytes) {
@@ -82,11 +82,12 @@ func NewRedactor(values []Value) (*Redactor, error) {
 	return r, nil
 }
 
-// Map is the redaction map for the manifest: the sha256 of each real value to
-// its documentation value.
+// Map is the redaction map for the manifest: each documentation value the
+// capture now holds, to its kind. It records nothing derived from a real
+// value, not even a hash.
 func (r *Redactor) Map() map[string]string {
-	out := make(map[string]string, len(r.keys))
-	for k, v := range r.keys {
+	out := make(map[string]string, len(r.kinds))
+	for k, v := range r.kinds {
 		out[k] = v
 	}
 	return out

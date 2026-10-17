@@ -170,7 +170,8 @@ copy_sysfs() {
     value mac 98:03:9b:12:34:56
     return 0
   fi
-  for f in node_guid sys_image_guid fw_ver node_type node_desc hca_type hw_rev board_id; do
+  # node_desc is left out: it is usually the hostname, which no redaction covers.
+  for f in node_guid sys_image_guid fw_ver node_type hca_type hw_rev board_id; do
     copy_file "$base/$f" "sysfs/$dev/$f"
   done
   for f in node_guid sys_image_guid; do
@@ -225,7 +226,8 @@ netdevs_of() {
 
 write_meta() {
   local dev drivers="" firmware="" d
-  uname -a >"$OUT/meta/uname"
+  # Every uname field but the nodename, which is the hostname.
+  uname -srvmo >"$OUT/meta/uname"
   for dev in "${DEVS[@]}"; do
     if [ -n "$DRIVER" ]; then
       d=$DRIVER
