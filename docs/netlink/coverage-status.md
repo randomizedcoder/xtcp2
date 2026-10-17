@@ -252,8 +252,9 @@ These are the boundaries of the exercise, not a backlog:
 
 Counted from the tree on 2026-10-11: **the write gate exists, and the link
 and route dry runs both use it.** `BuildWriteRequest` (`pkg/xtcpnl/xtcpnl_rtattr_encode.go`)
-admits `RTM_NEWROUTE`, `RTM_DELROUTE`, `RTM_NEWLINK` and `RTM_DELLINK` and
-returns `ErrNotAnAdmittedWrite` for anything else; `BuildRequest` and its
+admits `RTM_NEWROUTE`, `RTM_DELROUTE`, `RTM_NEWLINK` and `RTM_DELLINK`, and
+since the address design's Phase 4 `RTM_NEWADDR` and `RTM_DELADDR`, which no
+encoder builds yet, and returns `ErrNotAnAdmittedWrite` for anything else; `BuildRequest` and its
 `ErrNotAGetRequest` still refuse every `RTM_NEW*`/`RTM_DEL*`/`RTM_SET*` on the
 read path. What has landed is link-write Phases 0 to 7: the capture
 target with its readback and write fixtures, the bond read decode, the bond

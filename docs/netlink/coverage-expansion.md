@@ -39,7 +39,8 @@ One axis does **not** change, and it is what keeps this finite:
 > still refuses every `RTM_NEW*`/`RTM_DEL*`/`RTM_SET*`, guarded by
 > `TestBuildRequestRejectsEveryNamedWriteType`. The write path goes through
 > `BuildWriteRequest`, which admits exactly `RTM_NEWROUTE`, `RTM_DELROUTE`,
-> `RTM_NEWLINK` and `RTM_DELLINK` (`ErrNotAnAdmittedWrite` for anything else),
+> `RTM_NEWLINK`, `RTM_DELLINK`, `RTM_NEWADDR` and `RTM_DELADDR`
+> (`ErrNotAnAdmittedWrite` for anything else),
 > pinned by `TestBuildWriteRequestAdmitsOnlyListedWrites`. `goip` never applies
 > a write to a live kernel in any automated path. The paragraphs below describe
 > the read gate, which is unchanged.

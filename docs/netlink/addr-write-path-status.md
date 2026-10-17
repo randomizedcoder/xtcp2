@@ -2,9 +2,9 @@
 
 Last updated: 2026-10-17.
 
-**Phases A0, A1 and A2 are done.** The design
+**Phases A0, A1, A2 and A4 are done.** The design
 ([addr-write-path.md](addr-write-path.md)) and the plan
-([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. 10 of 25
+([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. 11 of 25
 tasks are done: A0-T01 (V001), A0-T02 (closed by a finding, V002), A0-T03
 and A0-T04, closed by one KVM capture (V005), A0-T05, which recorded M1–M3
 from that capture's fixtures (V006), A1-T01, which decodes the four
@@ -14,9 +14,11 @@ renders them, byte-identical to `ip` in both forms, against an `ip monitor`
 capture and four gated parity rows (V016–V020). A2-T02 applies the
 selectors, byte-identical to `ip` on every selector golden and request
 (V021–V023). A2-T03 puts one live `goip-parity` row on each selector, and
-gates 22 of the 23 on two clean runs (V024–V027).
+gates 22 of the 23 on two clean runs (V024–V027). A4-T01 admits
+`RTM_NEWADDR` and `RTM_DELADDR` to the write gate, one task ahead of the
+encoder that will build them (V028, V029).
 
-**Next action:** A3-T01 (depends on A0-T04) and A4-T01 (A0-T03) are
+**Next action:** A3-T01 (depends on A0-T04) and A5-T01 (A4-T01) are
 unblocked. Pick one; one task, one PR.
 
 ## Update rules
@@ -55,7 +57,7 @@ unblocked. Pick one; one task, one PR.
 | A1 | decode and render `metric`/`any`/`mcast` | done | 2/2 | V009, V010, V011, V012, V016, V017, V018, V019, V020 |
 | A2 | `addr show` selectors | done | 3/3 | V013, V014, V021, V022, V023, V024, V025, V026, V027 |
 | A3 | `-br` and `-o` | not started | 0/3 | — |
-| A4 | the gate admits `RTM_NEWADDR`/`RTM_DELADDR` | not started | 0/1 | — |
+| A4 | the gate admits `RTM_NEWADDR`/`RTM_DELADDR` | done | 1/1 | V028, V029 |
 | A5 | `BuildAddrWriteRequest` | not started | 0/1 | — |
 | A6 | `goip addr add/change/replace/delete` | not started | 0/2 | — |
 | A7 | write rows in the matrix | not started | 0/2 | — |
@@ -82,7 +84,7 @@ Add evidence IDs to the last column as work runs.
 | [ ] | [A3-T01](addr-write-path-plan.md#a3-t01) | parse `-br` and `-o` | not started | — |
 | [ ] | [A3-T02](addr-write-path-plan.md#a3-t02) | brief and oneline renderers | not started | — |
 | [ ] | [A3-T03](addr-write-path-plan.md#a3-t03) | output-mode rows | not started | — |
-| [ ] | [A4-T01](addr-write-path-plan.md#a4-t01) | admit `RTM_NEWADDR`/`RTM_DELADDR` | not started | — |
+| [x] | [A4-T01](addr-write-path-plan.md#a4-t01) | admit `RTM_NEWADDR`/`RTM_DELADDR` | done | V028, V029, DOC010 |
 | [ ] | [A5-T01](addr-write-path-plan.md#a5-t01) | `BuildAddrWriteRequest` | not started | — |
 | [ ] | [A6-T01](addr-write-path-plan.md#a6-t01) | the `ipaddr_modify` argument parser | not started | — |
 | [ ] | [A6-T02](addr-write-path-plan.md#a6-t02) | verb dispatch and corpus replay | not started | — |
@@ -118,13 +120,13 @@ it.
 | # | Statement | Amended by | State |
 |---|---|---|---|
 | 11 | `goip is read-only` for every non-show verb | A6-T02 (four verbs), A8-T02 (`flush`), A9-T03 (`save`/`showdump`/`restore`) | not started |
-| 12 | `ErrNotAnAdmittedWrite`'s text names four types | A4-T01 | not started |
-| 13 | `admittedWriteTypes` has four entries | A4-T01 | not started |
+| 12 | `ErrNotAnAdmittedWrite`'s text names four types | A4-T01 | done |
+| 13 | `admittedWriteTypes` has four entries | A4-T01 | done |
 | 14 | `coverage-status.md`'s "read-only, `show` only" scope line | A6-T02 | not started |
 | 15 | the glance-table matrix count and scope line | A2-T03, A7-T02, A8-T03, A9-T03 | amended for the selector rows (A2-T03); A7-T02, A8-T03 and A9-T03 still owe theirs |
 | 16 | `route-write-path.md`'s "Out of scope: `addr`" line | this plan's PR (pointer only) | done |
-| 17 | the route-write gate table's negative example is `RTM_NEWADDR` | A4-T01 | not started |
-| 18 | README's "admits exactly four types" | A4-T01 | not started |
+| 17 | the route-write gate table's negative example is `RTM_NEWADDR` | A4-T01 | done |
+| 18 | README's "admits exactly four types" | A4-T01 | done |
 
 ## Verification ledger
 
@@ -166,6 +168,9 @@ it.
 | V026 | 2026-10-17 | A2-T03 | the same parity run, rerun sequentially | All 143 verdicts identical to V025, and every selector row the same `txns`, control and datagram counts. `HYGIENE_FAIL 2`, `UNGATED_DIVERGENCES 7`, `CONTROL_NOISY 130`. The 22 rows other than `dynamic` then went into `gated_commands` | transcript in the session scratchpad, not kept |
 | V027 | 2026-10-17 | A2-T03 | the nix checks: `.#test-focused-goip`, `checks.netlink-audit`, `checks.lint-baseline`, `.#quality-report`, `checks.nix-fmt`, `checks.statix`, `checks.deadnix`. `vm-lib-exp` does not apply: no `.exp` file changed | Passed, except `lint-baseline`, which still fails on `main` with the same 19 tier-2 findings from #237. The branch adds none | the check outputs |
 | DOC009 | 2026-10-17 | A2-T03 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc: 25 task IDs one to one; local links and anchors resolve; plus `git diff --check`. The glance-table counts in `coverage-status.md` and `docs/netlink/README.md` recounted from `Commands()` and the allowlist | Passed: 25 task IDs one to one; no broken links or anchors; ledger IDs unique and in order; `git diff --check` clean; 143 rows, 143 implemented, 120 gated, 7 entries | Summary retained here; the checker script was session-local |
+| V028 | 2026-10-17 | A4-T01 | `go test ./pkg/xtcpnl/... ./pkg/nlparity/... ./internal/goip/... ./internal/goipparity/...`, which includes `TestBuildWriteRequestAdmitsOnlyListedWrites` (generated: RTM_NEWADDR and RTM_DELADDR admitted, RTM_NEWNEIGH, RTM_GETADDR, RTM_NEWADDRLABEL and RTM_NEWMULTICAST refused), four new `TestBuildWriteRequestLayout` rows, and `TestBuildRequestRejectsEveryNamedWriteType`, unchanged. Mutation check in a scratch worktree, each scoped to `IsAdmittedWriteType` or the test map: RTM_DELADDR dropped from the switch, RTM_NEWADDR dropped from the map, RTM_NEWNEIGH admitted, and `FamilyHdrLen` for the address types set to 16 each failed the rows that name them, and were reverted | Passed: all green; the four mutants caught. The walk's count check caught none of them, because it counts the rows expected to build, not the ones that did; the walk's own rows carry the gate. The 7-byte row stays green under the 16-byte mutant (7 is still wrong); the 8-byte and 16-byte rows catch it | `pkg/xtcpnl/xtcpnl_write_gate_test.go` |
+| V029 | 2026-10-17 | A4-T01 | the nix checks: `.#test-focused-goip`, `checks.netlink-audit`, `checks.lint-baseline`, `.#quality-report`, `checks.nix-fmt`, `checks.statix`, `checks.deadnix`. `vm-lib-exp` and the parity VM do not apply: no `.exp` file and no matrix row changed | Passed, except `lint-baseline`, which still fails on `main` with the same 19 tier-2 findings from #237. The branch adds none | the check outputs |
+| DOC010 | 2026-10-17 | A4-T01 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc: 25 task IDs one to one; local links and anchors resolve; plus `git diff --check`. A grep for the four-type wording in `docs` and `pkg` finds only statement 18's own quotation and the amended coverage-status line | Passed: 25 task IDs one to one; no broken links or anchors; ledger IDs unique and in order; `git diff --check` clean | Summary retained here; the checker script was session-local |
 
 ## Blockers and upcoming requirements
 
@@ -174,6 +179,23 @@ it.
 - **No open blockers.**
 
 ## Progress and decision log
+
+- **2026-10-17.** A4-T01 is done.
+  - **Admitted one task ahead of the encoder.** The gate's rule is that a
+    type joins with an encoder and a parity target behind it. The parity
+    target is the A0-T04 `link-write/addr` corpus; the encoder is A5-T01.
+    Until then nothing calls `BuildWriteRequest` with either type, and the
+    test map's comment says so.
+  - **No capture's classification moves.** The gate's only callers are
+    nlparity's `SplitWrite`, `ParseWriteRequest`, `sentWrite` and
+    `requestRole`, and they look at requests. A read row's `Setup` runs
+    before the capture window (`goip-parity.exp`, `setup_read_ns`), so its
+    `addr add` steps are never captured. The write-path corpora
+    (`link-write/write`, `link-write/route`) hold no address request, and the
+    tests over the address pcaps that do compare `Hdr.Type` directly.
+  - **Historical text is left as written.** Link-write decision 1 and the
+    route design's own history still say what the gate was then; only
+    current-state statements were amended.
 
 - **2026-10-17.** A2-T03 is done.
   - **One row per selector, each on its own captured state.** A row's

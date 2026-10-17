@@ -36,8 +36,8 @@ const slaveKindSuffixCst = "_slave"
 
 var (
 	// ErrLinkWriteType is a LinkWrite whose MsgType is not RTM_NEWLINK or
-	// RTM_DELLINK. BuildWriteRequest would admit a route type too; a link
-	// write must not carry one.
+	// RTM_DELLINK. BuildWriteRequest would admit route and address types too;
+	// a link write must not carry one.
 	ErrLinkWriteType = errors.New("xtcpnl: a link write is RTM_NEWLINK or RTM_DELLINK")
 	// ErrLinkWriteDataWithoutKind is kind data with no kind: iplink_modify
 	// opens the data nest inside IFLA_LINKINFO, so there is nowhere to put it.
