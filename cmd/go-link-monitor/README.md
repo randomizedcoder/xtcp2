@@ -201,4 +201,8 @@ Run `go-link-monitor -h` for every flag.
 | [DETAILED-DESIGN.md](DETAILED-DESIGN.md) | Library structure, snapshots and concurrency |
 | [NODE-EXPORTER-PERFORMANCE.md](NODE-EXPORTER-PERFORMANCE.md) | Cost against node_exporter, and poll against on-demand |
 | [LOCAL-ETHERNET-EXAMPLE.md](LOCAL-ETHERNET-EXAMPLE.md), [REALISTIC-FLEET-EXAMPLE.md](REALISTIC-FLEET-EXAMPLE.md) | Example scrapes |
+| [GO-NATIVE-RDMA-ASSESSMENT.md](GO-NATIVE-RDMA-ASSESSMENT.md) | What replacing the cgo RDMA bindings (libibverbs events, libibumad PortInfo) with pure Go would take, and how to compare the two |
+| [GO-NATIVE-RDMA-DESIGN.md](GO-NATIVE-RDMA-DESIGN.md) | Go design for the cgo-free RDMA path: netlink-derived events, native umad, captured testdata, parsing rules, benchmarks and Nix targets |
+| [GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md](GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md) | Work breakdown (R0–R4) with dependencies and completion gates |
+| [GO-NATIVE-RDMA-STATUS.md](GO-NATIVE-RDMA-STATUS.md) | Progress, evidence, captures and baselines for the cgo-free RDMA work |
 | [STATUS.md](STATUS.md) | Implementation status |

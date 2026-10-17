@@ -11,10 +11,10 @@ def require(condition, message):
         raise ValueError(message)
 
 
-def check_tracker(plan, status):
-    expected = re.findall(r"^#### (P\d+-T\d+)$", plan, re.M)
+def check_tracker(plan, status, prefix="P"):
+    expected = re.findall(rf"^#### ({prefix}\d+-T\d+)$", plan, re.M)
     rows = re.findall(
-        r"^\| \[([ x])\] \| \[(P\d+-T\d+)\].*?\| "
+        rf"^\| \[([ x])\] \| \[({prefix}\d+-T\d+)\].*?\| "
         r"(not started|in progress|blocked|done|deferred) \|", status, re.M
     )
     require(expected and len(set(expected)) == len(expected), "duplicate/missing plan IDs")
@@ -22,7 +22,7 @@ def check_tracker(plan, status):
     for box, task, state in rows:
         require((box == "x") == (state == "done"), f"{task}: checkbox/state mismatch")
     phases = re.findall(
-        r"^\| (P\d+) \|[^\n]+?\| (not started|in progress|blocked|done|deferred) "
+        rf"^\| ({prefix}\d+) \|[^\n]+?\| (not started|in progress|blocked|done|deferred) "
         r"\| (\d+)/(\d+) \|", status, re.M
     )
     require(sorted(p for p, *_ in phases) == sorted({t.split("-")[0] for t in expected}),
@@ -56,6 +56,8 @@ def check_docs(root):
     base = root / "cmd/go-link-monitor"
     print(check_tracker((base / "IMPLEMENTATION-PLAN.md").read_text(),
                         (base / "STATUS.md").read_text()))
+    print(check_tracker((base / "GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md").read_text(),
+                        (base / "GO-NATIVE-RDMA-STATUS.md").read_text(), "R"))
     paths = sorted(base.glob("*.md"))
     for path in paths:
         check_links(path)
