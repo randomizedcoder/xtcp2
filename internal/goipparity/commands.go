@@ -506,6 +506,126 @@ var commands = withArgs([]Command{
 		Setup: addrStateSetup("autojoin0", "addr add 224.0.0.251/32 autojoin dev autojoin0"),
 		Floor: 6, Implemented: true,
 	},
+	// A2-T03: one row per `addr show` selector (addr-write-path.md, "Selector
+	// and output-mode read rows"), each on the addr-show state whose fixture
+	// its unit golden replays. Setup is that state's topology file, step for
+	// step, which TestAddrShowSelectorRowsGated holds it to. Four is the two
+	// dumps; a row that sends more says why.
+	{
+		Name: "addr show to 192.0.2.0/24", Slug: "addr_show_sel_to",
+		// `to` sets only filter.family, so the link dump stays AF_UNSPEC with
+		// the ext mask while the address dump is AF_INET
+		// (ip/ipaddress.c:2030), and no link/ether line is printed.
+		Setup: v4SecondarySetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "addr show scope link", Slug: "addr_show_sel_scope_link",
+		Setup: v6StablePrivacySetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "addr show scope all", Slug: "addr_show_sel_scope_all",
+		Setup: v4HostScopeSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "addr show up", Slug: "addr_show_sel_up",
+		Setup: mixedLinksSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "addr show down", Slug: "addr_show_sel_down",
+		Setup: mixedLinksSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "addr show permanent", Slug: "addr_show_sel_permanent",
+		// Reads v4_lifetimes but prints only lo's forever addresses: d0's one
+		// address is finite, so ipaddr_filter drops d0. Gateable, unlike the
+		// next row.
+		Setup: v4LifetimesSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "addr show dynamic", Slug: "addr_show_sel_dynamic",
+		// Prints d0's valid_lft, which counts down between ip_a and goip, so
+		// this row stays out of gated_commands (addr-write-path.md, "Gating").
+		Setup: v4LifetimesSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "addr show -tentative", Slug: "addr_show_sel_not_tentative",
+		Setup: v6TentativeSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "addr show tentative", Slug: "addr_show_sel_tentative",
+		// v0 is never up, so its address stays tentative with no DAD timer.
+		Setup: v6TentativeSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "addr show secondary", Slug: "addr_show_sel_secondary",
+		Setup: v4SecondarySetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "addr show primary", Slug: "addr_show_sel_primary",
+		Setup: v4SecondarySetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: `addr show label "d0:*"`, Slug: "addr_show_sel_label",
+		// The driver runs the argv with `sh -c` from the console's directory,
+		// so an unquoted d0:* would be a glob there. The shell removes the
+		// quotes; Args keeps them, and nothing else reads Args. Headerless:
+		// print_linkinfo returns before the header when label is set
+		// (ip/ipaddress.c:975).
+		Setup: v4LabelSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "addr show group default", Slug: "addr_show_sel_group",
+		Setup: mixedLinksSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "addr show master bond0", Slug: "addr_show_sel_master",
+		// Six: the get by name that resolves bond0, then the dumps, the link
+		// one carrying IFLA_MASTER.
+		Setup: mixedLinksSetup, Floor: 6, Implemented: true,
+	},
+	{
+		Name: "-4 addr show master bond0", Slug: "addr_show_sel_v4_master",
+		// The same get, but an AF_INET link dump carries no attributes, so
+		// master is applied client-side only.
+		Setup: mixedLinksSetup, Floor: 6, Implemented: true,
+	},
+	{
+		Name: "addr show nomaster", Slug: "addr_show_sel_nomaster",
+		Setup: mixedLinksSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "addr show vrf vrf0", Slug: "addr_show_sel_vrf",
+		// Eight: the get by name, name_is_vrf's get, then the dumps.
+		Setup: v4VrfSetup, Floor: 8, Implemented: true,
+	},
+	{
+		Name: "addr show vrf d1", Slug: "addr_show_sel_vrf_d1",
+		// The same two gets and no dump: d1 is not a vrf, and `ip` exits 255.
+		// A read row compares netlink and stdout, both empty here, not the
+		// exit status.
+		Setup: v4VrfSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "addr show type dummy", Slug: "addr_show_sel_type_dummy",
+		Setup: mixedLinksSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "addr show type bond_slave", Slug: "addr_show_sel_type_bond_slave",
+		Setup: mixedLinksSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "addr show proto 99", Slug: "addr_show_sel_proto",
+		Setup: v4ProtoSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "addr show novf", Slug: "addr_show_sel_novf",
+		Setup: mixedLinksSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "addr show d0", Slug: "addr_show_sel_d0",
+		// Six, as `addr show dev`: a bare device takes the same path.
+		Setup: v4SecondarySetup, Floor: 6, Implemented: true,
+	},
 	{
 		Name: "route show", Slug: "route_show",
 		// Four: the route dump, then one lazy RTM_GETLINK single-get for the
@@ -1840,6 +1960,78 @@ var bondReadSetup = []string{
 	"link set la2 master bond0",
 	"link set bond0 up",
 }
+
+// The addr-show states the selector rows read, each the `ip` steps of its
+// committed topology file (pkg/xtcpnl/testdata/7_1_4/link-write/addr-show/
+// <state>/topology) in order.
+var (
+	v4SecondarySetup = []string{
+		"link add d0 address 02:00:00:00:d0:00 type dummy",
+		"link set d0 addrgenmode none",
+		"link set d0 up",
+		"addr add 192.0.2.1/24 dev d0",
+		"addr add 192.0.2.2/24 dev d0",
+	}
+	mixedLinksSetup = []string{
+		"link add d0 address 02:00:00:00:d0:00 type dummy",
+		"link set d0 addrgenmode none",
+		"link set d0 up",
+		"addr add 192.0.2.1/24 dev d0",
+		"link add d1 address 02:00:00:00:d0:01 type dummy",
+		"link set d1 addrgenmode none",
+		"addr add 198.51.100.1/24 dev d1",
+		"link add d2 address 02:00:00:00:d0:02 type dummy",
+		"link set d2 addrgenmode none",
+		"link set d2 up",
+		"link add bond0 address 02:00:00:00:c0:00 type bond",
+		"link set bond0 addrgenmode none",
+		"link add d3 address 02:00:00:00:d0:03 type dummy",
+		"link set d3 addrgenmode none",
+		"link set d3 master bond0",
+		"link set bond0 up",
+		"addr add 203.0.113.1/24 dev d3",
+	}
+	v4VrfSetup = []string{
+		"link add vrf0 address 02:00:00:00:e0:00 type vrf table 10",
+		"link set vrf0 addrgenmode none",
+		"link set vrf0 up",
+		"link add d0 address 02:00:00:00:d0:00 type dummy",
+		"link set d0 addrgenmode none",
+		"link set d0 master vrf0",
+		"link set d0 up",
+		"addr add 192.0.2.1/24 dev d0",
+		"link add d1 address 02:00:00:00:d0:01 type dummy",
+		"link set d1 addrgenmode none",
+		"link set d1 up",
+		"addr add 198.51.100.1/24 dev d1",
+	}
+	v4LabelSetup = []string{
+		"link add d0 address 02:00:00:00:d0:00 type dummy",
+		"link set d0 addrgenmode none",
+		"link set d0 up",
+		"addr add 192.0.2.1/24 label d0:1 dev d0",
+		"addr add 192.0.2.9/24 label d0:9 dev d0",
+	}
+	v4ProtoSetup = []string{
+		"link add d0 address 02:00:00:00:d0:00 type dummy",
+		"link set d0 addrgenmode none",
+		"link set d0 up",
+		"addr add 192.0.2.1/24 proto 99 dev d0",
+		"addr add 198.51.100.1/24 proto kernel_lo dev d0",
+	}
+	v4LifetimesSetup = addrStateSetup("d0",
+		"addr add 192.0.2.1/24 valid_lft 3600 preferred_lft 1800 dev d0")
+	v4HostScopeSetup = addrStateSetup("d0", "addr add 127.0.0.2/8 dev d0")
+	v6TentativeSetup = []string{
+		"link add v0 address 02:00:00:00:a0:00 type veth peer name v1 address 02:00:00:00:b0:00",
+		"-6 addr add 2001:db8::5/64 dev v0",
+	}
+	v6StablePrivacySetup = []string{
+		"link add d0 address 02:00:00:00:d0:00 type dummy",
+		"link set d0 addrgenmode random",
+		"link set d0 up",
+	}
+)
 
 // addrStateSetup is an addr-show state's topology
 // (scripts/addr-topology.exp) on a dummy named dev: the fixed MAC, no

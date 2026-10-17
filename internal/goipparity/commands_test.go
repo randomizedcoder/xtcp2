@@ -2,6 +2,8 @@ package goipparity
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -1002,6 +1004,11 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	// this list, once goip's dev path sent ip's lookup by name in place of a
 	// link dump. It gated on the same two runs as the five bond xstats point
 	// gets — see TestBondXstatsRowsGated.
+	//
+	// `addr show dynamic` is out for a reason of its own: it prints a finite
+	// valid_lft, which counts down between ip_a and goip, so it can never
+	// gate (addr-write-path.md, "Gating"). TestAddrShowSelectorRowsGated pins
+	// it.
 	expected := []string{
 		"-s addr show", "-s neigh show",
 		"-0 addr show", "route show table main", "route show table local",
@@ -1013,6 +1020,7 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 		"-j stats show group link",
 		"stats show group xstats", "-s stats show group xstats",
 		"-j stats show group xstats",
+		"addr show dynamic",
 	}
 
 	tests := []struct {
@@ -1020,7 +1028,7 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 		check       func(t *testing.T)
 	}{
 		{
-			description: "positive: the ungated set is exactly the twenty-two named rows, so UNGATED_CLEAN counts twenty-two rows and not zero",
+			description: "positive: the ungated set is exactly the twenty-three named rows, so UNGATED_CLEAN counts twenty-three rows and not zero",
 			check: func(t *testing.T) {
 				for _, name := range expected {
 					if !ungated[name] {
@@ -1161,9 +1169,9 @@ func TestObjectGatingStatus(t *testing.T) {
 // per-name get for netconf-dev). That is class DivergenceTransactionCount,
 // which the allowlist cannot suppress, so no run and no entry can gate them.
 //
-// TestUngatedSurfaceIsNotVacuous pins the whole twenty-two-row ungated SET;
+// TestUngatedSurfaceIsNotVacuous pins the whole twenty-three-row ungated SET;
 // this marks the eight that are ungated by DESIGN (versus the fourteen awaiting
-// their own clean run), so an edit that tries to gate or allowlist one trips
+// their own clean run, and the one finite-lifetime row), so an edit that tries to gate or allowlist one trips
 // here with the reason. The last subtest ties the decision to the mechanism —
 // a transaction-count divergence is unsuppressible while a value one is not —
 // complementing pkg/nlparity's allowlist_test.go, which asserts the same from
@@ -1809,4 +1817,148 @@ func TestAddrStateReadRowsGated(t *testing.T) {
 			}
 		})
 	}
+}
+
+// tdAddrShow holds the addr-show states, each with the topology file its
+// fixtures were captured on.
+const tdAddrShow = "../../pkg/xtcpnl/testdata/7_1_4/link-write/addr-show"
+
+// topologySteps is a state's topology file as Setup steps: each `ip` line
+// that ran, with the `ip ` dropped.
+func topologySteps(t *testing.T, state string) []string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join(tdAddrShow, state, "topology"))
+	if err != nil {
+		t.Fatalf("reading %s's topology: %v", state, err)
+	}
+	var steps []string
+	for _, line := range strings.Split(string(b), "\n") {
+		if !strings.HasPrefix(line, "ok ") {
+			continue
+		}
+		if _, step, ok := strings.Cut(line, "] ip "); ok {
+			steps = append(steps, step)
+		}
+	}
+	return steps
+}
+
+// TestAddrShowSelectorRowsGated pins A2-T03's selector rows: one per selector
+// in addr-write-path.md's "Selector and output-mode read rows", each with a
+// Setup that is its state's topology step for step, so the matrix and the
+// fixtures the unit goldens replay cannot drift apart. Every row is gated
+// after two clean live runs except `addr show dynamic`, whose lifetime ticks.
+//
+// go test ./internal/goipparity/ -run TestAddrShowSelectorRowsGated
+func TestAddrShowSelectorRowsGated(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	type want struct {
+		implemented, setupMatches, gated, write bool
+		floor                                   int
+	}
+	gated4 := want{implemented: true, setupMatches: true, gated: true, floor: 4}
+	gated6 := want{implemented: true, setupMatches: true, gated: true, floor: 6}
+	rows := []struct {
+		description string
+		command     string
+		state       string
+		expected    want
+	}{
+		{"positive: to, the link dump stays AF_UNSPEC", "addr show to 192.0.2.0/24", "v4_secondary", gated4},
+		{"positive: scope link", "addr show scope link", "v6_stable_privacy", gated4},
+		{"positive: scope all", "addr show scope all", "v4_host_scope", gated4},
+		{"positive: up", "addr show up", "mixed_links", gated4},
+		{"positive: down", "addr show down", "mixed_links", gated4},
+		{"corner: permanent reads the lifetime state but prints no finite lifetime", "addr show permanent", "v4_lifetimes", gated4},
+		{"corner: dynamic prints a finite lifetime, so it stays ungated", "addr show dynamic", "v4_lifetimes",
+			want{implemented: true, setupMatches: true, floor: 4}},
+		{"positive: -tentative", "addr show -tentative", "v6_tentative", gated4},
+		{"positive: tentative", "addr show tentative", "v6_tentative", gated4},
+		{"positive: secondary", "addr show secondary", "v4_secondary", gated4},
+		{"positive: primary", "addr show primary", "v4_secondary", gated4},
+		{"positive: label, headerless", `addr show label "d0:*"`, "v4_label", gated4},
+		{"positive: group", "addr show group default", "mixed_links", gated4},
+		{"positive: master, a get by name first", "addr show master bond0", "mixed_links", gated6},
+		{"positive: -4 master, the same get and a bare dump", "-4 addr show master bond0", "mixed_links", gated6},
+		{"positive: nomaster", "addr show nomaster", "mixed_links", gated4},
+		{"positive: vrf, two gets then the dumps", "addr show vrf vrf0", "v4_vrf",
+			want{implemented: true, setupMatches: true, gated: true, floor: 8}},
+		{"negative: not a vrf is a read row, two gets and no dump", "addr show vrf d1", "v4_vrf", gated4},
+		{"positive: type", "addr show type dummy", "mixed_links", gated4},
+		{"positive: slave kind", "addr show type bond_slave", "mixed_links", gated4},
+		{"positive: proto", "addr show proto 99", "v4_proto", gated4},
+		{"positive: novf", "addr show novf", "mixed_links", gated4},
+		{"positive: a bare device takes the dev path", "addr show d0", "v4_secondary", gated6},
+	}
+	lifetimeStates := map[string]bool{"v4_lifetimes": true, "v4_deprecated": true}
+
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			c, lookupErr := Lookup(r.command)
+			if lookupErr != nil {
+				t.Fatalf("Lookup: %v", lookupErr)
+			}
+			got := want{
+				implemented:  c.Implemented,
+				setupMatches: slices.Equal(c.Setup, topologySteps(t, r.state)),
+				gated:        al.IsGated(r.command),
+				write:        c.Write,
+				floor:        c.Floor,
+			}
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+			if n := len(al.EntriesFor(r.command)); n != 0 {
+				t.Errorf("%q carries %d allowlist entries; a selector row gates clean or not at all", r.command, n)
+			}
+		})
+	}
+
+	t.Run("negative: no gated row reads a lifetime state, permanent excepted", func(t *testing.T) {
+		for _, r := range rows {
+			if lifetimeStates[r.state] && al.IsGated(r.command) && r.command != "addr show permanent" {
+				t.Errorf("%q reads %s and is gated; its lifetime counts down between the sides", r.command, r.state)
+			}
+		}
+	})
+
+	t.Run("corner: the label glob keeps its shell quotes in Args", func(t *testing.T) {
+		c, lookupErr := Lookup(`addr show label "d0:*"`)
+		if lookupErr != nil {
+			t.Fatalf("Lookup: %v", lookupErr)
+		}
+		if len(c.Args) != 4 || c.Args[3] != `"d0:*"` {
+			t.Errorf("Args = %q, want the glob quoted, because the driver runs argv through sh -c", c.Args)
+		}
+	})
+
+	t.Run("boundary: the table's selector rows are exactly these", func(t *testing.T) {
+		listed := map[string]bool{}
+		for _, r := range rows {
+			listed[r.command] = true
+		}
+		var inTable int
+		for _, c := range Commands() {
+			if !strings.HasPrefix(c.Slug, "addr_show_sel_") {
+				continue
+			}
+			inTable++
+			if !listed[c.Name] {
+				t.Errorf("selector row %q is not pinned here", c.Name)
+			}
+		}
+		if inTable != len(rows) {
+			t.Errorf("%d selector rows in the table, %d pinned here", inTable, len(rows))
+		}
+	})
+
+	t.Run("corner: a Setup missing a step does not match its topology", func(t *testing.T) {
+		short := mixedLinksSetup[:len(mixedLinksSetup)-1]
+		if slices.Equal(short, topologySteps(t, "mixed_links")) {
+			t.Error("a Setup with its last step dropped still matches mixed_links, so the comparison proves nothing")
+		}
+	})
 }
