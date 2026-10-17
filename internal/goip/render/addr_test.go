@@ -2191,3 +2191,69 @@ func TestAddrGroupViewStatsPlacementDiffersFromLink(t *testing.T) {
 			"must not also carry stats:\n%s", n, addrText)
 	}
 }
+
+// TestAddrGroupViewHeaderless is the group `ip address show label PATTERN`
+// prints: print_linkinfo returned 0, so no header, no stats, and in JSON an
+// object holding addr_info alone.
+//
+// go test ./internal/goip/render/ -run TestAddrGroupViewHeaderless
+func TestAddrGroupViewHeaderless(t *testing.T) {
+	li := xtcpnl.LinkInfo{Index: 3, Name: "d0", Flags: unix.IFF_UP, Stats: &xtcpnl.RtnlLinkStats64{RxPackets: 7}, StatsIs64: true}
+	addr := func(d byte, label string) AddrView {
+		return AddrViewOf(xtcpnl.AddrInfo{Index: 3, Family: unix.AF_INET, Prefixlen: 24,
+			Address: v4(192, 0, 2, d), Local: v4(192, 0, 2, d), Label: label, Flags: unix.IFA_F_PERMANENT})
+	}
+	two := []AddrView{addr(1, "d0:1"), addr(9, "d0:9")}
+	tests := []struct {
+		description  string
+		addrs        []AddrView
+		withStats    bool
+		expectedText string
+		expectedJSON string
+	}{
+		{
+			description:  "positive: headerless text is the address lines alone",
+			addrs:        two,
+			expectedText: two[0].Text() + two[1].Text(),
+			expectedJSON: `{"addr_info":[{"family":"inet","local":"192.0.2.1","prefixlen":24,"scope":"global","label":"d0:1"},` +
+				`{"family":"inet","local":"192.0.2.9","prefixlen":24,"scope":"global","label":"d0:9"}]}`,
+		},
+		{
+			description:  "boundary: headerless with no addresses prints nothing and an empty array",
+			addrs:        nil,
+			expectedText: "",
+			expectedJSON: `{"addr_info":[]}`,
+		},
+		{
+			description:  "corner: stats are dropped from both forms",
+			addrs:        two[:1],
+			withStats:    true,
+			expectedText: two[0].Text(),
+			expectedJSON: `{"addr_info":[{"family":"inet","local":"192.0.2.1","prefixlen":24,"scope":"global","label":"d0:1"}]}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			g := AddrGroupView{LinkView: LinkViewForAddr(li, fakeNames{}, unix.AF_INET, false), AddrInfo: tt.addrs, Headerless: true}
+			if tt.withStats {
+				g = g.WithStats(li)
+			}
+			if got := g.Text(); got != tt.expectedText {
+				t.Errorf("Text()\n got %q\nwant %q", got, tt.expectedText)
+			}
+			b, err := json.Marshal(g)
+			if err != nil {
+				t.Fatalf("Marshal: %v", err)
+			}
+			if string(b) != tt.expectedJSON {
+				t.Errorf("JSON\n got %s\nwant %s", b, tt.expectedJSON)
+			}
+		})
+	}
+	t.Run("negative: without Headerless the header is printed", func(t *testing.T) {
+		g := AddrGroupView{LinkView: LinkViewForAddr(li, fakeNames{}, unix.AF_INET, false), AddrInfo: two}
+		if !strings.HasPrefix(g.Text(), "3: d0:") {
+			t.Errorf("Text() = %q, want the d0 header first", g.Text())
+		}
+	})
+}

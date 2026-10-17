@@ -279,11 +279,23 @@ Deliver:
   `IFLA_LINKINFO{KIND}`, through the request builder in `internal/goip/req`.
 - `novf` changes `IFLA_EXT_MASK`.
 - The bare device name reuses `addrShowDev`.
+- As built: the request builder is `xtcpnl.BuildDumpLinkRequestFilter`. The
+  link dump takes `-4`/`-6` (preferred_family) and the address dump and the
+  renderer take the filter's family, so `to PFX` keeps an `AF_UNSPEC` link
+  dump. `label` globs go through a local `fnmatch0` with glibc's flag-0
+  rules; POSIX bracket classes are refused. `dev nosuch` now prints
+  `Device "nosuch" does not exist.`, and `vrf` checks the kind with
+  `name_is_vrf`'s get.
+- One new capture, `v4_label/…_label_json`: `ip -j addr show label 'd0:*'`,
+  the JSON a headerless group prints.
 
 Tests:
 - `TestAddrFilter`
 - request-shape rows that compare goip's link-dump request with the
-  captured pcap's
+  captured pcap's (`TestAddrFilterRequestShape`)
+- `TestFnmatch0`, `TestInetPrefixMatch`, `TestAddrFilterMatch`,
+  `TestAddrFilterLinkMode`, `TestAddrFilterKeepLinks`,
+  `TestAddrGroupViewHeaderless` and `TestBuildDumpLinkRequestFilter`
 
 Done when: both pass, and `addr show` no longer refuses any selector the
 design lists.

@@ -206,7 +206,8 @@ namespace eval addrcorpus {
         }
         v4_peer {}
         v4_label {
-            {_label 4 {ip addr show label "d0:*"} capio}
+            {_label      4 {ip addr show label "d0:*"}    capio}
+            {_label_json 4 {ip -j addr show label "d0:*"} capio}
         }
         v4_brd {}
         v4_metric {}

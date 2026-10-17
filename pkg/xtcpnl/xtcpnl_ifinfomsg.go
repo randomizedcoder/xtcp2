@@ -311,6 +311,14 @@ type LinkInfo struct {
 	HasInfoData      bool
 	HasInfoSlaveData bool
 
+	// HasLinkInfo records that IFLA_LINKINFO itself was present, whatever it
+	// held. match_link_kind (ip/ipaddress.c:221-227) refuses a link with no
+	// IFLA_LINKINFO before it compares kinds, and compares a missing kind as
+	// "": so `ip addr show type _slave` keeps an unenslaved dummy (a nest with
+	// no IFLA_INFO_SLAVE_KIND) and drops lo (no nest at all). Kind and
+	// SlaveKind being empty cannot tell those two apart.
+	HasLinkInfo bool
+
 	// VrfTable and VrfPortTable are the one per-kind blob goip decodes: the VRF
 	// routing table id. VrfTable is IFLA_INFO_DATA -> IFLA_VRF_TABLE when Kind is
 	// "vrf" (vrf_print_opt, ip/iplink_vrf.c:55); VrfPortTable is
@@ -720,6 +728,7 @@ func setLinkAttr(li *LinkInfo, raw *linkStatsRaw, atype uint16, val []byte) {
 	case uint16(unix.IFLA_QDISC):
 		li.Qdisc = string(bytes.TrimRight(val, "\x00"))
 	case uint16(unix.IFLA_LINKINFO):
+		li.HasLinkInfo = true
 		setLinkInfoNest(li, val)
 	case uint16(unix.IFLA_PROP_LIST):
 		li.AltNames = linkAltNames(val)

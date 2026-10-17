@@ -611,6 +611,14 @@ type AddrGroupView struct {
 	LinkView
 	AddrInfo []AddrView `json:"addr_info"`
 
+	// Headerless is print_linkinfo returning 0, which only `ip address show
+	// label PATTERN` does (ip/ipaddress.c:1002-1003): it returns before
+	// printing anything, so the group is its address lines alone, with no
+	// stats after them because the caller prints those only for res > 0.
+	// In JSON that leaves the object ipaddr_list_flush_or_save opens around
+	// every link holding only its addr_info array.
+	Headerless bool `json:"-"`
+
 	// The `-s` counter block, and the three fields below are declared AFTER
 	// AddrInfo for a reason that is invisible in Go and decisive in JSON.
 	//
@@ -681,13 +689,34 @@ func (g AddrGroupView) WithStats(li xtcpnl.LinkInfo) AddrGroupView {
 // caller supplies its own and the two differ by exactly that.
 func (g AddrGroupView) Text() string {
 	var b strings.Builder
-	b.WriteString(g.LinkView.Text())
+	if !g.Headerless {
+		b.WriteString(g.LinkView.Text())
+	}
 	for i := range g.AddrInfo {
 		b.WriteString(g.AddrInfo[i].Text())
 	}
-	if g.LinkStats != nil {
+	if g.LinkStats != nil && !g.Headerless {
 		b.WriteString(LinkStatsText(*g.LinkStats))
 		b.WriteString("\n")
 	}
 	return b.String()
+}
+
+// addrGroupFields is AddrGroupView without its methods, so MarshalJSON can
+// hand the ordinary case back to encoding/json.
+type addrGroupFields AddrGroupView
+
+// MarshalJSON is encoding/json's output for a group with a header, and
+// `{"addr_info":[...]}` for a Headerless one.
+func (g AddrGroupView) MarshalJSON() ([]byte, error) {
+	if g.Headerless {
+		// `ip` opens the array whether or not an address follows.
+		if g.AddrInfo == nil {
+			g.AddrInfo = []AddrView{}
+		}
+		return json.Marshal(struct {
+			AddrInfo []AddrView `json:"addr_info"`
+		}{g.AddrInfo})
+	}
+	return json.Marshal(addrGroupFields(g))
 }

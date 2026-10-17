@@ -158,6 +158,29 @@ func (s *Service) LinkByName(name string) (model.Link, error) {
 	return s.linkFromGet(r, matchName(name), fmt.Sprintf("%q", name))
 }
 
+// IsVRF is name_is_vrf (ip/iplink_vrf.c:170-222): a by-name get with no ext
+// mask, true when the reply's IFLA_INFO_KIND is "vrf".
+//
+// iproute2 reads a failed talk as "not a vrf" (rtnl_talk_suppress_rtnl_errmsg
+// < 0 returns 0), so a kernel errno is false here rather than an error. A
+// failure that is not the kernel's answer, such as a closed socket, is still
+// returned.
+func (s *Service) IsVRF(family uint8, name string) (bool, error) {
+	r, err := req.VrfCheckByName(family, name, s.nextSeq())
+	if err != nil {
+		return false, fmt.Errorf("goip: build vrf check request: %w", err)
+	}
+	l, err := s.linkFromGet(r, matchName(name), fmt.Sprintf("%q", name))
+	if err != nil {
+		var errno unix.Errno
+		if errors.As(err, &errno) {
+			return false, nil
+		}
+		return false, err
+	}
+	return l.Kind == "vrf", nil
+}
+
 // LinkShowDev performs iplink_get (ip/iplink.c:1497-1515), the second and last
 // request `ip link show dev NAME` sends and the one whose reply print_linkinfo
 // renders (ip/ipaddress.c:2293).
@@ -211,6 +234,27 @@ func (s *Service) AddressSnapshot(family uint8, extMask uint32) ([]model.Link, [
 	if err != nil {
 		return nil, nil, fmt.Errorf("goip: build addr link dump request: %w", err)
 	}
+	return s.addressSnapshot(r, family)
+}
+
+// AddressSnapshotFilter is AddressSnapshot with `ip address show`'s
+// selectors, and with its two families kept apart.
+//
+// linkFamily is preferred_family, which ip_link_list passes to the link dump
+// (ip/ipaddress.c:2104). addrFamily is filter.family, which ip_addr_list
+// passes to the address dump (:2120) and which also decides whether that dump
+// is sent at all. They differ after `to PREFIX`, which sets filter.family
+// alone: `ip addr show to 192.0.2.0/24` sends an AF_UNSPEC link dump with its
+// ext mask and an AF_INET address dump.
+func (s *Service) AddressSnapshotFilter(linkFamily, addrFamily uint8, extMask uint32, lf req.AddrShowLinkFilter) ([]model.Link, []model.Address, error) {
+	r, err := req.AddrShowLinkDumpFilter(linkFamily, extMask, lf, s.nextSeq())
+	if err != nil {
+		return nil, nil, fmt.Errorf("goip: build addr link dump request: %w", err)
+	}
+	return s.addressSnapshot(r, addrFamily)
+}
+
+func (s *Service) addressSnapshot(r []byte, family uint8) ([]model.Link, []model.Address, error) {
 	ls, err := decode(s, r, uint16(unix.RTM_NEWLINK), "RTM_NEWLINK", xtcpnl.ParseNewLink)
 	if err != nil {
 		return nil, nil, err

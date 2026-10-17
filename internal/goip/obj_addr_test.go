@@ -731,19 +731,20 @@ func TestRunAddrArgs(t *testing.T) {
 			wantOutHas:  "1: lo: <LOOPBACK,UP,LOWER_UP>",
 		},
 		{
-			description: "negative: a filter argument other than `dev` is still refused rather than silently ignored",
+			// This row used to assert a refusal, while the filters were
+			// parsed but not applied (A2-T01). They are applied now, and
+			// `scope host` keeps lo's 127.0.0.1 only.
+			description: "positive: a selector other than `dev` is applied rather than refused",
 			args:        []string{"-4", "addr", "show", "scope", "host"},
-			wantExit:    ExitUsage,
-			wantErrHas:  "not implemented",
+			wantExit:    ExitOK,
+			wantOutHas:  "    inet 127.0.0.1/8 scope host lo\n",
 		},
 		{
-			// len(args) == 1, so the dev arm does not match and the generic
-			// refusal names the argument. `ip` fails here too, with
-			// "Command line is not complete" out of NEXT_ARG().
-			description: "negative: `dev` with no name is refused, not read as a device called \"dev\"",
+			// NEXT_ARG() with nothing after it, as `ip` reports it.
+			description: "negative: `dev` with no name is incomplete, not a device called \"dev\"",
 			args:        []string{"addr", "show", "dev"},
 			wantExit:    ExitUsage,
-			wantErrHas:  "not implemented",
+			wantErrHas:  "Command line is not complete",
 		},
 		{
 			// `ip` compares this keyword with strcmp and not matches()
@@ -754,19 +755,16 @@ func TestRunAddrArgs(t *testing.T) {
 			description: "negative: `d lo` is not `dev lo`, because iproute2 matches this keyword with strcmp",
 			args:        []string{"addr", "show", "d", "lo"},
 			wantExit:    ExitUsage,
-			wantErrHas:  "not implemented",
+			wantErrHas:  `either "dev" is duplicate, or "lo" is garbage`,
 		},
 		{
-			// `ip addr show lo` works — the else-arm takes a bare name. goip
-			// refuses it deliberately: that arm is reached only after every
-			// keyword test above it has failed, so implementing it before
-			// `scope`, `up`, `label` and the rest would turn
-			// `goip addr show up` from an honest refusal into
-			// `Device "up" does not exist`.
-			description: "negative: a bare device name is refused, because the keywords it must not shadow are not implemented",
-			args:        []string{"addr", "show", "lo"},
-			wantExit:    ExitUsage,
-			wantErrHas:  "not implemented",
+			// The else-arm takes a bare name. It used to be refused because
+			// it would have shadowed the then-unimplemented keywords; with
+			// those parsed first it is the device `ip` reads it as.
+			description: "positive: a bare device name is `dev NAME`",
+			args:        []string{"-4", "addr", "show", "lo"},
+			wantExit:    ExitOK,
+			wantOutHas:  "1: lo: <LOOPBACK,UP,LOWER_UP>",
 		},
 		{
 			description: "negative: an unknown verb is refused",

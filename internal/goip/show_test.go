@@ -210,8 +210,8 @@ func TestShowNoSuchDevice(t *testing.T) {
 	}{
 		{name: "link_dev", description: "positive: link show dev: kernel ENODEV becomes ErrNoSuchDevice",
 			req: ShowRequest{Object: "link", Selectors: []string{"dev", "nosuch0"}}, want: true, alsoIs: unix.ENODEV},
-		{name: "addr_dev", description: "positive: address show dev",
-			req: ShowRequest{Object: "address", Selectors: []string{"dev", "nosuch0"}}, want: true, alsoIs: unix.ENODEV},
+		{name: "addr_dev", description: "positive: address show dev: ll_name_to_index's miss is ip's `Device \"nosuch0\" does not exist`, an invalid argument",
+			req: ShowRequest{Object: "address", Selectors: []string{"dev", "nosuch0"}}, want: true, alsoIs: ErrInvalidArgument},
 		{name: "route_dev", description: "positive: route show dev",
 			req: ShowRequest{Object: "route", Selectors: []string{"dev", "nosuch0"}}, want: true, alsoIs: unix.ENODEV},
 		{name: "neigh_dev", description: "positive: neighbor show dev: link cache miss",
