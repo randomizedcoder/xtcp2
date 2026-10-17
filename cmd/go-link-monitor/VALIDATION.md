@@ -38,7 +38,7 @@ successful derivation for the same inputs.
 |---|---|
 | `test-linkmonitor-performance` | Core/RDMA benchmark binaries, equivalence/scenario tests, benchmark-only cgo probes, repeated races, tagged lint and runner report tests |
 | `bench-linkmonitor` | Fresh ten-repetition microbenchmarks and synthetic scenario matrix; optional compatible-baseline benchstat comparison; see the Nix README |
-| `test-linkmonitor` | Aggregate linking eight core outputs, four RDMA outputs, the two go-native RDMA guards, executable, embedding and performance correctness gates |
+| `test-linkmonitor` | Aggregate linking eight core outputs, four RDMA outputs, the two go-native RDMA guards and its capture-tooling leaf, executable, embedding and performance correctness gates |
 | `test-linkmonitor-unit` | Complete command, `pkg/linkmonitor/...` and `pkg/xtcpnl` suites, CGO disabled; Go JSON in `check.log` |
 | `test-linkmonitor-race` | Same complete package set with CGO and `-race`; Go JSON in `check.log` |
 | `test-linkmonitor-vet` | Vet over the same package set |
@@ -48,6 +48,7 @@ successful derivation for the same inputs.
 | `test-linkmonitor-fuzz` | One 30-second session, two workers, per `fuzzTargets` entry in `nix/tests/linkmonitor.nix` (`FuzzParseEthtool`, `FuzzWalkNetlinkEnvelopes`, `FuzzParseMonitorLink`, plus each go-native RDMA decoder's target); separate logs |
 | `test-linkmonitor-rdma-abi` | Go-native RDMA ABI guard; `abi_layout.txt` and `headers.txt` retained ([design](GO-NATIVE-RDMA-DESIGN.md#wire-layouts-and-the-abi-guard)) |
 | `test-linkmonitor-parse-guards` | Go-native RDMA parsing rules; `bce.txt`, `escape.txt`, `decoder-files.txt` and `allocs.txt` retained ([design](GO-NATIVE-RDMA-DESIGN.md#parsing-rules)) |
+| `test-linkmonitor-rdma-capture` | Go-native RDMA capture tooling; `rdmacapture-tests.txt`, `dry-run.txt`, `manifest.json`, `manifests.txt` and `tampered.txt` retained ([design](GO-NATIVE-RDMA-DESIGN.md#testdata)) |
 | `test-linkmonitor-docs` | Local links/anchors, whitespace, alert metric references, plan/checklist IDs, checkbox states, phase totals and headline count; checker regression tests |
 | `test-linkmonitor-command` | Packaged full/core binaries and their process tests, clean environment, four build combinations and ELF dependency evidence |
 | `test-linkmonitor-embedding` | Actual xtcp collectors with a private registry; complete xtcp unit tests, repeated core/RDMA embedding race tests, vet/lint and compiled guest tests |

@@ -7,7 +7,8 @@
 # Runs core tests, race, vet, lint, formatting, replay, fuzzing and doc checks,
 # plus tagged RDMA tests/lint, runtime packaging, library and executable checks.
 # Go-native RDMA guards: test-linkmonitor-rdma-abi (kernel uapi layouts) and
-# test-linkmonitor-parse-guards (bounds checks, escape report, zero allocations).
+# test-linkmonitor-parse-guards (bounds checks, escape report, zero allocations),
+# test-linkmonitor-rdma-capture (redaction, manifests, capture dry run).
 # Performance correctness is included. Repeatable measurement targets are
 # nix run path:.#bench-linkmonitor-smoke (short),
 # nix run path:.#bench-linkmonitor (microbenchmarks), and
@@ -58,6 +59,14 @@
 #       The same corpus on the HOST. Needs host root (sudo, interactively) and
 #       captures in the host's namespace, where other processes' netlink
 #       traffic is mixed in. Diagnostic fallback only — prefer the microVM.
+#
+# Capturing go-native RDMA testdata (pkg/linkmonitor/internal/rdmanative/testdata):
+#   nix run    .#microvm-x86_64-rdma-capture[-<kernel>]   # vm-rxe, with the nldev rows
+#   nix build  .#test-linkmonitor-ionic-vm && ./result/bin/test-linkmonitor-ionic-vm --capture --promote
+#   nix run    .#capture-rdma-testdata    # a real host (sudo); read-only unless
+#                                         # --gid-trigger IFACE or --umad
+#   Each takes --dry-run (the VM runners with --native-out DIR) to write
+#   placeholder contents and a manifest without a device.
 #
 # Overriding the giouring source (local fork):
 #   nix develop --override-input giouring path:/home/das/Downloads/giouring

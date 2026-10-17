@@ -274,20 +274,37 @@ address on IFACE while `ibv_asyncwatch` and nlmon run. `--umad` captures
 never loads modules itself.
 
 NLDEV and GET_CHARDEV bytes are captured with strace, not nlmon, which cannot
-tap `NETLINK_RDMA`. They go into the codec's existing corpus,
-`pkg/xtcpnl/testdata/<kernel>/rdma/`. Everything else goes under
-`internal/rdmanative/testdata/<kernel>/<source>/`, in the layout in the
-assessment's [Captured testdata](GO-NATIVE-RDMA-ASSESSMENT.md#captured-testdata).
+tap `NETLINK_RDMA`. The rxe runner's iproute2 `rdma` rows stay in the codec's
+existing corpus, `pkg/xtcpnl/testdata/<kernel>/rdma/`, unchanged. Everything
+the go-native capture records, its own NLDEV and GET_CHARDEV rows included,
+goes under `internal/rdmanative/testdata/<kernel>/<source>/`, in the layout in
+the assessment's
+[Captured testdata](GO-NATIVE-RDMA-ASSESSMENT.md#captured-testdata) plus an
+`nldev/` stream. This changed in R0-T02: `l-mlx5` and `vm-ionic` have no
+`pkg/xtcpnl` corpus to join, and one directory per source keeps each
+capture's bytes under one manifest. Kernel directories are named as the rxe
+runner names them: 7.2.9 is `7_2_9`.
+
+One script, `nix/tests/rdma-native-capture.sh` (package
+`rdma-native-capture`), records every source: the rxe guest from
+`scripts/capture-rdma.exp`, the ionic guest from `healthySteps` when the
+kernel command line has `xtcp2.rdmacapture=1`, and `l` from the host app. It
+writes a stage with an `index.tsv` of each row's command and trigger and a
+`meta/` directory. `rdma-capture-manifest`
+(`internal/rdmacapture/cmd/rdma-capture-manifest`) redacts the stage in
+place, consumes both, and writes `manifest.json`; `verify` checks a directory
+against it. Every runner takes `--dry-run`, which writes placeholder contents
+without a device; `test-linkmonitor-rdma-capture` runs that path.
 
 ### Manifest
 
 | Field | Content |
 |---|---|
-| `uname` | `uname -a` of the capture host or guest |
+| `uname` | `uname -srvmo` of the capture host or guest (every field but the hostname) |
 | `driver`, `firmware` | From `ethtool -i` and sysfs `fw_ver` |
 | `rdma_core` | rdma-core version of the capture tools |
 | `files[]` | Path, sha256, command, trigger, and the stream type (`async`, `umad`, `rtnl`, `nldev`, `sysfs`, `verbs`) |
-| `redaction` | sha256 of each real value to its replacement |
+| `redaction` | Each documentation value the capture holds, to its kind (`mac`, `guid`, `ipv4`, `ipv6`). Nothing derived from a real value is recorded: an unsalted hash of a MAC, GUID or IPv4 address can be brute-forced back to it. |
 
 ### Golden files and test discovery
 
@@ -401,6 +418,8 @@ The flake stays a thin orchestrator; each target lives in an existing module.
 | `nix/microvms/default.nix`, `scripts/capture-rdma.exp`, `netlink-capture.nix` | `microvm-x86_64-rdma-capture[-<kernel>]` | GET_CHARDEV, nlmon rtnetlink, `ibv_asyncwatch`, sysfs and umad streams | R0-T02, R0-T03 |
 | `nix/microvms/linkmonitor-ionic.nix` | `test-linkmonitor-ionic-vm` capture mode | Same streams from the ionic guest | R0-T03 |
 | `nix/capture-rdma-testdata.nix` (new) | `capture-rdma-testdata` app | Host capture for `l` | R0-T02, R0-T03 |
+| `nix/tests/rdma-native-capture.{sh,nix}`, `rdma-capture-manifest.nix` (new) | `rdma-native-capture`, `rdma-capture-manifest` packages | The capture script every source runs; redaction and manifest tool | R0-T02 |
+| `nix/tests/linkmonitor.nix` | `test-linkmonitor-rdma-capture` (new leaf) | Redaction and manifest tests, capture dry run, no real value left, tampered copy fails | R0-T02 |
 | `nix/tests/linkmonitor-performance.nix`, `linkmonitor-perf/` | `bench-linkmonitor`, `bench-linkmonitor-rdma-native` (new app) | Native test binaries and the native against cgo comparison | R0-T05, R1-T06, R2-T03 |
 | `nix/tests/linkmonitor-rdma.nix` | `test-linkmonitor-rdma-build` | `CGO_ENABLED=0` VM test binaries and a native smoke binary with no `NEEDED` | R1-T05 |
 | `nix/microvms/linkmonitor-{ionic,rdma}.nix` | `test-linkmonitor-{ionic,rdma}-vm` | Differential events, core binary healthy, live umad rows | R1-T05, R2-T03 |

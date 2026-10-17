@@ -10,6 +10,8 @@
   pkgs,
   lib,
   constants,
+  # The go-native RDMA redaction and manifest tool; see nix/microvms/default.nix.
+  rdmaCaptureManifest ? null,
 }:
 
 rec {
@@ -1560,6 +1562,12 @@ rec {
   # different driver and destination; the rows are strace hex dumps rather
   # than pcaps because nlmon cannot tap NETLINK_RDMA (see
   # nix/microvms/netlink-capture.nix).
+  #
+  # The guest also runs rdma-native-capture into the blob's native/ (the
+  # go-native decoders' corpus, GO-NATIVE-RDMA-DESIGN.md "Testdata"). The
+  # runner takes it out before the nldev rows are copied, writes its manifest
+  # and puts it in pkg/linkmonitor/internal/rdmanative/testdata/<kernel>/vm-rxe.
+  # --dry-run does only that half, from placeholder contents, without a VM.
   mkRdmaCaptureRunner =
     {
       arch,
@@ -1567,6 +1575,10 @@ rec {
     }:
     let
       cfg = constants.architectures.${arch};
+      rdmaNativeCapture = import ../tests/rdma-native-capture.nix { inherit pkgs; };
+      manifestTool = lib.optionalString (
+        rdmaCaptureManifest != null
+      ) "${rdmaCaptureManifest}/bin/rdma-capture-manifest";
 
       captureScripts =
         pkgs.runCommand "xtcp2-rdma-capture-scripts"
@@ -1591,20 +1603,26 @@ rec {
         gnutar
         gzip
         netcat-gnu
+        rdmaNativeCapture
       ];
       text = ''
         set -u
 
         TIMEOUT_SEC=1800
         OUT_DIR=""
+        NATIVE_OUT=""
+        DRY_RUN=0
         while [ $# -gt 0 ]; do
           case "$1" in
             --timeout)     TIMEOUT_SEC="$2"; shift 2 ;;
             --timeout=*)   TIMEOUT_SEC="''${1#--timeout=}"; shift ;;
             --out)         OUT_DIR="$2"; shift 2 ;;
             --out=*)       OUT_DIR="''${1#--out=}"; shift ;;
+            --native-out)  NATIVE_OUT="$2"; shift 2 ;;
+            --native-out=*) NATIVE_OUT="''${1#--native-out=}"; shift ;;
+            --dry-run)     DRY_RUN=1; shift ;;
             -h|--help)
-              echo "usage: $0 [--timeout <seconds>] [--out <dir>]"
+              echo "usage: $0 [--timeout <seconds>] [--out <dir>] [--native-out <dir>] [--dry-run]"
               echo "  Boots the netlink-dump-capture microvm, adds a soft-RoCE"
               echo "  device (rdma_rxe) over a veth pair, and records each"
               echo "  read-only rdma command's NETLINK_RDMA traffic under strace,"
@@ -1613,11 +1631,54 @@ rec {
               echo "  --out defaults to pkg/xtcpnl/testdata/<guest kernel>/rdma,"
               echo "  with the kernel derived from the guest's own uname sidecar."
               echo "  Must be run from the xtcp2 repo root."
+              echo ""
+              echo "  --native-out defaults to"
+              echo "  pkg/linkmonitor/internal/rdmanative/testdata/<guest kernel>/vm-rxe,"
+              echo "  for the guest's rdma-native-capture stage and its manifest."
+              echo "  --dry-run skips the VM and writes a placeholder native stage"
+              echo "  to --native-out, which it then requires."
               exit 0
               ;;
             *) echo "unknown arg: $1" >&2; exit 1 ;;
           esac
         done
+
+        # promote_native SRC DEST: manifest the guest's native stage and put
+        # it at DEST, replacing what was there. The rxe GUIDs come from the
+        # pinned veth MACs, so there is nothing real to redact.
+        promote_native() {
+          local src=$1 dest=$2 tool="${manifestTool}"
+          if [ -z "$tool" ]; then
+            echo "rdma-capture: built without rdma-capture-manifest; the native stage is not promoted" >&2
+            return 1
+          fi
+          "$tool" write -dir "$src" -source vm-rxe || return 1
+          rm -rf -- "$dest"
+          mkdir -p "$dest"
+          cp -r "$src"/. "$dest"/
+          "$tool" verify "$dest" || return 1
+          echo "wrote the native capture to $dest"
+        }
+
+        if [ "$DRY_RUN" -eq 1 ]; then
+          if [ -z "$NATIVE_OUT" ]; then
+            echo "rdma-capture: --dry-run needs --native-out" >&2
+            exit 2
+          fi
+          DRY=$(mktemp -d -t xtcp2-rdma-native-dry-XXXX)
+          # The arguments capture-rdma.exp gives the guest.
+          rdma-native-capture --dry-run --out "$DRY/native" --dev rxe0 \
+            --triggers flap,gid --iface rx0 --umad --driver rdma_rxe
+          rc=0
+          promote_native "$DRY/native" "$NATIVE_OUT" || rc=$?
+          rm -rf -- "$DRY"
+          if [ "$rc" -ne 0 ]; then
+            echo "FAIL: rdma capture dry run"
+            exit 1
+          fi
+          echo "PASS: rdma capture dry run"
+          exit 0
+        fi
 
         if [ ! -f flake.nix ] || [ ! -d pkg/xtcpnl ]; then
           echo "rdma-capture: run from the xtcp2 repo root" >&2
@@ -1693,6 +1754,13 @@ rec {
           exit 2
         fi
 
+        # The native stage goes to its own corpus, not pkg/xtcpnl's.
+        NATIVE_STAGE=""
+        if [ -d "$STAGE/native" ]; then
+          NATIVE_STAGE=$(mktemp -d -t xtcp2-rdma-native-XXXX)
+          mv "$STAGE/native" "$NATIVE_STAGE/native"
+        fi
+
         for required in ip_version rdma_version uname topology dev_show.strace; do
           if [ ! -s "$STAGE/$required" ]; then
             echo "FATAL: extracted blob has no $required"
@@ -1702,15 +1770,18 @@ rec {
           fi
         done
 
+        # A release candidate keeps its rc: 7.2.0-rc3 is 7_2_0_rc3, so it
+        # cannot be mistaken for the 7.2.0 release's corpus.
+        VER=$(awk '{print $3}' "$STAGE/uname" | sed -E 's/-(rc[0-9]+).*/_\1/; s/-.*//' | tr . _)
+        if [ -z "$VER" ]; then
+          echo "FATAL: could not derive a kernel version from the uname sidecar"
+          exit 2
+        fi
         if [ -z "$OUT_DIR" ]; then
-          # A release candidate keeps its rc: 7.2.0-rc3 is 7_2_0_rc3, so it
-          # cannot be mistaken for the 7.2.0 release's corpus.
-          VER=$(awk '{print $3}' "$STAGE/uname" | sed -E 's/-(rc[0-9]+).*/_\1/; s/-.*//' | tr . _)
-          if [ -z "$VER" ]; then
-            echo "FATAL: could not derive a kernel version from the uname sidecar"
-            exit 2
-          fi
           OUT_DIR="pkg/xtcpnl/testdata/$VER/rdma"
+        fi
+        if [ -z "$NATIVE_OUT" ]; then
+          NATIVE_OUT="pkg/linkmonitor/internal/rdmanative/testdata/$VER/vm-rxe"
         fi
 
         mkdir -p "$OUT_DIR"
@@ -1722,14 +1793,28 @@ rec {
         echo "================================================"
         find "$OUT_DIR" -type f | sort
         echo ""
+
+        native_rc=0
+        if [ -z "$NATIVE_STAGE" ]; then
+          echo "FAIL: the blob has no native/ stage (rdma-native-capture did not run)"
+          native_rc=1
+        elif ! promote_native "$NATIVE_STAGE/native" "$NATIVE_OUT"; then
+          echo "FAIL: the native stage was not promoted"
+          native_rc=1
+        fi
+        echo ""
         echo "Driver transcript: $LOG"
         echo "Guest boot log:    $QEMU_LOG"
 
         if [ "$rc" -ne 0 ]; then
           echo ""
-          echo "FAIL: the driver exited $rc. Check NLCAP_RDMA_SHORT and"
-          echo "      NLCAP_TOPO_REFUSED in the transcript before committing."
+          echo "FAIL: the driver exited $rc. Check NLCAP_RDMA_SHORT,"
+          echo "      NLCAP_NATIVE_SHORT and NLCAP_TOPO_REFUSED in the"
+          echo "      transcript before committing."
           exit "$rc"
+        fi
+        if [ "$native_rc" -ne 0 ]; then
+          exit 1
         fi
 
         echo "PASS: rdma nldev capture complete"

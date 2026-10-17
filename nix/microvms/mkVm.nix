@@ -61,6 +61,9 @@ let
   # PATH by those flavors - see isNetlinkDriven in environment.systemPackages
   # below.
   netlinkCaptureHelper = import ./netlink-capture.nix { inherit pkgs; };
+  # The go-native RDMA capture script; the RDMA capture driver
+  # (scripts/capture-rdma.exp) runs it in the netlink-driven guests.
+  rdmaNativeCapture = import ../tests/rdma-native-capture.nix { inherit pkgs; };
   xtcp2Exec = import ../lib/xtcp2-exec-start.nix { inherit pkgs lib; };
 
   isCoverage = sink == "coverage" || sink == "coverage-iouring";
@@ -4228,7 +4231,10 @@ in
               gzip
               gnutar
             ])
-            ++ [ netlinkCaptureHelper ]
+            ++ [
+              netlinkCaptureHelper
+              rdmaNativeCapture
+            ]
           )
           ++ [ xtcp2AllPackage ];
       }

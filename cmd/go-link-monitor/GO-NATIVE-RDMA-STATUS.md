@@ -2,9 +2,10 @@
 
 Last updated: 2026-10-17.
 
-**R0 in progress: 2 of 20 implementation tasks passed their gates.** R0-T01
-(ABI layout guard) and R0-T04 (parsing guards) are done. The next task is
-R0-T02 or R0-T05, which have no dependencies; R0-T03 follows R0-T02.
+**R0 in progress: 3 of 20 implementation tasks passed their gates.** R0-T01
+(ABI layout guard), R0-T02 (capture tooling) and R0-T04 (parsing guards) are
+done. The next tasks are R0-T03, the captures (the `l` rows need the
+operator's approval), and R0-T05, the cgo baseline.
 
 This tracks [GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md](GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md)
 for the design in [GO-NATIVE-RDMA-DESIGN.md](GO-NATIVE-RDMA-DESIGN.md). It is
@@ -38,7 +39,7 @@ checks it against the plan in the same way.
 
 | Phase | Name | State | Completed tasks | Evidence |
 |---|---|---|---|---|
-| R0 | Groundwork | in progress | 2/5 | RV001-RV005 |
+| R0 | Groundwork | in progress | 3/5 | RV001-RV015 |
 | R1 | Netlink-derived events | not started | 0/6 | None |
 | R2 | Native umad | not started | 0/3 | None |
 | R3 | uverbs context (conditional) | deferred | 0/3 | Entry condition not met; see blockers |
@@ -51,8 +52,8 @@ Completion gates and dependencies are in the plan, not copied here.
 | Done | Task | Work | State | Evidence / blocker |
 |---|---|---|---|---|
 | [x] | [R0-T01](GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md#r0-t01) | ABI layout guard | done | RV001, RV002 |
-| [ ] | [R0-T02](GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md#r0-t02) | Capture tooling and redaction | not started | None |
-| [ ] | [R0-T03](GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md#r0-t03) | Captured testdata | not started | After R0-T02; `l` trigger rows need approval |
+| [x] | [R0-T02](GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md#r0-t02) | Capture tooling and redaction | done | RV009-RV015 |
+| [ ] | [R0-T03](GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md#r0-t03) | Captured testdata | not started | Unblocked by R0-T02; `l` rows need approval |
 | [x] | [R0-T04](GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md#r0-t04) | Parsing guards | done | RV003-RV005 |
 | [ ] | [R0-T05](GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md#r0-t05) | cgo baseline | not started | None |
 | [ ] | [R1-T01](GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md#r1-t01) | GET_CHARDEV codec and client | not started | None |
@@ -105,6 +106,13 @@ Filled by R0-T03. A stream is `captured`, `not captured` with the reason, or
 | RV006 | 2026-10-17 | R0 | `nix build path:.#test-linkmonitor-unit path:.#test-linkmonitor-race path:.#test-linkmonitor-rdma-unit` | Build host, kernel 7.2.9; base fe0d3a6f plus the G1 working tree | Fail, not caused by G1: `linuxio` `TestRecordedContracts` route-1 golden digests differ. Clean main fails the same way since 589d6edc (#238), which added `xtcpnl.LinkInfo.HasLinkInfo` to the hashed JSON. Values and errors are unchanged, so the four route-1 goldens were regenerated with `-update` | Session scratchpad `g1-leaves.log` |
 | RV007 | 2026-10-17 | R0 | `nix build path:.#test-linkmonitor -L` | Build host, kernel 7.2.9; base fe0d3a6f plus the G1 working tree | Fail, not caused by G1: the embedding leaf's `pkg/xtcp` `TestLinkMonitorOnDemandScrape` times out with `lstat /sys: no such file or directory` in the sandbox. Main fe0d3a6f's embedding leaf fails identically | Session scratchpad `g1-aggregate.log`, `main-embedding.log` |
 | RV008 | 2026-10-17 | R0 | `nix build path:.#test-linkmonitor-unit path:.#test-linkmonitor-race path:.#test-linkmonitor-rdma-unit` | Build host, kernel 7.2.9; base fe0d3a6f plus the G1 working tree with the regenerated goldens | Pass: rerun of RV006 | `/nix/store/cw26jahy4acbva0wp62rxxfrlg2j4vqw-xtcp2-test-linkmonitor-unit`, `/nix/store/7ly9spmb6g9z2nflcspvjk19n96kx9l1-xtcp2-test-linkmonitor-race`, `/nix/store/70jfrjvdf8j0y36983z4gy7147y0sf6m-xtcp2-test-linkmonitor-rdma-unit` |
+| RV009 | 2026-10-17 | R0-T02 | `nix build path:.#test-linkmonitor-rdma-capture -L` | Build host, kernel 7.2.9; base 7adbff67 plus G1 (#241) plus the G2 working tree | Pass: the `rdmacapture` tests (redaction table with `redaction_stable`, strace and pcap forms, manifest build and verify), a dry run of `rdma-native-capture` through `rdma-capture-manifest` with both recorded values gone, `TestCaptureManifests` on the result, and a tampered copy that fails verify | `/nix/store/3lsl0i3h33gvqzigyzl3aag8azdgnjqn-xtcp2-test-linkmonitor-rdma-capture` |
+| RV010 | 2026-10-17 | R0-T02 | `nix run path:.#capture-rdma-testdata -- --dry-run --out DIR`; `env -u LD_LIBRARY_PATH nix run path:.#microvm-x86_64-rdma-capture -- --dry-run --native-out DIR`; `test-linkmonitor-ionic-vm --capture --dry-run --native-out=DIR`; then `LINKMONITOR_CAPTURE_DIRS=... go test -run TestCaptureManifests ./pkg/linkmonitor/internal/rdmanative` | Build host, kernel 7.2.9, no device or VM; same tree | Pass: each runner writes a manifest (18, 30 and 30 files) that its own `verify` and `TestCaptureManifests` accept; the copy, tampered, removed and golden_added rows pass | Session scratchpad `g2-dryruns.log`; ionic runner `/nix/store/ml44fk50lz6w4mj2b0h8f682xs3sk7vw-test-linkmonitor-ionic-vm` |
+| RV011 | 2026-10-17 | R0-T02 | `nix build path:.#test-linkmonitor-lint -L` | Build host, kernel 7.2.9; same tree before the fix | Fail: errcheck on an unchecked `strconv.ParseUint` in `redact.go` and gosec G703 on the in-place rewrite in `manifest.go`. Fixed by checking the error and doing the manifest build's reads and writes through `os.Root`, with its close error joined | Session scratchpad `g2-leaves.log` (overwritten by RV012; findings quoted here) |
+| RV012 | 2026-10-17 | R0-T02 | `nix build path:.#test-linkmonitor-{unit,race,vet,lint,format,parse-guards,rdma-capture}` | Build host, kernel 7.2.9; base 7adbff67 plus G1 plus the G2 working tree | Pass: rerun of RV011 with the other leaves | `/nix/store/xz1qfdxnq1xzf8n4pmcjczjqg6wldbla-xtcp2-test-linkmonitor-unit`, `/nix/store/bl7yddxbydj7hnxzk3mcv85ds3yh6wyq-xtcp2-test-linkmonitor-race`, `/nix/store/j9fl25yyz3v9ikycfcgdry2vlafk8dxj-xtcp2-test-linkmonitor-vet`, `/nix/store/ijqikl8qfbijc60ypa6x4pdy3lixlvms-xtcp2-test-linkmonitor-lint`, `/nix/store/6v6lhsbxz6c1ad3q7rf9q1wg54k2j9hd-xtcp2-test-linkmonitor-format`, `/nix/store/4h8bcxmmfflzgwf60s6f95pc3wvrc1di-xtcp2-test-linkmonitor-parse-guards`, `/nix/store/3lsl0i3h33gvqzigyzl3aag8azdgnjqn-xtcp2-test-linkmonitor-rdma-capture` |
+| RV013 | 2026-10-17 | R0-T02 | `nix build path:.#test-linkmonitor-{rdma-capture,lint,unit,docs,format}` | Build host, kernel 7.2.9; base c4c16db4 (main with #241 and #242 merged) plus the G2 working tree | Pass: rerun after rebasing G2 onto main | `/nix/store/0bw1jx679x7ng818rvxzf81wmg5g070l-xtcp2-test-linkmonitor-rdma-capture`, `/nix/store/za7y5sahcqq20p2d74j402hkn6vi58z5-xtcp2-test-linkmonitor-lint`, `/nix/store/91s8pnb8g4jhpdpy47wnxll5a10g3vlf-xtcp2-test-linkmonitor-unit`, `/nix/store/br94xyn9kj8p1wj5m23jw38qk4haw4qs-xtcp2-test-linkmonitor-format` |
+| RV014 | 2026-10-17 | R0-T02 | `nix build path:.#test-linkmonitor-{rdma-capture,lint,unit,race,format,parse-guards}` | Build host, kernel 7.2.9; base c4c16db4 plus G2 (#243) plus the security-review fix | Fail: format leaf, `values.go` not gofmt-clean after the edit; fixed with gofmt | `nix log /nix/store/y0ihylqml1vg4xyq3q5pjnz3mbnpaicr-xtcp2-test-linkmonitor-format.drv` |
+| RV015 | 2026-10-17 | R0-T02 | `nix build path:.#test-linkmonitor-{rdma-capture,lint,unit,race,format,parse-guards}` | Build host, kernel 7.2.9; base c4c16db4 plus G2 (#243) plus the security-review fix | Pass: the manifest's redaction map now lists documentation values and their kinds, with no hash of a real value (a MAC or GUID hash is brute-forceable); `TestRedactionMap` gained a `real_hash` row; the capture drops the hostname (`uname -srvmo`, no sysfs `node_desc`) | `/nix/store/0ambrm0hh9jp6swy2ykdd8x1zzxkaws5-xtcp2-test-linkmonitor-rdma-capture`, `/nix/store/d30iv2k2x0m7s1jgxwp77rj7ih5i47hv-xtcp2-test-linkmonitor-lint`, `/nix/store/rw2fibmd1sgyfcviqrmp5399d10k85zw-xtcp2-test-linkmonitor-unit`, `/nix/store/arpi68sr46l1hhqpplkpy6f69w9jd043-xtcp2-test-linkmonitor-race`, `/nix/store/kmadx95wzn32dk1bcw6yr6a2mr0sm7qp-xtcp2-test-linkmonitor-format`, `/nix/store/is0xvc3ggz1jzi9iyzz37czlsh57dfqn-xtcp2-test-linkmonitor-parse-guards` |
 
 ## Blockers and upcoming requirements
 
@@ -126,3 +134,5 @@ The rest are upcoming requirements, not failed checks.
 |---|---|---|
 | 2026-10-17 | Created the assessment, design, plan and this status document. NLDEV captures use strace, because nlmon cannot tap `NETLINK_RDMA` (`net/netlink/af_netlink.c:264-284`). `test-linkmonitor-docs` checks this tracker with the `R` prefix. | `nix build path:.#test-linkmonitor-docs -L`; next R0-T01, R0-T02, R0-T04 or R0-T05 |
 | 2026-10-17 | R0-T01 and R0-T04 done (G1). Deviations from the plan: the ABI guard diffs a committed `testdata/abi_layout.txt` against the generated one instead of reading `LINKMONITOR_ABI_LAYOUT`, so `test-linkmonitor-unit` checks it too; IB event values come from rdma-core's `IBV_EVENT_*`, because the kernel's `ib_event_type` is not uapi; `import "C"` is refused by a `go list` CgoFiles check in parse-guards, because depguard cannot see it; the fuzz leaf now takes a `pkg:target` list. Also fixed: two funlen findings already failing lint on main, and the four route-1 replay goldens main broke in #238. | RV001-RV008; next R0-T02 or R0-T05 |
+| 2026-10-17 | R0-T02 done (G2). One script, `rdma-native-capture`, records every source; `rdma-capture-manifest` (package `internal/rdmacapture`) redacts the stage in place and writes or verifies `manifest.json`. The rxe runner takes the guest's `native/` stage out of its blob, the ionic runner has `--capture`, and `capture-rdma-testdata` is the host app; all three take `--dry-run`. New leaf `test-linkmonitor-rdma-capture`. Deviations from the plan: the go-native NLDEV and GET_CHARDEV rows go under `rdmanative/testdata/<kernel>/<source>/nldev/`, not `pkg/xtcpnl/testdata`, which is unchanged; the redaction tool is a Go package and command rather than a directory under `nix/tests/`. Plan and design updated. | RV009-RV013; next R0-T03 (VM captures, then `l` with approval) or R0-T05 |
+| 2026-10-17 | Security review of the G2 commit: the manifest's redaction map was keyed by an unsalted sha256 of each real value, which is reversible for MACs, GUIDs and IPv4 addresses, and the capture recorded the hostname (`uname -a`, sysfs `node_desc`). The map now lists only documentation values and their kinds, and the hostname is no longer captured. Design and assessment updated. | RV014-RV015 |

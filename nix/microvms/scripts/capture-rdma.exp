@@ -8,7 +8,8 @@
 # Records what iproute2's `rdma` tool sends on NETLINK_RDMA and what the
 # kernel answers, against a soft-RoCE (rdma_rxe) device over a veth pair, for
 # the read-only nldev commands pkg/xtcpnl decodes (xtcpnl_rdma.go). The output
-# is pkg/xtcpnl/testdata/<guest kernel>/rdma/.
+# is pkg/xtcpnl/testdata/<guest kernel>/rdma/, plus a native/ stage from
+# rdma-native-capture for pkg/linkmonitor/internal/rdmanative/testdata/.
 #
 # It boots the netlink-dump-capture VM - same pinned kernel, same iproute2,
 # same xtcp2-nlcap helper - and uses that helper's strace subcommands rather
@@ -189,6 +190,22 @@ lassign [nlcap strace-monitor $NS $SUB monitor_add \
 vmlib::log [string trim $out]
 if {$rc != 0} {
     lappend short_rows monitor_add
+}
+
+# The go-native corpus (GO-NATIVE-RDMA-DESIGN.md "Testdata"): GET_CHARDEV and
+# NLDEV under strace, rxe0's sysfs, rx0 flapped and given a GID while nlmon and
+# ibv_asyncwatch record, and the umad queries. It goes to /tmp/nlcap/native,
+# which the runner moves out of the blob into its own corpus. ib_umad is
+# loaded here, in the guest; rdma-native-capture never loads a module.
+vmlib::log "=== go-native capture ==="
+if {[vmlib::run "modprobe ib_umad"] != 0} {
+    lappend short_rows native_ib_umad
+}
+lassign [vmlib::run_out "rdma-native-capture --out /tmp/nlcap/native --dev rxe0 --triggers flap,gid --iface rx0 --umad --driver rdma_rxe" 600] native_rc native_out
+vmlib::log [string trim $native_out]
+if {$native_rc != 0} {
+    puts "NLCAP_NATIVE_SHORT rc=$native_rc"
+    lappend short_rows native
 }
 
 lassign [nlcap inventory] inv_rc inventory

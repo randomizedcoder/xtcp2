@@ -35,11 +35,22 @@
   # then the self-test stops xtcp2 to flush counter data and tar+base64s
   # it out via the serial console for the host lifecycle runner to scrape.
   xtcp2CoverPackage ? null,
+  # Optional: the go-native RDMA redaction and manifest tool
+  # (nix/tests/rdma-capture-manifest.nix). The RDMA capture runner promotes
+  # the guest's native stage with it; without it, that stage is dropped.
+  rdmaCaptureManifest ? null,
 }:
 
 let
   constants = import ./constants.nix;
-  microvmLib = import ./lib.nix { inherit pkgs lib constants; };
+  microvmLib = import ./lib.nix {
+    inherit
+      pkgs
+      lib
+      constants
+      rdmaCaptureManifest
+      ;
+  };
 
   mkOne =
     arch:

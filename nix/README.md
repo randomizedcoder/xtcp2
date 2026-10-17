@@ -31,6 +31,7 @@ The targets are defined in [tests/linkmonitor.nix](tests/linkmonitor.nix):
 | `test-linkmonitor-fuzz` | One 30-second session, two workers, per `fuzzTargets` entry |
 | `test-linkmonitor-rdma-abi` | Go-native RDMA ABI guard: `nix/tests/linkmonitor-abi.c` against the pinned uapi and rdma-core headers must match the committed layout, then `TestABILayout` |
 | `test-linkmonitor-parse-guards` | Go-native RDMA parsing rules: rdmanative has no cgo files, no bounds check outside the length hint in each listed decoder file (`bce.txt`), the `-m` report (`escape.txt`), zero-allocation and manifest tests |
+| `test-linkmonitor-rdma-capture` | Go-native RDMA capture tooling: the `rdmacapture` redaction and manifest tests, a dry run of `rdma-native-capture` through `rdma-capture-manifest` with no real value left, `TestCaptureManifests` on the result, and a tampered copy that must fail verify |
 | `test-linkmonitor-docs` | Monitor documentation links, metric references and tracker consistency; checker regression tests |
 | `test-linkmonitor-rdma-unit` | Full monitor suite with the `rdma` tag and cgo, then tagged race tests |
 | `test-linkmonitor-rdma-lint` | Tagged vet and unchanged comprehensive lint policy |
