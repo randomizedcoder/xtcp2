@@ -170,6 +170,39 @@ func AddrShowLinkDump(family uint8, extMask, seq uint32) ([]byte, error) {
 	return xtcpnl.BuildDumpLinkRequestFamily(family, seq), nil
 }
 
+// AddrShowLinkFilter is the part of `ip address show`'s filter that
+// iplink_filter_req puts on the link dump (ip/ipaddress.c:2030-2063).
+//
+// Master is filter.master as the wire carries it: 0 for none, an ifindex for
+// `master` and `vrf`, 0xffffffff for `nomaster`. HasKind is the C pointer
+// test, so `type ""` sends an empty kind. The slave kind is not here because
+// iproute2 never sends it; print_linkinfo applies it client-side.
+type AddrShowLinkFilter struct {
+	Master  uint32
+	Kind    string
+	HasKind bool
+}
+
+// AddrShowLinkDumpFilter is AddrShowLinkDump with the selectors: the same
+// AF_UNSPEC/AF_PACKET split, so under `-4` or `-6` every selector is left off
+// the wire (`ip -4 addr show master bond0` sends a bare 32-byte dump and
+// filters by master client-side). On the attribute arm the mask is always
+// sent, even when `novf` and `-s` make it zero, which AddrShowLinkDump's
+// builder would drop. xtcpnl.BuildDumpLinkRequestFilter has the order.
+func AddrShowLinkDumpFilter(family uint8, extMask uint32, lf AddrShowLinkFilter, seq uint32) ([]byte, error) {
+	return xtcpnl.BuildDumpLinkRequestFilter(family, extMask, lf.Master, lf.Kind, lf.HasKind, seq)
+}
+
+// VrfCheckByName is name_is_vrf's request (ip/iplink_vrf.c:170-222), the
+// second lookup `ip addr show vrf NAME` makes after ll_name_to_index: an
+// RTM_GETLINK with NLM_F_REQUEST alone, ifi_family = preferred_family, and
+// IFLA_IFNAME with its NUL. With no IFLA_EXT_MASK it is 44 bytes for a
+// two-character name, against ll_link_get's 52, and that missing mask (with
+// the family) is why it is not LinkShowByName.
+func VrfCheckByName(family uint8, name string, seq uint32) ([]byte, error) {
+	return xtcpnl.BuildGetLinkByNameRequest(family, name, 0, seq)
+}
+
 // AddrShowDump builds the LAST request `ip addr show` sends: the address dump
 // itself. It is the second request of the bare form and the third of
 // `addr show dev NAME`.

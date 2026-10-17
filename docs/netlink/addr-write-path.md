@@ -1009,7 +1009,12 @@ A2-T01 covers the parse: rows 1-3, 6, 9-19, 21 and 24's two flags in
 `TestParseAddrShowArgs`, which adds rows for the lookup order, the
 keyword-exactness corners and `group`'s `strtol`-to-int conversion. The
 rows that need the filter applied or a pcap, 4, 5, 7, 8, 20, 22, 23, 25 and
-26, and the listing half of 24, are A2-T02's (`TestAddrFilter`).
+26, and the listing half of 24, are A2-T02's. Their goldens are rows of
+`TestAddrFilter` (`internal/goip/addr_filter_golden_test.go`), which replays
+each `addr-show` selector pcap and compares goip's stdout with the sidecar
+byte for byte, and rows 7, 8 and 25's request halves are rows of
+`TestAddrFilterRequestShape`, which answers goip only when its request equals
+the captured one. Row 27 is the `ip -j` label capture A2-T02 added.
 
 | # | class | description | input | expected |
 |---|---|---|---|---|
@@ -1039,6 +1044,7 @@ rows that need the filter applied or a pcap, 4, 5, 7, 8, 20, 22, 23, 25 and
 |24|corner|`up` and `down` together|`up down`|both filters applied, nothing listed|
 |25|corner|master under `-4` is client-side|`-4 addr show master bond0`|no `IFLA_MASTER` in the dump (pcap); only `d3`'s addresses|
 |26|corner|`proto` passes addresses with no `IFA_PROTO`|`proto 99` on `v4_proto`|the proto-99 address and the address with no proto|
+|27|corner|label in JSON|`-j addr show label 'd0:*'` on `v4_label`|one `{"addr_info":[...]}` object per link that survives `ipaddr_filter`, with no link keys. `nlmon0`, which has no addresses, is rescued and prints `{"addr_info":[]}`; `lo` is dropped (`ip_addr_label_json`)|
 
 ### 6. `TestParseNewAddrRichFixtures` (Phase 1)
 

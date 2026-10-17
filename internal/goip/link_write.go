@@ -596,6 +596,15 @@ func linkWrite(c *runCtx, verb *linkWriteVerb, args []string) error {
 // it is skipped here. A failure that is not a kernel answer (a broken
 // socket, a replay with no matching request) is returned.
 func newLinkNameResolver(svc *service.Service) linkResolver {
+	return newLinkNameResolverRemember(svc, nil)
+}
+
+// newLinkNameResolverRemember is newLinkNameResolver that also hands each
+// link it fetches to remember. ll_link_get stores its reply in the one ll_map
+// that ll_index_to_name reads later (lib/ll_map.c:296), so a command that
+// renders the names its lookups resolved, `ip addr show master bond0`, must
+// not fetch them a second time by index. remember may be nil.
+func newLinkNameResolverRemember(svc *service.Service, remember func(xtcpnl.LinkInfo)) linkResolver {
 	cache := map[string]int32{}
 	return func(name string) (int32, error) {
 		if idx, ok := cache[name]; ok {
@@ -610,6 +619,9 @@ func newLinkNameResolver(svc *service.Service) linkResolver {
 		var errno syscall.Errno
 		switch {
 		case err == nil:
+			if remember != nil {
+				remember(xtcpnl.LinkInfo(l))
+			}
 			cache[l.Name] = l.Index
 			for _, alt := range l.AltNames {
 				cache[alt] = l.Index

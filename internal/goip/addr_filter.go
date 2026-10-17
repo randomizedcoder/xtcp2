@@ -6,14 +6,17 @@ import (
 	"strings"
 
 	"github.com/randomizedcoder/xtcp2/internal/goip/render"
+	"github.com/randomizedcoder/xtcp2/internal/goip/req"
+	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
 
 // This file is the selector half of `ip address show`: the keyword loop in
 // ipaddr_list_flush_or_save (ip/ipaddress.c:2170-2264, iproute2 7.1.0) and
-// get_filter (:1468-1496). It only parses. Applying the filter to the dumps
-// is A2-T02 (docs/netlink/addr-write-path-plan.md), so until then nothing
-// outside the tests calls parseAddrShowArgs.
+// get_filter (:1468-1496), and the filters that apply the result:
+// iplink_filter_req's request attributes, ipaddr_filter, group_filter,
+// print_linkinfo's link tests and print_addrinfo's address tests. obj_addr.go
+// runs them in iproute2's order.
 //
 // # The order is iproute2's, and it decides what a word means
 //
@@ -124,6 +127,11 @@ var addrShowKeywords = []addrShowKeyword{
 	{name: "up", apply: func(f *addrFilter, _ string, _ addrLookups) error { f.up = true; return nil }},
 	{name: "down", apply: func(f *addrFilter, _ string, _ addrLookups) error { f.down = true; return nil }},
 	{name: "label", takesValue: true, apply: func(f *addrFilter, v string, _ addrLookups) error {
+		// Compiled here so that a pattern goip refuses fails before any
+		// request is sent; ip has nothing to refuse and sends them all.
+		if _, err := fnmatchCompile(v); err != nil {
+			return err
+		}
 		f.label, f.haveLabel = v, true
 		return nil
 	}},
@@ -354,4 +362,211 @@ func groupA2N(arg string) (int32, bool) {
 		return 0, false
 	}
 	return g, true
+}
+
+// extMask is iplink_filter_req's and ipaddr_link_get's IFLA_EXT_MASK: base is
+// the `-s` choice (req.ExtMaskShow or req.ExtMaskStats), and `novf` takes
+// RTEXT_FILTER_VF out of it (ip/ipaddress.c:2035-2038, :2077-2080).
+func (f *addrFilter) extMask(base uint32) uint32 {
+	if !f.vfinfo {
+		return base &^ xtcpnl.RTEXT_FILTER_VF
+	}
+	return base
+}
+
+// linkFilter is the part of the filter the link dump carries. filter.master
+// goes on the wire as the u32 it converts to, so `nomaster`'s -1 is
+// 0xffffffff.
+func (f *addrFilter) linkFilter() req.AddrShowLinkFilter {
+	return req.AddrShowLinkFilter{
+		Master:  uint32(f.master), //nolint:gosec // addattr32 of an int: -1 is 0xffffffff on the wire
+		Kind:    f.kind,
+		HasKind: f.haveKind,
+	}
+}
+
+// addrLinkMode is what print_linkinfo returns for one link, which decides
+// the rest of the loop body in ipaddr_list_flush_or_save (:2336-2347).
+type addrLinkMode uint8
+
+const (
+	// addrLinkSkip is -1: no header, no addresses, no stats.
+	addrLinkSkip addrLinkMode = iota
+	// addrLinkHeaderless is 0, which only `label` produces: the addresses
+	// print with no header above them and no stats below.
+	addrLinkHeaderless
+	// addrLinkPrint is a printed header, then the addresses, then stats
+	// under `-s`.
+	addrLinkPrint
+)
+
+// linkMode is print_linkinfo's filter, in its order (ip/ipaddress.c:991-1024).
+//
+// The order matters twice. `label` returns before the group, master and kind
+// tests, so `label X master Y` filters by label alone here. And the master
+// test is `filter.master > 0`, so `nomaster` is never applied client-side: it
+// filters only through the IFLA_MASTER it puts on the request, and under `-4`
+// or `-6`, where the request carries no attributes, it filters nothing.
+func (f *addrFilter) linkMode(li *xtcpnl.LinkInfo) addrLinkMode {
+	switch {
+	case f.ifindex != 0 && li.Index != f.ifindex,
+		f.up && li.Flags&unix.IFF_UP == 0,
+		f.down && li.Flags&unix.IFF_UP != 0,
+		li.Name == "":
+		return addrLinkSkip
+	case f.haveLabel:
+		return addrLinkHeaderless
+	case li.HasGroup && f.group != -1 && int32(li.Group) != f.group, //nolint:gosec // rta_getattr_u32 stored in an int
+		f.master > 0 && li.Master != f.master,
+		f.haveKind && !linkKindMatches(li, f.kind, false),
+		f.haveSlaveKind && !linkKindMatches(li, f.slaveKind, true):
+		return addrLinkSkip
+	}
+	return addrLinkPrint
+}
+
+// linkKindMatches is match_link_kind == 0 (ip/ipaddress.c:221-227): a link
+// with no IFLA_LINKINFO never matches, and a nest with no kind compares as "".
+// SlaveKind holds the wire value ("bond"), which is what `type bond_slave`
+// leaves in filter.slave_kind once the suffix is cut.
+func linkKindMatches(li *xtcpnl.LinkInfo, kind string, slave bool) bool {
+	if !li.HasLinkInfo {
+		return false
+	}
+	if slave {
+		return li.SlaveKind == kind
+	}
+	return li.Kind == kind
+}
+
+// addrLocal is print_addrinfo's aliasing: IFA_LOCAL, or IFA_ADDRESS when the
+// message has no IFA_LOCAL (ip/ipaddress.c:1544-1545).
+func addrLocal(ai *xtcpnl.AddrInfo) []byte {
+	if ai.Local != nil {
+		return ai.Local
+	}
+	return ai.Address
+}
+
+// matchAddr is the address half of print_selected_addrinfo and
+// print_addrinfo (ip/ipaddress.c:1750-1752, :1549-1566): index, family,
+// scope, flags, proto, label and prefix. Every test is a pure predicate on
+// the message, so only their conjunction is observable, not their order.
+//
+// ai.Flags is already get_ifa_flags' word: IFA_FLAGS when present, the
+// header's ifa_flags otherwise. proto is tested only when the address carries
+// IFA_PROTO, so `proto 99` keeps an address with none. devName is
+// ll_index_to_name, the label an address without IFA_LABEL is matched as.
+func (f *addrFilter) matchAddr(ai *xtcpnl.AddrInfo, li *xtcpnl.LinkInfo, devName func(int32) string) bool {
+	if int32(ai.Index) != li.Index { //nolint:gosec // ifa_index and ifi_index compare as C ints
+		return false
+	}
+	if f.ifindex != 0 && int32(ai.Index) != f.ifindex { //nolint:gosec // as above
+		return false
+	}
+	if !f.matchCommon(ai, devName) {
+		return false
+	}
+	return !f.haveProto || !ai.HasProto || ai.Proto == f.proto
+}
+
+// matchCommon is the test ipaddr_filter and print_addrinfo share: family,
+// scope, flags, label and prefix. ipaddr_filter has no proto test, which is
+// why it is not here.
+func (f *addrFilter) matchCommon(ai *xtcpnl.AddrInfo, devName func(int32) string) bool {
+	switch {
+	case f.family != unix.AF_UNSPEC && f.family != ai.Family,
+		int32(f.scope^ai.Scope)&f.scopemask != 0,
+		(f.flags^ai.Flags)&f.flagmask != 0:
+		return false
+	}
+	if f.haveLabel {
+		label := ai.Label
+		if label == "" {
+			label = devName(int32(ai.Index)) //nolint:gosec // ifa_index as the C int ll_index_to_name takes
+		}
+		// The pattern was compiled when it was parsed, so it cannot fail here.
+		if ok, err := fnmatch0(f.label, label); err != nil || !ok {
+			return false
+		}
+	}
+	return inetPrefixMatch(&f.pfx, addrLocal(ai))
+}
+
+// keepLinks is ipaddr_filter followed by group_filter
+// (ip/ipaddress.c:1914-1965, :2133-2153).
+//
+// ipaddr_filter keeps a link when one of its addresses passes matchCommon,
+// and puts back a link with no addresses at all when the family is
+// AF_UNSPEC or AF_PACKET. "No addresses at all" is decided before the family
+// test, so a link with only IPv6 addresses is not rescued under `-4`. The
+// caller skips this under AF_PACKET, where `ip` skips it too.
+//
+// group_filter then drops a link whose IFLA_GROUP differs. A link with no
+// IFLA_GROUP would spin group_filter forever in 7.1.0 (it never advances past
+// one); the kernel always sends the attribute, so here it is kept.
+func (f *addrFilter) keepLinks(links []xtcpnl.LinkInfo, addrs []xtcpnl.AddrInfo, devName func(int32) string, filterAddrs bool) []xtcpnl.LinkInfo {
+	out := make([]xtcpnl.LinkInfo, 0, len(links))
+	for i := range links {
+		if filterAddrs && !f.linkHasAddr(&links[i], addrs, devName) {
+			continue
+		}
+		if f.group != -1 && links[i].HasGroup && int32(links[i].Group) != f.group { //nolint:gosec // as linkMode
+			continue
+		}
+		out = append(out, links[i])
+	}
+	return out
+}
+
+func (f *addrFilter) linkHasAddr(li *xtcpnl.LinkInfo, addrs []xtcpnl.AddrInfo, devName func(int32) string) bool {
+	missingNetAddress := true
+	for j := range addrs {
+		if int32(addrs[j].Index) != li.Index { //nolint:gosec // as matchAddr
+			continue
+		}
+		missingNetAddress = false
+		if f.matchCommon(&addrs[j], devName) {
+			return true
+		}
+	}
+	return missingNetAddress && (f.family == unix.AF_UNSPEC || f.family == unix.AF_PACKET)
+}
+
+// inetPrefixMatch is inet_addr_match_rta == 0 (lib/utils.c:938-977): true
+// when local falls inside pfx.
+//
+// No attribute, no prefix family, or a bitlen of zero or less passes. That
+// last covers `to default`, `to all` and `to any`, whose bitlen is -2, and
+// `to 0/0`. Otherwise get_addr_rta takes the family from the attribute's
+// length, 4 or 16 bytes, and a family other than the prefix's fails.
+func inetPrefixMatch(pfx *inetPrefix, local []byte) bool {
+	if local == nil || pfx.family == unix.AF_UNSPEC || pfx.bitlen <= 0 {
+		return true
+	}
+	var fam uint8
+	switch len(local) {
+	case 4:
+		fam = unix.AF_INET
+	case 16:
+		fam = unix.AF_INET6
+	default:
+		return false
+	}
+	if fam != pfx.family || pfx.bitlen > 8*len(local) || pfx.bitlen > 8*len(pfx.data) {
+		return false
+	}
+	whole, rest := pfx.bitlen/8, pfx.bitlen%8
+	for i := 0; i < whole; i++ {
+		if local[i] != pfx.data[i] {
+			return false
+		}
+	}
+	if rest != 0 {
+		mask := byte(0xff << (8 - rest))
+		if (local[whole]^pfx.data[whole])&mask != 0 {
+			return false
+		}
+	}
+	return true
 }

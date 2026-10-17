@@ -253,7 +253,7 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 				Address:   []byte{0x6e, 0x05, 0xd5, 0x51, 0x50, 0x25},
 				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
 				Qdisc:     "noqueue", TxQLen: 1000, HasTxQLen: true, HasGroup: true,
-				Kind: "veth",
+				HasLinkInfo: true, Kind: "veth",
 				Link: 2, HasLink: true, LinkNetnsID: 1, HasLinkNetnsID: true,
 			},
 		},
@@ -293,7 +293,7 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 				// blob, and everything after "bridge_slave" on that line
 				// comes out of the SLAVE blob. It is why this is one of the
 				// four links `goip -d` refuses.
-				Kind: "veth", SlaveKind: "bridge", HasInfoSlaveData: true,
+				HasLinkInfo: true, Kind: "veth", SlaveKind: "bridge", HasInfoSlaveData: true,
 				Link: 2, HasLink: true, Master: 9, LinkNetnsID: 3, HasLinkNetnsID: true,
 			},
 		},
@@ -328,7 +328,7 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 				// `goip -d` refuse this link instead of printing a bare
 				// "    bridge " where `ip` prints "    bridge forward_delay
 				// 200 hello_time 200 …".
-				Kind: "bridge", HasInfoData: true,
+				HasLinkInfo: true, Kind: "bridge", HasInfoData: true,
 			},
 		},
 		{
@@ -358,7 +358,7 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 				Address:   []byte{0x66, 0xcf, 0x08, 0xaa, 0x09, 0xd9},
 				Broadcast: []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
 				Qdisc:     "noqueue", TxQLen: 1000, HasTxQLen: true, HasGroup: true,
-				Kind: "veth",
+				HasLinkInfo: true, Kind: "veth",
 				Link: 2, HasLink: true, LinkNetnsID: 2, HasLinkNetnsID: true,
 				AltNames: []string{"ve-nordlayer-vpn"},
 			},
@@ -385,7 +385,7 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 				LinkMode: 0, HasLinkMode: true,
 				Address: nil, Broadcast: nil,
 				Qdisc: "noqueue", TxQLen: 1000, HasTxQLen: true, HasGroup: true,
-				Kind: "nlmon",
+				HasLinkInfo: true, Kind: "nlmon",
 			},
 		},
 	}

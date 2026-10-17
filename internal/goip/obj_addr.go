@@ -77,35 +77,29 @@ func runAddress(c *runCtx, args []string) error {
 // between the fill and the render and it would be easy to render as replies
 // are decoded.
 //
-// # What is accepted here, and the one form that is deliberately not
+// # Selectors
 //
-// `dev NAME` uses the three-request path in addrShowDev. The keyword is
-// compared with `==` and not matchesPrefix, because `ip` compares it with
-// strcmp (:2241) — `d` is not an abbreviation of `dev` there, it is a device
-// NAME, and accepting as a keyword what `ip` reads as a name would be a
-// divergence in argument parsing rather than a convenience.
+// The arguments are parseAddrShowArgs (addr_filter.go), the keyword loop of
+// ipaddr_list_flush_or_save. Its `master`, `vrf` and device lookups go
+// through newLinkNameResolver, ll_name_to_index with its cache, so they are
+// on the wire as `ip` sends them: before the dumps, in argument order, with
+// the device last. A resolved device takes addrShowDev's path.
 //
-// The other filtering arguments (`scope S`, `to PREFIX`, `up`, `label L`,
-// `master M`, `primary`, `secondary`, `tentative`, `deprecated`, `dynamic`,
-// `permanent`) are rejected rather than ignored, for the reason linkShow
-// gives: answering a filtered query with an unfiltered dump is a wrong answer
-// rather than a missing feature.
-//
-// And so is the BARE device name, which `ip addr show lo` accepts through the
-// same else-arm `dev` falls into. That arm is reached only after every keyword
-// test above it has failed, so implementing it while those keywords are
-// unimplemented would turn `goip addr show up` from an honest refusal into
-// `Device "up" does not exist` — a wrong answer produced by a feature, which
-// is worse than a missing one.
+// Otherwise the link dump carries what iplink_filter_req adds (the ext mask
+// with `novf` applied, IFLA_MASTER, the kind nest) under preferred_family,
+// and the address dump is sent with filter.family. Those are c.family and
+// f.family, and `to PREFIX` is what makes them differ.
 func addrShow(c *runCtx, args []string) error {
-	if len(args) == 2 && args[0] == devKeywordCst {
-		return addrShowDev(c, args[1])
+	svc := service.New(c.src, c.nextSeq)
+	f, err := parseAddrShowArgs(args, c.family, addrShowLookups(c, svc))
+	if err != nil {
+		return err
 	}
-	if len(args) > 0 {
-		return fmt.Errorf("address show %q: %w", args[0], ErrNotImplemented)
+	if f.ifindex != 0 {
+		return addrShowDev(c, svc, &f)
 	}
 
-	linkResources, addrResources, err := service.New(c.src, c.nextSeq).AddressSnapshot(c.family, c.linkExtMask())
+	linkResources, addrResources, err := svc.AddressSnapshotFilter(c.family, f.family, f.extMask(c.linkExtMask()), f.linkFilter())
 	if err != nil {
 		return err
 	}
@@ -116,13 +110,24 @@ func addrShow(c *runCtx, args []string) error {
 	c.lltab.Fill(links)
 
 	var addrs []xtcpnl.AddrInfo
-	if c.family != unix.AF_PACKET {
+	if f.family != unix.AF_PACKET {
 		addrs = make([]xtcpnl.AddrInfo, len(addrResources))
 		for i := range addrResources {
 			addrs[i] = xtcpnl.AddrInfo(addrResources[i])
 		}
 	}
-	return renderAddrGroups(c, links, addrs)
+	return renderAddrGroups(c, svc, &f, links, addrs)
+}
+
+// addrShowLookups is the parser's I/O: ll_name_to_index for `master`, `vrf`
+// and the device, and name_is_vrf, which carries preferred_family.
+func addrShowLookups(c *runCtx, svc *service.Service) addrLookups {
+	return addrLookups{
+		index: newLinkNameResolverRemember(svc, func(li xtcpnl.LinkInfo) {
+			c.lltab.Fill([]xtcpnl.LinkInfo{li})
+		}),
+		isVRF: func(name string) (bool, error) { return svc.IsVRF(c.family, name) },
+	}
 }
 
 // addrShowDev serves `ip addr show dev NAME` as the three transactions
@@ -134,11 +139,14 @@ func addrShow(c *runCtx, args []string) error {
 // falls through to (ip/ipaddress.c:2241-2247) and is resolved by
 // ll_name_to_index at :2253. On a cache miss that issues ll_link_get(name, 0)
 // on a throwaway socket, exactly as `link show dev` does — request one, its
-// reply thrown away apart from the cache entry.
+// reply thrown away apart from the cache entry. That request is the parser's
+// (addrShowLookups), so by the time this runs f.ifindex is set; a bare device
+// name and `dev NAME` arrive here the same way.
 //
 // filter.ifindex is now set, so :2302 takes the ipaddr_link_get branch instead
 // of ip_link_list's dump: request two is a single-get addressed BY THE INDEX
-// just learned, not by the name. That is the one place the two `dev` commands
+// just learned, not by the name. It carries filter.family, not
+// preferred_family, so `to PREFIX` reaches its header, and the `novf` mask. That is the one place the two `dev` commands
 // diverge — `link show dev` re-fetches by name through iplink_get (:2293),
 // this one re-fetches by index — and the difference is entirely in request
 // bytes, so only pkg/nlparity's byte comparison can see it.
@@ -186,20 +194,9 @@ func addrShow(c *runCtx, args []string) error {
 // render.LinkStatsText and AddrGroupView emits it after its address lines.
 // The newline moves with it — print_link_stats is block-then-newline
 // (:840-848) where print_linkinfo is newline-then-block (:1297-1300).
-func addrShowDev(c *runCtx, name string) error {
-	svc := service.New(c.src, c.nextSeq)
-
-	// Request one: ll_name_to_index. Nothing is rendered from this reply, and
-	// it is byte-identical to `link show dev`'s first request because it is
-	// the same iproute2 function.
-	resolved, err := svc.LinkByName(name)
-	if err != nil {
-		return err
-	}
-	c.lltab.Fill([]xtcpnl.LinkInfo{xtcpnl.LinkInfo(resolved)})
-
-	// Request two: ipaddr_link_get, by index, carrying preferred_family.
-	shown, err := svc.AddrLinkGet(c.family, resolved.Index, c.linkExtMask())
+func addrShowDev(c *runCtx, svc *service.Service, f *addrFilter) error {
+	// Request two: ipaddr_link_get, by index, carrying filter.family.
+	shown, err := svc.AddrLinkGet(f.family, f.ifindex, f.extMask(c.linkExtMask()))
 	if err != nil {
 		return err
 	}
@@ -210,8 +207,8 @@ func addrShowDev(c *runCtx, name string) error {
 	// Skipped under AF_PACKET, the same condition and the same reason as in
 	// addrShow — ip/ipaddress.c:2310 guards both.
 	var addrs []xtcpnl.AddrInfo
-	if c.family != unix.AF_PACKET {
-		addrResources, aerr := svc.Addresses(c.family, uint32(link.Index))
+	if f.family != unix.AF_PACKET {
+		addrResources, aerr := svc.Addresses(f.family, uint32(link.Index)) //nolint:gosec // ifi_index into ifa_index
 		if aerr != nil {
 			return aerr
 		}
@@ -221,58 +218,74 @@ func addrShowDev(c *runCtx, name string) error {
 		}
 	}
 
-	resolveLinkRefs(c, svc, link)
-	return renderAddrGroups(c, []xtcpnl.LinkInfo{link}, addrs)
+	return renderAddrGroups(c, svc, f, []xtcpnl.LinkInfo{link}, addrs)
 }
 
 // renderAddrGroups is the half of `addr show` that is the same whether one
 // link arrived from a single-get or all of them arrived from a dump: apply
-// ipaddr_filter, group the addresses under their links, and write.
+// ipaddr_filter and group_filter, then print_linkinfo's and print_addrinfo's
+// tests per link, group the addresses under their links, and write.
 //
 // addrs is nil under AF_PACKET, which is not a special case here — the
-// per-link inner loop simply runs zero times, and filterLinksWithAddrs is
-// skipped because `ip` skips ipaddr_filter for that family too
-// (ip/ipaddress.c:2310-2318 guards the dump and the filter together).
-func renderAddrGroups(c *runCtx, links []xtcpnl.LinkInfo, addrs []xtcpnl.AddrInfo) error {
-	if c.family != unix.AF_PACKET {
-		links = filterLinksWithAddrs(links, addrs, c.family)
-	}
-	if err := checkDetailSupported(c, links); err != nil {
-		return err
-	}
+// per-link inner loop simply runs zero times, and ipaddr_filter is skipped
+// because `ip` skips it for that family too (ip/ipaddress.c:2310-2318 guards
+// the dump and the filter together). group_filter is not skipped.
+//
+// Every family test here is filter.family, f.family, including the one that
+// decides whether the `link/` line prints: print_linkinfo reads
+// filter.family, so `to 192.0.2.0/24` drops that line although the link dump
+// went out AF_UNSPEC.
+func renderAddrGroups(c *runCtx, svc *service.Service, f *addrFilter, links []xtcpnl.LinkInfo, addrs []xtcpnl.AddrInfo) error {
+	links = f.keepLinks(links, addrs, c.lltab.IndexToName, f.family != unix.AF_PACKET)
 
-	// Both of these loops, and the two in filterLinksWithAddrs below, range by
-	// index rather than by value. Both resource structs are large, and an
-	// AF_UNSPEC `addr show` runs the inner loop len(links) x len(addrs) times —
-	// so the value form copies both structs on every one of those iterations to
-	// read two integer fields off each.
+	// Both of these loops range by index rather than by value. Both resource
+	// structs are large, and an AF_UNSPEC `addr show` runs the inner loop
+	// len(links) x len(addrs) times — so the value form copies both structs
+	// on every one of those iterations to read a few fields off each.
 	groups := make([]render.AddrGroupView, 0, len(links))
+	printed := make([]xtcpnl.LinkInfo, 0, len(links))
 	for i := range links {
-		// Two different flags on two lines, and they are easy to read as one.
-		//
-		// LinkViewForAddr's last argument is show_details, which here restores
-		// the `link/` line that -4 and -6 suppress (ip/ipaddress.c:1060).
-		// WithDetail's is do_link, which is FALSE on this path however many
-		// -d's were given: do_link is set by the `ip link show` entry point
-		// alone (:2417), and it suppresses exactly one token of the detail
-		// run, addrgenmode, via print_af_spec's guard at :1185-1186. The
-		// committed pair is the evidence — ip_link_n has addrgenmode on every
-		// link and ip_addr_n on none.
-		lv := render.LinkViewForAddr(links[i], c.lltab, c.family, c.detailed())
-		if c.detailed() {
-			lv = lv.WithDetail(links[i], false, c.lltab)
+		mode := f.linkMode(&links[i])
+		if mode == addrLinkSkip {
+			continue
 		}
 		g := render.AddrGroupView{
-			LinkView: lv,
 			// Non-nil so the JSON is `"addr_info": []` rather than null for a
 			// link with no addresses. iproute2 opens the array
 			// unconditionally (open_json_array at the top of
 			// print_selected_addrinfo), so an empty array is what `ip -j`
 			// emits and null would be a key-shape divergence.
-			AddrInfo: []render.AddrView{},
+			AddrInfo:   []render.AddrView{},
+			Headerless: mode == addrLinkHeaderless,
+		}
+		if mode == addrLinkPrint {
+			// print_linkinfo's side-gets, so a link it skips, or one `label`
+			// leaves headerless, sends none. After every dump, in link
+			// order, as `ip` prints. Nothing is sent when the link dump was
+			// complete; a dump the kernel filtered by `type` or `master`
+			// can leave a master out of the cache.
+			resolveLinkRefs(c, svc, links[i])
+			// Two different flags on two lines, and they are easy to read as
+			// one.
+			//
+			// LinkViewForAddr's last argument is show_details, which here
+			// restores the `link/` line that -4 and -6 suppress
+			// (ip/ipaddress.c:1060). WithDetail's is do_link, which is FALSE
+			// on this path however many -d's were given: do_link is set by
+			// the `ip link show` entry point alone (:2417), and it suppresses
+			// exactly one token of the detail run, addrgenmode, via
+			// print_af_spec's guard at :1185-1186. The committed pair is the
+			// evidence — ip_link_n has addrgenmode on every link and ip_addr_n
+			// on none.
+			lv := render.LinkViewForAddr(links[i], c.lltab, f.family, c.detailed())
+			if c.detailed() {
+				lv = lv.WithDetail(links[i], false, c.lltab)
+			}
+			g.LinkView = lv
+			printed = append(printed, links[i])
 		}
 		for j := range addrs {
-			if !addrBelongsTo(&addrs[j], &links[i], c.family) {
+			if !f.matchAddr(&addrs[j], &links[i], c.lltab.IndexToName) {
 				continue
 			}
 			g.AddrInfo = append(g.AddrInfo, render.AddrViewOf(addrs[j]))
@@ -281,12 +294,16 @@ func renderAddrGroups(c *runCtx, links []xtcpnl.LinkInfo, addrs []xtcpnl.AddrInf
 		// print_link_stats at ip/ipaddress.c:2333, one line BELOW
 		// print_selected_addrinfo at :2332, so the block sits under the
 		// address lines rather than under the link stanza. The caller's half
-		// of the condition is `!do_link && show_stats`, and do_link is false
-		// on every addr path however many -s were given.
-		if c.showStats > 0 {
+		// of the condition is `res > 0 && !do_link && show_stats`, and do_link
+		// is false on every addr path however many -s were given.
+		if mode == addrLinkPrint && c.showStats > 0 {
 			g = g.WithStats(links[i])
 		}
 		groups = append(groups, g)
+	}
+	// Only a printed header can carry the -d detail goip refuses.
+	if err := checkDetailSupported(c, printed); err != nil {
+		return err
 	}
 
 	if c.json {
@@ -298,76 +315,4 @@ func renderAddrGroups(c *runCtx, links []xtcpnl.LinkInfo, addrs []xtcpnl.AddrInf
 		}
 	}
 	return nil
-}
-
-// addrBelongsTo is print_selected_addrinfo's per-address test
-// (ip/ipaddress.c:1712-1727), minus the `up`/`down` filters goip does not
-// implement: the ifindex must match and, when a family was requested, so must
-// the family.
-//
-// The family test is not redundant with the request's ifa_family even though
-// the kernel honors that too. `ip` applies it again on the reply, and it has
-// to: the same list is walked once per link, and an AF_UNSPEC dump legitimately
-// mixes families.
-//
-// Takes pointers because its caller is the inner loop of a len(links) x
-// len(addrs) walk and this reads three integer fields; by value it would copy
-// 304 bytes per call to do that.
-func addrBelongsTo(ai *xtcpnl.AddrInfo, li *xtcpnl.LinkInfo, family uint8) bool {
-	if int32(ai.Index) != li.Index {
-		return false
-	}
-	return family == unix.AF_UNSPEC || family == ai.Family
-}
-
-// filterLinksWithAddrs is ipaddr_filter (ip/ipaddress.c:2200-2250): drop every
-// link that has no address matching the filter, then put back the links that
-// have no addresses *at all* when no family was asked for.
-//
-// # The two-variable condition is the whole function, and it is easy to get wrong
-//
-// iproute2 tracks `ok` and `missing_net_address` separately:
-//
-//	if (missing_net_address &&
-//	    (filter.family == AF_UNSPEC || filter.family == AF_PACKET))
-//		ok = 1;
-//
-// `missing_net_address` is cleared by an address with a *matching ifindex*,
-// before the family test, so it means "this link has no addresses of any
-// family" and not "none that matched". The consequences on the committed
-// fixture, all three of them real:
-//
-//   - nlmon0 has no addresses at all, so plain `addr show` prints it (with no
-//     address lines) and `-4 addr show` and `-6 addr show` both drop it.
-//   - veth179a698 has one IPv6 address and no IPv4 one, so `-4 addr show`
-//     drops it — `missing_net_address` is 0, so the rescue does not apply.
-//   - lo has both, so it survives every filter.
-//
-// Collapsing the two flags into one produces a goip that prints eleven stanzas
-// for `-4 addr show` where `ip` prints nine, which is the kind of divergence
-// the harness's line-count assertion is for.
-func filterLinksWithAddrs(links []xtcpnl.LinkInfo, addrs []xtcpnl.AddrInfo, family uint8) []xtcpnl.LinkInfo {
-	out := make([]xtcpnl.LinkInfo, 0, len(links))
-	for i := range links {
-		ok := false
-		missingNetAddress := true
-		for j := range addrs {
-			if int32(addrs[j].Index) != links[i].Index {
-				continue
-			}
-			missingNetAddress = false
-			if family != unix.AF_UNSPEC && family != addrs[j].Family {
-				continue
-			}
-			ok = true
-			break
-		}
-		if missingNetAddress && (family == unix.AF_UNSPEC || family == unix.AF_PACKET) {
-			ok = true
-		}
-		if ok {
-			out = append(out, links[i])
-		}
-	}
-	return out
 }

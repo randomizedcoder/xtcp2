@@ -1026,7 +1026,8 @@ func TestParseNewLink(t *testing.T) {
 				rtattr(unix.IFLA_LINKINFO, rtattr(unix.IFLA_INFO_KIND, append([]byte("vxlan"), 0))),
 			),
 			want: LinkInfo{
-				Index: 15, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER, Kind: "vxlan",
+				HasLinkInfo: true,
+				Index:       15, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER, Kind: "vxlan",
 			},
 		},
 		{
@@ -1041,7 +1042,8 @@ func TestParseNewLink(t *testing.T) {
 					rtattr(unix.IFLA_INFO_KIND, append([]byte("bridge"), 0))),
 			),
 			want: LinkInfo{
-				Index: 16, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER, Kind: "bridge",
+				HasLinkInfo: true,
+				Index:       16, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER, Kind: "bridge",
 			},
 		},
 		{
@@ -1060,7 +1062,8 @@ func TestParseNewLink(t *testing.T) {
 				rtattr(unix.IFLA_LINKINFO, rtattr(unix.IFLA_INFO_DATA, []byte{0x01, 0x02, 0x03, 0x04})),
 			),
 			want: LinkInfo{
-				Index: 17, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER,
+				HasLinkInfo: true,
+				Index:       17, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER,
 				HasInfoData: true,
 			},
 		},
@@ -1085,7 +1088,8 @@ func TestParseNewLink(t *testing.T) {
 				)),
 			),
 			want: LinkInfo{
-				Index: 19, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER,
+				HasLinkInfo: true,
+				Index:       19, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER,
 				Kind: "veth", SlaveKind: "bridge_slave",
 				HasInfoData: true, HasInfoSlaveData: true,
 			},
@@ -1103,7 +1107,8 @@ func TestParseNewLink(t *testing.T) {
 				rtattr(unix.IFLA_LINKINFO, []byte{0x40, 0x00, 0x01, 0x00, 0xaa, 0xaa, 0xaa, 0xaa}),
 			),
 			want: LinkInfo{
-				Index: 18, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER, Name: "brok0",
+				HasLinkInfo: true,
+				Index:       18, Flags: unix.IFF_UP, Type: unix.ARPHRD_ETHER, Name: "brok0",
 			},
 		},
 		{

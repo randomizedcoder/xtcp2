@@ -422,6 +422,7 @@ set design_selectors {
     v4_secondary {ip addr show to 192.0.2.0/24}
     v4_secondary {ip addr show d0}
     v4_label {ip addr show label "d0:*"}
+    v4_label {ip -j addr show label "d0:*"}
     v4_proto {ip addr show proto 99}
     v4_lifetimes {ip addr show dynamic}
     v4_lifetimes {ip addr show permanent}
@@ -518,8 +519,8 @@ proc glob_rows {} {
     return $out
 }
 check glob_is_double_quoted \
-    "corner: both label globs are double-quoted and hold no single quote" \
-    {glob_rows} {1 1}
+    "corner: all three label globs are double-quoted and hold no single quote" \
+    {glob_rows} {1 1 1}
 
 ###############################################################################
 # 5g. pre_step dispatch

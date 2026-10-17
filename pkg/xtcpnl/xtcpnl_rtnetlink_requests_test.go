@@ -1297,3 +1297,105 @@ func TestDumpRtnetlinkCannotDriveASingleGet(t *testing.T) {
 		})
 	}
 }
+
+// TestBuildDumpLinkRequestFilter is iplink_filter_req as `ip address show`
+// calls it (ip/ipaddress.c:2030-2063). The positive rows are the link dumps
+// the mixed_links captures sent, byte for byte with seq and pid zeroed; the
+// rest pin the attribute list where no capture covers the input.
+//
+// go test ./pkg/xtcpnl/ -run TestBuildDumpLinkRequestFilter
+func TestBuildDumpLinkRequestFilter(t *testing.T) {
+	type attr struct {
+		typ     uint16
+		payload string
+	}
+	u32 := func(v uint32) string {
+		var b [4]byte
+		binary.LittleEndian.PutUint32(b[:], v)
+		return string(b[:])
+	}
+	kindNest := func(kind string) string {
+		inner := make([]byte, RTAttrSizeCst+nlmsgAlign(len(kind)))
+		binary.LittleEndian.PutUint16(inner[0:2], uint16(RTAttrSizeCst+len(kind)))
+		binary.LittleEndian.PutUint16(inner[2:4], uint16(unix.IFLA_INFO_KIND))
+		copy(inner[RTAttrSizeCst:], kind)
+		return string(inner)
+	}
+	const vfMask = RTEXT_FILTER_VF | RTEXT_FILTER_SKIP_STATS
+	tests := []struct {
+		description string
+		capture     string // mixed_links pcap suffix; "" for an attribute-list row
+		family      uint8
+		extMask     uint32
+		master      uint32
+		kind        string
+		hasKind     bool
+		expectedLen int
+		expected    []attr
+	}{
+		{description: "positive: master bond0, ext mask then IFLA_MASTER", capture: "_master",
+			extMask: vfMask, master: 6, expectedLen: 48},
+		{description: "positive: nomaster sends the 0xffffffff sentinel", capture: "_nomaster",
+			extMask: vfMask, master: 0xffffffff, expectedLen: 48},
+		{description: "positive: type dummy nests the kind with no NUL", capture: "_type_dummy",
+			extMask: vfMask, kind: "dummy", hasKind: true, expectedLen: 56},
+		{description: "positive: novf clears RTEXT_FILTER_VF", capture: "_novf",
+			extMask: RTEXT_FILTER_SKIP_STATS, expectedLen: 40},
+		{description: "boundary: -4 sends a bare AF_INET dump", capture: "_v4_master",
+			family: unix.AF_INET, extMask: vfMask, master: 6, expectedLen: 32},
+		{description: "boundary: a zero ext mask is still sent (-s novf)",
+			extMask: 0, expectedLen: 40, expected: []attr{{uint16(unix.IFLA_EXT_MASK), u32(0)}}},
+		{description: "boundary: AF_PACKET keeps the attributes",
+			family: unix.AF_PACKET, extMask: vfMask, master: 6, expectedLen: 48,
+			expected: []attr{{uint16(unix.IFLA_EXT_MASK), u32(vfMask)}, {uint16(unix.IFLA_MASTER), u32(6)}}},
+		{description: "corner: type \"\" sends an empty kind",
+			extMask: vfMask, hasKind: true, expectedLen: 48,
+			expected: []attr{{uint16(unix.IFLA_EXT_MASK), u32(vfMask)}, {uint16(unix.IFLA_LINKINFO), kindNest("")}}},
+		{description: "corner: a kind that is not a multiple of four pads the nest",
+			extMask: vfMask, master: 6, kind: "bridge_slave_x", hasKind: true, expectedLen: 48 + 8 + 16,
+			expected: []attr{{uint16(unix.IFLA_EXT_MASK), u32(vfMask)}, {uint16(unix.IFLA_MASTER), u32(6)},
+				{uint16(unix.IFLA_LINKINFO), kindNest("bridge_slave_x")}}},
+		{description: "negative: AF_INET6 drops every attribute",
+			family: unix.AF_INET6, extMask: vfMask, master: 6, kind: "dummy", hasKind: true, expectedLen: 32},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			got := mustBuildReq(BuildDumpLinkRequestFilter(tc.family, tc.extMask, tc.master, tc.kind, tc.hasKind, 0))
+			if len(got) != tc.expectedLen {
+				t.Fatalf("len = %d, want %d", len(got), tc.expectedLen)
+			}
+			if got[NlMsgHdrSizeCst] != tc.family {
+				t.Errorf("ifi_family = %d, want %d", got[NlMsgHdrSizeCst], tc.family)
+			}
+			if tc.capture != "" {
+				msgs, _ := capturedRequests(t, tdLinkWrite_7_1_4+"/addr-show/mixed_links/netlink_route_getaddr"+tc.capture+".pcap")
+				var want []byte
+				for rec := 0; rec < 64 && want == nil; rec++ {
+					m, ok := msgs[rec]
+					if ok && binary.LittleEndian.Uint16(m[4:6]) == unix.RTM_GETLINK &&
+						binary.LittleEndian.Uint16(m[6:8])&unix.NLM_F_DUMP == unix.NLM_F_DUMP {
+						want = m
+					}
+				}
+				if !bytes.Equal(zeroSeqPid(got), want) {
+					t.Fatalf("request differs from the capture\n got % x\nwant % x", got, want)
+				}
+				return
+			}
+			var attrs []attr
+			if err := WalkRTAttrs(got[NlMsgHdrSizeCst+IfInfomsgSizeCst:], func(typ uint16, val []byte) {
+				attrs = append(attrs, attr{typ, string(val)})
+			}); err != nil {
+				t.Fatalf("WalkRTAttrs: %v", err)
+			}
+			if len(attrs) != len(tc.expected) {
+				t.Fatalf("attrs = %q, want %q", attrs, tc.expected)
+			}
+			for i := range attrs {
+				if attrs[i] != tc.expected[i] {
+					t.Errorf("attr %d = %q, want %q", i, attrs[i], tc.expected[i])
+				}
+			}
+		})
+	}
+}

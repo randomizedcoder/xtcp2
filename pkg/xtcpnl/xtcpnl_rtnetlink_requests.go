@@ -142,6 +142,58 @@ func BuildDumpLinkRequestKind(family uint8, kind string, seq uint32) ([]byte, er
 	return BuildRequest(uint16(unix.RTM_GETLINK), uint16(unix.NLM_F_DUMP), seq, hdr, attrs)
 }
 
+// BuildDumpLinkRequestFilter builds the link dump `ip address show` sends
+// with its selectors: rtnl_linkdump_req_filter_fn with iplink_filter_req as
+// the filter (ip/ipaddress.c:2030-2063, lib/libnetlink.c:591-618).
+//
+// The filter runs for AF_UNSPEC and AF_PACKET only; any other family gets the
+// bare 32-byte dump of BuildDumpLinkRequestFamily, selectors and all. When it
+// runs it appends, in this order:
+//
+//   - IFLA_EXT_MASK = extMask, ALWAYS. iplink_filter_req addattr32s it even
+//     when `novf` and `-s` together make it zero, where extMaskAttrs (and so
+//     BuildDumpLinkRequestExt) leaves a zero mask out.
+//   - IFLA_MASTER = master when it is non-zero: an ifindex for `master` and
+//     `vrf`, 0xffffffff for `nomaster`.
+//   - IFLA_LINKINFO{IFLA_INFO_KIND = kind} when kind is non-empty, with no NUL,
+//     as linkInfoKindAttrs. iproute2 tests the pointer, so `type ""` would
+//     send an empty kind; the caller passes hasKind for that.
+//
+// The buffer is sized to the kind rather than reqAttrBufCst: the kind is the
+// user's word, and iproute2's iplink_req has a 1024-byte buffer for it.
+func BuildDumpLinkRequestFilter(family uint8, extMask, master uint32, kind string, hasKind bool, seq uint32) ([]byte, error) {
+	if family != unix.AF_UNSPEC && family != unix.AF_PACKET {
+		return BuildDumpLinkRequestFamily(family, seq), nil
+	}
+	hdr := make([]byte, IfInfomsgSizeCst)
+	hdr[0] = family // ifi_family
+
+	const u32AttrLen = RTAttrSizeCst + 4
+	size := 2 * u32AttrLen
+	if hasKind {
+		size += 2*RTAttrSizeCst + nlmsgAlign(len(kind))
+	}
+	ab := NewAttrBuilder(make([]byte, size))
+	if err := ab.PutU32(uint16(unix.IFLA_EXT_MASK), extMask); err != nil {
+		return nil, err
+	}
+	if master != 0 {
+		if err := ab.PutU32(uint16(unix.IFLA_MASTER), master); err != nil {
+			return nil, err
+		}
+	}
+	if hasKind {
+		inner := NewAttrBuilder(make([]byte, RTAttrSizeCst+nlmsgAlign(len(kind))))
+		if err := inner.PutBytes(uint16(unix.IFLA_INFO_KIND), []byte(kind)); err != nil {
+			return nil, err
+		}
+		if err := ab.PutBytes(uint16(unix.IFLA_LINKINFO), inner.Bytes()); err != nil {
+			return nil, err
+		}
+	}
+	return BuildRequest(uint16(unix.RTM_GETLINK), uint16(unix.NLM_F_DUMP), seq, hdr, ab.Bytes())
+}
+
 // linkInfoKindAttrs encodes a one-entry IFLA_LINKINFO nest holding
 // IFLA_INFO_KIND = kind, the filter ipvrf_filter_req appends. The inner
 // attribute is built first and wrapped with PutBytes so the nest is a pre-encoded

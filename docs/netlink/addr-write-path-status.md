@@ -2,18 +2,20 @@
 
 Last updated: 2026-10-17.
 
-**Phases A0 and A1 are done, and A2-T01 is done.** The design
+**Phases A0 and A1 are done, and A2-T01 and A2-T02 are done.** The design
 ([addr-write-path.md](addr-write-path.md)) and the plan
-([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. 8 of 25
+([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. 9 of 25
 tasks are done: A0-T01 (V001), A0-T02 (closed by a finding, V002), A0-T03
 and A0-T04, closed by one KVM capture (V005), A0-T05, which recorded M1–M3
 from that capture's fixtures (V006), A1-T01, which decodes the four
 attributes and adds the multicast and anycast dump fixtures (V009–V012),
 A2-T01, the `addr show` selector parser (V013, V014), and A1-T02, which
 renders them, byte-identical to `ip` in both forms, against an `ip monitor`
-capture and four gated parity rows (V016–V020).
+capture and four gated parity rows (V016–V020). A2-T02 applies the
+selectors, byte-identical to `ip` on every selector golden and request
+(V021–V023).
 
-**Next action:** A2-T02 (depends on A2-T01), A3-T01 (A0-T04) and A4-T01
+**Next action:** A2-T03 (depends on A2-T02), A3-T01 (A0-T04) and A4-T01
 (A0-T03) are unblocked. Pick one; one task, one PR.
 
 ## Update rules
@@ -50,7 +52,7 @@ capture and four gated parity rows (V016–V020).
 |---|---|---|---|---|
 | A0 | capture: topologies, corpus, measurements | done | 5/5 | V001, V002, V003, V005, V006 |
 | A1 | decode and render `metric`/`any`/`mcast` | done | 2/2 | V009, V010, V011, V012, V016, V017, V018, V019, V020 |
-| A2 | `addr show` selectors | in progress | 1/3 | V013, V014 |
+| A2 | `addr show` selectors | in progress | 2/3 | V013, V014, V021, V022, V023 |
 | A3 | `-br` and `-o` | not started | 0/3 | — |
 | A4 | the gate admits `RTM_NEWADDR`/`RTM_DELADDR` | not started | 0/1 | — |
 | A5 | `BuildAddrWriteRequest` | not started | 0/1 | — |
@@ -74,7 +76,7 @@ Add evidence IDs to the last column as work runs.
 | [x] | [A1-T01](addr-write-path-plan.md#a1-t01) | `ParseNewAddr` gains four attributes | done | V009, V010, V011, V012, DOC005 |
 | [x] | [A1-T02](addr-write-path-plan.md#a1-t02) | render `metric`, `any`, `mcast` | done | V016, V017, V018, V019, V020, DOC007 |
 | [x] | [A2-T01](addr-write-path-plan.md#a2-t01) | `addrFilter` and its parser | done | V013, V014, DOC006 |
-| [ ] | [A2-T02](addr-write-path-plan.md#a2-t02) | apply the filter in `addrShow` | not started | — |
+| [x] | [A2-T02](addr-write-path-plan.md#a2-t02) | apply the filter in `addrShow` | done | V021, V022, V023, DOC008 |
 | [ ] | [A2-T03](addr-write-path-plan.md#a2-t03) | selector rows in the matrix | not started | — |
 | [ ] | [A3-T01](addr-write-path-plan.md#a3-t01) | parse `-br` and `-o` | not started | — |
 | [ ] | [A3-T02](addr-write-path-plan.md#a3-t02) | brief and oneline renderers | not started | — |
@@ -154,6 +156,10 @@ it.
 | V019 | 2026-10-17 | A1-T02 | the same parity run, rerun sequentially | The same four rows `GOIP_PARITY_PASS` with the same counts. All 120 verdicts identical to V018. `HYGIENE_FAIL 2`, `UNGATED_DIVERGENCES 7`, `CONTROL_NOISY 130`. The four rows then went into `gated_commands` | transcript in the session scratchpad, not kept |
 | V020 | 2026-10-17 | A1-T02 | the nix checks: `.#test-focused-goip`, `checks.netlink-audit`, `checks.lint-baseline`, `.#quality-report`, `checks.nix-fmt`, `checks.statix`, `checks.deadnix`, `checks.vm-lib-exp` | Passed, after the lint ratchet's first run flagged two `prealloc`s in the new golden test, which were fixed rather than baselined | the check outputs; `vm-lib-exp` ran 22, 93 and 59 rows |
 | DOC007 | 2026-10-17 | A1-T02 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc: 25 task IDs one to one; local links and anchors resolve; plus `git diff --check` | Passed: 25 task IDs one to one; no broken links or anchors; ledger IDs unique and in order; `git diff --check` clean | Summary retained here; the checker script was session-local |
+| V021 | 2026-10-17 | A2-T02 | `nix run .#microvm-x86_64-link-write-capture -- --out <scratch>` from a scratch worktree, on an x86_64 NixOS host with `/dev/kvm`, with the new `v4_label` row `ip -j addr show label "d0:*"` | Passed: `NLCAP_DRIVER_PASS`, exit 0. The JSON is `[{"addr_info":[]},{"addr_info":[…d0:1, d0:9…]}]`: `nlmon0`, which has no addresses, is rescued and prints an empty group with no link keys, and `lo` is dropped | `pkg/xtcpnl/testdata/7_1_4/link-write/addr-show/v4_label/{ip_addr_label_json,netlink_route_getaddr_label_json.pcap}`; only those two files were copied from the run, and no other fixture changed |
+| V022 | 2026-10-17 | A2-T02 | `go test ./internal/goip/... ./internal/goipparity/... ./pkg/nlparity/... ./pkg/xtcpnl/...`, which includes `TestAddrFilter` (35 goldens and a completeness row), `TestAddrFilterRequestShape` (13), `TestFnmatch0` (30, each expectation also run through glibc's `fnmatch(3)`), `TestInetPrefixMatch` (12), `TestAddrFilterMatch` (16), `TestAddrFilterLinkMode` (11), `TestAddrFilterKeepLinks` (5), `TestAddrGroupViewHeaderless` (4) and `TestBuildDumpLinkRequestFilter` (10). Mutation check in a scratch worktree: the link dump sent with the filter's family, `proto` applied in `keepLinks`, a header printed under `label`, the `novf` mask dropped, and `*` stopped at `/` each failed the rows that name them, and were reverted | Passed: all green; every selector golden byte-identical; every request equal to the capture's; the five mutants caught. The `proto` mutant is caught by the `keepLinks` unit row, not the `proto 99` golden (see the log) | `internal/goip/addr_filter_golden_test.go`, `internal/goip/addr_filter_match_test.go`, `internal/goip/fnmatch_test.go` |
+| V023 | 2026-10-17 | A2-T02 | the nix checks: `.#test-focused-goip`, `checks.netlink-audit`, `checks.lint-baseline`, `.#quality-report`, `checks.nix-fmt`, `checks.statix`, `checks.deadnix`, `checks.vm-lib-exp` | Passed, except `lint-baseline`, which fails on `main` (b8a9f841) with the same 19 tier-2 findings from #237. The branch adds none: its first run flagged one `exhaustive` switch in `fnmatch.go`, which was fixed rather than baselined, and the second run's 19 are `main`'s | the check outputs; `vm-lib-exp` ran 22, 93 and 59 rows |
+| DOC008 | 2026-10-17 | A2-T02 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc: 25 task IDs one to one; local links and anchors resolve; plus `git diff --check` | Passed: 25 task IDs one to one; no broken links or anchors; ledger IDs unique and in order; `git diff --check` clean | Summary retained here; the checker script was session-local |
 
 ## Blockers and upcoming requirements
 
@@ -162,6 +168,41 @@ it.
 - **No open blockers.**
 
 ## Progress and decision log
+
+- **2026-10-17.** A2-T02 is done.
+  - **Two families, as in `ip`.** The link dump takes preferred_family
+    (`-4`/`-6`); the address dump, the renderer and `ipaddr_filter` take
+    `filter.family`. `to PFX` sets only the second, so `addr show to
+    192.0.2.0/24` sends an `AF_UNSPEC` link dump with the ext mask and prints
+    no `link/ether` line.
+  - **`label` is headerless.** `print_linkinfo` returns 0 for `label` before
+    the header, so the group is its address lines alone, with no stats, and
+    the group, master and kind tests never run. The JSON (`{"addr_info":[…]}`
+    per link) was captured rather than derived (V021).
+  - **`ipaddr_filter` has no `proto` test.** `proto 99` keeps a link whose
+    addresses all carry another proto, and prints its header with no
+    addresses. No `addr-show` state has such a link, so the `proto 99`
+    golden cannot see the difference; `TestAddrFilterKeepLinks` pins it.
+  - **`nomaster` is server-side only.** The client test is `master > 0`, so
+    under `-4`/`-6`, where the request carries no attributes, `nomaster`
+    filters nothing.
+  - **`fnmatch` is local.** Go's `path.Match` stops `*` at `/` and refuses
+    an unterminated `[`; glibc with flag 0 does neither. `fnmatch0` follows
+    glibc, and refuses `[:class:]`, `[=x=]` and `[.x.]` at parse time.
+  - **`type` side-gets.** `ip` resolves a printed link's master and link
+    with `ll_index_to_name` after the address dump, which shows as a by-index
+    `GETLINK` when the filtered dump left that link out (`type dummy` asks
+    for `bond0`). goip does the same, and fills its name cache from the
+    name lookups as `ll_link_get` does.
+  - **`dev` errors.** `dev nosuch` prints `ip`'s `Device "nosuch" does not
+    exist.` with `ErrInvalidArgument`; `TestShowNoSuchDevice`'s `addr_dev`
+    row (from #237) moved from `ENODEV` to match. A bare device name now
+    works, and `dev` with no name is `Command line is not complete`.
+  - **`up down`** prints nothing and exits 0, as `ip` does.
+  - **The lint ratchet on `main` is red.** #237 left 19 tier-2 findings in
+    files this task does not touch (`goiphttp`, `go-link-monitor`,
+    `dispatch.go`, `show.go`). A2-T02 adds none; fixing or baselining them
+    is a separate change.
 
 - **2026-10-17.** A1-T02 is done, and with it Phase A1.
   - **The oracle for `any` and `mcast` is `ip monitor`.** `ip addr show`
