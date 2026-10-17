@@ -168,7 +168,8 @@ The route design's replacement wording becomes:
 > `TestBuildRequestRejectsEveryNamedWriteType`
 > (`pkg/xtcpnl/xtcpnl_rtattr_encode_test.go:515`). The **write path** goes
 > through `BuildWriteRequest`, which admits exactly `RTM_NEWROUTE`,
-> `RTM_DELROUTE`, `RTM_NEWLINK` and `RTM_DELLINK`, pinned by
+> `RTM_DELROUTE`, `RTM_NEWLINK`, `RTM_DELLINK`, `RTM_NEWADDR` and
+> `RTM_DELADDR` (the address pair from addr-write-path.md, Phase 4), pinned by
 > `TestBuildWriteRequestAdmitsOnlyListedWrites`. `goip` never applies a write to
 > a live kernel in any automated path.
 

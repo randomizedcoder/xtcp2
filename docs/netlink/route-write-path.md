@@ -484,7 +484,9 @@ claim. Four tables, one per unit, each mapped to the phase that implements it.
 ### 1. `TestBuildWriteRequestAdmitsOnlyListedWrites` (Phase 1)
 
 Landed under this name, with the link types admitted too, so rows 3 and 6
-read "a type outside the listed four".
+read "a type outside the listed set". Row 3's example was `RTM_NEWADDR` until
+the address design admitted that pair (addr-write-path.md, Phase 4); it is now
+`RTM_NEWNEIGH`.
 
 Complements, does not replace, `TestBuildRequestRejectsEveryNamedWriteType`.
 
@@ -492,7 +494,7 @@ Complements, does not replace, `TestBuildRequestRejectsEveryNamedWriteType`.
 |---|---|---|---|---|
 |1|positive|the one new-route write type is admitted|`RTM_NEWROUTE`|bytes returned, no error|
 |2|positive|route delete is admitted|`RTM_DELROUTE`|bytes returned, no error|
-|3|negative|a non-listed write type is refused by the write gate too|`RTM_NEWADDR`|`ErrNotAnAdmittedWrite`, nil bytes|
+|3|negative|a non-listed write type is refused by the write gate too|`RTM_NEWNEIGH`|`ErrNotAnAdmittedWrite`, nil bytes|
 |4|negative|a GET type does not belong on the write entry point|`RTM_GETROUTE`|refused (it is `BuildRequest`'s job)|
 |5|boundary|write **flags** do not gate — the type does; aliased bits are fine|`RTM_NEWROUTE` + `NLM_F_CREATE|NLM_F_REPLACE`|admitted, flags passed through verbatim|
 |6|boundary|walk every `RTM_NEW*`/`RTM_DEL*` x/sys/unix exports that is **not** listed|all other write types|each refused with `ErrNotAnAdmittedWrite`|

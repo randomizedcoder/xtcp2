@@ -14,19 +14,24 @@ import (
 // builders need that the read path never did — nests, u16 and s32.
 
 // admittedWriteTypes is the write gate's whole set. A type joins it only with
-// an encoder and a parity target behind it.
+// an encoder and a parity target behind it. The address pair is the one
+// exception in timing: its parity target is the captured link-write/addr
+// corpus, and the plan admits it one task ahead of its encoder
+// (addr-write-path-plan.md, A4-T01 then A5-T01), so nothing builds one yet.
 var admittedWriteTypes = map[uint16]bool{
 	uint16(unix.RTM_NEWROUTE): true,
 	uint16(unix.RTM_DELROUTE): true,
 	uint16(unix.RTM_NEWLINK):  true,
 	uint16(unix.RTM_DELLINK):  true,
+	uint16(unix.RTM_NEWADDR):  true,
+	uint16(unix.RTM_DELADDR):  true,
 }
 
 // TestBuildWriteRequestAdmitsOnlyListedWrites walks every named rtnetlink type
-// through BuildWriteRequest: the four admitted writes build, every other
-// write is ErrNotAnAdmittedWrite, and so is every GET, which belongs on
-// BuildRequest. It complements TestBuildRequestRejectsEveryNamedWriteType,
-// which is unchanged: the read gate still refuses all four.
+// through BuildWriteRequest: the admitted writes build, every other write is
+// ErrNotAnAdmittedWrite, and so is every GET, which belongs on BuildRequest.
+// It complements TestBuildRequestRejectsEveryNamedWriteType, which is
+// unchanged: the read gate still refuses every admitted write.
 //
 // go test ./pkg/xtcpnl/ -run TestBuildWriteRequestAdmitsOnlyListedWrites
 func TestBuildWriteRequestAdmitsOnlyListedWrites(t *testing.T) {
@@ -155,6 +160,31 @@ func TestBuildWriteRequestLayout(t *testing.T) {
 			msgType:     uint16(unix.RTM_DELROUTE),
 			hdr:         linkHdr,
 			wantErr:     ErrBadFamilyHdr,
+		},
+		{
+			description: "positive: an address write takes the 8-byte ifaddrmsg",
+			msgType:     uint16(unix.RTM_NEWADDR),
+			hdr:         make([]byte, IfAddrmsgSizeCst),
+			expected:    nlmsg(uint16(unix.RTM_NEWADDR), uint16(unix.NLM_F_REQUEST), testSeq, make([]byte, IfAddrmsgSizeCst)),
+		},
+		{
+			description: "boundary: an address write with a 7-byte header is refused",
+			msgType:     uint16(unix.RTM_NEWADDR),
+			hdr:         make([]byte, IfAddrmsgSizeCst-1),
+			wantErr:     ErrBadFamilyHdr,
+		},
+		{
+			description: "negative: an address delete with the 16-byte ifinfomsg is refused",
+			msgType:     uint16(unix.RTM_DELADDR),
+			hdr:         linkHdr,
+			wantErr:     ErrBadFamilyHdr,
+		},
+		{
+			description: "corner: 0x300 (NLM_F_ROOT|NLM_F_MATCH on a GET) passes through an address write verbatim",
+			msgType:     uint16(unix.RTM_NEWADDR),
+			flags:       0x300,
+			hdr:         make([]byte, IfAddrmsgSizeCst),
+			expected:    nlmsg(uint16(unix.RTM_NEWADDR), uint16(unix.NLM_F_REQUEST)|0x300, testSeq, make([]byte, IfAddrmsgSizeCst)),
 		},
 		{
 			description: "corner: the type is checked before the header, so a GET with a bad header is a gate refusal",

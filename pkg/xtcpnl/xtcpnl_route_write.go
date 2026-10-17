@@ -34,8 +34,8 @@ const (
 )
 
 // ErrRouteWriteType is a RouteWrite whose MsgType is not RTM_NEWROUTE or
-// RTM_DELROUTE. BuildWriteRequest would admit a link type too; a route write
-// must not carry one.
+// RTM_DELROUTE. BuildWriteRequest would admit link and address types too; a
+// route write must not carry one.
 var ErrRouteWriteType = errors.New("xtcpnl: a route write is RTM_NEWROUTE or RTM_DELROUTE")
 
 // RouteAttr is one RTA_* attribute of a route write, payload already encoded.

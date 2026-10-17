@@ -387,6 +387,12 @@ Its negative example moves from `RTM_NEWADDR` to `RTM_NEWNEIGH`.
 
 Done when: the table passes, and statements 12, 13, 17 and 18 are amended.
 
+As built: the walk produces design rows 1–4 and 8 from the two map entries.
+Rows 6 and 7 are four new rows in `TestBuildWriteRequestLayout`: the 8-byte
+`ifaddrmsg`, a 7-byte header and a 16-byte `ifinfomsg` refused, and `0x300`
+passed through verbatim. Row 5 is `TestBuildRequestRejectsEveryNamedWriteType`,
+unchanged. Nothing builds an address write until A5-T01.
+
 ### A5 — The encoder
 
 #### A5-T01

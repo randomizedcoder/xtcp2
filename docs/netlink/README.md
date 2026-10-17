@@ -59,7 +59,8 @@ nix run .#microvm-x86_64-goip-parity      # the live tier; needs /dev/kvm, not r
 rather than delete it. Link-write Phase 4 landed the gate: the read path stays
 `RTM_GET*`-only and test-enforced through `BuildRequest`, and a separate
 `BuildWriteRequest` admits exactly `RTM_NEWROUTE`, `RTM_DELROUTE`,
-`RTM_NEWLINK` and `RTM_DELLINK`. Requests built there are written to a file for
+`RTM_NEWLINK`, `RTM_DELLINK`, and, since the address design's Phase 4,
+`RTM_NEWADDR` and `RTM_DELADDR`. Requests built there are written to a file for
 comparison and never sent; no automated path applies a write to a live kernel.
 Both dry runs have since landed on that gate: `goip link
 add|set|change|replace|delete` and `goip route

@@ -15,8 +15,9 @@ package xtcpnl
 // The read-only invariant is enforced here rather than left as a convention.
 // docs/netlink/coverage-expansion.md states it as prose; BuildRequest turns it
 // into a returned error. The write path has its own, separate entry point,
-// BuildWriteRequest, which admits a closed set of four write types and nothing
-// else (docs/netlink/link-write-path.md, decision 1). goip only ever writes
+// BuildWriteRequest, which admits a closed set of write types and nothing else
+// (docs/netlink/link-write-path.md, decision 1, and addr-write-path.md, Phase
+// 4). goip only ever writes
 // what it builds to a file; nothing here sends.
 //
 // The encoder mirrors iproute2's addattr_l (lib/libnetlink.c): a fixed,
@@ -47,10 +48,10 @@ var (
 	// see BuildRequest for why.
 	ErrBadFamilyHdr = errors.New("xtcpnl: family header length wrong for the message type")
 	// ErrNotAnAdmittedWrite indicates a message type outside the write gate:
-	// anything that is not RTM_NEWROUTE, RTM_DELROUTE, RTM_NEWLINK or
-	// RTM_DELLINK. It is named for the set, not a family, so admitting a
-	// type later does not rename it.
-	ErrNotAnAdmittedWrite = errors.New("xtcpnl: only RTM_NEWROUTE, RTM_DELROUTE, RTM_NEWLINK and RTM_DELLINK may be built as writes")
+	// anything that is not RTM_NEWROUTE, RTM_DELROUTE, RTM_NEWLINK,
+	// RTM_DELLINK, RTM_NEWADDR or RTM_DELADDR. It is named for the set, not a
+	// family, so admitting a type later does not rename it.
+	ErrNotAnAdmittedWrite = errors.New("xtcpnl: only RTM_NEWROUTE, RTM_DELROUTE, RTM_NEWLINK, RTM_DELLINK, RTM_NEWADDR and RTM_DELADDR may be built as writes")
 	// ErrNestNotOpen indicates an EndNest whose mark points past the
 	// builder's cursor, so no nest header can be there: a mark from another
 	// builder, or one taken before a Reset.
@@ -334,11 +335,14 @@ func BuildRequest(msgType, flags uint16, seq uint32, familyHdr, attrs []byte) ([
 // family added upstream should pass. The write gate admits only what goip has
 // an encoder and a parity target for, so a family added upstream must not.
 // RTM_SETLINK is left out: iproute2 sends RTM_NEWLINK for `ip link set`
-// (do_iplink, ip/iplink.c), so it has no parity target.
+// (do_iplink, ip/iplink.c), so it has no parity target. The address pair is
+// what do_ipaddr sends: RTM_NEWADDR for add, change and replace, and
+// RTM_DELADDR for delete (ip/ipaddress.c:2679-2687).
 func IsAdmittedWriteType(msgType uint16) bool {
 	switch msgType {
 	case uint16(unix.RTM_NEWROUTE), uint16(unix.RTM_DELROUTE),
-		uint16(unix.RTM_NEWLINK), uint16(unix.RTM_DELLINK):
+		uint16(unix.RTM_NEWLINK), uint16(unix.RTM_DELLINK),
+		uint16(unix.RTM_NEWADDR), uint16(unix.RTM_DELADDR):
 		return true
 	}
 	return false
