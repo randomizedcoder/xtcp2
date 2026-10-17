@@ -488,6 +488,32 @@ func TestAllowlistCommitted(t *testing.T) {
 		"addr show dev peer4",
 		"addr show dev peer6",
 		"addr show dev autojoin0",
+		// A2-T03's selector rows, each on its addr-show state with a Setup,
+		// gated on the two runs after those: GOIP_PARITY_PASS on both, with the
+		// same txns, control and zero findings each time. `addr show dynamic`
+		// is not here: its lifetime counts down between the sides.
+		"addr show to 192.0.2.0/24",
+		"addr show scope link",
+		"addr show scope all",
+		"addr show up",
+		"addr show down",
+		"addr show permanent",
+		"addr show -tentative",
+		"addr show tentative",
+		"addr show secondary",
+		"addr show primary",
+		`addr show label "d0:*"`,
+		"addr show group default",
+		"addr show master bond0",
+		"-4 addr show master bond0",
+		"addr show nomaster",
+		"addr show vrf vrf0",
+		"addr show vrf d1",
+		"addr show type dummy",
+		"addr show type bond_slave",
+		"addr show proto 99",
+		"addr show novf",
+		"addr show d0",
 	}
 
 	tests := []struct {

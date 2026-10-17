@@ -312,6 +312,14 @@ Tests: `TestAddrShowSelectorRowsGated` in `commands_test.go`, which pins the
 gated set
 ([table 10](addr-write-path.md#10-commands_testgo-additions)).
 
+As built: 23 rows, slugs `addr_show_sel_*`, each with its state's topology
+steps as `Setup` (`v4SecondarySetup`, `mixedLinksSetup`, …), which the test
+compares with the committed `topology` file. `addr show dynamic` lands
+implemented but ungated, because it prints a finite lifetime. The label row
+is `addr show label "d0:*"`: the driver runs argv through `sh -c`, so the glob
+is quoted. `addr show vrf d1` is a read row: `ip` exits 255, and a read row
+compares netlink and stdout, not the exit status.
+
 Done when:
 - the rows pass two clean parity runs and are then gated
 - statement 15 is amended for the selector rows

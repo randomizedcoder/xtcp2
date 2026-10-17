@@ -2,9 +2,9 @@
 
 Last updated: 2026-10-17.
 
-**Phases A0 and A1 are done, and A2-T01 and A2-T02 are done.** The design
+**Phases A0, A1 and A2 are done.** The design
 ([addr-write-path.md](addr-write-path.md)) and the plan
-([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. 9 of 25
+([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. 10 of 25
 tasks are done: A0-T01 (V001), A0-T02 (closed by a finding, V002), A0-T03
 and A0-T04, closed by one KVM capture (V005), A0-T05, which recorded M1–M3
 from that capture's fixtures (V006), A1-T01, which decodes the four
@@ -13,10 +13,11 @@ A2-T01, the `addr show` selector parser (V013, V014), and A1-T02, which
 renders them, byte-identical to `ip` in both forms, against an `ip monitor`
 capture and four gated parity rows (V016–V020). A2-T02 applies the
 selectors, byte-identical to `ip` on every selector golden and request
-(V021–V023).
+(V021–V023). A2-T03 puts one live `goip-parity` row on each selector, and
+gates 22 of the 23 on two clean runs (V024–V027).
 
-**Next action:** A2-T03 (depends on A2-T02), A3-T01 (A0-T04) and A4-T01
-(A0-T03) are unblocked. Pick one; one task, one PR.
+**Next action:** A3-T01 (depends on A0-T04) and A4-T01 (A0-T03) are
+unblocked. Pick one; one task, one PR.
 
 ## Update rules
 
@@ -52,7 +53,7 @@ selectors, byte-identical to `ip` on every selector golden and request
 |---|---|---|---|---|
 | A0 | capture: topologies, corpus, measurements | done | 5/5 | V001, V002, V003, V005, V006 |
 | A1 | decode and render `metric`/`any`/`mcast` | done | 2/2 | V009, V010, V011, V012, V016, V017, V018, V019, V020 |
-| A2 | `addr show` selectors | in progress | 2/3 | V013, V014, V021, V022, V023 |
+| A2 | `addr show` selectors | done | 3/3 | V013, V014, V021, V022, V023, V024, V025, V026, V027 |
 | A3 | `-br` and `-o` | not started | 0/3 | — |
 | A4 | the gate admits `RTM_NEWADDR`/`RTM_DELADDR` | not started | 0/1 | — |
 | A5 | `BuildAddrWriteRequest` | not started | 0/1 | — |
@@ -77,7 +78,7 @@ Add evidence IDs to the last column as work runs.
 | [x] | [A1-T02](addr-write-path-plan.md#a1-t02) | render `metric`, `any`, `mcast` | done | V016, V017, V018, V019, V020, DOC007 |
 | [x] | [A2-T01](addr-write-path-plan.md#a2-t01) | `addrFilter` and its parser | done | V013, V014, DOC006 |
 | [x] | [A2-T02](addr-write-path-plan.md#a2-t02) | apply the filter in `addrShow` | done | V021, V022, V023, DOC008 |
-| [ ] | [A2-T03](addr-write-path-plan.md#a2-t03) | selector rows in the matrix | not started | — |
+| [x] | [A2-T03](addr-write-path-plan.md#a2-t03) | selector rows in the matrix | done | V024, V025, V026, V027, DOC009 |
 | [ ] | [A3-T01](addr-write-path-plan.md#a3-t01) | parse `-br` and `-o` | not started | — |
 | [ ] | [A3-T02](addr-write-path-plan.md#a3-t02) | brief and oneline renderers | not started | — |
 | [ ] | [A3-T03](addr-write-path-plan.md#a3-t03) | output-mode rows | not started | — |
@@ -120,7 +121,7 @@ it.
 | 12 | `ErrNotAnAdmittedWrite`'s text names four types | A4-T01 | not started |
 | 13 | `admittedWriteTypes` has four entries | A4-T01 | not started |
 | 14 | `coverage-status.md`'s "read-only, `show` only" scope line | A6-T02 | not started |
-| 15 | the glance-table matrix count and scope line | A2-T03, A7-T02, A8-T03, A9-T03 | not started |
+| 15 | the glance-table matrix count and scope line | A2-T03, A7-T02, A8-T03, A9-T03 | amended for the selector rows (A2-T03); A7-T02, A8-T03 and A9-T03 still owe theirs |
 | 16 | `route-write-path.md`'s "Out of scope: `addr`" line | this plan's PR (pointer only) | done |
 | 17 | the route-write gate table's negative example is `RTM_NEWADDR` | A4-T01 | not started |
 | 18 | README's "admits exactly four types" | A4-T01 | not started |
@@ -160,6 +161,11 @@ it.
 | V022 | 2026-10-17 | A2-T02 | `go test ./internal/goip/... ./internal/goipparity/... ./pkg/nlparity/... ./pkg/xtcpnl/...`, which includes `TestAddrFilter` (35 goldens and a completeness row), `TestAddrFilterRequestShape` (13), `TestFnmatch0` (30, each expectation also run through glibc's `fnmatch(3)`), `TestInetPrefixMatch` (12), `TestAddrFilterMatch` (16), `TestAddrFilterLinkMode` (11), `TestAddrFilterKeepLinks` (5), `TestAddrGroupViewHeaderless` (4) and `TestBuildDumpLinkRequestFilter` (10). Mutation check in a scratch worktree: the link dump sent with the filter's family, `proto` applied in `keepLinks`, a header printed under `label`, the `novf` mask dropped, and `*` stopped at `/` each failed the rows that name them, and were reverted | Passed: all green; every selector golden byte-identical; every request equal to the capture's; the five mutants caught. The `proto` mutant is caught by the `keepLinks` unit row, not the `proto 99` golden (see the log) | `internal/goip/addr_filter_golden_test.go`, `internal/goip/addr_filter_match_test.go`, `internal/goip/fnmatch_test.go` |
 | V023 | 2026-10-17 | A2-T02 | the nix checks: `.#test-focused-goip`, `checks.netlink-audit`, `checks.lint-baseline`, `.#quality-report`, `checks.nix-fmt`, `checks.statix`, `checks.deadnix`, `checks.vm-lib-exp` | Passed, except `lint-baseline`, which fails on `main` (b8a9f841) with the same 19 tier-2 findings from #237. The branch adds none: its first run flagged one `exhaustive` switch in `fnmatch.go`, which was fixed rather than baselined, and the second run's 19 are `main`'s | the check outputs; `vm-lib-exp` ran 22, 93 and 59 rows |
 | DOC008 | 2026-10-17 | A2-T02 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc: 25 task IDs one to one; local links and anchors resolve; plus `git diff --check` | Passed: 25 task IDs one to one; no broken links or anchors; ledger IDs unique and in order; `git diff --check` clean | Summary retained here; the checker script was session-local |
+| V024 | 2026-10-17 | A2-T03 | `go test ./internal/goipparity/... ./pkg/nlparity/...`, which includes `TestAddrShowSelectorRowsGated` (23 rows and 4 subtests: no gated row reads a lifetime state but `permanent`, the label keeps its quotes in `Args`, the `addr_show_sel_*` rows are exactly these, a `Setup` missing a step does not match its topology) and `TestUngatedSurfaceIsNotVacuous` at twenty-three rows. Mutation check in a scratch worktree: a step dropped from `v4VrfSetup`, `addr show dynamic` added to `gated_commands`, and the label Name unquoted each failed the rows that name them, and were reverted | Passed: all green; the three mutants caught | `internal/goipparity/commands_test.go`, `pkg/nlparity/nlparity_allowlist_test.go` |
+| V025 | 2026-10-17 | A2-T03 | `nix run .#microvm-x86_64-goip-parity -- --timeout 4500` from a scratch worktree, on an x86_64 NixOS host with `/dev/kvm`, with the 23 selector rows `Implemented: true` | All 23 `GOIP_PARITY_PASS` with no unsuppressed findings. `txns` 2/2, except 3/3 for `master`, `-4 master`, `type dummy` and `d0`, and 4/4 for `vrf vrf0`. Control `nl=0 stdout=0`, except `permanent` (`nl=1`), `-4 master` (`nl=2`, nlmon0's counters) and `dynamic` (`nl=1 stdout=2`: `valid_lft` 3600 against 3599). `-4 master` moved 10 datagrams on each `ip` side and 8 on `goip`'s, in the same three transactions. 143 verdicts, 135 PASS, 7 WARN, 1 FAIL. Overall `GOIP_PARITY_OVERALL_FAIL` for the pre-existing reason: `-4 netconf show dev` fails with `HYGIENE_FAIL 2`. `UNGATED_DIVERGENCES 7`, `CONTROL_NOISY 132` | transcript in the session scratchpad, not kept |
+| V026 | 2026-10-17 | A2-T03 | the same parity run, rerun sequentially | All 143 verdicts identical to V025, and every selector row the same `txns`, control and datagram counts. `HYGIENE_FAIL 2`, `UNGATED_DIVERGENCES 7`, `CONTROL_NOISY 130`. The 22 rows other than `dynamic` then went into `gated_commands` | transcript in the session scratchpad, not kept |
+| V027 | 2026-10-17 | A2-T03 | the nix checks: `.#test-focused-goip`, `checks.netlink-audit`, `checks.lint-baseline`, `.#quality-report`, `checks.nix-fmt`, `checks.statix`, `checks.deadnix`. `vm-lib-exp` does not apply: no `.exp` file changed | Passed, except `lint-baseline`, which still fails on `main` with the same 19 tier-2 findings from #237. The branch adds none | the check outputs |
+| DOC009 | 2026-10-17 | A2-T03 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc: 25 task IDs one to one; local links and anchors resolve; plus `git diff --check`. The glance-table counts in `coverage-status.md` and `docs/netlink/README.md` recounted from `Commands()` and the allowlist | Passed: 25 task IDs one to one; no broken links or anchors; ledger IDs unique and in order; `git diff --check` clean; 143 rows, 143 implemented, 120 gated, 7 entries | Summary retained here; the checker script was session-local |
 
 ## Blockers and upcoming requirements
 
@@ -168,6 +174,31 @@ it.
 - **No open blockers.**
 
 ## Progress and decision log
+
+- **2026-10-17.** A2-T03 is done.
+  - **One row per selector, each on its own captured state.** A row's
+    `Setup` is a literal copy of that state's `[addra] ip …` steps from the
+    committed `topology`, and `TestAddrShowSelectorRowsGated` reads the file
+    and holds the two equal, so a recapture that changes a state fails
+    `go test` rather than leaving the row reading a different topology.
+  - **`permanent` gates, `dynamic` does not.** Both read `v4_lifetimes`.
+    `permanent` prints only `lo`'s forever addresses: d0's finite one is
+    filtered out, so nothing on the page counts down. `dynamic` prints d0's
+    `valid_lft`, which ticks between `ip_a` and `goip`. Both runs measured it
+    as `control: stdout=2`. It stays implemented and ungated, the
+    twenty-third row of the ungated surface.
+  - **The label glob is quoted in the row's Name.** The driver runs argv
+    through `sh -c` from the console's cwd, so an unquoted `d0:*` would glob
+    against whatever files sit there. The Name is `addr show label "d0:*"`,
+    as `addr-corpus.exp` has it.
+  - **`vrf d1` is a read row.** `ip` exits 255 with empty stdout because d1
+    is not a VRF. A read row compares netlink and stdout but not the exit
+    status, so the two gets and the empty page are what gate.
+  - **The parity status docs catch up.** `coverage-status.md`'s glance table
+    still counted 116 rows and 94 gated from 2026-10-11, and never recorded
+    A1-T02's four `addr show dev` rows. It and `docs/netlink/README.md` are
+    recounted from the tree, and the A1-T02 rows get their section next to
+    the selector rows'.
 
 - **2026-10-17.** A2-T02 is done.
   - **Two families, as in `ip`.** The link dump takes preferred_family

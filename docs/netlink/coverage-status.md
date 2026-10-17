@@ -2,7 +2,7 @@
 
 ## goip ↔ `ip` parity at a glance
 
-Counted from the tree on 2026-10-11. Every number has a file behind it, named
+Counted from the tree on 2026-10-17. Every number has a file behind it, named
 in the last column; **if this table and the file disagree, the file is right
 and this table is stale.** That has happened before in this document — see the
 "no route command is in `gated_commands`" line that outlived its own truth by
@@ -10,18 +10,21 @@ several steps, further down under [Remaining](#remaining).
 
 | | count | counted from |
 |---|---|---|
-| commands in the comparison matrix | **116** | `internal/goipparity/commands.go` — 69 read rows, the 21 link write rows and the 26 route write rows |
-| of those, `Implemented: true` | **116** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
-| of those, in `gated_commands` | **94** | `pkg/nlparity/goip-parity-allowlist.json` |
+| commands in the comparison matrix | **143** | `internal/goipparity/commands.go` — 96 read rows (27 of them `addr show` state and selector rows with a `Setup`), the 21 link write rows and the 26 route write rows |
+| of those, `Implemented: true` | **143** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
+| of those, in `gated_commands` | **120** | `pkg/nlparity/goip-parity-allowlist.json` |
 | allowlisted divergences | **7** | same file, `entries` |
 | of those, `kind=version-skew` | **7** | all against the pinned `ip` 7.1.0 |
 | of those, `kind=accepted-divergence` | **0** | nothing is *allowlisted* as a permanent divergence — the eight intentional wire divergences below **cannot** be, because a transaction-count divergence is unsuppressible (`nlparity_allowlist.go:143`) |
 
-**Twenty-two** matrix rows sit outside `gated_commands`, and they fall into
-five groups that are out for unrelated reasons. Fourteen are a queue, each
+**Twenty-three** matrix rows sit outside `gated_commands`, and they fall into
+six groups that are out for unrelated reasons. Fourteen are a queue, each
 awaiting its own measured-clean live run; the other **eight** — the bulk stats
 and netconf-dev rows — are **not** a queue but a closed, permanent, intentional wire
 divergence (see [Runs 8 & 9](#runs-8-and-9-ntable-netconf-and-vrf-gate-stats-and-netconf-dev-diverge)).
+The last is **`addr show dynamic`**, which prints a finite `valid_lft` that
+counts down between `ip_a` and `goip`, so it can never gate (see
+[The `addr show` state and selector rows](#the-addr-show-state-and-selector-rows)).
 
 **Twelve are new and not yet gated**: six family and table selectors and six
 `-j` forms, added together with the JSON facet extractor they depend on. They
@@ -3252,6 +3255,60 @@ x/sys/unix, `pkg/xtcpnl` and `pkg/nlstrace`, and keeps linkmonitor,
 `pkg/xtcp` and io_uring out of its closure. The binary is in
 `binaryNames` and `cli-help-smoke`, and `nix build
 .#test-focused-gordma` runs its tests.
+
+### The `addr show` state and selector rows
+
+Twenty-seven read rows run `addr show` on a namespace their `Setup` builds.
+Each selector row's `Setup` is a literal copy of one captured state's `ip`
+steps from `pkg/xtcpnl/testdata/7_1_4/link-write/addr-show/<state>/topology`,
+and the test reads that file and holds the two equal, so a recapture that
+changes a state fails `go test` rather than leaving its row reading
+something else.
+
+- **A1-T02's four `addr show dev` rows** (`metric0`, `peer4`, `peer6`,
+  `autojoin0`) each read one device built for what A1-T02 renders. Two
+  back-to-back runs passed all four with `txns` 3/3, `control: nl=0
+  stdout=0` and no findings: 120 verdicts, 112 `GOIP_PARITY_PASS`,
+  `CONTROL_NOISY` 131 and then 130. `TestAddrStateReadRowsGated` pins them
+  (addr-write-path-status.md, V018 and V019).
+- **A2-T03's twenty-three selector rows** are the design's list
+  (addr-write-path.md, "Selector and output-mode read rows"), one row per
+  selector: `to`, `scope`, `up`/`down`, `permanent`/`dynamic`,
+  `-tentative`/`tentative`, `secondary`/`primary`, `label`, `group`,
+  `master` with and without `-4`, `nomaster`, `vrf` on a VRF and on a
+  dummy, `type`, `proto`, `novf` and a bare device name. Two more runs,
+  back to back with `--timeout 4500`, printed 135 `GOIP_PARITY_PASS` of 143:
+  V019's 112, with the same per-row verdicts, plus all twenty-three. Every
+  selector row read the same `txns` and control on both runs and had no
+  unsuppressed findings. `txns` was 2/2, except 3/3 for `master`, `-4
+  master`, `type dummy` and `d0` and 4/4 for `vrf vrf0`. Control was `nl=0
+  stdout=0`, except `permanent` at `nl=1`, `-4 master` at `nl=2` (nlmon0's
+  counters), and `dynamic` at `nl=1 stdout=2`. Both runs `OVERALL_FAIL` for
+  the pre-existing reason, `-4 netconf show dev` with `HYGIENE_FAIL 2`, and
+  `UNGATED_DIVERGENCES 7`; `CONTROL_NOISY` read 132 and then 130
+  (addr-write-path-status.md, V025 and V026).
+- **`dynamic` stays ungated.** It prints d0's `valid_lft 3600sec`, which
+  `goip` reads a second later as `3599sec`. The control suppressed it on
+  both runs because `ip_a` and `ip_b` ticked too, but a row that passes only
+  because its noise matched is not one the gate can rest on. `permanent`
+  reads the same state and gates: d0's finite address is filtered out, so
+  only `lo`'s forever addresses print.
+- **The label glob is quoted.** The driver runs argv through `sh -c` from
+  the console's cwd, so the row is `addr show label "d0:*"`, and the quotes
+  stay in `Args`.
+- **`vrf d1` is a read row with an exit status.** `ip` exits 255 with empty
+  stdout because d1 is not a VRF. Read rows compare netlink and stdout, not
+  the exit status, so the two gets and the empty page gate.
+- **`-4 master bond0`** moved 10 datagrams on each `ip` side and 8 on
+  `goip`'s, with the same three transactions and identical stdout, on both
+  runs. The comparator works on messages, not datagrams, so the split is
+  not compared, and it was not investigated further.
+
+`TestAddrShowSelectorRowsGated` pins the selector rows: each row's `Setup`
+against its topology, its floor, gated or not, no allowlist entries, the
+label's quotes, and that the table's `addr_show_sel_*` rows are exactly
+these. The `earned`/`gated_commands` pair pins the flip, and the ungated
+surface is twenty-three rows, `dynamic` the newest.
 
 ## Tier C — the `goip-parity` microVM flavor
 
