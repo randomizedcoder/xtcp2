@@ -9,6 +9,7 @@
 }:
 let
   versions = import ../versions.nix { inherit pkgs; };
+  rdmaNativeCapture = import ./rdma-native-capture.nix { inherit pkgs; };
   # pkg/nlconn is linkmonitor's netlink transport, moved out of
   # pkg/linkmonitor/internal so pkg/rtnlmon can share it; its gates stay here.
   paths = "./cmd/go-link-monitor ./pkg/linkmonitor/... ./pkg/nlconn ./pkg/xtcpnl ./nix/tests/linkmonitor-smoke";
@@ -164,6 +165,41 @@ let
           ${lib.escapeShellArgs rdmaDecoderFiles}
         go test -count=1 -v -run 'Allocs|Manifest' ${rdmaNativePackages} ./pkg/xtcpnl \
           > "$out/allocs.txt"
+      '';
+    };
+    # Capture tooling (R0-T02): the redaction and manifest tests, then a dry
+    # run of the capture script through the manifest tool. No real value may
+    # survive the redaction, the result must pass TestCaptureManifests, and a
+    # tampered copy must fail verify.
+    test-linkmonitor-rdma-capture = mkCheck "rdma-capture" {
+      extraInputs = [ rdmaNativeCapture ];
+      command = ''
+        go test -count=1 -v ./pkg/linkmonitor/internal/rdmacapture/... > "$out/rdmacapture-tests.txt"
+        go build -o "$TMPDIR/rdma-capture-manifest" ./pkg/linkmonitor/internal/rdmacapture/cmd/rdma-capture-manifest
+        stage="$TMPDIR/stage"
+        values="$TMPDIR/values"
+        rdma-native-capture --dry-run --out "$stage" --dev mlx5_0 --dev mlx5_1 --values "$values" \
+          --triggers gid,flap --iface eth0 --umad --driver mlx5_core > "$out/dry-run.txt"
+        "$TMPDIR/rdma-capture-manifest" write -dir "$stage" -source dry-run -values "$values"
+        if [ ! -s "$values" ]; then
+          echo "the dry run recorded no values to redact"
+          exit 1
+        fi
+        while read -r kind value; do
+          if grep -rqiF -- "$value" "$stage"; then
+            echo "$kind $value survived the redaction"
+            exit 1
+          fi
+        done < "$values"
+        cp "$stage/manifest.json" "$out/manifest.json"
+        LINKMONITOR_CAPTURE_DIRS="$stage" go test -count=1 -v -run '^TestCaptureManifests$' \
+          ./pkg/linkmonitor/internal/rdmanative > "$out/manifests.txt"
+        cp -r "$stage" "$TMPDIR/tampered"
+        echo x >> "$TMPDIR/tampered/sysfs/mlx5_0/node_guid"
+        if "$TMPDIR/rdma-capture-manifest" verify "$TMPDIR/tampered" > "$out/tampered.txt" 2>&1; then
+          echo "a tampered capture passed verify"
+          exit 1
+        fi
       '';
     };
     test-linkmonitor-docs = mkCheck "docs" {

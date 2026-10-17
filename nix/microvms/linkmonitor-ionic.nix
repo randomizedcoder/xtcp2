@@ -11,6 +11,14 @@
 # so the guest has a peer to ping and the emulator has frames to drop. The
 # monitor's interface counters must then agree with sysfs, ethtool and the
 # fault pattern, frame for frame.
+#
+# --capture records the go-native RDMA corpus from the real driver as well
+# (GO-NATIVE-RDMA-DESIGN.md "Testdata"): the guest runs rdma-native-capture
+# before the monitor starts, and the runner writes its manifest and, with
+# --promote or --native-out, puts it in
+# pkg/linkmonitor/internal/rdmanative/testdata/<kernel>/vm-ionic.
+# --capture --dry-run --native-out=DIR does that from placeholder contents,
+# without a VM.
 {
   pkgs,
   lib,
@@ -19,9 +27,11 @@
   monitor,
   ernicModule,
   ernicRun,
+  rdmaCaptureManifest,
   faults ? false,
 }:
 let
+  rdmaNativeCapture = import ../tests/rdma-native-capture.nix { inherit pkgs; };
   metricsAddress = "127.0.0.1:9101";
   name = if faults then "linkmonitor-ionic-faults" else "linkmonitor-ionic";
   # The host end of the TAP lives in the namespace ernic-run starts in; the
@@ -87,6 +97,17 @@ let
     LINKMONITOR_NLRECORD="$nlrec" LINKMONITOR_LIVE_INTERFACE="$netdev" \
       ${artifact}/bin/linuxio-nlrecord.test -test.run '^TestLiveRequestShapes$' -test.v
     echo LINKMONITOR_IONIC_CONTRACTS_PASS
+
+    # --capture puts xtcp2.rdmacapture=1 on the kernel command line. Before
+    # the monitor starts, so the flap and the GID are the only events, and
+    # discover runs again because the flap takes the port down.
+    if grep -qw xtcp2.rdmacapture=1 /proc/cmdline; then
+      modprobe ib_umad
+      ${rdmaNativeCapture}/bin/rdma-native-capture --out "$nlrec/native" --dev "$rdmadev" \
+        --triggers flap,gid --iface "$netdev" --umad --driver ionic_rdma
+      discover
+      echo LINKMONITOR_IONIC_NATIVE_CAPTURE_PASS
+    fi
 
     systemctl start go-link-monitor.service
     run_test TestIonicMonitorHealthy
@@ -361,6 +382,17 @@ let
         echo "promoted $sysfsdata/ionic-vm-''${name%.txt}-$kernel.txt"
       done
     fi
+    if [ "$capture" -eq 1 ]; then
+      if [ ! -d "$run_dir/fixtures/native" ]; then
+        echo "FAIL: --capture but the guest recorded no native/ stage; evidence $run_dir" >&2
+        exit 1
+      fi
+      if [ -z "$native_out" ] && [ "$promote" -eq 1 ]; then
+        # The rxe runner's kernel directory naming: 7.2.9 is 7_2_9.
+        native_out="pkg/linkmonitor/internal/rdmanative/testdata/$(echo "$kernel" | sed -E 's/-(rc[0-9]+).*/_\1/; s/-.*//' | tr . _)/vm-ionic"
+      fi
+      native_promote "$run_dir/fixtures/native" "$native_out"
+    fi
   '';
   # The server prints each fault's counts at shutdown. Each must have fired:
   # a fault that never fired proves nothing about the counters.
@@ -387,26 +419,64 @@ pkgs.writeShellApplication {
     gnused
     gnutar
     gzip
+    rdmaNativeCapture
+    rdmaCaptureManifest
   ];
   text = ''
     usage() {
-      echo 'usage: test-${name}-vm [--accel=auto|kvm|tcg] [--promote]' >&2
+      echo 'usage: test-${name}-vm [--accel=auto|kvm|tcg] [--promote] [--capture [--native-out=DIR] [--dry-run]]' >&2
       echo '  --promote copies the recorded fixtures into ./pkg/linkmonitor/internal/linuxio/testdata/nlrecord/ionic-vm/<kernel>/' >&2
       echo '  and the sysfs capture into ./pkg/linkmonitor/testdata/rdmasysfs/' >&2
+      echo '  --capture records the go-native RDMA corpus too; with --promote it goes to' >&2
+      echo '  ./pkg/linkmonitor/internal/rdmanative/testdata/<kernel>/vm-ionic/, or to --native-out' >&2
+      echo '  --dry-run (with --capture and --native-out) writes placeholder contents, no VM' >&2
       exit 2
+    }
+    # native_promote SRC DEST: write SRC's manifest, then put it at DEST,
+    # replacing what was there; an empty DEST leaves it in the evidence. The
+    # GUIDs come from the emulated NIC, so there is nothing real to redact.
+    native_promote() {
+      rdma-capture-manifest write -dir "$1" -source vm-ionic
+      if [ -n "$2" ]; then
+        rm -rf -- "$2"
+        mkdir -p "$2"
+        cp -r "$1"/. "$2"/
+        rdma-capture-manifest verify "$2"
+        echo "promoted the native capture into $2"
+      fi
     }
     accel='-machine accel=kvm:tcg'
     promote=0
+    capture=0
+    dry_run=0
+    native_out=""
     for arg in "$@"; do
       case "$arg" in
         --accel=auto) accel='-machine accel=kvm:tcg' ;;
         --accel=kvm) accel='-machine accel=kvm' ;;
         --accel=tcg) accel='-machine accel=tcg' ;;
         --promote) promote=1 ;;
+        --capture) capture=1 ;;
+        --dry-run) dry_run=1 ;;
+        --native-out=*) native_out=''${arg#--native-out=} ;;
         *) usage ;;
       esac
     done
-    ${lib.optionalString faults "[ \"$promote\" -eq 0 ] || usage # no recordings in the fault run"}
+    ${lib.optionalString faults "[ \"$promote\" -eq 0 ] && [ \"$capture\" -eq 0 ] || usage # no recordings in the fault run"}
+    if { [ "$dry_run" -eq 1 ] || [ -n "$native_out" ]; } && [ "$capture" -eq 0 ]; then
+      usage
+    fi
+    if [ "$dry_run" -eq 1 ]; then
+      [ -n "$native_out" ] || usage
+      stage=$(mktemp -d -t ${name}-dry-XXXXXX)
+      # The arguments healthySteps gives the guest, with typical names.
+      rdma-native-capture --dry-run --out "$stage/native" --dev ionic_0 \
+        --triggers flap,gid --iface enp0s3 --umad --driver ionic_rdma
+      native_promote "$stage/native" "$native_out"
+      rm -rf -- "$stage"
+      echo "PASS: ${name} capture dry run"
+      exit 0
+    fi
     testdata=pkg/linkmonitor/internal/linuxio/testdata/nlrecord
     if [ "$promote" -eq 1 ] && [ ! -d "$testdata" ]; then
       echo "--promote must run from the xtcp2 checkout root ($testdata missing)" >&2
@@ -421,6 +491,9 @@ pkgs.writeShellApplication {
     printf '%s\n' "$QEMU_OPTS" > "$run_dir/qemu-options.txt"
     export TMPDIR="$run_dir"
     unset QEMU_KERNEL_PARAMS QEMU_NET_OPTS NIX_DISK_IMAGE
+    if [ "$capture" -eq 1 ]; then
+      export QEMU_KERNEL_PARAMS=xtcp2.rdmacapture=1
+    fi
     rc=0
     (cd "$run_dir" && timeout --kill-after=10s 30m \
       ${lib.optionalString faults "unshare --user --map-root-user --net -- ${netnsTap}/bin/ernic-netns-tap"} \
@@ -443,6 +516,10 @@ pkgs.writeShellApplication {
         exit 1
       fi
     done
+    if [ "$capture" -eq 1 ] && ! grep -q LINKMONITOR_IONIC_NATIVE_CAPTURE_PASS "$run_dir/serial.log"; then
+      echo "FAIL: missing LINKMONITOR_IONIC_NATIVE_CAPTURE_PASS; evidence $run_dir" >&2
+      exit 1
+    fi
     if grep -q LINKMONITOR_IONIC_FAIL "$run_dir/serial.log" || ! grep -q 'LINKMONITOR_IONIC_PASS' "$run_dir/serial.log"; then
       echo "FAIL: guest test failed; evidence $run_dir" >&2
       exit 1

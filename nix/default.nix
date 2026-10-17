@@ -107,6 +107,7 @@ let
     ipmetaBootstrapTool = binaries.ipmeta-bootstrap;
     xtcp2CoverPackage = binaries.xtcp2-cover;
     tcpStressImage = containers.oci-xtcp2-tcp-stress;
+    inherit rdmaCaptureManifest;
   };
 
   # Static analysis + audit checks
@@ -186,6 +187,15 @@ let
   # `nix run .#capture-netlink-fixtures` from the repo root; see the file
   # header for the filtering/versioning rationale.
   captureNetlinkFixtures = import ./capture-netlink-fixtures.nix { inherit pkgs; };
+
+  # The go-native RDMA testdata tools (GO-NATIVE-RDMA-DESIGN.md "Testdata"):
+  # the capture script the rxe and ionic guests and `l` run, the redaction
+  # and manifest tool, and the host app `nix run .#capture-rdma-testdata`.
+  rdmaNativeCapture = import ./tests/rdma-native-capture.nix { inherit pkgs; };
+  rdmaCaptureManifest = import ./tests/rdma-capture-manifest.nix { inherit pkgs vendoredSource; };
+  captureRdmaTestdata = import ./capture-rdma-testdata.nix {
+    inherit pkgs rdmaNativeCapture rdmaCaptureManifest;
+  };
 
   # Asks the upstream remotes where `main` actually is and reports how far
   # behind each pin in nix/upstream-pins.json has fallen. A RUNNER rather than
@@ -829,6 +839,9 @@ in
     // (removeAttrs lintTiers [ "all" ])
     // {
       regen-protos = protos.regenerate;
+      rdma-native-capture = rdmaNativeCapture;
+      rdma-capture-manifest = rdmaCaptureManifest;
+      capture-rdma-testdata = captureRdmaTestdata;
     }
     // linkmonitorPerformance.packages
     // {
@@ -853,6 +866,7 @@ in
         monitor = linkmonitorPackages.go-link-monitor;
         ernicModule = rocmErnic.nixosModules.ernic-guest;
         ernicRun = rocmErnic.packages.${pkgs.stdenv.hostPlatform.system}.ernic-run;
+        inherit rdmaCaptureManifest;
       };
       test-linkmonitor-ionic-faults-vm = import ./microvms/linkmonitor-ionic.nix {
         inherit pkgs lib nixpkgs;
@@ -860,6 +874,7 @@ in
         monitor = linkmonitorPackages.go-link-monitor;
         ernicModule = rocmErnic.nixosModules.ernic-guest;
         ernicRun = rocmErnic.packages.${pkgs.stdenv.hostPlatform.system}.ernic-run;
+        inherit rdmaCaptureManifest;
         faults = true;
       };
       demo-linkmonitor-ionic-profiles = import ./microvms/linkmonitor-ionic-demo.nix {
@@ -1019,6 +1034,12 @@ in
     capture-netlink-fixtures = {
       type = "app";
       program = "${captureNetlinkFixtures}/bin/xtcp2-capture-netlink-fixtures";
+    };
+    # A real host's RDMA bytes for the go-native decoders, redacted, with a
+    # manifest. Read-only unless --gid-trigger or --umad; see the file header.
+    capture-rdma-testdata = {
+      type = "app";
+      program = "${captureRdmaTestdata}/bin/capture-rdma-testdata";
     };
     # Warns when an upstream pin's `main` has moved. Needs network, so it is an
     # app and not a check — see nix/upstream-pins.json for the split.

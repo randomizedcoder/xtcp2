@@ -80,6 +80,14 @@ Done when: the redaction table test passes, including `redaction_stable`. A
 dry run of each runner writes a manifest that the sha256 test verifies, and a
 tampered file fails it.
 
+As built: the go-native capture's NLDEV and GET_CHARDEV rows go under
+`rdmanative/testdata/<kernel>/<source>/nldev/` with the other streams, not
+into `pkg/xtcpnl/testdata`, which is unchanged
+([design](GO-NATIVE-RDMA-DESIGN.md#sources)). The redaction and manifest code
+is the `internal/rdmacapture` package and its `rdma-capture-manifest` command
+rather than a tool under `nix/tests/`, and the new
+`test-linkmonitor-rdma-capture` leaf is the gate.
+
 #### R0-T03
 
 **Captured testdata.** Depends on: [R0-T02](#r0-t02).
