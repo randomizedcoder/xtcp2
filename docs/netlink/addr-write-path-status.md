@@ -2,17 +2,17 @@
 
 Last updated: 2026-10-16.
 
-**Phase A0 is done, and A1-T01 is done.** The design
+**Phase A0 is done, and A1-T01 and A2-T01 are done.** The design
 ([addr-write-path.md](addr-write-path.md)) and the plan
-([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. 6 of 25
+([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. 7 of 25
 tasks are done: A0-T01 (V001), A0-T02 (closed by a finding, V002), A0-T03
 and A0-T04, closed by one KVM capture (V005), A0-T05, which recorded M1–M3
-from that capture's fixtures (V006), and A1-T01, which decodes the four
-attributes and adds the multicast and anycast dump fixtures (V009–V012).
+from that capture's fixtures (V006), A1-T01, which decodes the four
+attributes and adds the multicast and anycast dump fixtures (V009–V012), and
+A2-T01, the `addr show` selector parser (V013, V014).
 
-**Next action:** A1-T02 (depends on A1-T01), A2-T01 and A3-T01 (each
-depends on A0-T04) and A4-T01 (A0-T03) are unblocked. Pick one; one task, one
-PR.
+**Next action:** A1-T02 (depends on A1-T01), A2-T02 (A2-T01), A3-T01 (A0-T04)
+and A4-T01 (A0-T03) are unblocked. Pick one; one task, one PR.
 
 ## Update rules
 
@@ -48,7 +48,7 @@ PR.
 |---|---|---|---|---|
 | A0 | capture: topologies, corpus, measurements | done | 5/5 | V001, V002, V003, V005, V006 |
 | A1 | decode and render `metric`/`any`/`mcast` | in progress | 1/2 | V009, V010, V011, V012 |
-| A2 | `addr show` selectors | not started | 0/3 | — |
+| A2 | `addr show` selectors | in progress | 1/3 | V013, V014 |
 | A3 | `-br` and `-o` | not started | 0/3 | — |
 | A4 | the gate admits `RTM_NEWADDR`/`RTM_DELADDR` | not started | 0/1 | — |
 | A5 | `BuildAddrWriteRequest` | not started | 0/1 | — |
@@ -71,7 +71,7 @@ Add evidence IDs to the last column as work runs.
 | [x] | [A0-T05](addr-write-path-plan.md#a0-t05) | record the Phase 0 measurements | done | V006, DOC004 |
 | [x] | [A1-T01](addr-write-path-plan.md#a1-t01) | `ParseNewAddr` gains four attributes | done | V009, V010, V011, V012, DOC005 |
 | [ ] | [A1-T02](addr-write-path-plan.md#a1-t02) | render `metric`, `any`, `mcast` | not started | — |
-| [ ] | [A2-T01](addr-write-path-plan.md#a2-t01) | `addrFilter` and its parser | not started | — |
+| [x] | [A2-T01](addr-write-path-plan.md#a2-t01) | `addrFilter` and its parser | done | V013, V014, DOC006 |
 | [ ] | [A2-T02](addr-write-path-plan.md#a2-t02) | apply the filter in `addrShow` | not started | — |
 | [ ] | [A2-T03](addr-write-path-plan.md#a2-t03) | selector rows in the matrix | not started | — |
 | [ ] | [A3-T01](addr-write-path-plan.md#a3-t01) | parse `-br` and `-o` | not started | — |
@@ -142,6 +142,9 @@ it.
 | V011 | 2026-10-16 | A1-T01 | `BenchmarkParseNewAddr`, `-benchmem`, 10 runs of `main` and the branch interleaved on one host (AMD Ryzen Threadripper PRO 3945WX), compared with benchstat | allocs/op and B/op unchanged: `no_metric` 4 allocs, 32 B; `metric` 3 allocs, 24 B. sec/op: `no_metric` 166.9 → 176.6 ns (+5.8%), `metric` 144.0 → 153.8 ns (+6.8%), p=0.000. The time is the larger value result: `AddrInfo` grows from 128 to 192 bytes, and `ParseNewAddr` returns it by value. The allocation ceilings in `TestParseNewAddrAllocs` are main's counts: 4, 3, and 1 for a multicast reply | `pkg/xtcpnl/xtcpnl_bench_test.go`; the raw runs were session-local |
 | V012 | 2026-10-16 | A1-T01 | one nix check per call: `.#test-focused-goip`, `checks.netlink-audit`, `checks.lint-baseline`, `.#quality-report`, `checks.nix-fmt`, `checks.statix`, `checks.deadnix`, `checks.vm-lib-exp` | Passed, after the lint ratchet's first run flagged a 192-byte `rangeValCopy` and two `prealloc`s in the new test file, which were fixed rather than baselined | the check outputs; `vm-lib-exp` ran 22, 93 and 59 rows |
 | DOC005 | 2026-10-16 | A1-T01 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc: 25 task IDs one to one; local links and anchors resolve; plus `git diff --check` | Passed: 25 task IDs one to one; no broken links or anchors; ledger IDs unique and in order | Summary retained here; the checker script was session-local |
+| V013 | 2026-10-16 | A2-T01 | `go test ./internal/goip/... ./internal/goipparity/...`, which includes `TestParseAddrShowArgs` (64 rows), `TestAddrShowKeywordsAreNotFlags` (13) and `TestIfaFlagByName` (19). Eight of the surprising rows (an empty word, `he`, `sc host`, both `group` wraparounds, `type _slave`, `-`, `to bogus`) were also run through `ip` 7.1.0 in a throwaway user namespace. Mutation check in a scratch worktree: `scope` matched by prefix, the device lookup moved into the loop, and the `_slave` strip skipped at equal length each failed the rows that name them, and were reverted | Passed: all green; `ip` agreed with each spot-checked row; the three mutants caught | `internal/goip/addr_filter_test.go`, `internal/goip/render/addr_test.go` |
+| V014 | 2026-10-16 | A2-T01 | one nix check per call: `.#test-focused-goip`, `checks.lint-baseline`, `checks.netlink-audit`, `.#quality-report`, `checks.nix-fmt`, `checks.statix`, `checks.deadnix` | Passed, after the lint ratchet's first run flagged the loop's cyclomatic complexity (44) and an error string ending in a period. The loop became a keyword table, and the period was dropped | the check outputs |
+| DOC006 | 2026-10-16 | A2-T01 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc: 25 task IDs one to one; local links and anchors resolve; plus `git diff --check` | Passed: 25 task IDs one to one; no broken links or anchors; ledger IDs unique and in order; `git diff --check` clean | Summary retained here; the checker script was session-local |
 
 ## Blockers and upcoming requirements
 
@@ -150,6 +153,30 @@ it.
 - **No open blockers.**
 
 ## Progress and decision log
+
+- **2026-10-16.** A2-T01 is done. V007–V012 and DOC005 belong to A1-T01
+  (#234), which merged first.
+  - **The parser takes injected lookups.** `master` and `vrf` look up as
+    they are parsed, and the device after the loop. The rows record each
+    lookup, so the order is tested. A2-T02 wires the lookups to the service.
+  - **The loop is a keyword table, not a switch.** `get_filter` sits between
+    `down` and `label` in iproute2. Here it is tried after the table, which
+    is equivalent because no flag name is a keyword;
+    `TestAddrShowKeywordsAreNotFlags` pins that.
+  - **Design table 5 had two wrong rows.** A bad `to` is `get_prefix`'s own
+    message and exit (`lib/utils.c:788-793`), so the loop's `invalid "to"`
+    is unreachable (row 12). An unknown device exits 1, not 255 (row 18).
+  - **The plan's `type _slave` row was wrong.** iproute2 strips the suffix
+    at equal length too, leaving an empty slave kind that is still set.
+  - **An empty word is a device, not help.** 7.1.0's `matches()` refuses an
+    empty prefix (`lib/utils.c:911`). The comment on `matchesPrefix` in
+    `dispatch.go` describes the older behavior; that is left for its own
+    change.
+  - **`group` keeps `strtol`'s long-to-int conversion.** `4294967296` and an
+    underflow are both group 0, and `2147483648` is refused, as `ip` does.
+  - **Exit codes are A2-T02's.** iproute2's `invarg` exits 255 and the device
+    refusal 1. goip maps `ErrInvalidArgument` to 1 for both. The parity rows
+    decide whether that matters.
 
 - **2026-10-16.** A1-T01 is done.
   - **Three of the four attributes never come in `RTM_GETADDR`.**

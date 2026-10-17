@@ -242,12 +242,16 @@ Done when:
 
 Deliver: `internal/goip/addr_filter.go`. It holds the `addrFilter` struct with
 iproute2's `filter` fields, and the selector parser in `ipaddr_list_flush_or_save`'s
-order, including the exact-versus-prefix match for each keyword.
+order, including the exact-versus-prefix match for each keyword. The
+`master`, `vrf` and device lookups are injected, so the parser does no I/O;
+A2-T02 wires them to the service. The flag names come from
+`render.IfaFlagByName`, over the table the renderer already has.
 
 Tests: `TestParseAddrShowArgs`
-([table 5](addr-write-path.md#5-testparseaddrshowargs-and-testaddrfilter-phase-2)).
+([table 5](addr-write-path.md#5-testparseaddrshowargs-and-testaddrfilter-phase-2),
+the parse rows) and `TestIfaFlagByName`.
 
-Done when: the table passes.
+Done when: the tables pass.
 
 #### A2-T02
 

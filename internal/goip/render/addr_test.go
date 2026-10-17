@@ -477,6 +477,52 @@ func TestIfaFlagTokens(t *testing.T) {
 	}
 }
 
+// TestIfaFlagByName pins lookup_flag_data_by_name over ifa_flag_data
+// (ip/ipaddress.c:1397-1425): exact names only, and "temporary" found even
+// though the rendering direction never reaches its row.
+//
+// go test ./internal/goip/render/ -run TestIfaFlagByName
+func TestIfaFlagByName(t *testing.T) {
+	type expected struct {
+		bit uint32
+		ok  bool
+	}
+	tests := []struct {
+		description string
+		name        string
+		expected    expected
+	}{
+		{description: "positive: secondary", name: "secondary", expected: expected{unix.IFA_F_SECONDARY, true}},
+		{description: "positive: temporary is SECONDARY, from the row rendering never reaches", name: "temporary", expected: expected{unix.IFA_F_SECONDARY, true}},
+		{description: "positive: nodad", name: "nodad", expected: expected{unix.IFA_F_NODAD, true}},
+		{description: "positive: optimistic", name: "optimistic", expected: expected{unix.IFA_F_OPTIMISTIC, true}},
+		{description: "positive: dadfailed", name: "dadfailed", expected: expected{unix.IFA_F_DADFAILED, true}},
+		{description: "positive: home", name: "home", expected: expected{unix.IFA_F_HOMEADDRESS, true}},
+		{description: "positive: deprecated", name: "deprecated", expected: expected{unix.IFA_F_DEPRECATED, true}},
+		{description: "positive: tentative", name: "tentative", expected: expected{unix.IFA_F_TENTATIVE, true}},
+		{description: "positive: permanent, the row that renders inverted", name: "permanent", expected: expected{unix.IFA_F_PERMANENT, true}},
+		{description: "positive: mngtmpaddr", name: "mngtmpaddr", expected: expected{unix.IFA_F_MANAGETEMPADDR, true}},
+		{description: "positive: noprefixroute", name: "noprefixroute", expected: expected{unix.IFA_F_NOPREFIXROUTE, true}},
+		{description: "positive: autojoin", name: "autojoin", expected: expected{unix.IFA_F_MCAUTOJOIN, true}},
+		{description: "positive: stable-privacy", name: "stable-privacy", expected: expected{unix.IFA_F_STABLE_PRIVACY, true}},
+		{description: "negative: an unknown name", name: "bogus", expected: expected{0, false}},
+		{description: "boundary: the empty name", name: "", expected: expected{0, false}},
+		{description: "corner: no prefix matching, as strcmp", name: "tent", expected: expected{0, false}},
+		{description: "corner: case-sensitive, as strcmp", name: "Tentative", expected: expected{0, false}},
+		{description: "corner: dynamic is get_filter's inversion, not a table name", name: "dynamic", expected: expected{0, false}},
+		{description: "corner: primary is get_filter's inversion, not a table name", name: "primary", expected: expected{0, false}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			bit, ok := IfaFlagByName(tt.name)
+			if got := (expected{bit, ok}); got != tt.expected {
+				t.Errorf("IfaFlagByName(%q) = %#x, %v; want %#x, %v", tt.name, got.bit, got.ok, tt.expected.bit, tt.expected.ok)
+			}
+		})
+	}
+}
+
 // go test ./internal/goip/render/ -run TestAddrString
 func TestAddrString(t *testing.T) {
 	tests := []struct {

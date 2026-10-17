@@ -134,6 +134,23 @@ var ifaFlagNames = []struct {
 	{bit: unix.IFA_F_STABLE_PRIVACY, name: "stable-privacy"},
 }
 
+// IfaFlagByName is lookup_flag_data_by_name (ip/ipaddress.c:1417-1425): the
+// mask of the first ifa_flag_data row whose name equals name, by strcmp.
+//
+// It walks the same table as IfaFlagTokens, unreachable row included. That
+// row is "temporary", and here it is the parsing direction the comment above
+// keeps it for: `ip addr show temporary` filters on IFA_F_SECONDARY. The
+// table's "permanent" row is found by name too; the "dynamic" and "primary"
+// inversions are get_filter's, not this lookup's.
+func IfaFlagByName(name string) (uint32, bool) {
+	for i := range ifaFlagNames {
+		if ifaFlagNames[i].name == name {
+			return ifaFlagNames[i].bit, true
+		}
+	}
+	return 0, false
+}
+
 // IfaFlagTokens renders ifa_flags the way print_ifa_flags does, returning the
 // named tokens and, separately, the residue of bits the table does not name.
 //

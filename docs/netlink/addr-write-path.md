@@ -1002,6 +1002,12 @@ it against the table's expected column.
 
 ### 5. `TestParseAddrShowArgs` and `TestAddrFilter` (Phase 2)
 
+A2-T01 covers the parse: rows 1-3, 6, 9-19, 21 and 24's two flags in
+`TestParseAddrShowArgs`, which adds rows for the lookup order, the
+keyword-exactness corners and `group`'s `strtol`-to-int conversion. The
+rows that need the filter applied or a pcap, 4, 5, 7, 8, 20, 22, 23, 25 and
+26, and the listing half of 24, are A2-T02's (`TestAddrFilter`).
+
 | # | class | description | input | expected |
 |---|---|---|---|---|
 |1|positive|each client-side selector|`to`, `scope`, `up`, `down`, `label`, `group`, `proto`|the matching `addrFilter` field set|
@@ -1015,13 +1021,13 @@ it against the table's expected column.
 |9|boundary|`scope all`|`scope all`|scopemask 0, every scope passes|
 |10|boundary|numeric scopes|`scope 0`, `scope 255`|scope 0, 255, mask set|
 |11|boundary|proto range|`proto 255`; `proto 256`|ok; invarg|
-|12|negative|bad `to`|`to bogus`|invarg `invalid "to"`|
+|12|negative|bad `to`|`to bogus`|`Error: any valid prefix is expected rather than "bogus".`, exit 1: `get_prefix` prints and exits itself (`lib/utils.c:788-793`), so the loop's `invalid "to"` is unreachable|
 |13|negative|bad scope|`scope foo`|invarg `invalid "scope"`|
 |14|negative|unknown master|`master nosuch`|"Device does not exist", after the lookup|
 |15|negative|`vrf` on a non-vrf|`vrf d0`|"Not a valid VRF name", after two lookups|
 |16|negative|proto names are not accepted here|`proto kernel_lo`|invarg|
 |17|negative|two devices|`d0 d1`|duparg2 "dev"|
-|18|negative|unknown device|`dev nosuch`|`Device "nosuch" does not exist.` (`:2255`), exit 255|
+|18|negative|unknown device|`dev nosuch`|`Device "nosuch" does not exist.` (`:2255`), exit 1: the function returns -1 rather than calling `exit(-1)`|
 |19|corner|`to` sets the family|`to 2001:db8::/32` with no `-6`|family `AF_INET6`|
 |20|corner|inverted flag|`-tentative` on `v6_tentative`|the tentative address dropped|
 |21|corner|inverted special case|`-dynamic`|same as `permanent`|
