@@ -215,11 +215,22 @@ ioctl number as named constants, such as `umadHdrLen = 64`,
 assessment's tables ([C2a](GO-NATIVE-RDMA-ASSESSMENT.md#c2a-events-through-a-pure-go-uverbs-context),
 [C3](GO-NATIVE-RDMA-ASSESSMENT.md#c3-portinfo-smp-over-umad-in-pure-go)).
 
-The guard is a C program compiled in a Nix leaf against the pinned kernel's
-uapi headers. It prints `name value` lines using `sizeof`, `offsetof` and the
-`_IOWR` macros. `TestABILayout` reads that file, compares each line with the
-Go constant of the same name, and fails on any missing or extra name. It
-follows the existing `pkg/xtcpnl/testdata/rdma_consts.h` pattern.
+The guard is `nix/tests/linkmonitor-abi.c`, compiled in the
+`test-linkmonitor-rdma-abi` leaf against the flake's `linuxHeaders` and
+rdma-core headers. It prints `package name value` lines using `sizeof`,
+`offsetof` and the `_IOWR` macros. The leaf requires that output to equal the
+committed `rdmanative/testdata/abi_layout.txt`. Each package's `TestABILayout`
+compares that file with its Go constants, through the shared helper
+`testkit.CheckABILayout`, and fails on any missing or extra name. Because the
+test reads the committed copy, it also runs in `test-linkmonitor-unit`.
+
+- A line whose name starts with `!` is forbidden. `!umadRegisterAgent` is
+  `IB_USER_MAD_REGISTER_AGENT`, and no file in the package may declare it or
+  write its value as a literal.
+- The async-record event values come from rdma-core's `enum ibv_event_type`.
+  The kernel's `enum ib_event_type` is not uapi; rdma-core mirrors it.
+
+It follows the existing `pkg/xtcpnl/testdata/rdma_consts.h` pattern.
 
 ## Parsing rules
 
@@ -240,9 +251,10 @@ These rules are normative for every file in the new paths.
 | Guard | Where it runs |
 |---|---|
 | depguard: deny `reflect` and `encoding/json` in non-test files of `internal/rdmanative`, `internal/rdmacaps` and `pkg/xtcpnl/xtcpnl_rdma*` | `.golangci.yml`, `.golangci-comprehensive.yml`, `.golangci-quick.yml`; `test-linkmonitor-lint` |
-| forbidigo: `^binary\.(Read\|Write\|Size)$` and `^fmt\.` in the same files | The existing forbidigo block; `test-linkmonitor-lint` |
+| forbidigo: `^binary\.(Read\|Write\|Size)$` and `^fmt\.` in the same files, tagged `[rdma-parse]` and limited to them by an exclusion rule | The forbidigo block in all three configurations (added to the quick tier); `test-linkmonitor-lint` |
+| `rdmanative` has no cgo files (`go list -f '{{.CgoFiles}}'`); depguard cannot see `import "C"` | `test-linkmonitor-parse-guards` |
 | `testing.AllocsPerRun` equals 0 for every decoder and encoder, over every captured record | `test-linkmonitor-unit` |
-| No `Found IsInBounds` in decoder files under `-gcflags=-d=ssa/check_bce/debug=1` | `test-linkmonitor-parse-guards` |
+| No `Found IsInBounds` or `IsSliceInBounds` in decoder files under `-gcflags=-d=ssa/check_bce/debug=1`, except the length hint itself; the files are listed in `rdmaDecoderFiles` in `nix/tests/linkmonitor.nix` | `test-linkmonitor-parse-guards`, via `nix/tests/linkmonitor-parse-guards.sh` |
 | `-gcflags=-m` report kept; field helpers "can inline", decoded values "does not escape" | `test-linkmonitor-parse-guards` artifact, reviewed per PR |
 
 ## Testdata

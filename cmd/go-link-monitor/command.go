@@ -69,24 +69,10 @@ func command(args []string, stdout, stderr io.Writer, getenv func(string) string
 		// The interface views reuse the path collectors' cached catalogs.
 		interfaces = &views{all: snapshotView(m, all, problems), categories: make(map[string]interfaceView, len(opts.exposure.categories))}
 	}
-	categories := make(map[string]prometheus.Gatherer, len(opts.exposure.categories))
-	adminRegistries := teeRegisterer{allRegistry}
-	for _, category := range opts.exposure.categories {
-		match, err := monitorprom.CategoryMatcher(category)
-		if err != nil {
-			logger.Error("invalid configuration", "error", err)
-			return 2
-		}
-		collector := monitorprom.NewCollector(m, monitorprom.WithMetricFilter(match))
-		registry := commandRegistry(collector, match)
-		categories[category] = registry
-		// Netstat is host scope: it has no interface form.
-		if interfaces != nil && category != monitorprom.CategoryNetstat {
-			interfaces.categories[category] = snapshotView(m, collector)
-		}
-		if category == monitorprom.CategoryCollection {
-			adminRegistries = append(adminRegistries, registry)
-		}
+	categories, adminRegistries, err := categoryRegistries(m, opts.exposure.categories, interfaces, teeRegisterer{allRegistry})
+	if err != nil {
+		logger.Error("invalid configuration", "error", err)
+		return 2
 	}
 	var admins []*adminEndpoint
 	if access.endpoint != nil {
@@ -120,6 +106,30 @@ func command(args []string, stdout, stderr io.Writer, getenv func(string) string
 		return 1
 	}
 	return 0
+}
+
+// categoryRegistries builds one registry per detail category and its
+// interface view. Admin request metrics are also served on the collection
+// category, so its registry joins admin.
+func categoryRegistries(m *linkmonitor.Monitor, names []string, interfaces *views, admin teeRegisterer) (map[string]prometheus.Gatherer, teeRegisterer, error) {
+	categories := make(map[string]prometheus.Gatherer, len(names))
+	for _, category := range names {
+		match, err := monitorprom.CategoryMatcher(category)
+		if err != nil {
+			return nil, nil, err
+		}
+		collector := monitorprom.NewCollector(m, monitorprom.WithMetricFilter(match))
+		registry := commandRegistry(collector, match)
+		categories[category] = registry
+		// Netstat is host scope: it has no interface form.
+		if interfaces != nil && category != monitorprom.CategoryNetstat {
+			interfaces.categories[category] = snapshotView(m, collector)
+		}
+		if category == monitorprom.CategoryCollection {
+			admin = append(admin, registry)
+		}
+	}
+	return categories, admin, nil
 }
 
 // protectRoutes puts every metrics route behind the policy's read access.

@@ -86,25 +86,8 @@ func parseOptions(args []string, output io.Writer, getenv func(string) string) (
 	flags.StringVar(&opts.monitor.NetstatFields, "collector.netstat.fields", opts.monitor.NetstatFields, "Host protocol fields (regexp)")
 	var exceptions string
 	flags.StringVar(&exceptions, "max-speed-exceptions", "", "Comma-separated exact selectors, each optionally NAME=SPEED (1G, 2500M); overrides "+exceptionEnvironment)
-	flags.StringVar(&opts.exposure.coreInclude, "metrics.core-include", defaultCoreInclude,
-		"Metric names served on "+metricsPath+" (anchored regexp); overrides "+coreIncludeEnvironment)
-	flags.StringVar(&opts.exposure.coreExclude, "metrics.core-exclude", "",
-		"Metric names removed from "+metricsPath+" (anchored regexp, empty excludes nothing); overrides "+coreExcludeEnvironment)
-	flags.StringVar(&opts.exposure.allPath, "metrics-all-path", defaultAllPath,
-		"Path serving every metric (empty disables); overrides "+allPathEnvironment)
-	flags.StringVar(&opts.exposure.allAddress, "metrics-all-addr", "",
-		"Separate listen address for the all-metrics path (empty shares -metrics-addr); overrides "+allAddressEnvironment)
-	flags.StringVar(&opts.exposure.summary, "metrics.summary", summaryProblems,
-		"What "+metricsPath+" serves: problems (sparse summary) or core (-metrics.core-include selection); overrides "+summaryEnvironment)
 	categories := strings.Join(monitorprom.Categories(), ",")
-	flags.StringVar(&categories, "metrics.categories", categories,
-		"Comma-separated detail categories served on "+categoryPathPrefix+"CATEGORY beside the all-metrics path (empty serves none); overrides "+categoriesEnvironment)
-	flags.BoolVar(&opts.exposure.interfacePaths, "metrics.interface-paths", true,
-		"Serve one interface of each category path and of the all-metrics path on PATH/INTERFACE; overrides "+interfacePathsEnviron)
-	flags.BoolVar(&opts.exposure.ipPaths, "ip.paths", false,
-		"Serve read-only `ip -j OBJECT show` output on "+goiphttp.Prefix+"/OBJECT (link, addr, route, neigh, ...); exposes addresses, routes and neighbors, so pair it with read auth or a loopback -metrics-addr; overrides "+ipPathsEnvironment)
-	flags.IntVar(&opts.exposure.ipMaxBytes, "ip.max-bytes", goiphttp.DefaultMaxBytes,
-		"Largest "+goiphttp.Prefix+" response body in bytes (positive); overrides "+ipMaxBytesEnvironment)
+	exposureFallbacks := defineExposureFlags(flags, &opts.exposure, &categories)
 	errorWindow, flapWindow := opts.monitor.ErrorWindow.String(), opts.monitor.FlapWindow.String()
 	flags.StringVar(&errorWindow, "errors.window", errorWindow, "Window an error counter increase stays a problem (0 disables); overrides "+errorWindowEnvironment)
 	flags.StringVar(&flapWindow, "flap-window", flapWindow, "Window a link flap stays a problem (0 disables); overrides "+flapWindowEnvironment)
@@ -137,12 +120,6 @@ func parseOptions(args []string, output io.Writer, getenv func(string) string) (
 	flags.Visit(func(f *flag.Flag) { explicit[f.Name] = true })
 	for _, fallback := range append([]envFallback{
 		{"max-speed-exceptions", exceptionEnvironment, &exceptions},
-		{"metrics.core-include", coreIncludeEnvironment, &opts.exposure.coreInclude},
-		{"metrics.core-exclude", coreExcludeEnvironment, &opts.exposure.coreExclude},
-		{"metrics-all-path", allPathEnvironment, &opts.exposure.allPath},
-		{"metrics-all-addr", allAddressEnvironment, &opts.exposure.allAddress},
-		{"metrics.summary", summaryEnvironment, &opts.exposure.summary},
-		{"metrics.categories", categoriesEnvironment, &categories},
 		{"errors.window", errorWindowEnvironment, &errorWindow},
 		{"flap-window", flapWindowEnvironment, &flapWindow},
 		{"errors.classes", errorClassEnvironment, &errorClasses},
@@ -152,7 +129,7 @@ func parseOptions(args []string, output io.Writer, getenv func(string) string) (
 		{"watch.slow-interval", slowEnvironment, &slow},
 		{"on-demand.ttl", ttlEnvironment, &ttl},
 		{"on-demand.wait", waitEnvironment, &wait},
-	}, adminFallbacks...) {
+	}, append(exposureFallbacks, adminFallbacks...)...) {
 		if value := getenv(fallback.environment); !explicit[fallback.flag] && value != "" {
 			*fallback.target = value
 		}
@@ -161,26 +138,8 @@ func parseOptions(args []string, output io.Writer, getenv func(string) string) (
 		opts.monitor.MaxSpeedExceptions = strings.Split(exceptions, ",")
 	}
 	opts.exposure.categories = splitList(categories)
-	if value := getenv(interfacePathsEnviron); !explicit["metrics.interface-paths"] && value != "" {
-		enabled, err := strconv.ParseBool(value)
-		if err != nil {
-			return opts, fmt.Errorf("%s: %w", interfacePathsEnviron, err)
-		}
-		opts.exposure.interfacePaths = enabled
-	}
-	if value := getenv(ipPathsEnvironment); !explicit["ip.paths"] && value != "" {
-		enabled, err := strconv.ParseBool(value)
-		if err != nil {
-			return opts, fmt.Errorf("%s: %w", ipPathsEnvironment, err)
-		}
-		opts.exposure.ipPaths = enabled
-	}
-	if value := getenv(ipMaxBytesEnvironment); !explicit["ip.max-bytes"] && value != "" {
-		n, err := strconv.Atoi(value)
-		if err != nil {
-			return opts, fmt.Errorf("%s: %w", ipMaxBytesEnvironment, err)
-		}
-		opts.exposure.ipMaxBytes = n
+	if err := opts.exposure.applyEnvironment(getenv, explicit); err != nil {
+		return opts, err
 	}
 	opts.monitor.ErrorClasses = splitList(errorClasses)
 	for _, window := range [...]struct {
@@ -206,6 +165,65 @@ func parseOptions(args []string, output io.Writer, getenv func(string) string) (
 		opts.statsIgnored = true
 	}
 	return opts, nil
+}
+
+// defineExposureFlags defines the endpoint flags. categories holds the
+// comma-separated category list until parseOptions splits it.
+func defineExposureFlags(flags *flag.FlagSet, o *exposureOptions, categories *string) []envFallback {
+	flags.StringVar(&o.coreInclude, "metrics.core-include", defaultCoreInclude,
+		"Metric names served on "+metricsPath+" (anchored regexp); overrides "+coreIncludeEnvironment)
+	flags.StringVar(&o.coreExclude, "metrics.core-exclude", "",
+		"Metric names removed from "+metricsPath+" (anchored regexp, empty excludes nothing); overrides "+coreExcludeEnvironment)
+	flags.StringVar(&o.allPath, "metrics-all-path", defaultAllPath,
+		"Path serving every metric (empty disables); overrides "+allPathEnvironment)
+	flags.StringVar(&o.allAddress, "metrics-all-addr", "",
+		"Separate listen address for the all-metrics path (empty shares -metrics-addr); overrides "+allAddressEnvironment)
+	flags.StringVar(&o.summary, "metrics.summary", summaryProblems,
+		"What "+metricsPath+" serves: problems (sparse summary) or core (-metrics.core-include selection); overrides "+summaryEnvironment)
+	flags.StringVar(categories, "metrics.categories", *categories,
+		"Comma-separated detail categories served on "+categoryPathPrefix+"CATEGORY beside the all-metrics path (empty serves none); overrides "+categoriesEnvironment)
+	flags.BoolVar(&o.interfacePaths, "metrics.interface-paths", true,
+		"Serve one interface of each category path and of the all-metrics path on PATH/INTERFACE; overrides "+interfacePathsEnviron)
+	flags.BoolVar(&o.ipPaths, "ip.paths", false,
+		"Serve read-only `ip -j OBJECT show` output on "+goiphttp.Prefix+"/OBJECT (link, addr, route, neigh, ...); exposes addresses, routes and neighbors, so pair it with read auth or a loopback -metrics-addr; overrides "+ipPathsEnvironment)
+	flags.IntVar(&o.ipMaxBytes, "ip.max-bytes", goiphttp.DefaultMaxBytes,
+		"Largest "+goiphttp.Prefix+" response body in bytes (positive); overrides "+ipMaxBytesEnvironment)
+	return []envFallback{
+		{"metrics.core-include", coreIncludeEnvironment, &o.coreInclude},
+		{"metrics.core-exclude", coreExcludeEnvironment, &o.coreExclude},
+		{"metrics-all-path", allPathEnvironment, &o.allPath},
+		{"metrics-all-addr", allAddressEnvironment, &o.allAddress},
+		{"metrics.summary", summaryEnvironment, &o.summary},
+		{"metrics.categories", categoriesEnvironment, categories},
+	}
+}
+
+// applyEnvironment applies the non-string exposure variables. As for the
+// string fallbacks, an explicit flag wins and an empty variable is ignored.
+func (o *exposureOptions) applyEnvironment(getenv func(string) string, explicit map[string]bool) error {
+	for _, b := range [...]struct {
+		flag, environment string
+		target            *bool
+	}{
+		{"metrics.interface-paths", interfacePathsEnviron, &o.interfacePaths},
+		{"ip.paths", ipPathsEnvironment, &o.ipPaths},
+	} {
+		if value := getenv(b.environment); !explicit[b.flag] && value != "" {
+			enabled, err := strconv.ParseBool(value)
+			if err != nil {
+				return fmt.Errorf("%s: %w", b.environment, err)
+			}
+			*b.target = enabled
+		}
+	}
+	if value := getenv(ipMaxBytesEnvironment); !explicit["ip.max-bytes"] && value != "" {
+		n, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("%s: %w", ipMaxBytesEnvironment, err)
+		}
+		o.ipMaxBytes = n
+	}
+	return nil
 }
 
 // splitList splits a comma-separated list; an empty string is an empty list.

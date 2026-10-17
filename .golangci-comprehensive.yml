@@ -71,6 +71,8 @@ linters:
     # something should, and it is not the first — the two misspell rules at the
     # bottom of this file were missed the same way once already.
     - forbidigo
+    # go-native RDMA parsing rules; see the depguard block below.
+    - depguard
     # Tier 2 additions
     - exhaustive
     - prealloc
@@ -179,6 +181,31 @@ linters:
             triggering an unbounded thread leak. Pair it with a
             *conditional* unlock inside the restore defer, or
             `//nolint:forbidigo // <reason>` if unrelated.
+        # go-native RDMA parsing rules; the "[rdma-parse]" exclusion below
+        # limits these two to non-test files of the RDMA decoder packages.
+        - pattern: '^binary\.(Read|Write|Size)$'
+          msg: "[rdma-parse] reflection-based encoding/binary call; read fields at explicit offsets"
+        - pattern: '^fmt\.'
+          msg: "[rdma-parse] fmt in an RDMA decoder; return sentinel errors"
+
+    # go-native RDMA parsing rules (cmd/go-link-monitor/GO-NATIVE-RDMA-DESIGN.md,
+    # "Parsing rules"): decoders read fields at explicit offsets, so the
+    # reflection-based packages are denied outside tests. depguard cannot see
+    # import "C"; test-linkmonitor-parse-guards keeps rdmanative cgo-free.
+    depguard:
+      rules:
+        rdma-parse:
+          list-mode: lax
+          files:
+            - "**/pkg/linkmonitor/internal/rdmanative/*.go"
+            - "**/pkg/linkmonitor/internal/rdmacaps/*.go"
+            - "**/pkg/xtcpnl/xtcpnl_rdma*.go"
+            - "!$test"
+          deny:
+            - pkg: reflect
+              desc: RDMA decoders read fields at explicit offsets, without reflection
+            - pkg: encoding/json
+              desc: JSON is for golden files in tests only
 
     funlen:
       # This comment used to argue the opposite, and it was wrong on both the
@@ -237,6 +264,16 @@ linters:
       - ".*\\.pb\\.gw\\.go$"
       - "^gen/"
     rules:
+      # The [rdma-parse] forbidigo patterns apply only to non-test files of
+      # the go-native RDMA decoder packages.
+      - path-except: "pkg/linkmonitor/internal/(rdmanative|rdmacaps)/|pkg/xtcpnl/xtcpnl_rdma[^/]*\\.go$"
+        linters:
+          - forbidigo
+        text: "\\[rdma-parse\\]"
+      - path: "_test\\.go"
+        linters:
+          - forbidigo
+        text: "\\[rdma-parse\\]"
       - path: "_test\\.go"
         linters:
           - dupl

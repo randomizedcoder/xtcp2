@@ -6,6 +6,8 @@
 # Monitor "run all": nix build path:.#test-linkmonitor -L
 # Runs core tests, race, vet, lint, formatting, replay, fuzzing and doc checks,
 # plus tagged RDMA tests/lint, runtime packaging, library and executable checks.
+# Go-native RDMA guards: test-linkmonitor-rdma-abi (kernel uapi layouts) and
+# test-linkmonitor-parse-guards (bounds checks, escape report, zero allocations).
 # Performance correctness is included. Repeatable measurement targets are
 # nix run path:.#bench-linkmonitor-smoke (short),
 # nix run path:.#bench-linkmonitor (microbenchmarks), and
