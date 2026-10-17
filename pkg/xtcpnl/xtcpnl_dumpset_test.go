@@ -33,7 +33,7 @@ import (
 // direction rule in the coverage notes: sll_pkttype is PACKET_OUTGOING for
 // both directions, because AF_PACKET's dev_queue_xmit_nit overwrites what
 // __netlink_deliver_tap_skb set.
-func readDumpSetReplies(t *testing.T, path string, wantType uint16) (bodies [][]byte, sawDone bool) {
+func readDumpSetReplies(t testing.TB, path string, wantType uint16) (bodies [][]byte, sawDone bool) {
 	t.Helper()
 	bs, err := os.ReadFile(path)
 	if err != nil {

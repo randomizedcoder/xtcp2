@@ -342,13 +342,14 @@ func TestParseNewAddr(t *testing.T) {
 			want:        AddrInfo{Family: unix.AF_INET, Prefixlen: 32, Scope: unix.RT_SCOPE_HOST, Index: 1},
 		},
 		{
-			// IFA_ANYCAST is a real attribute this package does not decode, so
-			// it stands in for "unknown" without pretending a decoded one is
-			// unknown. (This row used to use IFA_FLAGS, which is now decoded.)
+			// IFA_TARGET_NETNSID is a real attribute this package does not
+			// decode, so it stands in for "unknown" without pretending a
+			// decoded one is unknown. (This row used to use IFA_FLAGS, then
+			// IFA_ANYCAST; both are now decoded.)
 			description: "corner: undecoded attribute types are ignored",
 			body: concat(
 				ifaddrmsgHdr(unix.AF_INET, 24, 0, unix.RT_SCOPE_UNIVERSE, 2),
-				rtattr(unix.IFA_ANYCAST, v4b(192, 168, 1, 255)),
+				rtattr(unix.IFA_TARGET_NETNSID, []byte{1, 0, 0, 0}),
 				rtattr(unix.IFA_ADDRESS, v4b(192, 168, 1, 2)),
 			),
 			want: AddrInfo{

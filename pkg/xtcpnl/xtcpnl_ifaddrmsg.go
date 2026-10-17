@@ -130,6 +130,14 @@ const (
 	IfaProtoKernelLL uint8 = 3 // link-local, set by kernel
 )
 
+// IfaMcUsers is IFA_MC_USERS (include/uapi/linux/if_addr.h:39), a u32 count of
+// a multicast group's users. Like IfaProto, x/sys does not export it.
+//
+// The kernel sends it only in RTM_GETMULTICAST replies (net/ipv6/addrconf.c:5268,
+// net/ipv4/igmp.c:1526), and only since Linux 7.2: the 7.1.4 corpus kernel's
+// multicast dumps do not carry it.
+const IfaMcUsers uint16 = 12
+
 // AddrInfo is the subset of an RTM_NEWADDR message xtcp2 keeps. The prefix
 // length comes from the ifaddrmsg header (not an attribute). Address/Local hold
 // the raw network-order address bytes (4 for IPv4, 16 for IPv6); the caller
@@ -150,6 +158,16 @@ const (
 // noprefixroute", and two of those three flags are invisible to the header
 // field.
 //
+// # The attributes only some dumps carry
+//
+// RtPriority is IFA_RT_PRIORITY, the metric of the address's prefix route,
+// which `ip` prints as "metric N" (ip/ipaddress.c:1624-1626). Anycast,
+// Multicast and McUsers never appear in an RTM_GETADDR reply: the kernel sends
+// IFA_ANYCAST only in RTM_GETANYCAST replies, and IFA_MULTICAST and
+// IFA_MC_USERS only in RTM_GETMULTICAST replies (net/ipv6/addrconf.c:5267-5303,
+// net/ipv4/igmp.c:1526). Those replies carry no IFA_ADDRESS or IFA_LOCAL, so
+// Address and Local stay nil.
+//
 // CacheInfo/HasCacheInfo, Broadcast and Proto complete what an `ip addr show`
 // line needs. Proto 0 is IFAPROT_UNSPEC, which is also what an absent
 // IFA_PROTO leaves behind; `ip` prints the token only for a present, non-zero
@@ -169,6 +187,13 @@ type AddrInfo struct {
 	HasProto     bool         // IFA_PROTO present (zero is IFAPROT_UNSPEC)
 	CacheInfo    IfaCacheinfo // IFA_CACHEINFO; zero unless HasCacheInfo
 	HasCacheInfo bool         // IFA_CACHEINFO present and long enough to decode
+
+	RtPriority    uint32 // IFA_RT_PRIORITY; zero unless HasRtPriority
+	HasRtPriority bool   // IFA_RT_PRIORITY present and at least 4 bytes
+	Anycast       []byte // IFA_ANYCAST; nil if absent
+	Multicast     []byte // IFA_MULTICAST; nil if absent
+	McUsers       uint32 // IFA_MC_USERS; zero unless HasMcUsers
+	HasMcUsers    bool   // IFA_MC_USERS present and at least 4 bytes
 }
 
 // IsPermanent reports whether the address never expires — both lifetimes at
@@ -208,7 +233,9 @@ func (ai AddrInfo) IsDeprecated() bool {
 //     every IPv6 address would decode with an empty Local.
 //
 // Duplicated attributes take the first occurrence; see
-// xtcpnl_rtattr_firstwins.go.
+// xtcpnl_rtattr_firstwins.go. A u32 attribute shorter than four bytes is
+// ignored rather than an error, as IFA_FLAGS always has been: the kernel's
+// policy never emits one, so only a malformed message can carry it.
 func ParseNewAddr(body []byte) (AddrInfo, error) {
 	var m IfAddrmsg
 	if _, err := DeserializeIfAddrmsg(body, &m); err != nil {
@@ -250,6 +277,20 @@ func ParseNewAddr(body []byte) (AddrInfo, error) {
 			if _, cerr := DeserializeIfaCacheinfo(val, &ci); cerr == nil {
 				ai.CacheInfo = ci
 				ai.HasCacheInfo = true
+			}
+		case uint16(unix.IFA_RT_PRIORITY):
+			if len(val) >= 4 {
+				ai.RtPriority = binary.LittleEndian.Uint32(val[0:4])
+				ai.HasRtPriority = true
+			}
+		case uint16(unix.IFA_ANYCAST):
+			ai.Anycast = CopyBytes(val)
+		case uint16(unix.IFA_MULTICAST):
+			ai.Multicast = CopyBytes(val)
+		case IfaMcUsers:
+			if len(val) >= 4 {
+				ai.McUsers = binary.LittleEndian.Uint32(val[0:4])
+				ai.HasMcUsers = true
 			}
 		}
 	})

@@ -44,6 +44,8 @@
 #   addr/<slug>/         one `ip addr add|change|replace|del` each
 #   addr-flush/<slug>/   one `ip addr flush` each
 #   addr-save/<slug>/    `ip addr save|showdump|restore`
+#   addr-mcdump/mc_any/  the RTM_GETMULTICAST and RTM_GETANYCAST dumps,
+#                        which no `ip addr` sends; see addr_mcdump below
 #
 # The rows are data in scripts/addr-corpus.exp, where the hermetic check
 # can read them. A required state that cannot be built fails the run; one of
@@ -271,6 +273,72 @@ proc addr_readback {} {
 }
 
 ###############################################################################
+# addr_mcdump - the only replies that carry IFA_MULTICAST and IFA_ANYCAST
+# (A1-T01; docs/netlink/addr-write-path.md, table 6).
+#
+# The kernel sends those attributes in RTM_GETMULTICAST and RTM_GETANYCAST
+# replies, never in RTM_GETADDR's (net/ipv6/addrconf.c:5267-5303,
+# net/ipv4/igmp.c:1526), and the pinned `ip` asks for neither, so
+# xtcp2-nl-mcdump sends the request (nix/microvms/netlink-capture.nix).
+#
+# One dummy, up, in a fresh addra:
+#   - forwarding=1 before the IPv6 address, so adding it joins the
+#     subnet-router anycast 2001:db8:1:: (addrconf_join_anycast). nodad, so
+#     the address is not tentative and the join is not deferred. It is set on
+#     `default` before d0 exists, and d0 inherits it: before 058b9b19 (7.2) a
+#     per-device forwarding write returns 1 from the handler, which reaches
+#     write(2) as a one-byte count, and the `default` branch always returned
+#     0 (net/ipv6/addrconf.c:884-892).
+#   - 224.0.0.251 autojoin, so the IPv4 dump has a group of ours beside
+#     224.0.0.1.
+#
+# Each dump's oracle is the /proc file the kernel renders from the same
+# lists with no netlink in between: igmp, igmp6, anycast6. The floor is 2: the
+# request, and one reply datagram, since this namespace's groups and the DONE
+# fit in one dump skb.
+#
+# The two negative rows are `write` rows, which keep the stderr and the exit
+# status: an AF_UNSPEC multicast dump and an AF_INET anycast dump have no
+# dumpit, for the family or for PF_UNSPEC, so the kernel answers EOPNOTSUPP
+# (net/core/rtnetlink.c:7073-7078).
+###############################################################################
+proc addr_mcdump {} {
+    global addr_problems
+    set ns $addrtopo::NS_A
+    set subdir addr-mcdump/mc_any
+    vmlib::log "=== addr mcdump ==="
+    vmlib::must "xtcp2-nlcap ns-add $ns"
+    if {![addrtopo::sysctl $ns $subdir net.ipv6.conf.default.forwarding 1]} {
+        lappend addr_problems "$subdir: sysctl net.ipv6.conf.default.forwarding=1 refused"
+        return
+    }
+    nltopo::topo $ns $subdir link add d0 type dummy
+    nltopo::topo $ns $subdir link set d0 up
+    nltopo::topo $ns $subdir -6 addr add 2001:db8:1::1/64 dev d0 nodad
+    nltopo::topo $ns $subdir addr add 224.0.0.251/32 dev d0 autojoin
+
+    foreach {name command proc_file} {
+        netlink_route_getmulticast_v4 {xtcp2-nl-mcdump inet multicast}  igmp
+        netlink_route_getmulticast_v6 {xtcp2-nl-mcdump inet6 multicast} igmp6
+        netlink_route_getanycast_v6   {xtcp2-nl-mcdump inet6 anycast}   anycast6
+    } {
+        capio $ns $subdir $name 2 $command $name.counts
+        side $ns $subdir proc_net_$proc_file "cat /proc/net/$proc_file"
+    }
+    foreach {name command} {
+        netlink_route_getmulticast_unspec {xtcp2-nl-mcdump unspec multicast}
+        netlink_route_getanycast_v4       {xtcp2-nl-mcdump inet anycast}
+    } {
+        lassign [nlcap write $ns $subdir $name 2 "'$command'"] rc out
+        if {$rc != 0} {
+            lappend addr_problems "$subdir/$name: $out"
+        } else {
+            vmlib::log [string trim $out]
+        }
+    }
+}
+
+###############################################################################
 # promote_default - M3: the promote_secondaries a fresh namespace gives a new
 # device, recorded beside flush_primary and returned so flush_rows can build
 # flush_primary_flipped from its opposite. Empty when it cannot be read.
@@ -379,6 +447,7 @@ foreach row $addrcorpus::write_rows {
 }
 
 set addr_problems {}
+addr_mcdump
 set promote [promote_default]
 if {$promote eq ""} {
     lappend addr_problems "promote_secondaries default unreadable; addr-flush rows not run"
