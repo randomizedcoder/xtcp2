@@ -446,6 +446,20 @@ Tests: `TestParseAddrWriteArgs`
 
 Done when: the table passes.
 
+As built: `parseAddrWriteArgs(verb, family, args, resolve, warn)` returns an
+`xtcpnl.AddrWrite`. `warn` receives the warnings `ip` prints mid-parse (a
+read-only or v6-only flag, the wildcard delete) with `ip`'s exact text, and
+the rows that name a corpus slug compare it with that slug's `ip.err`. The
+verb → type and flags table (`addrWriteVerbs`) lives here, as A5-T01 left it.
+The flag names are one row of the keyword chain, between `preferred_lft` and
+`proto`, matched through `render.IfaFlagByName`, so the `pref`, `b` and `m`
+collisions come from the table's order. `brd +` with neither a peer nor a
+copied local reads `ip`'s uninitialized `peer`, and goip refuses it with
+`ErrNotImplemented`. `help` is `ErrNotImplemented`, as in the route parser.
+Design row 14 (`valid_lft 0x10` alone) is refused, because the infinite
+preferred lifetime is greater than 16. The row pairs it with
+`preferred_lft 0x10`, and a corner row keeps the refusal.
+
 #### A6-T02
 
 **Verb dispatch and the corpus replay.** Depends on: A6-T01.
