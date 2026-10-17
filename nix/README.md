@@ -28,7 +28,9 @@ The targets are defined in [tests/linkmonitor.nix](tests/linkmonitor.nix):
 | `test-linkmonitor-lint` | Existing comprehensive lint policy over both package trees |
 | `test-linkmonitor-format` | Gofmt verification of both package trees |
 | `test-linkmonitor-replay` | All 40 link-state kernel/scenario fixture combinations; no skips |
-| `test-linkmonitor-fuzz` | Three 30-second decoder fuzz sessions, two workers each |
+| `test-linkmonitor-fuzz` | One 30-second session, two workers, per `fuzzTargets` entry |
+| `test-linkmonitor-rdma-abi` | Go-native RDMA ABI guard: `nix/tests/linkmonitor-abi.c` against the pinned uapi and rdma-core headers must match the committed layout, then `TestABILayout` |
+| `test-linkmonitor-parse-guards` | Go-native RDMA parsing rules: rdmanative has no cgo files, no bounds check outside the length hint in each listed decoder file (`bce.txt`), the `-m` report (`escape.txt`), zero-allocation and manifest tests |
 | `test-linkmonitor-docs` | Monitor documentation links, metric references and tracker consistency; checker regression tests |
 | `test-linkmonitor-rdma-unit` | Full monitor suite with the `rdma` tag and cgo, then tagged race tests |
 | `test-linkmonitor-rdma-lint` | Tagged vet and unchanged comprehensive lint policy |

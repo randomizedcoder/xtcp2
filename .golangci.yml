@@ -54,6 +54,8 @@ linters:
     # also do setns/unshare, because the pairing is dangerous (see the
     # forbidigo block below for the why).
     - forbidigo
+    # go-native RDMA parsing rules; see the depguard block below.
+    - depguard
     # Promoted from Tier 2 on 2026-09-23. US spelling had been swept four
     # times (most recently bd3081c) and regressed every time, because
     # misspell only ran in the nightly comprehensive tier — nobody saw the
@@ -200,6 +202,31 @@ linters:
             triggering an unbounded thread leak. Pair it with a
             *conditional* unlock inside the restore defer, or
             `//nolint:forbidigo // <reason>` if unrelated.
+        # go-native RDMA parsing rules; the "[rdma-parse]" exclusion below
+        # limits these two to non-test files of the RDMA decoder packages.
+        - pattern: '^binary\.(Read|Write|Size)$'
+          msg: "[rdma-parse] reflection-based encoding/binary call; read fields at explicit offsets"
+        - pattern: '^fmt\.'
+          msg: "[rdma-parse] fmt in an RDMA decoder; return sentinel errors"
+
+    # go-native RDMA parsing rules (cmd/go-link-monitor/GO-NATIVE-RDMA-DESIGN.md,
+    # "Parsing rules"): decoders read fields at explicit offsets, so the
+    # reflection-based packages are denied outside tests. depguard cannot see
+    # import "C"; test-linkmonitor-parse-guards keeps rdmanative cgo-free.
+    depguard:
+      rules:
+        rdma-parse:
+          list-mode: lax
+          files:
+            - "**/pkg/linkmonitor/internal/rdmanative/*.go"
+            - "**/pkg/linkmonitor/internal/rdmacaps/*.go"
+            - "**/pkg/xtcpnl/xtcpnl_rdma*.go"
+            - "!$test"
+          deny:
+            - pkg: reflect
+              desc: RDMA decoders read fields at explicit offsets, without reflection
+            - pkg: encoding/json
+              desc: JSON is for golden files in tests only
 
   exclusions:
     warn-unused: true
@@ -209,6 +236,16 @@ linters:
       - ".*\\.pb\\.gw\\.go$"
       - "^gen/"
     rules:
+      # The [rdma-parse] forbidigo patterns apply only to non-test files of
+      # the go-native RDMA decoder packages.
+      - path-except: "pkg/linkmonitor/internal/(rdmanative|rdmacaps)/|pkg/xtcpnl/xtcpnl_rdma[^/]*\\.go$"
+        linters:
+          - forbidigo
+        text: "\\[rdma-parse\\]"
+      - path: "_test\\.go"
+        linters:
+          - forbidigo
+        text: "\\[rdma-parse\\]"
       # Test code: relax dup/funlen/gocyclo/errcheck/unused/goconst/noctx.
       # Repeated CLI-flag strings in -Args tests + net.Listen/DialTimeout
       # without ctx are idiomatic for test setup; lifting them into

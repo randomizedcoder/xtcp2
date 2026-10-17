@@ -12,6 +12,20 @@ let
   # pkg/nlconn is linkmonitor's netlink transport, moved out of
   # pkg/linkmonitor/internal so pkg/rtnlmon can share it; its gates stay here.
   paths = "./cmd/go-link-monitor ./pkg/linkmonitor/... ./pkg/nlconn ./pkg/xtcpnl ./nix/tests/linkmonitor-smoke";
+  # Fuzz targets as "<package>:<target>"; each runs for 30s in the fuzz leaf.
+  fuzzTargets = [
+    "./pkg/xtcpnl:FuzzParseEthtool"
+    "./pkg/xtcpnl:FuzzWalkNetlinkEnvelopes"
+    "./pkg/xtcpnl:FuzzParseMonitorLink"
+  ];
+  # go-native RDMA decoders held to the parsing rules in
+  # cmd/go-link-monitor/GO-NATIVE-RDMA-DESIGN.md. Each decoder task appends
+  # its files; the parse-guards leaf fails if a listed file is missing.
+  rdmaNativePackages = "./pkg/linkmonitor/internal/rdmanative ./pkg/linkmonitor/internal/rdmacaps";
+  rdmaDecoderFiles = [
+    "pkg/linkmonitor/internal/rdmanative/abi.go"
+    "pkg/linkmonitor/internal/rdmacaps/umadhdr.go"
+  ];
   mkCheck =
     name:
     {
@@ -108,14 +122,48 @@ let
     test-linkmonitor-fuzz = mkCheck "fuzz" {
       command = ''
         export GOMAXPROCS=2
-        for target in FuzzParseEthtool FuzzWalkNetlinkEnvelopes FuzzParseMonitorLink; do
-          go test ./pkg/xtcpnl -run '^$' -fuzz "^$target$" \
+        for entry in ${lib.escapeShellArgs fuzzTargets}; do
+          pkg=''${entry%%:*} target=''${entry#*:}
+          go test "$pkg" -run '^$' -fuzz "^$target$" \
             -fuzztime=30s -parallel=2 -timeout=5m > "$out/$target.log" 2>&1 || {
             rc=$?
             cat "$out/$target.log"
             exit "$rc"
           }
         done
+      '';
+    };
+    # ABI layout guard (GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md R0-T01): the C
+    # program prints kernel sizes, offsets and ioctl numbers from the pinned
+    # headers; the committed copy must match it exactly, and each package's
+    # TestABILayout compares its Go constants with that copy.
+    test-linkmonitor-rdma-abi = mkCheck "rdma-abi" {
+      extraInputs = [ pkgs.gcc ];
+      command = ''
+        printf 'linuxHeaders %s\nrdma-core %s\n' '${pkgs.linuxHeaders.version}' \
+          '${pkgs.rdma-core.version}' > "$out/headers.txt"
+        gcc -Wall -Wextra -Werror -isystem ${pkgs.linuxHeaders}/include \
+          -I${lib.getDev pkgs.rdma-core}/include \
+          -o "$TMPDIR/linkmonitor-abi" nix/tests/linkmonitor-abi.c
+        "$TMPDIR/linkmonitor-abi" > "$out/abi_layout.txt"
+        diff -u pkg/linkmonitor/internal/rdmanative/testdata/abi_layout.txt "$out/abi_layout.txt"
+        go test -count=1 -v -run '^TestABILayout$' ${rdmaNativePackages}
+      '';
+    };
+    # Parse guards (R0-T04): rdmanative has no cgo files, no bounds check
+    # beyond the length hint in any listed decoder file, the -m escape report
+    # kept as escape.txt, and the zero-allocation and manifest tests.
+    test-linkmonitor-parse-guards = mkCheck "parse-guards" {
+      command = ''
+        cgo=$(CGO_ENABLED=1 go list -f '{{join .CgoFiles " "}}' ./pkg/linkmonitor/internal/rdmanative)
+        if [ -n "$cgo" ]; then
+          echo "rdmanative must stay cgo-free: $cgo"
+          exit 1
+        fi
+        ${pkgs.bash}/bin/bash nix/tests/linkmonitor-parse-guards.sh "$out" \
+          ${lib.escapeShellArgs rdmaDecoderFiles}
+        go test -count=1 -v -run 'Allocs|Manifest' ${rdmaNativePackages} ./pkg/xtcpnl \
+          > "$out/allocs.txt"
       '';
     };
     test-linkmonitor-docs = mkCheck "docs" {
