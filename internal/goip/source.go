@@ -74,6 +74,32 @@ type NetlinkSource struct {
 // the point; a blanket `_ =` would have hidden it, and hidden a typo'd
 // NETLINK_GET_STRICT_CHK level along with it.
 func OpenNetlink() (*NetlinkSource, error) {
+	return openNetlink(0)
+}
+
+// ErrBadTimeout is OpenNetlinkTimeout refusing a timeout that is not positive.
+var ErrBadTimeout = errors.New("goip: netlink receive timeout must be positive")
+
+// OpenNetlinkTimeout is OpenNetlink with SO_RCVTIMEO set to d, for callers
+// that cannot afford to block forever on a request the kernel never answers.
+//
+// The CLI does not need it: `ip` sets no receive timeout either, and a hung
+// command is the operator's to interrupt. A server does need it, because the
+// goroutine stuck in recvmsg holds whatever it was admitted with, and neither
+// http.TimeoutHandler nor a canceled context can reach into a blocking
+// syscall to release it. A timed-out receive surfaces as EAGAIN.
+//
+// Zero is refused rather than treated as "no timeout", which is what
+// SO_RCVTIMEO itself means by zero: a caller asking for a timeout and passing
+// an unset duration should hear about it, not get OpenNetlink.
+func OpenNetlinkTimeout(d time.Duration) (*NetlinkSource, error) {
+	if d <= 0 {
+		return nil, fmt.Errorf("%w: %v", ErrBadTimeout, d)
+	}
+	return openNetlink(d)
+}
+
+func openNetlink(rcvTimeout time.Duration) (*NetlinkSource, error) {
 	fd, err := unix.Socket(unix.AF_NETLINK, unix.SOCK_RAW|unix.SOCK_CLOEXEC, unix.NETLINK_ROUTE)
 	if err != nil {
 		return nil, fmt.Errorf("goip: netlink socket: %w", err)
@@ -97,6 +123,17 @@ func OpenNetlink() (*NetlinkSource, error) {
 	}
 	if err := unix.SetsockoptInt(fd, unix.SOL_SOCKET, unix.SO_RCVBUF, 1<<20); err != nil {
 		return nil, abandon(fmt.Errorf("goip: netlink SO_RCVBUF: %w", err))
+	}
+	if rcvTimeout > 0 {
+		tv := unix.NsecToTimeval(rcvTimeout.Nanoseconds())
+		// Sub-microsecond durations truncate to a zero timeval, which the
+		// kernel reads as "block forever" — the opposite of what was asked.
+		if tv.Sec == 0 && tv.Usec == 0 {
+			tv.Usec = 1
+		}
+		if err := unix.SetsockoptTimeval(fd, unix.SOL_SOCKET, unix.SO_RCVTIMEO, &tv); err != nil {
+			return nil, abandon(fmt.Errorf("goip: netlink SO_RCVTIMEO: %w", err))
+		}
 	}
 
 	sa := &unix.SockaddrNetlink{Family: unix.AF_NETLINK}

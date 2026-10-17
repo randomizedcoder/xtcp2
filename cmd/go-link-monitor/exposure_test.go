@@ -15,6 +15,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
+	"github.com/randomizedcoder/xtcp2/internal/goip/goiphttp"
 	monitorprom "github.com/randomizedcoder/xtcp2/pkg/linkmonitor/prometheus"
 )
 
@@ -26,7 +27,7 @@ func TestExposureOptions(t *testing.T) {
 	all := monitorprom.Categories()
 	// exposure fills the summary and category defaults the cases do not vary.
 	exposure := func(include, exclude, allPath, allAddress string) exposureOptions {
-		return exposureOptions{coreInclude: include, coreExclude: exclude, allPath: allPath, allAddress: allAddress, summary: summaryProblems, categories: all, interfacePaths: true}
+		return exposureOptions{coreInclude: include, coreExclude: exclude, allPath: allPath, allAddress: allAddress, summary: summaryProblems, categories: all, interfacePaths: true, ipMaxBytes: goiphttp.DefaultMaxBytes}
 	}
 	defaults := exposure(defaultCoreInclude, "", defaultAllPath, "")
 	with := func(o exposureOptions, mutate func(*exposureOptions)) exposureOptions { mutate(&o); return o }
@@ -69,6 +70,19 @@ func TestExposureOptions(t *testing.T) {
 			with(defaults, func(o *exposureOptions) { o.interfacePaths = false })},
 		{"interface paths flag beats environment", "corner", "bare flag with variable false", "flag wins: enabled", []string{"-metrics.interface-paths"}, map[string]string{interfacePathsEnviron: "false"}, defaults},
 		{"interface paths empty environment", "boundary", "variable set to empty", "default enabled", nil, map[string]string{interfacePathsEnviron: ""}, defaults},
+		{"ip paths flag", "positive", "-ip.paths", "ip paths enabled", []string{"-ip.paths"}, nil,
+			with(defaults, func(o *exposureOptions) { o.ipPaths = true })},
+		{"ip paths environment", "positive", "variable set to 1", "ip paths enabled", nil, map[string]string{ipPathsEnvironment: "1"},
+			with(defaults, func(o *exposureOptions) { o.ipPaths = true })},
+		{"ip paths default", "negative", "no flag or variable", "ip paths disabled", nil, nil, defaults},
+		{"ip paths flag beats environment", "corner", "-ip.paths=false with variable 1", "flag wins: disabled", []string{"-ip.paths=false"}, map[string]string{ipPathsEnvironment: "1"}, defaults},
+		{"ip paths empty environment", "boundary", "variable set to empty", "default disabled", nil, map[string]string{ipPathsEnvironment: ""}, defaults},
+		{"ip max bytes flag", "positive", "-ip.max-bytes=1024", "1024", []string{"-ip.max-bytes=1024"}, nil,
+			with(defaults, func(o *exposureOptions) { o.ipMaxBytes = 1024 })},
+		{"ip max bytes environment", "positive", "variable set to 2048", "2048", nil, map[string]string{ipMaxBytesEnvironment: "2048"},
+			with(defaults, func(o *exposureOptions) { o.ipMaxBytes = 2048 })},
+		{"ip max bytes flag beats environment", "corner", "flag 1 with variable 2048", "flag wins: 1", []string{"-ip.max-bytes=1"}, map[string]string{ipMaxBytesEnvironment: "2048"},
+			with(defaults, func(o *exposureOptions) { o.ipMaxBytes = 1 })},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expectedOutcome)
@@ -126,6 +140,15 @@ func TestExposureValidation(t *testing.T) {
 			exposureOptions{allPath: "/metrics/link/all", categories: []string{"link"}, interfacePaths: true}, "interface paths"},
 		{"all-path under interface off", "corner", "all-path /metrics/link/all, interface paths off", "valid",
 			exposureOptions{allPath: "/metrics/link/all", categories: []string{"link"}}, ""},
+		{"ip paths", "positive", "ip paths with default size", "valid", exposureOptions{coreInclude: ".*", allPath: "/metrics-all", ipPaths: true, ipMaxBytes: 1}, ""},
+		{"ip max bytes zero", "boundary", "ip paths with -ip.max-bytes=0", "error", exposureOptions{coreInclude: ".*", allPath: "/metrics-all", ipPaths: true}, "must be positive"},
+		{"ip max bytes negative", "negative", "ip paths with -ip.max-bytes=-1", "error", exposureOptions{coreInclude: ".*", allPath: "/metrics-all", ipPaths: true, ipMaxBytes: -1}, "must be positive"},
+		{"ip max bytes zero off", "boundary", "-ip.max-bytes=0, ip paths off", "valid: unused", exposureOptions{coreInclude: ".*", allPath: "/metrics-all"}, ""},
+		{"all-path /ip", "negative", "all-path /ip with ip paths", "error", exposureOptions{coreInclude: ".*", allPath: "/ip", ipPaths: true, ipMaxBytes: 1}, "collides with the /ip"},
+		{"all-path under /ip", "corner", "all-path /ip/all with ip paths", "error", exposureOptions{coreInclude: ".*", allPath: "/ip/all", ipPaths: true, ipMaxBytes: 1}, "collides with the /ip"},
+		{"all-path /ipx", "corner", "all-path /ipx with ip paths", "valid: prefix is per segment", exposureOptions{coreInclude: ".*", allPath: "/ipx", ipPaths: true, ipMaxBytes: 1}, ""},
+		{"all-path /ip separate", "corner", "all-path /ip on its own listener", "valid: /ip is on the main listener only", exposureOptions{coreInclude: ".*", allPath: "/ip", allAddress: ":9102", ipPaths: true, ipMaxBytes: 1}, ""},
+		{"all-path /ip off", "boundary", "all-path /ip, ip paths off", "valid", exposureOptions{coreInclude: ".*", allPath: "/ip"}, ""},
 		{"all-path under other category", "boundary", "all-path /metrics/linkx/all with link interface paths", "valid: prefix is per segment",
 			exposureOptions{allPath: "/metrics/linkx/all", categories: []string{"link"}, interfacePaths: true}, ""},
 	} {
@@ -169,6 +192,10 @@ func TestCommandExposureValidation(t *testing.T) {
 		{"exclude malformed", "negative", "-errors.exclude=(", "exit 2 before listening", []string{"-errors.exclude=("}, nil, "error exclude"},
 		{"interface paths environment", "negative", "interface paths variable not a boolean", "exit 2 before listening", nil, map[string]string{interfacePathsEnviron: "maybe"}, interfacePathsEnviron},
 		{"interface paths flag", "negative", "-metrics.interface-paths=maybe", "exit 2 before listening", []string{"-metrics.interface-paths=maybe"}, nil, "metrics.interface-paths"},
+		{"ip paths environment", "negative", "ip paths variable not a boolean", "exit 2 before listening", nil, map[string]string{ipPathsEnvironment: "maybe"}, ipPathsEnvironment},
+		{"ip max bytes environment", "negative", "ip max bytes variable not a number", "exit 2 before listening", nil, map[string]string{ipMaxBytesEnvironment: "32M"}, ipMaxBytesEnvironment},
+		{"ip max bytes zero", "boundary", "-ip.paths -ip.max-bytes=0", "exit 2 before listening", []string{"-ip.paths", "-ip.max-bytes=0"}, nil, "must be positive"},
+		{"ip all-path collision", "corner", "-ip.paths -metrics-all-path=/ip", "exit 2 before listening", []string{"-ip.paths", "-metrics-all-path=/ip"}, nil, "collides with the /ip"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expectedOutcome)

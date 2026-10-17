@@ -52,6 +52,10 @@ type route struct {
 	// with the refresh of what the route serves; view marks the interface
 	// handler.
 	refresh func(h http.Handler, view bool) http.Handler
+	// mount, when set, registers a whole route family on the mux in place of
+	// a gatherer, each handler passed through the same protect and timeout
+	// wrap; the family limits its own concurrency. path names it in logs.
+	mount func(mux *http.ServeMux, wrap func(http.Handler) http.Handler)
 }
 
 // views holds the interface view of each detail path; a nil views serves no
@@ -97,6 +101,10 @@ func endpoints(address string, o exposureOptions, core, all prometheus.Gatherer,
 func httpServer(source healthSource, stopping *atomic.Bool, routes ...route) *http.Server {
 	mux := http.NewServeMux()
 	for _, r := range routes {
+		if r.mount != nil {
+			r.mount(mux, func(h http.Handler) http.Handler { return r.wrap(h, metricsTimeout) })
+			continue
+		}
 		slots := make(chan struct{}, r.inFlight)
 		mux.Handle(r.path, r.wrap(limited(slots, r.refreshed(metricsHandler(r.gatherer), false)), metricsTimeout))
 		if r.view == nil {

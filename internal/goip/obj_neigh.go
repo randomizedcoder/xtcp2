@@ -206,7 +206,7 @@ func neighShow(c *runCtx, sel neighSelectors) error {
 		// instead, the same position routeShow takes and for the same reason.
 		idx := c.lltab.NameToIndex(sel.Dev)
 		if idx == 0 {
-			return fmt.Errorf("neigh show: cannot find device %q", sel.Dev)
+			return noSuchDevice(fmt.Errorf("neigh show: cannot find device %q", sel.Dev))
 		}
 		index = uint32(idx)
 	}

@@ -567,11 +567,13 @@ Standalone command flags:
 | `-metrics.core-exclude` | empty | Anchored regexp removed from `/metrics`, empty removes nothing; overrides GO_LINK_MONITOR_METRICS_CORE_EXCLUDE |
 | `-metrics-all-path` | `/metrics-all` | Exact path serving every metric, empty disables; overrides GO_LINK_MONITOR_METRICS_ALL_PATH |
 | `-metrics-all-addr` | empty | Separate listener for the all-metrics path, empty shares `-metrics-addr`; overrides GO_LINK_MONITOR_METRICS_ALL_ADDR |
+| `-ip.paths` | false | Serve read-only `ip -j OBJECT show` on `/ip/OBJECT` ([IP-PATHS-DESIGN.md](IP-PATHS-DESIGN.md)); overrides GO_LINK_MONITOR_IP_PATHS |
+| `-ip.max-bytes` | `33554432` | Largest `/ip` response body, positive; overrides GO_LINK_MONITOR_IP_MAX_BYTES |
 | `-admin.address` | empty | Admin gRPC socket path or TCP address, empty disables; overrides GO_LINK_MONITOR_ADMIN_ADDR |
 | `-admin.network` | `unix` | `unix` or `tcp`; overrides GO_LINK_MONITOR_ADMIN_NETWORK |
 | `-admin.unix-socket-mode` | `0660` | Octal socket permission bits; overrides GO_LINK_MONITOR_ADMIN_UNIX_SOCKET_MODE |
 | `-admin.insecure` | false | Allow a non-loopback TCP admin listener without an admin credential |
-| `-auth.read-mode`, `-auth.read-token-file`, `-auth.read-hmac-key-file` | empty | Read credential (`raw` or `hmac-utc-minute`, secret from a file); when set, metrics paths and read RPCs require it; overrides GO_LINK_MONITOR_AUTH_READ_* |
+| `-auth.read-mode`, `-auth.read-token-file`, `-auth.read-hmac-key-file` | empty | Read credential (`raw` or `hmac-utc-minute`, secret from a file); when set, metrics paths, `/ip` paths and read RPCs require it; overrides GO_LINK_MONITOR_AUTH_READ_* |
 | `-auth.admin-mode`, `-auth.admin-token-file`, `-auth.admin-hmac-key-file` | empty | Admin credential for rebaseline and resync; requires `-admin.address`; overrides GO_LINK_MONITOR_AUTH_ADMIN_* |
 | `-version` | false | Print build identity and exit |
 | `-io-backend` | `poller` | Ordinary nonblocking sockets by default; explicit `io_uring` requires supported backend initialization |

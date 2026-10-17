@@ -43,11 +43,7 @@ to run without it. Only the name lookups they need are sent.
 // `-4` as a flag with a value. Since the parity harness drives goip and `ip`
 // with the same argv, the parsing has to be the same shape.
 func Run(args []string, stdout, stderr io.Writer) int {
-	c := &runCtx{
-		out:    stdout,
-		errOut: stderr,
-		family: unix.AF_UNSPEC,
-	}
+	c := newRunCtx(stdout, stderr)
 
 	i := 0
 	for ; i < len(args); i++ {
@@ -172,8 +168,6 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	}()
 
 	c.src = src
-	c.lltab = NewLLTab()
-	c.now = nowFromEnv()
 
 	if err := obj.run(c, args[1:]); err != nil {
 		fmt.Fprintf(stderr, "goip: %v\n", err)

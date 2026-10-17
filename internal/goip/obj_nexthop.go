@@ -191,7 +191,7 @@ func nexthopShow(c *runCtx, sel nexthopSelectors) error {
 		}
 		idx := c.lltab.NameToIndex(name)
 		if idx == 0 {
-			return fmt.Errorf("nexthop show: cannot find device %q", name)
+			return noSuchDevice(fmt.Errorf("nexthop show: cannot find device %q", name))
 		}
 		if isDev {
 			filter.OIF = uint32(idx)

@@ -76,7 +76,7 @@ func netconfShow(c *runCtx, dev string) error {
 		// (ip/ipnetconf.c:175-181). Resolved before the branch, as iproute2 does.
 		devIdx = c.lltab.NameToIndex(dev)
 		if devIdx == 0 {
-			return fmt.Errorf("netconf show: cannot find device %q: %w", dev, ErrNotImplemented)
+			return noSuchDevice(fmt.Errorf("netconf show: cannot find device %q: %w", dev, ErrNotImplemented))
 		}
 	}
 

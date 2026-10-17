@@ -11,8 +11,41 @@ It serves the same data at several Prometheus paths. A healthy host's
 often across a large fleet; the detail sits on category paths that are
 scraped slowly or fetched when investigating.
 
-This page summarises the Prometheus features. The full metric inventory is
-[METRICS.md](METRICS.md); behaviour is in [DESIGN.md](DESIGN.md).
+This page lists every feature and how to use it. The full metric inventory
+is [METRICS.md](METRICS.md); behaviour is in [DESIGN.md](DESIGN.md).
+
+## Features
+
+| Feature | What it gives you | Section |
+|---|---|---|
+| Problem summary | `/metrics` is one sparse series per active problem: missing links, low speed or width, half duplex, RDMA not ready, errors, flaps, failed collectors | [Problem summary](#problem-summary) |
+| Learned baseline | The expected up-link count is learned on first start and persisted; `ctl rebaseline` or SIGUSR1 accepts an intended change | [Operations](#operations) |
+| Detail categories | `/metrics/link`, `traffic`, `ethtool`, `driver`, `rdma`, `netstat`, `collection` and `/metrics-all`, each scraped at its own rate | [Prometheus paths](#prometheus-paths) |
+| Per-interface paths | `PATH/<interface>` serves one interface of any detail path | [Prometheus paths](#prometheus-paths) |
+| Ethernet and RDMA | Netdev, ethtool, driver and PHY statistics, RDMA/InfiniBand port state, counters and events | [METRICS.md](METRICS.md) |
+| Collection modes | On demand (default, low idle cost) or poll | [Collection modes](#collection-modes) |
+| `ip … show` over HTTP | Opt-in `/ip/link`, `/ip/addr`, `/ip/route` and every other read-only `ip` object, as `ip -j` JSON or `ip` text, instead of ssh | [IP-PATHS-DESIGN.md](IP-PATHS-DESIGN.md) |
+| Access control | Read credential on every metrics and `/ip` path; separate admin credential | [Other Prometheus features](#other-prometheus-features) |
+| Admin API and CLI | gRPC `LinkMonitorService` and `go-link-monitor ctl` for status, interfaces, collectors, rebaseline and resync | [Operations](#operations) |
+| Bounded cost | Per-path concurrency limits, 10s scrape timeout, filters compiled once at startup | [Other Prometheus features](#other-prometheus-features) |
+| Embedding | The same monitor inside xtcp2 (`xtcp2 -linkMonitor`) | [Operations](#operations) |
+| Read-only | Observes only; never changes network configuration | — |
+
+## Quick start
+
+```sh
+nix build .#go-link-monitor          # full build with RDMA; .#go-link-monitor-core without
+sudo ./result/bin/go-link-monitor   # baseline in /var/lib/go-link-monitor, admin socket in /run/go-link-monitor
+curl -s :9101/metrics                # problem summary
+curl -s :9101/metrics/link           # link detail
+
+# optional: ip show over HTTP
+sudo ./result/bin/go-link-monitor -ip.paths
+curl -s :9101/ip/link | jq -r '.[] | "\(.ifname) \(.mtu)"'
+```
+
+`go-link-monitor -h` lists every flag; each newer flag also has a
+`GO_LINK_MONITOR_*` environment variable.
 
 ## Prometheus paths
 
@@ -33,6 +66,7 @@ All paths are on `-metrics-addr` (default `:9101`) unless
 | `PATH/<interface>` | One interface of any category path except netstat, or of `/metrics-all`, for example `/metrics/driver/enp1s0` or `/metrics-all/rdma:mlx5_0:1`; unknown names return 404 | Drill-down from an alert |
 | `/healthz` | 200 while the process is running | Liveness probe |
 | `/readyz` | 200 once the monitor is ready | Readiness probe |
+| `/ip/OBJECT` | With `-ip.paths`: read-only `ip -j OBJECT show` (link, addr, route, neigh, rule, nexthop, vrf, netconf, ntable, addrlabel, stats), `?format=text` for `ip`'s text; see [IP-PATHS-DESIGN.md](IP-PATHS-DESIGN.md) | `curl` instead of ssh + `ip` |
 
 `build_info` and `collection_healthy` are on every metrics path; every other
 family is on exactly one category path and on `/metrics-all`. On a host with
@@ -123,11 +157,16 @@ and `-flap-window` at least `-watch.interval`.
   path 4 and `/metrics-all` 2; further requests get 503. Each scrape has a 10s
   timeout.
 - **Scrape access control.** `-auth.read-mode` (`raw` bearer token or
-  `hmac-utc-minute`) protects every metrics path; `/healthz` and `/readyz`
-  stay open for probes.
+  `hmac-utc-minute`) protects every metrics path and the `/ip` paths;
+  `/healthz` and `/readyz` stay open for probes.
 - **Path selection.** `-metrics.categories` chooses the category paths,
   `-metrics-all-path=` disables `/metrics-all`, and
   `-metrics.interface-paths=false` disables the per-interface paths.
+- **`ip … show` over HTTP.** `-ip.paths` serves the host's `ip -j link`,
+  `addr`, `route` and every other read-only `ip` object on `/ip/OBJECT`, so
+  `curl -s :9101/ip/link | jq -r '.[] | "\(.ifname) \(.mtu)"'` replaces
+  ssh. Off by default, since it exposes addresses and routes; read auth
+  covers it. See [IP-PATHS-DESIGN.md](IP-PATHS-DESIGN.md).
 - **Environment fallbacks.** Each newer flag has a `GO_LINK_MONITOR_*`
   environment variable; an explicit flag, even an empty one, wins.
 
@@ -157,6 +196,7 @@ Run `go-link-monitor -h` for every flag.
 |---|---|
 | [METRICS.md](METRICS.md) | Every metric family, its labels, source and node_exporter mapping, and alert examples |
 | [METRICS-PATHS-DESIGN.md](METRICS-PATHS-DESIGN.md) | The summary and category paths |
+| [IP-PATHS-DESIGN.md](IP-PATHS-DESIGN.md) | The `/ip` paths: `ip … show` over HTTP, parameters, status codes, security and jq recipes |
 | [DESIGN.md](DESIGN.md) | Baseline, link predicates, checks, exceptions and persistence |
 | [DETAILED-DESIGN.md](DETAILED-DESIGN.md) | Library structure, snapshots and concurrency |
 | [NODE-EXPORTER-PERFORMANCE.md](NODE-EXPORTER-PERFORMANCE.md) | Cost against node_exporter, and poll against on-demand |

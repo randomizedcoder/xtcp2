@@ -103,7 +103,7 @@ func addrHelpErr() error {
 
 func addrNoDevErr(dev string) error {
 	// iproute2 ends the line with a period; Go error strings do not.
-	return fmt.Errorf("%w: Device %q does not exist", ErrInvalidArgument, dev)
+	return noSuchDevice(fmt.Errorf("%w: Device %q does not exist", ErrInvalidArgument, dev))
 }
 
 // addrShowKeyword is one strcmp arm of the loop. takesValue is NEXT_ARG.
@@ -242,7 +242,7 @@ func addrFilterMaster(f *addrFilter, v string, lk addrLookups) error {
 		return err
 	}
 	if idx == 0 {
-		return invargErr("Device does not exist", v)
+		return noSuchDevice(invargErr("Device does not exist", v))
 	}
 	f.master = idx
 	return nil

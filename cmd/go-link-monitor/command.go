@@ -14,6 +14,7 @@ import (
 	"syscall"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/randomizedcoder/xtcp2/internal/goip/goiphttp"
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor"
 	monitorprom "github.com/randomizedcoder/xtcp2/pkg/linkmonitor/prometheus"
 	"github.com/randomizedcoder/xtcp2/pkg/listenerauth"
@@ -105,6 +106,13 @@ func command(args []string, stdout, stderr io.Writer, getenv func(string) string
 	if err != nil {
 		logger.Error("invalid configuration", "error", err)
 		return 2
+	}
+	if opts.exposure.ipPaths {
+		served, err = withIPPaths(served, goiphttp.Options{MaxBytes: opts.exposure.ipMaxBytes})
+		if err != nil {
+			logger.Error("invalid configuration", "error", err)
+			return 2
+		}
 	}
 	served = protectRoutes(served, access.policy)
 	if err := serve(context.Background(), m, logger, signals, lc.Listen, served, admins...); err != nil {
