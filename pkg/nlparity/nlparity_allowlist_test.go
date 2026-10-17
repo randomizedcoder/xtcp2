@@ -481,6 +481,13 @@ func TestAllowlistCommitted(t *testing.T) {
 		"route replace 198.51.100.0/24 dev d0 mtu lock 1400 advmss 1360 window 65535 rtt 3ms rttvar 10ms ssthresh 100 cwnd 10 reordering 5 hoplimit 64 initcwnd 10 initrwnd 20 features ecn tcp_usec_ts fastopen_no_cookie 1",
 		"route replace 198.51.100.0/24 dev d0 rtt 24 rttvar 40 rto_min 200",
 		"route replace 198.51.100.0/24 dev d0 initcwnd 10 initcwnd 20",
+		// A1-T02's four addr-show state rows, each on its own device with a
+		// Setup, gated on the two runs after those: GOIP_PARITY_PASS, txns 3/3,
+		// control nl=0 stdout=0 and zero findings on both.
+		"addr show dev metric0",
+		"addr show dev peer4",
+		"addr show dev peer6",
+		"addr show dev autojoin0",
 	}
 
 	tests := []struct {

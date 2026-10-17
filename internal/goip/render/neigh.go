@@ -261,9 +261,11 @@ func NeighFlagTokens(flags uint8, flagsExt uint32) []string {
 // print_bool. Two similar-looking expansions, two different literals, and the
 // only way to get either right is to follow the print function.
 //
-// Member position and the key-by-key comparison argument are exactly as
-// documented on AddrView.MarshalJSON; NeighView is likewise not embedded
-// anywhere, so the marshaler composes rather than shadowing a parent's fields.
+// The expanded members land at the END of the object. JSON member order
+// carries no meaning and the neigh comparisons are key by key; AddrView,
+// which is compared byte for byte, writes its members in `ip`'s order
+// instead. NeighView, like AddrView, is not embedded anywhere, so the
+// marshaler composes rather than shadowing a parent's fields.
 func (v NeighView) MarshalJSON() ([]byte, error) {
 	// neighView sheds this method, so json.Marshal below does not recurse.
 	type neighView NeighView

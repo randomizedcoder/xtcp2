@@ -1,0 +1,10 @@
+ok    [addra] sysctl net.ipv6.conf.default.forwarding=1
+ok    [addra] ip link add c0 type dummy
+ok    [addra] ip link set c0 up
+ok    [addra] ip link add d0 type dummy
+ok    [addra] ip link set d0 addrgenmode none
+ok    [addra] sysctl net.ipv6.conf.default.forwarding=1
+ok    [addra] ip link add c0 type dummy
+ok    [addra] ip link set c0 up
+ok    [addra] ip link add d0 type dummy
+ok    [addra] ip link set d0 addrgenmode none

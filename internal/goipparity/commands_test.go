@@ -1753,3 +1753,60 @@ func TestSlugsSorted(t *testing.T) {
 		t.Run(tt.description, tt.check)
 	}
 }
+
+// TestAddrStateReadRowsGated pins A1-T02's four `addr show dev` rows: each
+// an addr-show state on a device named for it, with a Setup, gated clean
+// after two live runs and carrying no allowlist entry.
+//
+// go test ./internal/goipparity/ -run TestAddrStateReadRowsGated
+func TestAddrStateReadRowsGated(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	type want struct {
+		setup, gated bool
+		floor        int
+		last         string // the Setup's last step, the state's address
+	}
+	rows := []struct {
+		description string
+		command     string
+		expected    want
+	}{
+		{"positive: metric, v4_metric's address", "addr show dev metric0",
+			want{true, true, 6, "addr add 192.0.2.1/24 metric 50 dev metric0"}},
+		{"positive: a v4 peer, v4_peer's address", "addr show dev peer4",
+			want{true, true, 6, "addr add 10.0.0.1 peer 10.0.0.2/32 dev peer4"}},
+		{"positive: a v6 peer, v6_peer's address", "addr show dev peer6",
+			want{true, true, 6, "-6 addr add 2001:db8::1 peer 2001:db8::2/128 nodad dev peer6"}},
+		{"positive: autojoin, v4_autojoin's address", "addr show dev autojoin0",
+			want{true, true, 6, "addr add 224.0.0.251/32 autojoin dev autojoin0"}},
+		{"negative: the shared-topology addr show dev has no Setup", "addr show dev",
+			want{false, true, 6, ""}},
+		{"boundary: a state without a row is not in the table", "addr show dev d0",
+			want{false, false, 0, ""}},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			var got want
+			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				got.setup = len(c.Setup) > 0
+				got.floor = c.Floor
+				if got.setup {
+					got.last = c.Setup[len(c.Setup)-1]
+				}
+				if !c.Implemented {
+					t.Errorf("%q is not Implemented; a gate cannot fire on a skip", r.command)
+				}
+			}
+			got.gated = al.IsGated(r.command)
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+			if got.setup && len(al.EntriesFor(r.command)) != 0 {
+				t.Errorf("%q gated clean but carries an allowlist entry", r.command)
+			}
+		})
+	}
+}

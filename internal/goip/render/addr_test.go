@@ -1008,6 +1008,76 @@ func TestAddrViewText(t *testing.T) {
 			},
 			want: "    inet 192.0.2.1/24 scope global \n",
 		},
+		// A1-T02: IFA_RT_PRIORITY, IFA_ANYCAST and IFA_MULTICAST, from
+		// print_addrinfo (ip/ipaddress.c:1617-1673). The metric is inside
+		// the IFA_LOCAL block and any/mcast are outside it.
+		{
+			description: "positive: metric follows the prefix length, inside the local block",
+			in:          metricAddr(50, true),
+			want:        "    inet 192.0.2.1/24 metric 50 scope global d0\n",
+		},
+		{
+			description: "boundary: a metric of 0 that was sent still prints",
+			in:          metricAddr(0, true),
+			want:        "    inet 192.0.2.1/24 metric 0 scope global d0\n",
+		},
+		{
+			description: "boundary: no IFA_RT_PRIORITY prints no metric",
+			in:          metricAddr(50, false),
+			want:        "    inet 192.0.2.1/24 scope global d0\n",
+		},
+		{
+			description: "corner: a metric without IFA_LOCAL or IFA_ADDRESS does not print, nor does an address",
+			in: xtcpnl.AddrInfo{
+				Family: unix.AF_INET, Prefixlen: 32, Scope: unix.RT_SCOPE_UNIVERSE, Index: 3,
+				Multicast: v4(224, 0, 0, 251), RtPriority: 9, HasRtPriority: true, Flags: unix.IFA_F_PERMANENT,
+			},
+			want: "    inet mcast 224.0.0.251 scope global \n",
+		},
+		{
+			description: "positive: a v6 anycast message prints `any` and no local block",
+			in: xtcpnl.AddrInfo{
+				Family: unix.AF_INET6, Prefixlen: 128, Scope: unix.RT_SCOPE_UNIVERSE, Index: 3,
+				Anycast: v6(t, "2001:db8:1::"), Flags: unix.IFA_F_PERMANENT,
+			},
+			want: "    inet6 any 2001:db8:1:: scope global \n",
+		},
+		{
+			description: "corner: brd, any and mcast print in that order, before scope",
+			in: xtcpnl.AddrInfo{
+				Family: unix.AF_INET, Prefixlen: 24, Scope: unix.RT_SCOPE_UNIVERSE, Index: 3,
+				Local: v4(192, 0, 2, 1), Address: v4(192, 0, 2, 1),
+				Broadcast: v4(192, 0, 2, 255), Anycast: v4(192, 0, 2, 7), Multicast: v4(224, 0, 0, 1),
+				Flags: unix.IFA_F_PERMANENT,
+			},
+			want: "    inet 192.0.2.1/24 brd 192.0.2.255 any 192.0.2.7 mcast 224.0.0.1 scope global \n",
+		},
+		{
+			description: "corner: design table 6 row 10, an unnamed flag bit then proto then the label",
+			in: xtcpnl.AddrInfo{
+				Family: unix.AF_INET, Prefixlen: 24, Scope: unix.RT_SCOPE_UNIVERSE, Index: 3,
+				Local: v4(192, 0, 2, 1), Address: v4(192, 0, 2, 1), Label: "d0",
+				Flags: 0x1000 | unix.IFA_F_PERMANENT, Proto: 2, HasProto: true,
+			},
+			want: "    inet 192.0.2.1/24 scope global flags 1000 proto kernel_ra d0\n",
+		},
+		{
+			description: "corner: IFA_PROTO 0 that was sent prints no proto in text",
+			in: xtcpnl.AddrInfo{
+				Family: unix.AF_INET, Prefixlen: 24, Scope: unix.RT_SCOPE_UNIVERSE, Index: 3,
+				Local: v4(192, 0, 2, 1), Address: v4(192, 0, 2, 1), Label: "d0",
+				Flags: unix.IFA_F_PERMANENT, HasProto: true,
+			},
+			want: "    inet 192.0.2.1/24 scope global d0\n",
+		},
+		{
+			description: "corner: IFA_MC_USERS is not printed by 7.1.0",
+			in: xtcpnl.AddrInfo{
+				Family: unix.AF_INET, Prefixlen: 32, Scope: unix.RT_SCOPE_UNIVERSE, Index: 3,
+				Multicast: v4(224, 0, 0, 251), McUsers: 3, HasMcUsers: true, Flags: unix.IFA_F_PERMANENT,
+			},
+			want: "    inet mcast 224.0.0.251 scope global \n",
+		},
 	}
 
 	for _, tt := range tests {
@@ -1015,6 +1085,152 @@ func TestAddrViewText(t *testing.T) {
 			got := AddrViewOf(tt.in).Text()
 			if got != tt.want {
 				t.Errorf("Text() mismatch\n got %q\nwant %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// metricAddr is 192.0.2.1/24 on d0, with IFA_RT_PRIORITY when has is set.
+func metricAddr(metric uint32, has bool) xtcpnl.AddrInfo {
+	return xtcpnl.AddrInfo{
+		Family: unix.AF_INET, Prefixlen: 24, Scope: unix.RT_SCOPE_UNIVERSE, Index: 3,
+		Local: v4(192, 0, 2, 1), Address: v4(192, 0, 2, 1), Label: "d0",
+		Flags: unix.IFA_F_PERMANENT, RtPriority: metric, HasRtPriority: has,
+	}
+}
+
+// TestAddrViewJSONBytes pins the whole object, member order included,
+// because goip's `-j addr show` is compared byte for byte against `ip`'s
+// (TestAddrShowReadbackGoldens). The orders are print_addrinfo's
+// (ip/ipaddress.c:1596-1700). `ip` 7.1.0 has no JSON output for a multicast
+// or anycast message (its monitor never opens a JSON context), so those
+// rows' keys come from the PRINT_ANY call sites and are source-derived.
+//
+// go test ./internal/goip/render/ -run TestAddrViewJSONBytes
+func TestAddrViewJSONBytes(t *testing.T) {
+	forever := xtcpnl.IfaCacheinfo{Preferred: xtcpnl.IfaLifetimeInfinityCst, Valid: xtcpnl.IfaLifetimeInfinityCst}
+	tests := []struct {
+		description string
+		in          xtcpnl.AddrInfo
+		want        string
+	}{
+		{
+			description: "positive: metric follows prefixlen",
+			in:          metricAddr(50, true),
+			want:        `{"family":"inet","local":"192.0.2.1","prefixlen":24,"metric":50,"scope":"global","label":"d0"}`,
+		},
+		{
+			description: "boundary: a metric of 0 that was sent is a member",
+			in:          metricAddr(0, true),
+			want:        `{"family":"inet","local":"192.0.2.1","prefixlen":24,"metric":0,"scope":"global","label":"d0"}`,
+		},
+		{
+			description: "boundary: no IFA_RT_PRIORITY, no metric member",
+			in:          metricAddr(50, false),
+			want:        `{"family":"inet","local":"192.0.2.1","prefixlen":24,"scope":"global","label":"d0"}`,
+		},
+		{
+			description: "positive: a peer is local, address, prefixlen in that order",
+			in: xtcpnl.AddrInfo{
+				Family: unix.AF_INET, Prefixlen: 32, Scope: unix.RT_SCOPE_UNIVERSE, Index: 3,
+				Local: v4(10, 0, 0, 1), Address: v4(10, 0, 0, 2), Label: "d0",
+				Flags: unix.IFA_F_PERMANENT, CacheInfo: forever, HasCacheInfo: true,
+			},
+			want: `{"family":"inet","local":"10.0.0.1","address":"10.0.0.2","prefixlen":32,"scope":"global","label":"d0",` +
+				`"valid_life_time":4294967295,"preferred_life_time":4294967295}`,
+		},
+		{
+			description: "corner: the flag booleans sit between scope and label",
+			in: xtcpnl.AddrInfo{
+				Family: unix.AF_INET, Prefixlen: 24, Scope: unix.RT_SCOPE_UNIVERSE, Index: 3,
+				Local: v4(192, 0, 2, 2), Address: v4(192, 0, 2, 2), Label: "d0:1",
+				Flags: unix.IFA_F_SECONDARY | unix.IFA_F_PERMANENT,
+			},
+			want: `{"family":"inet","local":"192.0.2.2","prefixlen":24,"scope":"global","secondary":true,"label":"d0:1"}`,
+		},
+		{
+			description: "positive: anycast, with no local block (source-derived)",
+			in: xtcpnl.AddrInfo{
+				Family: unix.AF_INET6, Prefixlen: 128, Scope: unix.RT_SCOPE_UNIVERSE, Index: 3,
+				Anycast: v6(t, "2001:db8:1::"), Flags: unix.IFA_F_PERMANENT,
+			},
+			want: `{"family":"inet6","anycast":"2001:db8:1::","scope":"global"}`,
+		},
+		{
+			description: "positive: multicast, with no local block and no metric (source-derived)",
+			in: xtcpnl.AddrInfo{
+				Family: unix.AF_INET, Prefixlen: 32, Scope: unix.RT_SCOPE_UNIVERSE, Index: 3,
+				Multicast: v4(224, 0, 0, 251), Flags: unix.IFA_F_PERMANENT, RtPriority: 9, HasRtPriority: true,
+			},
+			want: `{"family":"inet","multicast":"224.0.0.251","scope":"global"}`,
+		},
+		{
+			description: "corner: broadcast, anycast and multicast in that order, before scope",
+			in: xtcpnl.AddrInfo{
+				Family: unix.AF_INET, Prefixlen: 24, Scope: unix.RT_SCOPE_UNIVERSE, Index: 3,
+				Local: v4(192, 0, 2, 1), Address: v4(192, 0, 2, 1),
+				Broadcast: v4(192, 0, 2, 255), Anycast: v4(192, 0, 2, 7), Multicast: v4(224, 0, 0, 1),
+				Flags: unix.IFA_F_PERMANENT,
+			},
+			want: `{"family":"inet","local":"192.0.2.1","prefixlen":24,"broadcast":"192.0.2.255","anycast":"192.0.2.7",` +
+				`"multicast":"224.0.0.1","scope":"global"}`,
+		},
+		{
+			description: "corner: design table 6 row 10, ifa_flags after the booleans, then protocol and label",
+			in: xtcpnl.AddrInfo{
+				Family: unix.AF_INET, Prefixlen: 24, Scope: unix.RT_SCOPE_UNIVERSE, Index: 3,
+				Local: v4(192, 0, 2, 1), Address: v4(192, 0, 2, 1), Label: "d0",
+				Flags: 0x1000 | unix.IFA_F_PERMANENT, Proto: 2, HasProto: true,
+			},
+			want: `{"family":"inet","local":"192.0.2.1","prefixlen":24,"scope":"global","ifa_flags":"1000",` +
+				`"protocol":"kernel_ra","label":"d0"}`,
+		},
+		{
+			description: "corner: IFA_PROTO 0 that was sent is protocol unspec in JSON",
+			in: xtcpnl.AddrInfo{
+				Family: unix.AF_INET, Prefixlen: 24, Scope: unix.RT_SCOPE_UNIVERSE, Index: 3,
+				Local: v4(192, 0, 2, 1), Address: v4(192, 0, 2, 1), Label: "d0",
+				Flags: unix.IFA_F_PERMANENT, HasProto: true,
+			},
+			want: `{"family":"inet","local":"192.0.2.1","prefixlen":24,"scope":"global","protocol":"unspec","label":"d0"}`,
+		},
+		{
+			description: "corner: IFA_MC_USERS is not a member",
+			in: xtcpnl.AddrInfo{
+				Family: unix.AF_INET, Prefixlen: 32, Scope: unix.RT_SCOPE_UNIVERSE, Index: 3,
+				Multicast: v4(224, 0, 0, 251), Flags: unix.IFA_F_PERMANENT, McUsers: 3, HasMcUsers: true,
+			},
+			want: `{"family":"inet","multicast":"224.0.0.251","scope":"global"}`,
+		},
+		{
+			description: "corner: a deprecated address's preferred lifetime is signed, print_int",
+			in: xtcpnl.AddrInfo{
+				Family: unix.AF_INET, Prefixlen: 24, Scope: unix.RT_SCOPE_UNIVERSE, Index: 3,
+				Local: v4(192, 0, 2, 1), Address: v4(192, 0, 2, 1),
+				Flags:     unix.IFA_F_DEPRECATED,
+				CacheInfo: xtcpnl.IfaCacheinfo{Preferred: 0xFFFFFFFE, Valid: 30}, HasCacheInfo: true,
+			},
+			want: `{"family":"inet","local":"192.0.2.1","prefixlen":24,"scope":"global","deprecated":true,"dynamic":true,` +
+				`"valid_life_time":30,"preferred_life_time":-2}`,
+		},
+		{
+			description: "corner: an unnameable family is family_index",
+			in: xtcpnl.AddrInfo{
+				Family: 99, Prefixlen: 8, Index: 3, Local: []byte{1}, Address: []byte{1},
+				Flags: unix.IFA_F_PERMANENT,
+			},
+			want: `{"family_index":99,"local":"01","prefixlen":8,"scope":"global"}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			b, err := json.Marshal(AddrViewOf(tt.in))
+			if err != nil {
+				t.Fatalf("Marshal: %v", err)
+			}
+			if string(b) != tt.want {
+				t.Errorf("JSON mismatch\n got %s\nwant %s", b, tt.want)
 			}
 		})
 	}

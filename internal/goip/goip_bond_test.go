@@ -45,19 +45,20 @@ import (
 
 const linkWriteDir = "../../pkg/xtcpnl/testdata/7_1_4/link-write/"
 
-// sidecarWithNetnsID rewrites the netns name the capture host resolved to the
+// sidecarWithNetnsID rewrites the netns name the capture host resolved
+// (lacpb for the bond's veth ports, addrb for the addr-show corpus's) to the
 // numeric form goip prints, and fails if there is nothing to rewrite.
-func sidecarWithNetnsID(t *testing.T, path string) string {
+func sidecarWithNetnsID(t testing.TB, path, netns string) string {
 	t.Helper()
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	const named = " link-netns lacpb"
+	named := " link-netns " + netns
 	const numeric = " link-netnsid 0"
 	s := string(raw)
 	if !strings.Contains(s, named) {
-		t.Fatalf("%s: no %q to rewrite; the veth ports' peer namespace is "+
+		t.Fatalf("%s: no %q to rewrite; the veth peer's namespace is "+
 			"the one name goip does not resolve, so its absence means the "+
 			"corpus changed shape", path, named)
 	}
@@ -185,7 +186,7 @@ func TestLinkShowDetailBondMatchesSidecar(t *testing.T) {
 				assertLinesEqual(t, stdout.String(), string(raw))
 				return
 			}
-			assertLinesEqual(t, stdout.String(), sidecarWithNetnsID(t, dir+"ip_link_n"))
+			assertLinesEqual(t, stdout.String(), sidecarWithNetnsID(t, dir+"ip_link_n", "lacpb"))
 		})
 	}
 }
@@ -227,7 +228,7 @@ func TestLinkShowBondDetailIsGated(t *testing.T) {
 				t.Fatalf("bond line present = %v, want %v\n%s", got, tc.expected, stdout.String())
 			}
 			if !tc.expected {
-				assertLinesEqual(t, stdout.String(), sidecarWithNetnsID(t, dir+"ip_link"))
+				assertLinesEqual(t, stdout.String(), sidecarWithNetnsID(t, dir+"ip_link", "lacpb"))
 			}
 		})
 	}
