@@ -2,9 +2,9 @@
 
 Last updated: 2026-10-17.
 
-**Phases A0, A1, A2 and A4 are done.** The design
+**Phases A0, A1, A2, A4 and A5 are done.** The design
 ([addr-write-path.md](addr-write-path.md)) and the plan
-([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. 11 of 25
+([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. 12 of 25
 tasks are done: A0-T01 (V001), A0-T02 (closed by a finding, V002), A0-T03
 and A0-T04, closed by one KVM capture (V005), A0-T05, which recorded M1–M3
 from that capture's fixtures (V006), A1-T01, which decodes the four
@@ -16,9 +16,11 @@ selectors, byte-identical to `ip` on every selector golden and request
 (V021–V023). A2-T03 puts one live `goip-parity` row on each selector, and
 gates 22 of the 23 on two clean runs (V024–V027). A4-T01 admits
 `RTM_NEWADDR` and `RTM_DELADDR` to the write gate, one task ahead of the
-encoder that will build them (V028, V029).
+encoder that will build them (V028, V029). A5-T01 is that encoder,
+`BuildAddrWriteRequest`, which builds all 27 address writes in the corpus
+byte for byte (V030, V031).
 
-**Next action:** A3-T01 (depends on A0-T04) and A5-T01 (A4-T01) are
+**Next action:** A6-T01 (depends on A5-T01) and A3-T01 (A0-T04) are
 unblocked. Pick one; one task, one PR.
 
 ## Update rules
@@ -58,7 +60,7 @@ unblocked. Pick one; one task, one PR.
 | A2 | `addr show` selectors | done | 3/3 | V013, V014, V021, V022, V023, V024, V025, V026, V027 |
 | A3 | `-br` and `-o` | not started | 0/3 | — |
 | A4 | the gate admits `RTM_NEWADDR`/`RTM_DELADDR` | done | 1/1 | V028, V029 |
-| A5 | `BuildAddrWriteRequest` | not started | 0/1 | — |
+| A5 | `BuildAddrWriteRequest` | done | 1/1 | V030, V031 |
 | A6 | `goip addr add/change/replace/delete` | not started | 0/2 | — |
 | A7 | write rows in the matrix | not started | 0/2 | — |
 | A8 | `flush` and the multi-write comparator | not started | 0/3 | — |
@@ -85,7 +87,7 @@ Add evidence IDs to the last column as work runs.
 | [ ] | [A3-T02](addr-write-path-plan.md#a3-t02) | brief and oneline renderers | not started | — |
 | [ ] | [A3-T03](addr-write-path-plan.md#a3-t03) | output-mode rows | not started | — |
 | [x] | [A4-T01](addr-write-path-plan.md#a4-t01) | admit `RTM_NEWADDR`/`RTM_DELADDR` | done | V028, V029, DOC010 |
-| [ ] | [A5-T01](addr-write-path-plan.md#a5-t01) | `BuildAddrWriteRequest` | not started | — |
+| [x] | [A5-T01](addr-write-path-plan.md#a5-t01) | `BuildAddrWriteRequest` | done | V030, V031, DOC011 |
 | [ ] | [A6-T01](addr-write-path-plan.md#a6-t01) | the `ipaddr_modify` argument parser | not started | — |
 | [ ] | [A6-T02](addr-write-path-plan.md#a6-t02) | verb dispatch and corpus replay | not started | — |
 | [ ] | [A7-T01](addr-write-path-plan.md#a7-t01) | `addr_write_<slug>` rows | not started | — |
@@ -171,6 +173,9 @@ it.
 | V028 | 2026-10-17 | A4-T01 | `go test ./pkg/xtcpnl/... ./pkg/nlparity/... ./internal/goip/... ./internal/goipparity/...`, which includes `TestBuildWriteRequestAdmitsOnlyListedWrites` (generated: RTM_NEWADDR and RTM_DELADDR admitted, RTM_NEWNEIGH, RTM_GETADDR, RTM_NEWADDRLABEL and RTM_NEWMULTICAST refused), four new `TestBuildWriteRequestLayout` rows, and `TestBuildRequestRejectsEveryNamedWriteType`, unchanged. Mutation check in a scratch worktree, each scoped to `IsAdmittedWriteType` or the test map: RTM_DELADDR dropped from the switch, RTM_NEWADDR dropped from the map, RTM_NEWNEIGH admitted, and `FamilyHdrLen` for the address types set to 16 each failed the rows that name them, and were reverted | Passed: all green; the four mutants caught. The walk's count check caught none of them, because it counts the rows expected to build, not the ones that did; the walk's own rows carry the gate. The 7-byte row stays green under the 16-byte mutant (7 is still wrong); the 8-byte and 16-byte rows catch it | `pkg/xtcpnl/xtcpnl_write_gate_test.go` |
 | V029 | 2026-10-17 | A4-T01 | the nix checks: `.#test-focused-goip`, `checks.netlink-audit`, `checks.lint-baseline`, `.#quality-report`, `checks.nix-fmt`, `checks.statix`, `checks.deadnix`. `vm-lib-exp` and the parity VM do not apply: no `.exp` file and no matrix row changed | Passed, except `lint-baseline`, which still fails on `main` with the same 19 tier-2 findings from #237. The branch adds none | the check outputs |
 | DOC010 | 2026-10-17 | A4-T01 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc: 25 task IDs one to one; local links and anchors resolve; plus `git diff --check`. A grep for the four-type wording in `docs` and `pkg` finds only statement 18's own quotation and the amended coverage-status line | Passed: 25 task IDs one to one; no broken links or anchors; ledger IDs unique and in order; `git diff --check` clean | Summary retained here; the checker script was session-local |
+| V030 | 2026-10-17 | A5-T01 | `go test ./pkg/xtcpnl/... ./pkg/nlparity/... ./internal/goip/... ./internal/goipparity/...`, which includes `TestBuildAddrWriteRequestMatchesCorpus` (27 rows, one per address write in `link-write/addr`, and a completeness row), `TestBuildAddrWriteRequestWorkedExample` (the design's 72 bytes, transcribed) and `TestBuildAddrWriteRequest` (15 layout rows). Mutation check in a scratch worktree: the spill threshold `< 0xff`, the flags written to both the header and `IFA_FLAGS`, `IFA_FLAGS` after `PostAttrs`, the buffer at 4096, the `IFA_FLAGS`-in-a-list refusal removed, and the label without its NUL each failed the rows that name them, and were reverted | Passed: all green; every corpus write byte-identical; the six mutants caught. The both-places mutant is caught only by the `0x202` rows (the corpus row and the worked example): with `0x400` or `0x100` the low byte is 0, so the header is right by accident | `pkg/xtcpnl/xtcpnl_addr_write_test.go` |
+| V031 | 2026-10-17 | A5-T01 | the nix checks: `.#test-focused-goip`, `checks.netlink-audit`, `checks.lint-baseline`, `.#quality-report`, `checks.nix-fmt`, `checks.statix`, `checks.deadnix`. `vm-lib-exp` and the parity VM do not apply: no `.exp` file and no matrix row changed | Passed, except `lint-baseline`, which fails on `main` with the 19 tier-2 findings from #237. The branch adds none, and none is in the new files. Rerun after rebasing onto `main` at 6aea04eb (#241, #243, which changed the golangci configs): 17 tier-2 findings, every one in an `internal/goip` file this branch does not touch | the check outputs |
+| DOC011 | 2026-10-17 | A5-T01 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc, plus `git diff --check` | Passed: 25 task IDs one to one; no broken links or anchors; ledger IDs unique and in order; `git diff --check` clean | Summary retained here; the checker script was session-local |
 
 ## Blockers and upcoming requirements
 
@@ -179,6 +184,31 @@ it.
 - **No open blockers.**
 
 ## Progress and decision log
+
+- **2026-10-17.** A5-T01 is done.
+  - **The signature follows the siblings, not the design.** The design says
+    `BuildAddrWriteRequest(verb, w)`. As built it is `(w, seq)` with `MsgType`
+    and `Flags` in `AddrWrite`, as `BuildRouteWriteRequest` and
+    `BuildLinkWriteRequest` have them, and the verb table moves to A6-T01's
+    `internal/goip/addr_write.go`, where the route and link ones live. A fixed
+    verb could not express flush (`REQUEST` with no `ACK`) or restore (the
+    saved flags with `0x405`). Design row 3 is the corpus's change, replace
+    and delete rows; row 10 is a route or `GETADDR` type refused.
+  - **Two attribute lists.** `ipaddr_modify` appends `IFA_FLAGS` after the
+    argv loop and before the `IFA_ADDRESS` copy, the computed broadcast and
+    `IFA_CACHEINFO` (`ip/ipaddress.c:2589-2656`), so `AddrWrite` has `Attrs`
+    and `PostAttrs` and the encoder writes `IFA_FLAGS` between them. The
+    spill rule lives only in the encoder, so a caller's `IFA_FLAGS` is refused.
+  - **One divergence.** The attributes get `ipaddr_modify`'s 256 bytes. `ip`
+    ignores `addattr_l`'s return, so past the bound it prints "addattr_l
+    ERROR" and sends without that attribute; the encoder refuses. Only a label
+    reaches it, and the kernel refuses any label over 15 bytes (`label_16`).
+  - **Positive rows are captures.** Every address write in the A0-T04 corpus
+    (27) is built from an `AddrWrite` and compared with what `ip` sent, and a
+    completeness row fails when the corpus gains a write with no row. The rows
+    read the pcap's datagrams directly: a refused row has no `NLMSG_ERROR`,
+    which `lastNlMsgErr` requires.
+  - **No statement flips.** Statements 11 and 14 are A6-T02's.
 
 - **2026-10-17.** A4-T01 is done.
   - **Admitted one task ahead of the encoder.** The gate's rule is that a

@@ -414,6 +414,21 @@ as a row.
 Done when: the table passes, and the worked-example row matches the captured
 `add_v6_flags_wide` request byte for byte.
 
+As built: the signature is `BuildAddrWriteRequest(w AddrWrite, seq)`, like the
+route and link encoders. `MsgType` and `Flags` are fields, not a verb, so the
+verb → type and flags table moves to A6-T01's `addr_write.go`, as it lives in
+`route_write.go` and `link_write.go`. A fixed verb could not carry flush's
+`REQUEST`-only flags or restore's saved ones. `AddrWrite` holds two lists:
+`Attrs` (the argv loop's, in argv order) and `PostAttrs` (the `IFA_ADDRESS`
+copy, the computed broadcast and `IFA_CACHEINFO`). `IFA_FLAGS` goes between
+them and comes only from `IfaFlags`; a caller's is refused. The attributes get
+`ipaddr_modify`'s 256 bytes. Past that `ip` drops the attribute and sends,
+and the encoder refuses: the one divergence. Design row 3 is the capture-backed
+change, replace and delete rows, and row 10 is a non-address type refused.
+`TestBuildAddrWriteRequestMatchesCorpus` builds all 27 address writes in the
+A0-T04 corpus byte for byte, and a completeness row fails if one is added
+without a row.
+
 ### A6 — `goip addr add/change/replace/delete`
 
 #### A6-T01
