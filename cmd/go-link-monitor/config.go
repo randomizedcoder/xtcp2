@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/randomizedcoder/xtcp2/internal/goip/goiphttp"
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor"
 	monitorprom "github.com/randomizedcoder/xtcp2/pkg/linkmonitor/prometheus"
 )
@@ -32,6 +33,8 @@ const (
 	slowEnvironment        = "GO_LINK_MONITOR_WATCH_SLOW_INTERVAL"
 	ttlEnvironment         = "GO_LINK_MONITOR_ON_DEMAND_TTL"
 	waitEnvironment        = "GO_LINK_MONITOR_ON_DEMAND_WAIT"
+	ipPathsEnvironment     = "GO_LINK_MONITOR_IP_PATHS"
+	ipMaxBytesEnvironment  = "GO_LINK_MONITOR_IP_MAX_BYTES"
 
 	metricsPath        = "/metrics"
 	defaultAllPath     = "/metrics-all"
@@ -63,6 +66,10 @@ type exposureOptions struct {
 	categories               []string
 	// interfacePaths serves PATH/{interface} beside every detail path.
 	interfacePaths bool
+	// ipPaths serves the read-only `ip … show` paths under /ip on the main
+	// listener; ipMaxBytes caps one response.
+	ipPaths    bool
+	ipMaxBytes int
 }
 
 func parseOptions(args []string, output io.Writer, getenv func(string) string) (commandOptions, error) {
@@ -94,6 +101,10 @@ func parseOptions(args []string, output io.Writer, getenv func(string) string) (
 		"Comma-separated detail categories served on "+categoryPathPrefix+"CATEGORY beside the all-metrics path (empty serves none); overrides "+categoriesEnvironment)
 	flags.BoolVar(&opts.exposure.interfacePaths, "metrics.interface-paths", true,
 		"Serve one interface of each category path and of the all-metrics path on PATH/INTERFACE; overrides "+interfacePathsEnviron)
+	flags.BoolVar(&opts.exposure.ipPaths, "ip.paths", false,
+		"Serve read-only `ip -j OBJECT show` output on "+goiphttp.Prefix+"/OBJECT (link, addr, route, neigh, ...); exposes addresses, routes and neighbors, so pair it with read auth or a loopback -metrics-addr; overrides "+ipPathsEnvironment)
+	flags.IntVar(&opts.exposure.ipMaxBytes, "ip.max-bytes", goiphttp.DefaultMaxBytes,
+		"Largest "+goiphttp.Prefix+" response body in bytes (positive); overrides "+ipMaxBytesEnvironment)
 	errorWindow, flapWindow := opts.monitor.ErrorWindow.String(), opts.monitor.FlapWindow.String()
 	flags.StringVar(&errorWindow, "errors.window", errorWindow, "Window an error counter increase stays a problem (0 disables); overrides "+errorWindowEnvironment)
 	flags.StringVar(&flapWindow, "flap-window", flapWindow, "Window a link flap stays a problem (0 disables); overrides "+flapWindowEnvironment)
@@ -157,6 +168,20 @@ func parseOptions(args []string, output io.Writer, getenv func(string) string) (
 		}
 		opts.exposure.interfacePaths = enabled
 	}
+	if value := getenv(ipPathsEnvironment); !explicit["ip.paths"] && value != "" {
+		enabled, err := strconv.ParseBool(value)
+		if err != nil {
+			return opts, fmt.Errorf("%s: %w", ipPathsEnvironment, err)
+		}
+		opts.exposure.ipPaths = enabled
+	}
+	if value := getenv(ipMaxBytesEnvironment); !explicit["ip.max-bytes"] && value != "" {
+		n, err := strconv.Atoi(value)
+		if err != nil {
+			return opts, fmt.Errorf("%s: %w", ipMaxBytesEnvironment, err)
+		}
+		opts.exposure.ipMaxBytes = n
+	}
 	opts.monitor.ErrorClasses = splitList(errorClasses)
 	for _, window := range [...]struct {
 		name, value string
@@ -206,6 +231,15 @@ func (o exposureOptions) validate(address string) error {
 	}
 	if err := monitorprom.ValidateCategories(o.categories); err != nil {
 		return err
+	}
+	if o.ipPaths {
+		if o.ipMaxBytes <= 0 {
+			return fmt.Errorf("ip.max-bytes %d must be positive", o.ipMaxBytes)
+		}
+		// The /ip paths live on the main listener only.
+		if o.shared(address) && (o.allPath == goiphttp.Prefix || strings.HasPrefix(o.allPath, goiphttp.Prefix+"/")) {
+			return fmt.Errorf("metrics-all-path %q collides with the %s paths on the same listener", o.allPath, goiphttp.Prefix)
+		}
 	}
 	if o.allPath != "" && strings.HasPrefix(o.allPath, categoryPathPrefix) && slices.Contains(o.categories, strings.TrimPrefix(o.allPath, categoryPathPrefix)) {
 		return fmt.Errorf("metrics-all-path %q collides with a category path", o.allPath)
