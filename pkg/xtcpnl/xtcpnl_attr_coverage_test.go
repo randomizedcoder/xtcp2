@@ -46,7 +46,16 @@ const (
 	iflaCaptureCoverageCst = 43
 	rtaCaptureCoverageCst  = 13
 	ndaCaptureCoverageCst  = 5
-	ifaCaptureCoverageCst  = 7
+	ifaCaptureCoverageCst  = 8
+)
+
+// Measured 2026-10-16 when A1-T01 added v4_metric to the IFA row (IFA_RT_PRIORITY,
+// the eighth) and the RTM_GETMULTICAST/RTM_GETANYCAST dumps, whose replies
+// carry a different attribute set from RTM_NEWADDR's: the group and its
+// cacheinfo, and on a 7.2+ kernel IFA_MC_USERS.
+const (
+	ifaMulticastCaptureCoverageCst = 2
+	ifaAnycastCaptureCoverageCst   = 2
 )
 
 // captureAttrSet returns the distinct top-level attribute numbers a real kernel
@@ -128,9 +137,23 @@ func TestAttrCoverageFloors(t *testing.T) {
 			msgType:     uint16(unix.RTM_NEWADDR),
 			paths: []string{
 				tdDumpGetAddr_7_1_4, tdDumpGetAddrV4_7_1_4, tdDumpGetAddrV6_7_1_4,
-				tdDumpMeshGetAddr_7_1_4,
+				tdDumpMeshGetAddr_7_1_4, tdAddrShowMetric_7_1_4,
 			},
 			floor: ifaCaptureCoverageCst,
+		},
+		{
+			description: "positive: IFA_* coverage holds across the v4 and v6 multicast dumps",
+			hdr:         IfAddrmsgSizeCst,
+			msgType:     uint16(unix.RTM_GETMULTICAST),
+			paths:       []string{tdMcdumpMulticastV4_7_1_4, tdMcdumpMulticastV6_7_1_4},
+			floor:       ifaMulticastCaptureCoverageCst,
+		},
+		{
+			description: "positive: IFA_* coverage holds across the v6 anycast dump",
+			hdr:         IfAddrmsgSizeCst,
+			msgType:     uint16(unix.RTM_GETANYCAST),
+			paths:       []string{tdMcdumpAnycastV6_7_1_4},
+			floor:       ifaAnycastCaptureCoverageCst,
 		},
 	}
 

@@ -19,6 +19,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"golang.org/x/sys/unix"
 )
 
 var (
@@ -369,4 +371,52 @@ func DeserializeRTAttrBoth(b *testing.B, fn func(data []byte, rta *RTAttr) (n in
 
 	}
 	resultRTA = *rta
+}
+
+var resultAddr AddrInfo
+
+// BenchmarkParseNewAddr decodes one real RTM_NEWADDR reply body.
+// ParseNewAddr runs in the daemon's event path, so A1-T01 measured it before
+// and after adding IFA_RT_PRIORITY, IFA_ANYCAST, IFA_MULTICAST and IFA_MC_USERS
+// (docs/netlink/addr-write-path-status.md has the numbers).
+//
+//   - no_metric is goip0 from the guest dump: local, address, broadcast,
+//     label, flags and cacheinfo, but no IFA_RT_PRIORITY.
+//   - metric is d0 from the v4_metric readback state, which carries it.
+func BenchmarkParseNewAddr(b *testing.B) {
+	for _, bc := range []struct {
+		name  string
+		path  string
+		index uint32
+	}{
+		{name: "no_metric", path: tdDumpGetAddrV4_7_1_4, index: 3},
+		{name: "metric", path: tdLinkWrite_7_1_4 + "/addr-show/v4_metric/netlink_route_getaddr.pcap", index: 3},
+	} {
+		body := addrReplyBody(b, bc.path, unix.AF_INET, bc.index)
+		b.Run(bc.name, func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				ai, err := ParseNewAddr(body)
+				if err != nil {
+					b.Fatal(err)
+				}
+				resultAddr = ai
+			}
+		})
+	}
+}
+
+// addrReplyBody returns the first RTM_NEWADDR reply body in a dump-set pcap
+// for one family and interface index.
+func addrReplyBody(tb testing.TB, path string, family uint8, index uint32) []byte {
+	tb.Helper()
+	bodies, _ := readDumpSetReplies(tb, path, unix.RTM_NEWADDR)
+	for _, body := range bodies {
+		var m IfAddrmsg
+		if _, err := DeserializeIfAddrmsg(body, &m); err == nil && m.Family == family && m.Index == index {
+			return body
+		}
+	}
+	tb.Fatalf("%s: no RTM_NEWADDR for family %d index %d", path, family, index)
+	return nil
 }

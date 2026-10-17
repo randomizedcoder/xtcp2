@@ -9,7 +9,8 @@
 # partner in a second VM (Tier 2 of the same document).
 #
 # This exports ONE thing: `xtcp2-nlcap`, a helper installed on the guest's
-# PATH and invoked one subcommand at a time by a host driver
+# PATH (with `xtcp2-nl-mcdump`, below, on its own PATH) and invoked one
+# subcommand at a time by a host driver
 # (nix/microvms/scripts/capture-netlink-dumps.exp, goip-parity.exp,
 # capture-link-writes.exp and capture-lacp-pair.exp) over the serial console.
 #
@@ -99,9 +100,95 @@
 #
 { pkgs }:
 
+let
+  # xtcp2-nl-mcdump <inet|inet6|unspec> <multicast|anycast>
+  #
+  # One RTM_GETMULTICAST or RTM_GETANYCAST dump, for the addr-mcdump
+  # captures (docs/netlink/addr-write-path.md, table 6). Those are the only
+  # replies that carry IFA_MULTICAST, IFA_ANYCAST and IFA_MC_USERS, and the
+  # pinned `ip` never asks for them: `ip maddr` reads /proc until iproute2
+  # b8cdda55, which is in no release, and nothing in iproute2 sends
+  # RTM_GETANYCAST. So this sends the request itself, the way
+  # rtnl_mcaddrdump_req (lib/libnetlink.c:338) builds it: an nlmsghdr with
+  # NLM_F_REQUEST | NLM_F_DUMP and a zeroed ifaddrmsg naming the family.
+  #
+  # What is captured is the kernel's reply, off nlmon0; this request is the
+  # only byte string the fixture owes to us. stdout is one `<type> <count>`
+  # line per message type, which `capio` keeps as the row's sidecar. A
+  # NLMSG_ERROR answer is printed with its errno and exits 1.
+  mcdump = pkgs.writers.writePython3Bin "xtcp2-nl-mcdump" { } ''
+    import os
+    import socket
+    import struct
+    import sys
+
+    NETLINK_ROUTE = 0
+    NLMSG_ERROR = 2
+    NLMSG_DONE = 3
+    NLM_F_REQUEST = 0x1
+    NLM_F_DUMP = 0x300
+    RTM_GETMULTICAST = 58
+    RTM_GETANYCAST = 62
+
+    FAMILIES = {"unspec": 0, "inet": socket.AF_INET, "inet6": socket.AF_INET6}
+    KINDS = {"multicast": RTM_GETMULTICAST, "anycast": RTM_GETANYCAST}
+    NAMES = {
+        NLMSG_ERROR: "NLMSG_ERROR",
+        NLMSG_DONE: "NLMSG_DONE",
+        RTM_GETMULTICAST: "RTM_GETMULTICAST",
+        RTM_GETANYCAST: "RTM_GETANYCAST",
+    }
+
+
+    def main():
+        if len(sys.argv) != 3 or sys.argv[1] not in FAMILIES \
+                or sys.argv[2] not in KINDS:
+            sys.exit("usage: xtcp2-nl-mcdump <inet|inet6|unspec> "
+                     "<multicast|anycast>")
+        family = FAMILIES[sys.argv[1]]
+        msg_type = KINDS[sys.argv[2]]
+
+        s = socket.socket(socket.AF_NETLINK, socket.SOCK_RAW, NETLINK_ROUTE)
+        s.bind((0, 0))
+        seq = 1
+        ifaddrmsg = struct.pack("=BBBBI", family, 0, 0, 0, 0)
+        hdr = struct.pack("=IHHII", 16 + len(ifaddrmsg), msg_type,
+                          NLM_F_REQUEST | NLM_F_DUMP, seq, os.getpid())
+        s.send(hdr + ifaddrmsg)
+
+        counts = {}
+        done = False
+        while not done:
+            buf = s.recv(65536)
+            off = 0
+            while off + 16 <= len(buf):
+                mlen, mtype, _flags, mseq, _pid = struct.unpack_from(
+                    "=IHHII", buf, off)
+                if mlen < 16 or mseq != seq:
+                    break
+                name = NAMES.get(mtype, str(mtype))
+                counts[name] = counts.get(name, 0) + 1
+                if mtype == NLMSG_ERROR:
+                    (errno,) = struct.unpack_from("=i", buf, off + 16)
+                    print("NLMSG_ERROR %d" % errno)
+                    sys.exit(1)
+                if mtype == NLMSG_DONE:
+                    done = True
+                    break
+                off += (mlen + 3) & ~3
+            if off + 16 > len(buf) and not buf:
+                break
+        for name in sorted(counts):
+            print("%s %d" % (name, counts[name]))
+
+
+    main()
+  '';
+in
 pkgs.writeShellApplication {
   name = "xtcp2-nlcap";
   runtimeInputs = with pkgs; [
+    mcdump
     coreutils
     gawk
     gnugrep

@@ -70,7 +70,12 @@ does is missing, in five ways:
    `IFA_ADDRESS`, `IFA_LOCAL`, `IFA_LABEL`, `IFA_BROADCAST`, `IFA_FLAGS`,
    `IFA_CACHEINFO` and `IFA_PROTO`. `IFA_RT_PRIORITY` (printed as `metric N`),
    `IFA_ANYCAST`, `IFA_MULTICAST` and `IFA_MC_USERS` are skipped, so an address
-   with a metric renders without it.
+   with a metric renders without it. Only `IFA_RT_PRIORITY` comes in
+   `RTM_GETADDR` replies. The other three come only in `RTM_GETMULTICAST` and
+   `RTM_GETANYCAST` replies (`net/ipv6/addrconf.c:5267-5303`,
+   `net/ipv4/igmp.c:1526`), which the pinned `ip` 7.1.0 never requests.
+   `IFA_MC_USERS` (attribute 12, which x/sys does not define) landed in Linux
+   7.2, so the 7.1.4 corpus kernel never sends it.
 4. **There is no write path.** `runAddress` (`obj_addr.go:29`) refuses `add`,
    `change`, `replace`, `delete` and `flush` at `:44` with
    `goip is read-only: ErrNotImplemented`, and `save`, `showdump` and `restore`
@@ -776,7 +781,9 @@ unchanged.
   error)`, which lays out the `ifaddrmsg` and calls `BuildWriteRequest`. The
   "flags > 0xff spill" rule lives here and nowhere else.
 - **`ParseNewAddr`** gains `RtPriority`/`HasRtPriority` (u32), `Anycast`,
-  `Multicast` and `McUsers`, decoded in the same pass. `ParseNewAddr` runs in
+  `Multicast` and `McUsers`/`HasMcUsers` (u32), decoded in the same pass. A
+  u32 attribute shorter than 4 bytes is ignored, as a short `IFA_FLAGS` already
+  is. `ParseNewAddr` runs in
   the daemon's event path, so Phase 1 adds a benchmark next to the existing
   ones and a guard that the new fields add no allocation for an address that
   lacks them.
@@ -1031,14 +1038,22 @@ it against the table's expected column.
 |1|positive|each readback state's fields|every `link-write/addr-show/*/netlink_route_getaddr*.pcap`|fields equal to the plain and `-j` sidecar lines|
 |2|positive|metric decoded|`v4_metric`|`HasRtPriority`, `RtPriority` 50; text `metric 50`|
 |3|positive|v6 peer decoded|`v6_peer`|`Local` and `Address` differ|
-|4|boundary|metric attribute absent|`v4` from `build_clean`|`HasRtPriority` false, no `metric` token|
+|4|boundary|metric attribute absent|`v4` from `build_clean` (the guest-dumps corpus, `dumps/`)|`HasRtPriority` false, no `metric` token|
 |5|boundary|infinite lifetimes|`build_clean` addresses|`forever` in text, `4294967295` in JSON|
-|6|boundary|finite lifetimes|`v4_lifetimes` (frozen bytes)|the seconds as captured|
-|7|negative|truncated `IFA_RT_PRIORITY`|hand bytes, 2-byte payload|error|
+|6|boundary|finite lifetimes|`v4_lifetimes` (frozen bytes), each pcap against the sidecar from the same `ip` run|the seconds as captured: 3600/1800 plain, 3599/1799 `-j`|
+|7|negative|truncated `IFA_RT_PRIORITY`|hand bytes, 2-byte payload|no error; `HasRtPriority` false. A short attribute is ignored, as a short `IFA_FLAGS` is|
 |8|negative|short `ifaddrmsg`|hand bytes, 7-byte body|error|
 |9|corner|IPv6 with no `IFA_LOCAL`|`v6_flags`|`Local` aliased from `Address`|
-|10|corner|a flag bit with no name|hand bytes, `IFA_FLAGS` `0x1000`|text `flags 1000`, JSON as the sidecar shows|
+|10|corner|a flag bit with no name|hand bytes, `IFA_FLAGS` `0x1000`|text `flags 1000`, JSON as the sidecar shows. A render row: Phase 1's A1-T02|
 |11|corner|IPv4 deprecated|`v4_deprecated`|`deprecated` token rendered on IPv4|
+|12|negative|truncated `IFA_MC_USERS`|hand bytes, 3-byte payload|no error; `HasMcUsers` false|
+|13|positive|IPv6 multicast groups|`link-write/addr-mcdump/mc_any/netlink_route_getmulticast_v6.pcap`|the (ifindex, `Multicast`) set equals `proc_net_igmp6`'s; `ff02::1` on `d0`|
+|14|positive|IPv4 multicast groups|`…/netlink_route_getmulticast_v4.pcap`|the set equals `proc_net_igmp`'s; `224.0.0.251` on `d0`|
+|15|positive|IPv6 anycast|`…/netlink_route_getanycast_v6.pcap`|the set equals `proc_net_anycast6`'s; the subnet-router anycast `2001:db8:1::` on `d0`|
+|16|boundary|no `IFA_MC_USERS` on 7.1.4|both multicast pcaps|`HasMcUsers` false on every message. The row fails on a ≥7.2 corpus kernel, which should get a positive row instead|
+|17|corner|no `IFA_ADDRESS`/`IFA_LOCAL`|all three pcaps|`Address` and `Local` nil: nothing is aliased|
+|18|corner|the group header|all three pcaps|prefixlen 32 or 128, `IFA_F_PERMANENT` set (`put_ifaddrmsg`)|
+|19|negative|`AF_UNSPEC` multicast dump; `AF_INET` anycast dump|`…/netlink_route_getmulticast_unspec`, `…/netlink_route_getanycast_v4`|`NLMSG_ERROR` -95 (`EOPNOTSUPP`): no dumpit for the family or for `PF_UNSPEC` (`net/core/rtnetlink.c:7073-7078`)|
 
 ### 7. `TestAddrBriefMatchesSidecar` and `TestAddrOnelineMatchesSidecar` (Phases 1 and 3)
 

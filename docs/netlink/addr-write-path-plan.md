@@ -195,15 +195,24 @@ Design: [Go design](addr-write-path.md#go-design--what-to-add-and-what-to-reuse)
 
 Deliver:
 - In `pkg/xtcpnl/xtcpnl_ifaddrmsg.go`, `RtPriority`/`HasRtPriority` (u32),
-  `Anycast`, `Multicast` and `McUsers`, decoded in the existing single pass.
+  `Anycast`, `Multicast` and `McUsers`/`HasMcUsers` (u32), decoded in the
+  existing single pass.
 - A benchmark in `pkg/xtcpnl/xtcpnl_bench_test.go`, plus an allocation guard
   showing an address without the new attributes allocates no more than before.
+- The `RTM_GETMULTICAST`/`RTM_GETANYCAST` fixtures, because no `RTM_GETADDR`
+  reply carries those attributes: an `xtcp2-nl-mcdump` sender in
+  `nix/microvms/netlink-capture.nix`, and an `addr_mcdump` group in
+  `capture-link-writes.exp` writing `link-write/addr-mcdump/mc_any/`.
 
-Tests: `TestParseNewAddrRichFixtures`
-([table 6](addr-write-path.md#6-testparsenewaddrrichfixtures-phase-1)).
+Tests: `TestParseNewAddrRichFixtures`, `TestParseNewAddrMalformed`,
+`TestParseMcastAnycastFixtures` and `TestParseNewAddrAllocs`
+([table 6](addr-write-path.md#6-testparsenewaddrrichfixtures-phase-1); row 10
+is a render row and moves to A1-T02).
 
-Done when: the table passes over every readback pcap, and the benchmark and
-guard are committed with before/after numbers in the ledger.
+Done when: the tables pass over every readback pcap and the mcdump pcaps; the
+benchmark and guard are committed with before/after numbers in the ledger;
+and the capture run prints `NLCAP_DRIVER_PASS`, with only
+`link-write/addr-mcdump/` copied into the repo.
 
 #### A1-T02
 
@@ -215,7 +224,9 @@ Deliver:
   `v4_autojoin` in `internal/goipparity/commands.go`, `Implemented: true`
 
 Tests: sidecar goldens in `internal/goip/render/addr_test.go`, plain and `-j`
-for every readback state.
+for every readback state, plus
+[table 6](addr-write-path.md#6-testparsenewaddrrichfixtures-phase-1) row 10
+(`flags 1000`), which A1-T01 left here because it is a render row.
 
 Done when:
 - the goldens are byte-identical

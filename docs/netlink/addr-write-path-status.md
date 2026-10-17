@@ -2,15 +2,17 @@
 
 Last updated: 2026-10-16.
 
-**Phase A0 is done.** The design
+**Phase A0 is done, and A1-T01 is done.** The design
 ([addr-write-path.md](addr-write-path.md)) and the plan
-([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. 5 of 25
+([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. 6 of 25
 tasks are done: A0-T01 (V001), A0-T02 (closed by a finding, V002), A0-T03
-and A0-T04, closed by one KVM capture (V005), and A0-T05, which recorded
-M1–M3 from that capture's fixtures (V006).
+and A0-T04, closed by one KVM capture (V005), A0-T05, which recorded M1–M3
+from that capture's fixtures (V006), and A1-T01, which decodes the four
+attributes and adds the multicast and anycast dump fixtures (V009–V012).
 
-**Next action:** A1-T01, A2-T01 and A3-T01 (each depends on A0-T04) and
-A4-T01 (A0-T03) are unblocked. Pick one; one task, one PR.
+**Next action:** A1-T02 (depends on A1-T01), A2-T01 and A3-T01 (each
+depends on A0-T04) and A4-T01 (A0-T03) are unblocked. Pick one; one task, one
+PR.
 
 ## Update rules
 
@@ -45,7 +47,7 @@ A4-T01 (A0-T03) are unblocked. Pick one; one task, one PR.
 | Phase | Scope | State | Tasks done | Evidence |
 |---|---|---|---|---|
 | A0 | capture: topologies, corpus, measurements | done | 5/5 | V001, V002, V003, V005, V006 |
-| A1 | decode and render `metric`/`any`/`mcast` | not started | 0/2 | — |
+| A1 | decode and render `metric`/`any`/`mcast` | in progress | 1/2 | V009, V010, V011, V012 |
 | A2 | `addr show` selectors | not started | 0/3 | — |
 | A3 | `-br` and `-o` | not started | 0/3 | — |
 | A4 | the gate admits `RTM_NEWADDR`/`RTM_DELADDR` | not started | 0/1 | — |
@@ -67,7 +69,7 @@ Add evidence IDs to the last column as work runs.
 | [x] | [A0-T03](addr-write-path-plan.md#a0-t03) | write, flush and save corpus lists | done | V003, V005 |
 | [x] | [A0-T04](addr-write-path-plan.md#a0-t04) | readback states | done | V003, V005 |
 | [x] | [A0-T05](addr-write-path-plan.md#a0-t05) | record the Phase 0 measurements | done | V006, DOC004 |
-| [ ] | [A1-T01](addr-write-path-plan.md#a1-t01) | `ParseNewAddr` gains four attributes | not started | — |
+| [x] | [A1-T01](addr-write-path-plan.md#a1-t01) | `ParseNewAddr` gains four attributes | done | V009, V010, V011, V012, DOC005 |
 | [ ] | [A1-T02](addr-write-path-plan.md#a1-t02) | render `metric`, `any`, `mcast` | not started | — |
 | [ ] | [A2-T01](addr-write-path-plan.md#a2-t01) | `addrFilter` and its parser | not started | — |
 | [ ] | [A2-T02](addr-write-path-plan.md#a2-t02) | apply the filter in `addrShow` | not started | — |
@@ -133,6 +135,13 @@ it.
 | DOC003 | 2026-10-16 | A0-T03/A0-T04 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc: 25 task IDs one to one; local links and anchors resolve; plus `git diff --check` | Passed | Summary retained here; the checker script was session-local |
 | V006 | 2026-10-16 | A0-T05, M1–M3 | `go test ./pkg/xtcpnl/ -run TestAddrCaptureCorpusComplete -v` over the committed fixtures, with its new `measurements` subtest (11 rows), then `go test ./pkg/xtcpnl/... ./pkg/nlparity/... ./internal/goip/... ./internal/goipparity/...`. Mutation check: the errno changed to `EINVAL`, the default to `0` and the `RTM_GETADDR` count to 2 each failed only its row, and were reverted. No recapture. | Passed: all subtests green; Go green | `pkg/xtcpnl/xtcpnl_addr_corpus_test.go`; the fixtures cited in the measurement table |
 | DOC004 | 2026-10-16 | A0-T05 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc: 25 task IDs one to one; local links and anchors resolve; no "Phase 0 measures/records" wording left in the design; plus `git diff --check` | Passed | Summary retained here; the checker script was session-local |
+| V007 | 2026-10-16 | A1-T01 | `nix run .#microvm-x86_64-link-write-capture -- --out <scratch>` from a scratch worktree, on an x86_64 NixOS host with `/dev/kvm` | Failed: `addr-mcdump/mc_any: sysctl net.ipv6.conf.d0.forwarding=1 refused`, so the group wrote no pcap; every other row passed. The likely cause is the 7.1 handler, which returns 1 from a per-device `forwarding` write until 058b9b19 (7.2); the `default` branch returns 0. The guest's error text was not kept. The step now sets `net.ipv6.conf.default.forwarding` before `d0` exists | transcript not kept; nothing from this run is committed |
+| V008 | 2026-10-16 | A1-T01 | the same capture, rerun after the sysctl fix | Failed: `NLCAP_CAP_SHORT` on the three positive dumps, 2 datagrams against a floor of 3. Each dump is the request and one reply datagram holding every group and the `NLMSG_DONE`; the floor became 2. The two negative rows passed. Stopped before the end | transcript not kept; nothing from this run is committed |
+| V009 | 2026-10-16 | A1-T01 | the same capture, rerun after the floor fix | Passed: `NLCAP_DRIVER_PASS`. `RTM_GETMULTICAST` v4 4 replies, v6 6, `RTM_GETANYCAST` v6 2, each the same set as its `/proc/net/{igmp,igmp6,anycast6}` sidecar. `AF_UNSPEC` multicast and `AF_INET` anycast both `NLMSG_ERROR -95`, rc 1 | `pkg/xtcpnl/testdata/7_1_4/link-write/addr-mcdump/mc_any/`; only that directory was copied from the run, and no other fixture changed |
+| V010 | 2026-10-16 | A1-T01 | `go test ./pkg/xtcpnl/... ./pkg/nlparity/... ./internal/goip/... ./internal/goipparity/...`, which includes `TestParseNewAddrRichFixtures` (19 per-state `-j` comparisons, 8 rows), `TestParseNewAddrMalformed` (4), `TestParseMcastAnycastFixtures` (11), `TestParseNewAddrAllocs` (3) and the raised `TestAttrCoverageFloors` (IFA 8, multicast 2, anycast 2). Mutation check in a scratch worktree: dropping the `IFA_RT_PRIORITY` case, swapping the `Anycast` and `Multicast` assignments, and making a short `IFA_RT_PRIORITY` an error each failed only the rows that name them, and were reverted | Passed: all green; the three mutants caught | `pkg/xtcpnl/xtcpnl_addr_rich_test.go` |
+| V011 | 2026-10-16 | A1-T01 | `BenchmarkParseNewAddr`, `-benchmem`, 10 runs of `main` and the branch interleaved on one host (AMD Ryzen Threadripper PRO 3945WX), compared with benchstat | allocs/op and B/op unchanged: `no_metric` 4 allocs, 32 B; `metric` 3 allocs, 24 B. sec/op: `no_metric` 166.9 → 176.6 ns (+5.8%), `metric` 144.0 → 153.8 ns (+6.8%), p=0.000. The time is the larger value result: `AddrInfo` grows from 128 to 192 bytes, and `ParseNewAddr` returns it by value. The allocation ceilings in `TestParseNewAddrAllocs` are main's counts: 4, 3, and 1 for a multicast reply | `pkg/xtcpnl/xtcpnl_bench_test.go`; the raw runs were session-local |
+| V012 | 2026-10-16 | A1-T01 | one nix check per call: `.#test-focused-goip`, `checks.netlink-audit`, `checks.lint-baseline`, `.#quality-report`, `checks.nix-fmt`, `checks.statix`, `checks.deadnix`, `checks.vm-lib-exp` | Passed, after the lint ratchet's first run flagged a 192-byte `rangeValCopy` and two `prealloc`s in the new test file, which were fixed rather than baselined | the check outputs; `vm-lib-exp` ran 22, 93 and 59 rows |
+| DOC005 | 2026-10-16 | A1-T01 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc: 25 task IDs one to one; local links and anchors resolve; plus `git diff --check` | Passed: 25 task IDs one to one; no broken links or anchors; ledger IDs unique and in order | Summary retained here; the checker script was session-local |
 
 ## Blockers and upcoming requirements
 
@@ -141,6 +150,36 @@ it.
 - **No open blockers.**
 
 ## Progress and decision log
+
+- **2026-10-16.** A1-T01 is done.
+  - **Three of the four attributes never come in `RTM_GETADDR`.**
+    `IFA_ANYCAST`, `IFA_MULTICAST` and `IFA_MC_USERS` come only in
+    `RTM_GETANYCAST`/`RTM_GETMULTICAST` replies, and the pinned `ip` 7.1.0
+    sends neither (`ip maddr` reads `/proc` until iproute2 b8cdda55, which is
+    in no release). So A1-T01 added a stdlib-Python sender,
+    `xtcp2-nl-mcdump`, and an `addr_mcdump` capture group. The oracle is the
+    `/proc` file the kernel renders from the same lists.
+  - **`AF_UNSPEC` multicast and `AF_INET` anycast dumps are `EOPNOTSUPP`**,
+    because neither the family nor `PF_UNSPEC` has a dumpit
+    (`net/core/rtnetlink.c:7073-7078`). The planned "unspec returns the union"
+    row became two negative rows.
+  - **`IFA_MC_USERS` waits for a ≥7.2 corpus kernel.** It landed after 7.1
+    (7cb81987, e1d0f3f0). The decoder handles it, the malformed rows test it,
+    and a boundary row pins its absence on 7.1.4; that row fails once the
+    corpus kernel moves, asking for the positive row. Open item.
+  - **A short u32 attribute is ignored, not an error.** Design table 6 row 7
+    said "error"; the existing convention (a short `IFA_FLAGS`, a short
+    cacheinfo) is to skip it, and the row now says so.
+  - **Each pcap is compared with its own sidecar.** The plain and `-j` runs
+    are a second apart, so lifetimes differ by one (3600 vs 3599).
+  - **Table 6 row 4's input is the guest-dumps corpus**, not `addr-show`; row
+    10 (`flags 1000`) is a render row and moved to A1-T02.
+  - **The coverage floors went up**: IFA 7 → 8 with `v4_metric`, and new
+    floors of 2 for the multicast and anycast pcaps.
+  - **The forwarding sysctl is set on `default`**, before `d0` exists (V007).
+  - **`ParseNewAddr` is about 10 ns slower per address**, with no new
+    allocation (V011). The cost is the 64 bytes `AddrInfo` gained, returned
+    by value. Accepted: the plan's guard is on allocations.
 
 - **2026-10-16.** A0-T05 is done, and with it Phase A0.
   - **Closed from the committed fixtures, with no recapture.** V005's capture

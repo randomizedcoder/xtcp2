@@ -362,6 +362,13 @@ const (
 	tdEventsMonitor_7_1_4 = tdBase + "/7_1_4/ip_monitor_all"
 	tdEventsIPLink_7_1_4  = tdBase + "/7_1_4/ip_link_n"
 
+	// A1-T01: the addr-show state with IFA_RT_PRIORITY, and the multicast and
+	// anycast dumps no `ip addr` sends (link-write/addr-mcdump/mc_any).
+	tdAddrShowMetric_7_1_4    = tdLinkWrite_7_1_4 + "/addr-show/v4_metric/netlink_route_getaddr.pcap"
+	tdMcdumpMulticastV4_7_1_4 = tdLinkWrite_7_1_4 + "/addr-mcdump/mc_any/netlink_route_getmulticast_v4.pcap"
+	tdMcdumpMulticastV6_7_1_4 = tdLinkWrite_7_1_4 + "/addr-mcdump/mc_any/netlink_route_getmulticast_v6.pcap"
+	tdMcdumpAnycastV6_7_1_4   = tdLinkWrite_7_1_4 + "/addr-mcdump/mc_any/netlink_route_getanycast_v6.pcap"
+
 	// Bare testdata/ (no kernel subdir — placeholder fixtures)
 	tdAttrPragueinfoFake = tdBase + "/attribute_pragueinfo_fake_fixme"
 )
