@@ -28,6 +28,24 @@ class ReportTests(unittest.TestCase):
                     with self.assertRaises(ValueError):
                         check_tracker(plan, text)
 
+    def test_tracker_prefix(self):
+        plan = "#### R0-T01\n"
+        status = ("0 of 1 implementation tasks\n"
+                  "| [ ] | [R0-T01](plan) | work | not started | none |\n"
+                  "| R0 | phase | not started | 0/1 | none |\n")
+        for description, text, prefix, valid in [
+            ("R tracker accepted with the R prefix", status, "R", True),
+            ("R tracker rejected with the default P prefix", status, "P", False),
+            ("P task in an R tracker rejected", status.replace("[R0-T01]", "[P01-T01]"), "R", False),
+            ("R phase row without tasks rejected", status + "| R1 | phase | not started | 0/0 | none |\n", "R", False),
+        ]:
+            with self.subTest(description=description, expected_success=valid):
+                if valid:
+                    check_tracker(plan, text, prefix)
+                else:
+                    with self.assertRaises(ValueError):
+                        check_tracker(plan, text, prefix)
+
     def test_links(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "doc.md"
