@@ -837,8 +837,11 @@ like the bond read rows. One row per selector:
 `addr show d0`;
 
 and the output modes: `-br addr show`, `-o addr show`, `-br -j addr show`,
-`-o -6 addr show`, `addr show` on `v4_metric`, `v4_peer`, `v6_peer` and
-`v4_autojoin` (the render paths Phase 1 adds).
+`-o -6 addr show`, and the render paths Phase 1 adds: `addr show dev
+metric0`, `addr show dev peer4`, `addr show dev peer6` and `addr show dev
+autojoin0`, the `v4_metric`, `v4_peer`, `v6_peer` and `v4_autojoin` states
+each on a device named for it. A row's Name is its argv and must be unique,
+so four rows on one `addr show` would collide.
 
 ### Write rows
 
@@ -1050,7 +1053,7 @@ rows that need the filter applied or a pcap, 4, 5, 7, 8, 20, 22, 23, 25 and
 |7|negative|truncated `IFA_RT_PRIORITY`|hand bytes, 2-byte payload|no error; `HasRtPriority` false. A short attribute is ignored, as a short `IFA_FLAGS` is|
 |8|negative|short `ifaddrmsg`|hand bytes, 7-byte body|error|
 |9|corner|IPv6 with no `IFA_LOCAL`|`v6_flags`|`Local` aliased from `Address`|
-|10|corner|a flag bit with no name|hand bytes, `IFA_FLAGS` `0x1000`|text `flags 1000`, JSON as the sidecar shows. A render row: Phase 1's A1-T02|
+|10|corner|a flag bit with no name|hand bytes, `IFA_FLAGS` `0x1000`|text `flags 1000`; JSON `"ifa_flags":"1000"` after the flag booleans, from `print_ifa_flags`: the kernel never sets the bit, so no sidecar shows it. A render row: Phase 1's A1-T02|
 |11|corner|IPv4 deprecated|`v4_deprecated`|`deprecated` token rendered on IPv4|
 |12|negative|truncated `IFA_MC_USERS`|hand bytes, 3-byte payload|no error; `HasMcUsers` false|
 |13|positive|IPv6 multicast groups|`link-write/addr-mcdump/mc_any/netlink_route_getmulticast_v6.pcap`|the (ifindex, `Multicast`) set equals `proc_net_igmp6`'s; `ff02::1` on `d0`|
@@ -1060,6 +1063,33 @@ rows that need the filter applied or a pcap, 4, 5, 7, 8, 20, 22, 23, 25 and
 |17|corner|no `IFA_ADDRESS`/`IFA_LOCAL`|all three pcaps|`Address` and `Local` nil: nothing is aliased|
 |18|corner|the group header|all three pcaps|prefixlen 32 or 128, `IFA_F_PERMANENT` set (`put_ifaddrmsg`)|
 |19|negative|`AF_UNSPEC` multicast dump; `AF_INET` anycast dump|`…/netlink_route_getmulticast_unspec`, `…/netlink_route_getanycast_v4`|`NLMSG_ERROR` -95 (`EOPNOTSUPP`): no dumpit for the family or for `PF_UNSPEC` (`net/core/rtnetlink.c:7073-7078`)|
+
+### 6b. `TestAddrMonitorMcastGoldens` (Phase 1)
+
+`ip addr show` never receives an `RTM_NEWMULTICAST` or `RTM_NEWANYCAST`
+message, so it never prints `mcast` or `any`. `ip monitor maddress acaddress`
+does (`ip/ipmonitor.c:156-160`), and it is the oracle: the
+`link-write/addr-monitor/mc_any/` capture runs it while a trigger joins and
+leaves groups on `d0`, and each notification in the pcap goes through
+`ParseNewAddr` and `AddrView.Text` and is compared with the event `ip`
+printed for it. A dummy is `IFF_NOARP`, so it joins no solicited-node group
+(`addrconf_join_solict`), and its `ff02::1`/`ff01::1` joins happen at
+registration, before the monitor starts; the v6 groups are therefore an
+explicit `autojoin`. In 7.1.0 `ip -j monitor` prints text: `ipmonitor.c`
+never opens a JSON context. The `anycast` and `multicast` JSON keys are
+therefore source-derived (the `PRINT_ANY` call sites) and pinned by hand rows
+in `TestAddrViewJSONBytes`.
+
+| # | class | description | input | expected |
+|---|---|---|---|---|
+|1|positive|one to one, in order|`netlink_route_monitor_maddr.pcap` + `.out`|as many notifications as events (7)|
+|2|positive|v4 multicast|`224.0.0.1` on up, `224.0.0.251` autojoin, the canary `224.0.0.250` on `c0`|each body, prefix stripped, byte-identical: `    inet mcast … scope global ` and the lifetime line|
+|3|positive|v6 multicast|`ff02::fb` autojoin on `d0`|byte-identical|
+|4|positive|v6 anycast|the subnet-router anycast `2001:db8:1::` on `d0`|`    inet6 any 2001:db8:1:: scope global ` byte-identical|
+|5|corner|a leave|the `RTM_DELMULTICAST` (61) of `ff02::fb` and of `224.0.0.251`|the event starts `Deleted `; the body is byte-identical|
+|6|corner|no local block|every event|no `IFA_LOCAL`/`IFA_ADDRESS`; neither side prints an address, `/len` or `metric`|
+|7|boundary|`ip -j monitor` has no JSON in 7.1.0|`netlink_route_monitor_maddr_json.pcap` + `.out`|no `{` in the sidecar; the events match as in rows 1-6|
+|8|corner|the prefix|every event|`^(Deleted )?N: (c0\|d0)`, and N is the message's `ifa_index`|
 
 ### 7. `TestAddrBriefMatchesSidecar` and `TestAddrOnelineMatchesSidecar` (Phases 1 and 3)
 

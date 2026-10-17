@@ -25,16 +25,21 @@ import (
 // iproute2's key order follows its print_* call order and is not worth
 // reproducing.
 type LinkView struct {
-	IfIndex int32    `json:"ifindex"`
-	IfName  string   `json:"ifname"`
-	Flags   []string `json:"flags"`
+	IfIndex int32 `json:"ifindex"`
 
 	// Link is IFLA_LINK's target, set only on the path where iproute2 resolves
 	// it (no IFLA_LINK_NETNSID). LinkIndex is set on the other path, where the
 	// peer lives in another namespace and only its index is meaningful. At
 	// most one is ever set; see LinkViewOf.
+	//
+	// They are declared ahead of IfName because print_name_and_link emits
+	// them before "ifname" (lib/utils.c:1302-1345), and `ip -j addr show`
+	// is compared byte for byte (TestAddrShowReadbackGoldens).
 	Link      *LinkTarget `json:"link,omitempty"`
 	LinkIndex *int32      `json:"link_index,omitempty"`
+
+	IfName string   `json:"ifname"`
+	Flags  []string `json:"flags"`
 
 	MTU       uint32  `json:"mtu,omitempty"`
 	Qdisc     string  `json:"qdisc,omitempty"`

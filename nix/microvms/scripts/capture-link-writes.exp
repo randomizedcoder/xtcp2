@@ -46,6 +46,9 @@
 #   addr-save/<slug>/    `ip addr save|showdump|restore`
 #   addr-mcdump/mc_any/  the RTM_GETMULTICAST and RTM_GETANYCAST dumps,
 #                        which no `ip addr` sends; see addr_mcdump below
+#   addr-monitor/mc_any/ `ip monitor maddress acaddress` over the same
+#                        joins, the only `ip` that prints `mcast` and `any`;
+#                        see addr_monitor below
 #
 # The rows are data in scripts/addr-corpus.exp, where the hermetic check
 # can read them. A required state that cannot be built fails the run; one of
@@ -339,6 +342,72 @@ proc addr_mcdump {} {
 }
 
 ###############################################################################
+# addr_monitor - the oracle for `any ADDR` and `mcast ADDR` (A1-T02;
+# docs/netlink/addr-write-path.md, table 6).
+#
+# `ip addr show` never receives an RTM_NEWMULTICAST or RTM_NEWANYCAST
+# message; `ip monitor maddress acaddress` does and hands it to
+# print_addrinfo (ip/ipmonitor.c:156-160), so its stdout is what goip must
+# render for one. xtcp2-nl-ipmon (nix/microvms/netlink-capture.nix) starts
+# the monitor, waits until it prints a canary join on c0, runs the trigger
+# and stops once every pattern has been printed.
+#
+# c0 and d0 exist before the monitor starts, so its `N: dev` prefix names
+# them. That also puts d0's ff02::1 and ff01::1 joins (ipv6_add_dev, at
+# registration) before the monitor, and a dummy is IFF_NOARP, so it joins no
+# solicited-node group at all (addrconf_join_solict returns early). So the
+# trigger makes every event explicitly: 224.0.0.1 on up, the subnet-router
+# anycast 2001:db8:1:: (forwarding=1, as in addr_mcdump) on the address,
+# then a v6 and a v4 autojoin group, each joined and left.
+#
+# A `write` row, not capio: a read is retried on a missed floor, and a
+# second run would meet a namespace the first one changed. Each row has its
+# own namespace. The floor is 30 of the 45 datagrams the first passing run
+# measured on each row: the notifications, the trigger's requests and acks,
+# and the canary's. The `-j` row is the boundary: 7.1.0's monitor never opens a
+# JSON context (ipmonitor.c has no new_json_obj), so it prints text too.
+###############################################################################
+proc addr_monitor {} {
+    global addr_problems
+    set ns $addrtopo::NS_A
+    set subdir addr-monitor/mc_any
+    lassign [nlcap dir $subdir] dir_rc dir
+    set dir [string trim $dir]
+    set trigger "ip link set d0 up; ip -6 addr add 2001:db8:1::1/64 dev d0 nodad; ip -6 addr add ff02::fb/128 dev d0 autojoin; ip -6 addr del ff02::fb/128 dev d0; ip addr add 224.0.0.251/32 dev d0 autojoin; ip addr del 224.0.0.251/32 dev d0"
+    set until {}
+    foreach re {{any 2001:db8:1:: } {Deleted .*mcast ff02::fb } {Deleted .*mcast 224.0.0.251 }} {
+        append until " \"$re\""
+    }
+    foreach {name args} {
+        netlink_route_monitor_maddr      {monitor maddress acaddress}
+        netlink_route_monitor_maddr_json {-j monitor maddress acaddress}
+    } {
+        vmlib::log "=== addr monitor $name ==="
+        vmlib::must "xtcp2-nlcap ns-add $ns"
+        if {![addrtopo::sysctl $ns $subdir net.ipv6.conf.default.forwarding 1]} {
+            lappend addr_problems "$subdir: sysctl net.ipv6.conf.default.forwarding=1 refused"
+            return
+        }
+        nltopo::topo $ns $subdir link add c0 type dummy
+        nltopo::topo $ns $subdir link set c0 up
+        nltopo::topo $ns $subdir link add d0 type dummy
+        nltopo::topo $ns $subdir link set d0 addrgenmode none
+        set command "xtcp2-nl-ipmon c0 \"$args\" \"$trigger\"$until"
+        lassign [nlcap write $ns $subdir $name 30 "'$command'"] rc out
+        if {$rc != 0} {
+            lappend addr_problems "$subdir/$name: $out"
+            continue
+        }
+        vmlib::log [string trim $out]
+        # The capture's status is the floor; xtcp2-nl-ipmon's is in .rc,
+        # and non-zero there means a pattern never printed.
+        if {[vmlib::run "grep -qx 0 $dir/$name.rc"] != 0} {
+            lappend addr_problems "$subdir/$name: xtcp2-nl-ipmon failed, see $name.err"
+        }
+    }
+}
+
+###############################################################################
 # promote_default - M3: the promote_secondaries a fresh namespace gives a new
 # device, recorded beside flush_primary and returned so flush_rows can build
 # flush_primary_flipped from its opposite. Empty when it cannot be read.
@@ -448,6 +517,7 @@ foreach row $addrcorpus::write_rows {
 
 set addr_problems {}
 addr_mcdump
+addr_monitor
 set promote [promote_default]
 if {$promote eq ""} {
     lappend addr_problems "promote_secondaries default unreadable; addr-flush rows not run"

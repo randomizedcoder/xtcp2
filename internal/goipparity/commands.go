@@ -483,6 +483,30 @@ var commands = withArgs([]Command{
 		Floor: 6, Implemented: true,
 	},
 	{
+		Name: "addr show dev metric0", Slug: "addr_show_dev_metric",
+		Setup: addrStateSetup("metric0", "addr add 192.0.2.1/24 metric 50 dev metric0"),
+		// A1-T02: `metric 50`, inside the local block. Each of these four
+		// rows is an addr-show state (v4_metric, v4_peer, v6_peer,
+		// v4_autojoin) on a device named for it, because a row's Name is its
+		// argv and must be unique. Six, as `addr show dev`.
+		Floor: 6, Implemented: true,
+	},
+	{
+		Name: "addr show dev peer4", Slug: "addr_show_dev_peer4",
+		Setup: addrStateSetup("peer4", "addr add 10.0.0.1 peer 10.0.0.2/32 dev peer4"),
+		Floor: 6, Implemented: true,
+	},
+	{
+		Name: "addr show dev peer6", Slug: "addr_show_dev_peer6",
+		Setup: addrStateSetup("peer6", "-6 addr add 2001:db8::1 peer 2001:db8::2/128 nodad dev peer6"),
+		Floor: 6, Implemented: true,
+	},
+	{
+		Name: "addr show dev autojoin0", Slug: "addr_show_dev_autojoin",
+		Setup: addrStateSetup("autojoin0", "addr add 224.0.0.251/32 autojoin dev autojoin0"),
+		Floor: 6, Implemented: true,
+	},
+	{
 		Name: "route show", Slug: "route_show",
 		// Four: the route dump, then one lazy RTM_GETLINK single-get for the
 		// one ifindex the listing mentions. iproute_list_flush_or_save never
@@ -1815,6 +1839,18 @@ var bondReadSetup = []string{
 	"link set la1 master bond0",
 	"link set la2 master bond0",
 	"link set bond0 up",
+}
+
+// addrStateSetup is an addr-show state's topology
+// (scripts/addr-topology.exp) on a dummy named dev: the fixed MAC, no
+// generated link-local, up, then the state's address.
+func addrStateSetup(dev, addr string) []string {
+	return []string{
+		"link add " + dev + " address 02:00:00:00:d0:00 type dummy",
+		"link set " + dev + " addrgenmode none",
+		"link set " + dev + " up",
+		addr,
+	}
 }
 
 // withArgs fills every row's Args from its Name.

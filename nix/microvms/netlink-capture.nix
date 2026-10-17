@@ -9,8 +9,8 @@
 # partner in a second VM (Tier 2 of the same document).
 #
 # This exports ONE thing: `xtcp2-nlcap`, a helper installed on the guest's
-# PATH (with `xtcp2-nl-mcdump`, below, on its own PATH) and invoked one
-# subcommand at a time by a host driver
+# PATH (with `xtcp2-nl-mcdump` and `xtcp2-nl-ipmon`, below, on its own PATH)
+# and invoked one subcommand at a time by a host driver
 # (nix/microvms/scripts/capture-netlink-dumps.exp, goip-parity.exp,
 # capture-link-writes.exp and capture-lacp-pair.exp) over the serial console.
 #
@@ -184,11 +184,98 @@ let
 
     main()
   '';
+
+  # xtcp2-nl-ipmon <canary-dev> <ip-args> <trigger> <until-ERE>...
+  #
+  # `ip <ip-args>` (a `monitor maddress acaddress`) in the background while
+  # <trigger> runs, for the addr-monitor captures (A1-T02;
+  # docs/netlink/addr-write-path.md). `ip monitor` is the only `ip` that
+  # prints an RTM_NEWMULTICAST or RTM_NEWANYCAST message: accept_msg hands
+  # them to print_addrinfo (ip/ipmonitor.c:156-160), so its stdout is the
+  # oracle for `mcast ADDR` and `any ADDR`.
+  #
+  # Ready means subscribed, and that cannot be read off /proc/net/netlink:
+  # RTNLGRP_IPV4_MCADDR, IPV6_MCADDR and IPV6_ACADDR are groups 37-39, past
+  # the 32 bits its Groups column shows. So a canary group, 224.0.0.250 on
+  # <canary-dev>, is joined until the monitor prints it, and left and joined
+  # again if it does not within a second. Its events stay in the output; the
+  # golden test pairs every notification with every block either way.
+  #
+  # Then <trigger> runs with `sh -c`, and the monitor is stopped once its
+  # output matches every <until-ERE>. ip fflushes after each message
+  # (lib/libnetlink.c:1278), so a line in the file is a message read.
+  # SIGTERM, not SIGINT: a non-interactive shell starts a background job
+  # with SIGINT ignored. stdout is the monitor's output; a timeout is
+  # reported on stderr and exits 1.
+  ipmon = pkgs.writeShellApplication {
+    name = "xtcp2-nl-ipmon";
+    runtimeInputs = with pkgs; [
+      coreutils
+      gnugrep
+      iproute2
+    ];
+    text = ''
+      [ $# -ge 4 ] || {
+        echo "usage: xtcp2-nl-ipmon <canary-dev> <ip-args> <trigger> <until-ERE>..." >&2
+        exit 2
+      }
+      canary_dev=$1
+      read -ra ip_args <<<"$2"
+      trigger=$3
+      shift 3
+
+      out=$(mktemp)
+      trap 'rm -f "$out"' EXIT
+      ip "''${ip_args[@]}" >"$out" 2>/dev/null &
+      mpid=$!
+
+      # wait_match <ERE> <tenths>: poll the monitor's output.
+      wait_match() {
+        local i
+        for ((i = 0; i < $2 * 2; i++)); do
+          grep -Eq -- "$1" "$out" && return 0
+          sleep 0.05
+        done
+        return 1
+      }
+
+      canary=224.0.0.250
+      ready=0
+      for _ in 1 2 3 4 5 6 7 8 9 10; do
+        ip addr add "$canary/32" dev "$canary_dev" autojoin
+        if wait_match "mcast $canary " 10; then
+          ready=1
+          break
+        fi
+        ip addr del "$canary/32" dev "$canary_dev"
+      done
+
+      rc=0
+      if [ "$ready" -ne 1 ]; then
+        echo "xtcp2-nl-ipmon: the monitor never printed the canary" >&2
+        rc=1
+      else
+        sh -c "$trigger" || rc=1
+        for re in "$@"; do
+          if ! wait_match "$re" 100; then
+            echo "xtcp2-nl-ipmon: no match for $re" >&2
+            rc=1
+          fi
+        done
+      fi
+
+      kill -TERM "$mpid" 2>/dev/null || true
+      wait "$mpid" 2>/dev/null || true
+      cat "$out"
+      exit "$rc"
+    '';
+  };
 in
 pkgs.writeShellApplication {
   name = "xtcp2-nlcap";
   runtimeInputs = with pkgs; [
     mcdump
+    ipmon
     coreutils
     gawk
     gnugrep

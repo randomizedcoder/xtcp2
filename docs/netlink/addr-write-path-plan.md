@@ -219,17 +219,31 @@ and the capture run prints `NLCAP_DRIVER_PASS`, with only
 **Render `metric`, `any` and `mcast`.** Depends on: A1-T01.
 
 Deliver:
-- the text and JSON forms in `internal/goip/render/addr.go`
+- the text and JSON forms in `internal/goip/render/addr.go`: `metric` inside
+  the local block, which prints only when the message had an address; `any`
+  and `mcast` after `brd`; and JSON members in `print_addrinfo`'s order, so
+  `-j` output is byte-identical rather than key-identical
 - the `addr show` read rows on `v4_metric`, `v4_peer`, `v6_peer` and
-  `v4_autojoin` in `internal/goipparity/commands.go`, `Implemented: true`
+  `v4_autojoin` in `internal/goipparity/commands.go`, `Implemented: true`.
+  A row's Name is its argv and must be unique, so each names its own
+  device: `addr show dev metric0`, `peer4`, `peer6`, `autojoin0`
+- the oracle for `any` and `mcast`: `ip addr show` never receives a
+  multicast or anycast message, and `ip monitor maddress acaddress` does. An
+  `xtcp2-nl-ipmon` helper in `nix/microvms/netlink-capture.nix`, and an
+  `addr_monitor` group in `capture-link-writes.exp` writing
+  `link-write/addr-monitor/mc_any/`
 
-Tests: sidecar goldens in `internal/goip/render/addr_test.go`, plain and `-j`
-for every readback state, plus
+Tests: sidecar goldens in `internal/goip/addr_render_golden_test.go`, plain
+and `-j` for every readback state, and the monitor goldens
+([table 6b](addr-write-path.md#6b-testaddrmonitormcastgoldens-phase-1)); hand
+rows in `internal/goip/render/addr_test.go`, including
 [table 6](addr-write-path.md#6-testparsenewaddrrichfixtures-phase-1) row 10
 (`flags 1000`), which A1-T01 left here because it is a render row.
 
 Done when:
 - the goldens are byte-identical
+- the capture run prints `NLCAP_DRIVER_PASS`, with only
+  `link-write/addr-monitor/` copied into the repo
 - the rows pass two clean parity runs, and are then gated
 - lifetime states are the exception: they stay ungated, per
   [Gating](addr-write-path.md#gating)

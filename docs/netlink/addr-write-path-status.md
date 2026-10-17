@@ -1,18 +1,20 @@
 # `ip address` implementation status
 
-Last updated: 2026-10-16.
+Last updated: 2026-10-17.
 
-**Phase A0 is done, and A1-T01 and A2-T01 are done.** The design
+**Phases A0 and A1 are done, and A2-T01 is done.** The design
 ([addr-write-path.md](addr-write-path.md)) and the plan
-([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. 7 of 25
+([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. 8 of 25
 tasks are done: A0-T01 (V001), A0-T02 (closed by a finding, V002), A0-T03
 and A0-T04, closed by one KVM capture (V005), A0-T05, which recorded M1–M3
 from that capture's fixtures (V006), A1-T01, which decodes the four
-attributes and adds the multicast and anycast dump fixtures (V009–V012), and
-A2-T01, the `addr show` selector parser (V013, V014).
+attributes and adds the multicast and anycast dump fixtures (V009–V012),
+A2-T01, the `addr show` selector parser (V013, V014), and A1-T02, which
+renders them, byte-identical to `ip` in both forms, against an `ip monitor`
+capture and four gated parity rows (V016–V020).
 
-**Next action:** A1-T02 (depends on A1-T01), A2-T02 (A2-T01), A3-T01 (A0-T04)
-and A4-T01 (A0-T03) are unblocked. Pick one; one task, one PR.
+**Next action:** A2-T02 (depends on A2-T01), A3-T01 (A0-T04) and A4-T01
+(A0-T03) are unblocked. Pick one; one task, one PR.
 
 ## Update rules
 
@@ -47,7 +49,7 @@ and A4-T01 (A0-T03) are unblocked. Pick one; one task, one PR.
 | Phase | Scope | State | Tasks done | Evidence |
 |---|---|---|---|---|
 | A0 | capture: topologies, corpus, measurements | done | 5/5 | V001, V002, V003, V005, V006 |
-| A1 | decode and render `metric`/`any`/`mcast` | in progress | 1/2 | V009, V010, V011, V012 |
+| A1 | decode and render `metric`/`any`/`mcast` | done | 2/2 | V009, V010, V011, V012, V016, V017, V018, V019, V020 |
 | A2 | `addr show` selectors | in progress | 1/3 | V013, V014 |
 | A3 | `-br` and `-o` | not started | 0/3 | — |
 | A4 | the gate admits `RTM_NEWADDR`/`RTM_DELADDR` | not started | 0/1 | — |
@@ -70,7 +72,7 @@ Add evidence IDs to the last column as work runs.
 | [x] | [A0-T04](addr-write-path-plan.md#a0-t04) | readback states | done | V003, V005 |
 | [x] | [A0-T05](addr-write-path-plan.md#a0-t05) | record the Phase 0 measurements | done | V006, DOC004 |
 | [x] | [A1-T01](addr-write-path-plan.md#a1-t01) | `ParseNewAddr` gains four attributes | done | V009, V010, V011, V012, DOC005 |
-| [ ] | [A1-T02](addr-write-path-plan.md#a1-t02) | render `metric`, `any`, `mcast` | not started | — |
+| [x] | [A1-T02](addr-write-path-plan.md#a1-t02) | render `metric`, `any`, `mcast` | done | V016, V017, V018, V019, V020, DOC007 |
 | [x] | [A2-T01](addr-write-path-plan.md#a2-t01) | `addrFilter` and its parser | done | V013, V014, DOC006 |
 | [ ] | [A2-T02](addr-write-path-plan.md#a2-t02) | apply the filter in `addrShow` | not started | — |
 | [ ] | [A2-T03](addr-write-path-plan.md#a2-t03) | selector rows in the matrix | not started | — |
@@ -145,6 +147,13 @@ it.
 | V013 | 2026-10-16 | A2-T01 | `go test ./internal/goip/... ./internal/goipparity/...`, which includes `TestParseAddrShowArgs` (64 rows), `TestAddrShowKeywordsAreNotFlags` (13) and `TestIfaFlagByName` (19). Eight of the surprising rows (an empty word, `he`, `sc host`, both `group` wraparounds, `type _slave`, `-`, `to bogus`) were also run through `ip` 7.1.0 in a throwaway user namespace. Mutation check in a scratch worktree: `scope` matched by prefix, the device lookup moved into the loop, and the `_slave` strip skipped at equal length each failed the rows that name them, and were reverted | Passed: all green; `ip` agreed with each spot-checked row; the three mutants caught | `internal/goip/addr_filter_test.go`, `internal/goip/render/addr_test.go` |
 | V014 | 2026-10-16 | A2-T01 | one nix check per call: `.#test-focused-goip`, `checks.lint-baseline`, `checks.netlink-audit`, `.#quality-report`, `checks.nix-fmt`, `checks.statix`, `checks.deadnix` | Passed, after the lint ratchet's first run flagged the loop's cyclomatic complexity (44) and an error string ending in a period. The loop became a keyword table, and the period was dropped | the check outputs |
 | DOC006 | 2026-10-16 | A2-T01 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc: 25 task IDs one to one; local links and anchors resolve; plus `git diff --check` | Passed: 25 task IDs one to one; no broken links or anchors; ledger IDs unique and in order; `git diff --check` clean | Summary retained here; the checker script was session-local |
+| V015 | 2026-10-17 | A1-T02 | `nix run .#microvm-x86_64-link-write-capture -- --out <scratch>` from a scratch worktree, on an x86_64 NixOS host with `/dev/kvm`, with the new `addr-monitor/mc_any` rows waiting for `ff02::1:ff00:1`, `any 2001:db8:1:: ` and the 224.0.0.251 leave | Failed: `NLCAP_DRIVER_FAIL`, both monitor rows `xtcp2-nl-ipmon failed`, timing out on `ff02::1:ff00:1`. A dummy device is `IFF_NOARP`, so `addrconf_join_solict` returns early and no solicited-node group is joined. The trigger now joins and leaves `ff02::fb` explicitly with `autojoin` | transcript not kept; nothing from this run is committed |
+| V016 | 2026-10-17 | A1-T02 | the same capture, rerun after the trigger fix | Passed: `NLCAP_DRIVER_PASS`. Both rows (`monitor maddress acaddress` and `-j monitor maddress acaddress`) printed the same seven events: the canary `224.0.0.250` on `c0`, then on `d0` `224.0.0.1`, the anycast `2001:db8:1::`, the `ff02::fb` join and leave, and the `224.0.0.251` join and leave. The `-j` row printed text. 45 datagrams on each row; the floor is 30 | `pkg/xtcpnl/testdata/7_1_4/link-write/addr-monitor/mc_any/`; only that directory was copied from the run, and no other fixture changed |
+| V017 | 2026-10-17 | A1-T02 | `go test ./internal/goip/... ./internal/goipparity/... ./pkg/nlparity/... ./pkg/xtcpnl/...`, which includes `TestAddrShowReadbackGoldens` (19 states × text and JSON, plus a completeness row), `TestAddrMonitorMcastGoldens` (2), `TestSidecarWithNetnsIDMustRewrite` (3), `TestAddrViewText` (22), `TestAddrViewJSONBytes` (13) and `TestAddrStateReadRowsGated` (6). Mutation check in a scratch worktree: `metric` printed outside the local block, `metric` dropped, the JSON flag booleans moved back to the end, and the local block printed with no `IFA_LOCAL` each failed the rows that name them, and were reverted | Passed: all green, every readback golden byte-identical in both forms; the four mutants caught | `internal/goip/addr_render_golden_test.go`, `internal/goip/render/addr_test.go` |
+| V018 | 2026-10-17 | A1-T02 | `nix run .#microvm-x86_64-goip-parity` from a scratch worktree, on an x86_64 NixOS host with `/dev/kvm`, with the four `addr show dev` state rows `Implemented: true` | `addr show dev metric0`, `peer4`, `peer6` and `autojoin0` all `GOIP_PARITY_PASS`: txns 3/3, control nl=0 stdout=0, zero findings. Overall `GOIP_PARITY_OVERALL_FAIL` for the pre-existing reason: `-4 netconf show dev` fails with `HYGIENE_FAIL 2`. `UNGATED_DIVERGENCES 7`, `CONTROL_NOISY 131`; 120 verdicts, 112 PASS, 7 WARN, 1 FAIL | transcript in the session scratchpad, not kept |
+| V019 | 2026-10-17 | A1-T02 | the same parity run, rerun sequentially | The same four rows `GOIP_PARITY_PASS` with the same counts. All 120 verdicts identical to V018. `HYGIENE_FAIL 2`, `UNGATED_DIVERGENCES 7`, `CONTROL_NOISY 130`. The four rows then went into `gated_commands` | transcript in the session scratchpad, not kept |
+| V020 | 2026-10-17 | A1-T02 | the nix checks: `.#test-focused-goip`, `checks.netlink-audit`, `checks.lint-baseline`, `.#quality-report`, `checks.nix-fmt`, `checks.statix`, `checks.deadnix`, `checks.vm-lib-exp` | Passed, after the lint ratchet's first run flagged two `prealloc`s in the new golden test, which were fixed rather than baselined | the check outputs; `vm-lib-exp` ran 22, 93 and 59 rows |
+| DOC007 | 2026-10-17 | A1-T02 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc: 25 task IDs one to one; local links and anchors resolve; plus `git diff --check` | Passed: 25 task IDs one to one; no broken links or anchors; ledger IDs unique and in order; `git diff --check` clean | Summary retained here; the checker script was session-local |
 
 ## Blockers and upcoming requirements
 
@@ -153,6 +162,40 @@ it.
 - **No open blockers.**
 
 ## Progress and decision log
+
+- **2026-10-17.** A1-T02 is done, and with it Phase A1.
+  - **The oracle for `any` and `mcast` is `ip monitor`.** `ip addr show`
+    never receives multicast or anycast messages. `ip monitor maddress
+    acaddress` sends them to `print_addrinfo` (`ip/ipmonitor.c:156-160`).
+  - **A dummy device joins no solicited-node group.** It is `IFF_NOARP`, so
+    `addrconf_join_solict` returns early, and `ff02::1`/`ff01::1` are joined
+    at registration, before the monitor starts. The first capture waited for
+    `ff02::1:ff00:1` and failed (V015). The trigger now joins and leaves
+    `ff02::fb` with `autojoin`.
+  - **`ip -j monitor` prints text in 7.1.0.** ipmonitor never opens a JSON
+    context. The `-j` row is a boundary row, and the `anycast`/`multicast`
+    JSON keys are source-derived, pinned by `TestAddrViewJSONBytes`.
+  - **The monitor rows are write rows, not `capio` reads.** A read retries a
+    missed floor, and a monitor trigger cannot be replayed into the same
+    namespace. `nlcap write` makes one attempt and keeps stdout as `.out`.
+    The plan named `ip_monitor_maddr` sidecars; the files are
+    `netlink_route_monitor_maddr{,_json}.out`. The floor is 30 of the 45
+    datagrams V016 measured.
+  - **The link JSON put `link` after `ifname`.** `print_name_and_link`
+    (`lib/utils.c:1302`) emits `link`/`link_index` first. Byte-identical
+    readback exposed it on the veth states, and `LinkView` was reordered.
+  - **There are 19 `addr-show` states, not 20.** The plan's count was wrong.
+    The completeness row checks the directory listing against the table.
+  - **JSON `protocol` follows `IFA_PROTO`'s presence.** Text still prints
+    `proto` only when it is non-zero. A hand row that sets a non-zero `Proto`
+    without `HasProto` counts as present.
+  - **A deprecated finite `preferred_life_time` is a signed int in JSON.**
+    `print_addrinfo` uses `print_int` there, so goip writes an `int32`.
+  - **Design table 6 row 10 now cites `print_ifa_flags`.** No sidecar has
+    bit `0x1000`, so the expected `"ifa_flags":"1000"` comes from the source.
+  - **Parity rows name their own devices.** `Name` is the argv and must be
+    unique, so the four rows are `addr show dev metric0`, `peer4`, `peer6`
+    and `autojoin0`, each with a Setup. Gated on V018 and V019.
 
 - **2026-10-16.** A2-T01 is done. V007–V012 and DOC005 belong to A1-T01
   (#234), which merged first.

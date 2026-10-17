@@ -202,64 +202,89 @@ func IfaFlagTokens(flags uint32, family uint8) (names []string, ifaFlags string)
 
 // AddrView is one address as `ip addr show` presents it.
 //
-// The JSON tags are `ip -j addr show`'s key names, taken from the
-// print_*(PRINT_ANY, "<key>", …) call sites in print_addrinfo rather than from
+// The fields carry no JSON tags: MarshalJSON writes the members itself, in
+// print_addrinfo's order, under the key names of its print_*(PRINT_ANY,
+// "<key>", …) call sites. Those are taken from the source rather than from
 // sample output, so a key that `ip` emits only in JSON is still right.
 type AddrView struct {
 	// Family and FamilyIndex are mutually exclusive, and which one is set
 	// changes the JSON key as well as the text: print_addrinfo emits
 	// "family" for a family it can name and "family_index" for one it
 	// cannot (ip/ipaddress.c:1596-1601).
-	Family      string `json:"family,omitempty"`
-	FamilyIndex *uint8 `json:"family_index,omitempty"`
+	Family      string
+	FamilyIndex *uint8
 
-	Local     string `json:"local"`
-	PrefixLen uint8  `json:"prefixlen"`
+	// Local, Address, PrefixLen and Metric are print_addrinfo's
+	// `if (rta_tb[IFA_LOCAL])` block (ip/ipaddress.c:1617-1641), and print
+	// only when hasLocal is set; see hasLocal.
+	Local     string
+	PrefixLen uint8
 
 	// Address is `ip`'s "address" key, which is the PEER on a point-to-point
 	// address and is emitted only when it differs from Local. The naming is
 	// iproute2's and it is the reverse of the wire's: IFA_LOCAL is the local
 	// address and IFA_ADDRESS is the peer.
-	Address   string `json:"address,omitempty"`
-	Broadcast string `json:"broadcast,omitempty"`
+	Address string
 
-	Scope string `json:"scope"`
+	// Metric is IFA_RT_PRIORITY, `metric N` and "metric". A pointer because
+	// presence decides, not the value: a metric of 0 still prints.
+	Metric *uint32
 
-	// Flags are the print_ifa_flags named tokens, and they are `json:"-"`
-	// because `ip -j` does not emit an array: every named flag is its own
-	// boolean key (print_bool(PRINT_JSON, flag_data->name, NULL, true),
-	// ip/ipaddress.c:1434-1435). MarshalJSON below expands them.
-	//
-	// This used to be `json:"flags,omitempty"`, described in a comment here
-	// as a deliberate divergence taken so a caller could enumerate flags it
-	// did not know the names of. It was not defensible: goip exists to make
-	// `ip`'s output reproducible, no caller of this package enumerates
-	// anything, and the committed golden dumps/ip_addr_json — which nothing
-	// read until TestAddrShowJSONMatchesCapturedSidecar — says plainly that
-	// `ip` emits "nodad": true.
-	Flags []string `json:"-"`
+	Broadcast string
+
+	// Anycast and Multicast are IFA_ANYCAST and IFA_MULTICAST, `any ADDR`
+	// and `mcast ADDR`. They come only in RTM_{NEW,DEL}{ANYCAST,MULTICAST}
+	// messages, which `ip addr show` never receives and `ip monitor
+	// maddress acaddress` does (ip/ipmonitor.c:156-160). They are printed
+	// outside the local block, so a group membership prints with no
+	// address before it: `    inet6 mcast ff02::1 scope link `.
+	Anycast   string
+	Multicast string
+
+	Scope string
+
+	// Flags are the print_ifa_flags named tokens. `ip -j` does not emit an
+	// array: every named flag is its own boolean key
+	// (print_bool(PRINT_JSON, flag_data->name, NULL, true),
+	// ip/ipaddress.c:1434-1435), and the committed golden dumps/ip_addr_json
+	// says plainly that `ip` emits "nodad": true.
+	Flags []string
 
 	// IfaFlags is the "%02x" of the bits the table does not name, which `ip`
 	// emits under a key of its own rather than among the booleans. Empty
 	// means every bit was named. See IfaFlagTokens for why this is a second
 	// field and not a thirteenth token.
-	IfaFlags string `json:"-"`
+	IfaFlags string
 
-	Proto string `json:"protocol,omitempty"`
-	Label string `json:"label,omitempty"`
+	// Proto is the IFA_PROTO name. Text prints it only when it is non-zero;
+	// JSON whenever the attribute was sent (`proto || is_json_context()`,
+	// ip/ipaddress.c:1682-1688), which is jsonProto.
+	Proto string
+	Label string
 
 	// ValidLifetime and PreferredLifetime are pointers because absent
 	// IFA_CACHEINFO prints no lifetime line at all, which is different from a
 	// lifetime of zero. 0xFFFFFFFF is "forever".
-	ValidLifetime     *uint32 `json:"valid_life_time,omitempty"`
-	PreferredLifetime *uint32 `json:"preferred_life_time,omitempty"`
+	ValidLifetime     *uint32
+	PreferredLifetime *uint32
 
-	// deprecated selects `%dsec` over `%usec` for the preferred lifetime.
-	// print_addrinfo branches on IFA_F_DEPRECATED for that one field, so a
-	// kernel reporting a negative preferred lifetime on a deprecated address
-	// would print the negative rather than a huge unsigned. Keeping the
-	// branch means keeping the bit.
+	// deprecated selects `%dsec` over `%usec` for the preferred lifetime,
+	// and print_int over print_uint in JSON. print_addrinfo branches on
+	// IFA_F_DEPRECATED for that one field, so a kernel reporting a negative
+	// preferred lifetime on a deprecated address would print the negative
+	// rather than a huge unsigned. Keeping the branch means keeping the bit.
 	deprecated bool
+
+	// hasLocal is rta_tb[IFA_LOCAL] after print_addrinfo's aliasing: false
+	// only when the message carried neither IFA_LOCAL nor IFA_ADDRESS, which
+	// is every multicast and anycast message. It is a flag rather than
+	// `Local != ""` so a zero-length attribute, which still opens the block,
+	// is not mistaken for an absent one.
+	hasLocal bool
+
+	// jsonProto is IFA_PROTO present; see Proto. A non-zero Proto counts
+	// as present without HasProto, since nothing else could have set it.
+	jsonProto bool
 }
 
 // AddrViewOf resolves a decoded address for rendering.
@@ -269,14 +294,21 @@ type AddrView struct {
 // between them: the peer is printed only when the two differ, over the
 // family's address length rather than the slice length
 // (ip/ipaddress.c:1607-1617).
+//
+// IFA_MC_USERS is decoded and not rendered: 7.1.0's print_addrinfo does not
+// print it.
 func AddrViewOf(ai xtcpnl.AddrInfo) AddrView {
 	v := AddrView{
 		Family:    familyName(ai.Family),
 		Local:     addrString(ai.Local, ai.Family),
 		PrefixLen: ai.Prefixlen,
 		Broadcast: addrString(ai.Broadcast, ai.Family),
+		Anycast:   addrString(ai.Anycast, ai.Family),
+		Multicast: addrString(ai.Multicast, ai.Family),
 		Scope:     scopeName(ai.Scope),
 		Label:     ai.Label,
+		hasLocal:  ai.Local != nil,
+		jsonProto: ai.HasProto || ai.Proto != 0,
 	}
 	v.Flags, v.IfaFlags = IfaFlagTokens(ai.Flags, ai.Family)
 	if v.Family == "" {
@@ -286,7 +318,11 @@ func AddrViewOf(ai xtcpnl.AddrInfo) AddrView {
 	if !equalAddrBytes(ai.Address, ai.Local, ai.Family) {
 		v.Address = addrString(ai.Address, ai.Family)
 	}
-	if ai.Proto != 0 {
+	if ai.HasRtPriority {
+		metric := ai.RtPriority
+		v.Metric = &metric
+	}
+	if v.jsonProto {
 		v.Proto = addrProtoName(ai.Proto)
 	}
 	if ai.HasCacheInfo {
@@ -299,8 +335,16 @@ func AddrViewOf(ai xtcpnl.AddrInfo) AddrView {
 	return v
 }
 
-// MarshalJSON appends print_ifa_flags's two outputs to the object: one
-// boolean key per named flag, then "ifa_flags" for the unnamed residue.
+// MarshalJSON writes the object member by member, in print_addrinfo's order
+// (ip/ipaddress.c:1596-1700):
+//
+//	family | family_index
+//	local, address, prefixlen, metric    only when hasLocal
+//	broadcast, anycast, multicast
+//	scope
+//	one boolean per named flag, then ifa_flags
+//	protocol, label
+//	valid_life_time, preferred_life_time
 //
 // # Why a method here is safe when LinkView cannot have one
 //
@@ -312,58 +356,103 @@ func AddrViewOf(ai xtcpnl.AddrInfo) AddrView {
 // is called per element and composes normally. The distinction is the
 // embedding, not the package convention.
 //
-// # Member position, and what is and is not claimed
+// # Why the order is written out and not left to struct tags
 //
-// The flag members land at the END of the object, where `ip` prints them
-// between "scope" and "protocol". That is not a divergence being papered
-// over: JSON object member order carries no meaning, `ip -j -p` pretty-prints
-// where goip emits one compact line, and every comparison against a committed
-// `ip -j` golden in this repo is key-by-key (assertJSONEntriesEqual). What is
-// claimed is the key set and the values. Getting the position right would
-// mean splicing into already-marshaled bytes, which buys nothing and can go
-// wrong.
-//
-// Within the group the order is print_ifa_flags's own: names in table order,
-// then the residue.
+// The flag booleans sit between "scope" and "protocol", and no struct field
+// order puts a variable set of keys there. JSON member order carries no
+// meaning, but goip's output is compared byte for byte against every
+// captured `ip -j addr show` (TestAddrShowReadbackGoldens), and that holds
+// only if the order is `ip`'s.
 func (v AddrView) MarshalJSON() ([]byte, error) {
-	// addrView sheds this method, so json.Marshal below does not recurse.
-	type addrView AddrView
-
-	raw, err := json.Marshal(addrView(v))
-	if err != nil {
-		return nil, err
+	w := jsonObject{}
+	if v.Family != "" {
+		w.member("family", v.Family)
+	} else if v.FamilyIndex != nil {
+		w.member("family_index", *v.FamilyIndex)
 	}
-	if len(v.Flags) == 0 && v.IfaFlags == "" {
-		return raw, nil
-	}
-	// Local, PrefixLen and Scope have no omitempty, so the object is never
-	// "{}" and appending a member always needs a leading comma. Checked
-	// rather than assumed, because the alternative is emitting `{,"nodad":…}`.
-	if len(raw) < 2 || raw[len(raw)-1] != '}' || raw[len(raw)-2] == '{' {
-		return nil, fmt.Errorf("render: AddrView marshaled to %q, which has no member to append to", raw)
-	}
-
-	var b bytes.Buffer
-	b.Write(raw[:len(raw)-1])
-	for _, f := range v.Flags {
-		key, err := json.Marshal(f)
-		if err != nil {
-			return nil, err
+	if v.hasLocal {
+		w.member("local", v.Local)
+		if v.Address != "" {
+			w.member("address", v.Address)
 		}
-		b.WriteByte(',')
-		b.Write(key)
-		b.WriteString(":true")
+		w.member("prefixlen", v.PrefixLen)
+		if v.Metric != nil {
+			w.member("metric", *v.Metric)
+		}
+	}
+	if v.Broadcast != "" {
+		w.member("broadcast", v.Broadcast)
+	}
+	if v.Anycast != "" {
+		w.member("anycast", v.Anycast)
+	}
+	if v.Multicast != "" {
+		w.member("multicast", v.Multicast)
+	}
+	w.member("scope", v.Scope)
+	for _, f := range v.Flags {
+		w.member(f, true)
 	}
 	if v.IfaFlags != "" {
-		val, err := json.Marshal(v.IfaFlags)
-		if err != nil {
-			return nil, err
-		}
-		b.WriteString(`,"ifa_flags":`)
-		b.Write(val)
+		w.member("ifa_flags", v.IfaFlags)
 	}
-	b.WriteByte('}')
-	return b.Bytes(), nil
+	if v.jsonProto {
+		w.member("protocol", v.Proto)
+	}
+	if v.Label != "" {
+		w.member("label", v.Label)
+	}
+	if v.ValidLifetime != nil && v.PreferredLifetime != nil {
+		w.member("valid_life_time", *v.ValidLifetime)
+		if v.deprecated && *v.PreferredLifetime != xtcpnl.IfaLifetimeInfinityCst {
+			w.member("preferred_life_time", int32(*v.PreferredLifetime))
+		} else {
+			w.member("preferred_life_time", *v.PreferredLifetime)
+		}
+	}
+	return w.bytes()
+}
+
+// jsonObject writes one compact JSON object member by member, keeping the
+// first marshaling error.
+type jsonObject struct {
+	b   bytes.Buffer
+	err error
+}
+
+func (o *jsonObject) member(key string, val any) {
+	if o.err != nil {
+		return
+	}
+	k, err := json.Marshal(key)
+	if err != nil {
+		o.err = err
+		return
+	}
+	v, err := json.Marshal(val)
+	if err != nil {
+		o.err = err
+		return
+	}
+	if o.b.Len() == 0 {
+		o.b.WriteByte('{')
+	} else {
+		o.b.WriteByte(',')
+	}
+	o.b.Write(k)
+	o.b.WriteByte(':')
+	o.b.Write(v)
+}
+
+func (o *jsonObject) bytes() ([]byte, error) {
+	if o.err != nil {
+		return nil, o.err
+	}
+	if o.b.Len() == 0 {
+		return []byte("{}"), nil
+	}
+	o.b.WriteByte('}')
+	return o.b.Bytes(), nil
 }
 
 // equalAddrBytes is print_addrinfo's memcmp: four bytes for AF_INET and
@@ -427,8 +516,12 @@ func addrString(b []byte, family uint8) string {
 // print_addrinfo's field order (ip/ipaddress.c:1578-1707), which is not the
 // order the attributes arrive in:
 //
-//	inet 172.16.50.219/24 brd 172.16.50.255 scope global dynamic noprefixroute enp1s0
+//	inet 172.16.50.219/24 metric 50 brd 172.16.50.255 scope global dynamic noprefixroute enp1s0
 //	   valid_lft 47871sec preferred_lft 47871sec
+//
+// The address, peer, prefix length and metric are one block, printed only
+// when the message had an address (hasLocal); `any` and `mcast` come after
+// `brd`, outside it.
 //
 // Three spacing details, all transcribed:
 //
@@ -449,14 +542,25 @@ func (v AddrView) Text() string {
 		fmt.Fprintf(&b, "    family %d ", *v.FamilyIndex)
 	}
 
-	b.WriteString(v.Local)
-	if v.Address != "" {
-		fmt.Fprintf(&b, " peer %s", v.Address)
+	if v.hasLocal {
+		b.WriteString(v.Local)
+		if v.Address != "" {
+			fmt.Fprintf(&b, " peer %s", v.Address)
+		}
+		fmt.Fprintf(&b, "/%d ", v.PrefixLen)
+		if v.Metric != nil {
+			fmt.Fprintf(&b, "metric %d ", *v.Metric)
+		}
 	}
-	fmt.Fprintf(&b, "/%d ", v.PrefixLen)
 
 	if v.Broadcast != "" {
 		fmt.Fprintf(&b, "brd %s ", v.Broadcast)
+	}
+	if v.Anycast != "" {
+		fmt.Fprintf(&b, "any %s ", v.Anycast)
+	}
+	if v.Multicast != "" {
+		fmt.Fprintf(&b, "mcast %s ", v.Multicast)
 	}
 	fmt.Fprintf(&b, "scope %s ", v.Scope)
 	for _, f := range v.Flags {
@@ -465,7 +569,8 @@ func (v AddrView) Text() string {
 	if v.IfaFlags != "" {
 		fmt.Fprintf(&b, "flags %s ", v.IfaFlags)
 	}
-	if v.Proto != "" {
+	// "unspec" is IFA_PROTO 0, which only JSON prints.
+	if v.Proto != "" && v.Proto != addrProtoNames[0] {
 		fmt.Fprintf(&b, "proto %s ", v.Proto)
 	}
 	b.WriteString(v.Label)
@@ -566,7 +671,7 @@ func (g AddrGroupView) WithStats(li xtcpnl.LinkInfo) AddrGroupView {
 
 // Text renders the link stanza, its address lines, and the `-s` block last.
 //
-// Ranged by index: AddrView is 176 bytes and Text reads it, so the value form
+// Ranged by index: AddrView is 232 bytes and Text reads it, so the value form
 // copies every address in the group to call a method on it.
 //
 // The newline is on the other side of the block from the link object's. Here
