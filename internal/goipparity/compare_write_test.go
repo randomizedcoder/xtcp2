@@ -11,14 +11,17 @@ import (
 	"github.com/randomizedcoder/xtcp2/pkg/nlparity"
 )
 
-// tdLinkWrite and tdRouteWrite are the link-write corpus's link and route
-// rows. Each write row of the table names its corpus directory in its slug,
-// after linkWriteSlugPrefixCst or routeWriteSlugPrefixCst.
+// tdLinkWrite, tdRouteWrite and tdAddrWrite are the link-write corpus's
+// link, route and address rows. Each write row of the table names its corpus
+// directory in its slug, after linkWriteSlugPrefixCst,
+// routeWriteSlugPrefixCst or addrWriteSlugPrefixCst.
 const (
 	tdLinkWrite             = "../../pkg/xtcpnl/testdata/7_1_4/link-write/write"
 	tdRouteWrite            = "../../pkg/xtcpnl/testdata/7_1_4/link-write/route"
+	tdAddrWrite             = "../../pkg/xtcpnl/testdata/7_1_4/link-write/addr"
 	linkWriteSlugPrefixCst  = "link_write_"
 	routeWriteSlugPrefixCst = "route_write_"
+	addrWriteSlugPrefixCst  = "addr_write_"
 	pcapGlobalHdrCst        = 24
 	pcapRecordHdrCst        = 16
 	// nlMsgHdrCst is sizeof(struct nlmsghdr). Spelled here because this
@@ -63,6 +66,9 @@ func corpusWriteRow(t *testing.T, c Command) writeRowFiles {
 	dir := filepath.Join(tdLinkWrite, strings.TrimPrefix(c.Slug, linkWriteSlugPrefixCst))
 	if slug, ok := strings.CutPrefix(c.Slug, routeWriteSlugPrefixCst); ok {
 		dir = filepath.Join(tdRouteWrite, slug)
+	}
+	if slug, ok := strings.CutPrefix(c.Slug, addrWriteSlugPrefixCst); ok {
+		dir = filepath.Join(tdAddrWrite, slug)
 	}
 	ipPcap := mustReadBytes(t, filepath.Join(dir, "ip.pcap"))
 	rc := strings.TrimSpace(mustRead(t, filepath.Join(dir, "ip.rc")))

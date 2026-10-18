@@ -1922,6 +1922,149 @@ var commands = withArgs([]Command{
 		// Both sub-attributes go out, in order.
 		Floor: 4, Implemented: true, Write: true, Setup: routeWriteSetupDev,
 	},
+	// The address write rows (addr-write-path.md phase 7): the corpus in
+	// pkg/xtcpnl/testdata/7_1_4/link-write/addr/, with the preconditions and
+	// floors of addr-corpus.exp. Each is the d0 lookup and the write (4); a
+	// kernel refusal is still a write row, since the comparator compares the
+	// request alone. The five slugs that send no write (nodev, valid_zero,
+	// autojoin_unicast, no_dev_keyword, brd_plus_v6) are not rows: goip
+	// writes no file and exits 1, and TestAddrWriteNodevCorpus holds them
+	// offline.
+	{
+		Name: "addr add 192.0.2.10/24 dev d0", Slug: "addr_write_add_v4",
+		// The plain IPv4 add: LOCAL and ADDRESS both.
+		Floor: 4, Implemented: true, Write: true, Setup: addrWriteSetupDev,
+	},
+	{
+		Name: "addr add 10.0.0.1 peer 10.0.0.2/32 dev d0", Slug: "addr_write_add_v4_peer",
+		// The peer is IFA_ADDRESS, with no copy of the local.
+		Floor: 4, Implemented: true, Write: true, Setup: addrWriteSetupDev,
+	},
+	{
+		Name: "addr add 192.0.2.10/24 brd + dev d0", Slug: "addr_write_add_v4_brd_plus",
+		// brd + is computed last: .255.
+		Floor: 4, Implemented: true, Write: true, Setup: addrWriteSetupDev,
+	},
+	{
+		Name: "addr add 192.0.2.10/24 brd - dev d0", Slug: "addr_write_add_v4_brd_minus",
+		// brd - is the network address: .0.
+		Floor: 4, Implemented: true, Write: true, Setup: addrWriteSetupDev,
+	},
+	{
+		Name: "addr add 192.0.2.10/31 brd + dev d0", Slug: "addr_write_add_v4_brd_31",
+		// A /31 gets no broadcast.
+		Floor: 4, Implemented: true, Write: true, Setup: addrWriteSetupDev,
+	},
+	{
+		Name: "addr add 192.0.2.10/24 brd + label d0:1 dev d0", Slug: "addr_write_add_v4_label",
+		// The label goes before the computed broadcast.
+		Floor: 4, Implemented: true, Write: true, Setup: addrWriteSetupDev,
+	},
+	{
+		Name: "addr add 192.0.2.10/24 metric 50 dev d0", Slug: "addr_write_add_v4_metric",
+		// IFA_RT_PRIORITY.
+		Floor: 4, Implemented: true, Write: true, Setup: addrWriteSetupDev,
+	},
+	{
+		Name: "addr add 192.0.2.10/24 pref 7 dev d0", Slug: "addr_write_add_v4_pref_is_metric",
+		// pref is metric, not preferred_lft.
+		Floor: 4, Implemented: true, Write: true, Setup: addrWriteSetupDev,
+	},
+	{
+		Name: "addr add 192.0.2.10/24 proto kernel_lo dev d0", Slug: "addr_write_add_v4_proto_name",
+		// IFA_PROTO by name.
+		Floor: 4, Implemented: true, Write: true, Setup: addrWriteSetupDev,
+	},
+	{
+		Name: "addr add 192.0.2.10/24 valid_lft 3600 preferred_lft 1800 dev d0", Slug: "addr_write_add_v4_lifetimes",
+		// IFA_CACHEINFO {1800, 3600}: request bytes, so no countdown.
+		Floor: 4, Implemented: true, Write: true, Setup: addrWriteSetupDev,
+	},
+	{
+		Name: "addr add 192.0.2.2/24 dev d0", Slug: "addr_write_add_v4_secondary",
+		// A secondary is the same request; the kernel marks it.
+		Floor: 4, Implemented: true, Write: true, Setup: addrWriteSetupV4,
+	},
+	{
+		Name: "addr add 127.0.0.2/8 dev d0", Slug: "addr_write_add_v4_loopback_scope",
+		// 127/8 gets host scope.
+		Floor: 4, Implemented: true, Write: true, Setup: addrWriteSetupDev,
+	},
+	{
+		Name: "addr add 224.0.0.251/32 autojoin dev d0", Slug: "addr_write_add_v4_autojoin",
+		// autojoin spills to IFA_FLAGS.
+		Floor: 4, Implemented: true, Write: true, Setup: addrWriteSetupDev,
+	},
+	{
+		Name: "-6 addr add 2001:db8::5/64 nodad dev d0", Slug: "addr_write_add_v6_nodad",
+		// nodad fits the header"s flags byte.
+		Floor: 4, Implemented: true, Write: true, Setup: addrWriteSetupDev,
+	},
+	{
+		Name: "-6 addr add 2001:db8::5/64 nodad noprefixroute dev d0", Slug: "addr_write_add_v6_flags_wide",
+		// The wide flags: 0x202 in IFA_FLAGS.
+		Floor: 4, Implemented: true, Write: true, Setup: addrWriteSetupDev,
+	},
+	{
+		Name: "addr add nodad 2001:db8::5/64 dev d0", Slug: "addr_write_add_v6_nodad_first",
+		// A flag before the address warns and is dropped.
+		Floor: 4, Implemented: true, Write: true, Setup: addrWriteSetupDev,
+	},
+	{
+		Name: "-6 addr add 2001:db8::5/48 mngtmpaddr dev d0", Slug: "addr_write_add_v6_mngtmpaddr_48",
+		// Sent; the kernel refuses mngtmpaddr on a /48.
+		Floor: 4, Implemented: true, Write: true, Setup: addrWriteSetupDev,
+	},
+	{
+		Name: "-6 addr add 2001:db8::5/64 nodad optimistic dev d0", Slug: "addr_write_add_v6_nodad_optimistic",
+		// Both flags; this kernel clears optimistic and ACKs.
+		Floor: 4, Implemented: true, Write: true, Setup: addrWriteSetupDev,
+	},
+	{
+		Name: "addr add 192.0.2.1/24 dev d0", Slug: "addr_write_add_existing",
+		// Sent; the kernel answers EEXIST.
+		Floor: 4, Implemented: true, Write: true, Setup: addrWriteSetupV4,
+	},
+	{
+		Name: "addr change 192.0.2.10/24 dev d0", Slug: "addr_write_change_missing_creates",
+		// change is NLM_F_REPLACE alone.
+		Floor: 4, Implemented: true, Write: true, Setup: addrWriteSetupDev,
+	},
+	{
+		Name: "addr replace 192.0.2.1/24 metric 9 dev d0", Slug: "addr_write_replace_existing",
+		// replace is CREATE|REPLACE.
+		Floor: 4, Implemented: true, Write: true, Setup: addrWriteSetupV4,
+	},
+	{
+		Name: "addr del 192.0.2.1/24 dev d0", Slug: "addr_write_del_v4",
+		// RTM_DELADDR keeps scope 0.
+		Floor: 4, Implemented: true, Write: true, Setup: addrWriteSetupV4,
+	},
+	{
+		Name: "addr del 192.0.2.1 dev d0", Slug: "addr_write_del_v4_wildcard",
+		// The wildcard delete warns and sends no IFA_ADDRESS.
+		Floor: 4, Implemented: true, Write: true, Setup: addrWriteSetupV4,
+	},
+	{
+		Name: "addr del 192.0.2.99/24 dev d0", Slug: "addr_write_del_missing",
+		// Sent; the kernel answers EADDRNOTAVAIL.
+		Floor: 4, Implemented: true, Write: true, Setup: addrWriteSetupDev,
+	},
+	{
+		Name: "addr add 192.0.2.2/24 scope link dev d0", Slug: "addr_write_scope_conflict",
+		// Sent; the kernel refuses a secondary with another scope.
+		Floor: 4, Implemented: true, Write: true, Setup: addrWriteSetupV4,
+	},
+	{
+		Name: "-6 addr add ff02::fb/128 dev d0", Slug: "addr_write_v6_mcast_noautojoin",
+		// Sent; the kernel refuses IPv6 multicast without autojoin.
+		Floor: 4, Implemented: true, Write: true, Setup: addrWriteSetupDev,
+	},
+	{
+		Name: "addr add 192.0.2.10/24 label d0:0123456789abc dev d0", Slug: "addr_write_label_16",
+		// A 16-byte label is sent; the kernel answers ERANGE.
+		Floor: 4, Implemented: true, Write: true, Setup: addrWriteSetupDev,
+	},
 })
 
 // The write rows' preconditions, as capture-link-writes.exp spells them:
@@ -1943,6 +2086,14 @@ var (
 	routeWriteSetupDev6    = []string{"link add d0 type dummy", "link set d0 up", "addr add 192.0.2.1/24 dev d0", "-6 addr add 2001:db8::1/64 nodad dev d0"}
 	routeWriteSetupRoute   = []string{"link add d0 type dummy", "link set d0 up", "addr add 192.0.2.1/24 dev d0", "route add 198.51.100.0/24 dev d0"}
 	routeWriteSetupV6Route = []string{"link add d0 type dummy", "link set d0 up", "addr add 192.0.2.1/24 dev d0", "-6 addr add 2001:db8::1/64 nodad dev d0", "-6 route add 2001:db8:1::/64 dev d0"}
+)
+
+// The address write rows' preconditions: PRE_ADDR_DEV and PRE_ADDR_V4 in
+// addr-corpus.exp, which pin d0's MAC and drop its link-local as the
+// addr-show states do.
+var (
+	addrWriteSetupDev = []string{"link add d0 address 02:00:00:00:d0:00 type dummy", "link set d0 addrgenmode none", "link set d0 up"}
+	addrWriteSetupV4  = addrStateSetup("d0", "addr add 192.0.2.1/24 dev d0")
 )
 
 // bondReadSetup is the bond the `-d link show` bond rows read: two ports

@@ -518,6 +518,24 @@ Deliver: in `internal/goipparity/commands.go`:
 
 Done when: `commands_test.go` passes with the rows `Implemented: true`.
 
+As built: 27 `addr_write_<slug>` rows, `Floor: 4`, with `addrWriteSetupDev`
+(`PRE_ADDR_DEV`) or `addrWriteSetupV4` (`PRE_ADDR_V4`, six slugs), in
+`addr-corpus.exp`'s order after the route rows. Corrections:
+- The five refused slugs are not rows, so the second bullet above is dropped.
+  The harness's read rows drop rc and stderr, so a read row would check
+  neither. `no_dev_keyword` and `brd_plus_v6` send nothing, which is floor 0,
+  and `TestCommandTable` refuses that. They stay in
+  `TestAddrWriteNodevCorpus`, as the route corpus's `nodev` does. The design's
+  "Write rows" paragraph is corrected.
+- `corpusWriteRow` in `compare_write_test.go` learned the `addr_write_`
+  prefix, because `TestCompareWriteRow` and `TestRender` lay out every write
+  row from its corpus capture.
+- `TestUngatedSurfaceIsNotVacuous` counts the cohort by slug prefix, pinned at
+  27 beside the 23 named rows, until A7-T02 gates it.
+- `addr_write_add_v4_lifetimes` compares request bytes, which hold the fixed
+  3600/1800, so it can gate. The lifetime rule in "Gating" is about readback
+  output.
+
 #### A7-T02
 
 **Gate the write rows.** Depends on: A7-T01.

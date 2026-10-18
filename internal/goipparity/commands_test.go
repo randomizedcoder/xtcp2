@@ -1009,6 +1009,10 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	// valid_lft, which counts down between ip_a and goip, so it can never
 	// gate (addr-write-path.md, "Gating"). TestAddrShowSelectorRowsGated pins
 	// it.
+	//
+	// The twenty-seven address write rows (A7-T01) are a queue of their own,
+	// counted by slug rather than named here: each awaits the two clean live
+	// runs A7-T02 gates them on. TestAddrWriteRows pins the cohort.
 	expected := []string{
 		"-s addr show", "-s neigh show",
 		"-0 addr show", "route show table main", "route show table local",
@@ -1022,13 +1026,28 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 		"-j stats show group xstats",
 		"addr show dynamic",
 	}
+	named := len(expected)
+	for _, c := range Commands() {
+		if strings.HasPrefix(c.Slug, addrWriteSlugPrefixCst) {
+			expected = append(expected, c.Name)
+		}
+	}
 
 	tests := []struct {
 		description string
 		check       func(t *testing.T)
 	}{
 		{
-			description: "positive: the ungated set is exactly the twenty-three named rows, so UNGATED_CLEAN counts twenty-three rows and not zero",
+			description: "boundary: the list is twenty-three named rows plus the twenty-seven address write rows",
+			check: func(t *testing.T) {
+				if named != 23 || len(expected)-named != 27 {
+					t.Errorf("got %d named and %d address write rows, want 23 and 27",
+						named, len(expected)-named)
+				}
+			},
+		},
+		{
+			description: "positive: the ungated set is exactly the twenty-three named rows and the address write rows, so UNGATED_CLEAN counts fifty rows and not zero",
 			check: func(t *testing.T) {
 				for _, name := range expected {
 					if !ungated[name] {
@@ -1823,11 +1842,11 @@ func TestAddrStateReadRowsGated(t *testing.T) {
 // fixtures were captured on.
 const tdAddrShow = "../../pkg/xtcpnl/testdata/7_1_4/link-write/addr-show"
 
-// topologySteps is a state's topology file as Setup steps: each `ip` line
-// that ran, with the `ip ` dropped.
-func topologySteps(t *testing.T, state string) []string {
+// topologySteps is a state's topology file under dir as Setup steps: each
+// `ip` line that ran, with the `ip ` dropped.
+func topologySteps(t *testing.T, dir, state string) []string {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join(tdAddrShow, state, "topology"))
+	b, err := os.ReadFile(filepath.Join(dir, state, "topology"))
 	if err != nil {
 		t.Fatalf("reading %s's topology: %v", state, err)
 	}
@@ -1903,7 +1922,7 @@ func TestAddrShowSelectorRowsGated(t *testing.T) {
 			}
 			got := want{
 				implemented:  c.Implemented,
-				setupMatches: slices.Equal(c.Setup, topologySteps(t, r.state)),
+				setupMatches: slices.Equal(c.Setup, topologySteps(t, tdAddrShow, r.state)),
 				gated:        al.IsGated(r.command),
 				write:        c.Write,
 				floor:        c.Floor,
@@ -1957,8 +1976,176 @@ func TestAddrShowSelectorRowsGated(t *testing.T) {
 
 	t.Run("corner: a Setup missing a step does not match its topology", func(t *testing.T) {
 		short := mixedLinksSetup[:len(mixedLinksSetup)-1]
-		if slices.Equal(short, topologySteps(t, "mixed_links")) {
+		if slices.Equal(short, topologySteps(t, tdAddrShow, "mixed_links")) {
 			t.Error("a Setup with its last step dropped still matches mixed_links, so the comparison proves nothing")
+		}
+	})
+}
+
+// TestAddrWriteRows pins A7-T01's address write rows (addr-write-path.md
+// table 10 row 1): one per slug of the address write corpus that sends a
+// write, each with the corpus command as its Name and a Setup that is the
+// slug's committed topology step for step. The slugs that send no write are
+// not rows.
+//
+// go test ./internal/goipparity/ -run TestAddrWriteRows
+func TestAddrWriteRows(t *testing.T) {
+	entries, err := os.ReadDir(tdAddrWrite)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writers := map[string]bool{}
+	var silent []string
+	for _, e := range entries {
+		capture, err := nlparity.ParseRouteCaptureFile(filepath.Join(tdAddrWrite, e.Name(), "ip.pcap"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := nlparity.SplitWrite(nlparity.SegmentCapture(capture)); err == nil {
+			writers[e.Name()] = true
+		} else {
+			silent = append(silent, e.Name())
+		}
+	}
+	rows := map[string]Command{}
+	for _, c := range Commands() {
+		if slug, ok := strings.CutPrefix(c.Slug, addrWriteSlugPrefixCst); ok {
+			rows[slug] = c
+		}
+	}
+
+	t.Run("positive: every corpus slug that sends a write has a row, and every row such a slug", func(t *testing.T) {
+		for slug := range writers {
+			if _, ok := rows[slug]; !ok {
+				t.Errorf("corpus slug %s sends a write but has no row", slug)
+			}
+		}
+		for slug := range rows {
+			if !writers[slug] {
+				t.Errorf("row %s%s has no corpus slug that sends a write", addrWriteSlugPrefixCst, slug)
+			}
+		}
+	})
+
+	t.Run("positive: each row is an implemented write row of floor 4 with a Setup", func(t *testing.T) {
+		for slug, c := range rows {
+			if !c.Write || !c.Implemented || c.Floor != 4 || len(c.Setup) == 0 {
+				t.Errorf("%s: Write %v, Implemented %v, Floor %d, %d Setup steps; want true, true, 4, some",
+					slug, c.Write, c.Implemented, c.Floor, len(c.Setup))
+			}
+		}
+	})
+
+	t.Run("positive: each row's Setup is its slug's topology, step for step", func(t *testing.T) {
+		for slug, c := range rows {
+			if want := topologySteps(t, tdAddrWrite, slug); !slices.Equal(c.Setup, want) {
+				t.Errorf("%s: Setup %q, topology %q", slug, c.Setup, want)
+			}
+		}
+	})
+
+	t.Run("positive: a -6 row's captured write is an AF_INET6 request", func(t *testing.T) {
+		const afInet6 = 10
+		for slug, c := range rows {
+			if !strings.HasPrefix(c.Name, "-6 ") {
+				continue
+			}
+			capture, err := nlparity.ParseRouteCaptureFile(filepath.Join(tdAddrWrite, slug, "ip.pcap"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, w, err := nlparity.SplitWrite(nlparity.SegmentCapture(capture))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(w.Request.Body) == 0 || w.Request.Body[0] != afInet6 {
+				t.Errorf("%s: the write's ifa_family is not AF_INET6", slug)
+			}
+		}
+	})
+
+	t.Run("negative: the slugs that send no write are not rows", func(t *testing.T) {
+		want := []string{"autojoin_unicast", "brd_plus_v6", "no_dev_keyword", "nodev", "valid_zero"}
+		if !slices.Equal(silent, want) {
+			t.Errorf("silent slugs %q, want %q", silent, want)
+		}
+		for _, slug := range silent {
+			if _, ok := rows[slug]; ok {
+				t.Errorf("%s sends no write but is a row", slug)
+			}
+		}
+	})
+
+	t.Run("boundary: the rows and the silent slugs are the corpus, 27 and 5 of 32", func(t *testing.T) {
+		if len(rows) != 27 || len(silent) != 5 || len(entries) != 32 {
+			t.Errorf("%d rows, %d silent, %d slugs; want 27, 5, 32", len(rows), len(silent), len(entries))
+		}
+	})
+
+	t.Run("corner: the six slugs with an address already on d0 end their Setup with it, and no other does", func(t *testing.T) {
+		const pre = "addr add 192.0.2.1/24 dev d0"
+		var withAddr []string
+		for slug, c := range rows {
+			if c.Setup[len(c.Setup)-1] == pre {
+				withAddr = append(withAddr, slug)
+			}
+		}
+		slices.Sort(withAddr)
+		want := []string{"add_existing", "add_v4_secondary", "del_v4", "del_v4_wildcard", "replace_existing", "scope_conflict"}
+		if !slices.Equal(withAddr, want) {
+			t.Errorf("rows ending in %q: %q, want %q", pre, withAddr, want)
+		}
+	})
+
+	// The Name is the argv the capture ran, less `ip `. No corpus file holds
+	// it, so these are copied from addr-corpus.exp's write_rows.
+	names := []struct {
+		description string
+		slug        string
+		expected    string
+	}{
+		{"positive: the plain IPv4 add", "add_v4", "addr add 192.0.2.10/24 dev d0"},
+		{"positive: a peer", "add_v4_peer", "addr add 10.0.0.1 peer 10.0.0.2/32 dev d0"},
+		{"positive: brd +", "add_v4_brd_plus", "addr add 192.0.2.10/24 brd + dev d0"},
+		{"positive: brd -", "add_v4_brd_minus", "addr add 192.0.2.10/24 brd - dev d0"},
+		{"boundary: brd + on a /31", "add_v4_brd_31", "addr add 192.0.2.10/31 brd + dev d0"},
+		{"positive: a label after brd +", "add_v4_label", "addr add 192.0.2.10/24 brd + label d0:1 dev d0"},
+		{"positive: metric", "add_v4_metric", "addr add 192.0.2.10/24 metric 50 dev d0"},
+		{"corner: pref is metric", "add_v4_pref_is_metric", "addr add 192.0.2.10/24 pref 7 dev d0"},
+		{"positive: proto by name", "add_v4_proto_name", "addr add 192.0.2.10/24 proto kernel_lo dev d0"},
+		{"positive: finite lifetimes", "add_v4_lifetimes", "addr add 192.0.2.10/24 valid_lft 3600 preferred_lft 1800 dev d0"},
+		{"positive: a secondary", "add_v4_secondary", "addr add 192.0.2.2/24 dev d0"},
+		{"boundary: 127/8", "add_v4_loopback_scope", "addr add 127.0.0.2/8 dev d0"},
+		{"positive: autojoin", "add_v4_autojoin", "addr add 224.0.0.251/32 autojoin dev d0"},
+		{"positive: -6 nodad", "add_v6_nodad", "-6 addr add 2001:db8::5/64 nodad dev d0"},
+		{"boundary: the wide flags", "add_v6_flags_wide", "-6 addr add 2001:db8::5/64 nodad noprefixroute dev d0"},
+		{"corner: a flag before the address, no -6", "add_v6_nodad_first", "addr add nodad 2001:db8::5/64 dev d0"},
+		{"negative: mngtmpaddr on a /48", "add_v6_mngtmpaddr_48", "-6 addr add 2001:db8::5/48 mngtmpaddr dev d0"},
+		{"positive: nodad optimistic", "add_v6_nodad_optimistic", "-6 addr add 2001:db8::5/64 nodad optimistic dev d0"},
+		{"negative: an existing address", "add_existing", "addr add 192.0.2.1/24 dev d0"},
+		{"positive: change", "change_missing_creates", "addr change 192.0.2.10/24 dev d0"},
+		{"positive: replace", "replace_existing", "addr replace 192.0.2.1/24 metric 9 dev d0"},
+		{"positive: del", "del_v4", "addr del 192.0.2.1/24 dev d0"},
+		{"corner: the wildcard delete", "del_v4_wildcard", "addr del 192.0.2.1 dev d0"},
+		{"negative: deleting a missing address", "del_missing", "addr del 192.0.2.99/24 dev d0"},
+		{"negative: a scope conflict", "scope_conflict", "addr add 192.0.2.2/24 scope link dev d0"},
+		{"negative: IPv6 multicast without autojoin", "v6_mcast_noautojoin", "-6 addr add ff02::fb/128 dev d0"},
+		{"boundary: a 16-byte label", "label_16", "addr add 192.0.2.10/24 label d0:0123456789abc dev d0"},
+	}
+	for _, tt := range names {
+		t.Run(tt.description, func(t *testing.T) {
+			c, ok := rows[tt.slug]
+			if !ok {
+				t.Fatalf("no row %s%s", addrWriteSlugPrefixCst, tt.slug)
+			}
+			if c.Name != tt.expected {
+				t.Errorf("Name %q, want %q", c.Name, tt.expected)
+			}
+		})
+	}
+	t.Run("boundary: the Name table covers every row", func(t *testing.T) {
+		if len(names) != len(rows) {
+			t.Errorf("%d names, %d rows", len(names), len(rows))
 		}
 	})
 }
