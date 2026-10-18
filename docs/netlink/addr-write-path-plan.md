@@ -630,6 +630,31 @@ Tests:
 Done when: both pass, and a parity run shows the link and route write rows
 unchanged.
 
+As built:
+- `SplitWrites(s, n)` returns a `WriteSplit`: the transactions before the
+  writes, the n writes, ip's datagram grouping of them, and the transactions
+  after.
+  - The writes must be one contiguous run of exactly n.
+  - A datagram starts where a message's `Offset` does not follow the last.
+    flush_many reads 47, 47 and 26.
+- `ParseWriteRequests` reads a file of back-to-back requests.
+- `CompareWrites` compares:
+  - the transactions after the writes (flush's round-2 dump) on the request
+    only;
+  - the writes message by message after `NormalizeMsg`, since a DEL copies a
+    dump reply's pid and `IFA_CACHEINFO` stamps;
+  - a count difference, as an unsuppressible `write-count` finding.
+- A write that asked for no ACK and got no reply is left out of hygiene,
+  because a flush DEL is otherwise an open transaction.
+- `SplitWrite`, `ParseWriteRequest`, `CompareWrite` and `WriteControl` are
+  gone rather than kept as wrappers. Their callers pass n=1, and
+  `compare.go` does so until A8-T03's `Writes` field.
+- `TestCompareWritesSingle` shows that, for each of the 74 single-write
+  slugs in the link, route and address corpora, the cut and the findings
+  match the old code's. The test computes the old results inline.
+- goip's file carries no datagram boundaries, so the matrix compares
+  messages. A8-T02's unit test checks goip's batching against `Datagrams`.
+
 #### A8-T02
 
 **`goip addr flush`.** Depends on: A8-T01, A2-T02.

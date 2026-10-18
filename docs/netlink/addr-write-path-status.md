@@ -2,9 +2,9 @@
 
 Last updated: 2026-10-18.
 
-**Phases A0 through A7 are done.** The design
+**Phases A0 through A7 are done, and A8 has begun.** The design
 ([addr-write-path.md](addr-write-path.md)) and the plan
-([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. 19 of 25
+([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. 20 of 25
 tasks are done: A0-T01 (V001), A0-T02 (closed by a finding, V002), A0-T03
 and A0-T04, closed by one KVM capture (V005), A0-T05, which recorded M1–M3
 from that capture's fixtures (V006), A1-T01, which decodes the four
@@ -31,9 +31,13 @@ entry (V041–V044). A3-T02 renders `-br`, `-br -j` and `-o` for plain
 `addr show`, byte-identical to all 57 sidecars, and refuses every combination
 no capture shows (V045, V046). A3-T03 puts `-br`, `-o`, `-br -j` and
 `-o -6 addr show` in the matrix and gates all four on two clean live runs
-(V047–V050).
+(V047–V050). A8-T01 replaces the single-write comparator with
+`SplitWrites`/`CompareWrites`, ready for flush's batch of N writes. All 74
+existing write rows compare exactly as before, on the corpus and in a live
+run (V051–V053).
 
-**Next action:** A8-T01 (depends on A7-T02) is unblocked. One task, one PR.
+**Next action:** A8-T02 (depends on A8-T01 and A2-T02) and A9-T01 (depends
+on A8-T01) are unblocked. Pick one; one task, one PR.
 
 ## Update rules
 
@@ -75,7 +79,7 @@ no capture shows (V045, V046). A3-T03 puts `-br`, `-o`, `-br -j` and
 | A5 | `BuildAddrWriteRequest` | done | 1/1 | V030, V031 |
 | A6 | `goip addr add/change/replace/delete` | done | 2/2 | V032, V033, V034, V035 |
 | A7 | write rows in the matrix | done | 2/2 | V036, V037, V038, V041, V042, V043, V044 |
-| A8 | `flush` and the multi-write comparator | not started | 0/3 | — |
+| A8 | `flush` and the multi-write comparator | in progress | 1/3 | V051, V052, V053 |
 | A9 | `save`, `showdump`, `restore` | not started | 0/3 | — |
 
 ## Task checklist
@@ -104,7 +108,7 @@ Add evidence IDs to the last column as work runs.
 | [x] | [A6-T02](addr-write-path-plan.md#a6-t02) | verb dispatch and corpus replay | done | V034, V035, DOC013 |
 | [x] | [A7-T01](addr-write-path-plan.md#a7-t01) | `addr_write_<slug>` rows | done | V036, V037, V038, DOC014 |
 | [x] | [A7-T02](addr-write-path-plan.md#a7-t02) | gate the write rows | done | V041, V042, V043, V044, DOC016 |
-| [ ] | [A8-T01](addr-write-path-plan.md#a8-t01) | `SplitWrites` and `CompareWrites` | not started | — |
+| [x] | [A8-T01](addr-write-path-plan.md#a8-t01) | `SplitWrites` and `CompareWrites` | done | V051, V052, V053, DOC019 |
 | [ ] | [A8-T02](addr-write-path-plan.md#a8-t02) | `goip addr flush` | not started | — |
 | [ ] | [A8-T03](addr-write-path-plan.md#a8-t03) | the `Writes` field and flush rows | not started | — |
 | [ ] | [A9-T01](addr-write-path-plan.md#a9-t01) | `save` and `showdump` | not started | — |
@@ -214,6 +218,10 @@ it.
 | V049 | 2026-10-18 | A3-T03 | the same parity run, rerun sequentially | All 174 verdicts and `txns` identical to V048, and the four rows the same control, datagram counts and stdout lengths. `HYGIENE_FAIL 2`, `UNGATED_DIVERGENCES 7`, `CONTROL_NOISY 164`. The four rows then went into `gated_commands` | transcript in the session scratchpad, not kept |
 | V050 | 2026-10-18 | A3-T03 | the nix checks: `.#test-focused-goip`, `checks.netlink-audit`, `checks.lint-baseline`, `.#quality-report`, `checks.nix-fmt`, `checks.statix`, `checks.deadnix`. `vm-lib-exp` does not apply: no `.exp` file changed | Passed, except `lint-baseline`, which fails on `main` with the same 17 tier-2 findings. The branch adds none | the check outputs |
 | DOC018 | 2026-10-18 | A3-T03 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc, plus `git diff --check`. The glance-table counts in `coverage-status.md` and `docs/netlink/README.md` recounted from `Commands()` and the allowlist | Passed: 25 task IDs one to one; 19 done ticks; no broken links or anchors; ledger IDs unique and in order; `git diff --check` clean; 174 rows, 174 implemented, 151 gated, 7 entries | Summary retained here; the checker script was session-local |
+| V051 | 2026-10-18 | A8-T01 | `go test ./pkg/nlparity/... ./internal/goipparity/...`. That includes the new `TestSplitWrites` (14 rows: flush_dev 2/4/1, flush_many 120 writes in datagrams 47, 47 and 26, flush_primary with nothing after, flush_scope_link with one DEL then a round-2 dump, the four link rows, and the refusals `ErrNoWriteTxn` and `ErrWriteCount`), `TestParseWriteRequests` (11), `TestCompareWritesBatch` (11, over the flush captures with the goip side built from them: the batch, the round-2 reply excluded and its request compared, a missing DEL as `write-count`, a changed `IFA_LOCAL`, `ErrGoipSentWrite`, primary as one round, cacheinfo stamps ignored and lifetimes compared), and `TestWritesControl` (5, including flush_primary against flush_primary_flipped with no L1 or L2 finding). `TestCompareWritesSingle` runs over every slug of the link, route and address write corpora. For each of the 74 single-write slugs, `SplitWrites(s, 1)` cuts where `SplitWrite` cut, and `CompareWrites` gives the findings and hygiene that `CompareWrite`'s formula gives, which the test computes inline. The six slugs that send no write are refused as before. `TestCompareWrites` carries `TestCompareWrite`'s rows, plus one in which a write that asked for an ACK and got none is still `hygiene:ip:open`. Mutation check in a scratch worktree: each mutant failed the rows named for it, and was reverted. The mutants were: no `NormalizeMsg` on the writes (the stamps row and the primary control), the after-transactions diffed in full (every flush row with a round 2), the `Offset` grouping dropped (flush_many's datagrams), the `write-count` finding dropped (the missing-DEL row), and every ACK-requesting write exempted from hygiene (the ACK row) | Passed | the test output |
+| V052 | 2026-10-18 | A8-T01 | `nix run .#microvm-x86_64-goip-parity -- --timeout 4500` from a scratch worktree at `main` (f0b32e06) plus this change, on an x86_64 NixOS host with `/dev/kvm` | All 174 verdicts and `txns` identical to V049. The 74 write rows (21 link, 26 route, 27 address) read `GOIP_PARITY_PASS` with no findings, their lines identical to V049's, control counts included. 166 PASS, 7 WARN and 1 FAIL, the pre-existing `-4 netconf show dev` (`HYGIENE_FAIL 2`), so the run ends `OVERALL_FAIL` as it does on `main`. `UNGATED_DIVERGENCES 7`, `CONTROL_NOISY 153` | transcript in the session scratchpad, not kept |
+| V053 | 2026-10-18 | A8-T01 | the nix checks: `.#test-focused-goip`, `checks.netlink-audit`, `checks.lint-baseline`, `.#quality-report`, `checks.nix-fmt`, `checks.statix`, `checks.deadnix`. `vm-lib-exp` does not apply: no `.exp` file changed | Passed, except `lint-baseline`, which fails on `main` with the same 17 tier-2 findings. The branch adds none. A first run found two of its own, prealloc in two test helpers. Both were fixed, and the test-only change was rechecked | the check outputs |
+| DOC019 | 2026-10-18 | A8-T01 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc, plus `git diff --check` | Passed: 25 task IDs one to one; 20 done ticks; no broken links or anchors; ledger IDs unique and in order; `git diff --check` clean | Summary retained here; the checker script was session-local |
 
 ## Blockers and upcoming requirements
 
@@ -222,6 +230,23 @@ it.
 - **No open blockers.**
 
 ## Progress and decision log
+
+- **2026-10-18.** A8-T01 is done.
+  - **Three-way split.** A flush's DELs are not last: round 2's dump
+    follows them. `SplitWrites` keeps what came before, the writes, and what
+    came after. The after-transactions are compared on the request only,
+    because ip's kernel has applied the batch and goip's has not
+    (decision 5).
+  - **The unACKed DEL is not a hygiene failure.** It carries
+    `NLM_F_REQUEST` alone, so it stays an open transaction. Only a write that
+    asked for no ACK and got no reply is exempted.
+  - **Writes are normalized.** A DEL copies a dump reply, including its pid
+    and `IFA_CACHEINFO` stamps, so the writes go through `NormalizeMsg`. The
+    lifetimes are still compared.
+  - **Replaced, not wrapped.** The design kept `SplitWrite` as a wrapper. It
+    was removed instead: every caller passes n=1, and
+    `TestCompareWritesSingle` pins the 74 single-write slugs against the old
+    code's results.
 
 - **2026-10-18.** A3-T03 is done, and with it phase A3.
   - **`-o -6` reads `v6_peer`.** On `mixed_links` it would print only lo's

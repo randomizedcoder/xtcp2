@@ -77,16 +77,16 @@ func corpusWriteRow(t *testing.T, c Command) writeRowFiles {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, w, err := nlparity.SplitWrite(nlparity.SegmentCapture(capture))
+	w, err := nlparity.SplitWrites(nlparity.SegmentCapture(capture), 1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	req := make([]byte, nlMsgHdrCst+len(w.Request.Body))
+	req := make([]byte, nlMsgHdrCst+len(w.Writes[0].Body))
 	binary.LittleEndian.PutUint32(req[0:4], uint32(len(req))) //nolint:gosec // a captured message
-	binary.LittleEndian.PutUint16(req[4:6], w.Request.Hdr.Type)
-	binary.LittleEndian.PutUint16(req[6:8], w.Request.Hdr.Flags)
+	binary.LittleEndian.PutUint16(req[4:6], w.Writes[0].Hdr.Type)
+	binary.LittleEndian.PutUint16(req[6:8], w.Writes[0].Hdr.Flags)
 	binary.LittleEndian.PutUint32(req[8:12], 1)
-	copy(req[nlMsgHdrCst:], w.Request.Body)
+	copy(req[nlMsgHdrCst:], w.Writes[0].Body)
 
 	return writeRowFiles{
 		pcaps: map[string][]byte{SideIPA: ipPcap, SideGoip: dropLastRecords(t, ipPcap, 2), SideIPB: ipPcap},

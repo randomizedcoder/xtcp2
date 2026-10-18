@@ -771,7 +771,7 @@ unchanged.
 | `addrShowDev` | `internal/goip/obj_addr.go:189` | `dev NAME` and bare-name show, flush and save |
 | `ErrWriteNotApplied`, `GOIP_WRITE_OUT` | `internal/goip/link_write.go:31`, `:35` | the dry run |
 | `TestDecodeNetlinkErrorExtack` | `pkg/xtcpnl/xtcpnl_nlmsgerr_test.go:179` | the negative rows' extack |
-| `nlparity.SplitWrite`, `CompareWrite`, `WriteControl` | `pkg/nlparity/nlparity_write.go:42`, `:104`, `:84` | the single-write rows |
+| `nlparity.SplitWrite`, `CompareWrite`, `WriteControl` (now `SplitWrites`, `CompareWrites`, `WritesControl` with n=1, A8-T01) | `pkg/nlparity/nlparity_write.go` | the single-write rows |
 
 **Add:**
 
@@ -813,8 +813,9 @@ unchanged.
 - **`pkg/nlparity`**: `SplitWrites` and `CompareWrites`, the N-write
   generalization of `SplitWrite`/`CompareWrite`. A write transaction may now be
   one datagram carrying k messages (the flush batch); the split is by
-  datagram, the diff by message. `SplitWrite` stays and is defined as
-  `SplitWrites` with N=1, so the link and route rows do not move.
+  datagram, the diff by message. As built (A8-T01), `SplitWrite` is replaced
+  rather than kept: its callers pass N=1, and the link and route rows do not
+  move.
 
 No reflection anywhere; every table is a slice of structs.
 

@@ -2083,7 +2083,7 @@ func TestAddrWriteRows(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, _, err := nlparity.SplitWrite(nlparity.SegmentCapture(capture)); err == nil {
+		if _, err := nlparity.SplitWrites(nlparity.SegmentCapture(capture), 1); err == nil {
 			writers[e.Name()] = true
 		} else {
 			silent = append(silent, e.Name())
@@ -2136,11 +2136,11 @@ func TestAddrWriteRows(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, w, err := nlparity.SplitWrite(nlparity.SegmentCapture(capture))
+			w, err := nlparity.SplitWrites(nlparity.SegmentCapture(capture), 1)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(w.Request.Body) == 0 || w.Request.Body[0] != afInet6 {
+			if len(w.Writes[0].Body) == 0 || w.Writes[0].Body[0] != afInet6 {
 				t.Errorf("%s: the write's ifa_family is not AF_INET6", slug)
 			}
 		}
