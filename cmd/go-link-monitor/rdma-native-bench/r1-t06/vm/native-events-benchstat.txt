@@ -1,0 +1,37 @@
+goos: linux
+goarch: amd64
+pkg: github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative
+cpu: AMD Ryzen Threadripper PRO 3945WX 12-Cores     
+                     │ native-events.txt │
+                     │      sec/op       │
+EventPath/batch=1-4         4.449µ ±  8%
+EventPath/batch=8-4         10.92µ ±  4%
+EventPath/batch=32-4        33.44µ ± 24%
+EventPath/batch=64-4        50.02µ ± 30%
+geomean                     16.89µ
+
+                     │ native-events.txt │
+                     │     sec/event     │
+EventPath/batch=1-4         4.449µ ±  8%
+EventPath/batch=8-4         1.366µ ±  4%
+EventPath/batch=32-4        1.045µ ± 24%
+EventPath/batch=64-4        781.6n ± 30%
+geomean                     1.492µ
+
+                     │ native-events.txt │
+                     │       B/op        │
+EventPath/batch=1-4         0.000 ± 0%
+EventPath/batch=8-4         0.000 ± 0%
+EventPath/batch=32-4        0.000 ± 0%
+EventPath/batch=64-4        0.000 ± 0%
+geomean                                ¹
+¹ summaries must be >0 to compute geomean
+
+                     │ native-events.txt │
+                     │     allocs/op     │
+EventPath/batch=1-4         0.000 ± 0%
+EventPath/batch=8-4         0.000 ± 0%
+EventPath/batch=32-4        0.000 ± 0%
+EventPath/batch=64-4        0.000 ± 0%
+geomean                                ¹
+¹ summaries must be >0 to compute geomean

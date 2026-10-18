@@ -1,0 +1,23 @@
+goos: linux
+goarch: amd64
+pkg: github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative
+cpu: AMD Ryzen Threadripper PRO 3945WX 12-Cores     
+                   │ native-rtnl.txt │
+                   │     sec/op      │
+TranslateRtnl-4         16.90n ± 14%
+DecodeAsyncEvent-4      11.47n ±  3%
+geomean                 13.93n
+
+                   │ native-rtnl.txt │
+                   │      B/op       │
+TranslateRtnl-4         0.000 ± 0%
+DecodeAsyncEvent-4      0.000 ± 0%
+geomean                            ¹
+¹ summaries must be >0 to compute geomean
+
+                   │ native-rtnl.txt │
+                   │    allocs/op    │
+TranslateRtnl-4         0.000 ± 0%
+DecodeAsyncEvent-4      0.000 ± 0%
+geomean                            ¹
+¹ summaries must be >0 to compute geomean

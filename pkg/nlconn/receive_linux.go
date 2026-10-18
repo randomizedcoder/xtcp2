@@ -3,6 +3,7 @@ package nlconn
 import (
 	"context"
 	"errors"
+	"unsafe"
 
 	"golang.org/x/sys/unix"
 )
@@ -63,44 +64,89 @@ func (c *Conn) Drain(ctx context.Context) (int, error) {
 	return discarded, err
 }
 
-func (c *Conn) receiveOne(ctx context.Context, wait bool) ([]byte, error) {
-	var n, flags int
-	var from unix.Sockaddr
-	var recvErr error
-	attempt := func(fd uintptr) bool {
-		for {
-			if recvErr = ctx.Err(); recvErr != nil {
-				return true
-			}
-			n, _, flags, from, recvErr = c.recv(int(fd), c.buffer, nil, unix.MSG_DONTWAIT)
-			if errors.Is(recvErr, unix.EINTR) {
-				continue
-			}
-			return !errors.Is(recvErr, unix.EAGAIN)
-		}
-	}
-	var err error
-	if wait {
-		err = c.raw.Read(attempt)
-	} else {
-		// Control pins the fd against close/reuse but never parks for readiness.
-		err = c.raw.Control(func(fd uintptr) { attempt(fd) })
-	}
-	if err != nil {
-		return nil, err
-	}
-	if recvErr != nil {
-		return nil, recvErr
-	}
-	if err := c.validateReceive(n, flags, from); err != nil {
-		return nil, err
-	}
-	return c.buffer[:n:n], nil
+// receiveState is receiveOne's working set. It lives in the Conn, which has a
+// single I/O owner, so a datagram's receive allocates nothing: the RawConn
+// callbacks are bound once and the sender is written into from rather than a
+// new unix.Sockaddr.
+type receiveState struct {
+	done       <-chan struct{}
+	from       unix.RawSockaddrNetlink
+	n, flags   int
+	err        error
+	canceled   bool
+	read       func(uintptr) bool
+	readNoWait func(uintptr)
 }
 
-func (c *Conn) validateReceive(n, flags int, from unix.Sockaddr) error {
-	sender, ok := from.(*unix.SockaddrNetlink)
-	if !ok || sender == nil || sender.Family != unix.AF_NETLINK || sender.Pid != 0 {
+func (c *Conn) receiveOne(ctx context.Context, wait bool) ([]byte, error) {
+	rx := &c.rx
+	if rx.read == nil {
+		rx.read = c.attempt
+		rx.readNoWait = func(fd uintptr) { c.attempt(fd) }
+	}
+	rx.done, rx.n, rx.flags, rx.err, rx.canceled = ctx.Done(), 0, 0, nil, false
+	var err error
+	if wait {
+		err = c.raw.Read(rx.read)
+	} else {
+		// Control pins the fd against close/reuse but never parks for readiness.
+		err = c.raw.Control(rx.readNoWait)
+	}
+	rx.done = nil
+	switch {
+	case err != nil:
+		return nil, err
+	case rx.canceled:
+		return nil, ctx.Err()
+	case rx.err != nil:
+		return nil, rx.err
+	}
+	if err := c.validateReceive(rx.n, rx.flags, &rx.from); err != nil {
+		return nil, err
+	}
+	return c.buffer[:rx.n:rx.n], nil
+}
+
+// attempt is the RawConn callback: one recvmsg, retried on EINTR. It returns
+// false on EAGAIN so Read parks in the poller.
+func (c *Conn) attempt(fd uintptr) bool {
+	rx := &c.rx
+	for {
+		select {
+		case <-rx.done:
+			rx.canceled = true
+			return true
+		default:
+		}
+		rx.n, rx.flags, rx.err = c.recv(int(fd), c.buffer, &rx.from, unix.MSG_DONTWAIT)
+		if errors.Is(rx.err, unix.EINTR) {
+			continue
+		}
+		return !errors.Is(rx.err, unix.EAGAIN)
+	}
+}
+
+// recvmsgNetlink is recvmsg(2) into p, with the sender's address written into
+// from. unix.Recvmsg would return a new unix.Sockaddr for every datagram. An
+// address shorter than a netlink one, as from a non-netlink peer, leaves from
+// zeroed, which validateReceive rejects.
+func recvmsgNetlink(fd int, p []byte, from *unix.RawSockaddrNetlink, flags int) (int, int, error) {
+	*from = unix.RawSockaddrNetlink{}
+	iov := unix.Iovec{Base: unsafe.SliceData(p)}
+	iov.SetLen(len(p))
+	msg := unix.Msghdr{Name: (*byte)(unsafe.Pointer(from)), Namelen: unix.SizeofSockaddrNetlink, Iov: &iov, Iovlen: 1}
+	n, _, errno := unix.Syscall(unix.SYS_RECVMSG, uintptr(fd), uintptr(unsafe.Pointer(&msg)), uintptr(flags))
+	if errno != 0 {
+		return 0, 0, errno
+	}
+	if msg.Namelen < unix.SizeofSockaddrNetlink {
+		*from = unix.RawSockaddrNetlink{}
+	}
+	return int(n), int(msg.Flags), nil
+}
+
+func (c *Conn) validateReceive(n, flags int, from *unix.RawSockaddrNetlink) error {
+	if from.Family != unix.AF_NETLINK || from.Pid != 0 {
 		return ErrSender
 	}
 	if flags&unix.MSG_TRUNC != 0 {

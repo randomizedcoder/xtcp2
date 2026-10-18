@@ -1,0 +1,28 @@
+File: core.test
+Build ID: 9204bdeac11b330d2825ba5863bd2ce34e59ce10
+Type: alloc_space
+Time: 2026-10-18 14:33:21 UTC
+Showing nodes accounting for 9.43GB, 99.89% of 9.44GB total
+Dropped 68 nodes (cum <= 0.05GB)
+      flat  flat%   sum%        cum   cum%
+    5.28GB 55.93% 55.93%     5.36GB 56.85%  github.com/randomizedcoder/xtcp2/pkg/xtcpnl.ParseNewLink
+    1.94GB 20.60% 76.53%     1.94GB 20.60%  github.com/randomizedcoder/xtcp2/pkg/xtcpnl.ParseNetlinkAttributes
+    1.94GB 20.54% 97.07%     1.94GB 20.54%  github.com/randomizedcoder/xtcp2/pkg/xtcpnl.(*ethtoolPayloadDecoder).decodeLinkModes
+    0.18GB  1.89% 98.97%     0.18GB  1.89%  github.com/randomizedcoder/xtcp2/pkg/xtcpnl.genlAttrU32
+    0.09GB  0.92% 99.89%     0.09GB  0.92%  github.com/randomizedcoder/xtcp2/pkg/xtcpnl.setLinkAttr
+         0     0% 99.89%     9.43GB 99.89%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor.BenchmarkPerformanceDecode.func1
+         0     0% 99.89%     4.06GB 43.04%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor.BenchmarkPerformanceDecode.func1.decodeEthtoolEvents.3
+         0     0% 99.89%     5.36GB 56.85%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor.BenchmarkPerformanceDecode.func1.decodeRouteEvents.2
+         0     0% 99.89%     4.06GB 43.04%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor.decodeEthtoolEvents (inline)
+         0     0% 99.89%     5.36GB 56.85%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor.decodeRouteEvents (inline)
+         0     0% 99.89%     4.06GB 43.04%  github.com/randomizedcoder/xtcp2/pkg/xtcpnl.ParseEthtool
+         0     0% 99.89%     0.96GB 10.14%  github.com/randomizedcoder/xtcp2/pkg/xtcpnl.ParseGenericNetlink
+         0     0% 99.89%     5.36GB 56.85%  github.com/randomizedcoder/xtcp2/pkg/xtcpnl.ParseMonitorLink
+         0     0% 99.89%     0.09GB  0.92%  github.com/randomizedcoder/xtcp2/pkg/xtcpnl.ParseNewLink.func1
+         0     0% 99.89%     9.43GB 99.89%  github.com/randomizedcoder/xtcp2/pkg/xtcpnl.WalkNetlinkEnvelopes
+         0     0% 99.89%     0.09GB  0.92%  github.com/randomizedcoder/xtcp2/pkg/xtcpnl.WalkRTAttrs
+         0     0% 99.89%     0.99GB 10.46%  github.com/randomizedcoder/xtcp2/pkg/xtcpnl.attrNested
+         0     0% 99.89%     1.17GB 12.35%  github.com/randomizedcoder/xtcp2/pkg/xtcpnl.decodeEthtoolHeader
+         0     0% 99.89%     1.94GB 20.54%  github.com/randomizedcoder/xtcp2/pkg/xtcpnl.decodeEthtoolPayload
+         0     0% 99.89%     9.43GB 99.89%  testing.(*B).run1.func1
+         0     0% 99.89%     9.43GB 99.89%  testing.(*B).runN

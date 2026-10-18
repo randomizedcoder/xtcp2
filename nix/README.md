@@ -85,7 +85,7 @@ remains the cached `test-linkmonitor-performance` leaf:
 | `nix run path:.#bench-linkmonitor-smoke` | Short runner wiring check; evidence is explicitly smoke-only |
 | `nix run path:.#bench-linkmonitor` | Ten-repetition microbenchmarks and the bounded synthetic scenario matrix |
 | `nix run path:.#bench-linkmonitor-soak` | Fresh core/RDMA ten-minute warmed large-schema profiles and resource samples |
-| `nix run path:.#bench-linkmonitor-rdma-native -- --output DIR` | Go-native RDMA baselines: the cgo `BenchmarkPerformanceCGO` and `BenchmarkPerformanceUMAD` with `-count=10`, CPU and heap `pprof -top`, and `benchstat`; `--smoke` checks the wiring, and `nix build path:.#test-linkmonitor-rdma-native-bench` gates it |
+| `nix run path:.#bench-linkmonitor-rdma-native -- --output DIR` | Go-native RDMA baselines: the cgo `BenchmarkPerformanceCGO` and `BenchmarkPerformanceUMAD` with `-count=10`, CPU and heap `pprof -top`, and `benchstat`; `--native` adds the go-native decoders and the existing rtnetlink decoder baseline; `--smoke` checks the wiring, and `nix build path:.#test-linkmonitor-rdma-native-bench` gates it |
 | `nix run path:.#siege-linkmonitor -- --url URL --output DIR` | External Siege load: 90% `/metrics`, 5% `/healthz`, 5% `/readyz` |
 | `nix run path:.#profile-linkmonitor -- --url URL --output DIR --profile` | Capture and validate endpoint CPU/heap/block/mutex pprof data |
 | `nix run path:.#pgo-linkmonitor -- --profile CPU.pprof --output BIN` | Build with pinned Go profile-guided optimization |
@@ -142,7 +142,7 @@ four CPUs and 4 GiB of memory, captures rtnetlink traffic through `nlmon0`,
 runs the live tests and representative benchmarks as root, and returns a
 compressed evidence bundle containing the serial log, benchmark output, CPU /
 heap / block / mutex profiles and `netlink.pcap`, plus the go-native RDMA
-cgo baselines from `bench-linkmonitor-rdma-native` in `rdma-native/`. Set `QEMU_ACCEL=tcg` when KVM
+cgo baselines and native decoders from `bench-linkmonitor-rdma-native --native` in `rdma-native/`. Set `QEMU_ACCEL=tcg` when KVM
 is unavailable and `LINKMONITOR_BENCHTIME=30s` for a longer profile window.
 The target is an explicit runner rather than a flake check because it needs
 `/dev/kvm` when accelerated and writes evidence outside the Nix store.

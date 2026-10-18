@@ -1,0 +1,35 @@
+goos: linux
+goarch: amd64
+pkg: github.com/randomizedcoder/xtcp2/pkg/nlconn
+cpu: AMD Ryzen Threadripper PRO 3945WX 12-Cores     
+                   │ native-receive.txt │
+                   │       sec/op       │
+Receive/batch=1-4          2.143µ ± 52%
+Receive/batch=8-4          6.220µ ±  1%
+Receive/batch=32-4         21.75µ ±  1%
+Receive/batch=64-4         41.16µ ±  1%
+geomean                    10.45µ
+
+                   │ native-receive.txt │
+                   │    sec/datagram    │
+Receive/batch=1-4          2.143µ ± 52%
+Receive/batch=8-4          777.5n ±  1%
+Receive/batch=32-4         679.8n ±  1%
+Receive/batch=64-4         643.0n ±  1%
+geomean                    923.8n
+
+                   │ native-receive.txt │
+                   │        B/op        │
+Receive/batch=1-4            280.0 ± 0%
+Receive/batch=8-4            280.0 ± 0%
+Receive/batch=32-4           280.0 ± 0%
+Receive/batch=64-4           280.0 ± 0%
+geomean                      280.0
+
+                   │ native-receive.txt │
+                   │     allocs/op      │
+Receive/batch=1-4            5.000 ± 0%
+Receive/batch=8-4            5.000 ± 0%
+Receive/batch=32-4           5.000 ± 0%
+Receive/batch=64-4           5.000 ± 0%
+geomean                      5.000

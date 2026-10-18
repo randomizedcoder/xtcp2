@@ -1,0 +1,80 @@
+goos: linux
+goarch: amd64
+pkg: github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmaevents
+cpu: AMD Ryzen Threadripper PRO 3945WX 12-Cores     
+                     │     cgo      │
+                     │    sec/op    │
+EventPath/batch=1-4    30.42n ±  7%
+EventPath/batch=8-4    35.92n ± 16%
+EventPath/batch=32-4   43.03n ± 14%
+EventPath/batch=64-4   53.29n ± 25%
+geomean                39.78n
+
+                     │     cgo     │
+                     │  cgo/event  │
+EventPath/batch=1-4     1.000 ± 0%
+EventPath/batch=8-4    125.0m ± 0%
+EventPath/batch=32-4   31.25m ± 0%
+EventPath/batch=64-4   15.62m ± 0%
+geomean                88.38m
+
+                     │      cgo      │
+                     │   sec/event   │
+EventPath/batch=1-4     30.42n ±  7%
+EventPath/batch=8-4     4.490n ± 16%
+EventPath/batch=32-4    1.345n ± 14%
+EventPath/batch=64-4   0.8326n ± 26%
+geomean                 3.517n
+
+                     │     cgo      │
+                     │     B/op     │
+EventPath/batch=1-4    0.000 ± 0%
+EventPath/batch=8-4    0.000 ± 0%
+EventPath/batch=32-4   0.000 ± 0%
+EventPath/batch=64-4   0.000 ± 0%
+geomean                           ¹
+¹ summaries must be >0 to compute geomean
+
+                     │     cgo      │
+                     │  allocs/op   │
+EventPath/batch=1-4    0.000 ± 0%
+EventPath/batch=8-4    0.000 ± 0%
+EventPath/batch=32-4   0.000 ± 0%
+EventPath/batch=64-4   0.000 ± 0%
+geomean                           ¹
+¹ summaries must be >0 to compute geomean
+
+pkg: github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative
+                     │    native     │
+                     │    sec/op     │
+EventPath/batch=1-4    5.836µ ±  11%
+EventPath/batch=8-4    19.51µ ±  11%
+EventPath/batch=32-4   73.68µ ± 117%
+EventPath/batch=64-4   166.5µ ± 151%
+geomean                34.38µ
+
+                     │    native     │
+                     │   sec/event   │
+EventPath/batch=1-4    5.836µ ±  11%
+EventPath/batch=8-4    2.438µ ±  11%
+EventPath/batch=32-4   2.303µ ± 117%
+EventPath/batch=64-4   2.602µ ± 151%
+geomean                3.038µ
+
+                     │    native    │
+                     │     B/op     │
+EventPath/batch=1-4    0.000 ± 0%
+EventPath/batch=8-4    0.000 ± 0%
+EventPath/batch=32-4   0.000 ± 0%
+EventPath/batch=64-4   0.000 ± 0%
+geomean                           ¹
+¹ summaries must be >0 to compute geomean
+
+                     │    native    │
+                     │  allocs/op   │
+EventPath/batch=1-4    0.000 ± 0%
+EventPath/batch=8-4    0.000 ± 0%
+EventPath/batch=32-4   0.000 ± 0%
+EventPath/batch=64-4   0.000 ± 0%
+geomean                           ¹
+¹ summaries must be >0 to compute geomean

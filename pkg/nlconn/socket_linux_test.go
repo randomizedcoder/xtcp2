@@ -71,6 +71,21 @@ func (r *fakeRaw) retry(fn func(uintptr) bool) error {
 	return errors.New("script exhausted readiness retries")
 }
 
+// legacyRecv adapts a fake written as unix.Recvmsg's results to recvFunc. A
+// *unix.SockaddrNetlink sender is copied into the Conn's address; any other
+// (nil, a typed nil, another family's type) leaves it zeroed, as
+// recvmsgNetlink does for a non-netlink peer.
+func legacyRecv(f func(fd int, b, oob []byte, flags int) (int, int, int, unix.Sockaddr, error)) recvFunc {
+	return func(fd int, b []byte, from *unix.RawSockaddrNetlink, flags int) (int, int, error) {
+		n, _, recvFlags, sa, err := f(fd, b, nil, flags)
+		*from = unix.RawSockaddrNetlink{}
+		if nl, ok := sa.(*unix.SockaddrNetlink); ok && nl != nil {
+			*from = unix.RawSockaddrNetlink{Family: nl.Family, Pid: nl.Pid, Groups: nl.Groups}
+		}
+		return n, recvFlags, err
+	}
+}
+
 func testConn() (*Conn, *fakeFile, *fakeRaw) {
 	f, r := &fakeFile{closed: make(chan struct{})}, &fakeRaw{}
 	return &Conn{file: f, raw: r, buffer: make([]byte, initialBuffer)}, f, r
@@ -223,9 +238,9 @@ func TestOperationDeadlineAndOwner(t *testing.T) {
 	c, f, r := testConn()
 	deadline := time.Now().Add(time.Hour)
 	ctx, cancel := context.WithDeadline(context.Background(), deadline)
-	c.recv = func(int, []byte, []byte, int) (int, int, int, unix.Sockaddr, error) {
+	c.recv = legacyRecv(func(int, []byte, []byte, int) (int, int, int, unix.Sockaddr, error) {
 		return 1, 0, 0, &unix.SockaddrNetlink{Family: unix.AF_NETLINK}, nil
-	}
+	})
 	stop := errors.New("stop")
 	_, err := c.Receive(ctx, func([]byte) error {
 		if r.inside {

@@ -1,0 +1,27 @@
+goos: linux
+goarch: amd64
+pkg: github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps
+cpu: AMD Ryzen Threadripper PRO 3945WX 12-Cores     
+                              │ cgo-umad.txt │
+                              │    sec/op    │
+PerformanceUMAD/uncontended-4   325.1n ±  3%
+PerformanceUMAD/contended-4     668.2n ± 27%
+geomean                         466.1n
+
+                              │ cgo-umad.txt │
+                              │  cgo/query   │
+PerformanceUMAD/uncontended-4     3.000 ± 0%
+PerformanceUMAD/contended-4       3.000 ± 0%
+geomean                           3.000
+
+                              │ cgo-umad.txt │
+                              │     B/op     │
+PerformanceUMAD/uncontended-4     512.0 ± 0%
+PerformanceUMAD/contended-4       512.0 ± 0%
+geomean                           512.0
+
+                              │ cgo-umad.txt │
+                              │  allocs/op   │
+PerformanceUMAD/uncontended-4     2.000 ± 0%
+PerformanceUMAD/contended-4       2.000 ± 0%
+geomean                           2.000

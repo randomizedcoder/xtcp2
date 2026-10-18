@@ -1,0 +1,45 @@
+goos: linux
+goarch: amd64
+pkg: github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative
+cpu: AMD Ryzen Threadripper PRO 3945WX 12-Cores     
+BenchmarkEventPath/batch=1-4         	  179156	      5624 ns/op	      5624 ns/event	       0 B/op	       0 allocs/op
+BenchmarkEventPath/batch=1-4         	  169521	      5943 ns/op	      5943 ns/event	       0 B/op	       0 allocs/op
+BenchmarkEventPath/batch=1-4         	  230992	      4753 ns/op	      4753 ns/event	       0 B/op	       0 allocs/op
+BenchmarkEventPath/batch=1-4         	  257037	      6317 ns/op	      6317 ns/event	       0 B/op	       0 allocs/op
+BenchmarkEventPath/batch=1-4         	  188967	      6079 ns/op	      6079 ns/event	       0 B/op	       0 allocs/op
+BenchmarkEventPath/batch=1-4         	  171789	      6836 ns/op	      6836 ns/event	       0 B/op	       0 allocs/op
+BenchmarkEventPath/batch=1-4         	  181160	      6483 ns/op	      6483 ns/event	       0 B/op	       0 allocs/op
+BenchmarkEventPath/batch=1-4         	  202598	      5411 ns/op	      5411 ns/event	       0 B/op	       0 allocs/op
+BenchmarkEventPath/batch=1-4         	  226005	      5313 ns/op	      5313 ns/event	       0 B/op	       0 allocs/op
+BenchmarkEventPath/batch=1-4         	  234502	      5728 ns/op	      5728 ns/event	       0 B/op	       0 allocs/op
+BenchmarkEventPath/batch=8-4         	   58194	     20433 ns/op	      2554 ns/event	       0 B/op	       0 allocs/op
+BenchmarkEventPath/batch=8-4         	   57031	     26805 ns/op	      3351 ns/event	       0 B/op	       0 allocs/op
+BenchmarkEventPath/batch=8-4         	   83727	     13977 ns/op	      1747 ns/event	       0 B/op	       0 allocs/op
+BenchmarkEventPath/batch=8-4         	   64414	     19018 ns/op	      2377 ns/event	       0 B/op	       0 allocs/op
+BenchmarkEventPath/batch=8-4         	   71797	     17376 ns/op	      2172 ns/event	       0 B/op	       0 allocs/op
+BenchmarkEventPath/batch=8-4         	   53295	     21229 ns/op	      2654 ns/event	       0 B/op	       0 allocs/op
+BenchmarkEventPath/batch=8-4         	   68372	     18813 ns/op	      2352 ns/event	       0 B/op	       0 allocs/op
+BenchmarkEventPath/batch=8-4         	   54457	     19993 ns/op	      2499 ns/event	       0 B/op	       0 allocs/op
+BenchmarkEventPath/batch=8-4         	   61220	     18407 ns/op	      2301 ns/event	       0 B/op	       0 allocs/op
+BenchmarkEventPath/batch=8-4         	   60006	     20699 ns/op	      2587 ns/event	       0 B/op	       0 allocs/op
+BenchmarkEventPath/batch=32-4        	   25821	     39093 ns/op	      1222 ns/event	       0 B/op	       0 allocs/op
+BenchmarkEventPath/batch=32-4        	   27236	     49296 ns/op	      1541 ns/event	       0 B/op	       0 allocs/op
+BenchmarkEventPath/batch=32-4        	   15075	     73279 ns/op	      2290 ns/event	       0 B/op	       0 allocs/op
+BenchmarkEventPath/batch=32-4        	   21664	     50325 ns/op	      1573 ns/event	       0 B/op	       0 allocs/op
+BenchmarkEventPath/batch=32-4        	   31362	     42572 ns/op	      1330 ns/event	       0 B/op	       0 allocs/op
+BenchmarkEventPath/batch=32-4        	   23113	     74088 ns/op	      2315 ns/event	       0 B/op	       0 allocs/op
+BenchmarkEventPath/batch=32-4        	   10000	    143944 ns/op	      4498 ns/event	       0 B/op	       0 allocs/op
+BenchmarkEventPath/batch=32-4        	    7164	    160097 ns/op	      5003 ns/event	       0 B/op	       0 allocs/op
+BenchmarkEventPath/batch=32-4        	    9804	    147233 ns/op	      4601 ns/event	       0 B/op	       0 allocs/op
+BenchmarkEventPath/batch=32-4        	    7270	    172589 ns/op	      5393 ns/event	       0 B/op	       0 allocs/op
+BenchmarkEventPath/batch=64-4        	    7953	    290888 ns/op	      4545 ns/event	      16 B/op	       0 allocs/op
+BenchmarkEventPath/batch=64-4        	    5592	    430199 ns/op	      6722 ns/event	       0 B/op	       0 allocs/op
+BenchmarkEventPath/batch=64-4        	    2984	    417501 ns/op	      6523 ns/event	       0 B/op	       0 allocs/op
+BenchmarkEventPath/batch=64-4        	    4363	    280477 ns/op	      4382 ns/event	       0 B/op	       0 allocs/op
+BenchmarkEventPath/batch=64-4        	    8103	    222312 ns/op	      3474 ns/event	       0 B/op	       0 allocs/op
+BenchmarkEventPath/batch=64-4        	   12816	     91156 ns/op	      1424 ns/event	       0 B/op	       0 allocs/op
+BenchmarkEventPath/batch=64-4        	   18784	     66029 ns/op	      1032 ns/event	       0 B/op	       0 allocs/op
+BenchmarkEventPath/batch=64-4        	   14605	     80422 ns/op	      1257 ns/event	       0 B/op	       0 allocs/op
+BenchmarkEventPath/batch=64-4        	   10000	    110717 ns/op	      1730 ns/event	       0 B/op	       0 allocs/op
+BenchmarkEventPath/batch=64-4        	   14064	     88397 ns/op	      1381 ns/event	       0 B/op	       0 allocs/op
+PASS

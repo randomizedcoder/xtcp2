@@ -54,9 +54,10 @@ let
         -test.mutexprofile "$out/mutex.pprof" >"$out/bench.txt" 2>&1
 
       # The go-native RDMA cgo baselines (GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md
-      # R0-T05): simulated input, so no RDMA device is needed.
+      # R0-T05) and the native decoders beside them (R1-T03, R1-T06):
+      # simulated input, so no RDMA device is needed.
       set +e
-      ${rdmaNativeBench}/bin/bench-linkmonitor-rdma-native --output "$out/rdma-native" >"$out/rdma-native.log" 2>&1
+      ${rdmaNativeBench}/bin/bench-linkmonitor-rdma-native --native --output "$out/rdma-native" >"$out/rdma-native.log" 2>&1
       rdma_native_rc=$?
       set -e
 

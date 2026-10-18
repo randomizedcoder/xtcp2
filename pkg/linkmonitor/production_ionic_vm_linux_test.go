@@ -596,6 +596,36 @@ func TestIonicEvents(t *testing.T) {
 	}
 }
 
+// TestIonicCoreBackend runs against go-link-monitor-core, the CGO_ENABLED=0
+// build, after TestIonicEvents has passed against it: auto resolves to the
+// netlink backend there, and rdma_events is healthy on the real driver.
+func TestIonicCoreBackend(t *testing.T) {
+	f := ionicEnv(t)
+	samples := waitMetrics(t, f.url, 60*time.Second, func(s []metricSample) error {
+		return want(s, 1, "collector_success", "interface", f.netdev, "collector", "rdma_events")
+	})
+	for _, row := range []struct {
+		name, category, description, expected string
+		check                                 func([]metricSample) error
+	}{
+		{"netlink", "positive", "the core build's resolved backend", "rdma_events_backend_info{backend=netlink} 1",
+			func(s []metricSample) error { return want(s, 1, "rdma_events_backend_info", "backend", "netlink") }},
+		{"no_verbs", "negative", "the verbs backend, which needs cgo", "absent",
+			func(s []metricSample) error { return absent(s, "rdma_events_backend_info", "backend", "verbs") }},
+		{"port_up", "boundary", "the RoCE port the events keep current", "rdma_port_up 1",
+			func(s []metricSample) error {
+				return want(s, 1, "rdma_port_up", "interface", f.netdev, "device", f.rdma, "port", "1")
+			}},
+		{"healthy", "corner", "the whole collection with no cgo in the process", "collection_healthy 1",
+			func(s []metricSample) error { return want(s, 1, "collection_healthy") }},
+	} {
+		t.Logf("%s: %s: %s; expected: %s", row.category, row.name, row.description, row.expected)
+		if err := row.check(samples); err != nil {
+			t.Errorf("%s: %v", row.name, err)
+		}
+	}
+}
+
 // TestIonicRemoved runs after a guest PCI remove: the kernel must finish removal
 // while the monitor holds verbs and netlink handles, and the monitor must
 // report the lost link against its baseline.

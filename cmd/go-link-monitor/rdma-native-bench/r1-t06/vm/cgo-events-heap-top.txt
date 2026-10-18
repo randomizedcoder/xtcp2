@@ -1,0 +1,38 @@
+File: rdmaevents.test
+Build ID: abafc2c6c84fdfbec8af1bddebbbd9829b879b5c
+Type: alloc_space
+Time: 2026-10-18 17:09:48 UTC
+Showing nodes accounting for 4697.96kB, 100% of 4697.96kB total
+      flat  flat%   sum%        cum   cum%
+ 2049.30kB 43.62% 43.62%  2049.30kB 43.62%  runtime.mallocgc
+  902.59kB 19.21% 62.83%  2136.21kB 45.47%  compress/flate.NewWriter (inline)
+  650.62kB 13.85% 76.68%  1233.63kB 26.26%  compress/flate.(*compressor).init
+  583.01kB 12.41% 89.09%   583.01kB 12.41%  compress/flate.newDeflateFast (inline)
+  512.44kB 10.91%   100%   512.44kB 10.91%  testing.(*B).ResetTimer
+         0     0%   100%  2136.21kB 45.47%  compress/gzip.(*Writer).Write
+         0     0%   100%   512.05kB 10.90%  runtime.(*scavengerState).init
+         0     0%   100%   512.01kB 10.90%  runtime.(*scavengerState).sleep
+         0     0%   100%   512.01kB 10.90%  runtime.(*timer).maybeAdd
+         0     0%   100%   512.01kB 10.90%  runtime.(*timer).modify
+         0     0%   100%   512.01kB 10.90%  runtime.(*timer).reset (inline)
+         0     0%   100%   512.01kB 10.90%  runtime.(*timers).addHeap
+         0     0%   100%      513kB 10.92%  runtime.allocm
+         0     0%   100%  1024.05kB 21.80%  runtime.bgscavenge
+         0     0%   100%   512.25kB 10.90%  runtime.gcBgMarkWorker
+         0     0%   100%   512.01kB 10.90%  runtime.growslice
+         0     0%   100%      513kB 10.92%  runtime.mstart
+         0     0%   100%      513kB 10.92%  runtime.mstart0
+         0     0%   100%      513kB 10.92%  runtime.mstart1
+         0     0%   100%      513kB 10.92%  runtime.newm
+         0     0%   100%  1537.30kB 32.72%  runtime.newobject
+         0     0%   100%      513kB 10.92%  runtime.resetspinning
+         0     0%   100%      513kB 10.92%  runtime.schedule
+         0     0%   100%      513kB 10.92%  runtime.startm
+         0     0%   100%      513kB 10.92%  runtime.wakep
+         0     0%   100%  2136.21kB 45.47%  runtime/pprof.(*profileBuilder).appendLocsForStack
+         0     0%   100%  2136.21kB 45.47%  runtime/pprof.(*profileBuilder).build
+         0     0%   100%  2136.21kB 45.47%  runtime/pprof.(*profileBuilder).emitLocation
+         0     0%   100%  2136.21kB 45.47%  runtime/pprof.(*profileBuilder).flush
+         0     0%   100%  2136.21kB 45.47%  runtime/pprof.profileWriter
+         0     0%   100%   512.44kB 10.91%  testing.(*B).run1.func1
+         0     0%   100%   512.44kB 10.91%  testing.(*B).runN

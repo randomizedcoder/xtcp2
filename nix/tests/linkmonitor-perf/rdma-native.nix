@@ -18,7 +18,21 @@
 #   bench-linkmonitor-rdma-native --from DIR --evidence DIR
 #
 # --smoke is one iteration of each, for checking the runner itself. --native
-# is reserved for the go-native side, added once its benchmarks exist (R1-T06).
+# adds the go-native side, from the same artifact:
+#
+#   rdmanative.test  BenchmarkTranslateRtnl, BenchmarkDecodeAsyncEvent
+#   rdmanative.test  BenchmarkEventPath, the netlink source from a written
+#                    datagram to delivery (batch 1, 8, 32, 64); also
+#                    compared with BenchmarkPerformanceCGO's batches in
+#                    event-path-benchstat.txt
+#   nlconn.test      BenchmarkReceive, the netlink receive layer alone, with
+#                    a cancelable and a background context (batch 1, 8,
+#                    32, 64); the event path and the rtnetlink
+#                    listener both receive through it
+#   xtcpnl.test      BenchmarkParseChardev
+#   core.test        BenchmarkPerformanceDecode, the monitor's existing
+#                    rtnetlink and ethtool decoders, which R1-T03's
+#                    translator must not be slower than
 #
 # --evidence DIR writes the text evidence the status document cites (manifest,
 # raw output, pprof tops, benchstat from this flake's goperf) to DIR, replacing
@@ -67,10 +81,7 @@ pkgs.writeShellApplication {
         --count) [ "$#" -ge 2 ] || usage; count=$2; shift 2 ;;
         --benchtime) [ "$#" -ge 2 ] || usage; benchtime=$2; shift 2 ;;
         --smoke) count=1; benchtime=1x; shift ;;
-        --native)
-          echo "bench-linkmonitor-rdma-native: no native benchmarks yet (added by R1-T06 and R2-T03)" >&2
-          exit 2
-          ;;
+        --native) names+=(native-rtnl native-events native-receive native-chardev decode-baseline); shift ;;
         -h | --help) usage ;;
         *) echo "bench-linkmonitor-rdma-native: unknown argument $1" >&2; usage ;;
       esac
@@ -82,6 +93,16 @@ pkgs.writeShellApplication {
       echo "bench-linkmonitor-rdma-native: --from needs --evidence and no --output" >&2
       exit 2
     fi
+
+    # The event path against the cgo batches it replaces: the cgo rows are
+    # renamed so benchstat pairs them by batch size.
+    compare() {
+      local dir=$1
+      [[ " ''${names[*]} " == *" native-events "* ]] || return 0
+      sed 's/^BenchmarkPerformanceCGO/BenchmarkEventPath/' "$dir/cgo-events.txt" > "$dir/cgo-events-renamed.txt"
+      (cd "$dir" && benchstat cgo=cgo-events-renamed.txt native=native-events.txt > event-path-benchstat.txt)
+      rm -f -- "$dir/cgo-events-renamed.txt"
+    }
 
     # Text evidence from a run directory: everything but the binary profiles,
     # with benchstat recomputed here so its version is this flake's.
@@ -101,6 +122,7 @@ pkgs.writeShellApplication {
         cp "$src/$name.txt" "$src/$name-cpu-top.txt" "$src/$name-heap-top.txt" "$dst/"
         (cd "$dst" && benchstat "$name.txt" > "$name-benchstat.txt")
       done
+      compare "$dst"
       echo "bench-linkmonitor-rdma-native: evidence in $dst"
     }
 
@@ -127,11 +149,11 @@ pkgs.writeShellApplication {
       echo "artifact=${artifact}"
     } > "$output/manifest.txt"
 
-    # name, test binary, benchmark
+    # name, test binary, benchmark pattern (anchored here)
     run() {
       local name=$1 bin=$2 bench=$3 profile
       echo "bench-linkmonitor-rdma-native: $name ($bench, count $count, benchtime $benchtime)"
-      "$bin" -test.run '^$' -test.bench "^$bench\$" -test.benchmem \
+      "$bin" -test.run '^$' -test.bench "^($bench)\$" -test.benchmem \
         -test.count "$count" -test.benchtime "$benchtime" \
         -test.cpuprofile "$output/$name-cpu.pprof" \
         -test.memprofile "$output/$name-heap.pprof" > "$output/$name.txt" 2>&1 || {
@@ -150,8 +172,21 @@ pkgs.writeShellApplication {
     }
     run cgo-events "${artifact}/bin/rdmaevents.test" BenchmarkPerformanceCGO
     run cgo-umad "${artifact}/bin/rdmacaps.test" BenchmarkPerformanceUMAD
+    if [[ " ''${names[*]} " == *" native-rtnl "* ]]; then
+      run native-rtnl "${artifact}/bin/rdmanative.test" 'BenchmarkTranslateRtnl|BenchmarkDecodeAsyncEvent'
+      run native-events "${artifact}/bin/rdmanative.test" BenchmarkEventPath
+      run native-receive "${artifact}/bin/nlconn.test" BenchmarkReceive
+      run native-chardev "${artifact}/bin/xtcpnl.test" BenchmarkParseChardev
+      run decode-baseline "${artifact}/bin/core.test" BenchmarkPerformanceDecode
+    fi
 
-    cat "$output/cgo-events-benchstat.txt" "$output/cgo-umad-benchstat.txt"
+    compare "$output"
+    for name in "''${names[@]}"; do
+      cat "$output/$name-benchstat.txt"
+    done
+    for f in event-path-benchstat.txt; do
+      if [ -s "$output/$f" ]; then cat "$output/$f"; fi
+    done
     if [ -n "$evidence" ]; then
       promote "$output" "$evidence"
     fi

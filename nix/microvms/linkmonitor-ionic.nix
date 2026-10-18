@@ -25,6 +25,7 @@
   nixpkgs,
   artifact,
   monitor,
+  coreMonitor,
   ernicModule,
   ernicRun,
   rdmaCaptureManifest,
@@ -119,30 +120,25 @@ let
     # Verbs async events from the real driver, through rdmaevents Open/Run.
     ${artifact}/bin/ionic-vm-events.test -test.run '^TestIonicVerbsEvents$' -test.v -test.timeout=5m
     echo LINKMONITOR_IONIC_VERBS_EVENTS_PASS
+    # The verbs and netlink sources side by side over the same triggers
+    # (R1-T05), through the monitor's own openRDMAEvents.
+    run_test TestDifferentialRDMAEvents
+    run_test TestDifferentialRDMAFaults
+    echo LINKMONITOR_IONIC_DIFFERENTIAL_PASS
+    # The CGO_ENABLED=0 build: the same events, from the netlink backend.
+    systemctl start go-link-monitor-core.service
+    run_test TestIonicCoreBackend
+    run_test TestIonicEvents
+    echo LINKMONITOR_IONIC_CORE_EVENTS_PASS
+    systemctl start go-link-monitor.service
+    run_test TestIonicMonitorHealthy
 
     # Removal unregisters the RDMA device while the monitor holds a verbs
-    # context; if that blocks, show where instead of waiting for the timeout.
-    pci=$(ionic_pci)
-    echo "removing ionic PCI function $pci"
-    echo 1 > "/sys/bus/pci/devices/$pci/remove" &
-    remover=$!
-    for _ in $(seq 1 90); do
-      if [ ! -e "/sys/class/net/$netdev" ] && ! kill -0 "$remover" 2> /dev/null; then
-        break
-      fi
-      sleep 1
-    done
-    if kill -0 "$remover" 2> /dev/null; then
-      echo "PCI remove of $pci still blocked after 90s; kernel stack:" >&2
-      cat "/proc/$remover/stack" >&2 || true
-      echo w > /proc/sysrq-trigger
-      false
-    fi
-    wait "$remover"
-    if [ -e "/sys/class/net/$netdev" ]; then
-      echo "ionic netdev $netdev still present after PCI remove" >&2
-      false
-    fi
+    # context, and while TestDifferentialRDMARemove holds both event sources,
+    # which must each report it as Fatal. remove_ionic shows where removal
+    # blocks instead of waiting for the timeout.
+    LINKMONITOR_EVENTS_REMOVE=remove_ionic run_test TestDifferentialRDMARemove
+    echo LINKMONITOR_IONIC_DIFFERENTIAL_REMOVE_PASS
     run_test TestIonicRemoved
     echo LINKMONITOR_IONIC_UNPLUG_PASS
 
@@ -163,6 +159,7 @@ let
     # Coverage must be live again, not just reported: the same transitions
     # and renames have to be observed on the replugged device.
     run_test TestIonicEvents
+    run_test TestDifferentialRDMAEvents
     echo LINKMONITOR_IONIC_RECOVERED_EVENTS_PASS
 
     on_demand
@@ -193,6 +190,7 @@ let
   guestTest = pkgs.writeShellApplication {
     name = "${name}-guest";
     runtimeInputs = with pkgs; [
+      bash
       coreutils
       ethtool
       gawk
@@ -259,8 +257,36 @@ let
         netdev=$(ionic_netdev)
         rdmadev=$(rdma_device "$netdev")
         export LINKMONITOR_IONIC_NETDEV="$netdev" LINKMONITOR_IONIC_RDMA="$rdmadev"
+        export LINKMONITOR_EVENTS_NETDEV="$netdev" LINKMONITOR_EVENTS_RDMA="$rdmadev"
         echo "ionic netdev $netdev, RDMA device $rdmadev"
       }
+      # Run by TestDifferentialRDMARemove through bash -c, where errexit is
+      # off, so every failure returns explicitly.
+      remove_ionic() {
+        local pci remover
+        pci=$(ionic_pci) || return 1
+        echo "removing ionic PCI function $pci"
+        echo 1 > "/sys/bus/pci/devices/$pci/remove" &
+        remover=$!
+        for _ in $(seq 1 90); do
+          if [ ! -e "/sys/class/net/$LINKMONITOR_IONIC_NETDEV" ] && ! kill -0 "$remover" 2> /dev/null; then
+            break
+          fi
+          sleep 1
+        done
+        if kill -0 "$remover" 2> /dev/null; then
+          echo "PCI remove of $pci still blocked after 90s; kernel stack:" >&2
+          cat "/proc/$remover/stack" >&2 || true
+          echo w > /proc/sysrq-trigger
+          return 1
+        fi
+        wait "$remover" || return 1
+        if [ -e "/sys/class/net/$LINKMONITOR_IONIC_NETDEV" ]; then
+          echo "ionic netdev $LINKMONITOR_IONIC_NETDEV still present after PCI remove" >&2
+          return 1
+        fi
+      }
+      export -f ionic_pci remove_ionic
       export LINKMONITOR_METRICS_URL=http://${metricsAddress}/metrics-all
 
       ${if faults then faultSteps else healthySteps}
@@ -268,13 +294,13 @@ let
     '';
   };
 
-  monitorService = description: flags: {
+  mkMonitorService = package: description: flags: {
     inherit description;
     after = [ "ernic-rdma-up.service" ];
     serviceConfig = {
       ExecStart = lib.escapeShellArgs (
         [
-          "${monitor}/bin/go-link-monitor"
+          "${package}/bin/go-link-monitor"
           "-settle"
           "5s"
           "-metrics-addr"
@@ -289,6 +315,14 @@ let
       StandardError = "journal+console";
     };
   };
+  monitorService = mkMonitorService monitor;
+  # Poll mode, so the counter checks see a fresh sample every 2s.
+  pollFlags = [
+    "-collection.mode"
+    "poll"
+    "-stats-interval"
+    "2s"
+  ];
 
   system = nixpkgs.lib.nixosSystem {
     system = pkgs.stdenv.hostPlatform.system;
@@ -311,13 +345,13 @@ let
           qemu.networkingOptions = lib.mkForce [ ];
           qemu.options = [ "-no-reboot" ];
         };
-        # Poll mode, so the counter checks see a fresh sample every 2s.
-        systemd.services.go-link-monitor = monitorService "go-link-monitor under test" [
-          "-collection.mode"
-          "poll"
-          "-stats-interval"
-          "2s"
-        ];
+        systemd.services.go-link-monitor = monitorService "go-link-monitor under test" pollFlags;
+        # The CGO_ENABLED=0 build, whose RDMA events come from netlink.
+        systemd.services.go-link-monitor-core =
+          mkMonitorService coreMonitor "go-link-monitor-core under test" pollFlags
+          // {
+            conflicts = [ "go-link-monitor.service" ];
+          };
         # Intervals match production_ionic_ondemand_vm_linux_test.go.
         systemd.services.go-link-monitor-on-demand =
           monitorService "go-link-monitor under test, on demand" [
@@ -509,7 +543,7 @@ pkgs.writeShellApplication {
       if faults then
         "FAULT_STATS_VALS FAULT_COUNTERS"
       else
-        "DISCOVERY CONTRACTS MONITOR CLI EVENTS VERBS_EVENTS UNPLUG HOTPLUG RECOVERED_EVENTS"
+        "DISCOVERY CONTRACTS MONITOR CLI EVENTS VERBS_EVENTS DIFFERENTIAL CORE_EVENTS DIFFERENTIAL_REMOVE UNPLUG HOTPLUG RECOVERED_EVENTS"
     }; do
       if ! grep -q "LINKMONITOR_IONIC_''${sentinel}_PASS" "$run_dir/serial.log"; then
         echo "FAIL: missing LINKMONITOR_IONIC_''${sentinel}_PASS; evidence $run_dir" >&2
