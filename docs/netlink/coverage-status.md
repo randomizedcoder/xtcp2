@@ -387,6 +387,16 @@ entry, and `TestAddrWriteRowsGated` pins them (A7-T02). The lifetime write
 gates too: its request carries the fixed 3600/1800, and only readback output
 counts down.
 
+The write comparator is ready for N writes ahead of `flush` (A8-T01).
+`nlparity.SplitWrites` cuts an `ip` capture into the transactions before its
+writes, the writes in their datagrams, and the transactions after. Run over
+the 11 `addr-flush` captures, a flush is a lookup and a dump, then the DEL
+batch, then a round-2 dump. `CompareWrites` compares that round-2 dump on its
+request only, the writes message by message with seq, pid and cacheinfo
+stamps zeroed, and their count as an unsuppressible `write-count` finding.
+All 74 write rows pass it with one write each, as `TestCompareWritesSingle`
+pins against the code it replaced.
+
 ## Netlink message types: decoded, rendered, compared
 
 Counted from the tree and from `~/Downloads/linux` on 2026-10-07. The commands

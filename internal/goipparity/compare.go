@@ -233,7 +233,7 @@ func (c Command) expectedFiles() []string {
 
 // compareWriteNetlink is the netlink half of a write row: the lookups as a
 // read row compares them, plus ip_a's write request against the file goip
-// wrote (nlparity.CompareWrite). D_control is the same comparison between
+// wrote (nlparity.CompareWrites). D_control is the same comparison between
 // ip_a and ip_b.
 //
 // The exit statuses are checked here rather than compared: goip must exit 0,
@@ -263,15 +263,18 @@ func compareWriteNetlink(dir string, c Command, segs map[string]nlparity.Segment
 	if err != nil {
 		return nlparity.Report{}, fmt.Errorf("%s: %w", c.WriteName(), err)
 	}
-	subWrite, err := nlparity.ParseWriteRequest(b)
+	subWrites, err := nlparity.ParseWriteRequests(b)
 	if err != nil {
 		return nlparity.Report{}, fmt.Errorf("%s: %w", c.WriteName(), err)
 	}
-	control, err := nlparity.WriteControl(c.Name, segs[SideIPA], segs[SideIPB])
+	// Every row so far writes one message. A8-T03's Writes field carries the
+	// count for the flush rows.
+	const writes = 1
+	control, err := nlparity.WritesControl(c.Name, segs[SideIPA], segs[SideIPB], writes)
 	if err != nil {
 		return nlparity.Report{}, err
 	}
-	return nlparity.CompareWrite(c.Name, segs[SideIPA], segs[SideGoip], subWrite, control, al), nil
+	return nlparity.CompareWrites(c.Name, segs[SideIPA], segs[SideGoip], subWrites, writes, control, al), nil
 }
 
 // ErrWriteSide is a write row whose exit statuses rule the comparison out.

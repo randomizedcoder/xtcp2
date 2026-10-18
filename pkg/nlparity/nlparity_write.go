@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
+	"golang.org/x/sys/unix"
 )
 
 // A write row is compared differently from a read row, because only one side
@@ -23,89 +24,202 @@ import (
 // It is request-only: goip cannot know whether the kernel would refuse the
 // write, so the NLMSG_ERROR is not compared, and a refused row (enslave_up)
 // passes on its request alone.
+//
+// `ip addr flush` writes N messages, not one, and they are not last. Its
+// capture is a lookup and a dump, then a batch of RTM_DELADDR copies of the
+// dump replies with NLM_F_REQUEST alone (no ACK asked for, so each is a
+// transaction that never closes), in as many datagrams as the 3584-byte
+// buffer needed, then a second dump that finds nothing
+// (addr-write-path.md, "Multi-write rows: flush and restore"). So the split
+// is three ways: the transactions before the writes, the writes, and the
+// transactions after them. goip's file holds the same N messages
+// concatenated (decision 3). For every link, route and address write row N
+// is 1 and nothing comes after, and the comparison is the one above.
 
 var (
-	// ErrNoWriteTxn is an `ip` capture of a write row whose last transaction
-	// is not an admitted write: the write was never sent, or something else
-	// ran after it.
-	ErrNoWriteTxn = errors.New("nlparity: the capture does not end in a write transaction")
-	// ErrBadWriteFile is a GOIP_WRITE_OUT file that is not exactly one
-	// admitted write request.
-	ErrBadWriteFile = errors.New("nlparity: the write file is not one write request")
+	// ErrNoWriteTxn is an `ip` capture of a write row that holds no admitted
+	// write, or whose writes are not one contiguous run.
+	ErrNoWriteTxn = errors.New("nlparity: the capture does not hold one run of write transactions")
+	// ErrWriteCount is an `ip` capture whose run of writes is not the length
+	// the row expects.
+	ErrWriteCount = errors.New("nlparity: the capture holds a different number of writes")
+	// ErrBadWriteFile is a GOIP_WRITE_OUT file that is not a sequence of
+	// admitted write requests.
+	ErrBadWriteFile = errors.New("nlparity: the write file is not a sequence of write requests")
 )
 
-// SplitWrite separates an `ip` write capture into its lookups and its write.
+// WriteSplit is an `ip` write capture cut around its writes.
+type WriteSplit struct {
+	// Before holds the transactions ahead of the writes: the lookups, and for
+	// flush the round-1 dump. It keeps the capture's notifications and
+	// orphans, so HygieneDiff still sees them.
+	Before Segmentation
+	// Writes are the write requests in send order.
+	Writes []Msg
+	// Datagrams is how many of Writes each datagram carried, in order. ip
+	// sends one write per datagram except for a flush batch, which fills a
+	// 3584-byte buffer; flush_many's 120 DELs went out as 47, 47 and 26.
+	Datagrams []int
+	// After holds the transactions behind the writes: flush's round-2 dump.
+	// Empty for every single-write row.
+	After []Txn
+}
+
+// SplitWrites cuts an `ip` write capture into what came before its writes,
+// the writes, and what came after.
 //
-// The write must be the last transaction, and the only write: iproute2 sends
-// one per command. Notifications and orphans stay with the lookups, so
-// HygieneDiff still sees them.
-func SplitWrite(s Segmentation) (lookups Segmentation, write Txn, err error) {
-	n := len(s.Txns)
-	if n == 0 || !xtcpnl.IsAdmittedWriteType(s.Txns[n-1].Request.Hdr.Type) {
-		return Segmentation{}, Txn{}, ErrNoWriteTxn
+// The writes must be one contiguous run of exactly n transactions, n >= 1.
+// A datagram boundary is where a message's offset does not follow the one
+// before it: Msg.Offset is 0 at the start of each datagram.
+func SplitWrites(s Segmentation, n int) (WriteSplit, error) {
+	first, last := -1, -1
+	for i := range s.Txns {
+		if !xtcpnl.IsAdmittedWriteType(s.Txns[i].Request.Hdr.Type) {
+			continue
+		}
+		if first >= 0 && last != i-1 {
+			return WriteSplit{}, fmt.Errorf("%w: transaction %d of %d is a write after a non-write",
+				ErrNoWriteTxn, i, len(s.Txns))
+		}
+		if first < 0 {
+			first = i
+		}
+		last = i
 	}
-	for i := range n - 1 {
-		if xtcpnl.IsAdmittedWriteType(s.Txns[i].Request.Hdr.Type) {
-			return Segmentation{}, Txn{}, fmt.Errorf("%w: transaction %d of %d is a write too",
-				ErrNoWriteTxn, i, n)
+	if first < 0 {
+		return WriteSplit{}, ErrNoWriteTxn
+	}
+	if got := last - first + 1; got != n {
+		return WriteSplit{}, fmt.Errorf("%w: %d, want %d", ErrWriteCount, got, n)
+	}
+
+	w := WriteSplit{Before: s, Writes: make([]Msg, 0, n)}
+	w.Before.Txns = append([]Txn(nil), s.Txns[:first]...)
+	w.After = append([]Txn(nil), s.Txns[last+1:]...)
+	for i := first; i <= last; i++ {
+		m := s.Txns[i].Request
+		if len(w.Writes) == 0 || m.Offset <= w.Writes[len(w.Writes)-1].Offset {
+			w.Datagrams = append(w.Datagrams, 0)
+		}
+		w.Datagrams[len(w.Datagrams)-1]++
+		w.Writes = append(w.Writes, m)
+	}
+	return w, nil
+}
+
+// others is the split with its writes taken out: the non-write transactions
+// in capture order, which is what goip's capture holds.
+func (w WriteSplit) others() Segmentation {
+	s := w.Before
+	s.Txns = append(append([]Txn(nil), w.Before.Txns...), w.After...)
+	return s
+}
+
+// ParseWriteRequests reads a GOIP_WRITE_OUT file: one or more netlink
+// requests back to back, each of an admitted write type, each starting on a
+// four-byte boundary as in a datagram. The last one ends the file.
+func ParseWriteRequests(b []byte) ([]Msg, error) {
+	if len(b) == 0 {
+		return nil, fmt.Errorf("%w: empty", ErrBadWriteFile)
+	}
+	var out []Msg
+	for off := 0; off < len(b); {
+		rest := b[off:]
+		var h xtcpnl.NlMsgHdr
+		if _, err := xtcpnl.DeserializeNlMsgHdr(rest, &h); err != nil {
+			return nil, fmt.Errorf("%w: message %d: %w", ErrBadWriteFile, len(out), err)
+		}
+		if h.Len < xtcpnl.NlMsgHdrSizeCst || int(h.Len) > len(rest) {
+			return nil, fmt.Errorf("%w: message %d: nlmsg_len %d with %d bytes left",
+				ErrBadWriteFile, len(out), h.Len, len(rest))
+		}
+		m := Msg{Hdr: h, Body: rest[xtcpnl.NlMsgHdrSizeCst:h.Len], Offset: off}
+		if !m.IsRequest() || !xtcpnl.IsAdmittedWriteType(h.Type) {
+			return nil, fmt.Errorf("%w: message %d: %s flags 0x%04x",
+				ErrBadWriteFile, len(out), MsgTypeName(h.Type), h.Flags)
+		}
+		out = append(out, m)
+		off += (int(h.Len) + 3) &^ 3
+	}
+	return out, nil
+}
+
+// DiffWrites is the write row's diff: ref's non-write transactions against
+// sub's, then ref's writes against subWrites.
+//
+// The transactions before the writes are compared as Diff compares them. The
+// ones after are compared on their requests only: flush's round-2 dump asks
+// the same question on both sides, but ip's kernel has applied the batch and
+// answers nothing, while goip's has not and answers the round-1 dump again
+// (addr-write-path.md, decision 5). The writes are compared message by
+// message after NormalizeMsg, since a DEL is a copy of a dump reply and
+// carries that reply's pid and IFA_CACHEINFO stamps; each is numbered where
+// it sat in ref's capture. With one write and nothing after it this is Diff
+// over the lookups plus L2 over the two write requests.
+func DiffWrites(command string, ref WriteSplit, sub Segmentation, subWrites []Msg) []Divergence {
+	var out []Divergence
+	others := ref.others()
+	if len(others.Txns) != len(sub.Txns) {
+		out = append(out, Divergence{
+			Command: command, Level: LevelTxnCount, Class: DivergenceTransactionCount,
+			Locus: "txn-count", Txn: -1,
+			Ref: fmt.Sprintf("%d", len(others.Txns)), Sub: fmt.Sprintf("%d", len(sub.Txns)),
+		})
+	}
+	before := len(ref.Before.Txns)
+	for i := range min(len(others.Txns), len(sub.Txns)) {
+		txn := i
+		if i >= before {
+			txn += len(ref.Writes)
+		}
+		out = append(out, diffRequest(command, txn, others.Txns[i].Request, sub.Txns[i].Request)...)
+		if i < before {
+			out = append(out, diffReplies(command, txn, others.Txns[i], sub.Txns[i])...)
 		}
 	}
-	lookups = s
-	lookups.Txns = append([]Txn(nil), s.Txns[:n-1]...)
-	return lookups, s.Txns[n-1], nil
+
+	if len(ref.Writes) != len(subWrites) {
+		out = append(out, Divergence{
+			Command: command, Level: LevelTxnCount, Class: DivergenceTransactionCount,
+			Locus: "write-count", Txn: -1,
+			Ref: fmt.Sprintf("%d", len(ref.Writes)), Sub: fmt.Sprintf("%d", len(subWrites)),
+		})
+	}
+	for i := range min(len(ref.Writes), len(subWrites)) {
+		out = append(out, diffRequest(command, before+i,
+			NormalizeMsg(ref.Writes[i]), NormalizeMsg(subWrites[i]))...)
+	}
+	return out
 }
 
-// ParseWriteRequest reads a GOIP_WRITE_OUT file: one netlink request whose
-// nlmsg_len is the file's length, of an admitted write type.
-func ParseWriteRequest(b []byte) (Msg, error) {
-	var h xtcpnl.NlMsgHdr
-	if _, err := xtcpnl.DeserializeNlMsgHdr(b, &h); err != nil {
-		return Msg{}, fmt.Errorf("%w: %w", ErrBadWriteFile, err)
-	}
-	if int(h.Len) != len(b) {
-		return Msg{}, fmt.Errorf("%w: nlmsg_len %d in a %d-byte file", ErrBadWriteFile, h.Len, len(b))
-	}
-	m := Msg{Hdr: h, Body: b[xtcpnl.NlMsgHdrSizeCst:]}
-	if !m.IsRequest() || !xtcpnl.IsAdmittedWriteType(h.Type) {
-		return Msg{}, fmt.Errorf("%w: %s flags 0x%04x", ErrBadWriteFile, MsgTypeName(h.Type), h.Flags)
-	}
-	return m, nil
-}
-
-// DiffWrite is Diff over the lookups plus L2 over the two write requests.
-// The write is numbered after ref's lookups, where it sat in ref's capture.
-func DiffWrite(command string, ref, sub Segmentation, refWrite, subWrite Msg) []Divergence {
-	out := Diff(command, ref, sub)
-	return append(out, diffRequest(command, len(ref.Txns), refWrite, subWrite)...)
-}
-
-// WriteControl is D_control for a write row: DiffWrite between the two `ip`
-// captures, each split with SplitWrite.
-func WriteControl(command string, ipA, ipB Segmentation) ([]Divergence, error) {
-	a, aw, err := SplitWrite(ipA)
+// WritesControl is D_control for a write row: DiffWrites between the two `ip`
+// captures, each split with SplitWrites.
+func WritesControl(command string, ipA, ipB Segmentation, n int) ([]Divergence, error) {
+	a, err := SplitWrites(ipA, n)
 	if err != nil {
 		return nil, fmt.Errorf("ip_a: %w", err)
 	}
-	b, bw, err := SplitWrite(ipB)
+	b, err := SplitWrites(ipB, n)
 	if err != nil {
 		return nil, fmt.Errorf("ip_b: %w", err)
 	}
-	return DiffWrite(command, a, b, aw.Request, bw.Request), nil
+	return DiffWrites(command, a, b.others(), b.Writes), nil
 }
 
-// CompareWrite is Compare for a write row. ref is the whole `ip` capture,
-// write included; sub is goip's capture, which holds only lookups, and
-// subWrite is the request goip wrote to GOIP_WRITE_OUT.
+// CompareWrites is Compare for a write row of n writes. ref is the whole `ip`
+// capture, writes included; sub is goip's capture, which holds no writes, and
+// subWrites are the requests goip wrote to GOIP_WRITE_OUT.
 //
 // Unlike Compare it accepts zero lookups on both sides, because `ip link
-// add` resolves nothing. RefTxns counts ip's write, and SubTxns counts goip's
-// file as its write, so a clean row reads as both sides running the same
-// number of transactions.
-func CompareWrite(command string, ref, sub Segmentation, subWrite Msg, control []Divergence, al *Allowlist) Report {
+// add` resolves nothing. RefTxns counts ip's writes, and SubTxns counts each
+// of goip's file messages as a write, so a clean row reads as both sides
+// running the same number of transactions.
+func CompareWrites(command string, ref, sub Segmentation, subWrites []Msg, n int,
+	control []Divergence, al *Allowlist) Report {
 	r := Report{
 		Command:     command,
 		RefTxns:     len(ref.Txns),
-		SubTxns:     len(sub.Txns) + 1,
+		SubTxns:     len(sub.Txns) + len(subWrites),
 		ControlSize: len(control),
 		RefPids:     ref.Pids(),
 		SubPids:     sub.Pids(),
@@ -114,10 +228,10 @@ func CompareWrite(command string, ref, sub Segmentation, subWrite Msg, control [
 		r.Gated = al.IsGated(command)
 	}
 
-	r.Hygiene = append(r.Hygiene, HygieneDiff(command, "ip", ref)...)
+	r.Hygiene = append(r.Hygiene, HygieneDiff(command, "ip", withoutUnackedWrites(ref))...)
 	r.Hygiene = append(r.Hygiene, HygieneDiff(command, "goip", sub)...)
 
-	lookups, write, err := SplitWrite(ref)
+	split, err := SplitWrites(ref, n)
 	if err != nil {
 		r.Err = fmt.Errorf("reference capture: %w", err)
 		return r
@@ -127,8 +241,26 @@ func CompareWrite(command string, ref, sub Segmentation, subWrite Msg, control [
 		return r
 	}
 
-	r.suppress(DiffWrite(command, lookups, sub, write.Request, subWrite), control, al)
+	r.suppress(DiffWrites(command, split, sub, subWrites), control, al)
 	return r
+}
+
+// withoutUnackedWrites drops the write transactions that asked for no ACK
+// and got no reply. A flush DEL carries NLM_F_REQUEST alone, so the kernel
+// answers only an error, and an open DEL is the expected end of it, not a
+// capture that closed early. A write that asked for an ACK and has none is
+// still open, and HygieneDiff still reports it.
+func withoutUnackedWrites(s Segmentation) Segmentation {
+	out := s
+	out.Txns = make([]Txn, 0, len(s.Txns))
+	for _, t := range s.Txns {
+		if xtcpnl.IsAdmittedWriteType(t.Request.Hdr.Type) && len(t.Replies) == 0 &&
+			t.Request.Hdr.Flags&uint16(unix.NLM_F_ACK) == 0 {
+			continue
+		}
+		out.Txns = append(out.Txns, t)
+	}
+	return out
 }
 
 // ErrGoipSentWrite is a goip capture that holds a write on the wire. goip

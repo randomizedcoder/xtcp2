@@ -977,7 +977,7 @@ func Compare(command string, ref, sub Segmentation, control []Divergence, al *Al
 }
 
 // suppress files each finding of all under ControlSuppressed,
-// AllowSuppressed or Findings. Compare and CompareWrite share it, so a write
+// AllowSuppressed or Findings. Compare and CompareWrites share it, so a write
 // row's findings are filtered exactly as a read row's are.
 func (r *Report) suppress(all, control []Divergence, al *Allowlist) {
 	command := r.Command
