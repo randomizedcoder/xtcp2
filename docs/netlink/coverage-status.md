@@ -12,15 +12,12 @@ several steps, further down under [Remaining](#remaining).
 |---|---|---|
 | commands in the comparison matrix | **170** | `internal/goipparity/commands.go` — 96 read rows (27 of them `addr show` state and selector rows with a `Setup`), the 21 link write rows, the 26 route write rows and the 27 address write rows |
 | of those, `Implemented: true` | **170** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
-| of those, in `gated_commands` | **120** | `pkg/nlparity/goip-parity-allowlist.json` |
+| of those, in `gated_commands` | **147** | `pkg/nlparity/goip-parity-allowlist.json` |
 | allowlisted divergences | **7** | same file, `entries` |
 | of those, `kind=version-skew` | **7** | all against the pinned `ip` 7.1.0 |
 | of those, `kind=accepted-divergence` | **0** | nothing is *allowlisted* as a permanent divergence — the eight intentional wire divergences below **cannot** be, because a transaction-count divergence is unsuppressible (`nlparity_allowlist.go:143`) |
 
-**Fifty** matrix rows sit outside `gated_commands`. Twenty-seven are the
-address write rows, a queue that gates on A7-T02's two live runs (see
-[Write path: address writes as a dry run](#write-path-address-writes-as-a-dry-run)).
-The other **twenty-three** fall into
+**Twenty-three** matrix rows sit outside `gated_commands`, in
 six groups that are out for unrelated reasons. Fourteen are a queue, each
 awaiting its own measured-clean live run; the other **eight** — the bulk stats
 and netconf-dev rows — are **not** a queue but a closed, permanent, intentional wire
@@ -385,7 +382,10 @@ compares the request and not the answer. The five slugs that send no write are
 not rows. Read rows drop the exit code and stderr, and two of the five send
 nothing at all, so they stay offline in `TestAddrWriteNodevCorpus`, as the
 route corpus's `nodev` does. `TestAddrWriteRows` pins the rows against the
-corpus. The rows are ungated until A7-T02.
+corpus. All 27 gated on the two live runs after A7-T01, with no allowlist
+entry, and `TestAddrWriteRowsGated` pins them (A7-T02). The lifetime write
+gates too: its request carries the fixed 3600/1800, and only readback output
+counts down.
 
 ## Netlink message types: decoded, rendered, compared
 

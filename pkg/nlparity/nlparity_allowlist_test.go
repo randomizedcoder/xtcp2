@@ -514,6 +514,37 @@ func TestAllowlistCommitted(t *testing.T) {
 		"addr show proto 99",
 		"addr show novf",
 		"addr show d0",
+		// A7-T02's address write rows, each on its corpus Setup, gated on the
+		// two runs after A7-T01: GOIP_PARITY_PASS on both, with the same txns,
+		// control and zero findings each time. The lifetime write is here: its
+		// request carries the fixed 3600/1800, and only readback counts down.
+		"addr add 192.0.2.10/24 dev d0",
+		"addr add 10.0.0.1 peer 10.0.0.2/32 dev d0",
+		"addr add 192.0.2.10/24 brd + dev d0",
+		"addr add 192.0.2.10/24 brd - dev d0",
+		"addr add 192.0.2.10/31 brd + dev d0",
+		"addr add 192.0.2.10/24 brd + label d0:1 dev d0",
+		"addr add 192.0.2.10/24 metric 50 dev d0",
+		"addr add 192.0.2.10/24 pref 7 dev d0",
+		"addr add 192.0.2.10/24 proto kernel_lo dev d0",
+		"addr add 192.0.2.10/24 valid_lft 3600 preferred_lft 1800 dev d0",
+		"addr add 192.0.2.2/24 dev d0",
+		"addr add 127.0.0.2/8 dev d0",
+		"addr add 224.0.0.251/32 autojoin dev d0",
+		"-6 addr add 2001:db8::5/64 nodad dev d0",
+		"-6 addr add 2001:db8::5/64 nodad noprefixroute dev d0",
+		"addr add nodad 2001:db8::5/64 dev d0",
+		"-6 addr add 2001:db8::5/48 mngtmpaddr dev d0",
+		"-6 addr add 2001:db8::5/64 nodad optimistic dev d0",
+		"addr add 192.0.2.1/24 dev d0",
+		"addr change 192.0.2.10/24 dev d0",
+		"addr replace 192.0.2.1/24 metric 9 dev d0",
+		"addr del 192.0.2.1/24 dev d0",
+		"addr del 192.0.2.1 dev d0",
+		"addr del 192.0.2.99/24 dev d0",
+		"addr add 192.0.2.2/24 scope link dev d0",
+		"-6 addr add ff02::fb/128 dev d0",
+		"addr add 192.0.2.10/24 label d0:0123456789abc dev d0",
 	}
 
 	tests := []struct {

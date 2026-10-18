@@ -555,6 +555,17 @@ As built: 27 `addr_write_<slug>` rows, `Floor: 4`, with `addrWriteSetupDev`
 Tests: `TestAddrWriteRowsGated`
 ([table 10](addr-write-path.md#10-commands_testgo-additions)).
 
+As built:
+- The two runs were fresh ones, with the rows still ungated. A7-T01's smoke
+  run is not one of them. Then all 27 went into `gated_commands` and the
+  earned list in `TestAllowlistCommitted`, with no allowlist entry.
+- `TestUngatedSurfaceIsNotVacuous` is back to its 23 named rows.
+- `TestAddrWriteRowsGated` pins the cohort the way `TestRouteWriteRowsGated`
+  does. Its rows include `add_v4_lifetimes` gated beside `addr show dynamic`
+  ungated, and `nodev`'s command, which is not a row.
+- `docs/netlink/README.md` still said 143 commands and 120 gated; it is
+  recounted.
+
 Done when:
 - two consecutive clean parity runs are recorded in the ledger
 - the rows are gated

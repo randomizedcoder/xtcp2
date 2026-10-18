@@ -2,9 +2,9 @@
 
 Last updated: 2026-10-18.
 
-**Phases A0, A1, A2, A4, A5 and A6 are done, and A3 and A7 are under way.** The design
+**Phases A0, A1, A2, A4, A5, A6 and A7 are done, and A3 is under way.** The design
 ([addr-write-path.md](addr-write-path.md)) and the plan
-([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. 16 of 25
+([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. 17 of 25
 tasks are done: A0-T01 (V001), A0-T02 (closed by a finding, V002), A0-T03
 and A0-T04, closed by one KVM capture (V005), A0-T05, which recorded M1–M3
 from that capture's fixtures (V006), A1-T01, which decodes the four
@@ -23,11 +23,13 @@ that fills it, stopping where `ip` stops (V032, V033). A6-T02 wires
 `goip address add/change/replace/delete` to it as a dry run, matching all 27
 captured writes byte for byte, and `ip`'s step, exit code and message on the
 five refusals (V034, V035). A7-T01 puts the 27 writes in the `goip-parity`
-matrix as `addr_write_<slug>` rows. All 27 passed one live run, and they are
-ungated (V036–V038). A3-T01 parses `-br` and `-o` as `ip` matches them. They
+matrix as `addr_write_<slug>` rows. All 27 passed one live run
+(V036–V038). A3-T01 parses `-br` and `-o` as `ip` matches them. They
 are refused, by name, everywhere goip does not render them yet (V039, V040).
+A7-T02 gates all 27 on two consecutive clean live runs, with no allowlist
+entry (V041–V044).
 
-**Next action:** A7-T02 (depends on A7-T01) and A3-T02 (depends on A3-T01)
+**Next action:** A8-T01 (depends on A7-T02) and A3-T02 (depends on A3-T01)
 are unblocked. Pick one; one task, one PR.
 
 ## Update rules
@@ -69,7 +71,7 @@ are unblocked. Pick one; one task, one PR.
 | A4 | the gate admits `RTM_NEWADDR`/`RTM_DELADDR` | done | 1/1 | V028, V029 |
 | A5 | `BuildAddrWriteRequest` | done | 1/1 | V030, V031 |
 | A6 | `goip addr add/change/replace/delete` | done | 2/2 | V032, V033, V034, V035 |
-| A7 | write rows in the matrix | in progress | 1/2 | V036, V037, V038 |
+| A7 | write rows in the matrix | done | 2/2 | V036, V037, V038, V041, V042, V043, V044 |
 | A8 | `flush` and the multi-write comparator | not started | 0/3 | — |
 | A9 | `save`, `showdump`, `restore` | not started | 0/3 | — |
 
@@ -98,7 +100,7 @@ Add evidence IDs to the last column as work runs.
 | [x] | [A6-T01](addr-write-path-plan.md#a6-t01) | the `ipaddr_modify` argument parser | done | V032, V033, DOC012 |
 | [x] | [A6-T02](addr-write-path-plan.md#a6-t02) | verb dispatch and corpus replay | done | V034, V035, DOC013 |
 | [x] | [A7-T01](addr-write-path-plan.md#a7-t01) | `addr_write_<slug>` rows | done | V036, V037, V038, DOC014 |
-| [ ] | [A7-T02](addr-write-path-plan.md#a7-t02) | gate the write rows | not started | — |
+| [x] | [A7-T02](addr-write-path-plan.md#a7-t02) | gate the write rows | done | V041, V042, V043, V044, DOC016 |
 | [ ] | [A8-T01](addr-write-path-plan.md#a8-t01) | `SplitWrites` and `CompareWrites` | not started | — |
 | [ ] | [A8-T02](addr-write-path-plan.md#a8-t02) | `goip addr flush` | not started | — |
 | [ ] | [A8-T03](addr-write-path-plan.md#a8-t03) | the `Writes` field and flush rows | not started | — |
@@ -132,7 +134,7 @@ it.
 | 12 | `ErrNotAnAdmittedWrite`'s text names four types | A4-T01 | done |
 | 13 | `admittedWriteTypes` has four entries | A4-T01 | done |
 | 14 | `coverage-status.md`'s "read-only, `show` only" scope line | A6-T02 | done |
-| 15 | the glance-table matrix count and scope line | A2-T03, A7-T02, A8-T03, A9-T03 | amended for the selector rows (A2-T03). A7-T01 updated the row and ungated counts it changed: 170 rows, 50 ungated. A7-T02 (the gated count), A8-T03 and A9-T03 still owe theirs |
+| 15 | the glance-table matrix count and scope line | A2-T03, A7-T02, A8-T03, A9-T03 | amended for the selector rows (A2-T03). A7-T01 updated the row and ungated counts it changed: 170 rows, 50 ungated. A7-T02 amended the gated count for the write rows: 147 gated, 23 ungated. A8-T03 and A9-T03 still owe theirs |
 | 16 | `route-write-path.md`'s "Out of scope: `addr`" line | this plan's PR (pointer only) | done |
 | 17 | the route-write gate table's negative example is `RTM_NEWADDR` | A4-T01 | done |
 | 18 | README's "admits exactly four types" | A4-T01 | done |
@@ -196,6 +198,11 @@ it.
 | V039 | 2026-10-18 | A3-T01 | `go test ./internal/goip/... ./internal/goipparity/...`. It includes eight new `TestRunDashConventions` rows (`-brief`, `-oneline`, `-br`, `-o`, `--br` and `-bri` accepted; `-b` and `-brieff` unknown) and the nine rows of the new `TestRunOutputModes`: `-br`, `-o`, `-br -j` and `-br a` refused as not rendered with nothing on stdout; `-br link`, `-o route` and `-br neigh` refused for the object; `-br addr add` writing `add_v4`'s request; `-b addr show` unknown. Mutation check in a scratch worktree: each mutant failed the rows named for it, and was reverted. The mutants were: the `len(a) >= 3` guard dropped (the two `-b` rows), the per-object refusal removed (the link, route and neigh rows), `addrShow`'s refusal removed (the four `addr show` rows), and `-oneline` dropped (the four `-o` rows) | Passed | the test output |
 | V040 | 2026-10-18 | A3-T01 | the nix checks: `.#test-focused-goip`, `checks.netlink-audit`, `checks.lint-baseline`, `.#quality-report`, `checks.nix-fmt`, `checks.statix`, `checks.deadnix`. `vm-lib-exp` and the parity VM do not apply: no `.exp` file and no matrix row changed | Passed, except `lint-baseline`, which fails on `main` with the same 17 tier-2 findings. The branch adds none. A first draft named the object with a new `"address"` constant; that moved goconst's findings around (one went, another surfaced), so the object table carries an `outputModes` field instead and the set is identical to `main`'s | the check outputs |
 | DOC015 | 2026-10-18 | A3-T01 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc, plus `git diff --check` | Passed: 25 task IDs one to one; 16 done ticks; no broken links or anchors; ledger IDs unique and in order; `git diff --check` clean | Summary retained here; the checker script was session-local |
+| V041 | 2026-10-18 | A7-T02 | `go test ./internal/goipparity/... ./pkg/nlparity/... ./internal/goip/...`, which includes the new `TestAddrWriteRowsGated` (8 rows and 3 subtests: a plain v4 add, a flagged v6 add, a delete and the EEXIST `add_existing` gated; `add_v4_lifetimes` gated beside `addr show dynamic` ungated; a route write outside the cohort; `nodev`'s command not a row; the cohort is 27, each a gated, Implemented write with no allowlist entry), `TestUngatedSurfaceIsNotVacuous` back at twenty-three rows, and `TestAllowlistCommitted` with the 27 names in the earned list. Mutation check in a scratch worktree: each mutant failed the rows named for it, and was reverted. The mutants were: one name removed from `gated_commands` alone (`TestAllowlistCommitted`, the plain-add row, the gated subtest, the ungated set), an allowlist entry added for `add_v4_metric` (the "no allowlist entry" subtest), `addr show dynamic` gated in both lists (the readback row and `TestAddrShowSelectorRowsGated`), and `del_missing` removed from both lists (the gated subtest and the ungated set) | Passed | the test output |
+| V042 | 2026-10-18 | A7-T02 | `nix run .#microvm-x86_64-goip-parity -- --timeout 4500` from a scratch worktree at `main` (af2c60cc), on an x86_64 NixOS host with `/dev/kvm`, with the 27 rows still ungated. An attempt just before it never booted: another session's microVM held the console port 12056, so the driver could not connect, and it produced no verdicts | All 27 `addr_write_` rows `GOIP_PARITY_PASS` with no findings, each `txns` 2/2 with control `nl=1 stdout=0`. Every side `NLCAP_WRITE_OK`: `ip_a` and `ip_b` 4 datagrams, `goip` 2. `ip` exits 2 on the six rows the kernel refuses (`add_existing`, `add_v6_mngtmpaddr_48`, `del_missing`, `label_16`, `scope_conflict`, `v6_mcast_noautojoin`) and 0 on the rest. Across all 170 rows: 162 PASS, 7 WARN and 1 FAIL, the pre-existing `-4 netconf show dev` (`HYGIENE_FAIL 2`), so the run ends `OVERALL_FAIL` as it does on `main`. `UNGATED_DIVERGENCES 7`, `CONTROL_NOISY 155` | transcript in the session scratchpad, not kept |
+| V043 | 2026-10-18 | A7-T02 | the same parity run, rerun sequentially | All 170 verdicts identical to V042, and every `addr_write_` row the same `txns`, control, datagram counts and exit codes. `HYGIENE_FAIL 2`, `UNGATED_DIVERGENCES 7`, `CONTROL_NOISY 156`. The 27 rows then went into `gated_commands` | transcript in the session scratchpad, not kept |
+| V044 | 2026-10-18 | A7-T02 | the nix checks: `.#test-focused-goip`, `checks.netlink-audit`, `checks.lint-baseline`, `.#quality-report`, `checks.nix-fmt`, `checks.statix`, `checks.deadnix`. `vm-lib-exp` does not apply: no `.exp` file changed | Passed, except `lint-baseline`, which fails on `main` with the same 17 tier-2 findings. The branch adds none | the check outputs |
+| DOC016 | 2026-10-18 | A7-T02 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc, plus `git diff --check`. The glance-table counts in `coverage-status.md` and `docs/netlink/README.md` recounted from `Commands()` and the allowlist | Passed: 25 task IDs one to one; 17 done ticks; no broken links or anchors; ledger IDs unique and in order; `git diff --check` clean; 170 rows, 170 implemented, 147 gated, 7 entries | Summary retained here; the checker script was session-local |
 
 ## Blockers and upcoming requirements
 
@@ -204,6 +211,18 @@ it.
 - **No open blockers.**
 
 ## Progress and decision log
+
+- **2026-10-18.** A7-T02 is done.
+  - **Two fresh runs.** A7-T01's smoke run was not counted. The rows stayed
+    ungated for two new sequential runs on `main`, and both were clean for
+    all 27, with identical verdicts, txns, control and datagram counts.
+  - **No allowlist entry.** Like the link and route write rows, the 27 gate
+    clean. Their control noise is the link reply's cacheinfo, which
+    D_control subtracts.
+  - **The lifetime write gates.** `add_v4_lifetimes` sends the fixed
+    3600/1800; only readback counts down, so `addr show dynamic` stays out.
+  - **README recounted.** It still said 143 commands and 120 gated, from
+    before A7-T01.
 
 - **2026-10-18.** A3-T01 is done.
   - **`-b` is not brief.** `ip` tests `-batch` before `-brief`, so the
