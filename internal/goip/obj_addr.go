@@ -10,7 +10,8 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// runAddress handles `ip address ...`. Only the show verbs are implemented.
+// runAddress handles `ip address ...`: the show verbs, and the four write
+// verbs as a dry run.
 //
 // iproute2's verb list for this object is longer than link's and, because
 // every entry goes through matches(), the abbreviations interact. do_ipaddr
@@ -19,28 +20,28 @@ import (
 //
 // So `ip a s` is **show**, because show is tested before save; `ip a sa` is
 // **save**, because "sa" is not a prefix of "show"; and `ip a r` is
-// **replace**, not restore. goip resolves the first of those the same way and
-// refuses the other two, which is the useful distinction: an argument that
-// means a write in `ip` must not mean a read in goip.
+// **replace**, not restore. lookupAddrWriteVerb is the first four arms in
+// that order, so goip resolves all three the same way.
 //
-// The five write verbs are named rather than left to the default so the
-// refusal says why. The default arm covers save/showdump/restore, which are
-// read-only but out of scope.
+// add, change, replace and delete build `ip`'s request and write it to
+// GOIP_WRITE_OUT (addrWrite); nothing is applied. flush is still refused as
+// read-only, and the default arm covers save/showdump/restore, which are
+// read-only but not implemented.
 func runAddress(c *runCtx, args []string) error {
 	if len(args) == 0 {
 		return addrShow(c, nil)
 	}
 	verb := args[0]
+	if v := lookupAddrWriteVerb(verb); v != nil {
+		return addrWrite(c, v, args[1:])
+	}
 	switch {
 	case matchesPrefix(verb, showVerbCst), matchesPrefix(verb, lstVerbCst), matchesPrefix(verb, listVerbCst):
 		return addrShow(c, args[1:])
-	case matchesPrefix(verb, "add"), matchesPrefix(verb, "change"),
-		matchesPrefix(verb, "replace"), matchesPrefix(verb, "delete"),
-		matchesPrefix(verb, "flush"):
+	case matchesPrefix(verb, "flush"):
 		// Named explicitly, and refused for a stronger reason than "not
-		// written yet": pkg/xtcpnl.BuildRequest rejects every msgType
-		// outside RTM_GET*, so there is no code path from here to an
-		// RTM_NEWADDR even if a future edit wired one up.
+		// written yet": a flush is a dump and then one RTM_DELADDR per
+		// address, and no dry run of it exists yet.
 		return fmt.Errorf("address %q: goip is read-only: %w", verb, ErrNotImplemented)
 	default:
 		return fmt.Errorf("address %q: %w", verb, ErrNotImplemented)

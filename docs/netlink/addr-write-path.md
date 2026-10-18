@@ -683,7 +683,7 @@ selectors (for `v4_secondary`: `secondary`, `primary`, `-secondary`; for
 | `add_v6_flags_wide` | `PRE_ADDR_DEV` | `ip -6 addr add 2001:db8::5/64 nodad noprefixroute dev d0` | the [worked example](#worked-example--wide-ipv6-flags-byte-for-byte), ACK |
 | `add_v6_nodad_first` | `PRE_ADDR_DEV` | `ip addr add nodad 2001:db8::5/64 dev d0` | warning, flags 0, ACK |
 | `add_v6_mngtmpaddr_48` | `PRE_ADDR_DEV` | `ip -6 addr add 2001:db8::5/48 mngtmpaddr dev d0` | `EINVAL` with the /64 extack |
-| `add_v6_nodad_optimistic` | `PRE_ADDR_DEV` | `ip -6 addr add 2001:db8::5/64 nodad optimistic dev d0` | `EINVAL` |
+| `add_v6_nodad_optimistic` | `PRE_ADDR_DEV` | `ip -6 addr add 2001:db8::5/64 nodad optimistic dev d0` | ACK, corrected from `EINVAL` by the capture (A6-T02): `optimistic_dad` is off on `d0`, so `inet6_rtm_newaddr` clears `IFA_F_OPTIMISTIC` (`net/ipv6/addrconf.c:5079`) before the mutual-exclusion check |
 | `add_existing` | `PRE_ADDR_V4` | `ip addr add 192.0.2.1/24 dev d0` | `EEXIST` "ipv4: Address already assigned" |
 | `change_missing_creates` | `PRE_ADDR_DEV` | `ip addr change 192.0.2.10/24 dev d0` | flags `0x105`, ACK; readback shows the address |
 | `replace_existing` | `PRE_ADDR_V4` | `ip addr replace 192.0.2.1/24 metric 9 dev d0` | flags `0x505`, ACK |
@@ -997,8 +997,8 @@ it against the table's expected column.
 
 | class | rows | expected |
 |---|---|---|
-|positive|`add_v4` … `add_v6_nodad`, `change_missing_creates`, `replace_existing`, `del_v4`|byte-identical write; kernel ACK|
-|negative|`add_existing`, `del_missing`, `scope_conflict`, `v6_mcast_noautojoin`, `add_v6_mngtmpaddr_48`, `add_v6_nodad_optimistic`, `label_16`|byte-identical write; the errno and extack decoded by `TestDecodeNetlinkErrorExtack`|
+|positive|`add_v4` … `add_v6_nodad`, `add_v6_nodad_optimistic`, `change_missing_creates`, `replace_existing`, `del_v4`|byte-identical write; kernel ACK|
+|negative|`add_existing`, `del_missing`, `scope_conflict`, `v6_mcast_noautojoin`, `add_v6_mngtmpaddr_48`, `label_16`|byte-identical write; the errno and extack decoded by `TestDecodeNetlinkErrorExtack`|
 |negative|`nodev`, `valid_zero`, `autojoin_unicast`, `no_dev_keyword`, `brd_plus_v6`|no write on either side; the same lookups (none for the last two); same rc and stderr|
 |boundary|`add_v4_brd_31`, `add_v6_flags_wide`, `add_v4_loopback_scope`|byte-identical; the absent broadcast, the spill, scope 254|
 |corner|`del_v4_wildcard`, `add_v6_nodad_first`, `add_v4_pref_is_metric`|byte-identical; the warning text in stderr|

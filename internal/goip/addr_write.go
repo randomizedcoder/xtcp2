@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"os"
 	"strings"
 
 	"github.com/randomizedcoder/xtcp2/internal/goip/render"
+	"github.com/randomizedcoder/xtcp2/internal/goip/service"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
 )
@@ -21,7 +23,12 @@ import (
 // the argv loop (invarg, duparg, get_prefix), after the loop and before the
 // `dev` lookup (no `dev`, `brd +` on IPv6), and after the lookup (an unknown
 // device, the lifetimes, autojoin). Only the last costs an RTM_GETLINK.
-// Dispatch and GOIP_WRITE_OUT are A6-T02's.
+//
+// addrWrite runs a verb as the route and link writes do: the request is
+// built and written to the file GOIP_WRITE_OUT names, never sent, and with
+// that unset the verb fails with ErrWriteNotApplied after the argv is parsed
+// and `dev` resolved. The warnings go to stderr as the argv is read, before
+// the lookup, where `ip` prints them.
 
 // addrWriteVerb is one arm of do_ipaddr that reaches ipaddr_modify.
 type addrWriteVerb struct {
@@ -569,4 +576,26 @@ func (st *addrParseState) attr(atype uint16, b []byte) {
 
 func (st *addrParseState) postAttr(atype uint16, b []byte) {
 	st.w.PostAttrs = append(st.w.PostAttrs, xtcpnl.AddrAttrBytes(atype, append([]byte(nil), b...)))
+}
+
+// addrWrite runs an address write verb: parse, resolve, build, and hand the
+// request to GOIP_WRITE_OUT instead of the kernel.
+func addrWrite(c *runCtx, verb *addrWriteVerb, args []string) error {
+	svc := service.New(c.src, c.nextSeq)
+	w, err := parseAddrWriteArgs(verb, c.family, args, newLinkNameResolver(svc), c.errOut)
+	if err != nil {
+		return err
+	}
+	b, err := xtcpnl.BuildAddrWriteRequest(w, c.nextSeq())
+	if err != nil {
+		return fmt.Errorf("goip: build address write: %w", err)
+	}
+	path, ok := os.LookupEnv(writeOutEnvCst)
+	if !ok || path == "" {
+		return ErrWriteNotApplied
+	}
+	if err := os.WriteFile(path, b, 0o600); err != nil {
+		return fmt.Errorf("goip: %s: %w", writeOutEnvCst, err)
+	}
+	return nil
 }

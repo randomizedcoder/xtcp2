@@ -486,6 +486,26 @@ Done when:
 - statement 11 is amended for the four verbs, and statement 14 too
 - the `coverage-status.md` address write section has landed
 
+As built: `addrWrite(c, verb, args)` in `addr_write.go` follows `routeWrite`'s
+shape. It parses with `newLinkNameResolver` (the `RTM_GETLINK` by name) and
+`c.errOut` as `warn`, builds the request, then checks `GOIP_WRITE_OUT`. So an
+argv error wins over the missing variable. `runAddress` tries
+`lookupAddrWriteVerb` before the show arm. `flush` keeps its read-only
+refusal, and `save`, `showdump` and `restore` stay not implemented. The three
+`TestRunAddress` rows that expected "read-only" for `add`, `del` and `r` now
+reach the parser and fail with "Not enough information". Beyond the plan:
+`TestRunAddressWrite` (the CLI with the variable set, unset and empty) and
+`TestAddrWriteCorpusComplete` (both tables against the directory). Two
+findings:
+- `add_v6_nodad_optimistic` is ACKed, not refused. `optimistic_dad` is off on
+  `d0`, so the kernel clears `IFA_F_OPTIMISTIC` before its NODAD check. The
+  capture wins, and design table 4 is corrected.
+- The `Run` half of `TestAddrWriteNodevCorpus` skips `nodev`. `GOIP_REPLAY`'s
+  `ReplaySource` has no `Talk`, so the lookup falls back to a link dump and
+  reports "not found" with exit 2. Live, `NetlinkSource.Talk` returns the
+  kernel's ENODEV, which gives `Cannot find device` and exit 1. The
+  `newLinkReplay` half covers the row.
+
 ### A7 — Write rows in the matrix
 
 #### A7-T01
