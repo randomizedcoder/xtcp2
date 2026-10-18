@@ -230,14 +230,13 @@ These are the boundaries of the exercise, not a backlog:
   write verb with `goip is read-only: ErrNotImplemented` rather than treating
   it as unknown, because the harness drives both tools with the same argv and
   needs "not got there yet" to be distinguishable from "typo". Three exceptions
-  have landed, and all three build `ip`'s request and write it to a file, never
-  to the kernel: `goip link add/set/change/replace/delete` (see
+  have landed, and all three build `ip`'s requests and write them to a file,
+  never to the kernel: `goip link add/set/change/replace/delete` (see
   [Write path: link writes as a dry run](#write-path-link-writes-as-a-dry-run)),
   `goip route add/change/replace/prepend/append/test/delete` (see
   [Write path: route writes as a dry run](#write-path-route-writes-as-a-dry-run))
-  and `goip address add/change/replace/delete` (see
+  and `goip address add/change/replace/delete/flush` (see
   [Write path: address writes as a dry run](#write-path-address-writes-as-a-dry-run)).
-  `address flush` is still refused as read-only.
 - **Eleven objects.** `address`, `route`, `rule`, `neigh`/`neighbour`, `link`,
   `nexthop`, `addrlabel`, `ntable`/`ntbl`, `netconf`, `stats` and `vrf` have a
   `run` function; the other twenty rows of
@@ -371,8 +370,8 @@ it). Three tests read it:
 and `TestRunAddressWrite` covers the CLI end to end.
 
 Refused with `ErrNotImplemented`: `help`, and `brd +` with no address to
-compute from. `flush` is refused as read-only, and `save`, `showdump` and
-`restore` as not implemented.
+compute from. `save`, `showdump` and `restore` are refused as not
+implemented.
 
 The `goip-parity` matrix has 27 `addr_write_<slug>` rows (A7-T01), one per
 slug that sends a write. Each runs the slug's own topology as its `Setup` and
@@ -396,6 +395,17 @@ request only, the writes message by message with seq, pid and cacheinfo
 stamps zeroed, and their count as an unsuppressible `write-count` finding.
 All 74 write rows pass it with one write each, as `TestCompareWritesSingle`
 pins against the code it replaced.
+
+`goip address flush` is a dry run too (A8-T02). It sends `ip`'s lookup and
+its dumps, and writes the `RTM_DELADDR` copies, all rounds concatenated, to
+`GOIP_WRITE_OUT`. Each copy is a dump reply whole, retyped and flagged
+`NLM_F_REQUEST`, packed into 3584-byte datagrams as `ip` packs them. Its
+round 2 skips what it already copied, since its kernel still holds it, so
+against an unchanged kernel it stops after the rounds `ip` ran. `-loops`, the
+`-s` round text, and `ip`'s refusals and exit codes (255 for an incomplete
+flush) are `ip`'s. `TestAddrFlushMatchesIpBytes` matches the nine
+`addr-flush` slugs that reach the kernel on every lookup, dump request and
+DEL, and on `ip`'s datagram split. The flush rows reach the matrix in A8-T03.
 
 ## Netlink message types: decoded, rendered, compared
 

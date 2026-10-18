@@ -15,17 +15,22 @@ const (
 	ExitOK      = 0
 	ExitUsage   = 1
 	ExitFailure = 2
+	// ExitMinusOne is `ip`'s exit(-1), from missarg, and do_cmd's -(1) for
+	// a command that returned 1: `addr flush` running out of rounds
+	// (ip/ip.c:131, ip/ipaddress.c:2012-2014).
+	ExitMinusOne = 255
 )
 
 const usage = `Usage: goip [ OPTIONS ] OBJECT { COMMAND | help }
 where  OBJECT := { link | address | route | rule | neigh }
-       OPTIONS := { -4 | -6 | -0 | -j[son] | -s[tats] | -d[etails] |
-                    -br[ief] | -o[neline] }
+       OPTIONS := { -l[oops] COUNT | -4 | -6 | -0 | -j[son] | -s[tats] |
+                    -d[etails] | -br[ief] | -o[neline] }
 
 goip is a subset of ip(8), built as a coverage test for pkg/xtcpnl.
 It never creates, deletes or sets anything: the link, route and address
-write verbs build their request and write it to the file GOIP_WRITE_OUT
-names, and refuse to run without it. Only the name lookups they need are sent.
+write verbs, address flush included, build their requests and write them to
+the file GOIP_WRITE_OUT names, and refuse to run without it. Only the
+lookups and dumps they need are sent.
 `
 
 // Run is the whole program, minus os.Args and os.Exit.
@@ -72,6 +77,17 @@ func Run(args []string, stdout, stderr io.Writer) int {
 			a = a[1:]
 		}
 		switch {
+		case matchesPrefix(a, "-loops"):
+			// First in ip's chain (ip/ip.c:200-205), so `-l` is -loops. The
+			// count is atoi's: `abc` is 0, which is no limit, and a negative
+			// count runs no round. Every object accepts it; only `addr flush`
+			// reads it.
+			rest := args[i+1:]
+			if len(rest) == 0 {
+				return missLoopCount(stderr)
+			}
+			c.flushLoops, c.haveFlushLoops = cAtoi(rest[0]), true
+			i++
 		case a == "-4":
 			c.family = unix.AF_INET
 		case a == "-6":
@@ -193,15 +209,24 @@ func Run(args []string, stdout, stderr io.Writer) int {
 
 	if err := obj.run(c, args[1:]); err != nil {
 		fmt.Fprintf(stderr, "goip: %v\n", err)
-		// `ip` exits 1 for an argument it refuses before sending (do_cmd
-		// negates iplink_modify's -1) and 2 for a kernel refusal (its -2).
-		if errors.Is(err, ErrNotImplemented) || errors.Is(err, ErrInvalidArgument) ||
-			errors.Is(err, ErrWriteNotApplied) {
-			return ExitUsage
-		}
-		return ExitFailure
+		return exitCodeOf(err)
 	}
 	return ExitOK
+}
+
+// exitCodeOf is the status `ip` exits with for an object's error. It exits
+// 1 for an argument it refuses before sending (do_cmd negates
+// iplink_modify's -1), 2 for a kernel refusal (its -2), and 255 for a flush
+// that ran out of rounds (ipaddr_flush's 1, negated).
+func exitCodeOf(err error) int {
+	switch {
+	case errors.Is(err, ErrFlushIncomplete):
+		return ExitMinusOne
+	case errors.Is(err, ErrNotImplemented), errors.Is(err, ErrInvalidArgument),
+		errors.Is(err, ErrWriteNotApplied):
+		return ExitUsage
+	}
+	return ExitFailure
 }
 
 // openSource picks the live socket or, when GOIP_REPLAY names a pcap, the
@@ -226,4 +251,11 @@ func openSource() (Source, func() error, error) {
 		return nil, noop, err
 	}
 	return s, s.Close, nil
+}
+
+// missLoopCount is utils.c's missarg for `-loops` with no count, which exits
+// -1, so the status is 255.
+func missLoopCount(stderr io.Writer) int {
+	fmt.Fprint(stderr, "Error: argument \"loop count\" is required\n")
+	return ExitMinusOne
 }

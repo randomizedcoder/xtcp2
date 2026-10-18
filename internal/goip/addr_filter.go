@@ -470,6 +470,21 @@ func (f *addrFilter) matchAddr(ai *xtcpnl.AddrInfo, li *xtcpnl.LinkInfo, devName
 	return !f.haveProto || !ai.HasProto || ai.Proto == f.proto
 }
 
+// matchFlush is print_addrinfo's filter as ipaddr_flush runs it
+// (ip/ipaddress.c:1537-1553): the device, then matchCommon, then proto.
+// Nothing else applies. A flush calls neither ipaddr_filter nor
+// print_linkinfo, so `up`, `down`, `group`, `master` and `type` are parsed,
+// and `master`'s lookup is sent, but no address is kept or dropped by them.
+func (f *addrFilter) matchFlush(ai *xtcpnl.AddrInfo, devName func(int32) string) bool {
+	if f.ifindex != 0 && int64(ai.Index) != int64(f.ifindex) {
+		return false
+	}
+	if !f.matchCommon(ai, devName) {
+		return false
+	}
+	return !f.haveProto || !ai.HasProto || ai.Proto == f.proto
+}
+
 // matchCommon is the test ipaddr_filter and print_addrinfo share: family,
 // scope, flags, label and prefix. ipaddr_filter has no proto test, which is
 // why it is not here.

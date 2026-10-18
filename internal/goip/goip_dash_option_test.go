@@ -136,25 +136,6 @@ func TestRunDashConventions(t *testing.T) {
 			args:         []string{"-brieff"},
 			wantAccepted: false,
 		},
-		{
-			// A bare "-" is NOT an end-of-options marker in either tool, and
-			// neither rejects it — but they accept it for different reasons,
-			// which is a pre-existing divergence this row records rather than
-			// fixes.
-			//
-			// `ip` falls through the strip (opt[1] is NUL, not '-') into the
-			// matches() chain, where "-" is a prefix of the FIRST entry,
-			// "-loops" (ip/ip.c:200), so `ip -` is `-loops` with no argument
-			// and dies on missarg("loop count"). goip has no -loops, so "-"
-			// reaches matchesPrefix(a, "-json") and sets json instead.
-			//
-			// Both exit non-zero and neither says "unknown"; only the
-			// diagnostic differs, and matching it exactly would mean
-			// implementing -loops purely to fail on it.
-			description:  "corner: a bare - is accepted by both, but as a different option in each",
-			args:         []string{"-"},
-			wantAccepted: true,
-		},
 	}
 
 	const unknown = "is unknown"
@@ -340,6 +321,55 @@ func TestRunDashStripInErrorMessage(t *testing.T) {
 			}
 			if !strings.Contains(stderr.String(), tt.wantQuoted) {
 				t.Errorf("stderr = %q, want it to name %s", stderr.String(), tt.wantQuoted)
+			}
+		})
+	}
+}
+
+// TestRunLoopsOption is `-loops`, the first entry in ip's option chain
+// (ip/ip.c:200-205). It takes the next argument as its count whatever it
+// is, and with none it dies on missarg, exit(-1). Being first, it owns every
+// prefix of itself, a bare `-` included: `ip -` is -loops with no count, and
+// so is `goip -`. The count's effect is TestAddrFlushLoops'.
+//
+// go test ./internal/goip/ -run TestRunLoopsOption
+func TestRunLoopsOption(t *testing.T) {
+	type result struct {
+		code   int
+		stderr string
+	}
+	const missing = `Error: argument "loop count" is required`
+	tests := []struct {
+		description string
+		args        []string
+		expected    result
+	}{
+		{description: "positive: -loops takes a count, then usage for no object",
+			args: []string{"-loops", "3"}, expected: result{code: ExitUsage, stderr: "Usage:"}},
+		{description: "corner: -l is -loops",
+			args: []string{"-l", "3"}, expected: result{code: ExitUsage, stderr: "Usage:"}},
+		{description: "corner: --loops strips one dash",
+			args: []string{"--loops", "3"}, expected: result{code: ExitUsage, stderr: "Usage:"}},
+		{description: "corner: the count is taken even when it looks like an option",
+			args: []string{"-loops", "-4"}, expected: result{code: ExitUsage, stderr: "Usage:"}},
+		{description: "negative: -loops with no count is missarg's exit 255",
+			args: []string{"-loops"}, expected: result{code: ExitMinusOne, stderr: missing}},
+		{description: "corner: a bare - is -loops with no count, as in ip",
+			args: []string{"-"}, expected: result{code: ExitMinusOne, stderr: missing}},
+		{description: "negative: -loopss is longer than the option and is unknown",
+			args: []string{"-loopss", "3"}, expected: result{code: ExitUsage, stderr: "is unknown"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			got := result{code: Run(tc.args, &stdout, &stderr)}
+			if strings.Contains(stderr.String(), tc.expected.stderr) {
+				got.stderr = tc.expected.stderr
+			} else {
+				got.stderr = stderr.String()
+			}
+			if got != tc.expected {
+				t.Errorf("Run(%q) = %+v, want %+v", tc.args, got, tc.expected)
 			}
 		})
 	}

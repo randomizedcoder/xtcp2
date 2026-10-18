@@ -590,6 +590,12 @@ func addrWrite(c *runCtx, verb *addrWriteVerb, args []string) error {
 	if err != nil {
 		return fmt.Errorf("goip: build address write: %w", err)
 	}
+	return writeAddrOut(b)
+}
+
+// writeAddrOut hands an address verb's requests to GOIP_WRITE_OUT: one for
+// add/change/replace/delete, every round's RTM_DELADDR copies for flush.
+func writeAddrOut(b []byte) error {
 	path, ok := os.LookupEnv(writeOutEnvCst)
 	if !ok || path == "" {
 		return ErrWriteNotApplied
