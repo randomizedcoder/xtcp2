@@ -2,10 +2,10 @@
 
 Last updated: 2026-10-17.
 
-**R0 in progress: 4 of 20 implementation tasks passed their gates.** R0-T01
-(ABI layout guard), R0-T02 (capture tooling), R0-T03 (captured testdata: six
-rxe kernels, ionic and `l-mlx5`) and R0-T04 (parsing guards) are done. R0-T05,
-the cgo baseline, is next.
+**R0 done: 5 of 20 implementation tasks passed their gates.** R0-T01 (ABI
+layout guard), R0-T02 (capture tooling), R0-T03 (captured testdata: six rxe
+kernels, ionic and `l-mlx5`), R0-T04 (parsing guards) and R0-T05 (cgo
+baseline) are done. Next: R1-T01/R1-T02/R1-T03 or R2-T01.
 
 This tracks [GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md](GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md)
 for the design in [GO-NATIVE-RDMA-DESIGN.md](GO-NATIVE-RDMA-DESIGN.md). It is
@@ -39,7 +39,7 @@ checks it against the plan in the same way.
 
 | Phase | Name | State | Completed tasks | Evidence |
 |---|---|---|---|---|
-| R0 | Groundwork | in progress | 4/5 | RV001-RV027 |
+| R0 | Groundwork | done | 5/5 | RV001-RV031 |
 | R1 | Netlink-derived events | not started | 0/6 | None |
 | R2 | Native umad | not started | 0/3 | None |
 | R3 | uverbs context (conditional) | deferred | 0/3 | Entry condition not met; see blockers |
@@ -55,7 +55,7 @@ Completion gates and dependencies are in the plan, not copied here.
 | [x] | [R0-T02](GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md#r0-t02) | Capture tooling and redaction | done | RV009-RV015 |
 | [x] | [R0-T03](GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md#r0-t03) | Captured testdata | done | RV016-RV027 |
 | [x] | [R0-T04](GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md#r0-t04) | Parsing guards | done | RV003-RV005 |
-| [ ] | [R0-T05](GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md#r0-t05) | cgo baseline | not started | None |
+| [x] | [R0-T05](GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md#r0-t05) | cgo baseline | done | RV028-RV031 |
 | [ ] | [R1-T01](GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md#r1-t01) | GET_CHARDEV codec and client | not started | None |
 | [ ] | [R1-T02](GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md#r1-t02) | NLDEV notification kinds | not started | None |
 | [ ] | [R1-T03](GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md#r1-t03) | Port map and rtnetlink translator | not started | None |
@@ -78,10 +78,19 @@ Filled by R0-T05 and compared against by R1-T06, R2-T03 and R4-T03.
 
 | Benchmark | Host or VM | Kernel | ns/op | B/op | allocs/op | Evidence |
 |---|---|---|---|---|---|---|
-| `BenchmarkPerformanceCGO` (batch 1, 8, 32, 64) | `l` | | | | | |
-| `BenchmarkPerformanceCGO` (batch 1, 8, 32, 64) | performance VM | | | | | |
-| `BenchmarkPerformanceUMAD` | `l` | | | | | |
-| `BenchmarkPerformanceUMAD` | performance VM | | | | | |
+| `BenchmarkPerformanceCGO` batch=1 / 8 / 32 / 64 | `l` (24 CPUs) | 7.2.9 | 28.10 / 32.97 / 41.23 / 55.85 (per event 28.10 / 4.12 / 1.29 / 0.87) | 0 | 0 | RV029 |
+| `BenchmarkPerformanceCGO` batch=1 / 8 / 32 / 64 | performance VM (4 CPUs) | 6.18.39 | 31.38 / 35.23 / 43.20 / 55.46 (per event 31.38 / 4.40 / 1.35 / 0.87) | 0 | 0 | RV030 |
+| `BenchmarkPerformanceUMAD` uncontended / contended | `l` (24 CPUs) | 7.2.9 | 376.6 / 684.2 | 512 | 2 | RV029 |
+| `BenchmarkPerformanceUMAD` uncontended / contended | performance VM (4 CPUs) | 6.18.39 | 351.3 / 671.1 | 512 | 2 | RV030 |
+
+Medians of ten runs from `benchstat`, ns/op; the variation is 1-7%. The raw
+output, `pprof -top` and benchstat for each row are in
+[rdma-native-bench/r0-t05](rdma-native-bench/README.md). In the profiles,
+`runtime.cgocall` with its syscall entry and exit takes about 90% of
+`BenchmarkPerformanceCGO`'s CPU: one cgo call per batch, so the cost per
+event falls with the batch size. `BenchmarkPerformanceUMAD` makes three cgo
+calls per query, and all its allocation is the 512 B in `benchmarkExchange`.
+Both benchmarks drive simulated input, so neither touches an RDMA device.
 
 ## Capture inventory
 
@@ -125,6 +134,10 @@ Filled by R0-T03. A stream is `captured`, `not captured` with the reason, or
 | RV025 | 2026-10-17 | R0-T03 | `nix build path:.#test-linkmonitor-{rdma-capture,lint,format,unit}` | Build host with `/dev/kvm`, kernel 7.2.9; base 6aea04eb plus the G3 working tree | Pass: the redactor now replaces a MAC's bare hex and `enx<mac>` forms, and a GUID's bare hex, with table rows `altname_netlink`, `altname_text`, `text_bare_mac` and `text_bare_guid_upper` | `/nix/store/ss6k1rzfvhk8jsmhvbbx6gin86nndnch-xtcp2-test-linkmonitor-unit` |
 | RV026 | 2026-10-17 | R0-T03 | RV023's command, rerun with the RV025 redactor | Host `l`, kernel 7.2.9, mlx5_0 and mlx5_1; base 6aea04eb plus the G3 working tree; same operator approval as RV023 | Pass: 227 files, 14 redacted values, manifest verified; the scratchpad leak check (the host's real MACs, GUIDs, GIDs and addresses in raw, hex, escaped and text forms) found no hits over 228 files | operator's terminal output; scratchpad `g3/leakcheck.py` |
 | RV027 | 2026-10-17 | R0-T03 | `nix build path:.#test-linkmonitor-unit` | Build host with `/dev/kvm`, kernel 7.2.9; base 6aea04eb plus the G3 working tree | Pass: `TestCaptureManifests` verifies all eight captures, including `7_2_9/l-mlx5` | `/nix/store/mck9389vdzr6yjx31m84zrc2d1748pbf-xtcp2-test-linkmonitor-unit/check.log` |
+| RV028 | 2026-10-17 | R0-T05 | `nix build path:.#test-linkmonitor-rdma-native-bench` | Build host `l`, kernel 7.2.9; base a589b28c plus the G4 working tree | Pass: the runner's smoke run writes every evidence file; `--from` promotes text only, without the run path; the argument table (`--native`, unknown, `--count 0`, `--count ten`, `--output` with no value, `--help`, `--from` without `--evidence`, `--from` with `--output`, `--from` with no run) exits as expected | `/nix/store/kyp8av71rsv3dafrk6c0hwxsj6cllq4g-xtcp2-test-linkmonitor-rdma-native-bench` |
+| RV029 | 2026-10-17 | R0-T05 | `nix run path:.#bench-linkmonitor-rdma-native -- --output <scratch>`, promoted with `--from <scratch> --evidence cmd/go-link-monitor/rdma-native-bench/r0-t05/l` | Host `l`, kernel 7.2.9, 24 CPUs, Go 1.26.5; base a589b28c plus the G4 working tree. The operator approved the unprivileged run on 2026-10-17 | Pass: the `l` rows of the baseline table | [r0-t05/l](rdma-native-bench/README.md) |
+| RV030 | 2026-10-17 | R0-T05 | `env -u LD_LIBRARY_PATH nix run path:.#test-linkmonitor-performance-vm -- <scratch>/vm`, promoted with `--from <scratch>/vm/linkmonitor-performance/rdma-native --evidence cmd/go-link-monitor/rdma-native-bench/r0-t05/vm` | Performance VM on `l`'s KVM, guest kernel 6.18.39, 4 CPUs; base a589b28c plus the G4 working tree | Pass: `live_exit=0`, `rdma_native_exit=0`; the VM rows of the baseline table | [r0-t05/vm](rdma-native-bench/README.md); scratchpad `g4/vm/serial.log` |
+| RV031 | 2026-10-17 | R0 | `nix build path:.#test-linkmonitor-{format,docs,performance-vm}` | Build host `l`, kernel 7.2.9; base a589b28c plus the G4 working tree | Pass | |
 
 ## Blockers and upcoming requirements
 
@@ -134,7 +147,7 @@ The rest are upcoming requirements, not failed checks.
 | Requirement | Affected tasks | Action when work reaches it |
 |---|---|---|
 | Embedding leaf fails on main: `pkg/xtcp` `TestLinkMonitorOnDemandScrape` needs `/sys` in the sandbox (RV007) | Aggregate `test-linkmonitor` gates (R1-T04 onwards) | Fix on main separately; until then record the aggregate with the embedding leaf excluded and list the other leaves |
-| Operator approval for changes on `l` | R1-T06, R2-T03, R3-T03, R4-T03 | Ask before each IPv6 trigger, `modprobe ib_umad` or live run; record the approval in the evidence row |
+| Operator approval for changes on `l` | R1-T06, R2-T03, R3-T03, R4-T03 (R0-T05's `l` run approved 2026-10-17) | Ask before each IPv6 trigger, `modprobe ib_umad` or live run; record the approval in the evidence row |
 | Which RDMA drivers run in the fleet, and whether native InfiniBand hosts exist | R3 entry; priority of R2 | Answer the assessment's open questions. If no fleet host needs verbs-level events, R3 stays deferred. If there are no native IB hosts, R2 keeps today's behaviour only |
 | `backend` value in the `rdma_events` diagnostics | R1-T04 | Change [METRICS.md](METRICS.md) in the same task |
 | KVM for the VM targets | R1-T05, R2-T03 | Run the VM apps on a host with `/dev/kvm`; record the VM run's evidence |
@@ -150,3 +163,4 @@ The rest are upcoming requirements, not failed checks.
 | 2026-10-17 | Security review of the G2 commit: the manifest's redaction map was keyed by an unsalted sha256 of each real value, which is reversible for MACs, GUIDs and IPv4 addresses, and the capture recorded the hostname (`uname -a`, sysfs `node_desc`). The map now lists only documentation values and their kinds, and the hostname is no longer captured. Design and assessment updated. | RV014-RV015 |
 | 2026-10-17 | R0-T03 VM captures (G3). `vm-rxe` on all six `rdmaCaptureKernels` kernels and `vm-ionic` on 7.1.4, verified by `TestCaptureManifests`. Every kernel matches a committed `pkg/xtcpnl/testdata` corpus directory, so the runner's re-recorded NLDEV rows went to the scratchpad and `rdmaKernels` is unchanged (plan adjustment 6 not needed). Script fixes on the way: per-port `rdma link show`, `smpquery -D portinfo 0`, `bash -c` triggers, and async straces filtered to the uverbs event fd. Neither rxe nor ionic answers an SMI registration, so the umad rows hold the `EPROTONOSUPPORT` exchange only. | RV016-RV022; next the `l-mlx5` read-only capture (awaiting approval), then R0-T05 |
 | 2026-10-17 | R0-T03 done (G3). `l-mlx5` captured with the operator's approval (read-only set, GID trigger on enp35s0f0np0, `modprobe ib_umad` and `--umad`); `ib_umad` and `nlmon` stay loaded on `l`. The first run aborted on mlx5_1's empty GID window (RV023): the script now reports a device whose netdevs exclude the trigger interface as `RDMACAP_QUIET`. The second leaked both port MACs as bare hex in the `enx<mac>` altnames in `nlmon/gid.pcap` (RV024) and was deleted unpublished; the redactor now covers bare-hex MAC and GUID forms and `enx<mac>` (RV025). mlx5 gives GID_CHANGE four times per add and delete where rxe and ionic give two, so R1-T03 must not assume a count. Next: R0-T05, cgo baseline. |
+| 2026-10-17 | R0-T05 done and R0 closed (G4). New flake app `bench-linkmonitor-rdma-native` (`nix/tests/linkmonitor-perf/rdma-native.nix`) runs the cgo baselines from the cached performance artifact, with pprof and the pinned benchstat. Its gate is `test-linkmonitor-rdma-native-bench`, and the performance VM runs it too. `--evidence`/`--from` write the committed text evidence under `cmd/go-link-monitor/rdma-native-bench/`, so every number in the baseline table comes from a flake target. Deviation: the standalone `pprof`, because `go tool pprof` builds itself with cgo and the sandbox has no C compiler. The cgo cost to beat: about 28-31 ns and one cgo call per event batch; UMAD 350-380 ns, 512 B and 2 allocs per query. PRs: #241, #243, #246 and this one. Next: R1-T01/R1-T02/R1-T03 or R2-T01. |

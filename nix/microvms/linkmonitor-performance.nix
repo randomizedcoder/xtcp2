@@ -9,6 +9,7 @@
   lib,
   nixpkgs,
   artifact,
+  rdmaNativeBench,
 }:
 let
   guest = pkgs.writeShellApplication {
@@ -52,6 +53,13 @@ let
         -test.blockprofile "$out/block.pprof" \
         -test.mutexprofile "$out/mutex.pprof" >"$out/bench.txt" 2>&1
 
+      # The go-native RDMA cgo baselines (GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md
+      # R0-T05): simulated input, so no RDMA device is needed.
+      set +e
+      ${rdmaNativeBench}/bin/bench-linkmonitor-rdma-native --output "$out/rdma-native" >"$out/rdma-native.log" 2>&1
+      rdma_native_rc=$?
+      set -e
+
       # Stop after the benchmark traffic has drained, then include the pcap
       # and tcpdump transcript in one host-readable evidence bundle.
       kill "$capture_pid" 2>/dev/null || true
@@ -60,6 +68,7 @@ let
       ip link del nlmon0 2>/dev/null || true
       {
         echo "live_exit=$live_rc"
+        echo "rdma_native_exit=$rdma_native_rc"
         echo "kernel=$(uname -r)"
         echo "arch=$(uname -m)"
       } > "$out/manifest.txt"
@@ -143,6 +152,10 @@ pkgs.writeShellApplication {
       | tr -cd 'A-Za-z0-9+/=' | base64 -d | tar -xzf - -C "$output"
     grep -q '^live_exit=0$' "$output/linkmonitor-performance/manifest.txt" || {
       echo "live tests failed; see $output/linkmonitor-performance/live-tests.txt" >&2
+      exit 1
+    }
+    grep -q '^rdma_native_exit=0$' "$output/linkmonitor-performance/manifest.txt" || {
+      echo "RDMA native benchmarks failed; see $output/linkmonitor-performance/rdma-native.log" >&2
       exit 1
     }
     echo "PASS: privileged link-monitor VM evidence in $output/linkmonitor-performance"

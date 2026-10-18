@@ -6,6 +6,47 @@
 let
   versions = import ../../versions.nix { inherit pkgs; };
   runner = import ../linkmonitor-benchmark-runner.nix { inherit pkgs artifact; };
+  rdmaNative = import ./rdma-native.nix { inherit pkgs artifact; };
+  # The runner's own gate: one smoke run that must produce every evidence
+  # file, and the argument table.
+  rdmaNativeCheck =
+    pkgs.runCommand "xtcp2-test-linkmonitor-rdma-native-bench" { nativeBuildInputs = [ rdmaNative ]; }
+      ''
+            set -euo pipefail
+            export HOME=$TMPDIR
+            mkdir -p "$out"
+            bench-linkmonitor-rdma-native --smoke --output "$out/smoke" > "$out/smoke.log" 2>&1 || { cat "$out/smoke.log"; exit 1; }
+            for f in manifest.txt cgo-events.txt cgo-events-cpu-top.txt cgo-events-heap-top.txt cgo-events-benchstat.txt \
+              cgo-umad.txt cgo-umad-cpu-top.txt cgo-umad-heap-top.txt cgo-umad-benchstat.txt; do
+              [ -s "$out/smoke/$f" ] || { echo "missing $f" >&2; exit 1; }
+            done
+            grep -q '^BenchmarkPerformanceCGO/batch=64' "$out/smoke/cgo-events.txt"
+            grep -q '^BenchmarkPerformanceUMAD/contended' "$out/smoke/cgo-umad.txt"
+            # --from promotes the smoke run's text evidence without the profiles.
+            bench-linkmonitor-rdma-native --from "$out/smoke" --evidence "$out/evidence" > "$out/promote.log" 2>&1 || { cat "$out/promote.log"; exit 1; }
+            [ -s "$out/evidence/cgo-umad-benchstat.txt" ] || { echo "promote wrote no benchstat" >&2; exit 1; }
+            if [ -n "$(find "$out/evidence" -name '*.pprof')" ]; then echo "promote copied a binary profile" >&2; exit 1; fi
+            if grep -rq "$out" "$out/evidence"; then echo "evidence names the run directory" >&2; exit 1; fi
+            # name|category|description|expected exit|arguments
+            while IFS='|' read -r name category description expected args; do
+              echo "$category: $name: $description; expected: exit $expected"
+              read -ra argv <<< "$args"
+              rc=0
+              bench-linkmonitor-rdma-native "''${argv[@]}" > "$out/args-$name.log" 2>&1 || rc=$?
+              [ "$rc" -eq "$expected" ] || { echo "$name: exit $rc, want $expected" >&2; cat "$out/args-$name.log"; exit 1; }
+            done <<'ROWS'
+        native|negative|--native before native benchmarks exist|2|--native
+        unknown|negative|an unknown argument|2|--bogus
+        count_zero|boundary|--count 0|2|--count 0
+        count_text|negative|--count is not a number|2|--count ten
+        output_missing|corner|--output without its value|2|--output
+        help|corner|--help prints usage|2|--help
+        from_alone|negative|--from without --evidence|2|--from /nonexistent
+        from_output|negative|--from with --output|2|--from /a --evidence /b --output /c
+        from_missing|negative|--from a directory with no run in it|1|--from /nonexistent --evidence /tmp/never-written
+        ROWS
+            echo PASS > "$out/result.txt"
+      '';
   mkRunner =
     name: arguments:
     pkgs.writeShellApplication {
@@ -102,6 +143,8 @@ in
 {
   packages = {
     bench-linkmonitor = runner;
+    bench-linkmonitor-rdma-native = rdmaNative;
+    test-linkmonitor-rdma-native-bench = rdmaNativeCheck;
     bench-linkmonitor-smoke = mkRunner "bench-linkmonitor-smoke" "--smoke";
     bench-linkmonitor-soak = mkRunner "bench-linkmonitor-soak" "--soak";
     siege-linkmonitor = siege;
@@ -121,6 +164,10 @@ in
     bench-linkmonitor-soak = {
       type = "app";
       program = "${mkRunner "bench-linkmonitor-soak" "--soak"}/bin/bench-linkmonitor-soak";
+    };
+    bench-linkmonitor-rdma-native = {
+      type = "app";
+      program = "${rdmaNative}/bin/bench-linkmonitor-rdma-native";
     };
     siege-linkmonitor = {
       type = "app";

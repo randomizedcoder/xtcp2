@@ -1,0 +1,49 @@
+File: rdmacaps.test
+Build ID: ea6339c646ca62ff7182cd57f278dd0eb718be82
+Type: cpu
+Time: 2026-10-17 23:24:42 PDT
+Duration: 31.10s, Total samples = 44.75s (143.88%)
+Showing nodes accounting for 29.19s, 65.23% of 44.75s total
+Dropped 321 nodes (cum <= 0.22s)
+Showing top 40 nodes out of 151
+      flat  flat%   sum%        cum   cum%
+     4.62s 10.32% 10.32%      8.82s 19.71%  runtime.cgocall
+     2.40s  5.36% 15.69%      2.40s  5.36%  runtime.futex
+     1.85s  4.13% 19.82%     27.57s 61.61%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.benchmarkExchange
+     1.57s  3.51% 23.33%      2.42s  5.41%  runtime.reentersyscall
+     1.02s  2.28% 25.61%      6.73s 15.04%  runtime.mallocgcSmallNoscan
+     0.98s  2.19% 27.80%      1.18s  2.64%  runtime.unlock2
+     0.96s  2.15% 29.94%      0.96s  2.15%  internal/runtime/atomic.(*Uint32).CompareAndSwap (inline)
+     0.93s  2.08% 32.02%      0.93s  2.08%  runtime.madvise
+     0.84s  1.88% 33.90%      1.16s  2.59%  runtime.lock2
+     0.80s  1.79% 35.69%      0.80s  1.79%  runtime.(*spanInlineMarkBits).init
+     0.76s  1.70% 37.39%      0.96s  2.15%  runtime.typePointers.next
+     0.73s  1.63% 39.02%      2.15s  4.80%  runtime.chansend
+     0.72s  1.61% 40.63%      1.20s  2.68%  runtime.exitsyscall
+     0.71s  1.59% 42.21%      2.19s  4.89%  runtime.scanObject
+     0.63s  1.41% 43.62%      0.63s  1.41%  runtime.memclrNoHeapPointers
+     0.62s  1.39% 45.01%      0.62s  1.39%  runtime.nextFreeFast (inline)
+     0.58s  1.30% 46.30%      1.19s  2.66%  runtime.scanblock
+     0.55s  1.23% 47.53%      4.11s  9.18%  runtime.chanrecv
+     0.52s  1.16% 48.69%      8.07s 18.03%  runtime.mallocgc
+     0.48s  1.07% 49.77%      1.25s  2.79%  runtime.casgstatus
+     0.47s  1.05% 50.82%     16.29s 36.40%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.BenchmarkPerformanceUMAD.func1.1
+     0.47s  1.05% 51.87%      0.47s  1.05%  runtime.nanotime (inline)
+     0.42s  0.94% 52.80%      0.72s  1.61%  runtime.tryDeferToSpanScan
+     0.40s  0.89% 53.70%      2.67s  5.97%  runtime.recv
+     0.39s  0.87% 54.57%      0.39s  0.87%  runtime.save
+     0.39s  0.87% 55.44%      5.28s 11.80%  runtime.schedule
+     0.35s  0.78% 56.22%      3.93s  8.78%  runtime.findRunnable
+     0.34s  0.76% 56.98%      0.38s  0.85%  runtime.getcallerfp
+     0.34s  0.76% 57.74%      0.35s  0.78%  runtime.spanOf (inline)
+     0.33s  0.74% 58.48%     12.26s 27.40%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.BenchmarkPerformanceUMAD.func1
+     0.33s  0.74% 59.22%      1.59s  3.55%  runtime.(*sweepLocked).sweep
+     0.31s  0.69% 59.91%      0.31s  0.69%  runtime.(*fixalloc).alloc
+     0.31s  0.69% 60.60%      0.96s  2.15%  runtime.stealWork
+     0.31s  0.69% 61.30%      0.31s  0.69%  runtime.usleep
+     0.30s  0.67% 61.97%      3.48s  7.78%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps._Cfunc_CString
+     0.30s  0.67% 62.64%      0.30s  0.67%  internal/runtime/atomic.(*Uint32).Add (inline)
+     0.30s  0.67% 63.31%      0.30s  0.67%  runtime.(*mspan).init
+     0.30s  0.67% 63.98%      0.30s  0.67%  runtime.releasem (inline)
+     0.28s  0.63% 64.60%      2.43s  5.43%  runtime.chansend1
+     0.28s  0.63% 65.23%      0.51s  1.14%  runtime.scanObjectsSmall

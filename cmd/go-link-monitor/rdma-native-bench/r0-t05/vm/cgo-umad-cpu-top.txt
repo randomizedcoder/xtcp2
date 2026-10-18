@@ -1,0 +1,49 @@
+File: rdmacaps.test
+Build ID: ea6339c646ca62ff7182cd57f278dd0eb718be82
+Type: cpu
+Time: 2026-10-18 06:21:17 UTC
+Duration: 30.76s, Total samples = 38.96s (126.66%)
+Showing nodes accounting for 27.14s, 69.66% of 38.96s total
+Dropped 286 nodes (cum <= 0.19s)
+Showing top 40 nodes out of 141
+      flat  flat%   sum%        cum   cum%
+     5.59s 14.35% 14.35%      9.14s 23.46%  runtime.cgocall
+     1.99s  5.11% 19.46%      1.99s  5.11%  runtime.futex
+     1.68s  4.31% 23.77%     27.78s 71.30%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.benchmarkExchange
+     1.43s  3.67% 27.44%      2.15s  5.52%  runtime.reentersyscall
+     1.16s  2.98% 30.42%      5.81s 14.91%  runtime.mallocgcSmallNoscan
+     1.15s  2.95% 33.37%      1.30s  3.34%  runtime.unlock2
+     0.95s  2.44% 35.81%      0.95s  2.44%  internal/runtime/atomic.(*Uint32).CompareAndSwap (inline)
+     0.88s  2.26% 38.06%      2.54s  6.52%  runtime.chansend
+     0.73s  1.87% 39.94%      4.44s 11.40%  runtime.chanrecv
+     0.71s  1.82% 41.76%      0.71s  1.82%  runtime.nextFreeFast (inline)
+     0.63s  1.62% 43.38%      0.82s  2.10%  runtime.typePointers.next
+     0.58s  1.49% 44.87%      0.58s  1.49%  runtime.memclrNoHeapPointers
+     0.55s  1.41% 46.28%      0.84s  2.16%  runtime.lock2
+     0.47s  1.21% 47.48%      0.48s  1.23%  runtime.getcallerfp
+     0.44s  1.13% 48.61%      0.79s  2.03%  runtime.exitsyscall
+     0.43s  1.10% 49.72%      8.69s 22.30%  runtime.systemstack
+     0.41s  1.05% 50.77%      0.89s  2.28%  runtime.casgstatus
+     0.40s  1.03% 51.80%      6.94s 17.81%  runtime.mallocgc
+     0.37s  0.95% 52.75%     16.38s 42.04%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.BenchmarkPerformanceUMAD.func1.1
+     0.36s  0.92% 53.67%      1.38s  3.54%  runtime.(*sweepLocked).sweep
+     0.36s  0.92% 54.59%      0.36s  0.92%  runtime.madvise
+     0.36s  0.92% 55.52%      0.36s  0.92%  runtime.procyieldAsm
+     0.35s   0.9% 56.42%      0.35s   0.9%  runtime.releasem (inline)
+     0.34s  0.87% 57.29%      0.34s  0.87%  runtime.(*spanInlineMarkBits).init
+     0.34s  0.87% 58.16%      0.63s  1.62%  runtime.tryDeferToSpanScan
+     0.33s  0.85% 59.01%     12.37s 31.75%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.BenchmarkPerformanceUMAD.func1
+     0.33s  0.85% 59.86%      0.33s  0.85%  runtime.nanotime (inline)
+     0.33s  0.85% 60.70%      0.35s   0.9%  runtime.spanOf (inline)
+     0.32s  0.82% 61.52%      3.68s  9.45%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps._Cfunc_CString
+     0.32s  0.82% 62.35%      2.25s  5.78%  runtime.findRunnable
+     0.32s  0.82% 63.17%      1.37s  3.52%  runtime.scanObject
+     0.32s  0.82% 63.99%      3.67s  9.42%  runtime.schedule
+     0.31s   0.8% 64.78%      0.31s   0.8%  runtime.acquirem (inline)
+     0.31s   0.8% 65.58%      0.66s  1.69%  runtime.scanblock
+     0.29s  0.74% 66.32%      0.29s  0.74%  runtime.(*mspan).init
+     0.29s  0.74% 67.07%      2.84s  7.29%  runtime.recv
+     0.26s  0.67% 67.74%      0.26s  0.67%  runtime.cgoInRange (inline)
+     0.26s  0.67% 68.40%      0.26s  0.67%  runtime.memmove
+     0.25s  0.64% 69.05%      0.25s  0.64%  runtime.(*fixalloc).alloc
+     0.24s  0.62% 69.66%      2.78s  7.14%  runtime.chansend1

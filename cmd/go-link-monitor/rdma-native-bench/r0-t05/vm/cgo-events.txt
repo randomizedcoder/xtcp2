@@ -1,0 +1,45 @@
+goos: linux
+goarch: amd64
+pkg: github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmaevents
+cpu: AMD Ryzen Threadripper PRO 3945WX 12-Cores     
+BenchmarkPerformanceCGO/batch=1-4         	40060812	        29.84 ns/op	         1.000 cgo/event	        29.84 ns/event	       0 B/op	       0 allocs/op
+BenchmarkPerformanceCGO/batch=1-4         	37042711	        30.88 ns/op	         1.000 cgo/event	        30.88 ns/event	       0 B/op	       0 allocs/op
+BenchmarkPerformanceCGO/batch=1-4         	38452171	        32.19 ns/op	         1.000 cgo/event	        32.19 ns/event	       0 B/op	       0 allocs/op
+BenchmarkPerformanceCGO/batch=1-4         	36377416	        31.38 ns/op	         1.000 cgo/event	        31.38 ns/event	       0 B/op	       0 allocs/op
+BenchmarkPerformanceCGO/batch=1-4         	38060497	        31.36 ns/op	         1.000 cgo/event	        31.36 ns/event	       0 B/op	       0 allocs/op
+BenchmarkPerformanceCGO/batch=1-4         	32923256	        32.81 ns/op	         1.000 cgo/event	        32.81 ns/event	       0 B/op	       0 allocs/op
+BenchmarkPerformanceCGO/batch=1-4         	37280094	        32.25 ns/op	         1.000 cgo/event	        32.25 ns/event	       0 B/op	       0 allocs/op
+BenchmarkPerformanceCGO/batch=1-4         	38155941	        31.39 ns/op	         1.000 cgo/event	        31.39 ns/event	       0 B/op	       0 allocs/op
+BenchmarkPerformanceCGO/batch=1-4         	37453767	        31.40 ns/op	         1.000 cgo/event	        31.40 ns/event	       0 B/op	       0 allocs/op
+BenchmarkPerformanceCGO/batch=1-4         	40949312	        30.45 ns/op	         1.000 cgo/event	        30.45 ns/event	       0 B/op	       0 allocs/op
+BenchmarkPerformanceCGO/batch=8-4         	33822507	        34.15 ns/op	         0.1250 cgo/event	         4.269 ns/event	       0 B/op	       0 allocs/op
+BenchmarkPerformanceCGO/batch=8-4         	36739774	        36.47 ns/op	         0.1250 cgo/event	         4.559 ns/event	       0 B/op	       0 allocs/op
+BenchmarkPerformanceCGO/batch=8-4         	27943999	        37.06 ns/op	         0.1250 cgo/event	         4.632 ns/event	       0 B/op	       0 allocs/op
+BenchmarkPerformanceCGO/batch=8-4         	36564639	        34.85 ns/op	         0.1250 cgo/event	         4.356 ns/event	       0 B/op	       0 allocs/op
+BenchmarkPerformanceCGO/batch=8-4         	36144712	        35.11 ns/op	         0.1250 cgo/event	         4.389 ns/event	       0 B/op	       0 allocs/op
+BenchmarkPerformanceCGO/batch=8-4         	36089800	        34.63 ns/op	         0.1250 cgo/event	         4.329 ns/event	       0 B/op	       0 allocs/op
+BenchmarkPerformanceCGO/batch=8-4         	37217725	        35.28 ns/op	         0.1250 cgo/event	         4.410 ns/event	       0 B/op	       0 allocs/op
+BenchmarkPerformanceCGO/batch=8-4         	32927066	        35.95 ns/op	         0.1250 cgo/event	         4.494 ns/event	       0 B/op	       0 allocs/op
+BenchmarkPerformanceCGO/batch=8-4         	28982564	        35.18 ns/op	         0.1250 cgo/event	         4.397 ns/event	       0 B/op	       0 allocs/op
+BenchmarkPerformanceCGO/batch=8-4         	35124276	        37.22 ns/op	         0.1250 cgo/event	         4.652 ns/event	       0 B/op	       0 allocs/op
+BenchmarkPerformanceCGO/batch=32-4        	27456265	        44.42 ns/op	         0.03125 cgo/event	         1.388 ns/event	       0 B/op	       0 allocs/op
+BenchmarkPerformanceCGO/batch=32-4        	27744741	        43.20 ns/op	         0.03125 cgo/event	         1.350 ns/event	       0 B/op	       0 allocs/op
+BenchmarkPerformanceCGO/batch=32-4        	28223198	        43.74 ns/op	         0.03125 cgo/event	         1.367 ns/event	       0 B/op	       0 allocs/op
+BenchmarkPerformanceCGO/batch=32-4        	27494434	        42.78 ns/op	         0.03125 cgo/event	         1.337 ns/event	       0 B/op	       0 allocs/op
+BenchmarkPerformanceCGO/batch=32-4        	23747641	        46.05 ns/op	         0.03125 cgo/event	         1.439 ns/event	       0 B/op	       0 allocs/op
+BenchmarkPerformanceCGO/batch=32-4        	24465453	        45.71 ns/op	         0.03125 cgo/event	         1.429 ns/event	       0 B/op	       0 allocs/op
+BenchmarkPerformanceCGO/batch=32-4        	27507410	        42.15 ns/op	         0.03125 cgo/event	         1.317 ns/event	       0 B/op	       0 allocs/op
+BenchmarkPerformanceCGO/batch=32-4        	28713043	        43.21 ns/op	         0.03125 cgo/event	         1.350 ns/event	       0 B/op	       0 allocs/op
+BenchmarkPerformanceCGO/batch=32-4        	26932929	        41.47 ns/op	         0.03125 cgo/event	         1.296 ns/event	       0 B/op	       0 allocs/op
+BenchmarkPerformanceCGO/batch=32-4        	28119706	        41.59 ns/op	         0.03125 cgo/event	         1.300 ns/event	       0 B/op	       0 allocs/op
+BenchmarkPerformanceCGO/batch=64-4        	22148539	        54.19 ns/op	         0.01562 cgo/event	         0.8467 ns/event	       0 B/op	       0 allocs/op
+BenchmarkPerformanceCGO/batch=64-4        	22421030	        54.32 ns/op	         0.01562 cgo/event	         0.8488 ns/event	       0 B/op	       0 allocs/op
+BenchmarkPerformanceCGO/batch=64-4        	23267131	        55.34 ns/op	         0.01562 cgo/event	         0.8646 ns/event	       0 B/op	       0 allocs/op
+BenchmarkPerformanceCGO/batch=64-4        	20805056	        55.80 ns/op	         0.01562 cgo/event	         0.8718 ns/event	       0 B/op	       0 allocs/op
+BenchmarkPerformanceCGO/batch=64-4        	19132836	        56.54 ns/op	         0.01562 cgo/event	         0.8834 ns/event	       0 B/op	       0 allocs/op
+BenchmarkPerformanceCGO/batch=64-4        	22432587	        53.06 ns/op	         0.01562 cgo/event	         0.8290 ns/event	       0 B/op	       0 allocs/op
+BenchmarkPerformanceCGO/batch=64-4        	18602463	        56.77 ns/op	         0.01562 cgo/event	         0.8870 ns/event	       0 B/op	       0 allocs/op
+BenchmarkPerformanceCGO/batch=64-4        	22473570	        56.74 ns/op	         0.01562 cgo/event	         0.8866 ns/event	       0 B/op	       0 allocs/op
+BenchmarkPerformanceCGO/batch=64-4        	21816844	        55.58 ns/op	         0.01562 cgo/event	         0.8684 ns/event	       0 B/op	       0 allocs/op
+BenchmarkPerformanceCGO/batch=64-4        	21201408	        53.72 ns/op	         0.01562 cgo/event	         0.8394 ns/event	       0 B/op	       0 allocs/op
+PASS
