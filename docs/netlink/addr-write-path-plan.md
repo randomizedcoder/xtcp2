@@ -345,6 +345,18 @@ Tests: rows in `internal/goip/goip_dash_option_test.go`:
 
 Done when: the rows pass.
 
+As built: `-oneline` and `-brief` are cases in `Run`'s option loop. `-o` is
+oneline, since nothing ahead of it in `ip`'s chain begins with `-o`
+(`ip/ip.c:238`). Brief needs at least `-br`: `ip` tests `-batch` (`:254`)
+before `-brief` (`:260`), so `-b` is batch, and goip, which has no `-batch`,
+reports it as unknown. "Accepted for `addr`" means parsed: until A3-T02,
+`addrShow` refuses either option before any request, with "-brief render not
+implemented" and exit 1. Every other object is refused in `Run` with "option
+-brief is only implemented for address", and the address write verbs ignore
+both, as `ip` does. The no-object spelling rows are in
+`goip_dash_option_test.go`. The rows with an object are in the new
+`goip_output_mode_test.go` (`TestRunOutputModes`).
+
 #### A3-T02
 
 **Brief and oneline renderers.** Depends on: A3-T01.

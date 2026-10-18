@@ -25,6 +25,9 @@ type object struct {
 	name string
 	// run is nil for a recognized-but-unimplemented object.
 	run func(*runCtx, []string) error
+	// outputModes is set for the objects that read -brief and -oneline. Run
+	// refuses both for every other object.
+	outputModes bool
 }
 
 // objects is the object table in iproute2's order, which is load-bearing.
@@ -47,7 +50,7 @@ type object struct {
 //
 // Order transcribed from ip/ip.c's cmds[].
 var objects = []object{
-	{name: "address", run: runAddress},
+	{name: "address", run: runAddress, outputModes: true},
 	{name: "addrlabel", run: runAddrLabel},
 	{name: "maddress"},
 	{name: "route", run: runRoute},
@@ -193,6 +196,10 @@ type runCtx struct {
 	// every count it accepts and rejects nothing — see the parsing arm in Run,
 	// and detailed for the predicate the object handlers actually use.
 	showDetails int
+	// brief and oneline are -br and -o (ip/ip.c:238, :260). Only address
+	// reads them; Run refuses them for every other object.
+	brief   bool
+	oneline bool
 	// seq is the sequence number to put on the next request. iproute2 seeds it
 	// from time(NULL) and increments per request; goip starts at 1 and
 	// increments, because the parity comparator zeroes nlmsg_seq before
@@ -231,6 +238,19 @@ func (c *runCtx) detailed() bool { return c.showDetails > 0 }
 // reproduces tests for non-zero, not for a specific count; the one place the
 // count matters is `-s -s`, which goip refuses at the option loop.
 func (c *runCtx) stats() bool { return c.showStats > 0 }
+
+// outputMode names the -brief or -oneline option this invocation set, or
+// returns "" when it set neither. brief is named first because ip's renderers
+// test brief before oneline.
+func (c *runCtx) outputMode() string {
+	switch {
+	case c.brief:
+		return "-brief"
+	case c.oneline:
+		return "-oneline"
+	}
+	return ""
+}
 
 // nextSeq returns the sequence number for the next request.
 func (c *runCtx) nextSeq() uint32 {
