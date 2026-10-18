@@ -267,9 +267,8 @@ func compareWriteNetlink(dir string, c Command, segs map[string]nlparity.Segment
 	if err != nil {
 		return nlparity.Report{}, fmt.Errorf("%s: %w", c.WriteName(), err)
 	}
-	// Every row so far writes one message. A8-T03's Writes field carries the
-	// count for the flush rows.
-	const writes = 1
+	// One message for most rows; a flush row's Writes is its DEL count.
+	writes := c.WriteCount()
 	control, err := nlparity.WritesControl(c.Name, segs[SideIPA], segs[SideIPB], writes)
 	if err != nil {
 		return nlparity.Report{}, err

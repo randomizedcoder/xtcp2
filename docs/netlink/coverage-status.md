@@ -10,9 +10,9 @@ several steps, further down under [Remaining](#remaining).
 
 | | count | counted from |
 |---|---|---|
-| commands in the comparison matrix | **174** | `internal/goipparity/commands.go` — 100 read rows (31 of them `addr show` state, selector and output-mode rows with a `Setup`), the 21 link write rows, the 26 route write rows and the 27 address write rows |
-| of those, `Implemented: true` | **174** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
-| of those, in `gated_commands` | **151** | `pkg/nlparity/goip-parity-allowlist.json` |
+| commands in the comparison matrix | **181** | `internal/goipparity/commands.go` — 100 read rows (31 of them `addr show` state, selector and output-mode rows with a `Setup`), the 21 link write rows, the 26 route write rows, the 27 address write rows and the 7 address flush rows |
+| of those, `Implemented: true` | **181** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
+| of those, in `gated_commands` | **158** | `pkg/nlparity/goip-parity-allowlist.json` |
 | allowlisted divergences | **7** | same file, `entries` |
 | of those, `kind=version-skew` | **7** | all against the pinned `ip` 7.1.0 |
 | of those, `kind=accepted-divergence` | **0** | nothing is *allowlisted* as a permanent divergence — the eight intentional wire divergences below **cannot** be, because a transaction-count divergence is unsuppressible (`nlparity_allowlist.go:143`) |
@@ -337,7 +337,7 @@ file to compare, so it stays offline.
 
 ### Write path: address writes as a dry run
 
-Counted from the tree on 2026-10-17. `goip address add|change|replace|delete`
+Counted from the tree on 2026-10-18. `goip address add|change|replace|delete`
 (and every abbreviation `do_ipaddr` accepts: `a`, `chg` by strcmp, `r`,
 `d`/`del`) parse argv with `ipaddr_modify`'s keyword chain
 (`internal/goip/addr_write.go`, `parseAddrWriteArgs`) and build `ip`'s
@@ -405,7 +405,14 @@ against an unchanged kernel it stops after the rounds `ip` ran. `-loops`, the
 `-s` round text, and `ip`'s refusals and exit codes (255 for an incomplete
 flush) are `ip`'s. `TestAddrFlushMatchesIpBytes` matches the nine
 `addr-flush` slugs that reach the kernel on every lookup, dump request and
-DEL, and on `ip`'s datagram split. The flush rows reach the matrix in A8-T03.
+DEL, and on `ip`'s datagram split. Seven `addr_flush_<slug>` matrix rows
+(A8-T03) compare a live flush against `ip`'s: the lookup and dumps byte for
+byte, the DEL batch message by message against goip's file (`Writes` is each
+row's DEL count), and the round-2 request but not its reply. flush_many is
+named `addr flush d0`, the bare device, which sends the same bytes as
+`dev d0`. All seven gated on two clean runs. flush_nothing, flush_noargs,
+flush_packet and flush_primary_flipped stay offline: no file, no traffic, or
+a sysctl `Setup` cannot express.
 
 ## Netlink message types: decoded, rendered, compared
 
@@ -6694,9 +6701,10 @@ decode and the dry-run `add`/`change`/`replace`/`delete` are done and gated.
 `-6`, byte-identical to every addr-show state's sidecars (A3-T02). Every
 other combination, with a selector, `dev`, `-s`, `-d` or `-0`, `-o -j` and
 `-br -o`, is refused before any request. Four output-mode matrix rows, `-br`,
-`-o`, `-br -j` and `-o -6 addr show`, are gated (A3-T03). `flush`, `save`, `showdump` and `restore` are not started, and the
-statements in this file that say they are read-only stand until their phases
-land.
+`-o`, `-br -j` and `-o -6 addr show`, are gated (A3-T03). `flush` is a dry
+run (A8-T02), and seven flush rows are gated (A8-T03). `save`, `showdump`
+and `restore` are not started, and the statements in this file that say they
+are read-only stand until their phase lands.
 
 The three `route show` forms are **implemented and compared** as of the
 `route show` work: Item 4's `RTA_MULTIPATH`/`RTA_VIA`/`RTA_METRICS`/`rtm_flags`

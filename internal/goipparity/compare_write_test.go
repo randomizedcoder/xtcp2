@@ -19,11 +19,21 @@ const (
 	tdLinkWrite             = "../../pkg/xtcpnl/testdata/7_1_4/link-write/write"
 	tdRouteWrite            = "../../pkg/xtcpnl/testdata/7_1_4/link-write/route"
 	tdAddrWrite             = "../../pkg/xtcpnl/testdata/7_1_4/link-write/addr"
+	tdAddrFlush             = "../../pkg/xtcpnl/testdata/7_1_4/link-write/addr-flush"
 	linkWriteSlugPrefixCst  = "link_write_"
 	routeWriteSlugPrefixCst = "route_write_"
 	addrWriteSlugPrefixCst  = "addr_write_"
-	pcapGlobalHdrCst        = 24
-	pcapRecordHdrCst        = 16
+	// addrFlushSlugPrefixCst names a flush row, whose corpus slug is
+	// flush_ and the rest.
+	addrFlushSlugPrefixCst = "addr_flush_"
+	pcapGlobalHdrCst       = 24
+	pcapRecordHdrCst       = 16
+	// nlmonHdrCst is the cooked header LINKTYPE_NETLINK puts before each
+	// datagram.
+	nlmonHdrCst = 16
+	// rtmDelAddrCst and nlmFRequestCst are RTM_DELADDR and NLM_F_REQUEST.
+	rtmDelAddrCst  = 21
+	nlmFRequestCst = 0x1
 	// nlMsgHdrCst is sizeof(struct nlmsghdr). Spelled here because this
 	// package may not import pkg/xtcpnl (TestParityCannotOpenASocket).
 	nlMsgHdrCst = 16
@@ -34,6 +44,19 @@ const (
 // the last two, so dropping them leaves exactly the lookups goip would send.
 func dropLastRecords(t *testing.T, b []byte, n int) []byte {
 	t.Helper()
+	offs := pcapRecords(t, b)
+	if len(offs) < n {
+		t.Fatalf("pcap holds %d records, cannot drop %d", len(offs), n)
+	}
+	if len(offs) == n {
+		return append([]byte(nil), b[:pcapGlobalHdrCst]...)
+	}
+	return append([]byte(nil), b[:offs[len(offs)-n]]...)
+}
+
+// pcapRecords returns the byte offset of each record in a pcap.
+func pcapRecords(t *testing.T, b []byte) []int {
+	t.Helper()
 	var offs []int
 	for off := pcapGlobalHdrCst; off < len(b); {
 		if off+pcapRecordHdrCst > len(b) {
@@ -42,13 +65,29 @@ func dropLastRecords(t *testing.T, b []byte, n int) []byte {
 		offs = append(offs, off)
 		off += pcapRecordHdrCst + int(binary.LittleEndian.Uint32(b[off+8:off+12]))
 	}
-	if len(offs) < n {
-		t.Fatalf("pcap holds %d records, cannot drop %d", len(offs), n)
+	return offs
+}
+
+// dropDelRecords returns a pcap without the records that carry RTM_DELADDR
+// requests: a flush capture less its DEL batch, which is what goip sends
+// while it writes the batch to GOIP_WRITE_OUT.
+func dropDelRecords(t *testing.T, b []byte) []byte {
+	t.Helper()
+	out := append([]byte(nil), b[:pcapGlobalHdrCst]...)
+	offs := pcapRecords(t, b)
+	for i, off := range offs {
+		end := len(b)
+		if i+1 < len(offs) {
+			end = offs[i+1]
+		}
+		msg := off + pcapRecordHdrCst + nlmonHdrCst
+		if msg+8 <= end && binary.LittleEndian.Uint16(b[msg+4:msg+6]) == rtmDelAddrCst &&
+			binary.LittleEndian.Uint16(b[msg+6:msg+8])&nlmFRequestCst != 0 {
+			continue
+		}
+		out = append(out, b[off:end]...)
 	}
-	if len(offs) == n {
-		return append([]byte(nil), b[:pcapGlobalHdrCst]...)
-	}
-	return append([]byte(nil), b[:offs[len(offs)-n]]...)
+	return out
 }
 
 // writeRowFiles is one write row's files as a perfect run would leave them:
@@ -59,6 +98,8 @@ type writeRowFiles struct {
 	pcaps map[string][]byte
 	rcs   map[string]string
 	write []byte
+	// stdout is every side's stdout: empty, except a flush row's ip.out.
+	stdout []byte
 }
 
 func corpusWriteRow(t *testing.T, c Command) writeRowFiles {
@@ -69,6 +110,9 @@ func corpusWriteRow(t *testing.T, c Command) writeRowFiles {
 	}
 	if slug, ok := strings.CutPrefix(c.Slug, addrWriteSlugPrefixCst); ok {
 		dir = filepath.Join(tdAddrWrite, slug)
+	}
+	if slug, ok := strings.CutPrefix(c.Slug, addrFlushSlugPrefixCst); ok {
+		return corpusFlushRow(t, c, filepath.Join(tdAddrFlush, "flush_"+slug))
 	}
 	ipPcap := mustReadBytes(t, filepath.Join(dir, "ip.pcap"))
 	rc := strings.TrimSpace(mustRead(t, filepath.Join(dir, "ip.rc")))
@@ -81,25 +125,62 @@ func corpusWriteRow(t *testing.T, c Command) writeRowFiles {
 	if err != nil {
 		t.Fatal(err)
 	}
-	req := make([]byte, nlMsgHdrCst+len(w.Writes[0].Body))
-	binary.LittleEndian.PutUint32(req[0:4], uint32(len(req))) //nolint:gosec // a captured message
-	binary.LittleEndian.PutUint16(req[4:6], w.Writes[0].Hdr.Type)
-	binary.LittleEndian.PutUint16(req[6:8], w.Writes[0].Hdr.Flags)
-	binary.LittleEndian.PutUint32(req[8:12], 1)
-	copy(req[nlMsgHdrCst:], w.Writes[0].Body)
 
 	return writeRowFiles{
 		pcaps: map[string][]byte{SideIPA: ipPcap, SideGoip: dropLastRecords(t, ipPcap, 2), SideIPB: ipPcap},
 		rcs:   map[string]string{SideIPA: rc, SideGoip: "0", SideIPB: rc},
-		write: req,
+		write: writeRequest(w.Writes[0], 1),
 	}
+}
+
+// corpusFlushRow is a flush row's files as a perfect run would leave them:
+// goip's capture is ip's less the DEL batch, and its file is the batch, every
+// DEL the row's Writes count names. Its round-2 reply stays ip's (empty);
+// goip's real one is the pre-flush dump, which CompareWrites leaves out by
+// rule, and TestCompareWritesBatch is where that is shown.
+func corpusFlushRow(t *testing.T, c Command, dir string) writeRowFiles {
+	t.Helper()
+	ipPcap := mustReadBytes(t, filepath.Join(dir, "ip.pcap"))
+	rc := strings.TrimSpace(mustRead(t, filepath.Join(dir, "ip.rc")))
+	capture, err := nlparity.ParseRouteCaptureFile(filepath.Join(dir, "ip.pcap"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, err := nlparity.SplitWrites(nlparity.SegmentCapture(capture), c.WriteCount())
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := make([]byte, 0, len(w.Writes)*nlMsgHdrCst)
+	var seq uint32
+	for _, m := range w.Writes {
+		seq++
+		file = append(file, writeRequest(m, seq)...)
+	}
+	return writeRowFiles{
+		pcaps:  map[string][]byte{SideIPA: ipPcap, SideGoip: dropDelRecords(t, ipPcap), SideIPB: ipPcap},
+		rcs:    map[string]string{SideIPA: rc, SideGoip: "0", SideIPB: rc},
+		write:  file,
+		stdout: mustReadBytes(t, filepath.Join(dir, "ip.out")),
+	}
+}
+
+// writeRequest is one captured write as goip writes it to GOIP_WRITE_OUT,
+// with its own seq.
+func writeRequest(m nlparity.Msg, seq uint32) []byte {
+	req := make([]byte, nlMsgHdrCst+len(m.Body))
+	binary.LittleEndian.PutUint32(req[0:4], uint32(len(req))) //nolint:gosec // a captured message
+	binary.LittleEndian.PutUint16(req[4:6], m.Hdr.Type)
+	binary.LittleEndian.PutUint16(req[6:8], m.Hdr.Flags)
+	binary.LittleEndian.PutUint32(req[8:12], seq)
+	copy(req[nlMsgHdrCst:], m.Body)
+	return req
 }
 
 func (f writeRowFiles) lay(t *testing.T, dir string, c Command) {
 	t.Helper()
 	for _, side := range Sides() {
 		writeInDir(t, dir, c.CaptureName(side), f.pcaps[side])
-		writeInDir(t, dir, c.StdoutName(side), nil)
+		writeInDir(t, dir, c.StdoutName(side), f.stdout)
 		if rc, ok := f.rcs[side]; ok {
 			writeInDir(t, dir, c.RCName(side), []byte(rc+"\n"))
 		}
@@ -136,6 +217,10 @@ func TestCompareWriteRow(t *testing.T) {
 	add := lookupPtr(t, "link add d0 type dummy")
 	routeNFS := lookupPtr(t, "route replace 192.0.2.50/32 dev d0 congctl lock cubic rto_min 3ms initcwnd 32 initrwnd 32 quickack 1")
 	blackhole := lookupPtr(t, "route add blackhole 198.51.100.0/24")
+	flushDev := lookupPtr(t, "addr flush dev d0")
+	flushMany := lookupPtr(t, "addr flush d0")
+	flushStats := lookupPtr(t, "-s addr flush dev d0")
+	flushPrimary := lookupPtr(t, "addr flush dev d0 primary")
 	type result struct {
 		status Status
 		err    error
@@ -184,6 +269,17 @@ func TestCompareWriteRow(t *testing.T) {
 		{description: "corner: no exit status is MISSING", c: add,
 			edit:     func(f *writeRowFiles) { delete(f.rcs, SideIPB) },
 			expected: result{status: StatusMissing}},
+		{description: "positive: a flush, four DELs and a round-2 dump, is a pass", c: flushDev,
+			expected: result{status: StatusPass}},
+		{description: "positive: 120 DELs in three of ip's datagrams are a pass", c: flushMany,
+			expected: result{status: StatusPass}},
+		{description: "positive: primary, one DEL and no round 2, is a pass", c: flushPrimary,
+			expected: result{status: StatusPass}},
+		{description: "positive: -s's round text is compared on stdout and passes", c: flushStats,
+			expected: result{status: StatusPass}},
+		{description: "negative: one DEL missing from goip's file fails, unsuppressibly", c: flushDev,
+			edit:     func(f *writeRowFiles) { f.write = f.write[:len(f.write)*3/4] },
+			expected: result{status: StatusFail}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
@@ -203,6 +299,26 @@ func TestCompareWriteRow(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("negative: a flush row whose Writes says 1 cannot split ip's batch of four", func(t *testing.T) {
+		dir := t.TempDir()
+		corpusWriteRow(t, *flushDev).lay(t, dir, *flushDev)
+		one := *flushDev
+		one.Writes = 1
+		r := compareOne(dir, one, al)
+		if r.Status != StatusFail || !errors.Is(r.Err, nlparity.ErrWriteCount) {
+			t.Fatalf("status = %v, err = %v; want FAIL with ErrWriteCount", r.Status, r.Err)
+		}
+	})
+
+	t.Run("positive: flush_many is 123 transactions on both sides: the lookup, two dumps and 120 DELs", func(t *testing.T) {
+		dir := t.TempDir()
+		corpusWriteRow(t, *flushMany).lay(t, dir, *flushMany)
+		r := compareOne(dir, *flushMany, al)
+		if got := [2]int{r.Netlink.RefTxns, r.Netlink.SubTxns}; got != [2]int{123, 123} {
+			t.Fatalf("txns = %v, want [123 123]", got)
+		}
+	})
 
 	t.Run("positive: every write row in the table passes on its own corpus capture", func(t *testing.T) {
 		for _, c := range Commands() {

@@ -63,6 +63,16 @@ func TestCommandTable(t *testing.T) {
 			},
 		},
 		{
+			description: "negative: a flush row that does not set Writes, or any other row that does, is refused",
+			check: func(t *testing.T) {
+				for _, c := range Commands() {
+					if p := flushRowProblem(c); p != "" {
+						t.Errorf("%q: %s", c.Name, p)
+					}
+				}
+			},
+		},
+		{
 			description: "positive: the names are unique, so Lookup cannot be ambiguous",
 			check: func(t *testing.T) {
 				seen := map[string]bool{}
@@ -1015,6 +1025,9 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	//
 	// A3-T03's four output-mode rows never joined it: they gated on the two
 	// runs taken before the branch merged — see TestAddrOutputModeRowsGated.
+	//
+	// A8-T03's seven address flush rows never joined it either, for the same
+	// reason — see TestAddrFlushRowsGated.
 	expected := []string{
 		"-s addr show", "-s neigh show",
 		"-0 addr show", "route show table main", "route show table local",
