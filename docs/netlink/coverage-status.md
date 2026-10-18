@@ -2,7 +2,7 @@
 
 ## goip ↔ `ip` parity at a glance
 
-Counted from the tree on 2026-10-17. Every number has a file behind it, named
+Counted from the tree on 2026-10-18. Every number has a file behind it, named
 in the last column; **if this table and the file disagree, the file is right
 and this table is stale.** That has happened before in this document — see the
 "no route command is in `gated_commands`" line that outlived its own truth by
@@ -10,9 +10,9 @@ several steps, further down under [Remaining](#remaining).
 
 | | count | counted from |
 |---|---|---|
-| commands in the comparison matrix | **170** | `internal/goipparity/commands.go` — 96 read rows (27 of them `addr show` state and selector rows with a `Setup`), the 21 link write rows, the 26 route write rows and the 27 address write rows |
-| of those, `Implemented: true` | **170** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
-| of those, in `gated_commands` | **147** | `pkg/nlparity/goip-parity-allowlist.json` |
+| commands in the comparison matrix | **174** | `internal/goipparity/commands.go` — 100 read rows (31 of them `addr show` state, selector and output-mode rows with a `Setup`), the 21 link write rows, the 26 route write rows and the 27 address write rows |
+| of those, `Implemented: true` | **174** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
+| of those, in `gated_commands` | **151** | `pkg/nlparity/goip-parity-allowlist.json` |
 | allowlisted divergences | **7** | same file, `entries` |
 | of those, `kind=version-skew` | **7** | all against the pinned `ip` 7.1.0 |
 | of those, `kind=accepted-divergence` | **0** | nothing is *allowlisted* as a permanent divergence — the eight intentional wire divergences below **cannot** be, because a transaction-count divergence is unsuppressible (`nlparity_allowlist.go:143`) |
@@ -3315,8 +3315,8 @@ x/sys/unix, `pkg/xtcpnl` and `pkg/nlstrace`, and keeps linkmonitor,
 
 ### The `addr show` state and selector rows
 
-Twenty-seven read rows run `addr show` on a namespace their `Setup` builds.
-Each selector row's `Setup` is a literal copy of one captured state's `ip`
+Thirty-one read rows run `addr show` on a namespace their `Setup` builds.
+Each selector and output-mode row's `Setup` is a literal copy of one captured state's `ip`
 steps from `pkg/xtcpnl/testdata/7_1_4/link-write/addr-show/<state>/topology`,
 and the test reads that file and holds the two equal, so a recapture that
 changes a state fails `go test` rather than leaving its row reading
@@ -3344,6 +3344,15 @@ something else.
   the pre-existing reason, `-4 netconf show dev` with `HYGIENE_FAIL 2`, and
   `UNGATED_DIVERGENCES 7`; `CONTROL_NOISY` read 132 and then 130
   (addr-write-path-status.md, V025 and V026).
+- **A3-T03's four output-mode rows** are `-br addr show`, `-o addr show`
+  and `-br -j addr show` on `mixed_links`, the state their sidecars were
+  captured on, and `-o -6 addr show` on `v6_peer`, whose one address is
+  `nodad`. Two back-to-back runs passed all four with `txns` 2/2, `control:
+  nl=0 stdout=0` and no findings, with the other 170 verdicts unchanged,
+  and all four gated. Brief text has no `N:` prefix, so the ifname and
+  ifindex facets are empty on both sides of `-br addr show`: that row
+  compares lines, CIDRs and keyword values, and `-br -j` compares the names
+  (addr-write-path-status.md, V048 and V049).
 - **`dynamic` stays ungated.** It prints d0's `valid_lft 3600sec`, which
   `goip` reads a second later as `3599sec`. The control suppressed it on
   both runs because `ip_a` and `ip_b` ticked too, but a row that passes only
@@ -6664,8 +6673,8 @@ decode and the dry-run `add`/`change`/`replace`/`delete` are done and gated.
 `-br`, `-br -j` and `-o` render plain `addr show`, optionally under `-4` or
 `-6`, byte-identical to every addr-show state's sidecars (A3-T02). Every
 other combination, with a selector, `dev`, `-s`, `-d` or `-0`, `-o -j` and
-`-br -o`, is refused before any request, and the output-mode matrix rows are
-A3-T03. `flush`, `save`, `showdump` and `restore` are not started, and the
+`-br -o`, is refused before any request. Four output-mode matrix rows, `-br`,
+`-o`, `-br -j` and `-o -6 addr show`, are gated (A3-T03). `flush`, `save`, `showdump` and `restore` are not started, and the
 statements in this file that say they are read-only stand until their phases
 land.
 

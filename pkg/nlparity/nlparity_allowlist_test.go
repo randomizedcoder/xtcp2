@@ -545,6 +545,13 @@ func TestAllowlistCommitted(t *testing.T) {
 		"addr add 192.0.2.2/24 scope link dev d0",
 		"-6 addr add ff02::fb/128 dev d0",
 		"addr add 192.0.2.10/24 label d0:0123456789abc dev d0",
+		// A3-T03's output-mode rows: -br, -o and -br -j on mixed_links, and
+		// -o -6 on v6_peer, gated on two runs with GOIP_PARITY_PASS on both and
+		// the same txns, control and zero findings each time.
+		"-br addr show",
+		"-o addr show",
+		"-br -j addr show",
+		"-o -6 addr show",
 	}
 
 	tests := []struct {
