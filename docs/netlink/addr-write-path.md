@@ -848,10 +848,13 @@ so four rows on one `addr show` would collide.
 One row per [write corpus](#write-rows) slug, `addr_write_<slug>`, with
 `Write: true`. They use the existing comparator unchanged: lookups, then
 exactly one write as the last transaction, `ErrGoipSentWrite` if goip's pcap
-holds a write, and the control `D_control` from `ip_a` vs `ip_b`. The refused
-rows (`nodev`, `valid_zero`, `no_dev_keyword`, …) have no write on either side,
-so they are `Write: false` rows with a `Setup`, compared as reads: the same
-lookups (or none), the same rc and the same stderr facet.
+holds a write, and the control `D_control` from `ip_a` vs `ip_b`. The five
+refused slugs (`nodev`, `valid_zero`, `autojoin_unicast`, `no_dev_keyword`,
+`brd_plus_v6`) have no write on either side, and they are not rows. The
+harness's read rows drop rc and stderr, and `no_dev_keyword` and `brd_plus_v6`
+send nothing, below any floor the table accepts. They stay offline in
+`TestAddrWriteNodevCorpus`, as the route corpus's `nodev` does (corrected in
+A7-T01; this paragraph first proposed `Write: false` rows compared as reads).
 
 ### Multi-write rows: flush and restore
 
