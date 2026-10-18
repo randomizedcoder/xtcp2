@@ -91,6 +91,11 @@ func runAddress(c *runCtx, args []string) error {
 // and the address dump is sent with filter.family. Those are c.family and
 // f.family, and `to PREFIX` is what makes them differ.
 func addrShow(c *runCtx, args []string) error {
+	// -br and -o parse but do not render yet (A3-T02). Refused before any
+	// request, so nothing reaches the wire for a render goip cannot print.
+	if opt := c.outputMode(); opt != "" {
+		return fmt.Errorf("address show: %s render not implemented: %w", opt, ErrNotImplemented)
+	}
 	svc := service.New(c.src, c.nextSeq)
 	f, err := parseAddrShowArgs(args, c.family, addrShowLookups(c, svc))
 	if err != nil {

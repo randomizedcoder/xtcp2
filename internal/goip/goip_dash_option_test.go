@@ -95,6 +95,48 @@ func TestRunDashConventions(t *testing.T) {
 			wantAccepted: false,
 		},
 		{
+			description:  "positive: -brief is a known option",
+			args:         []string{"-brief"},
+			wantAccepted: true,
+		},
+		{
+			description:  "positive: -oneline is a known option",
+			args:         []string{"-oneline"},
+			wantAccepted: true,
+		},
+		{
+			// ip tests -batch (ip/ip.c:254) before -brief (:260), so `-b` is
+			// batch and the shortest brief spelling is two letters.
+			description:  "boundary: -br is the shortest brief, because -b is ip's -batch",
+			args:         []string{"-br"},
+			wantAccepted: true,
+		},
+		{
+			description:  "negative: -b is ip's -batch, which goip lacks, so it is unknown and not brief",
+			args:         []string{"-b"},
+			wantAccepted: false,
+		},
+		{
+			description:  "boundary: -o is the shortest oneline, since nothing ahead of it begins with -o",
+			args:         []string{"-o"},
+			wantAccepted: true,
+		},
+		{
+			description:  "corner: --br strips one dash and is brief",
+			args:         []string{"--br"},
+			wantAccepted: true,
+		},
+		{
+			description:  "corner: -bri is still brief",
+			args:         []string{"-bri"},
+			wantAccepted: true,
+		},
+		{
+			description:  "negative: -brieff is longer than the option and is unknown",
+			args:         []string{"-brieff"},
+			wantAccepted: false,
+		},
+		{
 			// A bare "-" is NOT an end-of-options marker in either tool, and
 			// neither rejects it — but they accept it for different reasons,
 			// which is a pre-existing divergence this row records rather than

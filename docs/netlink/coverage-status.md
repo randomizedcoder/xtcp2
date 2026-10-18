@@ -5042,7 +5042,8 @@ ARPHRD_* of the link decides how an `IFA_ADDRESS` is formatted": `IFA_ADDRESS`
 is an IP address and never goes near `ll_addr_n2a`, and `ll_index_to_type` has
 exactly two call sites in iproute2, both in `ip/ipneigh.c` (`:292` in
 `print_neigh_brief`, `:430` in `print_neigh`). Only the second is reachable
-from goip, since `-br` is not implemented.
+from goip, since goip refuses `-br` for every object but `address`
+(A3-T01), and does not render it there yet (A3-T02).
 
 `render.NameTab` therefore gained `IndexToType`. Unlike `IndexToFlags` it has
 **no sentinel and needs none**: `ll_index_to_type` answers 0 on a miss, 0 is

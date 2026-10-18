@@ -1,10 +1,10 @@
 # `ip address` implementation status
 
-Last updated: 2026-10-17.
+Last updated: 2026-10-18.
 
-**Phases A0, A1, A2, A4, A5 and A6 are done, and A7 is under way.** The design
+**Phases A0, A1, A2, A4, A5 and A6 are done, and A3 and A7 are under way.** The design
 ([addr-write-path.md](addr-write-path.md)) and the plan
-([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. 15 of 25
+([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. 16 of 25
 tasks are done: A0-T01 (V001), A0-T02 (closed by a finding, V002), A0-T03
 and A0-T04, closed by one KVM capture (V005), A0-T05, which recorded M1–M3
 from that capture's fixtures (V006), A1-T01, which decodes the four
@@ -24,10 +24,11 @@ that fills it, stopping where `ip` stops (V032, V033). A6-T02 wires
 captured writes byte for byte, and `ip`'s step, exit code and message on the
 five refusals (V034, V035). A7-T01 puts the 27 writes in the `goip-parity`
 matrix as `addr_write_<slug>` rows. All 27 passed one live run, and they are
-ungated (V036–V038).
+ungated (V036–V038). A3-T01 parses `-br` and `-o` as `ip` matches them. They
+are refused, by name, everywhere goip does not render them yet (V039, V040).
 
-**Next action:** A7-T02 (depends on A7-T01) and A3-T01 (A0-T04) are
-unblocked. Pick one; one task, one PR.
+**Next action:** A7-T02 (depends on A7-T01) and A3-T02 (depends on A3-T01)
+are unblocked. Pick one; one task, one PR.
 
 ## Update rules
 
@@ -64,7 +65,7 @@ unblocked. Pick one; one task, one PR.
 | A0 | capture: topologies, corpus, measurements | done | 5/5 | V001, V002, V003, V005, V006 |
 | A1 | decode and render `metric`/`any`/`mcast` | done | 2/2 | V009, V010, V011, V012, V016, V017, V018, V019, V020 |
 | A2 | `addr show` selectors | done | 3/3 | V013, V014, V021, V022, V023, V024, V025, V026, V027 |
-| A3 | `-br` and `-o` | not started | 0/3 | — |
+| A3 | `-br` and `-o` | in progress | 1/3 | V039, V040 |
 | A4 | the gate admits `RTM_NEWADDR`/`RTM_DELADDR` | done | 1/1 | V028, V029 |
 | A5 | `BuildAddrWriteRequest` | done | 1/1 | V030, V031 |
 | A6 | `goip addr add/change/replace/delete` | done | 2/2 | V032, V033, V034, V035 |
@@ -89,7 +90,7 @@ Add evidence IDs to the last column as work runs.
 | [x] | [A2-T01](addr-write-path-plan.md#a2-t01) | `addrFilter` and its parser | done | V013, V014, DOC006 |
 | [x] | [A2-T02](addr-write-path-plan.md#a2-t02) | apply the filter in `addrShow` | done | V021, V022, V023, DOC008 |
 | [x] | [A2-T03](addr-write-path-plan.md#a2-t03) | selector rows in the matrix | done | V024, V025, V026, V027, DOC009 |
-| [ ] | [A3-T01](addr-write-path-plan.md#a3-t01) | parse `-br` and `-o` | not started | — |
+| [x] | [A3-T01](addr-write-path-plan.md#a3-t01) | parse `-br` and `-o` | done | V039, V040, DOC015 |
 | [ ] | [A3-T02](addr-write-path-plan.md#a3-t02) | brief and oneline renderers | not started | — |
 | [ ] | [A3-T03](addr-write-path-plan.md#a3-t03) | output-mode rows | not started | — |
 | [x] | [A4-T01](addr-write-path-plan.md#a4-t01) | admit `RTM_NEWADDR`/`RTM_DELADDR` | done | V028, V029, DOC010 |
@@ -192,6 +193,9 @@ it.
 | V037 | 2026-10-17 | A7-T01 | `nix run .#microvm-x86_64-goip-parity -- --timeout 4500` from a scratch worktree, on an x86_64 NixOS host with `/dev/kvm`, with the 27 rows `Implemented: true`. This is a smoke run. It is not one of A7-T02's two | All 27 `addr_write_` rows `GOIP_PARITY_PASS` with no findings. Each is `txns` 2/2 with control `nl=1 stdout=0`, and every capture is `NLCAP_CAP_OK`. Across all 170 rows: 162 PASS, 7 WARN and 1 FAIL, `-4 netconf show dev`. That FAIL is the pre-existing one, a permanent wire divergence plus hygiene orphans (`HYGIENE_FAIL 2`), so the run ends `OVERALL_FAIL`/`DRIVER_FAIL` as it does on `main`. `UNGATED_DIVERGENCES 7`, `CONTROL_NOISY 160` | transcript in the session scratchpad, not kept |
 | V038 | 2026-10-17 | A7-T01 | the nix checks: `.#test-focused-goip`, `checks.netlink-audit`, `checks.lint-baseline`, `.#quality-report`, `checks.nix-fmt`, `checks.statix`, `checks.deadnix`. `vm-lib-exp` does not apply: no `.exp` file changed | Passed, except `lint-baseline`, which fails on `main` with the same 17 tier-2 findings. The branch adds none | the check outputs |
 | DOC014 | 2026-10-17 | A7-T01 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc, plus `git diff --check` | Passed: 25 task IDs one to one; 15 done ticks; no broken links or anchors; ledger IDs unique and in order; `git diff --check` clean | Summary retained here; the checker script was session-local |
+| V039 | 2026-10-18 | A3-T01 | `go test ./internal/goip/... ./internal/goipparity/...`. It includes eight new `TestRunDashConventions` rows (`-brief`, `-oneline`, `-br`, `-o`, `--br` and `-bri` accepted; `-b` and `-brieff` unknown) and the nine rows of the new `TestRunOutputModes`: `-br`, `-o`, `-br -j` and `-br a` refused as not rendered with nothing on stdout; `-br link`, `-o route` and `-br neigh` refused for the object; `-br addr add` writing `add_v4`'s request; `-b addr show` unknown. Mutation check in a scratch worktree: each mutant failed the rows named for it, and was reverted. The mutants were: the `len(a) >= 3` guard dropped (the two `-b` rows), the per-object refusal removed (the link, route and neigh rows), `addrShow`'s refusal removed (the four `addr show` rows), and `-oneline` dropped (the four `-o` rows) | Passed | the test output |
+| V040 | 2026-10-18 | A3-T01 | the nix checks: `.#test-focused-goip`, `checks.netlink-audit`, `checks.lint-baseline`, `.#quality-report`, `checks.nix-fmt`, `checks.statix`, `checks.deadnix`. `vm-lib-exp` and the parity VM do not apply: no `.exp` file and no matrix row changed | Passed, except `lint-baseline`, which fails on `main` with the same 17 tier-2 findings. The branch adds none. A first draft named the object with a new `"address"` constant; that moved goconst's findings around (one went, another surfaced), so the object table carries an `outputModes` field instead and the set is identical to `main`'s | the check outputs |
+| DOC015 | 2026-10-18 | A3-T01 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc, plus `git diff --check` | Passed: 25 task IDs one to one; 16 done ticks; no broken links or anchors; ledger IDs unique and in order; `git diff --check` clean | Summary retained here; the checker script was session-local |
 
 ## Blockers and upcoming requirements
 
@@ -200,6 +204,16 @@ it.
 - **No open blockers.**
 
 ## Progress and decision log
+
+- **2026-10-18.** A3-T01 is done.
+  - **`-b` is not brief.** `ip` tests `-batch` before `-brief`, so the
+    shortest brief is `-br`. goip has no `-batch`, and `-b` is unknown.
+  - **Parsed, not rendered.** `addr show` refuses `-br` and `-o` before any
+    request, as goip refuses `-s -s`, so a dropped flag can never show up as
+    a full-render divergence. A3-T02 removes the refusal.
+  - **Other objects refuse them by name** ("only implemented for address"),
+    including the ones `ip` renders them for (link, route, neigh). The
+    address write verbs ignore them, as `ip` does.
 
 - **2026-10-17.** A7-T01 is done.
   - **27 rows, not 32.** The five slugs that send no write are not rows. The

@@ -19,7 +19,8 @@ const (
 
 const usage = `Usage: goip [ OPTIONS ] OBJECT { COMMAND | help }
 where  OBJECT := { link | address | route | rule | neigh }
-       OPTIONS := { -4 | -6 | -0 | -j[son] | -s[tats] | -d[etails] }
+       OPTIONS := { -4 | -6 | -0 | -j[son] | -s[tats] | -d[etails] |
+                    -br[ief] | -o[neline] }
 
 goip is a subset of ip(8), built as a coverage test for pkg/xtcpnl.
 It never creates, deletes or sets anything: the link, route and address
@@ -91,6 +92,17 @@ func Run(args []string, stdout, stderr io.Writer) int {
 			// `link show` assigns internally (ip/ipaddress.c:2416) and which
 			// goip models by ignoring c.family in req.LinkShowDump.
 			c.family = unix.AF_PACKET
+		case matchesPrefix(a, "-oneline"):
+			// No option ahead of -oneline in ip's chain begins with `-o`
+			// (ip/ip.c:238), so `-o` alone is oneline.
+			c.oneline = true
+		case len(a) >= 3 && matchesPrefix(a, "-brief"):
+			// `-b` is not brief. ip tests -batch (ip/ip.c:254) before -brief
+			// (:260), and matches() is a prefix test, so `-b` and `-ba…` are
+			// batch and the shortest brief is `-br`. goip has no -batch, so
+			// `-b` falls through to "is unknown" rather than being taken as
+			// brief: the guard is the order of ip's chain, not a choice.
+			c.brief = true
 		case matchesPrefix(a, "-json"):
 			c.json = true
 		case matchesPrefix(a, "-stats"), matchesPrefix(a, "-statistics"):
@@ -153,6 +165,16 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		default:
 			fmt.Fprintf(stderr, "goip: %v\n", err)
 		}
+		return ExitUsage
+	}
+
+	// ip ignores -brief and -oneline for an object that has no such render,
+	// and renders them for several that goip does not claim to (link, route,
+	// neigh). Refusing here, by name, keeps a dropped flag from showing up in
+	// the parity report as a full-render divergence. address is the one
+	// object that reads them (object.outputModes); see addrShow.
+	if opt := c.outputMode(); opt != "" && !obj.outputModes {
+		fmt.Fprintf(stderr, "goip: option %s is only implemented for address\n", opt)
 		return ExitUsage
 	}
 
