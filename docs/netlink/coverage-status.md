@@ -5043,7 +5043,7 @@ is an IP address and never goes near `ll_addr_n2a`, and `ll_index_to_type` has
 exactly two call sites in iproute2, both in `ip/ipneigh.c` (`:292` in
 `print_neigh_brief`, `:430` in `print_neigh`). Only the second is reachable
 from goip, since goip refuses `-br` for every object but `address`
-(A3-T01), and does not render it there yet (A3-T02).
+(A3-T01), whose brief prints no lladdr (A3-T02).
 
 `render.NameTab` therefore gained `IndexToType`. Unlike `IndexToFlags` it has
 **no sentinel and needs none**: `ll_index_to_type` answers 0 on a miss, 0 is
@@ -6658,13 +6658,16 @@ absent from the link listing taken afterwards.
 
 ### Remaining
 
-**`ip address` beyond `show`/`dev`** is designed, not started: the selectors,
-`-br`/`-o`, the `IFA_RT_PRIORITY`/`IFA_ANYCAST`/`IFA_MULTICAST`/`IFA_MC_USERS`
-decode, and a dry-run write path for
-`add`/`change`/`replace`/`delete`/`flush`/`save`/`showdump`/`restore` — see
-[addr-write-path.md](addr-write-path.md). None of the statements in this file
-that say `addr` is read-only change until the phase that makes each false
-lands.
+**`ip address`** is partly done; [addr-write-path-status.md](addr-write-path-status.md)
+tracks it. The selectors, the `IFA_RT_PRIORITY`/`IFA_ANYCAST`/`IFA_MULTICAST`
+decode and the dry-run `add`/`change`/`replace`/`delete` are done and gated.
+`-br`, `-br -j` and `-o` render plain `addr show`, optionally under `-4` or
+`-6`, byte-identical to every addr-show state's sidecars (A3-T02). Every
+other combination, with a selector, `dev`, `-s`, `-d` or `-0`, `-o -j` and
+`-br -o`, is refused before any request, and the output-mode matrix rows are
+A3-T03. `flush`, `save`, `showdump` and `restore` are not started, and the
+statements in this file that say they are read-only stand until their phases
+land.
 
 The three `route show` forms are **implemented and compared** as of the
 `route show` work: Item 4's `RTA_MULTIPATH`/`RTA_VIA`/`RTA_METRICS`/`rtm_flags`

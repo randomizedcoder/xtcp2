@@ -8,12 +8,14 @@ import (
 	"testing"
 )
 
-// TestRunOutputModes covers -br and -o once an object is named (A3-T01).
+// TestRunOutputModes covers -br and -o once an object is named (A3-T01,
+// A3-T02).
 //
-// They parse, and that is all so far: `addr show` refuses them as not yet
-// rendered (A3-T02 writes the renderers), every other object refuses them by
-// name, and an address write ignores them as ip does. Each refusal must come
-// before any request, so a row that reaches the replay and prints the full
+// `addr show` renders -br, -br -j and -o, and the rendered rows compare
+// stdout with the mixed_links sidecar of the same form. Every form with no
+// committed capture is refused as not rendered, every other object refuses
+// them by name, and an address write ignores them as ip does. Each refusal
+// must come before any request, so a row that reaches the replay and prints a
 // listing has found a dropped flag.
 //
 // GOIP_REPLAY is the addr-show capture for the read rows, so a missing refusal
@@ -26,13 +28,18 @@ func TestRunOutputModes(t *testing.T) {
 		code      int
 		stderr    string // a fragment that must appear
 		writeSlug string // the slug whose write GOIP_WRITE_OUT must hold; "" for no file
+		sidecar   string // the mixed_links sidecar stdout must equal; "" for no output
 	}
 	const (
 		notRendered = "render not implemented"
 		addrOnly    = "is only implemented for address"
 		unknown     = "is unknown"
 	)
-	showPcap := filepath.Join(linkWriteDir, "addr-show", "mixed_links", "netlink_route_getaddr.pcap")
+	mixed := filepath.Join(linkWriteDir, "addr-show", "mixed_links")
+	showPcap := filepath.Join(mixed, "netlink_route_getaddr.pcap")
+	briefPcap := filepath.Join(mixed, "netlink_route_getaddr_br.pcap")
+	briefJSONPcap := filepath.Join(mixed, "netlink_route_getaddr_br_json.pcap")
+	onelinePcap := filepath.Join(mixed, "netlink_route_getaddr_o.pcap")
 	addPcap := filepath.Join(addrWriteCorpusDir, "add_v4", "ip.pcap")
 	tests := []struct {
 		description string
@@ -40,18 +47,39 @@ func TestRunOutputModes(t *testing.T) {
 		args        string
 		expected    result
 	}{
-		{description: "positive: -br with addr show is accepted and refused as not yet rendered",
-			pcap: showPcap, args: "-br addr show",
-			expected: result{code: ExitUsage, stderr: "-brief " + notRendered}},
-		{description: "positive: -o with addr show is accepted and refused as not yet rendered",
-			pcap: showPcap, args: "-o addr show",
-			expected: result{code: ExitUsage, stderr: "-oneline " + notRendered}},
-		{description: "corner: -br and -j together are accepted, and brief is the one named",
-			pcap: showPcap, args: "-br -j addr show",
-			expected: result{code: ExitUsage, stderr: "-brief " + notRendered}},
+		{description: "positive: -br addr show renders the brief listing",
+			pcap: briefPcap, args: "-br addr show",
+			expected: result{code: ExitOK, sidecar: "ip_addr_br"}},
+		{description: "positive: -o addr show renders one line per address",
+			pcap: onelinePcap, args: "-o addr show",
+			expected: result{code: ExitOK, sidecar: "ip_addr_o"}},
+		{description: "corner: -br and -j together render the brief JSON",
+			pcap: briefJSONPcap, args: "-br -j addr show",
+			expected: result{code: ExitOK, sidecar: "ip_addr_br_json"}},
 		{description: "corner: the abbreviation a with no verb is address show",
-			pcap: showPcap, args: "-br a",
-			expected: result{code: ExitUsage, stderr: "-brief " + notRendered}},
+			pcap: briefPcap, args: "-br a",
+			expected: result{code: ExitOK, sidecar: "ip_addr_br"}},
+		{description: "negative: -o with -j has no capture, so it is refused",
+			pcap: showPcap, args: "-o -j addr show",
+			expected: result{code: ExitUsage, stderr: "-oneline with -json " + notRendered}},
+		{description: "negative: -br and -o together are refused",
+			pcap: showPcap, args: "-br -o addr show",
+			expected: result{code: ExitUsage, stderr: "-brief with -oneline " + notRendered}},
+		{description: "negative: -br with a selector is refused",
+			pcap: showPcap, args: "-br addr show up",
+			expected: result{code: ExitUsage, stderr: "-brief with a selector " + notRendered}},
+		{description: "negative: -o with dev is refused",
+			pcap: showPcap, args: "-o addr show dev d0",
+			expected: result{code: ExitUsage, stderr: "-oneline with a selector " + notRendered}},
+		{description: "negative: -br with -s is refused",
+			pcap: showPcap, args: "-br -s addr show",
+			expected: result{code: ExitUsage, stderr: "-brief with -stats " + notRendered}},
+		{description: "negative: -o with -d is refused",
+			pcap: showPcap, args: "-o -d addr show",
+			expected: result{code: ExitUsage, stderr: "-oneline with -details " + notRendered}},
+		{description: "negative: -br with -0 is refused",
+			pcap: showPcap, args: "-br -0 addr show",
+			expected: result{code: ExitUsage, stderr: "-brief with -0 " + notRendered}},
 		{description: "negative: -br with link is refused for the object",
 			pcap: showPcap, args: "-br link show",
 			expected: result{code: ExitUsage, stderr: "-brief " + addrOnly}},
@@ -78,8 +106,15 @@ func TestRunOutputModes(t *testing.T) {
 			if code != tc.expected.code {
 				t.Errorf("code = %d, want %d; stderr %q", code, tc.expected.code, stderr.String())
 			}
-			if stdout.Len() != 0 {
-				t.Errorf("stdout = %q, want nothing", stdout.String())
+			var want []byte
+			if tc.expected.sidecar != "" {
+				var err error
+				if want, err = os.ReadFile(filepath.Join(mixed, tc.expected.sidecar)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if !bytes.Equal(stdout.Bytes(), want) {
+				t.Errorf("stdout = %q, want %q", stdout.String(), want)
 			}
 			if !strings.Contains(stderr.String(), tc.expected.stderr) {
 				t.Errorf("stderr = %q, want it to contain %q", stderr.String(), tc.expected.stderr)

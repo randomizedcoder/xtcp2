@@ -4,7 +4,7 @@ Last updated: 2026-10-18.
 
 **Phases A0, A1, A2, A4, A5, A6 and A7 are done, and A3 is under way.** The design
 ([addr-write-path.md](addr-write-path.md)) and the plan
-([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. 17 of 25
+([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. 18 of 25
 tasks are done: A0-T01 (V001), A0-T02 (closed by a finding, V002), A0-T03
 and A0-T04, closed by one KVM capture (V005), A0-T05, which recorded M1–M3
 from that capture's fixtures (V006), A1-T01, which decodes the four
@@ -27,9 +27,11 @@ matrix as `addr_write_<slug>` rows. All 27 passed one live run
 (V036–V038). A3-T01 parses `-br` and `-o` as `ip` matches them. They
 are refused, by name, everywhere goip does not render them yet (V039, V040).
 A7-T02 gates all 27 on two consecutive clean live runs, with no allowlist
-entry (V041–V044).
+entry (V041–V044). A3-T02 renders `-br`, `-br -j` and `-o` for plain
+`addr show`, byte-identical to all 57 sidecars, and refuses every combination
+no capture shows (V045, V046).
 
-**Next action:** A8-T01 (depends on A7-T02) and A3-T02 (depends on A3-T01)
+**Next action:** A3-T03 (depends on A3-T02) and A8-T01 (depends on A7-T02)
 are unblocked. Pick one; one task, one PR.
 
 ## Update rules
@@ -67,7 +69,7 @@ are unblocked. Pick one; one task, one PR.
 | A0 | capture: topologies, corpus, measurements | done | 5/5 | V001, V002, V003, V005, V006 |
 | A1 | decode and render `metric`/`any`/`mcast` | done | 2/2 | V009, V010, V011, V012, V016, V017, V018, V019, V020 |
 | A2 | `addr show` selectors | done | 3/3 | V013, V014, V021, V022, V023, V024, V025, V026, V027 |
-| A3 | `-br` and `-o` | in progress | 1/3 | V039, V040 |
+| A3 | `-br` and `-o` | in progress | 2/3 | V039, V040, V045, V046 |
 | A4 | the gate admits `RTM_NEWADDR`/`RTM_DELADDR` | done | 1/1 | V028, V029 |
 | A5 | `BuildAddrWriteRequest` | done | 1/1 | V030, V031 |
 | A6 | `goip addr add/change/replace/delete` | done | 2/2 | V032, V033, V034, V035 |
@@ -93,7 +95,7 @@ Add evidence IDs to the last column as work runs.
 | [x] | [A2-T02](addr-write-path-plan.md#a2-t02) | apply the filter in `addrShow` | done | V021, V022, V023, DOC008 |
 | [x] | [A2-T03](addr-write-path-plan.md#a2-t03) | selector rows in the matrix | done | V024, V025, V026, V027, DOC009 |
 | [x] | [A3-T01](addr-write-path-plan.md#a3-t01) | parse `-br` and `-o` | done | V039, V040, DOC015 |
-| [ ] | [A3-T02](addr-write-path-plan.md#a3-t02) | brief and oneline renderers | not started | — |
+| [x] | [A3-T02](addr-write-path-plan.md#a3-t02) | brief and oneline renderers | done | V045, V046, DOC017 |
 | [ ] | [A3-T03](addr-write-path-plan.md#a3-t03) | output-mode rows | not started | — |
 | [x] | [A4-T01](addr-write-path-plan.md#a4-t01) | admit `RTM_NEWADDR`/`RTM_DELADDR` | done | V028, V029, DOC010 |
 | [x] | [A5-T01](addr-write-path-plan.md#a5-t01) | `BuildAddrWriteRequest` | done | V030, V031, DOC011 |
@@ -203,6 +205,9 @@ it.
 | V043 | 2026-10-18 | A7-T02 | the same parity run, rerun sequentially | All 170 verdicts identical to V042, and every `addr_write_` row the same `txns`, control, datagram counts and exit codes. `HYGIENE_FAIL 2`, `UNGATED_DIVERGENCES 7`, `CONTROL_NOISY 156`. The 27 rows then went into `gated_commands` | transcript in the session scratchpad, not kept |
 | V044 | 2026-10-18 | A7-T02 | the nix checks: `.#test-focused-goip`, `checks.netlink-audit`, `checks.lint-baseline`, `.#quality-report`, `checks.nix-fmt`, `checks.statix`, `checks.deadnix`. `vm-lib-exp` does not apply: no `.exp` file changed | Passed, except `lint-baseline`, which fails on `main` with the same 17 tier-2 findings. The branch adds none | the check outputs |
 | DOC016 | 2026-10-18 | A7-T02 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc, plus `git diff --check`. The glance-table counts in `coverage-status.md` and `docs/netlink/README.md` recounted from `Commands()` and the allowlist | Passed: 25 task IDs one to one; 17 done ticks; no broken links or anchors; ledger IDs unique and in order; `git diff --check` clean; 170 rows, 170 implemented, 147 gated, 7 entries | Summary retained here; the checker script was session-local |
+| V045 | 2026-10-18 | A3-T02 | `go test ./internal/goip/... ./internal/goipparity/... ./pkg/xtcpnl/... ./pkg/nlparity/...`. It includes the new `TestAddrBriefMatchesSidecar` and `TestAddrOnelineMatchesSidecar`: `-br`, `-br -j` and `-o` replayed from each of the 19 states' own pcaps, all 57 byte-identical, plus the corner rows (a link with no address, `v0@if3` and `link_index` first, no link line and a backslash before every lifetime under `-o`, every state has a row). It also includes the new render rows `TestLinkBriefText` (8), `TestAddrBriefJSON` (6), `TestAddrBriefText` (5) and `TestAddrOnelineText` (4), and `TestRunOutputModes` at 16 rows (four rendered, seven refused combinations, and A3-T01's object, write and `-b` rows). `TestAddrShowReadbackGoldens` is unchanged. Mutation check in a scratch worktree: each mutant failed the rows named for it, and was reverted. The mutants were: the name column at `%-15s` (39 failures), the brief metric dropped (`v4_metric` text and JSON), `\` back to a newline in `OnelineText` (every `-o` golden), a link line under `-o` (every `-o` golden and the no-link-line row), the `-o -j` refusal removed (its row), and `link_index` after `ifname` (`v6_dadfailed` `-br -j` and the JSON rows) | Passed | the test output |
+| V046 | 2026-10-18 | A3-T02 | the nix checks: `.#test-focused-goip`, `checks.netlink-audit`, `checks.lint-baseline`, `.#quality-report`, `checks.nix-fmt`, `checks.statix`, `checks.deadnix`. `vm-lib-exp` and the parity VM do not apply: no `.exp` file and no matrix row changed | Passed, except `lint-baseline`, which fails on `main` with the same 17 tier-2 findings. The branch adds none. A first run found one of its own, staticcheck QF1008 on `g.LinkBriefView.members`; the selector is now `g.members`, and `test-focused-goip` and `netlink-audit` were rerun on the final tree | the check outputs |
+| DOC017 | 2026-10-18 | A3-T02 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc, plus `git diff --check` | Passed: 25 task IDs one to one; 18 done ticks; no broken links or anchors; ledger IDs unique and in order; `git diff --check` clean | Summary retained here; the checker script was session-local |
 
 ## Blockers and upcoming requirements
 
@@ -211,6 +216,18 @@ it.
 - **No open blockers.**
 
 ## Progress and decision log
+
+- **2026-10-18.** A3-T02 is done.
+  - **Rendering only.** The `-br`/`-o` capture requests are byte-identical to
+    plain `addr show` in all 19 states. The one exception is `v6_dadfailed`,
+    where plain `ip` also sends four `RTM_GETNSID` gets that goip never sent.
+    `-o` makes no side-gets, and `-br` resolves only the `IFLA_LINK` peer.
+  - **The link brief is its own type.** `LinkBriefView` is built from
+    `LinkViewOf`, so `@NONE` and `@if%u` match the stanza. `-br link show`
+    can reuse it once it has rows.
+  - **Refused, not guessed.** No capture shows `-br`/`-o` with a selector,
+    `dev`, `-s`, `-d` or `-0`, nor `-o -j` or `-br -o`. Each is refused
+    before any request, naming the option it was combined with.
 
 - **2026-10-18.** A7-T02 is done.
   - **Two fresh runs.** A7-T01's smoke run was not counted. The rows stayed
