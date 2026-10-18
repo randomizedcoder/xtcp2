@@ -4,7 +4,7 @@ Last updated: 2026-10-17.
 
 **Phases A0, A1, A2, A4 and A5 are done.** The design
 ([addr-write-path.md](addr-write-path.md)) and the plan
-([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. 12 of 25
+([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. 13 of 25
 tasks are done: A0-T01 (V001), A0-T02 (closed by a finding, V002), A0-T03
 and A0-T04, closed by one KVM capture (V005), A0-T05, which recorded M1–M3
 from that capture's fixtures (V006), A1-T01, which decodes the four
@@ -18,9 +18,10 @@ gates 22 of the 23 on two clean runs (V024–V027). A4-T01 admits
 `RTM_NEWADDR` and `RTM_DELADDR` to the write gate, one task ahead of the
 encoder that will build them (V028, V029). A5-T01 is that encoder,
 `BuildAddrWriteRequest`, which builds all 27 address writes in the corpus
-byte for byte (V030, V031).
+byte for byte (V030, V031). A6-T01 is the `ipaddr_modify` argument parser
+that fills it, stopping where `ip` stops (V032, V033).
 
-**Next action:** A6-T01 (depends on A5-T01) and A3-T01 (A0-T04) are
+**Next action:** A6-T02 (depends on A6-T01) and A3-T01 (A0-T04) are
 unblocked. Pick one; one task, one PR.
 
 ## Update rules
@@ -61,7 +62,7 @@ unblocked. Pick one; one task, one PR.
 | A3 | `-br` and `-o` | not started | 0/3 | — |
 | A4 | the gate admits `RTM_NEWADDR`/`RTM_DELADDR` | done | 1/1 | V028, V029 |
 | A5 | `BuildAddrWriteRequest` | done | 1/1 | V030, V031 |
-| A6 | `goip addr add/change/replace/delete` | not started | 0/2 | — |
+| A6 | `goip addr add/change/replace/delete` | in progress | 1/2 | V032, V033 |
 | A7 | write rows in the matrix | not started | 0/2 | — |
 | A8 | `flush` and the multi-write comparator | not started | 0/3 | — |
 | A9 | `save`, `showdump`, `restore` | not started | 0/3 | — |
@@ -88,7 +89,7 @@ Add evidence IDs to the last column as work runs.
 | [ ] | [A3-T03](addr-write-path-plan.md#a3-t03) | output-mode rows | not started | — |
 | [x] | [A4-T01](addr-write-path-plan.md#a4-t01) | admit `RTM_NEWADDR`/`RTM_DELADDR` | done | V028, V029, DOC010 |
 | [x] | [A5-T01](addr-write-path-plan.md#a5-t01) | `BuildAddrWriteRequest` | done | V030, V031, DOC011 |
-| [ ] | [A6-T01](addr-write-path-plan.md#a6-t01) | the `ipaddr_modify` argument parser | not started | — |
+| [x] | [A6-T01](addr-write-path-plan.md#a6-t01) | the `ipaddr_modify` argument parser | done | V032, V033, DOC012 |
 | [ ] | [A6-T02](addr-write-path-plan.md#a6-t02) | verb dispatch and corpus replay | not started | — |
 | [ ] | [A7-T01](addr-write-path-plan.md#a7-t01) | `addr_write_<slug>` rows | not started | — |
 | [ ] | [A7-T02](addr-write-path-plan.md#a7-t02) | gate the write rows | not started | — |
@@ -176,6 +177,9 @@ it.
 | V030 | 2026-10-17 | A5-T01 | `go test ./pkg/xtcpnl/... ./pkg/nlparity/... ./internal/goip/... ./internal/goipparity/...`, which includes `TestBuildAddrWriteRequestMatchesCorpus` (27 rows, one per address write in `link-write/addr`, and a completeness row), `TestBuildAddrWriteRequestWorkedExample` (the design's 72 bytes, transcribed) and `TestBuildAddrWriteRequest` (15 layout rows). Mutation check in a scratch worktree: the spill threshold `< 0xff`, the flags written to both the header and `IFA_FLAGS`, `IFA_FLAGS` after `PostAttrs`, the buffer at 4096, the `IFA_FLAGS`-in-a-list refusal removed, and the label without its NUL each failed the rows that name them, and were reverted | Passed: all green; every corpus write byte-identical; the six mutants caught. The both-places mutant is caught only by the `0x202` rows (the corpus row and the worked example): with `0x400` or `0x100` the low byte is 0, so the header is right by accident | `pkg/xtcpnl/xtcpnl_addr_write_test.go` |
 | V031 | 2026-10-17 | A5-T01 | the nix checks: `.#test-focused-goip`, `checks.netlink-audit`, `checks.lint-baseline`, `.#quality-report`, `checks.nix-fmt`, `checks.statix`, `checks.deadnix`. `vm-lib-exp` and the parity VM do not apply: no `.exp` file and no matrix row changed | Passed, except `lint-baseline`, which fails on `main` with the 19 tier-2 findings from #237. The branch adds none, and none is in the new files. Rerun after rebasing onto `main` at 6aea04eb (#241, #243, which changed the golangci configs): 17 tier-2 findings, every one in an `internal/goip` file this branch does not touch | the check outputs |
 | DOC011 | 2026-10-17 | A5-T01 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc, plus `git diff --check` | Passed: 25 task IDs one to one; no broken links or anchors; ledger IDs unique and in order; `git diff --check` clean | Summary retained here; the checker script was session-local |
+| V032 | 2026-10-17 | A6-T01 | `go test ./pkg/xtcpnl/... ./pkg/nlparity/... ./internal/goip/... ./internal/goipparity/...`, which includes `TestLookupAddrWriteVerb` (19 rows), `TestLookupAddrKeyword` (13 rows) and `TestParseAddrWriteArgs` (73 rows: design table 3's 33, plus peers, families, deletes and refusals; the warning and refusal rows for `no_dev_keyword`, `brd_plus_v6`, `valid_zero`, `autojoin_unicast`, `nodev`, `add_v6_nodad_first` and `del_v4_wildcard` compare with the slug's captured `ip.err`). Mutation check in a scratch worktree: `broadcast` as strcmp, `preferred_lft` ahead of the metric row, the v6-only flag test loosened, `PREFIXLEN_SPECIFIED` ignored, the computed broadcast at `< 30`, the lifetime checks before the lookup, the lifetime duplicate test after NEXT_ARG, and the default scope on a delete each failed the rows that name them, and were reverted | Passed: all green; the eight mutants caught | `internal/goip/addr_write_test.go` |
+| V033 | 2026-10-17 | A6-T01 | the nix checks: `.#test-focused-goip`, `checks.netlink-audit`, `checks.lint-baseline`, `.#quality-report`, `checks.nix-fmt`, `checks.statix`, `checks.deadnix`. `vm-lib-exp` and the parity VM do not apply: no `.exp` file and no matrix row changed | Passed, except `lint-baseline`, which fails on `main` with the same 17 tier-2 findings, every one in an `internal/goip` file this branch does not touch. The first run found the branch's own: gofmt in the test file, `ip`'s full stop in an error string literal, and goconst counts that the new literals pushed to 3 across `route_write.go` and `link_write.go`. Fixed with named constants and a message constant, and no directive; the rerun adds none | the check outputs |
+| DOC012 | 2026-10-17 | A6-T01 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc, plus `git diff --check` | Passed: 25 task IDs one to one; no broken links or anchors; ledger IDs unique and in order; `git diff --check` clean | Summary retained here; the checker script was session-local |
 
 ## Blockers and upcoming requirements
 
@@ -184,6 +188,30 @@ it.
 - **No open blockers.**
 
 ## Progress and decision log
+
+- **2026-10-17.** A6-T01 is done.
+  - **The route parser's shape.** `internal/goip/addr_write.go` has the verb
+    table (`chg` exact), a keyword table in `ipaddr_modify`'s order with a
+    prefix column, a parse state of `ipaddr_modify`'s locals, and a `finish`
+    in its post-loop order. So it stops where `ip` stops: in the loop, after
+    the loop (no `dev`, `brd +` on IPv6) with nothing resolved, and after the
+    lookup (an unknown device, the lifetimes, autojoin).
+  - **The flag names are one row of the chain**, between `preferred_lft` and
+    `proto`, looked up through `render.IfaFlagByName`, the table `addr show`
+    already uses. Only the writable rows and their v6-only bit are new.
+  - **Warnings are output, not errors.** `ip` prints the read-only, v6-only
+    and wildcard warnings to stderr and carries on, so the parser takes a
+    writer. Rows that name a corpus slug compare it with that slug's
+    `ip.err`.
+  - **Two refusals of goip's own.** `brd +` with neither a peer nor a copied
+    local reads `ip`'s uninitialized `peer`, and `help` is usage. Both are
+    `ErrNotImplemented`.
+  - **Design row 14 was incomplete.** `valid_lft 0x10` alone leaves the
+    preferred lifetime infinite, and `ip` refuses that after the lookup. The
+    row is paired with `preferred_lft 0x10`, and a corner row keeps the
+    refusal.
+  - **No statement flips.** Statements 11 and 14 are A6-T02's, which wires
+    the parser into `runAddress`.
 
 - **2026-10-17.** A5-T01 is done.
   - **The signature follows the siblings, not the design.** The design says
