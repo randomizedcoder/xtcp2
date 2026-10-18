@@ -56,6 +56,7 @@ var categoryNames = map[string]string{
 	"resyncs_total": CategoryCollection, "counter_discontinuities_total": CategoryCollection,
 	"baseline_write_errors_total": CategoryCollection, "last_successful_resync_timestamp_seconds": CategoryCollection,
 	"collection_mode": CategoryCollection, "on_demand_refreshes_total": CategoryCollection,
+	"rdma_events_backend_info": CategoryCollection,
 }
 
 // categoryPrefixes assign families that are not fixed names, in match order.

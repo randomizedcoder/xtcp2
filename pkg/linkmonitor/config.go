@@ -1,6 +1,7 @@
 package linkmonitor
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"regexp"
@@ -10,6 +11,7 @@ import (
 	"unicode"
 
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/model"
+	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmaevents"
 )
 
 // IOBackend selects the socket transport. Explicit choices never fall back.
@@ -21,6 +23,54 @@ const (
 	// IOBackendIOUring uses the optional io_uring transport.
 	IOBackendIOUring IOBackend = "io_uring"
 )
+
+// RDMAEventsBackend selects where RDMA port and device events come from.
+// Explicit choices never fall back.
+type RDMAEventsBackend string
+
+const (
+	// RDMAEventsAuto is verbs when the build has the cgo verbs binding and
+	// netlink otherwise.
+	RDMAEventsAuto RDMAEventsBackend = "auto"
+	// RDMAEventsVerbs reads each device's verbs async event queue; it needs
+	// the Linux rdma build tag, cgo and libibverbs.
+	RDMAEventsVerbs RDMAEventsBackend = "verbs"
+	// RDMAEventsNetlink derives the events from rtnetlink link and address
+	// notifications and the NLDEV monitor, without cgo.
+	RDMAEventsNetlink RDMAEventsBackend = "netlink"
+)
+
+// RDMAVerbsAvailable reports whether this build has the cgo verbs binding
+// that RDMAEventsVerbs needs.
+const RDMAVerbsAvailable = rdmaevents.Available
+
+// ErrRDMAEventsBackend is an RDMAEventsBackend that is unknown or that this
+// build lacks.
+var ErrRDMAEventsBackend = errors.New("linkmonitor: RDMA events backend unavailable")
+
+// resolve returns the backend auto stands for in this build.
+func (b RDMAEventsBackend) resolve() RDMAEventsBackend {
+	if b == RDMAEventsAuto || b == "" {
+		if rdmaevents.Available {
+			return RDMAEventsVerbs
+		}
+		return RDMAEventsNetlink
+	}
+	return b
+}
+
+func validateRDMAEventsBackend(b RDMAEventsBackend) error {
+	switch b {
+	case RDMAEventsAuto, "", RDMAEventsNetlink: // empty is auto, so configurations predating the field stay valid
+		return nil
+	case RDMAEventsVerbs:
+		if rdmaevents.Available {
+			return nil
+		}
+		return fmt.Errorf("%w: %s needs a build with the rdma tag and cgo", ErrRDMAEventsBackend, b)
+	}
+	return fmt.Errorf("%w: %q: want %s, %s or %s", ErrRDMAEventsBackend, b, RDMAEventsAuto, RDMAEventsVerbs, RDMAEventsNetlink)
+}
 
 // CollectionMode selects when detail collectors run.
 type CollectionMode string
@@ -46,6 +96,8 @@ type Config struct {
 	NetstatFields      string
 	MaxSpeedExceptions []string
 	IOBackend          IOBackend
+	// RDMAEventsBackend is auto, verbs or netlink; see RDMAEventsBackend.
+	RDMAEventsBackend RDMAEventsBackend
 	// ErrorWindow and FlapWindow bound how long counter-increase and flap
 	// evidence keeps an interface problem active; zero disables the reason.
 	ErrorWindow, FlapWindow time.Duration
@@ -69,7 +121,7 @@ func DefaultConfig() Config {
 		BaselineFile: "/var/lib/go-link-monitor/baseline.json",
 		Settle:       30 * time.Second, Resync: time.Hour, StatsInterval: 15 * time.Second,
 		StatsInclude: ".*", StatsExclude: "^$", NetstatFields: ".*",
-		IOBackend:   IOBackendPoller,
+		IOBackend: IOBackendPoller, RDMAEventsBackend: RDMAEventsAuto,
 		ErrorWindow: defaultProblemWindow, FlapWindow: defaultProblemWindow,
 		ErrorClasses:   []string{"link", "rdma"},
 		CollectionMode: CollectionOnDemand, WatchInterval: time.Minute, SlowInterval: 5 * time.Minute,
@@ -99,6 +151,9 @@ func validateConfig(cfg Config) (configuration, error) {
 	}
 	if cfg.IOBackend != IOBackendPoller && cfg.IOBackend != IOBackendIOUring {
 		return result, fmt.Errorf("invalid I/O backend %q", cfg.IOBackend)
+	}
+	if err := validateRDMAEventsBackend(cfg.RDMAEventsBackend); err != nil {
+		return result, err
 	}
 	exceptions, err := normalizeExceptions(cfg.MaxSpeedExceptions)
 	if err != nil {

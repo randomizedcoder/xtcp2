@@ -35,6 +35,7 @@ var fixedLabels = map[string][]string{
 	"counter_discontinuities_total":            {interfaceLabel, "source"},
 	"interface_last_flap_timestamp_seconds":    {interfaceLabel},
 	"interface_last_error_timestamp_seconds":   {interfaceLabel, "class"},
+	"rdma_events_backend_info":                 {"backend"},
 }
 
 func fixedDescriptors() map[string]*client.Desc {
@@ -100,6 +101,9 @@ func (e emitter) policy(s linkmonitor.Snapshot, devices bool) {
 		}
 		return true
 	})
+	if backend, ok := s.RDMAEventsBackend(); ok {
+		e.gauge("rdma_events_backend_info", 1, backend)
+	}
 	e.diagnostics("", s.HostCollector())
 	if devices {
 		s.RangeDevices(func(d linkmonitor.DeviceView) bool { e.device(s, d); return true })

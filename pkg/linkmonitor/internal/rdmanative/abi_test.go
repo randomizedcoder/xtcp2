@@ -29,6 +29,20 @@ var abiConstants = map[string]uint64{
 	"eventClientReregister":           eventClientReregister,
 	"eventGIDChange":                  eventGIDChange,
 	"eventDeviceSpeedChange":          eventDeviceSpeedChange,
+	"ifinfomsgLen":                    ifinfomsgLen,
+	"ifinfomsgOffIndex":               ifinfomsgOffIndex,
+	"ifinfomsgOffFlags":               ifinfomsgOffFlags,
+	"ifaddrmsgLen":                    ifaddrmsgLen,
+	"ifaddrmsgOffIndex":               ifaddrmsgOffIndex,
+	"rtmNewLink":                      rtmNewLink,
+	"rtmDelLink":                      rtmDelLink,
+	"rtmNewAddr":                      rtmNewAddr,
+	"rtmDelAddr":                      rtmDelAddr,
+	"iffRunning":                      iffRunning,
+	"iffLowerUp":                      iffLowerUp,
+	"rtnlGroupLink":                   rtnlGroupLink,
+	"rtnlGroupIPv4Addr":               rtnlGroupIPv4Addr,
+	"rtnlGroupIPv6Addr":               rtnlGroupIPv6Addr,
 }
 
 // TestABILayout is the uverbs half of the assessment's ABI layout guard table.
@@ -37,6 +51,7 @@ func TestABILayout(t *testing.T) {
 		{Name: "async_desc", Category: "positive", Description: "ib_uverbs_async_event_desc size and offsets", Expected: "16 bytes; element at 0, type at 8", Prefixes: []string{"asyncEventDesc"}},
 		{Name: "get_context", Category: "positive", Description: "ib_uverbs_cmd_hdr, get_context and get_context_resp", Expected: "8, 8, 8 bytes; GET_CONTEXT is command 0", Prefixes: []string{"cmd", "getContext"}},
 		{Name: "event_enum", Category: "boundary", Description: "DEVICE_FATAL, PORT_ACTIVE, GID_CHANGE, DEVICE_SPEED_CHANGE and the other mapped events", Expected: "8, 9, 18, 20", Prefixes: []string{"event"}},
+		{Name: "rtnetlink", Category: "positive", Description: "ifinfomsg and ifaddrmsg headers, the four link and address messages, link flags and groups", Expected: "16 and 8 bytes; index at 4, flags at 8", Prefixes: []string{"ifinfomsg", "ifaddrmsg", "rtm", "iff", "rtnlGroup"}},
 		{Name: "unmapped", Category: "corner", Description: "A constant in abi.go missing from the comparison map", Expected: "none", Text: "comparison map"},
 	})
 }

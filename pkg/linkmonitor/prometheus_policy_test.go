@@ -276,3 +276,34 @@ func seriesValue(family *dto.MetricFamily, absent float64) float64 {
 	}
 	return absent
 }
+
+// TestPrometheusRDMAEventsBackend: the backend family is one series naming
+// the resolved backend while RDMA events run, and absent otherwise.
+func TestPrometheusRDMAEventsBackend(t *testing.T) {
+	for _, tc := range []struct {
+		name, category, description, expected, backend string
+	}{
+		{"netlink", "positive", "netlink backend", "one series, backend=netlink", "netlink"},
+		{"verbs", "positive", "verbs backend", "one series, backend=verbs", "verbs"},
+		{"none", "negative", "RDMA events not configured", "family absent", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expected)
+			f := linkmonitor.NewPrometheusFixture(t)
+			f.Device(1, "eth0", true)
+			f.RDMAEventsBackend(tc.backend)
+			f.Publish(1)
+			family := gathered(t, monitorRegistry(t, f.Monitor))["go_link_monitor_rdma_events_backend_info"]
+			if tc.backend == "" {
+				if family != nil {
+					t.Fatalf("%s: got %v", tc.expected, family)
+				}
+				return
+			}
+			if family == nil || len(family.Metric) != 1 || metricValue(family.Metric[0]) != 1 ||
+				len(family.Metric[0].Label) != 1 || family.Metric[0].Label[0].GetValue() != tc.backend {
+				t.Fatalf("%s: got %v", tc.expected, family)
+			}
+		})
+	}
+}

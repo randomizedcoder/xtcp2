@@ -576,6 +576,7 @@ Standalone command flags:
 | `-auth.read-mode`, `-auth.read-token-file`, `-auth.read-hmac-key-file` | empty | Read credential (`raw` or `hmac-utc-minute`, secret from a file); when set, metrics paths, `/ip` paths and read RPCs require it; overrides GO_LINK_MONITOR_AUTH_READ_* |
 | `-auth.admin-mode`, `-auth.admin-token-file`, `-auth.admin-hmac-key-file` | empty | Admin credential for rebaseline and resync; requires `-admin.address`; overrides GO_LINK_MONITOR_AUTH_ADMIN_* |
 | `-version` | false | Print build identity and exit |
+| `-rdma.events-backend` | `auto` | RDMA port events from `verbs` (cgo `rdma` build) or `netlink` (rtnetlink plus NLDEV, no cgo); `auto` picks verbs when the build has it; a backend the build lacks is a configuration error ([GO-NATIVE-RDMA-DESIGN.md](GO-NATIVE-RDMA-DESIGN.md#backend-selection)); overrides GO_LINK_MONITOR_RDMA_EVENTS_BACKEND |
 | `-io-backend` | `poller` | Ordinary nonblocking sockets by default; explicit `io_uring` requires supported backend initialization |
 
 Both single- and double-dash forms work. Maximum-speed exceptions, the four

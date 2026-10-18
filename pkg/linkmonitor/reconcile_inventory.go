@@ -91,6 +91,7 @@ func (c *reconciler) acceptResult() {
 	}
 	c.candidate = candidate
 	c.rdmaPorts, c.rdmaUncertain = result.candidate.RDMAPorts, result.candidate.RDMAUncertain
+	c.netdevLinks = result.candidate.NetdevLinks
 	if err := c.acceptStatistics(result.candidate.Statistics); err != nil {
 		c.fail(err)
 	}
@@ -218,6 +219,7 @@ func (c *reconciler) commit(now model.Stamp) error {
 		}
 	}
 	r.rdmaPorts, r.rdmaUncertain = c.rdmaPorts, c.rdmaUncertain
+	links := c.netdevLinks
 	c.scheduler.replaceRDMAOptional()
 	r.exceptionRevision = 0
 	if c.rdma != nil {
@@ -233,7 +235,7 @@ func (c *reconciler) commit(now model.Stamp) error {
 	c.committedSerial = c.dumpSerial
 	c.pending, c.lastError = false, nil
 	if c.rdmaEvents != nil {
-		c.rdmaEvents.committed(r.rdmaPorts, c.dumpSerial)
+		c.rdmaEvents.committed(r.rdmaPorts, links, c.dumpSerial)
 	}
 	c.backoff, c.queryBackoff = time.Second, time.Second
 	c.retryAt = 0

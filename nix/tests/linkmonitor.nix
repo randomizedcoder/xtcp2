@@ -20,6 +20,7 @@ let
     "./pkg/xtcpnl:FuzzParseMonitorLink"
     "./pkg/xtcpnl:FuzzParseChardev"
     "./pkg/linkmonitor/internal/linuxio:FuzzRDMANotifications"
+    "./pkg/linkmonitor/internal/rdmanative:FuzzTranslateRtnl"
   ];
   # go-native RDMA decoders held to the parsing rules in
   # cmd/go-link-monitor/GO-NATIVE-RDMA-DESIGN.md. Each decoder task appends
@@ -29,6 +30,8 @@ let
     "pkg/linkmonitor/internal/rdmanative/abi.go"
     "pkg/linkmonitor/internal/rdmacaps/umadhdr.go"
     "pkg/xtcpnl/xtcpnl_rdma_chardev.go"
+    "pkg/linkmonitor/internal/rdmanative/rtnl_decode.go"
+    "pkg/linkmonitor/internal/rdmanative/async.go"
   ];
   mkCheck =
     name:

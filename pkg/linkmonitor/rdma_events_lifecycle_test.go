@@ -2,6 +2,7 @@ package linkmonitor
 
 import (
 	"context"
+	"slices"
 	"sync/atomic"
 	"testing"
 
@@ -20,8 +21,13 @@ func (f rdmaEventFuncs) Run(ctx context.Context, emit func(rdmaevents.Event) boo
 func (f rdmaEventFuncs) Close() error { return f.close() }
 
 func TestRDMAEventsEnabledLifecycle(t *testing.T) {
-	t.Log("positive: real lifecycle with discovery, subscriptions and state; expected: native count becomes ready after subscription/reconciliation barrier, all generations join")
+	forEachRDMAEventsBackend(t, testRDMAEventsEnabledLifecycle)
+}
+
+func testRDMAEventsEnabledLifecycle(t *testing.T, backend RDMAEventsBackend) {
+	t.Log("positive: real lifecycle with discovery, subscriptions and state; expected: native count becomes ready after subscription/reconciliation barrier, all generations join; the snapshot names the backend")
 	s, m, _ := sessionFixture(t)
+	s.rdmaEventsBackend, m.cfg.RDMAEventsBackend = backend, backend
 	inventory, _, _ := rdmaFixture(t, rdmaNativeLayer)
 	s.rdma = true
 	s.inventory = func(context.Context) (inventoryBackend, error) { return inventory, nil }
@@ -30,9 +36,10 @@ func TestRDMAEventsEnabledLifecycle(t *testing.T) {
 	}
 	var opens, closes atomic.Int64
 	var subscribedHCA atomic.Bool
-	s.rdmaEventSource = func(_ context.Context, ids []rdmaevents.Identity) (rdmaevents.Source, error) {
-		for _, id := range ids {
-			if id.Name == "mlx5_0" {
+	s.rdmaEventSource = func(_ context.Context, set rdmaEventSet) (rdmaevents.Source, error) {
+		for _, id := range set.ids {
+			if id.Name == "mlx5_0" && (backend == RDMAEventsVerbs) == (set.ports == nil) &&
+				(set.ports == nil || slices.Contains(set.ports.Devices(), "mlx5_0")) {
 				subscribedHCA.Store(true)
 			}
 		}
@@ -44,6 +51,9 @@ func TestRDMAEventsEnabledLifecycle(t *testing.T) {
 	before := awaitSnapshot(t, m, func(snapshot Snapshot) bool { return snapshot.Health().Ready && snapshot.Health().CollectionHealthy })
 	if !subscribedHCA.Load() {
 		t.Fatal("eligible HCA set was not subscribed after discovery")
+	}
+	if got, ok := before.RDMAEventsBackend(); !ok || got != string(backend) {
+		t.Fatalf("snapshot backend %q %v, want %s", got, ok, backend)
 	}
 	cancel()
 	if err := receiveTest(t, done); err != nil {

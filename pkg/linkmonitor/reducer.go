@@ -34,8 +34,11 @@ type reducer struct {
 	resyncEpoch                                     uint64
 	routeEvents, rdmaEvents, resyncOverdue          bool
 	requiredRDMA, missingRDMA                       uint64
-	problems                                        problemPolicy
-	candidates                                      []uint32 // bit per device that may have a problem
+	// rdmaEventsBackend is the resolved RDMA events backend; empty when RDMA
+	// events are not configured.
+	rdmaEventsBackend string
+	problems          problemPolicy
+	candidates        []uint32 // bit per device that may have a problem
 }
 
 type deviceSlot struct {

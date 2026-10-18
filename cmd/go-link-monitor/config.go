@@ -33,6 +33,7 @@ const (
 	slowEnvironment        = "GO_LINK_MONITOR_WATCH_SLOW_INTERVAL"
 	ttlEnvironment         = "GO_LINK_MONITOR_ON_DEMAND_TTL"
 	waitEnvironment        = "GO_LINK_MONITOR_ON_DEMAND_WAIT"
+	rdmaEventsEnvironment  = "GO_LINK_MONITOR_RDMA_EVENTS_BACKEND"
 	ipPathsEnvironment     = "GO_LINK_MONITOR_IP_PATHS"
 	ipMaxBytesEnvironment  = "GO_LINK_MONITOR_IP_MAX_BYTES"
 
@@ -106,6 +107,9 @@ func parseOptions(args []string, output io.Writer, getenv func(string) string) (
 	adminFallbacks := defineAdminFlags(flags, &opts.admin)
 	backend := string(opts.monitor.IOBackend)
 	flags.StringVar(&backend, "io-backend", backend, "Socket backend: poller or io_uring (requires available implementation)")
+	rdmaEvents := string(opts.monitor.RDMAEventsBackend)
+	flags.StringVar(&rdmaEvents, "rdma.events-backend", rdmaEvents,
+		"RDMA port events from: auto (verbs in a cgo rdma build, otherwise netlink), verbs or netlink; overrides "+rdmaEventsEnvironment)
 	flags.BoolVar(&opts.version, "version", false, "Print build identity and exit")
 	if err := flags.Parse(args); err != nil {
 		return opts, err
@@ -129,6 +133,7 @@ func parseOptions(args []string, output io.Writer, getenv func(string) string) (
 		{"watch.slow-interval", slowEnvironment, &slow},
 		{"on-demand.ttl", ttlEnvironment, &ttl},
 		{"on-demand.wait", waitEnvironment, &wait},
+		{"rdma.events-backend", rdmaEventsEnvironment, &rdmaEvents},
 	}, append(exposureFallbacks, adminFallbacks...)...) {
 		if value := getenv(fallback.environment); !explicit[fallback.flag] && value != "" {
 			*fallback.target = value
@@ -157,6 +162,7 @@ func parseOptions(args []string, output io.Writer, getenv func(string) string) (
 		*window.target = parsed
 	}
 	opts.monitor.CollectionMode = linkmonitor.CollectionMode(mode)
+	opts.monitor.RDMAEventsBackend = linkmonitor.RDMAEventsBackend(rdmaEvents)
 	// A scrape must be answered inside the metrics timeout after its wait.
 	if opts.monitor.CollectionMode == linkmonitor.CollectionOnDemand && opts.monitor.OnDemandWait >= metricsTimeout {
 		return opts, fmt.Errorf("on-demand.wait %v must be under the %v metrics timeout", opts.monitor.OnDemandWait, metricsTimeout)

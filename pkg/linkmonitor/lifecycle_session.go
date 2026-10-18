@@ -11,24 +11,26 @@ import (
 // lifecycleSession supplies ownership policy without choosing production
 // adapters. Factories acquire resources only during Run, never during New.
 type lifecycleSession struct {
-	rdma             bool
-	rdmaRoot         string
-	rdmaSource       func(context.Context) (rdmaStateSource, error)
-	rdmaEventSource  rdmaEventFactory
-	clock            model.Clock
-	namespace        uint64
-	store            model.BaselineStore
-	collectors       workerFactory
-	inventory        func(context.Context) (inventoryBackend, error)
-	subscribe        subscriptionFactory
-	cleaned          <-chan struct{} // Initialized during shutdown; safe to inspect after Run returns.
-	statistics       bool
-	settings         bool
-	driverStatistics bool
-	hostStatistics   bool
-	procRoot         string
-	statisticsConfig configuration
-	sysfsRoot        string
+	rdma            bool
+	rdmaRoot        string
+	rdmaSource      func(context.Context) (rdmaStateSource, error)
+	rdmaEventSource rdmaEventFactory
+	// rdmaEventsBackend is Config.RDMAEventsBackend, resolved when opened.
+	rdmaEventsBackend RDMAEventsBackend
+	clock             model.Clock
+	namespace         uint64
+	store             model.BaselineStore
+	collectors        workerFactory
+	inventory         func(context.Context) (inventoryBackend, error)
+	subscribe         subscriptionFactory
+	cleaned           <-chan struct{} // Initialized during shutdown; safe to inspect after Run returns.
+	statistics        bool
+	settings          bool
+	driverStatistics  bool
+	hostStatistics    bool
+	procRoot          string
+	statisticsConfig  configuration
+	sysfsRoot         string
 }
 
 type lifecycleResources struct {
@@ -177,7 +179,7 @@ func (s *lifecycleSession) prepare(m *Monitor, resources *lifecycleResources) (*
 		c.rdma = newRDMASchedule(r, resources.rdma, m.cfg.pollInterval(model.CollectorRDMAState))
 		c.rdma.resync = c.requestResync
 		c.rdma.changed = func(key model.DeviceKey) { scheduler.refreshRDMAOptional(key, true) }
-		c.rdmaEvents = newRDMAEventSchedule(c, resources.rdmaEvents)
+		c.rdmaEvents = newRDMAEventSchedule(c, resources.rdmaEvents, m.cfg.RDMAEventsBackend)
 		c.rdmaEvents.report = func(err error) { m.logger.Warn("RDMA event coverage unavailable", "error", err) }
 	}
 	l := &lifecycle{monitor: m, coordinator: c, store: resources.storage,
