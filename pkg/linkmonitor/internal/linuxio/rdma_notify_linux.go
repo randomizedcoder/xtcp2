@@ -85,20 +85,94 @@ func (n *RDMANotifications) Run(ctx context.Context, emit func() bool) error {
 	}
 }
 
+// RunInto is Run reporting what each notification is.
+func (n *RDMANotifications) RunInto(ctx context.Context, emit func(RDMANotification) bool) error {
+	for {
+		_, err := n.conn.Receive(ctx, func(data []byte) error {
+			return DecodeRDMANotificationsInto(data, emit)
+		})
+		if err != nil {
+			return err
+		}
+	}
+}
+
 // Close wakes pending I/O and releases the subscription once.
 func (n *RDMANotifications) Close() error { return n.conn.Close() }
 
 // DecodeRDMANotifications validates each envelope and consumed attribute before
 // emitting a bounded topology hint. Unknown event values also invalidate.
 func DecodeRDMANotifications(data []byte, emit func() bool) error {
+	return DecodeRDMANotificationsInto(data, func(RDMANotification) bool { return emit() })
+}
+
+// RDMANotifyKind is an NLDEV monitor event's type. The zero value is an event
+// type this package does not know, which still invalidates.
+type RDMANotifyKind uint8
+
+// The kinds, one per enum rdma_nl_notify_event_type value.
+const (
+	RDMANotifyUnknown RDMANotifyKind = iota
+	RDMANotifyRegister
+	RDMANotifyUnregister
+	RDMANotifyNetdevAttach
+	RDMANotifyNetdevDetach
+	RDMANotifyRename
+	RDMANotifyNetdevRename
+)
+
+// rdmaNotifyKinds maps enum rdma_nl_notify_event_type to RDMANotifyKind.
+var rdmaNotifyKinds = [...]RDMANotifyKind{
+	xtcpnl.RdmaRegisterEvent:     RDMANotifyRegister,
+	xtcpnl.RdmaUnregisterEvent:   RDMANotifyUnregister,
+	xtcpnl.RdmaNetdevAttachEvent: RDMANotifyNetdevAttach,
+	xtcpnl.RdmaNetdevDetachEvent: RDMANotifyNetdevDetach,
+	xtcpnl.RdmaRenameEvent:       RDMANotifyRename,
+	xtcpnl.RdmaNetdevRenameEvent: RDMANotifyNetdevRename,
+}
+
+func rdmaNotifyKind(event uint8) RDMANotifyKind {
+	if int(event) < len(rdmaNotifyKinds) {
+		return rdmaNotifyKinds[event]
+	}
+	return RDMANotifyUnknown
+}
+
+// RDMANotification is one validated NLDEV monitor event. The identifiers are
+// the ones rdma_nl_notify_event sent, which depend on the kind and on whether
+// the netdev is in this namespace, so each has a presence flag.
+type RDMANotification struct {
+	Kind           RDMANotifyKind
+	EventType      uint8
+	DevIndex       uint32
+	Port           uint32
+	NetdevIndex    uint32
+	HasDevIndex    bool
+	HasPort        bool
+	HasNetdevIndex bool
+}
+
+// Fatal reports whether n unregisters a device the caller holds, which ends
+// that device's event stream. Every other notification, an unregister of a
+// device not held included, is a topology hint.
+func (n RDMANotification) Fatal(held func(devIndex uint32) bool) bool {
+	return n.Kind == RDMANotifyUnregister && n.HasDevIndex && held(n.DevIndex)
+}
+
+// DecodeRDMANotificationsInto is DecodeRDMANotifications reporting what each
+// notification is. Admission is identical: a notification is emitted only
+// after its envelope and every consumed attribute are valid, and an unknown
+// event type is emitted as RDMANotifyUnknown rather than dropped.
+func DecodeRDMANotificationsInto(data []byte, emit func(RDMANotification) bool) error {
 	return xtcpnl.WalkNetlinkEnvelopes(data, func(e xtcpnl.NetlinkEnvelope) error {
 		if e.Control != xtcpnl.NetlinkData || e.Header.Type != rdmaMonitor || e.Header.Seq != 0 || e.Header.Pid != 0 || e.Header.Flags != 0 {
 			return ErrReply
 		}
-		if err := decodeNotification(e.Body); err != nil {
+		n, err := decodeNotification(e.Body)
+		if err != nil {
 			return err
 		}
-		if !emit() {
+		if !emit(n) {
 			return unix.ENOBUFS
 		}
 		return nil
@@ -113,17 +187,22 @@ var rdmaEventAttrs = []uint16{xtcpnl.RdmaNldevAttrDevIndex, xtcpnl.RdmaNldevAttr
 // rdma_nl_notify_event omits the device handle for NETDEV_RENAME (netdev
 // index and name only) and sends EVENT_TYPE alone when the netdev is in
 // another namespace, so identifiers are validated when present, never required.
-func decodeNotification(body []byte) error {
+func decodeNotification(body []byte) (RDMANotification, error) {
 	var seen [rdmaEventType + 1]bool
 	if err := admitRDMAAttrs(body, rdmaEventAttrs, seen[:]); err != nil {
-		return err
+		return RDMANotification{}, err
 	}
 	e, err := xtcpnl.ParseRdmaEvent(body)
 	if err != nil {
-		return errors.Join(ErrReply, err)
+		return RDMANotification{}, errors.Join(ErrReply, err)
 	}
 	if !e.HasEventType {
-		return ErrReply
+		return RDMANotification{}, ErrReply
 	}
-	return admitRDMAIdentity(e.RdmaHandle, e.RdmaNetdev)
+	if err := admitRDMAIdentity(e.RdmaHandle, e.RdmaNetdev); err != nil {
+		return RDMANotification{}, err
+	}
+	return RDMANotification{Kind: rdmaNotifyKind(e.EventType), EventType: e.EventType,
+		DevIndex: e.DevIndex, HasDevIndex: e.HasDevIndex, Port: e.PortIndex, HasPort: e.HasPortIndex,
+		NetdevIndex: e.NdevIndex, HasNetdevIndex: e.HasNdevIndex}, nil
 }
