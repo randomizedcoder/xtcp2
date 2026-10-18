@@ -5,20 +5,16 @@ import (
 	"testing"
 )
 
-// TestBackendSelection: Auto resolves by build, explicit backends stay as
+// TestBackendSelection: Auto is Native in every build, explicit backends stay as
 // named, and a value that is no backend has no transport, so its queries fail
 // with ErrUnavailable before any I/O.
 func TestBackendSelection(t *testing.T) {
-	auto := Native
-	if LibibumadAvailable {
-		auto = Libibumad
-	}
 	for _, tc := range []struct {
 		name, category, description, expected string
 		backend, resolved                     Backend
 		text                                  string
 	}{
-		{"auto", "positive", "auto in this build", "libibumad with cgo, native without", Auto, auto, "auto"},
+		{"auto", "positive", "auto in this build, with or without libibumad", "native", Auto, Native, "auto"},
 		{"libibumad", "positive", "explicit libibumad", "libibumad", Libibumad, Libibumad, "libibumad"},
 		{"native", "positive", "explicit native", "native", Native, Native, "native"},
 		{"unknown", "corner", "a value past the last backend", "itself, named unknown", Backend(9), Backend(9), "unknown"},

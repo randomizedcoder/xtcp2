@@ -34,7 +34,7 @@ type exchange func(context.Context, string, uint32, [256]byte) ([256]byte, error
 type Backend uint8
 
 const (
-	// Auto is Libibumad when this build has it and Native otherwise.
+	// Auto is Native in every build.
 	Auto Backend = iota
 	// Libibumad is the cgo libibumad exchange, serialized process-wide. Only
 	// a Linux build with the rdma tag and cgo has it (LibibumadAvailable).
@@ -44,13 +44,10 @@ const (
 	Native
 )
 
-// Resolve returns the backend Auto stands for in this build; other values
-// are returned as they are.
+// Resolve returns the backend Auto stands for, Native in every build; other
+// values are returned as they are.
 func (b Backend) Resolve() Backend {
 	if b == Auto {
-		if LibibumadAvailable {
-			return Libibumad
-		}
 		return Native
 	}
 	return b

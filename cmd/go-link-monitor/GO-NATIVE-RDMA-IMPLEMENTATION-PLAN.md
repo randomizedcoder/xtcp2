@@ -457,6 +457,13 @@ Deliver: remove `verbs_linux.go`, `probe_linux.go`, `event_copy.h`,
 - flip the `ldd` gates to "no `NEEDED`";
 - keep `linkmonitor-portinfo-test.c`.
 
+Decided at the R4 start (2026-10-18):
+- `-rdma.events-backend`, `-rdma.umad-backend`, their environment variables
+  and `Config.RDMAEventsBackend` and `RDMAUMADBackend` are removed outright,
+  with no aliases; `rdma_events_backend_info` stays, always `netlink`.
+- The VM differential becomes a netlink-only test of the same triggers and
+  faults against the expectations the verbs side recorded in R1-T05.
+
 Done when: every row of the assessment's
 [packaging](GO-NATIVE-RDMA-ASSESSMENT.md#packaging) table passes, and
 `test-linkmonitor`, `test-linkmonitor-command` and both RDMA VM apps pass.

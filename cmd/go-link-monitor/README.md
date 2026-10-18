@@ -185,13 +185,13 @@ Alert and dashboard PromQL is in
 - **Speed exceptions.** `-max-speed-exceptions=enp1s0=1G` accepts a port that
   is cabled below its maximum, only while it runs at exactly that speed.
 - **RDMA events.** `-rdma.events-backend` is `auto` (default), `verbs` or
-  `netlink`. `auto` reads the verbs event queues in the cgo build and derives
-  the same events from netlink otherwise, so the core build gets RDMA events
-  too; `rdma_events_backend_info` shows which is running.
+  `netlink`. `auto` derives the events from netlink in every build, so the
+  core build gets RDMA events too; `verbs` reads the verbs event queues and
+  needs the cgo build. `rdma_events_backend_info` shows which is running.
 - **InfiniBand capabilities.** `-rdma.umad-backend` is `auto` (default),
-  `libibumad` or `native`. `auto` queries PortInfo through libibumad in the
-  cgo build and through the umad device directly otherwise, so the core build
-  reports `rdma_capabilities` on native InfiniBand too.
+  `libibumad` or `native`. `auto` queries PortInfo through the umad device
+  directly in every build, so the core build reports `rdma_capabilities` on
+  native InfiniBand too; `libibumad` needs the cgo build.
 - **Inside xtcp2.** `xtcp2 -linkMonitor` embeds the same monitor and
   registers its summary on xtcp2's Prometheus listener, or every family with
   `-linkMonitorMetricsAll`; the OCI images run it on demand. The embedded

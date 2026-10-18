@@ -596,10 +596,11 @@ func TestIonicEvents(t *testing.T) {
 	}
 }
 
-// TestIonicCoreBackend runs against go-link-monitor-core, the CGO_ENABLED=0
-// build, after TestIonicEvents has passed against it: auto resolves to the
-// netlink backend there, and rdma_events is healthy on the real driver.
-func TestIonicCoreBackend(t *testing.T) {
+// TestIonicAutoBackend runs against both go-link-monitor, the cgo rdma
+// build, and go-link-monitor-core, the CGO_ENABLED=0 build: auto resolves to
+// the netlink backend in each (R4-T01), and rdma_events is healthy on the
+// real driver.
+func TestIonicAutoBackend(t *testing.T) {
 	f := ionicEnv(t)
 	samples := waitMetrics(t, f.url, 60*time.Second, func(s []metricSample) error {
 		return want(s, 1, "collector_success", "interface", f.netdev, "collector", "rdma_events")
@@ -608,15 +609,15 @@ func TestIonicCoreBackend(t *testing.T) {
 		name, category, description, expected string
 		check                                 func([]metricSample) error
 	}{
-		{"netlink", "positive", "the core build's resolved backend", "rdma_events_backend_info{backend=netlink} 1",
+		{"netlink", "positive", "auto's resolved backend, in either build", "rdma_events_backend_info{backend=netlink} 1",
 			func(s []metricSample) error { return want(s, 1, "rdma_events_backend_info", "backend", "netlink") }},
-		{"no_verbs", "negative", "the verbs backend, which needs cgo", "absent",
+		{"no_verbs", "negative", "the verbs backend, which auto no longer picks, even with cgo", "absent",
 			func(s []metricSample) error { return absent(s, "rdma_events_backend_info", "backend", "verbs") }},
 		{"port_up", "boundary", "the RoCE port the events keep current", "rdma_port_up 1",
 			func(s []metricSample) error {
 				return want(s, 1, "rdma_port_up", "interface", f.netdev, "device", f.rdma, "port", "1")
 			}},
-		{"healthy", "corner", "the whole collection with no cgo in the process", "collection_healthy 1",
+		{"healthy", "corner", "the whole collection with no verbs context in the process", "collection_healthy 1",
 			func(s []metricSample) error { return want(s, 1, "collection_healthy") }},
 	} {
 		t.Logf("%s: %s: %s; expected: %s", row.category, row.name, row.description, row.expected)

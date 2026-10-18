@@ -2,7 +2,7 @@
 
 Last updated: 2026-10-18.
 
-**R1 and R2 done: 14 of 20 implementation tasks passed their gates.** R0 is
+**R1 and R2 done, R4 started: 15 of 20 implementation tasks passed their gates.** R0 is
 done (ABI layout guard, capture tooling, captured testdata, parsing guards and
 the cgo baseline). R1 is done: the GET_CHARDEV codec and client, the NLDEV
 notification kinds, the port map and translator, the netlink event source with
@@ -13,8 +13,10 @@ the umad codec, the native umad transport, and `-rdma.umad-backend` selection
 with live rxe rows in both builds; a native exchange costs 416 B and 1
 allocation against the cgo path's 512 B and 2, with no lane. The live rows also
 ran on `l`'s mlx5 ports, with `ib_umad` unloaded and then loaded, and match rxe.
-Next: the operator reviews the R1-T06 and R2-T03
-results before R4 starts; R3 stays deferred. The measured gains so
+The operator reviewed the R1-T06 and R2-T03 results and chose R4. R4-T01 is
+done: `auto` selects netlink and native in every build, and the cgo backends
+are still selectable by name in the cgo build. Next: R4-T02, which removes the
+cgo path and the backend flags, then R4-T03; R3 stays deferred. The measured gains so
 far are in [Go-native performance findings](#go-native-performance-findings).
 
 This tracks [GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md](GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md)
@@ -53,7 +55,7 @@ checks it against the plan in the same way.
 | R1 | Netlink-derived events | done | 6/6 | RV032-RV058 |
 | R2 | Native umad | done | 3/3 | RV059-RV078 |
 | R3 | uverbs context (conditional) | deferred | 0/3 | Entry condition not met; see blockers |
-| R4 | Default and removal | not started | 0/3 | None |
+| R4 | Default and removal | in progress | 1/3 | RV079-RV082 |
 
 ## Task checklist
 
@@ -78,7 +80,7 @@ Completion gates and dependencies are in the plan, not copied here.
 | [ ] | [R3-T01](GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md#r3-t01) | GET_CONTEXT capture shim | deferred | Awaiting the assessment's open questions |
 | [ ] | [R3-T02](GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md#r3-t02) | uverbs provider for rxe and ionic | deferred | Awaiting the assessment's open questions |
 | [ ] | [R3-T03](GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md#r3-t03) | mlx5 and bnxt_re udata entries | deferred | Awaiting the assessment's open questions |
-| [ ] | [R4-T01](GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md#r4-t01) | Native by default | not started | None |
+| [x] | [R4-T01](GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md#r4-t01) | Native by default | done | RV079-RV082 |
 | [ ] | [R4-T02](GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md#r4-t02) | Remove the cgo path | not started | None |
 | [ ] | [R4-T03](GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md#r4-t03) | Final performance and hardware review | not started | None |
 
@@ -338,6 +340,10 @@ Filled by R0-T03. A stream is `captured`, `not captured` with the reason, or
 | RV076 | 2026-10-18 | R2-T03 | `sudo modprobe ib_umad`, then `sudo /nix/store/s3jhqlv50yyjy9ra66blnv8cvq3jzrh6-capture-rdma-testdata/bin/capture-rdma-testdata --source l-mlx5-umad --umad --umad-live loaded`, run by the operator | Host `l`, as RV075, `ib_umad` loaded; same approval | Pass, matching rxe (RV069): SMI PortInfo `EPROTONOSUPPORT` from native, and from libibumad in the cgo binary; SMI registration `EPROTONOSUPPORT`; GSI (class 0x04) registration succeeds; absent device `ENODEV`; port 2 `EINVAL`; eight parallel native queries `EPROTONOSUPPORT`; no descriptor leak. `smpquery` and `perfquery` exit 255. 238 files, manifest verified, leak check clean | `pkg/linkmonitor/internal/rdmanative/testdata/7_2_9/l-mlx5-umad`; operator's terminal output |
 | RV077 | 2026-10-18 | R2-T03 | `nix build path:.#test-linkmonitor-{unit,lint,format,parse-guards,rdma-capture}` after adding `TestCapturedUMADChardev` | Build host `l`, kernel 7.2.9; same tree | Pass. `TestCapturedUMADChardev` (rdmanative): every live row passed; every umad GET_CHARDEV request mlx5's runs sent is what `BuildRdmaGetChardev` builds for port 1 or 2; every reply decodes to `umadN` at 231:N, ABI 5, no driver id; port 2 draws `-EINVAL`; the unloaded runs sent no GET_CHARDEV; `smpquery` and `perfquery` exit 255 on every RoCE capture. Mutations (ABI 6, rc 0, `ENODEV`) fail the rows they target. The rdma-capture leaf dry-runs `--umad-live loaded` | `/nix/store/gvdiisrpn8sq3y6flr22k3730arcvr44-xtcp2-test-linkmonitor-unit`, `/nix/store/allm6frkk269rkf5asjnrmi8drr8rmj5-xtcp2-test-linkmonitor-lint`, `/nix/store/8x3rbv7jbfmvfdpy7nslkzc033pyxacp-xtcp2-test-linkmonitor-format`, `/nix/store/m9797562a34hvplxcf74x9rg1blbpjm6-xtcp2-test-linkmonitor-parse-guards`, `/nix/store/j6n3w90z20dq6bssz9r0886f1pfksigg-xtcp2-test-linkmonitor-rdma-capture` |
 | RV078 | 2026-10-18 | R2-T03 | `nix build path:.#test-linkmonitor-docs -L` after this update | Build host `l`, kernel 7.2.9; same tree | Pass | `/nix/store/99srzlj3g518fxqn9a1na96j0jhvy9sx-xtcp2-test-linkmonitor-docs` |
+| RV079 | 2026-10-18 | R4-T01 | `nix build --keep-going path:.#test-linkmonitor-{unit,lint,format,rdma-unit,rdma-lint,rdma-build,command,docs} -L` | Build host `l`, kernel 7.2.9; base bddeb888 plus the G10 working tree | Pass. The cgo rows now resolve to the native backends: `TestRDMAEventsBackendSelection/auto_cgo` and `empty_cgo` give netlink, `TestRDMAUMADBackendSelection/auto_cgo` and `empty_cgo` give native (transport `rdmacaps.Native`), and `TestNativeSkipsUMADLane/auto` returns a device error before the deadline instead of waiting for `umadLane`; all ran in `test-linkmonitor-rdma-unit`, not skipped | `/nix/store/1kzk674ljcpbcy32li3sx7q979jpqias-xtcp2-test-linkmonitor-unit`, `/nix/store/kmdnclyyql08i3b6xvzl9qhmhf226gh5-xtcp2-test-linkmonitor-lint`, `/nix/store/0zsi18zwhdn9czi5wqaj9036awzmck7w-xtcp2-test-linkmonitor-format`, `/nix/store/9z2dy8908ag2cqr79qb2qarck8s1310h-xtcp2-test-linkmonitor-rdma-unit`, `/nix/store/lnsq42jwfn820143xyj0ms4l5hlvx12j-xtcp2-test-linkmonitor-rdma-lint`, `/nix/store/a64z7r0685pvl6wl19jlgf29rixgwja5-xtcp2-test-linkmonitor-rdma-build`, `/nix/store/k263kkx6aq62pjxrqis1mfx372y4khqa-xtcp2-test-linkmonitor-rdma-command`; scratchpad `g10/gates.log` |
+| RV080 | 2026-10-18 | R4-T01 | `nix build --keep-going path:.#test-linkmonitor -L` | Build host `l`, kernel 7.2.9; base bddeb888 plus the G10 working tree | Fail, inherited: only the embedding leaf fails (`TestLinkMonitorOnDemandScrape`, `lstat /sys` in the sandbox), as on main (RV007); every other leaf built | Scratchpad `g10/aggregate.log` |
+| RV081 | 2026-10-18 | R4-T01 | `env -u LD_LIBRARY_PATH nix run path:.#test-linkmonitor-ionic-vm` | Build host `l` with `/dev/kvm`, kernel 7.2.9; guest 7.1.4 (ionic emulator); same tree. No other VM running; load average about 40 from other work | Pass, every sentinel. The renamed `TestIonicAutoBackend` (was `TestIonicCoreBackend`) now also runs against the cgo `go-link-monitor.service`: `rdma_events_backend_info{backend="netlink"}` 1, no verbs series, the port up and collection healthy; then against `go-link-monitor-core` as before. Device removal now happens while the cgo monitor holds a netlink source, and `TestDifferentialRDMARemove` still holds both | Scratchpad `g10/ionic-vm.log` |
+| RV082 | 2026-10-18 | R4-T01 | `nix build path:.#test-linkmonitor-docs -L` after this update | Build host `l`, kernel 7.2.9; base bddeb888 plus the G10 working tree | Pass | `/nix/store/09dxqrnf1knhf3bydmy83f24j2d5hk8g-xtcp2-test-linkmonitor-docs` |
 
 ## Blockers and upcoming requirements
 
@@ -375,3 +381,4 @@ The rest are upcoming requirements, not failed checks.
 | 2026-10-18 | R2-T03 done (G9). `rdmacaps.Backend` (`Auto`, `Libibumad`, `Native`) and `Querier`, which picks the transport once; `Config.RDMAUMADBackend` with `-rdma.umad-backend` and `GO_LINK_MONITOR_RDMA_UMAD_BACKEND`, resolved per session and logged at start. `libibumad` in a build without it is a configuration error. `auto` stays libibumad in the cgo build and is native otherwise, so the core build now answers InfiniBand PortInfo queries. The native exchange returns `EOPNOTSUPP` without `ib_umad`, before GET_CHARDEV, which would otherwise load the module. Live rows run in the rxe guest with `ib_umad` removed and loaded, through both builds. Deviations, in the plan and design: selection is untagged in `query.go`, not a `umad_select_linux.go`; `unavailable.go` split into `libibumad_unavailable.go` and a `!linux` `unavailable.go`; the module check; only B/op and allocs compare with the cgo benchmark, which does no I/O; no metric for the umad backend. Two harness faults surfaced and were fixed: a wrong test expectation for libibumad on RoCE (RV068) and a perf-VM bundle extraction race already on main (RV070). The `l` rows await approval (RV073). | RV065-RV074 |
 | 2026-10-18 | Phase R2 (native umad) done, 3/3. Landed: the umad header and registration codec, the native exchange over GET_CHARDEV with no lane, and backend selection with live rxe rows. Results in the findings section: 416 B and 1 allocation per exchange against 512 B and 2, and contention costs 4% instead of 86%. To be committed as G8 and G9. | RV059-RV074; next: the operator reviews the R1-T06 and R2-T03 results and decides on R4 |
 | 2026-10-18 | R2-T03 live rows on `l` (G9), approved by the operator: `rdma-native-capture --umad-live unloaded\|loaded` runs rdmacaps' `TestUMADLive` from both flake-built binaries (`test-linkmonitor-rdma-build`) under strace, and `capture-rdma-testdata --umad-live PHASE` passes them in. mlx5 RoCE matches rxe in both phases. The captures replace synthetic-only umad GET_CHARDEV rows: `TestCapturedUMADChardev` checks mlx5's real request and reply bytes, and that the unloaded runs sent none. `ib_umad` stays loaded on `l`. Strace can split a multi-threaded binary's `recvmsg`, so the rows check every parsed message, not counts. | RV075-RV078; next: commit G5-G9, then the operator decides on R4 |
+| 2026-10-18 | R4 planned and R4-T01 done (G10). The operator reviewed the R1-T06 and R2-T03 results and chose R4, in two PRs: G10 (R4-T01) and G11 (R4-T02, R4-T03 and the close). `RDMAEventsBackend.resolve`, `RDMAUMADBackend.resolve` and `rdmacaps.Backend.Resolve` now map `auto` to netlink and native in every build; explicit `verbs` and `libibumad` still work in the cgo build until R4-T02. The ionic VM's `TestIonicCoreBackend` became `TestIonicAutoBackend` and runs against the cgo service too. Decisions for R4-T02, recorded in the plan: the backend flags, environment variables and `Config` fields are removed outright rather than kept as aliases; the VM differential becomes a netlink-only test against the expectations the verbs side recorded (RV043-RV049). | RV079-RV082; next R4-T02 (G11), after review of G10 |

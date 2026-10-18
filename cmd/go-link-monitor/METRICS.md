@@ -81,7 +81,7 @@ These are new; there is no node_exporter equivalent with the same semantics.
 | `driver_link_down_events_total` | C / down events | interface,driver,statistic | P | Raw source count, only when an exact driver mapping has been verified |
 | `build_info` | G / constant 1 | version,revision | M | Executable build identity |
 | `collection_mode` | G / constant 1 | mode | M | mode=poll/on-demand, from `-collection.mode` |
-| `rdma_events_backend_info` | G / constant 1 | backend | M | backend=verbs/netlink, `-rdma.events-backend` resolved for this build; absent when the monitor runs no RDMA events |
+| `rdma_events_backend_info` | G / constant 1 | backend | M | backend=verbs/netlink, `-rdma.events-backend` resolved (`auto` is netlink); absent when the monitor runs no RDMA events |
 | `on_demand_refreshes_total` | C / scrapes | result | M | On demand only: detail scrapes by refresh outcome; result=cached (every collector within `-on-demand.ttl`)/collected (any ran)/timeout (`-on-demand.wait` ended first) |
 | `problems` | G / series | none | M | Number of `interface_problem` plus `host_problem` series in the same scrape; always present on `/metrics` |
 | `interface_problem` | G / constant 1 | interface,reason | M | Sparse: present only while the reason is active on an included interface. reason=max_speed/max_width/full_duplex/rdma_not_ready/check_unknown/errors/flap/collector |

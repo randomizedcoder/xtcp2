@@ -112,6 +112,8 @@ let
 
     systemctl start go-link-monitor.service
     run_test TestIonicMonitorHealthy
+    # auto is netlink in the cgo build too (R4-T01).
+    run_test TestIonicAutoBackend
     echo LINKMONITOR_IONIC_MONITOR_PASS
     run_test TestIonicCLIDifferential
     echo LINKMONITOR_IONIC_CLI_PASS
@@ -127,14 +129,14 @@ let
     echo LINKMONITOR_IONIC_DIFFERENTIAL_PASS
     # The CGO_ENABLED=0 build: the same events, from the netlink backend.
     systemctl start go-link-monitor-core.service
-    run_test TestIonicCoreBackend
+    run_test TestIonicAutoBackend
     run_test TestIonicEvents
     echo LINKMONITOR_IONIC_CORE_EVENTS_PASS
     systemctl start go-link-monitor.service
     run_test TestIonicMonitorHealthy
 
-    # Removal unregisters the RDMA device while the monitor holds a verbs
-    # context, and while TestDifferentialRDMARemove holds both event sources,
+    # Removal unregisters the RDMA device while the monitor holds its netlink
+    # event source, and while TestDifferentialRDMARemove holds both sources,
     # which must each report it as Fatal. remove_ionic shows where removal
     # blocks instead of waiting for the timeout.
     LINKMONITOR_EVENTS_REMOVE=remove_ionic run_test TestDifferentialRDMARemove

@@ -110,10 +110,10 @@ func parseOptions(args []string, output io.Writer, getenv func(string) string) (
 	flags.StringVar(&backend, "io-backend", backend, "Socket backend: poller or io_uring (requires available implementation)")
 	rdmaEvents := string(opts.monitor.RDMAEventsBackend)
 	flags.StringVar(&rdmaEvents, "rdma.events-backend", rdmaEvents,
-		"RDMA port events from: auto (verbs in a cgo rdma build, otherwise netlink), verbs or netlink; overrides "+rdmaEventsEnvironment)
+		"RDMA port events from: auto (netlink), verbs (cgo rdma build only) or netlink; overrides "+rdmaEventsEnvironment)
 	rdmaUMAD := string(opts.monitor.RDMAUMADBackend)
 	flags.StringVar(&rdmaUMAD, "rdma.umad-backend", rdmaUMAD,
-		"InfiniBand PortInfo queries through: auto (libibumad in a cgo rdma build, otherwise native), libibumad or native; overrides "+rdmaUMADEnvironment)
+		"InfiniBand PortInfo queries through: auto (native), libibumad (cgo rdma build only) or native; overrides "+rdmaUMADEnvironment)
 	flags.BoolVar(&opts.version, "version", false, "Print build identity and exit")
 	if err := flags.Parse(args); err != nil {
 		return opts, err

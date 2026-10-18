@@ -237,8 +237,10 @@ Two `linkmonitor.Config` fields, in the pattern of `IOBackend`:
 | `RDMAEventsBackend` | `auto`, `verbs`, `netlink` | `-rdma.events-backend` | `GO_LINK_MONITOR_RDMA_EVENTS_BACKEND` |
 | `RDMAUMADBackend` | `auto`, `libibumad`, `native` | `-rdma.umad-backend` | `GO_LINK_MONITOR_RDMA_UMAD_BACKEND` |
 
-- `auto` picks the cgo backend when the build has it and the native one
-  otherwise. R4-T01 changes `auto` to native everywhere.
+- `auto` picks the native backend in every build. Until R4-T01 it picked the
+  cgo backend when the build had it.
+- The cgo backends stay selectable by name in the cgo build until R4-T02
+  removes them.
 - Asking for a backend the build lacks, such as `verbs` in a `CGO_ENABLED=0`
   build, is a configuration error at `New`. It is never a silent fallback.
 - xtcp2 gets the same fields through the embedded `Config`.
@@ -424,7 +426,7 @@ registers an SMI agent, so "captured" here means golden packets built from
 
 | Name | Category | Description | Expected |
 |---|---|---|---|
-| auto_cgo | positive | `auto` in a cgo `rdma` build | `verbs` and `libibumad` |
+| auto_cgo | positive | `auto` in a cgo `rdma` build | `netlink` and `native` (R4-T01; `verbs` and `libibumad` before) |
 | auto_core | positive | `auto` in a `CGO_ENABLED=0` build | `netlink` and `native` |
 | verbs_in_core | negative | `verbs` in a `CGO_ENABLED=0` build | Configuration error at `New` |
 | env_and_flag | boundary | Environment says `netlink`, flag says `verbs` | Flag wins, as for other settings |

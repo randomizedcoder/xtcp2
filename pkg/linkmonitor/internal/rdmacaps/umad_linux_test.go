@@ -39,7 +39,7 @@ func TestNativeSkipsUMADLane(t *testing.T) {
 		waits                                 bool
 	}{
 		{"native", "positive", "native query while the lane is held", "a device error before the deadline", Native, false},
-		{"auto", "boundary", "auto while the lane is held, in this cgo build", "auto is libibumad here, so it waits", Auto, true},
+		{"auto", "boundary", "auto while the lane is held, in this cgo build", "auto is native even here, so a device error before the deadline", Auto, false},
 		{"libibumad", "negative", "libibumad query while the lane is held", "DeadlineExceeded waiting for the lane", Libibumad, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

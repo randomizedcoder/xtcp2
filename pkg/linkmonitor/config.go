@@ -30,8 +30,7 @@ const (
 type RDMAEventsBackend string
 
 const (
-	// RDMAEventsAuto is verbs when the build has the cgo verbs binding and
-	// netlink otherwise.
+	// RDMAEventsAuto is netlink in every build.
 	RDMAEventsAuto RDMAEventsBackend = "auto"
 	// RDMAEventsVerbs reads each device's verbs async event queue; it needs
 	// the Linux rdma build tag, cgo and libibverbs.
@@ -49,12 +48,9 @@ const RDMAVerbsAvailable = rdmaevents.Available
 // build lacks.
 var ErrRDMAEventsBackend = errors.New("linkmonitor: RDMA events backend unavailable")
 
-// resolve returns the backend auto stands for in this build.
+// resolve returns the backend auto stands for: netlink, in every build.
 func (b RDMAEventsBackend) resolve() RDMAEventsBackend {
 	if b == RDMAEventsAuto || b == "" {
-		if rdmaevents.Available {
-			return RDMAEventsVerbs
-		}
 		return RDMAEventsNetlink
 	}
 	return b
@@ -78,8 +74,7 @@ func validateRDMAEventsBackend(b RDMAEventsBackend) error {
 type RDMAUMADBackend string
 
 const (
-	// RDMAUMADAuto is libibumad when the build has the cgo binding and native
-	// otherwise.
+	// RDMAUMADAuto is native in every build.
 	RDMAUMADAuto RDMAUMADBackend = "auto"
 	// RDMAUMADLibibumad queries through libibumad, one query at a time per
 	// process; it needs the Linux rdma build tag, cgo and libibumad.
@@ -97,12 +92,9 @@ const RDMALibibumadAvailable = rdmacaps.LibibumadAvailable
 // lacks.
 var ErrRDMAUMADBackend = errors.New("linkmonitor: RDMA umad backend unavailable")
 
-// resolve returns the backend auto stands for in this build.
+// resolve returns the backend auto stands for: native, in every build.
 func (b RDMAUMADBackend) resolve() RDMAUMADBackend {
 	if b == RDMAUMADAuto || b == "" {
-		if rdmacaps.LibibumadAvailable {
-			return RDMAUMADLibibumad
-		}
 		return RDMAUMADNative
 	}
 	return b

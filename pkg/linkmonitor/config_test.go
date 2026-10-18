@@ -213,10 +213,11 @@ func TestFilterSemantics(t *testing.T) {
 }
 
 // TestRDMAEventsBackendSelection is the design's backend selection table for
-// the library: auto resolves by build, and a backend the build lacks or an
-// unknown name is a configuration error at New, never a fallback. Each build
-// runs the rows for its own capability; test-linkmonitor-rdma-unit is the cgo
-// build that exercises auto_cgo and verbs_in_cgo.
+// the library: auto is netlink in every build (R4-T01), and a backend the
+// build lacks or an unknown name is a configuration error at New, never a
+// fallback. Each build runs the rows for its own capability;
+// test-linkmonitor-rdma-unit is the cgo build that exercises auto_cgo and
+// verbs_in_cgo.
 func TestRDMAEventsBackendSelection(t *testing.T) {
 	for _, tc := range []struct {
 		name, category, description, expected string
@@ -225,10 +226,10 @@ func TestRDMAEventsBackendSelection(t *testing.T) {
 		resolved                              RDMAEventsBackend
 		wantErr                               bool
 	}{
-		{"auto_cgo", "positive", "auto in a cgo rdma build", "verbs", RDMAEventsAuto, true, RDMAEventsVerbs, false},
+		{"auto_cgo", "positive", "auto in a cgo rdma build, which also has verbs", "netlink", RDMAEventsAuto, true, RDMAEventsNetlink, false},
 		{"auto_core", "positive", "auto in a CGO_ENABLED=0 build", "netlink", RDMAEventsAuto, false, RDMAEventsNetlink, false},
 		{"empty_core", "boundary", "empty, as configurations predating the field have", "auto", "", false, RDMAEventsNetlink, false},
-		{"empty_cgo", "boundary", "empty in a cgo rdma build", "auto", "", true, RDMAEventsVerbs, false},
+		{"empty_cgo", "boundary", "empty in a cgo rdma build", "auto, so netlink", "", true, RDMAEventsNetlink, false},
 		{"netlink", "positive", "explicit netlink in any build", "netlink", RDMAEventsNetlink, rdmaevents.Available, RDMAEventsNetlink, false},
 		{"verbs_in_cgo", "positive", "verbs in a cgo rdma build", "verbs", RDMAEventsVerbs, true, RDMAEventsVerbs, false},
 		{"verbs_in_core", "negative", "verbs in a CGO_ENABLED=0 build", "configuration error at New", RDMAEventsVerbs, false, "", true},
@@ -266,9 +267,8 @@ func TestRDMAEventsBackendSelection(t *testing.T) {
 }
 
 // TestRDMAUMADBackendSelection is the umad half of the design's backend
-// selection table: auto is libibumad in the cgo rdma build and native
-// otherwise, and libibumad in a build without it, or an unknown name, is a
-// configuration error at New. test-linkmonitor-rdma-unit runs the cgo rows.
+// selection table: auto is native in every build (R4-T01), and libibumad in
+// a build without it, or an unknown name, is a configuration error at New. test-linkmonitor-rdma-unit runs the cgo rows.
 func TestRDMAUMADBackendSelection(t *testing.T) {
 	for _, tc := range []struct {
 		name, category, description, expected string
@@ -278,10 +278,10 @@ func TestRDMAUMADBackendSelection(t *testing.T) {
 		caps                                  rdmacaps.Backend
 		wantErr                               bool
 	}{
-		{"auto_cgo", "positive", "auto in a cgo rdma build", "libibumad", RDMAUMADAuto, true, RDMAUMADLibibumad, rdmacaps.Libibumad, false},
+		{"auto_cgo", "positive", "auto in a cgo rdma build, which also has libibumad", "native", RDMAUMADAuto, true, RDMAUMADNative, rdmacaps.Native, false},
 		{"auto_core", "positive", "auto in a CGO_ENABLED=0 build", "native", RDMAUMADAuto, false, RDMAUMADNative, rdmacaps.Native, false},
 		{"empty_core", "boundary", "empty, as configurations predating the field have", "auto", "", false, RDMAUMADNative, rdmacaps.Native, false},
-		{"empty_cgo", "boundary", "empty in a cgo rdma build", "auto", "", true, RDMAUMADLibibumad, rdmacaps.Libibumad, false},
+		{"empty_cgo", "boundary", "empty in a cgo rdma build", "auto, so native", "", true, RDMAUMADNative, rdmacaps.Native, false},
 		{"native", "positive", "explicit native in any build", "native", RDMAUMADNative, RDMALibibumadAvailable, RDMAUMADNative, rdmacaps.Native, false},
 		{"libibumad_in_cgo", "positive", "libibumad in a cgo rdma build", "libibumad", RDMAUMADLibibumad, true, RDMAUMADLibibumad, rdmacaps.Libibumad, false},
 		{"libibumad_in_core", "negative", "libibumad in a CGO_ENABLED=0 build", "configuration error at New", RDMAUMADLibibumad, false, "", 0, true},
