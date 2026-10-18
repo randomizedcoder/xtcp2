@@ -29,6 +29,7 @@ package goipparity
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -96,6 +97,14 @@ type Command struct {
 	// Floor counts ip's datagrams, the lookups plus the write and its
 	// NLMSG_ERROR, so the goip side's floor is Floor-2.
 	Write bool
+
+	// Writes is how many write messages a write row sends: 0 means exactly
+	// one, as every single-write row does, and N > 0 means the last N, in
+	// M <= N datagrams (addr-write-path.md, "Multi-write rows"). A flush
+	// row must set it, even to 1, and TestCommandTable refuses one that
+	// does not. It stays out of String: only the host-side comparator reads
+	// it, and the guest's row format is fixed at eight fields.
+	Writes int
 
 	// Setup is a row's precondition: `ip` argument lists, run in order
 	// outside the capture window. Steps are joined with ';' in String, so a
@@ -2089,6 +2098,51 @@ var commands = withArgs([]Command{
 		// A 16-byte label is sent; the kernel answers ERANGE.
 		Floor: 4, Implemented: true, Write: true, Setup: addrWriteSetupDev,
 	},
+	// The address flush rows (addr-write-path.md phase 8): the corpus in
+	// pkg/xtcpnl/testdata/7_1_4/link-write/addr-flush/, with the
+	// preconditions and floors of addr-corpus.exp. ip sends the lookup, the
+	// round-1 dump, the DEL batch with no ACK and, unless primary stops it,
+	// the round-2 dump; goip sends the same less the batch, which it writes.
+	// Writes is each slug's DEL count. Four slugs are not rows, and V051 and
+	// V054 hold them offline: flush_nothing writes no file, flush_noargs and
+	// flush_packet send nothing, and flush_primary_flipped needs a sysctl
+	// that Setup cannot express.
+	{
+		Name: "addr flush dev d0", Slug: "addr_flush_dev",
+		// Four DELs: both IPv4 addresses, 2001:db8::1 and the eui64 link-local.
+		Floor: 7, Implemented: true, Write: true, Writes: 4, Setup: addrFlushDevSetup,
+	},
+	{
+		Name: "addr flush dev d0 primary", Slug: "addr_flush_primary",
+		// One round: the primary's DEL, and no round-2 dump.
+		Floor: 5, Implemented: true, Write: true, Writes: 1, Setup: v4SecondarySetup,
+	},
+	{
+		Name: "addr flush dev d0 secondary", Slug: "addr_flush_secondary",
+		Floor: 7, Implemented: true, Write: true, Writes: 1, Setup: v4SecondarySetup,
+	},
+	{
+		Name: "addr flush dev d0 scope link", Slug: "addr_flush_scope_link",
+		Floor: 7, Implemented: true, Write: true, Writes: 1, Setup: addrFlushScopeLinkSetup,
+	},
+	{
+		Name: "-6 addr flush dev d0", Slug: "addr_flush_v6",
+		// The four IPv6 addresses; addrgenmode none leaves no link-local.
+		Floor: 7, Implemented: true, Write: true, Writes: 4, Setup: addrFlushV6Setup,
+	},
+	{
+		Name: "-s addr flush dev d0", Slug: "addr_flush_stats",
+		// stdout is the round text, compared like any row's.
+		Floor: 7, Implemented: true, Write: true, Writes: 2, Setup: addrFlushStatsSetup,
+	},
+	{
+		// The bare device name: ip's keyword loop reads it as dev
+		// (ip/ipaddress.c:2240-2246), so the bytes are flush_many's capture
+		// and the Name does not collide with addr_flush_dev's.
+		Name: "addr flush d0", Slug: "addr_flush_many",
+		// 120 DELs, which ip sends as datagrams of 47, 47 and 26.
+		Floor: 7, Implemented: true, Write: true, Writes: 120, Setup: addrFlushManySetup(),
+	},
 })
 
 // The write rows' preconditions, as capture-link-writes.exp spells them:
@@ -2119,6 +2173,44 @@ var (
 	addrWriteSetupDev = []string{"link add d0 address 02:00:00:00:d0:00 type dummy", "link set d0 addrgenmode none", "link set d0 up"}
 	addrWriteSetupV4  = addrStateSetup("d0", "addr add 192.0.2.1/24 dev d0")
 )
+
+// The address flush rows' preconditions: flush_rows in addr-corpus.exp, each
+// its slug's committed topology file. flush_dev alone keeps the kernel
+// link-local, on purpose.
+var (
+	addrFlushDevSetup = []string{
+		"link add d0 address 02:00:00:00:d0:00 type dummy",
+		"link set d0 addrgenmode eui64",
+		"link set d0 up",
+		"addr add 192.0.2.1/24 dev d0",
+		"addr add 198.51.100.1/24 dev d0",
+		"-6 addr add 2001:db8::1/64 nodad dev d0",
+	}
+	addrFlushScopeLinkSetup = append(slices.Clip(addrWriteSetupDev),
+		"addr add 169.254.1.1/16 scope link dev d0",
+		"addr add 192.0.2.1/24 dev d0")
+	addrFlushV6Setup = append(slices.Clip(addrWriteSetupDev),
+		"-6 addr add 2001:db8::1/64 nodad dev d0",
+		"-6 addr add 2001:db8:1::1/64 home dev d0",
+		"-6 addr add 2001:db8:2::1/64 nodad mngtmpaddr noprefixroute dev d0",
+		"-6 addr add 2001:db8:3::1/48 nodad dev d0")
+	addrFlushStatsSetup = append(slices.Clip(addrWriteSetupDev),
+		"addr add 192.0.2.1/24 dev d0",
+		"addr add 198.51.100.1/24 dev d0")
+)
+
+// addrFlushManyAddrsCst is flush_many's address count: 192.0.2.1 to .120,
+// each a /32, enough for three datagrams.
+const addrFlushManyAddrsCst = 120
+
+// addrFlushManySetup is flush_many's precondition.
+func addrFlushManySetup() []string {
+	steps := slices.Clip(addrWriteSetupDev)
+	for i := 1; i <= addrFlushManyAddrsCst; i++ {
+		steps = append(steps, fmt.Sprintf("addr add 192.0.2.%d/32 dev d0", i))
+	}
+	return steps
+}
 
 // bondReadSetup is the bond the `-d link show` bond rows read: two ports
 // enslaved and the bond up, as capture-link-writes.exp's lacp_no_partner
@@ -2284,6 +2376,15 @@ func (c Command) CaptureName(side string) string {
 // StdoutName is the basename of the recorded stdout for one side.
 func (c Command) StdoutName(side string) string {
 	return c.Slug + "." + side + ".out"
+}
+
+// WriteCount is the number of write messages the row sends: Writes, or one
+// when it is unset.
+func (c Command) WriteCount() int {
+	if c.Writes == 0 {
+		return 1
+	}
+	return c.Writes
 }
 
 // WriteName is the basename of the request goip wrote to GOIP_WRITE_OUT on a

@@ -545,6 +545,16 @@ func TestAllowlistCommitted(t *testing.T) {
 		"addr add 192.0.2.2/24 scope link dev d0",
 		"-6 addr add ff02::fb/128 dev d0",
 		"addr add 192.0.2.10/24 label d0:0123456789abc dev d0",
+		// A8-T03's address flush rows, gated on two runs with GOIP_PARITY_PASS
+		// on both and the same txns, control, datagrams and zero findings each
+		// time.
+		"addr flush dev d0",
+		"addr flush dev d0 primary",
+		"addr flush dev d0 secondary",
+		"addr flush dev d0 scope link",
+		"-6 addr flush dev d0",
+		"-s addr flush dev d0",
+		"addr flush d0",
 		// A3-T03's output-mode rows: -br, -o and -br -j on mixed_links, and
 		// -o -6 on v6_peer, gated on two runs with GOIP_PARITY_PASS on both and
 		// the same txns, control and zero findings each time.

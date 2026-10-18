@@ -695,7 +695,8 @@ As built:
   writes what it copied.
 - `TestAddrFlushMatchesIpBytes` matches all nine sending slugs on the lookup,
   every dump request, every DEL, ip's datagram split, stdout and stderr.
-  `flush_v6` deletes four addresses, its link-local included.
+  `flush_v6` deletes its four IPv6 addresses. It has no link-local:
+  its topology sets `addrgenmode none`.
 
 #### A8-T03
 
@@ -707,6 +708,24 @@ Deliver:
 - the flush rows
 
 Done when: the rows pass two clean parity runs and are then gated.
+
+As built:
+- `Command.Writes` is the DEL count of a flush row, read by `WriteCount()`,
+  which gives 1 for the 0 every single-write row leaves it at. It stays out
+  of `String()`, so the guest's 8-field line is unchanged; only
+  `compareWriteNetlink` reads it, in place of the old `const writes = 1`.
+- Seven `addr_flush_<slug>` rows: dev (4 DELs), primary (1), secondary (1),
+  scope_link (1), v6 (4), stats (2) and many (120). Each Setup is its
+  capture's topology, step for step. flush_many's argv is `addr flush d0`:
+  `ip` reads a bare word as `dev`, so it sends the same bytes and its Name
+  stays unique.
+- flush_nothing (no DEL, so no file), flush_noargs and flush_packet (floor
+  0) and flush_primary_flipped (a sysctl Setup cannot express) have no row.
+  The unit tests cover them offline.
+- `TestCommandTable` refuses a flush row that leaves `Writes` at 0, and any
+  other row that sets it.
+- Both live runs passed all seven with no finding, and they went into
+  `gated_commands` with no allowlist entry.
 
 ### A9 — Save, showdump, restore
 

@@ -154,7 +154,7 @@ func TestAddrFlushMatchesIpBytes(t *testing.T) {
 			slug: "flush_secondary", args: "dev d0 secondary", expected: flushExpect{2, 1, "[1]"}},
 		{description: "positive: scope link deletes the link-scope address only",
 			slug: "flush_scope_link", args: "dev d0 scope link", expected: flushExpect{2, 1, "[1]"}},
-		{description: "positive: -6 dumps AF_INET6 and deletes the three IPv6 addresses and the link-local",
+		{description: "positive: -6 dumps AF_INET6 and deletes the four IPv6 addresses; addrgenmode none leaves no link-local",
 			slug: "flush_v6", family: unix.AF_INET6, args: "dev d0", expected: flushExpect{2, 4, "[4]"}},
 		{description: "corner: nothing to flush is one dump and no DEL",
 			slug: "flush_nothing", args: "dev d0", expected: flushExpect{1, 0, "[]"}},

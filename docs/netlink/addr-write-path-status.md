@@ -2,9 +2,9 @@
 
 Last updated: 2026-10-18.
 
-**Phases A0 through A7 are done, and A8 has begun.** The design
+**Phases A0 through A8 are done.** The design
 ([addr-write-path.md](addr-write-path.md)) and the plan
-([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. 21 of 25
+([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. 22 of 25
 tasks are done: A0-T01 (V001), A0-T02 (closed by a finding, V002), A0-T03
 and A0-T04, closed by one KVM capture (V005), A0-T05, which recorded M1–M3
 from that capture's fixtures (V006), A1-T01, which decodes the four
@@ -38,10 +38,10 @@ run (V051–V053). A8-T02 is `goip address flush` as a dry run: the filtered
 dump, the DEL copies in `ip`'s 3584-byte batches, round 2 less what was
 already copied, `-loops`, the `-s` round text and both refusals. It matches
 all 9 sending flush captures byte for byte, and the live matrix is unchanged
-(V054–V056).
+(V054–V056). A8-T03 adds the `Writes` field and seven `addr_flush_<slug>`
+rows, and gates all seven on two clean live runs (V057–V060).
 
-**Next action:** A8-T03 (the `Writes` field and the flush rows, depends on
-A8-T02) or A9-T01 (`save` and `showdump`, depends on A8-T01).
+**Next action:** A9-T01 (`save` and `showdump`, depends on A8-T01).
 
 ## Update rules
 
@@ -83,7 +83,7 @@ A8-T02) or A9-T01 (`save` and `showdump`, depends on A8-T01).
 | A5 | `BuildAddrWriteRequest` | done | 1/1 | V030, V031 |
 | A6 | `goip addr add/change/replace/delete` | done | 2/2 | V032, V033, V034, V035 |
 | A7 | write rows in the matrix | done | 2/2 | V036, V037, V038, V041, V042, V043, V044 |
-| A8 | `flush` and the multi-write comparator | in progress | 2/3 | V051, V052, V053, V054, V055, V056 |
+| A8 | `flush` and the multi-write comparator | done | 3/3 | V051, V052, V053, V054, V055, V056, V057, V058, V059, V060 |
 | A9 | `save`, `showdump`, `restore` | not started | 0/3 | — |
 
 ## Task checklist
@@ -114,7 +114,7 @@ Add evidence IDs to the last column as work runs.
 | [x] | [A7-T02](addr-write-path-plan.md#a7-t02) | gate the write rows | done | V041, V042, V043, V044, DOC016 |
 | [x] | [A8-T01](addr-write-path-plan.md#a8-t01) | `SplitWrites` and `CompareWrites` | done | V051, V052, V053, DOC019 |
 | [x] | [A8-T02](addr-write-path-plan.md#a8-t02) | `goip addr flush` | done | V054, V055, V056, DOC020 |
-| [ ] | [A8-T03](addr-write-path-plan.md#a8-t03) | the `Writes` field and flush rows | not started | — |
+| [x] | [A8-T03](addr-write-path-plan.md#a8-t03) | the `Writes` field and flush rows | done | V057, V058, V059, V060, DOC021 |
 | [ ] | [A9-T01](addr-write-path-plan.md#a9-t01) | `save` and `showdump` | not started | — |
 | [ ] | [A9-T02](addr-write-path-plan.md#a9-t02) | `restore` | not started | — |
 | [ ] | [A9-T03](addr-write-path-plan.md#a9-t03) | restore and showdump in the matrix | not started | — |
@@ -145,7 +145,7 @@ it.
 | 12 | `ErrNotAnAdmittedWrite`'s text names four types | A4-T01 | done |
 | 13 | `admittedWriteTypes` has four entries | A4-T01 | done |
 | 14 | `coverage-status.md`'s "read-only, `show` only" scope line | A6-T02 | done |
-| 15 | the glance-table matrix count and scope line | A2-T03, A7-T02, A3-T03, A8-T03, A9-T03 | amended for the selector rows (A2-T03). A7-T01 updated the row and ungated counts it changed: 170 rows, 50 ungated. A7-T02 amended the gated count for the write rows: 147 gated, 23 ungated. A3-T03 added four rows and gated them: 174 rows, 151 gated, 23 ungated. A8-T03 and A9-T03 still owe theirs |
+| 15 | the glance-table matrix count and scope line | A2-T03, A7-T02, A3-T03, A8-T03, A9-T03 | amended for the selector rows (A2-T03). A7-T01 updated the row and ungated counts it changed: 170 rows, 50 ungated. A7-T02 amended the gated count for the write rows: 147 gated, 23 ungated. A3-T03 added four rows and gated them: 174 rows, 151 gated, 23 ungated. A8-T03 added seven flush rows and gated them: 181 rows, 158 gated, 23 ungated. A9-T03 still owes its part |
 | 16 | `route-write-path.md`'s "Out of scope: `addr`" line | this plan's PR (pointer only) | done |
 | 17 | the route-write gate table's negative example is `RTM_NEWADDR` | A4-T01 | done |
 | 18 | README's "admits exactly four types" | A4-T01 | done |
@@ -230,6 +230,11 @@ it.
 | V055 | 2026-10-18 | A8-T02 | `nix run .#microvm-x86_64-goip-parity -- --timeout 4500` from a scratch worktree at `main` (07dfcd89) plus this change, on an x86_64 NixOS host with `/dev/kvm`. No row runs flush; the run guards the option and exit-code changes | All 174 verdicts and `txns` identical to V052. The 74 write rows' lines are identical, control counts included. Five read rows' control `nl` counts moved (`link show -s`, `addr show -6`, both `ntable` stats rows and `netconf show`), with no finding on either run. 166 PASS, 7 WARN and 1 FAIL, the pre-existing `-4 netconf show dev` (`HYGIENE_FAIL 2`), so the run ends `OVERALL_FAIL` as it does on `main`. `UNGATED_DIVERGENCES 7`, `CONTROL_NOISY 165` | transcript in the session scratchpad, not kept |
 | V056 | 2026-10-18 | A8-T02 | the nix checks: `.#test-focused-goip`, `checks.netlink-audit`, `checks.lint-baseline`, `.#quality-report`, `checks.nix-fmt`, `checks.statix`, `checks.deadnix`. `vm-lib-exp` does not apply: no `.exp` file changed | Passed, except `lint-baseline`, which fails on `main` with the same 17 tier-2 findings. The branch adds none. The first runs found six of its own, each fixed with no directive: two `prealloc`s in the tests, gosec G703 on the new file write (which now goes through `writeAddrOut`, shared with `addrWrite`), `Run`'s cyclomatic complexity and statement count (the exit mapping became `exitCodeOf`, and the missing-count message `missLoopCount`), and G602 on `args[i+1]` | the check outputs |
 | DOC020 | 2026-10-18 | A8-T02 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc, plus `git diff --check` | Passed: 25 task IDs one to one; 21 done ticks; no broken links or anchors; ledger IDs unique and in order; `git diff --check` clean | Summary retained here; the checker script was session-local |
+| V057 | 2026-10-18 | A8-T03 | `go test ./internal/goip/... ./internal/goipparity/... ./pkg/nlparity/...`. That includes the new `TestAddrFlushRows` (the 7 rows against their captures: name, floor, `Writes` equal to the DEL count `SplitWrites` finds, Setup equal to the slug's topology, and the split; flush_many's 120 in 3 datagrams; exactly 7 rows; a `Writes` of 3 for flush_dev does not split; a Setup missing a step does not match; the four offline slugs have no row), `TestFlushRowProblem` (8), `TestWriteCount` (4), the `TestCommandTable` row that runs `flushRowProblem` over every row, and `TestCompareWriteRow`'s flush rows (flush_dev, many, primary and stats pass, with stdout compared; one DEL missing from goip's file fails, unsuppressibly; `Writes` 1 on flush_dev fails with `ErrWriteCount`; flush_many is 123 transactions on each side). Mutation check in a scratch worktree: each mutant failed the rows named for it, and was reverted. The mutants were: `writes := 1` restored in `compare.go` (`TestRender`, `TestCompareWriteRow`), the `Writes`-0 refusal dropped (`TestFlushRowProblem`), flush_many's argv set to `dev d0` (`TestAddrFlushRows` and `TestCommandTable`'s unique names), and flush_v6 with `Writes` 3 (`TestAddrFlushRows`, `TestRender`) | Passed: all green; the four mutants caught | `internal/goipparity/commands_flush_test.go`, `internal/goipparity/compare_write_test.go` |
+| V058 | 2026-10-18 | A8-T03 | `nix run .#microvm-x86_64-goip-parity -- --timeout 4500` from a scratch worktree at `main` (7646ce28) plus this change, the seven rows ungated, on an x86_64 NixOS host with `/dev/kvm` | All seven flush rows `GOIP_PARITY_PASS` with no findings and control `nl=1 stdout=0` (the cacheinfo stamp, suppressed). `txns` ip/goip: dev 7/7, primary 3/3, secondary 4/4, scope_link 4/4, v6 7/7, stats 5/5, many 123/123. `ip`'s datagrams per side: 8, 6, 9, 9, 7, 8 and 12 (flush_many's 120 DELs in 3); goip's: 8, 5, 8, 8, 6, 8 and 8, its file holding the DELs. The other 174 verdicts and `txns` are identical to V055, the 74 write rows' lines included; six read rows' control `nl` counts moved, with no finding. 173 PASS, 7 WARN and 1 FAIL, the pre-existing `-4 netconf show dev` (`HYGIENE_FAIL 2`), so the run ends `OVERALL_FAIL` as it does on `main`. `UNGATED_DIVERGENCES 7`, `CONTROL_NOISY 169` | transcript in the session scratchpad, not kept |
+| V059 | 2026-10-18 | A8-T03 | the same parity run, rerun sequentially | All 181 verdicts and `txns` identical to V058, and the seven flush rows the same control, findings and datagram counts on every side. 173 PASS, 7 WARN and 1 FAIL. `HYGIENE_FAIL 2`, `UNGATED_DIVERGENCES 7`, `CONTROL_NOISY 166`. The seven rows then went into `gated_commands` and the earned list, pinned by `TestAddrFlushRowsGated`; removing one from `gated_commands` fails it, `TestUngatedSurfaceIsNotVacuous` and `TestAllowlistCommitted` | transcript in the session scratchpad, not kept |
+| V060 | 2026-10-18 | A8-T03 | the nix checks: `.#test-focused-goip`, `checks.netlink-audit`, `checks.lint-baseline`, `.#quality-report`, `checks.nix-fmt`, `checks.statix`, `checks.deadnix`. `vm-lib-exp` does not apply: no `.exp` file changed | Passed, except `lint-baseline`, which fails on `main` with the same 17 tier-2 findings. The branch adds none. A first run found one of its own, `prealloc` on the flush file in `corpusFlushRow`, fixed with no directive, and the test-only change was rechecked | the check outputs |
+| DOC021 | 2026-10-18 | A8-T03 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc, plus `git diff --check`. The glance-table counts in `coverage-status.md` and `docs/netlink/README.md` recounted from `Commands()` and the allowlist | Passed: 25 task IDs one to one; 22 done ticks; no broken links or anchors; ledger IDs unique and in order; `git diff --check` clean; 181 rows, 181 implemented, 158 gated, 81 writes, 7 entries | Summary retained here; the checker script was session-local |
 
 ## Blockers and upcoming requirements
 
@@ -239,6 +244,26 @@ it.
 
 ## Progress and decision log
 
+- **2026-10-18.** A8-T03 is done, and phase A8 with it.
+  - **flush_many is `addr flush d0`.** Names must be unique, and flush_dev,
+    flush_many and flush_nothing all ran `addr flush dev d0`. `ip`'s keyword
+    loop reads a bare word as `dev` (`ipaddress.c:2240-2246`), so
+    `addr flush d0` sends the same bytes and gives the row its own Name.
+  - **Four slugs stay offline.** flush_nothing sends no DEL, so goip writes
+    no file. flush_noargs and flush_packet have floor 0, which
+    `TestCommandTable` refuses. flush_primary_flipped needs a sysctl, which
+    `Setup` cannot express. V051 and V054 cover all four.
+  - **Gated before merge.** As with A3-T03, the rows ran ungated in two
+    scratch-worktree runs and land gated, so they never join the ungated
+    list, which stays at 23.
+  - **A flush row must set `Writes`.** 0 means one write, so a flush row
+    that forgot it would compare one DEL and drop the rest. A flush row
+    sets it even to 1, and no other row sets it.
+  - **flush_v6 has no link-local.** V054 says flush_v6 deletes 4 "its
+    link-local included". Its topology sets `addrgenmode none`, so the
+    four are global addresses; flush_dev is the slug with the eui64
+    link-local. V054 stands as written; the test description and the plan's
+    A8-T02 note now say so.
 - **2026-10-18.** A8-T02 is done.
   - **Round 2 subtracts by identity.** `ip`'s round-2 reply is empty
     because its kernel applied the batch. goip's kernel has not, so round 2
