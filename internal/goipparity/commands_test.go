@@ -1010,9 +1010,8 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	// gate (addr-write-path.md, "Gating"). TestAddrShowSelectorRowsGated pins
 	// it.
 	//
-	// The twenty-seven address write rows (A7-T01) are a queue of their own,
-	// counted by slug rather than named here: each awaits the two clean live
-	// runs A7-T02 gates them on. TestAddrWriteRows pins the cohort.
+	// The twenty-seven address write rows left this list on the two runs
+	// after A7-T01 — see TestAddrWriteRowsGated.
 	expected := []string{
 		"-s addr show", "-s neigh show",
 		"-0 addr show", "route show table main", "route show table local",
@@ -1026,28 +1025,21 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 		"-j stats show group xstats",
 		"addr show dynamic",
 	}
-	named := len(expected)
-	for _, c := range Commands() {
-		if strings.HasPrefix(c.Slug, addrWriteSlugPrefixCst) {
-			expected = append(expected, c.Name)
-		}
-	}
 
 	tests := []struct {
 		description string
 		check       func(t *testing.T)
 	}{
 		{
-			description: "boundary: the list is twenty-three named rows plus the twenty-seven address write rows",
+			description: "boundary: the list is twenty-three named rows",
 			check: func(t *testing.T) {
-				if named != 23 || len(expected)-named != 27 {
-					t.Errorf("got %d named and %d address write rows, want 23 and 27",
-						named, len(expected)-named)
+				if len(expected) != 23 {
+					t.Errorf("got %d named rows, want 23", len(expected))
 				}
 			},
 		},
 		{
-			description: "positive: the ungated set is exactly the twenty-three named rows and the address write rows, so UNGATED_CLEAN counts fifty rows and not zero",
+			description: "positive: the ungated set is exactly the twenty-three named rows, so UNGATED_CLEAN counts twenty-three rows and not zero",
 			check: func(t *testing.T) {
 				for _, name := range expected {
 					if !ungated[name] {
@@ -2146,6 +2138,98 @@ func TestAddrWriteRows(t *testing.T) {
 	t.Run("boundary: the Name table covers every row", func(t *testing.T) {
 		if len(names) != len(rows) {
 			t.Errorf("%d names, %d rows", len(names), len(rows))
+		}
+	})
+}
+
+// TestAddrWriteRowsGated pins A7-T02's flip (addr-write-path.md table 10
+// row 5): the 27 address write rows, each gated on the two live runs after
+// A7-T01 with no allowlist entry. The lifetime write gates because its
+// request carries the fixed 3600/1800; the design's lifetime rule is about
+// readback, which is why `addr show dynamic` does not. The 5 refused slugs of
+// the corpus are not rows (TestAddrWriteRows), so they cannot gate.
+//
+// go test ./internal/goipparity/ -run TestAddrWriteRowsGated
+func TestAddrWriteRowsGated(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	var cohort []Command
+	for _, c := range Commands() {
+		if strings.HasPrefix(c.Slug, addrWriteSlugPrefixCst) {
+			cohort = append(cohort, c)
+		}
+	}
+	type result struct{ write, setup, gated, cohort bool }
+
+	tests := []struct {
+		description string
+		command     string
+		expected    result
+	}{
+		{description: "positive: a plain v4 add is gated",
+			command:  "addr add 192.0.2.10/24 dev d0",
+			expected: result{write: true, setup: true, gated: true, cohort: true}},
+		{description: "positive: a v6 add with flags is gated",
+			command:  "-6 addr add 2001:db8::5/64 nodad noprefixroute dev d0",
+			expected: result{write: true, setup: true, gated: true, cohort: true}},
+		{description: "positive: a delete on the v4 setup is gated",
+			command:  "addr del 192.0.2.1/24 dev d0",
+			expected: result{write: true, setup: true, gated: true, cohort: true}},
+		{description: "boundary: a write the kernel refuses gates on its request",
+			command:  "addr add 192.0.2.1/24 dev d0",
+			expected: result{write: true, setup: true, gated: true, cohort: true}},
+		{description: "corner: the lifetime write gates, because its request holds the fixed 3600/1800",
+			command:  "addr add 192.0.2.10/24 valid_lft 3600 preferred_lft 1800 dev d0",
+			expected: result{write: true, setup: true, gated: true, cohort: true}},
+		{description: "negative: the lifetime readback does not gate",
+			command:  "addr show dynamic",
+			expected: result{setup: true}},
+		{description: "negative: a route write is the other cohort",
+			command:  "route add blackhole 198.51.100.0/24",
+			expected: result{write: true, gated: true}},
+		{description: "corner: nodev is in the corpus but is not a row",
+			command:  "addr add 192.0.2.10/24 dev nosuch",
+			expected: result{}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			var got result
+			if c, lookupErr := Lookup(tc.command); lookupErr == nil {
+				got.write, got.setup = c.Write, len(c.Setup) > 0
+				got.cohort = strings.HasPrefix(c.Slug, addrWriteSlugPrefixCst)
+			}
+			got.gated = al.IsGated(tc.command)
+			if got != tc.expected {
+				t.Errorf("%q: got %+v, want %+v", tc.command, got, tc.expected)
+			}
+		})
+	}
+
+	t.Run("boundary: the cohort is the 27 rows of the corpus, less the 5 refused", func(t *testing.T) {
+		if len(cohort) != 27 {
+			t.Fatalf("%d address write rows, want 27", len(cohort))
+		}
+	})
+
+	t.Run("positive: each cohort row is a gated, Implemented write", func(t *testing.T) {
+		for _, c := range cohort {
+			if !c.Write || !c.Implemented {
+				t.Errorf("%q: Write %v, Implemented %v", c.Name, c.Write, c.Implemented)
+			}
+			if !al.IsGated(c.Name) {
+				t.Errorf("%q is an address write row but IsGated is false; add it to "+
+					"gated_commands and the earned list together", c.Name)
+			}
+		}
+	})
+
+	t.Run("negative: each cohort row gated clean, carrying no allowlist entry", func(t *testing.T) {
+		for _, c := range cohort {
+			if entries := al.EntriesFor(c.Name); len(entries) != 0 {
+				t.Errorf("%q carries %d allowlist entr(ies)", c.Name, len(entries))
+			}
 		}
 	})
 }
