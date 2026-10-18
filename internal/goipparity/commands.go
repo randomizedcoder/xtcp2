@@ -448,6 +448,30 @@ var commands = withArgs([]Command{
 		// one committed golden.
 		Floor: 4, Implemented: true,
 	},
+	// A3-T03: the output modes (addr-write-path.md, "Selector and output-mode
+	// read rows"). Each sends the same two dumps as `addr show`, byte for
+	// byte, so the floor is four; the difference is all in the render. Under
+	// -o, ipaddr_list sets no_link, so there is no link line and no side-get;
+	// under -br, only IFLA_LINK is resolved. The first three read mixed_links,
+	// the state their sidecars were captured on. `-o -6` reads v6_peer, a
+	// nodad address, because mixed_links has no v6 address but lo's and an
+	// address that runs DAD could be tentative on one side and not another.
+	{
+		Name: "-br addr show", Slug: "addr_show_brief",
+		Setup: mixedLinksSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-o addr show", Slug: "addr_show_oneline",
+		Setup: mixedLinksSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-br -j addr show", Slug: "addr_show_brief_json",
+		Setup: mixedLinksSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-o -6 addr show", Slug: "addr_show_oneline_v6",
+		Setup: v6PeerSetup, Floor: 4, Implemented: true,
+	},
 	{
 		Name: "addr show dev", Slug: "addr_show_dev",
 		NeedsDev: true,
@@ -2173,6 +2197,7 @@ var (
 	v4LifetimesSetup = addrStateSetup("d0",
 		"addr add 192.0.2.1/24 valid_lft 3600 preferred_lft 1800 dev d0")
 	v4HostScopeSetup = addrStateSetup("d0", "addr add 127.0.0.2/8 dev d0")
+	v6PeerSetup      = addrStateSetup("d0", "-6 addr add 2001:db8::1 peer 2001:db8::2/128 nodad dev d0")
 	v6TentativeSetup = []string{
 		"link add v0 address 02:00:00:00:a0:00 type veth peer name v1 address 02:00:00:00:b0:00",
 		"-6 addr add 2001:db8::5/64 dev v0",

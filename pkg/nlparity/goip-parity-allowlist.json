@@ -1076,6 +1076,10 @@
     "addr del 192.0.2.99/24 dev d0",
     "addr add 192.0.2.2/24 scope link dev d0",
     "-6 addr add ff02::fb/128 dev d0",
-    "addr add 192.0.2.10/24 label d0:0123456789abc dev d0"
+    "addr add 192.0.2.10/24 label d0:0123456789abc dev d0",
+    "-br addr show",
+    "-o addr show",
+    "-br -j addr show",
+    "-o -6 addr show"
   ]
 }

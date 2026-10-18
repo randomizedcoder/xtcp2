@@ -400,6 +400,24 @@ and `-o -6 addr show`.
 
 Done when: the rows pass two clean parity runs and are then gated.
 
+As built:
+- The four rows follow `-d addr show` in `commands.go`, each at floor 4. Their
+  requests are plain `addr show`'s.
+- `-br`, `-o` and `-br -j` read `mixed_links`, the state their sidecars were
+  captured on.
+- `-o -6` reads `v6_peer`, through the new `v6PeerSetup`:
+  - on `mixed_links` it would print only lo's `::1`;
+  - `v6_peer`'s one address is `nodad`, so it cannot be tentative on one side
+    and settled on the next.
+- `TestAddrOutputModeRowsGated` pins each Setup to its state's `topology`.
+- All four gate clean, with no allowlist entry, on the two runs taken from a
+  scratch worktree before the branch merged, so `TestUngatedSurfaceIsNotVacuous`
+  keeps its twenty-three rows.
+- Known limit: brief text has no `N:` prefix, so the comparator's ifname and
+  ifindex facets are empty on both sides of `-br addr show`. That row compares
+  the line count, the CIDRs and the keyword values. The `-br -j` row compares
+  the names, and the 38 `-br` goldens compare the bytes.
+
 ### A4 — The gate
 
 #### A4-T01

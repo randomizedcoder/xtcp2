@@ -1012,6 +1012,9 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	//
 	// The twenty-seven address write rows left this list on the two runs
 	// after A7-T01 — see TestAddrWriteRowsGated.
+	//
+	// A3-T03's four output-mode rows never joined it: they gated on the two
+	// runs taken before the branch merged — see TestAddrOutputModeRowsGated.
 	expected := []string{
 		"-s addr show", "-s neigh show",
 		"-0 addr show", "route show table main", "route show table local",
@@ -1970,6 +1973,93 @@ func TestAddrShowSelectorRowsGated(t *testing.T) {
 		short := mixedLinksSetup[:len(mixedLinksSetup)-1]
 		if slices.Equal(short, topologySteps(t, tdAddrShow, "mixed_links")) {
 			t.Error("a Setup with its last step dropped still matches mixed_links, so the comparison proves nothing")
+		}
+	})
+}
+
+// TestAddrOutputModeRowsGated pins A3-T03's output-mode rows: `-br`, `-o`
+// and `-br -j` on mixed_links, the state their sidecars were captured on, and
+// `-o -6` on v6_peer. Each Setup is its state's topology step for step, and
+// each is gated after two clean live runs.
+//
+// go test ./internal/goipparity/ -run TestAddrOutputModeRowsGated
+func TestAddrOutputModeRowsGated(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	type want struct {
+		implemented, setupMatches, gated, write bool
+		floor                                   int
+	}
+	gated4 := want{implemented: true, setupMatches: true, gated: true, floor: 4}
+	rows := []struct {
+		description string
+		command     string
+		state       string
+		expected    want
+	}{
+		{"positive: brief reads the mixed links", "-br addr show", "mixed_links", gated4},
+		{"positive: oneline reads the mixed links", "-o addr show", "mixed_links", gated4},
+		{"corner: brief JSON", "-br -j addr show", "mixed_links", gated4},
+		{"corner: oneline under -6, a peer address with no DAD", "-o -6 addr show", "v6_peer", gated4},
+	}
+	lifetimeStates := map[string]bool{"v4_lifetimes": true, "v4_deprecated": true}
+
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			c, lookupErr := Lookup(r.command)
+			if lookupErr != nil {
+				t.Fatalf("Lookup: %v", lookupErr)
+			}
+			got := want{
+				implemented:  c.Implemented,
+				setupMatches: slices.Equal(c.Setup, topologySteps(t, tdAddrShow, r.state)),
+				gated:        al.IsGated(r.command),
+				write:        c.Write,
+				floor:        c.Floor,
+			}
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+			if n := len(al.EntriesFor(r.command)); n != 0 {
+				t.Errorf("%q carries %d allowlist entries; an output-mode row gates clean or not at all", r.command, n)
+			}
+		})
+	}
+
+	t.Run("negative: no row reads a lifetime state", func(t *testing.T) {
+		for _, r := range rows {
+			if lifetimeStates[r.state] {
+				t.Errorf("%q reads %s; its lifetime counts down between the sides", r.command, r.state)
+			}
+		}
+	})
+
+	t.Run("boundary: the table's output-mode rows are exactly these", func(t *testing.T) {
+		listed := map[string]bool{}
+		for _, r := range rows {
+			listed[r.command] = true
+		}
+		var inTable int
+		for _, c := range Commands() {
+			if !strings.HasPrefix(c.Slug, "addr_show_brief") && !strings.HasPrefix(c.Slug, "addr_show_oneline") {
+				continue
+			}
+			inTable++
+			if !listed[c.Name] {
+				t.Errorf("output-mode row %q is not pinned here", c.Name)
+			}
+		}
+		if inTable != len(rows) {
+			t.Errorf("%d output-mode rows in the table, %d pinned here", inTable, len(rows))
+		}
+	})
+
+	t.Run("corner: v6PeerSetup missing its address step does not match its topology", func(t *testing.T) {
+		short := v6PeerSetup[:len(v6PeerSetup)-1]
+		if slices.Equal(short, topologySteps(t, tdAddrShow, "v6_peer")) {
+			t.Error("a Setup with its address step dropped still matches v6_peer, so the comparison proves nothing")
 		}
 	})
 }
