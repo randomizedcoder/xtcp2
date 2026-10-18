@@ -21,6 +21,7 @@ let
     "./pkg/xtcpnl:FuzzParseChardev"
     "./pkg/linkmonitor/internal/linuxio:FuzzRDMANotifications"
     "./pkg/linkmonitor/internal/rdmanative:FuzzTranslateRtnl"
+    "./pkg/linkmonitor/internal/rdmacaps:FuzzUMADHeader"
   ];
   # go-native RDMA decoders held to the parsing rules in
   # cmd/go-link-monitor/GO-NATIVE-RDMA-DESIGN.md. Each decoder task appends

@@ -59,6 +59,8 @@ int main(void)
 
 	X("rdmacaps", "umadRegisterAgent2", IB_USER_MAD_REGISTER_AGENT2);
 	X("rdmacaps", "umadUnregisterAgent", IB_USER_MAD_UNREGISTER_AGENT);
+	X("rdmacaps", "umadEnablePKey", IB_USER_MAD_ENABLE_PKEY);
+	P("rdmacaps", "umadABIVersion", IB_USER_MAD_ABI_VERSION);
 	X("rdmacaps", "!umadRegisterAgent", IB_USER_MAD_REGISTER_AGENT);
 
 	P("rdmanative", "asyncEventDescLen", sizeof(struct ib_uverbs_async_event_desc));
