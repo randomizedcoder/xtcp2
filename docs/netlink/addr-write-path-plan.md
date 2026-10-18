@@ -372,6 +372,25 @@ Tests: `TestAddrBriefMatchesSidecar` and `TestAddrOnelineMatchesSidecar`
 Done when: every readback state's `-br`, `-o` and `-br -j` sidecar is
 byte-identical.
 
+As built:
+- The renderers are in `render/addr_brief.go`:
+  - `LinkBriefView` is the link brief, built from `LinkViewOf`'s name and
+    link fields so `@NONE` and `@if%u` cannot drift;
+  - `AddrBriefView` and `AddrBriefEntry` are the address brief and its JSON;
+  - `AddrView.OnelineText` is the `-o` line, the ordinary text with `\` for
+    the inner newline.
+- The `-br`/`-o` capture requests are byte-identical to plain `addr show` in
+  all 19 states. `v6_dadfailed` is the one exception: there plain `ip` also
+  sends four `RTM_GETNSID` gets, which goip never sent. So no request code
+  moved. Under `-o`, `renderAddrGroups` makes no side-gets, since `no_link`
+  skips `print_linkinfo`. Under `-br`, it resolves only the `IFLA_LINK` peer.
+- Only plain `addr show` renders, with `-br`, `-br -j` or `-o`, optionally
+  under `-4`/`-6`. No capture shows any other combination: a selector or
+  `dev`, `-s`, `-d`, `-0`, `-o -j` (which adds `index`/`dev` members), or
+  `-br -o`. Each is refused before any request, naming the option.
+- The goldens are in `addr_output_mode_golden_test.go`, and the synthetic rows
+  are in `render/addr_brief_test.go`.
+
 #### A3-T03
 
 **Output-mode rows.** Depends on: A3-T02.

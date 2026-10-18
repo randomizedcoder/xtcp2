@@ -91,10 +91,8 @@ func runAddress(c *runCtx, args []string) error {
 // and the address dump is sent with filter.family. Those are c.family and
 // f.family, and `to PREFIX` is what makes them differ.
 func addrShow(c *runCtx, args []string) error {
-	// -br and -o parse but do not render yet (A3-T02). Refused before any
-	// request, so nothing reaches the wire for a render goip cannot print.
-	if opt := c.outputMode(); opt != "" {
-		return fmt.Errorf("address show: %s render not implemented: %w", opt, ErrNotImplemented)
+	if err := outputModeRefusal(c, args); err != nil {
+		return err
 	}
 	svc := service.New(c.src, c.nextSeq)
 	f, err := parseAddrShowArgs(args, c.family, addrShowLookups(c, svc))
@@ -123,6 +121,38 @@ func addrShow(c *runCtx, args []string) error {
 		}
 	}
 	return renderAddrGroups(c, svc, &f, links, addrs)
+}
+
+// outputModeRefusal refuses, before any request, the -br and -o forms no
+// committed capture shows: either one with a selector or `dev`, with -s, -d
+// or -0, the two together, and -o with -j (which adds "index" and "dev"
+// members). The rendered forms are plain `addr show` with -br, -br -j or -o,
+// optionally under -4 or -6, which is what every addr-show state's sidecars
+// pin. Like `-s -s`, a form goip cannot print is refused rather than printed
+// wrong.
+func outputModeRefusal(c *runCtx, args []string) error {
+	opt := c.outputMode()
+	if opt == "" {
+		return nil
+	}
+	var with string
+	switch {
+	case c.brief && c.oneline:
+		with = "-oneline"
+	case c.oneline && c.json:
+		with = "-json"
+	case c.stats():
+		with = "-stats"
+	case c.detailed():
+		with = "-details"
+	case c.family == unix.AF_PACKET:
+		with = "-0"
+	case len(args) > 0:
+		with = "a selector"
+	default:
+		return nil
+	}
+	return fmt.Errorf("address show: %s with %s render not implemented: %w", opt, with, ErrNotImplemented)
 }
 
 // addrShowLookups is the parser's I/O: ll_name_to_index for `master`, `vrf`
@@ -264,7 +294,15 @@ func renderAddrGroups(c *runCtx, svc *service.Service, f *addrFilter, links []xt
 			AddrInfo:   []render.AddrView{},
 			Headerless: mode == addrLinkHeaderless,
 		}
-		if mode == addrLinkPrint {
+		if mode == addrLinkPrint && (c.brief || c.oneline) {
+			// -o sets no_link (ip/ipaddress.c:2311), so print_linkinfo and
+			// its side-gets never run; -br runs only print_name_and_link,
+			// which resolves IFLA_LINK and not the master.
+			if c.brief {
+				resolveLinkTarget(c, svc, links[i])
+			}
+			printed = append(printed, links[i])
+		} else if mode == addrLinkPrint {
 			// print_linkinfo's side-gets, so a link it skips, or one `label`
 			// leaves headerless, sends none. After every dump, in link
 			// order, as `ip` prints. Nothing is sent when the link dump was
@@ -312,12 +350,72 @@ func renderAddrGroups(c *runCtx, svc *service.Service, f *addrFilter, links []xt
 		return err
 	}
 
-	if c.json {
+	switch {
+	case c.brief:
+		return renderAddrBrief(c, groups, printed)
+	case c.oneline:
+		return renderAddrOneline(c, groups, printed)
+	case c.json:
 		return json.NewEncoder(c.out).Encode(groups)
 	}
 	for i := range groups {
 		if _, werr := fmt.Fprint(c.out, groups[i].Text()); werr != nil {
 			return werr
+		}
+	}
+	return nil
+}
+
+// resolveLinkTarget is the one side-get print_name_and_link can make: the
+// IFLA_LINK peer, when it is in this namespace and not cached.
+func resolveLinkTarget(c *runCtx, svc *service.Service, li xtcpnl.LinkInfo) {
+	if li.Link != 0 && !li.HasLinkNetnsID {
+		resolveIndexName(c, svc, li.Link)
+	}
+}
+
+// renderAddrBrief writes `-br addr show` and `-br -j addr show`: one line, or
+// one object, per printed link (ip/ipaddress.c:2323-2336 with brief set).
+// outputModeRefusal has already refused `label`, the one filter that leaves a
+// group headerless, so groups and printed pair one to one.
+func renderAddrBrief(c *runCtx, groups []render.AddrGroupView, printed []xtcpnl.LinkInfo) error {
+	if len(groups) != len(printed) {
+		return fmt.Errorf("address show: -brief: %d groups for %d links: %w", len(groups), len(printed), ErrNotImplemented)
+	}
+	views := make([]render.AddrBriefView, len(groups))
+	for i := range groups {
+		views[i].LinkBriefView = render.LinkBriefViewOf(printed[i], c.lltab)
+		views[i].AddrInfo = make([]render.AddrBriefEntry, len(groups[i].AddrInfo))
+		for j := range groups[i].AddrInfo {
+			views[i].AddrInfo[j] = render.AddrBriefEntryOf(groups[i].AddrInfo[j])
+		}
+	}
+	if c.json {
+		return json.NewEncoder(c.out).Encode(views)
+	}
+	for i := range views {
+		if _, err := fmt.Fprint(c.out, views[i].Text()); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// renderAddrOneline writes `-o addr show`: the address lines alone, each
+// prefixed with its ifa_index and ll_index_to_name of it, with no link line,
+// so a link with no address prints nothing. Every address in a group belongs
+// to the group's link, so its ifa_index is that link's index, and the name is
+// the dump's, already cached.
+func renderAddrOneline(c *runCtx, groups []render.AddrGroupView, printed []xtcpnl.LinkInfo) error {
+	if len(groups) != len(printed) {
+		return fmt.Errorf("address show: -oneline: %d groups for %d links: %w", len(groups), len(printed), ErrNotImplemented)
+	}
+	for i := range groups {
+		dev := c.lltab.IndexToName(printed[i].Index)
+		for j := range groups[i].AddrInfo {
+			if _, err := fmt.Fprint(c.out, groups[i].AddrInfo[j].OnelineText(printed[i].Index, dev)); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
