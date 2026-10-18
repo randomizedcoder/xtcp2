@@ -1,0 +1,49 @@
+File: core.test
+Build ID: 5f2f11f2cb24923ef97e61aed9a24bf9d321b533
+Type: cpu
+Time: 2026-10-18 21:14:09 UTC
+Duration: 24.10s, Total samples = 29.99s (124.46%)
+Showing nodes accounting for 22.06s, 73.56% of 29.99s total
+Dropped 208 nodes (cum <= 0.15s)
+Showing top 40 nodes out of 117
+      flat  flat%   sum%        cum   cum%
+     1.96s  6.54%  6.54%      5.01s 16.71%  github.com/randomizedcoder/xtcp2/pkg/xtcpnl.ParseNewLink
+     1.50s  5.00% 11.54%     11.53s 38.45%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor.BenchmarkPerformanceDecode.func1.decodeRouteEvents.2
+     1.49s  4.97% 16.51%      8.40s 28.01%  github.com/randomizedcoder/xtcp2/pkg/xtcpnl.ParseMonitorLink
+     1.30s  4.33% 20.84%      1.30s  4.33%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor.decodeTraffic
+     1.17s  3.90% 24.74%      1.17s  3.90%  runtime.nextFreeFast (inline)
+     0.80s  2.67% 27.41%      1.29s  4.30%  runtime.tryDeferToSpanScan
+     0.79s  2.63% 30.04%     23.98s 79.96%  github.com/randomizedcoder/xtcp2/pkg/xtcpnl.WalkNetlinkEnvelopes
+     0.70s  2.33% 32.38%      0.76s  2.53%  github.com/randomizedcoder/xtcp2/pkg/xtcpnl.attribute
+     0.67s  2.23% 34.61%      1.55s  5.17%  runtime.mallocgcTiny
+     0.61s  2.03% 36.65%      6.04s 20.14%  runtime.mallocgc
+     0.58s  1.93% 38.58%     11.52s 38.41%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor.BenchmarkPerformanceDecode.func1.decodeEthtoolEvents.3
+     0.56s  1.87% 40.45%      1.08s  3.60%  github.com/randomizedcoder/xtcp2/pkg/xtcpnl.scalarAttribute
+     0.56s  1.87% 42.31%      0.56s  1.87%  indexbytebody
+     0.52s  1.73% 44.05%      1.19s  3.97%  github.com/randomizedcoder/xtcp2/pkg/xtcpnl.(*ethtoolPayloadDecoder).u8 (inline)
+     0.51s  1.70% 45.75%      4.46s 14.87%  github.com/randomizedcoder/xtcp2/pkg/xtcpnl.ParseNetlinkAttributes
+     0.50s  1.67% 47.42%      2.22s  7.40%  runtime.mallocgcSmallScanNoHeader
+     0.48s  1.60% 49.02%      0.48s  1.60%  github.com/randomizedcoder/xtcp2/pkg/xtcpnl.classifyEthtoolCommand
+     0.42s  1.40% 50.42%      0.42s  1.40%  runtime.memclrNoHeapPointers
+     0.42s  1.40% 51.82%      1.20s  4.00%  runtime.scanObjectsSmall
+     0.40s  1.33% 53.15%      2.30s  7.67%  runtime.moveSliceNoCap
+     0.39s  1.30% 54.45%      0.39s  1.30%  runtime.futex
+     0.39s  1.30% 55.75%      0.60s  2.00%  runtime.typePointers.next
+     0.38s  1.27% 57.02%      3.76s 12.54%  github.com/randomizedcoder/xtcp2/pkg/xtcpnl.decodeEthtoolPayload
+     0.37s  1.23% 58.25%      1.61s  5.37%  github.com/randomizedcoder/xtcp2/pkg/xtcpnl.genlAttrU32
+     0.35s  1.17% 59.42%      0.55s  1.83%  github.com/randomizedcoder/xtcp2/pkg/xtcpnl.(*ethtoolPayloadDecoder).bits
+     0.34s  1.13% 60.55%      0.34s  1.13%  runtime.getMCache (inline)
+     0.34s  1.13% 61.69%      1.59s  5.30%  runtime.scanObject
+     0.32s  1.07% 62.75%      1.55s  5.17%  runtime.growslice
+     0.32s  1.07% 63.82%      0.72s  2.40%  runtime.scanblock
+     0.32s  1.07% 64.89%      0.32s  1.07%  runtime.typePointers.nextFast (inline)
+     0.31s  1.03% 65.92%      1.41s  4.70%  runtime.mallocgcSmallNoscan
+     0.31s  1.03% 66.96%      0.31s  1.03%  runtime.roundupsize (inline)
+     0.27s   0.9% 67.86%      0.27s   0.9%  runtime.memmove
+     0.26s  0.87% 68.72%      3.88s 12.94%  github.com/randomizedcoder/xtcp2/pkg/xtcpnl.decodeEthtoolHeader
+     0.26s  0.87% 69.59%      0.26s  0.87%  runtime.releasem (inline)
+     0.25s  0.83% 70.42%      1.29s  4.30%  github.com/randomizedcoder/xtcp2/pkg/xtcpnl.WalkRTAttrs
+     0.24s   0.8% 71.22%      0.27s   0.9%  runtime.(*mspan).writeHeapBitsSmall
+     0.24s   0.8% 72.02%      0.24s   0.8%  runtime.spanClass.sizeclass (inline)
+     0.23s  0.77% 72.79%      0.23s  0.77%  internal/bytealg.IndexByteString
+     0.23s  0.77% 73.56%      0.23s  0.77%  runtime.acquirem (inline)

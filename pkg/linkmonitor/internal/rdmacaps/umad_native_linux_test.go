@@ -28,7 +28,7 @@ type fakeUMAD struct {
 	abi                                       uint64
 	resolveErr, openErr, pkeyErr, registerErr error
 	writeErr, unregisterErr, closeErr         error
-	shortWrite                                bool
+	shortWrite, unloaded                      bool
 	// answer turns the reply the kernel would queue into what it queues;
 	// nil queues nothing.
 	answer func(reply []byte) []byte
@@ -54,6 +54,8 @@ func newFakeUMAD(tb testing.TB) *fakeUMAD {
 	return &fakeUMAD{tb: tb, name: "umad0", abi: umadABIVersion, nextAgent: 7, peers: make(map[int]*fakeSlot, 4), agents: make(map[int]bool, 4), polls: make([]int, 0, 8),
 		answer: func(b []byte) []byte { return b }}
 }
+
+func (f *fakeUMAD) loaded() bool { return !f.unloaded }
 
 func (f *fakeUMAD) resolve(_ context.Context, device string, port uint32) (xtcpnl.RdmaChardev, error) {
 	f.mu.Lock()
@@ -313,6 +315,13 @@ func TestUMADExchange(t *testing.T) {
 		{"c_close", "corner", "C CLOSE: fd close fails", "reply kept with the cleanup error, no retry",
 			background, func(f *fakeUMAD) { f.closeErr = syscall.EIO }, []error{syscall.EIO}, true, nil},
 		// Resolution, before any descriptor.
+		{"umad_unloaded", "negative", "ib_umad is not loaded", "EOPNOTSUPP, as libibumad; no GET_CHARDEV, which would load the module",
+			background, func(f *fakeUMAD) { f.unloaded = true }, []error{syscall.EOPNOTSUPP}, false,
+			func(t *testing.T, f *fakeUMAD) {
+				if f.resolved != 0 {
+					t.Fatal("resolved with ib_umad unloaded")
+				}
+			}},
 		{"resolve_error", "negative", "GET_CHARDEV finds no such device", "ENODEV; nothing opened",
 			background, func(f *fakeUMAD) { f.resolveErr = syscall.ENODEV }, []error{syscall.ENODEV}, false, nil},
 		{"not_umad", "negative", "The reply names uverbs0", "ErrReply; nothing opened",

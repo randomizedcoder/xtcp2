@@ -67,20 +67,31 @@ The cgo files keep `linux && rdma && cgo` until R4. Their fallbacks change from
 `!linux`, and a new `rdmacaps/umad_select_linux.go` picks `exchangeLocal` or
 `exchangeNative` per [Backend selection](#backend-selection).
 
+As built (R2-T03): the choice is the untagged `rdmacaps.Backend` in
+`query.go`, not a separate file. `libibumad_unavailable.go`
+(`!linux || !rdma || !cgo`) stubs the cgo exchange, and `unavailable.go`
+(`!linux`) stubs the native one.
+
 ## C1 chardev mapping
 
-`xtcpnl.BuildRdmaGetChardev(buf []byte, seq uint32, dev uint32, port uint32, kind ChardevKind) []byte`
+`xtcpnl.BuildRdmaGetChardev(buf []byte, seq uint32, dev uint32, port uint32, kind ChardevKind) ([]byte, error)`
 appends one request to a caller buffer. `kind` is `ChardevUverbs` or
 `ChardevUmad`, encoded as the `RDMA_NLDEV_ATTR_CHARDEV_TYPE` string. Port is
-sent only for umad.
+sent only for umad. An unknown kind, a port for uverbs or no port for umad
+returns `ErrRdmaChardevKind` and leaves `buf` unchanged. The request is
+libibverbs': `NLM_F_REQUEST` alone, answered by the unicast reply without an
+ACK. `xtcpnl.IsRdmaGetCmd` still refuses `GET_CHARDEV`, so no other request
+path can send it.
 
-`xtcpnl.ParseRdmaChardev(b []byte, out *RdmaChardev) error` fills:
+`xtcpnl.ParseRdmaChardev(b []byte, kind ChardevKind, out *RdmaChardev) error`
+checks the reply against the kind the request named (the name's prefix, and a
+driver id for uverbs only) and fills:
 
 | Field | Attribute | Notes |
 |---|---|---|
-| `Dev uint64` | `RDMA_NLDEV_ATTR_CHARDEV` | Decoded from `new_encode_dev` into major and minor, as `libibverbs/ibdev_nl.c` does |
+| `Dev uint64` | `RDMA_NLDEV_ATTR_CHARDEV` | `huge_encode_dev`, decoded into major and minor as `libibverbs/ibdev_nl.c` does |
 | `Name [16]byte`, `NameLen uint8` | `RDMA_NLDEV_ATTR_CHARDEV_NAME` | Fixed array, so parsing never allocates. `uverbsN`, `umadN` |
-| `ABI uint64` | `RDMA_NLDEV_ATTR_CHARDEV_ABI` | Checked: uverbs 6, umad 5 or later |
+| `ABI uint64` | `RDMA_NLDEV_ATTR_CHARDEV_ABI` | Not checked by the parser. For uverbs it is the driver's `uverbs_abi_ver` (mlx5 1, rxe 2, ionic 1), not the global uverbs ABI, which libibverbs fixes at 6 itself. For umad it is `IB_USER_MAD_ABI_VERSION`; R2-T02 requires 5 or later before it opens the node |
 | `DriverID uint32`, `HasDriverID bool` | `RDMA_NLDEV_ATTR_UVERBS_DRIVER_ID` | uverbs only; needed only by C2a |
 
 The linuxio client opens `/dev/infiniband/<name>` with `O_CLOEXEC`, and for
@@ -119,13 +130,15 @@ Uppers and masters come from the link dump the monitor already holds, through
 | `RTM_NEWADDR`, `RTM_DELADDR` | `ifa_index` mapped directly or through an upper | `Topology` for each mapped port |
 | Anything else, or an unmapped ifindex | | Nothing |
 
-`Translator.Translate(msg []byte, out *[maxPorts]rdmaevents.Event) (int, error)`
+`Translator.Translate(msgType uint16, body []byte, out *[MaxPorts]rdmaevents.Event) (int, error)`
 writes into a caller array and returns the count. Last state is a `[]uint8`
 indexed like `byIfindex`. It is owned by the single reading goroutine, so it
 needs no lock.
 
-Initial state comes from the same link dump, so the first `RTM_NEWLINK` after
-startup is not mistaken for a transition. A resync, after `ENOBUFS` or a
+`Translator.Seed` records a dumped state without reporting it. The source does
+not seed: an unknown state reports the first `RTM_NEWLINK` per port, at most
+one extra Refresh per port per source, rather than ordering a dump against
+the notifications or trusting a stale one. A resync, after `ENOBUFS` or a
 lifecycle refresh, rebuilds both state and map. The resync emits one port-0
 `Refresh` per device, the same as the verbs source does after `ErrLost`.
 
@@ -133,7 +146,13 @@ lifecycle refresh, rebuilds both state and map. The resync emits one port-0
 
 `linuxio.DecodeRDMANotifications` keeps its current signature for the
 existing caller. A new `DecodeRDMANotificationsInto(data []byte, emit func(RDMANotification) bool) error`
-reports a `RDMANotification{Kind, DevIndex, Port, NetdevIndex}`. Mapping:
+reports a `RDMANotification{Kind, EventType, DevIndex, Port, NetdevIndex}`,
+each identifier with a presence flag, because `rdma_nl_notify_event` sends
+them by event type and namespace. An unknown event type is emitted as
+`RDMANotifyUnknown` with its raw value, exactly as the legacy decoder
+invalidates on it; the source counts and skips it. `Fatal(held)` is true only
+for `UNREGISTER` of a device index the caller holds, so the mapping below lives
+in R1-T04's source without `linuxio` importing `rdmaevents`. Mapping:
 
 | NLDEV event | Output |
 |---|---|
@@ -141,6 +160,14 @@ reports a `RDMANotification{Kind, DevIndex, Port, NetdevIndex}`. Mapping:
 | `RDMA_UNREGISTER_EVENT` for a mapped device | `Fatal` for that device |
 | `RDMA_NETDEV_ATTACH_EVENT`, `RDMA_NETDEV_DETACH_EVENT` | `Topology`, and the port map is rebuilt at the next commit |
 | `RDMA_RENAME_EVENT`, `RDMA_NETDEV_RENAME_EVENT` | `Topology` |
+
+The kernel allocates device indices from 0 (`xa_alloc_cyclic` over an
+`XA_FLAGS_ALLOC` array), so index 0 is a real device and the port map keeps a
+separate presence flag (`Binding.HasDevIndex`). A port the inventory found in
+sysfs alone has no index and is never matched by an UNREGISTER. On a driver
+without `disassociate_ucontext` (rxe), unregister waits for every open uverbs
+file and sends no DEVICE_FATAL, so the verbs source both misses the removal
+and delays it; the netlink source holds no uverbs file and reports it.
 
 ### Source
 
@@ -179,6 +206,15 @@ change to [METRICS.md](METRICS.md), made in R1-T04.
 6. `ioctl(IB_USER_MAD_UNREGISTER_AGENT)` and `close`. Both errors are joined
    with the primary error, as `query.h` reports them today.
 
+As built (R2-T02): step 1 finds the device's NLDEV index by a device dump,
+then asks GET_CHARDEV, on a socket the exchange opens. Between steps 2 and 3,
+`ioctl(IB_USER_MAD_ENABLE_PKEY)` at umad ABI 5 selects the 64-byte header, as
+libibumad does; without it the kernel uses the 56-byte one. The TID is not
+taken from a counter: the kernel sets the upper half per agent, so `query`'s
+TID is unique per exchange. The error table below follows the cgo path for
+replies (`EPROTO`, the status errno) and for the 250 ms cap (`ETIMEDOUT`);
+`ErrReply` is kept for a bad node name or dev_t.
+
 Each query owns its fd, so there is no `umadLane` and no process-wide state.
 The transaction id's low 32 bits come from an `atomic.Uint32`; the kernel
 owns the high half (`user_mad.c:632-637`).
@@ -206,6 +242,12 @@ Two `linkmonitor.Config` fields, in the pattern of `IOBackend`:
 - Asking for a backend the build lacks, such as `verbs` in a `CGO_ENABLED=0`
   build, is a configuration error at `New`. It is never a silent fallback.
 - xtcp2 gets the same fields through the embedded `Config`.
+
+As built (R2-T03): `RDMAUMADBackend` is resolved once per session into
+`rdmacaps.Querier`; the resolved value is logged at start, with no metric. The
+native exchange returns `EOPNOTSUPP` before GET_CHARDEV when
+`/sys/class/infiniband_mad/abi_version` is absent, so a query never loads
+`ib_umad`, matching libibumad's own check.
 
 ## Wire layouts and the ABI guard
 
@@ -332,11 +374,11 @@ design introduces.
 
 | Name | Category | Description | Expected |
 |---|---|---|---|
-| captured_uverbs | positive | Every captured uverbs reply | Name, dev_t, ABI 6 and driver id equal the golden values |
-| captured_umad | positive | Every captured umad reply | Name, dev_t and ABI equal the golden values; no driver id |
+| captured_uverbs | positive | Every captured uverbs reply | Name, dev_t, driver ABI and driver id equal the golden values |
+| captured_umad | positive | A umad reply in `nldev_get_chardev`'s shape (synthetic: libibumad finds umad nodes through sysfs, so no capture sends GET_CHARDEV for umad) | Name, dev_t and ABI decoded; no driver id |
 | missing_name | negative | Reply without `CHARDEV_NAME` | `ErrReply` |
 | long_name | boundary | Name of 15 and 16 bytes | 15 accepted; 16 rejected |
-| old_abi | boundary | uverbs ABI 5 | Rejected as unsupported |
+| driver_abi | boundary | uverbs reply with driver ABI 1 or 2 | Accepted: it is the driver's ABI; the umad ABI check is R2-T02's |
 | devt_mismatch | corner | `fstat` dev_t differs from the reply | `ErrIdentity`; fd closed |
 
 ### rtnetlink translator and port map
@@ -360,7 +402,7 @@ design introduces.
 |---|---|---|---|
 | unregister | positive | Captured `UNREGISTER` for a held device | `Fatal` for that device |
 | attach | positive | Captured `NETDEV_ATTACH` | `Topology` |
-| unknown_event | negative | Event type 255 | Skipped and counted; source keeps running |
+| unknown_event | negative | Event type 255 | Emitted as `RDMANotifyUnknown` and decoding continues; the R1-T04 source skips and counts it |
 | legacy_callback | boundary | Existing `DecodeRDMANotifications` over the same captures | Same callback count as before the change |
 | unregister_unmapped | corner | `UNREGISTER` for a device the monitor does not hold | `Topology` only |
 
@@ -373,6 +415,10 @@ design introduces.
 | timeout_header | negative | Captured header with `status=ETIMEDOUT` and length 24 | `DeadlineExceeded` |
 | reg_req2_layout | boundary | Encoded `reg_req2` | 40 bytes; each field at its guard offset |
 | tid_high_half | corner | Reply whose TID high half differs from the request | Accepted |
+
+As built (R2-T01): no capture holds MAD bytes, because no captured host
+registers an SMI agent, so "captured" here means golden packets built from
+`ib_user_mad.h` and libibumad's `umad_send` and `umad_set_addr`.
 
 ### Backend selection
 

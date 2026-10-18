@@ -30,9 +30,74 @@ type SpeedMasks struct{ Supported, Enabled, Active uint8 }
 
 type exchange func(context.Context, string, uint32, [256]byte) ([256]byte, error)
 
-// Query reads only the selected local port. No remote destination is accepted.
+// Backend is a UMAD transport.
+type Backend uint8
+
+const (
+	// Auto is Libibumad when this build has it and Native otherwise.
+	Auto Backend = iota
+	// Libibumad is the cgo libibumad exchange, serialized process-wide. Only
+	// a Linux build with the rdma tag and cgo has it (LibibumadAvailable).
+	Libibumad
+	// Native is the cgo-free exchange: each query owns its descriptor and
+	// agent, so queries never wait on one another. Linux only.
+	Native
+)
+
+// Resolve returns the backend Auto stands for in this build; other values
+// are returned as they are.
+func (b Backend) Resolve() Backend {
+	if b == Auto {
+		if LibibumadAvailable {
+			return Libibumad
+		}
+		return Native
+	}
+	return b
+}
+
+func (b Backend) String() string {
+	switch b {
+	case Auto:
+		return "auto"
+	case Libibumad:
+		return "libibumad"
+	case Native:
+		return "native"
+	}
+	return "unknown"
+}
+
+// transport is b's exchange. A backend this build lacks, or no backend at
+// all, reports ErrUnavailable from every query.
+func (b Backend) transport() exchange {
+	switch b {
+	case Auto:
+		return b.Resolve().transport()
+	case Libibumad:
+		return exchangeLocal
+	case Native:
+		return exchangeNative
+	}
+	return exchangeUnavailable
+}
+
+func exchangeUnavailable(context.Context, string, uint32, [256]byte) ([256]byte, error) {
+	return [256]byte{}, ErrUnavailable
+}
+
+// Query reads only the selected local port over the Auto backend. No remote
+// destination is accepted.
 func Query(ctx context.Context, device string, port uint32) (Capabilities, error) {
-	return query(ctx, device, port, exchangeLocal)
+	return query(ctx, device, port, Auto.transport())
+}
+
+// Querier returns Query over backend b's transport, chosen once here.
+func Querier(b Backend) func(context.Context, string, uint32) (Capabilities, error) {
+	send := b.transport()
+	return func(ctx context.Context, device string, port uint32) (Capabilities, error) {
+		return query(ctx, device, port, send)
+	}
 }
 
 func query(ctx context.Context, device string, port uint32, send exchange) (Capabilities, error) {

@@ -52,6 +52,11 @@ in
     go test -tags rdma,ionic_vm -c -o "$out/bin/ionic-vm.test" ./pkg/linkmonitor
     go test -tags rdma,ionic_vm -c -o "$out/bin/ionic-vm-events.test" ./pkg/linkmonitor/internal/rdmaevents
     go test -tags nlrecord -c -o "$out/bin/linuxio-nlrecord.test" ./pkg/linkmonitor/internal/linuxio
+    # The live umad rows (R2-T03): both backends in the cgo build, native only
+    # in the cgo-free one.
+    go test -tags rdma,rdma_vm -c -o "$out/bin/rdmacaps-vm.test" ./pkg/linkmonitor/internal/rdmacaps
+    CGO_ENABLED=0 go test -tags rdma_vm -c -o "$out/bin/rdmacaps-vm-native.test" ./pkg/linkmonitor/internal/rdmacaps
+    if readelf -d "$out/bin/rdmacaps-vm-native.test" | grep -q NEEDED; then exit 1; fi
     ln -s ${runtime} "$out/runtime"
     readelf -d "$out/bin/linkmonitor-smoke" > "$out/elf.txt"
     ldd "$out/bin/linkmonitor-smoke" > "$out/ldd.txt"

@@ -1,0 +1,29 @@
+File: xtcpnl.test
+Build ID: 055d31eb50d25b2a95ca20bf7a3776e339c5fcbc
+Type: alloc_space
+Time: 2026-10-18 21:13:09 UTC
+Showing nodes accounting for 4273.63kB, 100% of 4273.63kB total
+      flat  flat%   sum%        cum   cum%
+ 1184.27kB 27.71% 27.71%  1184.27kB 27.71%  runtime/pprof.StartCPUProfile
+  902.59kB 21.12% 48.83%  1553.21kB 36.34%  compress/flate.NewWriter (inline)
+  650.62kB 15.22% 64.06%   650.62kB 15.22%  compress/flate.(*compressor).init
+  512.08kB 11.98% 76.04%   512.08kB 11.98%  compress/gzip.NewWriterLevel
+  512.05kB 11.98% 88.02%   512.05kB 11.98%  runtime.mallocgc
+  512.02kB 11.98%   100%   512.02kB 11.98%  testing.(*B).ResetTimer
+         0     0%   100%  1553.21kB 36.34%  compress/gzip.(*Writer).Write
+         0     0%   100%  1184.27kB 27.71%  main.main
+         0     0%   100%   512.05kB 11.98%  runtime.(*scavengerState).init
+         0     0%   100%   512.05kB 11.98%  runtime.bgscavenge
+         0     0%   100%  1184.27kB 27.71%  runtime.main
+         0     0%   100%   512.05kB 11.98%  runtime.newobject
+         0     0%   100%  1553.21kB 36.34%  runtime/pprof.(*profileBuilder).appendLocsForStack
+         0     0%   100%  1553.21kB 36.34%  runtime/pprof.(*profileBuilder).build
+         0     0%   100%  1553.21kB 36.34%  runtime/pprof.(*profileBuilder).emitLocation
+         0     0%   100%  1553.21kB 36.34%  runtime/pprof.(*profileBuilder).flush
+         0     0%   100%   512.08kB 11.98%  runtime/pprof.newProfileBuilder
+         0     0%   100%  2065.29kB 48.33%  runtime/pprof.profileWriter
+         0     0%   100%   512.02kB 11.98%  testing.(*B).run1.func1
+         0     0%   100%   512.02kB 11.98%  testing.(*B).runN
+         0     0%   100%  1184.27kB 27.71%  testing.(*M).Run
+         0     0%   100%  1184.27kB 27.71%  testing.(*M).before
+         0     0%   100%  1184.27kB 27.71%  testing/internal/testdeps.TestDeps.StartCPUProfile

@@ -577,6 +577,7 @@ Standalone command flags:
 | `-auth.admin-mode`, `-auth.admin-token-file`, `-auth.admin-hmac-key-file` | empty | Admin credential for rebaseline and resync; requires `-admin.address`; overrides GO_LINK_MONITOR_AUTH_ADMIN_* |
 | `-version` | false | Print build identity and exit |
 | `-rdma.events-backend` | `auto` | RDMA port events from `verbs` (cgo `rdma` build) or `netlink` (rtnetlink plus NLDEV, no cgo); `auto` picks verbs when the build has it; a backend the build lacks is a configuration error ([GO-NATIVE-RDMA-DESIGN.md](GO-NATIVE-RDMA-DESIGN.md#backend-selection)); overrides GO_LINK_MONITOR_RDMA_EVENTS_BACKEND |
+| `-rdma.umad-backend` | `auto` | InfiniBand PortInfo queries (`rdma_capabilities`) through `libibumad` (cgo `rdma` build; one query at a time per process) or `native` (the umad device directly, no cgo; each query owns its descriptor); `auto` picks libibumad when the build has it; a backend the build lacks is a configuration error ([GO-NATIVE-RDMA-DESIGN.md](GO-NATIVE-RDMA-DESIGN.md#backend-selection)); overrides GO_LINK_MONITOR_RDMA_UMAD_BACKEND |
 | `-io-backend` | `poller` | Ordinary nonblocking sockets by default; explicit `io_uring` requires supported backend initialization |
 
 Both single- and double-dash forms work. Maximum-speed exceptions, the four

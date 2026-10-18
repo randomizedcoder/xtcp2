@@ -196,6 +196,7 @@ let
   rdmaCaptureManifest = import ./tests/rdma-capture-manifest.nix { inherit pkgs vendoredSource; };
   captureRdmaTestdata = import ./capture-rdma-testdata.nix {
     inherit pkgs rdmaNativeCapture rdmaCaptureManifest;
+    umadTests = tests.test-linkmonitor-rdma-build;
   };
 
   # Asks the upstream remotes where `main` actually is and reports how far

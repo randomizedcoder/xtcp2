@@ -186,7 +186,10 @@ let
         stage="$TMPDIR/stage"
         values="$TMPDIR/values"
         rdma-native-capture --dry-run --out "$stage" --dev mlx5_0 --dev mlx5_1 --values "$values" \
-          --triggers gid,flap --iface eth0 --umad --driver mlx5_core > "$out/dry-run.txt"
+          --triggers gid,flap --iface eth0 --umad --umad-live loaded --umad-tests /nonexistent \
+          --driver mlx5_core > "$out/dry-run.txt"
+        test -e "$stage/umad/native_loaded-mlx5_1.strace"
+        test -e "$stage/umad/libibumad_loaded-mlx5_1.strace"
         "$TMPDIR/rdma-capture-manifest" write -dir "$stage" -source dry-run -values "$values"
         if [ ! -s "$values" ]; then
           echo "the dry run recorded no values to redact"

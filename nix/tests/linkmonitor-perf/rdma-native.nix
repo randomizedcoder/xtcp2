@@ -2,7 +2,7 @@
 #
 # `nix run path:.#bench-linkmonitor-rdma-native -- --output DIR` - the go-native
 # RDMA benchmark runner (cmd/go-link-monitor/GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md
-# R0-T05, R1-T06, R2-T03). It runs the cgo baselines from the compiled
+# R0-T05, R1-T06, R2-T01, R2-T03). It runs the cgo baselines from the compiled
 # performance artifact:
 #
 #   rdmaevents.test  BenchmarkPerformanceCGO   (batch 1, 8, 32, 64)
@@ -30,6 +30,12 @@
 #                    32, 64); the event path and the rtnetlink
 #                    listener both receive through it
 #   xtcpnl.test      BenchmarkParseChardev
+#   rdmacaps-native.test  BenchmarkEncodeUMADRequest, BenchmarkDecodeUMADReply,
+#                    BenchmarkEncodeRegisterAgent2, the umad codec, and
+#                    BenchmarkUMADExchange, the native transport over a
+#                    socketpair fake device, all cgo-free; the exchange is
+#                    also compared with BenchmarkPerformanceUMAD
+#                    (uncontended, contended) in umad-benchstat.txt
 #   core.test        BenchmarkPerformanceDecode, the monitor's existing
 #                    rtnetlink and ethtool decoders, which R1-T03's
 #                    translator must not be slower than
@@ -81,7 +87,7 @@ pkgs.writeShellApplication {
         --count) [ "$#" -ge 2 ] || usage; count=$2; shift 2 ;;
         --benchtime) [ "$#" -ge 2 ] || usage; benchtime=$2; shift 2 ;;
         --smoke) count=1; benchtime=1x; shift ;;
-        --native) names+=(native-rtnl native-events native-receive native-chardev decode-baseline); shift ;;
+        --native) names+=(native-rtnl native-events native-receive native-chardev native-umad decode-baseline); shift ;;
         -h | --help) usage ;;
         *) echo "bench-linkmonitor-rdma-native: unknown argument $1" >&2; usage ;;
       esac
@@ -96,12 +102,21 @@ pkgs.writeShellApplication {
 
     # The event path against the cgo batches it replaces: the cgo rows are
     # renamed so benchstat pairs them by batch size.
+    # The umad exchange likewise: the cgo lane against the native transport
+    # over the fake, uncontended and contended. The cgo side simulates buffer
+    # handling without I/O and the native side makes real socketpair
+    # syscalls, so B/op and allocs/op compare; sec/op shows the syscall cost.
     compare() {
       local dir=$1
       [[ " ''${names[*]} " == *" native-events "* ]] || return 0
       sed 's/^BenchmarkPerformanceCGO/BenchmarkEventPath/' "$dir/cgo-events.txt" > "$dir/cgo-events-renamed.txt"
       (cd "$dir" && benchstat cgo=cgo-events-renamed.txt native=native-events.txt > event-path-benchstat.txt)
       rm -f -- "$dir/cgo-events-renamed.txt"
+      [[ " ''${names[*]} " == *" native-umad "* ]] || return 0
+      sed 's/^BenchmarkPerformanceUMAD/BenchmarkUMADExchange/' "$dir/cgo-umad.txt" > "$dir/cgo-umad-renamed.txt"
+      grep -E '^(goos|goarch|pkg|cpu):|^BenchmarkUMADExchange/' "$dir/native-umad.txt" > "$dir/native-umad-exchange.txt"
+      (cd "$dir" && benchstat cgo=cgo-umad-renamed.txt native=native-umad-exchange.txt > umad-benchstat.txt)
+      rm -f -- "$dir/cgo-umad-renamed.txt" "$dir/native-umad-exchange.txt"
     }
 
     # Text evidence from a run directory: everything but the binary profiles,
@@ -177,6 +192,7 @@ pkgs.writeShellApplication {
       run native-events "${artifact}/bin/rdmanative.test" BenchmarkEventPath
       run native-receive "${artifact}/bin/nlconn.test" BenchmarkReceive
       run native-chardev "${artifact}/bin/xtcpnl.test" BenchmarkParseChardev
+      run native-umad "${artifact}/bin/rdmacaps-native.test" 'BenchmarkEncodeUMADRequest|BenchmarkDecodeUMADReply|BenchmarkEncodeRegisterAgent2|BenchmarkUMADExchange'
       run decode-baseline "${artifact}/bin/core.test" BenchmarkPerformanceDecode
     fi
 
@@ -184,7 +200,7 @@ pkgs.writeShellApplication {
     for name in "''${names[@]}"; do
       cat "$output/$name-benchstat.txt"
     done
-    for f in event-path-benchstat.txt; do
+    for f in event-path-benchstat.txt umad-benchstat.txt; do
       if [ -s "$output/$f" ]; then cat "$output/$f"; fi
     done
     if [ -n "$evidence" ]; then

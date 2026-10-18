@@ -1,0 +1,33 @@
+File: rdmaevents.test
+Build ID: abafc2c6c84fdfbec8af1bddebbbd9829b879b5c
+Type: alloc_space
+Time: 2026-10-18 21:03:51 UTC
+Showing nodes accounting for 2439.67kB, 100% of 2439.67kB total
+      flat  flat%   sum%        cum   cum%
+  902.59kB 37.00% 37.00%   902.59kB 37.00%  compress/flate.NewWriter (inline)
+     513kB 21.03% 58.02%      513kB 21.03%  runtime.mallocgc
+  512.08kB 20.99% 79.01%   512.08kB 20.99%  compress/gzip.NewWriterLevel
+     512kB 20.99%   100%      512kB 20.99%  os.newFile
+         0     0%   100%   902.59kB 37.00%  compress/gzip.(*Writer).Write
+         0     0%   100%      512kB 20.99%  os.Open (inline)
+         0     0%   100%      512kB 20.99%  os.OpenFile
+         0     0%   100%      512kB 20.99%  os.openFileNolog
+         0     0%   100%      513kB 21.03%  runtime.allocm
+         0     0%   100%      513kB 21.03%  runtime.mstart
+         0     0%   100%      513kB 21.03%  runtime.mstart0
+         0     0%   100%      513kB 21.03%  runtime.mstart1
+         0     0%   100%      513kB 21.03%  runtime.newm
+         0     0%   100%      513kB 21.03%  runtime.newobject
+         0     0%   100%      513kB 21.03%  runtime.resetspinning
+         0     0%   100%      513kB 21.03%  runtime.schedule
+         0     0%   100%      513kB 21.03%  runtime.startm
+         0     0%   100%      513kB 21.03%  runtime.wakep
+         0     0%   100%   902.59kB 37.00%  runtime/pprof.(*profileBuilder).appendLocsForStack
+         0     0%   100%   902.59kB 37.00%  runtime/pprof.(*profileBuilder).build
+         0     0%   100%   902.59kB 37.00%  runtime/pprof.(*profileBuilder).emitLocation
+         0     0%   100%   902.59kB 37.00%  runtime/pprof.(*profileBuilder).flush
+         0     0%   100%      512kB 20.99%  runtime/pprof.(*profileBuilder).readMapping
+         0     0%   100%      512kB 20.99%  runtime/pprof.elfBuildID
+         0     0%   100%  1024.08kB 41.98%  runtime/pprof.newProfileBuilder
+         0     0%   100%      512kB 20.99%  runtime/pprof.parseProcSelfMaps
+         0     0%   100%  1926.67kB 78.97%  runtime/pprof.profileWriter

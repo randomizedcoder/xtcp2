@@ -17,20 +17,23 @@ type lifecycleSession struct {
 	rdmaEventSource rdmaEventFactory
 	// rdmaEventsBackend is Config.RDMAEventsBackend, resolved when opened.
 	rdmaEventsBackend RDMAEventsBackend
-	clock             model.Clock
-	namespace         uint64
-	store             model.BaselineStore
-	collectors        workerFactory
-	inventory         func(context.Context) (inventoryBackend, error)
-	subscribe         subscriptionFactory
-	cleaned           <-chan struct{} // Initialized during shutdown; safe to inspect after Run returns.
-	statistics        bool
-	settings          bool
-	driverStatistics  bool
-	hostStatistics    bool
-	procRoot          string
-	statisticsConfig  configuration
-	sysfsRoot         string
+	// rdmaUMADBackend is Config.RDMAUMADBackend; the capability collector
+	// resolves it.
+	rdmaUMADBackend  RDMAUMADBackend
+	clock            model.Clock
+	namespace        uint64
+	store            model.BaselineStore
+	collectors       workerFactory
+	inventory        func(context.Context) (inventoryBackend, error)
+	subscribe        subscriptionFactory
+	cleaned          <-chan struct{} // Initialized during shutdown; safe to inspect after Run returns.
+	statistics       bool
+	settings         bool
+	driverStatistics bool
+	hostStatistics   bool
+	procRoot         string
+	statisticsConfig configuration
+	sysfsRoot        string
 }
 
 type lifecycleResources struct {

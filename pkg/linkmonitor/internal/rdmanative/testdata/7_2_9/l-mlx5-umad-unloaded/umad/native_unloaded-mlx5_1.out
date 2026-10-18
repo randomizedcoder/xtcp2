@@ -1,0 +1,11 @@
+=== RUN   TestUMADLive
+=== RUN   TestUMADLive/native_unloaded
+    umad_vm_linux_test.go:74: negative: native query with ib_umad not loaded; expected: EOPNOTSUPP, and ib_umad still not loaded
+    umad_vm_linux_test.go:78: result: operation not supported
+=== RUN   TestUMADLive/libibumad_unloaded
+    umad_vm_linux_test.go:74: negative: libibumad query with ib_umad not loaded; expected: EOPNOTSUPP from its abi_version check
+    umad_vm_linux_test.go:78: result: RDMA capability transport unavailable
+--- PASS: TestUMADLive (0.00s)
+    --- PASS: TestUMADLive/native_unloaded (0.00s)
+    --- PASS: TestUMADLive/libibumad_unloaded (0.00s)
+PASS

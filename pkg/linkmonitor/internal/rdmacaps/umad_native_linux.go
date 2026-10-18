@@ -22,6 +22,10 @@ const umadTimeoutCap = 250 * time.Millisecond
 // umadOps is the device I/O of one exchange. umadSys is the kernel's; tests
 // substitute a socketpair so the same code runs through write, poll and read.
 type umadOps interface {
+	// loaded reports whether ib_umad is loaded. It is checked first because
+	// GET_CHARDEV for umad would otherwise load the module, a side effect a
+	// read-only query must not have; libibumad fails the same way.
+	loaded() bool
 	resolve(ctx context.Context, device string, port uint32) (xtcpnl.RdmaChardev, error)
 	open(ch *xtcpnl.RdmaChardev) (int, error)
 	ioctl(fd int, request uintptr, arg unsafe.Pointer) error
@@ -66,6 +70,9 @@ func exchangeUMAD(ctx context.Context, ops umadOps, device string, port uint32, 
 		return reply, context.DeadlineExceeded
 	}
 	deadline := time.Now().Add(timeout)
+	if !ops.loaded() {
+		return reply, syscall.EOPNOTSUPP
+	}
 	x := new(umadExchange)
 	if x.ch, err = ops.resolve(ctx, device, port); err != nil {
 		return reply, err
@@ -161,6 +168,16 @@ func umadNodeName(b []byte) bool {
 
 // umadSys is the kernel's umad device.
 type umadSys struct{}
+
+// umadABIPath exists while ib_umad is loaded; libibumad reads it for the ABI.
+// It is NUL-terminated here so the check passes it without allocating.
+var umadABIPath = []byte("/sys/class/infiniband_mad/abi_version\x00")
+
+func (umadSys) loaded() bool {
+	cwd := unix.AT_FDCWD
+	_, _, errno := unix.Syscall(unix.SYS_FACCESSAT, uintptr(cwd), uintptr(unsafe.Pointer(&umadABIPath[0])), unix.F_OK)
+	return errno == 0
+}
 
 // resolve finds device's NLDEV index, then asks GET_CHARDEV for port's umad
 // node, on a NETLINK_RDMA socket of its own.

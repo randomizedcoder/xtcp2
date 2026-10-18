@@ -1,0 +1,14 @@
+File: nlconn.test
+Build ID: 44f1414878f3e7c22ef23f63adfef773ae675dde
+Type: alloc_space
+Time: 2026-10-18 21:12:56 UTC
+Showing nodes accounting for 1007.10MB, 98.67% of 1020.66MB total
+Dropped 42 nodes (cum <= 5.10MB)
+      flat  flat%   sum%        cum   cum%
+ 1007.10MB 98.67% 98.67%  1007.10MB 98.67%  context.AfterFunc
+         0     0% 98.67%  1007.10MB 98.67%  github.com/randomizedcoder/xtcp2/pkg/nlconn.(*Conn).Receive
+         0     0% 98.67%  1007.10MB 98.67%  github.com/randomizedcoder/xtcp2/pkg/nlconn.(*Conn).operation
+         0     0% 98.67%  1011.88MB 99.14%  github.com/randomizedcoder/xtcp2/pkg/nlconn.BenchmarkReceive.func1
+         0     0% 98.67%     6.06MB  0.59%  runtime/pprof.profileWriter
+         0     0% 98.67%  1012.38MB 99.19%  testing.(*B).run1.func1
+         0     0% 98.67%  1012.38MB 99.19%  testing.(*B).runN

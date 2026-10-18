@@ -6,7 +6,8 @@
 # hardware, written for host `l` (mlx5_0 and mlx5_1).
 #
 #   capture-rdma-testdata [--dev DEV]... [--source NAME] [--out ROOT]
-#                         [--gid-trigger IFACE] [--umad] [--dry-run]
+#                         [--gid-trigger IFACE] [--umad]
+#                         [--umad-live unloaded|loaded] [--dry-run]
 #
 # Read-only by default: GET_CHARDEV and NLDEV under strace, and sysfs copies.
 # The two opt-ins change the host and need root and the operator's approval:
@@ -15,6 +16,12 @@
 #                        nlmon and ibv_asyncwatch record (GID change events)
 #   --umad               smpquery and perfquery under strace; ib_umad must
 #                        already be loaded, this never loads a module
+#   --umad-live PHASE    the R2-T03 live umad rows (TestUMADLive, native and
+#                        libibumad builds from test-linkmonitor-rdma-build)
+#                        under strace: `unloaded` with ib_umad not loaded,
+#                        then `loaded` after the operator loads it. Give each
+#                        phase its own --source, since a run replaces its
+#                        directory
 #
 # The stage is redacted (GUIDs, GIDs, MACs and addresses become documentation
 # values) and written with its manifest to ROOT/<kernel>/<source>/, replacing
@@ -25,6 +32,7 @@
   pkgs,
   rdmaNativeCapture,
   rdmaCaptureManifest,
+  umadTests,
 }:
 pkgs.writeShellApplication {
   name = "capture-rdma-testdata";
@@ -38,7 +46,8 @@ pkgs.writeShellApplication {
   text = ''
     usage() {
       echo "usage: capture-rdma-testdata [--dev DEV]... [--source NAME] [--out ROOT]" >&2
-      echo "                             [--gid-trigger IFACE] [--umad] [--dry-run]" >&2
+      echo "                             [--gid-trigger IFACE] [--umad]" >&2
+      echo "                             [--umad-live unloaded|loaded] [--dry-run]" >&2
       exit 2
     }
 
@@ -47,6 +56,7 @@ pkgs.writeShellApplication {
     root=""
     gid_iface=""
     umad=0
+    umad_live=""
     dry_run=0
     while [ $# -gt 0 ]; do
       case "$1" in
@@ -55,6 +65,7 @@ pkgs.writeShellApplication {
         --out) root=$2; shift 2 ;;
         --gid-trigger) gid_iface=$2; shift 2 ;;
         --umad) umad=1; shift ;;
+        --umad-live) umad_live=$2; shift 2 ;;
         --dry-run) dry_run=1; shift ;;
         -h | --help) usage ;;
         *) echo "capture-rdma-testdata: unknown argument $1" >&2; usage ;;
@@ -112,6 +123,9 @@ pkgs.writeShellApplication {
     fi
     if [ "$umad" -eq 1 ]; then
       args+=(--umad)
+    fi
+    if [ -n "$umad_live" ]; then
+      args+=(--umad-live "$umad_live" --umad-tests ${umadTests}/bin)
     fi
     if [ "$dry_run" -eq 1 ]; then
       args+=(--dry-run)

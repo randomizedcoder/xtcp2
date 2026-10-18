@@ -34,6 +34,7 @@ const (
 	ttlEnvironment         = "GO_LINK_MONITOR_ON_DEMAND_TTL"
 	waitEnvironment        = "GO_LINK_MONITOR_ON_DEMAND_WAIT"
 	rdmaEventsEnvironment  = "GO_LINK_MONITOR_RDMA_EVENTS_BACKEND"
+	rdmaUMADEnvironment    = "GO_LINK_MONITOR_RDMA_UMAD_BACKEND"
 	ipPathsEnvironment     = "GO_LINK_MONITOR_IP_PATHS"
 	ipMaxBytesEnvironment  = "GO_LINK_MONITOR_IP_MAX_BYTES"
 
@@ -110,6 +111,9 @@ func parseOptions(args []string, output io.Writer, getenv func(string) string) (
 	rdmaEvents := string(opts.monitor.RDMAEventsBackend)
 	flags.StringVar(&rdmaEvents, "rdma.events-backend", rdmaEvents,
 		"RDMA port events from: auto (verbs in a cgo rdma build, otherwise netlink), verbs or netlink; overrides "+rdmaEventsEnvironment)
+	rdmaUMAD := string(opts.monitor.RDMAUMADBackend)
+	flags.StringVar(&rdmaUMAD, "rdma.umad-backend", rdmaUMAD,
+		"InfiniBand PortInfo queries through: auto (libibumad in a cgo rdma build, otherwise native), libibumad or native; overrides "+rdmaUMADEnvironment)
 	flags.BoolVar(&opts.version, "version", false, "Print build identity and exit")
 	if err := flags.Parse(args); err != nil {
 		return opts, err
@@ -134,6 +138,7 @@ func parseOptions(args []string, output io.Writer, getenv func(string) string) (
 		{"on-demand.ttl", ttlEnvironment, &ttl},
 		{"on-demand.wait", waitEnvironment, &wait},
 		{"rdma.events-backend", rdmaEventsEnvironment, &rdmaEvents},
+		{"rdma.umad-backend", rdmaUMADEnvironment, &rdmaUMAD},
 	}, append(exposureFallbacks, adminFallbacks...)...) {
 		if value := getenv(fallback.environment); !explicit[fallback.flag] && value != "" {
 			*fallback.target = value
@@ -163,6 +168,7 @@ func parseOptions(args []string, output io.Writer, getenv func(string) string) (
 	}
 	opts.monitor.CollectionMode = linkmonitor.CollectionMode(mode)
 	opts.monitor.RDMAEventsBackend = linkmonitor.RDMAEventsBackend(rdmaEvents)
+	opts.monitor.RDMAUMADBackend = linkmonitor.RDMAUMADBackend(rdmaUMAD)
 	// A scrape must be answered inside the metrics timeout after its wait.
 	if opts.monitor.CollectionMode == linkmonitor.CollectionOnDemand && opts.monitor.OnDemandWait >= metricsTimeout {
 		return opts, fmt.Errorf("on-demand.wait %v must be under the %v metrics timeout", opts.monitor.OnDemandWait, metricsTimeout)

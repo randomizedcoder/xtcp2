@@ -1,0 +1,25 @@
+goos: linux
+goarch: amd64
+pkg: github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative
+cpu: AMD Ryzen Threadripper PRO 3945WX 12-Cores     
+BenchmarkTranslateRtnl-4      	86723410	        15.89 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTranslateRtnl-4      	73600846	        16.33 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTranslateRtnl-4      	81357994	        15.70 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTranslateRtnl-4      	70954485	        17.27 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTranslateRtnl-4      	74414284	        16.49 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTranslateRtnl-4      	72222832	        15.45 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTranslateRtnl-4      	75788158	        15.67 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTranslateRtnl-4      	65055934	        16.99 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTranslateRtnl-4      	77776377	        15.27 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTranslateRtnl-4      	69248276	        15.71 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeAsyncEvent-4   	100000000	        11.48 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeAsyncEvent-4   	110418276	        10.87 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeAsyncEvent-4   	100000000	        10.80 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeAsyncEvent-4   	89441124	        11.86 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeAsyncEvent-4   	100000000	        11.03 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeAsyncEvent-4   	100000000	        11.95 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeAsyncEvent-4   	97047216	        10.83 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeAsyncEvent-4   	89114460	        11.29 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeAsyncEvent-4   	100000000	        11.93 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeAsyncEvent-4   	100000000	        11.21 ns/op	       0 B/op	       0 allocs/op
+PASS

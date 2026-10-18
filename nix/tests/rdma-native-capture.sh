@@ -3,6 +3,7 @@
 # Usage:
 #   rdma-native-capture --out DIR --dev DEV [--dev DEV]... [--values FILE]
 #                       [--triggers gid[,flap] --iface IFACE] [--umad]
+#                       [--umad-live unloaded|loaded --umad-tests DIR]
 #                       [--driver NAME] [--dry-run]
 #
 # Writes one capture stage, in the layout of
@@ -14,6 +15,9 @@
 #   nlmon/<trigger>.pcap                    NETLINK_ROUTE around each trigger
 #   async/<dev>-<trigger>.strace|.out|...   ibv_asyncwatch reads (-xx)
 #   umad/<row>-<dev>-<port>.strace|...      smpquery portinfo and perfquery (--umad)
+#   umad/<backend>_<phase>-<dev>.strace|... TestUMADLive on port 1 through the
+#                                           native and libibumad builds
+#                                           (--umad-live)
 #   meta/uname|driver|firmware|rdma_core    for the manifest
 #   index.tsv                               each row's command and trigger
 #
@@ -24,7 +28,10 @@
 # removes the documentation address 2001:db8:5300::1/128 on IFACE; --triggers
 # flap takes IFACE down and up, which only the VM guests use. Each trigger
 # window creates and deletes one nlmon interface. --umad needs ib_umad loaded
-# already: this script never loads a module.
+# already: this script never loads a module. --umad-live runs the R2-T03 live
+# rows (pkg/linkmonitor/internal/rdmacaps/umad_vm_linux_test.go) from the test
+# binaries in --umad-tests: `unloaded` refuses to run with ib_umad loaded, and
+# `loaded` without it, so the operator loads the module between the two.
 #
 # --values FILE receives the real identifiers the stage holds (GUIDs, GIDs,
 # MACs, addresses), for the redaction. Keep it out of the repository.
@@ -38,6 +45,7 @@ usage() {
   cat >&2 <<'USAGE'
 usage: rdma-native-capture --out DIR --dev DEV [--dev DEV]... [--values FILE]
                            [--triggers gid[,flap] --iface IFACE] [--umad]
+                           [--umad-live unloaded|loaded --umad-tests DIR]
                            [--driver NAME] [--dry-run]
 USAGE
   exit 2
@@ -49,6 +57,8 @@ VALUES=""
 TRIGGERS=""
 IFACE=""
 UMAD=0
+UMAD_LIVE=""
+UMAD_TESTS=""
 DRY_RUN=0
 DRIVER=""
 while [ $# -gt 0 ]; do
@@ -59,6 +69,8 @@ while [ $# -gt 0 ]; do
     --triggers) TRIGGERS=$2; shift 2 ;;
     --iface) IFACE=$2; shift 2 ;;
     --umad) UMAD=1; shift ;;
+    --umad-live) UMAD_LIVE=$2; shift 2 ;;
+    --umad-tests) UMAD_TESTS=$2; shift 2 ;;
     --driver) DRIVER=$2; shift 2 ;;
     --dry-run) DRY_RUN=1; shift ;;
     -h | --help) usage ;;
@@ -73,14 +85,24 @@ if [ -n "$TRIGGERS" ] && [ -z "$IFACE" ]; then
   echo "rdma-native-capture: --triggers needs --iface" >&2
   exit 2
 fi
+case "$UMAD_LIVE" in
+  "") ;;
+  unloaded | loaded)
+    if [ -z "$UMAD_TESTS" ]; then
+      echo "rdma-native-capture: --umad-live needs --umad-tests" >&2
+      exit 2
+    fi
+    ;;
+  *) echo "rdma-native-capture: unknown --umad-live phase $UMAD_LIVE (unloaded, loaded)" >&2; exit 2 ;;
+esac
 for t in ${TRIGGERS//,/ }; do
   case "$t" in
     gid | flap) ;;
     *) echo "rdma-native-capture: unknown trigger $t (gid, flap)" >&2; exit 2 ;;
   esac
 done
-if [ "$DRY_RUN" -eq 0 ] && { [ -n "$TRIGGERS" ] || [ "$UMAD" -eq 1 ]; } && [ "$(id -u)" -ne 0 ]; then
-  echo "rdma-native-capture: --triggers and --umad need root" >&2
+if [ "$DRY_RUN" -eq 0 ] && { [ -n "$TRIGGERS" ] || [ "$UMAD" -eq 1 ] || [ -n "$UMAD_LIVE" ]; } && [ "$(id -u)" -ne 0 ]; then
+  echo "rdma-native-capture: --triggers, --umad and --umad-live need root" >&2
   exit 2
 fi
 
@@ -364,13 +386,17 @@ umad_loaded() {
   return 1
 }
 
-if [ "$UMAD" -eq 1 ] && [ "$DRY_RUN" -eq 0 ]; then
+if { [ "$UMAD" -eq 1 ] || [ "$UMAD_LIVE" = loaded ]; } && [ "$DRY_RUN" -eq 0 ]; then
   for dev in "${DEVS[@]}"; do
     if ! umad_loaded "$dev"; then
       echo "rdma-native-capture: no umad device for $dev; load ib_umad first (this tool never loads modules)" >&2
       exit 2
     fi
   done
+fi
+if [ "$UMAD_LIVE" = unloaded ] && [ "$DRY_RUN" -eq 0 ] && [ -e /sys/module/ib_umad ]; then
+  echo "rdma-native-capture: --umad-live unloaded needs ib_umad not loaded (this tool never removes modules)" >&2
+  exit 2
 fi
 
 write_meta
@@ -403,6 +429,17 @@ if [ "$UMAD" -eq 1 ]; then
       row umad "smpquery_portinfo-$dev-$port" smpquery -C "$dev" -P "$port" -D portinfo 0
       row umad "perfquery-$dev-$port" perfquery -C "$dev" -P "$port"
     done
+  done
+fi
+
+# The live rows query port 1 of each device. Each binary's rc is kept like
+# any row's; the Go test over the capture checks it and the verdicts.
+if [ -n "$UMAD_LIVE" ]; then
+  for dev in "${DEVS[@]}"; do
+    row umad "native_$UMAD_LIVE-$dev" env LINKMONITOR_UMAD_DEVICE="$dev" LINKMONITOR_UMAD_PHASE="$UMAD_LIVE" \
+      "$UMAD_TESTS/rdmacaps-vm-native.test" -test.run '^TestUMADLive$' -test.v
+    row umad "libibumad_$UMAD_LIVE-$dev" env LINKMONITOR_UMAD_DEVICE="$dev" LINKMONITOR_UMAD_PHASE="$UMAD_LIVE" \
+      "$UMAD_TESTS/rdmacaps-vm.test" -test.run '^TestUMADLive$' -test.v
   done
 fi
 

@@ -16,6 +16,10 @@ import (
 	"unsafe"
 )
 
+// LibibumadAvailable reports whether this build has the cgo libibumad
+// transport that Libibumad needs.
+const LibibumadAvailable = true
+
 // rdma-core 63.0 libibumad keeps process-global ABI/buffer-layout state. Serialize
 // this adapter's library access across monitor instances; waiting is cancellable.
 var umadLane = make(chan struct{}, 1)

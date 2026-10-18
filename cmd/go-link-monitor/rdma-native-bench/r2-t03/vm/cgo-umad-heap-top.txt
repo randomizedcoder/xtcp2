@@ -1,0 +1,13 @@
+File: rdmacaps.test
+Build ID: a91f493fae9ab0f0fdf02f04e6b13e05f61e534a
+Type: alloc_space
+Time: 2026-10-18 21:04:22 UTC
+Showing nodes accounting for 29.99GB, 100% of 30GB total
+Dropped 47 nodes (cum <= 0.15GB)
+      flat  flat%   sum%        cum   cum%
+   29.99GB   100%   100%    29.99GB   100%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.benchmarkExchange
+         0     0%   100%    16.36GB 54.52%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.BenchmarkPerformanceUMAD.func1
+         0     0%   100%    13.64GB 45.46%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.BenchmarkPerformanceUMAD.func1.1
+         0     0%   100%    13.64GB 45.46%  testing.(*B).RunParallel.func1
+         0     0%   100%    16.36GB 54.52%  testing.(*B).run1.func1
+         0     0%   100%    16.36GB 54.52%  testing.(*B).runN

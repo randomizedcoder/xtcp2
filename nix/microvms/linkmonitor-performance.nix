@@ -144,10 +144,12 @@ pkgs.writeShellApplication {
       }
     cat "$log"
     grep -q LINKMONITOR_PERF_DONE "$log"
+    # The bundle reaches the console through journald, so systemd's shutdown
+    # status lines can land between its lines; keep only the guest's own.
     sed -n '/LINKMONITOR_PERF_BUNDLE_BEGIN/,/LINKMONITOR_PERF_BUNDLE_END/{
       /LINKMONITOR_PERF_BUNDLE_BEGIN/d
       /LINKMONITOR_PERF_BUNDLE_END/d
-      p
+      /linkmonitor-performance-guest\[[0-9]*\]: /p
     }' "$log" \
       | sed -E 's/^.*]: //' \
       | tr -cd 'A-Za-z0-9+/=' | base64 -d | tar -xzf - -C "$output"

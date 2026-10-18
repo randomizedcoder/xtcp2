@@ -59,6 +59,18 @@ let
       # The cgo-free build's monitor runs RDMA events from netlink.
       ${artifact}/bin/linkmonitor-core-smoke -rdma-events netlink
       echo XTCP2_SELF_TEST_RDMA_CORE_EVENTS_PASS
+      # The live umad rows (R2-T03), libibumad and native from the cgo build,
+      # native from the cgo-free one: first with ib_umad removed, which a
+      # native query must not load, then with it loaded.
+      modprobe -r ib_umad
+      for phase in unloaded loaded; do
+        if [ "$phase" = loaded ]; then modprobe ib_umad; udevadm settle; fi
+        for test in rdmacaps-vm rdmacaps-vm-native; do
+          LINKMONITOR_UMAD_DEVICE=lm_rxe LINKMONITOR_UMAD_PHASE=$phase \
+            ${artifact}/bin/$test.test -test.run '^TestUMADLive$' -test.v
+        done
+      done
+      echo XTCP2_SELF_TEST_RDMA_UMAD_PASS
       # Permission manipulation is confined to disposable guest fixture nodes.
       for node in /dev/infiniband/uverbs*; do chmod 600 "$node"; done
       if runuser -u rdma-denied -- ibv_devinfo -d lm_rxe; then
@@ -93,7 +105,7 @@ let
       echo
       echo XTCP2_NLREC_DUMP_END
       echo XTCP2_SELF_TEST_RDMA_CONTRACTS_PASS
-      echo 'UNVERIFIED: native InfiniBand UMAD PortInfo replies/speed/duplex.'
+      echo 'UNVERIFIED: native InfiniBand UMAD PortInfo replies/speed/duplex; rxe covers umad registration only.'
       echo XTCP2_SELF_TEST_OVERALL_PASS
     '';
   };
@@ -143,6 +155,7 @@ let
       "RDMA_RENAME"
       "RDMA_DIFFERENTIAL"
       "RDMA_CORE_EVENTS"
+      "RDMA_UMAD"
       "RDMA_PERMISSION"
       "RDMA_RECOVERY"
       "RDMA_CONTRACTS"

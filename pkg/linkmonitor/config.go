@@ -11,6 +11,7 @@ import (
 	"unicode"
 
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/model"
+	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps"
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmaevents"
 )
 
@@ -72,6 +73,67 @@ func validateRDMAEventsBackend(b RDMAEventsBackend) error {
 	return fmt.Errorf("%w: %q: want %s, %s or %s", ErrRDMAEventsBackend, b, RDMAEventsAuto, RDMAEventsVerbs, RDMAEventsNetlink)
 }
 
+// RDMAUMADBackend selects the transport of the InfiniBand PortInfo query
+// behind rdma_capabilities. Explicit choices never fall back.
+type RDMAUMADBackend string
+
+const (
+	// RDMAUMADAuto is libibumad when the build has the cgo binding and native
+	// otherwise.
+	RDMAUMADAuto RDMAUMADBackend = "auto"
+	// RDMAUMADLibibumad queries through libibumad, one query at a time per
+	// process; it needs the Linux rdma build tag, cgo and libibumad.
+	RDMAUMADLibibumad RDMAUMADBackend = "libibumad"
+	// RDMAUMADNative queries the umad device directly, without cgo; each
+	// query owns its descriptor, so ports are queried in parallel.
+	RDMAUMADNative RDMAUMADBackend = "native"
+)
+
+// RDMALibibumadAvailable reports whether this build has the cgo libibumad
+// binding that RDMAUMADLibibumad needs.
+const RDMALibibumadAvailable = rdmacaps.LibibumadAvailable
+
+// ErrRDMAUMADBackend is an RDMAUMADBackend that is unknown or that this build
+// lacks.
+var ErrRDMAUMADBackend = errors.New("linkmonitor: RDMA umad backend unavailable")
+
+// resolve returns the backend auto stands for in this build.
+func (b RDMAUMADBackend) resolve() RDMAUMADBackend {
+	if b == RDMAUMADAuto || b == "" {
+		if rdmacaps.LibibumadAvailable {
+			return RDMAUMADLibibumad
+		}
+		return RDMAUMADNative
+	}
+	return b
+}
+
+// caps is the rdmacaps backend of a validated one; rdmacaps resolves auto
+// as resolve does.
+func (b RDMAUMADBackend) caps() rdmacaps.Backend {
+	switch b {
+	case RDMAUMADLibibumad:
+		return rdmacaps.Libibumad
+	case RDMAUMADNative:
+		return rdmacaps.Native
+	case RDMAUMADAuto:
+	}
+	return rdmacaps.Auto // auto or empty
+}
+
+func validateRDMAUMADBackend(b RDMAUMADBackend) error {
+	switch b {
+	case RDMAUMADAuto, "", RDMAUMADNative: // empty is auto, so configurations predating the field stay valid
+		return nil
+	case RDMAUMADLibibumad:
+		if rdmacaps.LibibumadAvailable {
+			return nil
+		}
+		return fmt.Errorf("%w: %s needs a build with the rdma tag and cgo", ErrRDMAUMADBackend, b)
+	}
+	return fmt.Errorf("%w: %q: want %s, %s or %s", ErrRDMAUMADBackend, b, RDMAUMADAuto, RDMAUMADLibibumad, RDMAUMADNative)
+}
+
 // CollectionMode selects when detail collectors run.
 type CollectionMode string
 
@@ -98,6 +160,8 @@ type Config struct {
 	IOBackend          IOBackend
 	// RDMAEventsBackend is auto, verbs or netlink; see RDMAEventsBackend.
 	RDMAEventsBackend RDMAEventsBackend
+	// RDMAUMADBackend is auto, libibumad or native; see RDMAUMADBackend.
+	RDMAUMADBackend RDMAUMADBackend
 	// ErrorWindow and FlapWindow bound how long counter-increase and flap
 	// evidence keeps an interface problem active; zero disables the reason.
 	ErrorWindow, FlapWindow time.Duration
@@ -121,7 +185,7 @@ func DefaultConfig() Config {
 		BaselineFile: "/var/lib/go-link-monitor/baseline.json",
 		Settle:       30 * time.Second, Resync: time.Hour, StatsInterval: 15 * time.Second,
 		StatsInclude: ".*", StatsExclude: "^$", NetstatFields: ".*",
-		IOBackend: IOBackendPoller, RDMAEventsBackend: RDMAEventsAuto,
+		IOBackend: IOBackendPoller, RDMAEventsBackend: RDMAEventsAuto, RDMAUMADBackend: RDMAUMADAuto,
 		ErrorWindow: defaultProblemWindow, FlapWindow: defaultProblemWindow,
 		ErrorClasses:   []string{"link", "rdma"},
 		CollectionMode: CollectionOnDemand, WatchInterval: time.Minute, SlowInterval: 5 * time.Minute,
@@ -153,6 +217,9 @@ func validateConfig(cfg Config) (configuration, error) {
 		return result, fmt.Errorf("invalid I/O backend %q", cfg.IOBackend)
 	}
 	if err := validateRDMAEventsBackend(cfg.RDMAEventsBackend); err != nil {
+		return result, err
+	}
+	if err := validateRDMAUMADBackend(cfg.RDMAUMADBackend); err != nil {
 		return result, err
 	}
 	exceptions, err := normalizeExceptions(cfg.MaxSpeedExceptions)

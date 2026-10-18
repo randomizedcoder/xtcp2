@@ -182,15 +182,18 @@ func eventKey(e rdmaevents.Event) string {
 //     notification only when some socket receives it, and the guest's one
 //     listener was gone before the link came up. The source, subscribed
 //     throughout, would receive it.
+//   - The umad captures ran no trigger, so they hold no pcaps.
 var translationGolden = map[string]map[string]string{
-	"6_1_177/vm-rxe":   {"flap": "rxe0/1:R 2, rxe0/1:T 1", "gid": "rxe0/1:T 2"},
-	"6_6_144/vm-rxe":   {"flap": "rxe0/1:R 2, rxe0/1:T 2", "gid": "rxe0/1:T 2"},
-	"6_12_96/vm-rxe":   {"flap": "rxe0/1:R 2, rxe0/1:T 1", "gid": "rxe0/1:T 2"},
-	"6_18_39/vm-rxe":   {"flap": "rxe0/1:R 2, rxe0/1:T 1", "gid": "rxe0/1:T 2"},
-	"7_1_4/vm-rxe":     {"flap": "rxe0/1:R 2, rxe0/1:T 1", "gid": "rxe0/1:T 2"},
-	"7_2_0_rc3/vm-rxe": {"flap": "rxe0/1:R 2, rxe0/1:T 1", "gid": "rxe0/1:T 2"},
-	"7_1_4/vm-ionic":   {"flap": "ionic_0/1:R 1", "gid": "ionic_0/1:T 2"},
-	"7_2_9/l-mlx5":     {"gid": "mlx5_0/1:T 2"},
+	"6_1_177/vm-rxe":             {"flap": "rxe0/1:R 2, rxe0/1:T 1", "gid": "rxe0/1:T 2"},
+	"6_6_144/vm-rxe":             {"flap": "rxe0/1:R 2, rxe0/1:T 2", "gid": "rxe0/1:T 2"},
+	"6_12_96/vm-rxe":             {"flap": "rxe0/1:R 2, rxe0/1:T 1", "gid": "rxe0/1:T 2"},
+	"6_18_39/vm-rxe":             {"flap": "rxe0/1:R 2, rxe0/1:T 1", "gid": "rxe0/1:T 2"},
+	"7_1_4/vm-rxe":               {"flap": "rxe0/1:R 2, rxe0/1:T 1", "gid": "rxe0/1:T 2"},
+	"7_2_0_rc3/vm-rxe":           {"flap": "rxe0/1:R 2, rxe0/1:T 1", "gid": "rxe0/1:T 2"},
+	"7_1_4/vm-ionic":             {"flap": "ionic_0/1:R 1", "gid": "ionic_0/1:T 2"},
+	"7_2_9/l-mlx5":               {"gid": "mlx5_0/1:T 2"},
+	"7_2_9/l-mlx5-umad":          {},
+	"7_2_9/l-mlx5-umad-unloaded": {},
 }
 
 // checkAgainstVerbs is the differential rule: every device, port and kind

@@ -188,10 +188,15 @@ Alert and dashboard PromQL is in
   `netlink`. `auto` reads the verbs event queues in the cgo build and derives
   the same events from netlink otherwise, so the core build gets RDMA events
   too; `rdma_events_backend_info` shows which is running.
+- **InfiniBand capabilities.** `-rdma.umad-backend` is `auto` (default),
+  `libibumad` or `native`. `auto` queries PortInfo through libibumad in the
+  cgo build and through the umad device directly otherwise, so the core build
+  reports `rdma_capabilities` on native InfiniBand too.
 - **Inside xtcp2.** `xtcp2 -linkMonitor` embeds the same monitor and
   registers its summary on xtcp2's Prometheus listener, or every family with
   `-linkMonitorMetricsAll`; the OCI images run it on demand. The embedded
-  monitor uses `linkmonitor.Config.RDMAEventsBackend`, `auto` by default.
+  monitor uses `linkmonitor.Config.RDMAEventsBackend` and
+  `RDMAUMADBackend`, both `auto` by default.
 
 Run `go-link-monitor -h` for every flag.
 
