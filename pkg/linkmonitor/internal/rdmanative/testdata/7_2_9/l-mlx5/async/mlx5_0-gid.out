@@ -1,0 +1,5 @@
+mlx5_0: async event FD 4
+  event_type IBV_EVENT_GID_CHANGE (18), port 1
+  event_type IBV_EVENT_GID_CHANGE (18), port 1
+  event_type IBV_EVENT_GID_CHANGE (18), port 1
+  event_type IBV_EVENT_GID_CHANGE (18), port 1
