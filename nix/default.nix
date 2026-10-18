@@ -143,6 +143,7 @@ let
   linkmonitorPerformanceVm = import ./microvms/linkmonitor-performance.nix {
     inherit pkgs lib nixpkgs;
     artifact = tests.test-linkmonitor-performance;
+    rdmaNativeBench = linkmonitorPerformance.packages.bench-linkmonitor-rdma-native;
   };
 
   # Repeatable performance commands share the cached compiled artifact but

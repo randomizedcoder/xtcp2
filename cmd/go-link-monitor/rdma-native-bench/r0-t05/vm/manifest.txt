@@ -1,0 +1,8 @@
+kernel=Linux 6.18.39 x86_64
+cpu=AMD Ryzen Threadripper PRO 3945WX 12-Cores
+nproc=4
+go=go1.26.5
+count=10
+benchtime=1s
+artifact=/nix/store/z909f2h63cvg6899lw5ljwsqjyhin15s-xtcp2-test-linkmonitor-performance
+benchstat=goperf-0-unstable-2026-07-08

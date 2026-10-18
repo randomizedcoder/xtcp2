@@ -142,6 +142,15 @@ Done when: the status document's baseline table has ns/op, B/op and
 allocs/op for each benchmark and host, with an evidence id and the retained
 raw output.
 
+As built: `nix/tests/linkmonitor-perf/rdma-native.nix` runs the
+`rdmaevents.test` and `rdmacaps.test` binaries from the cached
+`test-linkmonitor-performance` artifact. It writes the raw output, CPU and
+heap profiles with `pprof -top` (the standalone pprof, since `go tool pprof`
+needs a C compiler to build itself), a `benchstat` summary and a manifest.
+`nix build path:.#test-linkmonitor-rdma-native-bench` gates the runner with a
+smoke run and an argument table. The performance VM runs it after the core
+benchmarks and fails unless it passes.
+
 ### R1 — Netlink-derived events
 
 #### R1-T01

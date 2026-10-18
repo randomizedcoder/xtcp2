@@ -13,6 +13,9 @@
 # nix run path:.#bench-linkmonitor-smoke (short),
 # nix run path:.#bench-linkmonitor (microbenchmarks), and
 # nix run path:.#bench-linkmonitor-soak (fresh ten-minute core/RDMA profiles).
+# Go-native RDMA baselines: nix run path:.#bench-linkmonitor-rdma-native -- --output DIR
+# (cgo benchmarks with -count=10, pprof and benchstat; gated by
+# nix build path:.#test-linkmonitor-rdma-native-bench).
 # External HTTP load and profiling use an operator-owned endpoint:
 # nix run path:.#siege-linkmonitor -- --url http://127.0.0.1:9088 --output /tmp/siege
 # nix run path:.#profile-linkmonitor -- --url http://127.0.0.1:9088 --output /tmp/pprof

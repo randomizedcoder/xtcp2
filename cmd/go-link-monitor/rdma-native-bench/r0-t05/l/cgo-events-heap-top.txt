@@ -1,0 +1,47 @@
+File: rdmaevents.test
+Build ID: abafc2c6c84fdfbec8af1bddebbbd9829b879b5c
+Type: alloc_space
+Time: 2026-10-17 23:24:42 PDT
+Showing nodes accounting for 7952.79kB, 100% of 7952.79kB total
+Showing top 40 nodes out of 51
+      flat  flat%   sum%        cum   cum%
+ 2571.10kB 32.33% 32.33%  2571.10kB 32.33%  runtime.mallocgc
+ 1762.94kB 22.17% 54.50%  1762.94kB 22.17%  runtime/pprof.StartCPUProfile
+ 1536.07kB 19.31% 73.81%  1536.07kB 19.31%  testing.(*B).ResetTimer
+  544.67kB  6.85% 80.66%   544.67kB  6.85%  compress/flate.newDeflateFast (inline)
+     514kB  6.46% 87.12%      514kB  6.46%  slices.Grow[go.shape.[]uint8,go.shape.uint8] (inline)
+  512.01kB  6.44% 93.56%   512.01kB  6.44%  runtime/pprof.elfBuildID
+  512.01kB  6.44%   100%   512.01kB  6.44%  testing.(*B).doBench
+         0     0%   100%   544.67kB  6.85%  compress/flate.(*compressor).init
+         0     0%   100%   544.67kB  6.85%  compress/flate.NewWriter (inline)
+         0     0%   100%   544.67kB  6.85%  compress/gzip.(*Writer).Write
+         0     0%   100%   512.01kB  6.44%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmaevents.BenchmarkPerformanceCGO
+         0     0%   100%  1762.94kB 22.17%  main.main
+         0     0%   100%      514kB  6.46%  os.ReadFile
+         0     0%   100%      514kB  6.46%  os.readFileContents
+         0     0%   100%   512.05kB  6.44%  runtime.acquireSudog
+         0     0%   100%     1539kB 19.35%  runtime.allocm
+         0     0%   100%   512.05kB  6.44%  runtime.gcBgMarkWorker
+         0     0%   100%   512.05kB  6.44%  runtime.gcMarkDone
+         0     0%   100%  1762.94kB 22.17%  runtime.main
+         0     0%   100%      513kB  6.45%  runtime.mcall
+         0     0%   100%     1026kB 12.90%  runtime.mstart
+         0     0%   100%     1026kB 12.90%  runtime.mstart0
+         0     0%   100%     1026kB 12.90%  runtime.mstart1
+         0     0%   100%     1539kB 19.35%  runtime.newm
+         0     0%   100%  2571.10kB 32.33%  runtime.newobject
+         0     0%   100%      513kB  6.45%  runtime.park_m
+         0     0%   100%   520.04kB  6.54%  runtime.procresize
+         0     0%   100%     1026kB 12.90%  runtime.resetspinning
+         0     0%   100%   520.04kB  6.54%  runtime.rt0_go
+         0     0%   100%   520.04kB  6.54%  runtime.schedinit
+         0     0%   100%     1539kB 19.35%  runtime.schedule
+         0     0%   100%   512.05kB  6.44%  runtime.semacquire (inline)
+         0     0%   100%   512.05kB  6.44%  runtime.semacquire1
+         0     0%   100%     1539kB 19.35%  runtime.startm
+         0     0%   100%     1539kB 19.35%  runtime.wakep
+         0     0%   100%   544.67kB  6.85%  runtime/pprof.(*profileBuilder).appendLocsForStack
+         0     0%   100%   544.67kB  6.85%  runtime/pprof.(*profileBuilder).build
+         0     0%   100%   544.67kB  6.85%  runtime/pprof.(*profileBuilder).emitLocation
+         0     0%   100%   544.67kB  6.85%  runtime/pprof.(*profileBuilder).flush
+         0     0%   100%  1026.01kB 12.90%  runtime/pprof.(*profileBuilder).readMapping
