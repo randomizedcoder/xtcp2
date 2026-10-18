@@ -705,10 +705,12 @@ func TestRunAddrArgs(t *testing.T) {
 			wantErrHas:  "Not enough information",
 		},
 		{
-			description: "negative: `addr flush` is refused as read-only",
+			// No longer refused as read-only (A8-T02): `ip` itself refuses a
+			// flush with no arguments, before any request.
+			description: "negative: `addr flush` with no arguments is refused as ip refuses it",
 			args:        []string{"addr", "flush"},
 			wantExit:    ExitUsage,
-			wantErrHas:  "read-only",
+			wantErrHas:  "Flush requires arguments",
 		},
 		{
 			// save/showdump/restore are reads, so they get the plain

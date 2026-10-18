@@ -301,6 +301,15 @@ func (s *Service) Addresses(family uint8, ifindex uint32) ([]model.Address, erro
 	return out, nil
 }
 
+// AddressBodies is Addresses with the replies left undecoded: the bodies
+// after each nlmsghdr, in dump order. `ip addr flush` copies each reply
+// whole into its RTM_DELADDR (ip/ipaddress.c:1562-1566), so it needs every
+// byte the kernel sent, not the fields a decoder keeps. Each round sends the
+// same request Addresses does.
+func (s *Service) AddressBodies(family uint8, ifindex uint32) ([][]byte, error) {
+	return s.src.Dump(req.AddrShowDump(family, ifindex, s.nextSeq()), uint16(unix.RTM_NEWADDR))
+}
+
 // AddrLinkGet performs ipaddr_link_get (ip/ipaddress.c:2052-2083), the
 // by-index single-get `ip addr show dev NAME` sends once ll_name_to_index has
 // resolved the selector.

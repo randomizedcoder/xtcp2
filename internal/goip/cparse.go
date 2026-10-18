@@ -1,14 +1,16 @@
 package goip
 
 import (
+	"errors"
 	"math"
 	"net/netip"
+	"strconv"
 	"strings"
 )
 
 // This file transcribes the libc and lib/utils.c number and address readers
 // the write path's argv parsing goes through: strtoul/strtol, get_u8/u16/u32,
-// get_s32, get_integer, get_index (ip/iplink_bond.c), get_addr_1 for AF_INET
+// get_s32, get_integer, atoi, get_index (ip/iplink_bond.c), get_addr_1 for AF_INET
 // and AF_INET6, and ll_addr_a2n (lib/ll_addr.c).
 //
 // strconv is not a substitute, and the differences are all inputs a user can
@@ -154,6 +156,41 @@ func getLong(arg string, base int) (int64, bool) {
 		return -int64(mag-1) - 1, true //nolint:gosec // mag <= 1<<63, checked above
 	}
 	return int64(mag), true //nolint:gosec // mag <= MaxInt64, checked above
+}
+
+// cAtoi is glibc's atoi: (int)strtol(s, NULL, 10). It reads the longest
+// prefix of space, a sign and decimal digits, so "3x" is 3 and "abc" is 0.
+// strtol clamps to the long range, and the cast to int keeps the low 32 bits,
+// so LONG_MAX reads as -1 and LONG_MIN as 0. The result is int64 so that the
+// wrap is arithmetic rather than a narrowing conversion.
+func cAtoi(s string) int64 {
+	i := 0
+	for i < len(s) && cIsSpace(s[i]) {
+		i++
+	}
+	start := i
+	if i < len(s) && (s[i] == '+' || s[i] == '-') {
+		i++
+	}
+	digits := i
+	for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+		i++
+	}
+	if i == digits {
+		return 0
+	}
+	// ParseInt clamps an out-of-range value to the int64 bounds, as strtol
+	// clamps to LONG_MIN and LONG_MAX, and reports ErrRange, which atoi
+	// ignores.
+	v, err := strconv.ParseInt(s[start:i], 10, 64)
+	if err != nil && !errors.Is(err, strconv.ErrRange) {
+		return 0
+	}
+	v &= math.MaxUint32
+	if v > math.MaxInt32 {
+		v -= 1 << 32
+	}
+	return v
 }
 
 // getS32 is get_s32: get_long's reading, then the int32 range.

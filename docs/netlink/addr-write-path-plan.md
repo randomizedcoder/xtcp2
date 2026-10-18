@@ -677,6 +677,26 @@ Done when:
 - the round-2 reply is excluded by rule
 - statement 11 is amended for `flush`
 
+As built:
+- `runAddrFlush` refuses no arguments, then `-0`, before any request. It
+  reuses the show loop and its lookups, and checks `GOIP_WRITE_OUT` once the
+  names resolve, so the dumps go out only when the copies can be written.
+- Flush filters with `print_addrinfo`'s tests alone (`matchFlush`): device,
+  family, scope, flags, label, `to` and proto. `up`, `down`, `group`,
+  `master` and `type` are parsed and ignored, as `ip` ignores them.
+- Each DEL is the reply's body through `BuildWriteRequest(RTM_DELADDR, …)`,
+  so it stays behind the write gate. pid is 0 where `ip` keeps the reply's.
+- Round 2 skips an address copied earlier by identity (family, index,
+  prefix length, `IFA_LOCAL`, `IFA_ADDRESS`), not by bytes, since a dynamic
+  address's lifetimes count down between dumps.
+- `-loops` is the first option, read with `atoi`, so `-l` and a bare `-` are
+  `-loops`. With no count it exits 255, as `missarg` does. A flush that runs
+  out of rounds also exits 255, because `do_cmd` returns `-(1)`. It still
+  writes what it copied.
+- `TestAddrFlushMatchesIpBytes` matches all nine sending slugs on the lookup,
+  every dump request, every DEL, ip's datagram split, stdout and stderr.
+  `flush_v6` deletes four addresses, its link-local included.
+
 #### A8-T03
 
 **The `Writes` field and the flush rows.** Depends on: A8-T02.

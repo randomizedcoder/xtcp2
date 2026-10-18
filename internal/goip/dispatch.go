@@ -205,6 +205,10 @@ type runCtx struct {
 	// increments, because the parity comparator zeroes nlmsg_seq before
 	// comparing and a wall-clock seed would only add noise to a capture.
 	seq uint32
+	// flushLoops is `ip -loops N`, max_flush_loops, when haveFlushLoops is
+	// set; maxFlushLoops says what an unset one means.
+	flushLoops     int64
+	haveFlushLoops bool
 	// now is the wall clock the one timestamp-rendering object (ntable's `-s`
 	// config block) reads, so a replay can reproduce a captured date. Set once
 	// in Run from GOIP_NOW (a test seam, like GOIP_REPLAY) or time.Now.

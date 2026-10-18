@@ -24,9 +24,9 @@ import (
 // that order, so goip resolves all three the same way.
 //
 // add, change, replace and delete build `ip`'s request and write it to
-// GOIP_WRITE_OUT (addrWrite); nothing is applied. flush is still refused as
-// read-only, and the default arm covers save/showdump/restore, which are
-// read-only but not implemented.
+// GOIP_WRITE_OUT (addrWrite), and flush sends `ip`'s dumps and writes its
+// RTM_DELADDR copies there (addrFlush); nothing is applied. The default arm
+// covers save/showdump/restore, which are read-only but not implemented.
 func runAddress(c *runCtx, args []string) error {
 	if len(args) == 0 {
 		return addrShow(c, nil)
@@ -39,10 +39,7 @@ func runAddress(c *runCtx, args []string) error {
 	case matchesPrefix(verb, showVerbCst), matchesPrefix(verb, lstVerbCst), matchesPrefix(verb, listVerbCst):
 		return addrShow(c, args[1:])
 	case matchesPrefix(verb, "flush"):
-		// Named explicitly, and refused for a stronger reason than "not
-		// written yet": a flush is a dump and then one RTM_DELADDR per
-		// address, and no dry run of it exists yet.
-		return fmt.Errorf("address %q: goip is read-only: %w", verb, ErrNotImplemented)
+		return addrFlush(c, args[1:])
 	default:
 		return fmt.Errorf("address %q: %w", verb, ErrNotImplemented)
 	}

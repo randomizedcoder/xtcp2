@@ -127,6 +127,40 @@ func TestGetIndex(t *testing.T) {
 	}
 }
 
+// TestCAtoi is glibc's atoi, which reads `-loops`' count.
+//
+// go test ./internal/goip/ -run TestCAtoi
+func TestCAtoi(t *testing.T) {
+	tests := []struct {
+		description string
+		arg         string
+		expected    int64
+	}{
+		{description: "positive: a count", arg: "3", expected: 3},
+		{description: "positive: a negative count", arg: "-1", expected: -1},
+		{description: "positive: a plus sign", arg: "+7", expected: 7},
+		{description: "corner: leading space is skipped", arg: " \t5", expected: 5},
+		{description: "corner: the digits are a prefix, so 3x is 3", arg: "3x", expected: 3},
+		{description: "corner: no digits is 0", arg: "abc", expected: 0},
+		{description: "corner: a sign alone is 0", arg: "-", expected: 0},
+		{description: "negative: empty is 0", arg: "", expected: 0},
+		{description: "corner: base 10 only, so 0x10 is 0", arg: "0x10", expected: 0},
+		{description: "corner: 010 is ten, not octal", arg: "010", expected: 10},
+		{description: "boundary: INT_MAX", arg: "2147483647", expected: 2147483647},
+		{description: "boundary: INT_MAX+1 keeps the low 32 bits", arg: "2147483648", expected: -2147483648},
+		{description: "boundary: 2^32 is 0", arg: "4294967296", expected: 0},
+		{description: "corner: past LONG_MAX clamps to it, which is -1 as an int", arg: "99999999999999999999", expected: -1},
+		{description: "corner: past LONG_MIN clamps to it, which is 0 as an int", arg: "-99999999999999999999", expected: 0},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			if got := cAtoi(tc.arg); got != tc.expected {
+				t.Errorf("atoi(%q) = %d, want %d", tc.arg, got, tc.expected)
+			}
+		})
+	}
+}
+
 // TestGetAddr is get_addr_1 for AF_INET (as get_addr32 reads it) and AF_INET6.
 //
 // go test ./internal/goip/ -run TestGetAddr
