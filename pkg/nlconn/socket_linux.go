@@ -40,22 +40,30 @@ type pollFile interface {
 	Close() error
 }
 
-type recvFunc func(int, []byte, []byte, int) (int, int, int, unix.Sockaddr, error)
+// recvFunc receives one datagram into the buffer and the sender into the
+// address: (fd, buffer, sender, flags) to (length, message flags, error).
+type recvFunc func(int, []byte, *unix.RawSockaddrNetlink, int) (int, int, error)
 type sendFunc func(int, []byte, []byte, unix.Sockaddr, int) (int, error)
 
 // Conn has a single owner for Send/Receive. Concurrent operations are rejected;
 // Close is safe concurrently, idempotent, and wakes a parked operation. The
 // caller must Close on every exit path. No descriptor integer escapes Conn.
 type Conn struct {
-	file      pollFile
-	raw       syscall.RawConn
-	recv      recvFunc
-	send      sendFunc
-	buffer    []byte
-	busy      atomic.Bool
-	closed    atomic.Bool
-	closeOnce sync.Once
-	closeErr  error
+	file   pollFile
+	raw    syscall.RawConn
+	recv   recvFunc
+	send   sendFunc
+	buffer []byte
+	rx     receiveState
+	// cancel closes the Conn when an operation's context is canceled and
+	// reports Close's error on cancelDone; operation registers it with
+	// context.AfterFunc. Both are built on first use and reused.
+	cancel     func()
+	cancelDone chan error
+	busy       atomic.Bool
+	closed     atomic.Bool
+	closeOnce  sync.Once
+	closeErr   error
 }
 
 type socketOps struct {
@@ -118,7 +126,7 @@ func openSocket(ctx context.Context, protocol int, groups []uint32, opts Options
 	if err != nil {
 		return nil, err
 	}
-	c := &Conn{file: file, raw: raw, recv: unix.Recvmsg, send: unix.SendmsgN, buffer: make([]byte, initialBuffer)}
+	c := &Conn{file: file, raw: raw, recv: recvmsgNetlink, send: unix.SendmsgN, buffer: make([]byte, initialBuffer)}
 	if err := ctx.Err(); err != nil {
 		return nil, errors.Join(err, c.Close())
 	}
@@ -172,6 +180,10 @@ func (c *Conn) Close() error {
 	return c.closeErr
 }
 
+// neverStarted is operation's stop for a context without a cancellation
+// hook: the hook never started, so there is nothing to wait for.
+func neverStarted() bool { return true }
+
 func (c *Conn) operation(ctx context.Context, deadline func(time.Time) error, run func() error) (err error) {
 	if !c.busy.CompareAndSwap(false, true) {
 		return ErrConcurrent
@@ -186,13 +198,20 @@ func (c *Conn) operation(ctx context.Context, deadline func(time.Time) error, ru
 	// AfterFunc creates no waiting goroutine. On cancellation it closes the
 	// pollable file. Wait for an already-started callback before releasing the
 	// operation so a callback can never close a later operation's descriptor.
-	done := make(chan error, 1)
-	stop := context.AfterFunc(ctx, func() {
-		done <- c.Close()
-	})
+	// That wait leaves cancelDone empty after every operation, so the callback
+	// and its channel are built once per Conn and reused. A context that is
+	// never canceled (Done is nil) needs no hook at all.
+	stop := neverStarted
+	if ctx.Done() != nil {
+		if c.cancel == nil {
+			c.cancelDone = make(chan error, 1)
+			c.cancel = func() { c.cancelDone <- c.Close() }
+		}
+		stop = context.AfterFunc(ctx, c.cancel)
+	}
 	defer func() {
 		if !stop() {
-			err = errors.Join(err, <-done)
+			err = errors.Join(err, <-c.cancelDone)
 		}
 		if ctx.Err() != nil {
 			err = errors.Join(ctx.Err(), err, c.Close())

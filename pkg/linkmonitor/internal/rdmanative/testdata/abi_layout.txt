@@ -28,6 +28,8 @@ rdmacaps umadRegReq2OffOUI 32
 rdmacaps umadRegReq2OffRMPP 36
 rdmacaps umadRegisterAgent2 0xc0281b04
 rdmacaps umadUnregisterAgent 0x40041b02
+rdmacaps umadEnablePKey 0x1b03
+rdmacaps umadABIVersion 5
 rdmacaps !umadRegisterAgent 0xc01c1b01
 rdmanative asyncEventDescLen 16
 rdmanative asyncEventDescOffElement 0
@@ -51,3 +53,17 @@ rdmanative eventSMChange 13
 rdmanative eventClientReregister 17
 rdmanative eventGIDChange 18
 rdmanative eventDeviceSpeedChange 20
+rdmanative ifinfomsgLen 16
+rdmanative ifinfomsgOffIndex 4
+rdmanative ifinfomsgOffFlags 8
+rdmanative ifaddrmsgLen 8
+rdmanative ifaddrmsgOffIndex 4
+rdmanative rtmNewLink 16
+rdmanative rtmDelLink 17
+rdmanative rtmNewAddr 20
+rdmanative rtmDelAddr 21
+rdmanative iffRunning 64
+rdmanative iffLowerUp 65536
+rdmanative rtnlGroupLink 1
+rdmanative rtnlGroupIPv4Addr 5
+rdmanative rtnlGroupIPv6Addr 9

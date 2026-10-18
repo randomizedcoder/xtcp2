@@ -1,0 +1,45 @@
+goos: linux
+goarch: amd64
+pkg: github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmaevents
+cpu: AMD Ryzen Threadripper PRO 3945WX 12-Cores     
+                          │ cgo-events.txt │
+                          │     sec/op     │
+PerformanceCGO/batch=1-4      30.42n ±  7%
+PerformanceCGO/batch=8-4      35.92n ± 16%
+PerformanceCGO/batch=32-4     43.03n ± 14%
+PerformanceCGO/batch=64-4     53.29n ± 25%
+geomean                       39.78n
+
+                          │ cgo-events.txt │
+                          │   cgo/event    │
+PerformanceCGO/batch=1-4        1.000 ± 0%
+PerformanceCGO/batch=8-4       125.0m ± 0%
+PerformanceCGO/batch=32-4      31.25m ± 0%
+PerformanceCGO/batch=64-4      15.62m ± 0%
+geomean                        88.38m
+
+                          │ cgo-events.txt │
+                          │   sec/event    │
+PerformanceCGO/batch=1-4      30.42n ±  7%
+PerformanceCGO/batch=8-4      4.490n ± 16%
+PerformanceCGO/batch=32-4     1.345n ± 14%
+PerformanceCGO/batch=64-4    0.8326n ± 26%
+geomean                       3.517n
+
+                          │ cgo-events.txt │
+                          │      B/op      │
+PerformanceCGO/batch=1-4      0.000 ± 0%
+PerformanceCGO/batch=8-4      0.000 ± 0%
+PerformanceCGO/batch=32-4     0.000 ± 0%
+PerformanceCGO/batch=64-4     0.000 ± 0%
+geomean                                  ¹
+¹ summaries must be >0 to compute geomean
+
+                          │ cgo-events.txt │
+                          │   allocs/op    │
+PerformanceCGO/batch=1-4      0.000 ± 0%
+PerformanceCGO/batch=8-4      0.000 ± 0%
+PerformanceCGO/batch=32-4     0.000 ± 0%
+PerformanceCGO/batch=64-4     0.000 ± 0%
+geomean                                  ¹
+¹ summaries must be >0 to compute geomean

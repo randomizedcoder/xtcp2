@@ -54,9 +54,10 @@ let
         -test.mutexprofile "$out/mutex.pprof" >"$out/bench.txt" 2>&1
 
       # The go-native RDMA cgo baselines (GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md
-      # R0-T05): simulated input, so no RDMA device is needed.
+      # R0-T05) and the native decoders beside them (R1-T03, R1-T06):
+      # simulated input, so no RDMA device is needed.
       set +e
-      ${rdmaNativeBench}/bin/bench-linkmonitor-rdma-native --output "$out/rdma-native" >"$out/rdma-native.log" 2>&1
+      ${rdmaNativeBench}/bin/bench-linkmonitor-rdma-native --native --output "$out/rdma-native" >"$out/rdma-native.log" 2>&1
       rdma_native_rc=$?
       set -e
 
@@ -143,10 +144,12 @@ pkgs.writeShellApplication {
       }
     cat "$log"
     grep -q LINKMONITOR_PERF_DONE "$log"
+    # The bundle reaches the console through journald, so systemd's shutdown
+    # status lines can land between its lines; keep only the guest's own.
     sed -n '/LINKMONITOR_PERF_BUNDLE_BEGIN/,/LINKMONITOR_PERF_BUNDLE_END/{
       /LINKMONITOR_PERF_BUNDLE_BEGIN/d
       /LINKMONITOR_PERF_BUNDLE_END/d
-      p
+      /linkmonitor-performance-guest\[[0-9]*\]: /p
     }' "$log" \
       | sed -E 's/^.*]: //' \
       | tr -cd 'A-Za-z0-9+/=' | base64 -d | tar -xzf - -C "$output"

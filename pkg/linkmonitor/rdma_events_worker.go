@@ -6,12 +6,20 @@ import (
 	"sync/atomic"
 
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmaevents"
+	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative"
 )
 
 type rdmaEventRequest struct {
 	ctx        context.Context
-	ids        []rdmaevents.Identity
+	set        rdmaEventSet
 	generation uint64
+}
+
+// rdmaEventSet is what a source is opened over: the verbs identities and, for
+// the netlink backend, the port map.
+type rdmaEventSet struct {
+	ids   []rdmaevents.Identity
+	ports *rdmanative.PortMap
 }
 
 type rdmaEventRecord struct {
@@ -98,7 +106,7 @@ func (w *rdmaEventWorker) serve(request rdmaEventRequest, factory rdmaEventFacto
 	if err := request.ctx.Err(); err != nil {
 		return err
 	}
-	source, err := factory(request.ctx, request.ids)
+	source, err := factory(request.ctx, request.set)
 	if err != nil {
 		return err
 	}

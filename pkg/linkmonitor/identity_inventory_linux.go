@@ -96,7 +96,8 @@ func (s *ethernetInventory) Dump(ctx context.Context) (model.Candidate, error) {
 		}
 		c.Devices = append(c.Devices, observation)
 		link := &result.Values[i]
-		c.NetdevLinks = append(c.NetdevLinks, model.NetdevLink{Index: uint32(link.Index), Lower: uint32(link.Link), Foreign: link.HasLinkNetnsID || link.Link < 0})
+		c.NetdevLinks = append(c.NetdevLinks, model.NetdevLink{Index: uint32(link.Index), Lower: uint32(link.Link),
+			Master: uint32(max(link.Master, 0)), Foreign: link.HasLinkNetnsID || link.Link < 0})
 		c.Statistics = append(c.Statistics, *statistics)
 	}
 	c.Complete, c.Finished = true, s.clock.Now()

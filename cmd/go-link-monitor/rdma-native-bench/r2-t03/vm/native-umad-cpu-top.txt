@@ -1,0 +1,49 @@
+File: rdmacaps-native.test
+Build ID: 51d6de4deae96cba4d6a70d0d96c48b88597d8b6
+Type: cpu
+Time: 2026-10-18 21:13:09 UTC
+Duration: 59.92s, Total samples = 64.98s (108.44%)
+Showing nodes accounting for 60.96s, 93.81% of 64.98s total
+Dropped 213 nodes (cum <= 0.32s)
+Showing top 40 nodes out of 80
+      flat  flat%   sum%        cum   cum%
+    21.18s 32.59% 32.59%     21.18s 32.59%  internal/runtime/syscall/linux.Syscall6
+     9.18s 14.13% 46.72%      9.18s 14.13%  runtime.memmove
+     7.17s 11.03% 57.76%      7.18s 11.05%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.encodeRegisterAgent2 (inline)
+     4.36s  6.71% 64.47%      4.36s  6.71%  testing.(*B).Loop (inline)
+     3.32s  5.11% 69.58%     11.85s 18.24%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.BenchmarkEncodeRegisterAgent2
+     2.91s  4.48% 74.05%     10.39s 15.99%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.decodeUMADReply
+     2.20s  3.39% 77.44%      2.77s  4.26%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.(*umadHeader).encode
+     1.88s  2.89% 80.33%      3.23s  4.97%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.(*umadHeader).decode
+     1.28s  1.97% 82.30%      8.93s 13.74%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.encodeUMADRequest
+     1.28s  1.97% 84.27%      1.28s  1.97%  runtime.procyieldAsm
+     1.13s  1.74% 86.01%      1.13s  1.74%  runtime.futex
+     0.67s  1.03% 87.04%      0.67s  1.03%  encoding/binary.littleEndian.Uint32 (inline)
+     0.66s  1.02% 88.06%     11.69s 17.99%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.BenchmarkEncodeUMADRequest
+     0.56s  0.86% 88.92%      0.56s  0.86%  encoding/binary.littleEndian.PutUint32 (inline)
+     0.42s  0.65% 89.57%      0.42s  0.65%  encoding/binary.bigEndian.Uint32 (inline)
+     0.31s  0.48% 90.04%      0.39s   0.6%  runtime.reentersyscall
+     0.28s  0.43% 90.47%      0.34s  0.52%  runtime.exitsyscall
+     0.26s   0.4% 90.87%      1.62s  2.49%  internal/sync.(*Mutex).lockSlow
+     0.24s  0.37% 91.24%     27.71s 42.64%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.exchangeUMAD
+     0.22s  0.34% 91.58%     11.27s 17.34%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.BenchmarkDecodeUMADReply
+     0.21s  0.32% 91.91%      1.83s  2.82%  internal/sync.(*Mutex).Lock (inline)
+     0.14s  0.22% 92.12%         7s 10.77%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.(*fakeUMAD).write
+     0.13s   0.2% 92.32%      7.62s 11.73%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.(*fakeUMAD).open
+     0.12s  0.18% 92.51%      0.69s  1.06%  internal/sync.(*Mutex).Unlock (inline)
+     0.09s  0.14% 92.64%      0.57s  0.88%  runtime.entersyscall
+     0.09s  0.14% 92.78%      0.46s  0.71%  runtime.stealWork
+     0.07s  0.11% 92.89%     13.81s 21.25%  syscall.Syscall
+     0.06s 0.092% 92.98%      6.59s 10.14%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.(*fakeUMAD).close
+     0.06s 0.092% 93.07%      0.89s  1.37%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.(*fakeUMAD).ioctl
+     0.05s 0.077% 93.15%      6.12s  9.42%  golang.org/x/sys/unix.Close
+     0.05s 0.077% 93.23%      1.55s  2.39%  golang.org/x/sys/unix.ppoll
+     0.05s 0.077% 93.31%      3.60s  5.54%  golang.org/x/sys/unix.read
+     0.05s 0.077% 93.38%      6.94s 10.68%  golang.org/x/sys/unix.socketpair
+     0.05s 0.077% 93.46%      4.24s  6.53%  golang.org/x/sys/unix.write
+     0.05s 0.077% 93.54%      0.36s  0.55%  runtime.futexsleep
+     0.05s 0.077% 93.61%      0.41s  0.63%  runtime.mallocgcSmallNoscan
+     0.04s 0.062% 93.67%      1.15s  1.77%  runtime.findRunnable
+     0.03s 0.046% 93.72%      1.94s  2.99%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.(*fakeUMAD).poll
+     0.03s 0.046% 93.77%      2.10s  3.23%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.umadWait
+     0.03s 0.046% 93.81%     21.21s 32.64%  syscall.RawSyscall6

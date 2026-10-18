@@ -1,0 +1,1183 @@
+{
+  "source": "l-mlx5-umad-unloaded",
+  "uname": "Linux 7.2.9 #1-NixOS SMP PREEMPT_DYNAMIC Sat Oct  3 10:43:16 UTC 2026 x86_64 GNU/Linux",
+  "driver": "mlx5_0=mlx5_core, mlx5_1=mlx5_core",
+  "firmware": "mlx5_0=14.27.4000, mlx5_1=14.27.4000",
+  "rdma_core": "63.0",
+  "files": [
+    {
+      "path": "nldev/dev_show-mlx5_0.err",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stream": "nldev",
+      "command": "rdma dev show mlx5_0"
+    },
+    {
+      "path": "nldev/dev_show-mlx5_0.out",
+      "sha256": "ac8f7912534d116b0bf1eff96b5c520cf1ec9defcd871ae1b83ea2d97ec8a9d5",
+      "stream": "nldev",
+      "command": "rdma dev show mlx5_0"
+    },
+    {
+      "path": "nldev/dev_show-mlx5_0.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "nldev",
+      "command": "rdma dev show mlx5_0"
+    },
+    {
+      "path": "nldev/dev_show-mlx5_0.strace",
+      "sha256": "cfa014fd0c85cb3106bf02230d814948fec1dee2f297b092f480eb04110f581a",
+      "stream": "nldev",
+      "command": "rdma dev show mlx5_0"
+    },
+    {
+      "path": "nldev/dev_show-mlx5_1.err",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stream": "nldev",
+      "command": "rdma dev show mlx5_1"
+    },
+    {
+      "path": "nldev/dev_show-mlx5_1.out",
+      "sha256": "320f3e45bb15723da0b6b6ae64fdcf1a9be5ccc6e86aa60501f23d56964446e2",
+      "stream": "nldev",
+      "command": "rdma dev show mlx5_1"
+    },
+    {
+      "path": "nldev/dev_show-mlx5_1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "nldev",
+      "command": "rdma dev show mlx5_1"
+    },
+    {
+      "path": "nldev/dev_show-mlx5_1.strace",
+      "sha256": "03ab92c21f6890e7ff137fb27447603cc27d9052651fc247028e4e497e5d3ff8",
+      "stream": "nldev",
+      "command": "rdma dev show mlx5_1"
+    },
+    {
+      "path": "nldev/devinfo-mlx5_0.err",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stream": "nldev",
+      "command": "ibv_devinfo -d mlx5_0"
+    },
+    {
+      "path": "nldev/devinfo-mlx5_0.out",
+      "sha256": "8a8564a14ea9a5a7dc9bea8ff32c08ceaeee6256aafedece4fbc817b585bdb57",
+      "stream": "nldev",
+      "command": "ibv_devinfo -d mlx5_0"
+    },
+    {
+      "path": "nldev/devinfo-mlx5_0.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "nldev",
+      "command": "ibv_devinfo -d mlx5_0"
+    },
+    {
+      "path": "nldev/devinfo-mlx5_0.strace",
+      "sha256": "8debe855a2141e2ee73b73df8c4cbc84408d4e3233854109d203b476cc09d8fd",
+      "stream": "nldev",
+      "command": "ibv_devinfo -d mlx5_0"
+    },
+    {
+      "path": "nldev/devinfo-mlx5_1.err",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stream": "nldev",
+      "command": "ibv_devinfo -d mlx5_1"
+    },
+    {
+      "path": "nldev/devinfo-mlx5_1.out",
+      "sha256": "12533ca1e8ba93e3b39642459420842e8cb0d560902034ef22a143b477caae8a",
+      "stream": "nldev",
+      "command": "ibv_devinfo -d mlx5_1"
+    },
+    {
+      "path": "nldev/devinfo-mlx5_1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "nldev",
+      "command": "ibv_devinfo -d mlx5_1"
+    },
+    {
+      "path": "nldev/devinfo-mlx5_1.strace",
+      "sha256": "430bd7718e142ae5d5bb46f0d659cf8cc5c0b812e769ba2357247c0ba597b23c",
+      "stream": "nldev",
+      "command": "ibv_devinfo -d mlx5_1"
+    },
+    {
+      "path": "nldev/devinfo_v-mlx5_0.err",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stream": "nldev",
+      "command": "ibv_devinfo -v -d mlx5_0"
+    },
+    {
+      "path": "nldev/devinfo_v-mlx5_0.out",
+      "sha256": "d5693fbe2e8f802799224b8eaca0f1223a67d20f2380491fc0cde52cfc04f12f",
+      "stream": "nldev",
+      "command": "ibv_devinfo -v -d mlx5_0"
+    },
+    {
+      "path": "nldev/devinfo_v-mlx5_0.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "nldev",
+      "command": "ibv_devinfo -v -d mlx5_0"
+    },
+    {
+      "path": "nldev/devinfo_v-mlx5_0.strace",
+      "sha256": "cfd27b6bb1d72c9d91367e9dd633fd7aeda450354a73085880c56a22abf8a4e9",
+      "stream": "nldev",
+      "command": "ibv_devinfo -v -d mlx5_0"
+    },
+    {
+      "path": "nldev/devinfo_v-mlx5_1.err",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stream": "nldev",
+      "command": "ibv_devinfo -v -d mlx5_1"
+    },
+    {
+      "path": "nldev/devinfo_v-mlx5_1.out",
+      "sha256": "dc03f8ae33beefda5b689f0a5dc99877ea8cf13a41ef1ca305558e941d6c5f38",
+      "stream": "nldev",
+      "command": "ibv_devinfo -v -d mlx5_1"
+    },
+    {
+      "path": "nldev/devinfo_v-mlx5_1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "nldev",
+      "command": "ibv_devinfo -v -d mlx5_1"
+    },
+    {
+      "path": "nldev/devinfo_v-mlx5_1.strace",
+      "sha256": "5ff02f784370283da0c54815c9be3574721273773703006f569820b3daabfbbb",
+      "stream": "nldev",
+      "command": "ibv_devinfo -v -d mlx5_1"
+    },
+    {
+      "path": "nldev/link_show-mlx5_0-1.err",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stream": "nldev",
+      "command": "rdma link show mlx5_0/1"
+    },
+    {
+      "path": "nldev/link_show-mlx5_0-1.out",
+      "sha256": "888558adfa01a3c8fb2edcb2acb06cfd05e8c5d180ba09e0c7f59d7476f34f6b",
+      "stream": "nldev",
+      "command": "rdma link show mlx5_0/1"
+    },
+    {
+      "path": "nldev/link_show-mlx5_0-1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "nldev",
+      "command": "rdma link show mlx5_0/1"
+    },
+    {
+      "path": "nldev/link_show-mlx5_0-1.strace",
+      "sha256": "46670f2c13d127d11ca9ffef5f91ad4f8945d81752f38ffac98a671b076bb898",
+      "stream": "nldev",
+      "command": "rdma link show mlx5_0/1"
+    },
+    {
+      "path": "nldev/link_show-mlx5_1-1.err",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stream": "nldev",
+      "command": "rdma link show mlx5_1/1"
+    },
+    {
+      "path": "nldev/link_show-mlx5_1-1.out",
+      "sha256": "c879d28bcafcdc0ef3778c1c3cd4eec83a5b8a767b80fcf9f3ef77ec37241eed",
+      "stream": "nldev",
+      "command": "rdma link show mlx5_1/1"
+    },
+    {
+      "path": "nldev/link_show-mlx5_1-1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "nldev",
+      "command": "rdma link show mlx5_1/1"
+    },
+    {
+      "path": "nldev/link_show-mlx5_1-1.strace",
+      "sha256": "4fdedb0c958ad90de1af195b8292865062b24e254bd80765680086dd1a912150",
+      "stream": "nldev",
+      "command": "rdma link show mlx5_1/1"
+    },
+    {
+      "path": "sysfs/mlx5_0/board_id",
+      "sha256": "8779f30e03229e4eb4bd7db780d1b84f13ce3c47ab41f3bd7c81efc3bccb242a",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/fw_ver",
+      "sha256": "3d4998e08e5e542ae6b58bd5bd56a22728d9b5a55a2dac8d26f82d1c84254587",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/hca_type",
+      "sha256": "a94756f4d7ba5b358f7fdbab2703fc65945a0fb3206a7f474f5a402ca1a6f3fc",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/hw_rev",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/node_guid",
+      "sha256": "1eec510cb8d9df815e76aa9c3d644b6010459ed19c2d8efb1566e25fd632ee48",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/node_type",
+      "sha256": "bdd72dcc89ca08b5cdb57cd97be04cb4943cb81d03c580efacd15f95056d9c5c",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/cap_mask",
+      "sha256": "e07b12694463053c2fefe837fef3481d0aa5d4f8ba4d5c1c19fa52d2587ea1b3",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/counters/VL15_dropped",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/counters/excessive_buffer_overrun_errors",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/counters/link_downed",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/counters/link_error_recovery",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/counters/local_link_integrity_errors",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/counters/multicast_rcv_packets",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/counters/multicast_xmit_packets",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/counters/port_rcv_constraint_errors",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/counters/port_rcv_data",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/counters/port_rcv_errors",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/counters/port_rcv_packets",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/counters/port_rcv_remote_physical_errors",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/counters/port_rcv_switch_relay_errors",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/counters/port_xmit_constraint_errors",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/counters/port_xmit_data",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/counters/port_xmit_discards",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/counters/port_xmit_packets",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/counters/port_xmit_wait",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/counters/symbol_error",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/counters/unicast_rcv_packets",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/counters/unicast_xmit_packets",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/gid_attrs/ndevs/0",
+      "sha256": "56b037d35bfd2d4d0da2fba17cbfd924cdded6476694d68a2833b3a121ca005a",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/gid_attrs/ndevs/1",
+      "sha256": "56b037d35bfd2d4d0da2fba17cbfd924cdded6476694d68a2833b3a121ca005a",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/gid_attrs/ndevs/2",
+      "sha256": "56b037d35bfd2d4d0da2fba17cbfd924cdded6476694d68a2833b3a121ca005a",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/gid_attrs/ndevs/3",
+      "sha256": "56b037d35bfd2d4d0da2fba17cbfd924cdded6476694d68a2833b3a121ca005a",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/gid_attrs/ndevs/4",
+      "sha256": "56b037d35bfd2d4d0da2fba17cbfd924cdded6476694d68a2833b3a121ca005a",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/gid_attrs/ndevs/5",
+      "sha256": "56b037d35bfd2d4d0da2fba17cbfd924cdded6476694d68a2833b3a121ca005a",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/gid_attrs/types/0",
+      "sha256": "0dd6ce00d9004400680d8c395c7541115581c9d1e05c40e68286ef80e5464bac",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/gid_attrs/types/1",
+      "sha256": "3fe080374509da0f4a28e5121f37f251bb1cf8fd20301d29e4a15f9b18787778",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/gid_attrs/types/2",
+      "sha256": "0dd6ce00d9004400680d8c395c7541115581c9d1e05c40e68286ef80e5464bac",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/gid_attrs/types/3",
+      "sha256": "3fe080374509da0f4a28e5121f37f251bb1cf8fd20301d29e4a15f9b18787778",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/gid_attrs/types/4",
+      "sha256": "0dd6ce00d9004400680d8c395c7541115581c9d1e05c40e68286ef80e5464bac",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/gid_attrs/types/5",
+      "sha256": "3fe080374509da0f4a28e5121f37f251bb1cf8fd20301d29e4a15f9b18787778",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/gids/0",
+      "sha256": "5b4d87526ba38c69bd1f9552a770a2782ffa6f49d077c4c88871822925699de0",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/gids/1",
+      "sha256": "5b4d87526ba38c69bd1f9552a770a2782ffa6f49d077c4c88871822925699de0",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/gids/2",
+      "sha256": "1c67f3f0f55cf045fb3e3951a137cc6271a9cce3bcd8e5395d55e4023a8cdd25",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/gids/3",
+      "sha256": "1c67f3f0f55cf045fb3e3951a137cc6271a9cce3bcd8e5395d55e4023a8cdd25",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/gids/4",
+      "sha256": "0b40cf7996da2ac66ccbcafbddaa205165cc4e1f5b54bc49423c1227d0506743",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/gids/5",
+      "sha256": "0b40cf7996da2ac66ccbcafbddaa205165cc4e1f5b54bc49423c1227d0506743",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/hw_counters/duplicate_request",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/hw_counters/implied_nak_seq_err",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/hw_counters/lifespan",
+      "sha256": "917df3320d778ddbaa5c5c7742bc4046bf803c36ed2b050f30844ed206783469",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/hw_counters/local_ack_timeout_err",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/hw_counters/np_cnp_sent",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/hw_counters/np_ecn_marked_roce_packets",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/hw_counters/out_of_buffer",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/hw_counters/out_of_sequence",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/hw_counters/packet_seq_err",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/hw_counters/req_cqe_error",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/hw_counters/req_cqe_flush_error",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/hw_counters/req_remote_access_errors",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/hw_counters/req_remote_invalid_request",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/hw_counters/req_rnr_retries_exceeded",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/hw_counters/req_transport_retries_exceeded",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/hw_counters/resp_cqe_error",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/hw_counters/resp_cqe_flush_error",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/hw_counters/resp_local_length_error",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/hw_counters/resp_remote_access_errors",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/hw_counters/rnr_nak_retry_err",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/hw_counters/roce_adp_retrans",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/hw_counters/roce_adp_retrans_to",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/hw_counters/roce_slow_restart",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/hw_counters/roce_slow_restart_cnps",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/hw_counters/roce_slow_restart_trans",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/hw_counters/rp_cnp_handled",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/hw_counters/rp_cnp_ignored",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/hw_counters/rx_atomic_requests",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/hw_counters/rx_dct_connect",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/hw_counters/rx_icrc_encapsulated",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/hw_counters/rx_read_requests",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/hw_counters/rx_write_requests",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/lid",
+      "sha256": "682fbb22114e95876c4eae23a5952ef81ac6dfa997563a05ba0404cf12840a74",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/lid_mask_count",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/link_layer",
+      "sha256": "7002d94ec45d6fda21037f4db30590dfabeffa66e463b8a3951ec976ed9d0303",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/phys_state",
+      "sha256": "922f919ec84e2fb2c929e8a69b45fe7dd080f2a70538fd56378de747081cf922",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/rate",
+      "sha256": "95aaa2899e1e03c30d2f05e58591f941d7deb9d4f72a0abe16bbabc92d28190c",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/sm_lid",
+      "sha256": "682fbb22114e95876c4eae23a5952ef81ac6dfa997563a05ba0404cf12840a74",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/sm_sl",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/ports/1/state",
+      "sha256": "13331357f571fb8ca53401197d705508b115be40d134c70ce66fd2e2275e7938",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_0/sys_image_guid",
+      "sha256": "1eec510cb8d9df815e76aa9c3d644b6010459ed19c2d8efb1566e25fd632ee48",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/board_id",
+      "sha256": "8779f30e03229e4eb4bd7db780d1b84f13ce3c47ab41f3bd7c81efc3bccb242a",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/fw_ver",
+      "sha256": "3d4998e08e5e542ae6b58bd5bd56a22728d9b5a55a2dac8d26f82d1c84254587",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/hca_type",
+      "sha256": "a94756f4d7ba5b358f7fdbab2703fc65945a0fb3206a7f474f5a402ca1a6f3fc",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/hw_rev",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/node_guid",
+      "sha256": "ba8ea04170c60107dcb3601501d8af47e6c13b0cc8f746275b533fc1d98cba6e",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/node_type",
+      "sha256": "bdd72dcc89ca08b5cdb57cd97be04cb4943cb81d03c580efacd15f95056d9c5c",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/cap_mask",
+      "sha256": "e07b12694463053c2fefe837fef3481d0aa5d4f8ba4d5c1c19fa52d2587ea1b3",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/counters/VL15_dropped",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/counters/excessive_buffer_overrun_errors",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/counters/link_downed",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/counters/link_error_recovery",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/counters/local_link_integrity_errors",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/counters/multicast_rcv_packets",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/counters/multicast_xmit_packets",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/counters/port_rcv_constraint_errors",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/counters/port_rcv_data",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/counters/port_rcv_errors",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/counters/port_rcv_packets",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/counters/port_rcv_remote_physical_errors",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/counters/port_rcv_switch_relay_errors",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/counters/port_xmit_constraint_errors",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/counters/port_xmit_data",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/counters/port_xmit_discards",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/counters/port_xmit_packets",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/counters/port_xmit_wait",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/counters/symbol_error",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/counters/unicast_rcv_packets",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/counters/unicast_xmit_packets",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/gid_attrs/ndevs/0",
+      "sha256": "557d7c2bda0742ed78fe2c3024f8f31d497e5c4ecc9f6b22669166755da26841",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/gid_attrs/ndevs/1",
+      "sha256": "557d7c2bda0742ed78fe2c3024f8f31d497e5c4ecc9f6b22669166755da26841",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/gid_attrs/ndevs/2",
+      "sha256": "557d7c2bda0742ed78fe2c3024f8f31d497e5c4ecc9f6b22669166755da26841",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/gid_attrs/ndevs/3",
+      "sha256": "557d7c2bda0742ed78fe2c3024f8f31d497e5c4ecc9f6b22669166755da26841",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/gid_attrs/ndevs/4",
+      "sha256": "557d7c2bda0742ed78fe2c3024f8f31d497e5c4ecc9f6b22669166755da26841",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/gid_attrs/ndevs/5",
+      "sha256": "557d7c2bda0742ed78fe2c3024f8f31d497e5c4ecc9f6b22669166755da26841",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/gid_attrs/types/0",
+      "sha256": "0dd6ce00d9004400680d8c395c7541115581c9d1e05c40e68286ef80e5464bac",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/gid_attrs/types/1",
+      "sha256": "3fe080374509da0f4a28e5121f37f251bb1cf8fd20301d29e4a15f9b18787778",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/gid_attrs/types/2",
+      "sha256": "0dd6ce00d9004400680d8c395c7541115581c9d1e05c40e68286ef80e5464bac",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/gid_attrs/types/3",
+      "sha256": "3fe080374509da0f4a28e5121f37f251bb1cf8fd20301d29e4a15f9b18787778",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/gid_attrs/types/4",
+      "sha256": "0dd6ce00d9004400680d8c395c7541115581c9d1e05c40e68286ef80e5464bac",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/gid_attrs/types/5",
+      "sha256": "3fe080374509da0f4a28e5121f37f251bb1cf8fd20301d29e4a15f9b18787778",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/gids/0",
+      "sha256": "fbb7ec2228b791bc0df1a5da71eb571baa559d1f9c0b66ab54004216064b2200",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/gids/1",
+      "sha256": "fbb7ec2228b791bc0df1a5da71eb571baa559d1f9c0b66ab54004216064b2200",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/gids/2",
+      "sha256": "30ec8ebe93b40231d47323a2c9b955e6aa648e33dea0df6e2adf3eb1bd0e191f",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/gids/3",
+      "sha256": "30ec8ebe93b40231d47323a2c9b955e6aa648e33dea0df6e2adf3eb1bd0e191f",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/gids/4",
+      "sha256": "db0aee1710687b30ca53bf7437c2c6aeefa6a60d2201d03384e343b9de9f6b0a",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/gids/5",
+      "sha256": "db0aee1710687b30ca53bf7437c2c6aeefa6a60d2201d03384e343b9de9f6b0a",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/hw_counters/duplicate_request",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/hw_counters/implied_nak_seq_err",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/hw_counters/lifespan",
+      "sha256": "917df3320d778ddbaa5c5c7742bc4046bf803c36ed2b050f30844ed206783469",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/hw_counters/local_ack_timeout_err",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/hw_counters/np_cnp_sent",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/hw_counters/np_ecn_marked_roce_packets",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/hw_counters/out_of_buffer",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/hw_counters/out_of_sequence",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/hw_counters/packet_seq_err",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/hw_counters/req_cqe_error",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/hw_counters/req_cqe_flush_error",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/hw_counters/req_remote_access_errors",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/hw_counters/req_remote_invalid_request",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/hw_counters/req_rnr_retries_exceeded",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/hw_counters/req_transport_retries_exceeded",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/hw_counters/resp_cqe_error",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/hw_counters/resp_cqe_flush_error",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/hw_counters/resp_local_length_error",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/hw_counters/resp_remote_access_errors",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/hw_counters/rnr_nak_retry_err",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/hw_counters/roce_adp_retrans",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/hw_counters/roce_adp_retrans_to",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/hw_counters/roce_slow_restart",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/hw_counters/roce_slow_restart_cnps",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/hw_counters/roce_slow_restart_trans",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/hw_counters/rp_cnp_handled",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/hw_counters/rp_cnp_ignored",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/hw_counters/rx_atomic_requests",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/hw_counters/rx_dct_connect",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/hw_counters/rx_icrc_encapsulated",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/hw_counters/rx_read_requests",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/hw_counters/rx_write_requests",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/lid",
+      "sha256": "682fbb22114e95876c4eae23a5952ef81ac6dfa997563a05ba0404cf12840a74",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/lid_mask_count",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/link_layer",
+      "sha256": "7002d94ec45d6fda21037f4db30590dfabeffa66e463b8a3951ec976ed9d0303",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/phys_state",
+      "sha256": "922f919ec84e2fb2c929e8a69b45fe7dd080f2a70538fd56378de747081cf922",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/rate",
+      "sha256": "95aaa2899e1e03c30d2f05e58591f941d7deb9d4f72a0abe16bbabc92d28190c",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/sm_lid",
+      "sha256": "682fbb22114e95876c4eae23a5952ef81ac6dfa997563a05ba0404cf12840a74",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/sm_sl",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/ports/1/state",
+      "sha256": "13331357f571fb8ca53401197d705508b115be40d134c70ce66fd2e2275e7938",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/mlx5_1/sys_image_guid",
+      "sha256": "1eec510cb8d9df815e76aa9c3d644b6010459ed19c2d8efb1566e25fd632ee48",
+      "stream": "sysfs"
+    },
+    {
+      "path": "umad/libibumad_unloaded-mlx5_0.err",
+      "sha256": "5ef5169f0caabcb5467dbfcda9f29bedfb8a616021a32c69def3caf5f0fa071f",
+      "stream": "umad",
+      "command": "env LINKMONITOR_UMAD_DEVICE=mlx5_0 LINKMONITOR_UMAD_PHASE=unloaded /nix/store/anr7dv0vwa1r30n79x9x0z63gc22phm9-xtcp2-test-linkmonitor-rdma-build/bin/rdmacaps-vm.test -test.run ^TestUMADLive$ -test.v"
+    },
+    {
+      "path": "umad/libibumad_unloaded-mlx5_0.out",
+      "sha256": "4c3b8edd3850ac6c60bf0a5759400e0e51e4fff9297c3963062cff305ea4909a",
+      "stream": "umad",
+      "command": "env LINKMONITOR_UMAD_DEVICE=mlx5_0 LINKMONITOR_UMAD_PHASE=unloaded /nix/store/anr7dv0vwa1r30n79x9x0z63gc22phm9-xtcp2-test-linkmonitor-rdma-build/bin/rdmacaps-vm.test -test.run ^TestUMADLive$ -test.v"
+    },
+    {
+      "path": "umad/libibumad_unloaded-mlx5_0.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "umad",
+      "command": "env LINKMONITOR_UMAD_DEVICE=mlx5_0 LINKMONITOR_UMAD_PHASE=unloaded /nix/store/anr7dv0vwa1r30n79x9x0z63gc22phm9-xtcp2-test-linkmonitor-rdma-build/bin/rdmacaps-vm.test -test.run ^TestUMADLive$ -test.v"
+    },
+    {
+      "path": "umad/libibumad_unloaded-mlx5_0.strace",
+      "sha256": "79dd1741070165943ba3c7d7b25af3f50a526a23534fad5869ff2637bd0bd600",
+      "stream": "umad",
+      "command": "env LINKMONITOR_UMAD_DEVICE=mlx5_0 LINKMONITOR_UMAD_PHASE=unloaded /nix/store/anr7dv0vwa1r30n79x9x0z63gc22phm9-xtcp2-test-linkmonitor-rdma-build/bin/rdmacaps-vm.test -test.run ^TestUMADLive$ -test.v"
+    },
+    {
+      "path": "umad/libibumad_unloaded-mlx5_1.err",
+      "sha256": "fee361eddd27b171444858f46d8f5f2c04b9cae5b9ef3942aa414b05725c8da1",
+      "stream": "umad",
+      "command": "env LINKMONITOR_UMAD_DEVICE=mlx5_1 LINKMONITOR_UMAD_PHASE=unloaded /nix/store/anr7dv0vwa1r30n79x9x0z63gc22phm9-xtcp2-test-linkmonitor-rdma-build/bin/rdmacaps-vm.test -test.run ^TestUMADLive$ -test.v"
+    },
+    {
+      "path": "umad/libibumad_unloaded-mlx5_1.out",
+      "sha256": "4c3b8edd3850ac6c60bf0a5759400e0e51e4fff9297c3963062cff305ea4909a",
+      "stream": "umad",
+      "command": "env LINKMONITOR_UMAD_DEVICE=mlx5_1 LINKMONITOR_UMAD_PHASE=unloaded /nix/store/anr7dv0vwa1r30n79x9x0z63gc22phm9-xtcp2-test-linkmonitor-rdma-build/bin/rdmacaps-vm.test -test.run ^TestUMADLive$ -test.v"
+    },
+    {
+      "path": "umad/libibumad_unloaded-mlx5_1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "umad",
+      "command": "env LINKMONITOR_UMAD_DEVICE=mlx5_1 LINKMONITOR_UMAD_PHASE=unloaded /nix/store/anr7dv0vwa1r30n79x9x0z63gc22phm9-xtcp2-test-linkmonitor-rdma-build/bin/rdmacaps-vm.test -test.run ^TestUMADLive$ -test.v"
+    },
+    {
+      "path": "umad/libibumad_unloaded-mlx5_1.strace",
+      "sha256": "eb6101454cc5be341f8729e2a0d37da475170dba38df1e404b0f3b041414d316",
+      "stream": "umad",
+      "command": "env LINKMONITOR_UMAD_DEVICE=mlx5_1 LINKMONITOR_UMAD_PHASE=unloaded /nix/store/anr7dv0vwa1r30n79x9x0z63gc22phm9-xtcp2-test-linkmonitor-rdma-build/bin/rdmacaps-vm.test -test.run ^TestUMADLive$ -test.v"
+    },
+    {
+      "path": "umad/native_unloaded-mlx5_0.err",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stream": "umad",
+      "command": "env LINKMONITOR_UMAD_DEVICE=mlx5_0 LINKMONITOR_UMAD_PHASE=unloaded /nix/store/anr7dv0vwa1r30n79x9x0z63gc22phm9-xtcp2-test-linkmonitor-rdma-build/bin/rdmacaps-vm-native.test -test.run ^TestUMADLive$ -test.v"
+    },
+    {
+      "path": "umad/native_unloaded-mlx5_0.out",
+      "sha256": "1d13583bf27c16173b22d56475cc289f4fa6f69c52f211d13c0e28eb0f13532f",
+      "stream": "umad",
+      "command": "env LINKMONITOR_UMAD_DEVICE=mlx5_0 LINKMONITOR_UMAD_PHASE=unloaded /nix/store/anr7dv0vwa1r30n79x9x0z63gc22phm9-xtcp2-test-linkmonitor-rdma-build/bin/rdmacaps-vm-native.test -test.run ^TestUMADLive$ -test.v"
+    },
+    {
+      "path": "umad/native_unloaded-mlx5_0.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "umad",
+      "command": "env LINKMONITOR_UMAD_DEVICE=mlx5_0 LINKMONITOR_UMAD_PHASE=unloaded /nix/store/anr7dv0vwa1r30n79x9x0z63gc22phm9-xtcp2-test-linkmonitor-rdma-build/bin/rdmacaps-vm-native.test -test.run ^TestUMADLive$ -test.v"
+    },
+    {
+      "path": "umad/native_unloaded-mlx5_0.strace",
+      "sha256": "a9e4739c1e85405dfb07ffc2ccbb88a81671fd8ecd05b8ef878f7462a86c97ad",
+      "stream": "umad",
+      "command": "env LINKMONITOR_UMAD_DEVICE=mlx5_0 LINKMONITOR_UMAD_PHASE=unloaded /nix/store/anr7dv0vwa1r30n79x9x0z63gc22phm9-xtcp2-test-linkmonitor-rdma-build/bin/rdmacaps-vm-native.test -test.run ^TestUMADLive$ -test.v"
+    },
+    {
+      "path": "umad/native_unloaded-mlx5_1.err",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stream": "umad",
+      "command": "env LINKMONITOR_UMAD_DEVICE=mlx5_1 LINKMONITOR_UMAD_PHASE=unloaded /nix/store/anr7dv0vwa1r30n79x9x0z63gc22phm9-xtcp2-test-linkmonitor-rdma-build/bin/rdmacaps-vm-native.test -test.run ^TestUMADLive$ -test.v"
+    },
+    {
+      "path": "umad/native_unloaded-mlx5_1.out",
+      "sha256": "1d13583bf27c16173b22d56475cc289f4fa6f69c52f211d13c0e28eb0f13532f",
+      "stream": "umad",
+      "command": "env LINKMONITOR_UMAD_DEVICE=mlx5_1 LINKMONITOR_UMAD_PHASE=unloaded /nix/store/anr7dv0vwa1r30n79x9x0z63gc22phm9-xtcp2-test-linkmonitor-rdma-build/bin/rdmacaps-vm-native.test -test.run ^TestUMADLive$ -test.v"
+    },
+    {
+      "path": "umad/native_unloaded-mlx5_1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "umad",
+      "command": "env LINKMONITOR_UMAD_DEVICE=mlx5_1 LINKMONITOR_UMAD_PHASE=unloaded /nix/store/anr7dv0vwa1r30n79x9x0z63gc22phm9-xtcp2-test-linkmonitor-rdma-build/bin/rdmacaps-vm-native.test -test.run ^TestUMADLive$ -test.v"
+    },
+    {
+      "path": "umad/native_unloaded-mlx5_1.strace",
+      "sha256": "55c392420e91b68160be3661eda198de0ccd1c3023c721940aec0913bab473ad",
+      "stream": "umad",
+      "command": "env LINKMONITOR_UMAD_DEVICE=mlx5_1 LINKMONITOR_UMAD_PHASE=unloaded /nix/store/anr7dv0vwa1r30n79x9x0z63gc22phm9-xtcp2-test-linkmonitor-rdma-build/bin/rdmacaps-vm-native.test -test.run ^TestUMADLive$ -test.v"
+    }
+  ],
+  "redaction": {
+    "00:00:5e:00:53:01": "mac",
+    "00:00:5e:00:53:02": "mac",
+    "0200:5e10:0000:0001": "guid",
+    "0200:5e10:0000:0002": "guid",
+    "0200:5eff:fe00:5301": "guid",
+    "0200:5eff:fe00:5302": "guid",
+    "192.0.2.1": "ipv4",
+    "192.0.2.2": "ipv4",
+    "2001:db8::1": "ipv6",
+    "2001:db8::2": "ipv6",
+    "::ffff:192.0.2.1": "ipv6",
+    "::ffff:192.0.2.2": "ipv6",
+    "fe80::200:5eff:fe00:5301": "ipv6",
+    "fe80::200:5eff:fe00:5302": "ipv6"
+  }
+}

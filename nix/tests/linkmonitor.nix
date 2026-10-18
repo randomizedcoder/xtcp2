@@ -18,6 +18,10 @@ let
     "./pkg/xtcpnl:FuzzParseEthtool"
     "./pkg/xtcpnl:FuzzWalkNetlinkEnvelopes"
     "./pkg/xtcpnl:FuzzParseMonitorLink"
+    "./pkg/xtcpnl:FuzzParseChardev"
+    "./pkg/linkmonitor/internal/linuxio:FuzzRDMANotifications"
+    "./pkg/linkmonitor/internal/rdmanative:FuzzTranslateRtnl"
+    "./pkg/linkmonitor/internal/rdmacaps:FuzzUMADHeader"
   ];
   # go-native RDMA decoders held to the parsing rules in
   # cmd/go-link-monitor/GO-NATIVE-RDMA-DESIGN.md. Each decoder task appends
@@ -26,6 +30,9 @@ let
   rdmaDecoderFiles = [
     "pkg/linkmonitor/internal/rdmanative/abi.go"
     "pkg/linkmonitor/internal/rdmacaps/umadhdr.go"
+    "pkg/xtcpnl/xtcpnl_rdma_chardev.go"
+    "pkg/linkmonitor/internal/rdmanative/rtnl_decode.go"
+    "pkg/linkmonitor/internal/rdmanative/async.go"
   ];
   mkCheck =
     name:
@@ -179,7 +186,10 @@ let
         stage="$TMPDIR/stage"
         values="$TMPDIR/values"
         rdma-native-capture --dry-run --out "$stage" --dev mlx5_0 --dev mlx5_1 --values "$values" \
-          --triggers gid,flap --iface eth0 --umad --driver mlx5_core > "$out/dry-run.txt"
+          --triggers gid,flap --iface eth0 --umad --umad-live loaded --umad-tests /nonexistent \
+          --driver mlx5_core > "$out/dry-run.txt"
+        test -e "$stage/umad/native_loaded-mlx5_1.strace"
+        test -e "$stage/umad/libibumad_loaded-mlx5_1.strace"
         "$TMPDIR/rdma-capture-manifest" write -dir "$stage" -source dry-run -values "$values"
         if [ ! -s "$values" ]; then
           echo "the dry run recorded no values to redact"

@@ -1,0 +1,19 @@
+File: rdmanative.test
+Build ID: 2719ec495dc5e4480567fd7dd183089f6a6b7da8
+Type: cpu
+Time: 2026-10-18 18:02:02 UTC
+Duration: 23s, Total samples = 22.88s (99.48%)
+Showing nodes accounting for 22.73s, 99.34% of 22.88s total
+Dropped 30 nodes (cum <= 0.11s)
+      flat  flat%   sum%        cum   cum%
+    10.50s 45.89% 45.89%     10.52s 45.98%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative.DecodeAsyncEvent
+     3.25s 14.20% 60.10%     11.85s 51.79%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative.BenchmarkTranslateRtnl
+     3.04s 13.29% 73.38%      5.19s 22.68%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative.(*Translator).link
+     2.70s 11.80% 85.18%      2.70s 11.80%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative.(*PortMap).find (inline)
+     1.68s  7.34% 92.53%      2.23s  9.75%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative.(*Translator).emit
+     0.87s  3.80% 96.33%      8.48s 37.06%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative.(*Translator).Translate
+     0.45s  1.97% 98.30%     10.97s 47.95%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative.BenchmarkDecodeAsyncEvent
+     0.12s  0.52% 98.82%      0.12s  0.52%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative.linkState (inline)
+     0.12s  0.52% 99.34%      0.12s  0.52%  testing.(*B).Loop (inline)
+         0     0% 99.34%     22.82s 99.74%  testing.(*B).run1.func1
+         0     0% 99.34%     22.82s 99.74%  testing.(*B).runN

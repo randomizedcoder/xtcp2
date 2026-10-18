@@ -10,17 +10,23 @@ import (
 
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/model"
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmaevents"
+	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative"
 )
 
 type rdmaEventSchedule struct {
-	sourceFailure                  error
-	targets                        map[rdmaEventTarget][]model.DeviceKey
-	delayedRestart                 bool
-	failureGeneration              uint64
-	fenceErr                       error
-	w                              *rdmaEventWorker
-	c                              *reconciler
-	ids                            []rdmaevents.Identity
+	sourceFailure     error
+	targets           map[rdmaEventTarget][]model.DeviceKey
+	delayedRestart    bool
+	failureGeneration uint64
+	fenceErr          error
+	w                 *rdmaEventWorker
+	c                 *reconciler
+	ids               []rdmaevents.Identity
+	// backend is the resolved RDMAEventsBackend. For netlink, ports is the
+	// port map the source translates with; a changed map reopens the source
+	// as a changed identity set does.
+	backend                        RDMAEventsBackend
+	ports                          *rdmanative.PortMap
 	interrupt                      context.CancelFunc
 	generation, barrier            uint64
 	busy, ready, reconciled, dirty bool
@@ -32,8 +38,48 @@ type rdmaEventSchedule struct {
 	report                     func(error)
 }
 
-func newRDMAEventSchedule(c *reconciler, w *rdmaEventWorker) *rdmaEventSchedule {
-	return &rdmaEventSchedule{w: w, c: c, backoff: time.Second, dirty: true}
+func newRDMAEventSchedule(c *reconciler, w *rdmaEventWorker, backend RDMAEventsBackend) *rdmaEventSchedule {
+	backend = backend.resolve()
+	c.scheduler.reducer.rdmaEventsBackend = string(backend)
+	s := &rdmaEventSchedule{w: w, c: c, backoff: time.Second, dirty: true, backend: backend}
+	if backend == RDMAEventsNetlink {
+		// The first open precedes the first committed inventory; the netlink
+		// source needs a map then too, and an empty one reports nothing.
+		s.ports = rdmaPortMap(nil, nil)
+	}
+	return s
+}
+
+// rdmaPortMap is the netlink source's view of the committed inventory: each
+// eligible port's netdev, and the same-namespace uppers and bond masters from
+// the link dump. A map over its bounds is nil, which the source refuses, so
+// the failure shows in the rdma_events diagnostics.
+func rdmaPortMap(ports []model.RDMAPort, links []model.NetdevLink) *rdmanative.PortMap {
+	bindings := make([]rdmanative.Binding, 0, len(ports))
+	for i := range ports {
+		p := &ports[i]
+		if p.Eligibility != model.Eligible {
+			continue
+		}
+		// A port the inventory found in sysfs alone has no NLDEV index.
+		b := rdmanative.Binding{Device: p.Device, Port: p.Port, DevIndex: p.Index, HasDevIndex: !p.Sysfs}
+		if p.Netdev.Present {
+			b.Netdev = p.Netdev.Value
+		}
+		bindings = append(bindings, b)
+	}
+	uppers := make([]rdmanative.Link, 0, len(links))
+	for _, l := range links {
+		if l.Foreign {
+			continue
+		}
+		uppers = append(uppers, rdmanative.Link{Index: l.Index, Lower: l.Lower, Master: l.Master})
+	}
+	m, err := rdmanative.NewPortMap(bindings, uppers)
+	if err != nil {
+		return nil
+	}
+	return m
 }
 
 func rdmaIdentities(ports []model.RDMAPort) []rdmaevents.Identity {
@@ -52,7 +98,7 @@ func rdmaIdentities(ports []model.RDMAPort) []rdmaevents.Identity {
 	return ids
 }
 
-func (s *rdmaEventSchedule) committed(ports []model.RDMAPort, serial uint64) {
+func (s *rdmaEventSchedule) committed(ports []model.RDMAPort, links []model.NetdevLink, serial uint64) {
 	if s.w.association.Load() == math.MaxUint64 {
 		s.fenceErr = errSequenceExhausted
 		return
@@ -60,8 +106,12 @@ func (s *rdmaEventSchedule) committed(ports []model.RDMAPort, serial uint64) {
 	s.w.association.Add(1)
 	s.targets = rdmaEventTargets(ports)
 	ids := rdmaIdentities(ports)
-	if !slices.Equal(ids, s.ids) {
-		s.ids, s.dirty = ids, true
+	var portMap *rdmanative.PortMap
+	if s.backend == RDMAEventsNetlink {
+		portMap = rdmaPortMap(ports, links)
+	}
+	if !slices.Equal(ids, s.ids) || !portMap.Equal(s.ports) {
+		s.ids, s.ports, s.dirty = ids, portMap, true
 		if s.unavailable {
 			s.invalidate()
 			s.diagnostics(s.sourceFailure)
@@ -225,7 +275,7 @@ func (s *rdmaEventSchedule) advance(now model.Stamp) error {
 		ctx, cancel := context.WithCancel(s.w.ctx)
 		s.interrupt, s.busy, s.dirty = cancel, true, false
 		s.deadline = deadlineAfter(now.Monotonic, collectionBudget)
-		s.w.requests <- rdmaEventRequest{ctx: ctx, ids: s.ids, generation: s.generation}
+		s.w.requests <- rdmaEventRequest{ctx: ctx, set: rdmaEventSet{ids: s.ids, ports: s.ports}, generation: s.generation}
 	}
 	at := s.deadline
 	if (!s.busy && !s.ready && !s.unavailable) || s.delayedRestart {

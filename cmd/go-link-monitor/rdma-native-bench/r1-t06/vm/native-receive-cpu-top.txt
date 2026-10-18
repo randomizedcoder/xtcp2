@@ -1,0 +1,49 @@
+File: nlconn.test
+Build ID: 57a21c868018f3ddff96016506416bd88e61a378
+Type: cpu
+Time: 2026-10-18 17:11:33 UTC
+Duration: 226.95s, Total samples = 229.55s (101.15%)
+Showing nodes accounting for 200.46s, 87.33% of 229.55s total
+Dropped 334 nodes (cum <= 1.15s)
+Showing top 40 nodes out of 92
+      flat  flat%   sum%        cum   cum%
+    72.39s 31.54% 31.54%     72.39s 31.54%  runtime.futex
+    72.02s 31.37% 62.91%     72.02s 31.37%  internal/runtime/syscall/linux.Syscall6
+     7.90s  3.44% 66.35%     10.01s  4.36%  runtime.(*mcache).releaseAll
+     6.24s  2.72% 69.07%      6.24s  2.72%  runtime.nanotime (inline)
+     5.41s  2.36% 71.43%     26.95s 11.74%  runtime.readmemstats_m
+     4.91s  2.14% 73.57%      4.91s  2.14%  runtime.(*heapStatsDelta).merge (inline)
+     3.66s  1.59% 75.16%      4.48s  1.95%  runtime.unlock2
+     3.02s  1.32% 76.48%      5.46s  2.38%  runtime.lock2
+     2.44s  1.06% 77.54%      2.44s  1.06%  runtime.procyieldAsm
+     2.32s  1.01% 78.55%      3.12s  1.36%  runtime.pidleput
+     1.60s   0.7% 79.25%      5.37s  2.34%  runtime.stackcache_clear
+     1.47s  0.64% 79.89%      1.72s  0.75%  runtime.exitsyscall
+     1.27s  0.55% 80.44%      2.65s  1.15%  runtime.pidleget
+     1.25s  0.54% 80.98%      1.85s  0.81%  runtime.reentersyscall
+     1.02s  0.44% 81.43%      2.28s  0.99%  runtime.stealWork
+     0.98s  0.43% 81.86%      6.01s  2.62%  runtime.netpoll
+     0.95s  0.41% 82.27%     21.47s  9.35%  runtime.stopTheWorldWithSema
+     0.94s  0.41% 82.68%      4.65s  2.03%  runtime.procresize
+     0.90s  0.39% 83.07%     41.57s 18.11%  github.com/randomizedcoder/xtcp2/pkg/nlconn.(*Conn).receiveOne
+     0.85s  0.37% 83.44%     15.76s  6.87%  runtime.notesleep
+     0.74s  0.32% 83.76%     12.86s  5.60%  runtime.notetsleep_internal
+     0.64s  0.28% 84.04%     36.94s 16.09%  github.com/randomizedcoder/xtcp2/pkg/nlconn.recvmsgNetlink
+     0.63s  0.27% 84.32%     36.68s 15.98%  golang.org/x/sys/unix.write
+     0.63s  0.27% 84.59%    101.12s 44.05%  runtime.systemstack
+     0.60s  0.26% 84.85%     38.71s 16.86%  github.com/randomizedcoder/xtcp2/pkg/nlconn.(*Conn).attempt
+     0.57s  0.25% 85.10%     42.26s 18.41%  github.com/randomizedcoder/xtcp2/pkg/nlconn.(*Conn).Receive.func1
+     0.54s  0.24% 85.34%     46.52s 20.27%  runtime.notewakeup
+     0.48s  0.21% 85.55%     46.62s 20.31%  runtime.futexwakeup
+     0.43s  0.19% 85.73%     32.08s 13.98%  internal/poll.(*FD).RawControl
+     0.40s  0.17% 85.91%     26.67s 11.62%  runtime.futexsleep
+     0.38s  0.17% 86.07%     67.60s 29.45%  syscall.RawSyscall6
+     0.38s  0.17% 86.24%     72.22s 31.46%  syscall.Syscall
+     0.37s  0.16% 86.40%     32.47s 14.15%  os.(*rawConn).Control
+     0.37s  0.16% 86.56%     15.87s  6.91%  runtime.flushallmcaches
+     0.34s  0.15% 86.71%     49.61s 21.61%  github.com/randomizedcoder/xtcp2/pkg/nlconn.(*Conn).operation
+     0.33s  0.14% 86.85%    187.44s 81.66%  github.com/randomizedcoder/xtcp2/pkg/nlconn.BenchmarkReceive.func1
+     0.31s  0.14% 86.99%      1.39s  0.61%  runtime.(*mcentral).cacheSpan
+     0.31s  0.14% 87.12%      4.01s  1.75%  runtime.mallocgcSmallScanNoHeader
+     0.24s   0.1% 87.23%     50.10s 21.83%  runtime.startTheWorld
+     0.23s   0.1% 87.33%      7.96s  3.47%  internal/poll.(*FD).RawRead

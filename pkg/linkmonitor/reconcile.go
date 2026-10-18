@@ -27,6 +27,7 @@ type reconciler struct {
 	rdmaEvents                                       *rdmaEventSchedule
 	rdma                                             *rdmaSchedule
 	rdmaPorts                                        []model.RDMAPort
+	netdevLinks                                      []model.NetdevLink
 	rdmaUncertain                                    uint64
 	scheduler                                        *scheduler
 	inventory                                        *inventoryExecutor
@@ -267,7 +268,7 @@ func (c *reconciler) markDirty(key model.DeviceKey, version uint64) {
 }
 
 func (c *reconciler) abort() {
-	c.rdmaPorts, c.rdmaUncertain = nil, 0
+	c.rdmaPorts, c.netdevLinks, c.rdmaUncertain = nil, nil, 0
 	c.inventory.cancelRequest()
 	c.request, c.waiting, c.candidate, c.dirty = nil, nil, nil, nil
 	c.statistics = nil

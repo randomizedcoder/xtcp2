@@ -1,0 +1,24 @@
+File: xtcpnl.test
+Build ID: 055d31eb50d25b2a95ca20bf7a3776e339c5fcbc
+Type: cpu
+Time: 2026-10-18 14:32:45 UTC
+Duration: 12.32s, Total samples = 12.19s (98.92%)
+Showing nodes accounting for 12.08s, 99.10% of 12.19s total
+Dropped 29 nodes (cum <= 0.06s)
+      flat  flat%   sum%        cum   cum%
+     3.99s 32.73% 32.73%      8.27s 67.84%  github.com/randomizedcoder/xtcp2/pkg/xtcpnl.WalkRTAttrs
+     2.70s 22.15% 54.88%      3.40s 27.89%  github.com/randomizedcoder/xtcp2/pkg/xtcpnl.ParseRdmaChardev.func1
+     1.90s 15.59% 70.47%     11.69s 95.90%  github.com/randomizedcoder/xtcp2/pkg/xtcpnl.ParseRdmaChardev
+     1.11s  9.11% 79.57%      1.11s  9.11%  github.com/randomizedcoder/xtcp2/pkg/xtcpnl.chardevName (inline)
+     0.67s  5.50% 85.07%      0.67s  5.50%  github.com/randomizedcoder/xtcp2/pkg/xtcpnl.rdmaValidate
+     0.56s  4.59% 89.66%      0.56s  4.59%  github.com/randomizedcoder/xtcp2/pkg/xtcpnl.FourByteAlignPadding (inline)
+     0.30s  2.46% 92.12%      0.30s  2.46%  runtime.memmove
+     0.28s  2.30% 94.42%     12.11s 99.34%  github.com/randomizedcoder/xtcp2/pkg/xtcpnl.BenchmarkParseChardev
+     0.21s  1.72% 96.14%      0.21s  1.72%  encoding/binary.littleEndian.Uint16 (inline)
+     0.14s  1.15% 97.29%      0.14s  1.15%  testing.(*B).Loop (inline)
+     0.11s   0.9% 98.20%      0.32s  2.63%  github.com/randomizedcoder/xtcp2/pkg/xtcpnl.DeserializeRTAttr (inline)
+     0.09s  0.74% 98.93%      0.09s  0.74%  github.com/randomizedcoder/xtcp2/pkg/xtcpnl.ChardevKind.chardevType (inline)
+     0.02s  0.16% 99.10%      0.11s   0.9%  github.com/randomizedcoder/xtcp2/pkg/xtcpnl.ChardevKind.prefix (inline)
+         0     0% 99.10%      0.07s  0.57%  runtime.goschedImpl
+         0     0% 99.10%     12.11s 99.34%  testing.(*B).run1.func1
+         0     0% 99.10%     12.11s 99.34%  testing.(*B).runN

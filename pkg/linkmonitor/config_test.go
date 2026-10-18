@@ -1,12 +1,16 @@
 package linkmonitor
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps"
+	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmaevents"
 )
 
 func TestConfiguration(t *testing.T) {
@@ -62,6 +66,7 @@ func TestDefaultConfig(t *testing.T) {
 		BaselineFile: "/var/lib/go-link-monitor/baseline.json",
 		Settle:       30 * time.Second, Resync: time.Hour, StatsInterval: 15 * time.Second,
 		StatsInclude: ".*", StatsExclude: "^$", NetstatFields: ".*", IOBackend: IOBackendPoller,
+		RDMAEventsBackend: RDMAEventsAuto, RDMAUMADBackend: RDMAUMADAuto,
 		ErrorWindow: 180 * time.Second, FlapWindow: 180 * time.Second, ErrorClasses: []string{"link", "rdma"},
 		CollectionMode: CollectionOnDemand, WatchInterval: time.Minute, SlowInterval: 5 * time.Minute,
 		OnDemandTTL: 15 * time.Second, OnDemandWait: 5 * time.Second,
@@ -204,5 +209,114 @@ func TestFilterSemantics(t *testing.T) {
 				t.Fatal("filter semantics differ")
 			}
 		})
+	}
+}
+
+// TestRDMAEventsBackendSelection is the design's backend selection table for
+// the library: auto resolves by build, and a backend the build lacks or an
+// unknown name is a configuration error at New, never a fallback. Each build
+// runs the rows for its own capability; test-linkmonitor-rdma-unit is the cgo
+// build that exercises auto_cgo and verbs_in_cgo.
+func TestRDMAEventsBackendSelection(t *testing.T) {
+	for _, tc := range []struct {
+		name, category, description, expected string
+		backend                               RDMAEventsBackend
+		cgo                                   bool // the row needs rdmaevents.Available to be cgo
+		resolved                              RDMAEventsBackend
+		wantErr                               bool
+	}{
+		{"auto_cgo", "positive", "auto in a cgo rdma build", "verbs", RDMAEventsAuto, true, RDMAEventsVerbs, false},
+		{"auto_core", "positive", "auto in a CGO_ENABLED=0 build", "netlink", RDMAEventsAuto, false, RDMAEventsNetlink, false},
+		{"empty_core", "boundary", "empty, as configurations predating the field have", "auto", "", false, RDMAEventsNetlink, false},
+		{"empty_cgo", "boundary", "empty in a cgo rdma build", "auto", "", true, RDMAEventsVerbs, false},
+		{"netlink", "positive", "explicit netlink in any build", "netlink", RDMAEventsNetlink, rdmaevents.Available, RDMAEventsNetlink, false},
+		{"verbs_in_cgo", "positive", "verbs in a cgo rdma build", "verbs", RDMAEventsVerbs, true, RDMAEventsVerbs, false},
+		{"verbs_in_core", "negative", "verbs in a CGO_ENABLED=0 build", "configuration error at New", RDMAEventsVerbs, false, "", true},
+		{"unknown_value", "corner", "a name that is no backend", "configuration error naming the valid values", "foo", rdmaevents.Available, "", true},
+		{"case", "corner", "Netlink, capitalized", "configuration error: names are exact", "Netlink", rdmaevents.Available, "", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expected)
+			if tc.cgo != rdmaevents.Available {
+				t.Skipf("row is for the other build (rdmaevents.Available=%v)", rdmaevents.Available)
+			}
+			cfg := DefaultConfig()
+			cfg.RDMAEventsBackend = tc.backend
+			m, err := New(cfg, Options{})
+			if tc.wantErr {
+				if !errors.Is(err, ErrRDMAEventsBackend) || m != nil {
+					t.Fatalf("%s: got %v", tc.expected, err)
+				}
+				if tc.name == "unknown_value" && !strings.Contains(err.Error(), "auto, verbs or netlink") {
+					t.Fatalf("%s: %v", tc.expected, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("%s: %v", tc.expected, err)
+			}
+			if got := m.cfg.RDMAEventsBackend.resolve(); got != tc.resolved {
+				t.Fatalf("resolved %q, want %q", got, tc.resolved)
+			}
+		})
+	}
+	if DefaultConfig().RDMAEventsBackend != RDMAEventsAuto {
+		t.Fatal("default is not auto")
+	}
+}
+
+// TestRDMAUMADBackendSelection is the umad half of the design's backend
+// selection table: auto is libibumad in the cgo rdma build and native
+// otherwise, and libibumad in a build without it, or an unknown name, is a
+// configuration error at New. test-linkmonitor-rdma-unit runs the cgo rows.
+func TestRDMAUMADBackendSelection(t *testing.T) {
+	for _, tc := range []struct {
+		name, category, description, expected string
+		backend                               RDMAUMADBackend
+		cgo                                   bool // the row needs RDMALibibumadAvailable to be cgo
+		resolved                              RDMAUMADBackend
+		caps                                  rdmacaps.Backend
+		wantErr                               bool
+	}{
+		{"auto_cgo", "positive", "auto in a cgo rdma build", "libibumad", RDMAUMADAuto, true, RDMAUMADLibibumad, rdmacaps.Libibumad, false},
+		{"auto_core", "positive", "auto in a CGO_ENABLED=0 build", "native", RDMAUMADAuto, false, RDMAUMADNative, rdmacaps.Native, false},
+		{"empty_core", "boundary", "empty, as configurations predating the field have", "auto", "", false, RDMAUMADNative, rdmacaps.Native, false},
+		{"empty_cgo", "boundary", "empty in a cgo rdma build", "auto", "", true, RDMAUMADLibibumad, rdmacaps.Libibumad, false},
+		{"native", "positive", "explicit native in any build", "native", RDMAUMADNative, RDMALibibumadAvailable, RDMAUMADNative, rdmacaps.Native, false},
+		{"libibumad_in_cgo", "positive", "libibumad in a cgo rdma build", "libibumad", RDMAUMADLibibumad, true, RDMAUMADLibibumad, rdmacaps.Libibumad, false},
+		{"libibumad_in_core", "negative", "libibumad in a CGO_ENABLED=0 build", "configuration error at New", RDMAUMADLibibumad, false, "", 0, true},
+		{"unknown_value", "corner", "a name that is no backend", "configuration error naming the valid values", "verbs", RDMALibibumadAvailable, "", 0, true},
+		{"case", "corner", "Native, capitalized", "configuration error: names are exact", "Native", RDMALibibumadAvailable, "", 0, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expected)
+			if tc.cgo != RDMALibibumadAvailable {
+				t.Skipf("row is for the other build (RDMALibibumadAvailable=%v)", RDMALibibumadAvailable)
+			}
+			cfg := DefaultConfig()
+			cfg.RDMAUMADBackend = tc.backend
+			m, err := New(cfg, Options{})
+			if tc.wantErr {
+				if !errors.Is(err, ErrRDMAUMADBackend) || m != nil {
+					t.Fatalf("%s: got %v", tc.expected, err)
+				}
+				if tc.name == "unknown_value" && !strings.Contains(err.Error(), "auto, libibumad or native") {
+					t.Fatalf("%s: %v", tc.expected, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("%s: %v", tc.expected, err)
+			}
+			if got := m.cfg.RDMAUMADBackend.resolve(); got != tc.resolved {
+				t.Fatalf("resolved %q, want %q", got, tc.resolved)
+			}
+			if got := m.cfg.RDMAUMADBackend.caps().Resolve(); got != tc.caps {
+				t.Fatalf("transport %v, want %v", got, tc.caps)
+			}
+		})
+	}
+	if DefaultConfig().RDMAUMADBackend != RDMAUMADAuto {
+		t.Fatal("default is not auto")
 	}
 }

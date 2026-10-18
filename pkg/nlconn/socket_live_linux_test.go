@@ -41,13 +41,13 @@ func waitLive(t *testing.T, ready <-chan struct{}) {
 func signalIdle(c *Conn, ready chan<- struct{}) {
 	recv := c.recv
 	signaled := false
-	c.recv = func(fd int, b, oob []byte, flags int) (int, int, int, unix.Sockaddr, error) {
-		n, o, f, sa, err := recv(fd, b, oob, flags)
+	c.recv = func(fd int, b []byte, from *unix.RawSockaddrNetlink, flags int) (int, int, error) {
+		n, f, err := recv(fd, b, from, flags)
 		if errors.Is(err, unix.EAGAIN) && !signaled {
 			signaled = true
 			ready <- struct{}{}
 		}
-		return n, o, f, sa, err
+		return n, f, err
 	}
 }
 

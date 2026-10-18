@@ -196,6 +196,7 @@ let
   rdmaCaptureManifest = import ./tests/rdma-capture-manifest.nix { inherit pkgs vendoredSource; };
   captureRdmaTestdata = import ./capture-rdma-testdata.nix {
     inherit pkgs rdmaNativeCapture rdmaCaptureManifest;
+    umadTests = tests.test-linkmonitor-rdma-build;
   };
 
   # Asks the upstream remotes where `main` actually is and reports how far
@@ -865,6 +866,7 @@ in
         inherit pkgs lib nixpkgs;
         artifact = tests.test-linkmonitor-rdma-build;
         monitor = linkmonitorPackages.go-link-monitor;
+        coreMonitor = linkmonitorPackages.go-link-monitor-core;
         ernicModule = rocmErnic.nixosModules.ernic-guest;
         ernicRun = rocmErnic.packages.${pkgs.stdenv.hostPlatform.system}.ernic-run;
         inherit rdmaCaptureManifest;
@@ -873,6 +875,7 @@ in
         inherit pkgs lib nixpkgs;
         artifact = tests.test-linkmonitor-rdma-build;
         monitor = linkmonitorPackages.go-link-monitor;
+        coreMonitor = linkmonitorPackages.go-link-monitor-core;
         ernicModule = rocmErnic.nixosModules.ernic-guest;
         ernicRun = rocmErnic.packages.${pkgs.stdenv.hostPlatform.system}.ernic-run;
         inherit rdmaCaptureManifest;

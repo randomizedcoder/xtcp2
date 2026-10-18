@@ -34,3 +34,23 @@ const (
 	eventGIDChange         = 18
 	eventDeviceSpeedChange = 20
 )
+
+// rtnetlink layouts from include/uapi/linux/rtnetlink.h and if_addr.h, and the
+// link flags from include/uapi/linux/if.h: the translator reads only the fixed
+// headers, never an attribute.
+const (
+	ifinfomsgLen      = 16
+	ifinfomsgOffIndex = 4
+	ifinfomsgOffFlags = 8
+	ifaddrmsgLen      = 8
+	ifaddrmsgOffIndex = 4
+	rtmNewLink        = 16
+	rtmDelLink        = 17
+	rtmNewAddr        = 20
+	rtmDelAddr        = 21
+	iffRunning        = 0x40
+	iffLowerUp        = 0x10000
+	rtnlGroupLink     = 1
+	rtnlGroupIPv4Addr = 5
+	rtnlGroupIPv6Addr = 9
+)

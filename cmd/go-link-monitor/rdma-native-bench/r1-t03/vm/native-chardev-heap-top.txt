@@ -1,0 +1,43 @@
+File: xtcpnl.test
+Build ID: 055d31eb50d25b2a95ca20bf7a3776e339c5fcbc
+Type: alloc_space
+Time: 2026-10-18 14:32:57 UTC
+Showing nodes accounting for 3747.38kB, 100% of 3747.38kB total
+      flat  flat%   sum%        cum   cum%
+ 1184.27kB 31.60% 31.60%  1184.27kB 31.60%  runtime/pprof.StartCPUProfile
+ 1025.05kB 27.35% 58.96%  1025.05kB 27.35%  runtime.mallocgc
+  513.69kB 13.71% 72.66%   513.69kB 13.71%  regexp.onePassCopy
+  512.34kB 13.67% 86.34%   512.34kB 13.67%  regexp/syntax.(*compiler).inst (inline)
+  512.02kB 13.66%   100%   512.02kB 13.66%  google.golang.org/protobuf/reflect/protoregistry.(*Files).RegisterFile
+         0     0%   100%   513.69kB 13.71%  github.com/randomizedcoder/xtcp2/pkg/nlstrace.init
+         0     0%   100%   512.02kB 13.66%  google.golang.org/protobuf/internal/filedesc.Builder.Build
+         0     0%   100%   512.02kB 13.66%  google.golang.org/protobuf/internal/filetype.Builder.Build
+         0     0%   100%   512.02kB 13.66%  google.golang.org/protobuf/types/known/anypb.file_google_protobuf_any_proto_init
+         0     0%   100%   512.02kB 13.66%  google.golang.org/protobuf/types/known/anypb.init.0
+         0     0%   100%   512.34kB 13.67%  html/template.init
+         0     0%   100%  1184.27kB 31.60%  main.main
+         0     0%   100%  1026.03kB 27.38%  regexp.Compile (inline)
+         0     0%   100%  1026.03kB 27.38%  regexp.MustCompile
+         0     0%   100%  1026.03kB 27.38%  regexp.compile
+         0     0%   100%   513.69kB 13.71%  regexp.compileOnePass
+         0     0%   100%   512.34kB 13.67%  regexp/syntax.(*compiler).compile
+         0     0%   100%   512.34kB 13.67%  regexp/syntax.(*compiler).rune
+         0     0%   100%   512.34kB 13.67%  regexp/syntax.Compile
+         0     0%   100%   512.05kB 13.66%  runtime.(*scavengerState).init
+         0     0%   100%      513kB 13.69%  runtime.allocm
+         0     0%   100%   512.05kB 13.66%  runtime.bgscavenge
+         0     0%   100%  1538.06kB 41.04%  runtime.doInit (inline)
+         0     0%   100%  1538.06kB 41.04%  runtime.doInit1
+         0     0%   100%  2722.33kB 72.65%  runtime.main
+         0     0%   100%      513kB 13.69%  runtime.mstart
+         0     0%   100%      513kB 13.69%  runtime.mstart0
+         0     0%   100%      513kB 13.69%  runtime.mstart1
+         0     0%   100%      513kB 13.69%  runtime.newm
+         0     0%   100%  1025.05kB 27.35%  runtime.newobject
+         0     0%   100%      513kB 13.69%  runtime.resetspinning
+         0     0%   100%      513kB 13.69%  runtime.schedule
+         0     0%   100%      513kB 13.69%  runtime.startm
+         0     0%   100%      513kB 13.69%  runtime.wakep
+         0     0%   100%  1184.27kB 31.60%  testing.(*M).Run
+         0     0%   100%  1184.27kB 31.60%  testing.(*M).before
+         0     0%   100%  1184.27kB 31.60%  testing/internal/testdeps.TestDeps.StartCPUProfile

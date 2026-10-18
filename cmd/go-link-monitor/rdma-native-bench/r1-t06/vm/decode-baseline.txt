@@ -1,0 +1,25 @@
+goos: linux
+goarch: amd64
+pkg: github.com/randomizedcoder/xtcp2/pkg/linkmonitor
+cpu: AMD Ryzen Threadripper PRO 3945WX 12-Cores     
+BenchmarkPerformanceDecode/route-4         	 3282213	       364.7 ns/op	     211 B/op	       2 allocs/op
+BenchmarkPerformanceDecode/route-4         	 3310544	       362.1 ns/op	     211 B/op	       2 allocs/op
+BenchmarkPerformanceDecode/route-4         	 3339952	       361.5 ns/op	     211 B/op	       2 allocs/op
+BenchmarkPerformanceDecode/route-4         	 3308652	       363.2 ns/op	     211 B/op	       2 allocs/op
+BenchmarkPerformanceDecode/route-4         	 3306376	       362.9 ns/op	     211 B/op	       2 allocs/op
+BenchmarkPerformanceDecode/route-4         	 3295965	       363.8 ns/op	     211 B/op	       2 allocs/op
+BenchmarkPerformanceDecode/route-4         	 3267544	       363.3 ns/op	     211 B/op	       2 allocs/op
+BenchmarkPerformanceDecode/route-4         	 3316738	       364.2 ns/op	     211 B/op	       2 allocs/op
+BenchmarkPerformanceDecode/route-4         	 3304833	       362.7 ns/op	     211 B/op	       2 allocs/op
+BenchmarkPerformanceDecode/route-4         	 3279792	       364.1 ns/op	     211 B/op	       2 allocs/op
+BenchmarkPerformanceDecode/ethtool-4       	 2967046	       403.0 ns/op	     168 B/op	       6 allocs/op
+BenchmarkPerformanceDecode/ethtool-4       	 2991222	       403.2 ns/op	     168 B/op	       6 allocs/op
+BenchmarkPerformanceDecode/ethtool-4       	 2981151	       402.1 ns/op	     168 B/op	       6 allocs/op
+BenchmarkPerformanceDecode/ethtool-4       	 2973805	       405.2 ns/op	     168 B/op	       6 allocs/op
+BenchmarkPerformanceDecode/ethtool-4       	 2959764	       402.2 ns/op	     168 B/op	       6 allocs/op
+BenchmarkPerformanceDecode/ethtool-4       	 2968742	       402.8 ns/op	     168 B/op	       6 allocs/op
+BenchmarkPerformanceDecode/ethtool-4       	 2969692	       402.3 ns/op	     168 B/op	       6 allocs/op
+BenchmarkPerformanceDecode/ethtool-4       	 2978002	       404.3 ns/op	     168 B/op	       6 allocs/op
+BenchmarkPerformanceDecode/ethtool-4       	 2999122	       406.3 ns/op	     168 B/op	       6 allocs/op
+BenchmarkPerformanceDecode/ethtool-4       	 2919234	       406.9 ns/op	     168 B/op	       6 allocs/op
+PASS

@@ -24,6 +24,7 @@ func main() {
 
 func run() (result error) {
 	absentSysfs := flag.Bool("sandbox", false, "require absent sysfs; distinguish complete empty inventory from explicit unavailable inventory")
+	rdmaEvents := flag.String("rdma-events", "", "also require RDMA events from this backend (verbs or netlink): the source opens, and every attempted rdma_events collector is supported and successful")
 	flag.Parse()
 	if *absentSysfs {
 		if _, err := os.Stat("/sys"); !errors.Is(err, os.ErrNotExist) {
@@ -37,6 +38,9 @@ func run() (result error) {
 	defer func() { result = errors.Join(result, os.RemoveAll(dir)) }()
 	cfg := linkmonitor.DefaultConfig()
 	cfg.BaselineFile, cfg.Settle = filepath.Join(dir, "baseline.json"), 0
+	if *rdmaEvents != "" {
+		cfg.RDMAEventsBackend = linkmonitor.RDMAEventsBackend(*rdmaEvents)
+	}
 	handler := &diagnostics{Handler: slog.NewTextHandler(os.Stderr, nil)}
 	m, err := linkmonitor.New(cfg, linkmonitor.Options{Logger: slog.New(handler)})
 	if err != nil {
@@ -47,18 +51,24 @@ func run() (result error) {
 	done := make(chan error, 1)
 	go func() { done <- m.Run(ctx) }()
 	result = waitPublication(ctx, m, handler, *absentSysfs)
+	if result == nil && *rdmaEvents != "" {
+		result = waitRDMAEvents(ctx, m, handler, *rdmaEvents)
+	}
 	cancel()
 	return errors.Join(result, <-done)
 }
 
 type diagnostics struct {
 	slog.Handler
-	failures atomic.Uint64
+	failures, uncovered atomic.Uint64
 }
 
 func (h *diagnostics) Handle(ctx context.Context, record slog.Record) error {
-	if record.Message == "link inventory reconciliation failed" {
+	switch record.Message {
+	case "link inventory reconciliation failed":
 		h.failures.Add(1)
+	case "RDMA event coverage unavailable":
+		h.uncovered.Add(1)
 	}
 	return h.Handler.Handle(ctx, record)
 }
@@ -107,4 +117,63 @@ func sandboxOutcome(s linkmonitor.Snapshot, reconciled bool) error {
 	}
 	fmt.Println("PASS: unavailable inventory stays unknown and unhealthy; host collector continues")
 	return nil
+}
+
+// rdmaEventsHold is how long the RDMA event source must run without a
+// coverage failure; the monitor reports one as soon as an open fails.
+const rdmaEventsHold = 2 * time.Second
+
+// waitRDMAEvents waits until the monitor runs RDMA events from backend, then
+// requires that no open failed over rdmaEventsHold and that every attempted
+// rdma_events collector is supported and has succeeded. An inventory with no
+// eligible RDMA port (rxe is virtual and excluded) has no such collector; the
+// source still opens, with an empty port map.
+func waitRDMAEvents(ctx context.Context, m *linkmonitor.Monitor, handler *diagnostics, backend string) error {
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	var since time.Time
+	var unhealthy []string
+	for {
+		select {
+		case <-ctx.Done():
+			got, _ := m.Snapshot().RDMAEventsBackend()
+			return fmt.Errorf("rdma_events from %s not settled; backend %q; unhealthy %v", backend, got, unhealthy)
+		case now := <-ticker.C:
+			if handler.uncovered.Load() != 0 {
+				return fmt.Errorf("rdma_events from %s: coverage unavailable", backend)
+			}
+			s := m.Snapshot()
+			if got, ok := s.RDMAEventsBackend(); !ok || got != backend {
+				continue
+			}
+			if since.IsZero() {
+				since = now
+			}
+			var healthy []string
+			unhealthy = unhealthy[:0]
+			s.RangeDevices(func(d linkmonitor.DeviceView) bool {
+				d.RangeCollectors(func(c linkmonitor.CollectorView) bool {
+					if c.Name() != "rdma_events" {
+						return true
+					}
+					success, ok := c.Success()
+					switch {
+					case !ok:
+						// Never attempted: no RDMA port behind this interface.
+					case success && c.Support() == "supported":
+						healthy = append(healthy, d.Name())
+					default:
+						unhealthy = append(unhealthy, fmt.Sprintf("%s(success=%v support=%s reason=%q)", d.Name(), success, c.Support(), c.ErrorReason()))
+					}
+					return true
+				})
+				return true
+			})
+			if len(unhealthy) != 0 || now.Sub(since) < rdmaEventsHold {
+				continue
+			}
+			fmt.Printf("PASS: rdma_events from the %s backend open for %s; healthy on %v\n", backend, rdmaEventsHold, healthy)
+			return nil
+		}
+	}
 }

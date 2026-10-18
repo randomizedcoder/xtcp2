@@ -1,0 +1,38 @@
+File: rdmanative.test
+Build ID: 2719ec495dc5e4480567fd7dd183089f6a6b7da8
+Type: alloc_space
+Time: 2026-10-18 21:05:36 UTC
+Showing nodes accounting for 5795.51kB, 100% of 5795.51kB total
+      flat  flat%   sum%        cum   cum%
+ 1184.27kB 20.43% 20.43%  1184.27kB 20.43%  runtime/pprof.StartCPUProfile
+ 1056.33kB 18.23% 38.66%  1056.33kB 18.23%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative.newSocketRoute
+ 1024.05kB 17.67% 56.33%  1024.05kB 17.67%  testing.(*B).ResetTimer
+  902.59kB 15.57% 71.90%  1485.59kB 25.63%  compress/flate.NewWriter (inline)
+  583.01kB 10.06% 81.96%   583.01kB 10.06%  compress/flate.newDeflateFast (inline)
+  532.26kB  9.18% 91.15%  2017.85kB 34.82%  runtime/pprof.(*profileBuilder).emitLocation
+     513kB  8.85%   100%      513kB  8.85%  runtime.mallocgc
+         0     0%   100%   583.01kB 10.06%  compress/flate.(*compressor).init
+         0     0%   100%  1485.59kB 25.63%  compress/gzip.(*Writer).Write
+         0     0%   100%  1056.33kB 18.23%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative.BenchmarkEventPath.func1
+         0     0%   100%  1696.30kB 29.27%  main.main
+         0     0%   100%      513kB  8.85%  runtime.allocm
+         0     0%   100%  1696.30kB 29.27%  runtime.main
+         0     0%   100%      513kB  8.85%  runtime.mstart
+         0     0%   100%      513kB  8.85%  runtime.mstart0
+         0     0%   100%      513kB  8.85%  runtime.mstart1
+         0     0%   100%      513kB  8.85%  runtime.newm
+         0     0%   100%      513kB  8.85%  runtime.newobject
+         0     0%   100%      513kB  8.85%  runtime.resetspinning
+         0     0%   100%      513kB  8.85%  runtime.schedule
+         0     0%   100%      513kB  8.85%  runtime.startm
+         0     0%   100%      513kB  8.85%  runtime.wakep
+         0     0%   100%  2017.85kB 34.82%  runtime/pprof.(*profileBuilder).appendLocsForStack
+         0     0%   100%  2017.85kB 34.82%  runtime/pprof.(*profileBuilder).build
+         0     0%   100%  1485.59kB 25.63%  runtime/pprof.(*profileBuilder).flush
+         0     0%   100%  2017.85kB 34.82%  runtime/pprof.profileWriter
+         0     0%   100%  1568.36kB 27.06%  testing.(*B).run1.func1
+         0     0%   100%  2080.38kB 35.90%  testing.(*B).runN
+         0     0%   100%  1696.30kB 29.27%  testing.(*M).Run
+         0     0%   100%  1184.27kB 20.43%  testing.(*M).before
+         0     0%   100%   512.02kB  8.83%  testing.runBenchmarks
+         0     0%   100%  1184.27kB 20.43%  testing/internal/testdeps.TestDeps.StartCPUProfile

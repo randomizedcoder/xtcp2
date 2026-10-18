@@ -1,0 +1,25 @@
+goos: linux
+goarch: amd64
+pkg: github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative
+cpu: AMD Ryzen Threadripper PRO 3945WX 12-Cores     
+BenchmarkTranslateRtnl-4      	89879204	        13.50 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTranslateRtnl-4      	90538287	        13.47 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTranslateRtnl-4      	81281031	        13.57 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTranslateRtnl-4      	90579367	        13.56 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTranslateRtnl-4      	88297998	        13.57 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTranslateRtnl-4      	88974316	        13.51 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTranslateRtnl-4      	87297080	        13.60 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTranslateRtnl-4      	82593649	        13.53 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTranslateRtnl-4      	78972561	        13.82 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTranslateRtnl-4      	88986747	        13.53 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeAsyncEvent-4   	100000000	        10.63 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeAsyncEvent-4   	99355135	        10.75 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeAsyncEvent-4   	100000000	        11.91 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeAsyncEvent-4   	93994627	        10.90 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeAsyncEvent-4   	94992043	        11.73 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeAsyncEvent-4   	88467110	        11.57 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeAsyncEvent-4   	100000000	        11.58 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeAsyncEvent-4   	100000000	        11.54 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeAsyncEvent-4   	100000000	        11.48 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeAsyncEvent-4   	89052441	        13.31 ns/op	       0 B/op	       0 allocs/op
+PASS

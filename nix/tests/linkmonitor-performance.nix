@@ -39,6 +39,15 @@ pkgs.runCommand "xtcp2-test-linkmonitor-performance"
     CGO_ENABLED=1 go test -tags monitor_bench,rdma -c -o "$out/bin/rdmaevents.test" ./pkg/linkmonitor/internal/rdmaevents
     CGO_ENABLED=1 go test -tags monitor_bench,rdma -c -o "$out/bin/rdmacaps.test" ./pkg/linkmonitor/internal/rdmacaps
     "$out/bin/rdmaevents.test" -test.run '^TestPerformance' -test.v > "$out/rdmaevents-smoke.txt"
+    # The go-native decoders, cgo-free, for bench-linkmonitor-rdma-native --native.
+    CGO_ENABLED=0 go test -tags monitor_bench -c -o "$out/bin/rdmanative.test" ./pkg/linkmonitor/internal/rdmanative
+    CGO_ENABLED=0 go test -tags monitor_bench -c -o "$out/bin/xtcpnl.test" ./pkg/xtcpnl
+    CGO_ENABLED=0 go test -tags monitor_bench -c -o "$out/bin/nlconn.test" ./pkg/nlconn
+    CGO_ENABLED=0 go test -tags monitor_bench -c -o "$out/bin/rdmacaps-native.test" ./pkg/linkmonitor/internal/rdmacaps
+    "$out/bin/rdmanative.test" -test.run '^$' -test.bench . -test.benchtime=1x > "$out/rdmanative-bench-smoke.txt"
+    "$out/bin/xtcpnl.test" -test.run '^$' -test.bench '^BenchmarkParseChardev$' -test.benchtime=1x > "$out/xtcpnl-bench-smoke.txt"
+    "$out/bin/nlconn.test" -test.run '^$' -test.bench '^BenchmarkReceive$' -test.benchtime=1x > "$out/nlconn-bench-smoke.txt"
+    "$out/bin/rdmacaps-native.test" -test.run '^$' -test.bench 'UMAD|RegisterAgent2' -test.benchtime=1x > "$out/rdmacaps-native-bench-smoke.txt"
     CGO_ENABLED=1 go test -tags monitor_bench,rdma -race -count=3 ./pkg/linkmonitor/... -run '^TestPerformance' > "$out/race.txt"
     CGO_ENABLED=1 golangci-lint run --config .golangci-comprehensive.yml --build-tags monitor_bench,rdma ./pkg/linkmonitor/... > "$out/lint.txt" 2>&1 || { cat "$out/lint.txt"; exit 1; }
     python3 -m unittest discover -s nix/tests -p test_linkmonitor_performance.py

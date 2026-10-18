@@ -39,7 +39,7 @@ func TestReceiveMetadata(t *testing.T) {
 			c, _, _ := testConn()
 			c.buffer = make([]byte, row.size)
 			calls := 0
-			c.recv = func(fd int, b, oob []byte, flags int) (int, int, int, unix.Sockaddr, error) {
+			c.recv = legacyRecv(func(fd int, b, oob []byte, flags int) (int, int, int, unix.Sockaddr, error) {
 				calls++
 				if flags != unix.MSG_DONTWAIT || fd != 123 || len(oob) != 0 {
 					t.Fatal("wrong recvmsg contract")
@@ -51,7 +51,7 @@ func TestReceiveMetadata(t *testing.T) {
 				binary.LittleEndian.PutUint32(b[8:], 123)  // nonzero origin sequence
 				binary.LittleEndian.PutUint32(b[12:], 456) // header PID is not authentication
 				return row.n, 0, row.flags, row.from, nil
-			}
+			})
 			visited := 0
 			n, err := c.Receive(context.Background(), func(b []byte) error {
 				visited++
@@ -87,7 +87,7 @@ func TestReceiveBatchAndRetries(t *testing.T) {
 		t.Run(row.description, func(t *testing.T) {
 			c, _, r := testConn()
 			attempts, available := 0, row.available
-			c.recv = func(_ int, b, _ []byte, _ int) (int, int, int, unix.Sockaddr, error) {
+			c.recv = legacyRecv(func(_ int, b, _ []byte, _ int) (int, int, int, unix.Sockaddr, error) {
 				attempts++
 				if attempts == 1 {
 					return 0, 0, 0, nil, unix.EINTR
@@ -101,7 +101,7 @@ func TestReceiveBatchAndRetries(t *testing.T) {
 				b[0] = byte(row.available - available)
 				available--
 				return 1, 0, 0, &unix.SockaddrNetlink{Family: unix.AF_NETLINK}, nil
-			}
+			})
 			seen := 0
 			n, err := c.Receive(context.Background(), func(b []byte) error {
 				if r.inside {
@@ -125,9 +125,9 @@ func TestReceiveBatchAndRetries(t *testing.T) {
 
 func TestReceiveLossAndGrowth(t *testing.T) {
 	c, _, r := testConn()
-	c.recv = func(int, []byte, []byte, int) (int, int, int, unix.Sockaddr, error) {
+	c.recv = legacyRecv(func(int, []byte, []byte, int) (int, int, int, unix.Sockaddr, error) {
 		return 0, 0, unix.MSG_TRUNC, &unix.SockaddrNetlink{Family: unix.AF_NETLINK}, nil
-	}
+	})
 	for size := initialBuffer; size < maxBuffer; size *= 2 {
 		n, err := c.Receive(context.Background(), func([]byte) error { t.Fatal("truncated payload delivered"); return nil })
 		if n != 0 || !errors.Is(err, ErrTruncated) || len(c.buffer) != size*2 {
@@ -142,13 +142,13 @@ func TestReceiveLossAndGrowth(t *testing.T) {
 	// ENOBUFS after a delivered prefix is still surfaced, not swallowed as an
 	// empty batch. The transaction layer must discard that prefix.
 	calls := 0
-	c.recv = func(int, []byte, []byte, int) (int, int, int, unix.Sockaddr, error) {
+	c.recv = legacyRecv(func(int, []byte, []byte, int) (int, int, int, unix.Sockaddr, error) {
 		calls++
 		if calls == 1 {
 			return 1, 0, 0, &unix.SockaddrNetlink{Family: unix.AF_NETLINK}, nil
 		}
 		return 0, 0, 0, nil, unix.ENOBUFS
-	}
+	})
 	n, err := c.Receive(context.Background(), func([]byte) error { return nil })
 	if n != 1 || !errors.Is(err, unix.ENOBUFS) || r.controls != 1 {
 		t.Fatalf("loss hidden: n=%d err=%v controls=%d", n, err, r.controls)

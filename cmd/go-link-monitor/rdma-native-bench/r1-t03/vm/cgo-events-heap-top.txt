@@ -1,0 +1,42 @@
+File: rdmaevents.test
+Build ID: abafc2c6c84fdfbec8af1bddebbbd9829b879b5c
+Type: alloc_space
+Time: 2026-10-18 14:31:50 UTC
+Showing nodes accounting for 4719.07kB, 100% of 4719.07kB total
+      flat  flat%   sum%        cum   cum%
+ 1184.27kB 25.10% 25.10%  1184.27kB 25.10%  runtime/pprof.StartCPUProfile
+  902.59kB 19.13% 44.22%  1485.59kB 31.48%  compress/flate.NewWriter (inline)
+  583.01kB 12.35% 56.58%   583.01kB 12.35%  compress/flate.newDeflateFast (inline)
+     513kB 10.87% 67.45%      513kB 10.87%  runtime.mallocgc
+  512.12kB 10.85% 78.30%   512.12kB 10.85%  runtime/pprof.allFrames
+  512.08kB 10.85% 89.15%   512.08kB 10.85%  compress/gzip.NewWriterLevel
+     512kB 10.85%   100%      512kB 10.85%  os.newFile
+         0     0%   100%   583.01kB 12.35%  compress/flate.(*compressor).init
+         0     0%   100%  1485.59kB 31.48%  compress/gzip.(*Writer).Write
+         0     0%   100%  1184.27kB 25.10%  main.main
+         0     0%   100%      512kB 10.85%  os.Open (inline)
+         0     0%   100%      512kB 10.85%  os.OpenFile
+         0     0%   100%      512kB 10.85%  os.openFileNolog
+         0     0%   100%      513kB 10.87%  runtime.allocm
+         0     0%   100%  1184.27kB 25.10%  runtime.main
+         0     0%   100%      513kB 10.87%  runtime.mstart
+         0     0%   100%      513kB 10.87%  runtime.mstart0
+         0     0%   100%      513kB 10.87%  runtime.mstart1
+         0     0%   100%      513kB 10.87%  runtime.newm
+         0     0%   100%      513kB 10.87%  runtime.newobject
+         0     0%   100%      513kB 10.87%  runtime.resetspinning
+         0     0%   100%      513kB 10.87%  runtime.schedule
+         0     0%   100%      513kB 10.87%  runtime.startm
+         0     0%   100%      513kB 10.87%  runtime.wakep
+         0     0%   100%  1997.71kB 42.33%  runtime/pprof.(*profileBuilder).appendLocsForStack
+         0     0%   100%  1997.71kB 42.33%  runtime/pprof.(*profileBuilder).build
+         0     0%   100%  1485.59kB 31.48%  runtime/pprof.(*profileBuilder).emitLocation
+         0     0%   100%  1485.59kB 31.48%  runtime/pprof.(*profileBuilder).flush
+         0     0%   100%      512kB 10.85%  runtime/pprof.(*profileBuilder).readMapping
+         0     0%   100%      512kB 10.85%  runtime/pprof.elfBuildID
+         0     0%   100%  1024.08kB 21.70%  runtime/pprof.newProfileBuilder
+         0     0%   100%      512kB 10.85%  runtime/pprof.parseProcSelfMaps
+         0     0%   100%  3021.79kB 64.03%  runtime/pprof.profileWriter
+         0     0%   100%  1184.27kB 25.10%  testing.(*M).Run
+         0     0%   100%  1184.27kB 25.10%  testing.(*M).before
+         0     0%   100%  1184.27kB 25.10%  testing/internal/testdeps.TestDeps.StartCPUProfile

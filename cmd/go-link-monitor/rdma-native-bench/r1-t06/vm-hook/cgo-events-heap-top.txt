@@ -1,0 +1,41 @@
+File: rdmaevents.test
+Build ID: abafc2c6c84fdfbec8af1bddebbbd9829b879b5c
+Type: alloc_space
+Time: 2026-10-18 18:01:31 UTC
+Showing nodes accounting for 4854.15kB, 100% of 4854.15kB total
+      flat  flat%   sum%        cum   cum%
+ 1762.94kB 36.32% 36.32%  1762.94kB 36.32%  runtime/pprof.StartCPUProfile
+    1026kB 21.14% 57.45%     1026kB 21.14%  runtime.mallocgc
+  902.59kB 18.59% 76.05%  1553.21kB 32.00%  compress/flate.NewWriter (inline)
+  650.62kB 13.40% 89.45%   650.62kB 13.40%  compress/flate.(*compressor).init
+     512kB 10.55%   100%      512kB 10.55%  os.newFile
+         0     0%   100%  1553.21kB 32.00%  compress/gzip.(*Writer).Write
+         0     0%   100%  1762.94kB 36.32%  main.main
+         0     0%   100%      512kB 10.55%  os.Open (inline)
+         0     0%   100%      512kB 10.55%  os.OpenFile
+         0     0%   100%      512kB 10.55%  os.openFileNolog
+         0     0%   100%     1026kB 21.14%  runtime.allocm
+         0     0%   100%  1762.94kB 36.32%  runtime.main
+         0     0%   100%      513kB 10.57%  runtime.mcall
+         0     0%   100%      513kB 10.57%  runtime.mstart
+         0     0%   100%      513kB 10.57%  runtime.mstart0
+         0     0%   100%      513kB 10.57%  runtime.mstart1
+         0     0%   100%     1026kB 21.14%  runtime.newm
+         0     0%   100%     1026kB 21.14%  runtime.newobject
+         0     0%   100%      513kB 10.57%  runtime.park_m
+         0     0%   100%     1026kB 21.14%  runtime.resetspinning
+         0     0%   100%     1026kB 21.14%  runtime.schedule
+         0     0%   100%     1026kB 21.14%  runtime.startm
+         0     0%   100%     1026kB 21.14%  runtime.wakep
+         0     0%   100%  1553.21kB 32.00%  runtime/pprof.(*profileBuilder).appendLocsForStack
+         0     0%   100%  1553.21kB 32.00%  runtime/pprof.(*profileBuilder).build
+         0     0%   100%  1553.21kB 32.00%  runtime/pprof.(*profileBuilder).emitLocation
+         0     0%   100%  1553.21kB 32.00%  runtime/pprof.(*profileBuilder).flush
+         0     0%   100%      512kB 10.55%  runtime/pprof.(*profileBuilder).readMapping
+         0     0%   100%      512kB 10.55%  runtime/pprof.elfBuildID
+         0     0%   100%      512kB 10.55%  runtime/pprof.newProfileBuilder
+         0     0%   100%      512kB 10.55%  runtime/pprof.parseProcSelfMaps
+         0     0%   100%  2065.21kB 42.55%  runtime/pprof.profileWriter
+         0     0%   100%  1762.94kB 36.32%  testing.(*M).Run
+         0     0%   100%  1762.94kB 36.32%  testing.(*M).before
+         0     0%   100%  1762.94kB 36.32%  testing/internal/testdeps.TestDeps.StartCPUProfile

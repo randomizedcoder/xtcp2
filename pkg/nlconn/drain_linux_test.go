@@ -44,7 +44,7 @@ func TestDrain(t *testing.T) {
 				}
 			}
 			calls := 0
-			c.recv = func(fd int, b, oob []byte, flags int) (int, int, int, unix.Sockaddr, error) {
+			c.recv = legacyRecv(func(fd int, b, oob []byte, flags int) (int, int, int, unix.Sockaddr, error) {
 				if flags != unix.MSG_DONTWAIT {
 					t.Fatal("Drain must never wait")
 				}
@@ -54,7 +54,7 @@ func TestDrain(t *testing.T) {
 					return 0, 0, 0, nil, s.err
 				}
 				return s.n, 0, s.flags, kernel, nil
-			}
+			})
 			n, err := c.Drain(context.Background())
 			if n != row.expected || !errors.Is(err, row.expectedErr) || (row.expectedErr == nil && err != nil) {
 				t.Fatalf("n=%d err=%v, expected n=%d err=%v", n, err, row.expected, row.expectedErr)

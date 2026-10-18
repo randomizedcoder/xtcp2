@@ -34,7 +34,7 @@ is [METRICS.md](METRICS.md); behaviour is in [DESIGN.md](DESIGN.md).
 ## Quick start
 
 ```sh
-nix build .#go-link-monitor          # full build with RDMA; .#go-link-monitor-core without
+nix build .#go-link-monitor          # full build with RDMA; .#go-link-monitor-core without cgo
 sudo ./result/bin/go-link-monitor   # baseline in /var/lib/go-link-monitor, admin socket in /run/go-link-monitor
 curl -s :9101/metrics                # problem summary
 curl -s :9101/metrics/link           # link detail
@@ -184,9 +184,19 @@ Alert and dashboard PromQL is in
   [the gRPC API](../../docs/grpc-api.md#linkmonitorservice).
 - **Speed exceptions.** `-max-speed-exceptions=enp1s0=1G` accepts a port that
   is cabled below its maximum, only while it runs at exactly that speed.
+- **RDMA events.** `-rdma.events-backend` is `auto` (default), `verbs` or
+  `netlink`. `auto` reads the verbs event queues in the cgo build and derives
+  the same events from netlink otherwise, so the core build gets RDMA events
+  too; `rdma_events_backend_info` shows which is running.
+- **InfiniBand capabilities.** `-rdma.umad-backend` is `auto` (default),
+  `libibumad` or `native`. `auto` queries PortInfo through libibumad in the
+  cgo build and through the umad device directly otherwise, so the core build
+  reports `rdma_capabilities` on native InfiniBand too.
 - **Inside xtcp2.** `xtcp2 -linkMonitor` embeds the same monitor and
   registers its summary on xtcp2's Prometheus listener, or every family with
-  `-linkMonitorMetricsAll`; the OCI images run it on demand.
+  `-linkMonitorMetricsAll`; the OCI images run it on demand. The embedded
+  monitor uses `linkmonitor.Config.RDMAEventsBackend` and
+  `RDMAUMADBackend`, both `auto` by default.
 
 Run `go-link-monitor -h` for every flag.
 

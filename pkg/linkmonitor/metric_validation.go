@@ -17,7 +17,8 @@ interface_classification interface_max_speed_exception interface_expected_speed_
 max_speed_exception_match
 observed_oper_transitions_total collector_support collector_success
 collector_last_success_timestamp_seconds collector_duration_seconds collector_errors_total
-collector_omitted_statistics counter_discontinuities_total build_info`)
+collector_omitted_statistics counter_discontinuities_total build_info
+rdma_events_backend_info`)
 
 func reservedMetric(name string) bool {
 	suffix, prefixed := strings.CutPrefix(name, "go_link_monitor_")

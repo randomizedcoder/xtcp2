@@ -114,6 +114,9 @@ func (f *PrometheusFixture) Exceptions(selectors ...string) {
 	f.r.exceptions = resolveExceptions(selectors, f.r.rdmaExceptionDevices())
 }
 
+// RDMAEventsBackend sets the resolved backend the schedule would record.
+func (f *PrometheusFixture) RDMAEventsBackend(backend string) { f.r.rdmaEventsBackend = backend }
+
 // Publish freezes a complete inventory and a known baseline.
 func (f *PrometheusFixture) Publish(expected uint64) {
 	f.t.Helper()

@@ -1,0 +1,47 @@
+File: rdmanative.test
+Build ID: fecc086c2f692e922566432d8c0f0ec4b3439fd3
+Type: alloc_space
+Time: 2026-10-18 17:11:33 UTC
+Showing nodes accounting for 5733.39kB, 100% of 5733.39kB total
+Showing top 40 nodes out of 43
+      flat  flat%   sum%        cum   cum%
+ 1184.27kB 20.66% 20.66%  1184.27kB 20.66%  runtime/pprof.StartCPUProfile
+    1026kB 17.90% 38.55%     1026kB 17.90%  runtime.mallocgc
+  902.59kB 15.74% 54.29%   902.59kB 15.74%  compress/flate.NewWriter (inline)
+  553.04kB  9.65% 63.94%  1970.82kB 34.37%  runtime/pprof.(*profileBuilder).emitLocation
+  528.17kB  9.21% 73.15%   528.17kB  9.21%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative.newSocketRoute
+  515.19kB  8.99% 82.14%   515.19kB  8.99%  runtime/pprof.(*profileBuilder).stringIndex (inline)
+  512.08kB  8.93% 91.07%   512.08kB  8.93%  compress/gzip.NewWriterLevel
+  512.05kB  8.93%   100%   512.05kB  8.93%  regexp/syntax.(*parser).newRegexp (inline)
+         0     0%   100%   902.59kB 15.74%  compress/gzip.(*Writer).Write
+         0     0%   100%   528.17kB  9.21%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative.BenchmarkEventPath.func1
+         0     0%   100%   512.05kB  8.93%  html/template.init
+         0     0%   100%  1184.27kB 20.66%  main.main
+         0     0%   100%   512.05kB  8.93%  regexp.Compile (inline)
+         0     0%   100%   512.05kB  8.93%  regexp.MustCompile
+         0     0%   100%   512.05kB  8.93%  regexp.compile
+         0     0%   100%   512.05kB  8.93%  regexp/syntax.(*parser).literal
+         0     0%   100%   512.05kB  8.93%  regexp/syntax.Parse (inline)
+         0     0%   100%   512.05kB  8.93%  regexp/syntax.parse
+         0     0%   100%     1026kB 17.90%  runtime.allocm
+         0     0%   100%   512.05kB  8.93%  runtime.doInit (inline)
+         0     0%   100%   512.05kB  8.93%  runtime.doInit1
+         0     0%   100%  1696.33kB 29.59%  runtime.main
+         0     0%   100%      513kB  8.95%  runtime.mcall
+         0     0%   100%      513kB  8.95%  runtime.mstart
+         0     0%   100%      513kB  8.95%  runtime.mstart0
+         0     0%   100%      513kB  8.95%  runtime.mstart1
+         0     0%   100%     1026kB 17.90%  runtime.newm
+         0     0%   100%     1026kB 17.90%  runtime.newobject
+         0     0%   100%      513kB  8.95%  runtime.park_m
+         0     0%   100%     1026kB 17.90%  runtime.resetspinning
+         0     0%   100%     1026kB 17.90%  runtime.schedule
+         0     0%   100%     1026kB 17.90%  runtime.startm
+         0     0%   100%     1026kB 17.90%  runtime.wakep
+         0     0%   100%  1970.82kB 34.37%  runtime/pprof.(*profileBuilder).appendLocsForStack
+         0     0%   100%  1970.82kB 34.37%  runtime/pprof.(*profileBuilder).build
+         0     0%   100%   902.59kB 15.74%  runtime/pprof.(*profileBuilder).flush
+         0     0%   100%   512.08kB  8.93%  runtime/pprof.newProfileBuilder
+         0     0%   100%  2482.90kB 43.31%  runtime/pprof.profileWriter
+         0     0%   100%   528.17kB  9.21%  testing.(*B).run1.func1
+         0     0%   100%   528.17kB  9.21%  testing.(*B).runN

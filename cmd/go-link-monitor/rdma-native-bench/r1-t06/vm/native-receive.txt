@@ -1,0 +1,45 @@
+goos: linux
+goarch: amd64
+pkg: github.com/randomizedcoder/xtcp2/pkg/nlconn
+cpu: AMD Ryzen Threadripper PRO 3945WX 12-Cores     
+BenchmarkReceive/batch=1-4         	  539535	      1982 ns/op	      1982 ns/datagram	     280 B/op	       5 allocs/op
+BenchmarkReceive/batch=1-4         	  574800	      2003 ns/op	      2003 ns/datagram	     280 B/op	       5 allocs/op
+BenchmarkReceive/batch=1-4         	  621670	      2188 ns/op	      2188 ns/datagram	     280 B/op	       5 allocs/op
+BenchmarkReceive/batch=1-4         	  508167	      2321 ns/op	      2321 ns/datagram	     280 B/op	       5 allocs/op
+BenchmarkReceive/batch=1-4         	  509815	      3268 ns/op	      3268 ns/datagram	     280 B/op	       5 allocs/op
+BenchmarkReceive/batch=1-4         	  545611	      2219 ns/op	      2219 ns/datagram	     280 B/op	       5 allocs/op
+BenchmarkReceive/batch=1-4         	  519156	      3255 ns/op	      3255 ns/datagram	     280 B/op	       5 allocs/op
+BenchmarkReceive/batch=1-4         	  590326	      2092 ns/op	      2092 ns/datagram	     280 B/op	       5 allocs/op
+BenchmarkReceive/batch=1-4         	  620906	      2098 ns/op	      2098 ns/datagram	     280 B/op	       5 allocs/op
+BenchmarkReceive/batch=1-4         	  517747	      2097 ns/op	      2097 ns/datagram	     280 B/op	       5 allocs/op
+BenchmarkReceive/batch=8-4         	  197770	      6261 ns/op	       782.7 ns/datagram	     280 B/op	       5 allocs/op
+BenchmarkReceive/batch=8-4         	  194179	      6052 ns/op	       756.5 ns/datagram	     280 B/op	       5 allocs/op
+BenchmarkReceive/batch=8-4         	  189955	      6218 ns/op	       777.2 ns/datagram	     280 B/op	       5 allocs/op
+BenchmarkReceive/batch=8-4         	  193710	      6270 ns/op	       783.8 ns/datagram	     280 B/op	       5 allocs/op
+BenchmarkReceive/batch=8-4         	  193758	      6175 ns/op	       771.9 ns/datagram	     280 B/op	       5 allocs/op
+BenchmarkReceive/batch=8-4         	  196659	      6142 ns/op	       767.7 ns/datagram	     280 B/op	       5 allocs/op
+BenchmarkReceive/batch=8-4         	  196381	      6358 ns/op	       794.8 ns/datagram	     280 B/op	       5 allocs/op
+BenchmarkReceive/batch=8-4         	  185587	      6272 ns/op	       784.0 ns/datagram	     280 B/op	       5 allocs/op
+BenchmarkReceive/batch=8-4         	  186770	      6204 ns/op	       775.5 ns/datagram	     280 B/op	       5 allocs/op
+BenchmarkReceive/batch=8-4         	  193252	      6222 ns/op	       777.7 ns/datagram	     280 B/op	       5 allocs/op
+BenchmarkReceive/batch=32-4        	   57516	     21599 ns/op	       675.0 ns/datagram	     281 B/op	       5 allocs/op
+BenchmarkReceive/batch=32-4        	   53892	     21672 ns/op	       677.3 ns/datagram	     280 B/op	       5 allocs/op
+BenchmarkReceive/batch=32-4        	   55774	     21876 ns/op	       683.6 ns/datagram	     280 B/op	       5 allocs/op
+BenchmarkReceive/batch=32-4        	   55807	     21543 ns/op	       673.2 ns/datagram	     280 B/op	       5 allocs/op
+BenchmarkReceive/batch=32-4        	   55515	     21804 ns/op	       681.4 ns/datagram	     280 B/op	       5 allocs/op
+BenchmarkReceive/batch=32-4        	   53766	     21976 ns/op	       686.7 ns/datagram	     280 B/op	       5 allocs/op
+BenchmarkReceive/batch=32-4        	   55359	     21775 ns/op	       680.5 ns/datagram	     280 B/op	       5 allocs/op
+BenchmarkReceive/batch=32-4        	   56210	     21530 ns/op	       672.8 ns/datagram	     280 B/op	       5 allocs/op
+BenchmarkReceive/batch=32-4        	   54441	     22045 ns/op	       688.9 ns/datagram	     280 B/op	       5 allocs/op
+BenchmarkReceive/batch=32-4        	   55513	     21730 ns/op	       679.0 ns/datagram	     280 B/op	       5 allocs/op
+BenchmarkReceive/batch=64-4        	   28456	     41143 ns/op	       642.9 ns/datagram	     280 B/op	       5 allocs/op
+BenchmarkReceive/batch=64-4        	   29037	     41168 ns/op	       643.2 ns/datagram	     280 B/op	       5 allocs/op
+BenchmarkReceive/batch=64-4        	   29104	     41733 ns/op	       652.1 ns/datagram	     280 B/op	       5 allocs/op
+BenchmarkReceive/batch=64-4        	   28722	     41120 ns/op	       642.5 ns/datagram	     280 B/op	       5 allocs/op
+BenchmarkReceive/batch=64-4        	   28876	     40947 ns/op	       639.8 ns/datagram	     280 B/op	       5 allocs/op
+BenchmarkReceive/batch=64-4        	   29131	     41048 ns/op	       641.4 ns/datagram	     280 B/op	       5 allocs/op
+BenchmarkReceive/batch=64-4        	   28788	     41441 ns/op	       647.5 ns/datagram	     280 B/op	       5 allocs/op
+BenchmarkReceive/batch=64-4        	   29152	     40975 ns/op	       640.2 ns/datagram	     280 B/op	       5 allocs/op
+BenchmarkReceive/batch=64-4        	   28682	     41222 ns/op	       644.1 ns/datagram	     280 B/op	       5 allocs/op
+BenchmarkReceive/batch=64-4        	   28233	     41822 ns/op	       653.5 ns/datagram	     280 B/op	       5 allocs/op
+PASS

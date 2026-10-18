@@ -1,0 +1,30 @@
+=== RUN   TestUMADLive
+=== RUN   TestUMADLive/smi_native
+    umad_vm_linux_test.go:74: negative: native PortInfo query on a RoCE port; expected: EPROTONOSUPPORT from SMI registration
+    umad_vm_linux_test.go:78: result: protocol not supported
+=== RUN   TestUMADLive/smi_libibumad
+    umad_vm_linux_test.go:74: negative: libibumad PortInfo query on a RoCE port; expected: EPROTONOSUPPORT: a named port skips libibumad's link-layer check
+    umad_vm_linux_test.go:78: result: protocol not supported
+=== RUN   TestUMADLive/smi_register
+    umad_vm_linux_test.go:74: negative: register the SMI class 0x81 directly; expected: EPROTONOSUPPORT
+    umad_vm_linux_test.go:78: result: protocol not supported
+=== RUN   TestUMADLive/gsi_register
+    umad_vm_linux_test.go:74: positive: register the GSI PerfMgt class 0x04; expected: registered, unregistered and closed
+    umad_vm_linux_test.go:78: result: <nil>
+=== RUN   TestUMADLive/absent_device
+    umad_vm_linux_test.go:74: negative: native query of a device that does not exist; expected: ENODEV
+    umad_vm_linux_test.go:78: result: no such device
+=== RUN   TestUMADLive/absent_port
+    umad_vm_linux_test.go:74: boundary: native query of port 2 on a one-port device; expected: EINVAL from GET_CHARDEV
+    umad_vm_linux_test.go:78: result: invalid argument
+=== RUN   TestUMADLive/parallel_native
+    umad_vm_linux_test.go:91: positive: eight native queries of one port at once; expected every one EPROTONOSUPPORT, none waiting on another
+--- PASS: TestUMADLive (0.01s)
+    --- PASS: TestUMADLive/smi_native (0.00s)
+    --- PASS: TestUMADLive/smi_libibumad (0.00s)
+    --- PASS: TestUMADLive/smi_register (0.00s)
+    --- PASS: TestUMADLive/gsi_register (0.00s)
+    --- PASS: TestUMADLive/absent_device (0.00s)
+    --- PASS: TestUMADLive/absent_port (0.00s)
+    --- PASS: TestUMADLive/parallel_native (0.00s)
+PASS

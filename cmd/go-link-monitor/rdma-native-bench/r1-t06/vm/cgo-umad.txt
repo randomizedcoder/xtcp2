@@ -1,0 +1,25 @@
+goos: linux
+goarch: amd64
+pkg: github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps
+cpu: AMD Ryzen Threadripper PRO 3945WX 12-Cores     
+BenchmarkPerformanceUMAD/uncontended-4         	 3485778	       343.4 ns/op	         3.000 cgo/query	     512 B/op	       2 allocs/op
+BenchmarkPerformanceUMAD/uncontended-4         	 3490296	       342.8 ns/op	         3.000 cgo/query	     512 B/op	       2 allocs/op
+BenchmarkPerformanceUMAD/uncontended-4         	 3502477	       347.5 ns/op	         3.000 cgo/query	     512 B/op	       2 allocs/op
+BenchmarkPerformanceUMAD/uncontended-4         	 3462379	       343.7 ns/op	         3.000 cgo/query	     512 B/op	       2 allocs/op
+BenchmarkPerformanceUMAD/uncontended-4         	 3487446	       340.2 ns/op	         3.000 cgo/query	     512 B/op	       2 allocs/op
+BenchmarkPerformanceUMAD/uncontended-4         	 3559032	       339.0 ns/op	         3.000 cgo/query	     512 B/op	       2 allocs/op
+BenchmarkPerformanceUMAD/uncontended-4         	 3520761	       340.3 ns/op	         3.000 cgo/query	     512 B/op	       2 allocs/op
+BenchmarkPerformanceUMAD/uncontended-4         	 3517041	       345.1 ns/op	         3.000 cgo/query	     512 B/op	       2 allocs/op
+BenchmarkPerformanceUMAD/uncontended-4         	 3570973	       342.0 ns/op	         3.000 cgo/query	     512 B/op	       2 allocs/op
+BenchmarkPerformanceUMAD/uncontended-4         	 3447346	       346.6 ns/op	         3.000 cgo/query	     512 B/op	       2 allocs/op
+BenchmarkPerformanceUMAD/contended-4           	 1783768	       665.2 ns/op	         3.000 cgo/query	     512 B/op	       2 allocs/op
+BenchmarkPerformanceUMAD/contended-4           	 1779597	       688.4 ns/op	         3.000 cgo/query	     512 B/op	       2 allocs/op
+BenchmarkPerformanceUMAD/contended-4           	 1782232	       678.0 ns/op	         3.000 cgo/query	     512 B/op	       2 allocs/op
+BenchmarkPerformanceUMAD/contended-4           	 1761316	       726.0 ns/op	         3.000 cgo/query	     512 B/op	       2 allocs/op
+BenchmarkPerformanceUMAD/contended-4           	  607916	      2090 ns/op	         3.000 cgo/query	     512 B/op	       2 allocs/op
+BenchmarkPerformanceUMAD/contended-4           	 1880766	       637.1 ns/op	         3.000 cgo/query	     512 B/op	       2 allocs/op
+BenchmarkPerformanceUMAD/contended-4           	 1843431	       662.5 ns/op	         3.000 cgo/query	     512 B/op	       2 allocs/op
+BenchmarkPerformanceUMAD/contended-4           	 1764520	       676.6 ns/op	         3.000 cgo/query	     512 B/op	       2 allocs/op
+BenchmarkPerformanceUMAD/contended-4           	 1753645	       713.6 ns/op	         3.000 cgo/query	     512 B/op	       2 allocs/op
+BenchmarkPerformanceUMAD/contended-4           	 1750812	       675.8 ns/op	         3.000 cgo/query	     512 B/op	       2 allocs/op
+PASS

@@ -84,8 +84,9 @@ func (r *reducer) publish(m *Monitor, state publicationState) error {
 		baselineRecordedAt:  unixNanos(state.recordedAt),
 		counts:              LinkCounts{current: model.Optional[uint64]{Value: r.upCount, Present: r.lastResync.Present && r.uncertain == 0 && r.rdmaUncertain == 0}, expected: state.expected},
 		host:                freezeCollector(&r.host), pages: make([]*devicePage, pageCount),
-		published: state.now,
-		problems:  r.problems,
+		published:         state.now,
+		problems:          r.problems,
+		rdmaEventsBackend: r.rdmaEventsBackend,
 	}
 	if previous != nil {
 		copy(next.pages, previous.pages)

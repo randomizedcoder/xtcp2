@@ -17,6 +17,9 @@
 #include <rdma/ib_user_mad.h>
 #include <rdma/ib_user_verbs.h>
 #include <rdma/rdma_user_ioctl.h>
+#include <linux/if.h>
+#include <linux/if_addr.h>
+#include <linux/rtnetlink.h>
 
 #define P(pkg, name, value) printf("%s %s %llu\n", pkg, name, (unsigned long long)(value))
 #define X(pkg, name, value) printf("%s %s %#llx\n", pkg, name, (unsigned long long)(value))
@@ -56,6 +59,8 @@ int main(void)
 
 	X("rdmacaps", "umadRegisterAgent2", IB_USER_MAD_REGISTER_AGENT2);
 	X("rdmacaps", "umadUnregisterAgent", IB_USER_MAD_UNREGISTER_AGENT);
+	X("rdmacaps", "umadEnablePKey", IB_USER_MAD_ENABLE_PKEY);
+	P("rdmacaps", "umadABIVersion", IB_USER_MAD_ABI_VERSION);
 	X("rdmacaps", "!umadRegisterAgent", IB_USER_MAD_REGISTER_AGENT);
 
 	P("rdmanative", "asyncEventDescLen", sizeof(struct ib_uverbs_async_event_desc));
@@ -83,5 +88,20 @@ int main(void)
 	P("rdmanative", "eventClientReregister", IBV_EVENT_CLIENT_REREGISTER);
 	P("rdmanative", "eventGIDChange", IBV_EVENT_GID_CHANGE);
 	P("rdmanative", "eventDeviceSpeedChange", IBV_EVENT_DEVICE_SPEED_CHANGE);
+
+	P("rdmanative", "ifinfomsgLen", sizeof(struct ifinfomsg));
+	OFF("rdmanative", "ifinfomsgOffIndex", ifinfomsg, ifi_index);
+	OFF("rdmanative", "ifinfomsgOffFlags", ifinfomsg, ifi_flags);
+	P("rdmanative", "ifaddrmsgLen", sizeof(struct ifaddrmsg));
+	OFF("rdmanative", "ifaddrmsgOffIndex", ifaddrmsg, ifa_index);
+	P("rdmanative", "rtmNewLink", RTM_NEWLINK);
+	P("rdmanative", "rtmDelLink", RTM_DELLINK);
+	P("rdmanative", "rtmNewAddr", RTM_NEWADDR);
+	P("rdmanative", "rtmDelAddr", RTM_DELADDR);
+	P("rdmanative", "iffRunning", IFF_RUNNING);
+	P("rdmanative", "iffLowerUp", IFF_LOWER_UP);
+	P("rdmanative", "rtnlGroupLink", RTNLGRP_LINK);
+	P("rdmanative", "rtnlGroupIPv4Addr", RTNLGRP_IPV4_IFADDR);
+	P("rdmanative", "rtnlGroupIPv6Addr", RTNLGRP_IPV6_IFADDR);
 	return 0;
 }

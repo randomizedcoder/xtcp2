@@ -1,0 +1,1 @@
+ibwarn: [1205247] get_abi_version: can't read ABI version from /sys/class/infiniband_mad/abi_version (No such file or directory): is ib_umad module loaded?

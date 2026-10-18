@@ -1,0 +1,21 @@
+goos: linux
+goarch: amd64
+pkg: github.com/randomizedcoder/xtcp2/pkg/linkmonitor
+cpu: AMD Ryzen Threadripper PRO 3945WX 12-Cores     
+                            │ decode-baseline.txt │
+                            │       sec/op        │
+PerformanceDecode/route-4            437.7n ± 22%
+PerformanceDecode/ethtool-4          484.0n ± 53%
+geomean                              460.3n
+
+                            │ decode-baseline.txt │
+                            │        B/op         │
+PerformanceDecode/route-4              211.0 ± 0%
+PerformanceDecode/ethtool-4            168.0 ± 0%
+geomean                                188.3
+
+                            │ decode-baseline.txt │
+                            │      allocs/op      │
+PerformanceDecode/route-4              2.000 ± 0%
+PerformanceDecode/ethtool-4            6.000 ± 0%
+geomean                                3.464

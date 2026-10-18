@@ -76,9 +76,9 @@ func TestOperationErrorBoundaries(t *testing.T) {
 
 func TestDeadlineResetAndDrainFailure(t *testing.T) {
 	c, f, r := testConn()
-	c.recv = func(int, []byte, []byte, int) (int, int, int, unix.Sockaddr, error) {
+	c.recv = legacyRecv(func(int, []byte, []byte, int) (int, int, int, unix.Sockaddr, error) {
 		return 1, 0, 0, &unix.SockaddrNetlink{Family: unix.AF_NETLINK}, nil
-	}
+	})
 	c.send = func(int, []byte, []byte, unix.Sockaddr, int) (int, error) { return 1, nil }
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Hour))
 	defer cancel()

@@ -22,8 +22,9 @@ type RDMAPort struct {
 	State, Physical         Optional[uint8]
 }
 
-// NetdevLink retains route evidence needed to follow same-namespace lowers.
+// NetdevLink retains route evidence needed to follow same-namespace lowers
+// (IFLA_LINK) and, for RDMA LAG, bond masters (IFLA_MASTER, zero for none).
 type NetdevLink struct {
-	Index, Lower uint32
-	Foreign      bool
+	Index, Lower, Master uint32
+	Foreign              bool
 }

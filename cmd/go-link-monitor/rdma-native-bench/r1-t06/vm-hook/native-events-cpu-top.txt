@@ -1,0 +1,49 @@
+File: rdmanative.test
+Build ID: 2719ec495dc5e4480567fd7dd183089f6a6b7da8
+Type: cpu
+Time: 2026-10-18 18:02:25 UTC
+Duration: 52s, Total samples = 68.26s (131.27%)
+Showing nodes accounting for 62.04s, 90.89% of 68.26s total
+Dropped 194 nodes (cum <= 0.34s)
+Showing top 40 nodes out of 65
+      flat  flat%   sum%        cum   cum%
+    47.24s 69.21% 69.21%     47.24s 69.21%  internal/runtime/syscall/linux.Syscall6
+     6.38s  9.35% 78.55%      6.38s  9.35%  runtime.futex
+     0.73s  1.07% 79.62%      0.86s  1.26%  runtime.exitsyscall
+     0.49s  0.72% 80.34%      0.49s  0.72%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative.(*PortMap).find (inline)
+     0.49s  0.72% 81.06%     19.07s 27.94%  golang.org/x/sys/unix.read
+     0.49s  0.72% 81.78%      0.80s  1.17%  runtime.reentersyscall
+     0.42s  0.62% 82.39%     12.21s 17.89%  runtime.findRunnable
+     0.35s  0.51% 82.90%      5.01s  7.34%  github.com/randomizedcoder/xtcp2/pkg/xtcpnl.WalkNetlinkEnvelopes
+     0.34s   0.5% 83.40%      0.66s  0.97%  runtime.stealWork
+     0.32s  0.47% 83.87%     26.17s 38.34%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative.(*socketRoute).Receive
+     0.30s  0.44% 84.31%      6.99s 10.24%  runtime.netpoll
+     0.27s   0.4% 84.71%      0.76s  1.11%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative.(*Translator).link
+     0.26s  0.38% 85.09%     19.49s 28.55%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative.(*socketRoute).attempt
+     0.26s  0.38% 85.47%     24.70s 36.19%  golang.org/x/sys/unix.write
+     0.26s  0.38% 85.85%     40.86s 59.86%  syscall.RawSyscall6
+     0.24s  0.35% 86.20%      4.52s  6.62%  internal/poll.(*FD).RawRead
+     0.24s  0.35% 86.55%      0.45s  0.66%  runtime.chanrecv
+     0.23s  0.34% 86.89%     26.07s 38.19%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative.writeAll
+     0.22s  0.32% 87.21%      4.55s  6.67%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative.(*Source).Run.func1
+     0.22s  0.32% 87.53%     14.63s 21.43%  runtime.schedule
+     0.21s  0.31% 87.84%      0.39s  0.57%  runtime.lock2
+     0.18s  0.26% 88.10%      2.75s  4.03%  runtime.notesleep
+     0.17s  0.25% 88.35%     16.20s 23.73%  os.(*rawConn).Control
+     0.15s  0.22% 88.57%     16.02s 23.47%  internal/poll.(*FD).RawControl
+     0.15s  0.22% 88.79%     43.02s 63.02%  syscall.Syscall
+     0.14s  0.21% 89.00%      0.37s  0.54%  runtime.pidleget
+     0.13s  0.19% 89.19%      1.15s  1.68%  runtime.entersyscall
+     0.13s  0.19% 89.38%      2.57s  3.77%  runtime.futexsleep
+     0.13s  0.19% 89.57%      0.67s  0.98%  runtime.tracebackPCs
+     0.12s  0.18% 89.75%      3.27s  4.79%  runtime.send
+     0.12s  0.18% 89.92%      4.15s  6.08%  runtime.systemstack
+     0.09s  0.13% 90.05%     26.26s 38.47%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative.(*Source).Run
+     0.09s  0.13% 90.18%     26.77s 39.22%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative.BenchmarkEventPath.func1
+     0.09s  0.13% 90.32%     15.70s 23.00%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative.newSocketRoute.func2
+     0.09s  0.13% 90.45%      3.46s  5.07%  runtime.chansend
+     0.08s  0.12% 90.57%      4.05s  5.93%  runtime.notewakeup
+     0.07s   0.1% 90.67%     15.07s 22.08%  runtime.mcall
+     0.06s 0.088% 90.76%      3.53s  5.17%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative.BenchmarkEventPath.func1.1
+     0.05s 0.073% 90.83%      4.57s  6.69%  os.(*rawConn).Read
+     0.04s 0.059% 90.89%      5.05s  7.40%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative.(*Source).Run.func2

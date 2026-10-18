@@ -1,0 +1,47 @@
+File: rdmanative.test
+Build ID: cc0289a8b618f8476677dab74ce2dbd54698ca72
+Type: alloc_space
+Time: 2026-10-18 14:32:44 UTC
+Showing nodes accounting for 4467.01kB, 100% of 4467.01kB total
+Showing top 40 nodes out of 47
+      flat  flat%   sum%        cum   cum%
+ 1184.27kB 26.51% 26.51%  1184.27kB 26.51%  runtime/pprof.StartCPUProfile
+ 1025.05kB 22.95% 49.46%  1025.05kB 22.95%  runtime.mallocgc
+  650.62kB 14.57% 64.02%  1233.63kB 27.62%  compress/flate.(*compressor).init
+  583.01kB 13.05% 77.07%   583.01kB 13.05%  compress/flate.newDeflateFast (inline)
+  512.05kB 11.46% 88.54%   512.05kB 11.46%  regexp/syntax.(*parser).newRegexp (inline)
+  512.01kB 11.46%   100%   512.01kB 11.46%  testing.(*B).doBench
+         0     0%   100%  1233.63kB 27.62%  compress/flate.NewWriter (inline)
+         0     0%   100%  1233.63kB 27.62%  compress/gzip.(*Writer).Write
+         0     0%   100%   512.05kB 11.46%  google.golang.org/grpc/internal/binarylog.init
+         0     0%   100%  1696.28kB 37.97%  main.main
+         0     0%   100%   512.05kB 11.46%  regexp.Compile (inline)
+         0     0%   100%   512.05kB 11.46%  regexp.MustCompile
+         0     0%   100%   512.05kB 11.46%  regexp.compile
+         0     0%   100%   512.05kB 11.46%  regexp/syntax.(*parser).collapse
+         0     0%   100%   512.05kB 11.46%  regexp/syntax.(*parser).concat
+         0     0%   100%   512.05kB 11.46%  regexp/syntax.(*parser).parseRightParen
+         0     0%   100%   512.05kB 11.46%  regexp/syntax.Parse (inline)
+         0     0%   100%   512.05kB 11.46%  regexp/syntax.parse
+         0     0%   100%   512.05kB 11.46%  runtime.(*scavengerState).init
+         0     0%   100%      513kB 11.48%  runtime.allocm
+         0     0%   100%   512.05kB 11.46%  runtime.bgscavenge
+         0     0%   100%   512.05kB 11.46%  runtime.doInit (inline)
+         0     0%   100%   512.05kB 11.46%  runtime.doInit1
+         0     0%   100%  2208.34kB 49.44%  runtime.main
+         0     0%   100%      513kB 11.48%  runtime.mstart
+         0     0%   100%      513kB 11.48%  runtime.mstart0
+         0     0%   100%      513kB 11.48%  runtime.mstart1
+         0     0%   100%      513kB 11.48%  runtime.newm
+         0     0%   100%  1025.05kB 22.95%  runtime.newobject
+         0     0%   100%      513kB 11.48%  runtime.resetspinning
+         0     0%   100%      513kB 11.48%  runtime.schedule
+         0     0%   100%      513kB 11.48%  runtime.startm
+         0     0%   100%      513kB 11.48%  runtime.wakep
+         0     0%   100%  1233.63kB 27.62%  runtime/pprof.(*profileBuilder).appendLocsForStack
+         0     0%   100%  1233.63kB 27.62%  runtime/pprof.(*profileBuilder).build
+         0     0%   100%  1233.63kB 27.62%  runtime/pprof.(*profileBuilder).emitLocation
+         0     0%   100%  1233.63kB 27.62%  runtime/pprof.(*profileBuilder).flush
+         0     0%   100%  1233.63kB 27.62%  runtime/pprof.profileWriter
+         0     0%   100%   512.01kB 11.46%  testing.(*B).Run
+         0     0%   100%   512.01kB 11.46%  testing.(*B).run

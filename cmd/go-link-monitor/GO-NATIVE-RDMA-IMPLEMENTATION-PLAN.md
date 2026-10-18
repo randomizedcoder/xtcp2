@@ -167,6 +167,16 @@ Done when:
 - Fuzzing runs in `test-linkmonitor-fuzz`.
 - 0 allocs, and `test-linkmonitor-parse-guards` is clean.
 
+As built: the builder returns `([]byte, error)`, and `ParseRdmaChardev` takes
+the request's kind so it can check the name's prefix and that only uverbs
+sends a driver id. The design's "uverbs ABI 6" check is dropped: the reply
+carries the driver's `uverbs_abi_ver` (mlx5 1, rxe 2, ionic 1), and libibverbs
+checks the global ABI 6 itself. The umad ABI check (5 or later) moves to
+[R2-T02](#r2-t02). No capture holds a umad GET_CHARDEV, because libibumad finds
+its nodes through sysfs, so the umad rows are synthetic.
+`xtcpnl_rdma_chardev.go` joins the parse-guards decoder list, and the existing
+`FuzzRDMANotifications` joins the fuzz list with `FuzzParseChardev`.
+
 #### R1-T02
 
 **NLDEV notification kinds.** Depends on: [R0-T03](#r0-t03).
@@ -193,6 +203,21 @@ Done when:
 - The benchmarks show no regression against the existing rtnetlink decoders
   in `bench-linkmonitor`.
 
+As built: `PortMap` takes `rdmanative.Binding` and `rdmanative.Link` rather
+than the `model` types, so `rdmanative` does not import `model`; the monitor
+converts (`rdmaPortMap`). `model.NetdevLink` gained `Master` (IFLA_MASTER) for
+LAG. `Translate` takes the message type and body, as
+`xtcpnl.WalkNetlinkEnvelopes` hands them over, not the whole message. The
+`ifinfomsg` and `ifaddrmsg` offsets, the four message types, the two link flags
+and the three groups joined the ABI guard. The header decoding is
+`rtnl_decode.go`, which joins `async.go` in the parse-guards list; the
+translator's map lookups are not wire decoding. The captured rows are a
+differential against the verbs async straces of the same trigger, with
+per-source goldens; see the status log for what they showed. The comparison
+with the existing decoders runs through `bench-linkmonitor-rdma-native
+--native`, which also runs `BenchmarkPerformanceDecode`, rather than
+`bench-linkmonitor`.
+
 #### R1-T04
 
 **Netlink event source and backend selection.** Depends on: [R1-T02](#r1-t02), [R1-T03](#r1-t03).
@@ -210,6 +235,20 @@ Done when:
 - The lifecycle, worker and schedule tests pass with both backends.
 - `nix build path:.#test-linkmonitor -L` passes, including docs and metric
   reference checks.
+
+As built: the source opens one `NETLINK_ROUTE` socket and takes no link dump.
+The translator starts with every port's state unknown, so the first link
+message per port is reported: at most one extra Refresh per port per source,
+with no dump to order against the notifications and no stale seed to hide a
+transition. The worker's request carries an `rdmaEventSet` (identities and
+port map); with netlink, a changed port map reopens the source as a changed
+identity set does. The NLDEV half maps an UNREGISTER of a held device to
+`Fatal` with netlink and keeps every notification a Topology hint with verbs.
+The `backend` diagnostic is a new family, `rdma_events_backend_info{backend}`
+in the `collection` category, rather than a label on the shared `collector_*`
+families. `linkmonitor.RDMAVerbsAvailable` exports the build capability for
+hosts and tests. Malformed notifications are counted by `rdmanative.Source.Malformed` and
+skipped; the count is not yet a metric, which R1-T06's review decides.
 
 #### R1-T05
 
@@ -231,6 +270,21 @@ Done when: in both `nix run path:.#test-linkmonitor-ionic-vm` and
 
 The native smoke binary has no `NEEDED` entries.
 
+As built: the differential test is `pkg/linkmonitor/rdma_events_differential_vm_linux_test.go`,
+in the cgo `rdma-vm.test` and `ionic-vm.test`, so both sides open through
+`openRDMAEvents` as production does. On rxe, which has no `device` link, the
+verbs side gets a shim class root, because the verbs provider refuses an empty
+hardware identity. `uverbs_denied` affects verbs only (an uncovered device and
+a Fatal), because the netlink side holds no uverbs node. `carrier_only` runs
+on rxe only, through a veth peer; the ionic emulator has no link-down control.
+The removal row runs both sides on ionic and the netlink side only on rxe:
+rxe has no `disassociate_ucontext`, so an open verbs context blocks
+`rdma link delete` and no DEVICE_FATAL is sent. The core binary is checked by
+`linkmonitor-core-smoke -rdma-events netlink` on rxe and a
+`go-link-monitor-core` service on ionic. The VM runs found two bugs, both
+fixed with table rows: NLDEV device index 0 was read as "no index", and the
+netlink source's first open had no port map.
+
 #### R1-T06
 
 **Event path performance review.** Depends on: [R1-T05](#r1-t05), [R0-T05](#r0-t05).
@@ -245,6 +299,15 @@ with evidence ids:
 - the pprof top frames show no `mallocgc`, `reflect` or `convT`;
 - the escape and BCE reports are reviewed.
 
+As built: `BenchmarkEventPath` is in `rdmanative` and runs in
+`bench-linkmonitor-rdma-native --native`, beside the cgo baseline, rather than
+`bench-linkmonitor`, as R1-T03's benchmarks do. Its first run found `mallocgc`
+from the receive layer `nlconn` shares with the rtnetlink listener, so
+`nlconn` now receives with a raw `recvmsg` into a `Conn`-held netlink address
+and binds its callbacks once; `nlconn`'s `BenchmarkReceive` measures that
+layer alone. `Source.Malformed` stays a counter without a metric. The live run
+on `l` waits for the operator's approval.
+
 ### R2 — Native umad
 
 #### R2-T01
@@ -258,11 +321,22 @@ Deliver: encode and decode for `ib_user_mad_hdr` and `reg_req2`, a fuzz target,
 Done when: the design's umad codec table and the captured-record rows pass,
 with 0 allocs and a clean BCE check.
 
+As built: no capture holds MAD bytes, because SMI registration fails with
+`EPROTONOSUPPORT` on rxe, ionic and mlx5 RoCE before anything is written, so
+the captured-record rows are golden packets built from `ib_user_mad.h` and
+libibumad's `umad_send` and `umad_set_addr`. `decodeUMADReply` reports a
+timed-out send as `DeadlineExceeded` before checking the length, where the cgo
+path returns `EPROTO`. The codec benchmarks run as `native-umad` in
+`bench-linkmonitor-rdma-native --native`; they are compared in
+[R2-T03](#r2-t03).
+
 #### R2-T02
 
 **Native transport with a fake device.** Depends on: [R2-T01](#r2-t01), [R1-T01](#r1-t01).
 
-Deliver: `exchangeNative` over an injectable fd layer and a `socketpair` fake.
+Deliver: `exchangeNative` over an injectable fd layer and a `socketpair` fake,
+and the `IB_USER_MAD_ABI_VERSION` check (5 or later, as `umad_open_smi_port`
+reads it), moved here from R1-T01.
 The twelve failure-injection rows of `nix/tests/linkmonitor-umad-test.c` are
 ported to Go. Also `BenchmarkUMADExchange`.
 
@@ -272,6 +346,17 @@ Done when:
   table passes, plus the twelve ported rows with balanced
   open/close and register/unregister.
 - `parallel_ports` passes under `-race`.
+
+As built: the device I/O is the `umadOps` interface, with `umadSys` for the
+kernel and a `SOCK_SEQPACKET` fake in the tests. The node is found by an NLDEV
+device dump and GET_CHARDEV on a socket of the exchange's own. The design's
+sequence gains `IB_USER_MAD_ENABLE_PKEY` at ABI 5, which selects the 64-byte
+header. The TID needs no counter, because the kernel sets its upper half per
+agent. FLAGS maps to `ENABLE_PKEY` and ALLOC to a short write. Error mapping
+follows the cgo path (`EPROTO`, the reply's errno, `ETIMEDOUT` at the cap), with
+`ErrReply` only for a bad node name or dev_t and `EOPNOTSUPP` below ABI 5. The
+switch of `unavailable.go` to `!linux` and `umad_select_linux.go` moves to
+[R2-T03](#r2-t03).
 
 #### R2-T03
 
@@ -287,6 +372,27 @@ Done when:
 - `BenchmarkUMADExchange` is at most 512 B and 2 allocations.
 - The native path never takes `umadLane`.
 - Results are recorded in the status document.
+
+As built: selection is the untagged `rdmacaps.Backend` (`Auto`, `Libibumad`,
+`Native`) in `query.go`, with `Querier(backend)` choosing the transport once,
+rather than a `umad_select_linux.go`. `unavailable.go` split in two:
+`libibumad_unavailable.go` (`!linux || !rdma || !cgo`) stubs the cgo exchange
+and sets `LibibumadAvailable`, and `unavailable.go` (`!linux`) stubs the
+native one. The native exchange first checks
+`/sys/class/infiniband_mad/abi_version` and returns `EOPNOTSUPP` without
+`ib_umad`, as libibumad does, because GET_CHARDEV for umad would otherwise
+load the module (`request_module("rdma-client-umad")`). The live rows run
+twice in the rxe guest, with `ib_umad` removed and then loaded, through both
+a cgo and a `CGO_ENABLED=0` test binary; they add the unloaded, absent device
+(`ENODEV`), absent port (`EINVAL`) and parallel rows, and check that no
+descriptor leaks. libibumad gives `EPROTONOSUPPORT` on rxe too: for a named
+port, `resolve_ca_name` skips the link-layer check. The cgo
+`BenchmarkPerformanceUMAD` simulates the exchange without I/O, so against the
+native exchange over a socketpair only B/op and allocs/op compare. No metric
+reports the umad backend; the resolved value is logged at start. The live
+rows also ran on `l`'s mlx5 ports in both phases, through
+`capture-rdma-testdata --umad-live`, and match rxe; `TestCapturedUMADChardev`
+checks the captured umad GET_CHARDEV bytes.
 
 ### R3 — uverbs context (conditional)
 

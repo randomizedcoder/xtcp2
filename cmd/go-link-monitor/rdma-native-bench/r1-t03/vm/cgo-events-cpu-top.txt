@@ -1,0 +1,23 @@
+File: rdmaevents.test
+Build ID: abafc2c6c84fdfbec8af1bddebbbd9829b879b5c
+Type: cpu
+Time: 2026-10-18 14:31:02 UTC
+Duration: 47.66s, Total samples = 47.53s (99.73%)
+Showing nodes accounting for 47.25s, 99.41% of 47.53s total
+Dropped 53 nodes (cum <= 0.24s)
+      flat  flat%   sum%        cum   cum%
+    26.32s 55.38% 55.38%     42.82s 90.09%  runtime.cgocall
+     5.16s 10.86% 66.23%      7.90s 16.62%  runtime.reentersyscall
+     3.53s  7.43% 73.66%      3.53s  7.43%  internal/runtime/atomic.(*Uint32).CompareAndSwap (inline)
+     3.23s  6.80% 80.45%      3.34s  7.03%  runtime.getcallerfp
+     2.10s  4.42% 84.87%      4.43s  9.32%  runtime.exitsyscall
+     2.07s  4.36% 89.23%     46.33s 97.48%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmaevents.benchmarkBatch (inline)
+     1.43s  3.01% 92.24%     44.26s 93.12%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmaevents._Cfunc_bench_batch
+     0.85s  1.79% 94.02%      0.85s  1.79%  runtime.save
+     0.83s  1.75% 95.77%     12.07s 25.39%  runtime.entersyscall
+     0.73s  1.54% 97.31%      0.73s  1.54%  testing.(*B).Loop (inline)
+     0.41s  0.86% 98.17%      0.41s  0.86%  runtime.traceAcquire (inline)
+     0.34s  0.72% 98.88%     47.40s 99.73%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmaevents.BenchmarkPerformanceCGO.func1
+     0.25s  0.53% 99.41%      0.25s  0.53%  runtime.(*puintptr).set (inline)
+         0     0% 99.41%     47.40s 99.73%  testing.(*B).run1.func1
+         0     0% 99.41%     47.40s 99.73%  testing.(*B).runN
