@@ -690,19 +690,19 @@ func TestRunAddrArgs(t *testing.T) {
 		},
 		{
 			// **The row that matters most in this table.** `ip a add` is a
-			// write. goip must refuse it by name rather than fall through to
-			// anything, and the exit code has to differ from a successful
-			// show.
-			description: "negative: `addr add` is refused as read-only, not run",
+			// write. goip must reach the write parser rather than fall
+			// through to anything, and with no argument it stops where `ip`
+			// does, before any request.
+			description: "negative: `addr add` with no arguments reaches the parser and needs dev",
 			args:        []string{"addr", "add"},
 			wantExit:    ExitUsage,
-			wantErrHas:  "read-only",
+			wantErrHas:  "Not enough information",
 		},
 		{
-			description: "negative: `addr delete` is refused as read-only",
+			description: "negative: `addr del` with no arguments needs dev",
 			args:        []string{"addr", "del"},
 			wantExit:    ExitUsage,
-			wantErrHas:  "read-only",
+			wantErrHas:  "Not enough information",
 		},
 		{
 			description: "negative: `addr flush` is refused as read-only",
@@ -773,12 +773,12 @@ func TestRunAddrArgs(t *testing.T) {
 			wantErrHas:  "not implemented",
 		},
 		{
-			// `ip a r` is replace — a write — so this must not be read as
-			// anything goip runs.
-			description: "corner: `a r` resolves to replace and is refused, not treated as a show",
+			// `ip a r` is replace — a write — so this must reach the write
+			// parser, never a show or restore.
+			description: "corner: `a r` resolves to replace, a write, never a show",
 			args:        []string{"addr", "r"},
 			wantExit:    ExitUsage,
-			wantErrHas:  "read-only",
+			wantErrHas:  "Not enough information",
 		},
 		{
 			// maddress precedes nothing that "m" would otherwise hit, but

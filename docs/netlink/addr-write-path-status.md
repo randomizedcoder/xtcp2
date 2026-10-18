@@ -2,9 +2,9 @@
 
 Last updated: 2026-10-17.
 
-**Phases A0, A1, A2, A4 and A5 are done.** The design
+**Phases A0, A1, A2, A4, A5 and A6 are done.** The design
 ([addr-write-path.md](addr-write-path.md)) and the plan
-([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. 13 of 25
+([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. 14 of 25
 tasks are done: A0-T01 (V001), A0-T02 (closed by a finding, V002), A0-T03
 and A0-T04, closed by one KVM capture (V005), A0-T05, which recorded M1–M3
 from that capture's fixtures (V006), A1-T01, which decodes the four
@@ -19,9 +19,12 @@ gates 22 of the 23 on two clean runs (V024–V027). A4-T01 admits
 encoder that will build them (V028, V029). A5-T01 is that encoder,
 `BuildAddrWriteRequest`, which builds all 27 address writes in the corpus
 byte for byte (V030, V031). A6-T01 is the `ipaddr_modify` argument parser
-that fills it, stopping where `ip` stops (V032, V033).
+that fills it, stopping where `ip` stops (V032, V033). A6-T02 wires
+`goip address add/change/replace/delete` to it as a dry run, matching all 27
+captured writes byte for byte, and `ip`'s step, exit code and message on the
+five refusals (V034, V035).
 
-**Next action:** A6-T02 (depends on A6-T01) and A3-T01 (A0-T04) are
+**Next action:** A7-T01 (depends on A6-T02) and A3-T01 (A0-T04) are
 unblocked. Pick one; one task, one PR.
 
 ## Update rules
@@ -62,7 +65,7 @@ unblocked. Pick one; one task, one PR.
 | A3 | `-br` and `-o` | not started | 0/3 | — |
 | A4 | the gate admits `RTM_NEWADDR`/`RTM_DELADDR` | done | 1/1 | V028, V029 |
 | A5 | `BuildAddrWriteRequest` | done | 1/1 | V030, V031 |
-| A6 | `goip addr add/change/replace/delete` | in progress | 1/2 | V032, V033 |
+| A6 | `goip addr add/change/replace/delete` | done | 2/2 | V032, V033, V034, V035 |
 | A7 | write rows in the matrix | not started | 0/2 | — |
 | A8 | `flush` and the multi-write comparator | not started | 0/3 | — |
 | A9 | `save`, `showdump`, `restore` | not started | 0/3 | — |
@@ -90,7 +93,7 @@ Add evidence IDs to the last column as work runs.
 | [x] | [A4-T01](addr-write-path-plan.md#a4-t01) | admit `RTM_NEWADDR`/`RTM_DELADDR` | done | V028, V029, DOC010 |
 | [x] | [A5-T01](addr-write-path-plan.md#a5-t01) | `BuildAddrWriteRequest` | done | V030, V031, DOC011 |
 | [x] | [A6-T01](addr-write-path-plan.md#a6-t01) | the `ipaddr_modify` argument parser | done | V032, V033, DOC012 |
-| [ ] | [A6-T02](addr-write-path-plan.md#a6-t02) | verb dispatch and corpus replay | not started | — |
+| [x] | [A6-T02](addr-write-path-plan.md#a6-t02) | verb dispatch and corpus replay | done | V034, V035, DOC013 |
 | [ ] | [A7-T01](addr-write-path-plan.md#a7-t01) | `addr_write_<slug>` rows | not started | — |
 | [ ] | [A7-T02](addr-write-path-plan.md#a7-t02) | gate the write rows | not started | — |
 | [ ] | [A8-T01](addr-write-path-plan.md#a8-t01) | `SplitWrites` and `CompareWrites` | not started | — |
@@ -122,10 +125,10 @@ it.
 
 | # | Statement | Amended by | State |
 |---|---|---|---|
-| 11 | `goip is read-only` for every non-show verb | A6-T02 (four verbs), A8-T02 (`flush`), A9-T03 (`save`/`showdump`/`restore`) | not started |
+| 11 | `goip is read-only` for every non-show verb | A6-T02 (four verbs), A8-T02 (`flush`), A9-T03 (`save`/`showdump`/`restore`) | amended for the four verbs (A6-T02); A8-T02 and A9-T03 still owe theirs |
 | 12 | `ErrNotAnAdmittedWrite`'s text names four types | A4-T01 | done |
 | 13 | `admittedWriteTypes` has four entries | A4-T01 | done |
-| 14 | `coverage-status.md`'s "read-only, `show` only" scope line | A6-T02 | not started |
+| 14 | `coverage-status.md`'s "read-only, `show` only" scope line | A6-T02 | done |
 | 15 | the glance-table matrix count and scope line | A2-T03, A7-T02, A8-T03, A9-T03 | amended for the selector rows (A2-T03); A7-T02, A8-T03 and A9-T03 still owe theirs |
 | 16 | `route-write-path.md`'s "Out of scope: `addr`" line | this plan's PR (pointer only) | done |
 | 17 | the route-write gate table's negative example is `RTM_NEWADDR` | A4-T01 | done |
@@ -180,6 +183,9 @@ it.
 | V032 | 2026-10-17 | A6-T01 | `go test ./pkg/xtcpnl/... ./pkg/nlparity/... ./internal/goip/... ./internal/goipparity/...`, which includes `TestLookupAddrWriteVerb` (19 rows), `TestLookupAddrKeyword` (13 rows) and `TestParseAddrWriteArgs` (73 rows: design table 3's 33, plus peers, families, deletes and refusals; the warning and refusal rows for `no_dev_keyword`, `brd_plus_v6`, `valid_zero`, `autojoin_unicast`, `nodev`, `add_v6_nodad_first` and `del_v4_wildcard` compare with the slug's captured `ip.err`). Mutation check in a scratch worktree: `broadcast` as strcmp, `preferred_lft` ahead of the metric row, the v6-only flag test loosened, `PREFIXLEN_SPECIFIED` ignored, the computed broadcast at `< 30`, the lifetime checks before the lookup, the lifetime duplicate test after NEXT_ARG, and the default scope on a delete each failed the rows that name them, and were reverted | Passed: all green; the eight mutants caught | `internal/goip/addr_write_test.go` |
 | V033 | 2026-10-17 | A6-T01 | the nix checks: `.#test-focused-goip`, `checks.netlink-audit`, `checks.lint-baseline`, `.#quality-report`, `checks.nix-fmt`, `checks.statix`, `checks.deadnix`. `vm-lib-exp` and the parity VM do not apply: no `.exp` file and no matrix row changed | Passed, except `lint-baseline`, which fails on `main` with the same 17 tier-2 findings, every one in an `internal/goip` file this branch does not touch. The first run found the branch's own: gofmt in the test file, `ip`'s full stop in an error string literal, and goconst counts that the new literals pushed to 3 across `route_write.go` and `link_write.go`. Fixed with named constants and a message constant, and no directive; the rerun adds none | the check outputs |
 | DOC012 | 2026-10-17 | A6-T01 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc, plus `git diff --check` | Passed: 25 task IDs one to one; no broken links or anchors; ledger IDs unique and in order; `git diff --check` clean | Summary retained here; the checker script was session-local |
+| V034 | 2026-10-17 | A6-T02 | `go test ./pkg/xtcpnl/... ./pkg/nlparity/... ./internal/goip/... ./internal/goipparity/...`, which includes `TestAddrWriteMatchesIpBytes` (34 rows: the 27 write slugs plus 7 spellings; lookup and write byte for byte, seq and pid zeroed; stderr equal to `ip.err` when `ip.rc` is 0), `TestAddrWriteNodevCorpus` (5 rows; through `Run` too, `nodev` excepted), `TestAddrWriteCorpusComplete` (2 rows), `TestRunAddressWrite` (8 rows) and `TestDecodeAddrWriteCorpus` (27 rows). Mutation check in a scratch worktree: the warnings sent to `io.Discard`, the `GOIP_WRITE_OUT` check before the parse, `chg` dropped, `NLM_F_ACK` dropped, a bytes row deleted (`replace_existing`), and the lookup skipped with d0's index hardcoded each failed the rows that name them, and were reverted. The plan's show-first mutant does not apply: no write abbreviation is a prefix of `show`, `lst` or `list`, so the plan's substitute ran | Passed: all green; the six mutants caught | `internal/goip/addr_write_corpus_test.go`, `pkg/xtcpnl/xtcpnl_addr_write_corpus_test.go` |
+| V035 | 2026-10-17 | A6-T02 | the nix checks: `.#test-focused-goip`, `checks.netlink-audit`, `checks.lint-baseline`, `.#quality-report`, `checks.nix-fmt`, `checks.statix`, `checks.deadnix`. `vm-lib-exp` and the parity VM do not apply: no `.exp` file and no matrix row changed | Passed, except `lint-baseline`, which fails on `main` with the same 17 tier-2 findings. The first run found one of the branch's own, a prealloc in the new test; fixed with no directive, and the rerun adds none | the check outputs |
+| DOC013 | 2026-10-17 | A6-T02 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc, plus `git diff --check` | Passed: 25 task IDs one to one; 14 done ticks; no broken links or anchors; ledger IDs unique and in order; `git diff --check` clean | Summary retained here; the checker script was session-local |
 
 ## Blockers and upcoming requirements
 
@@ -188,6 +194,23 @@ it.
 - **No open blockers.**
 
 ## Progress and decision log
+
+- **2026-10-17.** A6-T02 is done.
+  - **`routeWrite`'s shape.** `addrWrite` parses with the `RTM_GETLINK`
+    resolver and stderr as the warning writer, builds the request, and only
+    then checks `GOIP_WRITE_OUT`, so an argv error wins over the missing
+    variable. `runAddress` tries the write verbs before `show`, as
+    `do_ipaddr` does. `flush` keeps its read-only refusal.
+  - **The capture beat the design once.** `add_v6_nodad_optimistic` is
+    ACKed: with `optimistic_dad` off the kernel clears `IFA_F_OPTIMISTIC`
+    before it checks the pair. Design table 4 is corrected.
+  - **`nodev` is not checked through `Run`.** `GOIP_REPLAY`'s source cannot
+    answer a single-get with ENODEV, so its fallback reports "not found"
+    with exit 2. The test-only Talk replay covers the row, and live the
+    kernel's ENODEV gives `ip`'s message and exit 1.
+  - **Statements.** 11 is amended for the four verbs, and 14 is done: the
+    "Read-only" bullet has a third exception and a new coverage-status
+    section.
 
 - **2026-10-17.** A6-T01 is done.
   - **The route parser's shape.** `internal/goip/addr_write.go` has the verb

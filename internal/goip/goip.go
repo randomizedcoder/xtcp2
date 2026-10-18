@@ -22,9 +22,9 @@ where  OBJECT := { link | address | route | rule | neigh }
        OPTIONS := { -4 | -6 | -0 | -j[son] | -s[tats] | -d[etails] }
 
 goip is a subset of ip(8), built as a coverage test for pkg/xtcpnl.
-It never creates, deletes or sets anything: the link write verbs build
-their request and write it to the file GOIP_WRITE_OUT names, and refuse
-to run without it. Only the name lookups they need are sent.
+It never creates, deletes or sets anything: the link, route and address
+write verbs build their request and write it to the file GOIP_WRITE_OUT
+names, and refuse to run without it. Only the name lookups they need are sent.
 `
 
 // Run is the whole program, minus os.Args and os.Exit.

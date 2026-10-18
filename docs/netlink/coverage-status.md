@@ -229,12 +229,15 @@ These are the boundaries of the exercise, not a backlog:
 - **Read-only.** `show`/`list`/`lst` only. `internal/goip/obj_addr.go` refuses a
   write verb with `goip is read-only: ErrNotImplemented` rather than treating
   it as unknown, because the harness drives both tools with the same argv and
-  needs "not got there yet" to be distinguishable from "typo". Two exceptions
-  have landed, and both build `ip`'s request and write it to a file, never to
-  the kernel: `goip link add/set/change/replace/delete` (see
-  [Write path: link writes as a dry run](#write-path-link-writes-as-a-dry-run))
-  and `goip route add/change/replace/prepend/append/test/delete` (see
-  [Write path: route writes as a dry run](#write-path-route-writes-as-a-dry-run)).
+  needs "not got there yet" to be distinguishable from "typo". Three exceptions
+  have landed, and all three build `ip`'s request and write it to a file, never
+  to the kernel: `goip link add/set/change/replace/delete` (see
+  [Write path: link writes as a dry run](#write-path-link-writes-as-a-dry-run)),
+  `goip route add/change/replace/prepend/append/test/delete` (see
+  [Write path: route writes as a dry run](#write-path-route-writes-as-a-dry-run))
+  and `goip address add/change/replace/delete` (see
+  [Write path: address writes as a dry run](#write-path-address-writes-as-a-dry-run)).
+  `address flush` is still refused as read-only.
 - **Eleven objects.** `address`, `route`, `rule`, `neigh`/`neighbour`, `link`,
   `nexthop`, `addrlabel`, `ntable`/`ntbl`, `netconf`, `stats` and `vrf` have a
   `run` function; the other twenty rows of
@@ -253,8 +256,10 @@ These are the boundaries of the exercise, not a backlog:
 Counted from the tree on 2026-10-11: **the write gate exists, and the link
 and route dry runs both use it.** `BuildWriteRequest` (`pkg/xtcpnl/xtcpnl_rtattr_encode.go`)
 admits `RTM_NEWROUTE`, `RTM_DELROUTE`, `RTM_NEWLINK` and `RTM_DELLINK`, and
-since the address design's Phase 4 `RTM_NEWADDR` and `RTM_DELADDR`, which no
-encoder builds yet, and returns `ErrNotAnAdmittedWrite` for anything else; `BuildRequest` and its
+since the address design's Phase 4 `RTM_NEWADDR` and `RTM_DELADDR`, which
+`BuildAddrWriteRequest` builds
+([Write path: address writes as a dry run](#write-path-address-writes-as-a-dry-run)),
+and returns `ErrNotAnAdmittedWrite` for anything else; `BuildRequest` and its
 `ErrNotAGetRequest` still refuse every `RTM_NEW*`/`RTM_DEL*`/`RTM_SET*` on the
 read path. What has landed is link-write Phases 0 to 7: the capture
 target with its readback and write fixtures, the bond read decode, the bond
@@ -330,6 +335,45 @@ protocol or scope names that come only from a file. Every corpus row but
 `nodev` is also a gated `goip-parity` write row (phase 5,
 [The route write rows](#the-route-write-rows-gate)); `nodev` has no write
 file to compare, so it stays offline.
+
+### Write path: address writes as a dry run
+
+Counted from the tree on 2026-10-17. `goip address add|change|replace|delete`
+(and every abbreviation `do_ipaddr` accepts: `a`, `chg` by strcmp, `r`,
+`d`/`del`) parse argv with `ipaddr_modify`'s keyword chain
+(`internal/goip/addr_write.go`, `parseAddrWriteArgs`) and build `ip`'s
+`RTM_NEWADDR`/`RTM_DELADDR` with `BuildAddrWriteRequest`. The write verbs are
+tried before `show`, as in `do_ipaddr`. As with link and route writes, nothing
+is applied: goip sends only the `RTM_GETLINK` lookup `ip` sends for `dev X`,
+writes the request to `GOIP_WRITE_OUT`, and exits 1 with `ErrWriteNotApplied`
+when that is unset. An argv error is reported first, before the missing
+variable. `ip`'s two warnings (a flag before the address, and the IPv4
+wildcard delete) go to stderr before the request is built, as `ip` prints
+them.
+
+The ground truth is the 32 rows captured from `ip` 7.1.0 into
+`pkg/xtcpnl/testdata/7_1_4/link-write/addr/<slug>/`: 27 writes, each after
+one lookup, and 5 refused before any write (3 after the lookup, 2 before
+it). Three tests read it:
+
+- `TestAddrWriteMatchesIpBytes` replays each write and matches `ip`'s lookup
+  and write byte for byte, seq and pid zeroed, plus seven spelling rows. When
+  `ip` exited 0, stderr must equal `ip.err` byte for byte.
+- `TestAddrWriteNodevCorpus` stops at the same step `ip` did, after the same
+  lookups, with no file. Through `Run` it also checks the exit code against
+  `ip.rc` and the message against `ip.err`, except for `nodev`: the
+  `GOIP_REPLAY` source cannot answer a single-get with ENODEV.
+- `TestDecodeAddrWriteCorpus` runs the captured requests back through
+  `ParseNewAddr` and the kernel's answers through `ParseNlMsgErr`, extack
+  text and offset included.
+
+`TestAddrWriteCorpusComplete` keeps both tables in step with the directory,
+and `TestRunAddressWrite` covers the CLI end to end.
+
+Refused with `ErrNotImplemented`: `help`, and `brd +` with no address to
+compute from. `flush` is refused as read-only, and `save`, `showdump` and
+`restore` as not implemented. The `goip-parity` matrix rows are the address
+design's A7.
 
 ## Netlink message types: decoded, rendered, compared
 
