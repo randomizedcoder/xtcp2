@@ -107,6 +107,11 @@ Done when: every manifest verifies in `test-linkmonitor-unit`. The status
 document's capture inventory lists each source and stream as captured or not,
 with the reason.
 
+As built: every `rdmaCaptureKernels` kernel matched a directory already in
+`pkg/xtcpnl/testdata`, so that corpus (and `rdmaKernels`) is unchanged and the
+inventory cites its NLDEV monitor rows. The go-native NLDEV and GET_CHARDEV
+rows are under `rdmanative/testdata/<kernel>/<source>/nldev/`, as R0-T02 set.
+
 #### R0-T04
 
 **Parsing guards.** Depends on: none.

@@ -5,6 +5,7 @@
 pkgs.writeShellApplication {
   name = "rdma-native-capture";
   runtimeInputs = with pkgs; [
+    bash
     coreutils
     gawk
     gnugrep

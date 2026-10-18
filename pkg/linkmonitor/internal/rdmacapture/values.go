@@ -361,11 +361,16 @@ func ipv6Full(b []byte) string {
 func textForms(kind Kind, b []byte) []string {
 	switch kind {
 	case KindMAC:
+		// Bare hex is how systemd's predictable altname (enx<mac>) and sysfs
+		// phys_port_id carry a MAC; netlink sends the altname in
+		// IFLA_PROP_LIST. The enx form is listed because text matching does
+		// not start inside a run of hex digits, and x counts as one.
 		s := net.HardwareAddr(b).String()
-		return []string{s, strings.ToUpper(s)}
+		h := hex.EncodeToString(b)
+		return []string{s, strings.ToUpper(s), "enx" + h, h, strings.ToUpper(h)}
 	case KindGUID:
 		h := hex.EncodeToString(b)
-		return []string{guidColon(b), "0x" + h, "0x" + strings.ToUpper(h)}
+		return []string{guidColon(b), "0x" + h, "0x" + strings.ToUpper(h), h, strings.ToUpper(h)}
 	case KindIPv4:
 		return []string{netip.AddrFrom4([4]byte(b)).String()}
 	case KindIPv6:

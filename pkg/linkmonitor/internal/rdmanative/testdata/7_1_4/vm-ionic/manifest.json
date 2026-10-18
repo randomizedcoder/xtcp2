@@ -1,0 +1,466 @@
+{
+  "source": "vm-ionic",
+  "uname": "Linux 7.1.4 #1-NixOS SMP PREEMPT_DYNAMIC Sat Jul 18 14:55:52 UTC 2026 x86_64 GNU/Linux",
+  "driver": "ionic_0=ionic_rdma",
+  "firmware": "ionic_0=rocm-ernic-1.0",
+  "rdma_core": "63.0",
+  "files": [
+    {
+      "path": "async/ionic_0-flap.out",
+      "sha256": "e47a6b6ee72f94b6bb2ed5db925020df6d183f271198eaa096373f7c15deb19c",
+      "stream": "async",
+      "command": "ibv_asyncwatch -d ionic_0",
+      "trigger": "ip link set eth0 down \u0026\u0026 sleep 1 \u0026\u0026 ip link set eth0 up"
+    },
+    {
+      "path": "async/ionic_0-flap.strace",
+      "sha256": "a7d43f32909a89b23ee81f8df592f327d976e2248f7af10ff3cd320645af6c88",
+      "stream": "async",
+      "command": "ibv_asyncwatch -d ionic_0",
+      "trigger": "ip link set eth0 down \u0026\u0026 sleep 1 \u0026\u0026 ip link set eth0 up"
+    },
+    {
+      "path": "async/ionic_0-gid.out",
+      "sha256": "9bea8b06f53175752f5166004baaee3ec9efc6b4f1c7c13562837da1e548adca",
+      "stream": "async",
+      "command": "ibv_asyncwatch -d ionic_0",
+      "trigger": "ip -6 addr add 2001:db8:5300::1/128 dev eth0 nodad \u0026\u0026 sleep 1 \u0026\u0026 ip -6 addr del 2001:db8:5300::1/128 dev eth0"
+    },
+    {
+      "path": "async/ionic_0-gid.strace",
+      "sha256": "99efbe84f5f1949a9cb7e43437d74b796dd5adf33fe32d7a950789249fbad855",
+      "stream": "async",
+      "command": "ibv_asyncwatch -d ionic_0",
+      "trigger": "ip -6 addr add 2001:db8:5300::1/128 dev eth0 nodad \u0026\u0026 sleep 1 \u0026\u0026 ip -6 addr del 2001:db8:5300::1/128 dev eth0"
+    },
+    {
+      "path": "nldev/dev_show-ionic_0.err",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stream": "nldev",
+      "command": "rdma dev show ionic_0"
+    },
+    {
+      "path": "nldev/dev_show-ionic_0.out",
+      "sha256": "774f6dc900ff562d7d6de22153e386729c50cc6515a0ebf53470e86aa5046f08",
+      "stream": "nldev",
+      "command": "rdma dev show ionic_0"
+    },
+    {
+      "path": "nldev/dev_show-ionic_0.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "nldev",
+      "command": "rdma dev show ionic_0"
+    },
+    {
+      "path": "nldev/dev_show-ionic_0.strace",
+      "sha256": "f6108735288dcc4ef27290a8ab8222f2b60c449c61ea15b24cccc9d2546631b5",
+      "stream": "nldev",
+      "command": "rdma dev show ionic_0"
+    },
+    {
+      "path": "nldev/devinfo-ionic_0.err",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stream": "nldev",
+      "command": "ibv_devinfo -d ionic_0"
+    },
+    {
+      "path": "nldev/devinfo-ionic_0.out",
+      "sha256": "466f3c85ecc9ee859c4348e029bc33c5793f3800bfc4d3afb473ca42458e3403",
+      "stream": "nldev",
+      "command": "ibv_devinfo -d ionic_0"
+    },
+    {
+      "path": "nldev/devinfo-ionic_0.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "nldev",
+      "command": "ibv_devinfo -d ionic_0"
+    },
+    {
+      "path": "nldev/devinfo-ionic_0.strace",
+      "sha256": "c8dec68821dd80846d6fc50df0d6465567ce1e802fdc0c5660f49b7f974170a3",
+      "stream": "nldev",
+      "command": "ibv_devinfo -d ionic_0"
+    },
+    {
+      "path": "nldev/devinfo_v-ionic_0.err",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stream": "nldev",
+      "command": "ibv_devinfo -v -d ionic_0"
+    },
+    {
+      "path": "nldev/devinfo_v-ionic_0.out",
+      "sha256": "4860788ebdf346e0a4e8c19b09eab9dc5dfdbb497301727ee8f88c331b43be7b",
+      "stream": "nldev",
+      "command": "ibv_devinfo -v -d ionic_0"
+    },
+    {
+      "path": "nldev/devinfo_v-ionic_0.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "nldev",
+      "command": "ibv_devinfo -v -d ionic_0"
+    },
+    {
+      "path": "nldev/devinfo_v-ionic_0.strace",
+      "sha256": "1e43d5537b011e10ef33a006c483b0aa9f2cd67ee83c66221c1eeff1f1d9a411",
+      "stream": "nldev",
+      "command": "ibv_devinfo -v -d ionic_0"
+    },
+    {
+      "path": "nldev/link_show-ionic_0-1.err",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stream": "nldev",
+      "command": "rdma link show ionic_0/1"
+    },
+    {
+      "path": "nldev/link_show-ionic_0-1.out",
+      "sha256": "205ae1cc47bf8b0d3ddfeb8cd7c5bdd21aac435656d4b87f9a07bd5a5b3874ef",
+      "stream": "nldev",
+      "command": "rdma link show ionic_0/1"
+    },
+    {
+      "path": "nldev/link_show-ionic_0-1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "nldev",
+      "command": "rdma link show ionic_0/1"
+    },
+    {
+      "path": "nldev/link_show-ionic_0-1.strace",
+      "sha256": "cb54790790a05730446467374b64c7eacf7efa666f52a4f715a78ecf2001e115",
+      "stream": "nldev",
+      "command": "rdma link show ionic_0/1"
+    },
+    {
+      "path": "nlmon/flap.pcap",
+      "sha256": "934a85ea2ab5df20197c5d167f1e057b8b91711fe46cd166cc0f45cbeee65b63",
+      "stream": "rtnl",
+      "command": "tcpdump -i rdmacap0 'ether[14:2]==0'",
+      "trigger": "ip link set eth0 down \u0026\u0026 sleep 1 \u0026\u0026 ip link set eth0 up"
+    },
+    {
+      "path": "nlmon/gid.pcap",
+      "sha256": "8b04929e778a8075b977d091442ab0686abc09494baf89d36f08804157579d9b",
+      "stream": "rtnl",
+      "command": "tcpdump -i rdmacap0 'ether[14:2]==0'",
+      "trigger": "ip -6 addr add 2001:db8:5300::1/128 dev eth0 nodad \u0026\u0026 sleep 1 \u0026\u0026 ip -6 addr del 2001:db8:5300::1/128 dev eth0"
+    },
+    {
+      "path": "sysfs/ionic_0/fw_ver",
+      "sha256": "c48a7bbb24368a220cef5739d38c53b3e67254eb359c2a3e769fee96d6ea3a2b",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/hca_type",
+      "sha256": "825da15ca329a133e52d61f7b614ad04f71d5c509cb32fbb2abf8c9c46a7056a",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/hw_rev",
+      "sha256": "682fbb22114e95876c4eae23a5952ef81ac6dfa997563a05ba0404cf12840a74",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/node_guid",
+      "sha256": "f07c02fd25f7d301b6c0e86b995d8844b6085df9f9c0fe296c0b37c92fd73fbb",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/node_type",
+      "sha256": "bdd72dcc89ca08b5cdb57cd97be04cb4943cb81d03c580efacd15f95056d9c5c",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/cap_mask",
+      "sha256": "aefd549bfb101a871957118609fbb95ac22b85a7a9440077d26d49588da0a948",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/gid_attrs/ndevs/0",
+      "sha256": "cf9519d27d624823996bd138767fc5f0eb4c8737fd0cad90895c9ccfb93a1e4d",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/gid_attrs/types/0",
+      "sha256": "3fe080374509da0f4a28e5121f37f251bb1cf8fd20301d29e4a15f9b18787778",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/gids/0",
+      "sha256": "03634305ed23b15867a337a7b4653de233a295440b9a1eb52f84ef0d89618769",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/hw_counters/commands",
+      "sha256": "6e2ae11dad0616f66bbb2b6e6556f580bb987fd911d7132aa6bee2bfc7cc7b52",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/hw_counters/lifespan",
+      "sha256": "917df3320d778ddbaa5c5c7742bc4046bf803c36ed2b050f30844ed206783469",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/hw_counters/req_rx_cqe_err",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/hw_counters/req_rx_cqe_flush_err",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/hw_counters/req_rx_dup_responses",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/hw_counters/req_rx_implied_nak_seq_err",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/hw_counters/req_rx_invalid_packets",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/hw_counters/req_rx_pkt_seq_err",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/hw_counters/req_rx_remote_access_err",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/hw_counters/req_rx_remote_inv_req_err",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/hw_counters/req_rx_remote_oper_err",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/hw_counters/req_rx_rnr_retry_err",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/hw_counters/req_tx_local_access_err",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/hw_counters/req_tx_local_oper_err",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/hw_counters/req_tx_memory_mgmt_err",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/hw_counters/resp_rx_cqe_err",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/hw_counters/resp_rx_cqe_flush_err",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/hw_counters/resp_rx_dup_requests",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/hw_counters/resp_rx_inv_request_err",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/hw_counters/resp_rx_local_len_err",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/hw_counters/resp_rx_local_qp_oper_err",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/hw_counters/resp_rx_out_of_atomic_res",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/hw_counters/resp_rx_out_of_buffer",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/hw_counters/resp_rx_out_of_seq_pkts",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/hw_counters/resp_tx_pkt_seq_err",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/hw_counters/resp_tx_remote_access_err",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/hw_counters/resp_tx_remote_inv_req_err",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/hw_counters/resp_tx_remote_oper_err",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/hw_counters/resp_tx_rnr_retry_err",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/hw_counters/rx_cnp_pkts",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/hw_counters/rx_ecn_pkts",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/hw_counters/total_bytes_rdma_read",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/hw_counters/total_bytes_rdma_write",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/hw_counters/total_bytes_received",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/hw_counters/total_bytes_sent",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/hw_counters/tx_cnp_pkts",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/lid",
+      "sha256": "682fbb22114e95876c4eae23a5952ef81ac6dfa997563a05ba0404cf12840a74",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/lid_mask_count",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/link_layer",
+      "sha256": "7002d94ec45d6fda21037f4db30590dfabeffa66e463b8a3951ec976ed9d0303",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/phys_state",
+      "sha256": "922f919ec84e2fb2c929e8a69b45fe7dd080f2a70538fd56378de747081cf922",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/rate",
+      "sha256": "f974109689a259bd29e83dee3a10a777dcc1fd98145b1c3480888fa83d4a0e2d",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/sm_lid",
+      "sha256": "682fbb22114e95876c4eae23a5952ef81ac6dfa997563a05ba0404cf12840a74",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/sm_sl",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/ports/1/state",
+      "sha256": "13331357f571fb8ca53401197d705508b115be40d134c70ce66fd2e2275e7938",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/ionic_0/sys_image_guid",
+      "sha256": "f07c02fd25f7d301b6c0e86b995d8844b6085df9f9c0fe296c0b37c92fd73fbb",
+      "stream": "sysfs"
+    },
+    {
+      "path": "umad/perfquery-ionic_0-1.err",
+      "sha256": "bc26b88ccb582b174c33709d014fd9327f5a3745ed34f19a1411098e0796dcec",
+      "stream": "umad",
+      "command": "perfquery -C ionic_0 -P 1"
+    },
+    {
+      "path": "umad/perfquery-ionic_0-1.out",
+      "sha256": "11921ed1d8a7bb8b03c858b5597a8e98b7fbb96b64c2b67a0efbf4ee322e7a30",
+      "stream": "umad",
+      "command": "perfquery -C ionic_0 -P 1"
+    },
+    {
+      "path": "umad/perfquery-ionic_0-1.rc",
+      "sha256": "ce8bafb38615aeb5d44ebbabe78ec14ac35a5de87bdc5ad5ea82a72656024ce4",
+      "stream": "umad",
+      "command": "perfquery -C ionic_0 -P 1"
+    },
+    {
+      "path": "umad/perfquery-ionic_0-1.strace",
+      "sha256": "3988efa7f4452e038db9ae559f9c71c26e2c36f161da0c55548c34c554d33315",
+      "stream": "umad",
+      "command": "perfquery -C ionic_0 -P 1"
+    },
+    {
+      "path": "umad/smpquery_portinfo-ionic_0-1.err",
+      "sha256": "d40f345a775a2252c8492cdbbda01300b87dcfaafd4dd86e32aa942d805cf485",
+      "stream": "umad",
+      "command": "smpquery -C ionic_0 -P 1 -D portinfo 0"
+    },
+    {
+      "path": "umad/smpquery_portinfo-ionic_0-1.out",
+      "sha256": "774043d43979407255b6da14cb20bec19297a80dbea517f9d27ca97508c8d807",
+      "stream": "umad",
+      "command": "smpquery -C ionic_0 -P 1 -D portinfo 0"
+    },
+    {
+      "path": "umad/smpquery_portinfo-ionic_0-1.rc",
+      "sha256": "ce8bafb38615aeb5d44ebbabe78ec14ac35a5de87bdc5ad5ea82a72656024ce4",
+      "stream": "umad",
+      "command": "smpquery -C ionic_0 -P 1 -D portinfo 0"
+    },
+    {
+      "path": "umad/smpquery_portinfo-ionic_0-1.strace",
+      "sha256": "06b323897c59c1167681773a60848cac34fb35238df7619749fab684e46a65c4",
+      "stream": "umad",
+      "command": "smpquery -C ionic_0 -P 1 -D portinfo 0"
+    }
+  ],
+  "redaction": {}
+}

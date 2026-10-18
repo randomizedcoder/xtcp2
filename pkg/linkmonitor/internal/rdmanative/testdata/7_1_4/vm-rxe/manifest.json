@@ -1,0 +1,371 @@
+{
+  "source": "vm-rxe",
+  "uname": "Linux 7.1.4 #1-NixOS SMP PREEMPT_DYNAMIC Sat Jul 18 14:55:52 UTC 2026 x86_64 GNU/Linux",
+  "driver": "rxe0=rdma_rxe",
+  "firmware": "rxe0=",
+  "rdma_core": "63.0",
+  "files": [
+    {
+      "path": "async/rxe0-flap.out",
+      "sha256": "ff68de21426b4a37c2ca2aeb3320c8028938a4f8059bcc4a5d4244f1ac0f2689",
+      "stream": "async",
+      "command": "ibv_asyncwatch -d rxe0",
+      "trigger": "ip link set rx0 down \u0026\u0026 sleep 1 \u0026\u0026 ip link set rx0 up"
+    },
+    {
+      "path": "async/rxe0-flap.strace",
+      "sha256": "3daeabb4da5eabca3834299110d7b31fc0062d0da9b38aed60913a6c5f2b1c59",
+      "stream": "async",
+      "command": "ibv_asyncwatch -d rxe0",
+      "trigger": "ip link set rx0 down \u0026\u0026 sleep 1 \u0026\u0026 ip link set rx0 up"
+    },
+    {
+      "path": "async/rxe0-gid.out",
+      "sha256": "2aec597bbf0eacbe29eff536cea7ed2c3f28f206ef7a904329d1b3c0cdfcaa94",
+      "stream": "async",
+      "command": "ibv_asyncwatch -d rxe0",
+      "trigger": "ip -6 addr add 2001:db8:5300::1/128 dev rx0 nodad \u0026\u0026 sleep 1 \u0026\u0026 ip -6 addr del 2001:db8:5300::1/128 dev rx0"
+    },
+    {
+      "path": "async/rxe0-gid.strace",
+      "sha256": "5a05bb7059bd5c1bb9d9495a2eaf307375c83002c035d738f66256f1ed315fcf",
+      "stream": "async",
+      "command": "ibv_asyncwatch -d rxe0",
+      "trigger": "ip -6 addr add 2001:db8:5300::1/128 dev rx0 nodad \u0026\u0026 sleep 1 \u0026\u0026 ip -6 addr del 2001:db8:5300::1/128 dev rx0"
+    },
+    {
+      "path": "nldev/dev_show-rxe0.err",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stream": "nldev",
+      "command": "rdma dev show rxe0"
+    },
+    {
+      "path": "nldev/dev_show-rxe0.out",
+      "sha256": "df7e589c6474dc8aa4821e09f1ed93a4ed501ac9d5d74f7a3cf094faa239c560",
+      "stream": "nldev",
+      "command": "rdma dev show rxe0"
+    },
+    {
+      "path": "nldev/dev_show-rxe0.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "nldev",
+      "command": "rdma dev show rxe0"
+    },
+    {
+      "path": "nldev/dev_show-rxe0.strace",
+      "sha256": "2f72b47b0027037ef47ba616a7c2df4dba62decd67bcdc7a1897189e1bc87238",
+      "stream": "nldev",
+      "command": "rdma dev show rxe0"
+    },
+    {
+      "path": "nldev/devinfo-rxe0.err",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stream": "nldev",
+      "command": "ibv_devinfo -d rxe0"
+    },
+    {
+      "path": "nldev/devinfo-rxe0.out",
+      "sha256": "fa2f4a73e95b0ee8f734392023f43f4ab0cab167ffc5b6829b1c03a9d6e932ea",
+      "stream": "nldev",
+      "command": "ibv_devinfo -d rxe0"
+    },
+    {
+      "path": "nldev/devinfo-rxe0.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "nldev",
+      "command": "ibv_devinfo -d rxe0"
+    },
+    {
+      "path": "nldev/devinfo-rxe0.strace",
+      "sha256": "abd8128a51c272b8b6ed149355f75aa14011e014d1d9d03ecbecdf526007e48c",
+      "stream": "nldev",
+      "command": "ibv_devinfo -d rxe0"
+    },
+    {
+      "path": "nldev/devinfo_v-rxe0.err",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stream": "nldev",
+      "command": "ibv_devinfo -v -d rxe0"
+    },
+    {
+      "path": "nldev/devinfo_v-rxe0.out",
+      "sha256": "00ffbf233ca03e5291ce2f67a6fad1f3a9ba8e86b065a6c4cb46d98903d6c06c",
+      "stream": "nldev",
+      "command": "ibv_devinfo -v -d rxe0"
+    },
+    {
+      "path": "nldev/devinfo_v-rxe0.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "nldev",
+      "command": "ibv_devinfo -v -d rxe0"
+    },
+    {
+      "path": "nldev/devinfo_v-rxe0.strace",
+      "sha256": "3cb5cfa80bcbae5cb0503759fe6c644d17b12ec84097c45ab0eb45ba9af1318f",
+      "stream": "nldev",
+      "command": "ibv_devinfo -v -d rxe0"
+    },
+    {
+      "path": "nldev/link_show-rxe0-1.err",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stream": "nldev",
+      "command": "rdma link show rxe0/1"
+    },
+    {
+      "path": "nldev/link_show-rxe0-1.out",
+      "sha256": "3f80f8fd67dd99022d17178890a6fc7c190ea46e726d3a5bf9ff95062b788056",
+      "stream": "nldev",
+      "command": "rdma link show rxe0/1"
+    },
+    {
+      "path": "nldev/link_show-rxe0-1.rc",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "nldev",
+      "command": "rdma link show rxe0/1"
+    },
+    {
+      "path": "nldev/link_show-rxe0-1.strace",
+      "sha256": "4bcf63570657624b104816bc18a47db9e3c4668b6d559716124b5078976dbe41",
+      "stream": "nldev",
+      "command": "rdma link show rxe0/1"
+    },
+    {
+      "path": "nlmon/flap.pcap",
+      "sha256": "278555c2fec09f1b9bfa42f6e78ff2a6ab46de36f4444f2dba4bd595c44e32f4",
+      "stream": "rtnl",
+      "command": "tcpdump -i rdmacap0 'ether[14:2]==0'",
+      "trigger": "ip link set rx0 down \u0026\u0026 sleep 1 \u0026\u0026 ip link set rx0 up"
+    },
+    {
+      "path": "nlmon/gid.pcap",
+      "sha256": "6d960bd2570c90bb80d3c640fbee176771a139318c400a157df9d22633403cba",
+      "stream": "rtnl",
+      "command": "tcpdump -i rdmacap0 'ether[14:2]==0'",
+      "trigger": "ip -6 addr add 2001:db8:5300::1/128 dev rx0 nodad \u0026\u0026 sleep 1 \u0026\u0026 ip -6 addr del 2001:db8:5300::1/128 dev rx0"
+    },
+    {
+      "path": "sysfs/rxe0/fw_ver",
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/rxe0/node_guid",
+      "sha256": "4744617fbad0fc8a0bd55885a469a00c47077be42cce7ba7e3d2a03bc514c63f",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/rxe0/node_type",
+      "sha256": "bdd72dcc89ca08b5cdb57cd97be04cb4943cb81d03c580efacd15f95056d9c5c",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/rxe0/ports/1/cap_mask",
+      "sha256": "e07b12694463053c2fefe837fef3481d0aa5d4f8ba4d5c1c19fa52d2587ea1b3",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/rxe0/ports/1/gid_attrs/ndevs/0",
+      "sha256": "c37e81b726307c92e106b45f06ff5dd664fbecf5e40a40376f528e9ab5b4e324",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/rxe0/ports/1/gid_attrs/ndevs/1",
+      "sha256": "c37e81b726307c92e106b45f06ff5dd664fbecf5e40a40376f528e9ab5b4e324",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/rxe0/ports/1/gid_attrs/types/0",
+      "sha256": "3fe080374509da0f4a28e5121f37f251bb1cf8fd20301d29e4a15f9b18787778",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/rxe0/ports/1/gid_attrs/types/1",
+      "sha256": "3fe080374509da0f4a28e5121f37f251bb1cf8fd20301d29e4a15f9b18787778",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/rxe0/ports/1/gids/0",
+      "sha256": "d8a626c8405a341de0e6f85f757b17df42f0dbb1956ee46c8c45baa4743e2b07",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/rxe0/ports/1/gids/1",
+      "sha256": "d5e36d9a799f89c93f75e5a34fcd4cfffad7eac207eb7adadb415edc45059e75",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/rxe0/ports/1/hw_counters/ack_deferred",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/rxe0/ports/1/hw_counters/completer_retry_err",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/rxe0/ports/1/hw_counters/duplicate_request",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/rxe0/ports/1/hw_counters/lifespan",
+      "sha256": "917df3320d778ddbaa5c5c7742bc4046bf803c36ed2b050f30844ed206783469",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/rxe0/ports/1/hw_counters/link_downed",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/rxe0/ports/1/hw_counters/out_of_seq_request",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/rxe0/ports/1/hw_counters/rcvd_pkts",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/rxe0/ports/1/hw_counters/rcvd_rnr_err",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/rxe0/ports/1/hw_counters/rcvd_seq_err",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/rxe0/ports/1/hw_counters/rdma_recvs",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/rxe0/ports/1/hw_counters/rdma_sends",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/rxe0/ports/1/hw_counters/retry_exceeded_err",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/rxe0/ports/1/hw_counters/retry_rnr_exceeded_err",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/rxe0/ports/1/hw_counters/send_err",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/rxe0/ports/1/hw_counters/send_rnr_err",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/rxe0/ports/1/hw_counters/sent_pkts",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/rxe0/ports/1/lid",
+      "sha256": "682fbb22114e95876c4eae23a5952ef81ac6dfa997563a05ba0404cf12840a74",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/rxe0/ports/1/lid_mask_count",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/rxe0/ports/1/link_layer",
+      "sha256": "7002d94ec45d6fda21037f4db30590dfabeffa66e463b8a3951ec976ed9d0303",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/rxe0/ports/1/phys_state",
+      "sha256": "922f919ec84e2fb2c929e8a69b45fe7dd080f2a70538fd56378de747081cf922",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/rxe0/ports/1/rate",
+      "sha256": "921876d1125720c95dd39a79c6376ddaa8b123b134a7acc89d67d1b91649dafe",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/rxe0/ports/1/sm_lid",
+      "sha256": "682fbb22114e95876c4eae23a5952ef81ac6dfa997563a05ba0404cf12840a74",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/rxe0/ports/1/sm_sl",
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/rxe0/ports/1/state",
+      "sha256": "13331357f571fb8ca53401197d705508b115be40d134c70ce66fd2e2275e7938",
+      "stream": "sysfs"
+    },
+    {
+      "path": "sysfs/rxe0/sys_image_guid",
+      "sha256": "4744617fbad0fc8a0bd55885a469a00c47077be42cce7ba7e3d2a03bc514c63f",
+      "stream": "sysfs"
+    },
+    {
+      "path": "umad/perfquery-rxe0-1.err",
+      "sha256": "0840d8f2444d0ef68d7123c983a6f7ff51b6059dc23de118df7c3532f5e7ccc9",
+      "stream": "umad",
+      "command": "perfquery -C rxe0 -P 1"
+    },
+    {
+      "path": "umad/perfquery-rxe0-1.out",
+      "sha256": "422893b73928a0b1e0b5c143f25f738b16d741bb4d7f066ab777586d309a6122",
+      "stream": "umad",
+      "command": "perfquery -C rxe0 -P 1"
+    },
+    {
+      "path": "umad/perfquery-rxe0-1.rc",
+      "sha256": "ce8bafb38615aeb5d44ebbabe78ec14ac35a5de87bdc5ad5ea82a72656024ce4",
+      "stream": "umad",
+      "command": "perfquery -C rxe0 -P 1"
+    },
+    {
+      "path": "umad/perfquery-rxe0-1.strace",
+      "sha256": "5c94bd35fa2d3024d833de4f67710e2b735f3a9d46716e36fa31dc9690b5661c",
+      "stream": "umad",
+      "command": "perfquery -C rxe0 -P 1"
+    },
+    {
+      "path": "umad/smpquery_portinfo-rxe0-1.err",
+      "sha256": "83f9e258498035291d31afff7911c4b117e6fe2ff9615f70b9b72ade37d89f7a",
+      "stream": "umad",
+      "command": "smpquery -C rxe0 -P 1 -D portinfo 0"
+    },
+    {
+      "path": "umad/smpquery_portinfo-rxe0-1.out",
+      "sha256": "5462586104940c4219eb07b2f24395b9efae4ff54a6e067ac6c587856e0d24ce",
+      "stream": "umad",
+      "command": "smpquery -C rxe0 -P 1 -D portinfo 0"
+    },
+    {
+      "path": "umad/smpquery_portinfo-rxe0-1.rc",
+      "sha256": "ce8bafb38615aeb5d44ebbabe78ec14ac35a5de87bdc5ad5ea82a72656024ce4",
+      "stream": "umad",
+      "command": "smpquery -C rxe0 -P 1 -D portinfo 0"
+    },
+    {
+      "path": "umad/smpquery_portinfo-rxe0-1.strace",
+      "sha256": "adf293a7347e7ffbff547d1fc2d73ae197130e8940f12414d56651578882f4e4",
+      "stream": "umad",
+      "command": "smpquery -C rxe0 -P 1 -D portinfo 0"
+    }
+  ],
+  "redaction": {}
+}

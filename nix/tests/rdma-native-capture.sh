@@ -13,7 +13,7 @@
 #   sysfs/<dev>/...                         port files, byte for byte
 #   nlmon/<trigger>.pcap                    NETLINK_ROUTE around each trigger
 #   async/<dev>-<trigger>.strace|.out|...   ibv_asyncwatch reads (-xx)
-#   umad/<row>-<dev>-<port>.strace|...      smpquery and perfquery (--umad)
+#   umad/<row>-<dev>-<port>.strace|...      smpquery portinfo and perfquery (--umad)
 #   meta/uname|driver|firmware|rdma_core    for the manifest
 #   index.tsv                               each row's command and trigger
 #
@@ -87,7 +87,7 @@ fi
 # The nlcap helper's arguments (nix/microvms/netlink-capture.nix), so the
 # NLDEV rows read like the existing pkg/xtcpnl RDMA corpus.
 NLDEV_TRACE=(-qq -f -e "trace=socket,sendto,sendmsg,recvfrom,recvmsg" -e write=all -e read=all)
-ASYNC_TRACE=(-qq -f -e trace=read -e read=all -xx)
+ASYNC_TRACE=(-qq -f -e trace=read -e read=all -xx --decode-fds=path)
 UMAD_TRACE=(-qq -f -e "trace=socket,sendto,sendmsg,recvfrom,recvmsg,openat,ioctl,write,read,poll" -e write=all -e read=all -xx)
 GID_ADDR=2001:db8:5300::1/128
 NLMON=rdmacap0
@@ -276,6 +276,25 @@ wait_for() {
   return 1
 }
 
+# async_only <strace file>: keep only the reads of the uverbs async event fd
+# and their hex dumps. trace=read also sees the loader reading every shared
+# library, which is most of the file and none of the records. -xx escapes the
+# fd's path too, so the anon inode name "[infinibandevent]" is matched in its
+# \xNN form as well as plain.
+async_only() {
+  local f=$1
+  awk '
+    /^[0-9]+ +read\(/ {
+      keep = index($0, "[infinibandevent]") > 0 || index($0, "\\x5b\\x69\\x6e\\x66\\x69\\x6e\\x69\\x62\\x61\\x6e\\x64\\x65\\x76\\x65\\x6e\\x74\\x5d") > 0
+      if (keep) print
+      next
+    }
+    /^ \| / { if (keep) print; next }
+    { print }
+  ' "$f" >"$f.tmp"
+  mv -- "$f.tmp" "$f"
+}
+
 # window <trigger> <command>: nlmon and one ibv_asyncwatch per device record
 # while the command runs. tcpdump keeps only NETLINK_ROUTE (family 0 at
 # offset 14 of the cooked header), as capture-netlink-fixtures does.
@@ -306,7 +325,7 @@ window() {
     wait_for "$OUT/async/$dev-$t.out" 'async event FD' || true
   done
   echo "RDMACAP_TRIGGER $t: $command"
-  sh -c "$command"
+  bash -c "$command"
   wait_active || true
   # Port events can follow the netdev's by a moment.
   sleep 2
@@ -322,8 +341,15 @@ window() {
   ip link del "$NLMON"
   for dev in "${DEVS[@]}"; do
     rm -f -- "$OUT/async/$dev-$t.err"
+    async_only "$OUT/async/$dev-$t.strace"
+    # Only a device behind the trigger's interface must see an event; on
+    # another device an empty window is the observation, and is kept.
     if ! grep -q '= 16$' "$OUT/async/$dev-$t.strace"; then
-      SHORT+=("async/$dev-$t")
+      if netdevs_of "$dev" | grep -qxF -- "$IFACE"; then
+        SHORT+=("async/$dev-$t")
+      else
+        echo "RDMACAP_QUIET async/$dev-$t: $IFACE is not one of its netdevs"
+      fi
     fi
   done
 }
@@ -358,7 +384,9 @@ for dev in "${DEVS[@]}"; do
   row nldev "devinfo-$dev" ibv_devinfo -d "$dev"
   row nldev "devinfo_v-$dev" ibv_devinfo -v -d "$dev"
   row nldev "dev_show-$dev" rdma dev show "$dev"
-  row nldev "link_show-$dev" rdma link show "$dev"
+  for port in $(ports_of "$dev"); do
+    row nldev "link_show-$dev-$port" rdma link show "$dev/$port"
+  done
 done
 
 for t in ${TRIGGERS//,/ }; do
@@ -371,7 +399,8 @@ done
 if [ "$UMAD" -eq 1 ]; then
   for dev in "${DEVS[@]}"; do
     for port in $(ports_of "$dev"); do
-      row umad "smpquery_nodeinfo-$dev-$port" smpquery -C "$dev" -P "$port" nodeinfo
+      # Directed route 0 is the local port, so no SM or LID is needed.
+      row umad "smpquery_portinfo-$dev-$port" smpquery -C "$dev" -P "$port" -D portinfo 0
       row umad "perfquery-$dev-$port" perfquery -C "$dev" -P "$port"
     done
   done

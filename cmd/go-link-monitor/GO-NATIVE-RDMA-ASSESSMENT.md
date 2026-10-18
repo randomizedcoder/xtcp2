@@ -565,7 +565,9 @@ manifest lists the documentation values in use and their kinds. It holds
 nothing derived from a real value, not even a hash, because a MAC or GUID
 has only about 24 free bits and its hash is easily reversed. Re-runs stay
 comparable because the assignment is deterministic for a given set of
-values. The hostname is not redacted, so the capture leaves it out: `uname`
+values. Each value is matched in its binary form and in every text form a
+capture shows it in, including a MAC's bare hex in the systemd altname
+`enx<mac>` that netlink carries in `IFLA_PROP_LIST`. The hostname is not redacted, so the capture leaves it out: `uname`
 is recorded without the nodename and sysfs `node_desc` is not copied. Netlink
 attributes that carry the redacted values keep their lengths, so the
 recorded length and offset of every attribute still holds.
