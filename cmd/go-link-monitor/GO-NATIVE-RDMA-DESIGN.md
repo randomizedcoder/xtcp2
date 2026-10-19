@@ -515,3 +515,54 @@ verbs-level events C2b cannot see.
   device, the same as an unmatched provider today.
 - Every table entry needs an ABI guard row from the driver's uapi header and a
   captured GET_CONTEXT exchange from the R3-T01 capture shim.
+
+### Re-plan first: the provider seam is gone
+
+This sketch predates R4. R4-T02 removed `rdmaevents.Provider`, its
+per-device `Open`/`Next`/`FD` handle, and the verbs worker that drove it,
+together with the cgo verbs source. What remains is `rdmaevents.Source`
+(`Run(ctx, emit)`) in `internal/rdmaevents/events.go` and
+`rdmaEventSource` in `pkg/linkmonitor/rdma_events_source_linux.go`, which
+joins the netlink port events and the NLDEV monitor. Whoever picks up R3
+re-plans the seam before anything else: either a uverbs `Source` that
+`rdmaEventSource` joins as a third input, or a provider interface restored
+beside it. That choice also decides whether R4's "no backend flags" stands,
+or a selector comes back.
+
+### If mlx5 is needed
+
+One driver covers every current NVIDIA (Mellanox) NIC. `mlx5` (`mlx5_core`
+and `mlx5_ib`) serves ConnectX-4 and 4 Lx through ConnectX-8 and BlueField-2
+and -3; there is no mlx6 to mlx8, and `mlx4` is the end-of-life ConnectX-3.
+The netlink path already reports `rdma_events` for all of them (R1-T05 and
+R4-T03 on `l`'s mlx5), so R3 adds only events netlink cannot see.
+
+The mlx5 udata entry is small. The request is the 32-byte
+`mlx5_ib_alloc_ucontext_req_v2` (`include/uapi/rdma/mlx5-abi.h`), with
+`total_num_bfregs` above zero, and the response is the roughly 80-byte
+`mlx5_ib_alloc_ucontext_resp`, which an events-only provider can ignore. The
+kernel picks the request version from its length
+(`drivers/infiniband/hw/mlx5/main.c`, `mlx5_ib_alloc_ucontext`), so one entry
+should serve every kernel and ConnectX generation, under its ABI guard row.
+
+Most of the effort is elsewhere:
+
+| Piece | Effort |
+|---|---|
+| The seam re-plan above | Small design change |
+| R3-T01 capture shim: golden GET_CONTEXT bytes from libmlx5 | Moderate |
+| R3-T02 provider core: GET_CONTEXT over uverbs, the `mmap` response buffer, the async event fd, lifecycle and device removal | Most of the work |
+| The mlx5 table entry and ABI row | Small |
+| Testing | The constraint: no VM emulates mlx5, so every mlx5 row runs on real hardware (`l`, with approval) and none in CI |
+
+Each monitor would also hold a context per device, which reserves UAR
+(doorbell) pages on the NIC, a cost the netlink path does not have.
+
+Whether it is worth doing is still open. On mlx5 RoCE, R1-T05's comparison
+found no port or GID event verbs gave that netlink did not. Two possible gaps
+are untested: native InfiniBand (LID, SM and client-reregister events, which
+matter only on IB) and `IB_EVENT_DEVICE_FATAL` (a firmware or PCI fatal
+error). If device fatal is the need, check devlink health reporters first:
+mlx5 exposes them over generic netlink, which is pure Go with no per-driver
+udata and fits the existing netlink code. Whether they cover the same cases
+is unverified.
