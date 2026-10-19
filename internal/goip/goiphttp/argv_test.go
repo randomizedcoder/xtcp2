@@ -5,6 +5,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/randomizedcoder/xtcp2/internal/goip"
 )
 
 // segments is n path segments, each seg, joined with /.
@@ -237,6 +239,90 @@ func TestTokens(t *testing.T) {
 			}
 			if err != nil || !slices.Equal(got, tt.expected) {
 				t.Fatalf("%s: tokens = (%q, %v), want %q", tt.description, got, err, tt.expected)
+			}
+		})
+	}
+}
+
+// argvLongPath is an accepted command line of n tokens and n*32 bytes,
+// `address show` and then label selectors: at n = 32 it is the longest path
+// the tokenizer takes, 32 tokens in argvPathMax bytes.
+func argvLongPath(n int) string {
+	pairs := (n - 2) / 2
+	room := n*argvPathMax/argvTokensMax - len("address/show") - pairs*len("/label/")
+	toks := make([]string, 0, n)
+	toks = append(toks, "address", "show")
+	for i := range pairs {
+		l := room / pairs
+		if i == pairs-1 {
+			l += room % pairs
+		}
+		toks = append(toks, "label", strings.Repeat("a", l))
+	}
+	return strings.Join(toks, "/")
+}
+
+// resolveTests are BenchmarkArgvResolve's paths, each one an accepted
+// command line; TestArgvResolveAllocs guards what they cost.
+var resolveTests = []struct {
+	name        string
+	category    string
+	description string
+	path        string
+	// expected bounds the allocations of tokens and ResolveShow together,
+	// as measured: 2 for a plain path of any length, 2 more per option and 1
+	// more per joined prefix. The plan's bound is under 10.
+	expected float64
+}{
+	{name: "short", category: "positive", description: "/i/a/s", path: "a/s", expected: 2},
+	{name: "long", category: "positive", description: "every token at its full spelling", path: "-json/-stats/address/show/dev/eth0", expected: 6},
+	{name: "joined", category: "corner", description: "a prefix joined back into one token", path: "route/show/10.0.0.0/8", expected: 3},
+	{name: "object_first", category: "boundary", description: "the first object in ip's chain", path: "address/show", expected: 2},
+	{name: "object_last", category: "boundary", description: "the last object goip serves, after every other", path: "stats/show", expected: 2},
+	{name: "half_path", category: "boundary", description: "16 tokens in 512 bytes", path: argvLongPath(16), expected: 2},
+	{name: "longest_path", category: "boundary", description: "32 tokens in argvPathMax bytes", path: argvLongPath(32), expected: 2},
+}
+
+// BenchmarkArgvResolve is the cost of reading a command-line path: the
+// tokenizer and then ResolveShow, everything before a socket opens.
+//
+// go test ./internal/goip/goiphttp/ -run x -bench ArgvResolve -benchmem
+func BenchmarkArgvResolve(b *testing.B) {
+	for _, bc := range resolveTests {
+		b.Run(bc.name, func(b *testing.B) {
+			b.SetBytes(int64(len(bc.path)))
+			b.ReportAllocs()
+			for b.Loop() {
+				toks, err := tokens(bc.path)
+				if err != nil {
+					b.Fatal(err)
+				}
+				if _, _, err := goip.ResolveShow(toks); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
+
+// TestArgvResolveAllocs guards resolve_cost: reading an accepted command
+// line stays under its allocation bound however long the path or late the
+// object.
+func TestArgvResolveAllocs(t *testing.T) {
+	for _, tc := range resolveTests {
+		t.Run(tc.category+"/"+tc.name, func(t *testing.T) {
+			allocs := testing.AllocsPerRun(100, func() {
+				toks, err := tokens(tc.path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, _, err := goip.ResolveShow(toks); err != nil {
+					t.Fatal(err)
+				}
+			})
+			t.Logf("%s: %.0f allocs", tc.description, allocs)
+			if allocs > tc.expected {
+				t.Errorf("%s: %.0f allocs, want <= %.0f", tc.description, allocs, tc.expected)
 			}
 		})
 	}

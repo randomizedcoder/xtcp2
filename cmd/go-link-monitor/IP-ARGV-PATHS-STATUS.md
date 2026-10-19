@@ -2,7 +2,7 @@
 
 Last updated: 2026-10-19.
 
-**In progress: 8 of 12 implementation tasks done.** The design was reviewed
+**In progress: 9 of 12 implementation tasks done.** The design was reviewed
 on 2026-10-19 and its decisions are recorded below.
 
 This document tracks
@@ -56,7 +56,7 @@ for the design in [IP-ARGV-PATHS-DESIGN.md](IP-ARGV-PATHS-DESIGN.md).
 | IA0 | Groundwork | done | 2/2 | IV001–IV005, IV007–IV008 |
 | IA1 | goip resolver | done | 2/2 | IV006, IV009 |
 | IA2 | HTTP paths | done | 3/3 | IV010–IV012 |
-| IA3 | Hardening and performance | in progress | 1/3 | IV013 |
+| IA3 | Hardening and performance | in progress | 2/3 | IV013–IV017 |
 | IA4 | Verification and release | not started | 0/2 | — |
 
 ## Task checklist
@@ -72,11 +72,9 @@ here.
 | [x] | [IA1-T02](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia1-t02) | `ShowRequest` options | done | IV009 |
 | [x] | [IA2-T01](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia2-t01) | Path tokenizer | done | IV010 |
 | [x] | [IA2-T02](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia2-t02) | Routing and both forms | done | IV011 |
-| IV012 | 2026-10-19 | IA2-T03 | `nix build --no-link path:.#test-linkmonitor-unit path:.#test-linkmonitor-docs path:.#test-linkmonitor-lint -L`; golangci-lint (comprehensive, `--new-from-rev=HEAD`): 0 issues | `l`, nix sandbox, 7.2.9 | `0d20c2e9` + working tree | Pass, with `TestIndex` (6 rows) and `TestIndexExamples` (12 examples, 4 marked `not_served`) | nix store, `--no-link` |
-| IV013 | 2026-10-19 | IA3-T01 | `nix build --no-link --keep-going path:.#test-linkmonitor-fuzz path:.#test-focused-goip path:.#test-linkmonitor-unit path:.#test-linkmonitor-race path:.#test-linkmonitor-lint -L`; golangci-lint (comprehensive, `--new-from-rev=HEAD`): 0 issues | `l`, nix sandbox, 7.2.9, load 16 | `f9fddf3a` + working tree | Pass; fuzz leaf `FuzzArgvPath` 383,159 execs and `FuzzFnmatch` 341,520 execs in 30 s each, no failures. A first run was stopped before finishing, to pick up lint fixes, so it is not an outcome | nix store, `--no-link` |
 | [x] | [IA2-T03](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia2-t03) | Index and docs | done | IV012 |
 | [x] | [IA3-T01](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia3-t01) | Fuzzing and the pattern worst case | done | IV013 |
-| [ ] | [IA3-T02](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia3-t02) | Benchmarks | not started | — |
+| [x] | [IA3-T02](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia3-t02) | Benchmarks | done | IV014–IV017 |
 | [ ] | [IA3-T03](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia3-t03) | Handler fuzzing | not started | — |
 | [ ] | [IA4-T01](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia4-t01) | VM parity | not started | — |
 | [ ] | [IA4-T02](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia4-t02) | Final review | not started | — |
@@ -100,6 +98,39 @@ figures are noisy. IA3-T02 therefore reruns base `f7677018` beside the
 change rather than trusting these absolute times. `TestRejectAllocs` passes
 with its limit of 40; the refused path it measures (`bad_param`) allocates
 21 times per request.
+
+### IA3-T02 comparison
+
+Base `f7677018` and the IA3-T02 tree, run alternately (five rounds of
+`-count 2` each side, so n = 10) on `l` at load 3.9–5.8 (IV015). Allocation
+counts are exact; times are the medians benchstat reports. A `~` is no
+statistically significant difference.
+
+| Benchmark | Base ns/op | IA3-T02 ns/op | Base allocs | IA3-T02 allocs | B/op change |
+|---|---|---|---|---|---|
+| `BenchmarkMetricsWithIPPaths/off` | 8.063µ ± 5% | 8.182µ ± 4% (~) | 36 | 36 | ~ |
+| `BenchmarkMetricsWithIPPaths/on` | 8.348µ ± 4% | 8.221µ ± 7% (~) | 36 | 36 | ~ |
+| `BenchmarkIPHandler/addr_json` | 114.4µ ± 8% | 114.5µ ± 76% (~) | 458 | 469 | +0.41% |
+| `BenchmarkIPHandler/route_text` | 35.26µ ± 5% | 38.06µ ± 41% (+7.9%, p=0.011) | 226 | 234 | +0.70% |
+| `BenchmarkIPHandler/bad_param` | 2.682µ ± 22% | 3.339µ ± 18% (+24.5%, p=0.002) | 21 | 26 | +5.39% |
+| `BenchmarkIPHandler/index` | 1.755µ ± 41% | 2.538µ ± 12% (+44.6%, p=0.000) | 13 | 14 | +110% (2.41 to 5.07 KiB) |
+| `BenchmarkIPHandler/argv_addr_json` (`/i/-j/a/s`) | — | 111.3µ ± 2% | — | 471 | — |
+| `BenchmarkIPHandler/argv_route_text` (`/ip/route/show`) | — | 36.47µ ± 16% | — | 231 | — |
+| `BenchmarkIPHandler/argv_write_verb` (`/i/l/s`) | — | 2.459µ ± 24% | — | 21 | — |
+| `BenchmarkIPHandler/argv_bad_token` (`a%00`) | — | 2.630µ ± 17% | — | 23 | — |
+
+`BenchmarkArgvResolve` (IA3-T02 tree only; the tokenizer and `ResolveShow`,
+n = 10):
+
+| Path | Tokens, bytes | ns/op | B/op | allocs/op |
+|---|---|---|---|---|
+| `short` (`a/s`) | 2, 3 | 246.5n ± 2% | 96 | 2 |
+| `long` (`-json/-stats/address/show/dev/eth0`) | 6, 34 | 770.2n ± 0% | 232 | 6 |
+| `joined` (`route/show/10.0.0.0/8`) | 3 after the join, 21 | 489.7n ± 1% | 144 | 3 |
+| `object_first` (`address/show`) | 2, 12 | 283.3n ± 1% | 96 | 2 |
+| `object_last` (`stats/show`) | 2, 10 | 374.3n ± 1% | 96 | 2 |
+| `half_path` | 16, 512 | 2.600µ ± 2% | 320 | 2 |
+| `longest_path` | 32, 1024 | 4.924µ ± 2% | 576 | 2 |
 
 ## Findings
 
@@ -179,7 +210,8 @@ write-up in IA4-T02.
   - A mutation dropping the zone check failed `join_zone`.
 
 - IA2-T02: `/ip` and `/i` are each the index plus one catch-all,
-  `{argv...}`, read from `EscapedPath()`, with no method pattern. A path is
+  `{argv...}` (a plain `/ip/` subtree since IA3-T02), read from
+  `EscapedPath()`, with no method pattern. A path is
   a command line when it starts with an option, when the token after the
   object resolves to any verb of that object (writes included, so `/i/l/s`
   is refused as `ip link set`), or when it is longer than two tokens.
@@ -267,6 +299,50 @@ write-up in IA4-T02.
     level (`tokenTests`, `handlerTests`, `fnmatchTests`) so the fuzzers seed
     from every row; `TestArgvSeeds` checks `seed_corpus`.
 
+- IA3-T02 (benchmarks):
+  - `metrics_unchanged`: met. `/metrics` costs the same with `/ip`
+    mounted, 36 allocations either way, and no time difference.
+  - `resolve_cost`: met. Reading a command line costs 2 allocations
+    whatever its length, 2 more per option and 1 more per joined prefix:
+    at most 6 for the paths measured, under the plan's 10.
+    `TestArgvResolveAllocs` guards each row at its measured count. The
+    object is found by a walk of ip's fixed 33-entry chain, as ip does it:
+    the last object goip serves costs 90 ns more than the first, a fixed
+    bound that no request input moves.
+  - `longest_path`: met. 32 tokens in 1024 bytes take 4.9 µs, 1.9 times
+    16 tokens in 512 bytes (2.6 µs), so cost is linear in length, about
+    200 MiB/s, with still 2 allocations.
+  - `reject_allocs`: met. Refused command lines cost 21–27 allocations
+    through the handler, no more than the refused query (26), and open
+    nothing. `TestRejectAllocs` now guards four handler-level rows (write
+    verb, `-netns`, a `%00`, a query on a command line) at 40 each, with
+    no source opened.
+  - `query_form_unchanged`: **not met as written**; for operator review.
+    The query form costs 5 allocations more when refused and 8–11 more
+    when served, 0.4–0.7% more bytes, and 0.6 µs on a refused query.
+    Served queries, where netlink and rendering dominate: `addr_json` was
+    +4.2% in IV014 and unchanged in IV015; `route_text` was +6.0% and
+    +7.9%.
+    The refused-query delta was profiled: 3 allocations in ServeMux, 1 for
+    the token slice, 1 for the nosniff header. A served query also builds
+    its `Content-Location`. All of it is the IA2-T02 design (one subtree
+    for both forms, nosniff and `Content-Location` on every response),
+    not an accident. The index is 2.6 KiB larger by IA2-T03's design, so
+    it costs 0.8 µs more to copy.
+  - Fixed while measuring: IA2-T02 routed each root's subtree through a
+    wildcard pattern, `/ip/{argv...}`. ServeMux allocates 5 times routing
+    a wildcard that does not match exactly and 3 times for a plain subtree
+    (`/ip/`). The value it captured was never read, since the handler
+    reads `EscapedPath()`. It is now a subtree, saving 2 allocations on
+    every `/ip` and `/i` request; the first comparison (IV014) had shown
+    +7 on a refused query, now +5. The remaining 3 are ServeMux's: a
+    failed literal match appends to its match list, then it retries with
+    a trailing `/` for a redirect. Only exact per-object routes, as
+    before IA2-T02, would avoid them.
+  - IV014's run (load 4.5–4.8) agrees with IV015's, apart from the two
+    allocations above. A run between them at load up to 12.6 had ±18–130%
+    spread and is not recorded as a result.
+
 ## Evidence ledger
 
 | ID | Date | Task | Command | Host/VM | Base | Outcome | Logs |
@@ -282,6 +358,12 @@ write-up in IA4-T02.
 | IV009 | 2026-10-19 | IA1-T02 | `nix build --no-link path:.#test-focused-goip path:.#test-linkmonitor-unit -L`; golangci-lint (comprehensive, `--new-from-rev=HEAD`) over `./internal/goip/...`: 0 issues | `l`, nix sandbox, 7.2.9 | `6bfedf95` + working tree | Pass, with the new `TestShow` and `TestShowRequestArgv` rows and `registry_stats_true` | nix store, `--no-link` |
 | IV010 | 2026-10-19 | IA2-T01 | `nix build --no-link path:.#test-linkmonitor-unit path:.#test-linkmonitor-race -L`; golangci-lint (comprehensive, `--new-from-rev=HEAD`) over `./internal/goip/...`: 0 issues | `l`, nix sandbox, 7.2.9 | `9992882a` + working tree | Pass, with `TestTokens` (39 rows) and the tokenizer rows of `TestRejectAllocs` | nix store, `--no-link` |
 | IV011 | 2026-10-19 | IA2-T02 | `nix build --no-link path:.#test-linkmonitor-unit path:.#test-linkmonitor-race path:.#test-linkmonitor-lint path:.#test-focused-goip path:.#checks.x86_64-linux.go-sec -L`; golangci-lint (comprehensive, `--new-from-rev=HEAD`): 0 issues | `l`, nix sandbox, 7.2.9 | `f4b7ad5f` + working tree | Pass after the operator's G705 decision (the first run failed the lint leaf on G705 alone); `TestHandler` +38 rows, `TestHandlerSlotsShared`, `TestRegisterWrap`, `TestRegisterMethods` +5, `TestRegistryCoversGoip`, exposure +5, goip `TestLookupObjectExported`, `TestIsVerb`, `TestShowRequestResolved` | nix store, `--no-link` |
+| IV012 | 2026-10-19 | IA2-T03 | `nix build --no-link path:.#test-linkmonitor-unit path:.#test-linkmonitor-docs path:.#test-linkmonitor-lint -L`; golangci-lint (comprehensive, `--new-from-rev=HEAD`): 0 issues | `l`, nix sandbox, 7.2.9 | `0d20c2e9` + working tree | Pass, with `TestIndex` (6 rows) and `TestIndexExamples` (12 examples, 4 marked `not_served`) | nix store, `--no-link` |
+| IV013 | 2026-10-19 | IA3-T01 | `nix build --no-link --keep-going path:.#test-linkmonitor-fuzz path:.#test-focused-goip path:.#test-linkmonitor-unit path:.#test-linkmonitor-race path:.#test-linkmonitor-lint -L`; golangci-lint (comprehensive, `--new-from-rev=HEAD`): 0 issues | `l`, nix sandbox, 7.2.9, load 16 | `f9fddf3a` + working tree | Pass; fuzz leaf `FuzzArgvPath` 383,159 execs and `FuzzFnmatch` 341,520 execs in 30 s each, no failures. A first run was stopped before finishing, to pick up lint fixes, so it is not an outcome | nix store, `--no-link` |
+| IV014 | 2026-10-19 | IA3-T02 | `go test -run '^$' -bench 'BenchmarkIPHandler|BenchmarkMetricsWithIPPaths' -count 2 -benchmem ./internal/goip/goiphttp/ ./cmd/go-link-monitor/`, five rounds alternating base and IA3-T02 trees, then `-bench BenchmarkArgvResolve -count 10`, via `nix develop`; benchstat from `nixpkgs#goperf` | `l`, 7.2.9, load 4.5–4.8 | `f7677018` beside `6af26576` + working tree (wildcard routes) | Recorded in findings: +7 allocations on a refused query, traced to routing, which led to the subtree patterns | scratchpad, not kept |
+| IV015 | 2026-10-19 | IA3-T02 | the same, after the subtree change, started once the load fell below 6 | `l`, 7.2.9, load 3.9–5.8 | `f7677018` beside `6af26576` + working tree | Recorded in Baseline (IA3-T02 comparison) and findings | scratchpad, not kept |
+| IV016 | 2026-10-19 | IA3-T02 | `nix build --no-link --keep-going path:.#test-linkmonitor-unit path:.#test-linkmonitor-race path:.#test-linkmonitor-lint path:.#test-focused-goip -L`; golangci-lint (comprehensive, `--new-from-rev=HEAD`) | `l`, nix sandbox, 7.2.9 | `6af26576` + working tree | **Fail**: lint, 1 `prealloc` in the new `argvLongPath` helper; unit and race passed | session log, not kept |
+| IV017 | 2026-10-19 | IA3-T02 | the same, after the fix | `l`, nix sandbox, 7.2.9, load 20 | `6af26576` + working tree | Pass: all four leaves, comprehensive lint 0 issues; with `TestArgvResolveAllocs` (7 rows) and four new handler rows in `TestRejectAllocs` | nix store, `--no-link` |
 
 ## Blockers
 
@@ -303,3 +385,4 @@ None.
 | 2026-10-19 | IA2-T02 done: both forms under `/ip` and `/i`, with canonical `Content-Location`, nosniff, and the new statuses. The operator chose a G705 exclusion scoped to `goiphttp/handler.go`. Found that goip's `route show` lacks prefix and `proto` filters (501), which IA2-T03's examples must account for, and fixed `route show table WORD` (500 → 400). Next: IA2-T03. |
 | 2026-10-19 | IA2-T03 done, so IA2 is done: the `/ip` index carries the rule, the shortest spellings and the examples, each driven through the handler; four examples are goip 501s and marked so. The index is now a JSON object (findings). README, IP-PATHS-DESIGN.md, the flag help and the design's status describe both forms. Next: IA3-T01. |
 | 2026-10-19 | Started IA3. IA3-T01 done: `FuzzArgvPath` and `FuzzFnmatch` are in the fuzz leaf; `fnmatch` needs no cap beyond the token's 255 bytes. Fixed a `Content-Location` that could exceed the path cap (findings). Next: IA3-T02. |
+| 2026-10-19 | IA3-T02 done: `BenchmarkArgvResolve`, command-path cases in `BenchmarkIPHandler`, and allocation guards, compared with base `f7677018`. `/metrics` is unchanged and reading a path costs 2–6 allocations, linear in length. The subtree routes now use `/ip/` instead of `/ip/{argv...}`, which saves 2 allocations per request (plan note updated). The query form's +5 to +11 allocations come from IA2-T02's design and are recorded for operator review (findings). Moved the IV012 and IV013 ledger rows, which IA2-T03 and IA3-T01 had put in the task checklist. Next: IA3-T03. |

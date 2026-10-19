@@ -101,16 +101,19 @@ func New(o Options) (*Handler, error) {
 
 // Paths lists every registered pattern's path, for startup logging.
 func (h *Handler) Paths() []string {
-	return []string{Prefix, Prefix + "/{argv...}", ShortPrefix, ShortPrefix + "/{argv...}"}
+	return []string{Prefix, Prefix + "/", ShortPrefix, ShortPrefix + "/"}
 }
 
 // Register adds the /ip and /i routes to mux, each passed through wrap
 // (auth, timeout) first. wrap may be nil. Only GET and HEAD are served;
 // anything else is 405.
 //
-// Each root is the index and one catch-all, which servePath splits into the
-// command line and the query form. The catch-all is read from
-// r.URL.EscapedPath(), never PathValue, so a %2F stays inside its token.
+// Each root is the index and one subtree, which servePath splits into the
+// command line and the query form. The subtree is read from
+// r.URL.EscapedPath(), so a %2F stays inside its token. It is a plain
+// subtree pattern (/ip/) and not a wildcard (/ip/{argv...}): ServeMux
+// routes either with allocations an exact pattern avoids, three for the
+// subtree and five for the wildcard, which captures a value nothing reads.
 //
 // The patterns carry no method: one method pattern anywhere on a ServeMux
 // costs an allocation on every request it routes, /metrics included, so the
@@ -124,7 +127,7 @@ func (h *Handler) Register(mux *http.ServeMux, wrap func(http.Handler) http.Hand
 	for _, root := range []string{Prefix, ShortPrefix} {
 		mux.Handle(root, idx)
 		mux.Handle(root+"/{$}", idx)
-		mux.Handle(root+"/{argv...}", paths)
+		mux.Handle(root+"/", paths)
 	}
 }
 

@@ -255,8 +255,9 @@ path:.#test-linkmonitor-race -L` passes with these rows.
 
 Deliver:
 
-- One handler under `/ip/{argv...}` and `/i/{argv...}`, plus `/ip` and `/i`
-  for the index, with no method pattern. It serves both forms:
+- One handler under `/ip/{argv...}` and `/i/{argv...}` (plain `/ip/` and
+  `/i/` subtrees since IA3-T02, which is cheaper to route), plus `/ip` and
+  `/i` for the index, with no method pattern. It serves both forms:
   - a path whose second token resolves to a verb, or whose first token is an
     option, is a command line;
   - otherwise it is the query form, whose objects now take abbreviations

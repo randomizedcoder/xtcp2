@@ -735,6 +735,10 @@ func BenchmarkIPHandler(b *testing.B) {
 		{"route_text", dumpsDir + "netlink_route_getroute.pcap", "/ip/route?format=text"},
 		{"bad_param", dumpsDir + "netlink_route_getlink.pcap", "/ip/link?table=main"},
 		{"index", dumpsDir + "netlink_route_getlink.pcap", "/ip"},
+		{"argv_addr_json", dumpsDir + "netlink_route_getaddr.pcap", "/i/-j/a/s"},
+		{"argv_route_text", dumpsDir + "netlink_route_getroute.pcap", "/ip/route/show"},
+		{"argv_write_verb", dumpsDir + "netlink_route_getlink.pcap", "/i/l/s"},
+		{"argv_bad_token", dumpsDir + "netlink_route_getlink.pcap", "/ip/link/show/dev/a%00"},
 	}
 	for _, bc := range cases {
 		b.Run(bc.name, func(b *testing.B) {
@@ -772,6 +776,33 @@ func TestRejectAllocs(t *testing.T) {
 	}
 	if c.opens.Load() != 0 {
 		t.Errorf("bad-parameter request opened %d sources", c.opens.Load())
+	}
+
+	// A refused command line costs no more than a refused query and opens
+	// nothing (reject_allocs).
+	for _, tc := range []struct {
+		name, category, description, target string
+		expected                            float64
+	}{
+		{"argv_write_verb", "negative", "/i/l/s is ip link set", "/i/l/s", 40},
+		{"argv_refused_option", "negative", "-netns is refused", "/ip/-netns/x/link/show", 40},
+		{"argv_bad_token", "negative", "a %00 is refused by the tokenizer", "/ip/link/show/dev/a%00", 40},
+		{"argv_query_on_command", "corner", "a command line with a query string", "/ip/link/show?dev=lo", 40},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", tc.target, nil)
+			before := c.opens.Load()
+			allocs := testing.AllocsPerRun(100, func() {
+				mux.ServeHTTP(httptest.NewRecorder(), req)
+			})
+			t.Logf("%s: %s: %.0f allocs", tc.category, tc.description, allocs)
+			if allocs > tc.expected {
+				t.Errorf("%s: %s: %.0f allocs, want <= %.0f", tc.category, tc.description, allocs, tc.expected)
+			}
+			if n := c.opens.Load() - before; n != 0 {
+				t.Errorf("%s: %s: opened %d sources", tc.category, tc.description, n)
+			}
+		})
 	}
 
 	// The tokenizer takes no opener, so a path it refuses never reaches a
