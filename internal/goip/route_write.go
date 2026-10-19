@@ -45,7 +45,7 @@ type routeWriteVerb struct {
 var routeWriteVerbs = []routeWriteVerb{
 	{name: "add", msgType: unix.RTM_NEWROUTE, flags: unix.NLM_F_CREATE | unix.NLM_F_EXCL},
 	{name: "change", msgType: unix.RTM_NEWROUTE, flags: unix.NLM_F_REPLACE},
-	{name: "chg", exact: true, msgType: unix.RTM_NEWROUTE, flags: unix.NLM_F_REPLACE},
+	{name: chgVerbCst, exact: true, msgType: unix.RTM_NEWROUTE, flags: unix.NLM_F_REPLACE},
 	{name: "replace", msgType: unix.RTM_NEWROUTE, flags: unix.NLM_F_CREATE | unix.NLM_F_REPLACE},
 	{name: "prepend", msgType: unix.RTM_NEWROUTE, flags: unix.NLM_F_CREATE},
 	{name: "append", msgType: unix.RTM_NEWROUTE, flags: unix.NLM_F_CREATE | unix.NLM_F_APPEND},

@@ -28,6 +28,9 @@ type object struct {
 	// outputModes is set for the objects that read -brief and -oneline. Run
 	// refuses both for every other object.
 	outputModes bool
+	// verbs is the object's verb chain in iproute2's order (verbs.go); nil
+	// for an unimplemented object.
+	verbs []verb
 }
 
 // objects is the object table in iproute2's order, which is load-bearing.
@@ -50,16 +53,16 @@ type object struct {
 //
 // Order transcribed from ip/ip.c's cmds[].
 var objects = []object{
-	{name: "address", run: runAddress, outputModes: true},
-	{name: "addrlabel", run: runAddrLabel},
+	{name: "address", run: runAddress, outputModes: true, verbs: addressVerbs},
+	{name: "addrlabel", run: runAddrLabel, verbs: addrLabelVerbs},
 	{name: "maddress"},
-	{name: "route", run: runRoute},
-	{name: "rule", run: runRule},
-	{name: "neighbor", run: runNeigh},
-	{name: "neighbour", run: runNeigh},
-	{name: "ntable", run: runNTable},
-	{name: "ntbl", run: runNTable},
-	{name: "link", run: runLink},
+	{name: "route", run: runRoute, verbs: routeVerbs},
+	{name: "rule", run: runRule, verbs: ruleVerbs},
+	{name: "neighbor", run: runNeigh, verbs: neighVerbs},
+	{name: "neighbour", run: runNeigh, verbs: neighVerbs},
+	{name: "ntable", run: runNTable, verbs: ntableVerbs},
+	{name: "ntbl", run: runNTable, verbs: ntableVerbs},
+	{name: "link", run: runLink, verbs: linkVerbs},
 	{name: "l2tp"},
 	{name: "fou"},
 	{name: "ila"},
@@ -74,13 +77,13 @@ var objects = []object{
 	{name: "mroute"},
 	{name: "mrule"},
 	{name: "netns"},
-	{name: "netconf", run: runNetconf},
-	{name: "vrf", run: runVrf},
+	{name: "netconf", run: runNetconf, verbs: netconfVerbs},
+	{name: "vrf", run: runVrf, verbs: vrfVerbs},
 	{name: "sr"},
-	{name: "nexthop", run: runNexthop},
+	{name: "nexthop", run: runNexthop, verbs: nexthopVerbs},
 	{name: "mptcp"},
 	{name: "ioam"},
-	{name: "stats", run: runStats},
+	{name: "stats", run: runStats, verbs: statsVerbs},
 	{name: "monitor"},
 	{name: "xfrm"},
 }
@@ -116,22 +119,6 @@ func matchesPrefix(arg, pattern string) bool {
 		return false
 	}
 	return pattern[:len(arg)] == arg
-}
-
-// matchesAny is matchesPrefix against a set, for the places where iproute2
-// writes a chain of `matches(*argv, …) == 0 ||` over synonyms for one verb.
-//
-// It exists so a synonym list is data rather than a boolean expression that
-// has to be edited in two places. The neigh listing is the case in point:
-// ip/ipneigh.c:758-760 accepts show, list AND lst, and goip carried only the
-// first two for as long as the test was a hand-written pair of conditions.
-func matchesAny(arg string, patterns []string) bool {
-	for _, p := range patterns {
-		if matchesPrefix(arg, p) {
-			return true
-		}
-	}
-	return false
 }
 
 // devKeywordCst is the `dev NAME` selector keyword, which every object that

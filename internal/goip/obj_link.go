@@ -21,16 +21,17 @@ func runLink(c *runCtx, args []string) error {
 	if len(args) == 0 {
 		return linkShow(c, nil)
 	}
-	verb := args[0]
-	if v := lookupLinkWriteVerb(verb); v != nil {
-		return linkWrite(c, v, args[1:])
+	v, ok := resolveVerb(linkVerbs, args[0])
+	if !ok {
+		return fmt.Errorf("link %q: %w", args[0], ErrNotImplemented)
 	}
-	switch {
-	case matchesPrefix(verb, showVerbCst), matchesPrefix(verb, lstVerbCst), matchesPrefix(verb, listVerbCst):
+	if v.kind == verbShow {
 		return linkShow(c, args[1:])
-	default:
-		return fmt.Errorf("link %q: %w", verb, ErrNotImplemented)
 	}
+	if w := lookupLinkWriteVerb(v.name); w != nil {
+		return linkWrite(c, w, args[1:])
+	}
+	return fmt.Errorf("link %q: %w", v.name, ErrNotImplemented)
 }
 
 // linkShow runs the dump and renders it.

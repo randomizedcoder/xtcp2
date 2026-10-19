@@ -34,24 +34,27 @@ func runAddress(c *runCtx, args []string) error {
 	if len(args) == 0 {
 		return addrShow(c, nil)
 	}
-	verb := args[0]
-	if v := lookupAddrWriteVerb(verb); v != nil {
-		return addrWrite(c, v, args[1:])
+	v, ok := resolveVerb(addressVerbs, args[0])
+	if !ok {
+		return fmt.Errorf("address %q: %w", args[0], ErrNotImplemented)
 	}
-	switch {
-	case matchesPrefix(verb, showVerbCst), matchesPrefix(verb, lstVerbCst), matchesPrefix(verb, listVerbCst):
+	if v.kind == verbShow {
 		return addrShow(c, args[1:])
-	case matchesPrefix(verb, "flush"):
-		return addrFlush(c, args[1:])
-	case matchesPrefix(verb, "save"):
-		return addrSave(c, args[1:])
-	case matchesPrefix(verb, "showdump"):
-		return addrShowdump(c, args[1:])
-	case matchesPrefix(verb, "restore"):
-		return addrRestore(c, args[1:])
-	default:
-		return fmt.Errorf("address %q: %w", verb, ErrNotImplemented)
 	}
+	if w := lookupAddrWriteVerb(v.name); w != nil {
+		return addrWrite(c, w, args[1:])
+	}
+	switch v.name {
+	case flushVerb.name:
+		return addrFlush(c, args[1:])
+	case saveVerb.name:
+		return addrSave(c, args[1:])
+	case showdumpVerb.name:
+		return addrShowdump(c, args[1:])
+	case restoreVerb.name:
+		return addrRestore(c, args[1:])
+	}
+	return fmt.Errorf("address %q: %w", v.name, ErrNotImplemented)
 }
 
 // addrShow dispatches `dev NAME` to addrShowDev and otherwise runs the two

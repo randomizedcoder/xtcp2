@@ -11,18 +11,10 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// addrLabelShowVerbs are the three spellings do_ipaddrlabel accepts for the
-// listing (ip/ipaddrlabel.c, in its order): list, lst, show. The order matches
-// rule's, and like rule the abbreviations fall out of it (l -> list, s -> show,
-// ls -> lst).
-var addrLabelShowVerbs = []string{listVerbCst, lstVerbCst, showVerbCst}
-
 func runAddrLabel(c *runCtx, args []string) error {
-	if len(args) > 0 {
-		if !matchesAny(args[0], addrLabelShowVerbs) {
-			return fmt.Errorf("addrlabel %q: %w", args[0], ErrNotImplemented)
-		}
-		args = args[1:]
+	args, err := showArgs("addrlabel", addrLabelVerbs, args)
+	if err != nil {
+		return err
 	}
 	// A bare `ip addrlabel` is a list (ip/ipaddrlabel.c:do_ipaddrlabel argc<1).
 	if err := parseAddrLabelShowArgs(args); err != nil {

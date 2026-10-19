@@ -38,12 +38,15 @@ import (
 // same collapsing.
 func runRoute(c *runCtx, args []string) error {
 	if len(args) > 0 {
-		verb := args[0]
-		if v := lookupRouteWriteVerb(verb); v != nil {
-			return routeWrite(c, v, args[1:])
+		v, ok := resolveVerb(routeVerbs, args[0])
+		if !ok {
+			return fmt.Errorf("route %q: %w", args[0], ErrNotImplemented)
 		}
-		if !matchesPrefix(verb, listVerbCst) && !matchesPrefix(verb, showVerbCst) && !matchesPrefix(verb, lstVerbCst) {
-			return fmt.Errorf("route %q: %w", verb, ErrNotImplemented)
+		if v.kind != verbShow {
+			if w := lookupRouteWriteVerb(v.name); w != nil {
+				return routeWrite(c, w, args[1:])
+			}
+			return fmt.Errorf("route %q: %w", v.name, ErrNotImplemented)
 		}
 		args = args[1:]
 	}

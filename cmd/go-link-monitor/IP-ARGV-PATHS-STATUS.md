@@ -50,7 +50,7 @@ for the design in [IP-ARGV-PATHS-DESIGN.md](IP-ARGV-PATHS-DESIGN.md).
 
 | Phase | Name | State | Completed tasks | Evidence |
 |---|---|---|---|---|
-| IA0 | Groundwork | in progress | 1/2 | IV001–IV004 |
+| IA0 | Groundwork | in progress | 1/2 | IV001–IV005 |
 | IA1 | goip resolver | not started | 0/2 | — |
 | IA2 | HTTP paths | not started | 0/3 | — |
 | IA3 | Hardening and performance | not started | 0/3 | — |
@@ -64,7 +64,7 @@ here.
 | Done | Task | Work | State | Evidence / blocker |
 |---|---|---|---|---|
 | [x] | [IA0-T01](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia0-t01) | Gates and baseline | done | IV001–IV004 |
-| [ ] | [IA0-T02](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia0-t02) | Complete verb chains | not started | — |
+| [ ] | [IA0-T02](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia0-t02) | Complete verb chains | in progress | IV005; awaiting the goip-parity VM run |
 | [ ] | [IA1-T01](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia1-t01) | Exported resolver | not started | — |
 | [ ] | [IA1-T02](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia1-t02) | `ShowRequest` options | not started | — |
 | [ ] | [IA2-T01](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia2-t01) | Path tokenizer | not started | — |
@@ -105,6 +105,23 @@ write-up in IA4-T02.
   Linting it found five issues, fixed in `f7677018` with no change in
   behaviour: a non-exhaustive `paramKind` switch, three repeated words, and
   one slice that was not preallocated.
+- IA0-T02: every implemented object's verb chain was checked against
+  iproute2 7.1.0 (`ip/ip*.c`), the version goip pins:
+  - `ip stats` really does compare `help`, `show` and `set` with `strcmp`
+    (`ip/ipstats.c:1321-1330`). goip's exact `stats show` was already right:
+    no parity bug.
+  - `chg` is a `strcmp` alias in address, route and neigh, but a `matches()`
+    prefix in ntable (`ip/ipntable.c:689`). The chains record which verbs
+    are exact.
+  - Behaviour change for non-show verbs only. Before, every non-show token
+    was refused naming the token (`neigh "d"`). Now goip names the verb
+    `ip` would run (`neigh "delete"`), and the error is still
+    `ErrNotImplemented`. Every show spelling resolves as before.
+  - Lint: `internal/goip` is not under a lint gate, and it has 12 findings
+    at baseline (11 goconst, 1 unconvert). The new code adds none.
+    `--new-from-rev` still reports four goconst findings in `dispatch.go`,
+    on object-table lines that only gained a `verbs` field; they are
+    pre-existing literals.
 
 ## Evidence ledger
 
@@ -114,10 +131,15 @@ write-up in IA4-T02.
 | IV002 | 2026-10-19 | IA0-T01 | the same, with `--keep-going` | `l`, nix sandbox, 7.2.9 | `f7677018` + working tree | Pass: all five leaves | nix store, `--no-link` |
 | IV003 | 2026-10-19 | IA0-T01 | `leaf_covers_goiphttp`, `format_unformatted`: `test-linkmonitor-{unit,format}` on a scratch worktree with a failing test and an unformatted file in goiphttp | `l`, nix sandbox | `f7677018` + scratch files | Both leaves failed, naming the scratch test and the file, as expected; worktree removed | session log, not kept |
 | IV004 | 2026-10-19 | IA0-T01 | `go test -run '^$' -bench '^BenchmarkIPHandler$' -benchmem -count 10 ./internal/goip/goiphttp`, then the same for `BenchmarkMetricsWithIPPaths` in `./cmd/go-link-monitor`, via `nix develop`, go1.26.5, CGO off; benchstat | `l`, 7.2.9, Threadripper PRO 3945WX, load 8–13 | `f7677018` | Recorded in Baseline | session log, not kept |
+| IV005 | 2026-10-19 | IA0-T02 | `nix build --no-link path:.#test-focused-goip -L` | `l`, nix sandbox, 7.2.9 | `28f597ec` + working tree | Pass, with `TestVerbChains` and `TestShowArgs` | nix store, `--no-link` |
 
 ## Blockers
 
-None.
+- IA0-T02's gate also needs
+  `env -u LD_LIBRARY_PATH nix run path:.#microvm-x86_64-goip-parity -- --accel=auto`.
+  It is waiting for the operator's approval. Another session's
+  `xtcp2-vm-x86_64` VM was running at the time, and VMs run one at a time.
+  Unblocks when the operator approves and the other VM has stopped.
 
 ## Log
 
@@ -127,3 +149,4 @@ None.
 | 2026-10-19 | Added IA3-T03, handler-level fuzzing through a real ServeMux with a recording fake source (operator question). |
 | 2026-10-19 | Started IA0-T01. Planning found: `Run` refuses `-s -s` as a usage error (IA1-T02 `stats_two` corrected); `ip stats` matches its verb exactly in goip (checked against iproute2 in IA0-T02). |
 | 2026-10-19 | IA0-T01 done: goiphttp is in the linkmonitor unit, race, vet, lint and format leaves; lint fixes committed first (`f7677018`); baseline recorded on a busy host. The design's bare-object example and IA1-T02's `stats_two` were corrected. Next: IA0-T02. |
+| 2026-10-19 | IA0-T02 in progress: one ordered verb chain per object (`verbs.go`), checked against iproute2 7.1.0. Link, address and route take their write verbs from their write tables. Every object dispatches through `resolveVerb`. `test-focused-goip` passes. Next: the goip-parity VM run, with approval. |
