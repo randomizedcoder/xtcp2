@@ -2,7 +2,7 @@
 
 Last updated: 2026-10-19.
 
-**In progress: 9 of 12 implementation tasks done.** The design was reviewed
+**In progress: 10 of 12 implementation tasks done.** The design was reviewed
 on 2026-10-19 and its decisions are recorded below.
 
 This document tracks
@@ -56,7 +56,7 @@ for the design in [IP-ARGV-PATHS-DESIGN.md](IP-ARGV-PATHS-DESIGN.md).
 | IA0 | Groundwork | done | 2/2 | IV001–IV005, IV007–IV008 |
 | IA1 | goip resolver | done | 2/2 | IV006, IV009 |
 | IA2 | HTTP paths | done | 3/3 | IV010–IV012 |
-| IA3 | Hardening and performance | in progress | 2/3 | IV013–IV017 |
+| IA3 | Hardening and performance | done | 3/3 | IV013–IV020 |
 | IA4 | Verification and release | not started | 0/2 | — |
 
 ## Task checklist
@@ -75,7 +75,7 @@ here.
 | [x] | [IA2-T03](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia2-t03) | Index and docs | done | IV012 |
 | [x] | [IA3-T01](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia3-t01) | Fuzzing and the pattern worst case | done | IV013 |
 | [x] | [IA3-T02](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia3-t02) | Benchmarks | done | IV014–IV017 |
-| [ ] | [IA3-T03](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia3-t03) | Handler fuzzing | not started | — |
+| [x] | [IA3-T03](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia3-t03) | Handler fuzzing | done | IV018–IV020 |
 | [ ] | [IA4-T01](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia4-t01) | VM parity | not started | — |
 | [ ] | [IA4-T02](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia4-t02) | Final review | not started | — |
 
@@ -344,6 +344,38 @@ write-up in IA4-T02.
     allocations above. A run between them at load up to 12.6 had ±18–130%
     spread and is not recorded as a result.
 
+- IA3-T03 (handler fuzzing):
+  - `FuzzIPHandler` serves each input through a real ServeMux with
+    `Register` and the `readOnly` wrap, against a recording fake source
+    that replays the 11 dump pcaps and fails on any message the kernel
+    would not treat as a read (`type >= RTM_BASE && type&3 == 2`, with
+    `NLM_F_REQUEST`; rtnetlink_rcv_msg's rule). It checks the bounded
+    status set, the 1 s limit, safe headers, GET/HEAD agreement and the
+    canonical round trip (the `Content-Location` serves the same body and
+    names itself, and `X-Goip-Argv` resolves to the same request).
+    Seeds: every IA2 handler row, every index example and 13 ServeMux
+    edge rows (`TestFuzzIPHandlerRows`).
+  - `fake_rejects_write`: met, in a scratch worktree since removed. A
+    resolver mutated to send `RTM_NEWLINK` was caught ("type 16 flags
+    0x301"), and one that dropped `NLM_F_REQUEST` too ("type 18 flags
+    0x300"); the unmutated control passed.
+  - Two bugs found and fixed:
+    - `r.URL.Query()` silently drops pairs it cannot parse (a bad escape,
+      a `;`, more than 10,000 parameters), so `/ip/addr?dev=%zz` was
+      served as an unfiltered 200. Both query readers now use
+      `url.ParseQuery` and answer 400 (`query_bad_escape`,
+      `query_semicolon`, `query_over_limit`, `index_bad_escape`).
+    - A device name over 15 bytes (`xtcpnl.ErrBadIfName`) was a 500; it is
+      now a 400 (`dev_name_too_long`, `dev_name_too_long_query`;
+      `dev_name_at_max` stays a 404).
+  - Invariant amended: the plan said a rejection opens no source. The
+    handler opens the source before goip parses the selectors, so a
+    selector that `show` refuses is a 400 after the open. It holds as "a
+    405 never opens; a 400 sends no message"; the fuzzer checks that
+    form. Validating selectors before the open is a TODO.
+  - Throughput: 2,181,679 execs in 60 s locally (load 8–14, IV018) and
+    397,941 in the leaf's 30 s (IV020), no failures.
+
 ## Evidence ledger
 
 | ID | Date | Task | Command | Host/VM | Base | Outcome | Logs |
@@ -365,6 +397,9 @@ write-up in IA4-T02.
 | IV015 | 2026-10-19 | IA3-T02 | the same, after the subtree change, started once the load fell below 6 | `l`, 7.2.9, load 3.9–5.8 | `f7677018` beside `6af26576` + working tree | Recorded in Baseline (IA3-T02 comparison) and findings | scratchpad, not kept |
 | IV016 | 2026-10-19 | IA3-T02 | `nix build --no-link --keep-going path:.#test-linkmonitor-unit path:.#test-linkmonitor-race path:.#test-linkmonitor-lint path:.#test-focused-goip -L`; golangci-lint (comprehensive, `--new-from-rev=HEAD`) | `l`, nix sandbox, 7.2.9 | `6af26576` + working tree | **Fail**: lint, 1 `prealloc` in the new `argvLongPath` helper; unit and race passed | session log, not kept |
 | IV017 | 2026-10-19 | IA3-T02 | the same, after the fix | `l`, nix sandbox, 7.2.9, load 20 | `6af26576` + working tree | Pass: all four leaves, comprehensive lint 0 issues; with `TestArgvResolveAllocs` (7 rows) and four new handler rows in `TestRejectAllocs` | nix store, `--no-link` |
+| IV018 | 2026-10-19 | IA3-T03 | `go test ./internal/goip/goiphttp/ -run '^$' -fuzz '^FuzzIPHandler$' -fuzztime 60s` via `nix develop` | `l`, 7.2.9, load 8–14 | `477fa9e6` + working tree | Pass: 2,181,679 execs, no failures | session log, not kept |
+| IV019 | 2026-10-19 | IA3-T03 | `fake_rejects_write`: `go test ./internal/goip/goiphttp/ -run TestFuzzIPHandlerRows` in a scratch worktree with `req.LinkShowDump` mutated (`META=newlink`, `META=norequest`, control) | `l`, 7.2.9 | `477fa9e6` + working tree + mutation | Pass: both mutations flagged by the recording fake, control clean | scratch worktree, removed |
+| IV020 | 2026-10-19 | IA3-T03 | `nix build --no-link --keep-going path:.#test-linkmonitor-fuzz path:.#test-linkmonitor-unit path:.#test-linkmonitor-race path:.#test-linkmonitor-lint path:.#test-focused-goip -L`; golangci-lint (comprehensive, `--new-from-rev=HEAD`): 0 issues | `l`, nix sandbox, 7.2.9, load 22 | `477fa9e6` + working tree | Pass: all five leaves; fuzz leaf `FuzzIPHandler` 397,941, `FuzzArgvPath` 381,861 and `FuzzFnmatch` 333,015 execs in 30 s each | nix store, `--no-link` (`FuzzIPHandler.log` in the fuzz leaf's output) |
 
 ## TODO
 
@@ -377,6 +412,11 @@ Work outside the 12 tasks, kept so it is not lost. IA4-T02 reviews it.
   would avoid; the rest are the token slice, nosniff and
   `Content-Location`. The operator chose to keep going and revisit it
   later (2026-10-19).
+- [ ] Validate selectors before opening a source (IA3-T03): a selector
+  that `show` refuses is a 400, but only after the
+  handler has opened a netlink socket, because goip parses selectors
+  inside `Show`. No message is sent, so it is harmless, but parsing the
+  selectors first would let every 400 skip the open.
 
 ## Blockers
 
@@ -400,3 +440,4 @@ None.
 | 2026-10-19 | Started IA3. IA3-T01 done: `FuzzArgvPath` and `FuzzFnmatch` are in the fuzz leaf; `fnmatch` needs no cap beyond the token's 255 bytes. Fixed a `Content-Location` that could exceed the path cap (findings). Next: IA3-T02. |
 | 2026-10-19 | IA3-T02 done: `BenchmarkArgvResolve`, command-path cases in `BenchmarkIPHandler`, and allocation guards, compared with base `f7677018`. `/metrics` is unchanged and reading a path costs 2–6 allocations, linear in length. The subtree routes now use `/ip/` instead of `/ip/{argv...}`, which saves 2 allocations per request (plan note updated). The query form's +5 to +11 allocations come from IA2-T02's design (findings). Moved the IV012 and IV013 ledger rows, which IA2-T03 and IA3-T01 had put in the task checklist. Next: IA3-T03. |
 | 2026-10-19 | The operator chose to keep going: the query-form cost is a TODO, revisited later. Next: IA3-T03. |
+| 2026-10-19 | IA3-T03 done, so IA3 is done: `FuzzIPHandler` through a real ServeMux with a recording fake source, in the fuzz leaf. It found two bugs, both fixed: unparsable query strings were silently dropped (now 400) and an over-long device name was a 500 (now 400). The "rejections open nothing" invariant is amended to "a 405 never opens; a 400 sends no message" (plan updated), with the open-before-parse order a TODO. Next: IA4-T01, the VM parity leaf, with approval before the run. |

@@ -26,6 +26,7 @@ let
     "./pkg/linkmonitor/internal/rdmacaps:FuzzUMADHeader"
     # The /ip command-line paths (IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md IA3).
     "./internal/goip/goiphttp:FuzzArgvPath"
+    "./internal/goip/goiphttp:FuzzIPHandler"
     "./internal/goip:FuzzFnmatch"
   ];
   # go-native RDMA decoders held to the parsing rules in

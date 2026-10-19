@@ -409,8 +409,10 @@ replacing them. For every input the fuzzer checks:
 - **Bounded statuses.** The status is one of 200, 301, 307, 308, 400, 404,
   405, 501 or 503, the redirects being ServeMux path cleaning. A 500 fails
   the run, because the fake source cannot cause one.
-- **Rejections are cheap.** Every 400 and 405 happens with the fake never
-  opened.
+- **Rejections are cheap.** Every 405 happens with the fake never opened,
+  and every 400 with no message sent. (Amended in IA3-T03: the handler
+  opens the source before goip parses the selectors, so a selector goip
+  refuses is a 400 after the open.)
 - **Headers are safe.** `X-Goip-Argv` and `Content-Location` contain no CR,
   LF or control bytes. `Content-Location` is a path under `/ip`.
 - **Canonical round trip.** For each 200, requesting its `Content-Location`
@@ -429,7 +431,7 @@ and over-long paths). The fuzzer joins the linkmonitor fuzz leaf.
 |---|---|---|---|
 | `fuzz_handler_60s` | positive | `FuzzIPHandler` for 60 s | Every invariant above holds |
 | `round_trip_examples` | positive | Every design example through the fuzz body | 200; the canonical round trip holds |
-| `fake_rejects_write` | negative | Meta-test: a deliberately broken resolver that lets `/i/l/s` through, on a scratch tree | The fuzz body flags the `RTM_NEWLINK` it sends |
+| `fake_rejects_write` | negative | Meta-test on a scratch tree: goip's link dump request built as `RTM_NEWLINK`, and again without `NLM_F_REQUEST` (amended in IA3-T03: `ShowRequest` carries no verb, so a broken resolver cannot make the handler send a write) | The fuzz body flags each message it sends |
 | `dotdot_escape` | negative | `/ip/../metrics`, `/i/%2e%2e/metrics` | A ServeMux redirect, or 400/404; never served by `/ip` as a command |
 | `crlf_in_argv` | negative | `%0d%0a` in any token or query value | 400; nothing echoed into a header |
 | `max_path` | boundary | 1024 and 1025 bytes through the mux | 200 or 4xx as the tokenizer decides; no 500 |

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -145,7 +146,12 @@ func readOnly(next http.Handler) http.Handler {
 }
 
 func (h *Handler) serveIndex(w http.ResponseWriter, r *http.Request) {
-	if q := r.URL.Query(); len(q) != 0 {
+	q, err := query(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err, "", false)
+		return
+	}
+	if len(q) != 0 {
 		if len(q) != 1 || q.Get(formatParam) != "json" || len(q[formatParam]) != 1 {
 			writeError(w, http.StatusBadRequest, paramErr("the index takes no parameters but format=json"), "", false)
 			return
@@ -217,12 +223,29 @@ func (h *Handler) serveCommand(w http.ResponseWriter, r *http.Request, toks []st
 
 // serveQuery serves the query form: JSON unless format=text.
 func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, o *object, iface string) {
-	req, err := o.parse(r.URL.Query(), iface)
+	q, err := query(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err, "", false)
+		return
+	}
+	req, err := o.parse(q, iface)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err, "", req.text)
 		return
 	}
 	h.serve(w, r, req.show, "ip "+strings.Join(req.show.Argv(), " "), req.text)
+}
+
+// query is r's query string, refused whole when any of it does not parse.
+// r.URL.Query drops what it cannot parse, so a bad escape (dev=%zz), a ;
+// or a parameter past net/url's limit would otherwise leave a request
+// with fewer filters than it asked for: a 200 listing everything.
+func query(r *http.Request) (url.Values, error) {
+	q, err := url.ParseQuery(r.URL.RawQuery)
+	if err != nil {
+		return nil, paramErr("the query string does not parse: %v", err)
+	}
+	return q, nil
 }
 
 // serve runs s in one of the in-flight slots and writes the result. Both
@@ -309,11 +332,13 @@ var (
 
 // statusOf maps a show failure to its status. ErrNoSuchDevice is tested
 // before ErrNotImplemented because netconf's missing device carries both.
-// A refused write verb or option is the caller's request, so a 400; a read
-// goip does not serve is a 501.
+// A refused write verb or option is the caller's request, so a 400, as is a
+// device name no kernel takes (ip's "not a valid ifname"); a read goip does
+// not serve is a 501.
 func statusOf(err error) int {
 	switch {
-	case errors.Is(err, errParam), errors.Is(err, goip.ErrWriteVerb), errors.Is(err, goip.ErrRefusedOption):
+	case errors.Is(err, errParam), errors.Is(err, goip.ErrWriteVerb), errors.Is(err, goip.ErrRefusedOption),
+		errors.Is(err, xtcpnl.ErrBadIfName):
 		return http.StatusBadRequest
 	case errors.Is(err, goip.ErrUnknownObject):
 		return http.StatusNotFound
