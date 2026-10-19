@@ -2,7 +2,7 @@
 
 Last updated: 2026-10-19.
 
-**In progress: 10 of 12 implementation tasks done.** The design was reviewed
+**In progress: 11 of 12 implementation tasks done.** The design was reviewed
 on 2026-10-19 and its decisions are recorded below.
 
 This document tracks
@@ -57,7 +57,7 @@ for the design in [IP-ARGV-PATHS-DESIGN.md](IP-ARGV-PATHS-DESIGN.md).
 | IA1 | goip resolver | done | 2/2 | IV006, IV009 |
 | IA2 | HTTP paths | done | 3/3 | IV010–IV012 |
 | IA3 | Hardening and performance | done | 3/3 | IV013–IV020 |
-| IA4 | Verification and release | not started | 0/2 | — |
+| IA4 | Verification and release | in progress | 1/2 | IV021–IV023 |
 
 ## Task checklist
 
@@ -76,7 +76,7 @@ here.
 | [x] | [IA3-T01](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia3-t01) | Fuzzing and the pattern worst case | done | IV013 |
 | [x] | [IA3-T02](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia3-t02) | Benchmarks | done | IV014–IV017 |
 | [x] | [IA3-T03](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia3-t03) | Handler fuzzing | done | IV018–IV020 |
-| [ ] | [IA4-T01](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia4-t01) | VM parity | not started | — |
+| [x] | [IA4-T01](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia4-t01) | VM parity | done | IV021–IV023 |
 | [ ] | [IA4-T02](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia4-t02) | Final review | not started | — |
 
 ## Baseline measurements
@@ -376,6 +376,38 @@ write-up in IA4-T02.
   - Throughput: 2,181,679 execs in 60 s locally (load 8–14, IV018) and
     397,941 in the leaf's 30 s (IV020), no failures.
 
+- IA4-T01 (VM parity, `nix run path:.#test-goip-argv-paths-vm`):
+  - The leaf is new rather than the stashed "PR4 nix ip paths" steps,
+    which run inside the ionic guest and need its driver. It ports their
+    shape (curl beside the CLI, sentinels in the serial log) to a
+    networkless qemu-vm guest like the embedding leaf, so it binds no
+    host port and leaves no socket. The stash is untouched.
+  - `curl_eq_goip`, `curl_eq_ip`: met. Every index example (8 served, 4
+    `not_served` 501s) and 15 IA2-T02 positive rows, plus 8 live rows
+    below, 35 checks in all; each
+    served body is byte-identical to the goip CLI with the same
+    `X-Goip-Argv`, and to `ip` for all but one named gap.
+  - The named gap, `ntable_dev_star` (`/i/ntbl/show`): the guest's kernel
+    (6.18) sends `NDTPA_IFINDEX` 0 on two parameter sets and `ip` prints
+    `dev *` for it (ipntable.c:374, `ll_index_to_name(0)`); goip's
+    `xtcpnl.NeighTblParms` reads 0 as absent. A goip parity bug outside
+    this work, kept as a TODO. The leaf fails if the gap stops differing.
+  - `write_refused_live`: met. `/i/l/s`, `/ip/addr/flush` and
+    `/ip/link/set/dev/eth0/down` are 400 and the guest's links, addresses
+    and routes are unchanged.
+  - `prefix_join_live`: amended. `/ip/route/show/10.0.0.0/8` resolves but
+    is goip's route-selector 501 (IA2-T03), so the leaf checks that 501
+    and finds the route through `/ip/route/show/dev/show`.
+  - `iface_named_show_live`: met. `/ip/link/show/dev/show` lists the
+    dummy link named `show`.
+  - Added: a missing device on a live kernel is a 404 in both forms
+    (`/ip/addr/show/dev/nosuch0`, `/i/-j/l/sh/dev/nosuch0`), the live path
+    IA2-T03 left to this run.
+  - The two failed runs were the leaf's own errors: the guest already has
+    an `eth0` (moved aside now), `/i/-j/l/s` is `link set` by ip's
+    first match (so its 400 was right), and `ip route show dev show`
+    leaves the device out of each line.
+
 ## Evidence ledger
 
 | ID | Date | Task | Command | Host/VM | Base | Outcome | Logs |
@@ -400,6 +432,9 @@ write-up in IA4-T02.
 | IV018 | 2026-10-19 | IA3-T03 | `go test ./internal/goip/goiphttp/ -run '^$' -fuzz '^FuzzIPHandler$' -fuzztime 60s` via `nix develop` | `l`, 7.2.9, load 8–14 | `477fa9e6` + working tree | Pass: 2,181,679 execs, no failures | session log, not kept |
 | IV019 | 2026-10-19 | IA3-T03 | `fake_rejects_write`: `go test ./internal/goip/goiphttp/ -run TestFuzzIPHandlerRows` in a scratch worktree with `req.LinkShowDump` mutated (`META=newlink`, `META=norequest`, control) | `l`, 7.2.9 | `477fa9e6` + working tree + mutation | Pass: both mutations flagged by the recording fake, control clean | scratch worktree, removed |
 | IV020 | 2026-10-19 | IA3-T03 | `nix build --no-link --keep-going path:.#test-linkmonitor-fuzz path:.#test-linkmonitor-unit path:.#test-linkmonitor-race path:.#test-linkmonitor-lint path:.#test-focused-goip -L`; golangci-lint (comprehensive, `--new-from-rev=HEAD`): 0 issues | `l`, nix sandbox, 7.2.9, load 22 | `477fa9e6` + working tree | Pass: all five leaves; fuzz leaf `FuzzIPHandler` 397,941, `FuzzArgvPath` 381,861 and `FuzzFnmatch` 333,015 execs in 30 s each | nix store, `--no-link` (`FuzzIPHandler.log` in the fuzz leaf's output) |
+| IV021 | 2026-10-19 | IA4-T01 | `env -u LD_LIBRARY_PATH nix run path:.#test-goip-argv-paths-vm` | qemu-vm guest on `l` (KVM), kernel 6.18.39, host load 6.6 | `b9724a99` + working tree | **Fail**: setup, `RTNETLINK answers: File exists` (the guest's own `eth0`) | `/tmp/goip-argv-paths-FRwg1L`, not kept |
+| IV022 | 2026-10-19 | IA4-T01 | the same, after moving the guest NIC aside | qemu-vm guest on `l` (KVM), kernel 6.18.39, host load 7.5 | `b9724a99` + working tree | **Fail**: 33 rows passed; three failed, two of them the leaf's own (`l/s` is `link set`; the `dev show` grep) and one goip gap (`ntable_dev_star`) | `/tmp/goip-argv-paths-*`, not kept |
+| IV023 | 2026-10-19 | IA4-T01 | the same, with those fixed and the gap named | qemu-vm guest on `l` (KVM), kernel 6.18.39, host load 5.9 | `b9724a99` + working tree | Pass: all 35 checks, one of them through the named gap, every sentinel | `/tmp/goip-argv-paths-rFQqmf` |
 
 ## TODO
 
@@ -417,6 +452,11 @@ Work outside the 12 tasks, kept so it is not lost. IA4-T02 reviews it.
   handler has opened a netlink socket, because goip parses selectors
   inside `Show`. No message is sent, so it is harmless, but parsing the
   selectors first would let every 400 skip the open.
+- [ ] goip `ntable show` omits `dev *` (IA4-T01, `ntable_dev_star`): on
+  kernel 6.18 the base parameter sets carry `NDTPA_IFINDEX` 0, which `ip`
+  prints as `dev *`; `xtcpnl.NeighTblParms.Ifindex` reads 0 as absent.
+  Needs a presence flag in xtcpnl, a 6.18 fixture, and the VM leaf's gap
+  removed.
 
 ## Blockers
 
@@ -441,3 +481,5 @@ None.
 | 2026-10-19 | IA3-T02 done: `BenchmarkArgvResolve`, command-path cases in `BenchmarkIPHandler`, and allocation guards, compared with base `f7677018`. `/metrics` is unchanged and reading a path costs 2–6 allocations, linear in length. The subtree routes now use `/ip/` instead of `/ip/{argv...}`, which saves 2 allocations per request (plan note updated). The query form's +5 to +11 allocations come from IA2-T02's design (findings). Moved the IV012 and IV013 ledger rows, which IA2-T03 and IA3-T01 had put in the task checklist. Next: IA3-T03. |
 | 2026-10-19 | The operator chose to keep going: the query-form cost is a TODO, revisited later. Next: IA3-T03. |
 | 2026-10-19 | IA3-T03 done, so IA3 is done: `FuzzIPHandler` through a real ServeMux with a recording fake source, in the fuzz leaf. It found two bugs, both fixed: unparsable query strings were silently dropped (now 400) and an over-long device name was a 500 (now 400). The "rejections open nothing" invariant is amended to "a 405 never opens; a 400 sends no message" (plan updated), with the open-before-parse order a TODO. Next: IA4-T01, the VM parity leaf, with approval before the run. |
+| 2026-10-19 | Started IA4. IA4-T01 in progress: `nix/tests/goip-argv-paths.nix` (`test-goip-argv-paths-vm`), a networkless qemu-vm guest modelled on the embedding leaf rather than the stashed ionic steps, which need the ionic driver. `prefix_join_live` is amended: `/ip/route/show/10.0.0.0/8` resolves but is goip's route-selector 501 (IA2-T03), so the route is checked through `/ip/route/show/dev/show`. Next: the VM run, with approval. |
+| 2026-10-19 | IA4-T01 done: the VM parity leaf passes (IV023) after two failed runs, both recorded. 35 checks: byte-identical to goip, identical to `ip` but for the named `ntable_dev_star` gap, a goip parity bug now a TODO. Next: IA4-T02. |

@@ -847,6 +847,13 @@ in
     }
     // linkmonitorPerformance.packages
     // {
+      # IA4-T01 of cmd/go-link-monitor/IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md:
+      # `nix run .#test-goip-argv-paths-vm`, which needs /dev/kvm or TCG.
+      test-goip-argv-paths-vm = import ./tests/goip-argv-paths.nix {
+        inherit pkgs lib nixpkgs;
+        monitor = linkmonitorPackages.go-link-monitor;
+        inherit (binaries) goip;
+      };
       test-linkmonitor-embedding-vm = import ./microvms/linkmonitor-embedding.nix {
         inherit pkgs lib nixpkgs;
         artifact = tests.test-linkmonitor-embedding;
