@@ -91,7 +91,9 @@
 # It has to be tapped, countable on its own, removable from the fixture, and
 # silent on NETLINK_ROUTE. `netlink_filter_tap()` whitelists NETLINK_SOCK_DIAG,
 # so it is mirrored; it lands with sll_protocol 4, so `ether[14:2]==4` counts
-# it and the fixture filter `ether[14:2]==0` drops it without a second pass.
+# it and the fixture filter `ether[14:2]==<proto>` drops it without a second
+# pass. <proto> is the row's netlink protocol: 0 for NETLINK_ROUTE unless the
+# row passes `--proto` (see PROTOCOLS below), and never 4.
 # The fourth requirement is the one that decided WHICH ss: measured alone in a
 # namespace, `ss -x` emits `total=2 proto0=0 proto4=2`, while `ss -a` emits 4
 # NETLINK_ROUTE datagrams of its own because it resolves interface names. A
@@ -344,11 +346,44 @@ pkgs.writeShellApplication {
     SENTINEL_CMD='ss -x'
     SENTINEL_FILTER='ether[14:2]==4'
 
+    # PROTOCOLS
+    #
+    # The netlink protocol a fixture keeps, as sll_protocol at offset 14 (see
+    # capture() for how that offset was measured). `cap`, `capio`, `write` and
+    # `filter` take `--proto <name>` ahead of their arguments; without it a
+    # row is NETLINK_ROUTE, which is what every row before generic netlink and
+    # XFRM was. The names are the ones a fixture's file name carries,
+    # netlink_<name>_<what>.pcap, and capture() holds a row to that.
+    #
+    # The numbers are include/uapi/linux/netlink.h's: NETLINK_ROUTE 0,
+    # NETLINK_XFRM 6, NETLINK_GENERIC 16. All three pass netlink_filter_tap()
+    # (net/netlink/af_netlink.c), so nlmon sees them. None is 4, so the
+    # sentinel is dropped from every fixture whatever its protocol.
+    PROTO=0
+    PROTO_NAME=route
+
     mkdir -p "$OUT"
 
     die() {
       echo "NLCAP_ERR $*" >&2
       exit 2
+    }
+
+    # set_proto <name> - set PROTO and PROTO_NAME, or die on a name that is
+    # not one of the three.
+    set_proto() {
+      case "$1" in
+        route) PROTO=0 ;;
+        xfrm) PROTO=6 ;;
+        generic) PROTO=16 ;;
+        *) die "unknown netlink protocol '$1'; want route, generic or xfrm" ;;
+      esac
+      PROTO_NAME=$1
+    }
+
+    # nl_filter <in> <out> - keep only the records of protocol PROTO.
+    nl_filter() {
+      tcpdump -r "$1" -w "$2" "ether[14:2]==$PROTO" >/dev/null 2>&1 || true
     }
 
     # Poll a file until it contains a pattern, or the holder process dies, or
@@ -576,6 +611,15 @@ pkgs.writeShellApplication {
     capture() {
       local ns=$1 subdir=$2 name=$3 min=$4 command=$5 sout=$6 mode=''${7:-read}
       local dir="$OUT/$subdir"
+
+      # A fixture named for one protocol and filtered to another would come
+      # back empty or, worse, hold the wrong family's records under the right
+      # name. Names outside the netlink_ scheme (a write row's `ip`, a parity
+      # row's <slug>.<side>) say nothing about the protocol and are not held.
+      case "$name" in
+        netlink_"$PROTO_NAME"_*) ;;
+        netlink_*) die "fixture $name does not match --proto $PROTO_NAME; want netlink_''${PROTO_NAME}_<what>" ;;
+      esac
       mkdir -p "$dir"
 
       local raw="$dir/.$name.raw.pcap"
@@ -651,7 +695,8 @@ pkgs.writeShellApplication {
         drops="$(tcpdump_drops "$err")" || drops=unknown
         rm -f "$err"
 
-        # Filter to NETLINK_ROUTE, which now has two jobs: it removes the stop
+        # Filter to the row's protocol (NETLINK_ROUTE unless --proto said
+        # otherwise; see PROTOCOLS), which has two jobs: it removes the stop
         # sentinel, and it still asserts that nothing ELSE was on the wire in
         # here.
         #
@@ -664,14 +709,14 @@ pkgs.writeShellApplication {
         #
         # which is sll_pkttype=4 (PACKET_OUTGOING), sll_hatype=0x338
         # (ARPHRD_NETLINK), sll_halen=0, eight address bytes, then
-        # sll_protocol=0 at offset 14. `ether[N:2]` is a raw offset from the
+        # sll_protocol at offset 14 (0 here). `ether[N:2]` is a raw offset from the
         # start of the link-layer header, so it reads that field whether the
         # filter is compiled against a live device or a savefile.
         #
         # Note this is a filter, NOT a rescue: a fixture is meant to hold one
         # transaction, so anything it drops other than the sentinel would be a
         # capture-hygiene problem worth knowing about rather than hiding.
-        tcpdump -r "$raw" -w "$new" 'ether[14:2]==0' >/dev/null 2>&1 || true
+        nl_filter "$raw" "$new"
         rm -f "$raw"
 
         n="$(pkt_count "$new")"
@@ -1287,6 +1332,17 @@ pkgs.writeShellApplication {
       tcpdump_drops "$1"
     }
 
+    # filter [--proto <name>] <in.pcap> <out.pcap>
+    #
+    # capture()'s protocol filter as a subcommand, for nix/checks/vm-lib-exp.nix,
+    # which runs it on a hand-built savefile of mixed protocols with no
+    # capture running. Writes <out.pcap> and prints how many records it kept.
+    cmd_filter() {
+      [ $# -eq 2 ] || die "usage: filter [--proto route|generic|xfrm] <in.pcap> <out.pcap>"
+      nl_filter "$1" "$2"
+      pkt_count "$2"
+    }
+
     # pack
     #
     # tar | gzip -n | base64, between sentinels, the same exfil path coverage
@@ -1304,11 +1360,23 @@ pkgs.writeShellApplication {
     }
 
     if [ $# -lt 1 ]; then
-      die "usage: xtcp2-nlcap <ns-add|ns-del|topo|cap|capio|write|side|wait-lacp|wait-sysfs|wait-addr-flag|sysctl|note|wait-churn|strace|strace-monitor|wait-rdma-port|rdma-hold|rdma-hold-wait|rdma-hold-stop|rdma-user-cqn|dir|inventory|pack|tcpdump-drops> ..."
+      die "usage: xtcp2-nlcap <ns-add|ns-del|topo|cap|capio|write|side|wait-lacp|wait-sysfs|wait-addr-flag|sysctl|note|wait-churn|strace|strace-monitor|wait-rdma-port|rdma-hold|rdma-hold-wait|rdma-hold-stop|rdma-user-cqn|dir|inventory|pack|tcpdump-drops|filter> [--proto route|generic|xfrm] ..."
     fi
 
     sub=$1
     shift
+    # --proto applies to the subcommands that filter a capture, and only to
+    # them: anywhere else it would be silently ignored, and a row that thinks
+    # it asked for XFRM should not get a NETLINK_ROUTE fixture.
+    if [ "''${1-}" = --proto ]; then
+      case "$sub" in
+        cap | capio | write | filter) ;;
+        *) die "--proto applies to cap, capio, write and filter, not $sub" ;;
+      esac
+      [ $# -ge 2 ] || die "--proto needs a value: route, generic or xfrm"
+      set_proto "$2"
+      shift 2
+    fi
     case "$sub" in
       ns-add)    cmd_ns_add "$@" ;;
       ns-del)    cmd_ns_del "$@" ;;
@@ -1334,6 +1402,7 @@ pkgs.writeShellApplication {
       inventory) cmd_inventory "$@" ;;
       pack)      cmd_pack "$@" ;;
       tcpdump-drops) cmd_tcpdump_drops "$@" ;;
+      filter)    cmd_filter "$@" ;;
       *)         die "unknown subcommand: $sub" ;;
     esac
   '';

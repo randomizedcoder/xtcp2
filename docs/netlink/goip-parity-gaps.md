@@ -414,24 +414,35 @@ A task PR that doesn't close a phase still flips its own checklist row and appen
 **Depends on:** nothing.
 
 **Deliver:**
-- `xtcp2-nlcap` takes a netlink protocol for each row: `route` (0, the default), `generic` (16) or `xfrm` (6). The fixture filter `ether[14:2]==<proto>` replaces the hard-coded `ether[14:2]==0` (`nix/microvms/netlink-capture.nix:674`).
-- The sentinel filter (`ether[14:2]==4`, `:345`) is unchanged.
-- Pcap names carry the protocol: `netlink_generic_<x>.pcap`, `netlink_xfrm_<x>.pcap`.
+- `xtcp2-nlcap cap|capio|write|filter` take an optional `--proto <route|generic|xfrm>` ahead of their arguments: `route` (0, the default), `generic` (16) or `xfrm` (6). An unknown name, a missing value, or `--proto` on any other subcommand is refused with rc 2 and `NLCAP_ERR`.
+- The fixture filter `ether[14:2]==<proto>` replaces the hard-coded `ether[14:2]==0` in `capture()` (`nix/microvms/netlink-capture.nix`, `nl_filter`).
+- A new `filter [--proto p] <in> <out>` subcommand runs the same filter on a savefile and prints how many records it kept, so the sandbox can test it.
+- The sentinel filter (`ether[14:2]==4`) is unchanged; no protocol is 4.
+- Pcap names carry the protocol: `netlink_route_<x>`, `netlink_generic_<x>`, `netlink_xfrm_<x>`. `capture()` refuses a `netlink_*` name that doesn't match the row's protocol, before tcpdump starts. Names outside that scheme (`ip`, `<slug>.<side>`) aren't checked.
+- The driver procs `cap`/`capio` (`capture-netlink-dumps.exp`) and `write_row` (`capture-link-writes.exp`) take an optional trailing protocol, default `route`.
 
-**Tests** (`ccheck` rows in `addr-topology-test.exp`, which `checks.vm-lib-exp` runs):
+**Tests** (`ccheck` rows in `addr-topology-test.exp`, which `checks.vm-lib-exp` runs; the filter rows read a hand-built DLT_NETLINK savefile whose records carry sll_protocol 0, 0, 16, 16, 16, 6 and 4):
 
 | description | expected |
 |---|---|
-| positive: a route row keeps filter 0 | only the sll_protocol 0 records survive |
-| positive: a generic row keeps 16, including `ip`'s CTRL exchange | GETFAMILY and NEWFAMILY present |
-| positive: an xfrm row keeps 6 | xfrm records only |
-| negative: an unknown protocol name | rc 2 and a usage line |
-| boundary: a row with no protocol argument | defaults to route |
-| corner: the sock_diag sentinel (4) never appears in any fixture | 0 records with protocol 4 |
+| positive: `--proto route` keeps the two protocol-0 records | rc 0, `2` |
+| positive: `--proto generic` keeps the three protocol-16 records | rc 0, `3` |
+| positive: what generic kept holds no route record | rc 0, `0` |
+| positive: `--proto xfrm` keeps the one protocol-6 record | rc 0, `1` |
+| positive: a `netlink_generic_` name under `--proto generic` passes the name guard | gets past it to the capture |
+| boundary: no `--proto` is route | rc 0, `2` |
+| boundary: the sentinel alone, under each of the three protocols | rc 0, `0` (three rows) |
+| negative: an unknown protocol name | rc 2, `NLCAP_ERR unknown netlink protocol` |
+| negative: `--proto` with no value | rc 2, `NLCAP_ERR` |
+| negative: `--proto` on `side` | rc 2, `NLCAP_ERR` |
+| negative: `filter` with one path | rc 2, usage |
+| corner: a `netlink_route_` name under `--proto generic` | rc 2, `NLCAP_ERR`, and nothing written |
+| corner: a `netlink_xfrm_` name with no `--proto` | rc 2, `NLCAP_ERR` |
+| corner: a write row's `ip` name under `--proto xfrm` | not checked by the guard |
 
 **Done when:**
-- the gates pass;
-- a scratch capture of one existing row is byte-identical in its netlink records to the committed pcap.
+- the gates pass, and a mutation check kills the filter hard-coded to 0, generic mapped to 6, the name guard removed, and the default changed to 16;
+- a scratch `netlink-dump-capture` run prints `NLCAP_DRIVER_PASS`, and each of its route pcaps has the same records as the committed one: the same count, and per record the same protocol and the same `(nlmsg_type, nlmsg_len)` sequence. A byte comparison with `nlmsg_seq` and `nlmsg_pid` masked is reported as well. `ip` seeds its sequence numbers from the clock, so unmasked bytes can't match across runs.
 
 #### C0-T02 Late modules, sysctls and an event subscriber
 
@@ -464,7 +475,7 @@ A task PR that doesn't close a phase still flips its own checklist row and appen
 | negative: no module named | rc 2, `NLCAP_ERR` |
 | corner: a failed load leaves no `modules` sidecar | the file is absent |
 | positive (VM): every required module loads | `modules` lists each one |
-| corner (VM): the existing route fixtures after the late load | byte-identical in their netlink records to the committed pcaps |
+| corner (VM): the existing route fixtures after the late load | the same records as the committed pcaps, compared as in C0-T01 |
 
 **Done when:** the gates pass, and the VM run's `modules` sidecar lists every module. This task closes C0 ([Closing a phase](#closing-a-phase)).
 

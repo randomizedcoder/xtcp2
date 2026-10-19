@@ -125,7 +125,9 @@ set lacp_timeouts {}
 
 set write_skipped {}
 
-proc write_row {slug floor pre command {dir write}} {
+# <proto> is the netlink protocol the row's ip.pcap keeps: route, generic or
+# xfrm (xtcp2-nlcap --proto).
+proc write_row {slug floor pre command {dir write} {proto route}} {
     global NS_A short_caps write_skipped
     set subdir $dir/$slug
     vmlib::log "=== write $slug ==="
@@ -136,7 +138,7 @@ proc write_row {slug floor pre command {dir write}} {
             return 0
         }
     }
-    lassign [nlcap write $NS_A $subdir ip $floor "'$command'"] rc out
+    lassign [nlcap write --proto $proto $NS_A $subdir ip $floor "'$command'"] rc out
     if {$rc != 0} {
         lappend short_caps "$subdir/ip"
         vmlib::log "MISSED FLOOR $subdir/ip: $out"

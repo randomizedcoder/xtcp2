@@ -85,10 +85,11 @@ proc nlcap {args} {
 # cap <ns> <subdir> <name> <floor> <command>
 #
 # <command> is quoted into one shell word for the guest helper, which runs it
-# with `sh -c` inside <ns>.
-proc cap {ns subdir name floor command} {
+# with `sh -c` inside <ns>. <proto> is the netlink protocol the fixture
+# keeps - route, generic or xfrm - and names the pcap: netlink_<proto>_<what>.
+proc cap {ns subdir name floor command {proto route}} {
     global short_caps
-    lassign [nlcap cap $ns $subdir $name $floor "'$command'"] rc out
+    lassign [nlcap cap --proto $proto $ns $subdir $name $floor "'$command'"] rc out
     if {$rc != 0} {
         lappend short_caps "$subdir/$name"
         vmlib::log "MISSED FLOOR $subdir/$name: $out"
@@ -111,9 +112,9 @@ proc cap {ns subdir name floor command} {
 # and diffs the sidecar, because then it reproduces byte for byte and needs no
 # normalizer; `side` if the golden is compared against another TEXT file
 # (the no-op pairs) or in a form that drops counter values anyway (JSON).
-proc capio {ns subdir name floor command sout} {
+proc capio {ns subdir name floor command sout {proto route}} {
     global short_caps
-    lassign [nlcap capio $ns $subdir $name $floor "'$command'" $sout] rc out
+    lassign [nlcap capio --proto $proto $ns $subdir $name $floor "'$command'" $sout] rc out
     if {$rc != 0} {
         lappend short_caps "$subdir/$name"
         vmlib::log "MISSED FLOOR $subdir/$name: $out"
@@ -139,7 +140,9 @@ proc side {ns subdir name command} {
 # that calls ll_init_map() first is two dumps, so 4 - a floor of 2 there would
 # pass on a capture that missed the second dump entirely, which is exactly the
 # failure worth catching. They are not host-specific expectations, so they
-# stay valid on a namespace with fewer objects.
+# stay valid on a namespace with fewer objects - except the nexthop rows,
+# whose second dump is sent only when a reply carries nh_oif, so an empty
+# nexthop table is one dump (see nh_floor in capture_set).
 ###############################################################################
 
 proc capture_set {ns subdir dev} {
@@ -229,7 +232,14 @@ proc capture_set {ns subdir dev} {
     # group). Floor 4: the nexthop dump plus the ll_init_map link dump print_rta_ifidx
     # triggers to turn nh_oif into `dev goip0`. capio pairs the pcap with the ip_nexthop
     # sidecar so a replay reproduces the listing byte for byte.
-    capio $ns $subdir netlink_route_getnexthop 4 "ip nexthop show" ip_nexthop
+    #
+    # Only the clean topology builds nexthop objects (netlink-topology.exp), and
+    # capture_set runs in mesh and tunnel too. There the table is empty: the dump
+    # is its request and NLMSG_DONE, with no nh_oif to send ll_init_map after, so
+    # those namespaces' floor is 2. Floor 4 everywhere made every full run end
+    # NLCAP_DRIVER_FAIL on eight rows that could never reach it.
+    set nh_floor [expr {$subdir eq "." ? 4 : 2}]
+    capio $ns $subdir netlink_route_getnexthop $nh_floor "ip nexthop show" ip_nexthop
     # `ip nexthop show id 10` is a point GET (NHA_ID, no NLM_F_DUMP), not a dump;
     # id 10 is an mpath group, so this grounds both the by-id request bytes and a
     # group line fetched by id. Floor 2: a group carries no nh_oif, so there is no
@@ -241,7 +251,7 @@ proc capture_set {ns subdir dev} {
     capio $ns $subdir netlink_route_getnexthop_res 2 "ip nexthop show id 20" ip_nexthop_res
     # Wire-filter dump selectors (nh_dump_filter, ip/ipnexthop.c:70). `dev`, `master`
     # and `vrf` each resolve a name via ll_init_map before the filtered dump, and
-    # render a `dev` on the reply, so they are floor 4 like the bare dump. `vrf` also
+    # render a `dev` on the reply, so they take the bare dump's floor ($nh_floor). `vrf` also
     # sends a name_is_vrf link single-get first (ip/iplink_vrf.c:170) to confirm the
     # kind, so its pcap carries one extra transaction over `master`. `master goipvrf`
     # and `vrf goipvrf` send the same NHA_MASTER dump and both return id 7 (a VRF is a
@@ -250,9 +260,9 @@ proc capture_set {ns subdir dev} {
     # not narrow the set, so `fdb` returns every nexthop (id 5 among them). `protocol`
     # is a client-side stdout filter over the bare dump (a NUMBER, get_unsigned at
     # :1248), so it reuses the bare pcap and takes side sidecars only (below).
-    capio $ns $subdir netlink_route_getnexthop_dev    4 "ip nexthop show dev goip0"      ip_nexthop_dev
-    capio $ns $subdir netlink_route_getnexthop_master 4 "ip nexthop show master goipvrf" ip_nexthop_master
-    capio $ns $subdir netlink_route_getnexthop_vrf    4 "ip nexthop show vrf goipvrf"    ip_nexthop_vrf
+    capio $ns $subdir netlink_route_getnexthop_dev    $nh_floor "ip nexthop show dev goip0"      ip_nexthop_dev
+    capio $ns $subdir netlink_route_getnexthop_master $nh_floor "ip nexthop show master goipvrf" ip_nexthop_master
+    capio $ns $subdir netlink_route_getnexthop_vrf    $nh_floor "ip nexthop show vrf goipvrf"    ip_nexthop_vrf
     capio $ns $subdir netlink_route_getnexthop_groups 2 "ip nexthop show groups"         ip_nexthop_groups
     capio $ns $subdir netlink_route_getnexthop_fdb    2 "ip nexthop show fdb"            ip_nexthop_fdb
 
