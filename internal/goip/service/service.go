@@ -331,6 +331,20 @@ func (s *Service) AddressMsgs(family uint8, ifindex uint32) ([][]byte, error) {
 	return src.DumpMsgs(req.AddrShowDump(family, ifindex, s.nextSeq()), uint16(unix.RTM_NEWADDR))
 }
 
+// AddressRestoreLinks is ll_init_map's link dump before `ip addr restore`'s
+// first write. The replies are read and dropped: ll_remember_index fills an
+// index cache restore never reads.
+func (s *Service) AddressRestoreLinks() error {
+	r, err := req.AddrRestoreLinkDump(s.nextSeq())
+	if err != nil {
+		return fmt.Errorf("goip: build address restore link dump request: %w", err)
+	}
+	if _, err := s.src.Dump(r, uint16(unix.RTM_NEWLINK)); err != nil {
+		return fmt.Errorf("goip: address restore link dump: %w", err)
+	}
+	return nil
+}
+
 // AddrLinkGet performs ipaddr_link_get (ip/ipaddress.c:2052-2083), the
 // by-index single-get `ip addr show dev NAME` sends once ll_name_to_index has
 // resolved the selector.

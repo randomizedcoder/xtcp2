@@ -2469,3 +2469,50 @@ func TestTierAStatsRequestPairs(t *testing.T) {
 		})
 	}
 }
+
+// tdRestoreFresh is `ip addr restore < ip.save` into PRE_ADDR_DEV: one link
+// dump, then the eight writes.
+const tdRestoreFresh = "../../../pkg/xtcpnl/testdata/7_1_4/link-write/addr-save/restore_fresh/ip.pcap"
+
+// go test ./internal/goip/req/ -run TestTierAAddrRestoreLinkDump
+func TestTierAAddrRestoreLinkDump(t *testing.T) {
+	type linkDumpShape struct {
+		length  int
+		typ     uint16
+		flags   uint16
+		extMask uint32
+	}
+	restore, err := AddrRestoreLinkDump(7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	neigh, err := NeighShowLinkDump(7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reqs := canonicalRequests(t, tdRestoreFresh)
+	tests := []struct {
+		description string
+		got, want   []byte
+		expected    linkDumpShape
+	}{
+		{description: "positive: equal to restore_fresh's first request, seq and pid zeroed",
+			got: zeroSeqPid(restore), want: reqs[0],
+			expected: linkDumpShape{length: 40, typ: unix.RTM_GETLINK, flags: unix.NLM_F_REQUEST | unix.NLM_F_DUMP, extMask: xtcpnl.RTEXT_FILTER_VF}},
+		{description: "corner: equal to NeighShowLinkDump's bytes, the same ll_init_map",
+			got: restore, want: neigh,
+			expected: linkDumpShape{length: 40, typ: unix.RTM_GETLINK, flags: unix.NLM_F_REQUEST | unix.NLM_F_DUMP, extMask: xtcpnl.RTEXT_FILTER_VF}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			if !bytes.Equal(tc.got, tc.want) {
+				t.Fatalf("\n got %x\nwant %x", tc.got, tc.want)
+			}
+			got := linkDumpShape{length: len(tc.got), typ: binary.LittleEndian.Uint16(tc.got[4:6]),
+				flags: binary.LittleEndian.Uint16(tc.got[6:8]), extMask: binary.LittleEndian.Uint32(tc.got[36:40])}
+			if got != tc.expected {
+				t.Errorf("shape %+v, want %+v", got, tc.expected)
+			}
+		})
+	}
+}

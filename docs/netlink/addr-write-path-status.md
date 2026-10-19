@@ -4,7 +4,7 @@ Last updated: 2026-10-18.
 
 **Phases A0 through A8 are done.** The design
 ([addr-write-path.md](addr-write-path.md)) and the plan
-([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. 23 of 25
+([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. 24 of 25
 tasks are done: A0-T01 (V001), A0-T02 (closed by a finding, V002), A0-T03
 and A0-T04, closed by one KVM capture (V005), A0-T05, which recorded M1–M3
 from that capture's fixtures (V006), A1-T01, which decodes the four
@@ -44,9 +44,13 @@ rows, and gates all seven on two clean live runs (V057–V060). A9-T01 is
 replies whole, kernel flags included, and matches all three save captures
 byte for byte. `showdump` prints a dump file from stdin, sending nothing,
 and matches both showdump captures and real `ip` on twelve synthetic files.
-The live matrix is unchanged (V061–V063).
+The live matrix is unchanged (V061–V063). A9-T02 is `goip address
+restore`: one link dump at the first saved message, then each message
+flagged `|REQUEST|CREATE|ACK` to `GOIP_WRITE_OUT`. It matches both restore
+captures message for message and `ip`'s rc 0 over their EEXIST answers, and
+real `ip` on seven synthetic files (V064, V065).
 
-**Next action:** A9-T02 (`restore`).
+**Next action:** A9-T03 (restore and showdump in the matrix).
 
 ## Update rules
 
@@ -89,7 +93,7 @@ The live matrix is unchanged (V061–V063).
 | A6 | `goip addr add/change/replace/delete` | done | 2/2 | V032, V033, V034, V035 |
 | A7 | write rows in the matrix | done | 2/2 | V036, V037, V038, V041, V042, V043, V044 |
 | A8 | `flush` and the multi-write comparator | done | 3/3 | V051, V052, V053, V054, V055, V056, V057, V058, V059, V060 |
-| A9 | `save`, `showdump`, `restore` | in progress | 1/3 | V061, V062, V063 |
+| A9 | `save`, `showdump`, `restore` | in progress | 2/3 | V061, V062, V063, V064, V065 |
 
 ## Task checklist
 
@@ -121,7 +125,7 @@ Add evidence IDs to the last column as work runs.
 | [x] | [A8-T02](addr-write-path-plan.md#a8-t02) | `goip addr flush` | done | V054, V055, V056, DOC020 |
 | [x] | [A8-T03](addr-write-path-plan.md#a8-t03) | the `Writes` field and flush rows | done | V057, V058, V059, V060, DOC021 |
 | [x] | [A9-T01](addr-write-path-plan.md#a9-t01) | `save` and `showdump` | done | V061, V062, V063, DOC022 |
-| [ ] | [A9-T02](addr-write-path-plan.md#a9-t02) | `restore` | not started | — |
+| [x] | [A9-T02](addr-write-path-plan.md#a9-t02) | `restore` | done | V064, V065, DOC023 |
 | [ ] | [A9-T03](addr-write-path-plan.md#a9-t03) | restore and showdump in the matrix | not started | — |
 
 ## Phase 0 measurements
@@ -146,7 +150,7 @@ it.
 
 | # | Statement | Amended by | State |
 |---|---|---|---|
-| 11 | `goip is read-only` for every non-show verb | A6-T02 (four verbs), A8-T02 (`flush`), A9-T03 (`save`/`showdump`/`restore`) | amended for the four verbs (A6-T02) and for `flush` (A8-T02). A9-T01 implemented `save` and `showdump`, and the code comment now names `restore` alone. A9-T03 still owes the statement |
+| 11 | `goip is read-only` for every non-show verb | A6-T02 (four verbs), A8-T02 (`flush`), A9-T03 (`save`/`showdump`/`restore`) | amended for the four verbs (A6-T02) and for `flush` (A8-T02). A9-T01 implemented `save` and `showdump`, and A9-T02 `restore`, so the code comment now names no unimplemented verb. A9-T03 still owes the statement |
 | 12 | `ErrNotAnAdmittedWrite`'s text names four types | A4-T01 | done |
 | 13 | `admittedWriteTypes` has four entries | A4-T01 | done |
 | 14 | `coverage-status.md`'s "read-only, `show` only" scope line | A6-T02 | done |
@@ -244,6 +248,9 @@ it.
 | V062 | 2026-10-18 | A9-T01 | `nix run .#microvm-x86_64-goip-parity -- --timeout 4500` from a scratch worktree at `main` (825b8e1c) plus this change, on an x86_64 NixOS host with `/dev/kvm`. No row runs save or showdump; the run guards the stdin and exit-code changes | All 181 verdicts, `txns` and findings identical to V059. Four read rows' control `nl` counts moved (`link show -s`, `addr show -4`, `addr show -s`, `ntable show -j`), with no finding. 173 PASS, 7 WARN and 1 FAIL, the pre-existing `-4 netconf show dev` (`HYGIENE_FAIL 2`), so the run ends `OVERALL_FAIL` as it does on `main`. `UNGATED_DIVERGENCES 7`, `CONTROL_NOISY 163`. The worktree predates the lint fix that moved stdin into `newRunCtx`, which changes no behavior | transcript in the session scratchpad, not kept |
 | V063 | 2026-10-18 | A9-T01 | the nix checks: `.#test-focused-goip`, `checks.netlink-audit`, `checks.lint-baseline`, `.#quality-report`, `checks.nix-fmt`, `checks.statix`, `checks.deadnix`. `vm-lib-exp` does not apply: no `.exp` file changed | Passed, except `lint-baseline`, which fails on `main` with the same 17 tier-2 findings. The branch adds none. A first run found two of its own, each fixed with no directive: `prealloc` in a test helper, and `run`'s statement count (stdin now goes through `newRunCtx`). `test-focused-goip` was rerun after the fix | the check outputs |
 | DOC022 | 2026-10-18 | A9-T01 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc, plus `git diff --check` | Passed: 25 task IDs one to one; 23 done ticks; no broken links or anchors; ledger IDs unique and in order; `git diff --check` clean | Summary retained here; the checker script was session-local |
+| V064 | 2026-10-18 | A9-T02 | `go test ./internal/goip/... ./internal/goipparity/... ./pkg/nlparity/... ./pkg/xtcpnl/...`. New: `TestAddrRestoreMatchesIpBytes` (restore_fresh and restore_existing: one link dump equal to `ip`'s, then 8 writes equal to `ip`'s message by message apart from seq and pid, each flagged `0x407`, at the link dump's seq +1 onward; rc 0 = `ip.rc`; stdout empty = `ip.out`; goip's stderr empty, where `ip.err` holds one `Error: … already assigned.` line per EEXIST ack in the capture, 2 and 8; and the same through `run` with the pcap replayed), `TestAddrRestore` (21 rows) and `TestTierAAddrRestoreLinkDump` (2). `TestAddrShowdump` and `TestAddrSave` pass unchanged over the shared magic check and record loop. `TestRunAddrArgs`' not-implemented row moved from `restore` to `addr bogus`. Live check: `ip addr restore` from iproute2-7.1.0 under `unshare -rn`, traced with strace, on seven synthetic files: the magic alone sends nothing, rc 0; one record sends the link dump (`RTEXT_FILTER_VF` alone) and one `RTM_NEWADDR` flagged `REQUEST\|MULTI\|ACK\|CREATE`; two records send one link dump and two writes, the second EEXIST, rc 0; a truncated first record sends nothing, and a truncated second sends the dump and one write, both `rtnl-from_file: truncated message`, rc 255; `len=8` is `!!!malformed message: len=8 @20`, rc 255, nothing sent; empty stdin is `Magic mismatch (0 elems, 0 magic)`, rc 255. goip matches each. Mutation check in a scratch worktree: each mutant failed the rows named for it, and was reverted. The mutants were: `CREATE` dropped from the OR (both corpus rows, the 0x407 row), the link dump sent per record (both corpus rows, the three-record row), the link dump mask 9 (both corpus rows, the Tier A row), the partial write dropped on truncation (the whole-then-truncated row), the saved flags replaced rather than ORed (both corpus rows, the 0x407 row) and the hook check disabled (the hook-unset row, which then sent the link dump) | Passed: all green; the six mutants caught | `internal/goip/addr_restore_test.go`, `internal/goip/addr_restore_corpus_test.go`, `internal/goip/req/req_test.go` |
+| V065 | 2026-10-18 | A9-T02 | the nix checks: `.#test-focused-goip`, `checks.netlink-audit`, `checks.lint-baseline`, `.#quality-report`, `checks.nix-fmt`, `checks.statix`, `checks.deadnix`. `vm-lib-exp` does not apply: no `.exp` file changed. No parity run: no matrix row reaches `restore` or the showdump refactor; A9-T03 adds the rows | Passed, except `lint-baseline`, which fails on `main` with the same 17 tier-2 findings. The branch adds none: goconst names a different existing constant (`vrfKindCst` for `vrfKeywordCst`) for the same `vrf` finding | the check outputs |
+| DOC023 | 2026-10-18 | A9-T02 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc, plus `git diff --check` | Passed: 25 task IDs one to one; 24 done ticks; no broken links or anchors; ledger IDs unique and in order; `git diff --check` clean | Summary retained here; the checker script was session-local |
 
 ## Blockers and upcoming requirements
 
@@ -252,6 +259,29 @@ it.
 - **No open blockers.**
 
 ## Progress and decision log
+
+- **2026-10-18.** A9-T02 is done.
+  - **The link dump's mask is the capture's.** The design quoted the
+    source tree's `ll_init_map`, `RTEXT_FILTER_VF|SKIP_STATS|NAME_ONLY`.
+    The `ip` both captures and the live check ran sends `RTEXT_FILTER_VF`
+    alone, so `req.AddrRestoreLinkDump` is `NeighShowLinkDump`'s request,
+    pinned by a Tier A row. The design is corrected.
+  - **The pid is not kept.** `rtnl_talk` overwrites the seq and keeps the
+    saved pid. goip builds each write through `BuildWriteRequest`, behind
+    the write gate, which zeroes the pid, as flush's copies do; the parity
+    masks it.
+  - **The hook is checked at the first record.** The link dump goes out only
+    when the writes can be written, and a file holding the magic alone needs
+    no hook, since `ip` sends nothing for it. A record `rtnl_from_file`
+    refuses partway still writes the messages before it, which `ip` has
+    sent, as a flush that runs out of rounds does.
+  - **Only `RTM_NEWADDR` is restored.** `ip` sends whatever the file holds.
+    Any other type, or a record shorter than an `ifaddrmsg`, is refused as
+    not implemented, and nothing is written.
+  - **EEXIST is the kernel's.** goip sends no write, so it prints none of
+    the `Error:` lines `ip` prints for the kernel's EEXIST answers, and its
+    rc is `ip`'s 0. The corpus test pins the line count to the capture's
+    EEXIST acks.
 
 - **2026-10-18.** A9-T01 is done.
   - **Save keeps the kernel's headers.** `ip` writes each reply as it

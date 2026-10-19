@@ -19,7 +19,7 @@ import (
 // each whole as the kernel sent it, header included. showdump reads that
 // file back from stdin and prints each record as `ifN:` and the address
 // lines, sending nothing. Neither writes to the kernel, so neither needs
-// GOIP_WRITE_OUT. restore, the third, is not implemented.
+// GOIP_WRITE_OUT. restore, the third, reads the same file (addr_restore.go).
 
 var (
 	// ErrDumpFile is showdump refusing its stdin: a terminal, a bad magic,
@@ -34,6 +34,9 @@ const (
 	// addrDumpMagicCst is ipadd_dump_magic (ip/ipaddress.c:1782), written
 	// in host order.
 	addrDumpMagicCst = 0x47361222
+	// addrDumpMagicLenCst is the magic's size, the bytes read before the
+	// first record.
+	addrDumpMagicLenCst = 4
 	// addrDumpBufCst is rtnl_from_file's `char buf[16384]`
 	// (lib/libnetlink.c:1326): no record may be longer.
 	addrDumpBufCst = 16384
@@ -99,25 +102,37 @@ func addrShowdump(c *runCtx, _ []string) error {
 	case c.oneline:
 		return fmt.Errorf("-o address showdump: %w", ErrNotImplemented)
 	}
+	if err := checkDumpMagic(c, "showdump"); err != nil {
+		return err
+	}
+	return readDumpRecords(c, addrDumpMagicLenCst, func(h xtcpnl.NlMsgHdr, body []byte) error {
+		return showDumpRecord(c.out, h.Type, body)
+	})
+}
+
+// checkDumpMagic is ipadd_dump_check_magic (ip/ipaddress.c:1803-1818), which
+// showdump and restore both run first: the terminal refusal, then the magic.
+func checkDumpMagic(c *runCtx, verb string) error {
 	if c.in == nil {
-		return fmt.Errorf("address showdump without stdin: %w", ErrNotImplemented)
+		return fmt.Errorf("address %s without stdin: %w", verb, ErrNotImplemented)
 	}
 	if isTerminal(c.in) {
 		return fmt.Errorf("%w: Can't restore address dump from a terminal", ErrDumpFile)
 	}
 	// fread(&magic, 4, 1) counts whole elements, and glibc copies a short
 	// read's bytes into magic all the same.
-	var magic [4]byte
+	var magic [addrDumpMagicLenCst]byte
 	n, rerr := io.ReadFull(c.in, magic[:])
 	if got := binary.NativeEndian.Uint32(magic[:]); got != addrDumpMagicCst || rerr != nil {
 		return fmt.Errorf("%w: Magic mismatch (%d elems, %x magic)", ErrDumpFile, n/len(magic), got)
 	}
-	return showDumpRecords(c, len(magic))
+	return nil
 }
 
-// showDumpRecords is rtnl_from_file's loop. pos is the bytes already read,
-// which the malformed message reports as ftell does.
-func showDumpRecords(c *runCtx, pos int) error {
+// readDumpRecords is rtnl_from_file's loop, handing each whole record to
+// onRecord as the handler gets it. pos is the bytes already read, which the
+// malformed message reports as ftell does.
+func readDumpRecords(c *runCtx, pos int, onRecord func(h xtcpnl.NlMsgHdr, body []byte) error) error {
 	var hdr [xtcpnl.NlMsgHdrSizeCst]byte
 	for {
 		n, err := io.ReadFull(c.in, hdr[:])
@@ -128,13 +143,15 @@ func showDumpRecords(c *runCtx, pos int) error {
 		if err != nil {
 			return dumpReadError(err)
 		}
-		nlmsgLen := binary.LittleEndian.Uint32(hdr[0:4])
-		msgType := binary.LittleEndian.Uint16(hdr[4:6])
+		var h xtcpnl.NlMsgHdr
+		if _, err := xtcpnl.DeserializeNlMsgHdr(hdr[:], &h); err != nil {
+			return fmt.Errorf("goip: decode a dump file record: %w", err)
+		}
 		// len is an int, so a length past 2^31 is negative, l < 0 and
 		// refused, as one past the buffer is.
-		length := cInt32(nlmsgLen)
+		length := cInt32(h.Len)
 		l := length - xtcpnl.NlMsgHdrSizeCst
-		if l < 0 || nlmsgLen > addrDumpBufCst {
+		if l < 0 || h.Len > addrDumpBufCst {
 			return fmt.Errorf("%w: !!!malformed message: len=%d @%d", ErrDumpFile, length, pos)
 		}
 		body := make([]byte, nlmsgAlign(int(l)))
@@ -143,7 +160,7 @@ func showDumpRecords(c *runCtx, pos int) error {
 		if err != nil {
 			return dumpReadError(err)
 		}
-		if err := showDumpRecord(c.out, msgType, body[:l]); err != nil {
+		if err := onRecord(h, body[:l]); err != nil {
 			return err
 		}
 	}
