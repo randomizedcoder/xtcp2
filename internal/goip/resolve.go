@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"net/url"
 	"strings"
 	"sync"
 
@@ -43,16 +42,44 @@ func (r Resolved) Argv() []string {
 	return append(argv, r.Selectors...)
 }
 
-// Path is r as a path under /ip, each token path-escaped, so a selector
-// holding a `/` (a prefix) stays one segment.
+// Path is r as a path under /ip, each token escaped as one segment, so a
+// selector holding a `/` (a prefix) stays one segment.
 func (r Resolved) Path() string {
 	var b strings.Builder
 	b.WriteString("/ip")
 	for _, tok := range r.Argv() {
 		b.WriteByte('/')
-		b.WriteString(url.PathEscape(tok))
+		escapeSegment(&b, tok)
 	}
 	return b.String()
+}
+
+// escapeSegment writes tok with every byte that is not an RFC 3986 pchar
+// percent-escaped, `/` and `%` included. It escapes no more than a request
+// needs to, so a path is never longer for being canonical: url.PathEscape
+// also escapes `,` and `;`, which tripled a label of commas.
+func escapeSegment(b *strings.Builder, tok string) {
+	const hex = "0123456789ABCDEF"
+	for i := 0; i < len(tok); i++ {
+		c := tok[i]
+		if isPchar(c) {
+			b.WriteByte(c)
+			continue
+		}
+		b.WriteByte('%')
+		b.WriteByte(hex[c>>4])
+		b.WriteByte(hex[c&0xf])
+	}
+}
+
+// isPchar reports whether c may appear raw in a path segment: unreserved,
+// a sub-delim, `:` or `@` (RFC 3986 section 3.3).
+func isPchar(c byte) bool {
+	switch {
+	case 'a' <= c && c <= 'z', 'A' <= c && c <= 'Z', '0' <= c && c <= '9':
+		return true
+	}
+	return strings.IndexByte("-._~!$&'()*+,;=:@", c) >= 0
 }
 
 // familyOptions are the -4, -6 and -0 spellings by family.

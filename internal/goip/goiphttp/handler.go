@@ -225,7 +225,8 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, o *object, 
 // serve runs s in one of the in-flight slots and writes the result. Both
 // forms land here, so they share the slots, and a success carries the
 // canonical command-line path of s as its Content-Location: every spelling
-// of one request, in either form, names the same location.
+// of one request, in either form, names the same location (see location
+// for the one exception).
 func (h *Handler) serve(w http.ResponseWriter, r *http.Request, s goip.ShowRequest, argv string, text bool) {
 	select {
 	case h.slots <- struct{}{}:
@@ -245,8 +246,20 @@ func (h *Handler) serve(w http.ResponseWriter, r *http.Request, s goip.ShowReque
 	if text {
 		ct = "text/plain; charset=utf-8"
 	}
-	w.Header().Set("Content-Location", s.Resolved().Path())
+	if loc, ok := location(s); ok {
+		w.Header().Set("Content-Location", loc)
+	}
 	writeBody(w, r, http.StatusOK, ct, body, argv)
+}
+
+// location is the canonical path of s, and whether it is one the handler
+// serves. Full spellings are longer than abbreviations (-s is -stats, a is
+// address), so a request near the tokenizer's cap can have a canonical path
+// over it; that response carries no Content-Location rather than one that
+// is a 400.
+func location(s goip.ShowRequest) (string, bool) {
+	loc := s.Resolved().Path()
+	return loc, len(loc)-len(Prefix)-1 <= argvPathMax
 }
 
 // show runs one request on a fresh source, retrying once when the kernel

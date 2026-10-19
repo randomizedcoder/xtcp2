@@ -2,7 +2,7 @@
 
 Last updated: 2026-10-19.
 
-**In progress: 7 of 12 implementation tasks done.** The design was reviewed
+**In progress: 8 of 12 implementation tasks done.** The design was reviewed
 on 2026-10-19 and its decisions are recorded below.
 
 This document tracks
@@ -56,7 +56,7 @@ for the design in [IP-ARGV-PATHS-DESIGN.md](IP-ARGV-PATHS-DESIGN.md).
 | IA0 | Groundwork | done | 2/2 | IV001–IV005, IV007–IV008 |
 | IA1 | goip resolver | done | 2/2 | IV006, IV009 |
 | IA2 | HTTP paths | done | 3/3 | IV010–IV012 |
-| IA3 | Hardening and performance | not started | 0/3 | — |
+| IA3 | Hardening and performance | in progress | 1/3 | IV013 |
 | IA4 | Verification and release | not started | 0/2 | — |
 
 ## Task checklist
@@ -73,8 +73,9 @@ here.
 | [x] | [IA2-T01](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia2-t01) | Path tokenizer | done | IV010 |
 | [x] | [IA2-T02](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia2-t02) | Routing and both forms | done | IV011 |
 | IV012 | 2026-10-19 | IA2-T03 | `nix build --no-link path:.#test-linkmonitor-unit path:.#test-linkmonitor-docs path:.#test-linkmonitor-lint -L`; golangci-lint (comprehensive, `--new-from-rev=HEAD`): 0 issues | `l`, nix sandbox, 7.2.9 | `0d20c2e9` + working tree | Pass, with `TestIndex` (6 rows) and `TestIndexExamples` (12 examples, 4 marked `not_served`) | nix store, `--no-link` |
+| IV013 | 2026-10-19 | IA3-T01 | `nix build --no-link --keep-going path:.#test-linkmonitor-fuzz path:.#test-focused-goip path:.#test-linkmonitor-unit path:.#test-linkmonitor-race path:.#test-linkmonitor-lint -L`; golangci-lint (comprehensive, `--new-from-rev=HEAD`): 0 issues | `l`, nix sandbox, 7.2.9, load 16 | `f9fddf3a` + working tree | Pass; fuzz leaf `FuzzArgvPath` 383,159 execs and `FuzzFnmatch` 341,520 execs in 30 s each, no failures. A first run was stopped before finishing, to pick up lint fixes, so it is not an outcome | nix store, `--no-link` |
 | [x] | [IA2-T03](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia2-t03) | Index and docs | done | IV012 |
-| [ ] | [IA3-T01](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia3-t01) | Fuzzing and the pattern worst case | not started | — |
+| [x] | [IA3-T01](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia3-t01) | Fuzzing and the pattern worst case | done | IV013 |
 | [ ] | [IA3-T02](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia3-t02) | Benchmarks | not started | — |
 | [ ] | [IA3-T03](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia3-t03) | Handler fuzzing | not started | — |
 | [ ] | [IA4-T01](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia4-t01) | VM parity | not started | — |
@@ -239,6 +240,32 @@ write-up in IA4-T02.
     checks the live path.
   - The flag help, its DESIGN.md mirror, the README and IP-PATHS-DESIGN.md
     describe both forms; the design's status line reads implemented.
+- IA3-T01 (fuzzing and the pattern worst case):
+  - Fixed: a 200 could carry a `Content-Location` that was a 400.
+    `Resolved.Path` used `url.PathEscape`, which escapes `,` and `;` where
+    a request's escaped path does not, so `/i/a/s` plus three 255-comma
+    `label` patterns (792 bytes) named a 2332-byte location over the
+    1024-byte cap. `Path` now escapes only non-pchar bytes (RFC 3986), so
+    selectors are never longer than the request wrote them. Full
+    spellings still add bytes (`-s` is `-stats`, `a` is `address`), so a
+    location over the cap is now left off (`location`); `location_at_cap`
+    and `location_over_cap` pin the boundary. Found while writing the
+    fuzzer's canonical round trip, before it ran; a mutation of either
+    half fails its row.
+  - `fnmatch`: stars compile to one and the match keeps one backtrack
+    point. The fastest of 20 runs of each hostile 255-byte pattern
+    against a 15-byte label is microseconds, far under the 1 ms row, so
+    there is no new cap. The path token's 255-byte limit is the cap, and
+    `pattern_over_cap` is a 400 with no socket opened.
+  - `FuzzFnmatch` checks fnmatch0 against a memoized recursive reference
+    that shares only the bracket parse. A mutation limiting star
+    backtracking failed at once.
+  - Local 60 s runs on `l` (24 workers, load 15-30): `FuzzArgvPath`
+    4.30M execs, `FuzzFnmatch` 3.91M, no failures. In the leaf
+    (GOMAXPROCS=2, 30 s): 383k and 342k.
+  - The TestTokens, TestHandler and TestFnmatch0 tables moved to package
+    level (`tokenTests`, `handlerTests`, `fnmatchTests`) so the fuzzers seed
+    from every row; `TestArgvSeeds` checks `seed_corpus`.
 
 ## Evidence ledger
 
@@ -275,3 +302,4 @@ None.
 | 2026-10-19 | Started IA2. IA2-T01 done: the path tokenizer, with the plan's rows plus join and limit corners. Next: IA2-T02. |
 | 2026-10-19 | IA2-T02 done: both forms under `/ip` and `/i`, with canonical `Content-Location`, nosniff, and the new statuses. The operator chose a G705 exclusion scoped to `goiphttp/handler.go`. Found that goip's `route show` lacks prefix and `proto` filters (501), which IA2-T03's examples must account for, and fixed `route show table WORD` (500 → 400). Next: IA2-T03. |
 | 2026-10-19 | IA2-T03 done, so IA2 is done: the `/ip` index carries the rule, the shortest spellings and the examples, each driven through the handler; four examples are goip 501s and marked so. The index is now a JSON object (findings). README, IP-PATHS-DESIGN.md, the flag help and the design's status describe both forms. Next: IA3-T01. |
+| 2026-10-19 | Started IA3. IA3-T01 done: `FuzzArgvPath` and `FuzzFnmatch` are in the fuzz leaf; `fnmatch` needs no cap beyond the token's 255 bytes. Fixed a `Content-Location` that could exceed the path cap (findings). Next: IA3-T02. |

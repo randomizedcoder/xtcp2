@@ -596,6 +596,12 @@ func TestShowRequestResolved(t *testing.T) {
 		{name: "family_packet", category: "boundary", description: "AF_PACKET is -0", req: ShowRequest{Object: "address", Family: unix.AF_PACKET}, expected: "/ip/-0/address/show"},
 		{name: "selector_slash", category: "corner", description: "a prefix stays one escaped segment",
 			req: ShowRequest{Object: "route", Selectors: []string{"10.0.0.0/8"}}, expected: "/ip/route/show/10.0.0.0%2F8"},
+		{name: "selector_sub_delims", category: "corner", description: "sub-delims, : and @ stay raw, so the path is no longer than a request's",
+			req: ShowRequest{Object: "address", Selectors: []string{"label", ",;=*!$&'()+:@"}}, expected: "/ip/address/show/label/,;=*!$&'()+:@"},
+		{name: "selector_zone", category: "corner", description: "a zone's % is escaped and its : kept",
+			req: ShowRequest{Object: "route", Selectors: []string{"fe80::1%eth0"}}, expected: "/ip/route/show/fe80::1%25eth0"},
+		{name: "selector_not_pchar", category: "negative", description: "?, #, space and non-ASCII bytes are escaped, upper-case hex",
+			req: ShowRequest{Object: "address", Selectors: []string{"label", "a?#b é"}}, expected: "/ip/address/show/label/a%3F%23b%20%C3%A9"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.category+"/"+tt.name, func(t *testing.T) {

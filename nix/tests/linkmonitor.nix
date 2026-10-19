@@ -24,6 +24,9 @@ let
     "./pkg/linkmonitor/internal/linuxio:FuzzRDMANotifications"
     "./pkg/linkmonitor/internal/rdmanative:FuzzTranslateRtnl"
     "./pkg/linkmonitor/internal/rdmacaps:FuzzUMADHeader"
+    # The /ip command-line paths (IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md IA3).
+    "./internal/goip/goiphttp:FuzzArgvPath"
+    "./internal/goip:FuzzFnmatch"
   ];
   # go-native RDMA decoders held to the parsing rules in
   # cmd/go-link-monitor/GO-NATIVE-RDMA-DESIGN.md. Each decoder task appends

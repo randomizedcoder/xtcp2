@@ -215,8 +215,11 @@ What is new is the full selector grammar. Selectors only narrow a dump, so no
 data appears that `/ip/addr` does not already serve. Before shipping, the
 review should cover:
 
-- `label PATTERN` goes through goip's `fnmatch`. Its worst case on hostile
-  patterns needs a check and a fuzz target.
+- `label PATTERN` goes through goip's `fnmatch`. Checked in IA3-T01: stars
+  compile to one and the match keeps a single backtrack point, so a
+  255-byte hostile pattern against a 15-byte label takes microseconds
+  (`TestFnmatchCost`), and `FuzzFnmatch` holds it to a reference matcher.
+  The path token's 255-byte cap is the only pattern cap needed.
 - No selector parser may reach a write or a file. `addr showdump` reads
   stdin, and `Show` passes nil.
 - `-n` must be unreachable through any spelling.

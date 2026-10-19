@@ -79,15 +79,15 @@ func errOpener(src goip.Source) Opener {
 	return func() (goip.Source, func() error, error) { return src, func() error { return nil }, nil }
 }
 
-func want(t *testing.T, pcap string, r goip.ShowRequest) []byte {
-	t.Helper()
+func want(tb testing.TB, pcap string, r goip.ShowRequest) []byte {
+	tb.Helper()
 	src, err := goip.OpenReplay(pcap)
 	if err != nil {
-		t.Fatal(err)
+		tb.Fatal(err)
 	}
 	var b bytes.Buffer
 	if err := goip.Show(src, r, &b); err != nil {
-		t.Fatal(err)
+		tb.Fatal(err)
 	}
 	return b.Bytes()
 }
@@ -101,47 +101,61 @@ func serve(t *testing.T, h *Handler, method, target string) *httptest.ResponseRe
 	return rec
 }
 
-// TestHandler drives the registered routes end to end over replay captures
-// and failing sources.
-//
-// go test ./internal/goip/goiphttp/ -run TestHandler
-func TestHandler(t *testing.T) {
+// noLocation is a handlerTest's wantLocation for a 200 without one.
+const noLocation = "(none)"
+
+// labels is `label P` for each pattern length in n, P that many copies of
+// c, as path segments.
+func labels(c string, n ...int) string {
+	var b strings.Builder
+	for _, k := range n {
+		b.WriteString("/label/" + strings.Repeat(c, k))
+	}
+	return b.String()
+}
+
+// handlerTest is one TestHandler row.
+type handlerTest struct {
+	name        string
+	description string
+	open        Opener
+	maxBytes    int
+	method      string
+	target      string
+	wantStatus  int
+	wantType    string
+	wantBody    []byte // exact body, when set
+	wantInBody  string // substring, when set
+	wantArgv    string
+	// wantLocation is the Content-Location, when set; noLocation is none.
+	wantLocation string
+	// wantAllow is the Allow header, when set.
+	wantAllow string
+	// sameAs is a target whose body must equal this one's.
+	sameAs    string
+	wantOpens int32 // -1: don't check
+}
+
+// handlerTests are TestHandler's rows. FuzzArgvPath and FuzzIPHandler seed
+// from their targets, so every row is in the seed corpus.
+func handlerTests(tb testing.TB) []handlerTest {
 	addrPcap := dumpsDir + "netlink_route_getaddr.pcap"
 	linkPcap := dumpsDir + "netlink_route_getlink.pcap"
 	routePcap := dumpsDir + "netlink_route_getroute.pcap"
 	devPcap := dumpsDir + "netlink_route_getaddr_dev.pcap"
 	briefPcap := "../../../pkg/xtcpnl/testdata/7_1_4/link-write/addr-show/mixed_links/netlink_route_getaddr_br.pcap"
-	addrJSON := want(t, addrPcap, goip.ShowRequest{Object: "address", JSON: true})
-	addrText := want(t, addrPcap, goip.ShowRequest{Object: "address"})
+	addrJSON := want(tb, addrPcap, goip.ShowRequest{Object: "address", JSON: true})
+	addrText := want(tb, addrPcap, goip.ShowRequest{Object: "address"})
 	const textPlain = "text/plain; charset=utf-8"
 
-	tests := []struct {
-		name        string
-		description string
-		open        Opener
-		maxBytes    int
-		method      string
-		target      string
-		wantStatus  int
-		wantType    string
-		wantBody    []byte // exact body, when set
-		wantInBody  string // substring, when set
-		wantArgv    string
-		// wantLocation is the Content-Location, when set.
-		wantLocation string
-		// wantAllow is the Allow header, when set.
-		wantAllow string
-		// sameAs is a target whose body must equal this one's.
-		sameAs    string
-		wantOpens int32 // -1: don't check
-	}{
+	return []handlerTest{
 		{name: "addr_json", description: "positive: /ip/addr is ip -j address show",
 			open: replayOpener(addrPcap), method: "GET", target: "/ip/addr",
 			wantStatus: 200, wantType: "application/json", wantBody: addrJSON, wantArgv: "ip -j address show", wantOpens: 1},
 		{name: "addr_text_dev", description: "positive: /ip/addr/goip0?format=text is ip address show dev goip0",
 			open: replayOpener(dumpsDir + "netlink_route_getaddr_dev.pcap"), method: "GET", target: "/ip/addr/goip0?format=text",
 			wantStatus: 200, wantType: "text/plain; charset=utf-8",
-			wantBody: want(t, dumpsDir+"netlink_route_getaddr_dev.pcap", goip.ShowRequest{Object: "address", Selectors: []string{"dev", "goip0"}}),
+			wantBody: want(tb, dumpsDir+"netlink_route_getaddr_dev.pcap", goip.ShowRequest{Object: "address", Selectors: []string{"dev", "goip0"}}),
 			wantArgv: "ip address show dev goip0", wantOpens: 1},
 		{name: "index", description: "positive: /ip lists every object, no netlink",
 			open: replayOpener(linkPcap), method: "GET", target: "/ip",
@@ -195,7 +209,7 @@ func TestHandler(t *testing.T) {
 		// The command-line form (IA2-T02).
 		{name: "link_show", description: "positive: /ip/link/show is the text of goip link show",
 			open: replayOpener(linkPcap), method: "GET", target: "/ip/link/show",
-			wantStatus: 200, wantType: textPlain, wantBody: want(t, linkPcap, goip.ShowRequest{Object: "link"}),
+			wantStatus: 200, wantType: textPlain, wantBody: want(tb, linkPcap, goip.ShowRequest{Object: "link"}),
 			wantArgv: "ip link show", wantLocation: "/ip/link/show", wantOpens: 1},
 		{name: "i_a_s", description: "positive: /i/a/s is /ip/address/show",
 			open: replayOpener(addrPcap), method: "GET", target: "/i/a/s",
@@ -212,12 +226,12 @@ func TestHandler(t *testing.T) {
 			wantArgv: "ip -json address show", wantLocation: "/ip/-json/address/show", wantOpens: 1},
 		{name: "brief", description: "positive: /ip/-br/a is goip -br address show",
 			open: replayOpener(briefPcap), method: "GET", target: "/ip/-br/a",
-			wantStatus: 200, wantType: textPlain, wantBody: want(t, briefPcap, goip.ShowRequest{Object: "address", Brief: true}),
+			wantStatus: 200, wantType: textPlain, wantBody: want(tb, briefPcap, goip.ShowRequest{Object: "address", Brief: true}),
 			wantArgv: "ip -brief address show", wantLocation: "/ip/-brief/address/show", wantOpens: 1},
 		{name: "full_grammar", description: "positive: options, an abbreviated object and verb, and selectors all reach goip",
 			open: replayOpener(routePcap), method: "GET", target: "/i/-4/r/s/table/all",
 			wantStatus: 200, wantType: textPlain,
-			wantBody: want(t, routePcap, goip.ShowRequest{Object: "route", Family: unix.AF_INET, Selectors: []string{"table", "all"}}),
+			wantBody: want(tb, routePcap, goip.ShowRequest{Object: "route", Family: unix.AF_INET, Selectors: []string{"table", "all"}}),
 			wantArgv: "ip -4 route show table all", wantLocation: "/ip/-4/route/show/table/all", wantOpens: 1},
 		{name: "selector_gap", description: "negative: proto reaches goip's route parser, which does not implement it: 501 with the argv",
 			open: replayOpener(routePcap), method: "GET", target: "/ip/-4/route/show/table/all/proto/bgp",
@@ -225,7 +239,7 @@ func TestHandler(t *testing.T) {
 		{name: "query_form_kept", description: "positive: the query form is unchanged, and gains the canonical location",
 			open: replayOpener(devPcap), method: "GET", target: "/ip/addr?dev=goip0",
 			wantStatus: 200, wantType: "application/json",
-			wantBody: want(t, devPcap, goip.ShowRequest{Object: "address", JSON: true, Selectors: []string{"dev", "goip0"}}),
+			wantBody: want(tb, devPcap, goip.ShowRequest{Object: "address", JSON: true, Selectors: []string{"dev", "goip0"}}),
 			wantArgv: "ip -j address show dev goip0", wantLocation: "/ip/-json/address/show/dev/goip0", wantOpens: 1},
 		{name: "query_form_abbrev", description: "positive: /i/a?dev= is /ip/addr?dev=",
 			open: replayOpener(devPcap), method: "GET", target: "/i/a?dev=goip0",
@@ -292,10 +306,34 @@ func TestHandler(t *testing.T) {
 			wantStatus: 200, wantType: textPlain, wantBody: []byte{}, wantArgv: "ip address show", wantLocation: "/ip/address/show", wantOpens: 1},
 		{name: "alias_location", description: "corner: ntbl stays as typed in the argv; the location is canonical",
 			open: errOpener(&errSource{}), method: "GET", target: "/i/ntbl/show", wantStatus: 200, wantArgv: "ip ntbl show", wantLocation: "/ip/ntable/show", wantOpens: 1},
+		{name: "label_star_storm", description: "boundary: a label of 64 stars is served; the stars compile to one",
+			open: replayOpener(addrPcap), method: "GET", target: "/ip/addr/show/label/" + strings.Repeat("*", 64),
+			wantStatus: 200, wantArgv: "ip address show label " + strings.Repeat("*", 64), wantOpens: 1},
+		{name: "pattern_over_cap", description: "negative: a label pattern over the 255-byte token cap is a 400 before any socket",
+			open: replayOpener(addrPcap), method: "GET", target: "/ip/addr/show/label/" + strings.Repeat("*", 256),
+			wantStatus: 400, wantInBody: "longer than 255 bytes", wantOpens: 0},
+		{name: "location_sub_delims", description: "corner: a label of commas keeps them raw in the location, which serves the same body",
+			open: replayOpener(addrPcap), method: "GET", target: "/i/a/s" + labels(",", 255, 255, 255),
+			wantStatus: 200, wantLocation: "/ip/address/show" + labels(",", 255, 255, 255),
+			sameAs: "/ip/address/show" + labels(",", 255, 255, 255), wantOpens: 1},
+		{name: "location_at_cap", description: "boundary: a canonical path of exactly 1024 bytes after /ip/ is the location",
+			open: replayOpener(addrPcap), method: "GET", target: "/i/a/s" + labels("x", 255, 255, 255, 219),
+			wantStatus: 200, wantLocation: "/ip/address/show" + labels("x", 255, 255, 255, 219), wantOpens: 1},
+		{name: "location_over_cap", description: "boundary: one byte more and the 200 carries no location, rather than one that is a 400",
+			open: replayOpener(addrPcap), method: "GET", target: "/i/a/s" + labels("x", 255, 255, 255, 220),
+			wantStatus: 200, wantLocation: noLocation, wantOpens: 1},
 		{name: "json_error", description: "corner: with -j, a show failure is a JSON error",
 			open: errOpener(&errSource{errs: []error{unix.ENODEV}}), method: "GET", target: "/ip/-j/link/show/dev/nosuch0",
 			wantStatus: 404, wantType: "application/json", wantInBody: `"argv":"ip -json link show dev nosuch0"`, wantOpens: 1},
 	}
+}
+
+// TestHandler drives the registered routes end to end over replay captures
+// and failing sources.
+//
+// go test ./internal/goip/goiphttp/ -run TestHandler
+func TestHandler(t *testing.T) {
+	tests := handlerTests(t)
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			var c counter
@@ -319,7 +357,10 @@ func TestHandler(t *testing.T) {
 			if tc.wantArgv != "" && rec.Header().Get(ArgvHeader) != tc.wantArgv {
 				t.Errorf("%s: %s %q, want %q", tc.description, ArgvHeader, rec.Header().Get(ArgvHeader), tc.wantArgv)
 			}
-			if tc.wantLocation != "" && rec.Header().Get("Content-Location") != tc.wantLocation {
+			if tc.wantLocation == noLocation && rec.Header().Get("Content-Location") != "" {
+				t.Errorf("%s: Content-Location %q, want none", tc.description, rec.Header().Get("Content-Location"))
+			}
+			if tc.wantLocation != "" && tc.wantLocation != noLocation && rec.Header().Get("Content-Location") != tc.wantLocation {
 				t.Errorf("%s: Content-Location %q, want %q", tc.description, rec.Header().Get("Content-Location"), tc.wantLocation)
 			}
 			if tc.wantStatus != 200 && rec.Header().Get("Content-Location") != "" {

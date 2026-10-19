@@ -56,7 +56,8 @@ and an interface named like a verb (`s`, `show`, `list`) needs
   `X-Content-Type-Options: nosniff` and `X-Goip-Argv`, the `ip` command it is
   equivalent to, for example `ip -j address show dev eth0`. A 200 also
   carries `Content-Location`, the canonical command-line path, which every
-  spelling of the request shares.
+  spelling of the request shares; it is left off only when the full
+  spelling would pass the 1024-byte path cap.
 
 | Status | Meaning |
 |---|---|
