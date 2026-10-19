@@ -21,6 +21,7 @@ If you are looking for the daemon as a whole, start at the
 | [Address write path](addr-write-path.md) | The third write design, completing `ip address`: the show selectors (`to`, `scope`, flag filters, `label`, `master`/`vrf`/`nomaster`, `type`, `proto`, …), `-br` and `-o`, the four unread `IFA_*` attributes, and dry-run `addr add/change/replace/delete`, `flush`, `save`, `showdump` and `restore` to byte-parity with iproute2 — with the per-row address topologies (secondary, peer, label, lifetimes, tentative, dadfailed, stable-privacy) that give each a captured fixture. Every phase has landed ([status](addr-write-path-status.md)): the selectors, `-br`/`-o`, the writes, `flush` and `restore` are gated `goip-parity` rows, except `addr show dynamic`, whose lifetime ticks; `save` and `showdump` are checked offline against `ip`'s bytes, `showdump` because it sends no netlink. |
 | [Address write path — implementation plan](addr-write-path-plan.md) | The address design's phases as 25 gated tasks (`A0-T01` … `A9-T03`): dependencies, files to deliver, the design test table each task owns, and the exact command that closes it. |
 | [Address write path — status](addr-write-path-status.md) | The tracker for that plan: phase and task states, the four Phase 0 measurements, which task amends each flipped statement, and the verification ledger. |
+| [goip parity: remaining gaps](goip-parity-gaps.md) | What full `ip` coverage still needs: the 20 objects goip does not run, the missing verbs on the 11 it does, the generic netlink and XFRM families, and the 23 ungated rows. For each netlink message type `ip` uses, a measured count of nlmon pcaps, table-driven parse tests and parse benchmarks. The plan to close the gaps runs in three tiers: complete the capture corpus, then the parsers, then goip and the matrix. |
 | [Upstream bug: bond partner state width](upstream/iproute2-bond-partner-state-width.md) | An iproute2 bug found while designing the link write path: `ip` reads the u16 `IFLA_BOND_SLAVE_AD_PARTNER_OPER_PORT_STATE` as a u8, so big-endian hosts always print `0 <>`. |
 
 The last three are a chain — the audit finds the gaps, the roadmap decides the
@@ -81,11 +82,15 @@ A synthetic fixture encodes the author's belief about the layout, so the decoder
 and its test can be wrong together and still pass. Generate fixtures with:
 
 ```bash
-nix run .#microvm-x86_64-nlmon-capture    # events, hermetic microVM, no sudo
-nix run .#capture-netlink-fixtures        # dumps (RTM_GET* pairs), host, needs sudo
+nix run .#microvm-x86_64-nlmon-capture         # events, hermetic microVM, no sudo
+nix run .#microvm-x86_64-netlink-dump-capture  # dumps (RTM_GET* pairs), microVM, no sudo
+nix run .#microvm-x86_64-link-write-capture    # write rows and readbacks, microVM, no sudo
 ```
 
-Run both from the repo root. See
+Run them from the repo root, and pass `--out DIR` first: a run rewrites every
+fixture it captures. `nix run .#capture-netlink-fixtures` captures the same
+dumps on the host, but needs sudo and picks up other processes' traffic, so
+`flake.nix` keeps it as a diagnostic fallback only. See
 [collection.md](collection.md#regenerating-the-fixtures) for the mechanics and
 [coverage-expansion.md](coverage-expansion.md#fixture-provenance-real-captures-not-hand-assembled-bytes)
 for why it is a gate rather than a preference.
