@@ -254,9 +254,11 @@ func (o exposureOptions) validate(address string) error {
 		if o.ipMaxBytes <= 0 {
 			return fmt.Errorf("ip.max-bytes %d must be positive", o.ipMaxBytes)
 		}
-		// The /ip paths live on the main listener only.
-		if o.shared(address) && (o.allPath == goiphttp.Prefix || strings.HasPrefix(o.allPath, goiphttp.Prefix+"/")) {
-			return fmt.Errorf("metrics-all-path %q collides with the %s paths on the same listener", o.allPath, goiphttp.Prefix)
+		// The /ip and /i paths live on the main listener only.
+		for _, root := range []string{goiphttp.Prefix, goiphttp.ShortPrefix} {
+			if o.shared(address) && (o.allPath == root || strings.HasPrefix(o.allPath, root+"/")) {
+				return fmt.Errorf("metrics-all-path %q collides with the %s paths on the same listener", o.allPath, root)
+			}
 		}
 	}
 	if o.allPath != "" && strings.HasPrefix(o.allPath, categoryPathPrefix) && slices.Contains(o.categories, strings.TrimPrefix(o.allPath, categoryPathPrefix)) {

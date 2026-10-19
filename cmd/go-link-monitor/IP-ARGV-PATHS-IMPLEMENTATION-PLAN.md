@@ -283,7 +283,8 @@ Deliver:
 | `i_l_sh` | positive | `/i/l/sh` | `ip link show` |
 | `json_option` | positive | `/ip/-j/addr/show` | `application/json`; bytes of `goip -j address show` |
 | `brief` | positive | `/ip/-br/a` | Bytes of `goip -br address show` |
-| `full_grammar` | positive | `/ip/-4/route/show/table/all/proto/bgp` | 200; `X-Goip-Argv: ip -4 route show table all proto bgp` |
+| `full_grammar` | positive | `/i/-4/r/s/table/all` | 200; `X-Goip-Argv: ip -4 route show table all` |
+| `selector_gap` | negative | `/ip/-4/route/show/table/all/proto/bgp` | 501 naming `route show "proto"`, with the argv: goip's route parser has `table`, `dev` and `oif` only |
 | `query_form_kept` | positive | `/ip/addr?dev=lo` | JSON, unchanged from today |
 | `query_form_abbrev` | positive | `/i/a?dev=lo` | The same as `/ip/addr?dev=lo` |
 | `shortcut_kept` | positive | `/ip/link/lo` | `ip -j link show dev lo`, unchanged |
@@ -295,7 +296,7 @@ Deliver:
 | `unknown_object` | negative | `/ip/zz/show` | 404 |
 | `unimplemented` | negative | `/i/m` | 501 naming `ip maddress show` |
 | `query_on_argv` | negative | `/ip/link/show?x=1` | 400 |
-| `bad_selector` | negative | `/ip/route/show/d/lo` | 400 with `ip`'s message |
+| `bad_selector` | negative | `/ip/addr/show/d/lo` | 400 with `ip`'s message (`route show d` is goip's 501, as above) |
 | `post` | negative | POST `/i/a/s` | 405 with `Allow: GET, HEAD` |
 | `metrics_all_under_i` | negative | `-metrics-all-path=/i/x` | Start-up error |
 | `root_only_i_ip` | boundary | `/m`, `/in`, `/ipx` | 404; nothing at the root abbreviates except `/i` |

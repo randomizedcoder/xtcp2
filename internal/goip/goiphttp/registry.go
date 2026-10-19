@@ -137,8 +137,13 @@ var objects = []*object{
 // formatParam is accepted on every path, including the index.
 const formatParam = "format"
 
+// byObject indexes objects by goip's canonical name, which is what an
+// abbreviated object resolves to; built at init.
+var byObject = make(map[string]*object, len(objects))
+
 func init() {
 	for _, o := range objects {
+		byObject[o.object] = o
 		o.byName = make(map[string]*param, len(o.params))
 		for i := range o.params {
 			o.byName[o.params[i].name] = &o.params[i]

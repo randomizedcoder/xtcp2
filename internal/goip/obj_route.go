@@ -181,8 +181,10 @@ func routeTableID(arg string) (uint32, error) {
 	if err != nil {
 		// Wrapped, not swallowed: strconv distinguishes ErrSyntax from
 		// ErrRange, and "table 4294967296" is a different user mistake from
-		// "table wombat".
-		return 0, fmt.Errorf("goip: invalid table id %q: %w", arg, err)
+		// "table wombat". Both are ip's invarg (ip/iproute.c:1856), so
+		// ErrInvalidArgument, with its words: a caller's typo, never a
+		// failure of the read.
+		return 0, fmt.Errorf("%w: Error: argument %q is wrong: table id value is invalid: %w", ErrInvalidArgument, arg, err)
 	}
 	return uint32(id), nil
 }

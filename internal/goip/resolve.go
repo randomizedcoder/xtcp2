@@ -94,7 +94,7 @@ func ResolveShow(tokens []string) (ShowRequest, Resolved, error) {
 		return ShowRequest{}, Resolved{}, fmt.Errorf("%w: no object", ErrInvalidArgument)
 	}
 
-	obj, err := lookupObject(rest[0])
+	obj, err := resolveObject(rest[0])
 	if err != nil {
 		return ShowRequest{}, Resolved{}, err
 	}
@@ -114,12 +114,8 @@ func ResolveShow(tokens []string) (ShowRequest, Resolved, error) {
 	}
 	res.Options = canonicalOptions(&o)
 
-	canonical := obj.name
-	if obj.aliasOf != "" {
-		canonical = obj.aliasOf
-	}
 	r := ShowRequest{
-		Object:    canonical,
+		Object:    obj.canonical(),
 		Family:    o.family,
 		JSON:      o.json,
 		Stats:     o.showStats,
@@ -129,6 +125,53 @@ func ResolveShow(tokens []string) (ShowRequest, Resolved, error) {
 		Selectors: res.Selectors,
 	}
 	return r, res, nil
+}
+
+// resolveObject is lookupObject, naming an object goip does not implement
+// as the command `ip` would run: "ip maddress show".
+func resolveObject(tok string) (object, error) {
+	obj, err := lookupObject(tok)
+	if errors.Is(err, ErrNotImplemented) {
+		return obj, fmt.Errorf("ip %s %s: %w", obj.name, showVerbCst, ErrNotImplemented)
+	}
+	return obj, err
+}
+
+// LookupObject resolves tok as `ip` reads its object argument, first match
+// wins, and returns the canonical name ShowRequest.Object takes: `a` is
+// address and ntbl is ntable. The errors are ResolveShow's:
+// ErrUnknownObject, or ErrNotImplemented naming `ip OBJECT show`.
+func LookupObject(tok string) (string, error) {
+	obj, err := resolveObject(tok)
+	if err != nil {
+		return "", err
+	}
+	return obj.canonical(), nil
+}
+
+// IsVerb reports whether tok resolves to any verb of the object canonically
+// named object, write verbs included. A caller that reads the token after an
+// object either as a verb or as something else (an interface name) uses it
+// so that `link s` is never the interface s: it is `link set`, and refused.
+func IsVerb(object, tok string) bool {
+	for i := range objects {
+		if objects[i].name == object {
+			_, ok := resolveVerb(objects[i].verbs, tok)
+			return ok
+		}
+	}
+	return false
+}
+
+// Resolved is r as ResolveShow returns it for r.Argv(): the options at their
+// full spelling, the canonical object and the verb show. Two spellings of
+// one request share it, so its Path is the canonical location of either.
+func (r ShowRequest) Resolved() Resolved {
+	o := options{family: r.Family, json: r.JSON, brief: r.Brief, oneline: r.Oneline, showStats: r.Stats}
+	if r.Details {
+		o.showDetails = 1
+	}
+	return Resolved{Options: canonicalOptions(&o), Object: r.Object, Verb: showVerbCst, Selectors: r.Selectors}
 }
 
 // resolveOptionError turns parseOptions' error into ResolveShow's: a

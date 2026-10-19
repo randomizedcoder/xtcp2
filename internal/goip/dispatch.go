@@ -164,6 +164,14 @@ func lookupObject(arg string) (object, error) {
 	return o, nil
 }
 
+// canonical is the name of the row o aliases, or o's own.
+func (o *object) canonical() string {
+	if o.aliasOf != "" {
+		return o.aliasOf
+	}
+	return o.name
+}
+
 // runCtx is the state one goip invocation shares between dispatch and the
 // object handlers.
 type runCtx struct {

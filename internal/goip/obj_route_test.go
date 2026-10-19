@@ -1253,6 +1253,14 @@ func TestParseRouteShowArgs(t *testing.T) {
 			wantErrIs:   strconv.ErrRange,
 		},
 		{
+			// The same error is also ip's invarg, so a caller mapping errors
+			// to statuses (goiphttp) sees a 400, not a failed read.
+			description: "negative: a bad table id is ErrInvalidArgument as well as strconv's",
+			args:        []string{"table", "wombat"},
+			wantErr:     true,
+			wantErrIs:   ErrInvalidArgument,
+		},
+		{
 			description: "negative: an unimplemented selector is refused rather than skipped",
 			args:        []string{"via", "192.0.2.254"},
 			wantErr:     true,

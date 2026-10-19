@@ -6,8 +6,9 @@ import (
 	"github.com/randomizedcoder/xtcp2/internal/goip/goiphttp"
 )
 
-// withIPPaths mounts the read-only `ip … show` paths (/ip, /ip/OBJECT and
-// /ip/OBJECT/{interface}) on the main listener, served[0]. They are live
+// withIPPaths mounts the read-only `ip … show` paths (/ip/OBJECT?query,
+// /ip/OBJECT/{interface} and the `ip` command lines /ip/[OPTIONS/]OBJECT/VERB/…,
+// each under /i as well) on the main listener, served[0]. They are live
 // netlink reads, independent of the monitor's snapshot, so on-demand refresh
 // never applies to them and they never take a metrics route's slots.
 func withIPPaths(served []endpoint, o goiphttp.Options) ([]endpoint, error) {

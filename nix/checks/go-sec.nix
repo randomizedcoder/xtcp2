@@ -18,6 +18,15 @@
 #          drop CLI-only flags across the restart. gosec honours #nosec, not the
 #          golangci //nolint already on that line, so it must be excluded here.
 #
+# Path-scoped exclusions (-exclude-rules; the rule still runs everywhere else):
+#   G705 in internal/goip/goiphttp/handler.go — XSS taint: go-link-monitor's
+#          `ip` command-line paths answer with `ip`'s own bytes, which can
+#          quote a path token back (`Device "x" does not exist`). Escaping
+#          them would break byte-identical output, so the mitigation is the
+#          response headers: text/plain or application/json, always with
+#          X-Content-Type-Options: nosniff (TestHandler checks every row).
+#          .golangci-comprehensive.yml carries the same scoped rule.
+#
 # NOT excluded — these would block the build if found:
 #   G104 (unhandled errors), G112 (HTTP timeouts), G401 (weak crypto), etc.
 #
@@ -43,7 +52,9 @@ pkgs.runCommand "xtcp2-gosec"
     export HOME=$(mktemp -d)
     export CGO_ENABLED=0
     export GOFLAGS=-mod=vendor
-    gosec -exclude=G103,G115,G204,G304,G702 -fmt=text ./... > $out 2>&1 || {
+    gosec -exclude=G103,G115,G204,G304,G702 \
+      -exclude-rules='internal/goip/goiphttp/handler\.go:G705' \
+      -fmt=text ./... > $out 2>&1 || {
       rc=$?
       cat $out
       exit "$rc"

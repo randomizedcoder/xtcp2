@@ -138,7 +138,7 @@ func TestResolveShow(t *testing.T) {
 		{
 			name: "unimplemented_object", category: "negative",
 			description: "m is maddress, which goip does not implement",
-			inputs:      [][]string{{"m"}}, wantErr: ErrNotImplemented, wantMsg: "maddress",
+			inputs:      [][]string{{"m"}}, wantErr: ErrNotImplemented, wantMsg: "ip maddress show:",
 		},
 		{
 			name: "unknown_verb", category: "negative",
@@ -501,4 +501,120 @@ func TestResolvePrefixProperty(t *testing.T) {
 			}
 		}
 	})
+}
+
+// TestLookupObjectExported covers the exported object lookup and verb test the HTTP
+// layer uses to tell a command line from the query form.
+//
+// go test ./internal/goip/ -run TestLookupObjectExported
+func TestLookupObjectExported(t *testing.T) {
+	tests := []struct {
+		name        string
+		category    string
+		description string
+		tok         string
+		// expected: the canonical name, or an error wrapping wantErr whose
+		// text contains wantMsg.
+		expected string
+		wantErr  error
+		wantMsg  string
+	}{
+		{name: "short", category: "positive", description: "a is address", tok: "a", expected: "address"},
+		{name: "query_spelling", category: "positive", description: "neigh, the query form's path, is neighbor", tok: "neigh", expected: "neighbor"},
+		{name: "alias_ntbl", category: "corner", description: "ntbl is the ntable row's alias, so the canonical name", tok: "ntbl", expected: "ntable"},
+		{name: "full_length", category: "boundary", description: "addrlabel spelled in full", tok: "addrlabel", expected: "addrlabel"},
+		{name: "one_longer", category: "boundary", description: "addressx matches no object", tok: "addressx", wantErr: ErrUnknownObject},
+		{name: "unknown", category: "negative", description: "zz is no object", tok: "zz", wantErr: ErrUnknownObject},
+		{name: "unimplemented", category: "negative", description: "m is maddress, named as the command ip would run", tok: "m", wantErr: ErrNotImplemented, wantMsg: "ip maddress show:"},
+		{name: "empty", category: "corner", description: "an empty token matches nothing", tok: "", wantErr: ErrUnknownObject},
+	}
+	for _, tt := range tests {
+		t.Run(tt.category+"/"+tt.name, func(t *testing.T) {
+			got, err := LookupObject(tt.tok)
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) || !strings.Contains(err.Error(), tt.wantMsg) {
+					t.Fatalf("%s: (%q, %v), want %v containing %q", tt.description, got, err, tt.wantErr, tt.wantMsg)
+				}
+				return
+			}
+			if err != nil || got != tt.expected {
+				t.Fatalf("%s: (%q, %v), want %q", tt.description, got, err, tt.expected)
+			}
+		})
+	}
+}
+
+// TestIsVerb covers the verb test: any verb counts, so a write verb is never
+// read as an interface name.
+//
+// go test ./internal/goip/ -run TestIsVerb
+func TestIsVerb(t *testing.T) {
+	tests := []struct {
+		name        string
+		category    string
+		description string
+		object, tok string
+		expected    bool
+	}{
+		{name: "show", category: "positive", description: "link sh is show", object: "link", tok: "sh", expected: true},
+		{name: "write", category: "positive", description: "link s is set: a verb, so never the interface s", object: "link", tok: "s", expected: true},
+		{name: "read_other", category: "positive", description: "address sa is save", object: "address", tok: "sa", expected: true},
+		{name: "interface", category: "negative", description: "link eth0 is no verb", object: "link", tok: "eth0", expected: false},
+		{name: "one_longer", category: "boundary", description: "showx is longer than show", object: "link", tok: "showx", expected: false},
+		{name: "exact_stats", category: "boundary", description: "stats compares with strcmp, so sh is no verb", object: "stats", tok: "sh", expected: false},
+		{name: "alias_not_canonical", category: "corner", description: "only canonical names are looked up; ntbl is LookupObject's job", object: "ntbl", tok: "show", expected: true},
+		{name: "unknown_object", category: "corner", description: "an object goip has no row for has no verbs", object: "zz", tok: "show", expected: false},
+		{name: "unimplemented_object", category: "corner", description: "maddress has no chain", object: "maddress", tok: "show", expected: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.category+"/"+tt.name, func(t *testing.T) {
+			if got := IsVerb(tt.object, tt.tok); got != tt.expected {
+				t.Fatalf("%s: IsVerb(%q, %q) = %v, want %v", tt.description, tt.object, tt.tok, got, tt.expected)
+			}
+		})
+	}
+}
+
+// TestShowRequestResolved holds ShowRequest.Resolved to ResolveShow: for each
+// request, resolving its Argv gives the same Resolved and the same request.
+//
+// go test ./internal/goip/ -run TestShowRequestResolved
+func TestShowRequestResolved(t *testing.T) {
+	tests := []struct {
+		name        string
+		category    string
+		description string
+		req         ShowRequest
+		expected    string // Resolved.Path()
+	}{
+		{name: "bare", category: "positive", description: "no options", req: ShowRequest{Object: "link"}, expected: "/ip/link/show"},
+		{name: "json_dev", category: "positive", description: "the query form's default, with a dev",
+			req: ShowRequest{Object: "address", JSON: true, Selectors: []string{"dev", "lo"}}, expected: "/ip/-json/address/show/dev/lo"},
+		{name: "every_option", category: "boundary", description: "every option, in chain order",
+			req:      ShowRequest{Object: "address", Family: unix.AF_INET6, JSON: true, Stats: 1, Details: true, Brief: true, Oneline: true},
+			expected: "/ip/-6/-stats/-details/-oneline/-brief/-json/address/show"},
+		{name: "family_packet", category: "boundary", description: "AF_PACKET is -0", req: ShowRequest{Object: "address", Family: unix.AF_PACKET}, expected: "/ip/-0/address/show"},
+		{name: "selector_slash", category: "corner", description: "a prefix stays one escaped segment",
+			req: ShowRequest{Object: "route", Selectors: []string{"10.0.0.0/8"}}, expected: "/ip/route/show/10.0.0.0%2F8"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.category+"/"+tt.name, func(t *testing.T) {
+			got := tt.req.Resolved()
+			if got.Path() != tt.expected {
+				t.Fatalf("%s: Path %q, want %q", tt.description, got.Path(), tt.expected)
+			}
+			req, res, err := ResolveShow(tt.req.Argv())
+			if err != nil {
+				t.Fatalf("%s: ResolveShow(%q): %v", tt.description, tt.req.Argv(), err)
+			}
+			// nil and empty selectors are the same request.
+			want := tt.req
+			if len(req.Selectors) == 0 && len(want.Selectors) == 0 {
+				req.Selectors, want.Selectors = nil, nil
+			}
+			if !slices.Equal(res.Argv(), got.Argv()) || res.Object != got.Object || !reflect.DeepEqual(req, want) {
+				t.Fatalf("%s: ResolveShow(Argv) = (%+v, %+v), want (%+v, %+v)", tt.description, req, res, tt.req, got)
+			}
+		})
+	}
 }

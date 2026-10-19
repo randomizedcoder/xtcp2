@@ -302,6 +302,17 @@ linters:
         linters:
           - gosec
         text: "G404|G301|G302"
+      # G705 (XSS taint) in goiphttp's response writer: the `ip` command-line
+      # paths answer with `ip`'s own bytes, which can quote a path token back
+      # (`Device "x" does not exist`), and escaping them would break
+      # byte-identical output. The responses are text/plain or
+      # application/json and always carry X-Content-Type-Options: nosniff,
+      # which TestHandler checks on every row. nix/checks/go-sec.nix carries
+      # the same rule for the standalone gosec.
+      - path: "internal/goip/goiphttp/handler\\.go"
+        linters:
+          - gosec
+        text: "G705"
       # Kernel-version-tagged names (TCPInfo6_10_3, TCPInfo5_4_281, …) mirror
       # Linux kernel uapi `struct tcp_info` revisions; renaming would defeat
       # the per-version mapping that is the point of pkg/xtcpnl.

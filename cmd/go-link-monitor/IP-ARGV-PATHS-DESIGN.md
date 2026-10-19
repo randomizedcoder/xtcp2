@@ -169,8 +169,11 @@ walking the tree: the shortest prefix whose first match is that keyword. The
    would have run: a write verb is a 400, and a verb that reads but is not
    the listing (`save`, `get`, `help`) is a 501.
 7. **Arguments:** everything left becomes `ShowRequest.Selectors`, unchanged.
-   goip's parser for that object accepts exactly what `ip` accepts, so a bad
-   selector is a 400 whose body is `ip`'s own error message.
+   Where goip's parser for that object implements a keyword it accepts
+   exactly what `ip` accepts, so a bad selector is a 400 whose body is
+   `ip`'s own error message. A keyword goip does not parse yet is a 501
+   naming it: `route show` reads only `table`, `dev` and `oif` today, so a
+   prefix or `proto` is a 501 until goip has it.
 
 Each token is 1 to 255 bytes, with no whitespace, control characters or
 U+FFFD. A path has at most 32 tokens and 1024 bytes. Query parameters are a

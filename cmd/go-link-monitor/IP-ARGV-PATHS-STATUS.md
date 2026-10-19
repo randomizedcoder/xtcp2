@@ -2,7 +2,7 @@
 
 Last updated: 2026-10-19.
 
-**In progress: 5 of 12 implementation tasks done.** The design was reviewed
+**In progress: 6 of 12 implementation tasks done.** The design was reviewed
 on 2026-10-19 and its decisions are recorded below.
 
 This document tracks
@@ -46,6 +46,7 @@ for the design in [IP-ARGV-PATHS-DESIGN.md](IP-ARGV-PATHS-DESIGN.md).
 | 2026-10-19 | A bare object path (`/ip/link`, `/i/l`) stays the query form with its JSON default; a path is a command line only with an option, or a verb after the object | Operator |
 | 2026-10-19 | All tasks land on one branch, one commit per task, one PR at the end | Operator |
 | 2026-10-19 | A verb that reads but is not the listing (`save`, `get`, `help`) is refused as not implemented (501), not as a write (400) | Implementation, IA1-T01; for operator review |
+| 2026-10-19 | gosec G705 (XSS taint) on goiphttp's response writer is excluded for `handler.go` only, in golangci and in the standalone gosec check, because `ip`'s bytes cannot be escaped; every `/ip` response carries `X-Content-Type-Options: nosniff` instead | Operator, IA2-T02 |
 
 ## Phase summary
 
@@ -53,7 +54,7 @@ for the design in [IP-ARGV-PATHS-DESIGN.md](IP-ARGV-PATHS-DESIGN.md).
 |---|---|---|---|---|
 | IA0 | Groundwork | done | 2/2 | IV001–IV005, IV007–IV008 |
 | IA1 | goip resolver | done | 2/2 | IV006, IV009 |
-| IA2 | HTTP paths | in progress | 1/3 | IV010 |
+| IA2 | HTTP paths | in progress | 2/3 | IV010, IV011 |
 | IA3 | Hardening and performance | not started | 0/3 | — |
 | IA4 | Verification and release | not started | 0/2 | — |
 
@@ -69,7 +70,7 @@ here.
 | [x] | [IA1-T01](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia1-t01) | Exported resolver | done | IV006 |
 | [x] | [IA1-T02](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia1-t02) | `ShowRequest` options | done | IV009 |
 | [x] | [IA2-T01](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia2-t01) | Path tokenizer | done | IV010 |
-| [ ] | [IA2-T02](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia2-t02) | Routing and both forms | not started | — |
+| [x] | [IA2-T02](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia2-t02) | Routing and both forms | done | IV011 |
 | [ ] | [IA2-T03](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia2-t03) | Index and docs | not started | — |
 | [ ] | [IA3-T01](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia3-t01) | Fuzzing and the pattern worst case | not started | — |
 | [ ] | [IA3-T02](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia3-t02) | Benchmarks | not started | — |
@@ -174,6 +175,50 @@ write-up in IA4-T02.
     `TestRejectAllocs` bounds a refusal at 8 and an accepted path at 1.
   - A mutation dropping the zone check failed `join_zone`.
 
+- IA2-T02: `/ip` and `/i` are each the index plus one catch-all,
+  `{argv...}`, read from `EscapedPath()`, with no method pattern. A path is
+  a command line when it starts with an option, when the token after the
+  object resolves to any verb of that object (writes included, so `/i/l/s`
+  is refused as `ip link set`), or when it is longer than two tokens.
+  Otherwise it is the query form, whose objects now abbreviate (`/i/a?dev=`).
+  The interface shortcut applies only to objects that had it: `/ip/rule/x`
+  is a command line, and `ip`'s "command is unknown" 400.
+  - Headers: a command line's `X-Goip-Argv` is the full spelling (`ip
+    -json address show`). The query form's header is unchanged (`ip -j
+    address show dev lo`), since it is documented and pinned. Both forms
+    now send `Content-Location` on a 200 with the canonical command-line
+    path: object canonical (ntbl is ntable), verb show, options in full.
+    So `/ip/addr?dev=lo`, `/i/-j/a/s/dev/lo` and `/ip/-json/address/list/dev/lo`
+    all name `/ip/-json/address/show/dev/lo`.
+  - Statuses: `ErrWriteVerb` and `ErrRefusedOption` are 400, and
+    `ErrUnknownObject` is 404. One query-form status changed: an object
+    goip cannot show yet (`/ip/tunnel`) was the mux's 404, and is now a 501
+    naming `ip tunnel show`, as the design says.
+  - goip's `route show` parses only `table`, `dev` and `oif`. A prefix,
+    `proto` or `d` reaches goip and is a 501 naming the keyword, not
+    `ip`'s 400. Three of the design's examples (`route show … proto bgp`,
+    `route show 10.0.0.0/8`, `neigh show nud reachable`) are therefore
+    501 today. IA2-T03's `index_examples_resolve` must either mark them or
+    the examples must change. Design step 7 and the plan's `full_grammar`
+    and `bad_selector` rows are corrected.
+  - Fixed on the way: `route show table WORD` was a 500, since
+    `routeTableID`'s error carried no sentinel. It is now
+    `ErrInvalidArgument` with `ip`'s words (`argument "wombat" is wrong:
+    table id value is invalid`), keeping strconv's error in the chain. The
+    CLI exits 1 instead of 2 for it; `ip` exits 255.
+  - gosec G705 flagged the response writer: path tokens reach the body
+    through `ip`'s error text and through `Show`'s output. Escaping would
+    break byte-identical output, so the mitigation is the headers:
+    `X-Content-Type-Options: nosniff` is now on every `/ip` response, and
+    `TestHandler` checks it on every row. G705 is excluded for
+    `goiphttp/handler.go` only, in `.golangci-comprehensive.yml` and in
+    `nix/checks/go-sec.nix` (`-exclude-rules`), and the quality report
+    mirrors the latter (operator decision).
+  - `-metrics-all-path` may not be `/i` or under it on the main listener
+    (`/in` is fine).
+  - A mutation reading every second token as the interface shortcut failed
+    10 `TestHandler` rows, `i_l_s_set` among them.
+
 ## Evidence ledger
 
 | ID | Date | Task | Command | Host/VM | Base | Outcome | Logs |
@@ -188,6 +233,7 @@ write-up in IA4-T02.
 | IV008 | 2026-10-19 | IA0-T02 | `env -u LD_LIBRARY_PATH nix run path:.#microvm-x86_64-goip-parity -- --out <scratchpad>`, operator-approved; load 15 at start, no other VM | `l` host 7.2.9, guest 7.1.4 microVM | `a327b5ef` | 175 PASS, 8 WARN, 1 FAIL; `HYGIENE_FAIL 2`, `CONTROL_NOISY 166`, `UNGATED_DIVERGENCES 7`, `OVERALL_FAIL`. Every non-pass is a permanent divergence recorded in `54a26a86`: no regression | scratchpad, not kept |
 | IV009 | 2026-10-19 | IA1-T02 | `nix build --no-link path:.#test-focused-goip path:.#test-linkmonitor-unit -L`; golangci-lint (comprehensive, `--new-from-rev=HEAD`) over `./internal/goip/...`: 0 issues | `l`, nix sandbox, 7.2.9 | `6bfedf95` + working tree | Pass, with the new `TestShow` and `TestShowRequestArgv` rows and `registry_stats_true` | nix store, `--no-link` |
 | IV010 | 2026-10-19 | IA2-T01 | `nix build --no-link path:.#test-linkmonitor-unit path:.#test-linkmonitor-race -L`; golangci-lint (comprehensive, `--new-from-rev=HEAD`) over `./internal/goip/...`: 0 issues | `l`, nix sandbox, 7.2.9 | `9992882a` + working tree | Pass, with `TestTokens` (39 rows) and the tokenizer rows of `TestRejectAllocs` | nix store, `--no-link` |
+| IV011 | 2026-10-19 | IA2-T02 | `nix build --no-link path:.#test-linkmonitor-unit path:.#test-linkmonitor-race path:.#test-linkmonitor-lint path:.#test-focused-goip path:.#checks.x86_64-linux.go-sec -L`; golangci-lint (comprehensive, `--new-from-rev=HEAD`): 0 issues | `l`, nix sandbox, 7.2.9 | `f4b7ad5f` + working tree | Pass after the operator's G705 decision (the first run failed the lint leaf on G705 alone); `TestHandler` +38 rows, `TestHandlerSlotsShared`, `TestRegisterWrap`, `TestRegisterMethods` +5, `TestRegistryCoversGoip`, exposure +5, goip `TestLookupObjectExported`, `TestIsVerb`, `TestShowRequestResolved` | nix store, `--no-link` |
 
 ## Blockers
 
@@ -206,3 +252,4 @@ None.
 | 2026-10-19 | IA0-T02 done, so IA0 is done: the goip-parity VM run (IV008, after IV007 failed on a flag the runner does not take) shows only the 9 recorded permanent wire divergences and byte-identical stdout everywhere. Plan command corrected. Next: IA1-T02. |
 | 2026-10-19 | IA1-T02 done, so IA1 is done: `ShowRequest` carries `-br`, `-o` and the `-s` count, and `Show` refuses unsupported combinations with `Run`'s messages. Next: IA2-T01. |
 | 2026-10-19 | Started IA2. IA2-T01 done: the path tokenizer, with the plan's rows plus join and limit corners. Next: IA2-T02. |
+| 2026-10-19 | IA2-T02 done: both forms under `/ip` and `/i`, with canonical `Content-Location`, nosniff, and the new statuses. The operator chose a G705 exclusion scoped to `goiphttp/handler.go`. Found that goip's `route show` lacks prefix and `proto` filters (501), which IA2-T03's examples must account for, and fixed `route show table WORD` (500 → 400). Next: IA2-T03. |

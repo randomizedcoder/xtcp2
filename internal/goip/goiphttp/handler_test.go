@@ -100,7 +100,12 @@ func serve(t *testing.T, h *Handler, method, target string) *httptest.ResponseRe
 func TestHandler(t *testing.T) {
 	addrPcap := dumpsDir + "netlink_route_getaddr.pcap"
 	linkPcap := dumpsDir + "netlink_route_getlink.pcap"
+	routePcap := dumpsDir + "netlink_route_getroute.pcap"
+	devPcap := dumpsDir + "netlink_route_getaddr_dev.pcap"
+	briefPcap := "../../../pkg/xtcpnl/testdata/7_1_4/link-write/addr-show/mixed_links/netlink_route_getaddr_br.pcap"
 	addrJSON := want(t, addrPcap, goip.ShowRequest{Object: "address", JSON: true})
+	addrText := want(t, addrPcap, goip.ShowRequest{Object: "address"})
+	const textPlain = "text/plain; charset=utf-8"
 
 	tests := []struct {
 		name        string
@@ -114,7 +119,13 @@ func TestHandler(t *testing.T) {
 		wantBody    []byte // exact body, when set
 		wantInBody  string // substring, when set
 		wantArgv    string
-		wantOpens   int32 // -1: don't check
+		// wantLocation is the Content-Location, when set.
+		wantLocation string
+		// wantAllow is the Allow header, when set.
+		wantAllow string
+		// sameAs is a target whose body must equal this one's.
+		sameAs    string
+		wantOpens int32 // -1: don't check
 	}{
 		{name: "addr_json", description: "positive: /ip/addr is ip -j address show",
 			open: replayOpener(addrPcap), method: "GET", target: "/ip/addr",
@@ -136,8 +147,8 @@ func TestHandler(t *testing.T) {
 			wantStatus: 404, wantInBody: `"argv":"ip -j neighbor show dev nosuch0"`, wantOpens: 1},
 		{name: "post", description: "negative: POST is 405",
 			open: replayOpener(linkPcap), method: "POST", target: "/ip/addr", wantStatus: 405, wantOpens: 0},
-		{name: "unknown_object", description: "negative: /ip/tunnel is 404",
-			open: replayOpener(linkPcap), method: "GET", target: "/ip/tunnel", wantStatus: 404, wantOpens: 0},
+		{name: "unimplemented_tunnel", description: "negative: /ip/tunnel is an object goip cannot show yet: 501 naming the command",
+			open: replayOpener(linkPcap), method: "GET", target: "/ip/tunnel", wantStatus: 501, wantInBody: "ip tunnel show:", wantOpens: 0},
 		{name: "bad_param", description: "negative: a bad parameter is 400 and opens nothing",
 			open: replayOpener(linkPcap), method: "GET", target: "/ip/link?table=main", wantStatus: 400, wantOpens: 0},
 		{name: "open_fails", description: "negative: a socket that won't open is 500",
@@ -172,6 +183,110 @@ func TestHandler(t *testing.T) {
 			wantStatus: 404, wantType: "text/plain; charset=utf-8", wantInBody: "cannot find device", wantOpens: 1},
 		{name: "dotdot_path", description: "corner: /ip/addr/.. is cleaned by the mux, never a dev",
 			open: replayOpener(linkPcap), method: "GET", target: "/ip/addr/..", wantStatus: 307, wantOpens: 0},
+
+		// The command-line form (IA2-T02).
+		{name: "link_show", description: "positive: /ip/link/show is the text of goip link show",
+			open: replayOpener(linkPcap), method: "GET", target: "/ip/link/show",
+			wantStatus: 200, wantType: textPlain, wantBody: want(t, linkPcap, goip.ShowRequest{Object: "link"}),
+			wantArgv: "ip link show", wantLocation: "/ip/link/show", wantOpens: 1},
+		{name: "i_a_s", description: "positive: /i/a/s is /ip/address/show",
+			open: replayOpener(addrPcap), method: "GET", target: "/i/a/s",
+			wantStatus: 200, wantType: textPlain, wantBody: addrText, wantArgv: "ip address show", sameAs: "/ip/address/show", wantOpens: 1},
+		{name: "i_ad_s", description: "positive: ad is address too",
+			open: replayOpener(addrPcap), method: "GET", target: "/i/ad/s", wantStatus: 200, wantBody: addrText, wantArgv: "ip address show", wantOpens: 1},
+		{name: "i_a_show", description: "positive: the verb in full",
+			open: replayOpener(addrPcap), method: "GET", target: "/i/a/show", wantStatus: 200, wantBody: addrText, wantArgv: "ip address show", wantOpens: 1},
+		{name: "i_l_sh", description: "positive: sh is link's shortest show",
+			open: replayOpener(linkPcap), method: "GET", target: "/i/l/sh", wantStatus: 200, wantArgv: "ip link show", wantOpens: 1},
+		{name: "json_option", description: "positive: -j makes the output JSON, the bytes of goip -j address show",
+			open: replayOpener(addrPcap), method: "GET", target: "/ip/-j/addr/show",
+			wantStatus: 200, wantType: "application/json", wantBody: addrJSON,
+			wantArgv: "ip -json address show", wantLocation: "/ip/-json/address/show", wantOpens: 1},
+		{name: "brief", description: "positive: /ip/-br/a is goip -br address show",
+			open: replayOpener(briefPcap), method: "GET", target: "/ip/-br/a",
+			wantStatus: 200, wantType: textPlain, wantBody: want(t, briefPcap, goip.ShowRequest{Object: "address", Brief: true}),
+			wantArgv: "ip -brief address show", wantLocation: "/ip/-brief/address/show", wantOpens: 1},
+		{name: "full_grammar", description: "positive: options, an abbreviated object and verb, and selectors all reach goip",
+			open: replayOpener(routePcap), method: "GET", target: "/i/-4/r/s/table/all",
+			wantStatus: 200, wantType: textPlain,
+			wantBody: want(t, routePcap, goip.ShowRequest{Object: "route", Family: unix.AF_INET, Selectors: []string{"table", "all"}}),
+			wantArgv: "ip -4 route show table all", wantLocation: "/ip/-4/route/show/table/all", wantOpens: 1},
+		{name: "selector_gap", description: "negative: proto reaches goip's route parser, which does not implement it: 501 with the argv",
+			open: replayOpener(routePcap), method: "GET", target: "/ip/-4/route/show/table/all/proto/bgp",
+			wantStatus: 501, wantType: textPlain, wantInBody: `route show "proto"`, wantArgv: "ip -4 route show table all proto bgp", wantOpens: 1},
+		{name: "query_form_kept", description: "positive: the query form is unchanged, and gains the canonical location",
+			open: replayOpener(devPcap), method: "GET", target: "/ip/addr?dev=goip0",
+			wantStatus: 200, wantType: "application/json",
+			wantBody: want(t, devPcap, goip.ShowRequest{Object: "address", JSON: true, Selectors: []string{"dev", "goip0"}}),
+			wantArgv: "ip -j address show dev goip0", wantLocation: "/ip/-json/address/show/dev/goip0", wantOpens: 1},
+		{name: "query_form_abbrev", description: "positive: /i/a?dev= is /ip/addr?dev=",
+			open: replayOpener(devPcap), method: "GET", target: "/i/a?dev=goip0",
+			wantStatus: 200, wantType: "application/json", sameAs: "/ip/addr?dev=goip0", wantArgv: "ip -j address show dev goip0", wantOpens: 1},
+		{name: "shortcut_kept", description: "positive: /ip/link/lo is still the interface shortcut; the kernel's ENODEV is a 404",
+			open: errOpener(&errSource{errs: []error{unix.ENODEV}}), method: "GET", target: "/ip/link/lo",
+			wantStatus: 404, wantArgv: "ip -j link show dev lo", wantOpens: 1},
+		{name: "content_location", description: "positive: list and lst converge on the show location",
+			open: replayOpener(addrPcap), method: "GET", target: "/i/a/lst",
+			wantStatus: 200, wantArgv: "ip address lst", wantLocation: "/ip/address/show", wantOpens: 1},
+		{name: "pct2f_prefix", description: "positive: a %2F stays inside its token and equals the joined form; goip's route show has no prefix filter yet, so 501",
+			open: replayOpener(routePcap), method: "GET", target: "/ip/route/show/10.0.0.0%2F8",
+			wantStatus: 501, wantInBody: `"10.0.0.0/8"`, wantArgv: "ip route show 10.0.0.0/8", sameAs: "/ip/route/show/10.0.0.0/8", wantOpens: 1},
+
+		{name: "i_l_s_set", description: "negative: ip link s is set, refused before any socket opens",
+			open: replayOpener(linkPcap), method: "GET", target: "/i/l/s",
+			wantStatus: 400, wantType: textPlain, wantInBody: "ip link set:", wantOpens: 0},
+		{name: "i_a_sa_save", description: "negative: ip address sa is save, which reads but is not served",
+			open: replayOpener(addrPcap), method: "GET", target: "/i/a/sa", wantStatus: 501, wantInBody: "ip address save:", wantOpens: 0},
+		{name: "write_flush", description: "negative: flush is a write",
+			open: replayOpener(addrPcap), method: "GET", target: "/ip/addr/flush", wantStatus: 400, wantInBody: "ip address flush:", wantOpens: 0},
+		{name: "netns", description: "negative: -n is -netns, refused",
+			open: replayOpener(linkPcap), method: "GET", target: "/ip/-n/x/link", wantStatus: 400, wantInBody: "-netns", wantOpens: 0},
+		{name: "stats_two", description: "negative: -s -s is refused with goip's message",
+			open: replayOpener(linkPcap), method: "GET", target: "/ip/-s/-s/link", wantStatus: 400, wantInBody: "use a single -s", wantOpens: 0},
+		{name: "unknown_object", description: "negative: zz is no object",
+			open: replayOpener(linkPcap), method: "GET", target: "/ip/zz/show", wantStatus: 404, wantInBody: "unknown object", wantOpens: 0},
+		{name: "unimplemented", description: "negative: /i/m is maddress, named in full",
+			open: replayOpener(linkPcap), method: "GET", target: "/i/m", wantStatus: 501, wantInBody: "ip maddress show:", wantOpens: 0},
+		{name: "query_on_argv", description: "negative: a command line takes no query string",
+			open: replayOpener(linkPcap), method: "GET", target: "/ip/link/show?x=1", wantStatus: 400, wantInBody: "no query parameters", wantOpens: 0},
+		{name: "bad_selector", description: "negative: dev does not abbreviate, so address show d lo is a 400 with ip's message",
+			open: replayOpener(addrPcap), method: "GET", target: "/ip/addr/show/d/lo",
+			wantStatus: 400, wantType: textPlain, wantInBody: `either "dev" is duplicate, or "lo" is garbage`, wantArgv: "ip address show d lo", wantOpens: 1},
+		{name: "bad_table", description: "negative: a table that is no id is ip's invarg, a 400",
+			open: replayOpener(routePcap), method: "GET", target: "/ip/route/show/table/wombat",
+			wantStatus: 400, wantInBody: `argument "wombat" is wrong: table id value is invalid`, wantArgv: "ip route show table wombat", wantOpens: 1},
+		{name: "bad_token", description: "negative: a tokenizer refusal is a 400 before any socket",
+			open: replayOpener(linkPcap), method: "GET", target: "/ip/link/show/dev/a%00", wantStatus: 400, wantInBody: "control character", wantOpens: 0},
+		{name: "no_dev_object", description: "negative: rule takes no interface, so /ip/rule/x is a command line ip rejects",
+			open: replayOpener(linkPcap), method: "GET", target: "/ip/rule/x", wantStatus: 400, wantInBody: `command "x" is unknown for ip rule`, wantOpens: 0},
+		{name: "post_argv", description: "negative: POST on a command line is 405",
+			open: replayOpener(addrPcap), method: "POST", target: "/i/a/s", wantStatus: 405, wantAllow: "GET, HEAD", wantOpens: 0},
+
+		{name: "root_m", description: "boundary: /m is not /metrics; only the root abbreviates to /i",
+			open: replayOpener(linkPcap), method: "GET", target: "/m", wantStatus: 404, wantOpens: 0},
+		{name: "root_in", description: "boundary: /in is not a root",
+			open: replayOpener(linkPcap), method: "GET", target: "/in", wantStatus: 404, wantOpens: 0},
+		{name: "root_ipx", description: "boundary: /ipx is not a root",
+			open: replayOpener(linkPcap), method: "GET", target: "/ipx", wantStatus: 404, wantOpens: 0},
+		{name: "index_short_root", description: "boundary: /i is the index",
+			open: replayOpener(linkPcap), method: "GET", target: "/i", wantStatus: 200, sameAs: "/ip/", wantOpens: 0},
+		{name: "index_short_root_slash", description: "boundary: /i/ is the index",
+			open: replayOpener(linkPcap), method: "GET", target: "/i/", wantStatus: 200, sameAs: "/ip", wantOpens: 0},
+		{name: "join_v4_33", description: "boundary: an IPv4 /33 is a 400 naming the range",
+			open: replayOpener(routePcap), method: "GET", target: "/ip/route/show/10.0.0.0/33", wantStatus: 400, wantInBody: "0-32", wantOpens: 0},
+
+		{name: "iface_named_show", description: "corner: an interface named show needs dev",
+			open: errOpener(&errSource{errs: []error{unix.ENODEV}}), method: "GET", target: "/ip/link/show/dev/show", wantStatus: 404, wantArgv: "ip link show dev show", wantOpens: 1},
+		{name: "iface_named_s", description: "corner: /ip/link/s is set, not the interface s",
+			open: replayOpener(linkPcap), method: "GET", target: "/ip/link/s", wantStatus: 400, wantInBody: "ip link set:", wantOpens: 0},
+		{name: "head_argv", description: "corner: HEAD on a command line sends the headers and no body",
+			open: replayOpener(addrPcap), method: "HEAD", target: "/i/a/s",
+			wantStatus: 200, wantType: textPlain, wantBody: []byte{}, wantArgv: "ip address show", wantLocation: "/ip/address/show", wantOpens: 1},
+		{name: "alias_location", description: "corner: ntbl stays as typed in the argv; the location is canonical",
+			open: errOpener(&errSource{}), method: "GET", target: "/i/ntbl/show", wantStatus: 200, wantArgv: "ip ntbl show", wantLocation: "/ip/ntable/show", wantOpens: 1},
+		{name: "json_error", description: "corner: with -j, a show failure is a JSON error",
+			open: errOpener(&errSource{errs: []error{unix.ENODEV}}), method: "GET", target: "/ip/-j/link/show/dev/nosuch0",
+			wantStatus: 404, wantType: "application/json", wantInBody: `"argv":"ip -json link show dev nosuch0"`, wantOpens: 1},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -195,6 +310,27 @@ func TestHandler(t *testing.T) {
 			}
 			if tc.wantArgv != "" && rec.Header().Get(ArgvHeader) != tc.wantArgv {
 				t.Errorf("%s: %s %q, want %q", tc.description, ArgvHeader, rec.Header().Get(ArgvHeader), tc.wantArgv)
+			}
+			if tc.wantLocation != "" && rec.Header().Get("Content-Location") != tc.wantLocation {
+				t.Errorf("%s: Content-Location %q, want %q", tc.description, rec.Header().Get("Content-Location"), tc.wantLocation)
+			}
+			if tc.wantStatus != 200 && rec.Header().Get("Content-Location") != "" {
+				t.Errorf("%s: Content-Location %q on a %d", tc.description, rec.Header().Get("Content-Location"), rec.Code)
+			}
+			if tc.wantAllow != "" && rec.Header().Get("Allow") != tc.wantAllow {
+				t.Errorf("%s: Allow %q, want %q", tc.description, rec.Header().Get("Allow"), tc.wantAllow)
+			}
+			if tc.sameAs != "" {
+				h2, err := New(Options{Open: tc.open, MaxBytes: tc.maxBytes})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if other := serve(t, h2, tc.method, tc.sameAs); other.Code != rec.Code || !bytes.Equal(other.Body.Bytes(), rec.Body.Bytes()) {
+					t.Errorf("%s: %s gave %d %q, want %s's %d %q", tc.description, tc.sameAs, other.Code, other.Body.String(), tc.target, rec.Code, rec.Body.String())
+				}
+			}
+			if rec.Code != http.StatusTemporaryRedirect && rec.Code != http.StatusNotFound && rec.Header().Get("X-Content-Type-Options") != nosniff {
+				t.Errorf("%s: X-Content-Type-Options %q on a %d", tc.description, rec.Header().Get("X-Content-Type-Options"), rec.Code)
 			}
 			if tc.wantStatus == 200 && rec.Header().Get("Cache-Control") != "no-store" {
 				t.Errorf("%s: Cache-Control %q", tc.description, rec.Header().Get("Cache-Control"))
@@ -258,6 +394,113 @@ func TestHandlerInFlight(t *testing.T) {
 	mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), "GET", "/ip/rule", nil))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("after release: %d, want 200", rec.Code)
+	}
+}
+
+// TestHandlerSlotsShared checks that the two forms share one pool of
+// in-flight slots: a command line and a query fill it, and a third request
+// of either form is refused.
+func TestHandlerSlotsShared(t *testing.T) {
+	release := make(chan struct{})
+	entered := make(chan struct{})
+	blocking := func() (goip.Source, func() error, error) {
+		entered <- struct{}{}
+		<-release
+		return &errSource{}, func() error { return nil }, nil
+	}
+	h, err := New(Options{Open: blocking, InFlight: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mux := http.NewServeMux()
+	h.Register(mux, nil)
+
+	done := make(chan int, 2)
+	for _, target := range []string{"/ip/rule", "/i/ru/s"} {
+		go func() {
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, httptest.NewRequest("GET", target, nil))
+			done <- rec.Code
+		}()
+		<-entered
+	}
+	for _, tc := range []struct {
+		name, category, description, target string
+		expected                            int
+	}{
+		{"argv_third", "boundary", "a command line while both slots are held", "/i/l/sh", http.StatusServiceUnavailable},
+		{"query_third", "boundary", "a query while both slots are held", "/ip/link", http.StatusServiceUnavailable},
+		{"refusal_unlimited", "corner", "a refused path needs no slot, so it is still refused as itself", "/i/l/s", http.StatusBadRequest},
+		{"index_unlimited", "positive", "the short index needs no slot", "/i", http.StatusOK},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), "GET", tc.target, nil))
+			if rec.Code != tc.expected {
+				t.Fatalf("%s: %s: %s gave %d, want %d", tc.category, tc.description, tc.target, rec.Code, tc.expected)
+			}
+		})
+	}
+	close(release)
+	for range 2 {
+		if code := <-done; code != http.StatusOK {
+			t.Fatalf("held request: %d, want 200", code)
+		}
+	}
+}
+
+// TestRegisterWrap checks that wrap (go-link-monitor's read auth) guards
+// both roots and both forms, and that nothing is read before it answers.
+func TestRegisterWrap(t *testing.T) {
+	var c counter
+	h, err := New(Options{Open: c.wrap(replayOpener(dumpsDir + "netlink_route_getlink.pcap"))})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mux := http.NewServeMux()
+	h.Register(mux, func(http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+		})
+	})
+	for _, tc := range []struct {
+		name, category, description, target string
+	}{
+		{"argv", "positive", "a command line with no credential", "/i/a/s"},
+		{"query_short", "positive", "the query form under /i", "/i/a?dev=lo"},
+		{"query_long", "positive", "the query form under /ip", "/ip/link"},
+		{"index_short", "boundary", "the /i index", "/i"},
+		{"index_long_slash", "boundary", "the /ip/ index", "/ip/"},
+		{"write_verb", "corner", "a write-verb path is refused by auth first, not by the resolver", "/i/l/s"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), "GET", tc.target, nil))
+			if rec.Code != http.StatusUnauthorized {
+				t.Fatalf("%s: %s: %s gave %d, want 401", tc.category, tc.description, tc.target, rec.Code)
+			}
+		})
+	}
+	if c.opens.Load() != 0 {
+		t.Errorf("unauthorized requests opened %d sources", c.opens.Load())
+	}
+}
+
+// TestRegistryCoversGoip checks that every object goip shows, in any of its
+// spellings, has a query form: servePath answers 500 for one that does not.
+func TestRegistryCoversGoip(t *testing.T) {
+	for key := range goip.Shortest() {
+		if strings.Contains(key, " ") {
+			continue
+		}
+		name, err := goip.LookupObject(key)
+		if err != nil {
+			t.Errorf("%s: %v", key, err)
+			continue
+		}
+		if byObject[name] == nil {
+			t.Errorf("%s (%s) has no registry entry", key, name)
+		}
 	}
 }
 
@@ -410,6 +653,11 @@ func TestRegisterMethods(t *testing.T) {
 		{"delete_dev", "negative", "DELETE on an interface path is refused", http.MethodDelete, "/ip/link/eth0", http.StatusMethodNotAllowed},
 		{"options_index", "boundary", "OPTIONS on the index is refused", http.MethodOptions, "/ip", http.StatusMethodNotAllowed},
 		{"post_bad_param", "corner", "POST with a bad parameter is 405, not 400", http.MethodPost, "/ip/addr?foo=1", http.StatusMethodNotAllowed},
+		{"get_argv", "positive", "GET on a command line is served", http.MethodGet, "/i/l/sh", http.StatusOK},
+		{"head_argv", "positive", "HEAD on a command line is served", http.MethodHead, "/ip/link/show", http.StatusOK},
+		{"put_argv", "negative", "PUT on a command line is refused", http.MethodPut, "/ip/link/show", http.StatusMethodNotAllowed},
+		{"delete_write_verb", "corner", "DELETE on a write-verb path is 405 before the verb is read", http.MethodDelete, "/i/l/s", http.StatusMethodNotAllowed},
+		{"options_short_index", "boundary", "OPTIONS on /i is refused", http.MethodOptions, "/i", http.StatusMethodNotAllowed},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Logf("%s: %s; expected: %d", tc.category, tc.description, tc.expected)
