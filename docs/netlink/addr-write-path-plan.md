@@ -745,6 +745,24 @@ Tests: `TestAddrSaveMatchesIpBytes` and `TestAddrShowdumpMatchesSidecar`
 
 Done when: both match every `addr-save` slug.
 
+As built:
+- `save` sends what `ip` sends: the show loop's by-name lookup for `dev`,
+  then `preferred_family`'s dump with the device's ifindex. It writes the
+  replies whole, through a new `MsgDumpSource.DumpMsgs`, because the
+  kernel's flags are not derivable: save_dev's replies carry
+  `NLM_F_DUMP_FILTERED`. `xtcpnl.WalkNlMsgsHdr` and `DumpRtnetlinkMsgs`
+  hand the walker's callback the whole header; `WalkNlMsgs` and
+  `DumpRtnetlink` wrap them, unchanged.
+- The covered slugs are save_dev, save_all, save_empty, showdump and
+  showdump_bad_magic. The restore slugs are A9-T02's.
+- `Run` gained stdin through `run(args, stdin, stdout, stderr)`. A dump file
+  showdump refuses exits 255 (`ErrDumpFile`), and a save whose dump fails
+  after the magic exits 1 (`ErrSaveTerminated`).
+- Refused as not implemented: `-0 addr save`; `-j`, `-br` and `-o`
+  showdump; and `RTM_DELADDR`, multicast and anycast records or a record
+  shorter than an `ifaddrmsg` in a dump file. For the last, `ip` prints an
+  index left in its buffer by the previous record.
+
 #### A9-T02
 
 **`restore`.** Depends on: A9-T01.

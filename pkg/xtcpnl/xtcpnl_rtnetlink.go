@@ -150,6 +150,14 @@ func BuildDumpRouteRequest(family uint8, seq uint32) []byte {
 // SOCK_SEQPACKET socketpair); on a bound NETLINK_ROUTE socket pass the kernel
 // address {Family: AF_NETLINK}.
 func DumpRtnetlink(fd int, request []byte, sa *unix.SockaddrNetlink, onMsg func(msgType uint16, body []byte) error) error {
+	return DumpRtnetlinkMsgs(fd, request, sa, typeOnly(onMsg))
+}
+
+// DumpRtnetlinkMsgs is DumpRtnetlink with each reply's whole nlmsghdr handed
+// to onMsg, not just its type. `ip addr save` writes the replies as the
+// kernel sent them, flags included, and the flags are not derivable: a dump
+// the kernel filtered by ifindex carries NLM_F_DUMP_FILTERED.
+func DumpRtnetlinkMsgs(fd int, request []byte, sa *unix.SockaddrNetlink, onMsg func(h NlMsgHdr, body []byte) error) error {
 	if len(request) < NlMsgHdrSizeCst {
 		return ErrShortRequest
 	}
@@ -178,7 +186,7 @@ func DumpRtnetlink(fd int, request []byte, sa *unix.SockaddrNetlink, onMsg func(
 		if interrupted {
 			deliver = nil // draining only: nothing more is delivered after an interruption
 		}
-		done, werr := WalkNlMsgs(buf[:n], seq, deliver)
+		done, werr := WalkNlMsgsHdr(buf[:n], seq, deliver)
 		switch {
 		case errors.Is(werr, ErrDumpInterrupted):
 			interrupted = true
@@ -325,6 +333,21 @@ func fromKernel(from unix.Sockaddr) bool {
 // the first header, or use pkg/nlparity, whose tolerant walker does not filter
 // at all.
 func WalkNlMsgs(data []byte, seq uint32, onMsg func(msgType uint16, body []byte) error) (done bool, err error) {
+	return WalkNlMsgsHdr(data, seq, typeOnly(onMsg))
+}
+
+// typeOnly adapts a type-and-body callback to WalkNlMsgsHdr's. nil stays
+// nil, which the walker reads as "walk, deliver nothing".
+func typeOnly(onMsg func(msgType uint16, body []byte) error) func(h NlMsgHdr, body []byte) error {
+	if onMsg == nil {
+		return nil
+	}
+	return func(h NlMsgHdr, body []byte) error { return onMsg(h.Type, body) }
+}
+
+// WalkNlMsgsHdr is WalkNlMsgs with the whole nlmsghdr handed to onMsg, by the
+// same rules.
+func WalkNlMsgsHdr(data []byte, seq uint32, onMsg func(h NlMsgHdr, body []byte) error) (done bool, err error) {
 	if len(data) < NlMsgHdrSizeCst {
 		return false, ErrShortRecv
 	}
@@ -369,7 +392,7 @@ func WalkNlMsgs(data []byte, seq uint32, onMsg func(msgType uint16, body []byte)
 			// nothing to do
 		default:
 			if !interrupted && onMsg != nil {
-				if cerr := onMsg(h.Type, body); cerr != nil {
+				if cerr := onMsg(h, body); cerr != nil {
 					return false, cerr
 				}
 			}

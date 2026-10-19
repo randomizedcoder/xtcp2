@@ -25,8 +25,10 @@ import (
 //
 // add, change, replace and delete build `ip`'s request and write it to
 // GOIP_WRITE_OUT (addrWrite), and flush sends `ip`'s dumps and writes its
-// RTM_DELADDR copies there (addrFlush); nothing is applied. The default arm
-// covers save/showdump/restore, which are read-only but not implemented.
+// RTM_DELADDR copies there (addrFlush); nothing is applied. save and showdump
+// follow flush, in do_ipaddr's order (addr_save.go), so `sa` is save and
+// `showd` is showdump. The default arm covers restore, which is not
+// implemented.
 func runAddress(c *runCtx, args []string) error {
 	if len(args) == 0 {
 		return addrShow(c, nil)
@@ -40,6 +42,10 @@ func runAddress(c *runCtx, args []string) error {
 		return addrShow(c, args[1:])
 	case matchesPrefix(verb, "flush"):
 		return addrFlush(c, args[1:])
+	case matchesPrefix(verb, "save"):
+		return addrSave(c, args[1:])
+	case matchesPrefix(verb, "showdump"):
+		return addrShowdump(c, args[1:])
 	default:
 		return fmt.Errorf("address %q: %w", verb, ErrNotImplemented)
 	}

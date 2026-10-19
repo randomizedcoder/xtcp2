@@ -4,7 +4,7 @@ Last updated: 2026-10-18.
 
 **Phases A0 through A8 are done.** The design
 ([addr-write-path.md](addr-write-path.md)) and the plan
-([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. 22 of 25
+([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. 23 of 25
 tasks are done: A0-T01 (V001), A0-T02 (closed by a finding, V002), A0-T03
 and A0-T04, closed by one KVM capture (V005), A0-T05, which recorded M1–M3
 from that capture's fixtures (V006), A1-T01, which decodes the four
@@ -39,9 +39,14 @@ dump, the DEL copies in `ip`'s 3584-byte batches, round 2 less what was
 already copied, `-loops`, the `-s` round text and both refusals. It matches
 all 9 sending flush captures byte for byte, and the live matrix is unchanged
 (V054–V056). A8-T03 adds the `Writes` field and seven `addr_flush_<slug>`
-rows, and gates all seven on two clean live runs (V057–V060).
+rows, and gates all seven on two clean live runs (V057–V060). A9-T01 is
+`goip address save` and `showdump`. `save` writes the magic and the dump's
+replies whole, kernel flags included, and matches all three save captures
+byte for byte. `showdump` prints a dump file from stdin, sending nothing,
+and matches both showdump captures and real `ip` on twelve synthetic files.
+The live matrix is unchanged (V061–V063).
 
-**Next action:** A9-T01 (`save` and `showdump`, depends on A8-T01).
+**Next action:** A9-T02 (`restore`).
 
 ## Update rules
 
@@ -84,7 +89,7 @@ rows, and gates all seven on two clean live runs (V057–V060).
 | A6 | `goip addr add/change/replace/delete` | done | 2/2 | V032, V033, V034, V035 |
 | A7 | write rows in the matrix | done | 2/2 | V036, V037, V038, V041, V042, V043, V044 |
 | A8 | `flush` and the multi-write comparator | done | 3/3 | V051, V052, V053, V054, V055, V056, V057, V058, V059, V060 |
-| A9 | `save`, `showdump`, `restore` | not started | 0/3 | — |
+| A9 | `save`, `showdump`, `restore` | in progress | 1/3 | V061, V062, V063 |
 
 ## Task checklist
 
@@ -115,7 +120,7 @@ Add evidence IDs to the last column as work runs.
 | [x] | [A8-T01](addr-write-path-plan.md#a8-t01) | `SplitWrites` and `CompareWrites` | done | V051, V052, V053, DOC019 |
 | [x] | [A8-T02](addr-write-path-plan.md#a8-t02) | `goip addr flush` | done | V054, V055, V056, DOC020 |
 | [x] | [A8-T03](addr-write-path-plan.md#a8-t03) | the `Writes` field and flush rows | done | V057, V058, V059, V060, DOC021 |
-| [ ] | [A9-T01](addr-write-path-plan.md#a9-t01) | `save` and `showdump` | not started | — |
+| [x] | [A9-T01](addr-write-path-plan.md#a9-t01) | `save` and `showdump` | done | V061, V062, V063, DOC022 |
 | [ ] | [A9-T02](addr-write-path-plan.md#a9-t02) | `restore` | not started | — |
 | [ ] | [A9-T03](addr-write-path-plan.md#a9-t03) | restore and showdump in the matrix | not started | — |
 
@@ -141,7 +146,7 @@ it.
 
 | # | Statement | Amended by | State |
 |---|---|---|---|
-| 11 | `goip is read-only` for every non-show verb | A6-T02 (four verbs), A8-T02 (`flush`), A9-T03 (`save`/`showdump`/`restore`) | amended for the four verbs (A6-T02) and for `flush` (A8-T02); A9-T03 still owes its part |
+| 11 | `goip is read-only` for every non-show verb | A6-T02 (four verbs), A8-T02 (`flush`), A9-T03 (`save`/`showdump`/`restore`) | amended for the four verbs (A6-T02) and for `flush` (A8-T02). A9-T01 implemented `save` and `showdump`, and the code comment now names `restore` alone. A9-T03 still owes the statement |
 | 12 | `ErrNotAnAdmittedWrite`'s text names four types | A4-T01 | done |
 | 13 | `admittedWriteTypes` has four entries | A4-T01 | done |
 | 14 | `coverage-status.md`'s "read-only, `show` only" scope line | A6-T02 | done |
@@ -235,6 +240,10 @@ it.
 | V059 | 2026-10-18 | A8-T03 | the same parity run, rerun sequentially | All 181 verdicts and `txns` identical to V058, and the seven flush rows the same control, findings and datagram counts on every side. 173 PASS, 7 WARN and 1 FAIL. `HYGIENE_FAIL 2`, `UNGATED_DIVERGENCES 7`, `CONTROL_NOISY 166`. The seven rows then went into `gated_commands` and the earned list, pinned by `TestAddrFlushRowsGated`; removing one from `gated_commands` fails it, `TestUngatedSurfaceIsNotVacuous` and `TestAllowlistCommitted` | transcript in the session scratchpad, not kept |
 | V060 | 2026-10-18 | A8-T03 | the nix checks: `.#test-focused-goip`, `checks.netlink-audit`, `checks.lint-baseline`, `.#quality-report`, `checks.nix-fmt`, `checks.statix`, `checks.deadnix`. `vm-lib-exp` does not apply: no `.exp` file changed | Passed, except `lint-baseline`, which fails on `main` with the same 17 tier-2 findings. The branch adds none. A first run found one of its own, `prealloc` on the flush file in `corpusFlushRow`, fixed with no directive, and the test-only change was rechecked | the check outputs |
 | DOC021 | 2026-10-18 | A8-T03 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc, plus `git diff --check`. The glance-table counts in `coverage-status.md` and `docs/netlink/README.md` recounted from `Commands()` and the allowlist | Passed: 25 task IDs one to one; 22 done ticks; no broken links or anchors; ledger IDs unique and in order; `git diff --check` clean; 181 rows, 181 implemented, 158 gated, 81 writes, 7 entries | Summary retained here; the checker script was session-local |
+| V061 | 2026-10-18 | A9-T01 | `go test ./internal/goip/... ./internal/goipparity/... ./pkg/nlparity/... ./pkg/xtcpnl/...`. New: `TestAddrSaveMatchesIpBytes` (save_dev, save_all and save_empty: requests equal to `ip`'s apart from seq and pid, stdout equal to `ip.save`, which is 164, 600 and 4 bytes, `ip.err` and `ip.rc`; save_dev's records flagged `0x22`, save_all's `0x2`; the magic `22 12 36 47`), `TestAddrShowdumpMatchesSidecar` (through `run`, with stdin: showdump prints the 793-byte `ip.out`; showdump_bad_magic exits 255 with `Magic mismatch (1 elems, 0 magic)`), `TestAddrSave` (15 rows), `TestAddrShowdump` (16), `TestIsTerminal` (5: a `/dev/ptmx` master, which the nix sandbox has), `TestReplaySourceDumpMsgs` (4), `TestWalkNlMsgsHdr` (6) and `TestDumpRtnetlinkMsgsSocketpair` (3). `TestAddrShowdump`'s ten stdout, stderr and rc rows were run once through `ip addr showdump` from iproute2-7.1.0 (`nix shell nixpkgs#iproute2`) and match. The run also showed `ip` printing `if0:` for a header-only record, read from a stale buffer; goip refuses that record. `TestRunAddrArgs`' not-implemented row moved from `save` to `restore`. Mutation check in a scratch worktree: each mutant failed the rows named for it, and was reverted. The mutants were: reply flags rebuilt as `0x2` (save_dev), the magic big-endian (all three save rows), the stdout terminal check dropped (both terminal rows), `NLMSG_ALIGN` dropped from the body read (the length-27 row), save's ifindex dropped (save_dev, save_empty) and `ErrDumpFile` mapped to 1 (every magic mismatch row) | Passed: all green; the six mutants caught | `internal/goip/addr_save_test.go`, `internal/goip/addr_save_corpus_test.go`, `pkg/xtcpnl/xtcpnl_rtnetlink_hdr_test.go` |
+| V062 | 2026-10-18 | A9-T01 | `nix run .#microvm-x86_64-goip-parity -- --timeout 4500` from a scratch worktree at `main` (825b8e1c) plus this change, on an x86_64 NixOS host with `/dev/kvm`. No row runs save or showdump; the run guards the stdin and exit-code changes | All 181 verdicts, `txns` and findings identical to V059. Four read rows' control `nl` counts moved (`link show -s`, `addr show -4`, `addr show -s`, `ntable show -j`), with no finding. 173 PASS, 7 WARN and 1 FAIL, the pre-existing `-4 netconf show dev` (`HYGIENE_FAIL 2`), so the run ends `OVERALL_FAIL` as it does on `main`. `UNGATED_DIVERGENCES 7`, `CONTROL_NOISY 163`. The worktree predates the lint fix that moved stdin into `newRunCtx`, which changes no behavior | transcript in the session scratchpad, not kept |
+| V063 | 2026-10-18 | A9-T01 | the nix checks: `.#test-focused-goip`, `checks.netlink-audit`, `checks.lint-baseline`, `.#quality-report`, `checks.nix-fmt`, `checks.statix`, `checks.deadnix`. `vm-lib-exp` does not apply: no `.exp` file changed | Passed, except `lint-baseline`, which fails on `main` with the same 17 tier-2 findings. The branch adds none. A first run found two of its own, each fixed with no directive: `prealloc` in a test helper, and `run`'s statement count (stdin now goes through `newRunCtx`). `test-focused-goip` was rerun after the fix | the check outputs |
+| DOC022 | 2026-10-18 | A9-T01 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc, plus `git diff --check` | Passed: 25 task IDs one to one; 23 done ticks; no broken links or anchors; ledger IDs unique and in order; `git diff --check` clean | Summary retained here; the checker script was session-local |
 
 ## Blockers and upcoming requirements
 
@@ -243,6 +252,27 @@ it.
 - **No open blockers.**
 
 ## Progress and decision log
+
+- **2026-10-18.** A9-T01 is done.
+  - **Save keeps the kernel's headers.** `ip` writes each reply as it
+    arrived, and save_dev's carry `NLM_F_DUMP_FILTERED`, which no body
+    shows. `Source.Dump` returns bodies, so `MsgDumpSource.DumpMsgs` is a
+    narrow sibling, as `TalkSource` is, over a header-keeping
+    `xtcpnl.WalkNlMsgsHdr`.
+  - **Save's family is `preferred_family`.** Flush dumps with
+    `filter.family`, which a `to` prefix can set. Save does not
+    (`ipaddress.c:2267`), so `addr save to 192.0.2.0/24` dumps family 0.
+  - **The service refusal has its own sentinel.** The plan had
+    `AddressMsgs` return a wrapped `ErrNotImplemented`. `service` cannot
+    import `goip`, so it returns `service.ErrNoMsgDump`, and `addrSave`
+    refuses such a source with `ErrNotImplemented` before any request.
+  - **A short record is refused.** `show_handler` reads `ifa_index`
+    whatever the record's length, so a header-only record prints a stale
+    index (`if0:` on the live check). goip refuses any record shorter than
+    an `ifaddrmsg`.
+  - **The terminal test is TCGETS.** `/dev/null` is a character device that
+    is not a terminal, and `ip addr save > /dev/null` runs, so the check is
+    isatty's ioctl, not the file mode.
 
 - **2026-10-18.** A8-T03 is done, and phase A8 with it.
   - **flush_many is `addr flush d0`.** Names must be unique, and flush_dev,
