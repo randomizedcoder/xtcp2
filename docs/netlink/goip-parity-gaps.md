@@ -16,14 +16,7 @@
   - measures, for each netlink message type `ip` uses, whether we have nlmon pcaps, a table-driven parse test and a parse benchmark ([The message-type assessment](#the-message-type-assessment));
   - plans the work in three tiers, in this order: complete the capture corpus, then the parsers, then goip and the matrix ([Phases and tasks](#phases-and-tasks)).
 
-**Next action:** [C0-T01](#c0-t01-protocol-aware-capture), protocol-aware capture.
-
-**How to update this document:**
-- States are `not started`, `in progress`, `blocked`, `done` or `deferred`. There are no percentages.
-- A task is `done` only when its "Done when" has passed and the evidence is in the [ledger](#verification-ledger).
-- Evidence IDs (`V###` for code and VM runs, `DOC###` for docs) are immutable and append-only.
-- Task IDs (`Cn-Tmm`, `Pn-Tmm`, `Gn-Tmm`) are never renumbered.
-- A statement elsewhere in `docs/netlink/` that a task makes false is amended in that task's PR.
+**Progress** is tracked in [goip-parity-gaps-status.md](goip-parity-gaps-status.md): the next action, the phase states, the task checklist, the verification ledger and the decision log. This document changes only when a task refines its own plan, or when a phase close re-measures the [assessment](#the-message-type-assessment).
 
 ## Contents
 
@@ -34,9 +27,6 @@
 - [The per-object pipeline](#the-per-object-pipeline)
 - [Gates every task inherits](#gates-every-task-inherits)
 - [Phases and tasks](#phases-and-tasks)
-- [Task checklist](#task-checklist)
-- [Verification ledger](#verification-ledger)
-- [Decision log](#decision-log)
 - [See also](#see-also)
 
 ## Reference sources
@@ -139,7 +129,7 @@ Nothing is in place for this protocol: no decoder, no capture and no goip object
 
 ### F. Not netlink: outside pcap parity
 
-These surfaces have no netlink message to capture, so they are out of scope for this plan. The [decision log](#decision-log) records that decision.
+These surfaces have no netlink message to capture, so they are out of scope for this plan. The [decision log](goip-parity-gaps-status.md#decision-log) records that decision.
 
 | surface | mechanism |
 |---|---|
@@ -395,6 +385,28 @@ G0 (no dependencies)
 
 Every task's tests are tables of description and expected outcome. The rows listed below are the minimum; a task adds rows as its capture shows the need.
 
+### Closing a phase
+
+A phase's last task PR also closes the phase. In that same PR:
+1. **Status:** in [goip-parity-gaps-status.md](goip-parity-gaps-status.md):
+   - every task in the phase goes to `done`, with its `V###` IDs;
+   - the phase's row in **Phase states** goes to `done`;
+   - **Last updated**, the summary and **Next action** are updated.
+2. **Re-measure:**
+   - run [How to re-measure](#how-to-re-measure) (from C4 on, the universe test);
+   - update the [assessment](#the-message-type-assessment) tables here;
+   - append a `DOC###` ledger row naming the commit and the numbers.
+3. **Expand the next phase:** a range row such as `C2-T01…T08` becomes one checklist row per task. IDs already listed never change.
+4. **Decisions:** record in the decision log every exclusion, divergence or scope change the phase decided.
+5. **Cross-docs:** amend any statement in [coverage-status.md](coverage-status.md), the README counts or elsewhere in `docs/netlink/` that the phase made false.
+6. **Checks:**
+   - task IDs are one to one between this document's task sections and the checklist;
+   - the dependency graph is acyclic;
+   - links and anchors resolve;
+   - US spelling.
+
+A task PR that doesn't close a phase still flips its own checklist row and appends its `V###` rows. Only steps 2 to 5 wait for the phase close.
+
 ### C0 — Capture harness
 
 #### C0-T01 Protocol-aware capture
@@ -421,33 +433,40 @@ Every task's tests are tables of description and expected outcome. The rows list
 - the gates pass;
 - a scratch capture of one existing row is byte-identical in its netlink records to the committed pcap.
 
-#### C0-T02 Guest modules, sysctls and an event subscriber
+#### C0-T02 Late modules, sysctls and an event subscriber
 
 **Depends on:** C0-T01.
 
 **Deliver:**
-- The capture flavors (and only those) load:
+- A new `xtcp2-nlcap modules <subdir> <mod>…` subcommand:
+  - it modprobes each module in turn;
+  - it writes a `modules` sidecar (`lsmod`, filtered to the named modules);
+  - on the first failure it prints `NLCAP_MOD_FAIL <mod>`, exits 1 and writes no sidecar.
+- `capture-netlink-dumps.exp` and `capture-link-writes.exp` call it **once, after every existing row**, for:
   - `fou`, `ila`;
   - `l2tp_core`, `l2tp_netlink`, `l2tp_eth`, `l2tp_ip`, `l2tp_ip6`;
   - `macsec`;
-  - `ipip`, `sit`, `ip_gre`, `ip6_tunnel`;
-  - `xfrm_user` and the crypto modules that the C3 rows use;
-  - the IPMR and IP6MR options.
-- Each run sets `net.mptcp.enabled=1`.
-- A capture-time `ip monitor` subscriber runs while event triggers fire. The kernel emits nothing to a group with no listener ([Known blockers](coverage-status.md#known-blockers)).
-- A `modules` sidecar records `lsmod` for each run.
+  - `xfrm_user` and the crypto modules that the C3 rows use.
+  - The tunnel modules (`ipip`, `ip_gre`, `sit`, `ip6_tunnel`, `ip6_gre`) are already loaded the same way (`capture-netlink-dumps.exp:775`).
+  - The IPMR and IP6MR options are checked as present in the guest kernel.
+- **Why not at boot:**
+  - A module is a kernel-wide object. One that creates fallback devices puts them in every namespace, including ones that already exist.
+  - Loading the tunnel modules at boot was measured to move goip0 from ifindex 3 to 10, which rewrites every committed fixture (`nix/microvms/mkVm.nix:4034-4049`).
+  - So `boot.kernelModules` is unchanged, and loading late leaves every existing fixture as it is.
+- Each run sets `net.mptcp.enabled=1` through the existing `sysctl` subcommand.
+- Event rows run under the existing `xtcp2-nl-ipmon` subscriber (`netlink-capture.nix:250`). The kernel emits nothing to a group with no listener ([Known blockers](coverage-status.md#known-blockers)).
 
-The flavors are configured in `nix/microvms/mkVm.nix` (`isNetlinkDumpCapture`, `isLinkWriteCapture`).
-
-**Tests:**
+**Tests** (the first three are `ccheck` rows in `addr-topology-test.exp`. modprobe fails in the sandbox, so only the failure paths run there; the rest need the VM):
 
 | description | expected |
 |---|---|
-| positive: every required module is loaded | `modules` lists each one |
-| negative: a row whose module is absent | the run fails with a named error; no empty pcap is written |
-| corner: the parity and lifecycle flavors are unchanged | their module lists are identical to `main`'s |
+| negative: an unknown module | rc 1, `NLCAP_MOD_FAIL xtcp2_no_such_mod` |
+| negative: no module named | rc 2, `NLCAP_ERR` |
+| corner: a failed load leaves no `modules` sidecar | the file is absent |
+| positive (VM): every required module loads | `modules` lists each one |
+| corner (VM): the existing route fixtures after the late load | byte-identical in their netlink records to the committed pcaps |
 
-**Done when:** the gates pass, and one row per module produces its pcap.
+**Done when:** the gates pass, and the VM run's `modules` sidecar lists every module. This task closes C0 ([Closing a phase](#closing-a-phase)).
 
 ### C1 — rtnetlink
 
@@ -740,44 +759,9 @@ One task per family, in the C2 order.
 
 xfrm state and policy show first, then the writes.
 
-## Task checklist
-
-Task IDs link to their sections. Phases not yet broken into individual tasks are listed with their range, and get one row per task when they're broken down; IDs already listed never change.
-
-| Done | Task | Work | State | Evidence |
-|---|---|---|---|---|
-| [ ] | [C0-T01](#c0-t01-protocol-aware-capture) | protocol-aware capture | not started | |
-| [ ] | [C0-T02](#c0-t02-guest-modules-sysctls-and-an-event-subscriber) | guest modules, sysctls, subscriber | not started | |
-| [ ] | [C1-T01](#c1-t01-del-and-set-types-for-existing-parsers) | DEL/SET types | not started | |
-| [ ] | [C1-T02](#c1-t02-write-and-get-verbs-that-goip-lacks) | write and get verbs | not started | |
-| [ ] | [C1-T03](#c1-t03-missing-read-objects-and-verbs) | read objects and verbs | not started | |
-| [ ] | [C1-T04](#c1-t04-events-through-ip-monitor) | monitor events | not started | |
-| [ ] | [C2-T01…T08](#c2--generic-netlink) | genl captures, one per family | not started | |
-| [ ] | [C3-T01](#c3-t01-xfrm-state) | xfrm state | not started | |
-| [ ] | [C3-T02](#c3-t02-xfrm-policy-and-monitor) | xfrm policy and monitor | not started | |
-| [ ] | [C4-T01](#c4-t01-the-universe-test) | corpus completeness gate | not started | |
-| [ ] | [P0-T01…T04](#p0--benchmarks-for-the-existing-parsers) | benchmarks | not started | |
-| [ ] | [P1-T01…T04](#p1--new-rtnetlink-parsers) | NSID, bucket, LINKPROP, prefix | not started | |
-| [ ] | [P2-T01…T08](#p2--genl-parsers) | genl parsers | not started | |
-| [ ] | [P3-T01…T03](#p3--xfrm-parsers) | xfrm parsers | not started | |
-| [ ] | [G0-T01…T03](#g0--the-matrix-quick-wins) | matrix quick wins | not started | |
-| [ ] | [G1](#g1--read-verbs-on-running-objects) to [G7](#g7--xfrm) | goip and the matrix | not started | |
-
-## Verification ledger
-
-| Evidence ID | Date | Tasks | Command / env | Result | Location |
-|---|---|---|---|---|---|
-| DOC001 | 2026-10-19 | (this document) | the [How to re-measure](#how-to-re-measure) commands at `b7eec04d`; iproute2 at `v7.1.0`; links and anchors checked | 713 pcaps; the universe is 45 RTM, 46 genl and 22 XFRM types; the assessment tables match the output | this file |
-
-## Decision log
-
-**2026-10-19:**
-- **Class F is out of scope.** The ioctl, sysfs, `/proc`, syscall, cgroup and `bpf()` surfaces have no netlink message, so nlmon can't capture them and the pcap-based matrix can't compare them. If they are ever wanted, an strace capture (the RDMA route, `pkg/nlstrace`) is the starting point, as a separate plan.
-- **Captures first.** The user directed that the corpus be completed before the parsers, and the parsers before goip, because committed testdata and parsers make the rest easier. The tiers are ordered C, then P, then G accordingly.
-- **The universe is measured at the pin.** It is v7.1.0, not the 7.2 checkout. maddress is therefore class F until the pin bump.
-
 ## See also
 
+- [goip-parity-gaps-status.md](goip-parity-gaps-status.md): the progress against this plan: phase states, task checklist, verification ledger and decision log.
 - [coverage-status.md](coverage-status.md): the live parity numbers, and the history of every gating run.
 - [addr-write-path-plan.md](addr-write-path-plan.md) and [addr-write-path-status.md](addr-write-path-status.md): the task and ledger conventions this document reuses.
 - [route-write-path.md](route-write-path.md) and [link-write-path.md](link-write-path.md): the two earlier write designs.
