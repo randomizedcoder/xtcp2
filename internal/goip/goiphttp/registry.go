@@ -34,6 +34,14 @@ const ifNameMax = 15
 // keywords; nothing longer is a valid value.
 const tokenMax = 32
 
+// Words the registry uses more than once: object names that are also
+// paths or parameter names, and the address family `link`.
+const (
+	linkWord  = "link"
+	vrfWord   = "vrf"
+	statsWord = "stats"
+)
+
 type paramKind uint8
 
 const (
@@ -83,14 +91,14 @@ type object struct {
 var (
 	pDev     = param{name: "dev", kind: kindName}
 	pFamily  = param{name: "family", kind: kindFamily}
-	pStats   = param{name: "stats", kind: kindStats}
+	pStats   = param{name: statsWord, kind: kindStats}
 	pDetails = param{name: "details", kind: kindDetails}
 )
 
 // objects is the registry. Paths use the short spelling an operator types
 // (addr, neigh); the goip object is the canonical name.
 var objects = []*object{
-	{path: "link", object: "link", devPath: true,
+	{path: linkWord, object: linkWord, devPath: true,
 		params: []param{pDev, pStats, pDetails}},
 	{path: "addr", object: "address", devPath: true,
 		params: []param{pDev, {name: "family", kind: kindFamily, familyLink: true}, pStats, pDetails}},
@@ -106,18 +114,18 @@ var objects = []*object{
 			pDev,
 			{name: "groups", kind: kindFlag},
 			{name: "master", kind: kindName},
-			{name: "vrf", kind: kindName},
+			{name: vrfWord, kind: kindName},
 			{name: "protocol", kind: kindUint8},
 			{name: "fdb", kind: kindFlag},
 			pFamily,
 		}},
-	{path: "vrf", object: "vrf"},
+	{path: vrfWord, object: vrfWord},
 	{path: "netconf", object: "netconf", devPath: true,
 		params: []param{pDev, pFamily}},
 	{path: "ntable", object: "ntable",
 		params: []param{pFamily, pStats}},
 	{path: "addrlabel", object: "addrlabel"},
-	{path: "stats", object: "stats", devPath: true,
+	{path: statsWord, object: statsWord, devPath: true,
 		params: []param{
 			pDev,
 			{name: "group", kind: kindToken},
@@ -210,6 +218,8 @@ func (p *param) isSelector() bool {
 	switch p.kind {
 	case kindFamily, kindStats, kindDetails:
 		return false
+	case kindName, kindFlag, kindTable, kindUint32, kindUint8, kindToken:
+		return true
 	}
 	return true
 }
@@ -259,7 +269,7 @@ func (p *param) apply(s *goip.ShowRequest, v string) error {
 			s.Family = unix.AF_INET
 		case v == "inet6":
 			s.Family = unix.AF_INET6
-		case v == "link" && p.familyLink:
+		case v == linkWord && p.familyLink:
 			s.Family = unix.AF_PACKET
 		case p.familyLink:
 			return paramErr("family %q: want inet, inet6 or link", v)
