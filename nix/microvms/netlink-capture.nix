@@ -317,6 +317,7 @@ pkgs.writeShellApplication {
     iproute2
     kmod
     rdma-core
+    smcroute
     strace
     tcpdump
     util-linux
@@ -1321,6 +1322,59 @@ pkgs.writeShellApplication {
       echo "NLCAP_RDMA_HOLD_STOPPED"
     }
 
+    # mroute-start <ns> <subdir> <conf-line>
+    #
+    # A multicast route in <ns> for `ip mroute show` to read (C1-T03,
+    # docs/netlink/goip-parity-gaps.md). The kernel keeps an (S,G) entry only
+    # while the socket that added it (MRT_INIT) stays open, so smcrouted runs
+    # in <ns> until mroute-stop, with <conf-line> as its whole configuration,
+    # for example `mroute from v0 source 192.0.2.10 group 239.1.1.1 to v1`.
+    # Waits until `ip mroute show` lists the group, so no capture races the
+    # daemon's startup; that wait is outside every capture window. One daemon
+    # per namespace; its files are under $MHOLD, apart from rdma-hold's.
+    MHOLD=/tmp/nlcap-mroute
+    cmd_mroute_start() {
+      [ $# -eq 3 ] || die "usage: mroute-start <ns> <subdir> <conf-line>"
+      local ns=$1 subdir=$2 line=$3 group deadline
+      group=$(printf '%s\n' "$line" | sed -n 's/.* group \([0-9.]*\).*/\1/p')
+      [ -n "$group" ] || die "mroute-start: no group in: $line"
+      mkdir -p "$MHOLD" "$OUT/$subdir"
+      printf '%s\n' "$line" >"$MHOLD/$ns.conf"
+      setsid ip netns exec "$ns" smcrouted -n -l info -f "$MHOLD/$ns.conf" \
+        -u "$MHOLD/$ns.sock" -P "$MHOLD/$ns.daemon.pid" \
+        >"$MHOLD/$ns.log" 2>&1 </dev/null &
+      echo "$!" >"$MHOLD/$ns.hold"
+      deadline=$(( $(date +%s) + 10 ))
+      while [ "$(date +%s)" -lt "$deadline" ]; do
+        if ip -n "$ns" mroute show 2>/dev/null | grep -q "$group"; then
+          printf 'ok    [%s] smcrouted: %s\n' "$ns" "$line" >>"$OUT/$subdir/topology"
+          echo "NLCAP_MROUTE_OK $ns $group"
+          return 0
+        fi
+        sleep 0.1
+      done
+      printf 'FAIL  [%s] smcrouted: %s\n' "$ns" "$line" >>"$OUT/$subdir/topology"
+      echo "NLCAP_MROUTE_FAIL $ns $group"
+      sed 's/^/smcrouted: /' "$MHOLD/$ns.log"
+      return 1
+    }
+
+    # mroute-stop <ns> - stop mroute-start's daemon; its routes go with it.
+    cmd_mroute_stop() {
+      [ $# -eq 1 ] || die "usage: mroute-stop <ns>"
+      local ns=$1 pid deadline
+      [ -e "$MHOLD/$ns.hold" ] || die "mroute-stop: no daemon for $ns"
+      pid=$(cat "$MHOLD/$ns.hold")
+      kill -TERM -- "-$pid" 2>/dev/null || true
+      deadline=$(( $(date +%s) + 5 ))
+      while kill -0 "$pid" 2>/dev/null && [ "$(date +%s)" -lt "$deadline" ]; do
+        sleep 0.05
+      done
+      kill -KILL -- "-$pid" 2>/dev/null || true
+      rm -f -- "$MHOLD/$ns.hold" "$MHOLD/$ns.conf" "$MHOLD/$ns.sock" "$MHOLD/$ns.daemon.pid"
+      echo "NLCAP_MROUTE_STOPPED $ns"
+    }
+
     # rdma-user-cqn <subdir> <row>
     #
     # The number of the first user-owned CQ in a captured `rdma res show cq`
@@ -1401,7 +1455,7 @@ pkgs.writeShellApplication {
     }
 
     if [ $# -lt 1 ]; then
-      die "usage: xtcp2-nlcap <ns-add|ns-del|topo|cap|capio|write|side|wait-lacp|wait-sysfs|wait-addr-flag|sysctl|modules|note|wait-churn|strace|strace-monitor|wait-rdma-port|rdma-hold|rdma-hold-wait|rdma-hold-stop|rdma-user-cqn|dir|inventory|pack|tcpdump-drops|filter> [--proto route|generic|xfrm] ..."
+      die "usage: xtcp2-nlcap <ns-add|ns-del|topo|cap|capio|write|side|wait-lacp|wait-sysfs|wait-addr-flag|sysctl|modules|note|wait-churn|strace|strace-monitor|wait-rdma-port|rdma-hold|rdma-hold-wait|rdma-hold-stop|rdma-user-cqn|mroute-start|mroute-stop|dir|inventory|pack|tcpdump-drops|filter> [--proto route|generic|xfrm] ..."
     fi
 
     sub=$1
@@ -1440,6 +1494,8 @@ pkgs.writeShellApplication {
       rdma-hold-wait) cmd_rdma_hold_wait "$@" ;;
       rdma-hold-stop) cmd_rdma_hold_stop "$@" ;;
       rdma-user-cqn) cmd_rdma_user_cqn "$@" ;;
+      mroute-start) cmd_mroute_start "$@" ;;
+      mroute-stop) cmd_mroute_stop "$@" ;;
       dir)       cmd_dir "$@" ;;
       inventory) cmd_inventory "$@" ;;
       pack)      cmd_pack "$@" ;;

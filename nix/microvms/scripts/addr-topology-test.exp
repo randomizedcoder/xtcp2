@@ -674,6 +674,26 @@ foreach {description cmd want_rc want_re} [list \
     ccheck $description $cmd $want_rc $want_re
 }
 
+# mroute-start / mroute-stop (C1-T03). The sandbox has no namespace to run
+# smcrouted in, so only the refusals before anything starts can run here;
+# the daemon itself needs the VM.
+foreach {description cmd want_rc want_re} [list \
+    "negative: mroute-start with no configuration line is a usage error" \
+        "xtcp2-nlcap mroute-start nlcapr reads" 2 {NLCAP_ERR usage: mroute-start} \
+    "negative: mroute-start with no arguments is a usage error" \
+        "xtcp2-nlcap mroute-start" 2 {NLCAP_ERR usage: mroute-start} \
+    "negative: a configuration line naming no group is refused before smcrouted starts" \
+        "xtcp2-nlcap mroute-start nlcapr r1 'mroute from v0 to v1'" 2 {NLCAP_ERR mroute-start: no group in} \
+    "corner: and the refusal wrote no topology line" \
+        "test ! -e $out_dir/r1/topology" 0 {} \
+    "negative: mroute-stop with no namespace is a usage error" \
+        "xtcp2-nlcap mroute-stop" 2 {NLCAP_ERR usage: mroute-stop} \
+    "negative: mroute-stop of a namespace with no daemon is refused" \
+        "xtcp2-nlcap mroute-stop xtcp2_no_such_ns" 2 {NLCAP_ERR mroute-stop: no daemon for xtcp2_no_such_ns} \
+] {
+    ccheck $description $cmd $want_rc $want_re
+}
+
 # late_setup against the recorder: the modules call reaches the real helper,
 # where it fails as above; the sysctl and note are recorded.
 set ::calls {}

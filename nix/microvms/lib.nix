@@ -1087,25 +1087,29 @@ rec {
     let
       cfg = constants.architectures.${arch};
 
-      # All three .exp files in one store directory, because the driver locates
-      # its library and its topology with
+      # All four .exp files in one store directory, because the driver locates
+      # its library, its topology and its read rows with
       # `source [file dirname [info script]]/...`. Copying them individually
-      # into the store would put them in three different directories and those
+      # into the store would put them in different directories and those
       # sources would fail.
       #
       # netlink-topology.exp is shared with the goip-parity driver so both
       # capture off one topology definition; see its header.
+      # rtnl-read-corpus.exp is the C1-T03 reads
+      # (docs/netlink/goip-parity-gaps.md).
       captureScripts =
         pkgs.runCommand "xtcp2-netlink-capture-scripts"
           {
             vmLib = ./scripts/vm-lib.exp;
             topology = ./scripts/netlink-topology.exp;
+            readCorpus = ./scripts/rtnl-read-corpus.exp;
             driver = ./scripts/capture-netlink-dumps.exp;
           }
           ''
             mkdir -p $out
             cp $vmLib $out/vm-lib.exp
             cp $topology $out/netlink-topology.exp
+            cp $readCorpus $out/rtnl-read-corpus.exp
             cp $driver $out/capture-netlink-dumps.exp
             chmod +x $out/capture-netlink-dumps.exp
           '';

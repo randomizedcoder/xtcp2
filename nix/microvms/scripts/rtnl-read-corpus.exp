@@ -1,0 +1,130 @@
+###############################################################################
+# rtnl-read-corpus.exp - rtnetlink reads the dump corpus had no capture of
+# (docs/netlink/goip-parity-gaps.md, C1-T03)
+#
+# Sourced AFTER vm-lib.exp and netlink-topology.exp by
+# scripts/capture-netlink-dumps.exp, which builds one namespace from `build`
+# and captures every row into dumps/reads/. Data plus small procs, kept out
+# of the driver so the hermetic check (scripts/rtnl-read-corpus-test.exp)
+# can read it without a console, as rtnl-write-corpus.exp is.
+#
+# The namespace is made after the tunnel set has loaded the tunnel modules,
+# so it has their fallback devices (tunl0, gre0, sit0, ip6tnl0, ...) for
+# `ip tunnel show` to list, and before the late setup, so it sees none of
+# the genl and XFRM modules.
+#
+# A BUILD STEP is one of:
+#
+#   {topo ARGS...}   an `ip -n <ns> ARGS` step, through nltopo::topo
+#   {peer NAME ID}   a peer namespace made from the root (`ip netns add`
+#                    there, so every later `ip netns exec` sees it) and given
+#                    nsid ID in <ns>
+#
+# A ROW IS {name floor command stdout}: one capio, the pcap
+# netlink_route_<what>.pcap and the stdout sidecar. Every floor is 2, the
+# request and its NLMSG_DONE, since each of these reads is a dump that may
+# hold nothing.
+#
+# THE MULTICAST ROUTE
+#
+# The kernel keeps an (S,G) entry only while the socket that added it is
+# open, so `xtcp2-nlcap mroute-start` runs smcrouted in the namespace with
+# MROUTE_CONF as its configuration, between empty_rows and rows, and
+# `mroute-stop` ends it after them. empty_rows is the same `ip mroute show`
+# before any entry exists.
+###############################################################################
+
+namespace eval rtnlread {
+
+    variable NS nlcapr
+    variable SUBDIR reads
+
+    # v0 and v1: veths, since a dummy has no IFF_MULTICAST and smcrouted
+    # makes a VIF only on a multicast-capable device. br0 with v2 for the
+    # bridge xstats. A token on v0, a tap for `ip tuntap show`, a GRE tunnel
+    # for `ip tunnel show` beside the fallback devices, and two peers with
+    # nsids 1 and 2 for `ip netns list-id`.
+    variable build {
+        {topo link add v0 type veth peer name v0p}
+        {topo link add v1 type veth peer name v1p}
+        {topo link set v0p up}
+        {topo link set v1p up}
+        {topo link set v0 up}
+        {topo link set v1 up}
+        {topo addr add 192.0.2.1/24 dev v0}
+        {topo addr add 198.51.100.1/24 dev v1}
+        {topo link add br0 type bridge}
+        {topo link add v2 type veth peer name v2p}
+        {topo link set v2 master br0}
+        {topo link set br0 up}
+        {topo link set v2 up}
+        {topo token set ::1:2:3:4/64 dev v0}
+        {topo tuntap add dev tap0 mode tap}
+        {topo tunnel add gre9 mode gre local 192.0.2.1 remote 192.0.2.9}
+        {peer nlcaprp1 1}
+        {peer nlcaprp2 2}
+    }
+
+    variable MROUTE_CONF "mroute from v0 source 192.0.2.10 group 239.1.1.1 to v1"
+
+    variable empty_rows {
+        {netlink_route_getroute_mroute_empty 2 {ip mroute show} ip_mroute_empty}
+    }
+
+    variable rows {
+        {netlink_route_getroute_mroute 2 {ip mroute show} ip_mroute}
+        {netlink_route_getroute_mroute6 2 {ip -6 mroute show} ip_mroute6}
+        {netlink_route_getrule_mrule 2 {ip mrule show} ip_mrule}
+        {netlink_route_getstats_xstats_bridge 2 {ip link xstats type bridge} ip_link_xstats_bridge}
+        {netlink_route_getstats_xstats_bridge_slave 2 {ip link xstats type bridge_slave} ip_link_xstats_bridge_slave}
+        {netlink_route_getstats_afstats 2 {ip link afstats} ip_link_afstats}
+        {netlink_route_getnsid_list 2 {ip netns list-id} ip_netns_list_id}
+        {netlink_route_getlink_token 2 {ip token show} ip_token}
+        {netlink_route_getlink_tunnel 2 {ip tunnel show} ip_tunnel}
+        {netlink_route_getlink_tunnel6 2 {ip -6 tunnel show} ip_tunnel6}
+        {netlink_route_getlink_tuntap 2 {ip tuntap show} ip_tuntap}
+    }
+
+    # Recorded in reads/topology: what the tunnel rows' pcaps cannot show.
+    variable TUNNEL_NOTE "ip tunnel show: the pcap is the link dump only; the per-tunnel parameters come from SIOCGETTUNNEL ioctls, which nlmon does not see"
+
+    ###########################################################################
+    # step <ns> <subdir> <step> - run one build step; 1 if it was accepted.
+    # A refused topo step is in nltopo::refused_steps, as every other one is;
+    # a refused peer step is put there too.
+    ###########################################################################
+    proc step {ns subdir step} {
+        switch -- [lindex $step 0] {
+            topo {
+                return [expr {[nltopo::topo $ns $subdir {*}[lrange $step 1 end]] == 0}]
+            }
+            peer {
+                if {[llength $step] != 3} {
+                    error "rtnlread: a peer step is {peer NAME ID}: $step"
+                }
+                lassign $step _kind name id
+                lassign [vmlib::run_out "ip netns add $name"] rc _out
+                if {$rc != 0} {
+                    lappend nltopo::refused "ip netns add $name"
+                    return 0
+                }
+                return [expr {[nltopo::topo $ns $subdir netns set $name $id] == 0}]
+            }
+            default {
+                error "rtnlread: unknown step kind: $step"
+            }
+        }
+    }
+
+    # peers - the peer namespace names, for the driver to delete after.
+    proc peers {} {
+        variable build
+        set out {}
+        foreach s $build {
+            if {[lindex $s 0] eq "peer"} {
+                lappend out [lindex $s 1]
+            }
+        }
+        return $out
+    }
+}

@@ -589,22 +589,53 @@ Each accepted row with state to read has a `capio` readback; a save's readback i
 
 **Depends on:** C0-T02.
 
-**Deliver:** `capture-netlink-dumps.exp` rows, each with a stdout sidecar, for:
-- `link xstats` and `link afstats`;
-- `mroute show`, both an empty table and one populated by `smcroute`;
-- `mrule show`;
-- `netns list-id`;
-- `token show`;
-- `tunnel show` and `tuntap show`, which capture only their link-dump half.
+**Deliver:** a reads namespace in `capture-netlink-dumps.exp`, its pcaps and sidecars under `dumps/reads/`. Its data is in `rtnl-read-corpus.exp`, which a hermetic test reads the way `rtnl-write-corpus.exp` is read.
+- **When it is built:** after the tunnel set has loaded the tunnel modules, so `ip tunnel show` has their fallback devices to list, and before the late setup, so it sees none of the genl and XFRM modules.
+- **What it holds:**
+  - two veth pairs carrying 192.0.2.1/24 and 198.51.100.1/24, which become the multicast route's VIFs. They are veths because a dummy has no `IFF_MULTICAST`, and smcrouted makes a VIF only on a multicast-capable device;
+  - a bridge with one veth port, for the bridge xstats;
+  - a token on v0;
+  - a tap and a GRE tunnel;
+  - two peer namespaces with nsids 1 and 2. Each peer is added from the root, so every later `ip netns exec` sees it.
+- **The multicast route:** the kernel keeps an (S,G) entry only while the socket that added it is open.
+  - A new `xtcp2-nlcap mroute-start <ns> <subdir> <conf-line>` runs `smcrouted` (added to the helper's runtime inputs) in the namespace and waits up to 10 s for the group to appear in `ip mroute show`.
+  - A new `mroute-stop <ns>` ends it after the rows.
+  - Both refuse bad input with `NLCAP_ERR`: a line with no group, or a namespace with no daemon.
+- **The rows,** each one `capio` with a stdout sidecar and a floor of 2 (the request and its NLMSG_DONE):
+  - `mroute show` before the daemon starts, then again with the entry;
+  - `-6 mroute show`, `mrule show`;
+  - `link xstats type bridge`, `type bridge_slave`, `link afstats`;
+  - `netns list-id`, `token show`;
+  - `tunnel show`, `-6 tunnel show` and `tuntap show`, which capture only their link-dump half. The topology sidecar notes that `tunnel show`'s per-tunnel parameters come from `SIOCGETTUNNEL` ioctls, which nlmon does not see.
 
 **Tests:**
 
+`rtnl-read-corpus-test.exp` (21 rows; `checks.vm-lib-exp`), and 6 `ccheck` rows in `addr-topology-test.exp` for the helper's refusals:
+
 | description | expected |
 |---|---|
-| positive: `mroute show` with a cache entry | an `RTM_NEWROUTE` with `rtm_family` IPMR |
-| boundary: `mroute show` on an empty table | NLMSG_DONE only |
-| positive: `netns list-id` with two peers | two NEWNSID replies |
-| corner: `tunnel show`'s pcap holds only the link dump | `RTM_GETLINK` and NEWLINK only; the ioctl half is noted in the sidecar README |
+| positive: the rows are the plan's, in run order | the 11 names |
+| boundary: the one empty row is `ip mroute show` before any entry, the populated row's command | `netlink_route_getroute_mroute_empty`, the same command |
+| boundary: every floor is the request and its NLMSG_DONE | 2 |
+| corner: both VIF devices are veths, and the token is set after v0 is up | build order |
+| positive: a peer is added from the root, then given its nsid in the namespace | `ip netns add`, then `topo … netns set` |
+| negative: a refused peer add is a refused step, and no nsid is set | 0, one call |
+| negative: a peer step without an id, an unknown step kind | an error |
+| negative: `mroute-start` with no group, `mroute-stop` with no daemon | rc 2, `NLCAP_ERR`, no topology line |
+
+`TestRtnlReadCorpus` and `TestRtnlReadCorpusDetail` (`pkg/xtcpnl`, on the committed pcaps):
+
+| description | expected |
+|---|---|
+| positive: `mroute show` with a cache entry | one `RTM_NEWROUTE`, `rtm_family` IPMR (128), `RTA_SRC` 192.0.2.10, `RTA_DST` 239.1.1.1 |
+| boundary: `mroute show` on an empty table, and `-6 mroute show` | NLMSG_DONE only, IPMR and IP6MR (129) |
+| positive: `mrule show` | ipmr's one default rule |
+| positive: `link xstats`, the slave form and `afstats` | one NEWSTATS per link (18); `filter_mask` `IFLA_STATS_LINK_XSTATS`, `_XSTATS_SLAVE`, `IFLA_STATS_AF_SPEC` |
+| positive: `netns list-id` with two peers | two NEWNSID replies, nsids 1 and 2 |
+| positive: `token show`, `tunnel show` | link dumps, `AF_INET6` (16 replies) and `AF_INET` (18) |
+| corner: `-6 tunnel show` | the token request again, so the same 16 replies |
+| corner: `tunnel show`'s pcaps hold only the link dump | NEWLINK, GETLINK and NLMSG_DONE only, while the sidecar shows gre9's parameters |
+| corner: `tuntap show` | a link dump; the rest comes from sysfs |
 
 **Done when:** the gates pass, and the pcaps and sidecars are committed.
 

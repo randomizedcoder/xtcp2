@@ -39,6 +39,7 @@
 
 source [file dirname [info script]]/vm-lib.exp
 source [file dirname [info script]]/netlink-topology.exp
+source [file dirname [info script]]/rtnl-read-corpus.exp
 
 if {$argc < 2} {
     puts "usage: capture-netlink-dumps.exp <serial-port> <blob-out> \[--skip-mesh\]"
@@ -73,6 +74,7 @@ set TUNDEV    "gre1"
 # Accumulated problems, reported together at the end rather than scrolling
 # past in the middle of the run.
 set short_caps  {}
+set reads_problems {}
 
 ###############################################################################
 # helpers over vmlib
@@ -794,6 +796,35 @@ if {!$skip_tunnel} {
     sidecar_set $NS_TUNNEL "tunnel" $TUNDEV
 }
 
+# The reads the corpus had no capture of (rtnl-read-corpus.exp, C1-T03), in
+# a namespace of their own made after the tunnel modules loaded, so it has
+# their fallback devices for `ip tunnel show`.
+vmlib::log "=== reads namespace (reads/) ==="
+set rns $rtnlread::NS
+set rdir $rtnlread::SUBDIR
+vmlib::must "xtcp2-nlcap ns-add $rns"
+foreach s $rtnlread::build {
+    rtnlread::step $rns $rdir $s
+}
+vmlib::run "xtcp2-nlcap note $rdir '$rtnlread::TUNNEL_NOTE'"
+foreach row $rtnlread::empty_rows {
+    capio $rns $rdir {*}$row
+}
+lassign [nlcap mroute-start $rns $rdir "'$rtnlread::MROUTE_CONF'"] mrc mout
+vmlib::log [string trim $mout]
+if {$mrc != 0} {
+    lappend reads_problems "mroute-start: [string trim $mout]"
+}
+foreach row $rtnlread::rows {
+    capio $rns $rdir {*}$row
+}
+if {$mrc == 0} {
+    nlcap mroute-stop $rns
+}
+foreach peer [rtnlread::peers] {
+    vmlib::run "ip netns del $peer"
+}
+
 # The modules and sysctls the generic netlink and XFRM rows need, after every
 # row above has been captured, so nothing already recorded can see them. See
 # nltopo::late_setup for why late and not at boot.
@@ -830,6 +861,7 @@ if {!$skip_mesh} {
 if {!$skip_tunnel} {
     vmlib::run "xtcp2-nlcap ns-del $NS_TUNNEL"
 }
+vmlib::run "xtcp2-nlcap ns-del $rtnlread::NS"
 
 vmlib::poweroff
 
@@ -857,6 +889,13 @@ if {[llength $late_problems] > 0} {
     puts "  stand; the rows that need the late state do not."
 }
 
+if {[llength $reads_problems] > 0} {
+    puts "NLCAP_READS_FAILED [llength $reads_problems]"
+    foreach p $reads_problems {
+        puts "  $p"
+    }
+}
+
 if {[llength $short_caps] > 0} {
     puts "NLCAP_MISSED_FLOOR [llength $short_caps]"
     foreach c $short_caps {
@@ -868,7 +907,7 @@ if {[llength $short_caps] > 0} {
     exit 1
 }
 
-if {[llength $late_problems] > 0} {
+if {[llength $late_problems] > 0 || [llength $reads_problems] > 0} {
     puts "NLCAP_DRIVER_FAIL"
     exit 1
 }

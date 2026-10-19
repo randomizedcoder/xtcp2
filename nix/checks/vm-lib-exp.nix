@@ -51,6 +51,10 @@
 # expected statuses and the event rows' monitor lines. TestRtnlWriteCorpus
 # pins the captured bytes.
 #
+# scripts/rtnl-read-corpus-test.exp does the same for rtnl-read-corpus.exp,
+# the C1-T03 reads: names, floors, the namespace's build steps and the
+# multicast route. TestRtnlReadCorpus pins the captured bytes.
+#
 {
   pkgs,
   src,
@@ -121,6 +125,8 @@ pkgs.runCommand "xtcp2-vm-lib-exp"
     expect nix/microvms/scripts/addr-corpus-test.exp > corpus.log 2>&1 || crc=$?
     rrc=0
     expect nix/microvms/scripts/rtnl-write-corpus-test.exp > rtnl.log 2>&1 || rrc=$?
+    rdrc=0
+    expect nix/microvms/scripts/rtnl-read-corpus-test.exp > rtnlread.log 2>&1 || rdrc=$?
 
     kill "$socat_pid" 2>/dev/null || true
     wait "$socat_pid" 2>/dev/null || true
@@ -169,5 +175,16 @@ pkgs.runCommand "xtcp2-vm-lib-exp"
       exit 1
     fi
 
-    cat result.log addr.log corpus.log rtnl.log > $out
+    grep -E '^(PASS|FAIL|===)' rtnlread.log || true
+
+    if [ "$rdrc" -ne 0 ] || ! grep -q 'RTNLREAD_TEST_PASS' rtnlread.log; then
+      echo "" >&2
+      echo "vm-lib-exp: rtnl-read-corpus.exp regressed (expect exited $rdrc)." >&2
+      echo "            The FAIL rows above name the broken behavior. Full" >&2
+      echo "            transcript:" >&2
+      cat rtnlread.log >&2
+      exit 1
+    fi
+
+    cat result.log addr.log corpus.log rtnl.log rtnlread.log > $out
   ''
