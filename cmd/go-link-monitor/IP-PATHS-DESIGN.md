@@ -1,5 +1,8 @@
 # `/ip` paths: `ip … show` over HTTP
 
+Proposed next: `ip` command lines as paths (`/i/a/s/dev/eth0`), see
+[IP-ARGV-PATHS-DESIGN.md](IP-ARGV-PATHS-DESIGN.md).
+
 go-link-monitor can serve the read-only `ip OBJECT show` output of its host,
 so an operator can `curl host:9101/ip/addr | jq` instead of ssh'ing in to run
 `ip -j addr show`. The output comes from [goip](../../internal/goip), the
