@@ -280,7 +280,7 @@ func (p *param) apply(s *goip.ShowRequest, v string) error {
 		if !truthy(v) {
 			return paramErr("stats=%q: want 1 or true", v)
 		}
-		s.Stats = true
+		s.Stats = 1
 	case kindDetails:
 		if !truthy(v) {
 			return paramErr("details=%q: want 1 or true", v)

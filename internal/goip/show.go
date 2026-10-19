@@ -42,8 +42,12 @@ type ShowRequest struct {
 	Object string
 	// Family is AF_UNSPEC, AF_INET, AF_INET6 or AF_PACKET — Run's -4/-6/-0.
 	Family uint8
-	// JSON, Stats and Details are -j, -s and -d.
-	JSON, Stats, Details bool
+	// JSON and Details are -j and -d; Brief and Oneline are -br and -o,
+	// which only address renders (Show refuses them elsewhere, as Run does).
+	JSON, Details, Brief, Oneline bool
+	// Stats counts -s, as ip's show_stats does. goip renders a count of 0 or
+	// 1 and refuses more, as Run refuses `-s -s`.
+	Stats int
 	// Selectors are the arguments after `show`, exactly as `ip` would get
 	// them (`dev eth0`, `table all`). The caller builds them; Show passes
 	// them to the object's own selector parser unchanged, so the two entry
@@ -69,7 +73,7 @@ func ShowObjects() []string {
 // the options in the order Run documents them. Run(r.Argv(), …) and Show(r)
 // produce the same output; TestShow holds them to it.
 func (r ShowRequest) Argv() []string {
-	argv := make([]string, 0, 6+len(r.Selectors))
+	argv := make([]string, 0, 7+max(r.Stats, 0)+len(r.Selectors))
 	switch r.Family {
 	case unix.AF_INET:
 		argv = append(argv, "-4")
@@ -81,11 +85,17 @@ func (r ShowRequest) Argv() []string {
 	if r.JSON {
 		argv = append(argv, "-j")
 	}
-	if r.Stats {
+	for range r.Stats {
 		argv = append(argv, "-s")
 	}
 	if r.Details {
 		argv = append(argv, "-d")
+	}
+	if r.Brief {
+		argv = append(argv, "-br")
+	}
+	if r.Oneline {
+		argv = append(argv, "-o")
 	}
 	argv = append(argv, r.Object, showVerbCst)
 	return append(argv, r.Selectors...)
@@ -104,6 +114,12 @@ func Show(src Source, r ShowRequest, out io.Writer) error {
 	default:
 		return fmt.Errorf("%w: family %d", ErrInvalidArgument, r.Family)
 	}
+	if msg := statsCountMsg(r.Stats); msg != "" {
+		return fmt.Errorf("%w: %s", ErrInvalidArgument, msg)
+	}
+	if r.Stats < 0 {
+		return fmt.Errorf("%w: stats count %d", ErrInvalidArgument, r.Stats)
+	}
 	obj, err := lookupObject(r.Object)
 	if err != nil {
 		return err
@@ -113,11 +129,13 @@ func Show(src Source, r ShowRequest, out io.Writer) error {
 	c.src = src
 	c.family = r.Family
 	c.json = r.JSON
-	if r.Stats {
-		c.showStats = 1
-	}
+	c.showStats = r.Stats
 	if r.Details {
 		c.showDetails = 1
+	}
+	c.brief, c.oneline = r.Brief, r.Oneline
+	if msg := outputModeMsg(c, &obj); msg != "" {
+		return fmt.Errorf("%w: %s", ErrInvalidArgument, msg)
 	}
 
 	args := append([]string{showVerbCst}, r.Selectors...)

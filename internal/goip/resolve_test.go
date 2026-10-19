@@ -146,9 +146,10 @@ func TestResolveShow(t *testing.T) {
 			inputs:      [][]string{{"link", "eth0"}}, wantErr: ErrInvalidArgument, wantMsg: `"eth0"`,
 		},
 		{
-			name: "brief_until_ia1_t02", category: "negative",
-			description: "-br and -o are refused until ShowRequest carries them (IA1-T02)",
-			inputs:      [][]string{{"-br", "a"}, {"-o", "a"}}, wantErr: ErrNotImplemented,
+			name: "resolve_brief", category: "positive",
+			description: "-stat -br a and -s -brief address: one request, with Brief (IA1-T02)",
+			inputs:      [][]string{{"-stat", "-br", "a"}, {"-s", "-brief", "address"}},
+			wantArgv:    "-stats -brief address show",
 		},
 		{
 			name: "stats_two", category: "boundary",
@@ -247,9 +248,15 @@ func TestResolveShowRequest(t *testing.T) {
 			description: "-0 -s -d -j n s dev lo",
 			in:          []string{"-0", "-s", "-d", "-j", "n", "s", "dev", "lo"},
 			expected: ShowRequest{
-				Object: "neighbor", Family: unix.AF_PACKET, JSON: true, Stats: true, Details: true,
+				Object: "neighbor", Family: unix.AF_PACKET, JSON: true, Stats: 1, Details: true,
 				Selectors: []string{"dev", "lo"},
 			},
+		},
+		{
+			name: "output_modes", category: "positive",
+			description: "-br -o a: both output modes reach the request",
+			in:          []string{"-br", "-o", "a"},
+			expected:    ShowRequest{Object: "address", Brief: true, Oneline: true, Selectors: []string{}},
 		},
 		{
 			name: "bare", category: "boundary",
@@ -484,7 +491,7 @@ func TestResolvePrefixProperty(t *testing.T) {
 					if !errors.Is(err, ErrRefusedOption) || !strings.Contains(err.Error(), want.name) {
 						t.Errorf("%q: err %v, want ErrRefusedOption naming %s", p, err, want.name)
 					}
-				case want.set == nil, want.name == "-brief", want.name == "-oneline":
+				case want.set == nil:
 					if !errors.Is(err, ErrNotImplemented) {
 						t.Errorf("%q: err %v, want ErrNotImplemented", p, err)
 					}

@@ -248,6 +248,15 @@ func (c *runCtx) outputMode() string {
 	return ""
 }
 
+// outputModeMsg is the refusal of -brief or -oneline for an object that
+// does not render them, or "". Run prints it and Show returns it.
+func outputModeMsg(c *runCtx, obj *object) string {
+	if opt := c.outputMode(); opt != "" && !obj.outputModes {
+		return "option " + opt + " is only implemented for address"
+	}
+	return ""
+}
+
 // nextSeq returns the sequence number for the next request.
 func (c *runCtx) nextSeq() uint32 {
 	c.seq++

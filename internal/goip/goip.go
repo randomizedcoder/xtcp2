@@ -97,8 +97,8 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	// neigh). Refusing here, by name, keeps a dropped flag from showing up in
 	// the parity report as a full-render divergence. address is the one
 	// object that reads them (object.outputModes); see addrShow.
-	if opt := c.outputMode(); opt != "" && !obj.outputModes {
-		fmt.Fprintf(stderr, "goip: option %s is only implemented for address\n", opt)
+	if msg := outputModeMsg(c, &obj); msg != "" {
+		fmt.Fprintf(stderr, "goip: %s\n", msg)
 		return ExitUsage
 	}
 

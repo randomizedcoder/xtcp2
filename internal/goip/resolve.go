@@ -90,11 +90,6 @@ func ResolveShow(tokens []string) (ShowRequest, Resolved, error) {
 	if msg := statsCountMsg(o.showStats); msg != "" {
 		return ShowRequest{}, Resolved{}, fmt.Errorf("%w: %s", ErrInvalidArgument, msg)
 	}
-	// ShowRequest has no Brief or Oneline until IA1-T02; refusing them here
-	// keeps a dropped option from rendering the full form.
-	if o.brief || o.oneline {
-		return ShowRequest{}, Resolved{}, fmt.Errorf("options -brief and -oneline: %w", ErrNotImplemented)
-	}
 	if len(rest) == 0 {
 		return ShowRequest{}, Resolved{}, fmt.Errorf("%w: no object", ErrInvalidArgument)
 	}
@@ -127,8 +122,10 @@ func ResolveShow(tokens []string) (ShowRequest, Resolved, error) {
 		Object:    canonical,
 		Family:    o.family,
 		JSON:      o.json,
-		Stats:     o.showStats > 0,
+		Stats:     o.showStats,
 		Details:   o.showDetails > 0,
+		Brief:     o.brief,
+		Oneline:   o.oneline,
 		Selectors: res.Selectors,
 	}
 	return r, res, nil

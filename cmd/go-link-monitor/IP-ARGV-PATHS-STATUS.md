@@ -2,7 +2,7 @@
 
 Last updated: 2026-10-19.
 
-**In progress: 3 of 12 implementation tasks done.** The design was reviewed
+**In progress: 4 of 12 implementation tasks done.** The design was reviewed
 on 2026-10-19 and its decisions are recorded below.
 
 This document tracks
@@ -52,7 +52,7 @@ for the design in [IP-ARGV-PATHS-DESIGN.md](IP-ARGV-PATHS-DESIGN.md).
 | Phase | Name | State | Completed tasks | Evidence |
 |---|---|---|---|---|
 | IA0 | Groundwork | done | 2/2 | IV001–IV005, IV007–IV008 |
-| IA1 | goip resolver | in progress | 1/2 | IV006 |
+| IA1 | goip resolver | done | 2/2 | IV006, IV009 |
 | IA2 | HTTP paths | not started | 0/3 | — |
 | IA3 | Hardening and performance | not started | 0/3 | — |
 | IA4 | Verification and release | not started | 0/2 | — |
@@ -67,7 +67,7 @@ here.
 | [x] | [IA0-T01](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia0-t01) | Gates and baseline | done | IV001–IV004 |
 | [x] | [IA0-T02](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia0-t02) | Complete verb chains | done | IV005, IV007, IV008 |
 | [x] | [IA1-T01](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia1-t01) | Exported resolver | done | IV006 |
-| [ ] | [IA1-T02](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia1-t02) | `ShowRequest` options | not started | — |
+| [x] | [IA1-T02](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia1-t02) | `ShowRequest` options | done | IV009 |
 | [ ] | [IA2-T01](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia2-t01) | Path tokenizer | not started | — |
 | [ ] | [IA2-T02](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia2-t02) | Routing and both forms | not started | — |
 | [ ] | [IA2-T03](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia2-t03) | Index and docs | not started | — |
@@ -130,8 +130,8 @@ write-up in IA4-T02.
   still "unknown", and `-h` is still goip's help, where `ip` reads it as
   `-human`. On the paths, the ordering matters: `-f` is `-family` (501), not
   `-force`, and `-b` is `-batch` (400), not `-brief`.
-  - The resolver refuses `-br` and `-o` as not implemented until IA1-T02
-    adds them to `ShowRequest`, so neither can be silently dropped.
+  - The resolver refused `-br` and `-o` as not implemented until IA1-T02
+    added them to `ShowRequest`, so neither could be silently dropped.
   - `prefix_property` resolves every prefix of every object (33 rows), of
     every verb of every implemented object and of every option, against a
     separate first-match walk. Removing the write refusal makes it fail.
@@ -152,6 +152,16 @@ write-up in IA4-T02.
   - The plan's command carried `--accel=auto`, which the parity runner does
     not take (IV007). Corrected in the plan.
 
+- IA1-T02: `ShowRequest` gains `Brief` and `Oneline`, and `Stats` becomes
+  the `-s` count. `Show` refuses what `Run` refuses, in the same words:
+  `-br` or `-o` on an object other than address (`outputModeMsg`, now
+  shared), and a count above one (`statsCountMsg`), both
+  `ErrInvalidArgument`. `TestShow` checks each refusal against `Run` on
+  `Argv()`, so the two cannot drift. The query form's `stats=true` is now
+  `Stats: 1` (`registry_stats_true`); its behaviour is unchanged.
+  - A mutation dropping `Brief` in `Show` failed `brief_address`,
+    `brief_unsupported_object` and `brief_and_json`.
+
 ## Evidence ledger
 
 | ID | Date | Task | Command | Host/VM | Base | Outcome | Logs |
@@ -164,6 +174,7 @@ write-up in IA4-T02.
 | IV006 | 2026-10-19 | IA1-T01 | `nix build --no-link path:.#test-focused-goip -L`; golangci-lint (comprehensive, `--new-from-rev=HEAD`) over `./internal/goip/`: 0 issues | `l`, nix sandbox, 7.2.9 | `6c0c09a2` + working tree | Pass, with `TestResolveShow`, `TestResolvePrefixProperty` and `TestShortest`; a mutation dropping the write refusal failed `TestResolvePrefixProperty` | nix store, `--no-link` |
 | IV007 | 2026-10-19 | IA0-T02 | `env -u LD_LIBRARY_PATH nix run path:.#microvm-x86_64-goip-parity -- --accel=auto`, operator-approved | `l`, 7.2.9; no VM booted | `a327b5ef` | **Fail**: `unknown arg: --accel=auto` after the build, before boot | scratchpad log, not kept |
 | IV008 | 2026-10-19 | IA0-T02 | `env -u LD_LIBRARY_PATH nix run path:.#microvm-x86_64-goip-parity -- --out <scratchpad>`, operator-approved; load 15 at start, no other VM | `l` host 7.2.9, guest 7.1.4 microVM | `a327b5ef` | 175 PASS, 8 WARN, 1 FAIL; `HYGIENE_FAIL 2`, `CONTROL_NOISY 166`, `UNGATED_DIVERGENCES 7`, `OVERALL_FAIL`. Every non-pass is a permanent divergence recorded in `54a26a86`: no regression | scratchpad, not kept |
+| IV009 | 2026-10-19 | IA1-T02 | `nix build --no-link path:.#test-focused-goip path:.#test-linkmonitor-unit -L`; golangci-lint (comprehensive, `--new-from-rev=HEAD`) over `./internal/goip/...`: 0 issues | `l`, nix sandbox, 7.2.9 | `6bfedf95` + working tree | Pass, with the new `TestShow` and `TestShowRequestArgv` rows and `registry_stats_true` | nix store, `--no-link` |
 
 ## Blockers
 
@@ -180,3 +191,4 @@ None.
 | 2026-10-19 | IA0-T02 in progress: one ordered verb chain per object (`verbs.go`), checked against iproute2 7.1.0. Link, address and route take their write verbs from their write tables. Every object dispatches through `resolveVerb`. `test-focused-goip` passes. Next: the goip-parity VM run, with approval. |
 | 2026-10-19 | IA1-T01 done, run before IA0-T02's VM gate at the operator's request: `ResolveShow`, `Resolved`, `ErrWriteVerb`, `ErrRefusedOption` and `Shortest()`, with `Run` moved onto the shared option table. Plan and design updated: read-only non-listing verbs are 501, `-h`/`-help` is refused, `-s -s` is a 400, and `-br` moves to IA1-T02's `resolve_brief`. Next: the goip-parity VM run (IA0-T02), with approval, then IA1-T02. |
 | 2026-10-19 | IA0-T02 done, so IA0 is done: the goip-parity VM run (IV008, after IV007 failed on a flag the runner does not take) shows only the 9 recorded permanent wire divergences and byte-identical stdout everywhere. Plan command corrected. Next: IA1-T02. |
+| 2026-10-19 | IA1-T02 done, so IA1 is done: `ShowRequest` carries `-br`, `-o` and the `-s` count, and `Show` refuses unsupported combinations with `Run`'s messages. Next: IA2-T01. |
