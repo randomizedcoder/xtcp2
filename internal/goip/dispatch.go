@@ -28,6 +28,9 @@ type object struct {
 	// outputModes is set for the objects that read -brief and -oneline. Run
 	// refuses both for every other object.
 	outputModes bool
+	// alias marks a second spelling of another row's object (the British
+	// spelling of neighbor, ntbl), so lists of objects can name each one once.
+	alias bool
 }
 
 // objects is the object table in iproute2's order, which is load-bearing.
@@ -56,9 +59,9 @@ var objects = []object{
 	{name: "route", run: runRoute},
 	{name: "rule", run: runRule},
 	{name: "neighbor", run: runNeigh},
-	{name: "neighbour", run: runNeigh},
+	{name: "neighbour", run: runNeigh, alias: true},
 	{name: "ntable", run: runNTable},
-	{name: "ntbl", run: runNTable},
+	{name: "ntbl", run: runNTable, alias: true},
 	{name: "link", run: runLink},
 	{name: "l2tp"},
 	{name: "fou"},
@@ -67,10 +70,10 @@ var objects = []object{
 	{name: "tunnel"},
 	{name: "tunl6"},
 	{name: "tcp_metrics"},
-	{name: "tcpmetrics"},
+	{name: "tcpmetrics", alias: true},
 	{name: "token"},
 	{name: "tuntap"},
-	{name: "tap"},
+	{name: "tap", alias: true},
 	{name: "mroute"},
 	{name: "mrule"},
 	{name: "netns"},

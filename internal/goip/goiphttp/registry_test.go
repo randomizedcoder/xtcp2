@@ -147,7 +147,7 @@ func TestParams(t *testing.T) {
 func TestRegistry(t *testing.T) {
 	t.Run("covers_show_objects", func(t *testing.T) {
 		// positive: the two sets are equal.
-		var got []string
+		got := make([]string, 0, len(objects))
 		for _, o := range objects {
 			got = append(got, o.object)
 		}

@@ -68,8 +68,10 @@ type param struct {
 
 // object is one /ip/<path> route.
 type object struct {
-	path   string // the URL segment
-	object string // goip's canonical object name
+	path string // the URL segment
+	// object is goip's canonical object name. It is left empty where it is
+	// the same word as path, and init fills it in.
+	object string
 	// params in selector order: the order the selectors are emitted in, so
 	// the argv is the same whatever order the query string used, and so
 	// order-sensitive parsers (stats group before subgroup) are satisfied.
@@ -90,17 +92,17 @@ var (
 // objects is the registry. Paths use the short spelling an operator types
 // (addr, neigh); the goip object is the canonical name.
 var objects = []*object{
-	{path: "link", object: "link", devPath: true,
+	{path: "link", devPath: true,
 		params: []param{pDev, pStats, pDetails}},
 	{path: "addr", object: "address", devPath: true,
 		params: []param{pDev, {name: "family", kind: kindFamily, familyLink: true}, pStats, pDetails}},
-	{path: "route", object: "route", devPath: true,
+	{path: "route", devPath: true,
 		params: []param{{name: "table", kind: kindTable}, pDev, pFamily, pStats, pDetails}},
 	{path: "neigh", object: "neighbor", devPath: true,
 		params: []param{pDev, {name: "proxy", kind: kindFlag}, pFamily, pStats}},
-	{path: "rule", object: "rule",
+	{path: "rule",
 		params: []param{pFamily}},
-	{path: "nexthop", object: "nexthop", devPath: true,
+	{path: "nexthop", devPath: true,
 		params: []param{
 			{name: "id", kind: kindUint32, exclusive: true},
 			pDev,
@@ -111,13 +113,13 @@ var objects = []*object{
 			{name: "fdb", kind: kindFlag},
 			pFamily,
 		}},
-	{path: "vrf", object: "vrf"},
-	{path: "netconf", object: "netconf", devPath: true,
+	{path: "vrf"},
+	{path: "netconf", devPath: true,
 		params: []param{pDev, pFamily}},
-	{path: "ntable", object: "ntable",
+	{path: "ntable",
 		params: []param{pFamily, pStats}},
-	{path: "addrlabel", object: "addrlabel"},
-	{path: "stats", object: "stats", devPath: true,
+	{path: "addrlabel"},
+	{path: "stats", devPath: true,
 		params: []param{
 			pDev,
 			{name: "group", kind: kindToken},
@@ -131,6 +133,9 @@ const formatParam = "format"
 
 func init() {
 	for _, o := range objects {
+		if o.object == "" {
+			o.object = o.path
+		}
 		o.byName = make(map[string]*param, len(o.params))
 		for i := range o.params {
 			o.byName[o.params[i].name] = &o.params[i]
@@ -210,8 +215,9 @@ func (p *param) isSelector() bool {
 	switch p.kind {
 	case kindFamily, kindStats, kindDetails:
 		return false
+	default:
+		return true
 	}
-	return true
 }
 
 // apply validates v for p and records it on s.
