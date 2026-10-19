@@ -2,7 +2,8 @@
 
 ## Status
 
-**Proposed.** Nothing in this document has landed. It is the third write design,
+**Implemented.** Every phase below has landed; the task-level evidence is in
+[addr-write-path-status.md](addr-write-path-status.md). It is the third write design,
 after [route-write-path.md](route-write-path.md) and
 [link-write-path.md](link-write-path.md), and it extends them rather than
 repeating them: the write gate, the `GOIP_WRITE_OUT` dry run, the `nlcap write`
@@ -28,16 +29,16 @@ lands, as it did for routes and links.
 
 | Phase | Scope | State |
 |---|---|---|
-| 0 | `addr-topology.exp`, the readback states and the write corpus captured | proposed |
-| 1 | decode `IFA_RT_PRIORITY`, `IFA_ANYCAST`, `IFA_MULTICAST`, `IFA_MC_USERS`; render `metric`, `any`, `mcast` | proposed |
-| 2 | `addr show` selectors | proposed |
-| 3 | `-br` and `-o` | proposed |
-| 4 | the gate admits `RTM_NEWADDR`/`RTM_DELADDR` | proposed |
-| 5 | `BuildAddrWriteRequest` | proposed |
-| 6 | `goip addr add/change/replace/delete` | proposed |
-| 7 | write rows in the matrix, gated | proposed |
-| 8 | `flush`, with the multi-write comparator | proposed |
-| 9 | `save`, `showdump`, `restore` | proposed |
+| 0 | `addr-topology.exp`, the readback states and the write corpus captured | done |
+| 1 | decode `IFA_RT_PRIORITY`, `IFA_ANYCAST`, `IFA_MULTICAST`, `IFA_MC_USERS`; render `metric`, `any`, `mcast` | done |
+| 2 | `addr show` selectors | done |
+| 3 | `-br` and `-o` | done |
+| 4 | the gate admits `RTM_NEWADDR`/`RTM_DELADDR` | done |
+| 5 | `BuildAddrWriteRequest` | done |
+| 6 | `goip addr add/change/replace/delete` | done |
+| 7 | write rows in the matrix, gated | done |
+| 8 | `flush`, with the multi-write comparator | done |
+| 9 | `save`, `showdump`, `restore` | done |
 
 Read [route-write-path.md](route-write-path.md#the-read-only-invariant-narrowed)
 first for the invariant this design narrows and why the gate is on the message
@@ -187,7 +188,7 @@ Each is amended by the PR whose code makes it false, not by this document.
 
 | # | Statement | Location | Amended by |
 |---|---|---|---|
-|11| `goip is read-only` for every non-show verb | `internal/goip/obj_addr.go:28` (comment), `:44` | Phase 6 for `add`/`change`/`replace`/`delete`; Phase 8 for `flush`; Phase 9 for `save`/`showdump`/`restore` |
+|11| `goip is read-only` for every non-show verb | `internal/goip/obj_addr.go:26-32` (comment), `:52` (the default arm, now an unknown verb) | Phase 6 for `add`/`change`/`replace`/`delete`; Phase 8 for `flush`; Phase 9 for `save`/`showdump`/`restore` |
 |12| `ErrNotAnAdmittedWrite`'s text names four types | `pkg/xtcpnl/xtcpnl_rtattr_encode.go:53` | Phase 4 |
 |13| `admittedWriteTypes` has four entries | `pkg/xtcpnl/xtcpnl_write_gate_test.go:18` | Phase 4 — two map entries; the test is generated from the map, so no row is edited by hand |
 |14| "Read-only. `show`/`list`/`lst` only … refuses a write verb", with two exceptions | `coverage-status.md`, "What is deliberately not in scope" | Phase 6 (a third exception) |
@@ -584,7 +585,7 @@ Extending `Setup` with a sysctl step or a peer namespace is a separate change.
 | Target | Kind | What changes | Writes |
 |---|---|---|---|
 | `nix run .#microvm-x86_64-link-write-capture` | existing runner, extended | gains `addr_readback`, `addr_rows`, `addr_flush_rows` and `addr_save_rows` | `pkg/xtcpnl/testdata/7_1_4/link-write/{addr-show,addr,addr-flush,addr-save}/` |
-| `nix run .#microvm-x86_64-goip-parity` | existing runner, extended | gains the selector, output-mode, write, flush and save/restore rows; carries the committed `ip.save` blobs into the guest as a store path | report only |
+| `nix run .#microvm-x86_64-goip-parity` | existing runner, extended | gains the selector, output-mode, write, flush and restore rows; carries the two restore slugs' committed `ip.save` blobs into the guest as a store path (`showdump` sends no netlink and stays offline) | report only |
 | `checks.vm-lib-exp` | existing check, extended | hermetic tests for `wait_addr_flag` and the per-row namespace reset of the new rows | — |
 
 Concrete changes:
@@ -632,9 +633,10 @@ Concrete changes:
   as a `needsVrf` predicate, with a Phase 0 diff of the root-namespace
   sidecars with and without it. The finding made both unnecessary
   ([status V002](addr-write-path-status.md#verification-ledger)).
-- **`nix/microvms/default.nix`**: none for capture. For parity, the save blobs
-  are passed as a store path next to the existing parity inputs, so `restore`
-  and `showdump` rows read the same bytes `ip` saved.
+- **`nix/microvms/default.nix`**: none for capture. For parity, the restore
+  slugs' blobs are passed as a store path next to the existing parity inputs,
+  so the `restore` rows read the same bytes `ip` saved. `showdump` has no row:
+  it sends no netlink, so its parity is offline (below).
 
 The shell and expect linters run over the new files; their findings are fixed
 by restructuring, never by a disable directive.
@@ -760,6 +762,14 @@ unchanged.
 
 `showdump` has no pcap to compare, so its parity is
 `TestAddrShowdumpMatchesSidecar` against `ip.out`.
+
+In the parity matrix, the two restore slugs are the rows
+`addr restore < restore_fresh.save` and `addr restore < restore_existing.save`.
+Row names are unique, so each names its own slug's blob, although the two are
+byte-identical to `save_all`'s; the parity driver copies both into the capture
+directory before any row runs, and a write row's command runs there. Each row
+has `Writes: 8` and `Floor: 4`: goip's side, which sends only the link dump,
+gets `Floor-2`.
 
 ## Go design — what to add and what to reuse
 

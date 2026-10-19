@@ -2091,6 +2091,10 @@ rec {
     {
       arch,
       vm,
+      # The restore rows' input: a directory of <slug>.save files. The guest
+      # mounts the host store, so the driver copies them from this path into
+      # the capture directory, where the rows' `< <slug>.save` resolves.
+      addrSave,
     }:
     let
       cfg = constants.architectures.${arch};
@@ -2221,7 +2225,7 @@ rec {
         rc=0
         timeout "$TIMEOUT_SEC" \
           expect ${parityScripts}/goip-parity.exp \
-            "$SERIAL_PORT" "$BLOB" \
+            "$SERIAL_PORT" "$BLOB" --addr-save ${addrSave} \
             ''${KEEP_GOING[@]+"''${KEEP_GOING[@]}"} \
             ''${NO_ALLOWLIST[@]+"''${NO_ALLOWLIST[@]}"} 2>&1 \
           | tee "$LOG" || rc=$?

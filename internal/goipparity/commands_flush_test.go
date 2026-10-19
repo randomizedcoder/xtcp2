@@ -9,26 +9,27 @@ import (
 	"github.com/randomizedcoder/xtcp2/pkg/nlparity"
 )
 
-// flushRowProblem is the table's rule for Writes (addr-write-path.md,
-// "Multi-write rows"): a flush row is a write row and must set Writes, even
-// to 1, so a row cannot reach the comparator counting one DEL by default.
-// Every other row leaves it 0. It returns "" for a row that keeps the rule.
-func flushRowProblem(c Command) string {
-	flush := strings.HasPrefix(c.Slug, addrFlushSlugPrefixCst)
+// multiWriteRowProblem is the table's rule for Writes (addr-write-path.md,
+// "Multi-write rows"): a flush or restore row is a write row and must set
+// Writes, even to 1, so a row cannot reach the comparator counting one write
+// by default. Every other row leaves it 0. It returns "" for a row that keeps
+// the rule.
+func multiWriteRowProblem(c Command) string {
+	multi := strings.HasPrefix(c.Slug, addrFlushSlugPrefixCst) || strings.HasPrefix(c.Slug, addrRestoreSlugPrefixCst)
 	switch {
 	case c.Writes < 0:
 		return "Writes is negative"
-	case flush && !c.Write:
-		return "a flush row is a write row"
-	case flush && c.Writes == 0:
-		return "a flush row must set Writes, even to 1"
-	case !flush && c.Writes != 0:
-		return "only a flush row sets Writes"
+	case multi && !c.Write:
+		return "a flush or restore row is a write row"
+	case multi && c.Writes == 0:
+		return "a flush or restore row must set Writes, even to 1"
+	case !multi && c.Writes != 0:
+		return "only a flush or restore row sets Writes"
 	}
 	return ""
 }
 
-// TestFlushRowProblem is the Writes rule over hand-built rows
+// TestFlushRowProblem is the Writes rule, multiWriteRowProblem, over hand-built rows
 // (addr-write-path.md table 10, row 3).
 //
 // go test ./internal/goipparity/ -run TestFlushRowProblem
@@ -43,15 +44,23 @@ func TestFlushRowProblem(t *testing.T) {
 		{description: "boundary: a flush row that deletes one sets Writes to 1",
 			edit: func(c *Command) { c.Writes = 1 }, expected: ""},
 		{description: "negative: a flush row with Writes 0 is refused",
-			edit: func(c *Command) { c.Writes = 0 }, expected: "a flush row must set Writes, even to 1"},
+			edit: func(c *Command) { c.Writes = 0 }, expected: "a flush or restore row must set Writes, even to 1"},
 		{description: "negative: a flush row that is not a write row",
-			edit: func(c *Command) { c.Write = false }, expected: "a flush row is a write row"},
+			edit: func(c *Command) { c.Write = false }, expected: "a flush or restore row is a write row"},
 		{description: "negative: a negative count",
 			edit: func(c *Command) { c.Writes = -1 }, expected: "Writes is negative"},
 		{description: "negative: a single address write that sets Writes",
-			edit: func(c *Command) { c.Slug, c.Writes = "addr_write_add_v4", 1 }, expected: "only a flush row sets Writes"},
+			edit: func(c *Command) { c.Slug, c.Writes = "addr_write_add_v4", 1 }, expected: "only a flush or restore row sets Writes"},
 		{description: "negative: a read row that sets Writes",
-			edit: func(c *Command) { c.Slug, c.Write, c.Writes = "addr_show", false, 2 }, expected: "only a flush row sets Writes"},
+			edit: func(c *Command) { c.Slug, c.Write, c.Writes = "addr_show", false, 2 }, expected: "only a flush or restore row sets Writes"},
+		{description: "positive: a restore row with its 8 writes keeps the rule",
+			edit: func(c *Command) { c.Slug, c.Writes = "addr_restore_fresh", 8 }, expected: ""},
+		{description: "negative: a restore row with Writes 0 is refused",
+			edit:     func(c *Command) { c.Slug, c.Writes = "addr_restore_fresh", 0 },
+			expected: "a flush or restore row must set Writes, even to 1"},
+		{description: "negative: a restore row that is not a write row",
+			edit:     func(c *Command) { c.Slug, c.Write = "addr_restore_existing", false },
+			expected: "a flush or restore row is a write row"},
 		{description: "corner: a single address write with Writes 0 keeps the rule",
 			edit: func(c *Command) { c.Slug, c.Writes = "addr_write_add_v4", 0 }, expected: ""},
 	}
@@ -61,8 +70,8 @@ func TestFlushRowProblem(t *testing.T) {
 			if tc.edit != nil {
 				tc.edit(&c)
 			}
-			if got := flushRowProblem(c); got != tc.expected {
-				t.Errorf("flushRowProblem = %q, want %q", got, tc.expected)
+			if got := multiWriteRowProblem(c); got != tc.expected {
+				t.Errorf("multiWriteRowProblem = %q, want %q", got, tc.expected)
 			}
 		})
 	}

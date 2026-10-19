@@ -2,9 +2,9 @@
 
 Last updated: 2026-10-18.
 
-**Phases A0 through A8 are done.** The design
+**Every phase, A0 through A9, is done.** The design
 ([addr-write-path.md](addr-write-path.md)) and the plan
-([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. 24 of 25
+([addr-write-path-plan.md](addr-write-path-plan.md)) are on `main`. All 25
 tasks are done: A0-T01 (V001), A0-T02 (closed by a finding, V002), A0-T03
 and A0-T04, closed by one KVM capture (V005), A0-T05, which recorded M1–M3
 from that capture's fixtures (V006), A1-T01, which decodes the four
@@ -48,9 +48,15 @@ The live matrix is unchanged (V061–V063). A9-T02 is `goip address
 restore`: one link dump at the first saved message, then each message
 flagged `|REQUEST|CREATE|ACK` to `GOIP_WRITE_OUT`. It matches both restore
 captures message for message and `ip`'s rc 0 over their EEXIST answers, and
-real `ip` on seven synthetic files (V064, V065).
+real `ip` on seven synthetic files (V064, V065). A9-T03 puts both restore
+captures in the matrix as `addr restore < restore_fresh.save` and
+`addr restore < restore_existing.save`, each reading its own slug's blob from
+a store path, and gates both on two clean live runs. `showdump` sends no
+netlink, so it stays offline by design. The first run found the capture
+helper's tcpdump ring dropping the tail of restore's burst, fixed on its own
+in #263 (V066–V069).
 
-**Next action:** A9-T03 (restore and showdump in the matrix).
+**Next action:** none. The plan is complete.
 
 ## Update rules
 
@@ -93,7 +99,7 @@ real `ip` on seven synthetic files (V064, V065).
 | A6 | `goip addr add/change/replace/delete` | done | 2/2 | V032, V033, V034, V035 |
 | A7 | write rows in the matrix | done | 2/2 | V036, V037, V038, V041, V042, V043, V044 |
 | A8 | `flush` and the multi-write comparator | done | 3/3 | V051, V052, V053, V054, V055, V056, V057, V058, V059, V060 |
-| A9 | `save`, `showdump`, `restore` | in progress | 2/3 | V061, V062, V063, V064, V065 |
+| A9 | `save`, `showdump`, `restore` | done | 3/3 | V061, V062, V063, V064, V065, V066, V067, V068, V069 |
 
 ## Task checklist
 
@@ -126,7 +132,7 @@ Add evidence IDs to the last column as work runs.
 | [x] | [A8-T03](addr-write-path-plan.md#a8-t03) | the `Writes` field and flush rows | done | V057, V058, V059, V060, DOC021 |
 | [x] | [A9-T01](addr-write-path-plan.md#a9-t01) | `save` and `showdump` | done | V061, V062, V063, DOC022 |
 | [x] | [A9-T02](addr-write-path-plan.md#a9-t02) | `restore` | done | V064, V065, DOC023 |
-| [ ] | [A9-T03](addr-write-path-plan.md#a9-t03) | restore and showdump in the matrix | not started | — |
+| [x] | [A9-T03](addr-write-path-plan.md#a9-t03) | restore and showdump in the matrix | done | V066, V067, V068, V069, DOC024 |
 
 ## Phase 0 measurements
 
@@ -150,11 +156,11 @@ it.
 
 | # | Statement | Amended by | State |
 |---|---|---|---|
-| 11 | `goip is read-only` for every non-show verb | A6-T02 (four verbs), A8-T02 (`flush`), A9-T03 (`save`/`showdump`/`restore`) | amended for the four verbs (A6-T02) and for `flush` (A8-T02). A9-T01 implemented `save` and `showdump`, and A9-T02 `restore`, so the code comment now names no unimplemented verb. A9-T03 still owes the statement |
+| 11 | `goip is read-only` for every non-show verb | A6-T02 (four verbs), A8-T02 (`flush`), A9-T03 (`save`/`showdump`/`restore`) | done. Amended for the four verbs (A6-T02) and for `flush` (A8-T02). A9-T01 implemented `save` and `showdump`, and A9-T02 `restore`, so `obj_addr.go`'s comment names every verb and its default arm refuses only an unknown one. A9-T03 amended the prose: `coverage-status.md`'s read-only scope bullet, which still quoted the `goip is read-only` refusal, and its `ip address` summary, and the design's location column |
 | 12 | `ErrNotAnAdmittedWrite`'s text names four types | A4-T01 | done |
 | 13 | `admittedWriteTypes` has four entries | A4-T01 | done |
 | 14 | `coverage-status.md`'s "read-only, `show` only" scope line | A6-T02 | done |
-| 15 | the glance-table matrix count and scope line | A2-T03, A7-T02, A3-T03, A8-T03, A9-T03 | amended for the selector rows (A2-T03). A7-T01 updated the row and ungated counts it changed: 170 rows, 50 ungated. A7-T02 amended the gated count for the write rows: 147 gated, 23 ungated. A3-T03 added four rows and gated them: 174 rows, 151 gated, 23 ungated. A8-T03 added seven flush rows and gated them: 181 rows, 158 gated, 23 ungated. A9-T03 still owes its part |
+| 15 | the glance-table matrix count and scope line | A2-T03, A7-T02, A3-T03, A8-T03, A9-T03 | done. Amended for the selector rows (A2-T03). A7-T01 updated the row and ungated counts it changed: 170 rows, 50 ungated. A7-T02 amended the gated count for the write rows: 147 gated, 23 ungated. A3-T03 added four rows and gated them: 174 rows, 151 gated, 23 ungated. A8-T03 added seven flush rows and gated them: 181 rows, 158 gated, 23 ungated. A9-T03 added two restore rows and gated them: 183 rows, 160 gated, 23 ungated |
 | 16 | `route-write-path.md`'s "Out of scope: `addr`" line | this plan's PR (pointer only) | done |
 | 17 | the route-write gate table's negative example is `RTM_NEWADDR` | A4-T01 | done |
 | 18 | README's "admits exactly four types" | A4-T01 | done |
@@ -251,6 +257,11 @@ it.
 | V064 | 2026-10-18 | A9-T02 | `go test ./internal/goip/... ./internal/goipparity/... ./pkg/nlparity/... ./pkg/xtcpnl/...`. New: `TestAddrRestoreMatchesIpBytes` (restore_fresh and restore_existing: one link dump equal to `ip`'s, then 8 writes equal to `ip`'s message by message apart from seq and pid, each flagged `0x407`, at the link dump's seq +1 onward; rc 0 = `ip.rc`; stdout empty = `ip.out`; goip's stderr empty, where `ip.err` holds one `Error: … already assigned.` line per EEXIST ack in the capture, 2 and 8; and the same through `run` with the pcap replayed), `TestAddrRestore` (21 rows) and `TestTierAAddrRestoreLinkDump` (2). `TestAddrShowdump` and `TestAddrSave` pass unchanged over the shared magic check and record loop. `TestRunAddrArgs`' not-implemented row moved from `restore` to `addr bogus`. Live check: `ip addr restore` from iproute2-7.1.0 under `unshare -rn`, traced with strace, on seven synthetic files: the magic alone sends nothing, rc 0; one record sends the link dump (`RTEXT_FILTER_VF` alone) and one `RTM_NEWADDR` flagged `REQUEST\|MULTI\|ACK\|CREATE`; two records send one link dump and two writes, the second EEXIST, rc 0; a truncated first record sends nothing, and a truncated second sends the dump and one write, both `rtnl-from_file: truncated message`, rc 255; `len=8` is `!!!malformed message: len=8 @20`, rc 255, nothing sent; empty stdin is `Magic mismatch (0 elems, 0 magic)`, rc 255. goip matches each. Mutation check in a scratch worktree: each mutant failed the rows named for it, and was reverted. The mutants were: `CREATE` dropped from the OR (both corpus rows, the 0x407 row), the link dump sent per record (both corpus rows, the three-record row), the link dump mask 9 (both corpus rows, the Tier A row), the partial write dropped on truncation (the whole-then-truncated row), the saved flags replaced rather than ORed (both corpus rows, the 0x407 row) and the hook check disabled (the hook-unset row, which then sent the link dump) | Passed: all green; the six mutants caught | `internal/goip/addr_restore_test.go`, `internal/goip/addr_restore_corpus_test.go`, `internal/goip/req/req_test.go` |
 | V065 | 2026-10-18 | A9-T02 | the nix checks: `.#test-focused-goip`, `checks.netlink-audit`, `checks.lint-baseline`, `.#quality-report`, `checks.nix-fmt`, `checks.statix`, `checks.deadnix`. `vm-lib-exp` does not apply: no `.exp` file changed. No parity run: no matrix row reaches `restore` or the showdump refactor; A9-T03 adds the rows | Passed, except `lint-baseline`, which fails on `main` with the same 17 tier-2 findings. The branch adds none: goconst names a different existing constant (`vrfKindCst` for `vrfKeywordCst`) for the same `vrf` finding | the check outputs |
 | DOC023 | 2026-10-18 | A9-T02 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc, plus `git diff --check` | Passed: 25 task IDs one to one; 24 done ticks; no broken links or anchors; ledger IDs unique and in order; `git diff --check` clean | Summary retained here; the checker script was session-local |
+| V066 | 2026-10-18 | A9-T03 | `go test ./internal/goip/... ./internal/goipparity/... ./pkg/nlparity/... ./pkg/xtcpnl/...`. New: `TestAddrRestoreRows` (11: each row's name, floor 4 and `Writes: 8` against its slug's `ip.pcap`, one link dump before the writes, `Setup` equal to the slug's `topology` step for step, goip's `Floor-2` within its datagrams, each blob byte-identical to `save_all`'s, exactly two `addr_restore_` rows and none for showdump or save, `Writes: 7` refused with `ErrWriteCount`, a short `Setup` refused, and the store path and the driver's copy pinned in `default.nix` and `goip-parity.exp`). `TestFlushRowProblem` gains three restore rows for the widened `Writes` rule, now `multiWriteRowProblem`; `TestCompareWriteRow` compares both restore captures through the comparator. Mutation check in a scratch worktree: each mutant failed the rows named for it, and was reverted. The mutants were: `Writes: 7` on restore_fresh (`TestAddrRestoreRows`, `TestRender`, `TestCompareWriteRow`), a v6 step dropped from `addrRestoreExistingSetup` (`TestAddrRestoreRows`), the restore prefix dropped from the rule (`TestFlushRowProblem`, `TestCommandTable`), the wrong slug name in `default.nix` and `save_all`'s path in its place (`TestAddrRestoreRows`) | Passed: all green; the five mutants caught | `internal/goipparity/commands_restore_test.go`, `internal/goipparity/commands_flush_test.go`, `internal/goipparity/compare_write_test.go` |
+| V067 | 2026-10-18 | A9-T03 | `nix run .#microvm-x86_64-goip-parity -- --timeout 4500` from a scratch worktree at `main` (3b7d4a00) plus this change, the rows ungated. Then a diagnostic run of the two restore rows only, 15 times each, keeping tcpdump's exit statistics | Failed, not on goip: restore_existing passed; restore_fresh's `ip_b` capture held 5 of the 8 writes (`the capture holds a different number of writes: 5, want 8`), though its rc was 0 and its stderr `ip_a`'s. The other 181 verdicts were V062's. The diagnostic run reproduced it once in 90 captures, 17 of 20 datagrams, and tcpdump reported `22 packets received by filter`, `19 packets captured`, `3 packets dropped by kernel`; the other 89 dropped none. Root cause: under `--immediate-mode` libpcap's TPACKET_V2 ring for nlmon is 8 snaplen-sized frames, which restore's burst outran. Fixed on `main` by #263 (`-B 32768`, 128 frames, and a capture that drops anything is discarded as `NLCAP_CAP_DROPPED`), which ran the same rows 30 times each, 180 captures, with no drop | transcripts in the session scratchpad, not kept; #263 |
+| V068 | 2026-10-18 | A9-T03 | two consecutive `nix run .#microvm-x86_64-goip-parity -- --timeout 4500` runs from a scratch worktree at `main` (7a324ea3, with #263) plus this change, the rows ungated. Then the rows gated in `gated_commands` and the earned list, with `TestAddrRestoreRowsGated` (7 rows), and the gating mutant: one row dropped from `gated_commands` | Passed. Run 2: both restore rows `GOIP_PARITY_PASS`, `txns` 9 against 9, every `ip` side 20 datagrams and goip's 4, no finding; the other 181 verdicts and `txns` identical to #263's full run on `main`, 175 PASS, 7 WARN and the pre-existing `-4 netconf show dev` FAIL (`HYGIENE_FAIL 2`), so `OVERALL_FAIL` as on `main`; no `NLCAP_CAP_DROPPED`. Run 3: the same, both rows `GOIP_PARITY_PASS` at the same `txns`, datagrams and control, no finding, and the other 181 verdicts and `txns` identical to run 2's; `CONTROL_NOISY` 164 where run 2 had 169, a count that moves run to run. The mutant failed `TestAddrRestoreRowsGated`, `TestUngatedSurfaceIsNotVacuous` and `TestAllowlistCommitted` | transcripts in the session scratchpad, not kept; `pkg/nlparity/goip-parity-allowlist.json` |
+| V069 | 2026-10-18 | A9-T03 | the nix checks: `.#test-focused-goip`, `checks.netlink-audit`, `checks.lint-baseline`, `.#quality-report`, `checks.nix-fmt`, `checks.statix`, `checks.deadnix`, and `checks.vm-lib-exp`, which applies: `goip-parity.exp` changed | Passed, except `lint-baseline`, which fails on `main` with the same 17 tier-2 findings, all in `internal/goip`. The branch adds none | the check outputs |
+| DOC024 | 2026-10-18 | A9-T03 doc amendments | the same consistency check as DOC001, local Python 3, over the design, the plan and this doc, plus `git diff --check`. The glance-table counts in `coverage-status.md` and `docs/netlink/README.md` recounted from `Commands()` and the allowlist | Passed: 25 task IDs one to one; 25 done ticks; no broken links or anchors; ledger IDs unique and in order; `git diff --check` clean; 183 rows, 183 implemented, 160 gated, 83 writes, 7 entries | Summary retained here; the checker script was session-local |
 
 ## Blockers and upcoming requirements
 
@@ -259,6 +270,28 @@ it.
 - **No open blockers.**
 
 ## Progress and decision log
+
+- **2026-10-18.** A9-T03 is done, and with it the plan.
+  - **showdump has no row.** It sends no netlink, so a matrix row has
+    nothing to compare: the comparator refuses an empty capture
+    (`ErrNoTransactions`) and the table refuses `Floor: 0`. Its parity is
+    `TestAddrShowdumpMatchesSidecar`, offline, as the design said
+    (`addr-write-path.md`, "Save, showdump and restore rows"), checked against
+    real `ip` in V061. This finding amends the plan's deliverable, which
+    named a showdump row.
+  - **A row per slug blob.** Row names are unique and gating looks a row up
+    by name, so the two rows cannot share `addr restore < ip.save`. Each
+    names its own slug's blob; the two are byte-identical to `save_all`'s.
+    `default.nix` carries them in one store path, and the driver copies them
+    into the capture directory, where a write row's command runs, before any
+    row runs. `save_all`'s own blob is not carried: no row reads it.
+  - **Floor 4.** goip's side sends only the link dump, and gets `Floor-2`.
+    A floor counting `ip`'s 20 datagrams would fail goip's side every run.
+  - **The first run's failure was the capture's.** restore_fresh's `ip_b`
+    lost its last three writes and acks to tcpdump's eight-frame ring
+    (V067). That was a harness defect that every capture shared, so it was
+    fixed on its own (#263) before these rows were gated, and the two runs
+    that gated them were taken on top of it (V068).
 
 - **2026-10-18.** A9-T02 is done.
   - **The link dump's mask is the capture's.** The design quoted the

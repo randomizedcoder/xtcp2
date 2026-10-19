@@ -26,12 +26,18 @@ const (
 	// addrFlushSlugPrefixCst names a flush row, whose corpus slug is
 	// flush_ and the rest.
 	addrFlushSlugPrefixCst = "addr_flush_"
-	pcapGlobalHdrCst       = 24
-	pcapRecordHdrCst       = 16
+	// addrRestoreSlugPrefixCst names a restore row, whose corpus slug is
+	// restore_ and the rest, under tdAddrSave.
+	addrRestoreSlugPrefixCst = "addr_restore_"
+	tdAddrSave               = "../../pkg/xtcpnl/testdata/7_1_4/link-write/addr-save"
+	pcapGlobalHdrCst         = 24
+	pcapRecordHdrCst         = 16
 	// nlmonHdrCst is the cooked header LINKTYPE_NETLINK puts before each
 	// datagram.
 	nlmonHdrCst = 16
-	// rtmDelAddrCst and nlmFRequestCst are RTM_DELADDR and NLM_F_REQUEST.
+	// rtmNewAddrCst, rtmDelAddrCst and nlmFRequestCst are RTM_NEWADDR,
+	// RTM_DELADDR and NLM_F_REQUEST.
+	rtmNewAddrCst  = 20
 	rtmDelAddrCst  = 21
 	nlmFRequestCst = 0x1
 	// nlMsgHdrCst is sizeof(struct nlmsghdr). Spelled here because this
@@ -90,6 +96,21 @@ func dropDelRecords(t *testing.T, b []byte) []byte {
 	return out
 }
 
+// keepBeforeRequest returns a pcap cut at the first record that carries a
+// request of type typ: a restore capture less its writes and their acks,
+// which is the link dump goip sends while it writes the rest.
+func keepBeforeRequest(t *testing.T, b []byte, typ uint16) []byte {
+	t.Helper()
+	for _, off := range pcapRecords(t, b) {
+		msg := off + pcapRecordHdrCst + nlmonHdrCst
+		if msg+8 <= len(b) && binary.LittleEndian.Uint16(b[msg+4:msg+6]) == typ &&
+			binary.LittleEndian.Uint16(b[msg+6:msg+8])&nlmFRequestCst != 0 {
+			return append([]byte(nil), b[:off]...)
+		}
+	}
+	return append([]byte(nil), b...)
+}
+
 // writeRowFiles is one write row's files as a perfect run would leave them:
 // ip_a and ip_b are the corpus capture, goip is the same capture without the
 // write, and goip's GOIP_WRITE_OUT file is ip's write request. edit, when set,
@@ -113,6 +134,9 @@ func corpusWriteRow(t *testing.T, c Command) writeRowFiles {
 	}
 	if slug, ok := strings.CutPrefix(c.Slug, addrFlushSlugPrefixCst); ok {
 		return corpusFlushRow(t, c, filepath.Join(tdAddrFlush, "flush_"+slug))
+	}
+	if slug, ok := strings.CutPrefix(c.Slug, addrRestoreSlugPrefixCst); ok {
+		return corpusRestoreRow(t, c, filepath.Join(tdAddrSave, "restore_"+slug))
 	}
 	ipPcap := mustReadBytes(t, filepath.Join(dir, "ip.pcap"))
 	rc := strings.TrimSpace(mustRead(t, filepath.Join(dir, "ip.rc")))
@@ -162,6 +186,17 @@ func corpusFlushRow(t *testing.T, c Command, dir string) writeRowFiles {
 		write:  file,
 		stdout: mustReadBytes(t, filepath.Join(dir, "ip.out")),
 	}
+}
+
+// corpusRestoreRow is a restore row's files as a perfect run would leave
+// them: goip's capture is ip's link dump alone, and its file is ip's writes,
+// each at the next seq. ip's stdout is empty; its stderr, the kernel's EEXIST
+// answers, is not compared.
+func corpusRestoreRow(t *testing.T, c Command, dir string) writeRowFiles {
+	t.Helper()
+	f := corpusFlushRow(t, c, dir)
+	f.pcaps[SideGoip] = keepBeforeRequest(t, f.pcaps[SideIPA], rtmNewAddrCst)
+	return f
 }
 
 // writeRequest is one captured write as goip writes it to GOIP_WRITE_OUT,

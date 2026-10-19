@@ -978,6 +978,24 @@ let
     };
   });
 
+  # The committed `ip.save` each goip-parity restore row reads
+  # (addr-write-path.md phase 9), named <slug>.save: the bytes `ip` saved
+  # and then restored in the capture, not a second save taken in the guest.
+  goipParityAddrSave =
+    let
+      dir = ../../pkg/xtcpnl/testdata/7_1_4/link-write/addr-save;
+    in
+    pkgs.runCommand "xtcp2-goip-parity-addr-save"
+      {
+        restoreFresh = dir + "/restore_fresh/ip.save";
+        restoreExisting = dir + "/restore_existing/ip.save";
+      }
+      ''
+        mkdir -p $out
+        cp $restoreFresh $out/restore_fresh.save
+        cp $restoreExisting $out/restore_existing.save
+      '';
+
   # goip/ip parity runner (Tier C): boots the goip-parity VM, drives it with
   # scripts/goip-parity.exp, and reports the verdict the GUEST reached — the
   # comparison runs in there, so the captures never have to leave for the
@@ -988,6 +1006,7 @@ let
     runner = microvmLib.mkGoipParityRunner {
       inherit arch;
       vm = vmsGoipParity.${arch};
+      addrSave = goipParityAddrSave;
     };
   });
 
