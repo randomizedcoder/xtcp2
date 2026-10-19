@@ -12,6 +12,9 @@
 #   NLCAP_OUT       where xtcp2-nlcap writes transcripts (not /tmp/nlcap)
 #   NLCAP_IF_INET6  the file wait-addr-flag reads instead of /proc/net/if_inet6
 #
+# It also runs tcpdump-drops, the parse capture() uses to discard a capture
+# whose packet socket dropped datagrams, against tcpdump's exit lines.
+#
 # TWO KINDS OF ROW
 #
 # The wait-addr-flag, sysctl and note rows run end to end: Tcl, the console,
@@ -523,6 +526,49 @@ build_fresh v4_peer
 tcheck "boundary: build_fresh's reset leaves no state from the run before" \
     {list [addrtopo::failed_states] [addrtopo::dropped_states] [nltopo::refused_steps]} \
     {{} {} {}}
+
+###############################################################################
+# xtcp2-nlcap tcpdump-drops, end to end against the real helper
+#
+# capture() discards an attempt unless this prints 0. Each row is a stand-in
+# for tcpdump's stderr after SIGINT, in tcpdump's own wording, so what is
+# checked is the parse a real capture depends on.
+###############################################################################
+set tderr [file join [pwd] tcpdump.err]
+set listening "tcpdump: listening on nlmon0, link-type NETLINK (Linux netlink), snapshot length 262144 bytes"
+foreach {description lines want_rc want_re} [list \
+    "positive: a clean exit is 0 dropped" \
+        [list $listening "20 packets captured" "22 packets received by filter" "0 packets dropped by kernel"] \
+        0 {^0$} \
+    "positive: the restore capture that lost its tail is 3 dropped" \
+        [list $listening "19 packets captured" "22 packets received by filter" "3 packets dropped by kernel"] \
+        0 {^3$} \
+    "boundary: one drop is tcpdump's singular wording" \
+        [list "1 packet captured" "2 packets received by filter" "1 packet dropped by kernel"] \
+        0 {^1$} \
+    "boundary: a count at u32's maximum is read whole" \
+        [list "4294967295 packets dropped by kernel"] \
+        0 {^4294967295$} \
+    "corner: dropped by interface is not the kernel's count" \
+        [list "5 packets captured" "7 packets dropped by interface" "2 packets dropped by kernel"] \
+        0 {^2$} \
+    "negative: tcpdump died before its statistics, so there is no count" \
+        [list $listening] \
+        1 {} \
+    "negative: an empty file has no count" \
+        [list] \
+        1 {} \
+    "negative: two kernel lines are not one count" \
+        [list "0 packets dropped by kernel" "3 packets dropped by kernel"] \
+        1 {} \
+] {
+    set f [open $tderr w]
+    foreach line $lines {
+        puts $f $line
+    }
+    close $f
+    ccheck $description "xtcp2-nlcap tcpdump-drops $tderr" $want_rc $want_re
+}
 
 ###############################################################################
 # summary
