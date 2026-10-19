@@ -98,6 +98,37 @@
 # sentinel that adds rtnetlink traffic to a fixture whose whole purpose is to
 # contain one transaction is not a sentinel, it is pollution.
 #
+# THE RING HAS EIGHT FRAMES, AND A BURST CAN OUTRUN IT
+#
+# The sentinel proves every datagram the tap DELIVERED is in the file. It
+# cannot prove the packet socket kept them, and with tcpdump's defaults it
+# does not always. `--immediate-mode` makes libpcap 1.10 use TPACKET_V2
+# rather than V3 (pcap-linux.c, "if the user has requested immediate mode,
+# we don't use TPACKET_V3"), and for a link type that is not Ethernet, as
+# DLT_NETLINK is not, V2 sizes every frame by the snaplen: 262144 bytes plus
+# the header, one datagram per frame however small. tcpdump's default 2 MiB
+# buffer is then a ring of EIGHT frames. tcpdump writes and flushes each
+# packet (-U), so a generator that gets eight datagrams ahead of it loses
+# the rest to the kernel. Measured in the goip-parity guest, `ip addr restore`
+# (one link dump, then 16 writes and acks in about 200 us) came back
+#
+#     19 packets captured
+#     22 packets received by filter
+#     3 packets dropped by kernel
+#
+# with `ip`'s exit status 0: the last writes were sent and acked, and the
+# fixture held the first five of eight. 1 of 90 such captures did this.
+#
+# Two changes, again for two halves:
+#
+#   - `-B 32768`, a 32 MiB buffer, which is 128 frames. Each ~256 KiB frame
+#     takes a 512 KiB block, so the ring maps 64 MiB; one tcpdump runs at a
+#     time. The snaplen stays, so no datagram can be truncated.
+#   - The drop count is read back. tcpdump prints it on exit, and a capture
+#     that dropped anything, or whose count cannot be read, is discarded as
+#     NLCAP_CAP_DROPPED rather than kept. libpcap shrinks the ring and retries
+#     on ENOMEM without saying so, so the buffer alone is not a guarantee.
+#
 { pkgs }:
 
 let
@@ -348,6 +379,19 @@ pkgs.writeShellApplication {
       esac
     }
 
+    # tcpdump_drops <stderr-file>
+    #
+    # Print the count from tcpdump's exit line `N packet(s) dropped by
+    # kernel`. Returns non-zero unless exactly one such line is there: a
+    # tcpdump that died before printing its statistics has no count, and that
+    # is not the same as 0. `dropped by interface`, which some builds also
+    # print, is the driver's counter and not this one.
+    tcpdump_drops() {
+      awk 'NF == 5 && $1 ~ /^[0-9]+$/ && $2 ~ /^packets?$/ && $3 == "dropped" &&
+        $4 == "by" && $5 == "kernel" { n = $1; c++ }
+        END { if (c != 1) exit 1; print n }' "$1"
+    }
+
     # Poll a pcap that tcpdump is still writing until it holds at least one
     # datagram matching <filter>. Returns 0 only on a match.
     #
@@ -542,7 +586,7 @@ pkgs.writeShellApplication {
       # the two as one observation.
       local outnew="$dir/.$name.new.out"
       local errnew="$dir/.$name.new.err"
-      local attempt=0 attempts=2 err tp n=0 rc=0
+      local attempt=0 attempts=2 err tp n=0 rc=0 drops
       if [ "$mode" = write ]; then
         attempts=1
       fi
@@ -555,8 +599,9 @@ pkgs.writeShellApplication {
         # readable by tcpdump when SIGINT arrives and the pcap comes back
         # empty. See the header - this is the difference between 2 of 18
         # captures passing and all of them passing.
+        # -B 32768: a ring of 128 frames, not 8. See the header.
         ip netns exec "$ns" \
-          tcpdump -i "$IFACE" -w "$raw" -U -q --immediate-mode >/dev/null 2>"$err" &
+          tcpdump -i "$IFACE" -w "$raw" -U -q --immediate-mode -B 32768 >/dev/null 2>"$err" &
         tp=$!
 
         if ! wait_for_line "$err" "listening on" "$tp"; then
@@ -567,7 +612,7 @@ pkgs.writeShellApplication {
           rm -f "$err" "$raw" "$outnew" "$errnew"
           continue
         fi
-        rm -f "$err"
+        # $err stays: tcpdump prints its drop count there on exit.
 
         # The generator's own status is deliberately ignored: `ip neigh show`
         # on an empty table succeeds, `ip -6 route show` on a v4-only setup
@@ -603,6 +648,8 @@ pkgs.writeShellApplication {
 
         kill -INT "$tp" 2>/dev/null || true
         wait "$tp" 2>/dev/null || true
+        drops="$(tcpdump_drops "$err")" || drops=unknown
+        rm -f "$err"
 
         # Filter to NETLINK_ROUTE, which now has two jobs: it removes the stop
         # sentinel, and it still asserts that nothing ELSE was on the wire in
@@ -628,6 +675,14 @@ pkgs.writeShellApplication {
         rm -f "$raw"
 
         n="$(pkt_count "$new")"
+        # A dropped datagram is a hole in the transaction, wherever it fell,
+        # so the attempt is discarded even if it cleared its floor. A write
+        # has one attempt and so ends NLCAP_CAP_SHORT.
+        if [ "$drops" != 0 ]; then
+          rm -f "$new" "$outnew" "$errnew"
+          echo "NLCAP_CAP_DROPPED $subdir/$name attempt=$attempt datagrams=$n dropped=$drops" >&2
+          continue
+        fi
         if [ "$n" -ge "$min" ]; then
           mv -f "$new" "$dir/$name.pcap"
           if [ "$sout" != "-" ]; then
@@ -1222,6 +1277,16 @@ pkgs.writeShellApplication {
       echo "NLCAP_INVENTORY_OK"
     }
 
+    # tcpdump-drops <stderr-file>
+    #
+    # tcpdump_drops as a subcommand, for nix/checks/vm-lib-exp.nix, which
+    # checks the parse against tcpdump's exit lines with no capture running.
+    # Prints the count and exits 0, or exits 1.
+    cmd_tcpdump_drops() {
+      [ $# -eq 1 ] || die "usage: tcpdump-drops <stderr-file>"
+      tcpdump_drops "$1"
+    }
+
     # pack
     #
     # tar | gzip -n | base64, between sentinels, the same exfil path coverage
@@ -1239,7 +1304,7 @@ pkgs.writeShellApplication {
     }
 
     if [ $# -lt 1 ]; then
-      die "usage: xtcp2-nlcap <ns-add|ns-del|topo|cap|capio|write|side|wait-lacp|wait-sysfs|wait-addr-flag|sysctl|note|wait-churn|strace|strace-monitor|wait-rdma-port|rdma-hold|rdma-hold-wait|rdma-hold-stop|rdma-user-cqn|dir|inventory|pack> ..."
+      die "usage: xtcp2-nlcap <ns-add|ns-del|topo|cap|capio|write|side|wait-lacp|wait-sysfs|wait-addr-flag|sysctl|note|wait-churn|strace|strace-monitor|wait-rdma-port|rdma-hold|rdma-hold-wait|rdma-hold-stop|rdma-user-cqn|dir|inventory|pack|tcpdump-drops> ..."
     fi
 
     sub=$1
@@ -1268,6 +1333,7 @@ pkgs.writeShellApplication {
       dir)       cmd_dir "$@" ;;
       inventory) cmd_inventory "$@" ;;
       pack)      cmd_pack "$@" ;;
+      tcpdump-drops) cmd_tcpdump_drops "$@" ;;
       *)         die "unknown subcommand: $sub" ;;
     esac
   '';
