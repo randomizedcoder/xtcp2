@@ -42,12 +42,20 @@ func (v *verb) matches(tok string) bool {
 // iproute2 reports as an unknown command; goip's objects report it as
 // ErrNotImplemented.
 func resolveVerb(chain []verb, tok string) (v verb, ok bool) {
-	for i := range chain {
-		if chain[i].matches(tok) {
-			return chain[i], true
-		}
+	if i := verbIndex(chain, tok); i >= 0 {
+		return chain[i], true
 	}
 	return verb{}, false
+}
+
+// verbIndex is resolveVerb's position in chain, or -1.
+func verbIndex(chain []verb, tok string) int {
+	for i := range chain {
+		if chain[i].matches(tok) {
+			return i
+		}
+	}
+	return -1
 }
 
 // showArgs resolves an object's verb for the listing: it returns the

@@ -31,6 +31,9 @@ type object struct {
 	// verbs is the object's verb chain in iproute2's order (verbs.go); nil
 	// for an unimplemented object.
 	verbs []verb
+	// aliasOf is the row this one spells differently (neighbour, ntbl), or
+	// "" for a canonical row.
+	aliasOf string
 }
 
 // objects is the object table in iproute2's order, which is load-bearing.
@@ -59,9 +62,9 @@ var objects = []object{
 	{name: "route", run: runRoute, verbs: routeVerbs},
 	{name: "rule", run: runRule, verbs: ruleVerbs},
 	{name: "neighbor", run: runNeigh, verbs: neighVerbs},
-	{name: "neighbour", run: runNeigh, verbs: neighVerbs},
+	{name: "neighbour", run: runNeigh, verbs: neighVerbs, aliasOf: "neighbor"},
 	{name: "ntable", run: runNTable, verbs: ntableVerbs},
-	{name: "ntbl", run: runNTable, verbs: ntableVerbs},
+	{name: "ntbl", run: runNTable, verbs: ntableVerbs, aliasOf: "ntable"},
 	{name: "link", run: runLink, verbs: linkVerbs},
 	{name: "l2tp"},
 	{name: "fou"},
@@ -150,15 +153,15 @@ const (
 
 // lookupObject resolves an argument to an object, first match in table order.
 func lookupObject(arg string) (object, error) {
-	for _, o := range objects {
-		if matchesPrefix(arg, o.name) {
-			if o.run == nil {
-				return o, fmt.Errorf("%q: %w", o.name, ErrNotImplemented)
-			}
-			return o, nil
-		}
+	i := objectIndex(arg)
+	if i < 0 {
+		return object{}, fmt.Errorf("%q: %w", arg, ErrUnknownObject)
 	}
-	return object{}, fmt.Errorf("%q: %w", arg, ErrUnknownObject)
+	o := objects[i]
+	if o.run == nil {
+		return o, fmt.Errorf("%q: %w", o.name, ErrNotImplemented)
+	}
+	return o, nil
 }
 
 // runCtx is the state one goip invocation shares between dispatch and the
@@ -238,9 +241,9 @@ func (c *runCtx) stats() bool { return c.showStats > 0 }
 func (c *runCtx) outputMode() string {
 	switch {
 	case c.brief:
-		return "-brief"
+		return optBriefCst
 	case c.oneline:
-		return "-oneline"
+		return optOnelineCst
 	}
 	return ""
 }

@@ -178,11 +178,8 @@ func TestVerbChains(t *testing.T) {
 			// An alias row (the British neighbor spelling, ntbl) shares the
 			// chain of the row it aliases; look it up under that row's name.
 			key := o.name
-			for _, first := range objects {
-				if first.verbs != nil && &first.verbs[0] == &o.verbs[0] {
-					key = first.name
-					break
-				}
+			if o.aliasOf != "" {
+				key = o.aliasOf
 			}
 			want, ok := iproute2Verbs[key]
 			if !ok {

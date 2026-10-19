@@ -132,7 +132,15 @@ errors:
 
 - `ErrWriteVerb`, naming the verb `ip` would run;
 - `ErrRefusedOption`, for `-n`, `-netns`, `-b`, `-batch`, `-force`, `-l`,
-  `-loops` and `-rc`.
+  `-loops`, `-rc` and `-h`/`-help`.
+
+A verb that reads but is not the listing (`save`, `get`, `help`, `xstats`)
+is `ErrNotImplemented` naming it, not `ErrWriteVerb`: it changes nothing,
+and `ip route get` is a candidate follow-up. Options resolve through one
+table of ip's whole option chain (`ip/ip.c`), which `Run` shares, so `-f`
+is `-family` and `-b` is `-batch` as in `ip`. Until IA1-T02 gives
+`ShowRequest` its `Brief` and `Oneline` fields, the resolver refuses `-br`
+and `-o` as `ErrNotImplemented` rather than drop them.
 
 `goip.Shortest()` returns the shortest spelling of every object and show
 verb. It is computed once at init, as the shortest prefix whose first match
@@ -145,10 +153,10 @@ is that keyword.
 | `addrl` | positive | `addrl` | `addrlabel show` |
 | `r` | positive | `r` | `route show` (route precedes rule) |
 | `n` | positive | `n` | `neighbor show` (it precedes netns, netconf and nexthop) |
-| `options_long_short` | positive | `-stat -br a` and `-s -brief address` | Identical `ShowRequest` |
+| `options_long_short` | positive | `-stat -de -j a` and `-s -details -json address` | Identical `ShowRequest` (`-br` moves to IA1-T02's `resolve_brief`) |
 | `default_verb` | positive | `link` | `link show` |
 | `l_s_write` | negative | `l s` | `ErrWriteVerb` naming `link set` |
-| `a_sa_write` | negative | `a sa` | `ErrWriteVerb` naming `address save` |
+| `a_sa_read` | negative | `a sa` | `ErrNotImplemented` naming `address save`: it reads, but is not the listing |
 | `a_f_write` | negative | `a f` | `ErrWriteVerb` naming `address flush` |
 | `netns_refused` | negative | `-n x link`, `-netns x link`, `-ne x link` | `ErrRefusedOption` |
 | `batch_refused` | negative | `-b f`, `-batch f`, `-force` | `ErrRefusedOption` |
@@ -192,6 +200,7 @@ Deliver:
 | `stats_zero` | boundary | `Stats: 0` | No `-s` in `Argv()` |
 | `brief_and_json` | corner | `Brief` with `JSON` | Matches `Run(-br -j address show)`, whatever that is |
 | `registry_stats_true` | corner | The query form's `stats=1` after the move | Unchanged response |
+| `resolve_brief` | positive | `ResolveShow` of `-stat -br a` and `-s -brief address` | Identical `ShowRequest` with `Brief`; IA1-T01's refusal of `-br` and `-o` is lifted |
 
 Done when: `nix build --no-link path:.#test-focused-goip
 path:.#test-linkmonitor-unit -L` passes, and `TestShow` covers every row.
@@ -280,7 +289,7 @@ Deliver:
 | `shortcut_kept` | positive | `/ip/link/lo` | `ip -j link show dev lo`, unchanged |
 | `content_location` | positive | `/i/a/s` | `Content-Location: /ip/address/show` |
 | `i_l_s_set` | negative | `/i/l/s` | 400; body names `ip link set`; no socket opened |
-| `i_a_sa_save` | negative | `/i/a/sa` | 400 naming `ip address save` |
+| `i_a_sa_save` | negative | `/i/a/sa` | 501 naming `ip address save` |
 | `write_flush` | negative | `/ip/addr/flush` | 400; no socket opened |
 | `netns` | negative | `/ip/-n/x/link` | 400 |
 | `unknown_object` | negative | `/ip/zz/show` | 404 |

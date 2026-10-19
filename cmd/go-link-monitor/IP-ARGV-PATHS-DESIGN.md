@@ -159,14 +159,15 @@ walking the tree: the shortest prefix whose first match is that keyword. The
    order goip's option parser uses. Only the read options are served: `-4`,
    `-6`, `-0`, `-s`, `-d`, `-j`, `-br` and `-o` (`-p`, pretty JSON,
    follows when goip has it). `-n`/`-netns` (it would
-   enter another namespace), `-b`/`-batch`, `-force`, `-l`/`-loops` and `-rc`
-   are a 400.
+   enter another namespace), `-b`/`-batch`, `-force`, `-l`/`-loops`, `-rc`
+   and `-h`/`-help` are a 400.
 5. **Object:** `lookupObject`. An object `ip` has but goip cannot show yet
    (`maddress`, `tunnel`, `xfrm`, …) is a 501 naming the full command, so
    `/i/m` answers "`ip maddress show`: not implemented", not a 404.
 6. **Verb:** absent means show, as in `ip`. Present, it resolves as in
-   section 3, and anything but a show verb is a 400 naming the verb `ip`
-   would have run.
+   section 3, and anything but a show verb is refused naming the verb `ip`
+   would have run: a write verb is a 400, and a verb that reads but is not
+   the listing (`save`, `get`, `help`) is a 501.
 7. **Arguments:** everything left becomes `ShowRequest.Selectors`, unchanged.
    goip's parser for that object accepts exactly what `ip` accepts, so a bad
    selector is a 400 whose body is `ip`'s own error message.
@@ -177,7 +178,8 @@ U+FFFD. A path has at most 32 tokens and 1024 bytes. Query parameters are a
 
 `ShowRequest` gets `Brief` and `Oneline` fields, so `-br` and `-o` reach
 goip, and `Stats` becomes a count. goip renders one `-s` today and refuses a
-second, so `/ip/-s/-s/link` is a 501 until goip renders it. `TestShow`'s
+second as a usage error, so `/ip/-s/-s/link` is a 400 with `goip`'s
+message until goip renders it. `TestShow`'s
 Run/Show parity covers all three.
 
 ### Hard cases
@@ -284,7 +286,7 @@ Tests are table-driven: name, category, description, expected.
 | `join_after_table` | corner | `/ip/route/show/table/254/10` | not joined (`254` is not an address): table 254, prefix 10 |
 | `json_option` | positive | `-j` in the path | `application/json` |
 | `i_l_s_is_set` | negative | `ip link s` is set | 400 naming `ip link set` |
-| `i_a_sa_is_save` | negative | `sa` is save, not show | 400 naming `ip address save` |
+| `i_a_sa_is_save` | negative | `sa` is save, not show | 501 naming `ip address save` |
 | `write_verb_flush` | negative | `/ip/addr/flush` | 400, no socket opened |
 | `netns_option` | negative | `/ip/-n/x/link`, `/ip/-netns/x/link` | 400 |
 | `batch_option` | negative | `/ip/-b/f` | 400 |

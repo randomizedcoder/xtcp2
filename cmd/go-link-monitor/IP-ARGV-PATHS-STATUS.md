@@ -2,7 +2,7 @@
 
 Last updated: 2026-10-19.
 
-**In progress: 1 of 12 implementation tasks done.** The design was reviewed
+**In progress: 2 of 12 implementation tasks done.** The design was reviewed
 on 2026-10-19 and its decisions are recorded below.
 
 This document tracks
@@ -45,13 +45,14 @@ for the design in [IP-ARGV-PATHS-DESIGN.md](IP-ARGV-PATHS-DESIGN.md).
 | 2026-10-19 | The query form stays | Operator |
 | 2026-10-19 | A bare object path (`/ip/link`, `/i/l`) stays the query form with its JSON default; a path is a command line only with an option, or a verb after the object | Operator |
 | 2026-10-19 | All tasks land on one branch, one commit per task, one PR at the end | Operator |
+| 2026-10-19 | A verb that reads but is not the listing (`save`, `get`, `help`) is refused as not implemented (501), not as a write (400) | Implementation, IA1-T01; for operator review |
 
 ## Phase summary
 
 | Phase | Name | State | Completed tasks | Evidence |
 |---|---|---|---|---|
 | IA0 | Groundwork | in progress | 1/2 | IV001–IV005 |
-| IA1 | goip resolver | not started | 0/2 | — |
+| IA1 | goip resolver | in progress | 1/2 | IV006 |
 | IA2 | HTTP paths | not started | 0/3 | — |
 | IA3 | Hardening and performance | not started | 0/3 | — |
 | IA4 | Verification and release | not started | 0/2 | — |
@@ -65,7 +66,7 @@ here.
 |---|---|---|---|---|
 | [x] | [IA0-T01](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia0-t01) | Gates and baseline | done | IV001–IV004 |
 | [ ] | [IA0-T02](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia0-t02) | Complete verb chains | in progress | IV005; awaiting the goip-parity VM run |
-| [ ] | [IA1-T01](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia1-t01) | Exported resolver | not started | — |
+| [x] | [IA1-T01](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia1-t01) | Exported resolver | done | IV006 |
 | [ ] | [IA1-T02](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia1-t02) | `ShowRequest` options | not started | — |
 | [ ] | [IA2-T01](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia2-t01) | Path tokenizer | not started | — |
 | [ ] | [IA2-T02](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia2-t02) | Routing and both forms | not started | — |
@@ -123,6 +124,20 @@ write-up in IA4-T02.
     on object-table lines that only gained a `verbs` field; they are
     pre-existing literals.
 
+- IA1-T01: options now resolve through one table of `ip`'s whole option
+  chain (`ip/ip.c:200-293`, `options.go`), which `Run` and `ResolveShow`
+  share. The CLI is unchanged: every option goip does not implement is
+  still "unknown", and `-h` is still goip's help, where `ip` reads it as
+  `-human`. On the paths, the ordering matters: `-f` is `-family` (501), not
+  `-force`, and `-b` is `-batch` (400), not `-brief`.
+  - The resolver refuses `-br` and `-o` as not implemented until IA1-T02
+    adds them to `ShowRequest`, so neither can be silently dropped.
+  - `prefix_property` resolves every prefix of every object (33 rows), of
+    every verb of every implemented object and of every option, against a
+    separate first-match walk. Removing the write refusal makes it fail.
+  - `Shortest()` agrees with the design's examples: `address: a`, `rule:
+    ru`, `netconf: netc`, `link show: sh`, `stats show: show`.
+
 ## Evidence ledger
 
 | ID | Date | Task | Command | Host/VM | Base | Outcome | Logs |
@@ -132,6 +147,7 @@ write-up in IA4-T02.
 | IV003 | 2026-10-19 | IA0-T01 | `leaf_covers_goiphttp`, `format_unformatted`: `test-linkmonitor-{unit,format}` on a scratch worktree with a failing test and an unformatted file in goiphttp | `l`, nix sandbox | `f7677018` + scratch files | Both leaves failed, naming the scratch test and the file, as expected; worktree removed | session log, not kept |
 | IV004 | 2026-10-19 | IA0-T01 | `go test -run '^$' -bench '^BenchmarkIPHandler$' -benchmem -count 10 ./internal/goip/goiphttp`, then the same for `BenchmarkMetricsWithIPPaths` in `./cmd/go-link-monitor`, via `nix develop`, go1.26.5, CGO off; benchstat | `l`, 7.2.9, Threadripper PRO 3945WX, load 8–13 | `f7677018` | Recorded in Baseline | session log, not kept |
 | IV005 | 2026-10-19 | IA0-T02 | `nix build --no-link path:.#test-focused-goip -L` | `l`, nix sandbox, 7.2.9 | `28f597ec` + working tree | Pass, with `TestVerbChains` and `TestShowArgs` | nix store, `--no-link` |
+| IV006 | 2026-10-19 | IA1-T01 | `nix build --no-link path:.#test-focused-goip -L`; golangci-lint (comprehensive, `--new-from-rev=HEAD`) over `./internal/goip/`: 0 issues | `l`, nix sandbox, 7.2.9 | `6c0c09a2` + working tree | Pass, with `TestResolveShow`, `TestResolvePrefixProperty` and `TestShortest`; a mutation dropping the write refusal failed `TestResolvePrefixProperty` | nix store, `--no-link` |
 
 ## Blockers
 
@@ -150,3 +166,4 @@ write-up in IA4-T02.
 | 2026-10-19 | Started IA0-T01. Planning found: `Run` refuses `-s -s` as a usage error (IA1-T02 `stats_two` corrected); `ip stats` matches its verb exactly in goip (checked against iproute2 in IA0-T02). |
 | 2026-10-19 | IA0-T01 done: goiphttp is in the linkmonitor unit, race, vet, lint and format leaves; lint fixes committed first (`f7677018`); baseline recorded on a busy host. The design's bare-object example and IA1-T02's `stats_two` were corrected. Next: IA0-T02. |
 | 2026-10-19 | IA0-T02 in progress: one ordered verb chain per object (`verbs.go`), checked against iproute2 7.1.0. Link, address and route take their write verbs from their write tables. Every object dispatches through `resolveVerb`. `test-focused-goip` passes. Next: the goip-parity VM run, with approval. |
+| 2026-10-19 | IA1-T01 done, run before IA0-T02's VM gate at the operator's request: `ResolveShow`, `Resolved`, `ErrWriteVerb`, `ErrRefusedOption` and `Shortest()`, with `Run` moved onto the shared option table. Plan and design updated: read-only non-listing verbs are 501, `-h`/`-help` is refused, `-s -s` is a 400, and `-br` moves to IA1-T02's `resolve_brief`. Next: the goip-parity VM run (IA0-T02), with approval, then IA1-T02. |
