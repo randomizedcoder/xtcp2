@@ -964,6 +964,47 @@ pkgs.writeShellApplication {
       return 1
     }
 
+    # modules <subdir> <module>...
+    #
+    # Load each module in turn and record what was loaded in
+    # $OUT/<subdir>/modules, one `<module> loaded|builtin` line each. A module
+    # modprobe accepts but /proc/modules does not list is built in, which is
+    # still a pass: the kernel has the code either way.
+    #
+    # A driver calls this once, after every row that existing fixtures came
+    # from, and never at boot. A module is kernel-wide: one that creates a
+    # per-namespace fallback device (fou, ip6_tunnel, ...) creates it in every
+    # namespace, including ones already captured, and loading the tunnel
+    # modules at boot was measured to move goip0 from ifindex 3 to 10 (see
+    # boot.kernelModules in nix/microvms/mkVm.nix).
+    #
+    # The first failure stops the load: it prints NLCAP_MOD_FAIL <module>,
+    # exits 1 and writes no sidecar, so a sidecar that exists lists every
+    # module asked for. Names are what /proc/modules prints, underscores and
+    # not dashes, so the loaded check can match them exactly.
+    cmd_modules() {
+      [ $# -ge 2 ] || die "usage: modules <subdir> <module>..."
+      local subdir=$1 mod lines=""
+      shift
+      for mod in "$@"; do
+        case "$mod" in "" | *[!a-z0-9_]*) die "modules: bad module name: $mod" ;; esac
+      done
+      for mod in "$@"; do
+        if ! modprobe "$mod" >/dev/null 2>&1; then
+          echo "NLCAP_MOD_FAIL $mod"
+          return 1
+        fi
+        if grep -q "^$mod " /proc/modules; then
+          lines+="$mod loaded"$'\n'
+        else
+          lines+="$mod builtin"$'\n'
+        fi
+      done
+      mkdir -p "$OUT/$subdir"
+      printf '%s' "$lines" >"$OUT/$subdir/modules"
+      echo "NLCAP_MOD_OK $subdir/modules n=$#"
+    }
+
     # note <subdir> <text...>
     #
     # One free-text line in $OUT/<subdir>/topology. The driver writes one when
@@ -1360,7 +1401,7 @@ pkgs.writeShellApplication {
     }
 
     if [ $# -lt 1 ]; then
-      die "usage: xtcp2-nlcap <ns-add|ns-del|topo|cap|capio|write|side|wait-lacp|wait-sysfs|wait-addr-flag|sysctl|note|wait-churn|strace|strace-monitor|wait-rdma-port|rdma-hold|rdma-hold-wait|rdma-hold-stop|rdma-user-cqn|dir|inventory|pack|tcpdump-drops|filter> [--proto route|generic|xfrm] ..."
+      die "usage: xtcp2-nlcap <ns-add|ns-del|topo|cap|capio|write|side|wait-lacp|wait-sysfs|wait-addr-flag|sysctl|modules|note|wait-churn|strace|strace-monitor|wait-rdma-port|rdma-hold|rdma-hold-wait|rdma-hold-stop|rdma-user-cqn|dir|inventory|pack|tcpdump-drops|filter> [--proto route|generic|xfrm] ..."
     fi
 
     sub=$1
@@ -1389,6 +1430,7 @@ pkgs.writeShellApplication {
       wait-sysfs) cmd_wait_sysfs "$@" ;;
       wait-addr-flag) cmd_wait_addr_flag "$@" ;;
       sysctl)    cmd_sysctl "$@" ;;
+      modules)   cmd_modules "$@" ;;
       note)      cmd_note "$@" ;;
       wait-churn) cmd_wait_churn "$@" ;;
       strace)    cmd_strace "$@" ;;

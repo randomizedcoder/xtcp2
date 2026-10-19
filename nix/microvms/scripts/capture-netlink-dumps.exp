@@ -794,6 +794,12 @@ if {!$skip_tunnel} {
     sidecar_set $NS_TUNNEL "tunnel" $TUNDEV
 }
 
+# The modules and sysctls the generic netlink and XFRM rows need, after every
+# row above has been captured, so nothing already recorded can see them. See
+# nltopo::late_setup for why late and not at boot.
+vmlib::log "=== late setup (late/) ==="
+set late_problems [nltopo::late_setup late]
+
 # Inventory before pack, so a missing file is named here rather than inferred
 # from a short tar on the host.
 lassign [nlcap inventory] inv_rc inventory
@@ -842,6 +848,15 @@ if {[llength $failed_topo] > 0} {
     puts "  its positive case. See the topology sidecar."
 }
 
+if {[llength $late_problems] > 0} {
+    puts "NLCAP_LATE_FAILED [llength $late_problems]"
+    foreach p $late_problems {
+        puts "  $p"
+    }
+    puts "  Every fixture above was captured before the late setup, so they"
+    puts "  stand; the rows that need the late state do not."
+}
+
 if {[llength $short_caps] > 0} {
     puts "NLCAP_MISSED_FLOOR [llength $short_caps]"
     foreach c $short_caps {
@@ -849,6 +864,11 @@ if {[llength $short_caps] > 0} {
     }
     puts "  Those came in short twice and were DISCARDED rather than written,"
     puts "  so any committed fixture of the same name is unchanged."
+    puts "NLCAP_DRIVER_FAIL"
+    exit 1
+}
+
+if {[llength $late_problems] > 0} {
     puts "NLCAP_DRIVER_FAIL"
     exit 1
 }
