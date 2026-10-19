@@ -174,24 +174,24 @@ msgs/pcaps means messages found, over the number of pcaps they appear in. Every 
 | | GETADDR (22) | 290 / 210 | request | | |
 | | NEWMULTICAST (56), DELMULTICAST (57) | 39 / 3, 26 / 3 | same | `TestParseMcastAnycastFixtures`, `xtcpnl_addr_rich_test.go:440` | none |
 | | NEWANYCAST (60) | 2 / 2 | same | same | none |
-| | DELANYCAST (61) | **0** | same | none | none |
+| | DELANYCAST (61) | 1 / 1 (C1-T01) | same | `TestRtnlWriteCorpus`, `xtcpnl_rtnl_write_corpus_test.go` | none |
 | `rtmsg` | NEWROUTE (24) | 732 / 57 | `ParseNewRoute`, `xtcpnl_rtmsg.go:140` | `TestParseNewRoute`, `xtcpnl_rtnetlink_test.go:553`; `TestDecodeRouteWriteCorpus` | **none** |
 | | DELROUTE (25) | 170 / 19 | same | same | none |
 | | GETROUTE (26) | 33 / 22 | request | | |
 | `ndmsg` | NEWNEIGH (28), DELNEIGH (29), GETNEIGH (30) | 226 / 14, 68 / 2, 15 / 15 | `ParseNeigh`, `xtcpnl_ndmsg.go:244` | `TestParseNeigh`, `xtcpnl_ndmsg_test.go:216` | none |
 | `fib_rule_hdr` | NEWRULE (32), GETRULE (34) | 36 / 6, 6 / 6 | `ParseRule`, `xtcpnl_fib_rule_hdr.go:270` | `TestParseRule`, `xtcpnl_fib_rule_hdr_test.go:449` | none |
-| | DELRULE (33) | **0** | same | none | none |
+| | DELRULE (33) | 2 / 2 (C1-T01) | same | `TestRtnlWriteCorpus` | none |
 | `ndtmsg` | NEWNEIGHTBL (64), GETNEIGHTBL (66) | 104 / 6, 6 / 6 | `ParseNewNeighTbl`, `xtcpnl_ndtmsg.go:299` | `TestParseNewNeighTbl`, `xtcpnl_ndtmsg_test.go:169` | none |
-| | SETNEIGHTBL (67) | **0** | | none | none |
+| | SETNEIGHTBL (67) | 3 / 3 (C1-T01) | `ParseNewNeighTbl` reads the request | `TestRtnlWriteCorpus` | none |
 | `ifaddrlblmsg` | NEWADDRLABEL (72), GETADDRLABEL (74) | 30 / 3, 3 / 3 | `ParseNewAddrLabel`, `xtcpnl_ifaddrlblmsg.go:91` | `TestParseNewAddrLabel`, `xtcpnl_ifaddrlblmsg_test.go:48` | none |
-| | DELADDRLABEL (73) | **0** | same | none | none |
+| | DELADDRLABEL (73) | 1 / 1 (C1-T01) | same | `TestRtnlWriteCorpus` | none |
 | `netconfmsg` | NEWNETCONF (80), DELNETCONF (81), GETNETCONF (82) | 125 / 10, 6 / 1, 9 / 9 | `ParseNewNetconf`, `xtcpnl_netconfmsg.go:107` | `TestParseNewNetconf`, `xtcpnl_netconfmsg_test.go:138` | none |
 | `rtgenmsg` + `NETNSA_*` | NEWNSID (88), GETNSID (90) | 172 / 81, 172 / 81 | **none** | **none** | none |
-| | DELNSID (89) | **0** | none | none | none |
+| | DELNSID (89) | 1 / 1 (C1-T01) | none | `TestRtnlWriteCorpus` reads `NETNSA_NSID` raw | none |
 | `if_stats_msg` | NEWSTATS (92), GETSTATS (94) | 165 / 51, 51 / 51 | `ParseNewStats`, `xtcpnl_ifstatsmsg.go:129` | `TestParseNewStats`, `xtcpnl_ifstatsmsg_test.go:126` | none |
-| | SETSTATS (95) | **0** | | none | none |
+| | SETSTATS (95) | 1 / 1 (C1-T01) | `ParseNewStats` reads the request | `TestRtnlWriteCorpus` | none |
 | `nhmsg` | NEWNEXTHOP (104), GETNEXTHOP (106) | 29 / 11, 13 / 13 | `ParseNewNexthop`, `xtcpnl_nhmsg.go:143` | `TestParseNewNexthop`, `xtcpnl_nhmsg_test.go:39` | none |
-| | DELNEXTHOP (105) | **0** | same | none | none |
+| | DELNEXTHOP (105) | 1 / 1 (C1-T01) | same | `TestRtnlWriteCorpus` | none |
 | `nhmsg` (bucket) | NEW/DEL/GETNEXTHOPBUCKET (116-118) | **0** | **none** | none | none |
 | `prefixmsg` | NEWPREFIX (52) | **0** | **none** | none | none |
 | `nlmsgerr` | ERROR (2), DONE (3) | 309 / 127, 965 / 446 | `ParseNlMsgErr`, `xtcpnl_nlmsgerr.go:54` | `TestParseNlMsgErr`, `xtcpnl_nlmsgerr_test.go:44` | none |
@@ -212,7 +212,7 @@ The corpus also holds ethtool (19 commands), devlink (2) and nl80211 (7) from th
 ### What the assessment says
 
 1. **The rtnetlink read side is in good shape.** Every body layout that a running goip object reads has captured pcaps, a parser and a table-driven test.
-2. **The capture holes are the DEL and SET types:** DELANYCAST, DELRULE, SETNEIGHTBL, DELADDRLABEL, DELNSID, SETSTATS and DELNEXTHOP. Their parsers already exist, because each shares a body layout with its NEW type. The bytes are missing because no capture row sends them.
+2. **The capture holes were the DEL and SET types:** DELANYCAST, DELRULE, SETNEIGHTBL, DELADDRLABEL, DELNSID, SETSTATS and DELNEXTHOP. Each shares a body layout with its NEW type, so all but DELNSID already had a parser (NSID has none; point 3). The bytes were missing because no capture row sent them. C1-T01 added those rows (`link-write/rtnl/`), and each of the seven is now captured and checked by `TestRtnlWriteCorpus`.
 3. **Four rtnetlink layouts have no parser:** NSID, nexthop bucket, LINKPROP and prefix. NSID is captured 172 times and is still undecoded.
 4. **Generic netlink beyond nlctrl, and all of XFRM, have nothing:** no pcaps, no parsers, no tests. When this was measured the blocker was in the harness: `xtcp2-nlcap` kept only `NETLINK_ROUTE` (`ether[14:2]==0`), although nlmon taps GENERIC and XFRM. C0 removed it. A row now names its protocol (`--proto`, C0-T01), and the modules those families need are loaded late (C0-T02). What is missing is the capture rows (C2, C3).
 5. **Benchmarks:** 1 of the 15 rtnetlink and genl parsers in the tables above (`ParseNewAddr`) has a parse benchmark. The rest of `BenchmarkDeserialize*` covers inet_diag only.
@@ -495,25 +495,46 @@ A task PR that doesn't close a phase still flips its own checklist row and appen
 **Depends on:** C0-T02.
 
 **Deliver:**
-- A new corpus file `nix/microvms/scripts/rtnl-write-corpus.exp`, in the format of `addr-corpus.exp`, run by `capture-link-writes.exp`.
+- A new corpus file `nix/microvms/scripts/rtnl-write-corpus.exp`, in the format of `addr-corpus.exp`, run by `capture-link-writes.exp` (`rtnl_row`) into `link-write/rtnl/<slug>/`, after the address rows and before the late setup.
+- A row is `{slug floor pre command readbacks rc}`. Each readback is a `capio` in the namespace the write left. `rc` is the `ip.rc` the row expects, and the driver fails the run (`NLCAP_RTNL_RC`) when the status differs.
 - Rows:
-  - `rule del`;
+  - `rule del`, and a `rule del` of a rule that does not exist;
   - `addrlabel del`;
   - `nexthop del`;
-  - `ntable change` (SETNEIGHTBL);
+  - `ntable change name arp_cache dev d0 queue 64` (SETNEIGHTBL). Two refused variants: a table that does not exist, and `thresh1`, which the kernel's `neightbl_set` refuses outside the initial namespace;
   - `stats set dev d0 l3_stats on` (SETSTATS);
-  - `netns set` then delete (NEWNSID, then a DELNSID event);
-  - an IPv6 anycast join and leave (DELANYCAST, as an event).
-- Each row has a readback.
+  - `netns set` (NEWNSID). Its readback, `ip netns list-id`, runs inside the same command. `ip netns exec` gives the write its own mount namespace, so a peer made by a pre step or seen by a later readback would not be the same one;
+  - a DELNSID event: `ip monitor nsid` (`xtcp2-nl-ipmon`) while a peer is added, given nsid 7 and deleted;
+  - a DELANYCAST event: `ip monitor acaddress` while an address joins the subnet-router anycast and is deleted.
+- Each accepted write that has state to read has a readback.
 
 **Tests:**
 
+`rtnl-write-corpus-test.exp` (in `checks.vm-lib-exp`):
+
 | description | expected |
 |---|---|
-| positive: each row's `ip.pcap` holds its type | DELRULE, DELADDRLABEL, DELNEXTHOP, SETNEIGHTBL, SETSTATS, DELNSID and DELANYCAST each present |
-| positive: each row's `ip.rc` is 0 | 0 |
-| negative: deleting a rule that does not exist | rc 2, an `ip.err` sidecar, and an `NLMSG_ERROR` with ENOENT |
-| corner: `ntable change` on a table name that does not exist | the kernel's error captured |
+| positive: the rows are the plan's, in run order | the 11 slugs |
+| positive: exactly the refusal rows expect rc 2 | `rule_del_missing`, `ntable_change_missing`, `ntable_change_thresh_netns` |
+| positive: each accepted write with state reads it back | `getrule`, `getaddrlabel`, `getnexthop`, `getneightbl`, `getstats` |
+| negative: a refused write has no readback | an empty list |
+| boundary: no row is under its structural floor | 4 for a write naming `d0` or an `ip ntable` (link lookup first) |
+| corner: no command holds a single quote | none |
+| positive: each event row waits for its `Deleted` line | `^Deleted nsid 7 `, `Deleted .*any 2001:db8:1:: ` |
+| negative: a refused pre step is a refusal | `pre_step` returns 0, and the step is in `refused_steps` |
+| negative: an `ip.rc` other than the row's | `rc_problem` names the row, the status and the expected status |
+
+`TestRtnlWriteCorpus` and `TestRtnlWriteCorpusFirstRequest` (`pkg/xtcpnl`, on the committed pcaps):
+
+| description | expected |
+|---|---|
+| positive: each row's `ip.pcap` holds its type | DELRULE, DELADDRLABEL, DELNEXTHOP, SETNEIGHTBL, SETSTATS and NEWNSID as requests; DELNSID and DELANYCAST as notifications |
+| positive: the type's parser decodes the row's value | pref 100, label 99, id 1, `arp_cache`, ifindex 3, nsid 7, `2001:db8:1::` |
+| positive: each accepted row's `ip.rc` is 0 and its answer an ACK | rc 0, errno 0 |
+| negative: deleting a rule that does not exist | rc 2, ENOENT |
+| corner: `ntable change` on a table that does not exist, and `thresh1` outside the initial namespace | rc 2, ENOENT |
+| boundary: a write naming no device is the first request | DELRULE first in `rule_del`, NEWNSID first in `netns_set` |
+| corner: `ip ntable` dumps the links first, even naming no device | RTM_GETLINK first |
 
 **Done when:** the gates pass, the pcaps are committed, and the message-type table shows no **0** for these 7 types.
 

@@ -56,6 +56,11 @@
 # produce is dropped with a note in its topology file, and the refusals
 # while building it do not count against the run.
 #
+# Then the RTNL rows (goip-parity-gaps.md C1), data in
+# scripts/rtnl-write-corpus.exp: the rule, addrlabel, nexthop, ntable, stats,
+# netns and anycast writes the corpus had no DEL or SET capture of, each
+# under rtnl/<slug>/ with its readbacks; see rtnl_row below.
+#
 # POLICY HERE, MECHANISM IN THE GUEST
 #
 # As for the dump driver: which states exist, what each waits for and what
@@ -81,6 +86,7 @@ source [file dirname [info script]]/link-write-topology.exp
 source [file dirname [info script]]/link-write-readback.exp
 source [file dirname [info script]]/addr-topology.exp
 source [file dirname [info script]]/addr-corpus.exp
+source [file dirname [info script]]/rtnl-write-corpus.exp
 
 if {$argc != 2} {
     puts "usage: capture-link-writes.exp <serial-port> <blob-out>"
@@ -545,6 +551,39 @@ foreach row $addrcorpus::save_rows {
     }
 }
 
+###############################################################################
+# rtnl_row - one row of rtnl-write-corpus.exp, under rtnl/<slug>.
+#
+# write_row, then each readback as a capio in the namespace the write left,
+# then the row's ip.rc against the status the row expects. A refused write
+# is a fixture too (its NLMSG_ERROR is what it is kept for), so a row whose
+# status is not the expected one is reported rather than discarded.
+###############################################################################
+set rtnl_problems {}
+
+proc rtnl_row {slug floor pre command readbacks rc} {
+    global NS_A rtnl_problems
+    if {![write_row $slug $floor $pre $command rtnl]} {
+        return
+    }
+    foreach rb $readbacks {
+        capio {*}[rtnlcorpus::readback_args $NS_A rtnl/$slug $rb]
+    }
+    lassign [nlcap dir rtnl/$slug] dir_rc dir
+    lassign [vmlib::run_out "cat [string trim $dir]/ip.rc"] cat_rc got
+    if {$cat_rc != 0} {
+        set got ""
+    }
+    set problem [rtnlcorpus::rc_problem $slug $rc $got]
+    if {$problem ne ""} {
+        lappend rtnl_problems $problem
+    }
+}
+
+foreach row $rtnlcorpus::rows {
+    rtnl_row {*}$row
+}
+
 # After every row above; see nltopo::late_setup.
 vmlib::log "=== late setup (late/) ==="
 set late_problems [nltopo::late_setup late]
@@ -625,6 +664,14 @@ if {[llength [addrtopo::dropped_states]] > 0} {
     foreach s [addrtopo::dropped_states] {
         puts "  $s"
     }
+}
+
+if {[llength $rtnl_problems] > 0} {
+    puts "NLCAP_RTNL_RC [llength $rtnl_problems]"
+    foreach p $rtnl_problems {
+        puts "  $p"
+    }
+    set failed 1
 }
 
 if {[llength $late_problems] > 0} {

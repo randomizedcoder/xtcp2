@@ -1,0 +1,334 @@
+#!/usr/bin/env expect
+###############################################################################
+# rtnl-write-corpus-test.exp - table-driven test for rtnl-write-corpus.exp,
+# with no microVM and no console
+#
+# Usage: rtnl-write-corpus-test.exp
+#
+# Run by nix/checks/vm-lib-exp.nix after addr-corpus-test.exp, the same way:
+# the corpus is data, and the procs it has (ipmon, readback_args,
+# rc_problem) and the one it borrows (addrcorpus::pre_step) are driven
+# through a recorder that replaces vmlib::run_out, so no shell is needed.
+#
+# The slugs, readbacks and statuses are written out again below as literals
+# rather than read from the corpus, so a row dropped or changed there has to
+# disagree with something that was not edited with it.
+#
+# What this does NOT cover: what the guest runs or what the kernel answers.
+# TestRtnlWriteCorpus in pkg/xtcpnl pins that in the committed fixtures.
+#
+# Every row has a name, a description that starts with its class
+# (positive/negative/boundary/corner) and an expected value.
+###############################################################################
+
+set here [file dirname [info script]]
+source $here/vm-lib.exp
+source $here/netlink-topology.exp
+source $here/addr-topology.exp
+source $here/addr-corpus.exp
+source $here/rtnl-write-corpus.exp
+
+vmlib::init
+
+set pass 0
+set fail 0
+
+###############################################################################
+# The recorder, as in addr-corpus-test.exp.
+###############################################################################
+set ::calls {}
+set ::refuse ""
+proc vmlib::run_out {cmd {cmd_timeout ""} {quiet 0}} {
+    lappend ::calls $cmd
+    if {$::refuse ne "" && [regexp -- $::refuse $cmd]} {
+        return [list 1 "REFUSED"]
+    }
+    return [list 0 "ok"]
+}
+
+# check <name> <description> <script> <expected> - the script's result, or
+# ERROR if it raised one, must equal expected.
+proc check {name description script expected} {
+    global pass fail
+    if {[catch {uplevel #0 $script} got]} {
+        set got ERROR
+    }
+    if {$got eq $expected} {
+        puts "PASS: $name - $description"
+        incr pass
+    } else {
+        puts "FAIL: $name - $description"
+        puts "      got \[$got\] want \[$expected\]"
+        incr fail
+    }
+}
+
+set R $rtnlcorpus::rows
+
+proc slugs {rows} {
+    set out {}
+    foreach r $rows {
+        lappend out [lindex $r 0]
+    }
+    return $out
+}
+
+proc field {slug i} {
+    return [lindex [lsearch -exact -index 0 -inline $::R $slug] $i]
+}
+
+# readback_names <slug> - the names of a row's readbacks, in order.
+proc readback_names {slug} {
+    set out {}
+    foreach rb [field $slug 4] {
+        lappend out [lindex $rb 0]
+    }
+    return $out
+}
+
+###############################################################################
+# 1. the rows
+###############################################################################
+set design_rows {
+    rule_del rule_del_missing addrlabel_del nexthop_del ntable_change
+    ntable_change_missing ntable_change_thresh_netns stats_set_l3 netns_set
+    nsid_del_event anycast_del_event
+}
+
+proc bad_arity {} {
+    set out {}
+    foreach r $::R {
+        if {[llength $r] != 6} {
+            lappend out [lindex $r 0]
+        }
+    }
+    return $out
+}
+
+proc dup_slugs {} {
+    set seen {}
+    set out {}
+    foreach s [slugs $::R] {
+        if {$s in $seen} {
+            lappend out $s
+        }
+        lappend seen $s
+    }
+    return $out
+}
+
+# refused_rows - {slug rc} for every row whose ip.rc is meant to be non-zero.
+proc refused_rows {} {
+    set out {}
+    foreach r $::R {
+        if {[lindex $r 5] != 0} {
+            lappend out [lindex $r 0] [lindex $r 5]
+        }
+    }
+    return $out
+}
+
+# Every row whose status is not 0 or 2, which is all ip exits with.
+proc bad_rc {} {
+    set out {}
+    foreach r $::R {
+        if {[lindex $r 5] ni {0 2}} {
+            lappend out [lindex $r 0]
+        }
+    }
+    return $out
+}
+
+check slug_list "positive: the rows are the plan's, in run order" \
+    {slugs $R} [join $design_rows " "]
+check arity "negative: every row is {slug floor pre command readbacks rc}" \
+    {bad_arity} {}
+check unique_slugs "negative: no slug names two rows" \
+    {dup_slugs} {}
+check refused_statuses "positive: exactly the three refusal rows expect rc 2" \
+    {refused_rows} \
+    {rule_del_missing 2 ntable_change_missing 2 ntable_change_thresh_netns 2}
+check rc_values "boundary: every status is 0 or 2" \
+    {bad_rc} {}
+
+###############################################################################
+# 2. readbacks
+###############################################################################
+foreach {name description slug expected} {
+    rb_rule_del       "positive: rule_del reads the rules back"                  rule_del       getrule
+    rb_addrlabel_del  "positive: addrlabel_del reads the labels back"            addrlabel_del  getaddrlabel
+    rb_nexthop_del    "positive: nexthop_del reads the nexthops back"            nexthop_del    getnexthop
+    rb_ntable_change  "positive: ntable_change reads arp_cache on d0 back"       ntable_change  getneightbl
+    rb_stats_set_l3   "positive: stats_set_l3 reads the l3_stats subgroup back"  stats_set_l3   getstats
+    rb_rule_missing   "negative: a refused write has nothing to read back"       rule_del_missing {}
+    rb_ntable_missing "negative: nor does a refused ntable change"               ntable_change_missing {}
+    rb_thresh_netns   "negative: nor the thresh1 change the netns refuses"       ntable_change_thresh_netns {}
+    rb_netns_set      "corner: netns_set's readback is inside its own command"   netns_set      {}
+    rb_nsid_event     "corner: an event row's readback is the monitor's stdout"  nsid_del_event {}
+    rb_anycast_event  "corner: and so is the anycast event row's"                anycast_del_event {}
+} {
+    check $name $description [list readback_names $slug] $expected
+}
+
+check netns_set_lists_ids "corner: netns_set lists the ids before it deletes its peer" \
+    {regexp {ip netns set c1set 7 && ip netns list-id; ip netns del c1set$} [field netns_set 3]} 1
+
+check readback_args_shape "positive: a readback is a capio of netlink_route_<name> into ip_<name>" \
+    {rtnlcorpus::readback_args lacpa rtnl/rule_del {getrule 2 {ip rule show}}} \
+    {lacpa rtnl/rule_del netlink_route_getrule 2 {ip rule show} ip_getrule}
+check readback_args_short "negative: a two-field readback is an error" \
+    {rtnlcorpus::readback_args lacpa rtnl/x {getrule 2}} ERROR
+check readback_args_long "negative: a four-field readback is an error" \
+    {rtnlcorpus::readback_args lacpa rtnl/x {getrule 2 {ip rule show} extra}} ERROR
+
+###############################################################################
+# 3. floors and quoting
+###############################################################################
+
+# Rows under their structural floor: 2 for the write and its answer, 4 when
+# the command names d0 outside a monitor trigger (the RTM_GETLINK by name
+# first) or is an `ip ntable` (its link dump first), and every readback 2 or
+# more.
+proc bad_floors {} {
+    set out {}
+    foreach r $::R {
+        lassign $r slug floor pre command readbacks
+        set want 2
+        if {![string match xtcp2-nl-ipmon* $command] && [string match "*dev d0*" $command]} {
+            set want 4
+        }
+        if {[string match "ip ntable *" $command]} {
+            set want 4
+        }
+        if {$floor < $want} {
+            lappend out $slug
+        }
+        foreach rb $readbacks {
+            if {[lindex $rb 1] < 2} {
+                lappend out $slug/[lindex $rb 0]
+            }
+        }
+    }
+    return $out
+}
+
+proc quoted {} {
+    set out {}
+    foreach r $::R {
+        lassign $r slug floor pre command readbacks
+        if {[string first ' $command] >= 0} {
+            lappend out $slug
+        }
+        foreach rb $readbacks {
+            if {[string first ' [lindex $rb 2]] >= 0} {
+                lappend out $slug/[lindex $rb 0]
+            }
+        }
+    }
+    return $out
+}
+
+# Names that would break the capture's netlink_<proto>_ name guard or a file
+# name: lower case, digits and underscore only.
+proc bad_names {} {
+    set out {}
+    foreach r $::R {
+        foreach rb [lindex $r 4] {
+            if {![regexp {^[a-z0-9_]+$} [lindex $rb 0]]} {
+                lappend out [lindex $rb 0]
+            }
+        }
+    }
+    return $out
+}
+
+check floors "boundary: no row or readback is under its structural floor" \
+    {bad_floors} {}
+check floor_dev_rows "boundary: the two d0 writes count the name lookup" \
+    {list [field ntable_change 1] [field stats_set_l3 1]} {4 4}
+check floor_ntable_rows "boundary: every ntable row counts the link dump ip takes first" \
+    {list [field ntable_change_missing 1] [field ntable_change_thresh_netns 1]} {4 4}
+check floor_event_rows "positive: the event rows' floors are two thirds of the measured run" \
+    {list [field nsid_del_event 1] [field anycast_del_event 1]} {14 20}
+check no_single_quotes "corner: no command or readback holds a single quote" \
+    {quoted} {}
+check readback_names_safe "corner: every readback name is lower case, digits and underscore" \
+    {bad_names} {}
+
+###############################################################################
+# 4. event rows
+###############################################################################
+check ipmon_line "positive: ipmon builds the monitor, its trigger and each pattern" \
+    {rtnlcorpus::ipmon nsid {ip netns del p} {{^a } {b}}} \
+    {xtcp2-nl-ipmon c0 "monitor nsid maddress" "ip netns del p" "^a " "b"}
+check ipmon_no_pattern "boundary: no pattern gives no trailing argument" \
+    {rtnlcorpus::ipmon acaddress {true} {}} \
+    {xtcp2-nl-ipmon c0 "monitor acaddress maddress" "true"}
+check nsid_waits_for_delete "positive: the nsid row waits for the add and the Deleted line" \
+    {regexp {"\^nsid 7 " "\^Deleted nsid 7 "$} [field nsid_del_event 3]} 1
+check anycast_waits_for_delete "positive: the anycast row waits for the Deleted any line" \
+    {regexp {"Deleted \.\*any 2001:db8:1:: "$} [field anycast_del_event 3]} 1
+check event_rows_have_canary "corner: both event rows build c0 for the canary" \
+    {list [expr {{link add c0 type dummy} in [field nsid_del_event 2]}] \
+          [expr {{link add c0 type dummy} in [field anycast_del_event 2]}]} {1 1}
+check anycast_forwarding_first "corner: forwarding is set before d0 exists" \
+    {lindex [field anycast_del_event 2] 0} {sysctl net.ipv6.conf.default.forwarding 1}
+
+###############################################################################
+# 5. pre steps through addrcorpus::pre_step
+###############################################################################
+
+# Every pre step of every row, run through the recorder: the number of steps
+# that raised (a malformed sysctl) and the number that were refused.
+proc run_all_pre {} {
+    set raised 0
+    set refused 0
+    foreach r $::R {
+        foreach step [lindex $r 2] {
+            if {[catch {addrcorpus::pre_step lacpa rtnl/[lindex $r 0] $step} ok]} {
+                incr raised
+            } elseif {!$ok} {
+                incr refused
+            }
+        }
+    }
+    return [list $raised $refused]
+}
+
+set ::refuse ""
+nltopo::reset
+check pre_steps_dispatch "positive: every pre step is well-formed and accepted" \
+    {run_all_pre} {0 0}
+set ::refuse {^xtcp2-nlcap topo .* rule add }
+nltopo::reset
+check pre_rule_refused "negative: a refused rule add is a refused step" \
+    {list [addrcorpus::pre_step lacpa rtnl/rule_del [lindex [field rule_del 2] 0]] \
+          [nltopo::refused_steps]} \
+    {0 {{ip -n lacpa rule add pref 100 from 192.0.2.0/24 table 100}}}
+set ::refuse ""
+
+###############################################################################
+# 6. rc_problem
+###############################################################################
+foreach {name description want got expected} {
+    rc_ok           "positive: the expected status is no problem"       0 "0\n" ""
+    rc_refused_ok   "positive: an expected refusal is no problem"       2 "2"   ""
+    rc_unexpected   "negative: an accepted write that should be refused" 2 "0"  "rtnl/x/ip.rc is 0, want 2"
+    rc_failed       "negative: a refusal where an ACK was expected"     0 "2"   "rtnl/x/ip.rc is 2, want 0"
+    rc_unreadable   "boundary: an empty file is unreadable"             0 ""    "rtnl/x/ip.rc unreadable, want 0"
+    rc_whitespace   "corner: surrounding whitespace is ignored"         0 " 0 " ""
+} {
+    check $name $description [list rtnlcorpus::rc_problem x $want $got] $expected
+}
+
+###############################################################################
+# summary
+###############################################################################
+puts ""
+puts "=== rtnl-write-corpus.exp: $pass passed, $fail failed ==="
+if {$fail > 0} {
+    puts "RTNLCORPUS_TEST_FAIL"
+    exit 1
+}
+puts "RTNLCORPUS_TEST_PASS"
+exit 0

@@ -1,0 +1,132 @@
+###############################################################################
+# rtnl-write-corpus.exp - rtnetlink writes the corpus had no capture of
+# (docs/netlink/goip-parity-gaps.md, C1)
+#
+# Sourced AFTER vm-lib.exp, netlink-topology.exp, addr-topology.exp and
+# addr-corpus.exp, by scripts/capture-link-writes.exp, which runs each row
+# into link-write/rtnl/<slug>/. Data plus small procs, kept out of the driver
+# for the reason addr-corpus.exp is: the hermetic check
+# (scripts/rtnl-write-corpus-test.exp) has to read it without a console.
+#
+# A ROW IS {slug floor pre command readbacks rc}.
+#
+#   slug       the fixture directory, link-write/rtnl/<slug>/
+#   floor      a structural minimum of datagrams: 2 for the write and its
+#              NLMSG_ERROR (an ACK or a refusal), 2 more for every name `ip`
+#              resolves first with an RTM_GETLINK of its own, and 2 more for
+#              a link dump `ip` takes first (`ip ntable`'s ll_init_map) or a
+#              dump the command runs after (netns_set's list-id). The two
+#              event rows are two thirds of the 21 and 30 datagrams the
+#              first passing run measured, as addr_monitor's floor is: the
+#              canary, the trigger's requests and answers, and the
+#              notifications
+#   pre        steps run in the row's fresh namespace before the capture
+#              window opens (addrcorpus::pre_step: an `ip` argument list, or
+#              `sysctl KEY VALUE`)
+#   command    the write, run with `sh -c` from the row's directory
+#              (xtcp2-nlcap write); write_row wraps it in single quotes, so
+#              it must contain none
+#   readbacks  {name floor command} reads, each one capio in the same
+#              namespace straight after the write, as netlink_route_<name>.pcap
+#              and ip_<name>
+#   rc         the exit status `ip.rc` must hold: 0 for an accepted write, 2
+#              for one the kernel refused (rtnl_talk's error, ip/ip.c's exit)
+#
+# THE TWO NETNS ROWS KEEP THEIR PEER INSIDE THE WINDOW
+#
+# xtcp2-nlcap write runs the command under `ip netns exec`, which gives it a
+# mount namespace that is a slave of the root's. `ip netns add` there makes a
+# bind mount only that mount namespace sees, so the peer cannot be made by a
+# pre step and named by the write, and a separate readback (a new `ip netns
+# exec`) would not see it either. Each netns row therefore adds, uses and
+# deletes its own peer in one command, and netns_set's readback, `ip netns
+# list-id`, is inside that command and inside its pcap. The delete also
+# removes /run/netns/<peer>, a plain file that the root would otherwise keep.
+###############################################################################
+
+namespace eval rtnlcorpus {
+
+    # d0, a dummy that is up: ifindex 3 in every row (lo 1, nlmon0 2).
+    variable PRE_D0 {{link add d0 type dummy} {link set d0 up}}
+
+    # c0, the up dummy xtcp2-nl-ipmon joins its canary group on.
+    variable PRE_CANARY {{link add c0 type dummy} {link set c0 up}}
+
+    # The anycast row's state, as in addr_monitor: forwarding on `default`
+    # first so d0 inherits it and the address joins the subnet-router anycast
+    # 2001:db8:1::, and d0 with no kernel link-local of its own.
+    variable PRE_ANYCAST [concat \
+        {{sysctl net.ipv6.conf.default.forwarding 1}} \
+        $PRE_CANARY \
+        {{link add d0 type dummy} {link set d0 addrgenmode none}}]
+
+    # ipmon <groups> <trigger> <until-EREs> - an xtcp2-nl-ipmon command line
+    # for an event row. Every monitor also takes maddress,
+    # because the canary that proves the monitor is subscribed is a
+    # multicast join on c0.
+    proc ipmon {groups trigger until} {
+        set cmd "xtcp2-nl-ipmon c0 \"monitor $groups maddress\" \"$trigger\""
+        foreach re $until {
+            append cmd " \"$re\""
+        }
+        return $cmd
+    }
+
+    variable rows [list \
+        [list rule_del 2 {{rule add pref 100 from 192.0.2.0/24 table 100}} \
+            "ip rule del pref 100" \
+            {{getrule 2 {ip rule show}}} 0] \
+        [list rule_del_missing 2 {} "ip rule del pref 4242" {} 2] \
+        [list addrlabel_del 2 {{addrlabel add prefix 2001:db8::/32 label 99}} \
+            "ip addrlabel del prefix 2001:db8::/32 label 99" \
+            {{getaddrlabel 2 {ip addrlabel list}}} 0] \
+        [list nexthop_del 2 {{nexthop add id 1 blackhole}} "ip nexthop del id 1" \
+            {{getnexthop 2 {ip nexthop show}}} 0] \
+        [list ntable_change 4 $PRE_D0 "ip ntable change name arp_cache dev d0 queue 64" \
+            {{getneightbl 2 {ip ntable show name arp_cache dev d0}}} 0] \
+        [list ntable_change_missing 4 {} "ip ntable change name nosuch_cache queue 64" {} 2] \
+        [list ntable_change_thresh_netns 4 {} "ip ntable change name arp_cache thresh1 64" {} 2] \
+        [list stats_set_l3 4 $PRE_D0 "ip stats set dev d0 l3_stats on" \
+            {{getstats 4 {ip stats show dev d0 group offload subgroup l3_stats}}} 0] \
+        [list netns_set 4 {} \
+            "ip netns add c1set && ip netns set c1set 7 && ip netns list-id; ip netns del c1set" \
+            {} 0] \
+        [list nsid_del_event 14 $PRE_CANARY \
+            [ipmon nsid "ip netns add c1del && ip netns set c1del 7 && ip netns del c1del" \
+                {{^nsid 7 } {^Deleted nsid 7 }}] \
+            {} 0] \
+        [list anycast_del_event 20 $PRE_ANYCAST \
+            [ipmon acaddress \
+                "ip link set d0 up; ip -6 addr add 2001:db8:1::1/64 dev d0 nodad; ip -6 addr del 2001:db8:1::1/64 dev d0" \
+                {{any 2001:db8:1:: } {Deleted .*any 2001:db8:1:: }}] \
+            {} 0] \
+    ]
+
+    ###########################################################################
+    # readback_args <ns> <subdir> <readback> - the xtcp2-nlcap capio argument
+    # list for one readback, which the driver hands to its capio proc.
+    ###########################################################################
+    proc readback_args {ns subdir readback} {
+        if {[llength $readback] != 3} {
+            error "rtnlcorpus: a readback is {name floor command}: $readback"
+        }
+        lassign $readback name floor command
+        return [list $ns $subdir netlink_route_$name $floor $command ip_$name]
+    }
+
+    ###########################################################################
+    # rc_problem <slug> <want> <got> - "" when the row's ip.rc is what the row
+    # says, else the line the driver reports. <got> is the file's content,
+    # or "" when it could not be read.
+    ###########################################################################
+    proc rc_problem {slug want got} {
+        set got [string trim $got]
+        if {$got eq $want} {
+            return ""
+        }
+        if {$got eq ""} {
+            return "rtnl/$slug/ip.rc unreadable, want $want"
+        }
+        return "rtnl/$slug/ip.rc is $got, want $want"
+    }
+}

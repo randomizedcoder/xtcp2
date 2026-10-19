@@ -4,10 +4,11 @@
 
 **Summary:**
 - The design and the task plan are in [goip-parity-gaps.md](goip-parity-gaps.md). This document tracks progress against them.
-- C0, the capture harness, is done: a row names its netlink protocol (C0-T01), and the modules and sysctls the genl and XFRM rows need are set up after every existing row (C0-T02). No C1, C2 or C3 task has started. The parity matrix compares 183 commands and gates 160 ([coverage-status.md](coverage-status.md#goip--ip-parity-at-a-glance)).
+- C0, the capture harness, is done and on `main` at `1542ec5f`: #265 (the plan), then #266 and #267 (C0-T01, C0-T02) through #268. A row names its netlink protocol (C0-T01), and the modules and sysctls the genl and XFRM rows need are set up after every existing row (C0-T02).
+- C1 is in progress. C1-T01 is done: the seven DEL and SET types the corpus had no capture of are captured under `link-write/rtnl/` and checked by `TestRtnlWriteCorpus`. No C2 or C3 task has started. The parity matrix compares 183 commands and gates 160 ([coverage-status.md](coverage-status.md#goip--ip-parity-at-a-glance)).
 - The work runs in three tiers, in this order: complete the nlmon capture corpus (C), then the parsers (P), then goip and the matrix (G).
 
-**Next action:** [C1-T01](goip-parity-gaps.md#c1-t01-del-and-set-types-for-existing-parsers). C1, C2 and C3 each depend only on C0, and are taken in that order.
+**Next action:** [C1-T02](goip-parity-gaps.md#c1-t02-write-and-get-verbs-that-goip-lacks). C1, C2 and C3 each depend only on C0, and are taken in that order.
 
 ## Contents
 
@@ -35,7 +36,7 @@
 | Phase | Tier | Work | Closed by | State | Evidence |
 |---|---|---|---|---|---|
 | [C0](goip-parity-gaps.md#c0--capture-harness) | captures | capture harness | C0-T02 | done | V001–V014, DOC003 |
-| [C1](goip-parity-gaps.md#c1--rtnetlink) | captures | rtnetlink | C1-T04 | not started | |
+| [C1](goip-parity-gaps.md#c1--rtnetlink) | captures | rtnetlink | C1-T04 | in progress | V015–V021 |
 | [C2](goip-parity-gaps.md#c2--generic-netlink) | captures | generic netlink | C2-T08 | not started | |
 | [C3](goip-parity-gaps.md#c3--xfrm) | captures | XFRM | C3-T02 | not started | |
 | [C4](goip-parity-gaps.md#c4--corpus-completeness-gate) | captures | corpus completeness gate | C4-T01 | not started | |
@@ -62,7 +63,7 @@ Task IDs link to their sections in the plan. Phases not yet broken into individu
 |---|---|---|---|---|
 | [x] | [C0-T01](goip-parity-gaps.md#c0-t01-protocol-aware-capture) | protocol-aware capture | done | V001–V008 |
 | [x] | [C0-T02](goip-parity-gaps.md#c0-t02-late-modules-sysctls-and-an-event-subscriber) | late modules, sysctls, subscriber | done | V009–V014 |
-| [ ] | [C1-T01](goip-parity-gaps.md#c1-t01-del-and-set-types-for-existing-parsers) | DEL/SET types | not started | |
+| [x] | [C1-T01](goip-parity-gaps.md#c1-t01-del-and-set-types-for-existing-parsers) | DEL/SET types | done | V015–V021 |
 | [ ] | [C1-T02](goip-parity-gaps.md#c1-t02-write-and-get-verbs-that-goip-lacks) | write and get verbs | not started | |
 | [ ] | [C1-T03](goip-parity-gaps.md#c1-t03-missing-read-objects-and-verbs) | read objects and verbs | not started | |
 | [ ] | [C1-T04](goip-parity-gaps.md#c1-t04-events-through-ip-monitor) | monitor events | not started | |
@@ -105,6 +106,13 @@ Task IDs link to their sections in the plan. Phases not yet broken into individu
 | V013 | 2026-10-19 | C0-T02 | `nix run .#microvm-x86_64-link-write-capture -- --out <scratch>`, run after V012; compared with `pkg/xtcpnl/testdata/7_1_4/link-write` the same way | `NLCAP_DRIVER_PASS`; `late/modules` lists the same 16 modules. Every record protocol 0; 298 of 299 pcaps the same record for record. The other, `addr-monitor/mc_any/netlink_route_monitor_maddr_json.pcap`, has the same 45 messages with one NEWLINK event and a dump's DONE in swapped order | scratch |
 | V014 | 2026-10-19 | C0 | the phase close: doccheck (task IDs one to one, now counting C2's task table), links and anchors, `git diff --check`, `checks.x86_64-linux.netlink-audit` | pass | this file |
 | DOC003 | 2026-10-19 | C0 | [How to re-measure](goip-parity-gaps.md#how-to-re-measure) at the C0-T02 commit | unchanged from DOC001: 713 pcaps, 39 `Parse*` functions and 54 benchmarks in `pkg/xtcpnl`, since C0 changed no file under `pkg/`. The assessment tables stand; point 4 of "What the assessment says" is amended, because its harness blocker is gone | [goip-parity-gaps.md](goip-parity-gaps.md#what-the-assessment-says) |
+| V015 | 2026-10-19 | C1-T01 | `checks.x86_64-linux.vm-lib-exp`, with the new `rtnl-write-corpus-test.exp` | pass: 22, 128, 59 and 40 rows (the last the new corpus test) | |
+| V016 | 2026-10-19 | C1-T01 | mutation check in a scratch worktree, one mutant at a time: the corpus test through `expect`, the Go tests through `go test` | 7 of 7 killed by named rows. A dropped row: `slug_list` and `rb_nexthop_del`. A lowered floor: `floors`. A dropped readback: `rb_rule_del`. A refused row expecting rc 0: `refused_statuses`. `rc_problem` always empty: the three `rc` rows. Another row's pcap in `rule_del`: the `rule_del` rows of `TestRtnlWriteCorpus`. `ip.rc` rewritten to 0: its negative row | scratch |
+| V017 | 2026-10-19 | C1-T01 | `checks.x86_64-linux.{nix-fmt,statix,deadnix}`, one per call | pass | |
+| V018 | 2026-10-19 | C1-T01 | `checks.x86_64-linux.{lint-baseline,go-vet,test-go-race}`, one per call | the first `lint-baseline` run found 3 issues in the new Go test (gofmt, and misspell on a kernel file name in a comment); fixed in the source, not baselined. Then 0 in every tier; `go-vet` and `test-go-race` pass | |
+| V019 | 2026-10-19 | C1-T01 | `nix run .#microvm-x86_64-link-write-capture -- --out <scratch>`, kernel 7.1.4, on the first floors; compared with `pkg/xtcpnl/testdata/7_1_4/link-write` as in V013 | `NLCAP_DRIVER_PASS`; every `rtnl` row's `ip.rc` as the row says. Datagrams: 2 for each delete row and `rule_del_missing`, 6 `ntable_change`, 5 for the two refused ntable rows, 4 `stats_set_l3`, 12 `netns_set`, 21 `nsid_del_event`, 30 `anycast_del_event`. Types 33, 73, 105, 67, 95, 88, and the notifications 89 and 61, captured. Every record protocol 0; 313 of 315 existing pcaps the same record for record; the other 2 are `addr-monitor/mc_any`'s two maddr monitors, V013's swap. This run's `rtnl/` became the committed fixtures | [rtnl/](../../pkg/xtcpnl/testdata/7_1_4/link-write/rtnl) |
+| V020 | 2026-10-19 | C1-T01 | the same run on the final floors (`ntable` rows 4, event rows 14 and 20); compared with the committed fixtures, `rtnl/` included | `NLCAP_DRIVER_PASS`; the same datagram counts as V019 in every `rtnl` row. Every record protocol 0; 312 of 315 pcaps the same record for record. The other 3: V013's maddr monitor, and the two event rows, whose messages are the same multiset with the monitor's startup requests and the canary interleaved differently; each still holds its DELNSID or DELANYCAST | scratch |
+| V021 | 2026-10-19 | C1-T01 | `go test ./pkg/xtcpnl/`; the type counts of [How to re-measure](goip-parity-gaps.md#how-to-re-measure); doccheck, links and anchors, `git diff --check`, `checks.x86_64-linux.netlink-audit` | `TestRtnlWriteCorpus` (11 rows) and `TestRtnlWriteCorpusFirstRequest` (5) pass. 729 pcaps (713 before). The seven types the task names are now in the corpus: DELRULE 2 messages in 2 pcaps, DELADDRLABEL 1/1, DELNEXTHOP 1/1, SETNEIGHTBL 3/3, SETSTATS 1/1, DELNSID 1/1, DELANYCAST 1/1. The full re-measure waits for the C1 close. Doc checks pass | [goip-parity-gaps.md](goip-parity-gaps.md#the-message-type-assessment) |
 
 ## Decision log
 
@@ -118,3 +126,7 @@ Task IDs link to their sections in the plan. Phases not yet broken into individu
 - **C0-T01 fixes the tier2 lint findings `main` carried.** lint-baseline is one of its gates, and `main` at `b7eec04d` failed it with 17 findings in `internal/goip` (V006). They were fixed in the code rather than baselined: `showObjects` is derived from the objects table (with an `alias` marker), the goiphttp registry defaults `object` to `path`, and the exhaustive, prealloc and unconvert sites were corrected (V007).
 - **C0-T02 loads the genl and XFRM modules in one late step, shared by both drivers.** `nltopo::late_setup` runs after every existing row, into `late/`, so nothing already captured sees them. The list is `nltopo::late_modules`; the tunnel modules stay where they were, loaded before the dump driver's tunnel set. The crypto list is cbc(aes)+hmac(sha256) and rfc4106(gcm(aes)) ESP; C3 adds to it if its rows need more. Its sidecar says `loaded` or `builtin`, not raw `lsmod` output, because a built-in module is a pass that `lsmod` doesn't list.
 - **C0 closed with C2 expanded.** C2's tasks were already named in the plan's table, so its range row became C2-T01 to C2-T08. C1 and C3 already had one row per task.
+- **C0 reached `main` through a follow-up PR.** #266 and #267 were opened stacked, on `docs/goip-parity-gaps` and `goip-gaps/c0-t01`. They were merged after #265 without being retargeted, so they landed in those branches, and #268 brought `goip-gaps/c0-t01` into `main`. Task PRs are now opened against `main`.
+- **C1-T01 has a SETNEIGHTBL row the plan did not name.** The kernel's `neightbl_set` refuses the table-wide thresholds (`thresh1`-`3`, `gc_int`) outside the initial namespace with ENOENT, and every capture runs in a namespace of its own. The accepted row therefore changes a per-device parameter (`dev d0 queue 64`), and `thresh1` is kept as a refused row, which records the refusal.
+- **The C1-T01 netns rows add, use and delete their peer in one command.** `xtcp2-nlcap write` runs the command under `ip netns exec`, whose mount namespace is a slave of the root's. A peer that `ip netns add` makes there is a bind mount only that mount namespace sees, so a pre step cannot make it for the write, and a separate readback cannot see it. `netns_set` runs its `ip netns list-id` readback inside the command, and both rows delete the peer, which also removes `/run/netns/<peer>`.
+- **The C1-T01 event rows' floors are two thirds of the first passing run** (14 of 21, 20 of 30), as `addr_monitor`'s are. The other floors are structural. The first run measured that `ip ntable` dumps the links before it writes (`ll_init_map`), even when it names no device, so every ntable row's floor is 4.

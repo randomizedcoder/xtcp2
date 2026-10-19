@@ -46,6 +46,11 @@
 # not cover what the guest runs or what the kernel answers;
 # TestAddrCaptureCorpusComplete pins that in the committed fixtures.
 #
+# scripts/rtnl-write-corpus-test.exp does the same for rtnl-write-corpus.exp,
+# the C1 rows (docs/netlink/goip-parity-gaps.md): slugs, readbacks, floors,
+# expected statuses and the event rows' monitor lines. TestRtnlWriteCorpus
+# pins the captured bytes.
+#
 {
   pkgs,
   src,
@@ -114,6 +119,8 @@ pkgs.runCommand "xtcp2-vm-lib-exp"
     expect nix/microvms/scripts/addr-topology-test.exp "$PORT" > addr.log 2>&1 || arc=$?
     crc=0
     expect nix/microvms/scripts/addr-corpus-test.exp > corpus.log 2>&1 || crc=$?
+    rrc=0
+    expect nix/microvms/scripts/rtnl-write-corpus-test.exp > rtnl.log 2>&1 || rrc=$?
 
     kill "$socat_pid" 2>/dev/null || true
     wait "$socat_pid" 2>/dev/null || true
@@ -151,5 +158,16 @@ pkgs.runCommand "xtcp2-vm-lib-exp"
       exit 1
     fi
 
-    cat result.log addr.log corpus.log > $out
+    grep -E '^(PASS|FAIL|===)' rtnl.log || true
+
+    if [ "$rrc" -ne 0 ] || ! grep -q 'RTNLCORPUS_TEST_PASS' rtnl.log; then
+      echo "" >&2
+      echo "vm-lib-exp: rtnl-write-corpus.exp regressed (expect exited $rrc)." >&2
+      echo "            The FAIL rows above name the broken behavior. Full" >&2
+      echo "            transcript:" >&2
+      cat rtnl.log >&2
+      exit 1
+    fi
+
+    cat result.log addr.log corpus.log rtnl.log > $out
   ''

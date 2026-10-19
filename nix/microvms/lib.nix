@@ -1353,12 +1353,13 @@ rec {
     let
       cfg = constants.architectures.${arch};
 
-      # One store directory for all seven .exp files, for the dump runner's
+      # One store directory for all eight .exp files, for the dump runner's
       # reason: the driver sources its siblings relative to itself.
       # netlink-topology.exp is here for nltopo::topo, which the LACP
       # topology builds through so its refusals land in the same list;
       # addr-topology.exp and addr-corpus.exp are the address states and
-      # rows (docs/netlink/addr-write-path.md).
+      # rows (docs/netlink/addr-write-path.md); rtnl-write-corpus.exp is
+      # the C1 rows (docs/netlink/goip-parity-gaps.md).
       captureScripts =
         pkgs.runCommand "xtcp2-link-write-capture-scripts"
           {
@@ -1368,6 +1369,7 @@ rec {
             readback = ./scripts/link-write-readback.exp;
             addrTopology = ./scripts/addr-topology.exp;
             addrCorpus = ./scripts/addr-corpus.exp;
+            rtnlCorpus = ./scripts/rtnl-write-corpus.exp;
             driver = ./scripts/capture-link-writes.exp;
           }
           ''
@@ -1378,6 +1380,7 @@ rec {
             cp $readback $out/link-write-readback.exp
             cp $addrTopology $out/addr-topology.exp
             cp $addrCorpus $out/addr-corpus.exp
+            cp $rtnlCorpus $out/rtnl-write-corpus.exp
             cp $driver $out/capture-link-writes.exp
             chmod +x $out/capture-link-writes.exp
           '';
