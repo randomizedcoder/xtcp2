@@ -1084,6 +1084,8 @@
     "-6 addr flush dev d0",
     "-s addr flush dev d0",
     "addr flush d0",
+    "addr restore < restore_fresh.save",
+    "addr restore < restore_existing.save",
     "-br addr show",
     "-o addr show",
     "-br -j addr show",

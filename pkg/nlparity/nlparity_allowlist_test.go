@@ -555,6 +555,11 @@ func TestAllowlistCommitted(t *testing.T) {
 		"-6 addr flush dev d0",
 		"-s addr flush dev d0",
 		"addr flush d0",
+		// A9-T03's address restore rows, each reading its own slug's blob,
+		// gated on two runs with GOIP_PARITY_PASS on both, all three sides
+		// at their full datagram count and zero findings each time.
+		"addr restore < restore_fresh.save",
+		"addr restore < restore_existing.save",
 		// A3-T03's output-mode rows: -br, -o and -br -j on mixed_links, and
 		// -o -6 on v6_peer, gated on two runs with GOIP_PARITY_PASS on both and
 		// the same txns, control and zero findings each time.

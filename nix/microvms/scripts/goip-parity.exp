@@ -65,23 +65,41 @@
 source [file dirname [info script]]/vm-lib.exp
 source [file dirname [info script]]/netlink-topology.exp
 
+set usage "usage: goip-parity.exp <serial-port> <blob-out> --addr-save <dir> \[--keep-going\] \[--no-allowlist\]"
 if {$argc < 2} {
-    puts "usage: goip-parity.exp <serial-port> <blob-out> \[--keep-going\] \[--no-allowlist\]"
+    puts $usage
     exit 2
 }
 set port     [lindex $argv 0]
 set blob_out [lindex $argv 1]
 set keep_going   0
 set no_allowlist 0
-foreach a [lrange $argv 2 end] {
+# The restore rows' <slug>.save files, a store path the guest can read. It is
+# required: a run without it would fail both restore rows on a missing file,
+# which reads as a goip divergence rather than as the runner's mistake.
+set addr_save    ""
+set rest [lrange $argv 2 end]
+while {[llength $rest] > 0} {
+    set rest [lassign $rest a]
     switch -- $a {
         --keep-going   { set keep_going 1 }
         --no-allowlist { set no_allowlist 1 }
+        --addr-save {
+            if {[llength $rest] == 0} {
+                puts $usage
+                exit 2
+            }
+            set rest [lassign $rest addr_save]
+        }
         default {
             puts "unknown argument: $a"
             exit 2
         }
     }
+}
+if {$addr_save eq ""} {
+    puts $usage
+    exit 2
 }
 
 # One namespace, the clean one. There is no mesh set here: the mesh topology
@@ -372,6 +390,11 @@ if {$dir_rc != 0 || $capture_dir eq ""} {
     puts "GOIP_PARITY_DRIVER_FAIL"
     exit 3
 }
+
+# The restore rows read `< <slug>.save` from the capture directory, where a
+# write row's command runs. Copied once, before any row, from the store path
+# the runner passed; they then ship in the blob beside the captures.
+vmlib::must "cp $addr_save/restore_fresh.save $addr_save/restore_existing.save $capture_dir/"
 
 set table [read_command_table]
 vmlib::log "=== capturing [llength $table] commands x 3 sides ==="

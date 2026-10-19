@@ -806,3 +806,18 @@ Done when:
 - the rows pass two clean parity runs and are then gated
 - statement 11 is fully amended
 - the design's Status reads **Implemented**
+
+As built:
+- Restore rows only. `showdump` sends no netlink, so a matrix row has nothing
+  to compare: the comparator refuses an empty capture (`ErrNoTransactions`)
+  and the table refuses `Floor: 0`. Its parity stays offline, as the design
+  already said (`TestAddrShowdumpMatchesSidecar`, checked against `ip` in
+  V061). This finding amends the deliverable above.
+- Row names are unique and gating looks a row up by name, so the two rows
+  name their own slug's blob: `addr restore < restore_fresh.save` and
+  `addr restore < restore_existing.save`. `default.nix` carries both in one
+  store path, and `goip-parity.exp` takes it as `--addr-save` and copies the
+  blobs into the capture directory, where a write row's command runs.
+- `Writes: 8` and `Floor: 4`, as in the corpus: goip's side sends only the
+  link dump, and its floor is `Floor-2`. The table rule that requires
+  `Writes` covers the `addr_restore_` prefix as well as `addr_flush_`.

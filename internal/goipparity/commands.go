@@ -101,8 +101,8 @@ type Command struct {
 	// Writes is how many write messages a write row sends: 0 means exactly
 	// one, as every single-write row does, and N > 0 means the last N, in
 	// M <= N datagrams (addr-write-path.md, "Multi-write rows"). A flush
-	// row must set it, even to 1, and TestCommandTable refuses one that
-	// does not. It stays out of String: only the host-side comparator reads
+	// row must set it, even to 1, and so must a restore row, whose N writes
+	// follow its link dump; TestCommandTable refuses one that does not. It stays out of String: only the host-side comparator reads
 	// it, and the guest's row format is fixed at eight fields.
 	Writes int
 
@@ -2143,6 +2143,29 @@ var commands = withArgs([]Command{
 		// 120 DELs, which ip sends as datagrams of 47, 47 and 26.
 		Floor: 7, Implemented: true, Write: true, Writes: 120, Setup: addrFlushManySetup(),
 	},
+
+	// The address restore rows (addr-write-path.md phase 9): the corpus in
+	// pkg/xtcpnl/testdata/7_1_4/link-write/addr-save/, with the
+	// preconditions of addr-corpus.exp. Each reads its own slug's ip.save,
+	// which the runner carries into the guest as a store path and the driver
+	// copies into the capture directory as <slug>.save; the two files are
+	// byte-identical, but the Names must differ. ip sends ll_init_map's link
+	// dump, then the 8 saved messages, each answered; goip sends the link
+	// dump and writes the 8. Floor is addr-corpus.exp's 4, not ip's 18
+	// datagrams, because goip's side gets Floor-2 and sends only the dump.
+	// showdump sends nothing, so it has no row: its parity is
+	// TestAddrShowdumpMatchesSidecar, offline (addr-write-path.md, "save,
+	// showdump and restore").
+	{
+		Name: "addr restore < restore_fresh.save", Slug: "addr_restore_fresh",
+		// lo's 127.0.0.1 and ::1 already exist, so 2 of the 8 are EEXIST.
+		Floor: 4, Implemented: true, Write: true, Writes: 8, Setup: addrWriteSetupDev,
+	},
+	{
+		Name: "addr restore < restore_existing.save", Slug: "addr_restore_existing",
+		// save_all's addresses are all in place: every write is EEXIST.
+		Floor: 4, Implemented: true, Write: true, Writes: 8, Setup: addrRestoreExistingSetup,
+	},
 })
 
 // The write rows' preconditions, as capture-link-writes.exp spells them:
@@ -2198,6 +2221,10 @@ var (
 		"addr add 192.0.2.1/24 dev d0",
 		"addr add 198.51.100.1/24 dev d0")
 )
+
+// addrRestoreExistingSetup is restore_existing's precondition, save_all's
+// topology: the two IPv4 addresses, then addrFlushV6Setup's four IPv6 ones.
+var addrRestoreExistingSetup = append(slices.Clip(v4SecondarySetup), addrFlushV6Setup[len(addrWriteSetupDev):]...)
 
 // addrFlushManyAddrsCst is flush_many's address count: 192.0.2.1 to .120,
 // each a /32, enough for three datagrams.

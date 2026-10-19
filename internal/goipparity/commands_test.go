@@ -63,10 +63,10 @@ func TestCommandTable(t *testing.T) {
 			},
 		},
 		{
-			description: "negative: a flush row that does not set Writes, or any other row that does, is refused",
+			description: "negative: a flush or restore row that does not set Writes, or any other row that does, is refused",
 			check: func(t *testing.T) {
 				for _, c := range Commands() {
-					if p := flushRowProblem(c); p != "" {
+					if p := multiWriteRowProblem(c); p != "" {
 						t.Errorf("%q: %s", c.Name, p)
 					}
 				}
@@ -1028,6 +1028,8 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	//
 	// A8-T03's seven address flush rows never joined it either, for the same
 	// reason — see TestAddrFlushRowsGated.
+	//
+	// Nor did A9-T03's two address restore rows — see TestAddrRestoreRowsGated.
 	expected := []string{
 		"-s addr show", "-s neigh show",
 		"-0 addr show", "route show table main", "route show table local",

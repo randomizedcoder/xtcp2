@@ -10,9 +10,9 @@ several steps, further down under [Remaining](#remaining).
 
 | | count | counted from |
 |---|---|---|
-| commands in the comparison matrix | **181** | `internal/goipparity/commands.go` — 100 read rows (31 of them `addr show` state, selector and output-mode rows with a `Setup`), the 21 link write rows, the 26 route write rows, the 27 address write rows and the 7 address flush rows |
-| of those, `Implemented: true` | **181** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
-| of those, in `gated_commands` | **158** | `pkg/nlparity/goip-parity-allowlist.json` |
+| commands in the comparison matrix | **183** | `internal/goipparity/commands.go` — 100 read rows (31 of them `addr show` state, selector and output-mode rows with a `Setup`), the 21 link write rows, the 26 route write rows, the 27 address write rows, the 7 address flush rows and the 2 address restore rows |
+| of those, `Implemented: true` | **183** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
+| of those, in `gated_commands` | **160** | `pkg/nlparity/goip-parity-allowlist.json` |
 | allowlisted divergences | **7** | same file, `entries` |
 | of those, `kind=version-skew` | **7** | all against the pinned `ip` 7.1.0 |
 | of those, `kind=accepted-divergence` | **0** | nothing is *allowlisted* as a permanent divergence — the eight intentional wire divergences below **cannot** be, because a transaction-count divergence is unsuppressible (`nlparity_allowlist.go:143`) |
@@ -226,17 +226,19 @@ the three runs before them are in
 
 These are the boundaries of the exercise, not a backlog:
 
-- **Read-only.** `show`/`list`/`lst` only. `internal/goip/obj_addr.go` refuses a
-  write verb with `goip is read-only: ErrNotImplemented` rather than treating
-  it as unknown, because the harness drives both tools with the same argv and
-  needs "not got there yet" to be distinguishable from "typo". Three exceptions
-  have landed, and all three build `ip`'s requests and write them to a file,
-  never to the kernel: `goip link add/set/change/replace/delete` (see
+- **Read-only.** `show`/`list`/`lst` only. goip refuses a verb it does not
+  implement with `ErrNotImplemented` rather than treating it as unknown,
+  because the harness drives both tools with the same argv and needs "not got
+  there yet" to be distinguishable from "typo". Three exceptions have landed,
+  and all three build `ip`'s requests and write them to a file, never to the
+  kernel: `goip link add/set/change/replace/delete` (see
   [Write path: link writes as a dry run](#write-path-link-writes-as-a-dry-run)),
   `goip route add/change/replace/prepend/append/test/delete` (see
   [Write path: route writes as a dry run](#write-path-route-writes-as-a-dry-run))
-  and `goip address add/change/replace/delete/flush` (see
+  and `goip address add/change/replace/delete/flush/restore` (see
   [Write path: address writes as a dry run](#write-path-address-writes-as-a-dry-run)).
+  `goip address save` and `showdump` send only dumps, or nothing, and print
+  a dump file.
 - **Eleven objects.** `address`, `route`, `rule`, `neigh`/`neighbour`, `link`,
   `nexthop`, `addrlabel`, `ntable`/`ntbl`, `netconf`, `stats` and `vrf` have a
   `run` function; the other twenty rows of
@@ -375,7 +377,8 @@ the magic and the dump's replies whole, byte-identical to every save
 capture, and `showdump` prints a dump file from stdin, sending nothing.
 `restore` is a dry run (A9-T02): one link dump, then each saved message,
 flagged `|REQUEST|CREATE|ACK`, to `GOIP_WRITE_OUT`, matching both restore
-captures message for message.
+captures message for message. Both restore captures are matrix rows (A9-T03);
+`showdump` sends no netlink, so it has no row and stays offline.
 
 The `goip-parity` matrix has 27 `addr_write_<slug>` rows (A7-T01), one per
 slug that sends a write. Each runs the slug's own topology as its `Setup` and
@@ -417,6 +420,15 @@ named `addr flush d0`, the bare device, which sends the same bytes as
 `dev d0`. All seven gated on two clean runs. flush_nothing, flush_noargs,
 flush_packet and flush_primary_flipped stay offline: no file, no traffic, or
 a sysctl `Setup` cannot express.
+
+Two `addr_restore_<slug>` matrix rows (A9-T03) compare a live restore against
+`ip`'s: the link dump byte for byte, then the 8 saved messages message by
+message against goip's file (`Writes: 8`). Row names are unique, so each reads
+its own slug's blob, `addr restore < restore_fresh.save` and
+`addr restore < restore_existing.save`; the parity runner carries both into
+the guest as a store path, and the driver copies them into the capture
+directory where write rows run. Both gated on two clean runs.
+`TestAddrRestoreRowsGated` pins them.
 
 ## Netlink message types: decoded, rendered, compared
 
@@ -6698,7 +6710,7 @@ absent from the link listing taken afterwards.
 
 ### Remaining
 
-**`ip address`** is partly done; [addr-write-path-status.md](addr-write-path-status.md)
+**`ip address`** is done; [addr-write-path-status.md](addr-write-path-status.md)
 tracks it. The selectors, the `IFA_RT_PRIORITY`/`IFA_ANYCAST`/`IFA_MULTICAST`
 decode and the dry-run `add`/`change`/`replace`/`delete` are done and gated.
 `-br`, `-br -j` and `-o` render plain `addr show`, optionally under `-4` or
@@ -6708,8 +6720,9 @@ other combination, with a selector, `dev`, `-s`, `-d` or `-0`, `-o -j` and
 `-o`, `-br -j` and `-o -6 addr show`, are gated (A3-T03). `flush` is a dry
 run (A8-T02), and seven flush rows are gated (A8-T03). `save` and
 `showdump` are implemented (A9-T01), and `restore` is a dry run (A9-T02),
-with no matrix rows yet. The statements in this file that say they are read-only stand
-until A9-T03 lands.
+whose two matrix rows are gated (A9-T03). `showdump` sends no netlink, so it
+has no row by design; its parity is offline, against `ip`'s output. The
+statements in this file that said `ip address` is read-only are amended.
 
 The three `route show` forms are **implemented and compared** as of the
 `route show` work: Item 4's `RTA_MULTIPATH`/`RTA_VIA`/`RTA_METRICS`/`rtm_flags`
