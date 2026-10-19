@@ -401,6 +401,12 @@ answer shows that fleet hosts need verbs-level events C2b cannot provide.
 Examples are mlx5 firmware-only port transitions, or native InfiniBand LID
 and SM changes. Until then these tasks stay `deferred`.
 
+As of 2026-10-18 the operator chose not to pursue R3: no fleet need has been
+shown, and the effort is large. Before starting it, read the design's notes
+after the [R3 sketch](GO-NATIVE-RDMA-DESIGN.md#r3-sketch-c2a): R4-T02 removed
+the provider seam the sketch builds on, so the seam is re-planned first, and
+the mlx5 sizing and the devlink alternative are there.
+
 #### R3-T01
 
 **GET_CONTEXT capture shim.** Depends on: [R0-T02](#r0-t02).
