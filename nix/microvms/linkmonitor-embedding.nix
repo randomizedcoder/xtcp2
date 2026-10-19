@@ -16,7 +16,8 @@ let
       mount --make-rprivate /
       mount -t sysfs sysfs /sys
       ip link set lo up
-      exec "$1" -test.run '^TestEmbedding(VirtualLinux|HostProcess)$' -test.v -test.timeout=180s
+      "$1/core.test" -test.run '^TestEmbedding(VirtualLinux|HostProcess)$' -test.v -test.timeout=180s
+      "$1/xtcp.test" -test.run '^TestLinkMonitorOnDemandScrape$' -test.v -test.timeout=180s
     '';
   };
   guestTest = pkgs.writeShellApplication {
@@ -31,8 +32,9 @@ let
       trap 'echo LINKMONITOR_EMBEDDING_FAIL; systemctl poweroff --no-block' ERR
       # New network, mount and PID namespaces; procfs/sysfs match socket scope.
       unshare --net --mount --pid --fork --mount-proc \
-        ${namespaceTest}/bin/linkmonitor-embedding-namespace "${artifact}/bin/core.test"
+        ${namespaceTest}/bin/linkmonitor-embedding-namespace "${artifact}/bin"
       echo LINKMONITOR_EMBEDDING_core_PASS
+      echo LINKMONITOR_EMBEDDING_xtcp_PASS
       echo LINKMONITOR_EMBEDDING_PASS
       systemctl poweroff --no-block
     '';
@@ -104,9 +106,10 @@ pkgs.writeShellApplication {
       exit 1
     }
     cat "$run_dir/serial.log"
-    for sentinel in core_PASS rdma_PASS PASS; do
+    for sentinel in core_PASS xtcp_PASS PASS; do
       grep -q "LINKMONITOR_EMBEDDING_$sentinel" "$run_dir/serial.log"
     done
+    grep -q -- '--- PASS: TestLinkMonitorOnDemandScrape ' "$run_dir/serial.log"
     if grep -E 'LINKMONITOR_EMBEDDING_FAIL|--- SKIP:|--- FAIL:' "$run_dir/serial.log"; then exit 1; fi
     echo "PASS: embedding VM; evidence $run_dir"
   '';

@@ -53,7 +53,7 @@ successful derivation for the same inputs.
 | `test-linkmonitor-rdma-capture` | Go-native RDMA capture tooling; `rdmacapture-tests.txt`, `dry-run.txt`, `manifest.json`, `manifests.txt` and `tampered.txt` retained ([design](GO-NATIVE-RDMA-DESIGN.md#testdata)) |
 | `test-linkmonitor-docs` | Local links/anchors, whitespace, alert metric references, plan/checklist IDs, checkbox states, phase totals and headline count; checker regression tests |
 | `test-linkmonitor-command` | The packaged binary and its process tests, clean environment, no `NEEDED` entries and no rdma-core in the closure |
-| `test-linkmonitor-embedding` | Actual xtcp collectors with a private registry; complete xtcp unit tests, repeated embedding race tests, vet/lint and compiled guest tests |
+| `test-linkmonitor-embedding` | Actual xtcp collectors with a private registry; complete xtcp unit tests, repeated embedding race tests, vet/lint and compiled guest tests. The sandbox has no `/sys`, so xtcp's `TestLinkMonitorOnDemandScrape` skips here and runs in the guest |
 
 P08-T03 additionally requires executed disposable Linux integration:
 
@@ -63,9 +63,10 @@ nix run path:.#test-linkmonitor-embedding-vm -- --accel=auto
 
 The aggregate builds test artifacts; it does not boot this guest. The VM runner
 uses KVM when available, falls back to TCG, and accepts explicit `--accel=kvm`
-or `--accel=tcg`. It retains serial logs and source/artifact provenance, requires
-both core and RDMA success markers without skipped scenarios, and fails after
-15 minutes. Production classification must exclude virtual links; only a
+or `--accel=tcg`. It retains serial logs and source/artifact provenance, runs the
+core embedding tests and xtcp's `TestLinkMonitorOnDemandScrape` with sysfs
+mounted, requires the core and xtcp success markers and that test's pass line
+without skipped scenarios, and fails after 15 minutes. Production classification must exclude virtual links; only a
 test-local inventory decorator admits veth for real transport/lifecycle tests.
 The launcher brings loopback up for the host HTTP tests. V058 in
 [STATUS.md](STATUS.md) records passing core/RDMA execution with `--accel=tcg`,
