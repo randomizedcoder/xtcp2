@@ -503,9 +503,19 @@ SMP coverage today, and that gap stays until such a host is available.
 |---|---|---|---|
 | no_needed | positive | `readelf -d` on the RDMA-enabled Go binary | No `NEEDED` entries |
 | no_runtime | positive | Package closure | No rdma-core, no `rdma-runtime` symlink |
-| cgo_off | boundary | `CGO_ENABLED=0 go build ./cmd/go-link-monitor` | RDMA events available (`Available` is true) |
-| cgo_on_still_builds | corner | The cgo provider during the transition | All four tag and cgo combinations still build |
-| no_provider_dlopen | negative | Go build run with `/etc/libibverbs.d` absent | Starts and reports events; no provider lookup |
+| cgo_off | boundary | `CGO_ENABLED=0 go build ./cmd/go-link-monitor` | RDMA events from netlink (`rdma_events_backend=netlink`) |
+| cgo_on_still_builds | corner | Every remaining build tag combination | All build with `CGO_ENABLED=0` |
+| no_provider_dlopen | negative | The smoke binary under strace in the rxe guest | Starts and reports events; opens no libibverbs, libibumad or provider library |
+
+Amended in R4-T02 (a recorded deviation): R4-T02 removed `Available` and the
+cgo provider along with the backend options, so `cgo_off` checks the reported
+backend, and `cgo_on_still_builds`, which only made sense during the
+transition, became the tag combinations every build must still compile under.
+`no_provider_dlopen` checks the absence of any rdma-core open directly, which
+is stronger than removing `/etc/libibverbs.d`. Gates:
+`test-linkmonitor-command` (no_needed, no_runtime),
+`test-linkmonitor-rdma-build` (cgo_off, cgo_on_still_builds) and
+`test-linkmonitor-rdma-vm` (no_provider_dlopen).
 
 ### Fuzzing
 

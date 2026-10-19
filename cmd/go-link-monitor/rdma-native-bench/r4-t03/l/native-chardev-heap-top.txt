@@ -1,0 +1,47 @@
+File: xtcpnl.test
+Build ID: 055d31eb50d25b2a95ca20bf7a3776e339c5fcbc
+Type: alloc_space
+Time: 2026-10-18 18:43:00 PDT
+Showing nodes accounting for 6193.96kB, 100% of 6193.96kB total
+Showing top 40 nodes out of 46
+      flat  flat%   sum%        cum   cum%
+ 2059.04kB 33.24% 33.24%  2059.04kB 33.24%  runtime.mallocgc
+ 1184.27kB 19.12% 52.36%  1184.27kB 19.12%  runtime/pprof.StartCPUProfile
+ 1024.05kB 16.53% 68.90%  1024.05kB 16.53%  testing.(*B).ResetTimer
+  902.59kB 14.57% 83.47%   902.59kB 14.57%  compress/flate.NewWriter (inline)
+  512.01kB  8.27% 91.73%   512.01kB  8.27%  fmt.(*fmt).fmtSbx
+  512.01kB  8.27%   100%   512.01kB  8.27%  testing.(*B).doBench
+         0     0%   100%   902.59kB 14.57%  compress/gzip.(*Writer).Write
+         0     0%   100%   512.01kB  8.27%  fmt.(*fmt).fmtBx (inline)
+         0     0%   100%   512.01kB  8.27%  fmt.(*pp).doPrintf
+         0     0%   100%   512.01kB  8.27%  fmt.(*pp).fmtBytes
+         0     0%   100%   512.01kB  8.27%  fmt.(*pp).printArg
+         0     0%   100%   512.01kB  8.27%  fmt.Sprintf
+         0     0%   100%  1696.28kB 27.39%  main.main
+         0     0%   100%     1539kB 24.85%  runtime.allocm
+         0     0%   100%  1696.28kB 27.39%  runtime.main
+         0     0%   100%     1539kB 24.85%  runtime.mstart
+         0     0%   100%     1539kB 24.85%  runtime.mstart0
+         0     0%   100%     1539kB 24.85%  runtime.mstart1
+         0     0%   100%     1539kB 24.85%  runtime.newm
+         0     0%   100%  2059.04kB 33.24%  runtime.newobject
+         0     0%   100%   520.04kB  8.40%  runtime.procresize
+         0     0%   100%     1026kB 16.56%  runtime.resetspinning
+         0     0%   100%   520.04kB  8.40%  runtime.rt0_go
+         0     0%   100%   520.04kB  8.40%  runtime.schedinit
+         0     0%   100%     1539kB 24.85%  runtime.schedule
+         0     0%   100%     1539kB 24.85%  runtime.startm
+         0     0%   100%     1539kB 24.85%  runtime.wakep
+         0     0%   100%   902.59kB 14.57%  runtime/pprof.(*profileBuilder).appendLocsForStack
+         0     0%   100%   902.59kB 14.57%  runtime/pprof.(*profileBuilder).build
+         0     0%   100%   902.59kB 14.57%  runtime/pprof.(*profileBuilder).emitLocation
+         0     0%   100%   902.59kB 14.57%  runtime/pprof.(*profileBuilder).flush
+         0     0%   100%   512.01kB  8.27%  runtime/pprof.(*profileBuilder).readMapping
+         0     0%   100%   512.01kB  8.27%  runtime/pprof.elfBuildID
+         0     0%   100%   512.01kB  8.27%  runtime/pprof.newProfileBuilder
+         0     0%   100%   512.01kB  8.27%  runtime/pprof.parseProcSelfMaps
+         0     0%   100%  1414.59kB 22.84%  runtime/pprof.profileWriter
+         0     0%   100%   512.01kB  8.27%  testing.(*B).Run
+         0     0%   100%   512.01kB  8.27%  testing.(*B).run
+         0     0%   100%  1024.05kB 16.53%  testing.(*B).run1.func1
+         0     0%   100%  1536.05kB 24.80%  testing.(*B).runN

@@ -1,0 +1,9 @@
+kernel=Linux 7.2.9 x86_64
+cpu=AMD Ryzen Threadripper PRO 3945WX 12-Cores
+nproc=24
+go=go1.26.5
+count=10
+benchtime=1s
+artifact=/nix/store/dmgh4w9vafjrjciwrsixah9ik982m1p5-xtcp2-test-linkmonitor-performance
+benchstat=goperf-0-unstable-2026-07-08
+baseline=cmd/go-link-monitor/rdma-native-bench/r0-t05/l

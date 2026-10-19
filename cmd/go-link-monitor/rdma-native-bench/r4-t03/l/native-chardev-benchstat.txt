@@ -1,0 +1,19 @@
+goos: linux
+goarch: amd64
+pkg: github.com/randomizedcoder/xtcp2/pkg/xtcpnl
+cpu: AMD Ryzen Threadripper PRO 3945WX 12-Cores     
+                │ native-chardev.txt │
+                │       sec/op       │
+ParseChardev-24          47.96n ± 2%
+
+                │ native-chardev.txt │
+                │        B/s         │
+ParseChardev-24         875.0Mi ± 2%
+
+                │ native-chardev.txt │
+                │        B/op        │
+ParseChardev-24           0.000 ± 0%
+
+                │ native-chardev.txt │
+                │     allocs/op      │
+ParseChardev-24           0.000 ± 0%

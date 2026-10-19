@@ -338,7 +338,7 @@ Deliver: `exchangeNative` over an injectable fd layer and a `socketpair` fake,
 and the `IB_USER_MAD_ABI_VERSION` check (5 or later, as `umad_open_smi_port`
 reads it), moved here from R1-T01.
 The twelve failure-injection rows of `nix/tests/linkmonitor-umad-test.c` are
-ported to Go. Also `BenchmarkUMADExchange`.
+ported to Go (the C harness itself goes in R4-T02). Also `BenchmarkUMADExchange`.
 
 Done when:
 - Every row of the assessment's
@@ -464,6 +464,14 @@ Decided at the R4 start (2026-10-18):
 - The VM differential becomes a netlink-only test of the same triggers and
   faults against the expectations the verbs side recorded in R1-T05.
 
+As built: `rdma_events_vm_linux_test.go` (`TestRDMAEventsRecorded`,
+`TestRDMAEventsFaults`, `TestRDMAEventsRemove`) replaces the differential.
+`bench-linkmonitor-rdma-native` lost its cgo runs and gained `--baseline DIR`,
+which compares against R0-T05's committed cgo output. The packaging table's
+`cgo_off`, `cgo_on_still_builds` and `no_provider_dlopen` rows were amended
+(see the assessment), and `test-linkmonitor-parse-guards` now bans cgo in
+every go-link-monitor and pkg/linkmonitor package under every tag.
+
 Done when: every row of the assessment's
 [packaging](GO-NATIVE-RDMA-ASSESSMENT.md#packaging) table passes, and
 `test-linkmonitor`, `test-linkmonitor-command` and both RDMA VM apps pass.
@@ -477,3 +485,16 @@ against the R0-T05 baseline, and a live run on `l`, with approval.
 
 Done when: all six steps of the performance review plan are recorded with
 evidence ids, and the status document marks R4 done.
+
+As built (R4-T03): the performance VM ran `bench-linkmonitor-rdma-native
+--native` and the monitor's own benchmarks; `--baseline` compares them with
+R0-T05's committed cgo output, which simulates without system calls, so only
+B/op and allocs/op compare. The operator approved three live runs on `l`:
+the native benchmarks against R0-T05's `l` baseline (which also covers
+R1-T06's live run), start-up timing of the G10 cgo package against this one
+with the new `bench-linkmonitor-startup` app, and `TestRDMAEventsRecorded`
+against mlx5. The full host `bench-linkmonitor` was not run on `l`; step 6's
+guard is the gates that already run the benchmarks' smoke and the
+allocation tests. The review found the package's `source.txt` kept the
+source tree in the runtime closure; it now names the path without
+referencing it, and `test-linkmonitor-command` fails if the tree returns.

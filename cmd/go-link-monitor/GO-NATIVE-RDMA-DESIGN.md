@@ -204,7 +204,7 @@ change to [METRICS.md](METRICS.md), made in R1-T04.
 5. `poll(POLLIN)` until the earlier of the ctx deadline and 250 ms, then one
    `read` into a 320-byte stack array.
 6. `ioctl(IB_USER_MAD_UNREGISTER_AGENT)` and `close`. Both errors are joined
-   with the primary error, as `query.h` reports them today.
+   with the primary error, as the cgo `query.h` reported them.
 
 As built (R2-T02): step 1 finds the device's NLDEV index by a device dump,
 then asks GET_CHARDEV, on a socket the exchange opens. Between steps 2 and 3,
@@ -226,7 +226,7 @@ owns the high half (`user_mad.c:632-637`).
 | Deadline reached in `poll` | `context.DeadlineExceeded` |
 | Short read, wrong agent id, nonzero status | `ErrReply` wrapping `EPROTO` |
 | Name or dev_t mismatch | `rdmaevents.ErrIdentity`-style `ErrReply` |
-| `close` fails after a good reply | The reply is kept and the close error is reported, as today |
+| `close` fails after a good reply | The reply is kept and the close error is reported, as the cgo path did |
 
 ## Backend selection
 
@@ -244,6 +244,14 @@ Two `linkmonitor.Config` fields, in the pattern of `IOBackend`:
 - Asking for a backend the build lacks, such as `verbs` in a `CGO_ENABLED=0`
   build, is a configuration error at `New`. It is never a silent fallback.
 - xtcp2 gets the same fields through the embedded `Config`.
+
+As built (R4-T02): the user chose to remove both fields, both flags and both
+environment variables outright, with no alias. The flag parser rejects
+`-rdma.events-backend` and `-rdma.umad-backend` as undefined, the environment
+variables are ignored, and `rdmacaps.Query` and the event source are the
+native ones unconditionally. `rdma_events_backend_info` stays, as a constant
+`backend="netlink"`, so fleet dashboards can see the migration. The start log
+reports `rdma_events_backend=netlink rdma_umad_backend=native`.
 
 As built (R2-T03): `RDMAUMADBackend` is resolved once per session into
 `rdmacaps.Querier`; the resolved value is logged at start, with no metric. The
@@ -426,6 +434,22 @@ registers an SMI agent, so "captured" here means golden packets built from
 
 | Name | Category | Description | Expected |
 |---|---|---|---|
+These rows were retired with the options in R4-T02; `TestRemovedRDMABackendOptions`
+(`cmd/go-link-monitor/config_test.go`) replaces them.
+
+| Name | Category | Description | Expected |
+|---|---|---|---|
+| events_flag | negative | `-rdma.events-backend=netlink` | Flag parse error, flag provided but not defined |
+| umad_flag | negative | `-rdma.umad-backend=native` | Flag parse error, flag provided but not defined |
+| events_env | boundary | `GO_LINK_MONITOR_RDMA_EVENTS_BACKEND=verbs` | Ignored; `New` succeeds |
+| umad_env | corner | `GO_LINK_MONITOR_RDMA_UMAD_BACKEND=libibumad` | Ignored; `New` succeeds |
+| default | positive | Neither set | `New` succeeds |
+| command | negative | `go-link-monitor -rdma.events-backend=verbs` | Exit 2 |
+
+The retired rows, for the record:
+
+| Name | Category | Description | Expected |
+|---|---|---|---|
 | auto_cgo | positive | `auto` in a cgo `rdma` build | `netlink` and `native` (R4-T01; `verbs` and `libibumad` before) |
 | auto_core | positive | `auto` in a `CGO_ENABLED=0` build | `netlink` and `native` |
 | verbs_in_core | negative | `verbs` in a `CGO_ENABLED=0` build | Configuration error at `New` |
@@ -443,7 +467,7 @@ section. Placement:
 | `BenchmarkParseChardev` | `pkg/xtcpnl` | `bench-linkmonitor`, `bench-linkmonitor-rdma-native` |
 | `BenchmarkTranslateRtnl`, `BenchmarkDecodeAsyncEvent`, `BenchmarkEventPath` | `internal/rdmanative` | the same |
 | `BenchmarkDecodeUMADReply`, `BenchmarkEncodeUMADRequest`, `BenchmarkEncodeRegisterAgent2`, `BenchmarkUMADExchange` | `internal/rdmacaps` | the same |
-| cgo baselines `BenchmarkPerformanceCGO`, `BenchmarkPerformanceUMAD` | existing, `monitor_bench,rdma` tags | `bench-linkmonitor-rdma-native` runs both sides |
+| cgo baselines `BenchmarkPerformanceCGO`, `BenchmarkPerformanceUMAD` | removed in R4-T02 with the cgo backends | `bench-linkmonitor-rdma-native --baseline` compares against their committed R0-T05 output |
 
 `bench-linkmonitor-rdma-native` runs the native and cgo benchmarks with
 `-count=10` and compares them with the pinned benchstat. It also writes

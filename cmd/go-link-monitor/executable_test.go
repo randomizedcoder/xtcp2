@@ -177,11 +177,15 @@ func TestExecutableLifetime(t *testing.T) {
 			t.Fatal(err, p.logs.String())
 		}
 		logs := p.logs.String()
-		if !strings.Contains(logs, "rdma_bindings=") {
-			t.Fatal("missing build diagnostics", logs)
+		// One build: RDMA events from netlink and PortInfo through the umad
+		// device, with no cgo binding to report.
+		for _, want := range []string{"rdma_events_backend=netlink", "rdma_umad_backend=native"} {
+			if !strings.Contains(logs, want) {
+				t.Fatal("missing build diagnostics", want, logs)
+			}
 		}
-		if expected := os.Getenv("LINKMONITOR_EXPECT_RDMA"); expected != "" && !strings.Contains(logs, "rdma_bindings="+expected) {
-			t.Fatal(logs)
+		if strings.Contains(logs, "rdma_bindings=") {
+			t.Fatal("stale cgo binding diagnostic", logs)
 		}
 	}
 }

@@ -1,0 +1,25 @@
+goos: linux
+goarch: amd64
+pkg: github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative
+cpu: AMD Ryzen Threadripper PRO 3945WX 12-Cores     
+BenchmarkTranslateRtnl-4      	82707489	        14.64 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTranslateRtnl-4      	83472946	        14.88 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTranslateRtnl-4      	76923865	        14.53 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTranslateRtnl-4      	82859743	        14.80 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTranslateRtnl-4      	82505238	        15.34 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTranslateRtnl-4      	83791906	        14.71 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTranslateRtnl-4      	81246906	        15.17 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTranslateRtnl-4      	48515236	        30.90 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTranslateRtnl-4      	34444748	        36.62 ns/op	       0 B/op	       0 allocs/op
+BenchmarkTranslateRtnl-4      	24712038	        41.81 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeAsyncEvent-4   	48473335	        22.70 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeAsyncEvent-4   	65289024	        15.80 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeAsyncEvent-4   	77435505	        15.69 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeAsyncEvent-4   	71010265	        15.94 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeAsyncEvent-4   	71780186	        16.14 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeAsyncEvent-4   	77638846	        15.50 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeAsyncEvent-4   	74275686	        16.27 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeAsyncEvent-4   	64067726	        16.14 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeAsyncEvent-4   	88115462	        16.65 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeAsyncEvent-4   	64576888	        17.94 ns/op	       0 B/op	       0 allocs/op
+PASS

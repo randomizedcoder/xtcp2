@@ -7,7 +7,6 @@ import (
 
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/baseline"
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/model"
-	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmaevents"
 	"golang.org/x/sys/unix"
 )
 
@@ -27,15 +26,11 @@ func (m *Monitor) openProduction(ctx context.Context) (session, error) {
 		return nil, err
 	}
 	clock := productionClock{origin: time.Now()}
-	m.logger.Info("link monitor build capabilities", "rdma_bindings", rdmaevents.Available,
-		"rdma_events_backend", m.cfg.RDMAEventsBackend.resolve(),
-		"rdma_umad_backend", m.cfg.RDMAUMADBackend.resolve(),
-		"rdma_requirement", "Linux rdma tag, cgo, libibverbs, libibumad and matching providers")
+	m.logger.Info("link monitor build capabilities",
+		"rdma_events_backend", rdmaEventsBackend, "rdma_umad_backend", rdmaUMADBackend)
 	s := &lifecycleSession{clock: clock, namespace: ns.Ino, store: store,
 		statistics: true, settings: true, driverStatistics: true, hostStatistics: true, rdma: true,
-		rdmaEventsBackend: m.cfg.RDMAEventsBackend,
-		rdmaUMADBackend:   m.cfg.RDMAUMADBackend,
-		collectors:        func(int) (workerCollector, error) { return emptyCollector{}, nil },
+		collectors: func(int) (workerCollector, error) { return emptyCollector{}, nil },
 	}
 	s.subscribe = func(ctx context.Context, _ uint64) (eventSubscription, error) {
 		return openProductionEvents(ctx, ns.Ino, clock, m.logger, m.cfg.Resync)

@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/linuxio"
-	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps"
 	"golang.org/x/sys/unix"
 )
 
@@ -58,7 +57,6 @@ func (s *lifecycleSession) rdmaCollector(base workerCollector, handles *rdmaHand
 		stats = client
 	}
 	c := newSharedRDMACollector(base, files, handles.retain(), stats)
-	c.query = rdmacaps.Querier(s.rdmaUMADBackend.caps())
 	if s.statisticsConfig.onDemand() {
 		problems := s.statisticsConfig.problems
 		c.split = &problems

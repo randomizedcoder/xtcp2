@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"math"
-	"slices"
-	"sort"
 	"time"
 
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/model"
@@ -21,16 +19,13 @@ type rdmaEventSchedule struct {
 	fenceErr          error
 	w                 *rdmaEventWorker
 	c                 *reconciler
-	ids               []rdmaevents.Identity
-	// backend is the resolved RDMAEventsBackend. For netlink, ports is the
-	// port map the source translates with; a changed map reopens the source
-	// as a changed identity set does.
-	backend                        RDMAEventsBackend
+	// ports is the port map the netlink source translates with; a changed
+	// map reopens the source.
 	ports                          *rdmanative.PortMap
 	interrupt                      context.CancelFunc
 	generation, barrier            uint64
 	busy, ready, reconciled, dirty bool
-	// unavailable is set once the build reports no verbs event binding. That
+	// unavailable is set once the source reports no RDMA event support. That
 	// cannot change while the process runs, so the source is not reopened:
 	// each retry would invalidate every RDMA port and force a resync.
 	unavailable                bool
@@ -38,16 +33,19 @@ type rdmaEventSchedule struct {
 	report                     func(error)
 }
 
-func newRDMAEventSchedule(c *reconciler, w *rdmaEventWorker, backend RDMAEventsBackend) *rdmaEventSchedule {
-	backend = backend.resolve()
-	c.scheduler.reducer.rdmaEventsBackend = string(backend)
-	s := &rdmaEventSchedule{w: w, c: c, backoff: time.Second, dirty: true, backend: backend}
-	if backend == RDMAEventsNetlink {
-		// The first open precedes the first committed inventory; the netlink
-		// source needs a map then too, and an empty one reports nothing.
-		s.ports = rdmaPortMap(nil, nil)
-	}
-	return s
+// rdmaEventsBackend is where RDMA events come from: rtnetlink link and
+// address notifications plus the NLDEV monitor (rdma_events_backend_info).
+const rdmaEventsBackend = "netlink"
+
+// rdmaUMADBackend is the InfiniBand PortInfo transport: the umad device,
+// queried directly.
+const rdmaUMADBackend = "native"
+
+func newRDMAEventSchedule(c *reconciler, w *rdmaEventWorker) *rdmaEventSchedule {
+	c.scheduler.reducer.rdmaEventsBackend = rdmaEventsBackend
+	// The first open precedes the first committed inventory; the source needs
+	// a map then too, and an empty one reports nothing.
+	return &rdmaEventSchedule{w: w, c: c, backoff: time.Second, dirty: true, ports: rdmaPortMap(nil, nil)}
 }
 
 // rdmaPortMap is the netlink source's view of the committed inventory: each
@@ -82,22 +80,6 @@ func rdmaPortMap(ports []model.RDMAPort, links []model.NetdevLink) *rdmanative.P
 	return m
 }
 
-func rdmaIdentities(ports []model.RDMAPort) []rdmaevents.Identity {
-	byName := make(map[string]string)
-	for i := range ports {
-		p := &ports[i]
-		if p.Eligibility == model.Eligible {
-			byName[p.Device] = p.Hardware
-		}
-	}
-	ids := make([]rdmaevents.Identity, 0, len(byName))
-	for name, hardware := range byName {
-		ids = append(ids, rdmaevents.Identity{Name: name, Hardware: hardware})
-	}
-	sort.Slice(ids, func(i, j int) bool { return ids[i].Name < ids[j].Name })
-	return ids
-}
-
 func (s *rdmaEventSchedule) committed(ports []model.RDMAPort, links []model.NetdevLink, serial uint64) {
 	if s.w.association.Load() == math.MaxUint64 {
 		s.fenceErr = errSequenceExhausted
@@ -105,13 +87,9 @@ func (s *rdmaEventSchedule) committed(ports []model.RDMAPort, links []model.Netd
 	}
 	s.w.association.Add(1)
 	s.targets = rdmaEventTargets(ports)
-	ids := rdmaIdentities(ports)
-	var portMap *rdmanative.PortMap
-	if s.backend == RDMAEventsNetlink {
-		portMap = rdmaPortMap(ports, links)
-	}
-	if !slices.Equal(ids, s.ids) || !portMap.Equal(s.ports) {
-		s.ids, s.ports, s.dirty = ids, portMap, true
+	portMap := rdmaPortMap(ports, links)
+	if !portMap.Equal(s.ports) {
+		s.ports, s.dirty = portMap, true
 		if s.unavailable {
 			s.invalidate()
 			s.diagnostics(s.sourceFailure)
@@ -275,7 +253,7 @@ func (s *rdmaEventSchedule) advance(now model.Stamp) error {
 		ctx, cancel := context.WithCancel(s.w.ctx)
 		s.interrupt, s.busy, s.dirty = cancel, true, false
 		s.deadline = deadlineAfter(now.Monotonic, collectionBudget)
-		s.w.requests <- rdmaEventRequest{ctx: ctx, set: rdmaEventSet{ids: s.ids, ports: s.ports}, generation: s.generation}
+		s.w.requests <- rdmaEventRequest{ctx: ctx, set: rdmaEventSet{ports: s.ports}, generation: s.generation}
 	}
 	at := s.deadline
 	if (!s.busy && !s.ready && !s.unavailable) || s.delayedRestart {

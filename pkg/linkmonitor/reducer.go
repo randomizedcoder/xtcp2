@@ -34,7 +34,7 @@ type reducer struct {
 	resyncEpoch                                     uint64
 	routeEvents, rdmaEvents, resyncOverdue          bool
 	requiredRDMA, missingRDMA                       uint64
-	// rdmaEventsBackend is the resolved RDMA events backend; empty when RDMA
+	// rdmaEventsBackend is the RDMA events backend, netlink; empty when RDMA
 	// events are not configured.
 	rdmaEventsBackend string
 	problems          problemPolicy

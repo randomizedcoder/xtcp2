@@ -2,22 +2,23 @@
 
 Last updated: 2026-10-18.
 
-**R1 and R2 done, R4 started: 15 of 20 implementation tasks passed their gates.** R0 is
-done (ABI layout guard, capture tooling, captured testdata, parsing guards and
-the cgo baseline). R1 is done: the GET_CHARDEV codec and client, the NLDEV
-notification kinds, the port map and translator, the netlink event source with
-backend selection, the VM differential and core-build verification, and the
-event path performance review, which made the shared `nlconn` receive
-allocation-free. The live R1-T06 run on `l` is not approved yet. R2 is done:
-the umad codec, the native umad transport, and `-rdma.umad-backend` selection
-with live rxe rows in both builds; a native exchange costs 416 B and 1
-allocation against the cgo path's 512 B and 2, with no lane. The live rows also
-ran on `l`'s mlx5 ports, with `ib_umad` unloaded and then loaded, and match rxe.
-The operator reviewed the R1-T06 and R2-T03 results and chose R4. R4-T01 is
-done: `auto` selects netlink and native in every build, and the cgo backends
-are still selectable by name in the cgo build. Next: R4-T02, which removes the
-cgo path and the backend flags, then R4-T03; R3 stays deferred. The measured gains so
-far are in [Go-native performance findings](#go-native-performance-findings).
+**R0, R1, R2 and R4 done: 17 of 20 implementation tasks passed their gates; R3 is deferred.**
+R0 built the groundwork: the ABI layout guard, capture tooling, captured
+testdata, parsing guards and the cgo baseline. R1 replaced verbs async events
+with netlink: GET_CHARDEV and NLDEV codecs, the port map and translator, and
+the netlink event source, whose path is allocation-free. R2 replaced
+libibumad with a native umad exchange: 416 B and 1 allocation against 512 B
+and 2, with no process-wide lane. R4 made the native paths the default
+(R4-T01) and then the only ones (R4-T02): go-link-monitor is one
+`CGO_ENABLED=0` binary with no `NEEDED` entry and no rdma-core in its closure,
+and parse-guards keeps every go-link-monitor package cgo-free. R4-T03's final
+review ran the native benchmarks in the performance VM and, with the
+operator's approval, on `l`'s mlx5 host, together with start-up timing
+against the last cgo build and the recorded-events test against mlx5. The
+review also dropped the source tree from the package's runtime closure
+(149 MiB to 33 MiB). R3, verbs-level events from provider contexts, stays
+deferred until a fleet driver needs it. The results are in
+[Go-native performance findings](#go-native-performance-findings).
 
 This tracks [GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md](GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md)
 for the design in [GO-NATIVE-RDMA-DESIGN.md](GO-NATIVE-RDMA-DESIGN.md). It is
@@ -55,7 +56,7 @@ checks it against the plan in the same way.
 | R1 | Netlink-derived events | done | 6/6 | RV032-RV058 |
 | R2 | Native umad | done | 3/3 | RV059-RV078 |
 | R3 | uverbs context (conditional) | deferred | 0/3 | Entry condition not met; see blockers |
-| R4 | Default and removal | in progress | 1/3 | RV079-RV082 |
+| R4 | Default and removal | done | 3/3 | RV079-RV094 |
 
 ## Task checklist
 
@@ -81,8 +82,8 @@ Completion gates and dependencies are in the plan, not copied here.
 | [ ] | [R3-T02](GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md#r3-t02) | uverbs provider for rxe and ionic | deferred | Awaiting the assessment's open questions |
 | [ ] | [R3-T03](GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md#r3-t03) | mlx5 and bnxt_re udata entries | deferred | Awaiting the assessment's open questions |
 | [x] | [R4-T01](GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md#r4-t01) | Native by default | done | RV079-RV082 |
-| [ ] | [R4-T02](GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md#r4-t02) | Remove the cgo path | not started | None |
-| [ ] | [R4-T03](GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md#r4-t03) | Final performance and hardware review | not started | None |
+| [x] | [R4-T02](GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md#r4-t02) | Remove the cgo path | done | RV083-RV087 |
+| [x] | [R4-T03](GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md#r4-t03) | Final performance and hardware review | done | RV088-RV094 |
 
 ## Baseline measurements
 
@@ -120,6 +121,11 @@ evidence directory under [rdma-native-bench](rdma-native-bench/README.md).
 | Link notification from the kernel's write to the monitor's worker, per event, batches of 1 / 8 / 32 / 64 | cgo `BenchmarkPerformanceCGO`: 30.2 / 4.3 / 1.3 / 0.84 ns per event, 0 allocs. Not like for like: it covers only the cgo copy and acknowledgement of queued events, with no descriptor, poll or `read`, and libibverbs pays one `read` syscall per async event on top of it | `BenchmarkEventPath`: 4.45 / 1.37 / 1.05 / 0.78 µs per event, 0 B, 0 allocs (before the `nlconn` change: 6.16 / 2.30 / 1.48 / 1.28 µs, 9 to 320 allocs) | Kernel-bound: `write` plus `recvmsg` are about two thirds of CPU and the goroutine wake-up most of the rest; the translator is 1.4%. Allocation-free end to end | performance VM (4 CPUs), 6.18.39 | RV051, RV054, [r1-t06/vm](rdma-native-bench/README.md) |
 | Netlink receive layer (`nlconn.Conn.Receive`), shared with the rtnetlink listener, per datagram, batches of 1 / 8 / 32 / 64 | `unix.Recvmsg` plus closures built per datagram: 5 allocs per datagram (measured through the event path, RV051) | `BenchmarkReceive`: 2.14 µs / 778 / 680 / 643 ns per datagram (RV054). Per call, whatever the batch: 0 allocs with a context that is never canceled; 2 allocs, 128 B with a cancelable one (was 5 allocs, 280 B) | No allocation per datagram. A cancelable context costs only `context.AfterFunc`'s registration; a background one registers nothing | performance VM (4 CPUs), 6.18.39 | RV054, RV058, [r1-t06/vm and r1-t06/vm-hook](rdma-native-bench/README.md) |
 | One InfiniBand PortInfo exchange (umad), uncontended / contended | cgo `BenchmarkPerformanceUMAD`: 349.9 / 649.4 ns, 512 B, 2 allocs, three cgo calls, serialized on `umadLane`. Simulated: no I/O | `BenchmarkUMADExchange` over a socketpair fake device: 7.5 / 7.8 µs, 416 B, 1 alloc, no cgo call, no lane. Real `write`, `poll` and `read` | 19% fewer bytes and half the allocations; contention adds 4% instead of 86%. Times not comparable, and on hardware both are dominated by the MAD round trip | performance VM (4 CPUs), 6.18.39 | RV072, [r2-t03/vm](rdma-native-bench/README.md) |
+| Final review (R4-T03): event path per event, batches of 1 / 8 / 32 / 64 | R0-T05's cgo baseline, which copies queued events with no system call | `BenchmarkEventPath` on `l` (24 CPUs): 7.41 / 2.58 / 1.74 / 1.71 µs per event, 0 B, 0 allocs. In the VM: 0 allocs, timings too noisy to cite (up to ±310%) | Allocation-free on hardware as in the VM; on `l` the kernel's `Syscall6` is 71% of CPU and the futex wake-up 9% | `l`, 7.2.9; performance VM, 6.18.39 | RV088, RV089, [r4-t03](rdma-native-bench/README.md) |
+| Final review (R4-T03): umad exchange, uncontended / contended | cgo `BenchmarkPerformanceUMAD`: 512 B, 2 allocs, three cgo calls, simulated | `BenchmarkUMADExchange`: VM 8.0 / 8.2 µs, `l` 15.0 / 15.8 µs; 416 B, 1 alloc on both | Unchanged from R2-T03: 19% fewer bytes, half the allocations, contention adds 3-6% | `l`, 7.2.9; performance VM, 6.18.39 | RV088, RV089, [r4-t03](rdma-native-bench/README.md) |
+| Final review (R4-T03): decoders on `l` | Existing rtnetlink decode `BenchmarkPerformanceDecode/route`: 373 ns, 211 B, 2 allocs | `TranslateRtnl` 14.4 ns, `DecodeAsyncEvent` 11.0 ns, `ParseChardev` 48.0 ns, `EncodeUMADRequest` 15.1 ns, `DecodeUMADReply` 14.1 ns; all 0 B | The VM's R1-T03 ratios hold on hardware: about 26x less CPU than the existing decode, no allocation | `l`, 7.2.9 | RV089, [r4-t03/l](rdma-native-bench/README.md) |
+| Start-up, exec to the first healthy `/metrics` reply | G10's cgo `go-link-monitor`: 105.0 ms, RSS 40.1 MiB; `-version` 6.27 ms | This tree: 104.5 ms (no significant difference, p=0.74), RSS 37.3 MiB; `-version` 5.63 ms | Ready time is the first collection either way. RSS 7% lower and process start 10% faster: no dynamic loader, libibverbs, libibumad or provider libraries | `l`, 7.2.9, load about 1 | RV090, [r4-t03/l-startup](rdma-native-bench/README.md) |
+| Binary and closure | G10's cgo package: 32,473,992 B binary with 6 `NEEDED` libraries (libibverbs, libibumad, libc and others); closure 23 paths, 276 MB with the source tree, 155 MB (148 MiB) without | 32,700,235 B static binary (+0.7%), no `NEEDED`; closure 4 paths, 34.5 MB (mailcap, iana-etc, tzdata and the package) | No rdma-core, glibc, perl or systemd libraries at run time; the closure is an eighth of the cgo package's | build host `l` | RV090, RV093 |
 
 Why the go-native paths are cheaper, as the profiles show:
 
@@ -243,8 +249,52 @@ management agent (microseconds to milliseconds), not by these costs.
   5-9 on 24 CPUs), so the native timings are cited only for the contention
   ratio.
 
-Still to add: R4-T03's binary size, start-up and closure (no `libibverbs`,
-`libibumad` or provider libraries).
+### Final review (R4-T03)
+
+The assessment's six-step review plan, step by step:
+
+1. **Baseline.** R0-T05 (RV028-RV031) measured the cgo paths in the VM and on
+   `l`, and its raw output is committed. Since R4-T02 there is no cgo build to
+   rerun, so `bench-linkmonitor-rdma-native --baseline` compares against
+   those files.
+2. **Per-change benchstat.** R1-T03, R1-T06, R2-T03 and R4-T03 each committed
+   a benchstat run. The cgo benchmarks copy or simulate in memory with no
+   system call, so against them only B/op and allocs/op are comparisons; the
+   runner now writes that on the first line of both comparison files, and
+   the bench gate checks it is there. The native timings are compared with
+   the native runs before them: R4-T03's VM figures match R1-T06's and
+   R2-T03's, so R4-T02's removal changed nothing on the native paths.
+3. **Profiles.** No CPU top in `r4-t03/vm` or `r4-t03/l` has `reflect` or
+   `convT`. The only `mallocgc` line is the umad exchange's one documented
+   allocation in the VM (0.7% cumulative); none appears on `l`.
+4. **Escape and BCE reports.** `test-linkmonitor-parse-guards` passes
+   (RV093): no decoder line escapes, every bounds check is allowlisted, and
+   the allocation tests hold the decoders, the umad exchange and the codec at
+   their budgets.
+5. **Real hardware.** Approved by the operator on 2026-10-18. The native
+   benchmarks ran on `l`, which also covers R1-T06's live run, and the
+   decoders keep their VM ratios. `TestRDMAEventsRecorded` passed all eight
+   rows against `l`'s mlx5_1 (RV091). mlx5 adds a Topology to every link
+   change: the address and route changes that come with a flap, which the
+   rows allow, since an extra Topology is a resync and never a missed change.
+   Native InfiniBand PortInfo replies stay unverified, since no host here has
+   an IB link layer.
+6. **CI guard.** The gates already run every benchmark in
+   `test-linkmonitor-rdma-native-bench`'s smoke run, the decoder and umad
+   allocation tests in parse-guards, and `nlconn`'s `TestReceiveAllocs` in the
+   unit leaf. The full host `bench-linkmonitor` was not run on `l` (not part
+   of the approval); the performance VM ran the monitor's own benchmarks.
+
+**What go-native bought.** One static binary instead of two builds; a
+runtime closure of 4 paths and 34.5 MB instead of 23 paths and 155 MB (before
+counting the source tree, which both carried until this review); no shared
+library or provider `dlopen` at start (the rxe VM's strace check, RV086);
+7% less RSS at start-up and 10% faster process start; RDMA events with no
+verbs context, so no hardware resources per monitor and device removal that
+never waits on the monitor; an allocation-free event path; and a umad
+exchange with half the allocations and no process-wide lane. The event
+path's cost is the kernel's: a `recvmsg` and a goroutine wake-up per batch,
+microseconds per event against an event rate of a few per link change.
 
 ## Capture inventory
 
@@ -344,6 +394,18 @@ Filled by R0-T03. A stream is `captured`, `not captured` with the reason, or
 | RV080 | 2026-10-18 | R4-T01 | `nix build --keep-going path:.#test-linkmonitor -L` | Build host `l`, kernel 7.2.9; base bddeb888 plus the G10 working tree | Fail, inherited: only the embedding leaf fails (`TestLinkMonitorOnDemandScrape`, `lstat /sys` in the sandbox), as on main (RV007); every other leaf built | Scratchpad `g10/aggregate.log` |
 | RV081 | 2026-10-18 | R4-T01 | `env -u LD_LIBRARY_PATH nix run path:.#test-linkmonitor-ionic-vm` | Build host `l` with `/dev/kvm`, kernel 7.2.9; guest 7.1.4 (ionic emulator); same tree. No other VM running; load average about 40 from other work | Pass, every sentinel. The renamed `TestIonicAutoBackend` (was `TestIonicCoreBackend`) now also runs against the cgo `go-link-monitor.service`: `rdma_events_backend_info{backend="netlink"}` 1, no verbs series, the port up and collection healthy; then against `go-link-monitor-core` as before. Device removal now happens while the cgo monitor holds a netlink source, and `TestDifferentialRDMARemove` still holds both | Scratchpad `g10/ionic-vm.log` |
 | RV082 | 2026-10-18 | R4-T01 | `nix build path:.#test-linkmonitor-docs -L` after this update | Build host `l`, kernel 7.2.9; base bddeb888 plus the G10 working tree | Pass | `/nix/store/09dxqrnf1knhf3bydmy83f24j2d5hk8g-xtcp2-test-linkmonitor-docs` |
+| RV083 | 2026-10-18 | R4-T02 | `nix build path:.#test-linkmonitor-{unit,lint,format,parse-guards,rdma-unit,rdma-lint,rdma-build,command,rdma-runtime,rdma-capture,rdma-native-bench} -L` | Build host `l`, kernel 7.2.9; base 36aa5847 (G10) plus the G11 working tree | Pass after two fixes. (1) Widening `test-linkmonitor-rdma-lint`'s golangci run to the `rdma_vm,ionic_vm` tags linted the VM tests for the first time and found three findings in VM-only code (two `G702`, one `forbidigo`); the golangci scope went back to the default tags, as before R4-T02, and vet keeps covering the VM tags. (2) The bench gate's `--baseline` comparison: `event-path-benchstat.txt` had never paired its two sides, because benchstat only pairs rows under the same `pkg:` line and the cgo and native event paths live in different packages (rdmaevents, rdmanative); R1-T06 (RV054) read its numbers from the per-run files, so no recorded figure changes. The runner now drops `pkg:` from both inputs, and the gate requires a `vs base` column in both comparisons. Packaging rows: `no_needed`, `readelf -d` gives no `NEEDED` entry for the monitor or any test binary; `no_runtime`, the monitor's closure is 5 paths with no rdma-core, and there is no `rdma-runtime` link; `go-link-monitor-core` is the same store path; `cgo_off`, `TestExecutable*` find `rdma_events_backend=netlink rdma_umad_backend=native` in the start log; `cgo_on_still_builds`, every tag combination (`""`, the inert `rdma`, `rdma_vm`, `ionic_vm`, `nlrecord`, `monitor_bench`, `embedding_vm`) builds with `CGO_ENABLED=0`. `test-linkmonitor-parse-guards` now fails on any cgo file in go-link-monitor or pkg/linkmonitor under any of those tags. Run against an export of 36aa5847, the same `go list` names `rdmacaps/umad_linux.go` and `rdmaevents/{probe,verbs}_linux.go` under `rdma` | `/nix/store/j1pi84ihs4zjgf569cyg8d2s2kjbbi0w-xtcp2-test-linkmonitor-unit`, `/nix/store/rl0hz77f8cc18kdvz8cz87zfa3p0lg9m-xtcp2-test-linkmonitor-lint`, `/nix/store/pxg0ldcppqnn9kc8qk8mppsjv98vz7i5-xtcp2-test-linkmonitor-format`, `/nix/store/8kv259y2bdixdy91cv6anmd1cpbc0lpx-xtcp2-test-linkmonitor-parse-guards`, `/nix/store/51apmmiiic5bbxww825470bfwy431sjw-xtcp2-test-linkmonitor-rdma-unit`, `/nix/store/7skamvy33i0nmnrf9b4yc8d13iaaph98-xtcp2-test-linkmonitor-rdma-lint`, `/nix/store/8y3qbvc75ppl138c5b7qlif9gxvwp1hm-xtcp2-test-linkmonitor-rdma-build`, `/nix/store/64ikqviai0mkyi8q0m2wrkyizdhs30g0-xtcp2-test-linkmonitor-rdma-command`, `/nix/store/jrdm19prhbw5nfpvx0v6ay37ziag2hld-xtcp2-test-linkmonitor-rdma-runtime`, `/nix/store/4z0j41hs9ij0akxra7wppdgzmskv8iym-xtcp2-test-linkmonitor-rdma-capture`, `/nix/store/4w3n58h642i08m84c8k5l7wnc8cishi7-xtcp2-test-linkmonitor-rdma-native-bench`; scratchpad `g11/` |
+| RV084 | 2026-10-18 | R4-T02 | `nix build --keep-going path:.#test-linkmonitor -L` | Build host `l`, kernel 7.2.9; same tree | Fail, inherited: only the embedding leaf fails (`TestLinkMonitorOnDemandScrape`, `lstat /sys`), as on main (RV007); every other leaf built, including the now single-variant performance and embedding leaves | Scratchpad `g11/aggregate.log` |
+| RV085 | 2026-10-18 | R4-T02 | `env -u LD_LIBRARY_PATH nix run path:.#test-linkmonitor-ionic-vm` | Build host `l` with `/dev/kvm`, kernel 7.2.9; guest 7.1.4 (ionic emulator); same tree. No other VM running; load average about 10 | Pass, every sentinel (DISCOVERY CONTRACTS MONITOR CLI EVENTS RECORDED REMOVE UNPLUG HOTPLUG RECOVERED_EVENTS, and ON_DEMAND). One `go-link-monitor.service`, the `CGO_ENABLED=0` package: `TestIonicAutoBackend` sees `backend="netlink"`. `TestRDMAEventsRecorded` passes all eight trigger rows before the unplug and again after the replug: one Refresh per state change (two for the back-to-back flap), a Topology and no Refresh for each GID row, nothing for the unrelated dummy netdev, no Fatal anywhere. `TestRDMAEventsFaults` passes `uverbs_denied` (netlink opens and reports the flap with the uverbs node at mode 000 and no `CAP_DAC_OVERRIDE`, where verbs could not open), `recover_after_fault`, `namespace` and `empty_queue`. `TestRDMAEventsRemove` gets a Fatal for the device during PCI removal while the monitor holds its own netlink source. The verbs-only `TestIonicVerbsEvents` and the separate core service are gone | Scratchpad `g11/ionic-vm.log`; evidence `/tmp/linkmonitor-ionic-KTSIOw` |
+| RV086 | 2026-10-18 | R4-T02 | `env -u LD_LIBRARY_PATH nix run path:.#test-linkmonitor-rdma-vm` | Build host `l` with `/dev/kvm`, kernel 7.2.9; rxe guest; same tree, run after RV085. No other VM running | Pass, `PASS: all checks passed`, every sentinel (DISCOVERY RENAME EVENTS SMOKE_EVENTS UMAD PERMISSION RECOVERY CONTRACTS). `TestRDMAEventsRecorded` and `TestRDMAEventsFaults` replace the differential: the netlink source against the expectations the verbs side recorded in R1-T05. `no_provider_dlopen`: `strace -e trace=open,openat` of `linkmonitor-smoke -rdma-events netlink` shows no `libibverbs`, `libibumad` or `rdmav` open. `TestUMADLive` passes with `ib_umad` unloaded and loaded from the single `CGO_ENABLED=0` `rdmacaps-vm.test`; the libibumad rows are gone. `TestRDMAEventsRemove` runs `rdma link delete lm_rxe` while the source holds the device, and the delete completes, since the netlink source holds no uverbs file (the R1-T05 row had to run without the verbs source). The rescan row passes on the re-added device | Scratchpad `g11/rdma-vm.log`; recorded contracts unpacked to `/tmp/xtcp2-nlrecord-L3q7` |
+| RV087 | 2026-10-18 | R4-T02 | `nix build path:.#test-linkmonitor-docs -L` after this update | Build host `l`, kernel 7.2.9; base 36aa5847 plus the G11 working tree | Pass | `/nix/store/m0rar8303bh31xlizgcr8n1fr7nb7024-xtcp2-test-linkmonitor-docs` |
+| RV088 | 2026-10-18 | R4-T03 | `env -u LD_LIBRARY_PATH nix run path:.#test-linkmonitor-performance-vm -- DIR`, then `nix run path:.#bench-linkmonitor-rdma-native -- --native --from DIR/linkmonitor-performance/rdma-native --baseline cmd/go-link-monitor/rdma-native-bench/r0-t05/vm --evidence cmd/go-link-monitor/rdma-native-bench/r4-t03/vm` | Build host `l` with `/dev/kvm`, kernel 7.2.9; guest 6.18.39, 4 vCPUs; base 36aa5847 plus the G11 working tree. No other VM running; load average about 10 | Pass (`live_exit=0`, `rdma_native_exit=0`). Native B/op and allocs/op as in R1-T06 and R2-T03: event path 0, receive 0 (background) or 2 and 128 B (cancelable), umad exchange 416 B and 1; the decoders 0. Event-path timings in this run are noisy (±79-310% at batch 32 and 64); receive, decoders and umad are within 1-9%. Against the R0-T05 baseline the comparison pairs (`vs base`), and its first line says only B/op and allocs/op compare | [r4-t03/vm](rdma-native-bench/README.md); scratchpad `g11/perf-vm.log` |
+| RV089 | 2026-10-18 | R4-T03 | `nix run path:.#bench-linkmonitor-rdma-native -- --native --baseline cmd/go-link-monitor/rdma-native-bench/r0-t05/l --output RUN --evidence cmd/go-link-monitor/rdma-native-bench/r4-t03/l` | Host `l`, 24 CPUs, kernel 7.2.9; same tree. Approved by the operator on 2026-10-18, together with R1-T06's live run. Load average about 12 at the start (another session's VM) and 1.5 at the end | Pass. Event path 7.41 / 2.58 / 1.74 / 1.71 µs per event (±4-7%), 0 allocs; receive 0 allocs (background); umad exchange 15.0 / 15.8 µs, 416 B, 1 alloc; decoders 11-48 ns, 0 B. No `mallocgc`, `reflect` or `convT` in any CPU top | [r4-t03/l](rdma-native-bench/README.md); scratchpad `g11/l-bench.log` |
+| RV090 | 2026-10-18 | R4-T03 | `nix run path:.#bench-linkmonitor-startup -- --count 20 --output cmd/go-link-monitor/rdma-native-bench/r4-t03/l-startup cgo=…#go-link-monitor@36aa5847 native=path:.#go-link-monitor`; sizes from `nix path-info -rS` of both packages and the command leaf's `size.txt` | Host `l`, kernel 7.2.9, load average about 1; approved by the operator on 2026-10-18 | Pass. First healthy scrape 105.0 ms (cgo) against 104.5 ms (native), p=0.74; `-version` 6.27 against 5.63 ms (-10%); RSS at ready 40.1 against 37.3 MiB (-7%). Binary 32,473,992 against 32,700,235 B. Closure: G10's cgo package 23 paths (glibc, perl, systemd-minimal-libs, libnl, rdma-core and the source tree), 276 MB; this tree before the review's fix 5 paths, 156.5 MB, of which 121 MB is the source tree, kept by `share/go-link-monitor/source.txt`; after it 4 paths, 34.5 MB. The new app keeps the monitor's logs out of the evidence, since they name host interfaces | [r4-t03/l-startup](rdma-native-bench/README.md) |
+| RV091 | 2026-10-18 | R4-T03 | `sudo env LINKMONITOR_EVENTS_NETDEV=<mlx5_1's netdev> LINKMONITOR_EVENTS_RDMA=mlx5_1 rdma-vm.test -test.run '^TestRDMAEventsRecorded$' -test.v`, the binary from `test-linkmonitor-rdma-build` | Host `l`, mlx5_1 (RoCE, fw 14.27), kernel 7.2.9; run by the operator, approved 2026-10-18. The default route is on another interface | Pass, all eight rows. One Refresh per state change (two for the flap), a Topology and no Refresh for each GID row, nothing for the unrelated dummy, no Fatal or other-device event. mlx5 also gives one or two Topology per link change (its address and route changes), which the rows allow. The port is back to ACTIVE, and the address and dummy netdev are gone | Scratchpad `g11/l-mlx5-events.log` |
+| RV092 | 2026-10-18 | R4-T03 | Review steps 3, 4 and 6: `grep -E 'mallocgc\|reflect\|convT'` over the `r4-t03` CPU tops; parse-guards' escape, BCE and allocation output; the gates' benchmark and allocation coverage | Build host `l`; same tree | Pass. One `mallocgc` line (the umad exchange's one allocation, 0.7% cumulative, VM only), no `reflect` or `convT`. parse-guards passes (RV093). Benchmarks run in the bench gate's smoke run; allocation tests in parse-guards and the unit leaf (`TestReceiveAllocs`). Not run: the full host `bench-linkmonitor` on `l` | [r4-t03](rdma-native-bench/README.md) |
+| RV093 | 2026-10-18 | R4-T03 | `nix build path:.#test-linkmonitor-{unit,lint,format,parse-guards,rdma-unit,rdma-lint,rdma-build,command,rdma-runtime,rdma-capture,rdma-native-bench} -L`, then `nix build --keep-going path:.#test-linkmonitor -L` | Build host `l`, kernel 7.2.9; base 36aa5847 plus the final G11 tree | Pass for every leaf; the aggregate fails only on the inherited embedding leaf, `TestLinkMonitorOnDemandScrape` (`lstat /sys`, RV007). The command leaf also fails if the source tree is in the closure and records `size.txt` (32,700,235 B binary, 34,538,437 closure bytes, 4 paths); the bench gate also requires the "Not like for like" line | `/nix/store/inq22d5jlmh132wl0wwjjqsbfsqnhhds-xtcp2-test-linkmonitor-unit`, `/nix/store/6i8jishax9f5prfvy4ip40dzq90na1cy-xtcp2-test-linkmonitor-lint`, `/nix/store/1p1hybgndfq2xbb5kgn8ji3hanqrl5qh-xtcp2-test-linkmonitor-format`, `/nix/store/jjdpv20ha1arkkgkrw8v8hqkf24b9viz-xtcp2-test-linkmonitor-parse-guards`, `/nix/store/lc7mlj4zcjjl10p221ngrpqmxr4w0lwm-xtcp2-test-linkmonitor-rdma-unit`, `/nix/store/6kb65rk4xa9ds7wvvxhi0kwdh5jbd8an-xtcp2-test-linkmonitor-rdma-lint`, `/nix/store/qlggnlxxf31yda4jc9c1gwwppari5yy6-xtcp2-test-linkmonitor-rdma-build`, `/nix/store/h6pm0qfc46dyfvn37qfd65j75h812dbm-xtcp2-test-linkmonitor-rdma-command`, `/nix/store/nwmwvcqar0p42yahkcgxjvjswhszixaw-xtcp2-test-linkmonitor-rdma-runtime`, `/nix/store/rcwdi73k2zjri39ijy60jgq08av5ipgm-xtcp2-test-linkmonitor-rdma-capture`, `/nix/store/l4c4ibir7rhzg9hfa2n6q40ab91xbs3h-xtcp2-test-linkmonitor-rdma-native-bench`; scratchpad `g11/final-aggregate.log` |
+| RV094 | 2026-10-18 | R4-T03 | `nix build path:.#test-linkmonitor-docs -L` after this update | Build host `l`, kernel 7.2.9; same tree | Pass: every tracker, link and table check holds with R4 done and the headline at 17 of 20 | `/nix/store/x4svaq9z2fypjgjk1mxssy2vyzwqrmvw-xtcp2-test-linkmonitor-docs` |
 
 ## Blockers and upcoming requirements
 
@@ -353,7 +415,7 @@ The rest are upcoming requirements, not failed checks.
 | Requirement | Affected tasks | Action when work reaches it |
 |---|---|---|
 | Embedding leaf fails on main: `pkg/xtcp` `TestLinkMonitorOnDemandScrape` needs `/sys` in the sandbox (RV007) | Aggregate `test-linkmonitor` gates (R1-T04 onwards) | Fix on main separately; until then record the aggregate with the embedding leaf excluded and list the other leaves |
-| Operator approval for changes on `l` | R1-T06 live run (declined for now on 2026-10-18), R3-T03, R4-T03 (R0-T05's `l` run approved 2026-10-17; R2-T03's `ib_umad` rows 2026-10-18) | Ask before each IPv6 trigger, `modprobe ib_umad` or live run; record the approval in the evidence row |
+| Operator approval for changes on `l` | R3-T03 (R0-T05's `l` run approved 2026-10-17; R2-T03's `ib_umad` rows 2026-10-18; R4-T03's native benchmarks, start-up timing and mlx5 events test 2026-10-18, which also covered R1-T06's live run) | Ask before each IPv6 trigger, `modprobe ib_umad` or live run; record the approval in the evidence row |
 | Which RDMA drivers run in the fleet, and whether native InfiniBand hosts exist | R3 entry; priority of R2 | Answer the assessment's open questions. If no fleet host needs verbs-level events, R3 stays deferred. If there are no native IB hosts, R2 keeps today's behaviour only |
 | A bnxt_re host | R3-T03 | Record the bnxt_re rows as unverified until one is available |
 
@@ -382,3 +444,6 @@ The rest are upcoming requirements, not failed checks.
 | 2026-10-18 | Phase R2 (native umad) done, 3/3. Landed: the umad header and registration codec, the native exchange over GET_CHARDEV with no lane, and backend selection with live rxe rows. Results in the findings section: 416 B and 1 allocation per exchange against 512 B and 2, and contention costs 4% instead of 86%. To be committed as G8 and G9. | RV059-RV074; next: the operator reviews the R1-T06 and R2-T03 results and decides on R4 |
 | 2026-10-18 | R2-T03 live rows on `l` (G9), approved by the operator: `rdma-native-capture --umad-live unloaded\|loaded` runs rdmacaps' `TestUMADLive` from both flake-built binaries (`test-linkmonitor-rdma-build`) under strace, and `capture-rdma-testdata --umad-live PHASE` passes them in. mlx5 RoCE matches rxe in both phases. The captures replace synthetic-only umad GET_CHARDEV rows: `TestCapturedUMADChardev` checks mlx5's real request and reply bytes, and that the unloaded runs sent none. `ib_umad` stays loaded on `l`. Strace can split a multi-threaded binary's `recvmsg`, so the rows check every parsed message, not counts. | RV075-RV078; next: commit G5-G9, then the operator decides on R4 |
 | 2026-10-18 | R4 planned and R4-T01 done (G10). The operator reviewed the R1-T06 and R2-T03 results and chose R4, in two PRs: G10 (R4-T01) and G11 (R4-T02, R4-T03 and the close). `RDMAEventsBackend.resolve`, `RDMAUMADBackend.resolve` and `rdmacaps.Backend.Resolve` now map `auto` to netlink and native in every build; explicit `verbs` and `libibumad` still work in the cgo build until R4-T02. The ionic VM's `TestIonicCoreBackend` became `TestIonicAutoBackend` and runs against the cgo service too. Decisions for R4-T02, recorded in the plan: the backend flags, environment variables and `Config` fields are removed outright rather than kept as aliases; the VM differential becomes a netlink-only test against the expectations the verbs side recorded (RV043-RV049). | RV079-RV082; next R4-T02 (G11), after review of G10 |
+| 2026-10-18 | R4-T02 done (G11, second commit on the G10 branch). Deleted the verbs event source, the libibumad transport and their cgo headers, probes and performance shims, `nix/lib/linkmonitor-rdma.nix` and the umad C test; removed `-rdma.events-backend`, `-rdma.umad-backend`, their environment variables and `Config` fields (`TestRemovedRDMABackendOptions` pins that the flags are unknown and the variables ignored); `rdma_events_backend_info` stays as a constant `netlink`. One package: `go-link-monitor-core` is an alias. The differential VM test became `TestRDMAEventsRecorded`/`Faults`/`Remove`, netlink against the recorded verbs expectations, and the rxe remove row now runs with the source attached. `bench-linkmonitor-rdma-native` gained `--baseline DIR` against the committed R0-T05 cgo output in place of live cgo runs. Deviations, recorded in the plan and assessment: the packaging rows `cgo_off` and `cgo_on_still_builds` were amended for a cgo-free tree; the comprehensive golangci run keeps its default tags (vet covers the VM tags) after widening it found three findings in VM-only code; the event-path benchstat had never paired its two sides (different `pkg:` lines), fixed and now asserted, with no recorded figure changed. | RV083-RV087; next R4-T03 |
+| 2026-10-18 | R4-T03 done (G11). The performance VM and, with the operator's approval, `l` ran the native benchmarks against R0-T05's committed cgo output (`--baseline`); start-up was timed against G10's cgo package with the new `bench-linkmonitor-startup` app; and `TestRDMAEventsRecorded` passed against mlx5_1. Found and fixed: the package's `source.txt` kept the 115 MiB source tree in the runtime closure (since before R4), and the `--baseline` comparison's sec/op reads as a regression though the cgo side makes no system call, so both files now say only B/op and allocs/op compare. Not run: the full host `bench-linkmonitor` on `l`. All six review steps are recorded in the findings | RV088-RV094 |
+| 2026-10-18 | Phase R4 (native by default, cgo removed) done, 3/3. go-link-monitor is one `CGO_ENABLED=0` binary: RDMA events from netlink, PortInfo from the umad device, no backend flags, no rdma-core at build or run time, a 4-path closure. 17 of 20 tasks done; R3 stays deferred until a fleet driver needs verbs-level events | RV079-RV094; G10 and G11 go to review as one PR with two commits |

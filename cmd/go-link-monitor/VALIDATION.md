@@ -3,7 +3,9 @@
 P08-T02 adds the standalone command to core/tagged tests, races, vet, lint and
 formatting. `test-linkmonitor-command` runs the exact pinned full/core executables
 in a clean environment, verifies their ELF dependencies, exercises HTTP host
-metrics, SIGUSR1, termination and restart, and covers four RDMA-tag/cgo builds.
+metrics, SIGUSR1, termination and restart. Since R4-T02 there is one
+`CGO_ENABLED=0` executable (`go-link-monitor-core` is an alias), with no
+`NEEDED` entries and no rdma-core in its closure.
 P08-T03 adds embedding compatibility; P09-T01 adds performance harness correctness,
 bringing the aggregate to fifteen gates. Fresh timing runs remain separate.
 Table-driven command and embedding tests cover
@@ -36,7 +38,7 @@ successful derivation for the same inputs.
 
 | Target | Checks and retained evidence |
 |---|---|
-| `test-linkmonitor-performance` | Core/RDMA benchmark binaries, equivalence/scenario tests, benchmark-only cgo probes, repeated races, tagged lint and runner report tests |
+| `test-linkmonitor-performance` | `CGO_ENABLED=0` benchmark binaries (the monitor and the go-native RDMA packages), equivalence/scenario tests, repeated races, tagged lint and runner report tests |
 | `bench-linkmonitor` | Fresh ten-repetition microbenchmarks and synthetic scenario matrix; optional compatible-baseline benchstat comparison; see the Nix README |
 | `test-linkmonitor` | Aggregate linking eight core outputs, four RDMA outputs, the two go-native RDMA guards and its capture-tooling leaf, executable, embedding and performance correctness gates |
 | `test-linkmonitor-unit` | Complete command, `pkg/linkmonitor/...` and `pkg/xtcpnl` suites, CGO disabled; Go JSON in `check.log` |
@@ -50,8 +52,8 @@ successful derivation for the same inputs.
 | `test-linkmonitor-parse-guards` | Go-native RDMA parsing rules; `bce.txt`, `escape.txt`, `decoder-files.txt` and `allocs.txt` retained ([design](GO-NATIVE-RDMA-DESIGN.md#parsing-rules)) |
 | `test-linkmonitor-rdma-capture` | Go-native RDMA capture tooling; `rdmacapture-tests.txt`, `dry-run.txt`, `manifest.json`, `manifests.txt` and `tampered.txt` retained ([design](GO-NATIVE-RDMA-DESIGN.md#testdata)) |
 | `test-linkmonitor-docs` | Local links/anchors, whitespace, alert metric references, plan/checklist IDs, checkbox states, phase totals and headline count; checker regression tests |
-| `test-linkmonitor-command` | Packaged full/core binaries and their process tests, clean environment, four build combinations and ELF dependency evidence |
-| `test-linkmonitor-embedding` | Actual xtcp collectors with a private registry; complete xtcp unit tests, repeated core/RDMA embedding race tests, vet/lint and compiled guest tests |
+| `test-linkmonitor-command` | The packaged binary and its process tests, clean environment, no `NEEDED` entries and no rdma-core in the closure |
+| `test-linkmonitor-embedding` | Actual xtcp collectors with a private registry; complete xtcp unit tests, repeated embedding race tests, vet/lint and compiled guest tests |
 
 P08-T03 additionally requires executed disposable Linux integration:
 
@@ -69,14 +71,14 @@ The launcher brings loopback up for the host HTTP tests. V058 in
 [STATUS.md](STATUS.md) records passing core/RDMA execution with `--accel=tcg`,
 separate from the earlier software-RDMA guest's outstanding execution gate.
 
-The aggregate also includes `test-linkmonitor-rdma-unit` (tagged unit and race),
-`test-linkmonitor-rdma-lint` (tagged vet and comprehensive lint), and
-`test-linkmonitor-rdma-runtime` (linked test executable and pinned provider
-loading). Their module is
+The aggregate also includes `test-linkmonitor-rdma-unit` (unit, race, RDMA
+fuzzing and benchmarks), `test-linkmonitor-rdma-lint` (vet under the VM tags and
+comprehensive lint), and `test-linkmonitor-rdma-runtime` (test tooling only: the
+uapi constant header check and libibmad's PortInfo decoder). Their module is
 [`nix/tests/linkmonitor-rdma.nix`](../../nix/tests/linkmonitor-rdma.nix).
 The fourth RDMA gate, `test-linkmonitor-rdma-build`, builds the public-library
-smoke harness, checks ELF dependencies and provider loading with an empty
-environment, and exercises tagged/untagged builds with cgo enabled/disabled.
+smoke harness and the VM test binaries, checks that none has `NEEDED`
+entries, and builds every remaining tag combination with `CGO_ENABLED=0`.
 The default harness requires authoritative inventory and host-statistics
 publication, then joined shutdown. Inside the Nix sandbox, the explicit
 `-sandbox` case requires absent `/sys` and distinguishes a proven empty inventory
@@ -97,12 +99,14 @@ nix run path:.#test-linkmonitor-rdma-vm
 
 The runner requires accessible `/dev/kvm` and uses the existing microVM console
 ports; do not run it alongside another guest using those ports. Its transcript
-records software RoCE discovery/association, provider opening, denied uverbs
-access, deletion/recreation and the library smoke check. Permission changes are
+records software RoCE discovery/association, the netlink event source against
+the expectations the verbs source recorded (R1-T05), denied uverbs access,
+deletion/recreation, native umad, and the library smoke check under strace,
+which must open no libibverbs, libibumad or provider library. Permission changes are
 confined to disposable guest fixture nodes. The production classifier continues
 to exclude virtual links. Guest execution without KVM is unverified, never pass.
-Real verbs event delivery, native InfiniBand UMAD/speed/duplex and the physical
-fleet gate remain unverified by this software guest.
+Native InfiniBand UMAD/speed/duplex and the physical fleet gate remain
+unverified by this software guest.
 A second opt-in guest runs the in-tree `ionic`/`ionic_rdma` drivers against a
 rocm-ernic emulated NIC (vfio-user), so replies come from a real driver:
 

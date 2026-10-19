@@ -19,7 +19,7 @@ func backendPort(device string, index, port, netdev uint32, eligible bool) model
 }
 
 // TestRDMAPortMap is the inventory-to-port-map conversion the netlink
-// backend uses, rendered as rdmanative.PortMap.String.
+// source uses, rendered as rdmanative.PortMap.String.
 func TestRDMAPortMap(t *testing.T) {
 	for _, tc := range []struct {
 		name, category, description, expected string
@@ -57,9 +57,9 @@ func TestRDMAPortMap(t *testing.T) {
 	}
 }
 
-// TestRDMAEventNotification is the NLDEV half of each backend: with verbs
-// every notification is a Topology hint; with netlink an UNREGISTER of a held
-// device is Fatal for it.
+// TestRDMAEventNotification is the NLDEV half of the event source: an
+// UNREGISTER of a held device is Fatal for it, and everything else is a
+// Topology hint.
 func TestRDMAEventNotification(t *testing.T) {
 	ports := rdmaPortMap([]model.RDMAPort{backendPort("mlx5_0", 3, 1, 2, true)}, nil)
 	unregister := linuxio.RDMANotification{Kind: linuxio.RDMANotifyUnregister, EventType: 1, DevIndex: 3, HasDevIndex: true}
@@ -88,7 +88,7 @@ func TestRDMAEventNotification(t *testing.T) {
 			rdmaevents.Event{Device: "rxe0", Kind: rdmaevents.Fatal, Err: errRDMAUnregistered}},
 		{"netlink_unregister_unindexed", "corner", "netlink: UNREGISTER of index 0 when the held port has no index (sysfs only)", "Topology only",
 			unindexed, unregisterFirst, rdmaevents.Event{Kind: rdmaevents.Topology}},
-		{"verbs_unregister", "boundary", "verbs: UNREGISTER of a held device", "Topology; the verbs queue reports its own fatal", nil, unregister,
+		{"no_port_map", "boundary", "UNREGISTER with no port map, which Open refuses before Run", "Topology only", nil, unregister,
 			rdmaevents.Event{Kind: rdmaevents.Topology}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -101,22 +101,35 @@ func TestRDMAEventNotification(t *testing.T) {
 	}
 }
 
-// TestRDMAEventPortMapChange: with netlink, a commit whose port map differs
-// (a netdev moved) reopens the source, as a changed identity set does; with
-// verbs the map is not kept and the same commit does not.
+// TestRDMAEventPortMapChange: a commit whose port map differs reopens the
+// source; one that differs only where the map does not look (the hardware
+// path) does not, since the netlink source holds no per-device context.
 func TestRDMAEventPortMapChange(t *testing.T) {
-	forEachRDMAEventsBackend(t, func(t *testing.T, backend RDMAEventsBackend) {
-		t.Logf("corner: %s, the port's netdev changes between commits; expected: reopen only for netlink", backend)
-		s, p := eventScheduleFixture(t, backend)
-		s.committed([]model.RDMAPort{p}, nil, s.barrier+1)
-		if s.dirty {
-			t.Fatal("unchanged commit marked the source dirty")
-		}
-		moved := p
-		moved.Netdev = model.Optional[uint32]{Value: p.Netdev.Value + 100, Present: true}
-		s.committed([]model.RDMAPort{moved}, nil, s.barrier+1)
-		if s.dirty != (backend == RDMAEventsNetlink) {
-			t.Fatalf("dirty=%v after the netdev moved", s.dirty)
-		}
-	})
+	for _, tc := range []struct {
+		name, category, description, expected string
+		change                                func(*model.RDMAPort)
+		dirty                                 bool
+	}{
+		{"unchanged", "positive", "the same port committed again", "not reopened", func(*model.RDMAPort) {}, false},
+		{"netdev_moved", "corner", "the port's netdev changes between commits", "reopened",
+			func(p *model.RDMAPort) { p.Netdev = model.Optional[uint32]{Value: p.Netdev.Value + 100, Present: true} }, true},
+		{"ineligible", "negative", "the port is excluded by policy", "reopened without it",
+			func(p *model.RDMAPort) { p.Eligibility = model.Excluded }, true},
+		{"hardware_only", "boundary", "only the hardware path changes", "not reopened",
+			func(p *model.RDMAPort) { p.Hardware += "-moved" }, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expected)
+			s, p := eventScheduleFixture(t)
+			s.committed([]model.RDMAPort{p}, nil, s.barrier+1)
+			if s.dirty {
+				t.Fatal("unchanged commit marked the source dirty")
+			}
+			tc.change(&p)
+			s.committed([]model.RDMAPort{p}, nil, s.barrier+1)
+			if s.dirty != tc.dirty {
+				t.Fatalf("%s: dirty=%v", tc.expected, s.dirty)
+			}
+		})
+	}
 }

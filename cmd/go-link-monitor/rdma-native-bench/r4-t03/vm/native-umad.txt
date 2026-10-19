@@ -1,0 +1,55 @@
+goos: linux
+goarch: amd64
+pkg: github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps
+cpu: AMD Ryzen Threadripper PRO 3945WX 12-Cores     
+BenchmarkUMADExchange/uncontended-4         	  101444	     10441 ns/op	     416 B/op	       1 allocs/op
+BenchmarkUMADExchange/uncontended-4         	  153915	      7784 ns/op	     416 B/op	       1 allocs/op
+BenchmarkUMADExchange/uncontended-4         	  156884	      7998 ns/op	     416 B/op	       1 allocs/op
+BenchmarkUMADExchange/uncontended-4         	  155870	      8118 ns/op	     416 B/op	       1 allocs/op
+BenchmarkUMADExchange/uncontended-4         	  144914	      7920 ns/op	     416 B/op	       1 allocs/op
+BenchmarkUMADExchange/uncontended-4         	  147930	      8023 ns/op	     416 B/op	       1 allocs/op
+BenchmarkUMADExchange/uncontended-4         	  154582	      7979 ns/op	     416 B/op	       1 allocs/op
+BenchmarkUMADExchange/uncontended-4         	  141910	      8681 ns/op	     416 B/op	       1 allocs/op
+BenchmarkUMADExchange/uncontended-4         	  143528	      7612 ns/op	     416 B/op	       1 allocs/op
+BenchmarkUMADExchange/uncontended-4         	  165502	      7478 ns/op	     416 B/op	       1 allocs/op
+BenchmarkUMADExchange/contended-4           	  146244	      8036 ns/op	     416 B/op	       1 allocs/op
+BenchmarkUMADExchange/contended-4           	  139160	      8500 ns/op	     416 B/op	       1 allocs/op
+BenchmarkUMADExchange/contended-4           	  132385	      8112 ns/op	     416 B/op	       1 allocs/op
+BenchmarkUMADExchange/contended-4           	  151431	      7983 ns/op	     416 B/op	       1 allocs/op
+BenchmarkUMADExchange/contended-4           	  127630	      8584 ns/op	     416 B/op	       1 allocs/op
+BenchmarkUMADExchange/contended-4           	  137328	      8620 ns/op	     416 B/op	       1 allocs/op
+BenchmarkUMADExchange/contended-4           	  123762	      8237 ns/op	     416 B/op	       1 allocs/op
+BenchmarkUMADExchange/contended-4           	  153972	      7690 ns/op	     416 B/op	       1 allocs/op
+BenchmarkUMADExchange/contended-4           	  134754	      8674 ns/op	     416 B/op	       1 allocs/op
+BenchmarkUMADExchange/contended-4           	  150073	      8182 ns/op	     416 B/op	       1 allocs/op
+BenchmarkEncodeUMADRequest-4                	72974088	        14.50 ns/op	       0 B/op	       0 allocs/op
+BenchmarkEncodeUMADRequest-4                	72580308	        16.15 ns/op	       0 B/op	       0 allocs/op
+BenchmarkEncodeUMADRequest-4                	75755944	        14.53 ns/op	       0 B/op	       0 allocs/op
+BenchmarkEncodeUMADRequest-4                	76248477	        14.63 ns/op	       0 B/op	       0 allocs/op
+BenchmarkEncodeUMADRequest-4                	84053042	        15.83 ns/op	       0 B/op	       0 allocs/op
+BenchmarkEncodeUMADRequest-4                	67578012	        15.33 ns/op	       0 B/op	       0 allocs/op
+BenchmarkEncodeUMADRequest-4                	84319792	        15.03 ns/op	       0 B/op	       0 allocs/op
+BenchmarkEncodeUMADRequest-4                	78106962	        15.23 ns/op	       0 B/op	       0 allocs/op
+BenchmarkEncodeUMADRequest-4                	76403586	        15.60 ns/op	       0 B/op	       0 allocs/op
+BenchmarkEncodeUMADRequest-4                	82340071	        14.56 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeUMADReply-4                  	82504840	        16.00 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeUMADReply-4                  	88729123	        13.40 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeUMADReply-4                  	90567103	        14.48 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeUMADReply-4                  	80721086	        14.18 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeUMADReply-4                  	68105443	        15.70 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeUMADReply-4                  	73553883	        14.87 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeUMADReply-4                  	84200528	        13.36 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeUMADReply-4                  	84591049	        14.78 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeUMADReply-4                  	80699660	        14.32 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDecodeUMADReply-4                  	69737421	        14.66 ns/op	       0 B/op	       0 allocs/op
+BenchmarkEncodeRegisterAgent2-4             	365755668	         2.995 ns/op	       0 B/op	       0 allocs/op
+BenchmarkEncodeRegisterAgent2-4             	457073622	         2.636 ns/op	       0 B/op	       0 allocs/op
+BenchmarkEncodeRegisterAgent2-4             	374331242	         3.114 ns/op	       0 B/op	       0 allocs/op
+BenchmarkEncodeRegisterAgent2-4             	404515851	         2.832 ns/op	       0 B/op	       0 allocs/op
+BenchmarkEncodeRegisterAgent2-4             	456602986	         2.661 ns/op	       0 B/op	       0 allocs/op
+BenchmarkEncodeRegisterAgent2-4             	441356481	         2.878 ns/op	       0 B/op	       0 allocs/op
+BenchmarkEncodeRegisterAgent2-4             	420611702	         2.924 ns/op	       0 B/op	       0 allocs/op
+BenchmarkEncodeRegisterAgent2-4             	438392277	         2.723 ns/op	       0 B/op	       0 allocs/op
+BenchmarkEncodeRegisterAgent2-4             	445300101	         2.694 ns/op	       0 B/op	       0 allocs/op
+BenchmarkEncodeRegisterAgent2-4             	408835879	         2.714 ns/op	       0 B/op	       0 allocs/op
+PASS

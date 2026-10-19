@@ -42,12 +42,12 @@ type snapshotRoot struct {
 	candidates      []uint32
 	hostProblems    Problems
 	baselineWriteAt model.Optional[model.Stamp]
-	// rdmaEventsBackend is verbs or netlink; empty without RDMA events.
+	// rdmaEventsBackend is netlink; empty without RDMA events.
 	rdmaEventsBackend string
 }
 
-// RDMAEventsBackend reports the backend RDMA events come from, verbs or
-// netlink, when the monitor runs them.
+// RDMAEventsBackend reports the backend RDMA events come from, always netlink
+// since the cgo verbs backend was removed, when the monitor runs them.
 func (s Snapshot) RDMAEventsBackend() (string, bool) {
 	if s.root == nil || s.root.rdmaEventsBackend == "" {
 		return "", false

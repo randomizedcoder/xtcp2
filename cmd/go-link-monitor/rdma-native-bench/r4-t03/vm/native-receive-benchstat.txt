@@ -1,0 +1,53 @@
+goos: linux
+goarch: amd64
+pkg: github.com/randomizedcoder/xtcp2/pkg/nlconn
+cpu: AMD Ryzen Threadripper PRO 3945WX 12-Cores     
+                                  │ native-receive.txt │
+                                  │       sec/op       │
+Receive/ctx=cancelable/batch=1-4          2.374µ ±  9%
+Receive/ctx=cancelable/batch=8-4          6.788µ ±  1%
+Receive/ctx=cancelable/batch=32-4         22.92µ ±  1%
+Receive/ctx=cancelable/batch=64-4         44.33µ ±  1%
+Receive/ctx=background/batch=1-4          1.529µ ± 10%
+Receive/ctx=background/batch=8-4          5.845µ ±  3%
+Receive/ctx=background/batch=32-4         21.64µ ±  1%
+Receive/ctx=background/batch=64-4         42.13µ ±  1%
+geomean                                   10.37µ
+
+                                  │ native-receive.txt │
+                                  │    sec/datagram    │
+Receive/ctx=cancelable/batch=1-4          2.374µ ±  9%
+Receive/ctx=cancelable/batch=8-4          848.5n ±  1%
+Receive/ctx=cancelable/batch=32-4         716.4n ±  1%
+Receive/ctx=cancelable/batch=64-4         692.7n ±  1%
+Receive/ctx=background/batch=1-4          1.529µ ± 10%
+Receive/ctx=background/batch=8-4          730.6n ±  3%
+Receive/ctx=background/batch=32-4         676.2n ±  1%
+Receive/ctx=background/batch=64-4         658.2n ±  1%
+geomean                                   916.3n
+
+                                  │ native-receive.txt │
+                                  │        B/op        │
+Receive/ctx=cancelable/batch=1-4          128.0 ± 0%
+Receive/ctx=cancelable/batch=8-4          128.0 ± 0%
+Receive/ctx=cancelable/batch=32-4         128.0 ± 0%
+Receive/ctx=cancelable/batch=64-4         128.0 ± 0%
+Receive/ctx=background/batch=1-4          0.000 ± 0%
+Receive/ctx=background/batch=8-4          0.000 ± 0%
+Receive/ctx=background/batch=32-4         0.000 ± 0%
+Receive/ctx=background/batch=64-4         0.000 ± 0%
+geomean                                              ¹
+¹ summaries must be >0 to compute geomean
+
+                                  │ native-receive.txt │
+                                  │     allocs/op      │
+Receive/ctx=cancelable/batch=1-4          2.000 ± 0%
+Receive/ctx=cancelable/batch=8-4          2.000 ± 0%
+Receive/ctx=cancelable/batch=32-4         2.000 ± 0%
+Receive/ctx=cancelable/batch=64-4         2.000 ± 0%
+Receive/ctx=background/batch=1-4          0.000 ± 0%
+Receive/ctx=background/batch=8-4          0.000 ± 0%
+Receive/ctx=background/batch=32-4         0.000 ± 0%
+Receive/ctx=background/batch=64-4         0.000 ± 0%
+geomean                                              ¹
+¹ summaries must be >0 to compute geomean

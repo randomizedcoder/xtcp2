@@ -1,0 +1,5 @@
+count=20
+kernel=7.2.9
+load_after=1.14 2.03 5.46
+binary_cgo=/nix/store/hsainq4x2d7qbr03h9k17zwx23gkfk7h-go-link-monitor/bin/go-link-monitor size=32473992
+binary_native=/nix/store/yyirqdwmn07rgvb9w168hcr39mb98zkl-go-link-monitor/bin/go-link-monitor size=32700235

@@ -1,0 +1,32 @@
+goos: linux
+goarch: amd64
+pkg: github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps
+cpu: AMD Ryzen Threadripper PRO 3945WX 12-Cores     
+                            │ native-umad.txt │
+                            │     sec/op      │
+UMADExchange/uncontended-24       15.01µ ± 1%
+UMADExchange/contended-24         15.84µ ± 2%
+EncodeUMADRequest-24              15.14n ± 3%
+DecodeUMADReply-24                14.12n ± 5%
+EncodeRegisterAgent2-24           2.791n ± 3%
+geomean                           170.0n
+
+                            │ native-umad.txt │
+                            │      B/op       │
+UMADExchange/uncontended-24      416.0 ± 0%
+UMADExchange/contended-24        417.0 ± 0%
+EncodeUMADRequest-24             0.000 ± 0%
+DecodeUMADReply-24               0.000 ± 0%
+EncodeRegisterAgent2-24          0.000 ± 0%
+geomean                                     ¹
+¹ summaries must be >0 to compute geomean
+
+                            │ native-umad.txt │
+                            │    allocs/op    │
+UMADExchange/uncontended-24      1.000 ± 0%
+UMADExchange/contended-24        1.000 ± 0%
+EncodeUMADRequest-24             0.000 ± 0%
+DecodeUMADReply-24               0.000 ± 0%
+EncodeRegisterAgent2-24          0.000 ± 0%
+geomean                                     ¹
+¹ summaries must be >0 to compute geomean

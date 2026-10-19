@@ -124,6 +124,32 @@ func TestLocalQueryBounds(t *testing.T) {
 	}
 }
 
+// TestQueryRefusesBeforeTransport: the exported Query, which always uses the
+// native exchange, refuses bad input and a finished context before any I/O.
+func TestQueryRefusesBeforeTransport(t *testing.T) {
+	canceled, cancel := context.WithCancel(t.Context())
+	cancel()
+	for _, tc := range []struct {
+		name, category, description, expected string
+		ctx                                   context.Context
+		device                                string
+		port                                  uint32
+		want                                  error
+	}{
+		{"port_zero", "boundary", "no port selected", "EINVAL", t.Context(), "hca", 0, syscall.EINVAL},
+		{"port_over", "negative", "a port outside the SMP range", "EINVAL", t.Context(), "hca", 256, syscall.EINVAL},
+		{"path", "negative", "a path instead of a device name", "EINVAL", t.Context(), "../hca", 1, syscall.EINVAL},
+		{"canceled", "corner", "a valid port with a canceled context", "context.Canceled", canceled, "hca", 1, context.Canceled},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expected)
+			if _, err := Query(tc.ctx, tc.device, tc.port); !errors.Is(err, tc.want) {
+				t.Fatalf("got %v, want %v", err, tc.want)
+			}
+		})
+	}
+}
+
 func FuzzCapabilityReply(f *testing.F) {
 	b := portReply(request(1))
 	f.Add(b[:])

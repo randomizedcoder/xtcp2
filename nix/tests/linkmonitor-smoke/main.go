@@ -24,7 +24,7 @@ func main() {
 
 func run() (result error) {
 	absentSysfs := flag.Bool("sandbox", false, "require absent sysfs; distinguish complete empty inventory from explicit unavailable inventory")
-	rdmaEvents := flag.String("rdma-events", "", "also require RDMA events from this backend (verbs or netlink): the source opens, and every attempted rdma_events collector is supported and successful")
+	rdmaEvents := flag.String("rdma-events", "", "also require RDMA events reported as from this backend (netlink, the only one): the source opens, and every attempted rdma_events collector is supported and successful")
 	flag.Parse()
 	if *absentSysfs {
 		if _, err := os.Stat("/sys"); !errors.Is(err, os.ErrNotExist) {
@@ -38,9 +38,6 @@ func run() (result error) {
 	defer func() { result = errors.Join(result, os.RemoveAll(dir)) }()
 	cfg := linkmonitor.DefaultConfig()
 	cfg.BaselineFile, cfg.Settle = filepath.Join(dir, "baseline.json"), 0
-	if *rdmaEvents != "" {
-		cfg.RDMAEventsBackend = linkmonitor.RDMAEventsBackend(*rdmaEvents)
-	}
 	handler := &diagnostics{Handler: slog.NewTextHandler(os.Stderr, nil)}
 	m, err := linkmonitor.New(cfg, linkmonitor.Options{Logger: slog.New(handler)})
 	if err != nil {

@@ -1,0 +1,49 @@
+File: rdmacaps-native.test
+Build ID: 01b8f929118bf902429031db62474a512d24c08a
+Type: cpu
+Time: 2026-10-18 18:43:00 PDT
+Duration: 60.81s, Total samples = 66.29s (109.01%)
+Showing nodes accounting for 62.39s, 94.12% of 66.29s total
+Dropped 230 nodes (cum <= 0.33s)
+Showing top 40 nodes out of 66
+      flat  flat%   sum%        cum   cum%
+    23.64s 35.66% 35.66%     23.64s 35.66%  internal/runtime/syscall/linux.Syscall6
+     8.98s 13.55% 49.21%      8.98s 13.55%  runtime.memmove
+     6.37s  9.61% 58.82%      6.37s  9.61%  testing.(*B).Loop (inline)
+     5.79s  8.73% 67.55%      5.79s  8.73%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.encodeRegisterAgent2 (inline)
+     2.90s  4.37% 71.93%     11.69s 17.63%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.BenchmarkEncodeRegisterAgent2
+     2.52s  3.80% 75.73%     10.24s 15.45%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.decodeUMADReply
+     2.13s  3.21% 78.94%      2.73s  4.12%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.(*umadHeader).encode
+     2.03s  3.06% 82.00%      3.34s  5.04%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.(*umadHeader).decode
+     1.43s  2.16% 84.16%      8.75s 13.20%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.encodeUMADRequest
+     1.23s  1.86% 86.02%      1.23s  1.86%  runtime.futex
+     0.77s  1.16% 87.18%     11.77s 17.76%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.BenchmarkEncodeUMADRequest
+     0.68s  1.03% 88.20%      0.68s  1.03%  runtime.procyieldAsm
+     0.54s  0.81% 89.02%      0.54s  0.81%  encoding/binary.littleEndian.PutUint32 (inline)
+     0.53s   0.8% 89.82%      0.53s   0.8%  encoding/binary.littleEndian.Uint32 (inline)
+     0.50s  0.75% 90.57%      0.50s  0.75%  encoding/binary.bigEndian.Uint32 (inline)
+     0.30s  0.45% 91.02%     27.83s 41.98%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.exchangeUMAD
+     0.30s  0.45% 91.48%      0.94s  1.42%  runtime.stealWork
+     0.21s  0.32% 91.79%     11.48s 17.32%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.BenchmarkDecodeUMADReply
+     0.15s  0.23% 92.02%      0.99s  1.49%  internal/sync.(*Mutex).lockSlow
+     0.14s  0.21% 92.23%      0.41s  0.62%  runtime.runqgrab
+     0.12s  0.18% 92.41%      6.79s 10.24%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.(*fakeUMAD).write
+     0.12s  0.18% 92.59%     14.53s 21.92%  syscall.Syscall
+     0.10s  0.15% 92.74%      6.96s 10.50%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.(*fakeUMAD).close
+     0.10s  0.15% 92.89%      0.82s  1.24%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.(*fakeUMAD).ioctl
+     0.10s  0.15% 93.05%      1.09s  1.64%  internal/sync.(*Mutex).Lock (inline)
+     0.07s  0.11% 93.15%      8.88s 13.40%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.(*fakeUMAD).open
+     0.07s  0.11% 93.26%      3.43s  5.17%  golang.org/x/sys/unix.read
+     0.07s  0.11% 93.36%      8.44s 12.73%  golang.org/x/sys/unix.socketpair
+     0.06s 0.091% 93.45%     16.38s 24.71%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.BenchmarkUMADExchange.func1.1
+     0.06s 0.091% 93.54%      2.12s  3.20%  runtime.findRunnable
+     0.06s 0.091% 93.63%     23.70s 35.75%  syscall.RawSyscall6
+     0.05s 0.075% 93.71%      4.61s  6.95%  golang.org/x/sys/unix.write
+     0.04s  0.06% 93.77%      1.41s  2.13%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.(*fakeUMAD).poll
+     0.04s  0.06% 93.83%      6.65s 10.03%  golang.org/x/sys/unix.Close
+     0.04s  0.06% 93.89%      1.26s  1.90%  golang.org/x/sys/unix.ppoll
+     0.04s  0.06% 93.95%      0.75s  1.13%  runtime.notesleep
+     0.04s  0.06% 94.01%      2.94s  4.44%  runtime.park_m
+     0.03s 0.045% 94.06%      1.56s  2.35%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.umadWait
+     0.02s  0.03% 94.09%     11.58s 17.47%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.BenchmarkUMADExchange.func1
+     0.02s  0.03% 94.12%      0.53s   0.8%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.exchangeUMAD.func2

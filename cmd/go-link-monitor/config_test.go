@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -127,99 +126,47 @@ func TestCommandValidation(t *testing.T) {
 	}
 }
 
-// TestRDMAUMADBackendOptions is the umad half of the design's backend
-// selection table for the command.
-func TestRDMAUMADBackendOptions(t *testing.T) {
-	core := !linkmonitor.RDMALibibumadAvailable
+// TestRemovedRDMABackendOptions: R4-T02 removed -rdma.events-backend and
+// -rdma.umad-backend with the cgo path. The flags are unknown, so a command
+// line that still passes one fails to parse; their environment variables
+// are no longer read, so a stale one is ignored and the monitor starts.
+func TestRemovedRDMABackendOptions(t *testing.T) {
 	for _, tc := range []struct {
 		name, category, description, expectedOutcome string
 		args                                         []string
 		env                                          map[string]string
-		want                                         linkmonitor.RDMAUMADBackend
-		wantNewErr                                   bool
+		wantParseErr                                 bool
 	}{
-		{"default", "positive", "no flag or environment", "auto", nil, nil, linkmonitor.RDMAUMADAuto, false},
-		{"environment", "positive", "environment says native", "native", nil,
-			map[string]string{rdmaUMADEnvironment: "native"}, linkmonitor.RDMAUMADNative, false},
-		{"env_and_flag", "boundary", "environment says native, flag says libibumad", "flag wins; libibumad is refused by New in a core build",
-			[]string{"-rdma.umad-backend=libibumad"}, map[string]string{rdmaUMADEnvironment: "native"}, linkmonitor.RDMAUMADLibibumad, core},
-		{"empty_flag", "boundary", "explicit empty flag with the environment set", "empty, which New treats as auto",
-			[]string{"-rdma.umad-backend="}, map[string]string{rdmaUMADEnvironment: "native"}, "", false},
-		{"unknown_value", "corner", "-rdma.umad-backend=foo", "parsed, refused by New naming the valid values",
-			[]string{"-rdma.umad-backend=foo"}, nil, "foo", true},
-		{"events_value", "corner", "an events backend name given to the umad flag", "refused: the two flags have separate names",
-			[]string{"-rdma.umad-backend=netlink"}, nil, "netlink", true},
+		{"events_flag", "negative", "-rdma.events-backend=netlink", "flag provided but not defined",
+			[]string{"-rdma.events-backend=netlink"}, nil, true},
+		{"umad_flag", "negative", "-rdma.umad-backend=native", "flag provided but not defined",
+			[]string{"-rdma.umad-backend=native"}, nil, true},
+		{"events_env", "boundary", "GO_LINK_MONITOR_RDMA_EVENTS_BACKEND=verbs left in a unit file", "ignored; New accepts the options",
+			nil, map[string]string{"GO_LINK_MONITOR_RDMA_EVENTS_BACKEND": "verbs"}, false},
+		{"umad_env", "corner", "GO_LINK_MONITOR_RDMA_UMAD_BACKEND=libibumad left in a unit file", "ignored; New accepts the options",
+			nil, map[string]string{"GO_LINK_MONITOR_RDMA_UMAD_BACKEND": "libibumad"}, false},
+		{"default", "positive", "no flag or environment", "parses, and New accepts the options", nil, nil, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expectedOutcome)
 			var out bytes.Buffer
 			opts, err := parseOptions(tc.args, &out, environment(tc.env))
+			if tc.wantParseErr {
+				if err == nil || !strings.Contains(err.Error(), "flag provided but not defined") {
+					t.Fatalf("%s: got %v", tc.expectedOutcome, err)
+				}
+				return
+			}
 			if err != nil {
 				t.Fatal(err)
 			}
-			if opts.monitor.RDMAUMADBackend != tc.want {
-				t.Fatalf("backend %q, want %q", opts.monitor.RDMAUMADBackend, tc.want)
-			}
-			_, err = linkmonitor.New(opts.monitor, linkmonitor.Options{})
-			if (err != nil) != tc.wantNewErr || (err != nil && !errors.Is(err, linkmonitor.ErrRDMAUMADBackend)) {
-				t.Fatalf("New: %v, want error %v", err, tc.wantNewErr)
-			}
-			if tc.name == "unknown_value" && !strings.Contains(err.Error(), "auto, libibumad or native") {
-				t.Fatalf("error does not name the valid values: %v", err)
+			if _, err := linkmonitor.New(opts.monitor, linkmonitor.Options{}); err != nil {
+				t.Fatalf("%s: New: %v", tc.expectedOutcome, err)
 			}
 		})
 	}
 	var out, diagnostic bytes.Buffer
-	if code := command([]string{"-rdma.umad-backend=foo"}, &out, &diagnostic, environment(nil)); code != 2 ||
-		!strings.Contains(diagnostic.String()+out.String(), "RDMA umad backend") {
-		t.Fatalf("command: %d %s %s", code, out.String(), diagnostic.String())
-	}
-}
-
-// TestRDMAEventsBackendOptions is the design's backend selection table for the
-// command: flag and environment parsing, then New's validation, which is
-// where a backend the build lacks is refused.
-func TestRDMAEventsBackendOptions(t *testing.T) {
-	core := !linkmonitor.RDMAVerbsAvailable
-	for _, tc := range []struct {
-		name, category, description, expectedOutcome string
-		args                                         []string
-		env                                          map[string]string
-		want                                         linkmonitor.RDMAEventsBackend
-		wantNewErr                                   bool
-	}{
-		{"default", "positive", "no flag or environment", "auto", nil, nil, linkmonitor.RDMAEventsAuto, false},
-		{"environment", "positive", "environment says netlink", "netlink", nil,
-			map[string]string{rdmaEventsEnvironment: "netlink"}, linkmonitor.RDMAEventsNetlink, false},
-		{"env_and_flag", "boundary", "environment says netlink, flag says verbs", "flag wins; verbs is refused by New in a core build",
-			[]string{"-rdma.events-backend=verbs"}, map[string]string{rdmaEventsEnvironment: "netlink"}, linkmonitor.RDMAEventsVerbs, core},
-		{"empty_flag", "boundary", "explicit empty flag with the environment set", "empty, which New treats as auto",
-			[]string{"-rdma.events-backend="}, map[string]string{rdmaEventsEnvironment: "netlink"}, "", false},
-		{"unknown_value", "corner", "-rdma.events-backend=foo", "parsed, refused by New naming the valid values",
-			[]string{"-rdma.events-backend=foo"}, nil, "foo", true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expectedOutcome)
-			var out bytes.Buffer
-			opts, err := parseOptions(tc.args, &out, environment(tc.env))
-			if err != nil {
-				t.Fatal(err)
-			}
-			if opts.monitor.RDMAEventsBackend != tc.want {
-				t.Fatalf("backend %q, want %q", opts.monitor.RDMAEventsBackend, tc.want)
-			}
-			_, err = linkmonitor.New(opts.monitor, linkmonitor.Options{})
-			if (err != nil) != tc.wantNewErr || (err != nil && !errors.Is(err, linkmonitor.ErrRDMAEventsBackend)) {
-				t.Fatalf("New: %v, want error %v", err, tc.wantNewErr)
-			}
-			if tc.name == "unknown_value" && !strings.Contains(err.Error(), "auto, verbs or netlink") {
-				t.Fatalf("error does not name the valid values: %v", err)
-			}
-		})
-	}
-	var out, diagnostic bytes.Buffer
-	if code := command([]string{"-rdma.events-backend=foo"}, &out, &diagnostic, environment(nil)); code != 2 ||
-		!strings.Contains(diagnostic.String()+out.String(), "RDMA events backend") {
+	if code := command([]string{"-rdma.events-backend=verbs"}, &out, &diagnostic, environment(nil)); code != 2 {
 		t.Fatalf("command: %d %s %s", code, out.String(), diagnostic.String())
 	}
 }

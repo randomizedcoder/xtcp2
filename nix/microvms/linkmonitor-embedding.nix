@@ -29,12 +29,10 @@ let
     ];
     text = ''
       trap 'echo LINKMONITOR_EMBEDDING_FAIL; systemctl poweroff --no-block' ERR
-      for variant in core rdma; do
-        # New network, mount and PID namespaces; procfs/sysfs match socket scope.
-        unshare --net --mount --pid --fork --mount-proc \
-          ${namespaceTest}/bin/linkmonitor-embedding-namespace "${artifact}/bin/$variant.test"
-        echo "LINKMONITOR_EMBEDDING_$variant"_PASS
-      done
+      # New network, mount and PID namespaces; procfs/sysfs match socket scope.
+      unshare --net --mount --pid --fork --mount-proc \
+        ${namespaceTest}/bin/linkmonitor-embedding-namespace "${artifact}/bin/core.test"
+      echo LINKMONITOR_EMBEDDING_core_PASS
       echo LINKMONITOR_EMBEDDING_PASS
       systemctl poweroff --no-block
     '';

@@ -5,16 +5,18 @@
 # See ./nix/default.nix for the per-system aggregator.
 # Monitor "run all": nix build path:.#test-linkmonitor -L
 # Runs core tests, race, vet, lint, formatting, replay, fuzzing and doc checks,
-# plus tagged RDMA tests/lint, runtime packaging, library and executable checks.
+# plus RDMA tests/lint, the RDMA test tooling, library and executable checks; all
+# CGO_ENABLED=0 since R4-T02 (RDMA events from netlink, umad in Go).
 # Go-native RDMA guards: test-linkmonitor-rdma-abi (kernel uapi layouts) and
 # test-linkmonitor-parse-guards (bounds checks, escape report, zero allocations),
 # test-linkmonitor-rdma-capture (redaction, manifests, capture dry run).
 # Performance correctness is included. Repeatable measurement targets are
 # nix run path:.#bench-linkmonitor-smoke (short),
 # nix run path:.#bench-linkmonitor (microbenchmarks), and
-# nix run path:.#bench-linkmonitor-soak (fresh ten-minute core/RDMA profiles).
-# Go-native RDMA baselines: nix run path:.#bench-linkmonitor-rdma-native -- --output DIR
-# (cgo benchmarks with -count=10, pprof and benchstat; gated by
+# nix run path:.#bench-linkmonitor-soak (fresh ten-minute profiles).
+# Go-native RDMA benchmarks: nix run path:.#bench-linkmonitor-rdma-native -- --output DIR
+# Monitor start-up, build against build: nix run path:.#bench-linkmonitor-startup -- --output DIR LABEL=BINARY...
+# (-count=10, pprof and benchstat, --baseline DIR against committed cgo output; gated by
 # nix build path:.#test-linkmonitor-rdma-native-bench).
 # External HTTP load and profiling use an operator-owned endpoint:
 # nix run path:.#siege-linkmonitor -- --url http://127.0.0.1:9088 --output /tmp/siege
@@ -25,7 +27,7 @@
 # benchmark/pprof evidence without requiring host netlink privileges.
 # Includes embedding checks/artifacts; execute the disposable integration with
 # nix run path:.#test-linkmonitor-embedding-vm -- --accel=auto (KVM or TCG).
-# Standalone: nix build path:.#go-link-monitor (full RDMA) or #go-link-monitor-core.
+# Standalone: nix build path:.#go-link-monitor (#go-link-monitor-core is an alias).
 # Opt-in software RDMA guest: nix run path:.#test-linkmonitor-rdma-vm (needs KVM).
 # See ./nix/README.md for individual targets, logs and Nix policy checks.
 #

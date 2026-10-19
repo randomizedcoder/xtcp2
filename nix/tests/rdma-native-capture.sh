@@ -15,9 +15,8 @@
 #   nlmon/<trigger>.pcap                    NETLINK_ROUTE around each trigger
 #   async/<dev>-<trigger>.strace|.out|...   ibv_asyncwatch reads (-xx)
 #   umad/<row>-<dev>-<port>.strace|...      smpquery portinfo and perfquery (--umad)
-#   umad/<backend>_<phase>-<dev>.strace|... TestUMADLive on port 1 through the
-#                                           native and libibumad builds
-#                                           (--umad-live)
+#   umad/native_<phase>-<dev>.strace|...    TestUMADLive on port 1 through the
+#                                           native transport (--umad-live)
 #   meta/uname|driver|firmware|rdma_core    for the manifest
 #   index.tsv                               each row's command and trigger
 #
@@ -437,8 +436,6 @@ fi
 if [ -n "$UMAD_LIVE" ]; then
   for dev in "${DEVS[@]}"; do
     row umad "native_$UMAD_LIVE-$dev" env LINKMONITOR_UMAD_DEVICE="$dev" LINKMONITOR_UMAD_PHASE="$UMAD_LIVE" \
-      "$UMAD_TESTS/rdmacaps-vm-native.test" -test.run '^TestUMADLive$' -test.v
-    row umad "libibumad_$UMAD_LIVE-$dev" env LINKMONITOR_UMAD_DEVICE="$dev" LINKMONITOR_UMAD_PHASE="$UMAD_LIVE" \
       "$UMAD_TESTS/rdmacaps-vm.test" -test.run '^TestUMADLive$' -test.v
   done
 fi
