@@ -370,8 +370,10 @@ it). Three tests read it:
 and `TestRunAddressWrite` covers the CLI end to end.
 
 Refused with `ErrNotImplemented`: `help`, and `brd +` with no address to
-compute from. `save`, `showdump` and `restore` are refused as not
-implemented.
+compute from. `save` and `showdump` are implemented (A9-T01): `save` writes
+the magic and the dump's replies whole, byte-identical to every save
+capture, and `showdump` prints a dump file from stdin, sending nothing.
+`restore` is not started.
 
 The `goip-parity` matrix has 27 `addr_write_<slug>` rows (A7-T01), one per
 slug that sends a write. Each runs the slug's own topology as its `Setup` and
@@ -6702,9 +6704,10 @@ decode and the dry-run `add`/`change`/`replace`/`delete` are done and gated.
 other combination, with a selector, `dev`, `-s`, `-d` or `-0`, `-o -j` and
 `-br -o`, is refused before any request. Four output-mode matrix rows, `-br`,
 `-o`, `-br -j` and `-o -6 addr show`, are gated (A3-T03). `flush` is a dry
-run (A8-T02), and seven flush rows are gated (A8-T03). `save`, `showdump`
-and `restore` are not started, and the statements in this file that say they
-are read-only stand until their phase lands.
+run (A8-T02), and seven flush rows are gated (A8-T03). `save` and
+`showdump` are implemented (A9-T01), with no matrix rows yet; `restore` is
+not started. The statements in this file that say they are read-only stand
+until A9-T03 lands.
 
 The three `route show` forms are **implemented and compared** as of the
 `route show` work: Item 4's `RTA_MULTIPATH`/`RTA_VIA`/`RTA_METRICS`/`rtm_flags`

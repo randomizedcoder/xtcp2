@@ -109,7 +109,7 @@ func Show(src Source, r ShowRequest, out io.Writer) error {
 		return err
 	}
 
-	c := newRunCtx(out, io.Discard)
+	c := newRunCtx(nil, out, io.Discard)
 	c.src = src
 	c.family = r.Family
 	c.json = r.JSON
@@ -131,9 +131,11 @@ func Show(src Source, r ShowRequest, out io.Writer) error {
 }
 
 // newRunCtx is the part of a runCtx that Run and Show build identically. The
-// source, family and options are the caller's.
-func newRunCtx(stdout, stderr io.Writer) *runCtx {
+// source, family and options are the caller's. Show has no stdin, so passes
+// nil, which only `addr showdump` reads and refuses.
+func newRunCtx(stdin io.Reader, stdout, stderr io.Writer) *runCtx {
 	return &runCtx{
+		in:     stdin,
 		out:    stdout,
 		errOut: stderr,
 		family: unix.AF_UNSPEC,

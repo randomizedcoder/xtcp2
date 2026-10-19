@@ -22,6 +22,15 @@ type TalkSource interface {
 	Talk(request []byte, msgType uint16) ([]byte, error)
 }
 
+// MsgDumpSource is the sibling AddressMsgs needs: each reply whole, its
+// nlmsghdr included.
+type MsgDumpSource interface {
+	DumpMsgs(request []byte, msgType uint16) ([][]byte, error)
+}
+
+// ErrNoMsgDump is AddressMsgs on a source that cannot keep reply headers.
+var ErrNoMsgDump = errors.New("goip: source cannot return whole replies")
+
 type Service struct {
 	src     Source
 	nextSeq func() uint32
@@ -308,6 +317,18 @@ func (s *Service) Addresses(family uint8, ifindex uint32) ([]model.Address, erro
 // same request Addresses does.
 func (s *Service) AddressBodies(family uint8, ifindex uint32) ([][]byte, error) {
 	return s.src.Dump(req.AddrShowDump(family, ifindex, s.nextSeq()), uint16(unix.RTM_NEWADDR))
+}
+
+// AddressMsgs is AddressBodies with each reply whole, header included: `ip
+// addr save` writes the replies to its file verbatim (ip/ipaddress.c:1821),
+// flags and all. A source without DumpMsgs is refused before anything is
+// sent.
+func (s *Service) AddressMsgs(family uint8, ifindex uint32) ([][]byte, error) {
+	src, ok := s.src.(MsgDumpSource)
+	if !ok {
+		return nil, ErrNoMsgDump
+	}
+	return src.DumpMsgs(req.AddrShowDump(family, ifindex, s.nextSeq()), uint16(unix.RTM_NEWADDR))
 }
 
 // AddrLinkGet performs ipaddr_link_get (ip/ipaddress.c:2052-2083), the

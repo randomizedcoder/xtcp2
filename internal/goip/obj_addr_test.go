@@ -713,11 +713,11 @@ func TestRunAddrArgs(t *testing.T) {
 			wantErrHas:  "Flush requires arguments",
 		},
 		{
-			// save/showdump/restore are reads, so they get the plain
-			// not-implemented message rather than the read-only one — the
-			// distinction is the point.
-			description: "negative: `addr save` is not implemented, but not called read-only",
-			args:        []string{"addr", "save"},
+			// restore gets the plain not-implemented message rather than the
+			// read-only one — the distinction is the point. save and
+			// showdump are implemented (addr_save.go).
+			description: "negative: `addr restore` is not implemented, but not called read-only",
+			args:        []string{"addr", "restore"},
 			wantExit:    ExitUsage,
 			wantErrHas:  "not implemented",
 		},

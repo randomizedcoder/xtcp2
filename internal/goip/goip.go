@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 
 	"golang.org/x/sys/unix"
 )
@@ -49,7 +50,12 @@ lookups and dumps they need are sent.
 // `-4` as a flag with a value. Since the parity harness drives goip and `ip`
 // with the same argv, the parsing has to be the same shape.
 func Run(args []string, stdout, stderr io.Writer) int {
-	c := newRunCtx(stdout, stderr)
+	return run(args, os.Stdin, stdout, stderr)
+}
+
+// run is Run with stdin a parameter, which `addr showdump` reads.
+func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	c := newRunCtx(stdin, stdout, stderr)
 
 	i := 0
 	for ; i < len(args); i++ {
@@ -217,13 +223,14 @@ func Run(args []string, stdout, stderr io.Writer) int {
 // exitCodeOf is the status `ip` exits with for an object's error. It exits
 // 1 for an argument it refuses before sending (do_cmd negates
 // iplink_modify's -1), 2 for a kernel refusal (its -2), and 255 for a flush
-// that ran out of rounds (ipaddr_flush's 1, negated).
+// that ran out of rounds (ipaddr_flush's 1, negated) or a dump file showdump
+// refuses (its exit(-1)). A save whose dump failed exits 1.
 func exitCodeOf(err error) int {
 	switch {
-	case errors.Is(err, ErrFlushIncomplete):
+	case errors.Is(err, ErrFlushIncomplete), errors.Is(err, ErrDumpFile):
 		return ExitMinusOne
 	case errors.Is(err, ErrNotImplemented), errors.Is(err, ErrInvalidArgument),
-		errors.Is(err, ErrWriteNotApplied):
+		errors.Is(err, ErrWriteNotApplied), errors.Is(err, ErrSaveTerminated):
 		return ExitUsage
 	}
 	return ExitFailure

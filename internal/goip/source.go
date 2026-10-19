@@ -40,6 +40,28 @@ type TalkSource interface {
 	Talk(request []byte, msgType uint16) ([]byte, error)
 }
 
+// MsgDumpSource is the narrow sibling `ip addr save` needs: each reply of
+// msgType whole, nlmsg_len bytes with its nlmsghdr, as the kernel sent it.
+// save writes the replies to the dump file verbatim (ip/ipaddress.c:1821),
+// and the header's flags are not derivable from the body: a dump the kernel
+// filtered by ifindex carries NLM_F_DUMP_FILTERED.
+type MsgDumpSource interface {
+	DumpMsgs(request []byte, msgType uint16) ([][]byte, error)
+}
+
+// wholeMsg lays a reply out again as it arrived: the header verbatim, then
+// the body.
+func wholeMsg(h xtcpnl.NlMsgHdr, body []byte) []byte {
+	b := make([]byte, xtcpnl.NlMsgHdrSizeCst+len(body))
+	binary.LittleEndian.PutUint32(b[0:4], h.Len)
+	binary.LittleEndian.PutUint16(b[4:6], h.Type)
+	binary.LittleEndian.PutUint16(b[6:8], h.Flags)
+	binary.LittleEndian.PutUint32(b[8:12], h.Seq)
+	binary.LittleEndian.PutUint32(b[12:16], h.Pid)
+	copy(b[xtcpnl.NlMsgHdrSizeCst:], body)
+	return b
+}
+
 // NetlinkSource is the live implementation: a bound NETLINK_ROUTE socket.
 type NetlinkSource struct {
 	fd int
@@ -161,6 +183,22 @@ func (s *NetlinkSource) Dump(request []byte, msgType uint16) ([][]byte, error) {
 			return nil
 		}
 		out = append(out, xtcpnl.CopyBytes(body))
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("goip: dump: %w", err)
+	}
+	return out, nil
+}
+
+// DumpMsgs sends the request and collects every reply of msgType whole.
+func (s *NetlinkSource) DumpMsgs(request []byte, msgType uint16) ([][]byte, error) {
+	var out [][]byte
+	err := xtcpnl.DumpRtnetlinkMsgs(s.fd, request, s.sa, func(h xtcpnl.NlMsgHdr, body []byte) error {
+		if h.Type != msgType {
+			return nil
+		}
+		out = append(out, wholeMsg(h, body))
 		return nil
 	})
 	if err != nil {
@@ -298,6 +336,25 @@ func (s *ReplaySource) Dump(request []byte, msgType uint16) ([][]byte, error) {
 			continue
 		}
 		out = append(out, xtcpnl.CopyBytes(m.Body))
+	}
+	if len(out) == 0 && !s.recordedRequest(request) {
+		return nil, fmt.Errorf("%w: type %d", ErrNoReplay, msgType)
+	}
+	return out, nil
+}
+
+// DumpMsgs is Dump with each reply whole, its recorded header included, by
+// the same type, portid and recorded-request rules.
+func (s *ReplaySource) DumpMsgs(request []byte, msgType uint16) ([][]byte, error) {
+	var out [][]byte
+	for _, m := range s.cap.Msgs() {
+		if m.IsRequest() || m.Hdr.Type != msgType {
+			continue
+		}
+		if s.portid != 0 && m.Hdr.Pid != s.portid {
+			continue
+		}
+		out = append(out, wholeMsg(m.Hdr, m.Body))
 	}
 	if len(out) == 0 && !s.recordedRequest(request) {
 		return nil, fmt.Errorf("%w: type %d", ErrNoReplay, msgType)

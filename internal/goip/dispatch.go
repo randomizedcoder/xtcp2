@@ -177,8 +177,10 @@ func lookupObject(arg string) (object, error) {
 // runCtx is the state one goip invocation shares between dispatch and the
 // object handlers.
 type runCtx struct {
-	src    Source
-	lltab  *LLTab
+	src   Source
+	lltab *LLTab
+	// in is stdin, which only `addr showdump` reads.
+	in     io.Reader
 	out    io.Writer
 	errOut io.Writer
 	json   bool
