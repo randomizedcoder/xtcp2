@@ -214,7 +214,7 @@ The corpus also holds ethtool (19 commands), devlink (2) and nl80211 (7) from th
 1. **The rtnetlink read side is in good shape.** Every body layout that a running goip object reads has captured pcaps, a parser and a table-driven test.
 2. **The capture holes are the DEL and SET types:** DELANYCAST, DELRULE, SETNEIGHTBL, DELADDRLABEL, DELNSID, SETSTATS and DELNEXTHOP. Their parsers already exist, because each shares a body layout with its NEW type. The bytes are missing because no capture row sends them.
 3. **Four rtnetlink layouts have no parser:** NSID, nexthop bucket, LINKPROP and prefix. NSID is captured 172 times and is still undecoded.
-4. **Generic netlink beyond nlctrl, and all of XFRM, have nothing:** no pcaps, no parsers, no tests. The blocker is in the harness. `xtcp2-nlcap` keeps only `NETLINK_ROUTE` (`ether[14:2]==0`, `nix/microvms/netlink-capture.nix:674`), although nlmon taps GENERIC and XFRM.
+4. **Generic netlink beyond nlctrl, and all of XFRM, have nothing:** no pcaps, no parsers, no tests. When this was measured the blocker was in the harness: `xtcp2-nlcap` kept only `NETLINK_ROUTE` (`ether[14:2]==0`), although nlmon taps GENERIC and XFRM. C0 removed it. A row now names its protocol (`--proto`, C0-T01), and the modules those families need are loaded late (C0-T02). What is missing is the capture rows (C2, C3).
 5. **Benchmarks:** 1 of the 15 rtnetlink and genl parsers in the tables above (`ParseNewAddr`) has a parse benchmark. The rest of `BenchmarkDeserialize*` covers inet_diag only.
 
 ### How to re-measure
@@ -449,35 +449,44 @@ A task PR that doesn't close a phase still flips its own checklist row and appen
 **Depends on:** C0-T01.
 
 **Deliver:**
-- A new `xtcp2-nlcap modules <subdir> <mod>…` subcommand:
+- A new `xtcp2-nlcap modules <subdir> <mod>…` subcommand (`nix/microvms/netlink-capture.nix`, `cmd_modules`):
   - it modprobes each module in turn;
-  - it writes a `modules` sidecar (`lsmod`, filtered to the named modules);
-  - on the first failure it prints `NLCAP_MOD_FAIL <mod>`, exits 1 and writes no sidecar.
-- `capture-netlink-dumps.exp` and `capture-link-writes.exp` call it **once, after every existing row**, for:
-  - `fou`, `ila`;
-  - `l2tp_core`, `l2tp_netlink`, `l2tp_eth`, `l2tp_ip`, `l2tp_ip6`;
-  - `macsec`;
-  - `xfrm_user` and the crypto modules that the C3 rows use.
-  - The tunnel modules (`ipip`, `ip_gre`, `sit`, `ip6_tunnel`, `ip6_gre`) are already loaded the same way (`capture-netlink-dumps.exp:775`).
-  - The IPMR and IP6MR options are checked as present in the guest kernel.
+  - it writes a `modules` sidecar, one `<mod> loaded|builtin` line per module (a module modprobe accepts but `/proc/modules` doesn't list is built in);
+  - on the first failure it prints `NLCAP_MOD_FAIL <mod>`, exits 1 and writes no sidecar;
+  - a name with anything but `[a-z0-9_]` is refused with rc 2 before any load, so the loaded check can match `/proc/modules` exactly.
+- `nltopo::late_setup` (`netlink-topology.exp`) is the one late step both drivers run. `capture-netlink-dumps.exp` and `capture-link-writes.exp` call it **once, after every existing row**, into a `late/` subdirectory. It:
+  - loads `nltopo::late_modules`:
+    - `fou`, `ila`;
+    - `l2tp_core`, `l2tp_netlink`, `l2tp_eth`, `l2tp_ip`, `l2tp_ip6`;
+    - `macsec`;
+    - `xfrm_user`, and for the C3 ESP states `esp4`, `esp6`, `authenc`, `cbc`, `gcm`, `seqiv` and `echainiv`. `hmac` and `sha256` are built into the guest kernel;
+  - sets `net.mptcp.enabled=1` in the root namespace through the existing `sysctl` subcommand;
+  - checks that `/proc/net/ip_mr_vif` and `/proc/net/ip6_mr_vif` exist, which they do only with `CONFIG_IP_MROUTE` and `CONFIG_IPV6_MROUTE`.
+  - Any failure is reported as `NLCAP_LATE_FAILED` and fails the run. The fixtures captured before it stand.
+  - The tunnel modules (`ipip`, `ip_gre`, `sit`, `ip6_tunnel`, `ip6_gre`) aren't in the list. The dump driver already loads them before its tunnel set (`capture-netlink-dumps.exp:775`), the one place they are wanted.
 - **Why not at boot:**
   - A module is a kernel-wide object. One that creates fallback devices puts them in every namespace, including ones that already exist.
   - Loading the tunnel modules at boot was measured to move goip0 from ifindex 3 to 10, which rewrites every committed fixture (`nix/microvms/mkVm.nix:4034-4049`).
   - So `boot.kernelModules` is unchanged, and loading late leaves every existing fixture as it is.
-- Each run sets `net.mptcp.enabled=1` through the existing `sysctl` subcommand.
 - Event rows run under the existing `xtcp2-nl-ipmon` subscriber (`netlink-capture.nix:250`). The kernel emits nothing to a group with no listener ([Known blockers](coverage-status.md#known-blockers)).
 
-**Tests** (the first three are `ccheck` rows in `addr-topology-test.exp`. modprobe fails in the sandbox, so only the failure paths run there; the rest need the VM):
+**Tests** (rows in `addr-topology-test.exp`, which `checks.vm-lib-exp` runs. modprobe has nothing to load in the sandbox, so only the refusals run there; a module loading needs the VM):
 
 | description | expected |
 |---|---|
 | negative: an unknown module | rc 1, `NLCAP_MOD_FAIL xtcp2_no_such_mod` |
-| negative: no module named | rc 2, `NLCAP_ERR` |
-| corner: a failed load leaves no `modules` sidecar | the file is absent |
-| positive (VM): every required module loads | `modules` lists each one |
+| corner: the failed load leaves no `modules` sidecar | the file is absent |
+| corner: the first failure stops the load | `NLCAP_MOD_FAIL` names the first module, and the second isn't tried |
+| negative: no module named | rc 2, `NLCAP_ERR usage` |
+| negative: no arguments at all | rc 2, `NLCAP_ERR usage` |
+| negative: a dashed name (`l2tp-eth`) | rc 2, `NLCAP_ERR`, before any load, and no sidecar |
+| negative: `late_setup` with a module that won't load | its first problem is `modules: NLCAP_MOD_FAIL fou` |
+| positive: `late_setup` asks for mptcp | `sysctl - late net.mptcp.enabled 1` is sent |
+| corner: `late_modules` | holds the l2tp, macsec and xfrm modules and no tunnel module |
+| positive (VM): every module loads | `late/modules` lists each one, and the run prints `NLCAP_DRIVER_PASS` |
 | corner (VM): the existing route fixtures after the late load | the same records as the committed pcaps, compared as in C0-T01 |
 
-**Done when:** the gates pass, and the VM run's `modules` sidecar lists every module. This task closes C0 ([Closing a phase](#closing-a-phase)).
+**Done when:** the gates pass, a mutation check kills each of the refusals above, and both VM runs' `late/modules` sidecars list every module. This task closes C0 ([Closing a phase](#closing-a-phase)).
 
 ### C1 — rtnetlink
 

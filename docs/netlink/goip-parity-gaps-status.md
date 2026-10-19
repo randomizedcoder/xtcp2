@@ -4,10 +4,10 @@
 
 **Summary:**
 - The design and the task plan are in [goip-parity-gaps.md](goip-parity-gaps.md). This document tracks progress against them.
-- C0-T01 (protocol-aware capture) is done. No other task has started. The parity matrix compares 183 commands and gates 160 ([coverage-status.md](coverage-status.md#goip--ip-parity-at-a-glance)).
+- C0, the capture harness, is done: a row names its netlink protocol (C0-T01), and the modules and sysctls the genl and XFRM rows need are set up after every existing row (C0-T02). No C1, C2 or C3 task has started. The parity matrix compares 183 commands and gates 160 ([coverage-status.md](coverage-status.md#goip--ip-parity-at-a-glance)).
 - The work runs in three tiers, in this order: complete the nlmon capture corpus (C), then the parsers (P), then goip and the matrix (G).
 
-**Next action:** [C0-T02](goip-parity-gaps.md#c0-t02-late-modules-sysctls-and-an-event-subscriber), which also closes C0.
+**Next action:** [C1-T01](goip-parity-gaps.md#c1-t01-del-and-set-types-for-existing-parsers). C1, C2 and C3 each depend only on C0, and are taken in that order.
 
 ## Contents
 
@@ -34,7 +34,7 @@
 
 | Phase | Tier | Work | Closed by | State | Evidence |
 |---|---|---|---|---|---|
-| [C0](goip-parity-gaps.md#c0--capture-harness) | captures | capture harness | C0-T02 | in progress | |
+| [C0](goip-parity-gaps.md#c0--capture-harness) | captures | capture harness | C0-T02 | done | V001–V014, DOC003 |
 | [C1](goip-parity-gaps.md#c1--rtnetlink) | captures | rtnetlink | C1-T04 | not started | |
 | [C2](goip-parity-gaps.md#c2--generic-netlink) | captures | generic netlink | C2-T08 | not started | |
 | [C3](goip-parity-gaps.md#c3--xfrm) | captures | XFRM | C3-T02 | not started | |
@@ -61,12 +61,19 @@ Task IDs link to their sections in the plan. Phases not yet broken into individu
 | Done | Task | Work | State | Evidence |
 |---|---|---|---|---|
 | [x] | [C0-T01](goip-parity-gaps.md#c0-t01-protocol-aware-capture) | protocol-aware capture | done | V001–V008 |
-| [ ] | [C0-T02](goip-parity-gaps.md#c0-t02-late-modules-sysctls-and-an-event-subscriber) | late modules, sysctls, subscriber | not started | |
+| [x] | [C0-T02](goip-parity-gaps.md#c0-t02-late-modules-sysctls-and-an-event-subscriber) | late modules, sysctls, subscriber | done | V009–V014 |
 | [ ] | [C1-T01](goip-parity-gaps.md#c1-t01-del-and-set-types-for-existing-parsers) | DEL/SET types | not started | |
 | [ ] | [C1-T02](goip-parity-gaps.md#c1-t02-write-and-get-verbs-that-goip-lacks) | write and get verbs | not started | |
 | [ ] | [C1-T03](goip-parity-gaps.md#c1-t03-missing-read-objects-and-verbs) | read objects and verbs | not started | |
 | [ ] | [C1-T04](goip-parity-gaps.md#c1-t04-events-through-ip-monitor) | monitor events | not started | |
-| [ ] | [C2-T01…T08](goip-parity-gaps.md#c2--generic-netlink) | genl captures, one per family | not started | |
+| [ ] | [C2-T01](goip-parity-gaps.md#c2--generic-netlink) | tcp_metrics captures | not started | |
+| [ ] | [C2-T02](goip-parity-gaps.md#c2--generic-netlink) | sr captures | not started | |
+| [ ] | [C2-T03](goip-parity-gaps.md#c2--generic-netlink) | ioam captures | not started | |
+| [ ] | [C2-T04](goip-parity-gaps.md#c2--generic-netlink) | mptcp captures | not started | |
+| [ ] | [C2-T05](goip-parity-gaps.md#c2--generic-netlink) | fou captures | not started | |
+| [ ] | [C2-T06](goip-parity-gaps.md#c2--generic-netlink) | ila captures | not started | |
+| [ ] | [C2-T07](goip-parity-gaps.md#c2--generic-netlink) | l2tp captures | not started | |
+| [ ] | [C2-T08](goip-parity-gaps.md#c2--generic-netlink) | macsec captures | not started | |
 | [ ] | [C3-T01](goip-parity-gaps.md#c3-t01-xfrm-state) | xfrm state | not started | |
 | [ ] | [C3-T02](goip-parity-gaps.md#c3-t02-xfrm-policy-and-monitor) | xfrm policy and monitor | not started | |
 | [ ] | [C4-T01](goip-parity-gaps.md#c4-t01-the-universe-test) | corpus completeness gate | not started | |
@@ -91,6 +98,13 @@ Task IDs link to their sections in the plan. Phases not yet broken into individu
 | V006 | 2026-10-19 | C0-T01 | `nix build .#checks.x86_64-linux.lint-baseline`, on this branch and on `main` at `b7eec04d` | both fail identically: tier2 (golangci-lint-comprehensive) 17 added, all in `internal/goip` Go files this task doesn't touch (goconst 14, exhaustive 1, prealloc 1, unconvert 1). tier0 and tier1 are clean | |
 | V007 | 2026-10-19 | C0-T01 | `nix build .#checks.x86_64-linux.lint-baseline` after the V006 findings were fixed in the code (no baseline entries or exclusions) | pass: tier0, tier1 and tier2 each 0 findings, 0 added | `internal/goip` |
 | V008 | 2026-10-19 | C0-T01 | `checks.x86_64-linux.{go-vet,test-go-race}`, one per call, after the same fix | pass. A first race run failed `TestRepoIsClean` on an unquoted British spelling in a new comment; the comment was reworded | |
+| V009 | 2026-10-19 | C0-T02 | `nix build .#checks.x86_64-linux.vm-lib-exp` | pass: addr-topology.exp 128 passed, 0 failed, including the 7 `modules` rows and the 3 `late_setup` rows; vm-lib.exp 22 and addr-corpus.exp 59 unchanged. shellcheck clean | `nix/microvms/scripts/addr-topology-test.exp` |
+| V010 | 2026-10-19 | C0-T02 | mutation check in a scratch worktree, one mutant at a time, each through `vm-lib-exp` | 5 of 5 killed by named rows. The load continuing past a failure: the unknown-module, no-sidecar, first-failure and `late_setup` rows. Dashes allowed in a name: the dashed-name row. A sidecar written on failure: the no-sidecar row. One argument accepted: the no-module row. The mptcp sysctl sent to the `late` namespace: the mptcp row | scratch |
+| V011 | 2026-10-19 | C0-T02 | `checks.x86_64-linux.{nix-fmt,statix,deadnix}`, one per call | pass | |
+| V012 | 2026-10-19 | C0-T02 | `nix run .#microvm-x86_64-netlink-dump-capture -- --out <scratch>`, kernel 7.1.4; compared with `pkg/xtcpnl/testdata/7_1_4/dumps` as in V005 | `NLCAP_DRIVER_PASS`; `NLCAP_MOD_OK late/modules n=16`, every module `loaded`; `late/topology` records the mptcp sysctl and `ipmr and ip6mr present`. The comparison is the same as V005's: every record protocol 0, 101 of 106 pcaps the same record for record, and the same 5 `getneigh` dumps reordered | scratch |
+| V013 | 2026-10-19 | C0-T02 | `nix run .#microvm-x86_64-link-write-capture -- --out <scratch>`, run after V012; compared with `pkg/xtcpnl/testdata/7_1_4/link-write` the same way | `NLCAP_DRIVER_PASS`; `late/modules` lists the same 16 modules. Every record protocol 0; 298 of 299 pcaps the same record for record. The other, `addr-monitor/mc_any/netlink_route_monitor_maddr_json.pcap`, has the same 45 messages with one NEWLINK event and a dump's DONE in swapped order | scratch |
+| V014 | 2026-10-19 | C0 | the phase close: doccheck (task IDs one to one, now counting C2's task table), links and anchors, `git diff --check`, `checks.x86_64-linux.netlink-audit` | pass | this file |
+| DOC003 | 2026-10-19 | C0 | [How to re-measure](goip-parity-gaps.md#how-to-re-measure) at the C0-T02 commit | unchanged from DOC001: 713 pcaps, 39 `Parse*` functions and 54 benchmarks in `pkg/xtcpnl`, since C0 changed no file under `pkg/`. The assessment tables stand; point 4 of "What the assessment says" is amended, because its harness blocker is gone | [goip-parity-gaps.md](goip-parity-gaps.md#what-the-assessment-says) |
 
 ## Decision log
 
@@ -102,3 +116,5 @@ Task IDs link to their sections in the plan. Phases not yet broken into individu
 - **Capture modules are loaded late, by the drivers, not at boot.** A module that creates per-namespace fallback devices puts them in every namespace, including ones that already exist. Loading the tunnel modules at boot was measured to move goip0 from ifindex 3 to 10, which would rewrite every committed fixture (`nix/microvms/mkVm.nix:4034-4049`). C0-T02 therefore modprobes after every existing row is captured, as `capture-netlink-dumps.exp:775` already does for the tunnel modules.
 - **C0-T01 fixes the nexthop floors it found.** The capture gate couldn't pass without the fix. Eight rows had a floor of 4 in namespaces whose nexthop table is empty, so every full `netlink-dump-capture` run ended `NLCAP_DRIVER_FAIL`. An empty table's dump is its request and NLMSG_DONE, so the floor there is 2 (`nh_floor`, `capture-netlink-dumps.exp`).
 - **C0-T01 fixes the tier2 lint findings `main` carried.** lint-baseline is one of its gates, and `main` at `b7eec04d` failed it with 17 findings in `internal/goip` (V006). They were fixed in the code rather than baselined: `showObjects` is derived from the objects table (with an `alias` marker), the goiphttp registry defaults `object` to `path`, and the exhaustive, prealloc and unconvert sites were corrected (V007).
+- **C0-T02 loads the genl and XFRM modules in one late step, shared by both drivers.** `nltopo::late_setup` runs after every existing row, into `late/`, so nothing already captured sees them. The list is `nltopo::late_modules`; the tunnel modules stay where they were, loaded before the dump driver's tunnel set. The crypto list is cbc(aes)+hmac(sha256) and rfc4106(gcm(aes)) ESP; C3 adds to it if its rows need more. Its sidecar says `loaded` or `builtin`, not raw `lsmod` output, because a built-in module is a pass that `lsmod` doesn't list.
+- **C0 closed with C2 expanded.** C2's tasks were already named in the plan's table, so its range row became C2-T01 to C2-T08. C1 and C3 already had one row per task.

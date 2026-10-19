@@ -545,6 +545,10 @@ foreach row $addrcorpus::save_rows {
     }
 }
 
+# After every row above; see nltopo::late_setup.
+vmlib::log "=== late setup (late/) ==="
+set late_problems [nltopo::late_setup late]
+
 lassign [nlcap inventory] inv_rc inventory
 vmlib::log "captured [llength [split [string trim $inventory] "\n"]] files"
 
@@ -621,6 +625,14 @@ if {[llength [addrtopo::dropped_states]] > 0} {
     foreach s [addrtopo::dropped_states] {
         puts "  $s"
     }
+}
+
+if {[llength $late_problems] > 0} {
+    puts "NLCAP_LATE_FAILED [llength $late_problems]"
+    foreach p $late_problems {
+        puts "  $p"
+    }
+    set failed 1
 }
 
 if {[llength $addr_problems] > 0} {
