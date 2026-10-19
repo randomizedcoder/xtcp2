@@ -1,0 +1,1 @@
+ok    [lacpa] ip rule add pref 100 from 192.0.2.0/24 table 100

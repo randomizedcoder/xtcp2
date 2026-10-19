@@ -93,6 +93,17 @@ set design_rows {
     rule_del rule_del_missing addrlabel_del nexthop_del ntable_change
     ntable_change_missing ntable_change_thresh_netns stats_set_l3 netns_set
     nsid_del_event anycast_del_event
+    neigh_add neigh_add_existing neigh_change neigh_change_missing
+    neigh_replace neigh_del neigh_flush neigh_flush_empty neigh_get
+    neigh_get_missing rule_add_selectors rule_add_existing rule_flush
+    rule_save rule_restore nexthop_add_single nexthop_add_group
+    nexthop_add_resilient nexthop_add_existing nexthop_replace nexthop_flush
+    nexthop_flush_empty nexthop_get nexthop_get_missing nexthop_bucket_show
+    nexthop_bucket_get addrlabel_add addrlabel_flush link_altname_add
+    link_altname_del link_altname_taken token_set token_set_noarp route_get
+    route_get_fibmatch route_get_notify route_get_v6 route_get_from_iif
+    route_get_unreachable route_flush route_flush_empty route_flush_no_table
+    route_save route_restore
 }
 
 proc bad_arity {} {
@@ -145,9 +156,19 @@ check arity "negative: every row is {slug floor pre command readbacks rc}" \
     {bad_arity} {}
 check unique_slugs "negative: no slug names two rows" \
     {dup_slugs} {}
-check refused_statuses "positive: exactly the three refusal rows expect rc 2" \
-    {refused_rows} \
-    {rule_del_missing 2 ntable_change_missing 2 ntable_change_thresh_netns 2}
+set refused_design {
+    rule_del_missing 2 ntable_change_missing 2 ntable_change_thresh_netns 2
+    neigh_add_existing 2 neigh_change_missing 2 neigh_get_missing 2
+    rule_add_existing 2 nexthop_add_existing 2 nexthop_get_missing 2
+    link_altname_taken 2 token_set_noarp 2 route_get_unreachable 2
+    route_flush_no_table 2
+}
+check refused_statuses "positive: exactly the refusal rows expect rc 2" \
+    {refused_rows} [join $refused_design " "]
+check row_count "boundary: C1-T01's 11 rows and C1-T02's 44" \
+    {llength $R} 55
+check c1t01_rows_first "corner: C1-T02's rows come after C1-T01's, which keep their order" \
+    {lindex [slugs $R] 10} anycast_del_event
 check rc_values "boundary: every status is 0 or 2" \
     {bad_rc} {}
 
@@ -166,6 +187,21 @@ foreach {name description slug expected} {
     rb_netns_set      "corner: netns_set's readback is inside its own command"   netns_set      {}
     rb_nsid_event     "corner: an event row's readback is the monitor's stdout"  nsid_del_event {}
     rb_anycast_event  "corner: and so is the anycast event row's"                anycast_del_event {}
+    rb_neigh_add      "positive: neigh_add reads d0's neighbors back"            neigh_add      getneigh
+    rb_neigh_flush    "positive: neigh_flush reads what the flush left"          neigh_flush    getneigh
+    rb_neigh_get      "corner: a get is its own readback"                        neigh_get      {}
+    rb_selectors      "positive: the selector rules are read back in both families" rule_add_selectors {getrule getrule6}
+    rb_rule_restore   "positive: rule_restore reads the restored rules back"     rule_restore   getrule
+    rb_rule_save      "corner: a save's readback is its ip.save"                 rule_save      {}
+    rb_nh_resilient   "positive: the resilient group is read back"               nexthop_add_resilient getnexthop
+    rb_nh_flush       "positive: nexthop_flush reads the empty table back"       nexthop_flush  getnexthop
+    rb_addrlabel_add  "positive: addrlabel_add reads the labels back"            addrlabel_add  getaddrlabel
+    rb_altname_add    "positive: link_altname_add reads d0 back"                 link_altname_add getlink
+    rb_altname_taken  "negative: a refused altname has nothing to read back"     link_altname_taken {}
+    rb_token_set      "positive: token_set reads the token back"                 token_set      gettoken
+    rb_route_flush    "positive: route_flush reads table 100 back"               route_flush    getroute
+    rb_route_restore  "positive: route_restore reads table 100 back"             route_restore  getroute
+    rb_flush_empty    "boundary: an empty flush has nothing to read back"        route_flush_empty {}
 } {
     check $name $description [list readback_names $slug] $expected
 }
@@ -248,12 +284,45 @@ check floor_dev_rows "boundary: the two d0 writes count the name lookup" \
     {list [field ntable_change 1] [field stats_set_l3 1]} {4 4}
 check floor_ntable_rows "boundary: every ntable row counts the link dump ip takes first" \
     {list [field ntable_change_missing 1] [field ntable_change_thresh_netns 1]} {4 4}
+# rule_adds - the number of `ip rule add`s in a row's command.
+proc rule_adds {slug} {
+    return [regexp -all {ip (-6 )?rule add } [field $slug 3]]
+}
+
+check floor_selectors "boundary: rule_add_selectors' floor is 2 for each of its 14 adds" \
+    {list [rule_adds rule_add_selectors] [field rule_add_selectors 1]} {14 28}
+check floor_bucket_show "boundary: the bucket dump's floor is the request and two reply datagrams" \
+    {field nexthop_bucket_show 1} 3
 check floor_event_rows "positive: the event rows' floors are two thirds of the measured run" \
     {list [field nsid_del_event 1] [field anycast_del_event 1]} {14 20}
 check no_single_quotes "corner: no command or readback holds a single quote" \
     {quoted} {}
 check readback_names_safe "corner: every readback name is lower case, digits and underscore" \
     {bad_names} {}
+
+###############################################################################
+# 3a. C1-T02's states
+###############################################################################
+check restore_copies_rule_save "positive: rule_restore restores rule_save's blob" \
+    {field rule_restore 3} {cp ../rule_save/ip.save . && ip rule restore < ip.save}
+check restore_copies_route_save "positive: route_restore restores route_save's blob" \
+    {field route_restore 3} {cp ../route_save/ip.save . && ip route restore < ip.save}
+check saves_before_restores "corner: each save runs before the restore that copies it" \
+    {list [expr {[lsearch [slugs $R] rule_save] < [lsearch [slugs $R] rule_restore]}] \
+          [expr {[lsearch [slugs $R] route_save] < [lsearch [slugs $R] route_restore]}]} {1 1}
+check flush_empty_table_exists "boundary: route_flush_empty's table is made and emptied first" \
+    {lrange [field route_flush_empty 2] end-1 end} \
+    {{route add 203.0.113.0/24 dev d0 table 100} {route del 203.0.113.0/24 dev d0 table 100}}
+check flush_no_table "negative: route_flush_no_table has no table 100 at all" \
+    {field route_flush_no_table 2} {}
+check resilient_buckets "corner: the bucket rows' group has 1024 buckets" \
+    {string match "*type resilient buckets 1024*" [lindex [field nexthop_bucket_show 2] end]} 1
+check neigh_veth "corner: neighbor rows use a veth, which does neighbor discovery" \
+    {lindex [field neigh_add 2] 0} {link add d0 type veth peer name d1}
+check token_noarp_dummy "negative: token_set_noarp's d0 is a dummy (IFF_NOARP)" \
+    {lindex [field token_set_noarp 2] 0} {link add d0 type dummy}
+check flush_skips_permanent "corner: neigh_flush's entries are stale, since a flush skips permanent ones" \
+    {regexp -all {nud stale} [field neigh_flush 2]} 2
 
 ###############################################################################
 # 4. event rows

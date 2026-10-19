@@ -5,10 +5,10 @@
 **Summary:**
 - The design and the task plan are in [goip-parity-gaps.md](goip-parity-gaps.md). This document tracks progress against them.
 - C0, the capture harness, is done and on `main` at `1542ec5f`: #265 (the plan), then #266 and #267 (C0-T01, C0-T02) through #268. A row names its netlink protocol (C0-T01), and the modules and sysctls the genl and XFRM rows need are set up after every existing row (C0-T02).
-- C1 is in progress. C1-T01 is done: the seven DEL and SET types the corpus had no capture of are captured under `link-write/rtnl/` and checked by `TestRtnlWriteCorpus`. No C2 or C3 task has started. The parity matrix compares 183 commands and gates 160 ([coverage-status.md](coverage-status.md#goip--ip-parity-at-a-glance)).
+- C1 is in progress. C1-T01 is done: the seven DEL and SET types the corpus had no capture of are captured under `link-write/rtnl/` and checked by `TestRtnlWriteCorpus`. C1-T02 is done: 44 more rows there capture the class-B verbs goip lacks (neigh, rule, nexthop with NEXTHOPBUCKET, addrlabel, LINKPROP, token and route), checked by `TestRtnlWriteCorpusVerbs` and three more tests. From C1-T02 on, each task is committed to the working branch when it verifies, without a PR of its own. No C2 or C3 task has started. The parity matrix compares 183 commands and gates 160 ([coverage-status.md](coverage-status.md#goip--ip-parity-at-a-glance)).
 - The work runs in three tiers, in this order: complete the nlmon capture corpus (C), then the parsers (P), then goip and the matrix (G).
 
-**Next action:** [C1-T02](goip-parity-gaps.md#c1-t02-write-and-get-verbs-that-goip-lacks). C1, C2 and C3 each depend only on C0, and are taken in that order.
+**Next action:** [C1-T03](goip-parity-gaps.md#c1-t03-missing-read-objects-and-verbs). C1, C2 and C3 each depend only on C0, and are taken in that order.
 
 ## Contents
 
@@ -24,19 +24,19 @@
 - A task is `done` only when its "Done when" has passed and the evidence is in the [ledger](#verification-ledger).
 - Evidence IDs (`V###` for code and VM runs, `DOC###` for docs) are immutable and append-only.
 - Task IDs (`Cn-Tmm`, `Pn-Tmm`, `Gn-Tmm`) are never renumbered.
-- Every task PR flips its own checklist row and appends its `V###` rows.
-- A phase's last task PR also closes the phase, following [Closing a phase](goip-parity-gaps.md#closing-a-phase):
+- Every task's commit flips its own checklist row and appends its `V###` rows.
+- A phase's last task also closes the phase, following [Closing a phase](goip-parity-gaps.md#closing-a-phase):
   - it re-measures the assessment;
   - it updates the phase states here;
   - it breaks the next phase into task rows.
-- A statement elsewhere in `docs/netlink/` that a task makes false is amended in that task's PR.
+- A statement elsewhere in `docs/netlink/` that a task makes false is amended in that task's commit.
 
 ## Phase states
 
 | Phase | Tier | Work | Closed by | State | Evidence |
 |---|---|---|---|---|---|
 | [C0](goip-parity-gaps.md#c0--capture-harness) | captures | capture harness | C0-T02 | done | V001–V014, DOC003 |
-| [C1](goip-parity-gaps.md#c1--rtnetlink) | captures | rtnetlink | C1-T04 | in progress | V015–V021 |
+| [C1](goip-parity-gaps.md#c1--rtnetlink) | captures | rtnetlink | C1-T04 | in progress | V015–V028 |
 | [C2](goip-parity-gaps.md#c2--generic-netlink) | captures | generic netlink | C2-T08 | not started | |
 | [C3](goip-parity-gaps.md#c3--xfrm) | captures | XFRM | C3-T02 | not started | |
 | [C4](goip-parity-gaps.md#c4--corpus-completeness-gate) | captures | corpus completeness gate | C4-T01 | not started | |
@@ -64,7 +64,7 @@ Task IDs link to their sections in the plan. Phases not yet broken into individu
 | [x] | [C0-T01](goip-parity-gaps.md#c0-t01-protocol-aware-capture) | protocol-aware capture | done | V001–V008 |
 | [x] | [C0-T02](goip-parity-gaps.md#c0-t02-late-modules-sysctls-and-an-event-subscriber) | late modules, sysctls, subscriber | done | V009–V014 |
 | [x] | [C1-T01](goip-parity-gaps.md#c1-t01-del-and-set-types-for-existing-parsers) | DEL/SET types | done | V015–V021 |
-| [ ] | [C1-T02](goip-parity-gaps.md#c1-t02-write-and-get-verbs-that-goip-lacks) | write and get verbs | not started | |
+| [x] | [C1-T02](goip-parity-gaps.md#c1-t02-write-and-get-verbs-that-goip-lacks) | write and get verbs | done | V022–V028 |
 | [ ] | [C1-T03](goip-parity-gaps.md#c1-t03-missing-read-objects-and-verbs) | read objects and verbs | not started | |
 | [ ] | [C1-T04](goip-parity-gaps.md#c1-t04-events-through-ip-monitor) | monitor events | not started | |
 | [ ] | [C2-T01](goip-parity-gaps.md#c2--generic-netlink) | tcp_metrics captures | not started | |
@@ -113,6 +113,13 @@ Task IDs link to their sections in the plan. Phases not yet broken into individu
 | V019 | 2026-10-19 | C1-T01 | `nix run .#microvm-x86_64-link-write-capture -- --out <scratch>`, kernel 7.1.4, on the first floors; compared with `pkg/xtcpnl/testdata/7_1_4/link-write` as in V013 | `NLCAP_DRIVER_PASS`; every `rtnl` row's `ip.rc` as the row says. Datagrams: 2 for each delete row and `rule_del_missing`, 6 `ntable_change`, 5 for the two refused ntable rows, 4 `stats_set_l3`, 12 `netns_set`, 21 `nsid_del_event`, 30 `anycast_del_event`. Types 33, 73, 105, 67, 95, 88, and the notifications 89 and 61, captured. Every record protocol 0; 313 of 315 existing pcaps the same record for record; the other 2 are `addr-monitor/mc_any`'s two maddr monitors, V013's swap. This run's `rtnl/` became the committed fixtures | [rtnl/](../../pkg/xtcpnl/testdata/7_1_4/link-write/rtnl) |
 | V020 | 2026-10-19 | C1-T01 | the same run on the final floors (`ntable` rows 4, event rows 14 and 20); compared with the committed fixtures, `rtnl/` included | `NLCAP_DRIVER_PASS`; the same datagram counts as V019 in every `rtnl` row. Every record protocol 0; 312 of 315 pcaps the same record for record. The other 3: V013's maddr monitor, and the two event rows, whose messages are the same multiset with the monitor's startup requests and the canary interleaved differently; each still holds its DELNSID or DELANYCAST | scratch |
 | V021 | 2026-10-19 | C1-T01 | `go test ./pkg/xtcpnl/`; the type counts of [How to re-measure](goip-parity-gaps.md#how-to-re-measure); doccheck, links and anchors, `git diff --check`, `checks.x86_64-linux.netlink-audit` | `TestRtnlWriteCorpus` (11 rows) and `TestRtnlWriteCorpusFirstRequest` (5) pass. 729 pcaps (713 before). The seven types the task names are now in the corpus: DELRULE 2 messages in 2 pcaps, DELADDRLABEL 1/1, DELNEXTHOP 1/1, SETNEIGHTBL 3/3, SETSTATS 1/1, DELNSID 1/1, DELANYCAST 1/1. The full re-measure waits for the C1 close. Doc checks pass | [goip-parity-gaps.md](goip-parity-gaps.md#the-message-type-assessment) |
+| V022 | 2026-10-19 | C1-T02 | `checks.x86_64-linux.vm-lib-exp` | pass: 22, 128, 59 and 68 rows (the corpus test's 40 grown to 68) | |
+| V023 | 2026-10-19 | C1-T02 | mutation check in a scratch worktree, one mutant at a time: the corpus test through `expect`, the Go tests through `go test` | 10 of 10 killed by named rows. A dropped bucket row: `slug_list`, `row_count`, `floor_bucket_show`. The selector floor lowered: `floor_selectors`. Route restore copying the rule save: `restore_copies_route_save`. The no-table row expecting rc 0: `refused_statuses`. NLMSG_DONE's error ignored: the no-table row of `TestRtnlWriteCorpusVerbs`. The zero-padding skip removed: 13 rows. Fixtures swapped (an empty flush's pcap for a flush, change's for add, IPv4's get for IPv6's, a flush's rule list for restore's): the flush rows, the neigh add flags row, the RTM_F_LOOKUP_TABLE boundary row and the two restore rows | scratch |
+| V024 | 2026-10-19 | C1-T02 | `checks.x86_64-linux.{nix-fmt,statix,deadnix}`, one per call | pass | |
+| V025 | 2026-10-19 | C1-T02 | `checks.x86_64-linux.{lint-baseline,go-vet,test-go-race}`, one per call | the first `lint-baseline` run found 1 tier2 issue in the new Go test (prealloc on the datagram slice); fixed in the source, not baselined. Then 0 in every tier; `go-vet` and `test-go-race` pass | |
+| V026 | 2026-10-19 | C1-T02 | `nix run .#microvm-x86_64-link-write-capture -- --out <scratch>`, kernel 7.1.4, with the first 43 rows | `NLCAP_DRIVER_FAIL` on one row: `route_flush_empty` was rc 2, "FIB table does not exist", because its table had never been made. Every other row met its floor and status, and every rule selector, the altnames, the token and the 1024-bucket group were accepted. The row was split in two (decision log) | scratch |
+| V027 | 2026-10-19 | C1-T02 | the same run with the 44 final rows; compared with `pkg/xtcpnl/testdata/7_1_4/link-write`, `rtnl/` included | `NLCAP_DRIVER_PASS`, every `ip.rc` as its row says. Every record protocol 0; 376 of 380 pcaps the same record for record; the other 4 are V013's two maddr monitors and V020's two event rows, reordered the same way. This run's 44 new `rtnl/` rows became the committed fixtures; C1-T01's 11 stay as committed | [rtnl/](../../pkg/xtcpnl/testdata/7_1_4/link-write/rtnl) |
+| V028 | 2026-10-19 | C1-T02 | `go test ./pkg/xtcpnl/`; the type counts of [How to re-measure](goip-parity-gaps.md#how-to-re-measure); doccheck, links and anchors, `git diff --check`, `checks.x86_64-linux.netlink-audit` | `TestRtnlWriteCorpusVerbs` (44 rows), `TestRtnlWriteCorpusWriteFlags` (8), `TestRtnlWriteCorpusRouteGetFlags` (5) and `TestRtnlWriteCorpusShapes` (13) pass, with C1-T01's 16. 763 pcaps (729 before). Now in the corpus: NEWLINKPROP 2 messages in 2 pcaps, DELLINKPROP 1/1, NEWNEXTHOPBUCKET 1025/2, GETNEXTHOPBUCKET 2/2, and SETLINK from an `ip` row (5/3). DELNEXTHOPBUCKET stays 0 (decision log). The full re-measure waits for the C1 close. Doc checks pass | [goip-parity-gaps.md](goip-parity-gaps.md#the-message-type-assessment) |
 
 ## Decision log
 
@@ -130,3 +137,7 @@ Task IDs link to their sections in the plan. Phases not yet broken into individu
 - **C1-T01 has a SETNEIGHTBL row the plan did not name.** The kernel's `neightbl_set` refuses the table-wide thresholds (`thresh1`-`3`, `gc_int`) outside the initial namespace with ENOENT, and every capture runs in a namespace of its own. The accepted row therefore changes a per-device parameter (`dev d0 queue 64`), and `thresh1` is kept as a refused row, which records the refusal.
 - **The C1-T01 netns rows add, use and delete their peer in one command.** `xtcp2-nlcap write` runs the command under `ip netns exec`, whose mount namespace is a slave of the root's. A peer that `ip netns add` makes there is a bind mount only that mount namespace sees, so a pre step cannot make it for the write, and a separate readback cannot see it. `netns_set` runs its `ip netns list-id` readback inside the command, and both rows delete the peer, which also removes `/run/netns/<peer>`.
 - **The C1-T01 event rows' floors are two thirds of the first passing run** (14 of 21, 20 of 30), as `addr_monitor`'s are. The other floors are structural. The first run measured that `ip ntable` dumps the links before it writes (`ll_init_map`), even when it names no device, so every ntable row's floor is 4.
+- **From C1-T02, tasks are committed without a PR each.** The per-task PR cycle was slow, so each task is committed to the working branch once its gates pass, with its checklist row and ledger rows in the same commit. Pushing and opening a PR happen when asked.
+- **C1-T02 splits the empty route flush in two.** A flush of a table that was never made is a dump the kernel refuses with ENOENT ("FIB table does not exist", in NLMSG_DONE), rc 2. The boundary row the plan asked for, a flush with nothing to delete, makes table 100 and empties it first (a table outlives its last route), and the never-made table is kept as the refused row `route_flush_no_table`.
+- **C1-T02 records that `ip rule restore` duplicates rules.** Restore sends NEWRULE with `NLM_F_CREATE` and no `NLM_F_EXCL`, and the kernel only refuses a duplicate rule under `NLM_F_EXCL`. Restoring into a namespace that already has the default rules therefore gives main and default twice, and the saved pref 0 rule, whose message has no `FRA_PRIORITY`, comes back at an auto-assigned 32765. The row keeps that behavior and `TestRtnlWriteCorpusShapes` pins it. goip's restore (G3) should match `ip`, not correct it.
+- **C1-T02 leaves DELNEXTHOPBUCKET (117) at 0.** The kernel registers no handler for it and never sends it (`net/ipv4/nexthop.c` emits only NEWNEXTHOPBUCKET), so there are no bytes to capture. C4's universe test lists it as an exclusion.

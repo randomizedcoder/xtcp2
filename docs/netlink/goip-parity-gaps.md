@@ -167,8 +167,8 @@ msgs/pcaps means messages found, over the number of pcaps they appear in. Every 
 | `ifinfomsg` | NEWLINK (16) | 3274 / 541 | `ParseNewLink`, `xtcpnl_ifinfomsg.go:623` | `TestParseNewLink`, `xtcpnl_rtnetlink_test.go:817`, plus 7 more files | **none** |
 | | DELLINK (17) | 87 / 21 | same | same | none |
 | | GETLINK (18) | 1124 / 534 | request | `BuildRequest` tests | none |
-| | SETLINK (19) | 3 / 1 (`netlink_route_events.pcap` only; not from an `ip` row) | same body | none for this type | none |
-| `ifinfomsg` (prop) | NEWLINKPROP (108), DELLINKPROP (109) | **0** | none | none | none |
+| | SETLINK (19) | 5 / 3: `netlink_route_events.pcap`, and `ip token set` (C1-T02) | same body | `TestRtnlWriteCorpusVerbs` (type only) | none |
+| `ifinfomsg` (prop) | NEWLINKPROP (108), DELLINKPROP (109) | 2 / 2, 1 / 1 (C1-T02) | none | `TestRtnlWriteCorpusVerbs` (type only) | none |
 | `ifaddrmsg` | NEWADDR (20) | 3068 / 244 | `ParseNewAddr`, `xtcpnl_ifaddrmsg.go:239` | `TestParseNewAddr`, `xtcpnl_rtnetlink_test.go:278`; `TestDecodeAddrWriteCorpus` | **`BenchmarkParseNewAddr`, `xtcpnl_bench_test.go:386`** |
 | | DELADDR (21) | 240 / 29 | same | same | same |
 | | GETADDR (22) | 290 / 210 | request | | |
@@ -192,7 +192,8 @@ msgs/pcaps means messages found, over the number of pcaps they appear in. Every 
 | | SETSTATS (95) | 1 / 1 (C1-T01) | `ParseNewStats` reads the request | `TestRtnlWriteCorpus` | none |
 | `nhmsg` | NEWNEXTHOP (104), GETNEXTHOP (106) | 29 / 11, 13 / 13 | `ParseNewNexthop`, `xtcpnl_nhmsg.go:143` | `TestParseNewNexthop`, `xtcpnl_nhmsg_test.go:39` | none |
 | | DELNEXTHOP (105) | 1 / 1 (C1-T01) | same | `TestRtnlWriteCorpus` | none |
-| `nhmsg` (bucket) | NEW/DEL/GETNEXTHOPBUCKET (116-118) | **0** | **none** | none | none |
+| `nhmsg` (bucket) | NEWNEXTHOPBUCKET (116), GETNEXTHOPBUCKET (118) | 1025 / 2, 2 / 2 (C1-T02) | **none** | `TestRtnlWriteCorpusVerbs`, `TestRtnlWriteCorpusShapes` (types and datagrams only) | none |
+| | DELNEXTHOPBUCKET (117) | **0**: the kernel registers no handler for it, and `ip` never sends it | none | none | none |
 | `prefixmsg` | NEWPREFIX (52) | **0** | **none** | none | none |
 | `nlmsgerr` | ERROR (2), DONE (3) | 309 / 127, 965 / 446 | `ParseNlMsgErr`, `xtcpnl_nlmsgerr.go:54` | `TestParseNlMsgErr`, `xtcpnl_nlmsgerr_test.go:44` | none |
 | events | the 8 NEW/DEL LINK/ADDR/ROUTE/NEIGH types | (as above) | `ParseRtnetlinkEvent`, `xtcpnl_rtnetlink_events.go:148` | `TestParseRtnetlinkEvent`, `xtcpnl_rtnetlink_events_test.go:243` | none |
@@ -213,7 +214,7 @@ The corpus also holds ethtool (19 commands), devlink (2) and nl80211 (7) from th
 
 1. **The rtnetlink read side is in good shape.** Every body layout that a running goip object reads has captured pcaps, a parser and a table-driven test.
 2. **The capture holes were the DEL and SET types:** DELANYCAST, DELRULE, SETNEIGHTBL, DELADDRLABEL, DELNSID, SETSTATS and DELNEXTHOP. Each shares a body layout with its NEW type, so all but DELNSID already had a parser (NSID has none; point 3). The bytes were missing because no capture row sent them. C1-T01 added those rows (`link-write/rtnl/`), and each of the seven is now captured and checked by `TestRtnlWriteCorpus`.
-3. **Four rtnetlink layouts have no parser:** NSID, nexthop bucket, LINKPROP and prefix. NSID is captured 172 times and is still undecoded.
+3. **Four rtnetlink layouts have no parser:** NSID, nexthop bucket, LINKPROP and prefix. NSID is captured 172 times and is still undecoded. C1-T02 captured the nexthop bucket and LINKPROP layouts (a 1024-bucket dump, and altname add and del), so of the four only prefix has no bytes yet (C1-T04).
 4. **Generic netlink beyond nlctrl, and all of XFRM, have nothing:** no pcaps, no parsers, no tests. When this was measured the blocker was in the harness: `xtcp2-nlcap` kept only `NETLINK_ROUTE` (`ether[14:2]==0`), although nlmon taps GENERIC and XFRM. C0 removed it. A row now names its protocol (`--proto`, C0-T01), and the modules those families need are loaded late (C0-T02). What is missing is the capture rows (C2, C3).
 5. **Benchmarks:** 1 of the 15 rtnetlink and genl parsers in the tables above (`ParseNewAddr`) has a parse benchmark. The rest of `BenchmarkDeserialize*` covers inet_diag only.
 
@@ -331,7 +332,7 @@ Every task follows the process that `ip address` used, and each stage reuses wha
    - Run `nix run .#microvm-x86_64-goip-parity -- --timeout 4500`.
    - After **two consecutive clean live runs**, add the rows to `gated_commands`, together with a cohort test (as in `TestAddrRestoreRowsGated`) and the earned list in `TestAllowlistCommitted`.
    - A divergence is reported and decided. It isn't silently allowlisted.
-6. **Update the docs in the same PR:**
+6. **Update the docs in the same commit:**
    - this document's checklist and ledger;
    - the message-type table above;
    - [coverage-status.md](coverage-status.md) and the README counts.
@@ -359,7 +360,7 @@ Every task follows the process that `ip address` used, and each stage reuses wha
 | Mutation check | a scratch worktree | each planted mutant is caught by a named test |
 
 Standing rules:
-- One task per PR.
+- One task per commit. A PR is opened when asked, and may carry several.
 - VMs run one at a time.
 - Fetch `main` before each task and check whether it has moved.
 
@@ -387,7 +388,7 @@ Every task's tests are tables of description and expected outcome. The rows list
 
 ### Closing a phase
 
-A phase's last task PR also closes the phase. In that same PR:
+A phase's last task also closes the phase. In that task's commit:
 1. **Status:** in [goip-parity-gaps-status.md](goip-parity-gaps-status.md):
    - every task in the phase goes to `done`, with its `V###` IDs;
    - the phase's row in **Phase states** goes to `done`;
@@ -405,7 +406,7 @@ A phase's last task PR also closes the phase. In that same PR:
    - links and anchors resolve;
    - US spelling.
 
-A task PR that doesn't close a phase still flips its own checklist row and appends its `V###` rows. Only steps 2 to 5 wait for the phase close.
+A task that doesn't close a phase still flips its own checklist row and appends its `V###` rows. Only steps 2 to 5 wait for the phase close.
 
 ### C0 — Capture harness
 
@@ -542,25 +543,45 @@ A task PR that doesn't close a phase still flips its own checklist row and appen
 
 **Depends on:** C1-T01.
 
-**Deliver:** rows in `rtnl-write-corpus.exp` for:
-- **neigh:** add, change, replace, del, flush, get;
-- **rule:** add (each selector), flush, save, restore;
-- **nexthop:** add (single, group, a resilient group), replace, flush, get, `bucket show` and `bucket get` (NEXTHOPBUCKET);
+**Deliver:** 44 rows in `rtnl-write-corpus.exp`, after C1-T01's 11 so those keep their order, each in a fresh namespace:
+- **neigh** (d0 is a veth: a dummy is `IFF_NOARP`): add, change, replace, del, flush (two stale entries, since a flush skips permanent ones), flush with nothing to flush, get; refused: add of an entry that exists, change of one that does not, get of one that does not;
+- **rule:** one row adding a rule for each of the 14 selectors `ip` 7.1 has (from, to, tos, dscp, fwmark, iif, oif, uidrange, ipproto with ports, not with goto, suppress_prefixlength, protocol, l3mdev, and an IPv6 flowlabel), flush, save, restore of the save's file; refused: an add of a rule that exists;
+- **nexthop:** add of a single nexthop, a weighted group and a resilient group of 1024 buckets, replace, flush, flush of no nexthops, get, `bucket show` (NEXTHOPBUCKET, a dump over more than one datagram) and `bucket get`; refused: an add of an id that exists, a get of one that does not;
 - **addrlabel:** add, flush;
-- **link:** `property add/del altname` (LINKPROP);
-- **token:** `set` (SETLINK);
-- **route:** `get` (plain, `fibmatch`, `from … iif …`), `flush`, `save` and `restore`.
+- **link:** `property add/del altname` (LINKPROP); refused: an altname that is another device's name;
+- **token:** `set` (SETLINK) on a veth; refused: on a dummy, which the kernel rejects with EINVAL because it does no neighbor discovery;
+- **route:** `get` (plain, `fibmatch`, `notify`, IPv6, and `from … iif …` with forwarding on), flush, flush of an empty table, save and restore of the save's file; refused: a get with no route, and a flush of a table that was never made (ENOENT).
 
-Each row gets a `capio` readback.
+Each accepted row with state to read has a `capio` readback; a save's readback is its `ip.save`.
 
 **Tests:**
 
+`rtnl-write-corpus-test.exp`, added to C1-T01's rows:
+
 | description | expected |
 |---|---|
-| positive: each verb's pcap holds the requests `ip` sends | the types listed per verb in [class B](#b-verbs-missing-on-objects-goip-already-runs) |
-| positive: `route save`'s and `rule save`'s stdout is kept as `ip.save` | binary blob present |
-| boundary: flush on an empty table | a dump with no DEL messages, rc 0 |
-| corner: a resilient group's bucket dump spans more than one datagram | more than one reply datagram, NLMSG_DONE last |
+| positive: the rows are the plan's, in run order | the 55 slugs |
+| boundary: C1-T01's rows keep their place | `anycast_del_event` is the 11th |
+| positive: exactly the refusal rows expect rc 2 | the 13 refused rows |
+| positive: each accepted row with state reads it back | `getneigh`, `getrule` and `getrule6`, `getnexthop`, `getaddrlabel`, `getlink`, `gettoken`, `getroute` |
+| boundary: `rule_add_selectors`' floor | 2 for each of its 14 adds, 28 |
+| positive: each restore restores its save's file | `cp ../<save>/ip.save`, and the save runs first |
+| boundary: the empty route flush's table exists | made and emptied in its pre steps |
+| corner: the neighbor rows' and the token row's devices | a veth; the refused token row's is a dummy |
+
+`TestRtnlWriteCorpusVerbs`, `TestRtnlWriteCorpusWriteFlags`, `TestRtnlWriteCorpusRouteGetFlags` and `TestRtnlWriteCorpusShapes` (`pkg/xtcpnl`, on the committed pcaps):
+
+| description | expected |
+|---|---|
+| positive: each verb's pcap holds the requests `ip` sends, in order | e.g. GETLINK then NEWNEIGH; GETNEIGH then DELNEIGH for a flush; GETNEXTHOPBUCKET |
+| negative: each refused row's first error and `ip.rc` | EEXIST, ENOENT, EINVAL or ENETUNREACH; rc 2 |
+| boundary: a flush with nothing to delete | the dump alone, rc 0 |
+| positive: add, change and replace differ only in flags | `CREATE\|EXCL`, `REPLACE`, `CREATE\|REPLACE` |
+| positive: the route get forms | `RTM_F_LOOKUP_TABLE` on IPv4 only, plus `RTM_F_FIB_MATCH` or `RTM_F_NOTIFY` |
+| corner: the resilient group's bucket dump | more than one reply datagram, NLMSG_DONE last |
+| corner: route and neigh flush batch their deletes | no ACK asked, 2 in one datagram; rule flush ACKs each |
+| positive: the save files | the rule (`0x71706986`) and route (`0x45311224`) dump magic |
+| corner: rule restore into a namespace with the default rules | main and default twice, and the saved pref 0 rule at pref 32765 |
 
 **Done when:** the gates pass, and every class-B message type is present.
 

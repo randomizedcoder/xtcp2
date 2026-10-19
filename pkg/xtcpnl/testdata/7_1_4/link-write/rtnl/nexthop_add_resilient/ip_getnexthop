@@ -1,0 +1,3 @@
+id 1 via 192.0.2.2 dev d0 scope link 
+id 2 via 192.0.2.3 dev d0 scope link 
+id 20 group 1/2 type resilient buckets 1024 idle_timer 120 unbalanced_timer 0 unbalanced_time 0 
