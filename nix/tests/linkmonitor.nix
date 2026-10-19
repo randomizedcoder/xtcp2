@@ -12,7 +12,9 @@ let
   rdmaNativeCapture = import ./rdma-native-capture.nix { inherit pkgs; };
   # pkg/nlconn is linkmonitor's netlink transport, moved out of
   # pkg/linkmonitor/internal so pkg/rtnlmon can share it; its gates stay here.
-  paths = "./cmd/go-link-monitor ./pkg/linkmonitor/... ./pkg/nlconn ./pkg/xtcpnl ./nix/tests/linkmonitor-smoke";
+  # internal/goip/goiphttp serves go-link-monitor's /ip paths, so its gates
+  # run here as well as in test-focused-goip.
+  paths = "./cmd/go-link-monitor ./internal/goip/goiphttp ./pkg/linkmonitor/... ./pkg/nlconn ./pkg/xtcpnl ./nix/tests/linkmonitor-smoke";
   # Fuzz targets as "<package>:<target>"; each runs for 30s in the fuzz leaf.
   fuzzTargets = [
     "./pkg/xtcpnl:FuzzParseEthtool"
@@ -108,7 +110,7 @@ let
     };
     test-linkmonitor-format = mkCheck "format" {
       command = ''
-        unformatted=$(gofmt -l cmd/go-link-monitor pkg/linkmonitor pkg/xtcpnl nix/tests/linkmonitor-smoke)
+        unformatted=$(gofmt -l cmd/go-link-monitor internal/goip/goiphttp pkg/linkmonitor pkg/xtcpnl nix/tests/linkmonitor-smoke)
         if [ -n "$unformatted" ]; then
           printf '%s\n' "$unformatted"
           exit 1

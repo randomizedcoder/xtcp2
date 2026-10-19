@@ -2,7 +2,7 @@
 
 Last updated: 2026-10-19.
 
-**Not started: 0 of 12 implementation tasks done.** The design was reviewed
+**In progress: 1 of 12 implementation tasks done.** The design was reviewed
 on 2026-10-19 and its decisions are recorded below.
 
 This document tracks
@@ -43,12 +43,14 @@ for the design in [IP-ARGV-PATHS-DESIGN.md](IP-ARGV-PATHS-DESIGN.md).
 | 2026-10-19 | Prefixes join (`/ip/route/show/10.0.0.0/8`); `%2F` is also accepted | Operator |
 | 2026-10-19 | Output is literal: text unless `-j` | Operator |
 | 2026-10-19 | The query form stays | Operator |
+| 2026-10-19 | A bare object path (`/ip/link`, `/i/l`) stays the query form with its JSON default; a path is a command line only with an option, or a verb after the object | Operator |
+| 2026-10-19 | All tasks land on one branch, one commit per task, one PR at the end | Operator |
 
 ## Phase summary
 
 | Phase | Name | State | Completed tasks | Evidence |
 |---|---|---|---|---|
-| IA0 | Groundwork | not started | 0/2 | — |
+| IA0 | Groundwork | in progress | 1/2 | IV001–IV004 |
 | IA1 | goip resolver | not started | 0/2 | — |
 | IA2 | HTTP paths | not started | 0/3 | — |
 | IA3 | Hardening and performance | not started | 0/3 | — |
@@ -61,7 +63,7 @@ here.
 
 | Done | Task | Work | State | Evidence / blocker |
 |---|---|---|---|---|
-| [ ] | [IA0-T01](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia0-t01) | Gates and baseline | not started | — |
+| [x] | [IA0-T01](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia0-t01) | Gates and baseline | done | IV001–IV004 |
 | [ ] | [IA0-T02](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia0-t02) | Complete verb chains | not started | — |
 | [ ] | [IA1-T01](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia1-t01) | Exported resolver | not started | — |
 | [ ] | [IA1-T02](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia1-t02) | `ShowRequest` options | not started | — |
@@ -80,16 +82,38 @@ Filled in by IA0-T01; IA3-T02 compares against it.
 
 | Benchmark | Host or VM | Kernel | ns/op | B/op | allocs/op | Evidence |
 |---|---|---|---|---|---|---|
+| `BenchmarkIPHandler/addr_json` | `l` (local, busy) | 7.2.9 | 107.4µ ± 5% | 62.45Ki | 458 | IV004 |
+| `BenchmarkIPHandler/route_text` | `l` (local, busy) | 7.2.9 | 35.12µ ± 5% | 24.52Ki | 226 | IV004 |
+| `BenchmarkIPHandler/bad_param` | `l` (local, busy) | 7.2.9 | 3.259µ ± 23% | 1.738Ki | 21 | IV004 |
+| `BenchmarkIPHandler/index` | `l` (local, busy) | 7.2.9 | 1.663µ ± 31% | 2.410Ki | 13 | IV004 |
+| `BenchmarkMetricsWithIPPaths/off` | `l` (local, busy) | 7.2.9 | 8.178µ ± 16% | 2.881Ki | 36 | IV004 |
+| `BenchmarkMetricsWithIPPaths/on` | `l` (local, busy) | 7.2.9 | 8.382µ ± 9% | 2.881Ki | 36 | IV004 |
+
+The host's load average was 8 to 13 during these runs, because an unrelated
+VM was using about 1.6 cores. The allocation counts are exact, but the ns/op
+figures are noisy. IA3-T02 therefore reruns base `f7677018` beside the
+change rather than trusting these absolute times. `TestRejectAllocs` passes
+with its limit of 40; the refused path it measures (`bad_param`) allocates
+21 times per request.
 
 ## Findings
 
 Every result about cost or behaviour, appended as it is found, for the final
 write-up in IA4-T02.
 
+- IA0-T01: goiphttp had never been linted with the comprehensive config.
+  Linting it found five issues, fixed in `f7677018` with no change in
+  behaviour: a non-exhaustive `paramKind` switch, three repeated words, and
+  one slice that was not preallocated.
+
 ## Evidence ledger
 
 | ID | Date | Task | Command | Host/VM | Base | Outcome | Logs |
 |---|---|---|---|---|---|---|---|
+| IV001 | 2026-10-19 | IA0-T01 | `nix build --no-link path:.#test-linkmonitor-{unit,race,vet,lint,format} -L` | `l`, nix sandbox | `13e39e92` + working tree | **Fail**: lint, 5 goiphttp findings; format passed, the rest were not built | session log, not kept |
+| IV002 | 2026-10-19 | IA0-T01 | the same, with `--keep-going` | `l`, nix sandbox, 7.2.9 | `f7677018` + working tree | Pass: all five leaves | nix store, `--no-link` |
+| IV003 | 2026-10-19 | IA0-T01 | `leaf_covers_goiphttp`, `format_unformatted`: `test-linkmonitor-{unit,format}` on a scratch worktree with a failing test and an unformatted file in goiphttp | `l`, nix sandbox | `f7677018` + scratch files | Both leaves failed, naming the scratch test and the file, as expected; worktree removed | session log, not kept |
+| IV004 | 2026-10-19 | IA0-T01 | `go test -run '^$' -bench '^BenchmarkIPHandler$' -benchmem -count 10 ./internal/goip/goiphttp`, then the same for `BenchmarkMetricsWithIPPaths` in `./cmd/go-link-monitor`, via `nix develop`, go1.26.5, CGO off; benchstat | `l`, 7.2.9, Threadripper PRO 3945WX, load 8–13 | `f7677018` | Recorded in Baseline | session log, not kept |
 
 ## Blockers
 
@@ -101,3 +125,5 @@ None.
 |---|---|
 | 2026-10-19 | Design reviewed and committed; plan and status created. Next: IA0-T01 and IA0-T02, which are independent. |
 | 2026-10-19 | Added IA3-T03, handler-level fuzzing through a real ServeMux with a recording fake source (operator question). |
+| 2026-10-19 | Started IA0-T01. Planning found: `Run` refuses `-s -s` as a usage error (IA1-T02 `stats_two` corrected); `ip stats` matches its verb exactly in goip (checked against iproute2 in IA0-T02). |
+| 2026-10-19 | IA0-T01 done: goiphttp is in the linkmonitor unit, race, vet, lint and format leaves; lint fixes committed first (`f7677018`); baseline recorded on a busy host. The design's bare-object example and IA1-T02's `stats_two` were corrected. Next: IA0-T02. |

@@ -176,7 +176,9 @@ Deliver:
   count. `Argv()` emits `-br`, `-o` and each `-s`.
 - `Show` sets `c.brief`, `c.oneline` and `c.showStats` exactly as `Run`
   does, and refuses what `Run` refuses: `-br` or `-o` for an object without
-  output modes, and a stats count above 1, which is `ErrNotImplemented`.
+  output modes, and a stats count above 1, which `Run` refuses as a usage
+  error (`goip.go`), so `Show` returns `ErrInvalidArgument` with the same
+  message.
 - Existing callers of `Stats bool` (goiphttp's registry) move to the count.
 
 | Name | Category | Description | Expected |
@@ -186,7 +188,7 @@ Deliver:
 | `stats_one` | positive | `Stats: 1` on link | Bytes equal to `Run(-s link show)` |
 | `argv_order` | positive | Every option set | `Argv()` puts them in `Run`'s documented order |
 | `brief_unsupported_object` | negative | `Brief` on rule | The same error `Run(-br rule show)` gives |
-| `stats_two` | boundary | `Stats: 2` | `ErrNotImplemented`, as `Run(-s -s …)` |
+| `stats_two` | boundary | `Stats: 2` | `ErrInvalidArgument` with `Run(-s -s …)`'s message |
 | `stats_zero` | boundary | `Stats: 0` | No `-s` in `Argv()` |
 | `brief_and_json` | corner | `Brief` with `JSON` | Matches `Run(-br -j address show)`, whatever that is |
 | `registry_stats_true` | corner | The query form's `stats=1` after the move | Unchanged response |

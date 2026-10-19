@@ -17,7 +17,10 @@ Decided in review (2026-10-19):
   the address and its length are joined back into one token (section 4).
 - The output is literal: text unless the path has `-j`, as on the command
   line.
-- The query form of IP-PATHS-DESIGN.md stays, alongside this one.
+- The query form of IP-PATHS-DESIGN.md stays, alongside this one. A bare
+  object (`/ip/link`, `/i/l`) is the query form and keeps its JSON default;
+  a path is a command line when it has an option (`/ip/-br/a`) or a verb
+  after the object (`/ip/link/show`).
 
 ## 1. The rule
 
@@ -27,7 +30,7 @@ ip [OPTIONS] OBJECT [VERB [ARGS...]]   ->   /ip/[OPTIONS/]OBJECT[/VERB[/ARGS...]
 
 | `ip` command | Path |
 |---|---|
-| `ip link show` | `/ip/link/show`, `/ip/link`, `/i/l`, `/i/l/sh`. **Not** `/i/l/s`: `ip link s` is `ip link set` |
+| `ip link show` | `/ip/link/show`, `/i/l/sh`, `/i/l/list`. **Not** `/i/l/s`: `ip link s` is `ip link set` |
 | `ip addr show` | `/ip/addr/show`, `/i/a/s`, `/i/a/show`, `/i/ad/s`, `/ip/address/list` |
 | `ip addr show dev eth0` | `/ip/addr/show/dev/eth0`, `/i/a/s/dev/eth0` |
 | `ip -br a` | `/ip/-br/a`, `/i/-brief/address` |
@@ -270,7 +273,7 @@ Tests are table-driven: name, category, description, expected.
 | `i_l_sh` | positive | the shortest link show | `ip link show` |
 | `i_addrl` | positive | `addrl` is addrlabel, not address | `ip addrlabel show` |
 | `brief_a` | positive | `/ip/-br/a` | the text of `ip -br address show` |
-| `default_verb` | positive | `/ip/route` | `ip route show` |
+| `bare_object_query_form` | positive | `/ip/route` | the query form: `ip -j route show`, JSON as today |
 | `route_table_all` | positive | `/ip/-4/route/show/table/all` | `ip -4 route show table all` |
 | `prefix_pct2f` | positive | `10.0.0.0%2F8` is one token | `ip route show 10.0.0.0/8` |
 | `prefix_join_v4` | positive | `/ip/route/show/10.0.0.0/8` | `ip route show 10.0.0.0/8` |
