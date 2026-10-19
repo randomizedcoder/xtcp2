@@ -36,6 +36,8 @@ pkgs.runCommand "xtcp2-test-linkmonitor-embedding"
     go test -ldflags=-checklinkname=0 -race -json -count=10 -timeout=5m \
       ./pkg/xtcp ./pkg/linkmonitor/... -run 'Test(LinkmonitorEmbedding|Embedding|RunFailures|LifecycleIncompleteShutdown)' > "$out/core-race.jsonl" 2>&1 || { cat "$out/core-race.jsonl"; exit 1; }
     CGO_ENABLED=0 go test -tags embedding_vm -c -o "$out/bin/core.test" ./pkg/linkmonitor
+    # TestLinkMonitorOnDemandScrape skips here (no /sys); the embedding VM runs it.
+    CGO_ENABLED=0 go test -ldflags=-checklinkname=0 -c -o "$out/bin/xtcp.test" ./pkg/xtcp
     echo 'Running embedding vet and comprehensive lint'
     go vet ./pkg/xtcp > "$out/vet.log" 2>&1 || { cat "$out/vet.log"; exit 1; }
     golangci-lint run --config .golangci-comprehensive.yml ./pkg/xtcp > "$out/lint.log" 2>&1 || { cat "$out/lint.log"; exit 1; }

@@ -38,7 +38,7 @@ The targets are defined in [tests/linkmonitor.nix](tests/linkmonitor.nix):
 | `test-linkmonitor-rdma-runtime` | Test tooling only: the uapi constant header check and libibmad's PortInfo decoder, which rdmacaps' decode is checked against |
 | `test-linkmonitor-rdma-build` | Public-library smoke executable and the VM test binaries, none with `NEEDED` entries; every remaining tag combination builds with `CGO_ENABLED=0`; explicit missing-sysfs diagnostics with continued host publication |
 | `test-linkmonitor-command` | The single `CGO_ENABLED=0` executable (`go-link-monitor-core` is an alias): help/version, no `NEEDED` entries, no rdma-core and no source tree in its closure (`share/go-link-monitor/source.txt` names the source without referencing it), binary and closure sizes, clean-environment live HTTP/host metrics, signals, shutdown/restart and command tests |
-| `test-linkmonitor-embedding` | Actual xtcp collector coexistence, repeated embedding races, xtcp unit/vet/lint and compiled disposable guest tests |
+| `test-linkmonitor-embedding` | Actual xtcp collector coexistence, repeated embedding races, xtcp unit/vet/lint and compiled disposable guest tests; xtcp's `TestLinkMonitorOnDemandScrape` needs `/sys`, so it skips in the sandbox and the guest runs it |
 
 The aggregate compiles the embedding guest test executables but does not boot a
 VM. Execute the disposable integration gate separately:
@@ -53,7 +53,8 @@ has a 15-minute deadline, isolates temporary files, preserves its serial log
 and artifact paths, and requires the guest success sentinel.
 Missing KVM never counts as a passing skipped integration test. The guest tests
 real veth events, classification exclusion, test-only eligible inventory,
-missed-event recovery, baseline ownership and restart in disposable namespaces.
+missed-event recovery, baseline ownership and restart in disposable namespaces,
+and runs xtcp's on-demand scrape test against the guest's sysfs.
 No host network changes or physical/RDMA hardware claims are involved.
 
 The four RDMA targets and executable gate are defined in `tests/linkmonitor-rdma.nix`.

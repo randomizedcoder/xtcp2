@@ -2,7 +2,9 @@ package xtcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"strings"
 	"sync"
@@ -485,10 +487,88 @@ func netstatQuiet(m *linkmonitor.Monitor) (time.Time, bool) {
 	return resync, ok && succeeded && timed && !at.Add(-took).Before(resync)
 }
 
+// netSysfsAbsent reports whether the sysfs network class directory is missing,
+// as in the Nix build sandbox. Anything else that stops it being a readable
+// directory is an error, so a broken host fails rather than skips.
+func netSysfsAbsent(path string) (bool, error) {
+	info, err := os.Stat(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return true, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if !info.IsDir() {
+		return false, fmt.Errorf("%s is not a directory", path)
+	}
+	return false, nil
+}
+
+// requireNetSysfs skips a test that runs the monitor against real links when
+// the host has no sysfs.
+func requireNetSysfs(t *testing.T) {
+	t.Helper()
+	absent, err := netSysfsAbsent("/sys/class/net")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if absent {
+		t.Skip("needs /sys/class/net: the embedded monitor reconciles real links; test-linkmonitor-embedding-vm runs this test")
+	}
+}
+
+func TestNetSysfsAbsent(t *testing.T) {
+	dir := t.TempDir()
+	file := dir + "/file"
+	if err := os.WriteFile(file, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	locked := dir + "/locked"
+	if err := os.Mkdir(locked, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name, category, description, expected string
+		path                                  string
+		absent, wantErr, needsNonRoot         bool
+	}{
+		{name: "dir_present", category: "positive", description: "the path is an existing directory",
+			expected: "present: the test runs", path: dir},
+		{name: "missing", category: "negative", description: "the path does not exist",
+			expected: "absent: the test skips", path: dir + "/net", absent: true},
+		{name: "missing_parent", category: "boundary", description: "the parent is missing too, as /sys is in the sandbox",
+			expected: "absent: the test skips", path: dir + "/sys/class/net", absent: true},
+		{name: "file_not_dir", category: "corner", description: "the path is a regular file",
+			expected: "an error: the test fails", path: file, wantErr: true},
+		{name: "unreadable_parent", category: "corner", description: "the parent cannot be searched, so stat gets EACCES",
+			expected: "an error: the test fails", path: locked + "/net", wantErr: true, needsNonRoot: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expected)
+			if tc.needsNonRoot {
+				if os.Geteuid() == 0 {
+					t.Skip("root ignores directory permissions")
+				}
+				if err := os.Chmod(locked, 0); err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { _ = os.Chmod(locked, 0o700) })
+			}
+			absent, err := netSysfsAbsent(tc.path)
+			if (err != nil) != tc.wantErr || absent != tc.absent {
+				t.Fatalf("netSysfsAbsent(%q) = %t, %v; want %t, error %t", tc.path, absent, err, tc.absent, tc.wantErr)
+			}
+		})
+	}
+}
+
 // TestLinkMonitorOnDemandScrape runs the embedded monitor and gathers xtcp2's
 // registry twice: an on-demand detail exposure collects netstat again when its
-// data is older than the TTL, and only then.
+// data is older than the TTL, and only then. It needs real links, so it skips
+// in the build sandbox and runs in test-linkmonitor-embedding-vm.
 func TestLinkMonitorOnDemandScrape(t *testing.T) {
+	requireNetSysfs(t)
 	tests := []struct {
 		category, description, expected string
 		config                          *xtcp_config.LinkMonitorConfig
