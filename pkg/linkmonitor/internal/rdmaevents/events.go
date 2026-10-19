@@ -1,5 +1,6 @@
-// Package rdmaevents owns read-only verbs contexts and bounded event delivery.
-// No provider objects escape the adapter; the monitor owns policy and retries.
+// Package rdmaevents defines the RDMA port and device events the monitor
+// schedules from, and the source contract that delivers them. The netlink
+// source in rdmanative implements it; no verbs context or cgo is involved.
 package rdmaevents
 
 import (
@@ -8,23 +9,18 @@ import (
 )
 
 const (
-	// Limit bounds discovery, contexts and identity storage.
+	// Limit bounds discovery and identity storage.
 	Limit = 65536
 	// Batch bounds work per ready descriptor.
 	Batch = 64
 )
 
 var (
-	ErrUnavailable = errors.New("rdmaevents: build has no verbs event support")
-	ErrIdentity    = errors.New("rdmaevents: identity changed")
-	ErrLimit       = errors.New("rdmaevents: bound exceeded")
+	ErrUnavailable = errors.New("rdmaevents: no RDMA event source")
 	ErrLost        = errors.New("rdmaevents: event coverage lost")
 )
 
-// Identity binds an HCA name to discovery's resolved hardware path.
-type Identity struct{ Name, Hardware string }
-
-// Kind is an owned interpretation, never a C union or provider pointer.
+// Kind is an owned interpretation of a kernel notification.
 type Kind uint8
 
 const (
@@ -42,21 +38,7 @@ type Event struct {
 	Kind   Kind
 }
 
-// Handle has one I/O owner. Next copies and acknowledges before returning.
-// Close is called only after all Next calls have returned.
-type Handle interface {
-	FD() int
-	Next() (Event, error)
-	Close() error
-}
-
-// Provider acquires contexts synchronously. The caller retains occupancy until
-// Open returns, including when the context's logical deadline has expired.
-type Provider interface {
-	Open(context.Context, Identity) (Handle, error)
-}
-
-// Source owns a fixed subscription generation and all its contexts.
+// Source owns a fixed subscription generation and all its descriptors.
 type Source interface {
 	Run(context.Context, func(Event) bool) error
 	Close() error

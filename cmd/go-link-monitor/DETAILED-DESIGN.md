@@ -1040,6 +1040,11 @@ P07-T03 adds native speed/width capabilities and counters. P07-T01 polling does
 not claim working RDMA events or a complete mixed-fleet artifact. Production
 backend binding is supplied by P07-T04; no physical fleet validation is claimed.
 
+Superseded by R4-T02 (GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md): RDMA events now
+come from rtnetlink and the NLDEV monitor, and UMAD from a native Go exchange;
+every build is `CGO_ENABLED=0` and the rdma-core binding below is removed. The
+original design follows for the record.
+
 Use typed Go discovery, correlation, sysfs parsing and policy. For verbs async
 events and local UMAD operations, use a narrow rdma-core binding isolated in the
 RDMA adapter: one context per discovered HCA, read/query-only operations, bounded
@@ -1134,7 +1139,8 @@ The existing logical timeout retains physical worker occupancy until return.
 
 `internal/rdmacaps` constructs a zero-hop directed-route PortInfo GET and validates
 the reply class, method, transaction, port modifier, status and local hop count.
-The tagged libibumad shim performs one send with zero retries and a receive timeout
+Since R4-T02 the exchange is native Go over the umad device, each query owning
+its descriptor; the libibumad shim described next was removed. The tagged libibumad shim performs one send with zero retries and a receive timeout
 of at most 250ms. It never follows redirects, supplies a remote path or sends SET.
 The worker owns allocation, agent registration, unregister and fd cleanup;
 cleanup failures remain errors. The fd is marked close-on-exec. The pinned
@@ -1307,8 +1313,9 @@ so a pre-subscription dump cannot satisfy the new reconciliation barrier.
 
 The shared Nix RDMA definition supplies pinned build inputs and matching runtime
 libraries/providers. The validation harness links the public library and runs
-without host library-path variables. Tagged cgo enables verbs/UMAD; other build
-combinations report unavailable support while retaining discovery and readable
+without host library-path variables. Tagged cgo enabled verbs/UMAD until
+R4-T02, which removed the cgo path and the shared Nix RDMA definition; other build
+combinations reported unavailable support while retaining discovery and readable
 statistics. Required event coverage affects health; optional capabilities remain
 unknown on failure. Build capability and operation errors are logged separately.
 No process automatically changes device permissions or fabric settings.

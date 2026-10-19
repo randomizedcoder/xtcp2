@@ -158,16 +158,23 @@ let
         go test -count=1 -v -run '^TestABILayout$' ${rdmaNativePackages}
       '';
     };
-    # Parse guards (R0-T04): rdmanative has no cgo files, no bounds check
-    # beyond the length hint in any listed decoder file, the -m escape report
-    # kept as escape.txt, and the zero-allocation and manifest tests.
+    # Parse guards (R0-T04): the monitor has no cgo files (rdmanative since
+    # R0-T04; every package, under every build tag, since R4-T02 removed the
+    # verbs and libibumad backends), no bounds check beyond the length hint
+    # in any listed decoder file, the -m escape report kept as escape.txt,
+    # and the zero-allocation and manifest tests.
     test-linkmonitor-parse-guards = mkCheck "parse-guards" {
       command = ''
-        cgo=$(CGO_ENABLED=1 go list -f '{{join .CgoFiles " "}}' ./pkg/linkmonitor/internal/rdmanative)
-        if [ -n "$cgo" ]; then
-          echo "rdmanative must stay cgo-free: $cgo"
-          exit 1
-        fi
+        # Every package of the monitor and its tests, under every build tag.
+        for tags in "" rdma rdma_vm ionic_vm nlrecord monitor_bench embedding_vm; do
+          cgo=$(CGO_ENABLED=1 go list -tags "$tags" -test -deps \
+            -f '{{if .CgoFiles}}{{.ImportPath}}: {{join .CgoFiles " "}}{{end}}' \
+            ./cmd/go-link-monitor ./pkg/linkmonitor/... | grep -E 'xtcp2/(cmd/go-link-monitor|pkg/linkmonitor)' || true)
+          if [ -n "$cgo" ]; then
+            echo "go-link-monitor must stay cgo-free (tags '$tags'): $cgo"
+            exit 1
+          fi
+        done
         ${pkgs.bash}/bin/bash nix/tests/linkmonitor-parse-guards.sh "$out" \
           ${lib.escapeShellArgs rdmaDecoderFiles}
         go test -count=1 -v -run 'Allocs|Manifest' ${rdmaNativePackages} ./pkg/xtcpnl \
@@ -189,7 +196,8 @@ let
           --triggers gid,flap --iface eth0 --umad --umad-live loaded --umad-tests /nonexistent \
           --driver mlx5_core > "$out/dry-run.txt"
         test -e "$stage/umad/native_loaded-mlx5_1.strace"
-        test -e "$stage/umad/libibumad_loaded-mlx5_1.strace"
+        # Since R4-T02 there is no libibumad build to trace.
+        test ! -e "$stage/umad/libibumad_loaded-mlx5_1.strace"
         "$TMPDIR/rdma-capture-manifest" write -dir "$stage" -source dry-run -values "$values"
         if [ ! -s "$values" ]; then
           echo "the dry run recorded no values to redact"

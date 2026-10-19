@@ -1,0 +1,39 @@
+File: rdmanative.test
+Build ID: 7f56d9ffbf0f8f0ff7e1230d2e175db638aae3aa
+Type: alloc_space
+Time: 2026-10-19 01:15:01 UTC
+Showing nodes accounting for 5774.92kB, 100% of 5774.92kB total
+      flat  flat%   sum%        cum   cum%
+ 1184.27kB 20.51% 20.51%  1184.27kB 20.51%  runtime/pprof.StartCPUProfile
+ 1127.67kB 19.53% 40.03%  1127.67kB 19.53%  compress/flate.newDeflateFast (inline)
+  902.59kB 15.63% 55.66%  2030.26kB 35.16%  compress/flate.NewWriter (inline)
+  512.12kB  8.87% 64.53%   512.12kB  8.87%  runtime/pprof.allFrames
+  512.10kB  8.87% 73.40%   512.10kB  8.87%  html/template.map.init.1
+  512.08kB  8.87% 82.27%   512.08kB  8.87%  compress/gzip.NewWriterLevel
+  512.05kB  8.87% 91.13%   512.05kB  8.87%  runtime.mallocgc
+  512.03kB  8.87%   100%   512.03kB  8.87%  runtime/pprof.(*profileBuilder).addMappingEntry (inline)
+         0     0%   100%  1127.67kB 19.53%  compress/flate.(*compressor).init
+         0     0%   100%  2030.26kB 35.16%  compress/gzip.(*Writer).Write
+         0     0%   100%   512.10kB  8.87%  html/template.init
+         0     0%   100%  1184.27kB 20.51%  main.main
+         0     0%   100%   512.05kB  8.87%  runtime.acquireSudog
+         0     0%   100%   512.10kB  8.87%  runtime.doInit (inline)
+         0     0%   100%   512.10kB  8.87%  runtime.doInit1
+         0     0%   100%   512.05kB  8.87%  runtime.gcBgMarkWorker
+         0     0%   100%   512.05kB  8.87%  runtime.gcMarkDone
+         0     0%   100%  1696.38kB 29.37%  runtime.main
+         0     0%   100%   512.05kB  8.87%  runtime.newobject
+         0     0%   100%   512.05kB  8.87%  runtime.semacquire (inline)
+         0     0%   100%   512.05kB  8.87%  runtime.semacquire1
+         0     0%   100%   512.03kB  8.87%  runtime/pprof.(*profileBuilder).addMapping
+         0     0%   100%   512.12kB  8.87%  runtime/pprof.(*profileBuilder).appendLocsForStack
+         0     0%   100%  2542.38kB 44.02%  runtime/pprof.(*profileBuilder).build
+         0     0%   100%  2030.26kB 35.16%  runtime/pprof.(*profileBuilder).flush
+         0     0%   100%  2030.26kB 35.16%  runtime/pprof.(*profileBuilder).pbSample
+         0     0%   100%   512.03kB  8.87%  runtime/pprof.(*profileBuilder).readMapping
+         0     0%   100%  1024.11kB 17.73%  runtime/pprof.newProfileBuilder
+         0     0%   100%   512.03kB  8.87%  runtime/pprof.parseProcSelfMaps
+         0     0%   100%  3566.49kB 61.76%  runtime/pprof.profileWriter
+         0     0%   100%  1184.27kB 20.51%  testing.(*M).Run
+         0     0%   100%  1184.27kB 20.51%  testing.(*M).before
+         0     0%   100%  1184.27kB 20.51%  testing/internal/testdeps.TestDeps.StartCPUProfile

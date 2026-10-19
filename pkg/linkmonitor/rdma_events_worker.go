@@ -15,10 +15,8 @@ type rdmaEventRequest struct {
 	generation uint64
 }
 
-// rdmaEventSet is what a source is opened over: the verbs identities and, for
-// the netlink backend, the port map.
+// rdmaEventSet is what a source is opened over: the port map.
 type rdmaEventSet struct {
-	ids   []rdmaevents.Identity
 	ports *rdmanative.PortMap
 }
 

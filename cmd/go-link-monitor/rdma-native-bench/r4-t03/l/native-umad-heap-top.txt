@@ -1,0 +1,14 @@
+File: rdmacaps-native.test
+Build ID: 01b8f929118bf902429031db62474a512d24c08a
+Type: alloc_space
+Time: 2026-10-18 18:44:01 PDT
+Showing nodes accounting for 690.46MB, 99.21% of 695.98MB total
+Dropped 39 nodes (cum <= 3.48MB)
+      flat  flat%   sum%        cum   cum%
+  684.27MB 98.32% 98.32%   685.27MB 98.46%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.exchangeUMAD
+    4.19MB   0.6% 98.92%     4.19MB   0.6%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.newFakeUMAD (inline)
+       2MB  0.29% 99.21%   358.14MB 51.46%  testing.(*B).RunParallel.func1
+         0     0% 99.21%   334.32MB 48.04%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.BenchmarkUMADExchange.func1
+         0     0% 99.21%   356.14MB 51.17%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps.BenchmarkUMADExchange.func1.1
+         0     0% 99.21%   331.23MB 47.59%  testing.(*B).run1.func1
+         0     0% 99.21%   334.32MB 48.04%  testing.(*B).runN

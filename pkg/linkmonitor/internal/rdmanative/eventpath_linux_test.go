@@ -206,9 +206,10 @@ func TestEventPath(t *testing.T) {
 // then recvmsg, the envelope walk, the translator and emit, which hands the
 // batch back to the benchmark goroutine as the monitor's worker would take
 // it. Rounds alternate down and up so every notification is a state change
-// and is delivered. ns/event is comparable with BenchmarkPerformanceCGO's,
-// which covers only the cgo copy and acknowledgement of each event, with no
-// descriptor, poll or read.
+// and is delivered. ns/event is comparable with the removed cgo backend's
+// BenchmarkPerformanceCGO (R0-T05's committed output, which
+// bench-linkmonitor-rdma-native --baseline reads), which covered only the cgo
+// copy and acknowledgement of each event, with no descriptor, poll or read.
 func BenchmarkEventPath(b *testing.B) {
 	for _, size := range []int{1, 8, 32, 64} {
 		b.Run(fmt.Sprintf("batch=%d", size), func(b *testing.B) {

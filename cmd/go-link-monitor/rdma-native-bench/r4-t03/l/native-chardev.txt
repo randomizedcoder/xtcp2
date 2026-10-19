@@ -1,0 +1,15 @@
+goos: linux
+goarch: amd64
+pkg: github.com/randomizedcoder/xtcp2/pkg/xtcpnl
+cpu: AMD Ryzen Threadripper PRO 3945WX 12-Cores     
+BenchmarkParseChardev-24    	26220135	        47.53 ns/op	 925.70 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParseChardev-24    	23085865	        48.31 ns/op	 910.71 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParseChardev-24    	25734607	        48.43 ns/op	 908.61 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParseChardev-24    	23313781	        49.52 ns/op	 888.53 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParseChardev-24    	26626496	        46.57 ns/op	 944.79 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParseChardev-24    	21432618	        48.96 ns/op	 898.61 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParseChardev-24    	26516265	        47.31 ns/op	 930.03 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParseChardev-24    	24797754	        48.06 ns/op	 915.44 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParseChardev-24    	24932786	        47.85 ns/op	 919.47 MB/s	       0 B/op	       0 allocs/op
+BenchmarkParseChardev-24    	25423405	        47.60 ns/op	 924.28 MB/s	       0 B/op	       0 allocs/op
+PASS

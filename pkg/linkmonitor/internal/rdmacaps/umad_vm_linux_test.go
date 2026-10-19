@@ -13,31 +13,25 @@ import (
 	"unsafe"
 )
 
-// TestUMADLive runs both backends against a real kernel's umad device: the
+// TestUMADLive runs Query against a real kernel's umad device: the
 // linkmonitor-rdma guest's rxe port, LINKMONITOR_UMAD_DEVICE port 1. The
 // guest runs it twice: LINKMONITOR_UMAD_PHASE=unloaded after removing
 // ib_umad, then loaded after loading it. rxe is RoCE, so the kernel refuses
 // SMI registration; GSI registration shows the descriptor and agent path
-// works. A build without libibumad runs the libibumad rows as unavailable.
+// works.
 func TestUMADLive(t *testing.T) {
 	device, phase := os.Getenv("LINKMONITOR_UMAD_DEVICE"), os.Getenv("LINKMONITOR_UMAD_PHASE")
 	if device == "" || phase == "" {
 		t.Skip("LINKMONITOR_UMAD_DEVICE and LINKMONITOR_UMAD_PHASE name the guest's device and ib_umad state")
-	}
-	libibumad := func(want error) error {
-		if !LibibumadAvailable {
-			return ErrUnavailable
-		}
-		return want
 	}
 	type row struct {
 		name, category, description, expected string
 		run                                   func(context.Context) error
 		want                                  error
 	}
-	query := func(b Backend, device string, port uint32) func(context.Context) error {
+	query := func(device string, port uint32) func(context.Context) error {
 		return func(ctx context.Context) error {
-			_, err := Querier(b)(ctx, device, port)
+			_, err := Query(ctx, device, port)
 			return err
 		}
 	}
@@ -46,24 +40,20 @@ func TestUMADLive(t *testing.T) {
 	case "unloaded":
 		rows = []row{
 			{"native_unloaded", "negative", "native query with ib_umad not loaded", "EOPNOTSUPP, and ib_umad still not loaded",
-				query(Native, device, 1), syscall.EOPNOTSUPP},
-			{"libibumad_unloaded", "negative", "libibumad query with ib_umad not loaded", "EOPNOTSUPP from its abi_version check",
-				query(Libibumad, device, 1), libibumad(syscall.EOPNOTSUPP)},
+				query(device, 1), syscall.EOPNOTSUPP},
 		}
 	case "loaded":
 		rows = []row{
 			{"smi_native", "negative", "native PortInfo query on a RoCE port", "EPROTONOSUPPORT from SMI registration",
-				query(Native, device, 1), syscall.EPROTONOSUPPORT},
-			{"smi_libibumad", "negative", "libibumad PortInfo query on a RoCE port", "EPROTONOSUPPORT: a named port skips libibumad's link-layer check",
-				query(Libibumad, device, 1), libibumad(syscall.EPROTONOSUPPORT)},
+				query(device, 1), syscall.EPROTONOSUPPORT},
 			{"smi_register", "negative", "register the SMI class 0x81 directly", "EPROTONOSUPPORT",
 				register(device, 1, 0x81), syscall.EPROTONOSUPPORT},
 			{"gsi_register", "positive", "register the GSI PerfMgt class 0x04", "registered, unregistered and closed",
 				register(device, 1, 0x04), nil},
 			{"absent_device", "negative", "native query of a device that does not exist", "ENODEV",
-				query(Native, "lm_absent", 1), syscall.ENODEV},
+				query("lm_absent", 1), syscall.ENODEV},
 			{"absent_port", "boundary", "native query of port 2 on a one-port device", "EINVAL from GET_CHARDEV",
-				query(Native, device, 2), syscall.EINVAL},
+				query(device, 2), syscall.EINVAL},
 		}
 	default:
 		t.Fatalf("LINKMONITOR_UMAD_PHASE %q: want unloaded or loaded", phase)
@@ -95,7 +85,7 @@ func TestUMADLive(t *testing.T) {
 				wg.Go(func() {
 					ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 					defer cancel()
-					_, errs[i] = Querier(Native)(ctx, device, 1)
+					_, errs[i] = Query(ctx, device, 1)
 				})
 			}
 			wg.Wait()

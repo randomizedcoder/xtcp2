@@ -1,0 +1,44 @@
+File: xtcpnl.test
+Build ID: 055d31eb50d25b2a95ca20bf7a3776e339c5fcbc
+Type: alloc_space
+Time: 2026-10-19 01:24:24 UTC
+Showing nodes accounting for 5910.84kB, 100% of 5910.84kB total
+      flat  flat%   sum%        cum   cum%
+ 1762.94kB 29.83% 29.83%  1762.94kB 29.83%  runtime/pprof.StartCPUProfile
+    1026kB 17.36% 47.18%     1026kB 17.36%  runtime.mallocgc
+  902.59kB 15.27% 62.45%  2097.87kB 35.49%  compress/flate.NewWriter (inline)
+  650.62kB 11.01% 73.46%  1195.29kB 20.22%  compress/flate.(*compressor).init
+  544.67kB  9.21% 82.68%   544.67kB  9.21%  compress/flate.newDeflateFast (inline)
+  512.02kB  8.66% 91.34%   512.02kB  8.66%  google.golang.org/protobuf/internal/filetype.init
+     512kB  8.66%   100%      512kB  8.66%  os.newFile
+         0     0%   100%  2097.87kB 35.49%  compress/gzip.(*Writer).Write
+         0     0%   100%  1762.94kB 29.83%  main.main
+         0     0%   100%      512kB  8.66%  os.Open (inline)
+         0     0%   100%      512kB  8.66%  os.OpenFile
+         0     0%   100%      512kB  8.66%  os.openFileNolog
+         0     0%   100%     1026kB 17.36%  runtime.allocm
+         0     0%   100%   512.02kB  8.66%  runtime.doInit (inline)
+         0     0%   100%   512.02kB  8.66%  runtime.doInit1
+         0     0%   100%  2274.96kB 38.49%  runtime.main
+         0     0%   100%      513kB  8.68%  runtime.mcall
+         0     0%   100%      513kB  8.68%  runtime.mstart
+         0     0%   100%      513kB  8.68%  runtime.mstart0
+         0     0%   100%      513kB  8.68%  runtime.mstart1
+         0     0%   100%     1026kB 17.36%  runtime.newm
+         0     0%   100%     1026kB 17.36%  runtime.newobject
+         0     0%   100%      513kB  8.68%  runtime.park_m
+         0     0%   100%     1026kB 17.36%  runtime.resetspinning
+         0     0%   100%     1026kB 17.36%  runtime.schedule
+         0     0%   100%     1026kB 17.36%  runtime.startm
+         0     0%   100%     1026kB 17.36%  runtime.wakep
+         0     0%   100%  2097.87kB 35.49%  runtime/pprof.(*profileBuilder).build
+         0     0%   100%  2097.87kB 35.49%  runtime/pprof.(*profileBuilder).flush
+         0     0%   100%  2097.87kB 35.49%  runtime/pprof.(*profileBuilder).pbSample
+         0     0%   100%      512kB  8.66%  runtime/pprof.(*profileBuilder).readMapping
+         0     0%   100%      512kB  8.66%  runtime/pprof.elfBuildID
+         0     0%   100%      512kB  8.66%  runtime/pprof.newProfileBuilder
+         0     0%   100%      512kB  8.66%  runtime/pprof.parseProcSelfMaps
+         0     0%   100%  2609.88kB 44.15%  runtime/pprof.profileWriter
+         0     0%   100%  1762.94kB 29.83%  testing.(*M).Run
+         0     0%   100%  1762.94kB 29.83%  testing.(*M).before
+         0     0%   100%  1762.94kB 29.83%  testing/internal/testdeps.TestDeps.StartCPUProfile

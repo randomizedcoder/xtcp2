@@ -1,0 +1,12 @@
+goos: linux
+goarch: amd64
+cpu: AMD Ryzen Threadripper PRO 3945WX 12-Cores
+                      │     cgo     │               native                │
+                      │   sec/op    │   sec/op     vs base                │
+Startup/metrics-ready   105.0m ± 5%   104.5m ± 9%        ~ (p=0.738 n=20)
+Startup/version         6.270m ± 3%   5.632m ± 2%  -10.18% (p=0.000 n=20)
+geomean                 25.66m        24.26m        -5.45%
+
+                      │     cgo      │               native                │
+                      │    rss-B     │    rss-B      vs base               │
+Startup/metrics-ready   40.07Mi ± 2%   37.26Mi ± 5%  -7.02% (p=0.000 n=20)

@@ -1,0 +1,48 @@
+Not like for like: the cgo side copies or simulates in memory with no system call, and the native side makes real ones. Compare B/op and allocs/op only; sec/op is not a regression measure.
+
+goos: linux
+goarch: amd64
+cpu: AMD Ryzen Threadripper PRO 3945WX 12-Cores     
+                     │     cgo     │                    native                     │
+                     │   sec/op    │      sec/op        vs base                    │
+EventPath/batch=1-4    31.38n ± 3%     5370.50n ± 118%   +17011.68% (p=0.000 n=10)
+EventPath/batch=8-4    35.23n ± 5%    19523.00n ±   3%   +55315.84% (p=0.000 n=10)
+EventPath/batch=32-4   43.20n ± 6%   258541.00n ±  79%  +598305.28% (p=0.000 n=10)
+EventPath/batch=64-4   55.46n ± 3%   112246.50n ± 310%  +202291.81% (p=0.000 n=10)
+geomean                40.34n            41.77µ         +103421.06%
+
+                     │     cgo     │
+                     │  cgo/event  │
+EventPath/batch=1-4     1.000 ± 0%
+EventPath/batch=8-4    125.0m ± 0%
+EventPath/batch=32-4   31.25m ± 0%
+EventPath/batch=64-4   15.62m ± 0%
+geomean                88.38m
+
+                     │     cgo      │                    native                     │
+                     │  sec/event   │     sec/event      vs base                    │
+EventPath/batch=1-4     31.38n ± 3%     5370.50n ± 118%   +17011.68% (p=0.000 n=10)
+EventPath/batch=8-4     4.404n ± 5%    2440.500n ±   3%   +55321.82% (p=0.000 n=10)
+EventPath/batch=32-4    1.350n ± 6%    8079.500n ±  79%  +598381.48% (p=0.000 n=10)
+EventPath/batch=64-4   0.8665n ± 3%   1754.0000n ± 310%  +202323.54% (p=0.000 n=10)
+geomean                 3.566n            3.692µ         +103431.21%
+
+                     │     cgo      │               native                │
+                     │     B/op     │    B/op     vs base                 │
+EventPath/batch=1-4    0.000 ± 0%     0.000 ± 0%       ~ (p=1.000 n=10) ¹
+EventPath/batch=8-4    0.000 ± 0%     0.000 ± 0%       ~ (p=1.000 n=10) ¹
+EventPath/batch=32-4   0.000 ± 0%     0.000 ± 0%       ~ (p=1.000 n=10) ¹
+EventPath/batch=64-4   0.000 ± 0%     0.000 ±  ?       ~ (p=0.474 n=10)
+geomean                           ²               +0.00%                ²
+¹ all samples are equal
+² summaries must be >0 to compute geomean
+
+                     │     cgo      │               native                │
+                     │  allocs/op   │ allocs/op   vs base                 │
+EventPath/batch=1-4    0.000 ± 0%     0.000 ± 0%       ~ (p=1.000 n=10) ¹
+EventPath/batch=8-4    0.000 ± 0%     0.000 ± 0%       ~ (p=1.000 n=10) ¹
+EventPath/batch=32-4   0.000 ± 0%     0.000 ± 0%       ~ (p=1.000 n=10) ¹
+EventPath/batch=64-4   0.000 ± 0%     0.000 ± 0%       ~ (p=1.000 n=10) ¹
+geomean                           ²               +0.00%                ²
+¹ all samples are equal
+² summaries must be >0 to compute geomean

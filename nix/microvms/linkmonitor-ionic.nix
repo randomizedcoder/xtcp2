@@ -1,6 +1,6 @@
 # Real-driver guest: the in-tree ionic/ionic_rdma drivers bound to a rocm-ernic
 # emulated NIC (vfio-user), so linuxio and the full monitor see a real driver's
-# netlink, ethtool and verbs replies. Hot-unplug and replug are a guest PCI
+# netlink and ethtool replies. Hot-unplug and replug are a guest PCI
 # remove and rescan: QMP device_del of a vfio-user-pci device aborts QEMU 11.0.2
 # (memory_region_del_subregion assertion), while the guest's driver removal and
 # re-probe paths, which the monitor has to survive, are the same either way.
@@ -25,7 +25,6 @@
   nixpkgs,
   artifact,
   monitor,
-  coreMonitor,
   ernicModule,
   ernicRun,
   rdmaCaptureManifest,
@@ -112,33 +111,26 @@ let
 
     systemctl start go-link-monitor.service
     run_test TestIonicMonitorHealthy
+    # The single CGO_ENABLED=0 build reports its netlink events backend.
+    run_test TestIonicAutoBackend
     echo LINKMONITOR_IONIC_MONITOR_PASS
     run_test TestIonicCLIDifferential
     echo LINKMONITOR_IONIC_CLI_PASS
     run_test TestIonicEvents
     echo LINKMONITOR_IONIC_EVENTS_PASS
-    # Verbs async events from the real driver, through rdmaevents Open/Run.
-    ${artifact}/bin/ionic-vm-events.test -test.run '^TestIonicVerbsEvents$' -test.v -test.timeout=5m
-    echo LINKMONITOR_IONIC_VERBS_EVENTS_PASS
-    # The verbs and netlink sources side by side over the same triggers
-    # (R1-T05), through the monitor's own openRDMAEvents.
-    run_test TestDifferentialRDMAEvents
-    run_test TestDifferentialRDMAFaults
-    echo LINKMONITOR_IONIC_DIFFERENTIAL_PASS
-    # The CGO_ENABLED=0 build: the same events, from the netlink backend.
-    systemctl start go-link-monitor-core.service
-    run_test TestIonicCoreBackend
-    run_test TestIonicEvents
-    echo LINKMONITOR_IONIC_CORE_EVENTS_PASS
-    systemctl start go-link-monitor.service
-    run_test TestIonicMonitorHealthy
+    # The netlink source, through the monitor's own openRDMAEvents, against
+    # the events the verbs source recorded over the same triggers (R1-T05,
+    # R4-T02).
+    run_test TestRDMAEventsRecorded
+    run_test TestRDMAEventsFaults
+    echo LINKMONITOR_IONIC_RECORDED_PASS
 
-    # Removal unregisters the RDMA device while the monitor holds a verbs
-    # context, and while TestDifferentialRDMARemove holds both event sources,
-    # which must each report it as Fatal. remove_ionic shows where removal
-    # blocks instead of waiting for the timeout.
-    LINKMONITOR_EVENTS_REMOVE=remove_ionic run_test TestDifferentialRDMARemove
-    echo LINKMONITOR_IONIC_DIFFERENTIAL_REMOVE_PASS
+    # Removal unregisters the RDMA device while the monitor holds its netlink
+    # event source, and while TestRDMAEventsRemove holds another, which must
+    # report it as Fatal. remove_ionic shows where removal blocks instead of
+    # waiting for the timeout.
+    LINKMONITOR_EVENTS_REMOVE=remove_ionic run_test TestRDMAEventsRemove
+    echo LINKMONITOR_IONIC_REMOVE_PASS
     run_test TestIonicRemoved
     echo LINKMONITOR_IONIC_UNPLUG_PASS
 
@@ -159,7 +151,7 @@ let
     # Coverage must be live again, not just reported: the same transitions
     # and renames have to be observed on the replugged device.
     run_test TestIonicEvents
-    run_test TestDifferentialRDMAEvents
+    run_test TestRDMAEventsRecorded
     echo LINKMONITOR_IONIC_RECOVERED_EVENTS_PASS
 
     on_demand
@@ -260,7 +252,7 @@ let
         export LINKMONITOR_EVENTS_NETDEV="$netdev" LINKMONITOR_EVENTS_RDMA="$rdmadev"
         echo "ionic netdev $netdev, RDMA device $rdmadev"
       }
-      # Run by TestDifferentialRDMARemove through bash -c, where errexit is
+      # Run by TestRDMAEventsRemove through bash -c, where errexit is
       # off, so every failure returns explicitly.
       remove_ionic() {
         local pci remover
@@ -346,12 +338,6 @@ let
           qemu.options = [ "-no-reboot" ];
         };
         systemd.services.go-link-monitor = monitorService "go-link-monitor under test" pollFlags;
-        # The CGO_ENABLED=0 build, whose RDMA events come from netlink.
-        systemd.services.go-link-monitor-core =
-          mkMonitorService coreMonitor "go-link-monitor-core under test" pollFlags
-          // {
-            conflicts = [ "go-link-monitor.service" ];
-          };
         # Intervals match production_ionic_ondemand_vm_linux_test.go.
         systemd.services.go-link-monitor-on-demand =
           monitorService "go-link-monitor under test, on demand" [
@@ -543,7 +529,7 @@ pkgs.writeShellApplication {
       if faults then
         "FAULT_STATS_VALS FAULT_COUNTERS"
       else
-        "DISCOVERY CONTRACTS MONITOR CLI EVENTS VERBS_EVENTS DIFFERENTIAL CORE_EVENTS DIFFERENTIAL_REMOVE UNPLUG HOTPLUG RECOVERED_EVENTS"
+        "DISCOVERY CONTRACTS MONITOR CLI EVENTS RECORDED REMOVE UNPLUG HOTPLUG RECOVERED_EVENTS"
     }; do
       if ! grep -q "LINKMONITOR_IONIC_''${sentinel}_PASS" "$run_dir/serial.log"; then
         echo "FAIL: missing LINKMONITOR_IONIC_''${sentinel}_PASS; evidence $run_dir" >&2

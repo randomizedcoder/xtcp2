@@ -1,0 +1,28 @@
+File: rdmanative.test
+Build ID: 7f56d9ffbf0f8f0ff7e1230d2e175db638aae3aa
+Type: cpu
+Time: 2026-10-19 01:14:36 UTC
+Duration: 24.18s, Total samples = 20.16s (83.39%)
+Showing nodes accounting for 19.84s, 98.41% of 20.16s total
+Dropped 54 nodes (cum <= 0.10s)
+      flat  flat%   sum%        cum   cum%
+     8.42s 41.77% 41.77%      8.59s 42.61%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative.DecodeAsyncEvent
+     3.29s 16.32% 58.09%     10.88s 53.97%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative.BenchmarkTranslateRtnl
+     2.82s 13.99% 72.07%      4.70s 23.31%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative.(*Translator).link
+     2.57s 12.75% 84.82%      2.62s 13.00%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative.(*PortMap).find (inline)
+     1.17s  5.80% 90.62%      1.92s  9.52%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative.(*Translator).emit
+     0.72s  3.57% 94.20%      7.55s 37.45%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative.(*Translator).Translate
+     0.34s  1.69% 95.88%      8.93s 44.30%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative.BenchmarkDecodeAsyncEvent
+     0.22s  1.09% 96.97%      0.22s  1.09%  runtime.futex
+     0.15s  0.74% 97.72%      0.15s  0.74%  runtime.asyncPreempt
+     0.13s  0.64% 98.36%      0.13s  0.64%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative.linkState (inline)
+     0.01s  0.05% 98.41%      0.19s  0.94%  runtime.notewakeup
+         0     0% 98.41%      0.18s  0.89%  runtime.asyncPreempt2.func1
+         0     0% 98.41%      0.18s  0.89%  runtime.futexwakeup
+         0     0% 98.41%      0.21s  1.04%  runtime.gopreempt_m (inline)
+         0     0% 98.41%      0.25s  1.24%  runtime.goschedImpl
+         0     0% 98.41%      0.22s  1.09%  runtime.mcall
+         0     0% 98.41%      0.19s  0.94%  runtime.startm
+         0     0% 98.41%      0.20s  0.99%  runtime.wakep
+         0     0% 98.41%     19.82s 98.31%  testing.(*B).run1.func1
+         0     0% 98.41%     19.82s 98.31%  testing.(*B).runN

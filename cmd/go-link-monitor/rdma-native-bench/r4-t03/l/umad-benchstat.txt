@@ -1,0 +1,29 @@
+Not like for like: the cgo side copies or simulates in memory with no system call, and the native side makes real ones. Compare B/op and allocs/op only; sec/op is not a regression measure.
+
+goos: linux
+goarch: amd64
+pkg: github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmacaps
+cpu: AMD Ryzen Threadripper PRO 3945WX 12-Cores     
+                            │     cgo     │                 native                  │
+                            │   sec/op    │    sec/op      vs base                  │
+UMADExchange/uncontended-24   376.6n ± 3%   15014.5n ± 1%  +3887.39% (p=0.000 n=10)
+UMADExchange/contended-24     684.2n ± 2%   15842.0n ± 2%  +2215.40% (p=0.000 n=10)
+geomean                       507.6n          15.42µ       +2938.49%
+
+                            │    cgo     │
+                            │ cgo/query  │
+UMADExchange/uncontended-24   3.000 ± 0%
+UMADExchange/contended-24     3.000 ± 0%
+geomean                       3.000
+
+                            │    cgo     │               native               │
+                            │    B/op    │    B/op     vs base                │
+UMADExchange/uncontended-24   512.0 ± 0%   416.0 ± 0%  -18.75% (p=0.000 n=10)
+UMADExchange/contended-24     512.0 ± 0%   417.0 ± 0%  -18.55% (p=0.000 n=10)
+geomean                       512.0        416.5       -18.65%
+
+                            │    cgo     │               native               │
+                            │ allocs/op  │ allocs/op   vs base                │
+UMADExchange/uncontended-24   2.000 ± 0%   1.000 ± 0%  -50.00% (p=0.000 n=10)
+UMADExchange/contended-24     2.000 ± 0%   1.000 ± 0%  -50.00% (p=0.000 n=10)
+geomean                       2.000        1.000       -50.00%

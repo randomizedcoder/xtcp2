@@ -866,7 +866,6 @@ in
         inherit pkgs lib nixpkgs;
         artifact = tests.test-linkmonitor-rdma-build;
         monitor = linkmonitorPackages.go-link-monitor;
-        coreMonitor = linkmonitorPackages.go-link-monitor-core;
         ernicModule = rocmErnic.nixosModules.ernic-guest;
         ernicRun = rocmErnic.packages.${pkgs.stdenv.hostPlatform.system}.ernic-run;
         inherit rdmaCaptureManifest;
@@ -875,7 +874,6 @@ in
         inherit pkgs lib nixpkgs;
         artifact = tests.test-linkmonitor-rdma-build;
         monitor = linkmonitorPackages.go-link-monitor;
-        coreMonitor = linkmonitorPackages.go-link-monitor-core;
         ernicModule = rocmErnic.nixosModules.ernic-guest;
         ernicRun = rocmErnic.packages.${pkgs.stdenv.hostPlatform.system}.ernic-run;
         inherit rdmaCaptureManifest;

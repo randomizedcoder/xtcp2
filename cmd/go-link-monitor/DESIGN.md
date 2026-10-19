@@ -172,15 +172,17 @@ pass. An unidentified link layer stays unknown. Link state, speed and width
 remain actively checked. See the vendor's
 [InfiniBand interface attributes](https://docs.nvidia.com/networking/display/NVIDIANVOSUserManualforInfiniBandSwitchesv25024014/InfiniBand%2BInterface%2BCommands).
 
-Subscribe to RDMA device lifecycle notifications where supported and use a
-bounded RDMA event adapter for verbs port-active/port-error/device-fatal events;
-events enqueue authoritative port queries. The userspace verbs event API is
-additional implementation work, not covered by existing xtcpnl decoding. Every
+Subscribe to RDMA device lifecycle notifications where supported and derive
+port-active/port-error/device-fatal events from rtnetlink and the NLDEV
+monitor; events enqueue authoritative port queries. The verbs event adapter
+this originally specified was replaced by the netlink source and removed in
+R4-T02 ([GO-NATIVE-RDMA-DESIGN.md](GO-NATIVE-RDMA-DESIGN.md)). Every
 15s statistics/settings pass and full resync also reconciles RDMA port state,
 rate, width and counters. Loss, unsupported event delivery or a closed event
 source is observable through collector status; polling remains the recovery
-path. No netlink-only claim is made for native port event coverage. See
-[verbs asynchronous events](https://github.com/linux-rdma/rdma-core/blob/master/libibverbs/man/ibv_get_async_event.3).
+path. The netlink source was checked against the
+[verbs asynchronous events](https://github.com/linux-rdma/rdma-core/blob/master/libibverbs/man/ibv_get_async_event.3)
+it replaced on rxe and ionic (R1-T05) before the verbs path was removed.
 
 Collect applicable node_exporter InfiniBand/RoCE counters in v1, including link
 downed/recovery, symbol errors and RDMA hw_counters. Preserve source units,
@@ -576,8 +578,6 @@ Standalone command flags:
 | `-auth.read-mode`, `-auth.read-token-file`, `-auth.read-hmac-key-file` | empty | Read credential (`raw` or `hmac-utc-minute`, secret from a file); when set, metrics paths, `/ip` paths and read RPCs require it; overrides GO_LINK_MONITOR_AUTH_READ_* |
 | `-auth.admin-mode`, `-auth.admin-token-file`, `-auth.admin-hmac-key-file` | empty | Admin credential for rebaseline and resync; requires `-admin.address`; overrides GO_LINK_MONITOR_AUTH_ADMIN_* |
 | `-version` | false | Print build identity and exit |
-| `-rdma.events-backend` | `auto` | RDMA port events from `verbs` (cgo `rdma` build) or `netlink` (rtnetlink plus NLDEV, no cgo); `auto` picks verbs when the build has it; a backend the build lacks is a configuration error ([GO-NATIVE-RDMA-DESIGN.md](GO-NATIVE-RDMA-DESIGN.md#backend-selection)); overrides GO_LINK_MONITOR_RDMA_EVENTS_BACKEND |
-| `-rdma.umad-backend` | `auto` | InfiniBand PortInfo queries (`rdma_capabilities`) through `libibumad` (cgo `rdma` build; one query at a time per process) or `native` (the umad device directly, no cgo; each query owns its descriptor); `auto` picks libibumad when the build has it; a backend the build lacks is a configuration error ([GO-NATIVE-RDMA-DESIGN.md](GO-NATIVE-RDMA-DESIGN.md#backend-selection)); overrides GO_LINK_MONITOR_RDMA_UMAD_BACKEND |
 | `-io-backend` | `poller` | Ordinary nonblocking sockets by default; explicit `io_uring` requires supported backend initialization |
 
 Both single- and double-dash forms work. Maximum-speed exceptions, the four
@@ -601,9 +601,12 @@ socket the audit record names the caller's `SO_PEERCRED` uid and pid.
 admin credential to admin commands when one is configured. SIGUSR1 remains a
 local rebaseline shortcut.
 
-Build the full Linux RDMA executable with `nix build path:.#go-link-monitor`;
-`path:.#go-link-monitor-core` explicitly omits the native bindings. Both install
-`bin/go-link-monitor`. No additional capabilities are granted by these packages.
+Build the Linux executable with `nix build path:.#go-link-monitor`; it is
+`CGO_ENABLED=0` and includes RDMA events (netlink) and InfiniBand PortInfo
+(native umad). `path:.#go-link-monitor-core` is an alias of the same package.
+It installs `bin/go-link-monitor`. The `-rdma.events-backend` and
+`-rdma.umad-backend` options were removed with the cgo backends in R4-T02; the
+flag parser now rejects them, and their environment variables are ignored. No additional capabilities are granted by these packages.
 The remaining netclass metadata gap in STATUS still prevents a claim of complete
 v1 metric coverage. Service/OCI deployment is a later increment.
 

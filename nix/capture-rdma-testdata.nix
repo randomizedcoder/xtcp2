@@ -16,8 +16,8 @@
 #                        nlmon and ibv_asyncwatch record (GID change events)
 #   --umad               smpquery and perfquery under strace; ib_umad must
 #                        already be loaded, this never loads a module
-#   --umad-live PHASE    the R2-T03 live umad rows (TestUMADLive, native and
-#                        libibumad builds from test-linkmonitor-rdma-build)
+#   --umad-live PHASE    the R2-T03 live umad rows (TestUMADLive, the native
+#                        transport from test-linkmonitor-rdma-build)
 #                        under strace: `unloaded` with ib_umad not loaded,
 #                        then `loaded` after the operator loads it. Give each
 #                        phase its own --source, since a run replaces its

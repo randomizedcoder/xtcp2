@@ -12,31 +12,16 @@ import (
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmaevents"
 )
 
-// rdmaEventsBackends are the backends every schedule test runs under. The
-// schedule's behavior must not depend on where events come from.
-var rdmaEventsBackends = [...]RDMAEventsBackend{RDMAEventsVerbs, RDMAEventsNetlink}
-
-// forEachRDMAEventsBackend runs test once per backend, as a subtest.
-func forEachRDMAEventsBackend(t *testing.T, test func(*testing.T, RDMAEventsBackend)) {
-	t.Helper()
-	for _, backend := range rdmaEventsBackends {
-		t.Run(string(backend), func(t *testing.T) { test(t, backend) })
-	}
-}
-
-func eventScheduleFixture(t *testing.T, backend RDMAEventsBackend) (*rdmaEventSchedule, model.RDMAPort) {
+func eventScheduleFixture(t *testing.T) (*rdmaEventSchedule, model.RDMAPort) {
 	t.Helper()
 	rdma, clock, p := rdmaScheduled(t, true)
 	w := &rdmaEventWorker{ctx: context.Background(), requests: make(chan rdmaEventRequest, 1),
 		status: make(chan rdmaEventStatus, 2), records: make(chan rdmaEventRecord, eventQueueCapacity), wake: make(chan struct{}, 1)}
 	c := &reconciler{scheduler: newScheduler(rdma.r, nil, clock), rdma: rdma,
 		inbox: newEventInbox(1), inventory: &inventoryExecutor{}}
-	s := newRDMAEventSchedule(c, w, backend)
+	s := newRDMAEventSchedule(c, w)
 	c.rdmaEvents = s
-	s.ids = rdmaIdentities([]model.RDMAPort{p})
-	if backend == RDMAEventsNetlink {
-		s.ports = rdmaPortMap([]model.RDMAPort{p}, nil)
-	}
+	s.ports = rdmaPortMap([]model.RDMAPort{p}, nil)
 	if err := s.advance(clock.Now()); err != nil {
 		t.Fatal(err)
 	}
@@ -51,15 +36,13 @@ func eventScheduleFixture(t *testing.T, backend RDMAEventsBackend) (*rdmaEventSc
 
 // TestRDMAEventFirstOpen is the request the schedule sends before any
 // inventory is committed: rdmanative.Open refuses a nil port map, so the
-// netlink backend must send an empty one.
+// source needs an empty one.
 func TestRDMAEventFirstOpen(t *testing.T) {
 	for _, tc := range []struct {
 		name, category, description, expected string
-		backend                               RDMAEventsBackend
 		wantPorts                             bool
 	}{
-		{"netlink", "positive", "netlink, nothing committed yet", "an empty, non-nil port map", RDMAEventsNetlink, true},
-		{"verbs", "corner", "verbs, nothing committed yet", "no port map; verbs opens by identity", RDMAEventsVerbs, false},
+		{"netlink", "positive", "nothing committed yet", "an empty, non-nil port map", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expected)
@@ -68,7 +51,7 @@ func TestRDMAEventFirstOpen(t *testing.T) {
 				status: make(chan rdmaEventStatus, 2), records: make(chan rdmaEventRecord, eventQueueCapacity), wake: make(chan struct{}, 1)}
 			c := &reconciler{scheduler: newScheduler(rdma.r, nil, clock), rdma: rdma,
 				inbox: newEventInbox(1), inventory: &inventoryExecutor{}}
-			s := newRDMAEventSchedule(c, w, tc.backend)
+			s := newRDMAEventSchedule(c, w)
 			c.rdmaEvents = s
 			if err := s.advance(clock.Now()); err != nil {
 				t.Fatal(err)
@@ -85,9 +68,7 @@ func TestRDMAEventFirstOpen(t *testing.T) {
 	}
 }
 
-func TestRDMAEventScheduling(t *testing.T) { forEachRDMAEventsBackend(t, testRDMAEventScheduling) }
-
-func testRDMAEventScheduling(t *testing.T, backend RDMAEventsBackend) {
+func TestRDMAEventScheduling(t *testing.T) {
 	for _, tc := range []struct {
 		name, category, description, expectedOutcome string
 		kind                                         rdmaevents.Kind
@@ -101,7 +82,7 @@ func testRDMAEventScheduling(t *testing.T, backend RDMAEventsBackend) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expectedOutcome)
-			s, p := eventScheduleFixture(t, backend)
+			s, p := eventScheduleFixture(t)
 			s.committed([]model.RDMAPort{p}, nil, s.barrier+1)
 			if !s.c.scheduler.reducer.rdmaEvents {
 				t.Fatal("subscription/resync barrier did not open")
@@ -139,9 +120,7 @@ func testRDMAEventScheduling(t *testing.T, backend RDMAEventsBackend) {
 	}
 }
 
-func TestRDMAEventInboxBounds(t *testing.T) { forEachRDMAEventsBackend(t, testRDMAEventInboxBounds) }
-
-func testRDMAEventInboxBounds(t *testing.T, backend RDMAEventsBackend) {
+func TestRDMAEventInboxBounds(t *testing.T) {
 	for _, tc := range []struct {
 		name, category, description, expectedOutcome string
 		count                                        int
@@ -153,7 +132,7 @@ func testRDMAEventInboxBounds(t *testing.T, backend RDMAEventsBackend) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expectedOutcome)
-			s, _ := eventScheduleFixture(t, backend)
+			s, _ := eventScheduleFixture(t)
 			accepted := 0
 			for range tc.count {
 				if s.w.emit(s.generation, rdmaevents.Event{}) {
@@ -173,11 +152,7 @@ func testRDMAEventInboxBounds(t *testing.T, backend RDMAEventsBackend) {
 }
 
 func TestRDMAEventBarrierAndRetry(t *testing.T) {
-	forEachRDMAEventsBackend(t, testRDMAEventBarrierAndRetry)
-}
-
-func testRDMAEventBarrierAndRetry(t *testing.T, backend RDMAEventsBackend) {
-	s, p := eventScheduleFixture(t, backend)
+	s, p := eventScheduleFixture(t)
 	t.Log("corner: subscription established while old inventory exists; expected: a later dump is required")
 	s.committed([]model.RDMAPort{p}, nil, s.barrier)
 	if s.c.scheduler.reducer.rdmaEvents {
@@ -253,9 +228,7 @@ func TestRDMAEventWorkerLifetime(t *testing.T) {
 	receiveTest(t, source.closed)
 }
 
-func TestRDMAEventOwnerBudgets(t *testing.T) { forEachRDMAEventsBackend(t, testRDMAEventOwnerBudgets) }
-
-func testRDMAEventOwnerBudgets(t *testing.T, backend RDMAEventsBackend) {
+func TestRDMAEventOwnerBudgets(t *testing.T) {
 	for _, tc := range []struct {
 		name, category, description, expectedOutcome string
 		count, remaining                             int
@@ -266,7 +239,7 @@ func testRDMAEventOwnerBudgets(t *testing.T, backend RDMAEventsBackend) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expectedOutcome)
-			s, p := eventScheduleFixture(t, backend)
+			s, p := eventScheduleFixture(t)
 			s.committed([]model.RDMAPort{p}, nil, s.barrier+1)
 			for range tc.count {
 				s.w.emit(s.generation, rdmaevents.Event{Device: p.Device, Port: p.Port})
@@ -289,11 +262,7 @@ func testRDMAEventOwnerBudgets(t *testing.T, backend RDMAEventsBackend) {
 }
 
 func TestRDMAEventPartialCoverage(t *testing.T) {
-	forEachRDMAEventsBackend(t, testRDMAEventPartialCoverage)
-}
-
-func testRDMAEventPartialCoverage(t *testing.T, backend RDMAEventsBackend) {
-	s, p := eventScheduleFixture(t, backend)
+	s, p := eventScheduleFixture(t)
 	t.Log("negative: source opens only some HCAs; expected: no transient healthy state before fatal diagnostics arrive")
 	s.ready = false
 	s.w.status <- rdmaEventStatus{generation: s.generation, ready: true, partial: true}
@@ -321,9 +290,7 @@ func BenchmarkRDMAEventTargets(b *testing.B) {
 	}
 }
 
-func TestRDMAEventDiagnostics(t *testing.T) { forEachRDMAEventsBackend(t, testRDMAEventDiagnostics) }
-
-func testRDMAEventDiagnostics(t *testing.T, backend RDMAEventsBackend) {
+func TestRDMAEventDiagnostics(t *testing.T) {
 	for _, tc := range []struct {
 		name, category, description, expectedOutcome string
 		failure                                      error
@@ -332,12 +299,12 @@ func testRDMAEventDiagnostics(t *testing.T, backend RDMAEventsBackend) {
 	}{
 		{"ready", "positive", "subscribed and reconciled", "supported fresh successful event collector", nil, model.Supported, model.ErrorNone},
 		{"denied", "negative", "permission denied", "unknown support and permission diagnostic", syscall.EACCES, model.SupportUnknown, model.ErrorPermission},
-		{"unavailable", "negative", "build has no binding", "unsupported event collector", rdmaevents.ErrUnavailable, model.Unsupported, model.ErrorIO},
+		{"unavailable", "negative", "no RDMA event source", "unsupported event collector", rdmaevents.ErrUnavailable, model.Unsupported, model.ErrorIO},
 		{"lost", "corner", "event stream lost", "unknown support and failed event collector", rdmaevents.ErrLost, model.SupportUnknown, model.ErrorIO},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expectedOutcome)
-			s, p := eventScheduleFixture(t, backend)
+			s, p := eventScheduleFixture(t)
 			if tc.failure == nil {
 				s.committed([]model.RDMAPort{p}, nil, s.barrier+1)
 			} else {
@@ -354,9 +321,7 @@ func testRDMAEventDiagnostics(t *testing.T, backend RDMAEventsBackend) {
 	}
 }
 
-func TestRDMAEventUnavailable(t *testing.T) { forEachRDMAEventsBackend(t, testRDMAEventUnavailable) }
-
-func testRDMAEventUnavailable(t *testing.T, backend RDMAEventsBackend) {
+func TestRDMAEventUnavailable(t *testing.T) {
 	for _, tc := range []struct {
 		name, category, description, expectedOutcome string
 		failure                                      error
@@ -365,14 +330,14 @@ func testRDMAEventUnavailable(t *testing.T, backend RDMAEventsBackend) {
 		requests                                     int
 		support                                      model.Support
 	}{
-		{"no-binding", "positive", "build has no verbs binding, an hour later", "never reopened; unsupported event collector", rdmaevents.ErrUnavailable, false, time.Hour, 0, model.Unsupported},
+		{"no-binding", "positive", "no RDMA event source, an hour later", "never reopened; unsupported event collector", rdmaevents.ErrUnavailable, false, time.Hour, 0, model.Unsupported},
 		{"lost-retries", "negative", "transient loss, after the 1s backoff", "reopened once, as before", rdmaevents.ErrLost, false, time.Minute, 1, model.SupportUnknown},
-		{"at-retry", "boundary", "no binding, exactly at the retry deadline", "not reopened", rdmaevents.ErrUnavailable, false, time.Second, 0, model.Unsupported},
-		{"new-identity", "corner", "no binding, then a new RDMA device identity", "not reopened; the new inventory still reports unsupported", rdmaevents.ErrUnavailable, true, time.Hour, 0, model.Unsupported},
+		{"at-retry", "boundary", "no event source, exactly at the retry deadline", "not reopened", rdmaevents.ErrUnavailable, false, time.Second, 0, model.Unsupported},
+		{"new-identity", "corner", "no event source, then a new RDMA port", "not reopened; the new inventory still reports unsupported", rdmaevents.ErrUnavailable, true, time.Hour, 0, model.Unsupported},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expectedOutcome)
-			s, p := eventScheduleFixture(t, backend)
+			s, p := eventScheduleFixture(t)
 			s.w.status <- rdmaEventStatus{generation: s.generation, err: tc.failure}
 			if err := s.before(); err != nil {
 				t.Fatal(err)

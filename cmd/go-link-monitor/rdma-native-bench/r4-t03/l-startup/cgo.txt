@@ -1,0 +1,43 @@
+goos: linux
+goarch: amd64
+cpu: AMD Ryzen Threadripper PRO 3945WX 12-Cores
+BenchmarkStartup/metrics-ready 1 110900259 ns/op 42246144 rss-B
+BenchmarkStartup/version 1 6661023 ns/op
+BenchmarkStartup/metrics-ready 1 96028170 ns/op 40402944 rss-B
+BenchmarkStartup/version 1 5852162 ns/op
+BenchmarkStartup/metrics-ready 1 105051032 ns/op 41164800 rss-B
+BenchmarkStartup/version 1 6579639 ns/op
+BenchmarkStartup/metrics-ready 1 99962115 ns/op 40955904 rss-B
+BenchmarkStartup/version 1 6342082 ns/op
+BenchmarkStartup/metrics-ready 1 106051423 ns/op 42590208 rss-B
+BenchmarkStartup/version 1 6145904 ns/op
+BenchmarkStartup/metrics-ready 1 105457336 ns/op 41938944 rss-B
+BenchmarkStartup/version 1 6450226 ns/op
+BenchmarkStartup/metrics-ready 1 106646702 ns/op 42946560 rss-B
+BenchmarkStartup/version 1 6109826 ns/op
+BenchmarkStartup/metrics-ready 1 123461583 ns/op 41717760 rss-B
+BenchmarkStartup/version 1 6071895 ns/op
+BenchmarkStartup/metrics-ready 1 107677249 ns/op 42090496 rss-B
+BenchmarkStartup/version 1 6079078 ns/op
+BenchmarkStartup/metrics-ready 1 101372907 ns/op 41312256 rss-B
+BenchmarkStartup/version 1 6280196 ns/op
+BenchmarkStartup/metrics-ready 1 105193150 ns/op 44646400 rss-B
+BenchmarkStartup/version 1 6110257 ns/op
+BenchmarkStartup/metrics-ready 1 101471282 ns/op 43646976 rss-B
+BenchmarkStartup/version 1 6449414 ns/op
+BenchmarkStartup/metrics-ready 1 105012530 ns/op 41533440 rss-B
+BenchmarkStartup/version 1 6259117 ns/op
+BenchmarkStartup/metrics-ready 1 106424264 ns/op 43831296 rss-B
+BenchmarkStartup/version 1 6330111 ns/op
+BenchmarkStartup/metrics-ready 1 93398135 ns/op 42549248 rss-B
+BenchmarkStartup/version 1 6080421 ns/op
+BenchmarkStartup/metrics-ready 1 95922792 ns/op 39882752 rss-B
+BenchmarkStartup/version 1 5927042 ns/op
+BenchmarkStartup/metrics-ready 1 93059168 ns/op 43114496 rss-B
+BenchmarkStartup/version 1 6624434 ns/op
+BenchmarkStartup/metrics-ready 1 102182981 ns/op 43397120 rss-B
+BenchmarkStartup/version 1 6242756 ns/op
+BenchmarkStartup/metrics-ready 1 109851968 ns/op 41156608 rss-B
+BenchmarkStartup/version 1 6513305 ns/op
+BenchmarkStartup/metrics-ready 1 75699312 ns/op 38498304 rss-B
+BenchmarkStartup/version 1 6407346 ns/op

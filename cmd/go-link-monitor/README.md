@@ -34,7 +34,7 @@ is [METRICS.md](METRICS.md); behaviour is in [DESIGN.md](DESIGN.md).
 ## Quick start
 
 ```sh
-nix build .#go-link-monitor          # full build with RDMA; .#go-link-monitor-core without cgo
+nix build .#go-link-monitor          # CGO_ENABLED=0, RDMA included; .#go-link-monitor-core is an alias
 sudo ./result/bin/go-link-monitor   # baseline in /var/lib/go-link-monitor, admin socket in /run/go-link-monitor
 curl -s :9101/metrics                # problem summary
 curl -s :9101/metrics/link           # link detail
@@ -184,19 +184,17 @@ Alert and dashboard PromQL is in
   [the gRPC API](../../docs/grpc-api.md#linkmonitorservice).
 - **Speed exceptions.** `-max-speed-exceptions=enp1s0=1G` accepts a port that
   is cabled below its maximum, only while it runs at exactly that speed.
-- **RDMA events.** `-rdma.events-backend` is `auto` (default), `verbs` or
-  `netlink`. `auto` reads the verbs event queues in the cgo build and derives
-  the same events from netlink otherwise, so the core build gets RDMA events
-  too; `rdma_events_backend_info` shows which is running.
-- **InfiniBand capabilities.** `-rdma.umad-backend` is `auto` (default),
-  `libibumad` or `native`. `auto` queries PortInfo through libibumad in the
-  cgo build and through the umad device directly otherwise, so the core build
-  reports `rdma_capabilities` on native InfiniBand too.
+- **RDMA events.** Derived from rtnetlink and the NLDEV monitor, with no cgo
+  and no rdma-core libraries; `rdma_events_backend_info{backend="netlink"}`
+  says so. The `-rdma.events-backend` and `-rdma.umad-backend` options and the
+  libibverbs and libibumad backends were removed in R4-T02
+  ([GO-NATIVE-RDMA-DESIGN.md](GO-NATIVE-RDMA-DESIGN.md#backend-selection)).
+- **InfiniBand capabilities.** PortInfo is queried through the umad device
+  directly, so `rdma_capabilities` is reported on native InfiniBand.
 - **Inside xtcp2.** `xtcp2 -linkMonitor` embeds the same monitor and
   registers its summary on xtcp2's Prometheus listener, or every family with
   `-linkMonitorMetricsAll`; the OCI images run it on demand. The embedded
-  monitor uses `linkmonitor.Config.RDMAEventsBackend` and
-  `RDMAUMADBackend`, both `auto` by default.
+  monitor gets RDMA events from netlink too.
 
 Run `go-link-monitor -h` for every flag.
 
@@ -211,7 +209,7 @@ Run `go-link-monitor -h` for every flag.
 | [DETAILED-DESIGN.md](DETAILED-DESIGN.md) | Library structure, snapshots and concurrency |
 | [NODE-EXPORTER-PERFORMANCE.md](NODE-EXPORTER-PERFORMANCE.md) | Cost against node_exporter, and poll against on-demand |
 | [LOCAL-ETHERNET-EXAMPLE.md](LOCAL-ETHERNET-EXAMPLE.md), [REALISTIC-FLEET-EXAMPLE.md](REALISTIC-FLEET-EXAMPLE.md) | Example scrapes |
-| [GO-NATIVE-RDMA-ASSESSMENT.md](GO-NATIVE-RDMA-ASSESSMENT.md) | What replacing the cgo RDMA bindings (libibverbs events, libibumad PortInfo) with pure Go would take, and how to compare the two |
+| [GO-NATIVE-RDMA-ASSESSMENT.md](GO-NATIVE-RDMA-ASSESSMENT.md) | What replacing the cgo RDMA bindings (libibverbs events, libibumad PortInfo) with pure Go would take, and how to compare the two; done in R4-T02 |
 | [GO-NATIVE-RDMA-DESIGN.md](GO-NATIVE-RDMA-DESIGN.md) | Go design for the cgo-free RDMA path: netlink-derived events, native umad, captured testdata, parsing rules, benchmarks and Nix targets |
 | [GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md](GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md) | Work breakdown (R0–R4) with dependencies and completion gates |
 | [GO-NATIVE-RDMA-STATUS.md](GO-NATIVE-RDMA-STATUS.md) | Progress, evidence, captures and baselines for the cgo-free RDMA work |

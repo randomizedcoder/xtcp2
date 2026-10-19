@@ -30,15 +30,15 @@ The targets are defined in [tests/linkmonitor.nix](tests/linkmonitor.nix):
 | `test-linkmonitor-replay` | All 40 link-state kernel/scenario fixture combinations; no skips |
 | `test-linkmonitor-fuzz` | One 30-second session, two workers, per `fuzzTargets` entry |
 | `test-linkmonitor-rdma-abi` | Go-native RDMA ABI guard: `nix/tests/linkmonitor-abi.c` against the pinned uapi and rdma-core headers must match the committed layout, then `TestABILayout` |
-| `test-linkmonitor-parse-guards` | Go-native RDMA parsing rules: rdmanative has no cgo files, no bounds check outside the length hint in each listed decoder file (`bce.txt`), the `-m` report (`escape.txt`), zero-allocation and manifest tests |
+| `test-linkmonitor-parse-guards` | Go-native RDMA parsing rules: no package of go-link-monitor or pkg/linkmonitor has cgo files under any build tag (R4-T02), no bounds check outside the length hint in each listed decoder file (`bce.txt`), the `-m` report (`escape.txt`), zero-allocation and manifest tests |
 | `test-linkmonitor-rdma-capture` | Go-native RDMA capture tooling: the `rdmacapture` redaction and manifest tests, a dry run of `rdma-native-capture` through `rdma-capture-manifest` with no real value left, `TestCaptureManifests` on the result, and a tampered copy that must fail verify |
 | `test-linkmonitor-docs` | Monitor documentation links, metric references and tracker consistency; checker regression tests |
-| `test-linkmonitor-rdma-unit` | Full monitor suite with the `rdma` tag and cgo, then tagged race tests |
-| `test-linkmonitor-rdma-lint` | Tagged vet and unchanged comprehensive lint policy |
-| `test-linkmonitor-rdma-runtime` | Packaged test executable, pinned libibverbs/libibumad/providers, ELF resolution and provider loading |
-| `test-linkmonitor-rdma-build` | Public-library smoke executable, clean runtime closure, four build combinations and explicit missing-sysfs diagnostics with continued host publication |
-| `test-linkmonitor-command` | Full/core executable artifacts, help/version, clean-environment live HTTP/host metrics, signals, shutdown/restart, dependency checks and command tests in all four tag/cgo combinations |
-| `test-linkmonitor-embedding` | Actual xtcp collector coexistence, repeated core/RDMA embedding races, xtcp unit/vet/lint and compiled disposable guest tests |
+| `test-linkmonitor-rdma-unit` | Full monitor suite with `CGO_ENABLED=0`, then race tests (cgo only for the race detector), RDMA fuzzing and benchmarks |
+| `test-linkmonitor-rdma-lint` | Vet, including the VM tags, and unchanged comprehensive lint policy |
+| `test-linkmonitor-rdma-runtime` | Test tooling only: the uapi constant header check and libibmad's PortInfo decoder, which rdmacaps' decode is checked against |
+| `test-linkmonitor-rdma-build` | Public-library smoke executable and the VM test binaries, none with `NEEDED` entries; every remaining tag combination builds with `CGO_ENABLED=0`; explicit missing-sysfs diagnostics with continued host publication |
+| `test-linkmonitor-command` | The single `CGO_ENABLED=0` executable (`go-link-monitor-core` is an alias): help/version, no `NEEDED` entries, no rdma-core and no source tree in its closure (`share/go-link-monitor/source.txt` names the source without referencing it), binary and closure sizes, clean-environment live HTTP/host metrics, signals, shutdown/restart and command tests |
+| `test-linkmonitor-embedding` | Actual xtcp collector coexistence, repeated embedding races, xtcp unit/vet/lint and compiled disposable guest tests |
 
 The aggregate compiles the embedding guest test executables but does not boot a
 VM. Execute the disposable integration gate separately:
@@ -50,29 +50,28 @@ nix run path:.#test-linkmonitor-embedding-vm -- --accel=auto
 `auto` tries KVM and falls back to QEMU software emulation. Use `--accel=tcg`
 to force software execution or `--accel=kvm` to require acceleration. The runner
 has a 15-minute deadline, isolates temporary files, preserves its serial log
-and artifact paths, and requires both core and RDMA guest success sentinels.
+and artifact paths, and requires the guest success sentinel.
 Missing KVM never counts as a passing skipped integration test. The guest tests
 real veth events, classification exclusion, test-only eligible inventory,
 missed-event recovery, baseline ownership and restart in disposable namespaces.
 No host network changes or physical/RDMA hardware claims are involved.
 
 The four RDMA targets and executable gate are defined in `tests/linkmonitor-rdma.nix`.
-They use rdma-core from the existing nixpkgs lock; the eight core gates retain
-their policies and now include the command package. The runtime output contains
-`bin/rdmaevents.test`, `bin/rdmacaps.test`, a `runtime`
-dependency bundle, provider inventory and logs. Device enumeration opens no HCA
-contexts and explicitly does not count as hardware validation. This is a test
-artifact. P07-T03 adds C UMAD
-ownership tests and pinned PortInfo decoder checks, alongside capability fuzzing,
-repeated races and cached-counter benchmarks in the unit target. These software
-checks send no real management packets. Cgo is restricted to the verbs and local
-UMAD adapters; decoding, metric publication and scraping remain Go code. P09
-tracks boundary overhead, including serialized UMAD acquisition/query/cleanup.
+Since R4-T02 (cmd/go-link-monitor/GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md) every
+build is `CGO_ENABLED=0`: RDMA events come from rtnetlink and the NLDEV
+monitor, and InfiniBand PortInfo from a native umad exchange, so no binary
+links libibverbs or libibumad. rdma-core from the existing nixpkgs lock
+remains as test tooling only (the uapi header check, libibmad's PortInfo
+decoder, and `rdma`/`ibv_devinfo` in the VM guests). The build output
+contains the smoke executable and the VM test binaries. Device enumeration
+opens no HCA contexts and explicitly does not count as hardware validation.
+The unit target adds capability fuzzing, repeated races and cached-counter
+benchmarks. These software checks send no real management packets.
 
 ### Monitor performance measurements
 
 `test-linkmonitor-performance` joins the run-all target as its fifteenth leaf.
-It builds core/RDMA benchmark executables and checks equivalence, synthetic
+It builds the `CGO_ENABLED=0` benchmark executables and checks equivalence, synthetic
 lifecycle behavior, races, benchmark probes and report validation with pinned
 tools. Build caching applies to these correctness checks and executables.
 
@@ -84,8 +83,9 @@ remains the cached `test-linkmonitor-performance` leaf:
 |---|---|
 | `nix run path:.#bench-linkmonitor-smoke` | Short runner wiring check; evidence is explicitly smoke-only |
 | `nix run path:.#bench-linkmonitor` | Ten-repetition microbenchmarks and the bounded synthetic scenario matrix |
-| `nix run path:.#bench-linkmonitor-soak` | Fresh core/RDMA ten-minute warmed large-schema profiles and resource samples |
-| `nix run path:.#bench-linkmonitor-rdma-native -- --output DIR` | Go-native RDMA baselines: the cgo `BenchmarkPerformanceCGO` and `BenchmarkPerformanceUMAD` with `-count=10`, CPU and heap `pprof -top`, and `benchstat`; `--native` adds the go-native decoders and the existing rtnetlink decoder baseline; `--smoke` checks the wiring, and `nix build path:.#test-linkmonitor-rdma-native-bench` gates it |
+| `nix run path:.#bench-linkmonitor-soak` | Fresh ten-minute warmed large-schema profiles and resource samples |
+| `nix run path:.#bench-linkmonitor-rdma-native -- --output DIR` | Go-native RDMA benchmarks: the native decoders, event path, netlink receive, umad codec and exchange, and the existing rtnetlink decoder baseline, with `-count=10`, CPU and heap `pprof -top`, and `benchstat`; `--baseline DIR` compares the event path and umad exchange with the committed cgo output of an earlier run (the cgo backends were removed in R4-T02); `--smoke` checks the wiring, and `nix build path:.#test-linkmonitor-rdma-native-bench` gates it |
+| `nix run path:.#bench-linkmonitor-startup -- --output DIR LABEL=BINARY...` | Start-up of whole `go-link-monitor` builds, e.g. this tree against an earlier revision's package: exec to the first healthy `/metrics` reply, `-version` to exit and RSS at ready, alternating runs (`--count`, default 20), compared with `benchstat`. The monitor's logs are not kept, since they name host interfaces |
 | `nix run path:.#siege-linkmonitor -- --url URL --output DIR` | External Siege load: 90% `/metrics`, 5% `/healthz`, 5% `/readyz` |
 | `nix run path:.#profile-linkmonitor -- --url URL --output DIR --profile` | Capture and validate endpoint CPU/heap/block/mutex pprof data |
 | `nix run path:.#pgo-linkmonitor -- --profile CPU.pprof --output BIN` | Build with pinned Go profile-guided optimization |
@@ -125,9 +125,9 @@ bounds within the ten-minute scenario timeout. Actual elapsed time is reported; 
 recovery-latency service-level objective. Recovery must still produce a fresh
 complete reconciliation and the exact expected link count.
 
-These are synthetic source and cgo-boundary measurements, not physical Ethernet,
-RoCE or InfiniBand/provider latency. The UMAD probe simulates buffer allocation
-and copying under the real serialization lane; it performs no management I/O.
+These are synthetic source measurements, not physical Ethernet, RoCE or
+InfiniBand latency. The umad exchange benchmark runs the native transport over
+a socketpair fake device; it performs no management I/O.
 P09-T02 retains detailed profiles, syscall accounting and ten-minute soaks.
 
 For root-only live-netlink tests and reproducible kernel evidence, run the
@@ -142,33 +142,34 @@ four CPUs and 4 GiB of memory, captures rtnetlink traffic through `nlmon0`,
 runs the live tests and representative benchmarks as root, and returns a
 compressed evidence bundle containing the serial log, benchmark output, CPU /
 heap / block / mutex profiles and `netlink.pcap`, plus the go-native RDMA
-cgo baselines and native decoders from `bench-linkmonitor-rdma-native --native` in `rdma-native/`. Set `QEMU_ACCEL=tcg` when KVM
+native benchmarks from `bench-linkmonitor-rdma-native --native` in `rdma-native/`. Set `QEMU_ACCEL=tcg` when KVM
 is unavailable and `LINKMONITOR_BENCHTIME=30s` for a longer profile window.
 The target is an explicit runner rather than a flake check because it needs
 `/dev/kvm` when accelerated and writes evidence outside the Nix store.
 
-Build the standalone artifacts independently:
+Build the standalone artifact:
 
 ```sh
-nix build path:.#go-link-monitor       # Linux full RDMA bindings/providers
-nix build path:.#go-link-monitor-core  # explicitly core-only, CGO disabled
+nix build path:.#go-link-monitor       # CGO_ENABLED=0, RDMA events from netlink
+nix build path:.#go-link-monitor-core  # an alias of the same package
 ```
 
-Both install `bin/go-link-monitor`; `nix run path:.#go-link-monitor -- -help`
+It installs `bin/go-link-monitor`; `nix run path:.#go-link-monitor -- -help`
 prints the flags without opening devices or baseline files. The package retains
-its source provenance under `share/go-link-monitor`. The full package retains
-the pinned provider runtime there as well. The packages do not change the cgo
-configuration of xtcp2 or add monitor OCI/service deployment. Remaining netclass
-metadata coverage and physical RDMA validation are tracked in the monitor STATUS.
+its source provenance under `share/go-link-monitor`. The package does not change
+the cgo configuration of xtcp2 or add monitor OCI/service deployment. Remaining
+netclass metadata coverage and physical RDMA validation are tracked in the
+monitor STATUS.
 
 The opt-in `nix run path:.#test-linkmonitor-rdma-vm` uses the existing microVM
 constructor and serial-log runner for software RoCE discovery/association,
-provider opening, denied uverbs access and deletion/recreation. It requires
+the netlink event source against recorded expectations, denied uverbs access,
+deletion/recreation, native umad, and a strace check that the monitor opens no
+libibverbs, libibumad or provider library. It requires
 accessible `/dev/kvm` and exclusive use of the standard microVM console ports.
 Build it with `nix build path:.#test-linkmonitor-rdma-vm`; it is deliberately
 outside the thirteen-check offline aggregate. Missing KVM is unverified, not pass.
-Real verbs event delivery and native/physical InfiniBand capability validation
-remain separate. Production device classification still excludes virtual links.
+Physical InfiniBand capability validation remains separate. Production device classification still excludes virtual links.
 
 The opt-in `nix run path:.#test-linkmonitor-ionic-vm` boots a qemu-vm.nix guest
 with the `rocm-ernic` flake input's `nixosModules.ernic-guest`, under its

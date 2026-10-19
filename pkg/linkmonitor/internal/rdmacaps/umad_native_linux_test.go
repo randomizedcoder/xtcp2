@@ -481,10 +481,11 @@ func TestUMADExchangeAllocs(t *testing.T) {
 // BenchmarkUMADExchange is one exchange over the fake device: the ioctls are
 // scripted, the write, poll, read and close are real syscalls on a
 // socketpair, and the fake's kernel side answers within the write. Its
-// sub-benchmarks are named as BenchmarkPerformanceUMAD's, the cgo baseline,
-// so benchstat pairs them; contended runs one exchange per goroutine at once,
-// which the cgo lane serializes and native does not (the fake's own lock
-// still serializes its bookkeeping).
+// sub-benchmarks are named as BenchmarkPerformanceUMAD's, the removed cgo
+// backend's baseline (R0-T05's committed output), so benchstat pairs them;
+// contended runs one exchange per goroutine at once, which the cgo lane
+// serialized and native does not (the fake's own lock still serializes its
+// bookkeeping).
 func BenchmarkUMADExchange(b *testing.B) {
 	if runtime.GOMAXPROCS(0) > fakeSlots {
 		b.Skipf("GOMAXPROCS %d exceeds the fake's %d descriptors", runtime.GOMAXPROCS(0), fakeSlots)

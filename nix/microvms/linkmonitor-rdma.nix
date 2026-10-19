@@ -30,6 +30,7 @@ let
       iproute2
       kmod
       rdma-core
+      strace
       util-linux
       systemd
     ];
@@ -50,25 +51,29 @@ let
       echo XTCP2_SELF_TEST_RDMA_DISCOVERY_PASS
       ${artifact}/bin/rdma-vm.test -test.run '^TestSoftwareRDMAEventsSurviveRename$' -test.v
       echo XTCP2_SELF_TEST_RDMA_RENAME_PASS
-      # The go-native differential (R1-T05): verbs and netlink sources side by
-      # side; lm1 is lm0's veth peer, so its down drops lm0's carrier.
+      # The netlink source against the events the verbs backend recorded for
+      # the same triggers in R1-T05; lm1 is lm0's veth peer, so its down drops
+      # lm0's carrier.
       export LINKMONITOR_EVENTS_NETDEV=lm0 LINKMONITOR_EVENTS_RDMA=lm_rxe LINKMONITOR_EVENTS_PEER=lm1
-      ${artifact}/bin/rdma-vm.test -test.run '^TestDifferentialRDMAEvents$' -test.v -test.timeout=5m
-      ${artifact}/bin/rdma-vm.test -test.run '^TestDifferentialRDMAFaults$' -test.v -test.timeout=5m
-      echo XTCP2_SELF_TEST_RDMA_DIFFERENTIAL_PASS
-      # The cgo-free build's monitor runs RDMA events from netlink.
-      ${artifact}/bin/linkmonitor-core-smoke -rdma-events netlink
-      echo XTCP2_SELF_TEST_RDMA_CORE_EVENTS_PASS
-      # The live umad rows (R2-T03), libibumad and native from the cgo build,
-      # native from the cgo-free one: first with ib_umad removed, which a
-      # native query must not load, then with it loaded.
+      ${artifact}/bin/rdma-vm.test -test.run '^TestRDMAEventsRecorded$' -test.v -test.timeout=5m
+      ${artifact}/bin/rdma-vm.test -test.run '^TestRDMAEventsFaults$' -test.v -test.timeout=5m
+      echo XTCP2_SELF_TEST_RDMA_EVENTS_PASS
+      # The monitor runs RDMA events from netlink, and never looks for a verbs
+      # provider: the packaging table's no_provider_dlopen row.
+      opens=$(mktemp)
+      strace -f -qq -e trace=open,openat -o "$opens" ${artifact}/bin/linkmonitor-smoke -rdma-events netlink
+      if grep -E 'libibverbs|libibumad|rdmav' "$opens"; then
+        echo 'the monitor looked for an rdma-core library or provider' >&2
+        exit 1
+      fi
+      echo XTCP2_SELF_TEST_RDMA_SMOKE_EVENTS_PASS
+      # The live umad rows (R2-T03): first with ib_umad removed, which a query
+      # must not load, then with it loaded.
       modprobe -r ib_umad
       for phase in unloaded loaded; do
         if [ "$phase" = loaded ]; then modprobe ib_umad; udevadm settle; fi
-        for test in rdmacaps-vm rdmacaps-vm-native; do
-          LINKMONITOR_UMAD_DEVICE=lm_rxe LINKMONITOR_UMAD_PHASE=$phase \
-            ${artifact}/bin/$test.test -test.run '^TestUMADLive$' -test.v
-        done
+        LINKMONITOR_UMAD_DEVICE=lm_rxe LINKMONITOR_UMAD_PHASE=$phase \
+          ${artifact}/bin/rdmacaps-vm.test -test.run '^TestUMADLive$' -test.v
       done
       echo XTCP2_SELF_TEST_RDMA_UMAD_PASS
       # Permission manipulation is confined to disposable guest fixture nodes.
@@ -78,20 +83,19 @@ let
         exit 1
       fi
       echo XTCP2_SELF_TEST_RDMA_PERMISSION_PASS
-      # The device is deleted while the netlink side holds it. rxe has no
-      # disassociate_ucontext, so unregister waits for open uverbs files and
-      # delivers no DEVICE_FATAL: the verbs side would block the delete. The
-      # ionic guest runs this row with both sides.
-      LINKMONITOR_EVENTS_REMOVE='rdma link delete lm_rxe' LINKMONITOR_EVENTS_REMOVE_BACKENDS=netlink \
-        ${artifact}/bin/rdma-vm.test -test.run '^TestDifferentialRDMARemove$' -test.v -test.timeout=5m
+      # The device is deleted while the event source holds it. rxe has no
+      # disassociate_ucontext, so unregister waits for open uverbs files; the
+      # netlink source holds none, so the delete completes.
+      LINKMONITOR_EVENTS_REMOVE='rdma link delete lm_rxe' \
+        ${artifact}/bin/rdma-vm.test -test.run '^TestRDMAEventsRemove$' -test.v -test.timeout=5m
       ${artifact}/bin/rdma-vm.test -test.run '^TestSoftwareRDMARemoved$' -test.v
       rdma link add lm_rxe type rxe netdev lm0
       udevadm settle
       ${artifact}/bin/rdma-vm.test -test.run '^TestSoftwareRDMADiscovery$' -test.v
       ibv_devinfo -d lm_rxe
       ${artifact}/bin/linkmonitor-smoke
-      # The rescan row: events resume from both sides on the new device.
-      ${artifact}/bin/rdma-vm.test -test.run '^TestDifferentialRDMAEvents$' -test.v -test.timeout=5m
+      # The rescan row: events resume on the new device.
+      ${artifact}/bin/rdma-vm.test -test.run '^TestRDMAEventsRecorded$' -test.v -test.timeout=5m
       echo XTCP2_SELF_TEST_RDMA_RECOVERY_PASS
       # Record every linuxio request shape against the guest kernel; the
       # runner unpacks the dump into replay fixtures (TestRecordedContracts).
@@ -153,8 +157,8 @@ let
     extraSentinels = [
       "RDMA_DISCOVERY"
       "RDMA_RENAME"
-      "RDMA_DIFFERENTIAL"
-      "RDMA_CORE_EVENTS"
+      "RDMA_EVENTS"
+      "RDMA_SMOKE_EVENTS"
       "RDMA_UMAD"
       "RDMA_PERMISSION"
       "RDMA_RECOVERY"

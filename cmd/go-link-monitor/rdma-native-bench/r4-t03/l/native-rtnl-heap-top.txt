@@ -1,0 +1,47 @@
+File: rdmanative.test
+Build ID: 7f56d9ffbf0f8f0ff7e1230d2e175db638aae3aa
+Type: alloc_space
+Time: 2026-10-18 18:34:23 PDT
+Showing nodes accounting for 8960.62kB, 100% of 8960.62kB total
+Showing top 40 nodes out of 46
+      flat  flat%   sum%        cum   cum%
+ 2059.04kB 22.98% 22.98%  2059.04kB 22.98%  runtime.mallocgc
+ 2048.51kB 22.86% 45.84%  2048.51kB 22.86%  testing.(*B).ResetTimer
+ 1762.94kB 19.67% 65.51%  1762.94kB 19.67%  runtime/pprof.StartCPUProfile
+  902.59kB 10.07% 75.59%  1553.21kB 17.33%  compress/flate.NewWriter (inline)
+  650.62kB  7.26% 82.85%   650.62kB  7.26%  compress/flate.(*compressor).init
+  512.88kB  5.72% 88.57%   512.88kB  5.72%  vendor/golang.org/x/net/http2/hpack.init
+  512.05kB  5.71% 94.29%  2065.25kB 23.05%  runtime/pprof.(*profileBuilder).emitLocation
+     512kB  5.71%   100%      512kB  5.71%  sync.(*Pool).pinSlow
+         0     0%   100%  1553.21kB 17.33%  compress/gzip.(*Writer).Write
+         0     0%   100%      512kB  5.71%  fmt.Fprintf
+         0     0%   100%      512kB  5.71%  fmt.newPrinter
+         0     0%   100%  2786.96kB 31.10%  main.main
+         0     0%   100%     1539kB 17.18%  runtime.allocm
+         0     0%   100%   512.88kB  5.72%  runtime.doInit (inline)
+         0     0%   100%   512.88kB  5.72%  runtime.doInit1
+         0     0%   100%  3299.84kB 36.83%  runtime.main
+         0     0%   100%     1539kB 17.18%  runtime.mstart
+         0     0%   100%     1539kB 17.18%  runtime.mstart0
+         0     0%   100%     1539kB 17.18%  runtime.mstart1
+         0     0%   100%     1539kB 17.18%  runtime.newm
+         0     0%   100%  2059.04kB 22.98%  runtime.newobject
+         0     0%   100%   520.04kB  5.80%  runtime.procresize
+         0     0%   100%     1026kB 11.45%  runtime.resetspinning
+         0     0%   100%   520.04kB  5.80%  runtime.rt0_go
+         0     0%   100%   520.04kB  5.80%  runtime.schedinit
+         0     0%   100%     1539kB 17.18%  runtime.schedule
+         0     0%   100%     1539kB 17.18%  runtime.startm
+         0     0%   100%     1539kB 17.18%  runtime.wakep
+         0     0%   100%  2065.25kB 23.05%  runtime/pprof.(*profileBuilder).appendLocsForStack
+         0     0%   100%  2065.25kB 23.05%  runtime/pprof.(*profileBuilder).build
+         0     0%   100%  1553.21kB 17.33%  runtime/pprof.(*profileBuilder).flush
+         0     0%   100%  2065.25kB 23.05%  runtime/pprof.profileWriter
+         0     0%   100%      512kB  5.71%  sync.(*Once).Do (inline)
+         0     0%   100%      512kB  5.71%  sync.(*Once).doSlow
+         0     0%   100%      512kB  5.71%  sync.(*Pool).Get
+         0     0%   100%      512kB  5.71%  sync.(*Pool).pin
+         0     0%   100%      512kB  5.71%  testing.(*B).Run
+         0     0%   100%      512kB  5.71%  testing.(*B).run
+         0     0%   100%      512kB  5.71%  testing.(*B).run.func1
+         0     0%   100%  1536.48kB 17.15%  testing.(*B).run1.func1

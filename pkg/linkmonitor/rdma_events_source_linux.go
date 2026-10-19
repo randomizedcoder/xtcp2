@@ -11,20 +11,13 @@ import (
 
 type rdmaEventFactory func(context.Context, rdmaEventSet) (rdmaevents.Source, error)
 
-// rdmaEventSource joins a port event source, verbs or netlink, with the NLDEV
-// monitor. With verbs, every NLDEV notification is a Topology hint, as the
-// verbs queue reports a device's own fatal error. With netlink, ports is set
-// and an UNREGISTER of a device the source holds is Fatal for it, which the
-// verbs queue would have reported as DEVICE_FATAL.
+// rdmaEventSource joins the netlink port event source with the NLDEV
+// monitor. An UNREGISTER of a device the port map holds is Fatal for it;
+// every other NLDEV notification is a Topology hint.
 type rdmaEventSource struct {
-	verbs         rdmaevents.Source
+	links         rdmaevents.Source
 	notifications *linuxio.RDMANotifications
 	ports         *rdmanative.PortMap
-}
-
-func (s *rdmaEventSource) Covered() bool {
-	coverage, ok := s.verbs.(interface{ Covered() bool })
-	return !ok || coverage.Covered()
 }
 
 func (s *lifecycleSession) openRDMAEvents(ctx context.Context, set rdmaEventSet) (rdmaevents.Source, error) {
@@ -35,20 +28,11 @@ func (s *lifecycleSession) openRDMAEvents(ctx context.Context, set rdmaEventSet)
 	if err != nil {
 		return nil, err
 	}
-	var ports rdmaevents.Source
-	if s.rdmaEventsBackend.resolve() == RDMAEventsNetlink {
-		ports, err = rdmanative.Open(ctx, set.ports)
-	} else {
-		ports, err = rdmaevents.Open(ctx, rdmaevents.NewProvider(s.rdmaFiles().root), set.ids)
-	}
+	links, err := rdmanative.Open(ctx, set.ports)
 	if err != nil {
 		return nil, errors.Join(err, n.Close())
 	}
-	source := &rdmaEventSource{verbs: ports, notifications: n}
-	if s.rdmaEventsBackend.resolve() == RDMAEventsNetlink {
-		source.ports = set.ports
-	}
-	return source, nil
+	return &rdmaEventSource{links: links, notifications: n, ports: set.ports}, nil
 }
 
 func (s *rdmaEventSource) Run(ctx context.Context, emit func(rdmaevents.Event) bool) error {
@@ -60,7 +44,7 @@ func (s *rdmaEventSource) Run(ctx context.Context, emit func(rdmaevents.Event) b
 		cancel()
 		done <- err
 	}()
-	err := s.verbs.Run(child, emit)
+	err := s.links.Run(child, emit)
 	cancel()
 	return errors.Join(err, <-done)
 }
@@ -82,7 +66,7 @@ func (s *rdmaEventSource) notification(n linuxio.RDMANotification) rdmaevents.Ev
 	return rdmaevents.Event{Kind: rdmaevents.Topology}
 }
 
-// errRDMAUnregistered is the cause a netlink-backend Fatal carries.
+// errRDMAUnregistered is the cause an UNREGISTER Fatal carries.
 var errRDMAUnregistered = errors.New("linkmonitor: RDMA device unregistered")
 
-func (s *rdmaEventSource) Close() error { return errors.Join(s.verbs.Close(), s.notifications.Close()) }
+func (s *rdmaEventSource) Close() error { return errors.Join(s.links.Close(), s.notifications.Close()) }

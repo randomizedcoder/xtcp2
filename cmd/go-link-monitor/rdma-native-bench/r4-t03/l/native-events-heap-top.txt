@@ -1,0 +1,47 @@
+File: rdmanative.test
+Build ID: 7f56d9ffbf0f8f0ff7e1230d2e175db638aae3aa
+Type: alloc_space
+Time: 2026-10-18 18:35:09 PDT
+Showing nodes accounting for 11367.76kB, 100% of 11367.76kB total
+Showing top 40 nodes out of 47
+      flat  flat%   sum%        cum   cum%
+ 3084.10kB 27.13% 27.13%  3084.10kB 27.13%  runtime.mallocgc
+ 1584.50kB 13.94% 41.07%  1584.50kB 13.94%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative.newSocketRoute
+ 1536.07kB 13.51% 54.58%  1536.07kB 13.51%  testing.(*B).ResetTimer
+ 1184.27kB 10.42% 65.00%  1184.27kB 10.42%  runtime/pprof.StartCPUProfile
+ 1024.09kB  9.01% 74.01%  1926.68kB 16.95%  runtime/pprof.(*profileBuilder).emitLocation
+ 1024.02kB  9.01% 83.02%  1024.02kB  9.01%  testing.pcToName
+  902.59kB  7.94% 90.96%   902.59kB  7.94%  compress/flate.NewWriter (inline)
+  516.01kB  4.54% 95.50%   516.01kB  4.54%  runtime/pprof.(*profMap).lookup
+  512.12kB  4.50%   100%   512.12kB  4.50%  runtime/pprof.allFrames
+         0     0%   100%   902.59kB  7.94%  compress/gzip.(*Writer).Write
+         0     0%   100%  1584.50kB 13.94%  github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmanative.BenchmarkEventPath.func1
+         0     0%   100%  1184.27kB 10.42%  main.main
+         0     0%   100%   512.05kB  4.50%  runtime.acquireSudog
+         0     0%   100%     2052kB 18.05%  runtime.allocm
+         0     0%   100%   512.05kB  4.50%  runtime.gcBgMarkWorker
+         0     0%   100%   512.05kB  4.50%  runtime.gcMarkDone
+         0     0%   100%  1184.27kB 10.42%  runtime.main
+         0     0%   100%     1026kB  9.03%  runtime.mcall
+         0     0%   100%     1026kB  9.03%  runtime.mstart
+         0     0%   100%     1026kB  9.03%  runtime.mstart0
+         0     0%   100%     1026kB  9.03%  runtime.mstart1
+         0     0%   100%     2052kB 18.05%  runtime.newm
+         0     0%   100%  3084.10kB 27.13%  runtime.newobject
+         0     0%   100%     1026kB  9.03%  runtime.park_m
+         0     0%   100%   520.04kB  4.57%  runtime.procresize
+         0     0%   100%     1539kB 13.54%  runtime.resetspinning
+         0     0%   100%   520.04kB  4.57%  runtime.rt0_go
+         0     0%   100%   520.04kB  4.57%  runtime.schedinit
+         0     0%   100%     2052kB 18.05%  runtime.schedule
+         0     0%   100%   512.05kB  4.50%  runtime.semacquire (inline)
+         0     0%   100%   512.05kB  4.50%  runtime.semacquire1
+         0     0%   100%     2052kB 18.05%  runtime.startm
+         0     0%   100%     2052kB 18.05%  runtime.wakep
+         0     0%   100%   516.01kB  4.54%  runtime/pprof.(*profileBuilder).addCPUData
+         0     0%   100%  2438.80kB 21.45%  runtime/pprof.(*profileBuilder).appendLocsForStack
+         0     0%   100%  2438.80kB 21.45%  runtime/pprof.(*profileBuilder).build
+         0     0%   100%   902.59kB  7.94%  runtime/pprof.(*profileBuilder).flush
+         0     0%   100%  2954.81kB 25.99%  runtime/pprof.profileWriter
+         0     0%   100%  4144.58kB 36.46%  testing.(*B).run1.func1
+         0     0%   100%  4144.58kB 36.46%  testing.(*B).runN

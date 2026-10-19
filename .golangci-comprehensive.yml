@@ -191,7 +191,8 @@ linters:
     # go-native RDMA parsing rules (cmd/go-link-monitor/GO-NATIVE-RDMA-DESIGN.md,
     # "Parsing rules"): decoders read fields at explicit offsets, so the
     # reflection-based packages are denied outside tests. depguard cannot see
-    # import "C"; test-linkmonitor-parse-guards keeps rdmanative cgo-free.
+    # import "C"; test-linkmonitor-parse-guards keeps go-link-monitor and every
+    # pkg/linkmonitor package cgo-free (R4-T02).
     depguard:
       rules:
         rdma-parse:

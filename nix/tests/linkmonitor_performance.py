@@ -121,9 +121,8 @@ def run(args, artifact, output):
                     benchmarks="Performance|StatisticSchema|StatisticCached|HostCollection|RDMA|EventDelivery",
                     seed=0, source=(artifact / "source.txt").read_text().strip(),
                     artifact=str(artifact), go=(artifact / "go-version.txt").read_text().strip(),
-                    benchstat=shutil.which("benchstat"), rdma_runtime=str((artifact / "runtime").resolve()),
-                    variants={"core": "CGO_ENABLED=0; monitor_bench", "rdma": "CGO_ENABLED=1; monitor_bench,rdma",
-                              "rdmaevents": "CGO_ENABLED=1; monitor_bench,rdma", "rdmacaps": "CGO_ENABLED=1; monitor_bench,rdma"},
+                    benchstat=shutil.which("benchstat"),
+                    variants={"core": "CGO_ENABLED=0; monitor_bench"},
                     runtime_settings={"GOGC": "100", "GOMEMLIMIT": "off", "GODEBUG": ""},
                     kernel=platform.uname()._asdict(), affinity=sorted(os.sched_getaffinity(0)),
                     cpuinfo=Path("/proc/cpuinfo").read_text(), status="incomplete")
@@ -146,7 +145,7 @@ def run(args, artifact, output):
                     Mode="stream-cadence", DelayMS=0, WarmupMS=60000, MeasureMS=600000)
         scoped = dict(env, LINKMONITOR_BENCH_SCENARIO=json.dumps(soak))
         reports = {}
-        for variant in ("core", "rdma"):
+        for variant in ("core",):
             profile_dir = output / variant
             profile_dir.mkdir()
             samples = []
@@ -171,7 +170,7 @@ def run(args, artifact, output):
         (output / "commands.json").write_text(json.dumps(commands, indent=2))
         (output / "manifest.json").write_text(json.dumps(manifest, indent=2))
         return
-    for variant in ("core", "rdma", "rdmaevents", "rdmacaps"):
+    for variant in ("core",):
         binary = str(artifact / "bin" / f"{variant}.test")
         common = [binary, "-test.run=^$", f"-test.bench=^Benchmark({manifest['benchmarks']})", "-test.benchmem"]
         commands.append(execute(common + ["-test.benchtime=1x"], output / f"{variant}-warmup.txt", env, 300))
@@ -182,7 +181,7 @@ def run(args, artifact, output):
         compare = [str(args.baseline / f"{variant}.txt")] if args.baseline else []
         commands.append(execute(["benchstat", *compare, str(raw)], output / f"{variant}-benchstat.txt", env, 60))
     reports = {}
-    for variant in ("core", "rdma"):
+    for variant in ("core",):
         for name, scenario in manifest["scenarios"].items():
             log = output / f"{variant}-{name}.txt"
             scoped = dict(env, LINKMONITOR_BENCH_SCENARIO=json.dumps(scenario))
