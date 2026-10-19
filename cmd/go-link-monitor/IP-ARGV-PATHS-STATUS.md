@@ -317,7 +317,8 @@ write-up in IA4-T02.
     nothing. `TestRejectAllocs` now guards four handler-level rows (write
     verb, `-netns`, a `%00`, a query on a command line) at 40 each, with
     no source opened.
-  - `query_form_unchanged`: **not met as written**; for operator review.
+  - `query_form_unchanged`: **not met as written**; a TODO, by the
+    operator's choice.
     The query form costs 5 allocations more when refused and 8–11 more
     when served, 0.4–0.7% more bytes, and 0.6 µs on a refused query.
     Served queries, where netlink and rendering dominate: `addr_json` was
@@ -365,6 +366,18 @@ write-up in IA4-T02.
 | IV016 | 2026-10-19 | IA3-T02 | `nix build --no-link --keep-going path:.#test-linkmonitor-unit path:.#test-linkmonitor-race path:.#test-linkmonitor-lint path:.#test-focused-goip -L`; golangci-lint (comprehensive, `--new-from-rev=HEAD`) | `l`, nix sandbox, 7.2.9 | `6af26576` + working tree | **Fail**: lint, 1 `prealloc` in the new `argvLongPath` helper; unit and race passed | session log, not kept |
 | IV017 | 2026-10-19 | IA3-T02 | the same, after the fix | `l`, nix sandbox, 7.2.9, load 20 | `6af26576` + working tree | Pass: all four leaves, comprehensive lint 0 issues; with `TestArgvResolveAllocs` (7 rows) and four new handler rows in `TestRejectAllocs` | nix store, `--no-link` |
 
+## TODO
+
+Work outside the 12 tasks, kept so it is not lost. IA4-T02 reviews it.
+
+- [ ] Query-form cost (IA3-T02 `query_form_unchanged`, not met as written):
+  against base `f7677018` the query form costs 5 more allocations refused
+  and 8–11 more served, and `route_text` is 6–8% slower. 3 of them are
+  ServeMux routing the `/ip/` subtree, which only exact per-object routes
+  would avoid; the rest are the token slice, nosniff and
+  `Content-Location`. The operator chose to keep going and revisit it
+  later (2026-10-19).
+
 ## Blockers
 
 None.
@@ -385,4 +398,5 @@ None.
 | 2026-10-19 | IA2-T02 done: both forms under `/ip` and `/i`, with canonical `Content-Location`, nosniff, and the new statuses. The operator chose a G705 exclusion scoped to `goiphttp/handler.go`. Found that goip's `route show` lacks prefix and `proto` filters (501), which IA2-T03's examples must account for, and fixed `route show table WORD` (500 → 400). Next: IA2-T03. |
 | 2026-10-19 | IA2-T03 done, so IA2 is done: the `/ip` index carries the rule, the shortest spellings and the examples, each driven through the handler; four examples are goip 501s and marked so. The index is now a JSON object (findings). README, IP-PATHS-DESIGN.md, the flag help and the design's status describe both forms. Next: IA3-T01. |
 | 2026-10-19 | Started IA3. IA3-T01 done: `FuzzArgvPath` and `FuzzFnmatch` are in the fuzz leaf; `fnmatch` needs no cap beyond the token's 255 bytes. Fixed a `Content-Location` that could exceed the path cap (findings). Next: IA3-T02. |
-| 2026-10-19 | IA3-T02 done: `BenchmarkArgvResolve`, command-path cases in `BenchmarkIPHandler`, and allocation guards, compared with base `f7677018`. `/metrics` is unchanged and reading a path costs 2–6 allocations, linear in length. The subtree routes now use `/ip/` instead of `/ip/{argv...}`, which saves 2 allocations per request (plan note updated). The query form's +5 to +11 allocations come from IA2-T02's design and are recorded for operator review (findings). Moved the IV012 and IV013 ledger rows, which IA2-T03 and IA3-T01 had put in the task checklist. Next: IA3-T03. |
+| 2026-10-19 | IA3-T02 done: `BenchmarkArgvResolve`, command-path cases in `BenchmarkIPHandler`, and allocation guards, compared with base `f7677018`. `/metrics` is unchanged and reading a path costs 2–6 allocations, linear in length. The subtree routes now use `/ip/` instead of `/ip/{argv...}`, which saves 2 allocations per request (plan note updated). The query form's +5 to +11 allocations come from IA2-T02's design (findings). Moved the IV012 and IV013 ledger rows, which IA2-T03 and IA3-T01 had put in the task checklist. Next: IA3-T03. |
+| 2026-10-19 | The operator chose to keep going: the query-form cost is a TODO, revisited later. Next: IA3-T03. |
