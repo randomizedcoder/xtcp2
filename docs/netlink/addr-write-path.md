@@ -389,8 +389,10 @@ label is ahead of the broadcast even though `brd` came first in argv.
   `REQUEST|CREATE|ACK` and sends it (`restore_handler`, `:1867`), treating
   `EEXIST` as success. `restore_handler` calls `ll_init_map` for every message,
   but `ll_init_map` (`lib/ll_map.c:388`) has a static guard, so the capture
-  holds **one** link dump (`RTEXT_FILTER_VF|SKIP_STATS|NAME_ONLY`) ahead of the
-  first write, and none after.
+  holds **one** link dump ahead of the first write, and none after. The
+  source tree's mask is `RTEXT_FILTER_VF|SKIP_STATS|NAME_ONLY`, but the `ip`
+  the corpus was captured with sends `RTEXT_FILTER_VF` alone
+  ([status V064](addr-write-path-status.md#verification-ledger)).
 
 ### Show selectors and their wire effect
 

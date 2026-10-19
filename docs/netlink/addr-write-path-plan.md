@@ -777,6 +777,22 @@ Tests: `TestAddrRestoreMatchesIpBytes`
 Done when: both restore slugs match, and EEXIST is ignored, matching `ip`'s
 rc.
 
+As built:
+- `restore` shares showdump's magic check and record loop
+  (`checkDumpMagic`, `readDumpRecords`). At the first whole record it checks
+  `GOIP_WRITE_OUT` and sends `ll_init_map`'s link dump, whose mask is
+  `RTEXT_FILTER_VF` alone in both captures and on the live check, not the
+  source tree's. Each message is built through `BuildWriteRequest` with the
+  saved flags ORed with `0x405` and the next seq; the saved pid is zeroed,
+  as flush's is, and the parity masks it.
+- A magic-only file sends nothing and needs no hook. A record
+  `rtnl_from_file` refuses partway still writes the messages before it,
+  then exits 255. A failed link dump is `ErrDumpTerminated`, exit 1.
+- EEXIST is the kernel's answer to a write goip never sends: goip prints
+  nothing, and its rc is `ip`'s 0.
+- Refused as not implemented: any record that is not `RTM_NEWADDR`, or is
+  shorter than an `ifaddrmsg`. Nothing is written.
+
 #### A9-T03
 
 **Restore and showdump in the matrix.** Depends on: A9-T02, A8-T03.

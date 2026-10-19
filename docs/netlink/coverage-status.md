@@ -373,7 +373,9 @@ Refused with `ErrNotImplemented`: `help`, and `brd +` with no address to
 compute from. `save` and `showdump` are implemented (A9-T01): `save` writes
 the magic and the dump's replies whole, byte-identical to every save
 capture, and `showdump` prints a dump file from stdin, sending nothing.
-`restore` is not started.
+`restore` is a dry run (A9-T02): one link dump, then each saved message,
+flagged `|REQUEST|CREATE|ACK`, to `GOIP_WRITE_OUT`, matching both restore
+captures message for message.
 
 The `goip-parity` matrix has 27 `addr_write_<slug>` rows (A7-T01), one per
 slug that sends a write. Each runs the slug's own topology as its `Setup` and
@@ -6705,8 +6707,8 @@ other combination, with a selector, `dev`, `-s`, `-d` or `-0`, `-o -j` and
 `-br -o`, is refused before any request. Four output-mode matrix rows, `-br`,
 `-o`, `-br -j` and `-o -6 addr show`, are gated (A3-T03). `flush` is a dry
 run (A8-T02), and seven flush rows are gated (A8-T03). `save` and
-`showdump` are implemented (A9-T01), with no matrix rows yet; `restore` is
-not started. The statements in this file that say they are read-only stand
+`showdump` are implemented (A9-T01), and `restore` is a dry run (A9-T02),
+with no matrix rows yet. The statements in this file that say they are read-only stand
 until A9-T03 lands.
 
 The three `route show` forms are **implemented and compared** as of the

@@ -713,11 +713,12 @@ func TestRunAddrArgs(t *testing.T) {
 			wantErrHas:  "Flush requires arguments",
 		},
 		{
-			// restore gets the plain not-implemented message rather than the
-			// read-only one — the distinction is the point. save and
-			// showdump are implemented (addr_save.go).
-			description: "negative: `addr restore` is not implemented, but not called read-only",
-			args:        []string{"addr", "restore"},
+			// An unknown verb gets the plain not-implemented message rather
+			// than the read-only one — the distinction is the point. Every
+			// verb do_ipaddr knows is implemented (save, showdump and restore
+			// in addr_save.go and addr_restore.go).
+			description: "negative: an unknown `addr bogus` is not implemented, but not called read-only",
+			args:        []string{"addr", "bogus"},
 			wantExit:    ExitUsage,
 			wantErrHas:  "not implemented",
 		},

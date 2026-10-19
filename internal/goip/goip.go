@@ -230,7 +230,8 @@ func exitCodeOf(err error) int {
 	case errors.Is(err, ErrFlushIncomplete), errors.Is(err, ErrDumpFile):
 		return ExitMinusOne
 	case errors.Is(err, ErrNotImplemented), errors.Is(err, ErrInvalidArgument),
-		errors.Is(err, ErrWriteNotApplied), errors.Is(err, ErrSaveTerminated):
+		errors.Is(err, ErrWriteNotApplied), errors.Is(err, ErrSaveTerminated),
+		errors.Is(err, ErrDumpTerminated):
 		return ExitUsage
 	}
 	return ExitFailure

@@ -378,6 +378,16 @@ func NeighShowDump(family, ndmFlags uint8, ifindex, seq uint32) ([]byte, error) 
 	return xtcpnl.BuildDumpNeighRequestFilter(family, ndmFlags, ifindex, seq)
 }
 
+// AddrRestoreLinkDump is ll_init_map's link dump, which `ip addr restore`
+// sends once, ahead of its first write (ip/ipaddress.c:1874). The iproute2
+// source tree's ll_init_map (lib/ll_map.c:395-398) asks for
+// RTEXT_FILTER_VF|SKIP_STATS|NAME_ONLY, but the `ip` the corpus was captured
+// with sends RTEXT_FILTER_VF alone (restore_fresh's first request, mask 1), so
+// it is NeighShowLinkDump's request and moves with it on an iproute2 bump.
+func AddrRestoreLinkDump(seq uint32) ([]byte, error) {
+	return xtcpnl.BuildDumpLinkRequestExt(unix.AF_UNSPEC, xtcpnl.RTEXT_FILTER_VF, seq)
+}
+
 // NeighShowLinkDump is ll_init_map's link dump before a neighbor dump. Unlike
 // link/addr show it requests VF information but does not set SKIP_STATS.
 func NeighShowLinkDump(seq uint32) ([]byte, error) {
