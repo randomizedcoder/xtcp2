@@ -114,7 +114,7 @@ Deliver:
 | `chain_order_citation` | corner | A table test walks every chain against a transcription of iproute2's order | Every chain equals its transcription |
 
 Done when: `nix build --no-link path:.#test-focused-goip -L` passes, and
-`nix run path:.#microvm-x86_64-goip-parity -- --accel=auto` shows no
+`env -u LD_LIBRARY_PATH nix run path:.#microvm-x86_64-goip-parity` shows no
 regression against its last recorded run.
 
 ### IA1 — goip resolver
@@ -464,7 +464,7 @@ design plus every IA2-T02 positive row, compares `curl` with:
 | `prefix_join_live` | boundary | A route added in the guest for `10.0.0.0/8`, fetched with `/ip/route/show/10.0.0.0/8` | The route is listed |
 | `iface_named_show_live` | corner | A dummy link named `show` | `/ip/link/show/dev/show` returns it |
 
-Done when: `env -u LD_LIBRARY_PATH nix run path:.#<vm-leaf> -- --accel=auto`
+Done when: `env -u LD_LIBRARY_PATH nix run path:.#<vm-leaf>`
 prints PASS, run one VM at a time after checking `uptime` and `ss -ltn`.
 
 #### IA4-T02
