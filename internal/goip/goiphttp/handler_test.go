@@ -369,6 +369,25 @@ func TestRejectAllocs(t *testing.T) {
 	if c.opens.Load() != 0 {
 		t.Errorf("bad-parameter request opened %d sources", c.opens.Load())
 	}
+
+	// The tokenizer takes no opener, so a path it refuses never reaches a
+	// socket; these rows bound what refusing costs.
+	for _, tc := range []struct {
+		name, category, description, path string
+		expected                          float64
+	}{
+		{"argv_control_byte", "negative", "a %00 is refused", "link/show/dev/a%00", 8},
+		{"argv_empty_segment", "negative", "an empty segment is refused", "link//show", 8},
+		{"argv_join_range", "boundary", "an IPv4 /33 is refused", "route/show/10.0.0.0/33", 8},
+		{"argv_accepted", "positive", "an accepted path costs its token slice", "addr/show/dev/eth0", 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			allocs := testing.AllocsPerRun(100, func() { _, _ = tokens(tc.path) })
+			if allocs > tc.expected {
+				t.Errorf("%s: %s: %.0f allocs, want <= %.0f", tc.category, tc.description, allocs, tc.expected)
+			}
+		})
+	}
 }
 
 // TestRegisterMethods covers the method check Register does in place of a
