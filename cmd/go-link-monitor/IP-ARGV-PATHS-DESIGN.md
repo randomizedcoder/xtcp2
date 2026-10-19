@@ -1,7 +1,9 @@
 # `ip` command lines as paths: `/ip/addr/show/dev/eth0`
 
-Status: design, reviewed 2026-10-19; nothing here is implemented yet. It builds on the
-`/ip` paths of [IP-PATHS-DESIGN.md](IP-PATHS-DESIGN.md), which serve
+Status: implemented (IA0-IA2, see
+[IP-ARGV-PATHS-STATUS.md](IP-ARGV-PATHS-STATUS.md)); hardening and VM parity
+in progress. It builds on the `/ip` paths of
+[IP-PATHS-DESIGN.md](IP-PATHS-DESIGN.md), which serve
 `/ip/OBJECT?selector=value`.
 
 Every Linux operator already knows `ip`. The proposal is that they should
@@ -35,15 +37,18 @@ ip [OPTIONS] OBJECT [VERB [ARGS...]]   ->   /ip/[OPTIONS/]OBJECT[/VERB[/ARGS...]
 | `ip addr show dev eth0` | `/ip/addr/show/dev/eth0`, `/i/a/s/dev/eth0` |
 | `ip -br a` | `/ip/-br/a`, `/i/-brief/address` |
 | `ip -j -s link show dev enp1s0` | `/ip/-j/-s/link/show/dev/enp1s0` |
-| `ip -4 route show table all proto bgp` | `/ip/-4/route/show/table/all/proto/bgp`, `/i/-4/r/s/table/all/proto/bgp` |
+| `ip -4 route show table all proto bgp` | `/ip/-4/route/show/table/all/proto/bgp`, `/i/-4/r/s/table/all/proto/bgp` (501 until goip parses `proto`) |
 | `ip addr show up scope global` | `/ip/addr/show/up/scope/global` |
-| `ip neigh show nud reachable` | `/ip/neigh/show/nud/reachable`, `/i/n/s/nud/reachable` |
-| `ip -d link show type vxlan` | `/ip/-d/link/show/type/vxlan` |
-| `ip route show 10.0.0.0/8` | `/ip/route/show/10.0.0.0/8`, `/ip/route/show/10.0.0.0%2F8` (section 4) |
+| `ip neigh show nud reachable` | `/ip/neigh/show/nud/reachable`, `/i/n/s/nud/reachable` (501 until goip parses `nud`) |
+| `ip -d link show type vxlan` | `/ip/-d/link/show/type/vxlan` (501 until goip parses `type`) |
+| `ip route show 10.0.0.0/8` | `/ip/route/show/10.0.0.0/8`, `/ip/route/show/10.0.0.0%2F8` (section 4; 501 until goip parses a prefix) |
 
 Every command in the table was checked against `ip` on a live host. The
 response is the text the command prints. Add `-j` to get JSON, as on the
-command line (section 4).
+command line (section 4). The `/ip` index lists these examples, and
+`TestIndexExamples` drives each through the handler: four are valid `ip`
+that goip does not parse yet, so they are a 501 naming the keyword (step 7),
+and the index marks them `not_served`.
 
 ## 2. Short and long forms, everywhere
 
@@ -173,7 +178,8 @@ walking the tree: the shortest prefix whose first match is that keyword. The
    exactly what `ip` accepts, so a bad selector is a 400 whose body is
    `ip`'s own error message. A keyword goip does not parse yet is a 501
    naming it: `route show` reads only `table`, `dev` and `oif` today, so a
-   prefix or `proto` is a 501 until goip has it.
+   prefix or `proto` is a 501 until goip has it; so are `neigh show nud`
+   and `link show type`.
 
 Each token is 1 to 255 bytes, with no whitespace, control characters or
 U+FFFD. A path has at most 32 tokens and 1024 bytes. Query parameters are a

@@ -2,7 +2,7 @@
 
 Last updated: 2026-10-19.
 
-**In progress: 6 of 12 implementation tasks done.** The design was reviewed
+**In progress: 7 of 12 implementation tasks done.** The design was reviewed
 on 2026-10-19 and its decisions are recorded below.
 
 This document tracks
@@ -46,6 +46,7 @@ for the design in [IP-ARGV-PATHS-DESIGN.md](IP-ARGV-PATHS-DESIGN.md).
 | 2026-10-19 | A bare object path (`/ip/link`, `/i/l`) stays the query form with its JSON default; a path is a command line only with an option, or a verb after the object | Operator |
 | 2026-10-19 | All tasks land on one branch, one commit per task, one PR at the end | Operator |
 | 2026-10-19 | A verb that reads but is not the listing (`save`, `get`, `help`) is refused as not implemented (501), not as a write (400) | Implementation, IA1-T01; for operator review |
+| 2026-10-19 | The design's examples that goip cannot serve yet stay in the index, marked `not_served` with the gap, and `TestIndexExamples` holds them to a 501 until goip parses the keyword | Implementation, IA2-T03, the recommended option; for operator review |
 | 2026-10-19 | gosec G705 (XSS taint) on goiphttp's response writer is excluded for `handler.go` only, in golangci and in the standalone gosec check, because `ip`'s bytes cannot be escaped; every `/ip` response carries `X-Content-Type-Options: nosniff` instead | Operator, IA2-T02 |
 
 ## Phase summary
@@ -54,7 +55,7 @@ for the design in [IP-ARGV-PATHS-DESIGN.md](IP-ARGV-PATHS-DESIGN.md).
 |---|---|---|---|---|
 | IA0 | Groundwork | done | 2/2 | IV001–IV005, IV007–IV008 |
 | IA1 | goip resolver | done | 2/2 | IV006, IV009 |
-| IA2 | HTTP paths | in progress | 2/3 | IV010, IV011 |
+| IA2 | HTTP paths | done | 3/3 | IV010–IV012 |
 | IA3 | Hardening and performance | not started | 0/3 | — |
 | IA4 | Verification and release | not started | 0/2 | — |
 
@@ -71,7 +72,8 @@ here.
 | [x] | [IA1-T02](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia1-t02) | `ShowRequest` options | done | IV009 |
 | [x] | [IA2-T01](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia2-t01) | Path tokenizer | done | IV010 |
 | [x] | [IA2-T02](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia2-t02) | Routing and both forms | done | IV011 |
-| [ ] | [IA2-T03](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia2-t03) | Index and docs | not started | — |
+| IV012 | 2026-10-19 | IA2-T03 | `nix build --no-link path:.#test-linkmonitor-unit path:.#test-linkmonitor-docs path:.#test-linkmonitor-lint -L`; golangci-lint (comprehensive, `--new-from-rev=HEAD`): 0 issues | `l`, nix sandbox, 7.2.9 | `0d20c2e9` + working tree | Pass, with `TestIndex` (6 rows) and `TestIndexExamples` (12 examples, 4 marked `not_served`) | nix store, `--no-link` |
+| [x] | [IA2-T03](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia2-t03) | Index and docs | done | IV012 |
 | [ ] | [IA3-T01](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia3-t01) | Fuzzing and the pattern worst case | not started | — |
 | [ ] | [IA3-T02](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia3-t02) | Benchmarks | not started | — |
 | [ ] | [IA3-T03](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia3-t03) | Handler fuzzing | not started | — |
@@ -218,6 +220,25 @@ write-up in IA4-T02.
     (`/in` is fine).
   - A mutation reading every second token as the interface shortcut failed
     10 `TestHandler` rows, `i_l_s_set` among them.
+- IA2-T03 (index and docs):
+  - The `/ip` index changed shape: it was a JSON array of objects, and is
+    now one JSON object with `rule`, `query_rule`, `objects` (the old array,
+    unchanged), `shortest` and `examples`. A client of #237's index reads
+    `.objects` instead of `.`. `shortest` is a map, so `encoding/json`
+    writes it in key order and two builds are byte-identical
+    (`index_stable`).
+  - `TestIndexExamples` drives all 12 examples through the mux and checks
+    each `X-Goip-Argv`. It found a fourth goip gap: `link show type` is a
+    501, so `/ip/-d/link/show/type/vxlan` is marked with the route `proto`,
+    route prefix and `neigh show nud` examples. A mutation that dropped
+    one mark failed the test with goip's 501 message.
+  - The test source answers single gets with `ENODEV`, as a kernel without
+    the device does, so `dev eth0` examples are a 404. With dumps alone,
+    goip's name lookup says `link "eth0" not found`, which has no sentinel
+    and is a 500; on a live host the get comes first. IA4-T01's VM run
+    checks the live path.
+  - The flag help, its DESIGN.md mirror, the README and IP-PATHS-DESIGN.md
+    describe both forms; the design's status line reads implemented.
 
 ## Evidence ledger
 
@@ -253,3 +274,4 @@ None.
 | 2026-10-19 | IA1-T02 done, so IA1 is done: `ShowRequest` carries `-br`, `-o` and the `-s` count, and `Show` refuses unsupported combinations with `Run`'s messages. Next: IA2-T01. |
 | 2026-10-19 | Started IA2. IA2-T01 done: the path tokenizer, with the plan's rows plus join and limit corners. Next: IA2-T02. |
 | 2026-10-19 | IA2-T02 done: both forms under `/ip` and `/i`, with canonical `Content-Location`, nosniff, and the new statuses. The operator chose a G705 exclusion scoped to `goiphttp/handler.go`. Found that goip's `route show` lacks prefix and `proto` filters (501), which IA2-T03's examples must account for, and fixed `route show table WORD` (500 → 400). Next: IA2-T03. |
+| 2026-10-19 | IA2-T03 done, so IA2 is done: the `/ip` index carries the rule, the shortest spellings and the examples, each driven through the handler; four examples are goip 501s and marked so. The index is now a JSON object (findings). README, IP-PATHS-DESIGN.md, the flag help and the design's status describe both forms. Next: IA3-T01. |

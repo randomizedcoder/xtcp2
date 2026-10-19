@@ -569,7 +569,7 @@ Standalone command flags:
 | `-metrics.core-exclude` | empty | Anchored regexp removed from `/metrics`, empty removes nothing; overrides GO_LINK_MONITOR_METRICS_CORE_EXCLUDE |
 | `-metrics-all-path` | `/metrics-all` | Exact path serving every metric, empty disables; overrides GO_LINK_MONITOR_METRICS_ALL_PATH |
 | `-metrics-all-addr` | empty | Separate listener for the all-metrics path, empty shares `-metrics-addr`; overrides GO_LINK_MONITOR_METRICS_ALL_ADDR |
-| `-ip.paths` | false | Serve read-only `ip -j OBJECT show` on `/ip/OBJECT` ([IP-PATHS-DESIGN.md](IP-PATHS-DESIGN.md)); overrides GO_LINK_MONITOR_IP_PATHS |
+| `-ip.paths` | false | Serve read-only `ip … show` on `/ip` and `/i`: command lines as paths (`/ip/addr/show/dev/eth0`, `/i/a/s`, [IP-ARGV-PATHS-DESIGN.md](IP-ARGV-PATHS-DESIGN.md)) and the JSON query form (`/ip/OBJECT`, [IP-PATHS-DESIGN.md](IP-PATHS-DESIGN.md)); overrides GO_LINK_MONITOR_IP_PATHS |
 | `-ip.max-bytes` | `33554432` | Largest `/ip` response body, positive; overrides GO_LINK_MONITOR_IP_MAX_BYTES |
 | `-admin.address` | empty | Admin gRPC socket path or TCP address, empty disables; overrides GO_LINK_MONITOR_ADMIN_ADDR |
 | `-admin.network` | `unix` | `unix` or `tcp`; overrides GO_LINK_MONITOR_ADMIN_NETWORK |

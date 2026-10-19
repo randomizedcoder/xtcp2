@@ -1,7 +1,9 @@
 # `/ip` paths: `ip … show` over HTTP
 
-Proposed next: `ip` command lines as paths (`/i/a/s/dev/eth0`), see
-[IP-ARGV-PATHS-DESIGN.md](IP-ARGV-PATHS-DESIGN.md).
+Implemented alongside this query form: `ip` command lines as paths
+(`/ip/addr/show/dev/eth0`, `/i/a/s`), see
+[IP-ARGV-PATHS-DESIGN.md](IP-ARGV-PATHS-DESIGN.md). Both forms share the
+`/ip` and `/i` roots, the slots, the size cap and the status codes below.
 
 go-link-monitor can serve the read-only `ip OBJECT show` output of its host,
 so an operator can `curl host:9101/ip/addr | jq` instead of ssh'ing in to run
@@ -22,7 +24,7 @@ Every path is on `-metrics-addr`, answers GET and HEAD only (anything else is
 
 | Path | Equivalent | Query parameters besides `format` |
 |---|---|---|
-| `/ip` | — | Index: each path, its `ip` command and its parameters (JSON) |
+| `/ip`, `/i` | — | Index (JSON): the command-line rule, this form's rule, each path with its `ip` command and parameters, the shortest spelling of every object and show verb, and examples |
 | `/ip/link` | `ip -j link show` | `dev`, `stats`, `details` |
 | `/ip/addr` | `ip -j address show` | `dev`, `family=inet\|inet6\|link`, `stats`, `details` |
 | `/ip/route` | `ip -j route show` | `table=main\|local\|default\|all\|N`, `dev`, `family`, `stats`, `details` |
@@ -36,6 +38,12 @@ Every path is on `-metrics-addr`, answers GET and HEAD only (anything else is
 | `/ip/stats` | `ip -j stats show` | `dev`, `group`, `subgroup`, `suite` |
 | `/ip/OBJECT/INTERFACE` | `… show dev INTERFACE` | Every object that takes `dev`; as `/metrics/CATEGORY/INTERFACE` |
 
+The object is abbreviated as `ip` abbreviates it, so `/i/a?dev=eth0` is
+`/ip/addr?dev=eth0`. A segment after the object that is one of its verbs
+makes the path a command line instead: `/ip/link/show` is `ip link show`,
+and an interface named like a verb (`s`, `show`, `list`) needs
+`/ip/link/show/dev/NAME`.
+
 - `format=json` (the default) is `application/json` in the `ip -j` schema;
   `format=text` is `text/plain` identical to `ip` without `-j`.
 - `stats`, `details` and the flag selectors (`proxy`, `groups`, `fdb`) accept
@@ -44,17 +52,20 @@ Every path is on `-metrics-addr`, answers GET and HEAD only (anything else is
   `..`, no `/`, whitespace or control characters.
 - An unknown parameter, a repeated one, or one the object does not take is a
   400, never ignored.
-- Every response carries `Cache-Control: no-store` and `X-Goip-Argv`, the `ip`
-  command it is equivalent to, for example `ip -j address show dev eth0`.
+- Every response carries `Cache-Control: no-store`,
+  `X-Content-Type-Options: nosniff` and `X-Goip-Argv`, the `ip` command it is
+  equivalent to, for example `ip -j address show dev eth0`. A 200 also
+  carries `Content-Location`, the canonical command-line path, which every
+  spelling of the request shares.
 
 | Status | Meaning |
 |---|---|
 | 200 | The document |
 | 400 | A bad parameter, or one `ip` itself rejects |
 | 401 | Read auth is on and the request lacks the credential |
-| 404 | The interface does not exist, or the object is not a path |
+| 404 | The interface does not exist, or the object is not one of `ip`'s |
 | 405 | A method other than GET or HEAD |
-| 501 | A part of the object goip does not render yet; the body names it |
+| 501 | An object, or a part of one, goip does not render yet (`/ip/tunnel`); the body names it |
 | 503 | Two `/ip` requests are already running, or the dump was interrupted twice |
 | 504 | The kernel did not answer within 5s |
 | 500 | Anything else, including a body over `-ip.max-bytes` |
@@ -70,8 +81,8 @@ the status is written.
 | `-ip.paths` | false | Serve the `/ip` paths; overrides `GO_LINK_MONITOR_IP_PATHS` |
 | `-ip.max-bytes` | 33554432 | Largest response body (positive); overrides `GO_LINK_MONITOR_IP_MAX_BYTES` |
 
-`-metrics-all-path` may not be `/ip` or under it while the paths share its
-listener.
+`-metrics-all-path` may not be `/ip`, `/i` or under either while the paths
+share its listener.
 
 ## Security
 
@@ -117,14 +128,22 @@ curl -s :9101/ip/link | jq -r '.[] | select(.mtu != 9000) | .ifname'
 # addresses per interface
 curl -s :9101/ip/addr | jq -r '.[] | "\(.ifname) \([.addr_info[] | "\(.local)/\(.prefixlen)"] | join(" "))"'
 
-# one interface, as ip prints it
+# one interface, as ip prints it: the command line, or the query form
+curl -s :9101/ip/addr/show/dev/eth0
 curl -s ':9101/ip/addr/eth0?format=text'
 
-# every routing table
-curl -s ':9101/ip/route?table=all' | jq .
+# ip -br a, abbreviated as on the command line
+curl -s :9101/i/-br/a
+
+# every IPv4 routing table, as JSON
+curl -s :9101/i/-j/-4/r/s/table/all | jq .
+
+# the shortest spelling of each object and show verb
+curl -s :9101/ip | jq .shortest
 
 # compare with ip on the host
 diff <(curl -s :9101/ip/addr | jq -S .) <(ip -j addr show | jq -S .)
+diff <(curl -s :9101/i/a/s) <(ip a s)
 
 # with read auth on
 curl -s -H "Authorization: Bearer $(cat /run/secrets/read-token)" :9101/ip/addr
@@ -136,10 +155,13 @@ curl -s -H "Authorization: Bearer $(cat /run/secrets/read-token)" :9101/ip/addr
   `ErrNoSuchDevice` for the 404s. `Run` and `Show` build their context the
   same way, so `Show(r)` and `ip r.Argv()` print the same bytes; `TestShow`
   checks this.
+- `internal/goip/resolve.go`: `ResolveShow`, which turns a command line into
+  a `ShowRequest` with `ip`'s own option, object and verb order, refusing
+  write verbs; and `Shortest`, the shortest spelling of each keyword.
 - `internal/goip/goiphttp`: the registry (paths, parameters, validation), the
-  index, and the handler (slots, socket per request, size cap, status
-  mapping). It is a separate package so `xtcp2` can mount the same paths
-  later.
+  path tokenizer (`argv.go`), the index (`index.go`), and the handler (both
+  forms, slots, socket per request, size cap, status mapping). It is a
+  separate package so `xtcp2` can mount the same paths later.
 - `cmd/go-link-monitor/ip.go`: mounts the handler on the main listener when
   `-ip.paths` is on, behind the same auth and timeout wrap as the metrics
   routes.

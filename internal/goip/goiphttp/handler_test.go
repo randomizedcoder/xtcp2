@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -66,6 +68,12 @@ func (e *errSource) next() error {
 }
 
 func (e *errSource) Dump([]byte, uint16) ([][]byte, error) { return nil, e.next() }
+
+// noDevSource is an errSource whose single gets fail as a kernel without
+// the device fails them.
+type noDevSource struct{ *errSource }
+
+func (noDevSource) Talk([]byte, uint16) ([]byte, error) { return nil, unix.ENODEV }
 
 func errOpener(src goip.Source) Opener {
 	return func() (goip.Source, func() error, error) { return src, func() error { return nil }, nil }
@@ -537,27 +545,139 @@ func TestNew(t *testing.T) {
 	}
 }
 
-// TestIndex checks the index document against the registry.
+// TestIndex checks the index document: the registry's objects, the
+// shortest spellings, the refused query and a stable build.
+//
+// go test ./internal/goip/goiphttp/ -run TestIndex
 func TestIndex(t *testing.T) {
 	h, err := New(Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	var entries []indexEntry
-	if err := json.Unmarshal(h.index, &entries); err != nil {
+	var doc indexDoc
+	if err := json.Unmarshal(h.index, &doc); err != nil {
 		t.Fatal(err)
 	}
-	if len(entries) != len(objects) {
-		t.Fatalf("index has %d entries, registry %d", len(entries), len(objects))
+	tests := []struct {
+		name        string
+		category    string
+		description string
+		// expected: check returns "" when the index holds.
+		expected func() string
+	}{
+		{
+			name: "index_lists_shortest", category: "positive",
+			description: "/ip lists address: a and link show: sh, as goip.Shortest has them",
+			expected: func() string {
+				if doc.Shortest["address"] != "a" || doc.Shortest["link show"] != "sh" {
+					return fmt.Sprintf("address %q, link show %q", doc.Shortest["address"], doc.Shortest["link show"])
+				}
+				if !maps.Equal(doc.Shortest, goip.Shortest()) {
+					return "shortest differs from goip.Shortest()"
+				}
+				return ""
+			},
+		},
+		{
+			name: "index_every_object", category: "positive",
+			description: "every object goip shows is an entry, in registry order, with its parameters",
+			expected: func() string {
+				if len(doc.Objects) != len(objects) || len(objects) != len(goip.ShowObjects()) {
+					return fmt.Sprintf("index %d, registry %d, goip %d", len(doc.Objects), len(objects), len(goip.ShowObjects()))
+				}
+				for i, e := range doc.Objects {
+					o := objects[i]
+					if e.Path != Prefix+"/"+o.path || (e.InterfacePath != "") != o.devPath || len(e.Params) != len(o.params)+1 {
+						return fmt.Sprintf("entry %d %+v does not match %s", i, e, o.path)
+					}
+				}
+				return ""
+			},
+		},
+		{
+			name: "index_rules", category: "positive",
+			description: "both forms' rules and every example are in the index",
+			expected: func() string {
+				if doc.Rule != commandRule || doc.QueryRule != queryRule || !slices.Equal(doc.Examples, examples) {
+					return fmt.Sprintf("rule %q, query rule %q, %d examples", doc.Rule, doc.QueryRule, len(doc.Examples))
+				}
+				return ""
+			},
+		},
+		{
+			name: "index_query_refused", category: "negative",
+			description: "/ip?x=1 is a 400, as before",
+			expected: func() string {
+				mux := http.NewServeMux()
+				h.Register(mux, nil)
+				rec := httptest.NewRecorder()
+				mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/ip?x=1", nil))
+				if rec.Code != http.StatusBadRequest {
+					return fmt.Sprintf("status %d", rec.Code)
+				}
+				return ""
+			},
+		},
+		{
+			name: "index_stable", category: "boundary",
+			description: "two builds are byte-identical: the shortest map is written in key order",
+			expected: func() string {
+				again, err := indexDocument()
+				if err != nil || !bytes.Equal(again, h.index) {
+					return fmt.Sprintf("rebuild differs (%v)", err)
+				}
+				return ""
+			},
+		},
+		{
+			name: "index_paths", category: "corner",
+			description: "Paths()[0] is the long root, for the startup log",
+			expected: func() string {
+				if paths := h.Paths(); paths[0] != Prefix {
+					return fmt.Sprintf("Paths()[0] = %q", paths[0])
+				}
+				return ""
+			},
+		},
 	}
-	for i, e := range entries {
-		o := objects[i]
-		if e.Path != Prefix+"/"+o.path || (e.InterfacePath != "") != o.devPath || len(e.Params) != len(o.params)+1 {
-			t.Errorf("entry %d %+v does not match %s", i, e, o.path)
-		}
+	for _, tt := range tests {
+		t.Run(tt.category+"/"+tt.name, func(t *testing.T) {
+			if msg := tt.expected(); msg != "" {
+				t.Errorf("%s: %s", tt.description, msg)
+			}
+		})
 	}
-	if paths := h.Paths(); paths[0] != Prefix {
-		t.Errorf("Paths()[0] = %q", paths[0])
+}
+
+// TestIndexExamples drives every example in the index through the handler
+// (index_examples_resolve): each carries its stated command as X-Goip-Argv,
+// and runs, or is the 501 its NotServed names. The source answers every
+// dump with nothing and every get with ENODEV, as a kernel without the
+// device does, so a dev selector is a 404.
+//
+// go test ./internal/goip/goiphttp/ -run TestIndexExamples
+func TestIndexExamples(t *testing.T) {
+	h, err := New(Options{Open: errOpener(noDevSource{&errSource{}})})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mux := http.NewServeMux()
+	h.Register(mux, nil)
+	for _, ex := range examples {
+		t.Run(strings.TrimPrefix(ex.Path, "/"), func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, ex.Path, nil))
+			if got := rec.Header().Get(ArgvHeader); got != ex.Command {
+				t.Errorf("%s: %s = %q, want %q (status %d: %s)", ex.Path, ArgvHeader, got, ex.Command, rec.Code, rec.Body)
+			}
+			served := rec.Code == http.StatusOK || rec.Code == http.StatusNotFound
+			switch {
+			case ex.NotServed != "" && rec.Code != http.StatusNotImplemented:
+				t.Errorf("%s: status %d, want 501 (%s): goip serves it now, so drop NotServed", ex.Path, rec.Code, ex.NotServed)
+			case ex.NotServed == "" && !served:
+				t.Errorf("%s: status %d: %s", ex.Path, rec.Code, rec.Body)
+			}
+		})
 	}
 }
 

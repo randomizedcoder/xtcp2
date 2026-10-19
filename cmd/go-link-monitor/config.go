@@ -185,7 +185,7 @@ func defineExposureFlags(flags *flag.FlagSet, o *exposureOptions, categories *st
 	flags.BoolVar(&o.interfacePaths, "metrics.interface-paths", true,
 		"Serve one interface of each category path and of the all-metrics path on PATH/INTERFACE; overrides "+interfacePathsEnviron)
 	flags.BoolVar(&o.ipPaths, "ip.paths", false,
-		"Serve read-only `ip -j OBJECT show` output on "+goiphttp.Prefix+"/OBJECT (link, addr, route, neigh, ...); exposes addresses, routes and neighbors, so pair it with read auth or a loopback -metrics-addr; overrides "+ipPathsEnvironment)
+		"Serve read-only `ip … show` on "+goiphttp.Prefix+" and "+goiphttp.ShortPrefix+": command lines as paths ("+goiphttp.Prefix+"/addr/show/dev/eth0, "+goiphttp.ShortPrefix+"/a/s) and the JSON query form ("+goiphttp.Prefix+"/OBJECT); exposes addresses, routes and neighbors, so pair it with read auth or a loopback -metrics-addr; overrides "+ipPathsEnvironment)
 	flags.IntVar(&o.ipMaxBytes, "ip.max-bytes", goiphttp.DefaultMaxBytes,
 		"Largest "+goiphttp.Prefix+" response body in bytes (positive); overrides "+ipMaxBytesEnvironment)
 	return []envFallback{

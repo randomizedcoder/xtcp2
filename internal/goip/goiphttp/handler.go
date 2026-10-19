@@ -388,34 +388,3 @@ func writeError(w http.ResponseWriter, status int, err error, argv string, text 
 	w.WriteHeader(status)
 	send(w, append(b, '\n'))
 }
-
-// indexEntry is one object in the /ip index.
-type indexEntry struct {
-	Path          string   `json:"path"`
-	InterfacePath string   `json:"interface_path,omitempty"`
-	Command       string   `json:"command"`
-	Params        []string `json:"params"`
-}
-
-func indexDocument() ([]byte, error) {
-	entries := make([]indexEntry, 0, len(objects))
-	for _, o := range objects {
-		e := indexEntry{
-			Path:    Prefix + "/" + o.path,
-			Command: "ip -j " + o.object + " show",
-			Params:  []string{formatParam},
-		}
-		if o.devPath {
-			e.InterfacePath = e.Path + "/{interface}"
-		}
-		for _, p := range o.params {
-			e.Params = append(e.Params, p.name)
-		}
-		entries = append(entries, e)
-	}
-	b, err := json.Marshal(entries)
-	if err != nil {
-		return nil, fmt.Errorf("goiphttp: index: %w", err)
-	}
-	return append(b, '\n'), nil
-}
