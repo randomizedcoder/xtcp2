@@ -203,6 +203,20 @@ let
       check /ip/link/show/nosuch0 404
       echo GOIP_ARGV_PATHS_IFACE_SHOW_DONE
 
+      # selectors_live: link show type, route show proto and neighbor show
+      # nud, each with a selection that lists something.
+      check /ip/-d/link/show/type/dummy 200
+      grep -q ': goip0: ' "$work/body" || fail "selectors_live: type dummy omits goip0"
+      check /ip/-j/link/show/type/dummy 200
+      check /i/l/s/goip0/type/dummy 200
+      check /i/r/s/proto/kernel 200
+      grep -q 'proto' "$work/body" && fail "selectors_live: proto filter still prints proto"
+      check /i/r/s/table/all/p/boot 200
+      check /i/n/s/nud/all 200
+      check /i/n/s/nud/none/nud/noarp 200
+      check /i/n/s/nud/bogus 400
+      echo GOIP_ARGV_PATHS_SELECTORS_DONE
+
       # A missing device on a live kernel: the get answers ENODEV first, so
       # it is a 404, never the dumps-only 500.
       check /ip/addr/show/dev/nosuch0 404
@@ -282,7 +296,7 @@ pkgs.writeShellApplication {
       exit 1
     }
     cat "$run_dir/serial.log"
-    for sentinel in EXAMPLES_DONE HANDLER_ROWS_DONE WRITE_REFUSED_DONE PREFIX_JOIN_DONE IFACE_SHOW_DONE MISSING_DEV_DONE PASS; do
+    for sentinel in EXAMPLES_DONE HANDLER_ROWS_DONE WRITE_REFUSED_DONE PREFIX_JOIN_DONE IFACE_SHOW_DONE SELECTORS_DONE MISSING_DEV_DONE PASS; do
       grep -q "GOIP_ARGV_PATHS_$sentinel" "$run_dir/serial.log"
     done
     if grep -E 'GOIP_ARGV_PATHS_(ROW_)?FAIL' "$run_dir/serial.log"; then exit 1; fi

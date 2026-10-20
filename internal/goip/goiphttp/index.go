@@ -26,10 +26,6 @@ type example struct {
 	NotServed string `json:"not_served,omitempty"`
 }
 
-// routeSelectorGap is goip's `route show` gap: it parses table, dev, oif
-// and destination prefixes.
-const routeSelectorGap = "goip's route show parses only table, dev, oif and destination prefixes"
-
 // examples are the design's examples (IP-ARGV-PATHS-DESIGN.md section 1).
 var examples = []example{
 	{Path: "/ip/link/show", Command: "ip link show"},
@@ -40,19 +36,10 @@ var examples = []example{
 	{Path: "/ip/-j/-s/link/show/dev/eth0", Command: "ip -stats -json link show dev eth0"},
 	{Path: "/i/-4/r/s/table/all", Command: "ip -4 route show table all"},
 	{Path: "/ip/addr/show/up/scope/global", Command: "ip address show up scope global"},
-	{
-		Path: "/ip/-d/link/show/type/vxlan", Command: "ip -details link show type vxlan",
-		NotServed: "goip's link show does not parse type",
-	},
-	{
-		Path: "/i/-4/r/s/table/all/proto/bgp", Command: "ip -4 route show table all proto bgp",
-		NotServed: routeSelectorGap,
-	},
+	{Path: "/ip/-d/link/show/type/vxlan", Command: "ip -details link show type vxlan"},
+	{Path: "/i/-4/r/s/table/all/proto/bgp", Command: "ip -4 route show table all proto bgp"},
 	{Path: "/ip/route/show/10.0.0.0/8", Command: "ip route show 10.0.0.0/8"},
-	{
-		Path: "/i/n/s/nud/reachable", Command: "ip neighbor show nud reachable",
-		NotServed: "goip's neighbor show does not parse nud",
-	},
+	{Path: "/i/n/s/nud/reachable", Command: "ip neighbor show nud reachable"},
 }
 
 // indexEntry is one object in the /ip index.

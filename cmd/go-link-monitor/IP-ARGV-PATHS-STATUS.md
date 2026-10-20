@@ -510,6 +510,39 @@ write-up in IA4-T02.
     for `dev *` in text and JSON. The VM leaf's gap list is empty; a
     listed gap that matched would fail, and an unlisted difference fails
     too, so the next VM run checks the fix on the guest's kernel.
+  - The three `not_served` selectors, so every design example is served
+    (the `NotServed` field stays for a future gap):
+    - `link show type KIND` (`ipaddr_list_flush_or_save`, strcmp `type`,
+      last wins, a `_slave` suffix sets the slave kind): the dump gains
+      `IFLA_LINKINFO{IFLA_INFO_KIND}` as `iplink_filter_req` sends it,
+      and `print_linkinfo`'s kind check runs on every reply, so a kernel
+      that ignores the attribute still prints the right links. Under
+      `-j` a dropped link is `{}`, as ip prints it. The same loop now
+      reports `link show dev` alone as incomplete and a second name as
+      ip's duplicate error (400, was 501).
+    - `route show proto PROTO` (`matches()`, so `p`; `rtnl_rtprot_a2n`
+      names or 0–255; `all` clears; last wins): `rtm_protocol` in the
+      dump request (byte 5), `filter_nlmsg`'s
+      `(protocol ^ rtm_protocol) & mask` on replies, and the `proto`
+      token hidden when filtered, as ip hides it. Names are goip's
+      built-in table plus the shipped `rt_protos`; a host's own
+      `rt_protos.d` is not read, as for table names.
+    - `neighbor show nud STATE` (strcmp `nud`; the first replaces the
+      default mask, later ones or; `all`; `none` and 0 are 0x100;
+      `permanent`, `reachable` and `failed` abbreviate): client-side only,
+      as `ipneigh_dump_filter` sends nothing for it, and
+      `neighStateFiltered`'s fourth clause is back.
+    - New handler rows found that `neighbor show`'s parse errors were
+      plain errors, so `/i/n/s/dev` was a 500 rather than a 400 (the
+      dry run made it a 500 with no socket). They now wrap
+      `ErrInvalidArgument` as route's `table` and `proto` do: HTTP 400,
+      CLI exit 1 (was 2; `ip` exits 255 for all of them).
+    - Tests: xtcpnl and `req` rows on the exact request bytes, parser
+      tables, replay rows against the existing captures for each, and
+      `TestHandler` rows for each refused form (400, no open). The VM
+      leaf gains `selectors_live`: `type dummy` (text, `-j`, with a
+      name), `proto kernel`, `table all p boot`, `nud all`,
+      `nud none nud noarp` and a bad state.
   - `follow_ups`, each with a decision:
     - `ip route get ADDR`: deferred. It is read-only but not in goip;
       once goip has it, `get` joins route's verb chain as a show-kind
@@ -560,6 +593,7 @@ write-up in IA4-T02.
 | IV033 | 2026-10-19 | IA4-T02 | `go test -run '^$' -bench 'BenchmarkRefusedBeforeSource\|BenchmarkIPHandler/argv_route' -benchmem -count 5 ./internal/goip/goiphttp/`, go1.26.8 | `l`, 7.2.9, load 3.8 | `09931c84` + working tree | Recorded in findings (the dry run's cost) | scratchpad, not kept |
 | IV034 | 2026-10-19 | IA4-T02 | `nix build --no-link --keep-going path:.#test-linkmonitor-unit path:.#test-linkmonitor-race path:.#test-linkmonitor-lint path:.#test-linkmonitor-fuzz path:.#test-linkmonitor-docs path:.#test-focused-goip -L`, for the dry run | `l`, nix sandbox, 7.2.9 | `09931c84` + working tree | Pass: all six (the first attempt was interrupted after docs and focused-goip; the rerun built the same derivations) | nix store, `--no-link` |
 | IV035 | 2026-10-19 | after IA4-T02 | `nix build --no-link --keep-going path:.#test-linkmonitor-unit path:.#test-linkmonitor-race path:.#test-linkmonitor-lint path:.#test-linkmonitor-docs path:.#test-focused-goip -L`, for `ntable_dev_star` | `l`, nix sandbox, 7.2.9 | `1343400b` + working tree | Pass: all five, with the new xtcpnl and render rows | nix store, `--no-link` |
+| IV036 | 2026-10-19 | after IA4-T02 | `nix build --no-link --keep-going path:.#test-linkmonitor-unit path:.#test-linkmonitor-race path:.#test-linkmonitor-lint path:.#test-linkmonitor-fuzz path:.#test-linkmonitor-docs path:.#test-focused-goip -L`, for `type`, `proto` and `nud` | `l`, nix sandbox, 7.2.9 | `bf3a52a4` + working tree | Pass: all six | nix store, `--no-link` |
 
 ## TODO
 
@@ -584,23 +618,27 @@ Work outside the 12 tasks, kept so it is not lost. IA4-T02 reviews it.
   Needs a presence flag in xtcpnl, a 6.18 fixture, and the VM leaf's gap
   removed. Done (findings, IV035): `HasIfindex`, hand-built 6.18 wire
   shapes rather than a capture, and the gap list now empty.
-- [ ] goip `link show type TYPE` (design example
+- [x] goip `link show type TYPE` (design example
   `/ip/-d/link/show/type/vxlan`, now a 501 marked `not_served`): parse
   `type` as `ip` does (ip/ipaddress.c, `ipaddr_list_flush_or_save`),
   including the kernel-side `IFLA_LINKINFO` kind filter and the
   client-side check, then drop the example's `not_served`.
-- [ ] goip `route show proto PROTO` (design example
+- [x] goip `route show proto PROTO` (design example
   `/i/-4/r/s/table/all/proto/bgp`, now a 501 marked `not_served`): parse
   `proto`/`protocol` with `rtnl_rtprot_a2n` names and numbers and filter
   as ip/iproute.c's `filter_nlmsg` does, then drop the example's
   `not_served`.
-- [ ] goip `neighbor show nud STATE` (design example
+- [x] goip `neighbor show nud STATE` (design example
   `/i/n/s/nud/reachable`, now a 501 marked `not_served`): parse `nud`
   (ip/ipneigh.c, repeated `nud` ors states, `all`, `none` as 0x100),
   reinstate `neighStateFiltered`'s fourth clause in the same change, then
   drop the example's `not_served`.
+  All three done (findings, IV036); every design example is now served.
 - [ ] Run the VM leaf with the empty gap list, so `/i/ntbl/show` is
-  compared with `ip` on the guest's 6.18 kernel (operator approval).
+  compared with `ip` on the guest's 6.18 kernel, and with the
+  `selectors_live` rows for `type`, `proto` and `nud` (operator
+  approval). The operator's first run (evidence
+  `/tmp/goip-argv-paths-GGEbfH`) left an empty serial log and no result.
 
 - [x] Run the VM leaf with the bare link rows (`/ip/link/show/goip0`,
   `/i/l/sh/eth0`, `/ip/link/show/nosuch0`), added after IV027: passed,
@@ -639,3 +677,4 @@ None.
 | 2026-10-19 | TODO done: refused selectors no longer open a source, through a dry run of `goip.Show` on a probe source (findings, IV033–IV034). Next: goip's `ntable_dev_star`. |
 | 2026-10-19 | TODO done: goip prints `dev *` for a base ntable message with `NDTPA_IFINDEX` 0 (findings, IV035); the VM leaf's gap list is empty. Next: the VM run that confirms it, when the operator approves. |
 | 2026-10-19 | The operator asked for the three goip selector gaps behind the `not_served` design examples (`link show type`, `route show proto`, `neighbor show nud`) as TODOs, and for all three to be done next. |
+| 2026-10-19 | The three selectors done: goip's `link show type`, `route show proto` and `neighbor show nud`; every design example is served (findings, IV036). Next: the VM run with `selectors_live` and the empty gap list, when the operator approves. |

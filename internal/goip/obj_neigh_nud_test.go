@@ -301,15 +301,15 @@ func TestNeighShowNud(t *testing.T) {
 			expected:    []string{"192.0.2.60 dev goip0", "2001:db8::60 dev goip0"},
 		},
 		{
-			description: "negative: a bad state exits ExitFailure with invarg's message",
+			description: "negative: a bad state exits ExitUsage with invarg's message",
 			args:        []string{"neigh", "show", "nud", "sleepy"},
-			expectedRC:  ExitFailure,
+			expectedRC:  ExitUsage,
 			expectedErr: "nud state is bad",
 		},
 		{
-			description: "boundary: a trailing nud exits ExitFailure",
+			description: "boundary: a trailing nud exits ExitUsage",
 			args:        []string{"neigh", "show", "nud"},
-			expectedRC:  ExitFailure,
+			expectedRC:  ExitUsage,
 			expectedErr: "missing its value",
 		},
 	}

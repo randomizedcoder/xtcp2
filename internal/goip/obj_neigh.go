@@ -97,8 +97,8 @@ type neighSelectors struct {
 // 0x100. `all` is accepted only after that fails, and ors in ~0. A state of
 // 0 (`none`, `0`, `0x0`) becomes nudNoneSentinelCst (:568-569). Anything else
 // is invarg — `Error: argument "X" is wrong: nud state is bad` and exit 255 —
-// which goip reports as a plain error, ExitFailure, the same class as a bad
-// `dev`.
+// which goip wraps in ErrInvalidArgument (ExitUsage, an HTTP 400), as it
+// does a bad `dev`.
 //
 // The remaining selectors — master, vrf, nomaster, unused, protocol, and
 // the bare `to PREFIX` else-arm — are rejected rather than ignored, the policy
@@ -110,7 +110,7 @@ func parseNeighShowArgs(args []string) (neighSelectors, error) {
 		switch args[i] {
 		case nudKeywordCst:
 			if i+1 >= len(args) {
-				return sel, fmt.Errorf("neigh show: argument %q is missing its value", args[i])
+				return sel, fmt.Errorf("%w: neigh show: argument %q is missing its value", ErrInvalidArgument, args[i])
 			}
 			i++
 			if !sel.StateGiven {
@@ -119,7 +119,7 @@ func parseNeighShowArgs(args []string) (neighSelectors, error) {
 			state, ok := nudStateA2n(args[i])
 			if !ok {
 				if args[i] != nudAllCst {
-					return sel, fmt.Errorf("neigh show: argument %q is wrong: nud state is bad", args[i])
+					return sel, fmt.Errorf("%w: neigh show: argument %q is wrong: nud state is bad", ErrInvalidArgument, args[i])
 				}
 				state = ^uint32(0)
 			}
@@ -136,18 +136,17 @@ func parseNeighShowArgs(args []string) (neighSelectors, error) {
 			// with anything.
 			sel.NdmFlags = unix.NTF_PROXY
 		case devKeywordCst:
-			// The two errors below are plain, with no sentinel, and so map
-			// to ExitFailure rather than ExitUsage (goip.go:140-146). That
-			// is the correct half of the distinction: goip implements `dev`,
-			// so a malformed `dev` is a bad command line, not a missing
-			// feature. `ip` exits nonzero on both as well — NEXT_ARG() prints
-			// "Command line is not complete" and duparg prints
-			// `Duplicate "dev": "..." is the second value.`
+			// The two errors below wrap ErrInvalidArgument, as route's bad
+			// `table` and `proto` do, so goiphttp answers them with a 400
+			// rather than a 500 and the CLI exits ExitUsage. `ip` exits 255
+			// on both — NEXT_ARG() prints "Command line is not complete"
+			// and duparg prints `Duplicate "dev": "..." is the second
+			// value.` — which neither goip code matches.
 			if i+1 >= len(args) {
-				return sel, fmt.Errorf("neigh show: argument %q is missing its value", args[i])
+				return sel, fmt.Errorf("%w: neigh show: argument %q is missing its value", ErrInvalidArgument, args[i])
 			}
 			if sel.DevSet {
-				return sel, fmt.Errorf("neigh show: duplicate %q argument", devKeywordCst)
+				return sel, fmt.Errorf("%w: neigh show: duplicate %q argument", ErrInvalidArgument, devKeywordCst)
 			}
 			i++
 			sel.Dev, sel.DevSet = args[i], true
