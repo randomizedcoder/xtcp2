@@ -1118,17 +1118,45 @@ let
     })
   );
 
-  # nix flake check compatible derivations. Builds the launcher (cheap) and
-  # invokes the VM. Note: requires KVM access — CI runners without /dev/kvm
-  # will need to mark this check as host-only or use --keep-going.
+  # nix flake check compatible derivations: the lifecycle runner boots the VM
+  # inside the build sandbox, which has /dev/kvm because the derivation
+  # requires the kvm system feature (a builder without it declines the build
+  # instead of failing it). The sandbox has its own network namespace, so the
+  # console ports cannot collide with a VM on the host. $out keeps the
+  # runner's summary, the console transcript and QEMU's log, escapes
+  # stripped (stripEscapes.nix); a failure prints the summary and the
+  # transcript's tail.
   checks = lib.genAttrs constants.supportedArchs (
     arch:
     pkgs.runCommand "xtcp2-microvm-lifecycle-${arch}"
       {
-        nativeBuildInputs = [ lifecycle.${arch}.fullTest ];
+        nativeBuildInputs = [
+          lifecycle.${arch}.fullTest
+          (import ./stripEscapes.nix { inherit pkgs; })
+        ];
+        requiredSystemFeatures = [ "kvm" ];
       }
       ''
-        xtcp2-lifecycle-full-test-${arch} > $out 2>&1 || (cat $out && exit 1)
+        mkdir -p "$out"
+        rc=0
+        xtcp2-lifecycle-full-test-${arch} < /dev/null > "$out/summary.raw" 2>&1 || rc=$?
+        vm-strip-escapes "$out/summary.raw" > "$out/summary.txt"
+        rm "$out/summary.raw"
+        # The runner's transcript is mktemp -t xtcp2-vm-XXXX.log in $TMPDIR,
+        # QEMU's output beside it as .log.qemu.
+        for log in "$TMPDIR"/xtcp2-vm-*.log; do
+          [ -e "$log" ] || continue
+          vm-strip-escapes "$log" > "$out/serial.log"
+          if [ -e "$log.qemu" ]; then
+            vm-strip-escapes "$log.qemu" > "$out/qemu.log"
+          fi
+        done
+        if [ "$rc" -ne 0 ]; then
+          cat "$out/summary.txt"
+          echo '--- the last 60 lines of serial.log ---'
+          tail -n 60 "$out/serial.log" 2>/dev/null || true
+          exit 1
+        fi
       ''
   );
 

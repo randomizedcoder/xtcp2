@@ -145,8 +145,10 @@ compressed evidence bundle containing the serial log, benchmark output, CPU /
 heap / block / mutex profiles and `netlink.pcap`, plus the go-native RDMA
 native benchmarks from `bench-linkmonitor-rdma-native --native` in `rdma-native/`. Set `QEMU_ACCEL=tcg` when KVM
 is unavailable and `LINKMONITOR_BENCHTIME=30s` for a longer profile window.
-The target is an explicit runner rather than a flake check because it needs
-`/dev/kvm` when accelerated and writes evidence outside the Nix store.
+The target is an explicit runner rather than a flake check because its
+timings need a quiet host and its evidence goes to a directory you name; a
+cached pass would say nothing about the current host. (KVM alone does not
+stop a check; see "Guest tests as checks" below.)
 
 Build the standalone artifact:
 
@@ -214,6 +216,8 @@ the same guest outside the sandbox (TCG too), keeps the last N runs (default
 log's tail on a failure. `test-linkmonitor-ionic-vm` adds `--capture`,
 `--promote` and `--dry-run`, which write into the checkout.
 `checks.vm-check-runner` covers the runner itself with stand-in guests.
+`checks.microvm-lifecycle-x86_64` (the xtcp2 self-test microVM) also requires
+`kvm` and keeps `summary.txt`, `serial.log` and `qemu.log` in its result.
 
 Individual gate example:
 

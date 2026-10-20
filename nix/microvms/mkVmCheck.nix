@@ -42,6 +42,7 @@
   appName ? "test-${name}-vm",
 }:
 let
+  stripEscapes = import ./stripEscapes.nix { inherit pkgs; };
   launcher = pkgs.writeShellApplication {
     name = "vm-launch-${name}";
     inherit runtimeInputs;
@@ -102,12 +103,7 @@ let
         # (SIGTTIN) before it prints anything.
         exec timeout --kill-after=10s ${timeout} ${launcher}/bin/vm-launch-${name}
       ) < /dev/null > "$work/serial.raw" 2>&1 || rc=$?
-      # CSI, OSC and DCS sequences (the guest's terminal size and name
-      # queries, colours), then two-byte ones (ESC c, ESC 7, ESC 8), and the
-      # CR of each CRLF. LC_ALL=C: in a UTF-8 locale the byte ranges collate
-      # differently ([ -~] leaves ESC c).
-      LC_ALL=C sed -E 's#\x1b\[[0-9;?]*[ -/]*[@-~]##g; s#\x1b\][^\x07\x1b]*(\x07|\x1b\\)?##g; s#\x1bP[^\x1b]*(\x1b\\)?##g; s#\x1b[ -~]##g; s#\r##g' \
-        "$work/serial.raw" > "$run_dir/serial.log"
+      ${stripEscapes}/bin/vm-strip-escapes "$work/serial.raw" > "$run_dir/serial.log"
 
       if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
         fail "timed out after ${timeout}"

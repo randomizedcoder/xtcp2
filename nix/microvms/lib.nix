@@ -868,7 +868,8 @@ rec {
   # This is a runner (app), not a check, and it has to be: a nix check's
   # $TMPDIR is private, its source is a read-only store copy, and its result is
   # binary-cached — you would get a stale pcap and no way to write the real one
-  # into pkg/xtcpnl/testdata/. It also needs /dev/kvm, which the sandbox lacks.
+  # into pkg/xtcpnl/testdata/. (/dev/kvm alone would not stop it: a check that
+  # declares requiredSystemFeatures = [ "kvm" ] gets it, as the vm-* checks do.)
   mkNlmonCaptureRunner =
     {
       arch,

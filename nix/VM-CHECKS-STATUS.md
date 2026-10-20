@@ -73,7 +73,7 @@ Outputs (GC-rooted by the operator's `result-vm-all`):
 | VC-T02 | goip-argv-paths, embedding, ionic, ionic-faults wired: `checks.vm-*`, `vm-all`, `test-*-vm-check` | done (eval and build, no boot) | VC002 |
 | VC-T03 | each check passes once on `l` (one guest at a time, asked first) | done | VC004 |
 | VC-T04 | retire the duplicated launcher code once VC-T03 passes | done (rerun of `vm-all` pending) | VC009 |
-| VC-T05 | `microvm-lifecycle` check: `requiredSystemFeatures` and its log in `$out` | open | |
+| VC-T05 | `microvm-lifecycle` check: `requiredSystemFeatures` and its log in `$out` | done (boot pending) | VC010 |
 | VC-T06 | `/tmp` cleanup of the old evidence dirs, after the user has seen the list | done | VC007 |
 | VC-T07 | Go source filtering, so a change outside the Go inputs keeps the guests cached (separate commits) | done | VC008 |
 
@@ -89,7 +89,8 @@ Outputs (GC-rooted by the operator's `result-vm-all`):
   embedding artifact; repo-wide checks keep the full tree (VC008).
 - [x] After the user's rebuild of `l`: `nix config show` lists
   `/dev/net/tun?`, and a sandboxed build creates a TAP (VC003).
-- [ ] Rerun `vm-all` after VC009 (the runner changed, so all four boot).
+- [ ] Rerun `vm-all` after VC009/VC010 (the runner changed, so all four
+  boot) and `checks.x86_64-linux.microvm-lifecycle-x86_64` once.
 - [ ] `test-linkmonitor-rdma-vm` (microvm.nix, TCP console ports) and
   `test-linkmonitor-performance-vm` (timings, wants a quiet host) stay apps.
 
@@ -106,3 +107,4 @@ Outputs (GC-rooted by the operator's `result-vm-all`):
 | VC007 | 2026-10-20 | with the user's OK: removed the old launchers' `/tmp/{goip-argv-paths,linkmonitor-embedding,linkmonitor-ionic,linkmonitor-ionic-faults}-XXXXXX` | 46 directories (about 4.9 MB) removed, 0 left; other `/tmp` content untouched |
 | VC008 | 2026-10-20 | `nix/lib/goSource.nix` (no `.md` or `.nix` outside testdata bar `cmd/go-link-monitor/METRICS.md`; no `flake.lock`, `docs/`, `.git`, `.github`, `.vscode`, `.ruff_cache`, `result*`). `nix eval` of `checks.vm-all.drvPath` after a README.md edit, a `.nix` comment edit and a `.go` edit; `nix build path:.#test-linkmonitor path:.#goip path:.#go-link-monitor path:.#rdma-capture-manifest` and `checks.{nix-fmt,statix,deadnix}` | drv unchanged by the Markdown and Nix edits, changed by the Go edit; all 14 `test-linkmonitor` leaves and the builds pass |
 | VC009 | 2026-10-20 | VC-T04: `checks.vm-check-runner` (15 rows, with `VM_KERNEL_PARAMS` passthrough and a stale `QEMU_KERNEL_PARAMS`); `nix build` of the four `test-*-vm` apps, `checks.{nix-fmt,statix,deadnix}`, `test-linkmonitor-docs`; `test-linkmonitor-ionic-vm --capture --dry-run --native-out=DIR` and its usage errors (`--dry-run` alone, `--keep=0`, an unknown flag, `--promote` on the fault run) | pass, 15 of 15; dry run writes the manifest and stages; each usage error exits 2; no `/tmp` directory left; no guest booted |
+| VC010 | 2026-10-20 | VC-T05: `microvm-lifecycle-x86_64` gains `requiredSystemFeatures = [ "kvm" ]`, stdin from `/dev/null`, and a directory `$out` (`summary.txt`, `serial.log`, `qemu.log`, escapes stripped by the shared `stripEscapes.nix`); comments claiming a check cannot have `/dev/kvm` corrected. `nix derivation show` of the check; `checks.{vm-check-runner,nix-fmt,statix,deadnix}`, `microvm-x86_64` | pass; `requiredSystemFeatures` is `kvm`; no guest booted |
