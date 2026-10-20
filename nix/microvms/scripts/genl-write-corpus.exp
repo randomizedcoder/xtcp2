@@ -28,11 +28,13 @@
 #              netlink_generic_<name>.pcap and ip_<name>
 #   rc         the exit status `ip.rc` must hold: 0, or the status `ip`
 #              exits with when the kernel refuses the request, which ip/ip.c
-#              takes from the command's negated return: 2 for tcp_metrics
-#              and mptcp (ip/tcp_metrics.c and ip/ipmptcp.c return -2), 1
-#              for an sr or ioam write (ip/ipseg6.c and ip/ipioam6.c return
-#              -1); or 255, where `ip` refuses its arguments itself
-#              (invarg) after the family lookup and sends nothing more
+#              takes from the command's negated return: 2 for tcp_metrics,
+#              mptcp and fou (ip/tcp_metrics.c, ip/ipmptcp.c and ip/ipfou.c
+#              return -2), 1 for an sr or ioam write (ip/ipseg6.c and
+#              ip/ipioam6.c return -1); or 255, where `ip` refuses its
+#              arguments itself (invarg) after the family lookup and sends
+#              nothing more; ip/ipfou.c's own refusals after the lookup are
+#              1 (an unknown dev, show with an argument)
 #
 # TCP_METRICS (C2-T01)
 #
@@ -249,6 +251,57 @@ namespace eval genlcorpus {
         [list mptcp_limits_set_over 4 {} "ip mptcp limits set subflows 9" {} 2] \
         [list mptcp_monitor_listener 14 $PRE_ADDRS $MON_LISTENER {} 0] \
         [list mptcp_monitor_conn 13 $PRE_CONN $MON_CONN {} 0]
+
+    ###########################################################################
+    # C2-T05 - fou, the FOU family: the namespace's foo-over-UDP receive
+    # ports, each one a UDP socket the kernel binds (and connects, given a
+    # peer), made with plain `ip fou` pre steps. The family lives in the
+    # fou module, which late setup loads.
+    #
+    # The kernel refuses a port that is already bound in the same family
+    # (EADDRINUSE, from the bind), a dev without a local address, a delete
+    # that matches no port on family, port, peer port, dev and addresses,
+    # and an add with no encapsulation type, each EINVAL but the first; `ip`
+    # exits 2. ip/ipfou.c ignores fou_parse_opt's -1, so an add with no port
+    # or no type prints its complaint and still sends an ADD, which carries
+    # no attribute, since the complaint comes before the first one is
+    # added. `ip` refuses port 0 itself (invarg, 255), and an unknown dev
+    # and `show` with an argument (1: it exits 1 on the first, and do_show
+    # returns -1 on the second), each after the family lookup and with
+    # nothing more sent.
+    ###########################################################################
+    variable PRE_FOU {{fou add port 5555 ipproto 4}}
+    variable PRE_FOU_PEER [concat $PRE_ADDRS {
+        {fou add port 5555 ipproto 4 local 192.0.2.1 peer 192.0.2.2 peer_port 5556}
+    }]
+    variable PRE_FOU2 {{fou add port 5555 ipproto 4} {fou add port 5556 gue -6}}
+    variable FOU_SHOW {{fou 4 {ip fou show}}}
+
+    lappend rows \
+        [list fou_show_empty 4 {} "ip fou show" {} 0] \
+        [list fou_add 4 {} "ip fou add port 5555 ipproto 4" $FOU_SHOW 0] \
+        [list fou_add_gue 4 {} "ip fou add port 5555 gue" $FOU_SHOW 0] \
+        [list fou_add_v6 4 {} "ip fou add port 5555 gue -6" $FOU_SHOW 0] \
+        [list fou_add_local_peer 4 $PRE_ADDRS \
+            "ip fou add port 5555 ipproto 4 local 192.0.2.1 peer 192.0.2.2 peer_port 5556" $FOU_SHOW 0] \
+        [list fou_add_v6_local_peer 4 $PRE_ADDRS \
+            "ip fou add port 5555 gue -6 local 2001:db8::1 peer 2001:db8::2 peer_port 5556" $FOU_SHOW 0] \
+        [list fou_add_dev 4 $PRE_ADDRS "ip fou add port 5555 ipproto 4 local 192.0.2.1 dev d0" $FOU_SHOW 0] \
+        [list fou_add_dev_no_local 4 $PRE_ADDRS "ip fou add port 5555 ipproto 4 dev d0" {} 2] \
+        [list fou_add_dup 4 $PRE_FOU "ip fou add port 5555 gue" {} 2] \
+        [list fou_add_same_port_v6 4 $PRE_FOU "ip fou add port 5555 gue -6" $FOU_SHOW 0] \
+        [list fou_add_no_port 4 {} "ip fou add ipproto 4" {} 2] \
+        [list fou_add_no_type 4 {} "ip fou add port 5555" {} 2] \
+        [list fou_add_port_zero 2 {} "ip fou add port 0 gue" {} 255] \
+        [list fou_add_unknown_dev 2 $PRE_ADDRS "ip fou add port 5555 gue local 192.0.2.1 dev nosuch" {} 1] \
+        [list fou_del 4 $PRE_FOU "ip fou del port 5555" $FOU_SHOW 0] \
+        [list fou_del_missing 4 {} "ip fou del port 5555" {} 2] \
+        [list fou_del_wrong_family 4 $PRE_FOU "ip fou del port 5555 -6" {} 2] \
+        [list fou_del_local_peer 4 $PRE_FOU_PEER \
+            "ip fou del port 5555 local 192.0.2.1 peer 192.0.2.2 peer_port 5556" $FOU_SHOW 0] \
+        [list fou_del_partial 4 $PRE_FOU_PEER "ip fou del port 5555" {} 2] \
+        [list fou_show 4 $PRE_FOU2 "ip fou show" {} 0] \
+        [list fou_show_args 2 {} "ip fou show port 5555" {} 1]
 
     ###########################################################################
     # pre_step <ns> <subdir> <step> - 1 if the step was taken, else 0.
