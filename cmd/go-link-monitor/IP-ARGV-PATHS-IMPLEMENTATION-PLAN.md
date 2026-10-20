@@ -285,7 +285,7 @@ Deliver:
 | `json_option` | positive | `/ip/-j/addr/show` | `application/json`; bytes of `goip -j address show` |
 | `brief` | positive | `/ip/-br/a` | Bytes of `goip -br address show` |
 | `full_grammar` | positive | `/i/-4/r/s/table/all` | 200; `X-Goip-Argv: ip -4 route show table all` |
-| `selector_gap` | negative | `/ip/-4/route/show/table/all/proto/bgp` | 501 naming `route show "proto"`, with the argv: goip's route parser has `table`, `dev` and `oif` only |
+| `selector_gap` | negative | `/ip/-4/route/show/table/all/proto/bgp` | 501 naming `route show "proto"`, with the argv: goip's route parser has `table`, `dev`, `oif` and destination prefixes only (prefixes since IA4-T02) |
 | `query_form_kept` | positive | `/ip/addr?dev=lo` | JSON, unchanged from today |
 | `query_form_abbrev` | positive | `/i/a?dev=lo` | The same as `/ip/addr?dev=lo` |
 | `shortcut_kept` | positive | `/ip/link/lo` | `ip -j link show dev lo`, unchanged |
@@ -465,7 +465,7 @@ design plus every IA2-T02 positive row, compares `curl` with:
 | `curl_eq_goip` | positive | Every example path | Byte-identical to the goip CLI |
 | `curl_eq_ip` | positive | Every example path | Identical to `ip` apart from the listed gaps |
 | `write_refused_live` | negative | `/i/l/s`, `/ip/addr/flush` | 400, and the guest's links and addresses are unchanged afterwards |
-| `prefix_join_live` | boundary | A route added in the guest for `10.0.0.0/8`, fetched with `/ip/route/show/10.0.0.0/8` | Amended (IA4-T01): the path resolves and is goip's route-selector 501 (IA2-T03); the route is listed by `/ip/route/show/dev/show` |
+| `prefix_join_live` | boundary | A route added in the guest for `10.0.0.0/8`, fetched with `/ip/route/show/10.0.0.0/8` | 200 listing the route, identical to `ip route show 10.0.0.0/8` (IA4-T01 amended this to goip's route-selector 501; met as written once goip parsed route prefixes in IA4-T02) |
 | `iface_named_show_live` | corner | A dummy link named `show` | `/ip/link/show/dev/show` returns it |
 
 Done when: `env -u LD_LIBRARY_PATH nix run path:.#test-goip-argv-paths-vm`

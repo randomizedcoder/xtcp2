@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -1101,13 +1102,14 @@ func TestRunRouteArgs(t *testing.T) {
 			wantStderrSubstr: "argument expected",
 		},
 		{
-			// Options precede the object in iproute2, so this is a selector
-			// named "-4", not a family option.
+			// Options precede the object in iproute2, so "-4" reaches the
+			// chain's else-arm as a destination, and get_prefix refuses it
+			// with ip's own words.
 			description:      "corner: an option after the object is not an option",
 			pcap:             routeDumpPcap,
 			args:             []string{"route", "show", "-4"},
 			wantCode:         ExitUsage,
-			wantStderrSubstr: "not implemented",
+			wantStderrSubstr: `any valid prefix is expected rather than "-4"`,
 		},
 	}
 
@@ -1138,8 +1140,10 @@ func TestParseRouteShowArgs(t *testing.T) {
 	tests := []struct {
 		description string
 		args        []string
-		want        routeSelectors
-		wantErr     bool
+		// family is -4/-6's preferred_family, AF_UNSPEC when zero.
+		family  uint8
+		want    routeSelectors
+		wantErr bool
 		// wantErrIs, when set, is the sentinel errors.Is must find. Asserting
 		// only that "an error happened" would let a refused keyword and a
 		// malformed id collapse into one another, and they are different
@@ -1315,10 +1319,12 @@ func TestParseRouteShowArgs(t *testing.T) {
 			wantErrIs:   ErrNotImplemented,
 		},
 		{
-			description: "negative: `oif` does not abbreviate either",
+			// `o` matches no keyword (`oif` is strcmp), so the else-arm
+			// reads it as a destination and get_prefix refuses it.
+			description: "negative: `oif` does not abbreviate either; `o` is a bad prefix",
 			args:        []string{"o", "goip0"},
 			wantErr:     true,
-			wantErrIs:   ErrNotImplemented,
+			wantErrIs:   ErrInvalidArgument,
 		},
 		{
 			// NEXT_ARG() with nothing left.
@@ -1355,11 +1361,129 @@ func TestParseRouteShowArgs(t *testing.T) {
 			args:        []string{"dev", ""},
 			want:        routeSelectors{Table: unix.RT_TABLE_MAIN, Dev: "", DevSet: true},
 		},
+		{
+			// The chain's else-arm: a bare prefix is `exact`, both filters.
+			description: "positive: a bare prefix sets root and match",
+			args:        []string{"10.0.0.0/8"},
+			want:        routeSelectors{Table: unix.RT_TABLE_MAIN, Root: v4Dst(10, 0, 8, true), Match: v4Dst(10, 0, 8, true)},
+		},
+		{
+			description: "positive: `to` and `exact` are optional words before it",
+			args:        []string{"to", "exact", "0.0.0.0/0"},
+			want:        routeSelectors{Table: unix.RT_TABLE_MAIN, Root: v4Dst(0, 0, 0, true), Match: v4Dst(0, 0, 0, true)},
+		},
+		{
+			description: "positive: `root` sets filter.rdst only",
+			args:        []string{"root", "10.0.0.0/8"},
+			want:        routeSelectors{Table: unix.RT_TABLE_MAIN, Root: v4Dst(10, 0, 8, true)},
+		},
+		{
+			// `m` is metric's, earlier in the chain; `ma` reaches match.
+			description: "positive: `ma` abbreviates match, which sets filter.mdst only",
+			args:        []string{"ma", "10.1.0.0/16"},
+			want:        routeSelectors{Table: unix.RT_TABLE_MAIN, Match: v4Dst(10, 1, 16, true)},
+		},
+		{
+			description: "positive: an IPv6 prefix",
+			args:        []string{"2001:db8::/32"},
+			want: routeSelectors{Table: unix.RT_TABLE_MAIN,
+				Root: v6Dst(0x20, 0x01, 0x0d, 0xb8, 32), Match: v6Dst(0x20, 0x01, 0x0d, 0xb8, 32)},
+		},
+		{
+			// get_prefix_1 with no slash: the family's width, unspecified.
+			description: "boundary: an address without a length is a /32",
+			args:        []string{"0.0.0.0"},
+			want:        routeSelectors{Table: unix.RT_TABLE_MAIN, Root: v4Dst(0, 0, 32, false), Match: v4Dst(0, 0, 32, false)},
+		},
+		{
+			description: "boundary: a dotted netmask is get_netmask's length",
+			args:        []string{"10.0.0.0/255.0.0.0"},
+			want:        routeSelectors{Table: unix.RT_TABLE_MAIN, Root: v4Dst(10, 0, 8, true), Match: v4Dst(10, 0, 8, true)},
+		},
+		{
+			description: "boundary: get_addr_ipv4 reads a short address, 10 is 10.0.0.0",
+			args:        []string{"10/8"},
+			want:        routeSelectors{Table: unix.RT_TABLE_MAIN, Root: v4Dst(10, 0, 8, true), Match: v4Dst(10, 0, 8, true)},
+		},
+		{
+			// __get_addr_1 marks default PREFIXLEN_SPECIFIED with the dump
+			// family, none without -4/-6.
+			description: "corner: `default` without a family is specified, length 0",
+			args:        []string{"default"},
+			want: routeSelectors{Table: unix.RT_TABLE_MAIN,
+				Root: dstPrefix{Specified: true}, Match: dstPrefix{Specified: true}},
+		},
+		{
+			description: "corner: `all` without a family filters nothing",
+			args:        []string{"all"},
+			want:        routeSelectors{Table: unix.RT_TABLE_MAIN},
+		},
+		{
+			description: "corner: `all` under -4 has the family and length 0",
+			args:        []string{"all"},
+			family:      unix.AF_INET,
+			want: routeSelectors{Table: unix.RT_TABLE_MAIN,
+				Root: dstPrefix{Family: unix.AF_INET}, Match: dstPrefix{Family: unix.AF_INET}},
+		},
+		{
+			description: "corner: `root` then `match` leaves both, each its own",
+			args:        []string{"root", "10/8", "match", "10.1/16"},
+			want:        routeSelectors{Table: unix.RT_TABLE_MAIN, Root: v4Dst(10, 0, 8, true), Match: v4Dst(10, 1, 16, true)},
+		},
+		{
+			description: "corner: a prefix and a device together",
+			args:        []string{"10/8", "dev", "goip0"},
+			want: routeSelectors{Table: unix.RT_TABLE_MAIN, Dev: "goip0", DevSet: true,
+				Root: v4Dst(10, 0, 8, true), Match: v4Dst(10, 0, 8, true)},
+		},
+		{
+			description: "negative: `m` is metric, refused by name rather than read as a prefix",
+			args:        []string{"m", "10/8"},
+			wantErr:     true,
+			wantErrIs:   ErrNotImplemented,
+		},
+		{
+			description: "negative: `r` is realms, not root",
+			args:        []string{"r", "10/8"},
+			wantErr:     true,
+			wantErrIs:   ErrNotImplemented,
+		},
+		{
+			description: "negative: `from` is a source selector goip does not implement",
+			args:        []string{"from", "10/8"},
+			wantErr:     true,
+			wantErrIs:   ErrNotImplemented,
+		},
+		{
+			description: "negative: `to` with nothing after it is a usage error",
+			args:        []string{"to"},
+			wantErr:     true,
+			wantErrIs:   ErrNotImplemented,
+		},
+		{
+			description: "negative: a length past the family's width",
+			args:        []string{"10.0.0.0/33"},
+			wantErr:     true,
+			wantErrIs:   ErrInvalidArgument,
+		},
+		{
+			description: "negative: `default` takes no length",
+			args:        []string{"default/0"},
+			wantErr:     true,
+			wantErrIs:   ErrInvalidArgument,
+		},
+		{
+			description: "negative: an IPv4 prefix under -6",
+			args:        []string{"10.0.0.0/8"},
+			family:      unix.AF_INET6,
+			wantErr:     true,
+			wantErrIs:   ErrInvalidArgument,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			got, err := parseRouteShowArgs(tc.args)
+			got, err := parseRouteShowArgs(tc.args, tc.family)
 			if tc.wantErr {
 				if err == nil {
 					t.Fatalf("parseRouteShowArgs(%q) = %+v, want an error", tc.args, got)
@@ -1375,6 +1499,85 @@ func TestParseRouteShowArgs(t *testing.T) {
 			}
 			if got != tc.want {
 				t.Errorf("parseRouteShowArgs(%q) = %+v, want %+v", tc.args, got, tc.want)
+			}
+		})
+	}
+}
+
+// v4Dst is a parsed IPv4 destination selector a.b.0.0/bits.
+func v4Dst(a, b byte, bits int, specified bool) dstPrefix {
+	return dstPrefix{Family: unix.AF_INET, Data: [16]byte{a, b}, Bitlen: bits, Specified: specified}
+}
+
+// v6Dst is a parsed IPv6 destination selector a:b::/bits, specified.
+func v6Dst(a, b, c, d byte, bits int) dstPrefix {
+	return dstPrefix{Family: unix.AF_INET6, Data: [16]byte{a, b, c, d}, Bitlen: bits, Specified: true}
+}
+
+// TestRouteMatchesDst is filter_nlmsg's rdst and mdst arms over a small
+// table, each selector parsed as `ip route show` parses it.
+//
+// go test ./internal/goip/ -run TestRouteMatchesDst
+func TestRouteMatchesDst(t *testing.T) {
+	routes := map[string]model.Route{
+		"v4default":  {Family: unix.AF_INET, DstLen: 0},
+		"10/8":       {Family: unix.AF_INET, DstLen: 8, Dst: []byte{10, 0, 0, 0}},
+		"10.1/16":    {Family: unix.AF_INET, DstLen: 16, Dst: []byte{10, 1, 0, 0}},
+		"192.0.2/24": {Family: unix.AF_INET, DstLen: 24, Dst: []byte{192, 0, 2, 0}},
+		"v6default":  {Family: unix.AF_INET6, DstLen: 0},
+		"2001:db8/32": {Family: unix.AF_INET6, DstLen: 32,
+			Dst: []byte{0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}},
+	}
+	tests := []struct {
+		name        string
+		category    string
+		description string
+		args        []string
+		family      uint8
+		expected    []string
+	}{
+		{name: "exact_default_v4", category: "positive", description: "0.0.0.0/0 is only the IPv4 default route",
+			args: []string{"0.0.0.0/0"}, expected: []string{"v4default"}},
+		{name: "exact_prefix", category: "positive", description: "10.0.0.0/8 is only that route",
+			args: []string{"10.0.0.0/8"}, expected: []string{"10/8"}},
+		{name: "root", category: "positive", description: "root 10/8 is the routes inside it, itself included",
+			args: []string{"root", "10/8"}, expected: []string{"10/8", "10.1/16"}},
+		{name: "match", category: "positive", description: "match 10.1.2.3 is every route containing it",
+			args: []string{"match", "10.1.2.3"}, expected: []string{"10.1/16", "10/8", "v4default"}},
+		{name: "exact_v6", category: "positive", description: "an IPv6 prefix",
+			args: []string{"2001:db8::/32"}, expected: []string{"2001:db8/32"}},
+		{name: "host_no_route", category: "boundary", description: "0.0.0.0 is a /32 no route equals",
+			args: []string{"0.0.0.0"}, expected: nil},
+		{name: "root_zero", category: "boundary", description: "root 0/0 is every IPv4 route",
+			args: []string{"root", "0/0"}, expected: []string{"10.1/16", "10/8", "192.0.2/24", "v4default"}},
+		{name: "default_any_family", category: "corner", description: "default without -4/-6 is both default routes",
+			args: []string{"default"}, expected: []string{"v4default", "v6default"}},
+		{name: "all_no_family", category: "corner", description: "all without a family filters nothing",
+			args: []string{"all"}, expected: []string{"10.1/16", "10/8", "192.0.2/24", "2001:db8/32", "v4default", "v6default"}},
+		{name: "all_v4", category: "corner", description: "all under -4 is filter_nlmsg's length-0 match: the IPv4 default",
+			args: []string{"all"}, family: unix.AF_INET, expected: []string{"v4default"}},
+		{name: "no_match", category: "negative", description: "a prefix no route has",
+			args: []string{"172.16.0.0/12"}, expected: nil},
+		{name: "family_mismatch", category: "negative", description: "an IPv6 root keeps no IPv4 route",
+			args: []string{"root", "::/0"}, expected: []string{"2001:db8/32", "v6default"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.category+"/"+tt.name, func(t *testing.T) {
+			sel, err := parseRouteShowArgs(tt.args, tt.family)
+			if err != nil {
+				t.Fatalf("parseRouteShowArgs(%q): %v", tt.args, err)
+			}
+			var got []string
+			for name, r := range routes {
+				if routeMatchesDst(&r, &sel.Root, &sel.Match) {
+					got = append(got, name)
+				}
+			}
+			slices.Sort(got)
+			want := slices.Clone(tt.expected)
+			slices.Sort(want)
+			if !slices.Equal(got, want) {
+				t.Errorf("%s: kept %q, want %q", tt.description, got, want)
 			}
 		})
 	}
@@ -1610,7 +1813,7 @@ func TestRouteFilter(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			got := routeFilter(tc.in, tc.preferredFamily, tc.table, tc.oif)
+			got := routeFilter(tc.in, tc.preferredFamily, tc.table, tc.oif, &routeSelectors{})
 			if len(got) != tc.wantLen {
 				t.Errorf("routeFilter() kept %d routes, want %d", len(got), tc.wantLen)
 			}

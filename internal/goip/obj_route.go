@@ -50,7 +50,7 @@ func runRoute(c *runCtx, args []string) error {
 		}
 		args = args[1:]
 	}
-	sel, err := parseRouteShowArgs(args)
+	sel, err := parseRouteShowArgs(args, c.family)
 	if err != nil {
 		return err
 	}
@@ -80,6 +80,69 @@ type routeSelectors struct {
 	// (ip/iproute.c:2008-2010, lib/ll_map.c:354-372). Collapsing the two
 	// would turn that into a silent unfiltered dump.
 	DevSet bool
+
+	// Root and Match are filter.rdst and filter.mdst: `root PREFIX`,
+	// `match PREFIX`, and `[exact] PREFIX`, which sets both
+	// (ip/iproute.c:1977-1993). The zero value filters nothing.
+	Root, Match dstPrefix
+}
+
+// dstPrefix is the part of an inet_prefix filter_nlmsg reads for a
+// destination filter, in a comparable form: the address zero-padded to the
+// 16 bytes an IPv6 address needs.
+//
+// A filter is active when it has a family or PREFIXLEN_SPECIFIED
+// (ip/iproute.c:221-237, :295-300). `default` without -4/-6 has no family
+// but is specified; `all` and `any` without one have neither and filter
+// nothing, exactly as in `ip`.
+type dstPrefix struct {
+	Family    uint8
+	Data      [16]byte
+	Bitlen    int
+	Specified bool
+}
+
+// active is filter_nlmsg's `family || flags & PREFIXLEN_SPECIFIED`.
+func (p *dstPrefix) active() bool {
+	return p.Family != unix.AF_UNSPEC || p.Specified
+}
+
+// routeShowDstPrefix is get_prefix for a destination selector, in the
+// family -4/-6 chose (dump_family before its promotion, ip/iproute.c:1820).
+func routeShowDstPrefix(arg string, family uint8) (dstPrefix, error) {
+	ip, err := routeGetPrefix(arg, family)
+	if err != nil {
+		return dstPrefix{}, err
+	}
+	d := dstPrefix{Family: ip.family, Bitlen: ip.bitlen, Specified: prefixlenSpecified(arg)}
+	copy(d.Data[:], ip.data)
+	return d, nil
+}
+
+// routeShowRefused are the keywords of ip/iproute.c's argument chain that
+// goip does not implement, each with the comparison `ip` uses for it
+// (matches() abbreviates, strcmp does not), so a token that `ip` would read
+// as one of them is refused by name rather than read as a prefix: `m` is
+// `metric`, `ma` is `match`.
+var routeShowRefused = []struct {
+	name   string
+	abbrev bool
+}{
+	{"vrf", true}, {"cached", true}, {"cloned", true}, {"tos", false},
+	{"dsfield", true}, {"protocol", true}, {"scope", true}, {"type", true},
+	{"iif", false}, {"mark", false}, {"metric", true}, {"priority", true},
+	{"preference", false}, {"via", false}, {"src", false}, {"realms", true},
+	{"from", true},
+}
+
+// routeShowRefusedKeyword reports the refused keyword arg names, if any.
+func routeShowRefusedKeyword(arg string) (string, bool) {
+	for _, k := range routeShowRefused {
+		if arg == k.name || (k.abbrev && matchesPrefix(arg, k.name)) {
+			return k.name, true
+		}
+	}
+	return "", false
 }
 
 // routeTableMainCst is filter.tb's default, set at ip/iproute.c:1835 before
@@ -89,9 +152,10 @@ const routeTableMainCst uint32 = unix.RT_TABLE_MAIN
 
 // parseRouteShowArgs walks the selectors after the verb.
 //
-// `table` and the `dev`/`oif` pair are the only selectors implemented. The
-// others — via, proto, scope, type, root, match, exact, src, metric, vrf,
-// cached, iif, mark — are rejected rather than ignored: the harness drives
+// `table`, the `dev`/`oif` pair and the destination prefix (`[to]
+// [root|match|exact] PREFIX`, the chain's final else-arm) are implemented.
+// The others — via, proto, scope, type, src, from, metric, vrf, cached, iif,
+// mark — are rejected rather than ignored: the harness drives
 // `ip` and `goip` with the same argv, so a silently dropped filter would have
 // the two tools answering different questions while the comparator reported a
 // stdout divergence it could not explain.
@@ -117,7 +181,7 @@ const routeTableMainCst uint32 = unix.RT_TABLE_MAIN
 //
 // `dev` and `oif` are exact synonyms in the same else-if, so mixing them
 // (`dev a oif b`) is also last-wins — they are not two independent filters.
-func parseRouteShowArgs(args []string) (routeSelectors, error) {
+func parseRouteShowArgs(args []string, family uint8) (routeSelectors, error) {
 	sel := routeSelectors{Table: routeTableMainCst}
 	for i := 0; i < len(args); i++ {
 		switch {
@@ -141,10 +205,64 @@ func parseRouteShowArgs(args []string) (routeSelectors, error) {
 			i++
 			sel.Dev, sel.DevSet = args[i], true
 		default:
-			return routeSelectors{}, fmt.Errorf("route show %q: %w", args[i], ErrNotImplemented)
+			if kw, ok := routeShowRefusedKeyword(args[i]); ok {
+				return routeSelectors{}, fmt.Errorf("route show %q (%s): %w", args[i], kw, ErrNotImplemented)
+			}
+			next, err := parseRouteShowDst(args, i, family, &sel)
+			if err != nil {
+				return routeSelectors{}, err
+			}
+			i = next
 		}
 	}
 	return sel, nil
+}
+
+// parseRouteShowDst is the chain's else-arm (ip/iproute.c:1977-1993) from
+// args[i]: an optional `to`, then `root PREFIX` (filter.rdst), `match
+// PREFIX` (filter.mdst), or `[exact] PREFIX`, which sets both. Each keyword
+// abbreviates; each is last-wins, and `root` then `match` leaves both set.
+// It returns the index of the last token it read.
+func parseRouteShowDst(args []string, i int, family uint8, sel *routeSelectors) (int, error) {
+	next := func(kw string) error {
+		if i+1 >= len(args) {
+			return fmt.Errorf("route show %s: argument expected: %w", kw, ErrNotImplemented)
+		}
+		i++
+		return nil
+	}
+	if matchesPrefix(args[i], "to") {
+		if err := next("to"); err != nil {
+			return i, err
+		}
+	}
+	var target *dstPrefix
+	switch {
+	case matchesPrefix(args[i], "root"):
+		if err := next("root"); err != nil {
+			return i, err
+		}
+		target = &sel.Root
+	case matchesPrefix(args[i], "match"):
+		if err := next("match"); err != nil {
+			return i, err
+		}
+		target = &sel.Match
+	case matchesPrefix(args[i], "exact"):
+		if err := next("exact"); err != nil {
+			return i, err
+		}
+	}
+	p, err := routeShowDstPrefix(args[i], family)
+	if err != nil {
+		return i, err
+	}
+	if target != nil {
+		*target = p
+	} else {
+		sel.Root, sel.Match = p, p
+	}
+	return i, nil
 }
 
 // routeTableLocalCst is RT_TABLE_LOCAL's name. route_write.go's
@@ -250,7 +368,7 @@ func routeShow(c *runCtx, sel routeSelectors) error {
 	if err != nil {
 		return err
 	}
-	routes = routeFilter(routes, c.family, sel.Table, oif)
+	routes = routeFilter(routes, c.family, sel.Table, oif, &sel)
 	resolveRouteNames(c, svc, routes, oif != 0)
 
 	f := render.RouteShowFilter{
@@ -347,7 +465,7 @@ func resolveRouteNexthops(c *runCtx, svc *service.Service, routes []model.Route,
 //     filter.cloned zero it is true exactly when the route IS cloned.
 //   - oif, when a `dev`/`oif` selector was given. See routeMatchesOif for the
 //     one shape this does NOT drop.
-func routeFilter(in []model.Route, preferredFamily uint8, table, oif uint32) []model.Route {
+func routeFilter(in []model.Route, preferredFamily uint8, table, oif uint32, dst *routeSelectors) []model.Route {
 	out := make([]model.Route, 0, len(in))
 	var ip6MultipleTables bool
 	for i := range in {
@@ -379,6 +497,9 @@ func routeFilter(in []model.Route, preferredFamily uint8, table, oif uint32) []m
 		} else if table != unix.RT_TABLE_UNSPEC && table != r.Table {
 			continue
 		}
+		if !routeMatchesDst(r, &dst.Root, &dst.Match) {
+			continue
+		}
 		// After the table block, not before it: the oif test sits at
 		// ip/iproute.c:331, downstream of the ip6_multiple_tables latch at
 		// :191. A route dropped here has already had its chance to set the
@@ -390,6 +511,65 @@ func routeFilter(in []model.Route, preferredFamily uint8, table, oif uint32) []m
 		out = append(out, *r)
 	}
 	return out
+}
+
+// routeMatchesDst is filter_nlmsg's rdst and mdst arms (ip/iproute.c:221-237,
+// :295-300): `root` keeps routes at least as long as the prefix and inside
+// it, `match` keeps routes no longer than the prefix that contain it, and
+// `exact` is both, so only the prefix itself.
+//
+// The route's address is RTA_DST's first (dst_len+7)/8 bytes over zeros, as
+// filter_nlmsg copies it; a family-less filter (`default` without -4/-6)
+// compares lengths and bits without a family test.
+func routeMatchesDst(r *model.Route, root, match *dstPrefix) bool {
+	if root.active() {
+		if root.Family != unix.AF_UNSPEC && r.Family != root.Family {
+			return false
+		}
+		if root.Bitlen > int(r.DstLen) {
+			return false
+		}
+	}
+	if match.active() {
+		if match.Family != unix.AF_UNSPEC && r.Family != match.Family {
+			return false
+		}
+		if match.Bitlen >= 0 && match.Bitlen < int(r.DstLen) {
+			return false
+		}
+	}
+	if !root.active() && !match.active() {
+		return true
+	}
+	var dst [16]byte
+	if r.Dst != nil {
+		copy(dst[:], r.Dst[:min(len(r.Dst), (int(r.DstLen)+7)/8)])
+	}
+	if root.active() && !inetAddrMatch(&dst, &root.Data, root.Bitlen) {
+		return false
+	}
+	if match.active() && !inetAddrMatch(&dst, &match.Data, int(r.DstLen)) {
+		return false
+	}
+	return true
+}
+
+// inetAddrMatch is inet_addr_match == 0 (lib/utils.c:938-964): the first
+// bits of a and b agree. bits is clamped to the 128 an address can have; a
+// dst_len past it is no valid route's.
+func inetAddrMatch(a, b *[16]byte, bits int) bool {
+	bits = min(max(bits, 0), 8*len(a))
+	whole, rest := bits/8, bits%8
+	if string(a[:whole]) != string(b[:whole]) {
+		return false
+	}
+	if rest != 0 {
+		mask := byte(0xff << (8 - rest))
+		if (a[whole]^b[whole])&mask != 0 {
+			return false
+		}
+	}
+	return true
 }
 
 // routeMatchesOif is filter_nlmsg's oif arm (ip/iproute.c:331-341) plus

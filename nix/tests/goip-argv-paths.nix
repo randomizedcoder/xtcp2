@@ -84,6 +84,8 @@ let
       ip link add name show type dummy
       ip link set show up
       ip route add 10.0.0.0/8 dev show
+      ip route add 10.1.0.0/16 dev show
+      ip route add default dev eth0
 
       go-link-monitor -metrics-addr 127.0.0.1:${port} -baseline-file "$work/baseline.json" \
         -admin.address= -ip.paths > "$work/monitor.log" 2>&1 &
@@ -179,12 +181,18 @@ let
       fi
       echo GOIP_ARGV_PATHS_WRITE_REFUSED_DONE
 
-      # prefix_join_live: the joined prefix resolves, and is goip's route
-      # gap (501) until goip parses a prefix; the route itself is served.
-      check /ip/route/show/10.0.0.0/8 501
-      check /ip/route/show/dev/show 200
-      # `dev show` filters, so ip leaves it out of the line.
-      grep -q '^10\.0\.0\.0/8 ' "$work/body" || fail "prefix_join_live: 10.0.0.0/8 not listed"
+      # prefix_join_live: the joined prefix is one token and lists the
+      # route; ip's root, match and exact forms, and a host address that
+      # equals no route, each compared with ip.
+      check /ip/route/show/10.0.0.0/8 200
+      grep -q '^10\.0\.0\.0/8 dev show' "$work/body" || fail "prefix_join_live: 10.0.0.0/8 not listed"
+      check /ip/-json/route/show/0.0.0.0/0 200
+      grep -q '"dst":"default"' "$work/body" || fail "prefix_join_live: 0.0.0.0/0 is not the default route"
+      check /ip/route/show/0.0.0.0 200
+      check /i/r/s/root/10.0.0.0/8 200
+      check /i/r/s/match/10.1.2.3 200
+      check /i/r/s/to/exact/10.0.0.0%2F8 200
+      check /ip/route/show/10.0.0.0%2F33 400
       echo GOIP_ARGV_PATHS_PREFIX_JOIN_DONE
 
       # iface_named_show_live: a link named like a verb.

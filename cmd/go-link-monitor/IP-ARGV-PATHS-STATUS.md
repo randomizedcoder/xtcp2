@@ -2,7 +2,7 @@
 
 Last updated: 2026-10-19.
 
-**In progress: 11 of 12 implementation tasks done.** The design was reviewed
+**Done: 12 of 12 implementation tasks.** The design was reviewed
 on 2026-10-19 and its decisions are recorded below.
 
 This document tracks
@@ -57,7 +57,7 @@ for the design in [IP-ARGV-PATHS-DESIGN.md](IP-ARGV-PATHS-DESIGN.md).
 | IA1 | goip resolver | done | 2/2 | IV006, IV009 |
 | IA2 | HTTP paths | done | 3/3 | IV010–IV012 |
 | IA3 | Hardening and performance | done | 3/3 | IV013–IV020 |
-| IA4 | Verification and release | in progress | 1/2 | IV021–IV023 |
+| IA4 | Verification and release | done | 2/2 | IV021–IV029 |
 
 ## Task checklist
 
@@ -77,7 +77,7 @@ here.
 | [x] | [IA3-T02](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia3-t02) | Benchmarks | done | IV014–IV017 |
 | [x] | [IA3-T03](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia3-t03) | Handler fuzzing | done | IV018–IV020 |
 | [x] | [IA4-T01](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia4-t01) | VM parity | done | IV021–IV023 |
-| [ ] | [IA4-T02](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia4-t02) | Final review | not started | — |
+| [x] | [IA4-T02](IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md#ia4-t02) | Final review | done | IV024–IV029 |
 
 ## Baseline measurements
 
@@ -397,7 +397,8 @@ write-up in IA4-T02.
     and routes are unchanged.
   - `prefix_join_live`: amended. `/ip/route/show/10.0.0.0/8` resolves but
     is goip's route-selector 501 (IA2-T03), so the leaf checks that 501
-    and finds the route through `/ip/route/show/dev/show`.
+    and finds the route through `/ip/route/show/dev/show`. Met as written
+    since IA4-T02, when goip gained route prefixes (IV027).
   - `iface_named_show_live`: met. `/ip/link/show/dev/show` lists the
     dummy link named `show`.
   - Added: a missing device on a live kernel is a 404 in both forms
@@ -407,6 +408,68 @@ write-up in IA4-T02.
     an `eth0` (moved aside now), `/i/-j/l/s` is `link set` by ip's
     first match (so its 400 was right), and `ip route show dev show`
     leaves the device out of each line.
+
+- IA4-T02 (final review):
+  - `invariants`: met. Each invariant of the plan, with the tests that
+    fail if it breaks:
+
+    | Invariant | Tests |
+    |---|---|
+    | 1. Read-only | `FuzzIPHandler` and `TestFuzzIPHandlerRows` (the recording source fails on any non-read message; shown to catch a write by `fake_rejects_write`, IV019); `TestResolveShow` (`ErrWriteVerb`); `TestHandler` and `TestRejectAllocs` write-verb rows; the VM's `write_refused_live` |
+    | 2. One source | `TestObjectTableIntegrity`, `TestVerbChains` (`chain_order_citation`), `TestResolvePrefixProperty` (every object, verb and prefix length through goip's tables), `TestShortest`, `TestRegistryCoversGoip` |
+    | 3. `ip`'s order | `TestResolveShow` (`l s` is `ip link set`, refused), `TestShortest` (`sh` for `link show`), `TestVerbChains`, `TestResolvePrefixProperty` |
+    | 4. Parity | `TestHandler` (bodies from `goip.Show`, `X-Goip-Argv`), `FuzzArgvPath` and `FuzzIPHandler` (argv and canonical round trips), `TestRoundTripExamples`, `TestIndexExamples`, the VM's `curl_eq_goip` |
+    | 5. No cost to scrapes | `TestRegisterMethods` (no method patterns), `TestIPPathsNoNetlinkOnMetrics`, and `TestIPPathsMetricsAllocs`, added here |
+    | IA3-T03's fuzz invariants (bounded statuses, 405 never opens and 400 never sends, safe headers, GET/HEAD, 1 s) | `FuzzIPHandler`, `TestFuzzIPHandlerRows` |
+
+    The review found one gap: invariant 5's allocation half had only
+    `BenchmarkMetricsWithIPPaths`, which reports and cannot fail.
+    `TestIPPathsMetricsAllocs` now compares each scrape path with `/ip`
+    off and on (`/metrics`, `/metrics-all`, a category, an interface
+    path, `/healthz`) and fails on any added allocation; 5 of 5 runs pass
+    (IV025). It skips under `-race`, where `sync.Pool` drops a random
+    quarter of its puts and the exposition's count moved by one (IV028);
+    the unit leaf runs it.
+  - `l_examples`: met, with the operator's approval at the time (IV024).
+    This branch's go-link-monitor ran unprivileged on `l` on a loopback
+    port beside the deployed one, which was not touched; bodies were
+    discarded and only statuses kept. The 6 served examples without a
+    device are 200, the 4 `not_served` are 501, and the 2 `dev eth0`
+    examples are 404 because `l` has no device by that name: the live
+    missing-device answer, not a fault.
+    The run predates the route prefixes below, so the prefix example
+    counted among the 501s; the VM covers it served (IV027).
+  - Route prefixes (raised by the operator on `l`): `/ip/-json/route/show/0.0.0.0/0`
+    was a 501 where `ip route show 0.0.0.0/0` prints the default route.
+    goip's `route show` now parses ip's final argument arm,
+    `[to] [root|match|exact] PREFIX` (ip/iproute.c, `iproute_list_flush_or_save`),
+    through the existing `get_prefix` port, and filters as `filter_nlmsg`
+    does: `root` drops routes longer than the prefix, `match` drops routes
+    shorter than it, a bare prefix or `exact` sets both, and the address
+    compares over the prefix's bits (`root`) or the route's (`match`). The
+    filter is client-side, as in `ip`; the dump request is unchanged. The
+    keywords goip still does not parse (`proto`, `scope`, `type`, `via`,
+    `src`, `from`, `metric`, …) are refused by name first, so none of them
+    is mistaken for a prefix: still a 501. `get_prefix`'s errors are
+    `ip`'s, so `/ip/route/show/10.0.0.0%2F33` is a 400 with `any valid
+    prefix is expected rather than "10.0.0.0/33"`. The index's
+    `/ip/route/show/10.0.0.0/8` example is now served (9 served, 3
+    `not_served`). Tests: `TestParseRouteShowArgs` +20 rows,
+    `TestRouteMatchesDst` (12 rows), `TestHandler` +3 rows; the VM leaf
+    adds a `10.1.0.0/16` and a default route and compares
+    `10.0.0.0/8`, `0.0.0.0/0` (JSON, the default route), `0.0.0.0`,
+    `root`, `match`, `to exact` and the `/33` 400 with `ip`: 40 checks
+    pass (IV027).
+  - `follow_ups`, each with a decision:
+    - `ip route get ADDR`: deferred. It is read-only but not in goip;
+      once goip has it, `get` joins route's verb chain as a show-kind
+      verb and the paths serve it with no HTTP change.
+    - Mounting the paths in xtcp2: deferred. `goiphttp.Register` takes
+      any mux and wrap, so it is a flag and a route; xtcp2 has no `/ip`
+      need today.
+    - The TODO section's three items stay open as follow-ups: the
+      query-form cost (operator decision, revisit later), validating
+      selectors before the open, and goip's `ntable_dev_star` parity bug.
 
 ## Evidence ledger
 
@@ -435,6 +498,12 @@ write-up in IA4-T02.
 | IV021 | 2026-10-19 | IA4-T01 | `env -u LD_LIBRARY_PATH nix run path:.#test-goip-argv-paths-vm` | qemu-vm guest on `l` (KVM), kernel 6.18.39, host load 6.6 | `b9724a99` + working tree | **Fail**: setup, `RTNETLINK answers: File exists` (the guest's own `eth0`) | `/tmp/goip-argv-paths-FRwg1L`, not kept |
 | IV022 | 2026-10-19 | IA4-T01 | the same, after moving the guest NIC aside | qemu-vm guest on `l` (KVM), kernel 6.18.39, host load 7.5 | `b9724a99` + working tree | **Fail**: 33 rows passed; three failed, two of them the leaf's own (`l/s` is `link set`; the `dev show` grep) and one goip gap (`ntable_dev_star`) | `/tmp/goip-argv-paths-*`, not kept |
 | IV023 | 2026-10-19 | IA4-T01 | the same, with those fixed and the gap named | qemu-vm guest on `l` (KVM), kernel 6.18.39, host load 5.9 | `b9724a99` + working tree | Pass: all 35 checks, one of them through the named gap, every sentinel | `/tmp/goip-argv-paths-rFQqmf` |
+| IV024 | 2026-10-19 | IA4-T02 | `l_examples`: this branch's `go-link-monitor -ip.paths` run unprivileged on `127.0.0.1:9102`, beside the deployed one, each `/ip` index example fetched with curl, bodies discarded, statuses kept; operator-approved | `l`, 7.2.9 | `3f66b4d5` + working tree | 6 × 200, 4 × 501 (`not_served`), 2 × 404 (`dev eth0`: `l` has no `eth0`) | scratchpad, not kept |
+| IV025 | 2026-10-19 | IA4-T02 | `go test -run TestIPPathsMetricsAllocs -count 5 ./cmd/go-link-monitor/` via `nix develop` | `l`, 7.2.9 | `3f66b4d5` + working tree | Pass, 5 of 5 | session log, not kept |
+| IV026 | 2026-10-19 | IA4-T02 | `nix build --no-link --keep-going path:.#test-linkmonitor path:.#test-focused-goip -L` | `l`, nix sandbox, 7.2.9 | `3f66b4d5` + working tree, before route prefixes | Pass; superseded by the route-prefix change, so not the final gate | nix store, `--no-link` |
+| IV027 | 2026-10-19 | IA4-T02 | `env -u LD_LIBRARY_PATH nix run path:.#test-goip-argv-paths-vm`, with the route-prefix rows; operator-approved | qemu-vm guest on `l` (KVM), kernel 6.18.39, host load 4.5 | `3f66b4d5` + working tree | Pass: all 40 checks, one through the named gap, every sentinel | `/tmp/goip-argv-paths-UgaPW6` |
+| IV028 | 2026-10-19 | IA4-T02 | `nix build --no-link --keep-going path:.#test-linkmonitor path:.#test-focused-goip -L` | `l`, nix sandbox, 7.2.9, load 4–9 | `3f66b4d5` + working tree | **Fail**: race, `TestIPPathsMetricsAllocs/positive/all` (`/metrics-all` off 36, on 37 under `-race`); every other leaf passed, `test-focused-goip` OK | scratchpad, not kept |
+| IV029 | 2026-10-19 | IA4-T02 | the same, with the allocation test skipped under `-race` | `l`, nix sandbox, 7.2.9 | `3f66b4d5` + working tree | Pass: every `test-linkmonitor` leaf (docs, format, fuzz, lint, parse-guards, race, rdma, replay, unit, vet) and `test-focused-goip` | nix store, `--no-link` |
 
 ## TODO
 
@@ -483,3 +552,5 @@ None.
 | 2026-10-19 | IA3-T03 done, so IA3 is done: `FuzzIPHandler` through a real ServeMux with a recording fake source, in the fuzz leaf. It found two bugs, both fixed: unparsable query strings were silently dropped (now 400) and an over-long device name was a 500 (now 400). The "rejections open nothing" invariant is amended to "a 405 never opens; a 400 sends no message" (plan updated), with the open-before-parse order a TODO. Next: IA4-T01, the VM parity leaf, with approval before the run. |
 | 2026-10-19 | Started IA4. IA4-T01 in progress: `nix/tests/goip-argv-paths.nix` (`test-goip-argv-paths-vm`), a networkless qemu-vm guest modelled on the embedding leaf rather than the stashed ionic steps, which need the ionic driver. `prefix_join_live` is amended: `/ip/route/show/10.0.0.0/8` resolves but is goip's route-selector 501 (IA2-T03), so the route is checked through `/ip/route/show/dev/show`. Next: the VM run, with approval. |
 | 2026-10-19 | IA4-T01 done: the VM parity leaf passes (IV023) after two failed runs, both recorded. 35 checks: byte-identical to goip, identical to `ip` but for the named `ntable_dev_star` gap, a goip parity bug now a TODO. Next: IA4-T02. |
+| 2026-10-19 | IA4-T02 in progress: the invariant map, `TestIPPathsMetricsAllocs` for the one invariant without a failing test, and `l_examples` on `l` with approval. The branch was deployed on `l` (`ipPaths = true` in its NixOS config), where the operator found `/ip/-json/route/show/0.0.0.0/0` a 501; goip's `route show` now parses `[to] [root|match|exact] PREFIX` and filters as `ip` does, and the VM leaf compares it (IV027). |
+| 2026-10-19 | IA4-T02 done, so IA4 and the plan are done: 12 of 12. The aggregate gate failed once on the new allocation test under `-race` (IV028), now skipped there, and passes (IV029). Follow-ups are in IA4-T02's findings and the TODO section. Next: redeploy `l` at this commit; the push and the single PR when the operator asks. |

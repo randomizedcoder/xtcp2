@@ -26,8 +26,9 @@ type example struct {
 	NotServed string `json:"not_served,omitempty"`
 }
 
-// routeSelectorGap is goip's `route show` gap: it parses table, dev and oif.
-const routeSelectorGap = "goip's route show parses only table, dev and oif"
+// routeSelectorGap is goip's `route show` gap: it parses table, dev, oif
+// and destination prefixes.
+const routeSelectorGap = "goip's route show parses only table, dev, oif and destination prefixes"
 
 // examples are the design's examples (IP-ARGV-PATHS-DESIGN.md section 1).
 var examples = []example{
@@ -47,10 +48,7 @@ var examples = []example{
 		Path: "/i/-4/r/s/table/all/proto/bgp", Command: "ip -4 route show table all proto bgp",
 		NotServed: routeSelectorGap,
 	},
-	{
-		Path: "/ip/route/show/10.0.0.0/8", Command: "ip route show 10.0.0.0/8",
-		NotServed: routeSelectorGap,
-	},
+	{Path: "/ip/route/show/10.0.0.0/8", Command: "ip route show 10.0.0.0/8"},
 	{
 		Path: "/i/n/s/nud/reachable", Command: "ip neighbor show nud reachable",
 		NotServed: "goip's neighbor show does not parse nud",
