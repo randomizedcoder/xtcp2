@@ -584,6 +584,21 @@ Work outside the 12 tasks, kept so it is not lost. IA4-T02 reviews it.
   Needs a presence flag in xtcpnl, a 6.18 fixture, and the VM leaf's gap
   removed. Done (findings, IV035): `HasIfindex`, hand-built 6.18 wire
   shapes rather than a capture, and the gap list now empty.
+- [ ] goip `link show type TYPE` (design example
+  `/ip/-d/link/show/type/vxlan`, now a 501 marked `not_served`): parse
+  `type` as `ip` does (ip/ipaddress.c, `ipaddr_list_flush_or_save`),
+  including the kernel-side `IFLA_LINKINFO` kind filter and the
+  client-side check, then drop the example's `not_served`.
+- [ ] goip `route show proto PROTO` (design example
+  `/i/-4/r/s/table/all/proto/bgp`, now a 501 marked `not_served`): parse
+  `proto`/`protocol` with `rtnl_rtprot_a2n` names and numbers and filter
+  as ip/iproute.c's `filter_nlmsg` does, then drop the example's
+  `not_served`.
+- [ ] goip `neighbor show nud STATE` (design example
+  `/i/n/s/nud/reachable`, now a 501 marked `not_served`): parse `nud`
+  (ip/ipneigh.c, repeated `nud` ors states, `all`, `none` as 0x100),
+  reinstate `neighStateFiltered`'s fourth clause in the same change, then
+  drop the example's `not_served`.
 - [ ] Run the VM leaf with the empty gap list, so `/i/ntbl/show` is
   compared with `ip` on the guest's 6.18 kernel (operator approval).
 
@@ -623,3 +638,4 @@ None.
 | 2026-10-19 | The VM leaf passes with the bare link rows (IV032). Next, at the operator's choice: the open TODOs, starting with validating selectors before a source is opened. |
 | 2026-10-19 | TODO done: refused selectors no longer open a source, through a dry run of `goip.Show` on a probe source (findings, IV033–IV034). Next: goip's `ntable_dev_star`. |
 | 2026-10-19 | TODO done: goip prints `dev *` for a base ntable message with `NDTPA_IFINDEX` 0 (findings, IV035); the VM leaf's gap list is empty. Next: the VM run that confirms it, when the operator approves. |
+| 2026-10-19 | The operator asked for the three goip selector gaps behind the `not_served` design examples (`link show type`, `route show proto`, `neighbor show nud`) as TODOs, and for all three to be done next. |
