@@ -365,10 +365,11 @@ func (s *Service) AddrLinkGet(family uint8, index int32, extMask uint32) (model.
 
 // Routes performs the RTM_GETROUTE dump behind `ip route show`, with
 // iproute_dump_filter's two optional attributes applied: table (RT_TABLE_UNSPEC
-// for none) and oif (0 for none). req.RouteShowDump has the derivation,
-// including why `iif` is deliberately absent from this signature.
-func (s *Service) Routes(family uint8, table, oif uint32) ([]model.Route, error) {
-	r, err := req.RouteShowDump(family, table, oif, s.nextSeq())
+// for none) and oif (0 for none), and its rtm_protocol (0 for none).
+// req.RouteShowDump has the derivation, including why `iif` is deliberately
+// absent from this signature.
+func (s *Service) Routes(family, protocol uint8, table, oif uint32) ([]model.Route, error) {
+	r, err := req.RouteShowDump(family, protocol, table, oif, s.nextSeq())
 	if err != nil {
 		return nil, err
 	}

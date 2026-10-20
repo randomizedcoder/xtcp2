@@ -558,6 +558,13 @@ type RouteShowFilter struct {
 	// oversight reproduced by accident.
 	OifMask bool
 
+	// ProtoMask is `filter.protocolmask == -1`, i.e. a `proto PROTO`
+	// selector (other than `all`) was given. True SUPPRESSES the `proto`
+	// token, -d or not: the guard is `(rtm_protocol != RTPROT_BOOT ||
+	// show_details > 0) && filter.protocolmask != -1` (ip/iproute.c:908-909),
+	// the same reasoning as OifMask — the value is on the command line.
+	ProtoMask bool
+
 	// Details is show_details, and it is the odd one out here: the two fields
 	// above come from the command's arguments and this one from a global
 	// option. It lives in the same struct because it does the same job —
@@ -794,7 +801,7 @@ func RouteViewOf(ri xtcpnl.RouteInfo, tab NameTab, f RouteShowFilter) RouteView 
 	// iproute2's shape exactly (:905-919): a cloned route prints neither token
 	// however many -d's are given.
 	if ri.Flags&unix.RTM_F_CLONED == 0 {
-		if ri.Protocol != unix.RTPROT_BOOT || f.Details {
+		if (ri.Protocol != unix.RTPROT_BOOT || f.Details) && !f.ProtoMask {
 			v.Protocol = routeProtoName(ri.Protocol)
 		}
 		if ri.Scope != unix.RT_SCOPE_UNIVERSE || f.Details {

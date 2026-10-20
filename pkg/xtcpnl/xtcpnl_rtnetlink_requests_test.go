@@ -536,6 +536,33 @@ func TestRequestBuilders(t *testing.T) {
 					rtattr(uint16(unix.RTA_OIF), le32(0xfeedface)))),
 		},
 		{
+			// `ip route show proto bgp`: iproute_dump_filter writes
+			// rtm_protocol (ip/iproute.c:1721) into the rtmsg, byte 5, and
+			// the attributes are those of the bare command.
+			description: "positive: proto bgp sets rtm_protocol 186 and keeps RTA_TABLE",
+			got:         mustBuildReq(BuildDumpRouteRequestFilterProto(unix.AF_INET, unix.RTPROT_BGP, unix.RT_TABLE_MAIN, 0, testSeq)),
+			want: nlmsg(uint16(unix.RTM_GETROUTE), wantDumpFlags, testSeq,
+				concat(rtmsgHdr(unix.AF_INET, 0, 0, 0, unix.RTPROT_BGP, 0, 0, 0),
+					rtattr(uint16(unix.RTA_TABLE), le32(unix.RT_TABLE_MAIN)))),
+		},
+		{
+			// `proto all` and no proto both send filter.protocol 0, so the
+			// Proto builder at 0 must equal the plain one byte for byte.
+			description: "boundary: protocol 0 is the plain builder's request",
+			got:         mustBuildReq(BuildDumpRouteRequestFilterProto(unix.AF_UNSPEC, 0, unix.RT_TABLE_UNSPEC, 3, testSeq)),
+			want:        mustBuildReq(BuildDumpRouteRequestFilter(unix.AF_UNSPEC, unix.RT_TABLE_UNSPEC, 3, testSeq)),
+		},
+		{
+			// 255 is the largest rtnl_rtprot_a2n accepts (lib/rt_names.c:296);
+			// it composes with both attributes in their order.
+			description: "corner: protocol 255 with table and oif",
+			got:         mustBuildReq(BuildDumpRouteRequestFilterProto(unix.AF_INET6, 255, 100, 7, testSeq)),
+			want: nlmsg(uint16(unix.RTM_GETROUTE), wantDumpFlags, testSeq,
+				concat(rtmsgHdr(unix.AF_INET6, 0, 0, 0, 255, 0, 0, 0),
+					rtattr(uint16(unix.RTA_TABLE), le32(100)),
+					rtattr(uint16(unix.RTA_OIF), le32(7)))),
+		},
+		{
 			// A negative index is how the kernel spells "unset" in some replies;
 			// the builder stores whatever int32 it is given, two's complement, so
 			// a caller cannot get a truncated index without noticing.

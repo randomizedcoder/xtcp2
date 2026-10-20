@@ -815,7 +815,7 @@ func TestTierARouteShowDevRequests(t *testing.T) {
 			// `route show dev X` is promoted exactly as a plain `route show`
 			// is. Then RTA_TABLE=254 and RTA_OIF=3, in that order.
 			description: "positive: the second request is the dump carrying RTA_TABLE then RTA_OIF",
-			build:       func() ([]byte, error) { return RouteShowDump(unix.AF_INET, unix.RT_TABLE_MAIN, idxCst, 62) },
+			build:       func() ([]byte, error) { return RouteShowDump(unix.AF_INET, 0, unix.RT_TABLE_MAIN, idxCst, 62) },
 			captured:    reqs[1],
 		},
 	}
@@ -840,7 +840,7 @@ func TestTierARouteShowDevRequests(t *testing.T) {
 		// fail the second row with a hex dump and no reason. It is also the
 		// assertion that the index reaches the wire at all: the two requests
 		// differ by one whole 8-byte attribute.
-		unfiltered, err := RouteShowDump(unix.AF_INET, unix.RT_TABLE_MAIN, 0, 62)
+		unfiltered, err := RouteShowDump(unix.AF_INET, 0, unix.RT_TABLE_MAIN, 0, 62)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -866,7 +866,7 @@ func TestTierARouteShowDevRequests(t *testing.T) {
 		if bytes.Equal(swapped, reqs[1]) {
 			t.Fatal("swapping the two attributes changed nothing; they are not distinguishable and this test proves nothing")
 		}
-		got, err := RouteShowDump(unix.AF_INET, unix.RT_TABLE_MAIN, idxCst, 62)
+		got, err := RouteShowDump(unix.AF_INET, 0, unix.RT_TABLE_MAIN, idxCst, 62)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -914,7 +914,7 @@ func TestTierARouteShowDevRequests(t *testing.T) {
 		if !bytes.Equal(zeroSeqPid(name), meshReqs[0]) {
 			t.Errorf("mesh ll_link_get differs\n got %x\nwant %x", zeroSeqPid(name), meshReqs[0])
 		}
-		dump, err := RouteShowDump(unix.AF_INET, unix.RT_TABLE_MAIN, meshIdx, 62)
+		dump, err := RouteShowDump(unix.AF_INET, 0, unix.RT_TABLE_MAIN, meshIdx, 62)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -1819,7 +1819,7 @@ func TestTierARouteShowRequests(t *testing.T) {
 					"capture is polluted and the expectation no longer describes "+
 					"a single command", tc.capture, len(captured))
 			}
-			got, err := RouteShowDump(tc.family, tc.table, 0, 42)
+			got, err := RouteShowDump(tc.family, 0, tc.table, 0, 42)
 			if err != nil {
 				t.Fatalf("RouteShowDump(%d, %d): %v", tc.family, tc.table, err)
 			}
@@ -1866,6 +1866,7 @@ func TestRouteShowDumpShape(t *testing.T) {
 	tests := []struct {
 		description string
 		family      uint8
+		protocol    uint8
 		table       uint32
 		oif         uint32
 		wantAttrs   []routeAttr
@@ -1965,11 +1966,31 @@ func TestRouteShowDumpShape(t *testing.T) {
 			oif:         0xFFFFFFFF,
 			wantAttrs:   []routeAttr{{unix.RTA_TABLE, 254}, {unix.RTA_OIF, 0xFFFFFFFF}},
 		},
+		{
+			// `ip route show proto bgp`: rtm_protocol (ip/iproute.c:1721) is
+			// the only header byte a show selector writes, and it adds no
+			// attribute.
+			description: "positive: `route show proto bgp` sets rtm_protocol 186 only",
+			family:      unix.AF_INET,
+			protocol:    unix.RTPROT_BGP,
+			table:       unix.RT_TABLE_MAIN,
+			wantAttrs:   []routeAttr{{unix.RTA_TABLE, 254}},
+		},
+		{
+			// rtnl_rtprot_a2n's ceiling (lib/rt_names.c:296), composed with
+			// both attributes: the byte does not move them.
+			description: "boundary: protocol 255 with `table all dev NAME`",
+			family:      unix.AF_UNSPEC,
+			protocol:    255,
+			table:       unix.RT_TABLE_UNSPEC,
+			oif:         3,
+			wantAttrs:   []routeAttr{{unix.RTA_OIF, 3}},
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			got, err := RouteShowDump(tc.family, tc.table, tc.oif, 9)
+			got, err := RouteShowDump(tc.family, tc.protocol, tc.table, tc.oif, 9)
 			if err != nil {
 				t.Fatalf("RouteShowDump: %v", err)
 			}
@@ -1990,10 +2011,17 @@ func TestRouteShowDumpShape(t *testing.T) {
 			if got[20] != 0 {
 				t.Errorf("rtm_table = %d, want 0; the header field is never written for a dump", got[20])
 			}
+			// rtm_protocol is byte 5 of the rtmsg, so offset 21.
+			if got[21] != tc.protocol {
+				t.Errorf("rtm_protocol = %d, want %d", got[21], tc.protocol)
+			}
 			// Every other rtmsg byte is zero for a show with no address
 			// selector: a non-zero dst_len or scope would be a filter `ip`
 			// did not send.
 			for i := 17; i < 28; i++ {
+				if i == 21 {
+					continue
+				}
 				if got[i] != 0 {
 					t.Errorf("rtmsg byte %d = %#x, want 0", i-16, got[i])
 				}

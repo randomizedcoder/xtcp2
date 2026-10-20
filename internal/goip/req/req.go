@@ -300,7 +300,7 @@ func AddrShowLinkGet(family uint8, index int32, extMask, seq uint32) ([]byte, er
 
 // RouteShowDump applies iproute2's route-show filter policy to the verified
 // rtnetlink builder. RT_TABLE_UNSPEC means table all; oif 0 means no device
-// filter.
+// filter; protocol is filter.protocol, 0 for none and for `proto all`.
 //
 // # Two selectors, one request, and the second one has a prerequisite
 //
@@ -325,8 +325,17 @@ func AddrShowLinkGet(family uint8, index int32, extMask, seq uint32) ([]byte, er
 // `route show` and differs only in which replies survive. goip does not
 // implement it; the point of recording it here is that a future
 // implementation must NOT reach for an RTA_IIF attribute on the request.
-func RouteShowDump(family uint8, table, oif, seq uint32) ([]byte, error) {
-	return xtcpnl.BuildDumpRouteRequestFilter(family, table, oif, seq)
+//
+// # `proto` is the one selector that reaches the rtmsg
+//
+// iproute_dump_filter writes `rtm->rtm_protocol = filter.protocol`
+// unconditionally (ip/iproute.c:1721), so `route show proto bgp` is the bare
+// request with byte 5 of the rtmsg set to 186 and no attribute added, and
+// `proto all` (filter.protocol 0, :1889) sends exactly the bare bytes.
+// filter.protocol is a u32 in C, but rtnl_rtprot_a2n accepts at most 255
+// (lib/rt_names.c:296) and the field is a byte, so nothing is lost.
+func RouteShowDump(family, protocol uint8, table, oif, seq uint32) ([]byte, error) {
+	return xtcpnl.BuildDumpRouteRequestFilterProto(family, protocol, table, oif, seq)
 }
 
 // NeighShowDump delegates to the verified ndmsg dump builder, carrying the two

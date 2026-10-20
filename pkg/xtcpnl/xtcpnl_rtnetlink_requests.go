@@ -397,8 +397,20 @@ func BuildDumpAddrRequestIndex(family uint8, ifindex, seq uint32) []byte {
 // (AF_INET, 254, 0) and the all-tables command is (AF_UNSPEC, 0, 0).
 // `ip route show dev NAME` is (AF_INET, 254, idx), 44 bytes.
 func BuildDumpRouteRequestFilter(family uint8, table, oif, seq uint32) ([]byte, error) {
+	return BuildDumpRouteRequestFilterProto(family, 0, table, oif, seq)
+}
+
+// BuildDumpRouteRequestFilterProto is BuildDumpRouteRequestFilter with
+// rtm_protocol, the one rtmsg byte iproute_dump_filter writes besides the
+// family: `rtm->rtm_protocol = filter.protocol` (ip/iproute.c:1721), set by
+// `ip route show proto PROTO` (:1880-1891). It is written unconditionally,
+// so `proto all` and no `proto` at all both send 0, and the kernel reads a
+// nonzero value as a dump-side filter (ip_valid_fib_dump_req's
+// filter->protocol). The attributes are unchanged.
+func BuildDumpRouteRequestFilterProto(family, protocol uint8, table, oif, seq uint32) ([]byte, error) {
 	hdr := make([]byte, RtMsgSizeCst)
-	hdr[0] = family // rtm_family
+	hdr[0] = family   // rtm_family
+	hdr[5] = protocol // rtm_protocol
 
 	var attrs []byte
 	if table != uint32(unix.RT_TABLE_UNSPEC) || oif != 0 {
