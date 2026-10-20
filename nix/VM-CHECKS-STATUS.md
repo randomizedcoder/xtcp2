@@ -47,7 +47,7 @@ on the builder. On 2026-10-20 the user agreed to add `"/dev/net/tun?"` to
 
 ## Integration results
 
-The latest pass of each check (VC006, operator-run on `l` at 4785ecad, KVM in
+The latest pass of each check (VC011, operator-run on `l` at 8c6b50eb, KVM in
 the nix build sandbox, QEMU 11.0.2). Go test counts are `--- PASS` lines in
 the guest's serial log; every run had no `--- FAIL` or `--- SKIP`.
 
@@ -56,14 +56,14 @@ the guest's serial log; every run had no `--- FAIL` or `--- SKIP`.
 | `vm-goip-argv-paths` | Linux 6.18.39 | 8 of 8 | 51 rows pass, 0 fail | every `/ip` design example and handler row against `goip` (byte-identical) and `ip` (no named gaps) |
 | `vm-linkmonitor-embedding` | Linux 6.18.39 | 4 of 4 | 12 Go tests pass | the embedding API in-process and inside xtcp2, `TestLinkMonitorOnDemandScrape` against guest sysfs |
 | `vm-linkmonitor-ionic` | Linux 7.1.4 | 11 of 11 | 99 Go tests pass | real ionic/ionic_rdma on rocm-ernic: discovery, request contracts, monitor, CLI differential, events, recorded events, remove, unplug, hotplug, recovered events |
-| `vm-linkmonitor-ionic-faults` | Linux 7.1.4 | 3 of 3 | 18 Go tests pass | generic-100g profile with injected faults; eth_rx fired 28 of 281, eth_tx 31 of 310, stats_vals 1 of 17; the monitor's counters agree with sysfs, ethtool and the fault pattern |
+| `vm-linkmonitor-ionic-faults` | Linux 7.1.4 | 3 of 3 | 18 Go tests pass | generic-100g profile with injected faults; eth_rx fired 28 of 282, eth_tx 31 of 310, stats_vals 1 of 18; the monitor's counters agree with sysfs, ethtool and the fault pattern |
 
 Outputs (GC-rooted by the operator's `result-vm-all`):
 
-- `/nix/store/khrr3nvjxwdw6bfqibxnp58zrbwksfpg-vm-check-goip-argv-paths`
-- `/nix/store/zjvc94286yqbxdybm9l1q1hbk12swm2n-vm-check-linkmonitor-embedding`
-- `/nix/store/fyfqiazx1d34p99cni36lkcpr9fjdrwi-vm-check-linkmonitor-ionic`
-- `/nix/store/6pwsfj17hv0alrc2mqw8bjc49islfcqm-vm-check-linkmonitor-ionic-faults`
+- `/nix/store/ak6rz3j4a7lrbqgbhr7v3a03pglgq5cv-vm-check-goip-argv-paths`
+- `/nix/store/v0z7391bi53q1n81ypvszmn1c3chi1gd-vm-check-linkmonitor-embedding`
+- `/nix/store/87nmczf1zd1i772n1l8kz6lgq5c122h0-vm-check-linkmonitor-ionic`
+- `/nix/store/6pvasypvcz6z2l74fxkfb79nlzgxiq83-vm-check-linkmonitor-ionic-faults`
 
 ## Tasks
 
@@ -72,7 +72,7 @@ Outputs (GC-rooted by the operator's `result-vm-all`):
 | VC-T01 | `mkVmCheck.nix` and its table test (`checks.vm-check-runner`, 13 rows) | done | VC001 |
 | VC-T02 | goip-argv-paths, embedding, ionic, ionic-faults wired: `checks.vm-*`, `vm-all`, `test-*-vm-check` | done (eval and build, no boot) | VC002 |
 | VC-T03 | each check passes once on `l` (one guest at a time, asked first) | done | VC004 |
-| VC-T04 | retire the duplicated launcher code once VC-T03 passes | done (rerun of `vm-all` pending) | VC009 |
+| VC-T04 | retire the duplicated launcher code once VC-T03 passes | done | VC009, VC011 |
 | VC-T05 | `microvm-lifecycle` check: `requiredSystemFeatures` and its log in `$out` | done (boot pending) | VC010 |
 | VC-T06 | `/tmp` cleanup of the old evidence dirs, after the user has seen the list | done | VC007 |
 | VC-T07 | Go source filtering, so a change outside the Go inputs keeps the guests cached (separate commits) | done | VC008 |
@@ -89,8 +89,10 @@ Outputs (GC-rooted by the operator's `result-vm-all`):
   embedding artifact; repo-wide checks keep the full tree (VC008).
 - [x] After the user's rebuild of `l`: `nix config show` lists
   `/dev/net/tun?`, and a sandboxed build creates a TAP (VC003).
-- [ ] Rerun `vm-all` after VC009/VC010 (the runner changed, so all four
-  boot) and `checks.x86_64-linux.microvm-lifecycle-x86_64` once.
+- [x] Rerun `vm-all` after VC009/VC010 (the runner changed, so all four
+  boot): all pass (VC011).
+- [ ] Boot `checks.x86_64-linux.microvm-lifecycle-x86_64` once in the
+  sandbox (VC-T05).
 - [ ] `test-linkmonitor-rdma-vm` (microvm.nix, TCP console ports) and
   `test-linkmonitor-performance-vm` (timings, wants a quiet host) stay apps.
 
@@ -108,3 +110,4 @@ Outputs (GC-rooted by the operator's `result-vm-all`):
 | VC008 | 2026-10-20 | `nix/lib/goSource.nix` (no `.md` or `.nix` outside testdata bar `cmd/go-link-monitor/METRICS.md`; no `flake.lock`, `docs/`, `.git`, `.github`, `.vscode`, `.ruff_cache`, `result*`). `nix eval` of `checks.vm-all.drvPath` after a README.md edit, a `.nix` comment edit and a `.go` edit; `nix build path:.#test-linkmonitor path:.#goip path:.#go-link-monitor path:.#rdma-capture-manifest` and `checks.{nix-fmt,statix,deadnix}` | drv unchanged by the Markdown and Nix edits, changed by the Go edit; all 14 `test-linkmonitor` leaves and the builds pass |
 | VC009 | 2026-10-20 | VC-T04: `checks.vm-check-runner` (15 rows, with `VM_KERNEL_PARAMS` passthrough and a stale `QEMU_KERNEL_PARAMS`); `nix build` of the four `test-*-vm` apps, `checks.{nix-fmt,statix,deadnix}`, `test-linkmonitor-docs`; `test-linkmonitor-ionic-vm --capture --dry-run --native-out=DIR` and its usage errors (`--dry-run` alone, `--keep=0`, an unknown flag, `--promote` on the fault run) | pass, 15 of 15; dry run writes the manifest and stages; each usage error exits 2; no `/tmp` directory left; no guest booted |
 | VC010 | 2026-10-20 | VC-T05: `microvm-lifecycle-x86_64` gains `requiredSystemFeatures = [ "kvm" ]`, stdin from `/dev/null`, and a directory `$out` (`summary.txt`, `serial.log`, `qemu.log`, escapes stripped by the shared `stripEscapes.nix`); comments claiming a check cannot have `/dev/kvm` corrected. `nix derivation show` of the check; `checks.{vm-check-runner,nix-fmt,statix,deadnix}`, `microvm-x86_64` | pass; `requiredSystemFeatures` is `kvm`; no guest booted |
+| VC011 | 2026-10-20 | user: `env -u LD_LIBRARY_PATH nix build -L -o result-vm-all path:.#checks.x86_64-linux.vm-all` on `l` (at 8c6b50eb; `vm-all` out path matches `nix eval` at HEAD) | pass: goip-argv-paths 8 sentinels and 51 rows, linkmonitor-embedding 4 and 12 Go tests, linkmonitor-ionic 11 and 99, linkmonitor-ionic-faults 3 and 18 (eth_rx fired 28 of 282, eth_tx 31 of 310, stats_vals 1 of 18); no `--- FAIL`; 0 ESC and 0 CR bytes in each serial.log; Linux 6.18.39 and 7.1.4; outputs 44-100 KiB |
