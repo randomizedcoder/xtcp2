@@ -29,8 +29,8 @@
 #   rc         the exit status `ip.rc` must hold: 0, or the status `ip`
 #              exits with when the kernel refuses the request, which ip/ip.c
 #              takes from the command's negated return: 2 for tcp_metrics
-#              (ip/tcp_metrics.c returns -2), 1 for an sr write
-#              (ip/ipseg6.c returns -1)
+#              (ip/tcp_metrics.c returns -2), 1 for an sr or ioam write
+#              (ip/ipseg6.c and ip/ipioam6.c return -1)
 #
 # TCP_METRICS (C2-T01)
 #
@@ -128,6 +128,58 @@ namespace eval genlcorpus {
         [list sr_hmac_show_64 4 [list [list hmac 4 sha256 $MAX_SECRET]] "ip sr hmac show" {} 0] \
         [list sr_tunsrc_show 4 {} "ip sr tunsrc show" {} 0] \
         [list sr_tunsrc_set 4 {} "ip sr tunsrc set 2001:db8::1" {{tunsrc 4 {ip sr tunsrc show}}} 0]
+
+    ###########################################################################
+    # C2-T03 - ioam, the IOAM6 family: namespaces, schemas and the binding
+    # between them, all per namespace, made with plain `ip` pre steps.
+    #
+    # The kernel keeps a namespace's data and wide data as all ones when
+    # none is given, and leaves an all-ones value out of the dump, so data
+    # 0xffffffff given explicitly reads back as no data. It pads a schema's
+    # data to a multiple of 4 bytes with zeros. `ip` parses data in any base
+    # and wide data in hex only. A refused write exits 1, as sr's do:
+    # ioam6_do_cmd returns -1.
+    #
+    # The only IOAM6 event, TRACE, is sent when a packet with an IOAM trace
+    # option arrives for a known namespace on a device with ioam6_enabled.
+    # The monitor rows run `ip ioam monitor` inside xtcp2-nl-ioam, which
+    # sends such packets to ::1 until the monitor prints, so their floor is
+    # the family lookup and one event; a row where the kernel stays silent,
+    # for an unknown namespace or with ioam6_enabled off, is the lookup
+    # alone, and the helper exits 1.
+    ###########################################################################
+    variable PRE_NS1 {{ioam namespace add 1}}
+    variable PRE_SC1 {{ioam schema add 1 abcd}}
+    variable PRE_NS1_SC1 {{ioam namespace add 1} {ioam schema add 1 abcd}}
+    variable PRE_BOUND {{ioam namespace add 1} {ioam schema add 1 abcd} {ioam namespace set 1 schema 1}}
+    variable NS_SHOW {{ns 4 {ip ioam namespace show}}}
+    variable SC_SHOW {{sc 4 {ip ioam schema show}}}
+    variable BOTH_SHOW {{ns 4 {ip ioam namespace show}} {sc 4 {ip ioam schema show}}}
+    variable PRE_TRACE {{ioam namespace add 123} {sysctl net.ipv6.conf.lo.ioam6_enabled 1}}
+
+    lappend rows \
+        [list ioam_ns_show_empty 4 {} "ip ioam namespace show" {} 0] \
+        [list ioam_ns_add 4 {} "ip ioam namespace add 1" $NS_SHOW 0] \
+        [list ioam_ns_add_data 4 {} "ip ioam namespace add 2 data 42 wide 2a" $NS_SHOW 0] \
+        [list ioam_ns_add_unavailable 4 {} \
+            "ip ioam namespace add 3 data 0xffffffff wide ffffffffffffffff" $NS_SHOW 0] \
+        [list ioam_ns_add_dup 4 $PRE_NS1 "ip ioam namespace add 1" {} 1] \
+        [list ioam_ns_del 4 $PRE_NS1 "ip ioam namespace del 1" $NS_SHOW 0] \
+        [list ioam_ns_del_missing 4 {} "ip ioam namespace del 9" {} 1] \
+        [list ioam_sc_show_empty 4 {} "ip ioam schema show" {} 0] \
+        [list ioam_sc_add 4 {} "ip ioam schema add 1 abcd" $SC_SHOW 0] \
+        [list ioam_sc_add_pad 4 {} "ip ioam schema add 2 abcde" $SC_SHOW 0] \
+        [list ioam_sc_add_dup 4 $PRE_SC1 "ip ioam schema add 1 wxyz" {} 1] \
+        [list ioam_sc_del 4 $PRE_SC1 "ip ioam schema del 1" $SC_SHOW 0] \
+        [list ioam_sc_del_missing 4 {} "ip ioam schema del 9" {} 1] \
+        [list ioam_ns_set_schema 4 $PRE_NS1_SC1 "ip ioam namespace set 1 schema 1" $BOTH_SHOW 0] \
+        [list ioam_ns_set_none 4 $PRE_BOUND "ip ioam namespace set 1 schema none" $BOTH_SHOW 0] \
+        [list ioam_ns_set_missing 4 $PRE_NS1 "ip ioam namespace set 1 schema 9" {} 1] \
+        [list ioam_sc_del_bound 4 $PRE_BOUND "ip ioam schema del 1" $NS_SHOW 0] \
+        [list ioam_ns_del_bound 4 $PRE_BOUND "ip ioam namespace del 1" $SC_SHOW 0] \
+        [list ioam_monitor_trace 3 $PRE_TRACE "xtcp2-nl-ioam ::1 123" {} 0] \
+        [list ioam_monitor_unknown_ns 2 $PRE_TRACE "xtcp2-nl-ioam ::1 99 5" {} 1] \
+        [list ioam_monitor_disabled 2 {{ioam namespace add 123}} "xtcp2-nl-ioam ::1 123 5" {} 1]
 
     ###########################################################################
     # pre_step <ns> <subdir> <step> - 1 if the step was taken, else 0.

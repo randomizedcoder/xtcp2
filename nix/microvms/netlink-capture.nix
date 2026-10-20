@@ -474,17 +474,113 @@ let
 
     main()
   '';
+
+  # xtcp2-nl-ioam <dst|-> <ioam-namespace> [tries]
+  #
+  # `ip ioam monitor` while a traced packet arrives, for the IOAM6 event row
+  # (C2-T03; docs/netlink/goip-parity-gaps.md). The kernel sends
+  # IOAM6_EVENT_TRACE when it takes an IPv6 packet whose hop-by-hop header
+  # holds an IOAM pre-allocated trace option for a namespace it knows, on a
+  # device with ioam6_enabled (ipv6_hop_ioam, net/ipv6/exthdrs.c), and only
+  # while something is subscribed. The header is two bytes of PadN, so the
+  # option starts 4n-aligned as the kernel requires, then the option: trace
+  # type bit 0 (hop limit and node id, one 4-byte word a node), room for
+  # two nodes. It goes on a UDP datagram to <dst> port 9, set with
+  # IPV6_HOPOPTS, which needs CAP_NET_RAW.
+  #
+  # The monitor runs line-buffered; a datagram is sent every 0.2 s until it
+  # prints a line, or <tries> (25) have gone. Prints the monitor's lines. A
+  # <dst> of `-` prints the header in hex and sends nothing. A bad argument
+  # exits 2; a refused socket option or send, or no event, 1.
+  ioam = pkgs.writers.writePython3Bin "xtcp2-nl-ioam" { } ''
+    import ipaddress
+    import select
+    import socket
+    import struct
+    import subprocess
+    import sys
+
+    IPV6_HOPOPTS = 54
+    IPV6_TLV_PADN = 1
+    IPV6_TLV_IOAM = 49
+    IOAM6_TYPE_PREALLOC = 0
+    TRACE_TYPE = 0x80000000
+    NODELEN = 1
+    REMLEN = 2
+
+
+    def hopopts(ns):
+        trace = struct.pack("!HBBI", ns, NODELEN << 3, REMLEN, TRACE_TYPE)
+        trace += bytes(REMLEN * 4)
+        opt = struct.pack("!BBBB", IPV6_TLV_IOAM, 2 + len(trace), 0,
+                          IOAM6_TYPE_PREALLOC) + trace
+        body = struct.pack("!BB", IPV6_TLV_PADN, 0) + opt
+        return struct.pack("!BB", 0, (2 + len(body)) // 8 - 1) + body
+
+
+    def fail(rc, msg):
+        print("xtcp2-nl-ioam: " + msg, file=sys.stderr)
+        sys.exit(rc)
+
+
+    def main():
+        if len(sys.argv) not in (3, 4):
+            fail(2, "usage: xtcp2-nl-ioam <dst|-> <ioam-namespace> [tries]")
+        try:
+            ns = int(sys.argv[2], 0)
+            tries = int(sys.argv[3]) if len(sys.argv) == 4 else 25
+            dst = None
+            if sys.argv[1] != "-":
+                dst = ipaddress.IPv6Address(sys.argv[1])
+        except ValueError as e:
+            fail(2, str(e))
+        if not 0 <= ns < 65536:
+            fail(2, "namespace out of range: %d" % ns)
+        if tries < 1:
+            fail(2, "tries must be at least 1: %d" % tries)
+        hdr = hopopts(ns)
+        if dst is None:
+            print(hdr.hex())
+            return
+        try:
+            s = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
+            s.setsockopt(socket.IPPROTO_IPV6, IPV6_HOPOPTS, hdr)
+        except OSError as e:
+            fail(1, "send: " + str(e))
+        mon = subprocess.Popen(["stdbuf", "-oL", "ip", "ioam", "monitor"],
+                               stdout=subprocess.PIPE, text=True)
+        lines = []
+        try:
+            for _ in range(tries):
+                s.sendto(b"x", (str(dst), 9))
+                ready, _, _ = select.select([mon.stdout], [], [], 0.2)
+                if ready:
+                    lines.append(mon.stdout.readline())
+                    break
+        except OSError as e:
+            fail(1, "send: " + str(e))
+        finally:
+            mon.terminate()
+            mon.wait()
+        if not lines or not lines[0]:
+            fail(1, "no trace event after %d datagrams" % tries)
+        sys.stdout.write("".join(lines))
+
+
+    main()
+  '';
 in
 pkgs.writeShellApplication {
   name = "xtcp2-nlcap";
-  # For nix/checks/vm-lib-exp.nix, which runs xtcp2-nl-ra's and
-  # xtcp2-nl-tcp's hermetic rows.
-  passthru = { inherit ra tcp; };
+  # For nix/checks/vm-lib-exp.nix, which runs xtcp2-nl-ra's, xtcp2-nl-tcp's
+  # and xtcp2-nl-ioam's hermetic rows.
+  passthru = { inherit ra tcp ioam; };
   runtimeInputs = with pkgs; [
     mcdump
     ipmon
     ra
     tcp
+    ioam
     coreutils
     gawk
     gnugrep

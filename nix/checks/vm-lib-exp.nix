@@ -56,9 +56,10 @@
 # multicast route. TestRtnlReadCorpus pins the captured bytes.
 #
 # scripts/genl-write-corpus-test.exp does the same for genl-write-corpus.exp,
-# the C2 rows: slugs, floors, readbacks, statuses, the `tcp` and `hmac` pre
-# steps and the generic protocol of every readback. TestGenlTcpMetricsCorpus
-# and TestGenlSeg6Corpus pin the captured bytes.
+# the C2 rows: slugs, floors, readbacks, statuses, the `tcp`, `hmac` and
+# IOAM trace pre steps, the monitor rows' commands and the generic protocol
+# of every readback. TestGenlTcpMetricsCorpus, TestGenlSeg6Corpus and
+# TestGenlIoam6Corpus pin the captured bytes.
 #
 {
   pkgs,
@@ -79,6 +80,7 @@ pkgs.runCommand "xtcp2-vm-lib-exp"
       nlcap
       nlcap.ra
       nlcap.tcp
+      nlcap.ioam
     ];
     inherit src;
   }

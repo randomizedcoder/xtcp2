@@ -776,6 +776,29 @@ proc hmac_topology {} {
 tcheck "corner: the topology line holds getpass's prompt on stderr and the kernel's answer" \
     {regexp {^FAIL  \[-\] sr hmac set 1 sha256: Enter secret for HMAC key ID \(blank to delete\): RTNETLINK answers: } [hmac_topology]} 1
 
+# xtcp2-nl-ioam (C2-T03). The sandbox has no CAP_NET_RAW, so the hop-by-hop
+# header is checked through `-`, which prints it, and a real send is only
+# shown to fail at the socket option rather than as an argument.
+set ioam_123 0002010031120000007b0802800000000000000000000000
+foreach {description cmd want_rc want_re} [list \
+    "positive: the header is PadN, then an IOAM pre-allocated trace for namespace 123: nodelen 1, room for 2 nodes, type bit 0" \
+        "xtcp2-nl-ioam - 123" 0 "^$ioam_123\$" \
+    "boundary: namespace 0xffff, the largest, changes only its two bytes" \
+        "xtcp2-nl-ioam - 0xffff" 0 {^0002010031120000ffff0802800000000000000000000000$} \
+    "negative: no arguments is a usage error" \
+        "xtcp2-nl-ioam" 2 {xtcp2-nl-ioam: usage:} \
+    "boundary: namespace 65536 is one past the largest" \
+        "xtcp2-nl-ioam - 65536" 2 {namespace out of range: 65536} \
+    "negative: an IPv4 destination is refused" \
+        "xtcp2-nl-ioam 127.0.0.1 123" 2 {xtcp2-nl-ioam: .*127.0.0.1} \
+    "boundary: 0 tries is refused" \
+        "xtcp2-nl-ioam ::1 123 0" 2 {tries must be at least 1: 0} \
+    "corner: a well-formed send the sandbox cannot make is rc 1, at the socket option" \
+        "xtcp2-nl-ioam ::1 123 1" 1 {xtcp2-nl-ioam: send: .*Operation not permitted} \
+] {
+    ccheck $description $cmd $want_rc $want_re
+}
+
 # late_setup against the recorder: the modules call reaches the real helper,
 # where it fails as above; the sysctl and note are recorded.
 set ::calls {}

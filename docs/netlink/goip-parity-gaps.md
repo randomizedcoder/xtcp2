@@ -153,10 +153,10 @@ These surfaces have no netlink message to capture, so they are out of scope for 
 | `NETLINK_XFRM` | 22 `XFRM_MSG_*` | |
 
 **What was measured:**
-- **Pcaps:** 846 committed DLT_NETLINK (253) pcaps under `pkg/` (713 when the plan was written), counted by `(protocol, nlmsg_type)`. For genl, the count is by `(family name, cmd)`, with names resolved from each pcap's own `CTRL_CMD_NEWFAMILY` replies.
+- **Pcaps:** 880 committed DLT_NETLINK (253) pcaps under `pkg/` (713 when the plan was written), counted by `(protocol, nlmsg_type)`. For genl, the count is by `(family name, cmd)`, with names resolved from each pcap's own `CTRL_CMD_NEWFAMILY` replies.
 - **Table tests and benchmarks:** the parsers' `Test*` and `Benchmark*` functions.
 
-**Measured 2026-10-19,** again at the C1 close (DOC004), and the pcap total and genl rows at C2-T01 (V044) and C2-T02 (V049). Re-measure with [the commands below](#how-to-re-measure).
+**Measured 2026-10-19,** again at the C1 close (DOC004), and the pcap total and genl rows at C2-T01 (V044), C2-T02 (V049) and C2-T03 (V054). Re-measure with [the commands below](#how-to-re-measure).
 
 ### rtnetlink
 
@@ -204,10 +204,11 @@ The capture also holds `RTM_GETMULTICAST` (58: 13 / 3) and `RTM_GETANYCAST` (62:
 
 | family | commands in the universe | in pcaps | parser | table test | benchmark |
 |---|---|---|---|---|---|
-| nlctrl | 3 | NEWFAMILY 437 / 165, GETFAMILY 437 / 165 | `ParseGenericNetlinkFamily` | `TestGenericNetlinkFamilyBoundaries`, `xtcpnl_ethtool_test.go:215` | none |
+| nlctrl | 3 | NEWFAMILY 474 / 199, GETFAMILY 474 / 199 | `ParseGenericNetlinkFamily` | `TestGenericNetlinkFamilyBoundaries`, `xtcpnl_ethtool_test.go:215` | none |
 | tcp_metrics | 2 | GET 50 / 15, DEL 8 / 6 (C2-T01) | none | `TestGenlTcpMetricsCorpus` reads the attributes raw | none |
 | seg6 | 4 | SETHMAC 6 / 6, DUMPHMAC 14 / 7, SET_TUNSRC 1 / 1, GET_TUNSRC 4 / 2 (C2-T02) | none | `TestGenlSeg6Corpus` reads the attributes raw | none |
-| fou, ila, l2tp, macsec, mptcp_pm, ioam6 | 37 | **0** | none | none | none |
+| ioam6 | 7 | ADD_NAMESPACE 4 / 4 (the walker's command 1 counts 5 / 5, with the TRACE event, whose number is also 1), DEL_NAMESPACE 3 / 3, DUMP_NAMESPACES 14 / 8, ADD_SCHEMA 3 / 3, DEL_SCHEMA 3 / 3, DUMP_SCHEMAS 12 / 7, NS_SET_SCHEMA 3 / 3; event TRACE 1 / 1 (C2-T03) | none | `TestGenlIoam6Corpus` reads the attributes raw | none |
+| fou, ila, l2tp, macsec, mptcp_pm | 30 | **0** | none | none | none |
 | xfrm | 22 | **0** | none | none | none |
 
 The corpus also holds ethtool (19 commands), devlink (2) and nl80211 (7) from the link-state bundles. `ip` uses none of these families.
@@ -217,7 +218,7 @@ The corpus also holds ethtool (19 commands), devlink (2) and nl80211 (7) from th
 1. **The rtnetlink read side is in good shape.** Every body layout that a running goip object reads has captured pcaps, a parser and a table-driven test.
 2. **The capture holes were the DEL and SET types:** DELANYCAST, DELRULE, SETNEIGHTBL, DELADDRLABEL, DELNSID, SETSTATS and DELNEXTHOP. Each shares a body layout with its NEW type, so all but DELNSID already had a parser (NSID has none; point 3). The bytes were missing because no capture row sent them. C1-T01 added those rows (`link-write/rtnl/`), and each of the seven is now captured and checked by `TestRtnlWriteCorpus`.
 3. **Four rtnetlink layouts have no parser:** NSID, nexthop bucket, LINKPROP and prefix. Since C1 closed, all four have bytes: NSID 210 NEWNSID messages, the nexthop bucket and LINKPROP from C1-T02 (a 1024-bucket dump, and altname add and del), and prefix from C1-T04 (an RA's NEWPREFIX, 3 messages). The tests read them raw; the parsers are P1.
-4. **Generic netlink beyond nlctrl, and all of XFRM, have nothing:** no pcaps, no parsers, no tests. When this was measured the blocker was in the harness: `xtcp2-nlcap` kept only `NETLINK_ROUTE` (`ether[14:2]==0`), although nlmon taps GENERIC and XFRM. C0 removed it. A row now names its protocol (`--proto`, C0-T01), and the modules those families need are loaded late (C0-T02). What is missing is the capture rows (C2, C3). C2-T01 added the first: tcp_metrics' GET and DEL are captured (`link-write/genl/`), with no parser yet (P2). C2-T02 added sr's four SEG6 commands.
+4. **Generic netlink beyond nlctrl, and all of XFRM, have nothing:** no pcaps, no parsers, no tests. When this was measured the blocker was in the harness: `xtcp2-nlcap` kept only `NETLINK_ROUTE` (`ether[14:2]==0`), although nlmon taps GENERIC and XFRM. C0 removed it. A row now names its protocol (`--proto`, C0-T01), and the modules those families need are loaded late (C0-T02). What is missing is the capture rows (C2, C3). C2-T01 added the first: tcp_metrics' GET and DEL are captured (`link-write/genl/`), with no parser yet (P2). C2-T02 added sr's four SEG6 commands, and C2-T03 ioam's seven IOAM6 commands.
 5. **Benchmarks:** 1 of the 15 rtnetlink and genl parsers in the tables above (`ParseNewAddr`) has a parse benchmark. The rest of `BenchmarkDeserialize*` covers inet_diag only.
 
 ### How to re-measure
@@ -793,6 +794,44 @@ The order goes from built-in families to the ones that need modules or more setu
 | positive: `tunsrc set` | a SET_TUNSRC with the address, which GET_TUNSRC then returns |
 
 **Done when:** the gates pass, and seg6's row in the assessment has no **0**.
+
+#### C2-T03 ioam
+
+**Deliver** (as built):
+- **The rows (21)** are in `genl-write-corpus.exp` after sr's, in `link-write/genl/ioam_*`, every pcap `--proto generic`:
+  - `namespace show` and `schema show` with nothing made: empty dumps;
+  - `namespace add` plain, with `data` and `wide`, and with both all ones; `schema add` with 4 bytes of data and with 5; each read back with `show`;
+  - `namespace del` and `schema del`, read back;
+  - `namespace set ID schema ID` and `schema none`, each read back from both sides;
+  - deleting either side of a bound pair, read back from the other side;
+  - five the kernel refuses, each rc 1: a namespace or schema added twice (`EEXIST`), a namespace or schema deleted that doesn't exist, and a binding to a schema that doesn't exist (`ENOENT`);
+  - `ip ioam monitor` while a traced packet arrives for namespace 123 on `lo` with `ioam6_enabled` set: one TRACE event; and two where none comes, a namespace the kernel doesn't know and `ioam6_enabled` left off (rc 1, from the helper).
+- **The state** before a row comes from plain `ip ioam` pre steps, and the sysctl step for `ioam6_enabled`.
+- **No module** is needed: `ioam6.o` is built in and the family is per namespace.
+- **The traced packet** comes from a new helper, `xtcp2-nl-ioam <dst> <ns> [tries]` (`netlink-capture.nix`). It runs `ip ioam monitor`, and sends UDP datagrams carrying a hop-by-hop IOAM pre-allocated trace option (one 4-byte node, trace type bit 0) every 0.2 s until the monitor prints a line, or fails after `tries` (default 25). The kernel's input path, not the lwtunnel, sends the event. See the [decision log](goip-parity-gaps-status.md#decision-log).
+
+**Tests:**
+
+`genl-write-corpus-test.exp` (88 rows) gains the ioam slugs, floors and statuses, the pre steps of the refused, bound and trace rows, the readbacks, the data in hex, all ones, and 5 bytes, and the monitor rows' commands. `addr-topology-test.exp` gains 7 rows for `xtcp2-nl-ioam`: the option's bytes for namespaces 123 and 65535, the usage, range and tries errors, an IPv4 destination, and the send refused without CAP_NET_RAW in the sandbox.
+
+`TestGenlIoam6Corpus` (`pkg/xtcpnl`, on the committed pcaps, 39 rows), among them:
+
+| description | expected |
+|---|---|
+| positive: every row resolves the family inside its pcap | a NEWFAMILY named `IOAM6` |
+| positive: `namespace add 2 data 42 wide 2a` | an ADD_NAMESPACE with an ACK carrying 0x2a twice (`wide` is hex); the dump returns both, and `ip` prints `namespace 2, data 0x0000002a, wide 0x000000000000002a` |
+| boundary: a namespace added with no data | the dump has its id alone |
+| corner: data and wide data of all ones | sent, but the kernel reads them as unavailable, and the dump leaves them out |
+| boundary: 5 bytes of schema data | sent as 5; the dump returns 8, padded with zeros |
+| positive: `namespace set 1 schema 1` | an NS_SET_SCHEMA with both ids; each side's dump names the other |
+| positive: `schema none` | the `SC_NONE` flag, which unbinds both sides |
+| corner: deleting either side of a bound pair | the other side's dump no longer names it |
+| negative: an add twice, a delete or binding of something missing | `EEXIST` or `ENOENT`, rc 1 |
+| positive: a traced packet for a known namespace | one TRACE: namespace 123, nodelen 1, type 0x80000000, data `3fffffff` (hop limit 63, the default node id); `ip` prints `[TRACE] Namespace=123 NodeLen=1 Type=0x80000000 Data=3fffffff` |
+| negative: an unknown namespace, or `ioam6_enabled` off | no event, rc 1 |
+| corner: the monitor | sends no IOAM6 request, only the family lookup |
+
+**Done when:** the gates pass, and ioam6's row in the assessment has no **0**.
 
 ### C3 — XFRM
 

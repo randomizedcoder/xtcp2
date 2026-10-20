@@ -15,8 +15,8 @@
 # there has to disagree with something that was not edited with it.
 #
 # What this does NOT cover: what the guest runs or what the kernel answers.
-# TestGenlTcpMetricsCorpus and TestGenlSeg6Corpus in pkg/xtcpnl pin that
-# in the committed fixtures.
+# TestGenlTcpMetricsCorpus, TestGenlSeg6Corpus and TestGenlIoam6Corpus in
+# pkg/xtcpnl pin that in the committed fixtures.
 #
 # Every row has a name, a description that starts with its class
 # (positive/negative/boundary/corner) and an expected value.
@@ -98,6 +98,12 @@ set design_rows {
     sr_hmac_show_empty sr_hmac_set sr_hmac_set_sha1 sr_hmac_replace
     sr_hmac_delete sr_hmac_delete_missing sr_hmac_set_long sr_hmac_show
     sr_hmac_show_64 sr_tunsrc_show sr_tunsrc_set
+    ioam_ns_show_empty ioam_ns_add ioam_ns_add_data ioam_ns_add_unavailable
+    ioam_ns_add_dup ioam_ns_del ioam_ns_del_missing ioam_sc_show_empty
+    ioam_sc_add ioam_sc_add_pad ioam_sc_add_dup ioam_sc_del
+    ioam_sc_del_missing ioam_ns_set_schema ioam_ns_set_none
+    ioam_ns_set_missing ioam_sc_del_bound ioam_ns_del_bound
+    ioam_monitor_trace ioam_monitor_unknown_ns ioam_monitor_disabled
 }
 
 proc bad_arity {} {
@@ -135,11 +141,12 @@ proc refused_rows {} {
 
 # wrong_object - the rows whose command is not their family's `ip` object:
 # `ip [-6] tcp_metrics` for tcpm_, `ip sr` for sr_, which an hmac set
-# runs under setsid with its secret piped in.
+# runs under setsid with its secret piped in, and `ip ioam` for ioam_, or
+# xtcp2-nl-ioam, which runs `ip ioam monitor`.
 proc wrong_object {} {
     set out {}
     foreach r $::R {
-        set re [dict get {tcpm {^ip (-6 )?tcp_metrics } sr {^(echo( \S+)? \| setsid -w )?ip sr }} \
+        set re [dict get {tcpm {^ip (-6 )?tcp_metrics } sr {^(echo( \S+)? \| setsid -w )?ip sr } ioam {^(ip ioam|xtcp2-nl-ioam) }} \
             [lindex [split [lindex $r 0] _] 0]]
         if {![regexp $re [lindex $r 3]]} {
             lappend out [lindex $r 0]
@@ -165,12 +172,14 @@ check arity "negative: every row is {slug floor pre command readbacks rc}" \
     {bad_arity} {}
 check unique_slugs "negative: no slug names two rows" \
     {dup_slugs} {}
-check refused_statuses "positive: the missing tcp_metrics entry is rc 2; the refused hmac sets rc 1" \
-    {refused_rows} {tcpm_get_missing 2 tcpm_delete_missing 2 sr_hmac_delete_missing 1 sr_hmac_set_long 1}
-check row_count "boundary: C2-T01's 14 rows and C2-T02's 11" \
-    {llength $R} 25
+check refused_statuses "positive: the missing tcp_metrics entry is rc 2; the refused hmac sets and ioam writes rc 1" \
+    {refused_rows} {tcpm_get_missing 2 tcpm_delete_missing 2 sr_hmac_delete_missing 1 sr_hmac_set_long 1 ioam_ns_add_dup 1 ioam_ns_del_missing 1 ioam_sc_add_dup 1 ioam_sc_del_missing 1 ioam_ns_set_missing 1 ioam_monitor_unknown_ns 1 ioam_monitor_disabled 1}
+check row_count "boundary: C2-T01's 14 rows, C2-T02's 11 and C2-T03's 21" \
+    {llength $R} 46
 check c2t01_rows_first "corner: C2-T02's rows come after C2-T01's, which keep their order" \
     {lindex [column 0] 13} tcpm_flush_empty
+check c2t02_rows_next "corner: C2-T03's rows come after C2-T02's" \
+    {lindex [column 0] 24} sr_tunsrc_set
 check right_object "negative: every command is its family's ip object" \
     {wrong_object} {}
 check no_quotes "corner: no command holds a single quote" \
@@ -183,7 +192,7 @@ check src_first "corner: src comes before address, since ip skips the word after
 # dumps, deletes and dumps again 6
 ###############################################################################
 check floors "positive: every floor, in run order" \
-    {column 1} {4 4 4 4 4 4 4 4 4 4 4 6 6 4 4 4 4 4 4 4 4 4 4 4 4}
+    {column 1} {4 4 4 4 4 4 4 4 4 4 4 6 6 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 3 2 2}
 check floor_flush_all "corner: flush all is one DEL with no address, so 4" \
     {field tcpm_flush_all 1} 4
 check floor_flush_empty "boundary: a flush that matches nothing stops after its dump" \
@@ -226,6 +235,26 @@ foreach {name description slug expected} {
     check $name $description [list lrange [field $slug 2] 0 end] $expected
 }
 
+foreach {name description slug expected} {
+    pre_ns_dup      "negative: the duplicate namespace add starts from namespace 1" ioam_ns_add_dup     {{ioam namespace add 1}}
+    pre_sc_dup      "negative: and the duplicate schema add from schema 1"         ioam_sc_add_dup     {{ioam schema add 1 abcd}}
+    pre_ns_del_miss "negative: deleting namespace 9 starts from none"              ioam_ns_del_missing {}
+    pre_set         "positive: set starts from namespace 1 and schema 1, unbound"  ioam_ns_set_schema  {{ioam namespace add 1} {ioam schema add 1 abcd}}
+    pre_set_missing "negative: set to a missing schema starts from namespace 1"   ioam_ns_set_missing {{ioam namespace add 1}}
+    pre_trace       "positive: a trace needs namespace 123 and ioam6_enabled on lo" ioam_monitor_trace {{ioam namespace add 123} {sysctl net.ipv6.conf.lo.ioam6_enabled 1}}
+    pre_unknown_ns  "negative: the unknown-namespace row has the same state"  ioam_monitor_unknown_ns {{ioam namespace add 123} {sysctl net.ipv6.conf.lo.ioam6_enabled 1}}
+    pre_disabled    "negative: the disabled row has the namespace and no sysctl" ioam_monitor_disabled {{ioam namespace add 123}}
+} {
+    check $name $description [list lrange [field $slug 2] 0 end] $expected
+}
+foreach {name description slug} {
+    pre_bound_none  "positive: unbinding starts from the bound pair"           ioam_ns_set_none
+    pre_bound_sc    "corner: so does deleting a bound schema"                  ioam_sc_del_bound
+    pre_bound_ns    "corner: and deleting a bound namespace"                   ioam_ns_del_bound
+} {
+    check $name $description [list lindex [field $slug 2] end] {ioam namespace set 1 schema 1}
+}
+
 ###############################################################################
 # 3a. the hmac set commands
 ###############################################################################
@@ -239,6 +268,19 @@ check hmac_long "boundary: the long secret is one past SEG6_HMAC_SECRET_LEN (64)
     {string length $genlcorpus::LONG_SECRET} 65
 check hmac_max "boundary: show_64's key is exactly SEG6_HMAC_SECRET_LEN, one past what ip prints" \
     {lmap step [field sr_hmac_show_64 2] {list [lrange $step 0 2] [string length [lindex $step 3]]}} {{{hmac 4 sha256} 64}}
+check ioam_unavailable "corner: the unavailable row gives data and wide data as all ones" \
+    {regexp { data 0xffffffff wide ffffffffffffffff$} [field ioam_ns_add_unavailable 3]} 1
+check ioam_wide_hex "corner: wide data is hex, so 2a is data's 42" \
+    {regexp { data 42 wide 2a$} [field ioam_ns_add_data 3]} 1
+check ioam_pad "boundary: the padded schema's data is 5 bytes, one past a multiple of 4" \
+    {string length [lindex [field ioam_sc_add_pad 3] end]} 5
+check floor_trace "boundary: a trace row is the family lookup and one event" \
+    {field ioam_monitor_trace 1} 3
+check floor_silent "boundary: a silent row is the lookup alone" \
+    {lmap slug {ioam_monitor_unknown_ns ioam_monitor_disabled} {field $slug 1}} {2 2}
+check monitor_cmds "positive: every monitor row sends to ::1 through xtcp2-nl-ioam, the silent ones 5 times" \
+    {lmap slug {ioam_monitor_trace ioam_monitor_unknown_ns ioam_monitor_disabled} {field $slug 3}} \
+    {{xtcp2-nl-ioam ::1 123} {xtcp2-nl-ioam ::1 99 5} {xtcp2-nl-ioam ::1 123 5}}
 check hmac_rows_use_set "corner: every hmac write row runs through hmac_set" \
     {lmap slug {sr_hmac_set sr_hmac_set_sha1 sr_hmac_replace sr_hmac_delete sr_hmac_delete_missing sr_hmac_set_long} {
         regexp {^echo( \S+)? \| setsid -w ip sr hmac set [0-9]+ sha(1|256)$} [field $slug 3]}} {1 1 1 1 1 1}
@@ -262,6 +304,15 @@ foreach {name description slug expected} {
     rb_hmac_long    "negative: a refused set has nothing to read back" sr_hmac_set_long   {}
     rb_tunsrc_set   "positive: tunsrc set reads the source back"      sr_tunsrc_set       tunsrc
     rb_tunsrc_show  "corner: a get is its own readback"               sr_tunsrc_show      {}
+    rb_ns_add       "positive: a namespace add reads the namespaces back" ioam_ns_add      ns
+    rb_ns_del       "positive: and so does a namespace delete"        ioam_ns_del         ns
+    rb_sc_add       "positive: a schema add reads the schemas back"   ioam_sc_add         sc
+    rb_sc_del       "positive: and so does a schema delete"           ioam_sc_del         sc
+    rb_set          "positive: a set reads back both sides"           ioam_ns_set_schema  {ns sc}
+    rb_set_none     "positive: and so does an unbind"                 ioam_ns_set_none    {ns sc}
+    rb_sc_del_bound "corner: deleting a bound schema reads the namespace back" ioam_sc_del_bound ns
+    rb_ns_del_bound "corner: deleting a bound namespace reads the schema back" ioam_ns_del_bound sc
+    rb_ns_dup       "negative: a refused add has nothing to read back" ioam_ns_add_dup    {}
 } {
     check $name $description [list readback_names $slug] $expected
 }
