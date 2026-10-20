@@ -148,15 +148,17 @@ These surfaces have no netlink message to capture, so they are out of scope for 
 
 | protocol | types | notes |
 |---|---|---|
-| `NETLINK_ROUTE` | 45 `RTM_*` | 48 names appear in total; `RTM_GETMDB`, `RTM_GETVLAN` and `RTM_GETTUNNEL` are used only by `bridge` |
-| `NETLINK_GENERIC` | 46 commands | nlctrl 3, tcp_metrics 2, fou 3, ila 3, l2tp 6, macsec 11, seg6 4, mptcp_pm 7, ioam6 7 |
+| `NETLINK_ROUTE` | 44 `RTM_*` | 47 names appear in total; `RTM_GETMDB`, `RTM_GETVLAN` and `RTM_GETTUNNEL` are used only by `bridge` |
+| `NETLINK_GENERIC` | 46 commands | nlctrl 3 (`CTRL_CMD_GETPOLICY` is used only by `devlink`), tcp_metrics 2, fou 3, ila 3, l2tp 6, macsec 11, seg6 4, mptcp_pm 7, ioam6 7 |
 | `NETLINK_XFRM` | 22 `XFRM_MSG_*` | |
 
+The plan first counted 45 `RTM_*` types from 48 names. [C4-T01](#c4-t01-the-universe-test) wrote the universe out as a literal list and found 47 names, so 44 types, the 44 the rtnetlink table below lists. `TestNetlinkUniverse` (`pkg/xtcpnl/xtcpnl_universe_test.go`) holds all 115 names, each with the first `ip/` or `lib/` line that names it, and fails if any is neither in a pcap nor excluded with a reason.
+
 **What was measured:**
-- **Pcaps:** 1140 committed DLT_NETLINK (253) pcaps under `pkg/` (713 when the plan was written), counted by `(protocol, nlmsg_type)`. For genl, the count is by `(family name, cmd)`, with names resolved from each pcap's own `CTRL_CMD_NEWFAMILY` replies.
+- **Pcaps:** 1140 committed DLT_NETLINK (253) pcaps under `pkg/` (713 when the plan was written), counted by `(protocol, nlmsg_type)`. For genl, the count is by `(family name, cmd)`, with names resolved from each pcap's own `CTRL_CMD_NEWFAMILY` replies. The genl counts below are the walker's, which counts replies and events too; `TestNetlinkUniverse` counts a genl command only in `ip`'s request, so its counts are lower (fou GET 11 / 11, not 21 / 11).
 - **Table tests and benchmarks:** the parsers' `Test*` and `Benchmark*` functions.
 
-**Measured 2026-10-19,** again at the C1 close (DOC004), and the pcap total and genl rows at C2-T01 (V044), C2-T02 (V049), C2-T03 (V054), C2-T04 (V059), C2-T05 (V064), C2-T06 (V069), C2-T07 (V074) and C2-T08 (V079), in full at the C2 close (DOC005), the pcap total and XFRM rows at C3-T01 (V084), and in full at the C3 close (DOC006). Re-measure with [the commands below](#how-to-re-measure).
+**Measured 2026-10-19,** again at the C1 close (DOC004), and the pcap total and genl rows at C2-T01 (V044), C2-T02 (V049), C2-T03 (V054), C2-T04 (V059), C2-T05 (V064), C2-T06 (V069), C2-T07 (V074) and C2-T08 (V079), in full at the C2 close (DOC005), the pcap total and XFRM rows at C3-T01 (V084), in full at the C3 close (DOC006), and by `TestNetlinkUniverse` at the C4 close (DOC007). Re-measure with [the commands below](#how-to-re-measure).
 
 ### rtnetlink
 
@@ -239,7 +241,13 @@ for f in $(git ls-tree --name-only v7.1.0 ip/ lib/ | grep '\.c$'); do
 done | sort
 ```
 
-**The pcaps:** paste the walker into `python3 -I - pkg`:
+**The pcaps:** from C4 on, the universe test walks them and logs every universe type's messages and pcaps:
+
+```bash
+go test -run 'TestNetlinkUniverse$' -v ./pkg/xtcpnl/
+```
+
+**Types outside the universe** (ERROR and DONE, the dedicated multicast and anycast dumps, the link-state bundles' genl families) and the walker's genl counts of replies and events come from the walker. Paste it into `python3 -I - pkg`:
 
 ```python
 import os, struct, sys, collections
@@ -295,7 +303,7 @@ grep -n '^func Parse' pkg/xtcpnl/*.go | grep -v _test
 grep -rn '^func Benchmark' --include='*_test.go' pkg/xtcpnl
 ```
 
-[C4-T01](#c4--corpus-completeness-gate) replaces the pcap half of this measurement with a committed test.
+[C4-T01](#c4-t01-the-universe-test) replaced the pcap half of this measurement for the universe with a committed test, `TestNetlinkUniverse`.
 
 ## The per-object pipeline
 
@@ -1113,14 +1121,37 @@ The order goes from built-in families to the ones that need modules or more setu
 - The universe is a literal list in the test, with each entry citing its iproute2 file.
 - It replaces the pcap half of [How to re-measure](#how-to-re-measure).
 
-**Tests:**
+**Delivered** (`pkg/xtcpnl/xtcpnl_universe_test.go`):
+- `netlinkUniverse` holds every `RTM_*`, genl command and `XFRM_MSG_*` name in iproute2 v7.1.0's `ip/*.c` and `lib/*.c`: 47 rtnetlink, 46 genl and 22 XFRM, 115 in all, each with the first `ip/` or `lib/` line that names it.
+- `universeExclusions` names six, each with its reason:
+  - `RTM_GETMDB`, `RTM_GETVLAN` and `RTM_GETTUNNEL`: their `lib/libnetlink.c` dump requests are called only from `bridge/`;
+  - `RTM_DELNEXTHOPBUCKET`: the kernel neither handles nor sends it, and `ip/ipmonitor.c` only names it to print it;
+  - `CTRL_CMD_GETPOLICY`: `lib/mnl_utils.c`'s policy dump is called only from `devlink/`;
+  - `XFRM_MSG_REPORT`: `km_report`'s one caller is MIPv6 route optimization (`net/ipv6/mip6.c`).
+- The walk reads every `.pcap` under `pkg/`, skipping pcapng files and other link types, and counts a message by `(protocol, type)`. A genl message is counted by `(family name, command)`, with names resolved from the same pcap's `CTRL_CMD_NEWFAMILY` replies.
+- A genl command counts only in a request (`NLM_F_REQUEST`), because replies and events reuse command numbers: mptcp_pm's CREATED event is command 1, as ADD_ADDR is. The controller's NEWFAMILY is a reply and counts as one.
+- `go test -run 'TestNetlinkUniverse$' -v` logs each type's messages and pcaps.
+
+**Tests** (`TestNetlinkUniverse`, `TestNetlinkUniverseShape`, `TestNetlinkUniverseMatch`):
 
 | description | expected |
 |---|---|
-| positive: every universe type is present or excluded | pass |
-| negative: a type removed from the corpus | fails, naming the type |
-| negative: an exclusion with no reason | fails |
-| corner: a type that is both present and excluded | fails (the exclusion is stale) |
+| positive: the committed corpus has every universe type, or excludes it with a reason | no problems |
+| negative: MAPPING's pcap gone from the corpus | `XFRM_MSG_MAPPING: in no pcap and not excluded` |
+| negative: a genl command gone from the corpus | `MPTCP_PM_CMD_ADD_ADDR: in no pcap and not excluded` |
+| negative: an exclusion with no reason | `XFRM_MSG_REPORT: excluded with no reason` |
+| negative: a universe type that cites no source | `RTM_GETMULTICAST: cites no iproute2 source` |
+| corner: a type both captured and excluded, so the exclusion is stale | `XFRM_MSG_REPORT: in 1 pcaps and excluded; the exclusion is stale` |
+| corner: an exclusion of a type outside the universe | `RTM_GETANYCAST: excluded but not in the universe` |
+| corner: a name listed twice | `RTM_DELADDR: listed twice` |
+| boundary: one message in one pcap is enough | no problems |
+| boundary: the universe's size | `route=47 generic=46 xfrm=22` |
+| positive: the exclusions | the six above |
+| positive: an rtnetlink NEWLINK, an XFRM NEWSA, ip's mptcp_pm ADD_ADDR request, the controller's NEWFAMILY reply | each matches its type |
+| corner: type 16 over XFRM is NEWSA, not NEWLINK | no match |
+| corner: mptcp_pm's CREATED event, command 1 with no request flag, is not ADD_ADDR | no match |
+| negative: command 1 in a family the pcap never resolved | no match |
+| boundary: a genl message with no body | no match |
 
 **Done when:** the gates pass, and the mutation check catches a deleted pcap.
 

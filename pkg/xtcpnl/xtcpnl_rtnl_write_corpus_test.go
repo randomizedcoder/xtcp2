@@ -14,10 +14,12 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// capturedNlMsg is one netlink message out of a pcap, header and body.
+// capturedNlMsg is one netlink message out of a pcap, header and body, with
+// the netlink protocol its record's cooked header names.
 type capturedNlMsg struct {
-	h    NlMsgHdr
-	body []byte
+	proto uint16
+	h     NlMsgHdr
+	body  []byte
 }
 
 // pcapNlMsgs returns every netlink message in a DLT 253 pcap, in capture
@@ -45,7 +47,7 @@ func pcapNlDatagrams(t *testing.T, path string) [][]capturedNlMsg {
 	}
 	out := make([][]capturedNlMsg, 0, len(recs))
 	for _, r := range recs {
-		_, p, perr := r.NetlinkPayload()
+		proto, p, perr := r.NetlinkPayload()
 		if perr != nil {
 			t.Fatalf("%s: %v", path, perr)
 		}
@@ -64,7 +66,7 @@ func pcapNlDatagrams(t *testing.T, path string) [][]capturedNlMsg {
 			if mlen < NlMsgHdrSizeCst || mlen > len(p) {
 				t.Fatalf("%s: nlmsg_len %d in a %d-byte datagram", path, mlen, len(p))
 			}
-			d = append(d, capturedNlMsg{h: h, body: p[NlMsgHdrSizeCst:mlen]})
+			d = append(d, capturedNlMsg{proto: proto, h: h, body: p[NlMsgHdrSizeCst:mlen]})
 			if adv := nlmsgAlign(mlen); adv < len(p) {
 				p = p[adv:]
 			} else {
