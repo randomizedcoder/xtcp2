@@ -29,11 +29,12 @@
 #   rc         the exit status `ip.rc` must hold: 0, or the status `ip`
 #              exits with when the kernel refuses the request, which ip/ip.c
 #              takes from the command's negated return: 2 for tcp_metrics,
-#              mptcp, fou and ila (ip/tcp_metrics.c, ip/ipmptcp.c,
-#              ip/ipfou.c and ip/ipila.c return -2), 1 for an sr or ioam
-#              write (ip/ipseg6.c and ip/ipioam6.c return -1); or 255, where
-#              `ip` refuses its arguments itself (invarg or usage) after the
-#              family lookup and sends nothing more; ip/ipfou.c's and
+#              mptcp, fou, ila and l2tp (ip/tcp_metrics.c, ip/ipmptcp.c,
+#              ip/ipfou.c, ip/ipila.c and ip/ipl2tp.c return -2), 1 for an
+#              sr or ioam write (ip/ipseg6.c and ip/ipioam6.c return -1); or
+#              255, where `ip` refuses its arguments itself (invarg, missarg
+#              or usage) after the family lookup and sends nothing more;
+#              ip/ipfou.c's and
 #              ip/ipila.c's own refusals after the lookup are 1 (an unknown
 #              dev, show with an argument)
 #
@@ -345,6 +346,69 @@ namespace eval genlcorpus {
         [list ila_del_nodev_of_dev 4 $PRE_ILA_DEV "ip ila del loc_match 2001:db8:1:2" $ILA_SHOW 0] \
         [list ila_show 4 $PRE_ILA2 "ip ila show" {} 0] \
         [list ila_show_args 2 {} "ip ila show 2001:db8:1:2" {} 1]
+
+    ###########################################################################
+    # C2-T07 - l2tp, the l2tp family: L2TPv3 tunnels and their ethernet
+    # sessions, made with plain `ip l2tp` pre steps over PRE_ADDRS's d0.
+    # The family is in l2tp_netlink; a UDP tunnel's socket is made by the
+    # kernel, bound to local and udp_sport and connected to remote and
+    # udp_dport; an IP-encap tunnel needs l2tp_ip, and a session l2tp_eth,
+    # which makes its l2tpeth device. Late setup loads all of them.
+    #
+    # The kernel refuses a tunnel id it already has (EEXIST), and a delete
+    # of a missing tunnel or session, or a session in a missing tunnel
+    # (ENODEV); `ip` exits 2. A session id already in use is refused
+    # (EEXIST) only when the existing session is in an IP-encap tunnel:
+    # l2tp_session_register puts a UDP tunnel's duplicate on a collision
+    # list and accepts it, even in the same tunnel.
+    # `ip` refuses a missing argument itself (missarg) and a bare `show`
+    # (usage), 255, each after the family lookup with nothing more sent.
+    # `show` with ids is still a dump: ip/ipl2tp.c always asks for one, and
+    # puts the ids in the request, which the kernel's dumps do not read.
+    ###########################################################################
+    variable L2TP_TUN1 {l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 local 192.0.2.1 remote 192.0.2.2 udp_sport 5000 udp_dport 6000}
+    variable L2TP_TUN2 {l2tp add tunnel tunnel_id 3 peer_tunnel_id 4 local 192.0.2.1 remote 192.0.2.2 udp_sport 5001 udp_dport 6001}
+    variable L2TP_SESS1 {l2tp add session tunnel_id 1 session_id 10 peer_session_id 20}
+    variable L2TP_SESS2 {l2tp add session tunnel_id 1 session_id 11 peer_session_id 21}
+    variable PRE_TUN [concat $PRE_ADDRS [list $L2TP_TUN1]]
+    variable PRE_TUN2 [concat $PRE_ADDRS [list $L2TP_TUN1 $L2TP_TUN2]]
+    variable PRE_SESS [concat $PRE_TUN [list $L2TP_SESS1]]
+    variable PRE_SESS2 [concat $PRE_SESS [list $L2TP_SESS2]]
+    variable PRE_SESS_IP [concat $PRE_ADDRS [list \
+        {l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 encap ip local 192.0.2.1 remote 192.0.2.2} $L2TP_SESS1]]
+    variable TUN_SHOW {{tunnel 4 {ip l2tp show tunnel}}}
+    variable SESS_SHOW {{session 4 {ip l2tp show session}}}
+
+    lappend rows \
+        [list l2tp_tunnel_show_empty 4 {} "ip l2tp show tunnel" {} 0] \
+        [list l2tp_tunnel_add 4 $PRE_ADDRS "ip $L2TP_TUN1" $TUN_SHOW 0] \
+        [list l2tp_tunnel_add_csum 4 $PRE_ADDRS "ip $L2TP_TUN1 udp_csum on" $TUN_SHOW 0] \
+        [list l2tp_tunnel_add_v6 4 $PRE_ADDRS \
+            "ip l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 local 2001:db8::1 remote 2001:db8::2 udp_sport 5000 udp_dport 6000 udp6_csum_rx off" $TUN_SHOW 0] \
+        [list l2tp_tunnel_add_ip 4 $PRE_ADDRS \
+            "ip l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 encap ip local 192.0.2.1 remote 192.0.2.2" $TUN_SHOW 0] \
+        [list l2tp_tunnel_add_dup 4 $PRE_TUN \
+            "ip l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 local 192.0.2.1 remote 192.0.2.2 udp_sport 5001 udp_dport 6001" {} 2] \
+        [list l2tp_tunnel_add_no_local 2 $PRE_ADDRS \
+            "ip l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 remote 192.0.2.2 udp_sport 5000 udp_dport 6000" {} 255] \
+        [list l2tp_tunnel_show 4 $PRE_TUN2 "ip l2tp show tunnel" {} 0] \
+        [list l2tp_tunnel_show_id 4 $PRE_TUN2 "ip l2tp show tunnel tunnel_id 1" {} 0] \
+        [list l2tp_tunnel_del 4 $PRE_TUN "ip l2tp del tunnel tunnel_id 1" $TUN_SHOW 0] \
+        [list l2tp_tunnel_del_missing 4 $PRE_ADDRS "ip l2tp del tunnel tunnel_id 9" {} 2] \
+        [list l2tp_tunnel_del_sessions 4 $PRE_SESS "ip l2tp del tunnel tunnel_id 1" $SESS_SHOW 0] \
+        [list l2tp_session_show_empty 4 $PRE_TUN "ip l2tp show session" {} 0] \
+        [list l2tp_session_add 4 $PRE_TUN "ip $L2TP_SESS1" $SESS_SHOW 0] \
+        [list l2tp_session_add_opts 4 $PRE_TUN \
+            "ip l2tp add session name l2tp9 tunnel_id 1 session_id 10 peer_session_id 20 cookie 0102030405060708 peer_cookie 0a0b0c0d seq both l2spec_type none" $SESS_SHOW 0] \
+        [list l2tp_session_add_dup 4 $PRE_SESS "ip $L2TP_SESS1" $SESS_SHOW 0] \
+        [list l2tp_session_add_dup_ip 4 $PRE_SESS_IP "ip $L2TP_SESS1" {} 2] \
+        [list l2tp_session_add_no_tunnel 4 $PRE_ADDRS "ip $L2TP_SESS1" {} 2] \
+        [list l2tp_session_add_no_peer 2 $PRE_TUN "ip l2tp add session tunnel_id 1 session_id 10" {} 255] \
+        [list l2tp_session_show 4 $PRE_SESS2 "ip l2tp show session" {} 0] \
+        [list l2tp_session_show_id 4 $PRE_SESS2 "ip l2tp show session tunnel_id 1 session_id 10" {} 0] \
+        [list l2tp_session_del 4 $PRE_SESS "ip l2tp del session tunnel_id 1 session_id 10" $SESS_SHOW 0] \
+        [list l2tp_session_del_missing 4 $PRE_TUN "ip l2tp del session tunnel_id 1 session_id 99" {} 2] \
+        [list l2tp_show_bare 2 {} "ip l2tp show" {} 255]
 
     ###########################################################################
     # pre_step <ns> <subdir> <step> - 1 if the step was taken, else 0.

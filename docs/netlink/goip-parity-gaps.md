@@ -153,10 +153,10 @@ These surfaces have no netlink message to capture, so they are out of scope for 
 | `NETLINK_XFRM` | 22 `XFRM_MSG_*` | |
 
 **What was measured:**
-- **Pcaps:** 976 committed DLT_NETLINK (253) pcaps under `pkg/` (713 when the plan was written), counted by `(protocol, nlmsg_type)`. For genl, the count is by `(family name, cmd)`, with names resolved from each pcap's own `CTRL_CMD_NEWFAMILY` replies.
+- **Pcaps:** 1010 committed DLT_NETLINK (253) pcaps under `pkg/` (713 when the plan was written), counted by `(protocol, nlmsg_type)`. For genl, the count is by `(family name, cmd)`, with names resolved from each pcap's own `CTRL_CMD_NEWFAMILY` replies.
 - **Table tests and benchmarks:** the parsers' `Test*` and `Benchmark*` functions.
 
-**Measured 2026-10-19,** again at the C1 close (DOC004), and the pcap total and genl rows at C2-T01 (V044), C2-T02 (V049), C2-T03 (V054), C2-T04 (V059), C2-T05 (V064) and C2-T06 (V069). Re-measure with [the commands below](#how-to-re-measure).
+**Measured 2026-10-19,** again at the C1 close (DOC004), and the pcap total and genl rows at C2-T01 (V044), C2-T02 (V049), C2-T03 (V054), C2-T04 (V059), C2-T05 (V064), C2-T06 (V069) and C2-T07 (V074). Re-measure with [the commands below](#how-to-re-measure).
 
 ### rtnetlink
 
@@ -204,14 +204,15 @@ The capture also holds `RTM_GETMULTICAST` (58: 13 / 3) and `RTM_GETANYCAST` (62:
 
 | family | commands in the universe | in pcaps | parser | table test | benchmark |
 |---|---|---|---|---|---|
-| nlctrl | 3 | NEWFAMILY 574 / 295, GETFAMILY 574 / 295 | `ParseGenericNetlinkFamily` | `TestGenericNetlinkFamilyBoundaries`, `xtcpnl_ethtool_test.go:215` | none |
+| nlctrl | 3 | NEWFAMILY 608 / 329, GETFAMILY 608 / 329 | `ParseGenericNetlinkFamily` | `TestGenericNetlinkFamilyBoundaries`, `xtcpnl_ethtool_test.go:215` | none |
 | tcp_metrics | 2 | GET 50 / 15, DEL 8 / 6 (C2-T01) | none | `TestGenlTcpMetricsCorpus` reads the attributes raw | none |
 | seg6 | 4 | SETHMAC 6 / 6, DUMPHMAC 14 / 7, SET_TUNSRC 1 / 1, GET_TUNSRC 4 / 2 (C2-T02) | none | `TestGenlSeg6Corpus` reads the attributes raw | none |
 | ioam6 | 7 | ADD_NAMESPACE 4 / 4 (the walker's command 1 counts 5 / 5, with the TRACE event, whose number is also 1), DEL_NAMESPACE 3 / 3, DUMP_NAMESPACES 14 / 8, ADD_SCHEMA 3 / 3, DEL_SCHEMA 3 / 3, DUMP_SCHEMAS 12 / 7, NS_SET_SCHEMA 3 / 3; event TRACE 1 / 1 (C2-T03) | none | `TestGenlIoam6Corpus` reads the attributes raw | none |
 | mptcp_pm | 7 | ADD_ADDR 7 / 7, DEL_ADDR 4 / 4, GET_ADDR 26 / 14, FLUSH_ADDRS 1 / 1, SET_LIMITS 5 / 5, GET_LIMITS 10 / 5, SET_FLAGS 4 / 4; events CREATED, ESTABLISHED and CLOSED 2 / 1 each, SUB_ESTABLISHED 2 / 1, SUB_CLOSED 1 / 1, LISTENER_CREATED and LISTENER_CLOSED 4 / 2 each (C2-T04; the walker counts by number, and CREATED, ESTABLISHED and CLOSED are 1, 2 and 3, so its commands 1-3 count 9 / 8, 6 / 5 and 28 / 15) | none | `TestGenlMptcpCorpus` reads the attributes raw | none |
 | fou | 3 | ADD 11 / 11, DEL 5 / 5, GET 21 / 11 (C2-T05; every GET a dump) | none | `TestGenlFouCorpus` reads the attributes raw | none |
 | ila | 3 | ADD 7 / 7, DEL 4 / 4, GET 23 / 12 (C2-T06; every GET a dump) | none | `TestGenlIlaCorpus` reads the attributes raw | none |
-| l2tp, macsec | 17 | **0** | none | none | none |
+| l2tp | 6 | TUNNEL_CREATE 5 / 5, TUNNEL_DELETE 3 / 3, TUNNEL_GET 16 / 8, SESSION_CREATE 5 / 5, SESSION_DELETE 2 / 2, SESSION_GET 15 / 8 (C2-T07; every GET a dump) | none | `TestGenlL2tpCorpus` reads the attributes raw | none |
+| macsec | 11 | **0** | none | none | none |
 | xfrm | 22 | **0** | none | none | none |
 
 The corpus also holds ethtool (19 commands), devlink (2) and nl80211 (7) from the link-state bundles. `ip` uses none of these families.
@@ -221,7 +222,7 @@ The corpus also holds ethtool (19 commands), devlink (2) and nl80211 (7) from th
 1. **The rtnetlink read side is in good shape.** Every body layout that a running goip object reads has captured pcaps, a parser and a table-driven test.
 2. **The capture holes were the DEL and SET types:** DELANYCAST, DELRULE, SETNEIGHTBL, DELADDRLABEL, DELNSID, SETSTATS and DELNEXTHOP. Each shares a body layout with its NEW type, so all but DELNSID already had a parser (NSID has none; point 3). The bytes were missing because no capture row sent them. C1-T01 added those rows (`link-write/rtnl/`), and each of the seven is now captured and checked by `TestRtnlWriteCorpus`.
 3. **Four rtnetlink layouts have no parser:** NSID, nexthop bucket, LINKPROP and prefix. Since C1 closed, all four have bytes: NSID 210 NEWNSID messages, the nexthop bucket and LINKPROP from C1-T02 (a 1024-bucket dump, and altname add and del), and prefix from C1-T04 (an RA's NEWPREFIX, 3 messages). The tests read them raw; the parsers are P1.
-4. **Generic netlink beyond nlctrl, and all of XFRM, have nothing:** no pcaps, no parsers, no tests. When this was measured the blocker was in the harness: `xtcp2-nlcap` kept only `NETLINK_ROUTE` (`ether[14:2]==0`), although nlmon taps GENERIC and XFRM. C0 removed it. A row now names its protocol (`--proto`, C0-T01), and the modules those families need are loaded late (C0-T02). What is missing is the capture rows (C2, C3). C2-T01 added the first: tcp_metrics' GET and DEL are captured (`link-write/genl/`), with no parser yet (P2). C2-T02 added sr's four SEG6 commands, C2-T03 ioam's seven IOAM6 commands, C2-T04 the seven mptcp_pm commands `ip` sends, C2-T05 fou's three, and C2-T06 ila's three.
+4. **Generic netlink beyond nlctrl, and all of XFRM, have nothing:** no pcaps, no parsers, no tests. When this was measured the blocker was in the harness: `xtcp2-nlcap` kept only `NETLINK_ROUTE` (`ether[14:2]==0`), although nlmon taps GENERIC and XFRM. C0 removed it. A row now names its protocol (`--proto`, C0-T01), and the modules those families need are loaded late (C0-T02). What is missing is the capture rows (C2, C3). C2-T01 added the first: tcp_metrics' GET and DEL are captured (`link-write/genl/`), with no parser yet (P2). C2-T02 added sr's four SEG6 commands, C2-T03 ioam's seven IOAM6 commands, C2-T04 the seven mptcp_pm commands `ip` sends, C2-T05 fou's three, C2-T06 ila's three, and C2-T07 the six l2tp commands `ip` sends.
 5. **Benchmarks:** 1 of the 15 rtnetlink and genl parsers in the tables above (`ParseNewAddr`) has a parse benchmark. The rest of `BenchmarkDeserialize*` covers inet_diag only.
 
 ### How to re-measure
@@ -937,6 +938,43 @@ The order goes from built-in families to the ones that need modules or more setu
 | corner: across every row | no ILA_ATTR_PAD on x86-64; no GET that is not a dump; no FLUSH |
 
 **Done when:** the gates pass, and ila's row in the assessment has no **0**.
+
+#### C2-T07 l2tp
+
+**Deliver** (as built):
+- **The rows (24)** are in `genl-write-corpus.exp` after ila's, in `link-write/genl/l2tp_*`, every pcap `--proto generic`. Tunnel 1 is L2TPv3 over UDP from 192.0.2.1:5000 to 192.0.2.2:6000, peer tunnel 2; its session 10 has peer session 20:
+  - tunnel `show` with no tunnel, of two (tunnel 3 on ports 5001/6001), and with `tunnel_id 1`;
+  - tunnel `add` plain, with `udp_csum on`, over IPv6 with `udp6_csum_rx off`, and with `encap ip`; each read back with `show tunnel`;
+  - tunnel `del`, and `del` of a tunnel with a session, read back with `show session`;
+  - session `show` with no session, of two (10 and 11), and with `tunnel_id 1 session_id 10`;
+  - session `add` plain, and with `name l2tp9`, both cookies (8 and 4 bytes), `seq both` and `l2spec_type none`; each read back with `show session`;
+  - session `add` of session 10 again in the same UDP tunnel, which the kernel takes (rc 0): `l2tp_session_register` puts it on a collision list, and refuses a duplicate only when the existing session is in an IP-encap tunnel;
+  - session `del`, read back;
+  - eight refused: a tunnel id the kernel already has, and the same session id beside an IP-encap tunnel's (`EEXIST`, rc 2); a delete of a missing tunnel or session, and a session in a missing tunnel (`ENODEV`, rc 2); and a missing `local`, a missing `peer_session_id` and a bare `show`, which `ip` refuses itself (255), after the family lookup with nothing more sent.
+- **`show` with ids is still a dump.** `ip/ipl2tp.c` always asks for one and puts the ids in the request; the kernel's dumps do not read them, so every tunnel or session comes back, and `ip` prints them all.
+- **The state** before a row comes from plain `ip l2tp` pre steps, over the tcp_metrics rows' addresses on `d0`. The family is in `l2tp_netlink`, an IP-encap tunnel needs `l2tp_ip` (`l2tp_ip6` for IPv6) and a session `l2tp_eth`, which makes its `l2tpeth` device; late setup loads them all before any genl row.
+- **Not captured:** TUNNEL_MODIFY, SESSION_MODIFY, a GET that is not a dump, and the multicast notifications the kernel sends on each create and delete (no listener is open). See the [decision log](goip-parity-gaps-status.md#decision-log).
+
+**Tests:**
+
+`genl-write-corpus-test.exp` (now 194 rows) gains the l2tp slugs, floors and statuses, the pre steps, the readbacks, and rows pinning the tunnels, ports and arguments each row is built on. `TestGenlL2tpCorpus` (`pkg/xtcpnl`, on the committed pcaps, 49 rows), among them:
+
+| description | expected |
+|---|---|
+| positive: every row resolves the family inside its pcap | a NEWFAMILY named `l2tp` |
+| positive: tunnel `add` | a TUNNEL_CREATE with CONN_ID 1, PEER_CONN_ID 2, PROTO_VERSION 3, ENCAP_TYPE 0 (UDP), both addresses and both ports, ACKed |
+| positive: the readback | the same, plus DEBUG 0, UDP_CSUM 0 and STATS with ten counters, all 0 |
+| positive: IPv6 with `udp6_csum_rx off` | UDP_ZERO_CSUM6_RX, the IPv6 addresses; `ip` prints `UDP checksum: tx` |
+| positive: `encap ip` | ENCAP_TYPE 1 and no ports, sent or read back |
+| positive: session `add` | a SESSION_CREATE with CONN_ID 1, PEER_CONN_ID 0, SESSION_ID 10, PEER_SESSION_ID 20, PW_TYPE 5 (ethernet), L2SPEC_TYPE 1 and L2SPEC_LEN 4; read back with IFNAME `l2tpeth0` |
+| positive: the options session | L2SPEC_TYPE 0, RECV_SEQ and SEND_SEQ 1, COOKIE `0102030405060708`, PEER_COOKIE `0a0b0c0d` and IFNAME `l2tp9`, sent and read back |
+| corner: the same session id in the same UDP tunnel | ACKed, rc 0; the dump then holds one session 10, the newer (`l2tpeth1`): `l2tp_v3_session_get_next` stops at the first match in the collision hash |
+| negative: the same session id beside an IP-encap tunnel | `EEXIST`, rc 2 |
+| corner: `show` with ids | a dump carrying CONN_ID (and SESSION_ID); both tunnels, or both sessions, come back, and `ip` prints both |
+| corner: deleting a tunnel with a session | the session dump is then empty |
+| corner: across every row | no NOOP, no MODIFY, and no GET that is not a dump |
+
+**Done when:** the gates pass, and l2tp's row in the assessment has no **0**.
 
 ### C3 — XFRM
 

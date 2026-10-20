@@ -16,8 +16,8 @@
 #
 # What this does NOT cover: what the guest runs or what the kernel answers.
 # TestGenlTcpMetricsCorpus, TestGenlSeg6Corpus, TestGenlIoam6Corpus,
-# TestGenlMptcpCorpus, TestGenlFouCorpus and TestGenlIlaCorpus in
-# pkg/xtcpnl pin that in the committed fixtures.
+# TestGenlMptcpCorpus, TestGenlFouCorpus, TestGenlIlaCorpus and
+# TestGenlL2tpCorpus in pkg/xtcpnl pin that in the committed fixtures.
 #
 # Every row has a name, a description that starts with its class
 # (positive/negative/boundary/corner) and an expected value.
@@ -124,6 +124,15 @@ set design_rows {
     ila_show_empty ila_add ila_add_dev ila_add_opts ila_add_auto ila_add_dup
     ila_add_same_match_dev ila_add_no_loc ila_add_unknown_word ila_del
     ila_del_missing ila_del_dev ila_del_nodev_of_dev ila_show ila_show_args
+    l2tp_tunnel_show_empty l2tp_tunnel_add l2tp_tunnel_add_csum
+    l2tp_tunnel_add_v6 l2tp_tunnel_add_ip l2tp_tunnel_add_dup
+    l2tp_tunnel_add_no_local l2tp_tunnel_show l2tp_tunnel_show_id
+    l2tp_tunnel_del l2tp_tunnel_del_missing l2tp_tunnel_del_sessions
+    l2tp_session_show_empty l2tp_session_add l2tp_session_add_opts
+    l2tp_session_add_dup l2tp_session_add_dup_ip l2tp_session_add_no_tunnel
+    l2tp_session_add_no_peer
+    l2tp_session_show l2tp_session_show_id l2tp_session_del
+    l2tp_session_del_missing l2tp_show_bare
 }
 
 proc bad_arity {} {
@@ -164,11 +173,11 @@ proc refused_rows {} {
 # runs under setsid with its secret piped in, `ip ioam` for ioam_, or
 # xtcp2-nl-ioam, which runs `ip ioam monitor`, `ip mptcp` for mptcp_,
 # or xtcp2-nl-mptcp monitor, which runs `ip mptcp monitor`, `ip fou` for
-# fou_ and `ip ila` for ila_.
+# fou_, `ip ila` for ila_ and `ip l2tp` for l2tp_.
 proc wrong_object {} {
     set out {}
     foreach r $::R {
-        set re [dict get {tcpm {^ip (-6 )?tcp_metrics } sr {^(echo( \S+)? \| setsid -w )?ip sr } ioam {^(ip ioam|xtcp2-nl-ioam) } mptcp {^(ip mptcp|xtcp2-nl-mptcp monitor) } fou {^ip fou } ila {^ip ila }} \
+        set re [dict get {tcpm {^ip (-6 )?tcp_metrics } sr {^(echo( \S+)? \| setsid -w )?ip sr } ioam {^(ip ioam|xtcp2-nl-ioam) } mptcp {^(ip mptcp|xtcp2-nl-mptcp monitor) } fou {^ip fou } ila {^ip ila } l2tp {^ip l2tp }} \
             [lindex [split [lindex $r 0] _] 0]]
         if {![regexp $re [lindex $r 3]]} {
             lappend out [lindex $r 0]
@@ -194,10 +203,10 @@ check arity "negative: every row is {slug floor pre command readbacks rc}" \
     {bad_arity} {}
 check unique_slugs "negative: no slug names two rows" \
     {dup_slugs} {}
-check refused_statuses "positive: the missing tcp_metrics entry and the refused mptcp, fou and ila requests are rc 2; the refused hmac sets and ioam writes, fou's unknown dev, and fou's and ila's show with an argument, rc 1; a port without signal, fou's port 0 and ila's unknown word 255" \
-    {refused_rows} {tcpm_get_missing 2 tcpm_delete_missing 2 sr_hmac_delete_missing 1 sr_hmac_set_long 1 ioam_ns_add_dup 1 ioam_ns_del_missing 1 ioam_sc_add_dup 1 ioam_sc_del_missing 1 ioam_ns_set_missing 1 ioam_monitor_unknown_ns 1 ioam_monitor_disabled 1 mptcp_endpoint_add_dup 2 mptcp_endpoint_add_id_busy 2 mptcp_endpoint_add_port_subflow 255 mptcp_endpoint_get_missing 2 mptcp_endpoint_change_missing 2 mptcp_endpoint_delete_missing 2 mptcp_limits_set_over 2 fou_add_dev_no_local 2 fou_add_dup 2 fou_add_no_port 2 fou_add_no_type 2 fou_add_port_zero 255 fou_add_unknown_dev 1 fou_del_missing 2 fou_del_wrong_family 2 fou_del_partial 2 fou_show_args 1 ila_add_dup 2 ila_add_unknown_word 255 ila_show_args 1}
-check row_count "boundary: C2-T01's 14 rows, C2-T02's 11, C2-T03's 21, C2-T04's 27, C2-T05's 21 and C2-T06's 15" \
-    {llength $R} 109
+check refused_statuses "positive: the missing tcp_metrics entry and the refused mptcp, fou, ila and l2tp requests (an l2tp session id is refused only beside an IP-encap tunnel's) are rc 2; the refused hmac sets and ioam writes, fou's unknown dev, and fou's and ila's show with an argument, rc 1; a port without signal, fou's port 0, ila's unknown word, l2tp's missing arguments and bare show 255" \
+    {refused_rows} {tcpm_get_missing 2 tcpm_delete_missing 2 sr_hmac_delete_missing 1 sr_hmac_set_long 1 ioam_ns_add_dup 1 ioam_ns_del_missing 1 ioam_sc_add_dup 1 ioam_sc_del_missing 1 ioam_ns_set_missing 1 ioam_monitor_unknown_ns 1 ioam_monitor_disabled 1 mptcp_endpoint_add_dup 2 mptcp_endpoint_add_id_busy 2 mptcp_endpoint_add_port_subflow 255 mptcp_endpoint_get_missing 2 mptcp_endpoint_change_missing 2 mptcp_endpoint_delete_missing 2 mptcp_limits_set_over 2 fou_add_dev_no_local 2 fou_add_dup 2 fou_add_no_port 2 fou_add_no_type 2 fou_add_port_zero 255 fou_add_unknown_dev 1 fou_del_missing 2 fou_del_wrong_family 2 fou_del_partial 2 fou_show_args 1 ila_add_dup 2 ila_add_unknown_word 255 ila_show_args 1 l2tp_tunnel_add_dup 2 l2tp_tunnel_add_no_local 255 l2tp_tunnel_del_missing 2 l2tp_session_add_dup_ip 2 l2tp_session_add_no_tunnel 2 l2tp_session_add_no_peer 255 l2tp_session_del_missing 2 l2tp_show_bare 255}
+check row_count "boundary: C2-T01's 14 rows, C2-T02's 11, C2-T03's 21, C2-T04's 27, C2-T05's 21, C2-T06's 15 and C2-T07's 24" \
+    {llength $R} 133
 check c2t01_rows_first "corner: C2-T02's rows come after C2-T01's, which keep their order" \
     {lindex [column 0] 13} tcpm_flush_empty
 check c2t02_rows_next "corner: C2-T03's rows come after C2-T02's" \
@@ -208,6 +217,8 @@ check c2t04_rows_next "corner: C2-T05's rows come after C2-T04's" \
     {lindex [column 0] 72} mptcp_monitor_conn
 check c2t05_rows_next "corner: C2-T06's rows come after C2-T05's" \
     {lindex [column 0] 93} fou_show_args
+check c2t06_rows_next "corner: C2-T07's rows come after C2-T06's" \
+    {lindex [column 0] 108} ila_show_args
 check right_object "negative: every command is its family's ip object" \
     {wrong_object} {}
 check no_quotes "corner: no command holds a single quote" \
@@ -220,7 +231,7 @@ check src_first "corner: src comes before address, since ip skips the word after
 # dumps, deletes and dumps again 6
 ###############################################################################
 check floors "positive: every floor, in run order" \
-    {column 1} {4 4 4 4 4 4 4 4 4 4 4 6 6 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 3 2 2 4 4 4 4 4 4 4 2 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 14 13 4 4 4 4 4 4 4 4 4 4 4 4 2 2 4 4 4 4 4 4 2 4 4 4 4 4 4 4 4 2 4 4 4 4 4 2}
+    {column 1} {4 4 4 4 4 4 4 4 4 4 4 6 6 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 3 2 2 4 4 4 4 4 4 4 2 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 14 13 4 4 4 4 4 4 4 4 4 4 4 4 2 2 4 4 4 4 4 4 2 4 4 4 4 4 4 4 4 2 4 4 4 4 4 2 4 4 4 4 4 4 2 4 4 4 4 4 4 4 4 4 4 4 2 4 4 4 4 2}
 check floor_flush_all "corner: flush all is one DEL with no address, so 4" \
     {field tcpm_flush_all 1} 4
 check floor_flush_empty "boundary: a flush that matches nothing stops after its dump" \
@@ -325,6 +336,23 @@ foreach {name description slug expected} {
 }
 check pre_ila_addrs "corner: every ila row with a dev starts from PRE_ADDRS" \
     {lmap slug {ila_add_dev ila_add_same_match_dev ila_del_dev ila_del_nodev_of_dev} {expr {[lrange [field $slug 2] 0 5] eq [lrange $genlcorpus::PRE_ADDRS 0 end]}}} {1 1 1 1}
+foreach {name description slug expected} {
+    pre_l2tp_dup        "negative: the duplicate tunnel starts from tunnel 1"               l2tp_tunnel_add_dup      {{l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 local 192.0.2.1 remote 192.0.2.2 udp_sport 5000 udp_dport 6000}}
+    pre_l2tp_show       "positive: tunnel show starts from tunnels 1 and 3"                  l2tp_tunnel_show         {{l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 local 192.0.2.1 remote 192.0.2.2 udp_sport 5000 udp_dport 6000} {l2tp add tunnel tunnel_id 3 peer_tunnel_id 4 local 192.0.2.1 remote 192.0.2.2 udp_sport 5001 udp_dport 6001}}
+    pre_l2tp_show_id    "corner: and so does the show of one id"                            l2tp_tunnel_show_id      {{l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 local 192.0.2.1 remote 192.0.2.2 udp_sport 5000 udp_dport 6000} {l2tp add tunnel tunnel_id 3 peer_tunnel_id 4 local 192.0.2.1 remote 192.0.2.2 udp_sport 5001 udp_dport 6001}}
+    pre_l2tp_del_miss   "negative: deleting tunnel 9 starts from no tunnel"                  l2tp_tunnel_del_missing  {}
+    pre_l2tp_del_sess   "corner: deleting a tunnel with a session starts from session 10"    l2tp_tunnel_del_sessions {{l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 local 192.0.2.1 remote 192.0.2.2 udp_sport 5000 udp_dport 6000} {l2tp add session tunnel_id 1 session_id 10 peer_session_id 20}}
+    pre_l2tp_sess_add   "positive: a session add starts from tunnel 1"                       l2tp_session_add         {{l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 local 192.0.2.1 remote 192.0.2.2 udp_sport 5000 udp_dport 6000}}
+    pre_l2tp_dup_udp    "corner: the duplicate session in a UDP tunnel starts from session 10" l2tp_session_add_dup {{l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 local 192.0.2.1 remote 192.0.2.2 udp_sport 5000 udp_dport 6000} {l2tp add session tunnel_id 1 session_id 10 peer_session_id 20}}
+    pre_l2tp_dup_ip     "negative: the duplicate session in an IP-encap tunnel starts from session 10 there" l2tp_session_add_dup_ip {{l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 encap ip local 192.0.2.1 remote 192.0.2.2} {l2tp add session tunnel_id 1 session_id 10 peer_session_id 20}}
+    pre_l2tp_no_tunnel  "negative: a session in a missing tunnel starts from the addresses alone" l2tp_session_add_no_tunnel {}
+    pre_l2tp_sess_show  "positive: session show starts from sessions 10 and 11 in tunnel 1"  l2tp_session_show        {{l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 local 192.0.2.1 remote 192.0.2.2 udp_sport 5000 udp_dport 6000} {l2tp add session tunnel_id 1 session_id 10 peer_session_id 20} {l2tp add session tunnel_id 1 session_id 11 peer_session_id 21}}
+    pre_l2tp_sess_miss  "negative: deleting session 99 starts from tunnel 1 alone"           l2tp_session_del_missing {{l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 local 192.0.2.1 remote 192.0.2.2 udp_sport 5000 udp_dport 6000}}
+} {
+    check $name $description [list lrange [field $slug 2] 6 end] $expected
+}
+check pre_l2tp_addrs "corner: every l2tp row with a pre step starts from PRE_ADDRS" \
+    {lsort -unique [lmap r $R {if {![string match l2tp_* [lindex $r 0]] || [lindex $r 2] eq {}} continue; expr {[lrange [lindex $r 2] 0 5] eq [lrange $genlcorpus::PRE_ADDRS 0 end]}}]} 1
 check pre_mptcp_addrs "corner: every mptcp row with a pre step starts from PRE_ADDRS" \
     {lsort -unique [lmap r $R {if {![string match mptcp_* [lindex $r 0]] || [lindex $r 2] eq {}} continue; expr {[lrange [lindex $r 2] 0 5] eq [lrange $genlcorpus::PRE_ADDRS 0 end]}}]} 1
 foreach {name description slug} {
@@ -403,6 +431,24 @@ check ila_opts "positive: the options rows name both options, the auto row with 
     {lmap slug {ila_add_opts ila_add_auto} {lrange [field $slug 3] end-3 end}} {{csum-mode adj-transport ident-type luid} {csum-mode neutral-map-auto ident-type use-format}}
 check ila_del_keys "corner: the dev delete names d0, the no-dev delete of a dev mapping does not" \
     {lmap slug {ila_del_dev ila_del_nodev_of_dev} {regexp { dev d0$} [field $slug 3]}} {1 0}
+check floor_l2tp_ip_refusals "boundary: the missing local, the missing peer_session_id and the bare show are the family lookup alone" \
+    {lmap slug {l2tp_tunnel_add_no_local l2tp_session_add_no_peer l2tp_show_bare} {field $slug 1}} {2 2 2}
+check l2tp_tun1 "positive: tunnel 1, which most l2tp rows are built on, is UDP from 192.0.2.1:5000 to 192.0.2.2:6000" \
+    {set genlcorpus::L2TP_TUN1} {l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 local 192.0.2.1 remote 192.0.2.2 udp_sport 5000 udp_dport 6000}
+check l2tp_tun2_ports "corner: tunnel 3 has its own ports, so its socket binds beside tunnel 1's" \
+    {lrange $genlcorpus::L2TP_TUN2 end-3 end} {udp_sport 5001 udp_dport 6001}
+check l2tp_dup_ports "negative: the duplicate tunnel reuses id 1 on other ports, so the refusal is the id's, not the bind's" \
+    {list [lindex [field l2tp_tunnel_add_dup 3] 5] [lrange [field l2tp_tunnel_add_dup 3] end-3 end]} {1 {udp_sport 5001 udp_dport 6001}}
+check l2tp_no_local "negative: the no-local row names remote and no local" \
+    {list [regexp { remote } [field l2tp_tunnel_add_no_local 3]] [regexp { local } [field l2tp_tunnel_add_no_local 3]]} {1 0}
+check l2tp_no_peer "negative: the no-peer session names its ids and no peer_session_id" \
+    {regexp {peer_session_id} [field l2tp_session_add_no_peer 3]} 0
+check l2tp_show_ids "corner: the show-with-ids rows name the ids they ask for" \
+    {lmap slug {l2tp_tunnel_show_id l2tp_session_show_id} {lrange [field $slug 3] 4 end}} {{tunnel_id 1} {tunnel_id 1 session_id 10}}
+check l2tp_opts "positive: the options session names an interface, both cookies (8 and 4 bytes), seq both and no L2-specific header" \
+    {lmap w {name cookie peer_cookie seq l2spec_type} {set c [field l2tp_session_add_opts 3]; lindex $c [expr {[lsearch -exact $c $w] + 1}]}} {l2tp9 0102030405060708 0a0b0c0d both none}
+check l2tp_v6_csum "corner: the IPv6 tunnel turns off rx checksums only" \
+    {regexp { udp6_csum_rx off$} [field l2tp_tunnel_add_v6 3]} 1
 check hmac_rows_use_set "corner: every hmac write row runs through hmac_set" \
     {lmap slug {sr_hmac_set sr_hmac_set_sha1 sr_hmac_replace sr_hmac_delete sr_hmac_delete_missing sr_hmac_set_long} {
         regexp {^echo( \S+)? \| setsid -w ip sr hmac set [0-9]+ sha(1|256)$} [field $slug 3]}} {1 1 1 1 1 1}
@@ -459,6 +505,15 @@ foreach {name description slug expected} {
     rb_ila_nodev    "corner: and one that misses on the dev"          ila_del_nodev_of_dev ila
     rb_ila_show     "corner: a dump is its own readback"              ila_show            {}
     rb_ila_dup      "negative: a refused add has nothing to read back" ila_add_dup        {}
+    rb_l2tp_tun_add "positive: a tunnel add reads the tunnels back"   l2tp_tunnel_add     tunnel
+    rb_l2tp_tun_del "positive: and so does a tunnel delete"           l2tp_tunnel_del     tunnel
+    rb_l2tp_tun_ses "corner: a tunnel delete with a session reads the sessions back" l2tp_tunnel_del_sessions session
+    rb_l2tp_ses_add "positive: a session add reads the sessions back" l2tp_session_add    session
+    rb_l2tp_ses_del "positive: and so does a session delete"          l2tp_session_del    session
+    rb_l2tp_dup_udp "corner: a duplicate session the kernel takes reads the sessions back" l2tp_session_add_dup session
+    rb_l2tp_dup_ip  "negative: a refused session has nothing to read back" l2tp_session_add_dup_ip {}
+    rb_l2tp_show    "corner: a dump is its own readback"              l2tp_session_show   {}
+    rb_l2tp_dup     "negative: a refused tunnel has nothing to read back" l2tp_tunnel_add_dup {}
 } {
     check $name $description [list readback_names $slug] $expected
 }

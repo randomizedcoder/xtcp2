@@ -1,0 +1,5 @@
+Tunnel 1, encap UDP
+  From 2001:db8::1 to 2001:db8::2
+  Peer tunnel 2
+  UDP source / dest ports: 5000/6000
+  UDP checksum: tx
