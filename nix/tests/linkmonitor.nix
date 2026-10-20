@@ -85,8 +85,10 @@ let
     inherit (goSource) src vendoredSource;
   };
   leaves = {
+    # From goSource too: the performance guest boots this artifact.
     test-linkmonitor-performance = import ./linkmonitor-performance.nix {
-      inherit pkgs src vendoredSource;
+      inherit pkgs;
+      inherit (goSource) src vendoredSource;
     };
     # The embedding guest's artifact, from goSource like the RDMA leaves.
     test-linkmonitor-embedding = import ./linkmonitor-embedding.nix {

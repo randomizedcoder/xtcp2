@@ -47,23 +47,28 @@ on the builder. On 2026-10-20 the user agreed to add `"/dev/net/tun?"` to
 
 ## Integration results
 
-The latest pass of each check (VC011, operator-run on `l` at 8c6b50eb, KVM in
+The latest pass of each check (VC014, operator-run on `l` at a2aab875, KVM in
 the nix build sandbox, QEMU 11.0.2). Go test counts are `--- PASS` lines in
-the guest's serial log; every run had no `--- FAIL` or `--- SKIP`.
+the guest's serial log; no run had a `--- FAIL`, and only the rdma guest's
+three expected skips (veth has no rings, pause or FEC).
 
 | check | guest kernel | sentinels | result | what it covers |
 |---|---|---|---|---|
 | `vm-goip-argv-paths` | Linux 6.18.39 | 8 of 8 | 51 rows pass, 0 fail | every `/ip` design example and handler row against `goip` (byte-identical) and `ip` (no named gaps) |
 | `vm-linkmonitor-embedding` | Linux 6.18.39 | 4 of 4 | 12 Go tests pass | the embedding API in-process and inside xtcp2, `TestLinkMonitorOnDemandScrape` against guest sysfs |
 | `vm-linkmonitor-ionic` | Linux 7.1.4 | 11 of 11 | 99 Go tests pass | real ionic/ionic_rdma on rocm-ernic: discovery, request contracts, monitor, CLI differential, events, recorded events, remove, unplug, hotplug, recovered events |
-| `vm-linkmonitor-ionic-faults` | Linux 7.1.4 | 3 of 3 | 18 Go tests pass | generic-100g profile with injected faults; eth_rx fired 28 of 282, eth_tx 31 of 310, stats_vals 1 of 18; the monitor's counters agree with sysfs, ethtool and the fault pattern |
+| `vm-linkmonitor-ionic-faults` | Linux 7.1.4 | 3 of 3 | 18 Go tests pass | generic-100g profile with injected faults; eth_rx fired 28 of 282, eth_tx 31 of 311, stats_vals 1 of 14; the monitor's counters agree with sysfs, ethtool and the fault pattern |
+| `vm-linkmonitor-rdma` | Linux 7.1.4 | 10 of 10 | 61 Go tests pass, 3 skip (`TestLiveRequestShapes` ethtool RINGS, PAUSE, FEC on veth) | software RoCE (rxe): discovery, rename, netlink events against the recorded ones, faults, no rdma-core library opened, umad unloaded and loaded, denied uverbs, delete and recreate, recordings of every request shape (8 files in `nlrecord/`) |
+| `vm-linkmonitor-performance` | Linux 6.18.39 | 3 of 3 | live tests pass (`live_exit=0`), RDMA native benchmarks pass (`rdma_native_exit=0`) | root-only live netlink tests, `BenchmarkPerformance{LocalMachine,RealisticFleet}` with CPU, heap, block and mutex profiles, an nlmon pcap, `bench-linkmonitor-rdma-native --native`; 884 KiB of evidence |
 
 Outputs (GC-rooted by the operator's `result-vm-all`):
 
-- `/nix/store/ak6rz3j4a7lrbqgbhr7v3a03pglgq5cv-vm-check-goip-argv-paths`
-- `/nix/store/v0z7391bi53q1n81ypvszmn1c3chi1gd-vm-check-linkmonitor-embedding`
-- `/nix/store/87nmczf1zd1i772n1l8kz6lgq5c122h0-vm-check-linkmonitor-ionic`
-- `/nix/store/6pvasypvcz6z2l74fxkfb79nlzgxiq83-vm-check-linkmonitor-ionic-faults`
+- `/nix/store/wqyiafpzbwgnyrsy0hfxfc7hcwb9lwnm-vm-check-goip-argv-paths`
+- `/nix/store/icj3i3iyalq6adzp08z0ggxwhzcyih69-vm-check-linkmonitor-embedding`
+- `/nix/store/llyl73ac7376i4qxia0s6hh3rssrmyqb-vm-check-linkmonitor-ionic`
+- `/nix/store/30m8lky244fiqksg3imbxx235g40k5yj-vm-check-linkmonitor-ionic-faults`
+- `/nix/store/m6v7dvxs6cz5w8gl76689ask6638x86a-vm-check-linkmonitor-rdma`
+- `/nix/store/brhaihxy9zbsdlsmxha6hahi5jgka38c-vm-check-linkmonitor-performance`
 
 ## Tasks
 
@@ -76,8 +81,8 @@ Outputs (GC-rooted by the operator's `result-vm-all`):
 | VC-T05 | `microvm-lifecycle` check: `requiredSystemFeatures` and its log in `$out` | done | VC010, VC012 |
 | VC-T06 | `/tmp` cleanup of the old evidence dirs, after the user has seen the list | done | VC007 |
 | VC-T07 | Go source filtering, so a change outside the Go inputs keeps the guests cached (separate commits) | done | VC008 |
-| VC-T08 | `vm-linkmonitor-rdma`: the rxe microVM through mkVmCheck (every step's sentinel, `nlrecord/` in the evidence) | done (boot pending) | VC013 |
-| VC-T09 | `vm-linkmonitor-performance`: the performance guest through mkVmCheck, its bundle unpacked and its manifest checked; `checks.vm-linkmonitor-performance-bundle` | done (boot pending) | VC013 |
+| VC-T08 | `vm-linkmonitor-rdma`: the rxe microVM through mkVmCheck (every step's sentinel, `nlrecord/` in the evidence) | done | VC013, VC014 |
+| VC-T09 | `vm-linkmonitor-performance`: the performance guest through mkVmCheck, its bundle unpacked and its manifest checked; `checks.vm-linkmonitor-performance-bundle` | done (one reboot after VC015 pending) | VC013, VC014, VC015 |
 
 ## TODO
 
@@ -102,8 +107,13 @@ Outputs (GC-rooted by the operator's `result-vm-all`):
   checks too (VC-T08, VC-T09): the sandbox's own netns frees the console
   ports (VC012), and the performance check proves the guest runs while the
   app stays the way to take a measurement.
-- [ ] Boot `vm-all` (now six guests; the merge of main changed the Go
-  inputs, so all six boot) and record VC-T08/VC-T09.
+- [x] Boot `vm-all` (now six guests; the merge of main changed the Go
+  inputs, so all six booted): all pass (VC014).
+- [x] The performance artifact (`tests.test-linkmonitor-performance`) was
+  still built from the full tree, so a docs edit or a new `result` link
+  re-booted the performance guest; it now uses goSource (VC015).
+- [ ] Boot `checks.vm-linkmonitor-performance` once more, since VC015
+  changed its artifact's inputs (not its Go content).
 - [ ] The performance guest's `LINKMONITOR_BENCHTIME` never reached the
   guest from the host (the README said it did; corrected). Wire it through
   `VM_KERNEL_PARAMS` if a longer profile window is wanted.
@@ -125,3 +135,5 @@ Outputs (GC-rooted by the operator's `result-vm-all`):
 | VC011 | 2026-10-20 | user: `env -u LD_LIBRARY_PATH nix build -L -o result-vm-all path:.#checks.x86_64-linux.vm-all` on `l` (at 8c6b50eb; `vm-all` out path matches `nix eval` at HEAD) | pass: goip-argv-paths 8 sentinels and 51 rows, linkmonitor-embedding 4 and 12 Go tests, linkmonitor-ionic 11 and 99, linkmonitor-ionic-faults 3 and 18 (eth_rx fired 28 of 282, eth_tx 31 of 310, stats_vals 1 of 18); no `--- FAIL`; 0 ESC and 0 CR bytes in each serial.log; Linux 6.18.39 and 7.1.4; outputs 44-100 KiB |
 | VC012 | 2026-10-20 | user: `env -u LD_LIBRARY_PATH nix build -L -o result-lifecycle path:.#checks.x86_64-linux.microvm-lifecycle-x86_64` on `l` (at 8c6b50eb; out path matches `nix eval` at HEAD) | pass: `XTCP2_SELF_TEST_OVERALL_PASS`, 20 of 20 checks (systemd through rtnetlink events), "PASS: all checks passed"; `$out` has `summary.txt`, `serial.log` (970 lines, 0 ESC and 0 CR bytes) and `qemu.log` (only the SIGTERM at teardown); the TCP console ports 12055/12056 sit in the sandbox's own netns |
 | VC013 | 2026-10-20 | VC-T08/T09: `nix eval` of `checks.vm-linkmonitor-{rdma,performance}` (`requiredSystemFeatures` kvm) and `vm-all` (six entries); `nix build` of both apps, `checks.{vm-check-runner,vm-linkmonitor-performance-bundle,nix-fmt,statix,deadnix}`, `test-linkmonitor-docs`; usage errors (`--bogus`, two DIRs, `--keep=0`, `--accel=hvf`, an rdma positional) | pass; bundle test 5 of 5 (its first run failed all three bundle rows: the stand-in's `while read` dropped fold's unterminated last chunk, fixed in the stand-in); each usage error exits 2; no guest booted |
+| VC014 | 2026-10-20 | user: `env -u LD_LIBRARY_PATH nix build -L -o result-vm-all path:.#checks.x86_64-linux.vm-all` on `l` (at a2aab875, with main merged in) | pass, all six: goip-argv-paths 8 sentinels and 51 rows; embedding 4 and 12 Go tests; ionic 11 and 99; ionic-faults 3 and 18 (eth_rx fired 28 of 282, eth_tx 31 of 311, stats_vals 1 of 14); rdma 10 and 61 Go tests, 3 expected skips, 8 nlrecord files, kernel 7.1.4; performance 3, `live_exit=0`, `rdma_native_exit=0`, kernel 6.18.39. 0 ESC and 0 CR bytes in each serial.log. Five outputs match `nix eval` at HEAD; the performance one does not (VC015) |
+| VC015 | 2026-10-20 | `nix/tests/linkmonitor.nix`: `test-linkmonitor-performance` from goSource. `nix-diff` of the VC014 performance drv against HEAD's (the leaf: `xtcp2-test-linkmonitor-performance`'s full-tree source, changed by the new `result-vm-all` link); `nix build path:.#test-linkmonitor-performance`; `nix eval` of `checks.vm-all.drvPath` before and after adding a `.md` file and a `result-*` link; `checks.{nix-fmt,statix,deadnix}` | pass; `vm-all` drv unchanged by both; no guest booted |
