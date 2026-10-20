@@ -166,19 +166,19 @@ msgs/pcaps means messages found, over the number of pcaps they appear in. Every 
 
 | body | type (value) | msgs / pcaps | parser | table-driven parse test | parse benchmark |
 |---|---|---|---|---|---|
-| `ifinfomsg` | NEWLINK (16) | 3554 / 601 | `ParseNewLink`, `xtcpnl_ifinfomsg.go:623` | `TestParseNewLink`, `xtcpnl_rtnetlink_test.go:817`, plus 7 more files | **none** |
-| | DELLINK (17) | 87 / 21 | same | same | none |
+| `ifinfomsg` | NEWLINK (16) | 3554 / 601 | `ParseNewLink`, `xtcpnl_ifinfomsg.go:623` | `TestParseNewLink`, `xtcpnl_rtnetlink_test.go:817`, plus 7 more files | **`BenchmarkParseNewLink`, `xtcpnl_parse_bench_test.go:120`** (P0-T01) |
+| | DELLINK (17) | 87 / 21 | same | same | same |
 | | GETLINK (18) | 1206 / 594 | request | `BuildRequest` tests | none |
 | | SETLINK (19) | 5 / 3: `netlink_route_events.pcap`, and `ip token set` (C1-T02) | same body | `TestRtnlWriteCorpusVerbs` (type only) | none |
 | `ifinfomsg` (prop) | NEWLINKPROP (108), DELLINKPROP (109) | 2 / 2, 1 / 1 (C1-T02) | none | `TestRtnlWriteCorpusVerbs` (type only) | none |
-| `ifaddrmsg` | NEWADDR (20) | 3081 / 249 | `ParseNewAddr`, `xtcpnl_ifaddrmsg.go:239` | `TestParseNewAddr`, `xtcpnl_rtnetlink_test.go:278`; `TestDecodeAddrWriteCorpus` | **`BenchmarkParseNewAddr`, `xtcpnl_bench_test.go:386`** |
+| `ifaddrmsg` | NEWADDR (20) | 3081 / 249 | `ParseNewAddr`, `xtcpnl_ifaddrmsg.go:239` | `TestParseNewAddr`, `xtcpnl_rtnetlink_test.go:278`; `TestDecodeAddrWriteCorpus` | **`BenchmarkParseNewAddr`, `xtcpnl_bench_test.go:388`** |
 | | DELADDR (21) | 242 / 31 | same | same | same |
 | | GETADDR (22) | 290 / 210 | request | | |
 | | NEWMULTICAST (56), DELMULTICAST (57) | 48 / 8, 27 / 4 | same | `TestParseMcastAnycastFixtures`, `xtcpnl_addr_rich_test.go:440` | none |
 | | NEWANYCAST (60) | 5 / 5 | same | same | none |
 | | DELANYCAST (61) | 1 / 1 (C1-T01) | same | `TestRtnlWriteCorpus`, `xtcpnl_rtnl_write_corpus_test.go` | none |
-| `rtmsg` | NEWROUTE (24) | 761 / 71 | `ParseNewRoute`, `xtcpnl_rtmsg.go:140` | `TestParseNewRoute`, `xtcpnl_rtnetlink_test.go:553`; `TestDecodeRouteWriteCorpus` | **none** |
-| | DELROUTE (25) | 172 / 20 | same | same | none |
+| `rtmsg` | NEWROUTE (24) | 761 / 71 | `ParseNewRoute`, `xtcpnl_rtmsg.go:140` | `TestParseNewRoute`, `xtcpnl_rtnetlink_test.go:553`; `TestDecodeRouteWriteCorpus` | **`BenchmarkParseNewRoute`, `xtcpnl_parse_bench_test.go:137`** (P0-T01) |
+| | DELROUTE (25) | 172 / 20 | same | same | same |
 | | GETROUTE (26) | 52 / 39 | request | | |
 | `ndmsg` | NEWNEIGH (28), DELNEIGH (29), GETNEIGH (30) | 252 / 27, 71 / 4, 25 / 24 | `ParseNeigh`, `xtcpnl_ndmsg.go:244` | `TestParseNeigh`, `xtcpnl_ndmsg_test.go:216` | none |
 | `fib_rule_hdr` | NEWRULE (32), GETRULE (34) | 102 / 19, 14 / 14 | `ParseRule`, `xtcpnl_fib_rule_hdr.go:270` | `TestParseRule`, `xtcpnl_fib_rule_hdr_test.go:449` | none |
@@ -225,7 +225,7 @@ The corpus also holds ethtool (19 commands), devlink (2) and nl80211 (7) from th
 2. **The capture holes were the DEL and SET types:** DELANYCAST, DELRULE, SETNEIGHTBL, DELADDRLABEL, DELNSID, SETSTATS and DELNEXTHOP. Each shares a body layout with its NEW type, so all but DELNSID already had a parser (NSID has none; point 3). The bytes were missing because no capture row sent them. C1-T01 added those rows (`link-write/rtnl/`), and each of the seven is now captured and checked by `TestRtnlWriteCorpus`.
 3. **Four rtnetlink layouts have no parser:** NSID, nexthop bucket, LINKPROP and prefix. Since C1 closed, all four have bytes: NSID 210 NEWNSID messages, the nexthop bucket and LINKPROP from C1-T02 (a 1024-bucket dump, and altname add and del), and prefix from C1-T04 (an RA's NEWPREFIX, 3 messages). The tests read them raw; the parsers are P1.
 4. **Generic netlink beyond nlctrl and XFRM had nothing:** no pcaps, no parsers, no tests. When this was measured the blocker was in the harness: `xtcp2-nlcap` kept only `NETLINK_ROUTE` (`ether[14:2]==0`), although nlmon taps GENERIC and XFRM. C0 removed it. A row now names its protocol (`--proto`, C0-T01), and the modules those families need are loaded late (C0-T02). What is missing is the capture rows (C2, C3). C2-T01 added the first: tcp_metrics' GET and DEL are captured (`link-write/genl/`), with no parser yet (P2). C2-T02 added sr's four SEG6 commands, C2-T03 ioam's seven IOAM6 commands, C2-T04 the seven mptcp_pm commands `ip` sends, C2-T05 fou's three, C2-T06 ila's three, C2-T07 the six l2tp commands `ip` sends, and C2-T08 macsec's eleven. Since C2 closed, every genl family in the universe has captured bytes and a test that reads them raw, and none has a parser (P2). C3-T01 added the XFRM state rows (`link-write/xfrm/`): the seven types `ip xfrm state` sends are captured and read raw by `TestXfrmStateCorpus`. C3-T02 added policy, SPDINFO, the defaults and the events (`ip xfrm monitor`), read raw by `TestXfrmPolicyCorpus`. Since C3 closed, every XFRM type but REPORT has captured bytes; the parsers are P3.
-5. **Benchmarks:** 1 of the 15 rtnetlink and genl parsers in the tables above (`ParseNewAddr`) has a parse benchmark. The rest of `BenchmarkDeserialize*` covers inet_diag only.
+5. **Benchmarks:** 3 of the 15 rtnetlink and genl parsers in the tables above have a parse benchmark: `ParseNewAddr`, and since P0-T01 `ParseNewLink` and `ParseNewRoute`. The rest of `BenchmarkDeserialize*` covers inet_diag only.
 
 ### How to re-measure
 
@@ -1175,6 +1175,24 @@ Each task adds one table-driven `BenchmarkParse*` per parser, over captured reco
 | corner: a parser that allocates nothing | `0 allocs/op` is asserted where it is true today |
 
 **Done when:** every parser row in the assessment shows a benchmark.
+
+**P0-T01 delivered** (`pkg/xtcpnl/xtcpnl_parse_bench_test.go`):
+- `benchRecords` reads every DLT 253 pcap under `testdata` once per test binary and picks, for a protocol and type, the smallest, a typical (the median length) and the largest body the kernel sent, that is, in a message without `NLM_F_REQUEST`. Equal lengths keep corpus order, so a pick changes only when the corpus does. The later P0 tasks reuse it.
+- `BenchmarkParseNewLink` and `BenchmarkParseNewRoute` run over those three; `BenchmarkParseNewAddr` keeps its two A1-T01 rows and adds them.
+- `TestBenchPick` checks the picking on hand-built messages, and `TestParseBenchRecords` decodes every pick, so no benchmark measures an error path:
+
+| description | expected |
+|---|---|
+| positive: five lengths give the first, the third and the fifth | `smallest=a/10 typical=c/30 largest=e/50` |
+| boundary: one message is every pick | all three `a/52` |
+| boundary: two messages, the typical one the larger | `typical=b/60` |
+| corner: equal lengths keep corpus order | `a`, `b`, `c` |
+| corner: ip's request is not a kernel message | the 900-byte request is not picked |
+| corner: the same type number in another protocol is not picked | the XFRM message is not picked |
+| negative: no message of the type | no picks |
+| positive: `ParseNewLink`, `ParseNewRoute` and `ParseNewAddr` each decode their three picks | `smallest ok, typical ok, largest ok` |
+
+- None of the three parsers is allocation-free today (1 to 6 allocs/op over the picks), so this task asserts no `0 allocs/op`.
 
 ### P1 — New rtnetlink parsers
 

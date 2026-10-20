@@ -24,7 +24,7 @@ type capturedNlMsg struct {
 
 // pcapNlMsgs returns every netlink message in a DLT 253 pcap, in capture
 // order, across every datagram.
-func pcapNlMsgs(t *testing.T, path string) []capturedNlMsg {
+func pcapNlMsgs(t testing.TB, path string) []capturedNlMsg {
 	t.Helper()
 	var out []capturedNlMsg
 	for _, d := range pcapNlDatagrams(t, path) {
@@ -35,7 +35,7 @@ func pcapNlMsgs(t *testing.T, path string) []capturedNlMsg {
 
 // pcapNlDatagrams returns the netlink messages of a DLT 253 pcap one
 // datagram at a time, in capture order.
-func pcapNlDatagrams(t *testing.T, path string) [][]capturedNlMsg {
+func pcapNlDatagrams(t testing.TB, path string) [][]capturedNlMsg {
 	t.Helper()
 	bs, err := os.ReadFile(path)
 	if err != nil {
