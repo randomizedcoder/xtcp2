@@ -57,8 +57,13 @@ on the builder. On 2026-10-20 the user agreed to add `"/dev/net/tun?"` to
 ## TODO
 
 - [x] VC-T03: all four checks pass in the sandbox (VC004).
-- [ ] Rerun `vm-all` after VC005's escape fix (it changes every check's
-  inputs) and confirm `grep -c $'\x1b'` is 0 in each `serial.log`.
+- [x] Rerun `vm-all` after VC005's escape fix: all pass, 0 ESC and 0 CR
+  bytes in each `serial.log` (VC006).
+- [ ] Caching: `flake.nix` passes `src = ./.`, so goip, the monitor and the
+  test artifacts (and so every `vm-*` check) rebuild on any change to the
+  repo, docs included (VC006 rebuilt goip after a docs-only commit). A Go
+  fileset (`lib.fileset`: `go.mod`, `go.sum`, `**/*.go`, testdata, embedded
+  files) would let an unchanged guest stay cached. Repo-wide; the user's call.
 - [x] After the user's rebuild of `l`: `nix config show` lists
   `/dev/net/tun?`, and a sandboxed build creates a TAP (VC003).
 - [ ] `test-linkmonitor-rdma-vm` (microvm.nix, TCP console ports) and
@@ -73,3 +78,4 @@ on the builder. On 2026-10-20 the user agreed to add `"/dev/net/tun?"` to
 | VC003 | 2026-10-20 | sandbox probe (`requiredSystemFeatures = [ "kvm" ]`, `unshare --user --map-root-user --net`, `ip tuntap add`) after the rebuild of `l` | TAP created, `/dev/kvm` writable |
 | VC004 | 2026-10-20 | user: `env -u LD_LIBRARY_PATH nix build -L -o result-vm-all path:.#checks.x86_64-linux.vm-all` on `l` (at b441fa3b) | pass: goip-argv-paths 8 sentinels, linkmonitor-embedding 4, linkmonitor-ionic 11, linkmonitor-ionic-faults 3 (eth_rx fired 28 of 282, eth_tx 31 of 310, stats_vals 1 of 17); outputs 44-96 KiB each. 5-6 ESC bytes survived per serial.log (ESC c, ESC 7, ESC 8, a DCS `+q` query) |
 | VC005 | 2026-10-20 | `checks.vm-check-runner` with the DCS and two-byte escape row, `LC_ALL=C` on the strip (a UTF-8 locale's `[ -~]` skipped ESC c); the new strip over VC004's four logs | pass, 13 of 13; 0 ESC bytes left in each log |
+| VC006 | 2026-10-20 | user: `env -u LD_LIBRARY_PATH nix build -L -o result-vm-all path:.#checks.x86_64-linux.vm-all` on `l` (at 4785ecad) | pass: 8, 4, 11 and 3 sentinels; eth_rx fired 28 of 281, eth_tx 31 of 310, stats_vals 1 of 17; 0 ESC and 0 CR bytes in each serial.log. goip and the embedding artifact rebuilt although only nix and docs files changed (`src = ./.`) |
