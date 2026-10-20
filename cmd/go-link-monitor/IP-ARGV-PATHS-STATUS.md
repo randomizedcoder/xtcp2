@@ -1,6 +1,6 @@
 # `ip` command-line paths: implementation status
 
-Last updated: 2026-10-19.
+Last updated: 2026-10-20.
 
 **Done: 12 of 12 implementation tasks.** The design was reviewed
 on 2026-10-19 and its decisions are recorded below.
@@ -596,6 +596,7 @@ write-up in IA4-T02.
 | IV036 | 2026-10-19 | after IA4-T02 | `nix build --no-link --keep-going path:.#test-linkmonitor-unit path:.#test-linkmonitor-race path:.#test-linkmonitor-lint path:.#test-linkmonitor-fuzz path:.#test-linkmonitor-docs path:.#test-focused-goip -L`, for `type`, `proto` and `nud` | `l`, nix sandbox, 7.2.9 | `bf3a52a4` + working tree | Pass: all six | nix store, `--no-link` |
 | IV037 | 2026-10-20 | after IA4-T02 | `env -u LD_LIBRARY_PATH nix run path:.#test-goip-argv-paths-vm`, with `selectors_live` and the empty gap list; operator-approved, from a terminal | qemu-vm guest on `l` (KVM) | `ff670868` | Fail: 50 of 51 checks pass, `/i/ntbl/show` equal to `ip` with no gap (the `ntable_dev_star` fix holds), every `type`, `proto` and `nud` row passes; the one failure is the row `/i/l/s/goip0/type/dummy`, a test bug (`l s` is `link set`, so the 400 was right); the row is now `/i/l/sh/...` | operator's terminal; `/tmp` evidence dir |
 | IV038 | 2026-10-20 | after IA4-T02 | `env -u LD_LIBRARY_PATH nix run path:.#test-goip-argv-paths-vm`; operator-approved, from a terminal | qemu-vm guest on `l` (KVM) | `4a782c85` | Pass: all 51 checks with no named gap, every sentinel (`ntable_dev_star` fixed; `type`, `proto`, `nud` served) | `/tmp/goip-argv-paths-F8IXhs` |
+| IV039 | 2026-10-20 | after IA4-T02 | `env -u LD_LIBRARY_PATH nix build -L -o result-vm-all path:.#checks.x86_64-linux.vm-all` (branch `nix/vm-checks`; the same guest as `checks.vm-goip-argv-paths`, booted in the nix build sandbox); operator-run | qemu-vm guest (Linux 6.18.39, QEMU 11.0.2, KVM) in the sandbox on `l` | `4785ecad` | Pass: 51 `ROW_PASS`, 0 `ROW_FAIL`, all 8 sentinels; serial log free of escape bytes. The `/tmp` evidence of IV037 and IV038 was removed on 2026-10-20 with the operator's OK | `/nix/store/khrr3nvjxwdw6bfqibxnp58zrbwksfpg-vm-check-goip-argv-paths` (`result-vm-all` GC root); [nix/VM-CHECKS-STATUS.md](../../nix/VM-CHECKS-STATUS.md) VC006 |
 
 ## TODO
 
@@ -689,3 +690,4 @@ None.
 \n| 2026-10-20 | Two operator VM runs wrote no serial output: qemu stopped on terminal input under `timeout`. The leaf's qemu reads `/dev/null` now. Next: the VM run again. |\n
 | 2026-10-20 | VM run IV037: 50 of 51; the ntable fix and the three selectors hold on a live kernel. The one failing row used `/i/l/s` (link set) for a show; fixed to `/i/l/sh`. Next: the VM run again. |
 | 2026-10-20 | VM leaf passes, 51 checks, no gaps (IV038). Every design example served and checked against `ip` on a live kernel. |
+| 2026-10-20 | The VM leaf is also a cached nix check, `checks.vm-goip-argv-paths` (in `checks.vm-all`), built by `nix/microvms/mkVmCheck.nix` on branch `nix/vm-checks`; it passes in the build sandbox (IV039). `nix run .#test-goip-argv-paths-vm` stays as the hand-run launcher. |

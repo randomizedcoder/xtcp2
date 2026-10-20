@@ -43,6 +43,26 @@ on the builder. On 2026-10-20 the user agreed to add `"/dev/net/tun?"` to
 (applied by the user's `make`), and `vm-all` now includes the fault run.
 `l` has `max-jobs = 1`, so `vm-all` boots one guest at a time there.
 
+## Integration results
+
+The latest pass of each check (VC006, operator-run on `l` at 4785ecad, KVM in
+the nix build sandbox, QEMU 11.0.2). Go test counts are `--- PASS` lines in
+the guest's serial log; every run had no `--- FAIL` or `--- SKIP`.
+
+| check | guest kernel | sentinels | result | what it covers |
+|---|---|---|---|---|
+| `vm-goip-argv-paths` | Linux 6.18.39 | 8 of 8 | 51 rows pass, 0 fail | every `/ip` design example and handler row against `goip` (byte-identical) and `ip` (no named gaps) |
+| `vm-linkmonitor-embedding` | Linux 6.18.39 | 4 of 4 | 12 Go tests pass | the embedding API in-process and inside xtcp2, `TestLinkMonitorOnDemandScrape` against guest sysfs |
+| `vm-linkmonitor-ionic` | Linux 7.1.4 | 11 of 11 | 99 Go tests pass | real ionic/ionic_rdma on rocm-ernic: discovery, request contracts, monitor, CLI differential, events, recorded events, remove, unplug, hotplug, recovered events |
+| `vm-linkmonitor-ionic-faults` | Linux 7.1.4 | 3 of 3 | 18 Go tests pass | generic-100g profile with injected faults; eth_rx fired 28 of 281, eth_tx 31 of 310, stats_vals 1 of 17; the monitor's counters agree with sysfs, ethtool and the fault pattern |
+
+Outputs (GC-rooted by the operator's `result-vm-all`):
+
+- `/nix/store/khrr3nvjxwdw6bfqibxnp58zrbwksfpg-vm-check-goip-argv-paths`
+- `/nix/store/zjvc94286yqbxdybm9l1q1hbk12swm2n-vm-check-linkmonitor-embedding`
+- `/nix/store/fyfqiazx1d34p99cni36lkcpr9fjdrwi-vm-check-linkmonitor-ionic`
+- `/nix/store/6pwsfj17hv0alrc2mqw8bjc49islfcqm-vm-check-linkmonitor-ionic-faults`
+
 ## Tasks
 
 | id | task | state | evidence |
@@ -52,7 +72,8 @@ on the builder. On 2026-10-20 the user agreed to add `"/dev/net/tun?"` to
 | VC-T03 | each check passes once on `l` (one guest at a time, asked first) | done | VC004 |
 | VC-T04 | retire the duplicated launcher code once VC-T03 passes | open | |
 | VC-T05 | `microvm-lifecycle` check: `requiredSystemFeatures` and its log in `$out` | open | |
-| VC-T06 | `/tmp` cleanup of the old evidence dirs, after the user has seen the list | open | |
+| VC-T06 | `/tmp` cleanup of the old evidence dirs, after the user has seen the list | done | VC007 |
+| VC-T07 | Go source filtering, so a change outside the Go inputs keeps the guests cached (separate commits) | in progress | |
 
 ## TODO
 
@@ -79,3 +100,4 @@ on the builder. On 2026-10-20 the user agreed to add `"/dev/net/tun?"` to
 | VC004 | 2026-10-20 | user: `env -u LD_LIBRARY_PATH nix build -L -o result-vm-all path:.#checks.x86_64-linux.vm-all` on `l` (at b441fa3b) | pass: goip-argv-paths 8 sentinels, linkmonitor-embedding 4, linkmonitor-ionic 11, linkmonitor-ionic-faults 3 (eth_rx fired 28 of 282, eth_tx 31 of 310, stats_vals 1 of 17); outputs 44-96 KiB each. 5-6 ESC bytes survived per serial.log (ESC c, ESC 7, ESC 8, a DCS `+q` query) |
 | VC005 | 2026-10-20 | `checks.vm-check-runner` with the DCS and two-byte escape row, `LC_ALL=C` on the strip (a UTF-8 locale's `[ -~]` skipped ESC c); the new strip over VC004's four logs | pass, 13 of 13; 0 ESC bytes left in each log |
 | VC006 | 2026-10-20 | user: `env -u LD_LIBRARY_PATH nix build -L -o result-vm-all path:.#checks.x86_64-linux.vm-all` on `l` (at 4785ecad) | pass: 8, 4, 11 and 3 sentinels; eth_rx fired 28 of 281, eth_tx 31 of 310, stats_vals 1 of 17; 0 ESC and 0 CR bytes in each serial.log. goip and the embedding artifact rebuilt although only nix and docs files changed (`src = ./.`) |
+| VC007 | 2026-10-20 | with the user's OK: removed the old launchers' `/tmp/{goip-argv-paths,linkmonitor-embedding,linkmonitor-ionic,linkmonitor-ionic-faults}-XXXXXX` | 46 directories (about 4.9 MB) removed, 0 left; other `/tmp` content untouched |
