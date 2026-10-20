@@ -73,18 +73,18 @@ Outputs (GC-rooted by the operator's `result-vm-all`):
 | VC-T04 | retire the duplicated launcher code once VC-T03 passes | open | |
 | VC-T05 | `microvm-lifecycle` check: `requiredSystemFeatures` and its log in `$out` | open | |
 | VC-T06 | `/tmp` cleanup of the old evidence dirs, after the user has seen the list | done | VC007 |
-| VC-T07 | Go source filtering, so a change outside the Go inputs keeps the guests cached (separate commits) | in progress | |
+| VC-T07 | Go source filtering, so a change outside the Go inputs keeps the guests cached (separate commits) | done | VC008 |
 
 ## TODO
 
 - [x] VC-T03: all four checks pass in the sandbox (VC004).
 - [x] Rerun `vm-all` after VC005's escape fix: all pass, 0 ESC and 0 CR
   bytes in each `serial.log` (VC006).
-- [ ] Caching: `flake.nix` passes `src = ./.`, so goip, the monitor and the
-  test artifacts (and so every `vm-*` check) rebuild on any change to the
-  repo, docs included (VC006 rebuilt goip after a docs-only commit). A Go
-  fileset (`lib.fileset`: `go.mod`, `go.sum`, `**/*.go`, testdata, embedded
-  files) would let an unchanged guest stay cached. Repo-wide; the user's call.
+- [x] Caching: `flake.nix` passes `src = ./.`, so goip, the monitor and the
+  test artifacts (and so every `vm-*` check) rebuilt on any change to the
+  repo (VC006). `nix/lib/goSource.nix` now feeds the binaries,
+  go-link-monitor, `rdma-capture-manifest`, the RDMA leaves and the
+  embedding artifact; repo-wide checks keep the full tree (VC008).
 - [x] After the user's rebuild of `l`: `nix config show` lists
   `/dev/net/tun?`, and a sandboxed build creates a TAP (VC003).
 - [ ] `test-linkmonitor-rdma-vm` (microvm.nix, TCP console ports) and
@@ -101,3 +101,4 @@ Outputs (GC-rooted by the operator's `result-vm-all`):
 | VC005 | 2026-10-20 | `checks.vm-check-runner` with the DCS and two-byte escape row, `LC_ALL=C` on the strip (a UTF-8 locale's `[ -~]` skipped ESC c); the new strip over VC004's four logs | pass, 13 of 13; 0 ESC bytes left in each log |
 | VC006 | 2026-10-20 | user: `env -u LD_LIBRARY_PATH nix build -L -o result-vm-all path:.#checks.x86_64-linux.vm-all` on `l` (at 4785ecad) | pass: 8, 4, 11 and 3 sentinels; eth_rx fired 28 of 281, eth_tx 31 of 310, stats_vals 1 of 17; 0 ESC and 0 CR bytes in each serial.log. goip and the embedding artifact rebuilt although only nix and docs files changed (`src = ./.`) |
 | VC007 | 2026-10-20 | with the user's OK: removed the old launchers' `/tmp/{goip-argv-paths,linkmonitor-embedding,linkmonitor-ionic,linkmonitor-ionic-faults}-XXXXXX` | 46 directories (about 4.9 MB) removed, 0 left; other `/tmp` content untouched |
+| VC008 | 2026-10-20 | `nix/lib/goSource.nix` (no `.md` or `.nix` outside testdata bar `cmd/go-link-monitor/METRICS.md`; no `flake.lock`, `docs/`, `.git`, `.github`, `.vscode`, `.ruff_cache`, `result*`). `nix eval` of `checks.vm-all.drvPath` after a README.md edit, a `.nix` comment edit and a `.go` edit; `nix build path:.#test-linkmonitor path:.#goip path:.#go-link-monitor path:.#rdma-capture-manifest` and `checks.{nix-fmt,statix,deadnix}` | drv unchanged by the Markdown and Nix edits, changed by the Go edit; all 14 `test-linkmonitor` leaves and the builds pass |

@@ -16,14 +16,31 @@
 let
   versions = import ./versions.nix { inherit pkgs; };
 
+  # The tree less the files no Go build reads (lib/goSource.nix), and its
+  # vendored copy. The binaries, go-link-monitor and the guest test
+  # artifacts use it, so a docs- or Nix-only change leaves them, and the
+  # vm-* checks that boot them, cached. Repo-wide checks keep `src`.
+  goSrc = import ./lib/goSource.nix { inherit lib src; };
+  goSource = {
+    src = goSrc;
+    inherit
+      (import ./lib/goModules.nix {
+        inherit pkgs giouring;
+        src = goSrc;
+        vendorHash = versions.goVendorHash;
+      })
+      vendoredSource
+      ;
+  };
+
   # Per-binary derivations + xtcp2-all join + default = xtcp2.
   binaries = import ./binaries.nix {
     inherit
       pkgs
       lib
-      src
       giouring
       ;
+    src = goSrc;
   };
 
   # Vendored source (used by every check that needs Go deps inside the sandbox).
@@ -38,12 +55,8 @@ let
   inherit (goMods) vendoredSource;
 
   linkmonitorPackages = import ./lib/linkmonitor-packages.nix {
-    inherit
-      pkgs
-      lib
-      src
-      vendoredSource
-      ;
+    inherit pkgs lib;
+    inherit (goSource) src vendoredSource;
   };
 
   # OCI image(s) — three variants in lockstep with the Go build variants.
@@ -130,6 +143,7 @@ let
       lib
       src
       vendoredSource
+      goSource
       binaries
       microvms
       linkmonitorPackages
@@ -226,7 +240,10 @@ let
   # the capture script the rxe and ionic guests and `l` run, the redaction
   # and manifest tool, and the host app `nix run .#capture-rdma-testdata`.
   rdmaNativeCapture = import ./tests/rdma-native-capture.nix { inherit pkgs; };
-  rdmaCaptureManifest = import ./tests/rdma-capture-manifest.nix { inherit pkgs vendoredSource; };
+  rdmaCaptureManifest = import ./tests/rdma-capture-manifest.nix {
+    inherit pkgs;
+    inherit (goSource) vendoredSource;
+  };
   captureRdmaTestdata = import ./capture-rdma-testdata.nix {
     inherit pkgs rdmaNativeCapture rdmaCaptureManifest;
     umadTests = tests.test-linkmonitor-rdma-build;

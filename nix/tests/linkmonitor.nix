@@ -5,6 +5,7 @@
   lib,
   src,
   vendoredSource,
+  goSource,
   linkmonitorPackages,
 }:
 let
@@ -76,20 +77,21 @@ let
         }
         echo 'PASS: test-linkmonitor-${name}'
       '';
+  # The ionic guests boot test-linkmonitor-rdma-build, so the RDMA leaves
+  # build from goSource (nix/lib/goSource.nix) and stay cached across a
+  # docs- or Nix-only change.
   rdma = import ./linkmonitor-rdma.nix {
-    inherit
-      pkgs
-      src
-      vendoredSource
-      linkmonitorPackages
-      ;
+    inherit pkgs linkmonitorPackages;
+    inherit (goSource) src vendoredSource;
   };
   leaves = {
     test-linkmonitor-performance = import ./linkmonitor-performance.nix {
       inherit pkgs src vendoredSource;
     };
+    # The embedding guest's artifact, from goSource like the RDMA leaves.
     test-linkmonitor-embedding = import ./linkmonitor-embedding.nix {
-      inherit pkgs src vendoredSource;
+      inherit pkgs;
+      inherit (goSource) src vendoredSource;
     };
     test-linkmonitor-unit = mkCheck "unit" {
       command = ''
