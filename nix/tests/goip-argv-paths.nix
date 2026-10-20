@@ -208,7 +208,7 @@ let
       check /ip/-d/link/show/type/dummy 200
       grep -q ': goip0: ' "$work/body" || fail "selectors_live: type dummy omits goip0"
       check /ip/-j/link/show/type/dummy 200
-      check /i/l/s/goip0/type/dummy 200
+      check /i/l/sh/goip0/type/dummy 200
       check /i/r/s/proto/kernel 200
       grep -q 'proto' "$work/body" && fail "selectors_live: proto filter still prints proto"
       check /i/r/s/table/all/p/boot 200
