@@ -595,6 +595,7 @@ write-up in IA4-T02.
 | IV035 | 2026-10-19 | after IA4-T02 | `nix build --no-link --keep-going path:.#test-linkmonitor-unit path:.#test-linkmonitor-race path:.#test-linkmonitor-lint path:.#test-linkmonitor-docs path:.#test-focused-goip -L`, for `ntable_dev_star` | `l`, nix sandbox, 7.2.9 | `1343400b` + working tree | Pass: all five, with the new xtcpnl and render rows | nix store, `--no-link` |
 | IV036 | 2026-10-19 | after IA4-T02 | `nix build --no-link --keep-going path:.#test-linkmonitor-unit path:.#test-linkmonitor-race path:.#test-linkmonitor-lint path:.#test-linkmonitor-fuzz path:.#test-linkmonitor-docs path:.#test-focused-goip -L`, for `type`, `proto` and `nud` | `l`, nix sandbox, 7.2.9 | `bf3a52a4` + working tree | Pass: all six | nix store, `--no-link` |
 | IV037 | 2026-10-20 | after IA4-T02 | `env -u LD_LIBRARY_PATH nix run path:.#test-goip-argv-paths-vm`, with `selectors_live` and the empty gap list; operator-approved, from a terminal | qemu-vm guest on `l` (KVM) | `ff670868` | Fail: 50 of 51 checks pass, `/i/ntbl/show` equal to `ip` with no gap (the `ntable_dev_star` fix holds), every `type`, `proto` and `nud` row passes; the one failure is the row `/i/l/s/goip0/type/dummy`, a test bug (`l s` is `link set`, so the 400 was right); the row is now `/i/l/sh/...` | operator's terminal; `/tmp` evidence dir |
+| IV038 | 2026-10-20 | after IA4-T02 | `env -u LD_LIBRARY_PATH nix run path:.#test-goip-argv-paths-vm`; operator-approved, from a terminal | qemu-vm guest on `l` (KVM) | `4a782c85` | Pass: all 51 checks with no named gap, every sentinel (`ntable_dev_star` fixed; `type`, `proto`, `nud` served) | `/tmp/goip-argv-paths-F8IXhs` |
 
 ## TODO
 
@@ -635,7 +636,7 @@ Work outside the 12 tasks, kept so it is not lost. IA4-T02 reviews it.
   reinstate `neighStateFiltered`'s fourth clause in the same change, then
   drop the example's `not_served`.
   All three done (findings, IV036); every design example is now served.
-- [ ] Run the VM leaf with the empty gap list, so `/i/ntbl/show` is
+- [x] Run the VM leaf with the empty gap list, so `/i/ntbl/show` is
   compared with `ip` on the guest's 6.18 kernel, and with the
   `selectors_live` rows for `type`, `proto` and `nud` (operator
   approval). The operator's first run (evidence
@@ -687,3 +688,4 @@ None.
 | 2026-10-19 | The three selectors done: goip's `link show type`, `route show proto` and `neighbor show nud`; every design example is served (findings, IV036). Next: the VM run with `selectors_live` and the empty gap list, when the operator approves. |
 \n| 2026-10-20 | Two operator VM runs wrote no serial output: qemu stopped on terminal input under `timeout`. The leaf's qemu reads `/dev/null` now. Next: the VM run again. |\n
 | 2026-10-20 | VM run IV037: 50 of 51; the ntable fix and the three selectors hold on a live kernel. The one failing row used `/i/l/s` (link set) for a show; fixed to `/i/l/sh`. Next: the VM run again. |
+| 2026-10-20 | VM leaf passes, 51 checks, no gaps (IV038). Every design example served and checked against `ip` on a live kernel. |
