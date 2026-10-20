@@ -157,9 +157,9 @@ func NeighTblViewOf(ti xtcpnl.NeighTblInfo, names NameTab, showStats bool, now t
 
 func parmsViewOf(p xtcpnl.NeighTblParms, names NameTab) *NtParmsView {
 	pv := &NtParmsView{}
-	// print_ndtparams prints the dev line only for NDTPA_IFINDEX (:374); index 0
-	// is the base message, which carries no such line.
-	if p.Ifindex != 0 {
+	// print_ndtparams prints the dev line only for NDTPA_IFINDEX (:374); an
+	// index of 0 is printed by ll_index_to_name as `*`.
+	if p.HasIfindex {
 		pv.Dev = names.IndexToName(p.Ifindex)
 	}
 	if p.HasRefcnt {

@@ -498,6 +498,18 @@ write-up in IA4-T02.
     35.4–35.9 µs, 231). `TestRejectAllocs` bounds the two refused rows at
     40 and 45 (33 and 37 measured) and requires no open;
     `TestRefusedBeforeSource` has 7 rows.
+  - `ntable_dev_star` fixed (the IA4-T01 TODO): `xtcpnl.NeighTblParms`
+    gains `HasIfindex`, set whenever `NDTPA_IFINDEX` is present, and
+    goip's renderer prints the dev line on it rather than on a nonzero
+    index, so a 6.18 base message's index 0 prints `dev *` (text) and
+    `"dev":"*"` (JSON) through `ll_index_to_name`'s `*`, as
+    `print_ndtparams` does, while an older kernel's base message, which
+    has no attribute, still prints no dev line. The committed capture is
+    from the older shape, so the 6.18 shape is hand-built: xtcpnl rows
+    for index 0 present, absent and a 3-byte attribute, and render rows
+    for `dev *` in text and JSON. The VM leaf's gap list is empty; a
+    listed gap that matched would fail, and an unlisted difference fails
+    too, so the next VM run checks the fix on the guest's kernel.
   - `follow_ups`, each with a decision:
     - `ip route get ADDR`: deferred. It is read-only but not in goip;
       once goip has it, `get` joins route's verb chain as a show-kind
@@ -547,6 +559,7 @@ write-up in IA4-T02.
 | IV032 | 2026-10-19 | IA4-T02 | `env -u LD_LIBRARY_PATH nix run path:.#test-goip-argv-paths-vm`, with the bare link rows; operator-approved | qemu-vm guest on `l` (KVM), kernel 6.18.39, host load 7.4 | `0e8fa9a2` | Pass: all 43 checks, one through the named gap, every sentinel | `/tmp/goip-argv-paths-aAalQ1` |
 | IV033 | 2026-10-19 | IA4-T02 | `go test -run '^$' -bench 'BenchmarkRefusedBeforeSource\|BenchmarkIPHandler/argv_route' -benchmem -count 5 ./internal/goip/goiphttp/`, go1.26.8 | `l`, 7.2.9, load 3.8 | `09931c84` + working tree | Recorded in findings (the dry run's cost) | scratchpad, not kept |
 | IV034 | 2026-10-19 | IA4-T02 | `nix build --no-link --keep-going path:.#test-linkmonitor-unit path:.#test-linkmonitor-race path:.#test-linkmonitor-lint path:.#test-linkmonitor-fuzz path:.#test-linkmonitor-docs path:.#test-focused-goip -L`, for the dry run | `l`, nix sandbox, 7.2.9 | `09931c84` + working tree | Pass: all six (the first attempt was interrupted after docs and focused-goip; the rerun built the same derivations) | nix store, `--no-link` |
+| IV035 | 2026-10-19 | after IA4-T02 | `nix build --no-link --keep-going path:.#test-linkmonitor-unit path:.#test-linkmonitor-race path:.#test-linkmonitor-lint path:.#test-linkmonitor-docs path:.#test-focused-goip -L`, for `ntable_dev_star` | `l`, nix sandbox, 7.2.9 | `1343400b` + working tree | Pass: all five, with the new xtcpnl and render rows | nix store, `--no-link` |
 
 ## TODO
 
@@ -565,11 +578,14 @@ Work outside the 12 tasks, kept so it is not lost. IA4-T02 reviews it.
   inside `Show`. No message is sent, so it is harmless, but parsing the
   selectors first would let every 400 skip the open. Done after IA4-T02
   with a dry run (findings, IV033–IV034).
-- [ ] goip `ntable show` omits `dev *` (IA4-T01, `ntable_dev_star`): on
+- [x] goip `ntable show` omits `dev *` (IA4-T01, `ntable_dev_star`): on
   kernel 6.18 the base parameter sets carry `NDTPA_IFINDEX` 0, which `ip`
   prints as `dev *`; `xtcpnl.NeighTblParms.Ifindex` reads 0 as absent.
   Needs a presence flag in xtcpnl, a 6.18 fixture, and the VM leaf's gap
-  removed.
+  removed. Done (findings, IV035): `HasIfindex`, hand-built 6.18 wire
+  shapes rather than a capture, and the gap list now empty.
+- [ ] Run the VM leaf with the empty gap list, so `/i/ntbl/show` is
+  compared with `ip` on the guest's 6.18 kernel (operator approval).
 
 - [x] Run the VM leaf with the bare link rows (`/ip/link/show/goip0`,
   `/i/l/sh/eth0`, `/ip/link/show/nosuch0`), added after IV027: passed,
@@ -606,3 +622,4 @@ None.
 | 2026-10-19 | `l` redeployed at `8624d862` and checked by the operator (IV031). The VM leaf gains the bare link rows; their run is a TODO. Next: the VM run and the push and single PR, each when the operator asks. |
 | 2026-10-19 | The VM leaf passes with the bare link rows (IV032). Next, at the operator's choice: the open TODOs, starting with validating selectors before a source is opened. |
 | 2026-10-19 | TODO done: refused selectors no longer open a source, through a dry run of `goip.Show` on a probe source (findings, IV033–IV034). Next: goip's `ntable_dev_star`. |
+| 2026-10-19 | TODO done: goip prints `dev *` for a base ntable message with `NDTPA_IFINDEX` 0 (findings, IV035); the VM leaf's gap list is empty. Next: the VM run that confirms it, when the operator approves. |

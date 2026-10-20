@@ -34,11 +34,9 @@ let
   # Paths whose body differs from `ip`'s output by a known goip gap, each by
   # name. A listed path that no longer differs fails too, so the list stays
   # true.
-  ipGaps = {
-    # print_ndtparams prints `dev *` for an NDTPA_IFINDEX of 0, which the
-    # guest's kernel sends; goip (xtcpnl.NeighTblParms) treats 0 as absent.
-    "/i/ntbl/show" = "ntable_dev_star";
-  };
+  # ntable_dev_star (`dev *` for NDTPA_IFINDEX 0) was the only one; goip
+  # now prints it (xtcpnl.NeighTblParms.HasIfindex).
+  ipGaps = { };
   guestTest = pkgs.writeShellApplication {
     name = "goip-argv-paths-guest";
     runtimeInputs = [
