@@ -34,6 +34,19 @@ func runLink(c *runCtx, args []string) error {
 	return fmt.Errorf("link %q: %w", v.name, ErrNotImplemented)
 }
 
+// linkShowBareDev reports whether a lone `link show` argument is a device
+// name: the final arm of ipaddr_list_flush_or_save (ip/ipaddress.c) takes
+// `[dev] NAME`, so `ip link show eth0` is `ip link show dev eth0` unless the
+// word is one of the loop's keywords or flag filters, which goip's link show
+// does not implement, or abbreviates help.
+func linkShowBareDev(arg string) bool {
+	if arg == devKeywordCst || lookupAddrShowKeyword(arg) != nil || matchesPrefix(arg, routeHelpKeywordCst) {
+		return false
+	}
+	var f addrFilter
+	return !f.getFilter(arg)
+}
+
 // linkShow runs the dump and renders it.
 //
 // # Exactly one netlink transaction, and the argument order that guarantees it
@@ -52,9 +65,9 @@ func runLink(c *runCtx, args []string) error {
 // sends no dump, so its cache holds one link and it takes the side-get path on
 // purpose — `ip` takes it there too, and for the same reason.
 //
-// `dev X` uses the two-single-get path in linkShowDev. Other filtering
-// arguments (`up`, `group G`, `master M`) are not implemented and are rejected
-// rather than ignored.
+// `dev X` and a bare `X` use the two-single-get path in linkShowDev. Other
+// filtering arguments (`up`, `group G`, `master M`) are not implemented and
+// are rejected rather than ignored.
 func linkShow(c *runCtx, args []string) error {
 	// devKeywordCst with ==, not matchesPrefix: ip/ipaddress.c:2241 compares
 	// this keyword with strcmp, so `dev` is the one selector keyword that does
@@ -63,6 +76,9 @@ func linkShow(c *runCtx, args []string) error {
 	// show d lo` succeed here and fail in `ip`.
 	if len(args) == 2 && args[0] == devKeywordCst {
 		return linkShowDev(c, args[1])
+	}
+	if len(args) == 1 && linkShowBareDev(args[0]) {
+		return linkShowDev(c, args[0])
 	}
 	if len(args) > 0 {
 		return fmt.Errorf("link show %q: %w", args[0], ErrNotImplemented)

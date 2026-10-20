@@ -328,6 +328,12 @@ func handlerTests(tb testing.TB) []handlerTest {
 
 		{name: "iface_named_show", description: "corner: an interface named show needs dev",
 			open: errOpener(&errSource{errs: []error{unix.ENODEV}}), method: "GET", target: "/ip/link/show/dev/show", wantStatus: 404, wantArgv: "ip link show dev show", wantOpens: 1},
+		{name: "link_bare_device", description: "positive: ip link show NAME is dev NAME, so a missing one is ENODEV's 404, not a 501",
+			open: errOpener(&errSource{errs: []error{unix.ENODEV}}), method: "GET", target: "/ip/link/show/nosuch0", wantStatus: 404, wantArgv: "ip link show nosuch0", wantOpens: 1},
+		{name: "link_bare_device_short", description: "positive: the same through /i",
+			open: errOpener(&errSource{errs: []error{unix.ENODEV}}), method: "GET", target: "/i/l/sh/nosuch0", wantStatus: 404, wantArgv: "ip link show nosuch0", wantOpens: 1},
+		{name: "link_bare_keyword", description: "negative: up is a keyword of the same loop, still a 501",
+			open: errOpener(&errSource{}), method: "GET", target: "/ip/link/show/up", wantStatus: 501, wantInBody: `link show "up"`, wantOpens: 1},
 		{name: "iface_named_s", description: "corner: /ip/link/s is set, not the interface s",
 			open: replayOpener(linkPcap), method: "GET", target: "/ip/link/s", wantStatus: 400, wantInBody: "ip link set:", wantOpens: 0},
 		{name: "head_argv", description: "corner: HEAD on a command line sends the headers and no body",

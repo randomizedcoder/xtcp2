@@ -460,6 +460,16 @@ write-up in IA4-T02.
     `10.0.0.0/8`, `0.0.0.0/0` (JSON, the default route), `0.0.0.0`,
     `root`, `match`, `to exact` and the `/33` 400 with `ip`: 40 checks
     pass (IV027).
+  - Bare link device (raised by the operator on `l`): `/ip/link/show/NAME`
+    was a 501 while `/ip/addr/show/NAME` was served. Both commands run
+    `ipaddr_list_flush_or_save`, whose last arm takes `[dev] NAME`; goip's
+    address parser had the bare form and its link parser only `dev NAME`.
+    A lone argument that is not one of that loop's keywords, a flag filter
+    or an abbreviation of `help` is now the device, through the same
+    single-get path as `dev NAME`. So `ip link show -4` is now a missing
+    device named `-4` (ip says the same), not a 501. Tests:
+    `TestLinkShowBareDevice` (7 rows), `TestHandler` +3 rows, one
+    `TestRunLinkArgs` row updated (IV030).
   - `follow_ups`, each with a decision:
     - `ip route get ADDR`: deferred. It is read-only but not in goip;
       once goip has it, `get` joins route's verb chain as a show-kind
@@ -504,6 +514,7 @@ write-up in IA4-T02.
 | IV027 | 2026-10-19 | IA4-T02 | `env -u LD_LIBRARY_PATH nix run path:.#test-goip-argv-paths-vm`, with the route-prefix rows; operator-approved | qemu-vm guest on `l` (KVM), kernel 6.18.39, host load 4.5 | `3f66b4d5` + working tree | Pass: all 40 checks, one through the named gap, every sentinel | `/tmp/goip-argv-paths-UgaPW6` |
 | IV028 | 2026-10-19 | IA4-T02 | `nix build --no-link --keep-going path:.#test-linkmonitor path:.#test-focused-goip -L` | `l`, nix sandbox, 7.2.9, load 4–9 | `3f66b4d5` + working tree | **Fail**: race, `TestIPPathsMetricsAllocs/positive/all` (`/metrics-all` off 36, on 37 under `-race`); every other leaf passed, `test-focused-goip` OK | scratchpad, not kept |
 | IV029 | 2026-10-19 | IA4-T02 | the same, with the allocation test skipped under `-race` | `l`, nix sandbox, 7.2.9 | `3f66b4d5` + working tree | Pass: every `test-linkmonitor` leaf (docs, format, fuzz, lint, parse-guards, race, rdma, replay, unit, vet) and `test-focused-goip` | nix store, `--no-link` |
+| IV030 | 2026-10-19 | IA4-T02 | `nix build --no-link --keep-going path:.#test-linkmonitor-unit path:.#test-linkmonitor-race path:.#test-linkmonitor-lint path:.#test-linkmonitor-docs path:.#test-focused-goip -L`, for the bare link device | `l`, nix sandbox, 7.2.9, load 10 | `d038155d` + working tree | Pass: all five, with `TestLinkShowBareDevice` and the new `TestHandler` rows | nix store, `--no-link` |
 
 ## TODO
 
@@ -554,3 +565,4 @@ None.
 | 2026-10-19 | IA4-T01 done: the VM parity leaf passes (IV023) after two failed runs, both recorded. 35 checks: byte-identical to goip, identical to `ip` but for the named `ntable_dev_star` gap, a goip parity bug now a TODO. Next: IA4-T02. |
 | 2026-10-19 | IA4-T02 in progress: the invariant map, `TestIPPathsMetricsAllocs` for the one invariant without a failing test, and `l_examples` on `l` with approval. The branch was deployed on `l` (`ipPaths = true` in its NixOS config), where the operator found `/ip/-json/route/show/0.0.0.0/0` a 501; goip's `route show` now parses `[to] [root|match|exact] PREFIX` and filters as `ip` does, and the VM leaf compares it (IV027). |
 | 2026-10-19 | IA4-T02 done, so IA4 and the plan are done: 12 of 12. The aggregate gate failed once on the new allocation test under `-race` (IV028), now skipped there, and passes (IV029). Follow-ups are in IA4-T02's findings and the TODO section. Next: redeploy `l` at this commit; the push and the single PR when the operator asks. |
+| 2026-10-19 | After IA4-T02: the operator found `/ip/link/show/NAME` a 501 on `l`; goip's `link show` now takes a bare device name, as `ip` and goip's `address show` do (IV030). Next: redeploy `l` at this commit. |
