@@ -61,6 +61,10 @@
 # of every readback. TestGenlTcpMetricsCorpus, TestGenlSeg6Corpus and
 # TestGenlIoam6Corpus pin the captured bytes.
 #
+# scripts/xfrm-write-corpus-test.exp does the same for xfrm-write-corpus.exp,
+# the C3 rows: slugs, floors, readbacks, statuses, keys and the XFRM
+# protocol of every readback. TestXfrmStateCorpus pins the captured bytes.
+#
 {
   pkgs,
   src,
@@ -142,6 +146,8 @@ pkgs.runCommand "xtcp2-vm-lib-exp"
     expect nix/microvms/scripts/rtnl-read-corpus-test.exp > rtnlread.log 2>&1 || rdrc=$?
     grc=0
     expect nix/microvms/scripts/genl-write-corpus-test.exp > genl.log 2>&1 || grc=$?
+    xrc=0
+    expect nix/microvms/scripts/xfrm-write-corpus-test.exp > xfrm.log 2>&1 || xrc=$?
 
     kill "$socat_pid" 2>/dev/null || true
     wait "$socat_pid" 2>/dev/null || true
@@ -212,5 +218,16 @@ pkgs.runCommand "xtcp2-vm-lib-exp"
       exit 1
     fi
 
-    cat result.log addr.log corpus.log rtnl.log rtnlread.log genl.log > $out
+    grep -E '^(PASS|FAIL|===)' xfrm.log || true
+
+    if [ "$xrc" -ne 0 ] || ! grep -q 'XFRMCORPUS_TEST_PASS' xfrm.log; then
+      echo "" >&2
+      echo "vm-lib-exp: xfrm-write-corpus.exp regressed (expect exited $xrc)." >&2
+      echo "            The FAIL rows above name the broken behavior. Full" >&2
+      echo "            transcript:" >&2
+      cat xfrm.log >&2
+      exit 1
+    fi
+
+    cat result.log addr.log corpus.log rtnl.log rtnlread.log genl.log xfrm.log > $out
   ''

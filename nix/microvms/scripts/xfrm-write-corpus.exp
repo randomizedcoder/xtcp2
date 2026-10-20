@@ -1,0 +1,129 @@
+###############################################################################
+# xfrm-write-corpus.exp - XFRM reads and writes the corpus had no capture of
+# (docs/netlink/goip-parity-gaps.md, C3)
+#
+# Sourced AFTER vm-lib.exp, netlink-topology.exp, addr-topology.exp and
+# addr-corpus.exp, by scripts/capture-link-writes.exp, which runs each row
+# into link-write/xfrm/<slug>/ with `--proto xfrm`. Data plus small procs,
+# as genl-write-corpus.exp is, so the hermetic check
+# (scripts/xfrm-write-corpus-test.exp) can read it without a console.
+#
+# A ROW IS {slug floor pre command readbacks rc}, as in genl-write-corpus.exp.
+#
+#   slug       the fixture directory, link-write/xfrm/<slug>/
+#   floor      a structural minimum of datagrams. NETLINK_XFRM has no family
+#              lookup, so a command and its answer are 2: a write and its
+#              ACK or refusal, a GET and its reply, or a dump and its
+#              NLMSG_DONE. deleteall is a dump, one datagram of DELSAs with
+#              no ACK asked for, and a second dump, so 5 with something to
+#              delete. 0 where `ip` refuses its arguments itself: ip/xfrm_*.c
+#              checks them all before it opens the NETLINK_XFRM socket, so
+#              nothing is sent
+#   pre        steps run in the row's fresh namespace before the capture
+#              window opens: plain `ip` steps (addrcorpus::pre_step). An
+#              algorithm in a pre step goes by its compat name (sha256,
+#              aes), since the step runs on the guest's shell unquoted
+#   command    run with `sh -c` from the row's directory (xtcp2-nlcap
+#              write); it must contain no single quote, so an AEAD name with
+#              parentheses is in double quotes
+#   readbacks  {name floor command} reads, each one capio in the same
+#              namespace straight after the command, as
+#              netlink_xfrm_<name>.pcap and ip_<name>
+#   rc         the exit status `ip.rc` must hold: 0; 2 when the kernel
+#              refuses the request (ip/xfrm_state.c exits 2 when rtnl_talk
+#              fails); or 1 where `ip` refuses its arguments itself (exit(1)
+#              after a message, with nothing sent)
+#
+# XFRM STATE (C3-T01)
+#
+# An SA needs no device or address in the namespace. ESP over IPv4 and IPv6
+# needs esp4 and esp6, and its algorithms authenc, cbc and gcm, which late
+# setup loads (nltopo::late_modules); hmac and sha256 are built in.
+#
+# allocspi asks for one SPI (min = max), so the larval state it makes is
+# the same on every run; with a range the kernel picks one at random.
+###############################################################################
+
+namespace eval xfrmcorpus {
+
+    variable AUTH_KEY 0x1111111111111111111111111111111111111111111111111111111111111111
+    variable ENC_KEY 0x22222222222222222222222222222222
+    variable AEAD_KEY 0x3333333333333333333333333333333333333333
+
+    # SA 1: ESP in transport mode from 192.0.2.1 to 192.0.2.2, SPI 0x100,
+    # with hmac(sha256) and cbc(aes) by their compat names.
+    variable SA1_ID "src 192.0.2.1 dst 192.0.2.2 proto esp spi 0x100"
+    variable SA1 "xfrm state add $SA1_ID reqid 1 mode transport auth sha256 $AUTH_KEY enc aes $ENC_KEY"
+
+    # SA 2: IPv6 ESP in tunnel mode, SPI 0x101, with a truncated
+    # hmac(sha256) of 128 bits.
+    variable SA2 "xfrm state add src 2001:db8::1 dst 2001:db8::2 proto esp spi 0x101 reqid 2 mode tunnel auth-trunc sha256 $AUTH_KEY 128 enc aes $ENC_KEY"
+
+    # One larval state, SPI 0x200, as IKE makes one before it has keys.
+    variable ALLOCSPI "xfrm state allocspi src 192.0.2.1 dst 192.0.2.2 proto esp min 0x200 max 0x200"
+
+    variable PRE_SA1 [list $SA1]
+    variable PRE_TWO [list $SA1 $SA2]
+
+    # The SAD after a write, and with lifetimes (-s).
+    variable STATE_LIST {{state 2 {ip xfrm state list}}}
+    variable STATE_STATS {{state 2 {ip -s xfrm state list}}}
+
+    variable rows [list \
+        [list state_list_empty 2 {} "ip xfrm state list" {} 0] \
+        [list state_add 2 {} "ip $SA1" $STATE_LIST 0] \
+        [list state_add_v6_tunnel 2 {} "ip $SA2" $STATE_LIST 0] \
+        [list state_add_aead 2 {} "ip xfrm state add src 192.0.2.1 dst 192.0.2.3 proto esp spi 0x102 reqid 3 mode transport aead \"rfc4106(gcm(aes))\" $AEAD_KEY 128" $STATE_LIST 0] \
+        [list state_add_enc_only 2 {} "ip xfrm state add src 192.0.2.1 dst 192.0.2.4 proto esp spi 0x103 mode transport enc aes $ENC_KEY" $STATE_LIST 0] \
+        [list state_add_dup 2 $PRE_SA1 "ip $SA1" {} 2] \
+        [list state_add_unknown_alg 2 {} "ip xfrm state add $SA1_ID mode transport enc nosuchalg $ENC_KEY" {} 2] \
+        [list state_add_short_key 2 {} "ip xfrm state add $SA1_ID mode transport enc aes 0x222222222222222222222222222222" {} 2] \
+        [list state_add_no_algo 0 {} "ip xfrm state add $SA1_ID mode transport" {} 1] \
+        [list state_update 2 $PRE_SA1 "ip xfrm state update $SA1_ID reqid 1 mode transport auth sha256 $AUTH_KEY enc aes $ENC_KEY limit time-hard 3600" $STATE_STATS 0] \
+        [list state_update_larval 2 [list $ALLOCSPI] "ip xfrm state update src 192.0.2.1 dst 192.0.2.2 proto esp spi 0x200 mode transport auth sha256 $AUTH_KEY enc aes $ENC_KEY" $STATE_LIST 0] \
+        [list state_update_missing 2 {} "ip xfrm state update $SA1_ID reqid 1 mode transport auth sha256 $AUTH_KEY enc aes $ENC_KEY" {} 2] \
+        [list state_get 2 $PRE_SA1 "ip xfrm state get $SA1_ID" {} 0] \
+        [list state_get_missing 2 {} "ip xfrm state get $SA1_ID" {} 2] \
+        [list state_delete 2 $PRE_SA1 "ip xfrm state delete $SA1_ID" $STATE_LIST 0] \
+        [list state_delete_missing 2 {} "ip xfrm state delete $SA1_ID" {} 2] \
+        [list state_list 2 $PRE_TWO "ip xfrm state list" {} 0] \
+        [list state_list_dst 2 $PRE_TWO "ip xfrm state list dst 192.0.2.2" {} 0] \
+        [list state_list_nokeys 2 $PRE_TWO "ip xfrm state list nokeys" {} 0] \
+        [list state_deleteall 5 $PRE_TWO "ip xfrm state deleteall" $STATE_LIST 0] \
+        [list state_deleteall_empty 2 {} "ip xfrm state deleteall" {} 0] \
+        [list state_flush 2 $PRE_TWO "ip xfrm state flush" $STATE_LIST 0] \
+        [list state_flush_proto_ah 2 $PRE_TWO "ip xfrm state flush proto ah" $STATE_LIST 0] \
+        [list state_count 2 $PRE_TWO "ip xfrm state count" {} 0] \
+        [list state_count_empty 2 {} "ip xfrm state count" {} 0] \
+        [list state_count_stats 2 $PRE_TWO "ip -s xfrm state count" {} 0] \
+        [list state_allocspi 2 {} "ip $ALLOCSPI" $STATE_LIST 0] \
+        [list state_allocspi_taken 2 $PRE_SA1 "ip xfrm state allocspi src 192.0.2.1 dst 192.0.2.2 proto esp min 0x100 max 0x100" {} 2] \
+        [list state_allocspi_min_gt_max 0 {} "ip xfrm state allocspi src 192.0.2.1 dst 192.0.2.2 proto esp min 0x300 max 0x200" {} 1] \
+    ]
+
+    ###########################################################################
+    # readback_args <ns> <subdir> <readback> - the capio argument list for one
+    # readback, ending with the protocol its pcap keeps.
+    ###########################################################################
+    proc readback_args {ns subdir readback} {
+        if {[llength $readback] != 3} {
+            error "xfrmcorpus: a readback is {name floor command}: $readback"
+        }
+        lassign $readback name floor command
+        return [list $ns $subdir netlink_xfrm_$name $floor $command ip_$name xfrm]
+    }
+
+    ###########################################################################
+    # rc_problem <slug> <want> <got> - as genlcorpus::rc_problem, under xfrm/.
+    ###########################################################################
+    proc rc_problem {slug want got} {
+        set got [string trim $got]
+        if {$got eq $want} {
+            return ""
+        }
+        if {$got eq ""} {
+            return "xfrm/$slug/ip.rc unreadable, want $want"
+        }
+        return "xfrm/$slug/ip.rc is $got, want $want"
+    }
+}

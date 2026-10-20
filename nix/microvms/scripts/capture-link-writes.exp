@@ -63,7 +63,9 @@
 #
 # Last, after late setup, the generic netlink rows (C2), data in
 # scripts/genl-write-corpus.exp: each pcap keeps NETLINK_GENERIC, the
-# family lookup included, under genl/<slug>/; see genl_row below.
+# family lookup included, under genl/<slug>/; see genl_row below. Then the
+# XFRM rows (C3), data in scripts/xfrm-write-corpus.exp: each pcap keeps
+# NETLINK_XFRM, under xfrm/<slug>/; see xfrm_row below.
 #
 # POLICY HERE, MECHANISM IN THE GUEST
 #
@@ -92,6 +94,7 @@ source [file dirname [info script]]/addr-topology.exp
 source [file dirname [info script]]/addr-corpus.exp
 source [file dirname [info script]]/rtnl-write-corpus.exp
 source [file dirname [info script]]/genl-write-corpus.exp
+source [file dirname [info script]]/xfrm-write-corpus.exp
 
 if {$argc != 2} {
     puts "usage: capture-link-writes.exp <serial-port> <blob-out>"
@@ -626,6 +629,38 @@ foreach row $genlcorpus::rows {
     genl_row {*}$row
 }
 
+###############################################################################
+# xfrm_row - one row of xfrm-write-corpus.exp, under xfrm/<slug>.
+#
+# As genl_row, with every pcap keeping NETLINK_XFRM (--proto xfrm) and
+# plain `ip` pre steps. The XFRM rows run after late setup, which loads
+# xfrm_user and the ESP modules.
+###############################################################################
+set xfrm_problems {}
+
+proc xfrm_row {slug floor pre command readbacks rc} {
+    global NS_A xfrm_problems
+    if {![write_row $slug $floor $pre $command xfrm xfrm]} {
+        return
+    }
+    foreach rb $readbacks {
+        capio {*}[xfrmcorpus::readback_args $NS_A xfrm/$slug $rb]
+    }
+    lassign [nlcap dir xfrm/$slug] dir_rc dir
+    lassign [vmlib::run_out "cat [string trim $dir]/ip.rc"] cat_rc got
+    if {$cat_rc != 0} {
+        set got ""
+    }
+    set problem [xfrmcorpus::rc_problem $slug $rc $got]
+    if {$problem ne ""} {
+        lappend xfrm_problems $problem
+    }
+}
+
+foreach row $xfrmcorpus::rows {
+    xfrm_row {*}$row
+}
+
 lassign [nlcap inventory] inv_rc inventory
 vmlib::log "captured [llength [split [string trim $inventory] "\n"]] files"
 
@@ -715,6 +750,14 @@ if {[llength $rtnl_problems] > 0} {
 if {[llength $genl_problems] > 0} {
     puts "NLCAP_GENL_RC [llength $genl_problems]"
     foreach p $genl_problems {
+        puts "  $p"
+    }
+    set failed 1
+}
+
+if {[llength $xfrm_problems] > 0} {
+    puts "NLCAP_XFRM_RC [llength $xfrm_problems]"
+    foreach p $xfrm_problems {
         puts "  $p"
     }
     set failed 1

@@ -214,6 +214,11 @@ const (
 	// subdirectory per row, each pcap with its CTRL family lookup.
 	tdGenlWrite_7_1_4 = tdLinkWrite_7_1_4 + "/genl"
 
+	// The C3 XFRM rows (scripts/xfrm-write-corpus.exp, goip-parity-gaps.md
+	// C3-T01): `ip xfrm state` reads and writes, one subdirectory per row,
+	// each pcap keeping NETLINK_XFRM.
+	tdXfrmWrite_7_1_4 = tdLinkWrite_7_1_4 + "/xfrm"
+
 	tdLacpNoPartnerGetLink_7_1_4   = tdLinkWrite_7_1_4 + "/lacp_no_partner/netlink_route_getlink.pcap"
 	tdLacpConvergedGetLink_7_1_4   = tdLinkWrite_7_1_4 + "/lacp_converged/netlink_route_getlink.pcap"
 	tdLacpPartnerDownGetLink_7_1_4 = tdLinkWrite_7_1_4 + "/lacp_partner_down/netlink_route_getlink.pcap"

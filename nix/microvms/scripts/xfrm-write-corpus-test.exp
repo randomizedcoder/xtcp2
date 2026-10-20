@@ -1,0 +1,342 @@
+#!/usr/bin/env expect
+###############################################################################
+# xfrm-write-corpus-test.exp - table-driven test for xfrm-write-corpus.exp,
+# with no microVM and no console
+#
+# Usage: xfrm-write-corpus-test.exp
+#
+# Run by nix/checks/vm-lib-exp.nix after genl-write-corpus-test.exp, the
+# same way: the corpus is data, and its procs (readback_args, rc_problem)
+# and the pre steps it hands to addrcorpus::pre_step are driven through a
+# recorder that replaces vmlib::run_out, so no shell is needed.
+#
+# The slugs, floors, readbacks and statuses are written out again below as
+# literals rather than read from the corpus, so a row dropped or changed
+# there has to disagree with something that was not edited with it.
+#
+# What this does NOT cover: what the guest runs or what the kernel answers.
+# TestXfrmStateCorpus in pkg/xtcpnl pins that in the committed fixtures.
+#
+# Every row has a name, a description that starts with its class
+# (positive/negative/boundary/corner) and an expected value.
+###############################################################################
+
+set here [file dirname [info script]]
+source $here/vm-lib.exp
+source $here/netlink-topology.exp
+source $here/addr-topology.exp
+source $here/addr-corpus.exp
+source $here/xfrm-write-corpus.exp
+
+vmlib::init
+
+set pass 0
+set fail 0
+
+###############################################################################
+# The recorder, as in genl-write-corpus-test.exp.
+###############################################################################
+set ::calls {}
+set ::refuse ""
+proc vmlib::run_out {cmd {cmd_timeout ""} {quiet 0}} {
+    lappend ::calls $cmd
+    if {$::refuse ne "" && [regexp -- $::refuse $cmd]} {
+        return [list 1 "REFUSED"]
+    }
+    return [list 0 "ok"]
+}
+
+# check <name> <description> <script> <expected> - the script's result, or
+# ERROR if it raised one, must equal expected.
+proc check {name description script expected} {
+    global pass fail
+    if {[catch {uplevel #0 $script} got]} {
+        set got ERROR
+    }
+    if {$got eq $expected} {
+        puts "PASS: $name - $description"
+        incr pass
+    } else {
+        puts "FAIL: $name - $description"
+        puts "      got \[$got\] want \[$expected\]"
+        incr fail
+    }
+}
+
+set R $xfrmcorpus::rows
+
+# column <i> - field <i> of every row, in order.
+proc column {i} {
+    set out {}
+    foreach r $::R {
+        lappend out [lindex $r $i]
+    }
+    return $out
+}
+
+proc field {slug i} {
+    return [lindex [lsearch -exact -index 0 -inline $::R $slug] $i]
+}
+
+# readback_names <slug> - the names of a row's readbacks, in order.
+proc readback_names {slug} {
+    set out {}
+    foreach rb [field $slug 4] {
+        lappend out [lindex $rb 0]
+    }
+    return $out
+}
+
+# hex_bytes <word> - the number of bytes a 0x key holds.
+proc hex_bytes {word} {
+    return [expr {([string length $word] - 2) / 2}]
+}
+
+###############################################################################
+# 1. the rows
+###############################################################################
+set design_rows {
+    state_list_empty state_add state_add_v6_tunnel state_add_aead
+    state_add_enc_only state_add_dup state_add_unknown_alg
+    state_add_short_key state_add_no_algo state_update state_update_larval
+    state_update_missing state_get state_get_missing state_delete
+    state_delete_missing state_list state_list_dst state_list_nokeys
+    state_deleteall state_deleteall_empty state_flush state_flush_proto_ah
+    state_count state_count_empty state_count_stats state_allocspi
+    state_allocspi_taken state_allocspi_min_gt_max
+}
+
+proc bad_arity {} {
+    set out {}
+    foreach r $::R {
+        if {[llength $r] != 6} {
+            lappend out [lindex $r 0]
+        }
+    }
+    return $out
+}
+
+proc dup_slugs {} {
+    set seen {}
+    set out {}
+    foreach s [column 0] {
+        if {$s in $seen} {
+            lappend out $s
+        }
+        lappend seen $s
+    }
+    return $out
+}
+
+# refused_rows - {slug rc} for every row whose ip.rc is meant to be non-zero.
+proc refused_rows {} {
+    set out {}
+    foreach r $::R {
+        if {[lindex $r 5] != 0} {
+            lappend out [lindex $r 0] [lindex $r 5]
+        }
+    }
+    return $out
+}
+
+# wrong_object - the rows whose command is not `ip [-s] xfrm state`.
+proc wrong_object {} {
+    set out {}
+    foreach r $::R {
+        if {![regexp {^ip (-s )?xfrm state } [lindex $r 3]]} {
+            lappend out [lindex $r 0]
+        }
+    }
+    return $out
+}
+
+# quoted - the rows whose command holds the single quote write_row wraps it in.
+proc quoted {} {
+    set out {}
+    foreach r $::R {
+        if {[string first ' [lindex $r 3]] >= 0} {
+            lappend out [lindex $r 0]
+        }
+    }
+    return $out
+}
+
+# pre_parens - the pre steps that hold a parenthesis, which the guest's
+# shell would read as syntax.
+proc pre_parens {} {
+    set out {}
+    foreach r $::R {
+        foreach step [lindex $r 2] {
+            if {[regexp {[()]} $step]} {
+                lappend out [lindex $r 0]
+            }
+        }
+    }
+    return $out
+}
+
+check slug_list "positive: the rows are the plan's, in run order" \
+    {column 0} [join $design_rows " "]
+check arity "negative: every row is {slug floor pre command readbacks rc}" \
+    {bad_arity} {}
+check unique_slugs "negative: no slug names two rows" \
+    {dup_slugs} {}
+check refused_statuses "positive: the kernel's refusals exit 2 and ip's own exit 1" \
+    {refused_rows} {state_add_dup 2 state_add_unknown_alg 2 state_add_short_key 2 state_add_no_algo 1 state_update_missing 2 state_get_missing 2 state_delete_missing 2 state_allocspi_taken 2 state_allocspi_min_gt_max 1}
+check row_count "boundary: C3-T01's 29 rows" \
+    {llength $R} 29
+check right_object "negative: every command is ip xfrm state" \
+    {wrong_object} {}
+check no_quotes "corner: no command holds a single quote" \
+    {quoted} {}
+check no_pre_parens "corner: no pre step names an algorithm with parentheses" \
+    {pre_parens} {}
+check aead_name "corner: the AEAD's name is in double quotes, for sh -c" \
+    {regexp {aead "rfc4106\(gcm\(aes\)\)" 0x[0-9]+ 128$} [field state_add_aead 3]} 1
+
+###############################################################################
+# 2. floors: a command and its answer 2, deleteall 5, ip's refusals 0
+###############################################################################
+check floors "positive: every floor, in run order" \
+    {column 1} {2 2 2 2 2 2 2 2 0 2 2 2 2 2 2 2 2 2 2 5 2 2 2 2 2 2 2 2 0}
+check floor_ip_refusals "boundary: what ip refuses itself sends nothing" \
+    {lmap slug {state_add_no_algo state_allocspi_min_gt_max} {field $slug 1}} {0 0}
+check floor_deleteall "corner: a deleteall with something to delete dumps, deletes and dumps again" \
+    {field state_deleteall 1} 5
+check floor_deleteall_empty "boundary: and one with nothing stops after its dump" \
+    {field state_deleteall_empty 1} 2
+
+###############################################################################
+# 3. preconditions and arguments
+###############################################################################
+foreach {name description slug expected} {
+    pre_empty     "boundary: an empty list starts from nothing"            state_list_empty      0
+    pre_dup       "negative: the duplicate add starts from SA 1"           state_add_dup         1
+    pre_update    "positive: update starts from SA 1"                      state_update          1
+    pre_upd_miss  "negative: updating a missing SA starts from nothing"    state_update_missing  0
+    pre_get       "positive: get starts from SA 1"                         state_get             1
+    pre_get_miss  "negative: getting a missing SA starts from nothing"     state_get_missing     0
+    pre_delete    "positive: delete starts from SA 1"                      state_delete          1
+    pre_del_miss  "negative: deleting a missing SA starts from nothing"    state_delete_missing  0
+    pre_list      "positive: list starts from SA 1 and SA 2"               state_list            2
+    pre_deleteall "positive: and so does deleteall"                        state_deleteall       2
+    pre_del_empty "boundary: a deleteall with nothing starts from nothing" state_deleteall_empty 0
+    pre_flush_ah  "corner: flushing AH starts from two ESP SAs"            state_flush_proto_ah  2
+    pre_count     "positive: count starts from two SAs"                    state_count           2
+    pre_taken     "negative: allocating a taken SPI starts from SA 1"      state_allocspi_taken  1
+} {
+    check $name $description [list llength [field $slug 2]] $expected
+}
+check pre_two "positive: the two SAs are SA 1 and the IPv6 SA" \
+    {expr {$xfrmcorpus::PRE_TWO eq [list $xfrmcorpus::SA1 $xfrmcorpus::SA2]}} 1
+check pre_larval "positive: the larval update starts from the allocated SPI" \
+    {field state_update_larval 2} [list $xfrmcorpus::ALLOCSPI]
+check larval_spi "corner: and updates that SPI" \
+    {regexp { spi 0x200 } [field state_update_larval 3]} 1
+check sa1_id "positive: SA 1 is ESP from 192.0.2.1 to 192.0.2.2, SPI 0x100" \
+    {set xfrmcorpus::SA1_ID} {src 192.0.2.1 dst 192.0.2.2 proto esp spi 0x100}
+check keys "positive: a 256-bit hmac key, a 128-bit aes key and a 160-bit AEAD key (128 and a 32-bit salt)" \
+    {lmap k [list $xfrmcorpus::AUTH_KEY $xfrmcorpus::ENC_KEY $xfrmcorpus::AEAD_KEY] {hex_bytes $k}} {32 16 20}
+check short_key "negative: the short aes key is 15 bytes" \
+    {hex_bytes [lindex [field state_add_short_key 3] end]} 15
+check no_algo "negative: the no-algorithm ESP add names no auth, enc or aead" \
+    {regexp { (auth|auth-trunc|enc|aead) } [field state_add_no_algo 3]} 0
+check unknown_alg "negative: the unknown algorithm is named, with a key" \
+    {lrange [field state_add_unknown_alg 3] end-2 end} [list enc nosuchalg $xfrmcorpus::ENC_KEY]
+check update_limit "positive: the update changes the hard time limit" \
+    {lrange [field state_update 3] end-2 end} {limit time-hard 3600}
+check allocspi_one "corner: allocspi asks for one SPI, so the run is repeatable" \
+    {regexp {min (\S+) max \1$} $xfrmcorpus::ALLOCSPI} 1
+check allocspi_taken "negative: the taken SPI is SA 1's" \
+    {lrange [field state_allocspi_taken 3] end-3 end} {min 0x100 max 0x100}
+check min_gt_max "negative: min over max" \
+    {lrange [field state_allocspi_min_gt_max 3] end-3 end} {min 0x300 max 0x200}
+check flush_proto "corner: the flush names AH, which no SA is" \
+    {lrange [field state_flush_proto_ah 3] end-1 end} {proto ah}
+
+###############################################################################
+# 4. readbacks
+###############################################################################
+foreach {name description slug expected} {
+    rb_add       "positive: an add reads the SAD back"                   state_add             state
+    rb_v6        "positive: and so does the IPv6 add"                    state_add_v6_tunnel   state
+    rb_aead      "positive: and the AEAD add"                            state_add_aead        state
+    rb_enc_only  "positive: and the add with no auth"                    state_add_enc_only    state
+    rb_update    "positive: an update reads the SAD back"                state_update          state
+    rb_larval    "positive: and so does the larval update"               state_update_larval   state
+    rb_delete    "positive: a delete reads the SAD back"                 state_delete          state
+    rb_deleteall "positive: and so does deleteall"                       state_deleteall       state
+    rb_flush     "positive: and flush"                                   state_flush           state
+    rb_flush_ah  "corner: and the flush that matches nothing"            state_flush_proto_ah  state
+    rb_allocspi  "positive: allocspi reads the larval state back"        state_allocspi        state
+    rb_list      "corner: a dump is its own readback"                    state_list            {}
+    rb_get       "corner: and so is a get"                               state_get             {}
+    rb_count     "corner: and a count"                                   state_count           {}
+    rb_dup       "negative: a refused add has nothing to read back"      state_add_dup         {}
+    rb_taken     "negative: nor does a refused allocspi"                 state_allocspi_taken  {}
+} {
+    check $name $description [list readback_names $slug] $expected
+}
+check rb_stats "positive: the update's readback shows lifetimes (-s)" \
+    {lindex [field state_update 4] 0 2} {ip -s xfrm state list}
+check rb_plain "positive: every other readback is a plain list" \
+    {lsort -unique [lmap r $R {if {[lindex $r 0] eq "state_update" || [lindex $r 4] eq {}} continue; lindex $r 4 0 2}]} {{ip xfrm state list}}
+check rb_floor "boundary: a readback's floor is a dump's 2" \
+    {lsort -unique [lmap r $R {if {[lindex $r 4] eq {}} continue; lindex $r 4 0 1}]} 2
+check rb_args "positive: a readback's capio arguments keep NETLINK_XFRM" \
+    {xfrmcorpus::readback_args lacpa xfrm/state_add [lindex [field state_add 4] 0]} \
+    {lacpa xfrm/state_add netlink_xfrm_state 2 {ip xfrm state list} ip_state xfrm}
+check rb_args_short "negative: a readback without a command raises" \
+    {xfrmcorpus::readback_args lacpa xfrm/x {state 2}} ERROR
+
+###############################################################################
+# 5. pre steps through addrcorpus::pre_step
+###############################################################################
+proc run_all_pre {} {
+    set raised 0
+    set refused 0
+    foreach r $::R {
+        foreach step [lindex $r 2] {
+            if {[catch {addrcorpus::pre_step lacpa xfrm/[lindex $r 0] $step} ok]} {
+                incr raised
+            } elseif {!$ok} {
+                incr refused
+            }
+        }
+    }
+    return [list $raised $refused]
+}
+
+set ::refuse ""
+nltopo::reset
+check pre_steps_dispatch "positive: every pre step is well-formed and accepted" \
+    {run_all_pre} {0 0}
+set ::calls {}
+check pre_ip_call "positive: a pre step is an ip step in the row's namespace" \
+    {addrcorpus::pre_step lacpa xfrm/x $xfrmcorpus::SA1; regexp {^xtcp2-nlcap topo lacpa xfrm/x xfrm state add src 192\.0\.2\.1 } [lindex $::calls 0]} 1
+
+###############################################################################
+# 6. rc_problem
+###############################################################################
+foreach {name description want got expected} {
+    rc_ok           "positive: the expected status is no problem"       0 "0\n" ""
+    rc_refused_ok   "positive: an expected refusal is no problem"       2 "2"   ""
+    rc_unexpected   "negative: a get that should be refused"            2 "0"   "xfrm/x/ip.rc is 0, want 2"
+    rc_failed       "negative: a refusal where an answer was expected"  0 "2"   "xfrm/x/ip.rc is 2, want 0"
+    rc_unreadable   "boundary: an empty file is unreadable"             0 ""    "xfrm/x/ip.rc unreadable, want 0"
+    rc_whitespace   "corner: surrounding whitespace is ignored"         0 " 0 " ""
+} {
+    check $name $description [list xfrmcorpus::rc_problem x $want $got] $expected
+}
+
+###############################################################################
+# summary
+###############################################################################
+puts ""
+puts "=== xfrm-write-corpus.exp: $pass passed, $fail failed ==="
+if {$fail > 0} {
+    puts "XFRMCORPUS_TEST_FAIL"
+    exit 1
+}
+puts "XFRMCORPUS_TEST_PASS"
+exit 0
