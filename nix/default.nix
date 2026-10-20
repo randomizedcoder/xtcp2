@@ -196,6 +196,17 @@ let
       };
       linkmonitor-ionic = ionic false;
       linkmonitor-ionic-faults = ionic true;
+      linkmonitor-rdma = import ./microvms/linkmonitor-rdma.nix {
+        inherit
+          pkgs
+          lib
+          microvm
+          nixpkgs
+          binaries
+          ;
+        artifact = tests.test-linkmonitor-rdma-build;
+      };
+      linkmonitor-performance = linkmonitorPerformanceVm;
     };
   vmChecks = lib.mapAttrs' (name: t: lib.nameValuePair "vm-${name}" t.vmCheck.check) vmTests;
 
@@ -901,16 +912,7 @@ in
       test-goip-argv-paths-vm = vmTests.goip-argv-paths;
       test-linkmonitor-embedding-vm = vmTests.linkmonitor-embedding;
       test-linkmonitor-performance-vm = linkmonitorPerformanceVm;
-      test-linkmonitor-rdma-vm = import ./microvms/linkmonitor-rdma.nix {
-        inherit
-          pkgs
-          lib
-          microvm
-          nixpkgs
-          binaries
-          ;
-        artifact = tests.test-linkmonitor-rdma-build;
-      };
+      test-linkmonitor-rdma-vm = vmTests.linkmonitor-rdma;
       test-linkmonitor-ionic-vm = vmTests.linkmonitor-ionic;
       test-linkmonitor-ionic-faults-vm = vmTests.linkmonitor-ionic-faults;
       demo-linkmonitor-ionic-profiles = import ./microvms/linkmonitor-ionic-demo.nix {
@@ -1062,6 +1064,9 @@ in
       test-go-race = tests.go-race;
     }
     // vmChecks
+    // {
+      vm-linkmonitor-performance-bundle = vmTests.linkmonitor-performance.bundleTest;
+    }
     # The focused monitor aggregate includes pure/race suites, its unchanged
     # comprehensive lint policy, replay, bounded fuzzing and document checks.
     // {
@@ -1101,9 +1106,9 @@ in
       program = "${microvms.lifecycle.x86_64.fullTest}/bin/xtcp2-lifecycle-full-test-x86_64";
     };
     # Privileged link-monitor benchmark/live-netlink VM. The guest captures an
-    # nlmon pcap and returns pprof plus test evidence; it is deliberately a
-    # runner rather than a flake check because it needs /dev/kvm and writes
-    # operator-selected evidence outside the Nix store.
+    # nlmon pcap and returns pprof plus test evidence. This app is for a fresh
+    # measurement; checks.vm-linkmonitor-performance runs the same guest as a
+    # cached check.
     test-linkmonitor-performance-vm = {
       type = "app";
       program = "${linkmonitorPerformanceVm}/bin/test-linkmonitor-performance-vm";

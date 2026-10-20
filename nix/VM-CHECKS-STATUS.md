@@ -76,6 +76,8 @@ Outputs (GC-rooted by the operator's `result-vm-all`):
 | VC-T05 | `microvm-lifecycle` check: `requiredSystemFeatures` and its log in `$out` | done | VC010, VC012 |
 | VC-T06 | `/tmp` cleanup of the old evidence dirs, after the user has seen the list | done | VC007 |
 | VC-T07 | Go source filtering, so a change outside the Go inputs keeps the guests cached (separate commits) | done | VC008 |
+| VC-T08 | `vm-linkmonitor-rdma`: the rxe microVM through mkVmCheck (every step's sentinel, `nlrecord/` in the evidence) | done (boot pending) | VC013 |
+| VC-T09 | `vm-linkmonitor-performance`: the performance guest through mkVmCheck, its bundle unpacked and its manifest checked; `checks.vm-linkmonitor-performance-bundle` | done (boot pending) | VC013 |
 
 ## TODO
 
@@ -96,8 +98,15 @@ Outputs (GC-rooted by the operator's `result-vm-all`):
 - [ ] The lifecycle check prints nothing on success under `-L` (the VM
   checks print `PASS: <name>: N sentinels`); a one-line `PASS` would make
   it consistent, at the cost of one more boot.
-- [ ] `test-linkmonitor-rdma-vm` (microvm.nix, TCP console ports) and
-  `test-linkmonitor-performance-vm` (timings, wants a quiet host) stay apps.
+- [x] `test-linkmonitor-rdma-vm` and `test-linkmonitor-performance-vm` are
+  checks too (VC-T08, VC-T09): the sandbox's own netns frees the console
+  ports (VC012), and the performance check proves the guest runs while the
+  app stays the way to take a measurement.
+- [ ] Boot `vm-all` (now six guests; the merge of main changed the Go
+  inputs, so all six boot) and record VC-T08/VC-T09.
+- [ ] The performance guest's `LINKMONITOR_BENCHTIME` never reached the
+  guest from the host (the README said it did; corrected). Wire it through
+  `VM_KERNEL_PARAMS` if a longer profile window is wanted.
 
 ## Evidence ledger
 
@@ -115,3 +124,4 @@ Outputs (GC-rooted by the operator's `result-vm-all`):
 | VC010 | 2026-10-20 | VC-T05: `microvm-lifecycle-x86_64` gains `requiredSystemFeatures = [ "kvm" ]`, stdin from `/dev/null`, and a directory `$out` (`summary.txt`, `serial.log`, `qemu.log`, escapes stripped by the shared `stripEscapes.nix`); comments claiming a check cannot have `/dev/kvm` corrected. `nix derivation show` of the check; `checks.{vm-check-runner,nix-fmt,statix,deadnix}`, `microvm-x86_64` | pass; `requiredSystemFeatures` is `kvm`; no guest booted |
 | VC011 | 2026-10-20 | user: `env -u LD_LIBRARY_PATH nix build -L -o result-vm-all path:.#checks.x86_64-linux.vm-all` on `l` (at 8c6b50eb; `vm-all` out path matches `nix eval` at HEAD) | pass: goip-argv-paths 8 sentinels and 51 rows, linkmonitor-embedding 4 and 12 Go tests, linkmonitor-ionic 11 and 99, linkmonitor-ionic-faults 3 and 18 (eth_rx fired 28 of 282, eth_tx 31 of 310, stats_vals 1 of 18); no `--- FAIL`; 0 ESC and 0 CR bytes in each serial.log; Linux 6.18.39 and 7.1.4; outputs 44-100 KiB |
 | VC012 | 2026-10-20 | user: `env -u LD_LIBRARY_PATH nix build -L -o result-lifecycle path:.#checks.x86_64-linux.microvm-lifecycle-x86_64` on `l` (at 8c6b50eb; out path matches `nix eval` at HEAD) | pass: `XTCP2_SELF_TEST_OVERALL_PASS`, 20 of 20 checks (systemd through rtnetlink events), "PASS: all checks passed"; `$out` has `summary.txt`, `serial.log` (970 lines, 0 ESC and 0 CR bytes) and `qemu.log` (only the SIGTERM at teardown); the TCP console ports 12055/12056 sit in the sandbox's own netns |
+| VC013 | 2026-10-20 | VC-T08/T09: `nix eval` of `checks.vm-linkmonitor-{rdma,performance}` (`requiredSystemFeatures` kvm) and `vm-all` (six entries); `nix build` of both apps, `checks.{vm-check-runner,vm-linkmonitor-performance-bundle,nix-fmt,statix,deadnix}`, `test-linkmonitor-docs`; usage errors (`--bogus`, two DIRs, `--keep=0`, `--accel=hvf`, an rdma positional) | pass; bundle test 5 of 5 (its first run failed all three bundle rows: the stand-in's `while read` dropped fold's unterminated last chunk, fixed in the stand-in); each usage error exits 2; no guest booted |
