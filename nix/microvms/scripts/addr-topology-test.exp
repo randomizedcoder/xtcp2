@@ -694,6 +694,31 @@ foreach {description cmd want_rc want_re} [list \
     ccheck $description $cmd $want_rc $want_re
 }
 
+# xtcp2-nl-ra (C1-T04). The sandbox cannot send a raw ICMPv6 packet, so the
+# message is checked through `-`, which prints it, and a real send is only
+# shown to fail as a send rather than as an argument.
+set ra_64 8600000040000000000000000000000003044080000002580000012c0000000020010db8000500000000000000000000
+foreach {description cmd want_rc want_re} [list \
+    "positive: the RA is RFC 4861's: hop limit 64, router lifetime 0, one on-link prefix option, valid 600, preferred 300" \
+        "xtcp2-nl-ra - fe80::2 2001:db8:5::/64" 0 "^$ra_64\$" \
+    "boundary: a /48 changes only the option's prefix length" \
+        "xtcp2-nl-ra - fe80::2 2001:db8:5::/48" 0 {^8600000040000000000000000000000003043080} \
+    "negative: no arguments is a usage error" \
+        "xtcp2-nl-ra" 2 {xtcp2-nl-ra: usage:} \
+    "negative: an IPv4 prefix is refused" \
+        "xtcp2-nl-ra - fe80::2 192.0.2.0/24" 2 {xtcp2-nl-ra: .*192.0.2.0} \
+    "negative: a prefix with host bits set is refused" \
+        "xtcp2-nl-ra - fe80::2 2001:db8:5::1/64" 2 {has host bits set} \
+    "negative: a source that is not link-local is refused, since ndisc drops such an RA" \
+        "xtcp2-nl-ra - 2001:db8::2 2001:db8:5::/64" 2 {not a link-local source: 2001:db8::2} \
+    "negative: an unknown device is refused before any socket is opened" \
+        "xtcp2-nl-ra xtcp2nodev fe80::2 2001:db8:5::/64" 2 {no such device: xtcp2nodev} \
+    "corner: a well-formed send the sandbox cannot make is rc 1, a send failure" \
+        "xtcp2-nl-ra lo fe80::2 2001:db8:5::/64" 1 {xtcp2-nl-ra: send:} \
+] {
+    ccheck $description $cmd $want_rc $want_re
+}
+
 # late_setup against the recorder: the modules call reaches the real helper,
 # where it fails as above; the sysctl and note are recorded.
 set ::calls {}

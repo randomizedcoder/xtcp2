@@ -60,6 +60,9 @@
   src,
 }:
 
+let
+  nlcap = import ../microvms/netlink-capture.nix { inherit pkgs; };
+in
 pkgs.runCommand "xtcp2-vm-lib-exp"
   {
     nativeBuildInputs = with pkgs; [
@@ -68,7 +71,8 @@ pkgs.runCommand "xtcp2-vm-lib-exp"
       expect
       gnugrep
       socat
-      (import ../microvms/netlink-capture.nix { inherit pkgs; })
+      nlcap
+      nlcap.ra
     ];
     inherit src;
   }

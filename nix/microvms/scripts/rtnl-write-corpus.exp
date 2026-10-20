@@ -15,13 +15,15 @@
 #              NLMSG_ERROR (an ACK or a refusal), 2 more for every name `ip`
 #              resolves first with an RTM_GETLINK of its own, and 2 more for
 #              a link dump `ip` takes first (`ip ntable`'s ll_init_map) or a
-#              dump the command runs after (netns_set's list-id). The two
-#              event rows are two thirds of the 21 and 30 datagrams the
-#              first passing run measured, as addr_monitor's floor is: the
-#              canary, the trigger's requests and answers, and the
-#              notifications. rule_add_selectors is 2 for each of its 14
-#              adds, and nexthop_bucket_show 3: the request and a bucket
-#              dump that takes more than one datagram
+#              dump the command runs after (netns_set's list-id). The
+#              monitored event rows are two thirds of the datagrams the
+#              first run measured, as addr_monitor's floor is: the canary,
+#              the trigger's requests and answers, and the notifications
+#              (C1-T01's 21 and 30, C1-T04's 28, 54 and 54).
+#              prefix_no_monitor is 4 for each of at least two
+#              `ip -6 route show dev r0`. rule_add_selectors is 2 for each
+#              of its 14 adds, and nexthop_bucket_show 3: the request and a
+#              bucket dump that takes more than one datagram
 #   pre       steps run in the row's fresh namespace before the capture
 #              window opens (addrcorpus::pre_step: an `ip` argument list, or
 #              `sysctl KEY VALUE`)
@@ -129,12 +131,18 @@ namespace eval rtnlcorpus {
         "ip -6 rule add pref 114 flowlabel 0x12345 table 100"
     } " && "]
 
-    # ipmon <groups> <trigger> <until-EREs> - an xtcp2-nl-ipmon command line
-    # for an event row. Every monitor also takes maddress,
-    # because the canary that proves the monitor is subscribed is a
-    # multicast join on c0.
-    proc ipmon {groups trigger until} {
-        set cmd "xtcp2-nl-ipmon c0 \"monitor $groups maddress\" \"$trigger\""
+    # ipmon <groups> <trigger> <until-EREs> ?<opts>? - an xtcp2-nl-ipmon
+    # command line for an event row, with <opts> (`-t`) ahead of `monitor`.
+    # Every monitor also takes maddress, because the canary that proves the
+    # monitor is subscribed is a multicast join on c0, except `all`, which
+    # has it already: `ip monitor all maddress` would be maddress alone,
+    # since any object named replaces all (ip/ipmonitor.c, do_ipmonitor).
+    proc ipmon {groups trigger until {opts ""}} {
+        set args [string trim "$opts monitor $groups"]
+        if {$groups ne "all"} {
+            append args " maddress"
+        }
+        set cmd "xtcp2-nl-ipmon c0 \"$args\" \"$trigger\""
         foreach re $until {
             append cmd " \"$re\""
         }
@@ -240,6 +248,75 @@ namespace eval rtnlcorpus {
         [list route_save 2 $PRE_ROUTES "ip route save table 100 > ip.save" {} 0] \
         [list route_restore 2 $PRE_D0_ADDR "cp ../route_save/ip.save . && ip route restore < ip.save" \
             $GETROUTE100 0]
+
+    ###########################################################################
+    # C1-T04 - events through `ip monitor`, appended after C1-T02's rows.
+    #
+    # The kernel sends RTM_NEWPREFIX only when it takes a prefix option from
+    # a received router advertisement, so xtcp2-nl-ra sends one out of r0p
+    # to r0, the two ends of a veth in the row's namespace. Neither end makes
+    # a link-local of its own (addrgenmode none), so no random EUI-64
+    # address reaches the monitor; r0p's is fe80::2, added without DAD so it
+    # can be the source at once. r0 takes the RA with accept_ra 2, since in
+    # the monitor_all rows it forwards, and accept_ra_from_local, since
+    # fe80::2 is an address of the same namespace.
+    ###########################################################################
+    variable PRE_RA {
+        {link add r0 type veth peer name r0p}
+        {link set r0 addrgenmode none}
+        {link set r0p addrgenmode none}
+        {sysctl net.ipv6.conf.r0.accept_ra 2}
+        {sysctl net.ipv6.conf.r0.accept_ra_from_local 1}
+        {link set r0p up}
+        {link set r0 up}
+        {-6 addr add fe80::2/64 dev r0p nodad}
+    }
+    variable RA_SEND "xtcp2-nl-ra r0p fe80::2 2001:db8:5::/64"
+
+    # prefix_no_monitor waits until r0 has the RA's on-link route, so an
+    # RTM_NEWPREFIX, had anything been subscribed, would be inside its
+    # window; the last test is the command's status.
+    variable RA_ROUTE "ip -6 route show dev r0 | grep -q 2001:db8:5::"
+    variable RA_WAIT "for i in 1 2 3 4 5 6 7 8 9 10; do $RA_ROUTE && break; sleep 0.2; done; $RA_ROUTE"
+
+    # monitor_all's state: the anycast row's, with r0 and r0p beside it.
+    variable PRE_ALL [concat $PRE_ANYCAST $PRE_RA]
+
+    # One trigger for each event group `ip monitor all` prints and the
+    # corpus had no notification of: ACADDR (the anycast join, as in
+    # anycast_del_event), NETCONF, RULE, NEXTHOP, STATS, NSID and PREFIX.
+    # MCADDR is the canary.
+    variable TRIGGER_ALL [join [list \
+        "ip link set d0 up" \
+        "ip -6 addr add 2001:db8:1::1/64 dev d0 nodad" \
+        "echo 1 > /proc/sys/net/ipv4/conf/d0/forwarding" \
+        "ip rule add pref 100 from 192.0.2.0/24 table 100" \
+        "ip nexthop add id 1 blackhole" \
+        "ip stats set dev d0 l3_stats on" \
+        "ip netns add c4p && ip netns set c4p 9 && ip netns del c4p" \
+        $RA_SEND] "; "]
+
+    # What `ip monitor all` prints for each, after its [LABEL] banner. The
+    # netconf family prints as `inet`, and the stats message as the device
+    # and, on the next line, its l3_stats state.
+    variable UNTIL_ALL {
+        {any 2001:db8:1:: }
+        {inet d0 forwarding on}
+        {100:.*from 192.0.2.0/24 lookup 100}
+        {id 1 blackhole}
+        {l3_stats on used}
+        {nsid 9 }
+        {Deleted nsid 9 }
+        {prefix 2001:db8:5::/64}
+    }
+
+    lappend rows \
+        [list prefix_event 18 [concat $PRE_CANARY $PRE_RA] \
+            [ipmon prefix $RA_SEND {{prefix 2001:db8:5::/64}}] {} 0] \
+        [list prefix_no_monitor 8 $PRE_RA "$RA_SEND && $RA_WAIT" \
+            {{getroute6 4 {ip -6 route show dev r0}}} 0] \
+        [list monitor_all 36 $PRE_ALL [ipmon all $TRIGGER_ALL $UNTIL_ALL] {} 0] \
+        [list monitor_all_timestamp 36 $PRE_ALL [ipmon all $TRIGGER_ALL $UNTIL_ALL -t] {} 0]
 
     ###########################################################################
     # readback_args <ns> <subdir> <readback> - the xtcp2-nlcap capio argument

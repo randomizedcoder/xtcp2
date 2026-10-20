@@ -153,10 +153,10 @@ These surfaces have no netlink message to capture, so they are out of scope for 
 | `NETLINK_XFRM` | 22 `XFRM_MSG_*` | |
 
 **What was measured:**
-- **Pcaps:** 713 committed DLT_NETLINK (253) pcaps under `pkg/`, counted by `(protocol, nlmsg_type)`. For genl, the count is by `(family name, cmd)`, with names resolved from each pcap's own `CTRL_CMD_NEWFAMILY` replies.
+- **Pcaps:** 811 committed DLT_NETLINK (253) pcaps under `pkg/` (713 when the plan was written), counted by `(protocol, nlmsg_type)`. For genl, the count is by `(family name, cmd)`, with names resolved from each pcap's own `CTRL_CMD_NEWFAMILY` replies.
 - **Table tests and benchmarks:** the parsers' `Test*` and `Benchmark*` functions.
 
-**Measured 2026-10-19.** Re-measure with [the commands below](#how-to-re-measure).
+**Measured 2026-10-19,** and again at the C1 close (DOC004). Re-measure with [the commands below](#how-to-re-measure).
 
 ### rtnetlink
 
@@ -164,38 +164,38 @@ msgs/pcaps means messages found, over the number of pcaps they appear in. Every 
 
 | body | type (value) | msgs / pcaps | parser | table-driven parse test | parse benchmark |
 |---|---|---|---|---|---|
-| `ifinfomsg` | NEWLINK (16) | 3274 / 541 | `ParseNewLink`, `xtcpnl_ifinfomsg.go:623` | `TestParseNewLink`, `xtcpnl_rtnetlink_test.go:817`, plus 7 more files | **none** |
+| `ifinfomsg` | NEWLINK (16) | 3554 / 601 | `ParseNewLink`, `xtcpnl_ifinfomsg.go:623` | `TestParseNewLink`, `xtcpnl_rtnetlink_test.go:817`, plus 7 more files | **none** |
 | | DELLINK (17) | 87 / 21 | same | same | none |
-| | GETLINK (18) | 1124 / 534 | request | `BuildRequest` tests | none |
+| | GETLINK (18) | 1206 / 594 | request | `BuildRequest` tests | none |
 | | SETLINK (19) | 5 / 3: `netlink_route_events.pcap`, and `ip token set` (C1-T02) | same body | `TestRtnlWriteCorpusVerbs` (type only) | none |
 | `ifinfomsg` (prop) | NEWLINKPROP (108), DELLINKPROP (109) | 2 / 2, 1 / 1 (C1-T02) | none | `TestRtnlWriteCorpusVerbs` (type only) | none |
-| `ifaddrmsg` | NEWADDR (20) | 3068 / 244 | `ParseNewAddr`, `xtcpnl_ifaddrmsg.go:239` | `TestParseNewAddr`, `xtcpnl_rtnetlink_test.go:278`; `TestDecodeAddrWriteCorpus` | **`BenchmarkParseNewAddr`, `xtcpnl_bench_test.go:386`** |
-| | DELADDR (21) | 240 / 29 | same | same | same |
+| `ifaddrmsg` | NEWADDR (20) | 3081 / 249 | `ParseNewAddr`, `xtcpnl_ifaddrmsg.go:239` | `TestParseNewAddr`, `xtcpnl_rtnetlink_test.go:278`; `TestDecodeAddrWriteCorpus` | **`BenchmarkParseNewAddr`, `xtcpnl_bench_test.go:386`** |
+| | DELADDR (21) | 242 / 31 | same | same | same |
 | | GETADDR (22) | 290 / 210 | request | | |
-| | NEWMULTICAST (56), DELMULTICAST (57) | 39 / 3, 26 / 3 | same | `TestParseMcastAnycastFixtures`, `xtcpnl_addr_rich_test.go:440` | none |
-| | NEWANYCAST (60) | 2 / 2 | same | same | none |
+| | NEWMULTICAST (56), DELMULTICAST (57) | 48 / 8, 27 / 4 | same | `TestParseMcastAnycastFixtures`, `xtcpnl_addr_rich_test.go:440` | none |
+| | NEWANYCAST (60) | 5 / 5 | same | same | none |
 | | DELANYCAST (61) | 1 / 1 (C1-T01) | same | `TestRtnlWriteCorpus`, `xtcpnl_rtnl_write_corpus_test.go` | none |
-| `rtmsg` | NEWROUTE (24) | 732 / 57 | `ParseNewRoute`, `xtcpnl_rtmsg.go:140` | `TestParseNewRoute`, `xtcpnl_rtnetlink_test.go:553`; `TestDecodeRouteWriteCorpus` | **none** |
-| | DELROUTE (25) | 170 / 19 | same | same | none |
-| | GETROUTE (26) | 33 / 22 | request | | |
-| `ndmsg` | NEWNEIGH (28), DELNEIGH (29), GETNEIGH (30) | 226 / 14, 68 / 2, 15 / 15 | `ParseNeigh`, `xtcpnl_ndmsg.go:244` | `TestParseNeigh`, `xtcpnl_ndmsg_test.go:216` | none |
-| `fib_rule_hdr` | NEWRULE (32), GETRULE (34) | 36 / 6, 6 / 6 | `ParseRule`, `xtcpnl_fib_rule_hdr.go:270` | `TestParseRule`, `xtcpnl_fib_rule_hdr_test.go:449` | none |
-| | DELRULE (33) | 2 / 2 (C1-T01) | same | `TestRtnlWriteCorpus` | none |
-| `ndtmsg` | NEWNEIGHTBL (64), GETNEIGHTBL (66) | 104 / 6, 6 / 6 | `ParseNewNeighTbl`, `xtcpnl_ndtmsg.go:299` | `TestParseNewNeighTbl`, `xtcpnl_ndtmsg_test.go:169` | none |
+| `rtmsg` | NEWROUTE (24) | 761 / 71 | `ParseNewRoute`, `xtcpnl_rtmsg.go:140` | `TestParseNewRoute`, `xtcpnl_rtnetlink_test.go:553`; `TestDecodeRouteWriteCorpus` | **none** |
+| | DELROUTE (25) | 172 / 20 | same | same | none |
+| | GETROUTE (26) | 52 / 39 | request | | |
+| `ndmsg` | NEWNEIGH (28), DELNEIGH (29), GETNEIGH (30) | 252 / 27, 71 / 4, 25 / 24 | `ParseNeigh`, `xtcpnl_ndmsg.go:244` | `TestParseNeigh`, `xtcpnl_ndmsg_test.go:216` | none |
+| `fib_rule_hdr` | NEWRULE (32), GETRULE (34) | 102 / 19, 14 / 14 | `ParseRule`, `xtcpnl_fib_rule_hdr.go:270` | `TestParseRule`, `xtcpnl_fib_rule_hdr_test.go:449` | none |
+| | DELRULE (33) | 6 / 3 (C1-T01, C1-T02) | same | `TestRtnlWriteCorpus` | none |
+| `ndtmsg` | NEWNEIGHTBL (64), GETNEIGHTBL (66) | 112 / 7, 7 / 7 | `ParseNewNeighTbl`, `xtcpnl_ndtmsg.go:299` | `TestParseNewNeighTbl`, `xtcpnl_ndtmsg_test.go:169` | none |
 | | SETNEIGHTBL (67) | 3 / 3 (C1-T01) | `ParseNewNeighTbl` reads the request | `TestRtnlWriteCorpus` | none |
-| `ifaddrlblmsg` | NEWADDRLABEL (72), GETADDRLABEL (74) | 30 / 3, 3 / 3 | `ParseNewAddrLabel`, `xtcpnl_ifaddrlblmsg.go:91` | `TestParseNewAddrLabel`, `xtcpnl_ifaddrlblmsg_test.go:48` | none |
-| | DELADDRLABEL (73) | 1 / 1 (C1-T01) | same | `TestRtnlWriteCorpus` | none |
-| `netconfmsg` | NEWNETCONF (80), DELNETCONF (81), GETNETCONF (82) | 125 / 10, 6 / 1, 9 / 9 | `ParseNewNetconf`, `xtcpnl_netconfmsg.go:107` | `TestParseNewNetconf`, `xtcpnl_netconfmsg_test.go:138` | none |
-| `rtgenmsg` + `NETNSA_*` | NEWNSID (88), GETNSID (90) | 172 / 81, 172 / 81 | **none** | **none** | none |
-| | DELNSID (89) | 1 / 1 (C1-T01) | none | `TestRtnlWriteCorpus` reads `NETNSA_NSID` raw | none |
-| `if_stats_msg` | NEWSTATS (92), GETSTATS (94) | 165 / 51, 51 / 51 | `ParseNewStats`, `xtcpnl_ifstatsmsg.go:129` | `TestParseNewStats`, `xtcpnl_ifstatsmsg_test.go:126` | none |
-| | SETSTATS (95) | 1 / 1 (C1-T01) | `ParseNewStats` reads the request | `TestRtnlWriteCorpus` | none |
-| `nhmsg` | NEWNEXTHOP (104), GETNEXTHOP (106) | 29 / 11, 13 / 13 | `ParseNewNexthop`, `xtcpnl_nhmsg.go:143` | `TestParseNewNexthop`, `xtcpnl_nhmsg_test.go:39` | none |
-| | DELNEXTHOP (105) | 1 / 1 (C1-T01) | same | `TestRtnlWriteCorpus` | none |
+| `ifaddrlblmsg` | NEWADDRLABEL (72), GETADDRLABEL (74) | 63 / 7, 7 / 7 | `ParseNewAddrLabel`, `xtcpnl_ifaddrlblmsg.go:91` | `TestParseNewAddrLabel`, `xtcpnl_ifaddrlblmsg_test.go:48` | none |
+| | DELADDRLABEL (73) | 12 / 2 (C1-T01, C1-T02) | same | `TestRtnlWriteCorpus` | none |
+| `netconfmsg` | NEWNETCONF (80), DELNETCONF (81), GETNETCONF (82) | 127 / 12, 6 / 1, 9 / 9 | `ParseNewNetconf`, `xtcpnl_netconfmsg.go:107` | `TestParseNewNetconf`, `xtcpnl_netconfmsg_test.go:138` | none |
+| `rtgenmsg` + `NETNSA_*` | NEWNSID (88), GETNSID (90) | 210 / 88, 202 / 88 | **none** | **none** | none |
+| | DELNSID (89) | 3 / 3 (C1-T01, C1-T04) | none | `TestRtnlWriteCorpus` reads `NETNSA_NSID` raw | none |
+| `if_stats_msg` | NEWSTATS (92), GETSTATS (94) | 222 / 57, 55 / 55 | `ParseNewStats`, `xtcpnl_ifstatsmsg.go:129` | `TestParseNewStats`, `xtcpnl_ifstatsmsg_test.go:126` | none |
+| | SETSTATS (95) | 3 / 3 (C1-T01, C1-T04) | `ParseNewStats` reads the request | `TestRtnlWriteCorpus` | none |
+| `nhmsg` | NEWNEXTHOP (104), GETNEXTHOP (106) | 51 / 24, 25 / 23 | `ParseNewNexthop`, `xtcpnl_nhmsg.go:143` | `TestParseNewNexthop`, `xtcpnl_nhmsg_test.go:39` | none |
+| | DELNEXTHOP (105) | 4 / 2 (C1-T01, C1-T02) | same | `TestRtnlWriteCorpus` | none |
 | `nhmsg` (bucket) | NEWNEXTHOPBUCKET (116), GETNEXTHOPBUCKET (118) | 1025 / 2, 2 / 2 (C1-T02) | **none** | `TestRtnlWriteCorpusVerbs`, `TestRtnlWriteCorpusShapes` (types and datagrams only) | none |
 | | DELNEXTHOPBUCKET (117) | **0**: the kernel registers no handler for it, and `ip` never sends it | none | none | none |
-| `prefixmsg` | NEWPREFIX (52) | **0** | **none** | none | none |
-| `nlmsgerr` | ERROR (2), DONE (3) | 309 / 127, 965 / 446 | `ParseNlMsgErr`, `xtcpnl_nlmsgerr.go:54` | `TestParseNlMsgErr`, `xtcpnl_nlmsgerr_test.go:44` | none |
+| `prefixmsg` | NEWPREFIX (52) | 3 / 3 (C1-T04) | **none** | `TestRtnlMonitorCorpus` reads `prefixmsg` raw | none |
+| `nlmsgerr` | ERROR (2), DONE (3) | 401 / 168, 1051 / 514 | `ParseNlMsgErr`, `xtcpnl_nlmsgerr.go:54` | `TestParseNlMsgErr`, `xtcpnl_nlmsgerr_test.go:44` | none |
 | events | the 8 NEW/DEL LINK/ADDR/ROUTE/NEIGH types | (as above) | `ParseRtnetlinkEvent`, `xtcpnl_rtnetlink_events.go:148` | `TestParseRtnetlinkEvent`, `xtcpnl_rtnetlink_events_test.go:243` | none |
 
 The capture also holds `RTM_GETMULTICAST` (58: 13 / 3) and `RTM_GETANYCAST` (62: 4 / 2). `ip` 7.1.0 sends neither: they are the dedicated multicast and anycast dump rows in `link-write/addr-mcdump/mc_any/`, which back `IFA_MULTICAST`/`IFA_ANYCAST` decoding. They will also cover `maddress` at the 7.2 pin bump.
@@ -214,7 +214,7 @@ The corpus also holds ethtool (19 commands), devlink (2) and nl80211 (7) from th
 
 1. **The rtnetlink read side is in good shape.** Every body layout that a running goip object reads has captured pcaps, a parser and a table-driven test.
 2. **The capture holes were the DEL and SET types:** DELANYCAST, DELRULE, SETNEIGHTBL, DELADDRLABEL, DELNSID, SETSTATS and DELNEXTHOP. Each shares a body layout with its NEW type, so all but DELNSID already had a parser (NSID has none; point 3). The bytes were missing because no capture row sent them. C1-T01 added those rows (`link-write/rtnl/`), and each of the seven is now captured and checked by `TestRtnlWriteCorpus`.
-3. **Four rtnetlink layouts have no parser:** NSID, nexthop bucket, LINKPROP and prefix. NSID is captured 172 times and is still undecoded. C1-T02 captured the nexthop bucket and LINKPROP layouts (a 1024-bucket dump, and altname add and del), so of the four only prefix has no bytes yet (C1-T04).
+3. **Four rtnetlink layouts have no parser:** NSID, nexthop bucket, LINKPROP and prefix. Since C1 closed, all four have bytes: NSID 210 NEWNSID messages, the nexthop bucket and LINKPROP from C1-T02 (a 1024-bucket dump, and altname add and del), and prefix from C1-T04 (an RA's NEWPREFIX, 3 messages). The tests read them raw; the parsers are P1.
 4. **Generic netlink beyond nlctrl, and all of XFRM, have nothing:** no pcaps, no parsers, no tests. When this was measured the blocker was in the harness: `xtcp2-nlcap` kept only `NETLINK_ROUTE` (`ether[14:2]==0`), although nlmon taps GENERIC and XFRM. C0 removed it. A row now names its protocol (`--proto`, C0-T01), and the modules those families need are loaded late (C0-T02). What is missing is the capture rows (C2, C3).
 5. **Benchmarks:** 1 of the 15 rtnetlink and genl parsers in the tables above (`ParseNewAddr`) has a parse benchmark. The rest of `BenchmarkDeserialize*` covers inet_diag only.
 
@@ -643,20 +643,47 @@ Each accepted row with state to read has a `capio` readback; a save's readback i
 
 **Depends on:** C0-T02.
 
-**Deliver:**
-- `ip monitor all` runs, with `-t` too, while triggers fire for prefix, nexthop, stats, netconf, NSID, MCADDR/ACADDR and rule events.
-- The prefix trigger is a router advertisement sent from a peer namespace onto a veth with `accept_ra=2`.
-- The monitor's stdout is kept as a sidecar.
-- This uses the `microvm-x86_64-nlmon-capture` flavor.
+**Deliver** (as built):
+- **Where the rows live:** four event rows in `rtnl-write-corpus.exp`, captured by `capture-link-writes.exp` into `link-write/rtnl/<slug>/`. They use the event-row form of C1-T01 (`xtcp2-nl-ipmon` with a canary multicast join), not the `microvm-x86_64-nlmon-capture` flavor this section first named. That flavor's oneshot captures one boot, with no per-row pcap, topology or rc. See the [decision log](goip-parity-gaps-status.md#decision-log).
+- **The prefix trigger:** a new guest helper, `xtcp2-nl-ra <dev> <src-link-local> <prefix/len>`, sends one router advertisement with a prefix information option (L flag, valid 600, preferred 300). It sends from `r0p`, the peer of a veth `r0` that has `accept_ra` 2 and `accept_ra_from_local` 1, with `IPV6_MULTICAST_LOOP` off.
+  - `accept_ra_from_local` is needed because the kernel drops an RA from one of its own addresses, and both ends of the veth are in the namespace.
+  - With the loop off, only `r0` receives the RA, so there is one NEWPREFIX, not two.
+  - `xtcp2-nl-ra - …` prints the message as hex instead of sending it, so the bytes are tested in the sandbox.
+- **The rows:**
+  - `prefix_event`: `ip monitor prefix` while the RA is sent.
+  - `prefix_no_monitor`: the same RA with no subscriber, then `ip -6 route show dev r0` as the readback, to show that the RA arrived.
+  - `monitor_all`: `ip monitor all` while one trigger provokes address, netconf, rule, nexthop, stats, NSID (new and deleted), anycast, multicast and prefix events.
+  - `monitor_all_timestamp`: the same, with `ip -t`.
+  - `ipmon` passes `all` alone. Adding `maddress`, as the other event rows do, would replace `all` with maddress only, since any named object replaces the default set.
+- The monitor's stdout is the `ip.out` sidecar.
 
 **Tests:**
 
+`rtnl-write-corpus-test.exp` (`checks.vm-lib-exp`, 86 rows; the C1-T04 ones are below), and 8 `ccheck` rows in `addr-topology-test.exp` for `xtcp2-nl-ra`:
+
 | description | expected |
 |---|---|
-| positive: an RA with a prefix option | one `RTM_NEWPREFIX` |
-| positive: `rule add` while monitoring | an `RTM_NEWRULE` notification |
-| negative: a trigger with no subscriber | nothing captured; this row proves the subscriber matters |
-| corner: `-t` timestamps in the sidecar | masked before comparison, as with the addr lifetime rows |
+| positive: `ipmon all` passes `all` alone, and `-t` goes before `monitor` | `ip monitor all`, `ip -t monitor all` |
+| positive: the prefix row waits for the prefix line | `prefix 2001:db8:5::/64` |
+| negative: `prefix_no_monitor` runs no monitor, and waits for the route | no `xtcp2-nl-ipmon`; the route check |
+| positive: `monitor_all` waits for every group | 8 patterns, netconf as `inet d0 forwarding on` |
+| corner: the RA is sent from `r0p`, `fe80::2` added `nodad`, after `r0`'s sysctls | build order |
+| positive: `xtcp2-nl-ra -` for a /64 | the exact 48-byte RA |
+| boundary: a /48 | prefix length 48 in the option |
+| negative: no arguments, an IPv4 prefix, host bits set, a source that is not link-local, an unknown device | rc 2 |
+| corner: `lo` in the sandbox | rc 1, `xtcp2-nl-ra: send:` |
+
+`TestRtnlMonitorCorpus` (`pkg/xtcpnl`, on the committed pcaps):
+
+| description | expected |
+|---|---|
+| positive: the RA while `ip monitor prefix` runs | one `RTM_NEWPREFIX` notification |
+| negative: the RA with no subscriber | no NEWPREFIX, yet `r0` has the `2001:db8:5::/64` kernel route |
+| positive: `ip monitor all`, and `ip -t monitor all` | a notification of each of NEWLINK, NEWADDR, NEWROUTE, NEWNETCONF, NEWRULE, NEWNEXTHOP, NEWSTATS, NEWNSID, DELNSID, NEWANYCAST, NEWMULTICAST and NEWPREFIX |
+| positive: the NEWPREFIX body | family 10, type 3, `/64`, flags 0x80, `2001:db8:5::`, preferred 300 and valid 600 |
+| corner: `ip` prints no `onlink` for the L flag | `prefix 2001:db8:5::/64dev r0 valid 600 preferred 300 ` |
+| corner: the NEWNEXTHOP notification carries the request's flags | 0x605, `NLM_F_REQUEST` included |
+| corner: `-t` | one `Timestamp:` line per `[LABEL]` line; with the timestamps masked, the labels equal `monitor_all`'s |
 
 **Done when:** the gates pass, and NEWPREFIX is present.
 

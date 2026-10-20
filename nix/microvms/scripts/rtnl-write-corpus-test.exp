@@ -104,6 +104,7 @@ set design_rows {
     route_get_fibmatch route_get_notify route_get_v6 route_get_from_iif
     route_get_unreachable route_flush route_flush_empty route_flush_no_table
     route_save route_restore
+    prefix_event prefix_no_monitor monitor_all monitor_all_timestamp
 }
 
 proc bad_arity {} {
@@ -165,10 +166,12 @@ set refused_design {
 }
 check refused_statuses "positive: exactly the refusal rows expect rc 2" \
     {refused_rows} [join $refused_design " "]
-check row_count "boundary: C1-T01's 11 rows and C1-T02's 44" \
-    {llength $R} 55
+check row_count "boundary: C1-T01's 11 rows, C1-T02's 44 and C1-T04's 4" \
+    {llength $R} 59
 check c1t01_rows_first "corner: C1-T02's rows come after C1-T01's, which keep their order" \
     {lindex [slugs $R] 10} anycast_del_event
+check c1t02_rows_next "corner: C1-T04's rows come after C1-T02's" \
+    {lindex [slugs $R] 54} route_restore
 check rc_values "boundary: every status is 0 or 2" \
     {bad_rc} {}
 
@@ -202,6 +205,9 @@ foreach {name description slug expected} {
     rb_route_flush    "positive: route_flush reads table 100 back"               route_flush    getroute
     rb_route_restore  "positive: route_restore reads table 100 back"             route_restore  getroute
     rb_flush_empty    "boundary: an empty flush has nothing to read back"        route_flush_empty {}
+    rb_prefix_event   "corner: the prefix event row's readback is the monitor's stdout" prefix_event {}
+    rb_no_monitor     "positive: with no monitor, r0's routes are read back for the RA's" prefix_no_monitor getroute6
+    rb_monitor_all    "corner: and monitor_all's is its stdout"                  monitor_all    {}
 } {
     check $name $description [list readback_names $slug] $expected
 }
@@ -294,7 +300,10 @@ check floor_selectors "boundary: rule_add_selectors' floor is 2 for each of its 
 check floor_bucket_show "boundary: the bucket dump's floor is the request and two reply datagrams" \
     {field nexthop_bucket_show 1} 3
 check floor_event_rows "positive: the event rows' floors are two thirds of the measured run" \
-    {list [field nsid_del_event 1] [field anycast_del_event 1]} {14 20}
+    {lmap slug {nsid_del_event anycast_del_event prefix_event monitor_all monitor_all_timestamp} {field $slug 1}} \
+    {14 20 18 36 36}
+check floor_no_monitor "boundary: prefix_no_monitor's floor is two route reads, each a name lookup and a dump" \
+    {list [regexp -all {ip -6 route show dev r0} [field prefix_no_monitor 3]] [field prefix_no_monitor 1]} {2 8}
 check no_single_quotes "corner: no command or readback holds a single quote" \
     {quoted} {}
 check readback_names_safe "corner: every readback name is lower case, digits and underscore" \
@@ -342,6 +351,45 @@ check event_rows_have_canary "corner: both event rows build c0 for the canary" \
           [expr {{link add c0 type dummy} in [field anycast_del_event 2]}]} {1 1}
 check anycast_forwarding_first "corner: forwarding is set before d0 exists" \
     {lindex [field anycast_del_event 2] 0} {sysctl net.ipv6.conf.default.forwarding 1}
+
+# C1-T04's event rows.
+check ipmon_all "positive: an all monitor takes its options first and no maddress" \
+    {rtnlcorpus::ipmon all {true} {} -t} {xtcp2-nl-ipmon c0 "-t monitor all" "true"}
+check all_netconf_inet "corner: the netconf pattern names the family as ip prints it, inet" \
+    {lsearch -inline $rtnlcorpus::UNTIL_ALL {*forwarding*}} {inet d0 forwarding on}
+check ipmon_opts_object "boundary: options before a named object keep maddress" \
+    {rtnlcorpus::ipmon prefix {true} {} -t} {xtcp2-nl-ipmon c0 "-t monitor prefix maddress" "true"}
+check prefix_event_waits "positive: the prefix row sends the RA and waits for the prefix line" \
+    {field prefix_event 3} \
+    {xtcp2-nl-ipmon c0 "monitor prefix maddress" "xtcp2-nl-ra r0p fe80::2 2001:db8:5::/64" "prefix 2001:db8:5::/64"}
+check no_monitor_unsubscribed "negative: prefix_no_monitor runs no monitor, so nothing joins the prefix group" \
+    {string match *xtcp2-nl-ipmon* [field prefix_no_monitor 3]} 0
+check no_monitor_status "corner: prefix_no_monitor's status is the last route test" \
+    {string match "*; ip -6 route show dev r0 | grep -q 2001:db8:5::" [field prefix_no_monitor 3]} 1
+check timestamp_row_only_t "corner: monitor_all_timestamp is monitor_all with -t" \
+    {expr {[string map {{"-t monitor all"} {"monitor all"}} [field monitor_all_timestamp 3]] eq [field monitor_all 3]}} 1
+check all_waits_every_group "positive: monitor_all waits for every group its trigger fires" \
+    {llength $rtnlcorpus::UNTIL_ALL} 8
+check all_triggers "positive: monitor_all's trigger is one command per group, the RA last" \
+    {list [llength [split $rtnlcorpus::TRIGGER_ALL ";"]] [lindex [split $rtnlcorpus::TRIGGER_ALL ";"] end]} \
+    {8 { xtcp2-nl-ra r0p fe80::2 2001:db8:5::/64}}
+check c1t04_canary "corner: the monitored C1-T04 rows build c0 for the canary" \
+    {lmap slug {prefix_event monitor_all monitor_all_timestamp} {expr {{link add c0 type dummy} in [field $slug 2]}}} {1 1 1}
+check all_forwarding_first "corner: monitor_all sets forwarding before d0 and r0 exist" \
+    {lindex [field monitor_all 2] 0} {sysctl net.ipv6.conf.default.forwarding 1}
+
+# ra_index <prefix> - the index of PRE_RA's first step that starts <prefix>.
+proc ra_index {prefix} {
+    return [lsearch -glob $rtnlcorpus::PRE_RA "$prefix*"]
+}
+check ra_sysctls "positive: r0 takes an RA although it forwards (2), and from a local source" \
+    {lsearch -all -inline -glob $rtnlcorpus::PRE_RA {sysctl *}} \
+    {{sysctl net.ipv6.conf.r0.accept_ra 2} {sysctl net.ipv6.conf.r0.accept_ra_from_local 1}}
+check ra_receiver_after_add "boundary: r0's sysctls follow its creation and precede its up" \
+    {expr {[ra_index {link add r0 }] < [ra_index {sysctl net.ipv6.conf.r0.accept_ra 2}]
+        && [ra_index {sysctl net.ipv6.conf.r0.accept_ra_from_local 1}] < [ra_index {link set r0 up}]}} 1
+check ra_source_nodad "corner: the RA's source is fe80::2 on r0p, without DAD" \
+    {lindex $rtnlcorpus::PRE_RA end} {-6 addr add fe80::2/64 dev r0p nodad}
 
 ###############################################################################
 # 5. pre steps through addrcorpus::pre_step

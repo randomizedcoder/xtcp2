@@ -515,7 +515,9 @@ that file only in a comment about what a solicited reply carries.
 Three of the five are `tc`/`bridge` territory and are outside the exercise
 entirely rather than pending. The other two (`prefixmsg`, `nduseroptmsg`) are
 reachable only through `ip monitor`, the one object class goip does not
-implement — both are event-only layouts with no `show` path. **No read-only object
+implement — both are event-only layouts with no `show` path. `prefixmsg` has
+captured bytes since C1-T04 of [goip-parity-gaps.md](goip-parity-gaps.md#c1-t04-events-through-ip-monitor)
+(`link-write/rtnl/prefix_event/`); its decoder is P1 there. **No read-only object
 needs a new body-layout decoder**: `vrf`, the eleventh object, landed after `stats`
 by *reusing* the `ifinfomsg` decoder (`ip vrf show` is a filtered link dump), which
 confirms rather than reopens the point — the decoder backlog is closed even as the

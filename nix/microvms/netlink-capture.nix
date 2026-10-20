@@ -9,7 +9,8 @@
 # partner in a second VM (Tier 2 of the same document).
 #
 # This exports ONE thing: `xtcp2-nlcap`, a helper installed on the guest's
-# PATH (with `xtcp2-nl-mcdump` and `xtcp2-nl-ipmon`, below, on its own PATH)
+# PATH (with `xtcp2-nl-mcdump`, `xtcp2-nl-ipmon` and `xtcp2-nl-ra`, below,
+# on its own PATH)
 # and invoked one subcommand at a time by a host driver
 # (nix/microvms/scripts/capture-netlink-dumps.exp, goip-parity.exp,
 # capture-link-writes.exp and capture-lacp-pair.exp) over the serial console.
@@ -303,12 +304,94 @@ let
       exit "$rc"
     '';
   };
+
+  # xtcp2-nl-ra <dev|-> <src-link-local> <prefix/len>
+  #
+  # One router advertisement, for the prefix event rows (C1-T04;
+  # docs/netlink/goip-parity-gaps.md). The kernel sends RTM_NEWPREFIX only
+  # when it takes a prefix information option from a received RA
+  # (addrconf_prefix_rcv, net/ipv6/addrconf.c), and nothing in iproute2
+  # sends one. The RA goes to ff02::1 out of <dev> from <src>, with hop
+  # limit 255 as ndisc requires, a router lifetime of 0 so the receiver
+  # adds no default route, and one option: <prefix>, on-link, not
+  # autonomous, so no address with a random interface id is made from it.
+  # The kernel fills in the ICMPv6 checksum. Multicast loop is off: <dev>
+  # would otherwise take its own RA, and send a second RTM_NEWPREFIX.
+  #
+  # The receiver is the other end of a veth in the same namespace, so it
+  # needs accept_ra_from_local: the kernel drops an RA whose source is one
+  # of its own addresses otherwise. A <dev> of `-` prints the message in hex
+  # and sends nothing. A bad argument exits 2; a send the kernel refuses, 1.
+  ra = pkgs.writers.writePython3Bin "xtcp2-nl-ra" { } ''
+    import ipaddress
+    import socket
+    import struct
+    import sys
+
+    ND_ROUTER_ADVERT = 134
+    ND_OPT_PREFIX_INFORMATION = 3
+    PIO_ONLINK = 0x80
+    CUR_HOP_LIMIT = 64
+    VALID = 600
+    PREFERRED = 300
+    ALL_NODES = "ff02::1"
+
+
+    def advert(prefix):
+        head = struct.pack("!BBHBBHII", ND_ROUTER_ADVERT, 0, 0,
+                           CUR_HOP_LIMIT, 0, 0, 0, 0)
+        pio = struct.pack("!BBBBIII", ND_OPT_PREFIX_INFORMATION, 4,
+                          prefix.prefixlen, PIO_ONLINK, VALID, PREFERRED, 0)
+        return head + pio + prefix.network_address.packed
+
+
+    def fail(rc, msg):
+        print("xtcp2-nl-ra: " + msg, file=sys.stderr)
+        sys.exit(rc)
+
+
+    def main():
+        if len(sys.argv) != 4:
+            fail(2, "usage: xtcp2-nl-ra <dev|-> <src-link-local> <prefix/len>")
+        dev, src, arg = sys.argv[1:]
+        try:
+            prefix = ipaddress.IPv6Network(arg)
+            source = ipaddress.IPv6Address(src)
+        except ValueError as e:
+            fail(2, str(e))
+        if not source.is_link_local:
+            fail(2, "not a link-local source: " + src)
+        msg = advert(prefix)
+        if dev == "-":
+            print(msg.hex())
+            return
+        try:
+            ifindex = socket.if_nametoindex(dev)
+        except OSError:
+            fail(2, "no such device: " + dev)
+        try:
+            s = socket.socket(socket.AF_INET6, socket.SOCK_RAW,
+                              socket.IPPROTO_ICMPV6)
+            s.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_MULTICAST_HOPS, 255)
+            s.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_MULTICAST_IF, ifindex)
+            s.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_MULTICAST_LOOP, 0)
+            s.bind((src, 0, 0, ifindex))
+            s.sendto(msg, (ALL_NODES, 0, 0, ifindex))
+        except OSError as e:
+            fail(1, "send: " + str(e))
+
+
+    main()
+  '';
 in
 pkgs.writeShellApplication {
   name = "xtcp2-nlcap";
+  # For nix/checks/vm-lib-exp.nix, which runs xtcp2-nl-ra's hermetic rows.
+  passthru = { inherit ra; };
   runtimeInputs = with pkgs; [
     mcdump
     ipmon
+    ra
     coreutils
     gawk
     gnugrep
