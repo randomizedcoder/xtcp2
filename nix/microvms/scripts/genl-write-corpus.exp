@@ -29,14 +29,15 @@
 #   rc         the exit status `ip.rc` must hold: 0, or the status `ip`
 #              exits with when the kernel refuses the request, which ip/ip.c
 #              takes from the command's negated return: 2 for tcp_metrics,
-#              mptcp, fou, ila and l2tp (ip/tcp_metrics.c, ip/ipmptcp.c,
-#              ip/ipfou.c, ip/ipila.c and ip/ipl2tp.c return -2), 1 for an
-#              sr or ioam write (ip/ipseg6.c and ip/ipioam6.c return -1); or
-#              255, where `ip` refuses its arguments itself (invarg, missarg
-#              or usage) after the family lookup and sends nothing more;
-#              ip/ipfou.c's and
-#              ip/ipila.c's own refusals after the lookup are 1 (an unknown
-#              dev, show with an argument)
+#              mptcp, fou, ila, l2tp and macsec (ip/tcp_metrics.c,
+#              ip/ipmptcp.c, ip/ipfou.c, ip/ipila.c, ip/ipl2tp.c and
+#              ip/ipmacsec.c return -2), 1 for an sr or ioam write
+#              (ip/ipseg6.c and ip/ipioam6.c return -1); or 255, where `ip`
+#              refuses its arguments itself (invarg, missarg or usage) after
+#              the family lookup and sends nothing more; ip/ipfou.c's,
+#              ip/ipila.c's and ip/ipmacsec.c's own refusals after the lookup
+#              are 1 (an unknown dev, show with an argument, an SA's missing
+#              key or packet number, a key on a set)
 #
 # TCP_METRICS (C2-T01)
 #
@@ -409,6 +410,72 @@ namespace eval genlcorpus {
         [list l2tp_session_del 4 $PRE_SESS "ip l2tp del session tunnel_id 1 session_id 10" $SESS_SHOW 0] \
         [list l2tp_session_del_missing 4 $PRE_TUN "ip l2tp del session tunnel_id 1 session_id 99" {} 2] \
         [list l2tp_show_bare 2 {} "ip l2tp show" {} 255]
+
+    ###########################################################################
+    # C2-T08 - macsec, the macsec family: a SecY's transmit SAs and its
+    # receive channels and their SAs, made with plain `ip macsec` pre steps
+    # on macsec0, an `ip link` macsec device over PRE_ADDRS's d0. The SecY's
+    # SCI is given (0102030405060001), not taken from d0's random address,
+    # so no byte depends on the run. The family is in the macsec module,
+    # which late setup loads. Keys are 128-bit (gcm-aes-128, the default).
+    #
+    # The kernel refuses an SA number already in use and a delete of an
+    # active SA (EBUSY), a receive channel it already has (EEXIST), a
+    # missing SA or channel, or a device that is not macsec (ENODEV), a key
+    # or packet number of the wrong length (EINVAL), and offload to a device
+    # that cannot (EOPNOTSUPP); `ip` exits 2. `ip` refuses an add with no
+    # key or no packet number, a set with a key, and an unknown device
+    # itself (1), and an SA number over 3 (invarg, 255), each after the
+    # family lookup with nothing more sent. `show DEV` is still a dump of
+    # every SecY; ip/ipmacsec.c keeps the one it asked for.
+    ###########################################################################
+    variable MACSEC_LINK {link add link d0 macsec0 type macsec sci 0102030405060001}
+    variable MACSEC_TXSA {macsec add macsec0 tx sa 0 pn 1 on key 01000000000000000000000000000000 81818181818181818181818181818181}
+    variable MACSEC_RXSC {macsec add macsec0 rx sci 0a0b0c0d0e0f0001 on}
+    variable MACSEC_RXSA {macsec add macsec0 rx sci 0a0b0c0d0e0f0001 sa 0 pn 1 on key 02000000000000000000000000000000 82828282828282828282828282828282}
+    variable PRE_MACSEC [concat $PRE_ADDRS [list $MACSEC_LINK]]
+    variable PRE_MACSEC2 [concat $PRE_MACSEC [list {link add link d0 macsec1 type macsec sci 0102030405060002}]]
+    variable PRE_MACSEC_XPN [concat $PRE_ADDRS [list {link add link d0 macsec0 type macsec sci 0102030405060001 cipher gcm-aes-xpn-128}]]
+    variable PRE_TXSA [concat $PRE_MACSEC [list $MACSEC_TXSA]]
+    variable PRE_TXSA_OFF [concat $PRE_MACSEC [list {macsec add macsec0 tx sa 0 pn 1 off key 01000000000000000000000000000000 81818181818181818181818181818181}]]
+    variable PRE_RXSC [concat $PRE_MACSEC [list $MACSEC_RXSC]]
+    variable PRE_RXSA [concat $PRE_RXSC [list $MACSEC_RXSA]]
+    variable PRE_RXSA_OFF [concat $PRE_RXSC [list {macsec add macsec0 rx sci 0a0b0c0d0e0f0001 sa 0 pn 1 off key 02000000000000000000000000000000 82828282828282828282828282828282}]]
+    variable MACSEC_SHOW {{macsec 4 {ip macsec show}}}
+
+    lappend rows \
+        [list macsec_show_empty 4 {} "ip macsec show" {} 0] \
+        [list macsec_show 4 $PRE_MACSEC2 "ip macsec show" {} 0] \
+        [list macsec_show_dev 4 $PRE_MACSEC2 "ip macsec show macsec1" {} 0] \
+        [list macsec_show_unknown_dev 2 {} "ip macsec show nodev0" {} 1] \
+        [list macsec_txsa_add 4 $PRE_MACSEC "ip $MACSEC_TXSA" $MACSEC_SHOW 0] \
+        [list macsec_txsa_add_off 4 $PRE_MACSEC "ip macsec add macsec0 tx sa 3 pn 100 off key 01000000000000000000000000000000 81818181818181818181818181818181" $MACSEC_SHOW 0] \
+        [list macsec_txsa_add_dup 4 $PRE_TXSA "ip $MACSEC_TXSA" {} 2] \
+        [list macsec_txsa_add_no_key 2 $PRE_MACSEC "ip macsec add macsec0 tx sa 1 pn 1" {} 1] \
+        [list macsec_txsa_add_no_pn 2 $PRE_MACSEC "ip macsec add macsec0 tx sa 1 key 01000000000000000000000000000000 81818181818181818181818181818181" {} 1] \
+        [list macsec_txsa_add_long_key 4 $PRE_MACSEC "ip macsec add macsec0 tx sa 1 pn 1 key 01000000000000000000000000000000 8181818181818181818181818181818181818181818181818181818181818181" {} 2] \
+        [list macsec_txsa_add_an4 2 $PRE_MACSEC "ip macsec add macsec0 tx sa 4 pn 1 key 01000000000000000000000000000000 81818181818181818181818181818181" {} 255] \
+        [list macsec_txsa_add_not_macsec 4 $PRE_ADDRS "ip macsec add d0 tx sa 0 pn 1 key 01000000000000000000000000000000 81818181818181818181818181818181" {} 2] \
+        [list macsec_txsa_set 4 $PRE_TXSA "ip macsec set macsec0 tx sa 0 pn 50 off" $MACSEC_SHOW 0] \
+        [list macsec_txsa_set_key 2 $PRE_TXSA "ip macsec set macsec0 tx sa 0 key 01000000000000000000000000000000 81818181818181818181818181818181" {} 1] \
+        [list macsec_txsa_del_active 4 $PRE_TXSA "ip macsec del macsec0 tx sa 0" {} 2] \
+        [list macsec_txsa_del 4 $PRE_TXSA_OFF "ip macsec del macsec0 tx sa 0" $MACSEC_SHOW 0] \
+        [list macsec_txsa_del_missing 4 $PRE_MACSEC "ip macsec del macsec0 tx sa 2" {} 2] \
+        [list macsec_rxsc_add 4 $PRE_MACSEC "ip $MACSEC_RXSC" $MACSEC_SHOW 0] \
+        [list macsec_rxsc_add_port 4 $PRE_MACSEC "ip macsec add macsec0 rx port 1 address 02:00:00:00:00:01" $MACSEC_SHOW 0] \
+        [list macsec_rxsc_add_dup 4 $PRE_RXSC "ip $MACSEC_RXSC" {} 2] \
+        [list macsec_rxsc_set 4 $PRE_RXSC "ip macsec set macsec0 rx sci 0a0b0c0d0e0f0001 off" $MACSEC_SHOW 0] \
+        [list macsec_rxsc_del 4 $PRE_RXSC "ip macsec del macsec0 rx sci 0a0b0c0d0e0f0001" $MACSEC_SHOW 0] \
+        [list macsec_rxsc_del_missing 4 $PRE_MACSEC "ip macsec del macsec0 rx sci 0a0b0c0d0e0f0001" {} 2] \
+        [list macsec_rxsa_add 4 $PRE_RXSC "ip $MACSEC_RXSA" $MACSEC_SHOW 0] \
+        [list macsec_rxsa_add_no_sc 4 $PRE_MACSEC "ip $MACSEC_RXSA" {} 2] \
+        [list macsec_rxsa_set 4 $PRE_RXSA "ip macsec set macsec0 rx sci 0a0b0c0d0e0f0001 sa 0 pn 60 off" $MACSEC_SHOW 0] \
+        [list macsec_rxsa_del_active 4 $PRE_RXSA "ip macsec del macsec0 rx sci 0a0b0c0d0e0f0001 sa 0" {} 2] \
+        [list macsec_rxsa_del 4 $PRE_RXSA_OFF "ip macsec del macsec0 rx sci 0a0b0c0d0e0f0001 sa 0" $MACSEC_SHOW 0] \
+        [list macsec_xpn_txsa_add 4 $PRE_MACSEC_XPN "ip macsec add macsec0 tx sa 0 xpn 1 salt 0102030405060708090a0b0c ssci 1 on key 01000000000000000000000000000000 81818181818181818181818181818181" $MACSEC_SHOW 0] \
+        [list macsec_xpn_txsa_pn32 4 $PRE_MACSEC_XPN "ip macsec add macsec0 tx sa 0 pn 1 salt 0102030405060708090a0b0c ssci 1 key 01000000000000000000000000000000 81818181818181818181818181818181" {} 2] \
+        [list macsec_offload_off 4 $PRE_MACSEC "ip macsec offload macsec0 off" $MACSEC_SHOW 0] \
+        [list macsec_offload_mac 4 $PRE_MACSEC "ip macsec offload macsec0 mac" {} 2]
 
     ###########################################################################
     # pre_step <ns> <subdir> <step> - 1 if the step was taken, else 0.

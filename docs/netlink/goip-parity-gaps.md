@@ -153,10 +153,10 @@ These surfaces have no netlink message to capture, so they are out of scope for 
 | `NETLINK_XFRM` | 22 `XFRM_MSG_*` | |
 
 **What was measured:**
-- **Pcaps:** 1010 committed DLT_NETLINK (253) pcaps under `pkg/` (713 when the plan was written), counted by `(protocol, nlmsg_type)`. For genl, the count is by `(family name, cmd)`, with names resolved from each pcap's own `CTRL_CMD_NEWFAMILY` replies.
+- **Pcaps:** 1055 committed DLT_NETLINK (253) pcaps under `pkg/` (713 when the plan was written), counted by `(protocol, nlmsg_type)`. For genl, the count is by `(family name, cmd)`, with names resolved from each pcap's own `CTRL_CMD_NEWFAMILY` replies.
 - **Table tests and benchmarks:** the parsers' `Test*` and `Benchmark*` functions.
 
-**Measured 2026-10-19,** again at the C1 close (DOC004), and the pcap total and genl rows at C2-T01 (V044), C2-T02 (V049), C2-T03 (V054), C2-T04 (V059), C2-T05 (V064), C2-T06 (V069) and C2-T07 (V074). Re-measure with [the commands below](#how-to-re-measure).
+**Measured 2026-10-19,** again at the C1 close (DOC004), and the pcap total and genl rows at C2-T01 (V044), C2-T02 (V049), C2-T03 (V054), C2-T04 (V059), C2-T05 (V064), C2-T06 (V069), C2-T07 (V074) and C2-T08 (V079), and in full at the C2 close (DOC005). Re-measure with [the commands below](#how-to-re-measure).
 
 ### rtnetlink
 
@@ -195,7 +195,7 @@ msgs/pcaps means messages found, over the number of pcaps they appear in. Every 
 | `nhmsg` (bucket) | NEWNEXTHOPBUCKET (116), GETNEXTHOPBUCKET (118) | 1025 / 2, 2 / 2 (C1-T02) | **none** | `TestRtnlWriteCorpusVerbs`, `TestRtnlWriteCorpusShapes` (types and datagrams only) | none |
 | | DELNEXTHOPBUCKET (117) | **0**: the kernel registers no handler for it, and `ip` never sends it | none | none | none |
 | `prefixmsg` | NEWPREFIX (52) | 3 / 3 (C1-T04) | **none** | `TestRtnlMonitorCorpus` reads `prefixmsg` raw | none |
-| `nlmsgerr` | ERROR (2), DONE (3) | 401 / 168, 1051 / 514 | `ParseNlMsgErr`, `xtcpnl_nlmsgerr.go:54` | `TestParseNlMsgErr`, `xtcpnl_nlmsgerr_test.go:44` | none |
+| `nlmsgerr` | ERROR (2), DONE (3) | 401 / 168, 1051 / 514; over generic netlink 733 / 240, 113 / 105 (C2) | `ParseNlMsgErr`, `xtcpnl_nlmsgerr.go:54` | `TestParseNlMsgErr`, `xtcpnl_nlmsgerr_test.go:44` | none |
 | events | the 8 NEW/DEL LINK/ADDR/ROUTE/NEIGH types | (as above) | `ParseRtnetlinkEvent`, `xtcpnl_rtnetlink_events.go:148` | `TestParseRtnetlinkEvent`, `xtcpnl_rtnetlink_events_test.go:243` | none |
 
 The capture also holds `RTM_GETMULTICAST` (58: 13 / 3) and `RTM_GETANYCAST` (62: 4 / 2). `ip` 7.1.0 sends neither: they are the dedicated multicast and anycast dump rows in `link-write/addr-mcdump/mc_any/`, which back `IFA_MULTICAST`/`IFA_ANYCAST` decoding. They will also cover `maddress` at the 7.2 pin bump.
@@ -204,7 +204,7 @@ The capture also holds `RTM_GETMULTICAST` (58: 13 / 3) and `RTM_GETANYCAST` (62:
 
 | family | commands in the universe | in pcaps | parser | table test | benchmark |
 |---|---|---|---|---|---|
-| nlctrl | 3 | NEWFAMILY 608 / 329, GETFAMILY 608 / 329 | `ParseGenericNetlinkFamily` | `TestGenericNetlinkFamilyBoundaries`, `xtcpnl_ethtool_test.go:215` | none |
+| nlctrl | 3 | NEWFAMILY 653 / 374, GETFAMILY 653 / 374 | `ParseGenericNetlinkFamily` | `TestGenericNetlinkFamilyBoundaries`, `xtcpnl_ethtool_test.go:215` | none |
 | tcp_metrics | 2 | GET 50 / 15, DEL 8 / 6 (C2-T01) | none | `TestGenlTcpMetricsCorpus` reads the attributes raw | none |
 | seg6 | 4 | SETHMAC 6 / 6, DUMPHMAC 14 / 7, SET_TUNSRC 1 / 1, GET_TUNSRC 4 / 2 (C2-T02) | none | `TestGenlSeg6Corpus` reads the attributes raw | none |
 | ioam6 | 7 | ADD_NAMESPACE 4 / 4 (the walker's command 1 counts 5 / 5, with the TRACE event, whose number is also 1), DEL_NAMESPACE 3 / 3, DUMP_NAMESPACES 14 / 8, ADD_SCHEMA 3 / 3, DEL_SCHEMA 3 / 3, DUMP_SCHEMAS 12 / 7, NS_SET_SCHEMA 3 / 3; event TRACE 1 / 1 (C2-T03) | none | `TestGenlIoam6Corpus` reads the attributes raw | none |
@@ -212,7 +212,7 @@ The capture also holds `RTM_GETMULTICAST` (58: 13 / 3) and `RTM_GETANYCAST` (62:
 | fou | 3 | ADD 11 / 11, DEL 5 / 5, GET 21 / 11 (C2-T05; every GET a dump) | none | `TestGenlFouCorpus` reads the attributes raw | none |
 | ila | 3 | ADD 7 / 7, DEL 4 / 4, GET 23 / 12 (C2-T06; every GET a dump) | none | `TestGenlIlaCorpus` reads the attributes raw | none |
 | l2tp | 6 | TUNNEL_CREATE 5 / 5, TUNNEL_DELETE 3 / 3, TUNNEL_GET 16 / 8, SESSION_CREATE 5 / 5, SESSION_DELETE 2 / 2, SESSION_GET 15 / 8 (C2-T07; every GET a dump) | none | `TestGenlL2tpCorpus` reads the attributes raw | none |
-| macsec | 11 | **0** | none | none | none |
+| macsec | 11 | GET_TXSC 33 / 16, ADD_RXSC 3 / 3, DEL_RXSC 2 / 2, UPD_RXSC 1 / 1, ADD_TXSA 7 / 7, DEL_TXSA 3 / 3, UPD_TXSA 1 / 1, ADD_RXSA 2 / 2, DEL_RXSA 2 / 2, UPD_RXSA 1 / 1, UPD_OFFLOAD 2 / 2 (C2-T08; every GET a dump) | none | `TestGenlMacsecCorpus` reads the attributes raw | none |
 | xfrm | 22 | **0** | none | none | none |
 
 The corpus also holds ethtool (19 commands), devlink (2) and nl80211 (7) from the link-state bundles. `ip` uses none of these families.
@@ -222,7 +222,7 @@ The corpus also holds ethtool (19 commands), devlink (2) and nl80211 (7) from th
 1. **The rtnetlink read side is in good shape.** Every body layout that a running goip object reads has captured pcaps, a parser and a table-driven test.
 2. **The capture holes were the DEL and SET types:** DELANYCAST, DELRULE, SETNEIGHTBL, DELADDRLABEL, DELNSID, SETSTATS and DELNEXTHOP. Each shares a body layout with its NEW type, so all but DELNSID already had a parser (NSID has none; point 3). The bytes were missing because no capture row sent them. C1-T01 added those rows (`link-write/rtnl/`), and each of the seven is now captured and checked by `TestRtnlWriteCorpus`.
 3. **Four rtnetlink layouts have no parser:** NSID, nexthop bucket, LINKPROP and prefix. Since C1 closed, all four have bytes: NSID 210 NEWNSID messages, the nexthop bucket and LINKPROP from C1-T02 (a 1024-bucket dump, and altname add and del), and prefix from C1-T04 (an RA's NEWPREFIX, 3 messages). The tests read them raw; the parsers are P1.
-4. **Generic netlink beyond nlctrl, and all of XFRM, have nothing:** no pcaps, no parsers, no tests. When this was measured the blocker was in the harness: `xtcp2-nlcap` kept only `NETLINK_ROUTE` (`ether[14:2]==0`), although nlmon taps GENERIC and XFRM. C0 removed it. A row now names its protocol (`--proto`, C0-T01), and the modules those families need are loaded late (C0-T02). What is missing is the capture rows (C2, C3). C2-T01 added the first: tcp_metrics' GET and DEL are captured (`link-write/genl/`), with no parser yet (P2). C2-T02 added sr's four SEG6 commands, C2-T03 ioam's seven IOAM6 commands, C2-T04 the seven mptcp_pm commands `ip` sends, C2-T05 fou's three, C2-T06 ila's three, and C2-T07 the six l2tp commands `ip` sends.
+4. **Generic netlink beyond nlctrl had nothing, and XFRM still has nothing:** no pcaps, no parsers, no tests. When this was measured the blocker was in the harness: `xtcp2-nlcap` kept only `NETLINK_ROUTE` (`ether[14:2]==0`), although nlmon taps GENERIC and XFRM. C0 removed it. A row now names its protocol (`--proto`, C0-T01), and the modules those families need are loaded late (C0-T02). What is missing is the capture rows (C2, C3). C2-T01 added the first: tcp_metrics' GET and DEL are captured (`link-write/genl/`), with no parser yet (P2). C2-T02 added sr's four SEG6 commands, C2-T03 ioam's seven IOAM6 commands, C2-T04 the seven mptcp_pm commands `ip` sends, C2-T05 fou's three, C2-T06 ila's three, C2-T07 the six l2tp commands `ip` sends, and C2-T08 macsec's eleven. Since C2 closed, every genl family in the universe has captured bytes and a test that reads them raw, and none has a parser (P2). XFRM is C3.
 5. **Benchmarks:** 1 of the 15 rtnetlink and genl parsers in the tables above (`ParseNewAddr`) has a parse benchmark. The rest of `BenchmarkDeserialize*` covers inet_diag only.
 
 ### How to re-measure
@@ -975,6 +975,43 @@ The order goes from built-in families to the ones that need modules or more setu
 | corner: across every row | no NOOP, no MODIFY, and no GET that is not a dump |
 
 **Done when:** the gates pass, and l2tp's row in the assessment has no **0**.
+
+#### C2-T08 macsec
+
+**Deliver** (as built):
+- **The rows (32)** are in `genl-write-corpus.exp` after l2tp's, in `link-write/genl/macsec_*`, every pcap `--proto generic`. `macsec0` is on `d0` with SCI `0102030405060001` (given, so no byte depends on `d0`'s random address) and the default GCM-AES-128 cipher; tx SA 0 and rx SA 0 (on channel `0a0b0c0d0e0f0001`) have packet number 1, a 16-byte key id and a 128-bit key:
+  - `show` with no SecY, of two (`macsec1`, SCI `…0002`), and `show macsec1`;
+  - tx SA `add` on and off, `set` to packet number 50 off, `del` of an SA that is off; each read back with `show`;
+  - rx channel `add` by SCI and by `port 1 address 02:00:00:00:00:01`, `set` off, `del`; each read back;
+  - rx SA `add`, `set` to packet number 60 off, `del` of an SA that is off; each read back;
+  - an XPN SecY's tx SA `add` with `xpn 1`, a salt and an SSCI, read back;
+  - `offload off`, read back;
+  - eleven refused by the kernel: an SA number already in use, and deleting an active tx or rx SA (`EBUSY`); a channel the kernel already has (`EEXIST`); a 256-bit key on a 128-bit SecY, and a 4-byte packet number on an XPN SecY (`EINVAL`); a device that is not macsec, a delete of a missing tx SA or channel, and an rx SA with no channel (`ENODEV`); and `offload mac` on a device that cannot (`EOPNOTSUPP`); each rc 2;
+  - five refused by `ip` itself, after the family lookup with nothing more sent to macsec: an unknown dev, an SA with no key, one with no packet number, and a `set` with a key (exit 1, `check_sa_args` or the dev lookup), and SA number 4 (`invarg`, 255).
+- **`show DEV` is a dump.** `ip/ipmacsec.c` dumps every SecY and prints the one asked for, so `show macsec1` gets both back.
+- **What the kernel returns:** the key id, never the key; the SSCI, never the salt; ten counters per channel, five per rx SA, two per tx SA, four for the tx channel and eight for the SecY. A new SecY reads back operational before it has any SA, and a `set` of its encoding SA to off makes it not operational.
+- **The state** before a row comes from plain `ip link add … type macsec` and `ip macsec` pre steps, over the tcp_metrics rows' addresses on `d0`. The family is in the `macsec` module, which late setup loads before any genl row.
+- **Not captured:** an offload mode change that the kernel accepts, which needs a device with MACsec offload. Every one of the eleven commands is captured. macsec has no multicast group, so there are no notifications to miss. See the [decision log](goip-parity-gaps-status.md#decision-log).
+
+**Tests:**
+
+`genl-write-corpus-test.exp` (now 224 rows) gains the macsec slugs, floors and statuses, the pre steps, the readbacks, and rows pinning the SCIs, keys and arguments each row is built on. `TestGenlMacsecCorpus` (`pkg/xtcpnl`, on the committed pcaps, 55 rows), among them:
+
+| description | expected |
+|---|---|
+| positive: every row resolves the family inside its pcap | a NEWFAMILY named `macsec` |
+| positive: `show` | a GET_TXSC dump; per SecY, IFINDEX, OFFLOAD (type 0), SECY (SCI, cipher `0x80020001000001`, ICV length 16, oper, protect, replay, validate 2, encrypt, inc_sci, es, scb, encoding SA), TXSC_STATS (4), SECY_STATS (8), TXSA_LIST and RXSC_LIST, in ifindex order |
+| positive: tx SA `add` | an ADD_TXSA with IFINDEX and SA_CONFIG (AN 0, PN 1, KEYID, KEY, ACTIVE 1), ACKed; read back with the key id and no key |
+| corner: `set` of the encoding SA to off | an UPD_TXSA with AN, PN 50 and ACTIVE 0, and no key; the SecY then reads back with OPER 0 |
+| corner: `port 1 address 02:00:00:00:00:01` | an ADD_RXSC with SCI `0200000000010001`: the address, then the port in network order |
+| positive: rx SA `add` | an ADD_RXSA with RXSC_CONFIG (SCI) and SA_CONFIG; read back under its channel, with five counters |
+| positive: the XPN tx SA | an 8-byte PN, SALT and SSCI sent; the readback has the 8-byte PN and SSCI, and no salt |
+| corner: a 4-byte PN on an XPN SecY | sent with no salt or SSCI, which `ip` sends only with `xpn`; `EINVAL`, rc 2 |
+| negative: deleting an active SA | `EBUSY`, rc 2 |
+| corner: `offload off` on a SecY already off | an UPD_OFFLOAD with OFFLOAD (type 0), ACKed |
+| corner: across every pcap | no attribute, or attribute set, outside `linux/if_macsec.h`'s |
+
+**Done when:** the gates pass, and macsec's row in the assessment has no **0**.
 
 ### C3 — XFRM
 
