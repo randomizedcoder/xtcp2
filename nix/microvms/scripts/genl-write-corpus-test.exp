@@ -15,8 +15,8 @@
 # there has to disagree with something that was not edited with it.
 #
 # What this does NOT cover: what the guest runs or what the kernel answers.
-# TestGenlTcpMetricsCorpus in pkg/xtcpnl pins that in the committed
-# fixtures.
+# TestGenlTcpMetricsCorpus and TestGenlSeg6Corpus in pkg/xtcpnl pin that
+# in the committed fixtures.
 #
 # Every row has a name, a description that starts with its class
 # (positive/negative/boundary/corner) and an expected value.
@@ -95,6 +95,9 @@ set design_rows {
     tcpm_show tcpm_show_empty tcpm_show_v6 tcpm_get tcpm_get_src tcpm_get_v6
     tcpm_get_missing tcpm_delete tcpm_delete_src tcpm_delete_missing
     tcpm_flush_all tcpm_flush_prefix tcpm_flush_v6 tcpm_flush_empty
+    sr_hmac_show_empty sr_hmac_set sr_hmac_set_sha1 sr_hmac_replace
+    sr_hmac_delete sr_hmac_delete_missing sr_hmac_set_long sr_hmac_show
+    sr_hmac_show_64 sr_tunsrc_show sr_tunsrc_set
 }
 
 proc bad_arity {} {
@@ -130,11 +133,15 @@ proc refused_rows {} {
     return $out
 }
 
-# not_tcp_metrics - the rows whose command is not `ip [-6] tcp_metrics`.
-proc not_tcp_metrics {} {
+# wrong_object - the rows whose command is not their family's `ip` object:
+# `ip [-6] tcp_metrics` for tcpm_, `ip sr` for sr_, which an hmac set
+# runs under setsid with its secret piped in.
+proc wrong_object {} {
     set out {}
     foreach r $::R {
-        if {![regexp {^ip (-6 )?tcp_metrics } [lindex $r 3]]} {
+        set re [dict get {tcpm {^ip (-6 )?tcp_metrics } sr {^(echo( \S+)? \| setsid -w )?ip sr }} \
+            [lindex [split [lindex $r 0] _] 0]]
+        if {![regexp $re [lindex $r 3]]} {
             lappend out [lindex $r 0]
         }
     }
@@ -158,12 +165,14 @@ check arity "negative: every row is {slug floor pre command readbacks rc}" \
     {bad_arity} {}
 check unique_slugs "negative: no slug names two rows" \
     {dup_slugs} {}
-check refused_statuses "positive: the get and delete of a missing entry expect rc 2, ESRCH" \
-    {refused_rows} {tcpm_get_missing 2 tcpm_delete_missing 2}
-check row_count "boundary: C2-T01's 14 rows" \
-    {llength $R} 14
-check all_tcp_metrics "negative: every command is ip tcp_metrics" \
-    {not_tcp_metrics} {}
+check refused_statuses "positive: the missing tcp_metrics entry is rc 2; the refused hmac sets rc 1" \
+    {refused_rows} {tcpm_get_missing 2 tcpm_delete_missing 2 sr_hmac_delete_missing 1 sr_hmac_set_long 1}
+check row_count "boundary: C2-T01's 14 rows and C2-T02's 11" \
+    {llength $R} 25
+check c2t01_rows_first "corner: C2-T02's rows come after C2-T01's, which keep their order" \
+    {lindex [column 0] 13} tcpm_flush_empty
+check right_object "negative: every command is its family's ip object" \
+    {wrong_object} {}
 check no_quotes "corner: no command holds a single quote" \
     {quoted} {}
 check src_first "corner: src comes before address, since ip skips the word after an address" \
@@ -174,7 +183,7 @@ check src_first "corner: src comes before address, since ip skips the word after
 # dumps, deletes and dumps again 6
 ###############################################################################
 check floors "positive: every floor, in run order" \
-    {column 1} {4 4 4 4 4 4 4 4 4 4 4 6 6 4}
+    {column 1} {4 4 4 4 4 4 4 4 4 4 4 6 6 4 4 4 4 4 4 4 4 4 4 4 4}
 check floor_flush_all "corner: flush all is one DEL with no address, so 4" \
     {field tcpm_flush_all 1} 4
 check floor_flush_empty "boundary: a flush that matches nothing stops after its dump" \
@@ -207,6 +216,32 @@ check pre_tcpm_extends "corner: PRE_TCPM is PRE_ADDRS and the two connections" \
     {expr {[lrange $genlcorpus::PRE_TCPM 0 end-2] eq [lrange $genlcorpus::PRE_ADDRS 0 end]}} 1
 check pre_nodad "corner: the IPv6 addresses skip DAD, so a connection can use them at once" \
     {llength [lsearch -all -glob $genlcorpus::PRE_ADDRS {-6 addr add * nodad}]} 2
+foreach {name description slug expected} {
+    pre_hmac_replace "positive: replace starts from key 1"            sr_hmac_replace        {{hmac 1 sha256 s3cret}}
+    pre_hmac_delete  "positive: delete starts from keys 1 and 2"      sr_hmac_delete         {{hmac 1 sha256 s3cret} {hmac 2 sha1 0ther}}
+    pre_hmac_show    "positive: and so does the show of two keys"     sr_hmac_show           {{hmac 1 sha256 s3cret} {hmac 2 sha1 0ther}}
+    pre_hmac_missing "negative: deleting key 9 starts from no key"    sr_hmac_delete_missing {}
+    pre_tunsrc       "boundary: tunsrc show reads the namespace's default" sr_tunsrc_show    {}
+} {
+    check $name $description [list lrange [field $slug 2] 0 end] $expected
+}
+
+###############################################################################
+# 3a. the hmac set commands
+###############################################################################
+foreach {name description args expected} {
+    hmac_set_cmd    "positive: the secret is piped to ip under setsid"  {1 sha256 s3cret} {echo s3cret | setsid -w ip sr hmac set 1 sha256}
+    hmac_delete_cmd "boundary: a blank secret is a bare echo, which deletes" {1 sha256 ""}   {echo | setsid -w ip sr hmac set 1 sha256}
+} {
+    check $name $description [list genlcorpus::hmac_set {*}$args] $expected
+}
+check hmac_long "boundary: the long secret is one past SEG6_HMAC_SECRET_LEN (64)" \
+    {string length $genlcorpus::LONG_SECRET} 65
+check hmac_max "boundary: show_64's key is exactly SEG6_HMAC_SECRET_LEN, one past what ip prints" \
+    {lmap step [field sr_hmac_show_64 2] {list [lrange $step 0 2] [string length [lindex $step 3]]}} {{{hmac 4 sha256} 64}}
+check hmac_rows_use_set "corner: every hmac write row runs through hmac_set" \
+    {lmap slug {sr_hmac_set sr_hmac_set_sha1 sr_hmac_replace sr_hmac_delete sr_hmac_delete_missing sr_hmac_set_long} {
+        regexp {^echo( \S+)? \| setsid -w ip sr hmac set [0-9]+ sha(1|256)$} [field $slug 3]}} {1 1 1 1 1 1}
 
 ###############################################################################
 # 4. readbacks
@@ -221,6 +256,12 @@ foreach {name description slug expected} {
     rb_get          "corner: and so is a get"                         tcpm_get            {}
     rb_missing      "negative: a refused delete has nothing to read back" tcpm_delete_missing {}
     rb_flush_empty  "negative: nor a flush with nothing to flush"     tcpm_flush_empty    {}
+    rb_hmac_set     "positive: an hmac set reads the keys back"       sr_hmac_set         hmac
+    rb_hmac_replace "positive: and so does a replace"                 sr_hmac_replace     hmac
+    rb_hmac_delete  "positive: and a delete"                          sr_hmac_delete      hmac
+    rb_hmac_long    "negative: a refused set has nothing to read back" sr_hmac_set_long   {}
+    rb_tunsrc_set   "positive: tunsrc set reads the source back"      sr_tunsrc_set       tunsrc
+    rb_tunsrc_show  "corner: a get is its own readback"               sr_tunsrc_show      {}
 } {
     check $name $description [list readback_names $slug] $expected
 }
@@ -270,6 +311,19 @@ check pre_tcp_short "negative: a tcp step without a client raises" \
     {genlcorpus::pre_step lacpa genl/x {tcp 192.0.2.1}} ERROR
 check pre_tcp_long "boundary: and so does one with a port beside it" \
     {genlcorpus::pre_step lacpa genl/x {tcp 192.0.2.1 192.0.2.2 7171}} ERROR
+set ::calls {}
+check pre_hmac_call "positive: an hmac step is one xtcp2-nlcap hmac in the row's namespace" \
+    {genlcorpus::pre_step lacpa genl/x {hmac 1 sha256 s3cret}; set ::calls} \
+    {{xtcp2-nlcap hmac lacpa genl/x 1 sha256 s3cret}}
+set ::refuse {^xtcp2-nlcap hmac }
+nltopo::reset
+check pre_hmac_refused "negative: a refused hmac set is a refused step" \
+    {list [genlcorpus::pre_step lacpa genl/x {hmac 1 sha256 s3cret}] [nltopo::refused_steps]} \
+    {0 {{ip -n lacpa sr hmac set 1 sha256}}}
+set ::refuse ""
+nltopo::reset
+check pre_hmac_short "negative: an hmac step without a secret raises" \
+    {genlcorpus::pre_step lacpa genl/x {hmac 1 sha256}} ERROR
 
 ###############################################################################
 # 6. rc_problem

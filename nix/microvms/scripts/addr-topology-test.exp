@@ -756,6 +756,26 @@ proc tcp_topology {} {
 tcheck "corner: each connection is a topology line, the failure with its client and server" \
     {tcp_topology} {{ok    [-] tcp 127.0.0.1 -> 127.0.0.1:7171 closed} {FAIL  [-] tcp 192.0.2.9 -> 127.0.0.1}}
 
+# `xtcp2-nlcap hmac` (C2-T02). The sandbox has no CAP_NET_ADMIN, so the set is
+# refused; that it is refused by the kernel shows getpass took the secret
+# from stdin, with no terminal to wait on.
+foreach {description cmd want_rc want_re} [list \
+    "corner: the set gets past getpass and the kernel refuses it, rc 1" \
+        "xtcp2-nlcap hmac - hmac 1 sha256 s3cret" 1 {^NLCAP_HMAC_FAIL 1 sha256$} \
+    "negative: an hmac step without a secret is a usage error" \
+        "xtcp2-nlcap hmac - hmac 1 sha256" 2 {NLCAP_ERR usage: hmac} \
+] {
+    ccheck $description $cmd $want_rc $want_re
+}
+proc hmac_topology {} {
+    set f [open $::out_dir/hmac/topology]
+    set t [string trim [read $f]]
+    close $f
+    return $t
+}
+tcheck "corner: the topology line holds getpass's prompt on stderr and the kernel's answer" \
+    {regexp {^FAIL  \[-\] sr hmac set 1 sha256: Enter secret for HMAC key ID \(blank to delete\): RTNETLINK answers: } [hmac_topology]} 1
+
 # late_setup against the recorder: the modules call reaches the real helper,
 # where it fails as above; the sysctl and note are recorded.
 set ::calls {}

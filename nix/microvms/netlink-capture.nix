@@ -1166,6 +1166,32 @@ pkgs.writeShellApplication {
       return 1
     }
 
+    # hmac <ns> <subdir> <keyid> <algo> <secret>
+    #
+    # Set one SRv6 HMAC key in <ns>, recorded in $OUT/<subdir>/topology in
+    # topo's format; a pre step, as tcp is. `ip sr hmac set` reads the secret
+    # with getpass(3), which reads /dev/tty when there is a controlling
+    # terminal, and in the guest that is the console the driver types into.
+    # setsid gives `ip` no terminal, so getpass reads the secret from stdin.
+    # `-` is the root namespace.
+    cmd_hmac() {
+      [ $# -eq 5 ] || die "usage: hmac <ns> <subdir> <keyid> <algo> <secret>"
+      local ns=$1 subdir=$2 keyid=$3 algo=$4 secret=$5 out
+      mkdir -p "$OUT/$subdir"
+      local ipns=()
+      if [ "$ns" != "-" ]; then
+        ipns=(-n "$ns")
+      fi
+      if out=$(printf '%s\n' "$secret" | setsid -w ip "''${ipns[@]}" sr hmac set "$keyid" "$algo" 2>&1); then
+        printf 'ok    [%s] sr hmac set %s %s\n' "$ns" "$keyid" "$algo" >>"$OUT/$subdir/topology"
+        echo "NLCAP_HMAC_OK $keyid $algo"
+        return 0
+      fi
+      printf 'FAIL  [%s] sr hmac set %s %s: %s\n' "$ns" "$keyid" "$algo" "$out" >>"$OUT/$subdir/topology"
+      echo "NLCAP_HMAC_FAIL $keyid $algo"
+      return 1
+    }
+
     # modules <subdir> <module>...
     #
     # Load each module in turn and record what was loaded in
@@ -1656,7 +1682,7 @@ pkgs.writeShellApplication {
     }
 
     if [ $# -lt 1 ]; then
-      die "usage: xtcp2-nlcap <ns-add|ns-del|topo|cap|capio|write|side|wait-lacp|wait-sysfs|wait-addr-flag|sysctl|tcp|modules|note|wait-churn|strace|strace-monitor|wait-rdma-port|rdma-hold|rdma-hold-wait|rdma-hold-stop|rdma-user-cqn|mroute-start|mroute-stop|dir|inventory|pack|tcpdump-drops|filter> [--proto route|generic|xfrm] ..."
+      die "usage: xtcp2-nlcap <ns-add|ns-del|topo|cap|capio|write|side|wait-lacp|wait-sysfs|wait-addr-flag|sysctl|tcp|hmac|modules|note|wait-churn|strace|strace-monitor|wait-rdma-port|rdma-hold|rdma-hold-wait|rdma-hold-stop|rdma-user-cqn|mroute-start|mroute-stop|dir|inventory|pack|tcpdump-drops|filter> [--proto route|generic|xfrm] ..."
     fi
 
     sub=$1
@@ -1686,6 +1712,7 @@ pkgs.writeShellApplication {
       wait-addr-flag) cmd_wait_addr_flag "$@" ;;
       sysctl)    cmd_sysctl "$@" ;;
       tcp)       cmd_tcp "$@" ;;
+      hmac)      cmd_hmac "$@" ;;
       modules)   cmd_modules "$@" ;;
       note)      cmd_note "$@" ;;
       wait-churn) cmd_wait_churn "$@" ;;

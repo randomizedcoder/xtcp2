@@ -153,10 +153,10 @@ These surfaces have no netlink message to capture, so they are out of scope for 
 | `NETLINK_XFRM` | 22 `XFRM_MSG_*` | |
 
 **What was measured:**
-- **Pcaps:** 830 committed DLT_NETLINK (253) pcaps under `pkg/` (713 when the plan was written), counted by `(protocol, nlmsg_type)`. For genl, the count is by `(family name, cmd)`, with names resolved from each pcap's own `CTRL_CMD_NEWFAMILY` replies.
+- **Pcaps:** 846 committed DLT_NETLINK (253) pcaps under `pkg/` (713 when the plan was written), counted by `(protocol, nlmsg_type)`. For genl, the count is by `(family name, cmd)`, with names resolved from each pcap's own `CTRL_CMD_NEWFAMILY` replies.
 - **Table tests and benchmarks:** the parsers' `Test*` and `Benchmark*` functions.
 
-**Measured 2026-10-19,** again at the C1 close (DOC004), and the pcap total and genl rows at C2-T01 (V044). Re-measure with [the commands below](#how-to-re-measure).
+**Measured 2026-10-19,** again at the C1 close (DOC004), and the pcap total and genl rows at C2-T01 (V044) and C2-T02 (V049). Re-measure with [the commands below](#how-to-re-measure).
 
 ### rtnetlink
 
@@ -204,9 +204,10 @@ The capture also holds `RTM_GETMULTICAST` (58: 13 / 3) and `RTM_GETANYCAST` (62:
 
 | family | commands in the universe | in pcaps | parser | table test | benchmark |
 |---|---|---|---|---|---|
-| nlctrl | 3 | NEWFAMILY 421 / 149, GETFAMILY 421 / 149 | `ParseGenericNetlinkFamily` | `TestGenericNetlinkFamilyBoundaries`, `xtcpnl_ethtool_test.go:215` | none |
+| nlctrl | 3 | NEWFAMILY 437 / 165, GETFAMILY 437 / 165 | `ParseGenericNetlinkFamily` | `TestGenericNetlinkFamilyBoundaries`, `xtcpnl_ethtool_test.go:215` | none |
 | tcp_metrics | 2 | GET 50 / 15, DEL 8 / 6 (C2-T01) | none | `TestGenlTcpMetricsCorpus` reads the attributes raw | none |
-| fou, ila, l2tp, macsec, seg6, mptcp_pm, ioam6 | 41 | **0** | none | none | none |
+| seg6 | 4 | SETHMAC 6 / 6, DUMPHMAC 14 / 7, SET_TUNSRC 1 / 1, GET_TUNSRC 4 / 2 (C2-T02) | none | `TestGenlSeg6Corpus` reads the attributes raw | none |
+| fou, ila, l2tp, macsec, mptcp_pm, ioam6 | 37 | **0** | none | none | none |
 | xfrm | 22 | **0** | none | none | none |
 
 The corpus also holds ethtool (19 commands), devlink (2) and nl80211 (7) from the link-state bundles. `ip` uses none of these families.
@@ -216,7 +217,7 @@ The corpus also holds ethtool (19 commands), devlink (2) and nl80211 (7) from th
 1. **The rtnetlink read side is in good shape.** Every body layout that a running goip object reads has captured pcaps, a parser and a table-driven test.
 2. **The capture holes were the DEL and SET types:** DELANYCAST, DELRULE, SETNEIGHTBL, DELADDRLABEL, DELNSID, SETSTATS and DELNEXTHOP. Each shares a body layout with its NEW type, so all but DELNSID already had a parser (NSID has none; point 3). The bytes were missing because no capture row sent them. C1-T01 added those rows (`link-write/rtnl/`), and each of the seven is now captured and checked by `TestRtnlWriteCorpus`.
 3. **Four rtnetlink layouts have no parser:** NSID, nexthop bucket, LINKPROP and prefix. Since C1 closed, all four have bytes: NSID 210 NEWNSID messages, the nexthop bucket and LINKPROP from C1-T02 (a 1024-bucket dump, and altname add and del), and prefix from C1-T04 (an RA's NEWPREFIX, 3 messages). The tests read them raw; the parsers are P1.
-4. **Generic netlink beyond nlctrl, and all of XFRM, have nothing:** no pcaps, no parsers, no tests. When this was measured the blocker was in the harness: `xtcp2-nlcap` kept only `NETLINK_ROUTE` (`ether[14:2]==0`), although nlmon taps GENERIC and XFRM. C0 removed it. A row now names its protocol (`--proto`, C0-T01), and the modules those families need are loaded late (C0-T02). What is missing is the capture rows (C2, C3). C2-T01 added the first: tcp_metrics' GET and DEL are captured (`link-write/genl/`), with no parser yet (P2).
+4. **Generic netlink beyond nlctrl, and all of XFRM, have nothing:** no pcaps, no parsers, no tests. When this was measured the blocker was in the harness: `xtcp2-nlcap` kept only `NETLINK_ROUTE` (`ether[14:2]==0`), although nlmon taps GENERIC and XFRM. C0 removed it. A row now names its protocol (`--proto`, C0-T01), and the modules those families need are loaded late (C0-T02). What is missing is the capture rows (C2, C3). C2-T01 added the first: tcp_metrics' GET and DEL are captured (`link-write/genl/`), with no parser yet (P2). C2-T02 added sr's four SEG6 commands.
 5. **Benchmarks:** 1 of the 15 rtnetlink and genl parsers in the tables above (`ParseNewAddr`) has a parse benchmark. The rest of `BenchmarkDeserialize*` covers inet_diag only.
 
 ### How to re-measure
@@ -759,6 +760,39 @@ The order goes from built-in families to the ones that need modules or more setu
 | boundary: a flush that matches nothing | its dump alone; `Nothing to flush.` |
 
 **Done when:** the gates pass, and tcp_metrics' row in the assessment has no **0**.
+
+#### C2-T02 sr
+
+**Deliver** (as built):
+- **The rows (11)** are in `genl-write-corpus.exp` after tcp_metrics', in `link-write/genl/sr_*`, every pcap `--proto generic`:
+  - `sr hmac show` with no key, two keys, and one 64-byte secret: DUMPHMAC dumps;
+  - `sr hmac set` of a sha256 key and a sha1 key, of an existing key (a replace), and with a blank secret (a delete), each read back with `show`: SETHMACs with an ACK;
+  - two the kernel refuses: a blank secret for a key that doesn't exist (`ENOENT`), and a 65-byte secret (`EINVAL`), one past `SEG6_HMAC_SECRET_LEN`;
+  - `sr tunsrc show`, a GET_TUNSRC, and `sr tunsrc set 2001:db8::1`, a SET_TUNSRC read back with `show`.
+- **The secret comes from stdin.** `ip sr hmac set` reads it with `getpass(3)`, which opens `/dev/tty` when there is one. Each set row pipes the secret into `setsid -w ip ...`, which leaves `ip` no controlling terminal, so `getpass` reads stdin and prints its prompt on stderr (`ip.err`).
+- **Keys made first** come from a new pre step, `{hmac KEYID ALGO SECRET}`, which calls a new `xtcp2-nlcap hmac <ns> <subdir> <keyid> <algo> <secret>` the same way. It records the set in the row's `topology`; a refused set is a refused step.
+- No module or sysctl is needed: the guest kernel has `IPV6_SEG6_HMAC=y`, and the family is per namespace.
+
+**Tests:**
+
+`genl-write-corpus-test.exp` (61 rows) gains the sr slugs, floors and statuses, the `hmac` pre step, the `setsid` pipe and the secret lengths. Three rows in `addr-topology-test.exp` run `xtcp2-nlcap hmac` in the sandbox, where the kernel refuses the set.
+
+`TestGenlSeg6Corpus` (`pkg/xtcpnl`, on the committed pcaps, 21 rows), among them:
+
+| description | expected |
+|---|---|
+| positive: every row resolves the family inside its pcap | a NEWFAMILY named `SEG6` |
+| positive: `hmac set 1 sha256` | a SETHMAC with an ACK: key 1, length 6, algorithm 2, the secret; answered with an ACK, and the dump returns it |
+| positive: a set of an existing key | replaces it |
+| positive: a blank secret | `SECRETLEN` 0 and no `SECRET`, which deletes the key |
+| negative: deleting a key that doesn't exist | `ENOENT`, rc 1 |
+| negative: a 65-byte secret | `EINVAL`, rc 1; the request still carries all 65 bytes |
+| boundary: with no key | the dump is empty |
+| boundary: a 64-byte secret | the kernel returns all 64; `ip` prints 63 and `HMAC secret length 64 > 63, truncated` on stderr |
+| boundary: a new namespace's tunnel source | `::` |
+| positive: `tunsrc set` | a SET_TUNSRC with the address, which GET_TUNSRC then returns |
+
+**Done when:** the gates pass, and seg6's row in the assessment has no **0**.
 
 ### C3 — XFRM
 

@@ -26,9 +26,11 @@
 #   readbacks  {name floor command} reads, each one capio in the same
 #              namespace straight after the command, as
 #              netlink_generic_<name>.pcap and ip_<name>
-#   rc         the exit status `ip.rc` must hold: 0, or 2 for a request the
-#              kernel refused (ip/tcp_metrics.c returns -2, and ip/ip.c
-#              exits with the negated status)
+#   rc         the exit status `ip.rc` must hold: 0, or the status `ip`
+#              exits with when the kernel refuses the request, which ip/ip.c
+#              takes from the command's negated return: 2 for tcp_metrics
+#              (ip/tcp_metrics.c returns -2), 1 for an sr write
+#              (ip/ipseg6.c returns -1)
 #
 # TCP_METRICS (C2-T01)
 #
@@ -88,26 +90,82 @@ namespace eval genlcorpus {
     ]
 
     ###########################################################################
+    # C2-T02 - sr, the SEG6 family: the HMAC keys and the tunnel source,
+    # both per namespace.
+    #
+    # `ip sr hmac set` reads its secret through getpass(3), so each set row
+    # pipes it in under `setsid -w`, which leaves `ip` no controlling
+    # terminal for getpass to read instead (see cmd_hmac in
+    # nix/microvms/netlink-capture.nix). A blank secret deletes the key. A
+    # refused set exits 1, not 2: seg6_do_cmd returns -1 for a write and -2
+    # only for a get.
+    ###########################################################################
+    variable PRE_HMAC1 {{hmac 1 sha256 s3cret}}
+    variable PRE_HMAC2 {{hmac 1 sha256 s3cret} {hmac 2 sha1 0ther}}
+    variable HMAC_SHOW {{hmac 4 {ip sr hmac show}}}
+
+    # hmac_set <keyid> <algo> <secret> - the command that sets one key, or
+    # deletes it when <secret> is "".
+    proc hmac_set {keyid algo secret} {
+        return "[string trim "echo $secret"] | setsid -w ip sr hmac set $keyid $algo"
+    }
+
+    # 65 characters, one more than SEG6_HMAC_SECRET_LEN, which the kernel
+    # refuses; and 64, which it takes but `ip sr hmac show` prints only 63
+    # of, with a warning on stderr.
+    variable LONG_SECRET [string repeat x 65]
+    variable MAX_SECRET [string repeat y 64]
+
+    lappend rows \
+        [list sr_hmac_show_empty 4 {} "ip sr hmac show" {} 0] \
+        [list sr_hmac_set 4 {} [hmac_set 1 sha256 s3cret] $HMAC_SHOW 0] \
+        [list sr_hmac_set_sha1 4 {} [hmac_set 2 sha1 0ther] $HMAC_SHOW 0] \
+        [list sr_hmac_replace 4 $PRE_HMAC1 [hmac_set 1 sha1 n3w] $HMAC_SHOW 0] \
+        [list sr_hmac_delete 4 $PRE_HMAC2 [hmac_set 1 sha256 ""] $HMAC_SHOW 0] \
+        [list sr_hmac_delete_missing 4 {} [hmac_set 9 sha256 ""] {} 1] \
+        [list sr_hmac_set_long 4 {} [hmac_set 3 sha256 $LONG_SECRET] {} 1] \
+        [list sr_hmac_show 4 $PRE_HMAC2 "ip sr hmac show" {} 0] \
+        [list sr_hmac_show_64 4 [list [list hmac 4 sha256 $MAX_SECRET]] "ip sr hmac show" {} 0] \
+        [list sr_tunsrc_show 4 {} "ip sr tunsrc show" {} 0] \
+        [list sr_tunsrc_set 4 {} "ip sr tunsrc set 2001:db8::1" {{tunsrc 4 {ip sr tunsrc show}}} 0]
+
+    ###########################################################################
     # pre_step <ns> <subdir> <step> - 1 if the step was taken, else 0.
     #
-    # `tcp SERVER CLIENT` is one connection (xtcp2-nlcap tcp); a refused one
-    # joins nltopo's refusals, so it fails the run as a refused `ip` step
-    # does. Anything else is an address-corpus step (addrcorpus::pre_step).
+    # `tcp SERVER CLIENT` is one connection (xtcp2-nlcap tcp), and
+    # `hmac KEYID ALGO SECRET` one SRv6 HMAC key (xtcp2-nlcap hmac); a
+    # refused one joins nltopo's refusals, so it fails the run as a refused
+    # `ip` step does. Anything else is an address-corpus step
+    # (addrcorpus::pre_step).
     ###########################################################################
     proc pre_step {ns subdir step} {
-        if {[lindex $step 0] ne "tcp"} {
-            return [addrcorpus::pre_step $ns $subdir $step]
+        switch -- [lindex $step 0] {
+            tcp {
+                if {[llength $step] != 3} {
+                    error "genlcorpus: a tcp step is {tcp SERVER CLIENT}: $step"
+                }
+                lassign [lrange $step 1 2] server client
+                set cmd "xtcp2-nlcap tcp $ns $subdir $server $client"
+                set refusal "xtcp2-nl-tcp -n $ns $server $client"
+            }
+            hmac {
+                if {[llength $step] != 4} {
+                    error "genlcorpus: an hmac step is {hmac KEYID ALGO SECRET}: $step"
+                }
+                lassign [lrange $step 1 3] keyid algo secret
+                set cmd "xtcp2-nlcap hmac $ns $subdir $keyid $algo $secret"
+                set refusal "ip -n $ns sr hmac set $keyid $algo"
+            }
+            default {
+                return [addrcorpus::pre_step $ns $subdir $step]
+            }
         }
-        if {[llength $step] != 3} {
-            error "genlcorpus: a tcp step is {tcp SERVER CLIENT}: $step"
-        }
-        lassign [lrange $step 1 2] server client
-        lassign [vmlib::run_out "xtcp2-nlcap tcp $ns $subdir $server $client"] rc out
+        lassign [vmlib::run_out $cmd] rc out
         if {$rc == 0} {
             return 1
         }
-        lappend nltopo::refused "xtcp2-nl-tcp -n $ns $server $client"
-        vmlib::log "genl corpus: connection refused: $client -> $server in $ns"
+        lappend nltopo::refused $refusal
+        vmlib::log "genl corpus: step refused: $refusal"
         return 0
     }
 

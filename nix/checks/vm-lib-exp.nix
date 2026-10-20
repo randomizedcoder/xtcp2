@@ -56,9 +56,9 @@
 # multicast route. TestRtnlReadCorpus pins the captured bytes.
 #
 # scripts/genl-write-corpus-test.exp does the same for genl-write-corpus.exp,
-# the C2 rows: slugs, floors, readbacks, statuses, the `tcp` pre step and
-# the generic protocol of every readback. TestGenlTcpMetricsCorpus pins the
-# captured bytes.
+# the C2 rows: slugs, floors, readbacks, statuses, the `tcp` and `hmac` pre
+# steps and the generic protocol of every readback. TestGenlTcpMetricsCorpus
+# and TestGenlSeg6Corpus pin the captured bytes.
 #
 {
   pkgs,

@@ -1,0 +1,2 @@
+hmac 1 algo sha256 secret "s3cret"
+hmac 2 algo sha1 secret "0ther"
