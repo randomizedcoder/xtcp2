@@ -384,9 +384,11 @@ var resultAddr AddrInfo
 //     label, flags and cacheinfo, but no IFA_RT_PRIORITY.
 //   - metric is d0 from the v4_metric readback state, which carries it.
 //   - smallest, typical and largest are P0's picks from the whole corpus
-//     (benchRecords).
+//     (benchRecords), decoded through parseBenchCases like the other P0
+//     benchmarks.
 func BenchmarkParseNewAddr(b *testing.B) {
-	picks := benchRecords(b, unix.NETLINK_ROUTE, unix.RTM_NEWADDR)
+	c := parseBenchCaseNamed(b, "ParseNewAddr")
+	picks := benchRecords(b, unix.NETLINK_ROUTE, c.typ)
 	recs := make([]benchRecord, 0, 2+len(picks))
 	recs = append(recs,
 		benchRecord{name: "no_metric", body: addrReplyBody(b, tdDumpGetAddrV4_7_1_4, unix.AF_INET, 3)},
@@ -397,11 +399,9 @@ func BenchmarkParseNewAddr(b *testing.B) {
 		b.Run(r.name, func(b *testing.B) {
 			b.ReportAllocs()
 			for b.Loop() {
-				ai, err := ParseNewAddr(r.body)
-				if err != nil {
+				if err := c.parse(r.body); err != nil {
 					b.Fatal(err)
 				}
-				resultAddr = ai
 			}
 		})
 	}

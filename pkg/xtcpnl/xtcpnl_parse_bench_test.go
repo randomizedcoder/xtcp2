@@ -111,43 +111,79 @@ func benchRecords(tb testing.TB, proto, typ uint16) []benchRecord {
 }
 
 var (
-	resultLink  LinkInfo
-	resultRoute RouteInfo
+	resultLink    LinkInfo
+	resultRoute   RouteInfo
+	resultNeigh   NeighInfo
+	resultRule    RuleInfo
+	resultNexthop NexthopInfo
 )
+
+// parseBenchCase is one parser P0 benchmarks: its name, the rtnetlink type
+// of its picks, and a call that decodes one body into the parser's result
+// sink. The benchmarks, TestParseBenchRecords and TestParseBenchAllocs all
+// read this one table, and TestParseBenchCases pins each parser's type,
+// since a parser can decode another type's body without an error.
+type parseBenchCase struct {
+	name  string
+	typ   uint16
+	parse func([]byte) error
+}
+
+var parseBenchCases = []parseBenchCase{
+	{name: "ParseNewLink", typ: unix.RTM_NEWLINK, parse: func(b []byte) (err error) { resultLink, err = ParseNewLink(b); return err }},
+	{name: "ParseNewRoute", typ: unix.RTM_NEWROUTE, parse: func(b []byte) (err error) { resultRoute, err = ParseNewRoute(b); return err }},
+	{name: "ParseNewAddr", typ: unix.RTM_NEWADDR, parse: func(b []byte) (err error) { resultAddr, err = ParseNewAddr(b); return err }},
+	{name: "ParseNeigh", typ: unix.RTM_NEWNEIGH, parse: func(b []byte) (err error) { resultNeigh, err = ParseNeigh(b); return err }},
+	{name: "ParseRule", typ: unix.RTM_NEWRULE, parse: func(b []byte) (err error) { resultRule, err = ParseRule(b); return err }},
+	{name: "ParseNewNexthop", typ: unix.RTM_NEWNEXTHOP, parse: func(b []byte) (err error) { resultNexthop, err = ParseNewNexthop(b); return err }},
+}
+
+// parseBenchCaseNamed returns the parseBenchCases entry called name.
+func parseBenchCaseNamed(tb testing.TB, name string) parseBenchCase {
+	tb.Helper()
+	for _, c := range parseBenchCases {
+		if c.name == name {
+			return c
+		}
+	}
+	tb.Fatalf("%s is not in parseBenchCases", name)
+	return parseBenchCase{}
+}
+
+// benchParse runs the parser called name over its type's three picks.
+func benchParse(b *testing.B, name string) {
+	c := parseBenchCaseNamed(b, name)
+	for _, r := range benchRecords(b, unix.NETLINK_ROUTE, c.typ) {
+		b.Run(r.name, func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				if err := c.parse(r.body); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
 
 // BenchmarkParseNewLink decodes the smallest, a typical and the largest
 // RTM_NEWLINK the corpus holds.
-func BenchmarkParseNewLink(b *testing.B) {
-	for _, r := range benchRecords(b, unix.NETLINK_ROUTE, unix.RTM_NEWLINK) {
-		b.Run(r.name, func(b *testing.B) {
-			b.ReportAllocs()
-			for b.Loop() {
-				li, err := ParseNewLink(r.body)
-				if err != nil {
-					b.Fatal(err)
-				}
-				resultLink = li
-			}
-		})
-	}
-}
+func BenchmarkParseNewLink(b *testing.B) { benchParse(b, "ParseNewLink") }
 
 // BenchmarkParseNewRoute decodes the smallest, a typical and the largest
 // RTM_NEWROUTE the corpus holds.
-func BenchmarkParseNewRoute(b *testing.B) {
-	for _, r := range benchRecords(b, unix.NETLINK_ROUTE, unix.RTM_NEWROUTE) {
-		b.Run(r.name, func(b *testing.B) {
-			b.ReportAllocs()
-			for b.Loop() {
-				ri, err := ParseNewRoute(r.body)
-				if err != nil {
-					b.Fatal(err)
-				}
-				resultRoute = ri
-			}
-		})
-	}
-}
+func BenchmarkParseNewRoute(b *testing.B) { benchParse(b, "ParseNewRoute") }
+
+// BenchmarkParseNeigh decodes the smallest, a typical and the largest
+// RTM_NEWNEIGH the corpus holds.
+func BenchmarkParseNeigh(b *testing.B) { benchParse(b, "ParseNeigh") }
+
+// BenchmarkParseRule decodes the smallest, a typical and the largest
+// RTM_NEWRULE the corpus holds.
+func BenchmarkParseRule(b *testing.B) { benchParse(b, "ParseRule") }
+
+// BenchmarkParseNewNexthop decodes the smallest, a typical and the largest
+// RTM_NEWNEXTHOP the corpus holds.
+func BenchmarkParseNewNexthop(b *testing.B) { benchParse(b, "ParseNewNexthop") }
 
 func TestBenchPick(t *testing.T) {
 	// msg is a captured message of type typ whose body is n bytes, from a
@@ -217,47 +253,91 @@ func TestBenchPick(t *testing.T) {
 	}
 }
 
+func TestParseBenchCases(t *testing.T) {
+	got := make([]string, 0, len(parseBenchCases))
+	for _, c := range parseBenchCases {
+		got = append(got, c.name+"="+strconv.Itoa(int(c.typ)))
+	}
+	tests := []struct {
+		description string
+		got         string
+		expected    string
+	}{
+		{
+			description: "positive: each parser's picks are of its own type",
+			got:         strings.Join(got, " "),
+			expected:    "ParseNewLink=16 ParseNewRoute=24 ParseNewAddr=20 ParseNeigh=28 ParseRule=32 ParseNewNexthop=104",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			if tt.got != tt.expected {
+				t.Errorf("got %q, expected %q", tt.got, tt.expected)
+			}
+		})
+	}
+}
+
 // TestParseBenchRecords decodes every record a P0 benchmark runs over,
 // so a benchmark never measures an error path.
 func TestParseBenchRecords(t *testing.T) {
 	tests := []struct {
 		description string
-		typ         uint16
-		parse       func([]byte) error
+		name        string
 		expected    string
 	}{
-		{
-			description: "positive: ParseNewLink decodes the smallest, a typical and the largest RTM_NEWLINK",
-			typ:         unix.RTM_NEWLINK,
-			parse:       func(b []byte) error { _, err := ParseNewLink(b); return err },
-			expected:    "smallest ok, typical ok, largest ok",
-		},
-		{
-			description: "positive: ParseNewRoute decodes the smallest, a typical and the largest RTM_NEWROUTE",
-			typ:         unix.RTM_NEWROUTE,
-			parse:       func(b []byte) error { _, err := ParseNewRoute(b); return err },
-			expected:    "smallest ok, typical ok, largest ok",
-		},
-		{
-			description: "positive: ParseNewAddr decodes the smallest, a typical and the largest RTM_NEWADDR",
-			typ:         unix.RTM_NEWADDR,
-			parse:       func(b []byte) error { _, err := ParseNewAddr(b); return err },
-			expected:    "smallest ok, typical ok, largest ok",
-		},
+		{description: "positive: ParseNewLink decodes its three RTM_NEWLINK picks", name: "ParseNewLink", expected: "smallest ok, typical ok, largest ok"},
+		{description: "positive: ParseNewRoute decodes its three RTM_NEWROUTE picks", name: "ParseNewRoute", expected: "smallest ok, typical ok, largest ok"},
+		{description: "positive: ParseNewAddr decodes its three RTM_NEWADDR picks", name: "ParseNewAddr", expected: "smallest ok, typical ok, largest ok"},
+		{description: "positive: ParseNeigh decodes its three RTM_NEWNEIGH picks", name: "ParseNeigh", expected: "smallest ok, typical ok, largest ok"},
+		{description: "positive: ParseRule decodes its three RTM_NEWRULE picks", name: "ParseRule", expected: "smallest ok, typical ok, largest ok"},
+		{description: "positive: ParseNewNexthop decodes its three RTM_NEWNEXTHOP picks", name: "ParseNewNexthop", expected: "smallest ok, typical ok, largest ok"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
-			recs := benchRecords(t, unix.NETLINK_ROUTE, tt.typ)
+			c := parseBenchCaseNamed(t, tt.name)
+			recs := benchRecords(t, unix.NETLINK_ROUTE, c.typ)
 			got := make([]string, 0, len(recs))
 			for i, r := range recs {
 				status := "ok"
-				if err := tt.parse(r.body); err != nil {
+				if err := c.parse(r.body); err != nil {
 					status = err.Error()
 				}
 				if i > 0 && len(r.body) < len(recs[i-1].body) {
 					status = "shorter than " + recs[i-1].name
 				}
 				got = append(got, r.name+" "+status)
+			}
+			if s := strings.Join(got, ", "); s != tt.expected {
+				t.Errorf("got %q, expected %q", s, tt.expected)
+			}
+		})
+	}
+}
+
+// TestParseBenchAllocs asserts 0 allocs/op for each parser that is
+// allocation-free over all three of its picks today, so a change that makes
+// it allocate fails here, not only in a benchmark nobody reads.
+func TestParseBenchAllocs(t *testing.T) {
+	tests := []struct {
+		description string
+		name        string
+		expected    string
+	}{
+		{description: "corner: ParseRule allocates nothing on any pick", name: "ParseRule", expected: "smallest 0, typical 0, largest 0"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			c := parseBenchCaseNamed(t, tt.name)
+			recs := benchRecords(t, unix.NETLINK_ROUTE, c.typ)
+			got := make([]string, 0, len(recs))
+			for _, r := range recs {
+				n := testing.AllocsPerRun(1_000, func() {
+					if err := c.parse(r.body); err != nil {
+						t.Fatal(err)
+					}
+				})
+				got = append(got, r.name+" "+strconv.FormatFloat(n, 'f', -1, 64))
 			}
 			if s := strings.Join(got, ", "); s != tt.expected {
 				t.Errorf("got %q, expected %q", s, tt.expected)
