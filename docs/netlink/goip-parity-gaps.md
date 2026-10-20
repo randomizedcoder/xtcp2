@@ -153,10 +153,10 @@ These surfaces have no netlink message to capture, so they are out of scope for 
 | `NETLINK_XFRM` | 22 `XFRM_MSG_*` | |
 
 **What was measured:**
-- **Pcaps:** 951 committed DLT_NETLINK (253) pcaps under `pkg/` (713 when the plan was written), counted by `(protocol, nlmsg_type)`. For genl, the count is by `(family name, cmd)`, with names resolved from each pcap's own `CTRL_CMD_NEWFAMILY` replies.
+- **Pcaps:** 976 committed DLT_NETLINK (253) pcaps under `pkg/` (713 when the plan was written), counted by `(protocol, nlmsg_type)`. For genl, the count is by `(family name, cmd)`, with names resolved from each pcap's own `CTRL_CMD_NEWFAMILY` replies.
 - **Table tests and benchmarks:** the parsers' `Test*` and `Benchmark*` functions.
 
-**Measured 2026-10-19,** again at the C1 close (DOC004), and the pcap total and genl rows at C2-T01 (V044), C2-T02 (V049), C2-T03 (V054), C2-T04 (V059) and C2-T05 (V064). Re-measure with [the commands below](#how-to-re-measure).
+**Measured 2026-10-19,** again at the C1 close (DOC004), and the pcap total and genl rows at C2-T01 (V044), C2-T02 (V049), C2-T03 (V054), C2-T04 (V059), C2-T05 (V064) and C2-T06 (V069). Re-measure with [the commands below](#how-to-re-measure).
 
 ### rtnetlink
 
@@ -204,13 +204,14 @@ The capture also holds `RTM_GETMULTICAST` (58: 13 / 3) and `RTM_GETANYCAST` (62:
 
 | family | commands in the universe | in pcaps | parser | table test | benchmark |
 |---|---|---|---|---|---|
-| nlctrl | 3 | NEWFAMILY 549 / 270, GETFAMILY 549 / 270 | `ParseGenericNetlinkFamily` | `TestGenericNetlinkFamilyBoundaries`, `xtcpnl_ethtool_test.go:215` | none |
+| nlctrl | 3 | NEWFAMILY 574 / 295, GETFAMILY 574 / 295 | `ParseGenericNetlinkFamily` | `TestGenericNetlinkFamilyBoundaries`, `xtcpnl_ethtool_test.go:215` | none |
 | tcp_metrics | 2 | GET 50 / 15, DEL 8 / 6 (C2-T01) | none | `TestGenlTcpMetricsCorpus` reads the attributes raw | none |
 | seg6 | 4 | SETHMAC 6 / 6, DUMPHMAC 14 / 7, SET_TUNSRC 1 / 1, GET_TUNSRC 4 / 2 (C2-T02) | none | `TestGenlSeg6Corpus` reads the attributes raw | none |
 | ioam6 | 7 | ADD_NAMESPACE 4 / 4 (the walker's command 1 counts 5 / 5, with the TRACE event, whose number is also 1), DEL_NAMESPACE 3 / 3, DUMP_NAMESPACES 14 / 8, ADD_SCHEMA 3 / 3, DEL_SCHEMA 3 / 3, DUMP_SCHEMAS 12 / 7, NS_SET_SCHEMA 3 / 3; event TRACE 1 / 1 (C2-T03) | none | `TestGenlIoam6Corpus` reads the attributes raw | none |
 | mptcp_pm | 7 | ADD_ADDR 7 / 7, DEL_ADDR 4 / 4, GET_ADDR 26 / 14, FLUSH_ADDRS 1 / 1, SET_LIMITS 5 / 5, GET_LIMITS 10 / 5, SET_FLAGS 4 / 4; events CREATED, ESTABLISHED and CLOSED 2 / 1 each, SUB_ESTABLISHED 2 / 1, SUB_CLOSED 1 / 1, LISTENER_CREATED and LISTENER_CLOSED 4 / 2 each (C2-T04; the walker counts by number, and CREATED, ESTABLISHED and CLOSED are 1, 2 and 3, so its commands 1-3 count 9 / 8, 6 / 5 and 28 / 15) | none | `TestGenlMptcpCorpus` reads the attributes raw | none |
 | fou | 3 | ADD 11 / 11, DEL 5 / 5, GET 21 / 11 (C2-T05; every GET a dump) | none | `TestGenlFouCorpus` reads the attributes raw | none |
-| ila, l2tp, macsec | 20 | **0** | none | none | none |
+| ila | 3 | ADD 7 / 7, DEL 4 / 4, GET 23 / 12 (C2-T06; every GET a dump) | none | `TestGenlIlaCorpus` reads the attributes raw | none |
+| l2tp, macsec | 17 | **0** | none | none | none |
 | xfrm | 22 | **0** | none | none | none |
 
 The corpus also holds ethtool (19 commands), devlink (2) and nl80211 (7) from the link-state bundles. `ip` uses none of these families.
@@ -220,7 +221,7 @@ The corpus also holds ethtool (19 commands), devlink (2) and nl80211 (7) from th
 1. **The rtnetlink read side is in good shape.** Every body layout that a running goip object reads has captured pcaps, a parser and a table-driven test.
 2. **The capture holes were the DEL and SET types:** DELANYCAST, DELRULE, SETNEIGHTBL, DELADDRLABEL, DELNSID, SETSTATS and DELNEXTHOP. Each shares a body layout with its NEW type, so all but DELNSID already had a parser (NSID has none; point 3). The bytes were missing because no capture row sent them. C1-T01 added those rows (`link-write/rtnl/`), and each of the seven is now captured and checked by `TestRtnlWriteCorpus`.
 3. **Four rtnetlink layouts have no parser:** NSID, nexthop bucket, LINKPROP and prefix. Since C1 closed, all four have bytes: NSID 210 NEWNSID messages, the nexthop bucket and LINKPROP from C1-T02 (a 1024-bucket dump, and altname add and del), and prefix from C1-T04 (an RA's NEWPREFIX, 3 messages). The tests read them raw; the parsers are P1.
-4. **Generic netlink beyond nlctrl, and all of XFRM, have nothing:** no pcaps, no parsers, no tests. When this was measured the blocker was in the harness: `xtcp2-nlcap` kept only `NETLINK_ROUTE` (`ether[14:2]==0`), although nlmon taps GENERIC and XFRM. C0 removed it. A row now names its protocol (`--proto`, C0-T01), and the modules those families need are loaded late (C0-T02). What is missing is the capture rows (C2, C3). C2-T01 added the first: tcp_metrics' GET and DEL are captured (`link-write/genl/`), with no parser yet (P2). C2-T02 added sr's four SEG6 commands, C2-T03 ioam's seven IOAM6 commands, C2-T04 the seven mptcp_pm commands `ip` sends, and C2-T05 fou's three.
+4. **Generic netlink beyond nlctrl, and all of XFRM, have nothing:** no pcaps, no parsers, no tests. When this was measured the blocker was in the harness: `xtcp2-nlcap` kept only `NETLINK_ROUTE` (`ether[14:2]==0`), although nlmon taps GENERIC and XFRM. C0 removed it. A row now names its protocol (`--proto`, C0-T01), and the modules those families need are loaded late (C0-T02). What is missing is the capture rows (C2, C3). C2-T01 added the first: tcp_metrics' GET and DEL are captured (`link-write/genl/`), with no parser yet (P2). C2-T02 added sr's four SEG6 commands, C2-T03 ioam's seven IOAM6 commands, C2-T04 the seven mptcp_pm commands `ip` sends, C2-T05 fou's three, and C2-T06 ila's three.
 5. **Benchmarks:** 1 of the 15 rtnetlink and genl parsers in the tables above (`ParseNewAddr`) has a parse benchmark. The rest of `BenchmarkDeserialize*` covers inet_diag only.
 
 ### How to re-measure
@@ -904,6 +905,38 @@ The order goes from built-in families to the ones that need modules or more setu
 | corner: across every row | no GET that is not a dump, and no REMCSUM_NOPARTIAL |
 
 **Done when:** the gates pass, and fou's row in the assessment has no **0**.
+
+#### C2-T06 ila
+
+**Deliver** (as built):
+- **The rows (15)** are in `genl-write-corpus.exp` after fou's, in `link-write/genl/ila_*`, every pcap `--proto generic`. Every mapping is locator to match 2001:db8:1:2, locator 2001:db8:3:4, unless the row says otherwise:
+  - `show` with no mapping, and of two (the second with `csum-mode neutral-map`);
+  - `add` plain, with `dev d0`, with `csum-mode adj-transport ident-type luid`, and with `csum-mode neutral-map-auto ident-type use-format`; each read back with `show`;
+  - `add` of the same loc_match with `dev d0` over the mapping without one, which the kernel takes as a second mapping;
+  - `add` with no locator, which `ip` complains about and still sends, with no attribute, since ip/ipila.c ignores `ila_parse_opt`'s -1, as ip/ipfou.c does; the kernel takes it as a mapping of locator 0 to locator 0 (rc 0);
+  - `del` of the mapping, of one that is not there, of the dev mapping by its dev from both, and without a dev of a dev mapping; each read back. The kernel ACKs every delete, matched or not: `ila_xlat_nl_cmd_del_mapping` drops `ila_del_mapping`'s `-ENOENT`;
+  - three refused: an add of a mapping the kernel already has (`EEXIST`, rc 2); an unknown word, which `ip` refuses with its usage (255); and `show` with an argument (`do_list` returns -1, so 1). The last two are after the family lookup, with nothing more sent.
+- **The state** before a row comes from plain `ip ila` pre steps, over the tcp_metrics rows' `d0` where a row names a dev. The family is in the `ila` module, which late setup loads before any genl row.
+- **Not captured:** a GET that is not a dump, and FLUSH. `ip` sends GET only as a dump and has no flush. See the [decision log](goip-parity-gaps-status.md#decision-log).
+
+**Tests:**
+
+`genl-write-corpus-test.exp` (now 163 rows) gains the ila slugs, floors and statuses, the pre steps, the readbacks, and rows pinning the mapping and the arguments each row is built on. `TestGenlIlaCorpus` (`pkg/xtcpnl`, on the committed pcaps, 37 rows), among them:
+
+| description | expected |
+|---|---|
+| positive: every row resolves the family inside its pcap | a NEWFAMILY named `ila` |
+| positive: `add` | an ADD with LOCATOR_MATCH then LOCATOR, each 8 bytes in network order, ACKed |
+| positive: the readback | LOCATOR, LOCATOR_MATCH, IFINDEX 0, CSUM_MODE 2 (no-action) and IDENT_TYPE 32 (use-format), the kernel's defaults |
+| positive: `dev d0` | IFINDEX 3, d0 in the row's namespace |
+| negative: the same mapping twice | `EEXIST`, rc 2 |
+| corner: the same loc_match with a dev | a second mapping; `ip` prints the one with the dev first |
+| corner: an add with no locator | an ADD with no attribute, ACKed; the dump then holds locator 0 to locator 0 |
+| corner: a delete that matches nothing, or misses on the dev | ACKed, rc 0, and the mappings unchanged |
+| corner: `ip`'s line | csum-mode and ident-type printed with nothing between them (`no-actionuse-format`) |
+| corner: across every row | no ILA_ATTR_PAD on x86-64; no GET that is not a dump; no FLUSH |
+
+**Done when:** the gates pass, and ila's row in the assessment has no **0**.
 
 ### C3 — XFRM
 

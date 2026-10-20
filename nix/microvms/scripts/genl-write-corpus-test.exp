@@ -16,8 +16,8 @@
 #
 # What this does NOT cover: what the guest runs or what the kernel answers.
 # TestGenlTcpMetricsCorpus, TestGenlSeg6Corpus, TestGenlIoam6Corpus,
-# TestGenlMptcpCorpus and TestGenlFouCorpus in pkg/xtcpnl pin that in the
-# committed fixtures.
+# TestGenlMptcpCorpus, TestGenlFouCorpus and TestGenlIlaCorpus in
+# pkg/xtcpnl pin that in the committed fixtures.
 #
 # Every row has a name, a description that starts with its class
 # (positive/negative/boundary/corner) and an expected value.
@@ -121,6 +121,9 @@ set design_rows {
     fou_add_same_port_v6 fou_add_no_port fou_add_no_type fou_add_port_zero
     fou_add_unknown_dev fou_del fou_del_missing fou_del_wrong_family
     fou_del_local_peer fou_del_partial fou_show fou_show_args
+    ila_show_empty ila_add ila_add_dev ila_add_opts ila_add_auto ila_add_dup
+    ila_add_same_match_dev ila_add_no_loc ila_add_unknown_word ila_del
+    ila_del_missing ila_del_dev ila_del_nodev_of_dev ila_show ila_show_args
 }
 
 proc bad_arity {} {
@@ -160,12 +163,12 @@ proc refused_rows {} {
 # `ip [-6] tcp_metrics` for tcpm_, `ip sr` for sr_, which an hmac set
 # runs under setsid with its secret piped in, `ip ioam` for ioam_, or
 # xtcp2-nl-ioam, which runs `ip ioam monitor`, `ip mptcp` for mptcp_,
-# or xtcp2-nl-mptcp monitor, which runs `ip mptcp monitor`, and `ip fou`
-# for fou_.
+# or xtcp2-nl-mptcp monitor, which runs `ip mptcp monitor`, `ip fou` for
+# fou_ and `ip ila` for ila_.
 proc wrong_object {} {
     set out {}
     foreach r $::R {
-        set re [dict get {tcpm {^ip (-6 )?tcp_metrics } sr {^(echo( \S+)? \| setsid -w )?ip sr } ioam {^(ip ioam|xtcp2-nl-ioam) } mptcp {^(ip mptcp|xtcp2-nl-mptcp monitor) } fou {^ip fou }} \
+        set re [dict get {tcpm {^ip (-6 )?tcp_metrics } sr {^(echo( \S+)? \| setsid -w )?ip sr } ioam {^(ip ioam|xtcp2-nl-ioam) } mptcp {^(ip mptcp|xtcp2-nl-mptcp monitor) } fou {^ip fou } ila {^ip ila }} \
             [lindex [split [lindex $r 0] _] 0]]
         if {![regexp $re [lindex $r 3]]} {
             lappend out [lindex $r 0]
@@ -191,10 +194,10 @@ check arity "negative: every row is {slug floor pre command readbacks rc}" \
     {bad_arity} {}
 check unique_slugs "negative: no slug names two rows" \
     {dup_slugs} {}
-check refused_statuses "positive: the missing tcp_metrics entry and the refused mptcp and fou requests are rc 2; the refused hmac sets and ioam writes, and fou's unknown dev and show with an argument, rc 1; a port without signal and fou's port 0 255" \
-    {refused_rows} {tcpm_get_missing 2 tcpm_delete_missing 2 sr_hmac_delete_missing 1 sr_hmac_set_long 1 ioam_ns_add_dup 1 ioam_ns_del_missing 1 ioam_sc_add_dup 1 ioam_sc_del_missing 1 ioam_ns_set_missing 1 ioam_monitor_unknown_ns 1 ioam_monitor_disabled 1 mptcp_endpoint_add_dup 2 mptcp_endpoint_add_id_busy 2 mptcp_endpoint_add_port_subflow 255 mptcp_endpoint_get_missing 2 mptcp_endpoint_change_missing 2 mptcp_endpoint_delete_missing 2 mptcp_limits_set_over 2 fou_add_dev_no_local 2 fou_add_dup 2 fou_add_no_port 2 fou_add_no_type 2 fou_add_port_zero 255 fou_add_unknown_dev 1 fou_del_missing 2 fou_del_wrong_family 2 fou_del_partial 2 fou_show_args 1}
-check row_count "boundary: C2-T01's 14 rows, C2-T02's 11, C2-T03's 21, C2-T04's 27 and C2-T05's 21" \
-    {llength $R} 94
+check refused_statuses "positive: the missing tcp_metrics entry and the refused mptcp, fou and ila requests are rc 2; the refused hmac sets and ioam writes, fou's unknown dev, and fou's and ila's show with an argument, rc 1; a port without signal, fou's port 0 and ila's unknown word 255" \
+    {refused_rows} {tcpm_get_missing 2 tcpm_delete_missing 2 sr_hmac_delete_missing 1 sr_hmac_set_long 1 ioam_ns_add_dup 1 ioam_ns_del_missing 1 ioam_sc_add_dup 1 ioam_sc_del_missing 1 ioam_ns_set_missing 1 ioam_monitor_unknown_ns 1 ioam_monitor_disabled 1 mptcp_endpoint_add_dup 2 mptcp_endpoint_add_id_busy 2 mptcp_endpoint_add_port_subflow 255 mptcp_endpoint_get_missing 2 mptcp_endpoint_change_missing 2 mptcp_endpoint_delete_missing 2 mptcp_limits_set_over 2 fou_add_dev_no_local 2 fou_add_dup 2 fou_add_no_port 2 fou_add_no_type 2 fou_add_port_zero 255 fou_add_unknown_dev 1 fou_del_missing 2 fou_del_wrong_family 2 fou_del_partial 2 fou_show_args 1 ila_add_dup 2 ila_add_unknown_word 255 ila_show_args 1}
+check row_count "boundary: C2-T01's 14 rows, C2-T02's 11, C2-T03's 21, C2-T04's 27, C2-T05's 21 and C2-T06's 15" \
+    {llength $R} 109
 check c2t01_rows_first "corner: C2-T02's rows come after C2-T01's, which keep their order" \
     {lindex [column 0] 13} tcpm_flush_empty
 check c2t02_rows_next "corner: C2-T03's rows come after C2-T02's" \
@@ -203,6 +206,8 @@ check c2t03_rows_next "corner: C2-T04's rows come after C2-T03's" \
     {lindex [column 0] 45} ioam_monitor_disabled
 check c2t04_rows_next "corner: C2-T05's rows come after C2-T04's" \
     {lindex [column 0] 72} mptcp_monitor_conn
+check c2t05_rows_next "corner: C2-T06's rows come after C2-T05's" \
+    {lindex [column 0] 93} fou_show_args
 check right_object "negative: every command is its family's ip object" \
     {wrong_object} {}
 check no_quotes "corner: no command holds a single quote" \
@@ -215,7 +220,7 @@ check src_first "corner: src comes before address, since ip skips the word after
 # dumps, deletes and dumps again 6
 ###############################################################################
 check floors "positive: every floor, in run order" \
-    {column 1} {4 4 4 4 4 4 4 4 4 4 4 6 6 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 3 2 2 4 4 4 4 4 4 4 2 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 14 13 4 4 4 4 4 4 4 4 4 4 4 4 2 2 4 4 4 4 4 4 2}
+    {column 1} {4 4 4 4 4 4 4 4 4 4 4 6 6 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 3 2 2 4 4 4 4 4 4 4 2 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 14 13 4 4 4 4 4 4 4 4 4 4 4 4 2 2 4 4 4 4 4 4 2 4 4 4 4 4 4 4 4 2 4 4 4 4 4 2}
 check floor_flush_all "corner: flush all is one DEL with no address, so 4" \
     {field tcpm_flush_all 1} 4
 check floor_flush_empty "boundary: a flush that matches nothing stops after its dump" \
@@ -302,6 +307,24 @@ foreach {name description slug} {
 }
 check pre_fou_addrs "corner: every fou row that names an address or d0 starts from PRE_ADDRS" \
     {lmap slug {fou_add_local_peer fou_add_v6_local_peer fou_add_dev fou_add_dev_no_local fou_add_unknown_dev fou_del_local_peer fou_del_partial} {expr {[lrange [field $slug 2] 0 5] eq [lrange $genlcorpus::PRE_ADDRS 0 end]}}} {1 1 1 1 1 1 1}
+foreach {name description slug expected} {
+    pre_ila_dup      "negative: the duplicate add starts from the mapping"       ila_add_dup      {{ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4}}
+    pre_ila_del      "positive: delete starts from the mapping"                  ila_del          {{ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4}}
+    pre_ila_del_miss "corner: deleting a mapping that is not there starts from none" ila_del_missing {}
+    pre_ila_show     "positive: show starts from two mappings"                   ila_show         {{ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4} {ila add loc_match 2001:db8:5:6 loc 2001:db8:7:8 csum-mode neutral-map}}
+    pre_ila_empty    "boundary: an empty show starts from nothing"               ila_show_empty   {}
+} {
+    check $name $description [list lrange [field $slug 2] 0 end] $expected
+}
+foreach {name description slug expected} {
+    pre_ila_same     "corner: the dev add of a taken loc_match starts from the mapping without a dev" ila_add_same_match_dev {{ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4}}
+    pre_ila_del_dev  "positive: the dev delete starts from both mappings"   ila_del_dev          {{ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4} {ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4 dev d0}}
+    pre_ila_nodev    "corner: the no-dev delete starts from the dev mapping alone" ila_del_nodev_of_dev {{ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4 dev d0}}
+} {
+    check $name $description [list lrange [field $slug 2] 6 end] $expected
+}
+check pre_ila_addrs "corner: every ila row with a dev starts from PRE_ADDRS" \
+    {lmap slug {ila_add_dev ila_add_same_match_dev ila_del_dev ila_del_nodev_of_dev} {expr {[lrange [field $slug 2] 0 5] eq [lrange $genlcorpus::PRE_ADDRS 0 end]}}} {1 1 1 1}
 check pre_mptcp_addrs "corner: every mptcp row with a pre step starts from PRE_ADDRS" \
     {lsort -unique [lmap r $R {if {![string match mptcp_* [lindex $r 0]] || [lindex $r 2] eq {}} continue; expr {[lrange [lindex $r 2] 0 5] eq [lrange $genlcorpus::PRE_ADDRS 0 end]}}]} 1
 foreach {name description slug} {
@@ -368,6 +391,18 @@ check fou_v6_flag "positive: every IPv6 fou command and pre step says -6 inside 
     {lmap slug {fou_add_v6 fou_add_v6_local_peer fou_add_same_port_v6 fou_del_wrong_family} {regexp {^ip fou (add|del) port 5555 (gue )?-6} [field $slug 3]}} {1 1 1 1}
 check fou_peer_pair "positive: the peer rows give peer and peer_port together, as ip requires" \
     {lmap slug {fou_add_local_peer fou_add_v6_local_peer fou_del_local_peer} {regexp { peer \S+ peer_port 5556$} [field $slug 3]}} {1 1 1}
+check floor_ila_ip_refusals "boundary: an unknown word and show with an argument are the family lookup alone" \
+    {lmap slug {ila_add_unknown_word ila_show_args} {field $slug 1}} {2 2}
+check ila_map "positive: the mapping every ila row is built on, locator 2001:db8:1:2 to 2001:db8:3:4" \
+    {set genlcorpus::ILA_MAP} {ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4}
+check ila_no_loc "corner: the no-locator row names a loc_match and no loc" \
+    {list [regexp { loc_match 2001:db8:1:2$} [field ila_add_no_loc 3]] [regexp { loc } [field ila_add_no_loc 3]]} {1 0}
+check ila_unknown_word "negative: the unknown-word row is a whole mapping and one word ip does not know" \
+    {lindex [field ila_add_unknown_word 3] end} bogus
+check ila_opts "positive: the options rows name both options, the auto row with the kernel's default ident-type" \
+    {lmap slug {ila_add_opts ila_add_auto} {lrange [field $slug 3] end-3 end}} {{csum-mode adj-transport ident-type luid} {csum-mode neutral-map-auto ident-type use-format}}
+check ila_del_keys "corner: the dev delete names d0, the no-dev delete of a dev mapping does not" \
+    {lmap slug {ila_del_dev ila_del_nodev_of_dev} {regexp { dev d0$} [field $slug 3]}} {1 0}
 check hmac_rows_use_set "corner: every hmac write row runs through hmac_set" \
     {lmap slug {sr_hmac_set sr_hmac_set_sha1 sr_hmac_replace sr_hmac_delete sr_hmac_delete_missing sr_hmac_set_long} {
         regexp {^echo( \S+)? \| setsid -w ip sr hmac set [0-9]+ sha(1|256)$} [field $slug 3]}} {1 1 1 1 1 1}
@@ -417,6 +452,13 @@ foreach {name description slug expected} {
     rb_fou_show     "corner: a dump is its own readback"              fou_show            {}
     rb_fou_dup      "negative: a refused add has nothing to read back" fou_add_dup        {}
     rb_fou_partial  "negative: nor has a refused delete"              fou_del_partial     {}
+    rb_ila_add      "positive: an ila add reads the mappings back"    ila_add             ila
+    rb_ila_no_loc   "corner: and so does the add with no locator, which the kernel takes" ila_add_no_loc ila
+    rb_ila_del      "positive: and a delete"                          ila_del             ila
+    rb_ila_del_miss "corner: and a delete that matches nothing, which the kernel ACKs" ila_del_missing ila
+    rb_ila_nodev    "corner: and one that misses on the dev"          ila_del_nodev_of_dev ila
+    rb_ila_show     "corner: a dump is its own readback"              ila_show            {}
+    rb_ila_dup      "negative: a refused add has nothing to read back" ila_add_dup        {}
 } {
     check $name $description [list readback_names $slug] $expected
 }

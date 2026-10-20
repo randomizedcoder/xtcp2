@@ -29,12 +29,13 @@
 #   rc         the exit status `ip.rc` must hold: 0, or the status `ip`
 #              exits with when the kernel refuses the request, which ip/ip.c
 #              takes from the command's negated return: 2 for tcp_metrics,
-#              mptcp and fou (ip/tcp_metrics.c, ip/ipmptcp.c and ip/ipfou.c
-#              return -2), 1 for an sr or ioam write (ip/ipseg6.c and
-#              ip/ipioam6.c return -1); or 255, where `ip` refuses its
-#              arguments itself (invarg) after the family lookup and sends
-#              nothing more; ip/ipfou.c's own refusals after the lookup are
-#              1 (an unknown dev, show with an argument)
+#              mptcp, fou and ila (ip/tcp_metrics.c, ip/ipmptcp.c,
+#              ip/ipfou.c and ip/ipila.c return -2), 1 for an sr or ioam
+#              write (ip/ipseg6.c and ip/ipioam6.c return -1); or 255, where
+#              `ip` refuses its arguments itself (invarg or usage) after the
+#              family lookup and sends nothing more; ip/ipfou.c's and
+#              ip/ipila.c's own refusals after the lookup are 1 (an unknown
+#              dev, show with an argument)
 #
 # TCP_METRICS (C2-T01)
 #
@@ -302,6 +303,48 @@ namespace eval genlcorpus {
         [list fou_del_partial 4 $PRE_FOU_PEER "ip fou del port 5555" {} 2] \
         [list fou_show 4 $PRE_FOU2 "ip fou show" {} 0] \
         [list fou_show_args 2 {} "ip fou show port 5555" {} 1]
+
+    ###########################################################################
+    # C2-T06 - ila, the ILA family: the namespace's identifier-locator
+    # mappings, made with plain `ip ila` pre steps. The family lives in the
+    # ila module, which late setup loads.
+    #
+    # The kernel keys a mapping on its locator to match and its dev, so the
+    # same loc_match with a dev is a second mapping, and refuses only an
+    # add of a key it already has (EEXIST; `ip` exits 2). A delete is
+    # always ACKed, whether or not it matched: ila_xlat_nl_cmd_del_mapping
+    # drops ila_del_mapping's -ENOENT. ip/ipila.c ignores ila_parse_opt's
+    # -1, as ip/ipfou.c does, so an add with no locator prints its
+    # complaint and still sends an ADD with no attribute, which the kernel
+    # takes as a mapping of locator 0 to locator 0. `ip` refuses an
+    # unknown word itself (usage, 255) and `show` with an argument
+    # (do_list returns -1, so 1), each after the family lookup and with
+    # nothing more sent.
+    ###########################################################################
+    variable ILA_MAP {ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4}
+    variable PRE_ILA [list $ILA_MAP]
+    variable PRE_ILA_ADDRS [concat $PRE_ADDRS [list $ILA_MAP]]
+    variable PRE_ILA_DEV [concat $PRE_ADDRS [list "$ILA_MAP dev d0"]]
+    variable PRE_ILA_BOTH [concat $PRE_ADDRS [list $ILA_MAP "$ILA_MAP dev d0"]]
+    variable PRE_ILA2 [list $ILA_MAP {ila add loc_match 2001:db8:5:6 loc 2001:db8:7:8 csum-mode neutral-map}]
+    variable ILA_SHOW {{ila 4 {ip ila show}}}
+
+    lappend rows \
+        [list ila_show_empty 4 {} "ip ila show" {} 0] \
+        [list ila_add 4 {} "ip $ILA_MAP" $ILA_SHOW 0] \
+        [list ila_add_dev 4 $PRE_ADDRS "ip $ILA_MAP dev d0" $ILA_SHOW 0] \
+        [list ila_add_opts 4 {} "ip $ILA_MAP csum-mode adj-transport ident-type luid" $ILA_SHOW 0] \
+        [list ila_add_auto 4 {} "ip $ILA_MAP csum-mode neutral-map-auto ident-type use-format" $ILA_SHOW 0] \
+        [list ila_add_dup 4 $PRE_ILA "ip $ILA_MAP" {} 2] \
+        [list ila_add_same_match_dev 4 $PRE_ILA_ADDRS "ip $ILA_MAP dev d0" $ILA_SHOW 0] \
+        [list ila_add_no_loc 4 {} "ip ila add loc_match 2001:db8:1:2" $ILA_SHOW 0] \
+        [list ila_add_unknown_word 2 {} "ip ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4 bogus" {} 255] \
+        [list ila_del 4 $PRE_ILA "ip ila del loc_match 2001:db8:1:2" $ILA_SHOW 0] \
+        [list ila_del_missing 4 {} "ip ila del loc_match 2001:db8:1:2" $ILA_SHOW 0] \
+        [list ila_del_dev 4 $PRE_ILA_BOTH "ip ila del loc_match 2001:db8:1:2 dev d0" $ILA_SHOW 0] \
+        [list ila_del_nodev_of_dev 4 $PRE_ILA_DEV "ip ila del loc_match 2001:db8:1:2" $ILA_SHOW 0] \
+        [list ila_show 4 $PRE_ILA2 "ip ila show" {} 0] \
+        [list ila_show_args 2 {} "ip ila show 2001:db8:1:2" {} 1]
 
     ###########################################################################
     # pre_step <ns> <subdir> <step> - 1 if the step was taken, else 0.

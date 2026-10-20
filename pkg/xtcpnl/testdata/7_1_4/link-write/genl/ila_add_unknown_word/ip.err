@@ -1,0 +1,6 @@
+Usage: ip ila add loc_match LOCATOR_MATCH loc LOCATOR [ dev DEV ] OPTIONS
+       ip ila del loc_match LOCATOR_MATCH [ loc LOCATOR ] [ dev DEV ]
+       ip ila list
+OPTIONS := [ csum-mode { adj-transport | neutral-map |
+                         neutral-map-auto | no-action } ]
+           [ ident-type { luid | use-format } ]
