@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -218,7 +219,55 @@ func (h *Handler) serveCommand(w http.ResponseWriter, r *http.Request, toks []st
 		writeError(w, statusOf(err), err, "", true)
 		return
 	}
-	h.serve(w, r, s, "ip "+strings.Join(res.Argv(), " "), !s.JSON)
+	argv := "ip " + strings.Join(res.Argv(), " ")
+	if err := refusedBeforeSource(s); err != nil {
+		writeError(w, statusOf(err), err, argv, !s.JSON)
+		return
+	}
+	h.serve(w, r, s, argv, !s.JSON)
+}
+
+// errProbe is every probeSource reply.
+var errProbe = errors.New("goiphttp: dry run, no source")
+
+// probeSource is the source of a dry run: it answers every message with
+// errProbe and counts them. It has each optional method goip asserts for,
+// but its answers are never used: a dry run that sends anything is
+// discarded.
+type probeSource struct{ calls int }
+
+func (p *probeSource) Dump([]byte, uint16) ([][]byte, error) {
+	p.calls++
+	return nil, errProbe
+}
+
+func (p *probeSource) Talk([]byte, uint16) ([]byte, error) {
+	p.calls++
+	return nil, errProbe
+}
+
+func (p *probeSource) DumpMsgs([]byte, uint16) ([][]byte, error) {
+	p.calls++
+	return nil, errProbe
+}
+
+// refusedBeforeSource is the error goip.Show returns for s before it sends
+// a message, or nil. goip parses a command's selectors inside Show, so
+// without this a selector it refuses (`route show proto bgp`, a /33) would
+// open a socket before its 400 or 501. Only that case is taken from the dry
+// run: if the run sent anything, the selectors needed the kernel (a device
+// lookup), and the real run decides. A request with no selectors has
+// nothing to refuse and skips the dry run.
+func refusedBeforeSource(s goip.ShowRequest) error {
+	if len(s.Selectors) == 0 {
+		return nil
+	}
+	var p probeSource
+	err := goip.Show(&p, s, io.Discard)
+	if p.calls > 0 {
+		return nil
+	}
+	return err
 }
 
 // serveQuery serves the query form: JSON unless format=text.

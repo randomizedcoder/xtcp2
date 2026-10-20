@@ -475,6 +475,29 @@ write-up in IA4-T02.
     `/ip/route/show` still served (IV031). The VM leaf gains
     `/ip/link/show/goip0`, `/i/l/sh/eth0` and a missing name's 404, and
     passes with them: 43 checks (IV032).
+  - Selectors refused before a source (the IA3-T03 TODO): a command line
+    with selectors first runs `goip.Show` against `probeSource`, which
+    answers every message with an error and counts them. An error with no
+    message sent is a pure parse refusal and is the response, so
+    `/ip/route/show/proto/bgp` (501), a `/33` (400), `table nosuchtable`
+    (400), `address show d lo` (400), a 16-byte device name (400) and
+    `link show up` (501) open nothing; the six `TestHandler` rows that
+    counted one open now count none. A dry run that sent anything (a
+    device lookup) is discarded and the real run decides, so behaviour
+    on the real source cannot change. It runs before the in-flight slot,
+    so a refused selector is never a 503. A wrapper that opened lazily was
+    rejected: goip picks its single-get path by asserting `TalkSource` on
+    the source, so a wrapper would change which path runs.
+    Cost (IV033, `BenchmarkRefusedBeforeSource`, replay, 5 runs, `l` load
+    3.8): none without selectors (2.6–3.8 ns, 0 allocs); `route table
+    all` 672–691 ns, 10 allocs; `route 10.0.0.0/8` 1.46–1.48 µs, 15;
+    `link eth0` 1.11–1.12 µs, 12; `address dev eth0` 1.47–1.50 µs, 19.
+    Against the 35.4–37.0 µs of a served replayed `route show` that is
+    2–4%, less against a live kernel's dump. `BenchmarkIPHandler` gains
+    `argv_route_table` (36.5–37.0 µs, 245 allocs, beside `argv_route_text`
+    35.4–35.9 µs, 231). `TestRejectAllocs` bounds the two refused rows at
+    40 and 45 (33 and 37 measured) and requires no open;
+    `TestRefusedBeforeSource` has 7 rows.
   - `follow_ups`, each with a decision:
     - `ip route get ADDR`: deferred. It is read-only but not in goip;
       once goip has it, `get` joins route's verb chain as a show-kind
@@ -522,6 +545,8 @@ write-up in IA4-T02.
 | IV030 | 2026-10-19 | IA4-T02 | `nix build --no-link --keep-going path:.#test-linkmonitor-unit path:.#test-linkmonitor-race path:.#test-linkmonitor-lint path:.#test-linkmonitor-docs path:.#test-focused-goip -L`, for the bare link device | `l`, nix sandbox, 7.2.9, load 10 | `d038155d` + working tree | Pass: all five, with `TestLinkShowBareDevice` and the new `TestHandler` rows | nix store, `--no-link` |
 | IV031 | 2026-10-19 | IA4-T02 | Operator: `make` in the host's NixOS config (go-link-monitor at `8624d862`, `ipPaths = true`), then curl of `/ip/link/show/NAME`, `/ip/addr/show/NAME` and `/ip/route/show` beside `ip` | `l`, 7.2.9 | `8624d862` | Pass: the link body equals `ip link show NAME`; the other two served. Bodies not recorded here | operator's terminal, not kept |
 | IV032 | 2026-10-19 | IA4-T02 | `env -u LD_LIBRARY_PATH nix run path:.#test-goip-argv-paths-vm`, with the bare link rows; operator-approved | qemu-vm guest on `l` (KVM), kernel 6.18.39, host load 7.4 | `0e8fa9a2` | Pass: all 43 checks, one through the named gap, every sentinel | `/tmp/goip-argv-paths-aAalQ1` |
+| IV033 | 2026-10-19 | IA4-T02 | `go test -run '^$' -bench 'BenchmarkRefusedBeforeSource\|BenchmarkIPHandler/argv_route' -benchmem -count 5 ./internal/goip/goiphttp/`, go1.26.8 | `l`, 7.2.9, load 3.8 | `09931c84` + working tree | Recorded in findings (the dry run's cost) | scratchpad, not kept |
+| IV034 | 2026-10-19 | IA4-T02 | `nix build --no-link --keep-going path:.#test-linkmonitor-unit path:.#test-linkmonitor-race path:.#test-linkmonitor-lint path:.#test-linkmonitor-fuzz path:.#test-linkmonitor-docs path:.#test-focused-goip -L`, for the dry run | `l`, nix sandbox, 7.2.9 | `09931c84` + working tree | Pass: all six (the first attempt was interrupted after docs and focused-goip; the rerun built the same derivations) | nix store, `--no-link` |
 
 ## TODO
 
@@ -534,11 +559,12 @@ Work outside the 12 tasks, kept so it is not lost. IA4-T02 reviews it.
   would avoid; the rest are the token slice, nosniff and
   `Content-Location`. The operator chose to keep going and revisit it
   later (2026-10-19).
-- [ ] Validate selectors before opening a source (IA3-T03): a selector
+- [x] Validate selectors before opening a source (IA3-T03): a selector
   that `show` refuses is a 400, but only after the
   handler has opened a netlink socket, because goip parses selectors
   inside `Show`. No message is sent, so it is harmless, but parsing the
-  selectors first would let every 400 skip the open.
+  selectors first would let every 400 skip the open. Done after IA4-T02
+  with a dry run (findings, IV033–IV034).
 - [ ] goip `ntable show` omits `dev *` (IA4-T01, `ntable_dev_star`): on
   kernel 6.18 the base parameter sets carry `NDTPA_IFINDEX` 0, which `ip`
   prints as `dev *`; `xtcpnl.NeighTblParms.Ifindex` reads 0 as absent.
@@ -579,3 +605,4 @@ None.
 | 2026-10-19 | After IA4-T02: the operator found `/ip/link/show/NAME` a 501 on `l`; goip's `link show` now takes a bare device name, as `ip` and goip's `address show` do (IV030). Next: redeploy `l` at this commit. |
 | 2026-10-19 | `l` redeployed at `8624d862` and checked by the operator (IV031). The VM leaf gains the bare link rows; their run is a TODO. Next: the VM run and the push and single PR, each when the operator asks. |
 | 2026-10-19 | The VM leaf passes with the bare link rows (IV032). Next, at the operator's choice: the open TODOs, starting with validating selectors before a source is opened. |
+| 2026-10-19 | TODO done: refused selectors no longer open a source, through a dry run of `goip.Show` on a probe source (findings, IV033–IV034). Next: goip's `ntable_dev_star`. |

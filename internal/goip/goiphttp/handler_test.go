@@ -182,7 +182,7 @@ func handlerTests(tb testing.TB) []handlerTest {
 		{name: "index_bad_escape", description: "negative: the index refuses a query that does not parse",
 			open: replayOpener(linkPcap), method: "GET", target: "/ip?format=%zz", wantStatus: 400, wantInBody: "does not parse", wantOpens: 0},
 		{name: "dev_name_too_long", description: "boundary: a 16-byte device name is ip's \"not a valid ifname\": 400, not 500",
-			open: errOpener(noDevSource{&errSource{}}), method: "GET", target: "/ip/link/show/dev/" + strings.Repeat("x", 16), wantStatus: 400, wantOpens: 1},
+			open: errOpener(noDevSource{&errSource{}}), method: "GET", target: "/ip/link/show/dev/" + strings.Repeat("x", 16), wantStatus: 400, wantOpens: 0},
 		{name: "dev_name_at_max", description: "boundary: a 15-byte device name is valid, and missing: 404",
 			open: errOpener(noDevSource{&errSource{}}), method: "GET", target: "/ip/link/show/dev/" + strings.Repeat("x", 15), wantStatus: 404, wantOpens: 1},
 		{name: "dev_name_too_long_query", description: "boundary: the query form's 16-byte device name is 400 too",
@@ -249,7 +249,7 @@ func handlerTests(tb testing.TB) []handlerTest {
 			wantArgv: "ip -4 route show table all", wantLocation: "/ip/-4/route/show/table/all", wantOpens: 1},
 		{name: "selector_gap", description: "negative: proto reaches goip's route parser, which does not implement it: 501 with the argv",
 			open: replayOpener(routePcap), method: "GET", target: "/ip/-4/route/show/table/all/proto/bgp",
-			wantStatus: 501, wantType: textPlain, wantInBody: `route show "proto"`, wantArgv: "ip -4 route show table all proto bgp", wantOpens: 1},
+			wantStatus: 501, wantType: textPlain, wantInBody: `route show "proto"`, wantArgv: "ip -4 route show table all proto bgp", wantOpens: 0},
 		{name: "query_form_kept", description: "positive: the query form is unchanged, and gains the canonical location",
 			open: replayOpener(devPcap), method: "GET", target: "/ip/addr?dev=goip0",
 			wantStatus: 200, wantType: "application/json",
@@ -281,7 +281,7 @@ func handlerTests(tb testing.TB) []handlerTest {
 			wantArgv: "ip route show 198.18.1.0/24", wantOpens: 1},
 		{name: "bad_route_prefix", description: "negative: a length past 32 is ip's get_prefix error, a 400",
 			open: replayOpener(routePcap), method: "GET", target: "/ip/route/show/10.0.0.0%2F33",
-			wantStatus: 400, wantInBody: `any valid prefix is expected rather than "10.0.0.0/33"`, wantOpens: 1},
+			wantStatus: 400, wantInBody: `any valid prefix is expected rather than "10.0.0.0/33"`, wantOpens: 0},
 
 		{name: "i_l_s_set", description: "negative: ip link s is set, refused before any socket opens",
 			open: replayOpener(linkPcap), method: "GET", target: "/i/l/s",
@@ -302,10 +302,10 @@ func handlerTests(tb testing.TB) []handlerTest {
 			open: replayOpener(linkPcap), method: "GET", target: "/ip/link/show?x=1", wantStatus: 400, wantInBody: "no query parameters", wantOpens: 0},
 		{name: "bad_selector", description: "negative: dev does not abbreviate, so address show d lo is a 400 with ip's message",
 			open: replayOpener(addrPcap), method: "GET", target: "/ip/addr/show/d/lo",
-			wantStatus: 400, wantType: textPlain, wantInBody: `either "dev" is duplicate, or "lo" is garbage`, wantArgv: "ip address show d lo", wantOpens: 1},
+			wantStatus: 400, wantType: textPlain, wantInBody: `either "dev" is duplicate, or "lo" is garbage`, wantArgv: "ip address show d lo", wantOpens: 0},
 		{name: "bad_table", description: "negative: a table that is no id is ip's invarg, a 400",
 			open: replayOpener(routePcap), method: "GET", target: "/ip/route/show/table/wombat",
-			wantStatus: 400, wantInBody: `argument "wombat" is wrong: table id value is invalid`, wantArgv: "ip route show table wombat", wantOpens: 1},
+			wantStatus: 400, wantInBody: `argument "wombat" is wrong: table id value is invalid`, wantArgv: "ip route show table wombat", wantOpens: 0},
 		{name: "bad_token", description: "negative: a tokenizer refusal is a 400 before any socket",
 			open: replayOpener(linkPcap), method: "GET", target: "/ip/link/show/dev/a%00", wantStatus: 400, wantInBody: "control character", wantOpens: 0},
 		{name: "no_dev_object", description: "negative: rule takes no interface, so /ip/rule/x is a command line ip rejects",
@@ -333,7 +333,7 @@ func handlerTests(tb testing.TB) []handlerTest {
 		{name: "link_bare_device_short", description: "positive: the same through /i",
 			open: errOpener(&errSource{errs: []error{unix.ENODEV}}), method: "GET", target: "/i/l/sh/nosuch0", wantStatus: 404, wantArgv: "ip link show nosuch0", wantOpens: 1},
 		{name: "link_bare_keyword", description: "negative: up is a keyword of the same loop, still a 501",
-			open: errOpener(&errSource{}), method: "GET", target: "/ip/link/show/up", wantStatus: 501, wantInBody: `link show "up"`, wantOpens: 1},
+			open: errOpener(&errSource{}), method: "GET", target: "/ip/link/show/up", wantStatus: 501, wantInBody: `link show "up"`, wantOpens: 0},
 		{name: "iface_named_s", description: "corner: /ip/link/s is set, not the interface s",
 			open: replayOpener(linkPcap), method: "GET", target: "/ip/link/s", wantStatus: 400, wantInBody: "ip link set:", wantOpens: 0},
 		{name: "head_argv", description: "corner: HEAD on a command line sends the headers and no body",
@@ -772,6 +772,7 @@ func BenchmarkIPHandler(b *testing.B) {
 		{"index", dumpsDir + "netlink_route_getlink.pcap", "/ip"},
 		{"argv_addr_json", dumpsDir + "netlink_route_getaddr.pcap", "/i/-j/a/s"},
 		{"argv_route_text", dumpsDir + "netlink_route_getroute.pcap", "/ip/route/show"},
+		{"argv_route_table", dumpsDir + "netlink_route_getroute.pcap", "/ip/route/show/table/all"},
 		{"argv_write_verb", dumpsDir + "netlink_route_getlink.pcap", "/i/l/s"},
 		{"argv_bad_token", dumpsDir + "netlink_route_getlink.pcap", "/ip/link/show/dev/a%00"},
 	}
@@ -823,6 +824,8 @@ func TestRejectAllocs(t *testing.T) {
 		{"argv_refused_option", "negative", "-netns is refused", "/ip/-netns/x/link/show", 40},
 		{"argv_bad_token", "negative", "a %00 is refused by the tokenizer", "/ip/link/show/dev/a%00", 40},
 		{"argv_query_on_command", "corner", "a command line with a query string", "/ip/link/show?dev=lo", 40},
+		{"argv_selector_gap", "negative", "a selector goip does not parse, refused by the dry run", "/ip/route/show/proto/bgp", 40},
+		{"argv_bad_prefix", "negative", "a /33 behind %2F, ip's get_prefix error from the dry run", "/ip/route/show/10.0.0.0%2F33", 45},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequest("GET", tc.target, nil)
@@ -922,4 +925,60 @@ func TestRegisterMethods(t *testing.T) {
 			t.Fatal("/metrics opened netlink")
 		}
 	})
+}
+
+// TestRefusedBeforeSource covers the dry run: only an error goip.Show
+// returns before sending anything is taken, so a selector that needs the
+// kernel always gets the real run.
+func TestRefusedBeforeSource(t *testing.T) {
+	route := func(sel ...string) goip.ShowRequest { return goip.ShowRequest{Object: "route", Selectors: sel} }
+	for _, tc := range []struct {
+		name, category, description string
+		req                         goip.ShowRequest
+		expected                    string // a substring of the error, or "" for nil
+	}{
+		{"no_selectors", "positive", "nothing to refuse, so no dry run", route(), ""},
+		{"accepted_selector", "positive", "a valid prefix reaches the source, so the real run decides", route("10.0.0.0/8"), ""},
+		{"needs_kernel", "corner", "dev NAME is a lookup, which the probe answers and the real run repeats", goip.ShowRequest{Object: "address", Selectors: []string{"dev", "eth0"}}, ""},
+		{"selector_gap", "negative", "proto is refused by name before any message", route("proto", "bgp"), `route show "proto"`},
+		{"bad_prefix", "negative", "get_prefix's error before any message", route("10.0.0.0/33"), `any valid prefix is expected rather than "10.0.0.0/33"`},
+		{"bad_table", "negative", "a table that is no id", route("table", "nosuchtable"), "table"},
+		{"link_keyword", "boundary", "up is a keyword of link show's loop, not a device", goip.ShowRequest{Object: "link", Selectors: []string{"up"}}, `link show "up"`},
+	} {
+		t.Run(tc.category+"/"+tc.name, func(t *testing.T) {
+			err := refusedBeforeSource(tc.req)
+			switch {
+			case tc.expected == "" && err != nil:
+				t.Errorf("%s: %v, want nil", tc.description, err)
+			case tc.expected != "" && (err == nil || !strings.Contains(err.Error(), tc.expected)):
+				t.Errorf("%s: %v, want an error containing %q", tc.description, err, tc.expected)
+			case errors.Is(err, errProbe):
+				t.Errorf("%s: the probe's own error escaped: %v", tc.description, err)
+			}
+		})
+	}
+}
+
+// BenchmarkRefusedBeforeSource is what the dry run adds to a served command
+// line with selectors; one without selectors pays nothing.
+//
+// go test ./internal/goip/goiphttp/ -run x -bench RefusedBeforeSource -benchmem
+func BenchmarkRefusedBeforeSource(b *testing.B) {
+	for _, bc := range []struct {
+		name string
+		req  goip.ShowRequest
+	}{
+		{"none", goip.ShowRequest{Object: "route"}},
+		{"route_table", goip.ShowRequest{Object: "route", Selectors: []string{"table", "all"}}},
+		{"route_prefix", goip.ShowRequest{Object: "route", Selectors: []string{"10.0.0.0/8"}}},
+		{"addr_dev", goip.ShowRequest{Object: "address", Selectors: []string{"dev", "eth0"}}},
+		{"link_dev", goip.ShowRequest{Object: "link", Selectors: []string{"eth0"}}},
+	} {
+		b.Run(bc.name, func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				_ = refusedBeforeSource(bc.req)
+			}
+		})
+	}
 }
