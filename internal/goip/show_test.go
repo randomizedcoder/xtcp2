@@ -507,7 +507,7 @@ func TestOpenNetlinkTimeout(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if us := int64(tv.Sec)*1e6 + int64(tv.Usec); us < tc.minUs || us > tc.maxUs {
+			if us := tv.Nano() / 1e3; us < tc.minUs || us > tc.maxUs {
 				t.Fatalf("%s: SO_RCVTIMEO = %dus, want [%d, %d]", tc.description, us, tc.minUs, tc.maxUs)
 			}
 		})

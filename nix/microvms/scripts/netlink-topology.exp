@@ -2,7 +2,8 @@
 # netlink-topology.exp - the namespace topology both netlink drivers capture on
 #
 # Sourced by scripts/capture-netlink-dumps.exp (which records the decoder
-# corpus) and scripts/goip-parity.exp (which records the ip/goip/ip triples).
+# corpus), scripts/goip-parity.exp (which records the ip/goip/ip triples) and
+# scripts/capture-link-writes.exp (which uses topo and late_setup).
 #
 # WHY THIS IS ONE FILE AND NOT TWO COPIES
 #
@@ -479,5 +480,61 @@ namespace eval nltopo {
         topo $ns $subdir -6 neigh add 2001:db8:100::5 \
             lladdr 20:01:0d:b8:00:00:00:00:00:00:00:00:00:00:00:63 \
             nud permanent dev ip6tnl1
+    }
+
+    ###########################################################################
+    # late_modules - what the generic netlink and XFRM rows need loaded.
+    #
+    # fou and ila are their own genl families; l2tp_netlink is the l2tp
+    # family, and l2tp_eth, l2tp_ip and l2tp_ip6 are the pseudowire types its
+    # rows create; macsec is the macsec family. xfrm_user is NETLINK_XFRM
+    # itself, and esp4, esp6, authenc, cbc, gcm, seqiv and echainiv are what an
+    # ESP state with cbc(aes)+hmac(sha256) or rfc4106(gcm(aes)) needs; hmac and
+    # sha256 are built into the guest kernel. modprobe pulls in the rest
+    # (l2tp_core, xfrm_algo, ctr). The tunnel modules are not here: the dump
+    # driver loads them before its tunnel set, which is the one place they
+    # are wanted.
+    ###########################################################################
+    variable late_modules {
+        fou ila
+        l2tp_core l2tp_netlink l2tp_eth l2tp_ip l2tp_ip6
+        macsec
+        xfrm_user esp4 esp6 authenc cbc gcm seqiv echainiv
+    }
+
+    ###########################################################################
+    # late_setup <subdir> - the kernel state for rows that come after every
+    # existing one. Returns the problems, an empty list on success.
+    #
+    # Called once by each capture driver, after its last existing row and
+    # before inventory, so loading a module can change nothing already
+    # captured: a module is kernel-wide, and one that creates per-namespace
+    # fallback devices creates them in every namespace (see cmd_modules in
+    # nix/microvms/netlink-capture.nix). <subdir>/modules lists what loaded;
+    # <subdir>/topology records the sysctl and the mroute check.
+    #
+    # The mroute check reads /proc/net/ip_mr_vif and ip6_mr_vif, which exist
+    # only with CONFIG_IP_MROUTE and CONFIG_IPV6_MROUTE: there is no module to
+    # load for them, so a kernel without them is a problem to report, not a
+    # step to take.
+    ###########################################################################
+    proc late_setup {subdir} {
+        variable late_modules
+        set problems {}
+        lassign [vmlib::run_out "xtcp2-nlcap modules $subdir [join $late_modules { }]"] rc out
+        vmlib::log [string trim $out]
+        if {$rc != 0} {
+            lappend problems "modules: [string trim $out]"
+        }
+        lassign [vmlib::run_out "xtcp2-nlcap sysctl - $subdir net.mptcp.enabled 1"] rc out
+        if {$rc != 0} {
+            lappend problems "sysctl net.mptcp.enabled=1: [string trim $out]"
+        }
+        if {[vmlib::run "test -e /proc/net/ip_mr_vif -a -e /proc/net/ip6_mr_vif"] != 0} {
+            lappend problems "mroute: /proc/net/ip_mr_vif or ip6_mr_vif missing"
+        } else {
+            vmlib::run "xtcp2-nlcap note $subdir 'ipmr and ip6mr present'"
+        }
+        return $problems
     }
 }

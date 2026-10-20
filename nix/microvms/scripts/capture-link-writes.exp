@@ -125,7 +125,9 @@ set lacp_timeouts {}
 
 set write_skipped {}
 
-proc write_row {slug floor pre command {dir write}} {
+# <proto> is the netlink protocol the row's ip.pcap keeps: route, generic or
+# xfrm (xtcp2-nlcap --proto).
+proc write_row {slug floor pre command {dir write} {proto route}} {
     global NS_A short_caps write_skipped
     set subdir $dir/$slug
     vmlib::log "=== write $slug ==="
@@ -136,7 +138,7 @@ proc write_row {slug floor pre command {dir write}} {
             return 0
         }
     }
-    lassign [nlcap write $NS_A $subdir ip $floor "'$command'"] rc out
+    lassign [nlcap write --proto $proto $NS_A $subdir ip $floor "'$command'"] rc out
     if {$rc != 0} {
         lappend short_caps "$subdir/ip"
         vmlib::log "MISSED FLOOR $subdir/ip: $out"
@@ -543,6 +545,10 @@ foreach row $addrcorpus::save_rows {
     }
 }
 
+# After every row above; see nltopo::late_setup.
+vmlib::log "=== late setup (late/) ==="
+set late_problems [nltopo::late_setup late]
+
 lassign [nlcap inventory] inv_rc inventory
 vmlib::log "captured [llength [split [string trim $inventory] "\n"]] files"
 
@@ -619,6 +625,14 @@ if {[llength [addrtopo::dropped_states]] > 0} {
     foreach s [addrtopo::dropped_states] {
         puts "  $s"
     }
+}
+
+if {[llength $late_problems] > 0} {
+    puts "NLCAP_LATE_FAILED [llength $late_problems]"
+    foreach p $late_problems {
+        puts "  $p"
+    }
+    set failed 1
 }
 
 if {[llength $addr_problems] > 0} {

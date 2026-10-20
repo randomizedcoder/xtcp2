@@ -14,6 +14,10 @@
 #
 # It also runs tcpdump-drops, the parse capture() uses to discard a capture
 # whose packet socket dropped datagrams, against tcpdump's exit lines.
+# And it runs filter, capture()'s per-protocol fixture filter (--proto), on a
+# hand-built savefile of mixed netlink protocols. And it runs modules, the
+# late module load, whose refusals are all the sandbox can show: modprobe has
+# nothing to load here.
 #
 # TWO KINDS OF ROW
 #
@@ -569,6 +573,118 @@ foreach {description lines want_rc want_re} [list \
     close $f
     ccheck $description "xtcp2-nlcap tcpdump-drops $tderr" $want_rc $want_re
 }
+
+###############################################################################
+# xtcp2-nlcap --proto and filter, end to end against the real helper and the
+# real tcpdump
+#
+# capture() keeps one netlink protocol per fixture (goip-parity-gaps.md,
+# C0-T01). These rows run the same filter on a hand-built DLT_NETLINK savefile
+# whose records carry mixed sll_protocol values, so what is checked is the
+# filter expression and the name-to-number mapping a real capture depends on.
+###############################################################################
+
+# write_nlpcap - a DLT_NETLINK (253) savefile with one record per entry of
+# protos. Each record is a 16-byte Linux-SLL header, laid out as a captured
+# one is (sll_pkttype 4, sll_hatype 0x338, sll_protocol big-endian at offset
+# 14), then a bare 16-byte nlmsghdr.
+proc write_nlpcap {path protos} {
+    set f [open $path w]
+    fconfigure $f -translation binary
+    puts -nonewline $f [binary format issiiii 0xa1b2c3d4 2 4 0 0 262144 253]
+    set seq 0
+    foreach p $protos {
+        incr seq
+        set rec [binary format SSSa8S 4 0x338 0 "" $p]
+        append rec [binary format isSii 16 16 0 $seq 0]
+        puts -nonewline $f [binary format iiii $seq 0 32 32]
+        puts -nonewline $f $rec
+    }
+    close $f
+}
+
+set mixed [file join [pwd] mixed.pcap]
+set sentonly [file join [pwd] sentinel.pcap]
+set kept [file join [pwd] kept.pcap]
+set rekept [file join [pwd] rekept.pcap]
+# Two route records, three generic (a CTRL GETFAMILY and NEWFAMILY plus one
+# command, as a genl fixture holds), one XFRM, and the sock_diag sentinel.
+write_nlpcap $mixed {0 0 16 16 16 6 4}
+write_nlpcap $sentonly {4}
+
+foreach {description cmd want_rc want_re} [list \
+    "positive: --proto route keeps the two protocol-0 records" \
+        "xtcp2-nlcap filter --proto route $mixed $kept" 0 {^2$} \
+    "positive: --proto generic keeps the three protocol-16 records" \
+        "xtcp2-nlcap filter --proto generic $mixed $kept" 0 {^3$} \
+    "positive: and what it kept holds no route record" \
+        "xtcp2-nlcap filter --proto route $kept $rekept" 0 {^0$} \
+    "positive: --proto xfrm keeps the one protocol-6 record" \
+        "xtcp2-nlcap filter --proto xfrm $mixed $kept" 0 {^1$} \
+    "boundary: no --proto is route" \
+        "xtcp2-nlcap filter $mixed $kept" 0 {^2$} \
+    "boundary: the sentinel alone survives no route filter" \
+        "xtcp2-nlcap filter --proto route $sentonly $kept" 0 {^0$} \
+    "boundary: the sentinel alone survives no generic filter" \
+        "xtcp2-nlcap filter --proto generic $sentonly $kept" 0 {^0$} \
+    "boundary: the sentinel alone survives no xfrm filter" \
+        "xtcp2-nlcap filter --proto xfrm $sentonly $kept" 0 {^0$} \
+    "negative: an unknown protocol name is refused" \
+        "xtcp2-nlcap filter --proto bogus $mixed $kept" 2 {NLCAP_ERR unknown netlink protocol 'bogus'} \
+    "negative: --proto with no value is refused" \
+        "xtcp2-nlcap filter --proto" 2 {NLCAP_ERR --proto needs a value} \
+    "negative: --proto on a subcommand that does not filter is refused" \
+        "xtcp2-nlcap side --proto generic - p0 x true" 2 {NLCAP_ERR --proto applies to cap, capio, write and filter, not side} \
+    "negative: filter with one path is a usage error" \
+        "xtcp2-nlcap filter $mixed" 2 {NLCAP_ERR usage: filter} \
+    "corner: a netlink_route_ fixture under --proto generic is refused" \
+        "xtcp2-nlcap cap --proto generic - p1 netlink_route_x 1 true" 2 {NLCAP_ERR fixture netlink_route_x does not match --proto generic} \
+    "corner: and the refusal wrote nothing" \
+        "test ! -e $out_dir/p1" 0 {} \
+    "corner: a netlink_xfrm_ fixture with no --proto is refused" \
+        "xtcp2-nlcap capio - p1 netlink_xfrm_x 1 true x.out" 2 {NLCAP_ERR fixture netlink_xfrm_x does not match --proto route} \
+    "positive: a netlink_generic_ fixture under --proto generic passes the guard" \
+        "xtcp2-nlcap cap --proto generic xtcp2_no_ns p2 netlink_generic_x 1 true" 1 {^(?!.*NLCAP_ERR).*NLCAP_CAP_SHORT p2/netlink_generic_x} \
+    "corner: a write row's ip fixture is outside the naming scheme" \
+        "xtcp2-nlcap write --proto xfrm xtcp2_no_ns p3 ip 1 true" 1 {^(?!.*NLCAP_ERR).*NLCAP_CAP_SHORT p3/ip} \
+] {
+    ccheck $description $cmd $want_rc $want_re
+}
+
+###############################################################################
+# modules: the late module load. modprobe has no modules to load in the
+# sandbox, so only the refusals run here; every module loading is a VM row.
+###############################################################################
+foreach {description cmd want_rc want_re} [list \
+    "negative: an unknown module fails the load" \
+        "xtcp2-nlcap modules m1 xtcp2_no_such_mod" 1 {NLCAP_MOD_FAIL xtcp2_no_such_mod} \
+    "corner: and the failed load wrote no sidecar" \
+        "test ! -e $out_dir/m1/modules" 0 {} \
+    "corner: the first failure stops the load" \
+        "xtcp2-nlcap modules m2 xtcp2_no_such_a xtcp2_no_such_b" 1 {^(?!.*xtcp2_no_such_b).*NLCAP_MOD_FAIL xtcp2_no_such_a} \
+    "negative: no module named is a usage error" \
+        "xtcp2-nlcap modules m1" 2 {NLCAP_ERR usage: modules} \
+    "negative: no arguments at all is a usage error" \
+        "xtcp2-nlcap modules" 2 {NLCAP_ERR usage: modules} \
+    "negative: a dashed name is refused before anything loads" \
+        "xtcp2-nlcap modules m3 xtcp2_no_such_mod l2tp-eth" 2 {^(?!.*NLCAP_MOD_FAIL).*NLCAP_ERR modules: bad module name: l2tp-eth} \
+    "corner: and the refusal wrote no sidecar" \
+        "test ! -e $out_dir/m3/modules" 0 {} \
+] {
+    ccheck $description $cmd $want_rc $want_re
+}
+
+# late_setup against the recorder: the modules call reaches the real helper,
+# where it fails as above; the sysctl and note are recorded.
+set ::calls {}
+set late [nltopo::late_setup late]
+tcheck "negative: late_setup reports the failed module load" \
+    {regexp {^modules: NLCAP_MOD_FAIL fou$} [lindex $late 0]} 1
+tcheck "positive: late_setup asks for mptcp in the root namespace" \
+    {expr {[lsearch -exact [lmap c $::calls {lindex $c 0}] "xtcp2-nlcap sysctl - late net.mptcp.enabled 1"] >= 0}} 1
+tcheck "corner: late_setup loads the l2tp, macsec and xfrm modules and no tunnel module" \
+    {expr {[lsearch $nltopo::late_modules l2tp_netlink] >= 0 && [lsearch $nltopo::late_modules macsec] >= 0
+        && [lsearch $nltopo::late_modules xfrm_user] >= 0 && [lsearch $nltopo::late_modules ip6_tunnel] < 0}} 1
 
 ###############################################################################
 # summary
