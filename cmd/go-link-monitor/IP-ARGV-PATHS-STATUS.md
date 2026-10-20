@@ -638,7 +638,13 @@ Work outside the 12 tasks, kept so it is not lost. IA4-T02 reviews it.
   compared with `ip` on the guest's 6.18 kernel, and with the
   `selectors_live` rows for `type`, `proto` and `nud` (operator
   approval). The operator's first run (evidence
-  `/tmp/goip-argv-paths-GGEbfH`) left an empty serial log and no result.
+  `/tmp/goip-argv-paths-GGEbfH`) left an empty serial log and no result,
+  and so did the second (`/tmp/goip-argv-paths-CStMX8`). Both ran from an
+  interactive terminal, where `timeout` leaves qemu in a background
+  process group and a `-nographic` qemu reading the terminal is stopped
+  before the BIOS prints; IV032 passed from a non-interactive shell. The
+  leaf now gives qemu `/dev/null` as stdin and fails loudly on an empty
+  log.
 
 - [x] Run the VM leaf with the bare link rows (`/ip/link/show/goip0`,
   `/i/l/sh/eth0`, `/ip/link/show/nosuch0`), added after IV027: passed,
@@ -678,3 +684,4 @@ None.
 | 2026-10-19 | TODO done: goip prints `dev *` for a base ntable message with `NDTPA_IFINDEX` 0 (findings, IV035); the VM leaf's gap list is empty. Next: the VM run that confirms it, when the operator approves. |
 | 2026-10-19 | The operator asked for the three goip selector gaps behind the `not_served` design examples (`link show type`, `route show proto`, `neighbor show nud`) as TODOs, and for all three to be done next. |
 | 2026-10-19 | The three selectors done: goip's `link show type`, `route show proto` and `neighbor show nud`; every design example is served (findings, IV036). Next: the VM run with `selectors_live` and the empty gap list, when the operator approves. |
+\n| 2026-10-20 | Two operator VM runs wrote no serial output: qemu stopped on terminal input under `timeout`. The leaf's qemu reads `/dev/null` now. Next: the VM run again. |\n

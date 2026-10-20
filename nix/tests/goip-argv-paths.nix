@@ -291,11 +291,15 @@ pkgs.writeShellApplication {
       tcg) export QEMU_OPTS='-machine accel=tcg' ;;
     esac
     unset QEMU_KERNEL_PARAMS QEMU_NET_OPTS NIX_DISK_IMAGE
-    timeout --kill-after=10s 15m ${vm}/bin/run-goip-argv-paths-vm > "$run_dir/serial.log" 2>&1 || {
+    # stdin from /dev/null: timeout runs qemu in its own process group, and
+    # a -nographic qemu reading an interactive terminal from there is
+    # stopped (SIGTTIN) before it prints anything, until the timeout.
+    timeout --kill-after=10s 15m ${vm}/bin/run-goip-argv-paths-vm < /dev/null > "$run_dir/serial.log" 2>&1 || {
       cat "$run_dir/serial.log"
       exit 1
     }
     cat "$run_dir/serial.log"
+    if [ ! -s "$run_dir/serial.log" ]; then echo 'FAIL: the guest wrote nothing' >&2; exit 1; fi
     for sentinel in EXAMPLES_DONE HANDLER_ROWS_DONE WRITE_REFUSED_DONE PREFIX_JOIN_DONE IFACE_SHOW_DONE SELECTORS_DONE MISSING_DEV_DONE PASS; do
       grep -q "GOIP_ARGV_PATHS_$sentinel" "$run_dir/serial.log"
     done
