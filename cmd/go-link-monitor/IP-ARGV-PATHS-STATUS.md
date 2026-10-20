@@ -473,8 +473,8 @@ write-up in IA4-T02.
     `8624d862` and confirmed `/ip/link/show/NAME` now prints what
     `ip link show NAME` prints, with `/ip/addr/show/NAME` and
     `/ip/route/show` still served (IV031). The VM leaf gains
-    `/ip/link/show/goip0`, `/i/l/sh/eth0` and a missing name's 404; its run
-    is a TODO until approved.
+    `/ip/link/show/goip0`, `/i/l/sh/eth0` and a missing name's 404, and
+    passes with them: 43 checks (IV032).
   - `follow_ups`, each with a decision:
     - `ip route get ADDR`: deferred. It is read-only but not in goip;
       once goip has it, `get` joins route's verb chain as a show-kind
@@ -521,6 +521,7 @@ write-up in IA4-T02.
 | IV029 | 2026-10-19 | IA4-T02 | the same, with the allocation test skipped under `-race` | `l`, nix sandbox, 7.2.9 | `3f66b4d5` + working tree | Pass: every `test-linkmonitor` leaf (docs, format, fuzz, lint, parse-guards, race, rdma, replay, unit, vet) and `test-focused-goip` | nix store, `--no-link` |
 | IV030 | 2026-10-19 | IA4-T02 | `nix build --no-link --keep-going path:.#test-linkmonitor-unit path:.#test-linkmonitor-race path:.#test-linkmonitor-lint path:.#test-linkmonitor-docs path:.#test-focused-goip -L`, for the bare link device | `l`, nix sandbox, 7.2.9, load 10 | `d038155d` + working tree | Pass: all five, with `TestLinkShowBareDevice` and the new `TestHandler` rows | nix store, `--no-link` |
 | IV031 | 2026-10-19 | IA4-T02 | Operator: `make` in the host's NixOS config (go-link-monitor at `8624d862`, `ipPaths = true`), then curl of `/ip/link/show/NAME`, `/ip/addr/show/NAME` and `/ip/route/show` beside `ip` | `l`, 7.2.9 | `8624d862` | Pass: the link body equals `ip link show NAME`; the other two served. Bodies not recorded here | operator's terminal, not kept |
+| IV032 | 2026-10-19 | IA4-T02 | `env -u LD_LIBRARY_PATH nix run path:.#test-goip-argv-paths-vm`, with the bare link rows; operator-approved | qemu-vm guest on `l` (KVM), kernel 6.18.39, host load 7.4 | `0e8fa9a2` | Pass: all 43 checks, one through the named gap, every sentinel | `/tmp/goip-argv-paths-aAalQ1` |
 
 ## TODO
 
@@ -544,9 +545,9 @@ Work outside the 12 tasks, kept so it is not lost. IA4-T02 reviews it.
   Needs a presence flag in xtcpnl, a 6.18 fixture, and the VM leaf's gap
   removed.
 
-- [ ] Run the VM leaf with the bare link rows (`/ip/link/show/goip0`,
-  `/i/l/sh/eth0`, `/ip/link/show/nosuch0`), added after IV027; needs the
-  operator's approval for the run.
+- [x] Run the VM leaf with the bare link rows (`/ip/link/show/goip0`,
+  `/i/l/sh/eth0`, `/ip/link/show/nosuch0`), added after IV027: passed,
+  43 checks (IV032).
 
 ## Blockers
 
@@ -577,3 +578,4 @@ None.
 | 2026-10-19 | IA4-T02 done, so IA4 and the plan are done: 12 of 12. The aggregate gate failed once on the new allocation test under `-race` (IV028), now skipped there, and passes (IV029). Follow-ups are in IA4-T02's findings and the TODO section. Next: redeploy `l` at this commit; the push and the single PR when the operator asks. |
 | 2026-10-19 | After IA4-T02: the operator found `/ip/link/show/NAME` a 501 on `l`; goip's `link show` now takes a bare device name, as `ip` and goip's `address show` do (IV030). Next: redeploy `l` at this commit. |
 | 2026-10-19 | `l` redeployed at `8624d862` and checked by the operator (IV031). The VM leaf gains the bare link rows; their run is a TODO. Next: the VM run and the push and single PR, each when the operator asks. |
+| 2026-10-19 | The VM leaf passes with the bare link rows (IV032). Next, at the operator's choice: the open TODOs, starting with validating selectors before a source is opened. |
