@@ -64,6 +64,22 @@ func (s *Service) Links(extMask uint32) ([]model.Link, error) {
 	if err != nil {
 		return nil, fmt.Errorf("goip: build link dump request: %w", err)
 	}
+	return s.links(r)
+}
+
+// LinksKind is Links for `ip link show type KIND`: the same dump carrying
+// the kind (req.LinkShowDumpKind). A kernel that knows the kind returns only
+// its links; one that does not returns them all. Either way the caller
+// filters the replies again, as print_linkinfo does.
+func (s *Service) LinksKind(extMask uint32, kind string) ([]model.Link, error) {
+	r, err := req.LinkShowDumpKind(extMask, kind, s.nextSeq())
+	if err != nil {
+		return nil, fmt.Errorf("goip: build link dump request: %w", err)
+	}
+	return s.links(r)
+}
+
+func (s *Service) links(r []byte) ([]model.Link, error) {
 	v, err := decode(s, r, uint16(unix.RTM_NEWLINK), "RTM_NEWLINK", xtcpnl.ParseNewLink)
 	if err != nil {
 		return nil, err

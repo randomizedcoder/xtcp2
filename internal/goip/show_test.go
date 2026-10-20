@@ -127,9 +127,9 @@ func TestShow(t *testing.T) {
 			pcap: statsPcapBase, req: ShowRequest{Object: "stats", Selectors: []string{"group", "link"}},
 		},
 		{
-			name: "write_verb_as_selector", description: "negative: `set dev lo mtu 1` after show is an unknown selector, never a write",
+			name: "write_verb_as_selector", description: "negative: `set dev lo mtu 1` after show is ip's duparg2 (`set` is the device), never a write",
 			pcap: guestDumpsDir + "netlink_route_getlink.pcap",
-			req:  ShowRequest{Object: "link", Selectors: []string{"set", "dev", "lo", "mtu", "1"}}, wantErr: ErrNotImplemented,
+			req:  ShowRequest{Object: "link", Selectors: []string{"set", "dev", "lo", "mtu", "1"}}, wantErr: ErrInvalidArgument,
 		},
 		{
 			name: "unknown_object", description: "negative: tunnel is an object goip does not show",

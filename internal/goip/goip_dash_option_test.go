@@ -305,8 +305,8 @@ func TestLinkShowBareDevice(t *testing.T) {
 		{"keyword_up", "negative", "`up` is a keyword, not a device", []string{"link", "show", "up"}, "not implemented"},
 		{"flag_filter", "negative", "`dynamic` is a flag filter", []string{"link", "show", "dynamic"}, "not implemented"},
 		{"help_abbrev", "corner", "`he` abbreviates help", []string{"link", "show", "he"}, "not implemented"},
-		{"dev_alone", "boundary", "`dev` with no name is not a device named dev", []string{"link", "show", "dev"}, "not implemented"},
-		{"two_bare", "negative", "a second name is ip's duparg2, never served", []string{"link", "show", "goip0", "goip0"}, "not implemented"},
+		{"dev_alone", "boundary", "`dev` with no name is not a device named dev", []string{"link", "show", "dev"}, "Command line is not complete"},
+		{"two_bare", "negative", "a second name is ip's duparg2", []string{"link", "show", "goip0", "goip0"}, `either "dev" is duplicate, or "goip0" is garbage`},
 	}
 	for _, tc := range tests {
 		t.Run(tc.category+"/"+tc.name, func(t *testing.T) {

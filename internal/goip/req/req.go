@@ -100,6 +100,17 @@ func LinkShowDump(extMask, seq uint32) ([]byte, error) {
 	return xtcpnl.BuildDumpLinkRequestExt(unix.AF_PACKET, extMask, seq)
 }
 
+// LinkShowDumpKind is LinkShowDump with `type KIND`: iplink_filter_req
+// (ip/ipaddress.c:2030-2060) appends IFLA_LINKINFO{IFLA_INFO_KIND = kind}
+// after the mask, with no NUL. The family stays AF_PACKET, so the filter
+// always runs, and the mask is the same as LinkShowDump's, so with no kind
+// this builds LinkShowDump's 40 bytes. iproute2 tests the pointer, so
+// `type ""` sends an empty kind; `type X_slave` sends nothing here, because
+// filter.slave_kind is applied client-side only.
+func LinkShowDumpKind(extMask uint32, kind string, seq uint32) ([]byte, error) {
+	return xtcpnl.BuildDumpLinkRequestFilter(unix.AF_PACKET, extMask, 0, kind, true, seq)
+}
+
 // VrfShowDump is `ip vrf show`'s only request, ip_link_list with the
 // ipvrf_filter_req filter (ip/ipvrf.c:580-602): an AF_UNSPEC RTM_GETLINK dump
 // carrying no IFLA_EXT_MASK but an IFLA_LINKINFO nest holding IFLA_INFO_KIND =

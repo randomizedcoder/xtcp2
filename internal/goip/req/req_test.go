@@ -2544,3 +2544,75 @@ func TestTierAAddrRestoreLinkDump(t *testing.T) {
 		})
 	}
 }
+
+// TestLinkShowDumpKind pins `ip link show type KIND`'s dump byte for byte:
+// LinkShowDump's 40 bytes with nlmsg_len grown, then iplink_filter_req's
+// IFLA_LINKINFO{IFLA_INFO_KIND} nest (ip/ipaddress.c:2049-2058), the kind
+// written by addattr_l with strlen, so with no NUL.
+//
+// go test ./internal/goip/req/ -run TestLinkShowDumpKind
+func TestLinkShowDumpKind(t *testing.T) {
+	// head is the nlmsghdr and ifinfomsg for a given nlmsg_len, seq 12345:
+	// RTM_GETLINK, NLM_F_REQUEST|NLM_F_DUMP, AF_PACKET.
+	head := func(n byte) []byte {
+		return []byte{
+			n, 0, 0, 0, 0x12, 0x00, 0x01, 0x03, 0x39, 0x30, 0, 0, 0, 0, 0, 0,
+			0x11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+		}
+	}
+	extMask := func(m byte) []byte { return []byte{0x08, 0x00, 0x1d, 0x00, m, 0, 0, 0} }
+	cat := func(parts ...[]byte) []byte { return bytes.Join(parts, nil) }
+
+	tests := []struct {
+		name, category, description string
+		extMask                     uint32
+		kind                        string
+		expected                    []byte
+	}{
+		{
+			name: "vxlan", category: "positive",
+			description: "a five-byte kind: rta_len 9 padded to 12, inside a 16-byte nest",
+			extMask:     ExtMaskShow, kind: "vxlan",
+			expected: cat(head(56), extMask(0x09),
+				[]byte{0x10, 0x00, 0x12, 0x00, 0x09, 0x00, 0x01, 0x00, 'v', 'x', 'l', 'a', 'n', 0, 0, 0}),
+		},
+		{
+			name: "stats_mask", category: "positive",
+			description: "`-s` moves only the mask byte, as for LinkShowDump",
+			extMask:     ExtMaskStats, kind: "veth",
+			expected: cat(head(52), extMask(0x01),
+				[]byte{0x0c, 0x00, 0x12, 0x00, 0x08, 0x00, 0x01, 0x00, 'v', 'e', 't', 'h'}),
+		},
+		{
+			name: "empty_kind", category: "boundary",
+			description: "`type \"\"` sends an empty IFLA_INFO_KIND, because iproute2 tests the pointer",
+			extMask:     ExtMaskShow, kind: "",
+			expected: cat(head(48), extMask(0x09), []byte{0x08, 0x00, 0x12, 0x00, 0x04, 0x00, 0x01, 0x00}),
+		},
+		{
+			name: "aligned_kind", category: "corner",
+			description: "an eight-byte kind needs no padding: rta_len 12, nest 16",
+			extMask:     ExtMaskShow, kind: "bareudp0",
+			expected: cat(head(56), extMask(0x09),
+				[]byte{0x10, 0x00, 0x12, 0x00, 0x0c, 0x00, 0x01, 0x00, 'b', 'a', 'r', 'e', 'u', 'd', 'p', '0'}),
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.category+"/"+tc.name, func(t *testing.T) {
+			got, err := LinkShowDumpKind(tc.extMask, tc.kind, 12345)
+			if err != nil {
+				t.Fatalf("%s: LinkShowDumpKind: %v", tc.description, err)
+			}
+			if !bytes.Equal(got, tc.expected) {
+				t.Errorf("%s:\n got  %x\n want %x", tc.description, got, tc.expected)
+			}
+			plain, err := LinkShowDump(tc.extMask, 12345)
+			if err != nil {
+				t.Fatalf("LinkShowDump: %v", err)
+			}
+			if !bytes.Equal(got[4:40], plain[4:40]) {
+				t.Errorf("%s: bytes 4-40 differ from LinkShowDump's:\n got  %x\n want %x", tc.description, got[4:40], plain[4:40])
+			}
+		})
+	}
+}
