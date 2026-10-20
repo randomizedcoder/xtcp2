@@ -5,11 +5,12 @@
 #           stdin from /dev/null under a timeout, write serial.log (terminal
 #           escapes and carriage returns stripped) and summary.txt into
 #           EVIDENCE_DIR, and print only the summary. Exit 0 pass, 1 fail.
+#           $VM_KERNEL_PARAMS, if set, becomes the guest's QEMU_KERNEL_PARAMS.
 #   check   a derivation that runs the runner in the build sandbox with KVM
 #           (requiredSystemFeatures), keeping serial.log and summary.txt in
 #           $out. Nix caches a pass by its inputs; a failure prints the log's
 #           tail and keeps nothing (nix build --keep-failed keeps the tree).
-#   app     test-<name>-vm-check [--accel=auto|kvm|tcg] [--keep=N]: the same
+#   app     test-<name>-vm [--accel=auto|kvm|tcg] [--keep=N]: the same
 #           run by hand, its evidence under
 #           ${XDG_CACHE_HOME:-~/.cache}/xtcp2-vm/<name>/<UTC time>, the last
 #           N (default 5) kept. Nothing goes to /tmp and the console gets
@@ -38,6 +39,7 @@
   # fail MESSAGE to fail the run.
   postCheck ? "",
   requiredSystemFeatures ? [ "kvm" ],
+  appName ? "test-${name}-vm",
 }:
 let
   launcher = pkgs.writeShellApplication {
@@ -77,6 +79,10 @@ let
       )}
       printf '%s\n' '${launcher}' > "$run_dir/launcher.txt"
       printf '%s\n' "$qemu_opts" > "$run_dir/qemu-options.txt"
+      kernel_params=''${VM_KERNEL_PARAMS:-}
+      if [ -n "$kernel_params" ]; then
+        printf '%s\n' "$kernel_params" > "$run_dir/kernel-params.txt"
+      fi
 
       fail() {
         printf 'FAIL: ${name}: %s\n' "$1" | tee "$run_dir/summary.txt"
@@ -88,6 +94,9 @@ let
         cd "$work"
         export TMPDIR="$work" QEMU_OPTS="$qemu_opts" VM_EVIDENCE="$run_dir"
         unset QEMU_KERNEL_PARAMS QEMU_NET_OPTS NIX_DISK_IMAGE
+        if [ -n "$kernel_params" ]; then
+          export QEMU_KERNEL_PARAMS="$kernel_params"
+        fi
         # stdin from /dev/null: timeout puts the guest in its own process
         # group, where a -nographic qemu reading a terminal is stopped
         # (SIGTTIN) before it prints anything.
@@ -139,7 +148,7 @@ let
         fi
       '';
   app = pkgs.writeShellApplication {
-    name = "test-${name}-vm-check";
+    name = appName;
     runtimeInputs = with pkgs; [
       coreutils
       findutils
@@ -151,7 +160,7 @@ let
         case "$arg" in
           --accel=auto | --accel=kvm | --accel=tcg) accel=''${arg#--accel=} ;;
           --keep=*) keep=''${arg#--keep=} ;;
-          *) echo 'usage: test-${name}-vm-check [--accel=auto|kvm|tcg] [--keep=N]' >&2; exit 2 ;;
+          *) echo 'usage: ${appName} [--accel=auto|kvm|tcg] [--keep=N]' >&2; exit 2 ;;
         esac
       done
       case "$keep" in

@@ -122,6 +122,17 @@ let
       timeout = row.timeout or "20s";
       postCheck = row.postCheck or "";
     }).runner;
+  # The guest sees QEMU_KERNEL_PARAMS equal to $WANT_KP (empty when unset).
+  kernelParamsRunner =
+    (mkVmCheck {
+      name = "t-kp";
+      launch = ''[ "''${QEMU_KERNEL_PARAMS:-}" = "''${WANT_KP:-}" ] && echo GUEST_A_PASS; echo GUEST_B_PASS'';
+      sentinels = [
+        "GUEST_A_PASS"
+        "GUEST_B_PASS"
+      ];
+      failPattern = "GUEST_FAIL";
+    }).runner;
   appOf =
     (mkVmCheck {
       name = "t-app";
@@ -169,11 +180,27 @@ pkgs.runCommand "xtcp2-vm-check-runner"
       }
     '') rows}
 
+    # VM_KERNEL_PARAMS reaches the guest and the evidence; a stale
+    # QEMU_KERNEL_PARAMS from the caller does not.
+    kp=${kernelParamsRunner}/bin/vm-run-t-kp
+    d=$(mktemp -d)
+    if VM_KERNEL_PARAMS=xtcp2.rdmacapture=1 WANT_KP=xtcp2.rdmacapture=1 "$kp" "$d/a" kvm > /dev/null 2>&1 &&
+      grep -qx xtcp2.rdmacapture=1 "$d/a/kernel-params.txt"; then
+      echo "ok   positive: VM_KERNEL_PARAMS becomes the guest's QEMU_KERNEL_PARAMS"
+    else
+      echo "FAIL positive: VM_KERNEL_PARAMS becomes the guest's QEMU_KERNEL_PARAMS"; fails=$((fails + 1))
+    fi
+    if QEMU_KERNEL_PARAMS=stale "$kp" "$d/b" kvm > /dev/null 2>&1 && [ ! -e "$d/b/kernel-params.txt" ]; then
+      echo "ok   corner: a caller's QEMU_KERNEL_PARAMS does not reach the guest"
+    else
+      echo "FAIL corner: a caller's QEMU_KERNEL_PARAMS does not reach the guest"; fails=$((fails + 1))
+    fi
+
     # The app: evidence under $XDG_CACHE_HOME, and only the newest --keep runs.
     export XDG_CACHE_HOME=$PWD/cache
     base=$XDG_CACHE_HOME/xtcp2-vm/t-app
     mkdir -p "$base"/20000101T00000{1,2,3,4,5,6}Z
-    if ${appOf}/bin/test-t-app-vm-check --accel=tcg --keep=2 > app.out 2>&1 &&
+    if ${appOf}/bin/test-t-app-vm --accel=tcg --keep=2 > app.out 2>&1 &&
       grep -q 'PASS: t-app' app.out &&
       [ "$(find "$base" -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 2 ] &&
       [ ! -e "$base/20000101T000005Z" ] && [ -e "$base/20000101T000006Z" ]; then
@@ -182,7 +209,7 @@ pkgs.runCommand "xtcp2-vm-check-runner"
       echo "FAIL corner: the app keeps the newest --keep runs under XDG_CACHE_HOME"; cat app.out; ls "$base"
       fails=$((fails + 1))
     fi
-    if ${appOf}/bin/test-t-app-vm-check --keep=0 > /dev/null 2>&1; then
+    if ${appOf}/bin/test-t-app-vm --keep=0 > /dev/null 2>&1; then
       echo "FAIL negative: --keep=0 is refused"; fails=$((fails + 1))
     else
       echo "ok   negative: --keep=0 is refused"

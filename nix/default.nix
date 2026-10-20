@@ -167,11 +167,10 @@ let
     artifact = tests.test-linkmonitor-performance;
   };
 
-  # Guest tests that report through the serial console. Each is the
-  # hand-run launcher (test-<name>-vm) with a vmCheck from
-  # microvms/mkVmCheck.nix: checks.vm-<name>, run in the build sandbox with
-  # KVM and cached by its inputs, and test-<name>-vm-check, the same run with
-  # its evidence under ~/.cache/xtcp2-vm.
+  # Guest tests that report through the serial console, each built around
+  # microvms/mkVmCheck.nix's runner: checks.vm-<name>, run in the build
+  # sandbox with KVM and cached by its inputs, and the app test-<name>-vm,
+  # the same run with its evidence under ~/.cache/xtcp2-vm.
   vmTests =
     let
       ionic =
@@ -914,9 +913,6 @@ in
       };
       test-linkmonitor-ionic-vm = vmTests.linkmonitor-ionic;
       test-linkmonitor-ionic-faults-vm = vmTests.linkmonitor-ionic-faults;
-    }
-    // lib.mapAttrs' (name: t: lib.nameValuePair "test-${name}-vm-check" t.vmCheck.app) vmTests
-    // {
       demo-linkmonitor-ionic-profiles = import ./microvms/linkmonitor-ionic-demo.nix {
         inherit pkgs lib nixpkgs;
         monitor = linkmonitorPackages.go-link-monitor;

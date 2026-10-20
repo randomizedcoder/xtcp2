@@ -20,14 +20,16 @@ from a nix target; it should be a check like any other.
     the summary is printed.
   - `check`: the runner in the build sandbox with `requiredSystemFeatures =
     [ "kvm" ]`, evidence in `$out`, cached by its inputs.
-  - `app`: `test-<name>-vm-check`, evidence under
+  - `app`: `test-<name>-vm`, evidence under
     `~/.cache/xtcp2-vm/<name>/<UTC time>`, last N kept.
 - The shared part is how a guest is run, not how it is built: the ionic guest
   needs qemu-vm.nix with rocm-ernic's vfio-user module, which microvm.nix's
   constructor does not model. qemu-vm.nix and microvm.nix guests can both use
   the runner.
-- The `test-<name>-vm` launchers stay until each check has passed on `l`, and
-  the ionic one stays for `--capture`, `--promote` and `--dry-run`.
+- Since VC-T04 the `test-<name>-vm` apps are mkVmCheck's (goip-argv-paths,
+  embedding, ionic-faults). The ionic launcher keeps `--capture`, `--promote`
+  and `--dry-run` but boots through the same runner, passing
+  `xtcp2.rdmacapture=1` as `$VM_KERNEL_PARAMS`.
 
 ## Sandbox facts (probe, 2026-10-20, this host)
 
@@ -70,7 +72,7 @@ Outputs (GC-rooted by the operator's `result-vm-all`):
 | VC-T01 | `mkVmCheck.nix` and its table test (`checks.vm-check-runner`, 13 rows) | done | VC001 |
 | VC-T02 | goip-argv-paths, embedding, ionic, ionic-faults wired: `checks.vm-*`, `vm-all`, `test-*-vm-check` | done (eval and build, no boot) | VC002 |
 | VC-T03 | each check passes once on `l` (one guest at a time, asked first) | done | VC004 |
-| VC-T04 | retire the duplicated launcher code once VC-T03 passes | open | |
+| VC-T04 | retire the duplicated launcher code once VC-T03 passes | done (rerun of `vm-all` pending) | VC009 |
 | VC-T05 | `microvm-lifecycle` check: `requiredSystemFeatures` and its log in `$out` | open | |
 | VC-T06 | `/tmp` cleanup of the old evidence dirs, after the user has seen the list | done | VC007 |
 | VC-T07 | Go source filtering, so a change outside the Go inputs keeps the guests cached (separate commits) | done | VC008 |
@@ -87,6 +89,7 @@ Outputs (GC-rooted by the operator's `result-vm-all`):
   embedding artifact; repo-wide checks keep the full tree (VC008).
 - [x] After the user's rebuild of `l`: `nix config show` lists
   `/dev/net/tun?`, and a sandboxed build creates a TAP (VC003).
+- [ ] Rerun `vm-all` after VC009 (the runner changed, so all four boot).
 - [ ] `test-linkmonitor-rdma-vm` (microvm.nix, TCP console ports) and
   `test-linkmonitor-performance-vm` (timings, wants a quiet host) stay apps.
 
@@ -102,3 +105,4 @@ Outputs (GC-rooted by the operator's `result-vm-all`):
 | VC006 | 2026-10-20 | user: `env -u LD_LIBRARY_PATH nix build -L -o result-vm-all path:.#checks.x86_64-linux.vm-all` on `l` (at 4785ecad) | pass: 8, 4, 11 and 3 sentinels; eth_rx fired 28 of 281, eth_tx 31 of 310, stats_vals 1 of 17; 0 ESC and 0 CR bytes in each serial.log. goip and the embedding artifact rebuilt although only nix and docs files changed (`src = ./.`) |
 | VC007 | 2026-10-20 | with the user's OK: removed the old launchers' `/tmp/{goip-argv-paths,linkmonitor-embedding,linkmonitor-ionic,linkmonitor-ionic-faults}-XXXXXX` | 46 directories (about 4.9 MB) removed, 0 left; other `/tmp` content untouched |
 | VC008 | 2026-10-20 | `nix/lib/goSource.nix` (no `.md` or `.nix` outside testdata bar `cmd/go-link-monitor/METRICS.md`; no `flake.lock`, `docs/`, `.git`, `.github`, `.vscode`, `.ruff_cache`, `result*`). `nix eval` of `checks.vm-all.drvPath` after a README.md edit, a `.nix` comment edit and a `.go` edit; `nix build path:.#test-linkmonitor path:.#goip path:.#go-link-monitor path:.#rdma-capture-manifest` and `checks.{nix-fmt,statix,deadnix}` | drv unchanged by the Markdown and Nix edits, changed by the Go edit; all 14 `test-linkmonitor` leaves and the builds pass |
+| VC009 | 2026-10-20 | VC-T04: `checks.vm-check-runner` (15 rows, with `VM_KERNEL_PARAMS` passthrough and a stale `QEMU_KERNEL_PARAMS`); `nix build` of the four `test-*-vm` apps, `checks.{nix-fmt,statix,deadnix}`, `test-linkmonitor-docs`; `test-linkmonitor-ionic-vm --capture --dry-run --native-out=DIR` and its usage errors (`--dry-run` alone, `--keep=0`, an unknown flag, `--promote` on the fault run) | pass, 15 of 15; dry run writes the manifest and stages; each usage error exits 2; no `/tmp` directory left; no guest booted |

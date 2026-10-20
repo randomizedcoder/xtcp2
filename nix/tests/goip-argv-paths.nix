@@ -2,7 +2,8 @@
 # IA4-T01): go-link-monitor -ip.paths in a disposable guest, every design
 # example and every IA2-T02 positive row fetched with curl and compared with
 # the goip CLI (byte-identical) and with ip (identical apart from the named
-# gaps below). The guest has no network; QEMU's launcher supports KVM and TCG.
+# gaps below). The guest has no network. The app runs it under KVM or TCG;
+# checks.vm-goip-argv-paths runs it in the build sandbox under KVM.
 {
   pkgs,
   lib,
@@ -276,7 +277,7 @@ let
     "MISSING_DEV_DONE"
     "PASS"
   ];
-  # checks.vm-goip-argv-paths and test-goip-argv-paths-vm-check
+  # checks.vm-goip-argv-paths and test-goip-argv-paths-vm
   # (nix/microvms/mkVmCheck.nix).
   vmCheck = import ../microvms/mkVmCheck.nix { inherit pkgs lib; } {
     name = "goip-argv-paths";
@@ -286,48 +287,9 @@ let
     evidence.guest = vm;
   };
 in
-pkgs.writeShellApplication {
-  name = "test-goip-argv-paths-vm";
-  runtimeInputs = with pkgs; [
-    coreutils
-    gnugrep
-  ];
-  text = ''
-    accel=auto
-    case "''${1:---accel=auto}" in
-      --accel=auto) ;;
-      --accel=kvm) accel=kvm ;;
-      --accel=tcg) accel=tcg ;;
-      *) echo 'usage: test-goip-argv-paths-vm [--accel=auto|kvm|tcg]' >&2; exit 2 ;;
-    esac
-    if [ "$#" -gt 1 ]; then echo 'too many arguments' >&2; exit 2; fi
-    run_dir=$(mktemp -d -t goip-argv-paths-XXXXXX)
-    echo "Evidence: $run_dir"
-    printf '%s\n' '${vm}' > "$run_dir/guest.txt"
-    export TMPDIR="$run_dir"
-    cd "$run_dir"
-    case "$accel" in
-      auto) export QEMU_OPTS='-machine accel=kvm:tcg' ;;
-      kvm) export QEMU_OPTS='-machine accel=kvm' ;;
-      tcg) export QEMU_OPTS='-machine accel=tcg' ;;
-    esac
-    unset QEMU_KERNEL_PARAMS QEMU_NET_OPTS NIX_DISK_IMAGE
-    # stdin from /dev/null: timeout runs qemu in its own process group, and
-    # a -nographic qemu reading an interactive terminal from there is
-    # stopped (SIGTTIN) before it prints anything, until the timeout.
-    timeout --kill-after=10s 15m ${vm}/bin/run-goip-argv-paths-vm < /dev/null > "$run_dir/serial.log" 2>&1 || {
-      cat "$run_dir/serial.log"
-      exit 1
-    }
-    cat "$run_dir/serial.log"
-    if [ ! -s "$run_dir/serial.log" ]; then echo 'FAIL: the guest wrote nothing' >&2; exit 1; fi
-    for sentinel in ${lib.escapeShellArgs sentinels}; do
-      grep -q "$sentinel" "$run_dir/serial.log"
-    done
-    if grep -E 'GOIP_ARGV_PATHS_(ROW_)?FAIL' "$run_dir/serial.log"; then exit 1; fi
-    echo "PASS: goip argv paths VM; evidence $run_dir"
-  '';
-}
+# test-goip-argv-paths-vm [--accel=auto|kvm|tcg] [--keep=N]: evidence under
+# ~/.cache/xtcp2-vm/goip-argv-paths; checks.vm-goip-argv-paths is the same run in the build sandbox.
+vmCheck.app
 // {
   inherit vmCheck;
 }

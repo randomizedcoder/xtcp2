@@ -208,11 +208,11 @@ build sandbox has only when the builder sets `extra-sandbox-paths =
 `VM_CHECK_NO_TUN`. A failing check prints the log's last 60 lines;
 `--keep-failed` keeps the tree.
 
-`nix run path:.#test-<name>-vm-check -- [--accel=auto|kvm|tcg] [--keep=N]`
-runs the same guest outside the sandbox (TCG too), keeps the last N runs
-(default 5) under `~/.cache/xtcp2-vm/<name>/` and prints only the summary.
-The `test-<name>-vm` launchers stay for what a check cannot do, such as the
-ionic run's `--capture` and `--promote`, which write into the checkout.
+`nix run path:.#test-<name>-vm -- [--accel=auto|kvm|tcg] [--keep=N]` runs
+the same guest outside the sandbox (TCG too), keeps the last N runs (default
+5) under `~/.cache/xtcp2-vm/<name>/` and prints only the summary, plus the
+log's tail on a failure. `test-linkmonitor-ionic-vm` adds `--capture`,
+`--promote` and `--dry-run`, which write into the checkout.
 `checks.vm-check-runner` covers the runner itself with stand-in guests.
 
 Individual gate example:
