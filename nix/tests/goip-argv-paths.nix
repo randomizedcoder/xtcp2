@@ -198,6 +198,11 @@ let
       # iface_named_show_live: a link named like a verb.
       check /ip/link/show/dev/show 200
       grep -q ': show: ' "$work/body" || fail "iface_named_show_live: link show not listed"
+      # ip link show NAME is dev NAME, as for address show.
+      check /ip/link/show/goip0 200
+      grep -q ': goip0: ' "$work/body" || fail "link_bare_device: goip0 not listed"
+      check /i/l/sh/eth0 200
+      check /ip/link/show/nosuch0 404
       echo GOIP_ARGV_PATHS_IFACE_SHOW_DONE
 
       # A missing device on a live kernel: the get answers ENODEV first, so
