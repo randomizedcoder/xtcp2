@@ -202,10 +202,11 @@ cat result-vm-ionic/summary.txt
 | `vm-linkmonitor-ionic` | the real ionic/ionic_rdma drivers on rocm-ernic |
 | `vm-linkmonitor-ionic-faults` | rocm-ernic fault injection through a TAP |
 
-`vm-all` builds all but the fault run, whose TAP needs `/dev/net/tun`, which a
+`vm-all` builds all four. The fault run's TAP needs `/dev/net/tun`, which a
 build sandbox has only when the builder sets `extra-sandbox-paths =
-/dev/net/tun`; without it the check fails with `VM_CHECK_NO_TUN`. A failing
-check prints the log's last 60 lines; `--keep-failed` keeps the tree.
+[ "/dev/net/tun?" ]` (host `l` does); without it the check fails with
+`VM_CHECK_NO_TUN`. A failing check prints the log's last 60 lines;
+`--keep-failed` keeps the tree.
 
 `nix run path:.#test-<name>-vm-check -- [--accel=auto|kvm|tcg] [--keep=N]`
 runs the same guest outside the sandbox (TCG too), keeps the last N runs

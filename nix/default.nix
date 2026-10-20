@@ -1036,12 +1036,9 @@ in
 
       # Every guest test above that runs unattended (vmTests), and vm-all,
       # which builds them all. The fault run needs /dev/net/tun in the
-      # sandbox, so vm-all leaves it out; see linkmonitor-ionic.nix.
-      vm-all = pkgs.linkFarm "vm-all" (
-        lib.mapAttrsToList (name: path: { inherit name path; }) (
-          removeAttrs vmChecks [ "vm-linkmonitor-ionic-faults" ]
-        )
-      );
+      # sandbox (extra-sandbox-paths); without it, it fails with
+      # VM_CHECK_NO_TUN. See linkmonitor-ionic.nix.
+      vm-all = pkgs.linkFarm "vm-all" (lib.mapAttrsToList (name: path: { inherit name path; }) vmChecks);
 
       # Race-detector + per-flavor builds. These run as part of
       # `nix flake check` so a flavor-tag regression (e.g. dest_kafka

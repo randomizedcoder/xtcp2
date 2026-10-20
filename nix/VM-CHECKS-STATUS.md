@@ -38,7 +38,10 @@ from a nix target; it should be a check like any other.
 | `ip tuntap add` (needs `/dev/net/tun`) | fails: not in the sandbox |
 
 So `vm-linkmonitor-ionic-faults` needs `extra-sandbox-paths = /dev/net/tun`
-on the builder, and `vm-all` leaves it out.
+on the builder. On 2026-10-20 the user agreed to add `"/dev/net/tun?"` to
+`nix.settings.extra-sandbox-paths` in `~/nixos/desktop/l/configuration.nix`
+(applied by the user's `make`), and `vm-all` now includes the fault run.
+`l` has `max-jobs = 1`, so `vm-all` boots one guest at a time there.
 
 ## Tasks
 
@@ -55,8 +58,8 @@ on the builder, and `vm-all` leaves it out.
 
 - [ ] VC-T03: run `vm-goip-argv-paths`, `vm-linkmonitor-embedding`,
   `vm-linkmonitor-ionic`, then (with `/dev/net/tun`) the fault run.
-- [ ] Decide whether the builder gets `extra-sandbox-paths = /dev/net/tun`
-  (a host config change on `l`; the user's call).
+- [ ] After the user's rebuild of `l`: confirm `nix config show` lists
+  `/dev/net/tun?` in `extra-sandbox-paths`, then run the fault check.
 - [ ] `test-linkmonitor-rdma-vm` (microvm.nix, TCP console ports) and
   `test-linkmonitor-performance-vm` (timings, wants a quiet host) stay apps.
 
