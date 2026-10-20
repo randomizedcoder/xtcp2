@@ -815,7 +815,7 @@ func TestRunNeighArgs(t *testing.T) {
 			// runNeigh rejects args[1] before it sends anything, so a second
 			// argument fails even when the first one is a valid verb.
 			description:      "boundary: one extra argument after a valid verb is refused",
-			args:             []string{"neigh", "show", "nud"},
+			args:             []string{"neigh", "show", "unused"},
 			wantCode:         ExitUsage,
 			wantStderrSubstr: "not implemented",
 		},
