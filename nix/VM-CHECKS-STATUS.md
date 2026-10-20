@@ -73,7 +73,7 @@ Outputs (GC-rooted by the operator's `result-vm-all`):
 | VC-T02 | goip-argv-paths, embedding, ionic, ionic-faults wired: `checks.vm-*`, `vm-all`, `test-*-vm-check` | done (eval and build, no boot) | VC002 |
 | VC-T03 | each check passes once on `l` (one guest at a time, asked first) | done | VC004 |
 | VC-T04 | retire the duplicated launcher code once VC-T03 passes | done | VC009, VC011 |
-| VC-T05 | `microvm-lifecycle` check: `requiredSystemFeatures` and its log in `$out` | done (boot pending) | VC010 |
+| VC-T05 | `microvm-lifecycle` check: `requiredSystemFeatures` and its log in `$out` | done | VC010, VC012 |
 | VC-T06 | `/tmp` cleanup of the old evidence dirs, after the user has seen the list | done | VC007 |
 | VC-T07 | Go source filtering, so a change outside the Go inputs keeps the guests cached (separate commits) | done | VC008 |
 
@@ -91,8 +91,11 @@ Outputs (GC-rooted by the operator's `result-vm-all`):
   `/dev/net/tun?`, and a sandboxed build creates a TAP (VC003).
 - [x] Rerun `vm-all` after VC009/VC010 (the runner changed, so all four
   boot): all pass (VC011).
-- [ ] Boot `checks.x86_64-linux.microvm-lifecycle-x86_64` once in the
-  sandbox (VC-T05).
+- [x] Boot `checks.x86_64-linux.microvm-lifecycle-x86_64` once in the
+  sandbox (VC-T05): all 20 self-test checks pass (VC012).
+- [ ] The lifecycle check prints nothing on success under `-L` (the VM
+  checks print `PASS: <name>: N sentinels`); a one-line `PASS` would make
+  it consistent, at the cost of one more boot.
 - [ ] `test-linkmonitor-rdma-vm` (microvm.nix, TCP console ports) and
   `test-linkmonitor-performance-vm` (timings, wants a quiet host) stay apps.
 
@@ -111,3 +114,4 @@ Outputs (GC-rooted by the operator's `result-vm-all`):
 | VC009 | 2026-10-20 | VC-T04: `checks.vm-check-runner` (15 rows, with `VM_KERNEL_PARAMS` passthrough and a stale `QEMU_KERNEL_PARAMS`); `nix build` of the four `test-*-vm` apps, `checks.{nix-fmt,statix,deadnix}`, `test-linkmonitor-docs`; `test-linkmonitor-ionic-vm --capture --dry-run --native-out=DIR` and its usage errors (`--dry-run` alone, `--keep=0`, an unknown flag, `--promote` on the fault run) | pass, 15 of 15; dry run writes the manifest and stages; each usage error exits 2; no `/tmp` directory left; no guest booted |
 | VC010 | 2026-10-20 | VC-T05: `microvm-lifecycle-x86_64` gains `requiredSystemFeatures = [ "kvm" ]`, stdin from `/dev/null`, and a directory `$out` (`summary.txt`, `serial.log`, `qemu.log`, escapes stripped by the shared `stripEscapes.nix`); comments claiming a check cannot have `/dev/kvm` corrected. `nix derivation show` of the check; `checks.{vm-check-runner,nix-fmt,statix,deadnix}`, `microvm-x86_64` | pass; `requiredSystemFeatures` is `kvm`; no guest booted |
 | VC011 | 2026-10-20 | user: `env -u LD_LIBRARY_PATH nix build -L -o result-vm-all path:.#checks.x86_64-linux.vm-all` on `l` (at 8c6b50eb; `vm-all` out path matches `nix eval` at HEAD) | pass: goip-argv-paths 8 sentinels and 51 rows, linkmonitor-embedding 4 and 12 Go tests, linkmonitor-ionic 11 and 99, linkmonitor-ionic-faults 3 and 18 (eth_rx fired 28 of 282, eth_tx 31 of 310, stats_vals 1 of 18); no `--- FAIL`; 0 ESC and 0 CR bytes in each serial.log; Linux 6.18.39 and 7.1.4; outputs 44-100 KiB |
+| VC012 | 2026-10-20 | user: `env -u LD_LIBRARY_PATH nix build -L -o result-lifecycle path:.#checks.x86_64-linux.microvm-lifecycle-x86_64` on `l` (at 8c6b50eb; out path matches `nix eval` at HEAD) | pass: `XTCP2_SELF_TEST_OVERALL_PASS`, 20 of 20 checks (systemd through rtnetlink events), "PASS: all checks passed"; `$out` has `summary.txt`, `serial.log` (970 lines, 0 ESC and 0 CR bytes) and `qemu.log` (only the SIGTERM at teardown); the TCP console ports 12055/12056 sit in the sandbox's own netns |
