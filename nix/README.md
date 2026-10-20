@@ -181,6 +181,39 @@ QEMU 11.0.2 (`memory_region_del_subregion` assertion). `--promote` copies the
 recorded netlink fixtures into the linuxio testdata. Try a local rocm-ernic
 checkout with `--override-input rocm-ernic path:$HOME/Downloads/rocm-ernic`.
 
+### Guest tests as checks
+
+The serial-console guest tests are also flake checks, built by
+`nix/microvms/mkVmCheck.nix`: the guest runs inside the build sandbox with
+`/dev/kvm` (`requiredSystemFeatures = [ "kvm" ]`), the result keeps
+`serial.log` (terminal escapes stripped) and `summary.txt`, and a pass is
+cached by its inputs, so a rerun with nothing changed boots nothing:
+
+```sh
+nix build --no-link -L -j1 path:.#checks.x86_64-linux.vm-all   # one guest at a time
+nix build -L path:.#checks.x86_64-linux.vm-linkmonitor-ionic -o result-vm-ionic
+cat result-vm-ionic/summary.txt
+```
+
+| check | guest |
+|---|---|
+| `vm-goip-argv-paths` | `/ip/...` paths against `goip` and `ip` |
+| `vm-linkmonitor-embedding` | the embedding API, in-process and in xtcp2 |
+| `vm-linkmonitor-ionic` | the real ionic/ionic_rdma drivers on rocm-ernic |
+| `vm-linkmonitor-ionic-faults` | rocm-ernic fault injection through a TAP |
+
+`vm-all` builds all but the fault run, whose TAP needs `/dev/net/tun`, which a
+build sandbox has only when the builder sets `extra-sandbox-paths =
+/dev/net/tun`; without it the check fails with `VM_CHECK_NO_TUN`. A failing
+check prints the log's last 60 lines; `--keep-failed` keeps the tree.
+
+`nix run path:.#test-<name>-vm-check -- [--accel=auto|kvm|tcg] [--keep=N]`
+runs the same guest outside the sandbox (TCG too), keeps the last N runs
+(default 5) under `~/.cache/xtcp2-vm/<name>/` and prints only the summary.
+The `test-<name>-vm` launchers stay for what a check cannot do, such as the
+ionic run's `--capture` and `--promote`, which write into the checkout.
+`checks.vm-check-runner` covers the runner itself with stand-in guests.
+
 Individual gate example:
 
 ```sh
@@ -208,4 +241,5 @@ nix build path:.#test-linkmonitor \
 
 `nix flake check path:. -L` runs every registered repository check, including
 the monitor aggregate and those Nix policy checks. It is broader than the
-focused monitor suite.
+focused monitor suite, and it includes the `vm-*` guest checks, which boot
+as many guests at once as `max-jobs` allows; add `-j1` for one at a time.

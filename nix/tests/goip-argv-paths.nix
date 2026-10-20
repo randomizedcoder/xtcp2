@@ -58,7 +58,9 @@ let
       work=$(mktemp -d)
       failed=0
       declare -A gaps=(${
-        lib.concatStrings (lib.mapAttrsToList (p: g: "[${lib.escapeShellArg p}]=${lib.escapeShellArg g} ") ipGaps)
+        lib.concatStrings (
+          lib.mapAttrsToList (p: g: "[${lib.escapeShellArg p}]=${lib.escapeShellArg g} ") ipGaps
+        )
       })
 
       # No IPv6 on the new links: no DAD flags or router solicitations moving
@@ -264,6 +266,25 @@ let
         }
       ];
     }).config.system.build.vm;
+  sentinels = map (s: "GOIP_ARGV_PATHS_${s}") [
+    "EXAMPLES_DONE"
+    "HANDLER_ROWS_DONE"
+    "WRITE_REFUSED_DONE"
+    "PREFIX_JOIN_DONE"
+    "IFACE_SHOW_DONE"
+    "SELECTORS_DONE"
+    "MISSING_DEV_DONE"
+    "PASS"
+  ];
+  # checks.vm-goip-argv-paths and test-goip-argv-paths-vm-check
+  # (nix/microvms/mkVmCheck.nix).
+  vmCheck = import ../microvms/mkVmCheck.nix { inherit pkgs lib; } {
+    name = "goip-argv-paths";
+    launch = "${vm}/bin/run-goip-argv-paths-vm";
+    inherit sentinels;
+    failPattern = "GOIP_ARGV_PATHS_(ROW_)?FAIL";
+    evidence.guest = vm;
+  };
 in
 pkgs.writeShellApplication {
   name = "test-goip-argv-paths-vm";
@@ -300,10 +321,13 @@ pkgs.writeShellApplication {
     }
     cat "$run_dir/serial.log"
     if [ ! -s "$run_dir/serial.log" ]; then echo 'FAIL: the guest wrote nothing' >&2; exit 1; fi
-    for sentinel in EXAMPLES_DONE HANDLER_ROWS_DONE WRITE_REFUSED_DONE PREFIX_JOIN_DONE IFACE_SHOW_DONE SELECTORS_DONE MISSING_DEV_DONE PASS; do
-      grep -q "GOIP_ARGV_PATHS_$sentinel" "$run_dir/serial.log"
+    for sentinel in ${lib.escapeShellArgs sentinels}; do
+      grep -q "$sentinel" "$run_dir/serial.log"
     done
     if grep -E 'GOIP_ARGV_PATHS_(ROW_)?FAIL' "$run_dir/serial.log"; then exit 1; fi
     echo "PASS: goip argv paths VM; evidence $run_dir"
   '';
+}
+// {
+  inherit vmCheck;
 }

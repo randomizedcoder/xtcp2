@@ -71,6 +71,23 @@ let
         }
       ];
     }).config.system.build.vm;
+  # checks.vm-linkmonitor-embedding and test-linkmonitor-embedding-vm-check
+  # (mkVmCheck.nix).
+  vmCheck = import ./mkVmCheck.nix { inherit pkgs lib; } {
+    name = "linkmonitor-embedding";
+    launch = "${vm}/bin/run-linkmonitor-embedding-vm";
+    sentinels = [
+      "LINKMONITOR_EMBEDDING_core_PASS"
+      "LINKMONITOR_EMBEDDING_xtcp_PASS"
+      "LINKMONITOR_EMBEDDING_PASS"
+      "--- PASS: TestLinkMonitorOnDemandScrape "
+    ];
+    failPattern = "LINKMONITOR_EMBEDDING_FAIL|--- SKIP:|--- FAIL:";
+    evidence = {
+      inherit artifact;
+      guest = vm;
+    };
+  };
 in
 pkgs.writeShellApplication {
   name = "test-linkmonitor-embedding-vm";
@@ -113,4 +130,7 @@ pkgs.writeShellApplication {
     if grep -E 'LINKMONITOR_EMBEDDING_FAIL|--- SKIP:|--- FAIL:' "$run_dir/serial.log"; then exit 1; fi
     echo "PASS: embedding VM; evidence $run_dir"
   '';
+}
+// {
+  inherit vmCheck;
 }

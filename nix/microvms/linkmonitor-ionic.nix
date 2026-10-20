@@ -427,6 +427,67 @@ let
       fi
     done
   '';
+  sentinels =
+    map (s: "LINKMONITOR_IONIC_${s}_PASS") (
+      if faults then
+        [
+          "FAULT_STATS_VALS"
+          "FAULT_COUNTERS"
+        ]
+      else
+        [
+          "DISCOVERY"
+          "CONTRACTS"
+          "MONITOR"
+          "CLI"
+          "EVENTS"
+          "RECORDED"
+          "REMOVE"
+          "UNPLUG"
+          "HOTPLUG"
+          "RECOVERED_EVENTS"
+        ]
+    )
+    ++ [ "LINKMONITOR_IONIC_PASS" ];
+  # checks.vm-${name} and test-${name}-vm-check (mkVmCheck.nix): the pass or
+  # fail run, without --capture or --promote, which write into the checkout
+  # and stay with the launcher below. The fault run's TAP needs /dev/net/tun,
+  # which a nix build sandbox has only with extra-sandbox-paths =
+  # /dev/net/tun on the builder.
+  vmCheck = import ./mkVmCheck.nix { inherit pkgs lib; } {
+    inherit name sentinels;
+    runtimeInputs = [ pkgs.util-linux ];
+    launch = ''
+      ${lib.optionalString faults ''
+        if [ ! -c /dev/net/tun ]; then
+          echo 'VM_CHECK_NO_TUN: the fault run needs /dev/net/tun (a nix builder: extra-sandbox-paths = /dev/net/tun)'
+          exit 3
+        fi
+      ''}
+      ${lib.optionalString faults "unshare --user --map-root-user --net -- ${netnsTap}/bin/ernic-netns-tap"} \
+        ${ernicRun}/bin/ernic-run --socket "$PWD/ernic.sock" --log-file "$VM_EVIDENCE/ernic.log" \
+        ${lib.escapeShellArgs ernicArgs} -- \
+        ${vm}/bin/run-${name}-vm
+    '';
+    failPattern = "LINKMONITOR_IONIC_FAIL|VM_CHECK_NO_TUN";
+    timeout = "30m";
+    evidence = {
+      inherit artifact monitor;
+      guest = vm;
+    };
+    # Each fault must have fired: one that never fired proves nothing about
+    # the counters.
+    postCheck = lib.optionalString faults ''
+      for site in eth_rx eth_tx stats_vals; do
+        line=$(grep -m1 "Fault $site: eligible" "$run_dir/ernic.log" || true)
+        printf '%s\n' "''${line# }" >> "$run_dir/faults.txt"
+        fired=''${line##*fired }
+        if [ -z "$line" ] || [ "$fired" = 0 ]; then
+          fail "fault $site did not fire"
+        fi
+      done
+    '';
+  };
 in
 pkgs.writeShellApplication {
   name = "test-${name}-vm";
@@ -547,4 +608,7 @@ pkgs.writeShellApplication {
     ${if faults then faultSummary else fixtureSteps}
     echo "PASS: ${name} VM; evidence $run_dir"
   '';
+}
+// {
+  inherit vmCheck;
 }
