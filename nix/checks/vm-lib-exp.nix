@@ -55,6 +55,11 @@
 # the C1-T03 reads: names, floors, the namespace's build steps and the
 # multicast route. TestRtnlReadCorpus pins the captured bytes.
 #
+# scripts/genl-write-corpus-test.exp does the same for genl-write-corpus.exp,
+# the C2 rows: slugs, floors, readbacks, statuses, the `tcp` pre step and
+# the generic protocol of every readback. TestGenlTcpMetricsCorpus pins the
+# captured bytes.
+#
 {
   pkgs,
   src,
@@ -73,6 +78,7 @@ pkgs.runCommand "xtcp2-vm-lib-exp"
       socat
       nlcap
       nlcap.ra
+      nlcap.tcp
     ];
     inherit src;
   }
@@ -131,6 +137,8 @@ pkgs.runCommand "xtcp2-vm-lib-exp"
     expect nix/microvms/scripts/rtnl-write-corpus-test.exp > rtnl.log 2>&1 || rrc=$?
     rdrc=0
     expect nix/microvms/scripts/rtnl-read-corpus-test.exp > rtnlread.log 2>&1 || rdrc=$?
+    grc=0
+    expect nix/microvms/scripts/genl-write-corpus-test.exp > genl.log 2>&1 || grc=$?
 
     kill "$socat_pid" 2>/dev/null || true
     wait "$socat_pid" 2>/dev/null || true
@@ -190,5 +198,16 @@ pkgs.runCommand "xtcp2-vm-lib-exp"
       exit 1
     fi
 
-    cat result.log addr.log corpus.log rtnl.log rtnlread.log > $out
+    grep -E '^(PASS|FAIL|===)' genl.log || true
+
+    if [ "$grc" -ne 0 ] || ! grep -q 'GENLCORPUS_TEST_PASS' genl.log; then
+      echo "" >&2
+      echo "vm-lib-exp: genl-write-corpus.exp regressed (expect exited $grc)." >&2
+      echo "            The FAIL rows above name the broken behavior. Full" >&2
+      echo "            transcript:" >&2
+      cat genl.log >&2
+      exit 1
+    fi
+
+    cat result.log addr.log corpus.log rtnl.log rtnlread.log genl.log > $out
   ''

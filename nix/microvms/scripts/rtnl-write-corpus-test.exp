@@ -301,7 +301,7 @@ check floor_bucket_show "boundary: the bucket dump's floor is the request and tw
     {field nexthop_bucket_show 1} 3
 check floor_event_rows "positive: the event rows' floors are two thirds of the measured run" \
     {lmap slug {nsid_del_event anycast_del_event prefix_event monitor_all monitor_all_timestamp} {field $slug 1}} \
-    {14 20 18 36 36}
+    {14 20 11 36 36}
 check floor_no_monitor "boundary: prefix_no_monitor's floor is two route reads, each a name lookup and a dump" \
     {list [regexp -all {ip -6 route show dev r0} [field prefix_no_monitor 3]] [field prefix_no_monitor 1]} {2 8}
 check no_single_quotes "corner: no command or readback holds a single quote" \

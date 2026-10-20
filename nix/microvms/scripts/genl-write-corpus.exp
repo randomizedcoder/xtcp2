@@ -1,0 +1,139 @@
+###############################################################################
+# genl-write-corpus.exp - generic netlink reads and writes the corpus had no
+# capture of (docs/netlink/goip-parity-gaps.md, C2)
+#
+# Sourced AFTER vm-lib.exp, netlink-topology.exp, addr-topology.exp and
+# addr-corpus.exp, by scripts/capture-link-writes.exp, which runs each row
+# into link-write/genl/<slug>/ with `--proto generic`. Data plus small procs,
+# as rtnl-write-corpus.exp is, so the hermetic check
+# (scripts/genl-write-corpus-test.exp) can read it without a console.
+#
+# A ROW IS {slug floor pre command readbacks rc}, as in rtnl-write-corpus.exp.
+#
+#   slug       the fixture directory, link-write/genl/<slug>/
+#   floor      a structural minimum of datagrams: 2 for the family lookup
+#              every `ip` genl command starts with (CTRL_CMD_GETFAMILY and
+#              its NEWFAMILY, which each pcap keeps, since the family id is
+#              assigned at boot and only that answer names it), then 2 for
+#              the command and its answer: a GET and its reply or refusal, a
+#              DEL and its ACK, or a dump and its NLMSG_DONE. A flush that
+#              is not `flush all` is a dump, a DEL for each match and a
+#              second dump, so 6
+#   pre        steps run in the row's fresh namespace before the capture
+#              window opens: pre_step below
+#   command    run with `sh -c` from the row's directory (xtcp2-nlcap
+#              write); it must contain no single quote
+#   readbacks  {name floor command} reads, each one capio in the same
+#              namespace straight after the command, as
+#              netlink_generic_<name>.pcap and ip_<name>
+#   rc         the exit status `ip.rc` must hold: 0, or 2 for a request the
+#              kernel refused (ip/tcp_metrics.c returns -2, and ip/ip.c
+#              exits with the negated status)
+#
+# TCP_METRICS (C2-T01)
+#
+# The kernel makes a tcp_metrics entry when a connection with an RTT sample
+# closes (tcp_update_metrics), keyed by its destination and source. A `tcp`
+# pre step runs one connection inside the namespace with xtcp2-nl-tcp, so
+# each address pair leaves two entries, one per end: 192.0.2.1 from
+# 192.0.2.2 and 192.0.2.2 from 192.0.2.1, and the same for 2001:db8::1 and
+# ::2.
+#
+# `src` comes before `address` in the two src rows. ip/tcp_metrics.c's
+# argument loop steps past each address and its value twice, once in the
+# body and once in the for, so the word after an address is skipped and
+# `address A src B` reads B as a second address: "either "address" is
+# duplicate", rc 255, before any netlink. `src B address A` skips `address`
+# and reads A as the address, which is what the request then carries.
+###############################################################################
+
+namespace eval genlcorpus {
+
+    # d0, a dummy that is up, with an IPv4 and an IPv6 pair on it: the
+    # namespace's lo carries the traffic, and the entries are keyed by these.
+    variable PRE_ADDRS {
+        {link add d0 type dummy}
+        {link set d0 up}
+        {addr add 192.0.2.1/24 dev d0}
+        {addr add 192.0.2.2/24 dev d0}
+        {-6 addr add 2001:db8::1/64 dev d0 nodad}
+        {-6 addr add 2001:db8::2/64 dev d0 nodad}
+    }
+
+    # The same with a connection over each pair: four entries.
+    variable PRE_TCPM [concat $PRE_ADDRS {
+        {tcp 192.0.2.1 192.0.2.2}
+        {tcp 2001:db8::1 2001:db8::2}
+    }]
+
+    # The table after a write.
+    variable TCPM_SHOW {{tcpm 4 {ip tcp_metrics show}}}
+
+    variable rows [list \
+        [list tcpm_show 4 $PRE_TCPM "ip tcp_metrics show" {} 0] \
+        [list tcpm_show_empty 4 $PRE_ADDRS "ip tcp_metrics show" {} 0] \
+        [list tcpm_show_v6 4 $PRE_TCPM "ip -6 tcp_metrics show" {} 0] \
+        [list tcpm_get 4 $PRE_TCPM "ip tcp_metrics show address 192.0.2.1" {} 0] \
+        [list tcpm_get_src 4 $PRE_TCPM "ip tcp_metrics show src 192.0.2.2 address 192.0.2.1" {} 0] \
+        [list tcpm_get_v6 4 $PRE_TCPM "ip tcp_metrics show address 2001:db8::1" {} 0] \
+        [list tcpm_get_missing 4 $PRE_TCPM "ip tcp_metrics show address 192.0.2.9" {} 2] \
+        [list tcpm_delete 4 $PRE_TCPM "ip tcp_metrics delete address 192.0.2.1" $TCPM_SHOW 0] \
+        [list tcpm_delete_src 4 $PRE_TCPM \
+            "ip tcp_metrics delete src 192.0.2.2 address 192.0.2.1" $TCPM_SHOW 0] \
+        [list tcpm_delete_missing 4 $PRE_TCPM "ip tcp_metrics delete address 192.0.2.9" {} 2] \
+        [list tcpm_flush_all 4 $PRE_TCPM "ip tcp_metrics flush all" $TCPM_SHOW 0] \
+        [list tcpm_flush_prefix 6 $PRE_TCPM "ip tcp_metrics flush 192.0.2.0/24" $TCPM_SHOW 0] \
+        [list tcpm_flush_v6 6 $PRE_TCPM "ip -6 tcp_metrics flush" $TCPM_SHOW 0] \
+        [list tcpm_flush_empty 4 $PRE_ADDRS "ip tcp_metrics flush 192.0.2.0/24" {} 0] \
+    ]
+
+    ###########################################################################
+    # pre_step <ns> <subdir> <step> - 1 if the step was taken, else 0.
+    #
+    # `tcp SERVER CLIENT` is one connection (xtcp2-nlcap tcp); a refused one
+    # joins nltopo's refusals, so it fails the run as a refused `ip` step
+    # does. Anything else is an address-corpus step (addrcorpus::pre_step).
+    ###########################################################################
+    proc pre_step {ns subdir step} {
+        if {[lindex $step 0] ne "tcp"} {
+            return [addrcorpus::pre_step $ns $subdir $step]
+        }
+        if {[llength $step] != 3} {
+            error "genlcorpus: a tcp step is {tcp SERVER CLIENT}: $step"
+        }
+        lassign [lrange $step 1 2] server client
+        lassign [vmlib::run_out "xtcp2-nlcap tcp $ns $subdir $server $client"] rc out
+        if {$rc == 0} {
+            return 1
+        }
+        lappend nltopo::refused "xtcp2-nl-tcp -n $ns $server $client"
+        vmlib::log "genl corpus: connection refused: $client -> $server in $ns"
+        return 0
+    }
+
+    ###########################################################################
+    # readback_args <ns> <subdir> <readback> - the capio argument list for one
+    # readback, ending with the protocol its pcap keeps.
+    ###########################################################################
+    proc readback_args {ns subdir readback} {
+        if {[llength $readback] != 3} {
+            error "genlcorpus: a readback is {name floor command}: $readback"
+        }
+        lassign $readback name floor command
+        return [list $ns $subdir netlink_generic_$name $floor $command ip_$name generic]
+    }
+
+    ###########################################################################
+    # rc_problem <slug> <want> <got> - as rtnlcorpus::rc_problem, under genl/.
+    ###########################################################################
+    proc rc_problem {slug want got} {
+        set got [string trim $got]
+        if {$got eq $want} {
+            return ""
+        }
+        if {$got eq ""} {
+            return "genl/$slug/ip.rc unreadable, want $want"
+        }
+        return "genl/$slug/ip.rc is $got, want $want"
+    }
+}

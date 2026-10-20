@@ -1,0 +1,298 @@
+#!/usr/bin/env expect
+###############################################################################
+# genl-write-corpus-test.exp - table-driven test for genl-write-corpus.exp,
+# with no microVM and no console
+#
+# Usage: genl-write-corpus-test.exp
+#
+# Run by nix/checks/vm-lib-exp.nix after rtnl-read-corpus-test.exp, the same
+# way: the corpus is data, and its procs (pre_step, readback_args,
+# rc_problem) are driven through a recorder that replaces vmlib::run_out,
+# so no shell is needed.
+#
+# The slugs, floors, readbacks and statuses are written out again below as
+# literals rather than read from the corpus, so a row dropped or changed
+# there has to disagree with something that was not edited with it.
+#
+# What this does NOT cover: what the guest runs or what the kernel answers.
+# TestGenlTcpMetricsCorpus in pkg/xtcpnl pins that in the committed
+# fixtures.
+#
+# Every row has a name, a description that starts with its class
+# (positive/negative/boundary/corner) and an expected value.
+###############################################################################
+
+set here [file dirname [info script]]
+source $here/vm-lib.exp
+source $here/netlink-topology.exp
+source $here/addr-topology.exp
+source $here/addr-corpus.exp
+source $here/genl-write-corpus.exp
+
+vmlib::init
+
+set pass 0
+set fail 0
+
+###############################################################################
+# The recorder, as in rtnl-write-corpus-test.exp.
+###############################################################################
+set ::calls {}
+set ::refuse ""
+proc vmlib::run_out {cmd {cmd_timeout ""} {quiet 0}} {
+    lappend ::calls $cmd
+    if {$::refuse ne "" && [regexp -- $::refuse $cmd]} {
+        return [list 1 "REFUSED"]
+    }
+    return [list 0 "ok"]
+}
+
+# check <name> <description> <script> <expected> - the script's result, or
+# ERROR if it raised one, must equal expected.
+proc check {name description script expected} {
+    global pass fail
+    if {[catch {uplevel #0 $script} got]} {
+        set got ERROR
+    }
+    if {$got eq $expected} {
+        puts "PASS: $name - $description"
+        incr pass
+    } else {
+        puts "FAIL: $name - $description"
+        puts "      got \[$got\] want \[$expected\]"
+        incr fail
+    }
+}
+
+set R $genlcorpus::rows
+
+# column <i> - field <i> of every row, in order.
+proc column {i} {
+    set out {}
+    foreach r $::R {
+        lappend out [lindex $r $i]
+    }
+    return $out
+}
+
+proc field {slug i} {
+    return [lindex [lsearch -exact -index 0 -inline $::R $slug] $i]
+}
+
+# readback_names <slug> - the names of a row's readbacks, in order.
+proc readback_names {slug} {
+    set out {}
+    foreach rb [field $slug 4] {
+        lappend out [lindex $rb 0]
+    }
+    return $out
+}
+
+###############################################################################
+# 1. the rows
+###############################################################################
+set design_rows {
+    tcpm_show tcpm_show_empty tcpm_show_v6 tcpm_get tcpm_get_src tcpm_get_v6
+    tcpm_get_missing tcpm_delete tcpm_delete_src tcpm_delete_missing
+    tcpm_flush_all tcpm_flush_prefix tcpm_flush_v6 tcpm_flush_empty
+}
+
+proc bad_arity {} {
+    set out {}
+    foreach r $::R {
+        if {[llength $r] != 6} {
+            lappend out [lindex $r 0]
+        }
+    }
+    return $out
+}
+
+proc dup_slugs {} {
+    set seen {}
+    set out {}
+    foreach s [column 0] {
+        if {$s in $seen} {
+            lappend out $s
+        }
+        lappend seen $s
+    }
+    return $out
+}
+
+# refused_rows - {slug rc} for every row whose ip.rc is meant to be non-zero.
+proc refused_rows {} {
+    set out {}
+    foreach r $::R {
+        if {[lindex $r 5] != 0} {
+            lappend out [lindex $r 0] [lindex $r 5]
+        }
+    }
+    return $out
+}
+
+# not_tcp_metrics - the rows whose command is not `ip [-6] tcp_metrics`.
+proc not_tcp_metrics {} {
+    set out {}
+    foreach r $::R {
+        if {![regexp {^ip (-6 )?tcp_metrics } [lindex $r 3]]} {
+            lappend out [lindex $r 0]
+        }
+    }
+    return $out
+}
+
+# quoted - the rows whose command holds the single quote write_row wraps it in.
+proc quoted {} {
+    set out {}
+    foreach r $::R {
+        if {[string first ' [lindex $r 3]] >= 0} {
+            lappend out [lindex $r 0]
+        }
+    }
+    return $out
+}
+
+check slug_list "positive: the rows are the plan's, in run order" \
+    {column 0} [join $design_rows " "]
+check arity "negative: every row is {slug floor pre command readbacks rc}" \
+    {bad_arity} {}
+check unique_slugs "negative: no slug names two rows" \
+    {dup_slugs} {}
+check refused_statuses "positive: the get and delete of a missing entry expect rc 2, ESRCH" \
+    {refused_rows} {tcpm_get_missing 2 tcpm_delete_missing 2}
+check row_count "boundary: C2-T01's 14 rows" \
+    {llength $R} 14
+check all_tcp_metrics "negative: every command is ip tcp_metrics" \
+    {not_tcp_metrics} {}
+check no_quotes "corner: no command holds a single quote" \
+    {quoted} {}
+check src_first "corner: src comes before address, since ip skips the word after an address" \
+    {lmap slug {tcpm_get_src tcpm_delete_src} {regexp { src 192\.0\.2\.2 address 192\.0\.2\.1$} [field $slug 3]}} {1 1}
+
+###############################################################################
+# 2. floors: the family lookup's 2 and the command's 2, and a flush that
+# dumps, deletes and dumps again 6
+###############################################################################
+check floors "positive: every floor, in run order" \
+    {column 1} {4 4 4 4 4 4 4 4 4 4 4 6 6 4}
+check floor_flush_all "corner: flush all is one DEL with no address, so 4" \
+    {field tcpm_flush_all 1} 4
+check floor_flush_empty "boundary: a flush that matches nothing stops after its dump" \
+    {field tcpm_flush_empty 1} 4
+
+###############################################################################
+# 3. preconditions
+###############################################################################
+proc pre_name {slug} {
+    set pre [field $slug 2]
+    if {$pre eq $genlcorpus::PRE_TCPM} {
+        return tcpm
+    }
+    if {$pre eq $genlcorpus::PRE_ADDRS} {
+        return addrs
+    }
+    return other
+}
+foreach {name description slug expected} {
+    pre_show        "positive: show runs over the four entries"            tcpm_show        tcpm
+    pre_show_empty  "boundary: show_empty has the addresses, no connection" tcpm_show_empty  addrs
+    pre_flush_empty "boundary: and so does flush_empty"                    tcpm_flush_empty addrs
+    pre_missing     "negative: a missing entry is missing from a full table" tcpm_get_missing tcpm
+} {
+    check $name $description [list pre_name $slug] $expected
+}
+check pre_tcp_steps "positive: one connection per family, after the addresses" \
+    {lrange $genlcorpus::PRE_TCPM end-1 end} {{tcp 192.0.2.1 192.0.2.2} {tcp 2001:db8::1 2001:db8::2}}
+check pre_tcpm_extends "corner: PRE_TCPM is PRE_ADDRS and the two connections" \
+    {expr {[lrange $genlcorpus::PRE_TCPM 0 end-2] eq [lrange $genlcorpus::PRE_ADDRS 0 end]}} 1
+check pre_nodad "corner: the IPv6 addresses skip DAD, so a connection can use them at once" \
+    {llength [lsearch -all -glob $genlcorpus::PRE_ADDRS {-6 addr add * nodad}]} 2
+
+###############################################################################
+# 4. readbacks
+###############################################################################
+foreach {name description slug expected} {
+    rb_delete       "positive: delete reads the table back"           tcpm_delete         tcpm
+    rb_delete_src   "positive: and so does delete with src"           tcpm_delete_src     tcpm
+    rb_flush_all    "positive: flush all reads the table back"        tcpm_flush_all      tcpm
+    rb_flush_prefix "positive: so does the prefix flush"              tcpm_flush_prefix   tcpm
+    rb_flush_v6     "positive: and the IPv6 one"                      tcpm_flush_v6       tcpm
+    rb_show         "corner: a read is its own readback"              tcpm_show           {}
+    rb_get          "corner: and so is a get"                         tcpm_get            {}
+    rb_missing      "negative: a refused delete has nothing to read back" tcpm_delete_missing {}
+    rb_flush_empty  "negative: nor a flush with nothing to flush"     tcpm_flush_empty    {}
+} {
+    check $name $description [list readback_names $slug] $expected
+}
+check rb_args "positive: a readback's capio arguments keep NETLINK_GENERIC" \
+    {genlcorpus::readback_args lacpa genl/tcpm_delete [lindex [field tcpm_delete 4] 0]} \
+    {lacpa genl/tcpm_delete netlink_generic_tcpm 4 {ip tcp_metrics show} ip_tcpm generic}
+check rb_args_short "negative: a readback without a command raises" \
+    {genlcorpus::readback_args lacpa genl/x {tcpm 4}} ERROR
+
+###############################################################################
+# 5. pre steps through genlcorpus::pre_step
+###############################################################################
+proc run_all_pre {} {
+    set raised 0
+    set refused 0
+    foreach r $::R {
+        foreach step [lindex $r 2] {
+            if {[catch {genlcorpus::pre_step lacpa genl/[lindex $r 0] $step} ok]} {
+                incr raised
+            } elseif {!$ok} {
+                incr refused
+            }
+        }
+    }
+    return [list $raised $refused]
+}
+
+set ::refuse ""
+nltopo::reset
+check pre_steps_dispatch "positive: every pre step is well-formed and accepted" \
+    {run_all_pre} {0 0}
+set ::calls {}
+check pre_tcp_call "positive: a tcp step is one xtcp2-nlcap tcp in the row's namespace" \
+    {genlcorpus::pre_step lacpa genl/x {tcp 192.0.2.1 192.0.2.2}; set ::calls} \
+    {{xtcp2-nlcap tcp lacpa genl/x 192.0.2.1 192.0.2.2}}
+set ::calls {}
+check pre_ip_call "positive: any other step is an ip step, through addrcorpus::pre_step" \
+    {genlcorpus::pre_step lacpa genl/x {link add d0 type dummy}; regexp {^xtcp2-nlcap topo lacpa genl/x link add d0 type dummy} [lindex $::calls 0]} 1
+set ::refuse {^xtcp2-nlcap tcp }
+nltopo::reset
+check pre_tcp_refused "negative: a refused connection is a refused step" \
+    {list [genlcorpus::pre_step lacpa genl/x {tcp 192.0.2.1 192.0.2.2}] [nltopo::refused_steps]} \
+    {0 {{xtcp2-nl-tcp -n lacpa 192.0.2.1 192.0.2.2}}}
+set ::refuse ""
+nltopo::reset
+check pre_tcp_short "negative: a tcp step without a client raises" \
+    {genlcorpus::pre_step lacpa genl/x {tcp 192.0.2.1}} ERROR
+check pre_tcp_long "boundary: and so does one with a port beside it" \
+    {genlcorpus::pre_step lacpa genl/x {tcp 192.0.2.1 192.0.2.2 7171}} ERROR
+
+###############################################################################
+# 6. rc_problem
+###############################################################################
+foreach {name description want got expected} {
+    rc_ok           "positive: the expected status is no problem"       0 "0\n" ""
+    rc_refused_ok   "positive: an expected refusal is no problem"       2 "2"   ""
+    rc_unexpected   "negative: a get that should be refused"            2 "0"  "genl/x/ip.rc is 0, want 2"
+    rc_failed       "negative: a refusal where an answer was expected"  0 "2"   "genl/x/ip.rc is 2, want 0"
+    rc_unreadable   "boundary: an empty file is unreadable"             0 ""    "genl/x/ip.rc unreadable, want 0"
+    rc_whitespace   "corner: surrounding whitespace is ignored"         0 " 0 " ""
+} {
+    check $name $description [list genlcorpus::rc_problem x $want $got] $expected
+}
+
+###############################################################################
+# summary
+###############################################################################
+puts ""
+puts "=== genl-write-corpus.exp: $pass passed, $fail failed ==="
+if {$fail > 0} {
+    puts "GENLCORPUS_TEST_FAIL"
+    exit 1
+}
+puts "GENLCORPUS_TEST_PASS"
+exit 0

@@ -719,6 +719,43 @@ foreach {description cmd want_rc want_re} [list \
     ccheck $description $cmd $want_rc $want_re
 }
 
+# xtcp2-nl-tcp and `xtcp2-nlcap tcp` (C2-T01). The sandbox has a loopback, so
+# a whole connection runs here; that it leaves a tcp_metrics entry is the
+# VM's to show (TestGenlTcpMetricsCorpus).
+foreach {description cmd want_rc want_re} [list \
+    "positive: one IPv4 connection, opened and closed" \
+        "xtcp2-nl-tcp 127.0.0.1 127.0.0.1" 0 {^tcp 127.0.0.1 -> 127.0.0.1:7171 closed$} \
+    "positive: one IPv6 connection, the server in brackets" \
+        "xtcp2-nl-tcp ::1 ::1 7172" 0 {^tcp ::1 -> \[::1\]:7172 closed$} \
+    "negative: no arguments is a usage error" \
+        "xtcp2-nl-tcp" 2 {xtcp2-nl-tcp: usage:} \
+    "negative: two families are refused" \
+        "xtcp2-nl-tcp 127.0.0.1 ::1" 2 {different families} \
+    "negative: an address that is not one is refused" \
+        "xtcp2-nl-tcp 127.0.0.1 x" 2 {xtcp2-nl-tcp: .*'x'} \
+    "boundary: port 0 is refused" \
+        "xtcp2-nl-tcp 127.0.0.1 127.0.0.1 0" 2 {port out of range: 0} \
+    "corner: a client address the host does not have is rc 1, a socket error" \
+        "xtcp2-nl-tcp 127.0.0.1 192.0.2.9" 1 {xtcp2-nl-tcp: .*} \
+    "positive: xtcp2-nlcap tcp in the root namespace" \
+        "xtcp2-nlcap tcp - tcp 127.0.0.1 127.0.0.1" 0 {^NLCAP_TCP_OK 127.0.0.1 127.0.0.1$} \
+    "negative: a connection that fails is NLCAP_TCP_FAIL, rc 1" \
+        "xtcp2-nlcap tcp - tcp 127.0.0.1 192.0.2.9" 1 {^NLCAP_TCP_FAIL 127.0.0.1 192.0.2.9$} \
+    "negative: xtcp2-nlcap tcp without a client is a usage error" \
+        "xtcp2-nlcap tcp - tcp 127.0.0.1" 2 {NLCAP_ERR usage: tcp} \
+] {
+    ccheck $description $cmd $want_rc $want_re
+}
+# tcp_topology - the topology lines the two xtcp2-nlcap tcp rows wrote.
+proc tcp_topology {} {
+    set f [open $::out_dir/tcp/topology]
+    set lines [split [string trim [read $f]] "\n"]
+    close $f
+    return [lmap l $lines {regsub {: .*} $l ""}]
+}
+tcheck "corner: each connection is a topology line, the failure with its client and server" \
+    {tcp_topology} {{ok    [-] tcp 127.0.0.1 -> 127.0.0.1:7171 closed} {FAIL  [-] tcp 192.0.2.9 -> 127.0.0.1}}
+
 # late_setup against the recorder: the modules call reaches the real helper,
 # where it fails as above; the sysctl and note are recorded.
 set ::calls {}

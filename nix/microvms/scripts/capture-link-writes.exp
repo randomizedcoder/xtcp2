@@ -61,6 +61,10 @@
 # netns and anycast writes the corpus had no DEL or SET capture of, each
 # under rtnl/<slug>/ with its readbacks; see rtnl_row below.
 #
+# Last, after late setup, the generic netlink rows (C2), data in
+# scripts/genl-write-corpus.exp: each pcap keeps NETLINK_GENERIC, the
+# family lookup included, under genl/<slug>/; see genl_row below.
+#
 # POLICY HERE, MECHANISM IN THE GUEST
 #
 # As for the dump driver: which states exist, what each waits for and what
@@ -87,6 +91,7 @@ source [file dirname [info script]]/link-write-readback.exp
 source [file dirname [info script]]/addr-topology.exp
 source [file dirname [info script]]/addr-corpus.exp
 source [file dirname [info script]]/rtnl-write-corpus.exp
+source [file dirname [info script]]/genl-write-corpus.exp
 
 if {$argc != 2} {
     puts "usage: capture-link-writes.exp <serial-port> <blob-out>"
@@ -132,14 +137,15 @@ set lacp_timeouts {}
 set write_skipped {}
 
 # <proto> is the netlink protocol the row's ip.pcap keeps: route, generic or
-# xfrm (xtcp2-nlcap --proto).
-proc write_row {slug floor pre command {dir write} {proto route}} {
+# xfrm (xtcp2-nlcap --proto). <pre_step> runs each pre step, as
+# addrcorpus::pre_step does, and says whether it was taken.
+proc write_row {slug floor pre command {dir write} {proto route} {pre_step addrcorpus::pre_step}} {
     global NS_A short_caps write_skipped
     set subdir $dir/$slug
     vmlib::log "=== write $slug ==="
     vmlib::must "xtcp2-nlcap ns-add $NS_A"
     foreach step $pre {
-        if {![addrcorpus::pre_step $NS_A $subdir $step]} {
+        if {![$pre_step $NS_A $subdir $step]} {
             lappend write_skipped $slug
             return 0
         }
@@ -588,6 +594,38 @@ foreach row $rtnlcorpus::rows {
 vmlib::log "=== late setup (late/) ==="
 set late_problems [nltopo::late_setup late]
 
+###############################################################################
+# genl_row - one row of genl-write-corpus.exp, under genl/<slug>.
+#
+# As rtnl_row, with every pcap keeping NETLINK_GENERIC (--proto generic) and
+# the corpus's own pre steps, which add the `tcp` connection. The genl rows
+# run after late setup, which loads the modules their families live in.
+###############################################################################
+set genl_problems {}
+
+proc genl_row {slug floor pre command readbacks rc} {
+    global NS_A genl_problems
+    if {![write_row $slug $floor $pre $command genl generic genlcorpus::pre_step]} {
+        return
+    }
+    foreach rb $readbacks {
+        capio {*}[genlcorpus::readback_args $NS_A genl/$slug $rb]
+    }
+    lassign [nlcap dir genl/$slug] dir_rc dir
+    lassign [vmlib::run_out "cat [string trim $dir]/ip.rc"] cat_rc got
+    if {$cat_rc != 0} {
+        set got ""
+    }
+    set problem [genlcorpus::rc_problem $slug $rc $got]
+    if {$problem ne ""} {
+        lappend genl_problems $problem
+    }
+}
+
+foreach row $genlcorpus::rows {
+    genl_row {*}$row
+}
+
 lassign [nlcap inventory] inv_rc inventory
 vmlib::log "captured [llength [split [string trim $inventory] "\n"]] files"
 
@@ -669,6 +707,14 @@ if {[llength [addrtopo::dropped_states]] > 0} {
 if {[llength $rtnl_problems] > 0} {
     puts "NLCAP_RTNL_RC [llength $rtnl_problems]"
     foreach p $rtnl_problems {
+        puts "  $p"
+    }
+    set failed 1
+}
+
+if {[llength $genl_problems] > 0} {
+    puts "NLCAP_GENL_RC [llength $genl_problems]"
+    foreach p $genl_problems {
         puts "  $p"
     }
     set failed 1

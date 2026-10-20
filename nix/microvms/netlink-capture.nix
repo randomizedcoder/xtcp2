@@ -9,8 +9,8 @@
 # partner in a second VM (Tier 2 of the same document).
 #
 # This exports ONE thing: `xtcp2-nlcap`, a helper installed on the guest's
-# PATH (with `xtcp2-nl-mcdump`, `xtcp2-nl-ipmon` and `xtcp2-nl-ra`, below,
-# on its own PATH)
+# PATH (with `xtcp2-nl-mcdump`, `xtcp2-nl-ipmon`, `xtcp2-nl-ra` and
+# `xtcp2-nl-tcp`, below, on its own PATH)
 # and invoked one subcommand at a time by a host driver
 # (nix/microvms/scripts/capture-netlink-dumps.exp, goip-parity.exp,
 # capture-link-writes.exp and capture-lacp-pair.exp) over the serial console.
@@ -383,15 +383,108 @@ let
 
     main()
   '';
+
+  # xtcp2-nl-tcp <server-addr> <client-addr> [port]
+  #
+  # One TCP connection from <client-addr> to <server-addr>, both local, for
+  # the tcp_metrics rows (C2-T01; docs/netlink/goip-parity-gaps.md). The
+  # kernel saves a metrics entry when a connection with an RTT sample
+  # closes (tcp_update_metrics, net/ipv4/tcp_metrics.c): the client's when
+  # it enters TIME_WAIT, the server's when its LAST_ACK is answered. One
+  # byte goes each way, the client shuts down first, and the helper then
+  # waits, reading /proc/net/tcp*, until no socket on the port is left in
+  # LAST_ACK, so both entries exist when it returns. It makes no netlink
+  # call, so a row may run it inside its capture window.
+  #
+  # Prints `tcp <client> -> <server>:<port> closed`, an IPv6 server in
+  # brackets. A bad argument exits
+  # 2; a socket error, or a LAST_ACK that does not clear in 2 s, 1.
+  tcp = pkgs.writers.writePython3Bin "xtcp2-nl-tcp" { } ''
+    import ipaddress
+    import socket
+    import sys
+    import time
+
+    LAST_ACK = "09"
+
+
+    def fail(rc, msg):
+        print("xtcp2-nl-tcp: " + msg, file=sys.stderr)
+        sys.exit(rc)
+
+
+    def last_ack(port):
+        want = ":%04X" % port
+        for name in ("/proc/net/tcp", "/proc/net/tcp6"):
+            try:
+                with open(name) as f:
+                    lines = f.readlines()[1:]
+            except OSError:
+                continue
+            for line in lines:
+                cols = line.split()
+                if cols[1].endswith(want) and cols[3] == LAST_ACK:
+                    return True
+        return False
+
+
+    def main():
+        if len(sys.argv) not in (3, 4):
+            fail(2, "usage: xtcp2-nl-tcp <server-addr> <client-addr> [port]")
+        try:
+            server = ipaddress.ip_address(sys.argv[1])
+            client = ipaddress.ip_address(sys.argv[2])
+            port = int(sys.argv[3]) if len(sys.argv) == 4 else 7171
+        except ValueError as e:
+            fail(2, str(e))
+        if server.version != client.version:
+            fail(2, "the two addresses are of different families")
+        if not 0 < port < 65536:
+            fail(2, "port out of range: %d" % port)
+        fam = socket.AF_INET if server.version == 4 else socket.AF_INET6
+        try:
+            lsn = socket.socket(fam, socket.SOCK_STREAM)
+            lsn.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            lsn.bind((str(server), port))
+            lsn.listen(1)
+            cli = socket.socket(fam, socket.SOCK_STREAM)
+            cli.bind((str(client), 0))
+            cli.connect((str(server), port))
+            srv, _ = lsn.accept()
+            cli.sendall(b"x")
+            srv.recv(1)
+            srv.sendall(b"y")
+            cli.recv(1)
+            cli.shutdown(socket.SHUT_WR)
+            srv.recv(1)
+            srv.close()
+            cli.recv(1)
+            cli.close()
+            lsn.close()
+        except OSError as e:
+            fail(1, str(e))
+        deadline = time.monotonic() + 2
+        while last_ack(port):
+            if time.monotonic() > deadline:
+                fail(1, "LAST_ACK on port %d did not clear" % port)
+            time.sleep(0.01)
+        dst = ("[%s]" if server.version == 6 else "%s") % server
+        print("tcp %s -> %s:%d closed" % (client, dst, port))
+
+
+    main()
+  '';
 in
 pkgs.writeShellApplication {
   name = "xtcp2-nlcap";
-  # For nix/checks/vm-lib-exp.nix, which runs xtcp2-nl-ra's hermetic rows.
-  passthru = { inherit ra; };
+  # For nix/checks/vm-lib-exp.nix, which runs xtcp2-nl-ra's and
+  # xtcp2-nl-tcp's hermetic rows.
+  passthru = { inherit ra tcp; };
   runtimeInputs = with pkgs; [
     mcdump
     ipmon
     ra
+    tcp
     coreutils
     gawk
     gnugrep
@@ -1048,6 +1141,31 @@ pkgs.writeShellApplication {
       return 1
     }
 
+    # tcp <ns> <subdir> <server-addr> <client-addr>
+    #
+    # One TCP connection inside <ns> (xtcp2-nl-tcp, above), so the namespace
+    # has tcp_metrics entries for a row to read or delete, recorded in
+    # $OUT/<subdir>/topology in topo's format. A pre step: it makes no
+    # netlink call, but its place is before the capture window, so the
+    # row's stdout holds only `ip`'s. `-` is the root namespace.
+    cmd_tcp() {
+      [ $# -eq 4 ] || die "usage: tcp <ns> <subdir> <server-addr> <client-addr>"
+      local ns=$1 subdir=$2 server=$3 client=$4 out
+      mkdir -p "$OUT/$subdir"
+      local run=(ip netns exec "$ns")
+      if [ "$ns" = "-" ]; then
+        run=()
+      fi
+      if out=$("''${run[@]}" xtcp2-nl-tcp "$server" "$client" 2>&1); then
+        printf 'ok    [%s] %s\n' "$ns" "$out" >>"$OUT/$subdir/topology"
+        echo "NLCAP_TCP_OK $server $client"
+        return 0
+      fi
+      printf 'FAIL  [%s] tcp %s -> %s: %s\n' "$ns" "$client" "$server" "$out" >>"$OUT/$subdir/topology"
+      echo "NLCAP_TCP_FAIL $server $client"
+      return 1
+    }
+
     # modules <subdir> <module>...
     #
     # Load each module in turn and record what was loaded in
@@ -1538,7 +1656,7 @@ pkgs.writeShellApplication {
     }
 
     if [ $# -lt 1 ]; then
-      die "usage: xtcp2-nlcap <ns-add|ns-del|topo|cap|capio|write|side|wait-lacp|wait-sysfs|wait-addr-flag|sysctl|modules|note|wait-churn|strace|strace-monitor|wait-rdma-port|rdma-hold|rdma-hold-wait|rdma-hold-stop|rdma-user-cqn|mroute-start|mroute-stop|dir|inventory|pack|tcpdump-drops|filter> [--proto route|generic|xfrm] ..."
+      die "usage: xtcp2-nlcap <ns-add|ns-del|topo|cap|capio|write|side|wait-lacp|wait-sysfs|wait-addr-flag|sysctl|tcp|modules|note|wait-churn|strace|strace-monitor|wait-rdma-port|rdma-hold|rdma-hold-wait|rdma-hold-stop|rdma-user-cqn|mroute-start|mroute-stop|dir|inventory|pack|tcpdump-drops|filter> [--proto route|generic|xfrm] ..."
     fi
 
     sub=$1
@@ -1567,6 +1685,7 @@ pkgs.writeShellApplication {
       wait-sysfs) cmd_wait_sysfs "$@" ;;
       wait-addr-flag) cmd_wait_addr_flag "$@" ;;
       sysctl)    cmd_sysctl "$@" ;;
+      tcp)       cmd_tcp "$@" ;;
       modules)   cmd_modules "$@" ;;
       note)      cmd_note "$@" ;;
       wait-churn) cmd_wait_churn "$@" ;;

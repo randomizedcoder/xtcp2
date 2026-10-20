@@ -20,6 +20,9 @@
 #              first run measured, as addr_monitor's floor is: the canary,
 #              the trigger's requests and answers, and the notifications
 #              (C1-T01's 21 and 30, C1-T04's 28, 54 and 54).
+#              prefix_event is two thirds of 17, the count with one canary
+#              cycle: C2-T01's run measured it twice, after 18, two thirds
+#              of a run whose canary went round twice, had come in short.
 #              prefix_no_monitor is 4 for each of at least two
 #              `ip -6 route show dev r0`. rule_add_selectors is 2 for each
 #              of its 14 adds, and nexthop_bucket_show 3: the request and a
@@ -311,7 +314,7 @@ namespace eval rtnlcorpus {
     }
 
     lappend rows \
-        [list prefix_event 18 [concat $PRE_CANARY $PRE_RA] \
+        [list prefix_event 11 [concat $PRE_CANARY $PRE_RA] \
             [ipmon prefix $RA_SEND {{prefix 2001:db8:5::/64}}] {} 0] \
         [list prefix_no_monitor 8 $PRE_RA "$RA_SEND && $RA_WAIT" \
             {{getroute6 4 {ip -6 route show dev r0}}} 0] \

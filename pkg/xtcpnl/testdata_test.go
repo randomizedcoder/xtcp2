@@ -209,6 +209,11 @@ const (
 	// per row with ip.{pcap,out,err,rc} and its readbacks.
 	tdRtnlWrite_7_1_4 = tdLinkWrite_7_1_4 + "/rtnl"
 
+	// The C2 generic netlink rows (scripts/genl-write-corpus.exp,
+	// goip-parity-gaps.md C2-T01): `ip tcp_metrics` reads and writes, one
+	// subdirectory per row, each pcap with its CTRL family lookup.
+	tdGenlWrite_7_1_4 = tdLinkWrite_7_1_4 + "/genl"
+
 	tdLacpNoPartnerGetLink_7_1_4   = tdLinkWrite_7_1_4 + "/lacp_no_partner/netlink_route_getlink.pcap"
 	tdLacpConvergedGetLink_7_1_4   = tdLinkWrite_7_1_4 + "/lacp_converged/netlink_route_getlink.pcap"
 	tdLacpPartnerDownGetLink_7_1_4 = tdLinkWrite_7_1_4 + "/lacp_partner_down/netlink_route_getlink.pcap"
