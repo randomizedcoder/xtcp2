@@ -82,6 +82,8 @@ pkgs.runCommand "xtcp2-vm-lib-exp"
       gnugrep
       socat
       nlcap
+      nlcap.xfrmmon
+      nlcap.espinudp
       nlcap.ra
       nlcap.tcp
       nlcap.ioam

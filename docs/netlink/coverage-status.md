@@ -1022,7 +1022,7 @@ is `ip -t monitor all label` (`:1757`).
 | 4 tc telemetry | `sch_netem` or `sch_htb` — **add** | n/a (dump-only) | `tc` (in `iproute2`) ✅ | no |
 | 5 genetlink: ethtool | kernel config — **verify** | n/a (dump-only) | `ethtool` — **add** | no |
 | 5 genetlink: devlink, netdev | kernel config — **verify** | n/a (dump-only) | `devlink` (in `iproute2`) ✅ | no |
-| 6 xfrm | `xfrm_user` — **add** | `ip xfrm monitor` — **add** | `iproute2` ✅ | no |
+| 6 xfrm | `xfrm_user` and the ESP modules, loaded late by the link-write capture ([C0-T02](goip-parity-gaps.md#c0-t02-late-modules-sysctls-and-an-event-subscriber)) ✅ | `ip xfrm monitor` under `xtcp2-nl-xfrmmon` ([C3-T02](goip-parity-gaps.md#c3-t02-xfrm-policy-and-monitor)) ✅ | `iproute2` ✅ | **yes**, in the link-write capture (`link-write/xfrm/`), not this flavor |
 | 6 conntrack | `nf_conntrack_netlink` — **add** | `conntrack -E` — **add** | `conntrack-tools` — **add** | no |
 | 6 ipset | `ip_set` — **add** | n/a (dump-only) | `ipset` — **add** | no |
 | 6 proc_event | `CONFIG_PROC_EVENTS` — **verify** | needs a `PROC_CN_MCAST_LISTEN` subscriber — **add** | — | no |

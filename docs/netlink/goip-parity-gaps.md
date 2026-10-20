@@ -125,7 +125,7 @@ The decoders `ParseGenericNetlink` (`pkg/xtcpnl/xtcpnl_genetlink.go:56`) and `Pa
 
 `ip xfrm state` and `ip xfrm policy` are a separate netlink protocol with 22 message types (`XFRM_MSG_*`; v7.1.0 `ip/xfrm_state.c:983-1078`, `ip/xfrm_policy.c:488-584`). The kernel dispatch table is `net/xfrm/xfrm_user.c`, `xfrm_dispatch[]`, and the family needs `xfrm_user` plus the crypto modules for each algorithm.
 
-Nothing is in place for this protocol: no decoder, no capture and no goip object.
+When the plan was written, nothing was in place for this protocol: no decoder, no capture and no goip object. Since C3 closed, every type but REPORT has captured bytes (`link-write/xfrm/`); the decoder is P3 and the goip object G-tier.
 
 ### F. Not netlink: outside pcap parity
 
@@ -153,10 +153,10 @@ These surfaces have no netlink message to capture, so they are out of scope for 
 | `NETLINK_XFRM` | 22 `XFRM_MSG_*` | |
 
 **What was measured:**
-- **Pcaps:** 1095 committed DLT_NETLINK (253) pcaps under `pkg/` (713 when the plan was written), counted by `(protocol, nlmsg_type)`. For genl, the count is by `(family name, cmd)`, with names resolved from each pcap's own `CTRL_CMD_NEWFAMILY` replies.
+- **Pcaps:** 1140 committed DLT_NETLINK (253) pcaps under `pkg/` (713 when the plan was written), counted by `(protocol, nlmsg_type)`. For genl, the count is by `(family name, cmd)`, with names resolved from each pcap's own `CTRL_CMD_NEWFAMILY` replies.
 - **Table tests and benchmarks:** the parsers' `Test*` and `Benchmark*` functions.
 
-**Measured 2026-10-19,** again at the C1 close (DOC004), and the pcap total and genl rows at C2-T01 (V044), C2-T02 (V049), C2-T03 (V054), C2-T04 (V059), C2-T05 (V064), C2-T06 (V069), C2-T07 (V074) and C2-T08 (V079), in full at the C2 close (DOC005), and the pcap total and XFRM rows at C3-T01 (V084). Re-measure with [the commands below](#how-to-re-measure).
+**Measured 2026-10-19,** again at the C1 close (DOC004), and the pcap total and genl rows at C2-T01 (V044), C2-T02 (V049), C2-T03 (V054), C2-T04 (V059), C2-T05 (V064), C2-T06 (V069), C2-T07 (V074) and C2-T08 (V079), in full at the C2 close (DOC005), the pcap total and XFRM rows at C3-T01 (V084), and in full at the C3 close (DOC006). Re-measure with [the commands below](#how-to-re-measure).
 
 ### rtnetlink
 
@@ -195,7 +195,7 @@ msgs/pcaps means messages found, over the number of pcaps they appear in. Every 
 | `nhmsg` (bucket) | NEWNEXTHOPBUCKET (116), GETNEXTHOPBUCKET (118) | 1025 / 2, 2 / 2 (C1-T02) | **none** | `TestRtnlWriteCorpusVerbs`, `TestRtnlWriteCorpusShapes` (types and datagrams only) | none |
 | | DELNEXTHOPBUCKET (117) | **0**: the kernel registers no handler for it, and `ip` never sends it | none | none | none |
 | `prefixmsg` | NEWPREFIX (52) | 3 / 3 (C1-T04) | **none** | `TestRtnlMonitorCorpus` reads `prefixmsg` raw | none |
-| `nlmsgerr` | ERROR (2), DONE (3) | 401 / 168, 1051 / 514; over generic netlink 733 / 240, 113 / 105 (C2); over XFRM 16 / 16, 18 / 17 (C3-T01) | `ParseNlMsgErr`, `xtcpnl_nlmsgerr.go:54` | `TestParseNlMsgErr`, `xtcpnl_nlmsgerr_test.go:44` | none |
+| `nlmsgerr` | ERROR (2), DONE (3) | 401 / 168, 1051 / 514; over generic netlink 733 / 240, 113 / 105 (C2); over XFRM 42 / 32, 31 / 29 (C3) | `ParseNlMsgErr`, `xtcpnl_nlmsgerr.go:54` | `TestParseNlMsgErr`, `xtcpnl_nlmsgerr_test.go:44` | none |
 | events | the 8 NEW/DEL LINK/ADDR/ROUTE/NEIGH types | (as above) | `ParseRtnetlinkEvent`, `xtcpnl_rtnetlink_events.go:148` | `TestParseRtnetlinkEvent`, `xtcpnl_rtnetlink_events_test.go:243` | none |
 
 The capture also holds `RTM_GETMULTICAST` (58: 13 / 3) and `RTM_GETANYCAST` (62: 4 / 2). `ip` 7.1.0 sends neither: they are the dedicated multicast and anycast dump rows in `link-write/addr-mcdump/mc_any/`, which back `IFA_MULTICAST`/`IFA_ANYCAST` decoding. They will also cover `maddress` at the 7.2 pin bump.
@@ -213,7 +213,7 @@ The capture also holds `RTM_GETMULTICAST` (58: 13 / 3) and `RTM_GETANYCAST` (62:
 | ila | 3 | ADD 7 / 7, DEL 4 / 4, GET 23 / 12 (C2-T06; every GET a dump) | none | `TestGenlIlaCorpus` reads the attributes raw | none |
 | l2tp | 6 | TUNNEL_CREATE 5 / 5, TUNNEL_DELETE 3 / 3, TUNNEL_GET 16 / 8, SESSION_CREATE 5 / 5, SESSION_DELETE 2 / 2, SESSION_GET 15 / 8 (C2-T07; every GET a dump) | none | `TestGenlL2tpCorpus` reads the attributes raw | none |
 | macsec | 11 | GET_TXSC 33 / 16, ADD_RXSC 3 / 3, DEL_RXSC 2 / 2, UPD_RXSC 1 / 1, ADD_TXSA 7 / 7, DEL_TXSA 3 / 3, UPD_TXSA 1 / 1, ADD_RXSA 2 / 2, DEL_RXSA 2 / 2, UPD_RXSA 1 / 1, UPD_OFFLOAD 2 / 2 (C2-T08; every GET a dump) | none | `TestGenlMacsecCorpus` reads the attributes raw | none |
-| xfrm | 22 | state (C3-T01): NEWSA 25 / 21, DELSA 4 / 3, GETSA 20 / 19, ALLOCSPI 2 / 2, UPDSA 3 / 3, FLUSHSA 2 / 2, GETSADINFO 3 / 3; NEWSADINFO 3 / 3, the count's reply, which `ip` reads without naming. Policy, SPDINFO, the defaults and the events: **0** (C3-T02) | none | `TestXfrmStateCorpus` reads the bodies and attributes raw | none |
+| xfrm | 22 | NEWSA 32 / 24, DELSA 6 / 4, GETSA 20 / 19, ALLOCSPI 2 / 2, UPDSA 5 / 4, FLUSHSA 4 / 3, GETSADINFO 3 / 3 (NEWSADINFO 3 / 3, the count's reply, which `ip` reads without naming); NEWPOLICY 20 / 14, DELPOLICY 6 / 4, GETPOLICY 16 / 15, UPDPOLICY 4 / 3, FLUSHPOLICY 4 / 3, NEWSPDINFO 5 / 5, GETSPDINFO 4 / 4, SETDEFAULT 2 / 2, GETDEFAULT 5 / 3; events ACQUIRE 1 / 1, EXPIRE 2 / 1, POLEXPIRE 2 / 1, NEWAE 2 / 1, MAPPING 1 / 1 (C3-T01, C3-T02). REPORT: **0** (excluded, [decision log](goip-parity-gaps-status.md#decision-log)) | none | `TestXfrmStateCorpus` and `TestXfrmPolicyCorpus` read the bodies and attributes raw | none |
 
 The corpus also holds ethtool (19 commands), devlink (2) and nl80211 (7) from the link-state bundles. `ip` uses none of these families.
 
@@ -222,7 +222,7 @@ The corpus also holds ethtool (19 commands), devlink (2) and nl80211 (7) from th
 1. **The rtnetlink read side is in good shape.** Every body layout that a running goip object reads has captured pcaps, a parser and a table-driven test.
 2. **The capture holes were the DEL and SET types:** DELANYCAST, DELRULE, SETNEIGHTBL, DELADDRLABEL, DELNSID, SETSTATS and DELNEXTHOP. Each shares a body layout with its NEW type, so all but DELNSID already had a parser (NSID has none; point 3). The bytes were missing because no capture row sent them. C1-T01 added those rows (`link-write/rtnl/`), and each of the seven is now captured and checked by `TestRtnlWriteCorpus`.
 3. **Four rtnetlink layouts have no parser:** NSID, nexthop bucket, LINKPROP and prefix. Since C1 closed, all four have bytes: NSID 210 NEWNSID messages, the nexthop bucket and LINKPROP from C1-T02 (a 1024-bucket dump, and altname add and del), and prefix from C1-T04 (an RA's NEWPREFIX, 3 messages). The tests read them raw; the parsers are P1.
-4. **Generic netlink beyond nlctrl and XFRM had nothing:** no pcaps, no parsers, no tests. When this was measured the blocker was in the harness: `xtcp2-nlcap` kept only `NETLINK_ROUTE` (`ether[14:2]==0`), although nlmon taps GENERIC and XFRM. C0 removed it. A row now names its protocol (`--proto`, C0-T01), and the modules those families need are loaded late (C0-T02). What is missing is the capture rows (C2, C3). C2-T01 added the first: tcp_metrics' GET and DEL are captured (`link-write/genl/`), with no parser yet (P2). C2-T02 added sr's four SEG6 commands, C2-T03 ioam's seven IOAM6 commands, C2-T04 the seven mptcp_pm commands `ip` sends, C2-T05 fou's three, C2-T06 ila's three, C2-T07 the six l2tp commands `ip` sends, and C2-T08 macsec's eleven. Since C2 closed, every genl family in the universe has captured bytes and a test that reads them raw, and none has a parser (P2). C3-T01 added the XFRM state rows (`link-write/xfrm/`): the seven types `ip xfrm state` sends are captured and read raw by `TestXfrmStateCorpus`. Policy and the events are C3-T02; the parsers are P3.
+4. **Generic netlink beyond nlctrl and XFRM had nothing:** no pcaps, no parsers, no tests. When this was measured the blocker was in the harness: `xtcp2-nlcap` kept only `NETLINK_ROUTE` (`ether[14:2]==0`), although nlmon taps GENERIC and XFRM. C0 removed it. A row now names its protocol (`--proto`, C0-T01), and the modules those families need are loaded late (C0-T02). What is missing is the capture rows (C2, C3). C2-T01 added the first: tcp_metrics' GET and DEL are captured (`link-write/genl/`), with no parser yet (P2). C2-T02 added sr's four SEG6 commands, C2-T03 ioam's seven IOAM6 commands, C2-T04 the seven mptcp_pm commands `ip` sends, C2-T05 fou's three, C2-T06 ila's three, C2-T07 the six l2tp commands `ip` sends, and C2-T08 macsec's eleven. Since C2 closed, every genl family in the universe has captured bytes and a test that reads them raw, and none has a parser (P2). C3-T01 added the XFRM state rows (`link-write/xfrm/`): the seven types `ip xfrm state` sends are captured and read raw by `TestXfrmStateCorpus`. C3-T02 added policy, SPDINFO, the defaults and the events (`ip xfrm monitor`), read raw by `TestXfrmPolicyCorpus`. Since C3 closed, every XFRM type but REPORT has captured bytes; the parsers are P3.
 5. **Benchmarks:** 1 of the 15 rtnetlink and genl parsers in the tables above (`ParseNewAddr`) has a parse benchmark. The rest of `BenchmarkDeserialize*` covers inet_diag only.
 
 ### How to re-measure
@@ -467,7 +467,7 @@ A task that doesn't close a phase still flips its own checklist row and appends 
     - `fou`, `ila`;
     - `l2tp_core`, `l2tp_netlink`, `l2tp_eth`, `l2tp_ip`, `l2tp_ip6`;
     - `macsec`;
-    - `xfrm_user`, and for the C3 ESP states `esp4`, `esp6`, `authenc`, `cbc`, `gcm`, `seqiv` and `echainiv`. `hmac` and `sha256` are built into the guest kernel;
+    - `xfrm_user`, and for the C3 ESP states `esp4`, `esp6`, `authenc`, `cbc`, `gcm`, `seqiv` and `echainiv`, and `crypto_null` for C3-T02's `cipher_null` SA. `hmac` and `sha256` are built into the guest kernel;
   - sets `net.mptcp.enabled=1` in the root namespace through the existing `sysctl` subcommand;
   - checks that `/proc/net/ip_mr_vif` and `/proc/net/ip6_mr_vif` exist, which they do only with `CONFIG_IP_MROUTE` and `CONFIG_IPV6_MROUTE`.
   - Any failure is reported as `NLCAP_LATE_FAILED` and fails the run. The fixtures captured before it stand.
@@ -1059,21 +1059,46 @@ The order goes from built-in families to the ones that need modules or more setu
 
 **Depends on:** C3-T01.
 
-**Deliver:**
-- `policy add`, `get`, `list`, `delete`, `flush`;
-- SPDINFO;
-- `getdefault` and `setdefault`;
-- `ip xfrm monitor` running during state and policy changes.
-
-ACQUIRE, EXPIRE, POLEXPIRE and NEWAE are provoked where possible: a policy with no state yields ACQUIRE, and short lifetimes yield EXPIRE. Any type that can't be provoked goes on C4's exclusion list, with the reason.
+**Deliver** (as built):
+- **The policy rows (29)** follow C3-T01's in `xfrm-write-corpus.exp`, into the same `link-write/xfrm/<slug>/`. P1 is `out` from 192.0.2.1/32 to 192.0.2.2/32, with a template for SA 1's ESP in transport mode, reqid 1; P2 is an IPv6 `in` policy for TCP to port 443, `action block`, `priority 10`, with no template:
+  - `list` on an empty SPD, and of both policies; `list dir in`, which `ip` filters itself from the same dump;
+  - `add` of P1 and of P2, each read back with `list`; `update` of P1 with `priority 5`, and of a missing policy, which inserts it;
+  - `get` of P1 by selector and by `index 1`; `delete` of P1;
+  - `deleteall` of both and of none; `flush`, and `flush` of an empty SPD;
+  - `count`, empty and of two, and `ip -s -s … count`;
+  - `set hthresh4 24 16 hthresh6 64 48`, read back with `ip -s -s … count`; `getdefault`; `setdefault in block fwd block out accept`, read back with `getdefault`;
+  - three refused by the kernel, rc 2: a policy it already has (`EEXIST`), and the get and delete of a missing one (`ENOENT`);
+  - six refused by `ip` itself, with nothing sent: an add with no `dir` and a get with neither selector nor index (exit 1); a bad `dir`, a selector and an index together, a 33-bit IPv4 hash threshold and the default action `drop` (`invarg` and `duparg2`, exit 255).
+- **The event rows (7)** run `ip xfrm monitor` inside a new helper, `xtcp2-nl-xfrmmon <ip-args> <trigger> <until-ERE>...`. Every XFRM group is below 32, so it reads "subscribed" off `/proc/net/netlink` (an XFRM socket with a nonzero group mask), with no canary, then runs the trigger under bash and stops the monitor once its output has every ERE:
+  - `monitor_sa_policy`, every group: SA 1 and P1 added, updated, deleted and added again, both tables flushed, then `setdefault`. That is eleven writes, each a request and its ACK, and eleven events: NEWSA, NEWPOLICY, UPDSA, UPDPOLICY, DELSA, DELPOLICY, NEWSA, NEWPOLICY, FLUSHSA, FLUSHPOLICY, and the GETDEFAULT that `setdefault` announces on the policy group (33 datagrams);
+  - `monitor_acquire`: three UDP datagrams that P1 matches, from an up dummy `d0` with 192.0.2.1/24, with no SA, so the kernel asks the key manager: ACQUIRE;
+  - `monitor_expire`: SA 1 added with `limit time-soft 1 limit time-hard 2`: EXPIRE with `hard 0`, then `hard 1`, which deletes the SA with no DELSA;
+  - `monitor_polexpire`: P1 the same way, with POLEXPIRE, and a 3 s hard lifetime (decision log);
+  - `monitor_aevent`: SA 1 in place, a 1.2 s wait, then the same datagrams. The replay timer armed when the SA went in (`replay_maxage`, 1 s) finds nothing changed and only defers, so the first datagram sends NEWAE 0x20, "timer expired", at output sequence 1. Once the sequence moves by `net.core.xfrm_aevent_rseqth` (2), the third sends NEWAE 0x10, a replay update. Without the wait, the 0x20 came in one run of two;
+  - `monitor_mapping`: an SA from 192.0.2.1 to 192.0.2.2 with `enc cipher_null ""` (no keys, `crypto_null` loaded late) and `encap espinudp 4500 4500 0.0.0.0`, both addresses on `d0`. A second new helper, `xtcp2-nl-espinudp <src|-> <sport> <dst> <dport> <spi>`, opens 4500 as an ESPINUDP socket and sends a hand-built ESP from port 4501. It is decrypted, and its source port is not the encap's, so the kernel sends MAPPING (`esp_input_done2`), old 192.0.2.1:4500, new 192.0.2.1:4501. The ESP is 20 bytes, because `__xfrm4_udp_encap_rcv` drops ESP shorter than an IPv4 header before any lookup. A 12-byte one was measured dropped there (a `kfree_skb` trace in the guest);
+  - `monitor_unknown`: a group `ip` doesn't know, exit 255 with nothing opened.
+- **What `ip` sends:** `list`, `deleteall` and the readbacks send a GETPOLICY dump with no body. `get` and `delete` send an `xfrm_userpolicy_id`, with an empty IPv4 selector when they go by index. `deleteall` deletes by index, in one datagram with no ACK asked for. `count` is a GETSPDINFO and `set` a NEWSPDINFO, both with flags `0xffffffff`. `getdefault` sends every direction as 0.
+- **What the kernel returns:** a policy's index, which `ip` sends as 0. The first `out` policy in a fresh namespace gets 1 and the first `in` gets 8 (`xfrm_gen_index`), and a policy added again after a delete gets the next, 9. NEWSPDINFO holds the counts per direction, 7 / 1048576 for the hash table and the thresholds, 32/32 and 128/128 until set. A DELSA or DELPOLICY event carries what was deleted, as `XFRMA_SA` or `XFRMA_POLICY`. An ACQUIRE carries the flow's selector, with the socket's ephemeral source port, P1 and its template.
+- **Every type in the universe is captured but one.** REPORT has no bytes, and goes on C4's exclusion list (decision log): the kernel sends it only from Mobile IPv6 route optimization (`km_report` in `net/ipv6/mip6.c`), on a reject path no `ip` command reaches.
 
 **Tests:**
 
+`xfrm-write-corpus-test.exp` (now 149 rows) pins the new rows' slugs, floors, statuses, pre steps, arguments, monitor groups, triggers and EREs, and readbacks. `addr-topology-test.exp` pins `xtcp2-nl-xfrmmon` against a stand-in `/proc/net/netlink` (7 rows), and `xtcp2-nl-espinudp`'s packet and argument errors (8 rows). `TestXfrmPolicyCorpus` (`pkg/xtcpnl`, on the committed pcaps, 67 rows), among them:
+
 | description | expected |
 |---|---|
-| positive: traffic matching a policy with no SA | an `XFRM_MSG_ACQUIRE` |
-| positive: an SA with a 1 s hard lifetime | an `XFRM_MSG_EXPIRE` |
-| corner: REPORT and MAPPING | on the exclusion list, with the reason |
+| positive: `policy add` then `list` | a NEWPOLICY with index 0, ACKed; the dump returns it with index 1 |
+| corner: `update` of a missing policy | ACKed, and it is then listed as an add would be |
+| positive: `deleteall` | a GETPOLICY dump, a DELPOLICY per policy by index with no ACK flag, then a GETPOLICY dump |
+| positive: `count` | a GETSPDINFO; NEWSPDINFO with the counts, the hash table and both thresholds |
+| negative: a bad `dir` | nothing sent, rc 255 |
+| positive: the SA and policy events | each write's request, event and ACK, in that order, with DELSA and DELPOLICY carrying what they deleted |
+| positive: traffic matching a policy with no SA | an `XFRM_MSG_ACQUIRE` with the flow's selector and the policy |
+| positive: an SA with a 1 s soft and 2 s hard lifetime | `XFRM_MSG_EXPIRE` with hard 0, then hard 1 |
+| positive: ESP datagrams out through an SA, after a 1.2 s wait | `XFRM_MSG_NEWAE` 0x20 at output sequence 1, then 0x10 at 3 |
+| positive: an ESP-in-UDP datagram from a port the SA's encap does not have | `XFRM_MSG_MAPPING`, old 192.0.2.1:4500, new 192.0.2.1:4501 |
+| corner: REPORT | on the exclusion list, with the reason (decision log) |
+| corner: across every pcap | no attribute and no message type the test does not know |
 
 **Done when:** the gates pass.
 

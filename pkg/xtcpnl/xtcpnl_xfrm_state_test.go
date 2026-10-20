@@ -116,28 +116,29 @@ func xfrmSAInfo(b []byte) string {
 		"seq=" + u32s(binary.LittleEndian.Uint32(b[xfrmSeqOff:])),
 		"replay_window=" + strconv.Itoa(int(b[215])),
 		"flags=" + strconv.Itoa(int(b[216])),
-		"sel=" + xfrmAddr(sel[16:32]) + "/" + strconv.Itoa(int(sel[43])) + "-" + xfrmAddr(sel[:16]) + "/" +
-			strconv.Itoa(int(sel[42])) + ",family=" + strconv.Itoa(int(binary.LittleEndian.Uint16(sel[40:]))) +
-			",proto=" + strconv.Itoa(int(sel[44])),
+		"sel=" + xfrmSel(sel),
 	}
-	var lft []string
-	for i, name := range xfrmLftNames {
-		if v := binary.LittleEndian.Uint64(b[xfrmLftOff+8*i:]); v != 0 && v != xfrmInf {
-			lft = append(lft, name+"="+strconv.FormatUint(v, 10))
-		}
-	}
-	if len(lft) > 0 {
-		words = append(words, "lft{"+strings.Join(lft, ",")+"}")
+	if lft := xfrmLft(b[xfrmLftOff:]); lft != "" {
+		words = append(words, strings.TrimSpace(lft))
 	}
 	words = append(words, "curlft="+strconv.FormatUint(binary.LittleEndian.Uint64(b[xfrmCurlftOff:]), 10)+"B/"+
 		strconv.FormatUint(binary.LittleEndian.Uint64(b[xfrmCurlftOff+8:]), 10)+"P")
 	return strings.Join(words, " ")
 }
 
-// xfrmAttrs renders XFRMA_* attributes in the order they came; sad says
-// they are a NEWSADINFO's XFRMA_SAD_* instead. An attribute this does not
-// know is attr<N>.
-func xfrmAttrs(t *testing.T, data []byte, sad bool) string {
+// xfrmAttrSpace is which numbering a message's attributes use: XFRMA_*,
+// a NEWSADINFO's XFRMA_SAD_* or a NEWSPDINFO's XFRMA_SPD_*.
+type xfrmAttrSpace int
+
+const (
+	xfrmSpaceSA xfrmAttrSpace = iota
+	xfrmSpaceSAD
+	xfrmSpaceSPD
+)
+
+// xfrmAttrs renders XFRMA_* attributes in the order they came, or in
+// space's numbering. An attribute this does not know is attr<N>.
+func xfrmAttrs(t *testing.T, data []byte, space xfrmAttrSpace) string {
 	t.Helper()
 	attrs, err := ParseNetlinkAttributes(data)
 	if err != nil {
@@ -148,11 +149,13 @@ func xfrmAttrs(t *testing.T, data []byte, sad bool) string {
 		d := a.Data
 		var w string
 		switch {
-		case sad && a.ID() == xfrmAttrSADCnt:
+		case space == xfrmSpaceSAD && a.ID() == xfrmAttrSADCnt:
 			w = "sad_cnt=" + u32s(binary.LittleEndian.Uint32(d))
-		case sad && a.ID() == xfrmAttrSADHInfo:
+		case space == xfrmSpaceSAD && a.ID() == xfrmAttrSADHInfo:
 			w = "sad_hinfo=" + u32s(binary.LittleEndian.Uint32(d)) + "/" + u32s(binary.LittleEndian.Uint32(d[4:]))
-		case sad:
+		case space == xfrmSpaceSPD:
+			w = xfrmSPDAttr(a.ID(), d)
+		case space != xfrmSpaceSA:
 			w = "attr" + strconv.Itoa(int(a.ID()))
 		case a.ID() == xfrmAttrAlgAuth:
 			w = "auth=" + xfrmAlg(d, false)
@@ -184,7 +187,7 @@ func xfrmAttrs(t *testing.T, data []byte, sad bool) string {
 		case a.ID() == xfrmAttrPad:
 			continue
 		default:
-			w = "attr" + strconv.Itoa(int(a.ID()))
+			w = xfrmPolicyAttr(a.ID(), d)
 		}
 		out = append(out, w)
 	}
@@ -198,7 +201,7 @@ func xfrmMsg(t *testing.T, m capturedNlMsg) string {
 	b := m.body
 	words := make([]string, 0, 4)
 	attrOff := 0
-	sad := false
+	space := xfrmSpaceSA
 	switch m.h.Type {
 	case xfrmMsgNewSA, xfrmMsgUpdSA:
 		words = append(words, map[uint16]string{xfrmMsgNewSA: "newsa", xfrmMsgUpdSA: "updsa"}[m.h.Type], xfrmSAInfo(b))
@@ -222,9 +225,12 @@ func xfrmMsg(t *testing.T, m capturedNlMsg) string {
 		words = append(words, map[uint16]string{xfrmMsgGetSADInfo: "getsadinfo", xfrmMsgNewSADInfo: "newsadinfo"}[m.h.Type],
 			"flags=0x"+strconv.FormatUint(uint64(binary.LittleEndian.Uint32(b)), 16))
 		attrOff = 4
-		sad = true
+		space = xfrmSpaceSAD
 	default:
-		return "type" + strconv.Itoa(int(m.h.Type))
+		var ok bool
+		if words, attrOff, space, ok = xfrmPolicyBody(m.h.Type, b); !ok {
+			return "type" + strconv.Itoa(int(m.h.Type))
+		}
 	}
 	if m.h.Flags&unix.NLM_F_DUMP == unix.NLM_F_DUMP && m.h.Flags&unix.NLM_F_REQUEST != 0 {
 		words = append(words[:1], append([]string{"dump"}, words[1:]...)...)
@@ -233,7 +239,7 @@ func xfrmMsg(t *testing.T, m capturedNlMsg) string {
 		words = append(words[:1], append([]string{"ack"}, words[1:]...)...)
 	}
 	if attrOff < len(b) {
-		if a := xfrmAttrs(t, b[nlmsgAlign(attrOff):], sad); a != "" {
+		if a := xfrmAttrs(t, b[nlmsgAlign(attrOff):], space); a != "" {
 			words = append(words, a)
 		}
 	}

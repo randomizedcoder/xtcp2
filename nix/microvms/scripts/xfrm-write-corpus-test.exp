@@ -15,7 +15,8 @@
 # there has to disagree with something that was not edited with it.
 #
 # What this does NOT cover: what the guest runs or what the kernel answers.
-# TestXfrmStateCorpus in pkg/xtcpnl pins that in the committed fixtures.
+# TestXfrmStateCorpus and TestXfrmPolicyCorpus in pkg/xtcpnl pin that in
+# the committed fixtures.
 #
 # Every row has a name, a description that starts with its class
 # (positive/negative/boundary/corner) and an expected value.
@@ -104,6 +105,16 @@ set design_rows {
     state_deleteall state_deleteall_empty state_flush state_flush_proto_ah
     state_count state_count_empty state_count_stats state_allocspi
     state_allocspi_taken state_allocspi_min_gt_max
+    policy_list_empty policy_add policy_add_v6_block policy_add_dup
+    policy_add_no_dir policy_add_bad_dir policy_update policy_update_new
+    policy_get policy_get_index policy_get_missing policy_get_sel_and_index
+    policy_get_no_sel policy_delete policy_delete_missing policy_list
+    policy_list_dir_in policy_deleteall policy_deleteall_empty policy_flush
+    policy_flush_empty policy_count policy_count_empty policy_count_stats
+    policy_set_hthresh policy_set_hthresh_bad policy_getdefault
+    policy_setdefault policy_setdefault_bad
+    monitor_sa_policy monitor_acquire monitor_expire monitor_polexpire
+    monitor_aevent monitor_mapping monitor_unknown
 }
 
 proc bad_arity {} {
@@ -139,11 +150,19 @@ proc refused_rows {} {
     return $out
 }
 
-# wrong_object - the rows whose command is not `ip [-s] xfrm state`.
+# wrong_object - the rows whose command is not what their slug says: a
+# state_ row `ip [-s] xfrm state`, a policy_ row `ip [-s [-s]] xfrm policy`
+# and a monitor_ row `ip xfrm monitor` through xtcp2-nl-xfrmmon, or alone
+# where ip refuses it.
 proc wrong_object {} {
     set out {}
     foreach r $::R {
-        if {![regexp {^ip (-s )?xfrm state } [lindex $r 3]]} {
+        set want [dict get {
+            state {^ip (-s )?xfrm state }
+            policy {^ip (-s ){0,2}xfrm policy }
+            monitor {^(xtcp2-nl-xfrmmon "xfrm monitor[ "]|ip xfrm monitor )}
+        } [lindex [split [lindex $r 0] _] 0]]
+        if {![regexp -- $want [lindex $r 3]]} {
             lappend out [lindex $r 0]
         }
     }
@@ -181,11 +200,11 @@ check arity "negative: every row is {slug floor pre command readbacks rc}" \
     {bad_arity} {}
 check unique_slugs "negative: no slug names two rows" \
     {dup_slugs} {}
-check refused_statuses "positive: the kernel's refusals exit 2 and ip's own exit 1" \
-    {refused_rows} {state_add_dup 2 state_add_unknown_alg 2 state_add_short_key 2 state_add_no_algo 1 state_update_missing 2 state_get_missing 2 state_delete_missing 2 state_allocspi_taken 2 state_allocspi_min_gt_max 1}
-check row_count "boundary: C3-T01's 29 rows" \
-    {llength $R} 29
-check right_object "negative: every command is ip xfrm state" \
+check refused_statuses "positive: the kernel's refusals exit 2, ip's own 1, and its invarg and duparg 255" \
+    {refused_rows} {state_add_dup 2 state_add_unknown_alg 2 state_add_short_key 2 state_add_no_algo 1 state_update_missing 2 state_get_missing 2 state_delete_missing 2 state_allocspi_taken 2 state_allocspi_min_gt_max 1 policy_add_dup 2 policy_add_no_dir 1 policy_add_bad_dir 255 policy_get_missing 2 policy_get_sel_and_index 255 policy_get_no_sel 1 policy_delete_missing 2 policy_set_hthresh_bad 255 policy_setdefault_bad 255 monitor_unknown 255}
+check row_count "boundary: C3-T01's 29 rows and C3-T02's 36" \
+    {list [llength [lsearch -all -glob [column 0] state_*]] [expr {[llength $R] - 29}]} {29 36}
+check right_object "negative: every command is the ip xfrm object its slug names" \
     {wrong_object} {}
 check no_quotes "corner: no command holds a single quote" \
     {quoted} {}
@@ -195,16 +214,25 @@ check aead_name "corner: the AEAD's name is in double quotes, for sh -c" \
     {regexp {aead "rfc4106\(gcm\(aes\)\)" 0x[0-9]+ 128$} [field state_add_aead 3]} 1
 
 ###############################################################################
-# 2. floors: a command and its answer 2, deleteall 5, ip's refusals 0
+# 2. floors: a command and its answer 2, deleteall 5, ip's refusals 0, and
+# an event row its writes and events
 ###############################################################################
 check floors "positive: every floor, in run order" \
-    {column 1} {2 2 2 2 2 2 2 2 0 2 2 2 2 2 2 2 2 2 2 5 2 2 2 2 2 2 2 2 0}
+    {column 1} {2 2 2 2 2 2 2 2 0 2 2 2 2 2 2 2 2 2 2 5 2 2 2 2 2 2 2 2 0 2 2 2 2 0 0 2 2 2 2 2 0 0 2 2 2 2 5 2 2 2 2 2 2 2 0 2 2 0 33 1 4 4 2 4 0}
 check floor_ip_refusals "boundary: what ip refuses itself sends nothing" \
-    {lmap slug {state_add_no_algo state_allocspi_min_gt_max} {field $slug 1}} {0 0}
+    {lsort -unique [lmap {slug rc} [refused_rows] {if {$rc == 2} continue; field $slug 1}]} 0
 check floor_deleteall "corner: a deleteall with something to delete dumps, deletes and dumps again" \
-    {field state_deleteall 1} 5
+    {lmap slug {state_deleteall policy_deleteall} {field $slug 1}} {5 5}
 check floor_deleteall_empty "boundary: and one with nothing stops after its dump" \
-    {field state_deleteall_empty 1} 2
+    {lmap slug {state_deleteall_empty policy_deleteall_empty} {field $slug 1}} {2 2}
+check floor_sa_policy "positive: eleven writes, each a request and its ACK, and their eleven events, are the row's floor" \
+    {list [regexp -all {(^|&& )ip } [lindex [field monitor_sa_policy 3] 2]] [expr {[regexp -all {(^|&& )ip } [lindex [field monitor_sa_policy 3] 2]] * 2 + 11 == [field monitor_sa_policy 1]}]} {11 1}
+check floor_expire "positive: an expiring write is its request, its ACK, a soft and a hard expiry" \
+    {lmap slug {monitor_expire monitor_polexpire} {field $slug 1}} {4 4}
+check floor_mapping "positive: the SA's request, NEWSA and ACK, and the MAPPING" \
+    {field monitor_mapping 1} 4
+check floor_one_event "boundary: a trigger that writes nothing leaves its events: one ACQUIRE, two NEWAEs" \
+    {lmap slug {monitor_acquire monitor_aevent} {field $slug 1}} {1 2}
 
 ###############################################################################
 # 3. preconditions and arguments
@@ -254,6 +282,120 @@ check min_gt_max "negative: min over max" \
 check flush_proto "corner: the flush names AH, which no SA is" \
     {lrange [field state_flush_proto_ah 3] end-1 end} {proto ah}
 
+foreach {name description slug expected} {
+    pre_p_empty     "boundary: an empty policy list starts from nothing"       policy_list_empty      0
+    pre_p_dup       "negative: the duplicate policy starts from P1"            policy_add_dup         1
+    pre_p_update    "positive: a policy update starts from P1"                 policy_update          1
+    pre_p_upd_new   "corner: and one that inserts starts from nothing"         policy_update_new      0
+    pre_p_get       "positive: a policy get starts from P1"                    policy_get             1
+    pre_p_get_idx   "positive: and so does a get by index"                     policy_get_index       1
+    pre_p_get_miss  "negative: getting a missing policy starts from nothing"   policy_get_missing     0
+    pre_p_delete    "positive: a policy delete starts from P1"                 policy_delete          1
+    pre_p_del_miss  "negative: deleting a missing policy starts from nothing"  policy_delete_missing  0
+    pre_p_list      "positive: a policy list starts from P1 and P2"            policy_list            2
+    pre_p_list_in   "positive: and so does the list filtered to dir in"        policy_list_dir_in     2
+    pre_p_delall    "positive: and deleteall"                                  policy_deleteall       2
+    pre_p_flush_0   "boundary: an empty flush starts from nothing"             policy_flush_empty     0
+    pre_p_count     "positive: a policy count starts from two policies"        policy_count           2
+    pre_m_sa_policy "boundary: the SA and policy events start from nothing"    monitor_sa_policy      0
+    pre_m_acquire   "positive: ACQUIRE starts from d0's three steps and P1"    monitor_acquire        4
+    pre_m_expire    "boundary: the expiring SA is the trigger's own"           monitor_expire         0
+    pre_m_aevent    "positive: NEWAE starts from d0, SA 1 and P1"              monitor_aevent         5
+    pre_m_mapping   "positive: MAPPING starts from d0 with both addresses"     monitor_mapping        4
+} {
+    check $name $description [list llength [field $slug 2]] $expected
+}
+check pre_ptwo "positive: the two policies are P1 and the IPv6 block" \
+    {expr {$xfrmcorpus::PRE_PTWO eq [list $xfrmcorpus::P1 $xfrmcorpus::P2]}} 1
+check p1 "positive: P1 is out from 192.0.2.1 to 192.0.2.2, needing SA 1's ESP" \
+    {set xfrmcorpus::P1} {xfrm policy add src 192.0.2.1/32 dst 192.0.2.2/32 dir out tmpl src 192.0.2.1 dst 192.0.2.2 proto esp reqid 1 mode transport}
+check p2_block "corner: P2 is inbound, blocked, and has no template" \
+    {list [regexp { dir in } $xfrmcorpus::P2] [lrange $xfrmcorpus::P2 end-1 end] [regexp {tmpl} $xfrmcorpus::P2]} {1 {action block} 0}
+check acquire_pre "positive: ACQUIRE's d0 is up with 192.0.2.1/24, then P1, and no SA" \
+    {field monitor_acquire 2} [concat $xfrmcorpus::PRE_D0 [list $xfrmcorpus::P1]]
+check aevent_pre "positive: NEWAE's has SA 1 as well" \
+    {field monitor_aevent 2} [concat $xfrmcorpus::PRE_D0 [list $xfrmcorpus::SA1 $xfrmcorpus::P1]]
+check d0 "positive: d0 is an up dummy with 192.0.2.1/24" \
+    {set xfrmcorpus::PRE_D0} {{link add d0 type dummy} {addr add 192.0.2.1/24 dev d0} {link set d0 up}}
+check d0_both "positive: MAPPING's d0 has 192.0.2.2/24 too, since the helper binds to both" \
+    {field monitor_mapping 2} {{link add d0 type dummy} {addr add 192.0.2.1/24 dev d0} {addr add 192.0.2.2/24 dev d0} {link set d0 up}}
+check update_priority "positive: the policy update changes P1's priority" \
+    {regexp {^ip xfrm policy update src 192\.0\.2\.1/32 dst 192\.0\.2\.2/32 dir out priority 5 tmpl } [field policy_update 3]} 1
+check get_index "corner: the first out policy in a fresh namespace has index 1" \
+    {field policy_get_index 3} {ip xfrm policy get index 1 dir out}
+check no_dir "negative: the add with no DIR has a selector and a template" \
+    {list [regexp { dir } [field policy_add_no_dir 3]] [regexp { tmpl } [field policy_add_no_dir 3]]} {0 1}
+check bad_dir "negative: the add with a bad DIR names it" \
+    {lindex [field policy_add_bad_dir 3] end} sideways
+check sel_and_index "negative: the get with a selector and an index" \
+    {lrange [field policy_get_sel_and_index 3] end-1 end} {index 1}
+check no_sel "negative: the get with a DIR and nothing else" \
+    {field policy_get_no_sel 3} {ip xfrm policy get dir out}
+check list_dir "corner: the filtered list names dir in, which only P2 is" \
+    {lrange [field policy_list_dir_in 3] end-1 end} {dir in}
+check count_stats "positive: count's hash buckets and thresholds need -s twice" \
+    {lrange [field policy_count_stats 3] 0 2} {ip -s -s}
+check hthresh "positive: the thresholds are within 32 and 128 bits" \
+    {lrange [field policy_set_hthresh 3] end-5 end} {hthresh4 24 16 hthresh6 64 48}
+check hthresh_bad "boundary: 33 is one bit past an IPv4 address" \
+    {lrange [field policy_set_hthresh_bad 3] end-2 end} {hthresh4 33 0}
+check setdefault "positive: setdefault names all three directions" \
+    {lrange [field policy_setdefault 3] end-5 end} {in block fwd block out accept}
+check setdefault_bad "negative: drop is not a default action" \
+    {lrange [field policy_setdefault_bad 3] end-1 end} {in drop}
+
+###############################################################################
+# 3a. the event rows: xtcp2-nl-xfrmmon <ip-args> <trigger> <until-ERE>...
+###############################################################################
+# mon <slug> <i> - argument <i> of an event row's helper command line.
+proc mon {slug i} {
+    return [lindex [field $slug 3] $i]
+}
+foreach {name description slug expected} {
+    mon_all      "positive: the SA and policy events subscribe to every group" monitor_sa_policy {xfrm monitor}
+    mon_acquire  "positive: ACQUIRE subscribes to its own group"               monitor_acquire   {xfrm monitor acquire}
+    mon_expire   "positive: EXPIRE to the expire group"                        monitor_expire    {xfrm monitor expire}
+    mon_polexp   "corner: and so does POLEXPIRE, which shares it"              monitor_polexpire {xfrm monitor expire}
+    mon_aevent   "positive: NEWAE to the aevent group"                         monitor_aevent    {xfrm monitor aevent}
+    mon_mapping  "corner: MAPPING to every group, as ip has no keyword for it"  monitor_mapping   {xfrm monitor}
+} {
+    check $name $description [list mon $slug 1] $expected
+}
+foreach {name description slug expected} {
+    until_sa_policy "positive: the last three events end the wait"      monitor_sa_policy {{Flushed state} {Flushed policy} {Default policies}}
+    until_acquire   "positive: ACQUIRE is printed as acquire proto esp" monitor_acquire   {{acquire proto esp}}
+    until_expire    "positive: a soft expiry, then a hard one"          monitor_expire    {{hard 0} {hard 1}}
+    until_polexpire "positive: and the same for the policy"             monitor_polexpire {{hard 0} {hard 1}}
+    until_aevent    "positive: the timer's NEWAE, then the replay update's" monitor_aevent    {{timer expired} {replay update}}
+    until_mapping   "positive: MAPPING is printed as Mapping change"    monitor_mapping   {{Mapping change}}
+} {
+    check $name $description [list lrange [field $slug 3] 3 end] $expected
+}
+check sa_policy_order "positive: add, update and delete SA 1 and P1, add them again, flush both, then setdefault" \
+    {regexp {^ip xfrm state add .*&& ip xfrm policy add .*&& ip xfrm state update .*&& ip xfrm policy update .*&& ip xfrm state delete .*&& ip xfrm policy delete .*&& ip xfrm state add .*&& ip xfrm policy add .*&& ip xfrm state flush && ip xfrm policy flush && ip xfrm policy setdefault in accept fwd accept out accept$} [mon monitor_sa_policy 2]} 1
+check expire_limits "positive: the SA lives 1 s soft and 2 s hard" \
+    {regexp {^ip xfrm state add .* limit time-soft 1 limit time-hard 2$} [mon monitor_expire 2]} 1
+check polexpire_limits "corner: the policy's limits come before its template, which would take them" \
+    {regexp {^ip xfrm policy add .* dir out limit time-soft 1 limit time-hard 3 tmpl } [mon monitor_polexpire 2]} 1
+check polexpire_margin "boundary: the policy's hard limit is 2 s past its soft one, so the first timer cannot reach it" \
+    {regexp {time-soft (\d+) limit time-hard (\d+)} [mon monitor_polexpire 2] -> soft hard; expr {$hard - $soft}} 2
+check acquire_udp "positive: ACQUIRE's trigger is UDP to 192.0.2.2, whose failure does not count" \
+    {list [regexp -all {echo x >/dev/udp/192\.0\.2\.2/9} [mon monitor_acquire 2]] [string match "* || true" [mon monitor_acquire 2]]} {3 1}
+check aevent_udp "positive: NEWAE's is three datagrams, past the threshold of 2 after the first" \
+    {regexp -all {echo x >/dev/udp/192\.0\.2\.2/9} [mon monitor_aevent 2]} 3
+check aevent_wait "boundary: sent 1.2 s on, past the replay timer's 1 s, so the first datagram's NEWAE is the timer's" \
+    {regexp {^sleep 1\.2; echo } [mon monitor_aevent 2]} 1
+check mapping_sa "positive: the MAPPING trigger adds SA 3, null cipher with an empty key and a UDP encap from 4500, then sends from 4501" \
+    {regexp {^ip xfrm state add src 192\.0\.2\.1 dst 192\.0\.2\.2 proto esp spi 0x300 mode transport enc cipher_null "" encap espinudp 4500 4500 0\.0\.0\.0 && xtcp2-nl-espinudp 192\.0\.2\.1 4501 192\.0\.2\.2 4500 0x300$} [mon monitor_mapping 2]} 1
+check mapping_port "corner: the datagram's source port is not the SA's encap port, which is what MAPPING reports" \
+    {regexp {encap espinudp (\d+) .* xtcp2-nl-espinudp \S+ (\d+) } [mon monitor_mapping 2] -> sa_port pkt_port; expr {$sa_port != $pkt_port}} 1
+check mapping_no_auth "negative: SA 3 has no auth, so the helper needs no keys" \
+    {regexp { (auth|auth-trunc|aead) } [mon monitor_mapping 2]} 0
+check mon_unknown "negative: an unknown monitor group is refused by ip, with no helper" \
+    {field monitor_unknown 3} {ip xfrm monitor bogus}
+check mon_no_readback "corner: an event row has no readback" \
+    {lsort -unique [lmap slug {monitor_sa_policy monitor_acquire monitor_expire monitor_polexpire monitor_aevent monitor_mapping monitor_unknown} {field $slug 4}]} {{}}
+
 ###############################################################################
 # 4. readbacks
 ###############################################################################
@@ -279,8 +421,27 @@ foreach {name description slug expected} {
 }
 check rb_stats "positive: the update's readback shows lifetimes (-s)" \
     {lindex [field state_update 4] 0 2} {ip -s xfrm state list}
-check rb_plain "positive: every other readback is a plain list" \
-    {lsort -unique [lmap r $R {if {[lindex $r 0] eq "state_update" || [lindex $r 4] eq {}} continue; lindex $r 4 0 2}]} {{ip xfrm state list}}
+check rb_plain "positive: every other state readback is a plain list" \
+    {lsort -unique [lmap r $R {if {![string match state_* [lindex $r 0]] || [lindex $r 0] eq "state_update" || [lindex $r 4] eq {}} continue; lindex $r 4 0 2}]} {{ip xfrm state list}}
+foreach {name description slug expected} {
+    rb_p_add       "positive: a policy add reads the SPD back"            policy_add             policy
+    rb_p_v6        "positive: and so does the IPv6 block"                 policy_add_v6_block    policy
+    rb_p_update    "positive: and a policy update"                        policy_update          policy
+    rb_p_upd_new   "positive: and the update that inserts"                policy_update_new      policy
+    rb_p_delete    "positive: and a policy delete"                        policy_delete          policy
+    rb_p_deleteall "positive: and deleteall"                              policy_deleteall       policy
+    rb_p_flush     "positive: and flush"                                  policy_flush           policy
+    rb_p_hthresh   "positive: set reads the thresholds back"              policy_set_hthresh     spd
+    rb_p_setdef    "positive: setdefault reads the defaults back"         policy_setdefault      default
+    rb_p_count     "corner: a policy count is its own readback"           policy_count           {}
+    rb_p_getdef    "corner: and so is getdefault"                         policy_getdefault      {}
+    rb_p_flush_0   "boundary: a flush of nothing has nothing to read"     policy_flush_empty     {}
+    rb_p_dup       "negative: a refused policy add has nothing to read"   policy_add_dup         {}
+} {
+    check $name $description [list readback_names $slug] $expected
+}
+check rb_policy_cmds "positive: the policy, SPD and default readbacks" \
+    {lsort -unique [lmap r $R {if {![string match policy_* [lindex $r 0]] || [lindex $r 4] eq {}} continue; lindex $r 4 0 2}]} {{ip -s -s xfrm policy count} {ip xfrm policy getdefault} {ip xfrm policy list}}
 check rb_floor "boundary: a readback's floor is a dump's 2" \
     {lsort -unique [lmap r $R {if {[lindex $r 4] eq {}} continue; lindex $r 4 0 1}]} 2
 check rb_args "positive: a readback's capio arguments keep NETLINK_XFRM" \

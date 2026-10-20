@@ -31,8 +31,9 @@
 #              netlink_xfrm_<name>.pcap and ip_<name>
 #   rc         the exit status `ip.rc` must hold: 0; 2 when the kernel
 #              refuses the request (ip/xfrm_state.c exits 2 when rtnl_talk
-#              fails); or 1 where `ip` refuses its arguments itself (exit(1)
-#              after a message, with nothing sent)
+#              fails); or 1 or 255 where `ip` refuses its arguments itself
+#              (exit(1) after a message, or exit(-1) from invarg, with
+#              nothing sent)
 #
 # XFRM STATE (C3-T01)
 #
@@ -42,6 +43,65 @@
 #
 # allocspi asks for one SPI (min = max), so the larval state it makes is
 # the same on every run; with a range the kernel picks one at random.
+#
+# XFRM POLICY AND EVENTS (C3-T02)
+#
+# rc 255 is a third refusal by `ip` itself: invarg, duparg and duparg2
+# exit(-1) (lib/utils.c), for a bad DIR, a hash threshold past 32 bits, a
+# default action that is neither accept nor block, a selector and an index
+# together, or an unknown monitor group. list and deleteall send a
+# GETPOLICY dump with no body; `ip` applies `dir in` itself. count is a
+# GETSPDINFO, answered with a NEWSPDINFO; set is a NEWSPDINFO; setdefault
+# and getdefault are SETDEFAULT and GETDEFAULT. The first out policy in a
+# fresh namespace has index 1 (xfrm_gen_index: idx_generator 0 | dir 1).
+#
+# The event rows run `ip xfrm monitor` inside xtcp2-nl-xfrmmon, which
+# waits until the monitor is subscribed, runs the trigger, and stops it
+# once its output has every until-ERE. Every write in a trigger is a
+# request and its ACK; every event is one datagram to the one subscriber:
+#
+#   monitor_sa_policy   eleven writes and eleven events: NEWSA, NEWPOLICY,
+#                       UPDSA, UPDPOLICY, DELSA, DELPOLICY, NEWSA and
+#                       NEWPOLICY again, FLUSHSA, FLUSHPOLICY, and the
+#                       GETDEFAULT a setdefault announces on the policy
+#                       group, so 33
+#   monitor_acquire     a UDP datagram that P1 needs an SA for and has
+#                       none: the kernel asks the key manager, ACQUIRE, 1
+#   monitor_expire      an SA with a soft lifetime of 1 s and a hard one
+#                       of 2 s: its write, then EXPIRE hard 0 and EXPIRE
+#                       hard 1, which deletes it with no DELSA, 4
+#   monitor_polexpire   the same for P1, with POLEXPIRE, 4. Its hard
+#                       lifetime is 3 s: a policy's timer is a timer-wheel
+#                       timer, first due 1 s after the add and up to a
+#                       wheel slot late, against an add time in whole
+#                       seconds, so with 2 s it could find the hard limit
+#                       already past and send only the hard POLEXPIRE (the
+#                       first run did, twice). An SA's is an hrtimer
+#   monitor_aevent      three ESP datagrams out through SA1, 1.2 s after
+#                       the SA was added. The SA's replay timer
+#                       (net.core.xfrm_aevent_etime, 1 s) has fired by then
+#                       with nothing to report, and left XFRM_TIME_DEFER
+#                       set, so the first datagram sends NEWAE "timer
+#                       expired" (0x20) at output sequence 1; once the
+#                       sequence has moved by net.core.xfrm_aevent_rseqth
+#                       (2) again, the third sends a "replay update" (0x10)
+#                       at 3, 2. Without the wait the first run's NEWAEs
+#                       depended on whether the timer had fired: a replay
+#                       update at 2 alone, or both
+#   monitor_mapping     an SA with a UDP encap from port 4500, added in the
+#                       trigger, then an ESP-in-UDP datagram for it from
+#                       port 4501 (xtcp2-nl-espinudp): the kernel reports
+#                       the NAT-T peer's new port, MAPPING. The add's
+#                       request, NEWSA and ACK, and the MAPPING, 4. The SA
+#                       is ecb(cipher_null) with no auth, so the helper
+#                       needs no keys; the null cipher's key is empty, and
+#                       an empty word survives the trigger's quoting but
+#                       not a pre step's
+#
+# The ACQUIRE and NEWAE rows need a route to 192.0.2.2, so their namespace
+# gets an up dummy, d0, with 192.0.2.1/24; the MAPPING row binds to both
+# addresses, so its d0 has 192.0.2.2/24 as well. /dev/udp is bash's, which
+# the helper runs the trigger under.
 ###############################################################################
 
 namespace eval xfrmcorpus {
@@ -68,6 +128,46 @@ namespace eval xfrmcorpus {
     # The SAD after a write, and with lifetimes (-s).
     variable STATE_LIST {{state 2 {ip xfrm state list}}}
     variable STATE_STATS {{state 2 {ip -s xfrm state list}}}
+
+    # Policy 1: out from 192.0.2.1 to 192.0.2.2, requiring SA 1's ESP in
+    # transport mode, reqid 1.
+    variable P1_SEL "src 192.0.2.1/32 dst 192.0.2.2/32 dir out"
+    variable P1_TMPL "tmpl src 192.0.2.1 dst 192.0.2.2 proto esp reqid 1 mode transport"
+    variable P1 "xfrm policy add $P1_SEL $P1_TMPL"
+
+    # Policy 2: IPv6 TCP to port 443 inbound, blocked, at priority 10.
+    variable P2 "xfrm policy add src 2001:db8::1/128 dst 2001:db8::2/128 proto tcp dport 443 dir in priority 10 action block"
+
+    variable PRE_P1 [list $P1]
+    variable PRE_PTWO [list $P1 $P2]
+
+    # d0, so 192.0.2.2 has a route for the ACQUIRE and NEWAE triggers, and
+    # with 192.0.2.2 local too for MAPPING's.
+    variable PRE_D0 {{link add d0 type dummy} {addr add 192.0.2.1/24 dev d0} {link set d0 up}}
+    variable PRE_D0_BOTH {{link add d0 type dummy} {addr add 192.0.2.1/24 dev d0} {addr add 192.0.2.2/24 dev d0} {link set d0 up}}
+
+    # SA 3: ESP-in-UDP from 192.0.2.1 port 4500 to 192.0.2.2 port 4500,
+    # SPI 0x300, with the null cipher and no auth. The \"\" is the empty key,
+    # one word once the row's sh -c has read the trigger's double quotes.
+    variable SA_MAP "xfrm state add src 192.0.2.1 dst 192.0.2.2 proto esp spi 0x300 mode transport enc cipher_null \\\"\\\" encap espinudp 4500 4500 0.0.0.0"
+
+    # The SPD after a write, its counts and hash thresholds (-s -s), and
+    # the default actions.
+    variable POL_LIST {{policy 2 {ip xfrm policy list}}}
+    variable SPD_STATS {{spd 2 {ip -s -s xfrm policy count}}}
+    variable DEFAULT {{default 2 {ip xfrm policy getdefault}}}
+
+    # Three datagrams out through P1 and, where there is one, SA 1.
+    variable UDP3 "echo x >/dev/udp/192.0.2.2/9; echo x >/dev/udp/192.0.2.2/9; echo x >/dev/udp/192.0.2.2/9"
+
+    variable MON_SA_POLICY [join [list xtcp2-nl-xfrmmon {"xfrm monitor"} \
+        "\"ip $SA1 && ip $P1 && ip xfrm state update $SA1_ID reqid 1 mode transport auth sha256 $AUTH_KEY enc aes $ENC_KEY && ip xfrm policy update $P1_SEL priority 5 $P1_TMPL && ip xfrm state delete $SA1_ID && ip xfrm policy delete $P1_SEL && ip $SA1 && ip $P1 && ip xfrm state flush && ip xfrm policy flush && ip xfrm policy setdefault in accept fwd accept out accept\"" \
+        {"Flushed state"} {"Flushed policy"} {"Default policies"}]]
+    variable MON_ACQUIRE "xtcp2-nl-xfrmmon \"xfrm monitor acquire\" \"$UDP3 || true\" \"acquire proto esp\""
+    variable MON_EXPIRE "xtcp2-nl-xfrmmon \"xfrm monitor expire\" \"ip $SA1 limit time-soft 1 limit time-hard 2\" \"hard 0\" \"hard 1\""
+    variable MON_POLEXPIRE "xtcp2-nl-xfrmmon \"xfrm monitor expire\" \"ip xfrm policy add $P1_SEL limit time-soft 1 limit time-hard 3 $P1_TMPL\" \"hard 0\" \"hard 1\""
+    variable MON_AEVENT "xtcp2-nl-xfrmmon \"xfrm monitor aevent\" \"sleep 1.2; $UDP3\" \"timer expired\" \"replay update\""
+    variable MON_MAPPING "xtcp2-nl-xfrmmon \"xfrm monitor\" \"ip $SA_MAP && xtcp2-nl-espinudp 192.0.2.1 4501 192.0.2.2 4500 0x300\" \"Mapping change\""
 
     variable rows [list \
         [list state_list_empty 2 {} "ip xfrm state list" {} 0] \
@@ -99,6 +199,42 @@ namespace eval xfrmcorpus {
         [list state_allocspi 2 {} "ip $ALLOCSPI" $STATE_LIST 0] \
         [list state_allocspi_taken 2 $PRE_SA1 "ip xfrm state allocspi src 192.0.2.1 dst 192.0.2.2 proto esp min 0x100 max 0x100" {} 2] \
         [list state_allocspi_min_gt_max 0 {} "ip xfrm state allocspi src 192.0.2.1 dst 192.0.2.2 proto esp min 0x300 max 0x200" {} 1] \
+        [list policy_list_empty 2 {} "ip xfrm policy list" {} 0] \
+        [list policy_add 2 {} "ip $P1" $POL_LIST 0] \
+        [list policy_add_v6_block 2 {} "ip $P2" $POL_LIST 0] \
+        [list policy_add_dup 2 $PRE_P1 "ip $P1" {} 2] \
+        [list policy_add_no_dir 0 {} "ip xfrm policy add src 192.0.2.1/32 dst 192.0.2.2/32 $P1_TMPL" {} 1] \
+        [list policy_add_bad_dir 0 {} "ip xfrm policy add src 192.0.2.1/32 dst 192.0.2.2/32 dir sideways" {} 255] \
+        [list policy_update 2 $PRE_P1 "ip xfrm policy update $P1_SEL priority 5 $P1_TMPL" $POL_LIST 0] \
+        [list policy_update_new 2 {} "ip xfrm policy update $P1_SEL $P1_TMPL" $POL_LIST 0] \
+        [list policy_get 2 $PRE_P1 "ip xfrm policy get $P1_SEL" {} 0] \
+        [list policy_get_index 2 $PRE_P1 "ip xfrm policy get index 1 dir out" {} 0] \
+        [list policy_get_missing 2 {} "ip xfrm policy get $P1_SEL" {} 2] \
+        [list policy_get_sel_and_index 0 {} "ip xfrm policy get $P1_SEL index 1" {} 255] \
+        [list policy_get_no_sel 0 {} "ip xfrm policy get dir out" {} 1] \
+        [list policy_delete 2 $PRE_P1 "ip xfrm policy delete $P1_SEL" $POL_LIST 0] \
+        [list policy_delete_missing 2 {} "ip xfrm policy delete $P1_SEL" {} 2] \
+        [list policy_list 2 $PRE_PTWO "ip xfrm policy list" {} 0] \
+        [list policy_list_dir_in 2 $PRE_PTWO "ip xfrm policy list dir in" {} 0] \
+        [list policy_deleteall 5 $PRE_PTWO "ip xfrm policy deleteall" $POL_LIST 0] \
+        [list policy_deleteall_empty 2 {} "ip xfrm policy deleteall" {} 0] \
+        [list policy_flush 2 $PRE_PTWO "ip xfrm policy flush" $POL_LIST 0] \
+        [list policy_flush_empty 2 {} "ip xfrm policy flush" {} 0] \
+        [list policy_count 2 $PRE_PTWO "ip xfrm policy count" {} 0] \
+        [list policy_count_empty 2 {} "ip xfrm policy count" {} 0] \
+        [list policy_count_stats 2 $PRE_PTWO "ip -s -s xfrm policy count" {} 0] \
+        [list policy_set_hthresh 2 {} "ip xfrm policy set hthresh4 24 16 hthresh6 64 48" $SPD_STATS 0] \
+        [list policy_set_hthresh_bad 0 {} "ip xfrm policy set hthresh4 33 0" {} 255] \
+        [list policy_getdefault 2 {} "ip xfrm policy getdefault" {} 0] \
+        [list policy_setdefault 2 {} "ip xfrm policy setdefault in block fwd block out accept" $DEFAULT 0] \
+        [list policy_setdefault_bad 0 {} "ip xfrm policy setdefault in drop" {} 255] \
+        [list monitor_sa_policy 33 {} $MON_SA_POLICY {} 0] \
+        [list monitor_acquire 1 [concat $PRE_D0 [list $P1]] $MON_ACQUIRE {} 0] \
+        [list monitor_expire 4 {} $MON_EXPIRE {} 0] \
+        [list monitor_polexpire 4 {} $MON_POLEXPIRE {} 0] \
+        [list monitor_aevent 2 [concat $PRE_D0 [list $SA1 $P1]] $MON_AEVENT {} 0] \
+        [list monitor_mapping 4 $PRE_D0_BOTH $MON_MAPPING {} 0] \
+        [list monitor_unknown 0 {} "ip xfrm monitor bogus" {} 255] \
     ]
 
     ###########################################################################

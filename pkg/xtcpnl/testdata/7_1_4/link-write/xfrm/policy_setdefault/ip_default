@@ -1,0 +1,4 @@
+Default policies:
+ in:  block
+ fwd: block
+ out: accept

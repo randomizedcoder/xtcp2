@@ -9,9 +9,9 @@
 # partner in a second VM (Tier 2 of the same document).
 #
 # This exports ONE thing: `xtcp2-nlcap`, a helper installed on the guest's
-# PATH (with `xtcp2-nl-mcdump`, `xtcp2-nl-ipmon`, `xtcp2-nl-ra`,
-# `xtcp2-nl-tcp`, `xtcp2-nl-ioam` and `xtcp2-nl-mptcp`, below, on its own
-# PATH)
+# PATH (with `xtcp2-nl-mcdump`, `xtcp2-nl-ipmon`, `xtcp2-nl-xfrmmon`,
+# `xtcp2-nl-espinudp`, `xtcp2-nl-ra`, `xtcp2-nl-tcp`, `xtcp2-nl-ioam` and
+# `xtcp2-nl-mptcp`, below, on its own PATH)
 # and invoked one subcommand at a time by a host driver
 # (nix/microvms/scripts/capture-netlink-dumps.exp, goip-parity.exp,
 # capture-link-writes.exp and capture-lacp-pair.exp) over the serial console.
@@ -305,6 +305,175 @@ let
       exit "$rc"
     '';
   };
+
+  # xtcp2-nl-xfrmmon <ip-args> <trigger> <until-ERE>...
+  #
+  # `ip <ip-args>` (an `xfrm monitor ...`) in the background while
+  # <trigger> runs, for the XFRM event rows (C3-T02;
+  # docs/netlink/goip-parity-gaps.md), as xtcp2-nl-ipmon is for
+  # `ip monitor`.
+  #
+  # Unlike rtnetlink's address groups, every XFRMNLGRP_* group is below 32,
+  # so subscribed can be read off /proc/net/netlink, no canary needed: ready
+  # is a NETLINK_XFRM (6) socket with a nonzero Groups column. The kernel's
+  # own XFRM socket has none, and a row's namespace is fresh, so the only
+  # subscriber is the monitor. NLCAP_PROC_NETLINK points the read at a file
+  # for the hermetic check.
+  #
+  # Then <trigger> runs with `bash -c` (bash, for /dev/udp), and the monitor
+  # is stopped with SIGTERM once its output matches every <until-ERE>, each
+  # within 10 s. stdout is the monitor's output; a monitor that never
+  # subscribes, a failed trigger or a timeout is reported on stderr and
+  # exits 1; a usage error exits 2.
+  xfrmmon = pkgs.writeShellApplication {
+    name = "xtcp2-nl-xfrmmon";
+    runtimeInputs = with pkgs; [
+      bash
+      coreutils
+      gawk
+      gnugrep
+      iproute2
+    ];
+    text = ''
+      [ $# -ge 3 ] || {
+        echo "usage: xtcp2-nl-xfrmmon <ip-args> <trigger> <until-ERE>..." >&2
+        exit 2
+      }
+      read -ra ip_args <<<"$1"
+      trigger=$2
+      shift 2
+      proc=''${NLCAP_PROC_NETLINK:-/proc/net/netlink}
+
+      out=$(mktemp)
+      trap 'rm -f "$out"' EXIT
+      ip "''${ip_args[@]}" >"$out" 2>&1 &
+      mpid=$!
+
+      # wait_match <ERE> <tenths>: poll the monitor's output.
+      wait_match() {
+        local i
+        for ((i = 0; i < $2 * 2; i++)); do
+          grep -Eq -- "$1" "$out" && return 0
+          sleep 0.05
+        done
+        return 1
+      }
+
+      ready=0
+      for _ in $(seq 1 100); do
+        if awk '$2 == 6 && $4 != "00000000" { found = 1 } END { exit !found }' "$proc"; then
+          ready=1
+          break
+        fi
+        kill -0 "$mpid" 2>/dev/null || break
+        sleep 0.05
+      done
+
+      rc=0
+      if [ "$ready" -ne 1 ]; then
+        echo "xtcp2-nl-xfrmmon: the monitor never subscribed" >&2
+        rc=1
+      else
+        bash -c "$trigger" || rc=1
+        for re in "$@"; do
+          if ! wait_match "$re" 100; then
+            echo "xtcp2-nl-xfrmmon: no match for $re" >&2
+            rc=1
+          fi
+        done
+      fi
+
+      kill -TERM "$mpid" 2>/dev/null || true
+      wait "$mpid" 2>/dev/null || true
+      cat "$out"
+      exit "$rc"
+    '';
+  };
+
+  # xtcp2-nl-espinudp <src|-> <sport> <dst> <dport> <spi>
+  #
+  # One ESP-in-UDP datagram from <src>:<sport> to <dst>:<dport>, for the
+  # XFRM MAPPING row (C3-T02; docs/netlink/goip-parity-gaps.md). The kernel
+  # sends XFRM_MSG_MAPPING when an inbound ESP-in-UDP packet for an SA with
+  # a UDP encap decrypts and its outer source address or port is not the
+  # SA's (esp_input_done2, net/ipv4/esp4.c). <dport> is opened first as an
+  # ESPINUDP socket (UDP_ENCAP), without which the datagram is only a UDP
+  # port unreachable, then the ESP is sent from a socket bound to <sport>.
+  #
+  # The SA uses ecb(cipher_null) with no auth, so the packet needs no keys:
+  # the SPI, sequence 1, ten bytes of payload, no padding, pad length 0 and
+  # next header 59 (none). Its twelve bytes after the header are a whole
+  # number of ESP's 4-byte blocks, and longer than the 2-byte trailer, which
+  # esp_remove_trailer requires. The ten bytes make the ESP 20, an IPv4
+  # header's length: __xfrm4_udp_encap_rcv (net/ipv4/xfrm4_input.c) tests
+  # `skb->len < iphlen + len` while skb->data is still the UDP header, so it
+  # drops ESP shorter than that before any lookup. A 12-byte ESP was measured
+  # dropped there (a kfree_skb trace in the guest) and never reached the SA.
+  #
+  # Prints the ESP in hex; with <src> `-`, sends nothing. A bad argument
+  # exits 2; a refused socket call, 1.
+  espinudp = pkgs.writers.writePython3Bin "xtcp2-nl-espinudp" { } ''
+    import ipaddress
+    import socket
+    import struct
+    import sys
+    import time
+
+    UDP_ENCAP = 100
+    UDP_ENCAP_ESPINUDP = 2
+    NEXTHDR_NONE = 59
+
+
+    def esp(spi):
+        return (struct.pack("!II", spi, 1) + bytes(10)
+                + struct.pack("!BB", 0, NEXTHDR_NONE))
+
+
+    def fail(rc, msg):
+        print("xtcp2-nl-espinudp: " + msg, file=sys.stderr)
+        sys.exit(rc)
+
+
+    def main():
+        if len(sys.argv) != 6:
+            fail(2, "usage: xtcp2-nl-espinudp <src|-> <sport> <dst> "
+                 "<dport> <spi>")
+        try:
+            src = None
+            if sys.argv[1] != "-":
+                src = ipaddress.IPv4Address(sys.argv[1])
+            sport = int(sys.argv[2])
+            dst = ipaddress.IPv4Address(sys.argv[3])
+            dport = int(sys.argv[4])
+            spi = int(sys.argv[5], 0)
+        except ValueError as e:
+            fail(2, str(e))
+        for name, port in (("sport", sport), ("dport", dport)):
+            if not 0 < port < 65536:
+                fail(2, "%s out of range: %d" % (name, port))
+        # 0 is the non-ESP marker and 1-255 are reserved (RFC 4303).
+        if not 256 <= spi < 1 << 32:
+            fail(2, "spi out of range: %d" % spi)
+        pkt = esp(spi)
+        print(pkt.hex())
+        if src is None:
+            return
+        try:
+            r = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            r.setsockopt(socket.IPPROTO_UDP, UDP_ENCAP, UDP_ENCAP_ESPINUDP)
+            r.bind((str(dst), dport))
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.bind((str(src), sport))
+            s.sendto(pkt, (str(dst), dport))
+            # The encap socket stays open while the kernel takes the
+            # datagram in.
+            time.sleep(0.5)
+        except OSError as e:
+            fail(1, str(e))
+
+
+    main()
+  '';
 
   # xtcp2-nl-ra <dev|-> <src-link-local> <prefix/len>
   #
@@ -755,10 +924,13 @@ let
 in
 pkgs.writeShellApplication {
   name = "xtcp2-nlcap";
-  # For nix/checks/vm-lib-exp.nix, which runs xtcp2-nl-ra's, xtcp2-nl-tcp's,
-  # xtcp2-nl-ioam's and xtcp2-nl-mptcp's hermetic rows.
+  # For nix/checks/vm-lib-exp.nix, which runs xtcp2-nl-xfrmmon's,
+  # xtcp2-nl-espinudp's, xtcp2-nl-ra's, xtcp2-nl-tcp's, xtcp2-nl-ioam's and
+  # xtcp2-nl-mptcp's hermetic rows.
   passthru = {
     inherit
+      xfrmmon
+      espinudp
       ra
       tcp
       ioam
@@ -768,6 +940,8 @@ pkgs.writeShellApplication {
   runtimeInputs = with pkgs; [
     mcdump
     ipmon
+    xfrmmon
+    espinudp
     ra
     tcp
     ioam

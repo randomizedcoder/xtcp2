@@ -823,6 +823,70 @@ foreach {description cmd want_rc want_re} [list \
     ccheck $description $cmd $want_rc $want_re
 }
 
+# xtcp2-nl-xfrmmon (C3-T02). The sandbox may have no NETLINK_XFRM, so the
+# monitor is `ip xfrm monitor bogus`, which prints its refusal and exits,
+# and NLCAP_PROC_NETLINK stands in for /proc/net/netlink: with an XFRM (6)
+# socket in a group, an XFRM socket in none, or only route and generic
+# sockets in groups.
+proc write_proc_netlink {path rows} {
+    set f [open $path w]
+    puts $f "sk               Eth Pid        Groups   Rmem     Wmem     Dump  Locks    Drops    Inode"
+    foreach r $rows {
+        lassign $r eth groups
+        puts $f [format "ffff888100000000 %-3d 1234       %s 0        0        0     2        0        4242" $eth $groups]
+    }
+    close $f
+}
+set pn_sub [file normalize proc_netlink_sub]
+set pn_none [file normalize proc_netlink_none]
+set pn_route [file normalize proc_netlink_route]
+write_proc_netlink $pn_sub {{0 00000001} {6 00000010}}
+write_proc_netlink $pn_none {{0 00000001} {6 00000000}}
+write_proc_netlink $pn_route {{0 ffffffff} {16 00000001}}
+foreach {description cmd want_rc want_re} [list \
+    "positive: a subscribed XFRM socket, a trigger that succeeds and a line that appears" \
+        "NLCAP_PROC_NETLINK=$pn_sub xtcp2-nl-xfrmmon \"xfrm monitor bogus\" true \"is unknown\"" 0 {Argument "bogus" is unknown} \
+    "negative: no until-ERE is a usage error" \
+        "xtcp2-nl-xfrmmon \"xfrm monitor\" true" 2 {^usage: xtcp2-nl-xfrmmon <ip-args>} \
+    "negative: an XFRM socket in no group is not subscribed" \
+        "NLCAP_PROC_NETLINK=$pn_none xtcp2-nl-xfrmmon \"xfrm monitor bogus\" true \"is unknown\"" 1 {the monitor never subscribed} \
+    "corner: route and generic sockets in groups are not an XFRM subscriber" \
+        "NLCAP_PROC_NETLINK=$pn_route xtcp2-nl-xfrmmon \"xfrm monitor bogus\" true \"is unknown\"" 1 {the monitor never subscribed} \
+    "negative: a trigger that fails is rc 1, with the monitor's output still printed" \
+        "NLCAP_PROC_NETLINK=$pn_sub xtcp2-nl-xfrmmon \"xfrm monitor bogus\" false \"is unknown\"" 1 {Argument "bogus" is unknown} \
+    "boundary: an until-ERE that never matches times out as rc 1, naming it" \
+        "NLCAP_PROC_NETLINK=$pn_sub xtcp2-nl-xfrmmon \"xfrm monitor bogus\" true \"Flushed state\"" 1 {no match for Flushed state} \
+    "corner: the trigger runs under bash, so /dev/udp works" \
+        "NLCAP_PROC_NETLINK=$pn_sub xtcp2-nl-xfrmmon \"xfrm monitor bogus\" \"echo x >/dev/udp/127.0.0.1/9\" \"is unknown\"" 0 {Argument "bogus" is unknown} \
+] {
+    ccheck $description $cmd $want_rc $want_re
+}
+
+# xtcp2-nl-espinudp (C3-T02). Its send needs the guest's addresses and
+# ESPINUDP, so the sandbox checks the packet through `-`, which prints it,
+# and the argument errors; a send from an address the sandbox does not have
+# fails at a socket call.
+foreach {description cmd want_rc want_re} [list \
+    "positive: SPI, sequence 1, ten bytes of payload, pad length 0 and next header 59, 20 bytes in all" \
+        "xtcp2-nl-espinudp - 4501 192.0.2.2 4500 0x300" 0 {^000003000000000100000000000000000000003b$} \
+    "boundary: SPI 256, the least that is not reserved, changes only its four bytes" \
+        "xtcp2-nl-espinudp - 4501 192.0.2.2 4500 256" 0 {^000001000000000100000000000000000000003b$} \
+    "boundary: SPI 255 is reserved" \
+        "xtcp2-nl-espinudp - 4501 192.0.2.2 4500 255" 2 {spi out of range: 255} \
+    "negative: no arguments is a usage error" \
+        "xtcp2-nl-espinudp" 2 {xtcp2-nl-espinudp: usage:} \
+    "negative: an IPv6 destination is refused" \
+        "xtcp2-nl-espinudp - 4501 2001:db8::2 4500 0x300" 2 {xtcp2-nl-espinudp: .*2001:db8::2} \
+    "boundary: port 0 is refused" \
+        "xtcp2-nl-espinudp - 0 192.0.2.2 4500 0x300" 2 {sport out of range: 0} \
+    "boundary: port 65536 is one past the largest" \
+        "xtcp2-nl-espinudp - 4501 192.0.2.2 65536 0x300" 2 {dport out of range: 65536} \
+    "corner: a send from an address the host does not have is rc 1, at a socket call, with the packet printed first" \
+        "xtcp2-nl-espinudp 192.0.2.1 4501 127.0.0.1 4500 0x300" 1 {(?n)^00000300.*\n.*xtcp2-nl-espinudp: } \
+] {
+    ccheck $description $cmd $want_rc $want_re
+}
+
 # late_setup against the recorder: the modules call reaches the real helper,
 # where it fails as above; the sysctl and note are recorded.
 set ::calls {}
