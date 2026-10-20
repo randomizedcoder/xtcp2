@@ -31,8 +31,9 @@ type object struct {
 	// verbs is the object's verb chain in iproute2's order (verbs.go); nil
 	// for an unimplemented object.
 	verbs []verb
-	// aliasOf is the row this one spells differently (neighbour, ntbl), or
-	// "" for a canonical row.
+	// aliasOf is the row this one spells differently (neighbour, ntbl,
+	// tcpmetrics, tap), or "" for a canonical row. Lists of objects name
+	// each one once by leaving the aliases out.
 	aliasOf string
 }
 
@@ -73,10 +74,10 @@ var objects = []object{
 	{name: "tunnel"},
 	{name: "tunl6"},
 	{name: "tcp_metrics"},
-	{name: "tcpmetrics"},
+	{name: "tcpmetrics", aliasOf: "tcp_metrics"},
 	{name: "token"},
 	{name: "tuntap"},
-	{name: "tap"},
+	{name: "tap", aliasOf: "tuntap"},
 	{name: "mroute"},
 	{name: "mrule"},
 	{name: "netns"},

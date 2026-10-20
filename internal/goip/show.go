@@ -55,13 +55,22 @@ type ShowRequest struct {
 	Selectors []string
 }
 
-// showObjects is the exact set Show serves: every object whose show path
-// goip implements, by its canonical name in the objects table. Aliases
-// (the British spelling of neighbor, ntbl) are left out so each object has
-// one spelling.
-var showObjects = []string{
-	"address", "addrlabel", "link", "neighbor", "netconf", "nexthop",
-	"ntable", "route", "rule", "stats", "vrf",
+// showObjects is the exact set Show serves, sorted: every object whose show
+// path goip implements, by its canonical name in the objects table. It is
+// derived from that table rather than spelled out again, so the two cannot
+// drift. Aliases (the British spelling of neighbor, ntbl) are left out so
+// each object has one spelling.
+var showObjects = implementedObjects()
+
+func implementedObjects() []string {
+	names := make([]string, 0, len(objects))
+	for _, o := range objects {
+		if o.run != nil && o.aliasOf == "" {
+			names = append(names, o.name)
+		}
+	}
+	slices.Sort(names)
+	return names
 }
 
 // ShowObjects returns the objects Show accepts, sorted. The slice is a copy.

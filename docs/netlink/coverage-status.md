@@ -6710,6 +6710,12 @@ absent from the link listing taken afterwards.
 
 ### Remaining
 
+What is left beyond `ip address` is measured and planned in
+[goip-parity-gaps.md](goip-parity-gaps.md):
+- every `ip` object, verb and netlink message type that goip does not cover;
+- for each message type, whether pcaps, a table-driven parse test and a parse benchmark exist;
+- the tiered plan, which completes the capture corpus first.
+
 **`ip address`** is done; [addr-write-path-status.md](addr-write-path-status.md)
 tracks it. The selectors, the `IFA_RT_PRIORITY`/`IFA_ANYCAST`/`IFA_MULTICAST`
 decode and the dry-run `add`/`change`/`replace`/`delete` are done and gated.

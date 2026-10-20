@@ -76,8 +76,10 @@ type param struct {
 
 // object is one /ip/<path> route.
 type object struct {
-	path   string // the URL segment
-	object string // goip's canonical object name
+	path string // the URL segment
+	// object is goip's canonical object name. It is left empty where it is
+	// the same word as path, and init fills it in.
+	object string
 	// params in selector order: the order the selectors are emitted in, so
 	// the argv is the same whatever order the query string used, and so
 	// order-sensitive parsers (stats group before subgroup) are satisfied.
@@ -102,13 +104,13 @@ var objects = []*object{
 		params: []param{pDev, pStats, pDetails}},
 	{path: "addr", object: "address", devPath: true,
 		params: []param{pDev, {name: "family", kind: kindFamily, familyLink: true}, pStats, pDetails}},
-	{path: "route", object: "route", devPath: true,
+	{path: "route", devPath: true,
 		params: []param{{name: "table", kind: kindTable}, pDev, pFamily, pStats, pDetails}},
 	{path: "neigh", object: "neighbor", devPath: true,
 		params: []param{pDev, {name: "proxy", kind: kindFlag}, pFamily, pStats}},
-	{path: "rule", object: "rule",
+	{path: "rule",
 		params: []param{pFamily}},
-	{path: "nexthop", object: "nexthop", devPath: true,
+	{path: "nexthop", devPath: true,
 		params: []param{
 			{name: "id", kind: kindUint32, exclusive: true},
 			pDev,
@@ -122,7 +124,7 @@ var objects = []*object{
 	{path: vrfWord, object: vrfWord},
 	{path: "netconf", object: "netconf", devPath: true,
 		params: []param{pDev, pFamily}},
-	{path: "ntable", object: "ntable",
+	{path: "ntable",
 		params: []param{pFamily, pStats}},
 	{path: "addrlabel", object: "addrlabel"},
 	{path: statsWord, object: statsWord, devPath: true,
@@ -143,6 +145,9 @@ var byObject = make(map[string]*object, len(objects))
 
 func init() {
 	for _, o := range objects {
+		if o.object == "" {
+			o.object = o.path
+		}
 		byObject[o.object] = o
 		o.byName = make(map[string]*param, len(o.params))
 		for i := range o.params {
@@ -223,10 +228,9 @@ func (p *param) isSelector() bool {
 	switch p.kind {
 	case kindFamily, kindStats, kindDetails:
 		return false
-	case kindName, kindFlag, kindTable, kindUint32, kindUint8, kindToken:
+	default:
 		return true
 	}
-	return true
 }
 
 // apply validates v for p and records it on s.
