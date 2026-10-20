@@ -35,7 +35,7 @@ from a nix target; it should be a check like any other.
 |---|---|
 | `/dev/kvm` with `requiredSystemFeatures = [ "kvm" ]` | present, writable |
 | `unshare --user --map-root-user --net` | works |
-| `ip tuntap add` (needs `/dev/net/tun`) | fails: not in the sandbox |
+| `ip tuntap add` (needs `/dev/net/tun`) | fails: not in the sandbox; after the rebuild with `"/dev/net/tun?"`, works (VC003) |
 
 So `vm-linkmonitor-ionic-faults` needs `extra-sandbox-paths = /dev/net/tun`
 on the builder. On 2026-10-20 the user agreed to add `"/dev/net/tun?"` to
@@ -58,8 +58,8 @@ on the builder. On 2026-10-20 the user agreed to add `"/dev/net/tun?"` to
 
 - [ ] VC-T03: run `vm-goip-argv-paths`, `vm-linkmonitor-embedding`,
   `vm-linkmonitor-ionic`, then (with `/dev/net/tun`) the fault run.
-- [ ] After the user's rebuild of `l`: confirm `nix config show` lists
-  `/dev/net/tun?` in `extra-sandbox-paths`, then run the fault check.
+- [x] After the user's rebuild of `l`: `nix config show` lists
+  `/dev/net/tun?`, and a sandboxed build creates a TAP (VC003).
 - [ ] `test-linkmonitor-rdma-vm` (microvm.nix, TCP console ports) and
   `test-linkmonitor-performance-vm` (timings, wants a quiet host) stay apps.
 
@@ -69,3 +69,4 @@ on the builder. On 2026-10-20 the user agreed to add `"/dev/net/tun?"` to
 |---|---|---|---|
 | VC001 | 2026-10-20 | `nix build --no-link -L path:.#checks.x86_64-linux.vm-check-runner` | pass, 13 of 13 rows |
 | VC002 | 2026-10-20 | `nix eval` of the 4 `checks.vm-*` and `vm-all`; `nix build` of the 4 `test-*-vm-check` apps and 4 launchers; `checks.{nix-fmt,statix,deadnix}` | pass; no guest booted |
+| VC003 | 2026-10-20 | sandbox probe (`requiredSystemFeatures = [ "kvm" ]`, `unshare --user --map-root-user --net`, `ip tuntap add`) after the rebuild of `l` | TAP created, `/dev/kvm` writable |
