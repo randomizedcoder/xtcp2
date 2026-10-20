@@ -9,8 +9,9 @@
 # partner in a second VM (Tier 2 of the same document).
 #
 # This exports ONE thing: `xtcp2-nlcap`, a helper installed on the guest's
-# PATH (with `xtcp2-nl-mcdump`, `xtcp2-nl-ipmon`, `xtcp2-nl-ra` and
-# `xtcp2-nl-tcp`, below, on its own PATH)
+# PATH (with `xtcp2-nl-mcdump`, `xtcp2-nl-ipmon`, `xtcp2-nl-ra`,
+# `xtcp2-nl-tcp`, `xtcp2-nl-ioam` and `xtcp2-nl-mptcp`, below, on its own
+# PATH)
 # and invoked one subcommand at a time by a host driver
 # (nix/microvms/scripts/capture-netlink-dumps.exp, goip-parity.exp,
 # capture-link-writes.exp and capture-lacp-pair.exp) over the serial console.
@@ -569,18 +570,208 @@ let
 
     main()
   '';
+
+  # xtcp2-nl-mptcp conn <server> [extra-subflows]
+  # xtcp2-nl-mptcp monitor <trigger> <until-RE>...
+  #
+  # MPTCP connections and `ip mptcp monitor`, for the mptcp_pm event rows
+  # (C2-T04; docs/netlink/goip-parity-gaps.md).
+  #
+  # conn: one MPTCP connection inside the namespace, from the kernel's
+  # choice of source to <server> on an ephemeral port, a byte each way so
+  # the connection is fully established, then held until the client has
+  # <extra-subflows> (0) subflows beyond the first (MPTCP_INFO's
+  # mptcpi_subflows), which the in-kernel path manager opens from the
+  # namespace's subflow endpoints, then closed. Prints what it made.
+  #
+  # monitor: `ip mptcp monitor` while <trigger> runs with `sh -c`, as
+  # xtcp2-nl-ipmon is for `ip monitor`. Subscribed can't be read from
+  # outside, so a canary MPTCP listener on 127.0.0.1 is opened and closed
+  # until the monitor prints its LISTENER_CREATED (the kernel builds an
+  # event only while something listens), then its LISTENER_CLOSED is
+  # awaited, so the output starts with exactly that pair. Then the trigger
+  # runs, and the monitor is stopped once its output matches every
+  # <until-RE> (Python syntax, searched across the whole output so far, so
+  # `(?s)A.*A` waits for two), each within 10 s. Prints the monitor's
+  # lines.
+  #
+  # A bad argument exits 2; a failed socket call, trigger or wait, 1.
+  mptcp = pkgs.writers.writePython3Bin "xtcp2-nl-mptcp" { } ''
+    import ipaddress
+    import os
+    import re
+    import select
+    import socket
+    import subprocess
+    import sys
+    import time
+
+    IPPROTO_MPTCP = 262
+    SOL_MPTCP = 284
+    MPTCP_INFO = 1
+    CANARY = "127.0.0.1"
+
+
+    def fail(rc, msg):
+        print("xtcp2-nl-mptcp: " + msg, file=sys.stderr)
+        sys.exit(rc)
+
+
+    def usage():
+        fail(2, "usage: xtcp2-nl-mptcp conn <server> [extra-subflows]"
+             " | monitor <trigger> <until-RE>...")
+
+
+    def mptcp_socket(addr):
+        fam = socket.AF_INET6 if addr.version == 6 else socket.AF_INET
+        return socket.socket(fam, socket.SOCK_STREAM, IPPROTO_MPTCP)
+
+
+    def extra_subflows(s):
+        return s.getsockopt(SOL_MPTCP, MPTCP_INFO, 8)[0]
+
+
+    def conn(server, want):
+        try:
+            lsn = mptcp_socket(server)
+            lsn.bind((str(server), 0))
+            lsn.listen(1)
+            port = lsn.getsockname()[1]
+            cli = mptcp_socket(server)
+            cli.connect((str(server), port))
+            srv, _ = lsn.accept()
+            cli.sendall(b"x")
+            srv.recv(1)
+            srv.sendall(b"y")
+            cli.recv(1)
+            deadline = time.monotonic() + 3
+            got = extra_subflows(cli)
+            while got < want:
+                if time.monotonic() > deadline:
+                    fail(1, "%d of %d extra subflows after 3 s" % (got, want))
+                time.sleep(0.01)
+                got = extra_subflows(cli)
+            cli.close()
+            srv.close()
+            lsn.close()
+        except OSError as e:
+            fail(1, str(e))
+        dst = ("[%s]" if server.version == 6 else "%s") % server
+        print("mptcp -> %s:%d closed, %d extra subflows" % (dst, port, got))
+
+
+    class Monitor:
+        def __init__(self):
+            self.proc = subprocess.Popen(["ip", "mptcp", "monitor"],
+                                         stdout=subprocess.PIPE)
+            self.lines = []
+            self.part = b""
+
+        def wait(self, rx, secs):
+            deadline = time.monotonic() + secs
+            while True:
+                if rx.search("".join(self.lines)):
+                    return True
+                left = deadline - time.monotonic()
+                if left <= 0:
+                    return False
+                fd = self.proc.stdout.fileno()
+                ready, _, _ = select.select([fd], [], [], left)
+                if not ready:
+                    return False
+                data = os.read(fd, 4096)
+                if not data:
+                    return False
+                *done, self.part = (self.part + data).split(b"\n")
+                self.lines += [d.decode() + "\n" for d in done]
+
+        def stop(self):
+            self.proc.terminate()
+            self.proc.wait()
+            return "".join(self.lines)
+
+
+    def canary(mon):
+        addr = ipaddress.ip_address(CANARY)
+        for _ in range(10):
+            lsn = mptcp_socket(addr)
+            lsn.bind((CANARY, 0))
+            lsn.listen(1)
+            port = lsn.getsockname()[1]
+            lsn.close()
+            ev = r"\[ *%%s\] saddr4=%s sport=%d$" % (re.escape(CANARY), port)
+            if mon.wait(re.compile(ev % "LISTENER_CREATED", re.M), 1):
+                return mon.wait(re.compile(ev % "LISTENER_CLOSED", re.M), 10)
+        return False
+
+
+    def monitor(trigger, until):
+        try:
+            res = [re.compile(r) for r in until]
+        except re.error as e:
+            fail(2, "bad RE: " + str(e))
+        mon = Monitor()
+        rc = 0
+        try:
+            if not canary(mon):
+                print("xtcp2-nl-mptcp: the monitor never printed the canary",
+                      file=sys.stderr)
+                rc = 1
+            else:
+                if subprocess.run(["sh", "-c", trigger]).returncode != 0:
+                    rc = 1
+                for rx in res:
+                    if not mon.wait(rx, 10):
+                        print("xtcp2-nl-mptcp: no match for " + rx.pattern,
+                              file=sys.stderr)
+                        rc = 1
+        except OSError as e:
+            print("xtcp2-nl-mptcp: " + str(e), file=sys.stderr)
+            rc = 1
+        sys.stdout.write(mon.stop())
+        sys.exit(rc)
+
+
+    def main():
+        if len(sys.argv) < 3:
+            usage()
+        if sys.argv[1] == "conn" and len(sys.argv) in (3, 4):
+            try:
+                server = ipaddress.ip_address(sys.argv[2])
+                want = int(sys.argv[3]) if len(sys.argv) == 4 else 0
+            except ValueError as e:
+                fail(2, str(e))
+            if want < 0:
+                fail(2, "extra subflows must be at least 0: %d" % want)
+            conn(server, want)
+        elif sys.argv[1] == "monitor" and len(sys.argv) >= 4:
+            monitor(sys.argv[2], sys.argv[3:])
+        else:
+            usage()
+
+
+    main()
+  '';
 in
 pkgs.writeShellApplication {
   name = "xtcp2-nlcap";
-  # For nix/checks/vm-lib-exp.nix, which runs xtcp2-nl-ra's, xtcp2-nl-tcp's
-  # and xtcp2-nl-ioam's hermetic rows.
-  passthru = { inherit ra tcp ioam; };
+  # For nix/checks/vm-lib-exp.nix, which runs xtcp2-nl-ra's, xtcp2-nl-tcp's,
+  # xtcp2-nl-ioam's and xtcp2-nl-mptcp's hermetic rows.
+  passthru = {
+    inherit
+      ra
+      tcp
+      ioam
+      mptcp
+      ;
+  };
   runtimeInputs = with pkgs; [
     mcdump
     ipmon
     ra
     tcp
     ioam
+    mptcp
     coreutils
     gawk
     gnugrep

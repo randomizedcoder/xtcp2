@@ -29,8 +29,10 @@
 #   rc         the exit status `ip.rc` must hold: 0, or the status `ip`
 #              exits with when the kernel refuses the request, which ip/ip.c
 #              takes from the command's negated return: 2 for tcp_metrics
-#              (ip/tcp_metrics.c returns -2), 1 for an sr or ioam write
-#              (ip/ipseg6.c and ip/ipioam6.c return -1)
+#              and mptcp (ip/tcp_metrics.c and ip/ipmptcp.c return -2), 1
+#              for an sr or ioam write (ip/ipseg6.c and ip/ipioam6.c return
+#              -1); or 255, where `ip` refuses its arguments itself
+#              (invarg) after the family lookup and sends nothing more
 #
 # TCP_METRICS (C2-T01)
 #
@@ -180,6 +182,73 @@ namespace eval genlcorpus {
         [list ioam_monitor_trace 3 $PRE_TRACE "xtcp2-nl-ioam ::1 123" {} 0] \
         [list ioam_monitor_unknown_ns 2 $PRE_TRACE "xtcp2-nl-ioam ::1 99 5" {} 1] \
         [list ioam_monitor_disabled 2 {{ioam namespace add 123}} "xtcp2-nl-ioam ::1 123 5" {} 1]
+
+    ###########################################################################
+    # C2-T04 - mptcp, the mptcp_pm family: the in-kernel path manager's
+    # endpoints and limits, both per namespace, made with plain `ip` pre
+    # steps over PRE_ADDRS's d0.
+    #
+    # The kernel refuses an endpoint whose address is already one (EEXIST)
+    # or whose id is taken (EBUSY), a get, change or delete of an id it
+    # doesn't have, and a limit over MPTCP_PM_SUBFLOWS_MAX, 8 in 7.1 (64
+    # from 7.2), each EINVAL; `ip` exits 2. A port without `signal` is
+    # refused by `ip` itself, after the family lookup (255). A delete of id
+    # 0 must name the address, and changes no endpoint: id 0 is each
+    # connection's first address, which the kernel only drops from
+    # connections.
+    #
+    # The two monitor rows run `ip mptcp monitor` inside xtcp2-nl-mptcp,
+    # whose canary listener's LISTENER_CREATED and LISTENER_CLOSED start
+    # each pcap's events. The listener row adds a signal endpoint with a
+    # port, for which the kernel opens a listener (LISTENER_CREATED), and
+    # deletes it (LISTENER_CLOSED); its floor is the monitor's lookup, the
+    # canary's 2, the two ip commands' lookup and ACK, 4 each, and the 2
+    # events. The connection row makes one MPTCP connection with one extra
+    # subflow from the subflow endpoint, both ends in the namespace, so
+    # every event comes twice except the listener's and the subflow's; its
+    # floor is the lookup, the canary's 2, the listener's 2, CREATED,
+    # ESTABLISHED and CLOSED twice, and one SF_ESTABLISHED.
+    ###########################################################################
+    variable PRE_EP1 [concat $PRE_ADDRS {{mptcp endpoint add 192.0.2.1 id 1 subflow}}]
+    variable PRE_EP1_BACKUP [concat $PRE_ADDRS {{mptcp endpoint add 192.0.2.1 id 1 subflow backup}}]
+    variable PRE_EP2 [concat $PRE_EP1 {{mptcp endpoint add 2001:db8::1 id 2 dev d0 signal}}]
+    variable PRE_CONN [concat $PRE_ADDRS {
+        {mptcp limits set subflows 1}
+        {mptcp endpoint add 192.0.2.2 id 1 dev d0 subflow}
+    }]
+    variable EP_SHOW {{endpoint 4 {ip mptcp endpoint show}}}
+    variable LIM_SHOW {{limits 4 {ip mptcp limits show}}}
+    variable MON_LISTENER {xtcp2-nl-mptcp monitor "ip mptcp endpoint add 192.0.2.1 id 1 port 10100 signal && ip mptcp endpoint delete id 1" "LISTENER_CREATED. saddr4=192.0.2.1 sport=10100" "LISTENER_CLOSED. saddr4=192.0.2.1 sport=10100"}
+    variable MON_CONN {xtcp2-nl-mptcp monitor "xtcp2-nl-mptcp conn 192.0.2.1 1" "(?s) CREATED. token.* CREATED. token" "(?s) ESTABLISHED. token.* ESTABLISHED. token" "SF_ESTABLISHED. token" "(?s) CLOSED. token.* CLOSED. token" "LISTENER_CLOSED. saddr4=192.0.2.1 "}
+
+    lappend rows \
+        [list mptcp_endpoint_show_empty 4 {} "ip mptcp endpoint show" {} 0] \
+        [list mptcp_endpoint_add 4 $PRE_ADDRS "ip mptcp endpoint add 192.0.2.1 id 1 subflow" $EP_SHOW 0] \
+        [list mptcp_endpoint_add_v6_dev 4 $PRE_ADDRS "ip mptcp endpoint add 2001:db8::1 dev d0 signal backup" $EP_SHOW 0] \
+        [list mptcp_endpoint_add_port 4 $PRE_ADDRS "ip mptcp endpoint add 192.0.2.2 port 10100 signal" $EP_SHOW 0] \
+        [list mptcp_endpoint_add_fullmesh 4 $PRE_ADDRS "ip mptcp endpoint add 192.0.2.2 subflow fullmesh" $EP_SHOW 0] \
+        [list mptcp_endpoint_add_dup 4 $PRE_EP1 "ip mptcp endpoint add 192.0.2.1 subflow" {} 2] \
+        [list mptcp_endpoint_add_id_busy 4 $PRE_EP1 "ip mptcp endpoint add 192.0.2.2 id 1 subflow" {} 2] \
+        [list mptcp_endpoint_add_port_subflow 2 $PRE_ADDRS "ip mptcp endpoint add 192.0.2.2 port 10100 subflow" {} 255] \
+        [list mptcp_endpoint_show 4 $PRE_EP2 "ip mptcp endpoint show" {} 0] \
+        [list mptcp_endpoint_get 4 $PRE_EP2 "ip mptcp endpoint show id 2" {} 0] \
+        [list mptcp_endpoint_get_missing 4 $PRE_ADDRS "ip mptcp endpoint show id 9" {} 2] \
+        [list mptcp_endpoint_change 4 $PRE_EP1 "ip mptcp endpoint change id 1 backup" $EP_SHOW 0] \
+        [list mptcp_endpoint_change_addr 4 $PRE_EP1 "ip mptcp endpoint change 192.0.2.1 fullmesh" $EP_SHOW 0] \
+        [list mptcp_endpoint_change_nobackup 4 $PRE_EP1_BACKUP "ip mptcp endpoint change id 1 nobackup" $EP_SHOW 0] \
+        [list mptcp_endpoint_change_missing 4 $PRE_ADDRS "ip mptcp endpoint change id 9 backup" {} 2] \
+        [list mptcp_endpoint_delete 4 $PRE_EP2 "ip mptcp endpoint delete id 1" $EP_SHOW 0] \
+        [list mptcp_endpoint_delete_missing 4 $PRE_ADDRS "ip mptcp endpoint delete id 9" {} 2] \
+        [list mptcp_endpoint_delete_id0 4 $PRE_EP1 "ip mptcp endpoint delete id 0 192.0.2.1" $EP_SHOW 0] \
+        [list mptcp_endpoint_flush 4 $PRE_EP2 "ip mptcp endpoint flush" $EP_SHOW 0] \
+        [list mptcp_limits_show 4 {} "ip mptcp limits show" {} 0] \
+        [list mptcp_limits_set 4 {} "ip mptcp limits set subflows 4 add_addr_accepted 3" $LIM_SHOW 0] \
+        [list mptcp_limits_set_one 4 {} "ip mptcp limits set add_addr_accepted 2" $LIM_SHOW 0] \
+        [list mptcp_limits_set_none 4 {} "ip mptcp limits set" $LIM_SHOW 0] \
+        [list mptcp_limits_set_max 4 {} "ip mptcp limits set subflows 8 add_addr_accepted 8" $LIM_SHOW 0] \
+        [list mptcp_limits_set_over 4 {} "ip mptcp limits set subflows 9" {} 2] \
+        [list mptcp_monitor_listener 14 $PRE_ADDRS $MON_LISTENER {} 0] \
+        [list mptcp_monitor_conn 13 $PRE_CONN $MON_CONN {} 0]
 
     ###########################################################################
     # pre_step <ns> <subdir> <step> - 1 if the step was taken, else 0.

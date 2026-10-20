@@ -799,6 +799,30 @@ foreach {description cmd want_rc want_re} [list \
     ccheck $description $cmd $want_rc $want_re
 }
 
+# xtcp2-nl-mptcp (C2-T04). Its connections and monitor need the guest's
+# MPTCP, so the sandbox checks the argument errors, each refused before a
+# socket is opened.
+foreach {description cmd want_rc want_re} [list \
+    "negative: no arguments is a usage error" \
+        "xtcp2-nl-mptcp" 2 {xtcp2-nl-mptcp: usage:} \
+    "negative: an unknown mode is a usage error" \
+        "xtcp2-nl-mptcp listen 127.0.0.1" 2 {xtcp2-nl-mptcp: usage:} \
+    "negative: conn with no server is a usage error" \
+        "xtcp2-nl-mptcp conn" 2 {xtcp2-nl-mptcp: usage:} \
+    "corner: conn with a fourth argument is a usage error" \
+        "xtcp2-nl-mptcp conn 127.0.0.1 1 2" 2 {xtcp2-nl-mptcp: usage:} \
+    "negative: conn to something not an address" \
+        "xtcp2-nl-mptcp conn 192.0.2" 2 {xtcp2-nl-mptcp: .*192.0.2} \
+    "boundary: -1 extra subflows is one below the least" \
+        "xtcp2-nl-mptcp conn 127.0.0.1 -1" 2 {extra subflows must be at least 0: -1} \
+    "negative: monitor with nothing to wait for is a usage error" \
+        "xtcp2-nl-mptcp monitor true" 2 {xtcp2-nl-mptcp: usage:} \
+    "negative: monitor with an RE that does not compile" \
+        {xtcp2-nl-mptcp monitor true "("} 2 {xtcp2-nl-mptcp: bad RE: } \
+] {
+    ccheck $description $cmd $want_rc $want_re
+}
+
 # late_setup against the recorder: the modules call reaches the real helper,
 # where it fails as above; the sysctl and note are recorded.
 set ::calls {}

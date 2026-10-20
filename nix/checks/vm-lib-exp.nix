@@ -81,6 +81,7 @@ pkgs.runCommand "xtcp2-vm-lib-exp"
       nlcap.ra
       nlcap.tcp
       nlcap.ioam
+      nlcap.mptcp
     ];
     inherit src;
   }

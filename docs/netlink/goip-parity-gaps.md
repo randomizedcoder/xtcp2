@@ -153,10 +153,10 @@ These surfaces have no netlink message to capture, so they are out of scope for 
 | `NETLINK_XFRM` | 22 `XFRM_MSG_*` | |
 
 **What was measured:**
-- **Pcaps:** 880 committed DLT_NETLINK (253) pcaps under `pkg/` (713 when the plan was written), counted by `(protocol, nlmsg_type)`. For genl, the count is by `(family name, cmd)`, with names resolved from each pcap's own `CTRL_CMD_NEWFAMILY` replies.
+- **Pcaps:** 921 committed DLT_NETLINK (253) pcaps under `pkg/` (713 when the plan was written), counted by `(protocol, nlmsg_type)`. For genl, the count is by `(family name, cmd)`, with names resolved from each pcap's own `CTRL_CMD_NEWFAMILY` replies.
 - **Table tests and benchmarks:** the parsers' `Test*` and `Benchmark*` functions.
 
-**Measured 2026-10-19,** again at the C1 close (DOC004), and the pcap total and genl rows at C2-T01 (V044), C2-T02 (V049) and C2-T03 (V054). Re-measure with [the commands below](#how-to-re-measure).
+**Measured 2026-10-19,** again at the C1 close (DOC004), and the pcap total and genl rows at C2-T01 (V044), C2-T02 (V049), C2-T03 (V054) and C2-T04 (V059). Re-measure with [the commands below](#how-to-re-measure).
 
 ### rtnetlink
 
@@ -204,11 +204,12 @@ The capture also holds `RTM_GETMULTICAST` (58: 13 / 3) and `RTM_GETANYCAST` (62:
 
 | family | commands in the universe | in pcaps | parser | table test | benchmark |
 |---|---|---|---|---|---|
-| nlctrl | 3 | NEWFAMILY 474 / 199, GETFAMILY 474 / 199 | `ParseGenericNetlinkFamily` | `TestGenericNetlinkFamilyBoundaries`, `xtcpnl_ethtool_test.go:215` | none |
+| nlctrl | 3 | NEWFAMILY 519 / 240, GETFAMILY 519 / 240 | `ParseGenericNetlinkFamily` | `TestGenericNetlinkFamilyBoundaries`, `xtcpnl_ethtool_test.go:215` | none |
 | tcp_metrics | 2 | GET 50 / 15, DEL 8 / 6 (C2-T01) | none | `TestGenlTcpMetricsCorpus` reads the attributes raw | none |
 | seg6 | 4 | SETHMAC 6 / 6, DUMPHMAC 14 / 7, SET_TUNSRC 1 / 1, GET_TUNSRC 4 / 2 (C2-T02) | none | `TestGenlSeg6Corpus` reads the attributes raw | none |
 | ioam6 | 7 | ADD_NAMESPACE 4 / 4 (the walker's command 1 counts 5 / 5, with the TRACE event, whose number is also 1), DEL_NAMESPACE 3 / 3, DUMP_NAMESPACES 14 / 8, ADD_SCHEMA 3 / 3, DEL_SCHEMA 3 / 3, DUMP_SCHEMAS 12 / 7, NS_SET_SCHEMA 3 / 3; event TRACE 1 / 1 (C2-T03) | none | `TestGenlIoam6Corpus` reads the attributes raw | none |
-| fou, ila, l2tp, macsec, mptcp_pm | 30 | **0** | none | none | none |
+| mptcp_pm | 7 | ADD_ADDR 7 / 7, DEL_ADDR 4 / 4, GET_ADDR 26 / 14, FLUSH_ADDRS 1 / 1, SET_LIMITS 5 / 5, GET_LIMITS 10 / 5, SET_FLAGS 4 / 4; events CREATED, ESTABLISHED and CLOSED 2 / 1 each, SUB_ESTABLISHED 2 / 1, SUB_CLOSED 1 / 1, LISTENER_CREATED and LISTENER_CLOSED 4 / 2 each (C2-T04; the walker counts by number, and CREATED, ESTABLISHED and CLOSED are 1, 2 and 3, so its commands 1-3 count 9 / 8, 6 / 5 and 28 / 15) | none | `TestGenlMptcpCorpus` reads the attributes raw | none |
+| fou, ila, l2tp, macsec | 23 | **0** | none | none | none |
 | xfrm | 22 | **0** | none | none | none |
 
 The corpus also holds ethtool (19 commands), devlink (2) and nl80211 (7) from the link-state bundles. `ip` uses none of these families.
@@ -832,6 +833,42 @@ The order goes from built-in families to the ones that need modules or more setu
 | corner: the monitor | sends no IOAM6 request, only the family lookup |
 
 **Done when:** the gates pass, and ioam6's row in the assessment has no **0**.
+
+#### C2-T04 mptcp
+
+**Deliver** (as built):
+- **The rows (27)** are in `genl-write-corpus.exp` after ioam's, in `link-write/genl/mptcp_*`, every pcap `--proto generic`:
+  - `endpoint show` with nothing made, and of two endpoints; `endpoint show id 2`, a GET_ADDR rather than a dump;
+  - `endpoint add` with an id and `subflow`, with `dev` and `signal backup` and no id, with a `port` and `signal`, and with `subflow fullmesh`; each read back with `show`;
+  - `endpoint change` by id to `backup`, by address to `fullmesh`, and `nobackup` from a backup endpoint; `endpoint delete` by id, and of id 0 with its address; `endpoint flush`; each read back;
+  - `limits show`, and `limits set` with both limits, one, none, and both at the 7.1 maximum (8), each read back;
+  - seven refused: an address added twice (`EEXIST`), a taken id (`EBUSY`), a get, change or delete of a missing id and a subflow limit of 9 (`EINVAL`), each rc 2; and a port without `signal`, which `ip` refuses itself after the family lookup (rc 255);
+  - `ip mptcp monitor` while an endpoint with a port is added and deleted (the kernel's listener: LISTENER_CREATED and LISTENER_CLOSED), and while one MPTCP connection with one extra subflow is made and closed, both ends in the namespace.
+- **The state** before a row comes from plain `ip mptcp` pre steps over the tcp_metrics rows' `d0`. No module or sysctl is needed: MPTCP is built in, and `net.mptcp.enabled` is 1 in a new namespace.
+- **The monitor rows** run through a new helper, `xtcp2-nl-mptcp` (`netlink-capture.nix`). `monitor <trigger> <until-RE>...` runs `ip mptcp monitor`, opens and closes a canary MPTCP listener on 127.0.0.1 until the monitor prints its LISTENER_CREATED (so it is subscribed) and LISTENER_CLOSED, runs the trigger, and stops once every RE matches. `conn <server> [extra-subflows]` makes the connection and holds it until `MPTCP_INFO` shows the extra subflows.
+
+**Tests:**
+
+`genl-write-corpus-test.exp` (115 rows) gains the mptcp slugs, floors and statuses, the pre steps, the readbacks, the limits at and past the maximum, the id-0 delete's address, and the monitor rows' commands and waits. `addr-topology-test.exp` gains 8 rows for `xtcp2-nl-mptcp`'s argument errors; its sockets need the guest.
+
+`TestGenlMptcpCorpus` (`pkg/xtcpnl`, on the committed pcaps, 55 rows), among them:
+
+| description | expected |
+|---|---|
+| positive: every row resolves the family inside its pcap | a NEWFAMILY named `mptcp_pm` |
+| positive: `endpoint add 192.0.2.1 id 1 subflow` | an ADD_ADDR whose nested `MPTCP_PM_ATTR_ADDR` holds the id, flags 0x2, family and address; the dump returns family, port 0, id, flags, address |
+| corner: the kernel's answer | `PORT` always, 0 when there is none; `IF_IDX` only when set |
+| positive: `dev d0` | `IF_IDX` 3, d0 in the row's namespace |
+| corner: `change id 1 nobackup` | a SET_FLAGS with no FLAGS attribute, which clears backup |
+| corner: `delete id 0 192.0.2.1` | a DEL_ADDR with id 0 and the address, accepted, the endpoints unchanged |
+| boundary: limits 8, then 9 | 8 taken; 9 `EINVAL`, rc 2 |
+| corner: `limits set` with nothing | an empty SET_LIMITS, which changes nothing |
+| negative: a port without `signal` | no request; rc 255 and `ip`'s reason on stderr |
+| positive: the listener monitor | the canary's pair, then LISTENER_CREATED and LISTENER_CLOSED for 192.0.2.1 port 10100; `ip` right-aligns the name in 16 columns |
+| positive: the connection monitor | both ends' CREATED, ESTABLISHED and CLOSED; SF_ESTABLISHED from each end; an SF_CLOSED with error 111; two tokens |
+| corner: the server end | marked twice, by `MPTCP_ATTR_SERVER_SIDE` and by `MPTCP_ATTR_FLAGS` bit 1, on its CREATED and ESTABLISHED |
+
+**Done when:** the gates pass, and mptcp_pm's row in the assessment has no **0**.
 
 ### C3 — XFRM
 
