@@ -49,15 +49,16 @@ on the builder. On 2026-10-20 the user agreed to add `"/dev/net/tun?"` to
 |---|---|---|---|
 | VC-T01 | `mkVmCheck.nix` and its table test (`checks.vm-check-runner`, 13 rows) | done | VC001 |
 | VC-T02 | goip-argv-paths, embedding, ionic, ionic-faults wired: `checks.vm-*`, `vm-all`, `test-*-vm-check` | done (eval and build, no boot) | VC002 |
-| VC-T03 | each check passes once on `l` (one guest at a time, asked first) | open | |
+| VC-T03 | each check passes once on `l` (one guest at a time, asked first) | done | VC004 |
 | VC-T04 | retire the duplicated launcher code once VC-T03 passes | open | |
 | VC-T05 | `microvm-lifecycle` check: `requiredSystemFeatures` and its log in `$out` | open | |
 | VC-T06 | `/tmp` cleanup of the old evidence dirs, after the user has seen the list | open | |
 
 ## TODO
 
-- [ ] VC-T03: run `vm-goip-argv-paths`, `vm-linkmonitor-embedding`,
-  `vm-linkmonitor-ionic`, then (with `/dev/net/tun`) the fault run.
+- [x] VC-T03: all four checks pass in the sandbox (VC004).
+- [ ] Rerun `vm-all` after VC005's escape fix (it changes every check's
+  inputs) and confirm `grep -c $'\x1b'` is 0 in each `serial.log`.
 - [x] After the user's rebuild of `l`: `nix config show` lists
   `/dev/net/tun?`, and a sandboxed build creates a TAP (VC003).
 - [ ] `test-linkmonitor-rdma-vm` (microvm.nix, TCP console ports) and
@@ -70,3 +71,5 @@ on the builder. On 2026-10-20 the user agreed to add `"/dev/net/tun?"` to
 | VC001 | 2026-10-20 | `nix build --no-link -L path:.#checks.x86_64-linux.vm-check-runner` | pass, 13 of 13 rows |
 | VC002 | 2026-10-20 | `nix eval` of the 4 `checks.vm-*` and `vm-all`; `nix build` of the 4 `test-*-vm-check` apps and 4 launchers; `checks.{nix-fmt,statix,deadnix}` | pass; no guest booted |
 | VC003 | 2026-10-20 | sandbox probe (`requiredSystemFeatures = [ "kvm" ]`, `unshare --user --map-root-user --net`, `ip tuntap add`) after the rebuild of `l` | TAP created, `/dev/kvm` writable |
+| VC004 | 2026-10-20 | user: `env -u LD_LIBRARY_PATH nix build -L -o result-vm-all path:.#checks.x86_64-linux.vm-all` on `l` (at b441fa3b) | pass: goip-argv-paths 8 sentinels, linkmonitor-embedding 4, linkmonitor-ionic 11, linkmonitor-ionic-faults 3 (eth_rx fired 28 of 282, eth_tx 31 of 310, stats_vals 1 of 17); outputs 44-96 KiB each. 5-6 ESC bytes survived per serial.log (ESC c, ESC 7, ESC 8, a DCS `+q` query) |
+| VC005 | 2026-10-20 | `checks.vm-check-runner` with the DCS and two-byte escape row, `LC_ALL=C` on the strip (a UTF-8 locale's `[ -~]` skipped ESC c); the new strip over VC004's four logs | pass, 13 of 13; 0 ESC bytes left in each log |

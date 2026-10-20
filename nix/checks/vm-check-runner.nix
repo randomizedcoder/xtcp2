@@ -21,8 +21,8 @@ let
     {
       id = "escapes";
       category = "positive";
-      description = "terminal queries, colours and CRs are stripped from serial.log";
-      launch = ''printf '\033[6n\033[18t\033]0;title\007\033[1;32mGUEST_A_PASS\033[0m\r\nGUEST_B_PASS\r\n' '';
+      description = "CSI, OSC and DCS queries, ESC c/7/8, colours and CRs are stripped from serial.log";
+      launch = ''printf '\033c\033[6n\033[18t\033]0;title\007\033P+q6E616D65\033\\\0337\033[1;32mGUEST_A_PASS\033[0m\0338\r\nGUEST_B_PASS\r\n' '';
       want = "PASS: t-escapes";
       wantRc = 0;
       expectFiles = ''! grep -q "$(printf '[\033\r]')" "$dir/serial.log" && grep -qx GUEST_A_PASS "$dir/serial.log"'';

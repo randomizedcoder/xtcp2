@@ -479,8 +479,8 @@ let
     # the counters.
     postCheck = lib.optionalString faults ''
       for site in eth_rx eth_tx stats_vals; do
-        line=$(grep -m1 "Fault $site: eligible" "$run_dir/ernic.log" || true)
-        printf '%s\n' "''${line# }" >> "$run_dir/faults.txt"
+        line=$(grep -m1 "Fault $site: eligible" "$run_dir/ernic.log" | sed 's/^[[:space:]]*//' || true)
+        printf '%s\n' "$line" >> "$run_dir/faults.txt"
         fired=''${line##*fired }
         if [ -z "$line" ] || [ "$fired" = 0 ]; then
           fail "fault $site did not fire"
