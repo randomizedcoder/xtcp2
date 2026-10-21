@@ -12,36 +12,23 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// The macsec commands (linux/if_macsec.h), which x/sys/unix does not
-// define. The attributes are in macsecSchema.
+// The macsec test's renderer kinds; the commands and attributes are
+// xtcpnl_macsec.go's, and the attribute sets are in macsecSchema.
 const (
-	macsecCmdGetTxsc    = 0
-	macsecCmdAddRxsc    = 1
-	macsecCmdDelRxsc    = 2
-	macsecCmdUpdRxsc    = 3
-	macsecCmdAddTxsa    = 4
-	macsecCmdDelTxsa    = 5
-	macsecCmdUpdTxsa    = 6
-	macsecCmdAddRxsa    = 7
-	macsecCmdDelRxsa    = 8
-	macsecCmdUpdRxsa    = 9
-	macsecCmdUpdOffload = 10
-	macsecAttrTxscStats = 7
-	macsecAttrSecyStats = 8
-	macsecSecyAttrPad   = 14
-	macsecPnLen         = 4
-	macsecXpnPnLen      = 8
-	macsecTopLevel      = "top"
-	macsecKindU8        = "u8"
-	macsecKindU32       = "u32"
-	macsecKindPN        = "pn"
-	macsecKindU64Hex    = "u64hex"
-	macsecKindHex       = "hex"
-	macsecKindStats     = "stats"
-	macsecKindPad       = "pad"
-	macsecNestPrefix    = "nest:"
-	macsecListPrefix    = "list:"
-	macsecUnknown       = "attr"
+	macsecSecyAttrPad = 14
+	macsecPnLen       = 4
+	macsecXpnPnLen    = 8
+	macsecTopLevel    = "top"
+	macsecKindU8      = "u8"
+	macsecKindU32     = "u32"
+	macsecKindPN      = "pn"
+	macsecKindU64Hex  = "u64hex"
+	macsecKindHex     = "hex"
+	macsecKindStats   = "stats"
+	macsecKindPad     = "pad"
+	macsecNestPrefix  = "nest:"
+	macsecListPrefix  = "list:"
+	macsecUnknown     = "attr"
 )
 
 // macsecField is how an attribute of one macsec attribute set renders:
@@ -55,8 +42,8 @@ var macsecSchema = map[string]map[uint16]macsecField{
 	macsecTopLevel: {
 		1: {"ifindex", macsecKindU32}, 2: {"rxsc", macsecNestPrefix + "rxsc"}, 3: {"sa", macsecNestPrefix + "sa"},
 		4: {"secy", macsecNestPrefix + "secy"}, 5: {"txsa_list", macsecListPrefix + "sa"},
-		6: {"rxsc_list", macsecListPrefix + "rxsc"}, macsecAttrTxscStats: {"txsc_stats", macsecKindStats},
-		macsecAttrSecyStats: {"secy_stats", macsecKindStats}, 9: {"offload", macsecNestPrefix + "offload"},
+		6: {"rxsc_list", macsecListPrefix + "rxsc"}, MacsecAttrTxscStats: {"txsc_stats", macsecKindStats},
+		MacsecAttrSecYStats: {"secy_stats", macsecKindStats}, 9: {"offload", macsecNestPrefix + "offload"},
 	},
 	"secy": {
 		1: {"sci", macsecKindHex}, 2: {"encoding_sa", macsecKindU8}, 3: {"window", macsecKindU32},
@@ -159,7 +146,7 @@ func macsecAttrs(t *testing.T, set string, attrs []NetlinkAttribute) string {
 func macsecMsgs(t *testing.T, rel string, request bool) string {
 	t.Helper()
 	msgs := pcapNlMsgs(t, tdGenlWrite_7_1_4+"/"+rel)
-	fam := genlFamilyID(t, msgs, "macsec")
+	fam := genlFamilyID(t, msgs, MacsecGenlName)
 	var out []string
 	for _, m := range msgs {
 		if fam == 0 || m.h.Type != fam || (m.h.Flags&unix.NLM_F_REQUEST != 0) != request {
@@ -170,10 +157,10 @@ func macsecMsgs(t *testing.T, rel string, request bool) string {
 			t.Fatal(err)
 		}
 		words := []string{map[uint8]string{
-			macsecCmdGetTxsc: "get_txsc", macsecCmdAddRxsc: "add_rxsc", macsecCmdDelRxsc: "del_rxsc",
-			macsecCmdUpdRxsc: "upd_rxsc", macsecCmdAddTxsa: "add_txsa", macsecCmdDelTxsa: "del_txsa",
-			macsecCmdUpdTxsa: "upd_txsa", macsecCmdAddRxsa: "add_rxsa", macsecCmdDelRxsa: "del_rxsa",
-			macsecCmdUpdRxsa: "upd_rxsa", macsecCmdUpdOffload: "upd_offload",
+			MacsecCmdGetTxsc: "get_txsc", MacsecCmdAddRxsc: "add_rxsc", MacsecCmdDelRxsc: "del_rxsc",
+			MacsecCmdUpdRxsc: "upd_rxsc", MacsecCmdAddTxsa: "add_txsa", MacsecCmdDelTxsa: "del_txsa",
+			MacsecCmdUpdTxsa: "upd_txsa", MacsecCmdAddRxsa: "add_rxsa", MacsecCmdDelRxsa: "del_rxsa",
+			MacsecCmdUpdRxsa: "upd_rxsa", MacsecCmdUpdOffload: "upd_offload",
 		}[g.Command]}
 		if request && m.h.Flags&unix.NLM_F_DUMP == unix.NLM_F_DUMP {
 			words = append(words, "dump")
@@ -194,7 +181,7 @@ func macsecMsgs(t *testing.T, rel string, request bool) string {
 func macsecErrno(t *testing.T, slug string) string {
 	t.Helper()
 	msgs := pcapNlMsgs(t, tdGenlWrite_7_1_4+"/"+slug+"/ip.pcap")
-	fam := genlFamilyID(t, msgs, "macsec")
+	fam := genlFamilyID(t, msgs, MacsecGenlName)
 	for _, m := range msgs {
 		if fam != 0 && m.h.Type == fam && m.h.Flags&unix.NLM_F_REQUEST != 0 {
 			return strconv.Itoa(int(answerTo(t, msgs, m.h))) + " rc " + tcpmFile(t, slug+"/ip.rc")
@@ -258,7 +245,7 @@ func TestGenlMacsecCorpus(t *testing.T) {
 			func(t *testing.T) string {
 				var missing []string
 				for _, slug := range macsecRows {
-					if genlFamilyID(t, pcapNlMsgs(t, tdGenlWrite_7_1_4+"/"+slug+"/ip.pcap"), "macsec") == 0 {
+					if genlFamilyID(t, pcapNlMsgs(t, tdGenlWrite_7_1_4+"/"+slug+"/ip.pcap"), MacsecGenlName) == 0 {
 						missing = append(missing, slug)
 					}
 				}

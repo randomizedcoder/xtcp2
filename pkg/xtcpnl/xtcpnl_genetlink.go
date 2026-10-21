@@ -199,6 +199,41 @@ func (d *genlDecoder) be64(id uint16, dst **uint64) {
 	}
 }
 
+// be32 reads a u32 whose bytes are in network order, as macsec's SSCI
+// is, so its value prints as ip writes it.
+func (d *genlDecoder) be32(id uint16, dst **uint32) {
+	if d.err != nil {
+		return
+	}
+	var a *NetlinkAttribute
+	a, d.err = scalarAttribute(d.attrs, id, 4)
+	if d.err == nil && a != nil {
+		v := binary.BigEndian.Uint32(a.Data)
+		*dst = &v
+	}
+}
+
+// nlaUint reads an NLA_UINT, 4 or 8 bytes, as a u64; wide reports 8.
+func (d *genlDecoder) nlaUint(id uint16, dst **uint64) (wide bool) {
+	if d.err != nil {
+		return false
+	}
+	a, err := attribute(d.attrs, id)
+	if err == nil && a != nil && ((len(a.Data) != 4 && len(a.Data) != 8) || a.Type&0xc000 != 0) {
+		err = fmt.Errorf("%w: attribute %d needs an unflagged 4- or 8-byte scalar", ErrGenericNetlink, id)
+	}
+	d.err = err
+	if err != nil || a == nil {
+		return false
+	}
+	v := uint64(binary.LittleEndian.Uint32(a.Data))
+	if len(a.Data) == 8 {
+		v = binary.LittleEndian.Uint64(a.Data)
+	}
+	*dst = &v
+	return len(a.Data) == 8
+}
+
 // s32 reads a u32-width attribute as signed.
 func (d *genlDecoder) s32(id uint16, dst **int32) {
 	var v *uint32
@@ -259,6 +294,40 @@ func (d *genlDecoder) flag(id uint16) bool {
 	}
 	d.err = err
 	return err == nil && a != nil
+}
+
+// nested reads nest id into a decoder of its attributes; ok is false
+// when it is absent or malformed. The caller hands the nested decoder's
+// error back with d.err = nd.err.
+func (d *genlDecoder) nested(id uint16) (nd genlDecoder, ok bool) {
+	if d.err != nil {
+		return nd, false
+	}
+	nd.attrs, ok, d.err = attrNested(d.attrs, id)
+	return nd, ok && d.err == nil
+}
+
+// list reads nest id as a list of nests, one decoder for each in the order
+// they came, whatever their numbers: nil when absent or malformed, non-nil
+// (perhaps empty) when present.
+func (d *genlDecoder) list(id uint16) []genlDecoder {
+	outer, ok := d.nested(id)
+	if !ok {
+		return nil
+	}
+	items := make([]genlDecoder, 0, len(outer.attrs))
+	for _, a := range outer.attrs {
+		if a.Type&0x4000 != 0 {
+			d.err = fmt.Errorf("%w: network-order nested attribute", ErrGenericNetlink)
+			return nil
+		}
+		var nd genlDecoder
+		if nd.attrs, d.err = ParseNetlinkAttributes(a.Data); d.err != nil {
+			return nil
+		}
+		items = append(items, nd)
+	}
+	return items
 }
 
 // addr reads an address pair: v4 as 4 bytes, else v6 as 16. Either id may

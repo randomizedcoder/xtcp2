@@ -78,7 +78,7 @@ number in [§5](#5-test-coverage) says which population it describes.
 |---|---|---|---|
 | `NETLINK_ROUTE` | ✅ | ◑ | xtcp2: link / addr / route / neigh only |
 | `NETLINK_INET_DIAG` | ◑ | ✅ | The one axis where xtcp2 is deeper — see [§3](#3-attribute-tlv-depth) |
-| `NETLINK_GENERIC` | ✅ | ➖ | Fork uses it for devlink, ethtool, fou, gtp, netdev, vdpa |
+| `NETLINK_GENERIC` | ✅ | ◑ | Fork uses it for devlink, ethtool, fou, gtp, netdev, vdpa. xtcp2: decoders for the controller and ethtool, and since P2 of [goip-parity-gaps.md](goip-parity-gaps.md#p2--genl-parsers) for the eight families `ip` uses: tcp_metrics, seg6, ioam6, mptcp_pm, fou, ila, l2tp and macsec (`pkg/xtcpnl/xtcpnl_genetlink.go`, one file each) |
 | `NETLINK_XFRM` | ◑ | ➖ | IPsec. Fork's *monitor* handles `XFRM_MSG_EXPIRE` only |
 | `NETLINK_NETFILTER` | ✅ | ➖ | conntrack, ipset |
 | `NETLINK_RDMA` | ✅ | ◑ | Fork: `rdma_link_linux.go`. xtcp2: the nldev read path, device / port / resource summary / hw counters / system / monitor events (`pkg/xtcpnl/xtcpnl_rdma.go`) |
@@ -119,7 +119,7 @@ by four families relative to what the tree actually uses.
 | **netdev (queues)** | ✅ queue-get / queue-create | — | ➖ |
 | **ethtool** | ◑ features, rings, RSS only (`nl/ethtool_linux.go:15-20`) | — | ➖ xtcp2 gets NIC facts via LLDP/sysfs enrichment instead |
 | **genetlink ctrl** | ✅ family resolution (`genetlink_linux.go`) | — | ➖ needed only by the generic families above |
-| **fou / gtp** | ✅ encap + PDP management | — | ➖ |
+| **fou / gtp** | ✅ encap + PDP management | ◑ fou: `ParseFOU` decodes `ip fou`'s requests and the kernel's answers (`xtcpnl_fou.go`); gtp — | ➖ |
 | **proc_event** | ✅ `CN_IDX_PROC` fork/exec/exit | — | ➖ |
 | **sock_diag (inet_diag)** | ◑ `SOCK_DIAG_BY_FAMILY` TCP/UDP (`socket_linux.go:219`) | ✅ request build + full attribute dispatch | **xtcp2 deeper** |
 | **unix_diag** | ◑ constants + shared executor | — | ➖ xtcp2 is TCP-only |
@@ -278,7 +278,7 @@ nothing enforces that.
 | Subtests (`--- PASS` lines) | not table-driven enough to be meaningful | **501** |
 | Statement coverage | **unmeasurable overall**; `nl/` alone = **33.1%** | **93.3%** |
 | Fuzz targets | 0 | **6** |
-| Benchmarks | few | ~~**~40**~~ → **72** as of P1-T04 ([goip-parity-gaps.md](goip-parity-gaps.md#p1--new-rtnetlink-parsers)), 19 of them a parse benchmark per parser over corpus picks; the rest manual-vs-reflection paired, plus an 18-row gate asserting `0 allocs/op` and a minimum speedup over reflection (`xtcpnl_perf_gate_test.go`) |
+| Benchmarks | few | ~~**~40**~~ → **82** as of P2-T08 ([goip-parity-gaps.md](goip-parity-gaps.md#p2--genl-parsers)), 29 of them a parse benchmark per parser over corpus picks; the rest manual-vs-reflection paired, plus an 18-row gate asserting `0 allocs/op` and a minimum speedup over reflection (`xtcpnl_perf_gate_test.go`) |
 | Static fixtures | **2 files** (`testdata/ipset_{protocol,list}_result`) | real `.pcap` corpus across **10 kernel versions** |
 | Requires root + netns | **~30 of 47 files** | **none** |
 | Custom audit tooling | none | `tools/netlink-audit`, wired as a `nix flake check` (`nix/checks/netlink-audit.nix`) |
