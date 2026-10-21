@@ -47,7 +47,7 @@ on the builder. On 2026-10-20 the user agreed to add `"/dev/net/tun?"` to
 
 ## Integration results
 
-The latest pass of each check (VC018, operator-run on `l` at main bb237c9e,
+The latest pass of each check (VC019, operator-run on `l` at main a9cf7dba,
 KVM in the nix build sandbox, QEMU 11.0.2). Go test counts are `--- PASS` lines in
 the guest's serial log; no run had a `--- FAIL`, and only the rdma guest's
 three expected skips (veth has no rings, pause or FEC).
@@ -131,6 +131,16 @@ Outputs (GC-rooted by the operator's `result-vm-all`):
 - [ ] The performance guest's `LINKMONITOR_BENCHTIME` never reached the
   guest from the host (the README said it did; corrected). Wire it through
   `VM_KERNEL_PARAMS` if a longer profile window is wanted.
+- [x] Boot `vm-all` after #273 (listener TTL and IPv6 hop limit default to
+  3 in go-link-monitor and xtcp2), which changed the Go inputs of all six:
+  all pass with the same counts as VC018 (VC019). Every derivation except
+  the `vm-run-*` and `vm-check-*` ones was prebuilt first, in 64 s.
+- [ ] `pkg/linkmonitor` `TestRDMAEnabledLifecycle` failed twice in the
+  `test-linkmonitor-rdma-unit` leaf ("snapshot condition timed out", rows
+  `close` then `native`) at load average 24-36 on `l`, and passed
+  `-count=5` when run directly. Its 5 s wait may be too short under load;
+  if it recurs on a quiet host or in CI, lengthen the wait or make the
+  condition event-driven.
 
 ## Evidence ledger
 
@@ -154,3 +164,4 @@ Outputs (GC-rooted by the operator's `result-vm-all`):
 | VC016 | 2026-10-20 | user: `env -u LD_LIBRARY_PATH nix build -L -o result-vm-all path:.#checks.x86_64-linux.vm-all` on `l` (at dc0d1362) | pass; only the performance guest booted, the other five came from the store. Performance 3 of 3 sentinels, `live_exit=0`, `rdma_native_exit=0`, kernel 6.18.39, 912 KiB of evidence, 0 ESC and 0 CR bytes in serial.log; `result-vm-all` equals `nix eval` of `checks.vm-all.outPath` at HEAD. Benchmarks (one run, loaded host, from the check's `bench.txt`): RealisticFleet gather 2834520 ns/op and 30171 allocs/op, http 3806872 ns/op; LocalMachine gather 791760 ns/op and 8464 allocs/op, http 1145648 ns/op; within 4% of VC014's |
 | VC017 | 2026-10-21 | user: `env -u LD_LIBRARY_PATH nix build -L -o result-vm-all path:.#checks.x86_64-linux.vm-all` on `l` (main bb237c9e, after #269, #271) | fail: `vm-linkmonitor-ionic-faults` guest printed `LINKMONITOR_IONIC_FAIL rc=1` 23 s after boot, in its first steps (`ernic-rdma-up` active, discovery, `TestIonicFaultStatsVals`); the printed tail is all shutdown and the failed check kept no evidence, so the failing step is unknown. goip-argv-paths and embedding passed; nix stopped the rest. Host load was 14 to 16 shortly before |
 | VC018 | 2026-10-21 | user: the same command, rerun with nothing changed | pass, all six, `result-vm-all` equals `nix eval` of `checks.vm-all.outPath` at main. goip-argv-paths 8 sentinels; embedding 4 and 12 Go tests; ionic 11 and 99; ionic-faults 3 and 18 (eth_rx fired 28 of 281, eth_tx 31 of 310, stats_vals 1 of 16); rdma 10 and 61, 3 expected skips, 8 nlrecord files; performance 3, `live_exit=0`, `rdma_native_exit=0`. No `--- FAIL`; 0 ESC and 0 CR bytes in each serial.log. Benchmarks (one run, loaded host): RealisticFleet gather 2843965 ns/op and 30171 allocs/op, http 3863391 ns/op; LocalMachine gather 834679 ns/op and 8464 allocs/op, http 1189724 ns/op |
+| VC019 | 2026-10-21 | user: `env -u LD_LIBRARY_PATH nix build -L -o result-vm-all path:.#checks.x86_64-linux.vm-all` on `l` (main a9cf7dba, after #273) | pass, all six, `result-vm-all` equals `nix eval` of `checks.vm-all.outPath` at main. goip-argv-paths 8 sentinels; embedding 4 and 12 Go tests; ionic 11 and 99; ionic-faults 3 and 18 (eth_rx fired 28 of 281, eth_tx 31 of 310, stats_vals 1 of 16); rdma 10 and 61, 3 expected skips, 8 nlrecord files; performance 3, `live_exit=0`, `rdma_native_exit=0`. No `--- FAIL`; 0 ESC and 0 CR bytes in each serial.log. Benchmarks (one run, loaded host): RealisticFleet gather 3155046 ns/op and 30171 allocs/op, http 3983351 ns/op; LocalMachine gather 824010 ns/op and 8464 allocs/op, http 1191457 ns/op. Allocations match VC018; RealisticFleet gather is 11% slower and the rest within 3%. #273 changes only listener setup, not the gather path, so this is host noise |
