@@ -1896,6 +1896,22 @@ Each type `ip` 7.1.0 names in the universe but REPORT ([decision log](goip-parit
 | G0-T02 | Reorder `resolveIndexName` (`internal/goip/obj_route.go:521`), so the 6 stats rows match `ip`'s transaction count; then gate them |
 | G0-T03 | Decide `-s addr show`, `-s neigh show` and the two `netconf show dev` rows, and record the decision |
 
+**G0-T01 delivered** (`pkg/nlparity/goip-parity-allowlist.json`):
+- The twelve queued class-A rows are in `gated_commands` and in `pkg/nlparity`'s `earned` list, after two fresh runs printed each `GOIP_PARITY_PASS` with no findings and the same `txns`; the runs are in [coverage-status.md](coverage-status.md#g0-t01-the-twelve-queued-read-rows-gate).
+- `TestUngatedSurfaceIsNotVacuous` pins the eleven rows still ungated.
+
+`TestQueuedReadRowsGated` (`internal/goipparity/commands_test.go`):
+
+| description | expected |
+|---|---|
+| positive: each of the twelve rows, `-0 addr show` to `-j rule show` (11 rows) | implemented, gated, 0 allowlist entries |
+| corner: link statistics as JSON, two options at once (`-j -s link show`) | implemented, gated, 0 entries |
+| negative: `-s addr show` waits for G0-T03's decision | implemented, not gated |
+| negative: `-s neigh show` waits for G0-T03's decision | implemented, not gated |
+| boundary: a permanent transaction-count row stays out (`stats show group link`) | implemented, not gated |
+| corner: `addr show dynamic` stays out by design | implemented, not gated |
+| corner: a row not in the matrix is neither (`-j -6 rule show`) | not implemented, not gated |
+
 ### G1 — Read verbs on running objects
 
 `route get`, `neigh get`, `nexthop get` and `bucket`, `link xstats` and `afstats`: one task per verb family.

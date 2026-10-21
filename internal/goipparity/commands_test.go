@@ -991,10 +991,10 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 		}
 	}
 
-	// The queue is fourteen rows: the twelve the `-j`/family branch added, plus
-	// the two -s sweep commands whose noise is unresolved and which pkg/nlparity's
-	// held-out negative keeps out of gated_commands on purpose. Each still awaits
-	// its own measured-clean live run. The two nexthop and three addrlabel rows
+	// The queue is two rows: the -s sweep commands whose noise is unresolved and
+	// which pkg/nlparity's held-out negative keeps out of gated_commands on
+	// purpose. The twelve the `-j`/family branch added left it on G0-T01's two
+	// runs — see TestQueuedReadRowsGated. The two nexthop and three addrlabel rows
 	// left this list on runs 10 and 11, their first live grounding — see
 	// TestNexthopAddrlabelGated.
 	//
@@ -1005,8 +1005,7 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	// goip's one up-front bulk RTM_GETLINK dump versus `ip`'s lazy per-index gets
 	// (stats) and redundant per-name get (netconf-dev). That is class
 	// DivergenceTransactionCount, which the allowlist cannot suppress, so these
-	// eight can never gate — unlike the fourteen above, which each await their own
-	// clean live run. TestPermanentWireDivergences pins the eight. The two bond
+	// eight can never gate — unlike the two above, which await a decision. TestPermanentWireDivergences pins the eight. The two bond
 	// `-d link show` rows left this list on their first two live runs — see
 	// TestBondReadRowsGated.
 	//
@@ -1030,12 +1029,11 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	// reason — see TestAddrFlushRowsGated.
 	//
 	// Nor did A9-T03's two address restore rows — see TestAddrRestoreRowsGated.
+	//
+	// The twelve family, table and `-j` rows of the queue left this list on
+	// G0-T01's two runs — see TestQueuedReadRowsGated.
 	expected := []string{
 		"-s addr show", "-s neigh show",
-		"-0 addr show", "route show table main", "route show table local",
-		"-4 route show", "-4 neigh show", "-6 neigh show",
-		"-j addr show", "-j link show", "-j route show", "-j neigh show",
-		"-j rule show", "-j -s link show",
 		"netconf show dev", "-4 netconf show dev",
 		"stats show group link", "-s stats show group link",
 		"-j stats show group link",
@@ -1049,15 +1047,15 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 		check       func(t *testing.T)
 	}{
 		{
-			description: "boundary: the list is twenty-three named rows",
+			description: "boundary: the list is eleven named rows",
 			check: func(t *testing.T) {
-				if len(expected) != 23 {
-					t.Errorf("got %d named rows, want 23", len(expected))
+				if len(expected) != 11 {
+					t.Errorf("got %d named rows, want 11", len(expected))
 				}
 			},
 		},
 		{
-			description: "positive: the ungated set is exactly the twenty-three named rows, so UNGATED_CLEAN counts twenty-three rows and not zero",
+			description: "positive: the ungated set is exactly the eleven named rows, so UNGATED_CLEAN counts eleven rows and not zero",
 			check: func(t *testing.T) {
 				for _, name := range expected {
 					if !ungated[name] {
@@ -1348,7 +1346,7 @@ func TestNexthopAddrlabelGated(t *testing.T) {
 		{"positive: the -j addrlabel twin gates with its text twin (no wire)", "-j addrlabel show", true, true},
 		{"boundary: -6 addrlabel show is a byte-identical identity, gates with addrlabel show", "-6 addrlabel show", true, true},
 		{"boundary: a permanent-divergence row still does not gate (separates cohorts)", "stats show group link", false, false},
-		{"negative: a still-queued -j row is not in this cohort and not gated", "-j addr show", false, false},
+		{"negative: a -j row G0-T01 gated is gated but not in this cohort", "-j addr show", false, true},
 		{"negative: a held-out -s row is not in this cohort and not gated", "-s addr show", false, false},
 		{"corner: a name not in the matrix is neither in the cohort nor gated", "bogus show", false, false},
 	}
@@ -2337,4 +2335,61 @@ func TestAddrWriteRowsGated(t *testing.T) {
 			}
 		}
 	})
+}
+
+// TestQueuedReadRowsGated pins G0-T01's flip: the twelve family, table and
+// `-j` read rows the JSON facet work added ungated. Both of G0-T01's live runs
+// reported each GOIP_PARITY_PASS with zero findings and the same txns each
+// time, so they gate with ZERO allowlist entries. Control was the same on both
+// runs but for `-4 neigh show`, nl=2 then nl=6: ifindex 3's counters, which
+// D_control subtracts. The two `-s` forms they were queued with stay out, for
+// G0-T03's decision.
+//
+// go test ./internal/goipparity/ -run TestQueuedReadRowsGated
+func TestQueuedReadRowsGated(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	type want struct {
+		implemented, gated bool
+		entries            int
+	}
+	gated := want{implemented: true, gated: true}
+	rows := []struct {
+		description string
+		command     string
+		expected    want
+	}{
+		{"positive: -0 reaches the AF_PACKET branch, one dump", "-0 addr show", gated},
+		{"positive: the main table", "route show table main", gated},
+		{"positive: the local table, RTA_TABLE 255", "route show table local", gated},
+		{"positive: routes under -4", "-4 route show", gated},
+		{"positive: neighbors under -4", "-4 neigh show", gated},
+		{"positive: neighbors under -6", "-6 neigh show", gated},
+		{"positive: addresses as JSON", "-j addr show", gated},
+		{"positive: links as JSON", "-j link show", gated},
+		{"positive: routes as JSON", "-j route show", gated},
+		{"positive: neighbors as JSON", "-j neigh show", gated},
+		{"positive: rules as JSON", "-j rule show", gated},
+		{"corner: link statistics as JSON, two options at once", "-j -s link show", gated},
+		{"negative: -s addr show waits for G0-T03's decision", "-s addr show", want{implemented: true}},
+		{"negative: -s neigh show waits for G0-T03's decision", "-s neigh show", want{implemented: true}},
+		{"boundary: a permanent transaction-count row stays out", "stats show group link", want{implemented: true}},
+		{"corner: addr show dynamic stays out by design", "addr show dynamic", want{implemented: true}},
+		{"corner: a row not in the matrix is neither", "-j -6 rule show", want{}},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			var got want
+			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				got.implemented = c.Implemented
+			}
+			got.gated = al.IsGated(r.command)
+			got.entries = len(al.EntriesFor(r.command))
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+		})
+	}
 }

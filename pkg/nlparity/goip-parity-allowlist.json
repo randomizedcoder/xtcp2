@@ -850,7 +850,20 @@
     "control nl=0 stdout=0 and ZERO findings. All 120 verdicts matched between",
     "the two runs (112 PASS, 7 WARN, 1 FAIL). `-4 netconf show dev` is still the",
     "one FAIL, with HYGIENE_FAIL 2 and UNGATED_DIVERGENCES 7, so the permanent",
-    "set is unchanged at eight rows. CONTROL_NOISY read 131 then 130."
+    "set is unchanged at eight rows. CONTROL_NOISY read 131 then 130.",
+    "",
+    "G0-T01 (goip-parity-gaps.md) gates the TWELVE family, table and `-j` read",
+    "rows the JSON facet work queued: `-0 addr show`, `route show table main`,",
+    "`route show table local`, `-4 route show`, `-4 neigh show`, `-6 neigh show`,",
+    "`-j addr show`, `-j link show`, `-j route show`, `-j neigh show`, `-j rule",
+    "show` and `-j -s link show`. Two back-to-back runs: all twelve",
+    "GOIP_PARITY_PASS with ZERO findings and the same txns on both (1/1 to 3/3).",
+    "Control was identical but for `-4 neigh show`, nl=2 then nl=6, ifindex 3's",
+    "counters, which D_control subtracts. Both runs: 175 PASS, 7 WARN, 1 FAIL of",
+    "183, the FAIL still `-4 netconf show dev` with HYGIENE_FAIL 2, and",
+    "UNGATED_DIVERGENCES 7; CONTROL_NOISY read 174 then 169. The ungated surface",
+    "is ELEVEN rows: the two held-out `-s` forms, the eight permanent rows and",
+    "`addr show dynamic`."
   ],
   "_note_version_skew": [
     "THE ENTRIES BELOW CITE COMMITS THAT ARE IN NO RELEASE, AND THE EVIDENCE IS",
@@ -1089,6 +1102,18 @@
     "-br addr show",
     "-o addr show",
     "-br -j addr show",
-    "-o -6 addr show"
+    "-o -6 addr show",
+    "-0 addr show",
+    "route show table main",
+    "route show table local",
+    "-4 route show",
+    "-4 neigh show",
+    "-6 neigh show",
+    "-j addr show",
+    "-j link show",
+    "-j route show",
+    "-j neigh show",
+    "-j rule show",
+    "-j -s link show"
   ]
 }

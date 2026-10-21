@@ -567,6 +567,22 @@ func TestAllowlistCommitted(t *testing.T) {
 		"-o addr show",
 		"-br -j addr show",
 		"-o -6 addr show",
+		// G0-T01's twelve family, table and `-j` read rows, queued since the
+		// JSON facet work, gated on two runs with GOIP_PARITY_PASS on both and
+		// the same txns and zero findings each time; control moved only on
+		// `-4 neigh show`, ifindex 3's counters, which D_control subtracts.
+		"-0 addr show",
+		"route show table main",
+		"route show table local",
+		"-4 route show",
+		"-4 neigh show",
+		"-6 neigh show",
+		"-j addr show",
+		"-j link show",
+		"-j route show",
+		"-j neigh show",
+		"-j rule show",
+		"-j -s link show",
 	}
 
 	tests := []struct {
@@ -818,15 +834,14 @@ func TestAllowlistCommitted(t *testing.T) {
 			// sweep's five ended the second such interval; three of them
 			// have since gated.
 			//
-			// These two are no longer the whole ungated surface. The matrix
-			// has grown to forty-one rows and twenty-seven are gated, so
-			// fourteen can warn: these two plus the twelve family, table and
-			// `-j` rows added with the JSON facet work, which stay ungated
-			// until a live run measures them.
+			// These two are no longer the whole ungated surface: with them
+			// are the eight permanent stats and netconf-dev rows and `addr
+			// show dynamic`. The twelve family, table and `-j` rows queued
+			// with them gated on G0-T01's two runs.
 			// internal/goipparity's TestUngatedSurfaceIsNotVacuous pins that
-			// set of fourteen by name. What this row still owns is the
+			// set of eleven by name. What this row still owns is the
 			// narrower claim: these two SPECIFICALLY stay out, for the
-			// reasons below, so a branch gating the twelve cannot sweep
+			// reasons below, so a branch gating the twelve could not sweep
 			// these up with them.
 			//
 			// Naming them rather than asserting a bare count is deliberate.

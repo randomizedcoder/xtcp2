@@ -3421,6 +3421,36 @@ label's quotes, and that the table's `addr_show_sel_*` rows are exactly
 these. The `earned`/`gated_commands` pair pins the flip, and the ungated
 surface is twenty-three rows, `dynamic` the newest.
 
+### G0-T01: the twelve queued read rows gate
+
+[goip-parity-gaps.md](goip-parity-gaps.md#g0--the-matrix-quick-wins)'s
+G0-T01 gates the twelve family, table and `-j` rows the JSON facet work added
+ungated (runs 6 and 7 above). Two fresh runs of `nix run
+.#microvm-x86_64-goip-parity -- --timeout 4500`, back to back from a scratch
+worktree, printed 175 `GOIP_PARITY_PASS` of 183, with 7 WARN and 1 FAIL, on
+both. All twelve passed with no findings and the same `txns` on both runs.
+
+| rows | `txns` | control, run 1 then run 2 |
+|---|---|---|
+| `-0 addr show`, `-j link show`, `-j rule show` | ip=1 goip=1 | `nl=0` |
+| `-j -s link show` | ip=1 goip=1 | `nl=2` |
+| `route show table main`, `-4 route show`, `-j addr show`, `-j route show` | ip=2 goip=2 | `nl=0` |
+| `-6 neigh show`, `-j neigh show` | ip=2 goip=2 | `nl=2` |
+| `-4 neigh show` | ip=2 goip=2 | `nl=2`, then `nl=6` |
+| `route show table local` | ip=3 goip=3 | `nl=0` |
+
+The `nl=2` rows are ifindex 2's `IFLA_STATS` and `IFLA_STATS64` moving between
+`ip_a` and `ip_b`, which `D_control` subtracts. On the second run `-4 neigh
+show` also read ifindex 3's counters and its `IFLA_INET6_STATS` and
+`IFLA_INET6_ICMP6STATS` moving, the same class, so the row passed on runs that
+disagree, as `-s link show` gated. Both runs `OVERALL_FAIL` for the
+pre-existing reason (`-4 netconf show dev`, `HYGIENE_FAIL 2`);
+`UNGATED_DIVERGENCES` stays 7 and `CONTROL_NOISY` read 174 and 169. All twelve
+gate with no allowlist entry. `TestQueuedReadRowsGated` and the
+`earned`/`gated_commands` pair in `pkg/nlparity` pin the flip, and the ungated
+surface is eleven rows: the two held-out `-s` forms, the eight permanent stats
+and netconf-dev rows, and `addr show dynamic`.
+
 ## Tier C — the `goip-parity` microVM flavor
 
 The last piece of Item 6, and the only one that needs a live machine: a third

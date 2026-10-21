@@ -1350,7 +1350,8 @@ var commands = withArgs([]Command{
 	// own measured runs, not on the argument that it ought to be quiet. They
 	// go in ungated, which also makes GOIP_PARITY_UNGATED_CLEAN count twelve
 	// rows instead of two — the check was one gating decision away from its
-	// third vacuity.
+	// third vacuity. They gated on G0-T01's two runs, which
+	// TestQueuedReadRowsGated pins.
 	//
 	// # The facet work these rows depend on
 	//
