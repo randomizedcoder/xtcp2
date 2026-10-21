@@ -201,6 +201,20 @@ func (d *genlDecoder) bytes(id uint16) []byte {
 	return a.Data
 }
 
+// flag reads an NLA_FLAG attribute: present or not. As in the kernel's
+// policy, a flag carries no payload.
+func (d *genlDecoder) flag(id uint16) bool {
+	if d.err != nil {
+		return false
+	}
+	a, err := attribute(d.attrs, id)
+	if err == nil && a != nil && (len(a.Data) != 0 || a.Type&0xc000 != 0) {
+		err = fmt.Errorf("%w: attribute %d needs an empty, unflagged flag", ErrGenericNetlink, id)
+	}
+	d.err = err
+	return err == nil && a != nil
+}
+
 // addr reads an address pair: v4 as 4 bytes, else v6 as 16. Either id may
 // be 0 for a family with only one of them.
 func (d *genlDecoder) addr(v4, v6 uint16) netip.Addr {

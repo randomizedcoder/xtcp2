@@ -85,12 +85,14 @@ type benchRecord struct {
 }
 
 // benchKind is the messages a parser's picks come from: a protocol,
-// either a message type or, for generic netlink, a family name, and whether
-// they are ip's requests rather than the kernel's messages.
+// either a message type or, for generic netlink, a family name and perhaps
+// its commands, and whether they are ip's requests rather than the kernel's
+// messages.
 type benchKind struct {
 	proto   uint16
 	typ     uint16
 	family  string
+	cmds    []uint8
 	request bool
 }
 
@@ -106,12 +108,29 @@ func rtnlRequest(typ uint16) benchKind {
 // genl is the generic netlink messages of the family called family.
 func genl(family string) benchKind { return benchKind{proto: unix.NETLINK_GENERIC, family: family} }
 
+// genlCmds is the generic netlink messages of the family called family
+// whose command is one of cmds, for a family whose commands need different
+// parsers.
+func genlCmds(family string, cmds ...uint8) benchKind {
+	k := genl(family)
+	k.cmds = cmds
+	return k
+}
+
 // String is the kind as TestParseBenchCases pins it: proto/type or
-// proto/family, then /request for ip's requests.
+// proto/family, then /cmd and the commands, then /request for ip's
+// requests.
 func (k benchKind) String() string {
 	s := strconv.Itoa(int(k.proto)) + "/" + strconv.Itoa(int(k.typ))
 	if k.family != "" {
 		s = strconv.Itoa(int(k.proto)) + "/" + k.family
+	}
+	if len(k.cmds) != 0 {
+		cmds := make([]string, 0, len(k.cmds))
+		for _, c := range k.cmds {
+			cmds = append(cmds, strconv.Itoa(int(c)))
+		}
+		s += "/cmd" + strings.Join(cmds, ",")
 	}
 	if k.request {
 		s += "/request"
@@ -120,10 +139,13 @@ func (k benchKind) String() string {
 }
 
 // matches reports whether c is of kind k: of its protocol, sent by the
-// kernel, or for a request kind by ip (NLM_F_REQUEST), and of its type or
-// family.
+// kernel, or for a request kind by ip (NLM_F_REQUEST), of one of its
+// commands if it names any, and of its type or family.
 func (k benchKind) matches(c corpusMsg) bool {
 	if c.m.proto != k.proto || (c.m.h.Flags&unix.NLM_F_REQUEST != 0) != k.request {
+		return false
+	}
+	if len(k.cmds) != 0 && (len(c.m.body) == 0 || !slices.Contains(k.cmds, c.m.body[0])) {
 		return false
 	}
 	if k.family != "" {
@@ -190,6 +212,8 @@ var (
 	resultPrefix  PrefixInfo
 	resultTCPM    TCPMetrics
 	resultSeg6    Seg6
+	resultIOAM6   IOAM6
+	resultIOAM6Ev IOAM6Event
 )
 
 // parseBenchCase is one parser P0 benchmarks: its name, the kind of its
@@ -225,6 +249,8 @@ var parseBenchCases = []parseBenchCase{
 	{name: "ParsePrefix", kind: rtnl(unix.RTM_NEWPREFIX), parse: func(_ NlMsgHdr, b []byte) (err error) { resultPrefix, err = ParsePrefix(b); return err }},
 	{name: "ParseTCPMetrics", kind: genl(TCPMetricsGenlName), parse: func(_ NlMsgHdr, b []byte) (err error) { resultTCPM, err = ParseTCPMetrics(b); return err }},
 	{name: "ParseSeg6", kind: genl(Seg6GenlName), parse: func(_ NlMsgHdr, b []byte) (err error) { resultSeg6, err = ParseSeg6(b); return err }},
+	{name: "ParseIOAM6", kind: genlCmds(IOAM6GenlName, IOAM6CmdDumpNamespaces, IOAM6CmdDumpSchemas), parse: func(_ NlMsgHdr, b []byte) (err error) { resultIOAM6, err = ParseIOAM6(b); return err }},
+	{name: "ParseIOAM6Event", kind: genlCmds(IOAM6GenlName, IOAM6EventTrace), parse: func(_ NlMsgHdr, b []byte) (err error) { resultIOAM6Ev, err = ParseIOAM6Event(b); return err }},
 }
 
 // parseBenchCaseNamed returns the parseBenchCases entry called name.
@@ -339,6 +365,14 @@ func BenchmarkParseTCPMetrics(b *testing.B) { benchParse(b, "ParseTCPMetrics") }
 // (P2-T02).
 func BenchmarkParseSeg6(b *testing.B) { benchParse(b, "ParseSeg6") }
 
+// BenchmarkParseIOAM6 decodes the smallest, a typical and the largest
+// namespace or schema the kernel dumped in the corpus (P2-T03).
+func BenchmarkParseIOAM6(b *testing.B) { benchParse(b, "ParseIOAM6") }
+
+// BenchmarkParseIOAM6Event decodes the corpus's one IOAM6 TRACE event, as
+// every pick (P2-T03).
+func BenchmarkParseIOAM6Event(b *testing.B) { benchParse(b, "ParseIOAM6Event") }
+
 func TestBenchPick(t *testing.T) {
 	// msg is a captured message of type typ whose body is n bytes, from a
 	// pcap named path.
@@ -352,6 +386,12 @@ func TestBenchPick(t *testing.T) {
 	gmsg := func(path, family string, id uint16, n int) corpusMsg {
 		c := msg(path, unix.NETLINK_GENERIC, id, 0, n)
 		c.family = family
+		return c
+	}
+	// gcmd is an IOAM6 message of command cmd.
+	gcmd := func(path string, cmd uint8, n int) corpusMsg {
+		c := gmsg(path, "IOAM6", 20, n)
+		c.m.body[0] = cmd
 		return c
 	}
 	// render shows each pick as name=path/length.
@@ -426,6 +466,18 @@ func TestBenchPick(t *testing.T) {
 			expected:    "smallest=a/40 typical=a/40 largest=a/40",
 		},
 		{
+			description: "positive: a command kind picks only those commands of its family",
+			kind:        genlCmds("IOAM6", 3, 6),
+			msgs:        []corpusMsg{gcmd("ev", 1, 900), gcmd("ns", 3, 12), gcmd("sc", 6, 20), gcmd("x", 4, 30)},
+			expected:    "smallest=ns/12 typical=sc/20 largest=sc/20",
+		},
+		{
+			description: "corner: an empty body has no command, and a command kind does not pick it",
+			kind:        genlCmds("IOAM6", 0),
+			msgs:        []corpusMsg{gmsg("empty", "IOAM6", 20, 0), gcmd("zero", 0, 4)},
+			expected:    "smallest=zero/4 typical=zero/4 largest=zero/4",
+		},
+		{
 			description: "negative: no message of the type",
 			kind:        link,
 			msgs:        []corpusMsg{msg("a", route, unix.RTM_NEWADDR, 0, 52)},
@@ -459,7 +511,7 @@ func TestParseBenchCases(t *testing.T) {
 				" ParseNlMsgErr=0/2 ParseRtnetlinkEvent=0/17" +
 				" ParseGenericNetlink=16/nlctrl ParseGenericNetlinkFamily=16/nlctrl ParseEthtool=16/ethtool" +
 				" ParseNsid=0/88 ParseNexthopBucket=0/116 ParseLinkProp=0/108/request ParsePrefix=0/52" +
-				" ParseTCPMetrics=16/tcp_metrics ParseSeg6=16/SEG6",
+				" ParseTCPMetrics=16/tcp_metrics ParseSeg6=16/SEG6 ParseIOAM6=16/IOAM6/cmd3,6 ParseIOAM6Event=16/IOAM6/cmd1",
 		},
 	}
 	for _, tt := range tests {
@@ -500,6 +552,8 @@ func TestParseBenchRecords(t *testing.T) {
 		{description: "positive: ParsePrefix decodes its three RTM_NEWPREFIX picks", name: "ParsePrefix", expected: "smallest ok, typical ok, largest ok"},
 		{description: "positive: ParseTCPMetrics decodes its three tcp_metrics picks", name: "ParseTCPMetrics", expected: "smallest ok, typical ok, largest ok"},
 		{description: "positive: ParseSeg6 decodes its three SEG6 picks", name: "ParseSeg6", expected: "smallest ok, typical ok, largest ok"},
+		{description: "positive: ParseIOAM6 decodes its three IOAM6 dump picks", name: "ParseIOAM6", expected: "smallest ok, typical ok, largest ok"},
+		{description: "positive: ParseIOAM6Event decodes its IOAM6 TRACE pick", name: "ParseIOAM6Event", expected: "smallest ok, typical ok, largest ok"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {

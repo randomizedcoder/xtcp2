@@ -12,29 +12,6 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// The IOAM6 commands and attributes (linux/ioam6_genl.h), which x/sys/unix
-// does not define.
-const (
-	ioam6CmdAddNamespace   = 1
-	ioam6CmdDelNamespace   = 2
-	ioam6CmdDumpNamespaces = 3
-	ioam6CmdAddSchema      = 4
-	ioam6CmdDelSchema      = 5
-	ioam6CmdDumpSchemas    = 6
-	ioam6CmdNsSetSchema    = 7
-	ioam6AttrNsID          = 1
-	ioam6AttrNsData        = 2
-	ioam6AttrNsDataWide    = 3
-	ioam6AttrScID          = 4
-	ioam6AttrScData        = 5
-	ioam6AttrScNone        = 6
-	ioam6EventTrace        = 1
-	ioam6EventAttrNs       = 1
-	ioam6EventAttrNodeLen  = 2
-	ioam6EventAttrType     = 3
-	ioam6EventAttrData     = 4
-)
-
 // ioam6Rows is every C2-T03 row, in the corpus's order.
 var ioam6Rows = []string{
 	"ioam_ns_show_empty", "ioam_ns_add", "ioam_ns_add_data", "ioam_ns_add_unavailable",
@@ -52,17 +29,17 @@ func ioam6Attrs(t *testing.T, attrs []NetlinkAttribute) string {
 	var out []string
 	for _, a := range attrs {
 		switch a.ID() {
-		case ioam6AttrNsID:
+		case IOAM6AttrNsID:
 			out = append(out, "ns="+strconv.Itoa(int(binary.LittleEndian.Uint16(a.Data))))
-		case ioam6AttrNsData:
+		case IOAM6AttrNsData:
 			out = append(out, fmt.Sprintf("data=%#x", binary.LittleEndian.Uint32(a.Data)))
-		case ioam6AttrNsDataWide:
+		case IOAM6AttrNsDataWide:
 			out = append(out, fmt.Sprintf("wide=%#x", binary.LittleEndian.Uint64(a.Data)))
-		case ioam6AttrScID:
+		case IOAM6AttrScID:
 			out = append(out, "sc="+u32s(binary.LittleEndian.Uint32(a.Data)))
-		case ioam6AttrScData:
+		case IOAM6AttrScData:
 			out = append(out, fmt.Sprintf("scdata=%x", a.Data))
-		case ioam6AttrScNone:
+		case IOAM6AttrScNone:
 			out = append(out, "none")
 		}
 	}
@@ -76,7 +53,7 @@ func ioam6Attrs(t *testing.T, attrs []NetlinkAttribute) string {
 func ioam6Msgs(t *testing.T, rel string, request bool) string {
 	t.Helper()
 	msgs := pcapNlMsgs(t, tdGenlWrite_7_1_4+"/"+rel)
-	fam := genlFamilyID(t, msgs, "IOAM6")
+	fam := genlFamilyID(t, msgs, IOAM6GenlName)
 	var out []string
 	for _, m := range msgs {
 		if fam == 0 || m.h.Type != fam || (m.h.Flags&unix.NLM_F_REQUEST != 0) != request {
@@ -87,10 +64,10 @@ func ioam6Msgs(t *testing.T, rel string, request bool) string {
 			t.Fatal(err)
 		}
 		words := []string{map[uint8]string{
-			ioam6CmdAddNamespace: "addns", ioam6CmdDelNamespace: "delns",
-			ioam6CmdDumpNamespaces: "dumpns", ioam6CmdAddSchema: "addsc",
-			ioam6CmdDelSchema: "delsc", ioam6CmdDumpSchemas: "dumpsc",
-			ioam6CmdNsSetSchema: "setsc",
+			IOAM6CmdAddNamespace: "addns", IOAM6CmdDelNamespace: "delns",
+			IOAM6CmdDumpNamespaces: "dumpns", IOAM6CmdAddSchema: "addsc",
+			IOAM6CmdDelSchema: "delsc", IOAM6CmdDumpSchemas: "dumpsc",
+			IOAM6CmdNsSetSchema: "setsc",
 		}[g.Command]}
 		if request && m.h.Flags&unix.NLM_F_DUMP == unix.NLM_F_DUMP {
 			words = append(words, "dump")
@@ -116,7 +93,7 @@ func ioam6Msgs(t *testing.T, rel string, request bool) string {
 func ioam6Events(t *testing.T, slug string) string {
 	t.Helper()
 	msgs := pcapNlMsgs(t, tdGenlWrite_7_1_4+"/"+slug+"/ip.pcap")
-	fam := genlFamilyID(t, msgs, "IOAM6")
+	fam := genlFamilyID(t, msgs, IOAM6GenlName)
 	var out []string
 	for _, m := range msgs {
 		if fam == 0 || m.h.Type != fam || m.h.Flags&unix.NLM_F_REQUEST != 0 {
@@ -126,16 +103,16 @@ func ioam6Events(t *testing.T, slug string) string {
 		if err != nil {
 			t.Fatal(err)
 		}
-		words := []string{map[uint8]string{ioam6EventTrace: "trace"}[g.Command]}
+		words := []string{map[uint8]string{IOAM6EventTrace: "trace"}[g.Command]}
 		for _, a := range g.Attributes {
 			switch a.ID() {
-			case ioam6EventAttrNs:
+			case IOAM6EventAttrNamespace:
 				words = append(words, "ns="+strconv.Itoa(int(binary.LittleEndian.Uint16(a.Data))))
-			case ioam6EventAttrNodeLen:
+			case IOAM6EventAttrNodeLen:
 				words = append(words, "nodelen="+strconv.Itoa(int(a.Data[0])))
-			case ioam6EventAttrType:
+			case IOAM6EventAttrTraceType:
 				words = append(words, fmt.Sprintf("type=%#x", binary.LittleEndian.Uint32(a.Data)))
-			case ioam6EventAttrData:
+			case IOAM6EventAttrTraceData:
 				words = append(words, fmt.Sprintf("data=%x", a.Data))
 			}
 		}
@@ -149,7 +126,7 @@ func ioam6Events(t *testing.T, slug string) string {
 func ioam6Errno(t *testing.T, slug string) string {
 	t.Helper()
 	msgs := pcapNlMsgs(t, tdGenlWrite_7_1_4+"/"+slug+"/ip.pcap")
-	fam := genlFamilyID(t, msgs, "IOAM6")
+	fam := genlFamilyID(t, msgs, IOAM6GenlName)
 	for _, m := range msgs {
 		if fam != 0 && m.h.Type == fam && m.h.Flags&unix.NLM_F_REQUEST != 0 {
 			return strconv.Itoa(int(answerTo(t, msgs, m.h))) + " rc " + tcpmFile(t, slug+"/ip.rc")
@@ -186,7 +163,7 @@ func TestGenlIoam6Corpus(t *testing.T) {
 			func(t *testing.T) string {
 				var missing []string
 				for _, slug := range ioam6Rows {
-					if genlFamilyID(t, pcapNlMsgs(t, tdGenlWrite_7_1_4+"/"+slug+"/ip.pcap"), "IOAM6") == 0 {
+					if genlFamilyID(t, pcapNlMsgs(t, tdGenlWrite_7_1_4+"/"+slug+"/ip.pcap"), IOAM6GenlName) == 0 {
 						missing = append(missing, slug)
 					}
 				}

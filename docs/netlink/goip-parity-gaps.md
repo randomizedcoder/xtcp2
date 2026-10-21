@@ -166,39 +166,39 @@ msgs/pcaps means messages found, over the number of pcaps they appear in. Every 
 
 | body | type (value) | msgs / pcaps | parser | table-driven parse test | parse benchmark |
 |---|---|---|---|---|---|
-| `ifinfomsg` | NEWLINK (16) | 3554 / 601 | `ParseNewLink`, `xtcpnl_ifinfomsg.go:623` | `TestParseNewLink`, `xtcpnl_rtnetlink_test.go:817`, plus 7 more files | **`BenchmarkParseNewLink`, `xtcpnl_parse_bench_test.go:259`** (P0-T01) |
+| `ifinfomsg` | NEWLINK (16) | 3554 / 601 | `ParseNewLink`, `xtcpnl_ifinfomsg.go:623` | `TestParseNewLink`, `xtcpnl_rtnetlink_test.go:817`, plus 7 more files | **`BenchmarkParseNewLink`, `xtcpnl_parse_bench_test.go:285`** (P0-T01) |
 | | DELLINK (17) | 87 / 21 | same | same | same |
 | | GETLINK (18) | 1206 / 594 | request | `BuildRequest` tests | none |
 | | SETLINK (19) | 5 / 3: `netlink_route_events.pcap`, and `ip token set` (C1-T02) | same body | `TestRtnlWriteCorpusVerbs` (type only) | none |
-| `ifinfomsg` (prop) | NEWLINKPROP (108), DELLINKPROP (109) | 2 / 2, 1 / 1 (C1-T02) | **`ParseLinkProp`, `xtcpnl_linkprop.go:42`** (P1-T03; only `ip` sends these) | **`TestParseLinkProp`, `xtcpnl_linkprop_test.go:39`; `TestParseLinkPropCorpus`**; `TestRtnlWriteCorpusVerbs` | **`BenchmarkParseLinkProp`, `xtcpnl_parse_bench_test.go:325`**, over `ip`'s requests |
+| `ifinfomsg` (prop) | NEWLINKPROP (108), DELLINKPROP (109) | 2 / 2, 1 / 1 (C1-T02) | **`ParseLinkProp`, `xtcpnl_linkprop.go:42`** (P1-T03; only `ip` sends these) | **`TestParseLinkProp`, `xtcpnl_linkprop_test.go:39`; `TestParseLinkPropCorpus`**; `TestRtnlWriteCorpusVerbs` | **`BenchmarkParseLinkProp`, `xtcpnl_parse_bench_test.go:351`**, over `ip`'s requests |
 | `ifaddrmsg` | NEWADDR (20) | 3081 / 249 | `ParseNewAddr`, `xtcpnl_ifaddrmsg.go:239` | `TestParseNewAddr`, `xtcpnl_rtnetlink_test.go:278`; `TestDecodeAddrWriteCorpus` | **`BenchmarkParseNewAddr`, `xtcpnl_bench_test.go:389`** |
 | | DELADDR (21) | 242 / 31 | same | same | same |
 | | GETADDR (22) | 290 / 210 | request | | |
 | | NEWMULTICAST (56), DELMULTICAST (57) | 48 / 8, 27 / 4 | same | `TestParseMcastAnycastFixtures`, `xtcpnl_addr_rich_test.go:440` | none |
 | | NEWANYCAST (60) | 5 / 5 | same | same | none |
 | | DELANYCAST (61) | 1 / 1 (C1-T01) | same | `TestRtnlWriteCorpus`, `xtcpnl_rtnl_write_corpus_test.go` | none |
-| `rtmsg` | NEWROUTE (24) | 761 / 71 | `ParseNewRoute`, `xtcpnl_rtmsg.go:140` | `TestParseNewRoute`, `xtcpnl_rtnetlink_test.go:553`; `TestDecodeRouteWriteCorpus` | **`BenchmarkParseNewRoute`, `xtcpnl_parse_bench_test.go:263`** (P0-T01) |
+| `rtmsg` | NEWROUTE (24) | 761 / 71 | `ParseNewRoute`, `xtcpnl_rtmsg.go:140` | `TestParseNewRoute`, `xtcpnl_rtnetlink_test.go:553`; `TestDecodeRouteWriteCorpus` | **`BenchmarkParseNewRoute`, `xtcpnl_parse_bench_test.go:289`** (P0-T01) |
 | | DELROUTE (25) | 172 / 20 | same | same | same |
 | | GETROUTE (26) | 52 / 39 | request | | |
-| `ndmsg` | NEWNEIGH (28), DELNEIGH (29), GETNEIGH (30) | 252 / 27, 71 / 4, 25 / 24 | `ParseNeigh`, `xtcpnl_ndmsg.go:244` | `TestParseNeigh`, `xtcpnl_ndmsg_test.go:216` | **`BenchmarkParseNeigh`, `xtcpnl_parse_bench_test.go:267`** (P0-T02) |
-| `fib_rule_hdr` | NEWRULE (32), GETRULE (34) | 102 / 19, 14 / 14 | `ParseRule`, `xtcpnl_fib_rule_hdr.go:270` | `TestParseRule`, `xtcpnl_fib_rule_hdr_test.go:449` | **`BenchmarkParseRule`, `xtcpnl_parse_bench_test.go:271`** (P0-T02) |
+| `ndmsg` | NEWNEIGH (28), DELNEIGH (29), GETNEIGH (30) | 252 / 27, 71 / 4, 25 / 24 | `ParseNeigh`, `xtcpnl_ndmsg.go:244` | `TestParseNeigh`, `xtcpnl_ndmsg_test.go:216` | **`BenchmarkParseNeigh`, `xtcpnl_parse_bench_test.go:293`** (P0-T02) |
+| `fib_rule_hdr` | NEWRULE (32), GETRULE (34) | 102 / 19, 14 / 14 | `ParseRule`, `xtcpnl_fib_rule_hdr.go:270` | `TestParseRule`, `xtcpnl_fib_rule_hdr_test.go:449` | **`BenchmarkParseRule`, `xtcpnl_parse_bench_test.go:297`** (P0-T02) |
 | | DELRULE (33) | 6 / 3 (C1-T01, C1-T02) | same | `TestRtnlWriteCorpus` | same |
-| `ndtmsg` | NEWNEIGHTBL (64), GETNEIGHTBL (66) | 112 / 7, 7 / 7 | `ParseNewNeighTbl`, `xtcpnl_ndtmsg.go:299` | `TestParseNewNeighTbl`, `xtcpnl_ndtmsg_test.go:169` | **`BenchmarkParseNewNeighTbl`, `xtcpnl_parse_bench_test.go:283`** (P0-T03) |
+| `ndtmsg` | NEWNEIGHTBL (64), GETNEIGHTBL (66) | 112 / 7, 7 / 7 | `ParseNewNeighTbl`, `xtcpnl_ndtmsg.go:299` | `TestParseNewNeighTbl`, `xtcpnl_ndtmsg_test.go:169` | **`BenchmarkParseNewNeighTbl`, `xtcpnl_parse_bench_test.go:309`** (P0-T03) |
 | | SETNEIGHTBL (67) | 3 / 3 (C1-T01) | `ParseNewNeighTbl` reads the request | `TestRtnlWriteCorpus` | same |
-| `ifaddrlblmsg` | NEWADDRLABEL (72), GETADDRLABEL (74) | 63 / 7, 7 / 7 | `ParseNewAddrLabel`, `xtcpnl_ifaddrlblmsg.go:91` | `TestParseNewAddrLabel`, `xtcpnl_ifaddrlblmsg_test.go:48` | **`BenchmarkParseNewAddrLabel`, `xtcpnl_parse_bench_test.go:279`** (P0-T03) |
+| `ifaddrlblmsg` | NEWADDRLABEL (72), GETADDRLABEL (74) | 63 / 7, 7 / 7 | `ParseNewAddrLabel`, `xtcpnl_ifaddrlblmsg.go:91` | `TestParseNewAddrLabel`, `xtcpnl_ifaddrlblmsg_test.go:48` | **`BenchmarkParseNewAddrLabel`, `xtcpnl_parse_bench_test.go:305`** (P0-T03) |
 | | DELADDRLABEL (73) | 12 / 2 (C1-T01, C1-T02) | same | `TestRtnlWriteCorpus` | same |
-| `netconfmsg` | NEWNETCONF (80), DELNETCONF (81), GETNETCONF (82) | 127 / 12, 6 / 1, 9 / 9 | `ParseNewNetconf`, `xtcpnl_netconfmsg.go:107` | `TestParseNewNetconf`, `xtcpnl_netconfmsg_test.go:138` | **`BenchmarkParseNewNetconf`, `xtcpnl_parse_bench_test.go:287`** (P0-T03) |
-| `rtgenmsg` + `NETNSA_*` | NEWNSID (88), GETNSID (90) | 210 / 88, 202 / 88 | **`ParseNsid`, `xtcpnl_nsid.go:61`** (P1-T01) | **`TestParseNsid`, `xtcpnl_nsid_test.go:41`; `TestParseNsidCorpus`** | **`BenchmarkParseNsid`, `xtcpnl_parse_bench_test.go:316`** |
+| `netconfmsg` | NEWNETCONF (80), DELNETCONF (81), GETNETCONF (82) | 127 / 12, 6 / 1, 9 / 9 | `ParseNewNetconf`, `xtcpnl_netconfmsg.go:107` | `TestParseNewNetconf`, `xtcpnl_netconfmsg_test.go:138` | **`BenchmarkParseNewNetconf`, `xtcpnl_parse_bench_test.go:313`** (P0-T03) |
+| `rtgenmsg` + `NETNSA_*` | NEWNSID (88), GETNSID (90) | 210 / 88, 202 / 88 | **`ParseNsid`, `xtcpnl_nsid.go:61`** (P1-T01) | **`TestParseNsid`, `xtcpnl_nsid_test.go:41`; `TestParseNsidCorpus`** | **`BenchmarkParseNsid`, `xtcpnl_parse_bench_test.go:342`** |
 | | DELNSID (89) | 3 / 3 (C1-T01, C1-T04) | same | `TestRtnlWriteCorpus`, through `ParseNsid` | same |
-| `if_stats_msg` | NEWSTATS (92), GETSTATS (94) | 222 / 57, 55 / 55 | `ParseNewStats`, `xtcpnl_ifstatsmsg.go:129` | `TestParseNewStats`, `xtcpnl_ifstatsmsg_test.go:126` | **`BenchmarkParseNewStats`, `xtcpnl_parse_bench_test.go:291`** (P0-T03) |
+| `if_stats_msg` | NEWSTATS (92), GETSTATS (94) | 222 / 57, 55 / 55 | `ParseNewStats`, `xtcpnl_ifstatsmsg.go:129` | `TestParseNewStats`, `xtcpnl_ifstatsmsg_test.go:126` | **`BenchmarkParseNewStats`, `xtcpnl_parse_bench_test.go:317`** (P0-T03) |
 | | SETSTATS (95) | 3 / 3 (C1-T01, C1-T04) | `ParseNewStats` reads the request | `TestRtnlWriteCorpus` | same |
-| `nhmsg` | NEWNEXTHOP (104), GETNEXTHOP (106) | 51 / 24, 25 / 23 | `ParseNewNexthop`, `xtcpnl_nhmsg.go:143` | `TestParseNewNexthop`, `xtcpnl_nhmsg_test.go:39` | **`BenchmarkParseNewNexthop`, `xtcpnl_parse_bench_test.go:275`** (P0-T02) |
+| `nhmsg` | NEWNEXTHOP (104), GETNEXTHOP (106) | 51 / 24, 25 / 23 | `ParseNewNexthop`, `xtcpnl_nhmsg.go:143` | `TestParseNewNexthop`, `xtcpnl_nhmsg_test.go:39` | **`BenchmarkParseNewNexthop`, `xtcpnl_parse_bench_test.go:301`** (P0-T02) |
 | | DELNEXTHOP (105) | 4 / 2 (C1-T01, C1-T02) | same | `TestRtnlWriteCorpus` | same |
-| `nhmsg` (bucket) | NEWNEXTHOPBUCKET (116), GETNEXTHOPBUCKET (118) | 1025 / 2, 2 / 2 (C1-T02) | **`ParseNexthopBucket`, `xtcpnl_nhbucket.go:59`** (P1-T02) | **`TestParseNexthopBucket`, `xtcpnl_nhbucket_test.go:52`; `TestParseNexthopBucketCorpus`**; `TestRtnlWriteCorpusVerbs`, `TestRtnlWriteCorpusShapes` | **`BenchmarkParseNexthopBucket`, `xtcpnl_parse_bench_test.go:320`** |
+| `nhmsg` (bucket) | NEWNEXTHOPBUCKET (116), GETNEXTHOPBUCKET (118) | 1025 / 2, 2 / 2 (C1-T02) | **`ParseNexthopBucket`, `xtcpnl_nhbucket.go:59`** (P1-T02) | **`TestParseNexthopBucket`, `xtcpnl_nhbucket_test.go:52`; `TestParseNexthopBucketCorpus`**; `TestRtnlWriteCorpusVerbs`, `TestRtnlWriteCorpusShapes` | **`BenchmarkParseNexthopBucket`, `xtcpnl_parse_bench_test.go:346`** |
 | | DELNEXTHOPBUCKET (117) | **0**: the kernel registers no handler for it, and `ip` never sends it | none | none | none |
-| `prefixmsg` | NEWPREFIX (52) | 3 / 3 (C1-T04) | **`ParsePrefix`, `xtcpnl_prefixmsg.go:59`** (P1-T04) | **`TestParsePrefix`, `xtcpnl_prefixmsg_test.go:40`; `TestParsePrefixCorpus`**; `TestRtnlMonitorCorpus`, through `ParsePrefix` | **`BenchmarkParsePrefix`, `xtcpnl_parse_bench_test.go:330`** |
-| `nlmsgerr` | ERROR (2), DONE (3) | 401 / 168, 1051 / 514; over generic netlink 733 / 240, 113 / 105 (C2); over XFRM 42 / 32, 31 / 29 (C3) | `ParseNlMsgErr`, `xtcpnl_nlmsgerr.go:54` | `TestParseNlMsgErr`, `xtcpnl_nlmsgerr_test.go:44` | **`BenchmarkParseNlMsgErr`, `xtcpnl_parse_bench_test.go:295`** (P0-T04, rtnetlink ERROR) |
-| events | the 8 NEW/DEL LINK/ADDR/ROUTE/NEIGH types | (as above) | `ParseRtnetlinkEvent`, `xtcpnl_rtnetlink_events.go:148` | `TestParseRtnetlinkEvent`, `xtcpnl_rtnetlink_events_test.go:243` | **`BenchmarkParseRtnetlinkEvent`, `xtcpnl_parse_bench_test.go:300`** (P0-T04, over DELLINK; the NEW types are benchmarked through their own parsers) |
+| `prefixmsg` | NEWPREFIX (52) | 3 / 3 (C1-T04) | **`ParsePrefix`, `xtcpnl_prefixmsg.go:59`** (P1-T04) | **`TestParsePrefix`, `xtcpnl_prefixmsg_test.go:40`; `TestParsePrefixCorpus`**; `TestRtnlMonitorCorpus`, through `ParsePrefix` | **`BenchmarkParsePrefix`, `xtcpnl_parse_bench_test.go:356`** |
+| `nlmsgerr` | ERROR (2), DONE (3) | 401 / 168, 1051 / 514; over generic netlink 733 / 240, 113 / 105 (C2); over XFRM 42 / 32, 31 / 29 (C3) | `ParseNlMsgErr`, `xtcpnl_nlmsgerr.go:54` | `TestParseNlMsgErr`, `xtcpnl_nlmsgerr_test.go:44` | **`BenchmarkParseNlMsgErr`, `xtcpnl_parse_bench_test.go:321`** (P0-T04, rtnetlink ERROR) |
+| events | the 8 NEW/DEL LINK/ADDR/ROUTE/NEIGH types | (as above) | `ParseRtnetlinkEvent`, `xtcpnl_rtnetlink_events.go:148` | `TestParseRtnetlinkEvent`, `xtcpnl_rtnetlink_events_test.go:243` | **`BenchmarkParseRtnetlinkEvent`, `xtcpnl_parse_bench_test.go:326`** (P0-T04, over DELLINK; the NEW types are benchmarked through their own parsers) |
 
 The capture also holds `RTM_GETMULTICAST` (58: 13 / 3) and `RTM_GETANYCAST` (62: 4 / 2). `ip` 7.1.0 sends neither: they are the dedicated multicast and anycast dump rows in `link-write/addr-mcdump/mc_any/`, which back `IFA_MULTICAST`/`IFA_ANYCAST` decoding. They will also cover `maddress` at the 7.2 pin bump.
 
@@ -206,10 +206,10 @@ The capture also holds `RTM_GETMULTICAST` (58: 13 / 3) and `RTM_GETANYCAST` (62:
 
 | family | commands in the universe | in pcaps | parser | table test | benchmark |
 |---|---|---|---|---|---|
-| nlctrl | 3 | NEWFAMILY 653 / 374, GETFAMILY 653 / 374 | `ParseGenericNetlinkFamily` | `TestGenericNetlinkFamilyBoundaries`, `xtcpnl_ethtool_test.go:215` | **`BenchmarkParseGenericNetlinkFamily`, `xtcpnl_parse_bench_test.go:308`**, and `BenchmarkParseGenericNetlink` (`:304`) over the same replies (P0-T04) |
-| tcp_metrics | 2 | GET 50 / 15, DEL 8 / 6 (C2-T01) | **`ParseTCPMetrics`, `xtcpnl_tcp_metrics.go:77`** (P2-T01) | **`TestParseTCPMetrics`, `xtcpnl_tcp_metrics_test.go:64`; `TestParseTCPMetricsCorpus`**; `TestGenlTcpMetricsCorpus`, through `ParseTCPMetrics` | **`BenchmarkParseTCPMetrics`, `xtcpnl_parse_bench_test.go:335`** |
-| seg6 | 4 | SETHMAC 6 / 6, DUMPHMAC 14 / 7, SET_TUNSRC 1 / 1, GET_TUNSRC 4 / 2 (C2-T02) | **`ParseSeg6`, `xtcpnl_seg6.go:58`** (P2-T02) | **`TestParseSeg6`, `xtcpnl_seg6_test.go:45`; `TestParseSeg6Corpus`**; `TestGenlSeg6Corpus` reads the attributes raw, in wire order | **`BenchmarkParseSeg6`, `xtcpnl_parse_bench_test.go:340`** |
-| ioam6 | 7 | ADD_NAMESPACE 4 / 4 (the walker's command 1 counts 5 / 5, with the TRACE event, whose number is also 1), DEL_NAMESPACE 3 / 3, DUMP_NAMESPACES 14 / 8, ADD_SCHEMA 3 / 3, DEL_SCHEMA 3 / 3, DUMP_SCHEMAS 12 / 7, NS_SET_SCHEMA 3 / 3; event TRACE 1 / 1 (C2-T03) | none | `TestGenlIoam6Corpus` reads the attributes raw | none |
+| nlctrl | 3 | NEWFAMILY 653 / 374, GETFAMILY 653 / 374 | `ParseGenericNetlinkFamily` | `TestGenericNetlinkFamilyBoundaries`, `xtcpnl_ethtool_test.go:215` | **`BenchmarkParseGenericNetlinkFamily`, `xtcpnl_parse_bench_test.go:334`**, and `BenchmarkParseGenericNetlink` (`:330`) over the same replies (P0-T04) |
+| tcp_metrics | 2 | GET 50 / 15, DEL 8 / 6 (C2-T01) | **`ParseTCPMetrics`, `xtcpnl_tcp_metrics.go:77`** (P2-T01) | **`TestParseTCPMetrics`, `xtcpnl_tcp_metrics_test.go:64`; `TestParseTCPMetricsCorpus`**; `TestGenlTcpMetricsCorpus`, through `ParseTCPMetrics` | **`BenchmarkParseTCPMetrics`, `xtcpnl_parse_bench_test.go:361`** |
+| seg6 | 4 | SETHMAC 6 / 6, DUMPHMAC 14 / 7, SET_TUNSRC 1 / 1, GET_TUNSRC 4 / 2 (C2-T02) | **`ParseSeg6`, `xtcpnl_seg6.go:58`** (P2-T02) | **`TestParseSeg6`, `xtcpnl_seg6_test.go:45`; `TestParseSeg6Corpus`**; `TestGenlSeg6Corpus` reads the attributes raw, in wire order | **`BenchmarkParseSeg6`, `xtcpnl_parse_bench_test.go:366`** |
+| ioam6 | 7 | ADD_NAMESPACE 4 / 4 (the walker's command 1 counts 5 / 5, with the TRACE event, whose number is also 1), DEL_NAMESPACE 3 / 3, DUMP_NAMESPACES 14 / 8, ADD_SCHEMA 3 / 3, DEL_SCHEMA 3 / 3, DUMP_SCHEMAS 12 / 7, NS_SET_SCHEMA 3 / 3; event TRACE 1 / 1 (C2-T03) | **`ParseIOAM6`, `xtcpnl_ioam6.go:64`, and `ParseIOAM6Event`, `:96`** (P2-T03) | **`TestParseIOAM6`, `xtcpnl_ioam6_test.go:66`; `TestParseIOAM6Event`, `:215`; `TestParseIOAM6Corpus`**; `TestGenlIoam6Corpus` reads the attributes raw, in wire order | **`BenchmarkParseIOAM6`, `xtcpnl_parse_bench_test.go:370`; `BenchmarkParseIOAM6Event`, `:374`** |
 | mptcp_pm | 7 | ADD_ADDR 7 / 7, DEL_ADDR 4 / 4, GET_ADDR 26 / 14, FLUSH_ADDRS 1 / 1, SET_LIMITS 5 / 5, GET_LIMITS 10 / 5, SET_FLAGS 4 / 4; events CREATED, ESTABLISHED and CLOSED 2 / 1 each, SUB_ESTABLISHED 2 / 1, SUB_CLOSED 1 / 1, LISTENER_CREATED and LISTENER_CLOSED 4 / 2 each (C2-T04; the walker counts by number, and CREATED, ESTABLISHED and CLOSED are 1, 2 and 3, so its commands 1-3 count 9 / 8, 6 / 5 and 28 / 15) | none | `TestGenlMptcpCorpus` reads the attributes raw | none |
 | fou | 3 | ADD 11 / 11, DEL 5 / 5, GET 21 / 11 (C2-T05; every GET a dump) | none | `TestGenlFouCorpus` reads the attributes raw | none |
 | ila | 3 | ADD 7 / 7, DEL 4 / 4, GET 23 / 12 (C2-T06; every GET a dump) | none | `TestGenlIlaCorpus` reads the attributes raw | none |
@@ -217,15 +217,15 @@ The capture also holds `RTM_GETMULTICAST` (58: 13 / 3) and `RTM_GETANYCAST` (62:
 | macsec | 11 | GET_TXSC 33 / 16, ADD_RXSC 3 / 3, DEL_RXSC 2 / 2, UPD_RXSC 1 / 1, ADD_TXSA 7 / 7, DEL_TXSA 3 / 3, UPD_TXSA 1 / 1, ADD_RXSA 2 / 2, DEL_RXSA 2 / 2, UPD_RXSA 1 / 1, UPD_OFFLOAD 2 / 2 (C2-T08; every GET a dump) | none | `TestGenlMacsecCorpus` reads the attributes raw | none |
 | xfrm | 22 | NEWSA 32 / 24, DELSA 6 / 4, GETSA 20 / 19, ALLOCSPI 2 / 2, UPDSA 5 / 4, FLUSHSA 4 / 3, GETSADINFO 3 / 3 (NEWSADINFO 3 / 3, the count's reply, which `ip` reads without naming); NEWPOLICY 20 / 14, DELPOLICY 6 / 4, GETPOLICY 16 / 15, UPDPOLICY 4 / 3, FLUSHPOLICY 4 / 3, NEWSPDINFO 5 / 5, GETSPDINFO 4 / 4, SETDEFAULT 2 / 2, GETDEFAULT 5 / 3; events ACQUIRE 1 / 1, EXPIRE 2 / 1, POLEXPIRE 2 / 1, NEWAE 2 / 1, MAPPING 1 / 1 (C3-T01, C3-T02). REPORT: **0** (excluded, [decision log](goip-parity-gaps-status.md#decision-log)) | none | `TestXfrmStateCorpus` and `TestXfrmPolicyCorpus` read the bodies and attributes raw | none |
 
-The corpus also holds ethtool (19 commands), devlink (2) and nl80211 (7) from the link-state bundles. `ip` uses none of these families. ethtool's parser, `ParseEthtool`, has a benchmark since P0-T04, `BenchmarkParseEthtool` (`xtcpnl_parse_bench_test.go:312`).
+The corpus also holds ethtool (19 commands), devlink (2) and nl80211 (7) from the link-state bundles. `ip` uses none of these families. ethtool's parser, `ParseEthtool`, has a benchmark since P0-T04, `BenchmarkParseEthtool` (`xtcpnl_parse_bench_test.go:338`).
 
 ### What the assessment says
 
 1. **The rtnetlink read side is in good shape.** Every body layout that a running goip object reads has captured pcaps, a parser and a table-driven test.
 2. **The capture holes were the DEL and SET types:** DELANYCAST, DELRULE, SETNEIGHTBL, DELADDRLABEL, DELNSID, SETSTATS and DELNEXTHOP. Each shares a body layout with its NEW type, so all but DELNSID already had a parser (NSID had none until P1-T01; point 3). The bytes were missing because no capture row sent them. C1-T01 added those rows (`link-write/rtnl/`), and each of the seven is now captured and checked by `TestRtnlWriteCorpus`.
 3. **Four rtnetlink layouts had no parser:** NSID, nexthop bucket, LINKPROP and prefix. Since C1 closed, all four have bytes: NSID 210 NEWNSID messages, the nexthop bucket and LINKPROP from C1-T02 (a 1024-bucket dump, and altname add and del), and prefix from C1-T04 (an RA's NEWPREFIX, 3 messages). The parsers are P1, and since P1 closed all four have one: NSID `ParseNsid` (P1-T01), the nexthop bucket `ParseNexthopBucket` (P1-T02), LINKPROP `ParseLinkProp` (P1-T03) and prefix `ParsePrefix` (P1-T04).
-4. **Generic netlink beyond nlctrl and XFRM had nothing:** no pcaps, no parsers, no tests. When this was measured the blocker was in the harness: `xtcp2-nlcap` kept only `NETLINK_ROUTE` (`ether[14:2]==0`), although nlmon taps GENERIC and XFRM. C0 removed it. A row now names its protocol (`--proto`, C0-T01), and the modules those families need are loaded late (C0-T02). What is missing is the capture rows (C2, C3). C2-T01 added the first: tcp_metrics' GET and DEL are captured (`link-write/genl/`), with no parser yet (P2). C2-T02 added sr's four SEG6 commands, C2-T03 ioam's seven IOAM6 commands, C2-T04 the seven mptcp_pm commands `ip` sends, C2-T05 fou's three, C2-T06 ila's three, C2-T07 the six l2tp commands `ip` sends, and C2-T08 macsec's eleven. Since C2 closed, every genl family in the universe has captured bytes and a test that reads them raw; the parsers are P2, tcp_metrics has one since P2-T01, `ParseTCPMetrics`, and seg6 since P2-T02, `ParseSeg6`. C3-T01 added the XFRM state rows (`link-write/xfrm/`): the seven types `ip xfrm state` sends are captured and read raw by `TestXfrmStateCorpus`. C3-T02 added policy, SPDINFO, the defaults and the events (`ip xfrm monitor`), read raw by `TestXfrmPolicyCorpus`. Since C3 closed, every XFRM type but REPORT has captured bytes; the parsers are P3.
-5. **Benchmarks:** every rtnetlink and genl parser in the tables above has a parse benchmark, 15 since P0 closed, and 19 since P1 closed, with P1-T01's `BenchmarkParseNsid`, P1-T02's `BenchmarkParseNexthopBucket`, P1-T03's `BenchmarkParseLinkProp` and P1-T04's `BenchmarkParsePrefix`, then P2-T01's `BenchmarkParseTCPMetrics` and P2-T02's `BenchmarkParseSeg6`: `ParseNewAddr`, since P0-T01 `ParseNewLink` and `ParseNewRoute`, since P0-T02 `ParseNeigh`, `ParseRule` and `ParseNewNexthop`, since P0-T03 `ParseNewAddrLabel`, `ParseNewNeighTbl`, `ParseNewNetconf` and `ParseNewStats`, and since P0-T04 `ParseNlMsgErr`, `ParseRtnetlinkEvent`, `ParseGenericNetlink`, `ParseGenericNetlinkFamily` and `ParseEthtool`. The rest of `BenchmarkDeserialize*` covers inet_diag only.
+4. **Generic netlink beyond nlctrl and XFRM had nothing:** no pcaps, no parsers, no tests. When this was measured the blocker was in the harness: `xtcp2-nlcap` kept only `NETLINK_ROUTE` (`ether[14:2]==0`), although nlmon taps GENERIC and XFRM. C0 removed it. A row now names its protocol (`--proto`, C0-T01), and the modules those families need are loaded late (C0-T02). What is missing is the capture rows (C2, C3). C2-T01 added the first: tcp_metrics' GET and DEL are captured (`link-write/genl/`), with no parser yet (P2). C2-T02 added sr's four SEG6 commands, C2-T03 ioam's seven IOAM6 commands, C2-T04 the seven mptcp_pm commands `ip` sends, C2-T05 fou's three, C2-T06 ila's three, C2-T07 the six l2tp commands `ip` sends, and C2-T08 macsec's eleven. Since C2 closed, every genl family in the universe has captured bytes and a test that reads them raw; the parsers are P2, tcp_metrics has one since P2-T01, `ParseTCPMetrics`, seg6 since P2-T02, `ParseSeg6`, and ioam6 since P2-T03, `ParseIOAM6` and `ParseIOAM6Event`. C3-T01 added the XFRM state rows (`link-write/xfrm/`): the seven types `ip xfrm state` sends are captured and read raw by `TestXfrmStateCorpus`. C3-T02 added policy, SPDINFO, the defaults and the events (`ip xfrm monitor`), read raw by `TestXfrmPolicyCorpus`. Since C3 closed, every XFRM type but REPORT has captured bytes; the parsers are P3.
+5. **Benchmarks:** every rtnetlink and genl parser in the tables above has a parse benchmark, 15 since P0 closed, and 19 since P1 closed, with P1-T01's `BenchmarkParseNsid`, P1-T02's `BenchmarkParseNexthopBucket`, P1-T03's `BenchmarkParseLinkProp` and P1-T04's `BenchmarkParsePrefix`, then P2-T01's `BenchmarkParseTCPMetrics` P2-T02's `BenchmarkParseSeg6`, and P2-T03's `BenchmarkParseIOAM6` and `BenchmarkParseIOAM6Event`: `ParseNewAddr`, since P0-T01 `ParseNewLink` and `ParseNewRoute`, since P0-T02 `ParseNeigh`, `ParseRule` and `ParseNewNexthop`, since P0-T03 `ParseNewAddrLabel`, `ParseNewNeighTbl`, `ParseNewNetconf` and `ParseNewStats`, and since P0-T04 `ParseNlMsgErr`, `ParseRtnetlinkEvent`, `ParseGenericNetlink`, `ParseGenericNetlinkFamily` and `ParseEthtool`. The rest of `BenchmarkDeserialize*` covers inet_diag only.
 
 ### How to re-measure
 
@@ -1464,6 +1464,55 @@ P2-T01 to P2-T08 match the C2 tasks one to one. Each builds on `ParseGenericNetl
 | positive: ip's SET_TUNSRC and GET_TUNSRC requests decode | `1 decoded, … 1 dst …`, `2 decoded, … 0 dst …` |
 | positive: every tunnel source the kernel answered decodes with an address | `2 decoded, 0 errors, 2 dst, …` |
 | negative: the kernel answers no SETHMAC | `0 decoded, …` |
+
+**P2-T03 delivered** (`pkg/xtcpnl/xtcpnl_ioam6.go`):
+- `ParseIOAM6` decodes an IOAM6 command or dump body, `ip ioam`'s seven commands and the kernel's DUMP_NAMESPACES and DUMP_SCHEMAS answers: the namespace id, its data and wide data, the schema id and data, and the SC_NONE flag that unbinds a namespace.
+- `ParseIOAM6Event` decodes the TRACE event the kernel multicasts for `ip ioam monitor`: the namespace, node length, trace type and the nodes' data. The event has its own number space: IOAM6_EVENT_TRACE is 1, as ADD_NAMESPACE is, and its attributes 2 to 4 have other types, so a kernel message of command 1 is an event; the kernel never sends ADD_NAMESPACE. Read as a command, the event fails, its NODELEN not a u32.
+- `genlDecoder` gains `flag`, which requires an empty, unflagged attribute, as the kernel's `NLA_FLAG` policy does.
+- `TestGenlIoam6Corpus` uses the exported constants; it keeps its own renderers, since it checks the attributes' wire order.
+- A bench kind can now name genl commands (`genlCmds`), so `BenchmarkParseIOAM6` runs over the kernel's 11 dump answers, 12, 20 and 32 bytes (3, 4 and 8 allocations), and `BenchmarkParseIOAM6Event` over the one 36-byte event, every pick (9 allocations). `TestBenchPick` covers the command filter.
+
+`TestParseIOAM6`:
+
+| description | expected |
+|---|---|
+| positive: ip's namespace add with data and wide data, and the kernel's dump of it (captured) | `cmd=1 ver=1 ns=2 data=0x2a wide=0x2a`, `cmd=3 …` |
+| corner: ip sends all-ones data, which the kernel reads as unavailable and leaves out of its dump (captured) | `… ns=3 data=0xffffffff wide=0xffffffffffffffff`, `cmd=3 ver=1 ns=3` |
+| positive: ip's namespace del, schema del and namespace set (captured) | `cmd=2 ver=1 ns=1`, `cmd=5 ver=1 sc=1`, `cmd=7 ver=1 ns=1 sc=1` |
+| positive: ip's schema add, and the kernel's dump padded with zeros to eight (captured) | `cmd=4 ver=1 sc=2 scdata=6162636465`, `cmd=6 ver=1 sc=2 scdata=6162636465000000` |
+| positive: the kernel's schema dump names its bound namespace (captured) | `cmd=6 ver=1 ns=1 sc=1 scdata=61626364` |
+| positive: ip's schema none is the empty SC_NONE flag (captured) | `cmd=7 ver=1 ns=1 none` |
+| corner: the kernel's TRACE event read as a command (captured) | `ErrGenericNetlink`: attribute 2 needs an unflagged 4-byte scalar |
+| boundary: ip's namespace show is the genl header alone (captured); one byte short of it | `cmd=3 ver=1`; `ErrGenericNetlink`: short genlmsghdr |
+| boundary: an empty schema data | `scdata=`, present |
+| corner: the pad, an unknown attribute and an unknown command are not errors | `cmd=9 ver=1 ns=1` |
+| negative: an SC_NONE with a payload, or nested-flagged | `ErrGenericNetlink`: attribute 6 needs an empty, unflagged flag |
+| negative: a repeated SC_NONE or schema data | `ErrGenericNetlink`: duplicate attribute 6, 5 |
+| negative: a namespace id, data, wide data or schema id of the wrong width | `ErrGenericNetlink`: the attribute needs an unflagged N-byte scalar |
+| negative: an attribute longer than the body | `ErrGenericNetlink`: attribute length 40 |
+
+`TestParseIOAM6Event`:
+
+| description | expected |
+|---|---|
+| positive: the kernel's TRACE for namespace 123, one node (captured) | `cmd=1 ver=1 ns=123 nodelen=1 type=0x80000000 data=3fffffff` |
+| boundary: a header-only event; an empty trace data | `cmd=1 ver=1`; `data=`, present |
+| corner: an unknown attribute is not an error | `cmd=1 ver=1 nodelen=2` |
+| negative: a NODELEN, namespace or trace type of the wrong width | `ErrGenericNetlink`: the attribute needs an unflagged N-byte scalar |
+| negative: a repeated trace data; one byte short of the genl header | `ErrGenericNetlink`: duplicate attribute 4; short genlmsghdr |
+
+`TestParseIOAM6Corpus`, over every IOAM6 message, a kernel message of command 1 as an event:
+
+| description | expected |
+|---|---|
+| positive: ip's ADD_NAMESPACE and DEL_NAMESPACE requests | `4 decoded, 0 errors, 4 ns, …`, `3 decoded, 0 errors, 3 ns, …` |
+| positive: the kernel's one TRACE event decodes as an event | `1 decoded, 0 errors, 1 ns, …` |
+| positive: ip's DUMP_NAMESPACES and DUMP_SCHEMAS requests, the genl header alone | `8 decoded, 0 errors, 0 ns, …`, `7 decoded, …` |
+| positive: every namespace the kernel dumped, one bound to a schema | `6 decoded, 0 errors, 6 ns, 1 sc, 0 scdata, 0 none` |
+| positive: ip's ADD_SCHEMA and DEL_SCHEMA requests | `3 decoded, 0 errors, 0 ns, 3 sc, 3 scdata, 0 none`, `3 decoded, … 3 sc, 0 scdata …` |
+| positive: every schema the kernel dumped, one bound to a namespace | `5 decoded, 0 errors, 1 ns, 5 sc, 5 scdata, 0 none` |
+| positive: ip's NS_SET_SCHEMA requests, one with the none flag | `3 decoded, 0 errors, 3 ns, 2 sc, 0 scdata, 1 none` |
+| negative: the kernel answers no NS_SET_SCHEMA | `0 decoded, …` |
 
 ### P3 — XFRM parsers
 
