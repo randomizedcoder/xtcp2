@@ -19,10 +19,14 @@ import (
 // the existing parsers"). Each benchmark decodes the smallest, a typical
 // and the largest body of its type the kernel sent in the committed corpus.
 
-// corpusMsg is one message out of the committed corpus, with its pcap.
+// corpusMsg is one message out of the committed corpus, with its pcap and,
+// for a generic netlink message, the name of its family, resolved from the
+// NEWFAMILY replies in the same pcap, since family ids are assigned at run
+// time.
 type corpusMsg struct {
-	path string
-	m    capturedNlMsg
+	path   string
+	family string
+	m      capturedNlMsg
 }
 
 var (
@@ -54,8 +58,14 @@ func corpusAll(tb testing.TB) []corpusMsg {
 			if _, _, err := ParseNetlinkPcap(bs); errors.Is(err, ErrPcapNotNetlink) || errors.Is(err, ErrPcapBadMagic) {
 				continue
 			}
-			for _, m := range pcapNlMsgs(tb, path) {
-				corpusMsgs = append(corpusMsgs, corpusMsg{path: path, m: m})
+			msgs := pcapNlMsgs(tb, path)
+			families := pcapGenlFamilies(tb, msgs)
+			for _, m := range msgs {
+				c := corpusMsg{path: path, m: m}
+				if m.proto == unix.NETLINK_GENERIC {
+					c.family = families[m.h.Type]
+				}
+				corpusMsgs = append(corpusMsgs, c)
 			}
 		}
 	})
@@ -65,23 +75,57 @@ func corpusAll(tb testing.TB) []corpusMsg {
 	return corpusMsgs
 }
 
-// benchRecord is one captured body a parse benchmark decodes: its row
-// name, its pcap and the body.
+// benchRecord is one captured message a parse benchmark decodes: its row
+// name, its pcap, its header and its body.
 type benchRecord struct {
 	name string
 	path string
+	h    NlMsgHdr
 	body []byte
 }
 
+// benchKind is the messages a parser's picks come from: a protocol, and
+// either a message type or, for generic netlink, a family name.
+type benchKind struct {
+	proto  uint16
+	typ    uint16
+	family string
+}
+
+// rtnl is the rtnetlink messages of type typ.
+func rtnl(typ uint16) benchKind { return benchKind{proto: unix.NETLINK_ROUTE, typ: typ} }
+
+// genl is the generic netlink messages of the family called family.
+func genl(family string) benchKind { return benchKind{proto: unix.NETLINK_GENERIC, family: family} }
+
+// String is the kind as TestParseBenchCases pins it: proto/type or
+// proto/family.
+func (k benchKind) String() string {
+	if k.family != "" {
+		return strconv.Itoa(int(k.proto)) + "/" + k.family
+	}
+	return strconv.Itoa(int(k.proto)) + "/" + strconv.Itoa(int(k.typ))
+}
+
+// matches reports whether c is of kind k.
+func (k benchKind) matches(c corpusMsg) bool {
+	if c.m.proto != k.proto {
+		return false
+	}
+	if k.family != "" {
+		return c.family == k.family
+	}
+	return c.m.h.Type == k.typ
+}
+
 // benchPick returns the smallest, a typical (the median length) and the
-// largest body of a protocol's type that the kernel sent, that is, in a
-// message without NLM_F_REQUEST, or nil when msgs holds none. Equal
-// lengths keep msgs' order, so the choice changes only when the corpus
-// does.
-func benchPick(msgs []corpusMsg, proto, typ uint16) []benchRecord {
+// largest body of kind k that the kernel sent, that is, in a message
+// without NLM_F_REQUEST, or nil when msgs holds none. Equal lengths keep
+// msgs' order, so the choice changes only when the corpus does.
+func benchPick(msgs []corpusMsg, k benchKind) []benchRecord {
 	var all []corpusMsg
 	for _, c := range msgs {
-		if c.m.proto == proto && c.m.h.Type == typ && c.m.h.Flags&unix.NLM_F_REQUEST == 0 {
+		if k.matches(c) && c.m.h.Flags&unix.NLM_F_REQUEST == 0 {
 			all = append(all, c)
 		}
 	}
@@ -90,7 +134,7 @@ func benchPick(msgs []corpusMsg, proto, typ uint16) []benchRecord {
 	}
 	slices.SortStableFunc(all, func(a, b corpusMsg) int { return len(a.m.body) - len(b.m.body) })
 	pick := func(name string, c corpusMsg) benchRecord {
-		return benchRecord{name: name, path: c.path, body: c.m.body}
+		return benchRecord{name: name, path: c.path, h: c.m.h, body: c.m.body}
 	}
 	return []benchRecord{
 		pick("smallest", all[0]),
@@ -99,13 +143,13 @@ func benchPick(msgs []corpusMsg, proto, typ uint16) []benchRecord {
 	}
 }
 
-// benchRecords is benchPick over the committed corpus. A type the corpus
+// benchRecords is benchPick over the committed corpus. A kind the corpus
 // has no kernel message of fails the benchmark.
-func benchRecords(tb testing.TB, proto, typ uint16) []benchRecord {
+func benchRecords(tb testing.TB, k benchKind) []benchRecord {
 	tb.Helper()
-	recs := benchPick(corpusAll(tb), proto, typ)
+	recs := benchPick(corpusAll(tb), k)
 	if recs == nil {
-		tb.Fatalf("no kernel message of protocol %d type %d in the corpus", proto, typ)
+		tb.Fatalf("no kernel message of kind %s in the corpus", k)
 	}
 	return recs
 }
@@ -120,30 +164,40 @@ var (
 	resultNtbl    NeighTblInfo
 	resultNetconf NetconfInfo
 	resultStats   IfStatsInfo
+	resultNlErr   NlMsgErr
+	resultEvent   any
+	resultGenl    GenericNetlinkMessage
+	resultFamily  GenericNetlinkFamily
+	resultEthtool EthtoolMessage
 )
 
-// parseBenchCase is one parser P0 benchmarks: its name, the rtnetlink type
-// of its picks, and a call that decodes one body into the parser's result
+// parseBenchCase is one parser P0 benchmarks: its name, the kind of its
+// picks, and a call that decodes one message into the parser's result
 // sink. The benchmarks, TestParseBenchRecords and TestParseBenchAllocs all
-// read this one table, and TestParseBenchCases pins each parser's type,
+// read this one table, and TestParseBenchCases pins each parser's kind,
 // since a parser can decode another type's body without an error.
 type parseBenchCase struct {
 	name  string
-	typ   uint16
-	parse func([]byte) error
+	kind  benchKind
+	parse func(h NlMsgHdr, b []byte) error
 }
 
 var parseBenchCases = []parseBenchCase{
-	{name: "ParseNewLink", typ: unix.RTM_NEWLINK, parse: func(b []byte) (err error) { resultLink, err = ParseNewLink(b); return err }},
-	{name: "ParseNewRoute", typ: unix.RTM_NEWROUTE, parse: func(b []byte) (err error) { resultRoute, err = ParseNewRoute(b); return err }},
-	{name: "ParseNewAddr", typ: unix.RTM_NEWADDR, parse: func(b []byte) (err error) { resultAddr, err = ParseNewAddr(b); return err }},
-	{name: "ParseNeigh", typ: unix.RTM_NEWNEIGH, parse: func(b []byte) (err error) { resultNeigh, err = ParseNeigh(b); return err }},
-	{name: "ParseRule", typ: unix.RTM_NEWRULE, parse: func(b []byte) (err error) { resultRule, err = ParseRule(b); return err }},
-	{name: "ParseNewNexthop", typ: unix.RTM_NEWNEXTHOP, parse: func(b []byte) (err error) { resultNexthop, err = ParseNewNexthop(b); return err }},
-	{name: "ParseNewAddrLabel", typ: unix.RTM_NEWADDRLABEL, parse: func(b []byte) (err error) { resultLabel, err = ParseNewAddrLabel(b); return err }},
-	{name: "ParseNewNeighTbl", typ: unix.RTM_NEWNEIGHTBL, parse: func(b []byte) (err error) { resultNtbl, err = ParseNewNeighTbl(b); return err }},
-	{name: "ParseNewNetconf", typ: unix.RTM_NEWNETCONF, parse: func(b []byte) (err error) { resultNetconf, err = ParseNewNetconf(b); return err }},
-	{name: "ParseNewStats", typ: unix.RTM_NEWSTATS, parse: func(b []byte) (err error) { resultStats, err = ParseNewStats(b); return err }},
+	{name: "ParseNewLink", kind: rtnl(unix.RTM_NEWLINK), parse: func(_ NlMsgHdr, b []byte) (err error) { resultLink, err = ParseNewLink(b); return err }},
+	{name: "ParseNewRoute", kind: rtnl(unix.RTM_NEWROUTE), parse: func(_ NlMsgHdr, b []byte) (err error) { resultRoute, err = ParseNewRoute(b); return err }},
+	{name: "ParseNewAddr", kind: rtnl(unix.RTM_NEWADDR), parse: func(_ NlMsgHdr, b []byte) (err error) { resultAddr, err = ParseNewAddr(b); return err }},
+	{name: "ParseNeigh", kind: rtnl(unix.RTM_NEWNEIGH), parse: func(_ NlMsgHdr, b []byte) (err error) { resultNeigh, err = ParseNeigh(b); return err }},
+	{name: "ParseRule", kind: rtnl(unix.RTM_NEWRULE), parse: func(_ NlMsgHdr, b []byte) (err error) { resultRule, err = ParseRule(b); return err }},
+	{name: "ParseNewNexthop", kind: rtnl(unix.RTM_NEWNEXTHOP), parse: func(_ NlMsgHdr, b []byte) (err error) { resultNexthop, err = ParseNewNexthop(b); return err }},
+	{name: "ParseNewAddrLabel", kind: rtnl(unix.RTM_NEWADDRLABEL), parse: func(_ NlMsgHdr, b []byte) (err error) { resultLabel, err = ParseNewAddrLabel(b); return err }},
+	{name: "ParseNewNeighTbl", kind: rtnl(unix.RTM_NEWNEIGHTBL), parse: func(_ NlMsgHdr, b []byte) (err error) { resultNtbl, err = ParseNewNeighTbl(b); return err }},
+	{name: "ParseNewNetconf", kind: rtnl(unix.RTM_NEWNETCONF), parse: func(_ NlMsgHdr, b []byte) (err error) { resultNetconf, err = ParseNewNetconf(b); return err }},
+	{name: "ParseNewStats", kind: rtnl(unix.RTM_NEWSTATS), parse: func(_ NlMsgHdr, b []byte) (err error) { resultStats, err = ParseNewStats(b); return err }},
+	{name: "ParseNlMsgErr", kind: rtnl(unix.NLMSG_ERROR), parse: func(h NlMsgHdr, b []byte) (err error) { resultNlErr, err = ParseNlMsgErr(h.Flags, b); return err }},
+	{name: "ParseRtnetlinkEvent", kind: rtnl(unix.RTM_DELLINK), parse: func(h NlMsgHdr, b []byte) (err error) { resultEvent, err = ParseRtnetlinkEvent(h.Type, b); return err }},
+	{name: "ParseGenericNetlink", kind: genl("nlctrl"), parse: func(_ NlMsgHdr, b []byte) (err error) { resultGenl, err = ParseGenericNetlink(b); return err }},
+	{name: "ParseGenericNetlinkFamily", kind: genl("nlctrl"), parse: func(_ NlMsgHdr, b []byte) (err error) { resultFamily, err = ParseGenericNetlinkFamily(b); return err }},
+	{name: "ParseEthtool", kind: genl("ethtool"), parse: func(h NlMsgHdr, b []byte) (err error) { resultEthtool, err = ParseEthtool(b, h.Flags); return err }},
 }
 
 // parseBenchCaseNamed returns the parseBenchCases entry called name.
@@ -158,14 +212,14 @@ func parseBenchCaseNamed(tb testing.TB, name string) parseBenchCase {
 	return parseBenchCase{}
 }
 
-// benchParse runs the parser called name over its type's three picks.
+// benchParse runs the parser called name over its kind's three picks.
 func benchParse(b *testing.B, name string) {
 	c := parseBenchCaseNamed(b, name)
-	for _, r := range benchRecords(b, unix.NETLINK_ROUTE, c.typ) {
+	for _, r := range benchRecords(b, c.kind) {
 		b.Run(r.name, func(b *testing.B) {
 			b.ReportAllocs()
 			for b.Loop() {
-				if err := c.parse(r.body); err != nil {
+				if err := c.parse(r.h, r.body); err != nil {
 					b.Fatal(err)
 				}
 			}
@@ -209,6 +263,27 @@ func BenchmarkParseNewNetconf(b *testing.B) { benchParse(b, "ParseNewNetconf") }
 // RTM_NEWSTATS the corpus holds.
 func BenchmarkParseNewStats(b *testing.B) { benchParse(b, "ParseNewStats") }
 
+// BenchmarkParseNlMsgErr decodes the smallest, a typical and the largest
+// rtnetlink NLMSG_ERROR the corpus holds.
+func BenchmarkParseNlMsgErr(b *testing.B) { benchParse(b, "ParseNlMsgErr") }
+
+// BenchmarkParseRtnetlinkEvent decodes the smallest, a typical and the
+// largest RTM_DELLINK the corpus holds: a DEL type, since the NEW types
+// are benchmarked through their own parsers.
+func BenchmarkParseRtnetlinkEvent(b *testing.B) { benchParse(b, "ParseRtnetlinkEvent") }
+
+// BenchmarkParseGenericNetlink decodes the smallest, a typical and the
+// largest nlctrl message the corpus holds.
+func BenchmarkParseGenericNetlink(b *testing.B) { benchParse(b, "ParseGenericNetlink") }
+
+// BenchmarkParseGenericNetlinkFamily decodes the smallest, a typical and
+// the largest nlctrl NEWFAMILY reply the corpus holds.
+func BenchmarkParseGenericNetlinkFamily(b *testing.B) { benchParse(b, "ParseGenericNetlinkFamily") }
+
+// BenchmarkParseEthtool decodes the smallest, a typical and the largest
+// ethtool message the kernel sent in the corpus.
+func BenchmarkParseEthtool(b *testing.B) { benchParse(b, "ParseEthtool") }
+
 func TestBenchPick(t *testing.T) {
 	// msg is a captured message of type typ whose body is n bytes, from a
 	// pcap named path.
@@ -216,6 +291,14 @@ func TestBenchPick(t *testing.T) {
 		return corpusMsg{path: path, m: capturedNlMsg{proto: proto, h: NlMsgHdr{Type: typ, Flags: flags}, body: make([]byte, n)}}
 	}
 	route, newlink := uint16(unix.NETLINK_ROUTE), uint16(unix.RTM_NEWLINK)
+	link := rtnl(newlink)
+	// gmsg is a generic netlink message of a family, under the id it has
+	// in its pcap.
+	gmsg := func(path, family string, id uint16, n int) corpusMsg {
+		c := msg(path, unix.NETLINK_GENERIC, id, 0, n)
+		c.family = family
+		return c
+	}
 	// render shows each pick as name=path/length.
 	render := func(recs []benchRecord) string {
 		out := make([]string, 0, len(recs))
@@ -226,11 +309,13 @@ func TestBenchPick(t *testing.T) {
 	}
 	tests := []struct {
 		description string
+		kind        benchKind
 		msgs        []corpusMsg
 		expected    string
 	}{
 		{
 			description: "positive: five lengths give the first, the third and the fifth",
+			kind:        link,
 			msgs: []corpusMsg{
 				msg("e", route, newlink, 0, 50), msg("a", route, newlink, 0, 10), msg("c", route, newlink, 0, 30),
 				msg("b", route, newlink, 0, 20), msg("d", route, newlink, 0, 40),
@@ -239,38 +324,56 @@ func TestBenchPick(t *testing.T) {
 		},
 		{
 			description: "boundary: one message is every pick",
+			kind:        link,
 			msgs:        []corpusMsg{msg("a", route, newlink, unix.NLM_F_MULTI, 52)},
 			expected:    "smallest=a/52 typical=a/52 largest=a/52",
 		},
 		{
 			description: "boundary: two messages, the typical one the larger",
+			kind:        link,
 			msgs:        []corpusMsg{msg("a", route, newlink, 0, 52), msg("b", route, newlink, 0, 60)},
 			expected:    "smallest=a/52 typical=b/60 largest=b/60",
 		},
 		{
 			description: "corner: equal lengths keep corpus order",
+			kind:        link,
 			msgs:        []corpusMsg{msg("a", route, newlink, 0, 52), msg("b", route, newlink, 0, 52), msg("c", route, newlink, 0, 52)},
 			expected:    "smallest=a/52 typical=b/52 largest=c/52",
 		},
 		{
 			description: "corner: ip's request is not a kernel message",
+			kind:        link,
 			msgs:        []corpusMsg{msg("req", route, newlink, unix.NLM_F_REQUEST|unix.NLM_F_ACK, 900), msg("a", route, newlink, 0, 52)},
 			expected:    "smallest=a/52 typical=a/52 largest=a/52",
 		},
 		{
 			description: "corner: the same type number in another protocol is not picked",
+			kind:        link,
 			msgs:        []corpusMsg{msg("xfrm", unix.NETLINK_XFRM, newlink, 0, 900), msg("a", route, newlink, 0, 52)},
 			expected:    "smallest=a/52 typical=a/52 largest=a/52",
 		},
 		{
+			description: "positive: a genl family is picked by name, whatever its id in each pcap",
+			kind:        genl("ethtool"),
+			msgs:        []corpusMsg{gmsg("a", "ethtool", 20, 40), gmsg("b", "ethtool", 21, 60), gmsg("ctrl", "nlctrl", GenlControllerID, 900)},
+			expected:    "smallest=a/40 typical=b/60 largest=b/60",
+		},
+		{
+			description: "corner: another family under the same id in another pcap is not picked",
+			kind:        genl("ethtool"),
+			msgs:        []corpusMsg{gmsg("a", "ethtool", 20, 40), gmsg("mptcp", "mptcp_pm", 20, 900)},
+			expected:    "smallest=a/40 typical=a/40 largest=a/40",
+		},
+		{
 			description: "negative: no message of the type",
+			kind:        link,
 			msgs:        []corpusMsg{msg("a", route, unix.RTM_NEWADDR, 0, 52)},
 			expected:    "",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
-			if got := render(benchPick(tt.msgs, route, newlink)); got != tt.expected {
+			if got := render(benchPick(tt.msgs, tt.kind)); got != tt.expected {
 				t.Errorf("got %q, expected %q", got, tt.expected)
 			}
 		})
@@ -280,7 +383,7 @@ func TestBenchPick(t *testing.T) {
 func TestParseBenchCases(t *testing.T) {
 	got := make([]string, 0, len(parseBenchCases))
 	for _, c := range parseBenchCases {
-		got = append(got, c.name+"="+strconv.Itoa(int(c.typ)))
+		got = append(got, c.name+"="+c.kind.String())
 	}
 	tests := []struct {
 		description string
@@ -288,10 +391,12 @@ func TestParseBenchCases(t *testing.T) {
 		expected    string
 	}{
 		{
-			description: "positive: each parser's picks are of its own type",
+			description: "positive: each parser's picks are of its own kind",
 			got:         strings.Join(got, " "),
-			expected: "ParseNewLink=16 ParseNewRoute=24 ParseNewAddr=20 ParseNeigh=28 ParseRule=32 ParseNewNexthop=104" +
-				" ParseNewAddrLabel=72 ParseNewNeighTbl=64 ParseNewNetconf=80 ParseNewStats=92",
+			expected: "ParseNewLink=0/16 ParseNewRoute=0/24 ParseNewAddr=0/20 ParseNeigh=0/28 ParseRule=0/32 ParseNewNexthop=0/104" +
+				" ParseNewAddrLabel=0/72 ParseNewNeighTbl=0/64 ParseNewNetconf=0/80 ParseNewStats=0/92" +
+				" ParseNlMsgErr=0/2 ParseRtnetlinkEvent=0/17" +
+				" ParseGenericNetlink=16/nlctrl ParseGenericNetlinkFamily=16/nlctrl ParseEthtool=16/ethtool",
 		},
 	}
 	for _, tt := range tests {
@@ -321,15 +426,20 @@ func TestParseBenchRecords(t *testing.T) {
 		{description: "positive: ParseNewNeighTbl decodes its three RTM_NEWNEIGHTBL picks", name: "ParseNewNeighTbl", expected: "smallest ok, typical ok, largest ok"},
 		{description: "positive: ParseNewNetconf decodes its three RTM_NEWNETCONF picks", name: "ParseNewNetconf", expected: "smallest ok, typical ok, largest ok"},
 		{description: "positive: ParseNewStats decodes its three RTM_NEWSTATS picks", name: "ParseNewStats", expected: "smallest ok, typical ok, largest ok"},
+		{description: "positive: ParseNlMsgErr decodes its three rtnetlink NLMSG_ERROR picks", name: "ParseNlMsgErr", expected: "smallest ok, typical ok, largest ok"},
+		{description: "positive: ParseRtnetlinkEvent decodes its three RTM_DELLINK picks", name: "ParseRtnetlinkEvent", expected: "smallest ok, typical ok, largest ok"},
+		{description: "positive: ParseGenericNetlink decodes its three nlctrl picks", name: "ParseGenericNetlink", expected: "smallest ok, typical ok, largest ok"},
+		{description: "positive: ParseGenericNetlinkFamily decodes its three nlctrl picks", name: "ParseGenericNetlinkFamily", expected: "smallest ok, typical ok, largest ok"},
+		{description: "positive: ParseEthtool decodes its three ethtool picks", name: "ParseEthtool", expected: "smallest ok, typical ok, largest ok"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
 			c := parseBenchCaseNamed(t, tt.name)
-			recs := benchRecords(t, unix.NETLINK_ROUTE, c.typ)
+			recs := benchRecords(t, c.kind)
 			got := make([]string, 0, len(recs))
 			for i, r := range recs {
 				status := "ok"
-				if err := c.parse(r.body); err != nil {
+				if err := c.parse(r.h, r.body); err != nil {
 					status = err.Error()
 				}
 				if i > 0 && len(r.body) < len(recs[i-1].body) {
@@ -346,30 +456,32 @@ func TestParseBenchRecords(t *testing.T) {
 
 // TestParseBenchAllocs asserts the allocations of each parser that is
 // allocation-free on some of its picks today, so a change that makes it
-// allocate fails here, not only in a benchmark nobody reads.
+// allocate fails here, not only in a benchmark nobody reads. Each result
+// leads with the parser's kind, since two parsers can allocate alike.
 func TestParseBenchAllocs(t *testing.T) {
 	tests := []struct {
 		description string
 		name        string
 		expected    string
 	}{
-		{description: "corner: ParseRule allocates nothing on any pick", name: "ParseRule", expected: "smallest 0, typical 0, largest 0"},
-		{description: "corner: ParseNewStats allocates nothing on its header-only picks, and once on the largest", name: "ParseNewStats", expected: "smallest 0, typical 0, largest 1"},
+		{description: "corner: ParseRule allocates nothing on any pick", name: "ParseRule", expected: "0/32: smallest 0, typical 0, largest 0"},
+		{description: "corner: ParseNewStats allocates nothing on its header-only picks, and once on the largest", name: "ParseNewStats", expected: "0/92: smallest 0, typical 0, largest 1"},
+		{description: "corner: ParseNlMsgErr allocates nothing on its capped picks, and once on the largest, whose extended-ack TLVs it decodes", name: "ParseNlMsgErr", expected: "0/2: smallest 0, typical 0, largest 1"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
 			c := parseBenchCaseNamed(t, tt.name)
-			recs := benchRecords(t, unix.NETLINK_ROUTE, c.typ)
+			recs := benchRecords(t, c.kind)
 			got := make([]string, 0, len(recs))
 			for _, r := range recs {
 				n := testing.AllocsPerRun(1_000, func() {
-					if err := c.parse(r.body); err != nil {
+					if err := c.parse(r.h, r.body); err != nil {
 						t.Fatal(err)
 					}
 				})
 				got = append(got, r.name+" "+strconv.FormatFloat(n, 'f', -1, 64))
 			}
-			if s := strings.Join(got, ", "); s != tt.expected {
+			if s := c.kind.String() + ": " + strings.Join(got, ", "); s != tt.expected {
 				t.Errorf("got %q, expected %q", s, tt.expected)
 			}
 		})

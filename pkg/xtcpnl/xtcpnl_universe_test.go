@@ -191,8 +191,8 @@ func universeMatch(u universeType, m capturedNlMsg, families map[uint16]string) 
 
 // pcapGenlFamilies maps the genl family ids in a pcap's NEWFAMILY replies to
 // their names. The controller's own id is fixed.
-func pcapGenlFamilies(t *testing.T, msgs []capturedNlMsg) map[uint16]string {
-	t.Helper()
+func pcapGenlFamilies(tb testing.TB, msgs []capturedNlMsg) map[uint16]string {
+	tb.Helper()
 	families := map[uint16]string{GenlControllerID: "nlctrl"}
 	for _, m := range msgs {
 		if m.proto != unix.NETLINK_GENERIC || m.h.Type != GenlControllerID ||
@@ -201,7 +201,7 @@ func pcapGenlFamilies(t *testing.T, msgs []capturedNlMsg) map[uint16]string {
 		}
 		f, err := ParseGenericNetlinkFamily(m.body)
 		if err != nil {
-			t.Fatal(err)
+			tb.Fatal(err)
 		}
 		families[f.ID] = f.Name
 	}

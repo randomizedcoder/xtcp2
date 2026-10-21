@@ -388,7 +388,7 @@ var resultAddr AddrInfo
 //     benchmarks.
 func BenchmarkParseNewAddr(b *testing.B) {
 	c := parseBenchCaseNamed(b, "ParseNewAddr")
-	picks := benchRecords(b, unix.NETLINK_ROUTE, c.typ)
+	picks := benchRecords(b, c.kind)
 	recs := make([]benchRecord, 0, 2+len(picks))
 	recs = append(recs,
 		benchRecord{name: "no_metric", body: addrReplyBody(b, tdDumpGetAddrV4_7_1_4, unix.AF_INET, 3)},
@@ -399,7 +399,7 @@ func BenchmarkParseNewAddr(b *testing.B) {
 		b.Run(r.name, func(b *testing.B) {
 			b.ReportAllocs()
 			for b.Loop() {
-				if err := c.parse(r.body); err != nil {
+				if err := c.parse(r.h, r.body); err != nil {
 					b.Fatal(err)
 				}
 			}
