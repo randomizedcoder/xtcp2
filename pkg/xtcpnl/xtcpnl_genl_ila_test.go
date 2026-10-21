@@ -13,22 +13,10 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// The ILA commands and attributes (linux/ila.h), which x/sys/unix does not
-// define.
+// ILA_ATTR_PAD, which ParseILA skips; the checksum mode and identifier
+// type the kernel defaults to; and the width of one of ip's locator words.
 const (
-	ilaCmdAdd          = 1
-	ilaCmdDel          = 2
-	ilaCmdGet          = 3
-	ilaCmdFlush        = 4
-	ilaAttrLocator     = 1
-	ilaAttrIdentifier  = 2
-	ilaAttrLocMatch    = 3
-	ilaAttrIfindex     = 4
-	ilaAttrDir         = 5
 	ilaAttrPad         = 6
-	ilaAttrCsumMode    = 7
-	ilaAttrIdentType   = 8
-	ilaAttrHookType    = 9
 	ilaCsumNoAction    = 2
 	ilaIdentUseFormat  = 32
 	ilaLocatorWordSize = 2
@@ -59,21 +47,21 @@ func ilaAttrs(t *testing.T, attrs []NetlinkAttribute) string {
 	var out []string
 	for _, a := range attrs {
 		switch a.ID() {
-		case ilaAttrLocator:
+		case ILAAttrLocator:
 			out = append(out, "loc="+ilaLocator(a.Data))
-		case ilaAttrLocMatch:
+		case ILAAttrLocatorMatch:
 			out = append(out, "match="+ilaLocator(a.Data))
-		case ilaAttrIdentifier:
+		case ILAAttrIdentifier:
 			out = append(out, "identifier="+ilaLocator(a.Data))
-		case ilaAttrIfindex:
+		case ILAAttrIfindex:
 			out = append(out, "ifindex="+strconv.Itoa(int(int32(binary.LittleEndian.Uint32(a.Data)))))
-		case ilaAttrCsumMode:
+		case ILAAttrCsumMode:
 			out = append(out, "csum="+strconv.Itoa(int(a.Data[0])))
-		case ilaAttrIdentType:
+		case ILAAttrIdentType:
 			out = append(out, "ident="+strconv.Itoa(int(a.Data[0])))
-		case ilaAttrDir:
+		case ILAAttrDir:
 			out = append(out, "dir="+u32s(binary.LittleEndian.Uint32(a.Data)))
-		case ilaAttrHookType:
+		case ILAAttrHookType:
 			out = append(out, "hook="+strconv.Itoa(int(a.Data[0])))
 		case ilaAttrPad:
 			out = append(out, "pad")
@@ -87,7 +75,7 @@ func ilaAttrs(t *testing.T, attrs []NetlinkAttribute) string {
 func ilaMsgs(t *testing.T, rel string, request bool) string {
 	t.Helper()
 	msgs := pcapNlMsgs(t, tdGenlWrite_7_1_4+"/"+rel)
-	fam := genlFamilyID(t, msgs, "ila")
+	fam := genlFamilyID(t, msgs, ILAGenlName)
 	var out []string
 	for _, m := range msgs {
 		if fam == 0 || m.h.Type != fam || (m.h.Flags&unix.NLM_F_REQUEST != 0) != request {
@@ -98,7 +86,7 @@ func ilaMsgs(t *testing.T, rel string, request bool) string {
 			t.Fatal(err)
 		}
 		words := []string{map[uint8]string{
-			ilaCmdAdd: "add", ilaCmdDel: "del", ilaCmdGet: "get", ilaCmdFlush: "flush",
+			ILACmdAdd: "add", ILACmdDel: "del", ILACmdGet: "get", ILACmdFlush: "flush",
 		}[g.Command]}
 		if request && m.h.Flags&unix.NLM_F_DUMP == unix.NLM_F_DUMP {
 			words = append(words, "dump")
@@ -122,7 +110,7 @@ func ilaMsgs(t *testing.T, rel string, request bool) string {
 func ilaErrno(t *testing.T, slug string) string {
 	t.Helper()
 	msgs := pcapNlMsgs(t, tdGenlWrite_7_1_4+"/"+slug+"/ip.pcap")
-	fam := genlFamilyID(t, msgs, "ila")
+	fam := genlFamilyID(t, msgs, ILAGenlName)
 	for _, m := range msgs {
 		if fam != 0 && m.h.Type == fam && m.h.Flags&unix.NLM_F_REQUEST != 0 {
 			return strconv.Itoa(int(answerTo(t, msgs, m.h))) + " rc " + tcpmFile(t, slug+"/ip.rc")
@@ -167,7 +155,7 @@ func TestGenlIlaCorpus(t *testing.T) {
 			func(t *testing.T) string {
 				var missing []string
 				for _, slug := range ilaRows {
-					if genlFamilyID(t, pcapNlMsgs(t, tdGenlWrite_7_1_4+"/"+slug+"/ip.pcap"), "ila") == 0 {
+					if genlFamilyID(t, pcapNlMsgs(t, tdGenlWrite_7_1_4+"/"+slug+"/ip.pcap"), ILAGenlName) == 0 {
 						missing = append(missing, slug)
 					}
 				}

@@ -185,6 +185,20 @@ func (d *genlDecoder) be16(id uint16, dst **uint16) {
 	}
 }
 
+// be64 reads a u64 whose bytes are in network order, as ILA's locators
+// are, so its value prints as ip writes it.
+func (d *genlDecoder) be64(id uint16, dst **uint64) {
+	if d.err != nil {
+		return
+	}
+	var a *NetlinkAttribute
+	a, d.err = scalarAttribute(d.attrs, id, 8)
+	if d.err == nil && a != nil {
+		v := binary.BigEndian.Uint64(a.Data)
+		*dst = &v
+	}
+}
+
 // s32 reads a u32-width attribute as signed.
 func (d *genlDecoder) s32(id uint16, dst **int32) {
 	var v *uint32
