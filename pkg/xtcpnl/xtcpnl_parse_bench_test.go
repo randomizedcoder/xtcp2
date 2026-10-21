@@ -169,6 +169,7 @@ var (
 	resultGenl    GenericNetlinkMessage
 	resultFamily  GenericNetlinkFamily
 	resultEthtool EthtoolMessage
+	resultNsid    NsidInfo
 )
 
 // parseBenchCase is one parser P0 benchmarks: its name, the kind of its
@@ -198,6 +199,7 @@ var parseBenchCases = []parseBenchCase{
 	{name: "ParseGenericNetlink", kind: genl("nlctrl"), parse: func(_ NlMsgHdr, b []byte) (err error) { resultGenl, err = ParseGenericNetlink(b); return err }},
 	{name: "ParseGenericNetlinkFamily", kind: genl("nlctrl"), parse: func(_ NlMsgHdr, b []byte) (err error) { resultFamily, err = ParseGenericNetlinkFamily(b); return err }},
 	{name: "ParseEthtool", kind: genl("ethtool"), parse: func(h NlMsgHdr, b []byte) (err error) { resultEthtool, err = ParseEthtool(b, h.Flags); return err }},
+	{name: "ParseNsid", kind: rtnl(unix.RTM_NEWNSID), parse: func(_ NlMsgHdr, b []byte) (err error) { resultNsid, err = ParseNsid(b); return err }},
 }
 
 // parseBenchCaseNamed returns the parseBenchCases entry called name.
@@ -283,6 +285,10 @@ func BenchmarkParseGenericNetlinkFamily(b *testing.B) { benchParse(b, "ParseGene
 // BenchmarkParseEthtool decodes the smallest, a typical and the largest
 // ethtool message the kernel sent in the corpus.
 func BenchmarkParseEthtool(b *testing.B) { benchParse(b, "ParseEthtool") }
+
+// BenchmarkParseNsid decodes the smallest, a typical and the largest
+// RTM_NEWNSID the corpus holds (P1-T01).
+func BenchmarkParseNsid(b *testing.B) { benchParse(b, "ParseNsid") }
 
 func TestBenchPick(t *testing.T) {
 	// msg is a captured message of type typ whose body is n bytes, from a
@@ -396,7 +402,8 @@ func TestParseBenchCases(t *testing.T) {
 			expected: "ParseNewLink=0/16 ParseNewRoute=0/24 ParseNewAddr=0/20 ParseNeigh=0/28 ParseRule=0/32 ParseNewNexthop=0/104" +
 				" ParseNewAddrLabel=0/72 ParseNewNeighTbl=0/64 ParseNewNetconf=0/80 ParseNewStats=0/92" +
 				" ParseNlMsgErr=0/2 ParseRtnetlinkEvent=0/17" +
-				" ParseGenericNetlink=16/nlctrl ParseGenericNetlinkFamily=16/nlctrl ParseEthtool=16/ethtool",
+				" ParseGenericNetlink=16/nlctrl ParseGenericNetlinkFamily=16/nlctrl ParseEthtool=16/ethtool" +
+				" ParseNsid=0/88",
 		},
 	}
 	for _, tt := range tests {
@@ -431,6 +438,7 @@ func TestParseBenchRecords(t *testing.T) {
 		{description: "positive: ParseGenericNetlink decodes its three nlctrl picks", name: "ParseGenericNetlink", expected: "smallest ok, typical ok, largest ok"},
 		{description: "positive: ParseGenericNetlinkFamily decodes its three nlctrl picks", name: "ParseGenericNetlinkFamily", expected: "smallest ok, typical ok, largest ok"},
 		{description: "positive: ParseEthtool decodes its three ethtool picks", name: "ParseEthtool", expected: "smallest ok, typical ok, largest ok"},
+		{description: "positive: ParseNsid decodes its three RTM_NEWNSID picks", name: "ParseNsid", expected: "smallest ok, typical ok, largest ok"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
@@ -467,6 +475,7 @@ func TestParseBenchAllocs(t *testing.T) {
 		{description: "corner: ParseRule allocates nothing on any pick", name: "ParseRule", expected: "0/32: smallest 0, typical 0, largest 0"},
 		{description: "corner: ParseNewStats allocates nothing on its header-only picks, and once on the largest", name: "ParseNewStats", expected: "0/92: smallest 0, typical 0, largest 1"},
 		{description: "corner: ParseNlMsgErr allocates nothing on its capped picks, and once on the largest, whose extended-ack TLVs it decodes", name: "ParseNlMsgErr", expected: "0/2: smallest 0, typical 0, largest 1"},
+		{description: "corner: ParseNsid allocates nothing on any pick", name: "ParseNsid", expected: "0/88: smallest 0, typical 0, largest 0"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {

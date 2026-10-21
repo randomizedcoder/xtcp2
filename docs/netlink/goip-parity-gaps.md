@@ -188,8 +188,8 @@ msgs/pcaps means messages found, over the number of pcaps they appear in. Every 
 | `ifaddrlblmsg` | NEWADDRLABEL (72), GETADDRLABEL (74) | 63 / 7, 7 / 7 | `ParseNewAddrLabel`, `xtcpnl_ifaddrlblmsg.go:91` | `TestParseNewAddrLabel`, `xtcpnl_ifaddrlblmsg_test.go:48` | **`BenchmarkParseNewAddrLabel`, `xtcpnl_parse_bench_test.go:252`** (P0-T03) |
 | | DELADDRLABEL (73) | 12 / 2 (C1-T01, C1-T02) | same | `TestRtnlWriteCorpus` | same |
 | `netconfmsg` | NEWNETCONF (80), DELNETCONF (81), GETNETCONF (82) | 127 / 12, 6 / 1, 9 / 9 | `ParseNewNetconf`, `xtcpnl_netconfmsg.go:107` | `TestParseNewNetconf`, `xtcpnl_netconfmsg_test.go:138` | **`BenchmarkParseNewNetconf`, `xtcpnl_parse_bench_test.go:260`** (P0-T03) |
-| `rtgenmsg` + `NETNSA_*` | NEWNSID (88), GETNSID (90) | 210 / 88, 202 / 88 | **none** | **none** | none |
-| | DELNSID (89) | 3 / 3 (C1-T01, C1-T04) | none | `TestRtnlWriteCorpus` reads `NETNSA_NSID` raw | none |
+| `rtgenmsg` + `NETNSA_*` | NEWNSID (88), GETNSID (90) | 210 / 88, 202 / 88 | **`ParseNsid`, `xtcpnl_nsid.go:61`** (P1-T01) | **`TestParseNsid`, `xtcpnl_nsid_test.go:41`; `TestParseNsidCorpus`** | **`BenchmarkParseNsid`, `xtcpnl_parse_bench_test.go:291`** |
+| | DELNSID (89) | 3 / 3 (C1-T01, C1-T04) | same | `TestRtnlWriteCorpus`, through `ParseNsid` | same |
 | `if_stats_msg` | NEWSTATS (92), GETSTATS (94) | 222 / 57, 55 / 55 | `ParseNewStats`, `xtcpnl_ifstatsmsg.go:129` | `TestParseNewStats`, `xtcpnl_ifstatsmsg_test.go:126` | **`BenchmarkParseNewStats`, `xtcpnl_parse_bench_test.go:264`** (P0-T03) |
 | | SETSTATS (95) | 3 / 3 (C1-T01, C1-T04) | `ParseNewStats` reads the request | `TestRtnlWriteCorpus` | same |
 | `nhmsg` | NEWNEXTHOP (104), GETNEXTHOP (106) | 51 / 24, 25 / 23 | `ParseNewNexthop`, `xtcpnl_nhmsg.go:143` | `TestParseNewNexthop`, `xtcpnl_nhmsg_test.go:39` | **`BenchmarkParseNewNexthop`, `xtcpnl_parse_bench_test.go:248`** (P0-T02) |
@@ -222,10 +222,10 @@ The corpus also holds ethtool (19 commands), devlink (2) and nl80211 (7) from th
 ### What the assessment says
 
 1. **The rtnetlink read side is in good shape.** Every body layout that a running goip object reads has captured pcaps, a parser and a table-driven test.
-2. **The capture holes were the DEL and SET types:** DELANYCAST, DELRULE, SETNEIGHTBL, DELADDRLABEL, DELNSID, SETSTATS and DELNEXTHOP. Each shares a body layout with its NEW type, so all but DELNSID already had a parser (NSID has none; point 3). The bytes were missing because no capture row sent them. C1-T01 added those rows (`link-write/rtnl/`), and each of the seven is now captured and checked by `TestRtnlWriteCorpus`.
-3. **Four rtnetlink layouts have no parser:** NSID, nexthop bucket, LINKPROP and prefix. Since C1 closed, all four have bytes: NSID 210 NEWNSID messages, the nexthop bucket and LINKPROP from C1-T02 (a 1024-bucket dump, and altname add and del), and prefix from C1-T04 (an RA's NEWPREFIX, 3 messages). The tests read them raw; the parsers are P1.
+2. **The capture holes were the DEL and SET types:** DELANYCAST, DELRULE, SETNEIGHTBL, DELADDRLABEL, DELNSID, SETSTATS and DELNEXTHOP. Each shares a body layout with its NEW type, so all but DELNSID already had a parser (NSID had none until P1-T01; point 3). The bytes were missing because no capture row sent them. C1-T01 added those rows (`link-write/rtnl/`), and each of the seven is now captured and checked by `TestRtnlWriteCorpus`.
+3. **Four rtnetlink layouts had no parser:** NSID, nexthop bucket, LINKPROP and prefix. Since C1 closed, all four have bytes: NSID 210 NEWNSID messages, the nexthop bucket and LINKPROP from C1-T02 (a 1024-bucket dump, and altname add and del), and prefix from C1-T04 (an RA's NEWPREFIX, 3 messages). The parsers are P1. NSID has one since P1-T01, `ParseNsid`; the other three are still read raw.
 4. **Generic netlink beyond nlctrl and XFRM had nothing:** no pcaps, no parsers, no tests. When this was measured the blocker was in the harness: `xtcp2-nlcap` kept only `NETLINK_ROUTE` (`ether[14:2]==0`), although nlmon taps GENERIC and XFRM. C0 removed it. A row now names its protocol (`--proto`, C0-T01), and the modules those families need are loaded late (C0-T02). What is missing is the capture rows (C2, C3). C2-T01 added the first: tcp_metrics' GET and DEL are captured (`link-write/genl/`), with no parser yet (P2). C2-T02 added sr's four SEG6 commands, C2-T03 ioam's seven IOAM6 commands, C2-T04 the seven mptcp_pm commands `ip` sends, C2-T05 fou's three, C2-T06 ila's three, C2-T07 the six l2tp commands `ip` sends, and C2-T08 macsec's eleven. Since C2 closed, every genl family in the universe has captured bytes and a test that reads them raw, and none has a parser (P2). C3-T01 added the XFRM state rows (`link-write/xfrm/`): the seven types `ip xfrm state` sends are captured and read raw by `TestXfrmStateCorpus`. C3-T02 added policy, SPDINFO, the defaults and the events (`ip xfrm monitor`), read raw by `TestXfrmPolicyCorpus`. Since C3 closed, every XFRM type but REPORT has captured bytes; the parsers are P3.
-5. **Benchmarks:** all 15 rtnetlink and genl parsers in the tables above have a parse benchmark: `ParseNewAddr`, since P0-T01 `ParseNewLink` and `ParseNewRoute`, since P0-T02 `ParseNeigh`, `ParseRule` and `ParseNewNexthop`, since P0-T03 `ParseNewAddrLabel`, `ParseNewNeighTbl`, `ParseNewNetconf` and `ParseNewStats`, and since P0-T04 `ParseNlMsgErr`, `ParseRtnetlinkEvent`, `ParseGenericNetlink`, `ParseGenericNetlinkFamily` and `ParseEthtool`. The rest of `BenchmarkDeserialize*` covers inet_diag only.
+5. **Benchmarks:** every rtnetlink and genl parser in the tables above has a parse benchmark, 15 since P0 closed and 16 with P1-T01's `BenchmarkParseNsid`: `ParseNewAddr`, since P0-T01 `ParseNewLink` and `ParseNewRoute`, since P0-T02 `ParseNeigh`, `ParseRule` and `ParseNewNexthop`, since P0-T03 `ParseNewAddrLabel`, `ParseNewNeighTbl`, `ParseNewNetconf` and `ParseNewStats`, and since P0-T04 `ParseNlMsgErr`, `ParseRtnetlinkEvent`, `ParseGenericNetlink`, `ParseGenericNetlinkFamily` and `ParseEthtool`. The rest of `BenchmarkDeserialize*` covers inet_diag only.
 
 ### How to re-measure
 
@@ -1241,6 +1241,40 @@ Each task adds one table-driven `BenchmarkParse*` per parser, over captured reco
 Each delivers `ParseX`, a table test with positive (captured), negative, boundary and corner rows, and a benchmark.
 
 **Depends on:** each task's C1 capture.
+
+**P1-T01 delivered** (`pkg/xtcpnl/xtcpnl_nsid.go`):
+- `ParseNsid` decodes an RTM_NEWNSID, RTM_DELNSID or RTM_GETNSID body: the 4-byte `rtgenmsg`, then `NETNSA_NSID` and `NETNSA_CURRENT_NSID`, which the kernel's `rtnl_net_fill` sends, and `NETNSA_PID`, `NETNSA_FD` and `NETNSA_TARGET_NSID`, which only `ip`'s requests carry. Each is decoded at exactly four bytes, the policy's width; a repeated attribute keeps the first, as `parse_rtattr` does. `-1` is `NsidNotAssigned`.
+- `TestRtnlWriteCorpus`' `nsidOf` now goes through `ParseNsid`.
+- `BenchmarkParseNsid` runs over three NEWNSID picks, all 12 bytes; `ParseNsid` allocates nothing on any of them, which `TestParseBenchAllocs` asserts.
+
+`TestParseNsid`:
+
+| description | expected |
+|---|---|
+| positive: the kernel's NEWNSID reply to netns set (captured) | `family=0 nsid=7` |
+| positive: an unassigned peer (captured) | `family=0 nsid=-1` |
+| positive: a DELNSID event (captured) | `family=0 nsid=9` |
+| positive: ip's NEWNSID request for netns set (captured) | `family=0 nsid=7 fd=5` |
+| positive: ip's GETNSID request by fd (captured) | `family=0 fd=6` |
+| boundary: ip's GETNSID dump request is the header alone (captured) | `family=0` |
+| boundary: a body one byte short of the rtgenmsg | `ErrNsidMsgSmall` |
+| corner: a reply to a target-nsid request carries the current nsid too | `family=0 nsid=2 current=0` |
+| corner: a list-id request by pid with a target nsid | `family=0 pid=4242 target=3` |
+| corner: a family other than AF_UNSPEC is reported as sent | `family=2 nsid=1` |
+| corner: an nsid that is not four bytes is not decoded | `family=0` |
+| corner: a repeated nsid keeps the first | `family=0 nsid=4` |
+| corner: an unknown attribute is skipped | `family=0 nsid=1` |
+| negative: an attribute longer than the body | `ErrRTAttrSmall` |
+
+`TestParseNsidCorpus`, over every RTM_*NSID message in the corpus:
+
+| description | expected |
+|---|---|
+| positive: every NEWNSID the kernel sent decodes with an nsid | `206 decoded, 0 errors, 206 with an nsid, 0 with an fd` |
+| positive: every DELNSID event decodes with an nsid | `3 decoded, 0 errors, 3 with an nsid, 0 with an fd` |
+| positive: every NEWNSID request ip sent names an fd and an nsid | `4 decoded, 0 errors, 4 with an nsid, 4 with an fd` |
+| corner: ip's GETNSID asks by fd, except its two header-only dumps | `202 decoded, 0 errors, 0 with an nsid, 200 with an fd` |
+| negative: the kernel never sends a GETNSID | `0 decoded, …` |
 
 ### P2 — genl parsers
 

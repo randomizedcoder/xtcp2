@@ -78,26 +78,18 @@ func pcapNlDatagrams(t testing.TB, path string) [][]capturedNlMsg {
 	return out
 }
 
-// nsidOf decodes NETNSA_NSID from an RTM_NEWNSID or RTM_DELNSID body: a
-// 4-byte rtgenmsg, then attributes. There is no ParseNsid yet (P1), so the
-// test reads the one attribute it needs.
+// nsidOf decodes NETNSA_NSID from an RTM_NEWNSID or RTM_DELNSID body with
+// ParseNsid.
 func nsidOf(t *testing.T, body []byte) uint32 {
 	t.Helper()
-	const rtgenmsgSize = 4
-	if len(body) < rtgenmsgSize {
-		t.Fatalf("nsid body is %d bytes", len(body))
-	}
-	attrs, err := ParseNetlinkAttributes(body[rtgenmsgSize:])
+	ni, err := ParseNsid(body)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, a := range attrs {
-		if a.ID() == unix.NETNSA_NSID && len(a.Data) == 4 {
-			return binary.LittleEndian.Uint32(a.Data)
-		}
+	if !ni.HasNSID {
+		t.Fatal("no NETNSA_NSID")
 	}
-	t.Fatal("no NETNSA_NSID")
-	return 0
+	return uint32(ni.NSID)
 }
 
 // TestRtnlWriteCorpus checks the C1-T01 rows (testdata/7_1_4/link-write/
