@@ -116,6 +116,9 @@ Outputs (GC-rooted by the operator's `result-vm-all`):
 - [x] Boot `checks.vm-linkmonitor-performance` once more, since VC015
   changed its artifact's inputs (not its Go content): pass, and the other
   five stayed cached (VC016).
+- [ ] Boot `vm-all` again: merging #269's lint fix (IV042, goip keyword
+  constants) changed the Go inputs, so all six guests rebuild (`nix build
+  --dry-run` lists every `vm-check-*`). No guest code changed.
 - [ ] The performance guest's `LINKMONITOR_BENCHTIME` never reached the
   guest from the host (the README said it did; corrected). Wire it through
   `VM_KERNEL_PARAMS` if a longer profile window is wanted.
