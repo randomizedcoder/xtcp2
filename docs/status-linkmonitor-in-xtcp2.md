@@ -20,6 +20,7 @@ Tracks [design-linkmonitor-in-xtcp2.md](design-linkmonitor-in-xtcp2.md). Branch 
 | 2026-10-21 | P1: route model, registries, refresh and mode metrics moved to `linkmonitorhttp`; go-link-monitor switched to it | `go test ./pkg/linkmonitor/... ./cmd/go-link-monitor` pass |
 | 2026-10-21 | P2–P4: `startPromServer`/`servePromHandler` (bind first, drain 3 s, close), late-bound `linkMonitorRoutes`, SIGUSR1, `LinkMonitorHandler`, `Paths.Validate`, degrade in `runLinkMonitor`, defaults on and on-demand, module options | `go test` (and `-race`) of `./cmd/xtcp2 ./pkg/xtcp ./pkg/linkmonitor/... ./cmd/go-link-monitor` pass; goldens regenerated, diff is the intended flags only |
 | 2026-10-21 | P5: `nix/tests/xtcp2-linkmonitor.nix` wired as `checks.vm-xtcp2-linkmonitor` (in `vm-all`) and `test-xtcp2-linkmonitor-vm` | `nix build path:.#test-xtcp2-linkmonitor-vm` (guest script through shellcheck, guest image built, not booted) |
+| 2026-10-21 | User booted `test-xtcp2-linkmonitor-vm` on `l` at 46176add: 7 sentinels pass. The guest had no NIC (count 0), so a virtio NIC and a MISSING step were added | VC021, VC022 in [VM-CHECKS-STATUS](../nix/VM-CHECKS-STATUS.md) |
 | 2026-10-21 | `BenchmarkPromScrapeLinkMonitor` | [F1](#findings) |
 | 2026-10-21 | Nix gates | `checks.{go-vet,lint-baseline,go-sec,xtcp2-exec,test-linkmonitor}` pass (lint-baseline after one misspelling fix) |
 
@@ -40,7 +41,7 @@ Tracks [design-linkmonitor-in-xtcp2.md](design-linkmonitor-in-xtcp2.md). Branch 
 | default `/metrics` | positive | summary, mode gauge, up gauge; no detail families | VM PATHS |
 | `/metrics/<category>`, `/metrics/link/lo`, `/metrics-all`, `/metrics-all/lo` | positive | 200 | unit `TestLinkMonitorHandler`, VM PATHS |
 | baseline 0600 in 0750 `/var/lib/xtcp2` | positive | modes as stated | VM BASELINE |
-| restart keeps the count | positive | same `recorded_at` and count | VM PERSIST |
+| restart keeps the count | positive | same `recorded_at` and a count of 1 | VM BASELINE, PERSIST |
 | SIGUSR1 / `systemctl reload` | positive | new `recorded_at` | unit, VM RELOAD |
 | on-demand refresh counter on `/metrics` | positive | registered on demand, not on poll | unit `TestLinkMonitorPromMetrics`, VM PATHS |
 | monitor disabled | negative | no handler, routes 404, SIGUSR1 "disabled" | unit |
@@ -54,6 +55,7 @@ Tracks [design-linkmonitor-in-xtcp2.md](design-linkmonitor-in-xtcp2.md). Branch 
 | `-linkMonitorOnDemandWait=10s` | boundary | config error; under 10 s accepted | unit `TestLinkMonitorSettingsDetail` |
 | request stalled past the grace | boundary | server closed, worker returns | unit `TestServePromHandler` |
 | clean stop | boundary | within 5 s, `Result=success` | VM STOP |
+| a counted link goes down, then up | negative | `up_links_delta -1` and `problems >= 1`, then delta 0; the baseline is unchanged | VM MISSING |
 | `promPath=/` | corner | no mux panic, no link routes | unit |
 | failed monitor, unknown path | corner | 503 | unit |
 | `LINK_MONITOR=false` over the default | corner | monitor off | unit flags table |
@@ -84,7 +86,7 @@ Performance, appended as measured.
 
 ## TODO
 
-- [ ] **User:** boot `checks.vm-xtcp2-linkmonitor` (or `env -u LD_LIBRARY_PATH nix run path:.#test-xtcp2-linkmonitor-vm`) on `l`, then `vm-all`. The default-on monitor changes every lifecycle guest's xtcp2 and `vm-linkmonitor-embedding`'s xtcp2 stage; watch for extra series in metric audits and for log lines from a monitor in a guest without links or a writable `/var/lib/xtcp2`.
+- [ ] **User:** rerun `test-xtcp2-linkmonitor-vm` with the NIC (VC022, 8 sentinels); the first boot passed 7 (VC021). Then boot `checks.vm-xtcp2-linkmonitor` (or `env -u LD_LIBRARY_PATH nix run path:.#test-xtcp2-linkmonitor-vm`) on `l`, then `vm-all`. The default-on monitor changes every lifecycle guest's xtcp2 and `vm-linkmonitor-embedding`'s xtcp2 stage; watch for extra series in metric audits and for log lines from a monitor in a guest without links or a writable `/var/lib/xtcp2`.
 - [ ] `ProtectSystem=strict` with `ReadWritePaths=/var/lib/xtcp2` in the NixOS unit, once the VM checks cover every path xtcp2 writes (`-capturePath`, Unix sockets, file destinations).
 - [ ] go-link-monitor's own exposure validation could use `linkmonitorhttp.Paths.Validate` too, so both binaries share one collision rule.
 - [ ] `LinkMonitorService`'s request metrics go to xtcp2's registry only; go-link-monitor tees them to its detail paths. Decide whether xtcp2 should do the same.

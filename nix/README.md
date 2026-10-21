@@ -210,7 +210,7 @@ cat result-vm-ionic/summary.txt
 | `vm-linkmonitor-ionic-faults` | rocm-ernic fault injection through a TAP |
 | `vm-linkmonitor-rdma` | software RoCE (rxe) on the microVM constructor; netlink recordings in `nlrecord/` |
 | `vm-linkmonitor-performance` | root-only live tests, benchmarks, profiles and an nlmon pcap, unpacked as `linkmonitor-performance/` |
-| `vm-xtcp2-linkmonitor` | the real xtcp2 NixOS unit with the monitor on by default: paths, baseline modes, persistence across restart, `systemctl reload`, a corrupt baseline degrading, clean stop |
+| `vm-xtcp2-linkmonitor` | the real xtcp2 NixOS unit with the monitor on by default: paths, baseline modes, persistence across restart, `systemctl reload`, a missing link on `/metrics`, a corrupt baseline degrading, clean stop |
 
 `vm-all` builds all seven. The fault run's TAP needs `/dev/net/tun`, which a
 build sandbox has only when the builder sets `extra-sandbox-paths =

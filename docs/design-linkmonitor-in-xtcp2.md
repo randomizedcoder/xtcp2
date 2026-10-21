@@ -176,8 +176,9 @@ The detail paths take the Prometheus listener's policy (`-promListenAuth…`, [d
 - **VM check:** `checks.vm-xtcp2-linkmonitor` (`nix/tests/xtcp2-linkmonitor.nix`) runs the real NixOS unit in a guest. It has a sentinel for each of:
   - the paths;
   - the baseline file and its modes;
-  - the count persisting across a restart;
+  - the count (one virtio link) persisting across a restart;
   - `systemctl reload`;
+  - the link going down showing as `up_links_delta -1`, and returning to 0;
   - a corrupt baseline degrading;
   - a clean stop within 5 s.
 

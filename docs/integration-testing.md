@@ -53,7 +53,7 @@ xtcp2's automated testing spans four layers; this document covers layers 2-3.
    | **Runtime control** | `-clickhouse-pipeline-rate` + self-test Checks 17-19 | Drives `xtcp2ctl` and asserts the daemon's live behaviour changes |
    | **Specialized** | `-discovery-bench`, `-capcheck-fail` | Namespace-discovery A/B grid; startup capability-check refusal |
 
-   The serial-console guest checks (`checks.vm-*`, [nix/README.md](../nix/README.md#guest-tests-as-checks)) sit beside these. `vm-xtcp2-linkmonitor` runs the real xtcp2 NixOS unit with the embedded link monitor on by default ([design](design-linkmonitor-in-xtcp2.md)). It checks the detail paths, the baseline file's modes in `/var/lib/xtcp2`, the count surviving a restart, `systemctl reload` rebaselining, a corrupt baseline degrading only the monitor, and a clean stop. Run it with `nix run path:.#test-xtcp2-linkmonitor-vm`.
+   The serial-console guest checks (`checks.vm-*`, [nix/README.md](../nix/README.md#guest-tests-as-checks)) sit beside these. `vm-xtcp2-linkmonitor` runs the real xtcp2 NixOS unit with the embedded link monitor on by default ([design](design-linkmonitor-in-xtcp2.md)). It checks the detail paths, the baseline file's modes in `/var/lib/xtcp2`, the count surviving a restart, `systemctl reload` rebaselining, a downed link showing on `/metrics`, a corrupt baseline degrading only the monitor, and a clean stop. Run it with `nix run path:.#test-xtcp2-linkmonitor-vm`.
 
    Since the monitor is on by default, every lifecycle flavor also runs it, in on-demand mode. A guest without a writable `/var/lib/xtcp2` sees it degrade (`xtcp_gauges{function="linkMonitor",variable="up"} 0`), not fail.
 
