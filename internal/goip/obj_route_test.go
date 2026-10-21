@@ -1008,12 +1008,14 @@ func TestRunRouteArgs(t *testing.T) {
 			wantStderrSubstr: "Magic mismatch (0 elems, 0 magic)",
 		},
 		{
-			// restore is a write per saved route, G2-T02's.
-			description:      "negative: `restore` is refused",
+			// `res` is restore (route_restore.go); `r` and `re` are
+			// replace, a write verb earlier in the chain. Run's empty stdin
+			// is a magic mismatch, as in ip.
+			description:      "corner: `route res` is restore",
 			pcap:             routeDumpPcap,
-			args:             []string{"route", "restore"},
+			args:             []string{"route", "res"},
 			wantCode:         ExitUsage,
-			wantStderrSubstr: "not implemented",
+			wantStderrSubstr: "Magic mismatch (0 elems, 0 magic)",
 		},
 		{
 			// flush is a dump and then one delete per route; goip has no

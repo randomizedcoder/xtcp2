@@ -30,6 +30,7 @@ var ErrRouteDumpFile = errors.New("route dump file")
 
 const (
 	routeSaveVerbCst     = "save"
+	routeRestoreVerbCst  = "restore"
 	routeShowdumpVerbCst = "showdump"
 	// routeDumpMagicCst is route_dump_magic (ip/iproute.c:1673), written in
 	// host order.

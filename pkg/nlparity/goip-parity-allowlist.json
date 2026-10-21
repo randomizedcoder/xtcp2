@@ -936,7 +936,13 @@
     "record by record, and `route showdump < route_save.save` with and",
     "without -d, each the one get naming d0. Two back-to-back runs of 201",
     "GOIP_PARITY_PASS of 201 ended GOIP_PARITY_OVERALL_PASS, with no control",
-    "noise on the three."
+    "noise on the three.",
+    "",
+    "G2-T02 adds `route restore` and gates its write row: the link dump,",
+    "then the saved routes in restore_handler's pass order, two writes",
+    "matching ip_a's. Two back-to-back runs of 202 GOIP_PARITY_PASS of 202",
+    "ended GOIP_PARITY_OVERALL_PASS; the link dump's cache info and d0's",
+    "per-namespace MAC are control-canceled."
   ],
   "_note_version_skew": [
     "THE ENTRIES BELOW CITE COMMITS THAT ARE IN NO RELEASE, AND THE EVIDENCE IS",
@@ -1215,6 +1221,7 @@
     "link afstats",
     "route save table 100",
     "route showdump < route_save.save",
-    "-d route showdump < route_save.save"
+    "-d route showdump < route_save.save",
+    "route restore < route_save.save"
   ]
 }

@@ -29,15 +29,20 @@ const (
 	// addrRestoreSlugPrefixCst names a restore row, whose corpus slug is
 	// restore_ and the rest, under tdAddrSave.
 	addrRestoreSlugPrefixCst = "addr_restore_"
-	tdAddrSave               = "../../pkg/xtcpnl/testdata/7_1_4/link-write/addr-save"
-	pcapGlobalHdrCst         = 24
-	pcapRecordHdrCst         = 16
+	// routeRestoreSlugCst is G2-T02's one route restore row.
+	routeRestoreSlugCst = "route_restore"
+	tdAddrSave          = "../../pkg/xtcpnl/testdata/7_1_4/link-write/addr-save"
+	// tdRtnl is the C1 rtnetlink corpus, route_restore\'s among it.
+	tdRtnl           = "../../pkg/xtcpnl/testdata/7_1_4/link-write/rtnl"
+	pcapGlobalHdrCst = 24
+	pcapRecordHdrCst = 16
 	// nlmonHdrCst is the cooked header LINKTYPE_NETLINK puts before each
 	// datagram.
 	nlmonHdrCst = 16
 	// rtmNewAddrCst, rtmDelAddrCst and nlmFRequestCst are RTM_NEWADDR,
 	// RTM_DELADDR and NLM_F_REQUEST.
 	rtmNewAddrCst  = 20
+	rtmNewRouteCst = 24
 	rtmDelAddrCst  = 21
 	nlmFRequestCst = 0x1
 	// nlMsgHdrCst is sizeof(struct nlmsghdr). Spelled here because this
@@ -136,7 +141,10 @@ func corpusWriteRow(t *testing.T, c Command) writeRowFiles {
 		return corpusFlushRow(t, c, filepath.Join(tdAddrFlush, "flush_"+slug))
 	}
 	if slug, ok := strings.CutPrefix(c.Slug, addrRestoreSlugPrefixCst); ok {
-		return corpusRestoreRow(t, c, filepath.Join(tdAddrSave, "restore_"+slug))
+		return corpusRestoreRow(t, c, filepath.Join(tdAddrSave, "restore_"+slug), rtmNewAddrCst)
+	}
+	if c.Slug == routeRestoreSlugCst {
+		return corpusRestoreRow(t, c, filepath.Join(tdRtnl, "route_restore"), rtmNewRouteCst)
 	}
 	ipPcap := mustReadBytes(t, filepath.Join(dir, "ip.pcap"))
 	rc := strings.TrimSpace(mustRead(t, filepath.Join(dir, "ip.rc")))
@@ -189,13 +197,13 @@ func corpusFlushRow(t *testing.T, c Command, dir string) writeRowFiles {
 }
 
 // corpusRestoreRow is a restore row's files as a perfect run would leave
-// them: goip's capture is ip's link dump alone, and its file is ip's writes,
-// each at the next seq. ip's stdout is empty; its stderr, the kernel's EEXIST
-// answers, is not compared.
-func corpusRestoreRow(t *testing.T, c Command, dir string) writeRowFiles {
+// them: goip's capture is ip's link dump alone, and its file is ip's writes
+// of type typ, each at the next seq. ip's stdout is empty; its stderr, the
+// kernel's EEXIST answers, is not compared.
+func corpusRestoreRow(t *testing.T, c Command, dir string, typ uint16) writeRowFiles {
 	t.Helper()
 	f := corpusFlushRow(t, c, dir)
-	f.pcaps[SideGoip] = keepBeforeRequest(t, f.pcaps[SideIPA], rtmNewAddrCst)
+	f.pcaps[SideGoip] = keepBeforeRequest(t, f.pcaps[SideIPA], typ)
 	return f
 }
 

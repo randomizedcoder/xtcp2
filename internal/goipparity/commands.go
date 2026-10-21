@@ -1826,6 +1826,17 @@ var commands = withArgs([]Command{
 		// carry no nhid, so -d sends nothing more.
 		Setup: routeSaveSetup, Floor: 2, Implemented: true,
 	},
+	// G2-T02: `route restore` (iproute_restore), the C1-T02 route_restore
+	// row: route_save's file restored on PRE_D0_ADDR, d0 up at ifindex 3
+	// with no route in table 100. ip sends ll_init_map's link dump, then the
+	// device route and the gateway route, in restore_handler's pass order
+	// and not the file's, each answered; goip sends the link dump and writes
+	// the two. Floor is 4, as for the address restore rows, because goip's
+	// side gets Floor-2 and sends only the dump.
+	{
+		Name: "route restore < route_save.save", Slug: "route_restore",
+		Floor: 4, Implemented: true, Write: true, Writes: 2, Setup: routeGetSetup,
+	},
 
 	// The vrf block — `ip vrf show`, the eleventh read-only object. The request
 	// is a filtered link dump: RTM_GETLINK, AF_UNSPEC, one IFLA_LINKINFO nest

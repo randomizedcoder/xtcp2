@@ -1024,7 +1024,9 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	//   - the two `link xstats` rows and `link afstats` G1-T04 added,
 	//     likewise — see TestLinkXstatsRowsGated;
 	//   - the `route save` row and two `route showdump` rows G2-T01 added,
-	//     likewise — see TestRouteSaveRows.
+	//     likewise — see TestRouteSaveRows;
+	//   - the `route restore` row G2-T02 added, likewise — see
+	//     TestRouteRestoreRow.
 	//
 	// The last four were the permanent set, measured divergent on the wire;
 	// TestPermanentWireDivergences records that it is empty.
@@ -2683,6 +2685,46 @@ func TestRouteSaveRows(t *testing.T) {
 			var got want
 			if c, lookupErr := Lookup(r.command); lookupErr == nil {
 				got = want{implemented: c.Implemented, topology: slices.Equal(c.Setup, topo), write: c.Write, floor: c.Floor}
+			}
+			got.gated = al.IsGated(r.command)
+			got.entries = len(al.EntriesFor(r.command))
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+		})
+	}
+}
+
+// TestRouteRestoreRow pins G2-T02's row: a write row of two writes on
+// route_restore's topology step for step, reading the file the showdump rows
+// read, and gated after two clean runs with no allowlist entry.
+//
+// go test ./internal/goipparity/ -run TestRouteRestoreRow
+func TestRouteRestoreRow(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	topo := topologySteps(t, filepath.Join("..", "..", "pkg", "xtcpnl", "testdata", "7_1_4", "link-write", "rtnl"), "route_restore")
+	type want struct {
+		implemented, write, topology, gated bool
+		floor, writes, entries              int
+	}
+	rows := []struct {
+		description string
+		command     string
+		expected    want
+	}{
+		{"positive: restore, the link dump then two writes", "route restore < route_save.save",
+			want{implemented: true, write: true, topology: true, gated: true, floor: 4, writes: 2}},
+		{"negative: a restore of another file is not in the matrix", "route restore < restore_fresh.save", want{}},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			var got want
+			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				got = want{implemented: c.Implemented, write: c.Write, topology: slices.Equal(c.Setup, topo),
+					floor: c.Floor, writes: c.Writes}
 			}
 			got.gated = al.IsGated(r.command)
 			got.entries = len(al.EntriesFor(r.command))

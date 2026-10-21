@@ -25,9 +25,10 @@ import (
 //
 // The write verbs come first in that chain, add through delete, and none
 // starts with 'l' or 's'. After them goip implements list/show/lst, then
-// get (route_get.go), then save and showdump (route_save.go), and rejects
-// everything else, flush and restore included, with ErrNotImplemented. The
-// chain's order is kept: `sh` is show and `showd` showdump. That
+// get (route_get.go), then save, restore and showdump (route_save.go,
+// route_restore.go), and rejects everything else, flush included, with
+// ErrNotImplemented. The chain's order is kept: `sh` is show, `res` restore (`r` is replace) and
+// `showd` showdump. That
 // is a deliberate narrowing of iproute2's two outcomes — it says "command
 // unknown" for a typo and runs the verb otherwise — into the one the parity
 // harness can act on. A bare `ip route` with no verb is a list
@@ -47,10 +48,13 @@ func runRoute(c *runCtx, args []string) error {
 		if !isList && matchesPrefix(verb, routeGetVerbCst) {
 			return routeGet(c, rest)
 		}
-		// flush and restore sit between get and save and between save and
-		// showdump, and neither shares a prefix with either.
+		// flush sits between get and save, and shares a prefix with
+		// neither save, restore nor showdump.
 		if !isList && matchesPrefix(verb, routeSaveVerbCst) {
 			return routeSave(c, rest)
+		}
+		if !isList && matchesPrefix(verb, routeRestoreVerbCst) {
+			return routeRestore(c, rest)
 		}
 		if !isList && matchesPrefix(verb, routeShowdumpVerbCst) {
 			return routeShowdump(c, rest)

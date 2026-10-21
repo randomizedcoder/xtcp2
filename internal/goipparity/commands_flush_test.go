@@ -15,7 +15,8 @@ import (
 // by default. Every other row leaves it 0. It returns "" for a row that keeps
 // the rule.
 func multiWriteRowProblem(c Command) string {
-	multi := strings.HasPrefix(c.Slug, addrFlushSlugPrefixCst) || strings.HasPrefix(c.Slug, addrRestoreSlugPrefixCst)
+	multi := strings.HasPrefix(c.Slug, addrFlushSlugPrefixCst) || strings.HasPrefix(c.Slug, addrRestoreSlugPrefixCst) ||
+		c.Slug == routeRestoreSlugCst
 	switch {
 	case c.Writes < 0:
 		return "Writes is negative"
@@ -55,6 +56,11 @@ func TestFlushRowProblem(t *testing.T) {
 			edit: func(c *Command) { c.Slug, c.Write, c.Writes = "addr_show", false, 2 }, expected: "only a flush or restore row sets Writes"},
 		{description: "positive: a restore row with its 8 writes keeps the rule",
 			edit: func(c *Command) { c.Slug, c.Writes = "addr_restore_fresh", 8 }, expected: ""},
+		{description: "positive: the route restore row with its 2 writes keeps the rule",
+			edit: func(c *Command) { c.Slug, c.Writes = routeRestoreSlugCst, 2 }, expected: ""},
+		{description: "negative: the route restore row as a read row is refused",
+			edit:     func(c *Command) { c.Slug, c.Write, c.Writes = routeRestoreSlugCst, false, 2 },
+			expected: "a flush or restore row is a write row"},
 		{description: "negative: a restore row with Writes 0 is refused",
 			edit:     func(c *Command) { c.Slug, c.Writes = "addr_restore_fresh", 0 },
 			expected: "a flush or restore row must set Writes, even to 1"},

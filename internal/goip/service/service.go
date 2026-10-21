@@ -331,10 +331,10 @@ func (s *Service) AddressMsgs(family uint8, ifindex uint32) ([][]byte, error) {
 	return src.DumpMsgs(req.AddrShowDump(family, ifindex, s.nextSeq()), uint16(unix.RTM_NEWADDR))
 }
 
-// AddressRestoreLinks is ll_init_map's link dump before `ip addr restore`'s
-// first write. The replies are read and dropped: ll_remember_index fills an
-// index cache restore never reads.
-func (s *Service) AddressRestoreLinks() error {
+// RestoreLinks is ll_init_map's link dump before `ip addr restore`'s or `ip
+// route restore`'s first write. The replies are read and dropped:
+// ll_remember_index fills an index cache restore never reads.
+func (s *Service) RestoreLinks() error {
 	r, err := req.AddrRestoreLinkDump(s.nextSeq())
 	if err != nil {
 		return fmt.Errorf("goip: build address restore link dump request: %w", err)

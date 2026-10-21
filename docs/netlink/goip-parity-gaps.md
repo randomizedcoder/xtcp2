@@ -2233,6 +2233,29 @@ The comparator tests (`internal/goipparity/stdout_dump_test.go`):
 | corner: text where `ip` wrote a file | the text facets and `dumprecords` |
 | negative: text, three bytes, empty output | not a dump file |
 
+**G2-T02 delivered** (`internal/goip/route_restore.go`):
+- **The passes.** `iproute_restore` reads the file three times, rewinding between passes, and `restore_handler` sends one class per pass (`ip/iproute.c:2304-2388`): 0, routes with no `RTA_GATEWAY` whose `RTA_PREFSRC`, if any, equals `RTA_DST`; 1, routes with no gateway and another source; 2, routes with a gateway. `parse_rtattr` keeps the first of each attribute and `rtattr_cmp` compares length and payload, and goip does the same. goip reads the file once and walks it three times.
+- **The messages.** `ll_init_map`'s link dump goes out once, before the first message sent, the same dump `addr restore` sends (`RestoreLinks`); then each message as the file holds it, its flags ORed with `NLM_F_REQUEST|NLM_F_CREATE|NLM_F_ACK` (`0x427` on a dump's `0x22`), at the next seq, written to `GOIP_WRITE_OUT`. The saved pid `rtnl_talk` keeps is zeroed, as address restore's is, and the parity masks it.
+- **The refusals.** A bad magic exits 1. A malformed or truncated record ends the first pass, so the class-0 messages before it are written and the command exits 2 with no second pass, as `ip`'s does. A record that is not an `RTM_NEWROUTE`, is shorter than `struct rtmsg` or has an undecodable attribute is refused before anything is sent: `ip` sends whatever the file holds, and the kernel's answer to anything a dump could not have produced is not in the corpus. A failed link dump is `Dump terminated`, exit 1.
+- **One matrix row, gated.** `route restore < route_save.save`, a write row of two writes (floor 4, as the address restore rows', since goip's side sends only the link dump), on `route_restore`'s precondition, reading the file the showdump rows read. Two back-to-back runs passed 202 of 202, identical row for row: `txns` 3/3, the two writes matching `ip_a`'s, and the link dump's moving cache info and d0's per-namespace MAC control-canceled, with no allowlist entry.
+
+The command tests (`internal/goip/route_restore_test.go`):
+
+| description | expected |
+|---|---|
+| positive: `route_restore`'s capture (replayed) | the one link dump byte-identical to `ip`'s; the two writes `ip`'s, message by message with seq and pid zeroed, device route first, each `0x427` at the link dump's seq plus one and two; rc 0, nothing printed |
+| positive: a gateway route, a sourced route and a plain one, in that order in the file | written 0, 1, 2 |
+| positive: two of a class | the file's order within the class |
+| corner: a gateway and a source; a source with no destination; two sources, the first equal to the destination | class 2; class 1; class 0 |
+| boundary: the magic alone | nothing sent, no `GOIP_WRITE_OUT` needed, rc 0 |
+| negative: records with no `GOIP_WRITE_OUT`; a bad magic | nothing sent, exit 1 |
+| negative: a truncated record after a gateway route and a plain one | the plain one written, exit 2 |
+| negative: an address record, an `RTM_DELROUTE`, a short body, an overlong attribute | refused before anything is sent |
+| negative: a failed link dump | `Dump terminated`, exit 1, nothing written |
+| corner: `route res` is restore | `r` and `re` are `replace` |
+
+The pass order, the truncation and the magic-alone rows were checked against `ip route restore` from iproute2-7.1.0 under `strace`, in an unprivileged namespace with d0 at ifindex 3.
+
 ### G3 — rtnetlink writes on running objects
 
 Writes and flushes for neigh, rule, nexthop and addrlabel; ntable change; stats set; link property.
