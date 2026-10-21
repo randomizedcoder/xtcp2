@@ -255,6 +255,7 @@ var (
 	resultMPTCPEv MPTCPEvent
 	resultFOU     FOU
 	resultILA     ILA
+	resultL2TP    L2TP
 )
 
 // parseBenchCase is one parser P0 benchmarks: its name, the kind of its
@@ -296,6 +297,7 @@ var parseBenchCases = []parseBenchCase{
 	{name: "ParseMPTCPEvent", kind: genlEvents(MPTCPPMGenlName), parse: func(_ NlMsgHdr, b []byte) (err error) { resultMPTCPEv, err = ParseMPTCPEvent(b); return err }},
 	{name: "ParseFOU", kind: genl(FOUGenlName), parse: func(_ NlMsgHdr, b []byte) (err error) { resultFOU, err = ParseFOU(b); return err }},
 	{name: "ParseILA", kind: genl(ILAGenlName), parse: func(_ NlMsgHdr, b []byte) (err error) { resultILA, err = ParseILA(b); return err }},
+	{name: "ParseL2TP", kind: genl(L2TPGenlName), parse: func(_ NlMsgHdr, b []byte) (err error) { resultL2TP, err = ParseL2TP(b); return err }},
 }
 
 // parseBenchCaseNamed returns the parseBenchCases entry called name.
@@ -434,6 +436,10 @@ func BenchmarkParseFOU(b *testing.B) { benchParse(b, "ParseFOU") }
 // BenchmarkParseILA decodes the smallest, a typical and the largest ila
 // mapping the kernel answered in the corpus (P2-T06).
 func BenchmarkParseILA(b *testing.B) { benchParse(b, "ParseILA") }
+
+// BenchmarkParseL2TP decodes the smallest, a typical and the largest l2tp
+// tunnel or session the kernel answered in the corpus (P2-T07).
+func BenchmarkParseL2TP(b *testing.B) { benchParse(b, "ParseL2TP") }
 
 func TestBenchPick(t *testing.T) {
 	// msg is a captured message of type typ whose body is n bytes, from a
@@ -592,7 +598,7 @@ func TestParseBenchCases(t *testing.T) {
 				" ParseGenericNetlink=16/nlctrl ParseGenericNetlinkFamily=16/nlctrl ParseEthtool=16/ethtool" +
 				" ParseNsid=0/88 ParseNexthopBucket=0/116 ParseLinkProp=0/108/request ParsePrefix=0/52" +
 				" ParseTCPMetrics=16/tcp_metrics ParseSeg6=16/SEG6 ParseIOAM6=16/IOAM6/cmd3,6 ParseIOAM6Event=16/IOAM6/cmd1" +
-				" ParseMPTCPPM=16/mptcp_pm/answers ParseMPTCPEvent=16/mptcp_pm/events ParseFOU=16/fou ParseILA=16/ila",
+				" ParseMPTCPPM=16/mptcp_pm/answers ParseMPTCPEvent=16/mptcp_pm/events ParseFOU=16/fou ParseILA=16/ila ParseL2TP=16/l2tp",
 		},
 	}
 	for _, tt := range tests {
@@ -639,6 +645,7 @@ func TestParseBenchRecords(t *testing.T) {
 		{description: "positive: ParseMPTCPEvent decodes its three mptcp_pm event picks", name: "ParseMPTCPEvent", expected: "smallest ok, typical ok, largest ok"},
 		{description: "positive: ParseFOU decodes its three fou picks", name: "ParseFOU", expected: "smallest ok, typical ok, largest ok"},
 		{description: "positive: ParseILA decodes its three ila picks", name: "ParseILA", expected: "smallest ok, typical ok, largest ok"},
+		{description: "positive: ParseL2TP decodes its three l2tp picks", name: "ParseL2TP", expected: "smallest ok, typical ok, largest ok"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {

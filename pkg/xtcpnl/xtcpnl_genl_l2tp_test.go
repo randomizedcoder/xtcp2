@@ -12,48 +12,13 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// The l2tp commands and attributes (linux/l2tp.h), which x/sys/unix does
-// not define.
+// L2TP_ATTR_PAD and L2TP_ATTR_STATS_PAD, which ParseL2TP skips, and the
+// width and number of the stats counters.
 const (
-	l2tpCmdTunnelCreate    = 1
-	l2tpCmdTunnelDelete    = 2
-	l2tpCmdTunnelModify    = 3
-	l2tpCmdTunnelGet       = 4
-	l2tpCmdSessionCreate   = 5
-	l2tpCmdSessionDelete   = 6
-	l2tpCmdSessionModify   = 7
-	l2tpCmdSessionGet      = 8
-	l2tpAttrPwType         = 1
-	l2tpAttrEncapType      = 2
-	l2tpAttrL2specType     = 5
-	l2tpAttrL2specLen      = 6
-	l2tpAttrProtoVersion   = 7
-	l2tpAttrIfname         = 8
-	l2tpAttrConnID         = 9
-	l2tpAttrPeerConnID     = 10
-	l2tpAttrSessionID      = 11
-	l2tpAttrPeerSessionID  = 12
-	l2tpAttrUDPCsum        = 13
-	l2tpAttrCookie         = 15
-	l2tpAttrPeerCookie     = 16
-	l2tpAttrDebug          = 17
-	l2tpAttrRecvSeq        = 18
-	l2tpAttrSendSeq        = 19
-	l2tpAttrLnsMode        = 20
-	l2tpAttrRecvTimeout    = 22
-	l2tpAttrIPSaddr        = 24
-	l2tpAttrIPDaddr        = 25
-	l2tpAttrUDPSport       = 26
-	l2tpAttrUDPDport       = 27
-	l2tpAttrStats          = 30
-	l2tpAttrIP6Saddr       = 31
-	l2tpAttrIP6Daddr       = 32
-	l2tpAttrUDPZeroCsum6Tx = 33
-	l2tpAttrUDPZeroCsum6Rx = 34
-	l2tpAttrPad            = 35
-	l2tpStatsPad           = 9
-	l2tpStatsCounterSize   = 8
-	l2tpStatsCounters      = 10
+	l2tpAttrPad          = 35
+	l2tpStatsPad         = 9
+	l2tpStatsCounterSize = 8
+	l2tpStatsCounters    = 10
 )
 
 // l2tpRows is every C2-T07 row, in the corpus's order.
@@ -95,17 +60,17 @@ func l2tpStats(t *testing.T, data []byte) string {
 func l2tpAttrs(t *testing.T, attrs []NetlinkAttribute) string {
 	t.Helper()
 	u32 := map[uint16]string{
-		l2tpAttrConnID: "conn", l2tpAttrPeerConnID: "peer_conn", l2tpAttrSessionID: "session",
-		l2tpAttrPeerSessionID: "peer_session", l2tpAttrDebug: "debug",
+		L2TPAttrConnID: "conn", L2TPAttrPeerConnID: "peer_conn", L2TPAttrSessionID: "session",
+		L2TPAttrPeerSessionID: "peer_session", L2TPAttrDebug: "debug",
 	}
 	u16 := map[uint16]string{
-		l2tpAttrPwType: "pw", l2tpAttrEncapType: "encap", l2tpAttrUDPSport: "sport",
-		l2tpAttrUDPDport: "dport",
+		L2TPAttrPwType: "pw", L2TPAttrEncapType: "encap", L2TPAttrUDPSport: "sport",
+		L2TPAttrUDPDport: "dport",
 	}
 	u8 := map[uint16]string{
-		l2tpAttrL2specType: "l2spec", l2tpAttrL2specLen: "l2spec_len", l2tpAttrProtoVersion: "version",
-		l2tpAttrUDPCsum: "csum", l2tpAttrRecvSeq: "recv_seq", l2tpAttrSendSeq: "send_seq",
-		l2tpAttrLnsMode: "lns",
+		L2TPAttrL2SpecType: "l2spec", L2TPAttrL2SpecLen: "l2spec_len", L2TPAttrProtoVersion: "version",
+		L2TPAttrUDPCsum: "csum", L2TPAttrRecvSeq: "recv_seq", L2TPAttrSendSeq: "send_seq",
+		L2TPAttrLnsMode: "lns",
 	}
 	var out []string
 	for _, a := range attrs {
@@ -117,23 +82,23 @@ func l2tpAttrs(t *testing.T, attrs []NetlinkAttribute) string {
 			out = append(out, u16[id]+"="+strconv.Itoa(int(binary.LittleEndian.Uint16(a.Data))))
 		case u8[id] != "":
 			out = append(out, u8[id]+"="+strconv.Itoa(int(a.Data[0])))
-		case id == l2tpAttrIPSaddr || id == l2tpAttrIP6Saddr:
+		case id == L2TPAttrIPSaddr || id == L2TPAttrIP6Saddr:
 			out = append(out, "local="+net.IP(a.Data).String())
-		case id == l2tpAttrIPDaddr || id == l2tpAttrIP6Daddr:
+		case id == L2TPAttrIPDaddr || id == L2TPAttrIP6Daddr:
 			out = append(out, "remote="+net.IP(a.Data).String())
-		case id == l2tpAttrCookie:
+		case id == L2TPAttrCookie:
 			out = append(out, "cookie="+hex.EncodeToString(a.Data))
-		case id == l2tpAttrPeerCookie:
+		case id == L2TPAttrPeerCookie:
 			out = append(out, "peer_cookie="+hex.EncodeToString(a.Data))
-		case id == l2tpAttrIfname:
+		case id == L2TPAttrIfname:
 			out = append(out, "ifname="+strings.TrimRight(string(a.Data), "\x00"))
-		case id == l2tpAttrUDPZeroCsum6Tx:
+		case id == L2TPAttrUDPZeroCsum6Tx:
 			out = append(out, "zero_csum6_tx")
-		case id == l2tpAttrUDPZeroCsum6Rx:
+		case id == L2TPAttrUDPZeroCsum6Rx:
 			out = append(out, "zero_csum6_rx")
-		case id == l2tpAttrRecvTimeout:
+		case id == L2TPAttrRecvTimeout:
 			out = append(out, "timeout="+strconv.FormatUint(binary.LittleEndian.Uint64(a.Data), 10))
-		case id == l2tpAttrStats:
+		case id == L2TPAttrStats:
 			out = append(out, l2tpStats(t, a.Data))
 		case id == l2tpAttrPad:
 			out = append(out, "pad")
@@ -150,7 +115,7 @@ func l2tpAttrs(t *testing.T, attrs []NetlinkAttribute) string {
 func l2tpMsgs(t *testing.T, rel string, request bool) string {
 	t.Helper()
 	msgs := pcapNlMsgs(t, tdGenlWrite_7_1_4+"/"+rel)
-	fam := genlFamilyID(t, msgs, "l2tp")
+	fam := genlFamilyID(t, msgs, L2TPGenlName)
 	var out []string
 	for _, m := range msgs {
 		if fam == 0 || m.h.Type != fam || (m.h.Flags&unix.NLM_F_REQUEST != 0) != request {
@@ -161,10 +126,10 @@ func l2tpMsgs(t *testing.T, rel string, request bool) string {
 			t.Fatal(err)
 		}
 		words := []string{map[uint8]string{
-			l2tpCmdTunnelCreate: "tunnel_create", l2tpCmdTunnelDelete: "tunnel_delete",
-			l2tpCmdTunnelModify: "tunnel_modify", l2tpCmdTunnelGet: "tunnel_get",
-			l2tpCmdSessionCreate: "session_create", l2tpCmdSessionDelete: "session_delete",
-			l2tpCmdSessionModify: "session_modify", l2tpCmdSessionGet: "session_get",
+			L2TPCmdTunnelCreate: "tunnel_create", L2TPCmdTunnelDelete: "tunnel_delete",
+			L2TPCmdTunnelModify: "tunnel_modify", L2TPCmdTunnelGet: "tunnel_get",
+			L2TPCmdSessionCreate: "session_create", L2TPCmdSessionDelete: "session_delete",
+			L2TPCmdSessionModify: "session_modify", L2TPCmdSessionGet: "session_get",
 		}[g.Command]}
 		if request && m.h.Flags&unix.NLM_F_DUMP == unix.NLM_F_DUMP {
 			words = append(words, "dump")
@@ -185,7 +150,7 @@ func l2tpMsgs(t *testing.T, rel string, request bool) string {
 func l2tpErrno(t *testing.T, slug string) string {
 	t.Helper()
 	msgs := pcapNlMsgs(t, tdGenlWrite_7_1_4+"/"+slug+"/ip.pcap")
-	fam := genlFamilyID(t, msgs, "l2tp")
+	fam := genlFamilyID(t, msgs, L2TPGenlName)
 	for _, m := range msgs {
 		if fam != 0 && m.h.Type == fam && m.h.Flags&unix.NLM_F_REQUEST != 0 {
 			return strconv.Itoa(int(answerTo(t, msgs, m.h))) + " rc " + tcpmFile(t, slug+"/ip.rc")
@@ -225,7 +190,7 @@ func TestGenlL2tpCorpus(t *testing.T) {
 			func(t *testing.T) string {
 				var missing []string
 				for _, slug := range l2tpRows {
-					if genlFamilyID(t, pcapNlMsgs(t, tdGenlWrite_7_1_4+"/"+slug+"/ip.pcap"), "l2tp") == 0 {
+					if genlFamilyID(t, pcapNlMsgs(t, tdGenlWrite_7_1_4+"/"+slug+"/ip.pcap"), L2TPGenlName) == 0 {
 						missing = append(missing, slug)
 					}
 				}

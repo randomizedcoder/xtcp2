@@ -229,6 +229,24 @@ func (d *genlDecoder) bytes(id uint16) []byte {
 	return a.Data
 }
 
+// str reads a NUL-terminated string attribute, nil when absent.
+func (d *genlDecoder) str(id uint16) *string {
+	if d.err != nil {
+		return nil
+	}
+	a, err := attribute(d.attrs, id)
+	if err != nil || a == nil {
+		d.err = err
+		return nil
+	}
+	var s string
+	s, d.err = attrString(d.attrs, id)
+	if d.err != nil {
+		return nil
+	}
+	return &s
+}
+
 // flag reads an NLA_FLAG attribute: present or not. As in the kernel's
 // policy, a flag carries no payload.
 func (d *genlDecoder) flag(id uint16) bool {
