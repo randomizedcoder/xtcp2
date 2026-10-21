@@ -731,7 +731,7 @@ func TestFamilyTableAndJSONRows(t *testing.T) {
 			implemented: true,
 		},
 		{
-			description: "positive: netconf show dev, the dump filtered to the named ifindex client-side, the dev resolved from the bundled link dump",
+			description: "positive: netconf show dev, the dump filtered to the named ifindex client-side, the dev resolved by ll_name_to_index's get by name ahead of the link dump",
 			name:        "netconf show dev",
 			slug:        "netconf_show_dev",
 			floor:       4,
@@ -991,50 +991,34 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 		}
 	}
 
-	// The queue is two rows: the -s sweep commands whose noise is unresolved and
-	// which pkg/nlparity's held-out negative keeps out of gated_commands on
-	// purpose. The twelve the `-j`/family branch added left it on G0-T01's two
-	// runs — see TestQueuedReadRowsGated. The two nexthop and three addrlabel rows
-	// left this list on runs 10 and 11, their first live grounding — see
-	// TestNexthopAddrlabelGated.
+	// One row: `addr show dynamic`, out for a reason of its own. It prints a
+	// finite valid_lft, which counts down between ip_a and goip, so it can
+	// never gate (addr-write-path.md, "Gating"). TestAddrShowSelectorRowsGated
+	// pins it, and pkg/nlparity's held-out negative keeps it out of
+	// gated_commands.
 	//
-	// The two netconf-dev rows are what remains of the set runs 8 and 9 measured
-	// DIVERGENT, ungated for a reason the queue above does not share: not "not yet
-	// measured" but "measured, and divergent on the wire". The gap is name
-	// resolution — `ip`'s redundant per-name get ahead of its link dump. That is
-	// class DivergenceTransactionCount, which the allowlist cannot suppress.
-	// TestPermanentWireDivergences pins the two. The six stats dump rows left the
-	// set, and this list, on G0-T02's two runs, once goip named each record with
-	// `ip`'s lazy per-index get in place of an up-front link dump — see
-	// TestStatsDumpRowsGated. The two bond `-d link show` rows left this list on
-	// their first two live runs — see TestBondReadRowsGated.
+	// Every other row has left this list:
 	//
-	// Runs 8 and 9 measured nine. `stats show group link dev` left the set, and
-	// this list, once goip's dev path sent ip's lookup by name in place of a
-	// link dump. It gated on the same two runs as the five bond xstats point
-	// gets — see TestBondXstatsRowsGated.
+	//   - the two nexthop and three addrlabel rows on runs 10 and 11, their
+	//     first live grounding — see TestNexthopAddrlabelGated;
+	//   - the two bond `-d link show` rows on their first two live runs — see
+	//     TestBondReadRowsGated;
+	//   - `stats show group link dev`, once goip's dev path sent ip's lookup by
+	//     name, with the five bond xstats point gets — see
+	//     TestBondXstatsRowsGated;
+	//   - the twenty-seven address write rows on the two runs after A7-T01 —
+	//     see TestAddrWriteRowsGated (A3-T03's four output-mode rows, A8-T03's
+	//     seven flush rows and A9-T03's two restore rows never joined it);
+	//   - the twelve family, table and `-j` rows of the queue on G0-T01's two
+	//     runs — see TestQueuedReadRowsGated;
+	//   - the six stats dump rows on G0-T02's, once goip named each record with
+	//     `ip`'s get by index — see TestStatsDumpRowsGated;
+	//   - the two `-s` sweep rows and the two netconf-dev rows on G0-T03's —
+	//     see TestNetconfDevAndSweepRowsGated.
 	//
-	// `addr show dynamic` is out for a reason of its own: it prints a finite
-	// valid_lft, which counts down between ip_a and goip, so it can never
-	// gate (addr-write-path.md, "Gating"). TestAddrShowSelectorRowsGated pins
-	// it.
-	//
-	// The twenty-seven address write rows left this list on the two runs
-	// after A7-T01 — see TestAddrWriteRowsGated.
-	//
-	// A3-T03's four output-mode rows never joined it: they gated on the two
-	// runs taken before the branch merged — see TestAddrOutputModeRowsGated.
-	//
-	// A8-T03's seven address flush rows never joined it either, for the same
-	// reason — see TestAddrFlushRowsGated.
-	//
-	// Nor did A9-T03's two address restore rows — see TestAddrRestoreRowsGated.
-	//
-	// The twelve family, table and `-j` rows of the queue left this list on
-	// G0-T01's two runs — see TestQueuedReadRowsGated.
+	// The last four were the permanent set, measured divergent on the wire;
+	// TestPermanentWireDivergences records that it is empty.
 	expected := []string{
-		"-s addr show", "-s neigh show",
-		"netconf show dev", "-4 netconf show dev",
 		"addr show dynamic",
 	}
 
@@ -1043,15 +1027,15 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 		check       func(t *testing.T)
 	}{
 		{
-			description: "boundary: the list is five named rows",
+			description: "boundary: the list is one named row",
 			check: func(t *testing.T) {
-				if len(expected) != 5 {
-					t.Errorf("got %d named rows, want 5", len(expected))
+				if len(expected) != 1 {
+					t.Errorf("got %d named rows, want 1", len(expected))
 				}
 			},
 		},
 		{
-			description: "positive: the ungated set is exactly the five named rows, so UNGATED_CLEAN counts five rows and not zero",
+			description: "positive: the ungated set is exactly the one named row, so UNGATED_CLEAN counts one row and not zero",
 			check: func(t *testing.T) {
 				for _, name := range expected {
 					if !ungated[name] {
@@ -1113,7 +1097,8 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 // even though their stdout matches. TestPermanentWireDivergences records that
 // those nine are permanent and unallowlistable (eight since `stats show
 // group link dev` resolved its name as ip does and gated, two since G0-T02's
-// stats dump did the same and its six rows gated). Runs 10 and 11 then gated the
+// stats dump did the same and its six rows gated, none since G0-T03's
+// netconf-dev rows did). Runs 10 and 11 then gated the
 // five nexthop and addrlabel rows (their first live grounding);
 // TestNexthopAddrlabelGated pins that flip.
 //
@@ -1138,7 +1123,7 @@ func TestObjectGatingStatus(t *testing.T) {
 		{"positive: the one -s twin that gated, ntable's", "-s ntable show", true},
 
 		{"boundary: vrf show gates although its Floor is 2, so gating is independent of floor", "vrf show", true},
-		{"boundary: netconf show dev is NeedsDev in a partly-gated object, yet stays ungated because it diverges", "netconf show dev", false},
+		{"boundary: netconf show dev is NeedsDev and gates since G0-T03 resolves its name as ip does", "netconf show dev", true},
 
 		{"positive: stats show group link gates since G0-T02 names each record with ip's get by index", "stats show group link", true},
 		{"positive: -s stats show group link gates likewise", "-s stats show group link", true},
@@ -1147,9 +1132,10 @@ func TestObjectGatingStatus(t *testing.T) {
 		{"positive: stats show group xstats gates likewise", "stats show group xstats", true},
 		{"positive: -s stats show group xstats gates likewise", "-s stats show group xstats", true},
 		{"positive: -j stats show group xstats gates likewise", "-j stats show group xstats", true},
-		{"negative: -4 netconf show dev is a FAIL on the wire, not merely a WARN", "-4 netconf show dev", false},
-		{"negative: -s addr show is a held-out -s sweep row", "-s addr show", false},
-		{"negative: -s neigh show is the other held-out -s row", "-s neigh show", false},
+		{"positive: -4 netconf show dev, once the one FAIL, gates since G0-T03", "-4 netconf show dev", true},
+		{"positive: -s addr show, a held-out -s sweep row until G0-T03, gates", "-s addr show", true},
+		{"positive: -s neigh show, the other held-out -s row, gates", "-s neigh show", true},
+		{"negative: addr show dynamic stays ungated for its counting-down lifetime", "addr show dynamic", false},
 		{"positive: nexthop show gates on runs 10 and 11, its first live grounding", "nexthop show", true},
 		{"positive: addrlabel show gates on runs 10 and 11, its first live grounding", "addrlabel show", true},
 		{"positive: -6 addrlabel show gates with its byte-identical twin", "-6 addrlabel show", true},
@@ -1183,25 +1169,28 @@ func TestObjectGatingStatus(t *testing.T) {
 	})
 }
 
-// TestPermanentWireDivergences pins the two rows measured as a wire
-// divergence — the two netconf-dev forms. Runs 8 and 9 measured nine;
-// `stats show group link dev` left the set once goip's dev path resolved the
-// name with a get by name, as ip does, rather than a link dump, and gated (see
-// TestBondXstatsRowsGated). The six stats dump rows left it on G0-T02's two
-// runs, once goip named each dumped record with ll_index_to_name's get by
-// index rather than an up-front link dump (see TestStatsDumpRowsGated). So the
-// "permanent" here means "no run and no allowlist entry can gate it", not "no
-// change to goip can": the gap is name resolution (`ip`'s redundant per-name
-// get ahead of its link dump), class DivergenceTransactionCount, which the
-// allowlist cannot suppress.
+// TestPermanentWireDivergences records that the permanent set is EMPTY. Runs 8 and
+// 9 measured nine rows divergent on the wire — six stats dumps, `stats show
+// group link dev` and the two netconf-dev forms — every one a name-resolution
+// difference of class DivergenceTransactionCount, which the allowlist cannot
+// suppress, so no run and no entry could gate them. Each left the set by a
+// change to goip that sent `ip`'s requests:
 //
-// TestUngatedSurfaceIsNotVacuous pins the whole five-row ungated SET; this
-// marks the two that are ungated by DESIGN (versus the two held-out `-s` rows
-// and the one finite-lifetime row), so an edit that tries to gate or allowlist
-// one trips here with the reason. The last subtest ties the decision to the mechanism —
-// a transaction-count divergence is unsuppressible while a value one is not —
-// complementing pkg/nlparity's allowlist_test.go, which asserts the same from
-// the Suppresses side.
+//   - `stats show group link dev`, a get by name in place of a link dump (see
+//     TestBondXstatsRowsGated);
+//   - the six stats dumps, ll_index_to_name's get per record in place of an
+//     up-front link dump, on G0-T02's runs (see TestStatsDumpRowsGated);
+//   - the two netconf-dev rows, ll_name_to_index's get by name ahead of the
+//     link dump, on G0-T03's runs, which also needed the segmenter to close an
+//     ACKed point get on its ACK (see TestNetconfDevAndSweepRowsGated).
+//
+// So "permanent" meant "no run and no allowlist entry can gate it", never "no
+// change to goip can". The rows below pin each former member as gated and with
+// no allowlist entry, so a regression that reopens one surfaces here with the
+// history. The last subtest ties it to the mechanism — a transaction-count
+// divergence is unsuppressible while a value one is not — complementing
+// pkg/nlparity's allowlist_test.go, which asserts the same from the
+// Suppresses side.
 //
 // go test ./internal/goipparity/ -run TestPermanentWireDivergences
 func TestPermanentWireDivergences(t *testing.T) {
@@ -1210,77 +1199,45 @@ func TestPermanentWireDivergences(t *testing.T) {
 		t.Fatalf("EmbeddedAllowlist: %v", err)
 	}
 
-	// The two, by command Name — what compare.go passes to IsGated/EntriesFor.
-	permanent := []string{
-		"netconf show dev", "-4 netconf show dev",
+	type want struct {
+		implemented, gated bool
+		entries            int
 	}
-	inSet := make(map[string]bool, len(permanent))
-	for _, n := range permanent {
-		inSet[n] = true
-	}
-
+	gated := want{implemented: true, gated: true}
 	rows := []struct {
 		description string
 		command     string
-		wantInSet   bool
-		wantGated   bool
+		expected    want
 	}{
-		{"negative: stats show group link left the set on G0-T02 and gates", "stats show group link", false, true},
-		{"negative: the xstats base row left the set on G0-T02 and gates", "stats show group xstats", false, true},
-		{"positive: netconf show dev is a permanent divergence (stdout correct, only the wire differs)", "netconf show dev", true, false},
-		{"boundary: -4 netconf show dev is in the set and is the one FAIL (hygiene orphans), still permanent", "-4 netconf show dev", true, false},
-		{"boundary: a row that DID gate on runs 8/9 is not in the set", "netconf show", false, true},
-		{"boundary: vrf show gated and is not a permanent divergence", "vrf show", false, true},
-		{"negative: stats show group link dev left the set once it looked the name up by name", "stats show group link dev", false, true},
-		{"negative: -s addr show is ungated for an unrelated reason (may gate later), not in the set", "-s addr show", false, false},
-		{"negative: -s neigh show is ungated for an unrelated reason, not in the permanent set", "-s neigh show", false, false},
-		{"corner: a name not in the matrix is neither in the set nor gated", "bogus show", false, false},
+		{"positive: stats show group link dev, the first to leave, gates", "stats show group link dev", gated},
+		{"positive: stats show group link left on G0-T02 and gates", "stats show group link", gated},
+		{"positive: -s stats show group link left on G0-T02 and gates", "-s stats show group link", gated},
+		{"positive: -j stats show group link left on G0-T02 and gates", "-j stats show group link", gated},
+		{"positive: stats show group xstats left on G0-T02 and gates", "stats show group xstats", gated},
+		{"positive: -s stats show group xstats left on G0-T02 and gates", "-s stats show group xstats", gated},
+		{"positive: -j stats show group xstats left on G0-T02 and gates", "-j stats show group xstats", gated},
+		{"positive: netconf show dev left on G0-T03 and gates", "netconf show dev", gated},
+		{"boundary: -4 netconf show dev, once the one FAIL (hygiene orphans), left on G0-T03 and gates", "-4 netconf show dev", gated},
+		{"negative: addr show dynamic is ungated by design, for its lifetime and not its wire", "addr show dynamic", want{implemented: true}},
+		{"corner: a name not in the matrix is neither", "bogus show", want{}},
 	}
-
 	for _, r := range rows {
 		t.Run(r.description, func(t *testing.T) {
-			if got := inSet[r.command]; got != r.wantInSet {
-				t.Errorf("inSet[%q] = %v, want %v", r.command, got, r.wantInSet)
+			var got want
+			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				got.implemented = c.Implemented
 			}
-			if got := al.IsGated(r.command); got != r.wantGated {
-				t.Errorf("IsGated(%q) = %v, want %v", r.command, got, r.wantGated)
+			got.gated = al.IsGated(r.command)
+			got.entries = len(al.EntriesFor(r.command))
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
 			}
 		})
 	}
 
-	// negative: each permanent row is ungated AND unallowlisted — it cannot gate
-	// and cannot carry an allowlist entry, by design.
-	t.Run("negative: each permanent row is ungated and unallowlisted", func(t *testing.T) {
-		for _, name := range permanent {
-			if al.IsGated(name) {
-				t.Errorf("%q is a permanent wire divergence but is gated; it cannot gate "+
-					"(DivergenceTransactionCount is unsuppressible) — remove it from gated_commands", name)
-			}
-			if entries := al.EntriesFor(name); len(entries) != 0 {
-				t.Errorf("%q is a permanent wire divergence but carries %d allowlist entr(ies); a "+
-					"transaction-count divergence cannot be allowlisted", name, len(entries))
-			}
-		}
-	})
-
-	// positive: each permanent row is in the matrix and Implemented — goip
-	// produces correct stdout; only the netlink conversation differs.
-	t.Run("positive: each permanent row is in the matrix and Implemented", func(t *testing.T) {
-		for _, name := range permanent {
-			c, lookupErr := Lookup(name)
-			if lookupErr != nil {
-				t.Errorf("permanent row %q is not in the table: %v", name, lookupErr)
-				continue
-			}
-			if !c.Implemented {
-				t.Errorf("permanent row %q is not Implemented; the divergence is on the wire, "+
-					"not in whether goip runs the command", name)
-			}
-		}
-	})
-
-	// corner: the mechanism that makes the two permanent — a transaction-count
-	// divergence is unsuppressible, while a value divergence may be allowlisted.
+	// corner: the mechanism that made the nine permanent — a transaction-count
+	// divergence is unsuppressible, while a value divergence may be allowlisted,
+	// so what retired them was a change to goip, never an entry.
 	t.Run("corner: transaction-count is unsuppressible, value is suppressible", func(t *testing.T) {
 		cases := []struct {
 			description string
@@ -1340,9 +1297,9 @@ func TestNexthopAddrlabelGated(t *testing.T) {
 		{"positive: the -j nexthop twin gates with its text twin (no wire)", "-j nexthop show", true, true},
 		{"positive: the -j addrlabel twin gates with its text twin (no wire)", "-j addrlabel show", true, true},
 		{"boundary: -6 addrlabel show is a byte-identical identity, gates with addrlabel show", "-6 addrlabel show", true, true},
-		{"boundary: a permanent-divergence row still does not gate (separates cohorts)", "netconf show dev", false, false},
+		{"boundary: a row ungated by design still does not gate (separates cohorts)", "addr show dynamic", false, false},
 		{"negative: a -j row G0-T01 gated is gated but not in this cohort", "-j addr show", false, true},
-		{"negative: a held-out -s row is not in this cohort and not gated", "-s addr show", false, false},
+		{"negative: an -s row G0-T03 gated is gated but not in this cohort", "-s addr show", false, true},
 		{"corner: a name not in the matrix is neither in the cohort nor gated", "bogus show", false, false},
 	}
 
@@ -1428,7 +1385,7 @@ func TestLinkWriteRowsGated(t *testing.T) {
 			struct{ write, gated bool }{true, true}},
 		{"negative: a read row of the same object is not a write row", "link show",
 			struct{ write, gated bool }{false, true}},
-		{"negative: a permanent-divergence row is neither", "netconf show dev",
+		{"negative: a row ungated by design is neither", "addr show dynamic",
 			struct{ write, gated bool }{false, false}},
 		{"corner: a write the table does not hold is neither", "link add d9 type dummy",
 			struct{ write, gated bool }{false, false}},
@@ -1593,8 +1550,8 @@ func TestBondReadRowsGated(t *testing.T) {
 			want{true, true, true}},
 		{"boundary: the other port, not in the table, is neither", "-d link show dev la2",
 			want{false, false, false}},
-		{"corner: a permanent-divergence row is neither", "netconf show dev",
-			want{false, false, false}},
+		{"corner: a row ungated by design has its own Setup and is not gated", "addr show dynamic",
+			want{true, false, false}},
 		{"negative: a stats row with Setup is not in this cohort", "stats show dev la1 group xstats_slave",
 			want{true, false, true}},
 	}
@@ -2368,9 +2325,8 @@ func TestQueuedReadRowsGated(t *testing.T) {
 		{"positive: neighbors as JSON", "-j neigh show", gated},
 		{"positive: rules as JSON", "-j rule show", gated},
 		{"corner: link statistics as JSON, two options at once", "-j -s link show", gated},
-		{"negative: -s addr show waits for G0-T03's decision", "-s addr show", want{implemented: true}},
-		{"negative: -s neigh show waits for G0-T03's decision", "-s neigh show", want{implemented: true}},
-		{"boundary: a permanent transaction-count row stays out", "netconf show dev", want{implemented: true}},
+		{"boundary: -s addr show, queued with them, gated later on G0-T03's runs", "-s addr show", gated},
+		{"boundary: -s neigh show, queued with them, gated later on G0-T03's runs", "-s neigh show", gated},
 		{"corner: addr show dynamic stays out by design", "addr show dynamic", want{implemented: true}},
 		{"corner: a row not in the matrix is neither", "-j -6 rule show", want{}},
 	}
@@ -2421,9 +2377,61 @@ func TestStatsDumpRowsGated(t *testing.T) {
 		{"positive: the xstats group under -s", "-s stats show group xstats", gated},
 		{"positive: the xstats group as JSON", "-j stats show group xstats", gated},
 		{"boundary: the dev point get gated before G0-T02 and stays gated", "stats show group link dev", gated},
-		{"negative: netconf show dev diverges on its per-name get and stays out", "netconf show dev", want{implemented: true}},
-		{"negative: -4 netconf show dev stays out likewise", "-4 netconf show dev", want{implemented: true}},
+		{"boundary: netconf show dev, measured with them, gated later on G0-T03's runs", "netconf show dev", gated},
+		{"negative: addr show dynamic stays out by design", "addr show dynamic", want{implemented: true}},
 		{"corner: -j -s stats is refused by goip and is not a matrix row", "-j -s stats show group link", want{}},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			var got want
+			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				got.implemented = c.Implemented
+			}
+			got.gated = al.IsGated(r.command)
+			got.entries = len(al.EntriesFor(r.command))
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+		})
+	}
+}
+
+// TestNetconfDevAndSweepRowsGated pins G0-T03's flip: the last four rows that
+// could gate. The two `-s` sweep rows had been held out while their noise was
+// unresolved; every run since passed them with zero findings and txns 2/2, and
+// `-4 neigh show`, the same link and neighbor dumps, showed D_control absorbing
+// a moved count, so they gate on G0-T01's bar. The two netconf-dev rows read
+// ip=3 goip=2 until goip sent ll_name_to_index's get by name ahead of the link
+// dump; `-4 netconf show dev` also failed hygiene, because the ACK after its
+// point get was an orphan on both sides until the segmenter closed an ACKed
+// point get on its ACK. G0-T03's two runs read them 3/3 with no finding and no
+// orphan. All four gate with ZERO allowlist entries, leaving `addr show
+// dynamic` the one ungated row.
+//
+// go test ./internal/goipparity/ -run TestNetconfDevAndSweepRowsGated
+func TestNetconfDevAndSweepRowsGated(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	type want struct {
+		implemented, gated bool
+		entries            int
+	}
+	gated := want{implemented: true, gated: true}
+	rows := []struct {
+		description string
+		command     string
+		expected    want
+	}{
+		{"positive: -s addr show, noisy with variance, gates", "-s addr show", gated},
+		{"positive: -s neigh show, steady at nl=2, gates", "-s neigh show", gated},
+		{"positive: netconf show dev sends the get by name and gates", "netconf show dev", gated},
+		{"corner: -4 netconf show dev, the point get closed on its ACK, gates", "-4 netconf show dev", gated},
+		{"boundary: the -s twin gated before G0-T03 stays gated", "-s link show", gated},
+		{"boundary: the base netconf row gated on runs 8 and 9 stays gated", "netconf show", gated},
+		{"negative: addr show dynamic stays out by design", "addr show dynamic", want{implemented: true}},
+		{"corner: a row not in the matrix is neither", "-s -4 netconf show dev", want{}},
 	}
 	for _, r := range rows {
 		t.Run(r.description, func(t *testing.T) {

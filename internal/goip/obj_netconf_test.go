@@ -2,8 +2,13 @@ package goip
 
 import (
 	"bytes"
+	"errors"
+	"io"
 	"os"
 	"testing"
+
+	"github.com/randomizedcoder/xtcp2/pkg/nlparity"
+	"golang.org/x/sys/unix"
 )
 
 // The RTM_GETNETCONF captures. Each pcap holds the ll_init_map link dump ahead of
@@ -268,4 +273,83 @@ func TestRunNetconfArgs(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestNetconfDevRequestsMatchIpBytes is do_show's request sequence for a dev
+// (ip/ipnetconf.c:173-203): ll_name_to_index's RTM_GETLINK by name on the
+// still-empty cache, ll_init_map's link dump, then the netconf dump or, under
+// an explicit family, the point get. Every request is byte for byte what ip
+// sent in the capture. G0-T03 added the get by name, which goip had answered
+// from its own link dump, so `netconf show dev` sends ip's transaction count.
+//
+// go test ./internal/goip/ -run TestNetconfDevRequestsMatchIpBytes
+func TestNetconfDevRequestsMatchIpBytes(t *testing.T) {
+	const (
+		getlink    = 18 // RTM_GETLINK
+		getnetconf = 82 // RTM_GETNETCONF
+	)
+	tests := []struct {
+		description string
+		pcap        string
+		family      uint8
+		dev         string
+		expected    []uint16 // request types, in order
+	}{
+		{"positive: base `show dev`, the get by name, the link dump, the netconf dump",
+			netconfPcapBaseDev, unix.AF_UNSPEC, "goip0", []uint16{getlink, getlink, getnetconf}},
+		{"positive: base `-4 show dev`, the point get last",
+			netconfPcapBaseDev4, unix.AF_INET, "goip0", []uint16{getlink, getlink, getnetconf}},
+		{"positive: mesh `show dev veth0`",
+			netconfPcapMeshDev, unix.AF_UNSPEC, "veth0", []uint16{getlink, getlink, getnetconf}},
+		{"positive: mesh `-4 show dev veth0`",
+			netconfPcapMeshDev4, unix.AF_INET, "veth0", []uint16{getlink, getlink, getnetconf}},
+		{"boundary: tunnel `show dev gre1`, the largest link dump",
+			netconfPcapTunnelDev, unix.AF_UNSPEC, "gre1", []uint16{getlink, getlink, getnetconf}},
+		{"boundary: tunnel `-4 show dev gre1`",
+			netconfPcapTunnelDev4, unix.AF_INET, "gre1", []uint16{getlink, getlink, getnetconf}},
+		{"negative: a bare show sends no get by name",
+			netconfPcapBase, unix.AF_UNSPEC, "", []uint16{getlink, getnetconf}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			src := newStatsReplay(t, tc.pcap)
+			c := &runCtx{src: src, lltab: NewLLTab(), out: io.Discard, errOut: io.Discard, family: tc.family}
+			if err := netconfShow(c, tc.dev); err != nil {
+				t.Fatalf("netconfShow(%q): %v", tc.dev, err)
+			}
+			capt, err := nlparity.ParseRouteCaptureFile(tc.pcap)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var ip [][]byte
+			for _, m := range capt.Requests() {
+				ip = append(ip, capturedRequest(m))
+			}
+			if len(src.sent) != len(tc.expected) || len(ip) != len(tc.expected) {
+				t.Fatalf("goip sent %d requests, ip %d; want %d each", len(src.sent), len(ip), len(tc.expected))
+			}
+			for i := range ip {
+				if typ := requestTypeOf(src.sent[i]); typ != tc.expected[i] {
+					t.Errorf("request %d type %d, want %d", i+1, typ, tc.expected[i])
+				}
+				if !bytes.Equal(src.sent[i], ip[i]) {
+					t.Errorf("request %d differs\ngoip %x\nip   %x", i+1, src.sent[i], ip[i])
+				}
+			}
+		})
+	}
+
+	// corner: a name the kernel does not know stops at the get by name, as
+	// ll_name_to_index's 0 does, with no link dump after it.
+	t.Run("corner: a missing device sends only the get by name", func(t *testing.T) {
+		src := newStatsReplay(t, netconfPcapBaseDev)
+		c := &runCtx{src: src, lltab: NewLLTab(), out: io.Discard, errOut: io.Discard}
+		err := netconfShow(c, "nosuch0")
+		if !errors.Is(err, ErrNoSuchDevice) {
+			t.Fatalf("netconfShow(nosuch0) = %v, want ErrNoSuchDevice", err)
+		}
+		if len(src.sent) != 1 || src.dumps != 0 {
+			t.Errorf("sent %d requests, %d dumps; want 1 get and no dump", len(src.sent), src.dumps)
+		}
+	})
 }

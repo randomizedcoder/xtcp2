@@ -2,15 +2,15 @@
 
 ## Status
 
-**Last updated:** 2026-10-19
+**Last updated:** 2026-10-21
 
 **Summary:**
-- `ip address` is done ([addr-write-path-status.md](addr-write-path-status.md)). With it, the parity matrix compares 183 commands and gates 160 of them.
+- `ip address` is done ([addr-write-path-status.md](addr-write-path-status.md)). With it, and G0, the parity matrix compares 183 commands and gates 182 of them.
 - That is still a long way from all of `ip`:
   - goip runs 11 of the 31 objects in iproute2's `cmds[]`.
   - Only `link`, `address` and `route` have writes, and some of their verbs are missing too.
   - There is no generic netlink or `NETLINK_XFRM` object at all.
-  - 23 matrix rows are compared but not gated.
+  - One matrix row, `addr show dynamic`, is compared but not gated, by design; G0 gated the other 22.
 - This document:
   - lists every gap ([The gap inventory](#the-gap-inventory));
   - measures, for each netlink message type `ip` uses, whether we have nlmon pcaps, a table-driven parse test and a parse benchmark ([The message-type assessment](#the-message-type-assessment));
@@ -51,13 +51,13 @@ The citation style follows [route-write-path.md](route-write-path.md) and [link-
 
 ## Where coverage stands
 
-Counted from the tree on 2026-10-19. [coverage-status.md](coverage-status.md#goip--ip-parity-at-a-glance) owns these numbers; if the two disagree, that file is right.
+Counted from the tree on 2026-10-21, at G0's close. [coverage-status.md](coverage-status.md#goip--ip-parity-at-a-glance) owns these numbers; if the two disagree, that file is right.
 
 | | count | where |
 |---|---|---|
 | matrix rows | 183 | `internal/goipparity/commands.go` |
-| gated | 160 | `pkg/nlparity/goip-parity-allowlist.json`, `gated_commands` |
-| compared but not gated | 23 | `TestUngatedSurfaceIsNotVacuous`, `internal/goipparity/commands_test.go` |
+| gated | 182 (160 before G0) | `pkg/nlparity/goip-parity-allowlist.json`, `gated_commands` |
+| compared but not gated | 1, `addr show dynamic` (23 before G0) | `TestUngatedSurfaceIsNotVacuous`, `internal/goipparity/commands_test.go` |
 | write rows (dry run) | 83: 21 link, 26 route, 36 address | `commands.go` |
 | `ip` objects with a `run` function | 11 of 31 | `internal/goip/dispatch.go:52-84` |
 | RTM types the write gate admits | 6: `RTM_{NEW,DEL}{ROUTE,LINK,ADDR}` | `IsAdmittedWriteType`, `pkg/xtcpnl/xtcpnl_rtattr_encode.go:341-349` |
@@ -68,12 +68,14 @@ Writes are dry runs. goip builds the requests `ip` would send and writes them to
 
 ### A. Matrix rows that are compared but not gated (23)
 
+G0 closed every row but `addr show dynamic`; the table is the inventory as it stood when the plan was written.
+
 | rows | why they are out | what closes it |
 |---|---|---|
-| 12 queued:<br>• `-0 addr show`<br>• `route show table main`, `route show table local`<br>• `-4 route show`<br>• `-4 neigh show`, `-6 neigh show`<br>• `-j addr show`, `-j link show`, `-j route show`, `-j neigh show`, `-j rule show`, `-j -s link show` | Two clean live runs (6 and 7) are already in; gating them is a separate step | [G0-T01](#g0--the-matrix-quick-wins) |
-| 2 `-s` forms:<br>• `-s addr show`<br>• `-s neigh show` | `-s addr show` is noisy, with variance in its counts. `-s neigh show` is stable at `nl=2`, which is weaker evidence | [G0-T03](#g0--the-matrix-quick-wins): a decision per row |
-| 6 stats rows:<br>• `stats show group link`, with `-s` and `-j`<br>• `stats show group xstats`, with `-s` and `-j` | A permanent transaction-count divergence, which no allowlist entry can suppress (`nlparity_allowlist.go:143`) | [G0-T02](#g0--the-matrix-quick-wins): reorder `resolveIndexName` (`internal/goip/obj_route.go:521`) |
-| 2 netconf rows:<br>• `netconf show dev`<br>• `-4 netconf show dev` | `ip` sends a redundant per-name `RTM_GETLINK`, so the transaction counts are `ip=3 goip=2` | G0-T03: a decision |
+| 12 queued:<br>• `-0 addr show`<br>• `route show table main`, `route show table local`<br>• `-4 route show`<br>• `-4 neigh show`, `-6 neigh show`<br>• `-j addr show`, `-j link show`, `-j route show`, `-j neigh show`, `-j rule show`, `-j -s link show` | Two clean live runs (6 and 7) are already in; gating them is a separate step | [G0-T01](#g0--the-matrix-quick-wins), done |
+| 2 `-s` forms:<br>• `-s addr show`<br>• `-s neigh show` | `-s addr show` is noisy, with variance in its counts. `-s neigh show` is stable at `nl=2`, which is weaker evidence | [G0-T03](#g0--the-matrix-quick-wins): a decision per row; both gated |
+| 6 stats rows:<br>• `stats show group link`, with `-s` and `-j`<br>• `stats show group xstats`, with `-s` and `-j` | A permanent transaction-count divergence, which no allowlist entry can suppress (`nlparity_allowlist.go:143`) | [G0-T02](#g0--the-matrix-quick-wins): reorder `resolveIndexName` (`internal/goip/obj_route.go:521`); done |
+| 2 netconf rows:<br>• `netconf show dev`<br>• `-4 netconf show dev` | `ip` sends a redundant per-name `RTM_GETLINK`, so the transaction counts are `ip=3 goip=2` | G0-T03: a decision; goip sends the get by name, and both gated |
 | `addr show dynamic` | Its `valid_lft` counts down between `ip_a` and `goip` | Nothing. It stays out by design |
 
 ### B. Verbs missing on objects goip already runs
@@ -1949,9 +1951,65 @@ Each type `ip` 7.1.0 names in the universe but REPORT ([decision log](goip-parit
 | negative: `netconf show dev` and `-4 netconf show dev` | implemented, not gated |
 | corner: `-j -s stats show group link` is not a matrix row | not implemented, not gated |
 
+**G0-T03 delivered** (`internal/goip/obj_netconf.go`, `pkg/nlparity/nlparity_segment.go`, `pkg/nlparity/nlparity_normalize.go`):
+- **The decision: gate all four.** The two `-s` forms gate on G0-T01's bar. Every run since the `-s` sweep passed them with no findings and `txns` 2/2. `-4 neigh show` sends the same link and neighbor dumps, and it showed `D_control` absorbing a moved count (`nl=2`, then `nl=6`), which is what `-s neigh show` was waiting for. The two netconf-dev rows gate once they match `ip`.
+- **goip sends the get by name.** For `netconf show dev`, goip now sends `ll_name_to_index`'s `RTM_GETLINK` by name ahead of the `ll_init_map` link dump (`ip/ipnetconf.c:175`, `:186`), so it sends `ip`'s 3 requests.
+- **The segmenter closes an ACKed point get on its ACK.** `-4 netconf show dev`'s point get carries `NLM_F_ACK`, so the kernel sends the reply and then an ACK. The segmenter closed the transaction on the reply, which left the ACK an orphan on both sides: the row's `HYGIENE_FAIL 2`. `awaitsAck` now keeps a non-dump request with `NLM_F_ACK` open until its ACK.
+- **The normalizer zeroes the echoed seq and pid.** The ACK's body echoes the request's header, so `NormalizeMsg` zeroes that seq and pid, as `Canonical` does on the request itself.
+- **Gated, with no allowlist entry.** The four rows are in `gated_commands` and the `earned` list after two fresh runs; the runs are in [coverage-status.md](coverage-status.md#g0-t03-the-last-four-rows-gate).
+- **What is left.** `TestPermanentWireDivergences` records that the permanent set is empty, and `TestUngatedSurfaceIsNotVacuous` pins the one row still ungated, `addr show dynamic`.
+
+`TestNetconfDevRequestsMatchIpBytes` (`internal/goip/obj_netconf_test.go`) builds goip's requests over each pcap's replies and compares them with `ip`'s requests in the same pcap:
+
+| description | expected |
+|---|---|
+| positive: base `show dev`, the get by name, the link dump, the netconf dump | 3 requests, byte-identical: `RTM_GETLINK`, `RTM_GETLINK`, `RTM_GETNETCONF` |
+| positive: base `-4 show dev`, the point get last | 3, byte-identical |
+| positive: mesh `show dev veth0` | 3, byte-identical |
+| positive: mesh `-4 show dev veth0` | 3, byte-identical |
+| boundary: tunnel `show dev gre1`, the largest link dump | 3, byte-identical |
+| boundary: tunnel `-4 show dev gre1` | 3, byte-identical |
+| negative: a bare show sends no get by name | 2, byte-identical: `RTM_GETLINK`, `RTM_GETNETCONF` |
+| corner: a missing device sends only the get by name | `ErrNoSuchDevice`; 1 get, no dump |
+
+`TestSegment` (`pkg/nlparity/nlparity_segment_test.go`), the new rows:
+
+| description | expected |
+|---|---|
+| positive: an ACKed point get closes on its ACK, not its reply, so the ACK is no orphan (`netlink_route_getnetconf_dev4.pcap`) | 3 transactions, clean; closed by single reply, by done, by error; 1, 6 and 2 replies |
+| boundary: an ACKed point get whose ACK is missing stays open | 1 transaction, open, not clean |
+| negative: a point get without `NLM_F_ACK` closes on its reply, and an error after it is an orphan | closed by single reply; 1 orphan |
+| corner: a dump carrying `NLM_F_ACK` still closes on `NLMSG_DONE` | closed by done, clean |
+
+`TestNormalizeMsg` (`pkg/nlparity/nlparity_normalize_test.go`), the new rows:
+
+| description | expected |
+|---|---|
+| positive: an `NLMSG_ERROR` loses the seq and pid it echoes and keeps its errno and the echoed len, type and flags (captured) | bytes 12 to 19 zeroed, 0 to 11 kept; 1 found |
+| boundary: an `NLMSG_ERROR` too short for the echoed header is copied verbatim | body unchanged |
+
+`TestNetconfDevAndSweepRowsGated` (`internal/goipparity/commands_test.go`):
+
+| description | expected |
+|---|---|
+| positive: `-s addr show`, `-s neigh show`, `netconf show dev` (3 rows) | implemented, gated, 0 allowlist entries |
+| corner: `-4 netconf show dev`, the point get closed on its ACK | implemented, gated, 0 entries |
+| boundary: `-s link show` and `netconf show`, gated before G0-T03 (2 rows) | implemented, gated, 0 entries |
+| negative: `addr show dynamic` stays out by design | implemented, not gated |
+| corner: a row not in the matrix is neither (`-s -4 netconf show dev`) | not implemented, not gated |
+
 ### G1 — Read verbs on running objects
 
 `route get`, `neigh get`, `nexthop get` and `bucket`, `link xstats` and `afstats`: one task per verb family.
+
+| task | deliver |
+|---|---|
+| G1-T01 | `goip route get`: the `RTM_GETROUTE` single get, with its `fibmatch`, `from … iif` and `notify` forms, against the C1-T02 captures (`ip/iproute.c:2042`) |
+| G1-T02 | `goip neigh get`: the `RTM_GETNEIGH` single get, against the C1-T02 captures (`ip/ipneigh.c:663`) |
+| G1-T03 | `goip nexthop get` and `nexthop bucket show`/`get`: the `RTM_GETNEXTHOP` single get and the `RTM_GETNEXTHOPBUCKET` dump and get, on `ParseNexthopBucket`, against the C1-T02 captures (`ip/ipnexthop.c:149`, `:750-802`) |
+| G1-T04 | `goip link xstats` and `link afstats`: `RTM_GETSTATS` with the `IFLA_STATS_LINK_XSTATS[_SLAVE]` and `IFLA_STATS_AF_SPEC` filters, against the C1-T03 reads (`ip/iplink.c:113-115`, `:1364`) |
+
+Each task adds its matrix rows, gated after two clean runs, as G0's were.
 
 ### G2 — Route completion
 

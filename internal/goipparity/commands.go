@@ -387,6 +387,10 @@ var commands = withArgs([]Command{
 		// over-read, because it measures nl=2 WITHOUT `-s`: a non-AF_UNSPEC
 		// family sends no mask at all, so RTEXT_FILTER_SKIP_STATS is absent
 		// and the counters arrive unbidden.
+		//
+		// Gated on G0-T03: noisy with variance clears `-s link show`'s bar,
+		// and every run since the sweep passed it with zero findings and
+		// txns 2/2.
 		Floor: 4, Implemented: true,
 	},
 	{
@@ -980,6 +984,11 @@ var commands = withArgs([]Command{
 		// measures nl=2 as well, from ll_init_map's link dump, whose mask is
 		// RTEXT_FILTER_VF with or without `-s`. The pair of rows is what
 		// says so; this row alone would have read as `-s` adding noise.
+		//
+		// Gated on G0-T03, on G0-T01's bar: every run since the sweep passed
+		// it with zero findings and txns 2/2, and `-4 neigh show`, the same
+		// two dumps, read nl=2 then nl=6 on G0-T01's runs and passed both,
+		// which is the moved count this row was waiting for.
 		Floor: 4, Implemented: true,
 	},
 	{
@@ -1293,20 +1302,21 @@ var commands = withArgs([]Command{
 		// internal/goip's TestNetconfShowMatchesCapturedSidecars diffs goip
 		// byte-for-byte against the committed ip_netconf sidecar across three
 		// topologies. Gated on runs 8 and 9: GOIP_PARITY_PASS, stdout=0, txns 2/2
-		// on both. The `dev` forms below are NOT gated — see their rows.
+		// on both. The `dev` forms below gated later, on G0-T03 — see their rows.
 		Floor: 4, Implemented: true,
 	},
 	{
 		Name: "netconf show dev", Slug: "netconf_show_dev",
 		NeedsDev: true,
-		// Four: the ll_init_map link dump then the AF_UNSPEC netconf dump, which
+		// Four: ll_name_to_index's RTM_GETLINK by name on the still-empty cache,
+		// then the ll_init_map link dump, then the AF_UNSPEC netconf dump, which
 		// print_netconf filters to the named ifindex client-side
-		// (ip/ipnetconf.c:78-79) — the dev name resolves from the link dump's own
-		// replies, so the selector costs no extra transaction. Byte-grounded
-		// offline against the ip_netconf_dev sidecar. Runs 8 and 9 read ip=3
-		// goip=2: `ip` issues a redundant per-name RTM_GETLINK (ll_name_to_index on
-		// an empty cache) before its ll_init_map dump; goip resolves from its own
-		// dump. PERMANENT, ungated by design (txn-count class, unsuppressible).
+		// (ip/ipnetconf.c:78-79). Byte-grounded offline against the
+		// ip_netconf_dev sidecar, and request for request by internal/goip's
+		// TestNetconfDevRequestsMatchIpBytes. Runs 8 and 9 read ip=3 goip=2,
+		// when goip resolved the name from its own dump, and the row sat in the
+		// permanent set; G0-T03 sent the get by name, its two runs read 3/3,
+		// and it gated.
 		Floor: 4, Implemented: true,
 	},
 	{
@@ -1318,9 +1328,13 @@ var commands = withArgs([]Command{
 		// rtnl_talk (NLM_F_REQUEST|ACK, no NLM_F_DUMP), the first
 		// attribute-carrying point get here. Still a link dump first, so the floor
 		// is the ntable shape. Byte-grounded offline against the ip_netconf_dev4
-		// sidecar. Runs 8 and 9: ip=3 goip=2 (the same redundant per-name
-		// RTM_GETLINK as `netconf show dev`) AND two hygiene orphans, so this row
-		// is the one FAIL not a WARN — both causes unsuppressible, PERMANENT.
+		// sidecar. Runs 8 and 9: ip=3 goip=2 (the get by name `netconf show
+		// dev` lacked too) AND two hygiene orphans, so this row was the one FAIL
+		// not a WARN. The orphans were the kernel's ACK, which follows the point
+		// get's reply because the request carries NLM_F_ACK; the segmenter
+		// closed the transaction on the reply. G0-T03 closed an ACKed point get
+		// on its ACK (pkg/nlparity's awaitsAck) and sent the get by name; its
+		// two runs read 3/3 with no orphan, and it gated.
 		Floor: 4, Implemented: true,
 	},
 

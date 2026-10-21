@@ -94,6 +94,14 @@ const (
 	// retrans_time follow, and both stay compared.
 	inet6CacheinfoTstampOffCst = 4
 	inet6CacheinfoTstampLenCst = 4
+
+	// An NLMSG_ERROR body is the errno, then the header of the request it
+	// answers ({len, type, flags, seq, pid}, include/uapi/linux/netlink.h
+	// struct nlmsgerr). The echoed seq and pid are that request's, which
+	// Canonical zeroes on the request itself, so they are zeroed here too;
+	// the errno and the echoed len, type and flags stay compared.
+	nlmsgerrEchoSeqPidOffCst = 12
+	nlmsgerrEchoSeqPidLenCst = 8
 )
 
 // NormalizeMsg returns a copy of m with nlmsg_seq, nlmsg_pid and the volatile
@@ -118,6 +126,9 @@ func NormalizeMsg(m Msg) Msg {
 	out.Body = body
 
 	// The attributes alias body, so zeroing through Val edits the copy.
+	if m.Hdr.Type == uint16(unix.NLMSG_ERROR) {
+		zeroRange(body, nlmsgerrEchoSeqPidOffCst, nlmsgerrEchoSeqPidLenCst)
+	}
 	_, attrs, _ := DecodeAttrs(m.Hdr.Type, body)
 	normalizeAttrs(m.Hdr.Type, attrs)
 
@@ -169,7 +180,8 @@ func normalizeAttrs(msgType uint16, attrs []Attr) {
 	case AttrFamilyNone:
 		// NLMSG_DONE, NLMSG_ERROR and anything unmodeled carry no attributes
 		// this package can name, so there is nothing to normalize. Their
-		// payloads are compared whole.
+		// payloads are compared whole, but for the seq and pid an
+		// NLMSG_ERROR echoes, which NormalizeMsg zeroes.
 	}
 }
 

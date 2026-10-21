@@ -880,7 +880,25 @@
     "show dev` with HYGIENE_FAIL 2, the WARN `netconf show dev`, so",
     "UNGATED_DIVERGENCES is 1; CONTROL_NOISY read 177 then 169. The permanent",
     "set is the two netconf-dev rows, and the ungated surface is FIVE rows: the",
-    "two held-out `-s` forms, those two and `addr show dynamic`."
+    "two held-out `-s` forms, those two and `addr show dynamic`.",
+    "",
+    "G0-T03 (goip-parity-gaps.md) gates the last FOUR rows that could gate:",
+    "`-s addr show`, `-s neigh show`, `netconf show dev` and `-4 netconf show",
+    "dev`. The two `-s` forms gate on G0-T01's bar: every run since the `-s`",
+    "sweep passed them with zero findings and txns 2/2, and `-4 neigh show`,",
+    "the same link and neighbor dumps, showed D_control absorbing a moved",
+    "count. The netconf-dev rows read ip=3 goip=2 until goip sent",
+    "ll_name_to_index's RTM_GETLINK by name ahead of the link dump, and `-4",
+    "netconf show dev` also failed hygiene: its point get carries NLM_F_ACK, so",
+    "the kernel's ACK followed the reply and was an orphan on both sides.",
+    "pkg/nlparity's segmenter now closes such a transaction on its ACK, and",
+    "NormalizeMsg zeroes the seq and pid the ACK echoes. Two back-to-back runs:",
+    "183 GOIP_PARITY_PASS of 183 on both, the first runs to end",
+    "GOIP_PARITY_OVERALL_PASS, identical row for row with identical txns; the",
+    "netconf-dev rows 3/3 with control nl=2 (the link dump's counters), the",
+    "`-s` rows 2/2 with nl=2; HYGIENE_PASS and UNGATED_CLEAN; CONTROL_NOISY",
+    "read 165 then 174. The permanent set is empty, and the ungated surface is",
+    "ONE row, `addr show dynamic`, out for its counting-down lifetime."
   ],
   "_note_version_skew": [
     "THE ENTRIES BELOW CITE COMMITS THAT ARE IN NO RELEASE, AND THE EVIDENCE IS",
@@ -1137,6 +1155,10 @@
     "-j stats show group link",
     "stats show group xstats",
     "-s stats show group xstats",
-    "-j stats show group xstats"
+    "-j stats show group xstats",
+    "-s addr show",
+    "-s neigh show",
+    "netconf show dev",
+    "-4 netconf show dev"
   ]
 }

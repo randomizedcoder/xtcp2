@@ -2,7 +2,7 @@
 
 ## goip ↔ `ip` parity at a glance
 
-Counted from the tree on 2026-10-18. Every number has a file behind it, named
+Counted from the tree on 2026-10-21. Every number has a file behind it, named
 in the last column; **if this table and the file disagree, the file is right
 and this table is stale.** That has happened before in this document — see the
 "no route command is in `gated_commands`" line that outlived its own truth by
@@ -12,43 +12,38 @@ several steps, further down under [Remaining](#remaining).
 |---|---|---|
 | commands in the comparison matrix | **183** | `internal/goipparity/commands.go` — 100 read rows (31 of them `addr show` state, selector and output-mode rows with a `Setup`), the 21 link write rows, the 26 route write rows, the 27 address write rows, the 7 address flush rows and the 2 address restore rows |
 | of those, `Implemented: true` | **183** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
-| of those, in `gated_commands` | **160** | `pkg/nlparity/goip-parity-allowlist.json` |
+| of those, in `gated_commands` | **182** | `pkg/nlparity/goip-parity-allowlist.json` |
 | allowlisted divergences | **7** | same file, `entries` |
 | of those, `kind=version-skew` | **7** | all against the pinned `ip` 7.1.0 |
-| of those, `kind=accepted-divergence` | **0** | nothing is *allowlisted* as a permanent divergence — the eight intentional wire divergences below **cannot** be, because a transaction-count divergence is unsuppressible (`nlparity_allowlist.go:143`) |
+| of those, `kind=accepted-divergence` | **0** | nothing is *allowlisted* as a permanent divergence — the nine wire divergences runs 8 and 9 measured **could not** be, because a transaction-count divergence is unsuppressible (`nlparity_allowlist.go:143`), and G0 retired every one by changing goip to send `ip`'s requests |
 
-**Twenty-three** matrix rows sit outside `gated_commands`, in
-six groups that are out for unrelated reasons. Fourteen are a queue, each
-awaiting its own measured-clean live run; the other **eight** — the bulk stats
-and netconf-dev rows — are **not** a queue but a closed, permanent, intentional wire
-divergence (see [Runs 8 & 9](#runs-8-and-9-ntable-netconf-and-vrf-gate-stats-and-netconf-dev-diverge)).
-The last is **`addr show dynamic`**, which prints a finite `valid_lft` that
-counts down between `ip_a` and `goip`, so it can never gate (see
+**One** matrix row sits outside `gated_commands`: **`addr show dynamic`**,
+which prints a finite `valid_lft` that counts down between `ip_a` and `goip`,
+so it can never gate (see
 [The `addr show` state and selector rows](#the-addr-show-state-and-selector-rows)).
+It keeps `GOIP_PARITY_UNGATED_CLEAN` reading a row.
 
-**Twelve are new and not yet gated**: six family and table selectors and six
-`-j` forms, added together with the JSON facet extractor they depend on. They
-have two back-to-back clean live runs behind them — runs 6 and 7, both 41 of 41
-with `stdout=0` — which is the evidence the bar asks for and not the decision
-it gates. Gating them is a separate branch cut from the updated `main`. See
-[The twelve rows added for `-j` and the family selectors](#the-twelve-rows-added-for--j-and-the-family-selectors).
+The twenty-two that were out with it at the start of
+[goip-parity-gaps.md](goip-parity-gaps.md)'s G0 all gated there:
 
-**Two are `-s` forms held out on purpose**: **`-s addr show`** and
-**`-s neigh show`**. The `-s` sweep's other three — `-s -6 addr show`,
-`-s route show`, `-s rule show` — measured `control: nl=0 stdout=0` on five
-runs across two sessions and
-[gated on runs 4 and 5](#runs-4-and-5-three--s-forms-gate-and-a-refactor-gets-checked).
+- **Twelve family, table and `-j` rows**, the queue the JSON facet work added
+  (see [The twelve rows added for `-j` and the family
+  selectors](#the-twelve-rows-added-for--j-and-the-family-selectors)), on
+  [G0-T01](#g0-t01-the-twelve-queued-read-rows-gate)'s two runs.
+- **The six stats dump rows**, once goip named each record with `ip`'s get by
+  index, on [G0-T02](#g0-t02-the-six-stats-dump-rows-gate)'s.
+- **The two `-s` forms held out on purpose**, `-s addr show` and `-s neigh
+  show`, and **the two netconf-dev rows**, once goip sent `ip`'s get by name
+  and the segmenter closed an ACKed point get on its ACK, on
+  [G0-T03](#g0-t03-the-last-four-rows-gate)'s.
 
-The two `-s` forms that remain out are unresolved in **opposite** directions, which is why
-neither is simply next in a queue. `-s addr show` is noisy *with variance* —
-`nl` of 2, 2, **6**, then 2, 2 — so it clears
-[`-s link show`'s bar](#-s-link-show-gates-on-runs-that-disagree) rather than
-the identical-runs one, and gating it is a defensible separate decision.
-`-s neigh show` is **stable** at `nl=2` on all five runs, and for a noisy row
-stable is the *weaker* evidence: five runs reading 2 cannot separate
-"`D_control` absorbed the delta" from "there was no delta to absorb". Its
-`nl=2` is not even `-s`'s doing — plain `neigh show` measures 2 from
-`ll_init_map`'s link dump — so it is waiting for a run where the count moves.
+The eight stats and netconf-dev rows were the permanent set, measured divergent
+on the wire by
+[runs 8 and 9](#runs-8-and-9-ntable-netconf-and-vrf-gate-stats-and-netconf-dev-diverge),
+which the paragraphs below describe as they were measured. "Permanent" turned
+out to mean no run and no allowlist entry could gate them; a change to goip
+could. G0-T03's runs were the first with every row `GOIP_PARITY_PASS` and
+`GOIP_PARITY_OVERALL_PASS`.
 
 **Two nexthop rows are now gated**: `nexthop show` and `-j nexthop show`, added
 together with the nexthop JSON renderer and the `group`-array facet mapping they
@@ -91,9 +86,9 @@ type-64 NEIGHTBL stats, kernel counters `D_control` absorbs; its count moving
 (`-s ntable show` nl=5 then 4, `-j ntable show` nl=4 then 6) is the
 disagreeing-runs evidence a noisy row wants.
 
-**Netconf gated two of its four rows, and the split is the point**: `netconf
-show` and `-j netconf show` are gated; `netconf show dev` and `-4 netconf show
-dev` stay ungated because
+**Netconf gated two of its four rows on runs 8 and 9, and the split was the
+point**: `netconf show` and `-j netconf show` gated; `netconf show dev` and `-4
+netconf show dev` stayed ungated, until G0-T03, because
 [runs 8 and 9](#runs-8-and-9-ntable-netconf-and-vrf-gate-stats-and-netconf-dev-diverge)
 found the `dev` forms **divergent on the wire**. All four were added together
 with the `netconfmsg` decoder and the netconf render view, and all four are
@@ -110,11 +105,14 @@ already issues — identical stdout, one fewer transaction. `-4 netconf show dev
 is the first attribute-carrying point get in the matrix (with a family AND an
 ifindex, `do_show` sends a non-dump `RTM_GETNETCONF` with a `NETCONFA_IFINDEX`
 attribute through `rtnl_talk`, `ip/ipnetconf.c:188-198`) and additionally trips
-hygiene orphans, so it is a FAIL rather than a WARN. Both `dev` rows stay ungated
-**permanently and by design**: the transaction-count gap is unsuppressible
+hygiene orphans, so it is a FAIL rather than a WARN. Both `dev` rows stayed
+ungated: the transaction-count gap is unsuppressible
 (`nlparity_allowlist.go:143`), and so are the `-4` hygiene orphans.
+[G0-T03](#g0-t03-the-last-four-rows-gate) closed both. goip sends the get by
+name, and the orphans were the ACK that follows the point get's reply, which the
+segmenter now attaches to the transaction; both rows gated.
 
-**Three stats-link rows stay ungated, measured divergent**: `stats show group
+**Three stats-link rows were measured divergent, and gated on G0-T02**: `stats show group
 link`, `-s stats show group link` and `-j stats show group link` (`stats show
 group link dev` was the fourth until it gated; see
 [the bond xstats point gets](#the-bond-xstats-point-gets-and-stats-show-group-link-dev)), added together with the `if_stats_msg` decoder and the
@@ -132,10 +130,11 @@ names each returned ifindex lazily with one `RTM_GETLINK`-by-index
 (`ip/ipstats.c:761`, `ll_index_to_name`), so it reads `ip=6` on a five-interface
 host and is topology-dependent. (`ip`'s per-`dev` point get is the first in the
 matrix that is `NLM_F_REQUEST` alone, no ACK.) All four read `GOIP_PARITY_WARN`
-on both runs, and the three bulk forms stay ungated **permanently and by design**: the gap is class
+on both runs, and the three bulk forms stayed ungated: the gap is class
 `DivergenceTransactionCount`, which the allowlist cannot suppress
-(`nlparity_allowlist.go:143`), so no run and no entry clears it — and `goip`'s
-up-front resolution is the deliberate, more-efficient idiom, not a defect.
+(`nlparity_allowlist.go:143`), so no run and no entry clears it. A change to
+goip did: [G0-T02](#g0-t02-the-six-stats-dump-rows-gate) replaced the up-front
+dump with `ip`'s get per record, and they gated.
 
 **Three are stats' xstats rows**: `stats show group xstats`, `-s stats show group
 xstats` and `-j stats show group xstats`, added together with the nested
@@ -158,8 +157,10 @@ above, all three read `GOIP_PARITY_WARN` on
 [runs 8 and 9](#runs-8-and-9-ntable-netconf-and-vrf-gate-stats-and-netconf-dev-diverge)
 for the same reason: both sides issue `RTM_GETSTATS` (`txns: ip=6 goip=2`), and
 the divergence is `ip`'s lazy per-ifindex name resolution against `goip`'s single
-up-front dump. They stay ungated **permanently and by design** — a
-transaction-count divergence the allowlist cannot suppress.
+up-front dump. They stayed ungated — a transaction-count divergence the
+allowlist cannot suppress — until
+[G0-T02](#g0-t02-the-six-stats-dump-rows-gate) sent `ip`'s requests and they
+gated.
 
 **Two are vrf's first matrix rows**: `vrf show` and `-j vrf show`, the eleventh
 grounded object. The request is the first in the corpus that **filters a link
@@ -3479,6 +3480,45 @@ and the WARN is `netconf show dev`, so `UNGATED_DIVERGENCES` is 1;
 `earned`/`gated_commands` pair pin the flip. The permanent set is the two
 netconf-dev rows, and the ungated surface is five rows: the two held-out `-s`
 forms, those two, and `addr show dynamic`.
+
+### G0-T03: the last four rows gate
+
+[goip-parity-gaps.md](goip-parity-gaps.md#g0--the-matrix-quick-wins)'s
+G0-T03 decides the four rows G0-T02 left that could gate, and gates all four.
+
+- **`-s addr show` and `-s neigh show`** gate on G0-T01's bar. Every run since
+  the `-s` sweep passed both with no findings and `txns` 2/2. `-s neigh show`
+  was waiting for a run where its control count moved; `-4 neigh show` sends
+  the same link and neighbor dumps, read `nl=2` and then `nl=6` on G0-T01's
+  runs, and passed both, so `D_control` absorbing a moved count on that wire
+  shape is measured.
+- **`netconf show dev`** read `ip=3 goip=2` because `ip` resolves the name with
+  `ll_name_to_index`'s `RTM_GETLINK` by name, on a still-empty cache, before
+  the `ll_init_map` link dump (`ip/ipnetconf.c:175`, `:186`). goip now sends
+  that get; `TestNetconfDevRequestsMatchIpBytes` compares its three requests
+  byte for byte with `ip`'s in the committed pcaps, on all three topologies.
+- **`-4 netconf show dev`** needed the same get, and was the one FAIL besides:
+  `HYGIENE_FAIL 2`, one orphan on each side. Its point get carries `NLM_F_ACK`,
+  so the kernel sends the `RTM_NEWNETCONF` reply and then the ACK. The
+  segmenter closed the transaction on the reply, which has `NLM_F_MULTI`
+  clear, and the ACK found nothing open. `awaitsAck`
+  (`pkg/nlparity/nlparity_segment.go`) now keeps a non-dump request with
+  `NLM_F_ACK` open until its ACK. The ACK's body echoes the request's header,
+  so `NormalizeMsg` zeroes the echoed seq and pid, as `Canonical` does on the
+  request.
+
+Two fresh runs of `nix run .#microvm-x86_64-goip-parity -- --timeout 4500`,
+back to back from a scratch worktree, printed 183 `GOIP_PARITY_PASS` of 183
+on both, with `GOIP_PARITY_HYGIENE_PASS`, `GOIP_PARITY_UNGATED_CLEAN` and
+`GOIP_PARITY_OVERALL_PASS`. They are the first runs of this harness to end
+`OVERALL_PASS`. Their verdicts and `txns` were identical row for row. The
+netconf-dev rows read `txns` 3/3 and `control: nl=2`, the link dump's counters;
+the `-s` rows read 2/2 and `nl=2`. None had a finding. `CONTROL_NOISY` read 165
+and 174. All four gate with no allowlist entry. `TestNetconfDevAndSweepRowsGated`
+and the `earned`/`gated_commands` pair pin the flip, and
+`TestPermanentWireDivergences` now records that the permanent set is empty.
+The ungated surface is one row, `addr show dynamic`, which passed on both runs
+only because `D_control` caught its countdown; it stays out by design.
 
 ## Tier C — the `goip-parity` microVM flavor
 

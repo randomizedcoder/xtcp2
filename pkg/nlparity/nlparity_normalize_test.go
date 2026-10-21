@@ -86,6 +86,10 @@ func topAttr(bare uint16) func(Msg) [][]byte {
 	}
 }
 
+// wholeBody returns the message body itself, for a message whose fields are
+// at fixed offsets rather than in attributes.
+func wholeBody(m Msg) [][]byte { return [][]byte{m.Body} }
+
 // inet6Attr returns every IFLA_AF_SPEC -> AF_INET6 -> <bare> payload. It is the
 // two-level descent SubAttrs is exported for, written out here so the test
 // walks the nest independently of normalizeAFSpec rather than calling it.
@@ -331,6 +335,33 @@ func TestNormalizeMsg(t *testing.T) {
 				}
 				if after.Hdr.Seq != 0 || after.Hdr.Pid != 0 {
 					t.Errorf("seq/pid = %d/%d, want 0/0", after.Hdr.Seq, after.Hdr.Pid)
+				}
+			},
+		},
+		{
+			// The ACK after `ip -4 netconf show dev`'s point get: errno 0,
+			// then the request's header echoed. Its seq and pid differ
+			// between any two runs, as the request's own do, so they go; the
+			// errno, len, type and flags are what the ACK says and stay.
+			description:   "positive: an NLMSG_ERROR loses the seq and pid it echoes and keeps its errno and the echoed len, type and flags",
+			filename:      tdGuest + "/netlink_route_getnetconf_dev4.pcap",
+			msgType:       uint16(unix.NLMSG_ERROR),
+			find:          wholeBody,
+			wantZeroed:    []span{{nlmsgerrEchoSeqPidOffCst, nlmsgerrEchoSeqPidLenCst}},
+			wantPreserved: []span{{0, 12}},
+			wantFound:     1,
+		},
+		{
+			// zeroRange's bounds check: a body too short to hold the echo
+			// is left as it is rather than read past.
+			description: "boundary: an NLMSG_ERROR too short for the echoed header is copied verbatim",
+			msg: ptr(Msg{
+				Hdr:  xtcpnl.NlMsgHdr{Len: 32, Type: uint16(unix.NLMSG_ERROR), Seq: 1, Pid: 2},
+				Body: fill(16, 0xAB),
+			}),
+			check: func(t *testing.T, before, after Msg) {
+				if !bytes.Equal(before.Body, after.Body) {
+					t.Errorf("body = %x, want %x unchanged", after.Body, before.Body)
 				}
 			},
 		},

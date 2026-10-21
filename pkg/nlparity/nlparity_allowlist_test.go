@@ -593,6 +593,17 @@ func TestAllowlistCommitted(t *testing.T) {
 		"stats show group xstats",
 		"-s stats show group xstats",
 		"-j stats show group xstats",
+		// G0-T03's four. The two `-s` forms held out since the `-s` sweep
+		// gate on G0-T01's bar: every run since has passed them with zero
+		// findings and txns 2/2, and `-4 neigh show`, the same link and
+		// neighbor dumps, showed D_control absorbing a moved count. The two
+		// netconf-dev rows gate once goip sent ll_name_to_index's get by
+		// name and the segmenter closed an ACKed point get on its ACK:
+		// txns 3/3, no finding and no hygiene orphan on two runs.
+		"-s addr show",
+		"-s neigh show",
+		"netconf show dev",
+		"-4 netconf show dev",
 	}
 
 	tests := []struct {
@@ -840,52 +851,29 @@ func TestAllowlistCommitted(t *testing.T) {
 			// while some command is outside. It has been vacuous twice - once
 			// when nine commands were the whole table, once when the
 			// twenty-fourth was gated - and both intervals ended the same
-			// way, by a new command being compared ungated first. The `-s`
-			// sweep's five ended the second such interval; three of them
-			// have since gated.
+			// way, by a new command being compared ungated first.
 			//
-			// These two are no longer the whole ungated surface: with them
-			// are the two permanent netconf-dev rows and `addr show
-			// dynamic`. The twelve family, table and `-j` rows queued with
-			// them gated on G0-T01's two runs, and the six stats rows on
-			// G0-T02's. internal/goipparity's TestUngatedSurfaceIsNotVacuous
-			// pins that set of five by name. What this row still owns is the
-			// narrower claim: these two SPECIFICALLY stay out, for the
-			// reasons below, so a branch gating the twelve could not sweep
-			// these up with them.
-			//
-			// Naming them rather than asserting a bare count is deliberate.
-			// A count passes if the two held out are a DIFFERENT two, which
-			// is the mistake worth catching. The reason each is out is no
-			// longer "not yet measured" - all five have five runs behind
-			// them now - but that its noise is UNRESOLVED, and the two are
-			// unresolved in opposite directions. `-s addr show` is noisy
-			// with variance, 2/2/6 then 2/2, which is `-s link show`'s shape
-			// and clears that bar rather than the identical-runs one; it is
-			// a defensible gate on a separate decision, not on this one.
-			// `-s neigh show` is stable at nl=2 across all five, and stable
-			// is the WEAKER result for a noisy row, because five runs
-			// reading 2 cannot separate "D_control absorbed the delta" from
-			// "there was no delta to absorb" - the distinction `-s link
-			// show` needed three disagreeing runs to establish. Its nl=2 is
-			// not even `-s`'s doing: plain neigh show measures 2 from
-			// ll_init_map's link dump. So it waits for a run where the count
-			// moves. Both are recorded in goip-parity-allowlist.json's
-			// _comment; gating either on this row's bar would retire a
-			// question rather than answer it.
-			description: "negative: the two -s sweep commands whose noise is unresolved are deliberately NOT gated, so they stay among the rows UNGATED_CLEAN reads",
+			// Until G0-T03 this row held out the two `-s` sweep commands
+			// whose noise was unresolved. They gated there, with the two
+			// netconf-dev rows, which leaves one command ungated: `addr show
+			// dynamic`, whose finite valid_lft counts down between ip_a and
+			// goip, so it can never gate (addr-write-path.md, "Gating").
+			// That is the ungated surface now, and the reason it is out is
+			// a property of the command, not of a run, so no clean run can
+			// sweep it in. internal/goipparity's TestUngatedSurfaceIsNotVacuous
+			// pins the set by name.
+			description: "negative: addr show dynamic, whose valid_lft counts down, is deliberately NOT gated, so UNGATED_CLEAN still reads a row",
 			check: func(t *testing.T, a *Allowlist) {
 				heldOut := []string{
-					"-s addr show",
-					"-s neigh show",
+					"addr show dynamic",
 				}
 				for _, c := range heldOut {
 					if a.IsGated(c) {
-						t.Fatalf("gated_commands includes %q, which no measured "+
-							"run has earned; it is held out so its predicted "+
-							"behavior gets measured rather than assumed, and "+
-							"gating it also shrinks the ungated surface that "+
-							"GOIP_PARITY_UNGATED_CLEAN reads", c)
+						t.Fatalf("gated_commands includes %q, which prints a "+
+							"finite lifetime that counts down between ip_a and "+
+							"goip, so no run can earn it; gating it also empties "+
+							"the ungated surface that GOIP_PARITY_UNGATED_CLEAN "+
+							"reads", c)
 					}
 				}
 			},
