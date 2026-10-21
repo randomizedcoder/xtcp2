@@ -12,6 +12,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor"
+	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/linkmonitorhttp"
 	monitorprom "github.com/randomizedcoder/xtcp2/pkg/linkmonitor/prometheus"
 )
 
@@ -68,7 +69,7 @@ func onDemandHandler(t *testing.T, f *fakeRefresher, poll bool) (http.Handler, *
 	registry := prometheus.NewRegistry()
 	if !poll {
 		var err error
-		if served, err = refreshRoutes(served, f, o.allPath, newRefreshMetrics(registry)); err != nil {
+		if served, err = refreshRoutes(served, f, o.allPath, linkmonitorhttp.NewRefreshMetrics(registry)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -195,7 +196,7 @@ func TestHTTPOnDemandAuth(t *testing.T) {
 	f := &fakeRefresher{}
 	o := exposureOptions{allPath: defaultAllPath, categories: []string{"link"}, interfacePaths: true}
 	served := endpoints(":9101", o, prometheus.NewRegistry(), prometheus.NewRegistry(), map[string]prometheus.Gatherer{"link": prometheus.NewRegistry()}, fakeViews(o.categories, "eth1"))
-	if served, err = refreshRoutes(served, f, o.allPath, newRefreshMetrics(prometheus.NewRegistry())); err != nil {
+	if served, err = refreshRoutes(served, f, o.allPath, linkmonitorhttp.NewRefreshMetrics(prometheus.NewRegistry())); err != nil {
 		t.Fatal(err)
 	}
 	var stop atomic.Bool

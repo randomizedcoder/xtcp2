@@ -258,16 +258,16 @@ func TestEndpoints(t *testing.T) {
 			for _, e := range served {
 				l := layout{address: e.address}
 				for _, r := range e.routes {
-					l.paths = append(l.paths, r.path)
+					l.paths = append(l.paths, r.Path)
 					wantGatherer, wantLimit := prometheus.Gatherer(all), allInFlight
-					if r.path == metricsPath && e.address == address {
+					if r.Path == metricsPath && e.address == address {
 						wantGatherer, wantLimit = core, coreInFlight
 					}
-					if category, ok := strings.CutPrefix(r.path, categoryPathPrefix); ok && categories[category] != nil {
+					if category, ok := strings.CutPrefix(r.Path, categoryPathPrefix); ok && categories[category] != nil {
 						wantGatherer, wantLimit = categories[category], categoryInFlight
 					}
-					if r.gatherer != wantGatherer || r.inFlight != wantLimit {
-						t.Errorf("%s%s: wrong gatherer or limit %d", e.address, r.path, r.inFlight)
+					if r.Gatherer != wantGatherer || r.InFlight != wantLimit {
+						t.Errorf("%s%s: wrong gatherer or limit %d", e.address, r.Path, r.InFlight)
 					}
 				}
 				got = append(got, l)
@@ -397,7 +397,7 @@ func TestServeEndpoints(t *testing.T) {
 			}
 			served := []endpoint{
 				{address: "127.0.0.1:0", routes: []route{coreRoute(prometheus.NewRegistry())}},
-				{address: "127.0.0.1:0", routes: []route{{path: defaultAllPath, gatherer: prometheus.NewRegistry(), inFlight: allInFlight}}},
+				{address: "127.0.0.1:0", routes: []route{{Path: defaultAllPath, Gatherer: prometheus.NewRegistry(), InFlight: allInFlight}}},
 			}
 			err := serve(ctx, m, quietLogger(), nil, listen, served)
 			wantFailure := tc.failBind || tc.failServe
@@ -435,7 +435,7 @@ func TestServeDrainsEveryServer(t *testing.T) {
 	go func() {
 		served <- serve(serveCtx, m, quietLogger(), nil, listen, []endpoint{
 			{address: "127.0.0.1:0", routes: []route{coreRoute(slow)}},
-			{address: "127.0.0.1:0", routes: []route{{path: defaultAllPath, gatherer: slow, inFlight: allInFlight}}},
+			{address: "127.0.0.1:0", routes: []route{{Path: defaultAllPath, Gatherer: slow, InFlight: allInFlight}}},
 		})
 	}()
 	responses := make(chan error, 2)

@@ -63,7 +63,7 @@ func serve(ctx context.Context, monitor commandMonitor, logger *slog.Logger,
 		go func() { httpDone <- server.Serve(listeners[i]) }()
 		paths := make([]string, len(endpoints[i].routes))
 		for j, r := range endpoints[i].routes {
-			paths[j] = r.path
+			paths[j] = r.Path
 		}
 		logger.Info("serving cached link metrics", "paths", paths, "address", listeners[i].Addr().String())
 	}

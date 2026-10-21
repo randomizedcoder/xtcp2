@@ -26,10 +26,10 @@ func fakeViews(categories []string, known ...string) *views {
 			return nil, monitorprom.ErrUnknownInterface
 		}
 	}
-	v := &views{all: view("all"), categories: make(map[string]interfaceView)}
+	v := &views{All: view("all"), Categories: make(map[string]interfaceView)}
 	for _, category := range categories {
 		if category != monitorprom.CategoryNetstat {
-			v.categories[category] = view(category)
+			v.Categories[category] = view(category)
 		}
 	}
 	return v
@@ -98,7 +98,7 @@ func TestHTTPInterfaceRoutes(t *testing.T) {
 func TestHTTPInterfaceViewError(t *testing.T) {
 	t.Log("negative: the view fails for another reason; expected: 500, not 404")
 	o := exposureOptions{allPath: defaultAllPath, interfacePaths: true}
-	v := &views{all: func(string) (prometheus.Gatherer, error) { return nil, errors.New("view failed") }}
+	v := &views{All: func(string) (prometheus.Gatherer, error) { return nil, errors.New("view failed") }}
 	var stop atomic.Bool
 	handler := httpServer(&fakeMonitor{}, &stop, endpoints(":9101", o, prometheus.NewRegistry(), prometheus.NewRegistry(), nil, v)[0].routes...).Handler
 	r := httptest.NewRecorder()
@@ -159,7 +159,7 @@ func TestHTTPInterfaceLimits(t *testing.T) {
 				return func(name string) (prometheus.Gatherer, error) { return pick(path + "/" + name), nil }
 			}
 			o := exposureOptions{allPath: defaultAllPath, categories: []string{"link"}, interfacePaths: true}
-			v := &views{all: view(defaultAllPath), categories: map[string]interfaceView{"link": view("/metrics/link")}}
+			v := &views{All: view(defaultAllPath), Categories: map[string]interfaceView{"link": view("/metrics/link")}}
 			var stop atomic.Bool
 			served := endpoints(":9101", o, prometheus.NewRegistry(), pick(defaultAllPath), map[string]prometheus.Gatherer{"link": pick("/metrics/link")}, v)
 			handler := httpServer(&fakeMonitor{}, &stop, served[0].routes...).Handler
