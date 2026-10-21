@@ -183,11 +183,12 @@ func (s *NetlinkSource) Close() error {
 	return err
 }
 
-// Dump sends the request and collects every reply body of msgType.
+// Dump sends the request and collects every reply body of msgType. A dump
+// the kernel ends with an errno in its NLMSG_DONE fails, as `ip`'s does.
 func (s *NetlinkSource) Dump(request []byte, msgType uint16) ([][]byte, error) {
 	var out [][]byte
-	err := xtcpnl.DumpRtnetlink(s.fd, request, s.sa, func(mt uint16, body []byte) error {
-		if mt != msgType {
+	err := xtcpnl.DumpRtnetlinkMsgsDoneErr(s.fd, request, s.sa, func(h xtcpnl.NlMsgHdr, body []byte) error {
+		if h.Type != msgType {
 			return nil
 		}
 		out = append(out, xtcpnl.CopyBytes(body))
@@ -202,7 +203,7 @@ func (s *NetlinkSource) Dump(request []byte, msgType uint16) ([][]byte, error) {
 // DumpMsgs sends the request and collects every reply of msgType whole.
 func (s *NetlinkSource) DumpMsgs(request []byte, msgType uint16) ([][]byte, error) {
 	var out [][]byte
-	err := xtcpnl.DumpRtnetlinkMsgs(s.fd, request, s.sa, func(h xtcpnl.NlMsgHdr, body []byte) error {
+	err := xtcpnl.DumpRtnetlinkMsgsDoneErr(s.fd, request, s.sa, func(h xtcpnl.NlMsgHdr, body []byte) error {
 		if h.Type != msgType {
 			return nil
 		}
@@ -345,10 +346,30 @@ func (s *ReplaySource) Dump(request []byte, msgType uint16) ([][]byte, error) {
 		}
 		out = append(out, xtcpnl.CopyBytes(m.Body))
 	}
+	if err := s.doneErr(); err != nil {
+		return nil, err
+	}
 	if len(out) == 0 && !s.recordedRequest(request) {
 		return nil, fmt.Errorf("%w: type %d", ErrNoReplay, msgType)
 	}
 	return out, nil
+}
+
+// doneErr is the live source's NLMSG_DONE rule over the capture: a recorded
+// DONE carrying an errno, for this portid, fails the dump with it.
+func (s *ReplaySource) doneErr() error {
+	for _, m := range s.cap.Msgs() {
+		if m.IsRequest() || m.Hdr.Type != unix.NLMSG_DONE {
+			continue
+		}
+		if s.portid != 0 && m.Hdr.Pid != s.portid {
+			continue
+		}
+		if err := xtcpnl.DoneErr(m.Body); err != nil {
+			return fmt.Errorf("goip: dump: %w", err)
+		}
+	}
+	return nil
 }
 
 // DumpMsgs is Dump with each reply whole, its recorded header included, by
@@ -363,6 +384,9 @@ func (s *ReplaySource) DumpMsgs(request []byte, msgType uint16) ([][]byte, error
 			continue
 		}
 		out = append(out, wholeMsg(m.Hdr, m.Body))
+	}
+	if err := s.doneErr(); err != nil {
+		return nil, err
 	}
 	if len(out) == 0 && !s.recordedRequest(request) {
 		return nil, fmt.Errorf("%w: type %d", ErrNoReplay, msgType)

@@ -31,7 +31,11 @@ const (
 	addrRestoreSlugPrefixCst = "addr_restore_"
 	// routeRestoreSlugCst is G2-T02's one route restore row.
 	routeRestoreSlugCst = "route_restore"
-	tdAddrSave          = "../../pkg/xtcpnl/testdata/7_1_4/link-write/addr-save"
+	// routeFlushSlugCst and routeFlushStatsSlugCst are G2-T03's flush write
+	// rows, both on route_flush's capture.
+	routeFlushSlugCst      = "route_flush"
+	routeFlushStatsSlugCst = "route_flush_stats"
+	tdAddrSave             = "../../pkg/xtcpnl/testdata/7_1_4/link-write/addr-save"
 	// tdRtnl is the C1 rtnetlink corpus, route_restore\'s among it.
 	tdRtnl           = "../../pkg/xtcpnl/testdata/7_1_4/link-write/rtnl"
 	pcapGlobalHdrCst = 24
@@ -43,6 +47,7 @@ const (
 	// RTM_DELADDR and NLM_F_REQUEST.
 	rtmNewAddrCst  = 20
 	rtmNewRouteCst = 24
+	rtmDelRouteCst = 25
 	rtmDelAddrCst  = 21
 	nlmFRequestCst = 0x1
 	// nlMsgHdrCst is sizeof(struct nlmsghdr). Spelled here because this
@@ -80,7 +85,7 @@ func pcapRecords(t *testing.T, b []byte) []int {
 }
 
 // dropDelRecords returns a pcap without the records that carry RTM_DELADDR
-// requests: a flush capture less its DEL batch, which is what goip sends
+// or RTM_DELROUTE requests: a flush capture less its DEL batch, which is what goip sends
 // while it writes the batch to GOIP_WRITE_OUT.
 func dropDelRecords(t *testing.T, b []byte) []byte {
 	t.Helper()
@@ -92,7 +97,11 @@ func dropDelRecords(t *testing.T, b []byte) []byte {
 			end = offs[i+1]
 		}
 		msg := off + pcapRecordHdrCst + nlmonHdrCst
-		if msg+8 <= end && binary.LittleEndian.Uint16(b[msg+4:msg+6]) == rtmDelAddrCst &&
+		typ := uint16(0)
+		if msg+8 <= end {
+			typ = binary.LittleEndian.Uint16(b[msg+4 : msg+6])
+		}
+		if (typ == rtmDelAddrCst || typ == rtmDelRouteCst) &&
 			binary.LittleEndian.Uint16(b[msg+6:msg+8])&nlmFRequestCst != 0 {
 			continue
 		}
@@ -142,6 +151,9 @@ func corpusWriteRow(t *testing.T, c Command) writeRowFiles {
 	}
 	if slug, ok := strings.CutPrefix(c.Slug, addrRestoreSlugPrefixCst); ok {
 		return corpusRestoreRow(t, c, filepath.Join(tdAddrSave, "restore_"+slug), rtmNewAddrCst)
+	}
+	if c.Slug == routeFlushSlugCst || c.Slug == routeFlushStatsSlugCst {
+		return corpusFlushRow(t, c, filepath.Join(tdRtnl, "route_flush"))
 	}
 	if c.Slug == routeRestoreSlugCst {
 		return corpusRestoreRow(t, c, filepath.Join(tdRtnl, "route_restore"), rtmNewRouteCst)

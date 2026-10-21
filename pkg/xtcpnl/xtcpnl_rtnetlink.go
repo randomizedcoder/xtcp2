@@ -158,6 +158,21 @@ func DumpRtnetlink(fd int, request []byte, sa *unix.SockaddrNetlink, onMsg func(
 // kernel sent them, flags included, and the flags are not derivable: a dump
 // the kernel filtered by ifindex carries NLM_F_DUMP_FILTERED.
 func DumpRtnetlinkMsgs(fd int, request []byte, sa *unix.SockaddrNetlink, onMsg func(h NlMsgHdr, body []byte) error) error {
+	return dumpRtnetlinkMsgs(fd, request, sa, onMsg, false)
+}
+
+// DumpRtnetlinkMsgsDoneErr is DumpRtnetlinkMsgs that also fails on an
+// NLMSG_DONE carrying a negative errno, as iproute2's rtnl_dump_done does
+// (lib/libnetlink.c): a kernel that ends a dump with an error, an IPv4 dump
+// filtered to a table that does not exist answering ENOENT, is an error to
+// `ip`, which prints "Dump terminated". DumpRtnetlinkMsgs reads that DONE as
+// the end of an empty dump, which its callers rely on.
+func DumpRtnetlinkMsgsDoneErr(fd int, request []byte, sa *unix.SockaddrNetlink, onMsg func(h NlMsgHdr, body []byte) error) error {
+	return dumpRtnetlinkMsgs(fd, request, sa, onMsg, true)
+}
+
+func dumpRtnetlinkMsgs(fd int, request []byte, sa *unix.SockaddrNetlink, onMsg func(h NlMsgHdr, body []byte) error,
+	doneErr bool) error {
 	if len(request) < NlMsgHdrSizeCst {
 		return ErrShortRequest
 	}
@@ -186,7 +201,7 @@ func DumpRtnetlinkMsgs(fd int, request []byte, sa *unix.SockaddrNetlink, onMsg f
 		if interrupted {
 			deliver = nil // draining only: nothing more is delivered after an interruption
 		}
-		done, werr := WalkNlMsgsHdr(buf[:n], seq, deliver)
+		done, werr := walkNlMsgsHdr(buf[:n], seq, deliver, doneErr)
 		switch {
 		case errors.Is(werr, ErrDumpInterrupted):
 			interrupted = true
@@ -348,6 +363,12 @@ func typeOnly(onMsg func(msgType uint16, body []byte) error) func(h NlMsgHdr, bo
 // WalkNlMsgsHdr is WalkNlMsgs with the whole nlmsghdr handed to onMsg, by the
 // same rules.
 func WalkNlMsgsHdr(data []byte, seq uint32, onMsg func(h NlMsgHdr, body []byte) error) (done bool, err error) {
+	return walkNlMsgsHdr(data, seq, onMsg, false)
+}
+
+// walkNlMsgsHdr is the walk; doneErr makes an NLMSG_DONE carrying a negative
+// errno an error, DoneErr's.
+func walkNlMsgsHdr(data []byte, seq uint32, onMsg func(h NlMsgHdr, body []byte) error, doneErr bool) (done bool, err error) {
 	if len(data) < NlMsgHdrSizeCst {
 		return false, ErrShortRecv
 	}
@@ -382,6 +403,9 @@ func WalkNlMsgsHdr(data []byte, seq uint32, onMsg func(h NlMsgHdr, body []byte) 
 			if interrupted {
 				return true, ErrDumpInterrupted
 			}
+			if doneErr {
+				return true, DoneErr(body)
+			}
 			return true, nil
 		case uint16(unix.NLMSG_ERROR):
 			if interrupted {
@@ -405,6 +429,21 @@ func WalkNlMsgsHdr(data []byte, seq uint32, onMsg func(h NlMsgHdr, body []byte) 
 		return false, ErrDumpInterrupted
 	}
 	return false, nil
+}
+
+// DoneErr decodes an NLMSG_DONE body as rtnl_dump_done does: a negative
+// errno in the first int32 is that error, and zero or a positive count is the
+// dump's ordinary end, nil. A body too short to hold the int, which the kernel
+// does not send and rtnl_dump_done reports as truncated, is read as the end
+// too.
+func DoneErr(body []byte) error {
+	if len(body) < 4 {
+		return nil
+	}
+	if int32(binary.LittleEndian.Uint32(body[0:4])) >= 0 {
+		return nil
+	}
+	return netlinkErr(body)
 }
 
 // netlinkErr decodes an NLMSG_ERROR body. The kernel puts a negative errno in

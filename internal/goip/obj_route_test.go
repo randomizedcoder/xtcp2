@@ -1018,14 +1018,13 @@ func TestRunRouteArgs(t *testing.T) {
 			wantStderrSubstr: "Magic mismatch (0 elems, 0 magic)",
 		},
 		{
-			// flush is a dump and then one delete per route; goip has no
-			// such loop, and the add-through-delete verbs it does have stop
-			// before the kernel anyway (route_write.go).
-			description:      "negative: `flush` is refused",
+			// flush (route_flush.go) needs a selector, and refuses none
+			// before anything is sent, as ip does.
+			description:      "negative: `flush` with no arguments is ip's refusal",
 			pcap:             routeDumpPcap,
 			args:             []string{"route", "flush"},
 			wantCode:         ExitUsage,
-			wantStderrSubstr: "not implemented",
+			wantStderrSubstr: "\"ip route flush\" requires arguments",
 		},
 		{
 			// `get` is implemented (route_get.go); with no destination it

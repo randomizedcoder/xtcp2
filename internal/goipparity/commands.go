@@ -1837,6 +1837,39 @@ var commands = withArgs([]Command{
 		Name: "route restore < route_save.save", Slug: "route_restore",
 		Floor: 4, Implemented: true, Write: true, Writes: 2, Setup: routeGetSetup,
 	},
+	// G2-T03: `route flush` (iproute_flush), the C1-T02 rows route_flush,
+	// route_flush_empty and route_flush_no_table. The first is a write row:
+	// ip dumps table 100, sends the two RTM_DELROUTE copies in one datagram,
+	// unacked, and dumps again to find nothing; goip sends both dumps and
+	// writes the copies, its second dump skipping what it copied. ip's six
+	// datagrams set the floor at 5, and goip's side, which sends no batch,
+	// gets 3. The other two delete nothing, so ip sends the dump alone and
+	// goip needs no GOIP_WRITE_OUT: they are read rows. Their Names
+	// abbreviate `table`, which the bytes do not show, since each Name is
+	// one row. Neither may run on the shared topology, whose table 100 holds
+	// routes `ip_a` would really delete (measured on G2-T03's first run).
+	{
+		Name: "route flush table 100", Slug: "route_flush",
+		Floor: 5, Implemented: true, Write: true, Writes: 2, Setup: routeSaveSetup,
+	},
+	{
+		Name: "-s route flush table 100", Slug: "route_flush_stats",
+		// The round text and the closing line, compared as stdout.
+		Floor: 5, Implemented: true, Write: true, Writes: 2, Setup: routeSaveSetup,
+	},
+	{
+		Name: "route flush tab 100", Slug: "route_flush_empty",
+		// Table 100 added to and emptied: the dump and its DONE (2).
+		Floor: 2, Implemented: true, Setup: routeFlushEmptySetup,
+	},
+	{
+		Name: "route flush t 100", Slug: "route_flush_no_table",
+		// A namespace of its own with no table 100: the dump answered ENOENT
+		// in its DONE, Flush terminated, exit 2 (2). The capture had no
+		// precondition; the one step makes the row a Setup row, built in its
+		// own namespace, and touches no route table but local.
+		Floor: 2, Implemented: true, Setup: routeFlushNoTableSetup,
+	},
 
 	// The vrf block — `ip vrf show`, the eleventh read-only object. The request
 	// is a filtered link dump: RTM_GETLINK, AF_UNSPEC, one IFLA_LINKINFO nest
@@ -2371,6 +2404,18 @@ var routeSaveSetup = []string{
 	"link add d0 type dummy", "link set d0 up", "addr add 192.0.2.1/24 dev d0",
 	"route add 203.0.113.0/24 dev d0 table 100", "route add 198.51.100.0/24 via 192.0.2.2 table 100",
 }
+
+// routeFlushEmptySetup is PRE_TABLE_EMPTY in rtnl-write-corpus.exp,
+// route_flush_empty's topology step for step: table 100 made and emptied.
+var routeFlushEmptySetup = []string{
+	"link add d0 type dummy", "link set d0 up", "addr add 192.0.2.1/24 dev d0",
+	"route add 203.0.113.0/24 dev d0 table 100", "route del 203.0.113.0/24 dev d0 table 100",
+}
+
+// routeFlushNoTableSetup is route_flush_no_table's namespace: the capture
+// had no precondition, and a Setup is what gives a read row a namespace of
+// its own.
+var routeFlushNoTableSetup = []string{"link set lo up"}
 
 // The `route get` rows' preconditions: PRE_D0_ADDR, its v6 sibling, and
 // PRE_IIF in rtnl-write-corpus.exp. The sysctl step is setup_step's in

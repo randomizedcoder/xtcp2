@@ -76,7 +76,7 @@ func routeSave(c *runCtx, args []string) error {
 		return err
 	}
 	msgs, err := svc.RouteMsgs(dumpFamily, sel.Table, oif)
-	if err != nil {
+	if err != nil && !mainTableAbsent(err, sel.Table) {
 		return fmt.Errorf("goip: Dump terminated: %w", err)
 	}
 	routes := make([]model.Route, len(msgs))

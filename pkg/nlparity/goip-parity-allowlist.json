@@ -942,7 +942,13 @@
     "then the saved routes in restore_handler's pass order, two writes",
     "matching ip_a's. Two back-to-back runs of 202 GOIP_PARITY_PASS of 202",
     "ended GOIP_PARITY_OVERALL_PASS; the link dump's cache info and d0's",
-    "per-namespace MAC are control-canceled."
+    "per-namespace MAC are control-canceled.",
+    "",
+    "G2-T03 adds `route flush` and gates four rows: the flush of table 100",
+    "and its -s form, write rows of two RTM_DELROUTE copies between two",
+    "dumps, and an emptied and a missing table, read rows, the latter's",
+    "DONE carrying ENOENT. Two back-to-back runs of 206 GOIP_PARITY_PASS of",
+    "206 ended GOIP_PARITY_OVERALL_PASS, with no control noise on the four."
   ],
   "_note_version_skew": [
     "THE ENTRIES BELOW CITE COMMITS THAT ARE IN NO RELEASE, AND THE EVIDENCE IS",
@@ -1222,6 +1228,10 @@
     "route save table 100",
     "route showdump < route_save.save",
     "-d route showdump < route_save.save",
-    "route restore < route_save.save"
+    "route restore < route_save.save",
+    "route flush table 100",
+    "-s route flush table 100",
+    "route flush tab 100",
+    "route flush t 100"
   ]
 }

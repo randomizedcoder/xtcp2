@@ -1026,7 +1026,9 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	//   - the `route save` row and two `route showdump` rows G2-T01 added,
 	//     likewise — see TestRouteSaveRows;
 	//   - the `route restore` row G2-T02 added, likewise — see
-	//     TestRouteRestoreRow.
+	//     TestRouteRestoreRow;
+	//   - the four `route flush` rows G2-T03 added, likewise — see
+	//     TestRouteFlushRows.
 	//
 	// The last four were the permanent set, measured divergent on the wire;
 	// TestPermanentWireDivergences records that it is empty.
@@ -2723,6 +2725,58 @@ func TestRouteRestoreRow(t *testing.T) {
 		t.Run(r.description, func(t *testing.T) {
 			var got want
 			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				got = want{implemented: c.Implemented, write: c.Write, topology: slices.Equal(c.Setup, topo),
+					floor: c.Floor, writes: c.Writes}
+			}
+			got.gated = al.IsGated(r.command)
+			got.entries = len(al.EntriesFor(r.command))
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+		})
+	}
+}
+
+// TestRouteFlushRows pins G2-T03's four rows: the flush and its -s form,
+// write rows of two writes on route_flush's topology; the empty and the
+// missing table, read rows on theirs; all gated after two clean runs with no
+// allowlist entry.
+//
+// go test ./internal/goipparity/ -run TestRouteFlushRows
+func TestRouteFlushRows(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	rtnl := filepath.Join("..", "..", "pkg", "xtcpnl", "testdata", "7_1_4", "link-write", "rtnl")
+	type want struct {
+		implemented, write, topology, gated bool
+		floor, writes, entries              int
+	}
+	rows := []struct {
+		description string
+		command     string
+		corpus      string // the slug whose topology Setup must be, "" for none
+		expected    want
+	}{
+		{"positive: the flush, two DELs and a second dump", "route flush table 100", "route_flush",
+			want{implemented: true, write: true, topology: true, gated: true, floor: 5, writes: 2}},
+		{"positive: -s, the same writes and the round text", "-s route flush table 100", "route_flush",
+			want{implemented: true, write: true, topology: true, gated: true, floor: 5, writes: 2}},
+		{"boundary: an emptied table, the dump alone, a read row", "route flush tab 100", "route_flush_empty",
+			want{implemented: true, topology: true, gated: true, floor: 2}},
+		{"negative: a missing table, the dump's error, a read row in a namespace of its own", "route flush t 100", "",
+			want{implemented: true, topology: true, gated: true, floor: 2}},
+		{"negative: a flush of another table is not in the matrix", "route flush table 200", "", want{}},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			var got want
+			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				topo := routeFlushNoTableSetup
+				if r.corpus != "" {
+					topo = topologySteps(t, rtnl, r.corpus)
+				}
 				got = want{implemented: c.Implemented, write: c.Write, topology: slices.Equal(c.Setup, topo),
 					floor: c.Floor, writes: c.Writes}
 			}

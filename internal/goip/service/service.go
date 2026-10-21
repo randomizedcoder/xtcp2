@@ -395,6 +395,17 @@ func (s *Service) Routes(family uint8, table, oif uint32) ([]model.Route, error)
 	return out, nil
 }
 
+// RouteBodies is Routes undecoded: `ip route flush` copies each reply it
+// matches whole into its RTM_DELROUTE (ip/iproute.c:803-818), so it needs
+// every byte the kernel sent. Each round sends the request Routes does.
+func (s *Service) RouteBodies(family uint8, table, oif uint32) ([][]byte, error) {
+	r, err := req.RouteShowDump(family, table, oif, s.nextSeq())
+	if err != nil {
+		return nil, err
+	}
+	return s.src.Dump(r, uint16(unix.RTM_NEWROUTE))
+}
+
 // RouteMsgs is Routes with each reply whole, header included, undecoded:
 // `ip route save` writes the replies its filter keeps verbatim
 // (ip/iproute.c:1675-1697). The request is Routes'. A source without

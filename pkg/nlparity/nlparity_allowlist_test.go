@@ -632,6 +632,11 @@ func TestAllowlistCommitted(t *testing.T) {
 		"-d route showdump < route_save.save",
 		// G2-T02's `route restore` row.
 		"route restore < route_save.save",
+		// G2-T03's four `route flush` rows.
+		"route flush table 100",
+		"-s route flush table 100",
+		"route flush tab 100",
+		"route flush t 100",
 	}
 
 	tests := []struct {

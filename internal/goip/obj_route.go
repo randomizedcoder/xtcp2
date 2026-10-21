@@ -2,6 +2,7 @@ package goip
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -25,10 +26,10 @@ import (
 //
 // The write verbs come first in that chain, add through delete, and none
 // starts with 'l' or 's'. After them goip implements list/show/lst, then
-// get (route_get.go), then save, restore and showdump (route_save.go,
-// route_restore.go), and rejects everything else, flush included, with
-// ErrNotImplemented. The chain's order is kept: `sh` is show, `res` restore (`r` is replace) and
-// `showd` showdump. That
+// get (route_get.go), then flush (route_flush.go), then save, restore and
+// showdump (route_save.go, route_restore.go), and rejects everything else
+// with ErrNotImplemented. The chain's order is kept: `sh` is show, `f`
+// flush, `res` restore (`r` is replace) and `showd` showdump. The rejection
 // is a deliberate narrowing of iproute2's two outcomes — it says "command
 // unknown" for a typo and runs the verb otherwise — into the one the parity
 // harness can act on. A bare `ip route` with no verb is a list
@@ -48,8 +49,9 @@ func runRoute(c *runCtx, args []string) error {
 		if !isList && matchesPrefix(verb, routeGetVerbCst) {
 			return routeGet(c, rest)
 		}
-		// flush sits between get and save, and shares a prefix with
-		// neither save, restore nor showdump.
+		if !isList && matchesPrefix(verb, routeFlushVerbCst) {
+			return routeFlush(c, rest)
+		}
 		if !isList && matchesPrefix(verb, routeSaveVerbCst) {
 			return routeSave(c, rest)
 		}
@@ -241,11 +243,19 @@ func routeShow(c *runCtx, sel routeSelectors) error {
 		return err
 	}
 	routes, err := svc.Routes(dumpFamily, sel.Table, oif)
-	if err != nil {
+	if err != nil && !mainTableAbsent(err, sel.Table) {
 		return err
 	}
 	routes = routeFilter(routes, c.family, sel.Table, oif)
 	return renderRoutes(c, svc, routes, sel.Table, oif)
+}
+
+// mainTableAbsent is save_route_errhndlr (ip/iproute.c:1807-1817), which
+// list and save pass to the dump and flush does not: an NLMSG_DONE carrying
+// ENOENT, a table the kernel does not have, is an empty dump when the table
+// asked for is main, and an error for any other.
+func mainTableAbsent(err error, table uint32) bool {
+	return table == unix.RT_TABLE_MAIN && errors.Is(err, unix.ENOENT)
 }
 
 // routeDumpScope is what iproute_list_flush_or_save works out between the

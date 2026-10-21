@@ -10,9 +10,9 @@ several steps, further down under [Remaining](#remaining).
 
 | | count | counted from |
 |---|---|---|
-| commands in the comparison matrix | **202** | `internal/goipparity/commands.go` — 118 read rows (31 of them `addr show` state, selector and output-mode rows with a `Setup`, and 6 `route get`, 2 `neigh get`, 4 `nexthop get` and `nexthop bucket`, 3 `link xstats` and `link afstats` and 3 `route save` and `route showdump` rows with one), the 21 link write rows, the 26 route write rows, the 27 address write rows, the 7 address flush rows, the 2 address restore rows and the route restore row |
-| of those, `Implemented: true` | **202** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
-| of those, in `gated_commands` | **201** | `pkg/nlparity/goip-parity-allowlist.json` |
+| commands in the comparison matrix | **206** | `internal/goipparity/commands.go` — 120 read rows (31 of them `addr show` state, selector and output-mode rows with a `Setup`, and 6 `route get`, 2 `neigh get`, 4 `nexthop get` and `nexthop bucket`, 3 `link xstats` and `link afstats`, 3 `route save` and `route showdump` and 1 `route flush` rows with one; the missing-table `route flush` row has none), the 21 link write rows, the 26 route write rows, the 27 address write rows, the 7 address flush rows, the 2 address restore rows, the route restore row and the 2 route flush write rows |
+| of those, `Implemented: true` | **206** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
+| of those, in `gated_commands` | **205** | `pkg/nlparity/goip-parity-allowlist.json` |
 | allowlisted divergences | **7** | same file, `entries` |
 | of those, `kind=version-skew` | **7** | all against the pinned `ip` 7.1.0 |
 | of those, `kind=accepted-divergence` | **0** | nothing is *allowlisted* as a permanent divergence — the nine wire divergences runs 8 and 9 measured **could not** be, because a transaction-count divergence is unsuppressible (`nlparity_allowlist.go:143`), and G0 retired every one by changing goip to send `ip`'s requests |
@@ -3655,6 +3655,31 @@ link dump's `IFLA_INET6_CACHEINFO` timestamps and d0's MAC, which differ
 between the sides' own namespaces, as for the address restore rows. It gates
 with no allowlist entry, and `TestRouteRestoreRow` and the
 `earned`/`gated_commands` pair pin it: 202 rows, 201 gated.
+
+### G2-T03: the four `route flush` rows gate, closing G2
+
+G2-T03 adds `goip route flush` (`internal/goip/route_flush.go`) and four
+rows, one per C1-T02 flush capture and a `-s` form. `route flush table 100`
+and `-s route flush table 100` are write rows on `route_flush`'s
+precondition: `ip` dumps table 100, sends its two routes back as unacked
+`RTM_DELROUTE` copies in one datagram and dumps again to find nothing, and
+goip sends both dumps and writes the two copies, skipping in its second
+round what it copied in its first. `route flush tab 100`, on a table made
+and emptied, and `route flush t 100`, in a namespace of its own with no
+table 100, delete nothing: `ip` sends the dump alone, so they are read rows,
+and goip needs no `GOIP_WRITE_OUT`. The missing table's dump ends with
+ENOENT in its `NLMSG_DONE`, which goip now reports as `ip` does, `Flush
+terminated` and exit 2, through xtcpnl's opt-in `DumpRtnetlinkMsgsDoneErr`.
+
+Two back-to-back runs passed 206 of 206, identical row for row, ending
+`GOIP_PARITY_OVERALL_PASS`. The write rows are `txns` 4/4, their two copies
+matching `ip_a`'s and `-s`'s round text equal; the read rows are 1/1, the
+missing table's DONE carrying ENOENT on every side. None has control noise.
+An earlier run, with the missing-table row on the shared topology, failed:
+that topology has three routes in table 100, which `ip_a` deleted. All four
+gate with no allowlist entry, and `TestRouteFlushRows` and the
+`earned`/`gated_commands` pair pin them. This closes G2: 206 rows, 205
+gated.
 
 ## Tier C — the `goip-parity` microVM flavor
 

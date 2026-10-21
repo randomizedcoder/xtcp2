@@ -51,14 +51,14 @@ The citation style follows [route-write-path.md](route-write-path.md) and [link-
 
 ## Where coverage stands
 
-Counted from the tree on 2026-10-21, at G0's close; the row and gated counts are re-measured at G1's close (DOC013). [coverage-status.md](coverage-status.md#goip--ip-parity-at-a-glance) owns these numbers; if the two disagree, that file is right.
+Counted from the tree on 2026-10-21, at G0's close; the row, gated and write-row counts are re-measured at G1's close (DOC013) and G2's (DOC014). [coverage-status.md](coverage-status.md#goip--ip-parity-at-a-glance) owns these numbers; if the two disagree, that file is right.
 
 | | count | where |
 |---|---|---|
-| matrix rows | 198 (183 at G0's close) | `internal/goipparity/commands.go` |
-| gated | 197 (160 before G0, 182 at its close) | `pkg/nlparity/goip-parity-allowlist.json`, `gated_commands` |
+| matrix rows | 206 (183 at G0's close, 198 at G1's) | `internal/goipparity/commands.go` |
+| gated | 205 (160 before G0, 182 at its close, 197 at G1's) | `pkg/nlparity/goip-parity-allowlist.json`, `gated_commands` |
 | compared but not gated | 1, `addr show dynamic` (23 before G0) | `TestUngatedSurfaceIsNotVacuous`, `internal/goipparity/commands_test.go` |
-| write rows (dry run) | 83: 21 link, 26 route, 36 address | `commands.go` |
+| write rows (dry run) | 86: 21 link, 29 route, 36 address (83 before G2) | `commands.go` |
 | `ip` objects with a `run` function | 11 of 31 | `internal/goip/dispatch.go:52-84` |
 | RTM types the write gate admits | 6: `RTM_{NEW,DEL}{ROUTE,LINK,ADDR}` | `IsAdmittedWriteType`, `pkg/xtcpnl/xtcpnl_rtattr_encode.go:341-349` |
 
@@ -2256,11 +2256,53 @@ The command tests (`internal/goip/route_restore_test.go`):
 
 The pass order, the truncation and the magic-alone rows were checked against `ip route restore` from iproute2-7.1.0 under `strace`, in an unprivileged namespace with d0 at ifindex 3.
 
+**G2-T03 delivered** (`internal/goip/route_flush.go`, `pkg/xtcpnl/xtcpnl_rtnetlink.go`), closing G2:
+- **The rounds.** `iproute_flush` (`ip/iproute.c:1741-1805`): each round dumps with `route show`'s request and filter, copies every kept reply whole into an `RTM_DELROUTE` flagged `NLM_F_REQUEST` alone at the next seq (`:803-818`), sends the copies in 3584-byte datagrams, unacked, and dumps again until nothing matches. goip writes the copies to `GOIP_WRITE_OUT` and skips in a later round every route it has copied, keyed on table, prefix, source, tos, metric, type and first hop, since its kernel deletes nothing. `-s` prints `ip`'s round and closing lines; `-s -s`, which also prints each route, is refused. No arguments is `ip`'s refusal, exit 1.
+- **The hook.** `GOIP_WRITE_OUT` is checked when the first round has something to delete, as restore checks it at the first record, so a flush of an empty table sends the dump alone, as `ip` does, and needs none.
+- **A dump that ends in an error.** The kernel answers a dump filtered to a missing table with ENOENT in its `NLMSG_DONE`, which `rtnl_dump_done` reports and xtcpnl's walker read as the end of an empty dump. `DumpRtnetlinkMsgsDoneErr` reports it; goip's live source uses it and its replay source applies the same rule to a recorded DONE. The other `DumpRtnetlink*` callers, `xtcp` and `rtnlmon`, are unchanged. `route show` and `route save` keep `save_route_errhndlr`'s exception, ENOENT on main read as an empty table, and flush, which passes no handler, does not: a missing table is `Dump terminated` or `Flush terminated`, exit 2.
+- **Four matrix rows, gated.** `route flush table 100` and `-s route flush table 100`, write rows of two writes (floor 5), on `route_flush`'s precondition; `route flush tab 100` on `route_flush_empty`'s, and `route flush t 100` in a namespace of its own with no table 100, each a read row (floor 2), since neither deletes anything. Neither may run on the shared topology, whose table 100 holds routes `ip_a` would delete; the first run put the missing-table row there and failed. Their Names abbreviate `table` because each Name is one row. Two back-to-back runs passed 206 of 206, identical row for row: the write rows `txns` 4/4, both dumps and the two copies matching `ip_a`'s, `-s`'s text equal; the read rows 1/1. No row has control noise or an allowlist entry.
+
+The command tests (`internal/goip/route_flush_test.go`):
+
+| description | expected |
+|---|---|
+| positive: `route_flush`'s capture (replayed) | `ip`'s two dumps byte for byte; its two `RTM_DELROUTE` copies, `NLM_F_REQUEST` alone at the first dump's seq plus one and two; rc 0, nothing printed |
+| positive: `-s`; `f t 100` | `ip`'s round and closing lines; the same requests |
+| boundary: `route_flush_empty`'s capture, with and without `-s` | the dump alone, no hook needed; `Nothing to flush.` |
+| corner: `-6`; `table 200` | one dump, nothing kept, nothing written |
+| negative: `route_flush_no_table`'s capture | `Flush terminated`, exit 2 |
+| negative: routes to delete and no `GOIP_WRITE_OUT`; no arguments; `-s -s`; `proto kernel` | exit 1: after the first dump; before any request, `ip`'s message; not implemented; not implemented |
+| positive: ENOENT on `route show` and `route save` of main | empty; the magic alone |
+| negative: ENOENT on `show table 100`, `save table 100`, `flush table main`, `show table all` | exit 2, save's magic first |
+
+The flush outputs and exit statuses, and `route show` and `route save` of a missing table, were checked against iproute2-7.1.0 in an unprivileged namespace.
+
+The walk tests (`pkg/xtcpnl/xtcpnl_rtnetlink_done_test.go`):
+
+| description | expected |
+|---|---|
+| positive: a DONE carrying -ENOENT, with or without an extended ack | ENOENT from `DoneErr` and the strict walk and dump |
+| positive: the same DONE to `DumpRtnetlinkMsgs` | the end of the dump, as before |
+| positive: zero, a positive count | the end |
+| corner: an interrupted dump ending in the errno DONE; a stale errno DONE | `ErrDumpInterrupted`; skipped by its seq |
+| boundary: an empty or short body; no DONE yet | the end; the walk continues |
+
 ### G3 — rtnetlink writes on running objects
 
 Writes and flushes for neigh, rule, nexthop and addrlabel; ntable change; stats set; link property.
 - Each task widens `IsAdmittedWriteType` by exactly its types.
 - Each amends the read-only statements in [README.md](README.md#two-constraints-worth-knowing-up-front).
+
+Expanded at G2's close: one task per object, each on its C1-T01 and C1-T02 captures under `link-write/rtnl/`, with G2's write machinery: `Writes`, the flush rounds and the save files.
+
+| task | deliver |
+|---|---|
+| G3-T01 | `goip neigh add`, `change`, `replace`, `del` and `flush`: `RTM_NEWNEIGH`/`RTM_DELNEIGH`, against the eight `neigh_*` write and flush captures (`ip/ipneigh.c`) |
+| G3-T02 | `goip rule add`, `del`, `flush`, `save` and `restore`: `RTM_NEWRULE`/`RTM_DELRULE`, against the seven `rule_*` captures (`ip/iprule.c`) |
+| G3-T03 | `goip nexthop add`, `replace`, `del` and `flush`, single, group and resilient: `RTM_NEWNEXTHOP`/`RTM_DELNEXTHOP`, against the `nexthop_*` write and flush captures (`ip/ipnexthop.c`) |
+| G3-T04 | `goip addrlabel add`, `del` and `flush`: `RTM_NEWADDRLABEL`/`RTM_DELADDRLABEL`, against the three `addrlabel_*` captures (`ip/ipaddrlabel.c`) |
+| G3-T05 | `goip ntable change` and `goip stats set`: `RTM_SETNEIGHTBL` and `RTM_SETSTATS`, against the three `ntable_change*` captures and `stats_set_l3` (`ip/ipntable.c`, `ip/ipstats.c`) |
+| G3-T06 | `goip link property add` and `del`: `RTM_NEWLINKPROP`/`RTM_DELLINKPROP`, against the three `link_altname_*` captures (`ip/iplink.c`), closing G3 |
 
 ### G4 — New rtnetlink objects
 
