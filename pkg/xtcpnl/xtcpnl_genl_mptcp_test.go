@@ -13,51 +13,8 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// The mptcp_pm commands, events and attributes (linux/mptcp_pm.h), which
-// x/sys/unix does not define.
-const (
-	mptcpCmdAddAddr         = 1
-	mptcpCmdDelAddr         = 2
-	mptcpCmdGetAddr         = 3
-	mptcpCmdFlushAddrs      = 4
-	mptcpCmdSetLimits       = 5
-	mptcpCmdGetLimits       = 6
-	mptcpCmdSetFlags        = 7
-	mptcpAttrAddr           = 1
-	mptcpAttrRcvAddAddrs    = 2
-	mptcpAttrSubflows       = 3
-	mptcpAddrAttrFamily     = 1
-	mptcpAddrAttrID         = 2
-	mptcpAddrAttrAddr4      = 3
-	mptcpAddrAttrAddr6      = 4
-	mptcpAddrAttrPort       = 5
-	mptcpAddrAttrFlags      = 6
-	mptcpAddrAttrIfIdx      = 7
-	mptcpEventCreated       = 1
-	mptcpEventEstablished   = 2
-	mptcpEventClosed        = 3
-	mptcpEventAnnounced     = 6
-	mptcpEventRemoved       = 7
-	mptcpEventSubEstab      = 10
-	mptcpEventSubClosed     = 11
-	mptcpEventSubPriority   = 13
-	mptcpEventListenCreated = 15
-	mptcpEventListenClosed  = 16
-	mptcpEvAttrToken        = 1
-	mptcpEvAttrLocID        = 3
-	mptcpEvAttrRemID        = 4
-	mptcpEvAttrSaddr4       = 5
-	mptcpEvAttrSaddr6       = 6
-	mptcpEvAttrDaddr4       = 7
-	mptcpEvAttrDaddr6       = 8
-	mptcpEvAttrSport        = 9
-	mptcpEvAttrBackup       = 11
-	mptcpEvAttrError        = 12
-	mptcpEvAttrFlags        = 13
-	mptcpEvAttrIfIdx        = 15
-	mptcpEvAttrServerSide   = 18
-	mptcpListenerPort       = 10100
-)
+// mptcpListenerPort is the port the C2-T04 endpoint listens on.
+const mptcpListenerPort = 10100
 
 // mptcpRows is every C2-T04 row, in the corpus's order.
 var mptcpRows = []string{
@@ -84,17 +41,17 @@ func mptcpEndpoint(t *testing.T, data []byte) string {
 	var out []string
 	for _, a := range attrs {
 		switch a.ID() {
-		case mptcpAddrAttrFamily:
+		case MPTCPAddrAttrFamily:
 			out = append(out, "family="+strconv.Itoa(int(binary.LittleEndian.Uint16(a.Data))))
-		case mptcpAddrAttrID:
+		case MPTCPAddrAttrID:
 			out = append(out, "id="+strconv.Itoa(int(a.Data[0])))
-		case mptcpAddrAttrAddr4, mptcpAddrAttrAddr6:
+		case MPTCPAddrAttrAddr4, MPTCPAddrAttrAddr6:
 			out = append(out, "addr="+net.IP(a.Data).String())
-		case mptcpAddrAttrPort:
+		case MPTCPAddrAttrPort:
 			out = append(out, "port="+strconv.Itoa(int(binary.LittleEndian.Uint16(a.Data))))
-		case mptcpAddrAttrFlags:
+		case MPTCPAddrAttrFlags:
 			out = append(out, fmt.Sprintf("flags=%#x", binary.LittleEndian.Uint32(a.Data)))
-		case mptcpAddrAttrIfIdx:
+		case MPTCPAddrAttrIfIdx:
 			out = append(out, "ifindex="+u32s(binary.LittleEndian.Uint32(a.Data)))
 		}
 	}
@@ -108,11 +65,11 @@ func mptcpAttrs(t *testing.T, attrs []NetlinkAttribute) string {
 	var out []string
 	for _, a := range attrs {
 		switch a.ID() {
-		case mptcpAttrAddr:
+		case MPTCPPMAttrAddr:
 			out = append(out, mptcpEndpoint(t, a.Data))
-		case mptcpAttrRcvAddAddrs:
+		case MPTCPPMAttrRcvAddAddrs:
 			out = append(out, "rcv_add_addrs="+u32s(binary.LittleEndian.Uint32(a.Data)))
-		case mptcpAttrSubflows:
+		case MPTCPPMAttrSubflows:
 			out = append(out, "subflows="+u32s(binary.LittleEndian.Uint32(a.Data)))
 		}
 	}
@@ -125,7 +82,7 @@ func mptcpAttrs(t *testing.T, attrs []NetlinkAttribute) string {
 func mptcpMsgs(t *testing.T, rel string, request bool) string {
 	t.Helper()
 	msgs := pcapNlMsgs(t, tdGenlWrite_7_1_4+"/"+rel)
-	fam := genlFamilyID(t, msgs, "mptcp_pm")
+	fam := genlFamilyID(t, msgs, MPTCPPMGenlName)
 	var out []string
 	for _, m := range msgs {
 		if fam == 0 || m.h.Type != fam || (m.h.Flags&unix.NLM_F_REQUEST != 0) != request {
@@ -136,9 +93,9 @@ func mptcpMsgs(t *testing.T, rel string, request bool) string {
 			t.Fatal(err)
 		}
 		words := []string{map[uint8]string{
-			mptcpCmdAddAddr: "add", mptcpCmdDelAddr: "del", mptcpCmdGetAddr: "get",
-			mptcpCmdFlushAddrs: "flush", mptcpCmdSetLimits: "setlimits",
-			mptcpCmdGetLimits: "getlimits", mptcpCmdSetFlags: "setflags",
+			MPTCPPMCmdAddAddr: "add", MPTCPPMCmdDelAddr: "del", MPTCPPMCmdGetAddr: "get",
+			MPTCPPMCmdFlushAddrs: "flush", MPTCPPMCmdSetLimits: "setlimits",
+			MPTCPPMCmdGetLimits: "getlimits", MPTCPPMCmdSetFlags: "setflags",
 		}[g.Command]}
 		if request && m.h.Flags&unix.NLM_F_DUMP == unix.NLM_F_DUMP {
 			words = append(words, "dump")
@@ -164,35 +121,35 @@ func mptcpMsgs(t *testing.T, rel string, request bool) string {
 func mptcpEvent(t *testing.T, g *GenericNetlinkMessage) string {
 	t.Helper()
 	words := []string{map[uint8]string{
-		mptcpEventCreated: "CREATED", mptcpEventEstablished: "ESTABLISHED",
-		mptcpEventClosed: "CLOSED", mptcpEventAnnounced: "ANNOUNCED",
-		mptcpEventRemoved: "REMOVED", mptcpEventSubEstab: "SF_ESTABLISHED",
-		mptcpEventSubClosed: "SF_CLOSED", mptcpEventSubPriority: "SF_PRIO",
-		mptcpEventListenCreated: "LISTENER_CREATED", mptcpEventListenClosed: "LISTENER_CLOSED",
+		MPTCPEventCreated: "CREATED", MPTCPEventEstablished: "ESTABLISHED",
+		MPTCPEventClosed: "CLOSED", MPTCPEventAnnounced: "ANNOUNCED",
+		MPTCPEventRemoved: "REMOVED", MPTCPEventSubEstablished: "SF_ESTABLISHED",
+		MPTCPEventSubClosed: "SF_CLOSED", MPTCPEventSubPriority: "SF_PRIO",
+		MPTCPEventListenerCreated: "LISTENER_CREATED", MPTCPEventListenerClosed: "LISTENER_CLOSED",
 	}[g.Command]}
 	for _, a := range g.Attributes {
 		switch a.ID() {
-		case mptcpEvAttrLocID:
+		case MPTCPAttrLocID:
 			words = append(words, "locid="+strconv.Itoa(int(a.Data[0])))
-		case mptcpEvAttrRemID:
+		case MPTCPAttrRemID:
 			words = append(words, "remid="+strconv.Itoa(int(a.Data[0])))
-		case mptcpEvAttrSaddr4, mptcpEvAttrSaddr6:
+		case MPTCPAttrSaddr4, MPTCPAttrSaddr6:
 			words = append(words, "saddr="+net.IP(a.Data).String())
-		case mptcpEvAttrDaddr4, mptcpEvAttrDaddr6:
+		case MPTCPAttrDaddr4, MPTCPAttrDaddr6:
 			words = append(words, "daddr="+net.IP(a.Data).String())
-		case mptcpEvAttrSport:
+		case MPTCPAttrSport:
 			if p := binary.BigEndian.Uint16(a.Data); p == mptcpListenerPort {
 				words = append(words, "sport="+strconv.Itoa(int(p)))
 			}
-		case mptcpEvAttrBackup:
+		case MPTCPAttrBackup:
 			words = append(words, "backup="+strconv.Itoa(int(a.Data[0])))
-		case mptcpEvAttrError:
+		case MPTCPAttrError:
 			words = append(words, "error="+strconv.Itoa(int(a.Data[0])))
-		case mptcpEvAttrIfIdx:
+		case MPTCPAttrIfIdx:
 			words = append(words, "ifindex="+u32s(binary.LittleEndian.Uint32(a.Data)))
-		case mptcpEvAttrFlags:
+		case MPTCPAttrFlags:
 			words = append(words, fmt.Sprintf("flags=%#x", binary.LittleEndian.Uint16(a.Data)))
-		case mptcpEvAttrServerSide:
+		case MPTCPAttrServerSide:
 			if a.Data[0] != 0 {
 				words = append(words, "server_side")
 			}
@@ -209,7 +166,7 @@ func mptcpEvent(t *testing.T, g *GenericNetlinkMessage) string {
 func mptcpEvents(t *testing.T, slug string) ([]string, int) {
 	t.Helper()
 	msgs := pcapNlMsgs(t, tdGenlWrite_7_1_4+"/"+slug+"/ip.pcap")
-	fam := genlFamilyID(t, msgs, "mptcp_pm")
+	fam := genlFamilyID(t, msgs, MPTCPPMGenlName)
 	var out []string
 	tokens := map[uint32]bool{}
 	for _, m := range msgs {
@@ -221,7 +178,7 @@ func mptcpEvents(t *testing.T, slug string) ([]string, int) {
 			t.Fatal(err)
 		}
 		for _, a := range g.Attributes {
-			if a.ID() == mptcpEvAttrToken {
+			if a.ID() == MPTCPAttrToken {
 				tokens[binary.LittleEndian.Uint32(a.Data)] = true
 			}
 		}
@@ -235,7 +192,7 @@ func mptcpEvents(t *testing.T, slug string) ([]string, int) {
 func mptcpErrno(t *testing.T, slug string) string {
 	t.Helper()
 	msgs := pcapNlMsgs(t, tdGenlWrite_7_1_4+"/"+slug+"/ip.pcap")
-	fam := genlFamilyID(t, msgs, "mptcp_pm")
+	fam := genlFamilyID(t, msgs, MPTCPPMGenlName)
 	for _, m := range msgs {
 		if fam != 0 && m.h.Type == fam && m.h.Flags&unix.NLM_F_REQUEST != 0 {
 			return strconv.Itoa(int(answerTo(t, msgs, m.h))) + " rc " + tcpmFile(t, slug+"/ip.rc")
@@ -286,7 +243,7 @@ func TestGenlMptcpCorpus(t *testing.T) {
 			func(t *testing.T) string {
 				var missing []string
 				for _, slug := range mptcpRows {
-					if genlFamilyID(t, pcapNlMsgs(t, tdGenlWrite_7_1_4+"/"+slug+"/ip.pcap"), "mptcp_pm") == 0 {
+					if genlFamilyID(t, pcapNlMsgs(t, tdGenlWrite_7_1_4+"/"+slug+"/ip.pcap"), MPTCPPMGenlName) == 0 {
 						missing = append(missing, slug)
 					}
 				}

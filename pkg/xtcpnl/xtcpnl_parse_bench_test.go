@@ -86,15 +86,26 @@ type benchRecord struct {
 
 // benchKind is the messages a parser's picks come from: a protocol,
 // either a message type or, for generic netlink, a family name and perhaps
-// its commands, and whether they are ip's requests rather than the kernel's
-// messages.
+// its commands or the kernel's answers or events alone, and whether they
+// are ip's requests rather than the kernel's messages.
 type benchKind struct {
 	proto   uint16
 	typ     uint16
 	family  string
 	cmds    []uint8
+	origin  benchOrigin
 	request bool
 }
+
+// benchOrigin narrows the kernel's messages by nlmsg_pid: an answer, a dump
+// included, carries the requester's port id, and a multicast event 0.
+type benchOrigin uint8
+
+const (
+	anyOrigin benchOrigin = iota
+	answerOrigin
+	eventOrigin
+)
 
 // rtnl is the rtnetlink messages of type typ.
 func rtnl(typ uint16) benchKind { return benchKind{proto: unix.NETLINK_ROUTE, typ: typ} }
@@ -108,6 +119,21 @@ func rtnlRequest(typ uint16) benchKind {
 // genl is the generic netlink messages of the family called family.
 func genl(family string) benchKind { return benchKind{proto: unix.NETLINK_GENERIC, family: family} }
 
+// genlAnswers is the kernel's answers in the family called family, not its
+// events, for a family whose events reuse its command numbers.
+func genlAnswers(family string) benchKind {
+	k := genl(family)
+	k.origin = answerOrigin
+	return k
+}
+
+// genlEvents is the kernel's multicast events in the family called family.
+func genlEvents(family string) benchKind {
+	k := genl(family)
+	k.origin = eventOrigin
+	return k
+}
+
 // genlCmds is the generic netlink messages of the family called family
 // whose command is one of cmds, for a family whose commands need different
 // parsers.
@@ -118,8 +144,8 @@ func genlCmds(family string, cmds ...uint8) benchKind {
 }
 
 // String is the kind as TestParseBenchCases pins it: proto/type or
-// proto/family, then /cmd and the commands, then /request for ip's
-// requests.
+// proto/family, then /cmd and the commands, /answers or /events, then
+// /request for ip's requests.
 func (k benchKind) String() string {
 	s := strconv.Itoa(int(k.proto)) + "/" + strconv.Itoa(int(k.typ))
 	if k.family != "" {
@@ -132,6 +158,13 @@ func (k benchKind) String() string {
 		}
 		s += "/cmd" + strings.Join(cmds, ",")
 	}
+	switch k.origin {
+	case anyOrigin:
+	case answerOrigin:
+		s += "/answers"
+	case eventOrigin:
+		s += "/events"
+	}
 	if k.request {
 		s += "/request"
 	}
@@ -140,12 +173,16 @@ func (k benchKind) String() string {
 
 // matches reports whether c is of kind k: of its protocol, sent by the
 // kernel, or for a request kind by ip (NLM_F_REQUEST), of one of its
-// commands if it names any, and of its type or family.
+// commands if it names any, of its origin if it names one, and of its type
+// or family.
 func (k benchKind) matches(c corpusMsg) bool {
 	if c.m.proto != k.proto || (c.m.h.Flags&unix.NLM_F_REQUEST != 0) != k.request {
 		return false
 	}
 	if len(k.cmds) != 0 && (len(c.m.body) == 0 || !slices.Contains(k.cmds, c.m.body[0])) {
+		return false
+	}
+	if k.origin != anyOrigin && (c.m.h.Pid == 0) != (k.origin == eventOrigin) {
 		return false
 	}
 	if k.family != "" {
@@ -214,6 +251,8 @@ var (
 	resultSeg6    Seg6
 	resultIOAM6   IOAM6
 	resultIOAM6Ev IOAM6Event
+	resultMPTCP   MPTCPPM
+	resultMPTCPEv MPTCPEvent
 )
 
 // parseBenchCase is one parser P0 benchmarks: its name, the kind of its
@@ -251,6 +290,8 @@ var parseBenchCases = []parseBenchCase{
 	{name: "ParseSeg6", kind: genl(Seg6GenlName), parse: func(_ NlMsgHdr, b []byte) (err error) { resultSeg6, err = ParseSeg6(b); return err }},
 	{name: "ParseIOAM6", kind: genlCmds(IOAM6GenlName, IOAM6CmdDumpNamespaces, IOAM6CmdDumpSchemas), parse: func(_ NlMsgHdr, b []byte) (err error) { resultIOAM6, err = ParseIOAM6(b); return err }},
 	{name: "ParseIOAM6Event", kind: genlCmds(IOAM6GenlName, IOAM6EventTrace), parse: func(_ NlMsgHdr, b []byte) (err error) { resultIOAM6Ev, err = ParseIOAM6Event(b); return err }},
+	{name: "ParseMPTCPPM", kind: genlAnswers(MPTCPPMGenlName), parse: func(_ NlMsgHdr, b []byte) (err error) { resultMPTCP, err = ParseMPTCPPM(b); return err }},
+	{name: "ParseMPTCPEvent", kind: genlEvents(MPTCPPMGenlName), parse: func(_ NlMsgHdr, b []byte) (err error) { resultMPTCPEv, err = ParseMPTCPEvent(b); return err }},
 }
 
 // parseBenchCaseNamed returns the parseBenchCases entry called name.
@@ -373,6 +414,15 @@ func BenchmarkParseIOAM6(b *testing.B) { benchParse(b, "ParseIOAM6") }
 // every pick (P2-T03).
 func BenchmarkParseIOAM6Event(b *testing.B) { benchParse(b, "ParseIOAM6Event") }
 
+// BenchmarkParseMPTCPPM decodes the smallest, a typical and the largest
+// mptcp_pm answer the kernel sent in the corpus, its limits and endpoints
+// (P2-T04).
+func BenchmarkParseMPTCPPM(b *testing.B) { benchParse(b, "ParseMPTCPPM") }
+
+// BenchmarkParseMPTCPEvent decodes the smallest, a typical and the largest
+// mptcp_pm event in the corpus (P2-T04).
+func BenchmarkParseMPTCPEvent(b *testing.B) { benchParse(b, "ParseMPTCPEvent") }
+
 func TestBenchPick(t *testing.T) {
 	// msg is a captured message of type typ whose body is n bytes, from a
 	// pcap named path.
@@ -392,6 +442,12 @@ func TestBenchPick(t *testing.T) {
 	gcmd := func(path string, cmd uint8, n int) corpusMsg {
 		c := gmsg(path, "IOAM6", 20, n)
 		c.m.body[0] = cmd
+		return c
+	}
+	// gpid is an mptcp_pm message the kernel sent to port pid.
+	gpid := func(path string, pid uint32, n int) corpusMsg {
+		c := gmsg(path, "mptcp_pm", 20, n)
+		c.m.h.Pid = pid
 		return c
 	}
 	// render shows each pick as name=path/length.
@@ -478,6 +534,18 @@ func TestBenchPick(t *testing.T) {
 			expected:    "smallest=zero/4 typical=zero/4 largest=zero/4",
 		},
 		{
+			description: "positive: an answer kind picks the kernel's messages to a port, not its events",
+			kind:        genlAnswers("mptcp_pm"),
+			msgs:        []corpusMsg{gpid("ev", 0, 900), gpid("a", 7, 20), gpid("b", 8, 48)},
+			expected:    "smallest=a/20 typical=b/48 largest=b/48",
+		},
+		{
+			description: "positive: an event kind picks the kernel's multicast messages, nlmsg_pid 0",
+			kind:        genlEvents("mptcp_pm"),
+			msgs:        []corpusMsg{gpid("ev", 0, 28), gpid("a", 7, 20), gpid("b", 8, 900)},
+			expected:    "smallest=ev/28 typical=ev/28 largest=ev/28",
+		},
+		{
 			description: "negative: no message of the type",
 			kind:        link,
 			msgs:        []corpusMsg{msg("a", route, unix.RTM_NEWADDR, 0, 52)},
@@ -511,7 +579,8 @@ func TestParseBenchCases(t *testing.T) {
 				" ParseNlMsgErr=0/2 ParseRtnetlinkEvent=0/17" +
 				" ParseGenericNetlink=16/nlctrl ParseGenericNetlinkFamily=16/nlctrl ParseEthtool=16/ethtool" +
 				" ParseNsid=0/88 ParseNexthopBucket=0/116 ParseLinkProp=0/108/request ParsePrefix=0/52" +
-				" ParseTCPMetrics=16/tcp_metrics ParseSeg6=16/SEG6 ParseIOAM6=16/IOAM6/cmd3,6 ParseIOAM6Event=16/IOAM6/cmd1",
+				" ParseTCPMetrics=16/tcp_metrics ParseSeg6=16/SEG6 ParseIOAM6=16/IOAM6/cmd3,6 ParseIOAM6Event=16/IOAM6/cmd1" +
+				" ParseMPTCPPM=16/mptcp_pm/answers ParseMPTCPEvent=16/mptcp_pm/events",
 		},
 	}
 	for _, tt := range tests {
@@ -554,6 +623,8 @@ func TestParseBenchRecords(t *testing.T) {
 		{description: "positive: ParseSeg6 decodes its three SEG6 picks", name: "ParseSeg6", expected: "smallest ok, typical ok, largest ok"},
 		{description: "positive: ParseIOAM6 decodes its three IOAM6 dump picks", name: "ParseIOAM6", expected: "smallest ok, typical ok, largest ok"},
 		{description: "positive: ParseIOAM6Event decodes its IOAM6 TRACE pick", name: "ParseIOAM6Event", expected: "smallest ok, typical ok, largest ok"},
+		{description: "positive: ParseMPTCPPM decodes its three mptcp_pm answer picks", name: "ParseMPTCPPM", expected: "smallest ok, typical ok, largest ok"},
+		{description: "positive: ParseMPTCPEvent decodes its three mptcp_pm event picks", name: "ParseMPTCPEvent", expected: "smallest ok, typical ok, largest ok"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {

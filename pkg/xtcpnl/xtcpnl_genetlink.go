@@ -171,6 +171,20 @@ func (d *genlDecoder) u32(id uint16, dst **uint32) {
 	}
 }
 
+// be16 reads a u16 the kernel puts in network order, without the
+// NLA_F_NET_BYTEORDER flag, as nla_put_be16 does.
+func (d *genlDecoder) be16(id uint16, dst **uint16) {
+	if d.err != nil {
+		return
+	}
+	var a *NetlinkAttribute
+	a, d.err = scalarAttribute(d.attrs, id, 2)
+	if d.err == nil && a != nil {
+		v := binary.BigEndian.Uint16(a.Data)
+		*dst = &v
+	}
+}
+
 // s32 reads a u32-width attribute as signed.
 func (d *genlDecoder) s32(id uint16, dst **int32) {
 	var v *uint32
