@@ -48,7 +48,8 @@ on the builder. On 2026-10-20 the user agreed to add `"/dev/net/tun?"` to
 ## Integration results
 
 The latest pass of each check (VC014, operator-run on `l` at a2aab875, KVM in
-the nix build sandbox, QEMU 11.0.2). Go test counts are `--- PASS` lines in
+the nix build sandbox, QEMU 11.0.2; the performance guest again in VC016 at
+dc0d1362). Go test counts are `--- PASS` lines in
 the guest's serial log; no run had a `--- FAIL`, and only the rdma guest's
 three expected skips (veth has no rings, pause or FEC).
 
@@ -59,7 +60,7 @@ three expected skips (veth has no rings, pause or FEC).
 | `vm-linkmonitor-ionic` | Linux 7.1.4 | 11 of 11 | 99 Go tests pass | real ionic/ionic_rdma on rocm-ernic: discovery, request contracts, monitor, CLI differential, events, recorded events, remove, unplug, hotplug, recovered events |
 | `vm-linkmonitor-ionic-faults` | Linux 7.1.4 | 3 of 3 | 18 Go tests pass | generic-100g profile with injected faults; eth_rx fired 28 of 282, eth_tx 31 of 311, stats_vals 1 of 14; the monitor's counters agree with sysfs, ethtool and the fault pattern |
 | `vm-linkmonitor-rdma` | Linux 7.1.4 | 10 of 10 | 61 Go tests pass, 3 skip (`TestLiveRequestShapes` ethtool RINGS, PAUSE, FEC on veth) | software RoCE (rxe): discovery, rename, netlink events against the recorded ones, faults, no rdma-core library opened, umad unloaded and loaded, denied uverbs, delete and recreate, recordings of every request shape (8 files in `nlrecord/`) |
-| `vm-linkmonitor-performance` | Linux 6.18.39 | 3 of 3 | live tests pass (`live_exit=0`), RDMA native benchmarks pass (`rdma_native_exit=0`) | root-only live netlink tests, `BenchmarkPerformance{LocalMachine,RealisticFleet}` with CPU, heap, block and mutex profiles, an nlmon pcap, `bench-linkmonitor-rdma-native --native`; 884 KiB of evidence |
+| `vm-linkmonitor-performance` | Linux 6.18.39 | 3 of 3 | live tests pass (`live_exit=0`), RDMA native benchmarks pass (`rdma_native_exit=0`) | root-only live netlink tests, `BenchmarkPerformance{LocalMachine,RealisticFleet}` with CPU, heap, block and mutex profiles, an nlmon pcap, `bench-linkmonitor-rdma-native --native`; 912 KiB of evidence (VC016) |
 
 Outputs (GC-rooted by the operator's `result-vm-all`):
 
@@ -68,7 +69,7 @@ Outputs (GC-rooted by the operator's `result-vm-all`):
 - `/nix/store/llyl73ac7376i4qxia0s6hh3rssrmyqb-vm-check-linkmonitor-ionic`
 - `/nix/store/30m8lky244fiqksg3imbxx235g40k5yj-vm-check-linkmonitor-ionic-faults`
 - `/nix/store/m6v7dvxs6cz5w8gl76689ask6638x86a-vm-check-linkmonitor-rdma`
-- `/nix/store/brhaihxy9zbsdlsmxha6hahi5jgka38c-vm-check-linkmonitor-performance`
+- `/nix/store/s1bz13rwjcdcg6llks7k86pf9m7idkg9-vm-check-linkmonitor-performance` (VC016)
 
 ## Tasks
 
@@ -82,7 +83,7 @@ Outputs (GC-rooted by the operator's `result-vm-all`):
 | VC-T06 | `/tmp` cleanup of the old evidence dirs, after the user has seen the list | done | VC007 |
 | VC-T07 | Go source filtering, so a change outside the Go inputs keeps the guests cached (separate commits) | done | VC008 |
 | VC-T08 | `vm-linkmonitor-rdma`: the rxe microVM through mkVmCheck (every step's sentinel, `nlrecord/` in the evidence) | done | VC013, VC014 |
-| VC-T09 | `vm-linkmonitor-performance`: the performance guest through mkVmCheck, its bundle unpacked and its manifest checked; `checks.vm-linkmonitor-performance-bundle` | done (one reboot after VC015 pending) | VC013, VC014, VC015 |
+| VC-T09 | `vm-linkmonitor-performance`: the performance guest through mkVmCheck, its bundle unpacked and its manifest checked; `checks.vm-linkmonitor-performance-bundle` | done | VC013, VC014, VC015, VC016 |
 
 ## TODO
 
@@ -112,8 +113,9 @@ Outputs (GC-rooted by the operator's `result-vm-all`):
 - [x] The performance artifact (`tests.test-linkmonitor-performance`) was
   still built from the full tree, so a docs edit or a new `result` link
   re-booted the performance guest; it now uses goSource (VC015).
-- [ ] Boot `checks.vm-linkmonitor-performance` once more, since VC015
-  changed its artifact's inputs (not its Go content).
+- [x] Boot `checks.vm-linkmonitor-performance` once more, since VC015
+  changed its artifact's inputs (not its Go content): pass, and the other
+  five stayed cached (VC016).
 - [ ] The performance guest's `LINKMONITOR_BENCHTIME` never reached the
   guest from the host (the README said it did; corrected). Wire it through
   `VM_KERNEL_PARAMS` if a longer profile window is wanted.
@@ -137,3 +139,4 @@ Outputs (GC-rooted by the operator's `result-vm-all`):
 | VC013 | 2026-10-20 | VC-T08/T09: `nix eval` of `checks.vm-linkmonitor-{rdma,performance}` (`requiredSystemFeatures` kvm) and `vm-all` (six entries); `nix build` of both apps, `checks.{vm-check-runner,vm-linkmonitor-performance-bundle,nix-fmt,statix,deadnix}`, `test-linkmonitor-docs`; usage errors (`--bogus`, two DIRs, `--keep=0`, `--accel=hvf`, an rdma positional) | pass; bundle test 5 of 5 (its first run failed all three bundle rows: the stand-in's `while read` dropped fold's unterminated last chunk, fixed in the stand-in); each usage error exits 2; no guest booted |
 | VC014 | 2026-10-20 | user: `env -u LD_LIBRARY_PATH nix build -L -o result-vm-all path:.#checks.x86_64-linux.vm-all` on `l` (at a2aab875, with main merged in) | pass, all six: goip-argv-paths 8 sentinels and 51 rows; embedding 4 and 12 Go tests; ionic 11 and 99; ionic-faults 3 and 18 (eth_rx fired 28 of 282, eth_tx 31 of 311, stats_vals 1 of 14); rdma 10 and 61 Go tests, 3 expected skips, 8 nlrecord files, kernel 7.1.4; performance 3, `live_exit=0`, `rdma_native_exit=0`, kernel 6.18.39. 0 ESC and 0 CR bytes in each serial.log. Five outputs match `nix eval` at HEAD; the performance one does not (VC015) |
 | VC015 | 2026-10-20 | `nix/tests/linkmonitor.nix`: `test-linkmonitor-performance` from goSource. `nix-diff` of the VC014 performance drv against HEAD's (the leaf: `xtcp2-test-linkmonitor-performance`'s full-tree source, changed by the new `result-vm-all` link); `nix build path:.#test-linkmonitor-performance`; `nix eval` of `checks.vm-all.drvPath` before and after adding a `.md` file and a `result-*` link; `checks.{nix-fmt,statix,deadnix}` | pass; `vm-all` drv unchanged by both; no guest booted |
+| VC016 | 2026-10-20 | user: `env -u LD_LIBRARY_PATH nix build -L -o result-vm-all path:.#checks.x86_64-linux.vm-all` on `l` (at dc0d1362) | pass; only the performance guest booted, the other five came from the store. Performance 3 of 3 sentinels, `live_exit=0`, `rdma_native_exit=0`, kernel 6.18.39, 912 KiB of evidence, 0 ESC and 0 CR bytes in serial.log; `result-vm-all` equals `nix eval` of `checks.vm-all.outPath` at HEAD. Benchmarks (one run, loaded host, from the check's `bench.txt`): RealisticFleet gather 2834520 ns/op and 30171 allocs/op, http 3806872 ns/op; LocalMachine gather 791760 ns/op and 8464 allocs/op, http 1145648 ns/op; within 4% of VC014's |
