@@ -77,7 +77,7 @@ func command(args []string, stdout, stderr io.Writer, getenv func(string) string
 	var admins []*adminEndpoint
 	if access.endpoint != nil {
 		// Admin request metrics are served on the collection and full expositions.
-		admin, err := newAdminEndpoint(*access.endpoint, access.policy, m, logger, adminRegistries)
+		admin, err := newAdminEndpoint(*access.endpoint, opts.hops, access.policy, m, logger, adminRegistries)
 		if err != nil {
 			logger.Error("invalid configuration", "error", err)
 			return 2
@@ -87,7 +87,7 @@ func command(args []string, stdout, stderr io.Writer, getenv func(string) string
 	signals := make(chan os.Signal, 8)
 	signal.Notify(signals, syscall.SIGUSR1, syscall.SIGTERM, os.Interrupt)
 	defer signal.Stop(signals)
-	var lc net.ListenConfig
+	lc := net.ListenConfig{Control: opts.hops.control()}
 	served, err := collectionMode(endpoints(opts.address, opts.exposure, coreRegistry, allRegistry, categories, interfaces), m, opts, logger, adminRegistries)
 	if err != nil {
 		logger.Error("invalid configuration", "error", err)
