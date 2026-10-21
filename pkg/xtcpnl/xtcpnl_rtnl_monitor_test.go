@@ -1,7 +1,6 @@
 package xtcpnl
 
 import (
-	"encoding/binary"
 	"net"
 	"os"
 	"regexp"
@@ -11,14 +10,6 @@ import (
 	"testing"
 
 	"golang.org/x/sys/unix"
-)
-
-// The prefixmsg attributes (linux/rtnetlink.h), which x/sys/unix does not
-// define, and the size of struct prefixmsg.
-const (
-	prefixAddress   = 1
-	prefixCacheinfo = 2
-	prefixMsgSize   = 12
 )
 
 // isNotification reports whether a message is a notification. Most carry
@@ -42,9 +33,7 @@ func notifications(t *testing.T, slug string) map[uint16]int {
 	return out
 }
 
-// newPrefix decodes a row's one RTM_NEWPREFIX notification. There is no
-// ParsePrefix yet (P1), so the test reads struct prefixmsg (family, three
-// pad bytes, ifindex, type, len, flags, a pad byte) and the two attributes.
+// newPrefix decodes a row's one RTM_NEWPREFIX notification with ParsePrefix.
 func newPrefix(t *testing.T, slug string) string {
 	t.Helper()
 	var body []byte
@@ -53,26 +42,20 @@ func newPrefix(t *testing.T, slug string) string {
 			body = m.body
 		}
 	}
-	if len(body) < prefixMsgSize {
-		t.Fatalf("prefixmsg is %d bytes", len(body))
-	}
-	attrs, err := ParseNetlinkAttributes(body[prefixMsgSize:])
+	pi, err := ParsePrefix(body)
 	if err != nil {
 		t.Fatal(err)
 	}
 	addr, cache := "none", "none"
-	for _, a := range attrs {
-		switch {
-		case a.ID() == prefixAddress:
-			addr = net.IP(a.Data).String()
-		case a.ID() == prefixCacheinfo && len(a.Data) == 8:
-			cache = u32s(binary.LittleEndian.Uint32(a.Data[0:4])) + "/" +
-				u32s(binary.LittleEndian.Uint32(a.Data[4:8]))
-		}
+	if pi.Address != nil {
+		addr = net.IP(pi.Address).String()
+	}
+	if pi.HasCacheinfo {
+		cache = u32s(pi.PreferredTime) + "/" + u32s(pi.ValidTime)
 	}
 	return strings.Join([]string{
-		strconv.Itoa(int(body[0])), strconv.Itoa(int(body[8])), strconv.Itoa(int(body[9])),
-		"0x" + strconv.FormatUint(uint64(body[10]), 16), addr, cache,
+		strconv.Itoa(int(pi.Family)), strconv.Itoa(int(pi.Type)), strconv.Itoa(int(pi.Len)),
+		"0x" + strconv.FormatUint(uint64(pi.Flags), 16), addr, cache,
 	}, " ")
 }
 

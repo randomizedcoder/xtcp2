@@ -278,7 +278,7 @@ nothing enforces that.
 | Subtests (`--- PASS` lines) | not table-driven enough to be meaningful | **501** |
 | Statement coverage | **unmeasurable overall**; `nl/` alone = **33.1%** | **93.3%** |
 | Fuzz targets | 0 | **6** |
-| Benchmarks | few | ~~**~40**~~ → **68** as of P0-T04 ([goip-parity-gaps.md](goip-parity-gaps.md#p0--benchmarks-for-the-existing-parsers)), 15 of them a parse benchmark per parser over corpus picks; the rest manual-vs-reflection paired, plus an 18-row gate asserting `0 allocs/op` and a minimum speedup over reflection (`xtcpnl_perf_gate_test.go`) |
+| Benchmarks | few | ~~**~40**~~ → **72** as of P1-T04 ([goip-parity-gaps.md](goip-parity-gaps.md#p1--new-rtnetlink-parsers)), 19 of them a parse benchmark per parser over corpus picks; the rest manual-vs-reflection paired, plus an 18-row gate asserting `0 allocs/op` and a minimum speedup over reflection (`xtcpnl_perf_gate_test.go`) |
 | Static fixtures | **2 files** (`testdata/ipset_{protocol,list}_result`) | real `.pcap` corpus across **10 kernel versions** |
 | Requires root + netns | **~30 of 47 files** | **none** |
 | Custom audit tooling | none | `tools/netlink-audit`, wired as a `nix flake check` (`nix/checks/netlink-audit.nix`) |
