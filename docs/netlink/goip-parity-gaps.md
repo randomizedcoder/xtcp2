@@ -194,7 +194,7 @@ msgs/pcaps means messages found, over the number of pcaps they appear in. Every 
 | | SETSTATS (95) | 3 / 3 (C1-T01, C1-T04) | `ParseNewStats` reads the request | `TestRtnlWriteCorpus` | same |
 | `nhmsg` | NEWNEXTHOP (104), GETNEXTHOP (106) | 51 / 24, 25 / 23 | `ParseNewNexthop`, `xtcpnl_nhmsg.go:143` | `TestParseNewNexthop`, `xtcpnl_nhmsg_test.go:39` | **`BenchmarkParseNewNexthop`, `xtcpnl_parse_bench_test.go:248`** (P0-T02) |
 | | DELNEXTHOP (105) | 4 / 2 (C1-T01, C1-T02) | same | `TestRtnlWriteCorpus` | same |
-| `nhmsg` (bucket) | NEWNEXTHOPBUCKET (116), GETNEXTHOPBUCKET (118) | 1025 / 2, 2 / 2 (C1-T02) | **none** | `TestRtnlWriteCorpusVerbs`, `TestRtnlWriteCorpusShapes` (types and datagrams only) | none |
+| `nhmsg` (bucket) | NEWNEXTHOPBUCKET (116), GETNEXTHOPBUCKET (118) | 1025 / 2, 2 / 2 (C1-T02) | **`ParseNexthopBucket`, `xtcpnl_nhbucket.go:59`** (P1-T02) | **`TestParseNexthopBucket`, `xtcpnl_nhbucket_test.go:52`; `TestParseNexthopBucketCorpus`**; `TestRtnlWriteCorpusVerbs`, `TestRtnlWriteCorpusShapes` | **`BenchmarkParseNexthopBucket`, `xtcpnl_parse_bench_test.go:297`** |
 | | DELNEXTHOPBUCKET (117) | **0**: the kernel registers no handler for it, and `ip` never sends it | none | none | none |
 | `prefixmsg` | NEWPREFIX (52) | 3 / 3 (C1-T04) | **none** | `TestRtnlMonitorCorpus` reads `prefixmsg` raw | none |
 | `nlmsgerr` | ERROR (2), DONE (3) | 401 / 168, 1051 / 514; over generic netlink 733 / 240, 113 / 105 (C2); over XFRM 42 / 32, 31 / 29 (C3) | `ParseNlMsgErr`, `xtcpnl_nlmsgerr.go:54` | `TestParseNlMsgErr`, `xtcpnl_nlmsgerr_test.go:44` | **`BenchmarkParseNlMsgErr`, `xtcpnl_parse_bench_test.go:268`** (P0-T04, rtnetlink ERROR) |
@@ -223,9 +223,9 @@ The corpus also holds ethtool (19 commands), devlink (2) and nl80211 (7) from th
 
 1. **The rtnetlink read side is in good shape.** Every body layout that a running goip object reads has captured pcaps, a parser and a table-driven test.
 2. **The capture holes were the DEL and SET types:** DELANYCAST, DELRULE, SETNEIGHTBL, DELADDRLABEL, DELNSID, SETSTATS and DELNEXTHOP. Each shares a body layout with its NEW type, so all but DELNSID already had a parser (NSID had none until P1-T01; point 3). The bytes were missing because no capture row sent them. C1-T01 added those rows (`link-write/rtnl/`), and each of the seven is now captured and checked by `TestRtnlWriteCorpus`.
-3. **Four rtnetlink layouts had no parser:** NSID, nexthop bucket, LINKPROP and prefix. Since C1 closed, all four have bytes: NSID 210 NEWNSID messages, the nexthop bucket and LINKPROP from C1-T02 (a 1024-bucket dump, and altname add and del), and prefix from C1-T04 (an RA's NEWPREFIX, 3 messages). The parsers are P1. NSID has one since P1-T01, `ParseNsid`; the other three are still read raw.
+3. **Four rtnetlink layouts had no parser:** NSID, nexthop bucket, LINKPROP and prefix. Since C1 closed, all four have bytes: NSID 210 NEWNSID messages, the nexthop bucket and LINKPROP from C1-T02 (a 1024-bucket dump, and altname add and del), and prefix from C1-T04 (an RA's NEWPREFIX, 3 messages). The parsers are P1. NSID has one since P1-T01, `ParseNsid`, and the nexthop bucket since P1-T02, `ParseNexthopBucket`; LINKPROP and prefix are still read raw.
 4. **Generic netlink beyond nlctrl and XFRM had nothing:** no pcaps, no parsers, no tests. When this was measured the blocker was in the harness: `xtcp2-nlcap` kept only `NETLINK_ROUTE` (`ether[14:2]==0`), although nlmon taps GENERIC and XFRM. C0 removed it. A row now names its protocol (`--proto`, C0-T01), and the modules those families need are loaded late (C0-T02). What is missing is the capture rows (C2, C3). C2-T01 added the first: tcp_metrics' GET and DEL are captured (`link-write/genl/`), with no parser yet (P2). C2-T02 added sr's four SEG6 commands, C2-T03 ioam's seven IOAM6 commands, C2-T04 the seven mptcp_pm commands `ip` sends, C2-T05 fou's three, C2-T06 ila's three, C2-T07 the six l2tp commands `ip` sends, and C2-T08 macsec's eleven. Since C2 closed, every genl family in the universe has captured bytes and a test that reads them raw, and none has a parser (P2). C3-T01 added the XFRM state rows (`link-write/xfrm/`): the seven types `ip xfrm state` sends are captured and read raw by `TestXfrmStateCorpus`. C3-T02 added policy, SPDINFO, the defaults and the events (`ip xfrm monitor`), read raw by `TestXfrmPolicyCorpus`. Since C3 closed, every XFRM type but REPORT has captured bytes; the parsers are P3.
-5. **Benchmarks:** every rtnetlink and genl parser in the tables above has a parse benchmark, 15 since P0 closed and 16 with P1-T01's `BenchmarkParseNsid`: `ParseNewAddr`, since P0-T01 `ParseNewLink` and `ParseNewRoute`, since P0-T02 `ParseNeigh`, `ParseRule` and `ParseNewNexthop`, since P0-T03 `ParseNewAddrLabel`, `ParseNewNeighTbl`, `ParseNewNetconf` and `ParseNewStats`, and since P0-T04 `ParseNlMsgErr`, `ParseRtnetlinkEvent`, `ParseGenericNetlink`, `ParseGenericNetlinkFamily` and `ParseEthtool`. The rest of `BenchmarkDeserialize*` covers inet_diag only.
+5. **Benchmarks:** every rtnetlink and genl parser in the tables above has a parse benchmark, 15 since P0 closed, then P1-T01's `BenchmarkParseNsid` and P1-T02's `BenchmarkParseNexthopBucket`: `ParseNewAddr`, since P0-T01 `ParseNewLink` and `ParseNewRoute`, since P0-T02 `ParseNeigh`, `ParseRule` and `ParseNewNexthop`, since P0-T03 `ParseNewAddrLabel`, `ParseNewNeighTbl`, `ParseNewNetconf` and `ParseNewStats`, and since P0-T04 `ParseNlMsgErr`, `ParseRtnetlinkEvent`, `ParseGenericNetlink`, `ParseGenericNetlinkFamily` and `ParseEthtool`. The rest of `BenchmarkDeserialize*` covers inet_diag only.
 
 ### How to re-measure
 
@@ -1275,6 +1275,36 @@ Each delivers `ParseX`, a table test with positive (captured), negative, boundar
 | positive: every NEWNSID request ip sent names an fd and an nsid | `4 decoded, 0 errors, 4 with an nsid, 4 with an fd` |
 | corner: ip's GETNSID asks by fd, except its two header-only dumps | `202 decoded, 0 errors, 0 with an nsid, 200 with an fd` |
 | negative: the kernel never sends a GETNSID | `0 decoded, …` |
+
+**P1-T02 delivered** (`pkg/xtcpnl/xtcpnl_nhbucket.go`):
+- `ParseNexthopBucket` decodes an RTM_NEWNEXTHOPBUCKET or RTM_GETNEXTHOPBUCKET body: the nhmsg header, `NHA_ID`, the `NHA_OIF` and `NHA_MASTER` dump filters `ip`'s request may carry, and the `NHA_RES_BUCKET` nest (index, idle time and member nexthop id, as `nh_fill_res_bucket` sends them; its pad is skipped). Like `ParseNewNexthop`, it reads a scalar from an attribute at least as wide as the scalar.
+- `BenchmarkParseNexthopBucket` runs over three NEWNEXTHOPBUCKET picks, all 48 bytes; `ParseNexthopBucket` allocates nothing on any of them, which `TestParseBenchAllocs` asserts.
+
+`TestParseNexthopBucket`:
+
+| description | expected |
+|---|---|
+| positive: the kernel's reply to bucket get (captured) | `… id=20 bucket{index=0 idle=39 nhid=2}` |
+| positive: a bucket dump reply (captured) | `… id=20 bucket{index=1 idle=39 nhid=2}` |
+| positive: ip's bucket get request (captured) | `… id=20 bucket{index=0}` |
+| boundary: ip's bucket dump request names the group and no bucket (captured) | `… id=20` |
+| boundary: a header-only body | `family=0 proto=0 flags=0x0` |
+| boundary: a body one byte short of the nhmsg | `ErrNhmsgSmall` |
+| corner: the header's protocol and flags are the group's | `family=0 proto=4 flags=0x40 id=7` |
+| corner: a pad before the idle time is skipped, and a u64 idle time and an nhid past 16 bits decode whole | `… bucket{index=5 idle=1099511627776 nhid=70000}` |
+| corner: ip's dump filter by member nexthop | `… id=20 bucket{nhid=3}` |
+| corner: ip's dev and master dump filters | `… oif=2 master=5` |
+| corner: an empty nest | `… bucket{}` |
+| corner: an index narrower than a u16, or an idle time narrower than a u64, is not decoded | `… bucket{}` |
+| negative: an attribute longer than the body, or a sub-attribute longer than its nest | `ErrRTAttrSmall` |
+
+`TestParseNexthopBucketCorpus`:
+
+| description | expected |
+|---|---|
+| positive: every bucket the kernel sent decodes complete, and the 1024-bucket dump names each index once | `1025 decoded, 0 errors, 1025 complete, 1024 distinct indexes` |
+| corner: ip's two requests decode, the get naming index 0 and the dump no bucket | `2 decoded, 0 errors, 0 complete, 1 distinct indexes` |
+| negative: ip sends no NEWNEXTHOPBUCKET | `0 decoded, …` |
 
 ### P2 — genl parsers
 
