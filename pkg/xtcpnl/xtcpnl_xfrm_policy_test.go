@@ -12,33 +12,9 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// The XFRM policy, event and SPD message types and attributes
-// (linux/xfrm.h) that C3-T02 adds to xtcpnl_xfrm_state_test.go's.
+// The XFRMA_SPD_* attributes of a NEWSPDINFO (linux/xfrm.h), and the
+// sizes C3-T02 adds to xtcpnl_xfrm.go's.
 const (
-	xfrmMsgNewPolicy   = 19
-	xfrmMsgDelPolicy   = 20
-	xfrmMsgGetPolicy   = 21
-	xfrmMsgAcquire     = 23
-	xfrmMsgExpire      = 24
-	xfrmMsgUpdPolicy   = 25
-	xfrmMsgPolExpire   = 27
-	xfrmMsgFlushPolicy = 29
-	xfrmMsgNewAE       = 30
-	xfrmMsgNewSPDInfo  = 36
-	xfrmMsgGetSPDInfo  = 37
-	xfrmMsgMapping     = 38
-	xfrmMsgSetDefault  = 39
-	xfrmMsgGetDefault  = 40
-
-	xfrmAttrEncap      = 4
-	xfrmAttrTmpl       = 5
-	xfrmAttrSA         = 6
-	xfrmAttrPolicy     = 7
-	xfrmAttrPolicyType = 16
-	xfrmAttrMark       = 21
-	xfrmAttrIfID       = 31
-	xfrmAttrSADir      = 33
-
 	xfrmAttrSPDInfo        = 1
 	xfrmAttrSPDHInfo       = 2
 	xfrmAttrSPDIPv4HThresh = 3
@@ -47,7 +23,7 @@ const (
 	// sizeof(struct xfrm_userpolicy_info), (struct xfrm_userpolicy_id),
 	// (struct xfrm_user_tmpl), (struct xfrm_user_acquire),
 	// (struct xfrm_user_expire), (struct xfrm_user_polexpire),
-	// (struct xfrm_aevent_id), (struct xfrm_user_mapping) and
+	// (struct xfrm_user_mapping) and
 	// (struct xfrm_userpolicy_default) on x86_64, and the offsets in them.
 	// The two expires end in a u8 hard flag, padded to the 8 their
 	// lifetimes align to.
@@ -57,7 +33,6 @@ const (
 	xfrmAcquireLen    = 280
 	xfrmExpireLen     = 232
 	xfrmPolExpireLen  = 176
-	xfrmAeventIDLen   = 48
 	xfrmMappingLen    = 64
 	// struct xfrm_encap_tmpl: a host-order type, network-order ports,
 	// and the original address at 8, after 2 bytes of padding.
@@ -108,7 +83,7 @@ func xfrmPolicyInfo(b []byte) string {
 	return "dir=" + strconv.Itoa(int(b[160])) + " action=" + strconv.Itoa(int(b[161])) +
 		" priority=" + u32s(binary.LittleEndian.Uint32(b[152:])) + " index=" + u32s(binary.LittleEndian.Uint32(b[156:])) +
 		" flags=" + strconv.Itoa(int(b[162])) + " share=" + strconv.Itoa(int(b[163])) +
-		" sel=" + xfrmSel(b[:xfrmSelLen]) + xfrmLft(b[xfrmPolicyLftOff:]) +
+		" sel=" + xfrmSel(b[:XfrmSelectorSizeCst]) + xfrmLft(b[xfrmPolicyLftOff:]) +
 		" curlft=" + strconv.FormatUint(binary.LittleEndian.Uint64(b[xfrmPolicyCurOff:]), 10) + "B/" +
 		strconv.FormatUint(binary.LittleEndian.Uint64(b[xfrmPolicyCurOff+8:]), 10) + "P"
 }
@@ -116,13 +91,13 @@ func xfrmPolicyInfo(b []byte) string {
 // xfrmPolicyID renders an xfrm_userpolicy_id: the selector, or the index
 // where there is one, and the direction.
 func xfrmPolicyID(b []byte) string {
-	return "sel=" + xfrmSel(b[:xfrmSelLen]) + " index=" + u32s(binary.LittleEndian.Uint32(b[56:])) +
+	return "sel=" + xfrmSel(b[:XfrmSelectorSizeCst]) + " index=" + u32s(binary.LittleEndian.Uint32(b[56:])) +
 		" dir=" + strconv.Itoa(int(b[60]))
 }
 
 // xfrmTmpl renders one xfrm_user_tmpl.
 func xfrmTmpl(b []byte) string {
-	return "tmpl{dst=" + xfrmAddr(b[:xfrmAddrLen]) + " spi=0x" + strconv.FormatUint(uint64(binary.BigEndian.Uint32(b[16:])), 16) +
+	return "tmpl{dst=" + xfrmAddr(b[:XfrmAddressSizeCst]) + " spi=0x" + strconv.FormatUint(uint64(binary.BigEndian.Uint32(b[16:])), 16) +
 		" proto=" + strconv.Itoa(int(b[20])) + " family=" + strconv.Itoa(int(binary.LittleEndian.Uint16(b[24:]))) +
 		" src=" + xfrmAddr(b[28:44]) + " reqid=" + u32s(binary.LittleEndian.Uint32(b[44:])) +
 		" mode=" + strconv.Itoa(int(b[48])) + " share=" + strconv.Itoa(int(b[49])) +
@@ -143,30 +118,30 @@ func xfrmAlgos(b []byte) string {
 // know is attr<N>.
 func xfrmPolicyAttr(id uint16, d []byte) string {
 	switch id {
-	case xfrmAttrEncap:
+	case XfrmAttrEncap:
 		if len(d) < xfrmEncapLen {
 			break
 		}
 		return "encap=" + strconv.Itoa(int(binary.LittleEndian.Uint16(d))) + "/" +
 			strconv.Itoa(int(binary.BigEndian.Uint16(d[2:]))) + "-" +
 			strconv.Itoa(int(binary.BigEndian.Uint16(d[4:]))) + "/" + xfrmAddr(d[xfrmEncapOAOff:])
-	case xfrmAttrTmpl:
+	case XfrmAttrTmpl:
 		var out []string
 		for off := 0; off+xfrmTmplLen <= len(d); off += xfrmTmplLen {
 			out = append(out, xfrmTmpl(d[off:]))
 		}
 		return strings.Join(out, " ")
-	case xfrmAttrSA:
+	case XfrmAttrSA:
 		return "sa{" + xfrmSAInfo(d) + "}"
-	case xfrmAttrPolicy:
+	case XfrmAttrPolicy:
 		return "policy{" + xfrmPolicyInfo(d) + "}"
-	case xfrmAttrPolicyType:
+	case XfrmAttrPolicyType:
 		return "ptype=" + strconv.Itoa(int(d[0]))
-	case xfrmAttrMark:
+	case XfrmAttrMark:
 		return "mark=" + u32s(binary.LittleEndian.Uint32(d)) + "/" + u32s(binary.LittleEndian.Uint32(d[4:]))
-	case xfrmAttrIfID:
+	case XfrmAttrIfID:
 		return "if_id=" + u32s(binary.LittleEndian.Uint32(d))
-	case xfrmAttrSADir:
+	case XfrmAttrSADir:
 		return "sa_dir=" + strconv.Itoa(int(d[0]))
 	}
 	return "attr" + strconv.Itoa(int(id))
@@ -194,69 +169,69 @@ func xfrmSPDAttr(id uint16, d []byte) string {
 // for its type.
 func xfrmPolicyBody(typ uint16, b []byte) (words []string, attrOff int, space xfrmAttrSpace, ok bool) {
 	need := map[uint16]int{
-		xfrmMsgNewPolicy: xfrmPolicyInfoLen, xfrmMsgUpdPolicy: xfrmPolicyInfoLen,
-		xfrmMsgDelPolicy: 0, xfrmMsgGetPolicy: 0, xfrmMsgFlushPolicy: 0,
-		xfrmMsgAcquire: xfrmAcquireLen, xfrmMsgExpire: xfrmExpireLen,
-		xfrmMsgPolExpire: xfrmPolExpireLen, xfrmMsgNewAE: xfrmAeventIDLen,
-		xfrmMsgNewSPDInfo: 4, xfrmMsgGetSPDInfo: 4, xfrmMsgMapping: xfrmMappingLen,
-		xfrmMsgSetDefault: xfrmPolicyDefLen, xfrmMsgGetDefault: xfrmPolicyDefLen,
+		XfrmMsgNewPolicy: xfrmPolicyInfoLen, XfrmMsgUpdPolicy: xfrmPolicyInfoLen,
+		XfrmMsgDelPolicy: 0, XfrmMsgGetPolicy: 0, XfrmMsgFlushPolicy: 0,
+		XfrmMsgAcquire: xfrmAcquireLen, XfrmMsgExpire: xfrmExpireLen,
+		XfrmMsgPolExpire: xfrmPolExpireLen, XfrmMsgNewAE: XfrmAeventIDSizeCst,
+		XfrmMsgNewSPDInfo: 4, XfrmMsgGetSPDInfo: 4, XfrmMsgMapping: xfrmMappingLen,
+		XfrmMsgSetDefault: xfrmPolicyDefLen, XfrmMsgGetDefault: xfrmPolicyDefLen,
 	}
 	n, known := need[typ]
 	if !known || len(b) < n {
 		return nil, 0, xfrmSpaceSA, false
 	}
 	switch typ {
-	case xfrmMsgNewPolicy, xfrmMsgUpdPolicy:
-		words = []string{map[uint16]string{xfrmMsgNewPolicy: "newpolicy", xfrmMsgUpdPolicy: "updpolicy"}[typ], xfrmPolicyInfo(b)}
+	case XfrmMsgNewPolicy, XfrmMsgUpdPolicy:
+		words = []string{map[uint16]string{XfrmMsgNewPolicy: "newpolicy", XfrmMsgUpdPolicy: "updpolicy"}[typ], xfrmPolicyInfo(b)}
 		attrOff = xfrmPolicyInfoLen
-	case xfrmMsgGetPolicy, xfrmMsgDelPolicy:
+	case XfrmMsgGetPolicy, XfrmMsgDelPolicy:
 		// A dump has no body; a get or delete, and a DELPOLICY event, an
 		// xfrm_userpolicy_id.
-		words = []string{map[uint16]string{xfrmMsgGetPolicy: "getpolicy", xfrmMsgDelPolicy: "delpolicy"}[typ]}
+		words = []string{map[uint16]string{XfrmMsgGetPolicy: "getpolicy", XfrmMsgDelPolicy: "delpolicy"}[typ]}
 		if len(b) >= xfrmPolicyIDLen {
 			words = append(words, xfrmPolicyID(b))
 			attrOff = xfrmPolicyIDLen
 		}
-	case xfrmMsgFlushPolicy:
+	case XfrmMsgFlushPolicy:
 		words = []string{"flushpolicy"}
-	case xfrmMsgAcquire:
+	case XfrmMsgAcquire:
 		// seq is the kernel's acquire counter, which is global, so it is
 		// left out.
-		words = []string{"acquire", "dst=" + xfrmAddr(b[:xfrmAddrLen]) + " spi=0x" +
+		words = []string{"acquire", "dst=" + xfrmAddr(b[:XfrmAddressSizeCst]) + " spi=0x" +
 			strconv.FormatUint(uint64(binary.BigEndian.Uint32(b[16:])), 16) + " proto=" + strconv.Itoa(int(b[20])) +
-			" src=" + xfrmAddr(b[24:40]) + " sel=" + xfrmSel(b[40:40+xfrmSelLen]) +
+			" src=" + xfrmAddr(b[24:40]) + " sel=" + xfrmSel(b[40:40+XfrmSelectorSizeCst]) +
 			" policy{" + xfrmPolicyInfo(b[xfrmAcquirePolOff:]) + "} algos=" + xfrmAlgos(b[xfrmAcquireAlgsOff:])}
 		attrOff = xfrmAcquireLen
-	case xfrmMsgExpire:
-		words = []string{"expire", "hard=" + strconv.Itoa(int(b[xfrmUsersaInfoLen])), xfrmSAInfo(b)}
+	case XfrmMsgExpire:
+		words = []string{"expire", "hard=" + strconv.Itoa(int(b[XfrmUsersaInfoSizeCst])), xfrmSAInfo(b)}
 		attrOff = xfrmExpireLen
-	case xfrmMsgPolExpire:
+	case XfrmMsgPolExpire:
 		words = []string{"polexpire", "hard=" + strconv.Itoa(int(b[xfrmPolicyInfoLen])), xfrmPolicyInfo(b)}
 		attrOff = xfrmPolExpireLen
-	case xfrmMsgNewAE:
-		words = []string{"newae", "dst=" + xfrmAddr(b[:xfrmAddrLen]) + " spi=0x" +
+	case XfrmMsgNewAE:
+		words = []string{"newae", "dst=" + xfrmAddr(b[:XfrmAddressSizeCst]) + " spi=0x" +
 			strconv.FormatUint(uint64(binary.BigEndian.Uint32(b[16:])), 16) + " family=" +
 			strconv.Itoa(int(binary.LittleEndian.Uint16(b[20:]))) + " proto=" + strconv.Itoa(int(b[22])) +
 			" src=" + xfrmAddr(b[24:40]) + " flags=0x" + strconv.FormatUint(uint64(binary.LittleEndian.Uint32(b[40:])), 16) +
 			" reqid=" + u32s(binary.LittleEndian.Uint32(b[44:]))}
-		attrOff = xfrmAeventIDLen
-	case xfrmMsgMapping:
+		attrOff = XfrmAeventIDSizeCst
+	case XfrmMsgMapping:
 		// The SA, then the NAT-T peer's address and port as the SA has
 		// them and as the packet came.
-		words = []string{"mapping", "dst=" + xfrmAddr(b[:xfrmAddrLen]) + " spi=0x" +
+		words = []string{"mapping", "dst=" + xfrmAddr(b[:XfrmAddressSizeCst]) + " spi=0x" +
 			strconv.FormatUint(uint64(binary.BigEndian.Uint32(b[16:])), 16) + " family=" +
 			strconv.Itoa(int(binary.LittleEndian.Uint16(b[20:]))) + " proto=" + strconv.Itoa(int(b[22])) +
 			" reqid=" + u32s(binary.LittleEndian.Uint32(b[24:])) +
 			" old=" + xfrmAddr(b[28:44]) + ":" + strconv.Itoa(int(binary.BigEndian.Uint16(b[60:]))) +
 			" new=" + xfrmAddr(b[44:60]) + ":" + strconv.Itoa(int(binary.BigEndian.Uint16(b[62:])))}
 		attrOff = xfrmMappingLen
-	case xfrmMsgGetSPDInfo, xfrmMsgNewSPDInfo:
-		words = []string{map[uint16]string{xfrmMsgGetSPDInfo: "getspdinfo", xfrmMsgNewSPDInfo: "newspdinfo"}[typ],
+	case XfrmMsgGetSPDInfo, XfrmMsgNewSPDInfo:
+		words = []string{map[uint16]string{XfrmMsgGetSPDInfo: "getspdinfo", XfrmMsgNewSPDInfo: "newspdinfo"}[typ],
 			"flags=0x" + strconv.FormatUint(uint64(binary.LittleEndian.Uint32(b)), 16)}
 		attrOff = 4
 		space = xfrmSpaceSPD
-	case xfrmMsgSetDefault, xfrmMsgGetDefault:
-		words = []string{map[uint16]string{xfrmMsgSetDefault: "setdefault", xfrmMsgGetDefault: "getdefault"}[typ],
+	case XfrmMsgSetDefault, XfrmMsgGetDefault:
+		words = []string{map[uint16]string{XfrmMsgSetDefault: "setdefault", XfrmMsgGetDefault: "getdefault"}[typ],
 			"in=" + strconv.Itoa(int(b[0])) + " fwd=" + strconv.Itoa(int(b[1])) + " out=" + strconv.Itoa(int(b[2]))}
 		attrOff = xfrmPolicyDefLen
 	}

@@ -18,10 +18,6 @@ import (
 // is in a committed DLT 253 pcap, or is excluded with its reason
 // (docs/netlink/goip-parity-gaps.md, "The message-type assessment").
 
-// xfrmMsgReport is XFRM_MSG_REPORT (linux/xfrm.h), the one XFRM type the
-// corpus has no capture of.
-const xfrmMsgReport = 32
-
 // universeType is one message type in the universe: its name, protocol,
 // genl family (empty for rtnetlink and XFRM), type or genl command, and
 // the first place iproute2 v7.1.0's ip/ or lib/ names it. A genl command
@@ -132,28 +128,28 @@ var netlinkUniverse = []universeType{
 	{name: "SEG6_CMD_SET_TUNSRC", proto: unix.NETLINK_GENERIC, family: "SEG6", typ: uint16(Seg6CmdSetTunsrc), request: true, src: "ip/ipseg6.c:161"},
 	{name: "TCP_METRICS_CMD_DEL", proto: unix.NETLINK_GENERIC, family: "tcp_metrics", typ: uint16(TCPMetricsCmdDel), request: true, src: "ip/tcp_metrics.c:233"},
 	{name: "TCP_METRICS_CMD_GET", proto: unix.NETLINK_GENERIC, family: "tcp_metrics", typ: uint16(TCPMetricsCmdGet), request: true, src: "ip/tcp_metrics.c:174"},
-	{name: "XFRM_MSG_ACQUIRE", proto: unix.NETLINK_XFRM, typ: xfrmMsgAcquire, src: "ip/xfrm_monitor.c:287"},
-	{name: "XFRM_MSG_ALLOCSPI", proto: unix.NETLINK_XFRM, typ: xfrmMsgAllocSPI, src: "ip/xfrm_state.c:799"},
-	{name: "XFRM_MSG_DELPOLICY", proto: unix.NETLINK_XFRM, typ: xfrmMsgDelPolicy, src: "ip/xfrm_monitor.c:282"},
-	{name: "XFRM_MSG_DELSA", proto: unix.NETLINK_XFRM, typ: xfrmMsgDelSA, src: "ip/xfrm_monitor.c:276"},
-	{name: "XFRM_MSG_EXPIRE", proto: unix.NETLINK_XFRM, typ: xfrmMsgExpire, src: "ip/xfrm_monitor.c:278"},
-	{name: "XFRM_MSG_FLUSHPOLICY", proto: unix.NETLINK_XFRM, typ: xfrmMsgFlushPolicy, src: "ip/xfrm_monitor.c:293"},
-	{name: "XFRM_MSG_FLUSHSA", proto: unix.NETLINK_XFRM, typ: xfrmMsgFlushSA, src: "ip/xfrm_monitor.c:290"},
-	{name: "XFRM_MSG_GETDEFAULT", proto: unix.NETLINK_XFRM, typ: xfrmMsgGetDefault, src: "ip/xfrm_monitor.c:305"},
-	{name: "XFRM_MSG_GETPOLICY", proto: unix.NETLINK_XFRM, typ: xfrmMsgGetPolicy, src: "ip/xfrm_policy.c:584"},
-	{name: "XFRM_MSG_GETSA", proto: unix.NETLINK_XFRM, typ: xfrmMsgGetSA, src: "ip/xfrm_state.c:1078"},
-	{name: "XFRM_MSG_GETSADINFO", proto: unix.NETLINK_XFRM, typ: xfrmMsgGetSADInfo, src: "ip/xfrm_state.c:1419"},
-	{name: "XFRM_MSG_GETSPDINFO", proto: unix.NETLINK_XFRM, typ: xfrmMsgGetSPDInfo, src: "ip/xfrm_policy.c:1119"},
-	{name: "XFRM_MSG_MAPPING", proto: unix.NETLINK_XFRM, typ: xfrmMsgMapping, src: "ip/xfrm_monitor.c:302"},
-	{name: "XFRM_MSG_NEWAE", proto: unix.NETLINK_XFRM, typ: xfrmMsgNewAE, src: "ip/xfrm_monitor.c:299"},
-	{name: "XFRM_MSG_NEWPOLICY", proto: unix.NETLINK_XFRM, typ: xfrmMsgNewPolicy, src: "ip/xfrm_monitor.c:281"},
-	{name: "XFRM_MSG_NEWSA", proto: unix.NETLINK_XFRM, typ: xfrmMsgNewSA, src: "ip/xfrm_monitor.c:275"},
-	{name: "XFRM_MSG_NEWSPDINFO", proto: unix.NETLINK_XFRM, typ: xfrmMsgNewSPDInfo, src: "ip/xfrm_policy.c:1054"},
-	{name: "XFRM_MSG_POLEXPIRE", proto: unix.NETLINK_XFRM, typ: xfrmMsgPolExpire, src: "ip/xfrm_monitor.c:284"},
-	{name: "XFRM_MSG_REPORT", proto: unix.NETLINK_XFRM, typ: xfrmMsgReport, src: "ip/xfrm_monitor.c:296"},
-	{name: "XFRM_MSG_SETDEFAULT", proto: unix.NETLINK_XFRM, typ: xfrmMsgSetDefault, src: "ip/xfrm_policy.c:1175"},
-	{name: "XFRM_MSG_UPDPOLICY", proto: unix.NETLINK_XFRM, typ: xfrmMsgUpdPolicy, src: "ip/xfrm_monitor.c:283"},
-	{name: "XFRM_MSG_UPDSA", proto: unix.NETLINK_XFRM, typ: xfrmMsgUpdSA, src: "ip/xfrm_monitor.c:277"},
+	{name: "XFRM_MSG_ACQUIRE", proto: unix.NETLINK_XFRM, typ: XfrmMsgAcquire, src: "ip/xfrm_monitor.c:287"},
+	{name: "XFRM_MSG_ALLOCSPI", proto: unix.NETLINK_XFRM, typ: XfrmMsgAllocSPI, src: "ip/xfrm_state.c:799"},
+	{name: "XFRM_MSG_DELPOLICY", proto: unix.NETLINK_XFRM, typ: XfrmMsgDelPolicy, src: "ip/xfrm_monitor.c:282"},
+	{name: "XFRM_MSG_DELSA", proto: unix.NETLINK_XFRM, typ: XfrmMsgDelSA, src: "ip/xfrm_monitor.c:276"},
+	{name: "XFRM_MSG_EXPIRE", proto: unix.NETLINK_XFRM, typ: XfrmMsgExpire, src: "ip/xfrm_monitor.c:278"},
+	{name: "XFRM_MSG_FLUSHPOLICY", proto: unix.NETLINK_XFRM, typ: XfrmMsgFlushPolicy, src: "ip/xfrm_monitor.c:293"},
+	{name: "XFRM_MSG_FLUSHSA", proto: unix.NETLINK_XFRM, typ: XfrmMsgFlushSA, src: "ip/xfrm_monitor.c:290"},
+	{name: "XFRM_MSG_GETDEFAULT", proto: unix.NETLINK_XFRM, typ: XfrmMsgGetDefault, src: "ip/xfrm_monitor.c:305"},
+	{name: "XFRM_MSG_GETPOLICY", proto: unix.NETLINK_XFRM, typ: XfrmMsgGetPolicy, src: "ip/xfrm_policy.c:584"},
+	{name: "XFRM_MSG_GETSA", proto: unix.NETLINK_XFRM, typ: XfrmMsgGetSA, src: "ip/xfrm_state.c:1078"},
+	{name: "XFRM_MSG_GETSADINFO", proto: unix.NETLINK_XFRM, typ: XfrmMsgGetSADInfo, src: "ip/xfrm_state.c:1419"},
+	{name: "XFRM_MSG_GETSPDINFO", proto: unix.NETLINK_XFRM, typ: XfrmMsgGetSPDInfo, src: "ip/xfrm_policy.c:1119"},
+	{name: "XFRM_MSG_MAPPING", proto: unix.NETLINK_XFRM, typ: XfrmMsgMapping, src: "ip/xfrm_monitor.c:302"},
+	{name: "XFRM_MSG_NEWAE", proto: unix.NETLINK_XFRM, typ: XfrmMsgNewAE, src: "ip/xfrm_monitor.c:299"},
+	{name: "XFRM_MSG_NEWPOLICY", proto: unix.NETLINK_XFRM, typ: XfrmMsgNewPolicy, src: "ip/xfrm_monitor.c:281"},
+	{name: "XFRM_MSG_NEWSA", proto: unix.NETLINK_XFRM, typ: XfrmMsgNewSA, src: "ip/xfrm_monitor.c:275"},
+	{name: "XFRM_MSG_NEWSPDINFO", proto: unix.NETLINK_XFRM, typ: XfrmMsgNewSPDInfo, src: "ip/xfrm_policy.c:1054"},
+	{name: "XFRM_MSG_POLEXPIRE", proto: unix.NETLINK_XFRM, typ: XfrmMsgPolExpire, src: "ip/xfrm_monitor.c:284"},
+	{name: "XFRM_MSG_REPORT", proto: unix.NETLINK_XFRM, typ: XfrmMsgReport, src: "ip/xfrm_monitor.c:296"},
+	{name: "XFRM_MSG_SETDEFAULT", proto: unix.NETLINK_XFRM, typ: XfrmMsgSetDefault, src: "ip/xfrm_policy.c:1175"},
+	{name: "XFRM_MSG_UPDPOLICY", proto: unix.NETLINK_XFRM, typ: XfrmMsgUpdPolicy, src: "ip/xfrm_monitor.c:283"},
+	{name: "XFRM_MSG_UPDSA", proto: unix.NETLINK_XFRM, typ: XfrmMsgUpdSA, src: "ip/xfrm_monitor.c:277"},
 }
 
 // universeExclusions are the universe types the corpus has no capture of,
@@ -458,7 +454,7 @@ func TestNetlinkUniverseMatch(t *testing.T) {
 		},
 		{
 			description: "positive: type 16 over XFRM is NEWSA",
-			name:        "XFRM_MSG_NEWSA", m: msg(unix.NETLINK_XFRM, xfrmMsgNewSA, 0), families: fams,
+			name:        "XFRM_MSG_NEWSA", m: msg(unix.NETLINK_XFRM, XfrmMsgNewSA, 0), families: fams,
 			expected: true,
 		},
 		{

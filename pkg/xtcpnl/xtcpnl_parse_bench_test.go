@@ -116,6 +116,9 @@ func rtnlRequest(typ uint16) benchKind {
 	return benchKind{proto: unix.NETLINK_ROUTE, typ: typ, request: true}
 }
 
+// xfrm is the NETLINK_XFRM messages of type typ.
+func xfrm(typ uint16) benchKind { return benchKind{proto: unix.NETLINK_XFRM, typ: typ} }
+
 // genl is the generic netlink messages of the family called family.
 func genl(family string) benchKind { return benchKind{proto: unix.NETLINK_GENERIC, family: family} }
 
@@ -257,6 +260,7 @@ var (
 	resultILA     ILA
 	resultL2TP    L2TP
 	resultMacsec  Macsec
+	resultXfrmSA  XfrmState
 )
 
 // parseBenchCase is one parser P0 benchmarks: its name, the kind of its
@@ -300,6 +304,7 @@ var parseBenchCases = []parseBenchCase{
 	{name: "ParseILA", kind: genl(ILAGenlName), parse: func(_ NlMsgHdr, b []byte) (err error) { resultILA, err = ParseILA(b); return err }},
 	{name: "ParseL2TP", kind: genl(L2TPGenlName), parse: func(_ NlMsgHdr, b []byte) (err error) { resultL2TP, err = ParseL2TP(b); return err }},
 	{name: "ParseMacsec", kind: genl(MacsecGenlName), parse: func(_ NlMsgHdr, b []byte) (err error) { resultMacsec, err = ParseMacsec(b); return err }},
+	{name: "ParseXfrmState", kind: xfrm(XfrmMsgNewSA), parse: func(h NlMsgHdr, b []byte) (err error) { resultXfrmSA, err = ParseXfrmState(h, b); return err }},
 }
 
 // parseBenchCaseNamed returns the parseBenchCases entry called name.
@@ -446,6 +451,10 @@ func BenchmarkParseL2TP(b *testing.B) { benchParse(b, "ParseL2TP") }
 // BenchmarkParseMacsec decodes the smallest, a typical and the largest
 // SecY the kernel dumped in the corpus (P2-T08).
 func BenchmarkParseMacsec(b *testing.B) { benchParse(b, "ParseMacsec") }
+
+// BenchmarkParseXfrmState decodes the smallest, a typical and the largest
+// SA the kernel sent as a NEWSA in the corpus (P3-T01).
+func BenchmarkParseXfrmState(b *testing.B) { benchParse(b, "ParseXfrmState") }
 
 func TestBenchPick(t *testing.T) {
 	// msg is a captured message of type typ whose body is n bytes, from a
@@ -604,7 +613,8 @@ func TestParseBenchCases(t *testing.T) {
 				" ParseGenericNetlink=16/nlctrl ParseGenericNetlinkFamily=16/nlctrl ParseEthtool=16/ethtool" +
 				" ParseNsid=0/88 ParseNexthopBucket=0/116 ParseLinkProp=0/108/request ParsePrefix=0/52" +
 				" ParseTCPMetrics=16/tcp_metrics ParseSeg6=16/SEG6 ParseIOAM6=16/IOAM6/cmd3,6 ParseIOAM6Event=16/IOAM6/cmd1" +
-				" ParseMPTCPPM=16/mptcp_pm/answers ParseMPTCPEvent=16/mptcp_pm/events ParseFOU=16/fou ParseILA=16/ila ParseL2TP=16/l2tp ParseMacsec=16/macsec",
+				" ParseMPTCPPM=16/mptcp_pm/answers ParseMPTCPEvent=16/mptcp_pm/events ParseFOU=16/fou ParseILA=16/ila ParseL2TP=16/l2tp ParseMacsec=16/macsec" +
+				" ParseXfrmState=6/16",
 		},
 	}
 	for _, tt := range tests {
@@ -653,6 +663,7 @@ func TestParseBenchRecords(t *testing.T) {
 		{description: "positive: ParseILA decodes its three ila picks", name: "ParseILA", expected: "smallest ok, typical ok, largest ok"},
 		{description: "positive: ParseL2TP decodes its three l2tp picks", name: "ParseL2TP", expected: "smallest ok, typical ok, largest ok"},
 		{description: "positive: ParseMacsec decodes its three macsec picks", name: "ParseMacsec", expected: "smallest ok, typical ok, largest ok"},
+		{description: "positive: ParseXfrmState decodes its three NEWSA picks", name: "ParseXfrmState", expected: "smallest ok, typical ok, largest ok"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {

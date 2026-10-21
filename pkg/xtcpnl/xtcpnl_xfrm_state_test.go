@@ -13,42 +13,15 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// The XFRM message types and attributes (linux/xfrm.h), which x/sys/unix
-// does not define.
+// The XFRMA_SAD_* attributes of a NEWSADINFO (linux/xfrm.h). The message
+// types, the XFRMA_* attributes and the struct sizes are xtcpnl_xfrm.go's.
 const (
-	xfrmMsgNewSA      = 16
-	xfrmMsgDelSA      = 17
-	xfrmMsgGetSA      = 18
-	xfrmMsgAllocSPI   = 22
-	xfrmMsgUpdSA      = 26
-	xfrmMsgFlushSA    = 28
-	xfrmMsgNewSADInfo = 34
-	xfrmMsgGetSADInfo = 35
+	xfrmAttrSADCnt   = 1
+	xfrmAttrSADHInfo = 2
 
-	xfrmAttrAlgAuth      = 1
-	xfrmAttrAlgCrypt     = 2
-	xfrmAttrLtimeVal     = 9
-	xfrmAttrReplayVal    = 10
-	xfrmAttrReplayThresh = 11
-	xfrmAttrEtimerThresh = 12
-	xfrmAttrSrcAddr      = 13
-	xfrmAttrLastUsed     = 15
-	xfrmAttrAlgAEAD      = 18
-	xfrmAttrAlgAuthTrunc = 20
-	xfrmAttrProto        = 25
-	xfrmAttrAddrFilter   = 26
-	xfrmAttrPad          = 27
-	xfrmAttrSADCnt       = 1
-	xfrmAttrSADHInfo     = 2
-
-	// sizeof(struct xfrm_usersa_info), (struct xfrm_usersa_id) and
-	// (struct xfrm_userspi_info) on x86_64, and the offsets in them.
-	xfrmUsersaInfoLen  = 224
-	xfrmUsersaIDLen    = 24
+	// sizeof(struct xfrm_userspi_info) on x86_64, and offsets in
+	// struct xfrm_usersa_info.
 	xfrmUserspiInfoLen = 232
-	xfrmAddrLen        = 16
-	xfrmAlgNameLen     = 64
-	xfrmSelLen         = 56
 	xfrmLftOff         = 96
 	xfrmLftFields      = 8
 	xfrmCurlftOff      = 160
@@ -68,10 +41,10 @@ func xfrmAddr(b []byte) string {
 	if strings.Trim(string(b), "\x00") == "" {
 		return "0"
 	}
-	if strings.Trim(string(b[4:xfrmAddrLen]), "\x00") == "" {
+	if strings.Trim(string(b[4:XfrmAddressSizeCst]), "\x00") == "" {
 		return net.IP(b[:4]).String()
 	}
-	return net.IP(b[:xfrmAddrLen]).String()
+	return net.IP(b[:XfrmAddressSizeCst]).String()
 }
 
 // xfrmKey renders key bytes as <byte>*<count> when every byte is the
@@ -87,10 +60,10 @@ func xfrmKey(b []byte) string {
 // extra set, xfrm_algo_aead or xfrm_algo_auth, whose third word is the
 // ICV or truncation length: name/bits[/extra]:key.
 func xfrmAlg(b []byte, extra bool) string {
-	name := strings.TrimRight(string(b[:xfrmAlgNameLen]), "\x00")
-	bits := binary.LittleEndian.Uint32(b[xfrmAlgNameLen:])
+	name := strings.TrimRight(string(b[:xfrmAlgoNameLen]), "\x00")
+	bits := binary.LittleEndian.Uint32(b[xfrmAlgoNameLen:])
 	out := name + "/" + u32s(bits)
-	keyOff := xfrmAlgNameLen + 4
+	keyOff := xfrmAlgoNameLen + 4
 	if extra {
 		out += "/" + u32s(binary.LittleEndian.Uint32(b[keyOff:]))
 		keyOff += 4
@@ -104,11 +77,11 @@ func xfrmAlg(b []byte, extra bool) string {
 // current lifetime is left out but for its bytes and packets, since it
 // holds the time the SA was added.
 func xfrmSAInfo(b []byte) string {
-	sel := b[:xfrmSelLen]
+	sel := b[:XfrmSelectorSizeCst]
 	words := []string{
-		"dst=" + xfrmAddr(b[xfrmSelLen:xfrmSelLen+xfrmAddrLen]),
-		"spi=0x" + strconv.FormatUint(uint64(binary.BigEndian.Uint32(b[xfrmSelLen+16:])), 16),
-		"proto=" + strconv.Itoa(int(b[xfrmSelLen+20])),
+		"dst=" + xfrmAddr(b[XfrmSelectorSizeCst:XfrmSelectorSizeCst+XfrmAddressSizeCst]),
+		"spi=0x" + strconv.FormatUint(uint64(binary.BigEndian.Uint32(b[XfrmSelectorSizeCst+16:])), 16),
+		"proto=" + strconv.Itoa(int(b[XfrmSelectorSizeCst+20])),
 		"src=" + xfrmAddr(b[80:96]),
 		"family=" + strconv.Itoa(int(binary.LittleEndian.Uint16(b[212:]))),
 		"mode=" + strconv.Itoa(int(b[214])),
@@ -157,34 +130,34 @@ func xfrmAttrs(t *testing.T, data []byte, space xfrmAttrSpace) string {
 			w = xfrmSPDAttr(a.ID(), d)
 		case space != xfrmSpaceSA:
 			w = "attr" + strconv.Itoa(int(a.ID()))
-		case a.ID() == xfrmAttrAlgAuth:
+		case a.ID() == XfrmAttrAlgAuth:
 			w = "auth=" + xfrmAlg(d, false)
-		case a.ID() == xfrmAttrAlgCrypt:
+		case a.ID() == XfrmAttrAlgCrypt:
 			w = "enc=" + xfrmAlg(d, false)
-		case a.ID() == xfrmAttrAlgAEAD:
+		case a.ID() == XfrmAttrAlgAEAD:
 			w = "aead=" + xfrmAlg(d, true)
-		case a.ID() == xfrmAttrAlgAuthTrunc:
+		case a.ID() == XfrmAttrAlgAuthTrunc:
 			w = "auth_trunc=" + xfrmAlg(d, true)
-		case a.ID() == xfrmAttrSrcAddr:
+		case a.ID() == XfrmAttrSrcAddr:
 			w = "srcaddr=" + xfrmAddr(d)
-		case a.ID() == xfrmAttrLtimeVal:
+		case a.ID() == XfrmAttrLtimeVal:
 			w = "ltime=" + strconv.FormatUint(binary.LittleEndian.Uint64(d), 10) + "B/" +
 				strconv.FormatUint(binary.LittleEndian.Uint64(d[8:]), 10) + "P"
-		case a.ID() == xfrmAttrReplayVal:
+		case a.ID() == XfrmAttrReplayVal:
 			w = "replay=" + u32s(binary.LittleEndian.Uint32(d)) + "/" + u32s(binary.LittleEndian.Uint32(d[4:])) +
 				"/" + u32s(binary.LittleEndian.Uint32(d[8:]))
-		case a.ID() == xfrmAttrReplayThresh:
+		case a.ID() == XfrmAttrReplayThresh:
 			w = "replay_thresh=" + u32s(binary.LittleEndian.Uint32(d))
-		case a.ID() == xfrmAttrEtimerThresh:
+		case a.ID() == XfrmAttrEtimerThresh:
 			w = "etimer_thresh=" + u32s(binary.LittleEndian.Uint32(d))
-		case a.ID() == xfrmAttrLastUsed:
+		case a.ID() == XfrmAttrLastUsed:
 			w = "lastused"
-		case a.ID() == xfrmAttrProto:
+		case a.ID() == XfrmAttrProto:
 			w = "proto=" + strconv.Itoa(int(d[0]))
-		case a.ID() == xfrmAttrAddrFilter:
+		case a.ID() == XfrmAttrAddressFilter:
 			w = "filter=" + xfrmAddr(d[:16]) + "/" + strconv.Itoa(int(d[34])) + "-" + xfrmAddr(d[16:32]) + "/" +
 				strconv.Itoa(int(d[35])) + ",family=" + strconv.Itoa(int(binary.LittleEndian.Uint16(d[32:])))
-		case a.ID() == xfrmAttrPad:
+		case a.ID() == XfrmAttrPad:
 			continue
 		default:
 			w = xfrmPolicyAttr(a.ID(), d)
@@ -203,26 +176,26 @@ func xfrmMsg(t *testing.T, m capturedNlMsg) string {
 	attrOff := 0
 	space := xfrmSpaceSA
 	switch m.h.Type {
-	case xfrmMsgNewSA, xfrmMsgUpdSA:
-		words = append(words, map[uint16]string{xfrmMsgNewSA: "newsa", xfrmMsgUpdSA: "updsa"}[m.h.Type], xfrmSAInfo(b))
-		attrOff = xfrmUsersaInfoLen
-	case xfrmMsgAllocSPI:
-		words = append(words, "allocspi", xfrmSAInfo(b), "min=0x"+strconv.FormatUint(uint64(binary.LittleEndian.Uint32(b[xfrmUsersaInfoLen:])), 16)+
-			" max=0x"+strconv.FormatUint(uint64(binary.LittleEndian.Uint32(b[xfrmUsersaInfoLen+4:])), 16))
+	case XfrmMsgNewSA, XfrmMsgUpdSA:
+		words = append(words, map[uint16]string{XfrmMsgNewSA: "newsa", XfrmMsgUpdSA: "updsa"}[m.h.Type], xfrmSAInfo(b))
+		attrOff = XfrmUsersaInfoSizeCst
+	case XfrmMsgAllocSPI:
+		words = append(words, "allocspi", xfrmSAInfo(b), "min=0x"+strconv.FormatUint(uint64(binary.LittleEndian.Uint32(b[XfrmUsersaInfoSizeCst:])), 16)+
+			" max=0x"+strconv.FormatUint(uint64(binary.LittleEndian.Uint32(b[XfrmUsersaInfoSizeCst+4:])), 16))
 		attrOff = xfrmUserspiInfoLen
-	case xfrmMsgGetSA, xfrmMsgDelSA:
-		words = append(words, map[uint16]string{xfrmMsgGetSA: "getsa", xfrmMsgDelSA: "delsa"}[m.h.Type])
+	case XfrmMsgGetSA, XfrmMsgDelSA:
+		words = append(words, map[uint16]string{XfrmMsgGetSA: "getsa", XfrmMsgDelSA: "delsa"}[m.h.Type])
 		if m.h.Flags&unix.NLM_F_DUMP != unix.NLM_F_DUMP {
-			words = append(words, "dst="+xfrmAddr(b[:xfrmAddrLen])+" spi=0x"+
+			words = append(words, "dst="+xfrmAddr(b[:XfrmAddressSizeCst])+" spi=0x"+
 				strconv.FormatUint(uint64(binary.BigEndian.Uint32(b[16:])), 16)+" family="+
 				strconv.Itoa(int(binary.LittleEndian.Uint16(b[20:])))+" proto="+strconv.Itoa(int(b[22])))
-			attrOff = xfrmUsersaIDLen
+			attrOff = XfrmUsersaIDSizeCst
 		}
-	case xfrmMsgFlushSA:
+	case XfrmMsgFlushSA:
 		words = append(words, "flushsa", "proto="+strconv.Itoa(int(b[0])))
 		attrOff = len(b)
-	case xfrmMsgGetSADInfo, xfrmMsgNewSADInfo:
-		words = append(words, map[uint16]string{xfrmMsgGetSADInfo: "getsadinfo", xfrmMsgNewSADInfo: "newsadinfo"}[m.h.Type],
+	case XfrmMsgGetSADInfo, XfrmMsgNewSADInfo:
+		words = append(words, map[uint16]string{XfrmMsgGetSADInfo: "getsadinfo", XfrmMsgNewSADInfo: "newsadinfo"}[m.h.Type],
 			"flags=0x"+strconv.FormatUint(uint64(binary.LittleEndian.Uint32(b)), 16))
 		attrOff = 4
 		space = xfrmSpaceSAD
