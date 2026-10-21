@@ -207,6 +207,10 @@ let
         artifact = tests.test-linkmonitor-rdma-build;
       };
       linkmonitor-performance = linkmonitorPerformanceVm;
+      xtcp2-linkmonitor = import ./tests/xtcp2-linkmonitor.nix {
+        inherit pkgs lib nixpkgs;
+        inherit (binaries) xtcp2;
+      };
     };
   vmChecks = lib.mapAttrs' (name: t: lib.nameValuePair "vm-${name}" t.vmCheck.check) vmTests;
 
@@ -915,6 +919,7 @@ in
       test-linkmonitor-rdma-vm = vmTests.linkmonitor-rdma;
       test-linkmonitor-ionic-vm = vmTests.linkmonitor-ionic;
       test-linkmonitor-ionic-faults-vm = vmTests.linkmonitor-ionic-faults;
+      test-xtcp2-linkmonitor-vm = vmTests.xtcp2-linkmonitor;
       demo-linkmonitor-ionic-profiles = import ./microvms/linkmonitor-ionic-demo.nix {
         inherit pkgs lib nixpkgs;
         monitor = linkmonitorPackages.go-link-monitor;
