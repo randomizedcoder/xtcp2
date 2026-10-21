@@ -988,12 +988,30 @@ func TestRunRouteArgs(t *testing.T) {
 			wantStdoutPrefix: firstLine,
 		},
 		{
-			// "sa" is not a prefix of "show", so matches() sends it to save —
-			// which goip does not implement. Accepting it as a show would make
-			// goip answer a question `ip` would answer differently.
-			description:      "negative: `route sa` is save, not show, and is refused",
+			// "sa" is not a prefix of "show", so matches() sends it to save
+			// (route_save.go), whose file opens with route_dump_magic.
+			// Accepting it as a show would make goip answer a question `ip`
+			// would answer differently.
+			description:      "positive: `route sa` is save, not show",
 			pcap:             routeDumpPcap,
 			args:             []string{"route", "sa"},
+			wantCode:         ExitOK,
+			wantStdoutPrefix: "\x24\x12\x31\x45",
+		},
+		{
+			// "showd" is not a prefix of "show" either. Run's stdin is
+			// empty, which `ip route showdump < /dev/null` refuses alike.
+			description:      "corner: `route showd` is showdump, not show",
+			pcap:             routeDumpPcap,
+			args:             []string{"route", "showd"},
+			wantCode:         ExitUsage,
+			wantStderrSubstr: "Magic mismatch (0 elems, 0 magic)",
+		},
+		{
+			// restore is a write per saved route, G2-T02's.
+			description:      "negative: `restore` is refused",
+			pcap:             routeDumpPcap,
+			args:             []string{"route", "restore"},
 			wantCode:         ExitUsage,
 			wantStderrSubstr: "not implemented",
 		},

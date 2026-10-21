@@ -172,7 +172,7 @@ func Facets() []StdoutFacet {
 	return []StdoutFacet{
 		FacetLines, FacetIfNames, FacetDevNames, FacetIfIndexes,
 		FacetCIDRs, FacetMACs, FacetNextHops, FacetFlags,
-		FacetStatsHeaders,
+		FacetStatsHeaders, FacetDumpRecords,
 	}
 }
 
@@ -517,6 +517,12 @@ func render(k string, n int) string {
 // and TestStdoutLociAreEnumerable are untouched by the existence of the
 // second format. See stdout_json.go.
 //
+// # A third format, which adds one locus
+//
+// A dump file, `route save`'s or `address save`'s, is recognized by its magic
+// and fills FacetDumpRecords alone, a locus no text or JSON output reaches.
+// See stdout_dump.go.
+//
 // # Why the dispatch is per side rather than per command
 //
 // The format is detected from the output, not from the argv, and each side is
@@ -527,6 +533,10 @@ func render(k string, n int) string {
 // the wrong things quietly.
 func stdoutFacets(s string) map[StdoutFacet]multiset {
 	sets := newFacetSets()
+	if elems, ok := dumpFileRecords(s); ok {
+		dumpFacets(elems, sets)
+		return sets
+	}
 	if entries, ok := jsonEntries(s); ok {
 		jsonFacets(entries, sets)
 		return sets

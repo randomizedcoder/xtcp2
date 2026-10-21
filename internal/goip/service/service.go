@@ -395,6 +395,22 @@ func (s *Service) Routes(family uint8, table, oif uint32) ([]model.Route, error)
 	return out, nil
 }
 
+// RouteMsgs is Routes with each reply whole, header included, undecoded:
+// `ip route save` writes the replies its filter keeps verbatim
+// (ip/iproute.c:1675-1697). The request is Routes'. A source without
+// DumpMsgs is refused before anything is sent.
+func (s *Service) RouteMsgs(family uint8, table, oif uint32) ([][]byte, error) {
+	src, ok := s.src.(MsgDumpSource)
+	if !ok {
+		return nil, ErrNoMsgDump
+	}
+	r, err := req.RouteShowDump(family, table, oif, s.nextSeq())
+	if err != nil {
+		return nil, err
+	}
+	return src.DumpMsgs(r, uint16(unix.RTM_NEWROUTE))
+}
+
 // singleGet sends a single-get request and returns its one reply body of
 // replyType, named replyName in its error. A kernel refusal is the talk's error. A dump-only replay source
 // cannot run a get, so it replays the recorded replies of replyType, of which

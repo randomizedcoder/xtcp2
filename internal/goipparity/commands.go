@@ -1802,6 +1802,31 @@ var commands = withArgs([]Command{
 		Setup: linkXstatsSetup, Floor: 2, Implemented: true,
 	},
 
+	// G2-T01: `route save` and `route showdump` (ip/iproute.c:1673-1716,
+	// :2390-2405), on route_save's C1-T02 precondition: d0, ifindex 3, and
+	// table 100's two routes. save is `route show table 100`'s dump with
+	// the replies written whole after the magic; its stdout is that file,
+	// which the comparator recognizes and compares record by record
+	// (stdout_dump.go). showdump reads route_save's committed ip.save,
+	// which the runner carries in and the driver copies beside the captures,
+	// and prints it, naming d0 by one RTM_GETLINK get (2). It reads no
+	// route, but the get needs ifindex 3 to be d0, as it was in the capture.
+	{
+		Name: "route save table 100", Slug: "route_save",
+		// The dump and its reply, the two routes and the DONE (2).
+		Setup: routeSaveSetup, Floor: 2, Implemented: true,
+	},
+	{
+		Name: "route showdump < route_save.save", Slug: "route_showdump",
+		Setup: routeSaveSetup, Floor: 2, Implemented: true,
+	},
+	{
+		Name: "-d route showdump < route_save.save", Slug: "route_showdump_details",
+		// The type, `proto boot` and the scope on both lines; the routes
+		// carry no nhid, so -d sends nothing more.
+		Setup: routeSaveSetup, Floor: 2, Implemented: true,
+	},
+
 	// The vrf block — `ip vrf show`, the eleventh read-only object. The request
 	// is a filtered link dump: RTM_GETLINK, AF_UNSPEC, one IFLA_LINKINFO nest
 	// holding IFLA_INFO_KIND = "vrf" and no IFLA_EXT_MASK. The kernel does not
@@ -2327,6 +2352,13 @@ var (
 var linkXstatsSetup = []string{
 	"link add br0 type bridge", "link add v2 type veth peer name v2p",
 	"link set v2 master br0", "link set br0 up", "link set v2 up",
+}
+
+// routeSaveSetup is PRE_ROUTES in rtnl-write-corpus.exp, route_save's
+// topology step for step.
+var routeSaveSetup = []string{
+	"link add d0 type dummy", "link set d0 up", "addr add 192.0.2.1/24 dev d0",
+	"route add 203.0.113.0/24 dev d0 table 100", "route add 198.51.100.0/24 via 192.0.2.2 table 100",
 }
 
 // The `route get` rows' preconditions: PRE_D0_ADDR, its v6 sibling, and

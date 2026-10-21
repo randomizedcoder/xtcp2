@@ -25,8 +25,9 @@ import (
 //
 // The write verbs come first in that chain, add through delete, and none
 // starts with 'l' or 's'. After them goip implements list/show/lst, then
-// get (route_get.go), and rejects everything else,
-// flush/save/restore/showdump included, with ErrNotImplemented. That
+// get (route_get.go), then save and showdump (route_save.go), and rejects
+// everything else, flush and restore included, with ErrNotImplemented. The
+// chain's order is kept: `sh` is show and `showd` showdump. That
 // is a deliberate narrowing of iproute2's two outcomes — it says "command
 // unknown" for a typo and runs the verb otherwise — into the one the parity
 // harness can act on. A bare `ip route` with no verb is a list
@@ -45,6 +46,14 @@ func runRoute(c *runCtx, args []string) error {
 		isList := matchesPrefix(verb, listVerbCst) || matchesPrefix(verb, showVerbCst) || matchesPrefix(verb, lstVerbCst)
 		if !isList && matchesPrefix(verb, routeGetVerbCst) {
 			return routeGet(c, rest)
+		}
+		// flush and restore sit between get and save and between save and
+		// showdump, and neither shares a prefix with either.
+		if !isList && matchesPrefix(verb, routeSaveVerbCst) {
+			return routeSave(c, rest)
+		}
+		if !isList && matchesPrefix(verb, routeShowdumpVerbCst) {
+			return routeShowdump(c, rest)
 		}
 		if !isList {
 			return fmt.Errorf("route %q: %w", verb, ErrNotImplemented)
@@ -222,14 +231,27 @@ func routeTableID(arg string) (uint32, error) {
 // different reason, below — but a `dev NAME` route whose RTA_IIF happened to
 // be the same interface would be answered from the cache in both tools.
 func routeShow(c *runCtx, sel routeSelectors) error {
-	dumpFamily := c.family
+	svc := service.New(c.src, c.nextSeq)
+	dumpFamily, oif, err := routeDumpScope(c, svc, sel)
+	if err != nil {
+		return err
+	}
+	routes, err := svc.Routes(dumpFamily, sel.Table, oif)
+	if err != nil {
+		return err
+	}
+	routes = routeFilter(routes, c.family, sel.Table, oif)
+	return renderRoutes(c, svc, routes, sel.Table, oif)
+}
+
+// routeDumpScope is what iproute_list_flush_or_save works out between the
+// argument loop and the dump, for show and save alike: the dump family, with
+// the promotion above, and the `dev` selector's index, resolved first.
+func routeDumpScope(c *runCtx, svc *service.Service, sel routeSelectors) (dumpFamily uint8, oif uint32, err error) {
+	dumpFamily = c.family
 	if dumpFamily == unix.AF_UNSPEC && sel.Table != unix.RT_TABLE_UNSPEC {
 		dumpFamily = unix.AF_INET
 	}
-
-	svc := service.New(c.src, c.nextSeq)
-
-	var oif uint32
 	if sel.DevSet {
 		// ll_name_to_index (lib/ll_map.c:354-372). `ip` falls back to
 		// if_nametoindex and then to the `if%u` spelling when the get fails;
@@ -239,21 +261,22 @@ func routeShow(c *runCtx, sel routeSelectors) error {
 		// records.
 		resolved, rerr := svc.LinkByName(sel.Dev)
 		if rerr != nil {
-			return rerr
+			return 0, 0, rerr
 		}
 		c.lltab.Fill([]xtcpnl.LinkInfo{xtcpnl.LinkInfo(resolved)})
 		oif = uint32(resolved.Index)
 	}
+	return dumpFamily, oif, nil
+}
 
-	routes, err := svc.Routes(dumpFamily, sel.Table, oif)
-	if err != nil {
-		return err
-	}
-	routes = routeFilter(routes, c.family, sel.Table, oif)
+// renderRoutes is print_route over routes that passed the filter: the device
+// names resolved, then each route's line, under -j the array. table and oif
+// are filter.tb and filter.oif, which decide the `table` and `dev` tokens.
+func renderRoutes(c *runCtx, svc *service.Service, routes []model.Route, table, oif uint32) error {
 	resolveRouteNames(c, svc, routes, oif != 0)
 
 	f := render.RouteShowFilter{
-		Table:   sel.Table,
+		Table:   table,
 		OifMask: oif != 0,
 		Details: c.detailed(),
 		Stats:   c.stats(),
@@ -347,7 +370,20 @@ func resolveRouteNexthops(c *runCtx, svc *service.Service, routes []model.Route,
 //   - oif, when a `dev`/`oif` selector was given. See routeMatchesOif for the
 //     one shape this does NOT drop.
 func routeFilter(in []model.Route, preferredFamily uint8, table, oif uint32) []model.Route {
+	keep := routeKeep(in, preferredFamily, table, oif)
 	out := make([]model.Route, 0, len(in))
+	for i := range in {
+		if keep[i] {
+			out = append(out, in[i])
+		}
+	}
+	return out
+}
+
+// routeKeep is routeFilter's verdict per route, in order, for a caller that
+// keeps something other than the decoded route: save writes the reply whole.
+func routeKeep(in []model.Route, preferredFamily uint8, table, oif uint32) []bool {
+	keep := make([]bool, len(in))
 	var ip6MultipleTables bool
 	for i := range in {
 		r := &in[i]
@@ -386,9 +422,9 @@ func routeFilter(in []model.Route, preferredFamily uint8, table, oif uint32) []m
 		if oif != 0 && !routeMatchesOif(r, oif) {
 			continue
 		}
-		out = append(out, *r)
+		keep[i] = true
 	}
-	return out
+	return keep
 }
 
 // routeMatchesOif is filter_nlmsg's oif arm (ip/iproute.c:331-341) plus

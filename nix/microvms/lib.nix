@@ -2103,10 +2103,11 @@ rec {
     {
       arch,
       vm,
-      # The restore rows' input: a directory of <slug>.save files. The guest
-      # mounts the host store, so the driver copies them from this path into
-      # the capture directory, where the rows' `< <slug>.save` resolves.
-      addrSave,
+      # The restore and showdump rows' input: a directory of <slug>.save
+      # files. The guest mounts the host store, so the driver copies them
+      # from this path into the capture directory, where the rows'
+      # `< <slug>.save` resolves.
+      saveBlobs,
     }:
     let
       cfg = constants.architectures.${arch};
@@ -2237,7 +2238,7 @@ rec {
         rc=0
         timeout "$TIMEOUT_SEC" \
           expect ${parityScripts}/goip-parity.exp \
-            "$SERIAL_PORT" "$BLOB" --addr-save ${addrSave} \
+            "$SERIAL_PORT" "$BLOB" --save-blobs ${saveBlobs} \
             ''${KEEP_GOING[@]+"''${KEEP_GOING[@]}"} \
             ''${NO_ALLOWLIST[@]+"''${NO_ALLOWLIST[@]}"} 2>&1 \
           | tee "$LOG" || rc=$?

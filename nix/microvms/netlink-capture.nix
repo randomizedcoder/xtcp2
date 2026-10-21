@@ -1307,13 +1307,17 @@ pkgs.writeShellApplication {
         # the file would read as a rendered object that the other side lacks.
         #
         # A write keeps both, in separate files, and its status: see cmd_write.
+        #
+        # Every mode runs in $dir, so a command's relative path names a file
+        # beside its captures: a restore row's or a showdump row's
+        # `< <slug>.save`.
         rc=0
         if [ "$mode" = write ]; then
           ( cd "$dir" && ip netns exec "$ns" sh -c "$command" ) >"$outnew" 2>"$errnew" || rc=$?
         elif [ "$sout" = "-" ]; then
-          ip netns exec "$ns" sh -c "$command" >/dev/null 2>&1 || true
+          ( cd "$dir" && ip netns exec "$ns" sh -c "$command" ) >/dev/null 2>&1 || true
         else
-          ip netns exec "$ns" sh -c "$command" >"$outnew" 2>/dev/null || true
+          ( cd "$dir" && ip netns exec "$ns" sh -c "$command" ) >"$outnew" 2>/dev/null || true
         fi
 
         # Close the window on evidence, not on elapsed time. The sentinel is

@@ -141,7 +141,7 @@ func Show(src Source, r ShowRequest, out io.Writer) error {
 
 // newRunCtx is the part of a runCtx that Run and Show build identically. The
 // source, family and options are the caller's. Show has no stdin, so passes
-// nil, which only `addr showdump` reads and refuses.
+// nil, which the showdump and restore verbs read and refuse.
 func newRunCtx(stdin io.Reader, stdout, stderr io.Writer) *runCtx {
 	return &runCtx{
 		in:     stdin,

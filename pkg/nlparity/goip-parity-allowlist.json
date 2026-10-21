@@ -929,7 +929,14 @@
     "dump then the get naming br0 or v2, txns 2/2, and `link afstats`,",
     "1/1 and empty. Two back-to-back runs of 198 GOIP_PARITY_PASS of 198",
     "ended GOIP_PARITY_OVERALL_PASS; br0's moving IFLA_BR_GC_TIMER in the",
-    "name lookup's reply is control-canceled."
+    "name lookup's reply is control-canceled.",
+    "",
+    "G2-T01 adds `route save` and `route showdump` and gates three rows:",
+    "`route save table 100`, whose stdout file the comparator compares",
+    "record by record, and `route showdump < route_save.save` with and",
+    "without -d, each the one get naming d0. Two back-to-back runs of 201",
+    "GOIP_PARITY_PASS of 201 ended GOIP_PARITY_OVERALL_PASS, with no control",
+    "noise on the three."
   ],
   "_note_version_skew": [
     "THE ENTRIES BELOW CITE COMMITS THAT ARE IN NO RELEASE, AND THE EVIDENCE IS",
@@ -1205,6 +1212,9 @@
     "nexthop bucket get id 20 index 0",
     "link xstats type bridge",
     "link xstats type bridge_slave",
-    "link afstats"
+    "link afstats",
+    "route save table 100",
+    "route showdump < route_save.save",
+    "-d route showdump < route_save.save"
   ]
 }

@@ -626,6 +626,10 @@ func TestAllowlistCommitted(t *testing.T) {
 		"link xstats type bridge",
 		"link xstats type bridge_slave",
 		"link afstats",
+		// G2-T01's `route save` row and its two `route showdump` rows.
+		"route save table 100",
+		"route showdump < route_save.save",
+		"-d route showdump < route_save.save",
 	}
 
 	tests := []struct {

@@ -1022,7 +1022,9 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	//   - the two `nexthop get` and two `nexthop bucket` rows G1-T03 added,
 	//     likewise — see TestNexthopGetRowsGated;
 	//   - the two `link xstats` rows and `link afstats` G1-T04 added,
-	//     likewise — see TestLinkXstatsRowsGated.
+	//     likewise — see TestLinkXstatsRowsGated;
+	//   - the `route save` row and two `route showdump` rows G2-T01 added,
+	//     likewise — see TestRouteSaveRows.
 	//
 	// The last four were the permanent set, measured divergent on the wire;
 	// TestPermanentWireDivergences records that it is empty.
@@ -2638,6 +2640,49 @@ func TestLinkXstatsRowsGated(t *testing.T) {
 			if c, lookupErr := Lookup(r.command); lookupErr == nil {
 				got.implemented, got.floor, got.setup = c.Implemented, c.Floor, len(c.Setup)
 				got.bridge = len(c.Setup) > 0 && c.Setup[0] == "link add br0 type bridge"
+			}
+			got.gated = al.IsGated(r.command)
+			got.entries = len(al.EntriesFor(r.command))
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+		})
+	}
+}
+
+// TestRouteSaveRows pins G2-T01's three rows: implemented, on route_save's
+// topology step for step, so the save row dumps what the capture saved and
+// the showdump rows' d0 is ifindex 3, as the committed file names it; and
+// gated after two clean runs with no allowlist entry.
+//
+// go test ./internal/goipparity/ -run TestRouteSaveRows
+func TestRouteSaveRows(t *testing.T) {
+	rtnl := filepath.Join("..", "..", "pkg", "xtcpnl", "testdata", "7_1_4", "link-write", "rtnl")
+	topo := topologySteps(t, rtnl, "route_save")
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	type want struct {
+		implemented, topology, write, gated bool
+		floor, entries                      int
+	}
+	gated := want{implemented: true, topology: true, gated: true, floor: 2}
+	rows := []struct {
+		description string
+		command     string
+		expected    want
+	}{
+		{"positive: save, the dump and its reply", "route save table 100", gated},
+		{"positive: showdump of route_save's file, d0 named by one get", "route showdump < route_save.save", gated},
+		{"positive: -d showdump, the same get", "-d route showdump < route_save.save", gated},
+		{"negative: a save of another table is not in the matrix", "route save table 200", want{}},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			var got want
+			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				got = want{implemented: c.Implemented, topology: slices.Equal(c.Setup, topo), write: c.Write, floor: c.Floor}
 			}
 			got.gated = al.IsGated(r.command)
 			got.entries = len(al.EntriesFor(r.command))

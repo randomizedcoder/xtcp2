@@ -84,14 +84,16 @@ func TestAddrRestoreRows(t *testing.T) {
 		})
 	}
 
-	t.Run("boundary: the addr_restore_ rows are exactly these two, and showdump and save have none", func(t *testing.T) {
+	t.Run("boundary: the addr_restore_ rows are exactly these two, and addr showdump and save have none", func(t *testing.T) {
 		var n int
 		for _, c := range Commands() {
 			if strings.HasPrefix(c.Slug, addrRestoreSlugPrefixCst) {
 				n++
 			}
-			if strings.Contains(c.Name, "showdump") || strings.Contains(c.Name, " save") {
-				t.Errorf("%q is a row; showdump sends nothing and save is not in the matrix", c.Name)
+			// The route verbs have rows (G2-T01); route showdump names a
+			// device, and so sends a get.
+			if strings.Contains(c.Name, "addr showdump") || strings.Contains(c.Name, "addr save") {
+				t.Errorf("%q is a row; addr showdump sends nothing and addr save is not in the matrix", c.Name)
 			}
 		}
 		if n != len(tests) {
@@ -114,7 +116,7 @@ func TestAddrRestoreRows(t *testing.T) {
 
 	// The rows name <slug>.save; the runner must carry each slug's own
 	// ip.save under that name, and the driver must copy it where the
-	// command runs.
+	// command runs. route_save.save is G2-T01's showdump rows' input.
 	nixDefault := mustRead(t, filepath.Join("..", "..", "nix", "microvms", "default.nix"))
 	driver := mustRead(t, filepath.Join("..", "..", "nix", "microvms", "scripts", "goip-parity.exp"))
 	for _, tc := range []struct {
@@ -130,7 +132,11 @@ func TestAddrRestoreRows(t *testing.T) {
 		{description: "positive: default.nix names them restore_fresh.save and restore_existing.save",
 			text: nixDefault, fragment: "cp $restoreFresh $out/restore_fresh.save\n        cp $restoreExisting $out/restore_existing.save", expected: true},
 		{description: "positive: the driver copies both into the capture directory",
-			text: driver, fragment: "$addr_save/restore_fresh.save $addr_save/restore_existing.save $capture_dir/", expected: true},
+			text: driver, fragment: "$save_blobs/restore_fresh.save $save_blobs/restore_existing.save $save_blobs/route_save.save $capture_dir/", expected: true},
+		{description: "positive: default.nix reads route_save's ip.save, which the showdump rows read",
+			text: nixDefault, fragment: `rtnl + "/route_save/ip.save"`, expected: true},
+		{description: "positive: default.nix names it route_save.save, the showdump rows' input",
+			text: nixDefault, fragment: "cp $routeSave $out/route_save.save", expected: true},
 		{description: "negative: default.nix does not carry save_all's blob, which no row reads",
 			text: nixDefault, fragment: `"/save_all/ip.save"`, expected: false},
 	} {

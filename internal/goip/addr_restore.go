@@ -39,13 +39,13 @@ const restoreFlagsCst = unix.NLM_F_REQUEST | unix.NLM_F_CREATE | unix.NLM_F_ACK
 // rtnl_from_file refuses partway still writes the messages before it, which
 // `ip` has sent, and then fails.
 func addrRestore(c *runCtx, _ []string) error {
-	if err := checkDumpMagic(c, "restore"); err != nil {
+	if err := checkDumpMagic(c, addrDumpFormat, "restore"); err != nil {
 		return err
 	}
 	svc := service.New(c.src, c.nextSeq)
 	var out []byte
 	first := true
-	err := readDumpRecords(c, addrDumpMagicLenCst, func(h xtcpnl.NlMsgHdr, body []byte) error {
+	err := readDumpRecords(c, addrDumpFormat, func(h xtcpnl.NlMsgHdr, body []byte) error {
 		msg, err := restoreRecord(c, svc, h, body, first)
 		if err != nil {
 			return err

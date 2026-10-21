@@ -53,7 +53,7 @@ type object struct {
 //
 // Order transcribed from ip/ip.c's cmds[].
 var objects = []object{
-	{name: "address", run: runAddress, outputModes: true},
+	{name: addressObjectCst, run: runAddress, outputModes: true},
 	{name: "addrlabel", run: runAddrLabel},
 	{name: "maddress"},
 	{name: "route", run: runRoute},
@@ -149,6 +149,10 @@ func matchesAny(arg string, patterns []string) bool {
 // Using this constant with == is therefore the faithful comparison.
 const devKeywordCst = "dev"
 
+// addressObjectCst is the address object's name, which its dump file's
+// terminal refusal names too.
+const addressObjectCst = "address"
+
 // oifKeywordCst is `oif`, the synonym route show, route get and the route
 // writes accept for `dev`.
 const oifKeywordCst = "oif"
@@ -186,7 +190,7 @@ func lookupObject(arg string) (object, error) {
 type runCtx struct {
 	src   Source
 	lltab *LLTab
-	// in is stdin, which only `addr showdump` reads.
+	// in is stdin, which only the showdump and restore verbs read.
 	in     io.Reader
 	out    io.Writer
 	errOut io.Writer

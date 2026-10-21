@@ -85,7 +85,7 @@ G1 delivered the read verbs: `route get`, `neigh get`, `nexthop get` with `nexth
 | object | missing verbs | messages | iproute2 (v7.1.0) |
 |---|---|---|---|
 | route | get | `RTM_GETROUTE` single get, with `RTM_F_FIB_MATCH`, `RTM_F_LOOKUP_TABLE` and `RTM_F_NOTIFY` forms | `ip/iproute.c:2042` (`iproute_get`), `:2222` |
-| route | flush, save, restore, showdump | flush is a dump plus a `RTM_DELROUTE` per route; save is a dump written raw to stdout; restore is a `RTM_NEWROUTE` per saved message; showdump sends nothing | `ip/iproute.c:1740`, `:1674`, `:2360`, `:2396` |
+| route | flush, save, restore, showdump | flush is a dump plus a `RTM_DELROUTE` per route; save is a dump written raw to stdout; restore is a `RTM_NEWROUTE` per saved message; showdump sends no dump, only `print_route`'s `RTM_GETLINK` get naming each device (found at G2-T01) | `ip/iproute.c:1740`, `:1674`, `:2360`, `:2396` |
 | link | xstats, afstats | `RTM_GETSTATS` with an `IFLA_STATS_LINK_XSTATS[_SLAVE]` or `IFLA_STATS_AF_SPEC` filter | `ip/iplink.c:113-115`, `:1364` |
 | link | property add/del | `RTM_NEWLINKPROP`/`RTM_DELLINKPROP` with `IFLA_PROP_LIST`/`IFLA_ALT_IFNAME` | `ip/iplink.c:1482-1484` |
 | neigh | get, add, change, replace, del, flush | `RTM_GETNEIGH` (single get), `RTM_NEWNEIGH` (with flag variants), `RTM_DELNEIGH` | `ip/ipneigh.c:663`, `:748-755` |
@@ -2186,9 +2186,9 @@ The command tests (`internal/goip/link_xstats_test.go`):
 `route save`, `showdump`, `restore` and `flush`, generalizing the address machinery:
 - `Writes`;
 - `multiWriteRowProblem`;
-- the save-blob store path (`goipParityAddrSave`).
+- the save-blob store path (`goipParityAddrSave`, `goipParitySaveBlobs` since G2-T01).
 
-Expanded at G1's close: one task per verb family, `showdump` with `save`, since it reads the blob `save` writes and sends nothing.
+Expanded at G1's close: one task per verb family, `showdump` with `save`, since it reads the blob `save` writes and sends no dump.
 
 | task | deliver |
 |---|---|
@@ -2197,6 +2197,41 @@ Expanded at G1's close: one task per verb family, `showdump` with `save`, since 
 | G2-T03 | `goip route flush`: the dump, then an `RTM_DELROUTE` per matching route, against the `route_flush`, `route_flush_empty` and `route_flush_no_table` captures (`ip/iproute.c:1740`) |
 
 Each task adds its matrix rows, gated after two clean runs, as G1's were.
+
+**G2-T01 delivered** (`internal/goip/route_save.go`, `internal/goip/obj_route.go`, `internal/goipparity/stdout_dump.go`):
+- **save.** `iproute_list_flush_or_save`'s save arm: `save_route_prep` runs before the argument loop, so a terminal stdout is refused first and the magic, `0x45311224`, is out before an argument is read or a device looked up. The dump and `filter_nlmsg` are `route show`'s, shared through `routeDumpScope` and `routeKeep`; each reply the filter keeps is written whole, header included (`ip/iproute.c:1675-1697`). A failed dump exits 2, after the magic. `-j` is refused: `new_json_obj` would append `[]` to the file.
+- **showdump.** `route_dump_check_magic`, then `rtnl_from_file` with `show_handler` (`ip/iproute.c:2342-2405`), on the reader `addr showdump` and `addr restore` use, now told the file's magic and exit codes: a terminal or a bad magic exits 1, a malformed or truncated record 2. `print_route` runs with the filter as the program started, all zero, so every table prints, with its `table` token, and only `-4`/`-6` and the cloned flag drop a route. A record that is not a route, or is shorter than `struct rtmsg`, is reported on stderr and skipped, exit 0, since `show_handler` drops `print_route`'s return. `print_route` names the device with `ll_index_to_name`, so showdump sends one `RTM_GETLINK` get per index it has not seen, which the gaps table had as nothing. `-j` is refused (`ip` prints text), as is an `RTM_DELROUTE` record (`Deleted `), which a save never writes.
+- **The comparator.** A save row's stdout is a binary file. `stdout_dump.go` recognizes the route or address magic and compares the records one element each, in order: type, flags and body, with seq and pid left out. The new `stdout:dumprecords` locus is presence class, so not allowlistable.
+- **The harness.** `goipParityAddrSave` is now `goipParitySaveBlobs` and carries `route_save`'s `ip.save` as `route_save.save`; `goip-parity.exp`'s `--addr-save` is `--save-blobs`. `xtcp2-nlcap` runs a read row's command in the capture directory, as it ran a write row's, so `< route_save.save` resolves.
+- **Three matrix rows, gated.** `route save table 100`, `route showdump < route_save.save` and `-d route showdump < route_save.save` (floor 2 each), on `route_save`'s precondition, where d0 is ifindex 3, as the committed file names it. Two back-to-back runs passed 201 of 201, identical row for row: save `txns` 1/1, its 116-byte file compared record by record with no finding, and each showdump row 1/1, the get for d0. No row has control noise or an allowlist entry.
+
+The command tests (`internal/goip/route_save_test.go`, `obj_route_test.go`):
+
+| description | expected |
+|---|---|
+| positive: `route save table 100`, `sa t 100`, `-4` (replayed) | `ip.save` byte for byte; the one dump request byte-identical to `ip`'s |
+| corner: `-6`; boundary: `table 200` | the magic alone, every reply filtered out |
+| negative: `proto kernel`; `-j` | the magic then exit 1, as `ip` writes it first; nothing written, exit 1 |
+| negative: a terminal stdout; a failed dump; a source without whole replies | refused before the magic, exit 1; `Dump terminated` after it, exit 2; refused, exit 1 |
+| positive: showdump of `ip.save`, `-4`, `-d`, extra arguments | both routes in file order, `table 100` on each, d0 named by one get byte-identical to `ip`'s; `-d` adds `unicast`, `proto boot` and the scope |
+| corner: `-6`; a cloned record | nothing, no get; the cloned route dropped |
+| corner: a record that is not a route; one shorter than `struct rtmsg` | stderr `Not a route: …` or `BUG: wrong nlmsg len -8`, skipped, exit 0, the next record still printed |
+| negative: address save's magic; empty stdin; a terminal | `Magic mismatch`, exit 1 |
+| negative: a truncated header; a truncated record after a whole one; `nlmsg_len` 8 | exit 2, any record before it printed |
+| corner: `route sa` is save; `route showd` is showdump; `restore` | the magic; `Magic mismatch (0 elems, 0 magic)`; not implemented |
+
+Every showdump row's stdout, stderr and exit status was checked against `ip route showdump` from iproute2-7.1.0, in an unprivileged namespace whose ifindex 3 is d0.
+
+The comparator tests (`internal/goipparity/stdout_dump_test.go`):
+
+| description | expected |
+|---|---|
+| positive: `route_save`'s file; address save's magic | recognized: the magic and one element per record |
+| positive: another run's seq and pid | no finding |
+| negative: a dropped record, a changed attribute, records swapped, the magic alone | a `stdout:dumprecords` finding, presence class |
+| corner: a short tail; a record shorter than a header | one fragment element |
+| corner: text where `ip` wrote a file | the text facets and `dumprecords` |
+| negative: text, three bytes, empty output | not a dump file |
 
 ### G3 — rtnetlink writes on running objects
 

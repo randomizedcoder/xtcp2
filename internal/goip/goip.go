@@ -53,7 +53,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	return run(args, os.Stdin, stdout, stderr)
 }
 
-// run is Run with stdin a parameter, which `addr showdump` reads.
+// run is Run with stdin a parameter, which the showdump and restore verbs
+// read.
 func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	c := newRunCtx(stdin, stdout, stderr)
 
