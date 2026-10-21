@@ -12,25 +12,6 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// The FOU commands and attributes (linux/fou.h), which x/sys/unix does not
-// define.
-const (
-	fouCmdAdd               = 1
-	fouCmdDel               = 2
-	fouCmdGet               = 3
-	fouAttrPort             = 1
-	fouAttrAF               = 2
-	fouAttrIPProto          = 3
-	fouAttrType             = 4
-	fouAttrRemcsumNoPartial = 5
-	fouAttrLocalV4          = 6
-	fouAttrLocalV6          = 7
-	fouAttrPeerV4           = 8
-	fouAttrPeerV6           = 9
-	fouAttrPeerPort         = 10
-	fouAttrIfindex          = 11
-)
-
 // fouRows is every C2-T05 row, in the corpus's order.
 var fouRows = []string{
 	"fou_show_empty", "fou_add", "fou_add_gue", "fou_add_v6", "fou_add_local_peer",
@@ -48,23 +29,23 @@ func fouAttrs(t *testing.T, attrs []NetlinkAttribute) string {
 	var out []string
 	for _, a := range attrs {
 		switch a.ID() {
-		case fouAttrAF:
+		case FOUAttrAF:
 			out = append(out, "af="+strconv.Itoa(int(a.Data[0])))
-		case fouAttrPort:
+		case FOUAttrPort:
 			out = append(out, "port="+strconv.Itoa(int(binary.BigEndian.Uint16(a.Data))))
-		case fouAttrPeerPort:
+		case FOUAttrPeerPort:
 			out = append(out, "peer_port="+strconv.Itoa(int(binary.BigEndian.Uint16(a.Data))))
-		case fouAttrIPProto:
+		case FOUAttrIPProto:
 			out = append(out, "ipproto="+strconv.Itoa(int(a.Data[0])))
-		case fouAttrType:
+		case FOUAttrType:
 			out = append(out, "type="+strconv.Itoa(int(a.Data[0])))
-		case fouAttrIfindex:
+		case FOUAttrIfindex:
 			out = append(out, "ifindex="+strconv.Itoa(int(int32(binary.LittleEndian.Uint32(a.Data)))))
-		case fouAttrRemcsumNoPartial:
+		case FOUAttrRemcsumNoPartial:
 			out = append(out, "remcsum_nopartial")
-		case fouAttrLocalV4, fouAttrLocalV6:
+		case FOUAttrLocalV4, FOUAttrLocalV6:
 			out = append(out, "local="+net.IP(a.Data).String())
-		case fouAttrPeerV4, fouAttrPeerV6:
+		case FOUAttrPeerV4, FOUAttrPeerV6:
 			out = append(out, "peer="+net.IP(a.Data).String())
 		}
 	}
@@ -76,7 +57,7 @@ func fouAttrs(t *testing.T, attrs []NetlinkAttribute) string {
 func fouMsgs(t *testing.T, rel string, request bool) string {
 	t.Helper()
 	msgs := pcapNlMsgs(t, tdGenlWrite_7_1_4+"/"+rel)
-	fam := genlFamilyID(t, msgs, "fou")
+	fam := genlFamilyID(t, msgs, FOUGenlName)
 	var out []string
 	for _, m := range msgs {
 		if fam == 0 || m.h.Type != fam || (m.h.Flags&unix.NLM_F_REQUEST != 0) != request {
@@ -87,7 +68,7 @@ func fouMsgs(t *testing.T, rel string, request bool) string {
 			t.Fatal(err)
 		}
 		words := []string{map[uint8]string{
-			fouCmdAdd: "add", fouCmdDel: "del", fouCmdGet: "get",
+			FOUCmdAdd: "add", FOUCmdDel: "del", FOUCmdGet: "get",
 		}[g.Command]}
 		if request && m.h.Flags&unix.NLM_F_DUMP == unix.NLM_F_DUMP {
 			words = append(words, "dump")
@@ -111,7 +92,7 @@ func fouMsgs(t *testing.T, rel string, request bool) string {
 func fouErrno(t *testing.T, slug string) string {
 	t.Helper()
 	msgs := pcapNlMsgs(t, tdGenlWrite_7_1_4+"/"+slug+"/ip.pcap")
-	fam := genlFamilyID(t, msgs, "fou")
+	fam := genlFamilyID(t, msgs, FOUGenlName)
 	for _, m := range msgs {
 		if fam != 0 && m.h.Type == fam && m.h.Flags&unix.NLM_F_REQUEST != 0 {
 			return strconv.Itoa(int(answerTo(t, msgs, m.h))) + " rc " + tcpmFile(t, slug+"/ip.rc")
@@ -151,7 +132,7 @@ func TestGenlFouCorpus(t *testing.T) {
 			func(t *testing.T) string {
 				var missing []string
 				for _, slug := range fouRows {
-					if genlFamilyID(t, pcapNlMsgs(t, tdGenlWrite_7_1_4+"/"+slug+"/ip.pcap"), "fou") == 0 {
+					if genlFamilyID(t, pcapNlMsgs(t, tdGenlWrite_7_1_4+"/"+slug+"/ip.pcap"), FOUGenlName) == 0 {
 						missing = append(missing, slug)
 					}
 				}
