@@ -47,9 +47,8 @@ on the builder. On 2026-10-20 the user agreed to add `"/dev/net/tun?"` to
 
 ## Integration results
 
-The latest pass of each check (VC014, operator-run on `l` at a2aab875, KVM in
-the nix build sandbox, QEMU 11.0.2; the performance guest again in VC016 at
-dc0d1362). Go test counts are `--- PASS` lines in
+The latest pass of each check (VC018, operator-run on `l` at main bb237c9e,
+KVM in the nix build sandbox, QEMU 11.0.2). Go test counts are `--- PASS` lines in
 the guest's serial log; no run had a `--- FAIL`, and only the rdma guest's
 three expected skips (veth has no rings, pause or FEC).
 
@@ -58,18 +57,18 @@ three expected skips (veth has no rings, pause or FEC).
 | `vm-goip-argv-paths` | Linux 6.18.39 | 8 of 8 | 51 rows pass, 0 fail | every `/ip` design example and handler row against `goip` (byte-identical) and `ip` (no named gaps) |
 | `vm-linkmonitor-embedding` | Linux 6.18.39 | 4 of 4 | 12 Go tests pass | the embedding API in-process and inside xtcp2, `TestLinkMonitorOnDemandScrape` against guest sysfs |
 | `vm-linkmonitor-ionic` | Linux 7.1.4 | 11 of 11 | 99 Go tests pass | real ionic/ionic_rdma on rocm-ernic: discovery, request contracts, monitor, CLI differential, events, recorded events, remove, unplug, hotplug, recovered events |
-| `vm-linkmonitor-ionic-faults` | Linux 7.1.4 | 3 of 3 | 18 Go tests pass | generic-100g profile with injected faults; eth_rx fired 28 of 282, eth_tx 31 of 311, stats_vals 1 of 14; the monitor's counters agree with sysfs, ethtool and the fault pattern |
+| `vm-linkmonitor-ionic-faults` | Linux 7.1.4 | 3 of 3 | 18 Go tests pass | generic-100g profile with injected faults; eth_rx fired 28 of 281, eth_tx 31 of 310, stats_vals 1 of 16; the monitor's counters agree with sysfs, ethtool and the fault pattern |
 | `vm-linkmonitor-rdma` | Linux 7.1.4 | 10 of 10 | 61 Go tests pass, 3 skip (`TestLiveRequestShapes` ethtool RINGS, PAUSE, FEC on veth) | software RoCE (rxe): discovery, rename, netlink events against the recorded ones, faults, no rdma-core library opened, umad unloaded and loaded, denied uverbs, delete and recreate, recordings of every request shape (8 files in `nlrecord/`) |
-| `vm-linkmonitor-performance` | Linux 6.18.39 | 3 of 3 | live tests pass (`live_exit=0`), RDMA native benchmarks pass (`rdma_native_exit=0`) | root-only live netlink tests, `BenchmarkPerformance{LocalMachine,RealisticFleet}` with CPU, heap, block and mutex profiles, an nlmon pcap, `bench-linkmonitor-rdma-native --native`; 912 KiB of evidence (VC016) |
+| `vm-linkmonitor-performance` | Linux 6.18.39 | 3 of 3 | live tests pass (`live_exit=0`), RDMA native benchmarks pass (`rdma_native_exit=0`) | root-only live netlink tests, `BenchmarkPerformance{LocalMachine,RealisticFleet}` with CPU, heap, block and mutex profiles, an nlmon pcap, `bench-linkmonitor-rdma-native --native`; 912 KiB of evidence |
 
 Outputs (GC-rooted by the operator's `result-vm-all`):
 
-- `/nix/store/wqyiafpzbwgnyrsy0hfxfc7hcwb9lwnm-vm-check-goip-argv-paths`
-- `/nix/store/icj3i3iyalq6adzp08z0ggxwhzcyih69-vm-check-linkmonitor-embedding`
-- `/nix/store/llyl73ac7376i4qxia0s6hh3rssrmyqb-vm-check-linkmonitor-ionic`
-- `/nix/store/30m8lky244fiqksg3imbxx235g40k5yj-vm-check-linkmonitor-ionic-faults`
-- `/nix/store/m6v7dvxs6cz5w8gl76689ask6638x86a-vm-check-linkmonitor-rdma`
-- `/nix/store/s1bz13rwjcdcg6llks7k86pf9m7idkg9-vm-check-linkmonitor-performance` (VC016)
+- `/nix/store/66mzxm82vnfy574515ikga8v4zjzj3jm-vm-check-goip-argv-paths`
+- `/nix/store/5ygwl768h2bfmi0cg6a0cldkbghjnlcj-vm-check-linkmonitor-embedding`
+- `/nix/store/jnw9npd8vc0b0zb0ls28fgy4lfb65b4k-vm-check-linkmonitor-ionic`
+- `/nix/store/w619nl5iyygn6zwqdygkr4vza9p889wi-vm-check-linkmonitor-ionic-faults`
+- `/nix/store/9a7frgdp7fharmb4z7b6hcdsisp397kv-vm-check-linkmonitor-performance`
+- `/nix/store/v217524k1wydf193l2wma0224j8mkv72-vm-check-linkmonitor-rdma`
 
 ## Tasks
 
@@ -116,9 +115,19 @@ Outputs (GC-rooted by the operator's `result-vm-all`):
 - [x] Boot `checks.vm-linkmonitor-performance` once more, since VC015
   changed its artifact's inputs (not its Go content): pass, and the other
   five stayed cached (VC016).
-- [ ] Boot `vm-all` again: merging #269's lint fix (IV042, goip keyword
+- [x] Boot `vm-all` again: merging #269's lint fix (IV042, goip keyword
   constants) changed the Go inputs, so all six guests rebuild (`nix build
-  --dry-run` lists every `vm-check-*`). No guest code changed.
+  --dry-run` lists every `vm-check-*`). No guest code changed. The first
+  boot failed `vm-linkmonitor-ionic-faults` (VC017), the rerun passed all
+  six (VC018).
+- [ ] `vm-linkmonitor-ionic-faults` failed once on main (VC017) and passed on
+  the rerun with nothing changed; the cause is unknown. If it recurs, run
+  the app form (`nix run path:.#test-linkmonitor-ionic-faults-vm`), which
+  keeps the full serial and ernic logs under `~/.cache/xtcp2-vm/`.
+- [ ] A failed check prints only the last 60 lines of serial.log, which for
+  VC017 were all systemd shutdown, and keeps no evidence. Print the lines
+  matching the fail pattern, `--- FAIL` and `_test.go:` first. This changes
+  every check's derivation, so all six guests boot again.
 - [ ] The performance guest's `LINKMONITOR_BENCHTIME` never reached the
   guest from the host (the README said it did; corrected). Wire it through
   `VM_KERNEL_PARAMS` if a longer profile window is wanted.
@@ -143,3 +152,5 @@ Outputs (GC-rooted by the operator's `result-vm-all`):
 | VC014 | 2026-10-20 | user: `env -u LD_LIBRARY_PATH nix build -L -o result-vm-all path:.#checks.x86_64-linux.vm-all` on `l` (at a2aab875, with main merged in) | pass, all six: goip-argv-paths 8 sentinels and 51 rows; embedding 4 and 12 Go tests; ionic 11 and 99; ionic-faults 3 and 18 (eth_rx fired 28 of 282, eth_tx 31 of 311, stats_vals 1 of 14); rdma 10 and 61 Go tests, 3 expected skips, 8 nlrecord files, kernel 7.1.4; performance 3, `live_exit=0`, `rdma_native_exit=0`, kernel 6.18.39. 0 ESC and 0 CR bytes in each serial.log. Five outputs match `nix eval` at HEAD; the performance one does not (VC015) |
 | VC015 | 2026-10-20 | `nix/tests/linkmonitor.nix`: `test-linkmonitor-performance` from goSource. `nix-diff` of the VC014 performance drv against HEAD's (the leaf: `xtcp2-test-linkmonitor-performance`'s full-tree source, changed by the new `result-vm-all` link); `nix build path:.#test-linkmonitor-performance`; `nix eval` of `checks.vm-all.drvPath` before and after adding a `.md` file and a `result-*` link; `checks.{nix-fmt,statix,deadnix}` | pass; `vm-all` drv unchanged by both; no guest booted |
 | VC016 | 2026-10-20 | user: `env -u LD_LIBRARY_PATH nix build -L -o result-vm-all path:.#checks.x86_64-linux.vm-all` on `l` (at dc0d1362) | pass; only the performance guest booted, the other five came from the store. Performance 3 of 3 sentinels, `live_exit=0`, `rdma_native_exit=0`, kernel 6.18.39, 912 KiB of evidence, 0 ESC and 0 CR bytes in serial.log; `result-vm-all` equals `nix eval` of `checks.vm-all.outPath` at HEAD. Benchmarks (one run, loaded host, from the check's `bench.txt`): RealisticFleet gather 2834520 ns/op and 30171 allocs/op, http 3806872 ns/op; LocalMachine gather 791760 ns/op and 8464 allocs/op, http 1145648 ns/op; within 4% of VC014's |
+| VC017 | 2026-10-21 | user: `env -u LD_LIBRARY_PATH nix build -L -o result-vm-all path:.#checks.x86_64-linux.vm-all` on `l` (main bb237c9e, after #269, #271) | fail: `vm-linkmonitor-ionic-faults` guest printed `LINKMONITOR_IONIC_FAIL rc=1` 23 s after boot, in its first steps (`ernic-rdma-up` active, discovery, `TestIonicFaultStatsVals`); the printed tail is all shutdown and the failed check kept no evidence, so the failing step is unknown. goip-argv-paths and embedding passed; nix stopped the rest. Host load was 14 to 16 shortly before |
+| VC018 | 2026-10-21 | user: the same command, rerun with nothing changed | pass, all six, `result-vm-all` equals `nix eval` of `checks.vm-all.outPath` at main. goip-argv-paths 8 sentinels; embedding 4 and 12 Go tests; ionic 11 and 99; ionic-faults 3 and 18 (eth_rx fired 28 of 281, eth_tx 31 of 310, stats_vals 1 of 16); rdma 10 and 61, 3 expected skips, 8 nlrecord files; performance 3, `live_exit=0`, `rdma_native_exit=0`. No `--- FAIL`; 0 ESC and 0 CR bytes in each serial.log. Benchmarks (one run, loaded host): RealisticFleet gather 2843965 ns/op and 30171 allocs/op, http 3863391 ns/op; LocalMachine gather 834679 ns/op and 8464 allocs/op, http 1189724 ns/op |
