@@ -84,6 +84,16 @@ compiledInEnrichers: {{compiledInEnrichers}}
 *linkMonitorWatchInterval: 144ms
 *linkMonitorSlowInterval: 145ms
 *linkMonitorOnDemandTTL: 146ms
+*linkMonitorOnDemandWait: 147ms
+*linkMonitorErrorsWindow: 148ms
+*linkMonitorFlapWindow: 149ms
+*linkMonitorErrorsClasses: linkMonitorErrorsClasses-v
+*linkMonitorErrorsExclude: linkMonitorErrorsExclude-v
+*linkMonitorMetricsCategories: linkMonitorMetricsCategories-v
+*linkMonitorMetricsInterfacePaths: false
+*linkMonitorMetricsAllPath: linkMonitorMetricsAllPath-v
+*linkMonitorIPPaths: true
+*linkMonitorIPMaxBytes: 150
 *grpcListenNetwork: grpcListenNetwork-v
 *grpcListenAddress: grpcListenAddress-v
 *grpcUnixSocketMode: 132

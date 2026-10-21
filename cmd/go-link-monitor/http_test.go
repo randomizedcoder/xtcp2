@@ -27,7 +27,7 @@ func (m *fakeMonitor) Run(ctx context.Context) error { return m.run(ctx) }
 func (m *fakeMonitor) RequestRebaseline() error      { return m.rebaseline() }
 
 func coreRoute(g prometheus.Gatherer) route {
-	return route{path: metricsPath, gatherer: g, inFlight: coreInFlight}
+	return route{Path: metricsPath, Gatherer: g, InFlight: coreInFlight}
 }
 
 func singleEndpoint(address string) []endpoint {

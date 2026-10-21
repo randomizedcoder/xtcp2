@@ -8,6 +8,8 @@ STATUS; the broader reference inventory below is not a claim of full v1 coverage
 collection and acceptance tests.
 [DETAILED-DESIGN.md](DETAILED-DESIGN.md) specifies collector ownership,
 immutable snapshots, concurrent exposition and performance verification.
+xtcp2 serves the same families at the same paths when it embeds the monitor
+([design-linkmonitor-in-xtcp2.md](../../docs/design-linkmonitor-in-xtcp2.md)).
 
 ## Source provenance
 

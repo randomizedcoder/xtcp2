@@ -6,6 +6,7 @@ xtcp2 is built to run as a long-lived daemon, so it ships first-class observabil
 
 - [Prometheus metrics](#prometheus-metrics)
 - [Health & readiness](#health--readiness)
+- [Link monitor](#link-monitor)
 - [pprof](#pprof)
 - [Pyroscope continuous profiling](#pyroscope-continuous-profiling)
 - [Capability checks](#capability-checks)
@@ -15,6 +16,8 @@ xtcp2 is built to run as a long-lived daemon, so it ships first-class observabil
 ## Prometheus metrics
 
 `pkg/xtcp/prometheus.go` registers the daemon's metrics and serves them over HTTP. By default they are exposed at `:9088/metrics` (`-promListen`, `-promPath`). The same HTTP server can listen on a Unix domain socket by setting `-promListenNetwork unix` and using `-promListen` as the socket path. Metrics cover the collection pipeline — netlink reads, deserialization, envelope rows flushed, destination sends, and namespace counts — which is what you scrape to alarm on a stalled collector or a destination backpressure problem. The `metrics-audit` tool/check (`nix build .#test-tools-metrics-audit`) guards metric registration.
+
+The listener is bound before the daemon starts, so a bad address, a port in use or an invalid listener auth config fails startup with an error. On shutdown the server drains in-flight requests for up to 3 s, then closes.
 
 Two per-record series are off by default because at 100k sockets they cost more CPU than the decode: `xtcp_counts{function="Deserialize", variable="n"}` and `xtcp_histograms{function="Deserialize", variable="nlPacketComplete"}`. Turn them on with `-debugPrometheus` (or `DEBUG_PROMETHEUS=true`). `flatRecordServiceSend`'s `start` and `complete` series only move while a gRPC client is streaming records. For records decoded, use `xtcp_counts{variable="p"}` (per decoder) or `Deserialize` `envelopeAppend`. See [metrics on the decode path](performance.md#metrics-on-the-decode-path), and the [metrics reference](metrics.md) for every series, what it counts and which ones are on by default.
 
@@ -32,6 +35,23 @@ probe endpoints (same listener as `-promListen`):
 
 The gRPC port additionally serves the standard `grpc.health.v1` service, which
 reports `SERVING` on the same readiness condition (for native k8s gRPC probes).
+
+Readiness doesn't depend on the link monitor: a monitor still settling, or one
+that has failed, leaves `/readyz` alone.
+
+## Link monitor
+
+xtcp2 runs the link monitor by default ([design](design-linkmonitor-in-xtcp2.md)).
+It serves go-link-monitor's paths on the same listener: `/metrics/<category>[/<iface>]`
+and `/metrics-all[/<iface>]`, plus `/ip` and `/i` with `-linkMonitorIPPaths`
+(off by default, since they expose host addresses). Each detail path has an
+in-flight limit and a 10 s timeout. `/metrics` carries only the problem summary.
+
+- **SIGUSR1** (`systemctl reload xtcp2` under the NixOS module) relearns the
+  expected up-link count, as for go-link-monitor.
+- **`xtcp_gauges{function="linkMonitor",variable="up"}`** is 0 once the monitor
+  has failed, for example on a corrupt baseline. xtcp2 keeps collecting and the
+  link monitor paths answer 503; see [operations](operations.md#link-monitor-baseline).
 
 ## pprof
 
@@ -90,6 +110,7 @@ curl --unix-socket /run/xtcp2/prometheus.sock \
 ## See also
 
 - [Metrics reference](metrics.md) — every series, by area, and which ones `-debugPrometheus` adds.
+- [The link monitor in xtcp2](design-linkmonitor-in-xtcp2.md) — paths, lifecycle, baseline and failure mode.
 - [Performance](performance.md) — what the profiles help you tune.
 - [Network namespaces](network-namespaces.md) — why `CAP_SYS_ADMIN` matters.
 - [Quality report](quality-report.md) — auto-generated coverage and lint status.

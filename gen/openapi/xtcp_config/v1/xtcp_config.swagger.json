@@ -364,6 +364,46 @@
         "onDemandTtl": {
           "type": "string",
           "description": "On demand: how long collected detail is reused. Default 15s; 0\ncollects on every scrape."
+        },
+        "onDemandWait": {
+          "type": "string",
+          "description": "On demand: longest a detail scrape waits for collection before serving\nwhat it has. Default 5s; under the 10s detail path timeout."
+        },
+        "errorWindow": {
+          "type": "string",
+          "description": "How long an error counter increase, and a link flap, stays a problem.\nDefault 180s; 0 disables. A nonzero window is at least the poll\ninterval of the collector it watches."
+        },
+        "flapWindow": {
+          "type": "string"
+        },
+        "errorClasses": {
+          "type": "string",
+          "description": "Comma-separated error classes that count as problems: link, rdma, drop.\nUnset is \"link,rdma\"; empty counts none."
+        },
+        "errorExclude": {
+          "type": "string",
+          "description": "Anchored regexp of error series keys never counted as problems."
+        },
+        "metricsCategories": {
+          "type": "string",
+          "description": "Comma-separated detail categories served at \u003cpromPath\u003e/\u003ccategory\u003e:\nlink, traffic, ethtool, driver, rdma, netstat, collection. Unset is\nevery category; empty serves none."
+        },
+        "metricsInterfacePaths": {
+          "type": "boolean",
+          "description": "Serve \u003cpromPath\u003e/\u003ccategory\u003e/\u003cinterface\u003e and \u003cmetrics_all_path\u003e/\u003cinterface\u003e.\nUnset is true."
+        },
+        "metricsAllPath": {
+          "type": "string",
+          "description": "The all-metrics path. Unset is \"/metrics-all\"; empty serves none."
+        },
+        "ipPaths": {
+          "type": "boolean",
+          "description": "Serve the read-only `ip … show` paths under /ip and /i. They expose\nhost addresses, so they are off by default."
+        },
+        "ipMaxBytes": {
+          "type": "integer",
+          "format": "int64",
+          "description": "Largest /ip response body in bytes. 0 is the default, 32 MiB."
         }
       },
       "description": "Embedded physical link monitor (pkg/linkmonitor), the same one the\nstandalone go-link-monitor runs. Unset durations and empty strings take the\nlibrary defaults (see linkmonitor.DefaultConfig); xtcp2 supplies its own\nbaseline_file default. An embedded and a standalone monitor must not share a\nbaseline file: the second fails to take the lock and xtcp2 exits."

@@ -81,10 +81,11 @@ let
   };
 
   # Image environment for the xtcp2-daemon images. The embedded link monitor
-  # (off unless LINK_MONITOR=true) collects on demand: errors and state each
+  # (on unless LINK_MONITOR=false) collects on demand: errors and state each
   # minute, settings every five, and the rest only when its metrics are
-  # scraped. A bare xtcp2 still polls; `docker run -e
-  # LINK_MONITOR_COLLECTION_MODE=poll` restores that here.
+  # scraped. On demand is also the -linkMonitorCollectionMode default; the
+  # variable keeps the images explicit, and `docker run -e
+  # LINK_MONITOR_COLLECTION_MODE=poll` selects polling.
   xtcp2Env = [ "LINK_MONITOR_COLLECTION_MODE=on-demand" ];
 
   # tcp-stress-only image: just tcp_server + tcp_client + an entrypoint

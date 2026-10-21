@@ -58,13 +58,7 @@ It registers:
 
 ### Prometheus HTTP
 
-`cmd/xtcp2/xtcp2.go` starts Prometheus through:
-
-```go
-servePromHandler(mux, promListen, ipv4TTL, ipv6HopLimit)
-```
-
-`servePromHandler` currently always calls `lc.Listen(context.Background(), "tcp", promListen)`.
+`cmd/xtcp2/prom_server.go` starts Prometheus through `startPromServer(ctx, wg, promParams)`, which binds the listener before the daemon starts and serves it as a tracked worker that drains on shutdown. (Before this hardening, `servePromHandler` always called `lc.Listen(context.Background(), "tcp", promListen)` from a bare goroutine.)
 
 `-promListen` and `-promPath` are flag/env-only settings, not part of `XtcpConfig`. `PROM_LISTEN` and `PROM_PATH` override flags.
 
@@ -284,6 +278,16 @@ When auth is enabled, protect:
 - `/healthz` and `/readyz`, unless a future config explicitly exempts health endpoints.
 
 The default is to protect health endpoints too. Operators that need unauthenticated Kubernetes probes can keep auth disabled on TCP loopback, use UDS with socket permissions, or add a separate future health listener.
+
+The embedded link monitor's paths ([design](design-linkmonitor-in-xtcp2.md)) share the Prometheus listener and its policy. They are read paths, like the metrics path; only `/debug/pprof/*` needs the admin credential.
+
+| Path | Access | In flight | Default |
+|---|---|---|---|
+| `<promPath>/<category>`, `<promPath>/<category>/<iface>` | read | 4 per category, 4 for interfaces | on |
+| `/metrics-all`, `/metrics-all/<iface>` | read | 2, 4 for interfaces | on |
+| `/ip/…`, `/i/…` | read | — | **off**: they expose host addresses (`-linkMonitorIPPaths`) |
+
+Each link monitor request has a 10 s timeout, and a full slot set answers 503 at once, so a burst of detail scrapes can't pile up behind a slow collector. Startup rejects a layout in which a link monitor path would shadow `promPath`, `/healthz`, `/readyz` or `/debug/pprof/`.
 
 ### Raw token mode
 

@@ -82,11 +82,11 @@ Defined in `proto/linkmonitor/v1/linkmonitor.proto` and implemented once in `pkg
 
 The service is always registered. When the daemon runs without the embedded monitor, every call returns `FailedPrecondition` ("link monitor disabled"). Every admin call is logged with the RPC, reason, peer and result.
 
-**Embedding.** `-linkMonitor` (config `link_monitor.enable`, field 250) starts the monitor for the daemon's lifetime and registers its core metric set on xtcp2's Prometheus registry. A soft restart re-execs the daemon, so the monitor follows a `Set` like every other field. The baseline file is locked: an embedded and a standalone monitor must use different files, and the second one to start on a shared file logs the lock error and exits 1.
+**Embedding.** `-linkMonitor` (config `link_monitor.enable`, field 250, on by default) starts the monitor for the daemon's lifetime, adds its problem summary to xtcp2's `/metrics` and serves go-link-monitor's detail paths on the Prometheus listener ([design](design-linkmonitor-in-xtcp2.md)). A soft restart re-execs the daemon, so the monitor follows a `Set` like every other field. The baseline file is locked: an embedded and a standalone monitor must use different files. When the embedded monitor can't use its file (locked, corrupt or over 64 KiB) it is marked down and xtcp2 runs on: `GetStatus` reports `running=false`, `Rebaseline` and `Resync` return `Unavailable`, and the detail paths answer 503. SIGUSR1 (`systemctl reload xtcp2`) rebaselines, like `Rebaseline`.
 
 | Flag | Environment | Default | Purpose |
 |---|---|---|---|
-| `-linkMonitor` | `LINK_MONITOR` | `false` | Run the embedded link monitor. |
+| `-linkMonitor` | `LINK_MONITOR` | `true` | Run the embedded link monitor. |
 | `-linkMonitorBaselineFile` | `LINK_MONITOR_BASELINE_FILE` | `/var/lib/xtcp2/link-monitor-baseline.json` | Baseline file. |
 | `-linkMonitorSettle` | `LINK_MONITOR_SETTLE` | `30s` | How long link state must hold before the first baseline. |
 | `-linkMonitorResync` | `LINK_MONITOR_RESYNC` | `1h` | Full resync interval. |
@@ -94,14 +94,24 @@ The service is always registered. When the daemon runs without the embedded moni
 | `-linkMonitorStatsInclude`, `-linkMonitorStatsExclude` | `LINK_MONITOR_STATS_INCLUDE`, `LINK_MONITOR_STATS_EXCLUDE` | `.*`, `^$` | Interfaces whose statistics are collected. |
 | `-linkMonitorNetstatFields` | `LINK_MONITOR_NETSTAT_FIELDS` | `.*` | Host protocol fields collected. |
 | `-linkMonitorMaxSpeedExceptions` | `LINK_MONITOR_MAX_SPEED_EXCEPTIONS` | — | Comma-separated selectors exempt from the max-speed check. |
-| `-linkMonitorMetricsCoreInclude`, `-linkMonitorMetricsCoreExclude` | `LINK_MONITOR_METRICS_CORE_INCLUDE`, `LINK_MONITOR_METRICS_CORE_EXCLUDE` | core set, — | Anchored metric-name patterns registered on xtcp2's registry. |
-| `-linkMonitorMetricsAll` | `LINK_MONITOR_METRICS_ALL` | `false` | Register every link monitor metric instead of the core set. |
-| `-linkMonitorCollectionMode` | `LINK_MONITOR_COLLECTION_MODE` | `poll` (`on-demand` in the OCI images) | `poll` collects everything each stats interval; `on-demand` polls errors and state each watch interval and settings each slow interval, and collects the rest when a scrape of xtcp2's registry serves it. |
+| `-linkMonitorMetricsCoreInclude`, `-linkMonitorMetricsCoreExclude` | `LINK_MONITOR_METRICS_CORE_INCLUDE`, `LINK_MONITOR_METRICS_CORE_EXCLUDE` | —, — | Anchored metric-name patterns registered on `/metrics` instead of the summary; an empty include with an exclude means the core set. |
+| `-linkMonitorMetricsAll` | `LINK_MONITOR_METRICS_ALL` | `false` | Register every link monitor metric on `/metrics` instead of the summary. |
+| `-linkMonitorCollectionMode` | `LINK_MONITOR_COLLECTION_MODE` | `on-demand` | `poll` collects everything each stats interval; `on-demand` polls errors and state each watch interval and settings each slow interval, and collects the rest when a detail path is scraped. |
 | `-linkMonitorWatchInterval` | `LINK_MONITOR_WATCH_INTERVAL` | `1m` | On demand: error and state polling interval. |
 | `-linkMonitorSlowInterval` | `LINK_MONITOR_SLOW_INTERVAL` | `5m` | On demand: settings and RDMA capability polling interval. |
 | `-linkMonitorOnDemandTTL` | `LINK_MONITOR_ON_DEMAND_TTL` | `15s` | On demand: how long collected detail is reused; `0` collects on every scrape. |
+| `-linkMonitorOnDemandWait` | `LINK_MONITOR_ON_DEMAND_WAIT` | `5s` | On demand: longest a detail scrape waits for fresh data; must be under 10 s. |
+| `-linkMonitorErrorsWindow` | `LINK_MONITOR_ERRORS_WINDOW` | `3m` | How long an error increase stays a problem. |
+| `-linkMonitorFlapWindow` | `LINK_MONITOR_FLAP_WINDOW` | `3m` | How long a flap stays a problem. |
+| `-linkMonitorErrorsClasses` | `LINK_MONITOR_ERRORS_CLASSES` | `link,rdma` | Error classes that raise problems (`link`, `rdma`, `drop`); set but empty means none. |
+| `-linkMonitorErrorsExclude` | `LINK_MONITOR_ERRORS_EXCLUDE` | — | Error counter names never raised. |
+| `-linkMonitorMetricsCategories` | `LINK_MONITOR_METRICS_CATEGORIES` | all | Categories served under `<promPath>/<category>`; set but empty serves none. |
+| `-linkMonitorMetricsInterfacePaths` | `LINK_MONITOR_METRICS_INTERFACE_PATHS` | `true` | Per-interface paths under each category and the all-metrics path. |
+| `-linkMonitorMetricsAllPath` | `LINK_MONITOR_METRICS_ALL_PATH` | `/metrics-all` | Full link monitor collector; set but empty disables it. |
+| `-linkMonitorIPPaths` | `LINK_MONITOR_IP_PATHS` | `false` | Serve the read-only `/ip` and `/i` paths; they expose host addresses. |
+| `-linkMonitorIPMaxBytes` | `LINK_MONITOR_IP_MAX_BYTES` | `33554432` | Largest `/ip` response, capped at 1 GiB. |
 
-A bare xtcp2 binary keeps polling. The xtcp2 OCI images set `LINK_MONITOR_COLLECTION_MODE=on-demand`, so the monitor in a container collects on demand unless the container overrides it (`-e LINK_MONITOR_COLLECTION_MODE=poll`). With the default summary exposure a scrape never collects; with `-linkMonitorMetricsAll` or a core pattern each scrape first refreshes the monitor's collectors, reusing data younger than the TTL and waiting at most 5 s.
+A `link_monitor` block in a config file with `collection_mode` unset keeps the library default, `poll`; the flags, env vars, OCI images and NixOS module all select `on-demand`. With the default summary exposure a `/metrics` scrape never collects. The detail paths refresh only what they serve, reusing data younger than the TTL and waiting at most `-linkMonitorOnDemandWait`. With `-linkMonitorMetricsAll` or a core pattern, each `/metrics` scrape first refreshes the whole monitor.
 
 ## The xtcp2ctl control CLI
 

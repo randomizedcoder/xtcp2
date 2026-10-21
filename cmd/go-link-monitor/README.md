@@ -28,7 +28,7 @@ is [METRICS.md](METRICS.md); behaviour is in [DESIGN.md](DESIGN.md).
 | Access control | Read credential on every metrics and `/ip` path; separate admin credential | [Other Prometheus features](#other-prometheus-features) |
 | Admin API and CLI | gRPC `LinkMonitorService` and `go-link-monitor ctl` for status, interfaces, collectors, rebaseline and resync | [Operations](#operations) |
 | Bounded cost | Per-path concurrency limits, 10s scrape timeout, filters compiled once at startup | [Other Prometheus features](#other-prometheus-features) |
-| Embedding | The same monitor inside xtcp2 (`xtcp2 -linkMonitor`) | [Operations](#operations) |
+| Embedding | The same monitor and paths inside xtcp2, on by default | [Operations](#operations) |
 | Read-only | Observes only; never changes network configuration | — |
 
 ## Quick start
@@ -203,10 +203,13 @@ Alert and dashboard PromQL is in
   ([GO-NATIVE-RDMA-DESIGN.md](GO-NATIVE-RDMA-DESIGN.md#backend-selection)).
 - **InfiniBand capabilities.** PortInfo is queried through the umad device
   directly, so `rdma_capabilities` is reported on native InfiniBand.
-- **Inside xtcp2.** `xtcp2 -linkMonitor` embeds the same monitor and
-  registers its summary on xtcp2's Prometheus listener, or every family with
-  `-linkMonitorMetricsAll`; the OCI images run it on demand. The embedded
-  monitor gets RDMA events from netlink too.
+- **Inside xtcp2.** xtcp2 runs the same monitor by default, on demand, with
+  its baseline in `/var/lib/xtcp2`. Its Prometheus listener serves this
+  exporter's paths: the summary on `/metrics`, `/metrics/<category>[/<iface>]`,
+  `/metrics-all[/<iface>]`, and `/ip` with `-linkMonitorIPPaths`. SIGUSR1
+  rebaselines there too. `-linkMonitor=false` turns it off. The embedded
+  monitor gets RDMA events from netlink too
+  ([design](../../docs/design-linkmonitor-in-xtcp2.md)).
 
 Run `go-link-monitor -h` for every flag.
 

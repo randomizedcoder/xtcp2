@@ -21,6 +21,7 @@ import (
 	"github.com/randomizedcoder/xtcp2/pkg/cgroupid"
 	"github.com/randomizedcoder/xtcp2/pkg/dockermeta"
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor"
+	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/linkmonitorhttp"
 	"github.com/randomizedcoder/xtcp2/pkg/misc"
 	"github.com/randomizedcoder/xtcp2/pkg/nsdiscover"
 	"github.com/randomizedcoder/xtcp2/pkg/xsync"
@@ -195,6 +196,12 @@ type XTCP struct {
 	// linkMonitor is the embedded link monitor, nil unless
 	// config.link_monitor.enable. See linkmonitor.go.
 	linkMonitor *linkmonitor.Monitor
+	// linkMonitorPaths is the detail path layout LinkMonitorHandler serves.
+	linkMonitorPaths linkMonitorPaths
+	// linkMonitorRefresh counts detail path refreshes; nil unless on demand.
+	linkMonitorRefresh *linkmonitorhttp.RefreshMetrics
+	// linkMonitorDown is set when the monitor failed while xtcp2 ran on.
+	linkMonitorDown atomic.Bool
 
 	flatRecordService *xtcpFlatRecordService
 	configService     *xtcpConfigService

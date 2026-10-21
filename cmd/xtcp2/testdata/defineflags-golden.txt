@@ -35,15 +35,25 @@ ipv6HopLimit	3	outgoing IPv6 unicast hop limit for xtcp2's TCP listeners; 0 = ke
 kafkaCompression		Kafka producer compression codec. '' or 'auto' = preference list [zstd,lz4,snappy,none] negotiated with broker; or pin one of: zstd, lz4, snappy, gzip, none. All codecs are decodable by Redpanda + ClickHouse's Kafka engine.
 kafkaSchemaUrl	http://localhost:18081	kafka schema registry URL
 label		label applied to the protobuf
-linkMonitor	false	run the embedded link monitor: link counts against a baseline, per-interface and RDMA checks and collector health on the Prometheus listener, plus LinkMonitorService on the gRPC listener. Falls back to LINK_MONITOR env.
+linkMonitor	true	run the embedded link monitor: link counts against a baseline, per-interface and RDMA checks and collector health on the Prometheus listener, its detail paths beside -promPath, plus LinkMonitorService on the gRPC listener. Falls back to LINK_MONITOR env.
 linkMonitorBaselineFile	/var/lib/xtcp2/link-monitor-baseline.json	link monitor baseline file; locked, so it must differ from any standalone go-link-monitor's. Falls back to LINK_MONITOR_BASELINE_FILE env.
-linkMonitorCollectionMode	poll	link monitor collection mode: poll collects everything each stats interval; on-demand polls errors and state each watch interval and settings each slow interval, and collects the rest when xtcp2 serves it. Falls back to LINK_MONITOR_COLLECTION_MODE env.
+linkMonitorCollectionMode	on-demand	link monitor collection mode: poll collects everything each stats interval; on-demand polls errors and state each watch interval and settings each slow interval, and collects the rest when xtcp2 serves it. Falls back to LINK_MONITOR_COLLECTION_MODE env.
+linkMonitorErrorsClasses	link,rdma	comma-separated error classes that count as problems: link, rdma, drop. Falls back to LINK_MONITOR_ERRORS_CLASSES env.
+linkMonitorErrorsExclude		anchored regexp of error series keys never counted as problems. Falls back to LINK_MONITOR_ERRORS_EXCLUDE env.
+linkMonitorErrorsWindow	3m0s	how long an error counter increase stays a problem; 0 disables. Falls back to LINK_MONITOR_ERRORS_WINDOW env.
+linkMonitorFlapWindow	3m0s	how long a link flap stays a problem; 0 disables. Falls back to LINK_MONITOR_FLAP_WINDOW env.
+linkMonitorIPMaxBytes	33554432	largest /ip response body in bytes. Falls back to LINK_MONITOR_IP_MAX_BYTES env.
+linkMonitorIPPaths	false	serve the read-only `ip ... show` paths under /ip and /i on the Prometheus listener; they expose host addresses. Falls back to LINK_MONITOR_IP_PATHS env.
 linkMonitorMaxSpeedExceptions		comma-separated exact selectors exempt from the max-speed check. Falls back to LINK_MONITOR_MAX_SPEED_EXCEPTIONS env.
 linkMonitorMetricsAll	false	register every link monitor metric, including bulk driver, RDMA and netstat counters, instead of the alerting summary. Falls back to LINK_MONITOR_METRICS_ALL env.
+linkMonitorMetricsAllPath	/metrics-all	path serving every link monitor metric on the Prometheus listener; empty serves none. Falls back to LINK_MONITOR_METRICS_ALL_PATH env.
+linkMonitorMetricsCategories	link,traffic,ethtool,driver,rdma,netstat,collection	comma-separated detail categories served at -promPath/<category>; empty serves none. Falls back to LINK_MONITOR_METRICS_CATEGORIES env.
 linkMonitorMetricsCoreExclude		anchored regexp of link monitor metric names removed from the selection. Falls back to LINK_MONITOR_METRICS_CORE_EXCLUDE env.
 linkMonitorMetricsCoreInclude		anchored regexp of link monitor metric names registered on xtcp2's registry; empty with an empty exclude = the alerting summary, otherwise the core audit set. Falls back to LINK_MONITOR_METRICS_CORE_INCLUDE env.
+linkMonitorMetricsInterfacePaths	true	serve -promPath/<category>/<interface> and -linkMonitorMetricsAllPath/<interface>. Falls back to LINK_MONITOR_METRICS_INTERFACE_PATHS env.
 linkMonitorNetstatFields	.*	regexp of host protocol (netstat) fields collected. Falls back to LINK_MONITOR_NETSTAT_FIELDS env.
 linkMonitorOnDemandTTL	15s	on demand: how long collected detail is reused; 0 collects on every scrape. Falls back to LINK_MONITOR_ON_DEMAND_TTL env.
+linkMonitorOnDemandWait	5s	on demand: longest a detail scrape waits for collection before serving what it has (under 10s). Falls back to LINK_MONITOR_ON_DEMAND_WAIT env.
 linkMonitorResync	1h0m0s	full link resync interval (positive). Falls back to LINK_MONITOR_RESYNC env.
 linkMonitorSettle	30s	how long link state must hold before the first baseline is recorded. Falls back to LINK_MONITOR_SETTLE env.
 linkMonitorSlowInterval	5m0s	on demand: settings and RDMA capability polling interval (positive). Falls back to LINK_MONITOR_SLOW_INTERVAL env.
