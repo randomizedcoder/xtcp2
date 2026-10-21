@@ -89,7 +89,7 @@ const (
 	// mainFlags field must be a registered flag and every registered flag must
 	// have a field. A flag added without a field, or a field that stops being
 	// registered, is the drift this file exists to notice.
-	mainFlagsFieldCountCst = 113
+	mainFlagsFieldCountCst = 123
 
 	printFlagsGoldenCst  = "testdata/printflags-golden.txt"
 	defineFlagsGoldenCst = "testdata/defineflags-golden.txt"
@@ -238,6 +238,16 @@ func populatedMainFlags() *mainFlags {
 		linkMonitorWatchInterval:      ms(144),
 		linkMonitorSlowInterval:       ms(145),
 		linkMonitorOnDemandTTL:        ms(146),
+		linkMonitorOnDemandWait:       ms(147),
+		linkMonitorErrorsWindow:       ms(148),
+		linkMonitorFlapWindow:         ms(149),
+		linkMonitorErrorsClasses:      s("linkMonitorErrorsClasses-v"),
+		linkMonitorErrorsExclude:      s("linkMonitorErrorsExclude-v"),
+		linkMonitorMetricsCategories:  s("linkMonitorMetricsCategories-v"),
+		linkMonitorInterfacePaths:     b(false),
+		linkMonitorMetricsAllPath:     s("linkMonitorMetricsAllPath-v"),
+		linkMonitorIPPaths:            b(true),
+		linkMonitorIPMaxBytes:         u(150),
 
 		ipv4Ttl:            u(126),
 		ipv6HopLimit:       u(127),

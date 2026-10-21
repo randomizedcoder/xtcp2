@@ -7,7 +7,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"net/http/pprof" // registered explicitly on the prom mux in initPromHandler (see there)
 	"os"
 	"os/signal"
 	"runtime"
@@ -21,10 +20,7 @@ import (
 	"github.com/bufbuild/protovalidate-go"
 	"github.com/grafana/pyroscope-go"
 	"github.com/pkg/profile"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
-	"github.com/randomizedcoder/xtcp2/pkg/health"
 	"github.com/randomizedcoder/xtcp2/pkg/listener"
 	"github.com/randomizedcoder/xtcp2/pkg/listenerauth"
 	"github.com/randomizedcoder/xtcp2/pkg/misc"
@@ -338,6 +334,16 @@ type mainFlags struct {
 	linkMonitorWatchInterval      *time.Duration
 	linkMonitorSlowInterval       *time.Duration
 	linkMonitorOnDemandTTL        *time.Duration
+	linkMonitorOnDemandWait       *time.Duration
+	linkMonitorErrorsWindow       *time.Duration
+	linkMonitorFlapWindow         *time.Duration
+	linkMonitorErrorsClasses      *string
+	linkMonitorErrorsExclude      *string
+	linkMonitorMetricsCategories  *string
+	linkMonitorInterfacePaths     *bool
+	linkMonitorMetricsAllPath     *string
+	linkMonitorIPPaths            *bool
+	linkMonitorIPMaxBytes         *uint
 
 	ipv4Ttl            *uint
 	ipv6HopLimit       *uint
@@ -985,13 +991,6 @@ func prepareConfig(f *mainFlags) (*xtcp_config.XtcpConfig, bool) {
 // that returns immediately so cmd/xtcp2 tests don't need real netlink.
 var daemonRunner = runDaemonDefault
 
-// promHandlerStarter is the indirection point for the prom-handler
-// goroutine launch. Default starts the real handler; tests swap it for
-// a no-op to skip the port-bind.
-var promHandlerStarter = func(promPath string, prometheusListener *xtcp_config.ListenerEndpoint, promListen string, ipv4TTL, ipv6HopLimit uint32, auth, adminAuth *xtcp_config.ListenerAuth) {
-	go initPromHandler(promPath, prometheusListener, promListen, ipv4TTL, ipv6HopLimit, auth, adminAuth)
-}
-
 func main() {
 	misc.DieIfNotLinux()
 	os.Exit(runMain(context.Background()))
@@ -1004,7 +1003,7 @@ func runMain(ctx context.Context) int {
 	defer cancel()
 
 	complete := make(chan struct{}, signalChannelSizeCst)
-	go initSignalHandler(cancel, complete)
+	go initSignalHandler(cancel, complete, linkMonitorHTTP.rebaseline)
 
 	f := defineFlags()
 	flag.Parse()
@@ -1079,7 +1078,19 @@ func runMain(ctx context.Context) int {
 		fatalf("listener auth config invalid: %v", err)
 		return 1
 	}
-	promHandlerStarter(*f.promPath, c.PrometheusListener, *f.promListen, c.Ipv4Ttl, c.Ipv6HopLimit, c.ListenerAuth, c.AdminListenerAuth)
+	linkMonitorHTTP.promPath = *f.promPath
+	// The prom server drains after the daemon, so scrapes and /readyz see the
+	// shutdown through to the end.
+	var promWG sync.WaitGroup
+	defer promWG.Wait()
+	defer cancel()
+	if err := promHandlerStarter(runCtx, &promWG, promParams{
+		path: *f.promPath, listener: c.PrometheusListener, listen: *f.promListen,
+		ipv4TTL: c.Ipv4Ttl, ipv6HopLimit: c.Ipv6HopLimit, auth: c.ListenerAuth, adminAuth: c.AdminListenerAuth,
+	}); err != nil {
+		fatalf("%v", err)
+		return 1
+	}
 	if debugLevel > 10 {
 		log.Println("Prometheus http listener started on:", *f.promListen, *f.promPath)
 	}
@@ -1093,6 +1104,9 @@ func runMain(ctx context.Context) int {
 	}
 
 	daemonRunner(runCtx, cancel, c)
+	// The signal handler exits once complete is sent, so drain first.
+	cancel()
+	promWG.Wait()
 	select {
 	case complete <- struct{}{}:
 	default:
@@ -1107,6 +1121,11 @@ func runMain(ctx context.Context) int {
 // and run RunWithPoller until ctx cancels the WG.
 func runDaemonDefault(ctx context.Context, cancel context.CancelFunc, c *xtcp_config.XtcpConfig) {
 	x := xtcp.NewXTCP(ctx, cancel, c)
+	detach, err := linkMonitorHTTP.attach(x)
+	if err != nil {
+		fatalf("link monitor http: %v", err)
+		return
+	}
 
 	// Soft-restart wiring: the gRPC ConfigService.Set handler calls this hook
 	// with a validated new config. Record it, then (after a short grace so the
@@ -1132,6 +1151,7 @@ func runDaemonDefault(ctx context.Context, cancel context.CancelFunc, c *xtcp_co
 		log.Println("xtcp.Run(ctx) complete. wg.Wait()")
 	}
 	wg.Wait()
+	detach()
 
 	// Graceful shutdown is complete here — the Poller's deferred flush and
 	// closeDestination have drained all buffered records, so no data is lost.
@@ -1203,14 +1223,15 @@ func envWithoutKey(env []string, key string) []string {
 }
 
 // initSignalHandler sets up signal handling for the process, and
-// will call cancel() when received
-func initSignalHandler(cancel context.CancelFunc, complete <-chan struct{}) {
+// will call cancel() when received. SIGUSR1 calls rebaseline instead.
+func initSignalHandler(cancel context.CancelFunc, complete <-chan struct{}, rebaseline func()) {
 	c := make(chan os.Signal, signalChannelSizeCst)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-	awaitSignalAndShutdown(c, cancel, complete, cancelSleepTimeCst, true)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGUSR1)
+	awaitSignalAndShutdown(c, cancel, complete, cancelSleepTimeCst, true, rebaseline)
 }
 
-// awaitSignalAndShutdown blocks on `sigs`, calls cancel(), then waits for
+// awaitSignalAndShutdown blocks on `sigs` until a signal other than SIGUSR1,
+// calls cancel(), then waits for
 // either `complete` or `timeout` before optionally calling os.Exit(0).
 // Split out so tests can drive it with a synthetic sigs channel and
 // doExit=false (without raising real OS signals or terminating the test
@@ -1221,8 +1242,14 @@ func awaitSignalAndShutdown(
 	complete <-chan struct{},
 	timeout time.Duration,
 	doExit bool,
+	rebaseline func(),
 ) {
-	<-sigs
+	// SIGUSR1 never shuts down; a nil rebaseline ignores it.
+	for sig := <-sigs; sig == syscall.SIGUSR1; sig = <-sigs {
+		if rebaseline != nil {
+			rebaseline()
+		}
+	}
 	log.Printf("Signal caught, closing application")
 	cancel()
 
@@ -1240,76 +1267,6 @@ func awaitSignalAndShutdown(
 
 	if doExit {
 		os.Exit(0) //nolint:gocritic // intentional process exit; deferred timer.Stop is moot once the process terminates
-	}
-}
-
-// initPromHandler starts the prom handler with error checking
-// https://pkg.go.dev/github.com/prometheus/client_golang/prometheus/promhttp?tab=doc#HandlerOpts
-// fatalf is the package-level abort handler. Defaults to log.Fatalf;
-// tests swap this in for a capture so servePromHandler's
-// ListenAndServe error branch is exercisable without exiting.
-var fatalf = log.Fatalf
-
-func initPromHandler(promPath string, prometheusListener *xtcp_config.ListenerEndpoint, promListen string, ipv4TTL, ipv6HopLimit uint32, auth, adminAuth *xtcp_config.ListenerAuth) {
-	// A dedicated mux (not http.DefaultServeMux) for this listener. This is what
-	// lets pprof be registered EXPLICITLY below without the blank
-	// `_ "net/http/pprof"` side-effect import (which trips gosec G108): that
-	// import's init() registers /debug/pprof/* on DefaultServeMux, so serving
-	// our own mux both keeps DefaultServeMux out of the request path and avoids
-	// a double-registration panic.
-	mux := http.NewServeMux()
-	mux.Handle(promPath, promhttp.HandlerFor(
-		prometheus.DefaultGatherer,
-		promhttp.HandlerOpts{
-			EnableOpenMetrics:   promEnableOpenMetrics,
-			MaxRequestsInFlight: promMaxRequestsInFlight,
-		},
-	))
-	// Liveness + readiness for container/k8s deployment, on the same listener.
-	mux.HandleFunc("/healthz", health.Healthz)
-	mux.HandleFunc("/readyz", health.Readyz)
-	// pprof on the prom listener for on-demand forensic stack snapshots.
-	// pprof.Index also serves the named runtime profiles
-	// (/debug/pprof/goroutine, /heap, …).
-	mux.HandleFunc("/debug/pprof/", pprof.Index)
-	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
-	// pprof exposes command lines, heap contents and CPU profiles, so it is
-	// an admin path; metrics and health checks are read paths.
-	policy, err := listenerauth.NewPolicy(auth, adminAuth, nil)
-	if err != nil {
-		fatalf("listener auth config invalid: %v", err)
-		return
-	}
-	go servePromHandler(policy.WrapHTTP(mux, listenerauth.PathAccess("/debug/pprof/")), prometheusListener, promListen, ipv4TTL, ipv6HopLimit)
-}
-
-// servePromHandler runs the prom HTTP server on promListen. On
-// ListenAndServe failure it invokes fatalf (default log.Fatalf in
-// production, swapped to a capture by tests). Extracted from
-// initPromHandler so tests can drive the error path in isolation.
-func servePromHandler(handler http.Handler, prometheusListener *xtcp_config.ListenerEndpoint, promListen string, ipv4TTL, ipv6HopLimit uint32) {
-	srv := &http.Server{
-		Handler:           handler,
-		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout:       10 * time.Second,
-		WriteTimeout:      10 * time.Second,
-		IdleTimeout:       30 * time.Second,
-	}
-	ep, err := listener.EndpointFromProto(prometheusListener, listener.NetworkTCP, promListen)
-	if err != nil {
-		fatalf("prometheus listener config: %v", err)
-		return
-	}
-	ln, err := listener.Listen(context.Background(), ep, ipv4TTL, ipv6HopLimit)
-	if err != nil {
-		fatalf("prometheus error, listen: %v", err)
-		return
-	}
-	if err := srv.Serve(ln); err != nil {
-		fatalf("prometheus error: %v", err)
 	}
 }
 

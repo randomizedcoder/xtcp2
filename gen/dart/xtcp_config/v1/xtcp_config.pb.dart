@@ -1138,6 +1138,16 @@ class LinkMonitorConfig extends $pb.GeneratedMessage {
     $1.Duration? watchInterval,
     $1.Duration? slowInterval,
     $1.Duration? onDemandTtl,
+    $1.Duration? onDemandWait,
+    $1.Duration? errorWindow,
+    $1.Duration? flapWindow,
+    $core.String? errorClasses,
+    $core.String? errorExclude,
+    $core.String? metricsCategories,
+    $core.bool? metricsInterfacePaths,
+    $core.String? metricsAllPath,
+    $core.bool? ipPaths,
+    $core.int? ipMaxBytes,
   }) {
     final result = create();
     if (enable != null) result.enable = enable;
@@ -1159,6 +1169,17 @@ class LinkMonitorConfig extends $pb.GeneratedMessage {
     if (watchInterval != null) result.watchInterval = watchInterval;
     if (slowInterval != null) result.slowInterval = slowInterval;
     if (onDemandTtl != null) result.onDemandTtl = onDemandTtl;
+    if (onDemandWait != null) result.onDemandWait = onDemandWait;
+    if (errorWindow != null) result.errorWindow = errorWindow;
+    if (flapWindow != null) result.flapWindow = flapWindow;
+    if (errorClasses != null) result.errorClasses = errorClasses;
+    if (errorExclude != null) result.errorExclude = errorExclude;
+    if (metricsCategories != null) result.metricsCategories = metricsCategories;
+    if (metricsInterfacePaths != null)
+      result.metricsInterfacePaths = metricsInterfacePaths;
+    if (metricsAllPath != null) result.metricsAllPath = metricsAllPath;
+    if (ipPaths != null) result.ipPaths = ipPaths;
+    if (ipMaxBytes != null) result.ipMaxBytes = ipMaxBytes;
     return result;
   }
 
@@ -1197,6 +1218,20 @@ class LinkMonitorConfig extends $pb.GeneratedMessage {
         subBuilder: $1.Duration.create)
     ..aOM<$1.Duration>(16, _omitFieldNames ? '' : 'onDemandTtl',
         subBuilder: $1.Duration.create)
+    ..aOM<$1.Duration>(17, _omitFieldNames ? '' : 'onDemandWait',
+        subBuilder: $1.Duration.create)
+    ..aOM<$1.Duration>(18, _omitFieldNames ? '' : 'errorWindow',
+        subBuilder: $1.Duration.create)
+    ..aOM<$1.Duration>(19, _omitFieldNames ? '' : 'flapWindow',
+        subBuilder: $1.Duration.create)
+    ..aOS(20, _omitFieldNames ? '' : 'errorClasses')
+    ..aOS(21, _omitFieldNames ? '' : 'errorExclude')
+    ..aOS(22, _omitFieldNames ? '' : 'metricsCategories')
+    ..aOB(23, _omitFieldNames ? '' : 'metricsInterfacePaths')
+    ..aOS(24, _omitFieldNames ? '' : 'metricsAllPath')
+    ..aOB(25, _omitFieldNames ? '' : 'ipPaths')
+    ..aI(26, _omitFieldNames ? '' : 'ipMaxBytes',
+        fieldType: $pb.PbFieldType.OU3)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1393,6 +1428,119 @@ class LinkMonitorConfig extends $pb.GeneratedMessage {
   void clearOnDemandTtl() => $_clearField(16);
   @$pb.TagNumber(16)
   $1.Duration ensureOnDemandTtl() => $_ensure(15);
+
+  /// On demand: longest a detail scrape waits for collection before serving
+  /// what it has. Default 5s; under the 10s detail path timeout.
+  @$pb.TagNumber(17)
+  $1.Duration get onDemandWait => $_getN(16);
+  @$pb.TagNumber(17)
+  set onDemandWait($1.Duration value) => $_setField(17, value);
+  @$pb.TagNumber(17)
+  $core.bool hasOnDemandWait() => $_has(16);
+  @$pb.TagNumber(17)
+  void clearOnDemandWait() => $_clearField(17);
+  @$pb.TagNumber(17)
+  $1.Duration ensureOnDemandWait() => $_ensure(16);
+
+  /// How long an error counter increase, and a link flap, stays a problem.
+  /// Default 180s; 0 disables. A nonzero window is at least the poll
+  /// interval of the collector it watches.
+  @$pb.TagNumber(18)
+  $1.Duration get errorWindow => $_getN(17);
+  @$pb.TagNumber(18)
+  set errorWindow($1.Duration value) => $_setField(18, value);
+  @$pb.TagNumber(18)
+  $core.bool hasErrorWindow() => $_has(17);
+  @$pb.TagNumber(18)
+  void clearErrorWindow() => $_clearField(18);
+  @$pb.TagNumber(18)
+  $1.Duration ensureErrorWindow() => $_ensure(17);
+
+  @$pb.TagNumber(19)
+  $1.Duration get flapWindow => $_getN(18);
+  @$pb.TagNumber(19)
+  set flapWindow($1.Duration value) => $_setField(19, value);
+  @$pb.TagNumber(19)
+  $core.bool hasFlapWindow() => $_has(18);
+  @$pb.TagNumber(19)
+  void clearFlapWindow() => $_clearField(19);
+  @$pb.TagNumber(19)
+  $1.Duration ensureFlapWindow() => $_ensure(18);
+
+  /// Comma-separated error classes that count as problems: link, rdma, drop.
+  /// Unset is "link,rdma"; empty counts none.
+  @$pb.TagNumber(20)
+  $core.String get errorClasses => $_getSZ(19);
+  @$pb.TagNumber(20)
+  set errorClasses($core.String value) => $_setString(19, value);
+  @$pb.TagNumber(20)
+  $core.bool hasErrorClasses() => $_has(19);
+  @$pb.TagNumber(20)
+  void clearErrorClasses() => $_clearField(20);
+
+  /// Anchored regexp of error series keys never counted as problems.
+  @$pb.TagNumber(21)
+  $core.String get errorExclude => $_getSZ(20);
+  @$pb.TagNumber(21)
+  set errorExclude($core.String value) => $_setString(20, value);
+  @$pb.TagNumber(21)
+  $core.bool hasErrorExclude() => $_has(20);
+  @$pb.TagNumber(21)
+  void clearErrorExclude() => $_clearField(21);
+
+  /// Comma-separated detail categories served at <promPath>/<category>:
+  /// link, traffic, ethtool, driver, rdma, netstat, collection. Unset is
+  /// every category; empty serves none.
+  @$pb.TagNumber(22)
+  $core.String get metricsCategories => $_getSZ(21);
+  @$pb.TagNumber(22)
+  set metricsCategories($core.String value) => $_setString(21, value);
+  @$pb.TagNumber(22)
+  $core.bool hasMetricsCategories() => $_has(21);
+  @$pb.TagNumber(22)
+  void clearMetricsCategories() => $_clearField(22);
+
+  /// Serve <promPath>/<category>/<interface> and <metrics_all_path>/<interface>.
+  /// Unset is true.
+  @$pb.TagNumber(23)
+  $core.bool get metricsInterfacePaths => $_getBF(22);
+  @$pb.TagNumber(23)
+  set metricsInterfacePaths($core.bool value) => $_setBool(22, value);
+  @$pb.TagNumber(23)
+  $core.bool hasMetricsInterfacePaths() => $_has(22);
+  @$pb.TagNumber(23)
+  void clearMetricsInterfacePaths() => $_clearField(23);
+
+  /// The all-metrics path. Unset is "/metrics-all"; empty serves none.
+  @$pb.TagNumber(24)
+  $core.String get metricsAllPath => $_getSZ(23);
+  @$pb.TagNumber(24)
+  set metricsAllPath($core.String value) => $_setString(23, value);
+  @$pb.TagNumber(24)
+  $core.bool hasMetricsAllPath() => $_has(23);
+  @$pb.TagNumber(24)
+  void clearMetricsAllPath() => $_clearField(24);
+
+  /// Serve the read-only `ip … show` paths under /ip and /i. They expose
+  /// host addresses, so they are off by default.
+  @$pb.TagNumber(25)
+  $core.bool get ipPaths => $_getBF(24);
+  @$pb.TagNumber(25)
+  set ipPaths($core.bool value) => $_setBool(24, value);
+  @$pb.TagNumber(25)
+  $core.bool hasIpPaths() => $_has(24);
+  @$pb.TagNumber(25)
+  void clearIpPaths() => $_clearField(25);
+
+  /// Largest /ip response body in bytes. 0 is the default, 32 MiB.
+  @$pb.TagNumber(26)
+  $core.int get ipMaxBytes => $_getIZ(25);
+  @$pb.TagNumber(26)
+  set ipMaxBytes($core.int value) => $_setUnsignedInt32(25, value);
+  @$pb.TagNumber(26)
+  $core.bool hasIpMaxBytes() => $_has(25);
+  @$pb.TagNumber(26)
+  void clearIpMaxBytes() => $_clearField(26);
 }
 
 /// xtcp configuration
