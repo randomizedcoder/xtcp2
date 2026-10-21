@@ -286,15 +286,30 @@ All are in `xtcp_counts`.
 
 ## Link monitor
 
-With `-linkMonitor`, the link monitor's own `go_link_monitor_*` metrics are registered on the same endpoint. They have their own levels:
+The link monitor runs inside xtcp2 by default ([design](design-linkmonitor-in-xtcp2.md)); `-linkMonitor=false` removes everything in this section. Its own `go_link_monitor_*` metrics come in levels:
 
-| setting | what's registered |
+| setting | what `/metrics` carries |
 |---|---|
-| default | the alerting summary, which costs the same however many interfaces there are |
-| `-linkMonitorMetricsCoreInclude` / `-linkMonitorMetricsCoreExclude` | the core set, filtered by name |
+| default | the alerting summary (5 series on a healthy host, plus 1 per active problem), `go_link_monitor_collection_mode` and, on demand, `go_link_monitor_on_demand_refreshes_total{result}` |
+| `-linkMonitorMetricsCoreInclude` / `-linkMonitorMetricsCoreExclude` | the core set, filtered by name, instead of the summary |
 | `-linkMonitorMetricsAll` | every metric, including bulk driver, RDMA and netstat counters, plus the summary |
 
-The link monitor's [README](../cmd/go-link-monitor/README.md) covers its Prometheus paths, and [METRICS.md](../cmd/go-link-monitor/METRICS.md) lists every family.
+Detail has its own paths on the same listener, as on go-link-monitor:
+
+| path | carries |
+|---|---|
+| `/metrics/<category>` | one category: `link`, `traffic`, `ethtool`, `driver`, `rdma`, `netstat`, `collection` |
+| `/metrics/<category>/<iface>` | that category for one interface |
+| `/metrics-all`, `/metrics-all/<iface>` | the full collector, about 6,100 series on a large RDMA host |
+
+Two xtcp2 series report the monitor itself:
+
+| function | variable | type | metric | meaning |
+|---|---|---|---|---|
+| `linkMonitor` | `up` | gauge | gauges | 1 while the monitor runs, 0 once it has stopped or failed |
+| `linkMonitor` | `failed` | error | counts | the monitor stopped on an error while xtcp2 ran on, for example a corrupt or locked baseline |
+
+The link monitor's [README](../cmd/go-link-monitor/README.md) covers the paths in depth, and [METRICS.md](../cmd/go-link-monitor/METRICS.md) lists every family.
 
 ## Listing the series yourself
 

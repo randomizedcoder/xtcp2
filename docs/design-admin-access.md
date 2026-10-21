@@ -150,7 +150,7 @@ func (m *Monitor) Await(ctx context.Context, t ControlTicket) error
 
 | Host | Listener | Authentication |
 |---|---|---|
-| go-link-monitor | `-admin.network unix\|tcp`, `-admin.address` (empty = disabled; the NixOS module sets `/run/go-link-monitor/admin.sock`), `-admin.unix-socket-mode` (default 0660) | Socket permissions, plus `Policy` when `-auth.*` is set |
+| go-link-monitor | `-admin.network unix\|tcp`, `-admin.address` (empty, the default, disables it; for example `/run/go-link-monitor/admin.sock`), `-admin.unix-socket-mode` (default 0660) | Socket permissions, plus `Policy` when `-auth.*` is set |
 | xtcp2 | the existing gRPC listener | `listener_auth` and `admin_listener_auth` |
 
 go-link-monitor binds the admin listener in its bind-everything-first step and
@@ -160,21 +160,28 @@ runs `grpc.Server` with the `Policy` interceptors, health and reflection. A gRPC
 stay open, as today. SIGUSR1 stays as a local rebaseline shortcut.
 
 On a Unix socket, the server's transport credentials read `SO_PEERCRED`, so the
-audit record names the caller as `uid=N pid=N`. The NixOS module's `adminGroup`
-creates the socket directory setgid to that group (mode 2750), so the root
-daemon's 0660 socket inherits the group without a chown. Its `readTokenFile`
-and `adminTokenFile` reach the unit through `LoadCredential`.
+audit record names the caller as `uid=N pid=N`. To give a group access,
+create the socket directory setgid to that group (mode 2750), so the root
+daemon's 0660 socket inherits the group without a chown, and pass token files
+to the unit through `LoadCredential`. This repo ships no go-link-monitor NixOS
+module; the xtcp2 module runs the monitor embedded instead
+([design](design-linkmonitor-in-xtcp2.md)).
 
 **Fail closed.** `listenerauth` treats `DISABLED` as "allow everyone" on purpose.
 go-link-monitor exits 2 on a non-loopback TCP admin address with admin auth
 disabled, unless `-admin.insecure` is set.
 
-xtcp2 embeds the monitor through `link_monitor` (field 250) in `XtcpConfig`. It
-registers the core-filtered Prometheus collector on xtcp2's registry and
-`LinkMonitorService` on its gRPC server. When the monitor is disabled the service
-is still registered and returns `FailedPrecondition` ("link monitor disabled"),
-so clients get a clear error. An embedded and a standalone monitor cannot share
-one baseline file; the second one logs the lock error and exits 1.
+xtcp2 embeds the monitor through `link_monitor` (field 250) in `XtcpConfig`, on
+by default ([design](design-linkmonitor-in-xtcp2.md)). It adds the problem
+summary to xtcp2's `/metrics`, serves go-link-monitor's detail paths on the
+Prometheus listener and registers `LinkMonitorService` on its gRPC server. When
+the monitor is disabled the service is still registered and returns
+`FailedPrecondition` ("link monitor disabled"), so clients get a clear error.
+An embedded and a standalone monitor cannot share one baseline file; the
+embedded one, when it is second, logs the lock error and is marked down while
+xtcp2 runs on, so `Rebaseline` and `Resync` return `Unavailable`. SIGUSR1, or
+`systemctl reload xtcp2` under the NixOS module, rebaselines locally, as for
+go-link-monitor.
 
 ## CLI layout
 
