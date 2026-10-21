@@ -261,9 +261,30 @@ proc capture_triple {row dev} {
 }
 
 ###############################################################################
+# setup_step <ns> <step> - one Setup step; 0 when it applied.
+#
+# A step is an `ip` argument list for nltopo::topo, or `sysctl KEY VALUE`,
+# which xtcp2-nlcap writes under /proc/sys in the namespace (the corpus's
+# pre_step form in addr-corpus.exp; `route get … iif` needs forwarding on).
+###############################################################################
+
+proc setup_step {ns step} {
+    global SUBDIR
+    if {[lindex $step 0] eq "sysctl"} {
+        if {[llength $step] != 3} {
+            vmlib::log "setup: a sysctl step is {sysctl KEY VALUE}: $step"
+            return 1
+        }
+        lassign [vmlib::run_out "xtcp2-nlcap sysctl $ns $SUBDIR [lindex $step 1] [lindex $step 2]"] rc out
+        return $rc
+    }
+    return [nltopo::topo $ns $SUBDIR {*}$step]
+}
+
+###############################################################################
 # setup_read_ns <slug> <setup> - a read row's own namespace.
 #
-# goipw, recreated and prepared with the row's Setup, through nltopo::topo
+# goipw, recreated and prepared with the row's Setup, through setup_step
 # and outside any capture window. Returns the namespace, or "" when a step
 # was refused, in which case the whole row is skipped and the comparator
 # reports it MISSING.
@@ -273,7 +294,7 @@ proc setup_read_ns {slug setup} {
     global NSW SUBDIR write_skipped
     vmlib::must "xtcp2-nlcap ns-add $NSW"
     foreach step [split $setup ";"] {
-        if {[nltopo::topo $NSW $SUBDIR {*}$step] != 0} {
+        if {[setup_step $NSW $step] != 0} {
             lappend write_skipped $slug
             return ""
         }
@@ -292,7 +313,7 @@ proc setup_read_ns {slug setup} {
 # make the same devices in the same order, so each side sees the same
 # ifindexes. They are in the request bytes (ifi_index, IFLA_MASTER).
 #
-# Setup runs through nltopo::topo, outside the capture window. A refused step
+# Setup runs through setup_step, outside the capture window. A refused step
 # skips that side, which the comparator then reports as MISSING.
 #
 # goip sends the lookups and writes its request to GOIP_WRITE_OUT, which is
@@ -316,7 +337,7 @@ proc capture_write_triple {slug floor setup argv_str} {
         vmlib::must "xtcp2-nlcap ns-add $NSW"
         set refused 0
         foreach step $steps {
-            if {[nltopo::topo $NSW $SUBDIR {*}$step] != 0} {
+            if {[setup_step $NSW $step] != 0} {
                 set refused 1
                 break
             }

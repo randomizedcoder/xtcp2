@@ -24,9 +24,9 @@ import (
 //	ls   -> lst,   the third spelling of list, and the only one "ls" matches
 //
 // The write verbs come first in that chain, add through delete, and none
-// starts with 'l' or 's'. After them goip implements list/show/lst and
-// rejects everything else, get/flush/save/restore/showdump included, with
-// ErrNotImplemented. That
+// starts with 'l' or 's'. After them goip implements list/show/lst, then
+// get (route_get.go), and rejects everything else,
+// flush/save/restore/showdump included, with ErrNotImplemented. That
 // is a deliberate narrowing of iproute2's two outcomes — it says "command
 // unknown" for a typo and runs the verb otherwise — into the one the parity
 // harness can act on. A bare `ip route` with no verb is a list
@@ -38,14 +38,18 @@ import (
 // same collapsing.
 func runRoute(c *runCtx, args []string) error {
 	if len(args) > 0 {
-		verb := args[0]
+		verb, rest := args[0], args[1:]
 		if v := lookupRouteWriteVerb(verb); v != nil {
-			return routeWrite(c, v, args[1:])
+			return routeWrite(c, v, rest)
 		}
-		if !matchesPrefix(verb, listVerbCst) && !matchesPrefix(verb, showVerbCst) && !matchesPrefix(verb, lstVerbCst) {
+		isList := matchesPrefix(verb, listVerbCst) || matchesPrefix(verb, showVerbCst) || matchesPrefix(verb, lstVerbCst)
+		if !isList && matchesPrefix(verb, routeGetVerbCst) {
+			return routeGet(c, rest)
+		}
+		if !isList {
 			return fmt.Errorf("route %q: %w", verb, ErrNotImplemented)
 		}
-		args = args[1:]
+		args = rest
 	}
 	sel, err := parseRouteShowArgs(args)
 	if err != nil {
@@ -130,7 +134,7 @@ func parseRouteShowArgs(args []string) (routeSelectors, error) {
 				return routeSelectors{}, err
 			}
 			sel.Table = id
-		case args[i] == devKeywordCst, args[i] == "oif":
+		case args[i] == devKeywordCst, args[i] == oifKeywordCst:
 			kw := args[i]
 			if i+1 >= len(args) {
 				return routeSelectors{}, fmt.Errorf("route show %s: argument expected: %w", kw, ErrNotImplemented)
@@ -501,12 +505,13 @@ func routeMatchesOif(r *model.Route, oif uint32) bool {
 //     none of the main lines and on both nexthops of 203.0.113.0/24.
 func resolveRouteNames(c *runCtx, svc *service.Service, routes []model.Route, oifMask bool) {
 	for i := range routes {
+		r := &routes[i]
 		if !oifMask {
-			resolveIndexName(c, svc, int32(routes[i].Oif))
+			resolveIndexName(c, svc, int32(r.Oif))
 		}
-		resolveIndexName(c, svc, int32(routes[i].Iif))
-		for j := range routes[i].Multipath {
-			resolveIndexName(c, svc, routes[i].Multipath[j].Ifindex)
+		resolveIndexName(c, svc, int32(r.Iif))
+		for j := range r.Multipath {
+			resolveIndexName(c, svc, r.Multipath[j].Ifindex)
 		}
 	}
 }

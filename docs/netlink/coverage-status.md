@@ -10,9 +10,9 @@ several steps, further down under [Remaining](#remaining).
 
 | | count | counted from |
 |---|---|---|
-| commands in the comparison matrix | **183** | `internal/goipparity/commands.go` — 100 read rows (31 of them `addr show` state, selector and output-mode rows with a `Setup`), the 21 link write rows, the 26 route write rows, the 27 address write rows, the 7 address flush rows and the 2 address restore rows |
-| of those, `Implemented: true` | **183** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
-| of those, in `gated_commands` | **182** | `pkg/nlparity/goip-parity-allowlist.json` |
+| commands in the comparison matrix | **189** | `internal/goipparity/commands.go` — 106 read rows (31 of them `addr show` state, selector and output-mode rows with a `Setup`, and 6 `route get` rows with one), the 21 link write rows, the 26 route write rows, the 27 address write rows, the 7 address flush rows and the 2 address restore rows |
+| of those, `Implemented: true` | **189** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
+| of those, in `gated_commands` | **188** | `pkg/nlparity/goip-parity-allowlist.json` |
 | allowlisted divergences | **7** | same file, `entries` |
 | of those, `kind=version-skew` | **7** | all against the pinned `ip` 7.1.0 |
 | of those, `kind=accepted-divergence` | **0** | nothing is *allowlisted* as a permanent divergence — the nine wire divergences runs 8 and 9 measured **could not** be, because a transaction-count divergence is unsuppressible (`nlparity_allowlist.go:143`), and G0 retired every one by changing goip to send `ip`'s requests |
@@ -36,6 +36,9 @@ The twenty-two that were out with it at the start of
   show`, and **the two netconf-dev rows**, once goip sent `ip`'s get by name
   and the segmenter closed an ACKed point get on its ACK, on
   [G0-T03](#g0-t03-the-last-four-rows-gate)'s.
+
+The six `route get` rows G1-T01 added gated on their first two runs; see
+[G1-T01](#g1-t01-the-six-route-get-rows-gate).
 
 The eight stats and netconf-dev rows were the permanent set, measured divergent
 on the wire by
@@ -3519,6 +3522,29 @@ and the `earned`/`gated_commands` pair pin the flip, and
 `TestPermanentWireDivergences` now records that the permanent set is empty.
 The ungated surface is one row, `addr show dynamic`, which passed on both runs
 only because `D_control` caught its countdown; it stays out by design.
+
+### G1-T01: the six `route get` rows gate
+
+[goip-parity-gaps.md](goip-parity-gaps.md#g1--read-verbs-on-running-objects)'s
+G1-T01 adds `goip route get` (`internal/goip/route_get.go`) and six rows, one
+per C1-T02 capture, each with its corpus row's precondition as `Setup`: the
+plain get, `fibmatch`, `notify`, `-6`, `from 198.51.100.2 iif d1` and the
+unreachable `route get 203.0.113.1`. The from/iif get is an input lookup and
+needs `net.ipv4.conf.all.forwarding` on, so `goip-parity.exp` gained a
+`sysctl KEY VALUE` Setup step (`setup_step`), run through `xtcp2-nlcap
+sysctl` as the corpus's `pre_step` runs it.
+
+Two fresh runs of `nix run .#microvm-x86_64-goip-parity -- --timeout 4500`,
+back to back from a scratch worktree with the six rows ungated, printed 189
+`GOIP_PARITY_PASS` of 189 on both, with `GOIP_PARITY_HYGIENE_PASS`,
+`GOIP_PARITY_UNGATED_CLEAN` and `GOIP_PARITY_OVERALL_PASS`. The six read `txns`
+2/2, the get and the `RTM_GETLINK` by index that names the reply's device;
+3/3 for from/iif, whose get by name for `d1` comes first; and 1/1 for the
+unreachable get, whose `ENETUNREACH` both sides exit 2 on. None had a finding.
+The from/iif reply's `RTA_CACHEINFO` carries `rta_clntref`, the cached input
+route's reference count, which differed between `ip_a` and `ip_b` as well, so
+`D_control` suppresses it. All six gate with no allowlist entry, and
+`TestRouteGetRowsGated` and the `earned`/`gated_commands` pair pin them.
 
 ## Tier C — the `goip-parity` microVM flavor
 

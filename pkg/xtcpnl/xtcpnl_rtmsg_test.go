@@ -180,14 +180,39 @@ func TestSetRouteAttr(t *testing.T) {
 			want:        RouteInfo{},
 		},
 		{
-			// RTA_MARK is a real attribute this parser does not decode - `ip`
-			// renders it as `mark N` on a policy route. The silence is the
-			// same silence as the future-attribute row above, but this one
-			// will keep being true when RTA_MARK is eventually implemented
-			// only if the row is updated, which is the point of having it.
-			description: "negative: RTA_MARK is defined but unhandled, and is ignored rather than erroring",
+			// print_route prints a non-zero RTA_MARK as `mark N`
+			// (ip/iproute.c:948-961). No committed reply carries one: the
+			// kernel echoes a mark only when the get asked with one.
+			description: "positive: RTA_MARK decodes its u32 (constructed)",
 			atype:       uint16(unix.RTA_MARK),
 			val:         le32(42),
+			want:        RouteInfo{Mark: 42},
+		},
+		{
+			description: "negative: a 3-byte RTA_MARK is ignored and writes nothing (constructed)",
+			atype:       uint16(unix.RTA_MARK),
+			val:         []byte{1, 2, 3},
+			want:        RouteInfo{},
+		},
+		{
+			// The `route get` reply carries RTA_UID 0 (net/ipv4/route.c
+			// rt_fill_info), and print_route prints it on presence, so uid 0
+			// must be told apart from no uid.
+			description: "positive: the real RTA_UID 0 from the route_get reply decodes and records presence",
+			atype:       uint16(unix.RTA_UID),
+			val:         routeAttrValFromFixture(t, tdRtnlWrite_7_1_4+"/route_get/ip.pcap", 0, uint16(unix.RTA_UID)),
+			want:        RouteInfo{UID: 0, HasUID: true},
+		},
+		{
+			description: "boundary: RTA_UID 0xffffffff decodes whole (constructed)",
+			atype:       uint16(unix.RTA_UID),
+			val:         le32(0xFFFFFFFF),
+			want:        RouteInfo{UID: 0xFFFFFFFF, HasUID: true},
+		},
+		{
+			description: "negative: a 2-byte RTA_UID is ignored, presence included (constructed)",
+			atype:       uint16(unix.RTA_UID),
+			val:         []byte{0, 0},
 			want:        RouteInfo{},
 		},
 		{

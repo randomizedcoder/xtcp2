@@ -1008,11 +1008,14 @@ func TestRunRouteArgs(t *testing.T) {
 			wantStderrSubstr: "not implemented",
 		},
 		{
-			description:      "negative: `get` is refused",
+			// `get` is implemented (route_get.go); with no destination it
+			// stops in its argument loop, before a request, as iproute_get's
+			// `need at least a destination address` does (ip/iproute.c:2193).
+			description:      "negative: `get` with no destination is refused before a request",
 			pcap:             routeDumpPcap,
-			args:             []string{"route", "get", "192.0.2.1"},
+			args:             []string{"route", "get"},
 			wantCode:         ExitUsage,
-			wantStderrSubstr: "not implemented",
+			wantStderrSubstr: "need at least a destination address",
 		},
 		{
 			// A dev-less add needs no lookup, so it reaches the hook with

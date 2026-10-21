@@ -142,7 +142,7 @@ var routeParseKeywords = []routeKeyword{
 	{keyword: "table", prefix: true, arm: routeArmTable},
 	{keyword: vrfKeywordCst, prefix: true, arm: routeArmUnsupported},
 	{keyword: devKeywordCst, arm: routeArmDev},
-	{keyword: "oif", arm: routeArmDev},
+	{keyword: oifKeywordCst, arm: routeArmDev},
 	{keyword: "pref", prefix: true, arm: routeArmUnsupported},
 	{keyword: "encap", arm: routeArmUnsupported},
 	{keyword: "ttl-propagate", arm: routeArmUnsupported},

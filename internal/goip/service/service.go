@@ -395,6 +395,41 @@ func (s *Service) Routes(family uint8, table, oif uint32) ([]model.Route, error)
 	return out, nil
 }
 
+// RouteGet performs the RTM_GETROUTE single get behind `ip route get` and
+// decodes its one RTM_NEWROUTE reply. A kernel refusal, `Network is
+// unreachable`, comes back as the talk's error.
+//
+// A dump-only replay source cannot run a get, so it falls back as NexthopByID
+// does: it replays the recorded RTM_NEWROUTE replies, of which a route get
+// capture holds one, and answers with the first.
+func (s *Service) RouteGet(g xtcpnl.RouteGet) (model.Route, error) {
+	r, err := req.RouteGet(g, s.nextSeq())
+	if err != nil {
+		return model.Route{}, fmt.Errorf("goip: build route get request: %w", err)
+	}
+	var body []byte
+	if talk, ok := s.src.(TalkSource); ok {
+		body, err = talk.Talk(r, uint16(unix.RTM_NEWROUTE))
+		if err != nil {
+			return model.Route{}, err
+		}
+	} else {
+		bodies, derr := s.src.Dump(r, uint16(unix.RTM_NEWROUTE))
+		if derr != nil {
+			return model.Route{}, derr
+		}
+		if len(bodies) == 0 {
+			return model.Route{}, errors.New("goip: no RTM_NEWROUTE reply in the capture")
+		}
+		body = bodies[0]
+	}
+	ri, err := xtcpnl.ParseNewRoute(body)
+	if err != nil {
+		return model.Route{}, fmt.Errorf("goip: decode RTM_NEWROUTE: %w", err)
+	}
+	return model.Route(ri), nil
+}
+
 // NexthopByID performs the RTM_GETNEXTHOP single-get `ip -d route show` sends
 // for each distinct RTA_NH_ID (ipnh_cache_add). family is preferred_family.
 //

@@ -1014,7 +1014,9 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	//   - the six stats dump rows on G0-T02's, once goip named each record with
 	//     `ip`'s get by index — see TestStatsDumpRowsGated;
 	//   - the two `-s` sweep rows and the two netconf-dev rows on G0-T03's —
-	//     see TestNetconfDevAndSweepRowsGated.
+	//     see TestNetconfDevAndSweepRowsGated;
+	//   - the six `route get` rows G1-T01 added, on their first two runs —
+	//     see TestRouteGetRowsGated.
 	//
 	// The last four were the permanent set, measured divergent on the wire;
 	// TestPermanentWireDivergences records that it is empty.
@@ -2446,4 +2448,65 @@ func TestNetconfDevAndSweepRowsGated(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestRouteGetRowsGated pins G1-T01's six `route get` rows: implemented, with
+// their corpus rows' preconditions as Setup, and gated with no allowlist entry
+// after two clean runs.
+//
+// go test ./internal/goipparity/ -run TestRouteGetRowsGated
+func TestRouteGetRowsGated(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	type want struct {
+		implemented, gated, setup bool
+		floor, entries            int
+	}
+	gated := func(floor int) want { return want{implemented: true, gated: true, setup: true, floor: floor} }
+	rows := []struct {
+		description string
+		command     string
+		expected    want
+	}{
+		{"positive: the plain get, a cloned reply with uid and cache", "route get 192.0.2.5", gated(4)},
+		{"positive: fibmatch, the matched FIB entry", "route get fibmatch 192.0.2.5", gated(4)},
+		{"positive: notify, echoed in the flags and the cache line", "route get 192.0.2.5 notify", gated(4)},
+		{"positive: -6, no lookup-table flag and no cache line", "-6 route get 2001:db8::5", gated(4)},
+		{"corner: from/iif, the get by name first, its Setup's sysctl step", "route get 192.0.2.5 from 198.51.100.2 iif d1", gated(6)},
+		{"boundary: the unreachable get, the request and its error alone", "route get 203.0.113.1", gated(2)},
+		{"negative: a route get form not in the matrix is neither", "route get 192.0.2.6", want{}},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			var got want
+			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				got.implemented, got.setup, got.floor = c.Implemented, len(c.Setup) > 0, c.Floor
+			}
+			got.gated = al.IsGated(r.command)
+			got.entries = len(al.EntriesFor(r.command))
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+		})
+	}
+
+	t.Run("corner: only the from/iif row's Setup carries a sysctl step", func(t *testing.T) {
+		for _, c := range Commands() {
+			n := 0
+			for _, step := range c.Setup {
+				if strings.HasPrefix(step, "sysctl ") {
+					n++
+				}
+			}
+			expected := 0
+			if c.Slug == "route_get_from_iif" {
+				expected = 1
+			}
+			if n != expected {
+				t.Errorf("%s: %d sysctl steps, want %d", c.Slug, n, expected)
+			}
+		}
+	})
 }

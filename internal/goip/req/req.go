@@ -329,6 +329,15 @@ func RouteShowDump(family uint8, table, oif, seq uint32) ([]byte, error) {
 	return xtcpnl.BuildDumpRouteRequestFilter(family, table, oif, seq)
 }
 
+// RouteGet is the RTM_GETROUTE single get behind `ip route get`
+// (iproute_get, ip/iproute.c:2043). Unlike RouteShowDump, `iif` IS on this
+// request, as RTA_IIF: a get asks the kernel to run an input lookup, where a
+// dump only filters what it prints. xtcpnl.BuildGetRouteRequest has the
+// captured forms.
+func RouteGet(g xtcpnl.RouteGet, seq uint32) ([]byte, error) {
+	return xtcpnl.BuildGetRouteRequest(g, seq)
+}
+
 // NeighShowDump delegates to the verified ndmsg dump builder, carrying the two
 // filters goip can reach: NDA_IFINDEX, for `ip neigh show dev NAME`, and
 // ndm_flags, for `ip neigh show proxy`.

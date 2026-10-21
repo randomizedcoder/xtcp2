@@ -419,6 +419,51 @@ func BuildDumpRouteRequestFilter(family uint8, table, oif, seq uint32) ([]byte, 
 	return BuildRequest(uint16(unix.RTM_GETROUTE), uint16(unix.NLM_F_DUMP), seq, hdr, attrs)
 }
 
+// RouteGet is the request `ip route get` builds (iproute_get,
+// ip/iproute.c:2043-2224): the four rtmsg fields its arguments set, and the
+// attributes in the order it adds them.
+//
+// Attrs is a list rather than a field per attribute because the order is the
+// argv's: `from` writes RTA_SRC and the destination writes RTA_DST at the
+// point each is parsed, so `get 192.0.2.5 from X` and `get from X 192.0.2.5`
+// send the same attributes in different orders. RTA_IIF, RTA_OIF and RTA_MARK
+// come after the loop, in that order, and the caller appends them last.
+type RouteGet struct {
+	Family   uint8
+	DstLen   uint8
+	SrcLen   uint8
+	Tos      uint8
+	RtmFlags uint32 // RTM_F_LOOKUP_TABLE, RTM_F_FIB_MATCH, RTM_F_NOTIFY
+	Attrs    []RouteAttr
+}
+
+// routeGetBufCst is the attribute room, iproute_get's `char buf[1024]`.
+const routeGetBufCst = 1024
+
+// BuildGetRouteRequest builds the RTM_GETROUTE single get: NLM_F_REQUEST
+// alone, because rtnl_talk asks for no ACK when it is given an answer buffer
+// (lib/libnetlink.c:1049-1050), and the kernel answers with one RTM_NEWROUTE or an
+// NLMSG_ERROR.
+//
+// Captured forms (link-write/rtnl/route_get*): `ip route get 192.0.2.5` is 36
+// bytes, family AF_INET, dst_len 32, rtm_flags RTM_F_LOOKUP_TABLE and one
+// RTA_DST; the IPv6 form has no lookup-table flag; `from 198.51.100.2 iif d1`
+// adds RTA_SRC (src_len 32) after RTA_DST and RTA_IIF last, 52 bytes.
+func BuildGetRouteRequest(g RouteGet, seq uint32) ([]byte, error) {
+	hdr := make([]byte, 0, RtMsgSizeCst)
+	hdr = append(hdr, g.Family, g.DstLen, g.SrcLen, g.Tos, 0, 0, 0, 0)
+	hdr = binary.LittleEndian.AppendUint32(hdr, g.RtmFlags)
+
+	var raw [routeGetBufCst]byte
+	ab := NewAttrBuilder(raw[:])
+	for _, a := range g.Attrs {
+		if err := ab.PutBytes(a.Type, a.Payload); err != nil {
+			return nil, err
+		}
+	}
+	return BuildRequest(uint16(unix.RTM_GETROUTE), 0, seq, hdr, ab.Bytes())
+}
+
 // BuildDumpNexthopRequest builds the RTM_GETNEXTHOP dump `ip nexthop show`
 // sends: rtnl_nexthopdump_req (lib/libnetlink.c:261), REQUEST|DUMP over an
 // nhmsg whose nh_family is preferred_family and no attributes.

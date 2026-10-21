@@ -149,6 +149,10 @@ func matchesAny(arg string, patterns []string) bool {
 // Using this constant with == is therefore the faithful comparison.
 const devKeywordCst = "dev"
 
+// oifKeywordCst is `oif`, the synonym route show, route get and the route
+// writes accept for `dev`.
+const oifKeywordCst = "oif"
+
 // The verbs every list-capable object accepts for its show path. Each object's
 // table keeps its own upstream order (its matches() chain), so only the words
 // are shared, not the tables.

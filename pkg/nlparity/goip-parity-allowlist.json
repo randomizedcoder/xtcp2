@@ -898,7 +898,17 @@
     "netconf-dev rows 3/3 with control nl=2 (the link dump's counters), the",
     "`-s` rows 2/2 with nl=2; HYGIENE_PASS and UNGATED_CLEAN; CONTROL_NOISY",
     "read 165 then 174. The permanent set is empty, and the ungated surface is",
-    "ONE row, `addr show dynamic`, out for its counting-down lifetime."
+    "ONE row, `addr show dynamic`, out for its counting-down lifetime.",
+    "",
+    "G1-T01 (goip-parity-gaps.md) adds `route get` and gates its six rows: the",
+    "plain get, `fibmatch`, `notify`, `-6`, `from 198.51.100.2 iif d1` (whose",
+    "Setup turns forwarding on through goip-parity.exp's sysctl step) and the",
+    "unreachable get, exit 2. Two back-to-back runs: 189 GOIP_PARITY_PASS of",
+    "189 on both, GOIP_PARITY_OVERALL_PASS, txns 2/2, 3/3 for from/iif and 1/1",
+    "for the unreachable get. The from/iif reply's RTA_CACHEINFO rta_clntref is",
+    "the cached input route's refcount, which moved between ip_a and ip_b too,",
+    "so D_control suppresses it with no entry. The ungated surface is still",
+    "`addr show dynamic` alone."
   ],
   "_note_version_skew": [
     "THE ENTRIES BELOW CITE COMMITS THAT ARE IN NO RELEASE, AND THE EVIDENCE IS",
@@ -1159,6 +1169,12 @@
     "-s addr show",
     "-s neigh show",
     "netconf show dev",
-    "-4 netconf show dev"
+    "-4 netconf show dev",
+    "route get 192.0.2.5",
+    "route get fibmatch 192.0.2.5",
+    "route get 192.0.2.5 notify",
+    "-6 route get 2001:db8::5",
+    "route get 192.0.2.5 from 198.51.100.2 iif d1",
+    "route get 203.0.113.1"
   ]
 }

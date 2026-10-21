@@ -886,6 +886,43 @@ var commands = withArgs([]Command{
 		// selected and everywhere on the lines it did not.
 		Floor: 4, Implemented: true,
 	},
+	// G1-T01: `route get` (iproute_get), the C1-T02 rows of
+	// rtnl-write-corpus.exp with their preconditions. A read: the single get
+	// changes nothing, so the three sides share one namespace. Each is the
+	// get and its reply, then the GETLINK by index that names the reply's
+	// device (4); from/iif resolves d1 by name first (6); the unreachable
+	// get is the request and its NLMSG_ERROR, exit 2 and no stdout (2).
+	{
+		Name: "route get 192.0.2.5", Slug: "route_get",
+		// A cloned reply: `uid 0` and the bare `cache ` line.
+		Setup: routeGetSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "route get fibmatch 192.0.2.5", Slug: "route_get_fibmatch",
+		// RTM_F_FIB_MATCH: the matched FIB entry, 192.0.2.0/24, not a clone.
+		Setup: routeGetSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "route get 192.0.2.5 notify", Slug: "route_get_notify",
+		// RTM_F_NOTIFY echoed as `notify`, RTCF_NOTIFY as `cache <notify> `.
+		Setup: routeGetSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-6 route get 2001:db8::5", Slug: "route_get_v6",
+		// No RTM_F_LOOKUP_TABLE on IPv6, and no cache line.
+		Setup: routeGetSetupV6, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "route get 192.0.2.5 from 198.51.100.2 iif d1", Slug: "route_get_from_iif",
+		// An input lookup, which needs forwarding: d1 by name, the get with
+		// RTA_SRC and RTA_IIF, then d0 by index. No uid on an input lookup.
+		Setup: routeGetSetupIif, Floor: 6, Implemented: true,
+	},
+	{
+		Name: "route get 203.0.113.1", Slug: "route_get_unreachable",
+		// No route: ENETUNREACH, exit 2.
+		Setup: routeGetSetup, Floor: 2, Implemented: true,
+	},
 	{
 		Name: "neigh show", Slug: "neigh_show",
 		Floor: 4, Implemented: true,
@@ -2200,6 +2237,19 @@ var (
 	routeWriteSetupDev6    = []string{"link add d0 type dummy", "link set d0 up", "addr add 192.0.2.1/24 dev d0", "-6 addr add 2001:db8::1/64 nodad dev d0"}
 	routeWriteSetupRoute   = []string{"link add d0 type dummy", "link set d0 up", "addr add 192.0.2.1/24 dev d0", "route add 198.51.100.0/24 dev d0"}
 	routeWriteSetupV6Route = []string{"link add d0 type dummy", "link set d0 up", "addr add 192.0.2.1/24 dev d0", "-6 addr add 2001:db8::1/64 nodad dev d0", "-6 route add 2001:db8:1::/64 dev d0"}
+)
+
+// The `route get` rows' preconditions: PRE_D0_ADDR, its v6 sibling, and
+// PRE_IIF in rtnl-write-corpus.exp. The sysctl step is setup_step's in
+// goip-parity.exp.
+var (
+	routeGetSetup    = routeWriteSetupDev
+	routeGetSetupV6  = []string{"link add d0 type dummy", "link set d0 up", "-6 addr add 2001:db8::1/64 dev d0 nodad"}
+	routeGetSetupIif = []string{
+		"sysctl net.ipv4.conf.all.forwarding 1",
+		"link add d0 type dummy", "link set d0 up", "addr add 192.0.2.1/24 dev d0",
+		"link add d1 type dummy", "link set d1 up", "addr add 198.51.100.1/24 dev d1",
+	}
 )
 
 // The address write rows' preconditions: PRE_ADDR_DEV and PRE_ADDR_V4 in

@@ -604,6 +604,15 @@ func TestAllowlistCommitted(t *testing.T) {
 		"-s neigh show",
 		"netconf show dev",
 		"-4 netconf show dev",
+		// G1-T01's six `route get` rows, new with goip's route get: txns
+		// 2/2 (3/3 from/iif, 1/1 unreachable) and GOIP_PARITY_PASS with zero
+		// findings on their first two runs.
+		"route get 192.0.2.5",
+		"route get fibmatch 192.0.2.5",
+		"route get 192.0.2.5 notify",
+		"-6 route get 2001:db8::5",
+		"route get 192.0.2.5 from 198.51.100.2 iif d1",
+		"route get 203.0.113.1",
 	}
 
 	tests := []struct {

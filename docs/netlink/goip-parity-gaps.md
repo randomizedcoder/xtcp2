@@ -5,7 +5,7 @@
 **Last updated:** 2026-10-21
 
 **Summary:**
-- `ip address` is done ([addr-write-path-status.md](addr-write-path-status.md)). With it, and G0, the parity matrix compares 183 commands and gates 182 of them.
+- `ip address` is done ([addr-write-path-status.md](addr-write-path-status.md)). With it, G0 and G1-T01, the parity matrix compares 189 commands and gates 188 of them.
 - That is still a long way from all of `ip`:
   - goip runs 11 of the 31 objects in iproute2's `cmds[]`.
   - Only `link`, `address` and `route` have writes, and some of their verbs are missing too.
@@ -51,12 +51,12 @@ The citation style follows [route-write-path.md](route-write-path.md) and [link-
 
 ## Where coverage stands
 
-Counted from the tree on 2026-10-21, at G0's close. [coverage-status.md](coverage-status.md#goip--ip-parity-at-a-glance) owns these numbers; if the two disagree, that file is right.
+Counted from the tree on 2026-10-21, at G0's close; the row and gated counts are amended at G1-T01. [coverage-status.md](coverage-status.md#goip--ip-parity-at-a-glance) owns these numbers; if the two disagree, that file is right.
 
 | | count | where |
 |---|---|---|
-| matrix rows | 183 | `internal/goipparity/commands.go` |
-| gated | 182 (160 before G0) | `pkg/nlparity/goip-parity-allowlist.json`, `gated_commands` |
+| matrix rows | 189 (183 at G0's close) | `internal/goipparity/commands.go` |
+| gated | 188 (160 before G0, 182 at its close) | `pkg/nlparity/goip-parity-allowlist.json`, `gated_commands` |
 | compared but not gated | 1, `addr show dynamic` (23 before G0) | `TestUngatedSurfaceIsNotVacuous`, `internal/goipparity/commands_test.go` |
 | write rows (dry run) | 83: 21 link, 26 route, 36 address | `commands.go` |
 | `ip` objects with a `run` function | 11 of 31 | `internal/goip/dispatch.go:52-84` |
@@ -2010,6 +2010,54 @@ Each type `ip` 7.1.0 names in the universe but REPORT ([decision log](goip-parit
 | G1-T04 | `goip link xstats` and `link afstats`: `RTM_GETSTATS` with the `IFLA_STATS_LINK_XSTATS[_SLAVE]` and `IFLA_STATS_AF_SPEC` filters, against the C1-T03 reads (`ip/iplink.c:113-115`, `:1364`) |
 
 Each task adds its matrix rows, gated after two clean runs, as G0's were.
+
+**G1-T01 delivered** (`internal/goip/route_get.go`, `pkg/xtcpnl/xtcpnl_rtnetlink_requests.go`, `internal/goip/render/route.go`):
+- **The request.** `BuildGetRouteRequest` builds `iproute_get`'s `RTM_GETROUTE` (`ip/iproute.c:2043-2224`): `NLM_F_REQUEST` alone, since `rtnl_talk` with an answer buffer asks for no ACK, an rtmsg with the family, `dst_len`, `src_len` and `rtm_flags`, and the attributes in argv order. `RTA_IIF`, `RTA_OIF` and a non-zero `RTA_MARK` follow the loop. An unset family becomes `AF_INET`, which alone takes `RTM_F_LOOKUP_TABLE`; `fibmatch` adds `RTM_F_FIB_MATCH` and `notify` `RTM_F_NOTIFY`.
+- **The arguments.** `parseRouteGetArgs` walks `iproute_get`'s keyword chain in its order, so an abbreviation means what it means to `ip`: `d` is `dsfield`, `i` is `iif`, `f` is `from`. A destination that is not a host route is sent as one, with `ip`'s warning. The arms goip does not implement (`tos`, `dsfield`, `connected`, `vrf`, `as`, `sport`, `dport`, `ipproto`, `flowlabel`) are refused by name rather than read as a destination.
+- **The traffic.** The get, then `print_route`'s `RTM_GETLINK` by index for the reply's device. A `from … iif d1` get resolves `d1` by name first, and that lookup names it in the reply. An error reply is a failed talk: exit 2, nothing on stdout.
+- **The render.** `RouteInfo` decodes `RTA_MARK` and `RTA_UID`, with `HasUID` for `uid 0`. `print_route`'s `mark` (decimal below 16, hex from 16), `uid` on presence, and, for a cloned IPv4 route, `print_cache_flags`' `cache` line with the `RTCF_*` names (`ip/iproute.c:453-498`, `:948-972`). The cloned rows the render tests already had now end in the bare `cache ` line.
+- **The parity driver takes a sysctl step.** `setup_step` in `goip-parity.exp` runs `sysctl KEY VALUE` through `xtcp2-nlcap sysctl`, as the corpus's `pre_step` does. The input lookup needs `net.ipv4.conf.all.forwarding` on.
+- **Six matrix rows, gated.** `route get 192.0.2.5`, its `fibmatch` and `notify` forms, `-6 route get 2001:db8::5`, `route get 192.0.2.5 from 198.51.100.2 iif d1` and the unreachable `route get 203.0.113.1`, each with its corpus row's precondition. The floors are 4, 6 for from/iif and 2 for the unreachable get. Two runs passed all six with no finding, and they are gated with no allowlist entry; the runs are in [coverage-status.md](coverage-status.md#g1-t01-the-six-route-get-rows-gate).
+
+`TestBuildGetRouteRequest` (`pkg/xtcpnl/xtcpnl_route_get_test.go`) compares the builder with the request in each capture:
+
+| description | expected |
+|---|---|
+| positive: `route get 192.0.2.5` (`route_get`) | byte-identical: `AF_INET`, `dst_len` 32, `RTM_F_LOOKUP_TABLE`, one `RTA_DST` |
+| positive: `fibmatch`, `notify` (2 rows) | byte-identical, with `RTM_F_FIB_MATCH` or `RTM_F_NOTIFY` added |
+| positive: `-6 route get 2001:db8::5` | byte-identical, no lookup-table flag |
+| positive: `from 198.51.100.2 iif d1` | byte-identical: `RTA_DST`, `RTA_SRC`, then `RTA_IIF` 4 |
+| positive: the unreachable get | byte-identical; the error is the kernel's |
+| boundary: no attributes | the bare 28 bytes |
+| corner: `Tos` | lands in `rtm_tos` |
+
+`TestBuildGetRouteRequestErrors`: attributes filling the 1024-byte buffer exactly build (boundary); one byte more is `ErrAttrNoSpace` (negative).
+
+`TestParseRouteGetArgs` (`internal/goip/route_get_test.go`), 24 rows:
+
+| description | expected |
+|---|---|
+| positive: a bare destination, `to` before it, a `-6` destination (3 rows) | `RTA_DST`, `dst_len` 32 or 128 |
+| positive: `from` before and after the destination (2 rows) | `RTA_SRC` and `RTA_DST` in argv order, `src_len` 32 |
+| positive: `f`, `i`, `o` and `dev` (3 rows) | `from`, `iif`, `oif`, `dev` the exact synonym |
+| positive: `fibmatch` and `n`; `mark` and `uid` (2 rows) | the flags; `RTA_UID` where parsed, the mark held for the end |
+| boundary: a /24 and a v6 /64 destination; an explicit /32 (3 rows) | the warning and a host `dst_len`; no warning |
+| negative: no destination; flags but none (2 rows) | `need at least a destination address` |
+| negative: `from` with no value; a bad mark; a non-address; `help` (4 rows) | an invalid argument; not implemented for `help` |
+| corner: `d`, `tos`, `connected`, `ip`, `vrf` (5 rows) | refused by the arm's name, not read as a destination |
+
+`TestRouteGetFinish`, 9 rows: `RTA_IIF`, `RTA_OIF` and `RTA_MARK` in that order after the loop's attributes; the lookup-table flag on `AF_INET` only, and `AF_UNSPEC` becoming `AF_INET`; `fibmatch`; no `RTA_MARK` at 0; an unknown device as `ErrNoSuchDevice` and exit 1; a failed lookup returned as it is.
+
+`TestRouteGetMatchesIp` replays each capture through `routeGet`:
+
+| description | expected |
+|---|---|
+| positive: `route get 192.0.2.5`, `fibmatch`, `notify`, `-6` (4 rows) | stdout equal to `ip.out`; the get and the `RTM_GETLINK` by index, byte-identical to `ip`'s |
+| corner: `from … iif d1` | stdout equal to `ip.out`; `RTM_GETLINK` by name, the get, `RTM_GETLINK` by index, byte-identical |
+| negative: the unreachable get | `ENETUNREACH`, exit 2, empty stdout, one request |
+| corner: a reply in another family than `-4` asked for | nothing printed, no error |
+
+`TestSetRouteAttr`, the new rows: `RTA_MARK` 42 (positive; it had been the unhandled-attribute row), a 3-byte `RTA_MARK` ignored (negative), the captured `RTA_UID` 0 with presence (positive), `0xffffffff` (boundary), a 2-byte `RTA_UID` ignored (negative). `TestRouteViewOfText`, 9 new rows: mark 15 and 16, none at 0, `uid 0`, `cache <notify> `, `<local,notify> `, an unnamed bit as `<notify,100000>` and `<2000000>`, no cache line on IPv6. `TestRouteViewJSON`, 5 new rows: the `notify` reply's `"flags","uid","cache"` order, an empty `"cache":[]`, `"mark":16` as a number, none of the three keys on a `route show` route, and an unnamed bit dropped from the array.
 
 ### G2 — Route completion
 
