@@ -10,10 +10,10 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// capturedGetRouteRequest is the one RTM_GETROUTE request in a `route get`
-// capture. It is found by type rather than by record number because the
-// from/iif row resolves d1 by name first, so its get is not the first request.
-func capturedGetRouteRequest(t *testing.T, path string) []byte {
+// capturedGetRequest is the one request of msgType in a single-get capture.
+// It is found by type rather than by record number because a get with a
+// device resolves it by name first, so the get is not the first request.
+func capturedGetRequest(t *testing.T, path string, msgType uint16) []byte {
 	t.Helper()
 	msgs, _ := capturedRequests(t, path)
 	recs := make([]int, 0, len(msgs))
@@ -23,18 +23,25 @@ func capturedGetRouteRequest(t *testing.T, path string) []byte {
 	sort.Ints(recs)
 	var found []byte
 	for _, rec := range recs {
-		if requestType(msgs[rec]) != uint16(unix.RTM_GETROUTE) {
+		if requestType(msgs[rec]) != msgType {
 			continue
 		}
 		if found != nil {
-			t.Fatalf("%s holds more than one RTM_GETROUTE request", path)
+			t.Fatalf("%s holds more than one request of type %d", path, msgType)
 		}
 		found = msgs[rec]
 	}
 	if found == nil {
-		t.Fatalf("%s holds no RTM_GETROUTE request", path)
+		t.Fatalf("%s holds no request of type %d", path, msgType)
 	}
 	return found
+}
+
+// capturedGetRouteRequest is the one RTM_GETROUTE request in a `route get`
+// capture.
+func capturedGetRouteRequest(t *testing.T, path string) []byte {
+	t.Helper()
+	return capturedGetRequest(t, path, uint16(unix.RTM_GETROUTE))
 }
 
 // requestType is a request's nlmsg_type.

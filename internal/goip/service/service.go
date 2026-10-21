@@ -395,33 +395,37 @@ func (s *Service) Routes(family uint8, table, oif uint32) ([]model.Route, error)
 	return out, nil
 }
 
+// singleGet sends a single-get request and returns its one reply body of
+// replyType, named replyName in its error. A kernel refusal is the talk's error. A dump-only replay source
+// cannot run a get, so it replays the recorded replies of replyType, of which
+// a single-get capture holds one, and answers with the first.
+func (s *Service) singleGet(r []byte, replyType uint16, replyName string) ([]byte, error) {
+	if talk, ok := s.src.(TalkSource); ok {
+		return talk.Talk(r, replyType)
+	}
+	bodies, err := s.src.Dump(r, replyType)
+	if err != nil {
+		return nil, err
+	}
+	if len(bodies) == 0 {
+		return nil, fmt.Errorf("goip: no %s reply in the capture", replyName)
+	}
+	return bodies[0], nil
+}
+
 // RouteGet performs the RTM_GETROUTE single get behind `ip route get` and
 // decodes its one RTM_NEWROUTE reply. A kernel refusal, `Network is
 // unreachable`, comes back as the talk's error.
 //
-// A dump-only replay source cannot run a get, so it falls back as NexthopByID
-// does: it replays the recorded RTM_NEWROUTE replies, of which a route get
-// capture holds one, and answers with the first.
+// A dump-only replay source answers through singleGet's fallback.
 func (s *Service) RouteGet(g xtcpnl.RouteGet) (model.Route, error) {
 	r, err := req.RouteGet(g, s.nextSeq())
 	if err != nil {
 		return model.Route{}, fmt.Errorf("goip: build route get request: %w", err)
 	}
-	var body []byte
-	if talk, ok := s.src.(TalkSource); ok {
-		body, err = talk.Talk(r, uint16(unix.RTM_NEWROUTE))
-		if err != nil {
-			return model.Route{}, err
-		}
-	} else {
-		bodies, derr := s.src.Dump(r, uint16(unix.RTM_NEWROUTE))
-		if derr != nil {
-			return model.Route{}, derr
-		}
-		if len(bodies) == 0 {
-			return model.Route{}, errors.New("goip: no RTM_NEWROUTE reply in the capture")
-		}
-		body = bodies[0]
+	body, err := s.singleGet(r, uint16(unix.RTM_NEWROUTE), "RTM_NEWROUTE")
+	if err != nil {
+		return model.Route{}, err
 	}
 	ri, err := xtcpnl.ParseNewRoute(body)
 	if err != nil {
@@ -562,6 +566,25 @@ func (s *Service) Neighbors(family, ndmFlags uint8, ifindex uint32) ([]model.Nei
 	}
 	model.SortNeighbors(out)
 	return out, nil
+}
+
+// NeighGet performs `ip neigh get`'s RTM_GETNEIGH single get and decodes the
+// one RTM_NEWNEIGH it answers with. A kernel refusal (ENOENT for an entry it
+// does not hold) is the talk's error.
+func (s *Service) NeighGet(g xtcpnl.NeighGet) (model.Neighbor, error) {
+	r, err := req.NeighGet(g, s.nextSeq())
+	if err != nil {
+		return model.Neighbor{}, fmt.Errorf("goip: build neighbor get request: %w", err)
+	}
+	body, err := s.singleGet(r, uint16(unix.RTM_NEWNEIGH), "RTM_NEWNEIGH")
+	if err != nil {
+		return model.Neighbor{}, err
+	}
+	n, err := xtcpnl.ParseNeigh(body)
+	if err != nil {
+		return model.Neighbor{}, fmt.Errorf("goip: decode RTM_NEWNEIGH: %w", err)
+	}
+	return model.Neighbor(n), nil
 }
 
 // NeighborLinks is ll_init_map's link dump (ip/ipneigh.c:597), which every

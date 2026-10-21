@@ -110,6 +110,11 @@ func parseNeighShowArgs(args []string) (neighSelectors, error) {
 var neighShowVerbs = []string{showVerbCst, listVerbCst, lstVerbCst}
 
 func runNeigh(c *runCtx, args []string) error {
+	// do_ipneigh tests get after the write verbs and before the listing
+	// (ip/ipneigh.c:756-757); no prefix of get is one of theirs.
+	if len(args) > 0 && matchesPrefix(args[0], neighGetVerbCst) {
+		return neighGet(c, args[1:])
+	}
 	if len(args) > 0 && !matchesAny(args[0], neighShowVerbs) {
 		return fmt.Errorf("neigh %q: %w", args[0], ErrNotImplemented)
 	}

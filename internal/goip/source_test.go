@@ -157,3 +157,39 @@ func TestReplaySourceDumpEmptyVsMissing(t *testing.T) {
 		})
 	}
 }
+
+// TestOpenNetlinkSocketOptions reads back the netlink options OpenNetlink sets
+// to match rtnl_open, none of which an nlmon capture can show.
+//
+// go test ./internal/goip/ -run TestOpenNetlinkSocketOptions
+func TestOpenNetlinkSocketOptions(t *testing.T) {
+	s, err := OpenNetlink()
+	if err != nil {
+		t.Skipf("no NETLINK_ROUTE socket here: %v", err)
+	}
+	t.Cleanup(func() {
+		if cerr := s.Close(); cerr != nil {
+			t.Errorf("Close: %v", cerr)
+		}
+	})
+	tests := []struct {
+		description string
+		opt         int
+		expected    int
+	}{
+		{"positive: NETLINK_EXT_ACK is on, as lib/libnetlink.c:222 sets it", unix.NETLINK_EXT_ACK, 1},
+		{"positive: NETLINK_GET_STRICT_CHK is on, as ip.c sets it", unix.NETLINK_GET_STRICT_CHK, 1},
+		{"corner: NETLINK_CAP_ACK stays off, so a refusal echoes the request as ip's does", unix.NETLINK_CAP_ACK, 0},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			got, gerr := unix.GetsockoptInt(s.fd, unix.SOL_NETLINK, tc.opt)
+			if gerr != nil {
+				t.Fatalf("getsockopt: %v", gerr)
+			}
+			if got != tc.expected {
+				t.Errorf("option %d = %d, want %d", tc.opt, got, tc.expected)
+			}
+		})
+	}
+}

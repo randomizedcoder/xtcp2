@@ -10,9 +10,9 @@ several steps, further down under [Remaining](#remaining).
 
 | | count | counted from |
 |---|---|---|
-| commands in the comparison matrix | **189** | `internal/goipparity/commands.go` — 106 read rows (31 of them `addr show` state, selector and output-mode rows with a `Setup`, and 6 `route get` rows with one), the 21 link write rows, the 26 route write rows, the 27 address write rows, the 7 address flush rows and the 2 address restore rows |
-| of those, `Implemented: true` | **189** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
-| of those, in `gated_commands` | **188** | `pkg/nlparity/goip-parity-allowlist.json` |
+| commands in the comparison matrix | **191** | `internal/goipparity/commands.go` — 108 read rows (31 of them `addr show` state, selector and output-mode rows with a `Setup`, and 6 `route get` and 2 `neigh get` rows with one), the 21 link write rows, the 26 route write rows, the 27 address write rows, the 7 address flush rows and the 2 address restore rows |
+| of those, `Implemented: true` | **191** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
+| of those, in `gated_commands` | **190** | `pkg/nlparity/goip-parity-allowlist.json` |
 | allowlisted divergences | **7** | same file, `entries` |
 | of those, `kind=version-skew` | **7** | all against the pinned `ip` 7.1.0 |
 | of those, `kind=accepted-divergence` | **0** | nothing is *allowlisted* as a permanent divergence — the nine wire divergences runs 8 and 9 measured **could not** be, because a transaction-count divergence is unsuppressible (`nlparity_allowlist.go:143`), and G0 retired every one by changing goip to send `ip`'s requests |
@@ -37,8 +37,10 @@ The twenty-two that were out with it at the start of
   and the segmenter closed an ACKed point get on its ACK, on
   [G0-T03](#g0-t03-the-last-four-rows-gate)'s.
 
-The six `route get` rows G1-T01 added gated on their first two runs; see
-[G1-T01](#g1-t01-the-six-route-get-rows-gate).
+The six `route get` rows G1-T01 added gated on their first two runs, and
+the two `neigh get` rows G1-T02 added on theirs; see
+[G1-T01](#g1-t01-the-six-route-get-rows-gate) and
+[G1-T02](#g1-t02-the-two-neigh-get-rows-gate).
 
 The eight stats and netconf-dev rows were the permanent set, measured divergent
 on the wire by
@@ -3545,6 +3547,28 @@ The from/iif reply's `RTA_CACHEINFO` carries `rta_clntref`, the cached input
 route's reference count, which differed between `ip_a` and `ip_b` as well, so
 `D_control` suppresses it. All six gate with no allowlist entry, and
 `TestRouteGetRowsGated` and the `earned`/`gated_commands` pair pin them.
+
+### G1-T02: the two `neigh get` rows gate
+
+G1-T02 adds `goip neigh get` (`internal/goip/neigh_get.go`) and two rows,
+one per C1-T02 capture: `neigh get 192.0.2.2 dev d0` on a veth holding a
+permanent entry, and `neigh get 192.0.2.9 dev d0` on one holding none. A
+veth, because a dummy is `IFF_NOARP` and holds no neighbor entry. Each sends
+the get by name for `d0` and the `RTM_GETNEIGH` get; the lookup caches `d0`,
+so `print_neigh` sends nothing more.
+
+The first run passed 190 of 191 and warned on the missing-entry row: `ip`'s
+`ENOENT` reply set `NLM_F_ACK_TLVS` and carried the kernel's "Neighbour entry
+not found", and goip's did neither, because goip's socket never asked for
+extended acks. It is the first gated row whose refusal carries an extack
+message. `OpenNetlink` now sets `NETLINK_EXT_ACK`, as `rtnl_open` does
+(`lib/libnetlink.c:222`). The two counted runs, after that change, printed 191
+`GOIP_PARITY_PASS` of 191 on both, with `GOIP_PARITY_HYGIENE_PASS`,
+`GOIP_PARITY_UNGATED_CLEAN` and `GOIP_PARITY_OVERALL_PASS`, identical row for
+row; `CONTROL_NOISY` 168 then 167. Both rows read `txns` 2/2 with no finding;
+the only control-suppressed value is `d0`'s `IFLA_INET6_FLAGS`, which moved
+between `ip_a` and `ip_b` as well. Both gate with no allowlist entry, and
+`TestNeighGetRowsGated` and the `earned`/`gated_commands` pair pin them.
 
 ## Tier C — the `goip-parity` microVM flavor
 

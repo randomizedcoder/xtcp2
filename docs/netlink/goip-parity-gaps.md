@@ -5,7 +5,7 @@
 **Last updated:** 2026-10-21
 
 **Summary:**
-- `ip address` is done ([addr-write-path-status.md](addr-write-path-status.md)). With it, G0 and G1-T01, the parity matrix compares 189 commands and gates 188 of them.
+- `ip address` is done ([addr-write-path-status.md](addr-write-path-status.md)). With it, G0, G1-T01 and G1-T02, the parity matrix compares 191 commands and gates 190 of them.
 - That is still a long way from all of `ip`:
   - goip runs 11 of the 31 objects in iproute2's `cmds[]`.
   - Only `link`, `address` and `route` have writes, and some of their verbs are missing too.
@@ -51,12 +51,12 @@ The citation style follows [route-write-path.md](route-write-path.md) and [link-
 
 ## Where coverage stands
 
-Counted from the tree on 2026-10-21, at G0's close; the row and gated counts are amended at G1-T01. [coverage-status.md](coverage-status.md#goip--ip-parity-at-a-glance) owns these numbers; if the two disagree, that file is right.
+Counted from the tree on 2026-10-21, at G0's close; the row and gated counts are amended through G1-T02. [coverage-status.md](coverage-status.md#goip--ip-parity-at-a-glance) owns these numbers; if the two disagree, that file is right.
 
 | | count | where |
 |---|---|---|
-| matrix rows | 189 (183 at G0's close) | `internal/goipparity/commands.go` |
-| gated | 188 (160 before G0, 182 at its close) | `pkg/nlparity/goip-parity-allowlist.json`, `gated_commands` |
+| matrix rows | 191 (183 at G0's close) | `internal/goipparity/commands.go` |
+| gated | 190 (160 before G0, 182 at its close) | `pkg/nlparity/goip-parity-allowlist.json`, `gated_commands` |
 | compared but not gated | 1, `addr show dynamic` (23 before G0) | `TestUngatedSurfaceIsNotVacuous`, `internal/goipparity/commands_test.go` |
 | write rows (dry run) | 83: 21 link, 26 route, 36 address | `commands.go` |
 | `ip` objects with a `run` function | 11 of 31 | `internal/goip/dispatch.go:52-84` |
@@ -2058,6 +2058,43 @@ Each task adds its matrix rows, gated after two clean runs, as G0's were.
 | corner: a reply in another family than `-4` asked for | nothing printed, no error |
 
 `TestSetRouteAttr`, the new rows: `RTA_MARK` 42 (positive; it had been the unhandled-attribute row), a 3-byte `RTA_MARK` ignored (negative), the captured `RTA_UID` 0 with presence (positive), `0xffffffff` (boundary), a 2-byte `RTA_UID` ignored (negative). `TestRouteViewOfText`, 9 new rows: mark 15 and 16, none at 0, `uid 0`, `cache <notify> `, `<local,notify> `, an unnamed bit as `<notify,100000>` and `<2000000>`, no cache line on IPv6. `TestRouteViewJSON`, 5 new rows: the `notify` reply's `"flags","uid","cache"` order, an empty `"cache":[]`, `"mark":16` as a number, none of the three keys on a `route show` route, and an unnamed bit dropped from the array.
+
+**G1-T02 delivered** (`internal/goip/neigh_get.go`, `pkg/xtcpnl/xtcpnl_rtnetlink_requests.go`):
+- **The request.** `BuildGetNeighRequest` builds `ipneigh_get`'s `RTM_GETNEIGH` (`ip/ipneigh.c:663-725`): `NLM_F_REQUEST` alone, an ndmsg with the address's family, the device's ifindex and `NTF_PROXY` for `proxy`, and one `NDA_DST`.
+- **The arguments.** `parseNeighGetArgs`: `dev` is strcmp and the last one wins; `proxy` is matches(), takes the address and stands for the device; anything else is the address, after an optional `to`, read by `get_addr` in `preferred_family`. Without both a device and an address, `Device and address are required arguments.`, exit 1.
+- **The traffic.** The device by name, then the get. The lookup caches the device, so `print_neigh` names the reply with no third request; a `proxy` get with no `dev` names it with a get by index. A missing entry is `ENOENT`: exit 2, nothing on stdout.
+- **The render.** `print_neigh` after `ipneigh_reset_filter(0)`, so the reply prints whatever its state, with its `dev` token, through the existing `NeighViewOf`.
+- **Extended acks.** `OpenNetlink` sets `NETLINK_EXT_ACK`, as `rtnl_open` does (`lib/libnetlink.c:222`), so a refusal carries the kernel's message and `NLM_F_ACK_TLVS` on both sides; without it the missing entry's `NLMSG_ERROR` differed in `header.flags`. `TestOpenNetlinkSocketOptions` reads the options back.
+- **Two matrix rows, gated.** `neigh get 192.0.2.2 dev d0` on a veth with a permanent entry, and `neigh get 192.0.2.9 dev d0` with none, floor 4 each. Both passed two live runs, 191 of 191 on each, once goip asked for extended acks, and gate with no allowlist entry.
+
+`TestBuildGetNeighRequest` (`pkg/xtcpnl/xtcpnl_neigh_get_test.go`):
+
+| description | expected |
+|---|---|
+| positive: `neigh get 192.0.2.2 dev d0` (`neigh_get`) | byte-identical: `AF_INET`, ifindex 4, one `NDA_DST` |
+| positive: the missing entry's get | byte-identical; `ENOENT` is the kernel's |
+| boundary: an IPv6 destination | a 20-byte `NDA_DST` |
+| corner: `proxy` | `NTF_PROXY` at `ndm_flags`, no ifindex |
+| negative: a destination larger than the attribute room | `ErrAttrNoSpace` |
+
+`TestParseNeighGetArgs` (`internal/goip/neigh_get_test.go`), 15 rows:
+
+| description | expected |
+|---|---|
+| positive: address and `dev` in either order, `to`, IPv6, `proxy`, `p` (5 rows) | the device, the address and its family, `NTF_PROXY` for proxy |
+| boundary: a second `dev` (no duparg); `dev` with no value (2 rows) | the last device; `Command line is not complete` |
+| negative: no device; no address; `default` (no family) (3 rows) | `Device and address are required arguments.` |
+| negative: a second address; `proxy` after an address; `-6` with an IPv4 address (3 rows) | duparg2 on `to`; duparg on `address`; `address is expected` |
+| corner: `d0` is no `dev`; `help` (2 rows) | read as an address and refused; not implemented |
+
+`TestNeighGetMatchesIp` replays each capture through `neighGet`:
+
+| description | expected |
+|---|---|
+| positive: `neigh get 192.0.2.2 dev d0` | stdout equal to `ip.out`; the get by name and the get, byte-identical to `ip`'s |
+| negative: `neigh get 192.0.2.9 dev d0` | `ENOENT`, exit 2, empty stdout; both requests byte-identical |
+| negative: a device the kernel does not know | an error after the get by name alone |
+| corner: `neigh g` through `runNeigh` | the get's output |
 
 ### G2 — Route completion
 

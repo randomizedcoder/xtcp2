@@ -657,6 +657,37 @@ func BuildDumpNeighRequestFilter(family, ndmFlags uint8, ifindex, seq uint32) ([
 	return BuildRequest(uint16(unix.RTM_GETNEIGH), uint16(unix.NLM_F_DUMP), seq, hdr, attrs)
 }
 
+// NeighGet is the request `ip neigh get` builds (ipneigh_get,
+// ip/ipneigh.c:663-725): the ndmsg's family, ifindex and flags, and NDA_DST.
+type NeighGet struct {
+	Family  uint8
+	Flags   uint8 // NTF_PROXY for `proxy ADDR`
+	Ifindex int32
+	Dst     []byte
+}
+
+// BuildGetNeighRequest builds the RTM_GETNEIGH single get: NLM_F_REQUEST
+// alone, as rtnl_talk with an answer buffer sends it, an ndmsg whose
+// ndm_family is the address's, and one NDA_DST. The kernel answers with one
+// RTM_NEWNEIGH, or ENOENT for an entry it does not hold.
+//
+// Captured form (link-write/rtnl/neigh_get): `ip neigh get 192.0.2.2 dev d0`
+// is 36 bytes, family AF_INET, ifindex 4, ndm_state, ndm_flags and ndm_type 0,
+// and an 8-byte NDA_DST.
+func BuildGetNeighRequest(g NeighGet, seq uint32) ([]byte, error) {
+	hdr := make([]byte, NdMsgSizeCst)
+	hdr[0] = g.Family
+	binary.LittleEndian.PutUint32(hdr[4:8], uint32(g.Ifindex))
+	hdr[NdMsgFlagsOffCst] = g.Flags
+
+	var raw [reqAttrBufCst]byte
+	ab := NewAttrBuilder(raw[:])
+	if err := ab.PutBytes(uint16(unix.NDA_DST), g.Dst); err != nil {
+		return nil, err
+	}
+	return BuildRequest(uint16(unix.RTM_GETNEIGH), 0, seq, hdr, ab.Bytes())
+}
+
 // BuildDumpRuleRequest builds `ip rule show`'s only request: RTM_GETRULE with
 // NLM_F_DUMP and a fib_rule_hdr whose family byte is the only thing set.
 //

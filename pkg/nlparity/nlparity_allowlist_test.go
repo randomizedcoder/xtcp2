@@ -613,6 +613,10 @@ func TestAllowlistCommitted(t *testing.T) {
 		"-6 route get 2001:db8::5",
 		"route get 192.0.2.5 from 198.51.100.2 iif d1",
 		"route get 203.0.113.1",
+		// G1-T02's two `neigh get` rows: txns 2/2 and GOIP_PARITY_PASS with
+		// zero findings on their first two runs.
+		"neigh get 192.0.2.2 dev d0",
+		"neigh get 192.0.2.9 dev d0",
 	}
 
 	tests := []struct {

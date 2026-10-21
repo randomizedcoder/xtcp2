@@ -1016,7 +1016,9 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	//   - the two `-s` sweep rows and the two netconf-dev rows on G0-T03's —
 	//     see TestNetconfDevAndSweepRowsGated;
 	//   - the six `route get` rows G1-T01 added, on their first two runs —
-	//     see TestRouteGetRowsGated.
+	//     see TestRouteGetRowsGated;
+	//   - the two `neigh get` rows G1-T02 added, likewise — see
+	//     TestNeighGetRowsGated.
 	//
 	// The last four were the permanent set, measured divergent on the wire;
 	// TestPermanentWireDivergences records that it is empty.
@@ -2509,4 +2511,45 @@ func TestRouteGetRowsGated(t *testing.T) {
 			}
 		}
 	})
+}
+
+// TestNeighGetRowsGated pins G1-T02's two `neigh get` rows: implemented, on a
+// veth Setup, floor 4 (the get by name and the get), and gated with no
+// allowlist entry after two clean runs.
+//
+// go test ./internal/goipparity/ -run TestNeighGetRowsGated
+func TestNeighGetRowsGated(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	type want struct {
+		implemented, gated, veth bool
+		floor, entries           int
+	}
+	gated := want{implemented: true, gated: true, veth: true, floor: 4}
+	rows := []struct {
+		description string
+		command     string
+		expected    want
+	}{
+		{"positive: a permanent entry, printed with its device", "neigh get 192.0.2.2 dev d0", gated},
+		{"negative: a missing entry, ENOENT and exit 2, gates the same", "neigh get 192.0.2.9 dev d0", gated},
+		{"boundary: the dump the get sits beside stays gated, with no Setup and its one version-skew entry", "neigh show", want{implemented: true, gated: true, floor: 4, entries: 1}},
+		{"corner: a neigh get form not in the matrix is neither", "neigh get proxy 192.0.2.2", want{}},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			var got want
+			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				got.implemented, got.floor = c.Implemented, c.Floor
+				got.veth = len(c.Setup) > 0 && strings.Contains(c.Setup[0], "type veth")
+			}
+			got.gated = al.IsGated(r.command)
+			got.entries = len(al.EntriesFor(r.command))
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+		})
+	}
 }

@@ -387,6 +387,12 @@ func NeighShowDump(family, ndmFlags uint8, ifindex, seq uint32) ([]byte, error) 
 	return xtcpnl.BuildDumpNeighRequestFilter(family, ndmFlags, ifindex, seq)
 }
 
+// NeighGet delegates to the RTM_GETNEIGH single-get builder `ip neigh get`
+// sends (ipneigh_get).
+func NeighGet(g xtcpnl.NeighGet, seq uint32) ([]byte, error) {
+	return xtcpnl.BuildGetNeighRequest(g, seq)
+}
+
 // AddrRestoreLinkDump is ll_init_map's link dump, which `ip addr restore`
 // sends once, ahead of its first write (ip/ipaddress.c:1874). The iproute2
 // source tree's ll_init_map (lib/ll_map.c:395-398) asks for

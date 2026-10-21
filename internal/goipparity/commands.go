@@ -923,6 +923,19 @@ var commands = withArgs([]Command{
 		// No route: ENETUNREACH, exit 2.
 		Setup: routeGetSetup, Floor: 2, Implemented: true,
 	},
+	// G1-T02: `neigh get` (ipneigh_get), the C1-T02 rows. Each is the get by
+	// name for d0 and the RTM_GETNEIGH get, a request and a reply each (4);
+	// the lookup caches d0, so print_neigh sends nothing more.
+	{
+		Name: "neigh get 192.0.2.2 dev d0", Slug: "neigh_get",
+		// A permanent entry on a veth, which does neighbor discovery.
+		Setup: neighGetSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "neigh get 192.0.2.9 dev d0", Slug: "neigh_get_missing",
+		// No entry: ENOENT, exit 2.
+		Setup: neighGetSetupVeth, Floor: 4, Implemented: true,
+	},
 	{
 		Name: "neigh show", Slug: "neigh_show",
 		Floor: 4, Implemented: true,
@@ -2237,6 +2250,16 @@ var (
 	routeWriteSetupDev6    = []string{"link add d0 type dummy", "link set d0 up", "addr add 192.0.2.1/24 dev d0", "-6 addr add 2001:db8::1/64 nodad dev d0"}
 	routeWriteSetupRoute   = []string{"link add d0 type dummy", "link set d0 up", "addr add 192.0.2.1/24 dev d0", "route add 198.51.100.0/24 dev d0"}
 	routeWriteSetupV6Route = []string{"link add d0 type dummy", "link set d0 up", "addr add 192.0.2.1/24 dev d0", "-6 addr add 2001:db8::1/64 nodad dev d0", "-6 route add 2001:db8:1::/64 dev d0"}
+)
+
+// The `neigh get` rows' preconditions: PRE_VETH and PRE_NEIGH in
+// rtnl-write-corpus.exp. A dummy is IFF_NOARP and holds no neighbor entry.
+var (
+	neighGetSetupVeth = []string{"link add d0 type veth peer name d1", "link set d1 up", "link set d0 up"}
+	neighGetSetup     = []string{
+		"link add d0 type veth peer name d1", "link set d1 up", "link set d0 up",
+		"neigh add 192.0.2.2 lladdr 02:00:00:00:00:02 dev d0 nud permanent",
+	}
 )
 
 // The `route get` rows' preconditions: PRE_D0_ADDR, its v6 sibling, and

@@ -82,14 +82,18 @@ type NetlinkSource struct {
 //     BuildDumpAddrRequestIndex's ifa_index in the *header* is honored at
 //     all. Without it that filter is silently dropped and the reply set is
 //     wrong while every request byte still matches.
+//   - NETLINK_EXT_ACK, which `ip` enables at lib/libnetlink.c:222. A refusal
+//     then carries the kernel's NLMSGERR_ATTR_MSG and NLM_F_ACK_TLVS in its
+//     own header, so without it goip's NLMSG_ERROR differs from ip's in
+//     header.flags (`neigh get` of a missing entry: ip 0x0200, goip 0).
 //   - SO_RCVBUF at 1 MiB, matching `ip`. The default is much smaller, and a
 //     dump on a host with many links or routes then arrives in more datagrams
 //     than `ip` would see — a difference in reply framing that is not a
 //     difference in what was asked.
 //
-// Strict checking degrades rather than refuses: a kernel predating
-// NETLINK_GET_STRICT_CHK (pre-4.20) answers ENOPROTOOPT, and that one errno is
-// ignored. Nothing else is. In particular SO_RCVBUF cannot fail on a socket
+// Both netlink options degrade rather than refuse: a kernel predating
+// NETLINK_GET_STRICT_CHK (pre-4.20) or NETLINK_EXT_ACK (pre-4.12) answers
+// ENOPROTOOPT, and that one errno is ignored. Nothing else is. In particular SO_RCVBUF cannot fail on a socket
 // this function just created — Linux *clamps* the request to net.core.rmem_max
 // rather than rejecting it (net/core/sock.c, SO_RCVBUF) — so an error there is
 // a bad fd, which is a bug here and not a property of the host. Reporting it is
@@ -138,10 +142,14 @@ func openNetlink(rcvTimeout time.Duration) (*NetlinkSource, error) {
 	}
 
 	// See the doc comment: ENOPROTOOPT means the running kernel has no strict
-	// checking, which is a degraded run, not a failed one.
+	// checking or extended ack, which is a degraded run, not a failed one.
 	if err := unix.SetsockoptInt(fd, unix.SOL_NETLINK, unix.NETLINK_GET_STRICT_CHK, 1); err != nil &&
 		!errors.Is(err, unix.ENOPROTOOPT) {
 		return nil, abandon(fmt.Errorf("goip: netlink strict check: %w", err))
+	}
+	if err := unix.SetsockoptInt(fd, unix.SOL_NETLINK, unix.NETLINK_EXT_ACK, 1); err != nil &&
+		!errors.Is(err, unix.ENOPROTOOPT) {
+		return nil, abandon(fmt.Errorf("goip: netlink extended ack: %w", err))
 	}
 	if err := unix.SetsockoptInt(fd, unix.SOL_SOCKET, unix.SO_RCVBUF, 1<<20); err != nil {
 		return nil, abandon(fmt.Errorf("goip: netlink SO_RCVBUF: %w", err))

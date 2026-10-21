@@ -908,7 +908,14 @@
     "for the unreachable get. The from/iif reply's RTA_CACHEINFO rta_clntref is",
     "the cached input route's refcount, which moved between ip_a and ip_b too,",
     "so D_control suppresses it with no entry. The ungated surface is still",
-    "`addr show dynamic` alone."
+    "`addr show dynamic` alone.",
+    "",
+    "G1-T02 adds `neigh get` and gates its two rows: a permanent entry on a",
+    "veth, and a missing one, ENOENT and exit 2. Each is the get by name for",
+    "d0 and the RTM_GETNEIGH get, txns 2/2, on two back-to-back runs of 191",
+    "GOIP_PARITY_PASS of 191 that ended GOIP_PARITY_OVERALL_PASS. Both runs",
+    "follow goip setting NETLINK_EXT_ACK, without which the missing entry's",
+    "NLMSG_ERROR lacked the NLM_F_ACK_TLVS and message ip's carries."
   ],
   "_note_version_skew": [
     "THE ENTRIES BELOW CITE COMMITS THAT ARE IN NO RELEASE, AND THE EVIDENCE IS",
@@ -1175,6 +1182,8 @@
     "route get 192.0.2.5 notify",
     "-6 route get 2001:db8::5",
     "route get 192.0.2.5 from 198.51.100.2 iif d1",
-    "route get 203.0.113.1"
+    "route get 203.0.113.1",
+    "neigh get 192.0.2.2 dev d0",
+    "neigh get 192.0.2.9 dev d0"
   ]
 }
