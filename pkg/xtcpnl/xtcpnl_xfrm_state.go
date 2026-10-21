@@ -9,8 +9,8 @@ import (
 
 // This file decodes the NETLINK_XFRM messages about SAs: NEWSA and UPDSA
 // (struct xfrm_usersa_info), DELSA and GETSA (struct xfrm_usersa_id),
-// FLUSHSA (struct xfrm_usersa_flush), and NEWAE and GETAE (struct
-// xfrm_aevent_id), each followed by XFRMA_* attributes. The kernel's
+// FLUSHSA (struct xfrm_usersa_flush), NEWAE and GETAE (struct
+// xfrm_aevent_id), and ALLOCSPI (struct xfrm_userspi_info), each followed by XFRMA_* attributes. The kernel's
 // xfrm_msg_min (net/xfrm/xfrm_user.c) gives each type's struct; `ip xfrm
 // state` and `ip xfrm monitor` (ip/xfrm_state.c, ip/xfrm_monitor.c) send
 // and read them.
@@ -92,10 +92,18 @@ type XfrmAeventID struct {
 	Reqid uint32
 }
 
-// XfrmState is a decoded SA message. Which of Info, ID, FlushProto and
-// AEvent is set follows Type: Info for NEWSA and UPDSA, ID for DELSA and
-// for a GETSA that is not a dump, FlushProto for FLUSHSA, and AEvent for
-// NEWAE and GETAE. A GETSA dump has no struct, only attributes.
+// XfrmUserspiInfo is a struct xfrm_userspi_info: an ALLOCSPI's SA, and the
+// range, inclusive, the kernel is to pick its SPI from. The kernel answers
+// with a NEWSA.
+type XfrmUserspiInfo struct {
+	Info     XfrmUsersaInfo
+	Min, Max uint32
+}
+
+// XfrmState is a decoded SA message. Which of Info, ID, FlushProto,
+// AEvent and AllocSPI is set follows Type: Info for NEWSA and UPDSA, ID
+// for DELSA and for a GETSA that is not a dump, FlushProto for FLUSHSA,
+// AEvent for NEWAE and GETAE, and AllocSPI for ALLOCSPI. A GETSA dump has no struct, only attributes.
 //
 // The kernel's DELSA event carries an xfrm_usersa_id too, and nests the
 // deleted SA in XFRMA_SA, so Attrs.SA holds it.
@@ -106,6 +114,7 @@ type XfrmState struct {
 	ID         *XfrmUsersaID
 	FlushProto *uint8
 	AEvent     *XfrmAeventID
+	AllocSPI   *XfrmUserspiInfo
 	Attrs      XfrmAttrs
 }
 
@@ -130,6 +139,8 @@ func ParseXfrmState(h NlMsgHdr, body []byte) (XfrmState, error) {
 		n = XfrmUsersaFlushSizeCst
 	case XfrmMsgNewAE, XfrmMsgGetAE:
 		n = XfrmAeventIDSizeCst
+	case XfrmMsgAllocSPI:
+		n = XfrmUserspiInfoSizeCst
 	default:
 		return s, fmt.Errorf("%w: %d", ErrXfrmType, h.Type)
 	}
@@ -150,6 +161,9 @@ func ParseXfrmState(h NlMsgHdr, body []byte) (XfrmState, error) {
 	case n == XfrmAeventIDSizeCst:
 		s.AEvent = &XfrmAeventID{xfrmUsersaID(body), xfrmAddress(body[24:]),
 			binary.LittleEndian.Uint32(body[40:]), binary.LittleEndian.Uint32(body[44:])}
+	case n == XfrmUserspiInfoSizeCst:
+		s.AllocSPI = &XfrmUserspiInfo{xfrmUsersaInfo(body), binary.LittleEndian.Uint32(body[XfrmUsersaInfoSizeCst:]),
+			binary.LittleEndian.Uint32(body[XfrmUsersaInfoSizeCst+4:])}
 	}
 	if off := nlmsgAlign(n); off < len(body) {
 		return s, parseXfrmAttrs(body[off:], &s.Attrs)

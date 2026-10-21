@@ -169,6 +169,12 @@ func xfrmStateRender(s *XfrmState, err error) string {
 			" flags=0x"+strconv.FormatUint(uint64(e.Flags), 16)+" reqid="+u32s(e.Reqid)+"}")
 		family = e.SAID.Family
 	}
+	if s.AllocSPI != nil {
+		a := s.AllocSPI
+		w = append(w, "spi_range=0x"+strconv.FormatUint(uint64(a.Min), 16)+"-0x"+strconv.FormatUint(uint64(a.Max), 16),
+			xfrmRInfo(&a.Info))
+		family = a.Info.Family
+	}
 	w = append(w, xfrmRAttrs(&s.Attrs, family)...)
 	if err != nil {
 		w = append(w, "error: "+err.Error())
@@ -439,6 +445,33 @@ func TestParseXfrmState(t *testing.T) {
 			expected: "type=16 " + infoText + " esn=1/2/3/4/0[]",
 		},
 		{
+			description: "boundary: ip's allocspi, an ALLOCSPI whose range is the one SPI 0x200 (state_allocspi)",
+			h:           NlMsgHdr{Type: XfrmMsgAllocSPI}, cap: "state_allocspi/ip.pcap", request: true,
+			expected: "type=22 spi_range=0x200-0x200 info{dst=192.0.2.2 spi=0x0 proto=50 src=192.0.2.1 family=2 mode=0 reqid=0 seq=0 replay_window=0 flags=0" +
+				" sel{0/0-0/0 dport=0/0 sport=0/0 family=0 proto=0 ifindex=0 user=0} lft=0,0,0,0,0,0,0,0 cur=0B/0P/0/0 stats=0/0/0}",
+		},
+		{
+			description: "positive: an ALLOCSPI for 0x100, which the kernel refuses as taken (state_allocspi_taken)",
+			h:           NlMsgHdr{Type: XfrmMsgAllocSPI}, cap: "state_allocspi_taken/ip.pcap", request: true,
+			expected: "type=22 spi_range=0x100-0x100 info{dst=192.0.2.2 spi=0x0 proto=50 src=192.0.2.1 family=2 mode=0 reqid=0 seq=0 replay_window=0 flags=0" +
+				" sel{0/0-0/0 dport=0/0 sport=0/0 family=0 proto=0 ifindex=0 user=0} lft=0,0,0,0,0,0,0,0 cur=0B/0P/0/0 stats=0/0/0}",
+		},
+		{
+			description: "corner: an ALLOCSPI's range follows its usersa_info, and its attributes start at 232",
+			h:           NlMsgHdr{Type: XfrmMsgAllocSPI}, body: cat(info, le32(0x100), le32(0x1ff), u32(XfrmAttrIfID, 9)),
+			expected: "type=22 spi_range=0x100-0x1ff " + infoText + " if_id=9",
+		},
+		{
+			description: "boundary: an ALLOCSPI whose range is the top SPI",
+			h:           NlMsgHdr{Type: XfrmMsgAllocSPI}, body: cat(info, le32(0xffffffff), le32(0xffffffff)),
+			expected: "type=22 spi_range=0xffffffff-0xffffffff " + infoText,
+		},
+		{
+			description: "negative: an ALLOCSPI one byte short of its userspi_info",
+			h:           NlMsgHdr{Type: XfrmMsgAllocSPI}, body: cat(info, le32(0x100), []byte{0xff, 1, 0}),
+			expected: "type=22 error: " + ErrXfrmSmall.Error() + ": type 22 needs 232 bytes, has 231",
+		},
+		{
 			description: "negative: a type this does not parse",
 			h:           NlMsgHdr{Type: XfrmMsgNewPolicy}, body: info,
 			expected: "type=19 error: " + ErrXfrmType.Error() + ": 19",
@@ -526,7 +559,7 @@ func TestParseXfrmState(t *testing.T) {
 // TestParseXfrmStateCorpus decodes every SA message in the corpus.
 func TestParseXfrmStateCorpus(t *testing.T) {
 	tally := func(types []uint16, request bool) string {
-		var n, errs, info, id, flush, ae, dump, sa, algs int
+		var n, errs, info, id, flush, ae, dump, sa, algs, spi int
 		for _, c := range corpusAll(t) {
 			m := c.m
 			if m.proto != unix.NETLINK_XFRM || (m.h.Flags&unix.NLM_F_REQUEST != 0) != request {
@@ -550,7 +583,7 @@ func TestParseXfrmStateCorpus(t *testing.T) {
 				c  *int
 			}{
 				{s.Info != nil, &info}, {s.ID != nil, &id}, {s.FlushProto != nil, &flush}, {s.AEvent != nil, &ae},
-				{s.Dump, &dump}, {s.Attrs.SA != nil, &sa},
+				{s.Dump, &dump}, {s.Attrs.SA != nil, &sa}, {s.AllocSPI != nil, &spi},
 				{s.Attrs.AlgCrypt != nil || s.Attrs.AlgAEAD != nil, &algs},
 			} {
 				if k.ok {
@@ -560,20 +593,21 @@ func TestParseXfrmStateCorpus(t *testing.T) {
 		}
 		return strconv.Itoa(n) + " decoded, " + strconv.Itoa(errs) + " errors, " + strconv.Itoa(info) + " info, " +
 			strconv.Itoa(id) + " id, " + strconv.Itoa(flush) + " flush, " + strconv.Itoa(ae) + " ae, " +
-			strconv.Itoa(dump) + " dump, " + strconv.Itoa(sa) + " nested sa, " + strconv.Itoa(algs) + " with a cipher"
+			strconv.Itoa(dump) + " dump, " + strconv.Itoa(sa) + " nested sa, " + strconv.Itoa(algs) + " with a cipher, " + strconv.Itoa(spi) + " allocspi"
 	}
 	tests := []struct {
 		description string
 		got         string
 		expected    string
 	}{
-		{description: "positive: ip's NEWSA and UPDSA requests decode", got: tally([]uint16{XfrmMsgNewSA, XfrmMsgUpdSA}, true), expected: "15 decoded, 0 errors, 15 info, 0 id, 0 flush, 0 ae, 0 dump, 0 nested sa, 15 with a cipher"},
-		{description: "positive: the kernel's NEWSA and UPDSA messages decode", got: tally([]uint16{XfrmMsgNewSA, XfrmMsgUpdSA}, false), expected: "22 decoded, 0 errors, 22 info, 0 id, 0 flush, 0 ae, 0 dump, 0 nested sa, 20 with a cipher"},
-		{description: "positive: ip's GETSA and DELSA requests decode, the dumps without an id", got: tally([]uint16{XfrmMsgGetSA, XfrmMsgDelSA}, true), expected: "25 decoded, 0 errors, 0 info, 7 id, 0 flush, 0 ae, 18 dump, 0 nested sa, 0 with a cipher"},
-		{description: "positive: the kernel's DELSA event decodes with its nested SA", got: tally([]uint16{XfrmMsgDelSA}, false), expected: "1 decoded, 0 errors, 0 info, 1 id, 0 flush, 0 ae, 0 dump, 1 nested sa, 1 with a cipher"},
-		{description: "positive: the FLUSHSA requests and event decode", got: tally([]uint16{XfrmMsgFlushSA}, true) + "|" + tally([]uint16{XfrmMsgFlushSA}, false), expected: "3 decoded, 0 errors, 0 info, 0 id, 3 flush, 0 ae, 0 dump, 0 nested sa, 0 with a cipher|1 decoded, 0 errors, 0 info, 0 id, 1 flush, 0 ae, 0 dump, 0 nested sa, 0 with a cipher"},
-		{description: "positive: the kernel's NEWAE events decode", got: tally([]uint16{XfrmMsgNewAE}, false), expected: "2 decoded, 0 errors, 0 info, 0 id, 0 flush, 2 ae, 0 dump, 0 nested sa, 0 with a cipher"},
-		{description: "negative: the kernel sends no GETSA and no GETAE", got: tally([]uint16{XfrmMsgGetSA, XfrmMsgGetAE}, false), expected: "0 decoded, 0 errors, 0 info, 0 id, 0 flush, 0 ae, 0 dump, 0 nested sa, 0 with a cipher"},
+		{description: "positive: ip's NEWSA and UPDSA requests decode", got: tally([]uint16{XfrmMsgNewSA, XfrmMsgUpdSA}, true), expected: "15 decoded, 0 errors, 15 info, 0 id, 0 flush, 0 ae, 0 dump, 0 nested sa, 15 with a cipher, 0 allocspi"},
+		{description: "positive: the kernel's NEWSA and UPDSA messages decode", got: tally([]uint16{XfrmMsgNewSA, XfrmMsgUpdSA}, false), expected: "22 decoded, 0 errors, 22 info, 0 id, 0 flush, 0 ae, 0 dump, 0 nested sa, 20 with a cipher, 0 allocspi"},
+		{description: "positive: ip's GETSA and DELSA requests decode, the dumps without an id", got: tally([]uint16{XfrmMsgGetSA, XfrmMsgDelSA}, true), expected: "25 decoded, 0 errors, 0 info, 7 id, 0 flush, 0 ae, 18 dump, 0 nested sa, 0 with a cipher, 0 allocspi"},
+		{description: "positive: the kernel's DELSA event decodes with its nested SA", got: tally([]uint16{XfrmMsgDelSA}, false), expected: "1 decoded, 0 errors, 0 info, 1 id, 0 flush, 0 ae, 0 dump, 1 nested sa, 1 with a cipher, 0 allocspi"},
+		{description: "positive: the FLUSHSA requests and event decode", got: tally([]uint16{XfrmMsgFlushSA}, true) + "|" + tally([]uint16{XfrmMsgFlushSA}, false), expected: "3 decoded, 0 errors, 0 info, 0 id, 3 flush, 0 ae, 0 dump, 0 nested sa, 0 with a cipher, 0 allocspi|1 decoded, 0 errors, 0 info, 0 id, 1 flush, 0 ae, 0 dump, 0 nested sa, 0 with a cipher, 0 allocspi"},
+		{description: "positive: the kernel's NEWAE events decode", got: tally([]uint16{XfrmMsgNewAE}, false), expected: "2 decoded, 0 errors, 0 info, 0 id, 0 flush, 2 ae, 0 dump, 0 nested sa, 0 with a cipher, 0 allocspi"},
+		{description: "positive: ip's ALLOCSPI requests decode", got: tally([]uint16{XfrmMsgAllocSPI}, true), expected: "2 decoded, 0 errors, 0 info, 0 id, 0 flush, 0 ae, 0 dump, 0 nested sa, 0 with a cipher, 2 allocspi"},
+		{description: "negative: the kernel sends no GETSA, no GETAE and no ALLOCSPI", got: tally([]uint16{XfrmMsgGetSA, XfrmMsgGetAE, XfrmMsgAllocSPI}, false), expected: "0 decoded, 0 errors, 0 info, 0 id, 0 flush, 0 ae, 0 dump, 0 nested sa, 0 with a cipher, 0 allocspi"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {

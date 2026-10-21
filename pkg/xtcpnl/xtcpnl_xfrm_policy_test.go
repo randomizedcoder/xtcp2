@@ -12,21 +12,8 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// The XFRMA_SPD_* attributes of a NEWSPDINFO (linux/xfrm.h), and the
-// sizes C3-T02 adds to xtcpnl_xfrm.go's and xtcpnl_xfrm_policy.go's.
+// Offsets in the structs C3-T02's messages carry, on x86_64.
 const (
-	xfrmAttrSPDInfo        = 1
-	xfrmAttrSPDHInfo       = 2
-	xfrmAttrSPDIPv4HThresh = 3
-	xfrmAttrSPDIPv6HThresh = 4
-
-	// sizeof(struct xfrm_user_acquire), (struct xfrm_user_expire) and
-	// (struct xfrm_user_mapping) on x86_64, and the offsets in them. The
-	// expire ends in a u8 hard flag, padded to the 8 its lifetimes align
-	// to.
-	xfrmAcquireLen = 280
-	xfrmExpireLen  = 232
-	xfrmMappingLen = 64
 	// struct xfrm_encap_tmpl: a host-order type, network-order ports,
 	// and the original address at 8, after 2 bytes of padding.
 	xfrmEncapLen       = 24
@@ -143,13 +130,13 @@ func xfrmPolicyAttr(id uint16, d []byte) string {
 func xfrmSPDAttr(id uint16, d []byte) string {
 	u32 := func(i int) string { return u32s(binary.LittleEndian.Uint32(d[4*i:])) }
 	switch id {
-	case xfrmAttrSPDInfo:
+	case XfrmSPDAttrInfo:
 		return "spd_info=" + u32(0) + "/" + u32(1) + "/" + u32(2) + "/" + u32(3) + "/" + u32(4) + "/" + u32(5)
-	case xfrmAttrSPDHInfo:
+	case XfrmSPDAttrHInfo:
 		return "spd_hinfo=" + u32(0) + "/" + u32(1)
-	case xfrmAttrSPDIPv4HThresh:
+	case XfrmSPDAttrIPv4HThresh:
 		return "hthresh4=" + strconv.Itoa(int(d[0])) + "/" + strconv.Itoa(int(d[1]))
-	case xfrmAttrSPDIPv6HThresh:
+	case XfrmSPDAttrIPv6HThresh:
 		return "hthresh6=" + strconv.Itoa(int(d[0])) + "/" + strconv.Itoa(int(d[1]))
 	}
 	return "attr" + strconv.Itoa(int(id))
@@ -163,9 +150,9 @@ func xfrmPolicyBody(typ uint16, b []byte) (words []string, attrOff int, space xf
 	need := map[uint16]int{
 		XfrmMsgNewPolicy: XfrmUserpolicyInfoSizeCst, XfrmMsgUpdPolicy: XfrmUserpolicyInfoSizeCst,
 		XfrmMsgDelPolicy: 0, XfrmMsgGetPolicy: 0, XfrmMsgFlushPolicy: 0,
-		XfrmMsgAcquire: xfrmAcquireLen, XfrmMsgExpire: xfrmExpireLen,
+		XfrmMsgAcquire: XfrmUserAcquireSizeCst, XfrmMsgExpire: XfrmUserExpireSizeCst,
 		XfrmMsgPolExpire: XfrmUserPolexpireSizeCst, XfrmMsgNewAE: XfrmAeventIDSizeCst,
-		XfrmMsgNewSPDInfo: 4, XfrmMsgGetSPDInfo: 4, XfrmMsgMapping: xfrmMappingLen,
+		XfrmMsgNewSPDInfo: 4, XfrmMsgGetSPDInfo: 4, XfrmMsgMapping: XfrmUserMappingSizeCst,
 		XfrmMsgSetDefault: XfrmUserpolicyDefaultSizeCst, XfrmMsgGetDefault: XfrmUserpolicyDefaultSizeCst,
 	}
 	n, known := need[typ]
@@ -193,10 +180,10 @@ func xfrmPolicyBody(typ uint16, b []byte) (words []string, attrOff int, space xf
 			strconv.FormatUint(uint64(binary.BigEndian.Uint32(b[16:])), 16) + " proto=" + strconv.Itoa(int(b[20])) +
 			" src=" + xfrmAddr(b[24:40]) + " sel=" + xfrmSel(b[40:40+XfrmSelectorSizeCst]) +
 			" policy{" + xfrmPolicyInfo(b[xfrmAcquirePolOff:]) + "} algos=" + xfrmAlgos(b[xfrmAcquireAlgsOff:])}
-		attrOff = xfrmAcquireLen
+		attrOff = XfrmUserAcquireSizeCst
 	case XfrmMsgExpire:
 		words = []string{"expire", "hard=" + strconv.Itoa(int(b[XfrmUsersaInfoSizeCst])), xfrmSAInfo(b)}
-		attrOff = xfrmExpireLen
+		attrOff = XfrmUserExpireSizeCst
 	case XfrmMsgPolExpire:
 		words = []string{"polexpire", "hard=" + strconv.Itoa(int(b[XfrmUserpolicyInfoSizeCst])), xfrmPolicyInfo(b)}
 		attrOff = XfrmUserPolexpireSizeCst
@@ -216,7 +203,7 @@ func xfrmPolicyBody(typ uint16, b []byte) (words []string, attrOff int, space xf
 			" reqid=" + u32s(binary.LittleEndian.Uint32(b[24:])) +
 			" old=" + xfrmAddr(b[28:44]) + ":" + strconv.Itoa(int(binary.BigEndian.Uint16(b[60:]))) +
 			" new=" + xfrmAddr(b[44:60]) + ":" + strconv.Itoa(int(binary.BigEndian.Uint16(b[62:])))}
-		attrOff = xfrmMappingLen
+		attrOff = XfrmUserMappingSizeCst
 	case XfrmMsgGetSPDInfo, XfrmMsgNewSPDInfo:
 		words = []string{map[uint16]string{XfrmMsgGetSPDInfo: "getspdinfo", XfrmMsgNewSPDInfo: "newspdinfo"}[typ],
 			"flags=0x" + strconv.FormatUint(uint64(binary.LittleEndian.Uint32(b)), 16)}

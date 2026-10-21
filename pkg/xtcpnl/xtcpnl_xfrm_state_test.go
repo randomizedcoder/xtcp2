@@ -13,20 +13,14 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// The XFRMA_SAD_* attributes of a NEWSADINFO (linux/xfrm.h). The message
-// types, the XFRMA_* attributes and the struct sizes are xtcpnl_xfrm.go's.
+// Offsets in struct xfrm_usersa_info on x86_64. The message types, the
+// attributes and the struct sizes are xtcpnl_xfrm*.go's.
 const (
-	xfrmAttrSADCnt   = 1
-	xfrmAttrSADHInfo = 2
-
-	// sizeof(struct xfrm_userspi_info) on x86_64, and offsets in
-	// struct xfrm_usersa_info.
-	xfrmUserspiInfoLen = 232
-	xfrmLftOff         = 96
-	xfrmLftFields      = 8
-	xfrmCurlftOff      = 160
-	xfrmSeqOff         = 204
-	xfrmInf            = ^uint64(0)
+	xfrmLftOff    = 96
+	xfrmLftFields = 8
+	xfrmCurlftOff = 160
+	xfrmSeqOff    = 204
+	xfrmInf       = ^uint64(0)
 )
 
 // xfrmLftNames are xfrm_lifetime_cfg's eight limits, in order.
@@ -122,9 +116,9 @@ func xfrmAttrs(t *testing.T, data []byte, space xfrmAttrSpace) string {
 		d := a.Data
 		var w string
 		switch {
-		case space == xfrmSpaceSAD && a.ID() == xfrmAttrSADCnt:
+		case space == xfrmSpaceSAD && a.ID() == XfrmSADAttrCnt:
 			w = "sad_cnt=" + u32s(binary.LittleEndian.Uint32(d))
-		case space == xfrmSpaceSAD && a.ID() == xfrmAttrSADHInfo:
+		case space == xfrmSpaceSAD && a.ID() == XfrmSADAttrHInfo:
 			w = "sad_hinfo=" + u32s(binary.LittleEndian.Uint32(d)) + "/" + u32s(binary.LittleEndian.Uint32(d[4:]))
 		case space == xfrmSpaceSPD:
 			w = xfrmSPDAttr(a.ID(), d)
@@ -182,7 +176,7 @@ func xfrmMsg(t *testing.T, m capturedNlMsg) string {
 	case XfrmMsgAllocSPI:
 		words = append(words, "allocspi", xfrmSAInfo(b), "min=0x"+strconv.FormatUint(uint64(binary.LittleEndian.Uint32(b[XfrmUsersaInfoSizeCst:])), 16)+
 			" max=0x"+strconv.FormatUint(uint64(binary.LittleEndian.Uint32(b[XfrmUsersaInfoSizeCst+4:])), 16))
-		attrOff = xfrmUserspiInfoLen
+		attrOff = XfrmUserspiInfoSizeCst
 	case XfrmMsgGetSA, XfrmMsgDelSA:
 		words = append(words, map[uint16]string{XfrmMsgGetSA: "getsa", XfrmMsgDelSA: "delsa"}[m.h.Type])
 		if m.h.Flags&unix.NLM_F_DUMP != unix.NLM_F_DUMP {

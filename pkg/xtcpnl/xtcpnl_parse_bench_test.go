@@ -262,6 +262,8 @@ var (
 	resultMacsec  Macsec
 	resultXfrmSA  XfrmState
 	resultXfrmPol XfrmPolicy
+	resultXfrmInf XfrmInfo
+	resultXfrmEv  XfrmEvent
 )
 
 // parseBenchCase is one parser P0 benchmarks: its name, the kind of its
@@ -307,6 +309,8 @@ var parseBenchCases = []parseBenchCase{
 	{name: "ParseMacsec", kind: genl(MacsecGenlName), parse: func(_ NlMsgHdr, b []byte) (err error) { resultMacsec, err = ParseMacsec(b); return err }},
 	{name: "ParseXfrmState", kind: xfrm(XfrmMsgNewSA), parse: func(h NlMsgHdr, b []byte) (err error) { resultXfrmSA, err = ParseXfrmState(h, b); return err }},
 	{name: "ParseXfrmPolicy", kind: xfrm(XfrmMsgNewPolicy), parse: func(h NlMsgHdr, b []byte) (err error) { resultXfrmPol, err = ParseXfrmPolicy(h, b); return err }},
+	{name: "ParseXfrmInfo", kind: xfrm(XfrmMsgNewSPDInfo), parse: func(h NlMsgHdr, b []byte) (err error) { resultXfrmInf, err = ParseXfrmInfo(h, b); return err }},
+	{name: "ParseXfrmEvent", kind: xfrm(XfrmMsgAcquire), parse: func(h NlMsgHdr, b []byte) (err error) { resultXfrmEv, err = ParseXfrmEvent(h, b); return err }},
 }
 
 // parseBenchCaseNamed returns the parseBenchCases entry called name.
@@ -461,6 +465,15 @@ func BenchmarkParseXfrmState(b *testing.B) { benchParse(b, "ParseXfrmState") }
 // BenchmarkParseXfrmPolicy decodes the smallest, a typical and the
 // largest policy the kernel sent as a NEWPOLICY in the corpus (P3-T02).
 func BenchmarkParseXfrmPolicy(b *testing.B) { benchParse(b, "ParseXfrmPolicy") }
+
+// BenchmarkParseXfrmInfo decodes the smallest, a typical and the largest
+// SPD info the kernel answered as a NEWSPDINFO in the corpus (P3-T03).
+func BenchmarkParseXfrmInfo(b *testing.B) { benchParse(b, "ParseXfrmInfo") }
+
+// BenchmarkParseXfrmEvent decodes the kernel's ACQUIRE in the corpus, its
+// struct and the template after it, the one message all three picks are
+// (P3-T03).
+func BenchmarkParseXfrmEvent(b *testing.B) { benchParse(b, "ParseXfrmEvent") }
 
 func TestBenchPick(t *testing.T) {
 	// msg is a captured message of type typ whose body is n bytes, from a
@@ -620,7 +633,7 @@ func TestParseBenchCases(t *testing.T) {
 				" ParseNsid=0/88 ParseNexthopBucket=0/116 ParseLinkProp=0/108/request ParsePrefix=0/52" +
 				" ParseTCPMetrics=16/tcp_metrics ParseSeg6=16/SEG6 ParseIOAM6=16/IOAM6/cmd3,6 ParseIOAM6Event=16/IOAM6/cmd1" +
 				" ParseMPTCPPM=16/mptcp_pm/answers ParseMPTCPEvent=16/mptcp_pm/events ParseFOU=16/fou ParseILA=16/ila ParseL2TP=16/l2tp ParseMacsec=16/macsec" +
-				" ParseXfrmState=6/16 ParseXfrmPolicy=6/19",
+				" ParseXfrmState=6/16 ParseXfrmPolicy=6/19 ParseXfrmInfo=6/36 ParseXfrmEvent=6/23",
 		},
 	}
 	for _, tt := range tests {
@@ -671,6 +684,8 @@ func TestParseBenchRecords(t *testing.T) {
 		{description: "positive: ParseMacsec decodes its three macsec picks", name: "ParseMacsec", expected: "smallest ok, typical ok, largest ok"},
 		{description: "positive: ParseXfrmState decodes its three NEWSA picks", name: "ParseXfrmState", expected: "smallest ok, typical ok, largest ok"},
 		{description: "positive: ParseXfrmPolicy decodes its three NEWPOLICY picks", name: "ParseXfrmPolicy", expected: "smallest ok, typical ok, largest ok"},
+		{description: "positive: ParseXfrmInfo decodes its three NEWSPDINFO picks", name: "ParseXfrmInfo", expected: "smallest ok, typical ok, largest ok"},
+		{description: "boundary: ParseXfrmEvent decodes its one ACQUIRE, picked three times", name: "ParseXfrmEvent", expected: "smallest ok, typical ok, largest ok"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {

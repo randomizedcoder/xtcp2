@@ -112,6 +112,7 @@ const (
 	XfrmUsersaIDSizeCst      = 24  // struct xfrm_usersa_id
 	XfrmUsersaFlushSizeCst   = 1   // struct xfrm_usersa_flush
 	XfrmAeventIDSizeCst      = 48  // struct xfrm_aevent_id
+	XfrmUserspiInfoSizeCst   = 232 // struct xfrm_userspi_info
 
 	xfrmAlgoNameLen = 64
 )
