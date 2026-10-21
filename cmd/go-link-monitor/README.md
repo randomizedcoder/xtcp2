@@ -53,6 +53,12 @@ curl -s :9101/i/-br/a                # ip -br a
 All paths are on `-metrics-addr` (default `:9101`) unless
 `-metrics-all-addr` moves the detail paths to their own listener.
 
+Every TCP listener sends with an IPv4 TTL and IPv6 hop limit of 3
+(`-ipv4-ttl`, `-ipv6-hop-limit`), as xtcp2's `-ipv4Ttl` does. Replies to a
+scraper more than two routers away are dropped, so an unexpectedly
+internet-exposed host leaks little. Raise them for a distant Prometheus, or
+set 0 for the kernel default.
+
 | Path | Serves | Suggested scrape |
 |---|---|---|
 | `/metrics` | Problem summary: `problems`, `up_links_delta`, `baseline_ready`, `collection_healthy`, `build_info`, plus one sparse `interface_problem` or `host_problem` series per active problem | 15s-1m, alerting |

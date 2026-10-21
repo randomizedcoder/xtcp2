@@ -569,6 +569,8 @@ Standalone command flags:
 | `-metrics.core-exclude` | empty | Anchored regexp removed from `/metrics`, empty removes nothing; overrides GO_LINK_MONITOR_METRICS_CORE_EXCLUDE |
 | `-metrics-all-path` | `/metrics-all` | Exact path serving every metric, empty disables; overrides GO_LINK_MONITOR_METRICS_ALL_PATH |
 | `-metrics-all-addr` | empty | Separate listener for the all-metrics path, empty shares `-metrics-addr`; overrides GO_LINK_MONITOR_METRICS_ALL_ADDR |
+| `-ipv4-ttl` | `3` | Outgoing IPv4 TTL on every TCP listener (metrics, all-metrics, TCP admin), 0-255, 0 is the kernel default; overrides GO_LINK_MONITOR_IPV4_TTL |
+| `-ipv6-hop-limit` | `3` | Outgoing IPv6 unicast hop limit on the same listeners, 0-255, 0 is the kernel default; overrides GO_LINK_MONITOR_IPV6_HOP_LIMIT |
 | `-ip.paths` | false | Serve read-only `ip … show` on `/ip` and `/i`: command lines as paths (`/ip/addr/show/dev/eth0`, `/i/a/s`, [IP-ARGV-PATHS-DESIGN.md](IP-ARGV-PATHS-DESIGN.md)) and the JSON query form (`/ip/OBJECT`, [IP-PATHS-DESIGN.md](IP-PATHS-DESIGN.md)); overrides GO_LINK_MONITOR_IP_PATHS |
 | `-ip.max-bytes` | `33554432` | Largest `/ip` response body, positive; overrides GO_LINK_MONITOR_IP_MAX_BYTES |
 | `-admin.address` | empty | Admin gRPC socket path or TCP address, empty disables; overrides GO_LINK_MONITOR_ADMIN_ADDR |
@@ -581,7 +583,7 @@ Standalone command flags:
 | `-io-backend` | `poller` | Ordinary nonblocking sockets by default; explicit `io_uring` requires supported backend initialization |
 
 Both single- and double-dash forms work. Maximum-speed exceptions, the four
-exposure options and the admin/auth options have environment overrides; an explicit flag, even an empty one,
+exposure options, the admin/auth options and the hop limits have environment overrides; an explicit flag, even an empty one,
 wins, and an empty variable keeps the default. See
 [exposure tiers](METRICS.md#exposure-tiers). Unknown flags and positional arguments fail with exit 2;
 configuration errors also exit 2, runtime errors exit 1, and help/version or clean

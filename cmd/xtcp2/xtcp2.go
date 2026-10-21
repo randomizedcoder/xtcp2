@@ -212,8 +212,11 @@ const (
 	ipmetaBootstrapPathCst = "/share/xtcp2/ipmeta/bootstrap.lookup.parquet.zst"
 	ipmetaCachePathCst     = "/var/lib/xtcp2/ipmeta/current.lookup.parquet.zst"
 
-	ipv4TtlCst      uint = 0
-	ipv6HopLimitCst uint = 0
+	// ipv4TtlCst and ipv6HopLimitCst keep replies to a scraper or client more
+	// than two routers away from arriving, so an unexpectedly internet-exposed
+	// host leaks little. 0 restores the kernel default.
+	ipv4TtlCst      uint = 3
+	ipv6HopLimitCst uint = 3
 
 	// "default" enables every deserializer except the off-by-default ones
 	// (meminfo, redundant with sk_mem_info). Use "all" to force everything.
@@ -509,7 +512,7 @@ func defineS3Flags(f *mainFlags) {
 // than implied, so the next reader does not go looking for the missing
 // printListenerFlags.
 func defineListenerFlags(f *mainFlags) {
-	f.ipv4Ttl = flag.Uint("ipv4Ttl", ipv4TtlCst, "outgoing IPv4 TTL for xtcp2's TCP listeners (Prometheus + gRPC); 0 = kernel default. A low value keeps replies from traveling far if the host is internet-exposed. Falls back to IPV4_TTL env.")
+	f.ipv4Ttl = flag.Uint("ipv4Ttl", ipv4TtlCst, "outgoing IPv4 TTL for xtcp2's TCP listeners (Prometheus + gRPC); 0 = kernel default. The low default keeps replies from traveling far if the host is internet-exposed; raise it for a distant scraper. Falls back to IPV4_TTL env.")
 	f.ipv6HopLimit = flag.Uint("ipv6HopLimit", ipv6HopLimitCst, "outgoing IPv6 unicast hop limit for xtcp2's TCP listeners; 0 = kernel default. Falls back to IPV6_HOP_LIMIT env.")
 	f.listenerAuthMode = flag.String("listenerAuthMode", "", "shared listener auth mode: disabled, raw, hmac-utc-minute. Falls back to LISTENER_AUTH_MODE env.")
 	f.listenerRawToken = flag.String("listenerRawToken", "", "listener auth raw bearer token. Prefer LISTENER_RAW_TOKEN or LISTENER_RAW_TOKEN_FILE; never logged.")

@@ -30,8 +30,8 @@ ioUringCqeBatch	128	io_uring max CQEs reaped per PeekBatchCQE call (1-4096)
 ioUringRecvBatch	64	io_uring receive buffers per socket, rounded up to a power of two (1-4096). Each holds one packet; with all in use, receiving pauses until they are recycled.
 ipmetaBootstrapPath	/share/xtcp2/ipmeta/bootstrap.lookup.parquet.zst	optional zstd-compressed lookup artifact baked into the image and used by -enrichAsn before live refresh. Falls back to IPMETA_BOOTSTRAP_PATH env.
 ipmetaCachePath	/var/lib/xtcp2/ipmeta/current.lookup.parquet.zst	optional writable zstd-compressed lookup artifact used by -enrichAsn before the image bootstrap and refreshed after successful live reloads. Falls back to IPMETA_CACHE_PATH env.
-ipv4Ttl	0	outgoing IPv4 TTL for xtcp2's TCP listeners (Prometheus + gRPC); 0 = kernel default. A low value keeps replies from traveling far if the host is internet-exposed. Falls back to IPV4_TTL env.
-ipv6HopLimit	0	outgoing IPv6 unicast hop limit for xtcp2's TCP listeners; 0 = kernel default. Falls back to IPV6_HOP_LIMIT env.
+ipv4Ttl	3	outgoing IPv4 TTL for xtcp2's TCP listeners (Prometheus + gRPC); 0 = kernel default. The low default keeps replies from traveling far if the host is internet-exposed; raise it for a distant scraper. Falls back to IPV4_TTL env.
+ipv6HopLimit	3	outgoing IPv6 unicast hop limit for xtcp2's TCP listeners; 0 = kernel default. Falls back to IPV6_HOP_LIMIT env.
 kafkaCompression		Kafka producer compression codec. '' or 'auto' = preference list [zstd,lz4,snappy,none] negotiated with broker; or pin one of: zstd, lz4, snappy, gzip, none. All codecs are decodable by Redpanda + ClickHouse's Kafka engine.
 kafkaSchemaUrl	http://localhost:18081	kafka schema registry URL
 label		label applied to the protobuf
