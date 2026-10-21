@@ -122,6 +122,11 @@ const (
 	tdGuestGetNeigh = tdGuest + "/netlink_route_getneigh.pcap"
 	tdGuestLinkDev  = tdGuest + "/netlink_route_getlink_dev.pcap"
 
+	// The C1-T02 resilient-group captures: `ip nexthop bucket show id 20`
+	// and `ip nexthop bucket get id 20 index 0`.
+	tdNhBucketShow = "../xtcpnl/testdata/7_1_4/link-write/rtnl/nexthop_bucket_show/ip.pcap"
+	tdNhBucketGet  = "../xtcpnl/testdata/7_1_4/link-write/rtnl/nexthop_bucket_get/ip.pcap"
+
 	// `ip neigh show dev NAME`. Its txn 0 is byte-identical to
 	// tdGuestGetNeigh's, which is the property its allowlist entry rests on
 	// and the reason it still needs a file of its own: the whole difference

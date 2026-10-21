@@ -1271,6 +1271,31 @@ var commands = withArgs([]Command{
 		// transaction count matches, which is what the gate reads.
 		Floor: 4, Implemented: true,
 	},
+	// G1-T03: `nexthop get` (ipnh_get_id) and `nexthop bucket` (ipnh_bucket_list,
+	// ipnh_bucket_get_id), the C1-T02 rows.
+	{
+		Name: "nexthop get id 1", Slug: "nexthop_get",
+		// The RTM_GETNEXTHOP get, then d0 by index for its `dev` token (4).
+		Setup: nexthopGetSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "nexthop get id 9", Slug: "nexthop_get_missing",
+		// No such id: ENOENT, exit 2 (2).
+		Setup: nexthopGetSetup, Floor: 2, Implemented: true,
+	},
+	{
+		Name: "nexthop bucket show id 20", Slug: "nexthop_bucket_show",
+		// The 1024 buckets of a resilient group in one dump; ip's capture held
+		// five datagrams, and the floor leaves the kernel's packing room.
+		// Each bucket's NHA_RES_BUCKET_IDLE_TIME counts up between the three
+		// sides, a reply value the control cancels.
+		Setup: nexthopBucketSetup, Floor: 3, Implemented: true,
+	},
+	{
+		Name: "nexthop bucket get id 20 index 0", Slug: "nexthop_bucket_get",
+		// One bucket's single get and its reply (2).
+		Setup: nexthopBucketSetup, Floor: 2, Implemented: true,
+	},
 
 	{
 		Name: "addrlabel show", Slug: "addrlabel_show",
@@ -2260,6 +2285,17 @@ var (
 		"link add d0 type veth peer name d1", "link set d1 up", "link set d0 up",
 		"neigh add 192.0.2.2 lladdr 02:00:00:00:00:02 dev d0 nud permanent",
 	}
+)
+
+// The `nexthop get` and `nexthop bucket` rows' preconditions: PRE_NH and
+// PRE_NH_RES in rtnl-write-corpus.exp.
+var (
+	nexthopGetSetup = []string{
+		"link add d0 type dummy", "link set d0 up", "addr add 192.0.2.1/24 dev d0",
+		"nexthop add id 1 via 192.0.2.2 dev d0", "nexthop add id 2 via 192.0.2.3 dev d0",
+	}
+	nexthopBucketSetup = append(append([]string{}, nexthopGetSetup...),
+		"nexthop add id 20 group 1/2 type resilient buckets 1024")
 )
 
 // The `route get` rows' preconditions: PRE_D0_ADDR, its v6 sibling, and

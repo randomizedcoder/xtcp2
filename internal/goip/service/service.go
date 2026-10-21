@@ -501,6 +501,42 @@ func (s *Service) Nexthops(family uint8) ([]model.Nexthop, error) {
 	return out, nil
 }
 
+// NexthopBuckets is the RTM_GETNEXTHOPBUCKET dump behind `ip nexthop bucket
+// show`, in the kernel's walk order. family is preferred_family.
+func (s *Service) NexthopBuckets(family uint8, f xtcpnl.NexthopBucketDumpFilter) ([]model.NexthopBucket, error) {
+	r, err := req.NexthopBucketDump(family, f, s.nextSeq())
+	if err != nil {
+		return nil, fmt.Errorf("goip: build nexthop bucket dump request: %w", err)
+	}
+	v, err := decode(s, r, uint16(unix.RTM_NEWNEXTHOPBUCKET), "RTM_NEWNEXTHOPBUCKET", xtcpnl.ParseNexthopBucket)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.NexthopBucket, len(v))
+	for i := range v {
+		out[i] = model.NexthopBucket(v[i])
+	}
+	return out, nil
+}
+
+// NexthopBucketGet performs `ip nexthop bucket get`'s RTM_GETNEXTHOPBUCKET
+// single get and decodes the one RTM_NEWNEXTHOPBUCKET it answers with.
+func (s *Service) NexthopBucketGet(family uint8, id uint32, index uint16) (model.NexthopBucket, error) {
+	r, err := req.NexthopBucketGet(family, id, index, s.nextSeq())
+	if err != nil {
+		return model.NexthopBucket{}, fmt.Errorf("goip: build nexthop bucket get request: %w", err)
+	}
+	body, err := s.singleGet(r, uint16(unix.RTM_NEWNEXTHOPBUCKET), "RTM_NEWNEXTHOPBUCKET")
+	if err != nil {
+		return model.NexthopBucket{}, err
+	}
+	nb, err := xtcpnl.ParseNexthopBucket(body)
+	if err != nil {
+		return model.NexthopBucket{}, fmt.Errorf("goip: decode RTM_NEWNEXTHOPBUCKET: %w", err)
+	}
+	return model.NexthopBucket(nb), nil
+}
+
 // NexthopShowLinks is ll_init_map's link dump before a filtered `ip nexthop show
 // { dev | master | vrf }`. It is the nexthop-path twin of NeighborLinks: the same
 // ll_init_map request, split out so a `dev`/`master`/`vrf` name is resolved from

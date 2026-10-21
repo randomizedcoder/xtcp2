@@ -10,9 +10,9 @@ several steps, further down under [Remaining](#remaining).
 
 | | count | counted from |
 |---|---|---|
-| commands in the comparison matrix | **191** | `internal/goipparity/commands.go` — 108 read rows (31 of them `addr show` state, selector and output-mode rows with a `Setup`, and 6 `route get` and 2 `neigh get` rows with one), the 21 link write rows, the 26 route write rows, the 27 address write rows, the 7 address flush rows and the 2 address restore rows |
-| of those, `Implemented: true` | **191** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
-| of those, in `gated_commands` | **190** | `pkg/nlparity/goip-parity-allowlist.json` |
+| commands in the comparison matrix | **195** | `internal/goipparity/commands.go` — 112 read rows (31 of them `addr show` state, selector and output-mode rows with a `Setup`, and 6 `route get`, 2 `neigh get` and 4 `nexthop get` and `nexthop bucket` rows with one), the 21 link write rows, the 26 route write rows, the 27 address write rows, the 7 address flush rows and the 2 address restore rows |
+| of those, `Implemented: true` | **195** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
+| of those, in `gated_commands` | **194** | `pkg/nlparity/goip-parity-allowlist.json` |
 | allowlisted divergences | **7** | same file, `entries` |
 | of those, `kind=version-skew` | **7** | all against the pinned `ip` 7.1.0 |
 | of those, `kind=accepted-divergence` | **0** | nothing is *allowlisted* as a permanent divergence — the nine wire divergences runs 8 and 9 measured **could not** be, because a transaction-count divergence is unsuppressible (`nlparity_allowlist.go:143`), and G0 retired every one by changing goip to send `ip`'s requests |
@@ -38,9 +38,10 @@ The twenty-two that were out with it at the start of
   [G0-T03](#g0-t03-the-last-four-rows-gate)'s.
 
 The six `route get` rows G1-T01 added gated on their first two runs, and
-the two `neigh get` rows G1-T02 added on theirs; see
-[G1-T01](#g1-t01-the-six-route-get-rows-gate) and
-[G1-T02](#g1-t02-the-two-neigh-get-rows-gate).
+the two `neigh get` rows G1-T02 and the four `nexthop` rows G1-T03 added on
+theirs; see [G1-T01](#g1-t01-the-six-route-get-rows-gate),
+[G1-T02](#g1-t02-the-two-neigh-get-rows-gate) and
+[G1-T03](#g1-t03-the-four-nexthop-get-and-bucket-rows-gate).
 
 The eight stats and netconf-dev rows were the permanent set, measured divergent
 on the wire by
@@ -3569,6 +3570,28 @@ row; `CONTROL_NOISY` 168 then 167. Both rows read `txns` 2/2 with no finding;
 the only control-suppressed value is `d0`'s `IFLA_INET6_FLAGS`, which moved
 between `ip_a` and `ip_b` as well. Both gate with no allowlist entry, and
 `TestNeighGetRowsGated` and the `earned`/`gated_commands` pair pin them.
+
+### G1-T03: the four `nexthop` get and bucket rows gate
+
+G1-T03 adds `goip nexthop get` and `goip nexthop bucket` (`show` and `get`,
+`internal/goip/nexthop_get.go`) and four rows, one per C1-T02 capture:
+`nexthop get id 1` and the missing `nexthop get id 9` on a dummy holding
+nexthops 1 and 2, then `nexthop bucket show id 20` and `nexthop bucket get
+id 20 index 0` with resilient group 20 of 1024 buckets added. `nexthop get`
+is the single get `nexthop show id` already sent, then `d0` by index for the
+`dev` token; the bucket rows name no device, so each is its one request.
+
+A first run passed 195 of 195 with no control noise on the bucket rows,
+which was the clue to a comparator gap: `FamilyHdrLen` did not model
+`RTM_*NEXTHOPBUCKET`, so a bucket request was compared by body length alone
+and a reply's attributes not at all. With `struct nhmsg`'s 8 modeled for the
+three bucket types, two back-to-back runs passed 195 of 195, identical row
+for row, ending `GOIP_PARITY_OVERALL_PASS`. The get rows are `txns` 2/2 and
+1/1 with no control noise; the bucket rows are 1/1 each, and each bucket's
+idle time, which counts up between `ip_a`, goip and `ip_b`, is a value
+divergence the control cancels, 1024 on the dump and 1 on the get. All four
+gate with no allowlist entry, and `TestNexthopGetRowsGated` and the
+`earned`/`gated_commands` pair pin them.
 
 ## Tier C — the `goip-parity` microVM flavor
 

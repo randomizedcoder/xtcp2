@@ -915,7 +915,14 @@
     "d0 and the RTM_GETNEIGH get, txns 2/2, on two back-to-back runs of 191",
     "GOIP_PARITY_PASS of 191 that ended GOIP_PARITY_OVERALL_PASS. Both runs",
     "follow goip setting NETLINK_EXT_ACK, without which the missing entry's",
-    "NLMSG_ERROR lacked the NLM_F_ACK_TLVS and message ip's carries."
+    "NLMSG_ERROR lacked the NLM_F_ACK_TLVS and message ip's carries.",
+    "",
+    "G1-T03 adds `nexthop get` and `nexthop bucket` and gates their four",
+    "rows: nexthop 1 by id and the missing id 9, ENOENT and exit 2; then",
+    "resilient group 20's 1024-bucket dump and one bucket's get. Two",
+    "back-to-back runs of 195 GOIP_PARITY_PASS of 195 ended",
+    "GOIP_PARITY_OVERALL_PASS, after FamilyHdrLen modeled the bucket",
+    "messages; each bucket's moving idle time is control-canceled."
   ],
   "_note_version_skew": [
     "THE ENTRIES BELOW CITE COMMITS THAT ARE IN NO RELEASE, AND THE EVIDENCE IS",
@@ -1184,6 +1191,10 @@
     "route get 192.0.2.5 from 198.51.100.2 iif d1",
     "route get 203.0.113.1",
     "neigh get 192.0.2.2 dev d0",
-    "neigh get 192.0.2.9 dev d0"
+    "neigh get 192.0.2.9 dev d0",
+    "nexthop get id 1",
+    "nexthop get id 9",
+    "nexthop bucket show id 20",
+    "nexthop bucket get id 20 index 0"
   ]
 }

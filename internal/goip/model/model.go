@@ -20,6 +20,11 @@ type Neighbor xtcpnl.NeighInfo
 // fetches one by id per route, never a list to order.
 type Nexthop xtcpnl.NexthopInfo
 
+// NexthopBucket is one bucket of a resilient nexthop group
+// (RTM_NEWNEXTHOPBUCKET). It has no Sort companion: `ip nexthop bucket show`
+// prints the kernel's walk, bucket index order.
+type NexthopBucket xtcpnl.NexthopBucketInfo
+
 // Rule is a routing policy database entry. It has no SortRules companion, and
 // that absence is deliberate rather than pending.
 //

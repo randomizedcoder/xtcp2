@@ -5,7 +5,7 @@
 **Last updated:** 2026-10-21
 
 **Summary:**
-- `ip address` is done ([addr-write-path-status.md](addr-write-path-status.md)). With it, G0, G1-T01 and G1-T02, the parity matrix compares 191 commands and gates 190 of them.
+- `ip address` is done ([addr-write-path-status.md](addr-write-path-status.md)). With it, G0 and G1-T01 to G1-T03, the parity matrix compares 195 commands and gates 194 of them.
 - That is still a long way from all of `ip`:
   - goip runs 11 of the 31 objects in iproute2's `cmds[]`.
   - Only `link`, `address` and `route` have writes, and some of their verbs are missing too.
@@ -51,12 +51,12 @@ The citation style follows [route-write-path.md](route-write-path.md) and [link-
 
 ## Where coverage stands
 
-Counted from the tree on 2026-10-21, at G0's close; the row and gated counts are amended through G1-T02. [coverage-status.md](coverage-status.md#goip--ip-parity-at-a-glance) owns these numbers; if the two disagree, that file is right.
+Counted from the tree on 2026-10-21, at G0's close; the row and gated counts are amended through G1-T03. [coverage-status.md](coverage-status.md#goip--ip-parity-at-a-glance) owns these numbers; if the two disagree, that file is right.
 
 | | count | where |
 |---|---|---|
-| matrix rows | 191 (183 at G0's close) | `internal/goipparity/commands.go` |
-| gated | 190 (160 before G0, 182 at its close) | `pkg/nlparity/goip-parity-allowlist.json`, `gated_commands` |
+| matrix rows | 195 (183 at G0's close) | `internal/goipparity/commands.go` |
+| gated | 194 (160 before G0, 182 at its close) | `pkg/nlparity/goip-parity-allowlist.json`, `gated_commands` |
 | compared but not gated | 1, `addr show dynamic` (23 before G0) | `TestUngatedSurfaceIsNotVacuous`, `internal/goipparity/commands_test.go` |
 | write rows (dry run) | 83: 21 link, 26 route, 36 address | `commands.go` |
 | `ip` objects with a `run` function | 11 of 31 | `internal/goip/dispatch.go:52-84` |
@@ -2095,6 +2095,49 @@ Each task adds its matrix rows, gated after two clean runs, as G0's were.
 | negative: `neigh get 192.0.2.9 dev d0` | `ENOENT`, exit 2, empty stdout; both requests byte-identical |
 | negative: a device the kernel does not know | an error after the get by name alone |
 | corner: `neigh g` through `runNeigh` | the get's output |
+
+**G1-T03 delivered** (`internal/goip/nexthop_get.go`, `internal/goip/render/nhbucket.go`, `pkg/xtcpnl/xtcpnl_nhbucket_requests.go`):
+- **`nexthop get`.** `ipnh_get`'s loop: `id` is strcmp, read by `get_unsigned` in base 0; anything else, no id or id 0 is usage. The get is `ipnh_get_id`, the single get and print `nexthop show id` already sends, so it runs through `nexthopShowID`: `RTM_GETNEXTHOP`, then `d0` by index for the `dev` token. A missing id is `ENOENT`: exit 2, nothing on stdout.
+- **The bucket requests.** `BuildDumpNexthopBucketRequest` is `rtnl_nexthop_bucket_dump_req` with `nh_dump_bucket_filter`'s attributes (`ip/ipnexthop.c:108-135`, `lib/libnetlink.c:287-311`): `NHA_OIF`, `NHA_MASTER`, `NHA_ID`, then an `NHA_RES_BUCKET` nest with `NLA_F_NESTED` holding `NHA_RES_BUCKET_NH_ID`. `BuildGetNexthopBucketRequest` is `ipnh_bucket_get_id` (`:1359-1399`): `NHA_ID` and the nest holding the u16 `NHA_RES_BUCKET_INDEX`.
+- **The arguments.** `do_ipnh_bucket` (`:1430-1449`): no verb is the listing; `list`, `show`, `lst` and `get` by matches(). The listing takes `id` and `nhid` (strcmp); `dev`, `master` and `vrf` are refused by name, since each resolves a device no capture grounds. The get needs both `id` and `index` (strcmp, the index `get_u16` in base 0).
+- **The render.** `print_nexthop_bucket` (`:849-889`): `id`, the bucket's `index`, `idle_time` (clock_t seconds through `%g`, as the resilient group's timers) and `nhid`, each when present, then `print_rt_flags`. JSON is `{"id",…,"bucket":{…},"flags":[]}` in an array, the get's one object included.
+- **Four matrix rows, gated.** `nexthop get id 1` (floor 4), `nexthop get id 9` (2), `nexthop bucket show id 20` (3; `ip`'s capture holds five datagrams, the floor leaves the kernel's packing room) and `nexthop bucket get id 20 index 0` (2). Two back-to-back runs passed 195 of 195, identical row for row, after `FamilyHdrLen` learned the bucket messages' `struct nhmsg`; before it, the comparator compared a bucket request by length alone. Each bucket's moving idle time is control-canceled, with no allowlist entry.
+
+`TestBuildDumpNexthopBucketRequest` and `TestBuildGetNexthopBucketRequest` (`pkg/xtcpnl/xtcpnl_nhbucket_requests_test.go`):
+
+| description | expected |
+|---|---|
+| positive: `bucket show id 20`; `bucket get id 20 index 0` | byte-identical to the captures |
+| positive: `-4`; every dump filter at once | `nh_family` 2; `NHA_OIF`, `NHA_MASTER`, `NHA_ID`, then the nest |
+| boundary: no filter; index 65535 | the bare 24-byte dump; a u16 padded to four bytes |
+| corner: `nhid` alone; `-6` on the get | the nest alone, `NLA_F_NESTED` set; `nh_family` 10 |
+
+`TestNexthopBucketViewText` and `TestNexthopBucketViewJSON` (`internal/goip/render/nhbucket_test.go`):
+
+| description | expected |
+|---|---|
+| positive: the captured bucket | `ip.out`'s line; `{"id":20,"bucket":{"index":0,"idle_time":0.39,"nhid":2},"flags":[]}` |
+| positive: `dead` and `trap`; `onlink` in JSON | after the bucket, in `print_rt_flags` order; in the array |
+| boundary: index 65535; idle 0; an empty nest | printed whole; `idle_time 0`; `"bucket":{}` |
+| corner: no nest; one bucket attribute | the id alone; that attribute alone |
+| negative: nothing present | the bare newline |
+
+The argument tests (`internal/goip/nexthop_get_test.go`), 30 rows:
+
+| description | expected |
+|---|---|
+| positive: `id 1`, `id 0x14`, `id 20 index 0`, `nhid 2` and both filters | the id, base 0; the filter |
+| boundary: the largest u32; a repeated `id`; `id 0` on a listing; index 65535 | accepted; the last wins; no filter; accepted |
+| negative: no id, id 0 or no index on a get; one past u32; index 65536; an unknown word | usage; `invalid id value`; `invalid bucket index value`; invarg |
+| negative: `dev`, `m`, `vrf` on a listing | not implemented |
+| corner: `i`, `idx` and `nh`, which are no keyword (strcmp); `h` | usage or invarg; usage |
+
+`TestNexthopGetMatchesIp` replays each capture through `runNexthop`:
+
+| description | expected |
+|---|---|
+| positive: `get id 1`; `bucket show id 20`; `bucket get id 20 index 0` | stdout equal to `ip.out`, all 1024 bucket lines; every request byte-identical |
+| negative: `get id 9` | `ENOENT`, exit 2, empty stdout, one request |
 
 ### G2 — Route completion
 

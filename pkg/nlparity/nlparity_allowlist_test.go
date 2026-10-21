@@ -617,6 +617,11 @@ func TestAllowlistCommitted(t *testing.T) {
 		// zero findings on their first two runs.
 		"neigh get 192.0.2.2 dev d0",
 		"neigh get 192.0.2.9 dev d0",
+		// G1-T03's two `nexthop get` and two `nexthop bucket` rows, likewise.
+		"nexthop get id 1",
+		"nexthop get id 9",
+		"nexthop bucket show id 20",
+		"nexthop bucket get id 20 index 0",
 	}
 
 	tests := []struct {

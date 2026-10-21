@@ -417,6 +417,13 @@ func FamilyHdrLen(msgType uint16) int {
 		return FibRuleHdrSizeCst
 	case uint16(unix.RTM_GETNEXTHOP), uint16(unix.RTM_NEWNEXTHOP), uint16(unix.RTM_DELNEXTHOP):
 		return NhMsgSizeCst // struct nhmsg, 8
+	case uint16(unix.RTM_GETNEXTHOPBUCKET), uint16(unix.RTM_NEWNEXTHOPBUCKET),
+		uint16(unix.RTM_DELNEXTHOPBUCKET):
+		// The bucket messages carry struct nhmsg too (nh_fill_res_bucket,
+		// net/ipv4/nexthop.c). Unmodeled, pkg/nlparity compared a bucket
+		// request's body by length alone and decoded none of a reply's
+		// attributes.
+		return NhMsgSizeCst
 	case uint16(unix.RTM_GETADDRLABEL), uint16(unix.RTM_NEWADDRLABEL),
 		uint16(unix.RTM_DELADDRLABEL):
 		return IfAddrlblmsgSizeCst // struct ifaddrlblmsg, 12

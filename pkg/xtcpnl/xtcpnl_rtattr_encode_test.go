@@ -1003,6 +1003,11 @@ func TestFamilyHdrLen(t *testing.T) {
 		{"positive: RTM_NEWNETCONF is struct netconfmsg, 4", uint16(unix.RTM_NEWNETCONF), NetconfMsgSizeCst},
 		{"positive: RTM_DELNETCONF is struct netconfmsg, 4", uint16(unix.RTM_DELNETCONF), NetconfMsgSizeCst},
 
+		{"positive: RTM_GETNEXTHOP is struct nhmsg, 8", uint16(unix.RTM_GETNEXTHOP), NhMsgSizeCst},
+		{"positive: RTM_GETNEXTHOPBUCKET is struct nhmsg, 8", uint16(unix.RTM_GETNEXTHOPBUCKET), NhMsgSizeCst},
+		{"positive: RTM_NEWNEXTHOPBUCKET is struct nhmsg, 8", uint16(unix.RTM_NEWNEXTHOPBUCKET), NhMsgSizeCst},
+		{"positive: RTM_DELNEXTHOPBUCKET is struct nhmsg, 8", uint16(unix.RTM_DELNEXTHOPBUCKET), NhMsgSizeCst},
+
 		{"positive: RTM_GETSTATS is struct if_stats_msg, 12", uint16(unix.RTM_GETSTATS), IfStatsMsgSizeCst},
 		{"positive: RTM_NEWSTATS is struct if_stats_msg, 12", uint16(unix.RTM_NEWSTATS), IfStatsMsgSizeCst},
 

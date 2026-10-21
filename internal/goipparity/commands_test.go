@@ -1018,7 +1018,9 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	//   - the six `route get` rows G1-T01 added, on their first two runs —
 	//     see TestRouteGetRowsGated;
 	//   - the two `neigh get` rows G1-T02 added, likewise — see
-	//     TestNeighGetRowsGated.
+	//     TestNeighGetRowsGated;
+	//   - the two `nexthop get` and two `nexthop bucket` rows G1-T03 added,
+	//     likewise — see TestNexthopGetRowsGated.
 	//
 	// The last four were the permanent set, measured divergent on the wire;
 	// TestPermanentWireDivergences records that it is empty.
@@ -2544,6 +2546,53 @@ func TestNeighGetRowsGated(t *testing.T) {
 			if c, lookupErr := Lookup(r.command); lookupErr == nil {
 				got.implemented, got.floor = c.Implemented, c.Floor
 				got.veth = len(c.Setup) > 0 && strings.Contains(c.Setup[0], "type veth")
+			}
+			got.gated = al.IsGated(r.command)
+			got.entries = len(al.EntriesFor(r.command))
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+		})
+	}
+}
+
+// TestNexthopGetRowsGated pins G1-T03's four rows: implemented, on a dummy
+// with nexthops 1 and 2 (and resilient group 20 for the bucket rows), and
+// gated with no allowlist entry after two clean runs.
+//
+// go test ./internal/goipparity/ -run TestNexthopGetRowsGated
+func TestNexthopGetRowsGated(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	type want struct {
+		implemented, gated, resilient bool
+		floor, setup, entries         int
+	}
+	rows := []struct {
+		description string
+		command     string
+		expected    want
+	}{
+		{"positive: a nexthop by id, named through d0", "nexthop get id 1",
+			want{implemented: true, gated: true, floor: 4, setup: 5}},
+		{"negative: a missing id, ENOENT and exit 2, gates the same", "nexthop get id 9",
+			want{implemented: true, gated: true, floor: 2, setup: 5}},
+		{"positive: the 1024-bucket dump, its floor below ip's five datagrams", "nexthop bucket show id 20",
+			want{implemented: true, gated: true, resilient: true, floor: 3, setup: 6}},
+		{"positive: one bucket's get", "nexthop bucket get id 20 index 0",
+			want{implemented: true, gated: true, resilient: true, floor: 2, setup: 6}},
+		{"boundary: the listing the get sits beside stays gated with no Setup", "nexthop show",
+			want{implemented: true, gated: true, floor: 4}},
+		{"corner: a bucket form not in the matrix is neither", "nexthop bucket show nhid 2", want{}},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			var got want
+			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				got.implemented, got.floor, got.setup = c.Implemented, c.Floor, len(c.Setup)
+				got.resilient = len(c.Setup) > 0 && strings.Contains(c.Setup[len(c.Setup)-1], "type resilient")
 			}
 			got.gated = al.IsGated(r.command)
 			got.entries = len(al.EntriesFor(r.command))

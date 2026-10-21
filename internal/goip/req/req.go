@@ -633,6 +633,18 @@ func NexthopShowLinkDump(seq uint32) ([]byte, error) {
 	return xtcpnl.BuildDumpLinkRequestExt(unix.AF_UNSPEC, xtcpnl.RTEXT_FILTER_VF, seq)
 }
 
+// NexthopBucketDump is `ip nexthop bucket show`'s RTM_GETNEXTHOPBUCKET dump,
+// nh_dump_bucket_filter's attributes appended. family is preferred_family.
+func NexthopBucketDump(family uint8, f xtcpnl.NexthopBucketDumpFilter, seq uint32) ([]byte, error) {
+	return xtcpnl.BuildDumpNexthopBucketRequest(family, f, seq)
+}
+
+// NexthopBucketGet is `ip nexthop bucket get`'s RTM_GETNEXTHOPBUCKET single
+// get for one bucket of one resilient group.
+func NexthopBucketGet(family uint8, id uint32, index uint16, seq uint32) ([]byte, error) {
+	return xtcpnl.BuildGetNexthopBucketRequest(family, id, index, seq)
+}
+
 // NexthopDumpFiltered is the wire-filtered RTM_GETNEXTHOP dump behind
 // `ip nexthop show { dev | master | vrf | groups | fdb }` — the same multipart
 // dump with nh_dump_filter's attrs appended. An empty filter is byte-identical to

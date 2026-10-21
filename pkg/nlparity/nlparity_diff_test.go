@@ -171,6 +171,25 @@ func mustSetAttrU32(m Msg, bare uint16, v uint32) Msg {
 	return m
 }
 
+// nhBucketIdleVal returns the NHA_RES_BUCKET_IDLE_TIME payload of a bucket
+// message, one nest down, aliasing the body so a caller can edit it in place.
+// nil when the message does not carry one.
+func nhBucketIdleVal(m Msg) []byte {
+	_, attrs, _ := DecodeAttrs(m.Hdr.Type, m.Body)
+	for _, a := range attrs {
+		if a.BareType() != xtcpnl.NhaResBucket {
+			continue
+		}
+		inner, _ := SubAttrs(a.Val)
+		for _, in := range inner {
+			if in.BareType() == xtcpnl.NhaResBucketIdleTime && len(in.Val) >= 8 {
+				return in.Val
+			}
+		}
+	}
+	return nil
+}
+
 // inet6CacheinfoVal returns the IFLA_INET6_CACHEINFO payload of a message,
 // two nests down, aliasing the body so a caller can edit it in place. nil when
 // the message does not carry one.
@@ -310,6 +329,41 @@ func TestDiff(t *testing.T) {
 			},
 			wantFindings:        []string{},
 			wantAllowSuppressed: []string{"L2|value|" + extMaskDumpLocus},
+		},
+		{
+			// G1-T03's finding. Until FamilyHdrLen modeled the bucket messages,
+			// DecodeAttrs left a bucket request's whole body as the remainder
+			// and diffRequest compared only its length, so a goip asking for
+			// group 21 rather than 20 compared clean. It must be a value
+			// divergence at NHA_ID. nlparity_names.go names no nexthop type, so
+			// the locus is the numeric form: RTM_GETNEXTHOPBUCKET is 118 and
+			// NHA_ID is 1.
+			description: "positive: a bucket dump asking for another group is a value divergence at NHA_ID",
+			command:     "nexthop bucket show id 20",
+			filename:    tdNhBucketShow,
+			mutate: func(s Segmentation) Segmentation {
+				s.Txns[0].Request = mustSetAttrU32(s.Txns[0].Request, uint16(unix.NHA_ID), 21)
+				return s
+			},
+			wantFindings: []string{"L2|value|request:type(118):attr(1):dump"},
+		},
+		{
+			// The reply half: with the nhmsg modeled, a bucket reply's
+			// attributes are decoded and paired, so a moved idle time inside
+			// NHA_RES_BUCKET is a value divergence the control must cancel.
+			// RTM_NEWNEXTHOPBUCKET is 116 and NHA_RES_BUCKET is 13, a nest.
+			description: "positive: a bucket reply whose idle time moved is a value divergence at NHA_RES_BUCKET",
+			command:     "nexthop bucket get id 20 index 0",
+			filename:    tdNhBucketGet,
+			mutate: func(s Segmentation) Segmentation {
+				for i := range s.Txns[0].Replies {
+					if v := nhBucketIdleVal(s.Txns[0].Replies[i]); v != nil {
+						v[0]++
+					}
+				}
+				return s
+			},
+			wantFindings: []string{"L3|value|reply:type(116):attr(13)+NESTED"},
 		},
 		{
 			// The control triple's mechanism. D_control is built by making the
