@@ -137,10 +137,10 @@ var routeShowRefused = []struct {
 	name   string
 	abbrev bool
 }{
-	{"vrf", true}, {"cached", true}, {"cloned", true}, {"tos", false},
-	{"dsfield", true}, {"scope", true}, {"type", true},
-	{"iif", false}, {"mark", false}, {"metric", true}, {"priority", true},
-	{"preference", false}, {"via", false}, {"src", false}, {"realms", true},
+	{vrfKeywordCst, true}, {"cached", true}, {"cloned", true}, {"tos", false},
+	{"dsfield", true}, {addrScopeKeywordCst, true}, {linkTypeKeywordCst, true},
+	{"iif", false}, {"mark", false}, {routeMetricKeywordCst, true}, {routePriorityKeywordCst, true},
+	{routePreferenceKeywordCst, false}, {"via", false}, {"src", false}, {"realms", true},
 	{"from", true},
 }
 
@@ -300,7 +300,7 @@ func routeShowProtocol(arg string) (proto uint8, mask bool, err error) {
 	if v, ok := rtnlNameA2N(routeProtoNames, arg, math.MaxUint8); ok {
 		return uint8(v), true, nil
 	}
-	if arg == "all" {
+	if arg == addrNameAllCst {
 		return 0, false, nil
 	}
 	return 0, false, fmt.Errorf("%w: Error: argument %q is wrong: invalid \"protocol\"", ErrInvalidArgument, arg)
@@ -329,7 +329,7 @@ func routeTableID(arg string) (uint32, error) {
 		return unix.RT_TABLE_MAIN, nil
 	case routeTableLocalCst:
 		return unix.RT_TABLE_LOCAL, nil
-	case "all":
+	case addrNameAllCst:
 		return unix.RT_TABLE_UNSPEC, nil
 	case "cache", "help":
 		return 0, fmt.Errorf("route show table %q: %w", arg, ErrNotImplemented)

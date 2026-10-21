@@ -35,8 +35,9 @@ func runLink(c *runCtx, args []string) error {
 	return fmt.Errorf("link %q: %w", v.name, ErrNotImplemented)
 }
 
-// linkTypeKeywordCst is `type`, compared with strcmp (ip/ipaddress.c:2232),
-// so it does not abbreviate.
+// linkTypeKeywordCst is `type`. Link show compares it with strcmp
+// (ip/ipaddress.c:2232), so there it does not abbreviate; the write and route
+// keyword tables say per row whether it does.
 const linkTypeKeywordCst = "type"
 
 // linkShowSelectors is what goip's link show takes from the keyword loop of

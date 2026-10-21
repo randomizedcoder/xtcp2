@@ -307,8 +307,8 @@ linters:
       # (`Device "x" does not exist`), and escaping them would break
       # byte-identical output. The responses are text/plain or
       # application/json and always carry X-Content-Type-Options: nosniff,
-      # which TestHandler checks on every row. nix/checks/go-sec.nix carries
-      # the same rule for the standalone gosec.
+      # which TestHandler checks on every row. .golangci.yml and
+      # nix/checks/go-sec.nix (the standalone gosec) carry the same rule.
       - path: "internal/goip/goiphttp/handler\\.go"
         linters:
           - gosec
