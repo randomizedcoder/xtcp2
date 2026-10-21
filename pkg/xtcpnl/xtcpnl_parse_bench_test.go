@@ -84,32 +84,46 @@ type benchRecord struct {
 	body []byte
 }
 
-// benchKind is the messages a parser's picks come from: a protocol, and
-// either a message type or, for generic netlink, a family name.
+// benchKind is the messages a parser's picks come from: a protocol,
+// either a message type or, for generic netlink, a family name, and whether
+// they are ip's requests rather than the kernel's messages.
 type benchKind struct {
-	proto  uint16
-	typ    uint16
-	family string
+	proto   uint16
+	typ     uint16
+	family  string
+	request bool
 }
 
 // rtnl is the rtnetlink messages of type typ.
 func rtnl(typ uint16) benchKind { return benchKind{proto: unix.NETLINK_ROUTE, typ: typ} }
 
+// rtnlRequest is ip's rtnetlink requests of type typ, for a type only ip
+// sends.
+func rtnlRequest(typ uint16) benchKind {
+	return benchKind{proto: unix.NETLINK_ROUTE, typ: typ, request: true}
+}
+
 // genl is the generic netlink messages of the family called family.
 func genl(family string) benchKind { return benchKind{proto: unix.NETLINK_GENERIC, family: family} }
 
 // String is the kind as TestParseBenchCases pins it: proto/type or
-// proto/family.
+// proto/family, then /request for ip's requests.
 func (k benchKind) String() string {
+	s := strconv.Itoa(int(k.proto)) + "/" + strconv.Itoa(int(k.typ))
 	if k.family != "" {
-		return strconv.Itoa(int(k.proto)) + "/" + k.family
+		s = strconv.Itoa(int(k.proto)) + "/" + k.family
 	}
-	return strconv.Itoa(int(k.proto)) + "/" + strconv.Itoa(int(k.typ))
+	if k.request {
+		s += "/request"
+	}
+	return s
 }
 
-// matches reports whether c is of kind k.
+// matches reports whether c is of kind k: of its protocol, sent by the
+// kernel, or for a request kind by ip (NLM_F_REQUEST), and of its type or
+// family.
 func (k benchKind) matches(c corpusMsg) bool {
-	if c.m.proto != k.proto {
+	if c.m.proto != k.proto || (c.m.h.Flags&unix.NLM_F_REQUEST != 0) != k.request {
 		return false
 	}
 	if k.family != "" {
@@ -119,13 +133,14 @@ func (k benchKind) matches(c corpusMsg) bool {
 }
 
 // benchPick returns the smallest, a typical (the median length) and the
-// largest body of kind k that the kernel sent, that is, in a message
-// without NLM_F_REQUEST, or nil when msgs holds none. Equal lengths keep
-// msgs' order, so the choice changes only when the corpus does.
+// largest body of kind k, or nil when msgs holds none. Unless k is a
+// request kind, those are bodies the kernel sent, in messages without
+// NLM_F_REQUEST. Equal lengths keep msgs' order, so the choice changes only
+// when the corpus does.
 func benchPick(msgs []corpusMsg, k benchKind) []benchRecord {
 	var all []corpusMsg
 	for _, c := range msgs {
-		if k.matches(c) && c.m.h.Flags&unix.NLM_F_REQUEST == 0 {
+		if k.matches(c) {
 			all = append(all, c)
 		}
 	}
@@ -171,6 +186,7 @@ var (
 	resultEthtool EthtoolMessage
 	resultNsid    NsidInfo
 	resultBucket  NexthopBucketInfo
+	resultProp    LinkPropInfo
 )
 
 // parseBenchCase is one parser P0 benchmarks: its name, the kind of its
@@ -202,6 +218,7 @@ var parseBenchCases = []parseBenchCase{
 	{name: "ParseEthtool", kind: genl("ethtool"), parse: func(h NlMsgHdr, b []byte) (err error) { resultEthtool, err = ParseEthtool(b, h.Flags); return err }},
 	{name: "ParseNsid", kind: rtnl(unix.RTM_NEWNSID), parse: func(_ NlMsgHdr, b []byte) (err error) { resultNsid, err = ParseNsid(b); return err }},
 	{name: "ParseNexthopBucket", kind: rtnl(unix.RTM_NEWNEXTHOPBUCKET), parse: func(_ NlMsgHdr, b []byte) (err error) { resultBucket, err = ParseNexthopBucket(b); return err }},
+	{name: "ParseLinkProp", kind: rtnlRequest(unix.RTM_NEWLINKPROP), parse: func(_ NlMsgHdr, b []byte) (err error) { resultProp, err = ParseLinkProp(b); return err }},
 }
 
 // parseBenchCaseNamed returns the parseBenchCases entry called name.
@@ -296,6 +313,11 @@ func BenchmarkParseNsid(b *testing.B) { benchParse(b, "ParseNsid") }
 // largest RTM_NEWNEXTHOPBUCKET the corpus holds (P1-T02).
 func BenchmarkParseNexthopBucket(b *testing.B) { benchParse(b, "ParseNexthopBucket") }
 
+// BenchmarkParseLinkProp decodes the smallest, a typical and the largest
+// RTM_NEWLINKPROP in the corpus, all ip's requests, since the kernel sends
+// none (P1-T03).
+func BenchmarkParseLinkProp(b *testing.B) { benchParse(b, "ParseLinkProp") }
+
 func TestBenchPick(t *testing.T) {
 	// msg is a captured message of type typ whose body is n bytes, from a
 	// pcap named path.
@@ -359,6 +381,12 @@ func TestBenchPick(t *testing.T) {
 			expected:    "smallest=a/52 typical=a/52 largest=a/52",
 		},
 		{
+			description: "positive: a request kind picks ip's requests, not the kernel's messages",
+			kind:        rtnlRequest(newlink),
+			msgs:        []corpusMsg{msg("req", route, newlink, unix.NLM_F_REQUEST|unix.NLM_F_ACK, 900), msg("a", route, newlink, 0, 52)},
+			expected:    "smallest=req/900 typical=req/900 largest=req/900",
+		},
+		{
 			description: "corner: the same type number in another protocol is not picked",
 			kind:        link,
 			msgs:        []corpusMsg{msg("xfrm", unix.NETLINK_XFRM, newlink, 0, 900), msg("a", route, newlink, 0, 52)},
@@ -409,7 +437,7 @@ func TestParseBenchCases(t *testing.T) {
 				" ParseNewAddrLabel=0/72 ParseNewNeighTbl=0/64 ParseNewNetconf=0/80 ParseNewStats=0/92" +
 				" ParseNlMsgErr=0/2 ParseRtnetlinkEvent=0/17" +
 				" ParseGenericNetlink=16/nlctrl ParseGenericNetlinkFamily=16/nlctrl ParseEthtool=16/ethtool" +
-				" ParseNsid=0/88 ParseNexthopBucket=0/116",
+				" ParseNsid=0/88 ParseNexthopBucket=0/116 ParseLinkProp=0/108/request",
 		},
 	}
 	for _, tt := range tests {
@@ -446,6 +474,7 @@ func TestParseBenchRecords(t *testing.T) {
 		{description: "positive: ParseEthtool decodes its three ethtool picks", name: "ParseEthtool", expected: "smallest ok, typical ok, largest ok"},
 		{description: "positive: ParseNsid decodes its three RTM_NEWNSID picks", name: "ParseNsid", expected: "smallest ok, typical ok, largest ok"},
 		{description: "positive: ParseNexthopBucket decodes its three RTM_NEWNEXTHOPBUCKET picks", name: "ParseNexthopBucket", expected: "smallest ok, typical ok, largest ok"},
+		{description: "positive: ParseLinkProp decodes its three picks of ip's RTM_NEWLINKPROP requests", name: "ParseLinkProp", expected: "smallest ok, typical ok, largest ok"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
