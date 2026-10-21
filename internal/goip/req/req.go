@@ -589,6 +589,15 @@ func StatsShowXstatsSlaveDump(seq uint32) []byte {
 	return xtcpnl.BuildDumpStatsRequest(unix.AF_UNSPEC, 0, xtcpnl.StatsFilterXstatsSlave, seq)
 }
 
+// LinkAfstatsDump is `ip link afstats`'s dump: rtnl_statsdump_req_filter with
+// filter_mask StatsFilterAfSpec (0x10) and nothing else (ip/iplink.c:1670,
+// :1707). `ip link xstats type bridge` and `type bridge_slave` send exactly
+// StatsShowXstatsDump's and StatsShowXstatsSlaveDump's bytes
+// (iplink_ifla_xstats, ip/iplink_xstats.c:61-67).
+func LinkAfstatsDump(seq uint32) []byte {
+	return xtcpnl.BuildDumpStatsRequest(unix.AF_UNSPEC, 0, xtcpnl.StatsFilterAfSpec, seq)
+}
+
 // StatsGetByIndex is the non-dump RTM_GETSTATS point get `ip stats show group link
 // dev X` sends (ip/ipstats.c:831-851): an if_stats_msg carrying the ifindex and
 // the link-group filter_mask, no attributes. iproute2 takes this path whenever a

@@ -1778,6 +1778,30 @@ var commands = withArgs([]Command{
 		Floor: 4, Implemented: true,
 	},
 
+	// `ip link xstats` and `ip link afstats` (G1-T04): the same RTM_GETSTATS
+	// dump as `stats show group xstats`, `xstats_slave` and an AF_SPEC group,
+	// sent by iplink_ifla_xstats and iplink_afstats, against the C1-T03 reads.
+	// linkXstatsSetup is the reads namespace's bridge: br0 and its port v2,
+	// whose peer stays down so nothing moves the counters.
+	{
+		Name: "link xstats type bridge", Slug: "link_xstats_bridge",
+		// The master-group dump, then br0 named by one RTM_GETLINK get, the
+		// only record carrying the bridge type (4).
+		Setup: linkXstatsSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "link xstats type bridge_slave", Slug: "link_xstats_bridge_slave",
+		// The port-group dump, then v2 named the same way; v2's stanza adds
+		// the stp block (4).
+		Setup: linkXstatsSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "link afstats", Slug: "link_afstats",
+		// The AF_SPEC dump alone: with no MPLS every nest is empty, nothing
+		// prints and nothing is named (2).
+		Setup: linkXstatsSetup, Floor: 2, Implemented: true,
+	},
+
 	// The vrf block — `ip vrf show`, the eleventh read-only object. The request
 	// is a filtered link dump: RTM_GETLINK, AF_UNSPEC, one IFLA_LINKINFO nest
 	// holding IFLA_INFO_KIND = "vrf" and no IFLA_EXT_MASK. The kernel does not
@@ -2297,6 +2321,13 @@ var (
 	nexthopBucketSetup = append(append([]string{}, nexthopGetSetup...),
 		"nexthop add id 20 group 1/2 type resilient buckets 1024")
 )
+
+// The `link xstats` and `link afstats` rows' precondition: the bridge of
+// rtnl-read-corpus.exp's build list.
+var linkXstatsSetup = []string{
+	"link add br0 type bridge", "link add v2 type veth peer name v2p",
+	"link set v2 master br0", "link set br0 up", "link set v2 up",
+}
 
 // The `route get` rows' preconditions: PRE_D0_ADDR, its v6 sibling, and
 // PRE_IIF in rtnl-write-corpus.exp. The sysctl step is setup_step's in

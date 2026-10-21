@@ -58,6 +58,10 @@ const (
 	// = bit 2 = 0x4, the group `ip stats show group xstats_slave` requests, again
 	// with no filters nest.
 	StatsFilterXstatsSlave uint32 = 1 << (unix.IFLA_STATS_LINK_XSTATS_SLAVE - 1)
+
+	// StatsFilterAfSpec is IFLA_STATS_FILTER_BIT(IFLA_STATS_AF_SPEC) = bit 4 =
+	// 0x10, the group `ip link afstats` requests (ip/iplink.c:1670).
+	StatsFilterAfSpec uint32 = 1 << (unix.IFLA_STATS_AF_SPEC - 1)
 )
 
 // ErrIfStatsMsgSmall is a reply body shorter than the fixed if_stats_msg header.
@@ -76,13 +80,15 @@ type XstatsBodies struct {
 	HasBridgeVlan   bool
 	BridgeMcast     BrMcastStats
 	HasBridgeMcast  bool
+	BridgeStp       BridgeStpXstats
+	HasBridgeStp    bool
 
 	// Bond3ad is LINK_XSTATS_TYPE_BOND → BOND_XSTATS_3AD, nil when absent.
 	Bond3ad *Bond3adStats
 
-	// HasUngroundedXstatsBody records a body goip does not ground: the bridge
-	// stp body, or a second BOND_XSTATS_3AD (the kernel puts one; iproute2
-	// would print each). obj_stats refuses such a record.
+	// HasUngroundedXstatsBody records a body goip does not ground: a second
+	// BOND_XSTATS_3AD (the kernel puts one; iproute2 would print each).
+	// obj_stats refuses such a record, and one with HasBridgeStp.
 	HasUngroundedXstatsBody bool
 }
 
@@ -106,6 +112,15 @@ type IfStatsInfo struct {
 	HasXstatsSlave bool
 
 	HasUnsupportedGroup bool
+
+	// AfSpec is the member types of IFLA_STATS_AF_SPEC, in wire order: one
+	// address family each (AF_MPLS the only one iproute2 prints). HasAfSpec
+	// records the nest even when it is empty, as it is for every device
+	// without MPLS. The group still sets HasUnsupportedGroup, for obj_stats.
+	AfSpec    []uint16
+	HasAfSpec bool
+	// AfSpecMalformed records a nest whose walk stopped at a malformed member.
+	AfSpecMalformed bool
 }
 
 // DeserializeIfStatsMsg does an offset read of the fixed if_stats_msg header.
@@ -152,8 +167,17 @@ func ParseNewStats(body []byte) (IfStatsInfo, error) {
 			if e := si.Slave.parseXstats(val); e != nil && nestErr == nil {
 				nestErr = e
 			}
-		case uint16(unix.IFLA_STATS_LINK_OFFLOAD_XSTATS),
-			uint16(unix.IFLA_STATS_AF_SPEC):
+		case uint16(unix.IFLA_STATS_AF_SPEC):
+			// print_af_stats_attr's RTA_OK loop stops at a malformed member
+			// rather than failing the record, so the walk's error is dropped
+			// and the members before it are kept.
+			si.HasUnsupportedGroup, si.HasAfSpec = true, true
+			if e := WalkRTAttrsNested(val, func(af uint16, _ []byte) {
+				si.AfSpec = append(si.AfSpec, af)
+			}); e != nil {
+				si.AfSpecMalformed = true
+			}
+		case uint16(unix.IFLA_STATS_LINK_OFFLOAD_XSTATS):
 			si.HasUnsupportedGroup = true
 		}
 	})
@@ -165,7 +189,7 @@ func ParseNewStats(body []byte) (IfStatsInfo, error) {
 
 // parseXstats descends one xstats nest. LINK_XSTATS_TYPE_BRIDGE yields the vlan
 // and mcast bodies (each BRIDGE_XSTATS_VLAN attr is one VLAN and appends to
-// BridgeVlans), with the stp body setting HasUngroundedXstatsBody;
+// BridgeVlans) and the stp body;
 // LINK_XSTATS_TYPE_BOND yields BOND_XSTATS_3AD. HasBridgeXstats marks the bridge
 // type present even when it carried no body goip renders. A malformed nest
 // returns the rtattr error, as the top-level walk does.
@@ -193,7 +217,9 @@ func (x *XstatsBodies) parseXstats(val []byte) error {
 						x.HasBridgeMcast = true
 					}
 				case BridgeXstatsStp:
-					x.HasUngroundedXstatsBody = true
+					if _, derr := DeserializeBridgeStpXstats(body, &x.BridgeStp); derr == nil {
+						x.HasBridgeStp = true
+					}
 				}
 			}))
 		case LinkXstatsTypeBond:

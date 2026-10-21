@@ -51,12 +51,12 @@ The citation style follows [route-write-path.md](route-write-path.md) and [link-
 
 ## Where coverage stands
 
-Counted from the tree on 2026-10-21, at G0's close; the row and gated counts are amended through G1-T03. [coverage-status.md](coverage-status.md#goip--ip-parity-at-a-glance) owns these numbers; if the two disagree, that file is right.
+Counted from the tree on 2026-10-21, at G0's close; the row and gated counts are re-measured at G1's close (DOC013). [coverage-status.md](coverage-status.md#goip--ip-parity-at-a-glance) owns these numbers; if the two disagree, that file is right.
 
 | | count | where |
 |---|---|---|
-| matrix rows | 195 (183 at G0's close) | `internal/goipparity/commands.go` |
-| gated | 194 (160 before G0, 182 at its close) | `pkg/nlparity/goip-parity-allowlist.json`, `gated_commands` |
+| matrix rows | 198 (183 at G0's close) | `internal/goipparity/commands.go` |
+| gated | 197 (160 before G0, 182 at its close) | `pkg/nlparity/goip-parity-allowlist.json`, `gated_commands` |
 | compared but not gated | 1, `addr show dynamic` (23 before G0) | `TestUngatedSurfaceIsNotVacuous`, `internal/goipparity/commands_test.go` |
 | write rows (dry run) | 83: 21 link, 26 route, 36 address | `commands.go` |
 | `ip` objects with a `run` function | 11 of 31 | `internal/goip/dispatch.go:52-84` |
@@ -79,6 +79,8 @@ G0 closed every row but `addr show dynamic`; the table is the inventory as it st
 | `addr show dynamic` | Its `valid_lft` counts down between `ip_a` and `goip` | Nothing. It stays out by design |
 
 ### B. Verbs missing on objects goip already runs
+
+G1 delivered the read verbs: `route get`, `neigh get`, `nexthop get` with `nexthop bucket show` and `get`, and `link xstats` and `afstats`, each gated in the matrix. The table is the inventory as it stood when the plan was written.
 
 | object | missing verbs | messages | iproute2 (v7.1.0) |
 |---|---|---|---|
@@ -2139,12 +2141,62 @@ The argument tests (`internal/goip/nexthop_get_test.go`), 30 rows:
 | positive: `get id 1`; `bucket show id 20`; `bucket get id 20 index 0` | stdout equal to `ip.out`, all 1024 bucket lines; every request byte-identical |
 | negative: `get id 9` | `ENOENT`, exit 2, empty stdout, one request |
 
+**G1-T04 delivered** (`internal/goip/link_xstats.go`, `internal/goip/render/link_xstats.go`, `pkg/xtcpnl/xtcpnl_ifstatsmsg.go`, `pkg/xtcpnl/xtcpnl_bridge_xstats.go`):
+- **The requests.** `link xstats type bridge` and `type bridge_slave` send `iplink_ifla_xstats`'s `rtnl_statsdump_req_filter` with `IFLA_STATS_LINK_XSTATS` or `_SLAVE` alone (`ip/iplink_xstats.c:61-67`), byte for byte the `stats show group xstats` and `xstats_slave` dumps goip already sent. `link afstats` sends the same dump with `IFLA_STATS_AF_SPEC` (`LinkAfstatsDump`, `ip/iplink.c:1670`).
+- **The arguments.** `type` and `help` by matches(), then the kind: `bridge` and `bridge_slave` are grounded, and the bond kinds and every other kind are refused. After the kind, `igmp`, `mcast` and `stp` are strcmp and a later one overrides an earlier one (`ip/iplink_bridge.c:1059-1080`); `dev` is refused, since no capture grounds its lookup. `afstats` refuses `dev` the same way, and anything else is `ip`'s unknown-command error.
+- **The decode.** `ParseNewStats` now decodes a bridge port's `bridge_stp_xstats` (`BRIDGE_XSTATS_STP`) and lists the member families of `IFLA_STATS_AF_SPEC`. `stats show` still refuses an stp body, so its grounding is unchanged.
+- **The render.** `bridge_print_stats_attr` (`ip/iplink_bridge.c:1001-1031`): a device whose nest holds the bridge type prints its name padded to 16, the mcast block, then a port's stp block; the vlan bodies have no case there, and any other device prints nothing. The name is `ll_index_to_name`'s, one `RTM_GETLINK` get per printed device, as `stats show` names its records. `afstats` prints only for an AF_SPEC member, and the only one iproute2 prints is MPLS's, which no capture grounds, so a record with a member is refused; without MPLS nothing prints. JSON is the array `new_json_obj` opens.
+- **Three matrix rows, gated.** `link xstats type bridge` and `type bridge_slave` (floor 4) and `link afstats` (2), on the reads namespace's br0 and its port v2. Two back-to-back runs passed 198 of 198, identical row for row. The xstats rows are `txns` 2/2, the dump and the name lookup; afstats is 1/1 and prints nothing on every side. br0's moving GC timer in the name lookup's reply is control-canceled, with no allowlist entry.
+
+The decode tests (`pkg/xtcpnl/xtcpnl_link_xstats_test.go`, `xtcpnl_bridge_xstats_test.go`):
+
+| description | expected |
+|---|---|
+| positive: the three C1-T03 captures | 18 records each; br0 (14) alone carries the master group's bridge type, mcast only; v2 (16) alone the port group's, mcast and stp; every afstats nest empty |
+| positive: an stp body, in either group | decoded in struct order on that group alone, not ungrounded |
+| positive: an AF_MPLS member; two members | named; wire order |
+| boundary: a short stp payload; an empty AF_SPEC nest | the fields it reaches; present with no members |
+| corner: a long stp payload | truncated to 48 bytes |
+| negative: an empty stp payload; no AF_SPEC attribute | a zero struct; absent |
+
+The render tests (`internal/goip/render/link_xstats_test.go`):
+
+| description | expected |
+|---|---|
+| positive: v2's port stanza | the `ip_link_xstats_bridge_slave` sidecar |
+| positive: stp counters; the stp JSON | `bridge_print_stats_stp`'s lines; its keys in print order |
+| positive: a master with vlans | the name and the mcast block only |
+| corner: `stp` on a master; `mcast` on a port | the name alone; no stp block |
+| boundary: a 16-character name; an empty bridge nest | no padding; the name alone |
+| negative: a bond's nest, an empty nest | no stanza |
+
+The command tests (`internal/goip/link_xstats_test.go`):
+
+| description | expected |
+|---|---|
+| positive: `xstats type bridge`; `type bridge_slave` (replayed) | the sidecar; the dump and one `RTM_GETLINK`, both byte-identical to `ip`'s |
+| boundary: `afstats` (replayed) | empty stdout, the one dump byte-identical; `[]` under `-j` |
+| positive: `t bridge`, `igmp`, `stp`, a later selector | parsed as `ip` parses them |
+| negative: no argument, `type` alone, a first word other than type, `st` | `ip`'s errors, exit 1 |
+| negative: `type bond`, `type veth`, `dev` on either verb, `help` | not implemented |
+| negative: an MPLS member, or `-M` | refused; `-4` filters it out |
+
 ### G2 — Route completion
 
 `route save`, `showdump`, `restore` and `flush`, generalizing the address machinery:
 - `Writes`;
 - `multiWriteRowProblem`;
 - the save-blob store path (`goipParityAddrSave`).
+
+Expanded at G1's close: one task per verb family, `showdump` with `save`, since it reads the blob `save` writes and sends nothing.
+
+| task | deliver |
+|---|---|
+| G2-T01 | `goip route save` and `route showdump`: the route dump written raw to stdout, and its blob read back and printed, against the C1-T02 `route_save` capture (`ip/iproute.c:1674`, `:2396`); the save-blob store path generalized from `goipParityAddrSave` |
+| G2-T02 | `goip route restore`: one `RTM_NEWROUTE` per saved message, a dry run through `Writes` and `multiWriteRowProblem`, against the `route_restore` capture (`ip/iproute.c:2360`) |
+| G2-T03 | `goip route flush`: the dump, then an `RTM_DELROUTE` per matching route, against the `route_flush`, `route_flush_empty` and `route_flush_no_table` captures (`ip/iproute.c:1740`) |
+
+Each task adds its matrix rows, gated after two clean runs, as G1's were.
 
 ### G3 — rtnetlink writes on running objects
 

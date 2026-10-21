@@ -866,6 +866,12 @@ func (s *Service) IfStatsXstatsSlave() ([]model.IfStats, error) {
 	return s.ifStatsDump(req.StatsShowXstatsSlaveDump(s.nextSeq()))
 }
 
+// IfStatsAfSpec is `ip link afstats`'s dump (filter_mask 0x10);
+// ParseNewStats lists each record's IFLA_STATS_AF_SPEC members.
+func (s *Service) IfStatsAfSpec() ([]model.IfStats, error) {
+	return s.ifStatsDump(req.LinkAfstatsDump(s.nextSeq()))
+}
+
 // ifStatsDump sends one RTM_GETSTATS dump request and decodes the replies.
 func (s *Service) ifStatsDump(r []byte) ([]model.IfStats, error) {
 	v, err := decode(s, r, uint16(unix.RTM_NEWSTATS), "RTM_NEWSTATS", xtcpnl.ParseNewStats)

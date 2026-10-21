@@ -10,9 +10,9 @@ several steps, further down under [Remaining](#remaining).
 
 | | count | counted from |
 |---|---|---|
-| commands in the comparison matrix | **195** | `internal/goipparity/commands.go` — 112 read rows (31 of them `addr show` state, selector and output-mode rows with a `Setup`, and 6 `route get`, 2 `neigh get` and 4 `nexthop get` and `nexthop bucket` rows with one), the 21 link write rows, the 26 route write rows, the 27 address write rows, the 7 address flush rows and the 2 address restore rows |
-| of those, `Implemented: true` | **195** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
-| of those, in `gated_commands` | **194** | `pkg/nlparity/goip-parity-allowlist.json` |
+| commands in the comparison matrix | **198** | `internal/goipparity/commands.go` — 115 read rows (31 of them `addr show` state, selector and output-mode rows with a `Setup`, and 6 `route get`, 2 `neigh get`, 4 `nexthop get` and `nexthop bucket` and 3 `link xstats` and `link afstats` rows with one), the 21 link write rows, the 26 route write rows, the 27 address write rows, the 7 address flush rows and the 2 address restore rows |
+| of those, `Implemented: true` | **198** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
+| of those, in `gated_commands` | **197** | `pkg/nlparity/goip-parity-allowlist.json` |
 | allowlisted divergences | **7** | same file, `entries` |
 | of those, `kind=version-skew` | **7** | all against the pinned `ip` 7.1.0 |
 | of those, `kind=accepted-divergence` | **0** | nothing is *allowlisted* as a permanent divergence — the nine wire divergences runs 8 and 9 measured **could not** be, because a transaction-count divergence is unsuppressible (`nlparity_allowlist.go:143`), and G0 retired every one by changing goip to send `ip`'s requests |
@@ -3592,6 +3592,25 @@ idle time, which counts up between `ip_a`, goip and `ip_b`, is a value
 divergence the control cancels, 1024 on the dump and 1 on the get. All four
 gate with no allowlist entry, and `TestNexthopGetRowsGated` and the
 `earned`/`gated_commands` pair pin them.
+
+### G1-T04: the two `link xstats` rows and `link afstats` gate
+
+G1-T04 adds `goip link xstats` and `goip link afstats`
+(`internal/goip/link_xstats.go`) and three rows, one per C1-T03 read: `link
+xstats type bridge`, `link xstats type bridge_slave` and `link afstats`, each
+on the reads namespace's bridge, br0 with its port v2, whose veth peer stays
+down so nothing moves the counters. Each sends the `RTM_GETSTATS` dump for
+its group; the xstats rows then name the one device they print, br0 or v2,
+with `ll_index_to_name`'s `RTM_GETLINK` get, as `stats show` names its
+records. With no MPLS, every afstats nest is empty and nothing prints.
+
+Two back-to-back runs passed 198 of 198, identical row for row, ending
+`GOIP_PARITY_OVERALL_PASS`. The xstats rows are `txns` 2/2 and afstats 1/1;
+`type bridge_slave` and afstats have no control noise, and `type bridge` has
+one value divergence on both runs, br0's `IFLA_BR_GC_TIMER` counting up in
+the name lookup's `IFLA_LINKINFO`, which the control cancels. All three gate
+with no allowlist entry, and `TestLinkXstatsRowsGated` and the
+`earned`/`gated_commands` pair pin them. This closes G1: 198 rows, 197 gated.
 
 ## Tier C — the `goip-parity` microVM flavor
 

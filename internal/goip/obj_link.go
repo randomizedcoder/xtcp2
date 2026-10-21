@@ -10,8 +10,8 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// runLink handles `ip link ...`: the write verbs (link_write.go) and the
-// show verbs.
+// runLink handles `ip link ...`: the write verbs (link_write.go), the show
+// verbs, and `xstats` and `afstats` (link_xstats.go).
 //
 // do_iplink tests the write verbs first, all through matches()
 // (ip/iplink.c:1515-1533), so `ip link s` is `set`, not `show`; `sh` and `l`
@@ -28,6 +28,10 @@ func runLink(c *runCtx, args []string) error {
 	switch {
 	case matchesPrefix(verb, showVerbCst), matchesPrefix(verb, lstVerbCst), matchesPrefix(verb, listVerbCst):
 		return linkShow(c, args[1:])
+	case matchesPrefix(verb, linkXstatsVerbCst):
+		return linkXstats(c, args[1:])
+	case matchesPrefix(verb, linkAfstatsVerbCst):
+		return linkAfstats(c, args[1:])
 	default:
 		return fmt.Errorf("link %q: %w", verb, ErrNotImplemented)
 	}

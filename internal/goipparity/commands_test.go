@@ -1020,7 +1020,9 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	//   - the two `neigh get` rows G1-T02 added, likewise — see
 	//     TestNeighGetRowsGated;
 	//   - the two `nexthop get` and two `nexthop bucket` rows G1-T03 added,
-	//     likewise — see TestNexthopGetRowsGated.
+	//     likewise — see TestNexthopGetRowsGated;
+	//   - the two `link xstats` rows and `link afstats` G1-T04 added,
+	//     likewise — see TestLinkXstatsRowsGated.
 	//
 	// The last four were the permanent set, measured divergent on the wire;
 	// TestPermanentWireDivergences records that it is empty.
@@ -2593,6 +2595,49 @@ func TestNexthopGetRowsGated(t *testing.T) {
 			if c, lookupErr := Lookup(r.command); lookupErr == nil {
 				got.implemented, got.floor, got.setup = c.Implemented, c.Floor, len(c.Setup)
 				got.resilient = len(c.Setup) > 0 && strings.Contains(c.Setup[len(c.Setup)-1], "type resilient")
+			}
+			got.gated = al.IsGated(r.command)
+			got.entries = len(al.EntriesFor(r.command))
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+		})
+	}
+}
+
+// TestLinkXstatsRowsGated pins G1-T04's three rows: implemented, gated after
+// two clean runs with no allowlist entry, each on the reads namespace's
+// bridge.
+//
+// go test ./internal/goipparity/ -run TestLinkXstatsRowsGated
+func TestLinkXstatsRowsGated(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	type want struct {
+		implemented, gated, bridge bool
+		floor, setup, entries      int
+	}
+	rows := []struct {
+		description string
+		command     string
+		expected    want
+	}{
+		{"positive: the master group's dump and br0's get", "link xstats type bridge",
+			want{implemented: true, gated: true, bridge: true, floor: 4, setup: 5}},
+		{"positive: the port group's dump and v2's get", "link xstats type bridge_slave",
+			want{implemented: true, gated: true, bridge: true, floor: 4, setup: 5}},
+		{"boundary: the AF_SPEC dump alone, nothing to name", "link afstats",
+			want{implemented: true, gated: true, bridge: true, floor: 2, setup: 5}},
+		{"corner: a selector form not in the matrix is neither", "link xstats type bridge_slave stp", want{}},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			var got want
+			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				got.implemented, got.floor, got.setup = c.Implemented, c.Floor, len(c.Setup)
+				got.bridge = len(c.Setup) > 0 && c.Setup[0] == "link add br0 type bridge"
 			}
 			got.gated = al.IsGated(r.command)
 			got.entries = len(al.EntriesFor(r.command))

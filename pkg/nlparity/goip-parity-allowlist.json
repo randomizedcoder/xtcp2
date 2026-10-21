@@ -922,7 +922,14 @@
     "resilient group 20's 1024-bucket dump and one bucket's get. Two",
     "back-to-back runs of 195 GOIP_PARITY_PASS of 195 ended",
     "GOIP_PARITY_OVERALL_PASS, after FamilyHdrLen modeled the bucket",
-    "messages; each bucket's moving idle time is control-canceled."
+    "messages; each bucket's moving idle time is control-canceled.",
+    "",
+    "G1-T04 adds `link xstats` and `link afstats` and gates three rows:",
+    "`link xstats type bridge` and `type bridge_slave`, the RTM_GETSTATS",
+    "dump then the get naming br0 or v2, txns 2/2, and `link afstats`,",
+    "1/1 and empty. Two back-to-back runs of 198 GOIP_PARITY_PASS of 198",
+    "ended GOIP_PARITY_OVERALL_PASS; br0's moving IFLA_BR_GC_TIMER in the",
+    "name lookup's reply is control-canceled."
   ],
   "_note_version_skew": [
     "THE ENTRIES BELOW CITE COMMITS THAT ARE IN NO RELEASE, AND THE EVIDENCE IS",
@@ -1195,6 +1202,9 @@
     "nexthop get id 1",
     "nexthop get id 9",
     "nexthop bucket show id 20",
-    "nexthop bucket get id 20 index 0"
+    "nexthop bucket get id 20 index 0",
+    "link xstats type bridge",
+    "link xstats type bridge_slave",
+    "link afstats"
   ]
 }

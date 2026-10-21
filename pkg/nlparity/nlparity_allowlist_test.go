@@ -622,6 +622,10 @@ func TestAllowlistCommitted(t *testing.T) {
 		"nexthop get id 9",
 		"nexthop bucket show id 20",
 		"nexthop bucket get id 20 index 0",
+		// G1-T04's two `link xstats` rows and `link afstats`, likewise.
+		"link xstats type bridge",
+		"link xstats type bridge_slave",
+		"link afstats",
 	}
 
 	tests := []struct {

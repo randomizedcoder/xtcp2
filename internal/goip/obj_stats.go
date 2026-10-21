@@ -281,7 +281,7 @@ func statsShowXstats(c *runCtx, sel statsSel, records []model.IfStats, dump bool
 		if otherPresent || info.HasLink64 || info.HasUnsupportedGroup {
 			return errStatsUnsupportedGroup(info.Ifindex)
 		}
-		if mine.HasUngroundedXstatsBody {
+		if mine.HasUngroundedXstatsBody || mine.HasBridgeStp {
 			return errStatsUngroundedXstatsBody(sel.group, info.Ifindex)
 		}
 		v := viewOf(info, c.lltab)
