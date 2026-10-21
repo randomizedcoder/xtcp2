@@ -135,7 +135,8 @@ For root-only live-netlink tests and reproducible kernel evidence, run the
 privileged disposable guest:
 
 ```sh
-nix run path:.#test-linkmonitor-performance-vm -- /tmp/linkmonitor-vm-evidence
+nix run path:.#test-linkmonitor-performance-vm            # ~/.cache/xtcp2-vm/linkmonitor-performance/<UTC>
+nix run path:.#test-linkmonitor-performance-vm -- DIR     # or into DIR, e.g. to promote with --from DIR/linkmonitor-performance
 ```
 
 The guest reuses the cached `test-linkmonitor-performance` artifact, boots with
@@ -143,10 +144,14 @@ four CPUs and 4 GiB of memory, captures rtnetlink traffic through `nlmon0`,
 runs the live tests and representative benchmarks as root, and returns a
 compressed evidence bundle containing the serial log, benchmark output, CPU /
 heap / block / mutex profiles and `netlink.pcap`, plus the go-native RDMA
-native benchmarks from `bench-linkmonitor-rdma-native --native` in `rdma-native/`. Set `QEMU_ACCEL=tcg` when KVM
-is unavailable and `LINKMONITOR_BENCHTIME=30s` for a longer profile window.
-The target is an explicit runner rather than a flake check because it needs
-`/dev/kvm` when accelerated and writes evidence outside the Nix store.
+native benchmarks from `bench-linkmonitor-rdma-native --native` in `rdma-native/`. The bundle is
+unpacked as `linkmonitor-performance/` beside `serial.log`. Pass `--accel=tcg`
+when KVM is unavailable. Each benchmark runs for the guest's default 5 s:
+`LINKMONITOR_BENCHTIME` is read inside the guest, and the host's environment
+does not reach it. `checks.vm-linkmonitor-performance` is the same guest as a
+cached check: it proves the live tests pass and every benchmark and profile
+completes, and its timings are evidence of that build, not a fresh
+measurement. For a measurement, run the app on a quiet host.
 
 Build the standalone artifact:
 
@@ -162,14 +167,16 @@ the cgo configuration of xtcp2 or add monitor OCI/service deployment. Remaining
 netclass metadata coverage and physical RDMA validation are tracked in the
 monitor STATUS.
 
-The opt-in `nix run path:.#test-linkmonitor-rdma-vm` uses the existing microVM
-constructor and serial-log runner for software RoCE discovery/association,
+`checks.vm-linkmonitor-rdma`, or by hand `nix run path:.#test-linkmonitor-rdma-vm`, uses the existing microVM
+constructor and lifecycle runner for software RoCE discovery/association,
 the netlink event source against recorded expectations, denied uverbs access,
 deletion/recreation, native umad, and a strace check that the monitor opens no
 libibverbs, libibumad or provider library. It requires
-accessible `/dev/kvm` and exclusive use of the standard microVM console ports.
-Build it with `nix build path:.#test-linkmonitor-rdma-vm`; it is deliberately
-outside the thirteen-check offline aggregate. Missing KVM is unverified, not pass.
+accessible `/dev/kvm`; the app (not the check, whose sandbox has its own
+network namespace) also needs the standard microVM console ports free. Each
+step's sentinel must appear, and the guest's netlink recordings are kept as
+`nlrecord/` in the evidence. It is outside the thirteen-check offline
+aggregate. Missing KVM is unverified, not pass.
 Physical InfiniBand capability validation remains separate. Production device classification still excludes virtual links.
 
 The opt-in `nix run path:.#test-linkmonitor-ionic-vm` boots a qemu-vm.nix guest
@@ -180,6 +187,47 @@ is a guest PCI remove and rescan: QMP `device_del` of the vfio-user device abort
 QEMU 11.0.2 (`memory_region_del_subregion` assertion). `--promote` copies the
 recorded netlink fixtures into the linuxio testdata. Try a local rocm-ernic
 checkout with `--override-input rocm-ernic path:$HOME/Downloads/rocm-ernic`.
+
+### Guest tests as checks
+
+The serial-console guest tests are also flake checks, built by
+`nix/microvms/mkVmCheck.nix`: the guest runs inside the build sandbox with
+`/dev/kvm` (`requiredSystemFeatures = [ "kvm" ]`), the result keeps
+`serial.log` (terminal escapes stripped) and `summary.txt`, and a pass is
+cached by its inputs, so a rerun with nothing changed boots nothing:
+
+```sh
+nix build --no-link -L -j1 path:.#checks.x86_64-linux.vm-all   # one guest at a time
+nix build -L path:.#checks.x86_64-linux.vm-linkmonitor-ionic -o result-vm-ionic
+cat result-vm-ionic/summary.txt
+```
+
+| check | guest |
+|---|---|
+| `vm-goip-argv-paths` | `/ip/...` paths against `goip` and `ip` |
+| `vm-linkmonitor-embedding` | the embedding API, in-process and in xtcp2 |
+| `vm-linkmonitor-ionic` | the real ionic/ionic_rdma drivers on rocm-ernic |
+| `vm-linkmonitor-ionic-faults` | rocm-ernic fault injection through a TAP |
+| `vm-linkmonitor-rdma` | software RoCE (rxe) on the microVM constructor; netlink recordings in `nlrecord/` |
+| `vm-linkmonitor-performance` | root-only live tests, benchmarks, profiles and an nlmon pcap, unpacked as `linkmonitor-performance/` |
+
+`vm-all` builds all six. The fault run's TAP needs `/dev/net/tun`, which a
+build sandbox has only when the builder sets `extra-sandbox-paths =
+[ "/dev/net/tun?" ]` (host `l` does); without it the check fails with
+`VM_CHECK_NO_TUN`. A failing check prints the log's last 60 lines;
+`--keep-failed` keeps the tree.
+
+`nix run path:.#test-<name>-vm -- [--accel=auto|kvm|tcg] [--keep=N]` runs
+the same guest outside the sandbox (TCG too), keeps the last N runs (default
+5) under `~/.cache/xtcp2-vm/<name>/` and prints only the summary, plus the
+log's tail on a failure. `test-linkmonitor-ionic-vm` adds `--capture`,
+`--promote` and `--dry-run`, which write into the checkout.
+`test-linkmonitor-performance-vm` also takes a `DIR` in place of the cache.
+`checks.vm-check-runner` covers the runner itself with stand-in guests, and
+`checks.vm-linkmonitor-performance-bundle` the performance guest's bundle
+check.
+`checks.microvm-lifecycle-x86_64` (the xtcp2 self-test microVM) also requires
+`kvm` and keeps `summary.txt`, `serial.log` and `qemu.log` in its result.
 
 Individual gate example:
 
@@ -208,4 +256,5 @@ nix build path:.#test-linkmonitor \
 
 `nix flake check path:. -L` runs every registered repository check, including
 the monitor aggregate and those Nix policy checks. It is broader than the
-focused monitor suite.
+focused monitor suite, and it includes the `vm-*` guest checks, which boot
+as many guests at once as `max-jobs` allows; add `-j1` for one at a time.

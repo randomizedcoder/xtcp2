@@ -16,14 +16,31 @@
 let
   versions = import ./versions.nix { inherit pkgs; };
 
+  # The tree less the files no Go build reads (lib/goSource.nix), and its
+  # vendored copy. The binaries, go-link-monitor and the guest test
+  # artifacts use it, so a docs- or Nix-only change leaves them, and the
+  # vm-* checks that boot them, cached. Repo-wide checks keep `src`.
+  goSrc = import ./lib/goSource.nix { inherit lib src; };
+  goSource = {
+    src = goSrc;
+    inherit
+      (import ./lib/goModules.nix {
+        inherit pkgs giouring;
+        src = goSrc;
+        vendorHash = versions.goVendorHash;
+      })
+      vendoredSource
+      ;
+  };
+
   # Per-binary derivations + xtcp2-all join + default = xtcp2.
   binaries = import ./binaries.nix {
     inherit
       pkgs
       lib
-      src
       giouring
       ;
+    src = goSrc;
   };
 
   # Vendored source (used by every check that needs Go deps inside the sandbox).
@@ -38,12 +55,8 @@ let
   inherit (goMods) vendoredSource;
 
   linkmonitorPackages = import ./lib/linkmonitor-packages.nix {
-    inherit
-      pkgs
-      lib
-      src
-      vendoredSource
-      ;
+    inherit pkgs lib;
+    inherit (goSource) src vendoredSource;
   };
 
   # OCI image(s) — three variants in lockstep with the Go build variants.
@@ -130,6 +143,7 @@ let
       lib
       src
       vendoredSource
+      goSource
       binaries
       microvms
       linkmonitorPackages
@@ -152,6 +166,49 @@ let
     inherit pkgs src;
     artifact = tests.test-linkmonitor-performance;
   };
+
+  # Guest tests that report through the serial console, each built around
+  # microvms/mkVmCheck.nix's runner: checks.vm-<name>, run in the build
+  # sandbox with KVM and cached by its inputs, and the app test-<name>-vm,
+  # the same run with its evidence under ~/.cache/xtcp2-vm.
+  vmTests =
+    let
+      ionic =
+        faults:
+        import ./microvms/linkmonitor-ionic.nix {
+          inherit pkgs lib nixpkgs;
+          artifact = tests.test-linkmonitor-rdma-build;
+          monitor = linkmonitorPackages.go-link-monitor;
+          ernicModule = rocmErnic.nixosModules.ernic-guest;
+          ernicRun = rocmErnic.packages.${pkgs.stdenv.hostPlatform.system}.ernic-run;
+          inherit rdmaCaptureManifest faults;
+        };
+    in
+    {
+      goip-argv-paths = import ./tests/goip-argv-paths.nix {
+        inherit pkgs lib nixpkgs;
+        monitor = linkmonitorPackages.go-link-monitor;
+        inherit (binaries) goip;
+      };
+      linkmonitor-embedding = import ./microvms/linkmonitor-embedding.nix {
+        inherit pkgs lib nixpkgs;
+        artifact = tests.test-linkmonitor-embedding;
+      };
+      linkmonitor-ionic = ionic false;
+      linkmonitor-ionic-faults = ionic true;
+      linkmonitor-rdma = import ./microvms/linkmonitor-rdma.nix {
+        inherit
+          pkgs
+          lib
+          microvm
+          nixpkgs
+          binaries
+          ;
+        artifact = tests.test-linkmonitor-rdma-build;
+      };
+      linkmonitor-performance = linkmonitorPerformanceVm;
+    };
+  vmChecks = lib.mapAttrs' (name: t: lib.nameValuePair "vm-${name}" t.vmCheck.check) vmTests;
 
   # Dev shell
   devshell = import ./devshell.nix { inherit pkgs; };
@@ -193,7 +250,10 @@ let
   # the capture script the rxe and ionic guests and `l` run, the redaction
   # and manifest tool, and the host app `nix run .#capture-rdma-testdata`.
   rdmaNativeCapture = import ./tests/rdma-native-capture.nix { inherit pkgs; };
-  rdmaCaptureManifest = import ./tests/rdma-capture-manifest.nix { inherit pkgs vendoredSource; };
+  rdmaCaptureManifest = import ./tests/rdma-capture-manifest.nix {
+    inherit pkgs;
+    inherit (goSource) vendoredSource;
+  };
   captureRdmaTestdata = import ./capture-rdma-testdata.nix {
     inherit pkgs rdmaNativeCapture rdmaCaptureManifest;
     umadTests = tests.test-linkmonitor-rdma-build;
@@ -849,43 +909,12 @@ in
     // {
       # IA4-T01 of cmd/go-link-monitor/IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md:
       # `nix run .#test-goip-argv-paths-vm`, which needs /dev/kvm or TCG.
-      test-goip-argv-paths-vm = import ./tests/goip-argv-paths.nix {
-        inherit pkgs lib nixpkgs;
-        monitor = linkmonitorPackages.go-link-monitor;
-        inherit (binaries) goip;
-      };
-      test-linkmonitor-embedding-vm = import ./microvms/linkmonitor-embedding.nix {
-        inherit pkgs lib nixpkgs;
-        artifact = tests.test-linkmonitor-embedding;
-      };
+      test-goip-argv-paths-vm = vmTests.goip-argv-paths;
+      test-linkmonitor-embedding-vm = vmTests.linkmonitor-embedding;
       test-linkmonitor-performance-vm = linkmonitorPerformanceVm;
-      test-linkmonitor-rdma-vm = import ./microvms/linkmonitor-rdma.nix {
-        inherit
-          pkgs
-          lib
-          microvm
-          nixpkgs
-          binaries
-          ;
-        artifact = tests.test-linkmonitor-rdma-build;
-      };
-      test-linkmonitor-ionic-vm = import ./microvms/linkmonitor-ionic.nix {
-        inherit pkgs lib nixpkgs;
-        artifact = tests.test-linkmonitor-rdma-build;
-        monitor = linkmonitorPackages.go-link-monitor;
-        ernicModule = rocmErnic.nixosModules.ernic-guest;
-        ernicRun = rocmErnic.packages.${pkgs.stdenv.hostPlatform.system}.ernic-run;
-        inherit rdmaCaptureManifest;
-      };
-      test-linkmonitor-ionic-faults-vm = import ./microvms/linkmonitor-ionic.nix {
-        inherit pkgs lib nixpkgs;
-        artifact = tests.test-linkmonitor-rdma-build;
-        monitor = linkmonitorPackages.go-link-monitor;
-        ernicModule = rocmErnic.nixosModules.ernic-guest;
-        ernicRun = rocmErnic.packages.${pkgs.stdenv.hostPlatform.system}.ernic-run;
-        inherit rdmaCaptureManifest;
-        faults = true;
-      };
+      test-linkmonitor-rdma-vm = vmTests.linkmonitor-rdma;
+      test-linkmonitor-ionic-vm = vmTests.linkmonitor-ionic;
+      test-linkmonitor-ionic-faults-vm = vmTests.linkmonitor-ionic-faults;
       demo-linkmonitor-ionic-profiles = import ./microvms/linkmonitor-ionic-demo.nix {
         inherit pkgs lib nixpkgs;
         monitor = linkmonitorPackages.go-link-monitor;
@@ -1020,6 +1049,12 @@ in
       # Microvm lifecycle per arch shows up alongside the rest of the checks.
       microvm-lifecycle-x86_64 = microvms.checks.x86_64;
 
+      # Every guest test above that runs unattended (vmTests), and vm-all,
+      # which builds them all. The fault run needs /dev/net/tun in the
+      # sandbox (extra-sandbox-paths); without it, it fails with
+      # VM_CHECK_NO_TUN. See linkmonitor-ionic.nix.
+      vm-all = pkgs.linkFarm "vm-all" (lib.mapAttrsToList (name: path: { inherit name path; }) vmChecks);
+
       # Race-detector + per-flavor builds. These run as part of
       # `nix flake check` so a flavor-tag regression (e.g. dest_kafka
       # stops compiling because of a new import cycle) or a fresh
@@ -1027,6 +1062,10 @@ in
       # NOT here — quality-report already runs the all-default-tags
       # case, so per-package would be duplicate work.
       test-go-race = tests.go-race;
+    }
+    // vmChecks
+    // {
+      vm-linkmonitor-performance-bundle = vmTests.linkmonitor-performance.bundleTest;
     }
     # The focused monitor aggregate includes pure/race suites, its unchanged
     # comprehensive lint policy, replay, bounded fuzzing and document checks.
@@ -1067,9 +1106,9 @@ in
       program = "${microvms.lifecycle.x86_64.fullTest}/bin/xtcp2-lifecycle-full-test-x86_64";
     };
     # Privileged link-monitor benchmark/live-netlink VM. The guest captures an
-    # nlmon pcap and returns pprof plus test evidence; it is deliberately a
-    # runner rather than a flake check because it needs /dev/kvm and writes
-    # operator-selected evidence outside the Nix store.
+    # nlmon pcap and returns pprof plus test evidence. This app is for a fresh
+    # measurement; checks.vm-linkmonitor-performance runs the same guest as a
+    # cached check.
     test-linkmonitor-performance-vm = {
       type = "app";
       program = "${linkmonitorPerformanceVm}/bin/test-linkmonitor-performance-vm";

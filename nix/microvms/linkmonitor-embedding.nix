@@ -71,46 +71,27 @@ let
         }
       ];
     }).config.system.build.vm;
+  # checks.vm-linkmonitor-embedding and test-linkmonitor-embedding-vm
+  # (mkVmCheck.nix).
+  vmCheck = import ./mkVmCheck.nix { inherit pkgs lib; } {
+    name = "linkmonitor-embedding";
+    launch = "${vm}/bin/run-linkmonitor-embedding-vm";
+    sentinels = [
+      "LINKMONITOR_EMBEDDING_core_PASS"
+      "LINKMONITOR_EMBEDDING_xtcp_PASS"
+      "LINKMONITOR_EMBEDDING_PASS"
+      "--- PASS: TestLinkMonitorOnDemandScrape "
+    ];
+    failPattern = "LINKMONITOR_EMBEDDING_FAIL|--- SKIP:|--- FAIL:";
+    evidence = {
+      inherit artifact;
+      guest = vm;
+    };
+  };
 in
-pkgs.writeShellApplication {
-  name = "test-linkmonitor-embedding-vm";
-  runtimeInputs = with pkgs; [
-    coreutils
-    gnugrep
-  ];
-  text = ''
-    accel=auto
-    case "''${1:---accel=auto}" in
-      --accel=auto) ;;
-      --accel=kvm) accel=kvm ;;
-      --accel=tcg) accel=tcg ;;
-      *) echo 'usage: test-linkmonitor-embedding-vm [--accel=auto|kvm|tcg]' >&2; exit 2 ;;
-    esac
-    if [ "$#" -gt 1 ]; then echo 'too many arguments' >&2; exit 2; fi
-    run_dir=$(mktemp -d -t linkmonitor-embedding-XXXXXX)
-    echo "Evidence: $run_dir"
-    printf '%s\n' '${artifact}' > "$run_dir/artifact.txt"
-    printf '%s\n' '${vm}' > "$run_dir/guest.txt"
-    printf '%s\n' "$accel" > "$run_dir/accelerator-request.txt"
-    export TMPDIR="$run_dir"
-    cd "$run_dir"
-    case "$accel" in
-      auto) export QEMU_OPTS='-machine accel=kvm:tcg' ;;
-      kvm) export QEMU_OPTS='-machine accel=kvm' ;;
-      tcg) export QEMU_OPTS='-machine accel=tcg' ;;
-    esac
-    printf '%s\n' "$QEMU_OPTS" > "$run_dir/qemu-options.txt"
-    unset QEMU_KERNEL_PARAMS QEMU_NET_OPTS NIX_DISK_IMAGE
-    timeout --kill-after=10s 15m ${vm}/bin/run-linkmonitor-embedding-vm > "$run_dir/serial.log" 2>&1 || {
-      cat "$run_dir/serial.log"
-      exit 1
-    }
-    cat "$run_dir/serial.log"
-    for sentinel in core_PASS xtcp_PASS PASS; do
-      grep -q "LINKMONITOR_EMBEDDING_$sentinel" "$run_dir/serial.log"
-    done
-    grep -q -- '--- PASS: TestLinkMonitorOnDemandScrape ' "$run_dir/serial.log"
-    if grep -E 'LINKMONITOR_EMBEDDING_FAIL|--- SKIP:|--- FAIL:' "$run_dir/serial.log"; then exit 1; fi
-    echo "PASS: embedding VM; evidence $run_dir"
-  '';
+# test-linkmonitor-embedding-vm [--accel=auto|kvm|tcg] [--keep=N]: evidence under
+# ~/.cache/xtcp2-vm/linkmonitor-embedding; checks.vm-linkmonitor-embedding is the same run in the build sandbox.
+vmCheck.app
+// {
+  inherit vmCheck;
 }

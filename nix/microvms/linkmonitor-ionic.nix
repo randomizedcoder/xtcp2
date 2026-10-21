@@ -370,13 +370,6 @@ let
   };
   vm = system.config.system.build.vm;
 
-  # Runs under ernic-run, which owns the emulator for the VM's lifetime.
-  launcher = pkgs.writeShellApplication {
-    name = "${name}-launcher";
-    text = ''
-      exec ${vm}/bin/run-${name}-vm > "$1/serial.log" 2>&1
-    '';
-  };
   fixtureSteps = ''
     sysfsdata=pkg/linkmonitor/testdata/rdmasysfs
     mkdir -p "$run_dir/fixtures"
@@ -414,137 +407,177 @@ let
       native_promote "$run_dir/fixtures/native" "$native_out"
     fi
   '';
-  # The server prints each fault's counts at shutdown. Each must have fired:
-  # a fault that never fired proves nothing about the counters.
-  faultSummary = ''
-    for site in eth_rx eth_tx stats_vals; do
-      line=$(grep -m1 "Fault $site: eligible" "$run_dir/ernic.log" || true)
-      echo "server: ''${line# }"
-      fired=''${line##*fired }
-      if [ -z "$line" ] || [ "$fired" = 0 ]; then
-        echo "FAIL: fault $site did not fire; evidence $run_dir" >&2
-        exit 1
-      fi
-    done
-  '';
-in
-pkgs.writeShellApplication {
-  name = "test-${name}-vm";
-  runtimeInputs = with pkgs; [
-    coreutils
-    util-linux
-    findutils
-    gawk
-    gnugrep
-    gnused
-    gnutar
-    gzip
-    rdmaNativeCapture
-    rdmaCaptureManifest
-  ];
-  text = ''
-    usage() {
-      echo 'usage: test-${name}-vm [--accel=auto|kvm|tcg] [--promote] [--capture [--native-out=DIR] [--dry-run]]' >&2
-      echo '  --promote copies the recorded fixtures into ./pkg/linkmonitor/internal/linuxio/testdata/nlrecord/ionic-vm/<kernel>/' >&2
-      echo '  and the sysfs capture into ./pkg/linkmonitor/testdata/rdmasysfs/' >&2
-      echo '  --capture records the go-native RDMA corpus too; with --promote it goes to' >&2
-      echo '  ./pkg/linkmonitor/internal/rdmanative/testdata/<kernel>/vm-ionic/, or to --native-out' >&2
-      echo '  --dry-run (with --capture and --native-out) writes placeholder contents, no VM' >&2
-      exit 2
-    }
-    # native_promote SRC DEST: write SRC's manifest, then put it at DEST,
-    # replacing what was there; an empty DEST leaves it in the evidence. The
-    # GUIDs come from the emulated NIC, so there is nothing real to redact.
-    native_promote() {
-      rdma-capture-manifest write -dir "$1" -source vm-ionic
-      if [ -n "$2" ]; then
-        rm -rf -- "$2"
-        mkdir -p "$2"
-        cp -r "$1"/. "$2"/
-        rdma-capture-manifest verify "$2"
-        echo "promoted the native capture into $2"
-      fi
-    }
-    accel='-machine accel=kvm:tcg'
-    promote=0
-    capture=0
-    dry_run=0
-    native_out=""
-    for arg in "$@"; do
-      case "$arg" in
-        --accel=auto) accel='-machine accel=kvm:tcg' ;;
-        --accel=kvm) accel='-machine accel=kvm' ;;
-        --accel=tcg) accel='-machine accel=tcg' ;;
-        --promote) promote=1 ;;
-        --capture) capture=1 ;;
-        --dry-run) dry_run=1 ;;
-        --native-out=*) native_out=''${arg#--native-out=} ;;
-        *) usage ;;
-      esac
-    done
-    ${lib.optionalString faults "[ \"$promote\" -eq 0 ] && [ \"$capture\" -eq 0 ] || usage # no recordings in the fault run"}
-    if { [ "$dry_run" -eq 1 ] || [ -n "$native_out" ]; } && [ "$capture" -eq 0 ]; then
-      usage
-    fi
-    if [ "$dry_run" -eq 1 ]; then
-      [ -n "$native_out" ] || usage
-      stage=$(mktemp -d -t ${name}-dry-XXXXXX)
-      # The arguments healthySteps gives the guest, with typical names.
-      rdma-native-capture --dry-run --out "$stage/native" --dev ionic_0 \
-        --triggers flap,gid --iface enp0s3 --umad --driver ionic_rdma
-      native_promote "$stage/native" "$native_out"
-      rm -rf -- "$stage"
-      echo "PASS: ${name} capture dry run"
-      exit 0
-    fi
-    testdata=pkg/linkmonitor/internal/linuxio/testdata/nlrecord
-    if [ "$promote" -eq 1 ] && [ ! -d "$testdata" ]; then
-      echo "--promote must run from the xtcp2 checkout root ($testdata missing)" >&2
-      exit 2
-    fi
-    run_dir=$(mktemp -d -t ${name}-XXXXXX)
-    echo "Evidence: $run_dir"
-    printf '%s\n' '${artifact}' > "$run_dir/artifact.txt"
-    printf '%s\n' '${monitor}' > "$run_dir/monitor.txt"
-    printf '%s\n' '${vm}' > "$run_dir/guest.txt"
-    export QEMU_OPTS="$accel"
-    printf '%s\n' "$QEMU_OPTS" > "$run_dir/qemu-options.txt"
-    export TMPDIR="$run_dir"
-    unset QEMU_KERNEL_PARAMS QEMU_NET_OPTS NIX_DISK_IMAGE
-    if [ "$capture" -eq 1 ]; then
-      export QEMU_KERNEL_PARAMS=xtcp2.rdmacapture=1
-    fi
-    rc=0
-    (cd "$run_dir" && timeout --kill-after=10s 30m \
-      ${lib.optionalString faults "unshare --user --map-root-user --net -- ${netnsTap}/bin/ernic-netns-tap"} \
-      ${ernicRun}/bin/ernic-run --socket "$run_dir/ernic.sock" --log-file "$run_dir/ernic.log" \
-      ${lib.escapeShellArgs ernicArgs} -- \
-      ${launcher}/bin/${name}-launcher "$run_dir") || rc=$?
-    cat "$run_dir/serial.log"
-    if [ "$rc" -ne 0 ]; then
-      echo "FAIL: launcher exited $rc; evidence $run_dir" >&2
-      exit 1
-    fi
-    for sentinel in ${
+  sentinels =
+    map (s: "LINKMONITOR_IONIC_${s}_PASS") (
       if faults then
-        "FAULT_STATS_VALS FAULT_COUNTERS"
+        [
+          "FAULT_STATS_VALS"
+          "FAULT_COUNTERS"
+        ]
       else
-        "DISCOVERY CONTRACTS MONITOR CLI EVENTS RECORDED REMOVE UNPLUG HOTPLUG RECOVERED_EVENTS"
-    }; do
-      if ! grep -q "LINKMONITOR_IONIC_''${sentinel}_PASS" "$run_dir/serial.log"; then
-        echo "FAIL: missing LINKMONITOR_IONIC_''${sentinel}_PASS; evidence $run_dir" >&2
-        exit 1
-      fi
-    done
-    if [ "$capture" -eq 1 ] && ! grep -q LINKMONITOR_IONIC_NATIVE_CAPTURE_PASS "$run_dir/serial.log"; then
-      echo "FAIL: missing LINKMONITOR_IONIC_NATIVE_CAPTURE_PASS; evidence $run_dir" >&2
-      exit 1
-    fi
-    if grep -q LINKMONITOR_IONIC_FAIL "$run_dir/serial.log" || ! grep -q 'LINKMONITOR_IONIC_PASS' "$run_dir/serial.log"; then
-      echo "FAIL: guest test failed; evidence $run_dir" >&2
-      exit 1
-    fi
-    ${if faults then faultSummary else fixtureSteps}
-    echo "PASS: ${name} VM; evidence $run_dir"
-  '';
+        [
+          "DISCOVERY"
+          "CONTRACTS"
+          "MONITOR"
+          "CLI"
+          "EVENTS"
+          "RECORDED"
+          "REMOVE"
+          "UNPLUG"
+          "HOTPLUG"
+          "RECOVERED_EVENTS"
+        ]
+    )
+    ++ [ "LINKMONITOR_IONIC_PASS" ];
+  # checks.vm-${name} (mkVmCheck.nix): the pass or fail run, without
+  # --capture or --promote, which write into the checkout; the launcher below
+  # adds them around the same runner. The fault run's TAP needs /dev/net/tun,
+  # which a nix build sandbox has only with extra-sandbox-paths =
+  # /dev/net/tun on the builder.
+  vmCheck = import ./mkVmCheck.nix { inherit pkgs lib; } {
+    inherit name sentinels;
+    runtimeInputs = [ pkgs.util-linux ];
+    launch = ''
+      ${lib.optionalString faults ''
+        if [ ! -c /dev/net/tun ]; then
+          echo 'VM_CHECK_NO_TUN: the fault run needs /dev/net/tun (a nix builder: extra-sandbox-paths = /dev/net/tun)'
+          exit 3
+        fi
+      ''}
+      ${lib.optionalString faults "unshare --user --map-root-user --net -- ${netnsTap}/bin/ernic-netns-tap"} \
+        ${ernicRun}/bin/ernic-run --socket "$PWD/ernic.sock" --log-file "$VM_EVIDENCE/ernic.log" \
+        ${lib.escapeShellArgs ernicArgs} -- \
+        ${vm}/bin/run-${name}-vm
+    '';
+    failPattern = "LINKMONITOR_IONIC_FAIL|VM_CHECK_NO_TUN";
+    timeout = "30m";
+    evidence = {
+      inherit artifact monitor;
+      guest = vm;
+    };
+    # Each fault must have fired: one that never fired proves nothing about
+    # the counters.
+    postCheck = lib.optionalString faults ''
+      for site in eth_rx eth_tx stats_vals; do
+        line=$(grep -m1 "Fault $site: eligible" "$run_dir/ernic.log" | sed 's/^[[:space:]]*//' || true)
+        printf '%s\n' "$line" >> "$run_dir/faults.txt"
+        fired=''${line##*fired }
+        if [ -z "$line" ] || [ "$fired" = 0 ]; then
+          fail "fault $site did not fire"
+        fi
+      done
+    '';
+  };
+in
+# The fault run has no recordings: its app is mkVmCheck's. The healthy run's
+# launcher adds --capture, --promote and --dry-run around the same runner.
+(
+  if faults then
+    vmCheck.app
+  else
+    pkgs.writeShellApplication {
+      name = "test-${name}-vm";
+      runtimeInputs = with pkgs; [
+        coreutils
+        findutils
+        gawk
+        gnugrep
+        gnused
+        gnutar
+        gzip
+        rdmaNativeCapture
+        rdmaCaptureManifest
+      ];
+      text = ''
+        usage() {
+          echo 'usage: test-${name}-vm [--accel=auto|kvm|tcg] [--keep=N] [--promote] [--capture [--native-out=DIR] [--dry-run]]' >&2
+          echo '  evidence goes to ~/.cache/xtcp2-vm/${name}/<UTC time>; the last N (default 5) are kept' >&2
+          echo '  --promote copies the recorded fixtures into ./pkg/linkmonitor/internal/linuxio/testdata/nlrecord/ionic-vm/<kernel>/' >&2
+          echo '  and the sysfs capture into ./pkg/linkmonitor/testdata/rdmasysfs/' >&2
+          echo '  --capture records the go-native RDMA corpus too; with --promote it goes to' >&2
+          echo '  ./pkg/linkmonitor/internal/rdmanative/testdata/<kernel>/vm-ionic/, or to --native-out' >&2
+          echo '  --dry-run (with --capture and --native-out) writes placeholder contents, no VM' >&2
+          exit 2
+        }
+        # native_promote SRC DEST: write SRC's manifest, then put it at DEST,
+        # replacing what was there; an empty DEST leaves it in the evidence. The
+        # GUIDs come from the emulated NIC, so there is nothing real to redact.
+        native_promote() {
+          rdma-capture-manifest write -dir "$1" -source vm-ionic
+          if [ -n "$2" ]; then
+            rm -rf -- "$2"
+            mkdir -p "$2"
+            cp -r "$1"/. "$2"/
+            rdma-capture-manifest verify "$2"
+            echo "promoted the native capture into $2"
+          fi
+        }
+        accel=auto
+        keep=5
+        promote=0
+        capture=0
+        dry_run=0
+        native_out=""
+        for arg in "$@"; do
+          case "$arg" in
+            --accel=auto | --accel=kvm | --accel=tcg) accel=''${arg#--accel=} ;;
+            --keep=*) keep=''${arg#--keep=} ;;
+            --promote) promote=1 ;;
+            --capture) capture=1 ;;
+            --dry-run) dry_run=1 ;;
+            --native-out=*) native_out=''${arg#--native-out=} ;;
+            *) usage ;;
+          esac
+        done
+        case "$keep" in
+          "" | *[!0-9]* | 0) usage ;;
+        esac
+        if { [ "$dry_run" -eq 1 ] || [ -n "$native_out" ]; } && [ "$capture" -eq 0 ]; then
+          usage
+        fi
+        if [ "$dry_run" -eq 1 ]; then
+          [ -n "$native_out" ] || usage
+          stage=$(mktemp -d -t ${name}-dry-XXXXXX)
+          # The arguments healthySteps gives the guest, with typical names.
+          rdma-native-capture --dry-run --out "$stage/native" --dev ionic_0 \
+            --triggers flap,gid --iface enp0s3 --umad --driver ionic_rdma
+          native_promote "$stage/native" "$native_out"
+          rm -rf -- "$stage"
+          echo "PASS: ${name} capture dry run"
+          exit 0
+        fi
+        testdata=pkg/linkmonitor/internal/linuxio/testdata/nlrecord
+        if [ "$promote" -eq 1 ] && [ ! -d "$testdata" ]; then
+          echo "--promote must run from the xtcp2 checkout root ($testdata missing)" >&2
+          exit 2
+        fi
+        base="''${XDG_CACHE_HOME:-$HOME/.cache}/xtcp2-vm/${name}"
+        run_dir="$base/$(date -u +%Y%m%dT%H%M%SZ)"
+        mkdir -p "$base"
+        if [ "$capture" -eq 1 ]; then
+          export VM_KERNEL_PARAMS=xtcp2.rdmacapture=1
+        fi
+        rc=0
+        ${vmCheck.runner}/bin/vm-run-${name} "$run_dir" "$accel" || rc=$?
+        find "$base" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort -r | tail -n +"$((keep + 1))" |
+          while read -r old; do rm -rf -- "''${base:?}/$old"; done
+        if [ "$rc" -ne 0 ]; then
+          if [ -s "$run_dir/serial.log" ]; then
+            echo '--- the last 40 lines of serial.log ---'
+            tail -n 40 "$run_dir/serial.log"
+          fi
+          echo "evidence: $run_dir"
+          exit 1
+        fi
+        if [ "$capture" -eq 1 ] && ! grep -q LINKMONITOR_IONIC_NATIVE_CAPTURE_PASS "$run_dir/serial.log"; then
+          echo "FAIL: missing LINKMONITOR_IONIC_NATIVE_CAPTURE_PASS; evidence $run_dir" >&2
+          exit 1
+        fi
+        ${fixtureSteps}
+        echo "evidence: $run_dir"
+      '';
+    }
+)
+// {
+  inherit vmCheck;
 }

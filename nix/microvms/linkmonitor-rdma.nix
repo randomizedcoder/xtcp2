@@ -1,4 +1,7 @@
-# Opt-in software-RDMA guest, reusing the existing VM and serial-log runner.
+# Software-RDMA (rxe) guest on the microVM constructor and lifecycle runner,
+# run through mkVmCheck: checks.vm-linkmonitor-rdma and the app
+# test-linkmonitor-rdma-vm, with the guest's netlink recordings in the
+# evidence as nlrecord/.
 {
   pkgs,
   lib,
@@ -154,16 +157,7 @@ let
     arch = "x86_64";
     inherit vm;
     suffix = "-linkmonitor-rdma";
-    extraSentinels = [
-      "RDMA_DISCOVERY"
-      "RDMA_RENAME"
-      "RDMA_EVENTS"
-      "RDMA_SMOKE_EVENTS"
-      "RDMA_UMAD"
-      "RDMA_PERMISSION"
-      "RDMA_RECOVERY"
-      "RDMA_CONTRACTS"
-    ];
+    extraSentinels = steps;
     scrapeArchives = [
       {
         name = "nlrecord";
@@ -173,14 +167,53 @@ let
       }
     ];
   };
+  steps = [
+    "RDMA_DISCOVERY"
+    "RDMA_RENAME"
+    "RDMA_EVENTS"
+    "RDMA_SMOKE_EVENTS"
+    "RDMA_UMAD"
+    "RDMA_PERMISSION"
+    "RDMA_RECOVERY"
+    "RDMA_CONTRACTS"
+  ];
+  # The lifecycle runner writes its transcript to $TMPDIR (the work
+  # directory) and its verdict to stdout; serial.log gets the transcript,
+  # then the verdict, so it reads like the other guests' logs and its tail
+  # says why a run failed. The recordings land in the evidence as nlrecord/.
+  # microvm.nix's QEMU takes no QEMU_OPTS, so --accel has no effect here.
+  vmCheck = import ./mkVmCheck.nix { inherit pkgs lib; } {
+    name = "linkmonitor-rdma";
+    runtimeInputs = [ pkgs.coreutils ];
+    launch = ''
+      if [ ! -r /dev/kvm ] || [ ! -w /dev/kvm ]; then
+        echo 'UNVERIFIED: RDMA guest requires accessible /dev/kvm'
+        exit 1
+      fi
+      rc=0
+      XTCP2_NLREC_DIR="$VM_EVIDENCE/nlrecord" \
+        ${runner}/bin/xtcp2-lifecycle-full-test-x86_64-linkmonitor-rdma > runner.txt 2>&1 || rc=$?
+      for log in "$TMPDIR"/xtcp2-vm-*.log; do
+        if [ -e "$log" ]; then cat "$log"; fi
+      done
+      cat runner.txt
+      exit "$rc"
+    '';
+    sentinels = map (step: "XTCP2_SELF_TEST_${step}_PASS") steps ++ [
+      "XTCP2_SELF_TEST_OVERALL_PASS"
+      "nlrecord: extracted"
+    ];
+    failPattern = "XTCP2_SELF_TEST_[A-Z_]+_FAIL|--- FAIL:|^FAIL:";
+    timeout = "30m";
+    evidence = {
+      guest = vm;
+      inherit artifact;
+    };
+    postCheck = ''
+      if [ ! -s "$run_dir/nlrecord/kernel.txt" ]; then
+        fail 'the nlrecord archive has no kernel.txt'
+      fi
+    '';
+  };
 in
-pkgs.writeShellApplication {
-  name = "test-linkmonitor-rdma-vm";
-  text = ''
-    if [ ! -r /dev/kvm ] || [ ! -w /dev/kvm ]; then
-      echo 'UNVERIFIED: RDMA guest requires accessible /dev/kvm' >&2
-      exit 1
-    fi
-    exec ${runner}/bin/xtcp2-lifecycle-full-test-x86_64-linkmonitor-rdma "$@"
-  '';
-}
+vmCheck.app // { inherit vmCheck; }

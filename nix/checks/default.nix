@@ -64,6 +64,9 @@ in
   # The self-test's stream_until (nix/microvms/self-test-stream-until.nix),
   # driven against sh stand-ins for a streaming xtcp2client.
   self-test-stream-until = import ./self-test-stream-until.nix { inherit pkgs; };
+  # mkVmCheck's runner and app (nix/microvms/mkVmCheck.nix), driven against
+  # shell stand-ins for a guest: exit codes, sentinels, escapes, timeouts.
+  vm-check-runner = import ./vm-check-runner.nix { inherit pkgs lib; };
   # The self-test's jsonl_tally (nix/microvms/self-test-jsonl-tally.nix), the
   # one-pass jsonl validator behind checks 5d and 5f.
   self-test-jsonl-tally = import ./self-test-jsonl-tally.nix { inherit pkgs; };

@@ -7,6 +7,9 @@
   lib,
   src,
   vendoredSource,
+  # nix/lib/goSource.nix's tree and its vendored copy, for the artifacts the
+  # vm-* guests boot.
+  goSource,
   binaries,
   microvms,
   linkmonitorPackages,
@@ -56,6 +59,7 @@ in
     lib
     src
     vendoredSource
+    goSource
     linkmonitorPackages
     ;
 })
