@@ -25,7 +25,8 @@
 #          them would break byte-identical output, so the mitigation is the
 #          response headers: text/plain or application/json, always with
 #          X-Content-Type-Options: nosniff (TestHandler checks every row).
-#          .golangci-comprehensive.yml carries the same scoped rule.
+#          .golangci.yml and .golangci-comprehensive.yml carry the same
+#          scoped rule.
 #
 # NOT excluded — these would block the build if found:
 #   G104 (unhandled errors), G112 (HTTP timeouts), G401 (weak crypto), etc.

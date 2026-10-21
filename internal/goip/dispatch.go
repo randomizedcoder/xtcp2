@@ -82,7 +82,7 @@ var objects = []object{
 	{name: "mrule"},
 	{name: "netns"},
 	{name: "netconf", run: runNetconf, verbs: netconfVerbs},
-	{name: "vrf", run: runVrf, verbs: vrfVerbs},
+	{name: vrfKeywordCst, run: runVrf, verbs: vrfVerbs},
 	{name: "sr"},
 	{name: "nexthop", run: runNexthop, verbs: nexthopVerbs},
 	{name: "mptcp"},

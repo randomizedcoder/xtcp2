@@ -100,6 +100,14 @@ type routeKeyword struct {
 	scale uint32
 }
 
+// The route priority keywords, spelled the same in `ip address`
+// (ipaddr_modify) and `ip route` (iproute_modify).
+const (
+	routeMetricKeywordCst     = "metric"
+	routePriorityKeywordCst   = "priority"
+	routePreferenceKeywordCst = "preference"
+)
+
 // routeParseKeywords is iproute_modify's if/else chain in its order
 // (ip/iproute.c:1195-1572). Every keyword is listed, the unimplemented ones
 // too, because the chain decides what an argument IS: one that matches no
@@ -115,10 +123,10 @@ var routeParseKeywords = []routeKeyword{
 	{keyword: "tos", arm: routeArmUnsupported},
 	{keyword: "dsfield", prefix: true, arm: routeArmUnsupported},
 	{keyword: "expires", arm: routeArmUnsupported},
-	{keyword: "metric", prefix: true, arm: routeArmPriority},
-	{keyword: "priority", prefix: true, arm: routeArmPriority},
-	{keyword: "preference", arm: routeArmPriority},
-	{keyword: "scope", arm: routeArmScope},
+	{keyword: routeMetricKeywordCst, prefix: true, arm: routeArmPriority},
+	{keyword: routePriorityKeywordCst, prefix: true, arm: routeArmPriority},
+	{keyword: routePreferenceKeywordCst, arm: routeArmPriority},
+	{keyword: addrScopeKeywordCst, arm: routeArmScope},
 	{keyword: mtuKeywordCst, arm: routeArmMetric, rtax: unix.RTAX_MTU, name: mtuKeywordCst},
 	{keyword: "hoplimit", arm: routeArmMetric, rtax: unix.RTAX_HOPLIMIT, name: "hoplimit", maxVal: math.MaxUint8},
 	{keyword: "advmss", arm: routeArmMetric, rtax: unix.RTAX_ADVMSS, name: "mss"},
