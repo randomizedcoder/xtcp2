@@ -1,7 +1,6 @@
 package xtcpnl
 
 import (
-	"net"
 	"os"
 	"slices"
 	"strconv"
@@ -10,17 +9,6 @@ import (
 	"testing"
 
 	"golang.org/x/sys/unix"
-)
-
-// The tcp_metrics commands and attributes (linux/tcp_metrics.h), which
-// x/sys/unix does not define.
-const (
-	tcpmCmdGet       = 1
-	tcpmCmdDel       = 2
-	tcpmAttrAddrIPv4 = 1
-	tcpmAttrAddrIPv6 = 2
-	tcpmAttrSaddrV4  = 11
-	tcpmAttrSaddrV6  = 12
 )
 
 // tcpmRows is every C2-T01 row, in the corpus's order.
@@ -54,24 +42,26 @@ func genlFamilyID(t *testing.T, msgs []capturedNlMsg, name string) uint16 {
 func tcpmPcap(t *testing.T, rel string) ([]capturedNlMsg, uint16) {
 	t.Helper()
 	msgs := pcapNlMsgs(t, tdGenlWrite_7_1_4+"/"+rel)
-	return msgs, genlFamilyID(t, msgs, "tcp_metrics")
+	return msgs, genlFamilyID(t, msgs, TCPMetricsGenlName)
 }
 
-// tcpmAddrs renders a tcp_metrics message's destination and source
-// attributes as "addr=A saddr=S", leaving out whichever is absent.
-func tcpmAddrs(t *testing.T, attrs []NetlinkAttribute) string {
+// tcpmAddrs decodes a tcp_metrics body with ParseTCPMetrics and renders
+// its destination and source as "addr=A saddr=S", leaving out whichever is
+// absent.
+func tcpmAddrs(t *testing.T, body []byte) (TCPMetrics, string) {
 	t.Helper()
-	var out []string
-	for _, a := range attrs {
-		switch a.ID() {
-		case tcpmAttrAddrIPv4, tcpmAttrAddrIPv6:
-			out = append(out, "addr="+net.IP(a.Data).String())
-		case tcpmAttrSaddrV4, tcpmAttrSaddrV6:
-			out = append(out, "saddr="+net.IP(a.Data).String())
-		}
+	m, err := ParseTCPMetrics(body)
+	if err != nil {
+		t.Fatal(err)
 	}
-	slices.Sort(out)
-	return strings.Join(out, " ")
+	var out []string
+	if m.Addr.IsValid() {
+		out = append(out, "addr="+m.Addr.String())
+	}
+	if m.Saddr.IsValid() {
+		out = append(out, "saddr="+m.Saddr.String())
+	}
+	return m, strings.Join(out, " ")
 }
 
 // tcpmRequests describes each tcp_metrics request `ip` sent, in order:
@@ -84,19 +74,16 @@ func tcpmRequests(t *testing.T, rel string) []string {
 		if fam == 0 || m.h.Type != fam || m.h.Flags&unix.NLM_F_REQUEST == 0 {
 			continue
 		}
-		g, err := ParseGenericNetlink(m.body)
-		if err != nil {
-			t.Fatal(err)
-		}
-		words := []string{map[uint8]string{tcpmCmdGet: "get", tcpmCmdDel: "del"}[g.Command]}
+		g, addrs := tcpmAddrs(t, m.body)
+		words := []string{map[uint8]string{TCPMetricsCmdGet: "get", TCPMetricsCmdDel: "del"}[g.Command]}
 		if m.h.Flags&unix.NLM_F_DUMP == unix.NLM_F_DUMP {
 			words = append(words, "dump")
 		}
 		if m.h.Flags&unix.NLM_F_ACK != 0 {
 			words = append(words, "ack")
 		}
-		if a := tcpmAddrs(t, g.Attributes); a != "" {
-			words = append(words, a)
+		if addrs != "" {
+			words = append(words, addrs)
 		}
 		out = append(out, strings.Join(words, " "))
 	}
@@ -113,11 +100,8 @@ func tcpmEntries(t *testing.T, rel string) string {
 		if fam == 0 || m.h.Type != fam || m.h.Flags&unix.NLM_F_REQUEST != 0 {
 			continue
 		}
-		g, err := ParseGenericNetlink(m.body)
-		if err != nil {
-			t.Fatal(err)
-		}
-		out = append(out, tcpmAddrs(t, g.Attributes))
+		_, addrs := tcpmAddrs(t, m.body)
+		out = append(out, addrs)
 	}
 	slices.Sort(out)
 	return strings.Join(out, "|")

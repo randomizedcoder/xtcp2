@@ -188,6 +188,7 @@ var (
 	resultBucket  NexthopBucketInfo
 	resultProp    LinkPropInfo
 	resultPrefix  PrefixInfo
+	resultTCPM    TCPMetrics
 )
 
 // parseBenchCase is one parser P0 benchmarks: its name, the kind of its
@@ -221,6 +222,7 @@ var parseBenchCases = []parseBenchCase{
 	{name: "ParseNexthopBucket", kind: rtnl(unix.RTM_NEWNEXTHOPBUCKET), parse: func(_ NlMsgHdr, b []byte) (err error) { resultBucket, err = ParseNexthopBucket(b); return err }},
 	{name: "ParseLinkProp", kind: rtnlRequest(unix.RTM_NEWLINKPROP), parse: func(_ NlMsgHdr, b []byte) (err error) { resultProp, err = ParseLinkProp(b); return err }},
 	{name: "ParsePrefix", kind: rtnl(unix.RTM_NEWPREFIX), parse: func(_ NlMsgHdr, b []byte) (err error) { resultPrefix, err = ParsePrefix(b); return err }},
+	{name: "ParseTCPMetrics", kind: genl(TCPMetricsGenlName), parse: func(_ NlMsgHdr, b []byte) (err error) { resultTCPM, err = ParseTCPMetrics(b); return err }},
 }
 
 // parseBenchCaseNamed returns the parseBenchCases entry called name.
@@ -324,6 +326,11 @@ func BenchmarkParseLinkProp(b *testing.B) { benchParse(b, "ParseLinkProp") }
 // RTM_NEWPREFIX the corpus holds; all three are the same 44 bytes, the one
 // shape the kernel sends (P1-T04).
 func BenchmarkParsePrefix(b *testing.B) { benchParse(b, "ParsePrefix") }
+
+// BenchmarkParseTCPMetrics decodes the smallest, a typical and the largest
+// tcp_metrics entry the kernel sent in the corpus, an IPv4 and an IPv6 one
+// (P2-T01).
+func BenchmarkParseTCPMetrics(b *testing.B) { benchParse(b, "ParseTCPMetrics") }
 
 func TestBenchPick(t *testing.T) {
 	// msg is a captured message of type typ whose body is n bytes, from a
@@ -444,7 +451,8 @@ func TestParseBenchCases(t *testing.T) {
 				" ParseNewAddrLabel=0/72 ParseNewNeighTbl=0/64 ParseNewNetconf=0/80 ParseNewStats=0/92" +
 				" ParseNlMsgErr=0/2 ParseRtnetlinkEvent=0/17" +
 				" ParseGenericNetlink=16/nlctrl ParseGenericNetlinkFamily=16/nlctrl ParseEthtool=16/ethtool" +
-				" ParseNsid=0/88 ParseNexthopBucket=0/116 ParseLinkProp=0/108/request ParsePrefix=0/52",
+				" ParseNsid=0/88 ParseNexthopBucket=0/116 ParseLinkProp=0/108/request ParsePrefix=0/52" +
+				" ParseTCPMetrics=16/tcp_metrics",
 		},
 	}
 	for _, tt := range tests {
@@ -483,6 +491,7 @@ func TestParseBenchRecords(t *testing.T) {
 		{description: "positive: ParseNexthopBucket decodes its three RTM_NEWNEXTHOPBUCKET picks", name: "ParseNexthopBucket", expected: "smallest ok, typical ok, largest ok"},
 		{description: "positive: ParseLinkProp decodes its three picks of ip's RTM_NEWLINKPROP requests", name: "ParseLinkProp", expected: "smallest ok, typical ok, largest ok"},
 		{description: "positive: ParsePrefix decodes its three RTM_NEWPREFIX picks", name: "ParsePrefix", expected: "smallest ok, typical ok, largest ok"},
+		{description: "positive: ParseTCPMetrics decodes its three tcp_metrics picks", name: "ParseTCPMetrics", expected: "smallest ok, typical ok, largest ok"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {

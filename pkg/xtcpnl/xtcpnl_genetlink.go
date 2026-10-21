@@ -93,6 +93,24 @@ func genlAttrU32(attrs []NetlinkAttribute, id uint16) (*uint32, error) {
 	return &v, nil
 }
 
+func genlAttrU16(attrs []NetlinkAttribute, id uint16) (*uint16, error) {
+	a, err := scalarAttribute(attrs, id, 2)
+	if err != nil || a == nil {
+		return nil, err
+	}
+	v := binary.LittleEndian.Uint16(a.Data)
+	return &v, nil
+}
+
+func genlAttrU64(attrs []NetlinkAttribute, id uint16) (*uint64, error) {
+	a, err := scalarAttribute(attrs, id, 8)
+	if err != nil || a == nil {
+		return nil, err
+	}
+	v := binary.LittleEndian.Uint64(a.Data)
+	return &v, nil
+}
+
 func genlAttrU8(attrs []NetlinkAttribute, id uint16) (*uint8, error) {
 	a, err := scalarAttribute(attrs, id, 1)
 	if err != nil || a == nil {
