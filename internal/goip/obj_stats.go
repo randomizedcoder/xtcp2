@@ -150,10 +150,12 @@ func (sel *statsSel) set(kw, val string) error {
 // (lib/ll_map.c:354-372), and one non-dump RTM_GETSTATS fetches that ifindex.
 // The reply's ifindex is then already cached, so nothing else is sent.
 //
-// Without one it is ipstats_dump (:866-883), and goip resolves names with one
-// link dump up front where iproute2 sends a get per ifindex lazily (:761); see
-// the stats rows in internal/goipparity. extended is `show_stats > 1`: the
-// `show` verb makes the base level 1 and any -s or -d pushes it to 2.
+// Without one it is ipstats_dump (:866-883): one RTM_GETSTATS dump, then, as
+// each record prints, ll_index_to_name (:761) sends an RTM_GETLINK for its
+// ifindex unless the cache holds it. goip resolves the records in wire order
+// after the dump, which is the same requests in the same order. extended is
+// `show_stats > 1`: the `show` verb makes the base level 1 and any -s or -d
+// pushes it to 2.
 func statsShow(c *runCtx, sel statsSel) error {
 	extended := c.showStats+c.showDetails >= 1
 
@@ -169,16 +171,6 @@ func statsShow(c *runCtx, sel statsSel) error {
 		return statsShowDev(c, svc, sel, extended)
 	}
 
-	links, err := svc.StatsLinks()
-	if err != nil {
-		return err
-	}
-	decoded := make([]xtcpnl.LinkInfo, len(links))
-	for i := range links {
-		decoded[i] = xtcpnl.LinkInfo(links[i])
-	}
-	c.lltab.Fill(decoded)
-
 	if sel.group != statsGroupLinkCst {
 		fetch := svc.IfStatsXstats
 		if sel.group == statsGroupXstatsSlaveCst {
@@ -188,6 +180,7 @@ func statsShow(c *runCtx, sel statsSel) error {
 		if ferr != nil {
 			return ferr
 		}
+		resolveStatsNames(c, svc, records)
 		return statsShowXstats(c, sel, records, true)
 	}
 
@@ -195,12 +188,22 @@ func statsShow(c *runCtx, sel statsSel) error {
 	if err != nil {
 		return err
 	}
+	resolveStatsNames(c, svc, records)
 	for i := range records {
 		if beyondLink(records[i]) {
 			return errStatsUnsupportedGroup(records[i].Ifindex)
 		}
 	}
 	return statsRender(c, records, extended, true)
+}
+
+// resolveStatsNames is ll_index_to_name for each dumped record, in wire order:
+// one RTM_GETLINK per ifindex the cache does not hold, so a repeated ifindex
+// sends nothing more.
+func resolveStatsNames(c *runCtx, svc *service.Service, records []model.IfStats) {
+	for i := range records {
+		resolveIndexName(c, svc, int32(records[i].Ifindex))
+	}
 }
 
 // statsShowDev is the point-get path: ll_name_to_index, then one RTM_GETSTATS

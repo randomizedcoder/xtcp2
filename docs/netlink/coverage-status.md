@@ -3160,7 +3160,8 @@ flip, and the ungated surface is twenty-two rows.
 The six bulk stats rows stay permanent. goip still resolves names there with
 one link dump ahead of the stats dump, where ip dumps first and gets each
 ifindex after. Reordering goip to match (`resolveIndexName`,
-`internal/goip/obj_route.go:511`) is the follow-up that would retire them.
+`internal/goip/obj_route.go:521`) is the follow-up that would retire them, and
+G0-T02 below did it.
 
 ### The route write rows gate
 
@@ -3450,6 +3451,34 @@ gate with no allowlist entry. `TestQueuedReadRowsGated` and the
 `earned`/`gated_commands` pair in `pkg/nlparity` pin the flip, and the ungated
 surface is eleven rows: the two held-out `-s` forms, the eight permanent stats
 and netconf-dev rows, and `addr show dynamic`.
+
+### G0-T02: the six stats dump rows gate
+
+[goip-parity-gaps.md](goip-parity-gaps.md#g0--the-matrix-quick-wins)'s
+G0-T02 retires six of the eight permanent rows: `stats show group link` and
+`stats show group xstats`, each plain, `-s` and `-j`. Runs 8 and 9 read them
+`ip=6 goip=2`. `ip stats` never calls `ll_init_map`; it sends the
+`RTM_GETSTATS` dump, then `ll_index_to_name` sends one `RTM_GETLINK` get per
+record (`ip/ipstats.c:761`). goip sent one link dump ahead of the stats dump.
+It now sends the stats dump and then calls `resolveIndexName`
+(`internal/goip/obj_route.go:521`) for each record, so a cached ifindex sends
+nothing more. `TestStatsDumpRequestsMatchIpBytes` compares goip's requests
+byte for byte with `ip`'s in the committed pcaps: 6 requests on the base, mesh
+and xstats topologies and 15 on the tunnel one.
+
+Two fresh runs of `nix run .#microvm-x86_64-goip-parity -- --timeout 4500`,
+back to back from a scratch worktree, printed 181 `GOIP_PARITY_PASS` of 183,
+with 1 WARN and 1 FAIL, on both, identical row for row with identical `txns`.
+All six passed with no findings and `txns` 6/6 on both runs. The three
+link-group rows read `control: nl=1` on both, an `IFLA_STATS_LINK_64` in the
+stats dump's replies, which `D_control` subtracts; the three xstats rows read
+`nl=0`. The FAIL is the pre-existing `-4 netconf show dev` (`HYGIENE_FAIL 2`)
+and the WARN is `netconf show dev`, so `UNGATED_DIVERGENCES` is 1;
+`CONTROL_NOISY` read 177 and 169. All six gate with no allowlist entry.
+`TestStatsDumpRowsGated`, `TestPermanentWireDivergences` and the
+`earned`/`gated_commands` pair pin the flip. The permanent set is the two
+netconf-dev rows, and the ungated surface is five rows: the two held-out `-s`
+forms, those two, and `addr show dynamic`.
 
 ## Tier C — the `goip-parity` microVM flavor
 

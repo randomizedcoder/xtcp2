@@ -863,7 +863,24 @@
     "183, the FAIL still `-4 netconf show dev` with HYGIENE_FAIL 2, and",
     "UNGATED_DIVERGENCES 7; CONTROL_NOISY read 174 then 169. The ungated surface",
     "is ELEVEN rows: the two held-out `-s` forms, the eight permanent rows and",
-    "`addr show dynamic`."
+    "`addr show dynamic`.",
+    "",
+    "G0-T02 (goip-parity-gaps.md) gates the SIX stats dump rows: `stats show",
+    "group link` and `stats show group xstats`, each plain, `-s` and `-j`. They",
+    "were six of the eight permanent rows, read ip=6 goip=2 because goip named",
+    "the records with one up-front RTM_GETLINK dump where ip calls",
+    "ll_index_to_name per record (ip/ipstats.c:761). goip now sends the stats",
+    "dump and then one RTM_GETLINK get per uncached ifindex, as ip does. Two",
+    "back-to-back runs: all six GOIP_PARITY_PASS with ZERO findings and txns",
+    "6/6 on both; control nl=1 on both runs for the three link-group rows (an",
+    "IFLA_STATS_LINK_64 in the stats dump's replies, live counters, which",
+    "D_control subtracts) and",
+    "nl=0 for the three xstats rows. Both runs: 181 PASS, 1 WARN, 1 FAIL of 183,",
+    "identical row for row with identical txns. The FAIL is still `-4 netconf",
+    "show dev` with HYGIENE_FAIL 2, the WARN `netconf show dev`, so",
+    "UNGATED_DIVERGENCES is 1; CONTROL_NOISY read 177 then 169. The permanent",
+    "set is the two netconf-dev rows, and the ungated surface is FIVE rows: the",
+    "two held-out `-s` forms, those two and `addr show dynamic`."
   ],
   "_note_version_skew": [
     "THE ENTRIES BELOW CITE COMMITS THAT ARE IN NO RELEASE, AND THE EVIDENCE IS",
@@ -1114,6 +1131,12 @@
     "-j route show",
     "-j neigh show",
     "-j rule show",
-    "-j -s link show"
+    "-j -s link show",
+    "stats show group link",
+    "-s stats show group link",
+    "-j stats show group link",
+    "stats show group xstats",
+    "-s stats show group xstats",
+    "-j stats show group xstats"
   ]
 }

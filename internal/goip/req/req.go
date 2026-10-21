@@ -574,13 +574,6 @@ func StatsShowXstatsSlaveDump(seq uint32) []byte {
 	return xtcpnl.BuildDumpStatsRequest(unix.AF_UNSPEC, 0, xtcpnl.StatsFilterXstatsSlave, seq)
 }
 
-// StatsShowLinkDump is the link dump ipstats triggers lazily via ll_index_to_name
-// (ip/ipstats.c:761) to turn an ifindex into a name. goip issues it up front, the
-// netconf idiom; it is byte-identical to NetconfShowLinkDump.
-func StatsShowLinkDump(seq uint32) ([]byte, error) {
-	return xtcpnl.BuildDumpLinkRequestExt(unix.AF_UNSPEC, xtcpnl.RTEXT_FILTER_VF, seq)
-}
-
 // StatsGetByIndex is the non-dump RTM_GETSTATS point get `ip stats show group link
 // dev X` sends (ip/ipstats.c:831-851): an if_stats_msg carrying the ifindex and
 // the link-group filter_mask, no attributes. iproute2 takes this path whenever a

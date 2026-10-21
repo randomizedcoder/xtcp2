@@ -1908,9 +1908,46 @@ Each type `ip` 7.1.0 names in the universe but REPORT ([decision log](goip-parit
 | corner: link statistics as JSON, two options at once (`-j -s link show`) | implemented, gated, 0 entries |
 | negative: `-s addr show` waits for G0-T03's decision | implemented, not gated |
 | negative: `-s neigh show` waits for G0-T03's decision | implemented, not gated |
-| boundary: a permanent transaction-count row stays out (`stats show group link`) | implemented, not gated |
+| boundary: a permanent transaction-count row stays out (`netconf show dev`, `stats show group link` until G0-T02 gated it) | implemented, not gated |
 | corner: `addr show dynamic` stays out by design | implemented, not gated |
 | corner: a row not in the matrix is neither (`-j -6 rule show`) | not implemented, not gated |
+
+**G0-T02 delivered** (`internal/goip/obj_stats.go`):
+- `stats show` without a dev sends the `RTM_GETSTATS` dump, then `resolveStatsNames` calls `resolveIndexName` for each record, one `RTM_GETLINK` get per uncached ifindex, as `ll_index_to_name` does (`ip/ipstats.c:761`). The up-front link dump (`service.StatsLinks`, `req.StatsShowLinkDump`) is gone.
+- The six stats dump rows are in `gated_commands` and the `earned` list, after two fresh runs printed each `GOIP_PARITY_PASS` with no findings and `txns` 6/6; the runs are in [coverage-status.md](coverage-status.md#g0-t02-the-six-stats-dump-rows-gate).
+- `TestPermanentWireDivergences` pins the two netconf-dev rows, and `TestUngatedSurfaceIsNotVacuous` the five rows still ungated.
+
+`TestStatsDumpRequestsMatchIpBytes` (`internal/goip/goip_bond_test.go`) builds goip's requests over each pcap's replies and compares them with `ip`'s requests in the same pcap:
+
+| description | expected |
+|---|---|
+| positive: group link sends the dump, then a get for each of five links | 6 requests, byte-identical: one `RTM_GETSTATS` dump, then 5 `RTM_GETLINK` gets |
+| positive: the mesh topology's five links | 6, byte-identical |
+| boundary: the tunnel topology, fourteen links, the most of any capture | 15, byte-identical |
+| corner: `-s` changes the page, not the requests | 6, byte-identical |
+| corner: `-j` changes the page, not the requests | 6, byte-identical |
+| positive: group xstats resolves its records the same way | 6, byte-identical |
+| positive: group xstats_slave on the bond | 6, byte-identical |
+| corner: a subgroup filters the page, not the requests | 6, byte-identical |
+
+`TestResolveStatsNames` (`internal/goip/goip_bond_test.go`):
+
+| description | expected |
+|---|---|
+| positive: two links, two gets (`{1,2}`) | 2 gets |
+| boundary: no records, no gets | 0 gets |
+| corner: a repeated ifindex is answered from the cache (`{1,1,2,1}`) | 2 gets |
+| corner: index 0 is not a device and sends nothing | 0 gets |
+| negative: an ifindex the capture lacks still costs its get (`{99}`) | 1 get |
+
+`TestStatsDumpRowsGated` (`internal/goipparity/commands_test.go`):
+
+| description | expected |
+|---|---|
+| positive: each of the six stats dump rows | implemented, gated, 0 allowlist entries |
+| boundary: `stats show group link dev`, gated before G0-T02 | implemented, gated, 0 entries |
+| negative: `netconf show dev` and `-4 netconf show dev` | implemented, not gated |
+| corner: `-j -s stats show group link` is not a matrix row | not implemented, not gated |
 
 ### G1 — Read verbs on running objects
 

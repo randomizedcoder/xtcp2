@@ -583,6 +583,16 @@ func TestAllowlistCommitted(t *testing.T) {
 		"-j neigh show",
 		"-j rule show",
 		"-j -s link show",
+		// G0-T02's six stats dump rows, once goip named each record with
+		// ll_index_to_name's get by index in place of an up-front link dump:
+		// txns ip=6 goip=6 and GOIP_PARITY_PASS with zero findings on two
+		// runs. Until then they were the six stats rows of the permanent set.
+		"stats show group link",
+		"-s stats show group link",
+		"-j stats show group link",
+		"stats show group xstats",
+		"-s stats show group xstats",
+		"-j stats show group xstats",
 	}
 
 	tests := []struct {
@@ -835,11 +845,11 @@ func TestAllowlistCommitted(t *testing.T) {
 			// have since gated.
 			//
 			// These two are no longer the whole ungated surface: with them
-			// are the eight permanent stats and netconf-dev rows and `addr
-			// show dynamic`. The twelve family, table and `-j` rows queued
-			// with them gated on G0-T01's two runs.
-			// internal/goipparity's TestUngatedSurfaceIsNotVacuous pins that
-			// set of eleven by name. What this row still owns is the
+			// are the two permanent netconf-dev rows and `addr show
+			// dynamic`. The twelve family, table and `-j` rows queued with
+			// them gated on G0-T01's two runs, and the six stats rows on
+			// G0-T02's. internal/goipparity's TestUngatedSurfaceIsNotVacuous
+			// pins that set of five by name. What this row still owns is the
 			// narrower claim: these two SPECIFICALLY stay out, for the
 			// reasons below, so a branch gating the twelve could not sweep
 			// these up with them.

@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/randomizedcoder/xtcp2/internal/goip/model"
+	"github.com/randomizedcoder/xtcp2/internal/goip/service"
 	"github.com/randomizedcoder/xtcp2/pkg/nlparity"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
@@ -600,16 +602,117 @@ func TestStatsDevRequestsMatchIpBytes(t *testing.T) {
 			}
 		})
 	}
+}
 
-	// The bulk path is out of scope and keeps its up-front link dump: this
-	// row fails the day it is reordered, which is when it should be rewritten.
-	t.Run("corner: the bulk path still opens with a link dump", func(t *testing.T) {
-		src := newStatsReplay(t, linkWriteDir+"lacp_converged/netlink_route_getstats_xstats_slave.pcap")
-		if _, err := runStatsWith(t, src, []string{"show", "group", "xstats_slave"}); err != nil {
-			t.Fatalf("runStats: %v", err)
-		}
-		if src.dumps != 2 || requestTypeOf(src.sent[0]) != getlink {
-			t.Fatalf("dumps %d, first request type %d; want 2 dumps opening with RTM_GETLINK", src.dumps, requestTypeOf(src.sent[0]))
-		}
-	})
+// TestStatsDumpRequestsMatchIpBytes is the bulk path, ipstats_dump
+// (ip/ipstats.c:866-883): one RTM_GETSTATS dump, then ll_index_to_name's
+// RTM_GETLINK for each record's ifindex (:761), every request byte for byte
+// what ip sent in the capture. G0-T02 replaced goip's up-front link dump with
+// these gets, so `stats show` sends ip's transaction count.
+//
+// go test ./internal/goip/ -run TestStatsDumpRequestsMatchIpBytes
+func TestStatsDumpRequestsMatchIpBytes(t *testing.T) {
+	const (
+		getstats = 94 // RTM_GETSTATS
+		getlink  = 18 // RTM_GETLINK
+	)
+	tests := []struct {
+		description string
+		pcap        string
+		args        string
+		expected    int
+	}{
+		{"positive: group link sends the dump, then a get for each of five links",
+			statsPcapBase, "show group link", 6},
+		{"positive: the mesh topology's five links",
+			statsPcapMesh, "show group link", 6},
+		{"boundary: the tunnel topology, fourteen links, the most of any capture",
+			statsPcapTunnel, "show group link", 15},
+		{"corner: -s changes the page, not the requests",
+			statsPcapBase, "-s show group link", 6},
+		{"corner: -j changes the page, not the requests",
+			statsPcapBase, "-j show group link", 6},
+		{"positive: group xstats resolves its records the same way",
+			xstatsPcapBase, "show group xstats", 6},
+		{"positive: group xstats_slave on the bond",
+			linkWriteDir + "lacp_converged/netlink_route_getstats_xstats_slave.pcap", "show group xstats_slave", 6},
+		{"corner: a subgroup filters the page, not the requests",
+			linkWriteDir + "lacp_converged/netlink_route_getstats_xstats_slave_bond.pcap", "show group xstats_slave subgroup bond", 6},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			src := newStatsReplay(t, tc.pcap)
+			args := strings.Fields(tc.args)
+			c := &runCtx{src: src, lltab: NewLLTab(), out: io.Discard, errOut: io.Discard}
+			for len(args) > 0 && strings.HasPrefix(args[0], "-") {
+				switch args[0] {
+				case "-s":
+					c.showStats++
+				case "-j":
+					c.json = true
+				}
+				args = args[1:]
+			}
+			if err := runStats(c, args); err != nil {
+				t.Fatalf("runStats(%q): %v", tc.args, err)
+			}
+			capt, err := nlparity.ParseRouteCaptureFile(tc.pcap)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var ip [][]byte
+			for _, m := range capt.Requests() {
+				ip = append(ip, capturedRequest(m))
+			}
+			if len(src.sent) != tc.expected || len(ip) != tc.expected {
+				t.Fatalf("goip sent %d requests, ip %d; want %d each", len(src.sent), len(ip), tc.expected)
+			}
+			for i := range ip {
+				if !bytes.Equal(src.sent[i], ip[i]) {
+					t.Errorf("request %d differs\ngoip %x\nip   %x", i+1, src.sent[i], ip[i])
+				}
+			}
+			// negative: the stats dump is the only dump, and it comes first.
+			if src.dumps != 1 || requestTypeOf(src.sent[0]) != getstats {
+				t.Errorf("dumps %d, first request type %d; want 1 dump, RTM_GETSTATS first", src.dumps, requestTypeOf(src.sent[0]))
+			}
+			for i, r := range src.sent[1:] {
+				if typ := requestTypeOf(r); typ != getlink {
+					t.Errorf("request %d type %d, want RTM_GETLINK", i+2, typ)
+				}
+			}
+		})
+	}
+}
+
+// TestResolveStatsNames is ll_index_to_name's cache over a record list: a get
+// for each ifindex the cache does not hold, none for index 0 or a repeat.
+//
+// go test ./internal/goip/ -run TestResolveStatsNames
+func TestResolveStatsNames(t *testing.T) {
+	tests := []struct {
+		description string
+		ifindexes   []uint32
+		expected    int
+	}{
+		{"positive: two links, two gets", []uint32{1, 2}, 2},
+		{"boundary: no records, no gets", nil, 0},
+		{"corner: a repeated ifindex is answered from the cache", []uint32{1, 1, 2, 1}, 2},
+		{"corner: index 0 is not a device and sends nothing", []uint32{0}, 0},
+		{"negative: an ifindex the capture lacks still costs its get", []uint32{99}, 1},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			src := newStatsReplay(t, statsPcapBase)
+			c := &runCtx{src: src, lltab: NewLLTab(), out: io.Discard, errOut: io.Discard}
+			records := make([]model.IfStats, len(tc.ifindexes))
+			for i, idx := range tc.ifindexes {
+				records[i].Ifindex = idx
+			}
+			resolveStatsNames(c, service.New(src, c.nextSeq), records)
+			if len(src.sent) != tc.expected {
+				t.Errorf("%d gets, want %d", len(src.sent), tc.expected)
+			}
+		})
+	}
 }

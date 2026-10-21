@@ -956,11 +956,11 @@ and a down port — that route replaces mostly do not.
   2/2. `stats show group link dev` read the same on both runs and left the
   permanent set, which is eight rows now. All six are in `gated_commands`
   and the `earned` list, and `TestBondXstatsRowsGated` pins them.
-- **Still permanent: the bulk dumps.** `stats show group link|xstats`
-  without a dev keeps goip's up-front link dump. Reordering it to the stats
-  dump first and one get per ifindex after it (`resolveIndexName`,
-  `internal/goip/obj_route.go:511`) would retire the remaining six stats
-  rows, and is a follow-up.
+- **The bulk dumps, gated later.** `stats show group link|xstats` without a
+  dev kept goip's up-front link dump. Goip-parity-gaps G0-T02 reordered it to
+  the stats dump first and one get per ifindex after it (`resolveIndexName`,
+  `internal/goip/obj_route.go:521`). That retired the remaining six stats
+  rows, which gated on its two runs (coverage-status.md, "G0-T02").
 
 ## The phased roadmap
 
