@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"net/netip"
 )
 
 // GenlControllerID is the reserved generic-netlink controller family ID.
@@ -142,6 +143,86 @@ func attrNested(attrs []NetlinkAttribute, id uint16) ([]NetlinkAttribute, bool, 
 	}
 	v, err := ParseNetlinkAttributes(a.Data)
 	return v, true, err
+}
+
+// genlDecoder reads a genl family's singleton attributes into optional
+// fields. It retains the first malformed-field error, as
+// ethtoolPayloadDecoder does, so the fields before it are still returned.
+type genlDecoder struct {
+	attrs []NetlinkAttribute
+	err   error
+}
+
+func (d *genlDecoder) u8(id uint16, dst **uint8) {
+	if d.err == nil {
+		*dst, d.err = genlAttrU8(d.attrs, id)
+	}
+}
+
+func (d *genlDecoder) u16(id uint16, dst **uint16) {
+	if d.err == nil {
+		*dst, d.err = genlAttrU16(d.attrs, id)
+	}
+}
+
+func (d *genlDecoder) u32(id uint16, dst **uint32) {
+	if d.err == nil {
+		*dst, d.err = genlAttrU32(d.attrs, id)
+	}
+}
+
+// s32 reads a u32-width attribute as signed.
+func (d *genlDecoder) s32(id uint16, dst **int32) {
+	var v *uint32
+	d.u32(id, &v)
+	if v != nil {
+		s := int32(*v)
+		*dst = &s
+	}
+}
+
+func (d *genlDecoder) u64(id uint16, dst **uint64) {
+	if d.err == nil {
+		*dst, d.err = genlAttrU64(d.attrs, id)
+	}
+}
+
+// bytes reads a binary attribute: nil when absent, non-nil (perhaps empty)
+// when present.
+func (d *genlDecoder) bytes(id uint16) []byte {
+	if d.err != nil {
+		return nil
+	}
+	a, err := attribute(d.attrs, id)
+	d.err = err
+	if err != nil || a == nil {
+		return nil
+	}
+	return a.Data
+}
+
+// addr reads an address pair: v4 as 4 bytes, else v6 as 16. Either id may
+// be 0 for a family with only one of them.
+func (d *genlDecoder) addr(v4, v6 uint16) netip.Addr {
+	if d.err != nil {
+		return netip.Addr{}
+	}
+	var a *NetlinkAttribute
+	var err error
+	if v4 != 0 {
+		a, err = scalarAttribute(d.attrs, v4, 4)
+		if err == nil && a != nil {
+			return netip.AddrFrom4([4]byte(a.Data))
+		}
+	}
+	if err == nil && v6 != 0 {
+		a, err = scalarAttribute(d.attrs, v6, 16)
+	}
+	d.err = err
+	if err == nil && a != nil {
+		return netip.AddrFrom16([16]byte(a.Data))
+	}
+	return netip.Addr{}
 }
 
 type GenericNetlinkFamily struct {

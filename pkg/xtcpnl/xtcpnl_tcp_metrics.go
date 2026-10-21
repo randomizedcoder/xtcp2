@@ -81,81 +81,24 @@ func ParseTCPMetrics(body []byte) (TCPMetrics, error) {
 	if err != nil {
 		return m, err
 	}
-	d := tcpMetricsDecoder{attrs: g.Attributes}
+	d := genlDecoder{attrs: g.Attributes}
 	m.Addr = d.addr(TCPMetricsAttrAddrIPv4, TCPMetricsAttrAddrIPv6)
 	m.Saddr = d.addr(TCPMetricsAttrSaddrIPv4, TCPMetricsAttrSaddrIPv6)
 	d.u64(TCPMetricsAttrAge, &m.Age)
 	d.u32(TCPMetricsAttrTwTsval, &m.TwTsval)
-	if d.err == nil {
-		var stamp *uint32
-		stamp, d.err = genlAttrU32(d.attrs, TCPMetricsAttrTwTsStamp)
-		if stamp != nil {
-			v := int32(*stamp)
-			m.TwTsStamp = &v
-		}
-	}
+	d.s32(TCPMetricsAttrTwTsStamp, &m.TwTsStamp)
 	d.u16(TCPMetricsAttrFopenMSS, &m.FopenMSS)
 	d.u16(TCPMetricsAttrFopenSynDrops, &m.FopenSynDrops)
 	d.u64(TCPMetricsAttrFopenSynDropTS, &m.FopenSynDropTS)
-	if d.err == nil {
-		var cookie *NetlinkAttribute
-		cookie, d.err = attribute(d.attrs, TCPMetricsAttrFopenCookie)
-		if cookie != nil {
-			m.FopenCookie = cookie.Data
-		}
-	}
+	m.FopenCookie = d.bytes(TCPMetricsAttrFopenCookie)
 	if d.err == nil {
 		var vals []NetlinkAttribute
 		vals, m.HasVals, d.err = attrNested(d.attrs, TCPMetricsAttrVals)
-		nd := tcpMetricsDecoder{attrs: vals, err: d.err}
+		nd := genlDecoder{attrs: vals, err: d.err}
 		for i := range m.Metrics {
 			nd.u32(uint16(i+1), &m.Metrics[i])
 		}
 		d.err = nd.err
 	}
 	return m, d.err
-}
-
-// tcpMetricsDecoder retains the first malformed-field error, as
-// ethtoolPayloadDecoder does, so the fields before it are still returned.
-type tcpMetricsDecoder struct {
-	attrs []NetlinkAttribute
-	err   error
-}
-
-func (d *tcpMetricsDecoder) u16(id uint16, dst **uint16) {
-	if d.err == nil {
-		*dst, d.err = genlAttrU16(d.attrs, id)
-	}
-}
-
-func (d *tcpMetricsDecoder) u32(id uint16, dst **uint32) {
-	if d.err == nil {
-		*dst, d.err = genlAttrU32(d.attrs, id)
-	}
-}
-
-func (d *tcpMetricsDecoder) u64(id uint16, dst **uint64) {
-	if d.err == nil {
-		*dst, d.err = genlAttrU64(d.attrs, id)
-	}
-}
-
-// addr reads an address pair: v4 as 4 bytes, else v6 as 16.
-func (d *tcpMetricsDecoder) addr(v4, v6 uint16) netip.Addr {
-	if d.err != nil {
-		return netip.Addr{}
-	}
-	a, err := scalarAttribute(d.attrs, v4, 4)
-	if err == nil && a != nil {
-		return netip.AddrFrom4([4]byte(a.Data))
-	}
-	if err == nil {
-		a, err = scalarAttribute(d.attrs, v6, 16)
-	}
-	d.err = err
-	if err == nil && a != nil {
-		return netip.AddrFrom16([16]byte(a.Data))
-	}
-	return netip.Addr{}
 }

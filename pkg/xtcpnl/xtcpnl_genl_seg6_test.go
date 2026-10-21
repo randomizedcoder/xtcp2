@@ -12,18 +12,9 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// The SEG6 commands and attributes (linux/seg6_genl.h), which x/sys/unix
-// does not define.
+// The kernel keeps at most 64 bytes of an HMAC secret (SEG6_HMAC_SECRET_LEN,
+// include/net/seg6_hmac.h); ip prints at most 63.
 const (
-	seg6CmdSetHmac      = 1
-	seg6CmdDumpHmac     = 2
-	seg6CmdSetTunsrc    = 3
-	seg6CmdGetTunsrc    = 4
-	seg6AttrDst         = 1
-	seg6AttrHmacKeyID   = 3
-	seg6AttrSecret      = 4
-	seg6AttrSecretLen   = 5
-	seg6AttrAlgID       = 6
 	seg6HmacSecretLen   = 64
 	seg6HmacSecretLenIP = 63
 )
@@ -42,15 +33,15 @@ func seg6Attrs(t *testing.T, attrs []NetlinkAttribute) string {
 	var out []string
 	for _, a := range attrs {
 		switch a.ID() {
-		case seg6AttrHmacKeyID:
+		case Seg6AttrHmacKeyID:
 			out = append(out, "key="+u32s(binary.LittleEndian.Uint32(a.Data)))
-		case seg6AttrSecretLen:
+		case Seg6AttrSecretLen:
 			out = append(out, "slen="+strconv.Itoa(int(a.Data[0])))
-		case seg6AttrAlgID:
+		case Seg6AttrAlgID:
 			out = append(out, "alg="+strconv.Itoa(int(a.Data[0])))
-		case seg6AttrSecret:
+		case Seg6AttrSecret:
 			out = append(out, "secret="+string(a.Data))
-		case seg6AttrDst:
+		case Seg6AttrDst:
 			out = append(out, "dst="+net.IP(a.Data).String())
 		}
 	}
@@ -65,7 +56,7 @@ func seg6Attrs(t *testing.T, attrs []NetlinkAttribute) string {
 func seg6Msgs(t *testing.T, rel string, request bool) string {
 	t.Helper()
 	msgs := pcapNlMsgs(t, tdGenlWrite_7_1_4+"/"+rel)
-	fam := genlFamilyID(t, msgs, "SEG6")
+	fam := genlFamilyID(t, msgs, Seg6GenlName)
 	var out []string
 	for _, m := range msgs {
 		if fam == 0 || m.h.Type != fam || (m.h.Flags&unix.NLM_F_REQUEST != 0) != request {
@@ -76,8 +67,8 @@ func seg6Msgs(t *testing.T, rel string, request bool) string {
 			t.Fatal(err)
 		}
 		words := []string{map[uint8]string{
-			seg6CmdSetHmac: "sethmac", seg6CmdDumpHmac: "dumphmac",
-			seg6CmdSetTunsrc: "set_tunsrc", seg6CmdGetTunsrc: "get_tunsrc",
+			Seg6CmdSetHmac: "sethmac", Seg6CmdDumpHmac: "dumphmac",
+			Seg6CmdSetTunsrc: "set_tunsrc", Seg6CmdGetTunsrc: "get_tunsrc",
 		}[g.Command]}
 		if request && m.h.Flags&unix.NLM_F_DUMP == unix.NLM_F_DUMP {
 			words = append(words, "dump")
@@ -101,7 +92,7 @@ func seg6Msgs(t *testing.T, rel string, request bool) string {
 func seg6Errno(t *testing.T, slug string) string {
 	t.Helper()
 	msgs := pcapNlMsgs(t, tdGenlWrite_7_1_4+"/"+slug+"/ip.pcap")
-	fam := genlFamilyID(t, msgs, "SEG6")
+	fam := genlFamilyID(t, msgs, Seg6GenlName)
 	for _, m := range msgs {
 		if fam != 0 && m.h.Type == fam && m.h.Flags&unix.NLM_F_REQUEST != 0 {
 			return strconv.Itoa(int(answerTo(t, msgs, m.h))) + " rc " + tcpmFile(t, slug+"/ip.rc")
@@ -138,7 +129,7 @@ func TestGenlSeg6Corpus(t *testing.T) {
 			func(t *testing.T) string {
 				var missing []string
 				for _, slug := range seg6Rows {
-					if genlFamilyID(t, pcapNlMsgs(t, tdGenlWrite_7_1_4+"/"+slug+"/ip.pcap"), "SEG6") == 0 {
+					if genlFamilyID(t, pcapNlMsgs(t, tdGenlWrite_7_1_4+"/"+slug+"/ip.pcap"), Seg6GenlName) == 0 {
 						missing = append(missing, slug)
 					}
 				}
