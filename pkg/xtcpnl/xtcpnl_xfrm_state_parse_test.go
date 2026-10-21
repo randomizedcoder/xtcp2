@@ -44,18 +44,21 @@ func xfrmRCur(c *XfrmLifetimeCur) string {
 		strconv.FormatUint(c.AddTime, 10) + "/" + strconv.FormatUint(c.UseTime, 10)
 }
 
+func xfrmRLft(l *XfrmLifetimeCfg) string {
+	return strings.Join([]string{
+		xfrmRU64(l.SoftByteLimit), xfrmRU64(l.HardByteLimit), xfrmRU64(l.SoftPacketLimit), xfrmRU64(l.HardPacketLimit),
+		xfrmRU64(l.SoftAddExpiresSeconds), xfrmRU64(l.HardAddExpiresSeconds),
+		xfrmRU64(l.SoftUseExpiresSeconds), xfrmRU64(l.HardUseExpiresSeconds),
+	}, ",")
+}
+
 func xfrmRInfo(s *XfrmUsersaInfo) string {
-	l := &s.Lft
 	return "info{dst=" + xfrmRAddr(s.ID.Daddr, s.Family) + " spi=0x" + strconv.FormatUint(uint64(s.ID.SPI), 16) +
 		" proto=" + strconv.Itoa(int(s.ID.Proto)) + " src=" + xfrmRAddr(s.Saddr, s.Family) +
 		" family=" + strconv.Itoa(int(s.Family)) + " mode=" + strconv.Itoa(int(s.Mode)) + " reqid=" + u32s(s.Reqid) +
 		" seq=" + u32s(s.Seq) + " replay_window=" + strconv.Itoa(int(s.ReplayWindow)) +
 		" flags=" + strconv.Itoa(int(s.Flags)) + " " + xfrmRSel(&s.Sel) +
-		" lft=" + strings.Join([]string{
-		xfrmRU64(l.SoftByteLimit), xfrmRU64(l.HardByteLimit), xfrmRU64(l.SoftPacketLimit), xfrmRU64(l.HardPacketLimit),
-		xfrmRU64(l.SoftAddExpiresSeconds), xfrmRU64(l.HardAddExpiresSeconds),
-		xfrmRU64(l.SoftUseExpiresSeconds), xfrmRU64(l.HardUseExpiresSeconds),
-	}, ",") + " cur=" + xfrmRCur(&s.Curlft) +
+		" lft=" + xfrmRLft(&s.Lft) + " cur=" + xfrmRCur(&s.Curlft) +
 		" stats=" + u32s(s.Stats.ReplayWindow) + "/" + u32s(s.Stats.Replay) + "/" + u32s(s.Stats.IntegrityFailed) + "}"
 }
 
@@ -87,6 +90,11 @@ func xfrmRAttrs(a *XfrmAttrs, family uint16) []string {
 			strconv.Itoa(int(a.Encap.Dport)) + "/" + xfrmRAddr(a.Encap.OA, family)
 	})
 	add(a.SA != nil, func() string { return "sa=" + xfrmRInfo(a.SA) })
+	for i := range a.Tmpl {
+		w = append(w, xfrmRTmpl(&a.Tmpl[i]))
+	}
+	add(a.Policy != nil, func() string { return "policy=" + xfrmRPol(a.Policy) })
+	add(a.PolicyType != nil, func() string { return "ptype=" + strconv.Itoa(int(*a.PolicyType)) })
 	add(a.SecCtx != nil, func() string {
 		return "sec_ctx=" + strconv.Itoa(int(a.SecCtx.ExtType)) + "/" + strconv.Itoa(int(a.SecCtx.Alg)) + "/" +
 			strconv.Itoa(int(a.SecCtx.DOI)) + ":" + string(a.SecCtx.Ctx)

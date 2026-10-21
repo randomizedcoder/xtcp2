@@ -305,8 +305,8 @@ type XfrmSecCtx struct {
 	Ctx     []byte
 }
 
-// XfrmAttrs is the XFRMA_* attributes an SA message carries, each nil or
-// false when absent. A repeated attribute keeps the last, as the kernel's
+// XfrmAttrs is the XFRMA_* attributes an SA or policy message carries,
+// each nil or false when absent. A repeated attribute keeps the last, as the kernel's
 // nla_parse does. An attribute this does not know is skipped.
 type XfrmAttrs struct {
 	AlgAuth      *XfrmAlgo
@@ -316,6 +316,9 @@ type XfrmAttrs struct {
 	AlgAuthTrunc *XfrmAlgo
 	Encap        *XfrmEncapTmpl
 	SA           *XfrmUsersaInfo // the SA a DELSA event nests
+	Tmpl         []XfrmUserTmpl
+	Policy       *XfrmUserpolicyInfo // the policy a DELPOLICY event nests
+	PolicyType   *uint8              // XFRM_POLICY_TYPE_MAIN (0) or _SUB (1)
 	SecCtx       *XfrmSecCtx
 	LtimeVal     *XfrmLifetimeCur
 	ReplayVal    *XfrmReplayState
@@ -390,7 +393,9 @@ var xfrmAttrMin = map[uint16]int{
 	XfrmAttrAlgAuth: XfrmAlgoSizeCst, XfrmAttrAlgCrypt: XfrmAlgoSizeCst, XfrmAttrAlgComp: XfrmAlgoSizeCst,
 	XfrmAttrAlgAEAD: XfrmAlgoICVSizeCst, XfrmAttrAlgAuthTrunc: XfrmAlgoICVSizeCst,
 	XfrmAttrEncap: XfrmEncapTmplSizeCst, XfrmAttrSA: XfrmUsersaInfoSizeCst, XfrmAttrSecCtx: XfrmUserSecCtxSizeCst,
-	XfrmAttrLtimeVal: XfrmLifetimeCurSizeCst, XfrmAttrReplayVal: XfrmReplayStateSizeCst,
+	XfrmAttrTmpl: XfrmUserTmplSizeCst, XfrmAttrPolicy: XfrmUserpolicyInfoSizeCst,
+	XfrmAttrPolicyType: XfrmUserpolicyTypeSizeCst,
+	XfrmAttrLtimeVal:   XfrmLifetimeCurSizeCst, XfrmAttrReplayVal: XfrmReplayStateSizeCst,
 	XfrmAttrReplayESNVal: XfrmReplayESNSizeCst, XfrmAttrSrcAddr: XfrmAddressSizeCst,
 	XfrmAttrCoAddr: XfrmAddressSizeCst, XfrmAttrMark: XfrmMarkSizeCst,
 	XfrmAttrAddressFilter: XfrmAddressFilterSizeCst, XfrmAttrOffloadDev: XfrmUserOffloadSizeCst,
@@ -400,6 +405,18 @@ var xfrmAttrMin = map[uint16]int{
 var xfrmAttrWidth = map[uint16]int{
 	XfrmAttrLastUsed: 8, XfrmAttrProto: 1, XfrmAttrSADir: 1,
 	XfrmAttrIPTFSReorderWindow: 2, XfrmAttrIPTFSDontFrag: 0,
+}
+
+// xfrmAttrLen checks the length of a struct or scalar attribute other
+// than a u32 against xfrmAttrMin and xfrmAttrWidth.
+func xfrmAttrLen(id uint16, d []byte) error {
+	if w, ok := xfrmAttrWidth[id]; ok && len(d) != w {
+		return fmt.Errorf("%w: %d needs %d bytes, has %d", ErrXfrmAttr, id, w, len(d))
+	}
+	if n, ok := xfrmAttrMin[id]; ok && len(d) < n {
+		return fmt.Errorf("%w: %d is %d bytes, under %d", ErrXfrmAttr, id, len(d), n)
+	}
+	return nil
 }
 
 // set decodes one attribute into a, after checking its length.
@@ -412,11 +429,8 @@ func (a *XfrmAttrs) set(id uint16, d []byte) error {
 		*p = &v
 		return nil
 	}
-	if w, ok := xfrmAttrWidth[id]; ok && len(d) != w {
-		return fmt.Errorf("%w: %d needs %d bytes, has %d", ErrXfrmAttr, id, w, len(d))
-	}
-	if n, ok := xfrmAttrMin[id]; ok && len(d) < n {
-		return fmt.Errorf("%w: %d is %d bytes, under %d", ErrXfrmAttr, id, len(d), n)
+	if err := xfrmAttrLen(id, d); err != nil {
+		return err
 	}
 	var err error
 	switch id {
@@ -436,6 +450,14 @@ func (a *XfrmAttrs) set(id uint16, d []byte) error {
 	case XfrmAttrSA:
 		sa := xfrmUsersaInfo(d)
 		a.SA = &sa
+	case XfrmAttrTmpl:
+		a.Tmpl = xfrmUserTmpls(d)
+	case XfrmAttrPolicy:
+		pol := xfrmUserpolicyInfo(d)
+		a.Policy = &pol
+	case XfrmAttrPolicyType:
+		v := d[0]
+		a.PolicyType = &v
 	case XfrmAttrSecCtx:
 		a.SecCtx, err = xfrmSecCtx(d)
 	case XfrmAttrLtimeVal:

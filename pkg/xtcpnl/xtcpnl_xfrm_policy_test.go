@@ -13,32 +13,24 @@ import (
 )
 
 // The XFRMA_SPD_* attributes of a NEWSPDINFO (linux/xfrm.h), and the
-// sizes C3-T02 adds to xtcpnl_xfrm.go's.
+// sizes C3-T02 adds to xtcpnl_xfrm.go's and xtcpnl_xfrm_policy.go's.
 const (
 	xfrmAttrSPDInfo        = 1
 	xfrmAttrSPDHInfo       = 2
 	xfrmAttrSPDIPv4HThresh = 3
 	xfrmAttrSPDIPv6HThresh = 4
 
-	// sizeof(struct xfrm_userpolicy_info), (struct xfrm_userpolicy_id),
-	// (struct xfrm_user_tmpl), (struct xfrm_user_acquire),
-	// (struct xfrm_user_expire), (struct xfrm_user_polexpire),
-	// (struct xfrm_user_mapping) and
-	// (struct xfrm_userpolicy_default) on x86_64, and the offsets in them.
-	// The two expires end in a u8 hard flag, padded to the 8 their
-	// lifetimes align to.
-	xfrmPolicyInfoLen = 168
-	xfrmPolicyIDLen   = 64
-	xfrmTmplLen       = 64
-	xfrmAcquireLen    = 280
-	xfrmExpireLen     = 232
-	xfrmPolExpireLen  = 176
-	xfrmMappingLen    = 64
+	// sizeof(struct xfrm_user_acquire), (struct xfrm_user_expire) and
+	// (struct xfrm_user_mapping) on x86_64, and the offsets in them. The
+	// expire ends in a u8 hard flag, padded to the 8 its lifetimes align
+	// to.
+	xfrmAcquireLen = 280
+	xfrmExpireLen  = 232
+	xfrmMappingLen = 64
 	// struct xfrm_encap_tmpl: a host-order type, network-order ports,
 	// and the original address at 8, after 2 bytes of padding.
 	xfrmEncapLen       = 24
 	xfrmEncapOAOff     = 8
-	xfrmPolicyDefLen   = 3
 	xfrmPolicyLftOff   = 56
 	xfrmPolicyCurOff   = 120
 	xfrmAcquirePolOff  = 96
@@ -127,7 +119,7 @@ func xfrmPolicyAttr(id uint16, d []byte) string {
 			strconv.Itoa(int(binary.BigEndian.Uint16(d[4:]))) + "/" + xfrmAddr(d[xfrmEncapOAOff:])
 	case XfrmAttrTmpl:
 		var out []string
-		for off := 0; off+xfrmTmplLen <= len(d); off += xfrmTmplLen {
+		for off := 0; off+XfrmUserTmplSizeCst <= len(d); off += XfrmUserTmplSizeCst {
 			out = append(out, xfrmTmpl(d[off:]))
 		}
 		return strings.Join(out, " ")
@@ -169,12 +161,12 @@ func xfrmSPDAttr(id uint16, d []byte) string {
 // for its type.
 func xfrmPolicyBody(typ uint16, b []byte) (words []string, attrOff int, space xfrmAttrSpace, ok bool) {
 	need := map[uint16]int{
-		XfrmMsgNewPolicy: xfrmPolicyInfoLen, XfrmMsgUpdPolicy: xfrmPolicyInfoLen,
+		XfrmMsgNewPolicy: XfrmUserpolicyInfoSizeCst, XfrmMsgUpdPolicy: XfrmUserpolicyInfoSizeCst,
 		XfrmMsgDelPolicy: 0, XfrmMsgGetPolicy: 0, XfrmMsgFlushPolicy: 0,
 		XfrmMsgAcquire: xfrmAcquireLen, XfrmMsgExpire: xfrmExpireLen,
-		XfrmMsgPolExpire: xfrmPolExpireLen, XfrmMsgNewAE: XfrmAeventIDSizeCst,
+		XfrmMsgPolExpire: XfrmUserPolexpireSizeCst, XfrmMsgNewAE: XfrmAeventIDSizeCst,
 		XfrmMsgNewSPDInfo: 4, XfrmMsgGetSPDInfo: 4, XfrmMsgMapping: xfrmMappingLen,
-		XfrmMsgSetDefault: xfrmPolicyDefLen, XfrmMsgGetDefault: xfrmPolicyDefLen,
+		XfrmMsgSetDefault: XfrmUserpolicyDefaultSizeCst, XfrmMsgGetDefault: XfrmUserpolicyDefaultSizeCst,
 	}
 	n, known := need[typ]
 	if !known || len(b) < n {
@@ -183,14 +175,14 @@ func xfrmPolicyBody(typ uint16, b []byte) (words []string, attrOff int, space xf
 	switch typ {
 	case XfrmMsgNewPolicy, XfrmMsgUpdPolicy:
 		words = []string{map[uint16]string{XfrmMsgNewPolicy: "newpolicy", XfrmMsgUpdPolicy: "updpolicy"}[typ], xfrmPolicyInfo(b)}
-		attrOff = xfrmPolicyInfoLen
+		attrOff = XfrmUserpolicyInfoSizeCst
 	case XfrmMsgGetPolicy, XfrmMsgDelPolicy:
 		// A dump has no body; a get or delete, and a DELPOLICY event, an
 		// xfrm_userpolicy_id.
 		words = []string{map[uint16]string{XfrmMsgGetPolicy: "getpolicy", XfrmMsgDelPolicy: "delpolicy"}[typ]}
-		if len(b) >= xfrmPolicyIDLen {
+		if len(b) >= XfrmUserpolicyIDSizeCst {
 			words = append(words, xfrmPolicyID(b))
-			attrOff = xfrmPolicyIDLen
+			attrOff = XfrmUserpolicyIDSizeCst
 		}
 	case XfrmMsgFlushPolicy:
 		words = []string{"flushpolicy"}
@@ -206,8 +198,8 @@ func xfrmPolicyBody(typ uint16, b []byte) (words []string, attrOff int, space xf
 		words = []string{"expire", "hard=" + strconv.Itoa(int(b[XfrmUsersaInfoSizeCst])), xfrmSAInfo(b)}
 		attrOff = xfrmExpireLen
 	case XfrmMsgPolExpire:
-		words = []string{"polexpire", "hard=" + strconv.Itoa(int(b[xfrmPolicyInfoLen])), xfrmPolicyInfo(b)}
-		attrOff = xfrmPolExpireLen
+		words = []string{"polexpire", "hard=" + strconv.Itoa(int(b[XfrmUserpolicyInfoSizeCst])), xfrmPolicyInfo(b)}
+		attrOff = XfrmUserPolexpireSizeCst
 	case XfrmMsgNewAE:
 		words = []string{"newae", "dst=" + xfrmAddr(b[:XfrmAddressSizeCst]) + " spi=0x" +
 			strconv.FormatUint(uint64(binary.BigEndian.Uint32(b[16:])), 16) + " family=" +
@@ -233,7 +225,7 @@ func xfrmPolicyBody(typ uint16, b []byte) (words []string, attrOff int, space xf
 	case XfrmMsgSetDefault, XfrmMsgGetDefault:
 		words = []string{map[uint16]string{XfrmMsgSetDefault: "setdefault", XfrmMsgGetDefault: "getdefault"}[typ],
 			"in=" + strconv.Itoa(int(b[0])) + " fwd=" + strconv.Itoa(int(b[1])) + " out=" + strconv.Itoa(int(b[2]))}
-		attrOff = xfrmPolicyDefLen
+		attrOff = XfrmUserpolicyDefaultSizeCst
 	}
 	return words, attrOff, space, true
 }

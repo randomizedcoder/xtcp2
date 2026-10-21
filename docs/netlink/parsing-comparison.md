@@ -79,7 +79,7 @@ number in [§5](#5-test-coverage) says which population it describes.
 | `NETLINK_ROUTE` | ✅ | ◑ | xtcp2: link / addr / route / neigh only |
 | `NETLINK_INET_DIAG` | ◑ | ✅ | The one axis where xtcp2 is deeper — see [§3](#3-attribute-tlv-depth) |
 | `NETLINK_GENERIC` | ✅ | ◑ | Fork uses it for devlink, ethtool, fou, gtp, netdev, vdpa. xtcp2: decoders for the controller and ethtool, and since P2 of [goip-parity-gaps.md](goip-parity-gaps.md#p2--genl-parsers) for the eight families `ip` uses: tcp_metrics, seg6, ioam6, mptcp_pm, fou, ila, l2tp and macsec (`pkg/xtcpnl/xtcpnl_genetlink.go`, one file each) |
-| `NETLINK_XFRM` | ◑ | ◑ | IPsec. Fork's *monitor* handles `XFRM_MSG_EXPIRE` only. xtcp2: since P3-T01 of [goip-parity-gaps.md](goip-parity-gaps.md#p3--xfrm-parsers), `ParseXfrmState` decodes the SA messages (`pkg/xtcpnl/xtcpnl_xfrm_state.go`) |
+| `NETLINK_XFRM` | ◑ | ◑ | IPsec. Fork's *monitor* handles `XFRM_MSG_EXPIRE` only. xtcp2: since P3-T01 of [goip-parity-gaps.md](goip-parity-gaps.md#p3--xfrm-parsers), `ParseXfrmState` decodes the SA messages (`pkg/xtcpnl/xtcpnl_xfrm_state.go`), and since P3-T02 `ParseXfrmPolicy` the policy messages (`pkg/xtcpnl/xtcpnl_xfrm_policy.go`) |
 | `NETLINK_NETFILTER` | ✅ | ➖ | conntrack, ipset |
 | `NETLINK_RDMA` | ✅ | ◑ | Fork: `rdma_link_linux.go`. xtcp2: the nldev read path, device / port / resource summary / hw counters / system / monitor events (`pkg/xtcpnl/xtcpnl_rdma.go`) |
 | `NETLINK_CONNECTOR` | ✅ | ➖ | proc fork/exec/exit events |
@@ -278,7 +278,7 @@ nothing enforces that.
 | Subtests (`--- PASS` lines) | not table-driven enough to be meaningful | **501** |
 | Statement coverage | **unmeasurable overall**; `nl/` alone = **33.1%** | **93.3%** |
 | Fuzz targets | 0 | **6** |
-| Benchmarks | few | ~~**~40**~~ → **83** as of P3-T01 ([goip-parity-gaps.md](goip-parity-gaps.md#p3--xfrm-parsers)), 30 of them a parse benchmark per parser over corpus picks; the rest manual-vs-reflection paired, plus an 18-row gate asserting `0 allocs/op` and a minimum speedup over reflection (`xtcpnl_perf_gate_test.go`) |
+| Benchmarks | few | ~~**~40**~~ → **84** as of P3-T02 ([goip-parity-gaps.md](goip-parity-gaps.md#p3--xfrm-parsers)), 31 of them a parse benchmark per parser over corpus picks; the rest manual-vs-reflection paired, plus an 18-row gate asserting `0 allocs/op` and a minimum speedup over reflection (`xtcpnl_perf_gate_test.go`) |
 | Static fixtures | **2 files** (`testdata/ipset_{protocol,list}_result`) | real `.pcap` corpus across **10 kernel versions** |
 | Requires root + netns | **~30 of 47 files** | **none** |
 | Custom audit tooling | none | `tools/netlink-audit`, wired as a `nix flake check` (`nix/checks/netlink-audit.nix`) |
