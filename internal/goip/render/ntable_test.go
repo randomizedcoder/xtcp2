@@ -106,8 +106,8 @@ func TestNeighTblViewText(t *testing.T) {
 			info: xtcpnl.NeighTblInfo{
 				Family: unix.AF_INET, Name: "arp_cache", HasName: true,
 				Parms: xtcpnl.NeighTblParms{
-					Ifindex: 1,
-					Refcnt:  1, HasRefcnt: true,
+					Ifindex: 1, HasIfindex: true,
+					Refcnt: 1, HasRefcnt: true,
 					ReachableTime: 28789, HasReachableTime: true,
 					BaseReachableTime: 30000, HasBaseReachableTime: true,
 					RetransTime: 1000, HasRetransTime: true,
@@ -123,10 +123,22 @@ func TestNeighTblViewText(t *testing.T) {
 			description: "corner: an uncached device index falls back to if%u (contract)",
 			info: xtcpnl.NeighTblInfo{
 				Family: unix.AF_INET6, Name: "ndisc_cache", HasName: true,
-				Parms:    xtcpnl.NeighTblParms{Ifindex: 42},
+				Parms:    xtcpnl.NeighTblParms{Ifindex: 42, HasIfindex: true},
 				HasParms: true,
 			},
 			want: "inet6 ndisc_cache \n    dev if42 \n    \n    \n    \n    \n\n",
+		},
+		{
+			description: "corner: a base message with NDTPA_IFINDEX 0 prints dev * (6.18 kernel)",
+			info: func() xtcpnl.NeighTblInfo {
+				ti := arpBaseInfo()
+				ti.Parms.HasIfindex = true
+				return ti
+			}(),
+			want: "inet arp_cache \n" +
+				"    thresh1 128 thresh2 512 thresh3 1024 gc_int 30000 \n" +
+				"    dev * \n" +
+				plainParms + "\n",
 		},
 		{
 			description: "corner: an unknown family prints the ??? sentinel (contract)",
@@ -218,7 +230,7 @@ func TestNeighTblViewJSON(t *testing.T) {
 	t.Run("corner: a device message carries the resolved dev key", func(t *testing.T) {
 		m := marshal(t, xtcpnl.NeighTblInfo{
 			Family: unix.AF_INET, Name: "arp_cache", HasName: true,
-			Parms:    xtcpnl.NeighTblParms{Ifindex: 1, Refcnt: 1, HasRefcnt: true},
+			Parms:    xtcpnl.NeighTblParms{Ifindex: 1, HasIfindex: true, Refcnt: 1, HasRefcnt: true},
 			HasParms: true,
 		}, false)
 		if dev, ok := m["dev"].(string); !ok || dev != "lo" {
@@ -229,7 +241,16 @@ func TestNeighTblViewJSON(t *testing.T) {
 	t.Run("corner: a base message has no dev key", func(t *testing.T) {
 		m := marshal(t, arpBaseInfo(), false)
 		if _, ok := m["dev"]; ok {
-			t.Error("base message (ifindex 0) emitted a dev key")
+			t.Error("base message (no NDTPA_IFINDEX) emitted a dev key")
+		}
+	})
+
+	t.Run("corner: a base message with NDTPA_IFINDEX 0 has dev *", func(t *testing.T) {
+		ti := arpBaseInfo()
+		ti.Parms.HasIfindex = true
+		m := marshal(t, ti, false)
+		if dev, ok := m["dev"].(string); !ok || dev != "*" {
+			t.Errorf("dev = %v, want *", m["dev"])
 		}
 	})
 }

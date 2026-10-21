@@ -23,7 +23,6 @@ const (
 	statsGroupXstatsSlaveCst = render.XstatsSlaveGroupCst
 	subgroupKeywordCst       = "subgroup"
 	suiteKeywordCst          = "suite"
-	statsShowVerbCst         = "show"
 )
 
 // runStats is do_ipstats restricted to the listing path (ip/ipstats.c:1315-1339).
@@ -32,11 +31,9 @@ const (
 // NULL) — the all-groups default, which goip does not ground — so it too is
 // refused, pointing at `group link` (see parseStatsShowArgs).
 func runStats(c *runCtx, args []string) error {
-	if len(args) > 0 {
-		if args[0] != statsShowVerbCst {
-			return fmt.Errorf("stats %q: %w", args[0], ErrNotImplemented)
-		}
-		args = args[1:]
+	args, err := showArgs("stats", statsVerbs, args)
+	if err != nil {
+		return err
 	}
 	sel, err := parseStatsShowArgs(args)
 	if err != nil {

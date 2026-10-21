@@ -107,8 +107,9 @@ func TestParseNewNeighTblCaptured(t *testing.T) {
 	if base.Stats != wantStats {
 		t.Errorf("stats = %+v, want %+v", base.Stats, wantStats)
 	}
-	if !base.HasParms || base.Parms.Ifindex != 0 {
-		t.Fatalf("base parms: HasParms=%v Ifindex=%d, want true/0", base.HasParms, base.Parms.Ifindex)
+	if !base.HasParms || base.Parms.Ifindex != 0 || base.Parms.HasIfindex {
+		t.Fatalf("base parms: HasParms=%v Ifindex=%d HasIfindex=%v, want true/0/false",
+			base.HasParms, base.Parms.Ifindex, base.Parms.HasIfindex)
 	}
 	p := base.Parms
 	for _, c := range []struct {
@@ -192,11 +193,46 @@ func TestParseNewNeighTbl(t *testing.T) {
 				if !ti.HasThresh1 || ti.Thresh1 != 128 || ti.HasThresh2 {
 					t.Errorf("thresh1 = %d has2=%v", ti.Thresh1, ti.HasThresh2)
 				}
-				if ti.Parms.Ifindex != 7 || !ti.Parms.HasRefcnt || ti.Parms.Refcnt != 1 {
+				if ti.Parms.Ifindex != 7 || !ti.Parms.HasIfindex || !ti.Parms.HasRefcnt || ti.Parms.Refcnt != 1 {
 					t.Errorf("parms ifindex/refcnt = %d/%d", ti.Parms.Ifindex, ti.Parms.Refcnt)
 				}
 				if !ti.Parms.HasReachableTime || ti.Parms.ReachableTime != 28789 {
 					t.Errorf("reachable = %d has=%v", ti.Parms.ReachableTime, ti.Parms.HasReachableTime)
+				}
+			},
+		},
+		{
+			description: "corner: NDTPA_IFINDEX 0 (a 6.18 base message) is present, not absent",
+			body: cat(hdr(unix.AF_INET),
+				rtattr(NdtaName, []byte("arp_cache\x00")),
+				rtattr(NdtaParms, cat(
+					rtattr(NdtpaIfindex, le32(0)),
+					rtattr(NdtpaRefcnt, le32(1)),
+				))),
+			check: func(t *testing.T, ti NeighTblInfo) {
+				if !ti.HasParms || !ti.Parms.HasIfindex || ti.Parms.Ifindex != 0 {
+					t.Errorf("parms has/ifindex/hasIfindex = %v/%d/%v, want true/0/true",
+						ti.HasParms, ti.Parms.Ifindex, ti.Parms.HasIfindex)
+				}
+			},
+		},
+		{
+			description: "negative: a parms nest without NDTPA_IFINDEX leaves HasIfindex false",
+			body: cat(hdr(unix.AF_INET),
+				rtattr(NdtaParms, rtattr(NdtpaRefcnt, le32(1)))),
+			check: func(t *testing.T, ti NeighTblInfo) {
+				if ti.Parms.HasIfindex || !ti.Parms.HasRefcnt {
+					t.Errorf("hasIfindex/hasRefcnt = %v/%v, want false/true", ti.Parms.HasIfindex, ti.Parms.HasRefcnt)
+				}
+			},
+		},
+		{
+			description: "boundary: a 3-byte NDTPA_IFINDEX is ignored",
+			body: cat(hdr(unix.AF_INET),
+				rtattr(NdtaParms, rtattr(NdtpaIfindex, []byte{7, 0, 0}))),
+			check: func(t *testing.T, ti NeighTblInfo) {
+				if ti.Parms.HasIfindex || ti.Parms.Ifindex != 0 {
+					t.Errorf("short ifindex decoded: %d/%v", ti.Parms.Ifindex, ti.Parms.HasIfindex)
 				}
 			},
 		},

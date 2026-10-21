@@ -281,6 +281,54 @@ func TestLinkShowDevKeywordIsExact(t *testing.T) {
 	}
 }
 
+// TestLinkShowBareDevice covers the final arm of ipaddr_list_flush_or_save
+// (ip/ipaddress.c): `ip link show goip0` is `ip link show dev goip0`, unless
+// the word is one of the loop's keywords, a flag filter or an abbreviation of
+// help, none of which goip's link show implements.
+//
+// go test ./internal/goip/ -run TestLinkShowBareDevice
+func TestLinkShowBareDevice(t *testing.T) {
+	run := func(args ...string) (int, string) {
+		t.Setenv("GOIP_REPLAY", guestDumpsDir+"netlink_route_getlink_dev.pcap")
+		var stdout, stderr bytes.Buffer
+		code := Run(args, &stdout, &stderr)
+		return code, stdout.String() + stderr.String()
+	}
+	_, want := run("link", "show", "dev", "goip0")
+	tests := []struct {
+		name, category, description string
+		args                        []string
+		expected                    string // "dev" is the `dev goip0` output; otherwise a substring of the error
+	}{
+		{"bare_name", "positive", "a bare name is the device", []string{"link", "show", "goip0"}, "dev"},
+		{"bare_name_json", "positive", "and under -j", []string{"-j", "link", "show", "goip0"}, ""},
+		{"keyword_up", "negative", "`up` is a keyword, not a device", []string{"link", "show", "up"}, "not implemented"},
+		{"flag_filter", "negative", "`dynamic` is a flag filter", []string{"link", "show", "dynamic"}, "not implemented"},
+		{"help_abbrev", "corner", "`he` abbreviates help", []string{"link", "show", "he"}, "not implemented"},
+		{"dev_alone", "boundary", "`dev` with no name is not a device named dev", []string{"link", "show", "dev"}, "Command line is not complete"},
+		{"two_bare", "negative", "a second name is ip's duparg2", []string{"link", "show", "goip0", "goip0"}, `either "dev" is duplicate, or "goip0" is garbage`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.category+"/"+tc.name, func(t *testing.T) {
+			code, out := run(tc.args...)
+			switch tc.expected {
+			case "dev":
+				if code != ExitOK || out != want {
+					t.Errorf("%s: Run(%q) = %d %q, want the `dev goip0` output %q", tc.description, tc.args, code, out, want)
+				}
+			case "":
+				if code != ExitOK {
+					t.Errorf("%s: Run(%q) = %d %q, want ok", tc.description, tc.args, code, out)
+				}
+			default:
+				if code == ExitOK || !strings.Contains(out, tc.expected) {
+					t.Errorf("%s: Run(%q) = %d %q, want an error containing %q", tc.description, tc.args, code, out, tc.expected)
+				}
+			}
+		})
+	}
+}
+
 // TestRunDashStripInErrorMessage pins which spelling the diagnostic echoes.
 //
 // `ip` prints the STRIPPED pointer — the fprintf at ip/ip.c:294-296 passes

@@ -113,11 +113,13 @@ type NdtStats struct {
 // `if (tpb[NDTPA_X])`, so a present-but-zero param prints `refcnt 0` while an
 // absent one prints no token at all (the RuleInfo.HasProtocol discipline).
 //
-// Ifindex uses 0 == absent (index 0 is not a device — the AddrLabelInfo.Index
-// precedent); the base table message carries no NDTPA_IFINDEX, device-specific
-// messages set it.
+// Ifindex has its own HasIfindex: device-specific messages set a nonzero
+// index, and newer kernels (6.18) also put NDTPA_IFINDEX 0 in the base
+// message, which print_ndtparams prints as `dev *` while an older kernel's
+// base message, without the attribute, prints no dev line.
 type NeighTblParms struct {
-	Ifindex int32 // 0 is absent: the base message, not a device
+	Ifindex    int32
+	HasIfindex bool
 
 	Refcnt    uint32
 	HasRefcnt bool
@@ -266,7 +268,7 @@ func parseNdtParms(val []byte) (NeighTblParms, error) {
 	setters := map[uint16]func(b []byte){
 		NdtpaIfindex: func(b []byte) {
 			if len(b) >= 4 {
-				p.Ifindex = int32(binary.LittleEndian.Uint32(b[0:4]))
+				p.Ifindex, p.HasIfindex = int32(binary.LittleEndian.Uint32(b[0:4])), true
 			}
 		},
 		NdtpaRefcnt:            func(b []byte) { u32(&p.Refcnt, &p.HasRefcnt, b) },

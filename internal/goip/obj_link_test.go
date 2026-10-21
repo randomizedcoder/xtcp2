@@ -929,12 +929,13 @@ func TestRunLinkArgs(t *testing.T) {
 			wantStderrSubstr: `Option "-z" is unknown`,
 		},
 		{
-			// Options come before the object in iproute2, so this is an object
-			// named "-4", which is not an object. Go's flag package would
-			// accept it, which is precisely why the parsing is hand-written.
+			// Options come before the object in iproute2, so after `show` this
+			// is ipaddr_list_flush_or_save's bare device arm: a device named
+			// "-4", which does not exist. Go's flag package would accept it,
+			// which is precisely why the parsing is hand-written.
 			description: "corner: an option after the object is not an option",
-			args:        []string{"link", "show", "-4"}, wantCode: ExitUsage,
-			wantStderrSubstr: "not implemented",
+			args:        []string{"link", "show", "-4"}, wantCode: ExitFailure,
+			wantStderrSubstr: `link "-4" not found`,
 		},
 		{
 			// `link` is reached by "l" before "l2tp" is considered, so no

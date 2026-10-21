@@ -10,24 +10,18 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// vrfShowVerbs are the spellings do_ipvrf accepts for the listing
-// (ip/ipvrf.c:642-644): show, lst, list. All three call ipvrf_show.
-var vrfShowVerbs = []string{showVerbCst, lstVerbCst, listVerbCst}
-
-// vrfRefusedVerbs are do_ipvrf's other subcommands (ip/ipvrf.c:633-640):
-// identify and pids read /proc, exec runs a command under the VRF. None is a
-// read-only netlink query, so goip refuses them.
-var vrfRefusedVerbs = []string{"identify", "pids", "exec"}
-
 func runVrf(c *runCtx, args []string) error {
 	if len(args) > 0 {
+		v, ok := resolveVerb(vrfVerbs, args[0])
 		switch {
-		case matchesAny(args[0], vrfRefusedVerbs):
-			return fmt.Errorf("vrf %q: not a read-only netlink query: %w", args[0], ErrNotImplemented)
-		case matchesAny(args[0], vrfShowVerbs):
-			args = args[1:]
-		default:
+		case !ok:
 			return fmt.Errorf("vrf %q: %w", args[0], ErrNotImplemented)
+		case v.kind == verbShow:
+			args = args[1:]
+		case v.name == helpVerb.name:
+			return fmt.Errorf("vrf %q: %w", v.name, ErrNotImplemented)
+		default:
+			return fmt.Errorf("vrf %q: not a read-only netlink query: %w", v.name, ErrNotImplemented)
 		}
 	}
 	// A bare `ip vrf` is a show (ip/ipvrf.c:630-631, argc==0).

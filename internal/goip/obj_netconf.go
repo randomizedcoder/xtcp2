@@ -11,20 +11,12 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// netconfShowVerbs are the spellings do_ipnetconf accepts for the listing, in its
-// order (ip/ipnetconf.c:234-239): show, lst, list, all matched with matches() as
-// neigh and ntable are. change/write verbs do not exist for netconf and help is
-// refused, goip being read-only.
-var netconfShowVerbs = []string{showVerbCst, lstVerbCst, listVerbCst}
-
 // runNetconf is do_ipnetconf restricted to the listing path (ip/ipnetconf.c:233).
 // A bare `ip netconf` is do_show(0, NULL) (:243), so an empty verb is the listing.
 func runNetconf(c *runCtx, args []string) error {
-	if len(args) > 0 {
-		if !matchesAny(args[0], netconfShowVerbs) {
-			return fmt.Errorf("netconf %q: %w", args[0], ErrNotImplemented)
-		}
-		args = args[1:]
+	args, err := showArgs("netconf", netconfVerbs, args)
+	if err != nil {
+		return err
 	}
 	dev, err := parseNetconfShowArgs(args)
 	if err != nil {

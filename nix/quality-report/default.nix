@@ -150,13 +150,16 @@ pkgs.runCommand "xtcp2-quality-report"
     echo "gofmt=0" >> "$RAW/exit-codes.txt"
 
     # ── gosec ──────────────────────────────────────────────────────────
-    # Mirrors nix/checks/go-sec.nix exclusions verbatim. Keep the two
+    # Mirrors nix/checks/go-sec.nix exclusions, -exclude-rules included,
+    # verbatim. Keep the two
     # lists identical — they drifted once (G702 was added to the gate
     # and not here, so the report published a high-severity command
     # injection for cmd/xtcp2's deliberate self-re-exec while
     # `nix flake check` was green), and nothing mechanically enforces it.
     runtool gosec "$RAW/gosec.json" -- \
-      gosec -exclude=G103,G115,G204,G304,G702 -fmt=json ./...
+      gosec -exclude=G103,G115,G204,G304,G702 \
+        -exclude-rules='internal/goip/goiphttp/handler\.go:G705' \
+        -fmt=json ./...
 
     # ── nix-fmt ────────────────────────────────────────────────────────
     # Mirrors nix/checks/nix-fmt.nix

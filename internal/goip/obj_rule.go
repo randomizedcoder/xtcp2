@@ -10,27 +10,10 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// ruleShowVerbs are the three spellings do_iprule accepts for the listing
-// (ip/iprule.c:1240-1243), in its order, which is what decides the
-// abbreviations:
-//
-//	l    -> list, because no earlier verb starts with 'l'
-//	s    -> show, because "save" comes after the list group
-//	sa   -> save, which is NOT show, since "sa" is not a prefix of "show"
-//	ls   -> lst, the only verb "ls" matches
-//
-// Note the order differs from do_iproute's: rule tests "lst" SECOND and
-// "show" third, where route tests "show" second. Neither order changes what
-// any of these four abbreviations resolves to, which is worth knowing because
-// it means transcribing the wrong order would not be caught by testing them.
-var ruleShowVerbs = []string{listVerbCst, lstVerbCst, showVerbCst}
-
 func runRule(c *runCtx, args []string) error {
-	if len(args) > 0 {
-		if !matchesAny(args[0], ruleShowVerbs) {
-			return fmt.Errorf("rule %q: %w", args[0], ErrNotImplemented)
-		}
-		args = args[1:]
+	args, err := showArgs("rule", ruleVerbs, args)
+	if err != nil {
+		return err
 	}
 	// A bare `ip rule` is a list (ip/iprule.c:1238-1239), like `ip route`.
 	if err := parseRuleShowArgs(args); err != nil {

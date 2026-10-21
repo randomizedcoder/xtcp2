@@ -28,9 +28,13 @@ type object struct {
 	// outputModes is set for the objects that read -brief and -oneline. Run
 	// refuses both for every other object.
 	outputModes bool
-	// alias marks a second spelling of another row's object (the British
-	// spelling of neighbor, ntbl), so lists of objects can name each one once.
-	alias bool
+	// verbs is the object's verb chain in iproute2's order (verbs.go); nil
+	// for an unimplemented object.
+	verbs []verb
+	// aliasOf is the row this one spells differently (neighbour, ntbl,
+	// tcpmetrics, tap), or "" for a canonical row. Lists of objects name
+	// each one once by leaving the aliases out.
+	aliasOf string
 }
 
 // objects is the object table in iproute2's order, which is load-bearing.
@@ -53,16 +57,16 @@ type object struct {
 //
 // Order transcribed from ip/ip.c's cmds[].
 var objects = []object{
-	{name: "address", run: runAddress, outputModes: true},
-	{name: "addrlabel", run: runAddrLabel},
+	{name: "address", run: runAddress, outputModes: true, verbs: addressVerbs},
+	{name: "addrlabel", run: runAddrLabel, verbs: addrLabelVerbs},
 	{name: "maddress"},
-	{name: "route", run: runRoute},
-	{name: "rule", run: runRule},
-	{name: "neighbor", run: runNeigh},
-	{name: "neighbour", run: runNeigh, alias: true},
-	{name: "ntable", run: runNTable},
-	{name: "ntbl", run: runNTable, alias: true},
-	{name: "link", run: runLink},
+	{name: "route", run: runRoute, verbs: routeVerbs},
+	{name: "rule", run: runRule, verbs: ruleVerbs},
+	{name: "neighbor", run: runNeigh, verbs: neighVerbs},
+	{name: "neighbour", run: runNeigh, verbs: neighVerbs, aliasOf: "neighbor"},
+	{name: "ntable", run: runNTable, verbs: ntableVerbs},
+	{name: "ntbl", run: runNTable, verbs: ntableVerbs, aliasOf: "ntable"},
+	{name: "link", run: runLink, verbs: linkVerbs},
 	{name: "l2tp"},
 	{name: "fou"},
 	{name: "ila"},
@@ -70,20 +74,20 @@ var objects = []object{
 	{name: "tunnel"},
 	{name: "tunl6"},
 	{name: "tcp_metrics"},
-	{name: "tcpmetrics", alias: true},
+	{name: "tcpmetrics", aliasOf: "tcp_metrics"},
 	{name: "token"},
 	{name: "tuntap"},
-	{name: "tap", alias: true},
+	{name: "tap", aliasOf: "tuntap"},
 	{name: "mroute"},
 	{name: "mrule"},
 	{name: "netns"},
-	{name: "netconf", run: runNetconf},
-	{name: "vrf", run: runVrf},
+	{name: "netconf", run: runNetconf, verbs: netconfVerbs},
+	{name: vrfKeywordCst, run: runVrf, verbs: vrfVerbs},
 	{name: "sr"},
-	{name: "nexthop", run: runNexthop},
+	{name: "nexthop", run: runNexthop, verbs: nexthopVerbs},
 	{name: "mptcp"},
 	{name: "ioam"},
-	{name: "stats", run: runStats},
+	{name: "stats", run: runStats, verbs: statsVerbs},
 	{name: "monitor"},
 	{name: "xfrm"},
 }
@@ -121,22 +125,6 @@ func matchesPrefix(arg, pattern string) bool {
 	return pattern[:len(arg)] == arg
 }
 
-// matchesAny is matchesPrefix against a set, for the places where iproute2
-// writes a chain of `matches(*argv, …) == 0 ||` over synonyms for one verb.
-//
-// It exists so a synonym list is data rather than a boolean expression that
-// has to be edited in two places. The neigh listing is the case in point:
-// ip/ipneigh.c:758-760 accepts show, list AND lst, and goip carried only the
-// first two for as long as the test was a hand-written pair of conditions.
-func matchesAny(arg string, patterns []string) bool {
-	for _, p := range patterns {
-		if matchesPrefix(arg, p) {
-			return true
-		}
-	}
-	return false
-}
-
 // devKeywordCst is the `dev NAME` selector keyword, which every object that
 // takes one spells identically.
 //
@@ -166,15 +154,23 @@ const (
 
 // lookupObject resolves an argument to an object, first match in table order.
 func lookupObject(arg string) (object, error) {
-	for _, o := range objects {
-		if matchesPrefix(arg, o.name) {
-			if o.run == nil {
-				return o, fmt.Errorf("%q: %w", o.name, ErrNotImplemented)
-			}
-			return o, nil
-		}
+	i := objectIndex(arg)
+	if i < 0 {
+		return object{}, fmt.Errorf("%q: %w", arg, ErrUnknownObject)
 	}
-	return object{}, fmt.Errorf("%q: %w", arg, ErrUnknownObject)
+	o := objects[i]
+	if o.run == nil {
+		return o, fmt.Errorf("%q: %w", o.name, ErrNotImplemented)
+	}
+	return o, nil
+}
+
+// canonical is the name of the row o aliases, or o's own.
+func (o *object) canonical() string {
+	if o.aliasOf != "" {
+		return o.aliasOf
+	}
+	return o.name
 }
 
 // runCtx is the state one goip invocation shares between dispatch and the
@@ -254,9 +250,18 @@ func (c *runCtx) stats() bool { return c.showStats > 0 }
 func (c *runCtx) outputMode() string {
 	switch {
 	case c.brief:
-		return "-brief"
+		return optBriefCst
 	case c.oneline:
-		return "-oneline"
+		return optOnelineCst
+	}
+	return ""
+}
+
+// outputModeMsg is the refusal of -brief or -oneline for an object that
+// does not render them, or "". Run prints it and Show returns it.
+func outputModeMsg(c *runCtx, obj *object) string {
+	if opt := c.outputMode(); opt != "" && !obj.outputModes {
+		return "option " + opt + " is only implemented for address"
 	}
 	return ""
 }

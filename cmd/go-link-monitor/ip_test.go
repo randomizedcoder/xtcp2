@@ -179,6 +179,53 @@ func TestIPPathsNoNetlinkOnMetrics(t *testing.T) {
 	}
 }
 
+// TestIPPathsMetricsAllocs guards invariant 5 of
+// IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md: mounting /ip adds routes and nothing
+// to a scrape, so each path allocates the same with /ip off and on.
+//
+// go test ./cmd/go-link-monitor/ -run TestIPPathsMetricsAllocs
+func TestIPPathsMetricsAllocs(t *testing.T) {
+	if raceEnabled {
+		t.Skip("allocation counts are not exact under -race; the unit leaf runs this")
+	}
+	allocs := func(enabled bool, path string) float64 {
+		var c countingOpener
+		h := ipServer(t, enabled, &c, 0, nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, nil)
+		n := testing.AllocsPerRun(200, func() {
+			r := httptest.NewRecorder()
+			h.ServeHTTP(r, req)
+			if r.Code != http.StatusOK {
+				t.Fatalf("%s: %d", path, r.Code)
+			}
+		})
+		if c.opens.Load() != 0 {
+			t.Fatalf("%s opened netlink", path)
+		}
+		return n
+	}
+	for _, tc := range []struct {
+		name, category, description string
+		path                        string
+		// expected is the allocations /ip adds to one request.
+		expected float64
+	}{
+		{"metrics", "positive", "the core scrape", metricsPath, 0},
+		{"all", "positive", "the full exposition", defaultAllPath, 0},
+		{"category", "boundary", "a category path, a sibling of /ip's subtree", "/metrics/link", 0},
+		{"interface", "corner", "an interface path, itself a subtree pattern", "/metrics/link/eth1", 0},
+		{"health", "corner", "liveness, the cheapest route", "/healthz", 0},
+	} {
+		t.Run(tc.category+"/"+tc.name, func(t *testing.T) {
+			off, on := allocs(false, tc.path), allocs(true, tc.path)
+			if got := on - off; got != tc.expected {
+				t.Errorf("%s: %s: /ip adds %v allocations (off %v, on %v), want %v",
+					tc.path, tc.description, got, off, on, tc.expected)
+			}
+		})
+	}
+}
+
 // BenchmarkMetricsWithIPPaths is the scrape path with /ip unmounted and
 // mounted; the two must match, since mounting adds routes and nothing to a
 // metrics request.

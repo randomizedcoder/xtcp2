@@ -58,6 +58,8 @@ def check_docs(root):
                         (base / "STATUS.md").read_text()))
     print(check_tracker((base / "GO-NATIVE-RDMA-IMPLEMENTATION-PLAN.md").read_text(),
                         (base / "GO-NATIVE-RDMA-STATUS.md").read_text(), "R"))
+    print(check_tracker((base / "IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md").read_text(),
+                        (base / "IP-ARGV-PATHS-STATUS.md").read_text(), "IA"))
     paths = sorted(base.glob("*.md"))
     for path in paths:
         check_links(path)

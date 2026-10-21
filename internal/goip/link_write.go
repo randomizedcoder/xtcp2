@@ -132,7 +132,7 @@ var linkParseKeywords = []linkKeyword{
 	{keyword: vrfKeywordCst, arm: linkArmUnsupported},
 	{keyword: "nomaster", prefix: true, arm: linkArmNomaster},
 	{keyword: "dynamic", prefix: true, arm: linkArmFlag, flag: unix.IFF_DYNAMIC, onSets: true},
-	{keyword: "type", prefix: true, arm: linkArmType},
+	{keyword: linkTypeKeywordCst, prefix: true, arm: linkArmType},
 	{keyword: "alias", prefix: true, arm: linkArmAlias},
 	{keyword: "group", arm: linkArmUnsupported},
 	{keyword: "mode", arm: linkArmUnsupported},
@@ -551,7 +551,7 @@ func vethData(verb *linkWriteVerb, rest []string, resolve linkResolver) ([]byte,
 	if p.hasKind {
 		// duparg("type", argv[err]): veth's argv starts at "peer", so
 		// index consumed is the peer's kind value.
-		return nil, dupargErr("type", p.kind)
+		return nil, dupargErr(linkTypeKeywordCst, p.kind)
 	}
 	return xtcpnl.EncodeVethPeer(xtcpnl.VethPeer{
 		Index:    p.index,

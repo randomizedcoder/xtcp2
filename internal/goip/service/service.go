@@ -64,6 +64,22 @@ func (s *Service) Links(extMask uint32) ([]model.Link, error) {
 	if err != nil {
 		return nil, fmt.Errorf("goip: build link dump request: %w", err)
 	}
+	return s.links(r)
+}
+
+// LinksKind is Links for `ip link show type KIND`: the same dump carrying
+// the kind (req.LinkShowDumpKind). A kernel that knows the kind returns only
+// its links; one that does not returns them all. Either way the caller
+// filters the replies again, as print_linkinfo does.
+func (s *Service) LinksKind(extMask uint32, kind string) ([]model.Link, error) {
+	r, err := req.LinkShowDumpKind(extMask, kind, s.nextSeq())
+	if err != nil {
+		return nil, fmt.Errorf("goip: build link dump request: %w", err)
+	}
+	return s.links(r)
+}
+
+func (s *Service) links(r []byte) ([]model.Link, error) {
 	v, err := decode(s, r, uint16(unix.RTM_NEWLINK), "RTM_NEWLINK", xtcpnl.ParseNewLink)
 	if err != nil {
 		return nil, err
@@ -365,10 +381,11 @@ func (s *Service) AddrLinkGet(family uint8, index int32, extMask uint32) (model.
 
 // Routes performs the RTM_GETROUTE dump behind `ip route show`, with
 // iproute_dump_filter's two optional attributes applied: table (RT_TABLE_UNSPEC
-// for none) and oif (0 for none). req.RouteShowDump has the derivation,
-// including why `iif` is deliberately absent from this signature.
-func (s *Service) Routes(family uint8, table, oif uint32) ([]model.Route, error) {
-	r, err := req.RouteShowDump(family, table, oif, s.nextSeq())
+// for none) and oif (0 for none), and its rtm_protocol (0 for none).
+// req.RouteShowDump has the derivation, including why `iif` is deliberately
+// absent from this signature.
+func (s *Service) Routes(family, protocol uint8, table, oif uint32) ([]model.Route, error) {
+	r, err := req.RouteShowDump(family, protocol, table, oif, s.nextSeq())
 	if err != nil {
 		return nil, err
 	}

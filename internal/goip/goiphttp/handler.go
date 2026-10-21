@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -24,6 +26,11 @@ const (
 
 // ArgvHeader carries the `ip` command a response is equivalent to.
 const ArgvHeader = "X-Goip-Argv"
+
+// ShortPrefix is the abbreviated root, as `ip` itself abbreviates nothing
+// at that level: /i/a/s is /ip/address/show. Nothing else outside the /ip
+// tree abbreviates.
+const ShortPrefix = "/i"
 
 // Opener opens one netlink source for one request. The closer is always safe
 // to call.
@@ -96,19 +103,19 @@ func New(o Options) (*Handler, error) {
 
 // Paths lists every registered pattern's path, for startup logging.
 func (h *Handler) Paths() []string {
-	paths := []string{Prefix}
-	for _, o := range objects {
-		paths = append(paths, Prefix+"/"+o.path)
-		if o.devPath {
-			paths = append(paths, Prefix+"/"+o.path+"/{interface}")
-		}
-	}
-	return paths
+	return []string{Prefix, Prefix + "/", ShortPrefix, ShortPrefix + "/"}
 }
 
-// Register adds every /ip route to mux, each passed through wrap (auth,
-// timeout) first. wrap may be nil. Only GET and HEAD are served; anything
-// else is 405.
+// Register adds the /ip and /i routes to mux, each passed through wrap
+// (auth, timeout) first. wrap may be nil. Only GET and HEAD are served;
+// anything else is 405.
+//
+// Each root is the index and one subtree, which servePath splits into the
+// command line and the query form. The subtree is read from
+// r.URL.EscapedPath(), so a %2F stays inside its token. It is a plain
+// subtree pattern (/ip/) and not a wildcard (/ip/{argv...}): ServeMux
+// routes either with allocations an exact pattern avoids, three for the
+// subtree and five for the wildcard, which captures a value nothing reads.
 //
 // The patterns carry no method: one method pattern anywhere on a ServeMux
 // costs an allocation on every request it routes, /metrics included, so the
@@ -118,14 +125,11 @@ func (h *Handler) Register(mux *http.ServeMux, wrap func(http.Handler) http.Hand
 		wrap = func(x http.Handler) http.Handler { return x }
 	}
 	idx := wrap(readOnly(http.HandlerFunc(h.serveIndex)))
-	mux.Handle(Prefix, idx)
-	mux.Handle(Prefix+"/{$}", idx)
-	for _, o := range objects {
-		sh := wrap(readOnly(h.objectHandler(o)))
-		mux.Handle(Prefix+"/"+o.path, sh)
-		if o.devPath {
-			mux.Handle(Prefix+"/"+o.path+"/{interface}", sh)
-		}
+	paths := wrap(readOnly(http.HandlerFunc(h.servePath)))
+	for _, root := range []string{Prefix, ShortPrefix} {
+		mux.Handle(root, idx)
+		mux.Handle(root+"/{$}", idx)
+		mux.Handle(root+"/", paths)
 	}
 }
 
@@ -143,7 +147,12 @@ func readOnly(next http.Handler) http.Handler {
 }
 
 func (h *Handler) serveIndex(w http.ResponseWriter, r *http.Request) {
-	if q := r.URL.Query(); len(q) != 0 {
+	q, err := query(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err, "", false)
+		return
+	}
+	if len(q) != 0 {
 		if len(q) != 1 || q.Get(formatParam) != "json" || len(q[formatParam]) != 1 {
 			writeError(w, http.StatusBadRequest, paramErr("the index takes no parameters but format=json"), "", false)
 			return
@@ -152,35 +161,180 @@ func (h *Handler) serveIndex(w http.ResponseWriter, r *http.Request) {
 	writeBody(w, r, http.StatusOK, "application/json", h.index, "")
 }
 
-func (h *Handler) objectHandler(o *object) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		req, err := o.parse(r.URL.Query(), r.PathValue("interface"))
-		if err != nil {
-			writeError(w, http.StatusBadRequest, err, "", req.text)
-			return
-		}
-		argv := "ip " + strings.Join(req.show.Argv(), " ")
+// servePath serves every path under either root, as one of two forms.
+//
+// A path is a command line (`ip` argv, one token per segment) when it starts
+// with an option, or when the token after the object resolves to any verb of
+// that object. A write verb counts, so /i/l/s is refused as `ip link set`
+// rather than served as the interface s. A longer path is a command line
+// too, so goip names what it cannot read.
+//
+// Otherwise it is the query form: /ip/OBJECT, or /ip/OBJECT/IFACE as `dev
+// IFACE` on an object that takes one. The object is abbreviated as `ip`
+// abbreviates it, so /i/a?dev=lo is /ip/addr?dev=lo.
+func (h *Handler) servePath(w http.ResponseWriter, r *http.Request) {
+	rest, ok := strings.CutPrefix(r.URL.EscapedPath(), Prefix+"/")
+	if !ok {
+		rest = strings.TrimPrefix(r.URL.EscapedPath(), ShortPrefix+"/")
+	}
+	toks, err := tokens(rest)
+	switch {
+	case err != nil:
+		writeError(w, statusOf(err), err, "", true)
+		return
+	case len(toks) == 0:
+		h.serveIndex(w, r)
+		return
+	case strings.HasPrefix(toks[0], "-"):
+		h.serveCommand(w, r, toks)
+		return
+	}
+	name, err := goip.LookupObject(toks[0])
+	if err != nil {
+		writeError(w, statusOf(err), err, "", true)
+		return
+	}
+	o := byObject[name]
+	switch {
+	case o == nil:
+		writeError(w, http.StatusInternalServerError, fmt.Errorf("goiphttp: no query form for %s", name), "", true)
+	case len(toks) == 1:
+		h.serveQuery(w, r, o, "")
+	case len(toks) == 2 && o.devPath && !goip.IsVerb(name, toks[1]):
+		h.serveQuery(w, r, o, toks[1])
+	default:
+		h.serveCommand(w, r, toks)
+	}
+}
 
-		select {
-		case h.slots <- struct{}{}:
-			defer func() { <-h.slots }()
-		default:
-			writeError(w, http.StatusServiceUnavailable,
-				fmt.Errorf("limit of concurrent requests reached (%d), try again later", cap(h.slots)), argv, req.text)
-			return
-		}
+// serveCommand serves a command line. Its output is literal, as the
+// command's is: text unless -j is among the options.
+func (h *Handler) serveCommand(w http.ResponseWriter, r *http.Request, toks []string) {
+	if r.URL.RawQuery != "" {
+		writeError(w, http.StatusBadRequest, paramErr("a command line takes no query parameters: the options are in the path"), "", true)
+		return
+	}
+	s, res, err := goip.ResolveShow(toks)
+	if err != nil {
+		writeError(w, statusOf(err), err, "", true)
+		return
+	}
+	argv := "ip " + strings.Join(res.Argv(), " ")
+	if err := refusedBeforeSource(s); err != nil {
+		writeError(w, statusOf(err), err, argv, !s.JSON)
+		return
+	}
+	h.serve(w, r, s, argv, !s.JSON)
+}
 
-		body, err := h.show(req.show)
-		if err != nil {
-			writeError(w, statusOf(err), err, argv, req.text)
-			return
-		}
-		ct := "application/json"
-		if req.text {
-			ct = "text/plain; charset=utf-8"
-		}
-		writeBody(w, r, http.StatusOK, ct, body, argv)
-	})
+// errProbe is every probeSource reply.
+var errProbe = errors.New("goiphttp: dry run, no source")
+
+// probeSource is the source of a dry run: it answers every message with
+// errProbe and counts them. It has each optional method goip asserts for,
+// but its answers are never used: a dry run that sends anything is
+// discarded.
+type probeSource struct{ calls int }
+
+func (p *probeSource) Dump([]byte, uint16) ([][]byte, error) {
+	p.calls++
+	return nil, errProbe
+}
+
+func (p *probeSource) Talk([]byte, uint16) ([]byte, error) {
+	p.calls++
+	return nil, errProbe
+}
+
+func (p *probeSource) DumpMsgs([]byte, uint16) ([][]byte, error) {
+	p.calls++
+	return nil, errProbe
+}
+
+// refusedBeforeSource is the error goip.Show returns for s before it sends
+// a message, or nil. goip parses a command's selectors inside Show, so
+// without this a selector it refuses (`route show proto bgp`, a /33) would
+// open a socket before its 400 or 501. Only that case is taken from the dry
+// run: if the run sent anything, the selectors needed the kernel (a device
+// lookup), and the real run decides. A request with no selectors has
+// nothing to refuse and skips the dry run.
+func refusedBeforeSource(s goip.ShowRequest) error {
+	if len(s.Selectors) == 0 {
+		return nil
+	}
+	var p probeSource
+	err := goip.Show(&p, s, io.Discard)
+	if p.calls > 0 {
+		return nil
+	}
+	return err
+}
+
+// serveQuery serves the query form: JSON unless format=text.
+func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, o *object, iface string) {
+	q, err := query(r)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err, "", false)
+		return
+	}
+	req, err := o.parse(q, iface)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err, "", req.text)
+		return
+	}
+	h.serve(w, r, req.show, "ip "+strings.Join(req.show.Argv(), " "), req.text)
+}
+
+// query is r's query string, refused whole when any of it does not parse.
+// r.URL.Query drops what it cannot parse, so a bad escape (dev=%zz), a ;
+// or a parameter past net/url's limit would otherwise leave a request
+// with fewer filters than it asked for: a 200 listing everything.
+func query(r *http.Request) (url.Values, error) {
+	q, err := url.ParseQuery(r.URL.RawQuery)
+	if err != nil {
+		return nil, paramErr("the query string does not parse: %v", err)
+	}
+	return q, nil
+}
+
+// serve runs s in one of the in-flight slots and writes the result. Both
+// forms land here, so they share the slots, and a success carries the
+// canonical command-line path of s as its Content-Location: every spelling
+// of one request, in either form, names the same location (see location
+// for the one exception).
+func (h *Handler) serve(w http.ResponseWriter, r *http.Request, s goip.ShowRequest, argv string, text bool) {
+	select {
+	case h.slots <- struct{}{}:
+		defer func() { <-h.slots }()
+	default:
+		writeError(w, http.StatusServiceUnavailable,
+			fmt.Errorf("limit of concurrent requests reached (%d), try again later", cap(h.slots)), argv, text)
+		return
+	}
+
+	body, err := h.show(s)
+	if err != nil {
+		writeError(w, statusOf(err), err, argv, text)
+		return
+	}
+	ct := "application/json"
+	if text {
+		ct = "text/plain; charset=utf-8"
+	}
+	if loc, ok := location(s); ok {
+		w.Header().Set("Content-Location", loc)
+	}
+	writeBody(w, r, http.StatusOK, ct, body, argv)
+}
+
+// location is the canonical path of s, and whether it is one the handler
+// serves. Full spellings are longer than abbreviations (-s is -stats, a is
+// address), so a request near the tokenizer's cap can have a canonical path
+// over it; that response carries no Content-Location rather than one that
+// is a 400.
+func location(s goip.ShowRequest) (string, bool) {
+	loc := s.Resolved().Path()
+	return loc, len(loc)-len(Prefix)-1 <= argvPathMax
 }
 
 // show runs one request on a fresh source, retrying once when the kernel
@@ -227,10 +381,16 @@ var (
 
 // statusOf maps a show failure to its status. ErrNoSuchDevice is tested
 // before ErrNotImplemented because netconf's missing device carries both.
+// A refused write verb or option is the caller's request, so a 400, as is a
+// device name no kernel takes (ip's "not a valid ifname"); a read goip does
+// not serve is a 501.
 func statusOf(err error) int {
 	switch {
-	case errors.Is(err, errParam):
+	case errors.Is(err, errParam), errors.Is(err, goip.ErrWriteVerb), errors.Is(err, goip.ErrRefusedOption),
+		errors.Is(err, xtcpnl.ErrBadIfName):
 		return http.StatusBadRequest
+	case errors.Is(err, goip.ErrUnknownObject):
+		return http.StatusNotFound
 	case errors.Is(err, goip.ErrNoSuchDevice), errors.Is(err, unix.ENODEV):
 		return http.StatusNotFound
 	case errors.Is(err, goip.ErrNotImplemented):
@@ -261,10 +421,16 @@ func (l *limitWriter) Write(p []byte) (int, error) {
 	return l.buf.Write(p)
 }
 
+// nosniff keeps a browser from reading a text/plain body as HTML: a command
+// line's output and errors are `ip`'s bytes, which can quote the path back
+// (`Device "<x>" does not exist`), and escaping them would break parity.
+const nosniff = "nosniff"
+
 func writeBody(w http.ResponseWriter, r *http.Request, status int, contentType string, body []byte, argv string) {
 	hdr := w.Header()
 	hdr.Set("Content-Type", contentType)
 	hdr.Set("Cache-Control", "no-store")
+	hdr.Set("X-Content-Type-Options", nosniff)
 	hdr.Set("Content-Length", strconv.Itoa(len(body)))
 	if argv != "" {
 		hdr.Set(ArgvHeader, argv)
@@ -294,6 +460,7 @@ type errorBody struct {
 func writeError(w http.ResponseWriter, status int, err error, argv string, text bool) {
 	hdr := w.Header()
 	hdr.Set("Cache-Control", "no-store")
+	hdr.Set("X-Content-Type-Options", nosniff)
 	if argv != "" {
 		hdr.Set(ArgvHeader, argv)
 	}
@@ -310,35 +477,4 @@ func writeError(w http.ResponseWriter, status int, err error, argv string, text 
 	hdr.Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	send(w, append(b, '\n'))
-}
-
-// indexEntry is one object in the /ip index.
-type indexEntry struct {
-	Path          string   `json:"path"`
-	InterfacePath string   `json:"interface_path,omitempty"`
-	Command       string   `json:"command"`
-	Params        []string `json:"params"`
-}
-
-func indexDocument() ([]byte, error) {
-	entries := make([]indexEntry, 0, len(objects))
-	for _, o := range objects {
-		e := indexEntry{
-			Path:    Prefix + "/" + o.path,
-			Command: "ip -j " + o.object + " show",
-			Params:  []string{formatParam},
-		}
-		if o.devPath {
-			e.InterfacePath = e.Path + "/{interface}"
-		}
-		for _, p := range o.params {
-			e.Params = append(e.Params, p.name)
-		}
-		entries = append(entries, e)
-	}
-	b, err := json.Marshal(entries)
-	if err != nil {
-		return nil, fmt.Errorf("goiphttp: index: %w", err)
-	}
-	return append(b, '\n'), nil
 }

@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -53,6 +55,8 @@ func TestShow(t *testing.T) {
 		req         ShowRequest
 		sidecar     string // a JSON sidecar to compare against, or ""
 		wantErr     error  // nil means success and Run parity
+		// wantMsg, with wantErr, is the refusal Run prints for r.Argv() too.
+		wantMsg string
 	}{
 		{
 			name: "addr_json", description: "positive: address -j reproduces ip_addr_json",
@@ -75,9 +79,9 @@ func TestShow(t *testing.T) {
 			req:  ShowRequest{Object: "link", JSON: true}, sidecar: "ip_link_json",
 		},
 		{
-			name: "link_stats", description: "positive: link -s equals Run's",
+			name: "stats_one", description: "positive: link with Stats 1 equals Run(-s link show)",
 			pcap: guestDumpsDir + "netlink_route_getlink_stats.pcap",
-			req:  ShowRequest{Object: "link", Stats: true},
+			req:  ShowRequest{Object: "link", Stats: 1},
 		},
 		{
 			name: "route_main_json", description: "positive: route -j table main reproduces ip_route_main_json",
@@ -123,9 +127,9 @@ func TestShow(t *testing.T) {
 			pcap: statsPcapBase, req: ShowRequest{Object: "stats", Selectors: []string{"group", "link"}},
 		},
 		{
-			name: "write_verb_as_selector", description: "negative: `set dev lo mtu 1` after show is an unknown selector, never a write",
+			name: "write_verb_as_selector", description: "negative: `set dev lo mtu 1` after show is ip's duparg2 (`set` is the device), never a write",
 			pcap: guestDumpsDir + "netlink_route_getlink.pcap",
-			req:  ShowRequest{Object: "link", Selectors: []string{"set", "dev", "lo", "mtu", "1"}}, wantErr: ErrNotImplemented,
+			req:  ShowRequest{Object: "link", Selectors: []string{"set", "dev", "lo", "mtu", "1"}}, wantErr: ErrInvalidArgument,
 		},
 		{
 			name: "unknown_object", description: "negative: tunnel is an object goip does not show",
@@ -157,9 +161,44 @@ func TestShow(t *testing.T) {
 			req:  ShowRequest{Object: "address", Family: unix.AF_PACKET},
 		},
 		{
+			name: "brief_address", description: "positive: Brief on address equals Run(-br address show)",
+			pcap: filepath.Join(linkWriteDir, "addr-show", "mixed_links", "netlink_route_getaddr_br.pcap"),
+			req:  ShowRequest{Object: "address", Brief: true},
+		},
+		{
+			name: "oneline_address", description: "positive: Oneline on address equals Run(-o address show)",
+			pcap: filepath.Join(linkWriteDir, "addr-show", "mixed_links", "netlink_route_getaddr_o.pcap"),
+			req:  ShowRequest{Object: "address", Oneline: true},
+		},
+		{
+			name: "brief_unsupported_object", description: "negative: Brief on rule is refused as Run(-br rule show) refuses it",
+			pcap: ruleDumpPcap, req: ShowRequest{Object: "rule", Brief: true},
+			wantErr: ErrInvalidArgument, wantMsg: "option -brief is only implemented for address",
+		},
+		{
+			name: "oneline_unsupported_object", description: "negative: Oneline on route is refused as Run(-o route show) refuses it",
+			pcap: guestDumpsDir + "netlink_route_getroute.pcap", req: ShowRequest{Object: "route", Oneline: true},
+			wantErr: ErrInvalidArgument, wantMsg: "option -oneline is only implemented for address",
+		},
+		{
+			name: "stats_two", description: "boundary: Stats 2 is refused with Run(-s -s link show)'s message",
+			pcap: guestDumpsDir + "netlink_route_getlink_stats.pcap", req: ShowRequest{Object: "link", Stats: 2},
+			wantErr: ErrInvalidArgument, wantMsg: "`-s -s` selects the wider statistics render",
+		},
+		{
+			name: "stats_negative", description: "boundary: a negative count is no command line at all",
+			pcap: guestDumpsDir + "netlink_route_getlink.pcap", req: ShowRequest{Object: "link", Stats: -1},
+			wantErr: ErrInvalidArgument,
+		},
+		{
+			name: "brief_and_json", description: "corner: Brief with JSON equals Run(-br -j address show)",
+			pcap: filepath.Join(linkWriteDir, "addr-show", "mixed_links", "netlink_route_getaddr_br_json.pcap"),
+			req:  ShowRequest{Object: "address", Brief: true, JSON: true},
+		},
+		{
 			name: "addr_v6_stats", description: "corner: -6 -s address equals Run's",
 			pcap: guestDumpsDir + "netlink_route_getaddr_v6_stats.pcap",
-			req:  ShowRequest{Object: "address", Family: unix.AF_INET6, Stats: true},
+			req:  ShowRequest{Object: "address", Family: unix.AF_INET6, Stats: 1},
 		},
 	}
 	for _, tc := range tests {
@@ -167,8 +206,16 @@ func TestShow(t *testing.T) {
 			var got bytes.Buffer
 			err := Show(openReplay(t, tc.pcap), tc.req, &got)
 			if tc.wantErr != nil {
-				if !errors.Is(err, tc.wantErr) {
-					t.Fatalf("%s: Show err = %v, want %v", tc.description, err, tc.wantErr)
+				if !errors.Is(err, tc.wantErr) || !strings.Contains(err.Error(), tc.wantMsg) {
+					t.Fatalf("%s: Show err = %v, want %v containing %q", tc.description, err, tc.wantErr, tc.wantMsg)
+				}
+				if tc.wantMsg == "" {
+					return
+				}
+				t.Setenv("GOIP_REPLAY", tc.pcap)
+				var stdout, stderr bytes.Buffer
+				if code := Run(tc.req.Argv(), &stdout, &stderr); code != ExitUsage || !strings.Contains(stderr.String(), tc.wantMsg) {
+					t.Fatalf("%s: Run(%q) = %d, stderr %q; want %d with %q", tc.description, tc.req.Argv(), code, stderr.String(), ExitUsage, tc.wantMsg)
 				}
 				return
 			}
@@ -190,6 +237,51 @@ func TestShow(t *testing.T) {
 					t.Fatal(rerr)
 				}
 				assertJSONEntriesEqual(t, got.Bytes(), want, false)
+			}
+		})
+	}
+}
+
+// TestShowRequestArgv checks the command line ShowRequest.Argv builds.
+//
+// go test ./internal/goip/ -run TestShowRequestArgv
+func TestShowRequestArgv(t *testing.T) {
+	tests := []struct {
+		name        string
+		category    string
+		description string
+		req         ShowRequest
+		expected    string
+	}{
+		{
+			name: "argv_order", category: "positive",
+			description: "every option, in Run's documented order: family, -j, each -s, -d, -br, -o",
+			req: ShowRequest{
+				Object: "address", Family: unix.AF_INET6, JSON: true, Stats: 1, Details: true,
+				Brief: true, Oneline: true, Selectors: []string{"dev", "lo"},
+			},
+			expected: "-6 -j -s -d -br -o address show dev lo",
+		},
+		{
+			name: "stats_zero", category: "boundary",
+			description: "Stats 0 emits no -s",
+			req:         ShowRequest{Object: "link"}, expected: "link show",
+		},
+		{
+			name: "stats_two", category: "boundary",
+			description: "Stats 2 emits two, so Run refuses the same request Show does",
+			req:         ShowRequest{Object: "link", Stats: 2}, expected: "-s -s link show",
+		},
+		{
+			name: "stats_negative", category: "corner",
+			description: "a negative count emits nothing; Show refuses it",
+			req:         ShowRequest{Object: "link", Stats: -1}, expected: "link show",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.category+"/"+tt.name, func(t *testing.T) {
+			if got := strings.Join(tt.req.Argv(), " "); got != tt.expected {
+				t.Fatalf("%s: Argv %q, want %q", tt.description, got, tt.expected)
 			}
 		})
 	}
@@ -333,7 +425,7 @@ func TestShowObjectsReadOnly(t *testing.T) {
 		{name: "argv_minimal", description: "boundary: no options, no selectors",
 			req: ShowRequest{Object: "address"}, want: []string{"address", "show"}},
 		{name: "argv_all_flags", description: "corner: options in Run's order before the object",
-			req:  ShowRequest{Object: "route", Family: unix.AF_INET6, JSON: true, Stats: true, Details: true, Selectors: []string{"table", "all"}},
+			req:  ShowRequest{Object: "route", Family: unix.AF_INET6, JSON: true, Stats: 1, Details: true, Selectors: []string{"table", "all"}},
 			want: []string{"-6", "-j", "-s", "-d", "route", "show", "table", "all"}},
 		{name: "argv_packet", description: "positive: AF_PACKET is -0",
 			req: ShowRequest{Object: "address", Family: unix.AF_PACKET}, want: []string{"-0", "address", "show"}},

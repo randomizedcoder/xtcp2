@@ -11,10 +11,6 @@ import (
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 )
 
-// nexthopShowVerbs are do_ipnh's listing synonyms (ip/ipnexthop.c:1465-1467),
-// matched with matches() exactly as route and neigh are.
-var nexthopShowVerbs = []string{listVerbCst, showVerbCst, lstVerbCst}
-
 // nexthopSelectors is the subset of ipnh_list_flush's filter (ip/ipnexthop.c:1217)
 // goip grounds: the wire-filter selectors dev/master/vrf/groups/fdb and the
 // client-side protocol filter. `id` is a point GET handled before this.
@@ -39,12 +35,9 @@ type nexthopSelectors struct {
 // per-selector captures; an unknown selector is refused rather than answered
 // with an unfiltered dump.
 func runNexthop(c *runCtx, args []string) error {
-	if len(args) > 0 {
-		verb := args[0]
-		if !matchesAny(verb, nexthopShowVerbs) {
-			return fmt.Errorf("nexthop %q: %w", verb, ErrNotImplemented)
-		}
-		args = args[1:]
+	args, err := showArgs("nexthop", nexthopVerbs, args)
+	if err != nil {
+		return err
 	}
 	if len(args) > 0 && args[0] == "id" {
 		if len(args) < 2 {

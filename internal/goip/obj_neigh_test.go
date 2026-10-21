@@ -748,14 +748,14 @@ func TestRunNeighArgs(t *testing.T) {
 			// the last one win.
 			description:      "negative: a second `dev` is duparg, not last-wins",
 			args:             []string{"neigh", "show", "dev", "goip0", "dev", "lo"},
-			wantCode:         ExitFailure,
+			wantCode:         ExitUsage,
 			wantStderrSubstr: "duplicate",
 		},
 		{
 			// NEXT_ARG() on an exhausted argv.
 			description:      "boundary: a trailing `dev` with no value is refused",
 			args:             []string{"neigh", "show", "dev"},
-			wantCode:         ExitFailure,
+			wantCode:         ExitUsage,
 			wantStderrSubstr: "missing its value",
 		},
 		{
@@ -815,7 +815,7 @@ func TestRunNeighArgs(t *testing.T) {
 			// runNeigh rejects args[1] before it sends anything, so a second
 			// argument fails even when the first one is a valid verb.
 			description:      "boundary: one extra argument after a valid verb is refused",
-			args:             []string{"neigh", "show", "nud"},
+			args:             []string{"neigh", "show", "unused"},
 			wantCode:         ExitUsage,
 			wantStderrSubstr: "not implemented",
 		},

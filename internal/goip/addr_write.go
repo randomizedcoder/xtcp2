@@ -49,7 +49,7 @@ type addrWriteVerb struct {
 var addrWriteVerbs = []addrWriteVerb{
 	{name: addrVerbAddCst, msgType: unix.RTM_NEWADDR, flags: unix.NLM_F_CREATE | unix.NLM_F_EXCL},
 	{name: addrVerbChangeCst, msgType: unix.RTM_NEWADDR, flags: unix.NLM_F_REPLACE},
-	{name: "chg", exact: true, msgType: unix.RTM_NEWADDR, flags: unix.NLM_F_REPLACE},
+	{name: chgVerbCst, exact: true, msgType: unix.RTM_NEWADDR, flags: unix.NLM_F_REPLACE},
 	{name: addrVerbReplaceCst, msgType: unix.RTM_NEWADDR, flags: unix.NLM_F_CREATE | unix.NLM_F_REPLACE},
 	{name: addrVerbDeleteCst, msgType: unix.RTM_DELADDR},
 }
@@ -104,9 +104,9 @@ var addrKeywords = []addrKeyword{
 	{keyword: addrScopeKeywordCst, arm: addrArmScope},
 	{keyword: devKeywordCst, arm: addrArmDev},
 	{keyword: "label", arm: addrArmLabel},
-	{keyword: "metric", prefix: true, arm: addrArmMetric},
-	{keyword: "priority", prefix: true, arm: addrArmMetric},
-	{keyword: "preference", prefix: true, arm: addrArmMetric},
+	{keyword: routeMetricKeywordCst, prefix: true, arm: addrArmMetric},
+	{keyword: routePriorityKeywordCst, prefix: true, arm: addrArmMetric},
+	{keyword: routePreferenceKeywordCst, prefix: true, arm: addrArmMetric},
 	{keyword: "valid_lft", prefix: true, arm: addrArmValidLft},
 	{keyword: "preferred_lft", prefix: true, arm: addrArmPreferredLft},
 	{arm: addrArmFlag},
