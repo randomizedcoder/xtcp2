@@ -37,8 +37,9 @@ each sent** and the **text each printed**. It is the strongest evidence in the
 tree that `pkg/xtcpnl` decodes what the kernel actually said, because the
 reference is iproute2 itself rather than our reading of iproute2.
 
-243 commands are compared, 120 of them dry-run link, route, address,
-neighbor, rule and nexthop writes, flushes and restores, and 242 are gated. The counts, what "gated" costs to earn, and the scope boundaries are
+246 commands are compared, 123 of them dry-run link, route, address,
+neighbor, rule, nexthop and address label writes, flushes and restores, and
+245 are gated. The counts, what "gated" costs to earn, and the scope boundaries are
 in [parity at a glance](coverage-status.md#goip--ip-parity-at-a-glance). The
 comparator is `pkg/nlparity` (protocol level) and `internal/goipparity`
 (command level); the accepted-divergence list is
@@ -65,14 +66,16 @@ rather than delete it. Link-write Phase 4 landed the gate: the read path stays
 `RTM_NEWADDR` and `RTM_DELADDR`, and, since
 [goip-parity-gaps.md](goip-parity-gaps.md)'s G3-T01, `RTM_NEWNEIGH` and
 `RTM_DELNEIGH`, and, since its G3-T02, `RTM_NEWRULE` and `RTM_DELRULE`, and,
-since its G3-T03, `RTM_NEWNEXTHOP` and `RTM_DELNEXTHOP`. Requests built there are written to a file for
+since its G3-T03, `RTM_NEWNEXTHOP` and `RTM_DELNEXTHOP`, and, since its G3-T04,
+`RTM_NEWADDRLABEL` and `RTM_DELADDRLABEL`. Requests built there are written to a file for
 comparison and never sent; no automated path applies a write to a live kernel.
 Both dry runs have since landed on that gate: `goip link
 add|set|change|replace|delete` and `goip route
 add|change|replace|prepend|append|test|delete` build `ip`'s request
 byte for byte and write it to `GOIP_WRITE_OUT`, as `goip neigh
-add|change|replace|delete|flush`, `goip rule add|delete|flush|restore`
-and `goip nexthop add|replace|delete|flush` now do too, and refuse with
+add|change|replace|delete|flush`, `goip rule add|delete|flush|restore`,
+`goip nexthop add|replace|delete|flush` and `goip addrlabel add|delete|flush`
+now do too, and refuse with
 `ErrWriteNotApplied` when the hook is unset.
 
 This is what makes a twenty-family surface finite, and it is the main reason

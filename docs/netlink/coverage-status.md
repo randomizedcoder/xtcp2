@@ -10,9 +10,9 @@ several steps, further down under [Remaining](#remaining).
 
 | | count | counted from |
 |---|---|---|
-| commands in the comparison matrix | **243** | `internal/goipparity/commands.go` — 123 read rows (31 of them `addr show` state, selector and output-mode rows with a `Setup`, and 6 `route get`, 2 `neigh get`, 4 `nexthop get` and `nexthop bucket`, 3 `link xstats` and `link afstats`, 3 `route save` and `route showdump`, 1 `route flush`, 1 `neigh flush`, 1 `rule save` and 1 `nexthop flush` rows with one; the missing-table `route flush` row has none), the 21 link write rows, the 26 route write rows, the 27 address write rows, the 7 address flush rows, the 2 address restore rows, the route restore row, the 2 route flush write rows, the 6 neigh write rows, the 2 neigh flush write rows, the 17 rule write rows, the rule flush write row, the rule restore row, the 6 nexthop write rows and the nexthop flush write row |
-| of those, `Implemented: true` | **243** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
-| of those, in `gated_commands` | **242** | `pkg/nlparity/goip-parity-allowlist.json` |
+| commands in the comparison matrix | **246** | `internal/goipparity/commands.go` — 123 read rows (31 of them `addr show` state, selector and output-mode rows with a `Setup`, and 6 `route get`, 2 `neigh get`, 4 `nexthop get` and `nexthop bucket`, 3 `link xstats` and `link afstats`, 3 `route save` and `route showdump`, 1 `route flush`, 1 `neigh flush`, 1 `rule save` and 1 `nexthop flush` rows with one; the missing-table `route flush` row has none), the 21 link write rows, the 26 route write rows, the 27 address write rows, the 7 address flush rows, the 2 address restore rows, the route restore row, the 2 route flush write rows, the 6 neigh write rows, the 2 neigh flush write rows, the 17 rule write rows, the rule flush write row, the rule restore row, the 6 nexthop write rows, the nexthop flush write row, the 2 addrlabel write rows and the addrlabel flush write row |
+| of those, `Implemented: true` | **246** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
+| of those, in `gated_commands` | **245** | `pkg/nlparity/goip-parity-allowlist.json` |
 | allowlisted divergences | **7** | same file, `entries` |
 | of those, `kind=version-skew` | **7** | all against the pinned `ip` 7.1.0 |
 | of those, `kind=accepted-divergence` | **0** | nothing is *allowlisted* as a permanent divergence — the nine wire divergences runs 8 and 9 measured **could not** be, because a transaction-count divergence is unsuppressible (`nlparity_allowlist.go:143`), and G0 retired every one by changing goip to send `ip`'s requests |
@@ -3759,6 +3759,25 @@ Two back-to-back runs passed 243 of 243, identical row for row, ending
 `GOIP_PARITY_OVERALL_PASS`. All eight gate with no allowlist entry, and
 `TestNexthopWriteRows` and the `earned`/`gated_commands` pair pin them: 243
 rows, 242 gated.
+
+### G3-T04: the three `addrlabel` write and flush rows gate
+
+G3-T04 adds `goip addrlabel add`, `delete` and `flush`
+(`internal/goip/addrlabel_write.go`) and three rows, on the C1-T01 and
+C1-T02 addrlabel captures. `ipaddrlabel_modify` names no device in them, so
+the add and the del are each one request, `IFAL_LABEL` then `IFAL_ADDRESS`
+under an `AF_INET6` header (floor 2).
+
+`addrlabel flush` is the listing's dump, then each reply carrying
+`IFAL_ADDRESS` sent back whole as an acked `RTM_DELADDRLABEL`, from a socket
+of its own. The kernel's ten default labels carry the attribute, so the row,
+whose Setup adds one label, is a write row of eleven copies (floor 4); goip
+sends the dump and writes the eleven.
+
+Two back-to-back runs passed 246 of 246, identical row for row, ending
+`GOIP_PARITY_OVERALL_PASS`. All three gate with no allowlist entry, and
+`TestAddrLabelWriteRows` and the `earned`/`gated_commands` pair pin them:
+246 rows, 245 gated.
 
 ## Tier C — the `goip-parity` microVM flavor
 

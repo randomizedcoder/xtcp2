@@ -229,7 +229,8 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 // neigh flush whose dump failed.
 func exitCodeOf(err error) int {
 	switch {
-	case errors.Is(err, ErrFlushIncomplete), errors.Is(err, ErrDumpFile), errors.Is(err, ErrRuleDumpTerminated):
+	case errors.Is(err, ErrFlushIncomplete), errors.Is(err, ErrDumpFile), errors.Is(err, ErrRuleDumpTerminated),
+		errors.Is(err, ErrAddrLabelFlushTerminated):
 		return ExitMinusOne
 	case errors.Is(err, ErrNotImplemented), errors.Is(err, ErrInvalidArgument),
 		errors.Is(err, ErrWriteNotApplied), errors.Is(err, ErrSaveTerminated),

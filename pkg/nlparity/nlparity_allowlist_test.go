@@ -677,6 +677,10 @@ func TestAllowlistCommitted(t *testing.T) {
 		"nexthop del id 1",
 		"nexthop flush",
 		"nexthop f",
+		// G3-T04's three `addrlabel` write and flush rows.
+		"addrlabel add prefix 2001:db8::/32 label 99",
+		"addrlabel del prefix 2001:db8::/32 label 99",
+		"addrlabel flush",
 	}
 
 	tests := []struct {

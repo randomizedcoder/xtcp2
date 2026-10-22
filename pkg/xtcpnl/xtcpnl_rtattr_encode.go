@@ -343,7 +343,9 @@ func BuildRequest(msgType, flags uint16, seq uint32, familyHdr, attrs []byte) ([
 // do_iprule's: RTM_NEWRULE for add and restore, RTM_DELRULE for delete and for
 // flush's copies (ip/iprule.c:1246-1253, :618-620). The nexthop pair is
 // do_ipnh's: RTM_NEWNEXTHOP for add and replace, RTM_DELNEXTHOP for delete and
-// for flush's deletes (ip/ipnexthop.c:1456-1463, :140-160).
+// for flush's deletes (ip/ipnexthop.c:1456-1463, :140-160). The addrlabel pair
+// is do_ipaddrlabel's: RTM_NEWADDRLABEL for add, RTM_DELADDRLABEL for delete
+// and for flush's copies (ip/ipaddrlabel.c:252-255, :204).
 func IsAdmittedWriteType(msgType uint16) bool {
 	switch msgType {
 	case uint16(unix.RTM_NEWROUTE), uint16(unix.RTM_DELROUTE),
@@ -351,7 +353,8 @@ func IsAdmittedWriteType(msgType uint16) bool {
 		uint16(unix.RTM_NEWADDR), uint16(unix.RTM_DELADDR),
 		uint16(unix.RTM_NEWNEIGH), uint16(unix.RTM_DELNEIGH),
 		uint16(unix.RTM_NEWRULE), uint16(unix.RTM_DELRULE),
-		uint16(unix.RTM_NEWNEXTHOP), uint16(unix.RTM_DELNEXTHOP):
+		uint16(unix.RTM_NEWNEXTHOP), uint16(unix.RTM_DELNEXTHOP),
+		uint16(unix.RTM_NEWADDRLABEL), uint16(unix.RTM_DELADDRLABEL):
 		return true
 	}
 	return false

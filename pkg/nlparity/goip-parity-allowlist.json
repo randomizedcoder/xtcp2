@@ -975,7 +975,13 @@
     "request; the flush of the two single nexthops, the groups dump, the full",
     "dump and two acked RTM_DELNEXTHOP; and the flush of nothing, a read row.",
     "Two back-to-back runs of 243 GOIP_PARITY_PASS of 243 ended",
-    "GOIP_PARITY_OVERALL_PASS."
+    "GOIP_PARITY_OVERALL_PASS.",
+    "",
+    "G3-T04 adds the addrlabel writes and flush and gates three rows: an add",
+    "and a del, each one request; and the flush, the listing's dump and an",
+    "acked RTM_DELADDRLABEL copy of each of its eleven replies, the kernel's",
+    "ten default labels among them. Two back-to-back runs of 246",
+    "GOIP_PARITY_PASS of 246 ended GOIP_PARITY_OVERALL_PASS."
   ],
   "_note_version_skew": [
     "THE ENTRIES BELOW CITE COMMITS THAT ARE IN NO RELEASE, AND THE EVIDENCE IS",
@@ -1296,6 +1302,9 @@
     "nexthop replace id 1 via 192.0.2.4 dev d0",
     "nexthop del id 1",
     "nexthop flush",
-    "nexthop f"
+    "nexthop f",
+    "addrlabel add prefix 2001:db8::/32 label 99",
+    "addrlabel del prefix 2001:db8::/32 label 99",
+    "addrlabel flush"
   ]
 }

@@ -2387,6 +2387,29 @@ The command tests (`internal/goip/nexthop_write_test.go`):
 
 The messages, the flush's output and its deletes' order were checked against iproute2-7.1.0 in an unprivileged namespace.
 
+**G3-T04 delivered** (`internal/goip/addrlabel_write.go`):
+- **The writes.** `ipaddrlabel_modify` (`ip/ipaddrlabel.c:128-187`): the argument loop, then one `RTM_NEWADDRLABEL` or `RTM_DELADDRLABEL` with `NLM_F_ACK`, add also `NLM_F_CREATE|NLM_F_EXCL`, its attributes `IFAL_LABEL` then `IFAL_ADDRESS`. `prefix` is `get_prefix` in `preferred_family`, its length into the header; `dev` is `ll_name_to_index`, its by-name `RTM_GETLINK` ahead of the write; `label` is `get_u32` base 0 and may not be `0xffffffff`, `ip`'s unset label. The loop skips a word it does not know, as `ip` does. With no `prefix` or no `label` it refuses with `ip`'s "Not enough information". The header's family is `preferred_family`, `AF_INET6` if unset, so an IPv4 prefix goes out under `AF_INET6`, as `ip` sends it and the kernel refuses it.
+- **flush.** `ipaddrlabel_flush` and `flush_addrlabel` (`:190-242`): the listing's dump, at `AF_INET6` unless `-4` or `-6` names a family, then each reply carrying `IFAL_ADDRESS` sent back whole as an `RTM_DELADDRLABEL`, `NLM_F_REQUEST|NLM_F_ACK`. The kernel's ten default labels carry the attribute, so they go too. `ip` sends each copy from a socket of its own, at that socket's seq; goip keeps the reply's, which the comparator does not compare, and writes the copies after the dump. A failed dump or a reply short of its header is `Flush terminated`, exit 255. An argument is `ip`'s refusal; `-j` changes nothing, as the flush prints nothing.
+- **Exit statuses.** `ip` exits 255 on its `invarg` refusals, an incomplete command and an unknown verb, and 1 on the missing-argument and `get_prefix` refusals and flush's extra argument; goip exits 1 on each, its convention. `help` is not implemented.
+- **Three matrix rows, gated.** The add and the del, each the write alone (floor 2), and the flush (floor 4, eleven writes), on the captures' precondition, one added label. `TestAddrLabelWriteRows` pins the three rows.
+
+The command tests (`internal/goip/addrlabel_write_test.go`):
+
+| description | expected |
+|---|---|
+| positive: the add and del captures (replayed); an unknown word ahead of `prefix` | `ip`'s request byte for byte, add `0x605`, del `0x5`, no request ahead of it; skipped |
+| positive: an IPv6 prefix and a label; `dev`; a hex label | the header and both attributes; the ifindex; the value |
+| boundary: a prefix with no length; label `0xfffffffe` | 128 bits; accepted |
+| corner: an IPv4 prefix; `-4` and one; two prefixes | the header `AF_INET6`; `AF_INET`; the last |
+| negative: no prefix, no label, no arguments; label `0xffffffff`, past 32 bits or no number; an unknown device; a bad prefix; `-6` and an IPv4 prefix; a keyword with no value | refused, exit 1 |
+| positive, boundary, negative, corner: `a`, `d`, `del`; `delete`; `adds`; `f x` | the verbs; delete; not implemented; flush's refusal |
+| positive: `addrlabel_flush`'s capture | the dump and eleven `RTM_DELADDRLABEL` copies byte for byte, flags `0x5` |
+| positive, corner: `f`; `-j`; `-6` | the same eleven |
+| negative: copies and no hook; a failed dump; an argument | exit 1 after the dump; `Flush terminated`, exit 255; refused before any request |
+| positive, negative, boundary, corner: a reply with an address, one without, a header alone, a short body, an undecodable attribute | copy, keep, keep, error, error |
+
+The messages and exit statuses, and the flush's eleven deletes, were checked against iproute2-7.1.0 in an unprivileged namespace.
+
 ### G4 — New rtnetlink objects
 
 mroute, mrule, token, netns `list-id`/`set`, `RTM_NEWRULE`/`RTM_DELRULE` as event types, then `monitor`.

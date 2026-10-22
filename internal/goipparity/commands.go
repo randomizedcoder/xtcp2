@@ -1531,6 +1531,23 @@ var commands = withArgs([]Command{
 		// txns 1/1 on both.
 		Floor: 2, Implemented: true,
 	},
+	// G3-T04's addrlabel writes. ipaddrlabel_modify names no device here, so
+	// each is the write and its ack alone.
+	{
+		Name: "addrlabel add prefix 2001:db8::/32 label 99", Slug: "addrlabel_add",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "addrlabel del prefix 2001:db8::/32 label 99", Slug: "addrlabel_del",
+		Floor: 2, Implemented: true, Write: true, Setup: addrLabelSetup,
+	},
+	// The flush: the listing's dump, then an acked RTM_DELADDRLABEL copy of
+	// each reply from a socket of its own, the kernel's ten default labels
+	// among them, eleven in all. goip sends the dump and writes the eleven.
+	{
+		Name: "addrlabel flush", Slug: "addrlabel_flush",
+		Floor: 4, Implemented: true, Write: true, Writes: 11, Setup: addrLabelSetup,
+	},
 
 	{
 		Name: "ntable show", Slug: "ntable_show",
@@ -2619,6 +2636,8 @@ var (
 	// nexthopBlackholeSetup nexthop_add_existing's and nexthop_del's one step.
 	nexthopD0Setup        = nexthopGetSetup[:3:3]
 	nexthopBlackholeSetup = []string{"nexthop add id 1 blackhole"}
+	// addrLabelSetup is addrlabel_del's and addrlabel_flush's one step.
+	addrLabelSetup = []string{"addrlabel add prefix 2001:db8::/32 label 99"}
 )
 
 // The `link xstats` and `link afstats` rows' precondition: the bridge of

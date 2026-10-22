@@ -3000,3 +3000,51 @@ func TestNexthopWriteRows(t *testing.T) {
 		})
 	}
 }
+
+// TestAddrLabelWriteRows pins G3-T04's three addrlabel rows: the add and the
+// del, each the write alone, and the flush, eleven copies, each on its
+// capture's precondition.
+//
+// go test ./internal/goipparity/ -run TestAddrLabelWriteRows
+func TestAddrLabelWriteRows(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	rtnl := filepath.Join("..", "..", "pkg", "xtcpnl", "testdata", "7_1_4", "link-write", "rtnl")
+	type want struct {
+		implemented, write, topology, gated bool
+		floor, writes                       int
+	}
+	rows := []struct {
+		description string
+		command     string
+		corpus      string // the slug whose topology Setup must be; "" for none
+		expected    want
+	}{
+		{"positive: add, the write alone, no Setup", "addrlabel add prefix 2001:db8::/32 label 99", "",
+			want{implemented: true, write: true, topology: true, gated: true, floor: 2}},
+		{"positive: del of the label the Setup added", "addrlabel del prefix 2001:db8::/32 label 99",
+			"addrlabel_del", want{implemented: true, write: true, topology: true, gated: true, floor: 2}},
+		{"positive: flush, the dump then eleven copies each acked", "addrlabel flush", "addrlabel_flush",
+			want{implemented: true, write: true, topology: true, gated: true, floor: 4, writes: 11}},
+		{"negative: a flush with an argument is not in the matrix", "addrlabel flush all", "", want{}},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			var got want
+			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				var topo []string
+				if r.corpus != "" {
+					topo = topologySteps(t, rtnl, r.corpus)
+				}
+				got = want{implemented: c.Implemented, write: c.Write,
+					topology: slices.Equal(c.Setup, topo), floor: c.Floor, writes: c.Writes}
+			}
+			got.gated = al.IsGated(r.command)
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+		})
+	}
+}

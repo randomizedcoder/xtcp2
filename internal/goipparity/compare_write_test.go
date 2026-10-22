@@ -54,7 +54,12 @@ const (
 	// flush write row, on a single-nexthops cut of nexthop_flush's.
 	nexthopWriteSlugPrefixCst = "nexthop_"
 	nexthopFlushSlugCst       = "nexthop_flush"
-	tdAddrSave                = "../../pkg/xtcpnl/testdata/7_1_4/link-write/addr-save"
+	// addrLabelWriteSlugPrefixCst names G3-T04's addrlabel write rows, each
+	// on the capture of its own slug under tdRtnl; addrLabelFlushSlugCst is
+	// its flush write row.
+	addrLabelWriteSlugPrefixCst = "addrlabel_"
+	addrLabelFlushSlugCst       = "addrlabel_flush"
+	tdAddrSave                  = "../../pkg/xtcpnl/testdata/7_1_4/link-write/addr-save"
 	// tdRtnl is the C1 rtnetlink corpus, route_restore\'s among it.
 	tdRtnl           = "../../pkg/xtcpnl/testdata/7_1_4/link-write/rtnl"
 	pcapGlobalHdrCst = 24
@@ -75,7 +80,9 @@ const (
 	// RTM_DELNEXTHOP.
 	rtmNewNexthopCst = 104
 	rtmDelNexthopCst = 105
-	nlmFRequestCst   = 0x1
+	// rtmDelAddrLabelCst is RTM_DELADDRLABEL.
+	rtmDelAddrLabelCst = 73
+	nlmFRequestCst     = 0x1
 	// nlMsgHdrCst is sizeof(struct nlmsghdr). Spelled here because this
 	// package may not import pkg/xtcpnl (TestParityCannotOpenASocket).
 	nlMsgHdrCst = 16
@@ -211,6 +218,15 @@ func corpusWriteRow(t *testing.T, c Command) writeRowFiles {
 		return f
 	}
 	if strings.HasPrefix(c.Slug, nexthopWriteSlugPrefixCst) {
+		dir = filepath.Join(tdRtnl, c.Slug)
+	}
+	if c.Slug == addrLabelFlushSlugCst {
+		// Each copy is acked, so goip's capture is ip's cut at the first.
+		f := corpusFlushRow(t, c, filepath.Join(tdRtnl, addrLabelFlushSlugCst))
+		f.pcaps[SideGoip] = keepBeforeRequest(t, f.pcaps[SideIPA], rtmDelAddrLabelCst)
+		return f
+	}
+	if strings.HasPrefix(c.Slug, addrLabelWriteSlugPrefixCst) {
 		dir = filepath.Join(tdRtnl, c.Slug)
 	}
 	ipPcap := mustReadBytes(t, filepath.Join(dir, "ip.pcap"))

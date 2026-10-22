@@ -686,6 +686,17 @@ func (s *Service) NeighborLinks() ([]model.Link, error) {
 	return links, nil
 }
 
+// AddrLabelMsgs sends `ip addrlabel show`'s dump and returns each
+// RTM_NEWADDRLABEL reply whole: `ip addrlabel flush` sends each back as an
+// RTM_DELADDRLABEL.
+func (s *Service) AddrLabelMsgs(family uint8) ([][]byte, error) {
+	src, ok := s.src.(MsgDumpSource)
+	if !ok {
+		return nil, ErrNoMsgDump
+	}
+	return src.DumpMsgs(req.AddrLabelShowDump(family, s.nextSeq()), uint16(unix.RTM_NEWADDRLABEL))
+}
+
 // RuleMsgs sends `ip rule show`'s dump and returns each RTM_NEWRULE reply
 // whole, its header as the kernel sent it: `ip rule save` writes them to its
 // file, and `ip rule flush` sends each back as an RTM_DELRULE that keeps the
