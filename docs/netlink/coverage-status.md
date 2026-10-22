@@ -185,7 +185,9 @@ measured them the pristine way — `control: nl=0 stdout=0`, nothing suppressed,
 the bar `link show` set.
 
 **The rest of the nexthop read surface and VRF link-detail are implemented but
-are not matrix rows, so they do not move the counts above.** `nexthop show id N`,
+are not matrix rows, so they do not move the counts above.** (Since
+2026-10-22, `dev`, `master` and `vrf` are gated rows; see "Measured on
+2026-10-22".) `nexthop show id N`,
 the other five `nexthop show` selectors — `dev`, `master`, `vrf`, `groups`,
 `fdb` (new `fdb ` render), and the client-side `protocol N` — and `-d
 link`/`addr show` descent into a `vrf`-kind link (`IFLA_VRF_TABLE`) and its
@@ -6755,12 +6757,21 @@ Measured on 2026-10-22, at nixpkgs 02c087f3, whose microVM kernel is 7.3.0:
 Found on the way and fixed: `nexthop show dev|master|vrf` resolved the name
 with an `ll_init_map`-shaped link dump, but `ipnexthop.c` has no `ll_init_map`
 in either release. `ip` resolves each name with `ll_name_to_index`, which on a
-cache miss is one `ll_link_get` (txn 0 of the dev and master captures, txn 2
-of the vrf capture). It does so in argv order, so `dev X master Y` sends two
+cache miss is one `ll_link_get` (txn 0 of the dev and master captures, txn 1
+of the vrf capture, after `name_is_vrf`'s full get). It does so in argv order, so `dev X master Y` sends two
 gets and filters on both, where goip used to resolve only the first name.
 goip now matches, and `TestNexthopShowNameResolutionIsLLLinkGet` pins the
-captured request bodies. Those selectors are not in the parity matrix
+captured request bodies. Those selectors were not in the parity matrix
 (`internal/goipparity/commands.go`), which is why nothing failed.
+
+They are now. `nexthop show dev goip0`, `master goipvrf` and `vrf goipvrf`
+are matrix rows, and two more live runs gated them: all three
+GOIP_PARITY_PASS with `stdout=0`, `control: nl=0` and txns 2/2, 3/3 and 4/4
+on both runs. `master` adds the by-index get that prints goipv's `dev`, and
+`vrf` adds `name_is_vrf`'s get on top of that. The rest of both runs matched
+row for row: 174 PASS, 7 WARN, and 5 FAIL (`-4 netconf show dev` and the bond
+write flake), with CONTROL_NOISY at 30. `TestNexthopSelectorRowsGated` pins
+the flip. A third run never booted, because another VM held port 12056.
 
 ### Remaining
 

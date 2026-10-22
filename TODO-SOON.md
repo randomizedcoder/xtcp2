@@ -722,9 +722,12 @@ Still to do:
   comparator treat IFF_RUNNING in link-write replies as control noise. The
   rest matched V068: `-4 netconf show dev` FAIL (HYGIENE_FAIL 2), the 7
   ungated WARNs (`netconf show dev`, six `stats show`), 172-173 PASS.
-- the `nexthop show dev|master|vrf` selectors aren't in the parity matrix;
-- `nix run .#update-quality-report` to refresh the header and re-check
-  coverage.
+- ~~the `nexthop show dev|master|vrf` selectors aren't in the parity
+  matrix~~: done 2026-10-22, gated on two live runs (coverage-status.md,
+  "Measured on 2026-10-22").
+- ~~`nix run .#update-quality-report`~~: done 2026-10-22. The report showed
+  10 `TestDecoderPerformanceGate` failures, all coverage instrumentation
+  (77facbe7), and now has 0 test failures and 18 below-90% coverage findings.
 
 The original plan follows.
 
