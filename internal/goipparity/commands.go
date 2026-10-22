@@ -1198,7 +1198,7 @@ var commands = withArgs([]Command{
 
 	{
 		Name: "nexthop show", Slug: "nexthop_show",
-		// Four: the nexthop dump plus the ll_init_map link dump print_rta_ifidx
+		// Four: the nexthop dump plus the ll_link_get single-get print_rta_ifidx
 		// triggers to turn nh_oif into `dev goip0` — the floor the capture
 		// driver already uses for this command
 		// (nix/microvms/scripts/capture-netlink-dumps.exp).

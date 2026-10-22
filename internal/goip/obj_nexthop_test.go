@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -135,7 +137,7 @@ func TestNexthopShowMatchesCapturedSidecars(t *testing.T) {
 			sidecar:     nexthopSidecarResN,
 		},
 		{
-			description: "positive: `nexthop show dev goip0` filters to id 1/2/8 (NHA_OIF after ll_init_map)",
+			description: "positive: `nexthop show dev goip0` filters to id 1/2/8 (NHA_OIF after ll_link_get)",
 			args:        []string{"nexthop", "show", "dev", "goip0"},
 			pcap:        nexthopDevPcap,
 			sidecar:     "ip_nexthop_dev",
@@ -517,11 +519,18 @@ func TestNexthopShowIDAbsent(t *testing.T) {
 // kernel72Source answers RTM_GETLINK single-gets the way Linux 7.2 does
 // (net/core/rtnetlink.c:2084-2091): an ext mask carrying
 // RTEXT_FILTER_NAME_ONLY gets the header, IFLA_IFNAME and nothing else, so no
-// IFLA_LINKINFO. Dumps go to the replay. talks keeps every single-get.
+// IFLA_LINKINFO. Dumps go to the replay. talks keeps every single-get and
+// dumps every dump request.
 type kernel72Source struct {
 	Source
 	links map[uint32][2]string // ifindex -> {name, IFLA_INFO_KIND}
 	talks [][]byte
+	dumps [][]byte
+}
+
+func (k *kernel72Source) Dump(request []byte, msgType uint16) ([][]byte, error) {
+	k.dumps = append(k.dumps, append([]byte(nil), request...))
+	return k.Source.Dump(request, msgType)
 }
 
 func (k *kernel72Source) Talk(request []byte, _ uint16) ([]byte, error) {
@@ -608,6 +617,95 @@ func TestNexthopShowVrfCheckIsNameIsVrf(t *testing.T) {
 			}
 			if got := hex.EncodeToString(src.talks[0][unix.NLMSG_HDRLEN:]); got != capturedBody {
 				t.Errorf("first single-get body = %s, want %s", got, capturedBody)
+			}
+		})
+	}
+}
+
+// TestNexthopShowNameResolutionIsLLLinkGet pins what `nexthop show
+// { dev | master | vrf } NAME` sends to resolve NAME: ll_name_to_index
+// (lib/ll_map.c:354-372), which on a cache miss is one ll_link_get by name.
+// ipnexthop.c has no ll_init_map, so no link dump goes out; goip used to send
+// one. Every selector is resolved in argv order, and a name already cached
+// sends nothing.
+//
+// The 7_1 rows' bodies are the captures' own requests after the nlmsghdr:
+// txn 0 of netlink_route_getnexthop_dev.pcap and of _master.pcap, txns 0 and
+// 2 of _vrf.pcap, and the side-get for goipv (index 5) that print_rta_ifidx
+// sends after the dump. The 7_2 row differs from its 7_1 twin only in the
+// mask, 0x109 for 0x09.
+//
+// go test ./internal/goip/ -run TestNexthopShowNameResolutionIsLLLinkGet
+func TestNexthopShowNameResolutionIsLLLinkGet(t *testing.T) {
+	const (
+		getGoip0    = "00000000000000000000000000000000" + "08001d0009000000" + "0a000300676f697030000000"
+		getGoip0_72 = "00000000000000000000000000000000" + "08001d0009010000" + "0a000300676f697030000000"
+		getGoipvrf  = "00000000000000000000000000000000" + "08001d0009000000" + "0c000300676f697076726600"
+		getNosuch0  = "00000000000000000000000000000000" + "08001d0009000000" + "0c0003006e6f737563683000"
+		vrfGoipvrf  = "00000000000000000000000000000000" + "0c000300676f697076726600"
+		getIndex5   = "0000000005000000000000000000000008001d0009000000"
+		nhOIF3      = "0000000000000000" + "0800050003000000"
+		nhMaster4   = "0000000000000000" + "08000a0004000000"
+		nhBoth      = "0000000000000000" + "0800050003000000" + "08000a0004000000"
+	)
+	tests := []struct {
+		name, category, description string
+		llMapNameOnly               bool
+		pcap                        string
+		args                        []string
+		expectedTalks               []string // single-get bodies, in order
+		expectedDump                string   // the nexthop dump's body; "" for none sent
+		expectedErr                 error
+	}{
+		{"dev_7_1", "positive", "dev: one ll_link_get, then the NHA_OIF dump",
+			false, nexthopDevPcap, []string{"show", "dev", "goip0"}, []string{getGoip0}, nhOIF3, nil},
+		{"master_7_1", "positive", "master: ll_link_get, the NHA_MASTER dump, then goipv's side-get",
+			false, nexthopMasterPcap, []string{"show", "master", "goipvrf"}, []string{getGoipvrf, getIndex5}, nhMaster4, nil},
+		{"vrf_7_1", "positive", "vrf: name_is_vrf, then ll_link_get for the same name",
+			false, nexthopVrfPcap, []string{"show", "vrf", "goipvrf"}, []string{vrfGoipvrf, getGoipvrf, getIndex5}, nhMaster4, nil},
+		{"dev_7_2", "boundary", "the 7.2.0 default sends the same get with NAME_ONLY in the mask",
+			true, nexthopDevPcap, []string{"show", "dev", "goip0"}, []string{getGoip0_72}, nhOIF3, nil},
+		{"no_such_dev", "negative", "the kernel's ENODEV is ErrNoSuchDevice, and no nexthop dump goes out",
+			false, nexthopDevPcap, []string{"show", "dev", "nosuch0"}, []string{getNosuch0}, "", ErrNoSuchDevice},
+		{"dev_and_master", "corner", "both names resolve in argv order and both filters go out",
+			false, nexthopDevPcap, []string{"show", "dev", "goip0", "master", "goipvrf"}, []string{getGoip0, getGoipvrf}, nhBoth, nil},
+		{"vrf_then_master", "corner", "master repeating the vrf's name is a cache hit and sends nothing",
+			false, nexthopVrfPcap, []string{"show", "vrf", "goipvrf", "master", "goipvrf"}, []string{vrfGoipvrf, getGoipvrf, getIndex5}, nhMaster4, nil},
+	}
+	defer func(prev bool) { req.LLMapNameOnly = prev }(req.LLMapNameOnly)
+	for _, tc := range tests {
+		t.Run(tc.category+"/"+tc.name, func(t *testing.T) {
+			t.Logf("%s: %s; expected: talks %q, dump %q, err %v", tc.category, tc.description, tc.expectedTalks, tc.expectedDump, tc.expectedErr)
+			req.LLMapNameOnly = tc.llMapNameOnly
+			src := &kernel72Source{
+				Source: openReplay(t, tc.pcap),
+				links:  map[uint32][2]string{3: {"goip0", "dummy"}, 4: {"goipvrf", "vrf"}, 5: {"goipv", "dummy"}},
+			}
+			c := &runCtx{src: src, lltab: NewLLTab(), out: &bytes.Buffer{}, errOut: &bytes.Buffer{}}
+			err := runNexthop(c, tc.args)
+			switch {
+			case tc.expectedErr == nil && err != nil:
+				t.Fatalf("nexthop %v: %v", tc.args, err)
+			case tc.expectedErr != nil && !errors.Is(err, tc.expectedErr):
+				t.Fatalf("err = %v, want %v", err, tc.expectedErr)
+			}
+			talks := make([]string, len(src.talks))
+			for i, m := range src.talks {
+				talks[i] = hex.EncodeToString(m[unix.NLMSG_HDRLEN:])
+			}
+			if !slices.Equal(talks, tc.expectedTalks) {
+				t.Errorf("single-gets:\n got %q\nwant %q", talks, tc.expectedTalks)
+			}
+			var dump string
+			for _, m := range src.dumps {
+				if typ := binary.LittleEndian.Uint16(m[4:6]); typ != unix.RTM_GETNEXTHOP {
+					t.Errorf("dump request of type %d sent; only the nexthop dump should be", typ)
+					continue
+				}
+				dump = hex.EncodeToString(m[unix.NLMSG_HDRLEN:])
+			}
+			if dump != tc.expectedDump {
+				t.Errorf("nexthop dump body = %q, want %q", dump, tc.expectedDump)
 			}
 		})
 	}

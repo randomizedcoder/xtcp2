@@ -672,14 +672,6 @@ func NexthopDump(family uint8, seq uint32) ([]byte, error) {
 	return xtcpnl.BuildDumpNexthopRequest(family, seq), nil
 }
 
-// NexthopShowLinkDump is ll_init_map's link dump, which `ip nexthop show`
-// sends before a filtered dump whenever it resolves a `dev`/`master`/`vrf` name
-// (ll_name_to_index -> ll_init_map). It is byte-identical to NeighShowLinkDump:
-// ll_init_map builds one request regardless of caller.
-func NexthopShowLinkDump(seq uint32) ([]byte, error) {
-	return xtcpnl.BuildDumpLinkRequestExt(unix.AF_UNSPEC, ExtMaskLLInitMap(), seq)
-}
-
 // NexthopDumpFiltered is the wire-filtered RTM_GETNEXTHOP dump behind
 // `ip nexthop show { dev | master | vrf | groups | fdb }` — the same multipart
 // dump with nh_dump_filter's attrs appended. An empty filter is byte-identical to

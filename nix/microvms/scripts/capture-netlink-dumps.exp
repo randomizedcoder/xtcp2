@@ -229,13 +229,13 @@ proc capture_set {ns subdir dev} {
 
     # `ip nexthop show` dumps the clean topology's nexthop objects (id 1/2/8 single,
     # id 5 fdb, id 7 on the VRF-enslaved goipv, id 10/11 mpath groups, id 20 resilient
-    # group). Floor 4: the nexthop dump plus the ll_init_map link dump print_rta_ifidx
+    # group). Floor 4: the nexthop dump plus the ll_link_get single-get print_rta_ifidx
     # triggers to turn nh_oif into `dev goip0`. capio pairs the pcap with the ip_nexthop
     # sidecar so a replay reproduces the listing byte for byte.
     #
     # Only the clean topology builds nexthop objects (netlink-topology.exp), and
     # capture_set runs in mesh and tunnel too. There the table is empty: the dump
-    # is its request and NLMSG_DONE, with no nh_oif to send ll_init_map after, so
+    # is its request and NLMSG_DONE, with no nh_oif to send ll_link_get after, so
     # those namespaces' floor is 2. Floor 4 everywhere made every full run end
     # NLCAP_DRIVER_FAIL on eight rows that could never reach it.
     set nh_floor [expr {$subdir eq "." ? 4 : 2}]

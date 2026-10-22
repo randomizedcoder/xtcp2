@@ -54,7 +54,6 @@ func TestLLMapRequestsCarryMask(t *testing.T) {
 		{"NeighTblShowLinkDump", func() ([]byte, error) { return NeighTblShowLinkDump(1) }},
 		{"NetconfShowLinkDump", func() ([]byte, error) { return NetconfShowLinkDump(1) }},
 		{"StatsShowLinkDump", func() ([]byte, error) { return StatsShowLinkDump(1) }},
-		{"NexthopShowLinkDump", func() ([]byte, error) { return NexthopShowLinkDump(1) }},
 		{"LinkShowByIndex", func() ([]byte, error) { return LinkShowByIndex(2, 1) }},
 		{"LinkShowByName", func() ([]byte, error) { return LinkShowByName("eth0", 1) }},
 	}

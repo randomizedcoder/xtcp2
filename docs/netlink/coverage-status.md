@@ -6742,11 +6742,15 @@ Still to measure:
   commands stay clean. `neigh show`'s link dump now carries `SKIP_STATS`, so
   its `IFLA_STATS` CONTROL_NOISY loci should go.
 
-Found on the way and not fixed here: `nexthop show dev|master|vrf` resolves
-the name with an `ll_init_map`-shaped link dump, but `ipnexthop.c` has no
-`ll_init_map` in either release; `ip` resolves it with `ll_link_get` on a cache
-miss (txn 2 of the vrf capture). Those selectors are not in the parity
-matrix (`internal/goipparity/commands.go`), which is why nothing failed.
+Found on the way and fixed: `nexthop show dev|master|vrf` resolved the name
+with an `ll_init_map`-shaped link dump, but `ipnexthop.c` has no `ll_init_map`
+in either release. `ip` resolves each name with `ll_name_to_index`, which on a
+cache miss is one `ll_link_get` (txn 0 of the dev and master captures, txn 2
+of the vrf capture). It does so in argv order, so `dev X master Y` sends two
+gets and filters on both, where goip used to resolve only the first name.
+goip now matches, and `TestNexthopShowNameResolutionIsLLLinkGet` pins the
+captured request bodies. Those selectors are not in the parity matrix
+(`internal/goipparity/commands.go`), which is why nothing failed.
 
 ### Remaining
 
