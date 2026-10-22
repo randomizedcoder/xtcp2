@@ -13,8 +13,8 @@ several steps, further down under [Remaining](#remaining).
 | commands in the comparison matrix | **183** | `internal/goipparity/commands.go` — 100 read rows (31 of them `addr show` state, selector and output-mode rows with a `Setup`), the 21 link write rows, the 26 route write rows, the 27 address write rows, the 7 address flush rows and the 2 address restore rows |
 | of those, `Implemented: true` | **183** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
 | of those, in `gated_commands` | **160** | `pkg/nlparity/goip-parity-allowlist.json` |
-| allowlisted divergences | **7** | same file, `entries` |
-| of those, `kind=version-skew` | **7** | all against the pinned `ip` 7.1.0 |
+| allowlisted divergences | **0** | same file, `entries` |
+| of those, `kind=version-skew` | **0** | the pin is `ip` 7.2.0 and goip follows it; the seven 7.1.0 entries were retired on 2026-10-21 (see [iproute2 7.2.0](#iproute2-720-the-pin-moves-and-goip-moves-with-it)) |
 | of those, `kind=accepted-divergence` | **0** | nothing is *allowlisted* as a permanent divergence — the eight intentional wire divergences below **cannot** be, because a transaction-count divergence is unsuppressible (`nlparity_allowlist.go:143`) |
 
 **Twenty-three** matrix rows sit outside `gated_commands`, in
@@ -6707,6 +6707,46 @@ absent from the link listing taken afterwards.
   is the only captured evidence that the array is ever populated: a renderer
   emitting the flag as a bare string, or as `"linkdown": true`, matches the
   clean golden key for key and fails only against this one.
+
+### iproute2 7.2.0: the pin moves, and goip moves with it
+
+On 2026-10-21 nixpkgs 02c087f3 took `ip` from 7.1.0 to 7.2.0. All seven
+allowlist entries were `version-skew` at `ip_version` 7.1.0, and goip now does
+what 7.2.0 does at each of their loci, so `entries` is empty:
+
+| commit | what 7.2.0 does | how goip follows |
+|---|---|---|
+| `de91e928` (with `7bd7f335`) | `ll_link_get` and `ll_init_map` send `IFLA_EXT_MASK` 0x109, `VF\|SKIP_STATS\|NAME_ONLY` (`lib/ll_map.c:276-277`, `:395-398`); 7.1.0 sent 0x09 and 0x01 | `req.ExtMaskLLLinkGet()` and `req.ExtMaskLLInitMap()`, with `xtcpnl.RtextFilterNameOnly` |
+| `faceb326` | `print_queuelen` prints `qlen 0`, and the `SIOCGIFTXQLEN` fallback is gone, so `-6 addr show` prints no qlen | `render.RenderQlenZero` defaults to true; goip never had the ioctl |
+
+`req.LLMapNameOnly = false` and `render.RenderQlenZero = false` reproduce
+7.1.0. Every committed corpus was captured with 7.1.0, so the goip packages
+that replay it set both in `TestMain`. `TestExtMaskLLGenerations` and
+`TestLLMapRequestsCarryMask` pin both generations' masks on the wire.
+
+`RTEXT_FILTER_NAME_ONLY` reached the kernel UAPI in Linux 7.2. A 7.2+ kernel
+answers it with the `ifinfomsg`, `IFLA_IFNAME` and `IFLA_PROP_LIST` only
+(`net/core/rtnetlink.c:2084-2091`), and without taking RTNL. Every goip
+consumer of those replies reads only the index cache's fields (name, index,
+flags, type, altnames), with one exception that was a bug: `nexthop show vrf`
+checked the VRF kind on `LinkByName`'s reply, which under NAME_ONLY has no
+`IFLA_LINKINFO`. It now sends `name_is_vrf`'s request, as the 7.1.0 capture
+records `ip` doing (`netlink_route_getnexthop_vrf.pcap` txn 0), and
+`TestNexthopShowVrfCheckIsNameIsVrf` answers it the way a 7.2 kernel would.
+
+Still to measure:
+
+- a capture at the new pin (`nix run .#microvm-x86_64-netlink-dump-capture`)
+  with `ip_version` 7.2.0, and goip tests against it in the 7.2.0 mode;
+- a live `nix run .#microvm-x86_64-goip-parity`, to confirm the 160 gated
+  commands stay clean. `neigh show`'s link dump now carries `SKIP_STATS`, so
+  its `IFLA_STATS` CONTROL_NOISY loci should go.
+
+Found on the way and not fixed here: `nexthop show dev|master|vrf` resolves
+the name with an `ll_init_map`-shaped link dump, but `ipnexthop.c` has no
+`ll_init_map` in either release; `ip` resolves it with `ll_link_get` on a cache
+miss (txn 2 of the vrf capture). Those selectors are not in the parity
+matrix (`internal/goipparity/commands.go`), which is why nothing failed.
 
 ### Remaining
 

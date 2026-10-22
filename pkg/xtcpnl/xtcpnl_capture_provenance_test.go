@@ -281,16 +281,28 @@ func TestIProute2VersionFromSidecar(t *testing.T) {
 
 // TestIPVersionMatchesUpstreamPin closes the pair nix/checks/upstream-pins.nix
 // opens: that check compares the recorded pin against the iproute2 nixpkgs will
-// build, and this one compares it against the iproute2 that actually rendered
-// every ip_* sidecar in the corpus.
+// build, and this one compares it against what goip follows and against the
+// iproute2 that actually rendered every ip_* sidecar in the corpus.
 //
 // Both halves are needed and neither implies the other. A fixture regenerated
 // against a newer `ip` passes the eval-time check unchanged, because the pin and
 // nixpkgs still agree with each other — they just no longer describe the
 // committed goldens. That is the gap this test closes.
 //
+// The corpus and the pin are different releases since the pin moved to 7.2.0,
+// so each row names the release it expects. Every committed corpus predates the
+// move and says 7.1.0; goip's tests replay those with its 7.1.0 knobs
+// (internal/goip/main_test.go), and goip's defaults follow the pin. A pin past
+// 7.2.0 fails the first row, which is the prompt to move goip with it.
+//
 // go test ./pkg/xtcpnl/ -run TestIPVersionMatchesUpstreamPin
 func TestIPVersionMatchesUpstreamPin(t *testing.T) {
+	// The release goip's defaults follow (internal/goip/req.LLMapNameOnly,
+	// render.RenderQlenZero), and the one that rendered the committed corpora.
+	const (
+		goipIPRoute2   = "7.2.0"
+		corpusIPRoute2 = "7.1.0"
+	)
 	var pins struct {
 		PackagePins struct {
 			IProute2 struct {
@@ -305,33 +317,42 @@ func TestIPVersionMatchesUpstreamPin(t *testing.T) {
 	if err := json.Unmarshal(rawPins, &pins); err != nil {
 		t.Fatalf("%s: %v", tdUpstreamPins, err)
 	}
-	want := pins.PackagePins.IProute2.Version
-	if want == "" {
+	pinned := pins.PackagePins.IProute2.Version
+	if pinned == "" {
 		t.Fatalf("%s has no package_pins.iproute2.version; the pin this test "+
 			"compares against is gone, which is a louder failure than a "+
 			"mismatch", tdUpstreamPins)
+	}
+	if pinned != goipIPRoute2 {
+		t.Errorf("%s pins iproute2 %s, but goip's defaults follow %s; move goip "+
+			"to the new release, keeping a knob for the old one, then this constant",
+			tdUpstreamPins, pinned, goipIPRoute2)
 	}
 
 	tests := []struct {
 		description string
 		file        string
+		expected    string
 	}{
 		{
-			description: "positive: the 7_1_4 dump set's ip_version is the pinned iproute2",
+			description: "positive: the 7_1_4 dump set's ip_version is the iproute2 goip's tests replay it as",
 			file:        tdDumpIPVersion_7_1_4,
+			expected:    corpusIPRoute2,
 		},
 		{
-			description: "positive: the rdma corpus's ip_version is the pinned iproute2",
+			description: "positive: the rdma corpus's ip_version is the corpus iproute2",
 			file:        tdRdma_7_1_4 + "/ip_version",
+			expected:    corpusIPRoute2,
 		},
 		{
 			// `rdma -V` is "rdma utility, iproute2-7.1.0": the same
 			// comma-separated shape, so the same parser reads it.
-			description: "corner: the rdma tool that made the corpus is the pinned iproute2 too",
+			description: "corner: the rdma tool that made the corpus is the corpus iproute2 too",
 			file:        tdRdma_7_1_4 + "/rdma_version",
+			expected:    corpusIPRoute2,
 		},
 	}
-	// The other kernels' rdma corpora ran the same pinned tools.
+	// The other kernels' rdma corpora ran the same tools.
 	for _, k := range rdmaKernels {
 		if k.dir == "7_1_4" {
 			continue
@@ -340,7 +361,8 @@ func TestIPVersionMatchesUpstreamPin(t *testing.T) {
 			tests = append(tests, struct {
 				description string
 				file        string
-			}{description: "boundary: " + k.dir + "/rdma/" + f + " is the pinned iproute2", file: k.rdma() + "/" + f})
+				expected    string
+			}{description: "boundary: " + k.dir + "/rdma/" + f + " is the corpus iproute2", file: k.rdma() + "/" + f, expected: corpusIPRoute2})
 		}
 	}
 
@@ -354,10 +376,10 @@ func TestIPVersionMatchesUpstreamPin(t *testing.T) {
 			if !ok {
 				t.Fatalf("%s is not an `ip -V` line: %q", tt.file, raw)
 			}
-			if got != want {
-				t.Errorf("%s was rendered by iproute2-%s, but %s pins %s; every "+
-					"ip_* sidecar beside it is that older ip's output",
-					tt.file, got, tdUpstreamPins, want)
+			if got != tt.expected {
+				t.Errorf("%s was rendered by iproute2-%s, want %s; every "+
+					"ip_* sidecar beside it is that ip's output",
+					tt.file, got, tt.expected)
 			}
 		})
 	}

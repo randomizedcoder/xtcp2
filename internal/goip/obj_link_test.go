@@ -1662,7 +1662,8 @@ func TestRunLinkShowJSON(t *testing.T) {
 			},
 		},
 		{
-			// The renderer suppresses `qlen 0` in text (see RenderQlenZero) but
+			// Under 7.1.0, which TestMain selects for these goldens, the
+			// renderer suppresses `qlen 0` in text (see RenderQlenZero) but
 			// `ip -j` emits txqlen unconditionally, so the two forms genuinely
 			// disagree here and the JSON is the one that keeps the value. This
 			// row is what stops someone "fixing" the inconsistency by dropping

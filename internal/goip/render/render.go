@@ -35,16 +35,11 @@
 //     committed sidecars were captured with `-d`, so a naive diff against them
 //     shows a large difference that is expected; the plan's Item 7 adds plain
 //     sidecars as the matched pair.
-//   - **No SIOCGIFTXQLEN fallback.** When a reply carries no IFLA_TXQLEN the
-//     pinned `ip` reaches for an ioctl rather than printing nothing, so it
-//     emits "qlen 1000" where goip emits nothing. This is reachable on
-//     exactly one command — `ip -6 addr show`, whose replies come from the
-//     kernel's inet6_dump_ifinfo and have no IFLA_TXQLEN — and it is the
-//     second half of the same version skew documented at RenderQlenZero.
-//     goip does not do it because an ioctl is a syscall the parity capture
-//     cannot see, and reproducing an unobservable side channel to match a
-//     line of output is the wrong trade; the fork that is the reading
-//     reference deleted the fallback as dead code.
+//   - **No SIOCGIFTXQLEN fallback**, and none in the pinned `ip` either.
+//     When a reply carries no IFLA_TXQLEN — `ip -6 addr show`, whose replies
+//     come from the kernel's inet6_dump_ifinfo — both print no qlen. iproute2
+//     7.1.0 fell back to an ioctl there and printed "qlen 1000"; 7.2.0
+//     removed the fallback with the change described at RenderQlenZero.
 //
 // # One version skew that changes output
 //
@@ -63,27 +58,26 @@ import (
 // reproduce, and it exists because the two disagree on a real link.
 //
 // iproute2 commit faceb326 "ip: drop unnecessary fallback to ioctl for tx
-// queue length" (2026-07-28, **contained in no tag** — verified with
-// `git tag --contains`) rewrote print_queuelen. Before it:
+// queue length", first released in 7.2.0, rewrote print_queuelen. Before it:
 //
 //	if (qlen)
 //		print_int(PRINT_ANY, "txqlen", "qlen %d", qlen);
 //
 // After it, the guard is gone and the print is unconditional once
-// IFLA_TXQLEN is present. So a zero txqlen prints nothing on every released
-// `ip` and prints "qlen 0" on the development branch.
+// IFLA_TXQLEN is present (ip/ipaddress.c:160-167 in 7.2.0). So a zero txqlen
+// prints nothing on 7.1.0 and "qlen 0" on 7.2.0.
 //
-// This is not hypothetical on the committed fixture: docker0, br-3a5828b2963a
-// and veth179a698 all carry IFLA_TXQLEN with value 0, and ip_link_n's stanzas
-// for all three end at "group default " with no qlen — which is the evidence
-// that the pinned `ip` that produced the sidecar predates faceb326.
+// This is not hypothetical: in the testdata/7_1_4 fixtures, captured with
+// 7.1.0, docker0, br-3a5828b2963a and veth179a698 all carry IFLA_TXQLEN with
+// value 0, and ip_link_n's stanzas for all three end at "group default " with
+// no qlen.
 //
-// false — the default and the parity target — reproduces the released
-// behavior. The knob exists so the divergence is a named, flippable fact with
-// a test row on each side, rather than a silent choice; the parity allowlist
-// gets a version-skew entry citing faceb326 next to the one citing de91e928.
+// true — the default and the parity target, iproute2 7.2.0 — prints the zero.
+// false reproduces 7.1.0, for the fixtures captured with it. The knob exists
+// so the difference is a named, flippable fact with a test row on each side,
+// rather than a silent choice.
 //
-// # The same commit has a second effect, and this knob does not cover it
+// # The same commit removed the ioctl fallback, which this knob does not cover
 //
 // faceb326 removed 22 lines and added 3. The guard above is the small half;
 // the large half is an ioctl fallback for when IFLA_TXQLEN is absent
@@ -94,15 +88,11 @@ import (
 //	qlen = ifr.ifr_qlen;
 //
 // That path is unreachable on every command whose replies come from
-// rtnl_dump_ifinfo, which is why it read as dead code. It is *not* dead on
-// `ip -6 addr show`: those replies come from inet6_dump_ifinfo and carry no
-// IFLA_TXQLEN, so the pinned `ip` prints "qlen 1000" for lo from an ioctl
-// while the fork prints nothing. Verified against both.
-//
-// goip has no knob for it and never prints the ioctl value — see the package
-// doc's divergence list for why — so the allowlist entry for faceb326 has to
-// name two loci, not one.
-var RenderQlenZero = false
+// rtnl_dump_ifinfo. It was live on `ip -6 addr show`, whose replies come from
+// inet6_dump_ifinfo and carry no IFLA_TXQLEN, so 7.1.0 printed "qlen 1000"
+// for lo from an ioctl. goip never prints the ioctl value (see the package
+// doc), and with 7.2.0 neither does `ip`.
+var RenderQlenZero = true
 
 // NameTab is what a renderer needs from the interface index cache, and no
 // more: iproute2's ll_index_to_name, ll_index_to_flags and ll_index_to_type.

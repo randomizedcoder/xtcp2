@@ -1,5 +1,7 @@
 // Package gordma is a read-only Go clone of iproute2's rdma(8), the
-// version the flake pins (7.1.0), built on pkg/xtcpnl's nldev decoders.
+// version the flake pins (7.2.0), built on pkg/xtcpnl's nldev decoders.
+// rdma's 7.1.0 -> 7.2.0 changes are all in `dev set netns`, which gordma
+// refuses, so the read paths are the same in both.
 //
 // Like goip for ip(8), it exists to make xtcpnl's RDMA coverage something
 // a diff can check: replaying rdma's strace corpus
@@ -31,7 +33,7 @@ import (
 )
 
 // Version is what -V prints: rdma's, since gordma clones that release.
-const Version = "rdma utility, iproute2-7.1.0"
+const Version = "rdma utility, iproute2-7.2.0"
 
 // toolName is rdma's basename(argv[0]) in its help texts.
 const toolName = "rdma"

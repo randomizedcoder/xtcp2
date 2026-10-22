@@ -1587,12 +1587,18 @@ func TestRequestRole(t *testing.T) {
 //
 // Every non-stdout locus in the committed allowlist must be a string the differ
 // can actually emit. An entry whose locus is a human's name for a call site —
-// "request:RTM_GETLINK:IFLA_EXT_MASK:ll_init_map", as these two read before the
+// "request:RTM_GETLINK:IFLA_EXT_MASK:ll_init_map", as these read before the
 // differ existed — loads and validates and looks reviewed, and matches nothing
 // forever. That is a worse failure than a missing entry, because it presents as
 // a check that is passing.
 //
-// The construction here is the real one: take the capture the entry is about,
+// The rows are the four request loci that carried version-skew entries while
+// the pin was iproute2 7.1.0. The pin is 7.2.0 now and goip sends what it
+// sends, so the entries are gone, and each row asserts the other half: the
+// differ still derives the locus, and nothing suppresses a mask divergence
+// there any more, so a goip that went back to 7.1.0's mask would be reported.
+//
+// The construction here is the real one: take the capture the locus is about,
 // mutate the attribute it names, and assert the divergence comes out at exactly
 // that locus.
 //
@@ -1609,9 +1615,8 @@ func TestCommittedAllowlistLociAreDerivable(t *testing.T) {
 		locus       string
 		filename    string
 		// txn is the transaction whose request carries the attribute, and
-		// wantMask is the value the pinned ip was recorded sending — asserted
-		// so a row cannot pass against a capture that does not hold what the
-		// entry's reason claims.
+		// wantMask is the value 7.1.0 was recorded sending — asserted so a
+		// row cannot pass against a capture that does not hold it.
 		txn      int
 		wantMask uint32
 	}{
@@ -1620,7 +1625,7 @@ func TestCommittedAllowlistLociAreDerivable(t *testing.T) {
 			// rtnl_linkdump_req(rth, AF_UNSPEC), which forwards
 			// RTEXT_FILTER_VF alone — so this is the one place in the corpus
 			// where the mask is not 0x09, and the entry's reason says so.
-			description: "positive: the ll_init_map dump locus is derivable, and its pinned mask is 0x01",
+			description: "positive: the ll_init_map dump locus is derivable, its 7.1.0 mask was 0x01, and nothing suppresses it",
 			command:     "neigh show",
 			locus:       "request:RTM_GETLINK:IFLA_EXT_MASK:dump",
 			filename:    tdGuestGetNeigh,
@@ -1635,7 +1640,7 @@ func TestCommittedAllowlistLociAreDerivable(t *testing.T) {
 			// it looks at `dev` — so a row that read 0x09 would be evidence
 			// the selector had changed the dump, which is precisely what
 			// this command asserts it does not do.
-			description: "positive: the ll_init_map dump locus is derivable on `neigh show dev` too, at the same 0x01",
+			description: "positive: the ll_init_map dump locus is derivable on `neigh show dev` too, at the same 0x01, unsuppressed",
 			command:     "neigh show dev",
 			locus:       "request:RTM_GETLINK:IFLA_EXT_MASK:dump",
 			filename:    tdGuestGetNeighDev,
@@ -1653,7 +1658,7 @@ func TestCommittedAllowlistLociAreDerivable(t *testing.T) {
 			// the argument loop's effects are consulted at all — the
 			// selector is parsed before, but acted on only in the dump at
 			// :490.
-			description: "positive: the ll_init_map dump locus is derivable on `neigh show proxy` too, at the same 0x01",
+			description: "positive: the ll_init_map dump locus is derivable on `neigh show proxy` too, at the same 0x01, unsuppressed",
 			command:     "neigh show proxy",
 			locus:       "request:RTM_GETLINK:IFLA_EXT_MASK:dump",
 			filename:    tdGuestGetNeighProxy,
@@ -1663,7 +1668,7 @@ func TestCommittedAllowlistLociAreDerivable(t *testing.T) {
 		{
 			// ll_link_get was already RTEXT_FILTER_VF|SKIP_STATS at 7.1.0, so
 			// this locus's pinned value is 0x09 and only de91e928 moves it.
-			description: "positive: the ll_link_get single-get locus is derivable, and its pinned mask is 0x09",
+			description: "positive: the ll_link_get single-get locus is derivable, its 7.1.0 mask was 0x09, and nothing suppresses it",
 			command:     "link show dev",
 			locus:       "request:RTM_GETLINK:IFLA_EXT_MASK:get",
 			filename:    tdGuestLinkDev,
@@ -1674,8 +1679,8 @@ func TestCommittedAllowlistLociAreDerivable(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			if _, ok := al.Lookup(tc.command, tc.locus); !ok {
-				t.Fatalf("the committed allowlist has no %q entry at %q", tc.command, tc.locus)
+			if _, ok := al.Lookup(tc.command, tc.locus); ok {
+				t.Fatalf("the committed allowlist has a %q entry at %q again", tc.command, tc.locus)
 			}
 
 			c, err := ParseRouteCaptureFile(tc.filename)
@@ -1700,11 +1705,11 @@ func TestCommittedAllowlistLociAreDerivable(t *testing.T) {
 				t.Fatalf("transaction %d's request carries no 4-byte IFLA_EXT_MASK", tc.txn)
 			}
 			if got := le32(mask); got != tc.wantMask {
-				t.Fatalf("pinned IFLA_EXT_MASK = 0x%02x, want 0x%02x — the allowlist entry's "+
-					"reason describes a value this capture does not hold", got, tc.wantMask)
+				t.Fatalf("captured IFLA_EXT_MASK = 0x%02x, want 0x%02x — the 7.1.0 capture "+
+					"does not hold what this row says it does", got, tc.wantMask)
 			}
 
-			// Now the divergence: de91e928's one extra bit.
+			// Now the divergence: de91e928's NAME_ONLY bit.
 			sub := cloneSegmentation(ref)
 			sub.Txns[tc.txn].Request = mustSetAttrU32(sub.Txns[tc.txn].Request,
 				uint16(unix.IFLA_EXT_MASK), tc.wantMask|0x100)
@@ -1719,13 +1724,12 @@ func TestCommittedAllowlistLociAreDerivable(t *testing.T) {
 					t.Errorf("divergence at %q has class %s, want %s — a version-skew entry "+
 						"can only ever suppress a value", tc.locus, d.Class, DivergenceValue)
 				}
-				if !al.Suppresses(tc.command, tc.locus, d.Class) {
-					t.Errorf("the committed entry does not suppress the divergence it exists for")
+				if al.Suppresses(tc.command, tc.locus, d.Class) {
+					t.Errorf("the committed allowlist suppresses a mask divergence goip no longer has")
 				}
 			}
 			if !found {
-				t.Fatalf("no divergence at %q; the committed locus is not one the differ emits, "+
-					"which makes the entry unreachable", tc.locus)
+				t.Fatalf("no divergence at %q; the locus is not one the differ emits", tc.locus)
 			}
 		})
 	}

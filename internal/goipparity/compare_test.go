@@ -141,8 +141,8 @@ func sameAll(v string) map[string]string {
 // purpose, and has nothing for an entry to suppress.
 //
 // The locus is spelled as StdoutLoci derives it, which is the only spelling
-// that matches; the committed file's own entry for it carries the argument for
-// why suppressing it is right.
+// that matches. The committed file carried this entry while the pin was 7.1.0;
+// goip follows 7.2.0 now and the committed file has none.
 func testAllowlist(t *testing.T) *nlparity.Allowlist {
 	t.Helper()
 	al, err := nlparity.LoadAllowlist([]byte(`{
@@ -153,7 +153,7 @@ func testAllowlist(t *testing.T) *nlparity.Allowlist {
 	      "locus": "stdout:keyword:qlen",
 	      "kind": "version-skew",
 	      "ip_version": "7.1.0",
-	      "reason": "test fixture: faceb326's qlen skew, mirroring the committed entry so the allow-suppressed rendering has something to render"
+	      "reason": "test fixture: faceb326's qlen skew, as the committed file carried it at the 7.1.0 pin, so the allow-suppressed rendering has something to render"
 	    }
 	  ],
 	  "gated_commands": ["link show"]

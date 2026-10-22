@@ -77,7 +77,7 @@ func sidecarWithCapturePromisc(t *testing.T, path string) string {
 // sidecarWithoutIoctlQlen removes a `qlen` token whose value did not come off
 // the wire.
 //
-// # A known skew that already has an allowlist entry, not a new one
+// # A 7.1.0 skew, not a goip divergence
 //
 // iproute2 7.1.0's print_queuelen falls back to ioctl(SIOCGIFTXQLEN) when
 // IFLA_TXQLEN is absent from the reply, and an AF_INET6 link dump is answered
@@ -89,14 +89,15 @@ func sidecarWithCapturePromisc(t *testing.T, path string) string {
 // those attribute types.
 //
 // goip reads netlink and only netlink, so there is nothing for it to have
-// missed and nothing for it to print. internal/goipparity/stdout.go:63-68
-// already says precisely this, and the parity allowlist already carries the
-// `stdout:` entry that keeps `-6 addr show` gateable over it. This helper is
+// missed and nothing for it to print. internal/goipparity/stdout.go says
+// precisely this, and while the pin was 7.1.0 the parity allowlist carried a
+// `stdout:` entry that kept `-6 addr show` gateable over it. This helper is
 // the offline half of the same accommodation.
 //
 // Note it is a 7.1.0 behavior specifically: the fallback is gone from
-// iproute2 7.2.0, which prints no qlen here at all. The pin is 7.1.0
-// (nix/upstream-pins.json), and the goldens were captured with it.
+// iproute2 7.2.0, which prints no qlen here at all. The pin is 7.2.0 now
+// (nix/upstream-pins.json), but these goldens were captured with 7.1.0, so the
+// helper lasts as long as they do.
 //
 // The token is removed WITHOUT its leading space, because that space belongs
 // to the preceding `state %s ` — which is why `ip` itself leaves a trailing

@@ -154,13 +154,16 @@ func nexthopShow(c *runCtx, sel nexthopSelectors) error {
 	resolveName := sel.devSet || sel.masterSet || sel.vrfSet
 	if resolveName {
 		if sel.vrfSet {
-			// name_is_vrf (ip/iplink_vrf.c:170): a link single-get by name whose
-			// IFLA_INFO_KIND must be "vrf", sent before ll_init_map.
-			lk, lerr := svc.LinkByName(sel.vrf)
+			// name_is_vrf (ip/iplink_vrf.c:170): a link single-get by name, with
+			// no ext mask, whose IFLA_INFO_KIND must be "vrf". It is not
+			// LinkByName: that is ll_link_get, whose 7.2.0 mask carries
+			// RTEXT_FILTER_NAME_ONLY, and a Linux 7.2+ kernel answers it
+			// without IFLA_LINKINFO, so every VRF would read as not one.
+			isVRF, lerr := svc.IsVRF(c.family, sel.vrf)
 			if lerr != nil {
 				return fmt.Errorf("nexthop show vrf %q: %w", sel.vrf, lerr)
 			}
-			if lk.Kind != vrfKindCst {
+			if !isVRF {
 				return fmt.Errorf("nexthop show: %q is not a VRF", sel.vrf)
 			}
 		}

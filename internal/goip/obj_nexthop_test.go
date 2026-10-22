@@ -2,9 +2,15 @@ package goip
 
 import (
 	"bytes"
+	"encoding/binary"
+	"encoding/hex"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/randomizedcoder/xtcp2/internal/goip/req"
+	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
+	"golang.org/x/sys/unix"
 )
 
 // The nexthop capture is the gated microVM's two one-command-clean pcaps:
@@ -505,5 +511,104 @@ func TestNexthopShowIDAbsent(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "no nexthop with id 999") {
 		t.Errorf("Run(%q) stderr = %q, want a 'no nexthop with id 999' message", args, stderr.String())
+	}
+}
+
+// kernel72Source answers RTM_GETLINK single-gets the way Linux 7.2 does
+// (net/core/rtnetlink.c:2084-2091): an ext mask carrying
+// RTEXT_FILTER_NAME_ONLY gets the header, IFLA_IFNAME and nothing else, so no
+// IFLA_LINKINFO. Dumps go to the replay. talks keeps every single-get.
+type kernel72Source struct {
+	Source
+	links map[uint32][2]string // ifindex -> {name, IFLA_INFO_KIND}
+	talks [][]byte
+}
+
+func (k *kernel72Source) Talk(request []byte, _ uint16) ([]byte, error) {
+	k.talks = append(k.talks, append([]byte(nil), request...))
+	body := request[unix.NLMSG_HDRLEN:]
+	index := binary.LittleEndian.Uint32(body[4:8])
+	var name string
+	var mask uint32
+	for a := body[xtcpnl.IfInfomsgSizeCst:]; len(a) >= 4; {
+		l := int(binary.LittleEndian.Uint16(a[0:2]))
+		if l < 4 || l > len(a) {
+			break
+		}
+		switch binary.LittleEndian.Uint16(a[2:4]) {
+		case unix.IFLA_IFNAME:
+			name = strings.TrimRight(string(a[4:l]), "\x00")
+		case unix.IFLA_EXT_MASK:
+			mask = binary.LittleEndian.Uint32(a[4:8])
+		}
+		a = a[min((l+3)&^3, len(a)):]
+	}
+	for idx, link := range k.links {
+		if idx != index && link[0] != name {
+			continue
+		}
+		reply := make([]byte, xtcpnl.IfInfomsgSizeCst)
+		binary.LittleEndian.PutUint32(reply[4:8], idx)
+		reply = append(reply, goipRtattr(unix.IFLA_IFNAME, append([]byte(link[0]), 0))...)
+		if mask&xtcpnl.RtextFilterNameOnly == 0 && link[1] != "" {
+			kind := goipRtattr(unix.IFLA_INFO_KIND, append([]byte(link[1]), 0))
+			reply = append(reply, goipRtattr(unix.IFLA_LINKINFO, kind)...)
+		}
+		return reply, nil
+	}
+	return nil, unix.ENODEV
+}
+
+// TestNexthopShowVrfCheckIsNameIsVrf pins the request `nexthop show vrf NAME`
+// sends first: name_is_vrf's (ip/iplink_vrf.c:170-222), not ll_link_get's.
+// The two differ by IFLA_EXT_MASK, and under iproute2 7.2.0 that matters
+// beyond the bytes: ll_link_get's mask carries RTEXT_FILTER_NAME_ONLY, and a
+// Linux 7.2+ kernel answers it without IFLA_LINKINFO, so a VRF check that
+// read the kind from that reply would reject every VRF. kernel72Source
+// answers the way such a kernel does; the replayed 7.1.4 replies could not
+// show the mistake, since they carry IFLA_LINKINFO whatever was asked.
+//
+// capturedBody is txn 0 of netlink_route_getnexthop_vrf.pcap after the
+// nlmsghdr: an ifinfomsg with ifi_family = preferred_family, then IFLA_IFNAME
+// "goipvrf", and no IFLA_EXT_MASK.
+//
+// go test ./internal/goip/ -run TestNexthopShowVrfCheckIsNameIsVrf
+func TestNexthopShowVrfCheckIsNameIsVrf(t *testing.T) {
+	const capturedBody = "00000000000000000000000000000000" + "0c000300676f697076726600"
+	tests := []struct {
+		name, category, description string
+		llMapNameOnly               bool
+		kind                        string // goipvrf's IFLA_INFO_KIND
+		expected                    string // "" for success, else the error
+	}{
+		{"vrf_7_2", "positive", "under the 7.2.0 default, a VRF passes on a 7.2 kernel", true, "vrf", ""},
+		{"vrf_7_1", "boundary", "the 7.1.0 knob changes nothing: name_is_vrf never had a mask", false, "vrf", ""},
+		{"not_vrf", "negative", "a link of another kind is refused", true, "dummy", "is not a VRF"},
+		{"no_kind", "corner", "a link with no IFLA_LINKINFO at all is refused", true, "", "is not a VRF"},
+	}
+	defer func(prev bool) { req.LLMapNameOnly = prev }(req.LLMapNameOnly)
+	for _, tc := range tests {
+		t.Run(tc.category+"/"+tc.name, func(t *testing.T) {
+			t.Logf("%s: %s; expected: %q", tc.category, tc.description, tc.expected)
+			req.LLMapNameOnly = tc.llMapNameOnly
+			src := &kernel72Source{
+				Source: openReplay(t, nexthopVrfPcap),
+				links:  map[uint32][2]string{4: {"goipvrf", tc.kind}, 5: {"goipv", ""}},
+			}
+			c := &runCtx{src: src, lltab: NewLLTab(), out: &bytes.Buffer{}, errOut: &bytes.Buffer{}}
+			err := runNexthop(c, []string{"show", "vrf", "goipvrf"})
+			switch {
+			case tc.expected == "" && err != nil:
+				t.Fatalf("nexthop show vrf goipvrf: %v", err)
+			case tc.expected != "" && (err == nil || !strings.Contains(err.Error(), tc.expected)):
+				t.Fatalf("err = %v, want one containing %q", err, tc.expected)
+			}
+			if len(src.talks) == 0 {
+				t.Fatal("no single-get sent")
+			}
+			if got := hex.EncodeToString(src.talks[0][unix.NLMSG_HDRLEN:]); got != capturedBody {
+				t.Errorf("first single-get body = %s, want %s", got, capturedBody)
+			}
+		})
 	}
 }

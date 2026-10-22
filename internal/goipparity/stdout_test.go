@@ -214,11 +214,12 @@ func TestCompareStdout(t *testing.T) {
 //
 // A locus is a persisted allowlist key. An entry whose locus nothing derives
 // matches nothing forever while presenting as a decision somebody made — and
-// this test found exactly that on the two committed `stdout:` entries, whose
-// loci were `stdout:link:qlen:IFLA_TXQLEN=0` and
+// this test found exactly that on the two then-committed `stdout:` entries,
+// whose loci were `stdout:link:qlen:IFLA_TXQLEN=0` and
 // `stdout:addr6:qlen:IFLA_TXQLEN-absent`. Both described the cause rather
-// than naming the quantity, so neither could ever have matched. They are
-// `stdout:keyword:qlen` now, distinguished by command.
+// than naming the quantity, so neither could ever have matched. They became
+// `stdout:keyword:qlen`, distinguished by command, and were retired when the
+// pin moved to iproute2 7.2.0 and goip with it.
 //
 // Unlike the netlink side, this can be checked with no capture at all,
 // because the stdout locus set is closed: the facets plus one per compared
@@ -256,16 +257,14 @@ func TestStdoutLociAreEnumerable(t *testing.T) {
 			},
 		},
 		{
-			description: "positive: at least one committed entry is a stdout entry, so this test is not vacuous",
+			// The committed file has no stdout entries since the 7.2.0 pin,
+			// so the row above checks nothing today. This one keeps a known
+			// member in view: the spelling the retired qlen entries used, and
+			// the one the next keyword skew would need, is still derivable.
+			description: "boundary: stdout:keyword:qlen, the retired entries' locus, is one StdoutLoci emits",
 			check: func(t *testing.T) {
-				n := 0
-				for _, e := range al.Entries {
-					if strings.HasPrefix(e.Locus, "stdout:") {
-						n++
-					}
-				}
-				if n == 0 {
-					t.Error("no committed stdout entries; this guard is checking nothing")
+				if !derivable["stdout:keyword:qlen"] {
+					t.Errorf("stdout:keyword:qlen is not derivable; StdoutLoci() is %v", StdoutLoci())
 				}
 			},
 		},
@@ -439,6 +438,27 @@ func TestCompareStdoutWithControl(t *testing.T) {
 	}
 	noQlen := strings.ReplaceAll(refAddrShow, " qlen 1000", "")
 
+	// skew is the entry the committed file carried for `-6 addr show` while
+	// the pin was 7.1.0, whose ioctl fallback printed this qlen. The rows that
+	// are about the suppression mechanism use it; the committed file has no
+	// entries since goip follows 7.2.0.
+	skew, err := nlparity.LoadAllowlist([]byte(`{
+	  "_comment": ["test fixture: internal/goipparity/stdout_test.go"],
+	  "entries": [
+	    {
+	      "command": "-6 addr show",
+	      "locus": "stdout:keyword:qlen",
+	      "kind": "version-skew",
+	      "ip_version": "7.1.0",
+	      "reason": "test fixture: faceb326's ioctl half, as the committed file carried it at the 7.1.0 pin"
+	    }
+	  ],
+	  "gated_commands": ["-6 addr show"]
+	}`))
+	if err != nil {
+		t.Fatalf("LoadAllowlist: %v", err)
+	}
+
 	tests := []struct {
 		description         string
 		command             string
@@ -456,18 +476,27 @@ func TestCompareStdoutWithControl(t *testing.T) {
 			wantFailed: false,
 		},
 		{
-			description: "positive: the committed -6 addr show entry suppresses the qlen absence it exists for",
+			description: "positive: a -6 addr show entry suppresses the qlen absence it exists for",
 			command:     "-6 addr show", ipA: refAddrShow, goip: noQlen, ipB: refAddrShow,
-			al:                  al,
+			al:                  skew,
 			wantAllowSuppressed: []string{"stdout:keyword:qlen"},
 			wantFailed:          false,
 		},
 		{
 			description: "negative: the same qlen absence on an unlisted command is NOT suppressed",
 			// The allowlist is keyed on command and locus together, and this
-			// is the half of that which makes the two committed entries
-			// narrow rather than global.
+			// is the half of that which makes an entry narrow rather than
+			// global.
 			command: "addr show", ipA: refAddrShow, goip: noQlen, ipB: refAddrShow,
+			al:           skew,
+			wantFindings: []string{"stdout:keyword:qlen"},
+			wantFailed:   true,
+		},
+		{
+			// 7.2.0 prints no qlen here, so a reference that does is 7.1.0's,
+			// and the committed file no longer excuses goip for differing.
+			description: "negative: the committed allowlist no longer suppresses the -6 addr show qlen absence",
+			command:     "-6 addr show", ipA: refAddrShow, goip: noQlen, ipB: refAddrShow,
 			al:           al,
 			wantFindings: []string{"stdout:keyword:qlen"},
 			wantFailed:   true,
@@ -499,7 +528,7 @@ func TestCompareStdoutWithControl(t *testing.T) {
 			description: "corner: control subtraction runs before allowlisting, so a suppressed finding is attributed to the control",
 			command:     "-6 addr show",
 			ipA:         refAddrShow, goip: noQlen, ipB: noQlen,
-			al: al,
+			al: skew,
 			// The control already flags qlen, so the finding never reaches the
 			// allowlist and AllowSuppressed stays empty. Which stage claimed
 			// it is the difference between "the reference tool is noisy here"

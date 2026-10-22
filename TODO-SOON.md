@@ -639,11 +639,26 @@ What the upgrade turned up:
 - **Linux headers 7.2** came with the nixpkgs bump and added the RDMA FRMR pool
   commands and attributes, which broke `rdma_consts.h`'s `NUM_OPS` and
   `ATTR_MAX` asserts. The constants are added; no decoder reads them yet.
-- **iproute2 7.2.0** came with it too; see `nix/upstream-pins.json` and the
-  netlink fixture recapture.
+- **iproute2 7.2.0** came with it too, and goip follows it: the index-cache
+  requests send `IFLA_EXT_MASK` 0x109, and `qlen 0` prints. Knobs keep 7.1.0
+  for the committed corpora, and the parity allowlist's seven version-skew
+  entries are retired. gordma clones rdma 7.2.0. `nexthop show vrf` now sends
+  `name_is_vrf`'s request; on a 7.2 kernel the NAME_ONLY reply carries no
+  `IFLA_LINKINFO`, so the old check rejected every VRF. Details are in
+  `docs/netlink/coverage-status.md` under "iproute2 7.2.0".
 
-Still to do: the microVM lifecycle checks (the user runs those), and
-`nix run .#update-quality-report` to refresh the header and re-check coverage.
+Still to do:
+
+- the microVM lifecycle checks (the user runs those);
+- a dump capture at the new pin (`nix run
+  .#microvm-x86_64-netlink-dump-capture`), then goip tests against it in the
+  7.2.0 mode;
+- a live `nix run .#microvm-x86_64-goip-parity`;
+- `nexthop show dev|master|vrf` sends an `ll_init_map`-shaped link dump, but
+  `ip` resolves the name with `ll_link_get`, since `ipnexthop.c` has no
+  `ll_init_map`. Those selectors aren't in the parity matrix;
+- `nix run .#update-quality-report` to refresh the header and re-check
+  coverage.
 
 The original plan follows.
 
