@@ -1212,6 +1212,39 @@ var commands = withArgs([]Command{
 		// transaction count matches, which is what the gate reads.
 		Floor: 4, Implemented: true,
 	},
+	{
+		Name: "nexthop show dev goip0", Slug: "nexthop_show_dev",
+		// Four, the bare dump's: nh_dump_filter (ip/ipnexthop.c:70) resolves
+		// the name with ll_link_get before the NHA_OIF-filtered dump, and
+		// print_rta_ifidx renders `dev goip0` from the reply. The device is
+		// in the argv rather than NeedsDev because the clean topology the
+		// driver builds puts ids 1 and 2 on goip0 by name.
+		//
+		// Since iproute2 7.2.0 the name lookup is an ll_link_get by name
+		// with IFLA_EXT_MASK 0x109, not an ll_init_map dump; the 7_3_0
+		// corpus grounds it offline (TestCorpus730MatchesSidecarsAt720,
+		// req.TestTierALLRequests730's link_get_by_name row). Gated on two
+		// live runs at 7.2.0: PASS, stdout=0, control nl=0, txns 2/2 — the
+		// get and the dump.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "nexthop show master goipvrf", Slug: "nexthop_show_master",
+		// Four: the same ll_link_get for the master's name, then an
+		// NHA_MASTER dump that returns id 7, on the VRF-enslaved goipv,
+		// then a by-index get to print its `dev`. Gated with the dev row:
+		// txns 3/3, control nl=0 on both runs.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "nexthop show vrf goipvrf", Slug: "nexthop_show_vrf",
+		// Four, plus one transaction over `master`: name_is_vrf
+		// (ip/iplink_vrf.c:170) gets the link first to confirm its kind, a
+		// get that carries no NAME_ONLY, then the same ll_link_get,
+		// NHA_MASTER dump and by-index get as `master`, and the same id 7.
+		// Gated with the dev row: txns 4/4, control nl=0 on both runs.
+		Floor: 4, Implemented: true,
+	},
 
 	{
 		Name: "addrlabel show", Slug: "addrlabel_show",

@@ -404,6 +404,12 @@ func TestAllowlistCommitted(t *testing.T) {
 		"addrlabel show",
 		"-6 addrlabel show",
 		"-j addrlabel show",
+		// The three nexthop selector rows, gated on two runs at iproute2
+		// 7.2.0: GOIP_PARITY_PASS with stdout=0, control nl=0 and txns 2/2,
+		// 3/3 and 4/4 on both.
+		"nexthop show dev goip0",
+		"nexthop show master goipvrf",
+		"nexthop show vrf goipvrf",
 		// The twenty-one link write rows, gated on the phase 7 runs: all
 		// GOIP_PARITY_PASS twice with identical verdicts, txns matching ip
 		// with goip's GOIP_WRITE_OUT file counted as its write, control nl=0
