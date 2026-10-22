@@ -2869,3 +2869,73 @@ func TestNeighWriteRows(t *testing.T) {
 		})
 	}
 }
+
+// TestRuleWriteRows pins G3-T02's twenty rows: the fourteen selector adds,
+// one each from rule_add_selectors, the add, del and del of a missing rule,
+// the flush and the restore, write rows, and the save a read row, each on
+// its capture's precondition, every one gated with no allowlist entry after
+// two clean live runs.
+//
+// go test ./internal/goipparity/ -run TestRuleWriteRows
+func TestRuleWriteRows(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	rtnl := filepath.Join("..", "..", "pkg", "xtcpnl", "testdata", "7_1_4", "link-write", "rtnl")
+	type want struct {
+		implemented, write, topology, gated bool
+		floor, writes, entries              int
+	}
+	single := want{implemented: true, write: true, topology: true, gated: true, floor: 2}
+	rows := []struct {
+		description string
+		command     string
+		corpus      string // the slug whose topology Setup must be; "" for none
+		expected    want
+	}{
+		{"positive: from", "rule add pref 101 from 192.0.2.0/24 table 100", "", single},
+		{"positive: to", "rule add pref 102 to 198.51.100.0/24 table 100", "", single},
+		{"positive: tos", "rule add pref 103 tos 0x10 table 100", "", single},
+		{"positive: dscp", "rule add pref 104 dscp 10 table 100", "", single},
+		{"positive: fwmark and mask", "rule add pref 105 fwmark 0x7/0xff table 100", "", single},
+		{"positive: iif", "rule add pref 106 iif d9 table 100", "", single},
+		{"positive: oif", "rule add pref 107 oif d9 table 100", "", single},
+		{"positive: uidrange", "rule add pref 108 uidrange 1000-2000 table 100", "", single},
+		{"positive: ipproto and ports", "rule add pref 109 ipproto tcp sport 1000-2000 dport 80 table 100", "", single},
+		{"positive: not and goto", "rule add pref 110 not from 203.0.113.0/24 goto 112", "", single},
+		{"positive: suppress_prefixlength", "rule add pref 111 table main suppress_prefixlength 0", "", single},
+		{"positive: protocol", "rule add pref 112 protocol static table 100", "", single},
+		{"positive: l3mdev", "rule add pref 113 l3mdev", "", single},
+		{"positive: -6 flowlabel", "-6 rule add pref 114 flowlabel 0x12345 table 100", "", single},
+		{"negative: add of a rule the kernel holds, refused, the same request",
+			"rule add pref 100 from 192.0.2.0/24 table 100", "rule_add_existing", single},
+		{"positive: del", "rule del pref 100", "rule_del", single},
+		{"negative: del of a missing rule", "rule del pref 4242", "", single},
+		{"positive: flush, four DELs each acked", "rule flush", "rule_flush",
+			want{implemented: true, write: true, topology: true, gated: true, floor: 4, writes: 4}},
+		{"positive: save, a read row", "rule save", "rule_save",
+			want{implemented: true, topology: true, gated: true, floor: 2}},
+		{"positive: restore, the link dump then five writes", "rule restore < rule_save.save", "",
+			want{implemented: true, write: true, topology: true, gated: true, floor: 4, writes: 5}},
+		{"negative: a flush with a selector is not in the matrix", "rule flush pref 100", "", want{}},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			var got want
+			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				var topo []string
+				if r.corpus != "" {
+					topo = topologySteps(t, rtnl, r.corpus)
+				}
+				got = want{implemented: c.Implemented, write: c.Write,
+					topology: slices.Equal(c.Setup, topo), floor: c.Floor, writes: c.Writes}
+			}
+			got.gated = al.IsGated(r.command)
+			got.entries = len(al.EntriesFor(r.command))
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+		})
+	}
+}

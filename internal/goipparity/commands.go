@@ -1309,6 +1309,105 @@ var commands = withArgs([]Command{
 		// claim holds live, on the cheapest row in the table.
 		Floor: 2, Implemented: true,
 	},
+	// G3-T02: `rule add` and `rule del` (iprule_modify), `rule flush`, `rule
+	// save` and `rule restore` (iprule_list_flush_or_save, iprule_restore),
+	// the C1 rule rows. A rule write resolves nothing first: a device goes
+	// by name, so ip sends the write and its ack (2) and goip sends nothing,
+	// writing the request. The fourteen selector adds were one capture,
+	// rule_add_selectors; each is a row of its own here, in a namespace of
+	// its own, so `goto 112` names a rule that is not there, which the kernel
+	// accepts.
+	{
+		Name: "rule add pref 101 from 192.0.2.0/24 table 100", Slug: "rule_add_from",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "rule add pref 102 to 198.51.100.0/24 table 100", Slug: "rule_add_to",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "rule add pref 103 tos 0x10 table 100", Slug: "rule_add_tos",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "rule add pref 104 dscp 10 table 100", Slug: "rule_add_dscp",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "rule add pref 105 fwmark 0x7/0xff table 100", Slug: "rule_add_fwmark",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "rule add pref 106 iif d9 table 100", Slug: "rule_add_iif",
+		// d9 does not exist, and need not: the name is what is sent.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "rule add pref 107 oif d9 table 100", Slug: "rule_add_oif",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "rule add pref 108 uidrange 1000-2000 table 100", Slug: "rule_add_uidrange",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "rule add pref 109 ipproto tcp sport 1000-2000 dport 80 table 100", Slug: "rule_add_ports",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "rule add pref 110 not from 203.0.113.0/24 goto 112", Slug: "rule_add_goto",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "rule add pref 111 table main suppress_prefixlength 0", Slug: "rule_add_suppress",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "rule add pref 112 protocol static table 100", Slug: "rule_add_protocol",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "rule add pref 113 l3mdev", Slug: "rule_add_l3mdev",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "-6 rule add pref 114 flowlabel 0x12345 table 100", Slug: "rule_add_flowlabel",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "rule add pref 100 from 192.0.2.0/24 table 100", Slug: "rule_add_existing",
+		// EEXIST, exit 2.
+		Floor: 2, Implemented: true, Write: true, Setup: ruleExistingSetup,
+	},
+	{
+		Name: "rule del pref 100", Slug: "rule_del",
+		Floor: 2, Implemented: true, Write: true, Setup: ruleExistingSetup,
+	},
+	{
+		Name: "rule del pref 4242", Slug: "rule_del_missing",
+		// ENOENT, exit 2.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	// The flush: the rule dump, its five replies and DONE in one datagram,
+	// then an RTM_DELRULE copy of each reply carrying FRA_PRIORITY, each
+	// sent alone and acked, which is every rule but the local one: ip sends
+	// ten datagrams, goip the dump's two. save is the dump with the replies
+	// written whole after the magic, compared record by record
+	// (stdout_dump.go). restore reads rule_save's committed ip.save, which
+	// the runner carries in: ll_init_map's link dump, then the five rules,
+	// each acked; goip sends the dump and writes the five.
+	{
+		Name: "rule flush", Slug: "rule_flush",
+		Floor: 4, Implemented: true, Write: true, Writes: 4, Setup: ruleFlushSetup,
+	},
+	{
+		Name: "rule save", Slug: "rule_save",
+		Floor: 2, Implemented: true, Setup: ruleFlushSetup,
+	},
+	{
+		Name: "rule restore < rule_save.save", Slug: "rule_restore",
+		Floor: 4, Implemented: true, Write: true, Writes: 5,
+	},
 
 	{
 		Name: "nexthop show", Slug: "nexthop_show",
@@ -2477,6 +2576,13 @@ var linkXstatsSetup = []string{
 	"link add br0 type bridge", "link add v2 type veth peer name v2p",
 	"link set v2 master br0", "link set br0 up", "link set v2 up",
 }
+
+// The rule rows' preconditions: rule_add_existing's and rule_del's one rule,
+// and PRE_RULES in rtnl-write-corpus.exp, rule_flush's and rule_save's.
+var (
+	ruleExistingSetup = []string{"rule add pref 100 from 192.0.2.0/24 table 100"}
+	ruleFlushSetup    = append(append([]string{}, ruleExistingSetup...), "rule add pref 101 fwmark 7 table 101")
+)
 
 // routeSaveSetup is PRE_ROUTES in rtnl-write-corpus.exp, route_save's
 // topology step for step.

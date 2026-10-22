@@ -25,18 +25,32 @@ import (
 // it means transcribing the wrong order would not be caught by testing them.
 var ruleShowVerbs = []string{listVerbCst, lstVerbCst, showVerbCst}
 
+// runRule is do_iprule (ip/iprule.c:1236-1260): the verbs by matches(), in
+// its order, so `s` is show, `sa` save, `d` delete and `f` flush.
 func runRule(c *runCtx, args []string) error {
-	if len(args) > 0 {
-		if !matchesAny(args[0], ruleShowVerbs) {
-			return fmt.Errorf("rule %q: %w", args[0], ErrNotImplemented)
-		}
-		args = args[1:]
-	}
 	// A bare `ip rule` is a list (ip/iprule.c:1238-1239), like `ip route`.
-	if err := parseRuleShowArgs(args); err != nil {
-		return err
+	if len(args) == 0 {
+		return ruleShow(c)
 	}
-	return ruleShow(c)
+	verb, rest := args[0], args[1:]
+	switch {
+	case matchesAny(verb, ruleShowVerbs):
+		if err := parseRuleShowArgs(rest); err != nil {
+			return err
+		}
+		return ruleShow(c)
+	case matchesPrefix(verb, routeSaveVerbCst):
+		return ruleSave(c, rest)
+	case matchesPrefix(verb, routeRestoreVerbCst):
+		return ruleRestore(c, rest)
+	case matchesPrefix(verb, ruleAddVerbCst):
+		return ruleModify(c, unix.RTM_NEWRULE, rest)
+	case matchesPrefix(verb, ruleDeleteVerbCst):
+		return ruleModify(c, unix.RTM_DELRULE, rest)
+	case matchesPrefix(verb, routeFlushVerbCst):
+		return ruleFlush(c, rest)
+	}
+	return fmt.Errorf("rule %q: %w", verb, ErrNotImplemented)
 }
 
 // parseRuleShowArgs rejects every selector, and unlike the other objects it

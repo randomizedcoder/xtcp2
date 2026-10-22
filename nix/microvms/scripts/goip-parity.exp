@@ -417,7 +417,7 @@ if {$dir_rc != 0 || $capture_dir eq ""} {
 # directory, where every row's command runs. Copied once, before any row,
 # from the store path the runner passed; they then ship in the blob beside
 # the captures.
-vmlib::must "cp $save_blobs/restore_fresh.save $save_blobs/restore_existing.save $save_blobs/route_save.save $capture_dir/"
+vmlib::must "cp $save_blobs/restore_fresh.save $save_blobs/restore_existing.save $save_blobs/route_save.save $save_blobs/rule_save.save $capture_dir/"
 
 set table [read_command_table]
 vmlib::log "=== capturing [llength $table] commands x 3 sides ==="

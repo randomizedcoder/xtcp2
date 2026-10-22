@@ -116,7 +116,8 @@ func TestAddrRestoreRows(t *testing.T) {
 
 	// The rows name <slug>.save; the runner must carry each slug's own
 	// ip.save under that name, and the driver must copy it where the
-	// command runs. route_save.save is G2-T01's showdump rows' input.
+	// command runs. route_save.save is G2-T01's showdump rows' input, and
+	// rule_save.save G3-T02's rule restore row's.
 	nixDefault := mustRead(t, filepath.Join("..", "..", "nix", "microvms", "default.nix"))
 	driver := mustRead(t, filepath.Join("..", "..", "nix", "microvms", "scripts", "goip-parity.exp"))
 	for _, tc := range []struct {
@@ -131,12 +132,16 @@ func TestAddrRestoreRows(t *testing.T) {
 			text: nixDefault, fragment: `"/restore_existing/ip.save"`, expected: true},
 		{description: "positive: default.nix names them restore_fresh.save and restore_existing.save",
 			text: nixDefault, fragment: "cp $restoreFresh $out/restore_fresh.save\n        cp $restoreExisting $out/restore_existing.save", expected: true},
-		{description: "positive: the driver copies both into the capture directory",
-			text: driver, fragment: "$save_blobs/restore_fresh.save $save_blobs/restore_existing.save $save_blobs/route_save.save $capture_dir/", expected: true},
+		{description: "positive: the driver copies every blob into the capture directory",
+			text: driver, fragment: "$save_blobs/restore_fresh.save $save_blobs/restore_existing.save $save_blobs/route_save.save $save_blobs/rule_save.save $capture_dir/", expected: true},
 		{description: "positive: default.nix reads route_save's ip.save, which the showdump rows read",
 			text: nixDefault, fragment: `rtnl + "/route_save/ip.save"`, expected: true},
 		{description: "positive: default.nix names it route_save.save, the showdump rows' input",
 			text: nixDefault, fragment: "cp $routeSave $out/route_save.save", expected: true},
+		{description: "positive: default.nix reads rule_save's ip.save, which the rule restore row reads",
+			text: nixDefault, fragment: `rtnl + "/rule_save/ip.save"`, expected: true},
+		{description: "positive: default.nix names it rule_save.save",
+			text: nixDefault, fragment: "cp $ruleSave $out/rule_save.save", expected: true},
 		{description: "negative: default.nix does not carry save_all's blob, which no row reads",
 			text: nixDefault, fragment: `"/save_all/ip.save"`, expected: false},
 	} {

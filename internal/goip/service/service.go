@@ -686,6 +686,22 @@ func (s *Service) NeighborLinks() ([]model.Link, error) {
 	return links, nil
 }
 
+// RuleMsgs sends `ip rule show`'s dump and returns each RTM_NEWRULE reply
+// whole, its header as the kernel sent it: `ip rule save` writes them to its
+// file, and `ip rule flush` sends each back as an RTM_DELRULE that keeps the
+// reply's seq and port id.
+func (s *Service) RuleMsgs(family uint8) ([][]byte, error) {
+	src, ok := s.src.(MsgDumpSource)
+	if !ok {
+		return nil, ErrNoMsgDump
+	}
+	r, err := req.RuleShowDump(family, s.nextSeq())
+	if err != nil {
+		return nil, fmt.Errorf("goip: build rule dump request: %w", err)
+	}
+	return src.DumpMsgs(r, uint16(unix.RTM_NEWRULE))
+}
+
 // Rules is `ip rule show`'s single dump.
 //
 // The shortest method in this file, and the shape is the point: no

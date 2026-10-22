@@ -10,9 +10,9 @@ several steps, further down under [Remaining](#remaining).
 
 | | count | counted from |
 |---|---|---|
-| commands in the comparison matrix | **215** | `internal/goipparity/commands.go` — 121 read rows (31 of them `addr show` state, selector and output-mode rows with a `Setup`, and 6 `route get`, 2 `neigh get`, 4 `nexthop get` and `nexthop bucket`, 3 `link xstats` and `link afstats`, 3 `route save` and `route showdump`, 1 `route flush` and 1 `neigh flush` rows with one; the missing-table `route flush` row has none), the 21 link write rows, the 26 route write rows, the 27 address write rows, the 7 address flush rows, the 2 address restore rows, the route restore row, the 2 route flush write rows, the 6 neigh write rows and the 2 neigh flush write rows |
-| of those, `Implemented: true` | **215** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
-| of those, in `gated_commands` | **214** | `pkg/nlparity/goip-parity-allowlist.json` |
+| commands in the comparison matrix | **235** | `internal/goipparity/commands.go` — 122 read rows (31 of them `addr show` state, selector and output-mode rows with a `Setup`, and 6 `route get`, 2 `neigh get`, 4 `nexthop get` and `nexthop bucket`, 3 `link xstats` and `link afstats`, 3 `route save` and `route showdump`, 1 `route flush`, 1 `neigh flush` and 1 `rule save` rows with one; the missing-table `route flush` row has none), the 21 link write rows, the 26 route write rows, the 27 address write rows, the 7 address flush rows, the 2 address restore rows, the route restore row, the 2 route flush write rows, the 6 neigh write rows, the 2 neigh flush write rows, the 17 rule write rows, the rule flush write row and the rule restore row |
+| of those, `Implemented: true` | **235** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
+| of those, in `gated_commands` | **234** | `pkg/nlparity/goip-parity-allowlist.json` |
 | allowlisted divergences | **7** | same file, `entries` |
 | of those, `kind=version-skew` | **7** | all against the pinned `ip` 7.1.0 |
 | of those, `kind=accepted-divergence` | **0** | nothing is *allowlisted* as a permanent divergence — the nine wire divergences runs 8 and 9 measured **could not** be, because a transaction-count divergence is unsuppressible (`nlparity_allowlist.go:143`), and G0 retired every one by changing goip to send `ip`'s requests |
@@ -3708,6 +3708,33 @@ flush rows 5/5 with `-s`'s round text equal, the empty flush 2/2; the link
 dump's IPv6 cache info is the only control noise. All nine gate with no
 allowlist entry, and `TestNeighWriteRows` and the
 `earned`/`gated_commands` pair pin them: 215 rows, 214 gated.
+
+### G3-T02: the twenty `rule` write, flush, save and restore rows gate
+
+G3-T02 adds `goip rule add` and `delete` (`internal/goip/rule_write.go`)
+and `goip rule flush`, `save` and `restore` (`internal/goip/rule_save.go`),
+and twenty rows, one per C1-T01 and C1-T02 rule capture. Unlike the neigh
+and route writes, `iprule_modify` sends no link dump: `iif` and `oif` go
+by name, so each add and delete is one request, which goip writes to
+`GOIP_WRITE_OUT`. Fourteen add rows each carry one selector or action
+(`from`, `to`, `tos`, `dscp`, `fwmark`, `iif`, `oif`, `uidrange`, the
+ports, `goto`, `suppress_prefixlength`, `protocol`, `l3mdev` and `-6`'s
+`flowlabel`); an add of a held rule, a delete and a delete of a missing
+one make seventeen write rows.
+
+`rule flush` is one dump and an `RTM_DELRULE` copy of each reply that
+carries `FRA_PRIORITY`, flagged `NLM_F_REQUEST|NLM_F_ACK` and keeping the
+dump's seq; the kernel leaves the attribute off the priority-0 local rule,
+so that one stays. Its Setup adds two rules to the default three, so it is
+a write row of four copies. `rule save` of the same rules is a read row
+whose stdout the dump-file comparator checks record by record, and the
+runner carries its file in for `rule restore`, a write row of the link
+dump and five `RTM_NEWRULE` requests.
+
+Two back-to-back runs passed 235 of 235, identical row for row, ending
+`GOIP_PARITY_OVERALL_PASS`. All twenty gate with no allowlist entry, and
+`TestRuleWriteRows` and the `earned`/`gated_commands` pair pin them: 235
+rows, 234 gated.
 
 ## Tier C — the `goip-parity` microVM flavor
 

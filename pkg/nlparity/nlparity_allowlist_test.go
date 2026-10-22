@@ -647,6 +647,27 @@ func TestAllowlistCommitted(t *testing.T) {
 		"neigh flush dev d0",
 		"-s neigh flush dev d0",
 		"neigh f dev d0",
+		// G3-T02's twenty `rule` write, flush, save and restore rows.
+		"rule add pref 101 from 192.0.2.0/24 table 100",
+		"rule add pref 102 to 198.51.100.0/24 table 100",
+		"rule add pref 103 tos 0x10 table 100",
+		"rule add pref 104 dscp 10 table 100",
+		"rule add pref 105 fwmark 0x7/0xff table 100",
+		"rule add pref 106 iif d9 table 100",
+		"rule add pref 107 oif d9 table 100",
+		"rule add pref 108 uidrange 1000-2000 table 100",
+		"rule add pref 109 ipproto tcp sport 1000-2000 dport 80 table 100",
+		"rule add pref 110 not from 203.0.113.0/24 goto 112",
+		"rule add pref 111 table main suppress_prefixlength 0",
+		"rule add pref 112 protocol static table 100",
+		"rule add pref 113 l3mdev",
+		"-6 rule add pref 114 flowlabel 0x12345 table 100",
+		"rule add pref 100 from 192.0.2.0/24 table 100",
+		"rule del pref 100",
+		"rule del pref 4242",
+		"rule flush",
+		"rule save",
+		"rule restore < rule_save.save",
 	}
 
 	tests := []struct {

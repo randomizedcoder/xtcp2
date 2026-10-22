@@ -41,7 +41,15 @@ const (
 	neighWriteSlugPrefixCst = "neigh_"
 	neighFlushSlugCst       = "neigh_flush"
 	neighFlushStatsSlugCst  = "neigh_flush_stats"
-	tdAddrSave              = "../../pkg/xtcpnl/testdata/7_1_4/link-write/addr-save"
+	// ruleWriteSlugPrefixCst names G3-T02's rule write rows, each on the
+	// capture of its own slug under tdRtnl but the selector adds, which
+	// share ruleSelectorsSlugCst's; ruleFlushSlugCst and ruleRestoreSlugCst
+	// are its flush and restore rows.
+	ruleWriteSlugPrefixCst = "rule_"
+	ruleSelectorsSlugCst   = "rule_add_selectors"
+	ruleFlushSlugCst       = "rule_flush"
+	ruleRestoreSlugCst     = "rule_restore"
+	tdAddrSave             = "../../pkg/xtcpnl/testdata/7_1_4/link-write/addr-save"
 	// tdRtnl is the C1 rtnetlink corpus, route_restore\'s among it.
 	tdRtnl           = "../../pkg/xtcpnl/testdata/7_1_4/link-write/rtnl"
 	pcapGlobalHdrCst = 24
@@ -56,6 +64,8 @@ const (
 	rtmDelRouteCst = 25
 	rtmDelAddrCst  = 21
 	rtmDelNeighCst = 29
+	rtmNewRuleCst  = 32
+	rtmDelRuleCst  = 33
 	nlmFRequestCst = 0x1
 	// nlMsgHdrCst is sizeof(struct nlmsghdr). Spelled here because this
 	// package may not import pkg/xtcpnl (TestParityCannotOpenASocket).
@@ -171,6 +181,21 @@ func corpusWriteRow(t *testing.T, c Command) writeRowFiles {
 	if strings.HasPrefix(c.Slug, neighWriteSlugPrefixCst) {
 		dir = filepath.Join(tdRtnl, c.Slug)
 	}
+	if c.Slug == ruleFlushSlugCst {
+		// Each DEL is acked, so goip's capture is ip's cut at the first.
+		f := corpusFlushRow(t, c, filepath.Join(tdRtnl, ruleFlushSlugCst))
+		f.pcaps[SideGoip] = keepBeforeRequest(t, f.pcaps[SideIPA], rtmDelRuleCst)
+		return f
+	}
+	if c.Slug == ruleRestoreSlugCst {
+		return corpusRestoreRow(t, c, filepath.Join(tdRtnl, ruleRestoreSlugCst), rtmNewRuleCst)
+	}
+	if i, ok := ruleSelectorIndex[c.Slug]; ok {
+		return corpusRuleSelectorRow(t, i)
+	}
+	if strings.HasPrefix(c.Slug, ruleWriteSlugPrefixCst) {
+		dir = filepath.Join(tdRtnl, c.Slug)
+	}
 	ipPcap := mustReadBytes(t, filepath.Join(dir, "ip.pcap"))
 	rc := strings.TrimSpace(mustRead(t, filepath.Join(dir, "ip.rc")))
 
@@ -187,6 +212,42 @@ func corpusWriteRow(t *testing.T, c Command) writeRowFiles {
 		pcaps: map[string][]byte{SideIPA: ipPcap, SideGoip: dropLastRecords(t, ipPcap, 2), SideIPB: ipPcap},
 		rcs:   map[string]string{SideIPA: rc, SideGoip: "0", SideIPB: rc},
 		write: writeRequest(w.Writes[0], 1),
+	}
+}
+
+// ruleSelectorIndex is each selector add row's place in rule_add_selectors,
+// whose fourteen adds ran in this order, each a write and its ack.
+var ruleSelectorIndex = map[string]int{
+	"rule_add_from": 0, "rule_add_to": 1, "rule_add_tos": 2, "rule_add_dscp": 3, "rule_add_fwmark": 4,
+	"rule_add_iif": 5, "rule_add_oif": 6, "rule_add_uidrange": 7, "rule_add_ports": 8, "rule_add_goto": 9,
+	"rule_add_suppress": 10, "rule_add_protocol": 11, "rule_add_l3mdev": 12, "rule_add_flowlabel": 13,
+}
+
+// corpusRuleSelectorRow is one selector add's files as a perfect run would
+// leave them: ip's capture is rule_add_selectors' records 2i and 2i+1, the
+// add and its ack, goip's is empty, and its file is the add.
+func corpusRuleSelectorRow(t *testing.T, i int) writeRowFiles {
+	t.Helper()
+	dir := filepath.Join(tdRtnl, ruleSelectorsSlugCst)
+	all := mustReadBytes(t, filepath.Join(dir, "ip.pcap"))
+	offs := append(pcapRecords(t, all), len(all))
+	if len(offs) != 2*len(ruleSelectorIndex)+1 {
+		t.Fatalf("%s holds %d records, want %d", ruleSelectorsSlugCst, len(offs)-1, 2*len(ruleSelectorIndex))
+	}
+	ipPcap := append(append([]byte(nil), all[:pcapGlobalHdrCst]...), all[offs[2*i]:offs[2*i+2]]...)
+	capture, err := nlparity.ParseRouteCaptureFile(filepath.Join(dir, "ip.pcap"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, err := nlparity.SplitWrites(nlparity.SegmentCapture(capture), len(ruleSelectorIndex))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rc := strings.TrimSpace(mustRead(t, filepath.Join(dir, "ip.rc")))
+	return writeRowFiles{
+		pcaps: map[string][]byte{SideIPA: ipPcap, SideGoip: dropLastRecords(t, ipPcap, 2), SideIPB: ipPcap},
+		rcs:   map[string]string{SideIPA: rc, SideGoip: "0", SideIPB: rc},
+		write: writeRequest(w.Writes[i], 1),
 	}
 }
 

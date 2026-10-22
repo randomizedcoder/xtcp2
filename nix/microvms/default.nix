@@ -981,7 +981,8 @@ let
   # The committed `ip.save` files the goip-parity rows read, each named
   # <slug>.save: the bytes `ip` saved in the capture, not a second save taken
   # in the guest. The two address restore rows read theirs (addr-write-path.md
-  # phase 9); the route showdump rows read route_save's (G2-T01).
+  # phase 9); the route showdump rows read route_save's (G2-T01), and the
+  # rule restore row rule_save's (G3-T02).
   goipParitySaveBlobs =
     let
       dir = ../../pkg/xtcpnl/testdata/7_1_4/link-write/addr-save;
@@ -992,12 +993,14 @@ let
         restoreFresh = dir + "/restore_fresh/ip.save";
         restoreExisting = dir + "/restore_existing/ip.save";
         routeSave = rtnl + "/route_save/ip.save";
+        ruleSave = rtnl + "/rule_save/ip.save";
       }
       ''
         mkdir -p $out
         cp $restoreFresh $out/restore_fresh.save
         cp $restoreExisting $out/restore_existing.save
         cp $routeSave $out/route_save.save
+        cp $ruleSave $out/rule_save.save
       '';
 
   # goip/ip parity runner (Tier C): boots the goip-parity VM, drives it with

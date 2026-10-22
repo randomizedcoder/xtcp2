@@ -5,8 +5,8 @@ import (
 	"fmt"
 )
 
-// The dump-file half of the stdout comparison: `ip route save` and `ip
-// address save` print no text, they write a 4-byte magic and then the dump's
+// The dump-file half of the stdout comparison: `ip route save`, `ip address
+// save` and `ip rule save` print no text, they write a 4-byte magic and then the dump's
 // replies whole. Run through textFacets, that is a line count of however many
 // 0x0a bytes the sequence numbers happened to hold, so each side's output is
 // recognized by its magic and compared record by record instead.
@@ -23,11 +23,12 @@ import (
 // facet in the control as well and is subtracted with it.
 
 // The dump files' magics, in host order (ip/iproute.c:1673,
-// ip/ipaddress.c:1782). The guest is little-endian, as is every host the
+// ip/ipaddress.c:1782, ip/iprule.c:605). The guest is little-endian, as is every host the
 // harness runs on.
 const (
 	routeDumpMagicCst = 0x45311224
 	addrDumpMagicCst  = 0x47361222
+	ruleDumpMagicCst  = 0x71706986
 	dumpMagicLenCst   = 4
 	nlmsgHdrLenCst    = 16
 )
@@ -47,7 +48,7 @@ func dumpFileRecords(s string) ([]string, bool) {
 		return nil, false
 	}
 	magic := binary.LittleEndian.Uint32(b)
-	if magic != routeDumpMagicCst && magic != addrDumpMagicCst {
+	if magic != routeDumpMagicCst && magic != addrDumpMagicCst && magic != ruleDumpMagicCst {
 		return nil, false
 	}
 	out := []string{fmt.Sprintf("magic:%08x", magic)}

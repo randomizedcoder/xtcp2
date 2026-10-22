@@ -958,7 +958,16 @@
     "side where two IPv4 entries dump in a per-namespace hash order; and a",
     "flush of nothing, a read row. Two back-to-back runs of",
     "215 GOIP_PARITY_PASS of 215 ended GOIP_PARITY_OVERALL_PASS; the link",
-    "dump's cache info is control-canceled."
+    "dump's cache info is control-canceled.",
+    "",
+    "G3-T02 adds the rule writes, flush, save and restore and gates twenty",
+    "rows: fourteen adds, one per selector, each one request; an add of a",
+    "held rule, a del and a del of a missing one; the flush, one dump and an",
+    "RTM_DELRULE copy of each of the four replies carrying FRA_PRIORITY, the",
+    "priority-0 local rule kept; the save of the same rules, a read row; and",
+    "the restore of a save file, the link dump and five RTM_NEWRULE",
+    "requests. Two back-to-back runs of 235 GOIP_PARITY_PASS of 235 ended",
+    "GOIP_PARITY_OVERALL_PASS."
   ],
   "_note_version_skew": [
     "THE ENTRIES BELOW CITE COMMITS THAT ARE IN NO RELEASE, AND THE EVIDENCE IS",
@@ -1251,6 +1260,26 @@
     "neigh del 192.0.2.2 dev d0",
     "neigh flush dev d0",
     "-s neigh flush dev d0",
-    "neigh f dev d0"
+    "neigh f dev d0",
+    "rule add pref 101 from 192.0.2.0/24 table 100",
+    "rule add pref 102 to 198.51.100.0/24 table 100",
+    "rule add pref 103 tos 0x10 table 100",
+    "rule add pref 104 dscp 10 table 100",
+    "rule add pref 105 fwmark 0x7/0xff table 100",
+    "rule add pref 106 iif d9 table 100",
+    "rule add pref 107 oif d9 table 100",
+    "rule add pref 108 uidrange 1000-2000 table 100",
+    "rule add pref 109 ipproto tcp sport 1000-2000 dport 80 table 100",
+    "rule add pref 110 not from 203.0.113.0/24 goto 112",
+    "rule add pref 111 table main suppress_prefixlength 0",
+    "rule add pref 112 protocol static table 100",
+    "rule add pref 113 l3mdev",
+    "-6 rule add pref 114 flowlabel 0x12345 table 100",
+    "rule add pref 100 from 192.0.2.0/24 table 100",
+    "rule del pref 100",
+    "rule del pref 4242",
+    "rule flush",
+    "rule save",
+    "rule restore < rule_save.save"
   ]
 }

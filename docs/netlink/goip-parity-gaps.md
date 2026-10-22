@@ -2330,6 +2330,37 @@ The command tests (`internal/goip/neigh_write_test.go`):
 
 The messages, exit statuses and the `NUD_NONE` flush were checked against iproute2-7.1.0 in an unprivileged namespace.
 
+**G3-T02 delivered** (`internal/goip/rule_write.go`, `internal/goip/rule_save.go`):
+- **The writes.** `iprule_modify` (`ip/iprule.c:962-1234`): the argument loop and one `RTM_NEWRULE` or `RTM_DELRULE` with `NLM_F_ACK`, add also `NLM_F_CREATE|NLM_F_EXCL`. No link dump: `iif` and `oif` go by name. The header's family is `preferred_family`, `AF_INET` if still unset. An add with no `table`, `goto`, `nop`, `l3mdev` or rule type looks up main; a delete sends no table and no action. A table past 255 goes in `FRA_TABLE` with the header's `RT_TABLE_UNSPEC`; `dscp`, the ports and `flowlabel` send their mask only when it is short of the full one, except that `flowlabel`'s default mask is always sent. `tos`/`dsfield` and `dscp` take `rt_dsfield`'s names and `ipproto` the common IP protocol names; a name outside goip's tables, `realms` (which reads `rt_realms`) and `nat` are not implemented. `l3mdev` with a nonzero table is refused, as `ip` refuses it.
+- **save and flush.** `iprule_list_flush_or_save` with `save_rule` and `flush_rule` (`:605-915`): one dump at `preferred_family`, or `AF_INET`. save refuses any argument before the terminal check, writes the magic `0x71706986` and every reply whole. flush copies each reply carrying `FRA_PRIORITY` into an `RTM_DELRULE`, `NLM_F_REQUEST|NLM_F_ACK` at the dump's seq; the kernel leaves the attribute off the priority-0 local rule, so it is kept. Its family filter applies only when `-4` or `-6` was given. A failed dump is `Dump terminated`, exit 255. goip refuses flush's selectors and `-j` on both verbs.
+- **restore.** `rule_dump_check_magic`, `restore_handler` and `iprule_restore` (`:917-960`): the magic, then each record's flags ORed with `NLM_F_REQUEST|NLM_F_CREATE|NLM_F_ACK`, after `ll_init_map`'s link dump. A bad magic or a truncated record exits 255, the latter after the records ahead of it are written. goip refuses a record that is not `RTM_NEWRULE` before writing anything.
+- **Exit statuses.** `ip` exits 255 on its `invarg` refusals and 1 on "requires arguments."; goip exits 1 on each argument error, its convention.
+- **Twenty matrix rows, gated.** Fourteen add rows, one per selector (floor 2), an add of a held rule, a delete and a delete of a missing one (floor 2), the flush (floor 4, four writes), the save (a read row, floor 2) and the restore of its file (floor 4, five writes). The runner carries `rule_save`'s file in as it does `route_save`'s, and the dump-file comparator recognizes the rule magic. `TestRuleWriteRows` pins the twenty rows.
+
+The command tests (`internal/goip/rule_write_test.go`):
+
+| description | expected |
+|---|---|
+| positive: the fourteen selector captures, an add of a held rule, a delete and a delete of a missing one (replayed) | `ip`'s request byte for byte; add `0x605`, del `0x5` |
+| positive: `order` and `priority`; a table past 255; `t` as `tun_id`; `dsfield AF11`, `dscp EF`; type `unreachable`, `nop`; `sup_group default` | preference; `FRA_TABLE` with an unspec header; big-endian `FRA_TUN_ID`; the names' values; the action, the table set |
+| positive: a `dscp` mask short of `0x3f`; a port mask short of `0xffff`; a `flowlabel` mask; `fwmark` with no mask | each sent; no `FRA_FWMASK` |
+| boundary: `-6` with an IPv6 prefix; `dport 0-65535`; `uidrange 0--1` | the family kept; the range; `-1` wrapped to `4294967295` |
+| negative: no arguments; a preference past 32 bits; `tos 0x100`; a negative `suppress_prefixlength`; a one-number `uidrange`; a port past 16 bits; an unknown type; a keyword with no value; `l3mdev table 100`; a `fwmask` past 32 bits | refused, exit 1 |
+| negative: `realms`, `nat`, an `ipproto` name outside goip's table | not implemented |
+| corner: `l3mdev table 0`; `to` (as `tos` is not abbreviated); `sport 1-2/3` | no table; the destination; the slash in the range's end |
+| positive: `rule_flush`'s capture; `f` | the dump and four `RTM_DELRULE` copies byte for byte, flags `0x5`, the dump's seq |
+| corner: `-4`; `-6` against `AF_INET` replies | all four copied; none, and no hook needed |
+| negative: copies and no hook; a failed dump; a selector; `-j` | exit 1 after the dump; `Dump terminated`, exit 255; not implemented before any request |
+| positive, negative, boundary, corner: one reply with a preference, `-6` and an IPv6 rule, no preference, `-6` and an IPv4 rule, a short body, an undecodable attribute | copy, copy, keep, keep, error, error |
+| positive: save; `sa` | the magic and every reply whole |
+| negative: save with an argument; a failed dump; `-j` | refused before the magic; the magic left, exit 255; refused |
+| positive: `rule_restore`'s capture | the link dump and five `RTM_NEWRULE` byte for byte, flags `0x407` |
+| boundary: the magic alone | nothing sent, no hook needed |
+| negative: no hook; a bad magic; a truncated record; a record not a rule | exit 1; exit 255; the record before it written, exit 255; refused before anything is written |
+| positive, negative, corner: `a`, `d`, `del`, `sa`; `delet3`, `help`; `s` | the verbs; not implemented; show |
+
+The messages and exit statuses were checked against iproute2-7.1.0 in an unprivileged namespace.
+
 ### G4 — New rtnetlink objects
 
 mroute, mrule, token, netns `list-id`/`set`, `RTM_NEWRULE`/`RTM_DELRULE` as event types, then `monitor`.

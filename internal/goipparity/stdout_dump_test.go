@@ -53,6 +53,8 @@ func TestDumpFileRecords(t *testing.T) {
 			[]string{"magic:45311224", "0:type=24:flags=0x22:", "1:type=24:flags=0x22:"}},
 		{"positive: address save's magic is a dump file too", []byte{0x22, 0x12, 0x36, 0x47}, true,
 			[]string{"magic:47361222"}},
+		{"positive: rule save's magic is a dump file too", []byte{0x86, 0x69, 0x70, 0x71}, true,
+			[]string{"magic:71706986"}},
 		{"boundary: the magic alone has no records", save[:4], true, []string{"magic:45311224"}},
 		{"corner: a short tail is one fragment element", save[:4+60+10], true,
 			[]string{"magic:45311224", "0:type=24:", "1:fragment:"}},

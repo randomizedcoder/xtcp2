@@ -339,13 +339,16 @@ func BuildRequest(msgType, flags uint16, seq uint32, familyHdr, attrs []byte) ([
 // what do_ipaddr sends: RTM_NEWADDR for add, change and replace, and
 // RTM_DELADDR for delete (ip/ipaddress.c:2679-2687). The neighbor pair is
 // do_ipneigh's: RTM_NEWNEIGH for add, change and replace, RTM_DELNEIGH for
-// delete and for flush's copies (ip/ipneigh.c:747-755, :378).
+// delete and for flush's copies (ip/ipneigh.c:747-755, :378). The rule pair is
+// do_iprule's: RTM_NEWRULE for add and restore, RTM_DELRULE for delete and for
+// flush's copies (ip/iprule.c:1246-1253, :618-620).
 func IsAdmittedWriteType(msgType uint16) bool {
 	switch msgType {
 	case uint16(unix.RTM_NEWROUTE), uint16(unix.RTM_DELROUTE),
 		uint16(unix.RTM_NEWLINK), uint16(unix.RTM_DELLINK),
 		uint16(unix.RTM_NEWADDR), uint16(unix.RTM_DELADDR),
-		uint16(unix.RTM_NEWNEIGH), uint16(unix.RTM_DELNEIGH):
+		uint16(unix.RTM_NEWNEIGH), uint16(unix.RTM_DELNEIGH),
+		uint16(unix.RTM_NEWRULE), uint16(unix.RTM_DELRULE):
 		return true
 	}
 	return false

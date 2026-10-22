@@ -544,28 +544,30 @@ func TestRunRuleArgs(t *testing.T) {
 		},
 		{
 			// "sa" is NOT a prefix of "show", so it cannot resolve to the
-			// listing however short it is. iproute2 gives it to `save`, which
-			// goip does not implement, and the two therefore agree that this
-			// command line is not a listing. The row exists because the naive
-			// reading — "s abbreviates show, so sa does too" — is wrong.
-			description:      "negative: `rule sa` is save, not show, and save is not implemented",
+			// listing however short it is. iproute2 gives it to `save`, and
+			// so does goip: the file's magic, not a listing. The row exists
+			// because the naive reading — "s abbreviates show, so sa does
+			// too" — is wrong.
+			description:      "boundary: `rule sa` is save, not show: the magic, not a listing",
 			args:             []string{"rule", "sa"},
-			wantCode:         ExitUsage,
-			wantStderrSubstr: "not implemented",
+			wantCode:         ExitOK,
+			wantStdoutPrefix: "\x86\x69\x70\x71",
 		},
 		{
-			// A write verb must stay unreachable: goip is read-only, and `add`
-			// reaching a handler at all would be the wrong kind of bug.
-			description:      "negative: the write verb `add` is refused",
+			// A write verb reaches iprule_modify, which refuses no
+			// arguments before it builds anything.
+			description:      "negative: `add` with no arguments is refused",
 			args:             []string{"rule", "add"},
 			wantCode:         ExitUsage,
-			wantStderrSubstr: "not implemented",
+			wantStderrSubstr: "requires arguments",
 		},
 		{
-			description:      "negative: `rule flush` is refused, being the destructive half of the same function",
+			// The flush has rules to delete and nowhere to write them:
+			// goip never applies a write.
+			description:      "negative: `rule flush` with no GOIP_WRITE_OUT is refused",
 			args:             []string{"rule", "flush"},
 			wantCode:         ExitUsage,
-			wantStderrSubstr: "not implemented",
+			wantStderrSubstr: "never applies a write",
 		},
 		{
 			description:      "negative: an unknown rule verb is refused",
@@ -625,6 +627,7 @@ func TestRunRuleArgs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
 			t.Setenv("GOIP_REPLAY", ruleDumpPcap)
+			t.Setenv(writeOutEnvCst, "")
 			var stdout, stderr bytes.Buffer
 			if code := Run(tt.args, &stdout, &stderr); code != tt.wantCode {
 				t.Fatalf("Run(%q) = %d, want %d; stderr=%s",

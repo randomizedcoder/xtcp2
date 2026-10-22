@@ -17,7 +17,8 @@ import (
 func multiWriteRowProblem(c Command) string {
 	multi := strings.HasPrefix(c.Slug, addrFlushSlugPrefixCst) || strings.HasPrefix(c.Slug, addrRestoreSlugPrefixCst) ||
 		c.Slug == routeRestoreSlugCst || c.Slug == routeFlushSlugCst || c.Slug == routeFlushStatsSlugCst ||
-		c.Slug == neighFlushSlugCst || c.Slug == neighFlushStatsSlugCst
+		c.Slug == neighFlushSlugCst || c.Slug == neighFlushStatsSlugCst ||
+		c.Slug == ruleFlushSlugCst || c.Slug == ruleRestoreSlugCst
 	switch {
 	case c.Writes < 0:
 		return "Writes is negative"
