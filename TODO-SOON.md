@@ -680,11 +680,22 @@ What the upgrade turned up:
 
 Still to do:
 
-- the microVM lifecycle checks (the user runs those), and for Garage in
-  particular `test-microvm-lifecycle-x86_64-s3parquet`,
-  `microvm-x86_64-clickhouse-pipeline-parquet` (Check 15, ClickHouse `s3()`)
-  and a short `microvm-x86_64-s3parquet-stress` to see the retention job
-  delete;
+- the rest of the microVM checks (vm-all). The Garage flavors ran on
+  2026-10-22:
+  - `microvm-x86_64-lifecycle-s3parquet`: `OVERALL_PASS`, with
+    `S3PARQUET_FILES`, `S3PARQUET_ROWS` (1227 rows) and `S3PARQUET_EVENTDATE`.
+  - `microvm-x86_64-clickhouse-pipeline-parquet`: `OVERALL_PASS`, Check 15
+    `CLICKHOUSE_PARQUET_PASS (rows=55593)`.
+  - `microvm-x86_64-s3parquet-stress --duration 2h`: PASS, 50 files / 3.36 M
+    rows, 0 drops, 0 panics, S3 disk peak 1%. Retention deleted 4-5 objects a
+    sweep from the first sweep past 1 h, and a host-side `rclone lsl` showed
+    nothing older than 1 h left. The runner's "restarts: 0" missed the
+    SIGPROF restart above: systemd's restart lines don't reach the console.
+  - `--duration 15m` with the re-exec fix: `CTL_RESTART_PASS` (MainPID stayed,
+    new tag live). `OVERALL_FAIL` there and in the 2 h run comes only from
+    `NS_LIFECYCLE`/`NS_DOCKER`/`NS_ANONYMOUS`, whose delete counts fall short
+    while 20 stress containers churn namespaces (the load flake noted under
+    check 16 below); the stress runner doesn't gate on the self-test.
 - a dump capture at the new pin (`nix run
   .#microvm-x86_64-netlink-dump-capture`), then goip tests against it in the
   7.2.0 mode;
