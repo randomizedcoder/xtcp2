@@ -1011,7 +1011,14 @@
     "first: token show, token get dev v0 and -j token show, then the AF_INET6",
     "link dump; token set on a veth and token add on a NOARP dummy, which the",
     "kernel refuses, then one RTM_SETLINK. Two consecutive clean runs of 268",
-    "GOIP_PARITY_PASS of 268 ended GOIP_PARITY_OVERALL_PASS."
+    "GOIP_PARITY_PASS of 268 ended GOIP_PARITY_OVERALL_PASS.",
+    "",
+    "G4-T04 adds netns list-id and netns set and gates five rows: list-id",
+    "plain, -j, nsid 2 and nsid 1 target-nsid 2 on two peers holding nsids 1",
+    "and 2, each netns_map_init's RTM_GETNSID per file by NETNSA_FD then the",
+    "dump or the get; and netns set c1set 7, one RTM_NEWNSID. NETNSA_FD is an",
+    "accepted divergence. Two consecutive clean runs of 273 GOIP_PARITY_PASS",
+    "of 273 ended GOIP_PARITY_OVERALL_PASS."
   ],
   "_note_version_skew": [
     "THE ENTRIES BELOW CITE COMMITS THAT ARE IN NO RELEASE, AND THE EVIDENCE IS",
@@ -1088,6 +1095,36 @@
       "kind": "version-skew",
       "ip_version": "7.1.0",
       "reason": "faceb326's large half, and the reason its skew needs two entries rather than one. The commit also removed a SIOCGIFTXQLEN ioctl fallback in print_queuelen for when IFLA_TXQLEN is absent entirely. That path is unreachable on anything rtnl_dump_ifinfo answers - hence \"unnecessary\" upstream - but it is live on `ip -6 addr show`, whose link dump is answered by inet6_dump_ifinfo and carries no IFLA_TXQLEN at all. So 7.1.0 prints `qlen 1000` for lo there, from an ioctl, and goip prints nothing. Flipping RenderQlenZero cannot restore it: the knob chooses whether to print a zero, and there is no attribute here to print. goip will not issue an ioctl to match, because the comparator's subject is netlink and an ioctl is outside it. Two entries rather than one still, but now because the two commands differ rather than because the loci do: Entry.key() is command plus locus, so `stdout:keyword:qlen` on `link show` and on `-6 addr show` are distinct keys with distinct reasons, and neither widens to the other. It had been `stdout:addr6:qlen:IFLA_TXQLEN-absent`, which no comparator emits. This is the one place suppression covers an absence rather than a value; internal/goipparity/stdout.go's header argues why a rendered keyword is not a decoded attribute."
+    },
+    {
+      "command": "netns list-id",
+      "locus": "request:type(90):attr(3):get",
+      "kind": "accepted-divergence",
+      "reason": "G4-T04. `ip netns list-id` opens each file under /run/netns and asks its nsid with an RTM_GETNSID carrying NETNSA_FD, the descriptor of that open file (netns_map_init, then netns_id_from_name in lib/namespace.c). A descriptor is a slot in the asking process's own table: ip, whose table holds stdio, its two rtnetlink sockets and the directory stream, opens each file as fd 6 (dumps/reads/netlink_route_getnsid_list.pcap); goip, a Go process with its runtime's descriptors open, gets whatever slot is free. In the G4-T04 VM runs and on the host the slots happened to coincide, both 6, and these four entries did not fire; they stay because the coincidence rests on how many descriptors the Go runtime happens to hold, which neither side controls. The kernel resolves the descriptor to the namespace, so the value names the same file on both sides and the reply is the same. goip cannot match the number without opening descriptors to pad the table, which would be a fake; the divergence is deliberate and stays. One entry per command covers every per-file request, since the locus has no transaction in it. The type and attribute render unnamed (type(90) is RTM_GETNSID, attr(3) NETNSA_FD) because nlparity names no NETNSA_* table; every other byte of the request is still compared, NETNSA_NSID and NETNSA_TARGET_NSID among them."
+    },
+    {
+      "command": "-j netns list-id",
+      "locus": "request:type(90):attr(3):get",
+      "kind": "accepted-divergence",
+      "reason": "G4-T04. `ip netns list-id` opens each file under /run/netns and asks its nsid with an RTM_GETNSID carrying NETNSA_FD, the descriptor of that open file (netns_map_init, then netns_id_from_name in lib/namespace.c). A descriptor is a slot in the asking process's own table: ip, whose table holds stdio, its two rtnetlink sockets and the directory stream, opens each file as fd 6 (dumps/reads/netlink_route_getnsid_list.pcap); goip, a Go process with its runtime's descriptors open, gets whatever slot is free. In the G4-T04 VM runs and on the host the slots happened to coincide, both 6, and these four entries did not fire; they stay because the coincidence rests on how many descriptors the Go runtime happens to hold, which neither side controls. The kernel resolves the descriptor to the namespace, so the value names the same file on both sides and the reply is the same. goip cannot match the number without opening descriptors to pad the table, which would be a fake; the divergence is deliberate and stays. One entry per command covers every per-file request, since the locus has no transaction in it. The type and attribute render unnamed (type(90) is RTM_GETNSID, attr(3) NETNSA_FD) because nlparity names no NETNSA_* table; every other byte of the request is still compared, NETNSA_NSID and NETNSA_TARGET_NSID among them."
+    },
+    {
+      "command": "netns list-id nsid 2",
+      "locus": "request:type(90):attr(3):get",
+      "kind": "accepted-divergence",
+      "reason": "G4-T04. `ip netns list-id` opens each file under /run/netns and asks its nsid with an RTM_GETNSID carrying NETNSA_FD, the descriptor of that open file (netns_map_init, then netns_id_from_name in lib/namespace.c). A descriptor is a slot in the asking process's own table: ip, whose table holds stdio, its two rtnetlink sockets and the directory stream, opens each file as fd 6 (dumps/reads/netlink_route_getnsid_list.pcap); goip, a Go process with its runtime's descriptors open, gets whatever slot is free. In the G4-T04 VM runs and on the host the slots happened to coincide, both 6, and these four entries did not fire; they stay because the coincidence rests on how many descriptors the Go runtime happens to hold, which neither side controls. The kernel resolves the descriptor to the namespace, so the value names the same file on both sides and the reply is the same. goip cannot match the number without opening descriptors to pad the table, which would be a fake; the divergence is deliberate and stays. One entry per command covers every per-file request, since the locus has no transaction in it. The type and attribute render unnamed (type(90) is RTM_GETNSID, attr(3) NETNSA_FD) because nlparity names no NETNSA_* table; every other byte of the request is still compared, NETNSA_NSID and NETNSA_TARGET_NSID among them."
+    },
+    {
+      "command": "netns list-id nsid 1 target-nsid 2",
+      "locus": "request:type(90):attr(3):get",
+      "kind": "accepted-divergence",
+      "reason": "G4-T04. `ip netns list-id` opens each file under /run/netns and asks its nsid with an RTM_GETNSID carrying NETNSA_FD, the descriptor of that open file (netns_map_init, then netns_id_from_name in lib/namespace.c). A descriptor is a slot in the asking process's own table: ip, whose table holds stdio, its two rtnetlink sockets and the directory stream, opens each file as fd 6 (dumps/reads/netlink_route_getnsid_list.pcap); goip, a Go process with its runtime's descriptors open, gets whatever slot is free. In the G4-T04 VM runs and on the host the slots happened to coincide, both 6, and these four entries did not fire; they stay because the coincidence rests on how many descriptors the Go runtime happens to hold, which neither side controls. The kernel resolves the descriptor to the namespace, so the value names the same file on both sides and the reply is the same. goip cannot match the number without opening descriptors to pad the table, which would be a fake; the divergence is deliberate and stays. One entry per command covers every per-file request, since the locus has no transaction in it. The type and attribute render unnamed (type(90) is RTM_GETNSID, attr(3) NETNSA_FD) because nlparity names no NETNSA_* table; every other byte of the request is still compared, NETNSA_NSID and NETNSA_TARGET_NSID among them."
+    },
+    {
+      "command": "netns set c1set 7",
+      "locus": "request:type(88):attr(3):write",
+      "kind": "accepted-divergence",
+      "reason": "G4-T04. `ip netns set NAME NSID` sends one RTM_NEWNSID (type(88)) whose first attribute, NETNSA_FD (attr(3)), is the descriptor of /run/netns/NAME open in the sender (set_netns_id_from_name, lib/namespace.c): fd 5 in ip (link-write/rtnl/netns_set/ip.pcap), whatever slot is free in goip. It is the list-id entries' reason on the write role: the kernel resolves either number to the same namespace, and matching ip's would mean padding goip's table. NETNSA_NSID, the value the command sets, is compared and not covered here."
     }
   ],
   "gated_commands": [
@@ -1357,6 +1394,11 @@
     "token get dev v0",
     "-j token show",
     "token set ::1:2:3:4/64 dev d0",
-    "token add ::1:2:3:4/64 dev d0"
+    "token add ::1:2:3:4/64 dev d0",
+    "netns list-id",
+    "-j netns list-id",
+    "netns list-id nsid 2",
+    "netns list-id nsid 1 target-nsid 2",
+    "netns set c1set 7"
   ]
 }

@@ -325,7 +325,7 @@ func indexDocument() ([]byte, error) {
 	for _, o := range objects {
 		e := indexEntry{
 			Path:    Prefix + "/" + o.path,
-			Command: "ip -j " + o.object + " show",
+			Command: "ip " + strings.Join(goip.ShowRequest{Object: o.object, JSON: true}.Argv(), " "),
 			Params:  []string{formatParam},
 		}
 		if o.devPath {

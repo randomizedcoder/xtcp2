@@ -127,6 +127,12 @@ const (
 	tdNhBucketShow = "../xtcpnl/testdata/7_1_4/link-write/rtnl/nexthop_bucket_show/ip.pcap"
 	tdNhBucketGet  = "../xtcpnl/testdata/7_1_4/link-write/rtnl/nexthop_bucket_get/ip.pcap"
 
+	// `ip netns list-id` on the reads corpus's six /run/netns files, and
+	// `ip netns set c1set 7 && ip netns list-id`, the C1-T02 write: the
+	// G4-T04 NETNSA_FD entries' captures.
+	tdGuestGetNsid = tdGuest + "/reads/netlink_route_getnsid_list.pcap"
+	tdNetnsSet     = "../xtcpnl/testdata/7_1_4/link-write/rtnl/netns_set/ip.pcap"
+
 	// `ip neigh show dev NAME`. Its txn 0 is byte-identical to
 	// tdGuestGetNeigh's, which is the property its allowlist entry rests on
 	// and the reason it still needs a file of its own: the whole difference

@@ -286,9 +286,12 @@ func TestNoSuchDeviceKeepsCLIMessage(t *testing.T) {
 //
 // go test ./internal/goip/ -run TestShowObjectsReadOnly
 func TestShowObjectsReadOnly(t *testing.T) {
+	// netns list-id opens each file under /run/netns; an empty directory
+	// keeps the host's out of it.
+	netnsDir(t)
 	t.Run("exact_set", func(t *testing.T) {
 		// positive: the 12 implemented show objects, sorted, and a copy.
-		want := []string{"address", "addrlabel", "link", "mroute", "mrule", "neighbor", "netconf", "nexthop", "ntable", "route", "rule", "stats", "token", "vrf"}
+		want := []string{"address", "addrlabel", "link", "mroute", "mrule", "neighbor", "netconf", "netns", "nexthop", "ntable", "route", "rule", "stats", "token", "vrf"}
 		got := ShowObjects()
 		if !slices.Equal(got, want) {
 			t.Fatalf("ShowObjects() = %q, want %q", got, want)
@@ -339,6 +342,8 @@ func TestShowObjectsReadOnly(t *testing.T) {
 			req: ShowRequest{Object: "address", Family: unix.AF_PACKET}, want: []string{"-0", "address", "show"}},
 		{name: "argv_selectors_verbatim", description: "negative: selectors are not reinterpreted, a keyword-like value stays a value",
 			req: ShowRequest{Object: "link", Selectors: []string{"dev", "show"}}, want: []string{"link", "show", "dev", "show"}},
+		{name: "argv_netns", description: "corner: netns's read is list-id, its show not being netlink",
+			req: ShowRequest{Object: "netns", Selectors: []string{"nsid", "1"}}, want: []string{"netns", "list-id", "nsid", "1"}},
 	}
 	for _, tc := range argvTests {
 		t.Run(tc.name, func(t *testing.T) {

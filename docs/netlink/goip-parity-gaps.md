@@ -2535,6 +2535,31 @@ The tests (`pkg/xtcpnl/xtcpnl_link_token_test.go`, `internal/goip/obj_token_test
 
 Every listing form and every refusal was checked against iproute2-7.1.0 in an unprivileged namespace, with tokens on two veths, one of them `::a:b`, a NOARP dummy and lo.
 
+**G4-T04 delivered** (`internal/goip/obj_netns.go`, `internal/goip/render/nsid.go`, `pkg/xtcpnl/xtcpnl_nsid_requests.go`):
+- **The verbs.** `do_netns` (`ip/ipnetns.c`) applies `invalid_name` to the word after the verb, whatever the verb, then matches in its order: `list`, `show` and `lst` first, so `l` is list, then `list-id`, `help`, `add`, `set` and the rest. goip implements the two netlink verbs, `list-id` and `set`; the others are mounts, `setns` and `/proc` reads, and are not implemented, exit 1.
+- **The listing.** `netns_list_id`: `netns_map_init` first, before the arguments are read, opening each file under `/run/netns` in directory order and asking its nsid with an `RTM_GETNSID` carrying `NETNSA_FD`. Then `target-nsid` and `nsid` by `strcmp`, each once, `get_integer` base 0, and either a get by `NETNSA_NSID` (with `NETNSA_TARGET_NSID` when given) or the dump. `print_nsid` names each reply from the cache, by the current nsid when the reply has one, deleting a hit; on a miss it walks the directory again, one more request per file, until a file's nsid matches. A reply without `NETNSA_NSID` ends the lines, "BUG: NETNSA_NSID is missing", exit 1.
+- **The render.** `nsid N [current-nsid C] (iproute2 netns name: NAME)`, `unassigned` for a negative id; in `-j` an array, the get's single object in it too, an unassigned id and a missing name left out (`render.NsidView`).
+- **The write.** `netns_set`: the name, then the nsid or `auto` (-1); words after it are ignored. `set_netns_id_from_name` opens the file and sends one `RTM_NEWNSID`, `NLM_F_ACK`, `NETNSA_FD` then `NETNSA_NSID`, to `GOIP_WRITE_OUT`. `xtcpnl.BuildWriteRequest` admits `RTM_NEWNSID`, and `FamilyHdrLen` models the nsid types' 4-byte `rtgenmsg`, which pkg/nlparity had compared by length alone.
+- **The descriptor.** `NETNSA_FD` is a slot in the sending process's own table, so goip's value is its own: five accepted-divergence entries, one per row, at `request:type(90):attr(3):get` and `request:type(88):attr(3):write`. `set`'s fired in the VM, `ip` 5 against goip 6; the four `list-id` entries did not, since both sides happened to open each file as 6.
+- **Five matrix rows, gated.** `netns list-id`, `-j netns list-id`, `netns list-id nsid 2` and `netns list-id nsid 1 target-nsid 2` on `netnsSetup`, peers `nlcaprp1` and `nlcaprp2` holding nsids 1 and 2 (floor 4); `netns set c1set 7` on the C1-T02 capture of its slug, a fresh peer for each side (floor 2). The parity driver's `peer NAME ?ID?` setup step adds the namespace and sets its nsid. `TestNetnsRows` pins the five.
+- **HTTP.** `go-link-monitor` serves `/ip/netns` with `target-nsid` and `nsid` ([IP-PATHS-DESIGN.md](../../cmd/go-link-monitor/IP-PATHS-DESIGN.md)). An object's show verb can now be other than `show`: netns's is `list-id`.
+
+The tests (`pkg/xtcpnl/xtcpnl_nsid_requests_test.go`, `internal/goip/obj_netns_test.go`, `internal/goip/render/nsid_test.go`):
+
+| description | expected |
+|---|---|
+| positive, boundary, corner: each request builder, by fd, the dump, `set`, `auto`, a get, a target on a get and on the dump | the bytes `ip` sends, `NLM_F_DUMP` and `NLM_F_ACK` where it sets them |
+| positive, negative: every `RTM_GETNSID` and `RTM_NEWNSID` request in the corpus, and `RTM_DELNSID` | 202 of 202, 4 of 4, 0 of 0 rebuilt exactly |
+| positive, boundary: the list-id capture (replayed) with `list-id` and `list-` | `ip`'s requests byte for byte, `NETNSA_FD` masked, and the sidecar |
+| positive, negative, boundary, corner: the dump, `-j`, an empty dump, a get, a target, an unassigned current nsid, a name printed once then walked for, an nsid in no file, a reply with no nsid, an unassigned nsid, a name cached by a walk for a third reply, the dump or the get failing, an unknown word, `nsi`, a key twice, no value, not a number, -1 last and before another key, 0 (constructed replies) | the lines and the requests each sends, in order, map and walk included; the errors, invarg naming the word after a negative value as `ip`'s `argv[1]` does |
+| positive, negative, boundary, corner: `netns_map_init` over assigned files, an unassigned one, nsid 0, three files sharing an nsid, a file the kernel refuses | each cached by nsid, the unassigned and refused ones not, the first listed kept |
+| negative, boundary, corner: no verb, `l`, `show`, `a`, `h`, `d`, `exec`, an unknown verb, `list-idx`, a slash, `.`, `..`, 256 bytes, 255 bytes, `...` | not implemented, or refused; 255 bytes and `...` are names, and `set` writes |
+| positive, boundary: the set capture (replayed) with `set`, `s` and `se … extra` | `ip`'s request bar `NETNSA_FD`; `s` is show, nothing sent |
+| positive, negative, boundary, corner: an nsid, `auto`, hex, 0, `INT_MAX`, a slash, no name, no nsid, `Auto`, -1, past `INT_MAX`, no file, no `GOIP_WRITE_OUT` | the request's nsid, or refused |
+| positive, boundary, corner, negative: `NsidView` with a name, a current nsid, nsid 0, both unassigned, a current nsid the reply lacks, `Deleted` | the text line and the JSON object |
+
+Every `list-id` form, plain, `-j`, each key, the refusals, `-4`, `-s` and `-d`, was checked against iproute2-7.1.0 in an unprivileged namespace with three peers, two holding nsids; `set` against the request `ip` sends.
+
 ### G5 — The genl matrix harness
 
 - The parity comparator normalizes genl family IDs by name (`pkg/nlparity`).

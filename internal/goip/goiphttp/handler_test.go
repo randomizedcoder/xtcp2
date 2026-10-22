@@ -307,10 +307,18 @@ func TestIndex(t *testing.T) {
 	if len(entries) != len(objects) {
 		t.Fatalf("index has %d entries, registry %d", len(entries), len(objects))
 	}
+	commands := map[string]string{}
 	for i, e := range entries {
 		o := objects[i]
 		if e.Path != Prefix+"/"+o.path || (e.InterfacePath != "") != o.devPath || len(e.Params) != len(o.params)+1 {
 			t.Errorf("entry %d %+v does not match %s", i, e, o.path)
+		}
+		commands[o.path] = e.Command
+	}
+	// positive: the command is Show's argv; corner: netns's verb is list-id.
+	for path, want := range map[string]string{"addr": "ip -j address show", "netns": "ip -j netns list-id"} {
+		if commands[path] != want {
+			t.Errorf("%s command %q, want %q", path, commands[path], want)
 		}
 	}
 	if paths := h.Paths(); paths[0] != Prefix {

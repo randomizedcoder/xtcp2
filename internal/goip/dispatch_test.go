@@ -120,7 +120,7 @@ func TestLookupObject(t *testing.T) {
 		},
 		{
 			description: "positive: \"net\" is netns, not netconf",
-			arg:         "net", wantName: "netns", wantErr: ErrNotImplemented,
+			arg:         "net", wantName: "netns",
 		},
 		{
 			// "netc" outruns netns ("net" is not a prefix of "netc"), so it is the

@@ -351,6 +351,8 @@ func BuildRequest(msgType, flags uint16, seq uint32, familyHdr, attrs []byte) ([
 // link property pair is iplink_prop's: RTM_NEWLINKPROP for add and
 // RTM_DELLINKPROP for del (ip/iplink.c:1785-1788). RTM_SETLINK is `ip token
 // set` and `del` (ip/iptoken.c:173), the only `ip` command that sends it.
+// RTM_NEWNSID is `ip netns set` (set_netns_id_from_name, lib/namespace.c),
+// with no DEL beside it: a namespace's nsid goes when the namespace does.
 func IsAdmittedWriteType(msgType uint16) bool {
 	switch msgType {
 	case uint16(unix.RTM_NEWROUTE), uint16(unix.RTM_DELROUTE),
@@ -362,7 +364,7 @@ func IsAdmittedWriteType(msgType uint16) bool {
 		uint16(unix.RTM_NEWADDRLABEL), uint16(unix.RTM_DELADDRLABEL),
 		uint16(unix.RTM_SETNEIGHTBL), uint16(unix.RTM_SETSTATS),
 		uint16(unix.RTM_NEWLINKPROP), uint16(unix.RTM_DELLINKPROP),
-		uint16(unix.RTM_SETLINK):
+		uint16(unix.RTM_SETLINK), uint16(unix.RTM_NEWNSID):
 		return true
 	}
 	return false
@@ -466,6 +468,11 @@ func FamilyHdrLen(msgType uint16) int {
 		// note above); RTM_SETSTATS is `ip stats set`'s write
 		// (ip/ipstats.c ipstats_set_do), with the same header.
 		return IfStatsMsgSizeCst
+	case uint16(unix.RTM_GETNSID), uint16(unix.RTM_NEWNSID), uint16(unix.RTM_DELNSID):
+		// struct rtgenmsg, its one byte padded to 4 (RtGenMsgSizeCst).
+		// Unmodeled, pkg/nlparity compared an nsid request by length alone,
+		// so a NETNSA_NSID of 8 against ip's 7 compared clean.
+		return RtGenMsgSizeCst
 	case uint16(unix.NLMSG_DONE), uint16(unix.NLMSG_NOOP), uint16(unix.NLMSG_ERROR):
 		return 0
 	default:

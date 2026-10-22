@@ -3304,3 +3304,90 @@ func TestTokenRows(t *testing.T) {
 		}
 	})
 }
+
+// TestNetnsRows pins G4-T04's netns rows: the list-id reads on netnsSetup,
+// the set write on a fresh peer, all gated, each with its one NETNSA_FD
+// value entry, and the forms left out.
+//
+// go test ./internal/goipparity/ -run TestNetnsRows
+func TestNetnsRows(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	type want struct {
+		implemented, write, gated bool
+		setup                     string
+		floor, entries            int
+	}
+	read := want{implemented: true, gated: true, setup: "peers", floor: 4, entries: 1}
+	rows := []struct {
+		description string
+		command     string
+		expected    want
+	}{
+		{"positive: the dump", "netns list-id", read},
+		{"positive: -j", "-j netns list-id", read},
+		{"positive: a get by nsid", "netns list-id nsid 2", read},
+		{"corner: a get with a target, named by the current nsid", "netns list-id nsid 1 target-nsid 2", read},
+		{"positive: set on a fresh peer", "netns set c1set 7",
+			want{implemented: true, write: true, gated: true, setup: "c1set", floor: 2, entries: 1}},
+		{"corner: list is a directory listing, not netlink, so no row", "netns list", want{}},
+		{"corner: the bare object is not in the matrix", "netns", want{}},
+	}
+	setups := map[string][]string{"peers": netnsSetup, "c1set": {"peer c1set"}}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			var got want
+			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				got = want{implemented: c.Implemented, write: c.Write, floor: c.Floor}
+				for name, s := range setups {
+					if slices.Equal(c.Setup, s) {
+						got.setup = name
+					}
+				}
+			}
+			got.gated = al.IsGated(r.command)
+			got.entries = len(al.EntriesFor(r.command))
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+		})
+	}
+	suppress := []struct {
+		description, command, locus string
+		class                       nlparity.DivergenceClass
+		expected                    bool
+	}{
+		{"positive: set's descriptor value is accepted", "netns set c1set 7", "request:type(88):attr(3):write",
+			nlparity.DivergenceValue, true},
+		{"negative: set's NETNSA_NSID, the value it sets, is not", "netns set c1set 7", "request:type(88):attr(1):write",
+			nlparity.DivergenceValue, false},
+		{"negative: a missing descriptor is presence, never suppressed", "netns set c1set 7",
+			"request:type(88):attr(3):write", nlparity.DivergencePresence, false},
+		{"positive: list-id's descriptor value is accepted", "netns list-id", "request:type(90):attr(3):get",
+			nlparity.DivergenceValue, true},
+		{"negative: list-id's dump target is not", "netns list-id", "request:type(90):attr(4):dump",
+			nlparity.DivergenceValue, false},
+		{"corner: the entry is per command, so another list-id form is not covered by it", "netns list-id nsid 3",
+			"request:type(90):attr(3):get", nlparity.DivergenceValue, false},
+	}
+	for _, r := range suppress {
+		t.Run(r.description, func(t *testing.T) {
+			if got := al.Suppresses(r.command, r.locus, r.class); got != r.expected {
+				t.Errorf("Suppresses(%q, %q, %s) = %v, want %v", r.command, r.locus, r.class, got, r.expected)
+			}
+		})
+	}
+	t.Run("positive: netnsSetup is the reads corpus's two peers", func(t *testing.T) {
+		b, err := os.ReadFile(filepath.Join("..", "..", "nix", "microvms", "scripts", "rtnl-read-corpus.exp"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, step := range netnsSetup {
+			if !strings.Contains(string(b), "{"+step+"}") {
+				t.Errorf("rtnl-read-corpus.exp has no {%s}", step)
+			}
+		}
+	})
+}

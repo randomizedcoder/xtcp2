@@ -269,7 +269,10 @@ proc capture_triple {row dev} {
 # pre_step form in addr-corpus.exp; `route get … iif` needs forwarding on),
 # or `smcroute CONF-LINE`, which xtcp2-nlcap mroute-start runs as smcrouted's
 # whole configuration and holds in the namespace, its (S,G) entry listed,
-# until the namespace's next ns-add or ns-del (`ip mroute show`).
+# until the namespace's next ns-add or ns-del (`ip mroute show`), or
+# `peer NAME [ID]`, a namespace made from the root (deleted first, so each
+# side meets a new one, as rtnl-read-corpus.exp's peer step) and, given ID,
+# that nsid in the row's namespace (`ip netns list-id`, `ip netns set`).
 ###############################################################################
 
 proc setup_step {ns step} {
@@ -281,6 +284,20 @@ proc setup_step {ns step} {
         }
         lassign [vmlib::run_out "xtcp2-nlcap sysctl $ns $SUBDIR [lindex $step 1] [lindex $step 2]"] rc out
         return $rc
+    }
+    if {[lindex $step 0] eq "peer"} {
+        if {[llength $step] ni {2 3}} {
+            vmlib::log "setup: a peer step is {peer NAME ?ID?}: $step"
+            return 1
+        }
+        set name [lindex $step 1]
+        # No peer by that name yet is the usual case, not a failure.
+        vmlib::run_out "ip netns del $name"
+        lassign [vmlib::run_out "ip netns add $name"] rc out
+        if {$rc != 0 || [llength $step] == 2} {
+            return $rc
+        }
+        return [nltopo::topo $ns $SUBDIR netns set $name [lindex $step 2]]
     }
     if {[lindex $step 0] eq "smcroute"} {
         lassign [vmlib::run_out "xtcp2-nlcap mroute-start $ns $SUBDIR '[lrange $step 1 end]'"] rc out

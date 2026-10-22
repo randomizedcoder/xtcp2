@@ -36,6 +36,9 @@ type NexthopBucket xtcpnl.NexthopBucketInfo
 // the neighbor hash has no such property and its order varies across boots.
 type Rule xtcpnl.RuleInfo
 
+// Nsid is one RTM_NEWNSID reply, `ip netns list-id`'s line.
+type Nsid xtcpnl.NsidInfo
+
 // LinkToken is one reply of `ip token`'s AF_INET6 link dump, what
 // print_token reads. Dump order is the kernel's, which `ip` prints as-is.
 type LinkToken xtcpnl.LinkToken

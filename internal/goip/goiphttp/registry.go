@@ -125,6 +125,10 @@ var objects = []*object{
 		params: []param{pFamily}},
 	{path: "token", devPath: true,
 		params: []param{pDev}},
+	// netns is `ip netns list-id`, the namespaces' nsids; netns_list_id
+	// reads its two keys by strcmp, in either order.
+	{path: "netns",
+		params: []param{{name: "target-nsid", kind: kindUint32}, {name: "nsid", kind: kindUint32}}},
 	{path: "stats", devPath: true,
 		params: []param{
 			pDev,

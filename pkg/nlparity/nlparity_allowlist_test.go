@@ -708,6 +708,12 @@ func TestAllowlistCommitted(t *testing.T) {
 		"-j token show",
 		"token set ::1:2:3:4/64 dev d0",
 		"token add ::1:2:3:4/64 dev d0",
+		// G4-T04's five `netns` rows.
+		"netns list-id",
+		"-j netns list-id",
+		"netns list-id nsid 2",
+		"netns list-id nsid 1 target-nsid 2",
+		"netns set c1set 7",
 	}
 
 	tests := []struct {

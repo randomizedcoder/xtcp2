@@ -31,6 +31,9 @@ type object struct {
 	// alias marks a second spelling of another row's object (the British
 	// spelling of neighbor, ntbl), so lists of objects can name each one once.
 	alias bool
+	// showVerb is the verb Show runs, where it is not show: netns's show
+	// is a directory listing, and list-id its netlink read.
+	showVerb string
 }
 
 // objects is the object table in iproute2's order, which is load-bearing.
@@ -76,7 +79,7 @@ var objects = []object{
 	{name: "tap", alias: true},
 	{name: "mroute", run: runMroute},
 	{name: "mrule", run: runMrule},
-	{name: "netns"},
+	{name: "netns", run: runNetns, showVerb: netnsListIDVerbCst},
 	{name: "netconf", run: runNetconf},
 	{name: "vrf", run: runVrf},
 	{name: "sr"},

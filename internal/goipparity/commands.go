@@ -2143,6 +2143,37 @@ var commands = withArgs([]Command{
 		Floor: 4, Implemented: true, Write: true, Setup: d0UpSetup,
 	},
 
+	// G4-T04: `ip netns list-id` and `ip netns set` (ip/ipnetns.c). list-id
+	// is netns_map_init's RTM_GETNSID for each file under /run/netns, by a
+	// descriptor of it, then the get by nsid or the dump; on netnsSetup,
+	// whose peers nlcaprp1 and nlcaprp2 hold nsids 1 and 2 in the row's
+	// namespace, the names, two files at least, set the floor at 4. The
+	// descriptor is each process's own, so NETNSA_FD is an accepted value
+	// divergence. set is one RTM_NEWNSID, FD then NSID, and its ack, on the
+	// C1-T02 capture of its slug, its peer fresh for each side.
+	{
+		Name: "netns list-id", Slug: "netns_list_id",
+		Setup: netnsSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-j netns list-id", Slug: "netns_list_id_json",
+		Setup: netnsSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "netns list-id nsid 2", Slug: "netns_list_id_nsid",
+		Setup: netnsSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "netns list-id nsid 1 target-nsid 2", Slug: "netns_list_id_target",
+		// nlcaprp2's nsid for nlcaprp1, unassigned, and nlcaprp1's in the
+		// row's namespace, the current nsid, that names it.
+		Setup: netnsSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "netns set c1set 7", Slug: "netns_set",
+		Floor: 2, Implemented: true, Write: true, Setup: []string{"peer c1set"},
+	},
+
 	// G2-T01: `route save` and `route showdump` (ip/iproute.c:1673-1716,
 	// :2390-2405), on route_save's C1-T02 precondition: d0, ifindex 3, and
 	// table 100's two routes. save is `route show table 100`'s dump with
@@ -2796,6 +2827,11 @@ var (
 	}
 	tokenVethSetup = []string{"link add d0 type veth peer name d1", "link set d1 up", "link set d0 up"}
 )
+
+// netnsSetup is the netns reads' precondition, rtnl-read-corpus.exp's two
+// peers: nlcaprp1 and nlcaprp2, made from the root, nsids 1 and 2 in the
+// row's namespace.
+var netnsSetup = []string{"peer nlcaprp1 1", "peer nlcaprp2 2"}
 
 // The rule rows' preconditions: rule_add_existing's and rule_del's one rule,
 // and PRE_RULES in rtnl-write-corpus.exp, rule_flush's and rule_save's.

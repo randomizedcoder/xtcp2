@@ -23,8 +23,8 @@ import (
 // (G3-T03), the addrlabel pair with its writes and flush (G3-T04), and
 // RTM_SETNEIGHTBL and RTM_SETSTATS with ntable change and stats set (G3-T05),
 // the link property pair with link property add and del (G3-T06), and
-// RTM_SETLINK with token set and del (G4-T03); `link set` still sends
-// RTM_NEWLINK.
+// RTM_SETLINK with token set and del (G4-T03), and RTM_NEWNSID with netns
+// set (G4-T04); `link set` still sends RTM_NEWLINK.
 var admittedWriteTypes = map[uint16]bool{
 	uint16(unix.RTM_NEWROUTE):     true,
 	uint16(unix.RTM_DELROUTE):     true,
@@ -45,6 +45,7 @@ var admittedWriteTypes = map[uint16]bool{
 	uint16(unix.RTM_NEWLINKPROP):  true,
 	uint16(unix.RTM_DELLINKPROP):  true,
 	uint16(unix.RTM_SETLINK):      true,
+	uint16(unix.RTM_NEWNSID):      true,
 }
 
 // TestBuildWriteRequestAdmitsOnlyListedWrites walks every named rtnetlink type

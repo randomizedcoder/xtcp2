@@ -66,6 +66,13 @@ func TestParams(t *testing.T) {
 			path: "token", pathDev: "v0", want: goip.ShowRequest{Object: "token", JSON: true, Selectors: []string{"dev", "v0"}}},
 		{name: "token_family", description: "negative: token takes no family, since iptoken_list ignores it",
 			path: "token", query: "family=inet6", wantErr: true},
+		{name: "netns_nsid", description: "positive: netns takes target-nsid then nsid, in registry order",
+			path: "netns", query: "nsid=1&target-nsid=2",
+			want: goip.ShowRequest{Object: "netns", JSON: true, Selectors: []string{"target-nsid", "2", "nsid", "1"}}},
+		{name: "netns_family", description: "negative: netns takes no family, since netns_list_id ignores it",
+			path: "netns", query: "family=inet", wantErr: true},
+		{name: "netns_nsid_negative", description: "boundary: nsid=-1 is not a uint32",
+			path: "netns", query: "nsid=-1", wantErr: true},
 		{name: "mrule_link", description: "negative: family=link, which do_multirule refuses, is refused here",
 			path: "mrule", query: "family=link", wantErr: true},
 

@@ -669,3 +669,20 @@ func NexthopBucketGet(family uint8, id uint32, index uint16, seq uint32) ([]byte
 func NexthopDumpFiltered(family uint8, f xtcpnl.NexthopDumpFilter, seq uint32) ([]byte, error) {
 	return xtcpnl.BuildGetNexthopDumpRequest(family, f, seq)
 }
+
+// NsidByFD is netns_id_from_name's RTM_GETNSID (lib/namespace.c), one per
+// /run/netns entry in netns_map_init: NETNSA_FD alone, NLM_F_REQUEST alone.
+func NsidByFD(fd, seq uint32) ([]byte, error) {
+	return xtcpnl.BuildGetNsidByFDRequest(fd, seq)
+}
+
+// NsidGet is `ip netns list-id nsid N [target-nsid T]`'s RTM_GETNSID
+// (get_netnsid_from_netnsid, ip/ipnetns.c).
+func NsidGet(nsid, target int32, hasTarget bool, seq uint32) ([]byte, error) {
+	return xtcpnl.BuildGetNsidRequest(nsid, target, hasTarget, seq)
+}
+
+// NsidDump is `ip netns list-id [target-nsid T]`'s RTM_GETNSID dump.
+func NsidDump(target int32, hasTarget bool, seq uint32) ([]byte, error) {
+	return xtcpnl.BuildDumpNsidRequest(target, hasTarget, seq)
+}

@@ -10,12 +10,12 @@ several steps, further down under [Remaining](#remaining).
 
 | | count | counted from |
 |---|---|---|
-| commands in the comparison matrix | **268** | `internal/goipparity/commands.go` — 136 read rows (31 of them `addr show` state, selector and output-mode rows with a `Setup`, and 6 `route get`, 2 `neigh get`, 4 `nexthop get` and `nexthop bucket`, 3 `link xstats` and `link afstats`, 6 `mroute show`, 3 `token`, 3 `route save` and `route showdump`, 1 `route flush`, 1 `neigh flush`, 1 `rule save` and 1 `nexthop flush` rows with one; the missing-table `route flush` row has none), the 21 link write rows, the 26 route write rows, the 27 address write rows, the 7 address flush rows, the 2 address restore rows, the route restore row, the 2 route flush write rows, the 6 neigh write rows, the 2 neigh flush write rows, the 17 rule write rows, the rule flush write row, the rule restore row, the 6 nexthop write rows, the nexthop flush write row, the 2 addrlabel write rows, the addrlabel flush write row, the 3 ntable write rows, the stats write row, the 3 link property write rows and the 2 token write rows |
-| of those, `Implemented: true` | **268** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
-| of those, in `gated_commands` | **267** | `pkg/nlparity/goip-parity-allowlist.json` |
-| allowlisted divergences | **7** | same file, `entries` |
+| commands in the comparison matrix | **273** | `internal/goipparity/commands.go` — 140 read rows (31 of them `addr show` state, selector and output-mode rows with a `Setup`, and 6 `route get`, 2 `neigh get`, 4 `nexthop get` and `nexthop bucket`, 3 `link xstats` and `link afstats`, 6 `mroute show`, 3 `token`, 4 `netns list-id`, 3 `route save` and `route showdump`, 1 `route flush`, 1 `neigh flush`, 1 `rule save` and 1 `nexthop flush` rows with one; the missing-table `route flush` row has none), the 21 link write rows, the 26 route write rows, the 27 address write rows, the 7 address flush rows, the 2 address restore rows, the route restore row, the 2 route flush write rows, the 6 neigh write rows, the 2 neigh flush write rows, the 17 rule write rows, the rule flush write row, the rule restore row, the 6 nexthop write rows, the nexthop flush write row, the 2 addrlabel write rows, the addrlabel flush write row, the 3 ntable write rows, the stats write row, the 3 link property write rows, the 2 token write rows and the netns set write row |
+| of those, `Implemented: true` | **273** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
+| of those, in `gated_commands` | **272** | `pkg/nlparity/goip-parity-allowlist.json` |
+| allowlisted divergences | **12** | same file, `entries` |
 | of those, `kind=version-skew` | **7** | all against the pinned `ip` 7.1.0 |
-| of those, `kind=accepted-divergence` | **0** | nothing is *allowlisted* as a permanent divergence — the nine wire divergences runs 8 and 9 measured **could not** be, because a transaction-count divergence is unsuppressible (`nlparity_allowlist.go:143`), and G0 retired every one by changing goip to send `ip`'s requests |
+| of those, `kind=accepted-divergence` | **5** | the five `ip netns` rows' `NETNSA_FD`, the descriptor each process opened the namespace file as, a slot in its own table (G4-T04). Nothing else is: the nine wire divergences runs 8 and 9 measured **could not** be, because a transaction-count divergence is unsuppressible (`nlparity_allowlist.go:143`), and G0 retired every one by changing goip to send `ip`'s requests |
 
 **One** matrix row sits outside `gated_commands`: **`addr show dynamic`**,
 which prints a finite `valid_lft` that counts down between `ip_a` and `goip`,
@@ -3863,6 +3863,24 @@ Two consecutive clean runs passed 268 of 268, identical row for row, ending
 `GOIP_PARITY_OVERALL_PASS`. All five gate with no allowlist entry, and
 `TestTokenRows` and the `earned`/`gated_commands` pair pin them: 268 rows,
 267 gated.
+
+### G4-T04: the five `netns` rows gate
+
+G4-T04 adds `goip netns list-id` and `netns set`
+(`internal/goip/obj_netns.go`), four read rows and one write row. The reads,
+on `netnsSetup`, peers `nlcaprp1` and `nlcaprp2` holding nsids 1 and 2, are
+`netns_map_init`'s `RTM_GETNSID` by `NETNSA_FD` for each file under
+`/run/netns`, then the dump or the get (floor 4): `netns list-id`,
+`-j netns list-id`, `netns list-id nsid 2` and
+`netns list-id nsid 1 target-nsid 2`. The write is one `RTM_NEWNSID`,
+`NETNSA_FD` then `NETNSA_NSID`, and its ack (floor 2): `netns set c1set 7`.
+
+Two consecutive clean runs passed 273 of 273, identical row for row, ending
+`GOIP_PARITY_OVERALL_PASS`. `NETNSA_FD` is the descriptor's number in each
+process's own table, so each row has an accepted-divergence entry for it;
+`set`'s fired, `ip` 5 against goip 6, and the four `list-id` entries did not,
+both sides opening each file as 6. `TestNetnsRows` and the
+`earned`/`gated_commands` pair pin them: 273 rows, 272 gated.
 
 ## Tier C — the `goip-parity` microVM flavor
 

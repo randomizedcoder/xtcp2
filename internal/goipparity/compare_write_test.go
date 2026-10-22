@@ -70,7 +70,10 @@ const (
 	// tokenWriteSlugPrefixCst names G4-T03's token write rows, each on the
 	// capture of its own slug under tdRtnl.
 	tokenWriteSlugPrefixCst = "token_set"
-	tdAddrSave              = "../../pkg/xtcpnl/testdata/7_1_4/link-write/addr-save"
+	// netnsSetSlugCst is G4-T04's netns set row, on the head of its
+	// capture under tdRtnl.
+	netnsSetSlugCst = "netns_set"
+	tdAddrSave      = "../../pkg/xtcpnl/testdata/7_1_4/link-write/addr-save"
 	// tdRtnl is the C1 rtnetlink corpus, route_restore\'s among it.
 	tdRtnl           = "../../pkg/xtcpnl/testdata/7_1_4/link-write/rtnl"
 	pcapGlobalHdrCst = 24
@@ -93,7 +96,9 @@ const (
 	rtmDelNexthopCst = 105
 	// rtmDelAddrLabelCst is RTM_DELADDRLABEL.
 	rtmDelAddrLabelCst = 73
-	nlmFRequestCst     = 0x1
+	// rtmGetNsidCst is RTM_GETNSID.
+	rtmGetNsidCst  = 90
+	nlmFRequestCst = 0x1
 	// nlMsgHdrCst is sizeof(struct nlmsghdr). Spelled here because this
 	// package may not import pkg/xtcpnl (TestParityCannotOpenASocket).
 	nlMsgHdrCst = 16
@@ -237,6 +242,9 @@ func corpusWriteRow(t *testing.T, c Command) writeRowFiles {
 		f.pcaps[SideGoip] = keepBeforeRequest(t, f.pcaps[SideIPA], rtmDelAddrLabelCst)
 		return f
 	}
+	if c.Slug == netnsSetSlugCst {
+		return corpusNetnsSetRow(t)
+	}
 	if strings.HasPrefix(c.Slug, addrLabelWriteSlugPrefixCst) ||
 		strings.HasPrefix(c.Slug, ntableWriteSlugPrefixCst) ||
 		strings.HasPrefix(c.Slug, statsSetSlugPrefixCst) ||
@@ -256,6 +264,35 @@ func corpusWriteRow(t *testing.T, c Command) writeRowFiles {
 		t.Fatal(err)
 	}
 
+	return writeRowFiles{
+		pcaps: map[string][]byte{SideIPA: ipPcap, SideGoip: dropLastRecords(t, ipPcap, 2), SideIPB: ipPcap},
+		rcs:   map[string]string{SideIPA: rc, SideGoip: "0", SideIPB: rc},
+		write: writeRequest(w.Writes[0], 1),
+	}
+}
+
+// corpusNetnsSetRow is netns_set's files as a perfect run would leave them.
+// The capture ran `ip netns set c1set 7 && ip netns list-id`, so ip's side
+// is its head, the RTM_NEWNSID and its ack, cut at list-id's first
+// RTM_GETNSID; goip's side sends nothing, and its file is the RTM_NEWNSID.
+// ip.out is list-id's, so every stdout is empty.
+func corpusNetnsSetRow(t *testing.T) writeRowFiles {
+	t.Helper()
+	dir := filepath.Join(tdRtnl, netnsSetSlugCst)
+	ipPcap := keepBeforeRequest(t, mustReadBytes(t, filepath.Join(dir, "ip.pcap")), rtmGetNsidCst)
+	path := filepath.Join(t.TempDir(), "ip.pcap")
+	if err := os.WriteFile(path, ipPcap, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	capture, err := nlparity.ParseRouteCaptureFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, err := nlparity.SplitWrites(nlparity.SegmentCapture(capture), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rc := strings.TrimSpace(mustRead(t, filepath.Join(dir, "ip.rc")))
 	return writeRowFiles{
 		pcaps: map[string][]byte{SideIPA: ipPcap, SideGoip: dropLastRecords(t, ipPcap, 2), SideIPB: ipPcap},
 		rcs:   map[string]string{SideIPA: rc, SideGoip: "0", SideIPB: rc},

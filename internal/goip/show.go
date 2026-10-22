@@ -96,8 +96,19 @@ func (r ShowRequest) Argv() []string {
 	if r.Details {
 		argv = append(argv, "-d")
 	}
-	argv = append(argv, r.Object, showVerbCst)
+	argv = append(argv, r.Object, showVerbOf(r.Object))
 	return append(argv, r.Selectors...)
+}
+
+// showVerbOf is the verb Show runs for the object named name: its
+// showVerb, or show.
+func showVerbOf(name string) string {
+	for i := range objects {
+		if objects[i].name == name && objects[i].showVerb != "" {
+			return objects[i].showVerb
+		}
+	}
+	return showVerbCst
 }
 
 // Show runs r against src and writes what `ip` would print to out.
@@ -129,7 +140,7 @@ func Show(src Source, r ShowRequest, out io.Writer) error {
 		c.showDetails = 1
 	}
 
-	args := append([]string{showVerbCst}, r.Selectors...)
+	args := append([]string{showVerbOf(r.Object)}, r.Selectors...)
 	if err := obj.run(c, args); err != nil {
 		if errors.Is(err, unix.ENODEV) && !errors.Is(err, ErrNoSuchDevice) {
 			return noSuchDevice(err)

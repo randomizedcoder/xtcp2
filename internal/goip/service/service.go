@@ -768,6 +768,55 @@ func (s *Service) LinkTokens() ([]model.LinkToken, error) {
 	return out, nil
 }
 
+// NsidByFD is netns_id_from_name's RTM_GETNSID for one namespace file's
+// descriptor: its one RTM_NEWNSID reply, or the kernel's refusal.
+func (s *Service) NsidByFD(fd uint32) (model.Nsid, error) {
+	r, err := req.NsidByFD(fd, s.nextSeq())
+	if err != nil {
+		return model.Nsid{}, fmt.Errorf("goip: build nsid request: %w", err)
+	}
+	return s.nsidGet(r)
+}
+
+// NsidGet is `ip netns list-id nsid N`'s RTM_GETNSID: its one RTM_NEWNSID
+// reply, or the kernel's refusal.
+func (s *Service) NsidGet(nsid, target int32, hasTarget bool) (model.Nsid, error) {
+	r, err := req.NsidGet(nsid, target, hasTarget, s.nextSeq())
+	if err != nil {
+		return model.Nsid{}, fmt.Errorf("goip: build nsid request: %w", err)
+	}
+	return s.nsidGet(r)
+}
+
+func (s *Service) nsidGet(r []byte) (model.Nsid, error) {
+	body, err := s.singleGet(r, uint16(unix.RTM_NEWNSID), "RTM_NEWNSID")
+	if err != nil {
+		return model.Nsid{}, err
+	}
+	ni, err := xtcpnl.ParseNsid(body)
+	if err != nil {
+		return model.Nsid{}, fmt.Errorf("goip: decode RTM_NEWNSID: %w", err)
+	}
+	return model.Nsid(ni), nil
+}
+
+// Nsids is `ip netns list-id`'s RTM_GETNSID dump, in the kernel's order.
+func (s *Service) Nsids(target int32, hasTarget bool) ([]model.Nsid, error) {
+	r, err := req.NsidDump(target, hasTarget, s.nextSeq())
+	if err != nil {
+		return nil, fmt.Errorf("goip: build nsid dump: %w", err)
+	}
+	v, err := decode(s, r, uint16(unix.RTM_NEWNSID), "RTM_NEWNSID", xtcpnl.ParseNsid)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.Nsid, len(v))
+	for i := range v {
+		out[i] = model.Nsid(v[i])
+	}
+	return out, nil
+}
+
 // NeighTableLinks is ll_init_map's link dump before the ntable dump
 // (ip/ipntable.c:685), the NeighborLinks twin. It is split out so obj_ntable can
 // Fill the index cache between the link dump and the table dump, which is how a

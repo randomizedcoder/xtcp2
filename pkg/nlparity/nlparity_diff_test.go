@@ -1668,6 +1668,8 @@ func TestCommittedAllowlistLociAreDerivable(t *testing.T) {
 		// entry's reason claims.
 		txn      int
 		wantMask uint32
+		// attr is the attribute the entry names, IFLA_EXT_MASK when 0.
+		attr uint16
 	}{
 		{
 			// MEASURED: 0x01, not 0x09. 7.1.0's ll_init_map calls
@@ -1724,6 +1726,35 @@ func TestCommittedAllowlistLociAreDerivable(t *testing.T) {
 			txn:         0,
 			wantMask:    0x09,
 		},
+		// G4-T04's NETNSA_FD entries: netns_map_init's first by-descriptor
+		// RTM_GETNSID, ip's fd 6, on each list-id command, and netns set's
+		// RTM_NEWNSID, ip's fd 5. One capture serves the four list-id
+		// commands, every one of which sends the same map requests first.
+		{
+			description: "positive: the list-id NETNSA_FD locus is derivable, ip's fd 6",
+			command:     "netns list-id", locus: "request:type(90):attr(3):get",
+			filename: tdGuestGetNsid, wantMask: 6, attr: unix.NETNSA_FD,
+		},
+		{
+			description: "positive: the same on -j, which reaches no request byte",
+			command:     "-j netns list-id", locus: "request:type(90):attr(3):get",
+			filename: tdGuestGetNsid, wantMask: 6, attr: unix.NETNSA_FD,
+		},
+		{
+			description: "positive: the same on the get by nsid, whose map requests come first",
+			command:     "netns list-id nsid 2", locus: "request:type(90):attr(3):get",
+			filename: tdGuestGetNsid, wantMask: 6, attr: unix.NETNSA_FD,
+		},
+		{
+			description: "positive: the same on the get with a target",
+			command:     "netns list-id nsid 1 target-nsid 2", locus: "request:type(90):attr(3):get",
+			filename: tdGuestGetNsid, wantMask: 6, attr: unix.NETNSA_FD,
+		},
+		{
+			description: "positive: the netns set NETNSA_FD locus is derivable on the write role, ip's fd 5",
+			command:     "netns set c1set 7", locus: "request:type(88):attr(3):write",
+			filename: tdNetnsSet, wantMask: 5, attr: unix.NETNSA_FD,
+		},
 	}
 
 	for _, tc := range tests {
@@ -1743,25 +1774,29 @@ func TestCommittedAllowlistLociAreDerivable(t *testing.T) {
 
 			// The pinned value, read out of the capture rather than asserted
 			// from the reason's prose.
+			attr := tc.attr
+			if attr == 0 {
+				attr = uint16(unix.IFLA_EXT_MASK)
+			}
 			_, attrs, _ := DecodeAttrs(ref.Txns[tc.txn].Request.Hdr.Type, ref.Txns[tc.txn].Request.Body)
 			var mask []byte
 			for _, a := range attrs {
-				if a.BareType() == uint16(unix.IFLA_EXT_MASK) {
+				if a.BareType() == attr {
 					mask = a.Val
 				}
 			}
 			if len(mask) != 4 {
-				t.Fatalf("transaction %d's request carries no 4-byte IFLA_EXT_MASK", tc.txn)
+				t.Fatalf("transaction %d's request carries no 4-byte attribute %d", tc.txn, attr)
 			}
 			if got := le32(mask); got != tc.wantMask {
-				t.Fatalf("pinned IFLA_EXT_MASK = 0x%02x, want 0x%02x — the allowlist entry's "+
-					"reason describes a value this capture does not hold", got, tc.wantMask)
+				t.Fatalf("pinned attribute %d = 0x%02x, want 0x%02x — the allowlist entry's "+
+					"reason describes a value this capture does not hold", attr, got, tc.wantMask)
 			}
 
-			// Now the divergence: de91e928's one extra bit.
+			// Now the divergence: one extra bit, de91e928's on the mask, or
+			// another process's descriptor.
 			sub := cloneSegmentation(ref)
-			sub.Txns[tc.txn].Request = mustSetAttrU32(sub.Txns[tc.txn].Request,
-				uint16(unix.IFLA_EXT_MASK), tc.wantMask|0x100)
+			sub.Txns[tc.txn].Request = mustSetAttrU32(sub.Txns[tc.txn].Request, attr, tc.wantMask|0x100)
 
 			found := false
 			for _, d := range Diff(tc.command, ref, sub) {
@@ -1770,7 +1805,7 @@ func TestCommittedAllowlistLociAreDerivable(t *testing.T) {
 				}
 				found = true
 				if d.Class != DivergenceValue {
-					t.Errorf("divergence at %q has class %s, want %s — a version-skew entry "+
+					t.Errorf("divergence at %q has class %s, want %s — an entry "+
 						"can only ever suppress a value", tc.locus, d.Class, DivergenceValue)
 				}
 				if !al.Suppresses(tc.command, tc.locus, d.Class) {
