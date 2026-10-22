@@ -48,7 +48,10 @@ on the builder. On 2026-10-20 the user agreed to add `"/dev/net/tun?"` to
 ## Integration results
 
 The latest pass of each check (VC019, operator-run on `l` at main a9cf7dba,
-KVM in the nix build sandbox, QEMU 11.0.2). Go test counts are `--- PASS` lines in
+KVM in the nix build sandbox, QEMU 11.0.2). VC027 repeats it after the
+nixpkgs, Go 1.27 and iproute2 7.2.0 bump, with the same counts and
+`vm-xtcp2-linkmonitor` as a seventh check (8 sentinels); the performance
+guest's kernel is now 6.18.57. Go test counts are `--- PASS` lines in
 the guest's serial log; no run had a `--- FAIL`, and only the rdma guest's
 three expected skips (veth has no rings, pause or FEC).
 
@@ -83,7 +86,7 @@ Outputs (GC-rooted by the operator's `result-vm-all`):
 | VC-T07 | Go source filtering, so a change outside the Go inputs keeps the guests cached (separate commits) | done | VC008 |
 | VC-T08 | `vm-linkmonitor-rdma`: the rxe microVM through mkVmCheck (every step's sentinel, `nlrecord/` in the evidence) | done | VC013, VC014 |
 | VC-T09 | `vm-linkmonitor-performance`: the performance guest through mkVmCheck, its bundle unpacked and its manifest checked; `checks.vm-linkmonitor-performance-bundle` | done | VC013, VC014, VC015, VC016 |
-| VC-T10 | `vm-xtcp2-linkmonitor` (`nix/tests/xtcp2-linkmonitor.nix`): the xtcp2 unit with the embedded monitor, 8 sentinels ([design](../docs/design-linkmonitor-in-xtcp2.md)) | 8 sentinels passed on `l` with a real link (VC023); `vm-all` rerun pending | VC020–VC023 |
+| VC-T10 | `vm-xtcp2-linkmonitor` (`nix/tests/xtcp2-linkmonitor.nix`): the xtcp2 unit with the embedded monitor, 8 sentinels ([design](../docs/design-linkmonitor-in-xtcp2.md)) | done: 8 sentinels on `l` with a real link (VC023), and in the sandbox under `vm-all` (VC027) | VC020–VC023, VC027 |
 
 ## TODO
 
@@ -121,10 +124,24 @@ Outputs (GC-rooted by the operator's `result-vm-all`):
   --dry-run` lists every `vm-check-*`). No guest code changed. The first
   boot failed `vm-linkmonitor-ionic-faults` (VC017), the rerun passed all
   six (VC018).
-- [ ] `vm-linkmonitor-ionic-faults` failed once on main (VC017) and passed on
-  the rerun with nothing changed; the cause is unknown. If it recurs, run
-  the app form (`nix run path:.#test-linkmonitor-ionic-faults-vm`), which
-  keeps the full serial and ernic logs under `~/.cache/xtcp2-vm/`.
+- [x] `vm-linkmonitor-ionic-faults` failed once on main (VC017) and passed on
+  the rerun with nothing changed. At the nixpkgs bump it failed every run
+  (VC025): eth_rx's every-10 fault fired inside
+  `TestIonicOnDemandErrors`' anchored window. The guest now aligns the
+  fault before the monitor anchors (fe8f4bf8). VC017 is probably the same
+  race, lost there only some of the time.
+- [ ] `vm-linkmonitor-performance` failed once with a bundle that did not
+  unpack (`gzip: invalid compressed data--format violated`, VC025), then
+  passed as an app and as a check with nothing changed (VC026). The bundle
+  leaves the guest as base64 lines through journald to the console, and
+  `bundlePostCheck` keeps only the lines with the guest's prefix, so one
+  lost or split line (journald rate limiting, or a console write cut by
+  another message) breaks the gzip stream. Unproven: the failed check kept
+  no serial log. If it recurs, run the app form and look for a short or
+  split line between the BUNDLE markers.
+- [ ] The new nixpkgs compiler floods the rocm-ernic build log with
+  `-Wleading-whitespace` warnings (no error; WERROR is off in the nix
+  build). Fix them in rocm-ernic, or check the CI-parity matrix first.
 - [ ] A failed check prints only the last 60 lines of serial.log, which for
   VC017 were all systemd shutdown, and keeps no evidence. Print the lines
   matching the fail pattern, `--- FAIL` and `_test.go:` first. This changes
@@ -170,3 +187,7 @@ Outputs (GC-rooted by the operator's `result-vm-all`):
 | VC021 | 2026-10-21 | user: `env -u LD_LIBRARY_PATH nix run path:.#test-xtcp2-linkmonitor-vm` on `l` (46176add) | pass, 7 sentinels; the stop took under 1 s. The guest had no NIC, so `expected_up_links=0`: PERSIST and RELOAD only showed that a count of 0 survives |
 | VC022 | 2026-10-21 | an isolated virtio-net NIC (`-netdev user,restrict=on`) brought up before xtcp2; BASELINE asserts a count of 1, and the new MISSING step takes eth0 down (`up_links_delta -1`, `problems >= 1`) and back up; 8 sentinels; app rebuilt, launcher carries the NIC | built |
 | VC023 | 2026-10-21 | user: `env -u LD_LIBRARY_PATH nix run path:.#test-xtcp2-linkmonitor-vm` on `l` (5e459f79) | pass, 8 sentinels; `expected_up_links=1`; eth0 down seen in about 1 s (`problems=1`), delta back to 0 in about 1 s, so link events drive it, not the 1 min on-demand poll; the stop took under 1 s |
+| VC024 | 2026-10-22 | `env -u LD_LIBRARY_PATH nix build --max-jobs 1 --keep-going -L .#checks.x86_64-linux.vm-all` (chore/bump-nixpkgs-go-deps, 7496580e: nixpkgs bump, Go 1.27, iproute2 7.2.0) | fail before boot: `vm-check-xtcp2-linkmonitor` launcher exited 1. The new qemu-vm.nix nests `nix-vm.XXXXXXXXXX/tmp.XXXXXXXXXX` under TMPDIR, and TMPDIR was the check's `$out/work`, so the nix-store socket path passed sun_path's 108 bytes. Fixed in 379a9400: the scratch is a `mktemp -d` under XDG_RUNTIME_DIR, else TMPDIR, else /tmp |
+| VC025 | 2026-10-22 | the same, at 379a9400 | xtcp2-linkmonitor 8 sentinels, goip-argv-paths 8, embedding 4, ionic 11, rdma 10 pass. ionic-faults fails (`LINKMONITOR_IONIC_FAIL`): `TestIonicOnDemandErrors`' anchored row saw an errors reason. The app form failed 3 of 3, at this branch and at its base 5f965741. eth_rx's every-10 nobuf fault moves rx_over_errors (link class), and the counters test leaves the eligible count just below a firing. Fixed in fe8f4bf8: the guest pings one frame at a time until rx_packets + rx_dropped is a multiple of 10, then starts the monitor. The app passes, eth_rx fired 28 of 282. performance fails: `gzip: stdin: invalid compressed data--format violated`, the bundle does not unpack |
+| VC026 | 2026-10-22 | `nix run path:.#test-linkmonitor-performance-vm`, then `nix build .#checks.x86_64-linux.vm-linkmonitor-performance`, nothing changed | both pass, 3 sentinels; VC025's bundle failure did not recur |
+| VC027 | 2026-10-22 | `env -u LD_LIBRARY_PATH nix build --max-jobs 1 --keep-going -L .#checks.x86_64-linux.vm-all` at fe8f4bf8 | pass, all seven; out path `caridv2v…-vm-all` equals `nix eval` of `checks.vm-all.outPath`. Only ionic and ionic-faults booted (fe8f4bf8 changed their guest script); the other five came from VC025 and VC026. xtcp2-linkmonitor 8 sentinels; goip-argv-paths 8 and 51 rows, 0 fail; embedding 4 and 12 Go tests; ionic 11 and 99; ionic-faults 3 and 18 (eth_rx fired 28 of 281, eth_tx 31 of 310, stats_vals 1 of 17); rdma 10 and 61, 3 expected skips; performance 3, `live_exit=0`, `rdma_native_exit=0`, kernel 6.18.57, 912 KiB. No `--- FAIL`; 0 ESC bytes in each serial.log. Benchmarks (one run, from VC026's `bench.txt`): RealisticFleet gather 2690351 ns/op and 30171 allocs/op, http 3692656 ns/op; LocalMachine gather 777856 ns/op and 8464 allocs/op, http 1118561 ns/op. Allocations match VC019; times are 3-15% lower, within this host's noise |

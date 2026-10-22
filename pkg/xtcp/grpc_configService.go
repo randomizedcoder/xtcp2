@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bufbuild/protovalidate-go"
+	"buf.build/go/protovalidate"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"

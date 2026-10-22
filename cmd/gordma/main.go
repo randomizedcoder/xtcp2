@@ -1,4 +1,4 @@
-// Command gordma is a read-only Go clone of rdma(8), iproute2 7.1.0's.
+// Command gordma is a read-only Go clone of rdma(8), iproute2 7.2.0's.
 //
 // Like goip, it is a coverage test for pkg/xtcpnl rather than a
 // replacement: replaying rdma's strace corpus through it must reproduce

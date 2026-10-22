@@ -1030,6 +1030,9 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	// reason — see TestAddrFlushRowsGated.
 	//
 	// Nor did A9-T03's two address restore rows — see TestAddrRestoreRowsGated.
+	//
+	// Nor did the three nexthop selector rows added at the iproute2 7.2.0
+	// move — see TestNexthopSelectorRowsGated.
 	expected := []string{
 		"-s addr show", "-s neigh show",
 		"-0 addr show", "route show table main", "route show table local",
@@ -1307,6 +1310,50 @@ func TestPermanentWireDivergences(t *testing.T) {
 			})
 		}
 	})
+}
+
+// TestNexthopSelectorRowsGated pins the three nexthop selector rows added at
+// the iproute2 7.2.0 move. 7.2.0 resolves `dev`, `master` and `vrf` names
+// with ll_link_get, and goip follows (fb47f92b). Two live runs back to back
+// both read GOIP_PARITY_PASS, stdout=0, control nl=0, and txns 2/2, 3/3 and
+// 4/4, so the rows gate with no allowlist entry and never joined the
+// ungated queue.
+//
+// go test ./internal/goipparity/ -run TestNexthopSelectorRowsGated
+func TestNexthopSelectorRowsGated(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	rows := []struct {
+		category, description, command string
+		expected                       bool // want IsGated
+	}{
+		{"positive", "dev resolves goip0 with ll_link_get by name, then the NHA_OIF dump", "nexthop show dev goip0", true},
+		{"positive", "master resolves goipvrf the same way, then the NHA_MASTER dump", "nexthop show master goipvrf", true},
+		{"boundary", "vrf adds name_is_vrf's get, one transaction over master, and still gates", "nexthop show vrf goipvrf", true},
+		{"negative", "a selector the matrix has no row for is not gated", "nexthop show dev goip1", false},
+		{"corner", "the selector's object word alone is the bare dump's row, gated since runs 10 and 11", "nexthop show", true},
+	}
+	for _, r := range rows {
+		t.Run(r.command, func(t *testing.T) {
+			t.Logf("%s: %s; expected: IsGated = %v", r.category, r.description, r.expected)
+			if got := al.IsGated(r.command); got != r.expected {
+				t.Errorf("IsGated(%q) = %v, want %v", r.command, got, r.expected)
+			}
+			if !r.expected {
+				return
+			}
+			c, lookupErr := Lookup(r.command)
+			if lookupErr != nil {
+				t.Fatalf("Lookup(%q): %v", r.command, lookupErr)
+			}
+			if !c.Implemented || c.Write || c.NeedsDev || c.Floor != 4 {
+				t.Errorf("%q: Implemented=%v Write=%v NeedsDev=%v Floor=%d, want an implemented read row, device in the argv, floor 4",
+					r.command, c.Implemented, c.Write, c.NeedsDev, c.Floor)
+			}
+		})
+	}
 }
 
 // TestNexthopAddrlabelGated pins the five-row flip runs 10 and 11 recorded — the

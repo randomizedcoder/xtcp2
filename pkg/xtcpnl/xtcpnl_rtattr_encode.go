@@ -441,7 +441,7 @@ func FamilyHdrLen(msgType uint16) int {
 }
 
 // RTEXT_FILTER_VF and RTEXT_FILTER_SKIP_STATS are absent from
-// golang.org/x/sys/unix v0.47.0 (verified), while IFLA_EXT_MASK is present.
+// golang.org/x/sys/unix v0.49.0 (verified), while IFLA_EXT_MASK is present.
 // Declared here with a kernel citation, as xtcpnl_rtmsg.go:45 does for RtaNhID.
 //
 // These two are the value `ip link show` and `ip addr show` put in
@@ -455,3 +455,12 @@ const (
 	RTEXT_FILTER_VF         = 1 << 0 //nolint:revive,staticcheck // kernel UAPI spelling, matching the rest of this package
 	RTEXT_FILTER_SKIP_STATS = 1 << 3 //nolint:revive,staticcheck // kernel UAPI spelling
 )
+
+// RtextFilterNameOnly is RTEXT_FILTER_NAME_ONLY: reply with the link's
+// header, name and altnames, not its full attribute set. Also absent from x/sys v0.49.0.
+// iproute2 7.2.0 sets it, with VF and SKIP_STATS, on both of its index-cache
+// requests, ll_link_get and ll_init_map (commit de91e928, lib/ll_map.c:276-277
+// and :395-398), so those send 0x109 where 7.1.0 sent 0x09 and 0x01.
+//
+// linux/include/uapi/linux/rtnetlink.h:841 (Linux 7.2 headers)
+const RtextFilterNameOnly = 1 << 8

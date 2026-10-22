@@ -14,10 +14,11 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
-	"github.com/bufbuild/protovalidate-go"
+	"buf.build/go/protovalidate"
 	"github.com/grafana/pyroscope-go"
 	"github.com/pkg/profile"
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"
@@ -991,9 +992,29 @@ func prepareConfig(f *mainFlags) (*xtcp_config.XtcpConfig, bool) {
 // that returns immediately so cmd/xtcp2 tests don't need real netlink.
 var daemonRunner = runDaemonDefault
 
+// pendingReexec is the config a ConfigService.Set soft restart asked for.
+// runDaemonDefault records it once the daemon has drained; finishMain
+// re-execs into it after runMain has returned.
+var pendingReexec atomic.Pointer[xtcp_config.XtcpConfig]
+
 func main() {
 	misc.DieIfNotLinux()
-	os.Exit(runMain(context.Background()))
+	os.Exit(finishMain(runMain(context.Background()), execSelfWithConfig))
+}
+
+// finishMain re-execs into a pending soft-restart config, and otherwise
+// returns code for os.Exit. It runs after runMain's deferred cleanup on
+// purpose: those defers stop the CPU profilers (-profile.mode=cpu and the
+// Pyroscope agent). A running CPU profile arms ITIMER_PROF, which survives
+// execve while SIGPROF reverts to its default action, so exec'ing with the
+// profile still on kills the new image ("Profiling timer expired") before
+// the Go runtime installs its handler, and systemd restarts xtcp2 with the
+// old config. A failed run (non-zero code) is never re-exec'd.
+func finishMain(code int, reexec func(*xtcp_config.XtcpConfig)) int {
+	if newCfg := pendingReexec.Swap(nil); newCfg != nil && code == 0 {
+		reexec(newCfg) // returns only if the exec failed
+	}
+	return code
 }
 
 // runMain wires the production main body. Extracted so tests can run
@@ -1155,11 +1176,12 @@ func runDaemonDefault(ctx context.Context, cancel context.CancelFunc, c *xtcp_co
 
 	// Graceful shutdown is complete here — the Poller's deferred flush and
 	// closeDestination have drained all buffered records, so no data is lost.
-	// If a reconfigure was requested, re-exec into the new config now (same
-	// binary, same container/PID). execSelfWithConfig returns only on error.
+	// If a reconfigure was requested, hand the new config to finishMain, which
+	// re-execs (same binary, same container/PID) once runMain's deferred
+	// cleanup has stopped the profilers.
 	select {
 	case newCfg := <-restartCh:
-		execSelfWithConfig(newCfg)
+		pendingReexec.Store(newCfg)
 	default:
 	}
 }

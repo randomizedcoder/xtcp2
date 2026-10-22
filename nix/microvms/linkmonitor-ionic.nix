@@ -45,9 +45,10 @@ let
   # Every 10th frame each way, so the guest's drop counters are an exact
   # function of its packet counters. stats_vals event 1 is ionic_rdma's read
   # at registration, which must succeed or the RDMA device is torn down.
+  faultEvery = 10;
   injects = [
-    "eth_rx: every 10 effect nobuf"
-    "eth_tx: every 10 effect drop"
+    "eth_rx: every ${toString faultEvery} effect nobuf"
+    "eth_tx: every ${toString faultEvery} effect drop"
     "stats_vals: after 2 effect fail"
   ];
   ernicArgs = lib.optionals faults (
@@ -175,6 +176,7 @@ let
     systemctl start go-link-monitor.service
     run_test TestIonicFaultCounters
     echo LINKMONITOR_IONIC_FAULT_COUNTERS_PASS
+    align_rx_fault
     on_demand
     run_test TestIonicOnDemandErrors
     echo LINKMONITOR_IONIC_ON_DEMAND_ERRORS_PASS
@@ -239,6 +241,26 @@ let
       }
       run_test() {
         ${artifact}/bin/ionic-vm.test -test.run "^$1\$" -test.v -test.timeout=10m
+      }
+      # Leave eth_rx's fault just past a firing before the on-demand monitor
+      # anchors. A nobuf drop moves rx_over_errors, a link error, and the
+      # ARP traffic after TestIonicFaultCounters' pings otherwise crossed the
+      # next firing inside TestIonicOnDemandErrors' anchored window. Every
+      # eligible frame is either delivered or dropped, so the device's count
+      # is rx_packets + rx_dropped; at a multiple of the period it has just
+      # fired, and the next ${toString (faultEvery - 1)} frames pass.
+      align_rx_fault() {
+        local stats=/sys/class/net/$netdev/statistics rx dropped
+        for _ in $(seq 1 ${toString (4 * faultEvery)}); do
+          rx=$(<"$stats/rx_packets")
+          dropped=$(<"$stats/rx_dropped")
+          if [ $(((rx + dropped) % ${toString faultEvery})) -eq 0 ]; then
+            return 0
+          fi
+          ping -n -q -c 1 -W 1 ${tap.host} >/dev/null || true
+        done
+        echo "align_rx_fault: eth_rx never reached a firing" >&2
+        return 1
       }
       # The same monitor on demand, on the same address and baseline.
       on_demand() {

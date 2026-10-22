@@ -16,8 +16,12 @@
 #           N (default 5) kept. Nothing goes to /tmp and the console gets
 #           only the summary, plus the log's tail on a failure.
 #
-# The guest's scratch (TMPDIR, qemu-vm.nix's xchg, sockets) lives in a work
-# directory beside the evidence that is removed on exit.
+# The guest's scratch (TMPDIR, qemu-vm.nix's xchg, sockets) lives in a short
+# work directory, removed on exit, under $XDG_RUNTIME_DIR, else $TMPDIR (the
+# build sandbox's /build), else /tmp. Not beside the evidence: qemu and
+# virtiofsd bind Unix sockets in it, sun_path holds 108 bytes, and qemu-vm.nix
+# nests nix-vm.XXXXXXXXXX/tmp.XXXXXXXXXX under TMPDIR, which a check's
+# /nix/store/<hash>-vm-check-<name> evidence directory pushed past the limit.
 { pkgs, lib }:
 {
   # Used in the derivation, runner and app names.
@@ -69,9 +73,7 @@ let
       esac
       mkdir -p "$run_dir"
       run_dir=$(cd "$run_dir" && pwd)
-      work="$run_dir/work"
-      rm -rf -- "$work"
-      mkdir "$work"
+      work=$(mktemp -d "''${XDG_RUNTIME_DIR:-''${TMPDIR:-/tmp}}/vm.XXXXXX")
       trap 'rm -rf -- "$work"' EXIT
       ${lib.concatStrings (
         lib.mapAttrsToList (key: path: ''

@@ -261,7 +261,7 @@ let
       sink = "clickhouse-pipeline-stress";
     };
 
-  # Mixed: clickhouse-pipeline + MinIO + a second xtcp2 instance
+  # Mixed: clickhouse-pipeline + Garage + a second xtcp2 instance
   # writing parquet so ClickHouse can query both paths.
   mkOneClickPipeParquet =
     arch:
@@ -1077,10 +1077,10 @@ let
     })
   );
 
-  # Parquet→S3 upload stress soak: the s3parquet-stress VM (in-VM MinIO +
+  # Parquet→S3 upload stress soak: the s3parquet-stress VM (in-VM Garage +
   # xtcp2 writing parquet + the tcp-stress load containers), wrapped in a
   # duration-bounded host runner that asserts uploads keep advancing and the
-  # MinIO disk stays healthy. Gated on tcpStressImage like clickPipeStress.
+  # Garage disk stays healthy. Gated on tcpStressImage like clickPipeStress.
   s3ParquetStress = lib.optionalAttrs (tcpStressImage != null) (
     lib.genAttrs constants.supportedArchs (arch: {
       runner = microvmLib.mkS3ParquetStressRunner {

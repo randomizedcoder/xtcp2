@@ -1,0 +1,126 @@
+[ {
+        "ifindex": 1,
+        "ifname": "lo",
+        "group": "xstats",
+        "subgroup": "bond",
+        "suite": "802.3ad"
+    },{
+        "ifindex": 1,
+        "ifname": "lo",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "vlan",
+        "vlans": [ ]
+    },{
+        "ifindex": 1,
+        "ifname": "lo",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "mcast"
+    },{
+        "ifindex": 1,
+        "ifname": "lo",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "stp"
+    },{
+        "ifindex": 2,
+        "ifname": "nlmon0",
+        "group": "xstats",
+        "subgroup": "bond",
+        "suite": "802.3ad"
+    },{
+        "ifindex": 2,
+        "ifname": "nlmon0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "vlan",
+        "vlans": [ ]
+    },{
+        "ifindex": 2,
+        "ifname": "nlmon0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "mcast"
+    },{
+        "ifindex": 2,
+        "ifname": "nlmon0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "stp"
+    },{
+        "ifindex": 3,
+        "ifname": "goip0",
+        "group": "xstats",
+        "subgroup": "bond",
+        "suite": "802.3ad"
+    },{
+        "ifindex": 3,
+        "ifname": "goip0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "vlan",
+        "vlans": [ ]
+    },{
+        "ifindex": 3,
+        "ifname": "goip0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "mcast"
+    },{
+        "ifindex": 3,
+        "ifname": "goip0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "stp"
+    },{
+        "ifindex": 4,
+        "ifname": "goipvrf",
+        "group": "xstats",
+        "subgroup": "bond",
+        "suite": "802.3ad"
+    },{
+        "ifindex": 4,
+        "ifname": "goipvrf",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "vlan",
+        "vlans": [ ]
+    },{
+        "ifindex": 4,
+        "ifname": "goipvrf",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "mcast"
+    },{
+        "ifindex": 4,
+        "ifname": "goipvrf",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "stp"
+    },{
+        "ifindex": 5,
+        "ifname": "goipv",
+        "group": "xstats",
+        "subgroup": "bond",
+        "suite": "802.3ad"
+    },{
+        "ifindex": 5,
+        "ifname": "goipv",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "vlan",
+        "vlans": [ ]
+    },{
+        "ifindex": 5,
+        "ifname": "goipv",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "mcast"
+    },{
+        "ifindex": 5,
+        "ifname": "goipv",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "stp"
+    } ]

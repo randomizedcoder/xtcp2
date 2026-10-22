@@ -46,9 +46,11 @@ import (
 // rendered three of the four links" and "goip rendered nothing" must not be
 // allowlistable, or the hole this file exists to close reopens as an entry
 // with a plausible-sounding reason. Keyword *values* are DivergenceValue and
-// therefore suppressible, which is what the two committed `stdout:` entries
-// need — iproute2 7.1.0 suppresses `qlen 0` where the tip prints it, and that
-// is a version skew in the reference tool, not a goip defect.
+// therefore suppressible, which is what the `stdout:` version-skew entries
+// needed while the pin was 7.1.0 — 7.1.0 suppresses `qlen 0` where 7.2.0
+// prints it, a skew in the reference tool rather than a goip defect. goip
+// follows 7.2.0 now and those entries are gone, but the next such skew lands
+// the same way.
 //
 // # Where this narrows the plan's suppression rule, and why
 //
@@ -60,8 +62,8 @@ import (
 // about netlink attributes, where an absence means goip failed to decode
 // something the kernel sent.
 //
-// A rendered keyword is not that. `ip -6 addr show` prints `qlen 1000` for lo
-// from a SIOCGIFTXQLEN ioctl, because the link dump inet6_dump_ifinfo answers
+// A rendered keyword is not that. 7.1.0's `ip -6 addr show` printed `qlen
+// 1000` for lo from a SIOCGIFTXQLEN ioctl (7.2.0 dropped the fallback), because the link dump inet6_dump_ifinfo answers
 // carries no IFLA_TXQLEN at all — so there is nothing in the netlink reply for
 // goip to have missed, and "absent" is a rendering decision rather than a
 // decode failure. Treating it as unsuppressible would make `-6 addr show`

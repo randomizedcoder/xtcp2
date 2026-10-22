@@ -687,7 +687,7 @@ func routeMatchesOif(r *model.Route, oif uint32) bool {
 // pure function of its inputs, which is what lets render/route_test.go run
 // against a pcap with no service at all.
 //
-// # Two divergences, both documented rather than fixed
+// # One divergence, documented rather than fixed
 //
 //   - **One socket, not one per lookup.** ll_link_get opens a fresh
 //     rtnl_handle per call (lib/ll_map.c:280), so each of `ip`'s side-gets has
@@ -696,12 +696,6 @@ func routeMatchesOif(r *model.Route, oif uint32) bool {
 //     nlmsg_pid, so this is invisible on the wire — and goip's reused sequence
 //     counter actually segments the transactions more cleanly than `ip`, whose
 //     two sockets seeded in the same second collide.
-//   - **The IFLA_EXT_MASK version skew.** Against the pinned iproute2 7.1.0
-//     the mask is RTEXT_FILTER_VF|RTEXT_FILTER_SKIP_STATS = 0x09, which is
-//     req.ExtMaskShow. The 7.2.0 reading reference sends 0x109, because commit
-//     de91e928 added RTEXT_FILTER_NAME_ONLY (1 << 8) to both ll_link_get and
-//     ll_init_map. A nixpkgs bump therefore breaks this locus on `route show`,
-//     `link show dev` and `neigh show` at the same moment.
 //
 // A failed get is not cached, and that is also iproute2's behavior: when
 // ll_link_get returns something other than the index it asked for,

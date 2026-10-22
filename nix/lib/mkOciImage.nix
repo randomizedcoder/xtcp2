@@ -41,7 +41,7 @@ let
     # "x509: certificate signed by unknown authority". dockerTools.caCertificates
     # installs the bundle at every standard path, including Go's default Linux
     # location /etc/ssl/certs/ca-certificates.crt. (The microVM tests never
-    # caught this: they upload to in-VM MinIO over plain HTTP, so TLS is never
+    # caught this: they upload to in-VM Garage over plain HTTP, so TLS is never
     # exercised.)
     pkgs.dockerTools.caCertificates
   ]

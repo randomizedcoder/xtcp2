@@ -24,8 +24,10 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -1336,6 +1338,15 @@ func TestBuildDumpLinkRequestFilter(t *testing.T) {
 		typ     uint16
 		payload string
 	}
+	// show prints attributes with the payload quoted; %q on the struct
+	// itself would apply to the uint16 too.
+	show := func(as ...attr) string {
+		out := make([]string, len(as))
+		for i, a := range as {
+			out[i] = fmt.Sprintf("{%d %q}", a.typ, a.payload)
+		}
+		return strings.Join(out, " ")
+	}
 	u32 := func(v uint32) string {
 		var b [4]byte
 		binary.LittleEndian.PutUint32(b[:], v)
@@ -1416,11 +1427,11 @@ func TestBuildDumpLinkRequestFilter(t *testing.T) {
 				t.Fatalf("WalkRTAttrs: %v", err)
 			}
 			if len(attrs) != len(tc.expected) {
-				t.Fatalf("attrs = %q, want %q", attrs, tc.expected)
+				t.Fatalf("attrs = [%s], want [%s]", show(attrs...), show(tc.expected...))
 			}
 			for i := range attrs {
 				if attrs[i] != tc.expected[i] {
-					t.Errorf("attr %d = %q, want %q", i, attrs[i], tc.expected[i])
+					t.Errorf("attr %d = %s, want %s", i, show(attrs[i]), show(tc.expected[i]))
 				}
 			}
 		})

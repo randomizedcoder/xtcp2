@@ -1,0 +1,9 @@
+[ {
+        "dst": "192.0.2.60",
+        "dev": "goip0",
+        "proxy": null
+    },{
+        "dst": "2001:db8::60",
+        "dev": "goip0",
+        "proxy": null
+    } ]

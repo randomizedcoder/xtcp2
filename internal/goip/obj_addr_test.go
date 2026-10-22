@@ -1001,9 +1001,9 @@ func TestAddrShowJSONMatchesCapturedSidecars(t *testing.T) {
 //
 // The v6 rows need sidecarWithoutIoctlQlen for the reason recorded on that
 // helper: iproute2 7.1.0 fills the absent IFLA_TXQLEN in from
-// ioctl(SIOCGIFTXQLEN), which a netlink-only goip cannot see. That is the
-// pre-existing `stdout:keyword:qlen` allowlist entry, not a new divergence,
-// and the helper fails if there is nothing to remove.
+// ioctl(SIOCGIFTXQLEN), which a netlink-only goip cannot see. 7.2.0 dropped
+// that fallback, so it is a property of these 7.1.0 goldens rather than a
+// divergence, and the helper fails if there is nothing to remove.
 //
 // go test ./internal/goip/ -run TestAddrShowTextMatchesCapturedSidecars
 func TestAddrShowTextMatchesCapturedSidecars(t *testing.T) {

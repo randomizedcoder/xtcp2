@@ -10,9 +10,9 @@ package nlparity
 //   - TestAllowlistSuppression is the one that matters. It asserts that the
 //     values-only rule holds for every unsuppressible class at a locus that IS
 //     allowlisted, which is the exact shape of the bug the rule exists to stop.
-//   - TestAllowlistCommitted censuses the committed file, so the two owed
-//     version-skew entries cannot be silently deleted or left without an
-//     ip_version.
+//   - TestAllowlistCommitted censuses the committed file: no entries since
+//     goip follows the 7.2.0 pin, none of the retired 7.1.0 skews back, and
+//     the gated command list exactly as measured.
 
 import (
 	"encoding/json"
@@ -310,28 +310,25 @@ func TestAllowlistCommitted(t *testing.T) {
 		t.Fatalf("EmbeddedAllowlist: %v", err)
 	}
 
-	// The owed skews, by the commit each entry's reason must cite.
+	// The seven skews that stood against iproute2 7.1.0, retired when the pin
+	// moved to 7.2.0 and goip moved with it (internal/goip/req.ExtMaskLLMap,
+	// render.RenderQlenZero). They are listed so that none comes back
+	// quietly: goip sends and prints what 7.2.0 does at each of these, so an
+	// entry here again would be suppressing a divergence goip has stopped
+	// having, or hiding one it has started having again.
 	//
-	// Keyed by command AND locus, which is what Entry.key() is keyed on. It
-	// used to be keyed by locus alone, and that stopped working the moment
-	// faceb326's two entries were repointed to the locus a comparator
-	// actually derives: they are `stdout:keyword:qlen` on two different
-	// commands now, so a locus-keyed map would have silently held one of them.
-	//
-	// None of these four loci is prose, and that is the property being
-	// checked. The request loci end in `dump` and `get` rather than in
-	// `ll_init_map` and `ll_link_get`, because a locus must be spelled the way
-	// the differ DERIVES it — see requestRole in nlparity_diff.go. The stdout
-	// loci are `stdout:keyword:qlen` rather than a description of the cause,
-	// because internal/goipparity's StdoutLoci() is a closed set and that is
-	// the member of it this skew lands on. In both cases the iproute2 call
-	// site and the mechanism live in the reason, where prose belongs, and an
-	// entry whose locus is prose is an entry that matches nothing.
-	wantSkew := []struct{ command, locus, commit string }{
-		{"neigh show", "request:RTM_GETLINK:IFLA_EXT_MASK:dump", "de91e928"},
-		{"link show dev", "request:RTM_GETLINK:IFLA_EXT_MASK:get", "de91e928"},
-		{"link show", "stdout:keyword:qlen", "faceb326"},
-		{"-6 addr show", "stdout:keyword:qlen", "faceb326"},
+	// Keyed by command AND locus, which is what Entry.key() is keyed on. The
+	// request loci end in `dump` and `get` because a locus must be spelled the
+	// way the differ DERIVES it — see requestRole in nlparity_diff.go — and the
+	// stdout loci are internal/goipparity's StdoutLoci() member.
+	retired := []struct{ command, locus string }{
+		{"neigh show", "request:RTM_GETLINK:IFLA_EXT_MASK:dump"},
+		{"neigh show dev", "request:RTM_GETLINK:IFLA_EXT_MASK:dump"},
+		{"neigh show proxy", "request:RTM_GETLINK:IFLA_EXT_MASK:dump"},
+		{"link show dev", "request:RTM_GETLINK:IFLA_EXT_MASK:get"},
+		{"link show", "stdout:keyword:qlen"},
+		{"-6 addr show", "stdout:keyword:qlen"},
+		{"-s -6 addr show", "stdout:keyword:qlen"},
 	}
 
 	// Every command a measured-clean Tier C run has earned, in the order the
@@ -407,6 +404,12 @@ func TestAllowlistCommitted(t *testing.T) {
 		"addrlabel show",
 		"-6 addrlabel show",
 		"-j addrlabel show",
+		// The three nexthop selector rows, gated on two runs at iproute2
+		// 7.2.0: GOIP_PARITY_PASS with stdout=0, control nl=0 and txns 2/2,
+		// 3/3 and 4/4 on both.
+		"nexthop show dev goip0",
+		"nexthop show master goipvrf",
+		"nexthop show vrf goipvrf",
 		// The twenty-one link write rows, gated on the phase 7 runs: all
 		// GOIP_PARITY_PASS twice with identical verdicts, txns matching ip
 		// with goip's GOIP_WRITE_OUT file counted as its write, control nl=0
@@ -574,97 +577,37 @@ func TestAllowlistCommitted(t *testing.T) {
 		check       func(t *testing.T, a *Allowlist)
 	}{
 		{
-			description: "positive: the committed file loads, so every validation rule holds on it",
+			// It loaded above, so every validation rule holds on it. Empty is
+			// the measured state since goip follows the 7.2.0 pin: the next
+			// entry is a decision, and this row makes it one a test notices.
+			description: "positive: the committed file loads with no entries",
 			check: func(t *testing.T, a *Allowlist) {
-				if len(a.Entries) == 0 {
-					t.Fatalf("no entries; the two owed version-skew entries should be here")
+				if len(a.Entries) != 0 {
+					t.Fatalf("%d entries, want 0; the first is %q at %q",
+						len(a.Entries), a.Entries[0].Command, a.Entries[0].Locus)
 				}
 			},
 		},
 		{
-			description: "positive: both owed skews are present, at all four command/locus pairs",
+			description: "negative: none of the seven retired 7.1.0 skews is allowlisted",
 			check: func(t *testing.T, a *Allowlist) {
-				for _, w := range wantSkew {
-					e, ok := a.Lookup(w.command, w.locus)
-					if !ok {
-						t.Fatalf("no entry for command %q at locus %q", w.command, w.locus)
-					}
-					if e.Kind != KindVersionSkew {
-						t.Fatalf("%q/%q kind = %q, want %q",
-							w.command, w.locus, e.Kind, KindVersionSkew)
-					}
-					if !strings.Contains(e.Reason, w.commit) {
-						t.Fatalf("%q/%q reason does not cite %s",
-							w.command, w.locus, w.commit)
+				for _, r := range retired {
+					if e, ok := a.Lookup(r.command, r.locus); ok {
+						t.Errorf("%q/%q is allowlisted again (kind %s, ip_version %q)",
+							r.command, r.locus, e.Kind, e.IPVersion)
 					}
 				}
 			},
 		},
 		{
-			// MEASURED: the two ll_map loci do not hold the same pinned value.
-			// ll_link_get is already RTEXT_FILTER_VF|SKIP_STATS = 0x09 at
-			// 7.1.0, but ll_init_map calls rtnl_linkdump_req(rth, AF_UNSPEC),
-			// which forwards RTEXT_FILTER_VF alone — netlink_route_getneigh.pcap
-			// records 01000000 on the wire. So 7bd7f335 moves the dump locus
-			// 0x01 -> 0x09 and does not touch the single-get, and only the dump
-			// entry may cite it. This row is what stops the two reasons from
-			// being copies of each other.
-			description: "positive: the two ll_map loci hold different pinned values, 0x01 and 0x09",
+			description: "boundary: no entry cites de91e928, 7bd7f335 or faceb326, the commits goip now follows",
 			check: func(t *testing.T, a *Allowlist) {
-				dump, ok := findByLocus(a, "request:RTM_GETLINK:IFLA_EXT_MASK:dump")
-				if !ok {
-					t.Fatal("no entry at the dump locus")
-				}
-				get, ok := findByLocus(a, "request:RTM_GETLINK:IFLA_EXT_MASK:get")
-				if !ok {
-					t.Fatal("no entry at the get locus")
-				}
-				if !strings.Contains(dump.Reason, "7bd7f335") {
-					t.Error("the dump entry does not cite 7bd7f335, the commit that takes its mask 0x01 -> 0x09")
-				}
-				if !strings.Contains(dump.Reason, "0x01") {
-					t.Error("the dump entry does not state its pinned value of 0x01; " +
-						"extrapolating link show's 0x09 to ll_init_map is the error this row exists to prevent")
-				}
-				// The get entry is only required to state its own pinned
-				// value. It is deliberately NOT asserted to omit 7bd7f335 or
-				// 0x01: both reasons contrast the two loci on purpose, and a
-				// grep over prose would be a test of wording rather than of
-				// fact. What is a fact is the value each locus carries.
-				if !strings.Contains(get.Reason, "0x09") {
-					t.Error("the get entry does not state its pinned value of 0x09")
-				}
-			},
-		},
-		{
-			// The count is of entries, and it used to be described as a count
-			// of loci — true when the two were spelled apart by prose, and
-			// false once both were repointed to `stdout:keyword:qlen`, the
-			// locus the stdout comparator actually derives. They are separate
-			// entries because faceb326's halves land on different COMMANDS,
-			// which is what Entry.key() distinguishes; the assertion was
-			// always on the entry count and now says so.
-			//
-			// Three, not two, as of the `-s` sweep — and the row earned its
-			// keep by failing when it went to three. `-s -6 addr show` joined
-			// the command table and GOIP_PARITY_WARN addr_show_v6_stats
-			// reported the ioctl absence for it, so the ioctl half now
-			// covers two commands and the zero-suppression half still covers
-			// one. The number is maintained by hand on purpose: it is the
-			// only thing that makes a fourth entry appearing quietly
-			// impossible, and "this skew reaches one more command than it
-			// used to" is a fact worth a failing test rather than a silent
-			// increment.
-			description: "boundary: faceb326 has exactly three entries, which is the measured fact one would hide",
-			check: func(t *testing.T, a *Allowlist) {
-				n := 0
 				for i := range a.Entries {
-					if strings.Contains(a.Entries[i].Reason, "faceb326") {
-						n++
+					for _, commit := range []string{"de91e928", "7bd7f335", "faceb326"} {
+						if strings.Contains(a.Entries[i].Reason, commit) {
+							t.Errorf("entry %q/%q cites %s", a.Entries[i].Command, a.Entries[i].Locus, commit)
+						}
 					}
-				}
-				if n != 3 {
-					t.Fatalf("entries citing faceb326 = %d, want 3", n)
 				}
 			},
 		},
@@ -672,8 +615,8 @@ func TestAllowlistCommitted(t *testing.T) {
 			description: "boundary: every version-skew entry names the pinned release, so it expires when the pin moves",
 			check: func(t *testing.T, a *Allowlist) {
 				for i := range a.Entries {
-					if a.Entries[i].Kind == KindVersionSkew && a.Entries[i].IPVersion != "7.1.0" {
-						t.Fatalf("entry %q ip_version = %q, want the pinned 7.1.0",
+					if a.Entries[i].Kind == KindVersionSkew && a.Entries[i].IPVersion != "7.2.0" {
+						t.Fatalf("entry %q ip_version = %q, want the pinned 7.2.0",
 							a.Entries[i].Locus, a.Entries[i].IPVersion)
 					}
 				}
@@ -916,14 +859,28 @@ func TestAllowlistCommitted(t *testing.T) {
 			},
 		},
 		{
-			description: "corner: EntriesFor groups the two de91e928 loci under their two different commands",
-			check: func(t *testing.T, a *Allowlist) {
+			// On a constructed document, since the committed one is empty:
+			// the two de91e928 loci as the file held them at the 7.1.0 pin,
+			// one per command.
+			description: "corner: EntriesFor groups one locus per command under its own command",
+			check: func(t *testing.T, _ *Allowlist) {
+				e := func(command, locus string) Entry {
+					x := okEntry()
+					x.Command, x.Locus = command, locus
+					return x
+				}
+				g, err := LoadAllowlist(doc(t, nil,
+					e("neigh show", "request:RTM_GETLINK:IFLA_EXT_MASK:dump"),
+					e("link show dev", "request:RTM_GETLINK:IFLA_EXT_MASK:get")))
+				if err != nil {
+					t.Fatalf("LoadAllowlist: %v", err)
+				}
 				for _, cmd := range []string{"neigh show", "link show dev"} {
-					if got := len(a.EntriesFor(cmd)); got != 1 {
+					if got := len(g.EntriesFor(cmd)); got != 1 {
 						t.Fatalf("EntriesFor(%q) = %d entries, want 1", cmd, got)
 					}
 				}
-				if got := len(a.EntriesFor("no such command")); got != 0 {
+				if got := len(g.EntriesFor("no such command")); got != 0 {
 					t.Fatalf("EntriesFor(unknown) = %d, want 0", got)
 				}
 			},
@@ -933,16 +890,4 @@ func TestAllowlistCommitted(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) { tc.check(t, a) })
 	}
-}
-
-// findByLocus searches on locus alone, which Lookup deliberately cannot do:
-// the comparator always knows its command, and a locus-only lookup would be a
-// way to accidentally suppress across commands.
-func findByLocus(a *Allowlist, locus string) (Entry, bool) {
-	for i := range a.Entries {
-		if a.Entries[i].Locus == locus {
-			return a.Entries[i], true
-		}
-	}
-	return Entry{}, false
 }

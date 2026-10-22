@@ -1,0 +1,15 @@
+3: goip0: <BROADCAST,NOARP,UP,LOWER_UP> mtu 1500 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/ether 5e:9c:8f:0b:ce:ae brd ff:ff:ff:ff:ff:ff
+    altname goip0-alt
+    inet 192.0.2.1/24 brd 192.0.2.255 scope global goip0
+       valid_lft forever preferred_lft forever
+    inet6 2001:db8::9/64 scope global nodad mngtmpaddr noprefixroute 
+       valid_lft forever preferred_lft forever
+    inet6 2001:db8::1/64 scope global nodad 
+       valid_lft forever preferred_lft forever
+    inet6 fe80::5c9c:8fff:fe0b:ceae/64 scope link proto kernel_ll 
+       valid_lft forever preferred_lft forever
+    RX:  bytes packets errors dropped  missed   mcast           
+             0       0      0       0       0       0 
+    TX:  bytes packets errors dropped carrier collsns           
+           390       5      0       0       0       0 

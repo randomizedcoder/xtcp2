@@ -43,9 +43,10 @@ import (
 // comparison survives. An absolute bound would flake under host load, which
 // this repo already sees elsewhere (the microVM lifecycle deadline).
 //
-// The one thing a ratio does NOT survive is the race detector, which scales
-// the two halves differently rather than together — so property 2 is skipped
-// under -race and property 1 is not. See xtcpnl_perf_gate_race_test.go.
+// What a ratio does NOT survive is instrumentation that scales the two halves
+// differently rather than together: the race detector and coverage. So
+// property 2 is skipped under -race or any -covermode, and property 1 is not.
+// See xtcpnl_perf_gate_race_test.go.
 //
 // go test ./pkg/xtcpnl/... -run TestDecoderPerformanceGate -v
 
@@ -380,6 +381,17 @@ func TestDecoderPerformanceGate(t *testing.T) {
 				t.Logf("race detector on: speedup %.1fx measured but NOT asserted "+
 					"(the %.1fx floor applies to ordinary builds only)",
 					speedup, test.minSpeedup)
+			case testing.CoverMode() != "":
+				// Measured and reported, but not asserted, for the same
+				// reason: coverage puts a counter in every basic block of
+				// the manual decoder and none in encoding/binary or reflect.
+				// The quality report's -covermode=atomic -coverpkg run took
+				// the 280-byte TCPInfo from 65.9x to 3.9x (manual 4.5 ms to
+				// 52.5 ms per 200k decodes, reflection no slower), and plain
+				// -cover to 28.1x. Ordinary go test runs still assert it.
+				t.Logf("coverage mode %q: speedup %.1fx measured but NOT asserted "+
+					"(the %.1fx floor applies to uninstrumented builds only)",
+					testing.CoverMode(), speedup, test.minSpeedup)
 			case speedup < test.minSpeedup:
 				t.Errorf("%s: manual decode only %.1fx faster than its reflection twin "+
 					"(manual %v, reflection %v over %d iterations), want >= %.1fx; "+

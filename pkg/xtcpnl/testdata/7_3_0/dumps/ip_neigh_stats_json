@@ -1,0 +1,89 @@
+[ {
+        "dst": "192.0.2.53",
+        "dev": "goip0",
+        "lladdr": "02:00:00:00:00:04",
+        "router": null,
+        "used": 46,
+        "confirmed": 46,
+        "updated": 46,
+        "probes": 0,
+        "state": [ "PERMANENT" ]
+    },{
+        "dst": "192.0.2.51",
+        "dev": "goip0",
+        "lladdr": "02:00:00:00:00:02",
+        "used": 47,
+        "confirmed": 107,
+        "updated": 47,
+        "probes": 0,
+        "state": [ "STALE" ]
+    },{
+        "dst": "192.0.2.54",
+        "dev": "goip0",
+        "lladdr": "02:00:00:00:00:05",
+        "extern_learn": null,
+        "used": 46,
+        "confirmed": 46,
+        "updated": 46,
+        "probes": 0,
+        "state": [ "PERMANENT" ]
+    },{
+        "dst": "192.0.2.56",
+        "dev": "goip0",
+        "lladdr": "02:00:00:00:00:07",
+        "router": null,
+        "extern_learn": null,
+        "extern_valid": null,
+        "used": 46,
+        "confirmed": 46,
+        "updated": 46,
+        "probes": 0,
+        "state": [ "PERMANENT" ]
+    },{
+        "dst": "192.0.2.52",
+        "dev": "goip0",
+        "used": 47,
+        "confirmed": 107,
+        "updated": 47,
+        "probes": 0,
+        "state": [ "INCOMPLETE" ]
+    },{
+        "dst": "192.0.2.50",
+        "dev": "goip0",
+        "lladdr": "02:00:00:00:00:01",
+        "used": 47,
+        "confirmed": 47,
+        "updated": 47,
+        "probes": 0,
+        "state": [ "PERMANENT" ]
+    },{
+        "dst": "192.0.2.55",
+        "dev": "goip0",
+        "lladdr": "02:00:00:00:00:06",
+        "extern_valid": null,
+        "used": 46,
+        "confirmed": 46,
+        "updated": 46,
+        "probes": 0,
+        "state": [ "PERMANENT" ]
+    },{
+        "dst": "2001:db8::53",
+        "dev": "goip0",
+        "lladdr": "02:00:00:00:00:08",
+        "router": null,
+        "extern_valid": null,
+        "used": 46,
+        "confirmed": 46,
+        "updated": 46,
+        "probes": 0,
+        "state": [ "PERMANENT" ]
+    },{
+        "dst": "2001:db8::50",
+        "dev": "goip0",
+        "lladdr": "02:00:00:00:00:03",
+        "used": 46,
+        "confirmed": 46,
+        "updated": 46,
+        "probes": 0,
+        "state": [ "PERMANENT" ]
+    } ]

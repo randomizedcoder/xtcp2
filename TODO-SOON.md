@@ -596,9 +596,142 @@ and corner cases.
 
 ---
 
-## 7. Upgrade the Go toolchain to 1.27.1 — OPEN
+## 7. Upgrade the Go toolchain to 1.27.1 — DONE 2026-10-21 (1.27.3), VM checks pending
 
-Currently pinned to **1.26.5** (`nix/versions.nix:11-20`). Not started.
+Done on `chore/bump-nixpkgs-go-deps`, with the nixpkgs bump to 02c087f3
+(2026-10-20), whose `go_1_27` is 1.27.3. `versions.nix` now says
+`go = pkgs.go_1_27`, so the hand-maintained source hash is gone. `go.mod` moved
+to `go 1.27.0` in the same change, with every direct dependency at its latest
+release; the user asked for both, because of the CVEs. `govulncheck` v1.9.0
+(DB of 2026-10-21) before and after:
+
+| | main (Go 1.26.5, old modules) | after (Go 1.27.3, latest modules) |
+|---|---|---|
+| vulnerabilities the code reaches | 21 | 0 |
+| in imported packages, not called | 3 | 0 |
+| in required modules, not imported | 3 | 1 |
+
+Of the 21, 15 were in the standard library alone (html/template, crypto/tls,
+crypto/x509, encoding/asn1, encoding/xml, net/http, net/textproto, net/url,
+os). 5 were in both `net/http` and `golang.org/x/net`. 1 was in
+`google.golang.org/grpc`: GO-2026-6443, a server panic on a missing authority
+or Host header, which xtcp2's gRPC servers reached. The one left is GO-2026-5932, the deprecated
+`golang.org/x/crypto/openpgp` package, which has no fix and nothing here
+imports. The 64 modules `go list -m -u all` still shows as outdated are all
+indirect, and none is compiled into any package or test: they're only in the
+module graph.
+
+What the upgrade turned up:
+
+- **gosec** 2.29.0, the latest release, can't read 1.27 export data ("export
+  data version 5 is greater than maximum supported version 4"). The reader is
+  its pinned `golang.org/x/tools` v0.49.0, so rebuilding it with Go 1.27 alone
+  doesn't help. `versions.nix` builds gosec master (17ad2dd, x/tools v0.52.0)
+  with `buildGo127Module`; go back to `pkgs.gosec` once a release carries
+  x/tools v0.52.0. The newer gosec found one real issue, G306: netlink
+  captures were written 0644. They carry host addresses, so they're 0600 now.
+- **New analyser findings**, as predicted below: `go vet`'s printf check
+  (`%q` on a struct in `xtcpnl_rtnetlink_requests_test.go`) and govet's
+  `unusedwrite` (a dead `countingPool` in `poller_pure_test.go`). Both fixed,
+  no suppressions.
+- **protovalidate-go** v1 moved to `buf.build/go/protovalidate`; the imports
+  changed, the API didn't.
+- **Linux headers 7.2** came with the nixpkgs bump and added the RDMA FRMR pool
+  commands and attributes, which broke `rdma_consts.h`'s `NUM_OPS` and
+  `ATTR_MAX` asserts. The constants are added; no decoder reads them yet.
+- **iproute2 7.2.0** came with it too, and goip follows it: the index-cache
+  requests send `IFLA_EXT_MASK` 0x109, and `qlen 0` prints. Knobs keep 7.1.0
+  for the committed corpora, and the parity allowlist's seven version-skew
+  entries are retired. gordma clones rdma 7.2.0. `nexthop show vrf` now sends
+  `name_is_vrf`'s request; on a 7.2 kernel the NAME_ONLY reply carries no
+  `IFLA_LINKINFO`, so the old check rejected every VRF. Details are in
+  `docs/netlink/coverage-status.md` under "iproute2 7.2.0".
+- **`nexthop show dev|master|vrf`** resolved its name with a link dump;
+  `ipnexthop.c` has no `ll_init_map`, and `ip` sends one `ll_link_get` per name
+  on a cache miss. goip now does the same, in argv order, so `dev X master Y`
+  filters on both names instead of only the first.
+  `TestNexthopShowNameResolutionIsLLLinkGet` pins the captured requests.
+- **The 7.2.0 corpus is captured**: `pkg/xtcpnl/testdata/7_3_0` (the nixpkgs
+  bump also moved the microVM kernel to 7.3.0). Against 7_1_4, `ip -6 addr`
+  drops `qlen` from the link line (NAME_ONLY replies carry no IFLA_TXQLEN) and
+  `ip -d` prints the new bridge `stp_mode` and bridge-port
+  `neigh_forward_grat`, which goip doesn't render (it renders no bridge `-d`
+  detail). `TestCorpus730MatchesSidecarsAt720` replays all 69 same-invocation
+  rows at the 7.2.0 defaults, byte-identical; `req.TestTierALLRequests730`
+  pins the 0x109 requests against it, failing every row under 7.1.0.
+- **MinIO is gone from nixpkgs** (package and NixOS module removed, abandoned
+  upstream; `minio-client` is marked insecure), which broke every S3 VM and
+  `nix develop`. The in-VM S3 fixture is now **Garage 2.4.1**
+  (`nix/modules/garage-bucket-bootstrap.nix`): one node, S3 API on :9000,
+  region `us-east-1`, RPC and admin on loopback. `rclone` replaces `mc` in the
+  retention job, the self-test checks 13-14 and the dev shell. xtcp2 keeps
+  minio-go, which was tested against Garage outside the VM: bucket check,
+  single and multipart put, and the error paths. The test secret is now
+  `xtcp2testsecretkey` (Garage wants 16+ characters). The persistent S3 disks
+  are renamed `*-s3.img`; the old `*-minio.img` files in `/tmp` can be removed.
+  The Grafana datasource password moved to Grafana's env provider, which
+  clears the new NixOS module warning.
+- **Soft restart with a CPU profiler on killed the new image**, found by the
+  `s3parquet-stress` soak (Pyroscope on): self-test check 19 failed with a new
+  MainPID and the old config. `ITIMER_PROF` survives `execve` while SIGPROF
+  reverts to terminate, and xtcp2 exec'd from inside `runDaemonDefault`, before
+  `runMain`'s deferred profiler stops. `finishMain` now re-execs after them.
+  `TestReexecProcess` runs the real path in a child with no profiler,
+  `-profile.mode=cpu` and Pyroscope, and checks the exec'd image inherits no
+  armed timer; with the stops removed, the profiler rows fail every time. The
+  same bug likely explains the "two xtcp2 processes" in
+  `docs/investigations/envelope-post-flush-drop.md` (also a stress flavor);
+  its drop-rate findings don't depend on it.
+- **Vector is out of the dev shell**: nixpkgs' vector 0.59.0 doesn't build at
+  this pin (`vector-common` denies Rust's `fetch_update` deprecation), and no
+  microvm flavor uses it. Put it back once nixpkgs fixes the build.
+
+Still to do:
+
+- the rest of the microVM checks (vm-all). The Garage flavors ran on
+  2026-10-22:
+  - `microvm-x86_64-lifecycle-s3parquet`: `OVERALL_PASS`, with
+    `S3PARQUET_FILES`, `S3PARQUET_ROWS` (1227 rows) and `S3PARQUET_EVENTDATE`.
+  - `microvm-x86_64-clickhouse-pipeline-parquet`: `OVERALL_PASS`, Check 15
+    `CLICKHOUSE_PARQUET_PASS (rows=55593)`.
+  - `microvm-x86_64-s3parquet-stress --duration 2h`: PASS, 50 files / 3.36 M
+    rows, 0 drops, 0 panics, S3 disk peak 1%. Retention deleted 4-5 objects a
+    sweep from the first sweep past 1 h, and a host-side `rclone lsl` showed
+    nothing older than 1 h left. The runner's "restarts: 0" missed the
+    SIGPROF restart above: systemd's restart lines don't reach the console.
+  - `--duration 15m` with the re-exec fix: `CTL_RESTART_PASS` (MainPID stayed,
+    new tag live), but the run then uploaded nothing. Check 17 parks the poll
+    ticker at 1 h for check 18 and nothing unparked it, so check 19's
+    reconfigure (a copy of the live config) kept polling hourly for the rest
+    of the soak. The broken re-exec had hidden this: systemd's restart brought
+    back the unit's 10 s flags. Check 18 now restores the cadence it saved
+    before check 17 and fails if `get` doesn't show it; the rerun passed 17-19
+    (`cadence restored to 10s/5s`) and uploaded 4 files after the restart.
+    `OVERALL_FAIL` there and in the 2 h run comes only from the NS_* checks
+    (`NS_LIFECYCLE`, `NS_DOCKER`, `NS_ANONYMOUS`, once `NS_TRAFFIC`), whose
+    delete counts fall short while 20 stress containers churn namespaces (the
+    load flake noted under check 16 below); the stress runner doesn't gate on
+    the self-test.
+- the bond link-write parity rows flake on the 7.3 kernel. Two
+  `microvm-x86_64-goip-parity` runs (2026-10-22) failed 2 and 3 of
+  `link_write_enslave_up`, `_nomaster`, `_slave_queue_id` and
+  `_slave_actor_port_prio`, a different set each time, every finding only
+  IFF_RUNNING (0x40) in a reply's ifi_flags, in both directions. Carrier on
+  the bond slave settles asynchronously and the control pass only sometimes
+  sees it. Either wait for carrier before each row in the driver, or have the
+  comparator treat IFF_RUNNING in link-write replies as control noise. The
+  rest matched V068: `-4 netconf show dev` FAIL (HYGIENE_FAIL 2), the 7
+  ungated WARNs (`netconf show dev`, six `stats show`), 172-173 PASS.
+- ~~the `nexthop show dev|master|vrf` selectors aren't in the parity
+  matrix~~: done 2026-10-22, gated on two live runs (coverage-status.md,
+  "Measured on 2026-10-22").
+- ~~`nix run .#update-quality-report`~~: done 2026-10-22. The report showed
+  10 `TestDecoderPerformanceGate` failures, all coverage instrumentation
+  (77facbe7), and now has 0 test failures and 18 below-90% coverage findings.
+
+The original plan follows.
+
+Was pinned to **1.26.5** (`nix/versions.nix:11-20`).
 
 The pin is not a plain nixpkgs attribute — the pinned nixpkgs only packages
 `go_1_26 = 1.26.2`, so `versions.nix` overrides `version` *and* `src` with a
@@ -707,7 +840,7 @@ written them pipefail-correctly: every `grep … || echo 0` and
 | `nix/modules/broker-server.nix` | `xtcp2-${consumerName}` | × 3 (valkey/nats/nsq) |
 | `nix/microvms/mkVm.nix` | `discovery-bench-run` | × 1 |
 | `nix/microvms/mkVm.nix` | `xtcp2-resource-snapshot` | × 1 |
-| `nix/modules/minio-bucket-bootstrap.nix` | `xtcp2-bucket-bootstrap` | × 1 |
+| `nix/modules/garage-bucket-bootstrap.nix` | `xtcp2-bucket-bootstrap` | × 1 |
 | `nix/microvms/mkVm.nix` | `xtcp2-prom-snapshot` | × 1 |
 
 Each instantiation is a separate shellcheck run. For `broker-server.nix` the

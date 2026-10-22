@@ -1,0 +1,2 @@
+unicast 198.19.0.0/24 dev br0 proto kernel scope link src 198.19.0.1 linkdown 
+unicast 198.19.1.0/24 dev br0 proto boot scope link linkdown 

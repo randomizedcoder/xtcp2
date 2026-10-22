@@ -13,7 +13,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/bufbuild/protovalidate-go"
+	"buf.build/go/protovalidate"
 	"github.com/prometheus/client_golang/prometheus"
 	pb "github.com/randomizedcoder/xtcp2/gen/go/linkmonitor"
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor"

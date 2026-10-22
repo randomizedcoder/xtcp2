@@ -1,0 +1,41 @@
+[ {
+        "address": "::1",
+        "prefixlen": 128,
+        "label": 0
+    },{
+        "address": "::",
+        "prefixlen": 96,
+        "label": 3
+    },{
+        "address": "::ffff:0.0.0.0",
+        "prefixlen": 96,
+        "label": 4
+    },{
+        "address": "2001::",
+        "prefixlen": 32,
+        "label": 6
+    },{
+        "address": "2001:10::",
+        "prefixlen": 28,
+        "label": 7
+    },{
+        "address": "3ffe::",
+        "prefixlen": 16,
+        "label": 12
+    },{
+        "address": "2002::",
+        "prefixlen": 16,
+        "label": 2
+    },{
+        "address": "fec0::",
+        "prefixlen": 10,
+        "label": 11
+    },{
+        "address": "fc00::",
+        "prefixlen": 7,
+        "label": 5
+    },{
+        "address": "::",
+        "prefixlen": 0,
+        "label": 1
+    } ]

@@ -349,7 +349,7 @@ Unit tests are table-driven, each row with a `description` and `expected`.
 | boundary: retry then success (s3parquet) | `success` +1, `failure` unchanged |
 | corner: empty envelope handed off | pendingSince stays zero |
 
-**MicroVM self-test:** a new check asserts that `xtcp2_healthy` reaches 1 and `xtcp2_last_delivery_timestamp_seconds` advances, for the file destination (lifecycle VM) and the s3parquet destination (MinIO VM). A negative row stops MinIO and asserts `xtcp2_healthy` drops to 0 within `2 × maxDeliveryInterval` (with a short flush interval set for the test).
+**MicroVM self-test:** a new check asserts that `xtcp2_healthy` reaches 1 and `xtcp2_last_delivery_timestamp_seconds` advances, for the file destination (lifecycle VM) and the s3parquet destination (in-VM Garage S3). A negative row stops Garage and asserts `xtcp2_healthy` drops to 0 within `2 × maxDeliveryInterval` (with a short flush interval set for the test).
 
 ## Rejected alternatives
 
