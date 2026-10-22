@@ -663,6 +663,17 @@ What the upgrade turned up:
   are renamed `*-s3.img`; the old `*-minio.img` files in `/tmp` can be removed.
   The Grafana datasource password moved to Grafana's env provider, which
   clears the new NixOS module warning.
+- **Soft restart with a CPU profiler on killed the new image**, found by the
+  `s3parquet-stress` soak (Pyroscope on): self-test check 19 failed with a new
+  MainPID and the old config. `ITIMER_PROF` survives `execve` while SIGPROF
+  reverts to terminate, and xtcp2 exec'd from inside `runDaemonDefault`, before
+  `runMain`'s deferred profiler stops. `finishMain` now re-execs after them.
+  `TestReexecProcess` runs the real path in a child with no profiler,
+  `-profile.mode=cpu` and Pyroscope, and checks the exec'd image inherits no
+  armed timer; with the stops removed, the profiler rows fail every time. The
+  same bug likely explains the "two xtcp2 processes" in
+  `docs/investigations/envelope-post-flush-drop.md` (also a stress flavor);
+  its drop-rate findings don't depend on it.
 - **Vector is out of the dev shell**: nixpkgs' vector 0.59.0 doesn't build at
   this pin (`vector-common` denies Rust's `fetch_update` deprecation), and no
   microvm flavor uses it. Put it back once nixpkgs fixes the build.
