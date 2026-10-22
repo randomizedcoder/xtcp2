@@ -345,7 +345,9 @@ func BuildRequest(msgType, flags uint16, seq uint32, familyHdr, attrs []byte) ([
 // do_ipnh's: RTM_NEWNEXTHOP for add and replace, RTM_DELNEXTHOP for delete and
 // for flush's deletes (ip/ipnexthop.c:1456-1463, :140-160). The addrlabel pair
 // is do_ipaddrlabel's: RTM_NEWADDRLABEL for add, RTM_DELADDRLABEL for delete
-// and for flush's copies (ip/ipaddrlabel.c:252-255, :204).
+// and for flush's copies (ip/ipaddrlabel.c:252-255, :204). RTM_SETNEIGHTBL
+// is `ip ntable change` (ip/ipntable.c:690) and RTM_SETSTATS is `ip stats set`
+// (ip/ipstats.c:1247), each a lone set with no NEW or DEL beside it.
 func IsAdmittedWriteType(msgType uint16) bool {
 	switch msgType {
 	case uint16(unix.RTM_NEWROUTE), uint16(unix.RTM_DELROUTE),
@@ -354,7 +356,8 @@ func IsAdmittedWriteType(msgType uint16) bool {
 		uint16(unix.RTM_NEWNEIGH), uint16(unix.RTM_DELNEIGH),
 		uint16(unix.RTM_NEWRULE), uint16(unix.RTM_DELRULE),
 		uint16(unix.RTM_NEWNEXTHOP), uint16(unix.RTM_DELNEXTHOP),
-		uint16(unix.RTM_NEWADDRLABEL), uint16(unix.RTM_DELADDRLABEL):
+		uint16(unix.RTM_NEWADDRLABEL), uint16(unix.RTM_DELADDRLABEL),
+		uint16(unix.RTM_SETNEIGHTBL), uint16(unix.RTM_SETSTATS):
 		return true
 	}
 	return false
@@ -448,9 +451,10 @@ func FamilyHdrLen(msgType uint16) int {
 		// which is why only the msgType case arm, not a length check, tells the
 		// two apart (the ndmsg/rtmsg/fib_rule_hdr note above).
 		return NetconfMsgSizeCst
-	case uint16(unix.RTM_GETSTATS), uint16(unix.RTM_NEWSTATS):
+	case uint16(unix.RTM_GETSTATS), uint16(unix.RTM_NEWSTATS), uint16(unix.RTM_SETSTATS):
 		// struct if_stats_msg, 12. RTM_GETSTATS has no DEL member (the group
-		// note above), so only the GET and NEW arms exist.
+		// note above); RTM_SETSTATS is `ip stats set`'s write
+		// (ip/ipstats.c ipstats_set_do), with the same header.
 		return IfStatsMsgSizeCst
 	case uint16(unix.NLMSG_DONE), uint16(unix.NLMSG_NOOP), uint16(unix.NLMSG_ERROR):
 		return 0

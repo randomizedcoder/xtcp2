@@ -26,12 +26,15 @@ const (
 	statsShowVerbCst         = "show"
 )
 
-// runStats is do_ipstats restricted to the listing path (ip/ipstats.c:1315-1339).
-// `show` is the only verb (strcmp, no abbreviation); `help`/`set` and any other
-// token are refused, goip being read-only. A bare `ip stats` is ipstats_show(0,
+// runStats is do_ipstats (ip/ipstats.c:1315-1339): `show`, and `set`, which
+// is statsSet, both by strcmp, no abbreviation; `help` and any other token
+// are refused. A bare `ip stats` is ipstats_show(0,
 // NULL) — the all-groups default, which goip does not ground — so it too is
 // refused, pointing at `group link` (see parseStatsShowArgs).
 func runStats(c *runCtx, args []string) error {
+	if len(args) > 0 && args[0] == statsSetVerbCst {
+		return statsSet(c, args[1:])
+	}
 	if len(args) > 0 {
 		if args[0] != statsShowVerbCst {
 			return fmt.Errorf("stats %q: %w", args[0], ErrNotImplemented)

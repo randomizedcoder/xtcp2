@@ -13,12 +13,15 @@ import (
 // ntableShowVerbs are the spellings do_ipntable accepts for the listing, in its
 // order (ip/ipntable.c:693-695): show, lst, list. All three call ipntable_show,
 // so the order is immaterial to the result; the abbreviations fall out of it (s
-// -> show, l/li -> list, ls -> lst). change/chg (write verbs) and help are not
-// here and so refused, goip being read-only.
+// -> show, l/li -> list, ls -> lst). change and chg, matched ahead of them,
+// are ntableChange; help is not implemented.
 var ntableShowVerbs = []string{showVerbCst, lstVerbCst, listVerbCst}
 
 func runNTable(c *runCtx, args []string) error {
 	if len(args) > 0 {
+		if matchesPrefix(args[0], ntableChangeVerbCst) || matchesPrefix(args[0], ntableChgVerbCst) {
+			return ntableChange(c, args[1:])
+		}
 		if !matchesAny(args[0], ntableShowVerbs) {
 			return fmt.Errorf("ntable %q: %w", args[0], ErrNotImplemented)
 		}

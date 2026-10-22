@@ -465,10 +465,10 @@ func TestRunStatsArgs(t *testing.T) {
 			wantStderrSubstr: "inside leaf group link",
 		},
 		{
-			description:      "negative: the write verb `set` is refused",
+			description:      "negative: `set` with no arguments is ip's missing-dev refusal",
 			args:             []string{"stats", "set"},
 			wantCode:         ExitUsage,
-			wantStderrSubstr: "not implemented",
+			wantStderrSubstr: `"dev" argument is required`,
 		},
 		{
 			description:      "negative: `stats help` is refused, goip being read-only",

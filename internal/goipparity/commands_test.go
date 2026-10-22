@@ -3048,3 +3048,51 @@ func TestAddrLabelWriteRows(t *testing.T) {
 		})
 	}
 }
+
+// TestNTableStatsWriteRows pins G3-T05's four rows: each a gated write row
+// whose Setup is its corpus capture's topology.
+func TestNTableStatsWriteRows(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	rtnl := filepath.Join("..", "..", "pkg", "xtcpnl", "testdata", "7_1_4", "link-write", "rtnl")
+	type want struct {
+		implemented, write, topology, gated bool
+		floor                               int
+	}
+	rows := []struct {
+		description string
+		command     string
+		corpus      string // the slug whose topology Setup must be; "" for none
+		expected    want
+	}{
+		{"positive: a device's queue, the link dump then the write", "ntable change name arp_cache dev d0 queue 64",
+			"ntable_change", want{implemented: true, write: true, topology: true, gated: true, floor: 4}},
+		{"negative: no such table, ENOENT", "ntable change name nosuch_cache queue 64", "",
+			want{implemented: true, write: true, topology: true, gated: true, floor: 4}},
+		{"corner: a threshold outside init_net, ENOENT", "ntable change name arp_cache thresh1 64", "",
+			want{implemented: true, write: true, topology: true, gated: true, floor: 4}},
+		{"positive: stats set, the by-name get then the write", "stats set dev d0 l3_stats on",
+			"stats_set_l3", want{implemented: true, write: true, topology: true, gated: true, floor: 4}},
+		{"negative: the chg abbreviation is not in the matrix", "ntable chg name arp_cache dev d0 queue 64", "", want{}},
+		{"boundary: l3_stats off is not in the matrix", "stats set dev d0 l3_stats off", "", want{}},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			var got want
+			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				var topo []string
+				if r.corpus != "" {
+					topo = topologySteps(t, rtnl, r.corpus)
+				}
+				got = want{implemented: c.Implemented, write: c.Write,
+					topology: slices.Equal(c.Setup, topo), floor: c.Floor}
+			}
+			got.gated = al.IsGated(r.command)
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+		})
+	}
+}

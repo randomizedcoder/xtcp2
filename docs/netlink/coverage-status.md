@@ -10,9 +10,9 @@ several steps, further down under [Remaining](#remaining).
 
 | | count | counted from |
 |---|---|---|
-| commands in the comparison matrix | **246** | `internal/goipparity/commands.go` — 123 read rows (31 of them `addr show` state, selector and output-mode rows with a `Setup`, and 6 `route get`, 2 `neigh get`, 4 `nexthop get` and `nexthop bucket`, 3 `link xstats` and `link afstats`, 3 `route save` and `route showdump`, 1 `route flush`, 1 `neigh flush`, 1 `rule save` and 1 `nexthop flush` rows with one; the missing-table `route flush` row has none), the 21 link write rows, the 26 route write rows, the 27 address write rows, the 7 address flush rows, the 2 address restore rows, the route restore row, the 2 route flush write rows, the 6 neigh write rows, the 2 neigh flush write rows, the 17 rule write rows, the rule flush write row, the rule restore row, the 6 nexthop write rows, the nexthop flush write row, the 2 addrlabel write rows and the addrlabel flush write row |
-| of those, `Implemented: true` | **246** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
-| of those, in `gated_commands` | **245** | `pkg/nlparity/goip-parity-allowlist.json` |
+| commands in the comparison matrix | **250** | `internal/goipparity/commands.go` — 123 read rows (31 of them `addr show` state, selector and output-mode rows with a `Setup`, and 6 `route get`, 2 `neigh get`, 4 `nexthop get` and `nexthop bucket`, 3 `link xstats` and `link afstats`, 3 `route save` and `route showdump`, 1 `route flush`, 1 `neigh flush`, 1 `rule save` and 1 `nexthop flush` rows with one; the missing-table `route flush` row has none), the 21 link write rows, the 26 route write rows, the 27 address write rows, the 7 address flush rows, the 2 address restore rows, the route restore row, the 2 route flush write rows, the 6 neigh write rows, the 2 neigh flush write rows, the 17 rule write rows, the rule flush write row, the rule restore row, the 6 nexthop write rows, the nexthop flush write row, the 2 addrlabel write rows, the addrlabel flush write row, the 3 ntable write rows and the stats write row |
+| of those, `Implemented: true` | **250** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
+| of those, in `gated_commands` | **249** | `pkg/nlparity/goip-parity-allowlist.json` |
 | allowlisted divergences | **7** | same file, `entries` |
 | of those, `kind=version-skew` | **7** | all against the pinned `ip` 7.1.0 |
 | of those, `kind=accepted-divergence` | **0** | nothing is *allowlisted* as a permanent divergence — the nine wire divergences runs 8 and 9 measured **could not** be, because a transaction-count divergence is unsuppressible (`nlparity_allowlist.go:143`), and G0 retired every one by changing goip to send `ip`'s requests |
@@ -3778,6 +3778,24 @@ Two back-to-back runs passed 246 of 246, identical row for row, ending
 `GOIP_PARITY_OVERALL_PASS`. All three gate with no allowlist entry, and
 `TestAddrLabelWriteRows` and the `earned`/`gated_commands` pair pin them:
 246 rows, 245 gated.
+
+### G3-T05: the four `ntable change` and `stats set` rows gate
+
+G3-T05 adds `goip ntable change` (`internal/goip/ntable_write.go`) and
+`goip stats set` (`internal/goip/stats_set.go`) and four rows, on the C1-T02
+captures. `ip ntable` dumps the links before it reads the verb, so each
+`ntable change` row is the link dump, then one `RTM_SETNEIGHTBL` and its ack
+(floor 4): a device's queue length, a table the kernel lacks, and a
+threshold outside the initial namespace, the last two refused with ENOENT.
+`stats set` resolves `dev` with a by-name `RTM_GETLINK`, then writes one
+`RTM_SETSTATS` (floor 4). The write gate admits the two types, and
+`FamilyHdrLen` now models `RTM_SETSTATS`, so the comparator reads the stats
+write's attributes rather than its length alone.
+
+Two back-to-back runs passed 250 of 250, identical row for row, ending
+`GOIP_PARITY_OVERALL_PASS`. All four gate with no allowlist entry, and
+`TestNTableStatsWriteRows` and the `earned`/`gated_commands` pair pin them:
+250 rows, 249 gated.
 
 ## Tier C — the `goip-parity` microVM flavor
 

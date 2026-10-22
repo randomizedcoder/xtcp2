@@ -20,7 +20,8 @@ import (
 // (addr-write-path-plan.md, A4-T01 then A5-T01). The neighbor pair joined
 // with goip's neigh writes and flush (G3-T01), the rule pair with its writes,
 // flush and restore (G3-T02), the nexthop pair with its writes and flush
-// (G3-T03), the addrlabel pair with its writes and flush (G3-T04).
+// (G3-T03), the addrlabel pair with its writes and flush (G3-T04), and
+// RTM_SETNEIGHTBL and RTM_SETSTATS with ntable change and stats set (G3-T05).
 var admittedWriteTypes = map[uint16]bool{
 	uint16(unix.RTM_NEWROUTE):     true,
 	uint16(unix.RTM_DELROUTE):     true,
@@ -36,6 +37,8 @@ var admittedWriteTypes = map[uint16]bool{
 	uint16(unix.RTM_DELNEXTHOP):   true,
 	uint16(unix.RTM_NEWADDRLABEL): true,
 	uint16(unix.RTM_DELADDRLABEL): true,
+	uint16(unix.RTM_SETNEIGHTBL):  true,
+	uint16(unix.RTM_SETSTATS):     true,
 }
 
 // TestBuildWriteRequestAdmitsOnlyListedWrites walks every named rtnetlink type

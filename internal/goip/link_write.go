@@ -86,6 +86,13 @@ const (
 	linkArmUnsupported // a keyword `ip` knows and goip does not implement
 )
 
+// onKeywordCst and offKeywordCst are the two words of every on/off
+// argument: link set's flags, the bond options and stats set's suites.
+const (
+	onKeywordCst  = "on"
+	offKeywordCst = "off"
+)
+
 // linkKeyword is one test in iplink_parse's chain.
 type linkKeyword struct {
 	keyword string
@@ -360,9 +367,9 @@ func (st *linkParseState) value(kw *linkKeyword, v string) error {
 	case linkArmFlag:
 		st.out.ifChange |= kw.flag
 		switch v {
-		case "on":
+		case onKeywordCst:
 			st.setFlag(kw.flag, kw.onSets)
-		case "off":
+		case offKeywordCst:
 			st.setFlag(kw.flag, !kw.onSets)
 		default:
 			return fmt.Errorf("%w: Error: argument of %q must be \"on\" or \"off\", not %q",

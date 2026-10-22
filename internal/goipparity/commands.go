@@ -1581,6 +1581,24 @@ var commands = withArgs([]Command{
 		// injected clock; a live gate must normalize or ignore the two tokens.
 		Floor: 4, Implemented: true,
 	},
+	// G3-T05's ntable writes. ipntable_modify calls ll_init_map
+	// (ip/ipntable.c) whether or not a dev is named, so each is the link dump,
+	// then the RTM_SETNEIGHTBL and its ack.
+	{
+		Name: "ntable change name arp_cache dev d0 queue 64", Slug: "ntable_change",
+		Floor: 4, Implemented: true, Write: true, Setup: ntableD0Setup,
+	},
+	{
+		Name: "ntable change name nosuch_cache queue 64", Slug: "ntable_change_missing",
+		// No such table: ENOENT, exit 2.
+		Floor: 4, Implemented: true, Write: true,
+	},
+	{
+		Name: "ntable change name arp_cache thresh1 64", Slug: "ntable_change_thresh_netns",
+		// The thresholds are init_net's alone, so outside it neightbl_set
+		// (net/core/neighbour.c) refuses them: ENOENT, exit 2.
+		Floor: 4, Implemented: true, Write: true,
+	},
 
 	{
 		Name: "netconf show", Slug: "netconf_show",
@@ -1945,6 +1963,12 @@ var commands = withArgs([]Command{
 		// against ip_stats_xstats_json; gated with its text twin on G0-T02's
 		// two runs.
 		Floor: 4, Implemented: true,
+	},
+	// G3-T05's stats write: the by-name RTM_GETLINK that resolves d0, then
+	// the RTM_SETSTATS and its ack.
+	{
+		Name: "stats set dev d0 l3_stats on", Slug: "stats_set_l3",
+		Floor: 4, Implemented: true, Write: true, Setup: ntableD0Setup,
 	},
 	{
 		Name: "stats show dev bond0 group xstats", Slug: "stats_show_xstats_dev_bond",
@@ -2638,6 +2662,8 @@ var (
 	nexthopBlackholeSetup = []string{"nexthop add id 1 blackhole"}
 	// addrLabelSetup is addrlabel_del's and addrlabel_flush's one step.
 	addrLabelSetup = []string{"addrlabel add prefix 2001:db8::/32 label 99"}
+	// ntableD0Setup is PRE_D0, ntable_change's and stats_set_l3's two steps.
+	ntableD0Setup = []string{"link add d0 type dummy", "link set d0 up"}
 )
 
 // The `link xstats` and `link afstats` rows' precondition: the bridge of

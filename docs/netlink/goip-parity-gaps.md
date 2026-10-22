@@ -2410,6 +2410,29 @@ The command tests (`internal/goip/addrlabel_write_test.go`):
 
 The messages and exit statuses, and the flush's eleven deletes, were checked against iproute2-7.1.0 in an unprivileged namespace.
 
+**G3-T05 delivered** (`internal/goip/ntable_write.go`, `internal/goip/stats_set.go`):
+- **ntable change.** `ipntable_modify` (`ip/ipntable.c:51-306`) after `do_ipntable`'s `ll_init_map` (`:685`), so the link dump goes first whatever the arguments: the loop, then one `RTM_SETNEIGHTBL` with `NLM_F_REPLACE|NLM_F_ACK` under an `ndtmsg` of `preferred_family`. `name`, `thresh1`–`thresh3` and `gc_int` are top-level attributes in argument order; `dev` (`ll_name_to_index` out of the dump's cache, so no request) and the twelve per-device parameters fill an `NDTA_PARMS`, added last and not flagged nested, as `addattr_l` of the parms buffer's payload sends it. u32 values are `get_u32` and u64 values `get_u64`, both base 0. With no `name` it is `missarg`; with nothing to change, `dev` alone included, it is `ip`'s "Not enough information"; a second `name`, an unknown keyword or a bad value is `ip`'s refusal; an unknown device is `Cannot find device`. `change`, `chg` and their abbreviations reach it, matched ahead of the show verbs.
+- **stats set.** `ipstats_set` and `ipstats_set_do` (`ip/ipstats.c:1242-1313`): `dev` and `l3_stats on|off`, in either order, then `ll_name_to_index`, whose by-name `RTM_GETLINK` goes ahead of the write, then one `RTM_SETSTATS` of an `if_stats_msg` naming the ifindex and the suite's u8, `NLM_F_REQUEST|NLM_F_ACK`. `set` is matched by `strcmp`, as `ip` does. A second `dev`, a bad ifname, a value neither `on` nor `off`, a second suite or an unknown word is `ip`'s refusal, with `__parse_one_of`'s wording for the value; `help` is not implemented.
+- **Exit statuses.** `ip` exits 255 on `invarg`, `duparg` and its missing-argument refusals, 22 on `stats set`'s bad value, second suite and unknown word, 1 on an unknown device, and 0 on `stats set … help`; goip exits 1 on each, its convention.
+- **The gate and the header.** The write gate admits `RTM_SETNEIGHTBL` and `RTM_SETSTATS`; `FamilyHdrLen` already modeled `RTM_SETNEIGHTBL` and now models `RTM_SETSTATS`, `struct if_stats_msg`, so the comparator decodes the stats write's attributes rather than comparing its length.
+- **Four matrix rows, gated.** `ntable change name arp_cache dev d0 queue 64` on `d0` up, `name nosuch_cache` and `thresh1` outside the initial namespace (both ENOENT, rc 2), each the link dump then the write (floor 4); and `stats set dev d0 l3_stats on` on `d0` up, the get then the write (floor 4). `TestNTableStatsWriteRows` pins the four.
+
+The command tests (`internal/goip/ntable_write_test.go`, `internal/goip/stats_set_test.go`):
+
+| description | expected |
+|---|---|
+| positive: the three ntable captures (replayed); `c`; `chg` | the link dump, then `ip`'s request byte for byte, flags `0x105` |
+| positive: a u32 parameter; `dev` and one; `thresh1`; `gc_int`; a hex u64; a parameter ahead of a threshold | in `NDTA_PARMS`; the ifindex then the value; top-level, no `NDTA_PARMS`; a top-level u64; the value; the threshold first |
+| boundary: a u64 at its maximum; the header for three families | accepted; `ndtmsg` of 4 bytes, the family first |
+| corner: `dev` alone; `-4`; an unknown device | refused; the header `AF_INET`; refused out of the cache, no get |
+| negative: no name; nothing to change; two names; an unknown keyword, alone or ahead of a change; a u32 past 32 bits; a u64 that is no number; a keyword with no value; no hook; a bad argument | refused, exit 1, the bad argument and no hook after the dump |
+| positive: `stats_set_l3`'s capture (replayed); `on`, `off`, the suite ahead of `dev` | the get, then `ip`'s request byte for byte, flags `0x5`; the value 1 or 0 |
+| boundary, negative: a 15-byte name; a 16-byte one, no `dev`, no suite, no arguments, a bad value, the suite or `dev` twice, a slash, an unknown word, alone or ahead of the suite, a keyword with no value | accepted; refused, exit 1 |
+| corner: `help`; `se` | not implemented; not a verb |
+| positive, negative, corner, boundary: a known device; ENODEV; `if7`; `if0` (a Talk source) | written; refused after the one get; written; refused |
+
+The messages and exit statuses, the success of each write and the two ENOENT refusals were checked against iproute2-7.1.0 in an unprivileged namespace.
+
 ### G4 — New rtnetlink objects
 
 mroute, mrule, token, netns `list-id`/`set`, `RTM_NEWRULE`/`RTM_DELRULE` as event types, then `monitor`.

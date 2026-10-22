@@ -681,6 +681,11 @@ func TestAllowlistCommitted(t *testing.T) {
 		"addrlabel add prefix 2001:db8::/32 label 99",
 		"addrlabel del prefix 2001:db8::/32 label 99",
 		"addrlabel flush",
+		// G3-T05's three `ntable change` rows and its `stats set` row.
+		"ntable change name arp_cache dev d0 queue 64",
+		"ntable change name nosuch_cache queue 64",
+		"ntable change name arp_cache thresh1 64",
+		"stats set dev d0 l3_stats on",
 	}
 
 	tests := []struct {
