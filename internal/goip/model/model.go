@@ -36,6 +36,10 @@ type NexthopBucket xtcpnl.NexthopBucketInfo
 // the neighbor hash has no such property and its order varies across boots.
 type Rule xtcpnl.RuleInfo
 
+// LinkToken is one reply of `ip token`'s AF_INET6 link dump, what
+// print_token reads. Dump order is the kernel's, which `ip` prints as-is.
+type LinkToken xtcpnl.LinkToken
+
 // AddrLabel is one entry of the IPv6 address-label policy table
 // (RTM_NEWADDRLABEL). It has no Sort companion: the kernel dumps the per-netns
 // table in a stable order (net/ipv6/addrlabel.c) and iproute2 does no sorting,

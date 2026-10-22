@@ -1005,7 +1005,13 @@
     "G4-T02 adds mrule show and gates four rows, each one RTM_GETRULE dump of",
     "RTNL_FAMILY_IPMR, or under -6 RTNL_FAMILY_IP6MR, and its NLMSG_DONE, with",
     "no Setup: plain, -6, -d and -j. Two consecutive clean runs of 263",
-    "GOIP_PARITY_PASS of 263 ended GOIP_PARITY_OVERALL_PASS."
+    "GOIP_PARITY_PASS of 263 ended GOIP_PARITY_OVERALL_PASS.",
+    "",
+    "G4-T03 adds token and gates five rows, each ll_init_map's link dump",
+    "first: token show, token get dev v0 and -j token show, then the AF_INET6",
+    "link dump; token set on a veth and token add on a NOARP dummy, which the",
+    "kernel refuses, then one RTM_SETLINK. Two consecutive clean runs of 268",
+    "GOIP_PARITY_PASS of 268 ended GOIP_PARITY_OVERALL_PASS."
   ],
   "_note_version_skew": [
     "THE ENTRIES BELOW CITE COMMITS THAT ARE IN NO RELEASE, AND THE EVIDENCE IS",
@@ -1346,6 +1352,11 @@
     "mrule show",
     "-6 mrule show",
     "-d mrule show",
-    "-j mrule show"
+    "-j mrule show",
+    "token show",
+    "token get dev v0",
+    "-j token show",
+    "token set ::1:2:3:4/64 dev d0",
+    "token add ::1:2:3:4/64 dev d0"
   ]
 }

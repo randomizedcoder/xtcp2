@@ -3245,3 +3245,62 @@ func TestMruleRows(t *testing.T) {
 		})
 	}
 }
+
+// TestTokenRows pins G4-T03's five `ip token` rows: the reads on
+// tokenSetup, the writes on a veth or a dummy, all gated, and the forms
+// left out.
+//
+// go test ./internal/goipparity/ -run TestTokenRows
+func TestTokenRows(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	type want struct {
+		implemented, write, gated bool
+		setup                     string
+		floor, entries            int
+	}
+	read := want{implemented: true, gated: true, setup: "token", floor: 4}
+	rows := []struct {
+		description string
+		command     string
+		expected    want
+	}{
+		{"positive: the listing", "token show", read},
+		{"positive: get with dev", "token get dev v0", read},
+		{"positive: -j", "-j token show", read},
+		{"positive: set on a veth", "token set ::1:2:3:4/64 dev d0",
+			want{implemented: true, write: true, gated: true, setup: "veth", floor: 4}},
+		{"negative: add on a NOARP dummy, refused by the kernel", "token add ::1:2:3:4/64 dev d0",
+			want{implemented: true, write: true, gated: true, setup: "dummy", floor: 4}},
+		{"corner: del has no capture, so no row", "token del dev d0", want{}},
+		{"corner: the bare object is not in the matrix", "token", want{}},
+	}
+	setups := map[string][]string{"token": tokenSetup, "veth": tokenVethSetup, "dummy": d0UpSetup}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			var got want
+			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				got = want{implemented: c.Implemented, write: c.Write, floor: c.Floor}
+				for name, s := range setups {
+					if slices.Equal(c.Setup, s) {
+						got.setup = name
+					}
+				}
+			}
+			got.gated = al.IsGated(r.command)
+			got.entries = len(al.EntriesFor(r.command))
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+		})
+	}
+	t.Run("positive: tokenSetup sets v0's token, the reads corpus's", func(t *testing.T) {
+		const step = "token set ::1:2:3:4/64 dev v0"
+		topo := topologySteps(t, filepath.Join("..", "..", "pkg", "xtcpnl", "testdata", "7_1_4", "dumps"), "reads")
+		if !slices.Contains(tokenSetup, step) || !slices.Contains(topo, step) {
+			t.Errorf("tokenSetup %q or the reads topology %q lacks %q", tokenSetup, topo, step)
+		}
+	})
+}

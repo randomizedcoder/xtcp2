@@ -71,7 +71,7 @@ var objects = []object{
 	{name: "tunl6"},
 	{name: "tcp_metrics"},
 	{name: "tcpmetrics", alias: true},
-	{name: "token"},
+	{name: "token", run: runToken},
 	{name: "tuntap"},
 	{name: "tap", alias: true},
 	{name: "mroute", run: runMroute},

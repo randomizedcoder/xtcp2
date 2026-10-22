@@ -67,7 +67,10 @@ const (
 	// linkAltnameSlugPrefixCst names G3-T06's link property rows, each on
 	// the capture of its own slug under tdRtnl.
 	linkAltnameSlugPrefixCst = "link_altname_"
-	tdAddrSave               = "../../pkg/xtcpnl/testdata/7_1_4/link-write/addr-save"
+	// tokenWriteSlugPrefixCst names G4-T03's token write rows, each on the
+	// capture of its own slug under tdRtnl.
+	tokenWriteSlugPrefixCst = "token_set"
+	tdAddrSave              = "../../pkg/xtcpnl/testdata/7_1_4/link-write/addr-save"
 	// tdRtnl is the C1 rtnetlink corpus, route_restore\'s among it.
 	tdRtnl           = "../../pkg/xtcpnl/testdata/7_1_4/link-write/rtnl"
 	pcapGlobalHdrCst = 24
@@ -237,7 +240,8 @@ func corpusWriteRow(t *testing.T, c Command) writeRowFiles {
 	if strings.HasPrefix(c.Slug, addrLabelWriteSlugPrefixCst) ||
 		strings.HasPrefix(c.Slug, ntableWriteSlugPrefixCst) ||
 		strings.HasPrefix(c.Slug, statsSetSlugPrefixCst) ||
-		strings.HasPrefix(c.Slug, linkAltnameSlugPrefixCst) {
+		strings.HasPrefix(c.Slug, linkAltnameSlugPrefixCst) ||
+		strings.HasPrefix(c.Slug, tokenWriteSlugPrefixCst) {
 		dir = filepath.Join(tdRtnl, c.Slug)
 	}
 	ipPcap := mustReadBytes(t, filepath.Join(dir, "ip.pcap"))

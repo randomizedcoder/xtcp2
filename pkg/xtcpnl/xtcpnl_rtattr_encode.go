@@ -349,7 +349,8 @@ func BuildRequest(msgType, flags uint16, seq uint32, familyHdr, attrs []byte) ([
 // is `ip ntable change` (ip/ipntable.c:690) and RTM_SETSTATS is `ip stats set`
 // (ip/ipstats.c:1247), each a lone set with no NEW or DEL beside it. The
 // link property pair is iplink_prop's: RTM_NEWLINKPROP for add and
-// RTM_DELLINKPROP for del (ip/iplink.c:1785-1788).
+// RTM_DELLINKPROP for del (ip/iplink.c:1785-1788). RTM_SETLINK is `ip token
+// set` and `del` (ip/iptoken.c:173), the only `ip` command that sends it.
 func IsAdmittedWriteType(msgType uint16) bool {
 	switch msgType {
 	case uint16(unix.RTM_NEWROUTE), uint16(unix.RTM_DELROUTE),
@@ -360,7 +361,8 @@ func IsAdmittedWriteType(msgType uint16) bool {
 		uint16(unix.RTM_NEWNEXTHOP), uint16(unix.RTM_DELNEXTHOP),
 		uint16(unix.RTM_NEWADDRLABEL), uint16(unix.RTM_DELADDRLABEL),
 		uint16(unix.RTM_SETNEIGHTBL), uint16(unix.RTM_SETSTATS),
-		uint16(unix.RTM_NEWLINKPROP), uint16(unix.RTM_DELLINKPROP):
+		uint16(unix.RTM_NEWLINKPROP), uint16(unix.RTM_DELLINKPROP),
+		uint16(unix.RTM_SETLINK):
 		return true
 	}
 	return false

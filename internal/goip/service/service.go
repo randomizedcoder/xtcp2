@@ -755,6 +755,19 @@ func (s *Service) AddrLabels(family uint8) ([]model.AddrLabel, error) {
 	return out, nil
 }
 
+// LinkTokens runs `ip token list`'s AF_INET6 link dump (req.TokenShowDump).
+func (s *Service) LinkTokens() ([]model.LinkToken, error) {
+	v, err := decode(s, req.TokenShowDump(s.nextSeq()), uint16(unix.RTM_NEWLINK), "RTM_NEWLINK", xtcpnl.ParseLinkToken)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.LinkToken, len(v))
+	for i := range v {
+		out[i] = model.LinkToken(v[i])
+	}
+	return out, nil
+}
+
 // NeighTableLinks is ll_init_map's link dump before the ntable dump
 // (ip/ipntable.c:685), the NeighborLinks twin. It is split out so obj_ntable can
 // Fill the index cache between the link dump and the table dump, which is how a

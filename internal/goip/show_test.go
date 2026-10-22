@@ -288,7 +288,7 @@ func TestNoSuchDeviceKeepsCLIMessage(t *testing.T) {
 func TestShowObjectsReadOnly(t *testing.T) {
 	t.Run("exact_set", func(t *testing.T) {
 		// positive: the 12 implemented show objects, sorted, and a copy.
-		want := []string{"address", "addrlabel", "link", "mroute", "mrule", "neighbor", "netconf", "nexthop", "ntable", "route", "rule", "stats", "vrf"}
+		want := []string{"address", "addrlabel", "link", "mroute", "mrule", "neighbor", "netconf", "nexthop", "ntable", "route", "rule", "stats", "token", "vrf"}
 		got := ShowObjects()
 		if !slices.Equal(got, want) {
 			t.Fatalf("ShowObjects() = %q, want %q", got, want)

@@ -702,6 +702,12 @@ func TestAllowlistCommitted(t *testing.T) {
 		"-6 mrule show",
 		"-d mrule show",
 		"-j mrule show",
+		// G4-T03's five `token` rows.
+		"token show",
+		"token get dev v0",
+		"-j token show",
+		"token set ::1:2:3:4/64 dev d0",
+		"token add ::1:2:3:4/64 dev d0",
 	}
 
 	tests := []struct {

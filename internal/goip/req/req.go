@@ -539,6 +539,14 @@ func NeighTblShowLinkDump(seq uint32) ([]byte, error) {
 	return xtcpnl.BuildDumpLinkRequestExt(unix.AF_UNSPEC, xtcpnl.RTEXT_FILTER_VF, seq)
 }
 
+// TokenShowDump is `ip token list`'s dump, rtnl_linkdump_req(&rth,
+// AF_INET6) (ip/iptoken.c:104): rtnl_linkdump_req_filter_fn adds
+// IFLA_EXT_MASK only for AF_UNSPEC and AF_PACKET, so this is a bare 32-byte
+// ifinfomsg of family AF_INET6.
+func TokenShowDump(seq uint32) []byte {
+	return xtcpnl.BuildDumpLinkRequestFamily(unix.AF_INET6, seq)
+}
+
 // NetconfShowDump is `ip netconf show`'s dump, rtnl_netconfdump_req
 // (lib/libnetlink.c:500-515): a netconfmsg with only ncm_family set, no
 // attributes and no family substitution (ipnetconf passes preferred_family

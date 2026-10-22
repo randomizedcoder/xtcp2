@@ -2114,6 +2114,35 @@ var commands = withArgs([]Command{
 		Floor: 2, Implemented: true,
 	},
 
+	// G4-T03: `ip token` (ip/iptoken.c). Every row is ll_init_map's link
+	// dump first. The reads, on tokenSetup, then dump AF_INET6 links and
+	// print v0's ::1:2:3:4 and v1's ::, skipping lo (4). The writes, on a
+	// veth or, refused with EINVAL, on a NOARP dummy, are one RTM_SETLINK
+	// carrying IFLA_AF_SPEC { AF_INET6 { IFLA_INET6_TOKEN } } and its ack,
+	// each on the C1-T02 capture of its slug; `token del`, which has none,
+	// is left to the unit tests.
+	{
+		Name: "token show", Slug: "token_show",
+		Setup: tokenSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "token get dev v0", Slug: "token_get_dev",
+		Setup: tokenSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-j token show", Slug: "token_show_json",
+		Setup: tokenSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "token set ::1:2:3:4/64 dev d0", Slug: "token_set",
+		Floor: 4, Implemented: true, Write: true, Setup: tokenVethSetup,
+	},
+	{
+		Name: "token add ::1:2:3:4/64 dev d0", Slug: "token_set_noarp",
+		// A dummy is IFF_NOARP: EINVAL, exit 2.
+		Floor: 4, Implemented: true, Write: true, Setup: d0UpSetup,
+	},
+
 	// G2-T01: `route save` and `route showdump` (ip/iproute.c:1673-1716,
 	// :2390-2405), on route_save's C1-T02 precondition: d0, ifindex 3, and
 	// table 100's two routes. save is `route show table 100`'s dump with
@@ -2755,6 +2784,18 @@ var mrouteSetup = []string{
 	"addr add 192.0.2.1/24 dev v0", "addr add 198.51.100.1/24 dev v1",
 	"smcroute mroute from v0 source 192.0.2.10 group 239.1.1.1 to v1",
 }
+
+// The `ip token` rows' preconditions: the reads veths with v0's token, as
+// rtnl-read-corpus.exp's build list sets it; and rtnl-write-corpus.exp's
+// PRE_VETH, a veth d0 whose peer is up.
+var (
+	tokenSetup = []string{
+		"link add v0 type veth peer name v0p", "link add v1 type veth peer name v1p",
+		"link set v0p up", "link set v1p up", "link set v0 up", "link set v1 up",
+		"token set ::1:2:3:4/64 dev v0",
+	}
+	tokenVethSetup = []string{"link add d0 type veth peer name d1", "link set d1 up", "link set d0 up"}
+)
 
 // The rule rows' preconditions: rule_add_existing's and rule_del's one rule,
 // and PRE_RULES in rtnl-write-corpus.exp, rule_flush's and rule_save's.

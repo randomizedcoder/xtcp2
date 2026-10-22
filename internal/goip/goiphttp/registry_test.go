@@ -62,6 +62,10 @@ func TestParams(t *testing.T) {
 			path: "mroute", query: "iif=abcdefghijklmnop", wantErr: true},
 		{name: "mrule_family", description: "positive: mrule takes family alone",
 			path: "mrule", query: "family=inet6", want: goip.ShowRequest{Object: "mrule", Family: unix.AF_INET6, JSON: true}},
+		{name: "token_dev", description: "positive: /ip/token/{interface} is dev <interface>",
+			path: "token", pathDev: "v0", want: goip.ShowRequest{Object: "token", JSON: true, Selectors: []string{"dev", "v0"}}},
+		{name: "token_family", description: "negative: token takes no family, since iptoken_list ignores it",
+			path: "token", query: "family=inet6", wantErr: true},
 		{name: "mrule_link", description: "negative: family=link, which do_multirule refuses, is refused here",
 			path: "mrule", query: "family=link", wantErr: true},
 

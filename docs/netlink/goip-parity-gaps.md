@@ -2512,6 +2512,29 @@ The tests (`internal/goip/obj_mrule_test.go`):
 
 Every listing form, `-d`, `-j`, `-s`, `-6` and the abbreviations, was checked against iproute2-7.1.0 in an unprivileged namespace, on the default rules and with five more added by `ip mrule add`.
 
+**G4-T03 delivered** (`internal/goip/obj_token.go`, `internal/goip/render/token.go`, `pkg/xtcpnl/xtcpnl_link_token.go`):
+- **The order.** `do_iptoken` (`ip/iptoken.c:191-216`) runs `ll_init_map`'s link dump before it reads the verb, so every `token` command, a refused one included, sends it first. `preferred_family` reaches nothing: both halves are `AF_INET6`.
+- **The listing.** `iptoken_list`: the loop reads `dev` by `strcmp`, resolves it from the cache, and stops; every other word is skipped. Then a bare 32-byte `AF_INET6` link dump (`req.TokenShowDump`), and `print_token`'s skips: not `AF_INET6`, ifindex 0, another device, `IFF_LOOPBACK` or `IFF_NOARP`. A printed reply with no `IFLA_PROTINFO`, or none with a token in it ("Seems there's no support for IPv6 token!"), ends the dump, `Dump terminated`, exit 1. `get` is the listing too.
+- **The render.** `token TOKEN dev NAME`, and in `-j` an array of `token` and `ifname`. The token is glibc's `inet_ntop`, which netip matches but for one form a token reaches: six zero words then a nonzero seventh prints as dotted quad, so `::a:b` is `::0.10.0.11` (`inet6Ntop`, measured).
+- **The parser.** `ParseLinkToken` decodes the ifinfomsg's family, index and flags, and `IFLA_INET6_TOKEN` from inside `IFLA_PROTINFO`, read only on an `AF_INET6` reply, since an `AF_BRIDGE` reply's `IFLA_PROTINFO` holds bridge-port attributes whose type 7 is not a token. It allocates nothing, the token aliasing the body, and has a benchmark.
+- **The write.** `iptoken_set`: `dev` by `strcmp`, the first resolved and a later one skipped unresolved; any other word is checked for `help`, then the first is the token, `get_prefix` in `AF_INET6`, its length not sent (`any` sends an empty token, `default` sixteen zero bytes). `delete` starts with the token present and zero, so it reads none. One `RTM_SETLINK`, `NLM_F_ACK`, of an `AF_INET6` ifinfomsg with `IFLA_AF_SPEC { AF_INET6 { IFLA_INET6_TOKEN } }`, to `GOIP_WRITE_OUT`. `xtcpnl.BuildWriteRequest` admits `RTM_SETLINK` for it.
+- **Five matrix rows, gated.** `token show`, `token get dev v0` and `-j token show` on `tokenSetup`, the reads veths with v0's token (floor 4); `token set ::1:2:3:4/64 dev d0` on a veth and `token add ::1:2:3:4/64 dev d0` on a NOARP dummy, which the kernel refuses, each on the C1-T02 capture of its slug (floor 4). `TestTokenRows` pins the five.
+- **HTTP.** `go-link-monitor` serves `/ip/token` and `/ip/token/{interface}` with `dev` ([IP-PATHS-DESIGN.md](../../cmd/go-link-monitor/IP-PATHS-DESIGN.md)).
+
+The tests (`pkg/xtcpnl/xtcpnl_link_token_test.go`, `internal/goip/obj_token_test.go`, `internal/goip/render/token_test.go`):
+
+| description | expected |
+|---|---|
+| positive, boundary, negative, corner: a token, `::`, no token, no `IFLA_PROTINFO`, an `AF_BRIDGE` reply's type 7, the skip flags, a repeated token or nest, a malformed nest tail, a bare ifinfomsg, a short one, a bad attribute | each decoded, first wins, the nest tolerant; the two errors |
+| positive: the captured `AF_INET6` dump | 16 replies, each with a token, one not `::`, v0's |
+| positive, boundary, corner: the listing captures (replayed) with `show`, no verb, `ls`, `get dev d0`, words around `dev` | `ip`'s two requests byte for byte, and the sidecar |
+| positive, negative: the two write captures (replayed), and `a` with the device first | the link dump, then `ip`'s `RTM_SETLINK` byte for byte, `REQUEST|ACK` |
+| positive, negative, boundary, corner: each skip, `dev`, a second `dev`, an unknown or missing device, a reply with no nest or no token, an 8-byte token, `-j`, either dump failing, `help`, an unknown verb (constructed replies) | the lines, or nothing; refused before the dump; the lines before it, then `Dump terminated`; the requests each sends |
+| positive, negative, boundary, corner: `set`, `se`, `add`, `delete`, a second token or `dev`, `default`, `any`, no token, no `dev`, `de`, an unknown device, a v4 token, `/129`, `help` after the token, no `GOIP_WRITE_OUT` | the request's ifinfomsg and nest in hex, or refused |
+| positive, corner, boundary, negative: `inet6Ntop` on ten measured tokens and one that cannot be a token | glibc's text, dotted quad exactly where it prints one |
+
+Every listing form and every refusal was checked against iproute2-7.1.0 in an unprivileged namespace, with tokens on two veths, one of them `::a:b`, a NOARP dummy and lo.
+
 ### G5 — The genl matrix harness
 
 - The parity comparator normalizes genl family IDs by name (`pkg/nlparity`).
