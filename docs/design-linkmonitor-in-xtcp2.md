@@ -28,7 +28,7 @@ Progress, findings and TODOs: [status-linkmonitor-in-xtcp2.md](status-linkmonito
 | `-linkMonitorCollectionMode` | `poll` (`on-demand` in the OCI images) | **`on-demand`** everywhere |
 | Detail paths | go-link-monitor only | served by xtcp2 on the Prometheus listener: `/metrics/<category>[/<iface>]`, `/metrics-all[/<iface>]`, `/ip`/`/i` (off) |
 | Prometheus server | bare `go` routine, `log.Fatalf` on bind or serve error, never shut down | bound before the daemon starts; a tracked worker that drains on shutdown (3 s grace, then close) |
-| SIGUSR1 | default action (process killed) | relearn the expected up-link count, as for go-link-monitor |
+| SIGUSR1 | dropped (Go ignores a signal nobody asked for) | relearn the expected up-link count, as for go-link-monitor |
 | Monitor failure (corrupt or locked baseline) | `log.Fatalf`, xtcp2 exits | monitor marked down; xtcp2 runs on |
 | NixOS module | no state directory | `StateDirectory=xtcp2` (0750), `services.xtcp2.linkMonitor.*`, `systemctl reload` rebaselines |
 
@@ -89,7 +89,7 @@ runMain
 - **The link monitor routes are late bound.** The mux exists before the daemon, and a soft restart builds a new daemon. So the mux mounts one handler at `/` that forwards to whichever daemon is attached, and answers 404 when none is. Each daemon attaches its own monitor's handler and detaches after its workers have stopped.
 - **The monitor runs as a tracked worker.** `runLinkMonitor` runs under the daemon's context and WaitGroup, so a SIGTERM or a soft restart stops it and releases the baseline lock before the next daemon takes it.
 - **Shutdown.** `runMain` cancels the run context and waits for the Prometheus worker. A request still in flight after the 3 s grace is cut off by `Close`.
-- **SIGUSR1.** The signal loop forwards it to the attached daemon. A daemon without a monitor logs "link monitor is disabled", and a signal between daemons logs "no daemon running". A SIGUSR1 sent before the handler is installed, in the first moments of process start, still takes the default action and kills the process; `systemctl reload` is only possible once the unit is active, which makes this unlikely.
+- **SIGUSR1.** The signal loop forwards it to the attached daemon. A daemon without a monitor logs "link monitor is disabled", and a signal between daemons logs "no daemon running". `runMain` routes SIGINT, SIGTERM and SIGUSR1 before it parses flags, and only the loop that reads them runs in a goroutine. Before any `signal.Notify`, Go drops a SIGUSR1 but exits at once on a SIGTERM, skipping the graceful shutdown; routing first means neither depends on when the goroutine gets scheduled. The only window left is the Go runtime's own start, before `main`. `TestSignalProcess` sends real signals to a child process to pin both behaviours down.
 
 ## State and the baseline file
 

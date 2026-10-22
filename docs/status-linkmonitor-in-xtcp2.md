@@ -22,6 +22,7 @@ Tracks [design-linkmonitor-in-xtcp2.md](design-linkmonitor-in-xtcp2.md). Branch 
 | 2026-10-21 | P5: `nix/tests/xtcp2-linkmonitor.nix` wired as `checks.vm-xtcp2-linkmonitor` (in `vm-all`) and `test-xtcp2-linkmonitor-vm` | `nix build path:.#test-xtcp2-linkmonitor-vm` (guest script through shellcheck, guest image built, not booted) |
 | 2026-10-21 | User booted `test-xtcp2-linkmonitor-vm` on `l` at 46176add: 7 sentinels pass. The guest had no NIC (count 0), so a virtio NIC and a MISSING step were added | VC021, VC022 in [VM-CHECKS-STATUS](../nix/VM-CHECKS-STATUS.md) |
 | 2026-10-21 | User reran `test-xtcp2-linkmonitor-vm` on `l` at 5e459f79: 8 sentinels pass with `expected_up_links=1`; eth0 down was seen in about 1 s and the recovery in about 1 s | VC023 |
+| 2026-10-21 | After #275: signals routed before flag parsing; `TestSignalProcess` sends real signals to a child (Go drops an early SIGUSR1; an early SIGTERM skipped the graceful shutdown) | `go test -race -count=30 -run TestSignalProcess ./cmd/xtcp2` and `go test ./cmd/xtcp2` pass |
 | 2026-10-21 | `BenchmarkPromScrapeLinkMonitor` | [F1](#findings) |
 | 2026-10-21 | Nix gates | `checks.{go-vet,lint-baseline,go-sec,xtcp2-exec,test-linkmonitor}` pass (lint-baseline after one misspelling fix) |
 
@@ -33,7 +34,7 @@ Tracks [design-linkmonitor-in-xtcp2.md](design-linkmonitor-in-xtcp2.md). Branch 
 - **Shutdown grace.** 3 s, not 5 s. It fits inside systemd's stop timeout with the other workers' drain, and the VM check holds the whole stop to 5 s.
 - **Serve error.** A serve error after startup still exits through `fatalf`, as before; only the bind moved to startup. A failed metrics listener with a running daemon is worse than a restart under systemd.
 - **gRPC when down.** No new code: once `Run` has returned, `GetStatus` reports `running=false`, and `Rebaseline` and `Resync` return `Unavailable` through the existing `ErrNotRunning` mapping.
-- **SIGUSR1 test.** Covered in-process (`TestAwaitSignalAndShutdown_sigusr1`, `TestLinkMonitorRoutes`) and in the VM (`systemctl reload`), not by the child re-exec pattern.
+- **SIGUSR1 test.** Covered in-process (`TestAwaitSignalAndShutdown_sigusr1`, `TestLinkMonitorRoutes`), by real signals to a child process (`TestSignalProcess`, added after the merge) and in the VM (`systemctl reload`).
 
 ## Test matrix
 
@@ -59,6 +60,7 @@ Tracks [design-linkmonitor-in-xtcp2.md](design-linkmonitor-in-xtcp2.md). Branch 
 | a counted link goes down, then up | negative | `up_links_delta -1` and `problems >= 1`, then delta 0; the baseline is unchanged | VM MISSING (about 1 s each way, VC023) |
 | `promPath=/` | corner | no mux panic, no link routes | unit |
 | failed monitor, unknown path | corner | 503 | unit |
+| signals before and after routing | negative / positive / corner | before `Notify`: SIGUSR1 dropped, SIGTERM kills; after: each signal queued; full handler: rebaseline, then cancel and exit 0 | unit `TestSignalProcess` (child process) |
 | `LINK_MONITOR=false` over the default | corner | monitor off | unit flags table |
 | set-but-empty optional env vars | corner | "none", not default | unit flags table |
 | daemon detached (soft restart) | corner | 404, SIGUSR1 "no daemon running" | unit `TestLinkMonitorRoutes` |
@@ -91,7 +93,7 @@ Performance, appended as measured.
 - [ ] `ProtectSystem=strict` with `ReadWritePaths=/var/lib/xtcp2` in the NixOS unit, once the VM checks cover every path xtcp2 writes (`-capturePath`, Unix sockets, file destinations).
 - [ ] go-link-monitor's own exposure validation could use `linkmonitorhttp.Paths.Validate` too, so both binaries share one collision rule.
 - [ ] `LinkMonitorService`'s request metrics go to xtcp2's registry only; go-link-monitor tees them to its detail paths. Decide whether xtcp2 should do the same.
-- [ ] SIGUSR1 sent before `signal.Notify` runs, in the first moments of start, kills the process (default action). Installing the handler earlier in `main` would close the gap.
+- [x] Early signals. The premise was wrong: Go drops a SIGUSR1 sent before any `signal.Notify`, it doesn't kill the process. The real gap was SIGTERM, which before `Notify` exits at once with no graceful shutdown. `runMain` now routes the signals before parsing flags, and only the loop runs in a goroutine; `TestSignalProcess` covers both, with real signals sent to a child.
 - [ ] `/metrics-all`: when [design-summary-metrics.md](design-summary-metrics.md) is implemented, merge xtcp2's full registry into the same path (see the design's forward note).
 - [ ] A `link_monitor` config block without `collection_mode` keeps `poll`; consider making the library default `on-demand` too, so every entry point agrees.
 - [ ] Load test: point `nix/tests/linkmonitor_http.py --url` at xtcp2's listener in a guest, as was done for go-link-monitor.

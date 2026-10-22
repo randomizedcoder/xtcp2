@@ -1003,7 +1003,7 @@ func runMain(ctx context.Context) int {
 	defer cancel()
 
 	complete := make(chan struct{}, signalChannelSizeCst)
-	go initSignalHandler(cancel, complete, linkMonitorHTTP.rebaseline)
+	initSignalHandler(cancel, complete, linkMonitorHTTP.rebaseline)
 
 	f := defineFlags()
 	flag.Parse()
@@ -1224,10 +1224,20 @@ func envWithoutKey(env []string, key string) []string {
 
 // initSignalHandler sets up signal handling for the process, and
 // will call cancel() when received. SIGUSR1 calls rebaseline instead.
+// The signals are routed before it returns and the loop runs in its own
+// goroutine, so a SIGTERM sent while flags are still being parsed takes the
+// graceful path instead of Go's default, which exits at once. (Go drops a
+// SIGUSR1 that arrives before any Notify; it never kills the process.)
 func initSignalHandler(cancel context.CancelFunc, complete <-chan struct{}, rebaseline func()) {
+	c := notifySignals()
+	go awaitSignalAndShutdown(c, cancel, complete, cancelSleepTimeCst, true, rebaseline)
+}
+
+// notifySignals routes SIGINT, SIGTERM and SIGUSR1 to the returned channel.
+func notifySignals() chan os.Signal {
 	c := make(chan os.Signal, signalChannelSizeCst)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGUSR1)
-	awaitSignalAndShutdown(c, cancel, complete, cancelSleepTimeCst, true, rebaseline)
+	return c
 }
 
 // awaitSignalAndShutdown blocks on `sigs` until a signal other than SIGUSR1,

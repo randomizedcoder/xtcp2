@@ -607,7 +607,7 @@ func TestRunMain_version(t *testing.T) {
 	promHandlerStarter = func(context.Context, *sync.WaitGroup, promParams) error { return nil }
 	t.Cleanup(func() { promHandlerStarter = prevProm })
 
-	// runMain spawns a signal-handler goroutine that blocks on signal.Notify.
+	// runMain routes signals and spawns a signal-handler goroutine.
 	// The goroutine leak is fine for a test that exits quickly.
 	captureLog(t, func() {
 		if rc := runMain(t.Context()); rc != 0 {
