@@ -6773,6 +6773,20 @@ row for row: 174 PASS, 7 WARN, and 5 FAIL (`-4 netconf show dev` and the bond
 write flake), with CONTROL_NOISY at 30. `TestNexthopSelectorRowsGated` pins
 the flip. A third run never booted, because another VM held port 12056.
 
+The bond write flake was not carrier timing. Every finding was IFF_RUNNING in
+la1's flags in a lookup reply taken before any write. la1 is a veth up with
+its peer down; `dev_get_flags` sets IFF_RUNNING while operstate is UP or
+UNKNOWN, and linkwatch moves it from UNKNOWN to DOWN up to a second after
+Setup. Each side of a write row runs its own Setup in a fresh namespace, so
+a side captured inside that second differed from the others. The driver now
+calls `xtcp2-nlcap wait-linkwatch` after each Setup, which polls sysfs until
+every admin-up link's operstate agrees with its carrier
+(`checks.nlcap-wait-linkwatch` covers it hermetically). Three more live
+runs: all four bond write rows PASS, 178 PASS, 7 WARN and 1 FAIL
+(`-4 netconf show dev`, HYGIENE_FAIL 2), CONTROL_NOISY 25-29. Of 287 waits
+per run, 14-16 took a second and none timed out, so the fix costs about 15 s
+a run.
+
 ### Remaining
 
 What is left beyond `ip address` is measured and planned in
