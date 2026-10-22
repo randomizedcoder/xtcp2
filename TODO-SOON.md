@@ -651,10 +651,29 @@ What the upgrade turned up:
   on a cache miss. goip now does the same, in argv order, so `dev X master Y`
   filters on both names instead of only the first.
   `TestNexthopShowNameResolutionIsLLLinkGet` pins the captured requests.
+- **MinIO is gone from nixpkgs** (package and NixOS module removed, abandoned
+  upstream; `minio-client` is marked insecure), which broke every S3 VM and
+  `nix develop`. The in-VM S3 fixture is now **Garage 2.4.1**
+  (`nix/modules/garage-bucket-bootstrap.nix`): one node, S3 API on :9000,
+  region `us-east-1`, RPC and admin on loopback. `rclone` replaces `mc` in the
+  retention job, the self-test checks 13-14 and the dev shell. xtcp2 keeps
+  minio-go, which was tested against Garage outside the VM: bucket check,
+  single and multipart put, and the error paths. The test secret is now
+  `xtcp2testsecretkey` (Garage wants 16+ characters). The persistent S3 disks
+  are renamed `*-s3.img`; the old `*-minio.img` files in `/tmp` can be removed.
+  The Grafana datasource password moved to Grafana's env provider, which
+  clears the new NixOS module warning.
+- **Vector is out of the dev shell**: nixpkgs' vector 0.59.0 doesn't build at
+  this pin (`vector-common` denies Rust's `fetch_update` deprecation), and no
+  microvm flavor uses it. Put it back once nixpkgs fixes the build.
 
 Still to do:
 
-- the microVM lifecycle checks (the user runs those);
+- the microVM lifecycle checks (the user runs those), and for Garage in
+  particular `test-microvm-lifecycle-x86_64-s3parquet`,
+  `microvm-x86_64-clickhouse-pipeline-parquet` (Check 15, ClickHouse `s3()`)
+  and a short `microvm-x86_64-s3parquet-stress` to see the retention job
+  delete;
 - a dump capture at the new pin (`nix run
   .#microvm-x86_64-netlink-dump-capture`), then goip tests against it in the
   7.2.0 mode;
@@ -774,7 +793,7 @@ written them pipefail-correctly: every `grep … || echo 0` and
 | `nix/modules/broker-server.nix` | `xtcp2-${consumerName}` | × 3 (valkey/nats/nsq) |
 | `nix/microvms/mkVm.nix` | `discovery-bench-run` | × 1 |
 | `nix/microvms/mkVm.nix` | `xtcp2-resource-snapshot` | × 1 |
-| `nix/modules/minio-bucket-bootstrap.nix` | `xtcp2-bucket-bootstrap` | × 1 |
+| `nix/modules/garage-bucket-bootstrap.nix` | `xtcp2-bucket-bootstrap` | × 1 |
 | `nix/microvms/mkVm.nix` | `xtcp2-prom-snapshot` | × 1 |
 
 Each instantiation is a separate shellcheck run. For `broker-server.nix` the

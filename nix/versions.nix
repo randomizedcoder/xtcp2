@@ -43,7 +43,7 @@
   # data version 5 is greater than maximum supported version 4"). gosec's
   # master moved to x/tools v0.52.0, so build that commit, with the pinned Go.
   # Return to `pkgs.gosec` once a gosec release carries x/tools v0.52.0 or later.
-  gosec = (pkgs.gosec.override { buildGoModule = pkgs.buildGo127Module; }).overrideAttrs (old: {
+  gosec = (pkgs.gosec.override { buildGoModule = pkgs.buildGo127Module; }).overrideAttrs (_: {
     version = "2.29.0-unstable-2026-10-21";
     src = pkgs.fetchFromGitHub {
       owner = "securego";
@@ -53,7 +53,7 @@
     };
     vendorHash = "sha256-OI84VCRAkKsVB9AMmf1n20toBDhSL64By0pxssXqwwI=";
   });
-  nixfmt = pkgs.nixfmt-rfc-style or pkgs.nixfmt;
+  inherit (pkgs) nixfmt;
 
   # gRPC / proto inspection
   inherit (pkgs) grpcurl;

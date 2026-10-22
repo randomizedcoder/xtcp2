@@ -1235,10 +1235,10 @@ in
       program = "${microvms.clickPipeRate.x86_64.runner}/bin/xtcp2-clickpipe-rate-runner-x86_64";
     };
 
-    # Mixed: clickpipe stack (redpanda + clickhouse) plus MinIO and a
+    # Mixed: clickpipe stack (redpanda + clickhouse) plus Garage and a
     # second xtcp2 instance writing parquet. ClickHouse can then query
     # both the kafka path (xtcp.xtcp_flat_records) and the parquet
-    # path (via s3() table function against MinIO at 127.0.0.1:9000).
+    # path (via s3() table function against Garage at 127.0.0.1:9000).
     # Same boot model as clickhouse-pipeline — `nix run` boots the VM
     # directly; no host-side runner.
     microvm-x86_64-clickhouse-pipeline-parquet = {
@@ -1246,11 +1246,11 @@ in
       program = "${microvms.vmsClickPipeParquet.x86_64}/bin/microvm-run";
     };
 
-    # s3parquet flavor: xtcp2 produces Parquet directly into MinIO via the
+    # s3parquet flavor: xtcp2 produces Parquet directly into Garage via the
     # in-VM minio-go client. No Vector. After boot, query the bucket from
-    # the host with `mc ls --json local/xtcp2-records --recursive` (or
-    # `duckdb` against s3://xtcp2-records/**/*.parquet) on the forwarded
-    # MinIO endpoint at http://127.0.0.1:9000.
+    # the host with `rclone lsf -R` (or `duckdb` against
+    # s3://xtcp2-records/**/*.parquet) on the forwarded S3 endpoint at
+    # http://127.0.0.1:9000.
     microvm-x86_64-s3parquet-pipeline = {
       type = "app";
       program = "${microvms.vmsS3Parquet.x86_64}/bin/microvm-run";
@@ -1266,20 +1266,20 @@ in
       program = "${microvms.s3parquetLong.x86_64.runner}/bin/xtcp2-s3parquet-runner-x86_64";
     };
 
-    # Parquet→S3 upload stress soak: the s3parquet-long harness (in-VM MinIO +
+    # Parquet→S3 upload stress soak: the s3parquet-long harness (in-VM Garage +
     # xtcp2 writing parquet) PLUS the tcp-stress load containers (20 × 250
     # sockets) and a ~1h object-retention cleanup. Duration-bounded runner taps
     # the serial console, prints an upload/disk heartbeat, and asserts uploads
-    # kept advancing, the MinIO disk stayed healthy, and RSS/threads stayed
+    # kept advancing, the Garage disk stayed healthy, and RSS/threads stayed
     # bounded, with no restarts/panics. Default 1h; pass `--duration 24h` for
-    # the production soak or `--keep-alive` to inspect MinIO by hand. Analog of
+    # the production soak or `--keep-alive` to inspect Garage by hand. Analog of
     # `microvm-x86_64-clickhouse-pipeline-stress`. Not in `nix flake check`.
     microvm-x86_64-s3parquet-stress = {
       type = "app";
       program = "${microvms.s3ParquetStress.x86_64.runner}/bin/xtcp2-s3parquet-stress-runner-x86_64";
     };
 
-    # Parquet→S3 LOW-activity verification: same MinIO + container harness as
+    # Parquet→S3 LOW-activity verification: same Garage + container harness as
     # -s3parquet-stress, but xtcp2 polls once an hour with only 2 sockets per
     # container, so the 63 MiB byte cap is never reached and parquet files
     # finalize purely on the staleness TIMER. Confirms the bucket still fills

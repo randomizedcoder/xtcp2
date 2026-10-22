@@ -152,14 +152,6 @@
       let
         pkgs = import nixpkgs {
           inherit system;
-          # MinIO ships in nixpkgs marked insecure (upstream cadence vs.
-          # nixpkgs vulnerability tracking). The Vector flavor of the
-          # microvm uses it as a local test fixture, never exposed beyond
-          # the VM. Pin the exact version we accept so accidental nixpkgs
-          # bumps fail loudly instead of silently sliding to a new CVE.
-          config.permittedInsecurePackages = [
-            "minio-2025-10-15T17-29-55Z"
-          ];
         };
         inherit (nixpkgs) lib;
 

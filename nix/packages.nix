@@ -66,11 +66,13 @@ in
     # Container plumbing
     skopeo # inspect dockerTools-built images without docker
 
-    # Vector / MinIO pipeline (microvm vector flavor; also useful for
-    # interactive debugging of the protobuf → parquet path on the host).
-    vector
-    minio
-    minio-client
+    # S3 / parquet debugging on the host. Garage is the in-VM S3 server
+    # since nixpkgs dropped MinIO; rclone replaces minio-client (mc), which
+    # nixpkgs marks insecure. Vector is left out while nixpkgs' vector 0.59.0
+    # fails to build (vector-common denies Rust's fetch_update deprecation);
+    # no microvm flavor uses it.
+    garage_2
+    rclone
     duckdb
   ];
 

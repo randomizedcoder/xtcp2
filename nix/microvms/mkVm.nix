@@ -12,9 +12,9 @@
 #   - "minimal" (default): xtcp2 alone, JSONL configFile (currently a no-op
 #                          stub; the netlink-readout check tolerates a missing
 #                          file). Cheap CI smoke.
-#   - "s3parquet":         xtcp2 → MinIO Parquet upload, all inside the VM.
-#                          Reuses the minio-bucket-bootstrap module; the xtcp2
-#                          daemon talks to MinIO directly via the minio-go
+#   - "s3parquet":         xtcp2 → Garage (S3) Parquet upload, all inside the VM.
+#                          Reuses the garage-bucket-bootstrap module; the xtcp2
+#                          daemon talks to Garage directly via the minio-go
 #                          client. Self-test scrapes a single .parquet object
 #                          and exits. Lifecycle smoke for CI.
 #   - "s3parquet-long":    Same plumbing as "s3parquet" but no self-test
@@ -177,7 +177,7 @@ let
   # coverage. redpanda stays up (idle) so the kafka-engine table is happy.
   isClickHttp = sink == "clickhouse-http";
   # clickhouse-pipeline + s3parquet mixed: existing redpanda + clickhouse
-  # stack PLUS in-VM MinIO + a second xtcp2 instance writing parquet.
+  # stack PLUS in-VM Garage (S3) + a second xtcp2 instance writing parquet.
   # ClickHouse can query the parquet files via the s3() table function /
   # an S3-engine table — same VM that runs the kafka path, validating
   # the "operator wants both pipelines on one host" deployment shape.
@@ -189,7 +189,7 @@ let
   # clickhouse infra netns), this drives real socket load through the
   # discovery path and validates those records reach ClickHouse.
   isClickPipeStress = sink == "clickhouse-pipeline-stress";
-  # s3parquet = MinIO + xtcp2 writing Parquet directly to S3 (lifecycle).
+  # s3parquet = Garage + xtcp2 writing Parquet directly to S3 (lifecycle).
   isS3Parquet = sink == "s3parquet";
   # s3parquet-long = same destination, no self-test, monitor service emits
   # hourly file-count sentinels. Long-soak runner consumes them.
@@ -200,12 +200,12 @@ let
   # expected error appears on the serial console.
   isCapCheckFail = sink == "capcheck-fail";
   # s3parquet-stress = the parquet→S3 upload analog of clickhouse-pipeline-stress:
-  # xtcp2 writes Parquet to an in-VM MinIO under the SAME tcp-stress load
-  # (20 × 250 sockets), bounded to ~1h of retained objects (periodic mc rm),
+  # xtcp2 writes Parquet to an in-VM Garage under the SAME tcp-stress load
+  # (20 × 250 sockets), bounded to ~1h of retained objects (periodic rclone delete),
   # with the disk guard + RSS/thread leak check + a repeatable soak runner.
   isS3ParquetStress = sink == "s3parquet-stress";
   # s3parquet-lowfreq = the LOW-activity counterpart of s3parquet-stress: same
-  # parquet→MinIO sink and container load, but xtcp2 polls once an HOUR
+  # parquet→Garage sink and container load, but xtcp2 polls once an HOUR
   # (-frequency 1h) with only 2 sockets/container. The 63 MiB byte cap is never
   # reached, so parquet files finalize purely on the staleness TIMER
   # (max(1h,30m)=1h) — this flavor verifies the bucket still fills under low
@@ -410,7 +410,7 @@ let
   # to an nsq topic and the self-test proves records are consumed (via nsqd's
   # per-channel finish_count in /stats). Same shape as valkey/nats.
   isNsq = sink == "nsq";
-  # Convenience predicate — most plumbing (minio module, port forwards,
+  # Convenience predicate — most plumbing (garage module, port forwards,
   # mem budget, daemon args base) is shared.
   isAnyS3Parquet =
     isS3Parquet
@@ -426,18 +426,18 @@ let
   isAnyTcpStressLoad = isTcpStress || isClickPipeStress || isS3ParquetStress || isS3ParquetLowfreq;
   # Anything that needs dockerd inside the VM (the tcp-stress load containers
   # need it too, so the s3parquet stress/lowfreq flavors pull docker in even
-  # though their sink is MinIO).
+  # though their sink is Garage).
   needsDocker = isTcpStress || isAnyClickPipe || isS3ParquetStress || isS3ParquetLowfreq;
   effectiveMem =
     if isClickPipeParquet then
       # Mixed flavor needs more — clickhouse + redpanda + 2× xtcp2 +
-      # MinIO + Pyroscope all in one VM.
+      # Garage + Pyroscope all in one VM.
       cfg.memClickPipeParquet
     else if isClickPipeStress then
       # Pipeline stack + the tcp-stress load containers in one VM.
       cfg.memClickPipeStress
     else if isS3ParquetStress then
-      # MinIO + xtcp2 (parquet) + the tcp-stress load containers, no CH/Redpanda.
+      # Garage + xtcp2 (parquet) + the tcp-stress load containers, no CH/Redpanda.
       cfg.memS3ParquetStress
     else if isAnyClickPipe then
       cfg.memClickPipe
@@ -801,7 +801,7 @@ let
   # want a hardcoded local-dev password.
   clickPipeChPassword = "xtcp";
   # ClickHouse container memory cap. Default 3500m for the plain
-  # clickpipe flavor (12h-validated). The mixed flavor adds MinIO +
+  # clickpipe flavor (12h-validated). The mixed flavor adds Garage +
   # a second xtcp2 + nsTest churn and needs more — see constants.nix
   # `memClickPipeParquet` for the OOM history. Bumped 12000m → 14000m
   # after the 4h soak showed CH parked at ~10.45 GiB MemoryTracking
@@ -1312,7 +1312,7 @@ let
       chmod -R u+w "$usersDRw"
       docker rm -f clickhouse 2>/dev/null || true
       # --add-host host.docker.internal:host-gateway gives ClickHouse a
-      # routable name for the VM host (where the in-VM MinIO listens
+      # routable name for the VM host (where the in-VM Garage listens
       # for the mixed clickpipe-parquet flavor). The mapping is
       # harmless for the plain clickpipe flavor too: it's just an
       # /etc/hosts entry that nothing references unless an s3() table
@@ -1618,15 +1618,15 @@ let
     '';
   };
 
-  # s3parquet flavor: in-VM MinIO + bucket bootstrap. The xtcp2 daemon
-  # talks to MinIO directly via the minio-go client; no proto-desc file
+  # s3parquet flavor: in-VM Garage + bucket bootstrap. The xtcp2 daemon
+  # talks to Garage directly via the minio-go client; no proto-desc file
   # or unixgram socket required. The long-soak variant additionally
   # brings up a local Pyroscope server so xtcp2 can stream profiles
   # for goroutine/thread-leak diagnosis without an external dependency.
   s3ParquetModules = [
-    (import ../modules/minio-bucket-bootstrap.nix {
+    (import ../modules/garage-bucket-bootstrap.nix {
       # The clickpipe-parquet AND s3parquet-stress flavors mount a dedicated
-      # ext4 disk at /var/lib/minio via microvm.volumes (see below) — tell the
+      # ext4 disk at /var/lib/s3 via microvm.volumes (see below) — tell the
       # bootstrap module not to also declare a tmpfs there. The short-run
       # s3parquet / s3parquet-long flavors keep the 512 MiB tmpfs.
       useTmpfs = !isClickPipeParquet && !isS3ParquetStress;
@@ -1708,8 +1708,8 @@ let
   # Long-soak monitor: emit one sentinel line per
   # S3PARQUET_REPORT_INTERVAL seconds. The numbers come from xtcp2's
   # own Prometheus counters (destS3Parquet/upload + uploadBytes)
-  # rather than `mc find` — under nsTest load the mc commands are too
-  # slow to complete inside the cadence window.
+  # rather than listing the bucket — under nsTest load an S3 listing is
+  # too slow to complete inside the cadence window.
   s3ParquetMonitorScript = pkgs.writeShellApplication {
     name = "xtcp2-s3parquet-monitor";
     runtimeInputs = with pkgs; [
@@ -1721,7 +1721,7 @@ let
     ];
     text = ''
       # Wait for xtcp2's /metrics endpoint to come up before reporting.
-      # No mc/MinIO probe — xtcp2 itself owns the upload counter we
+      # No S3 probe — xtcp2 itself owns the upload counter we
       # rely on, so the metrics endpoint is the right readiness gate.
       for _ in $(seq 1 60); do
         if curl --silent --fail --max-time 2 \
@@ -1786,12 +1786,12 @@ let
         appends=$(awk -v n="$appends" 'BEGIN { printf "%.0f", n+0 }')
         gor=$(awk -v n="$gor" 'BEGIN { printf "%.0f", n+0 }')
         thr=$(awk -v n="$thr" 'BEGIN { printf "%.0f", n+0 }')
-        # Disk utilization of the MinIO data dir (integer percent, no % sign).
+        # Disk utilization of the Garage data dir (integer percent, no % sign).
         # For s3parquet-stress this is the dedicated ext4 disk that holds the
         # parquet objects; the runner asserts it never saturates (a full disk
         # would back-pressure uploads and stall ingest). For s3parquet-long it
         # is the 512 MiB tmpfs — harmless, just reported.
-        disk=$(df --output=pcent /var/lib/minio 2>/dev/null | tail -1 | tr -dc '0-9')
+        disk=$(df --output=pcent /var/lib/s3 2>/dev/null | tail -1 | tr -dc '0-9')
         disk=''${disk:-0}
         echo "XTCP2_S3PARQUET_HOURLY $(date -u +%FT%TZ) files=''${files} bytes=''${bytes} rows=''${rows} drops=''${drops} appends=''${appends} goroutines=''${gor} threads=''${thr} disk=''${disk}"
       done
@@ -1799,7 +1799,7 @@ let
   };
 
   # s3parquet-stress retention: the parquet path has no TTL of its own, so a
-  # long soak would grow the MinIO disk without bound. This is the direct
+  # long soak would grow the Garage disk without bound. This is the direct
   # analog of the clickhouse-pipeline-stress table's 1h TTL — every 10 min it
   # deletes objects older than 1h, keeping ~1h of parquet retained so the disk
   # sits at steady state and the disk guard stays meaningful at any duration.
@@ -1807,44 +1807,42 @@ let
     name = "xtcp2-s3parquet-retention";
     runtimeInputs = with pkgs; [
       coreutils
-      minio-client
+      gnugrep
+      rclone
     ];
     text = ''
-      # Address MinIO via the MC_HOST_<alias> env var — no `mc alias set` /
-      # persisted config needed. Also set HOME + MC_CONFIG_DIR explicitly:
-      # with HOME unset, mc shells out to `getent` to locate its config dir
-      # and aborts ("Unable to get mcConfigDir. exec: getent: not found") —
-      # which silently failed EVERY mc call (that was the real retention bug).
-      # `getent` is simply absent from this unit's PATH: it lives in its own
-      # nixpkgs `getent` package and is in neither runtimeInputs above nor
-      # glibc.bin. Note writeShellApplication PREPENDS runtimeInputs to PATH
-      # rather than clamping it (inheritPath defaults to true), so the fix is
-      # a missing dependency, not a sandboxed PATH. With MC_CONFIG_DIR set,
-      # mc uses it directly and never calls getent at all.
-      export MC_HOST_local="http://xtcp2test:xtcp2testsecret@127.0.0.1:9000"
-      export HOME=/tmp/xtcp2-s3parquet-mc
-      export MC_CONFIG_DIR="$HOME/.mc"
-      mkdir -p "$MC_CONFIG_DIR"
+      # Address Garage through an rclone remote defined entirely in the
+      # environment, so no config file is read or written. RCLONE_CONFIG
+      # points at /dev/null for the same reason: a unit has no HOME to find
+      # ~/.config/rclone in. rclone has no Garage provider; "Other" with path
+      # style is the generic S3 one.
+      export RCLONE_CONFIG=/dev/null
+      export RCLONE_CONFIG_S3_TYPE=s3
+      export RCLONE_CONFIG_S3_PROVIDER=Other
+      export RCLONE_CONFIG_S3_ENDPOINT=http://127.0.0.1:9000
+      export RCLONE_CONFIG_S3_REGION=us-east-1
+      export RCLONE_CONFIG_S3_FORCE_PATH_STYLE=true
+      export RCLONE_CONFIG_S3_ACCESS_KEY_ID=xtcp2test
+      export RCLONE_CONFIG_S3_SECRET_ACCESS_KEY=xtcp2testsecretkey
       # Retention window + sweep cadence are overridable (defaults = the 1h
       # analog of the clickhouse-stress table TTL, swept every 10 min); a
       # verification run can shorten both to see deletions without waiting 1h.
       AGE="''${S3PARQUET_RETENTION_AGE:-1h}"
       IVAL="''${S3PARQUET_RETENTION_INTERVAL:-600}"
-      # Wait for MinIO to answer (a credentialed list) before the loop.
+      # Wait for Garage to answer (a credentialed list) before the loop.
       for _ in $(seq 1 60); do
-        if mc ls local/ >/dev/null 2>&1; then break; fi
+        if rclone lsd s3: >/dev/null 2>&1; then break; fi
         sleep 2
       done
       echo "XTCP2_S3PARQUET_RETENTION start: deleting objects older than $AGE every ''${IVAL}s"
       while true; do
         sleep "$IVAL"
         # Capture stdout+stderr so a failure is visible on the console (as
-        # err=[...]) instead of a silent expired=0. `--force` is required for a
-        # non-interactive recursive delete; mc prints one "Removed ..." line
-        # per deleted object. `|| true` keeps the loop alive across a transient
-        # MinIO blip.
-        out=$(mc rm --recursive --force --older-than "$AGE" local/xtcp2-records/ 2>&1) || true
-        n=$(printf '%s\n' "$out" | grep -c '^Removed ' || true)
+        # err=[...]) instead of a silent expired=0. With -v, rclone logs one
+        # "<key>: Deleted" line per deleted object. `|| true` keeps the loop
+        # alive across a transient Garage blip.
+        out=$(rclone delete -v --min-age "$AGE" s3:xtcp2-records 2>&1) || true
+        n=$(printf '%s\n' "$out" | grep -c ': Deleted$' || true)
         err=$(printf '%s\n' "$out" | grep -iE 'error|unable|fail' | head -1 || true)
         echo "XTCP2_S3PARQUET_RETENTION $(date -u +%FT%TZ) expired=''${n}''${err:+ err=[''${err}]}"
       done
@@ -2210,7 +2208,7 @@ let
   };
 
   # The three long-running s3parquet flavors (long/stress/lowfreq) share one
-  # production parquet→MinIO config — 64 MiB flush, 5s timeout, Pyroscope leak
+  # production parquet→S3 (Garage) config — 64 MiB flush, 5s timeout, Pyroscope leak
   # diagnosis streaming to the in-VM server — and differ ONLY in poll frequency
   # and the Pyroscope app name. -s3FlushInterval is intentionally left unset so
   # it derives to the out-of-the-box staleness ceiling.
@@ -2236,7 +2234,7 @@ let
       "-s3AccessKey"
       "xtcp2test"
       "-s3SecretKey"
-      "xtcp2testsecret"
+      "xtcp2testsecretkey"
       "-s3ParquetFlushBytes"
       "67108864"
       "-pyroscopeUrl"
@@ -2271,7 +2269,7 @@ let
 
   # Args for the SECOND xtcp2 instance in the clickhouse-pipeline-parquet
   # flavor. The primary instance writes to kafka (xtcp2ClickPipeArgs);
-  # this one writes parquet to the same in-VM MinIO so ClickHouse can
+  # this one writes parquet to the same in-VM Garage so ClickHouse can
   # read both paths. Different prom + grpc ports so the two instances
   # don't clash. 256 KiB flush threshold gives parquet turnover within
   # the 5-10 min boot exercise window (production deployments would
@@ -2290,7 +2288,7 @@ let
     "-s3AccessKey"
     "xtcp2test"
     "-s3SecretKey"
-    "xtcp2testsecret"
+    "xtcp2testsecretkey"
     "-s3ParquetFlushBytes"
     "262144"
     "-promListen"
@@ -2490,7 +2488,7 @@ let
     # path runs (otherwise 0% covered; the syscall variant runs by default).
     ++ lib.optionals isCoverageIoUring [ "-ioUring" ];
 
-  # s3parquet flavor: write Parquet straight to MinIO. Lifecycle-test
+  # s3parquet flavor: write Parquet straight to Garage. Lifecycle-test
   # threshold dropped to 1 MiB so a 90 s boot exercise actually triggers
   # a finalize+upload; production default (set via
   # S3_PARQUET_FLUSH_BYTES=0) is 63 MiB.
@@ -2508,7 +2506,7 @@ let
     "-s3AccessKey"
     "xtcp2test"
     "-s3SecretKey"
-    "xtcp2testsecret"
+    "xtcp2testsecretkey"
     "-s3ParquetFlushBytes"
     "1048576"
   ];
@@ -2609,8 +2607,7 @@ in
           ]
           ++ lib.optional isTcpStress 9090 # in-VM Prometheus
           ++ lib.optionals isAnyS3Parquet [
-            9000 # MinIO API
-            9001 # MinIO console
+            9000 # Garage S3 API
           ]
           ++ lib.optionals isS3ParquetLong [
             14040 # Pyroscope OSS UI + ingest
@@ -2665,21 +2662,21 @@ in
             ]
             ++ lib.optionals isClickPipeParquet [
               {
-                # Dedicated disk for MinIO data in the mixed
+                # Dedicated disk for Garage data in the mixed
                 # clickhouse-pipeline-parquet flavor. Default
-                # minio-bucket-bootstrap.nix puts /var/lib/minio on
+                # garage-bucket-bootstrap.nix puts /var/lib/s3 on
                 # a 512 MiB tmpfs — fine for short smokes, ran out
                 # at T+22h of a 24h soak (the parquet path uploads
                 # ~10 MiB/min sustained → 14 GiB over 24h). 16 GiB
                 # ext4 disk covers a full 24h with margin; sparse
                 # file so disk space on the host is consumed
                 # incrementally.
-                image = "/tmp/xtcp2-microvm-clickhouse-pipeline-minio.img";
-                mountPoint = "/var/lib/minio";
+                image = "/tmp/xtcp2-microvm-clickhouse-pipeline-s3.img";
+                mountPoint = "/var/lib/s3";
                 size = 16384;
                 autoCreate = true;
                 fsType = "ext4";
-                label = "xtcp2minio";
+                label = "xtcp2s3";
               }
             ]
             ++ lib.optionals isS3ParquetStress [
@@ -2698,16 +2695,16 @@ in
                 label = "xtcp2s3pdock";
               }
               {
-                # Dedicated disk for the MinIO parquet objects. Bounded by the
+                # Dedicated disk for the Garage parquet objects. Bounded by the
                 # ~1h retention cleanup (xtcp2-s3parquet-retention.service), so
                 # 16 GiB is ample steady-state headroom; sparse file, grown
                 # incrementally. The disk guard asserts it never saturates.
-                image = "/tmp/xtcp2-microvm-s3parquet-stress-minio.img";
-                mountPoint = "/var/lib/minio";
+                image = "/tmp/xtcp2-microvm-s3parquet-stress-s3.img";
+                mountPoint = "/var/lib/s3";
                 size = 16384;
                 autoCreate = true;
                 fsType = "ext4";
-                label = "xtcp2s3pmin";
+                label = "xtcp2s3pdat";
               }
             ];
           interfaces = [
@@ -2740,17 +2737,13 @@ in
               }
             ]
             ++ lib.optionals isAnyS3Parquet [
-              # MinIO API (9000) and console (9001) — lets host-side
-              # `mc ls` and a browser hit the in-VM MinIO from the dev box.
+              # Garage S3 API (9000) — lets a host-side S3 client (rclone,
+              # aws s3) reach the in-VM bucket from the dev box. Garage has
+              # no web console, so there is no console forward.
               {
                 from = "host";
                 host.port = 9000;
                 guest.port = 9000;
-              }
-              {
-                from = "host";
-                host.port = 9001;
-                guest.port = 9001;
               }
             ]
             ++ lib.optionals (isS3ParquetLong || isS3ParquetStress || isS3ParquetLowfreq) [
@@ -3137,10 +3130,10 @@ in
         };
 
         # Second xtcp2 instance for the mixed flavor: writes parquet
-        # to MinIO in parallel with the kafka-producing primary
+        # to Garage in parallel with the kafka-producing primary
         # instance above. Same caps, different prom + grpc ports
         # (encoded in xtcp2ClickPipeParquetArgs), no extra docker /
-        # MinIO setup needed (the bucket bootstrap module is already
+        # Garage setup needed (the bucket bootstrap module is already
         # imported by s3ParquetModules under isAnyS3Parquet).
         systemd.services.xtcp2-parquet = lib.mkIf isClickPipeParquet {
           description = "xtcp2 — TCP socket introspection (parquet sink, secondary instance)";
@@ -3249,7 +3242,7 @@ in
           };
         };
 
-        # s3parquet-long / s3parquet-stress: MinIO upload monitor. Sentinel
+        # s3parquet-long / s3parquet-stress: S3 upload monitor. Sentinel
         # format mirrors XTCP2_CLICKPIPE_ROWS so the host-side runner can grep
         # for it with the same idiom. Cadence is S3PARQUET_REPORT_INTERVAL
         # (seconds); the stress flavor uses a tight 30 s so the soak heartbeat
@@ -3257,7 +3250,7 @@ in
         systemd.services.xtcp2-s3parquet-monitor =
           lib.mkIf (isS3ParquetLong || isS3ParquetStress || isS3ParquetLowfreq)
             {
-              description = "xtcp2 s3parquet — MinIO upload-count + disk reporter";
+              description = "xtcp2 s3parquet — S3 upload-count + disk reporter";
               after = [
                 "xtcp2.service"
                 "multi-user.target"
@@ -3271,7 +3264,7 @@ in
                 Type = "simple";
                 ExecStart = "${s3ParquetMonitorScript}/bin/xtcp2-s3parquet-monitor";
                 # Crash-loop here would silently hide xtcp2's progress; restart
-                # so a brief mc/MinIO blip doesn't permanently silence the
+                # so a brief Garage blip doesn't permanently silence the
                 # sentinel stream.
                 Restart = "on-failure";
                 RestartSec = "5s";
@@ -3300,14 +3293,14 @@ in
         };
 
         # s3parquet-stress: bounded ~1h object retention (analog of the
-        # clickhouse-stress 1h table TTL). Keeps the MinIO disk at steady state.
+        # clickhouse-stress 1h table TTL). Keeps the Garage disk at steady state.
         systemd.services.xtcp2-s3parquet-retention = lib.mkIf isS3ParquetStress {
           description = "xtcp2 s3parquet-stress — delete parquet objects older than 1h";
           after = [
-            "minio.service"
+            "garage.service"
             "xtcp2-bucket-bootstrap.service"
           ];
-          wants = [ "minio.service" ];
+          wants = [ "garage.service" ];
           wantedBy = [ "multi-user.target" ];
           # Production window: keep ~1h of objects, swept every 10 min (the
           # script defaults). Override S3PARQUET_RETENTION_AGE /
@@ -3805,7 +3798,11 @@ in
                     defaultDatabase = "xtcp";
                     secure = false;
                   };
-                  secureJsonData.password = clickPipeChPassword;
+                  # Grafana's env provider, so the provisioning file holds a
+                  # reference rather than the password (the NixOS module warns
+                  # otherwise). The value is the fixture password and still
+                  # lands in the unit file below; fine for a dev microvm.
+                  secureJsonData.password = "$__env{XTCP2_CLICKHOUSE_PASSWORD}";
                   isDefault = true;
                 }
                 {
@@ -3819,6 +3816,9 @@ in
               ];
             };
           };
+        };
+        systemd.services.grafana.environment = lib.mkIf isAnyClickPipe {
+          XTCP2_CLICKHOUSE_PASSWORD = clickPipeChPassword;
         };
 
         # Snapshot service: every 30s, query Prometheus for a handful of
