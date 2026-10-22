@@ -49,7 +49,12 @@ const (
 	ruleSelectorsSlugCst   = "rule_add_selectors"
 	ruleFlushSlugCst       = "rule_flush"
 	ruleRestoreSlugCst     = "rule_restore"
-	tdAddrSave             = "../../pkg/xtcpnl/testdata/7_1_4/link-write/addr-save"
+	// nexthopWriteSlugPrefixCst names G3-T03's nexthop write rows, each on
+	// the capture of its own slug under tdRtnl; nexthopFlushSlugCst is its
+	// flush write row, on a single-nexthops cut of nexthop_flush's.
+	nexthopWriteSlugPrefixCst = "nexthop_"
+	nexthopFlushSlugCst       = "nexthop_flush"
+	tdAddrSave                = "../../pkg/xtcpnl/testdata/7_1_4/link-write/addr-save"
 	// tdRtnl is the C1 rtnetlink corpus, route_restore\'s among it.
 	tdRtnl           = "../../pkg/xtcpnl/testdata/7_1_4/link-write/rtnl"
 	pcapGlobalHdrCst = 24
@@ -66,7 +71,11 @@ const (
 	rtmDelNeighCst = 29
 	rtmNewRuleCst  = 32
 	rtmDelRuleCst  = 33
-	nlmFRequestCst = 0x1
+	// rtmNewNexthopCst and rtmDelNexthopCst are RTM_NEWNEXTHOP and
+	// RTM_DELNEXTHOP.
+	rtmNewNexthopCst = 104
+	rtmDelNexthopCst = 105
+	nlmFRequestCst   = 0x1
 	// nlMsgHdrCst is sizeof(struct nlmsghdr). Spelled here because this
 	// package may not import pkg/xtcpnl (TestParityCannotOpenASocket).
 	nlMsgHdrCst = 16
@@ -196,6 +205,14 @@ func corpusWriteRow(t *testing.T, c Command) writeRowFiles {
 	if strings.HasPrefix(c.Slug, ruleWriteSlugPrefixCst) {
 		dir = filepath.Join(tdRtnl, c.Slug)
 	}
+	if c.Slug == nexthopFlushSlugCst {
+		f := corpusFlushRow(t, c, nexthopSinglesFlushDir(t))
+		f.pcaps[SideGoip] = keepBeforeRequest(t, f.pcaps[SideIPA], rtmDelNexthopCst)
+		return f
+	}
+	if strings.HasPrefix(c.Slug, nexthopWriteSlugPrefixCst) {
+		dir = filepath.Join(tdRtnl, c.Slug)
+	}
 	ipPcap := mustReadBytes(t, filepath.Join(dir, "ip.pcap"))
 	rc := strings.TrimSpace(mustRead(t, filepath.Join(dir, "ip.rc")))
 
@@ -213,6 +230,43 @@ func corpusWriteRow(t *testing.T, c Command) writeRowFiles {
 		rcs:   map[string]string{SideIPA: rc, SideGoip: "0", SideIPB: rc},
 		write: writeRequest(w.Writes[0], 1),
 	}
+}
+
+// nexthopSinglesFlushDir is nexthop_flush's capture as the matrix row,
+// which flushes the two single nexthops alone, leaves it: the groups dump's
+// reply less resilient group 20 (its DONE alone), and without group 20's DEL
+// and ack, so the two DELs after the full dump are the one run of writes. ip
+// then prints "Flushed 2 nexthops".
+func nexthopSinglesFlushDir(t *testing.T) string {
+	t.Helper()
+	src := filepath.Join(tdRtnl, nexthopFlushSlugCst)
+	all := mustReadBytes(t, filepath.Join(src, "ip.pcap"))
+	offs := append(pcapRecords(t, all), len(all))
+	if len(offs) != 11 {
+		t.Fatalf("%s holds %d records, want 10", nexthopFlushSlugCst, len(offs)-1)
+	}
+	out := append([]byte(nil), all[:offs[1]]...)
+	// Record 2 is [NEWNEXTHOP group 20, DONE]: keep its headers and the DONE.
+	rec := append([]byte(nil), all[offs[1]:offs[2]]...)
+	msg := pcapRecordHdrCst + nlmonHdrCst
+	if binary.LittleEndian.Uint16(rec[msg+4:msg+6]) != rtmNewNexthopCst {
+		t.Fatalf("%s record 2 does not open with RTM_NEWNEXTHOP", nexthopFlushSlugCst)
+	}
+	n := binary.LittleEndian.Uint32(rec[msg : msg+4])
+	for _, at := range []int{8, 12} { // incl_len and orig_len
+		binary.LittleEndian.PutUint32(rec[at:at+4], binary.LittleEndian.Uint32(rec[at:at+4])-n)
+	}
+	rec = append(rec[:msg], rec[msg+int(n):]...)
+	out = append(append(out, rec...), all[offs[4]:]...)
+	dir := t.TempDir()
+	for name, b := range map[string][]byte{
+		"ip.pcap": out, "ip.rc": mustReadBytes(t, filepath.Join(src, "ip.rc")), "ip.out": []byte("Flushed 2 nexthops\n"),
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), b, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return dir
 }
 
 // ruleSelectorIndex is each selector add row's place in rule_add_selectors,

@@ -30,9 +30,9 @@ type nexthopSelectors struct {
 //
 // Bare `ip nexthop` is ipnh_list_flush(0, NULL, IPNH_LIST) — the same dump as
 // `show` with no filter (:1453-1454) — so an empty verb is the listing, not an
-// error. `get` and `bucket` are nexthopGet and runNexthopBucket; the
-// add/replace/delete/flush verbs are write paths goip does not implement and
-// are refused.
+// error. add, replace and delete are nexthopModify, matched first as do_ipnh
+// matches them; `get` and `bucket` are nexthopGet and runNexthopBucket, and
+// `flush` between them is nexthopFlush.
 //
 // `id N` is a point GET (:1241), handled before the dump selectors. The rest of
 // the SELECTOR grammar (dev/master/vrf/groups/fdb and the client-side protocol
@@ -42,10 +42,15 @@ type nexthopSelectors struct {
 func runNexthop(c *runCtx, args []string) error {
 	if len(args) > 0 {
 		verb := args[0]
+		if w := lookupNexthopWriteVerb(verb); w != nil {
+			return nexthopModify(c, w, args[1:])
+		}
 		switch {
 		case matchesAny(verb, nexthopShowVerbs):
 		case matchesPrefix(verb, nexthopGetVerbCst):
 			return nexthopGet(c, args[1:])
+		case matchesPrefix(verb, routeFlushVerbCst):
+			return nexthopFlush(c, args[1:])
 		case matchesPrefix(verb, nexthopBucketVerbCst):
 			return runNexthopBucket(c, args[1:])
 		default:

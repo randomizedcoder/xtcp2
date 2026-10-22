@@ -383,16 +383,16 @@ func TestNexthopShowRefusals(t *testing.T) {
 		args        []string
 	}{
 		{
-			description: "negative: `nexthop add` is a write verb goip does not implement",
-			args:        []string{"nexthop", "add"},
+			description: "negative: `nexthop add encap` is an argument no capture shows",
+			args:        []string{"nexthop", "add", "id", "1", "encap", "mpls", "100"},
 		},
 		{
 			description: "negative: `nexthop get` is a single-get verb with no captured shape",
 			args:        []string{"nexthop", "get"},
 		},
 		{
-			description: "negative: `nexthop flush` is a write verb",
-			args:        []string{"nexthop", "flush"},
+			description: "negative: `nexthop flush dev` is a flush selector goip does not implement",
+			args:        []string{"nexthop", "flush", "dev", "d0"},
 		},
 		{
 			description: "negative: `nexthop show nomaster` is a selector goip does not implement",

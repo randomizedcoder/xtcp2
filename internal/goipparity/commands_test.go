@@ -2939,3 +2939,64 @@ func TestRuleWriteRows(t *testing.T) {
 		})
 	}
 }
+
+// TestNexthopWriteRows pins G3-T03's eight nexthop rows: each modify row a
+// gated write row whose Setup is its capture's topology step for step; the
+// flush row a two-DEL write row on the two single nexthops (its capture held
+// a resilient group too, see nexthopSinglesFlushDir); and the empty flush a
+// read row.
+//
+// go test ./internal/goipparity/ -run TestNexthopWriteRows
+func TestNexthopWriteRows(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	rtnl := filepath.Join("..", "..", "pkg", "xtcpnl", "testdata", "7_1_4", "link-write", "rtnl")
+	type want struct {
+		implemented, write, topology, gated bool
+		floor, writes                       int
+	}
+	single := want{implemented: true, write: true, topology: true, gated: true, floor: 2}
+	routed := want{implemented: true, write: true, topology: true, gated: true, floor: 4}
+	rows := []struct {
+		description string
+		command     string
+		corpus      string // the slug whose topology Setup must be
+		expected    want
+	}{
+		{"positive: a single nexthop, the d0 lookup and the add", "nexthop add id 1 via 192.0.2.2 dev d0",
+			"nexthop_add_single", routed},
+		{"positive: a weighted mpath group", "nexthop add id 10 group 1,3/2", "nexthop_add_group", single},
+		{"positive: a resilient group with buckets", "nexthop add id 20 group 1/2 type resilient buckets 1024",
+			"nexthop_add_resilient", single},
+		{"negative: add of an id the kernel holds, refused, the same request", "nexthop add id 1 blackhole",
+			"nexthop_add_existing", single},
+		{"positive: replace, the d0 lookup and the write", "nexthop replace id 1 via 192.0.2.4 dev d0",
+			"nexthop_replace", routed},
+		{"positive: del", "nexthop del id 1", "nexthop_del", single},
+		{"corner: flush on the two singles, two DELs; nexthop_flush's topology adds group 20",
+			"nexthop flush", "nexthop_get",
+			want{implemented: true, write: true, topology: true, gated: true, floor: 6, writes: 2}},
+		{"boundary: flush of nothing, a read row", "nexthop f", "",
+			want{implemented: true, topology: true, gated: true, floor: 4}},
+		{"negative: a flush with a selector is not in the matrix", "nexthop flush dev d0", "", want{}},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			var got want
+			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				topo := []string{"link set lo up"}
+				if r.corpus != "" {
+					topo = topologySteps(t, rtnl, r.corpus)
+				}
+				got = want{implemented: c.Implemented, write: c.Write,
+					topology: slices.Equal(c.Setup, topo), floor: c.Floor, writes: c.Writes}
+			}
+			got.gated = al.IsGated(r.command)
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+		})
+	}
+}

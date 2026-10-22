@@ -235,7 +235,8 @@ func TestRunNexthopBucketDispatch(t *testing.T) {
 			args: "bucket bogus", wantErr: ErrInvalidArgument},
 		{description: "corner: `bucket help` is usage", slug: "nexthop_bucket_show", args: "bucket help",
 			wantErr: ErrNotImplemented},
-		{description: "corner: `flush` stays refused", slug: "nexthop_get", args: "flush", wantErr: ErrNotImplemented},
+		{description: "corner: `flush id` is a selector goip refuses", slug: "nexthop_get", args: "flush id 1",
+			wantErr: ErrNotImplemented},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {

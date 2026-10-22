@@ -668,6 +668,15 @@ func TestAllowlistCommitted(t *testing.T) {
 		"rule flush",
 		"rule save",
 		"rule restore < rule_save.save",
+		// G3-T03's eight `nexthop` write and flush rows.
+		"nexthop add id 1 via 192.0.2.2 dev d0",
+		"nexthop add id 10 group 1,3/2",
+		"nexthop add id 20 group 1/2 type resilient buckets 1024",
+		"nexthop add id 1 blackhole",
+		"nexthop replace id 1 via 192.0.2.4 dev d0",
+		"nexthop del id 1",
+		"nexthop flush",
+		"nexthop f",
 	}
 
 	tests := []struct {

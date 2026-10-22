@@ -19,18 +19,21 @@ import (
 // corpus, and the plan admits it one task ahead of its encoder
 // (addr-write-path-plan.md, A4-T01 then A5-T01). The neighbor pair joined
 // with goip's neigh writes and flush (G3-T01), the rule pair with its writes,
-// flush and restore (G3-T02).
+// flush and restore (G3-T02), the nexthop pair with its writes and flush
+// (G3-T03).
 var admittedWriteTypes = map[uint16]bool{
-	uint16(unix.RTM_NEWROUTE): true,
-	uint16(unix.RTM_DELROUTE): true,
-	uint16(unix.RTM_NEWLINK):  true,
-	uint16(unix.RTM_DELLINK):  true,
-	uint16(unix.RTM_NEWADDR):  true,
-	uint16(unix.RTM_DELADDR):  true,
-	uint16(unix.RTM_NEWNEIGH): true,
-	uint16(unix.RTM_DELNEIGH): true,
-	uint16(unix.RTM_NEWRULE):  true,
-	uint16(unix.RTM_DELRULE):  true,
+	uint16(unix.RTM_NEWROUTE):   true,
+	uint16(unix.RTM_DELROUTE):   true,
+	uint16(unix.RTM_NEWLINK):    true,
+	uint16(unix.RTM_DELLINK):    true,
+	uint16(unix.RTM_NEWADDR):    true,
+	uint16(unix.RTM_DELADDR):    true,
+	uint16(unix.RTM_NEWNEIGH):   true,
+	uint16(unix.RTM_DELNEIGH):   true,
+	uint16(unix.RTM_NEWRULE):    true,
+	uint16(unix.RTM_DELRULE):    true,
+	uint16(unix.RTM_NEWNEXTHOP): true,
+	uint16(unix.RTM_DELNEXTHOP): true,
 }
 
 // TestBuildWriteRequestAdmitsOnlyListedWrites walks every named rtnetlink type

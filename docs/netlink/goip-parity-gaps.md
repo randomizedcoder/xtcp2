@@ -2361,6 +2361,32 @@ The command tests (`internal/goip/rule_write_test.go`):
 
 The messages and exit statuses were checked against iproute2-7.1.0 in an unprivileged namespace.
 
+**G3-T03 delivered** (`internal/goip/nexthop_write.go`):
+- **The writes.** `ipnh_modify` (`ip/ipnexthop.c:1054-1175`): the argument loop over a `struct nhmsg`, then one `RTM_NEWNEXTHOP` or `RTM_DELNEXTHOP` with `NLM_F_ACK`, add also `NLM_F_CREATE|NLM_F_EXCL` and replace `NLM_F_CREATE|NLM_F_REPLACE`. `dev` is `ll_name_to_index`, whose by-name `RTM_GETLINK` goes ahead of the write; no link dump. The header's family is `preferred_family`, which `dev` and `blackhole` make `AF_INET` and `via` its address's family when it is unset; a gateway of the other family is refused. A `group` entry is `struct nexthop_grp`, its weight (1 to 65536) less one in the low and high bytes. `type resilient` with arguments after it opens a nested `NHA_RES_GROUP` for `buckets` and the timers (hundredths of a second, below `UINT32_MAX / 100`), closed at the first argument it does not take, so a keyword straight after `resilient` leaves the nest empty; `NHA_GROUP_TYPE` follows the nest. `protocol` keeps the low byte of `rtnl_rtprot_a2n`'s value. `encap`, `dst_port`, `hw_stats` and `help` are not implemented: no capture shows them.
+- **flush.** `ipnh_flush` with no arguments (`:188-235`): a dump of the groups alone, then one of everything, each reply's `NHA_ID` copied into an `RTM_DELNEXTHOP` with an `AF_UNSPEC` header, `NLM_F_REQUEST|NLM_F_ACK`, then `Flushed N nexthops` or `Nothing to flush`, which `ip` prints even when a dump fails. Groups go first, so no member is deleted under one. goip writes the deletes after both dumps; since nothing it writes is applied, its second dump still holds the groups, so it skips an id it has copied. A failed dump is `Dump terminated. Failed to flush nexthops`, exit 2, after the line. goip refuses flush's selectors, `id` among them, and `-s`, which adds `NHA_OP_FLAGS` to the dumps.
+- **Exit statuses.** `ip` exits 255 on its `invarg` refusals and 1 on a gateway `get_addr` cannot read in the request's family; goip exits 1 on each argument error, its convention. Both refuse an empty verb.
+- **Eight matrix rows, gated.** A single nexthop and a replace, each a device lookup and the write (floor 4); an mpath group, a resilient group, an add of a held id and a delete (floor 2); the flush (floor 6, two writes); and the flush of nothing (a read row, floor 4). `nexthop_flush`'s capture holds resilient group 20 too, deleted between the two dumps, but a write row's writes must be one run (`nlparity.SplitWrites`), so the flush row flushes the two single nexthops alone, and `TestCompareWriteRow` reads it from that capture less the group's reply, delete and ack. `TestNexthopWriteRows` pins the eight rows.
+
+The command tests (`internal/goip/nexthop_write_test.go`):
+
+| description | expected |
+|---|---|
+| positive: the six modify captures, an add of a held id among them (replayed) | `ip`'s request byte for byte; add `0x605`, replace `0x505`, del `0x5`; the device lookup ahead of the write |
+| positive: an id alone; `blackhole`; `-6 blackhole`; an IPv6 `via`; `via inet`; `dev`; `onlink`; `proto static`; `fdb`; `type mpath`; resilient timers | no family; `AF_INET`; `AF_INET6` kept; `AF_INET6`; the word read; the ifindex and `AF_INET`; the header flag; the protocol; the flag attribute; the type; hundredths |
+| boundary: weights 256 and 65536; `type resilient` last; protocol `0x1ff`; no arguments | the low and high bytes; no nest; `0xff`; an empty request |
+| corner: `type resilient fdb` | an empty nest, then the flag and the type |
+| negative: weights 0 and 65537; an empty group entry; a group id that is no number; an unknown type; 65536 buckets; an idle timer of `UINT32_MAX / 100`; `id` with no value or past 32 bits; an unknown device; a gateway of the other family; an unknown protocol; an unknown keyword | refused, exit 1 |
+| negative: `encap`, `dst_port`, `hw_stats`, `help` | not implemented |
+| positive, boundary, negative, corner: `a`, `r`, `d`, `del`; `delete`; `addx`, `deletes`, `show`, `flush`; the empty verb | the verbs; delete; none; none |
+| positive, negative, corner: `a`; no hook after the lookup; a bad argument; a bad argument after `dev` | exit 0; exit 1 after the lookup; refused before any request; refused after the lookup |
+| positive: `nexthop_flush`'s capture | the groups dump, the full dump and the three `RTM_DELNEXTHOP` byte for byte, flags `0x5`, `Flushed 3 nexthops` |
+| positive: `f`; a group the second dump repeats | the same requests; deleted once |
+| boundary: nothing to flush | no hook needed, `Nothing to flush` |
+| negative: deletes and no hook; a failed groups dump; a selector; `-s` | exit 1 after both dumps; `ip`'s line, exit 2; not implemented before any request |
+| corner: a failed full dump | the group still deleted, exit 2 |
+
+The messages, the flush's output and its deletes' order were checked against iproute2-7.1.0 in an unprivileged namespace.
+
 ### G4 — New rtnetlink objects
 
 mroute, mrule, token, netns `list-id`/`set`, `RTM_NEWRULE`/`RTM_DELRULE` as event types, then `monitor`.

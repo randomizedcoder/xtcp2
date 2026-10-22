@@ -1450,6 +1450,53 @@ var commands = withArgs([]Command{
 		// One bucket's single get and its reply (2).
 		Setup: nexthopBucketSetup, Floor: 2, Implemented: true,
 	},
+	// G3-T03: `nexthop add`, `replace` and `del` (ipnh_modify) and `nexthop
+	// flush` (ipnh_flush), the C1 nexthop rows. `dev` is ll_name_to_index,
+	// whose by-name RTM_GETLINK goes ahead of the write: ip sends the get,
+	// its reply, the write and its ack (4), goip the get and its reply. A row
+	// with no device sends the write alone (2).
+	{
+		Name: "nexthop add id 1 via 192.0.2.2 dev d0", Slug: "nexthop_add_single",
+		Floor: 4, Implemented: true, Write: true, Setup: nexthopD0Setup,
+	},
+	{
+		Name: "nexthop add id 10 group 1,3/2", Slug: "nexthop_add_group",
+		Floor: 2, Implemented: true, Write: true, Setup: nexthopGetSetup,
+	},
+	{
+		Name: "nexthop add id 20 group 1/2 type resilient buckets 1024", Slug: "nexthop_add_resilient",
+		Floor: 2, Implemented: true, Write: true, Setup: nexthopGetSetup,
+	},
+	{
+		Name: "nexthop add id 1 blackhole", Slug: "nexthop_add_existing",
+		// EEXIST, exit 2.
+		Floor: 2, Implemented: true, Write: true, Setup: nexthopBlackholeSetup,
+	},
+	{
+		Name: "nexthop replace id 1 via 192.0.2.4 dev d0", Slug: "nexthop_replace",
+		Floor: 4, Implemented: true, Write: true, Setup: nexthopGetSetup,
+	},
+	{
+		Name: "nexthop del id 1", Slug: "nexthop_del",
+		Floor: 2, Implemented: true, Write: true, Setup: nexthopBlackholeSetup,
+	},
+	// The flush: the groups dump, then the full dump, each reply's id deleted
+	// from a second socket and acked. nexthop_flush's capture held resilient
+	// group 20 as well, deleted between the two dumps, but a write row's
+	// writes must be one run (nlparity.SplitWrites), so this row flushes the
+	// two single nexthops alone: two empty-handed groups replies, then two
+	// deletes after the full dump. goip sends the two dumps (4) and writes
+	// the deletes. TestNexthopFlushMatchesIp holds goip to the group capture.
+	// `nexthop f`, in a namespace with no nexthop, deletes nothing: a read
+	// row of the two dumps, `Nothing to flush`.
+	{
+		Name: "nexthop flush", Slug: "nexthop_flush",
+		Floor: 6, Implemented: true, Write: true, Writes: 2, Setup: nexthopGetSetup,
+	},
+	{
+		Name: "nexthop f", Slug: "nexthop_flush_empty",
+		Floor: 4, Implemented: true, Setup: []string{"link set lo up"},
+	},
 
 	{
 		Name: "addrlabel show", Slug: "addrlabel_show",
@@ -2559,8 +2606,8 @@ var (
 	}
 )
 
-// The `nexthop get` and `nexthop bucket` rows' preconditions: PRE_NH and
-// PRE_NH_RES in rtnl-write-corpus.exp.
+// The nexthop rows' preconditions: PRE_NH and PRE_NH_RES in
+// rtnl-write-corpus.exp, and the two below.
 var (
 	nexthopGetSetup = []string{
 		"link add d0 type dummy", "link set d0 up", "addr add 192.0.2.1/24 dev d0",
@@ -2568,6 +2615,10 @@ var (
 	}
 	nexthopBucketSetup = append(append([]string{}, nexthopGetSetup...),
 		"nexthop add id 20 group 1/2 type resilient buckets 1024")
+	// nexthopD0Setup is PRE_D0_ADDR, nexthop_add_single's, and
+	// nexthopBlackholeSetup nexthop_add_existing's and nexthop_del's one step.
+	nexthopD0Setup        = nexthopGetSetup[:3:3]
+	nexthopBlackholeSetup = []string{"nexthop add id 1 blackhole"}
 )
 
 // The `link xstats` and `link afstats` rows' precondition: the bridge of

@@ -967,6 +967,14 @@
     "priority-0 local rule kept; the save of the same rules, a read row; and",
     "the restore of a save file, the link dump and five RTM_NEWRULE",
     "requests. Two back-to-back runs of 235 GOIP_PARITY_PASS of 235 ended",
+    "GOIP_PARITY_OVERALL_PASS.",
+    "",
+    "G3-T03 adds the nexthop writes and flush and gates eight rows: a single",
+    "nexthop and a replace, each a by-name RTM_GETLINK and the write; an",
+    "mpath group, a resilient group, an add of a held id and a del, each one",
+    "request; the flush of the two single nexthops, the groups dump, the full",
+    "dump and two acked RTM_DELNEXTHOP; and the flush of nothing, a read row.",
+    "Two back-to-back runs of 243 GOIP_PARITY_PASS of 243 ended",
     "GOIP_PARITY_OVERALL_PASS."
   ],
   "_note_version_skew": [
@@ -1280,6 +1288,14 @@
     "rule del pref 4242",
     "rule flush",
     "rule save",
-    "rule restore < rule_save.save"
+    "rule restore < rule_save.save",
+    "nexthop add id 1 via 192.0.2.2 dev d0",
+    "nexthop add id 10 group 1,3/2",
+    "nexthop add id 20 group 1/2 type resilient buckets 1024",
+    "nexthop add id 1 blackhole",
+    "nexthop replace id 1 via 192.0.2.4 dev d0",
+    "nexthop del id 1",
+    "nexthop flush",
+    "nexthop f"
   ]
 }
