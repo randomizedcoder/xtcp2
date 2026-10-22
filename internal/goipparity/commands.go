@@ -2060,6 +2060,38 @@ var commands = withArgs([]Command{
 		Floor: 4, Implemented: true, Write: true, Setup: d0UpSetup,
 	},
 
+	// G4-T01: `ip mroute show` (ip/ipmroute.c:232-325) on mrouteSetup, the
+	// reads namespace's veths and smcrouted's one (S,G) entry. Each row is
+	// ll_init_map's link dump, then the RTM_GETROUTE dump of
+	// RTNL_FAMILY_IPMR, which carries RTA_TABLE 253 unless `table all`, or of
+	// RTNL_FAMILY_IP6MR under -6, which carries none and finds nothing (4).
+	// iif, the table and -s, -j filter or print client-side and reach no
+	// request. The -s line's Age ticks; no stdout facet reads it.
+	{
+		Name: "mroute show", Slug: "mroute_show",
+		Setup: mrouteSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-6 mroute show", Slug: "mroute_show_v6",
+		Setup: mrouteSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "mroute show iif v0", Slug: "mroute_show_iif",
+		Setup: mrouteSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "mroute show table all", Slug: "mroute_show_table_all",
+		Setup: mrouteSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-s mroute show", Slug: "mroute_show_stats",
+		Setup: mrouteSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-j mroute show", Slug: "mroute_show_json",
+		Setup: mrouteSetup, Floor: 4, Implemented: true,
+	},
+
 	// G2-T01: `route save` and `route showdump` (ip/iproute.c:1673-1716,
 	// :2390-2405), on route_save's C1-T02 precondition: d0, ifindex 3, and
 	// table 100's two routes. save is `route show table 100`'s dump with
@@ -2690,6 +2722,16 @@ var (
 var linkXstatsSetup = []string{
 	"link add br0 type bridge", "link add v2 type veth peer name v2p",
 	"link set v2 master br0", "link set br0 up", "link set v2 up",
+}
+
+// mrouteSetup is the `ip mroute show` rows' precondition: the veths and
+// addresses of rtnl-read-corpus.exp's build list, then MROUTE_CONF, which
+// setup_step's `smcroute` form hands to xtcp2-nlcap mroute-start.
+var mrouteSetup = []string{
+	"link add v0 type veth peer name v0p", "link add v1 type veth peer name v1p",
+	"link set v0p up", "link set v1p up", "link set v0 up", "link set v1 up",
+	"addr add 192.0.2.1/24 dev v0", "addr add 198.51.100.1/24 dev v1",
+	"smcroute mroute from v0 source 192.0.2.10 group 239.1.1.1 to v1",
 }
 
 // The rule rows' preconditions: rule_add_existing's and rule_del's one rule,

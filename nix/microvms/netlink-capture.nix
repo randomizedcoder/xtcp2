@@ -1105,6 +1105,7 @@ pkgs.writeShellApplication {
       modprobe veth 2>/dev/null || true
       modprobe bridge 2>/dev/null || true
 
+      stop_held_mroute "$ns"
       ip netns del "$ns" 2>/dev/null || true
       ip netns add "$ns" || die "cannot create netns $ns"
       ip -n "$ns" link set lo up || die "cannot bring up lo in $ns"
@@ -1113,9 +1114,20 @@ pkgs.writeShellApplication {
       echo "NLCAP_NS_OK $ns"
     }
 
+    # stop_held_mroute <ns> - end a daemon mroute-start left in <ns>, which
+    # would otherwise outlive the namespace's name and hold it open: a
+    # goip-parity read row's `smcroute` Setup step starts one in the row's
+    # namespace, and the next row's ns-add recreates that namespace.
+    stop_held_mroute() {
+      if [ -e "$MHOLD/$1.hold" ]; then
+        cmd_mroute_stop "$1" >/dev/null
+      fi
+    }
+
     # ns-del <ns>
     cmd_ns_del() {
       local ns=$1
+      stop_held_mroute "$ns"
       ip netns del "$ns" 2>/dev/null || true
       echo "NLCAP_NS_DELETED $ns"
     }

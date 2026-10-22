@@ -10,9 +10,9 @@ several steps, further down under [Remaining](#remaining).
 
 | | count | counted from |
 |---|---|---|
-| commands in the comparison matrix | **253** | `internal/goipparity/commands.go` — 123 read rows (31 of them `addr show` state, selector and output-mode rows with a `Setup`, and 6 `route get`, 2 `neigh get`, 4 `nexthop get` and `nexthop bucket`, 3 `link xstats` and `link afstats`, 3 `route save` and `route showdump`, 1 `route flush`, 1 `neigh flush`, 1 `rule save` and 1 `nexthop flush` rows with one; the missing-table `route flush` row has none), the 21 link write rows, the 26 route write rows, the 27 address write rows, the 7 address flush rows, the 2 address restore rows, the route restore row, the 2 route flush write rows, the 6 neigh write rows, the 2 neigh flush write rows, the 17 rule write rows, the rule flush write row, the rule restore row, the 6 nexthop write rows, the nexthop flush write row, the 2 addrlabel write rows, the addrlabel flush write row, the 3 ntable write rows, the stats write row and the 3 link property write rows |
-| of those, `Implemented: true` | **253** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
-| of those, in `gated_commands` | **252** | `pkg/nlparity/goip-parity-allowlist.json` |
+| commands in the comparison matrix | **259** | `internal/goipparity/commands.go` — 129 read rows (31 of them `addr show` state, selector and output-mode rows with a `Setup`, and 6 `route get`, 2 `neigh get`, 4 `nexthop get` and `nexthop bucket`, 3 `link xstats` and `link afstats`, 6 `mroute show`, 3 `route save` and `route showdump`, 1 `route flush`, 1 `neigh flush`, 1 `rule save` and 1 `nexthop flush` rows with one; the missing-table `route flush` row has none), the 21 link write rows, the 26 route write rows, the 27 address write rows, the 7 address flush rows, the 2 address restore rows, the route restore row, the 2 route flush write rows, the 6 neigh write rows, the 2 neigh flush write rows, the 17 rule write rows, the rule flush write row, the rule restore row, the 6 nexthop write rows, the nexthop flush write row, the 2 addrlabel write rows, the addrlabel flush write row, the 3 ntable write rows, the stats write row and the 3 link property write rows |
+| of those, `Implemented: true` | **259** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
+| of those, in `gated_commands` | **258** | `pkg/nlparity/goip-parity-allowlist.json` |
 | allowlisted divergences | **7** | same file, `entries` |
 | of those, `kind=version-skew` | **7** | all against the pinned `ip` 7.1.0 |
 | of those, `kind=accepted-divergence` | **0** | nothing is *allowlisted* as a permanent divergence — the nine wire divergences runs 8 and 9 measured **could not** be, because a transaction-count divergence is unsuppressible (`nlparity_allowlist.go:143`), and G0 retired every one by changing goip to send `ip`'s requests |
@@ -3814,6 +3814,24 @@ Two consecutive clean runs passed 253 of 253, identical row for row, ending
 `GOIP_PARITY_OVERALL_PASS`. All three gate with no allowlist entry, and
 `TestLinkPropertyWriteRows` and the `earned`/`gated_commands` pair pin them:
 253 rows, 252 gated.
+
+### G4-T01: the six `mroute show` rows gate
+
+G4-T01 adds `goip mroute show` (`internal/goip/obj_mroute.go`) and six read
+rows, on `mrouteSetup`: the reads namespace's veths and addresses, then a
+`smcroute` step, which runs smcrouted in the row's namespace holding the
+(192.0.2.10,239.1.1.1) entry the C1-T03 capture holds. Each row is
+`ll_init_map`'s link dump, then one `RTM_GETROUTE` dump of
+`RTNL_FAMILY_IPMR` with `RTA_TABLE` 253, or of `RTNL_FAMILY_IP6MR` under
+`-6`, which finds nothing (floor 4): `mroute show`, `-6 mroute show`,
+`mroute show iif v0`, `mroute show table all` (no `RTA_TABLE`, and the
+`Table: default` token), `-s mroute show` and `-j mroute show`. The `-s`
+line's `Age` ticks between captures, and no stdout facet reads it.
+
+Two consecutive clean runs passed 259 of 259, identical row for row, ending
+`GOIP_PARITY_OVERALL_PASS`. All six gate with no allowlist entry, and
+`TestMrouteRows` and the `earned`/`gated_commands` pair pin them: 259 rows,
+258 gated.
 
 ## Tier C — the `goip-parity` microVM flavor
 

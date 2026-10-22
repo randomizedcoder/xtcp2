@@ -132,6 +132,11 @@ const routeTypeUnspecNameCst = "none"
 // type name, RT_TABLE_LOCAL's table name and RTCF_LOCAL's cache flag.
 const localNameCst = "local"
 
+// unresolvedCst is the word print_rt_flags prints for RTNH_F_UNRESOLVED,
+// print_mroute for an entry with no iif or no route yet, and print_rule for
+// a goto whose target is missing.
+const unresolvedCst = "unresolved"
+
 // routeTypeNames is rtnl_rtntype_n2a's switch (ip/rtm_map.c:19-54), indexed by
 // RTN_*. It is a slice rather than a map because the RTN_* values are dense,
 // 0 through RTN_XRESOLVE.
@@ -204,7 +209,7 @@ var rtFlagNames = []struct {
 	{unix.RTNH_F_TRAP, "trap"},
 	{unix.RTM_F_NOTIFY, "notify"},
 	{unix.RTNH_F_LINKDOWN, "linkdown"},
-	{unix.RTNH_F_UNRESOLVED, "unresolved"},
+	{unix.RTNH_F_UNRESOLVED, unresolvedCst},
 	{unix.RTM_F_OFFLOAD, "rt_offload"},
 	{unix.RTM_F_TRAP, "rt_trap"},
 	{unix.RTM_F_OFFLOAD_FAILED, "rt_offload_failed"},

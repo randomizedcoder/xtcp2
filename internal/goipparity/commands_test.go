@@ -3143,3 +3143,62 @@ func TestLinkPropertyWriteRows(t *testing.T) {
 		})
 	}
 }
+
+// TestMrouteRows pins G4-T01's six rows: implemented, gated after two clean
+// runs with no allowlist entry, each on mrouteSetup, which is the reads
+// namespace's veths and addresses step for step and then its smcrouted
+// configuration as a `smcroute` step.
+//
+// go test ./internal/goipparity/ -run TestMrouteRows
+func TestMrouteRows(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	reads := filepath.Join("..", "..", "pkg", "xtcpnl", "testdata", "7_1_4", "dumps")
+	b, err := os.ReadFile(filepath.Join(reads, "reads", "topology"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, conf, _ := strings.Cut(string(b), "] smcrouted: ")
+	conf, _, _ = strings.Cut(conf, "\n")
+	topo := slices.Concat(topologySteps(t, reads, "reads")[:8], []string{"smcroute " + conf})
+	type want struct {
+		implemented, topology, write, gated bool
+		floor, entries                      int
+	}
+	gated := want{implemented: true, topology: true, gated: true, floor: 4}
+	rows := []struct {
+		description string
+		command     string
+		expected    want
+	}{
+		{"positive: the (S,G) entry", "mroute show", gated},
+		{"boundary: -6, the IP6MR dump, nothing to print", "-6 mroute show", gated},
+		{"positive: iif, filtered client-side", "mroute show iif v0", gated},
+		{"positive: table all, no RTA_TABLE", "mroute show table all", gated},
+		{"corner: -s, whose Age no facet reads", "-s mroute show", gated},
+		{"positive: -j", "-j mroute show", gated},
+		{"corner: the bare object is not in the matrix", "mroute", want{}},
+		{"corner: the from filter is not in the matrix", "mroute show from 192.0.2.10", want{}},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			var got want
+			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				got = want{implemented: c.Implemented, write: c.Write,
+					topology: slices.Equal(c.Setup, topo), floor: c.Floor}
+			}
+			got.gated = al.IsGated(r.command)
+			got.entries = len(al.EntriesFor(r.command))
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+		})
+	}
+	t.Run("positive: the configuration is the corpus's", func(t *testing.T) {
+		if conf != "mroute from v0 source 192.0.2.10 group 239.1.1.1 to v1" {
+			t.Errorf("reads topology's smcrouted line is %q", conf)
+		}
+	})
+}

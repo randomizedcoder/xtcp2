@@ -55,6 +55,11 @@ func TestParams(t *testing.T) {
 		{name: "stats_order", description: "positive: selectors follow registry order, not query order",
 			path: "stats", query: "suite=x&subgroup=y&group=link&dev=eth0",
 			want: goip.ShowRequest{Object: "stats", JSON: true, Selectors: []string{"dev", "eth0", "group", "link", "subgroup", "y", "suite", "x"}}},
+		{name: "mroute_table_iif", description: "positive: mroute's table and iif, in registry order",
+			path: "mroute", query: "iif=v0&table=all&family=inet6",
+			want: goip.ShowRequest{Object: "mroute", Family: unix.AF_INET6, JSON: true, Selectors: []string{"table", "all", "iif", "v0"}}},
+		{name: "mroute_iif_long", description: "boundary: an iif of 16 bytes, past IFNAMSIZ-1, is refused",
+			path: "mroute", query: "iif=abcdefghijklmnop", wantErr: true},
 
 		{name: "unknown_param", description: "negative: an unknown parameter is refused, not ignored",
 			path: "addr", query: "foo=1", wantErr: true},

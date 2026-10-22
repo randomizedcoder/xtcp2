@@ -136,6 +136,13 @@ type RouteInfo struct {
 	// carries the attribute with all 32 bytes zero, and no IPv4 route carries
 	// it at all — see xtcpnl_rta_cacheinfo.go for why the kernel does that.
 	CacheInfo *RtaCacheinfo
+
+	// MfcStats is the decoded RTA_MFC_STATS payload of a multicast route,
+	// nil when absent; Expires is RTA_EXPIRES, its idle time in USER_HZ
+	// ticks, when HasExpires. See xtcpnl_rta_mfc_stats.go.
+	MfcStats   *RtaMfcStats
+	Expires    uint64
+	HasExpires bool
 }
 
 // ParseNewRoute decodes an RTM_NEWROUTE message body (the bytes after the
@@ -247,6 +254,8 @@ func setRouteAttr(ri *RouteInfo, atype uint16, val []byte) error {
 	case uint16(unix.RTA_MULTIPATH), uint16(unix.RTA_VIA),
 		uint16(unix.RTA_METRICS), uint16(unix.RTA_CACHEINFO):
 		return parseRouteNestedAttr(ri, atype, val)
+	case uint16(unix.RTA_MFC_STATS), uint16(unix.RTA_EXPIRES):
+		return setRouteMcastAttr(ri, atype, val)
 	case RtaNhID:
 		if len(val) >= 4 {
 			ri.NhID = binary.LittleEndian.Uint32(val[0:4])

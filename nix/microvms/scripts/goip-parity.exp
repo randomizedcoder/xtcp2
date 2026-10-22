@@ -266,7 +266,10 @@ proc capture_triple {row dev} {
 #
 # A step is an `ip` argument list for nltopo::topo, or `sysctl KEY VALUE`,
 # which xtcp2-nlcap writes under /proc/sys in the namespace (the corpus's
-# pre_step form in addr-corpus.exp; `route get … iif` needs forwarding on).
+# pre_step form in addr-corpus.exp; `route get … iif` needs forwarding on),
+# or `smcroute CONF-LINE`, which xtcp2-nlcap mroute-start runs as smcrouted's
+# whole configuration and holds in the namespace, its (S,G) entry listed,
+# until the namespace's next ns-add or ns-del (`ip mroute show`).
 ###############################################################################
 
 proc setup_step {ns step} {
@@ -277,6 +280,10 @@ proc setup_step {ns step} {
             return 1
         }
         lassign [vmlib::run_out "xtcp2-nlcap sysctl $ns $SUBDIR [lindex $step 1] [lindex $step 2]"] rc out
+        return $rc
+    }
+    if {[lindex $step 0] eq "smcroute"} {
+        lassign [vmlib::run_out "xtcp2-nlcap mroute-start $ns $SUBDIR '[lrange $step 1 end]'"] rc out
         return $rc
     }
     return [nltopo::topo $ns $SUBDIR {*}$step]

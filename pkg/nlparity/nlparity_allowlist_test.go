@@ -690,6 +690,13 @@ func TestAllowlistCommitted(t *testing.T) {
 		"link property add dev d0 altname d0alt",
 		"link property del dev d0 altname d0alt",
 		"link property add dev d0 altname lo",
+		// G4-T01's six `mroute show` rows.
+		"mroute show",
+		"-6 mroute show",
+		"mroute show iif v0",
+		"mroute show table all",
+		"-s mroute show",
+		"-j mroute show",
 	}
 
 	tests := []struct {

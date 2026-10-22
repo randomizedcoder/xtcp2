@@ -37,9 +37,9 @@ each sent** and the **text each printed**. It is the strongest evidence in the
 tree that `pkg/xtcpnl` decodes what the kernel actually said, because the
 reference is iproute2 itself rather than our reading of iproute2.
 
-253 commands are compared, 130 of them dry-run link, link property, route,
+259 commands are compared, 130 of them dry-run link, link property, route,
 address, neighbor, rule, nexthop, address label, neighbor table and statistics
-writes, flushes and restores, and 252 are gated. The counts, what "gated" costs to earn, and the scope boundaries are
+writes, flushes and restores, and 258 are gated. The counts, what "gated" costs to earn, and the scope boundaries are
 in [parity at a glance](coverage-status.md#goip--ip-parity-at-a-glance). The
 comparator is `pkg/nlparity` (protocol level) and `internal/goipparity`
 (command level); the accepted-divergence list is

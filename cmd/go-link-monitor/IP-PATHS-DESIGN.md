@@ -30,6 +30,7 @@ Every path is on `-metrics-addr`, answers GET and HEAD only (anything else is
 | `/ip/netconf` | `ip -j netconf show` | `dev`, `family` |
 | `/ip/ntable` | `ip -j ntable show` | `family`, `stats` |
 | `/ip/addrlabel` | `ip -j addrlabel show` | none |
+| `/ip/mroute` | `ip -j mroute show` | `table=main\|local\|default\|all\|N`, `iif`, `family`, `stats` |
 | `/ip/stats` | `ip -j stats show` | `dev`, `group`, `subgroup`, `suite` |
 | `/ip/OBJECT/INTERFACE` | `… show dev INTERFACE` | Every object that takes `dev`; as `/metrics/CATEGORY/INTERFACE` |
 
@@ -37,7 +38,7 @@ Every path is on `-metrics-addr`, answers GET and HEAD only (anything else is
   `format=text` is `text/plain` identical to `ip` without `-j`.
 - `stats`, `details` and the flag selectors (`proxy`, `groups`, `fdb`) accept
   only `1` or `true`.
-- `dev`, `master` and `vrf` are interface names: 1-15 bytes, not `.` or
+- `dev`, `master`, `vrf` and `iif` are interface names: 1-15 bytes, not `.` or
   `..`, no `/`, whitespace or control characters.
 - An unknown parameter, a repeated one, or one the object does not take is a
   400, never ignored.

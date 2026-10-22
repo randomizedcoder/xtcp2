@@ -287,8 +287,8 @@ func TestNoSuchDeviceKeepsCLIMessage(t *testing.T) {
 // go test ./internal/goip/ -run TestShowObjectsReadOnly
 func TestShowObjectsReadOnly(t *testing.T) {
 	t.Run("exact_set", func(t *testing.T) {
-		// positive: the 11 implemented show objects, sorted, and a copy.
-		want := []string{"address", "addrlabel", "link", "neighbor", "netconf", "nexthop", "ntable", "route", "rule", "stats", "vrf"}
+		// positive: the 12 implemented show objects, sorted, and a copy.
+		want := []string{"address", "addrlabel", "link", "mroute", "neighbor", "netconf", "nexthop", "ntable", "route", "rule", "stats", "vrf"}
 		got := ShowObjects()
 		if !slices.Equal(got, want) {
 			t.Fatalf("ShowObjects() = %q, want %q", got, want)

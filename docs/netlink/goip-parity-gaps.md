@@ -2470,6 +2470,30 @@ Expanded at G3's close: one task per object, each on its C1-T02, C1-T03 or C1-T0
 | G4-T05 | `RTM_NEWRULE` and `RTM_DELRULE` classified as events by `IsRtnetlinkEventType` (`pkg/xtcpnl`), checked over `monitor_all`'s rule notifications |
 | G4-T06 | `goip monitor`: `ipmonitor`'s notifications rendered, against `monitor_all`, `monitor_all_timestamp`, `nsid_del_event`, `anycast_del_event`, `prefix_event` and the `addr-monitor` captures (`ip/ipmonitor.c`), closing G4 |
 
+**G4-T01 delivered** (`internal/goip/obj_mroute.go`, `internal/goip/render/mroute.go`):
+- **The request.** `do_multiroute` and `mroute_list` (`ip/ipmroute.c:232-325`): the family picks `RTNL_FAMILY_IPMR` (128) with `RT_TABLE_DEFAULT` as `RTA_TABLE`, or under `-6` `RTNL_FAMILY_IP6MR` (129) with no table; any other family prints nothing and sends nothing. The argument loop runs before any request; then `ll_init_map`'s link dump, then one `RTM_GETROUTE` dump. `xtcpnl.BuildDumpRouteRequestFilter` already built those bytes, so the request needed no new builder.
+- **The loop.** `table` and `from` are `matches()`; `iif` and `to` are `strcmp`; any other word is the destination, after a `help` check. `table` takes `rtnl_rttable_a2n`'s names and numbers, then `all`, which is no filter. `from` and the destination are `get_prefix` in `preferred_family`. `iif` is looked up in the cache the link dump filled, and a miss is `Cannot find device`, the position `neigh show` takes, with no live by-name get.
+- **The filter and the line.** `print_mroute` (`:49-210`): a reply that is not `RTN_MULTICAST` ends the dump with "Non multicast route received" and `Dump terminated`, exit 1, after the lines before it; then the table, iif, family, destination and source filters; then `(S,G)` padded to 32, `Iif:` padded to 10 or `unresolved`, `Oifs:` with `(ttl N)` above 1, the state, `offload`, and under `-s` the counters and `Age` (USER_HZ ticks over 100, `%.2f`); `Table:` only when no table filter is set and the table is not main, or `-d`. `-j` is the same fields as one array, the age as `%g`.
+- **The parser.** `ParseNewRoute` decodes `RTA_MFC_STATS` (`xtcpnl.RtaMfcStats`, 24 bytes, a short one an error) and `RTA_EXPIRES` (a u64, a short one ignored), through `setRouteMcastAttr`, and `xtcpnl` names the two families, which `x/sys/unix` does not.
+- **Exit statuses.** `ip` exits 255 on its usage refusals (`help`, an unknown verb, a keyword with no value, a bad table) and 1 on a bad prefix, an unknown device or a failed dump; goip exits 1 on each, its convention, and its `help` is not implemented.
+- **The harness.** A read row's Setup takes a `smcroute CONF-LINE` step, which `xtcp2-nlcap mroute-start` runs as smcrouted's whole configuration in the row's namespace; `ns-add` and `ns-del` stop a daemon held there.
+- **Six matrix rows, gated.** `mroute show`, `-6 mroute show`, `mroute show iif v0`, `mroute show table all`, `-s mroute show` and `-j mroute show`, each on `mrouteSetup`, the reads namespace's veths and smcrouted's (192.0.2.10,239.1.1.1) entry; each the link dump then the route dump (floor 4). `TestMrouteRows` pins the six.
+- **HTTP.** `go-link-monitor` serves `/ip/mroute` with `table`, `iif`, `family` and `stats` ([IP-PATHS-DESIGN.md](../../cmd/go-link-monitor/IP-PATHS-DESIGN.md)).
+
+The tests (`pkg/xtcpnl/xtcpnl_rta_mfc_stats_test.go`, `internal/goip/obj_mroute_test.go`):
+
+| description | expected |
+|---|---|
+| positive, boundary, corner, negative: `RtaMfcStats` one member at a time; zero; the u64 maximum; a longer payload; 23 bytes, empty | each at its offset; 24 read; `ErrRtaMfcStatsSmall` |
+| positive, boundary, corner, negative: both attributes, neither, `RTA_EXPIRES` of zero, a 4-byte `RTA_EXPIRES`, a 16-byte `RTA_MFC_STATS` through `ParseNewRoute` | decoded; nil and absent; present; ignored; an error |
+| positive: every IPMR or IP6MR reply in the corpus | one, the smcrouted entry, every field `ip mroute` prints |
+| positive, boundary: the three `mroute` captures (replayed); no verb; `-4` with `lst` | the link dump, then `ip`'s route dump byte for byte, and the sidecar |
+| positive, negative, boundary, corner: `iif`, `from`, `f`, `to`, a bare group, `0/0`, a v6 group, `table all`, `default`, `main`, `-s`, `-d`, `-j`, `-j -s` over the populated capture | the line or nothing; `Table: default` for `all`; the counters and `Age 0.50`; the JSON array |
+| positive, boundary, negative, corner: the family and each keyword of the loop, a table past 32 bits, `i`, a v4 group under `-6`, a keyword with no value, `help` in three places, `-0` | the filter, or refused, exit 1, or not implemented; `-0` reads nothing |
+| positive, corner, negative: unresolved, offload, no `RTA_SRC`, an uncached iif, a v6 entry in main and in table 10, an IP6MR reply to an IPMR dump, a unicast reply, a failed link or route dump, an unknown device, a bad argument, `-0`, an unknown verb, `h`, `s` (constructed replies) | `ip`'s line for each; dropped; the lines before it, then `Dump terminated`; the requests each sends |
+
+The output, filters and exit statuses were checked against iproute2-7.1.0 in an unprivileged namespace with smcrouted holding two entries, one of them with two output interfaces.
+
 ### G5 — The genl matrix harness
 
 - The parity comparator normalizes genl family IDs by name (`pkg/nlparity`).

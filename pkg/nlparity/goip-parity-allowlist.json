@@ -994,7 +994,13 @@
     "by-name RTM_GETLINK then one RTM_NEWLINKPROP or RTM_DELLINKPROP: an add,",
     "a del of the altname the Setup added, and an add of the name lo holds,",
     "EEXIST. Two consecutive clean runs of 253 GOIP_PARITY_PASS of 253 ended",
-    "GOIP_PARITY_OVERALL_PASS."
+    "GOIP_PARITY_OVERALL_PASS.",
+    "",
+    "G4-T01 adds mroute show and gates six rows, each ll_init_map's link dump",
+    "then the RTNL_FAMILY_IPMR RTM_GETROUTE dump, or under -6 the",
+    "RTNL_FAMILY_IP6MR one, on the reads namespace's veths and an smcrouted",
+    "(S,G) entry: plain, -6, iif, table all, -s and -j. Two consecutive clean",
+    "runs of 259 GOIP_PARITY_PASS of 259 ended GOIP_PARITY_OVERALL_PASS."
   ],
   "_note_version_skew": [
     "THE ENTRIES BELOW CITE COMMITS THAT ARE IN NO RELEASE, AND THE EVIDENCE IS",
@@ -1325,6 +1331,12 @@
     "stats set dev d0 l3_stats on",
     "link property add dev d0 altname d0alt",
     "link property del dev d0 altname d0alt",
-    "link property add dev d0 altname lo"
+    "link property add dev d0 altname lo",
+    "mroute show",
+    "-6 mroute show",
+    "mroute show iif v0",
+    "mroute show table all",
+    "-s mroute show",
+    "-j mroute show"
   ]
 }
