@@ -51,16 +51,16 @@ The citation style follows [route-write-path.md](route-write-path.md) and [link-
 
 ## Where coverage stands
 
-Counted from the tree on 2026-10-21, at G0's close; the row, gated and write-row counts are re-measured at G1's close (DOC013) and G2's (DOC014). [coverage-status.md](coverage-status.md#goip--ip-parity-at-a-glance) owns these numbers; if the two disagree, that file is right.
+Counted from the tree on 2026-10-21, at G0's close; the row, gated and write-row counts are re-measured at G1's close (DOC013), G2's (DOC014) and G3's (DOC015). [coverage-status.md](coverage-status.md#goip--ip-parity-at-a-glance) owns these numbers; if the two disagree, that file is right.
 
 | | count | where |
 |---|---|---|
-| matrix rows | 206 (183 at G0's close, 198 at G1's) | `internal/goipparity/commands.go` |
-| gated | 205 (160 before G0, 182 at its close, 197 at G1's) | `pkg/nlparity/goip-parity-allowlist.json`, `gated_commands` |
+| matrix rows | 253 (183 at G0's close, 198 at G1's, 206 at G2's) | `internal/goipparity/commands.go` |
+| gated | 252 (160 before G0, 182 at its close, 197 at G1's, 205 at G2's) | `pkg/nlparity/goip-parity-allowlist.json`, `gated_commands` |
 | compared but not gated | 1, `addr show dynamic` (23 before G0) | `TestUngatedSurfaceIsNotVacuous`, `internal/goipparity/commands_test.go` |
-| write rows (dry run) | 86: 21 link, 29 route, 36 address (83 before G2) | `commands.go` |
+| write rows (dry run) | 130: 24 link, 29 route, 36 address, 8 neigh, 19 rule, 7 nexthop, 3 addrlabel, 3 ntable, 1 stats (83 before G2, 86 at its close) | `commands.go` |
 | `ip` objects with a `run` function | 11 of 31 | `internal/goip/dispatch.go:52-84` |
-| RTM types the write gate admits | 6: `RTM_{NEW,DEL}{ROUTE,LINK,ADDR}` | `IsAdmittedWriteType`, `pkg/xtcpnl/xtcpnl_rtattr_encode.go:341-349` |
+| RTM types the write gate admits | 18: `RTM_{NEW,DEL}{ROUTE,LINK,ADDR,NEIGH,RULE,NEXTHOP,ADDRLABEL,LINKPROP}`, `RTM_SETNEIGHTBL`, `RTM_SETSTATS` (6 before G3) | `IsAdmittedWriteType`, `pkg/xtcpnl/xtcpnl_rtattr_encode.go:353-367` |
 
 Writes are dry runs. goip builds the requests `ip` would send and writes them to `GOIP_WRITE_OUT`; it never sends them. The matrix compares those requests with the ones `ip` actually sent.
 
@@ -2433,9 +2433,42 @@ The command tests (`internal/goip/ntable_write_test.go`, `internal/goip/stats_se
 
 The messages and exit statuses, the success of each write and the two ENOENT refusals were checked against iproute2-7.1.0 in an unprivileged namespace.
 
+**G3-T06 delivered** (`internal/goip/link_property.go`), closing G3:
+- **The request.** `iplink_prop` and `iplink_prop_mod` (`ip/iplink.c:1724-1796`): the verb, then the argument loop, which opens an `IFLA_PROP_LIST` nest flagged `NLA_F_NESTED` and adds one `IFLA_ALT_IFNAME`, NUL-terminated, per `altname` in argument order; then `ll_name_to_index` on the device, whose by-name `RTM_GETLINK` goes ahead of the write; then one `RTM_NEWLINKPROP` (`NLM_F_EXCL|NLM_F_CREATE|NLM_F_APPEND`) or `RTM_DELLINKPROP` under an `ifinfomsg` of `preferred_family` and the ifindex, both acked. With no `altname` the nest is sent empty, as `ip` sends it.
+- **The verbs and the loop.** `add`, `del` and `help` are `matches()`, so `delete` is no verb; `altname` and `help` are `matches()` in the loop, so `a` is `altname`; `dev` is `strcmp`; any other word is the device, which a second one refuses as `duparg2`. The altname and the device are checked with `check_altifname`, so a name with a slash passes the loop. No device is `ip`'s "Not enough of information"; an unknown one is `Cannot find device`.
+- **Exit statuses.** `ip` exits 255 on its argument refusals and `help`, and 1 on an unknown device; goip exits 1 on each, its convention, and its `help` is not implemented.
+- **The gate and the header.** The write gate admits `RTM_NEWLINKPROP` and `RTM_DELLINKPROP`, and `FamilyHdrLen` models both as `struct ifinfomsg`, so the comparator decodes the nest rather than comparing the request's length.
+- **Three matrix rows, gated.** `link property add dev d0 altname d0alt` on `d0` up, `link property del dev d0 altname d0alt` on `d0` up with that altname, and `link property add dev d0 altname lo`, which the kernel refuses with EEXIST, rc 2; each the get then the write (floor 4). `TestLinkPropertyWriteRows` pins the three.
+
+The command tests (`internal/goip/link_property_test.go`):
+
+| description | expected |
+|---|---|
+| positive, negative: the three `link_altname_*` captures (replayed); `p a d0 alt d0alt` | the get, then `ip`'s request byte for byte, flags `0xe05` for add and `0x5` for del |
+| positive: `dev` and one altname; the device after the altname; two altnames; `a` | the nest of each, in argument order |
+| boundary: no altname; a 127-byte altname | an empty nest; accepted |
+| corner: `dev a/b` | accepted by the loop, `check_altifname` |
+| negative: a 128-byte altname; no device; no arguments; two devices; a second bare word; `altname` or `dev` with no value | refused, exit 1 |
+| corner: `help`; `h` | not implemented |
+| positive, corner: `add`; `d`; `-6` (a Talk source) | `RTM_NEWLINKPROP`; `RTM_DELLINKPROP`; the header's family `AF_INET6`, the ifindex 3 |
+| negative: ENODEV; `delete`; no verb; a bad argument; no hook | refused after the one get; `Operator required`; not implemented; refused before the get; `ErrWriteNotApplied` after the get |
+
+The messages and exit statuses were checked against iproute2-7.1.0 in an unprivileged namespace.
+
 ### G4 — New rtnetlink objects
 
 mroute, mrule, token, netns `list-id`/`set`, `RTM_NEWRULE`/`RTM_DELRULE` as event types, then `monitor`.
+
+Expanded at G3's close: one task per object, each on its C1-T02, C1-T03 or C1-T04 captures, with G3's write machinery where the object writes.
+
+| task | deliver |
+|---|---|
+| G4-T01 | `goip mroute show`, IPv4 and `-6`: the `RTNL_FAMILY_IPMR` and `RTNL_FAMILY_IP6MR` `RTM_GETROUTE` dumps, against `dumps/reads/ip_mroute`, `ip_mroute6` and `ip_mroute_empty` (`ip/ipmroute.c`) |
+| G4-T02 | `goip mrule show`: `do_multirule`'s `RTM_GETRULE` dump with the IPMR families, against `dumps/reads/ip_mrule` (`ip/iprule.c`) |
+| G4-T03 | `goip token show` and `token set`: the `AF_INET6` link dump read for `IFLA_INET6_TOKEN`, and `RTM_SETLINK`, against `dumps/reads/ip_token`, `token_set` and `token_set_noarp` (`ip/iptoken.c`) |
+| G4-T04 | `goip netns list-id` and `netns set`: the `RTM_GETNSID` dump and `RTM_NEWNSID`, against `dumps/reads/ip_netns_list_id` and `netns_set` (`ip/ipnetns.c`) |
+| G4-T05 | `RTM_NEWRULE` and `RTM_DELRULE` classified as events by `IsRtnetlinkEventType` (`pkg/xtcpnl`), checked over `monitor_all`'s rule notifications |
+| G4-T06 | `goip monitor`: `ipmonitor`'s notifications rendered, against `monitor_all`, `monitor_all_timestamp`, `nsid_del_event`, `anycast_del_event`, `prefix_event` and the `addr-monitor` captures (`ip/ipmonitor.c`), closing G4 |
 
 ### G5 — The genl matrix harness
 

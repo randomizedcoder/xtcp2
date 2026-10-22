@@ -10,9 +10,9 @@ several steps, further down under [Remaining](#remaining).
 
 | | count | counted from |
 |---|---|---|
-| commands in the comparison matrix | **250** | `internal/goipparity/commands.go` — 123 read rows (31 of them `addr show` state, selector and output-mode rows with a `Setup`, and 6 `route get`, 2 `neigh get`, 4 `nexthop get` and `nexthop bucket`, 3 `link xstats` and `link afstats`, 3 `route save` and `route showdump`, 1 `route flush`, 1 `neigh flush`, 1 `rule save` and 1 `nexthop flush` rows with one; the missing-table `route flush` row has none), the 21 link write rows, the 26 route write rows, the 27 address write rows, the 7 address flush rows, the 2 address restore rows, the route restore row, the 2 route flush write rows, the 6 neigh write rows, the 2 neigh flush write rows, the 17 rule write rows, the rule flush write row, the rule restore row, the 6 nexthop write rows, the nexthop flush write row, the 2 addrlabel write rows, the addrlabel flush write row, the 3 ntable write rows and the stats write row |
-| of those, `Implemented: true` | **250** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
-| of those, in `gated_commands` | **249** | `pkg/nlparity/goip-parity-allowlist.json` |
+| commands in the comparison matrix | **253** | `internal/goipparity/commands.go` — 123 read rows (31 of them `addr show` state, selector and output-mode rows with a `Setup`, and 6 `route get`, 2 `neigh get`, 4 `nexthop get` and `nexthop bucket`, 3 `link xstats` and `link afstats`, 3 `route save` and `route showdump`, 1 `route flush`, 1 `neigh flush`, 1 `rule save` and 1 `nexthop flush` rows with one; the missing-table `route flush` row has none), the 21 link write rows, the 26 route write rows, the 27 address write rows, the 7 address flush rows, the 2 address restore rows, the route restore row, the 2 route flush write rows, the 6 neigh write rows, the 2 neigh flush write rows, the 17 rule write rows, the rule flush write row, the rule restore row, the 6 nexthop write rows, the nexthop flush write row, the 2 addrlabel write rows, the addrlabel flush write row, the 3 ntable write rows, the stats write row and the 3 link property write rows |
+| of those, `Implemented: true` | **253** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
+| of those, in `gated_commands` | **252** | `pkg/nlparity/goip-parity-allowlist.json` |
 | allowlisted divergences | **7** | same file, `entries` |
 | of those, `kind=version-skew` | **7** | all against the pinned `ip` 7.1.0 |
 | of those, `kind=accepted-divergence` | **0** | nothing is *allowlisted* as a permanent divergence — the nine wire divergences runs 8 and 9 measured **could not** be, because a transaction-count divergence is unsuppressible (`nlparity_allowlist.go:143`), and G0 retired every one by changing goip to send `ip`'s requests |
@@ -576,7 +576,7 @@ pointer-sorted in ipstats and so pinned from the golden rather than source. goip
 grounds the `link` group, and the xstats and `xstats_slave` groups' vlan, mcast
 and bond 802.3ad bodies (the bond body and the slave group since link-write
 Phase 3) with the empty stp header. The other ungrounded leaves of ipstats's
-descriptor tree (the bridge stp body, offload, afstats mpls) and `stats set` are
+descriptor tree (the bridge stp body, offload, afstats mpls) and, until G3-T05, `stats set` are
 refused with `ErrNotImplemented` and a rationale — the strict-parity boundary,
 applied down to the sub-attribute (`HasUngroundedXstatsBody`) — and a reply
 carrying any group besides the one requested is refused rather than
@@ -921,7 +921,7 @@ none, so the captured `_dev` flag word is `0x0001`, unlike netconf's `0x0005`.
 Scope is deliberately one leaf: only the `link` group is grounded (every parity
 command spells `group link`, `filter_mask 0x1`, which keeps the reply link-only
 even on the mesh bridge); the other twelve leaves of ipstats's descriptor tree
-and `stats set` are refused with a rationale, and a reply carrying a group beyond
+and, until G3-T05, `stats set` are refused with a rationale, and a reply carrying a group beyond
 link is refused rather than under-rendered. `TestStatsShowMatchesCapturedSidecars`
 diffs `goip` against the committed `ip_stats`/`ip_stats_dev` sidecars byte-for-byte,
 the `ip_stats_s` extended sidecar on layout (counters normalized), and
@@ -3796,6 +3796,24 @@ Two back-to-back runs passed 250 of 250, identical row for row, ending
 `GOIP_PARITY_OVERALL_PASS`. All four gate with no allowlist entry, and
 `TestNTableStatsWriteRows` and the `earned`/`gated_commands` pair pin them:
 250 rows, 249 gated.
+
+### G3-T06: the three `link property` rows gate
+
+G3-T06 adds `goip link property add` and `del`
+(`internal/goip/link_property.go`) and three rows, on the C1-T02 captures,
+closing G3. `iplink_prop_mod` builds its `IFLA_PROP_LIST` nest of
+`IFLA_ALT_IFNAME`s first and resolves `dev` after, so each row is the by-name
+`RTM_GETLINK`, then one `RTM_NEWLINKPROP` or `RTM_DELLINKPROP` and its ack
+(floor 4): an add, a del of the altname the row's Setup added, and an add of
+`lo`, a name another link holds, which the kernel refuses with EEXIST. The
+write gate admits the two types, and `FamilyHdrLen` models them as
+`struct ifinfomsg`, so the comparator reads the nest rather than its length
+alone.
+
+Two consecutive clean runs passed 253 of 253, identical row for row, ending
+`GOIP_PARITY_OVERALL_PASS`. All three gate with no allowlist entry, and
+`TestLinkPropertyWriteRows` and the `earned`/`gated_commands` pair pin them:
+253 rows, 252 gated.
 
 ## Tier C — the `goip-parity` microVM flavor
 

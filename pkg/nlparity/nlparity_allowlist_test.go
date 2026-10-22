@@ -686,6 +686,10 @@ func TestAllowlistCommitted(t *testing.T) {
 		"ntable change name nosuch_cache queue 64",
 		"ntable change name arp_cache thresh1 64",
 		"stats set dev d0 l3_stats on",
+		// G3-T06's three `link property` rows.
+		"link property add dev d0 altname d0alt",
+		"link property del dev d0 altname d0alt",
+		"link property add dev d0 altname lo",
 	}
 
 	tests := []struct {

@@ -21,7 +21,8 @@ import (
 // with goip's neigh writes and flush (G3-T01), the rule pair with its writes,
 // flush and restore (G3-T02), the nexthop pair with its writes and flush
 // (G3-T03), the addrlabel pair with its writes and flush (G3-T04), and
-// RTM_SETNEIGHTBL and RTM_SETSTATS with ntable change and stats set (G3-T05).
+// RTM_SETNEIGHTBL and RTM_SETSTATS with ntable change and stats set (G3-T05),
+// the link property pair with link property add and del (G3-T06).
 var admittedWriteTypes = map[uint16]bool{
 	uint16(unix.RTM_NEWROUTE):     true,
 	uint16(unix.RTM_DELROUTE):     true,
@@ -39,6 +40,8 @@ var admittedWriteTypes = map[uint16]bool{
 	uint16(unix.RTM_DELADDRLABEL): true,
 	uint16(unix.RTM_SETNEIGHTBL):  true,
 	uint16(unix.RTM_SETSTATS):     true,
+	uint16(unix.RTM_NEWLINKPROP):  true,
+	uint16(unix.RTM_DELLINKPROP):  true,
 }
 
 // TestBuildWriteRequestAdmitsOnlyListedWrites walks every named rtnetlink type

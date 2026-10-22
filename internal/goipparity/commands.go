@@ -1586,7 +1586,7 @@ var commands = withArgs([]Command{
 	// then the RTM_SETNEIGHTBL and its ack.
 	{
 		Name: "ntable change name arp_cache dev d0 queue 64", Slug: "ntable_change",
-		Floor: 4, Implemented: true, Write: true, Setup: ntableD0Setup,
+		Floor: 4, Implemented: true, Write: true, Setup: d0UpSetup,
 	},
 	{
 		Name: "ntable change name nosuch_cache queue 64", Slug: "ntable_change_missing",
@@ -1968,7 +1968,7 @@ var commands = withArgs([]Command{
 	// the RTM_SETSTATS and its ack.
 	{
 		Name: "stats set dev d0 l3_stats on", Slug: "stats_set_l3",
-		Floor: 4, Implemented: true, Write: true, Setup: ntableD0Setup,
+		Floor: 4, Implemented: true, Write: true, Setup: d0UpSetup,
 	},
 	{
 		Name: "stats show dev bond0 group xstats", Slug: "stats_show_xstats_dev_bond",
@@ -2042,6 +2042,22 @@ var commands = withArgs([]Command{
 		// The AF_SPEC dump alone: with no MPLS every nest is empty, nothing
 		// prints and nothing is named (2).
 		Setup: linkXstatsSetup, Floor: 2, Implemented: true,
+	},
+	// G3-T06's link property writes. iplink_prop_mod resolves `dev` after
+	// its loop, so each is the by-name RTM_GETLINK, then the
+	// RTM_NEWLINKPROP or RTM_DELLINKPROP and its ack.
+	{
+		Name: "link property add dev d0 altname d0alt", Slug: "link_altname_add",
+		Floor: 4, Implemented: true, Write: true, Setup: d0UpSetup,
+	},
+	{
+		Name: "link property del dev d0 altname d0alt", Slug: "link_altname_del",
+		Floor: 4, Implemented: true, Write: true, Setup: linkAltnameSetup,
+	},
+	{
+		Name: "link property add dev d0 altname lo", Slug: "link_altname_taken",
+		// lo holds the name: EEXIST, exit 2.
+		Floor: 4, Implemented: true, Write: true, Setup: d0UpSetup,
 	},
 
 	// G2-T01: `route save` and `route showdump` (ip/iproute.c:1673-1716,
@@ -2662,8 +2678,11 @@ var (
 	nexthopBlackholeSetup = []string{"nexthop add id 1 blackhole"}
 	// addrLabelSetup is addrlabel_del's and addrlabel_flush's one step.
 	addrLabelSetup = []string{"addrlabel add prefix 2001:db8::/32 label 99"}
-	// ntableD0Setup is PRE_D0, ntable_change's and stats_set_l3's two steps.
-	ntableD0Setup = []string{"link add d0 type dummy", "link set d0 up"}
+	// d0UpSetup is PRE_D0, the two steps of ntable_change, stats_set_l3,
+	// link_altname_add and link_altname_taken; linkAltnameSetup adds
+	// link_altname_del's altname.
+	d0UpSetup        = []string{"link add d0 type dummy", "link set d0 up"}
+	linkAltnameSetup = append(append([]string{}, d0UpSetup...), "link property add dev d0 altname d0alt")
 )
 
 // The `link xstats` and `link afstats` rows' precondition: the bridge of

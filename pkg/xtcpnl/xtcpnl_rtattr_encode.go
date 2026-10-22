@@ -347,7 +347,9 @@ func BuildRequest(msgType, flags uint16, seq uint32, familyHdr, attrs []byte) ([
 // is do_ipaddrlabel's: RTM_NEWADDRLABEL for add, RTM_DELADDRLABEL for delete
 // and for flush's copies (ip/ipaddrlabel.c:252-255, :204). RTM_SETNEIGHTBL
 // is `ip ntable change` (ip/ipntable.c:690) and RTM_SETSTATS is `ip stats set`
-// (ip/ipstats.c:1247), each a lone set with no NEW or DEL beside it.
+// (ip/ipstats.c:1247), each a lone set with no NEW or DEL beside it. The
+// link property pair is iplink_prop's: RTM_NEWLINKPROP for add and
+// RTM_DELLINKPROP for del (ip/iplink.c:1785-1788).
 func IsAdmittedWriteType(msgType uint16) bool {
 	switch msgType {
 	case uint16(unix.RTM_NEWROUTE), uint16(unix.RTM_DELROUTE),
@@ -357,7 +359,8 @@ func IsAdmittedWriteType(msgType uint16) bool {
 		uint16(unix.RTM_NEWRULE), uint16(unix.RTM_DELRULE),
 		uint16(unix.RTM_NEWNEXTHOP), uint16(unix.RTM_DELNEXTHOP),
 		uint16(unix.RTM_NEWADDRLABEL), uint16(unix.RTM_DELADDRLABEL),
-		uint16(unix.RTM_SETNEIGHTBL), uint16(unix.RTM_SETSTATS):
+		uint16(unix.RTM_SETNEIGHTBL), uint16(unix.RTM_SETSTATS),
+		uint16(unix.RTM_NEWLINKPROP), uint16(unix.RTM_DELLINKPROP):
 		return true
 	}
 	return false
@@ -418,6 +421,11 @@ func FamilyHdrLen(msgType uint16) int {
 	case uint16(unix.RTM_GETLINK), uint16(unix.RTM_NEWLINK),
 		uint16(unix.RTM_DELLINK), uint16(unix.RTM_SETLINK):
 		return IfInfomsgSizeCst // struct ifinfomsg, 16
+	case uint16(unix.RTM_NEWLINKPROP), uint16(unix.RTM_DELLINKPROP):
+		// struct ifinfomsg too (rtnl_newlinkprop, net/core/rtnetlink.c), with
+		// no GET member. Unmodeled, pkg/nlparity compared a link property
+		// request by length alone.
+		return IfInfomsgSizeCst
 	case uint16(unix.RTM_GETADDR), uint16(unix.RTM_NEWADDR), uint16(unix.RTM_DELADDR):
 		return IfAddrmsgSizeCst // struct ifaddrmsg, 8
 	case uint16(unix.RTM_GETROUTE), uint16(unix.RTM_NEWROUTE), uint16(unix.RTM_DELROUTE):

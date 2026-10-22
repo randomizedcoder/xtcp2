@@ -3096,3 +3096,50 @@ func TestNTableStatsWriteRows(t *testing.T) {
 		})
 	}
 }
+
+// TestLinkPropertyWriteRows pins G3-T06's three rows: each a gated write row
+// whose Setup is its corpus capture's topology, link_altname_del's with the
+// altname it removes.
+//
+// go test ./internal/goipparity/ -run TestLinkPropertyWriteRows
+func TestLinkPropertyWriteRows(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	rtnl := filepath.Join("..", "..", "pkg", "xtcpnl", "testdata", "7_1_4", "link-write", "rtnl")
+	type want struct {
+		implemented, write, topology, gated bool
+		floor                               int
+	}
+	gatedWrite := want{implemented: true, write: true, topology: true, gated: true, floor: 4}
+	rows := []struct {
+		description string
+		command     string
+		corpus      string
+		expected    want
+	}{
+		{"positive: add an altname, the by-name get then the write", "link property add dev d0 altname d0alt",
+			"link_altname_add", gatedWrite},
+		{"positive: del the altname its Setup added", "link property del dev d0 altname d0alt",
+			"link_altname_del", gatedWrite},
+		{"negative: an altname lo holds, EEXIST", "link property add dev d0 altname lo",
+			"link_altname_taken", gatedWrite},
+		{"corner: the p abbreviation is not in the matrix", "link p add dev d0 altname d0alt", "", want{}},
+		{"boundary: two altnames in one request are not in the matrix",
+			"link property add dev d0 altname x altname y", "", want{}},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			var got want
+			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				got = want{implemented: c.Implemented, write: c.Write,
+					topology: slices.Equal(c.Setup, topologySteps(t, rtnl, r.corpus)), floor: c.Floor}
+			}
+			got.gated = al.IsGated(r.command)
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+		})
+	}
+}

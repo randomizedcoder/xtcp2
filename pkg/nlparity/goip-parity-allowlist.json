@@ -988,6 +988,12 @@
     "(a device's queue, a missing table and a threshold outside init_net, the",
     "last two ENOENT); and stats set, the by-name RTM_GETLINK then one",
     "RTM_SETSTATS. Two back-to-back runs of 250 GOIP_PARITY_PASS of 250 ended",
+    "GOIP_PARITY_OVERALL_PASS.",
+    "",
+    "G3-T06 adds link property add and del and gates three rows, each the",
+    "by-name RTM_GETLINK then one RTM_NEWLINKPROP or RTM_DELLINKPROP: an add,",
+    "a del of the altname the Setup added, and an add of the name lo holds,",
+    "EEXIST. Two consecutive clean runs of 253 GOIP_PARITY_PASS of 253 ended",
     "GOIP_PARITY_OVERALL_PASS."
   ],
   "_note_version_skew": [
@@ -1316,6 +1322,9 @@
     "ntable change name arp_cache dev d0 queue 64",
     "ntable change name nosuch_cache queue 64",
     "ntable change name arp_cache thresh1 64",
-    "stats set dev d0 l3_stats on"
+    "stats set dev d0 l3_stats on",
+    "link property add dev d0 altname d0alt",
+    "link property del dev d0 altname d0alt",
+    "link property add dev d0 altname lo"
   ]
 }

@@ -37,9 +37,9 @@ each sent** and the **text each printed**. It is the strongest evidence in the
 tree that `pkg/xtcpnl` decodes what the kernel actually said, because the
 reference is iproute2 itself rather than our reading of iproute2.
 
-250 commands are compared, 127 of them dry-run link, route, address,
-neighbor, rule, nexthop, address label, neighbor table and statistics writes,
-flushes and restores, and 249 are gated. The counts, what "gated" costs to earn, and the scope boundaries are
+253 commands are compared, 130 of them dry-run link, link property, route,
+address, neighbor, rule, nexthop, address label, neighbor table and statistics
+writes, flushes and restores, and 252 are gated. The counts, what "gated" costs to earn, and the scope boundaries are
 in [parity at a glance](coverage-status.md#goip--ip-parity-at-a-glance). The
 comparator is `pkg/nlparity` (protocol level) and `internal/goipparity`
 (command level); the accepted-divergence list is
@@ -68,7 +68,8 @@ rather than delete it. Link-write Phase 4 landed the gate: the read path stays
 `RTM_DELNEIGH`, and, since its G3-T02, `RTM_NEWRULE` and `RTM_DELRULE`, and,
 since its G3-T03, `RTM_NEWNEXTHOP` and `RTM_DELNEXTHOP`, and, since its G3-T04,
 `RTM_NEWADDRLABEL` and `RTM_DELADDRLABEL`, and, since its G3-T05,
-`RTM_SETNEIGHTBL` and `RTM_SETSTATS`. Requests built there are written to a file for
+`RTM_SETNEIGHTBL` and `RTM_SETSTATS`, and, since its G3-T06,
+`RTM_NEWLINKPROP` and `RTM_DELLINKPROP`. Requests built there are written to a file for
 comparison and never sent; no automated path applies a write to a live kernel.
 Both dry runs have since landed on that gate: `goip link
 add|set|change|replace|delete` and `goip route
@@ -76,7 +77,8 @@ add|change|replace|prepend|append|test|delete` build `ip`'s request
 byte for byte and write it to `GOIP_WRITE_OUT`, as `goip neigh
 add|change|replace|delete|flush`, `goip rule add|delete|flush|restore`,
 `goip nexthop add|replace|delete|flush`, `goip addrlabel add|delete|flush`,
-`goip ntable change` and `goip stats set` now do too, and refuse with
+`goip ntable change`, `goip stats set` and `goip link property add|del`
+now do too, and refuse with
 `ErrWriteNotApplied` when the hook is unset.
 
 This is what makes a twenty-family surface finite, and it is the main reason

@@ -1012,6 +1012,8 @@ func TestFamilyHdrLen(t *testing.T) {
 		{"positive: RTM_NEWSTATS is struct if_stats_msg, 12", uint16(unix.RTM_NEWSTATS), IfStatsMsgSizeCst},
 		{"positive: RTM_SETSTATS, ip stats set's write, is struct if_stats_msg, 12", uint16(unix.RTM_SETSTATS), IfStatsMsgSizeCst},
 		{"positive: RTM_SETNEIGHTBL, ip ntable change's write, is struct ndtmsg, 4", uint16(unix.RTM_SETNEIGHTBL), NdtMsgSizeCst},
+		{"positive: RTM_NEWLINKPROP is struct ifinfomsg, 16", uint16(unix.RTM_NEWLINKPROP), IfInfomsgSizeCst},
+		{"positive: RTM_DELLINKPROP is struct ifinfomsg, 16", uint16(unix.RTM_DELLINKPROP), IfInfomsgSizeCst},
 
 		// 0 and -1 are different answers: a zero-length family header is a real
 		// thing in netlink and must not be confused with "no idea".
