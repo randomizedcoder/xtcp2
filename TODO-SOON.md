@@ -651,6 +651,14 @@ What the upgrade turned up:
   on a cache miss. goip now does the same, in argv order, so `dev X master Y`
   filters on both names instead of only the first.
   `TestNexthopShowNameResolutionIsLLLinkGet` pins the captured requests.
+- **The 7.2.0 corpus is captured**: `pkg/xtcpnl/testdata/7_3_0` (the nixpkgs
+  bump also moved the microVM kernel to 7.3.0). Against 7_1_4, `ip -6 addr`
+  drops `qlen` from the link line (NAME_ONLY replies carry no IFLA_TXQLEN) and
+  `ip -d` prints the new bridge `stp_mode` and bridge-port
+  `neigh_forward_grat`, which goip doesn't render (it renders no bridge `-d`
+  detail). `TestCorpus730MatchesSidecarsAt720` replays all 69 same-invocation
+  rows at the 7.2.0 defaults, byte-identical; `req.TestTierALLRequests730`
+  pins the 0x109 requests against it, failing every row under 7.1.0.
 - **MinIO is gone from nixpkgs** (package and NixOS module removed, abandoned
   upstream; `minio-client` is marked insecure), which broke every S3 VM and
   `nix develop`. The in-VM S3 fixture is now **Garage 2.4.1**
@@ -698,14 +706,22 @@ Still to do:
     of the soak. The broken re-exec had hidden this: systemd's restart brought
     back the unit's 10 s flags. Check 18 now restores the cadence it saved
     before check 17 and fails if `get` doesn't show it; the rerun passed 17-19
-    (`cadence restored to 10s/5s`) and uploaded 4 files after the restart. `OVERALL_FAIL` there and in the 2 h run comes only from
-    `NS_LIFECYCLE`/`NS_DOCKER`/`NS_ANONYMOUS`, whose delete counts fall short
-    while 20 stress containers churn namespaces (the load flake noted under
-    check 16 below); the stress runner doesn't gate on the self-test.
-- a dump capture at the new pin (`nix run
-  .#microvm-x86_64-netlink-dump-capture`), then goip tests against it in the
-  7.2.0 mode;
-- a live `nix run .#microvm-x86_64-goip-parity`;
+    (`cadence restored to 10s/5s`) and uploaded 4 files after the restart.
+    `OVERALL_FAIL` there and in the 2 h run comes only from the NS_* checks
+    (`NS_LIFECYCLE`, `NS_DOCKER`, `NS_ANONYMOUS`, once `NS_TRAFFIC`), whose
+    delete counts fall short while 20 stress containers churn namespaces (the
+    load flake noted under check 16 below); the stress runner doesn't gate on
+    the self-test.
+- the bond link-write parity rows flake on the 7.3 kernel. Two
+  `microvm-x86_64-goip-parity` runs (2026-10-22) failed 2 and 3 of
+  `link_write_enslave_up`, `_nomaster`, `_slave_queue_id` and
+  `_slave_actor_port_prio`, a different set each time, every finding only
+  IFF_RUNNING (0x40) in a reply's ifi_flags, in both directions. Carrier on
+  the bond slave settles asynchronously and the control pass only sometimes
+  sees it. Either wait for carrier before each row in the driver, or have the
+  comparator treat IFF_RUNNING in link-write replies as control noise. The
+  rest matched V068: `-4 netconf show dev` FAIL (HYGIENE_FAIL 2), the 7
+  ungated WARNs (`netconf show dev`, six `stats show`), 172-173 PASS.
 - the `nexthop show dev|master|vrf` selectors aren't in the parity matrix;
 - `nix run .#update-quality-report` to refresh the header and re-check
   coverage.
