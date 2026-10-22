@@ -692,7 +692,13 @@ Still to do:
     nothing older than 1 h left. The runner's "restarts: 0" missed the
     SIGPROF restart above: systemd's restart lines don't reach the console.
   - `--duration 15m` with the re-exec fix: `CTL_RESTART_PASS` (MainPID stayed,
-    new tag live). `OVERALL_FAIL` there and in the 2 h run comes only from
+    new tag live), but the run then uploaded nothing. Check 17 parks the poll
+    ticker at 1 h for check 18 and nothing unparked it, so check 19's
+    reconfigure (a copy of the live config) kept polling hourly for the rest
+    of the soak. The broken re-exec had hidden this: systemd's restart brought
+    back the unit's 10 s flags. Check 18 now restores the cadence it saved
+    before check 17 and fails if `get` doesn't show it; the rerun passed 17-19
+    (`cadence restored to 10s/5s`) and uploaded 4 files after the restart. `OVERALL_FAIL` there and in the 2 h run comes only from
     `NS_LIFECYCLE`/`NS_DOCKER`/`NS_ANONYMOUS`, whose delete counts fall short
     while 20 stress containers churn namespaces (the load flake noted under
     check 16 below); the stress runner doesn't gate on the self-test.

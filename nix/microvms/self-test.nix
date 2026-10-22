@@ -312,7 +312,7 @@ pkgs.writeShellApplication {
     docker # only used by Check 11/12 (clickhouse-pipeline); harmless otherwise
     rclone # S3 client — only used by Check 13/14 (s3parquet); harmless otherwise
     duckdb # used by Check 14 to decode the Parquet file
-    jq # used by Check 19 to edit the config JSON for the reconfigure soft restart
+    jq # checks 17-19: save/restore the poll cadence, edit the config for the reconfigure
   ];
   text = ''
     set +e   # never exit early — we want all checks to run
@@ -2171,7 +2171,10 @@ pkgs.writeShellApplication {
     #   18 CTL_TRIGGER — with the ticker parked at 1h, trigger-poll + poll-burst
     #                    are the ONLY thing that can advance the Poller
     #                    pollRequestCh counter, so a clean delta proves the
-    #                    on-demand polls really ran.
+    #                    on-demand polls really ran. It then restores the
+    #                    cadence check 17 parked: check 19's reconfigure copies
+    #                    the live config, so without the restore the daemon
+    #                    would poll hourly for the rest of a soak flavor.
     #   19 CTL_RESTART — reconfigure (soft restart via syscall.Exec) with a new
     #                    tag: MainPID is unchanged (in-place re-exec, NOT a
     #                    systemd restart), `get` reflects the new tag, and freshly
@@ -2185,7 +2188,12 @@ pkgs.writeShellApplication {
 
     echo "--- check 17: xtcp2ctl set-poll-frequency (hot change, no restart) ---"
     check17=1
+    orig_freq="" orig_timeout=""
     if command -v xtcp2ctl >/dev/null 2>&1; then
+      # The configured cadence, for check 18 to restore.
+      orig_cfg=$(xtcp2ctl get "''${CTL[@]}" 2>/dev/null)
+      orig_freq=$(printf '%s' "$orig_cfg" | jq -r '.pollFrequency // empty' 2>/dev/null)
+      orig_timeout=$(printf '%s' "$orig_cfg" | jq -r '.pollTimeout // empty' 2>/dev/null)
       before_reset=$(metric_value "xtcp_counts" 'function="Poller"' 'variable="ticker.Reset"')
       # Park the ticker at 1h with a 1s timeout: the long frequency isolates
       # check 18, and the small timeout lets the burst there use a 2s interval
@@ -2218,13 +2226,21 @@ pkgs.writeShellApplication {
       sleep 10  # 4 polls × 2s spacing + slack
       after_poll=$(metric_value "xtcp_counts" 'function="Poller"' 'variable="pollRequestCh"')
       delta=$((after_poll - before_poll))
+      # Unpark the ticker: back to the cadence saved before check 17.
+      restored=0
+      if [ -n "$orig_freq" ] && [ -n "$orig_timeout" ] \
+         && xtcp2ctl set-poll-frequency -frequency "$orig_freq" -timeout "$orig_timeout" "''${CTL[@]}" >/tmp/ctl-restore.log 2>&1 \
+         && [ "$(xtcp2ctl get "''${CTL[@]}" 2>/dev/null | jq -r '.pollFrequency' 2>/dev/null)" = "$orig_freq" ]; then
+        restored=1
+      fi
       # Ticker parked at 1h, so 1 (trigger) + 4 (burst) = 5 on-demand pokes are
       # the only possible source. Require >=4 (tolerate one timing slip).
-      if [ "$delta" -ge 4 ]; then
-        echo "XTCP2_SELF_TEST_CTL_TRIGGER_PASS  (pollRequestCh +$delta from trigger+burst, ticker parked)"
+      if [ "$delta" -ge 4 ] && [ "$restored" -eq 1 ]; then
+        echo "XTCP2_SELF_TEST_CTL_TRIGGER_PASS  (pollRequestCh +$delta from trigger+burst, ticker parked; cadence restored to $orig_freq/$orig_timeout)"
         check18=0
       else
-        echo "XTCP2_SELF_TEST_CTL_TRIGGER_FAIL  (pollRequestCh +$delta, expected >=4)"
+        echo "XTCP2_SELF_TEST_CTL_TRIGGER_FAIL  (pollRequestCh +$delta, expected >=4; cadence restored=$restored to '$orig_freq'/'$orig_timeout')"
+        head -n 3 /tmp/ctl-restore.log 2>/dev/null || true
       fi
     else
       echo "XTCP2_SELF_TEST_CTL_TRIGGER_FAIL  (xtcp2ctl not on PATH)"
