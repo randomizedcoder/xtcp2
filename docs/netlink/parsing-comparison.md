@@ -134,7 +134,7 @@ by four families relative to what the tree actually uses.
 | Addr events | ✅ `RTNLGRP_IPV4_IFADDR`/`IPV6_IFADDR` (`addr_linux.go:354`) | ◑ parser only |
 | Route events | ✅ `RTNLGRP_IPV4_ROUTE`/`IPV6_ROUTE` (`route_linux.go:1824`) | ◑ parser only |
 | Neigh events | ✅ `RTNLGRP_NEIGH` (`neigh_linux.go:394`) | ◑ parser only |
-| Notification discriminator | implicit (a subscribed socket receives only events) | ✅ `IsRtnetlinkNotification` (`xtcpnl_rtnetlink_events.go:110`) — needed because xtcp2 parses *mixed* streams |
+| Notification discriminator | implicit (a subscribed socket receives only events) | ✅ `IsRtnetlinkNotification` (`xtcpnl_rtnetlink_events.go:118`) — needed because xtcp2 parses *mixed* streams |
 
 xtcp2 fully decodes all eight `RTM_NEW*`/`RTM_DEL*` event types for the four
 families and verifies them against committed `nlmon` captures, but **nothing in

@@ -52,7 +52,7 @@ func (a EventAction) String() string {
 	}
 }
 
-// The four event records. Each pairs the action with the same *Info struct the
+// The five event records. Each pairs the action with the same *Info struct the
 // dump path already produces, so a consumer that handles dumps needs no new
 // decoding to handle events.
 type (
@@ -72,15 +72,23 @@ type (
 		Action EventAction
 		Neigh  NeighInfo
 	}
+	// RuleEvent is an RTM_NEWRULE or RTM_DELRULE, `ip monitor rule`'s
+	// notification (RTNLGRP_IPV4_RULE, RTNLGRP_IPV6_RULE and the multicast
+	// rule groups), the same fib_rule_hdr and FRA_* body as a `rule show`
+	// dump reply.
+	RuleEvent struct {
+		Action EventAction
+		Rule   RuleInfo
+	}
 )
 
-// ErrNotAnEvent indicates an nlmsg_type outside the link/addr/route/neigh
+// ErrNotAnEvent indicates an nlmsg_type outside the link/addr/route/neigh/rule
 // add-or-delete set this package decodes. Control messages (NLMSG_DONE,
 // NLMSG_ERROR, NLMSG_NOOP) and every other RTM_* land here.
-var ErrNotAnEvent = errors.New("xtcpnl: netlink message type is not a link/addr/route/neigh event")
+var ErrNotAnEvent = errors.New("xtcpnl: netlink message type is not a link/addr/route/neigh/rule event")
 
 // IsRtnetlinkNotification reports whether a message is an unsolicited kernel
-// notification of one of the four families, as opposed to a request or a dump
+// notification of one of the five families, as opposed to a request or a dump
 // reply. Use it to filter a mixed stream — a capture, or a socket that both
 // dumps and listens — before calling ParseRtnetlinkEvent.
 //
@@ -123,7 +131,8 @@ func IsRtnetlinkEventType(msgType uint16) bool {
 	case uint16(unix.RTM_NEWLINK), uint16(unix.RTM_DELLINK),
 		uint16(unix.RTM_NEWADDR), uint16(unix.RTM_DELADDR),
 		uint16(unix.RTM_NEWROUTE), uint16(unix.RTM_DELROUTE),
-		uint16(unix.RTM_NEWNEIGH), uint16(unix.RTM_DELNEIGH):
+		uint16(unix.RTM_NEWNEIGH), uint16(unix.RTM_DELNEIGH),
+		uint16(unix.RTM_NEWRULE), uint16(unix.RTM_DELRULE):
 		return true
 	default:
 		return false
@@ -131,8 +140,8 @@ func IsRtnetlinkEventType(msgType uint16) bool {
 }
 
 // ParseRtnetlinkEvent decodes one rtnetlink message body (the bytes after the
-// 16-byte nlmsghdr) into a LinkEvent, AddrEvent, RouteEvent or NeighEvent,
-// dispatching on nlmsg_type.
+// 16-byte nlmsghdr) into a LinkEvent, AddrEvent, RouteEvent, NeighEvent or
+// RuleEvent, dispatching on nlmsg_type.
 //
 // It returns ErrNotAnEvent for any other type, so a caller can walk a mixed
 // stream and skip what it does not handle:
@@ -142,7 +151,7 @@ func IsRtnetlinkEventType(msgType uint16) bool {
 //		continue
 //	}
 //
-// The returned value is one of the four concrete event types, never a pointer,
+// The returned value is one of the five concrete event types, never a pointer,
 // and is nil whenever err is non-nil — the helpers below return an untyped nil
 // rather than a boxed zero-value struct, so `if ev != nil` is a sound check.
 func ParseRtnetlinkEvent(msgType uint16, body []byte) (any, error) {
@@ -167,12 +176,17 @@ func ParseRtnetlinkEvent(msgType uint16, body []byte) (any, error) {
 	case uint16(unix.RTM_DELNEIGH):
 		return parseNeighEvent(EventActionDel, body)
 
+	case uint16(unix.RTM_NEWRULE):
+		return parseRuleEvent(EventActionAdd, body)
+	case uint16(unix.RTM_DELRULE):
+		return parseRuleEvent(EventActionDel, body)
+
 	default:
 		return nil, fmt.Errorf("%w: nlmsg_type %d", ErrNotAnEvent, msgType)
 	}
 }
 
-// The four helpers return `any` rather than their concrete event type on
+// The five helpers return `any` rather than their concrete event type on
 // purpose. Returning `(LinkEvent, error)` and letting the caller widen it would
 // box a zero-value LinkEvent into a non-nil interface on the error path, which
 // is the classic typed-nil trap: ParseRtnetlinkEvent would hand back an
@@ -208,6 +222,14 @@ func parseNeighEvent(action EventAction, body []byte) (any, error) {
 		return nil, err
 	}
 	return NeighEvent{Action: action, Neigh: ni}, nil
+}
+
+func parseRuleEvent(action EventAction, body []byte) (any, error) {
+	ri, err := ParseRule(body)
+	if err != nil {
+		return nil, err
+	}
+	return RuleEvent{Action: action, Rule: ri}, nil
 }
 
 // WalkNotifications walks one datagram from a socket joined to RTNLGRP_*

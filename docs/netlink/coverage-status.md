@@ -462,7 +462,7 @@ the fact that the levels are independent and that things do sit between them.
 Each is strictly stronger than the one above it, and the interesting entries
 are the ones that stop partway. The rtnetlink **event** types are decoded and
 never rendered, because the daemon's link monitor consumes them and `goip` has
-no `monitor` verb. `RTM_NEWRULE` is decoded for dumps but is not even an event.
+no `monitor` verb. `RTM_NEWRULE` and `RTM_DELRULE` became events in G4-T05.
 
 ### rtnetlink: ten body layouts, and they are the ten goip needs
 
@@ -644,15 +644,16 @@ below it.
 
 ### The event layer: decoded, never rendered
 
-`IsRtnetlinkEventType` (`xtcpnl_rtnetlink_events.go:121-131`) classifies
-**eight** types — `RTM_{NEW,DEL}{LINK,ADDR,ROUTE,NEIGH}`. A dump reply and a
+`IsRtnetlinkEventType` (`xtcpnl_rtnetlink_events.go:129-140`) classifies
+**ten** types — `RTM_{NEW,DEL}{LINK,ADDR,ROUTE,NEIGH,RULE}`. A dump reply and a
 notification carry the identical body, so the event layer adds only the
 add-versus-delete distinction that a dump never needs.
 
-**`RTM_NEWRULE` and `RTM_DELRULE` are not in that set**, so the rule family is
-decoded for dumps and invisible to the monitor. That is a real asymmetry and
-not a deliberate boundary; it is listed under [Remaining](#remaining) rather
-than under what is out of scope.
+**`RTM_NEWRULE` and `RTM_DELRULE` joined that set in G4-T05**, decoded by
+`ParseRule` into a `RuleEvent`; until then the rule family was decoded for
+dumps and invisible to the monitor. The corpus holds one rule notification,
+`monitor_all`'s `ip rule add` (`TestRuleEventsRealFixture`); `RTM_DELRULE` is
+covered by a constructed row, its body the same `fib_rule_hdr` layout.
 
 None of the eight is rendered or compared, because `goip` has no `monitor`
 verb and the matrix drives `show` commands only.
@@ -1076,7 +1077,7 @@ delivers them.
 
 | Component | File | Notes |
 |---|---|---|
-| Event parsing | `pkg/xtcpnl/xtcpnl_rtnetlink_events.go` (211) | `EventAction`, four event types, `ParseRtnetlinkEvent`, `IsRtnetlinkNotification`. Its own header comment records that these parsers **have no live feed** — that is Phase 1's job. |
+| Event parsing | `pkg/xtcpnl/xtcpnl_rtnetlink_events.go` (256) | `EventAction`, five event types, `ParseRtnetlinkEvent`, `IsRtnetlinkNotification`. Its own header comment records that these parsers **have no live feed** — that is Phase 1's job. |
 | `ndmsg` decoder | `pkg/xtcpnl/xtcpnl_ndmsg.go` (229) | `DeserializeNdMsg` + `ParseNeigh`. This is the template every new family's struct decoder copies. It shipped with a `DeserializeNdMsgReflection` twin, since moved to `_test.go` — see Phase 0a below. |
 | pcap reader extension | `pkg/xtcpnl/xtcpnl_pcap.go` (+149) | Per-record netlink family access, which is what makes the Phase 0 "split per family in Go, not in tcpdump" decision cheap. |
 | Real event fixtures | `pkg/xtcpnl/testdata/7_1_4/` | 5 pcaps + 6 `ip -d` sidecars + `uname`, captured off an `nlmon` device in a microVM. The directory has since grown a `dumps/` subtree from a *second*, unrelated flavor — see the note below the table. |
@@ -7246,12 +7247,11 @@ Two items fell out of the message-type census above. One has landed; one is open
   [the attribute table](#attributes-inside-the-five-no-unknown-attribute-holes)
   for the one framing difference from the rule floor (presence count, not
   decoder-arm count) and why.
-- **`RTM_NEWRULE` and `RTM_DELRULE` are not event types.**
-  `IsRtnetlinkEventType` covers link, addr, route and neigh; rule is decoded
-  for dumps and invisible to the monitor. The body is already parsed by
-  `ParseRule`, so this is a classification gap rather than a decoder one, and
-  it should be sized before it is assumed cheap — the event layer has its own
-  fixtures and the rule family would need its own capture trigger.
+- **`RTM_NEWRULE` and `RTM_DELRULE` as event types** — **done** in
+  G4-T05. `IsRtnetlinkEventType` covers rule as well as link, addr, route and
+  neigh, and `ParseRtnetlinkEvent` decodes a `RuleEvent` with `ParseRule`. The
+  capture trigger was C1-T04's `monitor_all`, whose `ip rule add` is the one
+  rule notification in the corpus.
 
 ## Phase exit criteria
 
@@ -7741,7 +7741,7 @@ K=~/Downloads/linux/include/uapi/linux
 grep -nP '^func Parse[A-Za-z]+' $(ls pkg/xtcpnl/*.go | grep -v _test)
 grep -oP 'RTM_[A-Z0-9_]+' pkg/xtcpnl/xtcpnl_rtnetlink_requests.go | sort | uniq -c
 
-# the eight event types, and the absence of RTM_*RULE among them
+# the ten event types, RTM_*RULE among them
 sed -n '/func IsRtnetlinkEventType/,/^}/p' pkg/xtcpnl/xtcpnl_rtnetlink_events.go
 
 # matrix rows per object — must sum to the row count in the table at the top

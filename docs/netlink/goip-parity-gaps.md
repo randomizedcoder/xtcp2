@@ -103,7 +103,7 @@ G1 delivered the read verbs: `route get`, `neigh get`, `nexthop get` with `nexth
 | mrule | `RTM_{GET,NEW,DEL}RULE` with the IPMR families | `ip/iprule.c` (`do_multirule`) | `net/core/fib_rules.c` | Needs `IP_MROUTE_MULTIPLE_TABLES` |
 | token | show: an `RTM_GETLINK` dump with AF_INET6, reading `IFLA_INET6_TOKEN`. set: `RTM_SETLINK` | `ip/iptoken.c:71-81` | `net/ipv6/addrconf.c`, `inet6_set_iftoken` | The only `ip` user of `RTM_SETLINK` |
 | netns (the NSID part) | `list-id`: an `RTM_GETNSID` dump; `set`: `RTM_NEWNSID` | `ip/ipnetns.c:73`, `:275-321` | `net/core/net_namespace.c`, `rtnl_net_newid` and `rtnl_net_dumpid` | `add`, `del` and `exec` are syscalls, which puts them in class F |
-| monitor | Every NEW/DEL notification, across the multicast groups at `ip/ipmonitor.c:267-367` | `ip/ipmonitor.c:194` | each subsystem's notifier | The 8 decoded event types (`IsRtnetlinkEventType`) are not rendered, and `RTM_NEWRULE`/`RTM_DELRULE` are not even classified as events yet |
+| monitor | Every NEW/DEL notification, across the multicast groups at `ip/ipmonitor.c:267-367` | `ip/ipmonitor.c:194` | each subsystem's notifier | The 10 decoded event types (`IsRtnetlinkEventType`, `RTM_NEWRULE`/`RTM_DELRULE` among them since G4-T05) are not rendered |
 | prefix (in monitor) | `RTM_NEWPREFIX` (`prefixmsg`) | `ip/ipprefix.c:33` | `net/ipv6/addrconf.c` | Emitted only when a router advertisement is received |
 
 **maddress depends on the version.** At the pin, `ip maddress show` reads `/proc/net/{dev_mcast,igmp,igmp6}` (`ip/ipmaddr.c:95-179`), and add/del are ioctls, so it is class F at 7.1.0. The 7.2 checkout dumps `RTM_GETMULTICAST` instead *(7.2: `ip/ipmaddr.c:276`)*, so maddress moves to this class at the next pin bump.
@@ -202,7 +202,7 @@ msgs/pcaps means messages found, over the number of pcaps they appear in. Every 
 | | DELNEXTHOPBUCKET (117) | **0**: the kernel registers no handler for it, and `ip` never sends it | none | none | none |
 | `prefixmsg` | NEWPREFIX (52) | 3 / 3 (C1-T04) | **`ParsePrefix`, `xtcpnl_prefixmsg.go:59`** (P1-T04) | **`TestParsePrefix`, `xtcpnl_prefixmsg_test.go:40`; `TestParsePrefixCorpus`**; `TestRtnlMonitorCorpus`, through `ParsePrefix` | **`BenchmarkParsePrefix`, `xtcpnl_parse_bench_test.go:416`** |
 | `nlmsgerr` | ERROR (2), DONE (3) | 401 / 168, 1051 / 514; over generic netlink 733 / 240, 113 / 105 (C2); over XFRM 42 / 32, 31 / 29 (C3) | `ParseNlMsgErr`, `xtcpnl_nlmsgerr.go:54` | `TestParseNlMsgErr`, `xtcpnl_nlmsgerr_test.go:44` | **`BenchmarkParseNlMsgErr`, `xtcpnl_parse_bench_test.go:381`** (P0-T04, rtnetlink ERROR) |
-| events | the 8 NEW/DEL LINK/ADDR/ROUTE/NEIGH types | (as above) | `ParseRtnetlinkEvent`, `xtcpnl_rtnetlink_events.go:148` | `TestParseRtnetlinkEvent`, `xtcpnl_rtnetlink_events_test.go:243` | **`BenchmarkParseRtnetlinkEvent`, `xtcpnl_parse_bench_test.go:386`** (P0-T04, over DELLINK; the NEW types are benchmarked through their own parsers) |
+| events | the 10 NEW/DEL LINK/ADDR/ROUTE/NEIGH/RULE types | (as above) | `ParseRtnetlinkEvent`, `xtcpnl_rtnetlink_events.go:157` | `TestParseRtnetlinkEvent`, `xtcpnl_rtnetlink_events_test.go:243` | **`BenchmarkParseRtnetlinkEvent`, `xtcpnl_parse_bench_test.go:386`** (P0-T04, over DELLINK; the NEW types are benchmarked through their own parsers) |
 
 The capture also holds `RTM_GETMULTICAST` (58: 13 / 3) and `RTM_GETANYCAST` (62: 4 / 2). `ip` 7.1.0 sends neither: they are the dedicated multicast and anycast dump rows in `link-write/addr-mcdump/mc_any/`, which back `IFA_MULTICAST`/`IFA_ANYCAST` decoding. They will also cover `maddress` at the 7.2 pin bump.
 
@@ -2559,6 +2559,19 @@ The tests (`pkg/xtcpnl/xtcpnl_nsid_requests_test.go`, `internal/goip/obj_netns_t
 | positive, boundary, corner, negative: `NsidView` with a name, a current nsid, nsid 0, both unassigned, a current nsid the reply lacks, `Deleted` | the text line and the JSON object |
 
 Every `list-id` form, plain, `-j`, each key, the refusals, `-4`, `-s` and `-d`, was checked against iproute2-7.1.0 in an unprivileged namespace with three peers, two holding nsids; `set` against the request `ip` sends.
+
+**G4-T05 delivered** (`pkg/xtcpnl/xtcpnl_rtnetlink_events.go`):
+- **The classification.** `IsRtnetlinkEventType` admits `RTM_NEWRULE` and `RTM_DELRULE`, so `IsRtnetlinkNotification` and `WalkNotifications` pass a rule notification through, and `ParseRtnetlinkEvent` decodes it with `ParseRule` into a fifth event record, `RuleEvent`, the same `RuleInfo` a `rule show` dump reply gives.
+- **The consumers.** `pkg/rtnlmon` joins only the link, address, route and neighbor groups, so no rule notification reaches it; its dump collector, `localnet.Tracker` and `rtnlmon-probe` each ignore an event type they do not handle. Nothing in the daemon changes.
+- **The corpus.** One rule notification exists: `monitor_all`'s `ip rule add from 192.0.2.0/24 table 100 pref 100`, and its `monitor_all_timestamp` twin. No `RTM_DELRULE` notification was captured; its row is constructed, the body the same `fib_rule_hdr` layout `ParseRule` reads for the dumps.
+
+The tests (`pkg/xtcpnl/xtcpnl_rtnetlink_events_test.go`, `pkg/xtcpnl/xtcpnl_rtnetlink_events_realfixtures_test.go`):
+
+| description | expected |
+|---|---|
+| positive, negative, boundary: `IsRtnetlinkEventType` over the ten types, `RTM_GETRULE`, `RTM_NEWNSID`, `RTM_NEWQDISC`, the control types and the range edges | true for the ten, false otherwise |
+| positive, negative: `ParseRtnetlinkEvent` on an `RTM_NEWRULE`, an `RTM_DELRULE`, a body shorter than `fib_rule_hdr`, `RTM_NEWQDISC` | a `RuleEvent` add or del with the decoded rule; `ErrFibRuleHdrSmall`; `ErrNotAnEvent` |
+| positive, negative, corner: the notifications in `monitor_all`, `monitor_all_timestamp`, the rule dump, `rule del`'s write and the bulk event capture | the rule `from 192.0.2.0/24 lookup 100 pref 100`, added, in each monitor capture; none from the dump's 21 rule replies, the write's request or the bulk capture |
 
 ### G5 — The genl matrix harness
 
