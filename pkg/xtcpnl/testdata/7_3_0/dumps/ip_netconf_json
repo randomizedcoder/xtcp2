@@ -1,0 +1,106 @@
+[ {
+        "family": "inet",
+        "interface": "lo",
+        "forwarding": false,
+        "rp_filter": "loose",
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet",
+        "interface": "nlmon0",
+        "forwarding": false,
+        "rp_filter": "loose",
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet",
+        "interface": "goip0",
+        "forwarding": false,
+        "rp_filter": "loose",
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet",
+        "interface": "goipvrf",
+        "forwarding": false,
+        "rp_filter": "loose",
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet",
+        "interface": "goipv",
+        "forwarding": false,
+        "rp_filter": "loose",
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet",
+        "interface": "all",
+        "forwarding": false,
+        "rp_filter": "off",
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet",
+        "interface": "default",
+        "forwarding": false,
+        "rp_filter": "loose",
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet6",
+        "interface": "lo",
+        "forwarding": false,
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet6",
+        "interface": "nlmon0",
+        "forwarding": false,
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet6",
+        "interface": "goip0",
+        "forwarding": false,
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet6",
+        "interface": "goipvrf",
+        "forwarding": false,
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet6",
+        "interface": "goipv",
+        "forwarding": false,
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet6",
+        "interface": "all",
+        "forwarding": false,
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    },{
+        "family": "inet6",
+        "interface": "default",
+        "forwarding": false,
+        "mc_forwarding": false,
+        "proxy_neigh": false,
+        "ignore_routes_with_linkdown": false
+    } ]

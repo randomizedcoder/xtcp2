@@ -1,0 +1,8 @@
+id 1 via 192.0.2.10 dev goip0 scope link 
+id 2 via 192.0.2.11 dev goip0 scope link 
+id 5 via 192.0.2.20 scope link fdb
+id 7 via 198.18.11.2 dev goipv scope link 
+id 8 via 192.0.2.23 dev goip0 scope link proto static 
+id 10 group 1/2 
+id 11 group 1,2/2,3 
+id 20 group 1/2 type resilient buckets 8 idle_timer 120 unbalanced_timer 0 unbalanced_time 0 

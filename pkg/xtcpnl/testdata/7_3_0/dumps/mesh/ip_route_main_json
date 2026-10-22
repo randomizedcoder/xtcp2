@@ -1,0 +1,13 @@
+[ {
+        "dst": "198.19.0.0/24",
+        "dev": "br0",
+        "protocol": "kernel",
+        "scope": "link",
+        "prefsrc": "198.19.0.1",
+        "flags": [ "linkdown" ]
+    },{
+        "dst": "198.19.1.0/24",
+        "dev": "br0",
+        "scope": "link",
+        "flags": [ "linkdown" ]
+    } ]

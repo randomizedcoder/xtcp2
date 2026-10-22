@@ -1,0 +1,5 @@
+3: goip0: group link
+    RX:  bytes packets errors dropped  missed   mcast           
+             0       0      0       0       0       0 
+    TX:  bytes packets errors dropped carrier collsns           
+           390       5      0       0       0       0 

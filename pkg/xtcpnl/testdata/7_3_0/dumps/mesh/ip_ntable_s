@@ -1,0 +1,100 @@
+inet arp_cache 
+    thresh1 128 thresh2 512 thresh3 1024 gc_int 30000 
+    config key_len 4 entry_size 432 entries 12 
+        last_flush 2026-10-22 11:08:28 last_rand 2026-09-02 18:18:01 
+        hash_rnd 3060793493 hash_mask 0000000f hash_chain_gc 0 proxy_qlen 0 
+    refcnt 1 reachable 37012 base_reachable 30000 retrans 1000 
+    gc_stale 60000 delay_probe 5000 queue 101 
+    app_probes 0 ucast_probes 3 mcast_probes 3 mcast_reprobes 0 
+    anycast_delay 1000 proxy_delay 800 proxy_queue 64 locktime 1000 
+    stats allocs 13 destroys 1 hash_grows 1 
+    res_failed 0 lookups 21 hits 3 
+    rcv_probes_mcast 0 rcv_probes_ucast 0 
+    periodic_gc_runs 4 forced_gc_runs 0 
+    table_fulls 0 
+
+inet arp_cache 
+    dev veth0 
+    refcnt 1 reachable 15811 base_reachable 30000 retrans 1000 
+    gc_stale 60000 delay_probe 5000 queue 101 
+    app_probes 0 ucast_probes 3 mcast_probes 3 mcast_reprobes 0 
+    anycast_delay 1000 proxy_delay 800 proxy_queue 64 locktime 1000 
+
+inet arp_cache 
+    dev veth1 
+    refcnt 1 reachable 28994 base_reachable 30000 retrans 1000 
+    gc_stale 60000 delay_probe 5000 queue 101 
+    app_probes 0 ucast_probes 3 mcast_probes 3 mcast_reprobes 0 
+    anycast_delay 1000 proxy_delay 800 proxy_queue 64 locktime 1000 
+
+inet arp_cache 
+    dev br0 
+    refcnt 2 reachable 28084 base_reachable 30000 retrans 1000 
+    gc_stale 60000 delay_probe 5000 queue 101 
+    app_probes 0 ucast_probes 3 mcast_probes 3 mcast_reprobes 0 
+    anycast_delay 1000 proxy_delay 800 proxy_queue 64 locktime 1000 
+
+inet arp_cache 
+    dev nlmon0 
+    refcnt 1 reachable 27401 base_reachable 30000 retrans 1000 
+    gc_stale 60000 delay_probe 5000 queue 101 
+    app_probes 0 ucast_probes 3 mcast_probes 3 mcast_reprobes 0 
+    anycast_delay 1000 proxy_delay 800 proxy_queue 64 locktime 1000 
+
+inet arp_cache 
+    dev lo 
+    refcnt 1 reachable 34142 base_reachable 30000 retrans 1000 
+    gc_stale 60000 delay_probe 5000 queue 101 
+    app_probes 0 ucast_probes 3 mcast_probes 3 mcast_reprobes 0 
+    anycast_delay 1000 proxy_delay 800 proxy_queue 64 locktime 1000 
+
+inet6 ndisc_cache 
+    thresh1 128 thresh2 512 thresh3 1024 gc_int 30000 
+    config key_len 16 entry_size 440 entries 11 
+        last_flush 2026-10-22 11:08:28 last_rand 2026-09-02 18:17:00 
+        hash_rnd 2660599261 hash_mask 0000000f hash_chain_gc 0 proxy_qlen 0 
+    refcnt 1 reachable 33964 base_reachable 30000 retrans 1000 
+    gc_stale 60000 delay_probe 5000 queue 101 
+    app_probes 0 ucast_probes 3 mcast_probes 3 mcast_reprobes 0 
+    anycast_delay 1000 proxy_delay 800 proxy_queue 64 locktime 0 
+    stats allocs 11 destroys 0 hash_grows 1 
+    res_failed 0 lookups 3 hits 0 
+    rcv_probes_mcast 0 rcv_probes_ucast 0 
+    periodic_gc_runs 4 forced_gc_runs 0 
+    table_fulls 0 
+
+inet6 ndisc_cache 
+    dev veth0 
+    refcnt 1 reachable 32819 base_reachable 30000 retrans 1000 
+    gc_stale 60000 delay_probe 5000 queue 101 
+    app_probes 0 ucast_probes 3 mcast_probes 3 mcast_reprobes 0 
+    anycast_delay 1000 proxy_delay 800 proxy_queue 64 locktime 0 
+
+inet6 ndisc_cache 
+    dev veth1 
+    refcnt 1 reachable 24167 base_reachable 30000 retrans 1000 
+    gc_stale 60000 delay_probe 5000 queue 101 
+    app_probes 0 ucast_probes 3 mcast_probes 3 mcast_reprobes 0 
+    anycast_delay 1000 proxy_delay 800 proxy_queue 64 locktime 0 
+
+inet6 ndisc_cache 
+    dev br0 
+    refcnt 1 reachable 41712 base_reachable 30000 retrans 1000 
+    gc_stale 60000 delay_probe 5000 queue 101 
+    app_probes 0 ucast_probes 3 mcast_probes 3 mcast_reprobes 0 
+    anycast_delay 1000 proxy_delay 800 proxy_queue 64 locktime 0 
+
+inet6 ndisc_cache 
+    dev nlmon0 
+    refcnt 1 reachable 44497 base_reachable 30000 retrans 1000 
+    gc_stale 60000 delay_probe 5000 queue 101 
+    app_probes 0 ucast_probes 3 mcast_probes 3 mcast_reprobes 0 
+    anycast_delay 1000 proxy_delay 800 proxy_queue 64 locktime 0 
+
+inet6 ndisc_cache 
+    dev lo 
+    refcnt 1 reachable 27563 base_reachable 30000 retrans 1000 
+    gc_stale 60000 delay_probe 5000 queue 101 
+    app_probes 0 ucast_probes 3 mcast_probes 3 mcast_reprobes 0 
+    anycast_delay 1000 proxy_delay 800 proxy_queue 64 locktime 0 
+

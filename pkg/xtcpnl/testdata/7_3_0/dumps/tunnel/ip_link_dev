@@ -1,0 +1,2 @@
+10: gre1@NONE: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 1476 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/gre 192.0.2.3 peer 198.51.100.3

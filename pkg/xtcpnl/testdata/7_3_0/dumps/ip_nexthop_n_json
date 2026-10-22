@@ -1,0 +1,75 @@
+[ {
+        "id": 1,
+        "gateway": "192.0.2.10",
+        "dev": "goip0",
+        "scope": "link",
+        "protocol": "unspec",
+        "flags": [ ]
+    },{
+        "id": 2,
+        "gateway": "192.0.2.11",
+        "dev": "goip0",
+        "scope": "link",
+        "protocol": "unspec",
+        "flags": [ ]
+    },{
+        "id": 5,
+        "gateway": "192.0.2.20",
+        "scope": "link",
+        "protocol": "unspec",
+        "flags": [ ],
+        "fdb": null
+    },{
+        "id": 7,
+        "gateway": "198.18.11.2",
+        "dev": "goipv",
+        "scope": "link",
+        "protocol": "unspec",
+        "flags": [ ]
+    },{
+        "id": 8,
+        "gateway": "192.0.2.23",
+        "dev": "goip0",
+        "scope": "link",
+        "protocol": "static",
+        "flags": [ ]
+    },{
+        "id": 10,
+        "group": [ {
+                "id": 1
+            },{
+                "id": 2
+            } ],
+        "scope": "global",
+        "protocol": "unspec",
+        "flags": [ ]
+    },{
+        "id": 11,
+        "group": [ {
+                "id": 1,
+                "weight": 2
+            },{
+                "id": 2,
+                "weight": 3
+            } ],
+        "scope": "global",
+        "protocol": "unspec",
+        "flags": [ ]
+    },{
+        "id": 20,
+        "group": [ {
+                "id": 1
+            },{
+                "id": 2
+            } ],
+        "type": "resilient",
+        "resilient_args": {
+            "buckets": 8,
+            "idle_timer": 120,
+            "unbalanced_timer": 0,
+            "unbalanced_time": 0
+        },
+        "scope": "global",
+        "protocol": "unspec",
+        "flags": [ ]
+    } ]
