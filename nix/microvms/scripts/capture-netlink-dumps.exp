@@ -250,7 +250,7 @@ proc capture_set {ns subdir dev} {
     # ..` line. Same floor 2 (a group carries no nh_oif).
     capio $ns $subdir netlink_route_getnexthop_res 2 "ip nexthop show id 20" ip_nexthop_res
     # Wire-filter dump selectors (nh_dump_filter, ip/ipnexthop.c:70). `dev`, `master`
-    # and `vrf` each resolve a name via ll_init_map before the filtered dump, and
+    # and `vrf` each resolve a name via ll_link_get before the filtered dump, and
     # render a `dev` on the reply, so they take the bare dump's floor ($nh_floor). `vrf` also
     # sends a name_is_vrf link single-get first (ip/iplink_vrf.c:170) to confirm the
     # kind, so its pcap carries one extra transaction over `master`. `master goipvrf`

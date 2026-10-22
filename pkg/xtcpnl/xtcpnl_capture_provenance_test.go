@@ -340,6 +340,11 @@ func TestIPVersionMatchesUpstreamPin(t *testing.T) {
 			expected:    corpusIPRoute2,
 		},
 		{
+			description: "positive: the 7_3_0 dump set's ip_version is the pinned iproute2 goip defaults to",
+			file:        tdDumpIPVersion_7_3_0,
+			expected:    goipIPRoute2,
+		},
+		{
 			description: "positive: the rdma corpus's ip_version is the corpus iproute2",
 			file:        tdRdma_7_1_4 + "/ip_version",
 			expected:    corpusIPRoute2,
