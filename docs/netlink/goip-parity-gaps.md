@@ -2494,6 +2494,24 @@ The tests (`pkg/xtcpnl/xtcpnl_rta_mfc_stats_test.go`, `internal/goip/obj_mroute_
 
 The output, filters and exit statuses were checked against iproute2-7.1.0 in an unprivileged namespace with smcrouted holding two entries, one of them with two output interfaces.
 
+**G4-T02 delivered** (`internal/goip/obj_mrule.go`):
+- **The request.** `do_multirule` (`ip/iprule.c:1262-1283`) swaps `preferred_family` for `RTNL_FAMILY_IPMR` (128) under none or `-4`, or `RTNL_FAMILY_IP6MR` (129) under `-6`, and calls `do_iprule`. So `mrule show` is `rule show`'s one `RTM_GETRULE` dump with that family, and goip's `runMrule` reuses `ruleShow` after setting it. Any other family is refused before a verb is read, with `ip`'s message, exit 255 (`ErrMruleFamily`).
+- **The render.** `print_rule` unchanged: nothing in it depends on the family for an ipmr rule, because `ipmr_rule_fill` zeroes the prefix lengths and adds no `FRA_SRC` or `FRA_DST`, the only attributes rendered through the family. ip6mr's default rule looks up main, ipmr's default.
+- **Scope.** The listing only, by `rule show`'s verbs (`list`, `lst`, `show`); `rule show`'s selector refusal applies, and `mrule`'s writes, `save`, `restore`, `flush` and `help` are not implemented.
+- **Four matrix rows, gated.** `mrule show`, `-6 mrule show`, `-d mrule show` and `-j mrule show`, with no Setup, since every namespace holds both default rules; each the dump and its `NLMSG_DONE` (floor 2). `TestMruleRows` pins the four.
+- **HTTP.** `go-link-monitor` serves `/ip/mrule` with `family` ([IP-PATHS-DESIGN.md](../../cmd/go-link-monitor/IP-PATHS-DESIGN.md)).
+
+The tests (`internal/goip/obj_mrule_test.go`):
+
+| description | expected |
+|---|---|
+| positive, boundary: the `mrule` capture (replayed) with `show`, no verb, `-4 list`, `ls`, `s` | `ip`'s one request byte for byte, and the sidecar |
+| positive: `-d`, `-j`, `-j -d` over the captured rule | `proto kernel` under `-d` only; the JSON array |
+| positive, boundary, negative, corner: none, `-4`, `-6`, two rules, none at all, `-0`, `-0` with an unknown verb, `help`, an unknown verb, `add`, `flush`, `sa`, a selector, a failed dump (constructed replies) | the request's family byte, 128 or 129, and the lines; `-0` refused before any request or verb; not implemented, nothing sent; the dump's error |
+| negative, corner, positive: `-0`, an unnamed family, `-6` through `exitCodeOf` | 255, 255, no error |
+
+Every listing form, `-d`, `-j`, `-s`, `-6` and the abbreviations, was checked against iproute2-7.1.0 in an unprivileged namespace, on the default rules and with five more added by `ip mrule add`.
+
 ### G5 — The genl matrix harness
 
 - The parity comparator normalizes genl family IDs by name (`pkg/nlparity`).

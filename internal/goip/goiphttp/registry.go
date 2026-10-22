@@ -121,6 +121,8 @@ var objects = []*object{
 	{path: "addrlabel"},
 	{path: "mroute",
 		params: []param{{name: "table", kind: kindTable}, {name: "iif", kind: kindName}, pFamily, pStats}},
+	{path: "mrule",
+		params: []param{pFamily}},
 	{path: "stats", devPath: true,
 		params: []param{
 			pDev,

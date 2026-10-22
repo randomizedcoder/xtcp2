@@ -2092,6 +2092,28 @@ var commands = withArgs([]Command{
 		Setup: mrouteSetup, Floor: 4, Implemented: true,
 	},
 
+	// G4-T02: `ip mrule show`, do_multirule (ip/iprule.c:1262-1283), which
+	// is `ip rule show` with preferred_family swapped for
+	// RTNL_FAMILY_IPMR, or RTNL_FAMILY_IP6MR under -6. One RTM_GETRULE dump
+	// and its NLMSG_DONE (2); every namespace holds ipmr's and ip6mr's
+	// default rule, so no Setup. -d and -j reach no request byte.
+	{
+		Name: "mrule show", Slug: "mrule_show",
+		Floor: 2, Implemented: true,
+	},
+	{
+		Name: "-6 mrule show", Slug: "mrule_show_v6",
+		Floor: 2, Implemented: true,
+	},
+	{
+		Name: "-d mrule show", Slug: "mrule_show_details",
+		Floor: 2, Implemented: true,
+	},
+	{
+		Name: "-j mrule show", Slug: "mrule_show_json",
+		Floor: 2, Implemented: true,
+	},
+
 	// G2-T01: `route save` and `route showdump` (ip/iproute.c:1673-1716,
 	// :2390-2405), on route_save's C1-T02 precondition: d0, ifindex 3, and
 	// table 100's two routes. save is `route show table 100`'s dump with

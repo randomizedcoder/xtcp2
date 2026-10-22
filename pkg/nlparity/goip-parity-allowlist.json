@@ -1000,7 +1000,12 @@
     "then the RTNL_FAMILY_IPMR RTM_GETROUTE dump, or under -6 the",
     "RTNL_FAMILY_IP6MR one, on the reads namespace's veths and an smcrouted",
     "(S,G) entry: plain, -6, iif, table all, -s and -j. Two consecutive clean",
-    "runs of 259 GOIP_PARITY_PASS of 259 ended GOIP_PARITY_OVERALL_PASS."
+    "runs of 259 GOIP_PARITY_PASS of 259 ended GOIP_PARITY_OVERALL_PASS.",
+    "",
+    "G4-T02 adds mrule show and gates four rows, each one RTM_GETRULE dump of",
+    "RTNL_FAMILY_IPMR, or under -6 RTNL_FAMILY_IP6MR, and its NLMSG_DONE, with",
+    "no Setup: plain, -6, -d and -j. Two consecutive clean runs of 263",
+    "GOIP_PARITY_PASS of 263 ended GOIP_PARITY_OVERALL_PASS."
   ],
   "_note_version_skew": [
     "THE ENTRIES BELOW CITE COMMITS THAT ARE IN NO RELEASE, AND THE EVIDENCE IS",
@@ -1337,6 +1342,10 @@
     "mroute show iif v0",
     "mroute show table all",
     "-s mroute show",
-    "-j mroute show"
+    "-j mroute show",
+    "mrule show",
+    "-6 mrule show",
+    "-d mrule show",
+    "-j mrule show"
   ]
 }

@@ -3202,3 +3202,46 @@ func TestMrouteRows(t *testing.T) {
 		}
 	})
 }
+
+// TestMruleRows pins G4-T02's four `mrule show` rows: no Setup, floor 2,
+// gated, and the forms left out.
+//
+// go test ./internal/goipparity/ -run TestMruleRows
+func TestMruleRows(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	type want struct {
+		implemented, setup, write, gated bool
+		floor, entries                   int
+	}
+	gated := want{implemented: true, gated: true, floor: 2}
+	rows := []struct {
+		description string
+		command     string
+		expected    want
+	}{
+		{"positive: ipmr's default rule", "mrule show", gated},
+		{"positive: -6, ip6mr's", "-6 mrule show", gated},
+		{"positive: -d, the kernel protocol", "-d mrule show", gated},
+		{"positive: -j", "-j mrule show", gated},
+		{"corner: the bare object is not in the matrix", "mrule", want{}},
+		{"corner: -0, refused before a request, is not in the matrix", "-0 mrule show", want{}},
+		{"negative: rule show is not an mrule row", "rule show",
+			want{implemented: true, gated: true, floor: 2}},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			var got want
+			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				got = want{implemented: c.Implemented, write: c.Write, setup: len(c.Setup) > 0, floor: c.Floor}
+			}
+			got.gated = al.IsGated(r.command)
+			got.entries = len(al.EntriesFor(r.command))
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+		})
+	}
+}

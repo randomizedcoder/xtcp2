@@ -75,7 +75,7 @@ var objects = []object{
 	{name: "tuntap"},
 	{name: "tap", alias: true},
 	{name: "mroute", run: runMroute},
-	{name: "mrule"},
+	{name: "mrule", run: runMrule},
 	{name: "netns"},
 	{name: "netconf", run: runNetconf},
 	{name: "vrf", run: runVrf},

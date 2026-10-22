@@ -697,6 +697,11 @@ func TestAllowlistCommitted(t *testing.T) {
 		"mroute show table all",
 		"-s mroute show",
 		"-j mroute show",
+		// G4-T02's four `mrule show` rows.
+		"mrule show",
+		"-6 mrule show",
+		"-d mrule show",
+		"-j mrule show",
 	}
 
 	tests := []struct {

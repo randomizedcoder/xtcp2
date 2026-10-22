@@ -60,6 +60,10 @@ func TestParams(t *testing.T) {
 			want: goip.ShowRequest{Object: "mroute", Family: unix.AF_INET6, JSON: true, Selectors: []string{"table", "all", "iif", "v0"}}},
 		{name: "mroute_iif_long", description: "boundary: an iif of 16 bytes, past IFNAMSIZ-1, is refused",
 			path: "mroute", query: "iif=abcdefghijklmnop", wantErr: true},
+		{name: "mrule_family", description: "positive: mrule takes family alone",
+			path: "mrule", query: "family=inet6", want: goip.ShowRequest{Object: "mrule", Family: unix.AF_INET6, JSON: true}},
+		{name: "mrule_link", description: "negative: family=link, which do_multirule refuses, is refused here",
+			path: "mrule", query: "family=link", wantErr: true},
 
 		{name: "unknown_param", description: "negative: an unknown parameter is refused, not ignored",
 			path: "addr", query: "foo=1", wantErr: true},
