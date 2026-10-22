@@ -17,7 +17,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/bufbuild/protovalidate-go"
+	"buf.build/go/protovalidate"
 	"github.com/grafana/pyroscope-go"
 	"github.com/pkg/profile"
 	"github.com/randomizedcoder/xtcp2/gen/go/xtcp_config"

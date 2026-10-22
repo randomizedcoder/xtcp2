@@ -8,16 +8,9 @@
 { pkgs }:
 
 {
-  # Go toolchain — pinned to 1.26.5 for its security fixes. The pinned nixpkgs
-  # only packages go_1_26 = 1.26.2, so override the version + source to 1.26.5
-  # until nixpkgs catches up (then this can drop back to plain `pkgs.go_1_26`).
-  go = pkgs.go_1_26.overrideAttrs (_old: rec {
-    version = "1.26.5";
-    src = pkgs.fetchurl {
-      url = "https://go.dev/dl/go${version}.src.tar.gz";
-      hash = "sha256-SVvkvIcXasVnOS5bQRar2YRm0z17SdQedkzMaXay3EI=";
-    };
-  });
+  # Go toolchain — the latest Go release, as nixpkgs packages it. Keep go.mod's
+  # `go` line on the same minor version.
+  go = pkgs.go_1_27;
 
   # protobuf tooling
   inherit (pkgs) buf;
@@ -42,10 +35,24 @@
   # survived unnoticed for months.
   inherit (pkgs)
     golangci-lint
-    gosec
     deadnix
     statix
     ;
+  # gosec 2.29.0, the latest release, pins golang.org/x/tools v0.49.0, whose
+  # export-data reader stops at version 4; Go 1.27 writes version 5 ("export
+  # data version 5 is greater than maximum supported version 4"). gosec's
+  # master moved to x/tools v0.52.0, so build that commit, with the pinned Go.
+  # Return to `pkgs.gosec` once a gosec release carries x/tools v0.52.0 or later.
+  gosec = (pkgs.gosec.override { buildGoModule = pkgs.buildGo127Module; }).overrideAttrs (old: {
+    version = "2.29.0-unstable-2026-10-21";
+    src = pkgs.fetchFromGitHub {
+      owner = "securego";
+      repo = "gosec";
+      rev = "17ad2dd7533fd4c773d916e2bc81446917d593b5";
+      hash = "sha256-k9SUidmfXA+5moxeSvVK5PxkgklvSxSkJ1ei4q49FLo=";
+    };
+    vendorHash = "sha256-OI84VCRAkKsVB9AMmf1n20toBDhSL64By0pxssXqwwI=";
+  });
   nixfmt = pkgs.nixfmt-rfc-style or pkgs.nixfmt;
 
   # gRPC / proto inspection
@@ -164,5 +171,5 @@
   # Go vendor hash. Update by running `nix build .#xtcp2` and pasting the
   # `got:` value from the hash mismatch error. Used by every Nix check that
   # needs deps in the sandbox (see nix/lib/goModules.nix).
-  goVendorHash = "sha256-/E1pyoYWT4OCEQOs/vfpdgLTlGAXXUDcGjD2o9qzdkQ=";
+  goVendorHash = "sha256-WaTwMyuIhe3qJUCzdSTcSF/AfJ2yKlaa5DAL/5yCPzc=";
 }

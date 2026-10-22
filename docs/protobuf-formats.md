@@ -172,7 +172,7 @@ the Python/C++ message code and OpenAPI use protoc builtins and grpc-gateway.
 
 > The `bufbuild/validate-cpp` plugin (protovalidate's C++ codegen) has no nixpkgs equivalent and
 > nothing in-repo consumes the C++ output, so it is intentionally not generated — C++ keeps message
-> and gRPC code. Go validation needs no plugin (`protovalidate-go` is runtime-reflection based).
+> and gRPC code. Go validation needs no plugin (`buf.build/go/protovalidate` is runtime-reflection based).
 
 ## Rebuilding
 

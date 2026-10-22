@@ -409,7 +409,7 @@ not a flake of its own. Relevant pieces:
 flake.nix                    # thin orchestrator -> ./nix (per-system aggregator)
 nix/
   default.nix                # packages / devShells / checks / apps aggregator
-  versions.nix               # Go pin (go_1_26 overridden to 1.26.5), buildVariants, goVendorHash
+  versions.nix               # Go pin (go_1_27), buildVariants, goVendorHash
   binaries.nix               # binaryNames includes "ipfeed-collector" -> packages.ipfeed-collector
   lib/mkGoBinary.nix         # buildGoModule wrapper: static, -trimpath, -X main.{version,commit,date}
   lib/mkOciImage.nix         # scratch streamLayeredImage + dockerTools.caCertificates

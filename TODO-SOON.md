@@ -596,9 +596,58 @@ and corner cases.
 
 ---
 
-## 7. Upgrade the Go toolchain to 1.27.1 — OPEN
+## 7. Upgrade the Go toolchain to 1.27.1 — DONE 2026-10-21 (1.27.3), VM checks pending
 
-Currently pinned to **1.26.5** (`nix/versions.nix:11-20`). Not started.
+Done on `chore/bump-nixpkgs-go-deps`, with the nixpkgs bump to 02c087f3
+(2026-10-20), whose `go_1_27` is 1.27.3. `versions.nix` now says
+`go = pkgs.go_1_27`, so the hand-maintained source hash is gone. `go.mod` moved
+to `go 1.27.0` in the same change, with every direct dependency at its latest
+release; the user asked for both, because of the CVEs. `govulncheck` v1.9.0
+(DB of 2026-10-21) before and after:
+
+| | main (Go 1.26.5, old modules) | after (Go 1.27.3, latest modules) |
+|---|---|---|
+| vulnerabilities the code reaches | 21 | 0 |
+| in imported packages, not called | 3 | 0 |
+| in required modules, not imported | 3 | 1 |
+
+Of the 21, 15 were in the standard library alone (html/template, crypto/tls,
+crypto/x509, encoding/asn1, encoding/xml, net/http, net/textproto, net/url,
+os). 5 were in both `net/http` and `golang.org/x/net`. 1 was in
+`google.golang.org/grpc`: GO-2026-6443, a server panic on a missing authority
+or Host header, which xtcp2's gRPC servers reached. The one left is GO-2026-5932, the deprecated
+`golang.org/x/crypto/openpgp` package, which has no fix and nothing here
+imports. The 64 modules `go list -m -u all` still shows as outdated are all
+indirect, and none is compiled into any package or test: they're only in the
+module graph.
+
+What the upgrade turned up:
+
+- **gosec** 2.29.0, the latest release, can't read 1.27 export data ("export
+  data version 5 is greater than maximum supported version 4"). The reader is
+  its pinned `golang.org/x/tools` v0.49.0, so rebuilding it with Go 1.27 alone
+  doesn't help. `versions.nix` builds gosec master (17ad2dd, x/tools v0.52.0)
+  with `buildGo127Module`; go back to `pkgs.gosec` once a release carries
+  x/tools v0.52.0. The newer gosec found one real issue, G306: netlink
+  captures were written 0644. They carry host addresses, so they're 0600 now.
+- **New analyser findings**, as predicted below: `go vet`'s printf check
+  (`%q` on a struct in `xtcpnl_rtnetlink_requests_test.go`) and govet's
+  `unusedwrite` (a dead `countingPool` in `poller_pure_test.go`). Both fixed,
+  no suppressions.
+- **protovalidate-go** v1 moved to `buf.build/go/protovalidate`; the imports
+  changed, the API didn't.
+- **Linux headers 7.2** came with the nixpkgs bump and added the RDMA FRMR pool
+  commands and attributes, which broke `rdma_consts.h`'s `NUM_OPS` and
+  `ATTR_MAX` asserts. The constants are added; no decoder reads them yet.
+- **iproute2 7.2.0** came with it too; see `nix/upstream-pins.json` and the
+  netlink fixture recapture.
+
+Still to do: the microVM lifecycle checks (the user runs those), and
+`nix run .#update-quality-report` to refresh the header and re-check coverage.
+
+The original plan follows.
+
+Was pinned to **1.26.5** (`nix/versions.nix:11-20`).
 
 The pin is not a plain nixpkgs attribute — the pinned nixpkgs only packages
 `go_1_26 = 1.26.2`, so `versions.nix` overrides `version` *and* `src` with a

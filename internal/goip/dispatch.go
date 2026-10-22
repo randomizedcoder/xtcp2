@@ -31,8 +31,8 @@ type object struct {
 	// verbs is the object's verb chain in iproute2's order (verbs.go); nil
 	// for an unimplemented object.
 	verbs []verb
-	// aliasOf is the row this one spells differently (neighbour, ntbl,
-	// tcpmetrics, tap), or "" for a canonical row. Lists of objects name
+	// aliasOf is the row this one spells differently (`neighbour`, `ntbl`,
+	// `tcpmetrics`, `tap`), or "" for a canonical row. Lists of objects name
 	// each one once by leaving the aliases out.
 	aliasOf string
 }

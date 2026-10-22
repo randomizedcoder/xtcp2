@@ -21,7 +21,7 @@ nix develop
 xtcp2-help        # prints the cheat sheet of build / lint / test commands
 ```
 
-The shell puts Go 1.26.5 (pinned in `nix/versions.nix`, not the host toolchain), `buf`, `golangci-lint`, `gosec`, `nixfmt`, and the project helper commands (`lint-quick`, `lint`, `lint-comprehensive`, `lint-fix`, `lint-new`, `regen-protos`, `xtcp2-help`) on your `PATH`, and sets `CGO_ENABLED=0`. Those helpers are real binaries, not shell functions, so `nix run .#lint-quick` works without entering the shell — and because they take relative config paths they exit 2 unless run from the repo root.
+The shell puts Go 1.27.3 (pinned in `nix/versions.nix`, not the host toolchain), `buf`, `golangci-lint`, `gosec`, `nixfmt`, and the project helper commands (`lint-quick`, `lint`, `lint-comprehensive`, `lint-fix`, `lint-new`, `regen-protos`, `xtcp2-help`) on your `PATH`, and sets `CGO_ENABLED=0`. Those helpers are real binaries, not shell functions, so `nix run .#lint-quick` works without entering the shell — and because they take relative config paths they exit 2 unless run from the repo root.
 
 ## Building
 

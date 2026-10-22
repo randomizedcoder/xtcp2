@@ -61,26 +61,6 @@ func newPollerFixture(t *testing.T) *XTCP {
 	return x
 }
 
-// countingPool wraps sync.Pool to count Put() calls. Used by
-// TestFlushEnvelope_returnsRowsToPool to verify per-record return.
-type countingPool struct {
-	sync.Pool
-	puts int
-	mu   sync.Mutex
-}
-
-func (p *countingPool) Put(x any) {
-	p.mu.Lock()
-	p.puts++
-	p.mu.Unlock()
-	p.Pool.Put(x)
-}
-func (p *countingPool) Puts() int {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.puts
-}
-
 // TestFlushEnvelope_empty: flushing an envelope with no rows must NOT
 // call dest.Send (no bytes to ship), must NOT call EnvelopeMarshaller
 // (avoid producing a length-prefixed zero-row envelope on the wire),
@@ -183,11 +163,6 @@ func testutilToFloat64(t *testing.T, c prometheus.Counter) float64 {
 func TestFlushEnvelope_returnsRowsToPool(t *testing.T) {
 	x := newPollerFixture(t)
 
-	// Replace the record pool with a counting wrapper so we can assert
-	// per-record Put calls.
-	cp := &countingPool{
-		Pool: sync.Pool{New: func() any { return new(xtcp_flat_record.XtcpFlatRecord) }},
-	}
 	const N = 5
 	rows := make([]*xtcp_flat_record.XtcpFlatRecord, N)
 	for i := range rows {
@@ -208,7 +183,6 @@ func TestFlushEnvelope_returnsRowsToPool(t *testing.T) {
 	// indirectly: each row's Reset() (called inside flushEnvelope before
 	// the pool Put) zeroes all proto fields. If even one row isn't reset,
 	// the test fails — which proves the loop ran for all N rows.
-	_ = cp
 
 	x.flushEnvelope(context.Background(), "test")
 
