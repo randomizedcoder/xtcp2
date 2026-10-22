@@ -6734,13 +6734,23 @@ checked the VRF kind on `LinkByName`'s reply, which under NAME_ONLY has no
 records `ip` doing (`netlink_route_getnexthop_vrf.pcap` txn 0), and
 `TestNexthopShowVrfCheckIsNameIsVrf` answers it the way a 7.2 kernel would.
 
-Still to measure:
+Measured on 2026-10-22, at nixpkgs 02c087f3, whose microVM kernel is 7.3.0:
 
-- a capture at the new pin (`nix run .#microvm-x86_64-netlink-dump-capture`)
-  with `ip_version` 7.2.0, and goip tests against it in the 7.2.0 mode;
-- a live `nix run .#microvm-x86_64-goip-parity`, to confirm the 160 gated
-  commands stay clean. `neigh show`'s link dump now carries `SKIP_STATS`, so
-  its `IFLA_STATS` CONTROL_NOISY loci should go.
+- `nix run .#microvm-x86_64-netlink-dump-capture` wrote
+  `pkg/xtcpnl/testdata/7_3_0`, `ip_version` 7.2.0. Against 7_1_4, `-6 addr
+  show` lost `qlen` (the table's `faceb326` row) and `ip -d` gained the
+  7.3 kernel's bridge `stp_mode` and bridge-port `neigh_forward_grat`, which
+  goip does not render because it renders no bridge `-d` detail.
+  `TestCorpus730MatchesSidecarsAt720` replays the 69 same-invocation rows at
+  the 7.2.0 defaults, all byte-identical, and `req.TestTierALLRequests730`
+  pins the five index-cache requests' 0x109 mask against the capture.
+- Two `nix run .#microvm-x86_64-goip-parity` runs: CONTROL_NOISY fell from
+  V068's 164-169 to 30, as the `SKIP_STATS` on `neigh show`'s link dump
+  predicted. The 7 ungated WARNs and the `-4 netconf show dev` FAIL are as
+  before. New: 2-3 of the bond `link_write_*` rows fail per run, a different
+  set each time, every finding only IFF_RUNNING in a reply's `ifi_flags`, in
+  both directions; carrier timing on the 7.3 kernel, tracked in
+  TODO-SOON.md.
 
 Found on the way and fixed: `nexthop show dev|master|vrf` resolved the name
 with an `ll_init_map`-shaped link dump, but `ipnexthop.c` has no `ll_init_map`
