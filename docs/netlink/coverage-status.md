@@ -10,9 +10,9 @@ several steps, further down under [Remaining](#remaining).
 
 | | count | counted from |
 |---|---|---|
-| commands in the comparison matrix | **206** | `internal/goipparity/commands.go` — 120 read rows (31 of them `addr show` state, selector and output-mode rows with a `Setup`, and 6 `route get`, 2 `neigh get`, 4 `nexthop get` and `nexthop bucket`, 3 `link xstats` and `link afstats`, 3 `route save` and `route showdump` and 1 `route flush` rows with one; the missing-table `route flush` row has none), the 21 link write rows, the 26 route write rows, the 27 address write rows, the 7 address flush rows, the 2 address restore rows, the route restore row and the 2 route flush write rows |
-| of those, `Implemented: true` | **206** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
-| of those, in `gated_commands` | **205** | `pkg/nlparity/goip-parity-allowlist.json` |
+| commands in the comparison matrix | **215** | `internal/goipparity/commands.go` — 121 read rows (31 of them `addr show` state, selector and output-mode rows with a `Setup`, and 6 `route get`, 2 `neigh get`, 4 `nexthop get` and `nexthop bucket`, 3 `link xstats` and `link afstats`, 3 `route save` and `route showdump`, 1 `route flush` and 1 `neigh flush` rows with one; the missing-table `route flush` row has none), the 21 link write rows, the 26 route write rows, the 27 address write rows, the 7 address flush rows, the 2 address restore rows, the route restore row, the 2 route flush write rows, the 6 neigh write rows and the 2 neigh flush write rows |
+| of those, `Implemented: true` | **215** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
+| of those, in `gated_commands` | **214** | `pkg/nlparity/goip-parity-allowlist.json` |
 | allowlisted divergences | **7** | same file, `entries` |
 | of those, `kind=version-skew` | **7** | all against the pinned `ip` 7.1.0 |
 | of those, `kind=accepted-divergence` | **0** | nothing is *allowlisted* as a permanent divergence — the nine wire divergences runs 8 and 9 measured **could not** be, because a transaction-count divergence is unsuppressible (`nlparity_allowlist.go:143`), and G0 retired every one by changing goip to send `ip`'s requests |
@@ -3680,6 +3680,34 @@ that topology has three routes in table 100, which `ip_a` deleted. All four
 gate with no allowlist entry, and `TestRouteFlushRows` and the
 `earned`/`gated_commands` pair pin them. This closes G2: 206 rows, 205
 gated.
+
+### G3-T01: the nine `neigh` write and flush rows gate
+
+G3-T01 adds `goip neigh add`, `change`, `replace` and `delete`
+(`internal/goip/neigh_write.go`) and `goip neigh flush`
+(`internal/goip/neigh_flush.go`), and nine rows, one per C1-T01 and C1-T02
+neigh capture and a `-s` form. The six write rows send `ll_init_map`'s
+link dump and one request, which goip writes to `GOIP_WRITE_OUT`: an add,
+an add of an entry the kernel already holds, a change, a change of a
+missing entry, a replace and a delete. `neigh flush dev d0` and its `-s`
+form are write rows of two `RTM_DELNEIGH` copies between the link dump and
+two neighbor dumps; `neigh f dev d0`, on the bare veth, deletes nothing,
+so `ip` sends the dumps alone and it is a read row.
+
+Every row's Setup pins the veths' MACs and sets `addrgenmode none`, so
+no side's neighbor dump holds the solicited-node entries a link-local
+brings. The flush rows' second stale entry is IPv6 where the capture's is
+IPv4: the kernel salts its neighbor hash per namespace, and the first run,
+on two IPv4 entries, had goip's dump and so its two copies in the other
+order to `ip_a`'s, a key-order finding no allowlist entry may suppress.
+One entry per family dumps ARP table first on every side.
+
+Two back-to-back runs then passed 215 of 215, identical row for row,
+ending `GOIP_PARITY_OVERALL_PASS`. The write rows are `txns` 2/2, the
+flush rows 5/5 with `-s`'s round text equal, the empty flush 2/2; the link
+dump's IPv6 cache info is the only control noise. All nine gate with no
+allowlist entry, and `TestNeighWriteRows` and the
+`earned`/`gated_commands` pair pin them: 215 rows, 214 gated.
 
 ## Tier C — the `goip-parity` microVM flavor
 

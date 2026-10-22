@@ -47,11 +47,11 @@ type linkWriteVerb struct {
 // (ip/iplink.c:1515-1529). Order matters because every test is matches():
 // `s` is `set`, tried before `show`, and `d` is `delete`.
 var linkWriteVerbs = []linkWriteVerb{
-	{name: "add", msgType: unix.RTM_NEWLINK, flags: unix.NLM_F_CREATE | unix.NLM_F_EXCL},
+	{name: addrVerbAddCst, msgType: unix.RTM_NEWLINK, flags: unix.NLM_F_CREATE | unix.NLM_F_EXCL},
 	{name: "set", msgType: unix.RTM_NEWLINK},
-	{name: "change", msgType: unix.RTM_NEWLINK},
-	{name: "replace", msgType: unix.RTM_NEWLINK, flags: unix.NLM_F_CREATE | unix.NLM_F_REPLACE},
-	{name: "delete", msgType: unix.RTM_DELLINK},
+	{name: addrVerbChangeCst, msgType: unix.RTM_NEWLINK},
+	{name: addrVerbReplaceCst, msgType: unix.RTM_NEWLINK, flags: unix.NLM_F_CREATE | unix.NLM_F_REPLACE},
+	{name: addrVerbDeleteCst, msgType: unix.RTM_DELLINK},
 }
 
 func lookupLinkWriteVerb(arg string) *linkWriteVerb {

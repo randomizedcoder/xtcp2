@@ -17,7 +17,8 @@ import (
 // an encoder and a parity target behind it. The address pair is the one
 // exception in timing: its parity target is the captured link-write/addr
 // corpus, and the plan admits it one task ahead of its encoder
-// (addr-write-path-plan.md, A4-T01 then A5-T01), so nothing builds one yet.
+// (addr-write-path-plan.md, A4-T01 then A5-T01). The neighbor pair joined
+// with goip's neigh writes and flush (G3-T01).
 var admittedWriteTypes = map[uint16]bool{
 	uint16(unix.RTM_NEWROUTE): true,
 	uint16(unix.RTM_DELROUTE): true,
@@ -25,6 +26,8 @@ var admittedWriteTypes = map[uint16]bool{
 	uint16(unix.RTM_DELLINK):  true,
 	uint16(unix.RTM_NEWADDR):  true,
 	uint16(unix.RTM_DELADDR):  true,
+	uint16(unix.RTM_NEWNEIGH): true,
+	uint16(unix.RTM_DELNEIGH): true,
 }
 
 // TestBuildWriteRequestAdmitsOnlyListedWrites walks every named rtnetlink type

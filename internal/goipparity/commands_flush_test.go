@@ -16,7 +16,8 @@ import (
 // the rule.
 func multiWriteRowProblem(c Command) string {
 	multi := strings.HasPrefix(c.Slug, addrFlushSlugPrefixCst) || strings.HasPrefix(c.Slug, addrRestoreSlugPrefixCst) ||
-		c.Slug == routeRestoreSlugCst || c.Slug == routeFlushSlugCst || c.Slug == routeFlushStatsSlugCst
+		c.Slug == routeRestoreSlugCst || c.Slug == routeFlushSlugCst || c.Slug == routeFlushStatsSlugCst ||
+		c.Slug == neighFlushSlugCst || c.Slug == neighFlushStatsSlugCst
 	switch {
 	case c.Writes < 0:
 		return "Writes is negative"

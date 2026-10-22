@@ -2304,6 +2304,32 @@ Expanded at G2's close: one task per object, each on its C1-T01 and C1-T02 captu
 | G3-T05 | `goip ntable change` and `goip stats set`: `RTM_SETNEIGHTBL` and `RTM_SETSTATS`, against the three `ntable_change*` captures and `stats_set_l3` (`ip/ipntable.c`, `ip/ipstats.c`) |
 | G3-T06 | `goip link property add` and `del`: `RTM_NEWLINKPROP`/`RTM_DELLINKPROP`, against the three `link_altname_*` captures (`ip/iplink.c`), closing G3 |
 
+**G3-T01 delivered** (`internal/goip/neigh_write.go`, `internal/goip/neigh_flush.go`):
+- **The writes.** `ipneigh_modify` (`ip/ipneigh.c:101-216`): the argument loop, then `ll_init_map`'s link dump, `dev` resolved out of it, and one `RTM_NEWNEIGH` or `RTM_DELNEIGH` with `NLM_F_ACK` at the dump's seq plus one. add is `NLM_F_CREATE|NLM_F_EXCL`, change (and `chg`) `NLM_F_REPLACE`, replace both, delete neither. The state defaults to `PERMANENT`; the attributes go in `ip`'s order, `NDA_PROTOCOL` (added inside the loop, its low byte), `NDA_DST`, `NDA_FLAGS_EXT` and `NDA_LLADDR`, which `lladdr null` leaves out. A bad lladdr is refused before the link dump, as `ip` builds the attributes first. goip writes the request to `GOIP_WRITE_OUT`.
+- **The flush.** `do_show_or_flush`'s flush arm (`:506-650`): the link dump, then rounds of a neighbor dump whose kept replies are copied whole into `RTM_DELNEIGH`, `NLM_F_REQUEST` alone at the next seq, until a dump keeps nothing. Flush's `filter.state` is the int `~(NUD_PERMANENT|NUD_NOARP)`, so it keeps every other state, `NUD_NONE` by the 0x100 bit `print_neigh` reads, and a proxy or externally learned entry whatever its state. As in route flush, goip skips in a later round what it has copied and checks `GOIP_WRITE_OUT` at the first copy. No arguments is `ip`'s refusal; a failed neighbor dump is `Flush terminated`, exit 1; `-s -s`, which prints each entry, is refused.
+- **Exit statuses.** `ip` exits 255 on its `duparg`, `invarg` and "Device and destination are required arguments." refusals; goip exits 1 on each, its convention for argument errors.
+- **Nine matrix rows, gated.** Six write rows (floor 4), one per C1-T01 capture, and the flush and its `-s` form, write rows of two writes (floor 6); `neigh f dev d0`, a flush of nothing on the bare veth, is a read row (floor 4). Each row's Setup is its capture's precondition with the veths' MACs pinned and `addrgenmode none`, so no side's dump holds a link-local's solicited-node entries, and the flush rows' second stale entry is `2001:db8::5`, not the capture's `192.0.2.5`. The kernel salts its neighbor hash per namespace, so two IPv4 entries dump in an order each namespace picks: the first live run had goip's two copies in the other order to `ip_a`'s, a key-order finding no allowlist entry may suppress. An `AF_UNSPEC` dump walks the ARP table before the ND table, so one entry of each family dumps in one order everywhere. `TestNeighWriteRows` pins each Setup to its capture's precondition less those three changes.
+
+The command tests (`internal/goip/neigh_write_test.go`):
+
+| description | expected |
+|---|---|
+| positive: the six write captures (replayed) | `ip`'s link dump and write byte for byte; add `0x605`, change `0x105`, replace `0x505`, del `0x5` |
+| positive: `a`, `c`, `chg`, `r`, `d`, `del` | the verb; `get`, `flush`, `addx` and the empty argument none |
+| positive: `nud` names, `perm`, `reach`, `f`, a single bit by number | the state; `0x100`, `3`, `sta` refused |
+| positive: `to`, `router`, `use`, `extern_learn`, `protocol`, `managed`, `proxy`, IPv6 | the flags, `NDA_PROTOCOL` ahead of `NDA_DST`, `NDA_FLAGS_EXT` after it, proxy standing in for `dev` |
+| boundary: `lladdr null`; a lladdr of 20 parts; of 21 | no `NDA_LLADDR`; written; refused before the link dump |
+| negative: no arguments, no dev, a bad nud, a second address or lladdr, an unknown protocol, `-6` with an IPv4 address | refused, exit 1 |
+| negative: an unknown device; no `GOIP_WRITE_OUT`; a failed link dump | exit 1, after the link dump; `Dump terminated` |
+| positive: `neigh_flush`'s capture | `ip`'s three dumps and two `RTM_DELNEIGH` copies byte for byte, `NLM_F_REQUEST` alone at the first neighbor dump's seq plus one and two |
+| positive: `-s`; `f` | the round text; the same requests |
+| boundary: NOARP entries alone; `-s` on them | the dumps alone, no hook; `Nothing to flush.` |
+| corner: `-6`; `-4`; no `dev`; `dev` and a reply on another device | nothing kept; both; every device's; that reply left |
+| corner: `NUD_NONE`; a proxy or externally learned entry | kept; kept whatever its state; `PERMANENT`, `NOARP` and a router flag are not |
+| negative: a failed neighbor dump; entries and no hook; no arguments; an unknown device; `-s -s` | `Flush terminated`, exit 1; exit 1 after the first dump; `ip`'s message; exit 1; not implemented |
+
+The messages, exit statuses and the `NUD_NONE` flush were checked against iproute2-7.1.0 in an unprivileged namespace.
+
 ### G4 — New rtnetlink objects
 
 mroute, mrule, token, netns `list-id`/`set`, `RTM_NEWRULE`/`RTM_DELRULE` as event types, then `monitor`.

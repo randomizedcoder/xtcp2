@@ -936,6 +936,61 @@ var commands = withArgs([]Command{
 		// No entry: ENOENT, exit 2.
 		Setup: neighGetSetupVeth, Floor: 4, Implemented: true,
 	},
+	// G3-T01: `neigh add`, `change`, `replace` and `del` (ipneigh_modify)
+	// and `neigh flush` (do_show_or_flush), the C1-T02 neigh write rows.
+	// Each write is ll_init_map's link dump, then the request and its ack;
+	// goip sends the dump and writes the request. Floor is 4, as for route
+	// restore, so goip's side, at Floor-2, is the dump. Their namespaces pin
+	// the veths' MACs and set addrgenmode none, so no link-local, and no
+	// multicast entry its MLD would add, varies between the sides. The two
+	// adds are one command; the second Name abbreviates `add`, which the
+	// bytes do not show, since each Name is one row.
+	{
+		Name: "neigh add 192.0.2.2 lladdr 02:00:00:00:00:02 dev d0 nud permanent", Slug: "neigh_add",
+		Floor: 4, Implemented: true, Write: true, Setup: neighWriteSetupVeth,
+	},
+	{
+		Name: "neigh a 192.0.2.2 lladdr 02:00:00:00:00:02 dev d0 nud permanent", Slug: "neigh_add_existing",
+		// EEXIST.
+		Floor: 4, Implemented: true, Write: true, Setup: neighWriteSetup,
+	},
+	{
+		Name: "neigh change 192.0.2.2 lladdr 02:00:00:00:00:03 dev d0 nud reachable", Slug: "neigh_change",
+		Floor: 4, Implemented: true, Write: true, Setup: neighWriteSetup,
+	},
+	{
+		Name: "neigh change 192.0.2.9 lladdr 02:00:00:00:00:09 dev d0", Slug: "neigh_change_missing",
+		// REPLACE without CREATE: ENOENT.
+		Floor: 4, Implemented: true, Write: true, Setup: neighWriteSetupVeth,
+	},
+	{
+		Name: "neigh replace 192.0.2.3 lladdr 02:00:00:00:00:03 dev d0 nud stale", Slug: "neigh_replace",
+		Floor: 4, Implemented: true, Write: true, Setup: neighWriteSetupVeth,
+	},
+	{
+		Name: "neigh del 192.0.2.2 dev d0", Slug: "neigh_del",
+		Floor: 4, Implemented: true, Write: true, Setup: neighWriteSetup,
+	},
+	// The flush: the link dump, the neighbor dump, the two RTM_DELNEIGH
+	// copies of the stale entries in one datagram, unacked, and the dump
+	// again; goip writes the copies, its second dump skipping what it
+	// copied. ip sends at least eight datagrams and goip at least seven;
+	// Floor 6 keeps goip's side at 4. The empty flush deletes nothing, so ip
+	// sends the two dumps alone and goip needs no GOIP_WRITE_OUT: a read
+	// row, its Name abbreviating `flush`.
+	{
+		Name: "neigh flush dev d0", Slug: "neigh_flush",
+		Floor: 6, Implemented: true, Write: true, Writes: 2, Setup: neighFlushSetup,
+	},
+	{
+		Name: "-s neigh flush dev d0", Slug: "neigh_flush_stats",
+		// The round text and the closing line, compared as stdout.
+		Floor: 6, Implemented: true, Write: true, Writes: 2, Setup: neighFlushSetup,
+	},
+	{
+		Name: "neigh f dev d0", Slug: "neigh_flush_empty",
+		Floor: 4, Implemented: true, Setup: neighWriteSetupVeth,
+	},
 	{
 		Name: "neigh show", Slug: "neigh_show",
 		Floor: 4, Implemented: true,
@@ -2369,6 +2424,31 @@ var (
 	routeWriteSetupRoute   = []string{"link add d0 type dummy", "link set d0 up", "addr add 192.0.2.1/24 dev d0", "route add 198.51.100.0/24 dev d0"}
 	routeWriteSetupV6Route = []string{"link add d0 type dummy", "link set d0 up", "addr add 192.0.2.1/24 dev d0", "-6 addr add 2001:db8::1/64 nodad dev d0", "-6 route add 2001:db8:1::/64 dev d0"}
 )
+
+// The neigh write rows' preconditions: PRE_VETH, PRE_NEIGH and
+// PRE_NEIGH_STALE in rtnl-write-corpus.exp, with the veths' MACs pinned and
+// addrgenmode none, so d0 has no link-local and joins no solicited-node
+// group: the neighbor dumps hold the setup's entries alone on every side.
+var (
+	neighWriteSetupVeth = []string{
+		"link add d0 address 02:00:00:00:d0:00 type veth peer name d1 address 02:00:00:00:d1:00",
+		"link set d0 addrgenmode none", "link set d1 addrgenmode none", "link set d1 up", "link set d0 up",
+	}
+	neighWriteSetup = append(append([]string{}, neighWriteSetupVeth...),
+		"neigh add 192.0.2.2 lladdr 02:00:00:00:00:02 dev d0 nud permanent")
+	neighFlushSetup = append(append([]string{}, neighWriteSetupVeth...),
+		"neigh add 192.0.2.4 lladdr 02:00:00:00:00:04 dev d0 nud stale",
+		neighFlushSecondEntry)
+)
+
+// neighFlushSecondEntry is the flush rows' second stale entry, an IPv6 one
+// where the capture's is 192.0.2.5. The kernel hashes neighbor entries with
+// a per-namespace salt, so two IPv4 entries dump in an order each namespace
+// picks for itself, and the first live run had goip's copies in the other
+// order to ip_a's; key order is unsuppressible. An AF_UNSPEC dump walks the
+// ARP table before the ND table, so one entry of each family dumps in one
+// order on every side.
+const neighFlushSecondEntry = "neigh add 2001:db8::5 lladdr 02:00:00:00:00:05 dev d0 nud stale"
 
 // The `neigh get` rows' preconditions: PRE_VETH and PRE_NEIGH in
 // rtnl-write-corpus.exp. A dummy is IFF_NOARP and holds no neighbor entry.

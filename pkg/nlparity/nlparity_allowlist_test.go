@@ -637,6 +637,16 @@ func TestAllowlistCommitted(t *testing.T) {
 		"-s route flush table 100",
 		"route flush tab 100",
 		"route flush t 100",
+		// G3-T01's nine `neigh` write and flush rows.
+		"neigh add 192.0.2.2 lladdr 02:00:00:00:00:02 dev d0 nud permanent",
+		"neigh a 192.0.2.2 lladdr 02:00:00:00:00:02 dev d0 nud permanent",
+		"neigh change 192.0.2.2 lladdr 02:00:00:00:00:03 dev d0 nud reachable",
+		"neigh change 192.0.2.9 lladdr 02:00:00:00:00:09 dev d0",
+		"neigh replace 192.0.2.3 lladdr 02:00:00:00:00:03 dev d0 nud stale",
+		"neigh del 192.0.2.2 dev d0",
+		"neigh flush dev d0",
+		"-s neigh flush dev d0",
+		"neigh f dev d0",
 	}
 
 	tests := []struct {

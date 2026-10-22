@@ -37,8 +37,8 @@ each sent** and the **text each printed**. It is the strongest evidence in the
 tree that `pkg/xtcpnl` decodes what the kernel actually said, because the
 reference is iproute2 itself rather than our reading of iproute2.
 
-206 commands are compared, 86 of them dry-run link, route and address
-writes, flushes and restores, and 205 are gated. The counts, what "gated" costs to earn, and the scope boundaries are
+215 commands are compared, 94 of them dry-run link, route, address and
+neighbor writes, flushes and restores, and 214 are gated. The counts, what "gated" costs to earn, and the scope boundaries are
 in [parity at a glance](coverage-status.md#goip--ip-parity-at-a-glance). The
 comparator is `pkg/nlparity` (protocol level) and `internal/goipparity`
 (command level); the accepted-divergence list is
@@ -62,12 +62,15 @@ rather than delete it. Link-write Phase 4 landed the gate: the read path stays
 `RTM_GET*`-only and test-enforced through `BuildRequest`, and a separate
 `BuildWriteRequest` admits exactly `RTM_NEWROUTE`, `RTM_DELROUTE`,
 `RTM_NEWLINK`, `RTM_DELLINK`, and, since the address design's Phase 4,
-`RTM_NEWADDR` and `RTM_DELADDR`. Requests built there are written to a file for
+`RTM_NEWADDR` and `RTM_DELADDR`, and, since
+[goip-parity-gaps.md](goip-parity-gaps.md)'s G3-T01, `RTM_NEWNEIGH` and
+`RTM_DELNEIGH`. Requests built there are written to a file for
 comparison and never sent; no automated path applies a write to a live kernel.
 Both dry runs have since landed on that gate: `goip link
 add|set|change|replace|delete` and `goip route
 add|change|replace|prepend|append|test|delete` build `ip`'s request
-byte for byte and write it to `GOIP_WRITE_OUT`, and refuse with
+byte for byte and write it to `GOIP_WRITE_OUT`, as `goip neigh
+add|change|replace|delete|flush` now does too, and refuse with
 `ErrWriteNotApplied` when the hook is unset.
 
 This is what makes a twenty-family surface finite, and it is the main reason

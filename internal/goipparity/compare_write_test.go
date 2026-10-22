@@ -35,7 +35,13 @@ const (
 	// rows, both on route_flush's capture.
 	routeFlushSlugCst      = "route_flush"
 	routeFlushStatsSlugCst = "route_flush_stats"
-	tdAddrSave             = "../../pkg/xtcpnl/testdata/7_1_4/link-write/addr-save"
+	// neighWriteSlugPrefixCst names G3-T01's neigh write rows, each on the
+	// capture of its own slug under tdRtnl; neighFlushSlugCst and
+	// neighFlushStatsSlugCst are its flush write rows, both on neigh_flush.
+	neighWriteSlugPrefixCst = "neigh_"
+	neighFlushSlugCst       = "neigh_flush"
+	neighFlushStatsSlugCst  = "neigh_flush_stats"
+	tdAddrSave              = "../../pkg/xtcpnl/testdata/7_1_4/link-write/addr-save"
 	// tdRtnl is the C1 rtnetlink corpus, route_restore\'s among it.
 	tdRtnl           = "../../pkg/xtcpnl/testdata/7_1_4/link-write/rtnl"
 	pcapGlobalHdrCst = 24
@@ -49,6 +55,7 @@ const (
 	rtmNewRouteCst = 24
 	rtmDelRouteCst = 25
 	rtmDelAddrCst  = 21
+	rtmDelNeighCst = 29
 	nlmFRequestCst = 0x1
 	// nlMsgHdrCst is sizeof(struct nlmsghdr). Spelled here because this
 	// package may not import pkg/xtcpnl (TestParityCannotOpenASocket).
@@ -101,7 +108,7 @@ func dropDelRecords(t *testing.T, b []byte) []byte {
 		if msg+8 <= end {
 			typ = binary.LittleEndian.Uint16(b[msg+4 : msg+6])
 		}
-		if (typ == rtmDelAddrCst || typ == rtmDelRouteCst) &&
+		if (typ == rtmDelAddrCst || typ == rtmDelRouteCst || typ == rtmDelNeighCst) &&
 			binary.LittleEndian.Uint16(b[msg+6:msg+8])&nlmFRequestCst != 0 {
 			continue
 		}
@@ -157,6 +164,12 @@ func corpusWriteRow(t *testing.T, c Command) writeRowFiles {
 	}
 	if c.Slug == routeRestoreSlugCst {
 		return corpusRestoreRow(t, c, filepath.Join(tdRtnl, "route_restore"), rtmNewRouteCst)
+	}
+	if c.Slug == neighFlushSlugCst || c.Slug == neighFlushStatsSlugCst {
+		return corpusFlushRow(t, c, filepath.Join(tdRtnl, neighFlushSlugCst))
+	}
+	if strings.HasPrefix(c.Slug, neighWriteSlugPrefixCst) {
+		dir = filepath.Join(tdRtnl, c.Slug)
 	}
 	ipPcap := mustReadBytes(t, filepath.Join(dir, "ip.pcap"))
 	rc := strings.TrimSpace(mustRead(t, filepath.Join(dir, "ip.rc")))

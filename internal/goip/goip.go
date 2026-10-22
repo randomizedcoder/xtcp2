@@ -225,14 +225,15 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 // 1 for an argument it refuses before sending (do_cmd negates
 // iplink_modify's -1), 2 for a kernel refusal (its -2), and 255 for a flush
 // that ran out of rounds (ipaddr_flush's 1, negated) or a dump file showdump
-// refuses (its exit(-1)). A save whose dump failed exits 1.
+// refuses (its exit(-1)). A save whose dump failed exits 1, and so does a
+// neigh flush whose dump failed.
 func exitCodeOf(err error) int {
 	switch {
 	case errors.Is(err, ErrFlushIncomplete), errors.Is(err, ErrDumpFile):
 		return ExitMinusOne
 	case errors.Is(err, ErrNotImplemented), errors.Is(err, ErrInvalidArgument),
 		errors.Is(err, ErrWriteNotApplied), errors.Is(err, ErrSaveTerminated),
-		errors.Is(err, ErrDumpTerminated):
+		errors.Is(err, ErrDumpTerminated), errors.Is(err, ErrNeighFlushTerminated):
 		return ExitUsage
 	}
 	return ExitFailure

@@ -948,7 +948,17 @@
     "and its -s form, write rows of two RTM_DELROUTE copies between two",
     "dumps, and an emptied and a missing table, read rows, the latter's",
     "DONE carrying ENOENT. Two back-to-back runs of 206 GOIP_PARITY_PASS of",
-    "206 ended GOIP_PARITY_OVERALL_PASS, with no control noise on the four."
+    "206 ended GOIP_PARITY_OVERALL_PASS, with no control noise on the four.",
+    "",
+    "G3-T01 adds the neigh writes and flush and gates nine rows: add, change,",
+    "replace and del, each the link dump and one request, an add of a held",
+    "entry and a change of a missing one among them; the flush and its -s",
+    "form, two RTM_DELNEIGH copies between the dumps, on one IPv4 and one",
+    "IPv6 stale entry, since the ARP table dumps before the ND table on every",
+    "side where two IPv4 entries dump in a per-namespace hash order; and a",
+    "flush of nothing, a read row. Two back-to-back runs of",
+    "215 GOIP_PARITY_PASS of 215 ended GOIP_PARITY_OVERALL_PASS; the link",
+    "dump's cache info is control-canceled."
   ],
   "_note_version_skew": [
     "THE ENTRIES BELOW CITE COMMITS THAT ARE IN NO RELEASE, AND THE EVIDENCE IS",
@@ -1232,6 +1242,15 @@
     "route flush table 100",
     "-s route flush table 100",
     "route flush tab 100",
-    "route flush t 100"
+    "route flush t 100",
+    "neigh add 192.0.2.2 lladdr 02:00:00:00:00:02 dev d0 nud permanent",
+    "neigh a 192.0.2.2 lladdr 02:00:00:00:00:02 dev d0 nud permanent",
+    "neigh change 192.0.2.2 lladdr 02:00:00:00:00:03 dev d0 nud reachable",
+    "neigh change 192.0.2.9 lladdr 02:00:00:00:00:09 dev d0",
+    "neigh replace 192.0.2.3 lladdr 02:00:00:00:00:03 dev d0 nud stale",
+    "neigh del 192.0.2.2 dev d0",
+    "neigh flush dev d0",
+    "-s neigh flush dev d0",
+    "neigh f dev d0"
   ]
 }

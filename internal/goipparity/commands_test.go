@@ -1028,7 +1028,9 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	//   - the `route restore` row G2-T02 added, likewise — see
 	//     TestRouteRestoreRow;
 	//   - the four `route flush` rows G2-T03 added, likewise — see
-	//     TestRouteFlushRows.
+	//     TestRouteFlushRows;
+	//   - the nine `neigh` write and flush rows G3-T01 added, likewise —
+	//     see TestNeighWriteRows.
 	//
 	// The last four were the permanent set, measured divergent on the wire;
 	// TestPermanentWireDivergences records that it is empty.
@@ -2779,6 +2781,85 @@ func TestRouteFlushRows(t *testing.T) {
 				}
 				got = want{implemented: c.Implemented, write: c.Write, topology: slices.Equal(c.Setup, topo),
 					floor: c.Floor, writes: c.Writes}
+			}
+			got.gated = al.IsGated(r.command)
+			got.entries = len(al.EntriesFor(r.command))
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+		})
+	}
+}
+
+// unpinnedNeighSetup is a neigh write row's Setup as the corpus capture ran
+// it: the veth pair without its pinned MACs, the addrgenmode steps dropped
+// and the flush's IPv6 entry back to the capture's 192.0.2.5, the three
+// things the matrix changes so every side dumps the same entries in the same
+// order.
+func unpinnedNeighSetup(setup []string) []string {
+	steps := make([]string, 0, len(setup))
+	for _, s := range setup {
+		switch {
+		case strings.HasSuffix(s, " addrgenmode none"):
+			continue
+		case s == neighWriteSetupVeth[0]:
+			s = "link add d0 type veth peer name d1"
+		case s == neighFlushSecondEntry:
+			s = "neigh add 192.0.2.5 lladdr 02:00:00:00:00:05 dev d0 nud stale"
+		}
+		steps = append(steps, s)
+	}
+	return steps
+}
+
+// TestNeighWriteRows pins G3-T01's nine rows: the six write rows and the
+// two flush write rows on their capture's precondition, less the pinning,
+// and the flush of nothing a read row, every one gated with no allowlist
+// entry after two clean live runs.
+//
+// go test ./internal/goipparity/ -run TestNeighWriteRows
+func TestNeighWriteRows(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	rtnl := filepath.Join("..", "..", "pkg", "xtcpnl", "testdata", "7_1_4", "link-write", "rtnl")
+	type want struct {
+		implemented, write, topology, gated bool
+		floor, writes, entries              int
+	}
+	single := want{implemented: true, write: true, topology: true, gated: true, floor: 4}
+	flush := want{implemented: true, write: true, topology: true, gated: true, floor: 6, writes: 2}
+	rows := []struct {
+		description string
+		command     string
+		corpus      string // the slug whose topology Setup must be
+		expected    want
+	}{
+		{"positive: add on the bare veth", "neigh add 192.0.2.2 lladdr 02:00:00:00:00:02 dev d0 nud permanent",
+			"neigh_add", single},
+		{"negative: add of an entry the kernel holds, refused, the same request",
+			"neigh a 192.0.2.2 lladdr 02:00:00:00:00:02 dev d0 nud permanent", "neigh_add_existing", single},
+		{"positive: change", "neigh change 192.0.2.2 lladdr 02:00:00:00:00:03 dev d0 nud reachable",
+			"neigh_change", single},
+		{"negative: change of a missing entry", "neigh change 192.0.2.9 lladdr 02:00:00:00:00:09 dev d0",
+			"neigh_change_missing", single},
+		{"positive: replace", "neigh replace 192.0.2.3 lladdr 02:00:00:00:00:03 dev d0 nud stale",
+			"neigh_replace", single},
+		{"positive: del", "neigh del 192.0.2.2 dev d0", "neigh_del", single},
+		{"positive: flush, two DELs and a second dump", "neigh flush dev d0", "neigh_flush", flush},
+		{"positive: -s, the same writes and the round text", "-s neigh flush dev d0", "neigh_flush", flush},
+		{"boundary: a flush of nothing, the dumps alone, a read row", "neigh f dev d0", "neigh_flush_empty",
+			want{implemented: true, topology: true, gated: true, floor: 4}},
+		{"negative: a flush with no dev is not in the matrix", "neigh flush to 192.0.2.0/24", "", want{}},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			var got want
+			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				got = want{implemented: c.Implemented, write: c.Write,
+					topology: slices.Equal(unpinnedNeighSetup(c.Setup), topologySteps(t, rtnl, r.corpus)),
+					floor:    c.Floor, writes: c.Writes}
 			}
 			got.gated = al.IsGated(r.command)
 			got.entries = len(al.EntriesFor(r.command))

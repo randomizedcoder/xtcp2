@@ -36,7 +36,8 @@ type neighSelectors struct {
 	NdmFlags uint8
 }
 
-// parseNeighShowArgs walks the selectors after the verb.
+// parseNeighShowArgs walks the selectors after the verb, show's or flush's,
+// which share do_show_or_flush's loop; verb names the command in its errors.
 //
 // # Two keywords, both compared the strict way, and they disagree about repeats
 //
@@ -64,7 +65,7 @@ type neighSelectors struct {
 // the bare `to PREFIX` else-arm — are rejected rather than ignored, the policy
 // every other object in goip follows: answering a filtered query with an
 // unfiltered dump is a wrong answer, not a missing feature.
-func parseNeighShowArgs(args []string) (neighSelectors, error) {
+func parseNeighShowArgs(verb string, args []string) (neighSelectors, error) {
 	var sel neighSelectors
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
@@ -85,15 +86,15 @@ func parseNeighShowArgs(args []string) (neighSelectors, error) {
 			// "Command line is not complete" and duparg prints
 			// `Duplicate "dev": "..." is the second value.`
 			if i+1 >= len(args) {
-				return sel, fmt.Errorf("neigh show: argument %q is missing its value", args[i])
+				return sel, fmt.Errorf("neigh %s: argument %q is missing its value", verb, args[i])
 			}
 			if sel.DevSet {
-				return sel, fmt.Errorf("neigh show: duplicate %q argument", devKeywordCst)
+				return sel, fmt.Errorf("neigh %s: duplicate %q argument", verb, devKeywordCst)
 			}
 			i++
 			sel.Dev, sel.DevSet = args[i], true
 		default:
-			return sel, fmt.Errorf("neigh show %q: %w", args[i], ErrNotImplemented)
+			return sel, fmt.Errorf("neigh %s %q: %w", verb, args[i], ErrNotImplemented)
 		}
 	}
 	return sel, nil
@@ -110,18 +111,24 @@ func parseNeighShowArgs(args []string) (neighSelectors, error) {
 var neighShowVerbs = []string{showVerbCst, listVerbCst, lstVerbCst}
 
 func runNeigh(c *runCtx, args []string) error {
-	// do_ipneigh tests get after the write verbs and before the listing
-	// (ip/ipneigh.c:756-757); no prefix of get is one of theirs.
-	if len(args) > 0 && matchesPrefix(args[0], neighGetVerbCst) {
-		return neighGet(c, args[1:])
-	}
-	if len(args) > 0 && !matchesAny(args[0], neighShowVerbs) {
-		return fmt.Errorf("neigh %q: %w", args[0], ErrNotImplemented)
-	}
+	// do_ipneigh's order (ip/ipneigh.c:747-765): the write verbs, get, the
+	// listing, then flush.
 	if len(args) > 0 {
+		if verb := lookupNeighWriteVerb(args[0]); verb != nil {
+			return neighModify(c, verb, args[1:])
+		}
+		if matchesPrefix(args[0], neighGetVerbCst) {
+			return neighGet(c, args[1:])
+		}
+		if !matchesAny(args[0], neighShowVerbs) {
+			if matchesPrefix(args[0], routeFlushVerbCst) {
+				return neighFlush(c, args[1:])
+			}
+			return fmt.Errorf("neigh %q: %w", args[0], ErrNotImplemented)
+		}
 		args = args[1:]
 	}
-	sel, err := parseNeighShowArgs(args)
+	sel, err := parseNeighShowArgs(showVerbCst, args)
 	if err != nil {
 		return err
 	}

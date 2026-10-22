@@ -631,6 +631,17 @@ func (s *Service) Neighbors(family, ndmFlags uint8, ifindex uint32) ([]model.Nei
 	return out, nil
 }
 
+// NeighborBodies is Neighbors with the replies undecoded and in the
+// kernel's order: `ip neigh flush` copies each reply it keeps whole into an
+// RTM_DELNEIGH (ip/ipneigh.c:369-382). The request is Neighbors'.
+func (s *Service) NeighborBodies(family, ndmFlags uint8, ifindex uint32) ([][]byte, error) {
+	r, err := req.NeighShowDump(family, ndmFlags, ifindex, s.nextSeq())
+	if err != nil {
+		return nil, fmt.Errorf("goip: build neighbor dump request: %w", err)
+	}
+	return s.src.Dump(r, uint16(unix.RTM_NEWNEIGH))
+}
+
 // NeighGet performs `ip neigh get`'s RTM_GETNEIGH single get and decodes the
 // one RTM_NEWNEIGH it answers with. A kernel refusal (ENOENT for an entry it
 // does not hold) is the talk's error.
