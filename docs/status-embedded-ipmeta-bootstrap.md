@@ -60,7 +60,37 @@ nix run --accept-flake-config .#test-microvm-lifecycle-x86_64-ipmeta-bootstrap
 nix build --no-link --accept-flake-config .#test-microvm-lifecycle-x86_64-interface-naming
 ```
 
+## Findings
+
+### F1: load memory against a 128 MiB container (2026-10-22)
+
+One live `ipfeed-collector` run (all 19 sources, 432,641 records) wrote an
+82 MB Parquet artifact; `ipmeta-bootstrap` normalized it to a 713 KiB
+`.lookup.parquet.zst` (13.5 MB decompressed). `xtcp2-s3parquet-enrich`
+(feat/release-prep-v0.2.0) then ran with `-dest null -linkMonitor=false` in
+an `unshare -Urn` namespace, `GOMEMLIMIT=96MiB GODEBUG=gctrace=1`, measured
+20 s after `/readyz` went 200. One run each, on `l`.
+
+| ASN source | GCs | peak live heap | live heap after load | VmHWM |
+|---|---:|---:|---:|---:|
+| none (`-enrichAsn` off) | 4 | 4 MB | 4 MB | 34 MiB |
+| bootstrap `.lookup.parquet.zst` (the startup path; the cache is the same format) | 10 | 65 MB | no GC after the load | 115 MiB |
+| the collector's full Parquet via `-asnDbPath` (each refresh) | 78 | 125 MB | 25 MB | 159 MiB |
+
+Without `GOMEMLIMIT` the full-Parquet load reached VmRSS 232 MiB. The table
+itself costs about 21 MB of live heap; the load peak is the problem: `rows`
+is kept beside the trie to publish the cache, and parquet-go's page
+buffers are garbage the moment the load ends. A deployment with a 128 MiB
+memory limit is OOM-killed on the first refresh from a full collector
+artifact, and starts within about 13 MiB of the limit.
+
 ## Remaining Work
+
+- F1: bring the load peak down: build the trie and the cache rows in one
+  streaming pass without keeping `rows` for the whole load, intern
+  `network_owner` (a few dozen distinct values across 432k rows), and let
+  the collector write the compact lookup artifact so `-asnDbPath` never reads
+  the 82 MB full schema. Re-measure against the table above.
 
 - Add or pin the real fleet bootstrap artifact with
   `nix/ipmeta-bootstrap-lock.json`. The source can be a small checked-in file
