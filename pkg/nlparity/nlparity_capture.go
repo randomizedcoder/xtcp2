@@ -105,6 +105,22 @@ func ParseCapture(data []byte, family uint16) (Capture, error) {
 	return c, nil
 }
 
+// ProtocolByName maps the protocol names xtcp2-nlcap's --proto takes, route,
+// generic and xfrm, to their NETLINK_* numbers, so a caller that must not
+// import golang.org/x/sys/unix (internal/goipparity) can name one.
+func ProtocolByName(name string) (uint16, bool) {
+	switch name {
+	case "route":
+		return unix.NETLINK_ROUTE, true
+	case "generic":
+		return unix.NETLINK_GENERIC, true
+	case "xfrm":
+		return unix.NETLINK_XFRM, true
+	default:
+		return 0, false
+	}
+}
+
 // ParseRouteCaptureFile reads a pcap from disk and walks its NETLINK_ROUTE
 // datagrams.
 func ParseRouteCaptureFile(path string) (Capture, error) {

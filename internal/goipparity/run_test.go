@@ -30,8 +30,9 @@ func TestRun(t *testing.T) {
 			args:        []string{"commands"},
 			wantCode:    ExitOK,
 			wantStdout: []string{
-				"link_show\t2\tyes\tno\tno\t-\tlink show\tlink show",
-				"link_write_enslave_down\t6\tyes\tno\tyes\t" +
+				"link_show\t2\tyes\tno\tno\troute\t-\tlink show\tlink show",
+				"genl_fou_show\t4\tip\tno\tno\tgeneric\t-\tfou show\tfou show",
+				"link_write_enslave_down\t6\tyes\tno\tyes\troute\t" +
 					"link add bond0 type bond mode 802.3ad;link add la1 type veth peer name lb1\t" +
 					"link set la1 down master bond0\tlink set la1 down master bond0",
 			},

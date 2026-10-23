@@ -103,7 +103,7 @@ type Command struct {
 	// M <= N datagrams (addr-write-path.md, "Multi-write rows"). A flush
 	// row must set it, even to 1, and so must a restore row, whose N writes
 	// follow its link dump; TestCommandTable refuses one that does not. It stays out of String: only the host-side comparator reads
-	// it, and the guest's row format is fixed at eight fields.
+	// it, and the guest's row format is fixed at nine fields.
 	Writes int
 
 	// Setup is a row's precondition: `ip` argument lists, run in order
@@ -116,6 +116,33 @@ type Command struct {
 	// MAC, an ifindex) the same on every side. Without Setup, a read row
 	// reads the shared dump topology.
 	Setup []string
+
+	// Proto is the netlink protocol the row's captures keep, as
+	// xtcp2-nlcap's --proto names it: empty for route, NETLINK_ROUTE, or
+	// generic. The driver passes it to the capture and the comparator reads
+	// the captures as it (nlparity.ProtocolByName).
+	Proto string
+
+	// IPStandIn runs `ip` in goip's place, for a generic netlink family goip
+	// does not implement yet: the row is captured and compared, `ip` against
+	// `ip`, so the harness is exercised end to end before the family's G6
+	// task implements it and clears this. Such a row is not Implemented,
+	// and it is never gated.
+	IPStandIn bool
+}
+
+// ProtoGenericCst is Proto for a generic netlink row.
+const ProtoGenericCst = "generic"
+
+// protoRouteCst is the protocol an empty Proto means.
+const protoRouteCst = "route"
+
+// Protocol is the row's protocol name, route when Proto is empty.
+func (c Command) Protocol() string {
+	if c.Proto == "" {
+		return protoRouteCst
+	}
+	return c.Proto
 }
 
 // Sides are the three captures of the control triple, in capture order.
@@ -2719,6 +2746,24 @@ var commands = withArgs([]Command{
 		// save_all's addresses are all in place: every write is EEXIST.
 		Floor: 4, Implemented: true, Write: true, Writes: 8, Setup: addrRestoreExistingSetup,
 	},
+
+	// G5-T03: one `show` per generic netlink family, in the C2 order, with
+	// `ip` in goip's place until the family's G6 task implements it. The
+	// captures keep NETLINK_GENERIC and the comparator compares a genl
+	// message by its family's name, so these rows exercise the harness end
+	// to end, ungated. Each is genl_init_handle's CTRL_CMD_GETFAMILY and its
+	// reply, then the dump and its DONE, or for tunsrc the get and its reply:
+	// four datagrams, as on C2's empty shows, since every family is empty in
+	// the dump topology. They come last: the driver runs nltopo::late_setup,
+	// which loads the families' modules, before the first of them.
+	{Name: "tcp_metrics show", Slug: "genl_tcp_metrics_show", Floor: 4, Proto: ProtoGenericCst, IPStandIn: true},
+	{Name: "sr tunsrc show", Slug: "genl_sr_tunsrc_show", Floor: 4, Proto: ProtoGenericCst, IPStandIn: true},
+	{Name: "ioam namespace show", Slug: "genl_ioam_namespace_show", Floor: 4, Proto: ProtoGenericCst, IPStandIn: true},
+	{Name: "mptcp endpoint show", Slug: "genl_mptcp_endpoint_show", Floor: 4, Proto: ProtoGenericCst, IPStandIn: true},
+	{Name: "fou show", Slug: "genl_fou_show", Floor: 4, Proto: ProtoGenericCst, IPStandIn: true},
+	{Name: "ila show", Slug: "genl_ila_show", Floor: 4, Proto: ProtoGenericCst, IPStandIn: true},
+	{Name: "l2tp show tunnel", Slug: "genl_l2tp_show_tunnel", Floor: 4, Proto: ProtoGenericCst, IPStandIn: true},
+	{Name: "macsec show", Slug: "genl_macsec_show", Floor: 4, Proto: ProtoGenericCst, IPStandIn: true},
 })
 
 // The write rows' preconditions, as capture-link-writes.exp spells them:
@@ -2818,14 +2863,21 @@ var mrouteSetup = []string{
 
 // The `ip token` rows' preconditions: the reads veths with v0's token, as
 // rtnl-read-corpus.exp's build list sets it; and rtnl-write-corpus.exp's
-// PRE_VETH, a veth d0 whose peer is up.
+// PRE_VETH, a veth d0 whose peer is up, with addrgenmode none on both, as
+// neighWriteSetupVeth has. ip token set dumps the links before it writes,
+// and a link-local address would race the dump: DAD, MLD and the router
+// solicitation once d0 is ready change its counters and IF_RS_SENT, which
+// one side saw and the other did not.
 var (
 	tokenSetup = []string{
 		"link add v0 type veth peer name v0p", "link add v1 type veth peer name v1p",
 		"link set v0p up", "link set v1p up", "link set v0 up", "link set v1 up",
 		"token set ::1:2:3:4/64 dev v0",
 	}
-	tokenVethSetup = []string{"link add d0 type veth peer name d1", "link set d1 up", "link set d0 up"}
+	tokenVethSetup = []string{
+		"link add d0 type veth peer name d1",
+		"link set d0 addrgenmode none", "link set d1 addrgenmode none", "link set d1 up", "link set d0 up",
+	}
 )
 
 // netnsSetup is the netns reads' precondition, rtnl-read-corpus.exp's two
@@ -3059,9 +3111,9 @@ var ErrUnknownCommand = fmt.Errorf("goipparity: no such command")
 // allowlist key, and an allowlist matched by prefix would be an allowlist
 // whose entries silently widen.
 func Lookup(name string) (Command, error) {
-	for _, c := range commands {
-		if c.Name == name {
-			return c, nil
+	for i := range commands {
+		if commands[i].Name == name {
+			return commands[i], nil
 		}
 	}
 	return Command{}, fmt.Errorf("%q: %w", name, ErrUnknownCommand)
@@ -3108,15 +3160,21 @@ func (c Command) RCName(side string) string {
 	return c.Slug + "." + side + ".rc"
 }
 
+// ipStandInCst is String's impl field for an IPStandIn row.
+const ipStandInCst = "ip"
+
 // noSetupCst is String's Setup field for a row with no precondition, since an
 // empty field between two tabs is easy to misread in a transcript.
 const noSetupCst = "-"
 
 // String renders one table row for `goip-parity commands`, tab-separated so a
-// shell can read it with `read -r slug floor impl dev write setup args name`.
+// shell can read it with `read -r slug floor impl dev write proto setup args
+// name`.
 //
-// setup is noSetupCst or the Setup steps joined with ';'. It is the one
-// field before args that holds spaces, which a tab split does not mind.
+// impl is yes, no, or ip for an IPStandIn row, whose goip side runs `ip`.
+// proto is Protocol(). setup is noSetupCst or the Setup steps joined with
+// ';'. It is the one field before args that holds spaces, which a tab split
+// does not mind.
 //
 // Tab-separated rather than JSON because the consumer is an expect script
 // driving a serial console, where a parser is a liability and `IFS=$'\t'` is
@@ -3127,12 +3185,17 @@ func (c Command) String() string {
 	if len(c.Setup) != 0 {
 		setup = strings.Join(c.Setup, ";")
 	}
+	impl := yesNo(c.Implemented)
+	if c.IPStandIn {
+		impl = ipStandInCst
+	}
 	return strings.Join([]string{
 		c.Slug,
 		fmt.Sprint(c.Floor),
-		yesNo(c.Implemented),
+		impl,
 		yesNo(c.NeedsDev),
 		yesNo(c.Write),
+		c.Protocol(),
 		setup,
 		strings.Join(c.Args, " "),
 		c.Name,
@@ -3151,8 +3214,8 @@ func yesNo(b bool) string {
 // test and any future consumer agree on it.
 func slugsSorted() []string {
 	out := make([]string, 0, len(commands))
-	for _, c := range commands {
-		out = append(out, c.Slug)
+	for i := range commands {
+		out = append(out, commands[i].Slug)
 	}
 	sort.Strings(out)
 	return out

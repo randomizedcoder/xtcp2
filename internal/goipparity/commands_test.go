@@ -433,9 +433,9 @@ func TestCommandString(t *testing.T) {
 		wantFields []string
 	}{
 		{
-			description: "positive: an implemented command with no device renders eight fields",
+			description: "positive: an implemented command with no device renders nine fields",
 			name:        "link show",
-			wantFields:  []string{"link_show", "2", "yes", "no", "no", "-", "link show", "link show"},
+			wantFields:  []string{"link_show", "2", "yes", "no", "no", "route", "-", "link show", "link show"},
 		},
 		{
 			// Synthetic since `route show` was implemented: the table holds
@@ -446,27 +446,27 @@ func TestCommandString(t *testing.T) {
 				Name: "rule show", Slug: "rule_show", Floor: 2,
 				Args: []string{"rule", "show"},
 			},
-			wantFields: []string{"rule_show", "2", "no", "no", "no", "-", "rule show", "rule show"},
+			wantFields: []string{"rule_show", "2", "no", "no", "no", "route", "-", "rule show", "rule show"},
 		},
 		{
 			description: "boundary: the implemented dev-taking command renders dev=yes and its Args without a device",
 			name:        "link show dev",
 			wantFields: []string{
-				"link_show_dev", "4", "yes", "yes", "no", "-", "link show dev", "link show dev",
+				"link_show_dev", "4", "yes", "yes", "no", "route", "-", "link show dev", "link show dev",
 			},
 		},
 		{
 			description: "corner: a command whose name carries a leading dash keeps it, since that dash is an argument",
 			name:        "-6 addr show",
 			wantFields: []string{
-				"addr_show_v6", "4", "yes", "no", "no", "-", "-6 addr show", "-6 addr show",
+				"addr_show_v6", "4", "yes", "no", "no", "route", "-", "-6 addr show", "-6 addr show",
 			},
 		},
 		{
 			description: "positive: a write row renders write=yes and its setup steps joined with ';'",
 			cmd:         lookupPtr(t, "link set la1 nomaster"),
 			wantFields: []string{
-				"link_write_nomaster", "4", "yes", "no", "yes",
+				"link_write_nomaster", "4", "yes", "no", "yes", "route",
 				"link add bond0 type bond mode 802.3ad;link add la1 type veth peer name lb1;link set la1 master bond0",
 				"link set la1 nomaster", "link set la1 nomaster",
 			},
@@ -475,7 +475,7 @@ func TestCommandString(t *testing.T) {
 			description: "positive: a stats read row with Setup renders dev=no, write=no and its six setup steps",
 			name:        "stats show dev la1 group xstats_slave subgroup bond suite 802.3ad",
 			wantFields: []string{
-				"stats_show_xstats_slave_dev_bond_3ad", "4", "yes", "no", "no",
+				"stats_show_xstats_slave_dev_bond_3ad", "4", "yes", "no", "no", "route",
 				"link add bond0 type bond mode 802.3ad;link add la1 type veth peer name lb1;" +
 					"link add la2 type veth peer name lb2;link set la1 master bond0;" +
 					"link set la2 master bond0;link set bond0 up",
@@ -487,7 +487,7 @@ func TestCommandString(t *testing.T) {
 			description: "boundary: a write row with no precondition renders setup as -",
 			cmd:         lookupPtr(t, "link add d0 type dummy"),
 			wantFields: []string{
-				"link_write_add_dummy", "2", "yes", "no", "yes", "-",
+				"link_write_add_dummy", "2", "yes", "no", "yes", "route", "-",
 				"link add d0 type dummy", "link add d0 type dummy",
 			},
 		},
@@ -495,7 +495,7 @@ func TestCommandString(t *testing.T) {
 			description: "positive: a read row may carry Setup, and renders write=no beside it",
 			cmd:         lookupPtr(t, "-d link show dev bond0"),
 			wantFields: []string{
-				"link_show_details_bond", "4", "yes", "no", "no",
+				"link_show_details_bond", "4", "yes", "no", "no", "route",
 				"link add bond0 type bond mode 802.3ad;link add la1 type veth peer name lb1;" +
 					"link add la2 type veth peer name lb2;link set la1 master bond0;" +
 					"link set la2 master bond0;link set bond0 up",
@@ -506,17 +506,22 @@ func TestCommandString(t *testing.T) {
 			description: "corner: a route write with a leading -6 keeps it, and its setup carries -6 steps",
 			cmd:         lookupPtr(t, "-6 route del 2001:db8:1::/64 dev d0"),
 			wantFields: []string{
-				"route_write_v6_del", "4", "yes", "no", "yes",
+				"route_write_v6_del", "4", "yes", "no", "yes", "route",
 				"link add d0 type dummy;link set d0 up;addr add 192.0.2.1/24 dev d0;" +
 					"-6 addr add 2001:db8::1/64 nodad dev d0;-6 route add 2001:db8:1::/64 dev d0",
 				"-6 route del 2001:db8:1::/64 dev d0", "-6 route del 2001:db8:1::/64 dev d0",
 			},
 		},
 		{
+			description: "positive: an ip stand-in genl row renders impl=ip and proto=generic",
+			name:        "fou show",
+			wantFields:  []string{"genl_fou_show", "4", "ip", "no", "no", "generic", "-", "fou show", "fou show"},
+		},
+		{
 			description: "corner: a single setup step has no separator",
 			cmd:         lookupPtr(t, "link replace bond0 type bond"),
 			wantFields: []string{
-				"link_write_replace_existing", "2", "yes", "no", "yes",
+				"link_write_replace_existing", "2", "yes", "no", "yes", "route",
 				"link add bond0 type bond mode 802.3ad",
 				"link replace bond0 type bond", "link replace bond0 type bond",
 			},
@@ -555,7 +560,7 @@ func TestCommandString(t *testing.T) {
 			// which contain spaces by construction — they are last precisely
 			// so a `read -r slug floor impl dev args name` still works. Every
 			// leading field has to be space-free for that to hold.
-			for i := 0; i < 5; i++ {
+			for i := 0; i < 6; i++ {
 				if strings.ContainsAny(f[i], " \t") {
 					t.Errorf("%q field %d = %q contains whitespace", c.Name, i, f[i])
 				}
@@ -565,8 +570,8 @@ func TestCommandString(t *testing.T) {
 
 	t.Run("corner: no field may contain a tab, or the field count would be wrong", func(t *testing.T) {
 		for _, c := range Commands() {
-			if n := len(strings.Split(c.String(), "\t")); n != 8 {
-				t.Errorf("%q renders %d fields, want 8", c.Name, n)
+			if n := len(strings.Split(c.String(), "\t")); n != 9 {
+				t.Errorf("%q renders %d fields, want 9", c.Name, n)
 			}
 		}
 	})
@@ -1034,8 +1039,21 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	//
 	// The last four were the permanent set, measured divergent on the wire;
 	// TestPermanentWireDivergences records that it is empty.
+	//
+	// The eight genl rows G5-T03 added are ungated by construction: `ip`
+	// stands in for goip on them (IPStandIn) until each family's G6 task
+	// implements it, and gating `ip` against `ip` would gate nothing about
+	// goip. TestGenlStandInRows pins them.
 	expected := []string{
 		"addr show dynamic",
+		"tcp_metrics show",
+		"sr tunsrc show",
+		"ioam namespace show",
+		"mptcp endpoint show",
+		"fou show",
+		"ila show",
+		"l2tp show tunnel",
+		"macsec show",
 	}
 
 	tests := []struct {
@@ -1043,15 +1061,15 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 		check       func(t *testing.T)
 	}{
 		{
-			description: "boundary: the list is one named row",
+			description: "boundary: the list is nine named rows, one held out and eight stand-ins",
 			check: func(t *testing.T) {
-				if len(expected) != 1 {
-					t.Errorf("got %d named rows, want 1", len(expected))
+				if len(expected) != 9 {
+					t.Errorf("got %d named rows, want 9", len(expected))
 				}
 			},
 		},
 		{
-			description: "positive: the ungated set is exactly the one named row, so UNGATED_CLEAN counts one row and not zero",
+			description: "positive: the ungated set is exactly the nine named rows, so UNGATED_CLEAN counts them and not zero",
 			check: func(t *testing.T) {
 				for _, name := range expected {
 					if !ungated[name] {
@@ -1083,10 +1101,10 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 			},
 		},
 		{
-			description: "boundary: every ungated row is nonetheless implemented, so UNGATED_CLEAN counts comparisons and not skips",
+			description: "boundary: every ungated row is nonetheless compared, implemented or an ip stand-in, so UNGATED_CLEAN counts comparisons and not skips",
 			check: func(t *testing.T) {
 				for _, c := range Commands() {
-					if !gated[c.Name] && !c.Implemented {
+					if !gated[c.Name] && !c.Implemented && !c.IPStandIn {
 						t.Errorf("%q is ungated and unimplemented, so it contributes a SKIP "+
 							"to a gate that is supposed to count warnings", c.Name)
 					}
@@ -3296,6 +3314,15 @@ func TestTokenRows(t *testing.T) {
 			}
 		})
 	}
+	t.Run("boundary: tokenVethSetup gives neither veth a link-local address before it is up", func(t *testing.T) {
+		for _, dev := range []string{"d0", "d1"} {
+			gen := slices.Index(tokenVethSetup, "link set "+dev+" addrgenmode none")
+			up := slices.Index(tokenVethSetup, "link set "+dev+" up")
+			if gen < 0 || up < 0 || gen > up {
+				t.Errorf("%s: addrgenmode none at %d, up at %d, in %q; want none before up", dev, gen, up, tokenVethSetup)
+			}
+		}
+	})
 	t.Run("positive: tokenSetup sets v0's token, the reads corpus's", func(t *testing.T) {
 		const step = "token set ::1:2:3:4/64 dev v0"
 		topo := topologySteps(t, filepath.Join("..", "..", "pkg", "xtcpnl", "testdata", "7_1_4", "dumps"), "reads")
@@ -3390,4 +3417,102 @@ func TestNetnsRows(t *testing.T) {
 			}
 		}
 	})
+}
+
+// TestGenlStandInRows pins G5-T03's eight genl rows: one `show` per family in
+// the C2 order, NETLINK_GENERIC, `ip` in goip's place, floor 4, ungated, and
+// after every route row, since the driver loads the families' modules before
+// the first of them.
+//
+// go test ./internal/goipparity/ -run TestGenlStandInRows
+func TestGenlStandInRows(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	gated := map[string]bool{}
+	for _, name := range al.GatedCommands {
+		gated[name] = true
+	}
+	want := []string{
+		"tcp_metrics show", "sr tunsrc show", "ioam namespace show", "mptcp endpoint show",
+		"fou show", "ila show", "l2tp show tunnel", "macsec show",
+	}
+
+	cmds := Commands()
+	first := len(cmds)
+	var got []string
+	for i, c := range cmds {
+		if c.Protocol() != protoRouteCst && first == len(cmds) {
+			first = i
+		}
+		if c.IPStandIn {
+			got = append(got, c.Name)
+		}
+	}
+
+	tests := []struct {
+		description string
+		check       func(t *testing.T)
+	}{
+		{
+			description: "positive: the stand-ins are the eight families' shows, in the C2 order",
+			check: func(t *testing.T) {
+				if !slices.Equal(got, want) {
+					t.Errorf("stand-ins %q, want %q", got, want)
+				}
+			},
+		},
+		{
+			description: "positive: each is generic, floor 4, a read, not implemented, ungated and named genl_",
+			check: func(t *testing.T) {
+				for _, name := range want {
+					c, err := Lookup(name)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if c.Proto != ProtoGenericCst || c.Floor != 4 || c.Write || c.Implemented ||
+						gated[name] || !strings.HasPrefix(c.Slug, "genl_") || c.NeedsDev || len(c.Setup) != 0 {
+						t.Errorf("%q: %+v, gated %v", name, c, gated[name])
+					}
+				}
+			},
+		},
+		{
+			description: "boundary: every row from the first non-route one on is generic, so the modules load after every route row",
+			check: func(t *testing.T) {
+				for _, c := range cmds[first:] {
+					if c.Protocol() != ProtoGenericCst {
+						t.Errorf("%q, a %s row, follows the first genl row", c.Name, c.Protocol())
+					}
+				}
+				if len(cmds)-first != len(want) {
+					t.Errorf("%d rows from the first genl one, want %d", len(cmds)-first, len(want))
+				}
+			},
+		},
+		{
+			description: "negative: no stand-in is implemented and no implemented row is a stand-in or gated as one",
+			check: func(t *testing.T) {
+				for _, c := range cmds {
+					if c.IPStandIn && (c.Implemented || gated[c.Name]) {
+						t.Errorf("%q is a stand-in and implemented or gated", c.Name)
+					}
+				}
+			},
+		},
+		{
+			description: "corner: every Proto is empty or one the comparator can read, and never spelled route",
+			check: func(t *testing.T) {
+				for _, c := range cmds {
+					if _, ok := nlparity.ProtocolByName(c.Protocol()); !ok || c.Proto == protoRouteCst {
+						t.Errorf("%q has Proto %q", c.Name, c.Proto)
+					}
+				}
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.description, tt.check)
+	}
 }

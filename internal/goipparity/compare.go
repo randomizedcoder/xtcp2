@@ -109,8 +109,8 @@ var ErrNoCommands = errors.New("goipparity: no command produced a comparison")
 func CompareDir(dir string, al *nlparity.Allowlist) []Result {
 	cmds := Commands()
 	out := make([]Result, 0, len(cmds))
-	for _, c := range cmds {
-		out = append(out, compareOne(dir, c, al))
+	for i := range cmds {
+		out = append(out, compareOne(dir, cmds[i], al))
 	}
 	return out
 }
@@ -120,7 +120,7 @@ func CompareDir(dir string, al *nlparity.Allowlist) []Result {
 func compareOne(dir string, c Command, al *nlparity.Allowlist) Result {
 	r := Result{Command: c, Status: StatusPass}
 
-	if !c.Implemented {
+	if !c.Implemented && !c.IPStandIn {
 		r.Status = StatusSkip
 		// A goip capture for a command goip cannot run means the driver ran
 		// something the table says is unimplemented, so one of the two is
@@ -150,13 +150,19 @@ func compareOne(dir string, c Command, al *nlparity.Allowlist) Result {
 		return r
 	}
 
+	proto, ok := nlparity.ProtocolByName(c.Protocol())
+	if !ok {
+		r.Status = StatusFail
+		r.Err = fmt.Errorf("%q: unknown protocol %q", c.Name, c.Protocol())
+		return r
+	}
 	segs := map[string]nlparity.Segmentation{}
 	for _, side := range Sides() {
 		path := filepath.Join(dir, c.CaptureName(side))
 		// Not named `cap`: that shadows a builtin, which gocritic flags and
 		// which would make a later `cap(x)` in this function mean something
 		// surprising.
-		capture, err := nlparity.ParseRouteCaptureFile(path)
+		capture, err := nlparity.ParseCaptureFile(path, proto)
 		if err != nil {
 			r.Status = StatusFail
 			r.Err = fmt.Errorf("%s: %w", c.CaptureName(side), err)

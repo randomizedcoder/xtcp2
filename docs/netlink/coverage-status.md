@@ -10,18 +10,21 @@ several steps, further down under [Remaining](#remaining).
 
 | | count | counted from |
 |---|---|---|
-| commands in the comparison matrix | **273** | `internal/goipparity/commands.go` — 140 read rows (31 of them `addr show` state, selector and output-mode rows with a `Setup`, and 6 `route get`, 2 `neigh get`, 4 `nexthop get` and `nexthop bucket`, 3 `link xstats` and `link afstats`, 6 `mroute show`, 3 `token`, 4 `netns list-id`, 3 `route save` and `route showdump`, 1 `route flush`, 1 `neigh flush`, 1 `rule save` and 1 `nexthop flush` rows with one; the missing-table `route flush` row has none), the 21 link write rows, the 26 route write rows, the 27 address write rows, the 7 address flush rows, the 2 address restore rows, the route restore row, the 2 route flush write rows, the 6 neigh write rows, the 2 neigh flush write rows, the 17 rule write rows, the rule flush write row, the rule restore row, the 6 nexthop write rows, the nexthop flush write row, the 2 addrlabel write rows, the addrlabel flush write row, the 3 ntable write rows, the stats write row, the 3 link property write rows, the 2 token write rows and the netns set write row |
-| of those, `Implemented: true` | **273** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
+| commands in the comparison matrix | **281** | `internal/goipparity/commands.go` — 148 read rows, 8 of them G5-T03's genl `show` stand-ins, (31 of them `addr show` state, selector and output-mode rows with a `Setup`, and 6 `route get`, 2 `neigh get`, 4 `nexthop get` and `nexthop bucket`, 3 `link xstats` and `link afstats`, 6 `mroute show`, 3 `token`, 4 `netns list-id`, 3 `route save` and `route showdump`, 1 `route flush`, 1 `neigh flush`, 1 `rule save` and 1 `nexthop flush` rows with one; the missing-table `route flush` row has none), the 21 link write rows, the 26 route write rows, the 27 address write rows, the 7 address flush rows, the 2 address restore rows, the route restore row, the 2 route flush write rows, the 6 neigh write rows, the 2 neigh flush write rows, the 17 rule write rows, the rule flush write row, the rule restore row, the 6 nexthop write rows, the nexthop flush write row, the 2 addrlabel write rows, the addrlabel flush write row, the 3 ntable write rows, the stats write row, the 3 link property write rows, the 2 token write rows and the netns set write row |
+| of those, `Implemented: true` | **273** | same file — the other 8 are the genl stand-ins, which `ip` runs in goip's place (`IPStandIn`); no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
 | of those, in `gated_commands` | **272** | `pkg/nlparity/goip-parity-allowlist.json` |
 | allowlisted divergences | **12** | same file, `entries` |
 | of those, `kind=version-skew` | **7** | all against the pinned `ip` 7.1.0 |
 | of those, `kind=accepted-divergence` | **5** | the five `ip netns` rows' `NETNSA_FD`, the descriptor each process opened the namespace file as, a slot in its own table (G4-T04). Nothing else is: the nine wire divergences runs 8 and 9 measured **could not** be, because a transaction-count divergence is unsuppressible (`nlparity_allowlist.go:143`), and G0 retired every one by changing goip to send `ip`'s requests |
 
-**One** matrix row sits outside `gated_commands`: **`addr show dynamic`**,
-which prints a finite `valid_lft` that counts down between `ip_a` and `goip`,
-so it can never gate (see
+**Nine** matrix rows sit outside `gated_commands`. One is **`addr show
+dynamic`**, which prints a finite `valid_lft` that counts down between `ip_a`
+and `goip`, so it can never gate (see
 [The `addr show` state and selector rows](#the-addr-show-state-and-selector-rows)).
-It keeps `GOIP_PARITY_UNGATED_CLEAN` reading a row.
+The other eight are G5-T03's genl `show` stand-ins, compared `ip` against `ip`
+until G6 gives goip each family (see
+[G5-T03](#g5-t03-genl-rows-in-the-parity-harness)). They keep
+`GOIP_PARITY_UNGATED_CLEAN` reading rows.
 
 The twenty-two that were out with it at the start of
 [goip-parity-gaps.md](goip-parity-gaps.md)'s G0 all gated there:
@@ -3916,6 +3919,19 @@ cached for the run (`internal/goip/source_genl.go`). Every GETFAMILY by name
 in the C2 `ip.pcap`s is goip's request byte for byte, and a replay answers a
 genl request from the recorded exchange with the same bytes. No goip object
 uses it yet; G6 adds them.
+
+### G5-T03: genl rows in the parity harness
+
+G5-T03 gives a matrix row a protocol and adds eight genl rows, one `show` per
+family in the C2 order. goip implements none of them yet, so `ip` runs in
+goip's slot and each row is compared `ip` against `ip`, ungated
+(`Command.IPStandIn`). The driver captures them with `--proto generic`, and on
+reaching the first one it loads the C0-T02 modules and sets
+`net.mptcp.enabled`. Every route row comes before it, so no route row reads a
+kernel with the modules loaded. `token_set`'s veths now take `addrgenmode
+none`, because its link dump had raced DAD and the router solicitation.
+With the fix, two consecutive live runs passed 281 of 281, identical row for row: the eight stand-ins clean, late setup's 17 modules loaded with no problem reported, and every route row passing as before. The matrix is 281 rows, 272 gated. G6 replaces each stand-in
+with goip's object.
 
 ## Tier C — the `goip-parity` microVM flavor
 

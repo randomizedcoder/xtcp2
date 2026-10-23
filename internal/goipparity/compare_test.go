@@ -165,6 +165,23 @@ func testAllowlist(t *testing.T) *nlparity.Allowlist {
 }
 
 // go test ./internal/goipparity/ -run TestCompareDir
+// The C2 empty shows of two genl families, run in the dump topology.
+const (
+	tdGenl        = "../../pkg/xtcpnl/testdata/7_1_4/link-write/genl"
+	tdGenlFouShow = tdGenl + "/fou_show_empty/ip.pcap"
+	tdGenlIlaShow = tdGenl + "/ila_show_empty/ip.pcap"
+)
+
+// lookupCmd is Lookup, failing the test on a name the table lacks.
+func lookupCmd(t *testing.T, name string) Command {
+	t.Helper()
+	c, err := Lookup(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
+
 func TestCompareDir(t *testing.T) {
 	al := testAllowlist(t)
 	linkOut := mustRead(t, tdGuestLinkOut)
@@ -193,6 +210,29 @@ func TestCompareDir(t *testing.T) {
 				writeTriple(t, dir, linkShow, sameAll(tdGuestLink), sameAll(linkOut))
 			},
 			want: map[string]Status{"link show": StatusPass},
+		},
+		{
+			description: "positive: an ip stand-in genl row over three copies of a C2 capture is a clean pass",
+			setup: func(t *testing.T, dir string) {
+				writeTriple(t, dir, lookupCmd(t, "fou show"), sameAll(tdGenlFouShow), sameAll(""))
+			},
+			want: map[string]Status{"fou show": StatusPass},
+		},
+		{
+			// ila's empty show in fou's goip slot: another family at the same
+			// position, a presence finding, on an ungated row.
+			description: "negative: an ip stand-in genl row whose goip side asked another family warns",
+			setup: func(t *testing.T, dir string) {
+				writeTriple(t, dir, lookupCmd(t, "fou show"), map[string]string{
+					SideIPA: tdGenlFouShow, SideGoip: tdGenlIlaShow, SideIPB: tdGenlFouShow,
+				}, sameAll(""))
+			},
+			want: map[string]Status{"fou show": StatusWarn},
+		},
+		{
+			description: "corner: an ip stand-in genl row with no captures is MISSING, not SKIP",
+			setup:       func(*testing.T, string) {},
+			want:        map[string]Status{"fou show": StatusMissing},
 		},
 		{
 			description: "positive: two commands both clean in one directory",
@@ -370,11 +410,12 @@ func TestCompareDir(t *testing.T) {
 				if _, named := tt.want[name]; named {
 					continue
 				}
+				compared := r.Command.Implemented || r.Command.IPStandIn
 				switch {
-				case !r.Command.Implemented && r.Status != StatusSkip:
+				case !compared && r.Status != StatusSkip:
 					t.Errorf("%q is unimplemented but status = %s (err=%v)",
 						name, r.Status, r.Err)
-				case r.Command.Implemented &&
+				case compared &&
 					r.Status != StatusMissing && r.Status != StatusPass:
 					t.Errorf("%q status = %s, expected MISSING or PASS (err=%v)",
 						name, r.Status, r.Err)
@@ -717,6 +758,10 @@ func TestRender(t *testing.T) {
 			description: "positive: every implemented command clean reports all three sentinels green",
 			setup: func(t *testing.T, dir string) {
 				for _, c := range Commands() {
+					if c.IPStandIn {
+						writeTriple(t, dir, c, sameAll(tdGenlFouShow), sameAll(""))
+						continue
+					}
 					if !c.Implemented {
 						continue
 					}
@@ -781,6 +826,8 @@ func TestRender(t *testing.T) {
 					switch {
 					case c.Write:
 						writeCleanWriteRow(t, dir, c)
+					case c.IPStandIn:
+						writeTriple(t, dir, c, sameAll(tdGenlFouShow), sameAll(""))
 					case c.Implemented && c.Name != "link show" && c.Name != "addr show":
 						writeTriple(t, dir, c, sameAll(tdGuestAddr), sameAll(addrOut))
 					}
@@ -966,6 +1013,44 @@ func TestRenderNilAllowlist(t *testing.T) {
 				}
 			}
 			t.Fatal("no result for `link show`")
+		})
+	}
+}
+
+// TestCompareOneProtocol is a row's protocol deciding how its captures are
+// read: fou's empty show, three copies, read as each.
+//
+// go test ./internal/goipparity/ -run TestCompareOneProtocol
+func TestCompareOneProtocol(t *testing.T) {
+	fou := lookupCmd(t, "fou show")
+	asProto := func(p string) Command {
+		c := fou
+		c.Proto = p
+		return c
+	}
+	tests := []struct {
+		description string
+		c           Command
+		want        Status
+		wantErr     string
+	}{
+		{description: "positive: read as generic, ip against ip compares clean", c: fou, want: StatusPass},
+		{description: "negative: read as route, the genl captures hold nothing to compare", c: asProto(""), want: StatusFail},
+		{description: "negative: a protocol the comparator cannot name", c: asProto("bogus"), want: StatusFail,
+			wantErr: `unknown protocol "bogus"`},
+		{description: "corner: read as xfrm, a protocol it can name but the capture does not hold", c: asProto("xfrm"), want: StatusFail},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			dir := t.TempDir()
+			writeTriple(t, dir, tc.c, sameAll(tdGenlFouShow), sameAll(""))
+			r := compareOne(dir, tc.c, nil)
+			if r.Status != tc.want {
+				t.Errorf("status = %s, want %s (err=%v)", r.Status, tc.want, r.Err)
+			}
+			if tc.wantErr != "" && (r.Err == nil || !strings.Contains(r.Err.Error(), tc.wantErr)) {
+				t.Errorf("err = %v, want %q in it", r.Err, tc.wantErr)
+			}
 		})
 	}
 }

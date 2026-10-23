@@ -51,13 +51,13 @@ The citation style follows [route-write-path.md](route-write-path.md) and [link-
 
 ## Where coverage stands
 
-Counted from the tree on 2026-10-21, at G0's close; the row, gated and write-row counts are re-measured at G1's close (DOC013), G2's (DOC014), G3's (DOC015) and G4's (DOC016). [coverage-status.md](coverage-status.md#goip--ip-parity-at-a-glance) owns these numbers; if the two disagree, that file is right.
+Counted from the tree on 2026-10-21, at G0's close; the row, gated and write-row counts are re-measured at G1's close (DOC013), G2's (DOC014), G3's (DOC015), G4's (DOC016) and G5's (DOC017). [coverage-status.md](coverage-status.md#goip--ip-parity-at-a-glance) owns these numbers; if the two disagree, that file is right.
 
 | | count | where |
 |---|---|---|
-| matrix rows | 273 (183 at G0's close, 198 at G1's, 206 at G2's, 253 at G3's) | `internal/goipparity/commands.go` |
-| gated | 272 (160 before G0, 182 at its close, 197 at G1's, 205 at G2's, 252 at G3's) | `pkg/nlparity/goip-parity-allowlist.json`, `gated_commands` |
-| compared but not gated | 1, `addr show dynamic` (23 before G0) | `TestUngatedSurfaceIsNotVacuous`, `internal/goipparity/commands_test.go` |
+| matrix rows | 281 (183 at G0's close, 198 at G1's, 206 at G2's, 253 at G3's, 273 at G4's) | `internal/goipparity/commands.go` |
+| gated | 272 (160 before G0, 182 at its close, 197 at G1's, 205 at G2's, 252 at G3's, 272 at G4's) | `pkg/nlparity/goip-parity-allowlist.json`, `gated_commands` |
+| compared but not gated | 9: `addr show dynamic`, and G5-T03's eight genl `show` rows, which run `ip` in goip's place until G6 (23 before G0, 1 at G4's close) | `TestUngatedSurfaceIsNotVacuous`, `internal/goipparity/commands_test.go` |
 | write rows (dry run) | 133: 24 link, 29 route, 36 address, 8 neigh, 19 rule, 7 nexthop, 3 addrlabel, 3 ntable, 1 stats, 2 token, 1 netns (83 before G2, 86 at its close, 130 at G3's) | `commands.go` |
 | `ip` objects with a `run` function | 16 of 31 (11 at G3's close) | `internal/goip/dispatch.go:68-102` |
 | RTM types the write gate admits | 20: `RTM_{NEW,DEL}{ROUTE,LINK,ADDR,NEIGH,RULE,NEXTHOP,ADDRLABEL,LINKPROP}`, `RTM_SETNEIGHTBL`, `RTM_SETSTATS`, `RTM_SETLINK`, `RTM_NEWNSID` (6 before G3, 18 at its close) | `IsAdmittedWriteType`, `pkg/xtcpnl/xtcpnl_rtattr_encode.go:356-371` |
@@ -2669,9 +2669,43 @@ The tests (`internal/goip/source_genl_test.go`, and `TestBuildGetFamilyRequestVe
 
 Live on the host, goip resolved the seven families registered there to the ids `genl ctrl get` prints (`nlctrl` 16, `IOAM6` 37, `l2tp` 42, `macsec` 40, `mptcp_pm` 32, `SEG6` 36, `tcp_metrics` 31). fou and ila are not registered, and goip's ENOENT is `ip`'s "No such file or directory". The GETFAMILY strace'd from `ip tcp_metrics show` is goip's byte for byte.
 
+**G5-T03 delivered** (`internal/goipparity`, `nix/microvms/scripts/goip-parity.exp`):
+- **A row names its protocol.** `Command.Proto` is empty for rtnetlink or `generic`; `Protocol()` returns `route` for the empty one. The comparator reads a row's captures with `nlparity.ProtocolByName` and `ParseCaptureFile`, so a genl row is labeled and compared as G5-T01 compares it. A protocol it cannot name fails the row.
+- **Stand-in rows.** `Command.IPStandIn` marks a row `ip` runs in goip's place, rendered `ip` in the implemented column. It is captured and compared as a triple, `ip` against `ip`, and never gated or skipped. Eight are added, one `show` per family in the C2 order, each floor 4 and ungated: `tcp_metrics show`, `sr tunsrc show`, `ioam namespace show`, `mptcp endpoint show`, `fou show`, `ila show`, `l2tp show tunnel` and `macsec show`. G6 replaces each with goip's object and gates it.
+- **The table's line.** `goip-parity commands` prints nine fields, `proto` after `write`; the driver refuses any other count.
+- **The driver.** `capio` passes `--proto` to `xtcp2-nlcap`, and the goip slot runs `ip` for a stand-in. Before the first row that is not `route` it runs `nltopo::late_setup`, which loads the C0-T02 modules and sets `net.mptcp.enabled`. The table puts every genl row after every route row, so no route row reads a kernel with the modules loaded. Anything late setup could not do is reported as `GOIP_PARITY_LATE_SETUP_PROBLEMS`.
+- **`token_set`'s veths.** `tokenVethSetup` now sets `addrgenmode none` on `d0` and `d1` before either is up, as `neighWriteSetupVeth` does. `ip token set` dumps the links before it writes. With a link-local address, DAD, MLD and the router solicitation made that dump's counters and `IF_RS_SENT` depend on how soon each side ran. The first live run caught one side after the solicitation and the other two before it.
+
+The tests (`internal/goipparity`, and `TestProtocolByName` in `pkg/nlparity`):
+
+| description | expected |
+|---|---|
+| positive, boundary, negative, corner: the stand-in rows: the eight shows in the C2 order; each generic, floor 4, a read, not implemented, ungated, named `genl_`; every row from the first non-route one on generic; no row both implemented and a stand-in; every `Proto` empty or one the comparator reads, never `route` | as described, `TestGenlStandInRows` |
+| positive, boundary: `String()` for an implemented row and the fou stand-in; `goip-parity commands`' lines | nine fields, `ip` and `generic` for the stand-in |
+| positive, boundary: the ungated set | exactly nine rows, `addr show dynamic` and the eight stand-ins, each compared, none skipped |
+| positive, negative, corner: a stand-in over three copies of a C2 capture, a goip side asking another family, no captures | PASS, WARN, MISSING |
+| positive, negative, corner: `fou show`'s captures read as generic, as route, as an unknown protocol and as xfrm | PASS, FAIL, FAIL, FAIL |
+| positive, negative, boundary, corner: `ProtocolByName` of `route`, `generic`, `xfrm`, `sock_diag`, the empty name and `Generic` | 0, 16, 6, then not found three times |
+| boundary: `tokenVethSetup` | `addrgenmode none` on both veths before either is up |
+
+With the fix, two consecutive live runs passed 281 of 281, identical row for row: the eight stand-ins clean, late setup's 17 modules loaded with no problem reported, and every route row passing as before.
+
 ### G6 — genl objects
 
-One task per family, in the C2 order.
+One task per family, in the C2 order. Expanded at G5's close.
+
+Each task's goip object sends the family's requests and prints `ip`'s output for every row of that family in the C2 corpus. It is checked against those captures byte for byte, as G4's objects were, and against iproute2-7.1.0 live. Its show row replaces the G5-T03 stand-in, and its write rows join the matrix as dry runs with `Proto` set. Each row is gated after two clean live runs. A family's own reply key replaces the ordinal where a dump's order is not stable.
+
+| task | deliver |
+|---|---|
+| G6-T01 | `goip tcp_metrics`: `show`, `get`, `delete` and `flush`, the 14 `tcpm_*` rows. First, the genl write path: `GOIP_WRITE_OUT` takes a genl request, and the write gate admits a family's commands by name, since its id is the boot's |
+| G6-T02 | `goip sr`: `tunsrc` and `hmac`, show and set, the 11 `sr_*` rows |
+| G6-T03 | `goip ioam`: `namespace`, `schema` and `monitor`, the 21 `ioam_*` rows |
+| G6-T04 | `goip mptcp`: `endpoint`, `limits` and `monitor`, the 27 `mptcp_*` rows |
+| G6-T05 | `goip fou`: `add`, `del` and `show`, the 21 `fou_*` rows |
+| G6-T06 | `goip ila`: `add`, `del` and `list`, the 15 `ila_*` rows |
+| G6-T07 | `goip l2tp`: tunnels and sessions, show, add and del, the 24 `l2tp_*` rows |
+| G6-T08 | `goip macsec`: `show` and the SA and RX-SC writes, the 32 `macsec_*` rows; `macsec show` also dumps the route links. Closes G6 |
 
 ### G7 — XFRM
 

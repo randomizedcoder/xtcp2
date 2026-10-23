@@ -751,3 +751,30 @@ func TestGenlReplyKeys(t *testing.T) {
 		})
 	}
 }
+
+// TestProtocolByName is the protocol names xtcp2-nlcap's --proto takes.
+//
+// go test ./pkg/nlparity/ -run TestProtocolByName
+func TestProtocolByName(t *testing.T) {
+	tests := []struct {
+		description string
+		name        string
+		want        uint16
+		wantOK      bool
+	}{
+		{description: "positive: route", name: "route", want: unix.NETLINK_ROUTE, wantOK: true},
+		{description: "positive: generic", name: "generic", want: unix.NETLINK_GENERIC, wantOK: true},
+		{description: "positive: xfrm", name: "xfrm", want: unix.NETLINK_XFRM, wantOK: true},
+		{description: "negative: an unknown name", name: "sock_diag", wantOK: false},
+		{description: "boundary: the empty name is no protocol", name: "", wantOK: false},
+		{description: "corner: names are case-sensitive, as the helper's are", name: "Generic", wantOK: false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			got, ok := ProtocolByName(tc.name)
+			if got != tc.want || ok != tc.wantOK {
+				t.Errorf("ProtocolByName(%q) = %d, %v; want %d, %v", tc.name, got, ok, tc.want, tc.wantOK)
+			}
+		})
+	}
+}

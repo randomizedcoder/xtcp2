@@ -42,7 +42,18 @@
 # unimplemented gets NO goip capture at all. That is not a shortcut - the
 # comparator treats a goip capture for an unimplemented command as a FAIL,
 # on the grounds that the table and the driver disagreeing about what goip can
-# run is a defect in one of them.
+# run is a defect in one of them. The one exception is impl=ip, a generic
+# netlink family goip does not implement yet: `ip` runs in goip's place, so
+# the row is captured and compared ip against ip, ungated.
+#
+# GENERIC NETLINK ROWS COME LAST
+#
+# A row's proto is what its captures keep (xtcp2-nlcap --proto). The genl
+# rows' families live in modules (fou, ila, l2tp, macsec), and a module is
+# kernel-wide: loading one before a route row could change what that row
+# reads. So the table puts them after every route row, and the driver runs
+# nltopo::late_setup, which loads the modules and sets net.mptcp.enabled,
+# when it reaches the first of them.
 #
 # NO `ip monitor`, DELIBERATELY
 #
@@ -127,18 +138,19 @@ proc nlcap {args} {
     return [vmlib::run_out "xtcp2-nlcap [join $args { }]"]
 }
 
-# capio <name> <floor> <command> <stdout-name> ?ns? - one side of one triple.
+# capio <name> <floor> <command> <stdout-name> ?ns? ?proto? - one side of one
+# triple.
 #
 # <ns> is the shared dump topology unless a row with a Setup names the
-# namespace it built. Returns 1 on success. A miss is recorded and reported at the end; the
+# namespace it built. <proto> is the netlink protocol the capture keeps. Returns 1 on success. A miss is recorded and reported at the end; the
 # comparator will separately report the command as MISSING, because it checks
 # for all six files of a triple before reading any of them.
-proc capio {name floor command sout {ns ""}} {
+proc capio {name floor command sout {ns ""} {proto route}} {
     global short_caps NS SUBDIR
     if {$ns eq ""} {
         set ns $NS
     }
-    lassign [nlcap capio $ns $SUBDIR $name $floor "'$command'" $sout] rc out
+    lassign [nlcap capio --proto $proto $ns $SUBDIR $name $floor "'$command'" $sout] rc out
     if {$rc != 0} {
         lappend short_caps "$SUBDIR/$name"
         vmlib::log "MISSED FLOOR $SUBDIR/$name: $out"
@@ -153,9 +165,11 @@ proc capio {name floor command sout {ns ""}} {
 #
 # `goip-parity commands` prints one tab-separated row per command:
 #
-#     slug  floor  implemented  needs-dev  write  setup  args  name
+#     slug  floor  implemented  needs-dev  write  proto  setup  args  name
 #
-# setup is `-` or a row's precondition steps joined with ';'. It, args
+# implemented is yes, no, or ip for a row `ip` runs in goip's place. proto is
+# route, generic or xfrm. setup is `-` or a row's precondition steps joined
+# with ';'. It, args
 # and name hold spaces, which is why the split is on tabs. Parsed with
 # `split ... \t` rather than a regexp so a name with two consecutive spaces
 # cannot be silently reflowed.
@@ -177,7 +191,7 @@ proc read_command_table {} {
             continue
         }
         set f [split $line "\t"]
-        if {[llength $f] != 8} {
+        if {[llength $f] != 9} {
             vmlib::log "FATAL: unparseable table row ([llength $f] fields): $line"
             puts "GOIP_PARITY_DRIVER_FAIL"
             exit 3
@@ -207,7 +221,7 @@ proc read_command_table {} {
 
 proc capture_triple {row dev} {
     global skipped
-    lassign $row slug floor impl needs_dev write setup args name
+    lassign $row slug floor impl needs_dev write proto setup args name
 
     if {$write eq "yes" && $impl eq "yes"} {
         capture_write_triple $slug $floor $setup $args
@@ -223,12 +237,16 @@ proc capture_triple {row dev} {
     # argv, which is the property that makes the comparison mean anything -
     # internal/goip's matchesPrefix exists so that goip parses it the way
     # iproute2 does rather than merely accepting it.
+    set subject goip
+    if {$impl eq "ip"} {
+        set subject ip
+    }
     set plan [list \
         ip_a "ip $argv_str" \
-        goip "goip $argv_str" \
+        goip "$subject $argv_str" \
         ip_b "ip $argv_str"]
 
-    if {$impl ne "yes"} {
+    if {$impl ni {yes ip}} {
         # No goip capture, on purpose: the comparator FAILS a command that is
         # marked unimplemented but has one, because that means the table and
         # this driver disagree. Capturing only the ip sides would be worse than
@@ -252,7 +270,7 @@ proc capture_triple {row dev} {
 
     set ok 1
     foreach {side cmd} $plan {
-        if {![capio "$slug.$side" $floor $cmd "$slug.$side.out" $ns]} {
+        if {![capio "$slug.$side" $floor $cmd "$slug.$side.out" $ns $proto]} {
             set ok 0
         }
     }
@@ -446,7 +464,17 @@ vmlib::must "cp $save_blobs/restore_fresh.save $save_blobs/restore_existing.save
 set table [read_command_table]
 vmlib::log "=== capturing [llength $table] commands x 3 sides ==="
 
+# late_setup's problems, reported at the end; see GENERIC NETLINK ROWS COME
+# LAST in the header.
+set late_done     0
+set late_problems {}
+
 foreach row $table {
+    if {!$late_done && [lindex $row 5] ne "route"} {
+        vmlib::log "=== late setup (late/), before the first [lindex $row 5] row ==="
+        set late_problems [nltopo::late_setup late]
+        set late_done 1
+    }
     capture_triple $row $DUMMY
     if {[llength $short_caps] > 0 && !$keep_going} {
         vmlib::log "stopping after a missed floor; pass --keep-going to continue"
@@ -534,6 +562,15 @@ if {[llength $refused] > 0} {
     }
     puts "  Any command whose parity depends on those objects is comparing a"
     puts "  smaller topology than intended. Not a failure by itself."
+}
+
+if {[llength $late_problems] > 0} {
+    puts "GOIP_PARITY_LATE_SETUP_PROBLEMS [llength $late_problems]"
+    foreach p $late_problems {
+        puts "  $p"
+    }
+    puts "  The rows after late setup read a kernel without what it could not"
+    puts "  load; a family it could not load is MISSING or divergent above."
 }
 
 if {[llength $skipped] > 0} {
