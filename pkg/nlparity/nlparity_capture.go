@@ -35,6 +35,10 @@ type Capture struct {
 	// above because this one means a netlink datagram was malformed, which is
 	// worth a loud report rather than a shrug.
 	SkippedBadDatagram int
+	// GenlFamilies maps each generic netlink family id the capture's
+	// controller replies named to its name, the controller's own included. It
+	// is nil for a capture of any other protocol.
+	GenlFamilies map[uint16]string
 }
 
 // Msgs flattens the capture into every message of every datagram, in capture
@@ -59,7 +63,8 @@ func (c Capture) Requests() []Msg {
 }
 
 // ParseCapture reads a DLT_NETLINK pcap and walks every record of the given
-// netlink family (unix.NETLINK_ROUTE for everything goip does).
+// netlink family: unix.NETLINK_ROUTE for rtnetlink, or unix.NETLINK_GENERIC,
+// whose messages are then labeled with their family's name (resolveGenl).
 //
 // A capture recorded from the wrong interface fails here rather than yielding
 // nonsense families, because xtcpnl.ParseNetlinkPcap asserts the link type is
@@ -92,18 +97,30 @@ func ParseCapture(data []byte, family uint16) (Capture, error) {
 		c.Datagrams = append(c.Datagrams, d)
 	}
 
+	if family == unix.NETLINK_GENERIC {
+		if err := resolveGenl(&c); err != nil {
+			return c, err
+		}
+	}
 	return c, nil
 }
 
 // ParseRouteCaptureFile reads a pcap from disk and walks its NETLINK_ROUTE
-// datagrams. It is the one convenience wrapper; everything else in this package
-// takes bytes so it stays testable without a filesystem.
+// datagrams.
 func ParseRouteCaptureFile(path string) (Capture, error) {
+	return ParseCaptureFile(path, unix.NETLINK_ROUTE)
+}
+
+// ParseCaptureFile reads a pcap from disk and walks its datagrams of one
+// netlink family. It and ParseRouteCaptureFile are the convenience wrappers;
+// everything else in this package takes bytes so it stays testable without a
+// filesystem.
+func ParseCaptureFile(path string, family uint16) (Capture, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return Capture{}, fmt.Errorf("nlparity: read %s: %w", path, err)
 	}
-	c, err := ParseCapture(data, uint16(unix.NETLINK_ROUTE))
+	c, err := ParseCapture(data, family)
 	if err != nil {
 		return c, fmt.Errorf("nlparity: parse %s: %w", path, err)
 	}

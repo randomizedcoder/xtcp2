@@ -2627,6 +2627,28 @@ Expanded at G4's close: the comparator first, then goip's side, then the harness
 | G5-T02 | goip's genl transport: a `NETLINK_GENERIC` socket beside the route one, and `genl_init_handle`'s family resolution, one `CTRL_CMD_GETFAMILY` by name through `BuildGetFamilyRequest` and `ParseGenericNetlinkFamily`, cached for the run; the replay source reads a genl pcap's exchanges. Checked byte for byte against the CTRL exchange in each C2 family's captures (`lib/libgenl.c:52`) |
 | G5-T03 | the harness: a matrix row names its protocol, the parity driver captures it with `--proto generic`, the guest loads the C0-T02 modules and sets `net.mptcp.enabled` after every existing row, and one ungated `show` row per genl family runs `ip` against `ip`. Done when two live `goip-parity` runs compare those rows clean and leave the route rows unchanged, closing G5 |
 
+**G5-T01 delivered** (`pkg/nlparity/nlparity_genl.go`):
+- **The labels.** `ParseCapture` with `NETLINK_GENERIC` reads the capture's `CTRL_CMD_NEWFAMILY` replies, the answers to `genl_resolve_family`'s request (`lib/libgenl.c:50-57`), into a map from family id to name, `GENL_ID_CTRL` already `nlctrl`, and labels each message from `NLMSG_MIN_TYPE` up with its family's name (`Msg.Genl`; `Msg.Proto` carries the protocol, zero for rtnetlink). The whole capture is read before any message is labeled. A reply that does not decode names nothing, and its family's messages compare by id, as before. A capture that gives one id two names, or one name two ids, spans a module unload and is refused (`ErrGenlFamilyConflict`). `Capture.GenlFamilies` keeps the map.
+- **The kind.** `MsgName` is the comparator's kind and locus: `GENL(fou).cmd(1)`, the controller's two commands spelled out, `GENL(id=41)` for an unresolved family. Two requests at one position are the same if their names match, so the same command under another id compares clean, and another command or family is a presence finding.
+- **The header.** `FamilyHdrLen(proto, type)` is four bytes, `struct genlmsghdr`, for any genl type, so the command, version and reserved bytes are the family header compared at `familyhdr`. The `NLMSG_*` control types are rtnetlink's on every protocol.
+- **No rtnetlink reading.** A family id can share its number with an rtnetlink type (the corpus's fou, 41, is `RTM_DELTCLASS`'s number, and the controller's 16 is `RTM_NEWLINK`'s). A genl message is therefore given no `IFLA`/`IFA`/`RTA`/`NDA` names, normalization or object key, and its role is `dump` or `do`, never `write`.
+- **Normalization.** A controller reply's `CTRL_ATTR_FAMILY_ID` and each `CTRL_ATTR_MCAST_GRP_ID`, and an `NLMSG_ERROR`'s echoed type, are zeroed: the boot chose them. The family's name, version, ops and group names stay compared.
+- **Reply keys.** A genl reply keys on its name and its ordinal among replies of that name (`GENL(fou).cmd(1)#3`), so one more dump entry is a key-set finding rather than a pair comparison skipped for unequal counts. A family's own object key is G6's to add.
+- **What is unchanged.** An ACK's errno is not an attribute, so L3 compares no `NLMSG_ERROR` body, on either protocol; the exit status carries a refusal. Route captures parse, segment and compare as before, and nothing in `internal/goipparity` reads a genl capture yet (G5-T03).
+
+The tests (`pkg/nlparity/nlparity_genl_test.go`, 65 subtests):
+
+| description | expected |
+|---|---|
+| positive: each of the 165 C2 rows' `ip.pcap` and `netlink_generic_*.pcap`, family by family | every genl message labeled with its family (`fou`, `ila`, `IOAM6`, `l2tp`, `macsec`, `mptcp_pm`, `SEG6`, `tcp_metrics`) or `nlctrl`; no findings against itself, or against a copy with each family's id moved by seven |
+| positive, corner, negative: `fou add` against copies: fou at 60, fou at `RTM_NEWADDR`'s 20; another command, family, flag, genlmsghdr version, address family, errno, family name in the controller's reply | none, none, none; presence, presence, `header.flags`, `familyhdr`, `attr(2)`; none (the errno); `attr(2)` on `GENL(nlctrl).CTRL_CMD_NEWFAMILY` |
+| positive, corner, boundary, negative: the labels over constructed captures: a reply then its command, the command first, an unnamed id, one reply twice, an id with two names, a name with two ids, `nlctrl` renamed, a reply without its id, a NEWFAMILY sent as a request, an ACK, a route capture | the labels, or `ErrGenlFamilyConflict`; no `GenlFamilies` on a route capture |
+| positive, corner, boundary, negative: `FamilyHdrLen` for rtnetlink, a genl family, the controller, `NLMSG_MIN_TYPE` and one below, DONE and ERROR on genl, an unmodeled type, `NETLINK_XFRM` | 16, 4, 4, 4, -1, rtnetlink's, rtnetlink's, -1, -1 |
+| positive, corner, boundary, negative: `MsgName` for a command, both controller commands, another controller command, an unresolved id, a 3-byte and a 4-byte body, a genl ACK, rtnetlink types | the names above, `GENL(fou).short`, `type(41)` for an rtnetlink 41 |
+| positive, corner, boundary, negative: the role and attribute names of a genl dump, a do, a genl id on `RTM_NEWLINK`'s number, `NLM_F_ROOT` alone, `RTM_NEWLINK` on rtnetlink | `dump`, `do` and `attr(n)`; `write` and `IFLA_IFNAME` for rtnetlink alone |
+| positive, negative, corner, boundary: normalization of two ACKs, two families' replies, one family under two ids, a GETFAMILY carrying an id, a genl attribute on `IFA_CACHEINFO`'s numbers, cut bodies | equal where the boot chose the difference; different otherwise, an input never edited |
+| positive, negative, boundary: dump entries keyed by ordinal: equal, one fewer, one different, empty | none, key-set, `attr(1)` value, none |
+
 ### G6 — genl objects
 
 One task per family, in the C2 order.

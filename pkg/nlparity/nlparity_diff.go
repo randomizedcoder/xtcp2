@@ -310,7 +310,17 @@ func HygieneDiff(command, side string, s Segmentation) []Divergence {
 // A write is a third role. NLM_F_DUMP would misread it, because a create's
 // NLM_F_CREATE|NLM_F_EXCL (0x600) is NLM_F_ATOMIC|NLM_F_MATCH and so tests
 // as a dump; the admitted write types are told apart by type instead.
+//
+// A generic netlink request is a dump or a do, genl's own two: its type is a
+// family id, which says nothing about whether its command writes, and a
+// family id can share its number with an admitted rtnetlink write type.
 func requestRole(m Msg) string {
+	if m.IsGenl() {
+		if m.Hdr.Flags&unix.NLM_F_DUMP == unix.NLM_F_DUMP {
+			return "dump"
+		}
+		return "do"
+	}
 	if xtcpnl.IsAdmittedWriteType(m.Hdr.Type) {
 		return "write"
 	}
@@ -323,19 +333,22 @@ func requestRole(m Msg) string {
 // diffRequest is L2: positional, full equality.
 func diffRequest(command string, txn int, ref, sub Msg) []Divergence {
 	role := requestRole(ref)
-	base := "request:" + MsgTypeName(ref.Hdr.Type)
+	refName, subName := MsgName(ref), MsgName(sub)
+	base := "request:" + refName
 	var out []Divergence
 
 	// A different message type at the same position is not a value: the
 	// request that should be there is absent. Reported as presence, which is
 	// unsuppressible, and the tiers below are skipped because comparing an
 	// RTM_GETADDR's body against an RTM_GETLINK's would produce a second pile
-	// of findings that all say the same thing.
-	if ref.Hdr.Type != sub.Hdr.Type {
+	// of findings that all say the same thing. The kind is the name, so a
+	// generic netlink request is the same one under a different family id and
+	// a different one under a different command.
+	if refName != subName {
 		return append(out, Divergence{
 			Command: command, Level: LevelRequest, Class: DivergencePresence,
 			Locus: base + ":" + role, Txn: txn,
-			Ref: MsgTypeName(ref.Hdr.Type), Sub: MsgTypeName(sub.Hdr.Type),
+			Ref: refName, Sub: subName,
 		})
 	}
 
@@ -348,8 +361,8 @@ func diffRequest(command string, txn int, ref, sub Msg) []Divergence {
 		})
 	}
 
-	refHdr, refAttrs, refRem := DecodeAttrs(ref.Hdr.Type, ref.Body)
-	subHdr, subAttrs, subRem := DecodeAttrs(sub.Hdr.Type, sub.Body)
+	refHdr, refAttrs, refRem := DecodeMsg(ref)
+	subHdr, subAttrs, subRem := DecodeMsg(sub)
 
 	if !bytes.Equal(refHdr, subHdr) {
 		out = append(out, Divergence{
@@ -372,7 +385,7 @@ func diffRequest(command string, txn int, ref, sub Msg) []Divergence {
 	}
 
 	out = append(out, diffAttrs(command, LevelRequest, txn, "", base, ":"+role,
-		ref.Hdr.Type, refAttrs, subAttrs)...)
+		ref, refAttrs, subAttrs)...)
 	return out
 }
 
@@ -443,7 +456,7 @@ func diffReplies(command string, txn int, ref, sub Txn) []Divergence {
 // diffReplyPair compares two replies already known to describe the same object.
 func diffReplyPair(command string, txn int, object string, ref, sub Msg) []Divergence {
 	rn, sn := NormalizeMsg(ref), NormalizeMsg(sub)
-	base := "reply:" + MsgTypeName(rn.Hdr.Type)
+	base := "reply:" + MsgName(rn)
 	var out []Divergence
 
 	if rn.Hdr.Flags != sn.Hdr.Flags {
@@ -455,8 +468,8 @@ func diffReplyPair(command string, txn int, object string, ref, sub Msg) []Diver
 		})
 	}
 
-	refHdr, refAttrs, _ := DecodeAttrs(rn.Hdr.Type, rn.Body)
-	subHdr, subAttrs, _ := DecodeAttrs(sn.Hdr.Type, sn.Body)
+	refHdr, refAttrs, _ := DecodeMsg(rn)
+	subHdr, subAttrs, _ := DecodeMsg(sn)
 
 	if !bytes.Equal(refHdr, subHdr) {
 		out = append(out, Divergence{
@@ -467,7 +480,7 @@ func diffReplyPair(command string, txn int, object string, ref, sub Msg) []Diver
 	}
 
 	out = append(out, diffAttrs(command, LevelReply, txn, object, base, "",
-		rn.Hdr.Type, refAttrs, subAttrs)...)
+		rn, refAttrs, subAttrs)...)
 	return out
 }
 
@@ -476,9 +489,10 @@ func diffReplyPair(command string, txn int, object string, ref, sub Msg) []Diver
 //
 // The type used throughout is Attr.Type UNMASKED, so a missing NLA_F_NESTED
 // surfaces as one attribute absent and another extra rather than as nothing at
-// all. AttrName renders the flag into the locus to match.
+// all. AttrName renders the flag into the locus to match. m is the message
+// the attributes are named for, the reference side's.
 func diffAttrs(command string, level Level, txn int, object, base, suffix string,
-	msgType uint16, ref, sub []Attr,
+	m Msg, ref, sub []Attr,
 ) []Divergence {
 	var out []Divergence
 
@@ -489,7 +503,7 @@ func diffAttrs(command string, level Level, txn int, object, base, suffix string
 		if _, ok := subIdx[a.Type]; !ok {
 			out = append(out, Divergence{
 				Command: command, Level: level, Class: DivergencePresence,
-				Locus: base + ":" + AttrName(msgType, a.Type) + suffix,
+				Locus: base + ":" + msgAttrName(m, a.Type) + suffix,
 				Txn:   txn, Object: object,
 				Ref: fmt.Sprintf("%d bytes", len(a.Val)),
 			})
@@ -499,14 +513,14 @@ func diffAttrs(command string, level Level, txn int, object, base, suffix string
 		if _, ok := refIdx[a.Type]; !ok {
 			out = append(out, Divergence{
 				Command: command, Level: level, Class: DivergencePresence,
-				Locus: base + ":" + AttrName(msgType, a.Type) + suffix,
+				Locus: base + ":" + msgAttrName(m, a.Type) + suffix,
 				Txn:   txn, Object: object,
 				Sub: fmt.Sprintf("%d bytes", len(a.Val)),
 			})
 		}
 	}
 
-	refTypes, subTypes := attrTypeList(msgType, ref), attrTypeList(msgType, sub)
+	refTypes, subTypes := attrTypeList(m, ref), attrTypeList(m, sub)
 	if sameStrings(refTypes, subTypes) && !equalStrings(refTypes, subTypes) {
 		out = append(out, Divergence{
 			Command: command, Level: level, Class: DivergenceAttrOrder,
@@ -538,16 +552,16 @@ func diffAttrs(command string, level Level, txn int, object, base, suffix string
 		// at `reply:RTM_NEWLINK:IFLA_AF_SPEC` would suppress every value
 		// difference anywhere under AF_SPEC to get it, which is exactly the
 		// over-broad forgetting this allowlist is built to prevent.
-		if AttrFamilyOf(msgType) == AttrFamilyIFLA &&
+		if msgAttrFamily(m) == AttrFamilyIFLA &&
 			a.BareType() == uint16(unix.IFLA_AF_SPEC) {
 			out = append(out, diffAFSpec(command, level, txn, object,
-				base+":"+AttrName(msgType, a.Type), suffix, rs[0], ss[0])...)
+				base+":"+msgAttrName(m, a.Type), suffix, rs[0], ss[0])...)
 			continue
 		}
 
 		out = append(out, Divergence{
 			Command: command, Level: level, Class: DivergenceValue,
-			Locus: base + ":" + AttrName(msgType, a.Type) + suffix,
+			Locus: base + ":" + msgAttrName(m, a.Type) + suffix,
 			Txn:   txn, Object: object,
 			Ref: hex.EncodeToString(rs[0]), Sub: hex.EncodeToString(ss[0]),
 		})
@@ -696,10 +710,10 @@ func indexAttrs(attrs []Attr) map[uint16][][]byte {
 
 // attrTypeList renders the ordered attribute-type list, which is what L3 gates
 // on.
-func attrTypeList(msgType uint16, attrs []Attr) []string {
+func attrTypeList(m Msg, attrs []Attr) []string {
 	out := make([]string, 0, len(attrs))
 	for _, a := range attrs {
-		out = append(out, AttrName(msgType, a.Type))
+		out = append(out, msgAttrName(m, a.Type))
 	}
 	return out
 }
@@ -707,11 +721,22 @@ func attrTypeList(msgType uint16, attrs []Attr) []string {
 // keyReplies computes each reply's object key, returning the keys in capture
 // order (deduplicated, so the order list is comparable) plus the messages
 // grouped by key.
+//
+// A generic netlink reply has no object key yet (see ObjectKey), so it is keyed
+// by its name and its ordinal among the replies of that name: the third fou
+// entry of a dump is GENL(fou).cmd(1)#3. One more entry on one side is then a
+// key-set finding, where grouping them under one key would skip the pair
+// comparison silently for want of equal counts.
 func keyReplies(msgs []Msg) ([]string, map[string][]Msg) {
 	byKey := make(map[string][]Msg, len(msgs))
+	genlSeen := map[string]int{}
 	var order []string
 	for i := range msgs {
 		k := ObjectKey(msgs[i])
+		if msgs[i].IsGenl() {
+			genlSeen[k]++
+			k = fmt.Sprintf("%s#%d", k, genlSeen[k])
+		}
 		if _, seen := byKey[k]; !seen {
 			order = append(order, k)
 		}
@@ -741,8 +766,12 @@ func keyReplies(msgs []Msg) ([]string, map[string][]Msg) {
 // by it — and RTA_TABLE is taken from the header's rtm_table, which is the
 // 8-bit form. A table id above 255 lives in RTA_TABLE instead, so both are
 // read and the attribute wins when present.
+//
+// A generic netlink message keys on its name, family and command, since which
+// attribute names a family's object is the family's to say; keyReplies numbers
+// the replies that share one.
 func ObjectKey(m Msg) string {
-	switch AttrFamilyOf(m.Hdr.Type) {
+	switch msgAttrFamily(m) {
 	case AttrFamilyIFLA:
 		var ifi xtcpnl.IfInfomsg
 		if _, err := xtcpnl.DeserializeIfInfomsg(m.Body, &ifi); err != nil {
@@ -787,9 +816,9 @@ func ObjectKey(m Msg) string {
 			hex.EncodeToString(attrValue(attrs, uint16(unix.NDA_DST))))
 
 	case AttrFamilyNone:
-		return MsgTypeName(m.Hdr.Type)
+		return MsgName(m)
 	}
-	return MsgTypeName(m.Hdr.Type)
+	return MsgName(m)
 }
 
 // shortKey is the key for a message whose family header did not fit. It carries

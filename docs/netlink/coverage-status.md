@@ -3898,6 +3898,16 @@ since a notification inside a read-only capture window is a hygiene failure.
 byte for byte, and a live comparison against iproute2-7.1.0 matched on all 41
 argument sets tried. The matrix is unchanged: 273 rows, 272 gated.
 
+### G5-T01: `pkg/nlparity` compares generic netlink by family name
+
+G5-T01 teaches the comparator `NETLINK_GENERIC`
+(`pkg/nlparity/nlparity_genl.go`). A capture's `CTRL_CMD_NEWFAMILY` replies
+name each family id, and a genl message is compared as
+`GENL(<family>).cmd(<n>)` with a four-byte `genlmsghdr`, so two captures from
+boots that gave a family different ids compare clean. `TestGenlCorpus` checks
+all 165 C2 rows that way. No matrix row reads a genl capture yet; G5-T03 adds
+them.
+
 ## Tier C — the `goip-parity` microVM flavor
 
 The last piece of Item 6, and the only one that needs a live machine: a third

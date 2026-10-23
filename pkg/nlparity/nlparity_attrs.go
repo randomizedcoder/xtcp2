@@ -31,19 +31,37 @@ func (a Attr) Nested() bool { return a.Type&uint16(unix.NLA_F_NESTED) != 0 }
 func (a Attr) NetByteOrder() bool { return a.Type&uint16(unix.NLA_F_NET_BYTEORDER) != 0 }
 
 // FamilyHdrLen returns the size of the fixed family header that follows the
-// nlmsghdr for a given rtnetlink message type, or -1 for a type neither package
-// models.
+// nlmsghdr for a message type of a netlink protocol, or -1 for a type neither
+// package models.
 //
-// It delegates to xtcpnl. This used to be a second copy of the same switch,
-// which is the duplication the exported wire primitives exist to prevent — and
-// the copy here would have been the worse one to let drift, since a wrong
-// header length shifts every attribute in the message and so produces a
-// plausible-looking parity report rather than an error.
-func FamilyHdrLen(msgType uint16) int { return xtcpnl.FamilyHdrLen(msgType) }
+// On NETLINK_GENERIC every family's message leads with struct genlmsghdr,
+// whatever id the family was given, so any type from NLMSG_MIN_TYPE up is
+// four bytes. On NETLINK_ROUTE, and for the NLMSG_* control types on any
+// protocol, it delegates to xtcpnl. This used to be a second copy of the same
+// switch, which is the duplication the exported wire primitives exist to
+// prevent — and the copy here would have been the worse one to let drift,
+// since a wrong header length shifts every attribute in the message and so
+// produces a plausible-looking parity report rather than an error.
+func FamilyHdrLen(proto, msgType uint16) int {
+	switch {
+	case msgType < unix.NLMSG_MIN_TYPE || proto == unix.NETLINK_ROUTE:
+		return xtcpnl.FamilyHdrLen(msgType)
+	case proto == unix.NETLINK_GENERIC:
+		return genlHdrLen
+	default:
+		return -1
+	}
+}
 
-// DecodeAttrs splits a message body into its fixed family header and the rtattr
-// stream that follows, returning the attributes in wire order plus any trailing
-// remainder too short to be an attribute.
+// DecodeMsg is DecodeAttrs over a message, with the family header its own
+// protocol gives it.
+func DecodeMsg(m Msg) (hdr []byte, attrs []Attr, remainder []byte) {
+	return decodeBody(FamilyHdrLen(m.Proto, m.Hdr.Type), m.Body)
+}
+
+// DecodeAttrs splits an rtnetlink message body into its fixed family header and
+// the rtattr stream that follows, returning the attributes in wire order plus
+// any trailing remainder too short to be an attribute.
 //
 // Order is preserved and compared: the kernel emits attributes in a stable
 // order per message type, so a reordering is a real divergence even though a
@@ -54,7 +72,11 @@ func FamilyHdrLen(msgType uint16) int { return xtcpnl.FamilyHdrLen(msgType) }
 // message is too short to carry its own header" about a specific message, not
 // abandon the datagram.
 func DecodeAttrs(msgType uint16, body []byte) (hdr []byte, attrs []Attr, remainder []byte) {
-	hdrLen := FamilyHdrLen(msgType)
+	return decodeBody(FamilyHdrLen(unix.NETLINK_ROUTE, msgType), body)
+}
+
+// decodeBody is DecodeAttrs's split once the family header's length is known.
+func decodeBody(hdrLen int, body []byte) (hdr []byte, attrs []Attr, remainder []byte) {
 	if hdrLen < 0 || hdrLen > len(body) {
 		return nil, nil, body
 	}

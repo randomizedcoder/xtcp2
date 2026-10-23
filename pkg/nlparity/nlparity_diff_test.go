@@ -134,7 +134,7 @@ func cloneMsgs(msgs []Msg) []Msg {
 // that omits it gets IFLA_STATS and IFLA_STATS64 appended by the kernel and
 // diverges by the most volatile attribute in the protocol.
 func dropAttrs(m Msg) Msg {
-	hdrLen := FamilyHdrLen(m.Hdr.Type)
+	hdrLen := FamilyHdrLen(m.Proto, m.Hdr.Type)
 	if hdrLen < 0 || hdrLen > len(m.Body) {
 		return m
 	}

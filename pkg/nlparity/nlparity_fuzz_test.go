@@ -353,7 +353,7 @@ func FuzzDecodeAttrs(f *testing.F) {
 
 		// An unknown message type must yield nothing decoded and the whole body
 		// back, rather than guessing a family header size.
-		if FamilyHdrLen(msgType) < 0 {
+		if FamilyHdrLen(unix.NETLINK_ROUTE, msgType) < 0 {
 			if len(attrs) != 0 || len(remainder) != len(body) {
 				t.Fatalf("unknown msgType %d decoded %d attrs and returned a %d-byte "+
 					"remainder; want 0 attrs and the whole %d-byte body",

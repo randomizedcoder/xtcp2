@@ -129,6 +129,10 @@ func NormalizeMsg(m Msg) Msg {
 	if m.Hdr.Type == uint16(unix.NLMSG_ERROR) {
 		zeroRange(body, nlmsgerrEchoSeqPidOffCst, nlmsgerrEchoSeqPidLenCst)
 	}
+	normalizeGenl(m, body)
+	if m.IsGenl() {
+		return out
+	}
 	_, attrs, _ := DecodeAttrs(m.Hdr.Type, body)
 	normalizeAttrs(m.Hdr.Type, attrs)
 

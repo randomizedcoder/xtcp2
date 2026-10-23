@@ -311,6 +311,35 @@ func MsgTypeName(msgType uint16) string {
 	}
 }
 
+// MsgName names a message for a locus and is its kind: two messages at the
+// same position are the same request only if their names match. An rtnetlink
+// or control message is MsgTypeName of its type; a generic netlink one is its
+// family's name and its command (genlMsgName), because its type is an id the
+// boot allocated.
+func MsgName(m Msg) string {
+	if m.IsGenl() {
+		return genlMsgName(m)
+	}
+	return MsgTypeName(m.Hdr.Type)
+}
+
+// msgAttrFamily is AttrFamilyOf for a message. A generic netlink message has
+// none of the four namespaces, whatever rtnetlink type its family id shares a
+// number with.
+func msgAttrFamily(m Msg) AttrFamily {
+	if m.IsGenl() {
+		return AttrFamilyNone
+	}
+	return AttrFamilyOf(m.Hdr.Type)
+}
+
+// msgAttrName is AttrName for an attribute of a message, so a generic netlink
+// attribute renders as attr(n) rather than as the rtnetlink attribute whose
+// namespace its family id happens to select.
+func msgAttrName(m Msg, attrType uint16) string {
+	return attrNameIn(msgAttrFamily(m), attrType)
+}
+
 // AttrName names one attribute of one message type, WITH its flag bits
 // rendered, for use in a locus.
 //
@@ -325,7 +354,11 @@ func MsgTypeName(msgType uint16) string {
 // An unnamed type renders as FAMILY:n, or as attr(n) when the message type has
 // no namespace at all — NLMSG_DONE's four bytes, say, which are not attributes.
 func AttrName(msgType uint16, attrType uint16) string {
-	fam := AttrFamilyOf(msgType)
+	return attrNameIn(AttrFamilyOf(msgType), attrType)
+}
+
+// attrNameIn is AttrName once the namespace is known.
+func attrNameIn(fam AttrFamily, attrType uint16) string {
 	bare := attrType & xtcpnl.NlaTypeMaskCst
 
 	var name string
