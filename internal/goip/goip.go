@@ -115,10 +115,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			// `link show` assigns internally (ip/ipaddress.c:2416) and which
 			// goip models by ignoring c.family in req.LinkShowDump.
 			c.family = unix.AF_PACKET
-		case matchesPrefix(a, "-oneline"):
-			// No option ahead of -oneline in ip's chain begins with `-o`
-			// (ip/ip.c:238), so `-o` alone is oneline.
-			c.oneline = true
+		case c.lineOption(a):
 		case len(a) >= 3 && matchesPrefix(a, "-brief"):
 			// `-b` is not brief. ip tests -batch (ip/ip.c:254) before -brief
 			// (:260), and matches() is a prefix test, so `-b` and `-ba…` are
@@ -221,17 +218,43 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return ExitOK
 }
 
+// lineOption takes -oneline, -timestamp and -tshort, the options that
+// shape each line, reporting whether a was one of them.
+func (c *runCtx) lineOption(a string) bool {
+	switch {
+	case matchesPrefix(a, "-oneline"):
+		// No option ahead of -oneline in ip's chain begins with `-o`
+		// (ip/ip.c:238), so `-o` alone is oneline.
+		c.oneline = true
+	case matchesPrefix(a, "-timestamp"):
+		// After -oneline in ip's chain (ip/ip.c:239-245), and no option
+		// ahead of it begins with `-t`, so `-t` is -timestamp and `-ts`,
+		// not a prefix of it, is -tshort.
+		c.timestamp++
+	case matchesPrefix(a, "-tshort"):
+		c.timestamp++
+		c.timestampShort++
+	default:
+		return false
+	}
+	return true
+}
+
 // exitCodeOf is the status `ip` exits with for an object's error. It exits
 // 1 for an argument it refuses before sending (do_cmd negates
 // iplink_modify's -1), 2 for a kernel refusal (its -2), and 255 for a flush
 // that ran out of rounds (ipaddr_flush's 1, negated) or a dump file showdump
 // refuses (its exit(-1)), as for mrule's family refusal. A save whose dump failed exits 1, and so does a
-// neigh flush whose dump failed.
+// neigh flush whose dump failed. The monitor exits 255 for an argument or a
+// file it refuses, 1 for a subscription refused or a file whose walk fails,
+// and 2 for a listen that ends in error.
 func exitCodeOf(err error) int {
 	switch {
 	case errors.Is(err, ErrFlushIncomplete), errors.Is(err, ErrDumpFile), errors.Is(err, ErrRuleDumpTerminated),
-		errors.Is(err, ErrAddrLabelFlushTerminated), errors.Is(err, ErrMruleFamily):
+		errors.Is(err, ErrAddrLabelFlushTerminated), errors.Is(err, ErrMruleFamily), errors.Is(err, ErrMonitorAbort):
 		return ExitMinusOne
+	case errors.Is(err, ErrMonitorSetup), errors.Is(err, ErrMonitorFile):
+		return ExitUsage
 	case errors.Is(err, ErrNotImplemented), errors.Is(err, ErrInvalidArgument),
 		errors.Is(err, ErrWriteNotApplied), errors.Is(err, ErrSaveTerminated),
 		errors.Is(err, ErrDumpTerminated), errors.Is(err, ErrNeighFlushTerminated):

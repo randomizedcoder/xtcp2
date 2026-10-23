@@ -149,8 +149,10 @@ func TestLookupObject(t *testing.T) {
 			arg:         "st", wantName: "stats",
 		},
 		{
-			description: "boundary: \"mon\" is monitor, recognized and unimplemented",
-			arg:         "mon", wantName: "monitor", wantErr: ErrNotImplemented,
+			// "m" is maddress; monitor comes before mroute, so "mo" and
+			// "mon" reach it, and it is implemented.
+			description: "boundary: \"mon\" is monitor, which is implemented",
+			arg:         "mon", wantName: "monitor",
 		},
 		{
 			description: "negative: \"z\" matches no object",

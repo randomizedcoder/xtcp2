@@ -34,7 +34,17 @@ type object struct {
 	// showVerb is the verb Show runs, where it is not show: netns's show
 	// is a directory listing, and list-id its netlink read.
 	showVerb string
+	// noShow marks an object with no read that ends: monitor prints until
+	// it is killed, so Show, and the HTTP paths over it, leave it out.
+	noShow bool
 }
+
+// The object names other tables spell too: the monitor's object words.
+const (
+	objRouteCst   = "route"
+	objLinkCst    = "link"
+	objNexthopCst = "nexthop"
+)
 
 // objects is the object table in iproute2's order, which is load-bearing.
 //
@@ -59,13 +69,13 @@ var objects = []object{
 	{name: addressObjectCst, run: runAddress, outputModes: true},
 	{name: "addrlabel", run: runAddrLabel},
 	{name: "maddress"},
-	{name: "route", run: runRoute},
+	{name: objRouteCst, run: runRoute},
 	{name: "rule", run: runRule},
 	{name: "neighbor", run: runNeigh},
 	{name: "neighbour", run: runNeigh, alias: true},
 	{name: "ntable", run: runNTable},
 	{name: "ntbl", run: runNTable, alias: true},
-	{name: "link", run: runLink},
+	{name: objLinkCst, run: runLink},
 	{name: "l2tp"},
 	{name: "fou"},
 	{name: "ila"},
@@ -83,11 +93,11 @@ var objects = []object{
 	{name: "netconf", run: runNetconf},
 	{name: "vrf", run: runVrf},
 	{name: "sr"},
-	{name: "nexthop", run: runNexthop},
+	{name: objNexthopCst, run: runNexthop},
 	{name: "mptcp"},
 	{name: "ioam"},
 	{name: "stats", run: runStats},
-	{name: "monitor"},
+	{name: "monitor", run: runMonitor, noShow: true},
 	{name: "xfrm"},
 }
 
@@ -229,6 +239,11 @@ type runCtx struct {
 	// config block) reads, so a replay can reproduce a captured date. Set once
 	// in Run from GOIP_NOW (a test seam, like GOIP_REPLAY) or time.Now.
 	now time.Time
+	// timestamp and timestampShort count -timestamp and -tshort, which
+	// raises both (ip/ip.c:241-245). Only the monitor's print_headers
+	// reads them; every other object ignores them, as `ip`'s does.
+	timestamp      int
+	timestampShort int
 }
 
 // linkExtMask is the IFLA_EXT_MASK an `ip link show` dump carries under this

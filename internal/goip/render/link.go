@@ -49,6 +49,11 @@ type LinkView struct {
 	Group     string  `json:"group,omitempty"`
 	TxQLen    *uint32 `json:"txqlen,omitempty"`
 
+	// event is print_link_event's token for IFLA_EVENT, which only a
+	// notification carries, so only `ip monitor`, which prints text under
+	// -j as well, renders it. See linkEventToken.
+	event string
+
 	// LinkType is `omitempty` because `ip addr show` under -4 or -6 does not
 	// print the `link/` line at all, and PRINT_ANY means JSON loses the key
 	// with the text. See omitLinkLine.
@@ -271,6 +276,9 @@ func LinkViewOf(li xtcpnl.LinkInfo, names NameTab) LinkView {
 	if li.HasGroup {
 		v.Group = groupName(li.Group)
 	}
+	if li.HasEvent {
+		v.event = linkEventToken(li.Event)
+	}
 	if li.HasTxQLen {
 		txqlen := li.TxQLen
 		v.TxQLen = &txqlen
@@ -440,6 +448,7 @@ func (v LinkView) Text() string {
 	if v.TxQLen != nil && (*v.TxQLen != 0 || RenderQlenZero) {
 		fmt.Fprintf(&b, "qlen %d", *v.TxQLen)
 	}
+	b.WriteString(v.event)
 
 	if !v.omitLinkLine {
 		fmt.Fprintf(&b, "\n    link/%s ", v.LinkType)
@@ -495,4 +504,30 @@ func (v LinkView) Text() string {
 	b.WriteString("\n")
 
 	return b.String()
+}
+
+// linkEvents is print_linkinfo's link_events (ip/ipaddress.c), by
+// IFLA_EVENT_*.
+var linkEvents = []string{"NONE", "REBOOT", "FEATURE CHANGE", "BONDING FAILOVER",
+	"NOTIFY PEERS", "RESEND IGMP", "BONDING OPTION"}
+
+// linkEventToken is print_link_event: the event's name and a space, its
+// number, through "%d", for one past the table, and nothing for
+// IFLA_EVENT_NONE.
+func linkEventToken(event uint32) string {
+	switch {
+	case event >= uint32(len(linkEvents)):
+		return "event " + strconv.Itoa(int(int32(event))) + " "
+	case event == 0:
+		return ""
+	}
+	return "event " + linkEvents[event] + " "
+}
+
+// WithoutQlen drops the qlen token, as print_linkinfo does when
+// filter.showqueue is clear: `ip monitor`'s filter, which
+// ipaddr_reset_filter zeroes.
+func (v LinkView) WithoutQlen() LinkView {
+	v.TxQLen = nil
+	return v
 }

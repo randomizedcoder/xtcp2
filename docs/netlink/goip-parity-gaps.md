@@ -51,16 +51,16 @@ The citation style follows [route-write-path.md](route-write-path.md) and [link-
 
 ## Where coverage stands
 
-Counted from the tree on 2026-10-21, at G0's close; the row, gated and write-row counts are re-measured at G1's close (DOC013), G2's (DOC014) and G3's (DOC015). [coverage-status.md](coverage-status.md#goip--ip-parity-at-a-glance) owns these numbers; if the two disagree, that file is right.
+Counted from the tree on 2026-10-21, at G0's close; the row, gated and write-row counts are re-measured at G1's close (DOC013), G2's (DOC014), G3's (DOC015) and G4's (DOC016). [coverage-status.md](coverage-status.md#goip--ip-parity-at-a-glance) owns these numbers; if the two disagree, that file is right.
 
 | | count | where |
 |---|---|---|
-| matrix rows | 253 (183 at G0's close, 198 at G1's, 206 at G2's) | `internal/goipparity/commands.go` |
-| gated | 252 (160 before G0, 182 at its close, 197 at G1's, 205 at G2's) | `pkg/nlparity/goip-parity-allowlist.json`, `gated_commands` |
+| matrix rows | 273 (183 at G0's close, 198 at G1's, 206 at G2's, 253 at G3's) | `internal/goipparity/commands.go` |
+| gated | 272 (160 before G0, 182 at its close, 197 at G1's, 205 at G2's, 252 at G3's) | `pkg/nlparity/goip-parity-allowlist.json`, `gated_commands` |
 | compared but not gated | 1, `addr show dynamic` (23 before G0) | `TestUngatedSurfaceIsNotVacuous`, `internal/goipparity/commands_test.go` |
-| write rows (dry run) | 130: 24 link, 29 route, 36 address, 8 neigh, 19 rule, 7 nexthop, 3 addrlabel, 3 ntable, 1 stats (83 before G2, 86 at its close) | `commands.go` |
-| `ip` objects with a `run` function | 11 of 31 | `internal/goip/dispatch.go:52-84` |
-| RTM types the write gate admits | 18: `RTM_{NEW,DEL}{ROUTE,LINK,ADDR,NEIGH,RULE,NEXTHOP,ADDRLABEL,LINKPROP}`, `RTM_SETNEIGHTBL`, `RTM_SETSTATS` (6 before G3) | `IsAdmittedWriteType`, `pkg/xtcpnl/xtcpnl_rtattr_encode.go:353-367` |
+| write rows (dry run) | 133: 24 link, 29 route, 36 address, 8 neigh, 19 rule, 7 nexthop, 3 addrlabel, 3 ntable, 1 stats, 2 token, 1 netns (83 before G2, 86 at its close, 130 at G3's) | `commands.go` |
+| `ip` objects with a `run` function | 16 of 31 (11 at G3's close) | `internal/goip/dispatch.go:68-102` |
+| RTM types the write gate admits | 20: `RTM_{NEW,DEL}{ROUTE,LINK,ADDR,NEIGH,RULE,NEXTHOP,ADDRLABEL,LINKPROP}`, `RTM_SETNEIGHTBL`, `RTM_SETSTATS`, `RTM_SETLINK`, `RTM_NEWNSID` (6 before G3, 18 at its close) | `IsAdmittedWriteType`, `pkg/xtcpnl/xtcpnl_rtattr_encode.go:356-371` |
 
 Writes are dry runs. goip builds the requests `ip` would send and writes them to `GOIP_WRITE_OUT`; it never sends them. The matrix compares those requests with the ones `ip` actually sent.
 
@@ -97,13 +97,15 @@ G1 delivered the read verbs: `route get`, `neigh get`, `nexthop get` with `nexth
 
 ### C. rtnetlink objects goip does not run
 
+G4 delivered all six: goip runs `mroute`, `mrule`, `token`, `netns list-id` and `set`, and `monitor`, which prints `RTM_NEWPREFIX` among the rest. The table is the inventory as it stood when the plan was written.
+
 | object | messages | iproute2 | kernel (7.3-rc6) | notes |
 |---|---|---|---|---|
 | mroute | `RTM_GETROUTE` dump with `RTNL_FAMILY_IPMR` or `RTNL_FAMILY_IP6MR` | `ip/ipmroute.c:240-241` | `net/ipv4/ipmr.c`, `ipmr_rtm_dumproute`; `net/ipv6/ip6mr.c` | Needs `CONFIG_IP_MROUTE`. A populated cache needs a multicast routing daemon (for example `smcroute`) |
 | mrule | `RTM_{GET,NEW,DEL}RULE` with the IPMR families | `ip/iprule.c` (`do_multirule`) | `net/core/fib_rules.c` | Needs `IP_MROUTE_MULTIPLE_TABLES` |
 | token | show: an `RTM_GETLINK` dump with AF_INET6, reading `IFLA_INET6_TOKEN`. set: `RTM_SETLINK` | `ip/iptoken.c:71-81` | `net/ipv6/addrconf.c`, `inet6_set_iftoken` | The only `ip` user of `RTM_SETLINK` |
 | netns (the NSID part) | `list-id`: an `RTM_GETNSID` dump; `set`: `RTM_NEWNSID` | `ip/ipnetns.c:73`, `:275-321` | `net/core/net_namespace.c`, `rtnl_net_newid` and `rtnl_net_dumpid` | `add`, `del` and `exec` are syscalls, which puts them in class F |
-| monitor | Every NEW/DEL notification, across the multicast groups at `ip/ipmonitor.c:267-367` | `ip/ipmonitor.c:194` | each subsystem's notifier | The 10 decoded event types (`IsRtnetlinkEventType`, `RTM_NEWRULE`/`RTM_DELRULE` among them since G4-T05) are not rendered |
+| monitor | Every NEW/DEL notification, across the multicast groups at `ip/ipmonitor.c:267-367` | `ip/ipmonitor.c:194` | each subsystem's notifier | The 10 decoded event types (`IsRtnetlinkEventType`, `RTM_NEWRULE`/`RTM_DELRULE` among them since G4-T05) were not rendered; `goip monitor` renders every type `accept_msg` prints since G4-T06 |
 | prefix (in monitor) | `RTM_NEWPREFIX` (`prefixmsg`) | `ip/ipprefix.c:33` | `net/ipv6/addrconf.c` | Emitted only when a router advertisement is received |
 
 **maddress depends on the version.** At the pin, `ip maddress show` reads `/proc/net/{dev_mcast,igmp,igmp6}` (`ip/ipmaddr.c:95-179`), and add/del are ioctls, so it is class F at 7.1.0. The 7.2 checkout dumps `RTM_GETMULTICAST` instead *(7.2: `ip/ipmaddr.c:276`)*, so maddress moves to this class at the next pin bump.
@@ -2573,11 +2575,57 @@ The tests (`pkg/xtcpnl/xtcpnl_rtnetlink_events_test.go`, `pkg/xtcpnl/xtcpnl_rtne
 | positive, negative: `ParseRtnetlinkEvent` on an `RTM_NEWRULE`, an `RTM_DELRULE`, a body shorter than `fib_rule_hdr`, `RTM_NEWQDISC` | a `RuleEvent` add or del with the decoded rule; `ErrFibRuleHdrSmall`; `ErrNotAnEvent` |
 | positive, negative, corner: the notifications in `monitor_all`, `monitor_all_timestamp`, the rule dump, `rule del`'s write and the bulk event capture | the rule `from 192.0.2.0/24 lookup 100 pref 100`, added, in each monitor capture; none from the dump's 21 rule replies, the write's request or the bulk capture |
 
+**G4-T06 delivered** (`internal/goip/obj_monitor.go`, `internal/goip/source_monitor.go`, `internal/goip/render/prefix.go`):
+- **The arguments.** `do_ipmonitor`'s loop in its order (`ip/ipmonitor.c:205-252`): `file` and `label`, the thirteen objects, `all`, `all-nsid`, `help` and `dev`. All but `acaddress`, `stats`, `all` and `dev` are `matches()`, so the order decides an abbreviation: `l` is `label` and `li` is `link`, and `al`, past `address`, is `all-nsid`. `dev`'s name is resolved as it is read. A refusal exits 255. `-t` and `-ts` are `-timestamp` and `-tshort`, after `-oneline` in goip's option chain as in `ip`'s (`ip/ip.c:238-245`).
+- **The subscription.** The groups `do_ipmonitor` binds, by `nl_mgrp`, then `rtnl_add_nl_group` for nexthop, stats and the three multicast and anycast groups, a group the kernel lacks (EINVAL) tolerated, stats needed only when named, and `NETLINK_LISTEN_ALL_NSID` under `all-nsid`. The socket is a new one, as `ip`'s is after `rtnl_close`; a refusal exits 1. `ll_init_map`'s link dump then runs on that socket, so notifications that arrive during it are lost, as `rtnl_dump_filter` skips them, and `netns_map_init` names the nsids. The listen is `rtnl_listen`'s: ENOBUFS is reported and the listen goes on, and any other receive error exits 2.
+- **The render.** `accept_msg`'s switch hands each type to the renderer its `show` uses, with `Deleted ` where `ip` prints it:
+  - a route: a cloned route is skipped, the `RTNL_FAMILY_IPMR` and `IP6MR` families go to `print_mroute`, and a body shorter than its `rtmsg` prints `BUG: wrong nlmsg len` and ends the listen;
+  - a nexthop bucket's deletion prints no `Deleted`, since `ip` tests for `RTM_DELNEXTHOP`;
+  - a link updates the cache, or leaves it on `RTM_DELLINK` (`LLTab.Forget`), and prints with `do_link` 0 and `filter.showqueue` 0: no mode, no qlen, no statistics under `-s` and no addrgenmode under `-d`. `IFLA_EVENT`'s token prints after the group (`ParseNewLink` decodes it now);
+  - an address, multicast and anycast included, leads with `N: dev`; `RTM_GETNEIGH` is a `miss`;
+  - `RTM_NEWPREFIX` is `print_prefix`'s line (`render.PrefixText`), IPv6 alone, another family or ND type refused on stderr;
+  - `RTM_NEWSTATS` is `ipstats_print` with the `hw_s_info` subgroup alone (`render.IfStatsHwSInfoText`), which `ParseNewStats` now decodes from `IFLA_OFFLOAD_XSTATS_HW_S_INFO`;
+  - an nsid is named from the cache, a printed name dropped from it, and only `RTM_NEWNSID` walks `/run/netns` on a miss;
+  - `NLMSG_TSTAMP` is `Timestamp: … us`; ERROR, NOOP and DONE print nothing; any other type is `Unknown message` on stderr.
+
+  `-4` and `-6` filter routes, neighbors, rules and prefixes; `dev` filters routes by output interface, mroutes by input, and links, addresses, neighbors and netconf by index. `print_headers` leads each message: `-t`'s line, `-ts`'s bracket, `[nsid current]` or `[nsid N]` under `all-nsid`, then the label under `label` or `all`.
+- **`-j` prints text.** `do_ipmonitor` opens no JSON writer, so every print takes its text arm, as the `-j` capture shows.
+- **`file FILE`** is `rtnl_from_file`'s walk, header by header. A file `ip` cannot open exits 255 (`exit(-1)`); a walk that fails, a header or body cut short, a bad length or a short route, exits 1, its -1 negated by `do_cmd`.
+- **The replay.** A pcap replay subscribes too. It plays the capture's notifications: requests, dump parts, errors and a get's answer are left out, and so is everything before the link dump's `NLMSG_DONE`. A `NEWNEXTHOP` notification carries `NLM_F_REQUEST`, copied from the request, so a request is a request with `nlmsg_pid` 0.
+- **No matrix row, and no HTTP path.** The parity driver runs no monitor, by design (`goip-parity.exp`), so the seven C1-T04 and `addr-monitor` captures replayed through `Run`, and a live comparison against iproute2-7.1.0, are its evidence. `monitor` never ends, so `Show` and goiphttp leave it out.
+- **The linkmonitor goldens.** `LinkInfo`'s two new fields are in the JSON `TestRecordedContracts` hashes, so the four `route-1` goldens' digests move, regenerated with `-update` as at `1ca4c9bd`; their value counts and errors are unchanged.
+
+The tests (`internal/goip/obj_monitor_test.go`, `obj_monitor_corpus_test.go`, `obj_monitor_run_test.go`, `internal/goip/render/monitor_test.go`, and rows in `lltab_test.go`, `dispatch_test.go`, `pkg/xtcpnl/xtcpnl_ifstatsmsg_test.go` and `xtcpnl_ifinfomsg_test.go`):
+
+| description | expected |
+|---|---|
+| positive, corner, boundary: the seven captures (replayed through `Run`): `monitor all`, `-t monitor all`, `nsid`, `acaddress`, `prefix`, `maddress acaddress` and `-j` | each sidecar byte for byte, `-t`'s lines masked; `prefix_event`'s join during the link dump lost |
+| positive, negative, boundary, corner: `accept_msg` over constructed messages: each type and its deletion, the label, `[nsid current]` and `[nsid 5]`, `-t` and `-ts`, the family and `dev` filters, a cloned route, a short route, IPMR and a non-multicast IPMR route, a bucket's deletion, a link added then named and deleted then `if3`, `miss`, a prefix and its refusals, a cached and an uncached nsid deletion, an nsid with no `NETNSA_NSID`, stats, `NLMSG_TSTAMP` whole and short, ERROR, NOOP and DONE, an unknown type, an undecodable body | the stdout, the stderr and whether the listen ends, row by row |
+| positive, negative, corner: a link under `-s`, `-d` and both | no statistics; the detail run without addrgenmode |
+| positive, negative, boundary, corner: the argument loop: every object, its abbreviations, `l`, `li`, `f`, `a`, `n`, `al`, `all`, `label`, `file`, `dev`, `acaddres`, `stat`, `help`, `h`, no value | the object mask and flags, or the refusal, exit 255 |
+| positive, negative, boundary, corner: the groups for all, stats named, `-4`, `-6`, `-M`, `acaddress` and `prefix` under `-4`, the family-blind objects | the bind mask, the groups added after it and which are needed |
+| positive, negative, boundary, corner: `file` through `Run`, with `-t`, `-timestamp`, `-ts`, `-tshort`, `all`, `dev`, an unknown device, an unknown word, no file, `-j`, a truncated file | the lines, or the exit 255 or 1 with `ip`'s message |
+| positive, negative, boundary, corner: `rtnl_from_file` over two records, an empty file, an unpadded body, a cut header and body, a length under the header's and over the buffer, a short route, no file | the lines, or the refusal with its exit |
+| positive, negative, boundary, corner: a datagram of two messages, empty, unpadded last, a length past it or under the header's, a remnant; the `NETLINK_LISTEN_ALL_NSID` control message | the messages with the nsid, or the refusal; the nsid, the last of two, -1 for none |
+| positive, negative, boundary, corner: which captured messages are notifications, and where the dump ends | requests, dump parts, errors and a get's answer left out; the index past the dump's DONE |
+| positive, corner: a subscription on a live socket, with `all-nsid`, and a group the kernel lacks; a source that cannot subscribe, a refused subscription | `NETLINK_LISTEN_ALL_NSID` read back, or EPERM without the capability; not implemented; exit 1 |
+| positive, negative, boundary, corner: `PrefixText`, `IfStatsHwSInfoText`, `linkEventToken`, `WithoutQlen`, `LLTab.Forget`; `ParseNewStats`' `hw_s_info` and `IFLA_EVENT` | `print_prefix`'s, `ipstats_print`'s and `print_link_event`'s text; the index and its names dropped; the decoded fields |
+
+Every scenario was checked against iproute2-7.1.0 live, in `unshare -rmn` namespaces on the host, each monitor beside `ip`'s over the same notifications, and `file` over an `rtmon` recording.
+
 ### G5 — The genl matrix harness
 
 - The parity comparator normalizes genl family IDs by name (`pkg/nlparity`).
 - goip uses `BuildGetFamilyRequest`.
 - The parity guest loads the C0-T02 modules.
+
+Expanded at G4's close: the comparator first, then goip's side, then the harness that joins them.
+
+| task | deliver |
+|---|---|
+| G5-T01 | `pkg/nlparity` reads `NETLINK_GENERIC` captures: each pcap's `CTRL_CMD_NEWFAMILY` replies map family IDs to names, a genl message is compared by family name and command rather than by `nlmsg_type`, and `FamilyHdrLen` models `genlmsghdr`. Checked over the C2 captures, and over a pair whose families were given different IDs |
+| G5-T02 | goip's genl transport: a `NETLINK_GENERIC` socket beside the route one, and `genl_init_handle`'s family resolution, one `CTRL_CMD_GETFAMILY` by name through `BuildGetFamilyRequest` and `ParseGenericNetlinkFamily`, cached for the run; the replay source reads a genl pcap's exchanges. Checked byte for byte against the CTRL exchange in each C2 family's captures (`lib/libgenl.c:52`) |
+| G5-T03 | the harness: a matrix row names its protocol, the parity driver captures it with `--proto generic`, the guest loads the C0-T02 modules and sets `net.mptcp.enabled` after every existing row, and one ungated `show` row per genl family runs `ip` against `ip`. Done when two live `goip-parity` runs compare those rows clean and leave the route rows unchanged, closing G5 |
 
 ### G6 — genl objects
 

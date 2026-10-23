@@ -456,3 +456,12 @@ func nowFromEnv() time.Time {
 	}
 	return time.Now()
 }
+
+// nowFuncFromEnv is the clock a monitor stamps each message with: GOIP_NOW's
+// instant when it parses, for a replay, else the wall clock, read per message.
+func nowFuncFromEnv() func() time.Time {
+	if t, err := time.Parse(time.RFC3339, os.Getenv("GOIP_NOW")); err == nil {
+		return func() time.Time { return t }
+	}
+	return time.Now
+}

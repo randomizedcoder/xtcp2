@@ -79,6 +79,17 @@ func (t *LLTab) Fill(links []xtcpnl.LinkInfo) {
 	}
 }
 
+// Forget drops an index and every name that resolves to it, which is
+// ll_remember_index on an RTM_DELLINK (ll_entries_destroy, lib/ll_map.c).
+func (t *LLTab) Forget(idx int32) {
+	delete(t.byIndex, idx)
+	for name, i := range t.byName {
+		if i == idx {
+			delete(t.byName, name)
+		}
+	}
+}
+
 // IndexToName resolves an index to a name, reproducing ll_index_to_name
 // (lib/ll_map.c:308-330) minus its live-lookup step.
 //

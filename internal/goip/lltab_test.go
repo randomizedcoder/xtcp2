@@ -355,3 +355,39 @@ func TestLLTabFillReplaces(t *testing.T) {
 		})
 	}
 }
+
+// TestLLTabForget is ll_remember_index on an RTM_DELLINK: the index and
+// every name resolving to it go, and nothing else.
+//
+// go test ./internal/goip/ -run TestLLTabForget
+func TestLLTabForget(t *testing.T) {
+	type result struct {
+		name  string
+		index int32
+		other string
+	}
+	tests := []struct {
+		description string
+		forget      int32
+		expected    result
+	}{
+		{"positive: c0 is forgotten, by index and name", 3, result{name: "if3", index: 0, other: "d0"}},
+		{"negative: an index not cached changes nothing", 9, result{name: "c0", index: 3, other: "d0"}},
+		{"boundary: index 0 changes nothing", 0, result{name: "c0", index: 3, other: "d0"}},
+		{"corner: forgetting d0 leaves c0 and its alias", 4, result{name: "c0", index: 3, other: "if4"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			tab := NewLLTab()
+			tab.Fill([]xtcpnl.LinkInfo{{Index: 3, Name: "c0", AltNames: []string{"c0alt"}}, {Index: 4, Name: "d0"}})
+			tab.Forget(tc.forget)
+			got := result{name: tab.IndexToName(3), index: tab.NameToIndex("c0"), other: tab.IndexToName(4)}
+			if got != tc.expected {
+				t.Errorf("got %+v, want %+v", got, tc.expected)
+			}
+			if alt := tab.NameToIndex("c0alt"); alt != tc.expected.index {
+				t.Errorf("alt name resolves to %d, want %d", alt, tc.expected.index)
+			}
+		})
+	}
+}

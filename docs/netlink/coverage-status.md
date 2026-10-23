@@ -246,9 +246,10 @@ These are the boundaries of the exercise, not a backlog:
   [Write path: address writes as a dry run](#write-path-address-writes-as-a-dry-run)).
   `goip address save` and `showdump` send only dumps, or nothing, and print
   a dump file.
-- **Eleven objects.** `address`, `route`, `rule`, `neigh`/`neighbour`, `link`,
-  `nexthop`, `addrlabel`, `ntable`/`ntbl`, `netconf`, `stats` and `vrf` have a
-  `run` function; the other twenty rows of
+- **Sixteen objects.** `address`, `route`, `rule`, `neigh`/`neighbour`, `link`,
+  `nexthop`, `addrlabel`, `ntable`/`ntbl`, `netconf`, `stats`, `vrf`, `mroute`,
+  `mrule`, `token`, `netns` and `monitor` have a
+  `run` function; the other fifteen rows of
   `internal/goip`'s copy of iproute2's `cmds[]` are present with no `run`
   **on purpose**. Matching is
   unanchored-prefix and first-match-wins, so deleting the unimplemented rows
@@ -460,9 +461,9 @@ the fact that the levels are independent and that things do sit between them.
    sent and the text printed.
 
 Each is strictly stronger than the one above it, and the interesting entries
-are the ones that stop partway. The rtnetlink **event** types are decoded and
-never rendered, because the daemon's link monitor consumes them and `goip` has
-no `monitor` verb. `RTM_NEWRULE` and `RTM_DELRULE` became events in G4-T05.
+are the ones that stop partway. The rtnetlink **event** types are decoded, and
+since G4-T06 rendered by `goip monitor`, but never compared live: the parity
+driver runs no monitor. `RTM_NEWRULE` and `RTM_DELRULE` became events in G4-T05.
 
 ### rtnetlink: ten body layouts, and they are the ten goip needs
 
@@ -521,8 +522,11 @@ that file only in a comment about what a solicited reply carries.
 
 Three of the five are `tc`/`bridge` territory and are outside the exercise
 entirely rather than pending. The other two (`prefixmsg`, `nduseroptmsg`) are
-reachable only through `ip monitor`, the one object class goip does not
-implement — both are event-only layouts with no `show` path. `prefixmsg` has
+reachable only through `ip monitor`, which goip implements since G4-T06 —
+both are event-only layouts with no `show` path. `goip monitor` prints
+`prefixmsg` as `print_prefix` does. `ip monitor` joins no
+`RTNLGRP_ND_USEROPT`, so neither tool is sent `RTM_NEWNDUSEROPT`, and
+`accept_msg` has no arm for it. `prefixmsg` has
 captured bytes since C1-T04 of [goip-parity-gaps.md](goip-parity-gaps.md#c1-t04-events-through-ip-monitor)
 (`link-write/rtnl/prefix_event/`); its decoder is P1 there. **No read-only object
 needs a new body-layout decoder**: `vrf`, the eleventh object, landed after `stats`
@@ -655,8 +659,9 @@ dumps and invisible to the monitor. The corpus holds one rule notification,
 `monitor_all`'s `ip rule add` (`TestRuleEventsRealFixture`); `RTM_DELRULE` is
 covered by a constructed row, its body the same `fib_rule_hdr` layout.
 
-None of the eight is rendered or compared, because `goip` has no `monitor`
-verb and the matrix drives `show` commands only.
+Since G4-T06 `goip monitor` renders all of them, checked against the seven
+captured monitor runs; none is compared live, because the matrix drives no
+monitor.
 
 ### sock_diag / inet_diag, which is a different surface and is complete
 
@@ -724,7 +729,7 @@ declines.
 
 The user-facing refusal happens earlier and elsewhere: `goip` returns
 `ErrNotImplemented` from object dispatch, before a socket is opened, for the
-twenty-one objects with no `run`. So the uncovered layouts above are a
+fifteen rows of the object table with no `run`. So the uncovered layouts above are a
 backlog rather than a hazard, and the two halves of that — a walker that
 tolerates the unknown and a dispatcher that refuses it up front — are
 independent and should stay that way.
@@ -3882,6 +3887,16 @@ process's own table, so each row has an accepted-divergence entry for it;
 `set`'s fired, `ip` 5 against goip 6, and the four `list-id` entries did not,
 both sides opening each file as 6. `TestNetnsRows` and the
 `earned`/`gated_commands` pair pin them: 273 rows, 272 gated.
+
+### G4-T06: `goip monitor`, with no matrix row
+
+G4-T06 adds `goip monitor` (`internal/goip/obj_monitor.go`), which subscribes
+to `do_ipmonitor`'s groups on a socket of its own and prints each notification
+as `accept_msg` does. It has no matrix row: the parity driver runs no monitor,
+since a notification inside a read-only capture window is a hygiene failure.
+`TestMonitorMatchesIp` replays the seven monitor captures through `Run`,
+byte for byte, and a live comparison against iproute2-7.1.0 matched on all 41
+argument sets tried. The matrix is unchanged: 273 rows, 272 gated.
 
 ## Tier C — the `goip-parity` microVM flavor
 

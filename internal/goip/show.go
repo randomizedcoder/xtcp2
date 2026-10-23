@@ -55,13 +55,13 @@ type ShowRequest struct {
 // path goip implements, by its canonical name in the objects table. It is
 // derived from that table rather than spelled out again, so the two cannot
 // drift. Aliases (the British spelling of neighbor, ntbl) are left out so
-// each object has one spelling.
+// each object has one spelling, and so is monitor, which never ends.
 var showObjects = implementedObjects()
 
 func implementedObjects() []string {
 	names := make([]string, 0, len(objects))
 	for _, o := range objects {
-		if o.run != nil && !o.alias {
+		if o.run != nil && !o.alias && !o.noShow {
 			names = append(names, o.name)
 		}
 	}
