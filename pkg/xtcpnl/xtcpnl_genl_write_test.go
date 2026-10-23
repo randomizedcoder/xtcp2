@@ -143,6 +143,17 @@ func TestIsAdmittedGenlWrite(t *testing.T) {
 		{"negative: IOAM6 DUMP_SCHEMAS, `ioam schema show`", IOAM6GenlName, IOAM6CmdDumpSchemas, false},
 		{"boundary: IOAM6 command 0, UNSPEC", IOAM6GenlName, 0, false},
 		{"boundary: IOAM6 command 8, past the last", IOAM6GenlName, IOAM6CmdNsSetSchema + 1, false},
+		{"positive: mptcp_pm ADD_ADDR, `mptcp endpoint add`", MPTCPPMGenlName, MPTCPPMCmdAddAddr, true},
+		{"positive: mptcp_pm DEL_ADDR, `mptcp endpoint delete`", MPTCPPMGenlName, MPTCPPMCmdDelAddr, true},
+		{"positive: mptcp_pm FLUSH_ADDRS, `mptcp endpoint flush`", MPTCPPMGenlName, MPTCPPMCmdFlushAddrs, true},
+		{"positive: mptcp_pm SET_LIMITS, `mptcp limits set`", MPTCPPMGenlName, MPTCPPMCmdSetLimits, true},
+		{"positive: mptcp_pm SET_FLAGS, `mptcp endpoint change`", MPTCPPMGenlName, MPTCPPMCmdSetFlags, true},
+		{"negative: mptcp_pm GET_ADDR, `mptcp endpoint show`", MPTCPPMGenlName, MPTCPPMCmdGetAddr, false},
+		{"negative: mptcp_pm GET_LIMITS, `mptcp limits show`", MPTCPPMGenlName, MPTCPPMCmdGetLimits, false},
+		{"negative: mptcp_pm ANNOUNCE, the userspace path manager's, which ip does not send", MPTCPPMGenlName,
+			MPTCPPMCmdAnnounce, false},
+		{"boundary: mptcp_pm command 0, UNSPEC", MPTCPPMGenlName, 0, false},
+		{"corner: mptcp_pm's SET_FLAGS number is not a SEG6 write", Seg6GenlName, MPTCPPMCmdSetFlags, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {

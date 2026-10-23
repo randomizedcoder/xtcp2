@@ -24,6 +24,10 @@ const Seg6GenlVersion uint8 = 1
 // carry (IOAM6_REQUEST, ip/ipioam6.c).
 const IOAM6GenlVersion uint8 = 1
 
+// MPTCPPMGenlVersion is MPTCP_PM_VER, the version ip's mptcp requests carry
+// (MPTCP_REQUEST, ip/ipmptcp.c).
+const MPTCPPMGenlVersion uint8 = 1
+
 // genlMsgHdrLenCst is sizeof(struct genlmsghdr).
 const genlMsgHdrLenCst = 4
 
@@ -42,8 +46,9 @@ var (
 // delete` and `flush` (ip/tcp_metrics.c), and SEG6's SETHMAC and
 // SET_TUNSRC, `ip sr hmac set` and `ip sr tunsrc set` (ip/ipseg6.c), and
 // IOAM6's namespace and schema adds, deletes and binding, `ip ioam
-// namespace` and `schema` (ip/ipioam6.c). The family is its controller
-// name.
+// namespace` and `schema` (ip/ipioam6.c), and mptcp_pm's endpoint adds,
+// deletes, changes and flush and its limits set, `ip mptcp endpoint` and
+// `limits set` (ip/ipmptcp.c). The family is its controller name.
 func IsAdmittedGenlWrite(family string, cmd uint8) bool {
 	switch family {
 	case TCPMetricsGenlName:
@@ -53,6 +58,11 @@ func IsAdmittedGenlWrite(family string, cmd uint8) bool {
 	case IOAM6GenlName:
 		switch cmd {
 		case IOAM6CmdAddNamespace, IOAM6CmdDelNamespace, IOAM6CmdAddSchema, IOAM6CmdDelSchema, IOAM6CmdNsSetSchema:
+			return true
+		}
+	case MPTCPPMGenlName:
+		switch cmd {
+		case MPTCPPMCmdAddAddr, MPTCPPMCmdDelAddr, MPTCPPMCmdFlushAddrs, MPTCPPMCmdSetLimits, MPTCPPMCmdSetFlags:
 			return true
 		}
 	}

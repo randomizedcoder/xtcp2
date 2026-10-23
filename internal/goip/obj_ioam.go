@@ -405,7 +405,7 @@ func ioamMonitor(c *runCtx, id uint16) error {
 	if !ok {
 		return fmt.Errorf("ioam monitor: %w", ErrNotImplemented)
 	}
-	group, err := ioamEventGroup(gs, id, c.nextSeq())
+	group, err := genlEventGroup(gs, id, c.nextSeq(), xtcpnl.IOAM6EventGroupName)
 	if err != nil {
 		return fmt.Errorf("%w: can't subscribe to ioam6 events: %w", ErrIoamMonitor, err)
 	}
@@ -419,31 +419,6 @@ func ioamMonitor(c *runCtx, id uint16) error {
 		return fmt.Errorf("%w: %w", ErrIoamMonitor, err)
 	}
 	return nil
-}
-
-// ioamEventGroup is genl_add_mcast_grp's lookup: a GETFAMILY by id whose
-// answer, a controller message, names ioam6_events among its groups.
-func ioamEventGroup(gs GenlSource, id uint16, seq uint32) (uint32, error) {
-	req, err := xtcpnl.BuildGetFamilyByIDRequest(id, seq)
-	if err != nil {
-		return 0, err
-	}
-	typ, body, err := gs.GenlTalk(req)
-	if err != nil {
-		return 0, fmt.Errorf("error talking to the kernel: %w", err)
-	}
-	if typ != unix.GENL_ID_CTRL {
-		return 0, unix.EINVAL
-	}
-	f, err := xtcpnl.ParseGenericNetlinkFamily(body)
-	if err != nil {
-		return 0, err
-	}
-	group, ok := f.MulticastGroups[xtcpnl.IOAM6EventGroupName]
-	if !ok {
-		return 0, unix.ENOENT
-	}
-	return group, nil
 }
 
 // ioamMonitorMsg is ioam6_monitor_msg: a message of another type, or

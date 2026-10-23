@@ -20,6 +20,9 @@ const (
 	// a command that returned 1: `addr flush` running out of rounds
 	// (ip/ip.c:131, ip/ipaddress.c:2012-2014).
 	ExitMinusOne = 255
+	// ExitMinusTwo is do_cmd's -(2), for a command that returned 2:
+	// mptcp_monitor's listen ending in error (ip/ipmptcp.c).
+	ExitMinusTwo = 254
 )
 
 const usage = `Usage: goip [ OPTIONS ] OBJECT { COMMAND | help }
@@ -253,13 +256,22 @@ func (c *runCtx) lineOption(a string) bool {
 // for what ipseg6.c ends with exit(-1), 1 for a dump or a reply it cannot
 // finish or parse, and 2 for a refused tunsrc show. ioam exits 255 for
 // what ipioam6.c ends with exit(-1), and 1 for a dump it cannot finish or a
-// monitor that cannot subscribe or whose listen ends.
+// monitor that cannot subscribe or whose listen ends. mptcp exits 255 for
+// what ipmptcp.c ends with exit(-1) and for a monitor that cannot
+// subscribe, 254 for a monitor whose listen ends in error, 1 for an answer
+// it refuses, and 2 for a dump it cannot finish or a kernel refusal.
 func exitCodeOf(err error) int {
 	switch {
 	case errors.Is(err, ErrFlushIncomplete), errors.Is(err, ErrDumpFile), errors.Is(err, ErrRuleDumpTerminated),
 		errors.Is(err, ErrAddrLabelFlushTerminated), errors.Is(err, ErrMruleFamily), errors.Is(err, ErrMonitorAbort),
-		errors.Is(err, ErrTCPMetricsUsage), errors.Is(err, ErrSrUsage), errors.Is(err, ErrIoamUsage):
+		errors.Is(err, ErrTCPMetricsUsage), errors.Is(err, ErrSrUsage), errors.Is(err, ErrIoamUsage),
+		errors.Is(err, ErrMptcpUsage), errors.Is(err, ErrMptcpSubscribe):
 		return ExitMinusOne
+	case errors.Is(err, ErrMptcpListen):
+		return ExitMinusTwo
+	case errors.Is(err, ErrMptcpDumpTerminated):
+		// Ahead of ErrMptcpReply, which a refused answer in a dump wraps.
+		return ExitFailure
 	case errors.Is(err, ErrMonitorSetup), errors.Is(err, ErrMonitorFile):
 		return ExitUsage
 	case errors.Is(err, ErrNotImplemented), errors.Is(err, ErrInvalidArgument),
@@ -267,7 +279,8 @@ func exitCodeOf(err error) int {
 		errors.Is(err, ErrDumpTerminated), errors.Is(err, ErrNeighFlushTerminated),
 		errors.Is(err, ErrTCPMetricsDumpTerminated), errors.Is(err, ErrGenlResolve),
 		errors.Is(err, ErrSrReply), errors.Is(err, ErrSrDumpTerminated),
-		errors.Is(err, ErrIoamDumpTerminated), errors.Is(err, ErrIoamMonitor):
+		errors.Is(err, ErrIoamDumpTerminated), errors.Is(err, ErrIoamMonitor),
+		errors.Is(err, ErrMptcpReply):
 		return ExitUsage
 	}
 	return ExitFailure

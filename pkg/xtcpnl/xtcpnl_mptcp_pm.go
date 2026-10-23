@@ -21,6 +21,22 @@ import (
 const (
 	// MPTCPPMGenlName is the family's name in the controller.
 	MPTCPPMGenlName = "mptcp_pm"
+	// MPTCPPMEventGroupName is MPTCP_PM_EV_GRP_NAME, the multicast group
+	// the events go to.
+	MPTCPPMEventGroupName = "mptcp_pm_events"
+
+	// MPTCP_PM_ADDR_FLAG_* (include/uapi/linux/mptcp.h), an endpoint's
+	// MPTCPAddrAttrFlags.
+	MPTCPAddrFlagSignal   uint32 = 1 << 0
+	MPTCPAddrFlagSubflow  uint32 = 1 << 1
+	MPTCPAddrFlagBackup   uint32 = 1 << 2
+	MPTCPAddrFlagFullmesh uint32 = 1 << 3
+	MPTCPAddrFlagImplicit uint32 = 1 << 4
+	MPTCPAddrFlagLaminar  uint32 = 1 << 5
+
+	// MPTCP_PM_EV_FLAG_*, an event's MPTCPAttrFlags.
+	MPTCPEventFlagDenyJoinID0 uint16 = 1 << 0
+	MPTCPEventFlagServerSide  uint16 = 1 << 1
 
 	// MPTCP_PM_CMD_* (include/uapi/linux/mptcp_pm.h) that ip sends; 8 to
 	// 11 are the userspace path manager's.

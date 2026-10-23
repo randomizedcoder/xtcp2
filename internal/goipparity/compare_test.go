@@ -35,11 +35,15 @@ const (
 )
 
 // genlReadbackRows are the genl read rows with no corpus capture of their
-// own slug, G6-T03's -j shows: each is laid out on the readback dump of
-// the same command a write row's capture holds.
+// own slug, G6-T03's and G6-T04's -j shows: each is laid out on the
+// readback dump of the same command a write row's capture holds, or on the
+// capture of the same show without -j, the same requests.
 var genlReadbackRows = map[string]string{
-	"ioam_ns_show_json": "ioam_ns_set_schema/netlink_generic_ns.pcap",
-	"ioam_sc_show_json": "ioam_ns_set_schema/netlink_generic_sc.pcap",
+	"ioam_ns_show_json":        "ioam_ns_set_schema/netlink_generic_ns.pcap",
+	"ioam_sc_show_json":        "ioam_ns_set_schema/netlink_generic_sc.pcap",
+	"mptcp_endpoint_show_json": "mptcp_endpoint_show/ip.pcap",
+	"mptcp_endpoint_get_json":  "mptcp_endpoint_get/ip.pcap",
+	"mptcp_limits_show_json":   "mptcp_limits_show/ip.pcap",
 }
 
 // writeGenlReadRow lays out an implemented generic netlink read row as a

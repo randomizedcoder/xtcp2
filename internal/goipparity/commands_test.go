@@ -1076,19 +1076,20 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	//   - the eleven `sr` rows G6-T02 added in place of its stand-in,
 	//     likewise — see TestSrRows;
 	//   - the twenty `ioam` rows G6-T03 added in place of its stand-in,
-	//     likewise — see TestIoamRows.
+	//     likewise — see TestIoamRows;
+	//   - the twenty-eight `mptcp` rows G6-T04 added in place of its
+	//     stand-in, likewise — see TestMptcpRows.
 	//
 	// The last four were the permanent set, measured divergent on the wire;
 	// TestPermanentWireDivergences records that it is empty.
 	//
-	// The five genl rows G5-T03 added and G6 has not yet replaced are
+	// The four genl rows G5-T03 added and G6 has not yet replaced are
 	// ungated by construction: `ip`
 	// stands in for goip on them (IPStandIn) until each family's G6 task
 	// implements it, and gating `ip` against `ip` would gate nothing about
 	// goip. TestGenlStandInRows pins them.
 	expected := []string{
 		"addr show dynamic",
-		"mptcp endpoint show",
 		"fou show",
 		"ila show",
 		"l2tp show tunnel",
@@ -1100,10 +1101,10 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 		check       func(t *testing.T)
 	}{
 		{
-			description: "boundary: the list is six named rows, one held out and five stand-ins",
+			description: "boundary: the list is five named rows, one held out and four stand-ins",
 			check: func(t *testing.T) {
-				if len(expected) != 6 {
-					t.Errorf("got %d named rows, want 6", len(expected))
+				if len(expected) != 5 {
+					t.Errorf("got %d named rows, want 5", len(expected))
 				}
 			},
 		},
@@ -3475,12 +3476,11 @@ func TestGenlStandInRows(t *testing.T) {
 		gated[name] = true
 	}
 	want := []string{
-		"mptcp endpoint show",
 		"fou show", "ila show", "l2tp show tunnel", "macsec show",
 	}
-	// tcpmRows, srRows and ioamRows are G6-T01's to G6-T03's rows, the
-	// first genl ones, ahead of the stand-ins.
-	const tcpmRows, srRows, ioamRows = 14, 11, 20
+	// tcpmRows, srRows, ioamRows and mptcpRows are G6-T01's to G6-T04's
+	// rows, the first genl ones, ahead of the stand-ins.
+	const tcpmRows, srRows, ioamRows, mptcpRows = 14, 11, 20, 28
 
 	cmds := Commands()
 	first := len(cmds)
@@ -3499,7 +3499,7 @@ func TestGenlStandInRows(t *testing.T) {
 		check       func(t *testing.T)
 	}{
 		{
-			description: "positive: the stand-ins are the five unimplemented families' shows, in the C2 order",
+			description: "positive: the stand-ins are the four unimplemented families' shows, in the C2 order",
 			check: func(t *testing.T) {
 				if !slices.Equal(got, want) {
 					t.Errorf("stand-ins %q, want %q", got, want)
@@ -3529,8 +3529,8 @@ func TestGenlStandInRows(t *testing.T) {
 						t.Errorf("%q, a %s row, follows the first genl row", c.Name, c.Protocol())
 					}
 				}
-				if len(cmds)-first != tcpmRows+srRows+ioamRows+len(want) {
-					t.Errorf("%d rows from the first genl one, want %d", len(cmds)-first, tcpmRows+srRows+ioamRows+len(want))
+				if n := tcpmRows + srRows + ioamRows + mptcpRows + len(want); len(cmds)-first != n {
+					t.Errorf("%d rows from the first genl one, want %d", len(cmds)-first, n)
 				}
 			},
 		},
@@ -3871,6 +3871,84 @@ func TestIoamRows(t *testing.T) {
 			}
 			got.gated = al.IsGated(r.command)
 			got.entries = len(al.EntriesFor(r.command))
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+		})
+	}
+}
+
+// TestMptcpRows pins G6-T04's 28 mptcp rows: implemented and gated, generic,
+// each on its corpus row's preconditions where it has one, the three -j
+// shows on the captured shows', and the port refusal a read of floor 2. The
+// monitor is not in the table.
+//
+// go test ./internal/goipparity/ -run TestMptcpRows
+func TestMptcpRows(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	type want struct {
+		implemented, write, topology, gated bool
+		proto                               string
+		floor                               int
+	}
+	read := want{implemented: true, topology: true, gated: true, proto: ProtoGenericCst, floor: 4}
+	write := read
+	write.write = true
+	refused := read
+	refused.floor = 2
+	rows := []struct {
+		description string
+		command     string
+		corpus      string // the slug whose topology Setup must be
+		expected    want
+	}{
+		{"boundary: endpoint show with none, spelled s", "mptcp endpoint s", "mptcp_endpoint_show_empty", read},
+		{"positive: endpoint show, two", "mptcp endpoint show", "mptcp_endpoint_show", read},
+		{"positive: endpoint show id", "mptcp endpoint show id 2", "mptcp_endpoint_get", read},
+		{"negative: a GET of none, refused", "mptcp endpoint show id 9", "mptcp_endpoint_get_missing", read},
+		{"positive: limits show", "mptcp limits show", "mptcp_limits_show", read},
+		{"negative: a port without signal, ip's own refusal", "mptcp endpoint add 192.0.2.2 port 10100 subflow",
+			"mptcp_endpoint_add_port_subflow", refused},
+		{"positive: -j endpoint show, the two", "-j mptcp endpoint show", "mptcp_endpoint_show", read},
+		{"positive: -j endpoint show id", "-j mptcp endpoint show id 2", "mptcp_endpoint_get", read},
+		{"corner: -j limits show, text", "-j mptcp limits show", "mptcp_limits_show", read},
+		{"positive: endpoint add", "mptcp endpoint add 192.0.2.1 id 1 subflow", "mptcp_endpoint_add", write},
+		{"positive: on d0", "mptcp endpoint add 2001:db8::1 dev d0 signal backup", "mptcp_endpoint_add_v6_dev", write},
+		{"positive: a port", "mptcp endpoint add 192.0.2.2 port 10100 signal", "mptcp_endpoint_add_port", write},
+		{"positive: fullmesh", "mptcp endpoint add 192.0.2.2 subflow fullmesh", "mptcp_endpoint_add_fullmesh", write},
+		{"negative: a duplicate address, refused", "mptcp endpoint add 192.0.2.1 subflow", "mptcp_endpoint_add_dup", write},
+		{"negative: an id in use, refused", "mptcp endpoint add 192.0.2.2 id 1 subflow", "mptcp_endpoint_add_id_busy", write},
+		{"positive: change", "mptcp endpoint change id 1 backup", "mptcp_endpoint_change", write},
+		{"positive: change by address", "mptcp endpoint change 192.0.2.1 fullmesh", "mptcp_endpoint_change_addr", write},
+		{"boundary: nobackup, no flags", "mptcp endpoint change id 1 nobackup", "mptcp_endpoint_change_nobackup", write},
+		{"negative: a change of none, refused", "mptcp endpoint change id 9 backup", "mptcp_endpoint_change_missing", write},
+		{"positive: delete", "mptcp endpoint delete id 1", "mptcp_endpoint_delete", write},
+		{"negative: a delete of none, refused", "mptcp endpoint delete id 9", "mptcp_endpoint_delete_missing", write},
+		{"corner: id 0 with its address", "mptcp endpoint delete id 0 192.0.2.1", "mptcp_endpoint_delete_id0", write},
+		{"positive: flush", "mptcp endpoint flush", "mptcp_endpoint_flush", write},
+		{"positive: limits set", "mptcp limits set subflows 4 add_addr_accepted 3", "mptcp_limits_set", write},
+		{"positive: one limit", "mptcp limits set add_addr_accepted 2", "mptcp_limits_set_one", write},
+		{"boundary: none", "mptcp limits set", "mptcp_limits_set_none", write},
+		{"boundary: the maxima", "mptcp limits set subflows 8 add_addr_accepted 8", "mptcp_limits_set_max", write},
+		{"negative: over them, refused", "mptcp limits set subflows 9", "mptcp_limits_set_over", write},
+		{"negative: the monitor is not in the table", "mptcp monitor", "", want{}},
+		{"negative: nor is the stand-in it replaced", "mptcp endpoint show ", "", want{}},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			var got want
+			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				steps := make([]string, 0, len(c.Setup))
+				for _, s := range c.Setup {
+					steps = append(steps, "ip "+s)
+				}
+				topology := r.corpus != "" && slices.Equal(steps, srCorpusTopology(t, r.corpus))
+				got = want{implemented: c.Implemented, write: c.Write, proto: c.Proto, floor: c.Floor, topology: topology}
+			}
+			got.gated = al.IsGated(r.command)
 			if got != r.expected {
 				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
 			}

@@ -84,8 +84,10 @@ const (
 	// srSlugPrefixCst names G6-T02's sr rows, likewise each on its own
 	// slug's capture under tdGenl.
 	srSlugPrefixCst = "sr_"
-	// ioamSlugPrefixCst names G6-T03's ioam rows, likewise.
-	ioamSlugPrefixCst = "ioam_"
+	// ioamSlugPrefixCst names G6-T03's ioam rows, likewise, and
+	// mptcpSlugPrefixCst G6-T04's mptcp rows.
+	ioamSlugPrefixCst  = "ioam_"
+	mptcpSlugPrefixCst = "mptcp_"
 	// genlProtoCst is NETLINK_GENERIC.
 	genlProtoCst = 16
 	tdAddrSave   = "../../pkg/xtcpnl/testdata/7_1_4/link-write/addr-save"
@@ -261,7 +263,7 @@ func corpusWriteRow(t *testing.T, c Command) writeRowFiles {
 		return corpusNetnsSetRow(t)
 	}
 	if strings.HasPrefix(c.Slug, tcpmSlugPrefixCst) || strings.HasPrefix(c.Slug, srSlugPrefixCst) ||
-		strings.HasPrefix(c.Slug, ioamSlugPrefixCst) {
+		strings.HasPrefix(c.Slug, ioamSlugPrefixCst) || strings.HasPrefix(c.Slug, mptcpSlugPrefixCst) {
 		return corpusGenlWriteRow(t, c)
 	}
 	if strings.HasPrefix(c.Slug, addrLabelWriteSlugPrefixCst) ||

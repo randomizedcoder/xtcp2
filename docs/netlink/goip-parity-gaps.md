@@ -2807,6 +2807,39 @@ The tests (`pkg/xtcpnl`, `internal/goip`, `internal/goipparity`):
 | positive, boundary, corner: C's `%#0Nx` of 0x2a, a filled width, zero, all ones, a value wider than its width, zero at width 0 | `TestCAltHex` (7) |
 | positive, negative, boundary, corner: the 20 rows and `ioam monitor` | generic, on the corpus topology or the `-j` shows', gated with no allowlist entry; the monitor not in the table, `TestIoamRows` (21) |
 
+**G6-T04 delivered** (`internal/goip`, `pkg/xtcpnl`, `internal/goipparity`):
+- **The write gate.** `IsAdmittedGenlWrite` admits mptcp_pm's five commands that change state: `ADD_ADDR`, `DEL_ADDR`, `FLUSH_ADDRS`, `SET_LIMITS` and `SET_FLAGS`. `GET_ADDR` and `GET_LIMITS` stay reads, and the userspace path manager's commands, which `ip` never sends, are not admitted.
+- **`goip mptcp`** (`internal/goip/obj_mptcp.go`, `render/mptcp.go`).
+  - Objects and verbs are matched by prefix, as `do_mptcp` matches them, `help` first and before the family lookup. A `limits` verb that is neither `set` nor `show` falls through to the `monitor` test, as in `ip`. Flags are matched by `strcmp`, and `id`, `dev` and `port` by prefix.
+  - `endpoint add`, `change` and `delete` run `ll_init_map`'s link dump, then `mptcp_parse_opt` and its checks, and write one acked command to `GOIP_WRITE_OUT`, the endpoint nest flagged `NLA_F_NESTED` and sent even empty. `dev` is `ll_name_to_index`: the cache, then `ll_link_get` by name, then `ifN`.
+  - `endpoint show` with no argument dumps `GET_ADDR` and runs the link dump at the first endpoint, so an empty dump sends none. With arguments it sends one `GET_ADDR` without `NLM_F_ACK` and prints its endpoint. Under `-j` each is an array. `endpoint flush` writes `FLUSH_ADDRS` with no attribute.
+  - `limits set` writes `SET_LIMITS`, `RCV_ADD_ADDRS` ahead of `SUBFLOWS` whatever the argument order. `limits show` prints `print_mptcp_limit`'s line, which is outside `new_json_obj`, so it is text even under `-j`.
+  - `monitor` looks up and joins `mptcp_pm_events` as the ioam monitor does, and prints each event as `mptcp_monitor_msg` does, under `-j` as one array. An event with no name prints its number alone. SIGINT and SIGTERM close the array and exit 0, as `sig_exit` and `atexit`'s `delete_json_obj` do; an interface index is named by `ll_link_get`, the same get `ip` sends.
+  - Exit codes are `ip`'s: 255 for usage, an unknown command, `invarg`, `missarg` and a monitor that cannot subscribe; 254 for a listen that ends in error; 1 for an address `get_addr` cannot read, a failed link dump and an answer without an endpoint; 2 for a refused dump or GET.
+- **The rows.** The C2 corpus's 25 `mptcp_*` rows that are not the monitor's replace the stand-in, each on its corpus precondition: six reads and 19 writes. Three `-j` shows join them, of two endpoints, of one by id and of the limits.
+  - The empty show's corpus command is the populated one's, so it runs as `mptcp endpoint s`, the same bytes.
+  - A port without `signal` is refused by `ip` after the family lookup, so its row is a read of floor 2 that exits 255 on every side.
+  - The monitor's two rows are not in the matrix, since the driver runs no monitor. Both are replayed, and live the monitor's output and requests are `ip`'s.
+
+The tests (`pkg/xtcpnl`, `internal/goip`, `internal/goipparity`):
+
+| description | expected |
+|---|---|
+| positive, negative, boundary, corner: the write gate for mptcp_pm's five writes, its two reads, `ANNOUNCE`, command 0, and `SET_FLAGS`'s number under SEG6 | the five admitted, the rest not, `TestIsAdmittedGenlWrite` (31 rows, ten new) |
+| positive, negative, boundary, corner: the 25 C2 captures that are not the monitor's replayed, the readback shows of 14, prefixes, a hex id, `dev if3`, the address ahead of id 0, the limits in either order, `flush` with an extra word, and `-j` shows | `ip.out`, `ip_endpoint` or `ip_limits`, or `ip`'s JSON; every read exchange once, no write sent, goip's write `ip`'s bytes; `ip`'s exit status but for a kernel refusal, `TestMptcpMatchesIp` (56) |
+| positive, negative, boundary, corner: when `ll_init_map` runs: a dump of two and of none, a GET, an add, flush, the limits, a refusal after the loop | one link dump or none; no link get, `TestMptcpLinkMap` (7) |
+| negative, boundary, corner: each refusal of `mptcp_parse_opt`, `mptcp_parse_limit` and `do_mptcp`, each value out of range, `limits` falling through to `monitor`, usage and `h` | `ip`'s message and exit status, nothing written, `TestMptcpArgs` (26) |
+| positive, boundary, corner: the endpoint nest empty, of an IPv4 address, of every attribute, of `default`'s empty address, of id 0 | `ip`'s bytes, `TestMptcpOptAttrs` (5) |
+| positive, negative, boundary, corner: a refused dump with and without `-j`, an answer without an endpoint after one with, a failed link dump, an unknown flag and index, a GET's answer without an endpoint or of another type, a short limits answer, limits past `INT_MAX` | `ip`'s lines and JSON, `[` or `[]`, exit 1 or 2, `TestMptcpShow` (14) |
+| positive, negative, boundary, corner: the two monitor captures as text and `-j`; an event with no name, one undecodable; a message of another type, one too short; a listen that fails; no group, a refused lookup, an answer not the controller's, a refused join; `-t` and `-ts` | `ip.out`'s events, `d0` named by one link get; `[UNKNOWN 4]`; exit 254 with the array closed, or 255 before it; the timestamp line or member, `TestMptcpMonitor` (19) |
+| positive, negative, corner: `sig_exit` under `-j`, as text, and after the listen closed the array | `]` once, exit 0, `TestMptcpSigExit` (3) |
+| positive, negative, corner: each error's exit status, and a dump ended by a refused answer | 255, 255, 254, 1, 2, 2 and `ll_init_map`'s 1, as numbers, `TestMptcpExitCodes` (7) |
+| positive, negative, boundary, corner: `mptcp_parse_limit` of none, one, both, a repeat, hex and octal, a u32's maximum, `-1`, an unknown limit, a missing value | `ip`'s bytes or a refusal, `TestMptcpParseLimit` (9) |
+| positive, boundary, corner: `print_mptcp_addrinfo` of IPv4 and IPv6, every flag, rawflags, port and index 0, no family, a family and address that disagree | `ip`'s line and object, `TestMptcpAddr` (9) |
+| positive, negative, boundary, corner: `mptcp_monitor_msg` with every scalar, IPv6 addresses, zero token and flags, `server_side` by attribute and by flag, an unnamed event, the longest name, a timestamp | `ip`'s line and object, `TestMptcpEvent` (9); `event_to_str`'s ten names and its gaps, `TestMptcpEventKnown` (6) |
+| positive, boundary, corner: `print_mptcp_limit` of both, one, neither, past `INT_MAX` | `ip`'s line, `TestMptcpLimitsText` (4) |
+| positive, negative, boundary, corner: the 28 rows, `mptcp monitor` and the stand-in | generic, on the corpus topology, gated with no allowlist entry, the port refusal floor 2; neither of the others in the table, `TestMptcpRows` (30) |
+
 ### G7 — XFRM
 
 xfrm state and policy show first, then the writes.

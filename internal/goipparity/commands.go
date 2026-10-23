@@ -2870,18 +2870,79 @@ var commands = withArgs([]Command{
 	{Name: "ioam namespace del 01", Slug: "ioam_ns_del_bound", Floor: 4, Implemented: true, Write: true,
 		Proto: ProtoGenericCst, Setup: ioamBoundSetup},
 
+	// G6-T04: mptcp, the C2 corpus's 25 mptcp_* rows that are not the
+	// monitor's, on its preconditions (genl-write-corpus.exp), and three -j
+	// shows on the captured ones'. The empty show's corpus command is the
+	// populated one's, so it is spelled `s`, the same bytes. A port without
+	// signal is refused after the lookup, so its row is a read of floor 2
+	// that exits 255 on every side. The kernel keeps its endpoints in a
+	// list in the order they were added, so a show of two is in one order
+	// on every side. The monitor's two rows are not here: the driver runs
+	// no monitor.
+	{Name: "mptcp endpoint s", Slug: "mptcp_endpoint_show_empty", Floor: 4, Implemented: true, Proto: ProtoGenericCst},
+	{Name: "mptcp endpoint show", Slug: "mptcp_endpoint_show", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: mptcpEp2Setup},
+	{Name: "mptcp endpoint show id 2", Slug: "mptcp_endpoint_get", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: mptcpEp2Setup},
+	{Name: "mptcp endpoint show id 9", Slug: "mptcp_endpoint_get_missing", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: "mptcp limits show", Slug: "mptcp_limits_show", Floor: 4, Implemented: true, Proto: ProtoGenericCst},
+	{Name: "mptcp endpoint add 192.0.2.2 port 10100 subflow", Slug: "mptcp_endpoint_add_port_subflow", Floor: 2,
+		Implemented: true, Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: "-j mptcp endpoint show", Slug: "mptcp_endpoint_show_json", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst, Setup: mptcpEp2Setup},
+	{Name: "-j mptcp endpoint show id 2", Slug: "mptcp_endpoint_get_json", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst, Setup: mptcpEp2Setup},
+	{Name: "-j mptcp limits show", Slug: "mptcp_limits_show_json", Floor: 4, Implemented: true, Proto: ProtoGenericCst},
+	{Name: "mptcp endpoint add 192.0.2.1 id 1 subflow", Slug: "mptcp_endpoint_add", Floor: 4, Implemented: true,
+		Write: true, Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: "mptcp endpoint add 2001:db8::1 dev d0 signal backup", Slug: "mptcp_endpoint_add_v6_dev", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: "mptcp endpoint add 192.0.2.2 port 10100 signal", Slug: "mptcp_endpoint_add_port", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: "mptcp endpoint add 192.0.2.2 subflow fullmesh", Slug: "mptcp_endpoint_add_fullmesh", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: "mptcp endpoint add 192.0.2.1 subflow", Slug: "mptcp_endpoint_add_dup", Floor: 4, Implemented: true,
+		Write: true, Proto: ProtoGenericCst, Setup: mptcpEp1Setup},
+	{Name: "mptcp endpoint add 192.0.2.2 id 1 subflow", Slug: "mptcp_endpoint_add_id_busy", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: mptcpEp1Setup},
+	{Name: "mptcp endpoint change id 1 backup", Slug: "mptcp_endpoint_change", Floor: 4, Implemented: true,
+		Write: true, Proto: ProtoGenericCst, Setup: mptcpEp1Setup},
+	{Name: "mptcp endpoint change 192.0.2.1 fullmesh", Slug: "mptcp_endpoint_change_addr", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: mptcpEp1Setup},
+	{Name: "mptcp endpoint change id 1 nobackup", Slug: "mptcp_endpoint_change_nobackup", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: mptcpEp1BackupSetup},
+	{Name: "mptcp endpoint change id 9 backup", Slug: "mptcp_endpoint_change_missing", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: "mptcp endpoint delete id 1", Slug: "mptcp_endpoint_delete", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: mptcpEp2Setup},
+	{Name: "mptcp endpoint delete id 9", Slug: "mptcp_endpoint_delete_missing", Floor: 4, Implemented: true,
+		Write: true, Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: "mptcp endpoint delete id 0 192.0.2.1", Slug: "mptcp_endpoint_delete_id0", Floor: 4, Implemented: true,
+		Write: true, Proto: ProtoGenericCst, Setup: mptcpEp1Setup},
+	{Name: "mptcp endpoint flush", Slug: "mptcp_endpoint_flush", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: mptcpEp2Setup},
+	{Name: "mptcp limits set subflows 4 add_addr_accepted 3", Slug: "mptcp_limits_set", Floor: 4, Implemented: true,
+		Write: true, Proto: ProtoGenericCst},
+	{Name: "mptcp limits set add_addr_accepted 2", Slug: "mptcp_limits_set_one", Floor: 4, Implemented: true,
+		Write: true, Proto: ProtoGenericCst},
+	{Name: "mptcp limits set", Slug: "mptcp_limits_set_none", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst},
+	{Name: "mptcp limits set subflows 8 add_addr_accepted 8", Slug: "mptcp_limits_set_max", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst},
+	{Name: "mptcp limits set subflows 9", Slug: "mptcp_limits_set_over", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst},
+
 	// G5-T03: one `show` per generic netlink family, in the C2 order, with
-	// `ip` in goip's place until the family's G6 task implements it; five
-	// remain, tcp_metrics', sr's and ioam's rows above having replaced their
-	// own. The
-	// captures keep NETLINK_GENERIC and the comparator compares a genl
+	// `ip` in goip's place until the family's G6 task implements it; four
+	// remain, tcp_metrics', sr's, ioam's and mptcp's rows above having
+	// replaced their own. The captures keep NETLINK_GENERIC and the comparator compares a genl
 	// message by its family's name, so these rows exercise the harness end
 	// to end, ungated. Each is genl_init_handle's CTRL_CMD_GETFAMILY and its
 	// reply, then the dump and its DONE, or for tunsrc the get and its reply:
 	// four datagrams, as on C2's empty shows, since every family is empty in
 	// the dump topology. They come last: the driver runs nltopo::late_setup,
 	// which loads the families' modules, before the first genl row.
-	{Name: "mptcp endpoint show", Slug: "genl_mptcp_endpoint_show", Floor: 4, Proto: ProtoGenericCst, IPStandIn: true},
 	{Name: "fou show", Slug: "genl_fou_show", Floor: 4, Proto: ProtoGenericCst, IPStandIn: true},
 	{Name: "ila show", Slug: "genl_ila_show", Floor: 4, Proto: ProtoGenericCst, IPStandIn: true},
 	{Name: "l2tp show tunnel", Slug: "genl_l2tp_show_tunnel", Floor: 4, Proto: ProtoGenericCst, IPStandIn: true},
@@ -2934,6 +2995,16 @@ var ioamJSONSetup = []string{
 	"ioam schema add 1 abcd",
 	"ioam namespace set 2 schema 1",
 }
+
+// mptcpEp1Setup is genl-write-corpus.exp's PRE_EP1: PRE_ADDRS and a
+// subflow endpoint, id 1.
+var mptcpEp1Setup = append(slices.Clone(tcpmAddrsSetup), "mptcp endpoint add 192.0.2.1 id 1 subflow")
+
+// mptcpEp1BackupSetup is PRE_EP1_BACKUP: the same endpoint, backup.
+var mptcpEp1BackupSetup = append(slices.Clone(tcpmAddrsSetup), "mptcp endpoint add 192.0.2.1 id 1 subflow backup")
+
+// mptcpEp2Setup is PRE_EP2: PRE_EP1 and a signal endpoint on d0, id 2.
+var mptcpEp2Setup = append(slices.Clone(mptcpEp1Setup), "mptcp endpoint add 2001:db8::1 id 2 dev d0 signal")
 
 // The write rows' preconditions, as capture-link-writes.exp spells them:
 // PRE_BOND, PRE_PORT and PRE_ENSLAVED there.

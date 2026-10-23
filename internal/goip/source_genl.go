@@ -324,3 +324,29 @@ func (s *ReplaySource) GenlListen(_ io.Writer, fn func(monitorMsg) error) error 
 	}
 	return nil
 }
+
+// genlEventGroup is genl_add_mcast_grp's lookup (lib/libgenl.c): a
+// GETFAMILY by id whose answer, a controller message, names the group
+// among its multicast groups.
+func genlEventGroup(gs GenlSource, id uint16, seq uint32, name string) (uint32, error) {
+	req, err := xtcpnl.BuildGetFamilyByIDRequest(id, seq)
+	if err != nil {
+		return 0, err
+	}
+	typ, body, err := gs.GenlTalk(req)
+	if err != nil {
+		return 0, fmt.Errorf("error talking to the kernel: %w", err)
+	}
+	if typ != unix.GENL_ID_CTRL {
+		return 0, unix.EINVAL
+	}
+	f, err := xtcpnl.ParseGenericNetlinkFamily(body)
+	if err != nil {
+		return 0, err
+	}
+	group, ok := f.MulticastGroups[name]
+	if !ok {
+		return 0, unix.ENOENT
+	}
+	return group, nil
+}
