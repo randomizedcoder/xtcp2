@@ -291,7 +291,7 @@ func TestShowObjectsReadOnly(t *testing.T) {
 	netnsDir(t)
 	t.Run("exact_set", func(t *testing.T) {
 		// positive: the 12 implemented show objects, sorted, and a copy.
-		want := []string{"address", "addrlabel", "link", "mroute", "mrule", "neighbor", "netconf", "netns", "nexthop", "ntable", "route", "rule", "stats", "token", "vrf"}
+		want := []string{"address", "addrlabel", "link", "mroute", "mrule", "neighbor", "netconf", "netns", "nexthop", "ntable", "route", "rule", "stats", "tcp_metrics", "token", "vrf"}
 		got := ShowObjects()
 		if !slices.Equal(got, want) {
 			t.Fatalf("ShowObjects() = %q, want %q", got, want)

@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/randomizedcoder/xtcp2/pkg/nlparity"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
@@ -49,8 +50,8 @@ const genlGetFamilyVersionCst = 0
 // (lib/libnetlink.c:193): SO_SNDBUF, SO_RCVBUF at 1 MiB and NETLINK_EXT_ACK,
 // which a kernel without it refuses with ENOPROTOOPT and `ip` ignores. Unlike
 // the route socket it gets no NETLINK_GET_STRICT_CHK: ip.c sets that on rth
-// alone.
-func openGenl() (int, error) {
+// alone. A source opened with a receive timeout gives it the same one.
+func openGenl(rcvTimeout time.Duration) (int, error) {
 	fd, err := unix.Socket(unix.AF_NETLINK, unix.SOCK_RAW|unix.SOCK_CLOEXEC, unix.NETLINK_GENERIC)
 	if err != nil {
 		return -1, fmt.Errorf("goip: generic netlink socket: %w", err)
@@ -72,6 +73,9 @@ func openGenl() (int, error) {
 		!errors.Is(err, unix.ENOPROTOOPT) {
 		return -1, abandon(fmt.Errorf("goip: generic netlink extended ack: %w", err))
 	}
+	if err := setRcvTimeout(fd, rcvTimeout); err != nil {
+		return -1, abandon(fmt.Errorf("goip: generic netlink %w", err))
+	}
 	if err := unix.Bind(fd, &unix.SockaddrNetlink{Family: unix.AF_NETLINK}); err != nil {
 		return -1, abandon(fmt.Errorf("goip: generic netlink bind: %w", err))
 	}
@@ -84,7 +88,7 @@ func (s *NetlinkSource) genl() (int, error) {
 	if s.gopen {
 		return s.gfd, nil
 	}
-	fd, err := openGenl()
+	fd, err := openGenl(s.rcvTimeout)
 	if err != nil {
 		return -1, err
 	}

@@ -714,6 +714,21 @@ func TestAllowlistCommitted(t *testing.T) {
 		"netns list-id nsid 2",
 		"netns list-id nsid 1 target-nsid 2",
 		"netns set c1set 7",
+		// G6-T01's fourteen `tcp_metrics` rows, the first genl object's.
+		"tcp_metrics show",
+		"tcp_metrics list",
+		"-6 tcp_metrics show",
+		"tcp_metrics show address 192.0.2.1",
+		"tcp_metrics show src 192.0.2.2 address 192.0.2.1",
+		"tcp_metrics show address 2001:db8::1",
+		"tcp_metrics show address 192.0.2.9",
+		"tcp_metrics delete address 192.0.2.1",
+		"tcp_metrics delete src 192.0.2.2 address 192.0.2.1",
+		"tcp_metrics delete address 192.0.2.9",
+		"tcp_metrics flush all",
+		"tcp_metrics flush 192.0.2.0/24",
+		"-6 tcp_metrics flush",
+		"tcp_metrics flush address 192.0.2.0/24",
 	}
 
 	tests := []struct {

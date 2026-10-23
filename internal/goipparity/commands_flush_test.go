@@ -19,7 +19,8 @@ func multiWriteRowProblem(c Command) string {
 		c.Slug == routeRestoreSlugCst || c.Slug == routeFlushSlugCst || c.Slug == routeFlushStatsSlugCst ||
 		c.Slug == neighFlushSlugCst || c.Slug == neighFlushStatsSlugCst ||
 		c.Slug == ruleFlushSlugCst || c.Slug == ruleRestoreSlugCst || c.Slug == nexthopFlushSlugCst ||
-		c.Slug == addrLabelFlushSlugCst
+		c.Slug == addrLabelFlushSlugCst || c.Slug == tcpmFlushAllSlugCst || c.Slug == tcpmFlushPrefixSlugCst ||
+		c.Slug == tcpmFlushV6SlugCst
 	switch {
 	case c.Writes < 0:
 		return "Writes is negative"

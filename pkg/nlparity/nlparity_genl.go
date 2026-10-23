@@ -128,13 +128,18 @@ func genlMsgName(m Msg) string {
 // not the tool, decided: an NLMSG_ERROR's echoed nlmsg_type, which is the
 // acknowledged request's family id, and in a controller reply the family's id
 // and its multicast groups' ids. The names beside them stay compared, so a
-// reply about a different family is still a finding.
+// reply about a different family is still a finding. A tcp_metrics entry's
+// clocks and measurements are the connection's (normalizeTCPMetrics).
 func normalizeGenl(m Msg, body []byte) {
 	if m.Proto != unix.NETLINK_GENERIC {
 		return
 	}
 	if m.Hdr.Type == unix.NLMSG_ERROR {
 		zeroRange(body, nlmsgerrEchoTypeOffCst, nlmsgerrEchoTypeLenCst)
+		return
+	}
+	if m.IsGenl() && m.Genl == xtcpnl.TCPMetricsGenlName && len(body) >= genlHdrLen {
+		normalizeTCPMetrics(body[genlHdrLen:])
 		return
 	}
 	if m.Hdr.Type != unix.GENL_ID_CTRL || len(body) < genlHdrLen ||
@@ -154,6 +159,76 @@ func normalizeGenl(m Msg, body []byte) {
 				for _, f := range fields {
 					if f.BareType() == unix.CTRL_ATTR_MCAST_GRP_ID {
 						zeroRange(f.Val, 0, genlGrpIDLenCst)
+					}
+				}
+			}
+		}
+	}
+}
+
+// genlObjectKey is a generic netlink family's object key, where the family
+// gives its messages one: tcp_metrics' entry is its destination and source
+// (TCP_METRICS_ATTR_ADDR_* and SADDR_*, tcp_metrics_fill_info), on a dump
+// reply and on the DEL that copies it alike. The entries come in the order
+// of a hash the kernel mixes with a per-namespace random value (net_hash_mix),
+// so two namespaces list the same entries in different orders, and only a
+// key pairs them. A family without one keys on its ordinal (keyReplies).
+func genlObjectKey(m Msg) (string, bool) {
+	if !m.IsGenl() || m.Genl != xtcpnl.TCPMetricsGenlName || len(m.Body) < genlHdrLen {
+		return "", false
+	}
+	attrs, _ := SubAttrs(m.Body[genlHdrLen:])
+	var addr, saddr []byte
+	for _, a := range attrs {
+		switch a.BareType() {
+		case xtcpnl.TCPMetricsAttrAddrIPv4, xtcpnl.TCPMetricsAttrAddrIPv6:
+			addr = a.Val
+		case xtcpnl.TCPMetricsAttrSaddrIPv4, xtcpnl.TCPMetricsAttrSaddrIPv6:
+			saddr = a.Val
+		}
+	}
+	return fmt.Sprintf("%s/addr=%x/saddr=%x", genlMsgName(m), addr, saddr), true
+}
+
+// hashOrdered reports whether replies are a dump whose order the kernel's
+// hash decides: a family genlObjectKey keys, tcp_metrics, whose table mixes
+// each namespace's random net_hash_mix into the bucket. Two namespaces list
+// the same entries in different orders, so the order is not compared; which
+// entries, and each entry's values, are.
+func hashOrdered(replies []Msg) bool {
+	for i := range replies {
+		if _, ok := genlObjectKey(replies[i]); ok {
+			return true
+		}
+	}
+	return false
+}
+
+// tcpMetricsMeasured are the TCP_METRICS_ATTR_VALS members a connection
+// measures, tcp_metric_index + 1: RTT, RTTVAR, RTT_US and RTTVAR_US.
+var tcpMetricsMeasured = [...]uint16{
+	xtcpnl.TCPMetricRTT + 1, xtcpnl.TCPMetricRTTVar + 1,
+	xtcpnl.TCPMetricRTTUs + 1, xtcpnl.TCPMetricRTTVarUs + 1,
+}
+
+// normalizeTCPMetrics zeroes a tcp_metrics entry's clocks, its age and the
+// last Fast Open SYN drop's stamp, and its measured RTTs. A write row's
+// sides each open their own connections in their own namespace, so these
+// differ by however long each side took and however fast its loopback was,
+// and the two ip sides can agree by chance where goip's does not. The
+// addresses, cwnd, ssthresh and the rest stay compared.
+func normalizeTCPMetrics(attrBytes []byte) {
+	attrs, _ := SubAttrs(attrBytes)
+	for _, a := range attrs {
+		switch a.BareType() {
+		case xtcpnl.TCPMetricsAttrAge, xtcpnl.TCPMetricsAttrFopenSynDropTS:
+			zeroRange(a.Val, 0, len(a.Val))
+		case xtcpnl.TCPMetricsAttrVals:
+			vals, _ := SubAttrs(a.Val)
+			for _, v := range vals {
+				for _, measured := range tcpMetricsMeasured {
+					if v.BareType() == measured {
+						zeroRange(v.Val, 0, len(v.Val))
 					}
 				}
 			}

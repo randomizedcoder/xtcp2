@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/randomizedcoder/xtcp2/pkg/nlparity"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
@@ -528,6 +529,64 @@ func TestReplayGenlSegments(t *testing.T) {
 			}
 			if len(bodies) != tc.wantBodies {
 				t.Errorf("%d bodies, want %d", len(bodies), tc.wantBodies)
+			}
+		})
+	}
+}
+
+// TestNetlinkGenlTimeout checks the genl socket takes the source's receive
+// timeout, as the route socket does, so a goiphttp request cannot block on
+// it forever. The kernel rounds a timeout up to a jiffy, so the two sockets
+// are compared with each other, and with zero.
+//
+// go test ./internal/goip/ -run TestNetlinkGenlTimeout
+func TestNetlinkGenlTimeout(t *testing.T) {
+	tests := []struct {
+		description string
+		timeout     time.Duration // zero for OpenNetlink
+		expected    bool          // a timeout set
+	}{
+		{description: "positive: two seconds", timeout: 2 * time.Second, expected: true},
+		{description: "negative: OpenNetlink sets none", expected: false},
+		{description: "boundary: one nanosecond is a timeout, not forever", timeout: time.Nanosecond, expected: true},
+		{description: "corner: a microsecond and a half", timeout: 1500 * time.Nanosecond, expected: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			var s *NetlinkSource
+			var err error
+			if tc.timeout == 0 {
+				s, err = OpenNetlink()
+			} else {
+				s, err = OpenNetlinkTimeout(tc.timeout)
+			}
+			if err != nil {
+				t.Skipf("no netlink socket here: %v", err)
+			}
+			t.Cleanup(func() {
+				if cerr := s.Close(); cerr != nil {
+					t.Errorf("Close: %v", cerr)
+				}
+			})
+			if _, err := s.genl(); err != nil {
+				t.Fatal(err)
+			}
+			route, err := unix.GetsockoptTimeval(s.fd, unix.SOL_SOCKET, unix.SO_RCVTIMEO)
+			if err != nil {
+				t.Fatal(err)
+			}
+			genl, err := unix.GetsockoptTimeval(s.gfd, unix.SOL_SOCKET, unix.SO_RCVTIMEO)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if *genl != *route {
+				t.Errorf("genl SO_RCVTIMEO %+v, route %+v", *genl, *route)
+			}
+			if set := *genl != (unix.Timeval{}); set != tc.expected {
+				t.Errorf("genl SO_RCVTIMEO %+v, set %v, want %v", *genl, set, tc.expected)
+			}
+			if tc.timeout >= time.Second && genl.Sec != int64(tc.timeout/time.Second) {
+				t.Errorf("genl SO_RCVTIMEO %+v, want %v", *genl, tc.timeout)
 			}
 		})
 	}

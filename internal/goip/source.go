@@ -70,6 +70,9 @@ type NetlinkSource struct {
 	// gfd is the genl socket, valid when gopen is set.
 	gfd   int
 	gopen bool
+	// rcvTimeout is OpenNetlinkTimeout's, which the genl socket gets too
+	// when it opens; zero is none.
+	rcvTimeout time.Duration
 }
 
 // OpenNetlink opens and binds a NETLINK_ROUTE socket.
@@ -158,23 +161,32 @@ func openNetlink(rcvTimeout time.Duration) (*NetlinkSource, error) {
 	if err := unix.SetsockoptInt(fd, unix.SOL_SOCKET, unix.SO_RCVBUF, 1<<20); err != nil {
 		return nil, abandon(fmt.Errorf("goip: netlink SO_RCVBUF: %w", err))
 	}
-	if rcvTimeout > 0 {
-		tv := unix.NsecToTimeval(rcvTimeout.Nanoseconds())
-		// Sub-microsecond durations truncate to a zero timeval, which the
-		// kernel reads as "block forever" — the opposite of what was asked.
-		if tv.Sec == 0 && tv.Usec == 0 {
-			tv.Usec = 1
-		}
-		if err := unix.SetsockoptTimeval(fd, unix.SOL_SOCKET, unix.SO_RCVTIMEO, &tv); err != nil {
-			return nil, abandon(fmt.Errorf("goip: netlink SO_RCVTIMEO: %w", err))
-		}
+	if err := setRcvTimeout(fd, rcvTimeout); err != nil {
+		return nil, abandon(fmt.Errorf("goip: netlink %w", err))
 	}
 
 	sa := &unix.SockaddrNetlink{Family: unix.AF_NETLINK}
 	if err := unix.Bind(fd, sa); err != nil {
 		return nil, abandon(fmt.Errorf("goip: netlink bind: %w", err))
 	}
-	return &NetlinkSource{fd: fd, sa: &unix.SockaddrNetlink{Family: unix.AF_NETLINK}}, nil
+	return &NetlinkSource{fd: fd, sa: &unix.SockaddrNetlink{Family: unix.AF_NETLINK}, rcvTimeout: rcvTimeout}, nil
+}
+
+// setRcvTimeout sets SO_RCVTIMEO to d, or nothing for zero.
+func setRcvTimeout(fd int, d time.Duration) error {
+	if d <= 0 {
+		return nil
+	}
+	tv := unix.NsecToTimeval(d.Nanoseconds())
+	// Sub-microsecond durations truncate to a zero timeval, which the
+	// kernel reads as "block forever" — the opposite of what was asked.
+	if tv.Sec == 0 && tv.Usec == 0 {
+		tv.Usec = 1
+	}
+	if err := unix.SetsockoptTimeval(fd, unix.SOL_SOCKET, unix.SO_RCVTIMEO, &tv); err != nil {
+		return fmt.Errorf("SO_RCVTIMEO: %w", err)
+	}
+	return nil
 }
 
 // Close releases the sockets.

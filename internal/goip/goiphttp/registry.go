@@ -125,6 +125,12 @@ var objects = []*object{
 		params: []param{pFamily}},
 	{path: "token", devPath: true,
 		params: []param{pDev}},
+	// tcpmetrics, ip's alias for tcp_metrics, since a path is one
+	// lower-case word: the kernel's TCP metrics cache, a generic netlink
+	// dump. Its address and src prefixes have no parameter kind yet, so
+	// only the family narrows it.
+	{path: "tcpmetrics", object: "tcp_metrics",
+		params: []param{pFamily}},
 	// netns is `ip netns list-id`, the namespaces' nsids; netns_list_id
 	// reads its two keys by strcmp, in either order.
 	{path: "netns",

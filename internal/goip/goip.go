@@ -247,17 +247,21 @@ func (c *runCtx) lineOption(a string) bool {
 // refuses (its exit(-1)), as for mrule's family refusal. A save whose dump failed exits 1, and so does a
 // neigh flush whose dump failed. The monitor exits 255 for an argument or a
 // file it refuses, 1 for a subscription refused or a file whose walk fails,
-// and 2 for a listen that ends in error.
+// and 2 for a listen that ends in error. tcp_metrics exits 255 for what
+// tcp_metrics.c ends with exit(-1), 1 for a dump it refuses or a family
+// genl_init_handle cannot resolve, and 2 for a kernel refusal.
 func exitCodeOf(err error) int {
 	switch {
 	case errors.Is(err, ErrFlushIncomplete), errors.Is(err, ErrDumpFile), errors.Is(err, ErrRuleDumpTerminated),
-		errors.Is(err, ErrAddrLabelFlushTerminated), errors.Is(err, ErrMruleFamily), errors.Is(err, ErrMonitorAbort):
+		errors.Is(err, ErrAddrLabelFlushTerminated), errors.Is(err, ErrMruleFamily), errors.Is(err, ErrMonitorAbort),
+		errors.Is(err, ErrTCPMetricsUsage):
 		return ExitMinusOne
 	case errors.Is(err, ErrMonitorSetup), errors.Is(err, ErrMonitorFile):
 		return ExitUsage
 	case errors.Is(err, ErrNotImplemented), errors.Is(err, ErrInvalidArgument),
 		errors.Is(err, ErrWriteNotApplied), errors.Is(err, ErrSaveTerminated),
-		errors.Is(err, ErrDumpTerminated), errors.Is(err, ErrNeighFlushTerminated):
+		errors.Is(err, ErrDumpTerminated), errors.Is(err, ErrNeighFlushTerminated),
+		errors.Is(err, ErrTCPMetricsDumpTerminated), errors.Is(err, ErrGenlResolve):
 		return ExitUsage
 	}
 	return ExitFailure

@@ -224,7 +224,7 @@ proc capture_triple {row dev} {
     lassign $row slug floor impl needs_dev write proto setup args name
 
     if {$write eq "yes" && $impl eq "yes"} {
-        capture_write_triple $slug $floor $setup $args
+        capture_write_triple $slug $floor $setup $args $proto
         return
     }
 
@@ -290,7 +290,10 @@ proc capture_triple {row dev} {
 # until the namespace's next ns-add or ns-del (`ip mroute show`), or
 # `peer NAME [ID]`, a namespace made from the root (deleted first, so each
 # side meets a new one, as rtnl-read-corpus.exp's peer step) and, given ID,
-# that nsid in the row's namespace (`ip netns list-id`, `ip netns set`).
+# that nsid in the row's namespace (`ip netns list-id`, `ip netns set`), or
+# `tcp SERVER CLIENT`, one connection in the namespace through xtcp2-nlcap
+# tcp, which leaves a tcp_metrics entry at each end (genl-write-corpus.exp's
+# tcp pre step).
 ###############################################################################
 
 proc setup_step {ns step} {
@@ -316,6 +319,14 @@ proc setup_step {ns step} {
             return $rc
         }
         return [nltopo::topo $ns $SUBDIR netns set $name [lindex $step 2]]
+    }
+    if {[lindex $step 0] eq "tcp"} {
+        if {[llength $step] != 3} {
+            vmlib::log "setup: a tcp step is {tcp SERVER CLIENT}: $step"
+            return 1
+        }
+        lassign [vmlib::run_out "xtcp2-nlcap tcp $ns $SUBDIR [lindex $step 1] [lindex $step 2]"] rc out
+        return $rc
     }
     if {[lindex $step 0] eq "smcroute"} {
         lassign [vmlib::run_out "xtcp2-nlcap mroute-start $ns $SUBDIR '[lrange $step 1 end]'"] rc out
@@ -362,10 +373,11 @@ proc setup_read_ns {slug setup} {
 # goip sends the lookups and writes its request to GOIP_WRITE_OUT, which is
 # <slug>.goip.write beside the captures. Its floor is two lower than ip's: no
 # write request, no NLMSG_ERROR. Every side is a `write` capture (one attempt,
-# exit status kept), since the comparator reads all three .rc files.
+# exit status kept), since the comparator reads all three .rc files. <proto>
+# is the protocol the captures keep, generic for a genl family's writes.
 ###############################################################################
 
-proc capture_write_triple {slug floor setup argv_str} {
+proc capture_write_triple {slug floor setup argv_str {proto route}} {
     global NSW SUBDIR short_caps write_skipped capture_dir
     set steps {}
     if {$setup ne "-"} {
@@ -389,7 +401,7 @@ proc capture_write_triple {slug floor setup argv_str} {
             lappend write_skipped "$slug.$side"
             continue
         }
-        lassign [nlcap write $NSW $SUBDIR "$slug.$side" $side_floor "'$cmd'"] rc out
+        lassign [nlcap write --proto $proto $NSW $SUBDIR "$slug.$side" $side_floor "'$cmd'"] rc out
         if {$rc != 0} {
             lappend short_caps "$SUBDIR/$slug.$side"
             vmlib::log "MISSED FLOOR $SUBDIR/$slug.$side: $out"

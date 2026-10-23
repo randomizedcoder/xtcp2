@@ -2747,16 +2747,55 @@ var commands = withArgs([]Command{
 		Floor: 4, Implemented: true, Write: true, Writes: 8, Setup: addrRestoreExistingSetup,
 	},
 
+	// G6-T01: tcp_metrics, the C2 corpus's 14 tcpm_* rows on its
+	// preconditions (genl-write-corpus.exp). The connections' entries carry
+	// each side's own RTTs and ages, which nlparity normalizes, and a dump's
+	// order is its namespace's hash, so the replies and a flush's DELs are
+	// paired by address and source. delete, and flush of all or of an exact
+	// address, send one DEL; a prefix flush sends a dump, a batch of DELs
+	// and a second dump. A flush that finds nothing writes nothing, so
+	// tcpm_flush_empty is a read row. Two rows' corpus commands are another
+	// row's, so they are spelled with ip's other keyword: `list` for show,
+	// `address` before the prefix, the same bytes.
+	{Name: "tcp_metrics show", Slug: "tcpm_show", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: tcpmSetup},
+	{Name: "tcp_metrics list", Slug: "tcpm_show_empty", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: tcpmAddrsSetup},
+	{Name: "-6 tcp_metrics show", Slug: "tcpm_show_v6", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: tcpmSetup},
+	{Name: "tcp_metrics show address 192.0.2.1", Slug: "tcpm_get", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst, Setup: tcpmSetup},
+	{Name: "tcp_metrics show src 192.0.2.2 address 192.0.2.1", Slug: "tcpm_get_src", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst, Setup: tcpmSetup},
+	{Name: "tcp_metrics show address 2001:db8::1", Slug: "tcpm_get_v6", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst, Setup: tcpmSetup},
+	{Name: "tcp_metrics show address 192.0.2.9", Slug: "tcpm_get_missing", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst, Setup: tcpmSetup},
+	{Name: "tcp_metrics delete address 192.0.2.1", Slug: "tcpm_delete", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: tcpmSetup},
+	{Name: "tcp_metrics delete src 192.0.2.2 address 192.0.2.1", Slug: "tcpm_delete_src", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: tcpmSetup},
+	{Name: "tcp_metrics delete address 192.0.2.9", Slug: "tcpm_delete_missing", Floor: 4, Implemented: true,
+		Write: true, Proto: ProtoGenericCst, Setup: tcpmSetup},
+	{Name: "tcp_metrics flush all", Slug: "tcpm_flush_all", Floor: 4, Implemented: true, Write: true, Writes: 1,
+		Proto: ProtoGenericCst, Setup: tcpmSetup},
+	{Name: "tcp_metrics flush 192.0.2.0/24", Slug: "tcpm_flush_prefix", Floor: 6, Implemented: true, Write: true,
+		Writes: 2, Proto: ProtoGenericCst, Setup: tcpmSetup},
+	{Name: "-6 tcp_metrics flush", Slug: "tcpm_flush_v6", Floor: 6, Implemented: true, Write: true, Writes: 2,
+		Proto: ProtoGenericCst, Setup: tcpmSetup},
+	{Name: "tcp_metrics flush address 192.0.2.0/24", Slug: "tcpm_flush_empty", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+
 	// G5-T03: one `show` per generic netlink family, in the C2 order, with
-	// `ip` in goip's place until the family's G6 task implements it. The
+	// `ip` in goip's place until the family's G6 task implements it; seven
+	// remain, tcp_metrics' rows above having replaced its own. The
 	// captures keep NETLINK_GENERIC and the comparator compares a genl
 	// message by its family's name, so these rows exercise the harness end
 	// to end, ungated. Each is genl_init_handle's CTRL_CMD_GETFAMILY and its
 	// reply, then the dump and its DONE, or for tunsrc the get and its reply:
 	// four datagrams, as on C2's empty shows, since every family is empty in
 	// the dump topology. They come last: the driver runs nltopo::late_setup,
-	// which loads the families' modules, before the first of them.
-	{Name: "tcp_metrics show", Slug: "genl_tcp_metrics_show", Floor: 4, Proto: ProtoGenericCst, IPStandIn: true},
+	// which loads the families' modules, before the first genl row.
 	{Name: "sr tunsrc show", Slug: "genl_sr_tunsrc_show", Floor: 4, Proto: ProtoGenericCst, IPStandIn: true},
 	{Name: "ioam namespace show", Slug: "genl_ioam_namespace_show", Floor: 4, Proto: ProtoGenericCst, IPStandIn: true},
 	{Name: "mptcp endpoint show", Slug: "genl_mptcp_endpoint_show", Floor: 4, Proto: ProtoGenericCst, IPStandIn: true},
@@ -2765,6 +2804,25 @@ var commands = withArgs([]Command{
 	{Name: "l2tp show tunnel", Slug: "genl_l2tp_show_tunnel", Floor: 4, Proto: ProtoGenericCst, IPStandIn: true},
 	{Name: "macsec show", Slug: "genl_macsec_show", Floor: 4, Proto: ProtoGenericCst, IPStandIn: true},
 })
+
+// tcpmAddrsSetup is genl-write-corpus.exp's PRE_ADDRS: d0, up, with an IPv4
+// and an IPv6 pair on it, whose traffic the namespace's lo carries.
+var tcpmAddrsSetup = []string{
+	"link add d0 type dummy",
+	"link set d0 up",
+	"addr add 192.0.2.1/24 dev d0",
+	"addr add 192.0.2.2/24 dev d0",
+	"-6 addr add 2001:db8::1/64 dev d0 nodad",
+	"-6 addr add 2001:db8::2/64 dev d0 nodad",
+}
+
+// tcpmSetup is PRE_TCPM: PRE_ADDRS and a connection over each pair, through
+// setup_step's `tcp SERVER CLIENT` form, which leaves four entries, one per
+// end of each.
+var tcpmSetup = append(slices.Clone(tcpmAddrsSetup),
+	"tcp 192.0.2.1 192.0.2.2",
+	"tcp 2001:db8::1 2001:db8::2",
+)
 
 // The write rows' preconditions, as capture-link-writes.exp spells them:
 // PRE_BOND, PRE_PORT and PRE_ENSLAVED there.

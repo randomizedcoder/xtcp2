@@ -33,6 +33,7 @@ Every path is on `-metrics-addr`, answers GET and HEAD only (anything else is
 | `/ip/mroute` | `ip -j mroute show` | `table=main\|local\|default\|all\|N`, `iif`, `family`, `stats` |
 | `/ip/mrule` | `ip -j mrule show` | `family` |
 | `/ip/token` | `ip -j token show` | `dev` |
+| `/ip/tcpmetrics` | `ip -j tcp_metrics show` | `family` |
 | `/ip/netns` | `ip -j netns list-id` | `target-nsid`, `nsid` |
 | `/ip/stats` | `ip -j stats show` | `dev`, `group`, `subgroup`, `suite` |
 | `/ip/OBJECT/INTERFACE` | `… show dev INTERFACE` | Every object that takes `dev`; as `/metrics/CATEGORY/INTERFACE` |

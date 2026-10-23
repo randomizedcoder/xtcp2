@@ -157,6 +157,9 @@ func compareOne(dir string, c Command, al *nlparity.Allowlist) Result {
 		return r
 	}
 	segs := map[string]nlparity.Segmentation{}
+	// goip's write file names a genl family by the id goip resolved, which
+	// its own capture's controller reply maps to a name.
+	var goipFamilies map[uint16]string
 	for _, side := range Sides() {
 		path := filepath.Join(dir, c.CaptureName(side))
 		// Not named `cap`: that shadows a builtin, which gocritic flags and
@@ -169,6 +172,9 @@ func compareOne(dir string, c Command, al *nlparity.Allowlist) Result {
 			return r
 		}
 		segs[side] = nlparity.SegmentCapture(capture)
+		if side == SideGoip {
+			goipFamilies = capture.GenlFamilies
+		}
 	}
 
 	texts := map[string]string{}
@@ -187,7 +193,7 @@ func compareOne(dir string, c Command, al *nlparity.Allowlist) Result {
 	// visible across a window containing the goip run is by construction not
 	// attributable to goip.
 	if c.Write {
-		nl, err := compareWriteNetlink(dir, c, segs, al)
+		nl, err := compareWriteNetlink(dir, c, segs, proto, goipFamilies, al)
 		if err != nil {
 			r.Status = StatusFail
 			r.Err = err
@@ -248,7 +254,7 @@ func (c Command) expectedFiles() []string {
 // which goip does not claim to know, so a refused write passes on its
 // request.
 func compareWriteNetlink(dir string, c Command, segs map[string]nlparity.Segmentation,
-	al *nlparity.Allowlist) (nlparity.Report, error) {
+	proto uint16, goipFamilies map[uint16]string, al *nlparity.Allowlist) (nlparity.Report, error) {
 	rc := map[string]string{}
 	for _, side := range Sides() {
 		b, err := os.ReadFile(filepath.Join(dir, c.RCName(side)))
@@ -269,7 +275,7 @@ func compareWriteNetlink(dir string, c Command, segs map[string]nlparity.Segment
 	if err != nil {
 		return nlparity.Report{}, fmt.Errorf("%s: %w", c.WriteName(), err)
 	}
-	subWrites, err := nlparity.ParseWriteRequests(b)
+	subWrites, err := nlparity.ParseWriteRequestsProto(b, proto, goipFamilies)
 	if err != nil {
 		return nlparity.Report{}, fmt.Errorf("%s: %w", c.WriteName(), err)
 	}

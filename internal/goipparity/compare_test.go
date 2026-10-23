@@ -34,6 +34,14 @@ const (
 	tdEvents = "../../pkg/xtcpnl/testdata/7_1_4/netlink_route_events_link.pcap"
 )
 
+// writeGenlReadRow lays out an implemented generic netlink read row as a
+// perfect run would: every side its slug's corpus capture and ip.out.
+func writeGenlReadRow(t *testing.T, dir string, c Command) {
+	t.Helper()
+	src := filepath.Join(tdGenl, c.Slug)
+	writeTriple(t, dir, c, sameAll(filepath.Join(src, "ip.pcap")), sameAll(mustRead(t, filepath.Join(src, "ip.out"))))
+}
+
 // writeTriple lays out one command's six files in dir. A side whose pcap or
 // text is the empty string is not written at all, which is how the MISSING
 // rows are built.
@@ -769,6 +777,10 @@ func TestRender(t *testing.T) {
 						writeCleanWriteRow(t, dir, c)
 						continue
 					}
+					if c.Proto == ProtoGenericCst {
+						writeGenlReadRow(t, dir, c)
+						continue
+					}
 					src, out := tdGuestAddr, addrOut
 					if c.Name == "link show" {
 						src, out = tdGuestLink, linkOut
@@ -828,6 +840,8 @@ func TestRender(t *testing.T) {
 						writeCleanWriteRow(t, dir, c)
 					case c.IPStandIn:
 						writeTriple(t, dir, c, sameAll(tdGenlFouShow), sameAll(""))
+					case c.Implemented && c.Proto == ProtoGenericCst:
+						writeGenlReadRow(t, dir, c)
 					case c.Implemented && c.Name != "link show" && c.Name != "addr show":
 						writeTriple(t, dir, c, sameAll(tdGuestAddr), sameAll(addrOut))
 					}

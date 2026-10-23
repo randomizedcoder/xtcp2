@@ -2,6 +2,7 @@ package goipparity
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -1035,18 +1036,20 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	//   - the four `route flush` rows G2-T03 added, likewise — see
 	//     TestRouteFlushRows;
 	//   - the nine `neigh` write and flush rows G3-T01 added, likewise —
-	//     see TestNeighWriteRows.
+	//     see TestNeighWriteRows;
+	//   - the fourteen `tcp_metrics` rows G6-T01 added in place of its
+	//     stand-in, likewise — see TestTCPMetricsRows.
 	//
 	// The last four were the permanent set, measured divergent on the wire;
 	// TestPermanentWireDivergences records that it is empty.
 	//
-	// The eight genl rows G5-T03 added are ungated by construction: `ip`
+	// The seven genl rows G5-T03 added and G6 has not yet replaced are
+	// ungated by construction: `ip`
 	// stands in for goip on them (IPStandIn) until each family's G6 task
 	// implements it, and gating `ip` against `ip` would gate nothing about
 	// goip. TestGenlStandInRows pins them.
 	expected := []string{
 		"addr show dynamic",
-		"tcp_metrics show",
 		"sr tunsrc show",
 		"ioam namespace show",
 		"mptcp endpoint show",
@@ -1061,15 +1064,15 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 		check       func(t *testing.T)
 	}{
 		{
-			description: "boundary: the list is nine named rows, one held out and eight stand-ins",
+			description: "boundary: the list is eight named rows, one held out and seven stand-ins",
 			check: func(t *testing.T) {
-				if len(expected) != 9 {
-					t.Errorf("got %d named rows, want 9", len(expected))
+				if len(expected) != 8 {
+					t.Errorf("got %d named rows, want 8", len(expected))
 				}
 			},
 		},
 		{
-			description: "positive: the ungated set is exactly the nine named rows, so UNGATED_CLEAN counts them and not zero",
+			description: "positive: the ungated set is exactly the eight named rows, so UNGATED_CLEAN counts them and not zero",
 			check: func(t *testing.T) {
 				for _, name := range expected {
 					if !ungated[name] {
@@ -3419,10 +3422,11 @@ func TestNetnsRows(t *testing.T) {
 	})
 }
 
-// TestGenlStandInRows pins G5-T03's eight genl rows: one `show` per family in
-// the C2 order, NETLINK_GENERIC, `ip` in goip's place, floor 4, ungated, and
-// after every route row, since the driver loads the families' modules before
-// the first of them.
+// TestGenlStandInRows pins G5-T03's genl rows, seven since G6-T01 replaced
+// tcp_metrics': one `show` per family in the C2 order, NETLINK_GENERIC, `ip`
+// in goip's place, floor 4, ungated, and with G6's rows after every route
+// row, since the driver loads the families' modules before the first of
+// them.
 //
 // go test ./internal/goipparity/ -run TestGenlStandInRows
 func TestGenlStandInRows(t *testing.T) {
@@ -3435,9 +3439,11 @@ func TestGenlStandInRows(t *testing.T) {
 		gated[name] = true
 	}
 	want := []string{
-		"tcp_metrics show", "sr tunsrc show", "ioam namespace show", "mptcp endpoint show",
+		"sr tunsrc show", "ioam namespace show", "mptcp endpoint show",
 		"fou show", "ila show", "l2tp show tunnel", "macsec show",
 	}
+	// tcpmRows is G6-T01's rows, the first genl ones, ahead of the stand-ins.
+	const tcpmRows = 14
 
 	cmds := Commands()
 	first := len(cmds)
@@ -3456,7 +3462,7 @@ func TestGenlStandInRows(t *testing.T) {
 		check       func(t *testing.T)
 	}{
 		{
-			description: "positive: the stand-ins are the eight families' shows, in the C2 order",
+			description: "positive: the stand-ins are the seven unimplemented families' shows, in the C2 order",
 			check: func(t *testing.T) {
 				if !slices.Equal(got, want) {
 					t.Errorf("stand-ins %q, want %q", got, want)
@@ -3486,8 +3492,8 @@ func TestGenlStandInRows(t *testing.T) {
 						t.Errorf("%q, a %s row, follows the first genl row", c.Name, c.Protocol())
 					}
 				}
-				if len(cmds)-first != len(want) {
-					t.Errorf("%d rows from the first genl one, want %d", len(cmds)-first, len(want))
+				if len(cmds)-first != tcpmRows+len(want) {
+					t.Errorf("%d rows from the first genl one, want %d", len(cmds)-first, tcpmRows+len(want))
 				}
 			},
 		},
@@ -3514,5 +3520,110 @@ func TestGenlStandInRows(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.description, tt.check)
+	}
+}
+
+// tcpmTopology is a tcp_metrics row's Setup as its corpus capture's topology
+// file records it: each `ip` step, and each `tcp SERVER CLIENT` step as
+// xtcp2-nl-tcp's line, the client to the server's port 7171, closed.
+func tcpmTopology(setup []string) []string {
+	steps := make([]string, 0, len(setup))
+	for _, s := range setup {
+		f := strings.Fields(s)
+		if len(f) != 3 || f[0] != "tcp" {
+			steps = append(steps, "ip "+s)
+			continue
+		}
+		server := f[1]
+		if strings.Contains(server, ":") {
+			server = "[" + server + "]"
+		}
+		steps = append(steps, fmt.Sprintf("tcp %s -> %s:7171 closed", f[2], server))
+	}
+	return steps
+}
+
+// corpusTopology is every step a capture's topology file records as done.
+func corpusTopology(t *testing.T, dir, state string) []string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join(dir, state, "topology"))
+	if err != nil {
+		t.Fatalf("reading %s's topology: %v", state, err)
+	}
+	var steps []string
+	for _, line := range strings.Split(string(b), "\n") {
+		if !strings.HasPrefix(line, "ok ") {
+			continue
+		}
+		if _, step, ok := strings.Cut(line, "] "); ok {
+			steps = append(steps, step)
+		}
+	}
+	return steps
+}
+
+// TestTCPMetricsRows pins G6-T01's fourteen rows: the C2 corpus's tcpm_*
+// rows, NETLINK_GENERIC, each on its capture's precondition, connections
+// included; the deletes and the flushes that write, write rows of their DEL
+// counts; and the shows, the gets and the flush of nothing, read rows. Every
+// one is gated with no allowlist entry after two clean live runs.
+//
+// go test ./internal/goipparity/ -run TestTCPMetricsRows
+func TestTCPMetricsRows(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	type want struct {
+		implemented, write, topology, gated bool
+		proto                               string
+		floor, writes, entries              int
+	}
+	read := want{implemented: true, topology: true, gated: true, proto: ProtoGenericCst, floor: 4}
+	del := want{implemented: true, write: true, topology: true, gated: true, proto: ProtoGenericCst, floor: 4}
+	flushAll := del
+	flushAll.writes = 1
+	flush := del
+	flush.floor, flush.writes = 6, 2
+	rows := []struct {
+		description string
+		command     string
+		corpus      string // the slug whose topology Setup must be
+		expected    want
+	}{
+		{"positive: show, the four entries", "tcp_metrics show", "tcpm_show", read},
+		{"boundary: list, the empty table", "tcp_metrics list", "tcpm_show_empty", read},
+		{"positive: -6 show, filtered on ip's side", "-6 tcp_metrics show", "tcpm_show_v6", read},
+		{"positive: get by address", "tcp_metrics show address 192.0.2.1", "tcpm_get", read},
+		{"positive: get by source and address", "tcp_metrics show src 192.0.2.2 address 192.0.2.1", "tcpm_get_src", read},
+		{"positive: get by IPv6 address", "tcp_metrics show address 2001:db8::1", "tcpm_get_v6", read},
+		{"negative: get of a missing entry, the kernel's ESRCH", "tcp_metrics show address 192.0.2.9",
+			"tcpm_get_missing", read},
+		{"positive: delete, one acked DEL", "tcp_metrics delete address 192.0.2.1", "tcpm_delete", del},
+		{"positive: delete by source", "tcp_metrics delete src 192.0.2.2 address 192.0.2.1", "tcpm_delete_src", del},
+		{"negative: delete of a missing entry, refused, the same request", "tcp_metrics delete address 192.0.2.9",
+			"tcpm_delete_missing", del},
+		{"positive: flush all, one acked DEL with no address", "tcp_metrics flush all", "tcpm_flush_all", flushAll},
+		{"positive: flush of a prefix, two DELs and a second dump", "tcp_metrics flush 192.0.2.0/24",
+			"tcpm_flush_prefix", flush},
+		{"positive: -6 flush, two DELs and a second dump", "-6 tcp_metrics flush", "tcpm_flush_v6", flush},
+		{"boundary: a flush of nothing, the dump alone, a read row", "tcp_metrics flush address 192.0.2.0/24",
+			"tcpm_flush_empty", read},
+		{"negative: a flush of an exact address is not in the matrix", "tcp_metrics flush 192.0.2.1", "", want{}},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			var got want
+			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				got = want{implemented: c.Implemented, write: c.Write, proto: c.Proto,
+					topology: slices.Equal(tcpmTopology(c.Setup), corpusTopology(t, tdGenl, r.corpus)),
+					floor:    c.Floor, writes: c.Writes}
+			}
+			got.gated = al.IsGated(r.command)
+			got.entries = len(al.EntriesFor(r.command))
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+		})
 	}
 }

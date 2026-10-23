@@ -1018,7 +1018,16 @@
     "and 2, each netns_map_init's RTM_GETNSID per file by NETNSA_FD then the",
     "dump or the get; and netns set c1set 7, one RTM_NEWNSID. NETNSA_FD is an",
     "accepted divergence. Two consecutive clean runs of 273 GOIP_PARITY_PASS",
-    "of 273 ended GOIP_PARITY_OVERALL_PASS."
+    "of 273 ended GOIP_PARITY_OVERALL_PASS.",
+    "",
+    "G6-T01 adds tcp_metrics, the first genl object, in place of its G5-T03",
+    "stand-in, and gates the C2 corpus's 14 rows, each on its precondition",
+    "with two local connections: show, list, -6 show, the three gets and a",
+    "missing one, and the flush of nothing, reads; delete, by source and of",
+    "a missing entry, flush all, of a prefix and -6, dry-run writes of the",
+    "DEL. Entries' ages and RTTs are normalized and paired by address and",
+    "source, not by the dump's hash order. Two consecutive clean runs of 294",
+    "GOIP_PARITY_PASS of 294 ended GOIP_PARITY_OVERALL_PASS."
   ],
   "_note_version_skew": [
     "THE ENTRIES BELOW CITE COMMITS THAT ARE IN NO RELEASE, AND THE EVIDENCE IS",
@@ -1399,6 +1408,20 @@
     "-j netns list-id",
     "netns list-id nsid 2",
     "netns list-id nsid 1 target-nsid 2",
-    "netns set c1set 7"
+    "netns set c1set 7",
+    "tcp_metrics show",
+    "tcp_metrics list",
+    "-6 tcp_metrics show",
+    "tcp_metrics show address 192.0.2.1",
+    "tcp_metrics show src 192.0.2.2 address 192.0.2.1",
+    "tcp_metrics show address 2001:db8::1",
+    "tcp_metrics show address 192.0.2.9",
+    "tcp_metrics delete address 192.0.2.1",
+    "tcp_metrics delete src 192.0.2.2 address 192.0.2.1",
+    "tcp_metrics delete address 192.0.2.9",
+    "tcp_metrics flush all",
+    "tcp_metrics flush 192.0.2.0/24",
+    "-6 tcp_metrics flush",
+    "tcp_metrics flush address 192.0.2.0/24"
   ]
 }

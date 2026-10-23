@@ -427,7 +427,9 @@ func diffReplies(command string, txn int, ref, sub Txn) []Divergence {
 	// Sequence, only once membership matches. Comparing the order of two
 	// different sets would report an ordering problem that is really a
 	// membership problem, which is the masking this tier is split to prevent.
-	if sameStrings(refKeys, subKeys) {
+	// A family whose dump order is a per-namespace hash's has no sequence to
+	// compare (hashOrdered).
+	if sameStrings(refKeys, subKeys) && !hashOrdered(ref.Replies) {
 		if !equalStrings(refKeys, subKeys) {
 			out = append(out, Divergence{
 				Command: command, Level: LevelReply, Class: DivergenceKeyOrder,
@@ -722,10 +724,10 @@ func attrTypeList(m Msg, attrs []Attr) []string {
 // order (deduplicated, so the order list is comparable) plus the messages
 // grouped by key.
 //
-// A generic netlink reply has no object key yet (see ObjectKey), so it is keyed
-// by its name and its ordinal among the replies of that name: the third fou
-// entry of a dump is GENL(fou).cmd(1)#3. One more entry on one side is then a
-// key-set finding, where grouping them under one key would skip the pair
+// A generic netlink reply whose family gives no object key (see ObjectKey) is
+// keyed by its name and its ordinal among the replies of that name: the third
+// fou entry of a dump is GENL(fou).cmd(1)#3. One more entry on one side is then
+// a key-set finding, where grouping them under one key would skip the pair
 // comparison silently for want of equal counts.
 func keyReplies(msgs []Msg) ([]string, map[string][]Msg) {
 	byKey := make(map[string][]Msg, len(msgs))
@@ -733,7 +735,7 @@ func keyReplies(msgs []Msg) ([]string, map[string][]Msg) {
 	var order []string
 	for i := range msgs {
 		k := ObjectKey(msgs[i])
-		if msgs[i].IsGenl() {
+		if _, keyed := genlObjectKey(msgs[i]); msgs[i].IsGenl() && !keyed {
 			genlSeen[k]++
 			k = fmt.Sprintf("%s#%d", k, genlSeen[k])
 		}
@@ -767,10 +769,14 @@ func keyReplies(msgs []Msg) ([]string, map[string][]Msg) {
 // 8-bit form. A table id above 255 lives in RTA_TABLE instead, so both are
 // read and the attribute wins when present.
 //
-// A generic netlink message keys on its name, family and command, since which
-// attribute names a family's object is the family's to say; keyReplies numbers
-// the replies that share one.
+// A generic netlink message keys on its family's object where genlObjectKey
+// knows it (tcp_metrics' destination and source), and otherwise on its name,
+// family and command, since which attribute names a family's object is the
+// family's to say; keyReplies numbers the replies that share one.
 func ObjectKey(m Msg) string {
+	if k, ok := genlObjectKey(m); ok {
+		return k
+	}
 	switch msgAttrFamily(m) {
 	case AttrFamilyIFLA:
 		var ifi xtcpnl.IfInfomsg

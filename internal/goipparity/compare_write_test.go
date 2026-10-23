@@ -73,7 +73,17 @@ const (
 	// netnsSetSlugCst is G4-T04's netns set row, on the head of its
 	// capture under tdRtnl.
 	netnsSetSlugCst = "netns_set"
-	tdAddrSave      = "../../pkg/xtcpnl/testdata/7_1_4/link-write/addr-save"
+	// tcpmSlugPrefixCst names G6-T01's tcp_metrics rows, each on the
+	// capture of its own slug under tdGenl; tcpmFlushPrefixSlugCst and
+	// tcpmFlushV6SlugCst are its flush rows that dump, and
+	// tcpmFlushAllSlugCst its flush of all, one acked DEL.
+	tcpmSlugPrefixCst      = "tcpm_"
+	tcpmFlushAllSlugCst    = "tcpm_flush_all"
+	tcpmFlushPrefixSlugCst = "tcpm_flush_prefix"
+	tcpmFlushV6SlugCst     = "tcpm_flush_v6"
+	// genlProtoCst is NETLINK_GENERIC.
+	genlProtoCst = 16
+	tdAddrSave   = "../../pkg/xtcpnl/testdata/7_1_4/link-write/addr-save"
 	// tdRtnl is the C1 rtnetlink corpus, route_restore\'s among it.
 	tdRtnl           = "../../pkg/xtcpnl/testdata/7_1_4/link-write/rtnl"
 	pcapGlobalHdrCst = 24
@@ -245,6 +255,9 @@ func corpusWriteRow(t *testing.T, c Command) writeRowFiles {
 	if c.Slug == netnsSetSlugCst {
 		return corpusNetnsSetRow(t)
 	}
+	if strings.HasPrefix(c.Slug, tcpmSlugPrefixCst) {
+		return corpusTCPMetricsRow(t, c)
+	}
 	if strings.HasPrefix(c.Slug, addrLabelWriteSlugPrefixCst) ||
 		strings.HasPrefix(c.Slug, ntableWriteSlugPrefixCst) ||
 		strings.HasPrefix(c.Slug, statsSetSlugPrefixCst) ||
@@ -269,6 +282,63 @@ func corpusWriteRow(t *testing.T, c Command) writeRowFiles {
 		rcs:   map[string]string{SideIPA: rc, SideGoip: "0", SideIPB: rc},
 		write: writeRequest(w.Writes[0], 1),
 	}
+}
+
+// corpusTCPMetricsRow is a tcp_metrics write row's files as a perfect run
+// would leave them, its capture read as NETLINK_GENERIC. A delete, and a
+// flush of all, is one acked DEL, the last two records, so goip's capture is
+// ip's without them. A prefix flush's DELs ask for no ack, so goip's is ip's
+// without the DELs' records, its second dump kept. Every stdout is empty.
+func corpusTCPMetricsRow(t *testing.T, c Command) writeRowFiles {
+	t.Helper()
+	dir := filepath.Join(tdGenl, c.Slug)
+	ipPcap := mustReadBytes(t, filepath.Join(dir, "ip.pcap"))
+	capture, err := nlparity.ParseCaptureFile(filepath.Join(dir, "ip.pcap"), genlProtoCst)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, err := nlparity.SplitWrites(nlparity.SegmentCapture(capture), c.WriteCount())
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := make([]byte, 0, len(w.Writes)*nlMsgHdrCst)
+	var seq uint32
+	for _, m := range w.Writes {
+		seq++
+		file = append(file, writeRequest(m, seq)...)
+	}
+	goip := dropLastRecords(t, ipPcap, 2)
+	if c.Slug == tcpmFlushPrefixSlugCst || c.Slug == tcpmFlushV6SlugCst {
+		goip = dropGenlRequests(t, ipPcap, w.Writes[0].Hdr.Type, w.Writes[0].Body[0])
+	}
+	rc := strings.TrimSpace(mustRead(t, filepath.Join(dir, "ip.rc")))
+	return writeRowFiles{
+		pcaps: map[string][]byte{SideIPA: ipPcap, SideGoip: goip, SideIPB: ipPcap},
+		rcs:   map[string]string{SideIPA: rc, SideGoip: "0", SideIPB: rc},
+		write: file,
+	}
+}
+
+// dropGenlRequests returns a pcap without the records that carry a request
+// of the generic netlink family typ and command cmd: a tcp_metrics flush
+// capture less its DEL batch.
+func dropGenlRequests(t *testing.T, b []byte, typ uint16, cmd byte) []byte {
+	t.Helper()
+	out := append([]byte(nil), b[:pcapGlobalHdrCst]...)
+	offs := pcapRecords(t, b)
+	for i, off := range offs {
+		end := len(b)
+		if i+1 < len(offs) {
+			end = offs[i+1]
+		}
+		msg := off + pcapRecordHdrCst + nlmonHdrCst
+		if msg+nlMsgHdrCst < end && binary.LittleEndian.Uint16(b[msg+4:msg+6]) == typ &&
+			binary.LittleEndian.Uint16(b[msg+6:msg+8])&nlmFRequestCst != 0 && b[msg+nlMsgHdrCst] == cmd {
+			continue
+		}
+		out = append(out, b[off:end]...)
+	}
+	return out
 }
 
 // corpusNetnsSetRow is netns_set's files as a perfect run would leave them.

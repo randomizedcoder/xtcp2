@@ -2707,6 +2707,47 @@ Each task's goip object sends the family's requests and prints `ip`'s output for
 | G6-T07 | `goip l2tp`: tunnels and sessions, show, add and del, the 24 `l2tp_*` rows |
 | G6-T08 | `goip macsec`: `show` and the SA and RX-SC writes, the 32 `macsec_*` rows; `macsec show` also dumps the route links. Closes G6 |
 
+**G6-T01 delivered** (`internal/goip`, `pkg/xtcpnl`, `pkg/nlparity`, `internal/goipparity`, `nix/microvms/scripts/goip-parity.exp`):
+- **The genl write path.**
+  - `xtcpnl.IsAdmittedGenlWrite` admits a genl write by its family's name and command. Only tcp_metrics' `TCP_METRICS_CMD_DEL` is admitted.
+  - `BuildGenlWriteRequest` builds only an admitted write, and `BuildGenlRequest` only the rest.
+  - `nlparity.IsWrite` decides what is a write for either protocol.
+  - `ParseWriteRequestsProto` reads a `GOIP_WRITE_OUT` file of genl requests. It labels each request with the family name from goip's own capture, so the file can carry the boot's id and still be compared by name.
+- **`goip tcp_metrics`** (`internal/goip/obj_tcp_metrics.go`, `render/tcp_metrics.go`).
+  - `show`, `list` and `lst` dump `TCP_METRICS_CMD_GET` with no attributes and filter on goip's side, as `process_msg` does. Given an exact address, they send the GET for it instead.
+  - `delete` writes one acked DEL.
+  - `flush` writes one of three things: a DEL with no attributes, for all; a DEL of the address, for an exact address; otherwise, rounds of a dump and a batch of DEL copies, then a dump that finds nothing new.
+  - The argument loop steps twice past each address and source value, as `ip`'s does.
+  - Output: text; `-j` on the dump path; and the rounds under `-s`.
+  - Exit codes are `ip`'s: 255 for what `ip` ends with `exit(-1)`; 1 for a non-exact address, a bad family or a refused dump; 2 for a kernel refusal.
+  - The genl socket now takes the route socket's receive timeout.
+  - `/ip/tcpmetrics` serves `ip -j tcp_metrics show` over HTTP.
+- **Comparing tcp_metrics.** Each side opens its own connections, so a reply's age, its last SYN drop stamp and its measured RTTs are zeroed before comparison.
+  - An entry's key is its family, address and source, so a dump's replies and a flush's DELs pair by entry.
+  - The order of a dump's keys comes from a per-namespace hash, so it is not compared.
+- **The rows.** The C2 corpus's 14 `tcpm_*` rows replace the stand-in, each on its corpus precondition: eight reads and six writes.
+  - Two of them run another spelling of a corpus command, so that no two rows share a name: `list` for the empty show, and `address` before the empty flush's prefix. The bytes are the same.
+  - A new Setup step, `tcp SERVER CLIENT`, runs `xtcp2-nlcap tcp` in the row's namespace.
+  - The driver passes a write row's protocol to its capture.
+
+The tests (`pkg/xtcpnl`, `pkg/nlparity`, `internal/goip`, `internal/goipparity`):
+
+| description | expected |
+|---|---|
+| positive, negative, boundary, corner: `BuildGenlRequest` and `BuildGenlWriteRequest` for the captured dump, GET, acked DEL and flush DEL; a DEL asked of the read builder, a GET of the write builder, another family's command 2; `GENL_ID_CTRL` and the id below it; a write to id 0 | the captured bytes; `ErrGenlWrite` three times; built, then `ErrGenlFamilyID` twice, `TestBuildGenlRequest` (10 rows) |
+| positive, negative, boundary, corner: the write gate for tcp_metrics' DEL, its GET, fou's command 2, command 0, the name in another case, an unresolved family | the DEL admitted alone, `TestIsAdmittedGenlWrite` (6) |
+| positive, negative, boundary, corner: `IsWrite` for a tcp_metrics DEL, an `RTM_NEWLINK`, a tcp_metrics GET, a family never named, `RTM_NEWLINK`'s number on genl, an `RTM_GETLINK`, a DEL too short for its `genlmsghdr`, `NLMSG_ERROR` on genl | the first two writes, the rest not, `TestIsWrite` (8) |
+| positive, negative, boundary, corner: `ParseWriteRequestsProto` over the two flush DELs, labeled, with the family unnamed, named for another family; the dump's GET; the DELs read as rtnetlink; an empty file | two labeled writes; `ErrBadWriteFile` four times; no writes, `TestParseWriteRequestsProto` (6) |
+| positive, negative, boundary: a dump against itself, its entries reversed, one entry's source changed, one entry fewer, a flush's DELs swapped, one DEL changed, one DEL missing | 0, 0, 2, 1, 0, 1, 3 findings, `TestTCPMetricsKeys` (7) |
+| positive, negative, boundary, corner: `byObjectKey` over tcp_metrics DELs in either order, rtnetlink DELs, a mixed batch, an empty one | sorted by key, the same either way; send order kept; empty, `TestByObjectKey` (5) |
+| positive, negative, boundary, corner: one entry's two captures, two ages and RTTs; another entry; cwnd changed; the same bytes under another family; the raw entries | equal; differ; differ; not normalized; differ, `TestNormalizeTCPMetrics` (5) |
+| positive, boundary, corner: `process_msg`'s line and JSON for RTTs in msecs and usecs, zero, the TIME-WAIT pair, Fast Open and a long cookie, an IPv6 address in dotted quad | `ip`'s text and JSON, `TestTCPMetricsView` (10) |
+| positive, negative, corner: the 14 C2 captures replayed, and other spellings of them | `ip.out`, `ip.err`, every exchange once, no write sent, the DELs the capture's, `TestTCPMetricsMatchesIp` (22) |
+| negative, boundary, corner: an unknown verb, `help` and `help` as an address, delete with no address and of a prefix, a source prefix, `address` then `src`, two sources, not an address, IPv4 under `-6`, address or source with no value, `-0` | `ip`'s message and exit code, 255 or 1, `TestTCPMetricsArgs` (13) |
+| positive, negative, boundary, corner: a flush of two entries, under `-s`, of 100 entries, of a prefix nothing is in, with a source filter and an entry with no source | one round and two dumps; the round and summary; 100 DELs, each copied once; "Nothing to flush." on stderr; the entry kept, `TestTCPMetricsFlushLive` (5) |
+| positive, negative, boundary, corner: the genl socket's receive timeout at two seconds, none, one nanosecond, a microsecond and a half | the route socket's each time: set, unset, nonzero, set, `TestNetlinkGenlTimeout` (4) |
+| positive, negative, boundary: the 14 rows | generic, on the corpus topology with its connections, the write counts and floors, gated with no allowlist entry; a flush of an exact address is not a row, `TestTCPMetricsRows` (15) |
+
 ### G7 — XFRM
 
 xfrm state and policy show first, then the writes.
