@@ -17,7 +17,8 @@ artifacts used by ASN and network-owner enrichment.
 | Unit tests | Implemented | Loader, rotation, sanity bounds, startup precedence, refresh cache publication, CLI/env mapping. |
 | Nix fixture tests | Implemented | A tiny local lock/artifact fixture builds through `ipmeta-bootstrap-artifact` and an OCI tar assertion checks the bootstrap file is packaged. |
 | MicroVM test | Implemented | Interface-naming still covers ASN enrichment with live collector refresh; the dedicated ipmeta-bootstrap flavor covers cold bootstrap, delayed in-VM HTTP recovery, cache rotation, and bad update rejection. |
-| OCI bootstrap artifact | Wiring implemented | `ipmeta-bootstrap-artifact` normalizes one locked source artifact, and `*-bootstrap` daemon image attrs install it at `/share/xtcp2/ipmeta/bootstrap.lookup.parquet.zst`; a real `nix/ipmeta-bootstrap-lock.json` and data artifact still need to be supplied. |
+| OCI bootstrap artifact | Implemented | `nix/ipmeta-bootstrap-lock.json` points at the checked-in snapshot `nix/ipmeta/bootstrap.lookup.parquet.zst` (2026-10-22: 19/19 sources, 432,655 prefixes, 723,256 bytes). `ipmeta-bootstrap-artifact` normalizes it (idempotently: same sha256 in and out), and `*-bootstrap` daemon image attrs install it at `/share/xtcp2/ipmeta/bootstrap.lookup.parquet.zst`. |
+| Snapshot refresh | Implemented | `nix run .#update-ipmeta-bootstrap-lock` fetches every source (all must succeed unless `IPFEED_MIN_SUCCESSFUL_SOURCES` is set), compacts, rewrites the snapshot and lock, and stages both for review. |
 
 ## Test Matrix
 
@@ -42,6 +43,9 @@ artifacts used by ASN and network-owner enrichment.
 | microVM bad update rejection | Integration | a later empty/bad update does not replace the last good lookup table; records after the bad update remain enriched from the live-good table. |
 | Nix bootstrap fixture artifact | Integration | a local fixture lock builds a zstd lookup artifact and the loader resolves its ASN/network-owner row. |
 | Nix bootstrap OCI contents | Integration | a `*-bootstrap` OCI image tar contains `/share/xtcp2/ipmeta/bootstrap.lookup.parquet.zst` and the payload matches the normalized artifact. |
+| Nix snapshot size floor | Negative | `test-ipmeta-bootstrap-snapshot` fails when the checked-in snapshot has under 100,000 prefixes (a large feed missing). |
+| Nix snapshot lookups | Positive/negative/boundary/corner | Cloudflare v4/v6, Google DNS and GitHub resolve to their owner and representative ASN; TEST-NET-1, RFC 1918 and 2001:db8:: miss; both ends of 104.16.0.0/13 hit; `::ffff:8.8.8.8` answers as 8.8.8.8; 0.0.0.0 misses. |
+| Nix snapshot OCI contents | Integration | `oci-xtcp2-s3parquet-enrich-bootstrap` (the Runpod image) carries the snapshot byte for byte. All four Nix bootstrap tests are in `nix flake check`. |
 
 ## Verification Commands
 
@@ -92,10 +96,9 @@ artifact, and starts within about 13 MiB of the limit.
   the collector write the compact lookup artifact so `-asnDbPath` never reads
   the 82 MB full schema. Re-measure against the table above.
 
-- Add or pin the real fleet bootstrap artifact with
-  `nix/ipmeta-bootstrap-lock.json`. The source can be a small checked-in file
-  under `nix/` or a fixed-hash URL from a dedicated data repo/GitHub release.
 - Decide whether to expose the +/-20% sanity window as config after observing
   live feed variance.
-- Add an explicit `update-ipmeta-bootstrap-lock` helper if the lock refresh
-  process becomes frequent enough to automate.
+- Refresh the snapshot before each release (`nix run
+  .#update-ipmeta-bootstrap-lock`). Hosts running the `oci-ipfeed-collector`
+  sidecar replace it within a day; it only has to be good enough for a cold
+  start.

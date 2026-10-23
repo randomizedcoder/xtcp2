@@ -148,7 +148,9 @@ let
       microvms
       linkmonitorPackages
       containers
+      ipmetaBootstrapArtifact
       ;
+    ipmetaSnapshotImage = containersWithIpmetaBootstrap.oci-xtcp2-s3parquet-enrich-bootstrap;
   };
 
   # Privileged runner for live netlink checks and root-owned performance
@@ -633,6 +635,74 @@ let
     '';
   };
 
+  # User-facing wrapper that refreshes the ASN bootstrap snapshot baked into the
+  # `*-bootstrap` images. Invoked via `nix run .#update-ipmeta-bootstrap-lock`
+  # from the repo root.
+  #
+  # It fetches every feed in cmd/ipfeed-collector/sources (network access, so
+  # this cannot be a derivation), compacts the result with ipmeta-bootstrap and
+  # writes nix/ipmeta/bootstrap.lookup.parquet.zst plus the lock that points at
+  # it. Like the lint baseline, the snapshot is a reviewed commit, not a build
+  # step: images built from one commit always carry the same data.
+  #
+  # Every source must succeed by default, so a feed outage cannot quietly ship a
+  # snapshot with a provider missing. IPFEED_MIN_SUCCESSFUL_SOURCES lowers the
+  # bar when a feed is known to be down.
+  updateIpmetaBootstrapLock = pkgs.writeShellApplication {
+    name = "xtcp2-update-ipmeta-bootstrap-lock";
+    runtimeInputs = [
+      pkgs.coreutils
+      pkgs.findutils
+      pkgs.git
+      binaries."ipfeed-collector"
+      binaries.ipmeta-bootstrap
+    ];
+    text = ''
+      set -eu
+
+      if [ ! -f flake.nix ]; then
+        echo "update-ipmeta-bootstrap-lock: must be run from the xtcp2 repo root" >&2
+        exit 2
+      fi
+
+      sources=cmd/ipfeed-collector/sources
+      total=$(find "$sources" -maxdepth 1 -name '*.yaml' | wc -l)
+      min="''${IPFEED_MIN_SUCCESSFUL_SOURCES:-$total}"
+
+      tmp=$(mktemp -d)
+      trap 'rm -rf "$tmp"' EXIT
+
+      echo "==> fetching $total sources (need $min)"
+      ipfeed-collector \
+        -sources-dir "$sources" \
+        -no-upload \
+        -min-successful-sources "$min" \
+        -out-file "$tmp/ipfeed.parquet"
+
+      echo "==> compacting"
+      mkdir -p nix/ipmeta
+      ipmeta-bootstrap -in "$tmp/ipfeed.parquet" -out "$tmp/bootstrap.lookup.parquet.zst"
+      install -m 0644 "$tmp/bootstrap.lookup.parquet.zst" nix/ipmeta/bootstrap.lookup.parquet.zst
+
+      cat > nix/ipmeta-bootstrap-lock.json <<'EOF'
+      {
+        "version": 1,
+        "artifact": {
+          "path": "./ipmeta/bootstrap.lookup.parquet.zst"
+        }
+      }
+      EOF
+
+      echo
+      echo "==> wrote nix/ipmeta/bootstrap.lookup.parquet.zst and nix/ipmeta-bootstrap-lock.json"
+      if git rev-parse --git-dir >/dev/null 2>&1; then
+        git add nix/ipmeta/bootstrap.lookup.parquet.zst nix/ipmeta-bootstrap-lock.json
+        echo "    staged both (flakes only see tracked files)"
+        git diff --cached --stat -- nix/ipmeta nix/ipmeta-bootstrap-lock.json || true
+      fi
+    '';
+  };
+
   # Aggregator that drives the whole microVM integration suite from one
   # command: `nix run .#integration-all`. KVM is a single slot, so every
   # flavor runs SEQUENTIALLY.
@@ -1003,6 +1073,8 @@ in
       test-proto-deserialize-golden = tests.proto-deserialize-golden;
       test-ipmeta-bootstrap-artifact = tests.ipmeta-bootstrap-artifact;
       test-oci-ipmeta-bootstrap-contents = tests.oci-ipmeta-bootstrap-contents;
+      test-ipmeta-bootstrap-snapshot = tests.ipmeta-bootstrap-snapshot;
+      test-oci-ipmeta-bootstrap-snapshot-contents = tests.oci-ipmeta-bootstrap-snapshot-contents;
       test-oci-link-monitor-env = tests.oci-link-monitor-env;
       test-focused-asn-locality = tests.focused.focused-asn-locality;
       test-focused-goip = tests.focused.focused-goip;
@@ -1072,6 +1144,15 @@ in
       # NOT here — quality-report already runs the all-default-tags
       # case, so per-package would be duplicate work.
       test-go-race = tests.go-race;
+
+      # The ASN bootstrap wiring (one-prefix fixture) and the real checked-in
+      # snapshot, loaded and looked up, and found byte-identical in the image
+      # the fleet runs. A refresh by update-ipmeta-bootstrap-lock that drops a
+      # provider or fails to load stops here.
+      test-ipmeta-bootstrap-artifact = tests.ipmeta-bootstrap-artifact;
+      test-oci-ipmeta-bootstrap-contents = tests.oci-ipmeta-bootstrap-contents;
+      test-ipmeta-bootstrap-snapshot = tests.ipmeta-bootstrap-snapshot;
+      test-oci-ipmeta-bootstrap-snapshot-contents = tests.oci-ipmeta-bootstrap-snapshot-contents;
     }
     // vmChecks
     // {
@@ -1445,6 +1526,10 @@ in
     update-lint-baseline = {
       type = "app";
       program = "${updateLintBaseline}/bin/xtcp2-update-lint-baseline";
+    };
+    update-ipmeta-bootstrap-lock = {
+      type = "app";
+      program = "${updateIpmetaBootstrapLock}/bin/xtcp2-update-ipmeta-bootstrap-lock";
     };
     coverage-merge = {
       type = "app";

@@ -405,8 +405,9 @@ data to all ASN-capable images. Daemon image attrs and Docker tags append
 makes the data-bearing images easy to audit. Only daemon images get bootstrap
 variants; client-only and collector images do not need the runtime lookup file.
 
-A future `nix run .#update-ipmeta-bootstrap-lock` helper can refresh the source
-artifact and lock file as an explicit operator/developer action. The name should
+`nix run .#update-ipmeta-bootstrap-lock` refreshes the checked-in snapshot
+(`nix/ipmeta/bootstrap.lookup.parquet.zst`) and the lock file as an explicit
+developer action, reviewed as a commit. The name should
 stay `ipmeta` rather than `asn`, because the same artifact feeds both ASN and
 network-owner enrichment.
 
