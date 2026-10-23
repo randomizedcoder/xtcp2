@@ -2885,6 +2885,43 @@ The tests (`pkg/xtcpnl`, `pkg/nlparity`, `internal/goip`, `internal/goipparity`)
 | positive, negative, boundary, corner: `print_fou_mapping` of the kernel's answers, gue over a protocol, no protocol, nothing, the highest port, no family, an address of the other width, zero IPv6 addresses, an unknown family, IPv4-compatible and mapped addresses | `ip`'s line and object, `TestFouMapping` (14) |
 | positive, negative, boundary, corner: the 24 rows | generic, on the corpus topology, or `fou_add_dev`'s and its command for `-j fou sh`; gated; the three refusals floor 2, `TestFouRows` (24) |
 
+**G6-T06 delivered** (`internal/goip`, `pkg/xtcpnl`, `internal/goipparity`):
+- **The write gate.** `IsAdmittedGenlWrite` admits ila's `ADD` and `DEL`. `GET` stays a read, and `FLUSH`, which `ip` never sends, is not admitted.
+- **`goip ila`** (`internal/goip/obj_ila.go`, `render/ila.go`).
+  - `add` and `delete` are matched by prefix, as `do_ipila` matches them, and so are `show`, `lst` and `list`. `help` is matched first, before the family lookup.
+  - `add` and `del` run `ila_parse_opt` and write one acked command to `GOIP_WRITE_OUT`.
+    - The words are matched by prefix, `loc` ahead of `loc_match`, and a word it does not know is usage, exit 255.
+    - The locators are `get_addr64`'s: up to four words, each `strtoul` base 16 and at most `0xffff`, sent as a u64 in network order. A word not given is 0, where `ip` leaves what its stack held.
+    - `csum-mode` and `ident-type` are matched by `strcmp`, and only `luid` and `use-format` are identifier types, as `ip` compiles out the rest.
+    - `dev` is `ll_name_to_index`, with no `check_ifname`.
+  - Each refusal of a value prints its message and the command is still written, with no attribute. So does `add` without a locator or a locator to match, the latter as `ip`'s "missing locator0match". `do_add` and `do_del` ignore the -1, so `ip` sends that request.
+  - `show` takes no argument, then dumps `GET` and prints each mapping as `print_ila_mapping` does.
+    - The locators are four hex words padded to 20, or `-`.
+    - The device name is padded to 16, index 0 as `*`, or the text alone has `-` padded to 10.
+    - The mode and the type run together, unpadded, each `-` when absent and `unknown` for a value the tables do not hold.
+    - Under `-j` the dump is one array, closed however it ends.
+  - Exit codes are `ip`'s: 255 for usage, an unknown command or word, and a dump that ends early; 1 for `show` with an argument.
+  - The genl test helpers fou introduced are shared under genl names (`genlRunArgs`, `genlReplay`, `genlFake`). The comparator tests' stand-in example moves to macsec's, the last stand-in left.
+- **The rows.** The C2 corpus's 15 `ila_*` rows but its show of two locators to match replace the stand-in, each on its corpus precondition: three reads and 11 writes.
+  - The kernel keeps its mappings in an rhashtable seeded per network namespace, so a show of two locators to match can come back in another order on each side. That corpus row is replayed and not in the matrix.
+  - In its place is a show of one locator to match with two mappings, on `ila_del_dev`'s precondition. One locator's mappings are a list the kernel keeps in one order, the device's first.
+  - Three `-j` shows join them: of those two mappings, of the device's mapping alone, and of both options on `ila_add_opts`'s state.
+  - The corpus spells some commands alike on different preconditions, so those rows run by prefix: `ila s`, `ila a`, `ila d` and `ila de`, the same bytes.
+  - An unknown word and `show` with an argument are refused by `ip` after the family lookup, so each is a read of floor 2.
+
+The tests (`pkg/xtcpnl`, `internal/goip`, `internal/goipparity`):
+
+| description | expected |
+|---|---|
+| positive, negative, boundary: the write gate for ila's `ADD`, `DEL`, `GET`, `FLUSH` and command 0 | the two admitted, the rest not, `TestIsAdmittedGenlWrite` (41 rows, five new) |
+| positive, negative, boundary, corner: the 15 C2 captures replayed, the readback shows of ten, prefixes, the words in another order, hex words with `0x` and capitals, a repeated locator, `d`, `l`, `ls` and `list`, `dev if3`, and `-j` shows | `ip.out` or `ip_ila`, or `ip`'s JSON; every read exchange once, no write sent, goip's write `ip`'s bytes; `ip`'s exit status but for a kernel refusal, `TestIlaMatchesIp` (38) |
+| positive, negative, corner: each check and each refused value, a refusal ahead of an unknown word and an unknown word ahead of it, del with nothing and with both locators, every attribute in order, usage, `help`, `h` and `flush` | the message on stderr and the empty request written, the request's bytes, or `ip`'s exit status and nothing written, `TestIlaArgs` (17) |
+| positive, negative, boundary, corner: `get_addr64` of four words, the maximum, one word, `0x`, a leading space and `-0`, `0x10000`, five words, a trailing character, empty, an empty word, a trailing colon and `-1` | the u64 or a refusal, `TestIlaAddr64` (12) |
+| positive, negative, corner: a refused dump with and without `-j`, a short answer after one, a device by index and one no link answers | `ip`'s lines and JSON, `[]`, exit 255, `if9`, `TestIlaShow` (6) |
+| positive, corner: each error's exit status, and `incomplete_command` as usage | 255, 1, 255, 255, `TestIlaExitCodes` (4) |
+| positive, boundary, corner: `print_ila_mapping` of the kernel's answers, nothing, the widest and zero locators, values the tables do not hold, `iid`, the longest mode | `ip`'s line and object, `TestIlaMapping` (7) |
+| positive, negative, boundary, corner: the 18 rows, and the show of two | generic, on the corpus topology, or `ila_add_opts`'s and its command for `-j ila sh`; gated; the two refusals floor 2; the show of two not in the table, `TestIlaRows` (19) |
+
 ### G7 — XFRM
 
 xfrm state and policy show first, then the writes.

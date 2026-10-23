@@ -32,6 +32,10 @@ const MPTCPPMGenlVersion uint8 = 1
 // (include/uapi/linux/fou.h).
 const FOUGenlVersion uint8 = 1
 
+// ILAGenlVersion is ILA_GENL_VERSION, the version ip's ila requests carry
+// (include/uapi/linux/ila.h).
+const ILAGenlVersion uint8 = 1
+
 // genlMsgHdrLenCst is sizeof(struct genlmsghdr).
 const genlMsgHdrLenCst = 4
 
@@ -52,8 +56,10 @@ var (
 // IOAM6's namespace and schema adds, deletes and binding, `ip ioam
 // namespace` and `schema` (ip/ipioam6.c), and mptcp_pm's endpoint adds,
 // deletes, changes and flush and its limits set, `ip mptcp endpoint` and
-// `limits set` (ip/ipmptcp.c), and fou's ADD and DEL, `ip fou add` and
-// `del` (ip/ipfou.c). The family is its controller name.
+// `limits set` (ip/ipmptcp.c), fou's ADD and DEL, `ip fou add` and `del`
+// (ip/ipfou.c), and ila's ADD and DEL, `ip ila add` and `del`
+// (ip/ipila.c); ila's FLUSH, which ip never sends, is not. The family is
+// its controller name.
 func IsAdmittedGenlWrite(family string, cmd uint8) bool {
 	switch family {
 	case TCPMetricsGenlName:
@@ -72,6 +78,8 @@ func IsAdmittedGenlWrite(family string, cmd uint8) bool {
 		}
 	case FOUGenlName:
 		return cmd == FOUCmdAdd || cmd == FOUCmdDel
+	case ILAGenlName:
+		return cmd == ILACmdAdd || cmd == ILACmdDel
 	}
 	return false
 }

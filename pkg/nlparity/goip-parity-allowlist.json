@@ -1060,7 +1060,17 @@
     "argument, port 0 and an unknown device, reads; add and del, among them",
     "the duplicates, the missing, the wrong family and the adds with no port",
     "or no type, dry-run writes. Two consecutive clean runs of 373",
-    "GOIP_PARITY_PASS of 373 ended GOIP_PARITY_OVERALL_PASS."
+    "GOIP_PARITY_PASS of 373 ended GOIP_PARITY_OVERALL_PASS.",
+    "",
+    "G6-T06 adds ila in place of its G5-T03 stand-in, and gates the C2",
+    "corpus's 14 rows but its show of two locators to match, whose order the",
+    "kernel's per-namespace rhashtable seed decides, each on its",
+    "precondition, a show of one locator to match with two mappings, and",
+    "three -j shows: the shows, an unknown word and show with an argument,",
+    "reads; add and del, among them the duplicate, the missing, the one",
+    "with no locator and the device's, dry-run writes. Two consecutive",
+    "clean runs of 390 GOIP_PARITY_PASS of 390 ended",
+    "GOIP_PARITY_OVERALL_PASS."
   ],
   "_note_version_skew": [
     "THE ENTRIES BELOW CITE COMMITS THAT ARE IN NO RELEASE, AND THE EVIDENCE IS",
@@ -1538,6 +1548,24 @@
     "fou d port 5555",
     "fou del port 5555 -6",
     "fou del port 5555 local 192.0.2.1 peer 192.0.2.2 peer_port 5556",
-    "fou de port 5555"
+    "fou de port 5555",
+    "ila s",
+    "ila show",
+    "ila show 2001:db8:1:2",
+    "ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4 bogus",
+    "-j ila show",
+    "-j ila sho",
+    "-j ila sh",
+    "ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4",
+    "ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4 dev d0",
+    "ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4 csum-mode adj-transport ident-type luid",
+    "ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4 csum-mode neutral-map-auto ident-type use-format",
+    "ila a loc_match 2001:db8:1:2 loc 2001:db8:3:4",
+    "ila a loc_match 2001:db8:1:2 loc 2001:db8:3:4 dev d0",
+    "ila add loc_match 2001:db8:1:2",
+    "ila del loc_match 2001:db8:1:2",
+    "ila d loc_match 2001:db8:1:2",
+    "ila del loc_match 2001:db8:1:2 dev d0",
+    "ila de loc_match 2001:db8:1:2"
   ]
 }

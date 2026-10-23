@@ -816,6 +816,25 @@ func TestAllowlistCommitted(t *testing.T) {
 		"fou del port 5555 -6",
 		"fou del port 5555 local 192.0.2.1 peer 192.0.2.2 peer_port 5556",
 		"fou de port 5555",
+		// G6-T06's eighteen `ila` rows.
+		"ila s",
+		"ila show",
+		"ila show 2001:db8:1:2",
+		"ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4 bogus",
+		"-j ila show",
+		"-j ila sho",
+		"-j ila sh",
+		"ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4",
+		"ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4 dev d0",
+		"ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4 csum-mode adj-transport ident-type luid",
+		"ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4 csum-mode neutral-map-auto ident-type use-format",
+		"ila a loc_match 2001:db8:1:2 loc 2001:db8:3:4",
+		"ila a loc_match 2001:db8:1:2 loc 2001:db8:3:4 dev d0",
+		"ila add loc_match 2001:db8:1:2",
+		"ila del loc_match 2001:db8:1:2",
+		"ila d loc_match 2001:db8:1:2",
+		"ila del loc_match 2001:db8:1:2 dev d0",
+		"ila de loc_match 2001:db8:1:2",
 	}
 
 	tests := []struct {

@@ -2988,17 +2988,63 @@ var commands = withArgs([]Command{
 	{Name: "fou de port 5555", Slug: "fou_del_partial", Floor: 4, Implemented: true, Write: true,
 		Proto: ProtoGenericCst, Setup: fouPeerSetup},
 
+	// G6-T06: ila, the C2 corpus's 15 ila_* rows but its show of two, on
+	// their preconditions (genl-write-corpus.exp), a show of one locator
+	// to match with two mappings, and three -j shows. The kernel keeps
+	// its mappings in an rhashtable seeded per namespace, so a show of two
+	// locators to match can differ in order between the sides; one
+	// locator's mappings are a list in the kernel's order, the device's
+	// first, so that show is in one order on every side. The show of two
+	// is replayed. Commands the corpus spells alike are spelled by prefix,
+	// the same bytes. An unknown word and show with an argument are
+	// refused after the lookup, so each is a read of floor 2.
+	{Name: "ila s", Slug: "ila_show_empty", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst},
+	{Name: "ila show", Slug: "ila_show_both", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst, Setup: ilaBothSetup},
+	{Name: "ila show 2001:db8:1:2", Slug: "ila_show_args", Floor: 2, Implemented: true,
+		Proto: ProtoGenericCst},
+	{Name: "ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4 bogus", Slug: "ila_add_unknown_word", Floor: 2, Implemented: true,
+		Proto: ProtoGenericCst},
+	{Name: "-j ila show", Slug: "ila_show_both_json", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst, Setup: ilaBothSetup},
+	{Name: "-j ila sho", Slug: "ila_show_dev_json", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst, Setup: ilaDevSetup},
+	{Name: "-j ila sh", Slug: "ila_show_opts_json", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst, Setup: ilaOptsSetup},
+	{Name: "ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4", Slug: "ila_add", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst},
+	{Name: "ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4 dev d0", Slug: "ila_add_dev", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: "ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4 csum-mode adj-transport ident-type luid", Slug: "ila_add_opts", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst},
+	{Name: "ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4 csum-mode neutral-map-auto ident-type use-format", Slug: "ila_add_auto", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst},
+	{Name: "ila a loc_match 2001:db8:1:2 loc 2001:db8:3:4", Slug: "ila_add_dup", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: ila1Setup},
+	{Name: "ila a loc_match 2001:db8:1:2 loc 2001:db8:3:4 dev d0", Slug: "ila_add_same_match_dev", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: ilaAddrsSetup},
+	{Name: "ila add loc_match 2001:db8:1:2", Slug: "ila_add_no_loc", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst},
+	{Name: "ila del loc_match 2001:db8:1:2", Slug: "ila_del", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: ila1Setup},
+	{Name: "ila d loc_match 2001:db8:1:2", Slug: "ila_del_missing", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst},
+	{Name: "ila del loc_match 2001:db8:1:2 dev d0", Slug: "ila_del_dev", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: ilaBothSetup},
+	{Name: "ila de loc_match 2001:db8:1:2", Slug: "ila_del_nodev_of_dev", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: ilaDevSetup},
+
 	// G5-T03: one `show` per generic netlink family, in the C2 order, with
-	// `ip` in goip's place until the family's G6 task implements it; three
-	// remain, tcp_metrics', sr's, ioam's, mptcp's and fou's rows above
-	// having replaced their own. The captures keep NETLINK_GENERIC and the comparator compares a genl
+	// `ip` in goip's place until the family's G6 task implements it; two
+	// remain, tcp_metrics', sr's, ioam's, mptcp's, fou's and ila's rows
+	// above having replaced their own. The captures keep NETLINK_GENERIC and the comparator compares a genl
 	// message by its family's name, so these rows exercise the harness end
 	// to end, ungated. Each is genl_init_handle's CTRL_CMD_GETFAMILY and its
 	// reply, then the dump and its DONE, or for tunsrc the get and its reply:
 	// four datagrams, as on C2's empty shows, since every family is empty in
 	// the dump topology. They come last: the driver runs nltopo::late_setup,
 	// which loads the families' modules, before the first genl row.
-	{Name: "ila show", Slug: "genl_ila_show", Floor: 4, Proto: ProtoGenericCst, IPStandIn: true},
 	{Name: "l2tp show tunnel", Slug: "genl_l2tp_show_tunnel", Floor: 4, Proto: ProtoGenericCst, IPStandIn: true},
 	{Name: "macsec show", Slug: "genl_macsec_show", Floor: 4, Proto: ProtoGenericCst, IPStandIn: true},
 })
@@ -3073,6 +3119,22 @@ var fouPeerSetup = append(slices.Clone(tcpmAddrsSetup),
 // fouDevSetup is fou_add_dev's precondition and command, the state its
 // readback shows: PRE_ADDRS and a port bound to d0.
 var fouDevSetup = append(slices.Clone(tcpmAddrsSetup), "fou add port 5555 ipproto 4 local 192.0.2.1 dev d0")
+
+// ila1Setup is genl-write-corpus.exp's PRE_ILA: one mapping.
+var ila1Setup = []string{"ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4"}
+
+// ilaAddrsSetup is PRE_ILA_ADDRS: PRE_ADDRS and that mapping.
+var ilaAddrsSetup = append(slices.Clone(tcpmAddrsSetup), "ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4")
+
+// ilaDevSetup is PRE_ILA_DEV: PRE_ADDRS and the mapping on d0.
+var ilaDevSetup = append(slices.Clone(tcpmAddrsSetup), "ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4 dev d0")
+
+// ilaBothSetup is PRE_ILA_BOTH: PRE_ADDRS and the mapping, without and
+// with d0, one locator to match.
+var ilaBothSetup = append(slices.Clone(ilaAddrsSetup), "ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4 dev d0")
+
+// ilaOptsSetup is ila_add_opts's command, the state its readback shows.
+var ilaOptsSetup = []string{"ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4 csum-mode adj-transport ident-type luid"}
 
 // The write rows' preconditions, as capture-link-writes.exp spells them:
 // PRE_BOND, PRE_PORT and PRE_ENSLAVED there.

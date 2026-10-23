@@ -26,6 +26,21 @@ const (
 	ILAAttrCsumMode     uint16 = 7 // u8, ILA_CSUM_*
 	ILAAttrIdentType    uint16 = 8 // u8, ILA_ATYPE_*
 	ILAAttrHookType     uint16 = 9 // u8, ILA_HOOK_*
+
+	// ILA_CSUM_*, CSUM_MODE's values.
+	ILACsumAdjustTransport uint8 = 0
+	ILACsumNeutralMap      uint8 = 1
+	ILACsumNoAction        uint8 = 2
+	ILACsumNeutralMapAuto  uint8 = 3
+
+	// ILA_ATYPE_*, IDENT_TYPE's values; 6 and 7 are reserved.
+	ILAAtypeIID          uint8 = 0
+	ILAAtypeLUID         uint8 = 1
+	ILAAtypeVirtV4       uint8 = 2
+	ILAAtypeVirtUniV6    uint8 = 3
+	ILAAtypeVirtMultiV6  uint8 = 4
+	ILAAtypeNonlocalAddr uint8 = 5
+	ILAAtypeUseFormat    uint8 = 32
 )
 
 // ILA is a decoded ila message. Each field is nil when absent.

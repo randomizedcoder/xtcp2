@@ -35,7 +35,8 @@ const (
 )
 
 // genlReadbackRows are the genl read rows with no corpus capture of their
-// own slug, G6-T03's to G6-T05's -j shows: each is laid out on the
+// own slug, G6-T03's to G6-T06's -j shows and ila's show of one locator
+// to match: each is laid out on the
 // readback dump of the same command a write row's capture holds, or on the
 // capture of the same show without -j, the same requests.
 var genlReadbackRows = map[string]string{
@@ -47,6 +48,10 @@ var genlReadbackRows = map[string]string{
 	"fou_show_json":            "fou_show/ip.pcap",
 	"fou_show_peer_json":       "fou_add_local_peer/netlink_generic_fou.pcap",
 	"fou_show_dev_json":        "fou_add_dev/netlink_generic_fou.pcap",
+	"ila_show_both":            "ila_add_same_match_dev/netlink_generic_ila.pcap",
+	"ila_show_both_json":       "ila_add_same_match_dev/netlink_generic_ila.pcap",
+	"ila_show_dev_json":        "ila_add_dev/netlink_generic_ila.pcap",
+	"ila_show_opts_json":       "ila_add_opts/netlink_generic_ila.pcap",
 }
 
 // writeGenlReadRow lays out an implemented generic netlink read row as a
@@ -195,9 +200,9 @@ func testAllowlist(t *testing.T) *nlparity.Allowlist {
 // go test ./internal/goipparity/ -run TestCompareDir
 // The C2 empty shows of two genl families, run in the dump topology.
 const (
-	tdGenl        = "../../pkg/xtcpnl/testdata/7_1_4/link-write/genl"
-	tdGenlFouShow = tdGenl + "/fou_show_empty/ip.pcap"
-	tdGenlIlaShow = tdGenl + "/ila_show_empty/ip.pcap"
+	tdGenl           = "../../pkg/xtcpnl/testdata/7_1_4/link-write/genl"
+	tdGenlFouShow    = tdGenl + "/fou_show_empty/ip.pcap"
+	tdGenlMacsecShow = tdGenl + "/macsec_show_empty/ip.pcap"
 )
 
 // lookupCmd is Lookup, failing the test on a name the table lacks.
@@ -242,25 +247,25 @@ func TestCompareDir(t *testing.T) {
 		{
 			description: "positive: an ip stand-in genl row over three copies of a C2 capture is a clean pass",
 			setup: func(t *testing.T, dir string) {
-				writeTriple(t, dir, lookupCmd(t, "ila show"), sameAll(tdGenlIlaShow), sameAll(""))
+				writeTriple(t, dir, lookupCmd(t, "macsec show"), sameAll(tdGenlMacsecShow), sameAll(""))
 			},
-			want: map[string]Status{"ila show": StatusPass},
+			want: map[string]Status{"macsec show": StatusPass},
 		},
 		{
-			// fou's empty show in ila's goip slot: another family at the same
+			// fou's empty show in macsec's goip slot: another family at the same
 			// position, a presence finding, on an ungated row.
 			description: "negative: an ip stand-in genl row whose goip side asked another family warns",
 			setup: func(t *testing.T, dir string) {
-				writeTriple(t, dir, lookupCmd(t, "ila show"), map[string]string{
-					SideIPA: tdGenlIlaShow, SideGoip: tdGenlFouShow, SideIPB: tdGenlIlaShow,
+				writeTriple(t, dir, lookupCmd(t, "macsec show"), map[string]string{
+					SideIPA: tdGenlMacsecShow, SideGoip: tdGenlFouShow, SideIPB: tdGenlMacsecShow,
 				}, sameAll(""))
 			},
-			want: map[string]Status{"ila show": StatusWarn},
+			want: map[string]Status{"macsec show": StatusWarn},
 		},
 		{
 			description: "corner: an ip stand-in genl row with no captures is MISSING, not SKIP",
 			setup:       func(*testing.T, string) {},
-			want:        map[string]Status{"ila show": StatusMissing},
+			want:        map[string]Status{"macsec show": StatusMissing},
 		},
 		{
 			description: "positive: two commands both clean in one directory",
@@ -1052,13 +1057,13 @@ func TestRenderNilAllowlist(t *testing.T) {
 }
 
 // TestCompareOneProtocol is a row's protocol deciding how its captures are
-// read: ila's empty show, three copies, read as each.
+// read: macsec's empty show, three copies, read as each.
 //
 // go test ./internal/goipparity/ -run TestCompareOneProtocol
 func TestCompareOneProtocol(t *testing.T) {
-	ila := lookupCmd(t, "ila show")
+	macsec := lookupCmd(t, "macsec show")
 	asProto := func(p string) Command {
-		c := ila
+		c := macsec
 		c.Proto = p
 		return c
 	}
@@ -1068,7 +1073,7 @@ func TestCompareOneProtocol(t *testing.T) {
 		want        Status
 		wantErr     string
 	}{
-		{description: "positive: read as generic, ip against ip compares clean", c: ila, want: StatusPass},
+		{description: "positive: read as generic, ip against ip compares clean", c: macsec, want: StatusPass},
 		{description: "negative: read as route, the genl captures hold nothing to compare", c: asProto(""), want: StatusFail},
 		{description: "negative: a protocol the comparator cannot name", c: asProto("bogus"), want: StatusFail,
 			wantErr: `unknown protocol "bogus"`},
@@ -1077,7 +1082,7 @@ func TestCompareOneProtocol(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
 			dir := t.TempDir()
-			writeTriple(t, dir, tc.c, sameAll(tdGenlIlaShow), sameAll(""))
+			writeTriple(t, dir, tc.c, sameAll(tdGenlMacsecShow), sameAll(""))
 			r := compareOne(dir, tc.c, nil)
 			if r.Status != tc.want {
 				t.Errorf("status = %s, want %s (err=%v)", r.Status, tc.want, r.Err)

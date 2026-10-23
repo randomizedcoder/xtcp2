@@ -516,8 +516,8 @@ func TestCommandString(t *testing.T) {
 		},
 		{
 			description: "positive: an ip stand-in genl row renders impl=ip and proto=generic",
-			name:        "ila show",
-			wantFields:  []string{"genl_ila_show", "4", "ip", "no", "no", "generic", "-", "-", "ila show", "ila show"},
+			name:        "macsec show",
+			wantFields:  []string{"genl_macsec_show", "4", "ip", "no", "no", "generic", "-", "-", "macsec show", "macsec show"},
 		},
 		{
 			description: "positive: a write row with a stdin line renders > and the line",
@@ -1080,19 +1080,20 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	//   - the twenty-eight `mptcp` rows G6-T04 added in place of its
 	//     stand-in, likewise — see TestMptcpRows;
 	//   - the twenty-four `fou` rows G6-T05 added in place of its stand-in,
-	//     likewise — see TestFouRows.
+	//     likewise — see TestFouRows;
+	//   - the eighteen `ila` rows G6-T06 added in place of its stand-in,
+	//     likewise — see TestIlaRows.
 	//
 	// The last four were the permanent set, measured divergent on the wire;
 	// TestPermanentWireDivergences records that it is empty.
 	//
-	// The three genl rows G5-T03 added and G6 has not yet replaced are
+	// The two genl rows G5-T03 added and G6 has not yet replaced are
 	// ungated by construction: `ip`
 	// stands in for goip on them (IPStandIn) until each family's G6 task
 	// implements it, and gating `ip` against `ip` would gate nothing about
 	// goip. TestGenlStandInRows pins them.
 	expected := []string{
 		"addr show dynamic",
-		"ila show",
 		"l2tp show tunnel",
 		"macsec show",
 	}
@@ -1102,10 +1103,10 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 		check       func(t *testing.T)
 	}{
 		{
-			description: "boundary: the list is four named rows, one held out and three stand-ins",
+			description: "boundary: the list is three named rows, one held out and two stand-ins",
 			check: func(t *testing.T) {
-				if len(expected) != 4 {
-					t.Errorf("got %d named rows, want 4", len(expected))
+				if len(expected) != 3 {
+					t.Errorf("got %d named rows, want 3", len(expected))
 				}
 			},
 		},
@@ -3477,11 +3478,12 @@ func TestGenlStandInRows(t *testing.T) {
 		gated[name] = true
 	}
 	want := []string{
-		"ila show", "l2tp show tunnel", "macsec show",
+		"l2tp show tunnel", "macsec show",
 	}
-	// tcpmRows, srRows, ioamRows, mptcpRows and fouRows are G6-T01's to
-	// G6-T05's rows, the first genl ones, ahead of the stand-ins.
-	const tcpmRows, srRows, ioamRows, mptcpRows, fouRows = 14, 11, 20, 28, 24
+	// tcpmRows, srRows, ioamRows, mptcpRows, fouRows and ilaRows are
+	// G6-T01's to G6-T06's rows, the first genl ones, ahead of the
+	// stand-ins.
+	const tcpmRows, srRows, ioamRows, mptcpRows, fouRows, ilaRows = 14, 11, 20, 28, 24, 18
 
 	cmds := Commands()
 	first := len(cmds)
@@ -3500,7 +3502,7 @@ func TestGenlStandInRows(t *testing.T) {
 		check       func(t *testing.T)
 	}{
 		{
-			description: "positive: the stand-ins are the four unimplemented families' shows, in the C2 order",
+			description: "positive: the stand-ins are the unimplemented families' shows, in the C2 order",
 			check: func(t *testing.T) {
 				if !slices.Equal(got, want) {
 					t.Errorf("stand-ins %q, want %q", got, want)
@@ -3530,7 +3532,7 @@ func TestGenlStandInRows(t *testing.T) {
 						t.Errorf("%q, a %s row, follows the first genl row", c.Name, c.Protocol())
 					}
 				}
-				if n := tcpmRows + srRows + ioamRows + mptcpRows + fouRows + len(want); len(cmds)-first != n {
+				if n := tcpmRows + srRows + ioamRows + mptcpRows + fouRows + ilaRows + len(want); len(cmds)-first != n {
 					t.Errorf("%d rows from the first genl one, want %d", len(cmds)-first, n)
 				}
 			},
@@ -4015,6 +4017,81 @@ func TestFouRows(t *testing.T) {
 		{"positive: del with the addresses", "fou del port 5555 local 192.0.2.1 peer 192.0.2.2 peer_port 5556",
 			"fou_del_local_peer", "", write},
 		{"negative: del without them, refused, spelled de", "fou de port 5555", "fou_del_partial", "", write},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			var got want
+			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				steps := make([]string, 0, len(c.Setup))
+				for _, s := range c.Setup {
+					steps = append(steps, "ip "+s)
+				}
+				var corpus []string
+				if r.corpus != "" {
+					corpus = srCorpusTopology(t, r.corpus)
+					if r.then != "" {
+						corpus = append(corpus, r.then)
+					}
+				}
+				topology := r.corpus != "" && slices.Equal(steps, corpus)
+				got = want{implemented: c.Implemented, write: c.Write, proto: c.Proto, floor: c.Floor, topology: topology}
+			}
+			got.gated = al.IsGated(r.command)
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+		})
+	}
+}
+
+// TestIlaRows pins G6-T06's ila rows: each on its corpus row's precondition
+// (its topology file), and each gated. The show of one locator to match is
+// on ila_del_dev's precondition, and -j ila sh on ila_add_opts's and its
+// command; the corpus's show of two is replayed, not a row.
+//
+// go test ./internal/goipparity/ -run TestIlaRows
+func TestIlaRows(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	type want struct {
+		implemented, write, topology, gated bool
+		proto                               string
+		floor                               int
+	}
+	read := want{implemented: true, topology: true, gated: true, proto: ProtoGenericCst, floor: 4}
+	write := read
+	write.write = true
+	refused := read
+	refused.floor = 2
+	const optsAdd = "ip ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4 csum-mode adj-transport ident-type luid"
+	rows := []struct {
+		description string
+		command     string
+		corpus      string // the slug whose topology Setup must be
+		then        string // a step Setup holds after it
+		expected    want
+	}{
+		{"boundary: show with none, spelled s", "ila s", "ila_show_empty", "", read},
+		{"positive: show, one locator to match with two mappings", "ila show", "ila_del_dev", "", read},
+		{"negative: show with an argument, ip's own refusal", "ila show 2001:db8:1:2", "ila_show_args", "", refused},
+		{"negative: an unknown word, usage", "ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4 bogus", "ila_add_unknown_word", "", refused},
+		{"positive: -j show, the two mappings", "-j ila show", "ila_del_dev", "", read},
+		{"positive: -j, the device's mapping", "-j ila sho", "ila_del_nodev_of_dev", "", read},
+		{"corner: -j, both options, on ila_add_opts's state", "-j ila sh", "ila_add_opts", optsAdd, read},
+		{"positive: add", "ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4", "ila_add", "", write},
+		{"positive: on a device", "ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4 dev d0", "ila_add_dev", "", write},
+		{"positive: both options", "ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4 csum-mode adj-transport ident-type luid", "ila_add_opts", "", write},
+		{"positive: the other two", "ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4 csum-mode neutral-map-auto ident-type use-format", "ila_add_auto", "", write},
+		{"negative: a mapping that exists, refused, spelled a", "ila a loc_match 2001:db8:1:2 loc 2001:db8:3:4", "ila_add_dup", "", write},
+		{"positive: the same match on a device, spelled a", "ila a loc_match 2001:db8:1:2 loc 2001:db8:3:4 dev d0", "ila_add_same_match_dev", "", write},
+		{"corner: no locator, no attribute", "ila add loc_match 2001:db8:1:2", "ila_add_no_loc", "", write},
+		{"positive: del", "ila del loc_match 2001:db8:1:2", "ila_del", "", write},
+		{"negative: del of none, spelled d", "ila d loc_match 2001:db8:1:2", "ila_del_missing", "", write},
+		{"positive: del on a device", "ila del loc_match 2001:db8:1:2 dev d0", "ila_del_dev", "", write},
+		{"negative: del without the device of one that has it, spelled de", "ila de loc_match 2001:db8:1:2", "ila_del_nodev_of_dev", "", write},
+		{"negative: the show of two locators to match is not in the table", "ila list", "", "", want{}},
 	}
 	for _, r := range rows {
 		t.Run(r.description, func(t *testing.T) {

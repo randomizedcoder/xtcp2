@@ -159,6 +159,11 @@ func TestIsAdmittedGenlWrite(t *testing.T) {
 		{"negative: fou GET, `fou show`", FOUGenlName, FOUCmdGet, false},
 		{"boundary: fou command 0, UNSPEC", FOUGenlName, 0, false},
 		{"corner: fou's ADD number is not a tcp_metrics write", TCPMetricsGenlName, FOUCmdAdd, false},
+		{"positive: ila ADD, `ila add`", ILAGenlName, ILACmdAdd, true},
+		{"positive: ila DEL, `ila del`", ILAGenlName, ILACmdDel, true},
+		{"negative: ila GET, `ila list`", ILAGenlName, ILACmdGet, false},
+		{"negative: ila FLUSH, which ip never sends", ILAGenlName, ILACmdFlush, false},
+		{"boundary: ila command 0, UNSPEC", ILAGenlName, 0, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {

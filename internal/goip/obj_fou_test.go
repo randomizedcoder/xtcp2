@@ -16,40 +16,48 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// fouRun is one `goip [-j] fou ARGS`: stdout, stderr, the GOIP_WRITE_OUT
+// genlRun is one genl object's run: stdout, stderr, the GOIP_WRITE_OUT
 // file's messages and the error.
-type fouRun struct {
+type genlRun struct {
 	stdout, stderr string
 	writes         []nlparity.Msg
 	err            error
 }
 
-// fouRunArgs runs `goip [-j] fou ARGS` over src, with GOIP_WRITE_OUT a
-// fresh file and the preferred family given.
-func fouRunArgs(t *testing.T, src Source, json bool, family uint8, args string) fouRun {
+// genlRunArgs runs `goip [-j] OBJECT ARGS` through run over src, with
+// GOIP_WRITE_OUT a fresh file read as the named family's, and the
+// preferred family given.
+func genlRunArgs(t *testing.T, run func(*runCtx, []string) error, name string, src Source, json bool,
+	family uint8, args string) genlRun {
 	t.Helper()
 	out := filepath.Join(t.TempDir(), "write.bin")
 	t.Setenv(writeOutEnvCst, out)
 	var stdout, stderr bytes.Buffer
 	c := newRunCtx(nil, &stdout, &stderr)
 	c.src, c.json, c.family = src, json, family
-	r := fouRun{err: runFou(c, strings.Fields(args))}
+	r := genlRun{err: run(c, strings.Fields(args))}
 	if _, serr := os.Stat(out); serr == nil {
-		r.writes = genlWrites(t, out, xtcpnl.FOUGenlName)
+		r.writes = genlWrites(t, out, name)
 	}
 	r.stdout, r.stderr = stdout.String(), stderr.String()
 	return r
 }
 
-// fouLinks is a genl replay that also answers ll_link_get, by name or by
-// index, for lo and d0, recording each get; the captures keep the genl
+// fouRunArgs runs `goip [-j] fou ARGS`.
+func fouRunArgs(t *testing.T, src Source, json bool, family uint8, args string) genlRun {
+	t.Helper()
+	return genlRunArgs(t, runFou, xtcpnl.FOUGenlName, src, json, family, args)
+}
+
+// genlLinks is a genl replay that also answers ll_link_get, by name or by
+// index, for lo and d0, recording each get; the C2 captures keep the genl
 // socket alone.
-type fouLinks struct {
+type genlLinks struct {
 	*ReplaySource
 	gets []string
 }
 
-func (s *fouLinks) Talk(req []byte, _ uint16) ([]byte, error) {
+func (s *genlLinks) Talk(req []byte, _ uint16) ([]byte, error) {
 	sel := selectorOf(req)
 	s.gets = append(s.gets, fmt.Sprintf("%s#%d", sel.name, sel.index))
 	switch {
@@ -61,8 +69,8 @@ func (s *fouLinks) Talk(req []byte, _ uint16) ([]byte, error) {
 	return nil, fmt.Errorf("xtcpnl: rtnetlink error: %w", syscall.ENODEV)
 }
 
-// fouReplay opens a row's capture behind fouLinks.
-func fouReplay(t *testing.T, row, pcap string) *fouLinks {
+// genlReplay opens a row's capture behind genlLinks.
+func genlReplay(t *testing.T, row, pcap string) *genlLinks {
 	t.Helper()
 	if pcap == "" {
 		pcap = "ip.pcap"
@@ -71,7 +79,7 @@ func fouReplay(t *testing.T, row, pcap string) *fouLinks {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &fouLinks{ReplaySource: src}
+	return &genlLinks{ReplaySource: src}
 }
 
 // TestFouMatchesIp replays the 21 C2-T05 fou captures, the readback shows
@@ -168,7 +176,7 @@ func TestFouMatchesIp(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			src := fouReplay(t, tc.row, tc.pcap)
+			src := genlReplay(t, tc.row, tc.pcap)
 			r := fouRunArgs(t, src, tc.json, tc.family, tc.args)
 			if code := ioamExit(r.err); code != tc.exit {
 				t.Fatalf("exit %d (%v), want %d", code, r.err, tc.exit)
@@ -208,7 +216,7 @@ func TestFouStderr(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			r := fouRunArgs(t, fouReplay(t, tc.row, ""), false, unix.AF_UNSPEC, tc.args)
+			r := fouRunArgs(t, genlReplay(t, tc.row, ""), false, unix.AF_UNSPEC, tc.args)
 			if r.err != nil {
 				t.Fatal(r.err)
 			}
@@ -265,7 +273,7 @@ func TestFouArgs(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			r := fouRunArgs(t, fouReplay(t, "fou_show_empty", ""), false, unix.AF_UNSPEC, tc.args)
+			r := fouRunArgs(t, genlReplay(t, "fou_show_empty", ""), false, unix.AF_UNSPEC, tc.args)
 			if code := ioamExit(r.err); code != tc.exit {
 				t.Fatalf("exit %d (%v), want %d", code, r.err, tc.exit)
 			}
@@ -377,28 +385,36 @@ func TestFouProto(t *testing.T) {
 	}
 }
 
-// fouFake is a fou family: the lookup answers id 43, and a dump its
-// bodies or its error.
-type fouFake struct {
+// genlFake is a genl family with no group: the lookup answers id 43
+// under name, fou's when empty, a dump its bodies or its error, and a
+// link get by index 7 eth7.
+type genlFake struct {
+	name    string
 	dump    [][]byte
 	dumpErr error
 }
 
-const fouFakeIDCst = 43
+const genlFakeIDCst = 43
 
-func (f *fouFake) Dump([]byte, uint16) ([][]byte, error) { return nil, errors.New("fouFake: no dumps") }
+func (f *genlFake) Dump([]byte, uint16) ([][]byte, error) {
+	return nil, errors.New("genlFake: no dumps")
+}
 
-func (f *fouFake) Talk(req []byte, _ uint16) ([]byte, error) {
+func (f *genlFake) Talk(req []byte, _ uint16) ([]byte, error) {
 	if selectorOf(req).index == 7 {
 		return newLinkBody(7, "eth7"), nil
 	}
 	return nil, fmt.Errorf("xtcpnl: rtnetlink error: %w", syscall.ENODEV)
 }
 
-func (f *fouFake) GenlDump([]byte) ([][]byte, error) { return f.dump, f.dumpErr }
+func (f *genlFake) GenlDump([]byte) ([][]byte, error) { return f.dump, f.dumpErr }
 
-func (f *fouFake) GenlTalk([]byte) (uint16, []byte, error) {
-	return unix.GENL_ID_CTRL, newFamilyBody(unix.CTRL_CMD_NEWFAMILY, fouFakeIDCst, xtcpnl.FOUGenlName), nil
+func (f *genlFake) GenlTalk([]byte) (uint16, []byte, error) {
+	name := f.name
+	if name == "" {
+		name = xtcpnl.FOUGenlName
+	}
+	return unix.GENL_ID_CTRL, newFamilyBody(unix.CTRL_CMD_NEWFAMILY, genlFakeIDCst, name), nil
 }
 
 // fouBody is a GET answer whose attributes put builds.
@@ -431,26 +447,26 @@ func TestFouShow(t *testing.T) {
 	})
 	tests := []struct {
 		description string
-		src         *fouFake
+		src         *genlFake
 		json        bool
 		stdout      string
 		exit        int
 	}{
-		{description: "negative: a refused dump prints nothing, exit 255", src: &fouFake{dumpErr: unix.EPERM},
+		{description: "negative: a refused dump prints nothing, exit 255", src: &genlFake{dumpErr: unix.EPERM},
 			exit: ExitMinusOne},
-		{description: "negative: under -j it closes the empty array", src: &fouFake{dumpErr: unix.EPERM}, json: true,
+		{description: "negative: under -j it closes the empty array", src: &genlFake{dumpErr: unix.EPERM}, json: true,
 			stdout: "[]\n", exit: ExitMinusOne},
 		{description: "negative: an answer shorter than its genlmsghdr ends the dump after the ones before",
-			src: &fouFake{dump: [][]byte{one, {xtcpnl.FOUCmdGet}}}, stdout: "port 1 ipproto 4\n", exit: ExitMinusOne},
+			src: &genlFake{dump: [][]byte{one, {xtcpnl.FOUCmdGet}}}, stdout: "port 1 ipproto 4\n", exit: ExitMinusOne},
 		{description: "negative: under -j the array holds them, closed",
-			src: &fouFake{dump: [][]byte{one, {xtcpnl.FOUCmdGet}}}, json: true,
+			src: &genlFake{dump: [][]byte{one, {xtcpnl.FOUCmdGet}}}, json: true,
 			stdout: `[{"port":1,"ipproto":4,"family":"inet"}]` + "\n", exit: ExitMinusOne},
 		{description: "positive: a device by its index, ll_link_get's name",
-			src: &fouFake{dump: [][]byte{dev}}, stdout: "port 2 ipproto 4 dev eth7\n"},
+			src: &genlFake{dump: [][]byte{dev}}, stdout: "port 2 ipproto 4 dev eth7\n"},
 		{description: "corner: an index no link answers is ifN",
-			src: &fouFake{dump: [][]byte{unknown}}, stdout: "port 3 ipproto 4 dev if9\n"},
+			src: &genlFake{dump: [][]byte{unknown}}, stdout: "port 3 ipproto 4 dev if9\n"},
 		{description: "boundary: an answer of the header alone is an empty line",
-			src: &fouFake{dump: [][]byte{{xtcpnl.FOUCmdGet, 1, 0, 0}}}, stdout: "\n"},
+			src: &genlFake{dump: [][]byte{{xtcpnl.FOUCmdGet, 1, 0, 0}}}, stdout: "\n"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {

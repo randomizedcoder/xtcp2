@@ -78,7 +78,7 @@ var objects = []object{
 	{name: objLinkCst, run: runLink},
 	{name: "l2tp"},
 	{name: "fou", run: runFou, noShow: true},
-	{name: "ila"},
+	{name: "ila", run: runIla, noShow: true},
 	{name: "macsec"},
 	{name: "tunnel"},
 	{name: "tunl6"},
