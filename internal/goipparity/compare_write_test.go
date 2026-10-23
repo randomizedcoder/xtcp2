@@ -86,13 +86,14 @@ const (
 	srSlugPrefixCst = "sr_"
 	// ioamSlugPrefixCst names G6-T03's ioam rows, likewise, and
 	// mptcpSlugPrefixCst G6-T04's mptcp rows, fouSlugPrefixCst G6-T05's
-	// fou rows, ilaSlugPrefixCst G6-T06's ila rows and l2tpSlugPrefixCst
-	// G6-T07's l2tp rows.
-	ioamSlugPrefixCst  = "ioam_"
-	mptcpSlugPrefixCst = "mptcp_"
-	fouSlugPrefixCst   = "fou_"
-	ilaSlugPrefixCst   = "ila_"
-	l2tpSlugPrefixCst  = "l2tp_"
+	// fou rows, ilaSlugPrefixCst G6-T06's ila rows, l2tpSlugPrefixCst
+	// G6-T07's l2tp rows and macsecSlugPrefixCst G6-T08's macsec rows.
+	ioamSlugPrefixCst   = "ioam_"
+	mptcpSlugPrefixCst  = "mptcp_"
+	fouSlugPrefixCst    = "fou_"
+	ilaSlugPrefixCst    = "ila_"
+	l2tpSlugPrefixCst   = "l2tp_"
+	macsecSlugPrefixCst = "macsec_"
 	// genlProtoCst is NETLINK_GENERIC.
 	genlProtoCst = 16
 	tdAddrSave   = "../../pkg/xtcpnl/testdata/7_1_4/link-write/addr-save"
@@ -270,7 +271,7 @@ func corpusWriteRow(t *testing.T, c Command) writeRowFiles {
 	if strings.HasPrefix(c.Slug, tcpmSlugPrefixCst) || strings.HasPrefix(c.Slug, srSlugPrefixCst) ||
 		strings.HasPrefix(c.Slug, ioamSlugPrefixCst) || strings.HasPrefix(c.Slug, mptcpSlugPrefixCst) ||
 		strings.HasPrefix(c.Slug, fouSlugPrefixCst) || strings.HasPrefix(c.Slug, ilaSlugPrefixCst) ||
-		strings.HasPrefix(c.Slug, l2tpSlugPrefixCst) {
+		strings.HasPrefix(c.Slug, l2tpSlugPrefixCst) || strings.HasPrefix(c.Slug, macsecSlugPrefixCst) {
 		return corpusGenlWriteRow(t, c)
 	}
 	if strings.HasPrefix(c.Slug, addrLabelWriteSlugPrefixCst) ||

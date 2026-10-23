@@ -35,8 +35,8 @@ const (
 )
 
 // genlReadbackRows are the genl read rows with no corpus capture of their
-// own slug, G6-T03's to G6-T07's -j shows and ila's show of one locator
-// to match: each is laid out on the
+// own slug, G6-T03's to G6-T08's -j shows, macsec's -s shows and ila's
+// show of one locator to match: each is laid out on the
 // readback dump of the same command a write row's capture holds, or on the
 // capture of the same show without -j, the same requests.
 var genlReadbackRows = map[string]string{
@@ -56,6 +56,13 @@ var genlReadbackRows = map[string]string{
 	"l2tp_tunnel_show_v6_json":    "l2tp_tunnel_add_v6/netlink_generic_tunnel.pcap",
 	"l2tp_session_show_json":      "l2tp_session_show/ip.pcap",
 	"l2tp_session_show_opts_json": "l2tp_session_add_opts/netlink_generic_session.pcap",
+	"macsec_show_json":            "macsec_show/ip.pcap",
+	"macsec_show_txsa_json":       "macsec_txsa_add/netlink_generic_macsec.pcap",
+	"macsec_show_rxsa_json":       "macsec_rxsa_add/netlink_generic_macsec.pcap",
+	"macsec_show_xpn_json":        "macsec_xpn_txsa_add/netlink_generic_macsec.pcap",
+	"macsec_show_stats":           "macsec_show/ip.pcap",
+	"macsec_show_rxsa_stats":      "macsec_rxsa_add/netlink_generic_macsec.pcap",
+	"macsec_show_txsa_stats_json": "macsec_txsa_add/netlink_generic_macsec.pcap",
 }
 
 // writeGenlReadRow lays out an implemented generic netlink read row as a

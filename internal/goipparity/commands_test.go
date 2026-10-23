@@ -515,9 +515,22 @@ func TestCommandString(t *testing.T) {
 			},
 		},
 		{
+			// Synthetic since G6-T08 replaced the last stand-in, macsec's: the
+			// driver still has to read `ip` correctly the next time a family
+			// gets one.
 			description: "positive: an ip stand-in genl row renders impl=ip and proto=generic",
+			cmd: &Command{
+				Name: "macsec show", Slug: "genl_macsec_show", Floor: 4, Proto: ProtoGenericCst, IPStandIn: true,
+				Args: []string{"macsec", "show"},
+			},
+			wantFields: []string{"genl_macsec_show", "4", "ip", "no", "no", "generic", "-", "-", "macsec show", "macsec show"},
+		},
+		{
+			description: "positive: the row in its place renders impl=yes",
 			name:        "macsec show",
-			wantFields:  []string{"genl_macsec_show", "4", "ip", "no", "no", "generic", "-", "-", "macsec show", "macsec show"},
+			wantFields: []string{
+				"macsec_show_empty", "4", "yes", "no", "no", "generic", "-", "-", "macsec show", "macsec show",
+			},
 		},
 		{
 			description: "positive: a write row with a stdin line renders > and the line",
@@ -1084,19 +1097,19 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	//   - the eighteen `ila` rows G6-T06 added in place of its stand-in,
 	//     likewise — see TestIlaRows;
 	//   - the twenty-eight `l2tp` rows G6-T07 added in place of its
-	//     stand-in, likewise — see TestL2tpRows.
+	//     stand-in, likewise — see TestL2tpRows;
+	//   - the thirty-nine `macsec` rows G6-T08 added in place of the last
+	//     stand-in, likewise — see TestMacsecRows.
 	//
 	// The last four were the permanent set, measured divergent on the wire;
 	// TestPermanentWireDivergences records that it is empty.
 	//
-	// The genl row G5-T03 added and G6 has not yet replaced is
-	// ungated by construction: `ip`
-	// stands in for goip on them (IPStandIn) until each family's G6 task
-	// implements it, and gating `ip` against `ip` would gate nothing about
-	// goip. TestGenlStandInRows pins them.
+	// The genl rows G5-T03 added, ungated by construction because `ip`
+	// stood in for goip on them (IPStandIn), are all replaced;
+	// TestGenlStandInRows pins that none remains. That leaves the one row
+	// held out by design.
 	expected := []string{
 		"addr show dynamic",
-		"macsec show",
 	}
 
 	tests := []struct {
@@ -1104,15 +1117,15 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 		check       func(t *testing.T)
 	}{
 		{
-			description: "boundary: the list is two named rows, one held out and one stand-in",
+			description: "boundary: the list is one named row, held out by design",
 			check: func(t *testing.T) {
-				if len(expected) != 2 {
-					t.Errorf("got %d named rows, want 2", len(expected))
+				if len(expected) != 1 {
+					t.Errorf("got %d named rows, want 1", len(expected))
 				}
 			},
 		},
 		{
-			description: "positive: the ungated set is exactly the six named rows, so UNGATED_CLEAN counts them and not zero",
+			description: "positive: the ungated set is exactly the named rows, so UNGATED_CLEAN counts them and not zero",
 			check: func(t *testing.T) {
 				for _, name := range expected {
 					if !ungated[name] {
@@ -3462,11 +3475,12 @@ func TestNetnsRows(t *testing.T) {
 	})
 }
 
-// TestGenlStandInRows pins G5-T03's genl rows, five since G6-T01 to G6-T03
-// replaced tcp_metrics', sr's and ioam's: one `show` per family in the C2 order, NETLINK_GENERIC, `ip`
-// in goip's place, floor 4, ungated, and with G6's rows after every route
-// row, since the driver loads the families' modules before the first of
-// them.
+// TestGenlStandInRows pins what is left of G5-T03's genl rows, one `show`
+// per family with `ip` in goip's place, ungated: none, since G6-T01 to
+// G6-T08 replaced each family's with its own rows. It still pins G6's
+// rows after every route row, since the driver loads the families'
+// modules before the first of them, and every Proto one the comparator
+// reads.
 //
 // go test ./internal/goipparity/ -run TestGenlStandInRows
 func TestGenlStandInRows(t *testing.T) {
@@ -3478,13 +3492,10 @@ func TestGenlStandInRows(t *testing.T) {
 	for _, name := range al.GatedCommands {
 		gated[name] = true
 	}
-	want := []string{
-		"macsec show",
-	}
-	// tcpmRows, srRows, ioamRows, mptcpRows, fouRows, ilaRows and l2tpRows
-	// are G6-T01's to G6-T07's rows, the first genl ones, ahead of the
-	// stand-in.
-	const tcpmRows, srRows, ioamRows, mptcpRows, fouRows, ilaRows, l2tpRows = 14, 11, 20, 28, 24, 18, 28
+	// tcpmRows, srRows, ioamRows, mptcpRows, fouRows, ilaRows, l2tpRows
+	// and macsecRows are G6-T01's to G6-T08's rows, every genl one.
+	const tcpmRows, srRows, ioamRows, mptcpRows, fouRows, ilaRows, l2tpRows, macsecRows = 14, 11, 20, 28, 24,
+		18, 28, 39
 
 	cmds := Commands()
 	first := len(cmds)
@@ -3503,25 +3514,10 @@ func TestGenlStandInRows(t *testing.T) {
 		check       func(t *testing.T)
 	}{
 		{
-			description: "positive: the stand-ins are the unimplemented families' shows, in the C2 order",
+			description: "positive: no stand-in remains, G6 having replaced every family's",
 			check: func(t *testing.T) {
-				if !slices.Equal(got, want) {
-					t.Errorf("stand-ins %q, want %q", got, want)
-				}
-			},
-		},
-		{
-			description: "positive: each is generic, floor 4, a read, not implemented, ungated and named genl_",
-			check: func(t *testing.T) {
-				for _, name := range want {
-					c, err := Lookup(name)
-					if err != nil {
-						t.Fatal(err)
-					}
-					if c.Proto != ProtoGenericCst || c.Floor != 4 || c.Write || c.Implemented ||
-						gated[name] || !strings.HasPrefix(c.Slug, "genl_") || c.NeedsDev || len(c.Setup) != 0 {
-						t.Errorf("%q: %+v, gated %v", name, c, gated[name])
-					}
+				if len(got) != 0 {
+					t.Errorf("stand-ins %q, want none", got)
 				}
 			},
 		},
@@ -3533,7 +3529,7 @@ func TestGenlStandInRows(t *testing.T) {
 						t.Errorf("%q, a %s row, follows the first genl row", c.Name, c.Protocol())
 					}
 				}
-				if n := tcpmRows + srRows + ioamRows + mptcpRows + fouRows + ilaRows + l2tpRows + len(want); len(cmds)-first != n {
+				if n := tcpmRows + srRows + ioamRows + mptcpRows + fouRows + ilaRows + l2tpRows + macsecRows; len(cmds)-first != n {
 					t.Errorf("%d rows from the first genl one, want %d", len(cmds)-first, n)
 				}
 			},
@@ -4207,6 +4203,126 @@ func TestL2tpRows(t *testing.T) {
 					}
 				}
 				topology := r.corpus != "" && slices.Equal(steps, corpus)
+				got = want{implemented: c.Implemented, write: c.Write, proto: c.Proto, floor: c.Floor, topology: topology}
+			}
+			got.gated = al.IsGated(r.command)
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+		})
+	}
+}
+
+// TestMacsecRows pins G6-T08's macsec rows: each on its corpus row's
+// precondition (its topology file), none for the two with none, and each
+// gated. The -j and -s shows are on a captured show's precondition, or on
+// a write row's precondition and its command.
+//
+// go test ./internal/goipparity/ -run TestMacsecRows
+func TestMacsecRows(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	type want struct {
+		implemented, write, topology, gated bool
+		proto                               string
+		floor                               int
+	}
+	read := want{implemented: true, topology: true, gated: true, proto: ProtoGenericCst, floor: 4}
+	write := read
+	write.write = true
+	refused := read
+	refused.floor = 2
+	bare := read
+	bare.topology = false
+	bareRefused := refused
+	bareRefused.topology = false
+	const sci = "macsec0 rx sci " + macsecSciCst
+	rows := []struct {
+		description string
+		command     string
+		corpus      string // the slug whose topology Setup must be, none when empty
+		then        string // a step Setup holds after it
+		expected    want
+	}{
+		{"boundary: show with none, no precondition", "macsec show", "", "", bare},
+		{"positive: show, two SecYs, spelled s", "macsec s", "macsec_show", "", read},
+		{"positive: show of one device", "macsec show macsec1", "macsec_show_dev", "", read},
+		{"negative: a device that does not exist, refused after the lookup", "macsec show nodev0", "", "",
+			bareRefused},
+		{"negative: no key, check_sa_args'", "macsec add macsec0 tx sa 1 pn 1", "macsec_txsa_add_no_key", "",
+			refused},
+		{"negative: no PN", "macsec add macsec0 tx sa 1 " + macsecKey1Cst, "macsec_txsa_add_no_pn", "", refused},
+		{"boundary: AN 4, invarg", "macsec add macsec0 tx sa 4 pn 1 " + macsecKey1Cst, "macsec_txsa_add_an4", "",
+			refused},
+		{"negative: a set with a key", "macsec set macsec0 tx sa 0 " + macsecKey1Cst, "macsec_txsa_set_key", "",
+			refused},
+		{"positive: -j show, two SecYs", "-j macsec show", "macsec_show", "", read},
+		{"corner: -j, an SA, on macsec_txsa_add's state", "-j macsec sho", "macsec_txsa_add", "ip " + macsecTxsaCst,
+			read},
+		{"corner: -j, a channel and its SA, on macsec_rxsa_add's state", "-j macsec sh", "macsec_rxsa_add",
+			"ip " + macsecRxsaCst, read},
+		{"corner: -j of a device, XPN's SSCI, on macsec_xpn_txsa_add's state", "-j macsec show macsec0",
+			"macsec_xpn_txsa_add", "ip " + macsecXpnTxsaCst, read},
+		{"positive: -s show, two SecYs' counters", "-s macsec show", "macsec_show", "", read},
+		{"corner: -s, a channel's and its SA's counters", "-s macsec sho", "macsec_rxsa_add", "ip " + macsecRxsaCst,
+			read},
+		{"corner: -s -j, an SA's counters as members", "-s -j macsec show", "macsec_txsa_add", "ip " + macsecTxsaCst,
+			read},
+		{"positive: add a transmit SA", macsecTxsaCst, "macsec_txsa_add", "", write},
+		{"positive: an inactive SA", "macsec add macsec0 tx sa 3 pn 100 off " + macsecKey1Cst, "macsec_txsa_add_off",
+			"", write},
+		{"negative: an SA in use, spelled a", "macsec a macsec0 tx sa 0 pn 1 on " + macsecKey1Cst,
+			"macsec_txsa_add_dup", "", write},
+		{"negative: a 32-byte key", "macsec add macsec0 tx sa 1 pn 1 key 01000000000000000000000000000000 " +
+			"8181818181818181818181818181818181818181818181818181818181818181", "macsec_txsa_add_long_key", "", write},
+		{"negative: a device that is not macsec", "macsec add d0 tx sa 0 pn 1 " + macsecKey1Cst,
+			"macsec_txsa_add_not_macsec", "", write},
+		{"positive: set an SA", "macsec set macsec0 tx sa 0 pn 50 off", "macsec_txsa_set", "", write},
+		{"negative: del of the active SA, spelled d", "macsec d macsec0 tx sa 0", "macsec_txsa_del_active", "", write},
+		{"positive: del an inactive SA", "macsec del macsec0 tx sa 0", "macsec_txsa_del", "", write},
+		{"negative: del of a missing SA", "macsec del macsec0 tx sa 2", "macsec_txsa_del_missing", "", write},
+		{"positive: add a channel", macsecRxscCst, "macsec_rxsc_add", "", write},
+		{"positive: by port and address", "macsec add macsec0 rx port 1 address 02:00:00:00:00:01",
+			"macsec_rxsc_add_port", "", write},
+		{"negative: a channel in use, spelled a", "macsec a " + sci + " on", "macsec_rxsc_add_dup", "", write},
+		{"positive: set a channel", "macsec set " + sci + " off", "macsec_rxsc_set", "", write},
+		{"positive: del a channel", "macsec del " + sci, "macsec_rxsc_del", "", write},
+		{"negative: del of a missing channel, spelled d", "macsec d " + sci, "macsec_rxsc_del_missing", "", write},
+		{"positive: add a receive SA", macsecRxsaCst, "macsec_rxsa_add", "", write},
+		{"negative: a receive SA with no channel, spelled a", "macsec a " + sci + " sa 0 pn 1 on " + macsecKey2Cst,
+			"macsec_rxsa_add_no_sc", "", write},
+		{"positive: set a receive SA", "macsec set " + sci + " sa 0 pn 60 off", "macsec_rxsa_set", "", write},
+		{"negative: del of the active receive SA, spelled d", "macsec d " + sci + " sa 0", "macsec_rxsa_del_active",
+			"", write},
+		{"positive: del an inactive receive SA", "macsec del " + sci + " sa 0", "macsec_rxsa_del", "", write},
+		{"positive: an XPN SA", macsecXpnTxsaCst, "macsec_xpn_txsa_add", "", write},
+		{"negative: pn on an XPN SecY", "macsec add macsec0 tx sa 0 pn 1 salt 0102030405060708090a0b0c ssci 1 " +
+			macsecKey1Cst, "macsec_xpn_txsa_pn32", "", write},
+		{"positive: offload off", "macsec offload macsec0 off", "macsec_offload_off", "", write},
+		{"negative: offload mac, unsupported", "macsec offload macsec0 mac", "macsec_offload_mac", "", write},
+		{"negative: the stand-in's slug is gone", "genl_macsec_show", "", "", want{}},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			var got want
+			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				steps := make([]string, 0, len(c.Setup))
+				for _, s := range c.Setup {
+					steps = append(steps, "ip "+s)
+				}
+				var corpus []string
+				if r.corpus != "" {
+					corpus = srCorpusTopology(t, r.corpus)
+					if r.then != "" {
+						corpus = append(corpus, r.then)
+					}
+				}
+				topology := r.corpus != "" && slices.Equal(steps, corpus)
+				if r.corpus == "" && len(steps) != 0 {
+					t.Errorf("%q has Setup %q and no corpus precondition", r.command, steps)
+				}
 				got = want{implemented: c.Implemented, write: c.Write, proto: c.Proto, floor: c.Floor, topology: topology}
 			}
 			got.gated = al.IsGated(r.command)

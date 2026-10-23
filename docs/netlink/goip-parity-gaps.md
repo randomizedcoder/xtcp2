@@ -2,15 +2,14 @@
 
 ## Status
 
-**Last updated:** 2026-10-21
+**Last updated:** 2026-10-23
 
 **Summary:**
-- `ip address` is done ([addr-write-path-status.md](addr-write-path-status.md)). With it, G0 and G1-T01 to G1-T03, the parity matrix compares 195 commands and gates 194 of them.
-- That is still a long way from all of `ip`:
-  - goip runs 11 of the 31 objects in iproute2's `cmds[]`.
-  - Only `link`, `address` and `route` have writes, and some of their verbs are missing too.
-  - There is no generic netlink or `NETLINK_XFRM` object at all.
-  - One matrix row, `addr show dynamic`, is compared but not gated, by design; G0 gated the other 22.
+- `ip address` is done ([addr-write-path-status.md](addr-write-path-status.md)). With it and G0 to G6, the parity matrix compares 455 commands and gates 454 of them.
+- What remains of `ip`:
+  - goip runs 24 of the 31 objects in iproute2's `cmds[]`, every rtnetlink and generic netlink object the inventory names.
+  - There is no `NETLINK_XFRM` object; G7 is that.
+  - One matrix row, `addr show dynamic`, is compared but not gated, by design; G0 gated the other 22, and G6 replaced G5-T03's eight genl stand-ins.
 - This document:
   - lists every gap ([The gap inventory](#the-gap-inventory));
   - measures, for each netlink message type `ip` uses, whether we have nlmon pcaps, a table-driven parse test and a parse benchmark ([The message-type assessment](#the-message-type-assessment));
@@ -51,16 +50,17 @@ The citation style follows [route-write-path.md](route-write-path.md) and [link-
 
 ## Where coverage stands
 
-Counted from the tree on 2026-10-21, at G0's close; the row, gated and write-row counts are re-measured at G1's close (DOC013), G2's (DOC014), G3's (DOC015), G4's (DOC016) and G5's (DOC017). [coverage-status.md](coverage-status.md#goip--ip-parity-at-a-glance) owns these numbers; if the two disagree, that file is right.
+Counted from the tree on 2026-10-21, at G0's close; the row, gated and write-row counts are re-measured at G1's close (DOC013), G2's (DOC014), G3's (DOC015), G4's (DOC016), G5's (DOC017) and G6's (DOC018). [coverage-status.md](coverage-status.md#goip--ip-parity-at-a-glance) owns these numbers; if the two disagree, that file is right.
 
 | | count | where |
 |---|---|---|
-| matrix rows | 281 (183 at G0's close, 198 at G1's, 206 at G2's, 253 at G3's, 273 at G4's) | `internal/goipparity/commands.go` |
-| gated | 272 (160 before G0, 182 at its close, 197 at G1's, 205 at G2's, 252 at G3's, 272 at G4's) | `pkg/nlparity/goip-parity-allowlist.json`, `gated_commands` |
-| compared but not gated | 9: `addr show dynamic`, and G5-T03's eight genl `show` rows, which run `ip` in goip's place until G6 (23 before G0, 1 at G4's close) | `TestUngatedSurfaceIsNotVacuous`, `internal/goipparity/commands_test.go` |
-| write rows (dry run) | 133: 24 link, 29 route, 36 address, 8 neigh, 19 rule, 7 nexthop, 3 addrlabel, 3 ntable, 1 stats, 2 token, 1 netns (83 before G2, 86 at its close, 130 at G3's) | `commands.go` |
-| `ip` objects with a `run` function | 16 of 31 (11 at G3's close) | `internal/goip/dispatch.go:68-102` |
+| matrix rows | 455 (183 at G0's close, 198 at G1's, 206 at G2's, 253 at G3's, 273 at G4's, 281 at G5's) | `internal/goipparity/commands.go` |
+| gated | 454 (160 before G0, 182 at its close, 197 at G1's, 205 at G2's, 252 at G3's, 272 at G4's and G5's) | `pkg/nlparity/goip-parity-allowlist.json`, `gated_commands` |
+| compared but not gated | 1: `addr show dynamic` (23 before G0, 1 at G4's close, 9 at G5's with its eight genl `show` stand-ins, which G6 replaced) | `TestUngatedSurfaceIsNotVacuous`, `internal/goipparity/commands_test.go` |
+| write rows (dry run) | 247: 133 rtnetlink, 24 link, 29 route, 36 address, 8 neigh, 19 rule, 7 nexthop, 3 addrlabel, 3 ntable, 1 stats, 2 token and 1 netns, and 114 generic netlink, 6 tcp_metrics, 7 sr, 16 ioam, 19 mptcp, 16 fou, 11 ila, 15 l2tp and 24 macsec (83 before G2, 86 at its close, 130 at G3's, 133 at G4's and G5's) | `commands.go` |
+| `ip` objects with a `run` function | 24 of 31 (11 at G3's close, 16 at G4's and G5's) | `internal/goip/dispatch.go:68-102` |
 | RTM types the write gate admits | 20: `RTM_{NEW,DEL}{ROUTE,LINK,ADDR,NEIGH,RULE,NEXTHOP,ADDRLABEL,LINKPROP}`, `RTM_SETNEIGHTBL`, `RTM_SETSTATS`, `RTM_SETLINK`, `RTM_NEWNSID` (6 before G3, 18 at its close) | `IsAdmittedWriteType`, `pkg/xtcpnl/xtcpnl_rtattr_encode.go:356-371` |
+| genl commands the write gate admits | 31: tcp_metrics' 1, SEG6's 2, IOAM6's 5, mptcp_pm's 5, fou's 2, ila's 2, l2tp's 4 and macsec's 10, by family name (none before G6) | `IsAdmittedGenlWrite`, `pkg/xtcpnl/xtcpnl_genl_write.go` |
 
 Writes are dry runs. goip builds the requests `ip` would send and writes them to `GOIP_WRITE_OUT`; it never sends them. The matrix compares those requests with the ones `ip` actually sent.
 
@@ -111,6 +111,8 @@ G4 delivered all six: goip runs `mroute`, `mrule`, `token`, `netns list-id` and 
 **maddress depends on the version.** At the pin, `ip maddress show` reads `/proc/net/{dev_mcast,igmp,igmp6}` (`ip/ipmaddr.c:95-179`), and add/del are ioctls, so it is class F at 7.1.0. The 7.2 checkout dumps `RTM_GETMULTICAST` instead *(7.2: `ip/ipmaddr.c:276`)*, so maddress moves to this class at the next pin bump.
 
 ### D. Generic-netlink objects goip does not run
+
+G6 delivered all eight: goip runs `tcp_metrics`, `sr`, `ioam`, `mptcp`, `fou`, `ila`, `l2tp` and `macsec`, each over its family's lookup, with every row of each family's C2 corpus replayed and its matrix rows gated. The text and table are the inventory as it stood when the plan was written.
 
 The decoders `ParseGenericNetlink` (`pkg/xtcpnl/xtcpnl_genetlink.go:56`) and `ParseGenericNetlinkFamily` (`:139`) exist, and so does the family lookup `BuildGetFamilyRequest` (`xtcpnl_genetlink_requests.go:13`). goip uses none of them. Each `ip` genl object resolves its family with `CTRL_CMD_GETFAMILY` first (`lib/libgenl.c:52`).
 
@@ -2963,9 +2965,56 @@ The tests (`pkg/xtcpnl`, `internal/goip`, `internal/goipparity`):
 | positive, negative, boundary, corner: the 28 rows, and the stand-in's slug | generic, on the corpus topology, or a write row's and its command for the two `-j l2tp sho` rows; gated; the three refusals floor 2; the stand-in gone, `TestL2tpRows` (29) |
 | corner: `l2tp` reaches l2tp, not link | its family lookup, exit 1, `TestRunLinkArgs` (15, one changed) |
 
+**G6-T08 delivered** (`internal/goip`, `pkg/xtcpnl`, `internal/goipparity`):
+- **The write gate.** `IsAdmittedGenlWrite` admits every macsec command but `GET_TXSC`: the receive channel, transmit SA and receive SA adds, sets and deletes, and `UPD_OFFLOAD`.
+- **`goip macsec`** (`internal/goip/obj_macsec.go`, `render/macsec.go`).
+  - `show`, `add`, `set`, `delete` and `offload` are matched by prefix, as `do_ipmacsec` matches them, after `help` and the family lookup.
+  - A write names its device first, `ll_name_to_index`'s, and a device that does not exist is -1, exit 1, before any other word is read. Then `tx` and an SA, or `rx`, a channel and optionally its SA.
+    - `sa` takes an AN, `get_u8` base 0 and at most 3. `parse_sa_args` reads `pn`, `get_u32` base 0, or `xpn`, `get_u64` base 0, neither 0 nor twice; `salt`, `hexstring_a2n` into 12 bytes; `ssci`, `get_be32` base 16; `key`, an id into 16 bytes and a key into 128; and `on` or `off` once. An unknown word is usage, exit 255.
+    - `hexstring_a2n` refuses an odd length, reads each pair with `strtoul` base 16, and stops at the buffer's end, the rest unread. A second key leaves the first key id's bytes past the second's.
+    - A channel is `sci`, `get_be64` base 16, or `port`, `get_be16` base 0 and not 0, and `address`, `ll_addr_a2n` into six bytes, which `make_sci` joins. The loop stops when either is complete; `sci` after `port` or `address` is invarg.
+    - `check_sa_args` refuses an add with no key, then one with no PN, and a set with a key, each -1, exit 1, nothing sent. A delete reads no word after its AN or SCI.
+  - Each write is one acked request, `do_modify_nl`'s attributes: the ifindex, the channel's nest with its SCI and, but for a delete, its state when given, then the SA's nest with its AN and, but for a delete, an XPN SA's u64 PN, salt and SSCI or another's u32 PN, the key id and key when given, and the state when given.
+  - `offload` reads its type by `parse_one_of`, a prefix with `matches_warn`'s warning, and writes `UPD_OFFLOAD`; a word after the type is unread.
+  - `show` dumps `GET_TXSC` and filters by the device when given. `process` skips another command and refuses a SecY missing an attribute `validate_dump` or `validate_secy_dump` requires, "incomplete dump message", exit 1.
+    - Each SecY prints `print_attrs`' flags, whose `sc` and `sa` read attribute 2 of the SecY's nest, its encoding SA, then the cipher suite and ICV length, the transmit channel and its SAs, each receive channel and its SAs, and the offload type.
+    - An XPN SA prints its u64 PN and its SSCI with no space between them. Under `-j` the SCI and SSCI are `%#llx`'s strings, `0` for zero, and the dump is one array, closed however it ends.
+    - `-s` adds each statistics nest, `print_fp_stats`' names over right-aligned counters, `-` for one absent, or under `-j` each counter as a member.
+  - Exit codes are `ip`'s: 255 for usage, an unknown command or word, invarg and duparg2; 1 for a device that does not exist, an SA `check_sa_args` refuses and a dump that ends early.
+- **The rows.** The C2 corpus's 32 `macsec_*` rows replace the last stand-in, each on its corpus precondition: eight reads and 24 writes.
+  - A show is always a dump of every SecY, in ifindex order, which `show DEV` filters on the client. The SecYs are down, so their counters stay zero on every side.
+  - Four `-j` shows and three `-s` shows join them, on the captured show's precondition or a write row's precondition and its command: two SecYs, an SA, a channel with its SA, and an XPN SA of one device.
+  - The corpus spells some commands alike on different preconditions. Those rows run by prefix (`macsec s`, `macsec a`, `macsec d`), the same bytes.
+  - A device that does not exist and the four SAs `ip` refuses itself are refused after the family lookup, so each is a read of floor 2.
+  - `ip` resolves each device by a route-socket get, not a dump, which the genl captures do not hold.
+
+The tests (`pkg/xtcpnl`, `internal/goip`, `internal/goipparity`):
+
+| description | expected |
+|---|---|
+| positive, negative, boundary: the write gate for macsec's ten writes, `GET_TXSC` and the command past the last | the ten admitted, the rest not, `TestIsAdmittedGenlWrite` (62 rows, 12 new) |
+| positive, negative, boundary, corner: the 32 C2 captures replayed, the readback shows of 13, the verbs by prefix, a delete reading no more, the offload type by prefix, words in another order, base-0 ANs and PNs, an SCI with `0x` and in capitals, `address` before `port`, a short lladdr, its seventh part unread, and `-j` and `-s` shows | `ip.out` or `ip_macsec`, or `ip`'s JSON or `-s` text; every read exchange once, no write sent, goip's write `ip`'s bytes; `ip`'s exit status but for a kernel refusal, `TestMacsecMatchesIp` (66) |
+| positive, negative, boundary, corner: each request's attributes, the key id's zero fill, cut and carry-over, `strtoul`'s pairs, capitals, XPN's PN, salt and SSCI and their omission without it, a set, a delete, a channel, offload with and without its warning, each refused value and duplicate, every usage and `check_sa_args` refusal, a missing device, `help` and `flush` | the request's command and bytes, the message, or `ip`'s exit status and nothing written, `TestMacsecArgs` (61) |
+| positive, negative, corner: a refused dump with and without `-j`, another command, an incomplete SecY before and after the filter, a short body, another device's, and encoding SA 2 with XPN-256 | `ip`'s lines, `[]`, "incomplete dump message", exit 1, `TestMacsecShow` (9) |
+| positive, corner: each error's exit status, invarg as usage | 255, 255, 1, 1, 2, `TestMacsecExitCodes` (5) |
+| positive, boundary, corner: `process`'s SecY, a window, `(unknown)` names, an absent flag, XPN's PN and `0` SSCI, a PN past u32 on a non-XPN SecY, no receive list, `-s` with an absent counter and nest, and without | `ip`'s lines and object, `TestMacsecSecY` (9) |
+| positive, negative, boundary, corner: `ciphersuite_is_xpn` | the two XPN suites, `TestMacsecIsXPN` (6) |
+| positive, negative, boundary, corner: the 39 rows, and the stand-in's slug | generic, on the corpus topology, none for the two with none, or a write row's and its command; gated; the five refusals floor 2; the stand-in gone, `TestMacsecRows` (40) |
+| positive, boundary: no stand-in remains, every genl row after every route row, `String()` of a synthetic stand-in and of `macsec show`, the ungated set | none, `TestGenlStandInRows`; `ip` and `yes`, `TestCommandString`; `addr show dynamic` alone, `TestUngatedSurfaceIsNotVacuous` |
+
 ### G7 — XFRM
 
-xfrm state and policy show first, then the writes.
+One task per object and verb class, reads before writes, in the C3 corpus's order. Expanded at G6's close.
+
+Each task's goip object sends `ip xfrm`'s requests on a `NETLINK_XFRM` socket and prints `ip`'s output for every row of its part of the C3 corpus (`link-write/xfrm/`), checked against those captures byte for byte and against iproute2-7.1.0 live, as G6's objects were. Its rows join the matrix with `Proto` set to `xfrm`, writes as dry runs, and each row is gated after two clean live runs.
+
+| task | deliver |
+|---|---|
+| G7-T01 | `goip xfrm state` reads: `list`, `get` and `count`, the nine `state_list*`, `state_get*` and `state_count*` rows. First, the XFRM source: a `NETLINK_XFRM` socket beside the route and genl ones, its replay from a capture, and the comparator's reading of an xfrm row |
+| G7-T02 | `goip xfrm state` writes: `add`, `update`, `allocspi`, `delete`, `deleteall` and `flush`, the 20 other `state_*` rows. First, the XFRM write gate: `XFRM_MSG_*` writes admitted by type, and `GOIP_WRITE_OUT` of xfrm requests compared |
+| G7-T03 | `goip xfrm policy` reads: `list`, `get`, `getdefault` and `count`, the 12 `policy_list*`, `policy_get*` and `policy_count*` rows |
+| G7-T04 | `goip xfrm policy` writes: `add`, `update`, `delete`, `deleteall`, `flush`, `setdefault` and `set` with `hthresh`, the 17 other `policy_*` rows |
+| G7-T05 | `goip xfrm monitor`: the seven `monitor_*` rows, each event `xfrm_accept_msg` prints. Closes G7 |
 
 ## See also
 

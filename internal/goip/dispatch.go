@@ -79,7 +79,7 @@ var objects = []object{
 	{name: "l2tp", run: runL2tp, noShow: true},
 	{name: "fou", run: runFou, noShow: true},
 	{name: "ila", run: runIla, noShow: true},
-	{name: "macsec"},
+	{name: "macsec", run: runMacsec, noShow: true},
 	{name: "tunnel"},
 	{name: "tunl6"},
 	{name: "tcp_metrics", run: runTCPMetrics},

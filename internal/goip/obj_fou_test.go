@@ -50,8 +50,8 @@ func fouRunArgs(t *testing.T, src Source, json bool, family uint8, args string) 
 }
 
 // genlLinks is a genl replay that also answers ll_link_get, by name or by
-// index, for lo and d0, recording each get; the C2 captures keep the genl
-// socket alone.
+// index, for lo, d0 and the macsec rows' macsec0 and macsec1, recording
+// each get; the C2 captures keep the genl socket alone.
 type genlLinks struct {
 	*ReplaySource
 	gets []string
@@ -65,6 +65,10 @@ func (s *genlLinks) Talk(req []byte, _ uint16) ([]byte, error) {
 		return newLinkBody(1, "lo"), nil
 	case sel.name == "d0" || sel.index == mptcpD0Cst:
 		return newLinkBody(mptcpD0Cst, "d0"), nil
+	case sel.name == macsec0Cst || sel.index == macsec0IdxCst:
+		return newLinkBody(macsec0IdxCst, macsec0Cst), nil
+	case sel.name == "macsec1" || sel.index == macsec0IdxCst+1:
+		return newLinkBody(macsec0IdxCst+1, "macsec1"), nil
 	}
 	return nil, fmt.Errorf("xtcpnl: rtnetlink error: %w", syscall.ENODEV)
 }

@@ -264,7 +264,10 @@ func (c *runCtx) lineOption(a string) bool {
 // finish, and 1 for a device it refuses or a show given arguments. ila
 // exits 255 for what ipila.c ends with exit(-1) and for a dump it cannot
 // finish, and 1 for a show given arguments. l2tp exits 255 for what
-// ipl2tp.c ends with exit(-1), and 1 for a dump it cannot finish.
+// ipl2tp.c ends with exit(-1), and 1 for a dump it cannot finish. macsec
+// exits 255 for what ipmacsec.c ends with exit(-1), and 1 for a device
+// ll_name_to_index does not find, an SA check_sa_args refuses and a dump
+// it cannot finish.
 func exitCodeOf(err error) int {
 	switch {
 	case errors.Is(err, ErrFlushIncomplete), errors.Is(err, ErrDumpFile), errors.Is(err, ErrRuleDumpTerminated),
@@ -272,7 +275,7 @@ func exitCodeOf(err error) int {
 		errors.Is(err, ErrTCPMetricsUsage), errors.Is(err, ErrSrUsage), errors.Is(err, ErrIoamUsage),
 		errors.Is(err, ErrMptcpUsage), errors.Is(err, ErrMptcpSubscribe), errors.Is(err, ErrFouUsage),
 		errors.Is(err, ErrFouDumpTerminated), errors.Is(err, ErrIlaUsage), errors.Is(err, ErrIlaDumpTerminated),
-		errors.Is(err, ErrL2tpUsage):
+		errors.Is(err, ErrL2tpUsage), errors.Is(err, ErrMacsecUsage):
 		return ExitMinusOne
 	case errors.Is(err, ErrMptcpListen):
 		return ExitMinusTwo
@@ -288,7 +291,8 @@ func exitCodeOf(err error) int {
 		errors.Is(err, ErrSrReply), errors.Is(err, ErrSrDumpTerminated),
 		errors.Is(err, ErrIoamDumpTerminated), errors.Is(err, ErrIoamMonitor),
 		errors.Is(err, ErrMptcpReply), errors.Is(err, ErrFouRefused), errors.Is(err, ErrIlaShowArgs),
-		errors.Is(err, ErrL2tpDumpTerminated):
+		errors.Is(err, ErrL2tpDumpTerminated), errors.Is(err, ErrMacsecRefused),
+		errors.Is(err, ErrMacsecDumpTerminated):
 		return ExitUsage
 	}
 	return ExitFailure

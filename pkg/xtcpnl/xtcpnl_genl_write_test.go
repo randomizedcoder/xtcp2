@@ -173,6 +173,19 @@ func TestIsAdmittedGenlWrite(t *testing.T) {
 		{"negative: l2tp TUNNEL_MODIFY, which ip never sends", L2TPGenlName, L2TPCmdTunnelModify, false},
 		{"negative: l2tp SESSION_MODIFY, which ip never sends", L2TPGenlName, L2TPCmdSessionModify, false},
 		{"boundary: l2tp command 0, UNSPEC", L2TPGenlName, 0, false},
+		{"negative: macsec GET_TXSC, `macsec show`", MacsecGenlName, MacsecCmdGetTxsc, false},
+		{"positive: macsec ADD_RXSC, `macsec add DEV rx SCI`", MacsecGenlName, MacsecCmdAddRxsc, true},
+		{"positive: macsec DEL_RXSC, `macsec del DEV rx SCI`", MacsecGenlName, MacsecCmdDelRxsc, true},
+		{"positive: macsec UPD_RXSC, `macsec set DEV rx SCI`", MacsecGenlName, MacsecCmdUpdRxsc, true},
+		{"positive: macsec ADD_TXSA, `macsec add DEV tx sa`", MacsecGenlName, MacsecCmdAddTxsa, true},
+		{"positive: macsec DEL_TXSA, `macsec del DEV tx sa`", MacsecGenlName, MacsecCmdDelTxsa, true},
+		{"positive: macsec UPD_TXSA, `macsec set DEV tx sa`", MacsecGenlName, MacsecCmdUpdTxsa, true},
+		{"positive: macsec ADD_RXSA, `macsec add DEV rx SCI sa`", MacsecGenlName, MacsecCmdAddRxsa, true},
+		{"positive: macsec DEL_RXSA, `macsec del DEV rx SCI sa`", MacsecGenlName, MacsecCmdDelRxsa, true},
+		{"positive: macsec UPD_RXSA, `macsec set DEV rx SCI sa`", MacsecGenlName, MacsecCmdUpdRxsa, true},
+		{"boundary: macsec UPD_OFFLOAD, `macsec offload`, the last command", MacsecGenlName,
+			MacsecCmdUpdOffload, true},
+		{"boundary: macsec command 11, past the last", MacsecGenlName, MacsecCmdUpdOffload + 1, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {

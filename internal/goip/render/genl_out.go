@@ -53,12 +53,41 @@ func (o *genlOut) jsonBool(k string, v bool) {
 	o.obj = strconv.AppendBool(o.obj, v)
 }
 
+// hex0x is print_0xhex(PRINT_ANY, k, ...): the text as given, the value
+// as a JSON string, "%#llx"'s, which is "0" for zero and 0x-prefixed
+// otherwise.
+func (o *genlOut) hex0x(k, text string, v uint64) {
+	o.text.WriteString(text)
+	o.key(k)
+	s := "0"
+	if v != 0 {
+		s = "0x" + strconv.FormatUint(v, 16)
+	}
+	o.obj = AppendJSONWString(o.obj, []byte(s))
+}
+
+// raw is a member whose value is JSON already, an array a nested walk
+// built.
+func (o *genlOut) raw(k string, v []byte) {
+	o.key(k)
+	o.obj = append(o.obj, v...)
+}
+
 // null is print_null(PRINT_ANY, k, ...): the text as given, the value
 // JSON's null.
 func (o *genlOut) null(k, text string) {
 	o.text.WriteString(text)
 	o.key(k)
 	o.obj = append(o.obj, "null"...)
+}
+
+// object is close_json_object alone: the object's brace, "{}" for an
+// object with no member, and no newline.
+func (o *genlOut) object() []byte {
+	if len(o.obj) == 0 {
+		return []byte("{}")
+	}
+	return append(o.obj, '}')
 }
 
 // done is print_nl and close_json_object: the line's newline, and the

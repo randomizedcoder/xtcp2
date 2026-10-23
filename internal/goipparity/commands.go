@@ -3100,17 +3100,97 @@ var commands = withArgs([]Command{
 	{Name: "l2tp del session tunnel_id 1 session_id 99", Slug: "l2tp_session_del_missing", Floor: 4,
 		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: l2tpTunSetup},
 
-	// G5-T03: one `show` per generic netlink family, in the C2 order, with
-	// `ip` in goip's place until the family's G6 task implements it; one
-	// remains, tcp_metrics', sr's, ioam's, mptcp's, fou's, ila's and
-	// l2tp's rows above having replaced their own. The captures keep NETLINK_GENERIC and the comparator compares a genl
-	// message by its family's name, so these rows exercise the harness end
-	// to end, ungated. Each is genl_init_handle's CTRL_CMD_GETFAMILY and its
-	// reply, then the dump and its DONE, or for tunsrc the get and its reply:
-	// four datagrams, as on C2's empty shows, since every family is empty in
-	// the dump topology. They come last: the driver runs nltopo::late_setup,
-	// which loads the families' modules, before the first genl row.
-	{Name: "macsec show", Slug: "genl_macsec_show", Floor: 4, Proto: ProtoGenericCst, IPStandIn: true},
+	// G6-T08: macsec, the C2 corpus's 32 macsec_* rows on their
+	// preconditions (genl-write-corpus.exp), four -j shows and three -s
+	// shows, each on a captured show's state or a write row's, its
+	// readback. A show is always a dump of every SecY, in ifindex order,
+	// which `show DEV` filters, and the SecYs are made down, so their
+	// counters stay zero. Commands the corpus spells alike are spelled by
+	// prefix. A missing device and the SAs ip refuses itself are refused
+	// after the lookup, so each is a read of floor 2. These rows replace
+	// the last of G5-T03's stand-ins, one `show` per generic netlink family
+	// with `ip` in goip's place, ungated; none remains. They come last: the
+	// driver runs nltopo::late_setup, which loads the families' modules,
+	// before the first genl row.
+	{Name: "macsec show", Slug: "macsec_show_empty", Floor: 4, Implemented: true, Proto: ProtoGenericCst},
+	{Name: "macsec s", Slug: "macsec_show", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: macsec2Setup},
+	{Name: "macsec show macsec1", Slug: "macsec_show_dev", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: macsec2Setup},
+	{Name: "macsec show nodev0", Slug: "macsec_show_unknown_dev", Floor: 2, Implemented: true,
+		Proto: ProtoGenericCst},
+	{Name: "macsec add macsec0 tx sa 1 pn 1", Slug: "macsec_txsa_add_no_key", Floor: 2, Implemented: true,
+		Proto: ProtoGenericCst, Setup: macsecSetup},
+	{Name: "macsec add macsec0 tx sa 1 " + macsecKey1Cst, Slug: "macsec_txsa_add_no_pn", Floor: 2,
+		Implemented: true, Proto: ProtoGenericCst, Setup: macsecSetup},
+	{Name: "macsec add macsec0 tx sa 4 pn 1 " + macsecKey1Cst, Slug: "macsec_txsa_add_an4", Floor: 2,
+		Implemented: true, Proto: ProtoGenericCst, Setup: macsecSetup},
+	{Name: "macsec set macsec0 tx sa 0 " + macsecKey1Cst, Slug: "macsec_txsa_set_key", Floor: 2,
+		Implemented: true, Proto: ProtoGenericCst, Setup: macsecTxsaSetup},
+	{Name: "-j macsec show", Slug: "macsec_show_json", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: macsec2Setup},
+	{Name: "-j macsec sho", Slug: "macsec_show_txsa_json", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: macsecTxsaSetup},
+	{Name: "-j macsec sh", Slug: "macsec_show_rxsa_json", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: macsecRxsaSetup},
+	{Name: "-j macsec show macsec0", Slug: "macsec_show_xpn_json", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst, Setup: macsecXpnTxsaSetup},
+	{Name: "-s macsec show", Slug: "macsec_show_stats", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: macsec2Setup},
+	{Name: "-s macsec sho", Slug: "macsec_show_rxsa_stats", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: macsecRxsaSetup},
+	{Name: "-s -j macsec show", Slug: "macsec_show_txsa_stats_json", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst, Setup: macsecTxsaSetup},
+	{Name: macsecTxsaCst, Slug: "macsec_txsa_add", Floor: 4, Implemented: true, Write: true, Proto: ProtoGenericCst,
+		Setup: macsecSetup},
+	{Name: "macsec add macsec0 tx sa 3 pn 100 off " + macsecKey1Cst, Slug: "macsec_txsa_add_off", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: macsecSetup},
+	{Name: "macsec a macsec0 tx sa 0 pn 1 on " + macsecKey1Cst, Slug: "macsec_txsa_add_dup", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: macsecTxsaSetup},
+	{Name: "macsec add macsec0 tx sa 1 pn 1 key 01000000000000000000000000000000 " +
+		"8181818181818181818181818181818181818181818181818181818181818181", Slug: "macsec_txsa_add_long_key",
+		Floor: 4, Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: macsecSetup},
+	{Name: "macsec add d0 tx sa 0 pn 1 " + macsecKey1Cst, Slug: "macsec_txsa_add_not_macsec", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: "macsec set macsec0 tx sa 0 pn 50 off", Slug: "macsec_txsa_set", Floor: 4, Implemented: true,
+		Write: true, Proto: ProtoGenericCst, Setup: macsecTxsaSetup},
+	{Name: "macsec d macsec0 tx sa 0", Slug: "macsec_txsa_del_active", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: macsecTxsaSetup},
+	{Name: "macsec del macsec0 tx sa 0", Slug: "macsec_txsa_del", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: macsecTxsaOffSetup},
+	{Name: "macsec del macsec0 tx sa 2", Slug: "macsec_txsa_del_missing", Floor: 4, Implemented: true,
+		Write: true, Proto: ProtoGenericCst, Setup: macsecSetup},
+	{Name: macsecRxscCst, Slug: "macsec_rxsc_add", Floor: 4, Implemented: true, Write: true, Proto: ProtoGenericCst,
+		Setup: macsecSetup},
+	{Name: "macsec add macsec0 rx port 1 address 02:00:00:00:00:01", Slug: "macsec_rxsc_add_port", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: macsecSetup},
+	{Name: "macsec a macsec0 rx sci " + macsecSciCst + " on", Slug: "macsec_rxsc_add_dup", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: macsecRxscSetup},
+	{Name: "macsec set macsec0 rx sci " + macsecSciCst + " off", Slug: "macsec_rxsc_set", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: macsecRxscSetup},
+	{Name: "macsec del macsec0 rx sci " + macsecSciCst, Slug: "macsec_rxsc_del", Floor: 4, Implemented: true,
+		Write: true, Proto: ProtoGenericCst, Setup: macsecRxscSetup},
+	{Name: "macsec d macsec0 rx sci " + macsecSciCst, Slug: "macsec_rxsc_del_missing", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: macsecSetup},
+	{Name: macsecRxsaCst, Slug: "macsec_rxsa_add", Floor: 4, Implemented: true, Write: true, Proto: ProtoGenericCst,
+		Setup: macsecRxscSetup},
+	{Name: "macsec a macsec0 rx sci " + macsecSciCst + " sa 0 pn 1 on " + macsecKey2Cst, Slug: "macsec_rxsa_add_no_sc",
+		Floor: 4, Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: macsecSetup},
+	{Name: "macsec set macsec0 rx sci " + macsecSciCst + " sa 0 pn 60 off", Slug: "macsec_rxsa_set", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: macsecRxsaSetup},
+	{Name: "macsec d macsec0 rx sci " + macsecSciCst + " sa 0", Slug: "macsec_rxsa_del_active", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: macsecRxsaSetup},
+	{Name: "macsec del macsec0 rx sci " + macsecSciCst + " sa 0", Slug: "macsec_rxsa_del", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: macsecRxsaOffSetup},
+	{Name: macsecXpnTxsaCst, Slug: "macsec_xpn_txsa_add", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: macsecXpnSetup},
+	{Name: "macsec add macsec0 tx sa 0 pn 1 salt 0102030405060708090a0b0c ssci 1 " + macsecKey1Cst,
+		Slug: "macsec_xpn_txsa_pn32", Floor: 4, Implemented: true, Write: true, Proto: ProtoGenericCst,
+		Setup: macsecXpnSetup},
+	{Name: "macsec offload macsec0 off", Slug: "macsec_offload_off", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: macsecSetup},
+	{Name: "macsec offload macsec0 mac", Slug: "macsec_offload_mac", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: macsecSetup},
 })
 
 // tcpmAddrsSetup is genl-write-corpus.exp's PRE_ADDRS: d0, up, with an IPv4
@@ -3239,6 +3319,50 @@ var l2tpTunV6Setup = append(slices.Clone(tcpmAddrsSetup), l2tpTunV6Cst)
 // l2tpSessOptsSetup is l2tp_session_add_opts's precondition and command,
 // likewise.
 var l2tpSessOptsSetup = append(slices.Clone(l2tpTunSetup), l2tpSessOptsCst)
+
+// The macsec commands genl-write-corpus.exp's rows and preconditions
+// share: MACSEC_LINK, the two keys, the receive channel's SCI,
+// MACSEC_TXSA, MACSEC_RXSC, MACSEC_RXSA and the XPN SA.
+const (
+	macsecLinkCst    = "link add link d0 macsec0 type macsec sci 0102030405060001"
+	macsecKey1Cst    = "key 01000000000000000000000000000000 81818181818181818181818181818181"
+	macsecKey2Cst    = "key 02000000000000000000000000000000 82828282828282828282828282828282"
+	macsecSciCst     = "0a0b0c0d0e0f0001"
+	macsecTxsaCst    = "macsec add macsec0 tx sa 0 pn 1 on " + macsecKey1Cst
+	macsecRxscCst    = "macsec add macsec0 rx sci " + macsecSciCst + " on"
+	macsecRxsaCst    = "macsec add macsec0 rx sci " + macsecSciCst + " sa 0 pn 1 on " + macsecKey2Cst
+	macsecXpnTxsaCst = "macsec add macsec0 tx sa 0 xpn 1 salt 0102030405060708090a0b0c ssci 1 on " + macsecKey1Cst
+)
+
+// macsecSetup is genl-write-corpus.exp's PRE_MACSEC: PRE_ADDRS and
+// macsec0 over d0.
+var macsecSetup = append(slices.Clone(tcpmAddrsSetup), macsecLinkCst)
+
+// macsec2Setup is PRE_MACSEC2: PRE_MACSEC and macsec1.
+var macsec2Setup = append(slices.Clone(macsecSetup), "link add link d0 macsec1 type macsec sci 0102030405060002")
+
+// macsecXpnSetup is PRE_MACSEC_XPN: PRE_ADDRS and an XPN macsec0.
+var macsecXpnSetup = append(slices.Clone(tcpmAddrsSetup), macsecLinkCst+" cipher gcm-aes-xpn-128")
+
+// macsecTxsaSetup is PRE_TXSA: PRE_MACSEC and an active transmit SA.
+var macsecTxsaSetup = append(slices.Clone(macsecSetup), macsecTxsaCst)
+
+// macsecTxsaOffSetup is PRE_TXSA_OFF: PRE_MACSEC and the SA inactive.
+var macsecTxsaOffSetup = append(slices.Clone(macsecSetup), "macsec add macsec0 tx sa 0 pn 1 off "+macsecKey1Cst)
+
+// macsecRxscSetup is PRE_RXSC: PRE_MACSEC and a receive channel.
+var macsecRxscSetup = append(slices.Clone(macsecSetup), macsecRxscCst)
+
+// macsecRxsaSetup is PRE_RXSA: PRE_RXSC and an active receive SA.
+var macsecRxsaSetup = append(slices.Clone(macsecRxscSetup), macsecRxsaCst)
+
+// macsecRxsaOffSetup is PRE_RXSA_OFF: PRE_RXSC and the SA inactive.
+var macsecRxsaOffSetup = append(slices.Clone(macsecRxscSetup),
+	"macsec add macsec0 rx sci "+macsecSciCst+" sa 0 pn 1 off "+macsecKey2Cst)
+
+// macsecXpnTxsaSetup is macsec_xpn_txsa_add's precondition and command,
+// the state its readback shows.
+var macsecXpnTxsaSetup = append(slices.Clone(macsecXpnSetup), macsecXpnTxsaCst)
 
 // The write rows' preconditions, as capture-link-writes.exp spells them:
 // PRE_BOND, PRE_PORT and PRE_ENSLAVED there.

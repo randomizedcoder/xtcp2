@@ -10,21 +10,21 @@ several steps, further down under [Remaining](#remaining).
 
 | | count | counted from |
 |---|---|---|
-| commands in the comparison matrix | **417** | `internal/goipparity/commands.go` — 194 read rows, 1 of them G5-T03's genl `show` stand-in, 8 G6-T01's `tcp_metrics` reads, each with a `Setup`, 4 G6-T02's `sr` reads, 4 G6-T03's `ioam` shows, 9 G6-T04's `mptcp` reads, 8 G6-T05's `fou` reads, 7 G6-T06's `ila` reads and 13 G6-T07's `l2tp` reads, (31 of them `addr show` state, selector and output-mode rows with a `Setup`, and 6 `route get`, 2 `neigh get`, 4 `nexthop get` and `nexthop bucket`, 3 `link xstats` and `link afstats`, 6 `mroute show`, 3 `token`, 4 `netns list-id`, 3 `route save` and `route showdump`, 1 `route flush`, 1 `neigh flush`, 1 `rule save` and 1 `nexthop flush` rows with one; the missing-table `route flush` row has none), the 21 link write rows, the 26 route write rows, the 27 address write rows, the 7 address flush rows, the 2 address restore rows, the route restore row, the 2 route flush write rows, the 6 neigh write rows, the 2 neigh flush write rows, the 17 rule write rows, the rule flush write row, the rule restore row, the 6 nexthop write rows, the nexthop flush write row, the 2 addrlabel write rows, the addrlabel flush write row, the 3 ntable write rows, the stats write row, the 3 link property write rows, the 2 token write rows, the netns set write row, the 6 `tcp_metrics` delete and flush write rows, the 7 `sr` set write rows, the 16 `ioam` namespace and schema write rows, the 19 `mptcp` endpoint and limits write rows, the 16 `fou` add and del write rows, the 11 `ila` add and del write rows and the 15 `l2tp` tunnel and session add and del write rows, generic netlink |
-| of those, `Implemented: true` | **416** | same file — the other one is the genl stand-in, which `ip` runs in goip's place (`IPStandIn`); no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
-| of those, in `gated_commands` | **415** | `pkg/nlparity/goip-parity-allowlist.json` |
+| commands in the comparison matrix | **455** | `internal/goipparity/commands.go` — 208 read rows, 8 of them G6-T01's `tcp_metrics` reads, each with a `Setup`, 4 G6-T02's `sr` reads, 4 G6-T03's `ioam` shows, 9 G6-T04's `mptcp` reads, 8 G6-T05's `fou` reads, 7 G6-T06's `ila` reads, 13 G6-T07's `l2tp` reads and 15 G6-T08's `macsec` reads, (31 of them `addr show` state, selector and output-mode rows with a `Setup`, and 6 `route get`, 2 `neigh get`, 4 `nexthop get` and `nexthop bucket`, 3 `link xstats` and `link afstats`, 6 `mroute show`, 3 `token`, 4 `netns list-id`, 3 `route save` and `route showdump`, 1 `route flush`, 1 `neigh flush`, 1 `rule save` and 1 `nexthop flush` rows with one; the missing-table `route flush` row has none), the 21 link write rows, the 26 route write rows, the 27 address write rows, the 7 address flush rows, the 2 address restore rows, the route restore row, the 2 route flush write rows, the 6 neigh write rows, the 2 neigh flush write rows, the 17 rule write rows, the rule flush write row, the rule restore row, the 6 nexthop write rows, the nexthop flush write row, the 2 addrlabel write rows, the addrlabel flush write row, the 3 ntable write rows, the stats write row, the 3 link property write rows, the 2 token write rows, the netns set write row, the 6 `tcp_metrics` delete and flush write rows, the 7 `sr` set write rows, the 16 `ioam` namespace and schema write rows, the 19 `mptcp` endpoint and limits write rows, the 16 `fou` add and del write rows, the 11 `ila` add and del write rows, the 15 `l2tp` tunnel and session add and del write rows and the 24 `macsec` SA, receive channel and offload write rows, generic netlink |
+| of those, `Implemented: true` | **455** | same file — every row: none is `SKIP` and, since G6-T08, none is an `ip` stand-in (`IPStandIn`), which is why the comparator's unimplemented branch and the stand-in's rendering are exercised by synthetic commands |
+| of those, in `gated_commands` | **454** | `pkg/nlparity/goip-parity-allowlist.json` |
 | allowlisted divergences | **12** | same file, `entries` |
 | of those, `kind=version-skew` | **7** | all against the pinned `ip` 7.1.0 |
 | of those, `kind=accepted-divergence` | **5** | the five `ip netns` rows' `NETNSA_FD`, the descriptor each process opened the namespace file as, a slot in its own table (G4-T04). Nothing else is: the nine wire divergences runs 8 and 9 measured **could not** be, because a transaction-count divergence is unsuppressible (`nlparity_allowlist.go:143`), and G0 retired every one by changing goip to send `ip`'s requests |
 
-**Nine** matrix rows sit outside `gated_commands`. One is **`addr show
+**One** matrix row sits outside `gated_commands`, **`addr show
 dynamic`**, which prints a finite `valid_lft` that counts down between `ip_a`
 and `goip`, so it can never gate (see
 [The `addr show` state and selector rows](#the-addr-show-state-and-selector-rows)).
-The other eight are G5-T03's genl `show` stand-ins, compared `ip` against `ip`
-until G6 gives goip each family (see
-[G5-T03](#g5-t03-genl-rows-in-the-parity-harness)). They keep
-`GOIP_PARITY_UNGATED_CLEAN` reading rows.
+G5-T03's eight genl `show` stand-ins, compared `ip` against `ip`, sat there
+with it until G6 gave goip each family (see
+[G5-T03](#g5-t03-genl-rows-in-the-parity-harness)); G6-T08 replaced the
+last. It keeps `GOIP_PARITY_UNGATED_CLEAN` reading a row.
 
 The twenty-two that were out with it at the start of
 [goip-parity-gaps.md](goip-parity-gaps.md)'s G0 all gated there:
@@ -4042,6 +4042,22 @@ shows. The kernel keeps tunnels and sessions by id and names a session's
 device from a per-namespace count, so a show of two is in one order on
 every side. Two consecutive live runs passed 417 of 417, the 28 rows
 clean. The matrix is 417 rows, 415 gated.
+
+### G6-T08: `goip macsec`
+
+G6-T08 adds `goip macsec`, the namespace's MACsec SecYs: their transmit
+SAs, receive channels and receive SAs, and their offload type. The SA,
+channel and offload adds, sets and deletes are admitted genl writes. The
+show prints `ip`'s lines and JSON, and under `-s` its counters, with
+`print_attrs`' `sc` and `sa` read from the SecY's encoding SA as `ip`
+reads them. It is checked byte for byte against the 32 C2 captures.
+
+The last stand-in is replaced by the corpus's 32 `macsec_*` rows, four
+`-j` shows and three `-s` shows. A show is a dump of every SecY in
+ifindex order, and the SecYs are down, so their counters stay zero on
+every side. Two consecutive live runs passed 455 of 455, the 39 rows
+clean. The matrix is 455 rows, 454 gated, and G6 is closed: no stand-in
+remains.
 
 ## Tier C — the `goip-parity` microVM flavor
 

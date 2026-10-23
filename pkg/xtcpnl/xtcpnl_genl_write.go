@@ -40,6 +40,10 @@ const ILAGenlVersion uint8 = 1
 // carry (include/uapi/linux/l2tp.h).
 const L2TPGenlVersion uint8 = 1
 
+// MacsecGenlVersion is MACSEC_GENL_VERSION, the version ip's macsec
+// requests carry (include/uapi/linux/if_macsec.h).
+const MacsecGenlVersion uint8 = 1
+
 // genlMsgHdrLenCst is sizeof(struct genlmsghdr).
 const genlMsgHdrLenCst = 4
 
@@ -64,8 +68,10 @@ var (
 // (ip/ipfou.c), and ila's ADD and DEL, `ip ila add` and `del`
 // (ip/ipila.c); ila's FLUSH, which ip never sends, is not; and l2tp's
 // tunnel and session creates and deletes, `ip l2tp add` and `del`
-// (ip/ipl2tp.c); its MODIFYs, which ip never sends, are not. The family is
-// its controller name.
+// (ip/ipl2tp.c); its MODIFYs, which ip never sends, are not; and macsec's
+// every command but GET_TXSC, the SA and receive channel adds, sets and
+// deletes and the offload change, `ip macsec add`, `set`, `del` and
+// `offload` (ip/ipmacsec.c). The family is its controller name.
 func IsAdmittedGenlWrite(family string, cmd uint8) bool {
 	switch family {
 	case TCPMetricsGenlName:
@@ -91,6 +97,8 @@ func IsAdmittedGenlWrite(family string, cmd uint8) bool {
 		case L2TPCmdTunnelCreate, L2TPCmdTunnelDelete, L2TPCmdSessionCreate, L2TPCmdSessionDelete:
 			return true
 		}
+	case MacsecGenlName:
+		return cmd >= MacsecCmdAddRxsc && cmd <= MacsecCmdUpdOffload
 	}
 	return false
 }

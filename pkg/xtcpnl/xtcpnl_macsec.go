@@ -68,6 +68,20 @@ const (
 	// MACSEC_OFFLOAD_ATTR_TYPE, a u8. Type 2 is the pad.
 	MacsecOffloadAttrType uint16 = 1
 
+	// The cipher suites a SecY's CIPHER_SUITE names, macsec_cipher_id's
+	// values: the default's old id and the four IEEE ids, the two XPN
+	// suites' PNs 64 bits.
+	MacsecCipherDefault      uint64 = 0x0080020001000001
+	MacsecCipherGCMAES128    uint64 = 0x0080C20001000001
+	MacsecCipherGCMAES256    uint64 = 0x0080C20001000002
+	MacsecCipherGCMAESXPN128 uint64 = 0x0080C20001000003
+	MacsecCipherGCMAESXPN256 uint64 = 0x0080C20001000004
+
+	// The offload types, enum macsec_offload.
+	MacsecOffloadOff uint8 = 0
+	MacsecOffloadPhy uint8 = 1
+	MacsecOffloadMac uint8 = 2
+
 	// The counters in each statistics nest, numbered 1 to N in their
 	// enum: macsec_txsc_stats_attr, macsec_secy_stats_attr and
 	// macsec_rxsc_stats_attr (u64 each, the pad at N + 1), and

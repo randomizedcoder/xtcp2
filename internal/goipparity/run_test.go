@@ -31,7 +31,7 @@ func TestRun(t *testing.T) {
 			wantCode:    ExitOK,
 			wantStdout: []string{
 				"link_show\t2\tyes\tno\tno\troute\t-\t-\tlink show\tlink show",
-				"genl_macsec_show\t4\tip\tno\tno\tgeneric\t-\t-\tmacsec show\tmacsec show",
+				"macsec_show_empty\t4\tyes\tno\tno\tgeneric\t-\t-\tmacsec show\tmacsec show",
 				"link_write_enslave_down\t6\tyes\tno\tyes\troute\t" +
 					"link add bond0 type bond mode 802.3ad;link add la1 type veth peer name lb1\t-\t" +
 					"link set la1 down master bond0\tlink set la1 down master bond0",
