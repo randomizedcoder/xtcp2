@@ -1612,6 +1612,28 @@ func envUint32(key string) (uint32, bool) {
 	return uint32(u), true
 }
 
+// maxUnixSocketMode is the largest permission-bits value a socket mode may
+// take, matching the unix_socket_mode lte 511 rule in xtcp_config.proto.
+const maxUnixSocketMode = 0o777
+
+// envFileMode parses a Unix socket mode the way flag.Uint parses
+// -promUnixSocketMode: base prefixes apply, so "0600" and "0o600" are octal
+// and "384" is decimal. envUint32 read "0600" as decimal 600 (0o1130). A
+// value that doesn't parse, or sets bits above 0777, returns (0, false) and
+// is logged, so the listener keeps its 0600 default rather than opening up.
+func envFileMode(key string) (uint32, bool) {
+	v, ok := os.LookupEnv(key)
+	if !ok {
+		return 0, false
+	}
+	u, err := strconv.ParseUint(v, 0, 32)
+	if err != nil || u > maxUnixSocketMode {
+		log.Printf("%s=%q ignored: want permission bits 0..0777, e.g. 0600 or 0660", key, v)
+		return 0, false
+	}
+	return uint32(u), true
+}
+
 // envBool parses a boolean env var via strconv.ParseBool (accepts
 // 1/t/T/TRUE/true/True and 0/f/F/FALSE/false/False). Returns (false, false)
 // when the var is unset or unparseable, so a typo leaves the config default
@@ -2006,7 +2028,7 @@ func envOverrideListeners(c *xtcp_config.XtcpConfig, debugLevel uint) {
 		ep.Address = v
 		logEnv("GRPC_LISTEN_ADDRESS", fmt.Sprintf("c.GrpcListener.Address:%s", v), debugLevel)
 	}
-	if v, ok := envUint32("GRPC_UNIX_SOCKET_MODE"); ok {
+	if v, ok := envFileMode("GRPC_UNIX_SOCKET_MODE"); ok {
 		ep := ensureGrpcListener(c)
 		ep.UnixSocketMode = v
 		logEnv("GRPC_UNIX_SOCKET_MODE", fmt.Sprintf("c.GrpcListener.UnixSocketMode:%#o", v), debugLevel)
@@ -2029,7 +2051,7 @@ func envOverrideListeners(c *xtcp_config.XtcpConfig, debugLevel uint) {
 		c.PrometheusListener.Address = v
 		logEnv("PROM_LISTEN", fmt.Sprintf("c.PrometheusListener.Address:%s", v), debugLevel)
 	}
-	if v, ok := envUint32("PROM_UNIX_SOCKET_MODE"); ok {
+	if v, ok := envFileMode("PROM_UNIX_SOCKET_MODE"); ok {
 		ep := ensurePrometheusListener(c)
 		ep.UnixSocketMode = v
 		logEnv("PROM_UNIX_SOCKET_MODE", fmt.Sprintf("c.PrometheusListener.UnixSocketMode:%#o", v), debugLevel)

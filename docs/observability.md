@@ -81,7 +81,7 @@ In practice this means running xtcp2 as root or under `sudo`. The capability beh
 |---|---|---|
 | `-promListen` | `:9088` | Prometheus / pprof HTTP listen address. |
 | `-promListenNetwork` | `tcp` | Listener network: `tcp` or `unix` (`PROM_LISTEN_NETWORK`). |
-| `-promUnixSocketMode` | `0600` | UDS permission bits after bind (`PROM_UNIX_SOCKET_MODE`, decimal value). |
+| `-promUnixSocketMode` | `0600` | UDS permission bits after bind (`PROM_UNIX_SOCKET_MODE`: octal with a leading `0`, e.g. `0660`, or decimal; above `0777` is ignored). |
 | `-promUnlinkStaleUnixSocket` | `true` | Remove an existing socket at startup if it is a socket (`PROM_UNLINK_STALE_UNIX_SOCKET`). |
 | `-promPath` | `/metrics` | Prometheus metrics path. |
 | `-debugPrometheus` | `false` | Also record the per-record series (`DEBUG_PROMETHEUS`). |

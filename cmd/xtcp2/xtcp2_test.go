@@ -105,6 +105,46 @@ func TestEnvUint32(t *testing.T) {
 	}
 }
 
+func TestEnvFileMode(t *testing.T) {
+	const key = "TEST_UNIX_SOCKET_MODE"
+	cases := []struct {
+		category    string
+		description string
+		set         bool
+		val         string
+		expected    uint32
+		expectedOK  bool
+	}{
+		{"positive", "a leading 0 is octal, as for -promUnixSocketMode", true, "0600", 0o600, true},
+		{"positive", "group-writable octal", true, "0660", 0o660, true},
+		{"positive", "an explicit 0o prefix is octal", true, "0o640", 0o640, true},
+		{"positive", "a bare number stays decimal, as documented before", true, "384", 0o600, true},
+		{"negative", "unset leaves the default", false, "", 0, false},
+		{"negative", "not a number", true, "rw-------", 0, false},
+		{"negative", "a negative value", true, "-1", 0, false},
+		{"negative", "an 8 is not an octal digit", true, "0680", 0, false},
+		{"negative", "decimal 600 is 0o1130, setting the sticky bit", true, "600", 0, false},
+		{"boundary", "0777 is the largest mode", true, "0777", 0o777, true},
+		{"boundary", "01000 is one past it", true, "01000", 0, false},
+		{"boundary", "0 parses; the listener then uses its 0600 default", true, "0", 0, true},
+		{"corner", "empty string", true, "", 0, false},
+		{"corner", "setuid bits are refused", true, "04755", 0, false},
+		{"corner", "surrounding space is not trimmed", true, " 0600", 0, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.description, func(t *testing.T) {
+			t.Logf("%s: %s; expected: %#o ok=%t", tc.category, tc.description, tc.expected, tc.expectedOK)
+			if tc.set {
+				t.Setenv(key, tc.val)
+			}
+			got, ok := envFileMode(key)
+			if ok != tc.expectedOK || got != tc.expected {
+				t.Fatalf("envFileMode(%q) = %#o, %t; expected %#o, %t", tc.val, got, ok, tc.expected, tc.expectedOK)
+			}
+		})
+	}
+}
+
 func TestEnvBool(t *testing.T) {
 	t.Setenv("TEST_BOOL_TRUE", "true")
 	if v, ok := envBool("TEST_BOOL_TRUE"); !ok || !v {
