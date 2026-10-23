@@ -98,7 +98,7 @@ func TestParseWriteRequestsProto(t *testing.T) {
 			families: map[uint16]string{id: xtcpnl.TCPMetricsGenlName}, expected: 2},
 		{description: "negative: the family unnamed", b: file, proto: unix.NETLINK_GENERIC, err: ErrBadWriteFile},
 		{description: "negative: named for another family", b: file, proto: unix.NETLINK_GENERIC,
-			families: map[uint16]string{id: "fou"}, err: ErrBadWriteFile},
+			families: map[uint16]string{id: "nlctrl"}, err: ErrBadWriteFile},
 		{description: "negative: the dump's GET", b: get, proto: unix.NETLINK_GENERIC,
 			families: map[uint16]string{id: xtcpnl.TCPMetricsGenlName}, err: ErrBadWriteFile},
 		{description: "boundary: read as rtnetlink, type 31 is RTM_NEWNEIGHTBL's GET side, not a write", b: file,

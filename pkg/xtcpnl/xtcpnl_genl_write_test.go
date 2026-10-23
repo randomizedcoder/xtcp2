@@ -79,7 +79,7 @@ func TestBuildGenlRequest(t *testing.T) {
 		},
 		{
 			description: "negative: another family's command 2 is not a tcp_metrics DEL",
-			write:       true, family: "fou", id: id, cmd: TCPMetricsCmdDel, err: ErrGenlWrite,
+			write:       true, family: "nlctrl", id: id, cmd: TCPMetricsCmdDel, err: ErrGenlWrite,
 		},
 		{
 			description: "boundary: GENL_ID_CTRL, the lowest family id",
@@ -124,7 +124,7 @@ func TestIsAdmittedGenlWrite(t *testing.T) {
 	}{
 		{"positive: tcp_metrics DEL", TCPMetricsGenlName, TCPMetricsCmdDel, true},
 		{"negative: tcp_metrics GET", TCPMetricsGenlName, TCPMetricsCmdGet, false},
-		{"negative: fou's command 2, DEL there too, not admitted yet", "fou", 2, false},
+		{"negative: nlctrl's command 2, CTRL_CMD_DELFAMILY, a write goip never sends", "nlctrl", 2, false},
 		{"boundary: command 0, UNSPEC", TCPMetricsGenlName, 0, false},
 		{"corner: the name is case-sensitive, as the controller's is", "TCP_METRICS", TCPMetricsCmdDel, false},
 		{"corner: an unresolved family has no name", "", TCPMetricsCmdDel, false},
@@ -154,6 +154,11 @@ func TestIsAdmittedGenlWrite(t *testing.T) {
 			MPTCPPMCmdAnnounce, false},
 		{"boundary: mptcp_pm command 0, UNSPEC", MPTCPPMGenlName, 0, false},
 		{"corner: mptcp_pm's SET_FLAGS number is not a SEG6 write", Seg6GenlName, MPTCPPMCmdSetFlags, false},
+		{"positive: fou ADD, `fou add`", FOUGenlName, FOUCmdAdd, true},
+		{"positive: fou DEL, `fou del`", FOUGenlName, FOUCmdDel, true},
+		{"negative: fou GET, `fou show`", FOUGenlName, FOUCmdGet, false},
+		{"boundary: fou command 0, UNSPEC", FOUGenlName, 0, false},
+		{"corner: fou's ADD number is not a tcp_metrics write", TCPMetricsGenlName, FOUCmdAdd, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {

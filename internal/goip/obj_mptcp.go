@@ -200,23 +200,14 @@ func (m *mptcpRun) initMap() error {
 	return nil
 }
 
-// nameToIndex is ll_name_to_index after ll_init_map: the cache, then
-// ll_link_get by name and the "ifN" spelling.
+// nameToIndex is ll_name_to_index after ll_init_map.
 func (m *mptcpRun) nameToIndex(name string) (int32, error) {
-	if idx := m.c.lltab.NameToIndex(name); idx != 0 {
-		return idx, nil
-	}
-	svc := service.New(m.c.src, m.c.nextSeq)
-	return newLinkNameResolverRemember(svc, func(l xtcpnl.LinkInfo) {
-		m.c.lltab.Fill([]xtcpnl.LinkInfo{l})
-	})(name)
+	return genlNameToIndex(m.c, name)
 }
 
-// indexToName is ll_index_to_name: the cache, then ll_link_get by index,
-// then "ifN".
+// indexToName is ll_index_to_name.
 func (m *mptcpRun) indexToName(idx int32) string {
-	resolveIndexName(m.c, service.New(m.c.src, m.c.nextSeq), idx)
-	return m.c.lltab.IndexToName(idx)
+	return genlIndexToName(m.c, idx)
 }
 
 // modify is mptcp_addr_modify: the parse, then the command.

@@ -8,6 +8,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/randomizedcoder/xtcp2/internal/goip/service"
 	"github.com/randomizedcoder/xtcp2/pkg/nlparity"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
@@ -169,6 +170,25 @@ func genlSource(c *runCtx) (GenlSource, error) {
 		return nil, fmt.Errorf("generic netlink: %w", ErrNotImplemented)
 	}
 	return gs, nil
+}
+
+// genlNameToIndex is ll_name_to_index: the run's cache, then ll_link_get
+// by name and the "ifN" spelling, each link found kept in the cache.
+func genlNameToIndex(c *runCtx, name string) (int32, error) {
+	if idx := c.lltab.NameToIndex(name); idx != 0 {
+		return idx, nil
+	}
+	svc := service.New(c.src, c.nextSeq)
+	return newLinkNameResolverRemember(svc, func(l xtcpnl.LinkInfo) {
+		c.lltab.Fill([]xtcpnl.LinkInfo{l})
+	})(name)
+}
+
+// genlIndexToName is ll_index_to_name: the cache, then ll_link_get by
+// index, then "ifN".
+func genlIndexToName(c *runCtx, idx int32) string {
+	resolveIndexName(c, service.New(c.src, c.nextSeq), idx)
+	return c.lltab.IndexToName(idx)
 }
 
 // genlJSONAppend adds one object to the -j array.

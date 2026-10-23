@@ -1052,7 +1052,15 @@
     "ip refuses without signal, reads; endpoint add, change, delete and flush",
     "and limits set, among them the duplicates, the missing and the over the",
     "maximum, dry-run writes. Two consecutive clean runs of 350",
-    "GOIP_PARITY_PASS of 350 ended GOIP_PARITY_OVERALL_PASS."
+    "GOIP_PARITY_PASS of 350 ended GOIP_PARITY_OVERALL_PASS.",
+    "",
+    "G6-T05 adds fou in place of its G5-T03 stand-in, and gates the C2",
+    "corpus's 21 rows, each on its precondition, and three -j shows, two on",
+    "a captured show's state and one on fou_add_dev's: the shows, show with an",
+    "argument, port 0 and an unknown device, reads; add and del, among them",
+    "the duplicates, the missing, the wrong family and the adds with no port",
+    "or no type, dry-run writes. Two consecutive clean runs of 373",
+    "GOIP_PARITY_PASS of 373 ended GOIP_PARITY_OVERALL_PASS."
   ],
   "_note_version_skew": [
     "THE ENTRIES BELOW CITE COMMITS THAT ARE IN NO RELEASE, AND THE EVIDENCE IS",
@@ -1506,6 +1514,30 @@
     "mptcp limits set add_addr_accepted 2",
     "mptcp limits set",
     "mptcp limits set subflows 8 add_addr_accepted 8",
-    "mptcp limits set subflows 9"
+    "mptcp limits set subflows 9",
+    "fou s",
+    "fou show",
+    "fou show port 5555",
+    "fou add port 0 gue",
+    "fou add port 5555 gue local 192.0.2.1 dev nosuch",
+    "-j fou show",
+    "-j fou sho",
+    "-j fou sh",
+    "fou add port 5555 ipproto 4",
+    "fou add port 5555 gue",
+    "fou add port 5555 gue -6",
+    "fou add port 5555 ipproto 4 local 192.0.2.1 peer 192.0.2.2 peer_port 5556",
+    "fou add port 5555 gue -6 local 2001:db8::1 peer 2001:db8::2 peer_port 5556",
+    "fou add port 5555 ipproto 4 local 192.0.2.1 dev d0",
+    "fou add port 5555 ipproto 4 dev d0",
+    "fou a port 5555 gue",
+    "fou a port 5555 gue -6",
+    "fou add ipproto 4",
+    "fou add port 5555",
+    "fou del port 5555",
+    "fou d port 5555",
+    "fou del port 5555 -6",
+    "fou del port 5555 local 192.0.2.1 peer 192.0.2.2 peer_port 5556",
+    "fou de port 5555"
   ]
 }

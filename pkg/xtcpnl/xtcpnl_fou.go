@@ -30,6 +30,10 @@ const (
 	FOUAttrPeerV6           uint16 = 9  // struct in6_addr
 	FOUAttrPeerPort         uint16 = 10 // u16, network order
 	FOUAttrIfindex          uint16 = 11 // s32
+
+	// FOU_ENCAP_*, FOU_ATTR_TYPE's values.
+	FOUEncapDirect uint8 = 1
+	FOUEncapGUE    uint8 = 2
 )
 
 // FOU is a decoded fou message. Local and Peer are the zero netip.Addr when

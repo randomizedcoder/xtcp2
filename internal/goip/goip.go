@@ -259,13 +259,16 @@ func (c *runCtx) lineOption(a string) bool {
 // monitor that cannot subscribe or whose listen ends. mptcp exits 255 for
 // what ipmptcp.c ends with exit(-1) and for a monitor that cannot
 // subscribe, 254 for a monitor whose listen ends in error, 1 for an answer
-// it refuses, and 2 for a dump it cannot finish or a kernel refusal.
+// it refuses, and 2 for a dump it cannot finish or a kernel refusal. fou
+// exits 255 for what ipfou.c ends with exit(-1) and for a dump it cannot
+// finish, and 1 for a device it refuses or a show given arguments.
 func exitCodeOf(err error) int {
 	switch {
 	case errors.Is(err, ErrFlushIncomplete), errors.Is(err, ErrDumpFile), errors.Is(err, ErrRuleDumpTerminated),
 		errors.Is(err, ErrAddrLabelFlushTerminated), errors.Is(err, ErrMruleFamily), errors.Is(err, ErrMonitorAbort),
 		errors.Is(err, ErrTCPMetricsUsage), errors.Is(err, ErrSrUsage), errors.Is(err, ErrIoamUsage),
-		errors.Is(err, ErrMptcpUsage), errors.Is(err, ErrMptcpSubscribe):
+		errors.Is(err, ErrMptcpUsage), errors.Is(err, ErrMptcpSubscribe), errors.Is(err, ErrFouUsage),
+		errors.Is(err, ErrFouDumpTerminated):
 		return ExitMinusOne
 	case errors.Is(err, ErrMptcpListen):
 		return ExitMinusTwo
@@ -280,7 +283,7 @@ func exitCodeOf(err error) int {
 		errors.Is(err, ErrTCPMetricsDumpTerminated), errors.Is(err, ErrGenlResolve),
 		errors.Is(err, ErrSrReply), errors.Is(err, ErrSrDumpTerminated),
 		errors.Is(err, ErrIoamDumpTerminated), errors.Is(err, ErrIoamMonitor),
-		errors.Is(err, ErrMptcpReply):
+		errors.Is(err, ErrMptcpReply), errors.Is(err, ErrFouRefused):
 		return ExitUsage
 	}
 	return ExitFailure

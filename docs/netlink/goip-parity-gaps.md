@@ -2840,6 +2840,51 @@ The tests (`pkg/xtcpnl`, `internal/goip`, `internal/goipparity`):
 | positive, boundary, corner: `print_mptcp_limit` of both, one, neither, past `INT_MAX` | `ip`'s line, `TestMptcpLimitsText` (4) |
 | positive, negative, boundary, corner: the 28 rows, `mptcp monitor` and the stand-in | generic, on the corpus topology, gated with no allowlist entry, the port refusal floor 2; neither of the others in the table, `TestMptcpRows` (30) |
 
+**G6-T05 delivered** (`internal/goip`, `pkg/xtcpnl`, `internal/goipparity`):
+- **The write gate.** `IsAdmittedGenlWrite` admits fou's `ADD` and `DEL`. `GET` stays a read. Tests that needed a genl family nothing admits now use `nlctrl`, whose command 2, `CTRL_CMD_DELFAMILY`, goip never sends.
+- **`goip fou`** (`internal/goip/obj_fou.go`, `render/fou.go`).
+  - `add`, `delete` and `show` are matched by prefix, as `do_ipfou` matches them, `help` first and before the family lookup.
+  - `add` and `del` run `fou_parse_opt` and write one acked command to `GOIP_WRITE_OUT`.
+    - The words are matched by prefix in `ip`'s order.
+    - `port` and `peer_port` are big-endian, and 0 is refused.
+    - The family is `-6`, else `ip -4` or `-6`, else `AF_INET`.
+    - `dev` is `check_ifname`, then `ll_name_to_index`: the cache, then `ll_link_get` by name, then `ifN`. It is refused in the loop.
+  - A check `fou_parse_opt` fails after its loop prints its message, and the command is still written, with no attribute. `do_add` and `do_del` ignore its -1, so `ip` sends that request and the kernel refuses it.
+  - The addresses are read with `get_addr` in the family after those checks, `LOCAL_V4` and `PEER_V4` for `AF_INET` and the V6 attributes otherwise. The peer port is sent with the peer.
+  - `show` takes no argument, then dumps `GET` and prints each port as `print_fou_mapping` does.
+    - `gue` is JSON's null, and the family is ` -6` in text and `family_name` under `-j`.
+    - Each address prints if it is not all zero, the peer port if it is not 0, and the device by name from `ll_link_get` by index.
+    - Under `-j` the dump is one array, closed however it ends.
+  - `ipproto` takes a name first, as `getprotobyname` does, then `get_u8` base 0.
+    - goip reads no config files, so its names are the ones NixOS's iana-etc spells for the protocols fou carries (`hopopt`, `ipv4`, `ipv6`), plus rule's.
+    - Any other name is refused as not implemented, exit 1, where `ip` would look it up. A word starting with a digit is refused as `ip` refuses it.
+  - Exit codes are `ip`'s:
+    - 255 for usage, an unknown command or word, `invarg` and a dump that ends early, which is `do_show`'s 1 negated;
+    - 1 for a device `fou_parse_opt` refuses, an address `get_addr` cannot read, and `show` with an argument.
+  - `ll_name_to_index` and `ll_index_to_name` are now in `source_genl.go`, used by mptcp and fou. mptcp's text-and-object builder is `render/genl_out.go`'s `genlOut`, with `print_null` added.
+  - fou is not on the HTTP read paths: `Show` and `goiphttp`'s registry keep to the objects they had, as for sr, ioam and mptcp.
+- **The rows.** The C2 corpus's 21 `fou_*` rows replace the stand-in, each on its corpus precondition: five reads and 16 writes. Three `-j` shows join them:
+  - one of two ports, on `fou show`'s state;
+  - one of both addresses and the peer port, on `fou_del_local_peer`'s;
+  - one of a port bound to `d0`, on `fou_add_dev`'s state after its command. Its readback names the device by name.
+  - The corpus spells some commands alike on different preconditions, and a row's name is its command. So those rows run by prefix: `fou s`, `fou a`, `fou d` and `fou de`, the same bytes.
+  - Port 0, an unknown device and `show` with an argument are refused by `ip` after the family lookup. So each is a read of floor 2.
+
+The tests (`pkg/xtcpnl`, `pkg/nlparity`, `internal/goip`, `internal/goipparity`):
+
+| description | expected |
+|---|---|
+| positive, negative, boundary, corner: the write gate for fou's `ADD`, `DEL` and `GET`, command 0, `ADD`'s number under tcp_metrics, and `nlctrl`'s command 2 | the two admitted, the rest not, `TestIsAdmittedGenlWrite` (36 rows, five new) |
+| positive, negative, boundary, corner: the 21 C2 captures replayed, the readback shows of nine, prefixes, the words in another order, a hex port and a protocol name, `g` and `-`, `ip -6` and `ip -4` with `-6`, a repeated port, `dev if3`, and `-j` shows | `ip.out` or `ip_fou`, or `ip`'s JSON; every read exchange once, no write sent, goip's write `ip`'s bytes; `ip`'s exit status but for a kernel refusal, `TestFouMatchesIp` (46) |
+| negative, positive, boundary: no port, no type, a clean write and an empty show | `fou_parse_opt`'s message on stderr, or nothing, `TestFouStderr` (4) |
+| positive, negative, boundary, corner: each check after the loop, on add and del, ahead of an address; del's attributes; each refused value, word, address, family and device name; usage, `help`, `h` and an unknown verb | the message, and the empty request written, or `ip`'s exit status and nothing written, `TestFouArgs` (25) |
+| positive, negative, boundary, corner: the attributes of nothing set, of every one over IPv4, of gue over IPv6, under `ip -0`, and an address `get_addr` refuses | `ip`'s bytes, or the refusal, `TestFouOptAttrs` (6) |
+| positive, negative, boundary, corner: `ipproto` as a number, `ipv4`, `ipv6`, `gre`, `hopopt`, octal, 255, 256, 0, empty, `4x` and an unknown name | the protocol, 255, or 1, `TestFouProto` (12) |
+| positive, negative, boundary, corner: a refused dump with and without `-j`, a short answer after one, a device by index and one no link answers, a header alone | `ip`'s lines and JSON, `[]`, exit 255, `if9`, `TestFouShow` (7) |
+| positive, corner: each error's exit status, `invarg` as usage, a refused answer in a dump | 255, 1, 255, 255, 255, `TestFouExitCodes` (5) |
+| positive, negative, boundary, corner: `print_fou_mapping` of the kernel's answers, gue over a protocol, no protocol, nothing, the highest port, no family, an address of the other width, zero IPv6 addresses, an unknown family, IPv4-compatible and mapped addresses | `ip`'s line and object, `TestFouMapping` (14) |
+| positive, negative, boundary, corner: the 24 rows | generic, on the corpus topology, or `fou_add_dev`'s and its command for `-j fou sh`; gated; the three refusals floor 2, `TestFouRows` (24) |
+
 ### G7 — XFRM
 
 xfrm state and policy show first, then the writes.

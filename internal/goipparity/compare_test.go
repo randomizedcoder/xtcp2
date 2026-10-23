@@ -35,7 +35,7 @@ const (
 )
 
 // genlReadbackRows are the genl read rows with no corpus capture of their
-// own slug, G6-T03's and G6-T04's -j shows: each is laid out on the
+// own slug, G6-T03's to G6-T05's -j shows: each is laid out on the
 // readback dump of the same command a write row's capture holds, or on the
 // capture of the same show without -j, the same requests.
 var genlReadbackRows = map[string]string{
@@ -44,6 +44,9 @@ var genlReadbackRows = map[string]string{
 	"mptcp_endpoint_show_json": "mptcp_endpoint_show/ip.pcap",
 	"mptcp_endpoint_get_json":  "mptcp_endpoint_get/ip.pcap",
 	"mptcp_limits_show_json":   "mptcp_limits_show/ip.pcap",
+	"fou_show_json":            "fou_show/ip.pcap",
+	"fou_show_peer_json":       "fou_add_local_peer/netlink_generic_fou.pcap",
+	"fou_show_dev_json":        "fou_add_dev/netlink_generic_fou.pcap",
 }
 
 // writeGenlReadRow lays out an implemented generic netlink read row as a
@@ -239,25 +242,25 @@ func TestCompareDir(t *testing.T) {
 		{
 			description: "positive: an ip stand-in genl row over three copies of a C2 capture is a clean pass",
 			setup: func(t *testing.T, dir string) {
-				writeTriple(t, dir, lookupCmd(t, "fou show"), sameAll(tdGenlFouShow), sameAll(""))
+				writeTriple(t, dir, lookupCmd(t, "ila show"), sameAll(tdGenlIlaShow), sameAll(""))
 			},
-			want: map[string]Status{"fou show": StatusPass},
+			want: map[string]Status{"ila show": StatusPass},
 		},
 		{
-			// ila's empty show in fou's goip slot: another family at the same
+			// fou's empty show in ila's goip slot: another family at the same
 			// position, a presence finding, on an ungated row.
 			description: "negative: an ip stand-in genl row whose goip side asked another family warns",
 			setup: func(t *testing.T, dir string) {
-				writeTriple(t, dir, lookupCmd(t, "fou show"), map[string]string{
-					SideIPA: tdGenlFouShow, SideGoip: tdGenlIlaShow, SideIPB: tdGenlFouShow,
+				writeTriple(t, dir, lookupCmd(t, "ila show"), map[string]string{
+					SideIPA: tdGenlIlaShow, SideGoip: tdGenlFouShow, SideIPB: tdGenlIlaShow,
 				}, sameAll(""))
 			},
-			want: map[string]Status{"fou show": StatusWarn},
+			want: map[string]Status{"ila show": StatusWarn},
 		},
 		{
 			description: "corner: an ip stand-in genl row with no captures is MISSING, not SKIP",
 			setup:       func(*testing.T, string) {},
-			want:        map[string]Status{"fou show": StatusMissing},
+			want:        map[string]Status{"ila show": StatusMissing},
 		},
 		{
 			description: "positive: two commands both clean in one directory",
@@ -1049,13 +1052,13 @@ func TestRenderNilAllowlist(t *testing.T) {
 }
 
 // TestCompareOneProtocol is a row's protocol deciding how its captures are
-// read: fou's empty show, three copies, read as each.
+// read: ila's empty show, three copies, read as each.
 //
 // go test ./internal/goipparity/ -run TestCompareOneProtocol
 func TestCompareOneProtocol(t *testing.T) {
-	fou := lookupCmd(t, "fou show")
+	ila := lookupCmd(t, "ila show")
 	asProto := func(p string) Command {
-		c := fou
+		c := ila
 		c.Proto = p
 		return c
 	}
@@ -1065,7 +1068,7 @@ func TestCompareOneProtocol(t *testing.T) {
 		want        Status
 		wantErr     string
 	}{
-		{description: "positive: read as generic, ip against ip compares clean", c: fou, want: StatusPass},
+		{description: "positive: read as generic, ip against ip compares clean", c: ila, want: StatusPass},
 		{description: "negative: read as route, the genl captures hold nothing to compare", c: asProto(""), want: StatusFail},
 		{description: "negative: a protocol the comparator cannot name", c: asProto("bogus"), want: StatusFail,
 			wantErr: `unknown protocol "bogus"`},
@@ -1074,7 +1077,7 @@ func TestCompareOneProtocol(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
 			dir := t.TempDir()
-			writeTriple(t, dir, tc.c, sameAll(tdGenlFouShow), sameAll(""))
+			writeTriple(t, dir, tc.c, sameAll(tdGenlIlaShow), sameAll(""))
 			r := compareOne(dir, tc.c, nil)
 			if r.Status != tc.want {
 				t.Errorf("status = %s, want %s (err=%v)", r.Status, tc.want, r.Err)

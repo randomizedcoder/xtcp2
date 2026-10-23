@@ -516,8 +516,8 @@ func TestCommandString(t *testing.T) {
 		},
 		{
 			description: "positive: an ip stand-in genl row renders impl=ip and proto=generic",
-			name:        "fou show",
-			wantFields:  []string{"genl_fou_show", "4", "ip", "no", "no", "generic", "-", "-", "fou show", "fou show"},
+			name:        "ila show",
+			wantFields:  []string{"genl_ila_show", "4", "ip", "no", "no", "generic", "-", "-", "ila show", "ila show"},
 		},
 		{
 			description: "positive: a write row with a stdin line renders > and the line",
@@ -1078,19 +1078,20 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	//   - the twenty `ioam` rows G6-T03 added in place of its stand-in,
 	//     likewise — see TestIoamRows;
 	//   - the twenty-eight `mptcp` rows G6-T04 added in place of its
-	//     stand-in, likewise — see TestMptcpRows.
+	//     stand-in, likewise — see TestMptcpRows;
+	//   - the twenty-four `fou` rows G6-T05 added in place of its stand-in,
+	//     likewise — see TestFouRows.
 	//
 	// The last four were the permanent set, measured divergent on the wire;
 	// TestPermanentWireDivergences records that it is empty.
 	//
-	// The four genl rows G5-T03 added and G6 has not yet replaced are
+	// The three genl rows G5-T03 added and G6 has not yet replaced are
 	// ungated by construction: `ip`
 	// stands in for goip on them (IPStandIn) until each family's G6 task
 	// implements it, and gating `ip` against `ip` would gate nothing about
 	// goip. TestGenlStandInRows pins them.
 	expected := []string{
 		"addr show dynamic",
-		"fou show",
 		"ila show",
 		"l2tp show tunnel",
 		"macsec show",
@@ -1101,10 +1102,10 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 		check       func(t *testing.T)
 	}{
 		{
-			description: "boundary: the list is five named rows, one held out and four stand-ins",
+			description: "boundary: the list is four named rows, one held out and three stand-ins",
 			check: func(t *testing.T) {
-				if len(expected) != 5 {
-					t.Errorf("got %d named rows, want 5", len(expected))
+				if len(expected) != 4 {
+					t.Errorf("got %d named rows, want 4", len(expected))
 				}
 			},
 		},
@@ -3476,11 +3477,11 @@ func TestGenlStandInRows(t *testing.T) {
 		gated[name] = true
 	}
 	want := []string{
-		"fou show", "ila show", "l2tp show tunnel", "macsec show",
+		"ila show", "l2tp show tunnel", "macsec show",
 	}
-	// tcpmRows, srRows, ioamRows and mptcpRows are G6-T01's to G6-T04's
-	// rows, the first genl ones, ahead of the stand-ins.
-	const tcpmRows, srRows, ioamRows, mptcpRows = 14, 11, 20, 28
+	// tcpmRows, srRows, ioamRows, mptcpRows and fouRows are G6-T01's to
+	// G6-T05's rows, the first genl ones, ahead of the stand-ins.
+	const tcpmRows, srRows, ioamRows, mptcpRows, fouRows = 14, 11, 20, 28, 24
 
 	cmds := Commands()
 	first := len(cmds)
@@ -3529,7 +3530,7 @@ func TestGenlStandInRows(t *testing.T) {
 						t.Errorf("%q, a %s row, follows the first genl row", c.Name, c.Protocol())
 					}
 				}
-				if n := tcpmRows + srRows + ioamRows + mptcpRows + len(want); len(cmds)-first != n {
+				if n := tcpmRows + srRows + ioamRows + mptcpRows + fouRows + len(want); len(cmds)-first != n {
 					t.Errorf("%d rows from the first genl one, want %d", len(cmds)-first, n)
 				}
 			},
@@ -3946,6 +3947,91 @@ func TestMptcpRows(t *testing.T) {
 					steps = append(steps, "ip "+s)
 				}
 				topology := r.corpus != "" && slices.Equal(steps, srCorpusTopology(t, r.corpus))
+				got = want{implemented: c.Implemented, write: c.Write, proto: c.Proto, floor: c.Floor, topology: topology}
+			}
+			got.gated = al.IsGated(r.command)
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+		})
+	}
+}
+
+// TestFouRows pins G6-T05's fou rows: each on its corpus row's precondition
+// (its topology file), and each gated. A row the corpus spells as another
+// does is spelled by prefix, the same bytes; -j fou sh is on fou_add_dev's
+// precondition and command, the state its readback shows.
+//
+// go test ./internal/goipparity/ -run TestFouRows
+func TestFouRows(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	type want struct {
+		implemented, write, topology, gated bool
+		proto                               string
+		floor                               int
+	}
+	read := want{implemented: true, topology: true, gated: true, proto: ProtoGenericCst, floor: 4}
+	write := read
+	write.write = true
+	refused := read
+	refused.floor = 2
+	const devAdd = "ip fou add port 5555 ipproto 4 local 192.0.2.1 dev d0"
+	rows := []struct {
+		description string
+		command     string
+		corpus      string // the slug whose topology Setup must be
+		then        string // a step Setup holds after it
+		expected    want
+	}{
+		{"boundary: show with none, spelled s", "fou s", "fou_show_empty", "", read},
+		{"positive: show, two", "fou show", "fou_show", "", read},
+		{"negative: show with an argument, ip's own refusal", "fou show port 5555", "fou_show_args", "", refused},
+		{"negative: port 0, likewise", "fou add port 0 gue", "fou_add_port_zero", "", refused},
+		{"negative: an unknown device, likewise", "fou add port 5555 gue local 192.0.2.1 dev nosuch",
+			"fou_add_unknown_dev", "", refused},
+		{"positive: -j show, the two", "-j fou show", "fou_show", "", read},
+		{"positive: -j, both addresses", "-j fou sho", "fou_del_local_peer", "", read},
+		{"corner: -j, a device, on fou_add_dev's state", "-j fou sh", "fou_add_dev", devAdd, read},
+		{"positive: add", "fou add port 5555 ipproto 4", "fou_add", "", write},
+		{"positive: gue", "fou add port 5555 gue", "fou_add_gue", "", write},
+		{"positive: -6", "fou add port 5555 gue -6", "fou_add_v6", "", write},
+		{"positive: both addresses", "fou add port 5555 ipproto 4 local 192.0.2.1 peer 192.0.2.2 peer_port 5556",
+			"fou_add_local_peer", "", write},
+		{"positive: over IPv6", "fou add port 5555 gue -6 local 2001:db8::1 peer 2001:db8::2 peer_port 5556",
+			"fou_add_v6_local_peer", "", write},
+		{"positive: a device", "fou add port 5555 ipproto 4 local 192.0.2.1 dev d0", "fou_add_dev", "", write},
+		{"negative: a device without local, refused", "fou add port 5555 ipproto 4 dev d0", "fou_add_dev_no_local", "",
+			write},
+		{"negative: a port in use, refused, spelled a", "fou a port 5555 gue", "fou_add_dup", "", write},
+		{"positive: the port over IPv6 too, spelled a", "fou a port 5555 gue -6", "fou_add_same_port_v6", "", write},
+		{"corner: no port, no attribute", "fou add ipproto 4", "fou_add_no_port", "", write},
+		{"corner: no type, likewise", "fou add port 5555", "fou_add_no_type", "", write},
+		{"positive: del", "fou del port 5555", "fou_del", "", write},
+		{"negative: del of none, refused, spelled d", "fou d port 5555", "fou_del_missing", "", write},
+		{"negative: del in the other family, refused", "fou del port 5555 -6", "fou_del_wrong_family", "", write},
+		{"positive: del with the addresses", "fou del port 5555 local 192.0.2.1 peer 192.0.2.2 peer_port 5556",
+			"fou_del_local_peer", "", write},
+		{"negative: del without them, refused, spelled de", "fou de port 5555", "fou_del_partial", "", write},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			var got want
+			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				steps := make([]string, 0, len(c.Setup))
+				for _, s := range c.Setup {
+					steps = append(steps, "ip "+s)
+				}
+				var corpus []string
+				if r.corpus != "" {
+					corpus = srCorpusTopology(t, r.corpus)
+					if r.then != "" {
+						corpus = append(corpus, r.then)
+					}
+				}
+				topology := r.corpus != "" && slices.Equal(steps, corpus)
 				got = want{implemented: c.Implemented, write: c.Write, proto: c.Proto, floor: c.Floor, topology: topology}
 			}
 			got.gated = al.IsGated(r.command)

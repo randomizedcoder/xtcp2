@@ -17,55 +17,6 @@ import (
 // caller's -j. The limits are printed outside new_json_obj, so they are
 // text even under -j, and have no object here.
 
-// mptcpOut is one walk's two renders: the text line and the JSON object.
-type mptcpOut struct {
-	text strings.Builder
-	obj  []byte
-}
-
-// key opens a JSON member.
-func (o *mptcpOut) key(k string) {
-	if len(o.obj) == 0 {
-		o.obj = append(o.obj, '{')
-	} else {
-		o.obj = append(o.obj, ',')
-	}
-	o.obj = AppendJSONWString(o.obj, []byte(k))
-	o.obj = append(o.obj, ':')
-}
-
-// str is print_string(PRINT_ANY, k, ...): the text as given, the value as
-// a JSON string.
-func (o *mptcpOut) str(k, text, v string) {
-	o.text.WriteString(text)
-	o.key(k)
-	o.obj = AppendJSONWString(o.obj, []byte(v))
-}
-
-// uint is print_uint(PRINT_ANY, k, ...).
-func (o *mptcpOut) uint(k, text string, v uint64) {
-	o.text.WriteString(text)
-	o.key(k)
-	o.obj = strconv.AppendUint(o.obj, v, 10)
-}
-
-// boolean is a PRINT_FP text with print_bool(PRINT_JSON, k, NULL, true).
-func (o *mptcpOut) boolean(k, text string) {
-	o.text.WriteString(text)
-	o.key(k)
-	o.obj = append(o.obj, "true"...)
-}
-
-// done is print_nl and close_json_object: the line's newline, and the
-// object's brace, "{}" for an object with no member.
-func (o *mptcpOut) done() (string, []byte) {
-	o.text.WriteString("\n")
-	if len(o.obj) == 0 {
-		return o.text.String(), []byte("{}")
-	}
-	return o.text.String(), append(o.obj, '}')
-}
-
 // mptcpAddrFlagNames is mptcp_addr_flag_names in its order; nobackup and
 // nofullmesh are 0 there, so they never print.
 var mptcpAddrFlagNames = []struct {
@@ -86,7 +37,7 @@ var mptcpAddrFlagNames = []struct {
 // absent family reads as AF_UNSPEC. A port prints when it is not 0, and
 // the device, through dev, when its index is not 0.
 func MptcpAddr(a *xtcpnl.MPTCPAddr, dev func(int32) string) (string, []byte) {
-	var o mptcpOut
+	var o genlOut
 	var family uint8
 	if a.Family != nil {
 		// rta_getattr_u8 reads the u16's first byte, its low one.
@@ -120,7 +71,7 @@ func MptcpAddr(a *xtcpnl.MPTCPAddr, dev func(int32) string) (string, []byte) {
 
 // mptcpAddrFlags is print_mptcp_addr_flags: each known flag's name, then
 // what is left as rawflags, %02x.
-func mptcpAddrFlags(o *mptcpOut, flags uint32) {
+func mptcpAddrFlags(o *genlOut, flags uint32) {
 	for _, f := range mptcpAddrFlagNames {
 		if flags&f.mask != 0 {
 			o.boolean(f.name, f.name+" ")
@@ -181,7 +132,7 @@ type MptcpStamp struct {
 // a side, so each prints under the name its width gives it. dev names the
 // interface of a nonzero index.
 func MptcpEvent(ts MptcpStamp, e *xtcpnl.MPTCPEvent, dev func(int32) string) (string, []byte) {
-	var o mptcpOut
+	var o genlOut
 	if ts.Key != "" {
 		o.str(ts.Key, ts.Text, ts.Value)
 	}
@@ -220,14 +171,14 @@ func MptcpEvent(ts MptcpStamp, e *xtcpnl.MPTCPEvent, dev func(int32) string) (st
 }
 
 // mptcpEventU8 is print_uint of a u8 attribute, " k=%u".
-func mptcpEventU8(o *mptcpOut, k string, v *uint8) {
+func mptcpEventU8(o *genlOut, k string, v *uint8) {
 	if v != nil {
 		o.uint(k, " "+k+"="+strconv.FormatUint(uint64(*v), 10), uint64(*v))
 	}
 }
 
 // mptcpEventU16 is print_uint of a port, already in host order.
-func mptcpEventU16(o *mptcpOut, k string, v *uint16) {
+func mptcpEventU16(o *genlOut, k string, v *uint16) {
 	if v != nil {
 		o.uint(k, " "+k+"="+strconv.FormatUint(uint64(*v), 10), uint64(*v))
 	}
@@ -235,7 +186,7 @@ func mptcpEventU16(o *mptcpOut, k string, v *uint16) {
 
 // mptcpEventAddrs is print_addr for the four address attributes, in their
 // order.
-func mptcpEventAddrs(o *mptcpOut, saddr, daddr netip.Addr) {
+func mptcpEventAddrs(o *genlOut, saddr, daddr netip.Addr) {
 	for _, a := range []struct {
 		k    string
 		addr netip.Addr
@@ -253,7 +204,7 @@ func mptcpEventAddrs(o *mptcpOut, saddr, daddr netip.Addr) {
 
 // mptcpEventIface is print_iface: the index, then the name of a nonzero
 // one.
-func mptcpEventIface(o *mptcpOut, idx int32, dev func(int32) string) {
+func mptcpEventIface(o *genlOut, idx int32, dev func(int32) string) {
 	o.text.WriteString(" ifindex=" + strconv.FormatInt(int64(idx), 10))
 	o.key("ifindex")
 	o.obj = strconv.AppendInt(o.obj, int64(idx), 10)
@@ -265,7 +216,7 @@ func mptcpEventIface(o *mptcpOut, idx int32, dev func(int32) string) {
 
 // mptcpEventFlags is the event's flags: server_side from the flag or a
 // nonzero SERVER_SIDE, deny_join_id0, then what is left, %#x.
-func mptcpEventFlags(o *mptcpOut, e *xtcpnl.MPTCPEvent) {
+func mptcpEventFlags(o *genlOut, e *xtcpnl.MPTCPEvent) {
 	var flags uint16
 	if e.Flags != nil {
 		flags = *e.Flags

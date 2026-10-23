@@ -77,7 +77,7 @@ var objects = []object{
 	{name: "ntbl", run: runNTable, alias: true},
 	{name: objLinkCst, run: runLink},
 	{name: "l2tp"},
-	{name: "fou"},
+	{name: "fou", run: runFou, noShow: true},
 	{name: "ila"},
 	{name: "macsec"},
 	{name: "tunnel"},

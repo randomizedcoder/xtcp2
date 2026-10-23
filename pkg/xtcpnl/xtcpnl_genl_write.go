@@ -28,6 +28,10 @@ const IOAM6GenlVersion uint8 = 1
 // (MPTCP_REQUEST, ip/ipmptcp.c).
 const MPTCPPMGenlVersion uint8 = 1
 
+// FOUGenlVersion is FOU_GENL_VERSION, the version ip's fou requests carry
+// (include/uapi/linux/fou.h).
+const FOUGenlVersion uint8 = 1
+
 // genlMsgHdrLenCst is sizeof(struct genlmsghdr).
 const genlMsgHdrLenCst = 4
 
@@ -48,7 +52,8 @@ var (
 // IOAM6's namespace and schema adds, deletes and binding, `ip ioam
 // namespace` and `schema` (ip/ipioam6.c), and mptcp_pm's endpoint adds,
 // deletes, changes and flush and its limits set, `ip mptcp endpoint` and
-// `limits set` (ip/ipmptcp.c). The family is its controller name.
+// `limits set` (ip/ipmptcp.c), and fou's ADD and DEL, `ip fou add` and
+// `del` (ip/ipfou.c). The family is its controller name.
 func IsAdmittedGenlWrite(family string, cmd uint8) bool {
 	switch family {
 	case TCPMetricsGenlName:
@@ -65,6 +70,8 @@ func IsAdmittedGenlWrite(family string, cmd uint8) bool {
 		case MPTCPPMCmdAddAddr, MPTCPPMCmdDelAddr, MPTCPPMCmdFlushAddrs, MPTCPPMCmdSetLimits, MPTCPPMCmdSetFlags:
 			return true
 		}
+	case FOUGenlName:
+		return cmd == FOUCmdAdd || cmd == FOUCmdDel
 	}
 	return false
 }

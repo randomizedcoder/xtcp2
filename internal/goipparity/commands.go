@@ -2933,17 +2933,71 @@ var commands = withArgs([]Command{
 	{Name: "mptcp limits set subflows 9", Slug: "mptcp_limits_set_over", Floor: 4, Implemented: true, Write: true,
 		Proto: ProtoGenericCst},
 
+	// G6-T05: fou, the C2 corpus's 21 fou_* rows on their preconditions
+	// (genl-write-corpus.exp), and three -j shows: two on a captured one's
+	// state, and one on fou_add_dev's, its readback, whose device prints by
+	// name. The corpus spells several commands alike on different
+	// preconditions; a row's name is its command, so those are spelled by
+	// prefix here, the same bytes. Port 0, an unknown device and show with
+	// an argument are refused after the lookup, so each is a read of floor
+	// 2. The kernel keeps its ports in a list, the newest first, so a show
+	// of two is in one order on every side.
+	{Name: "fou s", Slug: "fou_show_empty", Floor: 4, Implemented: true, Proto: ProtoGenericCst},
+	{Name: "fou show", Slug: "fou_show", Floor: 4, Implemented: true, Proto: ProtoGenericCst, Setup: fou2Setup},
+	{Name: "fou show port 5555", Slug: "fou_show_args", Floor: 2, Implemented: true, Proto: ProtoGenericCst},
+	{Name: "fou add port 0 gue", Slug: "fou_add_port_zero", Floor: 2, Implemented: true, Proto: ProtoGenericCst},
+	{Name: "fou add port 5555 gue local 192.0.2.1 dev nosuch", Slug: "fou_add_unknown_dev", Floor: 2,
+		Implemented: true, Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: "-j fou show", Slug: "fou_show_json", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: fou2Setup},
+	{Name: "-j fou sho", Slug: "fou_show_peer_json", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: fouPeerSetup},
+	{Name: "-j fou sh", Slug: "fou_show_dev_json", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: fouDevSetup},
+	{Name: "fou add port 5555 ipproto 4", Slug: "fou_add", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst},
+	{Name: "fou add port 5555 gue", Slug: "fou_add_gue", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst},
+	{Name: "fou add port 5555 gue -6", Slug: "fou_add_v6", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst},
+	{Name: "fou add port 5555 ipproto 4 local 192.0.2.1 peer 192.0.2.2 peer_port 5556", Slug: "fou_add_local_peer",
+		Floor: 4, Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: "fou add port 5555 gue -6 local 2001:db8::1 peer 2001:db8::2 peer_port 5556",
+		Slug: "fou_add_v6_local_peer", Floor: 4, Implemented: true, Write: true, Proto: ProtoGenericCst,
+		Setup: tcpmAddrsSetup},
+	{Name: "fou add port 5555 ipproto 4 local 192.0.2.1 dev d0", Slug: "fou_add_dev", Floor: 4, Implemented: true,
+		Write: true, Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: "fou add port 5555 ipproto 4 dev d0", Slug: "fou_add_dev_no_local", Floor: 4, Implemented: true,
+		Write: true, Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: "fou a port 5555 gue", Slug: "fou_add_dup", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: fou1Setup},
+	{Name: "fou a port 5555 gue -6", Slug: "fou_add_same_port_v6", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: fou1Setup},
+	{Name: "fou add ipproto 4", Slug: "fou_add_no_port", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst},
+	{Name: "fou add port 5555", Slug: "fou_add_no_type", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst},
+	{Name: "fou del port 5555", Slug: "fou_del", Floor: 4, Implemented: true, Write: true, Proto: ProtoGenericCst,
+		Setup: fou1Setup},
+	{Name: "fou d port 5555", Slug: "fou_del_missing", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst},
+	{Name: "fou del port 5555 -6", Slug: "fou_del_wrong_family", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: fou1Setup},
+	{Name: "fou del port 5555 local 192.0.2.1 peer 192.0.2.2 peer_port 5556", Slug: "fou_del_local_peer", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: fouPeerSetup},
+	{Name: "fou de port 5555", Slug: "fou_del_partial", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: fouPeerSetup},
+
 	// G5-T03: one `show` per generic netlink family, in the C2 order, with
-	// `ip` in goip's place until the family's G6 task implements it; four
-	// remain, tcp_metrics', sr's, ioam's and mptcp's rows above having
-	// replaced their own. The captures keep NETLINK_GENERIC and the comparator compares a genl
+	// `ip` in goip's place until the family's G6 task implements it; three
+	// remain, tcp_metrics', sr's, ioam's, mptcp's and fou's rows above
+	// having replaced their own. The captures keep NETLINK_GENERIC and the comparator compares a genl
 	// message by its family's name, so these rows exercise the harness end
 	// to end, ungated. Each is genl_init_handle's CTRL_CMD_GETFAMILY and its
 	// reply, then the dump and its DONE, or for tunsrc the get and its reply:
 	// four datagrams, as on C2's empty shows, since every family is empty in
 	// the dump topology. They come last: the driver runs nltopo::late_setup,
 	// which loads the families' modules, before the first genl row.
-	{Name: "fou show", Slug: "genl_fou_show", Floor: 4, Proto: ProtoGenericCst, IPStandIn: true},
 	{Name: "ila show", Slug: "genl_ila_show", Floor: 4, Proto: ProtoGenericCst, IPStandIn: true},
 	{Name: "l2tp show tunnel", Slug: "genl_l2tp_show_tunnel", Floor: 4, Proto: ProtoGenericCst, IPStandIn: true},
 	{Name: "macsec show", Slug: "genl_macsec_show", Floor: 4, Proto: ProtoGenericCst, IPStandIn: true},
@@ -3005,6 +3059,20 @@ var mptcpEp1BackupSetup = append(slices.Clone(tcpmAddrsSetup), "mptcp endpoint a
 
 // mptcpEp2Setup is PRE_EP2: PRE_EP1 and a signal endpoint on d0, id 2.
 var mptcpEp2Setup = append(slices.Clone(mptcpEp1Setup), "mptcp endpoint add 2001:db8::1 id 2 dev d0 signal")
+
+// fou1Setup is genl-write-corpus.exp's PRE_FOU: one direct port.
+var fou1Setup = []string{"fou add port 5555 ipproto 4"}
+
+// fou2Setup is PRE_FOU2: that port and a gue one over IPv6.
+var fou2Setup = []string{"fou add port 5555 ipproto 4", "fou add port 5556 gue -6"}
+
+// fouPeerSetup is PRE_FOU_PEER: PRE_ADDRS and a port with both addresses.
+var fouPeerSetup = append(slices.Clone(tcpmAddrsSetup),
+	"fou add port 5555 ipproto 4 local 192.0.2.1 peer 192.0.2.2 peer_port 5556")
+
+// fouDevSetup is fou_add_dev's precondition and command, the state its
+// readback shows: PRE_ADDRS and a port bound to d0.
+var fouDevSetup = append(slices.Clone(tcpmAddrsSetup), "fou add port 5555 ipproto 4 local 192.0.2.1 dev d0")
 
 // The write rows' preconditions, as capture-link-writes.exp spells them:
 // PRE_BOND, PRE_PORT and PRE_ENSLAVED there.
