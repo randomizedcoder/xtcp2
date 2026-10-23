@@ -77,6 +77,9 @@ in
   # The self-test's wait_metric_ge (nix/microvms/self-test-wait-metric.nix),
   # the wall-clock counter wait behind the netns checks 8, 9, 10 and 16.
   self-test-wait-metric = import ./self-test-wait-metric.nix { inherit pkgs; };
+  # xtcp2-nlcap wait-linkwatch (nix/microvms/netlink-capture.nix), the
+  # settle wait goip-parity.exp runs after each Setup, on a fake sysfs.
+  nlcap-wait-linkwatch = import ./nlcap-wait-linkwatch.nix { inherit pkgs; };
   # proto-lint: NOT in the default check set. `buf lint` reaches out to
   # buf.build for module deps (protovalidate, googleapis), which the hermetic
   # Nix sandbox blocks. Run `buf lint` directly from `nix develop`, where buf

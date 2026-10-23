@@ -712,16 +712,19 @@ Still to do:
     delete counts fall short while 20 stress containers churn namespaces (the
     load flake noted under check 16 below); the stress runner doesn't gate on
     the self-test.
-- the bond link-write parity rows flake on the 7.3 kernel. Two
-  `microvm-x86_64-goip-parity` runs (2026-10-22) failed 2 and 3 of
+- ~~the bond link-write parity rows flake on the 7.3 kernel~~: fixed
+  2026-10-22 (4bfac123). Two runs had failed 2 and 3 of
   `link_write_enslave_up`, `_nomaster`, `_slave_queue_id` and
-  `_slave_actor_port_prio`, a different set each time, every finding only
-  IFF_RUNNING (0x40) in a reply's ifi_flags, in both directions. Carrier on
-  the bond slave settles asynchronously and the control pass only sometimes
-  sees it. Either wait for carrier before each row in the driver, or have the
-  comparator treat IFF_RUNNING in link-write replies as control noise. The
-  rest matched V068: `-4 netconf show dev` FAIL (HYGIENE_FAIL 2), the 7
-  ungated WARNs (`netconf show dev`, six `stats show`), 172-173 PASS.
+  `_slave_actor_port_prio`, each finding IFF_RUNNING (0x40) in la1's
+  ifi_flags. The first guess, bond slave carrier, was wrong: la1 is a veth
+  up with its peer down, and its operstate reads UNKNOWN, so the reply
+  carries RUNNING, until linkwatch sets DOWN up to a second later. Each side
+  of a write row gets its own namespace and Setup, so a side captured inside
+  that second differed. The driver now runs `xtcp2-nlcap wait-linkwatch`
+  after every Setup (sysfs only, no netlink); checked hermetically by
+  `checks.nlcap-wait-linkwatch`. Three live runs: all four rows PASS, 178
+  PASS, 7 WARN, 1 FAIL (`-4 netconf show dev`), no wait timeouts
+  (coverage-status.md, "Measured on 2026-10-22").
 - ~~the `nexthop show dev|master|vrf` selectors aren't in the parity
   matrix~~: done 2026-10-22, gated on two live runs (coverage-status.md,
   "Measured on 2026-10-22").
