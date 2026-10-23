@@ -226,6 +226,9 @@ type runCtx struct {
 	// reads them; Run refuses them for every other object.
 	brief   bool
 	oneline bool
+	// genlIDs is the generic netlink family ids resolved so far, by name:
+	// genl_init_handle asks once per family per run. See genlFamily.
+	genlIDs map[string]uint16
 	// seq is the sequence number to put on the next request. iproute2 seeds it
 	// from time(NULL) and increments per request; goip starts at 1 and
 	// increments, because the parity comparator zeroes nlmsg_seq before

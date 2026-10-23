@@ -3908,6 +3908,15 @@ boots that gave a family different ids compare clean. `TestGenlCorpus` checks
 all 165 C2 rows that way. No matrix row reads a genl capture yet; G5-T03 adds
 them.
 
+### G5-T02: goip's generic netlink transport
+
+G5-T02 gives goip a `NETLINK_GENERIC` socket, opened on first use, and
+`genl_resolve_family`'s lookup: one version-0 `CTRL_CMD_GETFAMILY` per family,
+cached for the run (`internal/goip/source_genl.go`). Every GETFAMILY by name
+in the C2 `ip.pcap`s is goip's request byte for byte, and a replay answers a
+genl request from the recorded exchange with the same bytes. No goip object
+uses it yet; G6 adds them.
+
 ## Tier C — the `goip-parity` microVM flavor
 
 The last piece of Item 6, and the only one that needs a live machine: a third

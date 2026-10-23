@@ -1,6 +1,7 @@
 package xtcpnl
 
 import (
+	"bytes"
 	"encoding/hex"
 	"math"
 	"testing"
@@ -109,6 +110,62 @@ func TestEthtoolGetCommands(t *testing.T) {
 			})
 			if err != nil {
 				t.Fatal(err)
+			}
+		})
+	}
+}
+
+// TestBuildGetFamilyRequestVersion is the GETFAMILY builder with the
+// genlmsghdr version given: 0 is iproute2's genl_resolve_family.
+func TestBuildGetFamilyRequestVersion(t *testing.T) {
+	tests := []struct {
+		description string
+		name        string
+		version     uint8
+		expected    string
+		wantErr     bool
+	}{
+		{
+			// fou_add/ip.pcap's first record, under sequence number 0.
+			description: "positive: ip's GETFAMILY for fou, version 0",
+			name:        "fou", version: 0,
+			expected: "1c0000001000010000000000000000000300000008000200666f7500",
+		},
+		{
+			// strace of `ip tcp_metrics show` on iproute2-7.1.0.
+			description: "boundary: tcp_metrics, 12 bytes with its terminator, no padding",
+			name:        "tcp_metrics", version: 0,
+			expected: "2400000010000100000000000000000003000000100002007463705f6d65747269637300",
+		},
+		{
+			description: "positive: version 2 is BuildGetFamilyRequest's",
+			name:        "fou", version: 2,
+			expected: "1c0000001000010000000000000000000302000008000200666f7500",
+		},
+		{
+			description: "negative: an empty name is refused",
+			name:        "", version: 0, wantErr: true,
+		},
+		{
+			description: "corner: a version past any the controller knows is sent as given",
+			name:        "fou", version: 0xff,
+			expected: "1c00000010000100000000000000000003ff000008000200666f7500",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			got, err := BuildGetFamilyRequestVersion(tc.name, tc.version, 0)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("err = %v, want error %v", err, tc.wantErr)
+			}
+			if hex.EncodeToString(got) != tc.expected {
+				t.Errorf("request\n  got  %x\n  want %s", got, tc.expected)
+			}
+			if tc.version == 2 && !tc.wantErr {
+				old, err := BuildGetFamilyRequest(tc.name, 0)
+				if err != nil || !bytes.Equal(old, got) {
+					t.Errorf("BuildGetFamilyRequest = %x, %v; want %x", old, err, got)
+				}
 			}
 		})
 	}

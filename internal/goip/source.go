@@ -62,10 +62,14 @@ func wholeMsg(h xtcpnl.NlMsgHdr, body []byte) []byte {
 	return b
 }
 
-// NetlinkSource is the live implementation: a bound NETLINK_ROUTE socket.
+// NetlinkSource is the live implementation: a bound NETLINK_ROUTE socket, and
+// the NETLINK_GENERIC one a genl object opens on first use (source_genl.go).
 type NetlinkSource struct {
 	fd int
 	sa *unix.SockaddrNetlink
+	// gfd is the genl socket, valid when gopen is set.
+	gfd   int
+	gopen bool
 }
 
 // OpenNetlink opens and binds a NETLINK_ROUTE socket.
@@ -173,14 +177,19 @@ func openNetlink(rcvTimeout time.Duration) (*NetlinkSource, error) {
 	return &NetlinkSource{fd: fd, sa: &unix.SockaddrNetlink{Family: unix.AF_NETLINK}}, nil
 }
 
-// Close releases the socket.
+// Close releases the sockets.
 func (s *NetlinkSource) Close() error {
+	var gerr error
+	if s.gopen {
+		gerr = unix.Close(s.gfd)
+		s.gopen = false
+	}
 	if s.fd < 0 {
-		return nil
+		return gerr
 	}
 	err := unix.Close(s.fd)
 	s.fd = -1
-	return err
+	return errors.Join(err, gerr)
 }
 
 // Dump sends the request and collects every reply body of msgType. A dump
@@ -275,9 +284,15 @@ func (s *NetlinkSource) Talk(request []byte, msgType uint16) ([]byte, error) {
 //
 // Portid 0 means "every reply", which is right for a clean single-tool
 // capture and wrong for this one.
+//
+// The capture's NETLINK_GENERIC records are read too, segmented into the
+// exchanges a genl object replays by request (source_genl.go).
 type ReplaySource struct {
 	cap    nlparity.Capture
 	portid uint32
+	// gseg is the capture's genl exchanges, and gused the ones replayed.
+	gseg  nlparity.Segmentation
+	gused map[int]bool
 }
 
 // OpenReplay reads a DLT_NETLINK pcap from disk and replays every reply in it.
@@ -293,7 +308,11 @@ func OpenReplayPortid(path string, portid uint32) (*ReplaySource, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ReplaySource{cap: c, portid: portid}, nil
+	g, err := nlparity.ParseCaptureFile(path, unix.NETLINK_GENERIC)
+	if err != nil {
+		return nil, err
+	}
+	return &ReplaySource{cap: c, portid: portid, gseg: nlparity.SegmentCapture(g)}, nil
 }
 
 // NewReplayFromBytes builds a replay source from pcap bytes already in memory.
@@ -302,7 +321,11 @@ func NewReplayFromBytes(data []byte) (*ReplaySource, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ReplaySource{cap: c}, nil
+	g, err := nlparity.ParseCapture(data, unix.NETLINK_GENERIC)
+	if err != nil {
+		return nil, err
+	}
+	return &ReplaySource{cap: c, gseg: nlparity.SegmentCapture(g)}, nil
 }
 
 // Dump returns every recorded reply body of msgType, in capture order.

@@ -2649,6 +2649,26 @@ The tests (`pkg/nlparity/nlparity_genl_test.go`, 65 subtests):
 | positive, negative, corner, boundary: normalization of two ACKs, two families' replies, one family under two ids, a GETFAMILY carrying an id, a genl attribute on `IFA_CACHEINFO`'s numbers, cut bodies | equal where the boot chose the difference; different otherwise, an input never edited |
 | positive, negative, boundary: dump entries keyed by ordinal: equal, one fewer, one different, empty | none, key-set, `attr(1)` value, none |
 
+**G5-T02 delivered** (`internal/goip/source_genl.go`):
+- **The socket.** `NetlinkSource` opens a `NETLINK_GENERIC` socket on first use, as `genl_init_handle` does (`lib/libgenl.c:142`), so a run that reaches no genl object opens none. The options are `rtnl_open_byproto`'s (`lib/libnetlink.c:193`): `SO_SNDBUF` 32768, `SO_RCVBUF` 1 MiB and `NETLINK_EXT_ACK`. There is no `NETLINK_GET_STRICT_CHK`, which `ip.c` sets on the route socket only. `Close` closes both sockets.
+- **The transport.** `GenlSource` is a source's genl side. `GenlDump` returns the bodies of the replies of the request's own type, the family id, or the errno a `NLMSG_DONE` carried. `GenlTalk` returns the one reply's type and body: both zero for an ACK, or an error for a refusal. A source without a genl side makes a genl object not implemented.
+- **The resolution.** `runCtx.genlFamily` is `genl_resolve_family`: one `CTRL_CMD_GETFAMILY` by name, the first time a family is asked for. It is built by `xtcpnl.BuildGetFamilyRequestVersion` with `GENL_REQUEST`'s version 0 (`lib/libgenl.c:52`). `BuildGetFamilyRequest` keeps version 2 for `pkg/linkmonitor`. The answer is read as `genl_parse_getfamily` reads it: a controller message, then `ParseGenericNetlinkFamily`'s `CTRL_CMD_NEWFAMILY` with an id. The id is cached for the run, and a refusal is not cached. Any failure wraps `ErrGenlResolve` and the kernel's errno, ENOENT for a family not registered.
+- **The replay.** `ReplaySource` also reads the capture's `NETLINK_GENERIC` records and replays them by exchange. A genl request is answered by the first recorded exchange not yet replayed whose request is the same bytes, `nlmsg_seq` and `nlmsg_pid` aside. A request `ip` did not send has no answer (`ErrNoReplay`). The route socket's portid filter does not apply, since `ip`'s genl socket is another port.
+
+The tests (`internal/goip/source_genl_test.go`, and `TestBuildGetFamilyRequestVersion` in `pkg/xtcpnl`):
+
+| description | expected |
+|---|---|
+| positive, boundary: every `CTRL_CMD_GETFAMILY` by name in each of the eight C2 families' `ip.pcap`, fou through tcp_metrics | goip's request byte for byte, sequence number aside; the id the capture names, resolved through a replay of it; 21, 15, 21, 24, 32, 27, 11 and 14 rows |
+| positive, negative, boundary, corner: resolution over a fake source: an answer, a second ask, ENOENT, ENOENT asked twice, another family's answer, an ACK, no id, another controller command, a 15-byte and a 16-byte name, a source with no genl side | the id with one request, then none; the errno; two requests; `not a controller message`; `ErrGenlResolve`; a 16-byte name refused unsent; not implemented. Each request a version-0 GETFAMILY |
+| positive, negative, boundary, corner: replays of `fou_add`, `fou_add_dup`, `sr_tunsrc_show`, `sr_hmac_show` and `sr_hmac_show_empty`; a request one byte off, sent twice, short, or shorter than its `nlmsg_len` | the NEWFAMILY; the ACK; EADDRINUSE; the reply; two entries; none; `ErrNoReplay` and `ErrShortRequest` |
+| positive, negative, corner: constructed dump exchanges: a clean DONE, DONE with EPERM, an EOPNOTSUPP refusal, a reply of another type | one entry; the errno; no entries |
+| positive, negative: a genl request against the genl capture, the same bytes in memory, and a route capture | answered, answered, `ErrNoReplay` |
+| positive, negative, corner (live): `nlctrl`, an unregistered family, `nlctrl` again; the controller's family dump; the socket after a resolution, without one, and over two requests | 16, ENOENT, 16 from the cache; a dump naming `nlctrl`; opened, then closed (EBADF after `Close`), never opened, one socket |
+| positive, boundary, negative, corner: `BuildGetFamilyRequestVersion` for fou and tcp_metrics at version 0, fou at 2 and 255, an empty name | the captured bytes and the strace of `ip tcp_metrics show`; `BuildGetFamilyRequest`'s; the version as given; refused |
+
+Live on the host, goip resolved the seven families registered there to the ids `genl ctrl get` prints (`nlctrl` 16, `IOAM6` 37, `l2tp` 42, `macsec` 40, `mptcp_pm` 32, `SEG6` 36, `tcp_metrics` 31). fou and ila are not registered, and goip's ENOENT is `ip`'s "No such file or directory". The GETFAMILY strace'd from `ip tcp_metrics show` is goip's byte for byte.
+
 ### G6 — genl objects
 
 One task per family, in the C2 order.
