@@ -5,6 +5,7 @@ xtcp2 is built to run as a long-lived daemon, so it ships first-class observabil
 ## Table of contents
 
 - [Prometheus metrics](#prometheus-metrics)
+- [Scraping with listener auth](#scraping-with-listener-auth)
 - [Health & readiness](#health--readiness)
 - [Link monitor](#link-monitor)
 - [pprof](#pprof)
@@ -20,6 +21,42 @@ xtcp2 is built to run as a long-lived daemon, so it ships first-class observabil
 The listener is bound before the daemon starts, so a bad address, a port in use or an invalid listener auth config fails startup with an error. On shutdown the server drains in-flight requests for up to 3 s, then closes.
 
 Two per-record series are off by default because at 100k sockets they cost more CPU than the decode: `xtcp_counts{function="Deserialize", variable="n"}` and `xtcp_histograms{function="Deserialize", variable="nlPacketComplete"}`. Turn them on with `-debugPrometheus` (or `DEBUG_PROMETHEUS=true`). `flatRecordServiceSend`'s `start` and `complete` series only move while a gRPC client is streaming records. For records decoded, use `xtcp_counts{variable="p"}` (per decoder) or `Deserialize` `envelopeAppend`. See [metrics on the decode path](performance.md#metrics-on-the-decode-path), and the [metrics reference](metrics.md) for every series, what it counts and which ones are on by default.
+
+## Scraping with listener auth
+
+With `-listenerAuthMode raw` every path on the listener, `/metrics` included, needs `Authorization: Bearer <token>`; without it the reply is `401`. Set `-listenerAdminAuthMode raw` too, with a different token, and the first token becomes read-only: it can scrape `/metrics` and the link monitor paths, but `/debug/pprof/` answers `403`. The design is in [design-listener-security-hardening.md](design-listener-security-hardening.md).
+
+Give xtcp2 the tokens as files, so they stay out of `ps` and `docker inspect`:
+
+```sh
+umask 077
+head -c 32 /dev/urandom | base64 | tr -d '\n=' > /etc/xtcp2/listener_read_token
+head -c 32 /dev/urandom | base64 | tr -d '\n=' > /etc/xtcp2/listener_admin_token
+```
+
+```sh
+LISTENER_AUTH_MODE=raw
+LISTENER_RAW_TOKEN_FILE=/etc/xtcp2/listener_read_token
+LISTENER_ADMIN_AUTH_MODE=raw
+LISTENER_ADMIN_RAW_TOKEN_FILE=/etc/xtcp2/listener_admin_token
+```
+
+The scraper only needs the read token. vmagent and Prometheus take it with `credentials_file`:
+
+```yaml
+scrape_configs:
+  - job_name: xtcp2
+    metrics_path: /metrics
+    authorization:
+      type: Bearer
+      credentials_file: /config/xtcp2_read_token
+    static_configs:
+      - targets: ["127.0.0.1:9088"]
+```
+
+vmagent re-reads `credentials_file` on each scrape (cached for at most 1 s), so rotating a token is: write the new file for both, then restart xtcp2, which reads its token file at startup. The scrape fails between the two steps, so do them together. `xtcp2 -healthcheck` reads the same settings and sends the token, over TCP or a Unix socket.
+
+The default TCP listener sends replies with TTL / hop limit 3 (`-ipv4Ttl`, `-ipv6HopLimit`), so a scraper more than three hops away gets no answer. Raise them only for a scraper that really is further away.
 
 ## Health & readiness
 

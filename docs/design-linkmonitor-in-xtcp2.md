@@ -152,7 +152,7 @@ Every setting is a flag with a matching `LINK_MONITOR_*` environment variable an
 
 ## Access control
 
-The detail paths take the Prometheus listener's policy (`-promListenAuth…`, [design-listener-security-hardening.md](design-listener-security-hardening.md)): read access, like `/metrics`. pprof stays admin-only. Rebaseline over gRPC needs admin access. SIGUSR1 and `systemctl reload` need local root or the service user, as for go-link-monitor.
+The detail paths take the Prometheus listener's policy (`-listenerAuthMode` and `-listenerAdminAuthMode`, [design-listener-security-hardening.md](design-listener-security-hardening.md)): read access, like `/metrics`. pprof stays admin-only. Rebaseline over gRPC needs admin access. SIGUSR1 and `systemctl reload` need local root or the service user, as for go-link-monitor.
 
 ## Code layout
 

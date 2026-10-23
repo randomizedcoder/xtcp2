@@ -2,7 +2,10 @@
 
 ## Status
 
-Investigation / design proposal. No code change yet.
+Implemented: the loader, startup fallback, cache publication and the
+`*-bootstrap` OCI images. Progress and open items are in
+[status-embedded-ipmeta-bootstrap.md](status-embedded-ipmeta-bootstrap.md).
+The text below is the original design proposal.
 
 This document captures the cold-start and fleet-scale concerns around xtcp2's
 destination IP metadata enrichment path and lays out options for embedding
