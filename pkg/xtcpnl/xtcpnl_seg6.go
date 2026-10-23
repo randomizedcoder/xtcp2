@@ -30,6 +30,10 @@ const (
 	Seg6AttrSecretLen uint16 = 5 // u8
 	Seg6AttrAlgID     uint16 = 6 // u8, SEG6_HMAC_ALGO_SHA1 (1) or SHA256 (2)
 	Seg6AttrHmacInfo  uint16 = 7 // nested, unused
+
+	// SEG6_HMAC_ALGO_* (include/uapi/linux/seg6_hmac.h), SEG6_ATTR_ALGID.
+	Seg6HmacAlgoSHA1   uint8 = 1
+	Seg6HmacAlgoSHA256 uint8 = 2
 )
 
 // Seg6 is a decoded SEG6 message. Dst is the zero netip.Addr when absent;

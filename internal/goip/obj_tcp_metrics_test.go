@@ -34,9 +34,16 @@ func tcpmRun(t *testing.T, src Source, family uint8, json, stats bool, args stri
 	return stdout.String(), stderr.String(), writes, err
 }
 
-// tcpmWrites reads a GOIP_WRITE_OUT file of tcp_metrics DELs, as the parity
-// comparator does, its family named for the id the first one carries.
+// tcpmWrites reads a GOIP_WRITE_OUT file of tcp_metrics DELs.
 func tcpmWrites(t *testing.T, path string) []nlparity.Msg {
+	t.Helper()
+	return genlWrites(t, path, xtcpnl.TCPMetricsGenlName)
+}
+
+// genlWrites reads a GOIP_WRITE_OUT file of one family's genl writes, as
+// the parity comparator does, the family named for the id the first one
+// carries.
+func genlWrites(t *testing.T, path, family string) []nlparity.Msg {
 	t.Helper()
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -46,7 +53,7 @@ func tcpmWrites(t *testing.T, path string) []nlparity.Msg {
 		t.Fatalf("%s: %d bytes", path, len(b))
 	}
 	id := uint16(b[4]) | uint16(b[5])<<8
-	msgs, err := nlparity.ParseWriteRequestsProto(b, unix.NETLINK_GENERIC, map[uint16]string{id: xtcpnl.TCPMetricsGenlName})
+	msgs, err := nlparity.ParseWriteRequestsProto(b, unix.NETLINK_GENERIC, map[uint16]string{id: family})
 	if err != nil {
 		t.Fatal(err)
 	}

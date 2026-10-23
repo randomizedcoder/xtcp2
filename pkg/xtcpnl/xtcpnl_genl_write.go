@@ -16,6 +16,10 @@ import (
 // tcp_metrics requests carry (TCPM_REQUEST, ip/tcp_metrics.c).
 const TCPMetricsGenlVersion uint8 = 1
 
+// Seg6GenlVersion is SEG6_GENL_VERSION, the version ip's sr requests carry
+// (SEG6_REQUEST, ip/ipseg6.c).
+const Seg6GenlVersion uint8 = 1
+
 // genlMsgHdrLenCst is sizeof(struct genlmsghdr).
 const genlMsgHdrLenCst = 4
 
@@ -31,9 +35,17 @@ var (
 
 // IsAdmittedGenlWrite reports whether a generic netlink family's command is
 // a write goip may build: tcp_metrics' TCP_METRICS_CMD_DEL, `ip tcp_metrics
-// delete` and `flush` (ip/tcp_metrics.c). The family is its controller name.
+// delete` and `flush` (ip/tcp_metrics.c), and SEG6's SETHMAC and
+// SET_TUNSRC, `ip sr hmac set` and `ip sr tunsrc set` (ip/ipseg6.c). The
+// family is its controller name.
 func IsAdmittedGenlWrite(family string, cmd uint8) bool {
-	return family == TCPMetricsGenlName && cmd == TCPMetricsCmdDel
+	switch family {
+	case TCPMetricsGenlName:
+		return cmd == TCPMetricsCmdDel
+	case Seg6GenlName:
+		return cmd == Seg6CmdSetHmac || cmd == Seg6CmdSetTunsrc
+	}
+	return false
 }
 
 // BuildGenlRequest lays out a generic netlink read request: the family id as

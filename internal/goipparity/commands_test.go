@@ -1,6 +1,7 @@
 package goipparity
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"os"
@@ -434,9 +435,9 @@ func TestCommandString(t *testing.T) {
 		wantFields []string
 	}{
 		{
-			description: "positive: an implemented command with no device renders nine fields",
+			description: "positive: an implemented command with no device renders ten fields",
 			name:        "link show",
-			wantFields:  []string{"link_show", "2", "yes", "no", "no", "route", "-", "link show", "link show"},
+			wantFields:  []string{"link_show", "2", "yes", "no", "no", "route", "-", "-", "link show", "link show"},
 		},
 		{
 			// Synthetic since `route show` was implemented: the table holds
@@ -447,20 +448,20 @@ func TestCommandString(t *testing.T) {
 				Name: "rule show", Slug: "rule_show", Floor: 2,
 				Args: []string{"rule", "show"},
 			},
-			wantFields: []string{"rule_show", "2", "no", "no", "no", "route", "-", "rule show", "rule show"},
+			wantFields: []string{"rule_show", "2", "no", "no", "no", "route", "-", "-", "rule show", "rule show"},
 		},
 		{
 			description: "boundary: the implemented dev-taking command renders dev=yes and its Args without a device",
 			name:        "link show dev",
 			wantFields: []string{
-				"link_show_dev", "4", "yes", "yes", "no", "route", "-", "link show dev", "link show dev",
+				"link_show_dev", "4", "yes", "yes", "no", "route", "-", "-", "link show dev", "link show dev",
 			},
 		},
 		{
 			description: "corner: a command whose name carries a leading dash keeps it, since that dash is an argument",
 			name:        "-6 addr show",
 			wantFields: []string{
-				"addr_show_v6", "4", "yes", "no", "no", "route", "-", "-6 addr show", "-6 addr show",
+				"addr_show_v6", "4", "yes", "no", "no", "route", "-", "-", "-6 addr show", "-6 addr show",
 			},
 		},
 		{
@@ -469,7 +470,7 @@ func TestCommandString(t *testing.T) {
 			wantFields: []string{
 				"link_write_nomaster", "4", "yes", "no", "yes", "route",
 				"link add bond0 type bond mode 802.3ad;link add la1 type veth peer name lb1;link set la1 master bond0",
-				"link set la1 nomaster", "link set la1 nomaster",
+				"-", "link set la1 nomaster", "link set la1 nomaster",
 			},
 		},
 		{
@@ -480,7 +481,7 @@ func TestCommandString(t *testing.T) {
 				"link add bond0 type bond mode 802.3ad;link add la1 type veth peer name lb1;" +
 					"link add la2 type veth peer name lb2;link set la1 master bond0;" +
 					"link set la2 master bond0;link set bond0 up",
-				"stats show dev la1 group xstats_slave subgroup bond suite 802.3ad",
+				"-", "stats show dev la1 group xstats_slave subgroup bond suite 802.3ad",
 				"stats show dev la1 group xstats_slave subgroup bond suite 802.3ad",
 			},
 		},
@@ -489,7 +490,7 @@ func TestCommandString(t *testing.T) {
 			cmd:         lookupPtr(t, "link add d0 type dummy"),
 			wantFields: []string{
 				"link_write_add_dummy", "2", "yes", "no", "yes", "route", "-",
-				"link add d0 type dummy", "link add d0 type dummy",
+				"-", "link add d0 type dummy", "link add d0 type dummy",
 			},
 		},
 		{
@@ -500,7 +501,7 @@ func TestCommandString(t *testing.T) {
 				"link add bond0 type bond mode 802.3ad;link add la1 type veth peer name lb1;" +
 					"link add la2 type veth peer name lb2;link set la1 master bond0;" +
 					"link set la2 master bond0;link set bond0 up",
-				"-d link show dev bond0", "-d link show dev bond0",
+				"-", "-d link show dev bond0", "-d link show dev bond0",
 			},
 		},
 		{
@@ -510,13 +511,29 @@ func TestCommandString(t *testing.T) {
 				"route_write_v6_del", "4", "yes", "no", "yes", "route",
 				"link add d0 type dummy;link set d0 up;addr add 192.0.2.1/24 dev d0;" +
 					"-6 addr add 2001:db8::1/64 nodad dev d0;-6 route add 2001:db8:1::/64 dev d0",
-				"-6 route del 2001:db8:1::/64 dev d0", "-6 route del 2001:db8:1::/64 dev d0",
+				"-", "-6 route del 2001:db8:1::/64 dev d0", "-6 route del 2001:db8:1::/64 dev d0",
 			},
 		},
 		{
 			description: "positive: an ip stand-in genl row renders impl=ip and proto=generic",
 			name:        "fou show",
-			wantFields:  []string{"genl_fou_show", "4", "ip", "no", "no", "generic", "-", "fou show", "fou show"},
+			wantFields:  []string{"genl_fou_show", "4", "ip", "no", "no", "generic", "-", "-", "fou show", "fou show"},
+		},
+		{
+			description: "positive: a write row with a stdin line renders > and the line",
+			name:        "sr hmac set 1 sha256",
+			wantFields: []string{
+				"sr_hmac_set", "4", "yes", "no", "yes", "generic", "-", ">s3cret",
+				"sr hmac set 1 sha256", "sr hmac set 1 sha256",
+			},
+		},
+		{
+			description: "boundary: a blank stdin line, the delete, renders > alone",
+			name:        "sr hmac se 1 sha256",
+			wantFields: []string{
+				"sr_hmac_delete", "4", "yes", "no", "yes", "generic", "hmac 1 sha256 s3cret;hmac 2 sha1 0ther", ">",
+				"sr hmac se 1 sha256", "sr hmac se 1 sha256",
+			},
 		},
 		{
 			description: "corner: a single setup step has no separator",
@@ -524,7 +541,7 @@ func TestCommandString(t *testing.T) {
 			wantFields: []string{
 				"link_write_replace_existing", "2", "yes", "no", "yes", "route",
 				"link add bond0 type bond mode 802.3ad",
-				"link replace bond0 type bond", "link replace bond0 type bond",
+				"-", "link replace bond0 type bond", "link replace bond0 type bond",
 			},
 		},
 	}
@@ -560,8 +577,8 @@ func TestCommandString(t *testing.T) {
 			// The last two fields are the joined argv and the name, both of
 			// which contain spaces by construction — they are last precisely
 			// so a `read -r slug floor impl dev args name` still works. Every
-			// leading field has to be space-free for that to hold.
-			for i := 0; i < 6; i++ {
+			// leading field but setup has to be space-free for that to hold.
+			for _, i := range []int{0, 1, 2, 3, 4, 5, 7} {
 				if strings.ContainsAny(f[i], " \t") {
 					t.Errorf("%q field %d = %q contains whitespace", c.Name, i, f[i])
 				}
@@ -571,9 +588,26 @@ func TestCommandString(t *testing.T) {
 
 	t.Run("corner: no field may contain a tab, or the field count would be wrong", func(t *testing.T) {
 		for _, c := range Commands() {
-			if n := len(strings.Split(c.String(), "\t")); n != 9 {
-				t.Errorf("%q renders %d fields, want 9", c.Name, n)
+			if n := len(strings.Split(c.String(), "\t")); n != 10 {
+				t.Errorf("%q renders %d fields, want 10", c.Name, n)
 			}
+		}
+	})
+
+	t.Run("negative: a Stdin is on an implemented write row only, letters and digits, which echo and the shell pass unchanged", func(t *testing.T) {
+		n := 0
+		for _, c := range Commands() {
+			if c.Stdin == nil {
+				continue
+			}
+			n++
+			if !c.Write || !c.Implemented || strings.TrimFunc(*c.Stdin, isAlnum) != "" {
+				t.Errorf("%q: write %v, implemented %v, stdin %q", c.Name, c.Write, c.Implemented, *c.Stdin)
+			}
+		}
+		// boundary: the six sr hmac set rows, and no other.
+		if n != 6 {
+			t.Errorf("%d rows have a Stdin, want 6", n)
 		}
 	})
 
@@ -1038,19 +1072,20 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	//   - the nine `neigh` write and flush rows G3-T01 added, likewise —
 	//     see TestNeighWriteRows;
 	//   - the fourteen `tcp_metrics` rows G6-T01 added in place of its
-	//     stand-in, likewise — see TestTCPMetricsRows.
+	//     stand-in, likewise — see TestTCPMetricsRows;
+	//   - the eleven `sr` rows G6-T02 added in place of its stand-in,
+	//     likewise — see TestSrRows.
 	//
 	// The last four were the permanent set, measured divergent on the wire;
 	// TestPermanentWireDivergences records that it is empty.
 	//
-	// The seven genl rows G5-T03 added and G6 has not yet replaced are
+	// The six genl rows G5-T03 added and G6 has not yet replaced are
 	// ungated by construction: `ip`
 	// stands in for goip on them (IPStandIn) until each family's G6 task
 	// implements it, and gating `ip` against `ip` would gate nothing about
 	// goip. TestGenlStandInRows pins them.
 	expected := []string{
 		"addr show dynamic",
-		"sr tunsrc show",
 		"ioam namespace show",
 		"mptcp endpoint show",
 		"fou show",
@@ -1064,15 +1099,15 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 		check       func(t *testing.T)
 	}{
 		{
-			description: "boundary: the list is eight named rows, one held out and seven stand-ins",
+			description: "boundary: the list is seven named rows, one held out and six stand-ins",
 			check: func(t *testing.T) {
-				if len(expected) != 8 {
-					t.Errorf("got %d named rows, want 8", len(expected))
+				if len(expected) != 7 {
+					t.Errorf("got %d named rows, want 7", len(expected))
 				}
 			},
 		},
 		{
-			description: "positive: the ungated set is exactly the eight named rows, so UNGATED_CLEAN counts them and not zero",
+			description: "positive: the ungated set is exactly the seven named rows, so UNGATED_CLEAN counts them and not zero",
 			check: func(t *testing.T) {
 				for _, name := range expected {
 					if !ungated[name] {
@@ -3422,8 +3457,8 @@ func TestNetnsRows(t *testing.T) {
 	})
 }
 
-// TestGenlStandInRows pins G5-T03's genl rows, seven since G6-T01 replaced
-// tcp_metrics': one `show` per family in the C2 order, NETLINK_GENERIC, `ip`
+// TestGenlStandInRows pins G5-T03's genl rows, six since G6-T01 and G6-T02
+// replaced tcp_metrics' and sr's: one `show` per family in the C2 order, NETLINK_GENERIC, `ip`
 // in goip's place, floor 4, ungated, and with G6's rows after every route
 // row, since the driver loads the families' modules before the first of
 // them.
@@ -3439,11 +3474,12 @@ func TestGenlStandInRows(t *testing.T) {
 		gated[name] = true
 	}
 	want := []string{
-		"sr tunsrc show", "ioam namespace show", "mptcp endpoint show",
+		"ioam namespace show", "mptcp endpoint show",
 		"fou show", "ila show", "l2tp show tunnel", "macsec show",
 	}
-	// tcpmRows is G6-T01's rows, the first genl ones, ahead of the stand-ins.
-	const tcpmRows = 14
+	// tcpmRows and srRows are G6-T01's and G6-T02's rows, the first genl
+	// ones, ahead of the stand-ins.
+	const tcpmRows, srRows = 14, 11
 
 	cmds := Commands()
 	first := len(cmds)
@@ -3462,7 +3498,7 @@ func TestGenlStandInRows(t *testing.T) {
 		check       func(t *testing.T)
 	}{
 		{
-			description: "positive: the stand-ins are the seven unimplemented families' shows, in the C2 order",
+			description: "positive: the stand-ins are the six unimplemented families' shows, in the C2 order",
 			check: func(t *testing.T) {
 				if !slices.Equal(got, want) {
 					t.Errorf("stand-ins %q, want %q", got, want)
@@ -3492,8 +3528,8 @@ func TestGenlStandInRows(t *testing.T) {
 						t.Errorf("%q, a %s row, follows the first genl row", c.Name, c.Protocol())
 					}
 				}
-				if len(cmds)-first != tcpmRows+len(want) {
-					t.Errorf("%d rows from the first genl one, want %d", len(cmds)-first, tcpmRows+len(want))
+				if len(cmds)-first != tcpmRows+srRows+len(want) {
+					t.Errorf("%d rows from the first genl one, want %d", len(cmds)-first, tcpmRows+srRows+len(want))
 				}
 			},
 		},
@@ -3521,6 +3557,11 @@ func TestGenlStandInRows(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.description, tt.check)
 	}
+}
+
+// isAlnum is an ASCII letter or digit.
+func isAlnum(r rune) bool {
+	return r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9'
 }
 
 // tcpmTopology is a tcp_metrics row's Setup as its corpus capture's topology
@@ -3618,6 +3659,142 @@ func TestTCPMetricsRows(t *testing.T) {
 				got = want{implemented: c.Implemented, write: c.Write, proto: c.Proto,
 					topology: slices.Equal(tcpmTopology(c.Setup), corpusTopology(t, tdGenl, r.corpus)),
 					floor:    c.Floor, writes: c.Writes}
+			}
+			got.gated = al.IsGated(r.command)
+			got.entries = len(al.EntriesFor(r.command))
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+		})
+	}
+}
+
+// srTopology is an sr row's Setup as its corpus capture's topology file
+// records it: each `hmac KEYID ALGO SECRET` step as xtcp2-nlcap hmac's
+// line, the secret left out.
+func srTopology(setup []string) []string {
+	steps := make([]string, 0, len(setup))
+	for _, s := range setup {
+		f := strings.Fields(s)
+		steps = append(steps, "sr hmac set "+strings.Join(f[1:3], " "))
+	}
+	return steps
+}
+
+// srCorpusTopology is corpusTopology, or none for a capture that started
+// from an empty namespace and so has no topology file.
+func srCorpusTopology(t *testing.T, slug string) []string {
+	t.Helper()
+	if _, err := os.Stat(filepath.Join(tdGenl, slug, "topology")); errors.Is(err, os.ErrNotExist) {
+		return []string{}
+	}
+	return corpusTopology(t, tdGenl, slug)
+}
+
+// srCorpusStdin is the line a corpus row's SETHMAC was given: its SECRET,
+// SEG6_ATTR_SECRET (4), or the blank line when it has none; nil for a row
+// with no SETHMAC (SEG6_CMD_SETHMAC, 1).
+func srCorpusStdin(t *testing.T, slug string) *string {
+	t.Helper()
+	capture, err := nlparity.ParseCaptureFile(filepath.Join(tdGenl, slug, "ip.pcap"), 16)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range capture.Datagrams {
+		for _, m := range d.Msgs {
+			if !nlparity.IsWrite(m) || m.Body[0] != 1 {
+				continue
+			}
+			line := ""
+			for b := m.Body[4:]; len(b) >= 4; {
+				n := int(binary.LittleEndian.Uint16(b))
+				if n < 4 || n > len(b) {
+					t.Fatalf("%s: a bad attribute", slug)
+				}
+				if binary.LittleEndian.Uint16(b[2:]) == 4 {
+					line = string(b[4:n])
+				}
+				b = b[min((n+3)&^3, len(b)):]
+			}
+			return stdinLine(line)
+		}
+	}
+	return nil
+}
+
+// srShowOut is `ip sr hmac show`'s stdout and stderr for the keys a Setup
+// made, each secret cut at print_dumphmac's 63 bytes with its warning.
+func srShowOut(setup []string) (string, string) {
+	var out, errOut strings.Builder
+	for _, s := range setup {
+		f := strings.Fields(s)
+		secret := f[3]
+		if len(secret) > 63 {
+			fmt.Fprintf(&errOut, "HMAC secret length %d > 63, truncated\n", len(secret))
+			secret = secret[:63]
+		}
+		fmt.Fprintf(&out, "hmac %s algo %s secret %q\n", f[1], f[2], secret)
+	}
+	return out.String(), errOut.String()
+}
+
+// TestSrRows pins G6-T02's eleven rows: the C2 corpus's sr_* rows,
+// NETLINK_GENERIC, each on its capture's precondition, the keys it starts
+// from made by hmac steps whose secrets the shows print and warn of; the sets, write
+// rows reading the secret their capture's SETHMAC carries on stdin; and
+// the shows, read rows. Every one is gated with no allowlist entry after
+// two clean live runs.
+//
+// go test ./internal/goipparity/ -run TestSrRows
+func TestSrRows(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	type want struct {
+		implemented, write, topology, stdin, output, gated bool
+		proto                                              string
+		floor, entries                                     int
+	}
+	read := want{implemented: true, topology: true, stdin: true, output: true, gated: true, proto: ProtoGenericCst, floor: 4}
+	set := read
+	set.write = true
+	rows := []struct {
+		description string
+		command     string
+		corpus      string
+		expected    want
+	}{
+		{"boundary: show of no key, the dump topology's", "sr hmac s", "sr_hmac_show_empty", read},
+		{"positive: show of PRE_HMAC2's two keys", "sr hmac show", "sr_hmac_show", read},
+		{"boundary: show of a 64-byte secret, printed as 63", "sr hm show", "sr_hmac_show_64", read},
+		{"positive: tunsrc show, the dump topology's ::", "sr tunsrc show", "sr_tunsrc_show", read},
+		{"positive: set, sha256, its secret on stdin", "sr hmac set 1 sha256", "sr_hmac_set", set},
+		{"positive: set, sha1", "sr hmac set 2 sha1", "sr_hmac_set_sha1", set},
+		{"positive: set over PRE_HMAC1's key", "sr hmac set 1 sha1", "sr_hmac_replace", set},
+		{"positive: the delete, a blank line, over PRE_HMAC2", "sr hmac se 1 sha256", "sr_hmac_delete", set},
+		{"negative: a delete of no key, refused, the same request", "sr hmac set 9 sha256", "sr_hmac_delete_missing", set},
+		{"negative: a 65-byte secret, refused, the same request", "sr hmac set 3 sha256", "sr_hmac_set_long", set},
+		{"positive: tunsrc set, no stdin", "sr tunsrc set 2001:db8::1", "sr_tunsrc_set", set},
+		{"negative: the corpus's own spelling of the delete is the set's row, not a second one", "sr hmac set 1 sha256",
+			"sr_hmac_delete", want{implemented: true, write: true, topology: false, stdin: false, output: true,
+				gated: true, proto: ProtoGenericCst, floor: 4}},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			var got want
+			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				corpusStdin := srCorpusStdin(t, r.corpus)
+				out := true
+				if strings.HasPrefix(r.corpus, "sr_hmac_show") {
+					stdout, stderr := srShowOut(c.Setup)
+					out = mustRead(t, filepath.Join(tdGenl, r.corpus, "ip.out")) == stdout &&
+						mustRead(t, filepath.Join(tdGenl, r.corpus, "ip.err")) == stderr
+				}
+				got = want{implemented: c.Implemented, write: c.Write, proto: c.Proto, floor: c.Floor,
+					topology: slices.Equal(srTopology(c.Setup), srCorpusTopology(t, r.corpus)),
+					stdin:    (c.Stdin == nil) == (corpusStdin == nil) && (c.Stdin == nil || *c.Stdin == *corpusStdin),
+					output:   out}
 			}
 			got.gated = al.IsGated(r.command)
 			got.entries = len(al.EntriesFor(r.command))

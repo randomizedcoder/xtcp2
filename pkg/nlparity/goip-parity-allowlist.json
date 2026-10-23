@@ -1027,7 +1027,15 @@
     "a missing entry, flush all, of a prefix and -6, dry-run writes of the",
     "DEL. Entries' ages and RTTs are normalized and paired by address and",
     "source, not by the dump's hash order. Two consecutive clean runs of 294",
-    "GOIP_PARITY_PASS of 294 ended GOIP_PARITY_OVERALL_PASS."
+    "GOIP_PARITY_PASS of 294 ended GOIP_PARITY_OVERALL_PASS.",
+    "",
+    "G6-T02 adds sr in place of its G5-T03 stand-in, and gates the C2",
+    "corpus's 11 rows, each on its precondition, the keys made by hmac steps:",
+    "hmac show of no key, of two and of a 64-byte secret, and tunsrc show,",
+    "reads; hmac set of each algorithm, over a key, the delete, of a missing",
+    "key and of a 65-byte secret, each reading its secret on stdin under",
+    "setsid, and tunsrc set, dry-run writes. Two consecutive clean runs of",
+    "304 GOIP_PARITY_PASS of 304 ended GOIP_PARITY_OVERALL_PASS."
   ],
   "_note_version_skew": [
     "THE ENTRIES BELOW CITE COMMITS THAT ARE IN NO RELEASE, AND THE EVIDENCE IS",
@@ -1422,6 +1430,17 @@
     "tcp_metrics flush all",
     "tcp_metrics flush 192.0.2.0/24",
     "-6 tcp_metrics flush",
-    "tcp_metrics flush address 192.0.2.0/24"
+    "tcp_metrics flush address 192.0.2.0/24",
+    "sr hmac s",
+    "sr hmac show",
+    "sr hm show",
+    "sr tunsrc show",
+    "sr hmac set 1 sha256",
+    "sr hmac set 2 sha1",
+    "sr hmac set 1 sha1",
+    "sr hmac se 1 sha256",
+    "sr hmac set 9 sha256",
+    "sr hmac set 3 sha256",
+    "sr tunsrc set 2001:db8::1"
   ]
 }

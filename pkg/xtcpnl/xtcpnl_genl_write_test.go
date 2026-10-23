@@ -128,6 +128,12 @@ func TestIsAdmittedGenlWrite(t *testing.T) {
 		{"boundary: command 0, UNSPEC", TCPMetricsGenlName, 0, false},
 		{"corner: the name is case-sensitive, as the controller's is", "TCP_METRICS", TCPMetricsCmdDel, false},
 		{"corner: an unresolved family has no name", "", TCPMetricsCmdDel, false},
+		{"positive: SEG6 SETHMAC, `sr hmac set`", Seg6GenlName, Seg6CmdSetHmac, true},
+		{"positive: SEG6 SET_TUNSRC, `sr tunsrc set`", Seg6GenlName, Seg6CmdSetTunsrc, true},
+		{"negative: SEG6 DUMPHMAC, `sr hmac show`", Seg6GenlName, Seg6CmdDumpHmac, false},
+		{"negative: SEG6 GET_TUNSRC, `sr tunsrc show`", Seg6GenlName, Seg6CmdGetTunsrc, false},
+		{"boundary: SEG6 command 5, past the last", Seg6GenlName, Seg6CmdGetTunsrc + 1, false},
+		{"corner: SEG6's SETHMAC number is not a tcp_metrics write", TCPMetricsGenlName, Seg6CmdSetHmac, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {

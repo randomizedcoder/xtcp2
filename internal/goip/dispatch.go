@@ -92,7 +92,7 @@ var objects = []object{
 	{name: "netns", run: runNetns, showVerb: netnsListIDVerbCst},
 	{name: "netconf", run: runNetconf},
 	{name: "vrf", run: runVrf},
-	{name: "sr"},
+	{name: "sr", run: runSr, noShow: true},
 	{name: objNexthopCst, run: runNexthop},
 	{name: "mptcp"},
 	{name: "ioam"},

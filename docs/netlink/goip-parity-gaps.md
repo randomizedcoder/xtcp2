@@ -2748,6 +2748,35 @@ The tests (`pkg/xtcpnl`, `pkg/nlparity`, `internal/goip`, `internal/goipparity`)
 | positive, negative, boundary, corner: the genl socket's receive timeout at two seconds, none, one nanosecond, a microsecond and a half | the route socket's each time: set, unset, nonzero, set, `TestNetlinkGenlTimeout` (4) |
 | positive, negative, boundary: the 14 rows | generic, on the corpus topology with its connections, the write counts and floors, gated with no allowlist entry; a flush of an exact address is not a row, `TestTCPMetricsRows` (15) |
 
+**G6-T02 delivered** (`internal/goip`, `pkg/xtcpnl`, `internal/goipparity`, `nix/microvms/scripts/goip-parity.exp`):
+- **The write gate.** `IsAdmittedGenlWrite` admits SEG6's `SETHMAC` and `SET_TUNSRC`, so `nlparity.IsWrite` and the builders know them; the dump and the get stay reads.
+- **`goip sr`** (`internal/goip/obj_sr.go`, `render/sr.go`).
+  - `hmac show` dumps `DUMPHMAC` and prints `print_dumphmac`'s line or `-j` object: at most 63 bytes of the secret, cut at a NUL, with its warning on stderr when `SECRETLEN` is over 63.
+  - `hmac set KEYID ALGO` reads the secret as glibc's `getpass` does: the prompt and the line on `/dev/tty` with echo off, or, with no terminal, the prompt on stderr and the line from stdin. A blank line deletes the key. It writes one acked `SETHMAC` to `GOIP_WRITE_OUT`: the key id, `SECRETLEN` as a u8, the algorithm, and the secret unless it is blank or past `SEG6_REQUEST`'s 1024-byte buffer, which `addattr_l` refuses with its message and `ip` sends without.
+  - `tunsrc show` gets `GET_TUNSRC` and prints `print_tunsrc`'s address; `tunsrc set ADDRESS` writes one acked `SET_TUNSRC`, the address read by `get_addr` as IPv6.
+  - JSON is written as `jsonw_puts` writes it, `<`, `>`, `&` and bytes that are not UTF-8 as they are; a dump refused under `-j` leaves `ip`'s `[`.
+  - Exit codes are `ip`'s: 255 for `invarg` and an incomplete command, 1 for an address that is not IPv6, a refused dump or a reply it cannot parse, and 2 for a refused `tunsrc show`. `sr` has no HTTP path, since `hmac show` prints secrets.
+- **Stdin in the matrix.** A `Command` takes a `Stdin` line, which `goip-parity commands` prints as a tenth field, `-` or `>` and the line. The driver runs a write row with one as `echo LINE | setsid -w ...` on each side, as the corpus did.
+- **The rows.** The C2 corpus's 11 `sr_*` rows replace the stand-in, each on its corpus precondition: four reads and seven writes.
+  - A new Setup step, `hmac KEYID ALGO SECRET`, runs `xtcp2-nlcap hmac` in the row's namespace.
+  - Three run another spelling of a corpus command, so that no two rows share a name: `sr hmac s` for the show of no key, `sr hm show` for the 64-byte secret's, and `sr hmac se` for the delete. The bytes are the same.
+
+The tests (`pkg/xtcpnl`, `internal/goip`, `internal/goipparity`):
+
+| description | expected |
+|---|---|
+| positive, negative, boundary, corner: the write gate for SEG6's `SETHMAC`, `SET_TUNSRC`, `DUMPHMAC`, `GET_TUNSRC`, command 5, and `SETHMAC`'s number under tcp_metrics | the two sets admitted, the rest not, `TestIsAdmittedGenlWrite` (12 rows, six new) |
+| positive, negative, boundary, corner: the 11 C2 captures replayed, and other spellings, a key id in hex, a secret with no newline, with a NUL, with a second line, no stdin, a long address, and `-j` | `ip.out`, or `ip`'s JSON; the prompt and the warning on stderr; every read exchange once, no write sent, the write the capture's, `TestSrMatchesIp` (22) |
+| positive, negative, boundary, corner: a key whose algorithm is neither and whose secret needs escapes, `SECRETLEN` longer and shorter than `SECRET`, a NUL, a reply of another command, a refused dump with and without `-j`, a reply that does not decode, `tunsrc show` set, without `DST`, of another command, refused, of another type | `ip`'s line and JSON; `{}`; `[` and exit 1; exit 1; exit 2; exit 1, `TestSrShow` (14) |
+| negative, boundary: no verb, `h`, an unknown object or verb, key id 0, not a number, 2^32, `SHA1`, an IPv4 source, and each verb with its argument missing | `ip`'s message and exit, 255 or 1, nothing sent and no prompt, `TestSrArgs` (14) |
+| positive, boundary, corner: `SETHMAC`'s attributes for a six-byte secret, a blank one, 976 bytes, 977 bytes, 256 bytes | `SECRETLEN` and `SECRET` as `ip` sends them; 977 left out with `addattr_l`'s message; 256 is `SECRETLEN` 0, `TestSrWriteAttrs` (5) |
+| positive, boundary, corner: `getpass` with no terminal, with one that is not a tty, an empty input, a carriage return | the prompt on stderr or on it, the line without its newline, `TestSrGetpass` (4) |
+| positive, boundary, corner: `getpass` on a pseudo-terminal: a line and Enter, Enter alone, a line ended by two EOFs | the prompt and `\r\n` without the secret's echo, or the prompt alone; echo and signals restored, `TestSrGetpassTerminal` (3) |
+| positive, boundary, corner: `jsonw_puts`' escapes, the empty string, 0x01, 0x1f, 0x20, DEL, `<`, `>` and `&`, bytes that are not UTF-8 | `TestAppendJSONWString` (7) |
+| positive, boundary, corner: `print_dumphmac` for a sha1 key, a 63-byte secret, `SECRETLEN` 255, every attribute absent | the line, the object, the warning, `TestSrHmacView` (4) |
+| positive, negative, boundary: the 11 rows, and the corpus's own spelling of the delete | generic, on the corpus topology, the shows' keys printed and warned of as in `ip.out` and `ip.err`, each set's stdin its capture's `SECRET`, gated with no allowlist entry; the set's row, not a second one, `TestSrRows` (12) |
+| positive, boundary, negative, corner: `String()` for a row with a stdin line and a blank one; no Stdin but on the six `sr hmac set` rows, letters and digits | ten fields, `>s3cret` and `>`, `TestCommandString` |
+
 ### G7 — XFRM
 
 xfrm state and policy show first, then the writes.

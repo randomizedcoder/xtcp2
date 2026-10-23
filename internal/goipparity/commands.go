@@ -103,7 +103,7 @@ type Command struct {
 	// M <= N datagrams (addr-write-path.md, "Multi-write rows"). A flush
 	// row must set it, even to 1, and so must a restore row, whose N writes
 	// follow its link dump; TestCommandTable refuses one that does not. It stays out of String: only the host-side comparator reads
-	// it, and the guest's row format is fixed at nine fields.
+	// it, and the guest's row format is fixed at ten fields.
 	Writes int
 
 	// Setup is a row's precondition: `ip` argument lists, run in order
@@ -122,6 +122,14 @@ type Command struct {
 	// generic. The driver passes it to the capture and the comparator reads
 	// the captures as it (nlparity.ProtocolByName).
 	Proto string
+
+	// Stdin is the line a write row's three sides read on stdin, nil for
+	// none: `ip sr hmac set` reads its secret with getpass, which with no
+	// terminal reads stdin, so the driver runs each side as `echo LINE |
+	// setsid -w ...`. An empty line is the blank secret, the delete. Letters
+	// and digits only, since the driver passes it through the shell
+	// unquoted.
+	Stdin *string
 
 	// IPStandIn runs `ip` in goip's place, for a generic netlink family goip
 	// does not implement yet: the row is captured and compared, `ip` against
@@ -2786,9 +2794,38 @@ var commands = withArgs([]Command{
 	{Name: "tcp_metrics flush address 192.0.2.0/24", Slug: "tcpm_flush_empty", Floor: 4, Implemented: true,
 		Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
 
+	// G6-T02: sr, the C2 corpus's 11 sr_* rows on its preconditions
+	// (genl-write-corpus.exp). The keys a row starts from are made by an
+	// `hmac KEYID ALGO SECRET` step, and a set reads its secret on stdin, as
+	// the corpus's did, so a delete is a blank line. The reads with no
+	// precondition read the dump topology, which has no key and no tunnel
+	// source. Three rows' corpus commands are another row's, so they are
+	// spelled with ip's abbreviations, the same bytes: `s` and `hm` for the
+	// shows of no key and of the 64-byte secret, `se` for the delete.
+	{Name: "sr hmac s", Slug: "sr_hmac_show_empty", Floor: 4, Implemented: true, Proto: ProtoGenericCst},
+	{Name: "sr hmac show", Slug: "sr_hmac_show", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: srHmacTwoSetup},
+	{Name: "sr hm show", Slug: "sr_hmac_show_64", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: []string{"hmac 4 sha256 " + strings.Repeat("y", 64)}},
+	{Name: "sr tunsrc show", Slug: "sr_tunsrc_show", Floor: 4, Implemented: true, Proto: ProtoGenericCst},
+	{Name: "sr hmac set 1 sha256", Slug: "sr_hmac_set", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Stdin: stdinLine("s3cret")},
+	{Name: "sr hmac set 2 sha1", Slug: "sr_hmac_set_sha1", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Stdin: stdinLine("0ther")},
+	{Name: "sr hmac set 1 sha1", Slug: "sr_hmac_replace", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: srHmacTwoSetup[:1], Stdin: stdinLine("n3w")},
+	{Name: "sr hmac se 1 sha256", Slug: "sr_hmac_delete", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: srHmacTwoSetup, Stdin: stdinLine("")},
+	{Name: "sr hmac set 9 sha256", Slug: "sr_hmac_delete_missing", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Stdin: stdinLine("")},
+	{Name: "sr hmac set 3 sha256", Slug: "sr_hmac_set_long", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Stdin: stdinLine(strings.Repeat("x", 65))},
+	{Name: "sr tunsrc set 2001:db8::1", Slug: "sr_tunsrc_set", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst},
+
 	// G5-T03: one `show` per generic netlink family, in the C2 order, with
-	// `ip` in goip's place until the family's G6 task implements it; seven
-	// remain, tcp_metrics' rows above having replaced its own. The
+	// `ip` in goip's place until the family's G6 task implements it; six
+	// remain, tcp_metrics' and sr's rows above having replaced their own. The
 	// captures keep NETLINK_GENERIC and the comparator compares a genl
 	// message by its family's name, so these rows exercise the harness end
 	// to end, ungated. Each is genl_init_handle's CTRL_CMD_GETFAMILY and its
@@ -2796,7 +2833,6 @@ var commands = withArgs([]Command{
 	// four datagrams, as on C2's empty shows, since every family is empty in
 	// the dump topology. They come last: the driver runs nltopo::late_setup,
 	// which loads the families' modules, before the first genl row.
-	{Name: "sr tunsrc show", Slug: "genl_sr_tunsrc_show", Floor: 4, Proto: ProtoGenericCst, IPStandIn: true},
 	{Name: "ioam namespace show", Slug: "genl_ioam_namespace_show", Floor: 4, Proto: ProtoGenericCst, IPStandIn: true},
 	{Name: "mptcp endpoint show", Slug: "genl_mptcp_endpoint_show", Floor: 4, Proto: ProtoGenericCst, IPStandIn: true},
 	{Name: "fou show", Slug: "genl_fou_show", Floor: 4, Proto: ProtoGenericCst, IPStandIn: true},
@@ -2823,6 +2859,14 @@ var tcpmSetup = append(slices.Clone(tcpmAddrsSetup),
 	"tcp 192.0.2.1 192.0.2.2",
 	"tcp 2001:db8::1 2001:db8::2",
 )
+
+// srHmacTwoSetup is genl-write-corpus.exp's PRE_HMAC2: key 1, sha256, and
+// key 2, sha1, through setup_step's `hmac KEYID ALGO SECRET` form; its
+// first step is PRE_HMAC1.
+var srHmacTwoSetup = []string{
+	"hmac 1 sha256 s3cret",
+	"hmac 2 sha1 0ther",
+}
 
 // The write rows' preconditions, as capture-link-writes.exp spells them:
 // PRE_BOND, PRE_PORT and PRE_ENSLAVED there.
@@ -3232,7 +3276,8 @@ const noSetupCst = "-"
 // impl is yes, no, or ip for an IPStandIn row, whose goip side runs `ip`.
 // proto is Protocol(). setup is noSetupCst or the Setup steps joined with
 // ';'. It is the one field before args that holds spaces, which a tab split
-// does not mind.
+// does not mind. stdin is noSetupCst for no Stdin, or '>' and the line, so
+// the blank line is '>' alone.
 //
 // Tab-separated rather than JSON because the consumer is an expect script
 // driving a serial console, where a parser is a liability and `IFS=$'\t'` is
@@ -3247,6 +3292,10 @@ func (c Command) String() string {
 	if c.IPStandIn {
 		impl = ipStandInCst
 	}
+	stdin := noSetupCst
+	if c.Stdin != nil {
+		stdin = stdinMarkCst + *c.Stdin
+	}
 	return strings.Join([]string{
 		c.Slug,
 		fmt.Sprint(c.Floor),
@@ -3255,10 +3304,17 @@ func (c Command) String() string {
 		yesNo(c.Write),
 		c.Protocol(),
 		setup,
+		stdin,
 		strings.Join(c.Args, " "),
 		c.Name,
 	}, "\t")
 }
+
+// stdinMarkCst begins String()'s stdin field when the row has a Stdin.
+const stdinMarkCst = ">"
+
+// stdinLine is a Stdin.
+func stdinLine(line string) *string { return &line }
 
 // yesNo is a String() flag field.
 func yesNo(b bool) string {

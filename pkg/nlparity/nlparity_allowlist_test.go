@@ -729,6 +729,18 @@ func TestAllowlistCommitted(t *testing.T) {
 		"tcp_metrics flush 192.0.2.0/24",
 		"-6 tcp_metrics flush",
 		"tcp_metrics flush address 192.0.2.0/24",
+		// G6-T02's eleven `sr` rows.
+		"sr hmac s",
+		"sr hmac show",
+		"sr hm show",
+		"sr tunsrc show",
+		"sr hmac set 1 sha256",
+		"sr hmac set 2 sha1",
+		"sr hmac set 1 sha1",
+		"sr hmac se 1 sha256",
+		"sr hmac set 9 sha256",
+		"sr hmac set 3 sha256",
+		"sr tunsrc set 2001:db8::1",
 	}
 
 	tests := []struct {

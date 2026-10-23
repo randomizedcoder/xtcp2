@@ -165,11 +165,12 @@ proc capio {name floor command sout {ns ""} {proto route}} {
 #
 # `goip-parity commands` prints one tab-separated row per command:
 #
-#     slug  floor  implemented  needs-dev  write  proto  setup  args  name
+#     slug  floor  implemented  needs-dev  write  proto  setup  stdin  args  name
 #
 # implemented is yes, no, or ip for a row `ip` runs in goip's place. proto is
 # route, generic or xfrm. setup is `-` or a row's precondition steps joined
-# with ';'. It, args
+# with ';'. stdin is `-`, or `>` and the line a write row's sides read on
+# stdin. Setup, args
 # and name hold spaces, which is why the split is on tabs. Parsed with
 # `split ... \t` rather than a regexp so a name with two consecutive spaces
 # cannot be silently reflowed.
@@ -191,7 +192,7 @@ proc read_command_table {} {
             continue
         }
         set f [split $line "\t"]
-        if {[llength $f] != 9} {
+        if {[llength $f] != 10} {
             vmlib::log "FATAL: unparseable table row ([llength $f] fields): $line"
             puts "GOIP_PARITY_DRIVER_FAIL"
             exit 3
@@ -221,10 +222,10 @@ proc read_command_table {} {
 
 proc capture_triple {row dev} {
     global skipped
-    lassign $row slug floor impl needs_dev write proto setup args name
+    lassign $row slug floor impl needs_dev write proto setup stdin args name
 
     if {$write eq "yes" && $impl eq "yes"} {
-        capture_write_triple $slug $floor $setup $args $proto
+        capture_write_triple $slug $floor $setup $args $proto $stdin
         return
     }
 
@@ -293,7 +294,8 @@ proc capture_triple {row dev} {
 # that nsid in the row's namespace (`ip netns list-id`, `ip netns set`), or
 # `tcp SERVER CLIENT`, one connection in the namespace through xtcp2-nlcap
 # tcp, which leaves a tcp_metrics entry at each end (genl-write-corpus.exp's
-# tcp pre step).
+# tcp pre step), or `hmac KEYID ALGO SECRET`, an SR HMAC key set through
+# xtcp2-nlcap hmac (its hmac pre step).
 ###############################################################################
 
 proc setup_step {ns step} {
@@ -326,6 +328,14 @@ proc setup_step {ns step} {
             return 1
         }
         lassign [vmlib::run_out "xtcp2-nlcap tcp $ns $SUBDIR [lindex $step 1] [lindex $step 2]"] rc out
+        return $rc
+    }
+    if {[lindex $step 0] eq "hmac"} {
+        if {[llength $step] != 4} {
+            vmlib::log "setup: an hmac step is {hmac KEYID ALGO SECRET}: $step"
+            return 1
+        }
+        lassign [vmlib::run_out "xtcp2-nlcap hmac $ns $SUBDIR [lindex $step 1] [lindex $step 2] [lindex $step 3]"] rc out
         return $rc
     }
     if {[lindex $step 0] eq "smcroute"} {
@@ -375,18 +385,28 @@ proc setup_read_ns {slug setup} {
 # write request, no NLMSG_ERROR. Every side is a `write` capture (one attempt,
 # exit status kept), since the comparator reads all three .rc files. <proto>
 # is the protocol the captures keep, generic for a genl family's writes.
+# <stdin> is the table's stdin field: `-`, or `>` and a line each side reads.
 ###############################################################################
 
-proc capture_write_triple {slug floor setup argv_str {proto route}} {
+proc capture_write_triple {slug floor setup argv_str {proto route} {stdin -}} {
     global NSW SUBDIR short_caps write_skipped capture_dir
     set steps {}
     if {$setup ne "-"} {
         set steps [split $setup ";"]
     }
+    # A row with a stdin line pipes it to each side with no terminal, as
+    # genl-write-corpus.exp's hmac_set did, so getpass reads stdin.
+    # GOIP_WRITE_OUT goes after the pipe, on the command it is for.
+    set pipe ""
+    set nosess ""
+    if {$stdin ne "-"} {
+        set pipe "echo [string range $stdin 1 end] | "
+        set nosess "setsid -w "
+    }
     set plan [list \
-        ip_a "ip $argv_str" $floor \
-        goip "GOIP_WRITE_OUT=$capture_dir/$slug.goip.write goip $argv_str" [expr {$floor - 2}] \
-        ip_b "ip $argv_str" $floor]
+        ip_a "${pipe}${nosess}ip $argv_str" $floor \
+        goip "${pipe}GOIP_WRITE_OUT=$capture_dir/$slug.goip.write ${nosess}goip $argv_str" [expr {$floor - 2}] \
+        ip_b "${pipe}${nosess}ip $argv_str" $floor]
 
     foreach {side cmd side_floor} $plan {
         vmlib::must "xtcp2-nlcap ns-add $NSW"

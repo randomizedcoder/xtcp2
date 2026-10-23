@@ -81,6 +81,9 @@ const (
 	tcpmFlushAllSlugCst    = "tcpm_flush_all"
 	tcpmFlushPrefixSlugCst = "tcpm_flush_prefix"
 	tcpmFlushV6SlugCst     = "tcpm_flush_v6"
+	// srSlugPrefixCst names G6-T02's sr rows, likewise each on its own
+	// slug's capture under tdGenl.
+	srSlugPrefixCst = "sr_"
 	// genlProtoCst is NETLINK_GENERIC.
 	genlProtoCst = 16
 	tdAddrSave   = "../../pkg/xtcpnl/testdata/7_1_4/link-write/addr-save"
@@ -255,8 +258,8 @@ func corpusWriteRow(t *testing.T, c Command) writeRowFiles {
 	if c.Slug == netnsSetSlugCst {
 		return corpusNetnsSetRow(t)
 	}
-	if strings.HasPrefix(c.Slug, tcpmSlugPrefixCst) {
-		return corpusTCPMetricsRow(t, c)
+	if strings.HasPrefix(c.Slug, tcpmSlugPrefixCst) || strings.HasPrefix(c.Slug, srSlugPrefixCst) {
+		return corpusGenlWriteRow(t, c)
 	}
 	if strings.HasPrefix(c.Slug, addrLabelWriteSlugPrefixCst) ||
 		strings.HasPrefix(c.Slug, ntableWriteSlugPrefixCst) ||
@@ -284,12 +287,13 @@ func corpusWriteRow(t *testing.T, c Command) writeRowFiles {
 	}
 }
 
-// corpusTCPMetricsRow is a tcp_metrics write row's files as a perfect run
-// would leave them, its capture read as NETLINK_GENERIC. A delete, and a
-// flush of all, is one acked DEL, the last two records, so goip's capture is
-// ip's without them. A prefix flush's DELs ask for no ack, so goip's is ip's
-// without the DELs' records, its second dump kept. Every stdout is empty.
-func corpusTCPMetricsRow(t *testing.T, c Command) writeRowFiles {
+// corpusGenlWriteRow is a genl write row's files as a perfect run would
+// leave them, its capture read as NETLINK_GENERIC. A tcp_metrics delete or
+// flush of all, and an sr set, is one acked write, the last two records, so
+// goip's capture is ip's without them. A prefix flush's DELs ask for no
+// ack, so goip's is ip's without the DELs' records, its second dump kept.
+// Every stdout is empty.
+func corpusGenlWriteRow(t *testing.T, c Command) writeRowFiles {
 	t.Helper()
 	dir := filepath.Join(tdGenl, c.Slug)
 	ipPcap := mustReadBytes(t, filepath.Join(dir, "ip.pcap"))
