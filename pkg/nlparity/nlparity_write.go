@@ -122,8 +122,12 @@ func (w WriteSplit) others() Segmentation {
 // whose family the capture never named is not one, since only the name says
 // which commands write.
 func IsWrite(m Msg) bool {
-	if m.Proto == unix.NETLINK_GENERIC {
+	switch m.Proto {
+	case unix.NETLINK_GENERIC:
 		return m.IsGenl() && len(m.Body) >= genlHdrLen && xtcpnl.IsAdmittedGenlWrite(m.Genl, m.Body[0])
+	case unix.NETLINK_XFRM:
+		// No XFRM write is admitted yet; NEWSA's 16 is RTM_NEWLINK's.
+		return false
 	}
 	return xtcpnl.IsAdmittedWriteType(m.Hdr.Type)
 }

@@ -70,6 +70,9 @@ type NetlinkSource struct {
 	// gfd is the genl socket, valid when gopen is set.
 	gfd   int
 	gopen bool
+	// xfd is the NETLINK_XFRM socket, valid when xopen is set.
+	xfd   int
+	xopen bool
 	// rcvTimeout is OpenNetlinkTimeout's, which the genl socket gets too
 	// when it opens; zero is none.
 	rcvTimeout time.Duration
@@ -196,6 +199,10 @@ func (s *NetlinkSource) Close() error {
 		gerr = unix.Close(s.gfd)
 		s.gopen = false
 	}
+	if s.xopen {
+		gerr = errors.Join(gerr, unix.Close(s.xfd))
+		s.xopen = false
+	}
 	if s.fd < 0 {
 		return gerr
 	}
@@ -305,6 +312,10 @@ type ReplaySource struct {
 	// gseg is the capture's genl exchanges, and gused the ones replayed.
 	gseg  nlparity.Segmentation
 	gused map[int]bool
+	// xseg is the capture's NETLINK_XFRM exchanges, and xused the ones
+	// replayed.
+	xseg  nlparity.Segmentation
+	xused map[int]bool
 }
 
 // OpenReplay reads a DLT_NETLINK pcap from disk and replays every reply in it.
@@ -324,7 +335,12 @@ func OpenReplayPortid(path string, portid uint32) (*ReplaySource, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ReplaySource{cap: c, portid: portid, gseg: nlparity.SegmentCapture(g)}, nil
+	x, err := nlparity.ParseCaptureFile(path, unix.NETLINK_XFRM)
+	if err != nil {
+		return nil, err
+	}
+	return &ReplaySource{cap: c, portid: portid, gseg: nlparity.SegmentCapture(g),
+		xseg: nlparity.SegmentCapture(x)}, nil
 }
 
 // NewReplayFromBytes builds a replay source from pcap bytes already in memory.
@@ -337,7 +353,11 @@ func NewReplayFromBytes(data []byte) (*ReplaySource, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ReplaySource{cap: c, gseg: nlparity.SegmentCapture(g)}, nil
+	x, err := nlparity.ParseCapture(data, unix.NETLINK_XFRM)
+	if err != nil {
+		return nil, err
+	}
+	return &ReplaySource{cap: c, gseg: nlparity.SegmentCapture(g), xseg: nlparity.SegmentCapture(x)}, nil
 }
 
 // Dump returns every recorded reply body of msgType, in capture order.

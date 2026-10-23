@@ -1099,7 +1099,9 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	//   - the twenty-eight `l2tp` rows G6-T07 added in place of its
 	//     stand-in, likewise — see TestL2tpRows;
 	//   - the thirty-nine `macsec` rows G6-T08 added in place of the last
-	//     stand-in, likewise — see TestMacsecRows.
+	//     stand-in, likewise — see TestMacsecRows;
+	//   - the nine `xfrm state` rows G7-T01 added, the first NETLINK_XFRM
+	//     ones, likewise — see TestXfrmStateRows.
 	//
 	// The last four were the permanent set, measured divergent on the wire;
 	// TestPermanentWireDivergences records that it is empty.
@@ -3496,6 +3498,8 @@ func TestGenlStandInRows(t *testing.T) {
 	// and macsecRows are G6-T01's to G6-T08's rows, every genl one.
 	const tcpmRows, srRows, ioamRows, mptcpRows, fouRows, ilaRows, l2tpRows, macsecRows = 14, 11, 20, 28, 24,
 		18, 28, 39
+	// xfrmStateRows are G7-T01's XFRM rows, after them.
+	const xfrmStateRows = 9
 
 	cmds := Commands()
 	first := len(cmds)
@@ -3522,14 +3526,23 @@ func TestGenlStandInRows(t *testing.T) {
 			},
 		},
 		{
-			description: "boundary: every row from the first non-route one on is generic, so the modules load after every route row",
+			description: "boundary: every row from the first non-route one on is generic, then XFRM, so the modules load after every route row",
 			check: func(t *testing.T) {
+				xfrm := false
 				for _, c := range cmds[first:] {
-					if c.Protocol() != ProtoGenericCst {
+					switch c.Protocol() {
+					case ProtoGenericCst:
+						if xfrm {
+							t.Errorf("%q, a genl row, follows an XFRM row", c.Name)
+						}
+					case ProtoXfrmCst:
+						xfrm = true
+					default:
 						t.Errorf("%q, a %s row, follows the first genl row", c.Name, c.Protocol())
 					}
 				}
-				if n := tcpmRows + srRows + ioamRows + mptcpRows + fouRows + ilaRows + l2tpRows + macsecRows; len(cmds)-first != n {
+				if n := tcpmRows + srRows + ioamRows + mptcpRows + fouRows + ilaRows + l2tpRows + macsecRows +
+					xfrmStateRows; len(cmds)-first != n {
 					t.Errorf("%d rows from the first genl one, want %d", len(cmds)-first, n)
 				}
 			},
@@ -4324,6 +4337,65 @@ func TestMacsecRows(t *testing.T) {
 					t.Errorf("%q has Setup %q and no corpus precondition", r.command, steps)
 				}
 				got = want{implemented: c.Implemented, write: c.Write, proto: c.Proto, floor: c.Floor, topology: topology}
+			}
+			got.gated = al.IsGated(r.command)
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+		})
+	}
+}
+
+// TestXfrmStateRows pins G7-T01's XFRM rows: each NETLINK_XFRM, on its C3
+// corpus row's precondition (its topology file, none for the three with
+// none), its slug the corpus row's with xfrm_ ahead of it, and gated.
+//
+// go test ./internal/goipparity/ -run TestXfrmStateRows
+func TestXfrmStateRows(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	type want struct {
+		implemented, write, topology, gated bool
+		proto, slug                         string
+		floor                               int
+	}
+	read := func(slug string) want {
+		return want{implemented: true, topology: true, gated: true, proto: ProtoXfrmCst, slug: slug, floor: 2}
+	}
+	rows := []struct {
+		description string
+		command     string
+		corpus      string
+		expected    want
+	}{
+		{"boundary: list with none", "xfrm state list", "state_list_empty", read("xfrm_state_list_empty")},
+		{"positive: list, two SAs, spelled show", "xfrm state show", "state_list", read("xfrm_state_list")},
+		{"positive: list dst", "xfrm state list dst 192.0.2.2", "state_list_dst", read("xfrm_state_list_dst")},
+		{"positive: list nokeys", "xfrm state list nokeys", "state_list_nokeys", read("xfrm_state_list_nokeys")},
+		{"positive: get", "xfrm state get " + xfrmSA1IDCst, "state_get", read("xfrm_state_get")},
+		{"negative: get of a missing SA, spelled g", "xfrm state g " + xfrmSA1IDCst, "state_get_missing",
+			read("xfrm_state_get_missing")},
+		{"positive: count", "xfrm state count", "state_count", read("xfrm_state_count")},
+		{"boundary: count with none, spelled c", "xfrm state c", "state_count_empty", read("xfrm_state_count_empty")},
+		{"positive: -s count", "-s xfrm state count", "state_count_stats", read("xfrm_state_count_stats")},
+		{"negative: a write is G7-T02's, not a row", "xfrm state add " + xfrmSA1IDCst, "", want{}},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			var got want
+			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				steps := make([]string, 0, len(c.Setup))
+				for _, s := range c.Setup {
+					steps = append(steps, "ip "+s)
+				}
+				corpus := []string{}
+				if _, err := os.Stat(filepath.Join(tdXfrm, r.corpus, "topology")); err == nil {
+					corpus = corpusTopology(t, tdXfrm, r.corpus)
+				}
+				got = want{implemented: c.Implemented, write: c.Write, proto: c.Proto, slug: c.Slug, floor: c.Floor,
+					topology: slices.Equal(steps, corpus)}
 			}
 			got.gated = al.IsGated(r.command)
 			if got != r.expected {

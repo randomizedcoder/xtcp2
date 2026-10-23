@@ -65,9 +65,10 @@ var genlReadbackRows = map[string]string{
 	"macsec_show_txsa_stats_json": "macsec_txsa_add/netlink_generic_macsec.pcap",
 }
 
-// writeGenlReadRow lays out an implemented generic netlink read row as a
-// perfect run would: every side its slug's corpus capture and ip.out, or
-// its readback and the same text.
+// writeGenlReadRow lays out an implemented generic netlink or XFRM read
+// row as a perfect run would: every side its slug's corpus capture and
+// ip.out, or its readback and the same text. An XFRM row's capture is the
+// C3 corpus's, its slug without xfrm_.
 func writeGenlReadRow(t *testing.T, dir string, c Command) {
 	t.Helper()
 	if rb, ok := genlReadbackRows[c.Slug]; ok {
@@ -75,6 +76,9 @@ func writeGenlReadRow(t *testing.T, dir string, c Command) {
 		return
 	}
 	src := filepath.Join(tdGenl, c.Slug)
+	if c.Proto == ProtoXfrmCst {
+		src = filepath.Join(tdXfrm, strings.TrimPrefix(c.Slug, xfrmSlugPrefixCst))
+	}
 	writeTriple(t, dir, c, sameAll(filepath.Join(src, "ip.pcap")), sameAll(mustRead(t, filepath.Join(src, "ip.out"))))
 }
 
@@ -211,9 +215,13 @@ func testAllowlist(t *testing.T) *nlparity.Allowlist {
 // go test ./internal/goipparity/ -run TestCompareDir
 // The C2 empty shows of two genl families, run in the dump topology.
 const (
-	tdGenl           = "../../pkg/xtcpnl/testdata/7_1_4/link-write/genl"
-	tdGenlFouShow    = tdGenl + "/fou_show_empty/ip.pcap"
-	tdGenlMacsecShow = tdGenl + "/macsec_show_empty/ip.pcap"
+	tdGenl = "../../pkg/xtcpnl/testdata/7_1_4/link-write/genl"
+	// tdXfrm is the C3 XFRM corpus, and xfrmSlugPrefixCst what an XFRM
+	// row's slug adds ahead of its corpus row's.
+	tdXfrm            = "../../pkg/xtcpnl/testdata/7_1_4/link-write/xfrm"
+	xfrmSlugPrefixCst = "xfrm_"
+	tdGenlFouShow     = tdGenl + "/fou_show_empty/ip.pcap"
+	tdGenlMacsecShow  = tdGenl + "/macsec_show_empty/ip.pcap"
 )
 
 // lookupCmd is Lookup, failing the test on a name the table lacks.
@@ -813,7 +821,7 @@ func TestRender(t *testing.T) {
 						writeCleanWriteRow(t, dir, c)
 						continue
 					}
-					if c.Proto == ProtoGenericCst {
+					if c.Proto != "" {
 						writeGenlReadRow(t, dir, c)
 						continue
 					}
@@ -876,7 +884,7 @@ func TestRender(t *testing.T) {
 						writeCleanWriteRow(t, dir, c)
 					case c.IPStandIn:
 						writeTriple(t, dir, c, sameAll(tdGenlFouShow), sameAll(""))
-					case c.Implemented && c.Proto == ProtoGenericCst:
+					case c.Implemented && c.Proto != "":
 						writeGenlReadRow(t, dir, c)
 					case c.Implemented && c.Name != "link show" && c.Name != "addr show":
 						writeTriple(t, dir, c, sameAll(tdGuestAddr), sameAll(addrOut))

@@ -904,6 +904,16 @@ func TestAllowlistCommitted(t *testing.T) {
 		"macsec add macsec0 tx sa 0 pn 1 salt 0102030405060708090a0b0c ssci 1 key 01000000000000000000000000000000 81818181818181818181818181818181",
 		"macsec offload macsec0 off",
 		"macsec offload macsec0 mac",
+		// G7-T01's nine `xfrm state` rows.
+		"xfrm state list",
+		"xfrm state show",
+		"xfrm state list dst 192.0.2.2",
+		"xfrm state list nokeys",
+		"xfrm state get src 192.0.2.1 dst 192.0.2.2 proto esp spi 0x100",
+		"xfrm state g src 192.0.2.1 dst 192.0.2.2 proto esp spi 0x100",
+		"xfrm state count",
+		"xfrm state c",
+		"-s xfrm state count",
 	}
 
 	tests := []struct {

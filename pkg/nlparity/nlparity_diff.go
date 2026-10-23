@@ -314,20 +314,32 @@ func HygieneDiff(command, side string, s Segmentation) []Divergence {
 // A generic netlink request is a dump or a do, genl's own two: its type is a
 // family id, which says nothing about whether its command writes, and a
 // family id can share its number with an admitted rtnetlink write type.
+// The request roles requestRole names: a dump, a get, a write, and a
+// generic netlink or XFRM do.
+const (
+	roleDumpCst  = "dump"
+	roleGetCst   = "get"
+	roleDoCst    = "do"
+	roleWriteCst = "write"
+)
+
 func requestRole(m Msg) string {
+	if m.IsXfrm() {
+		return xfrmRequestRole(m)
+	}
 	if m.IsGenl() {
 		if m.Hdr.Flags&unix.NLM_F_DUMP == unix.NLM_F_DUMP {
-			return "dump"
+			return roleDumpCst
 		}
-		return "do"
+		return roleDoCst
 	}
 	if xtcpnl.IsAdmittedWriteType(m.Hdr.Type) {
-		return "write"
+		return roleWriteCst
 	}
 	if m.Hdr.Flags&uint16(unix.NLM_F_DUMP) == uint16(unix.NLM_F_DUMP) {
-		return "dump"
+		return roleDumpCst
 	}
-	return "get"
+	return roleGetCst
 }
 
 // diffRequest is L2: positional, full equality.

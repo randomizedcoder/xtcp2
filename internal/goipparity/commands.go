@@ -142,6 +142,9 @@ type Command struct {
 // ProtoGenericCst is Proto for a generic netlink row.
 const ProtoGenericCst = "generic"
 
+// ProtoXfrmCst is Proto for a NETLINK_XFRM row.
+const ProtoXfrmCst = "xfrm"
+
 // protoRouteCst is the protocol an empty Proto means.
 const protoRouteCst = "route"
 
@@ -3191,6 +3194,31 @@ var commands = withArgs([]Command{
 		Proto: ProtoGenericCst, Setup: macsecSetup},
 	{Name: "macsec offload macsec0 mac", Slug: "macsec_offload_mac", Floor: 4, Implemented: true, Write: true,
 		Proto: ProtoGenericCst, Setup: macsecSetup},
+
+	// G7-T01: the XFRM state reads, the C3 corpus's nine state_list*,
+	// state_get* and state_count* rows on their preconditions
+	// (xfrm-write-corpus.exp), each slug the corpus's with xfrm_ ahead of
+	// it. The kernel lists its SAs newest first, the order they were added,
+	// and an SA's clocks are zeroed before comparison, so its two SAs come
+	// back in one order on every side. Commands the corpus spells alike run
+	// as show, g and c, the same bytes. They follow the genl rows, after
+	// late setup has loaded xfrm_user.
+	{Name: "xfrm state list", Slug: "xfrm_state_list_empty", Floor: 2, Implemented: true, Proto: ProtoXfrmCst},
+	{Name: "xfrm state show", Slug: "xfrm_state_list", Floor: 2, Implemented: true, Proto: ProtoXfrmCst,
+		Setup: xfrmTwoSetup},
+	{Name: "xfrm state list dst 192.0.2.2", Slug: "xfrm_state_list_dst", Floor: 2, Implemented: true,
+		Proto: ProtoXfrmCst, Setup: xfrmTwoSetup},
+	{Name: "xfrm state list nokeys", Slug: "xfrm_state_list_nokeys", Floor: 2, Implemented: true,
+		Proto: ProtoXfrmCst, Setup: xfrmTwoSetup},
+	{Name: "xfrm state get " + xfrmSA1IDCst, Slug: "xfrm_state_get", Floor: 2, Implemented: true,
+		Proto: ProtoXfrmCst, Setup: xfrmSA1Setup},
+	{Name: "xfrm state g " + xfrmSA1IDCst, Slug: "xfrm_state_get_missing", Floor: 2, Implemented: true,
+		Proto: ProtoXfrmCst},
+	{Name: "xfrm state count", Slug: "xfrm_state_count", Floor: 2, Implemented: true, Proto: ProtoXfrmCst,
+		Setup: xfrmTwoSetup},
+	{Name: "xfrm state c", Slug: "xfrm_state_count_empty", Floor: 2, Implemented: true, Proto: ProtoXfrmCst},
+	{Name: "-s xfrm state count", Slug: "xfrm_state_count_stats", Floor: 2, Implemented: true,
+		Proto: ProtoXfrmCst, Setup: xfrmTwoSetup},
 })
 
 // tcpmAddrsSetup is genl-write-corpus.exp's PRE_ADDRS: d0, up, with an IPv4
@@ -3363,6 +3391,26 @@ var macsecRxsaOffSetup = append(slices.Clone(macsecRxscSetup),
 // macsecXpnTxsaSetup is macsec_xpn_txsa_add's precondition and command,
 // the state its readback shows.
 var macsecXpnTxsaSetup = append(slices.Clone(macsecXpnSetup), macsecXpnTxsaCst)
+
+// The XFRM SAs xfrm-write-corpus.exp's rows and preconditions share: SA
+// 1's id, SA 1, ESP in transport mode with hmac(sha256) and cbc(aes), and
+// SA 2, IPv6 ESP in tunnel mode with a truncated hmac(sha256).
+const (
+	xfrmAuthKeyCst = "0x1111111111111111111111111111111111111111111111111111111111111111"
+	xfrmEncKeyCst  = "0x22222222222222222222222222222222"
+	xfrmSA1IDCst   = "src 192.0.2.1 dst 192.0.2.2 proto esp spi 0x100"
+	xfrmSA1Cst     = "xfrm state add " + xfrmSA1IDCst + " reqid 1 mode transport auth sha256 " + xfrmAuthKeyCst +
+		" enc aes " + xfrmEncKeyCst
+	xfrmSA2Cst = "xfrm state add src 2001:db8::1 dst 2001:db8::2 proto esp spi 0x101 reqid 2 mode tunnel " +
+		"auth-trunc sha256 " + xfrmAuthKeyCst + " 128 enc aes " + xfrmEncKeyCst
+)
+
+// xfrmSA1Setup is xfrm-write-corpus.exp's PRE_SA1, and xfrmTwoSetup its
+// PRE_TWO.
+var (
+	xfrmSA1Setup = []string{xfrmSA1Cst}
+	xfrmTwoSetup = []string{xfrmSA1Cst, xfrmSA2Cst}
+)
 
 // The write rows' preconditions, as capture-link-writes.exp spells them:
 // PRE_BOND, PRE_PORT and PRE_ENSLAVED there.

@@ -64,32 +64,39 @@ const genlGetFamilyVersionCst = 0
 // the route socket it gets no NETLINK_GET_STRICT_CHK: ip.c sets that on rth
 // alone. A source opened with a receive timeout gives it the same one.
 func openGenl(rcvTimeout time.Duration) (int, error) {
-	fd, err := unix.Socket(unix.AF_NETLINK, unix.SOCK_RAW|unix.SOCK_CLOEXEC, unix.NETLINK_GENERIC)
+	return openByProto(unix.NETLINK_GENERIC, "generic netlink", rcvTimeout)
+}
+
+// openByProto is rtnl_open_byproto for a protocol other than the route
+// socket's: openGenl's options on a socket of proto, what naming it in its
+// errors. NETLINK_XFRM's is opened the same way.
+func openByProto(proto int, what string, rcvTimeout time.Duration) (int, error) {
+	fd, err := unix.Socket(unix.AF_NETLINK, unix.SOCK_RAW|unix.SOCK_CLOEXEC, proto)
 	if err != nil {
-		return -1, fmt.Errorf("goip: generic netlink socket: %w", err)
+		return -1, fmt.Errorf("goip: %s socket: %w", what, err)
 	}
 	abandon := func(cause error) error {
 		if cerr := unix.Close(fd); cerr != nil {
-			return errors.Join(cause, fmt.Errorf("goip: generic netlink close: %w", cerr))
+			return errors.Join(cause, fmt.Errorf("goip: %s close: %w", what, cerr))
 		}
 		return cause
 	}
 
 	if err := unix.SetsockoptInt(fd, unix.SOL_SOCKET, unix.SO_SNDBUF, genlSndBufCst); err != nil {
-		return -1, abandon(fmt.Errorf("goip: generic netlink SO_SNDBUF: %w", err))
+		return -1, abandon(fmt.Errorf("goip: %s SO_SNDBUF: %w", what, err))
 	}
 	if err := unix.SetsockoptInt(fd, unix.SOL_SOCKET, unix.SO_RCVBUF, 1<<20); err != nil {
-		return -1, abandon(fmt.Errorf("goip: generic netlink SO_RCVBUF: %w", err))
+		return -1, abandon(fmt.Errorf("goip: %s SO_RCVBUF: %w", what, err))
 	}
 	if err := unix.SetsockoptInt(fd, unix.SOL_NETLINK, unix.NETLINK_EXT_ACK, 1); err != nil &&
 		!errors.Is(err, unix.ENOPROTOOPT) {
-		return -1, abandon(fmt.Errorf("goip: generic netlink extended ack: %w", err))
+		return -1, abandon(fmt.Errorf("goip: %s extended ack: %w", what, err))
 	}
 	if err := setRcvTimeout(fd, rcvTimeout); err != nil {
-		return -1, abandon(fmt.Errorf("goip: generic netlink %w", err))
+		return -1, abandon(fmt.Errorf("goip: %s %w", what, err))
 	}
 	if err := unix.Bind(fd, &unix.SockaddrNetlink{Family: unix.AF_NETLINK}); err != nil {
-		return -1, abandon(fmt.Errorf("goip: generic netlink bind: %w", err))
+		return -1, abandon(fmt.Errorf("goip: %s bind: %w", what, err))
 	}
 	return fd, nil
 }
@@ -250,26 +257,34 @@ func (c *runCtx) genlFamily(name string) (uint16, error) {
 // replay has; the portid filter is the route socket's, and `ip`'s genl socket
 // is another port.
 func (s *ReplaySource) genlExchange(request []byte) (nlparity.Txn, error) {
+	return replayExchange(s.gseg, &s.gused, request, "generic netlink")
+}
+
+// replayExchange is genlExchange's match over one protocol's exchanges,
+// used marking those replayed: the first not yet replayed whose request is
+// request's bytes, nlmsg_seq and nlmsg_pid aside. what names the protocol
+// in the error for none.
+func replayExchange(seg nlparity.Segmentation, used *map[int]bool, request []byte, what string) (nlparity.Txn, error) {
 	want, ok := canonRequest(request)
 	if !ok {
 		return nlparity.Txn{}, xtcpnl.ErrShortRequest
 	}
-	for i, t := range s.gseg.Txns {
-		if s.gused[i] {
+	for i, t := range seg.Txns {
+		if (*used)[i] {
 			continue
 		}
 		h := t.Request.Hdr
 		h.Seq, h.Pid = 0, 0
 		if bytes.Equal(wholeMsg(h, t.Request.Body), want) {
-			if s.gused == nil {
-				s.gused = map[int]bool{}
+			if *used == nil {
+				*used = map[int]bool{}
 			}
-			s.gused[i] = true
+			(*used)[i] = true
 			return t, nil
 		}
 	}
-	return nlparity.Txn{}, fmt.Errorf("%w: no recorded generic netlink exchange for type %d",
-		ErrNoReplay, binary.LittleEndian.Uint16(request[4:6]))
+	return nlparity.Txn{}, fmt.Errorf("%w: no recorded %s exchange for type %d",
+		ErrNoReplay, what, binary.LittleEndian.Uint16(request[4:6]))
 }
 
 // canonRequest is a request's nlmsg_len bytes with nlmsg_seq and nlmsg_pid

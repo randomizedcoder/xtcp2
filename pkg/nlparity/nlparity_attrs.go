@@ -48,6 +48,9 @@ func FamilyHdrLen(proto, msgType uint16) int {
 		return xtcpnl.FamilyHdrLen(msgType)
 	case proto == unix.NETLINK_GENERIC:
 		return genlHdrLen
+	case proto == unix.NETLINK_XFRM:
+		// A request that is not a dump; DecodeMsg reads a dump's flag.
+		return xtcpnl.XfrmFamilyHdrLen(msgType, 0)
 	default:
 		return -1
 	}
@@ -56,6 +59,9 @@ func FamilyHdrLen(proto, msgType uint16) int {
 // DecodeMsg is DecodeAttrs over a message, with the family header its own
 // protocol gives it.
 func DecodeMsg(m Msg) (hdr []byte, attrs []Attr, remainder []byte) {
+	if m.IsXfrm() {
+		return decodeBody(xtcpnl.XfrmFamilyHdrLen(m.Hdr.Type, m.Hdr.Flags), m.Body)
+	}
 	return decodeBody(FamilyHdrLen(m.Proto, m.Hdr.Type), m.Body)
 }
 

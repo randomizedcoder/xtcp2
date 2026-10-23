@@ -509,7 +509,11 @@ func TestFamilyHdrLen(t *testing.T) {
 		{description: "positive: NLMSG_DONE on genl is the control type's", proto: unix.NETLINK_GENERIC, msgType: unix.NLMSG_DONE, want: xtcpnl.FamilyHdrLen(unix.NLMSG_DONE)},
 		{description: "positive: NLMSG_ERROR on genl is the control type's", proto: unix.NETLINK_GENERIC, msgType: unix.NLMSG_ERROR, want: xtcpnl.FamilyHdrLen(unix.NLMSG_ERROR)},
 		{description: "negative: an unmodeled rtnetlink type", proto: unix.NETLINK_ROUTE, msgType: 0x7fff, want: -1},
-		{description: "negative: a protocol neither package models", proto: unix.NETLINK_XFRM, msgType: unix.GENL_ID_CTRL, want: -1},
+		{description: "negative: a protocol neither package models", proto: unix.NETLINK_SOCK_DIAG, msgType: unix.GENL_ID_CTRL, want: -1},
+		{description: "positive: XFRM's NEWSA, RTM_NEWLINK's number, is an xfrm_usersa_info", proto: unix.NETLINK_XFRM, msgType: xtcpnl.XfrmMsgNewSA, want: xtcpnl.XfrmUsersaInfoSizeCst},
+		{description: "positive: XFRM's GETSA, not a dump, is an xfrm_usersa_id", proto: unix.NETLINK_XFRM, msgType: xtcpnl.XfrmMsgGetSA, want: xtcpnl.XfrmUsersaIDSizeCst},
+		{description: "negative: an XFRM type not modeled", proto: unix.NETLINK_XFRM, msgType: xtcpnl.XfrmMsgReport, want: -1},
+		{description: "positive: NLMSG_DONE on XFRM is the control type's", proto: unix.NETLINK_XFRM, msgType: unix.NLMSG_DONE, want: xtcpnl.FamilyHdrLen(unix.NLMSG_DONE)},
 	}
 
 	for _, tc := range tests {

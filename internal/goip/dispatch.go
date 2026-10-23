@@ -98,7 +98,7 @@ var objects = []object{
 	{name: "ioam", run: runIoam, noShow: true},
 	{name: "stats", run: runStats},
 	{name: "monitor", run: runMonitor, noShow: true},
-	{name: "xfrm"},
+	{name: "xfrm", run: runXfrm, noShow: true},
 }
 
 // matchesPrefix reimplements iproute2's matches() (lib/utils.c:909-919) as a

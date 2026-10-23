@@ -133,6 +133,10 @@ func NormalizeMsg(m Msg) Msg {
 	if m.IsGenl() {
 		return out
 	}
+	if m.IsXfrm() {
+		normalizeXfrm(m, body)
+		return out
+	}
 	_, attrs, _ := DecodeAttrs(m.Hdr.Type, body)
 	normalizeAttrs(m.Hdr.Type, attrs)
 

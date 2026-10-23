@@ -3016,6 +3016,37 @@ Each task's goip object sends `ip xfrm`'s requests on a `NETLINK_XFRM` socket an
 | G7-T04 | `goip xfrm policy` writes: `add`, `update`, `delete`, `deleteall`, `flush`, `setdefault` and `set` with `hthresh`, the 17 other `policy_*` rows |
 | G7-T05 | `goip xfrm monitor`: the seven `monitor_*` rows, each event `xfrm_accept_msg` prints. Closes G7 |
 
+**G7-T01 delivered** (`internal/goip`, `pkg/xtcpnl`, `pkg/nlparity`, `internal/goipparity`):
+- **The XFRM source.** goip opens a `NETLINK_XFRM` socket the first time an xfrm object asks, with the genl socket's options (`openByProto`, which the genl socket now opens through too).
+  - A replay segments a capture's XFRM exchanges beside its route and genl ones, and answers a request whose bytes are `ip`'s, `nlmsg_seq` and `nlmsg_pid` aside, the genl replay's matching shared (`replayExchange`).
+  - A dump answers in other types than its request's, a GETSA dump in NEWSAs, so `XfrmDump` returns every answer and its type.
+- **XFRM requests and the comparator.** XFRM's types start at 16, as rtnetlink's do, so nothing reads an XFRM message's type before its protocol.
+  - `xtcpnl.XfrmFamilyHdrLen` is where each type's attributes start: its struct from the kernel's `xfrm_msg_min`, aligned to four, and none for a GETSA or GETPOLICY dump, which the kernel parses from offset 0 and `ip` sends with no header. `BuildXfrmRequest` builds the XFRM reads alone, GETSA, GETPOLICY, GETAE, GETSADINFO, GETSPDINFO and GETDEFAULT.
+  - `nlparity` decodes an XFRM message with that length, names it `XFRM_MSG_*`, gives its requests a dump, get or do role, admits none of them as a write, where NEWSA's 16 is `RTM_NEWLINK`'s, and zeroes an SA's `add_time`, `use_time` and `XFRMA_LASTUSED`, which each side's setup sets at its own second.
+- **`goip xfrm state`** (`internal/goip/obj_xfrm.go`, `render/xfrm.go`).
+  - `xfrm` takes `state` or `sa`, by prefix; `policy` and `monitor` are G7-T03's to T05's and refused as not implemented. `state` with no verb lists, and the writes are G7-T02's.
+  - `list`, `show` and `lst` read `nokeys`, `mode`, `reqid` and `flag` by `strcmp`, then one ID, `xfrm_id_parse`'s `src`, `dst`, `proto` and `spi`, the C's argument walk kept: a word it does not know is read twice and is `unknown` the second time, and `flag` before a word that is not a flag sets the flag mask, which then matches no SA.
+  - The list dumps GETSA with `XFRMA_PROTO` when a protocol was given and `XFRMA_ADDRESS_FILTER` always, then filters each answer as `xfrm_state_filter_match` does.
+  - `get` reads `mark` and one ID, which needs a protocol, and sends GETSA of `xfrm_usersa_id`, `XFRMA_SRCADDR` and the mark when both its halves are set, `AF_INET` when no address gave a family. `count` sends GETSADINFO for every field and prints `print_sadinfo`'s line, with `-s` its buckets.
+  - Each SA prints as `xfrm_state_info_print` does: the identity, the SPI forced for IPsec, the replay window and flags, the attributes in `xfrm_xfrma_print`'s order, the selector when not all zero, and under `-s` the lifetimes and statistics.
+  - A selector with an upper protocol prints its name through `getprotobynumber`, from `/etc/protocols`; goip reads no config files and refuses such an SA, as it refuses a rule's `ipproto`. No corpus SA has one.
+  - Exit codes are `ip`'s: 255 for usage, an unknown word, invarg and missarg; 1 for an SPI the protocol cannot take, an answer it cannot print and a dump that ends early; 2 for a kernel refusal.
+- **The rows.** The C3 corpus's nine state read rows, each on its corpus precondition, their slugs the corpus's with `xfrm_` ahead. The kernel lists SAs newest first, the order they were added, so the two come back in one order on every side. Commands the corpus spells alike run as `show`, `g` and `c`. They follow the genl rows, after late setup has loaded `xfrm_user`.
+
+The tests (`pkg/xtcpnl`, `pkg/nlparity`, `internal/goip`, `internal/goipparity`):
+
+| description | expected |
+|---|---|
+| positive, negative, boundary, corner: each XFRM type's attribute offset, the two dumps', the dump flag on another type, `NLM_F_ROOT` alone, and the types not modeled | the struct aligned, 0, -1, `TestXfrmFamilyHdrLen` (25) |
+| positive, negative, boundary, corner: the read gate, and request layout: a dump's attributes, GETSADINFO, GETDEFAULT's three bytes with and without an attribute, a wrong header, a write | `TestIsXfrmReadType` (12), `TestBuildXfrmRequest` (9), `TestXfrmMsgTypeName` (5) |
+| positive, negative, corner: two captures of the same list at other seconds, a filter's prefix length, a get for a dump, an SA's reqid, its `add_time` alone and the byte after `use_time` | clean, or the finding at its locus, `TestXfrmPair` (7) |
+| positive, corner, negative: an XFRM message's name, role, header and write status beside the rtnetlink type with its number; the clocks zeroed and nothing else | `TestXfrmMsg` (6), `TestXfrmNormalize` (6), `TestFamilyHdrLen` (13, four new) |
+| positive, negative, boundary, corner: the nine C3 captures replayed, and `state`, `sa l`, `show`, `s lst`, a `/32`, `g` with the id's words reordered and the SPI decimal, and `c` with a word after it | every exchange replayed, `ip.out`, no stderr, `ip`'s exit status, `TestXfrmStateMatchesIp` (16) |
+| positive, negative, boundary, corner: each filter word and its request and client filtering, a family, `flag 0x0`, the flag mask's quirk, answers not a state or short, a selector protocol, every refusal, `get`'s mark and family, `count` and its refusals, and each object and verb | the requests' bytes, the SAs printed, the message, `ip`'s exit status, `TestXfrmStateArgs` (50) |
+| positive, boundary, corner: `xfrm_state_info_print` of every attribute and line, `-s`'s, the selectors' protocols, a template, and `print_sadinfo` | `ip`'s text, `TestXfrmStateInfo` (28), `TestXfrmSADInfo` (4), `TestXfrmProtoName` (7) |
+| positive, negative, boundary: the nine rows, and a write | NETLINK_XFRM, floor 2, on the corpus topology, gated; none, `TestXfrmStateRows` (10) |
+| positive, boundary: `x` is xfrm, implemented, and `tuntap` the unimplemented example; every genl row then every XFRM row after the route rows | `TestLookupObject` (16), `TestGenlStandInRows` |
+
 ## See also
 
 - [goip-parity-gaps-status.md](goip-parity-gaps-status.md): the progress against this plan: phase states, task checklist, verification ledger and decision log.

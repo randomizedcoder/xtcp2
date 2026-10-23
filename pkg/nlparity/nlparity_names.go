@@ -320,6 +320,9 @@ func MsgName(m Msg) string {
 	if m.IsGenl() {
 		return genlMsgName(m)
 	}
+	if m.IsXfrm() {
+		return xtcpnl.XfrmMsgTypeName(m.Hdr.Type)
+	}
 	return MsgTypeName(m.Hdr.Type)
 }
 
@@ -327,7 +330,7 @@ func MsgName(m Msg) string {
 // none of the four namespaces, whatever rtnetlink type its family id shares a
 // number with.
 func msgAttrFamily(m Msg) AttrFamily {
-	if m.IsGenl() {
+	if m.IsGenl() || m.IsXfrm() {
 		return AttrFamilyNone
 	}
 	return AttrFamilyOf(m.Hdr.Type)
