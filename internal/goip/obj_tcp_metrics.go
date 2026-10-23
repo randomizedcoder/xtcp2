@@ -238,21 +238,12 @@ func tcpmDelete(c *runCtx, id uint16, f *tcpmFilter) error {
 	return writeAddrOut(req)
 }
 
-// tcpmGenl is the run's genl side, which genlFamily has already found.
-func tcpmGenl(c *runCtx) (GenlSource, error) {
-	gs, ok := c.src.(GenlSource)
-	if !ok {
-		return nil, fmt.Errorf("generic netlink: %w", ErrNotImplemented)
-	}
-	return gs, nil
-}
-
 // tcpmGet is the GET of one exact address, rtnl_talk with an answer: a
 // refusal is the kernel's errno, exit 2, and the answer is printed through
 // process_msg. new_json_obj is never called on this path, so -j prints the
 // line.
 func tcpmGet(c *runCtx, id uint16, f *tcpmFilter) error {
-	gs, err := tcpmGenl(c)
+	gs, err := genlSource(c)
 	if err != nil {
 		return err
 	}
@@ -283,7 +274,7 @@ func tcpmGet(c *runCtx, id uint16, f *tcpmFilter) error {
 
 // tcpmDump sends one GET dump and returns its replies' bodies.
 func tcpmDump(c *runCtx, id uint16) ([][]byte, error) {
-	gs, err := tcpmGenl(c)
+	gs, err := genlSource(c)
 	if err != nil {
 		return nil, err
 	}

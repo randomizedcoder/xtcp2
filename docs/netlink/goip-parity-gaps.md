@@ -2777,6 +2777,36 @@ The tests (`pkg/xtcpnl`, `internal/goip`, `internal/goipparity`):
 | positive, negative, boundary: the 11 rows, and the corpus's own spelling of the delete | generic, on the corpus topology, the shows' keys printed and warned of as in `ip.out` and `ip.err`, each set's stdin its capture's `SECRET`, gated with no allowlist entry; the set's row, not a second one, `TestSrRows` (12) |
 | positive, boundary, negative, corner: `String()` for a row with a stdin line and a blank one; no Stdin but on the six `sr hmac set` rows, letters and digits | ten fields, `>s3cret` and `>`, `TestCommandString` |
 
+**G6-T03 delivered** (`internal/goip`, `pkg/xtcpnl`, `internal/goipparity`):
+- **The write gate.** `IsAdmittedGenlWrite` admits IOAM6's five commands that change state: `ADD_NAMESPACE`, `DEL_NAMESPACE`, `ADD_SCHEMA`, `DEL_SCHEMA` and `NS_SET_SCHEMA`. The two dumps stay reads.
+- **`goip ioam`** (`internal/goip/obj_ioam.go`, `render/ioam.go`).
+  - Every keyword is matched by `strcmp`, as `do_ioam6` matches it, so no prefix is accepted, and arguments past what a command reads are ignored.
+  - `namespace show` and `schema show` dump `DUMP_NAMESPACES` and `DUMP_SCHEMAS`, and print `print_namespace`'s and `print_schema`'s lines, or under `-j` their objects. Data and wide data are C's `%#010x` and `%#018lx`, whose width counts the `0x` and whose zero has none. In JSON, data is `print_hex`'s `%x`, wide data `print_0xhex`'s `%#llx`, and a schema's data is `null` followed by one field of the empty key for each byte.
+  - `namespace add`, `del` and `set` and `schema add` and `del` write one acked command to `GOIP_WRITE_OUT`, attributes in `ioam6_do_cmd`'s order: wide data as `addattr64`'s eight host-order bytes, `schema none` as the empty `SC_NONE`, schema data at most 1020 bytes.
+  - `monitor` sends `genl_add_mcast_grp`'s second `CTRL_CMD_GETFAMILY`, by family id, joins its `ioam6_events` group on the genl socket, and prints each TRACE event as `print_trace` does, the same under `-j`. A message of another type ends the listen, as `ioam6_monitor_msg`'s -1 ends `rtnl_listen`.
+  - Exit codes are `ip`'s: 255 for usage, `invarg` and an incomplete command, and 1 for a refused dump, a monitor that cannot subscribe, and a listen that ends.
+- **The genl monitor source.** `GenlMonitorSource` joins a group on the genl socket and listens on it with `rtnl_listen`'s loop, now shared with `goip monitor`. A replay hands over its capture's genl notifications.
+- **The rows.** The C2 corpus's 18 `ioam_*` rows that are not the monitor's replace the stand-in, each on its corpus precondition: two reads and 16 writes. Two `-j` shows join them, of one namespace with data and wide data bound to its schema.
+  - Each `-j` show has one namespace or one schema: the kernel walks both in an rhashtable seeded per network namespace, so a show of more could list them in another order on each side.
+  - Three rows run another spelling of a corpus command, so that no two rows share a name: `0x1` for the duplicate add and the bound schema's del, `01` for the bound namespace's del. The bytes are the same.
+  - The monitor's three rows are not in the matrix, since the driver runs no monitor. The TRACE row is replayed byte for byte, and live the monitor's requests and group are `ip`'s.
+
+The tests (`pkg/xtcpnl`, `internal/goip`, `internal/goipparity`):
+
+| description | expected |
+|---|---|
+| positive, negative, boundary: the write gate for IOAM6's seven commands, command 0 and command 8 | the five that change state admitted, the dumps and the rest not, `TestIsAdmittedGenlWrite` (21 rows, nine new) |
+| positive, negative, boundary, corner: `genl_add_mcast_grp`'s GETFAMILY for the capture's id, 0x11, 0xffff, the controller's own and a control type | the capture's bytes; the last two refused, `TestBuildGetFamilyByIDRequest` (5) |
+| positive, negative, boundary, corner: the 21 C2 captures replayed, the readback shows of seven, the matrix's `0x1` and `01` spellings, an argument past the command's, wide as `-1`, and `-j` shows and monitor | `ip.out`, `ip_ns` or `ip_sc`, or `ip`'s JSON; every read exchange once, no write sent, the write the capture's, `TestIoamMatchesIp` (39) |
+| positive, negative, boundary, corner: zero data and wide data, the ids at their maxima, a schema with a NUL and a quote, an answer with no attributes or of another command, a refused dump with and without `-j`, an answer that does not decode | `ip`'s line and JSON; `{}`; `[` and exit 1; exit 1, `TestIoamShow` (10) |
+| positive, negative, boundary, corner: TRACE events with every field, two, type 0, none, of another command; a message of another type, one too short; no `ioam6_events` group, an answer not the controller's, a refused lookup, a refused join | `print_trace`'s lines; group 9 joined; exit 1, `TestIoamMonitor` (11) |
+| negative, boundary, corner: no verb, `help`, unknown objects and verbs, prefixes, each argument missing or out of range, wide twice, data after wide, 1021 bytes of schema | `ip`'s message, exit 255, nothing sent, `TestIoamArgs` (26) |
+| positive, boundary: the attributes of an add with zero data, with wide alone, `schema none`, the largest ids, 1020 bytes of schema | `ip`'s bytes, `TestIoamWriteAttrs` (7) |
+| positive, negative, boundary, corner: the replay's genl listen over the TRACE row, a row with no event, a read row, fn failing | one event, none, none; fn's error, `TestGenlListenReplay` (4) |
+| positive, negative, boundary, corner: `get_u64` base 16 of hex with and without `0x`, sixteen f's, 2^64, `-1`, `fg`, the empty string | `TestGetU64` (7) |
+| positive, boundary, corner: C's `%#0Nx` of 0x2a, a filled width, zero, all ones, a value wider than its width, zero at width 0 | `TestCAltHex` (7) |
+| positive, negative, boundary, corner: the 20 rows and `ioam monitor` | generic, on the corpus topology or the `-j` shows', gated with no allowlist entry; the monitor not in the table, `TestIoamRows` (21) |
+
 ### G7 — XFRM
 
 xfrm state and policy show first, then the writes.

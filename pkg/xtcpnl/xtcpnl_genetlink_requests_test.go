@@ -170,3 +170,47 @@ func TestBuildGetFamilyRequestVersion(t *testing.T) {
 		})
 	}
 }
+
+// TestBuildGetFamilyByIDRequest is genl_add_mcast_grp's GETFAMILY: version
+// 0 and the family by its id.
+//
+// go test ./pkg/xtcpnl/ -run TestBuildGetFamilyByIDRequest
+func TestBuildGetFamilyByIDRequest(t *testing.T) {
+	tests := []struct {
+		description string
+		id          uint16
+		expected    string
+		wantErr     bool
+	}{
+		{
+			// ioam_monitor_trace/ip.pcap's second request, under sequence
+			// number 0: IOAM6 was 0x25 that boot.
+			description: "positive: ip ioam monitor's lookup of IOAM6's groups",
+			id:          0x25,
+			expected:    "1c000000100001000000000000000000030000000600010025000000",
+		},
+		{
+			description: "boundary: 0x11, the first id past the controller",
+			id:          unix.GENL_ID_CTRL + 1,
+			expected:    "1c000000100001000000000000000000030000000600010011000000",
+		},
+		{
+			description: "boundary: 0xffff, the last id, two bytes then two of padding",
+			id:          0xffff,
+			expected:    "1c0000001000010000000000000000000300000006000100ffff0000",
+		},
+		{description: "negative: the controller's own id is refused", id: unix.GENL_ID_CTRL, wantErr: true},
+		{description: "corner: an nlmsghdr control type is refused", id: unix.NLMSG_DONE, wantErr: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			got, err := BuildGetFamilyByIDRequest(tc.id, 0)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("err = %v, want error %v", err, tc.wantErr)
+			}
+			if hex.EncodeToString(got) != tc.expected {
+				t.Errorf("request\n  got  %x\n  want %s", got, tc.expected)
+			}
+		})
+	}
+}

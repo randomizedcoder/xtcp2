@@ -34,10 +34,23 @@ const (
 	tdEvents = "../../pkg/xtcpnl/testdata/7_1_4/netlink_route_events_link.pcap"
 )
 
+// genlReadbackRows are the genl read rows with no corpus capture of their
+// own slug, G6-T03's -j shows: each is laid out on the readback dump of
+// the same command a write row's capture holds.
+var genlReadbackRows = map[string]string{
+	"ioam_ns_show_json": "ioam_ns_set_schema/netlink_generic_ns.pcap",
+	"ioam_sc_show_json": "ioam_ns_set_schema/netlink_generic_sc.pcap",
+}
+
 // writeGenlReadRow lays out an implemented generic netlink read row as a
-// perfect run would: every side its slug's corpus capture and ip.out.
+// perfect run would: every side its slug's corpus capture and ip.out, or
+// its readback and the same text.
 func writeGenlReadRow(t *testing.T, dir string, c Command) {
 	t.Helper()
+	if rb, ok := genlReadbackRows[c.Slug]; ok {
+		writeTriple(t, dir, c, sameAll(filepath.Join(tdGenl, rb)), sameAll(""))
+		return
+	}
 	src := filepath.Join(tdGenl, c.Slug)
 	writeTriple(t, dir, c, sameAll(filepath.Join(src, "ip.pcap")), sameAll(mustRead(t, filepath.Join(src, "ip.out"))))
 }

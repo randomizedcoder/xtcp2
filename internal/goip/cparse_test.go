@@ -64,6 +64,38 @@ func TestCGetUnsigned(t *testing.T) {
 	}
 }
 
+// TestGetU64 is get_u64 with base 16, as `ioam namespace add ... wide`
+// reads it: strtoull, whose ULLONG_MAX is accepted unless it overflowed.
+//
+// go test ./internal/goip/ -run TestGetU64
+func TestGetU64(t *testing.T) {
+	type result struct {
+		val uint64
+		ok  bool
+	}
+	tests := []struct {
+		description string
+		arg         string
+		expected    result
+	}{
+		{description: "positive: hex without a prefix", arg: "2a", expected: result{0x2a, true}},
+		{description: "positive: base 16 takes a 0x prefix", arg: "0x2a", expected: result{0x2a, true}},
+		{description: "boundary: sixteen f's, the maximum, is accepted", arg: "ffffffffffffffff", expected: result{1<<64 - 1, true}},
+		{description: "boundary: 2^64 overflows, ERANGE", arg: "10000000000000000"},
+		{description: "corner: -1 wraps to all ones and has no maximum to fail", arg: "-1", expected: result{1<<64 - 1, true}},
+		{description: "negative: a digit past f", arg: "fg"},
+		{description: "negative: empty", arg: ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			v, ok := getU64(tc.arg, 16)
+			if got := (result{v, ok}); got != tc.expected {
+				t.Errorf("get_u64(%q, 16) = %+v, want %+v", tc.arg, got, tc.expected)
+			}
+		})
+	}
+}
+
 // TestCGetSigned is get_s32.
 //
 // go test ./internal/goip/ -run TestCGetSigned

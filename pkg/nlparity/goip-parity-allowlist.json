@@ -1035,7 +1035,15 @@
     "reads; hmac set of each algorithm, over a key, the delete, of a missing",
     "key and of a 65-byte secret, each reading its secret on stdin under",
     "setsid, and tunsrc set, dry-run writes. Two consecutive clean runs of",
-    "304 GOIP_PARITY_PASS of 304 ended GOIP_PARITY_OVERALL_PASS."
+    "304 GOIP_PARITY_PASS of 304 ended GOIP_PARITY_OVERALL_PASS.",
+    "",
+    "G6-T03 adds ioam in place of its G5-T03 stand-in, and gates the C2",
+    "corpus's 18 rows that are not the monitor's, each on its precondition,",
+    "and two -j shows of one bound namespace with data and wide data and its",
+    "schema: the empty shows and the -j shows, reads; namespace add, del and",
+    "set and schema add and del, among them the duplicates, the missing and",
+    "the bound, dry-run writes. Two consecutive clean runs of 323",
+    "GOIP_PARITY_PASS of 323 ended GOIP_PARITY_OVERALL_PASS."
   ],
   "_note_version_skew": [
     "THE ENTRIES BELOW CITE COMMITS THAT ARE IN NO RELEASE, AND THE EVIDENCE IS",
@@ -1441,6 +1449,26 @@
     "sr hmac se 1 sha256",
     "sr hmac set 9 sha256",
     "sr hmac set 3 sha256",
-    "sr tunsrc set 2001:db8::1"
+    "sr tunsrc set 2001:db8::1",
+    "ioam namespace show",
+    "ioam schema show",
+    "-j ioam namespace show",
+    "-j ioam schema show",
+    "ioam namespace add 1",
+    "ioam namespace add 2 data 42 wide 2a",
+    "ioam namespace add 3 data 0xffffffff wide ffffffffffffffff",
+    "ioam namespace add 0x1",
+    "ioam namespace del 1",
+    "ioam namespace del 9",
+    "ioam schema add 1 abcd",
+    "ioam schema add 2 abcde",
+    "ioam schema add 1 wxyz",
+    "ioam schema del 1",
+    "ioam schema del 9",
+    "ioam namespace set 1 schema 1",
+    "ioam namespace set 1 schema none",
+    "ioam namespace set 1 schema 9",
+    "ioam schema del 0x1",
+    "ioam namespace del 01"
   ]
 }

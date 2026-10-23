@@ -100,19 +100,24 @@ func (c *netlinkMonitorConn) Dump(request []byte, msgType uint16) ([][]byte, err
 	return out, nil
 }
 
-// Listen is rtnl_listen: EINTR and EAGAIN are retried, ENOBUFS, the
+// Listen is rtnl_listen on the subscribed socket.
+func (c *netlinkMonitorConn) Listen(fn func(monitorMsg) error) error {
+	return listenFd(c.fd, c.allNsid, c.errOut, fn)
+}
+
+// listenFd is rtnl_listen: EINTR and EAGAIN are retried, ENOBUFS, the
 // kernel's word for messages dropped on a full queue, is reported and
 // retried, and any other receive error ends the listen.
-func (c *netlinkMonitorConn) Listen(fn func(monitorMsg) error) error {
+func listenFd(fd int, allNsid bool, errOut io.Writer, fn func(monitorMsg) error) error {
 	buf := make([]byte, monitorRecvBufCst)
 	oob := make([]byte, monitorCmsgBufCst)
 	for {
-		n, oobn, _, _, err := unix.Recvmsg(c.fd, buf, oob, 0)
+		n, oobn, _, _, err := unix.Recvmsg(fd, buf, oob, 0)
 		switch {
 		case errors.Is(err, unix.EINTR), errors.Is(err, unix.EAGAIN):
 			continue
 		case errors.Is(err, unix.ENOBUFS):
-			if _, werr := fmt.Fprintf(c.errOut, "netlink receive error %s (%d)\n", unix.ENOBUFS.Error(), int(unix.ENOBUFS)); werr != nil {
+			if _, werr := fmt.Fprintf(errOut, "netlink receive error %s (%d)\n", unix.ENOBUFS.Error(), int(unix.ENOBUFS)); werr != nil {
 				return werr
 			}
 			continue
@@ -122,7 +127,7 @@ func (c *netlinkMonitorConn) Listen(fn func(monitorMsg) error) error {
 			return errors.New("EOF on netlink")
 		}
 		nsid := int32(-1)
-		if c.allNsid {
+		if allNsid {
 			nsid = listenNsid(oob[:oobn])
 		}
 		if err := monitorDatagram(buf[:n], nsid, fn); err != nil {

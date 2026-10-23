@@ -35,6 +35,12 @@ const (
 	IOAM6AttrScData     uint16 = 5 // binary, at most 1020 bytes
 	IOAM6AttrScNone     uint16 = 6 // flag
 
+	// IOAM6EventGroupName is IOAM6_GENL_EV_GRP_NAME, the multicast group
+	// the TRACE event is sent to.
+	IOAM6EventGroupName = "ioam6_events"
+	// IOAM6MaxSchemaDataLen is IOAM6_MAX_SCHEMA_DATA_LEN (linux/ioam6.h).
+	IOAM6MaxSchemaDataLen = 255 * 4
+
 	// IOAM6_EVENT_TRACE, the one event, and its IOAM6_EVENT_ATTR_TRACE_*.
 	IOAM6EventTrace         uint8  = 1
 	IOAM6EventAttrNamespace uint16 = 1 // u16

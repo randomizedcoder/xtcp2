@@ -134,6 +134,15 @@ func TestIsAdmittedGenlWrite(t *testing.T) {
 		{"negative: SEG6 GET_TUNSRC, `sr tunsrc show`", Seg6GenlName, Seg6CmdGetTunsrc, false},
 		{"boundary: SEG6 command 5, past the last", Seg6GenlName, Seg6CmdGetTunsrc + 1, false},
 		{"corner: SEG6's SETHMAC number is not a tcp_metrics write", TCPMetricsGenlName, Seg6CmdSetHmac, false},
+		{"positive: IOAM6 ADD_NAMESPACE, `ioam namespace add`", IOAM6GenlName, IOAM6CmdAddNamespace, true},
+		{"positive: IOAM6 DEL_NAMESPACE, `ioam namespace del`", IOAM6GenlName, IOAM6CmdDelNamespace, true},
+		{"positive: IOAM6 ADD_SCHEMA, `ioam schema add`", IOAM6GenlName, IOAM6CmdAddSchema, true},
+		{"positive: IOAM6 DEL_SCHEMA, `ioam schema del`", IOAM6GenlName, IOAM6CmdDelSchema, true},
+		{"positive: IOAM6 NS_SET_SCHEMA, `ioam namespace set`", IOAM6GenlName, IOAM6CmdNsSetSchema, true},
+		{"negative: IOAM6 DUMP_NAMESPACES, `ioam namespace show`", IOAM6GenlName, IOAM6CmdDumpNamespaces, false},
+		{"negative: IOAM6 DUMP_SCHEMAS, `ioam schema show`", IOAM6GenlName, IOAM6CmdDumpSchemas, false},
+		{"boundary: IOAM6 command 0, UNSPEC", IOAM6GenlName, 0, false},
+		{"boundary: IOAM6 command 8, past the last", IOAM6GenlName, IOAM6CmdNsSetSchema + 1, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {

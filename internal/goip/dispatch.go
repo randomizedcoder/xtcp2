@@ -95,7 +95,7 @@ var objects = []object{
 	{name: "sr", run: runSr, noShow: true},
 	{name: objNexthopCst, run: runNexthop},
 	{name: "mptcp"},
-	{name: "ioam"},
+	{name: "ioam", run: runIoam, noShow: true},
 	{name: "stats", run: runStats},
 	{name: "monitor", run: runMonitor, noShow: true},
 	{name: "xfrm"},

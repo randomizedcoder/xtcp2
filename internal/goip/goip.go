@@ -251,12 +251,14 @@ func (c *runCtx) lineOption(a string) bool {
 // tcp_metrics.c ends with exit(-1), 1 for a dump it refuses or a family
 // genl_init_handle cannot resolve, and 2 for a kernel refusal. sr exits 255
 // for what ipseg6.c ends with exit(-1), 1 for a dump or a reply it cannot
-// finish or parse, and 2 for a refused tunsrc show.
+// finish or parse, and 2 for a refused tunsrc show. ioam exits 255 for
+// what ipioam6.c ends with exit(-1), and 1 for a dump it cannot finish or a
+// monitor that cannot subscribe or whose listen ends.
 func exitCodeOf(err error) int {
 	switch {
 	case errors.Is(err, ErrFlushIncomplete), errors.Is(err, ErrDumpFile), errors.Is(err, ErrRuleDumpTerminated),
 		errors.Is(err, ErrAddrLabelFlushTerminated), errors.Is(err, ErrMruleFamily), errors.Is(err, ErrMonitorAbort),
-		errors.Is(err, ErrTCPMetricsUsage), errors.Is(err, ErrSrUsage):
+		errors.Is(err, ErrTCPMetricsUsage), errors.Is(err, ErrSrUsage), errors.Is(err, ErrIoamUsage):
 		return ExitMinusOne
 	case errors.Is(err, ErrMonitorSetup), errors.Is(err, ErrMonitorFile):
 		return ExitUsage
@@ -264,7 +266,8 @@ func exitCodeOf(err error) int {
 		errors.Is(err, ErrWriteNotApplied), errors.Is(err, ErrSaveTerminated),
 		errors.Is(err, ErrDumpTerminated), errors.Is(err, ErrNeighFlushTerminated),
 		errors.Is(err, ErrTCPMetricsDumpTerminated), errors.Is(err, ErrGenlResolve),
-		errors.Is(err, ErrSrReply), errors.Is(err, ErrSrDumpTerminated):
+		errors.Is(err, ErrSrReply), errors.Is(err, ErrSrDumpTerminated),
+		errors.Is(err, ErrIoamDumpTerminated), errors.Is(err, ErrIoamMonitor):
 		return ExitUsage
 	}
 	return ExitFailure

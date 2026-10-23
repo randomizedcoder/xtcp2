@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/randomizedcoder/xtcp2/pkg/nlparity"
@@ -37,6 +38,16 @@ type GenlSource interface {
 	// GenlTalk sends a request on the genl socket and returns its one
 	// reply's type and body, both zero for an ACK. A refusal is an error.
 	GenlTalk(request []byte) (uint16, []byte, error)
+}
+
+// GenlMonitorSource is the genl side a monitor needs: a multicast group
+// joined on the genl socket, as genl_add_mcast_grp's rtnl_add_nl_group, and
+// every message after handed to fn, as rtnl_listen hands it on that socket,
+// until fn fails or the source ends: a socket on an error, a replay at the
+// end of its capture.
+type GenlMonitorSource interface {
+	GenlJoin(group uint32) error
+	GenlListen(errOut io.Writer, fn func(monitorMsg) error) error
 }
 
 // genlSndBufCst is rtnl_open_byproto's SO_SNDBUF (lib/libnetlink.c:197).
@@ -131,6 +142,50 @@ func (s *NetlinkSource) GenlTalk(request []byte) (uint16, []byte, error) {
 		return 0, nil, fmt.Errorf("goip: genl talk: %w", err)
 	}
 	return typ, xtcpnl.CopyBytes(body), nil
+}
+
+// GenlJoin is rtnl_add_nl_group on the genl socket.
+func (s *NetlinkSource) GenlJoin(group uint32) error {
+	fd, err := s.genl()
+	if err != nil {
+		return err
+	}
+	return unix.SetsockoptInt(fd, unix.SOL_NETLINK, unix.NETLINK_ADD_MEMBERSHIP, int(group))
+}
+
+// GenlListen is rtnl_listen on the genl socket.
+func (s *NetlinkSource) GenlListen(errOut io.Writer, fn func(monitorMsg) error) error {
+	fd, err := s.genl()
+	if err != nil {
+		return err
+	}
+	return listenFd(fd, false, errOut, fn)
+}
+
+// genlSource is the run's genl side, which genlFamily has already found.
+func genlSource(c *runCtx) (GenlSource, error) {
+	gs, ok := c.src.(GenlSource)
+	if !ok {
+		return nil, fmt.Errorf("generic netlink: %w", ErrNotImplemented)
+	}
+	return gs, nil
+}
+
+// genlJSONAppend adds one object to the -j array.
+func genlJSONAppend(arr *[]byte, obj []byte) {
+	if len(*arr) != 0 {
+		*arr = append(*arr, ',')
+	}
+	*arr = append(*arr, obj...)
+}
+
+// genlJSONEnd is delete_json_obj: under -j the array and its newline.
+func genlJSONEnd(c *runCtx, arr []byte) error {
+	if !c.json {
+		return nil
+	}
+	_, err := fmt.Fprintf(c.out, "[%s]\n", arr)
+	return err
 }
 
 // genlFamily is genl_init_handle: the id of the named family, from one
@@ -252,4 +307,20 @@ func (s *ReplaySource) GenlTalk(request []byte) (uint16, []byte, error) {
 		return 0, nil, nil
 	}
 	return m.Hdr.Type, xtcpnl.CopyBytes(m.Body), nil
+}
+
+// GenlJoin on a replay joins nothing: the capture holds what the kernel
+// sent the subscriber that ran.
+func (s *ReplaySource) GenlJoin(uint32) error { return nil }
+
+// GenlListen hands each of the capture's genl notifications, the messages
+// from the kernel that answer no request, to fn.
+func (s *ReplaySource) GenlListen(_ io.Writer, fn func(monitorMsg) error) error {
+	for i := range s.gseg.Notifications {
+		m := &s.gseg.Notifications[i]
+		if err := fn(monitorMsg{hdr: m.Hdr, body: m.Body, nsid: -1}); err != nil {
+			return err
+		}
+	}
+	return nil
 }

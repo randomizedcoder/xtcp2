@@ -2823,9 +2823,57 @@ var commands = withArgs([]Command{
 	{Name: "sr tunsrc set 2001:db8::1", Slug: "sr_tunsrc_set", Floor: 4, Implemented: true, Write: true,
 		Proto: ProtoGenericCst},
 
+	// G6-T03: ioam, the C2 corpus's 18 ioam_* rows that are not the
+	// monitor's, on its preconditions (genl-write-corpus.exp), and two -j
+	// shows of one bound namespace with data and wide data and its schema.
+	// Every keyword is strcmp's, so the three rows whose corpus command is
+	// another row's spell the id another way, base 0, the same bytes: 0x1
+	// for the duplicate add and the bound schema's del, 01 for the bound
+	// namespace's del. The kernel walks its namespaces and schemas in an
+	// rhashtable seeded per namespace, so a show of more than one could
+	// differ in order between the two sides; each -j show has one. The
+	// monitor's three rows are not here: the driver runs no monitor.
+	{Name: "ioam namespace show", Slug: "ioam_ns_show_empty", Floor: 4, Implemented: true, Proto: ProtoGenericCst},
+	{Name: "ioam schema show", Slug: "ioam_sc_show_empty", Floor: 4, Implemented: true, Proto: ProtoGenericCst},
+	{Name: "-j ioam namespace show", Slug: "ioam_ns_show_json", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: ioamJSONSetup},
+	{Name: "-j ioam schema show", Slug: "ioam_sc_show_json", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: ioamJSONSetup},
+	{Name: "ioam namespace add 1", Slug: "ioam_ns_add", Floor: 4, Implemented: true, Write: true, Proto: ProtoGenericCst},
+	{Name: "ioam namespace add 2 data 42 wide 2a", Slug: "ioam_ns_add_data", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst},
+	{Name: "ioam namespace add 3 data 0xffffffff wide ffffffffffffffff", Slug: "ioam_ns_add_unavailable", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst},
+	{Name: "ioam namespace add 0x1", Slug: "ioam_ns_add_dup", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: ioamNs1Setup},
+	{Name: "ioam namespace del 1", Slug: "ioam_ns_del", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: ioamNs1Setup},
+	{Name: "ioam namespace del 9", Slug: "ioam_ns_del_missing", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst},
+	{Name: "ioam schema add 1 abcd", Slug: "ioam_sc_add", Floor: 4, Implemented: true, Write: true, Proto: ProtoGenericCst},
+	{Name: "ioam schema add 2 abcde", Slug: "ioam_sc_add_pad", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst},
+	{Name: "ioam schema add 1 wxyz", Slug: "ioam_sc_add_dup", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: ioamBoundSetup[1:2]},
+	{Name: "ioam schema del 1", Slug: "ioam_sc_del", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: ioamBoundSetup[1:2]},
+	{Name: "ioam schema del 9", Slug: "ioam_sc_del_missing", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst},
+	{Name: "ioam namespace set 1 schema 1", Slug: "ioam_ns_set_schema", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: ioamBoundSetup[:2]},
+	{Name: "ioam namespace set 1 schema none", Slug: "ioam_ns_set_none", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: ioamBoundSetup},
+	{Name: "ioam namespace set 1 schema 9", Slug: "ioam_ns_set_missing", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: ioamNs1Setup},
+	{Name: "ioam schema del 0x1", Slug: "ioam_sc_del_bound", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: ioamBoundSetup},
+	{Name: "ioam namespace del 01", Slug: "ioam_ns_del_bound", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: ioamBoundSetup},
+
 	// G5-T03: one `show` per generic netlink family, in the C2 order, with
-	// `ip` in goip's place until the family's G6 task implements it; six
-	// remain, tcp_metrics' and sr's rows above having replaced their own. The
+	// `ip` in goip's place until the family's G6 task implements it; five
+	// remain, tcp_metrics', sr's and ioam's rows above having replaced their
+	// own. The
 	// captures keep NETLINK_GENERIC and the comparator compares a genl
 	// message by its family's name, so these rows exercise the harness end
 	// to end, ungated. Each is genl_init_handle's CTRL_CMD_GETFAMILY and its
@@ -2833,7 +2881,6 @@ var commands = withArgs([]Command{
 	// four datagrams, as on C2's empty shows, since every family is empty in
 	// the dump topology. They come last: the driver runs nltopo::late_setup,
 	// which loads the families' modules, before the first genl row.
-	{Name: "ioam namespace show", Slug: "genl_ioam_namespace_show", Floor: 4, Proto: ProtoGenericCst, IPStandIn: true},
 	{Name: "mptcp endpoint show", Slug: "genl_mptcp_endpoint_show", Floor: 4, Proto: ProtoGenericCst, IPStandIn: true},
 	{Name: "fou show", Slug: "genl_fou_show", Floor: 4, Proto: ProtoGenericCst, IPStandIn: true},
 	{Name: "ila show", Slug: "genl_ila_show", Floor: 4, Proto: ProtoGenericCst, IPStandIn: true},
@@ -2866,6 +2913,26 @@ var tcpmSetup = append(slices.Clone(tcpmAddrsSetup),
 var srHmacTwoSetup = []string{
 	"hmac 1 sha256 s3cret",
 	"hmac 2 sha1 0ther",
+}
+
+// ioamNs1Setup is genl-write-corpus.exp's PRE_NS1: namespace 1.
+var ioamNs1Setup = []string{"ioam namespace add 1"}
+
+// ioamBoundSetup is PRE_BOUND: namespace 1, schema 1 with four bytes of
+// data, and the one bound to the other. Its first two steps are
+// PRE_NS1_SC1, and its second PRE_SC1.
+var ioamBoundSetup = []string{
+	"ioam namespace add 1",
+	"ioam schema add 1 abcd",
+	"ioam namespace set 1 schema 1",
+}
+
+// ioamJSONSetup is the -j shows' one namespace, with data and wide data,
+// bound to its one schema.
+var ioamJSONSetup = []string{
+	"ioam namespace add 2 data 42 wide 2a",
+	"ioam schema add 1 abcd",
+	"ioam namespace set 2 schema 1",
 }
 
 // The write rows' preconditions, as capture-link-writes.exp spells them:

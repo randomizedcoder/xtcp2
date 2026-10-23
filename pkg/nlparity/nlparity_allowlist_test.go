@@ -741,6 +741,27 @@ func TestAllowlistCommitted(t *testing.T) {
 		"sr hmac set 9 sha256",
 		"sr hmac set 3 sha256",
 		"sr tunsrc set 2001:db8::1",
+		// G6-T03's twenty `ioam` rows.
+		"ioam namespace show",
+		"ioam schema show",
+		"-j ioam namespace show",
+		"-j ioam schema show",
+		"ioam namespace add 1",
+		"ioam namespace add 2 data 42 wide 2a",
+		"ioam namespace add 3 data 0xffffffff wide ffffffffffffffff",
+		"ioam namespace add 0x1",
+		"ioam namespace del 1",
+		"ioam namespace del 9",
+		"ioam schema add 1 abcd",
+		"ioam schema add 2 abcde",
+		"ioam schema add 1 wxyz",
+		"ioam schema del 1",
+		"ioam schema del 9",
+		"ioam namespace set 1 schema 1",
+		"ioam namespace set 1 schema none",
+		"ioam namespace set 1 schema 9",
+		"ioam schema del 0x1",
+		"ioam namespace del 01",
 	}
 
 	tests := []struct {

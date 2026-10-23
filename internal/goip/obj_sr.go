@@ -279,20 +279,11 @@ func srWriteAttrs(c *runCtx, r *srReq) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-// srGenl is the run's genl side, which genlFamily has already found.
-func srGenl(c *runCtx) (GenlSource, error) {
-	gs, ok := c.src.(GenlSource)
-	if !ok {
-		return nil, fmt.Errorf("generic netlink: %w", ErrNotImplemented)
-	}
-	return gs, nil
-}
-
 // srHmacShow is the DUMPHMAC dump: each key's line, or under -j one array
 // of their objects. A reply process_msg cannot parse ends the dump with
 // "Dump terminated", exit 1.
 func srHmacShow(c *runCtx, id uint16) error {
-	gs, err := srGenl(c)
+	gs, err := genlSource(c)
 	if err != nil {
 		return err
 	}
@@ -322,14 +313,14 @@ func srHmacShow(c *runCtx, id uint16) error {
 			return err
 		}
 	}
-	return srJSONEnd(c, arr)
+	return genlJSONEnd(c, arr)
 }
 
 // srHmacOne is process_msg for one reply: the key, or, for a reply of
 // another command, an empty object under -j and nothing otherwise.
 func srHmacOne(c *runCtx, m *xtcpnl.Seg6, arr *[]byte) error {
 	if m.Command != xtcpnl.Seg6CmdDumpHmac {
-		srJSONAppend(arr, []byte("{}"))
+		genlJSONAppend(arr, []byte("{}"))
 		return nil
 	}
 	v := render.SrHmacViewOf(m)
@@ -339,34 +330,17 @@ func srHmacOne(c *runCtx, m *xtcpnl.Seg6, arr *[]byte) error {
 		}
 	}
 	if c.json {
-		srJSONAppend(arr, v.JSON())
+		genlJSONAppend(arr, v.JSON())
 		return nil
 	}
 	_, err := io.WriteString(c.out, v.Text())
 	return err
 }
 
-// srJSONAppend adds one object to the -j array.
-func srJSONAppend(arr *[]byte, obj []byte) {
-	if len(*arr) != 0 {
-		*arr = append(*arr, ',')
-	}
-	*arr = append(*arr, obj...)
-}
-
-// srJSONEnd is delete_json_obj: under -j the array and its newline.
-func srJSONEnd(c *runCtx, arr []byte) error {
-	if !c.json {
-		return nil
-	}
-	_, err := fmt.Fprintf(c.out, "[%s]\n", arr)
-	return err
-}
-
 // srTunsrcShow is the GET_TUNSRC talk: a refusal is the kernel's errno,
 // exit 2, and an answer of another type "Error parsing reply", exit 1.
 func srTunsrcShow(c *runCtx, id uint16) error {
-	gs, err := srGenl(c)
+	gs, err := genlSource(c)
 	if err != nil {
 		return err
 	}
@@ -389,13 +363,13 @@ func srTunsrcShow(c *runCtx, id uint16) error {
 	var arr []byte
 	switch {
 	case m.Command != xtcpnl.Seg6CmdGetTunsrc:
-		srJSONAppend(&arr, []byte("{}"))
+		genlJSONAppend(&arr, []byte("{}"))
 	case c.json:
-		srJSONAppend(&arr, render.SrTunsrcJSON(&m))
+		genlJSONAppend(&arr, render.SrTunsrcJSON(&m))
 	default:
 		if _, err := io.WriteString(c.out, render.SrTunsrcText(&m)); err != nil {
 			return err
 		}
 	}
-	return srJSONEnd(c, arr)
+	return genlJSONEnd(c, arr)
 }

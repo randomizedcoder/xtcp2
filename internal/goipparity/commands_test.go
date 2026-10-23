@@ -1074,19 +1074,20 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	//   - the fourteen `tcp_metrics` rows G6-T01 added in place of its
 	//     stand-in, likewise — see TestTCPMetricsRows;
 	//   - the eleven `sr` rows G6-T02 added in place of its stand-in,
-	//     likewise — see TestSrRows.
+	//     likewise — see TestSrRows;
+	//   - the twenty `ioam` rows G6-T03 added in place of its stand-in,
+	//     likewise — see TestIoamRows.
 	//
 	// The last four were the permanent set, measured divergent on the wire;
 	// TestPermanentWireDivergences records that it is empty.
 	//
-	// The six genl rows G5-T03 added and G6 has not yet replaced are
+	// The five genl rows G5-T03 added and G6 has not yet replaced are
 	// ungated by construction: `ip`
 	// stands in for goip on them (IPStandIn) until each family's G6 task
 	// implements it, and gating `ip` against `ip` would gate nothing about
 	// goip. TestGenlStandInRows pins them.
 	expected := []string{
 		"addr show dynamic",
-		"ioam namespace show",
 		"mptcp endpoint show",
 		"fou show",
 		"ila show",
@@ -1099,15 +1100,15 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 		check       func(t *testing.T)
 	}{
 		{
-			description: "boundary: the list is seven named rows, one held out and six stand-ins",
+			description: "boundary: the list is six named rows, one held out and five stand-ins",
 			check: func(t *testing.T) {
-				if len(expected) != 7 {
-					t.Errorf("got %d named rows, want 7", len(expected))
+				if len(expected) != 6 {
+					t.Errorf("got %d named rows, want 6", len(expected))
 				}
 			},
 		},
 		{
-			description: "positive: the ungated set is exactly the seven named rows, so UNGATED_CLEAN counts them and not zero",
+			description: "positive: the ungated set is exactly the six named rows, so UNGATED_CLEAN counts them and not zero",
 			check: func(t *testing.T) {
 				for _, name := range expected {
 					if !ungated[name] {
@@ -3457,8 +3458,8 @@ func TestNetnsRows(t *testing.T) {
 	})
 }
 
-// TestGenlStandInRows pins G5-T03's genl rows, six since G6-T01 and G6-T02
-// replaced tcp_metrics' and sr's: one `show` per family in the C2 order, NETLINK_GENERIC, `ip`
+// TestGenlStandInRows pins G5-T03's genl rows, five since G6-T01 to G6-T03
+// replaced tcp_metrics', sr's and ioam's: one `show` per family in the C2 order, NETLINK_GENERIC, `ip`
 // in goip's place, floor 4, ungated, and with G6's rows after every route
 // row, since the driver loads the families' modules before the first of
 // them.
@@ -3474,12 +3475,12 @@ func TestGenlStandInRows(t *testing.T) {
 		gated[name] = true
 	}
 	want := []string{
-		"ioam namespace show", "mptcp endpoint show",
+		"mptcp endpoint show",
 		"fou show", "ila show", "l2tp show tunnel", "macsec show",
 	}
-	// tcpmRows and srRows are G6-T01's and G6-T02's rows, the first genl
-	// ones, ahead of the stand-ins.
-	const tcpmRows, srRows = 14, 11
+	// tcpmRows, srRows and ioamRows are G6-T01's to G6-T03's rows, the
+	// first genl ones, ahead of the stand-ins.
+	const tcpmRows, srRows, ioamRows = 14, 11, 20
 
 	cmds := Commands()
 	first := len(cmds)
@@ -3498,7 +3499,7 @@ func TestGenlStandInRows(t *testing.T) {
 		check       func(t *testing.T)
 	}{
 		{
-			description: "positive: the stand-ins are the six unimplemented families' shows, in the C2 order",
+			description: "positive: the stand-ins are the five unimplemented families' shows, in the C2 order",
 			check: func(t *testing.T) {
 				if !slices.Equal(got, want) {
 					t.Errorf("stand-ins %q, want %q", got, want)
@@ -3528,8 +3529,8 @@ func TestGenlStandInRows(t *testing.T) {
 						t.Errorf("%q, a %s row, follows the first genl row", c.Name, c.Protocol())
 					}
 				}
-				if len(cmds)-first != tcpmRows+srRows+len(want) {
-					t.Errorf("%d rows from the first genl one, want %d", len(cmds)-first, tcpmRows+srRows+len(want))
+				if len(cmds)-first != tcpmRows+srRows+ioamRows+len(want) {
+					t.Errorf("%d rows from the first genl one, want %d", len(cmds)-first, tcpmRows+srRows+ioamRows+len(want))
 				}
 			},
 		},
@@ -3795,6 +3796,78 @@ func TestSrRows(t *testing.T) {
 					topology: slices.Equal(srTopology(c.Setup), srCorpusTopology(t, r.corpus)),
 					stdin:    (c.Stdin == nil) == (corpusStdin == nil) && (c.Stdin == nil || *c.Stdin == *corpusStdin),
 					output:   out}
+			}
+			got.gated = al.IsGated(r.command)
+			got.entries = len(al.EntriesFor(r.command))
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+		})
+	}
+}
+
+// TestIoamRows pins G6-T03's twenty rows: the C2 corpus's 18 ioam_* rows
+// that are not the monitor's, NETLINK_GENERIC, each on its capture's
+// precondition; the adds, deletes and bindings, write rows; the empty
+// shows, read rows; and two -j shows on one bound namespace, read rows
+// with no corpus row. Every one is gated with no allowlist entry after two
+// clean live runs, and no monitor row is in the table.
+//
+// go test ./internal/goipparity/ -run TestIoamRows
+func TestIoamRows(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	type want struct {
+		implemented, write, topology, gated bool
+		proto                               string
+		floor, entries                      int
+	}
+	read := want{implemented: true, topology: true, gated: true, proto: ProtoGenericCst, floor: 4}
+	write := read
+	write.write = true
+	rows := []struct {
+		description string
+		command     string
+		corpus      string // the slug whose topology Setup must be; "" for ioamJSONSetup
+		expected    want
+	}{
+		{"boundary: namespace show with none", "ioam namespace show", "ioam_ns_show_empty", read},
+		{"boundary: schema show with none", "ioam schema show", "ioam_sc_show_empty", read},
+		{"positive: -j namespace show, one bound namespace", "-j ioam namespace show", "", read},
+		{"positive: -j schema show, its schema", "-j ioam schema show", "", read},
+		{"positive: namespace add", "ioam namespace add 1", "ioam_ns_add", write},
+		{"positive: with data and wide data", "ioam namespace add 2 data 42 wide 2a", "ioam_ns_add_data", write},
+		{"boundary: all ones", "ioam namespace add 3 data 0xffffffff wide ffffffffffffffff", "ioam_ns_add_unavailable", write},
+		{"negative: a duplicate, refused, spelled 0x1", "ioam namespace add 0x1", "ioam_ns_add_dup", write},
+		{"positive: namespace del", "ioam namespace del 1", "ioam_ns_del", write},
+		{"negative: a del of none, refused", "ioam namespace del 9", "ioam_ns_del_missing", write},
+		{"positive: schema add", "ioam schema add 1 abcd", "ioam_sc_add", write},
+		{"boundary: five bytes", "ioam schema add 2 abcde", "ioam_sc_add_pad", write},
+		{"negative: a duplicate schema, refused", "ioam schema add 1 wxyz", "ioam_sc_add_dup", write},
+		{"positive: schema del", "ioam schema del 1", "ioam_sc_del", write},
+		{"negative: a schema del of none, refused", "ioam schema del 9", "ioam_sc_del_missing", write},
+		{"positive: the binding", "ioam namespace set 1 schema 1", "ioam_ns_set_schema", write},
+		{"positive: the unbinding", "ioam namespace set 1 schema none", "ioam_ns_set_none", write},
+		{"negative: a binding to none, refused", "ioam namespace set 1 schema 9", "ioam_ns_set_missing", write},
+		{"corner: a bound schema's del, spelled 0x1", "ioam schema del 0x1", "ioam_sc_del_bound", write},
+		{"corner: a bound namespace's del, spelled 01", "ioam namespace del 01", "ioam_ns_del_bound", write},
+		{"negative: the monitor is not in the table", "ioam monitor", "", want{}},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			var got want
+			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				topology := slices.Equal(c.Setup, ioamJSONSetup)
+				if r.corpus != "" {
+					steps := make([]string, 0, len(c.Setup))
+					for _, s := range c.Setup {
+						steps = append(steps, "ip "+s)
+					}
+					topology = slices.Equal(steps, srCorpusTopology(t, r.corpus))
+				}
+				got = want{implemented: c.Implemented, write: c.Write, proto: c.Proto, floor: c.Floor, topology: topology}
 			}
 			got.gated = al.IsGated(r.command)
 			got.entries = len(al.EntriesFor(r.command))

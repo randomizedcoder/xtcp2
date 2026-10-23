@@ -20,6 +20,10 @@ const TCPMetricsGenlVersion uint8 = 1
 // (SEG6_REQUEST, ip/ipseg6.c).
 const Seg6GenlVersion uint8 = 1
 
+// IOAM6GenlVersion is IOAM6_GENL_VERSION, the version ip's ioam requests
+// carry (IOAM6_REQUEST, ip/ipioam6.c).
+const IOAM6GenlVersion uint8 = 1
+
 // genlMsgHdrLenCst is sizeof(struct genlmsghdr).
 const genlMsgHdrLenCst = 4
 
@@ -36,14 +40,21 @@ var (
 // IsAdmittedGenlWrite reports whether a generic netlink family's command is
 // a write goip may build: tcp_metrics' TCP_METRICS_CMD_DEL, `ip tcp_metrics
 // delete` and `flush` (ip/tcp_metrics.c), and SEG6's SETHMAC and
-// SET_TUNSRC, `ip sr hmac set` and `ip sr tunsrc set` (ip/ipseg6.c). The
-// family is its controller name.
+// SET_TUNSRC, `ip sr hmac set` and `ip sr tunsrc set` (ip/ipseg6.c), and
+// IOAM6's namespace and schema adds, deletes and binding, `ip ioam
+// namespace` and `schema` (ip/ipioam6.c). The family is its controller
+// name.
 func IsAdmittedGenlWrite(family string, cmd uint8) bool {
 	switch family {
 	case TCPMetricsGenlName:
 		return cmd == TCPMetricsCmdDel
 	case Seg6GenlName:
 		return cmd == Seg6CmdSetHmac || cmd == Seg6CmdSetTunsrc
+	case IOAM6GenlName:
+		switch cmd {
+		case IOAM6CmdAddNamespace, IOAM6CmdDelNamespace, IOAM6CmdAddSchema, IOAM6CmdDelSchema, IOAM6CmdNsSetSchema:
+			return true
+		}
 	}
 	return false
 }
