@@ -567,29 +567,84 @@ func TestRunHealthcheck(t *testing.T) {
 }
 
 func TestRunHealthcheckUnix(t *testing.T) {
-	sock := filepath.Join(t.TempDir(), "prom.sock")
-	ln, err := net.Listen("unix", sock)
-	if err != nil {
-		t.Fatalf("net.Listen(unix): %v", err)
+	raw := func(token string) *xtcp_config.ListenerAuth {
+		return &xtcp_config.ListenerAuth{Mode: xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_RAW_TOKEN, RawToken: token}
 	}
-	srv := &http.Server{
-		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path != "/readyz" {
-				w.WriteHeader(http.StatusNotFound)
-				return
+	hmacKey := func(key string) *xtcp_config.ListenerAuth {
+		return &xtcp_config.ListenerAuth{Mode: xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_HMAC_UTC_MINUTE, HmacSharedKey: key}
+	}
+	tests := []struct {
+		category    string
+		description string
+		server      *xtcp_config.ListenerAuth // nil: /readyz is open
+		client      *xtcp_config.ListenerAuth // the probe's own -listenerAuth* config
+		notReady    bool
+		socket      string // "" uses the listening socket; "missing" a path nothing listens on
+		expected    int
+	}{
+		{"positive", "no auth on either side", nil, &xtcp_config.ListenerAuth{}, false, "", 0},
+		{"positive", "the probe sends the matching raw token", raw("read-token"), raw("read-token"), false, "", 0},
+		{"positive", "the probe signs with the shared HMAC key", hmacKey("shared"), hmacKey("shared"), false, "", 0},
+		{"negative", "a wrong raw token is refused", raw("read-token"), raw("other-token"), false, "", 1},
+		{"negative", "auth on the listener but none configured for the probe", raw("read-token"), &xtcp_config.ListenerAuth{}, false, "", 1},
+		{"negative", "an HMAC token signed with another key is refused", hmacKey("shared"), hmacKey("other"), false, "", 1},
+		{"negative", "an authenticated probe of a not-ready daemon still fails", raw("read-token"), raw("read-token"), true, "", 1},
+		{"boundary", "nothing listens on the socket path", nil, &xtcp_config.ListenerAuth{}, false, "missing", 1},
+		{"boundary", "an empty socket path fails before dialling", nil, &xtcp_config.ListenerAuth{}, false, "empty", 1},
+		{"corner", "a nil authenticator sends no header, so an auth-on listener refuses it", raw("read-token"), nil, false, "", 1},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			t.Logf("%s: %s; expected: rc=%d", tc.category, tc.description, tc.expected)
+			sock := filepath.Join(t.TempDir(), "prom.sock")
+			ln, err := net.Listen("unix", sock)
+			if err != nil {
+				t.Fatalf("net.Listen(unix): %v", err)
 			}
-			w.WriteHeader(http.StatusOK)
-		}),
-		ReadHeaderTimeout: time.Second,
-	}
-	go func() { _ = srv.Serve(ln) }()
-	t.Cleanup(func() { _ = srv.Close() })
+			var h http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch {
+				case r.URL.Path != "/readyz":
+					w.WriteHeader(http.StatusNotFound)
+				case tc.notReady:
+					w.WriteHeader(http.StatusServiceUnavailable)
+				default:
+					w.WriteHeader(http.StatusOK)
+				}
+			})
+			if tc.server != nil {
+				tc.server.FailureJitterMin = durationpb.New(0)
+				tc.server.FailureJitterMax = durationpb.New(0)
+				serverAuth, err := listenerauth.New(tc.server)
+				if err != nil {
+					t.Fatalf("server listenerauth.New: %v", err)
+				}
+				h = serverAuth.WrapHTTP(h)
+			}
+			srv := &http.Server{Handler: h, ReadHeaderTimeout: time.Second}
+			go func() { _ = srv.Serve(ln) }()
+			t.Cleanup(func() { _ = srv.Close() })
 
-	if rc := runHealthcheck(context.Background(), "unix", sock, nil, listenerauth.ClientAuth{}); rc != 0 {
-		t.Errorf("unix ready: rc=%d, want 0", rc)
-	}
-	if rc := runHealthcheck(context.Background(), "unix", filepath.Join(t.TempDir(), "missing.sock"), nil, listenerauth.ClientAuth{}); rc != 1 {
-		t.Errorf("unix missing: rc=%d, want 1", rc)
+			var authn *listenerauth.Authenticator
+			var clientAuth listenerauth.ClientAuth
+			if tc.client != nil {
+				authn, err = listenerauth.New(tc.client)
+				if err != nil {
+					t.Fatalf("client listenerauth.New: %v", err)
+				}
+				clientAuth = listenerauth.ClientAuth{RawToken: tc.client.GetRawToken(), HMACSharedKey: tc.client.GetHmacSharedKey()}
+			}
+			path := sock
+			switch tc.socket {
+			case "missing":
+				path = filepath.Join(t.TempDir(), "missing.sock")
+			case "empty":
+				path = ""
+				t.Setenv("PROM_LISTEN", "")
+			}
+			if rc := runHealthcheck(context.Background(), "unix", path, authn, clientAuth); rc != tc.expected {
+				t.Errorf("rc=%d, want %d", rc, tc.expected)
+			}
+		})
 	}
 }
 

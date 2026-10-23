@@ -1322,7 +1322,7 @@ func runHealthcheck(ctx context.Context, promNetwork, promListen string, authn *
 		return 1
 	}
 	if parsed == xtcp_config.ListenerNetwork_LISTENER_NETWORK_UNIX {
-		return runUnixHealthcheck(ctx, addr)
+		return runUnixHealthcheck(ctx, addr, authn, clientAuth)
 	}
 	_, port, err := net.SplitHostPort(addr)
 	if err != nil || port == "" {
@@ -1353,7 +1353,10 @@ func runHealthcheck(ctx context.Context, promNetwork, promListen string, authn *
 	return 1
 }
 
-func runUnixHealthcheck(ctx context.Context, socketPath string) int {
+// runUnixHealthcheck is runHealthcheck over a Unix socket. It sends the same
+// credential as the TCP probe, so -listenerAuthMode on a socket listener
+// doesn't fail the container HEALTHCHECK with 401.
+func runUnixHealthcheck(ctx context.Context, socketPath string, authn *listenerauth.Authenticator, clientAuth listenerauth.ClientAuth) int {
 	if socketPath == "" {
 		log.Printf("healthcheck: unix socket path is empty")
 		return 1
@@ -1364,6 +1367,9 @@ func runUnixHealthcheck(ctx context.Context, socketPath string) int {
 	if err != nil {
 		log.Printf("healthcheck: new unix request: %v", err)
 		return 1
+	}
+	if authn != nil {
+		listenerauth.HTTPRequestWithClientAuth(req, clientAuth, time.Now())
 	}
 	client := &http.Client{
 		Timeout: 3 * time.Second,
