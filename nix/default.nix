@@ -217,6 +217,10 @@ let
         inherit pkgs lib nixpkgs;
         inherit (binaries) xtcp2;
       };
+      xtcp2-ip-listen = import ./tests/xtcp2-ip-listen.nix {
+        inherit pkgs lib nixpkgs;
+        inherit (binaries) xtcp2;
+      };
     };
   vmChecks = lib.mapAttrs' (name: t: lib.nameValuePair "vm-${name}" t.vmCheck.check) vmTests;
 
@@ -995,6 +999,7 @@ in
       test-linkmonitor-ionic-faults-vm = vmTests.linkmonitor-ionic-faults;
       test-xtcp2-linkmonitor-vm = vmTests.xtcp2-linkmonitor;
       test-xtcp2-scrape-auth-vm = vmTests.xtcp2-scrape-auth;
+      test-xtcp2-ip-listen-vm = vmTests.xtcp2-ip-listen;
       demo-linkmonitor-ionic-profiles = import ./microvms/linkmonitor-ionic-demo.nix {
         inherit pkgs lib nixpkgs;
         monitor = linkmonitorPackages.go-link-monitor;

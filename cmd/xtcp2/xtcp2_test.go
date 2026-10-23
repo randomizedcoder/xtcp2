@@ -630,7 +630,7 @@ func TestRunHealthcheckUnix(t *testing.T) {
 		{"negative", "an HMAC token signed with another key is refused", hmacKey("shared"), hmacKey("other"), false, "", 1},
 		{"negative", "an authenticated probe of a not-ready daemon still fails", raw("read-token"), raw("read-token"), true, "", 1},
 		{"boundary", "nothing listens on the socket path", nil, &xtcp_config.ListenerAuth{}, false, "missing", 1},
-		{"boundary", "an empty socket path fails before dialling", nil, &xtcp_config.ListenerAuth{}, false, "empty", 1},
+		{"boundary", "an empty socket path fails before dialing", nil, &xtcp_config.ListenerAuth{}, false, "empty", 1},
 		{"corner", "a nil authenticator sends no header, so an auth-on listener refuses it", raw("read-token"), nil, false, "", 1},
 	}
 	for _, tc := range tests {
@@ -1074,6 +1074,7 @@ func TestPrintFlags(t *testing.T) {
 	f.linkMonitorMetricsAllPath = &s
 	f.linkMonitorIPPaths = &b
 	f.linkMonitorIPMaxBytes = &n
+	f.linkMonitorIPListen = &s
 	// Redirect stdout so the call doesn't litter test output.
 	r, w, _ := os.Pipe()
 	orig := os.Stdout
@@ -1170,6 +1171,7 @@ func TestBuildConfig(t *testing.T) {
 	lmWait, lmErrWindow, lmFlapWindow := 3*time.Second, 4*time.Minute, 5*time.Minute
 	lmClasses, lmErrExclude, lmCategories, lmAllPath := "link,drop", "^eth9/.*", "link,rdma", "/all"
 	lmIfacePaths, lmIPPaths, lmIPMax := false, true, uint(4096)
+	lmIPListen := "127.0.0.1:9089"
 	f := &mainFlags{
 		nltimeout: &nl, pollFrequency: &pf, pollTimeout: &pt, maxLoops: &ml,
 		netlinkers: &nlk, nlmsgSeq: &seq, packetSize: &psz, packetSizeMply: &psm,
@@ -1232,7 +1234,7 @@ func TestBuildConfig(t *testing.T) {
 		linkMonitorFlapWindow: &lmFlapWindow, linkMonitorErrorsClasses: &lmClasses,
 		linkMonitorErrorsExclude: &lmErrExclude, linkMonitorMetricsCategories: &lmCategories,
 		linkMonitorInterfacePaths: &lmIfacePaths, linkMonitorMetricsAllPath: &lmAllPath,
-		linkMonitorIPPaths: &lmIPPaths, linkMonitorIPMaxBytes: &lmIPMax,
+		linkMonitorIPPaths: &lmIPPaths, linkMonitorIPMaxBytes: &lmIPMax, linkMonitorIPListen: &lmIPListen,
 	}
 	des := getDeserializers(*f.deserializers)
 	c := buildConfig(f, des)
@@ -1303,6 +1305,7 @@ func TestBuildConfig(t *testing.T) {
 		{"LinkMonitor.MetricsAllPath", c.LinkMonitor.GetMetricsAllPath(), lmAllPath},
 		{"LinkMonitor.IpPaths", c.LinkMonitor.GetIpPaths(), lmIPPaths},
 		{"LinkMonitor.IpMaxBytes", c.LinkMonitor.GetIpMaxBytes(), uint32(lmIPMax)},
+		{"LinkMonitor.IpListen", c.LinkMonitor.GetIpListen(), lmIPListen},
 	}
 	for _, ck := range checks {
 		if ck.got != ck.want {

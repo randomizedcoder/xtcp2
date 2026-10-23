@@ -24,21 +24,21 @@ export 'package:protobuf/protobuf.dart' show GeneratedMessageGenericExtensions;
 export 'xtcp_config.pbenum.dart';
 
 class GetRequest extends $pb.GeneratedMessage {
-  factory GetRequest() => create();
+  factory GetRequest() => GetRequest._();
 
   GetRequest._();
 
   factory GetRequest.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      GetRequest()..mergeFromBuffer(data, registry);
   factory GetRequest.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      GetRequest()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'GetRequest',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'xtcp_config.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: GetRequest.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -51,12 +51,14 @@ class GetRequest extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use GetRequest() / GetRequest.new instead')
   static GetRequest create() => GetRequest._();
+  static $pb.GeneratedMessage $_createMessage() => GetRequest._();
   @$core.override
-  GetRequest createEmptyInstance() => create();
+  GetRequest createEmptyInstance() => GetRequest._();
   @$core.pragma('dart2js:noInline')
   static GetRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<GetRequest>(create);
+      $pb.GeneratedMessage.$_defaultFor<GetRequest>(GetRequest.$_createMessage);
   static GetRequest? _defaultInstance;
 }
 
@@ -64,7 +66,7 @@ class GetResponse extends $pb.GeneratedMessage {
   factory GetResponse({
     XtcpConfig? config,
   }) {
-    final result = create();
+    final result = GetResponse._();
     if (config != null) result.config = config;
     return result;
   }
@@ -73,17 +75,17 @@ class GetResponse extends $pb.GeneratedMessage {
 
   factory GetResponse.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      GetResponse()..mergeFromBuffer(data, registry);
   factory GetResponse.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      GetResponse()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'GetResponse',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'xtcp_config.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: GetResponse.$_createMessage)
     ..aOM<XtcpConfig>(1, _omitFieldNames ? '' : 'config',
-        subBuilder: XtcpConfig.create)
+        subBuilder: XtcpConfig.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -97,12 +99,15 @@ class GetResponse extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use GetResponse() / GetResponse.new instead')
   static GetResponse create() => GetResponse._();
+  static $pb.GeneratedMessage $_createMessage() => GetResponse._();
   @$core.override
-  GetResponse createEmptyInstance() => create();
+  GetResponse createEmptyInstance() => GetResponse._();
   @$core.pragma('dart2js:noInline')
-  static GetResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<GetResponse>(create);
+  static GetResponse getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<GetResponse>(
+          GetResponse.$_createMessage);
   static GetResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -121,7 +126,7 @@ class SetRequest extends $pb.GeneratedMessage {
   factory SetRequest({
     XtcpConfig? config,
   }) {
-    final result = create();
+    final result = SetRequest._();
     if (config != null) result.config = config;
     return result;
   }
@@ -130,17 +135,17 @@ class SetRequest extends $pb.GeneratedMessage {
 
   factory SetRequest.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      SetRequest()..mergeFromBuffer(data, registry);
   factory SetRequest.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      SetRequest()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'SetRequest',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'xtcp_config.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: SetRequest.$_createMessage)
     ..aOM<XtcpConfig>(1, _omitFieldNames ? '' : 'config',
-        subBuilder: XtcpConfig.create)
+        subBuilder: XtcpConfig.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -153,12 +158,14 @@ class SetRequest extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use SetRequest() / SetRequest.new instead')
   static SetRequest create() => SetRequest._();
+  static $pb.GeneratedMessage $_createMessage() => SetRequest._();
   @$core.override
-  SetRequest createEmptyInstance() => create();
+  SetRequest createEmptyInstance() => SetRequest._();
   @$core.pragma('dart2js:noInline')
   static SetRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<SetRequest>(create);
+      $pb.GeneratedMessage.$_defaultFor<SetRequest>(SetRequest.$_createMessage);
   static SetRequest? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -177,7 +184,7 @@ class SetResponse extends $pb.GeneratedMessage {
   factory SetResponse({
     XtcpConfig? config,
   }) {
-    final result = create();
+    final result = SetResponse._();
     if (config != null) result.config = config;
     return result;
   }
@@ -186,17 +193,17 @@ class SetResponse extends $pb.GeneratedMessage {
 
   factory SetResponse.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      SetResponse()..mergeFromBuffer(data, registry);
   factory SetResponse.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      SetResponse()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'SetResponse',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'xtcp_config.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: SetResponse.$_createMessage)
     ..aOM<XtcpConfig>(1, _omitFieldNames ? '' : 'config',
-        subBuilder: XtcpConfig.create)
+        subBuilder: XtcpConfig.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -210,12 +217,15 @@ class SetResponse extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use SetResponse() / SetResponse.new instead')
   static SetResponse create() => SetResponse._();
+  static $pb.GeneratedMessage $_createMessage() => SetResponse._();
   @$core.override
-  SetResponse createEmptyInstance() => create();
+  SetResponse createEmptyInstance() => SetResponse._();
   @$core.pragma('dart2js:noInline')
-  static SetResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<SetResponse>(create);
+  static SetResponse getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<SetResponse>(
+          SetResponse.$_createMessage);
   static SetResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -235,7 +245,7 @@ class SetPollFrequencyRequest extends $pb.GeneratedMessage {
     $1.Duration? pollFrequency,
     $1.Duration? pollTimeout,
   }) {
-    final result = create();
+    final result = SetPollFrequencyRequest._();
     if (pollFrequency != null) result.pollFrequency = pollFrequency;
     if (pollTimeout != null) result.pollTimeout = pollTimeout;
     return result;
@@ -245,19 +255,19 @@ class SetPollFrequencyRequest extends $pb.GeneratedMessage {
 
   factory SetPollFrequencyRequest.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      SetPollFrequencyRequest()..mergeFromBuffer(data, registry);
   factory SetPollFrequencyRequest.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      SetPollFrequencyRequest()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'SetPollFrequencyRequest',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'xtcp_config.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: SetPollFrequencyRequest.$_createMessage)
     ..aOM<$1.Duration>(20, _omitFieldNames ? '' : 'pollFrequency',
-        subBuilder: $1.Duration.create)
+        subBuilder: $1.Duration.$_createMessage)
     ..aOM<$1.Duration>(30, _omitFieldNames ? '' : 'pollTimeout',
-        subBuilder: $1.Duration.create)
+        subBuilder: $1.Duration.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -272,12 +282,16 @@ class SetPollFrequencyRequest extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use SetPollFrequencyRequest() / SetPollFrequencyRequest.new instead')
   static SetPollFrequencyRequest create() => SetPollFrequencyRequest._();
+  static $pb.GeneratedMessage $_createMessage() => SetPollFrequencyRequest._();
   @$core.override
-  SetPollFrequencyRequest createEmptyInstance() => create();
+  SetPollFrequencyRequest createEmptyInstance() => SetPollFrequencyRequest._();
   @$core.pragma('dart2js:noInline')
   static SetPollFrequencyRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<SetPollFrequencyRequest>(create);
+      $pb.GeneratedMessage.$_defaultFor<SetPollFrequencyRequest>(
+          SetPollFrequencyRequest.$_createMessage);
   static SetPollFrequencyRequest? _defaultInstance;
 
   /// Poll frequency
@@ -313,7 +327,7 @@ class SetPollFrequencyResponse extends $pb.GeneratedMessage {
   factory SetPollFrequencyResponse({
     XtcpConfig? config,
   }) {
-    final result = create();
+    final result = SetPollFrequencyResponse._();
     if (config != null) result.config = config;
     return result;
   }
@@ -322,17 +336,17 @@ class SetPollFrequencyResponse extends $pb.GeneratedMessage {
 
   factory SetPollFrequencyResponse.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      SetPollFrequencyResponse()..mergeFromBuffer(data, registry);
   factory SetPollFrequencyResponse.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      SetPollFrequencyResponse()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'SetPollFrequencyResponse',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'xtcp_config.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: SetPollFrequencyResponse.$_createMessage)
     ..aOM<XtcpConfig>(1, _omitFieldNames ? '' : 'config',
-        subBuilder: XtcpConfig.create)
+        subBuilder: XtcpConfig.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -347,12 +361,17 @@ class SetPollFrequencyResponse extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use SetPollFrequencyResponse() / SetPollFrequencyResponse.new instead')
   static SetPollFrequencyResponse create() => SetPollFrequencyResponse._();
+  static $pb.GeneratedMessage $_createMessage() => SetPollFrequencyResponse._();
   @$core.override
-  SetPollFrequencyResponse createEmptyInstance() => create();
+  SetPollFrequencyResponse createEmptyInstance() =>
+      SetPollFrequencyResponse._();
   @$core.pragma('dart2js:noInline')
   static SetPollFrequencyResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<SetPollFrequencyResponse>(create);
+      $pb.GeneratedMessage.$_defaultFor<SetPollFrequencyResponse>(
+          SetPollFrequencyResponse.$_createMessage);
   static SetPollFrequencyResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -368,21 +387,21 @@ class SetPollFrequencyResponse extends $pb.GeneratedMessage {
 }
 
 class TriggerPollRequest extends $pb.GeneratedMessage {
-  factory TriggerPollRequest() => create();
+  factory TriggerPollRequest() => TriggerPollRequest._();
 
   TriggerPollRequest._();
 
   factory TriggerPollRequest.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      TriggerPollRequest()..mergeFromBuffer(data, registry);
   factory TriggerPollRequest.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      TriggerPollRequest()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'TriggerPollRequest',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'xtcp_config.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: TriggerPollRequest.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -396,31 +415,34 @@ class TriggerPollRequest extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use TriggerPollRequest() / TriggerPollRequest.new instead')
   static TriggerPollRequest create() => TriggerPollRequest._();
+  static $pb.GeneratedMessage $_createMessage() => TriggerPollRequest._();
   @$core.override
-  TriggerPollRequest createEmptyInstance() => create();
+  TriggerPollRequest createEmptyInstance() => TriggerPollRequest._();
   @$core.pragma('dart2js:noInline')
   static TriggerPollRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<TriggerPollRequest>(create);
+      $pb.GeneratedMessage.$_defaultFor<TriggerPollRequest>(
+          TriggerPollRequest.$_createMessage);
   static TriggerPollRequest? _defaultInstance;
 }
 
 class TriggerPollResponse extends $pb.GeneratedMessage {
-  factory TriggerPollResponse() => create();
+  factory TriggerPollResponse() => TriggerPollResponse._();
 
   TriggerPollResponse._();
 
   factory TriggerPollResponse.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      TriggerPollResponse()..mergeFromBuffer(data, registry);
   factory TriggerPollResponse.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      TriggerPollResponse()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'TriggerPollResponse',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'xtcp_config.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: TriggerPollResponse.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -434,12 +456,16 @@ class TriggerPollResponse extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core
+      .Deprecated('Use TriggerPollResponse() / TriggerPollResponse.new instead')
   static TriggerPollResponse create() => TriggerPollResponse._();
+  static $pb.GeneratedMessage $_createMessage() => TriggerPollResponse._();
   @$core.override
-  TriggerPollResponse createEmptyInstance() => create();
+  TriggerPollResponse createEmptyInstance() => TriggerPollResponse._();
   @$core.pragma('dart2js:noInline')
   static TriggerPollResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<TriggerPollResponse>(create);
+      $pb.GeneratedMessage.$_defaultFor<TriggerPollResponse>(
+          TriggerPollResponse.$_createMessage);
   static TriggerPollResponse? _defaultInstance;
 }
 
@@ -448,7 +474,7 @@ class TriggerPollBurstRequest extends $pb.GeneratedMessage {
     $core.int? count,
     $1.Duration? interval,
   }) {
-    final result = create();
+    final result = TriggerPollBurstRequest._();
     if (count != null) result.count = count;
     if (interval != null) result.interval = interval;
     return result;
@@ -458,18 +484,18 @@ class TriggerPollBurstRequest extends $pb.GeneratedMessage {
 
   factory TriggerPollBurstRequest.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      TriggerPollBurstRequest()..mergeFromBuffer(data, registry);
   factory TriggerPollBurstRequest.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      TriggerPollBurstRequest()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'TriggerPollBurstRequest',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'xtcp_config.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: TriggerPollBurstRequest.$_createMessage)
     ..aI(10, _omitFieldNames ? '' : 'count', fieldType: $pb.PbFieldType.OU3)
     ..aOM<$1.Duration>(20, _omitFieldNames ? '' : 'interval',
-        subBuilder: $1.Duration.create)
+        subBuilder: $1.Duration.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -484,12 +510,16 @@ class TriggerPollBurstRequest extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use TriggerPollBurstRequest() / TriggerPollBurstRequest.new instead')
   static TriggerPollBurstRequest create() => TriggerPollBurstRequest._();
+  static $pb.GeneratedMessage $_createMessage() => TriggerPollBurstRequest._();
   @$core.override
-  TriggerPollBurstRequest createEmptyInstance() => create();
+  TriggerPollBurstRequest createEmptyInstance() => TriggerPollBurstRequest._();
   @$core.pragma('dart2js:noInline')
   static TriggerPollBurstRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<TriggerPollBurstRequest>(create);
+      $pb.GeneratedMessage.$_defaultFor<TriggerPollBurstRequest>(
+          TriggerPollBurstRequest.$_createMessage);
   static TriggerPollBurstRequest? _defaultInstance;
 
   /// Number of polls to fire in the burst.
@@ -522,7 +552,7 @@ class TriggerPollBurstResponse extends $pb.GeneratedMessage {
     $core.int? count,
     $1.Duration? interval,
   }) {
-    final result = create();
+    final result = TriggerPollBurstResponse._();
     if (count != null) result.count = count;
     if (interval != null) result.interval = interval;
     return result;
@@ -532,18 +562,18 @@ class TriggerPollBurstResponse extends $pb.GeneratedMessage {
 
   factory TriggerPollBurstResponse.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      TriggerPollBurstResponse()..mergeFromBuffer(data, registry);
   factory TriggerPollBurstResponse.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      TriggerPollBurstResponse()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'TriggerPollBurstResponse',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'xtcp_config.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: TriggerPollBurstResponse.$_createMessage)
     ..aI(10, _omitFieldNames ? '' : 'count', fieldType: $pb.PbFieldType.OU3)
     ..aOM<$1.Duration>(20, _omitFieldNames ? '' : 'interval',
-        subBuilder: $1.Duration.create)
+        subBuilder: $1.Duration.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -558,12 +588,17 @@ class TriggerPollBurstResponse extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use TriggerPollBurstResponse() / TriggerPollBurstResponse.new instead')
   static TriggerPollBurstResponse create() => TriggerPollBurstResponse._();
+  static $pb.GeneratedMessage $_createMessage() => TriggerPollBurstResponse._();
   @$core.override
-  TriggerPollBurstResponse createEmptyInstance() => create();
+  TriggerPollBurstResponse createEmptyInstance() =>
+      TriggerPollBurstResponse._();
   @$core.pragma('dart2js:noInline')
   static TriggerPollBurstResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<TriggerPollBurstResponse>(create);
+      $pb.GeneratedMessage.$_defaultFor<TriggerPollBurstResponse>(
+          TriggerPollBurstResponse.$_createMessage);
   static TriggerPollBurstResponse? _defaultInstance;
 
   /// Echo of the accepted burst parameters (operator confirmation).
@@ -593,7 +628,7 @@ class SetS3UploadRequest extends $pb.GeneratedMessage {
     $1.Duration? s3FlushInterval,
     $core.int? s3ParquetFlushThresholdBytes,
   }) {
-    final result = create();
+    final result = SetS3UploadRequest._();
     if (s3FlushInterval != null) result.s3FlushInterval = s3FlushInterval;
     if (s3ParquetFlushThresholdBytes != null)
       result.s3ParquetFlushThresholdBytes = s3ParquetFlushThresholdBytes;
@@ -604,17 +639,17 @@ class SetS3UploadRequest extends $pb.GeneratedMessage {
 
   factory SetS3UploadRequest.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      SetS3UploadRequest()..mergeFromBuffer(data, registry);
   factory SetS3UploadRequest.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      SetS3UploadRequest()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'SetS3UploadRequest',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'xtcp_config.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: SetS3UploadRequest.$_createMessage)
     ..aOM<$1.Duration>(10, _omitFieldNames ? '' : 's3FlushInterval',
-        subBuilder: $1.Duration.create)
+        subBuilder: $1.Duration.$_createMessage)
     ..aI(20, _omitFieldNames ? '' : 's3ParquetFlushThresholdBytes',
         fieldType: $pb.PbFieldType.OU3)
     ..hasRequiredFields = false;
@@ -630,12 +665,15 @@ class SetS3UploadRequest extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use SetS3UploadRequest() / SetS3UploadRequest.new instead')
   static SetS3UploadRequest create() => SetS3UploadRequest._();
+  static $pb.GeneratedMessage $_createMessage() => SetS3UploadRequest._();
   @$core.override
-  SetS3UploadRequest createEmptyInstance() => create();
+  SetS3UploadRequest createEmptyInstance() => SetS3UploadRequest._();
   @$core.pragma('dart2js:noInline')
   static SetS3UploadRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<SetS3UploadRequest>(create);
+      $pb.GeneratedMessage.$_defaultFor<SetS3UploadRequest>(
+          SetS3UploadRequest.$_createMessage);
   static SetS3UploadRequest? _defaultInstance;
 
   /// New s3parquet staleness-flush timer. Optional; omit (or leave unset)
@@ -669,7 +707,7 @@ class SetS3UploadResponse extends $pb.GeneratedMessage {
   factory SetS3UploadResponse({
     XtcpConfig? config,
   }) {
-    final result = create();
+    final result = SetS3UploadResponse._();
     if (config != null) result.config = config;
     return result;
   }
@@ -678,17 +716,17 @@ class SetS3UploadResponse extends $pb.GeneratedMessage {
 
   factory SetS3UploadResponse.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      SetS3UploadResponse()..mergeFromBuffer(data, registry);
   factory SetS3UploadResponse.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      SetS3UploadResponse()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'SetS3UploadResponse',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'xtcp_config.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: SetS3UploadResponse.$_createMessage)
     ..aOM<XtcpConfig>(1, _omitFieldNames ? '' : 'config',
-        subBuilder: XtcpConfig.create)
+        subBuilder: XtcpConfig.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -702,12 +740,16 @@ class SetS3UploadResponse extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core
+      .Deprecated('Use SetS3UploadResponse() / SetS3UploadResponse.new instead')
   static SetS3UploadResponse create() => SetS3UploadResponse._();
+  static $pb.GeneratedMessage $_createMessage() => SetS3UploadResponse._();
   @$core.override
-  SetS3UploadResponse createEmptyInstance() => create();
+  SetS3UploadResponse createEmptyInstance() => SetS3UploadResponse._();
   @$core.pragma('dart2js:noInline')
   static SetS3UploadResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<SetS3UploadResponse>(create);
+      $pb.GeneratedMessage.$_defaultFor<SetS3UploadResponse>(
+          SetS3UploadResponse.$_createMessage);
   static SetS3UploadResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -727,7 +769,7 @@ class SetEnvelopeFlushRequest extends $pb.GeneratedMessage {
     $core.int? envelopeFlushThresholdBytes,
     $core.int? envelopeFlushThresholdRows,
   }) {
-    final result = create();
+    final result = SetEnvelopeFlushRequest._();
     if (envelopeFlushThresholdBytes != null)
       result.envelopeFlushThresholdBytes = envelopeFlushThresholdBytes;
     if (envelopeFlushThresholdRows != null)
@@ -739,15 +781,15 @@ class SetEnvelopeFlushRequest extends $pb.GeneratedMessage {
 
   factory SetEnvelopeFlushRequest.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      SetEnvelopeFlushRequest()..mergeFromBuffer(data, registry);
   factory SetEnvelopeFlushRequest.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      SetEnvelopeFlushRequest()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'SetEnvelopeFlushRequest',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'xtcp_config.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: SetEnvelopeFlushRequest.$_createMessage)
     ..aI(10, _omitFieldNames ? '' : 'envelopeFlushThresholdBytes',
         fieldType: $pb.PbFieldType.OU3)
     ..aI(20, _omitFieldNames ? '' : 'envelopeFlushThresholdRows',
@@ -766,12 +808,16 @@ class SetEnvelopeFlushRequest extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use SetEnvelopeFlushRequest() / SetEnvelopeFlushRequest.new instead')
   static SetEnvelopeFlushRequest create() => SetEnvelopeFlushRequest._();
+  static $pb.GeneratedMessage $_createMessage() => SetEnvelopeFlushRequest._();
   @$core.override
-  SetEnvelopeFlushRequest createEmptyInstance() => create();
+  SetEnvelopeFlushRequest createEmptyInstance() => SetEnvelopeFlushRequest._();
   @$core.pragma('dart2js:noInline')
   static SetEnvelopeFlushRequest getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<SetEnvelopeFlushRequest>(create);
+      $pb.GeneratedMessage.$_defaultFor<SetEnvelopeFlushRequest>(
+          SetEnvelopeFlushRequest.$_createMessage);
   static SetEnvelopeFlushRequest? _defaultInstance;
 
   /// New uncompressed byte cap for the in-flight protobufList envelope.
@@ -805,7 +851,7 @@ class SetEnvelopeFlushResponse extends $pb.GeneratedMessage {
   factory SetEnvelopeFlushResponse({
     XtcpConfig? config,
   }) {
-    final result = create();
+    final result = SetEnvelopeFlushResponse._();
     if (config != null) result.config = config;
     return result;
   }
@@ -814,17 +860,17 @@ class SetEnvelopeFlushResponse extends $pb.GeneratedMessage {
 
   factory SetEnvelopeFlushResponse.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      SetEnvelopeFlushResponse()..mergeFromBuffer(data, registry);
   factory SetEnvelopeFlushResponse.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      SetEnvelopeFlushResponse()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'SetEnvelopeFlushResponse',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'xtcp_config.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: SetEnvelopeFlushResponse.$_createMessage)
     ..aOM<XtcpConfig>(1, _omitFieldNames ? '' : 'config',
-        subBuilder: XtcpConfig.create)
+        subBuilder: XtcpConfig.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -839,12 +885,17 @@ class SetEnvelopeFlushResponse extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use SetEnvelopeFlushResponse() / SetEnvelopeFlushResponse.new instead')
   static SetEnvelopeFlushResponse create() => SetEnvelopeFlushResponse._();
+  static $pb.GeneratedMessage $_createMessage() => SetEnvelopeFlushResponse._();
   @$core.override
-  SetEnvelopeFlushResponse createEmptyInstance() => create();
+  SetEnvelopeFlushResponse createEmptyInstance() =>
+      SetEnvelopeFlushResponse._();
   @$core.pragma('dart2js:noInline')
   static SetEnvelopeFlushResponse getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<SetEnvelopeFlushResponse>(create);
+      $pb.GeneratedMessage.$_defaultFor<SetEnvelopeFlushResponse>(
+          SetEnvelopeFlushResponse.$_createMessage);
   static SetEnvelopeFlushResponse? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -869,7 +920,7 @@ class ListenerEndpoint extends $pb.GeneratedMessage {
     $core.int? acceptRatePerSecond,
     $core.int? acceptBurst,
   }) {
-    final result = create();
+    final result = ListenerEndpoint._();
     if (network != null) result.network = network;
     if (address != null) result.address = address;
     if (unixSocketMode != null) result.unixSocketMode = unixSocketMode;
@@ -886,15 +937,15 @@ class ListenerEndpoint extends $pb.GeneratedMessage {
 
   factory ListenerEndpoint.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ListenerEndpoint()..mergeFromBuffer(data, registry);
   factory ListenerEndpoint.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ListenerEndpoint()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ListenerEndpoint',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'xtcp_config.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ListenerEndpoint.$_createMessage)
     ..aE<ListenerNetwork>(1, _omitFieldNames ? '' : 'network',
         enumValues: ListenerNetwork.values)
     ..aOS(2, _omitFieldNames ? '' : 'address')
@@ -920,12 +971,15 @@ class ListenerEndpoint extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ListenerEndpoint() / ListenerEndpoint.new instead')
   static ListenerEndpoint create() => ListenerEndpoint._();
+  static $pb.GeneratedMessage $_createMessage() => ListenerEndpoint._();
   @$core.override
-  ListenerEndpoint createEmptyInstance() => create();
+  ListenerEndpoint createEmptyInstance() => ListenerEndpoint._();
   @$core.pragma('dart2js:noInline')
-  static ListenerEndpoint getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ListenerEndpoint>(create);
+  static ListenerEndpoint getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ListenerEndpoint>(
+          ListenerEndpoint.$_createMessage);
   static ListenerEndpoint? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1001,7 +1055,7 @@ class ListenerAuth extends $pb.GeneratedMessage {
     $1.Duration? failureJitterMin,
     $1.Duration? failureJitterMax,
   }) {
-    final result = create();
+    final result = ListenerAuth._();
     if (mode != null) result.mode = mode;
     if (rawToken != null) result.rawToken = rawToken;
     if (hmacSharedKey != null) result.hmacSharedKey = hmacSharedKey;
@@ -1016,15 +1070,15 @@ class ListenerAuth extends $pb.GeneratedMessage {
 
   factory ListenerAuth.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      ListenerAuth()..mergeFromBuffer(data, registry);
   factory ListenerAuth.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      ListenerAuth()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ListenerAuth',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'xtcp_config.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: ListenerAuth.$_createMessage)
     ..aE<ListenerAuthMode>(1, _omitFieldNames ? '' : 'mode',
         enumValues: ListenerAuthMode.values)
     ..aOS(2, _omitFieldNames ? '' : 'rawToken')
@@ -1032,9 +1086,9 @@ class ListenerAuth extends $pb.GeneratedMessage {
     ..aI(4, _omitFieldNames ? '' : 'signedTokenSkewMinutes',
         fieldType: $pb.PbFieldType.OU3)
     ..aOM<$1.Duration>(5, _omitFieldNames ? '' : 'failureJitterMin',
-        subBuilder: $1.Duration.create)
+        subBuilder: $1.Duration.$_createMessage)
     ..aOM<$1.Duration>(6, _omitFieldNames ? '' : 'failureJitterMax',
-        subBuilder: $1.Duration.create)
+        subBuilder: $1.Duration.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1048,12 +1102,15 @@ class ListenerAuth extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ListenerAuth() / ListenerAuth.new instead')
   static ListenerAuth create() => ListenerAuth._();
+  static $pb.GeneratedMessage $_createMessage() => ListenerAuth._();
   @$core.override
-  ListenerAuth createEmptyInstance() => create();
+  ListenerAuth createEmptyInstance() => ListenerAuth._();
   @$core.pragma('dart2js:noInline')
-  static ListenerAuth getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ListenerAuth>(create);
+  static ListenerAuth getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ListenerAuth>(
+          ListenerAuth.$_createMessage);
   static ListenerAuth? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1148,8 +1205,9 @@ class LinkMonitorConfig extends $pb.GeneratedMessage {
     $core.String? metricsAllPath,
     $core.bool? ipPaths,
     $core.int? ipMaxBytes,
+    $core.String? ipListen,
   }) {
-    final result = create();
+    final result = LinkMonitorConfig._();
     if (enable != null) result.enable = enable;
     if (baselineFile != null) result.baselineFile = baselineFile;
     if (settle != null) result.settle = settle;
@@ -1180,6 +1238,7 @@ class LinkMonitorConfig extends $pb.GeneratedMessage {
     if (metricsAllPath != null) result.metricsAllPath = metricsAllPath;
     if (ipPaths != null) result.ipPaths = ipPaths;
     if (ipMaxBytes != null) result.ipMaxBytes = ipMaxBytes;
+    if (ipListen != null) result.ipListen = ipListen;
     return result;
   }
 
@@ -1187,23 +1246,23 @@ class LinkMonitorConfig extends $pb.GeneratedMessage {
 
   factory LinkMonitorConfig.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      LinkMonitorConfig()..mergeFromBuffer(data, registry);
   factory LinkMonitorConfig.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      LinkMonitorConfig()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'LinkMonitorConfig',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'xtcp_config.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: LinkMonitorConfig.$_createMessage)
     ..aOB(1, _omitFieldNames ? '' : 'enable')
     ..aOS(2, _omitFieldNames ? '' : 'baselineFile')
     ..aOM<$1.Duration>(3, _omitFieldNames ? '' : 'settle',
-        subBuilder: $1.Duration.create)
+        subBuilder: $1.Duration.$_createMessage)
     ..aOM<$1.Duration>(4, _omitFieldNames ? '' : 'resync',
-        subBuilder: $1.Duration.create)
+        subBuilder: $1.Duration.$_createMessage)
     ..aOM<$1.Duration>(5, _omitFieldNames ? '' : 'statsInterval',
-        subBuilder: $1.Duration.create)
+        subBuilder: $1.Duration.$_createMessage)
     ..aOS(6, _omitFieldNames ? '' : 'statsInclude')
     ..aOS(7, _omitFieldNames ? '' : 'statsExclude')
     ..aOS(8, _omitFieldNames ? '' : 'netstatFields')
@@ -1213,17 +1272,17 @@ class LinkMonitorConfig extends $pb.GeneratedMessage {
     ..aOB(12, _omitFieldNames ? '' : 'metricsAll')
     ..aOS(13, _omitFieldNames ? '' : 'collectionMode')
     ..aOM<$1.Duration>(14, _omitFieldNames ? '' : 'watchInterval',
-        subBuilder: $1.Duration.create)
+        subBuilder: $1.Duration.$_createMessage)
     ..aOM<$1.Duration>(15, _omitFieldNames ? '' : 'slowInterval',
-        subBuilder: $1.Duration.create)
+        subBuilder: $1.Duration.$_createMessage)
     ..aOM<$1.Duration>(16, _omitFieldNames ? '' : 'onDemandTtl',
-        subBuilder: $1.Duration.create)
+        subBuilder: $1.Duration.$_createMessage)
     ..aOM<$1.Duration>(17, _omitFieldNames ? '' : 'onDemandWait',
-        subBuilder: $1.Duration.create)
+        subBuilder: $1.Duration.$_createMessage)
     ..aOM<$1.Duration>(18, _omitFieldNames ? '' : 'errorWindow',
-        subBuilder: $1.Duration.create)
+        subBuilder: $1.Duration.$_createMessage)
     ..aOM<$1.Duration>(19, _omitFieldNames ? '' : 'flapWindow',
-        subBuilder: $1.Duration.create)
+        subBuilder: $1.Duration.$_createMessage)
     ..aOS(20, _omitFieldNames ? '' : 'errorClasses')
     ..aOS(21, _omitFieldNames ? '' : 'errorExclude')
     ..aOS(22, _omitFieldNames ? '' : 'metricsCategories')
@@ -1232,6 +1291,7 @@ class LinkMonitorConfig extends $pb.GeneratedMessage {
     ..aOB(25, _omitFieldNames ? '' : 'ipPaths')
     ..aI(26, _omitFieldNames ? '' : 'ipMaxBytes',
         fieldType: $pb.PbFieldType.OU3)
+    ..aOS(27, _omitFieldNames ? '' : 'ipListen')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1245,12 +1305,15 @@ class LinkMonitorConfig extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use LinkMonitorConfig() / LinkMonitorConfig.new instead')
   static LinkMonitorConfig create() => LinkMonitorConfig._();
+  static $pb.GeneratedMessage $_createMessage() => LinkMonitorConfig._();
   @$core.override
-  LinkMonitorConfig createEmptyInstance() => create();
+  LinkMonitorConfig createEmptyInstance() => LinkMonitorConfig._();
   @$core.pragma('dart2js:noInline')
-  static LinkMonitorConfig getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<LinkMonitorConfig>(create);
+  static LinkMonitorConfig getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<LinkMonitorConfig>(
+          LinkMonitorConfig.$_createMessage);
   static LinkMonitorConfig? _defaultInstance;
 
   /// Start the monitor, serve LinkMonitorService and register its metrics.
@@ -1541,6 +1604,20 @@ class LinkMonitorConfig extends $pb.GeneratedMessage {
   $core.bool hasIpMaxBytes() => $_has(25);
   @$pb.TagNumber(26)
   void clearIpMaxBytes() => $_clearField(26);
+
+  /// A loopback host:port serving /ip and /i on a listener of their own,
+  /// without listener auth, instead of on the Prometheus listener. Empty
+  /// keeps them on the Prometheus listener. Needs ip_paths; the host must be
+  /// a loopback IP literal, and connections from any other source address
+  /// are closed.
+  @$pb.TagNumber(27)
+  $core.String get ipListen => $_getSZ(26);
+  @$pb.TagNumber(27)
+  set ipListen($core.String value) => $_setString(26, value);
+  @$pb.TagNumber(27)
+  $core.bool hasIpListen() => $_has(26);
+  @$pb.TagNumber(27)
+  void clearIpListen() => $_clearField(27);
 }
 
 /// xtcp configuration
@@ -1647,7 +1724,7 @@ class XtcpConfig extends $pb.GeneratedMessage {
     $core.bool? localityEventsEnable,
     LinkMonitorConfig? linkMonitor,
   }) {
-    final result = create();
+    final result = XtcpConfig._();
     if (nlTimeoutMilliseconds != null)
       result.nlTimeoutMilliseconds = nlTimeoutMilliseconds;
     if (pollFrequency != null) result.pollFrequency = pollFrequency;
@@ -1759,22 +1836,22 @@ class XtcpConfig extends $pb.GeneratedMessage {
 
   factory XtcpConfig.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      XtcpConfig()..mergeFromBuffer(data, registry);
   factory XtcpConfig.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      XtcpConfig()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'XtcpConfig',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'xtcp_config.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: XtcpConfig.$_createMessage)
     ..a<$fixnum.Int64>(
         10, _omitFieldNames ? '' : 'nlTimeoutMilliseconds', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..aOM<$1.Duration>(11, _omitFieldNames ? '' : 'pollFrequency',
-        subBuilder: $1.Duration.create)
+        subBuilder: $1.Duration.$_createMessage)
     ..aOM<$1.Duration>(12, _omitFieldNames ? '' : 'pollTimeout',
-        subBuilder: $1.Duration.create)
+        subBuilder: $1.Duration.$_createMessage)
     ..aI(13, _omitFieldNames ? '' : 'pollJitterPct',
         fieldType: $pb.PbFieldType.OU3)
     ..a<$fixnum.Int64>(
@@ -1795,14 +1872,14 @@ class XtcpConfig extends $pb.GeneratedMessage {
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..aOM<EnabledDeserializers>(
         21, _omitFieldNames ? '' : 'enabledDeserializers',
-        subBuilder: EnabledDeserializers.create)
+        subBuilder: EnabledDeserializers.$_createMessage)
     ..aOB(22, _omitFieldNames ? '' : 'ioUring')
     ..aI(23, _omitFieldNames ? '' : 'ioUringRecvBatchSize',
         fieldType: $pb.PbFieldType.OU3)
     ..aI(24, _omitFieldNames ? '' : 'ioUringCqeBatchSize',
         fieldType: $pb.PbFieldType.OU3)
     ..aOM<$1.Duration>(40, _omitFieldNames ? '' : 'reconcileFrequency',
-        subBuilder: $1.Duration.create)
+        subBuilder: $1.Duration.$_createMessage)
     ..aOB(41, _omitFieldNames ? '' : 'reconcileBeforePoll')
     ..aI(50, _omitFieldNames ? '' : 'writeFiles',
         fieldType: $pb.PbFieldType.OU3)
@@ -1823,7 +1900,7 @@ class XtcpConfig extends $pb.GeneratedMessage {
     ..aOS(80, _omitFieldNames ? '' : 'topic')
     ..aOS(81, _omitFieldNames ? '' : 'kafkaSchemaUrl')
     ..aOM<$1.Duration>(82, _omitFieldNames ? '' : 'kafkaProduceTimeout',
-        subBuilder: $1.Duration.create)
+        subBuilder: $1.Duration.$_createMessage)
     ..aOS(83, _omitFieldNames ? '' : 'kafkaCompression')
     ..aOS(100, _omitFieldNames ? '' : 's3Endpoint')
     ..aOS(101, _omitFieldNames ? '' : 's3Region')
@@ -1835,7 +1912,7 @@ class XtcpConfig extends $pb.GeneratedMessage {
     ..aI(110, _omitFieldNames ? '' : 's3ParquetFlushThresholdBytes',
         fieldType: $pb.PbFieldType.OU3)
     ..aOM<$1.Duration>(111, _omitFieldNames ? '' : 's3FlushInterval',
-        subBuilder: $1.Duration.create)
+        subBuilder: $1.Duration.$_createMessage)
     ..aI(112, _omitFieldNames ? '' : 's3FlushJitterPct',
         fieldType: $pb.PbFieldType.OU3)
     ..aI(113, _omitFieldNames ? '' : 's3FlushThresholdJitterPct',
@@ -1843,7 +1920,7 @@ class XtcpConfig extends $pb.GeneratedMessage {
     ..aI(114, _omitFieldNames ? '' : 's3UploadMaxAttempts',
         fieldType: $pb.PbFieldType.OU3)
     ..aOM<$1.Duration>(115, _omitFieldNames ? '' : 's3UploadBackoffCap',
-        subBuilder: $1.Duration.create)
+        subBuilder: $1.Duration.$_createMessage)
     ..aOS(130, _omitFieldNames ? '' : 'hostname')
     ..aOS(131, _omitFieldNames ? '' : 'location')
     ..aOS(132, _omitFieldNames ? '' : 'label')
@@ -1853,14 +1930,14 @@ class XtcpConfig extends $pb.GeneratedMessage {
     ..aI(151, _omitFieldNames ? '' : 'ipv6HopLimit',
         fieldType: $pb.PbFieldType.OU3)
     ..aOM<ListenerAuth>(152, _omitFieldNames ? '' : 'listenerAuth',
-        subBuilder: ListenerAuth.create)
+        subBuilder: ListenerAuth.$_createMessage)
     ..aOM<ListenerEndpoint>(153, _omitFieldNames ? '' : 'prometheusListener',
-        subBuilder: ListenerEndpoint.create)
+        subBuilder: ListenerEndpoint.$_createMessage)
     ..aOM<ListenerAuth>(154, _omitFieldNames ? '' : 'adminListenerAuth',
-        subBuilder: ListenerAuth.create)
+        subBuilder: ListenerAuth.$_createMessage)
     ..aI(160, _omitFieldNames ? '' : 'grpcPort', fieldType: $pb.PbFieldType.OU3)
     ..aOM<ListenerEndpoint>(161, _omitFieldNames ? '' : 'grpcListener',
-        subBuilder: ListenerEndpoint.create)
+        subBuilder: ListenerEndpoint.$_createMessage)
     ..aOS(170, _omitFieldNames ? '' : 'pyroscopeUrl')
     ..aOS(171, _omitFieldNames ? '' : 'pyroscopeAppName')
     ..aI(172, _omitFieldNames ? '' : 'pyroscopeSampleHz',
@@ -1881,15 +1958,15 @@ class XtcpConfig extends $pb.GeneratedMessage {
     ..aOB(240, _omitFieldNames ? '' : 'enrichAsnEnable')
     ..aOS(241, _omitFieldNames ? '' : 'asnDbPath')
     ..aOM<$1.Duration>(242, _omitFieldNames ? '' : 'asnRefreshInterval',
-        subBuilder: $1.Duration.create)
+        subBuilder: $1.Duration.$_createMessage)
     ..aOS(243, _omitFieldNames ? '' : 'ipmetaBootstrapPath')
     ..aOS(244, _omitFieldNames ? '' : 'ipmetaCachePath')
     ..aOB(245, _omitFieldNames ? '' : 'enrichLocalityEnable')
     ..aOM<$1.Duration>(246, _omitFieldNames ? '' : 'localityRefreshInterval',
-        subBuilder: $1.Duration.create)
+        subBuilder: $1.Duration.$_createMessage)
     ..aOB(247, _omitFieldNames ? '' : 'localityEventsEnable')
     ..aOM<LinkMonitorConfig>(250, _omitFieldNames ? '' : 'linkMonitor',
-        subBuilder: LinkMonitorConfig.create)
+        subBuilder: LinkMonitorConfig.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1902,12 +1979,14 @@ class XtcpConfig extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use XtcpConfig() / XtcpConfig.new instead')
   static XtcpConfig create() => XtcpConfig._();
+  static $pb.GeneratedMessage $_createMessage() => XtcpConfig._();
   @$core.override
-  XtcpConfig createEmptyInstance() => create();
+  XtcpConfig createEmptyInstance() => XtcpConfig._();
   @$core.pragma('dart2js:noInline')
   static XtcpConfig getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<XtcpConfig>(create);
+      $pb.GeneratedMessage.$_defaultFor<XtcpConfig>(XtcpConfig.$_createMessage);
   static XtcpConfig? _defaultInstance;
 
   /// Netlink socket timeout in milliseconds
@@ -2939,7 +3018,7 @@ class EnabledDeserializers extends $pb.GeneratedMessage {
   factory EnabledDeserializers({
     $core.Iterable<$core.MapEntry<$core.String, $core.bool>>? enabled,
   }) {
-    final result = create();
+    final result = EnabledDeserializers._();
     if (enabled != null) result.enabled.addEntries(enabled);
     return result;
   }
@@ -2948,15 +3027,15 @@ class EnabledDeserializers extends $pb.GeneratedMessage {
 
   factory EnabledDeserializers.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromBuffer(data, registry);
+      EnabledDeserializers()..mergeFromBuffer(data, registry);
   factory EnabledDeserializers.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      create()..mergeFromJson(json, registry);
+      EnabledDeserializers()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'EnabledDeserializers',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'xtcp_config.v1'),
-      createEmptyInstance: create)
+      createEmptyInstance: EnabledDeserializers.$_createMessage)
     ..m<$core.String, $core.bool>(1, _omitFieldNames ? '' : 'enabled',
         entryClassName: 'EnabledDeserializers.EnabledEntry',
         keyFieldType: $pb.PbFieldType.OS,
@@ -2975,12 +3054,16 @@ class EnabledDeserializers extends $pb.GeneratedMessage {
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use EnabledDeserializers() / EnabledDeserializers.new instead')
   static EnabledDeserializers create() => EnabledDeserializers._();
+  static $pb.GeneratedMessage $_createMessage() => EnabledDeserializers._();
   @$core.override
-  EnabledDeserializers createEmptyInstance() => create();
+  EnabledDeserializers createEmptyInstance() => EnabledDeserializers._();
   @$core.pragma('dart2js:noInline')
   static EnabledDeserializers getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<EnabledDeserializers>(create);
+      $pb.GeneratedMessage.$_defaultFor<EnabledDeserializers>(
+          EnabledDeserializers.$_createMessage);
   static EnabledDeserializers? _defaultInstance;
 
   @$pb.TagNumber(1)

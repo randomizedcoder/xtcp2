@@ -47,6 +47,9 @@ type linkMonitorPaths struct {
 	allPath        string
 	ipPaths        bool
 	ipMaxBytes     int
+	// ipListen, when set, moves /ip and /i off the Prometheus listener onto
+	// a loopback listener of their own (LinkMonitorIPHandler).
+	ipListen string
 }
 
 // newLinkMonitorPaths applies the defaults: every category, interface paths
@@ -54,7 +57,7 @@ type linkMonitorPaths struct {
 func newLinkMonitorPaths(c *xtcp_config.LinkMonitorConfig) linkMonitorPaths {
 	p := linkMonitorPaths{
 		categories: monitorprom.Categories(), interfacePaths: true, allPath: DefaultLinkMonitorAllPath,
-		ipPaths: c.GetIpPaths(), ipMaxBytes: int(c.GetIpMaxBytes()),
+		ipPaths: c.GetIpPaths(), ipMaxBytes: int(c.GetIpMaxBytes()), ipListen: c.GetIpListen(),
 	}
 	if c == nil {
 		return p
@@ -288,18 +291,20 @@ func (x *XTCP) setLinkMonitorUp(up bool) {
 // LinkMonitorHandler builds the embedded link monitor's detail paths for the
 // listener that serves promPath: promPath/<category> with
 // promPath/<category>/<interface>, the all-metrics path with its interface
-// views and, when enabled, the /ip and /i paths. It is nil without a
-// monitor. Unknown paths are 404, and every path is 503 once the monitor has
-// failed. Call it once per daemon; the listener's own auth policy applies.
+// views and, when enabled without their own listener, the /ip and /i paths.
+// It is nil without a monitor. Unknown paths are 404, and every path is 503
+// once the monitor has failed. Call it once per daemon; the listener's own
+// auth policy applies.
 func (x *XTCP) LinkMonitorHandler(promPath string) (http.Handler, error) {
 	if x.linkMonitor == nil {
 		return nil, nil
 	}
 	p := x.linkMonitorPaths
+	ipHere := p.ipPaths && p.ipListen == ""
 	prefix := strings.TrimSuffix(promPath, "/") + "/"
 	layout := linkmonitorhttp.Paths{
 		CategoryPrefix: prefix, Categories: p.categories, AllPath: p.allPath,
-		InterfacePaths: p.interfacePaths, IPPaths: p.ipPaths,
+		InterfacePaths: p.interfacePaths, IPPaths: ipHere,
 		Reserved: []string{promPath, "/healthz", "/readyz", "/debug/pprof/"},
 	}
 	if err := layout.Validate(); err != nil {
@@ -315,13 +320,35 @@ func (x *XTCP) LinkMonitorHandler(promPath string) (http.Handler, error) {
 			return nil, fmt.Errorf("link monitor paths: %w", err)
 		}
 	}
-	if p.ipPaths {
+	if ipHere {
 		ip, err := linkmonitorhttp.IPRoute(goiphttp.Options{MaxBytes: p.ipMaxBytes})
 		if err != nil {
 			return nil, fmt.Errorf("link monitor ip paths: %w", err)
 		}
 		routes = append(routes, ip)
 	}
+	return x.linkMonitorMux(routes), nil
+}
+
+// LinkMonitorIPHandler builds the /ip and /i paths for their own listener,
+// set by ip_listen. It is nil without a monitor, with the /ip paths off, or
+// with no ip_listen, when LinkMonitorHandler serves them instead. Every path
+// is 503 once the monitor has failed, as on the Prometheus listener.
+func (x *XTCP) LinkMonitorIPHandler() (http.Handler, error) {
+	p := x.linkMonitorPaths
+	if x.linkMonitor == nil || !p.ipPaths || p.ipListen == "" {
+		return nil, nil
+	}
+	ip, err := linkmonitorhttp.IPRoute(goiphttp.Options{MaxBytes: p.ipMaxBytes})
+	if err != nil {
+		return nil, fmt.Errorf("link monitor ip paths: %w", err)
+	}
+	return x.linkMonitorMux([]linkmonitorhttp.Route{ip}), nil
+}
+
+// linkMonitorMux serves routes, or 503 on every path once the monitor has
+// failed.
+func (x *XTCP) linkMonitorMux(routes []linkmonitorhttp.Route) http.Handler {
 	mux := http.NewServeMux()
 	for _, r := range routes {
 		r.Register(mux)
@@ -332,7 +359,7 @@ func (x *XTCP) LinkMonitorHandler(promPath string) (http.Handler, error) {
 			return
 		}
 		mux.ServeHTTP(w, r)
-	}), nil
+	})
 }
 
 // RequestLinkMonitorRebaseline asks the embedded link monitor to relearn the

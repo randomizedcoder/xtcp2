@@ -26,7 +26,7 @@ Progress, findings and TODOs: [status-linkmonitor-in-xtcp2.md](status-linkmonito
 |---|---|---|
 | `-linkMonitor` | off | **on** (`-linkMonitor=false` or `LINK_MONITOR=false` turns it off) |
 | `-linkMonitorCollectionMode` | `poll` (`on-demand` in the OCI images) | **`on-demand`** everywhere |
-| Detail paths | go-link-monitor only | served by xtcp2 on the Prometheus listener: `/metrics/<category>[/<iface>]`, `/metrics-all[/<iface>]`, `/ip`/`/i` (off) |
+| Detail paths | go-link-monitor only | served by xtcp2 on the Prometheus listener: `/metrics/<category>[/<iface>]`, `/metrics-all[/<iface>]`, `/ip`/`/i` (off; or on a loopback listener of their own) |
 | Prometheus server | bare `go` routine, `log.Fatalf` on bind or serve error, never shut down | bound before the daemon starts; a tracked worker that drains on shutdown (3 s grace, then close) |
 | SIGUSR1 | dropped (Go ignores a signal nobody asked for) | relearn the expected up-link count, as for go-link-monitor |
 | Monitor failure (corrupt or locked baseline) | `log.Fatalf`, xtcp2 exits | monitor marked down; xtcp2 runs on |
@@ -43,13 +43,16 @@ Everything is served on the existing Prometheus listener (`-promListen`, default
 | `<promPath>/<category>/<iface>` | that category for one interface | on (`-linkMonitorMetricsInterfacePaths`) | 4 |
 | `/metrics-all` (`-linkMonitorMetricsAllPath`) | the full link monitor collector and the summary without scalars, about 6,100 series on a large RDMA host | on; empty disables | 2 |
 | `/metrics-all/<iface>` | the full collector for one interface | with interface paths | 4 |
-| `/ip/…`, `/i/…` | read-only `ip … show` output ([ip paths](../cmd/go-link-monitor/IP-ARGV-PATHS-DESIGN.md)) | **off** (`-linkMonitorIPPaths`) | — |
+| `/ip/…`, `/i/…` | read-only `ip … show` output ([ip paths](../cmd/go-link-monitor/IP-ARGV-PATHS-DESIGN.md)) | **off** (`-linkMonitorIPPaths`); with `-linkMonitorIPListen`, on that listener instead | 2 |
 | `/healthz`, `/readyz`, `/debug/pprof/` | unchanged xtcp2 semantics | on | — |
 
 - **There is no `/metrics/<iface>`.** Interface paths sit under a category or under `/metrics-all`, as in go-link-monitor, so an interface named like a category can't shadow it.
 - **Every detail request is bounded.** A full slot set answers 503 straight away, and a 10 s `TimeoutHandler` (`linkmonitorhttp.Timeout`) covers the request, the on-demand wait included. That's why `-linkMonitorOnDemandWait` must be under 10 s.
 - **Startup validation** (`linkmonitorhttp.Paths.Validate`) rejects layouts that would collide: an all-metrics path equal to `promPath`, `/healthz` or `/readyz`, one under `/debug/pprof/`, one equal to a category path or under a category's interface paths, and, with `/ip` on, anything under `/ip` or `/i`. A promPath of `/` serves metrics on every path, so no link monitor paths are mounted.
 - **The `/ip` paths stay off** because they expose host addresses. That matches go-link-monitor's `-ip.paths=false` and the [secure-by-default](design-listener-security-hardening.md) rule.
+- **A loopback listener for `/ip`.** `-linkMonitorIPListen 127.0.0.1:9089` moves `/ip` and `/i` off the Prometheus listener onto a listener of their own, without listener auth: anyone who can reach it can log in and run `ip` anyway. It serves nothing else, and the Prometheus listener then answers 404 there. Unset, there is one listener, as before.
+  - **Loopback only, twice over.** Startup refuses a host that isn't a loopback IP literal (`localhost` included) or a port of 0, and refuses the flag without `-linkMonitorIPPaths`. A loopback bind is not enough on its own: with `route_localnet=1` on an interface, as Docker sets on its bridges with the userland proxy off, a neighbour on that bridge reaches 127.0.0.0/8 from its own address. So the listener closes any connection whose peer is not a loopback address, and logs it at most once a minute with a count. A neighbour spoofing a loopback source never sees the SYN-ACK.
+  - **Failure.** A bad address or a port in use fails startup, as for the Prometheus listener. If the listener dies later, xtcp2 logs it and keeps collecting; `/ip` is gone until a restart.
 - **Unknown paths** under the listener are 404, as before.
 
 **Forward note on `/metrics-all`.** [design-summary-metrics.md](design-summary-metrics.md) proposes an xtcp2 `/metrics-all` carrying xtcp2's full registry. It isn't implemented. When it lands, `/metrics-all` should become the union of xtcp2's full registry and the link monitor's full collector. That keeps one "everything" path and keeps go-link-monitor's path name. Until then `/metrics-all` is the link monitor's full collector, as on go-link-monitor.
@@ -130,6 +133,7 @@ Every setting is a flag with a matching `LINK_MONITOR_*` environment variable an
 | `-linkMonitorMetricsAllPath` | `LINK_MONITOR_METRICS_ALL_PATH` | `/metrics-all` | Full collector path; empty disables it |
 | `-linkMonitorIPPaths` | `LINK_MONITOR_IP_PATHS` | `false` | Serve `/ip` and `/i` |
 | `-linkMonitorIPMaxBytes` | `LINK_MONITOR_IP_MAX_BYTES` | `33554432` | Largest `/ip` response; capped at 1 GiB |
+| `-linkMonitorIPListen` | `LINK_MONITOR_IP_LISTEN` | — | Loopback `host:port` serving `/ip` and `/i` on a listener of their own, without listener auth; needs `-linkMonitorIPPaths` |
 
 - **Set but empty.** An optional setting (classes, categories, interface paths, all path) that is set but empty means "none", not "default". The proto marks these fields `optional` for that reason.
 - **Config without a mode.** A `link_monitor` block in a config file with `collection_mode` unset keeps the library default, `poll`. The flags, the env vars and the NixOS module always set it, to `on-demand` by default.
@@ -144,6 +148,7 @@ Every setting is a flag with a matching `LINK_MONITOR_*` environment variable an
 | `services.xtcp2.linkMonitor.baselineFile` | `/var/lib/xtcp2/link-monitor-baseline.json` | `-linkMonitorBaselineFile` |
 | `services.xtcp2.linkMonitor.collectionMode` | `on-demand` | `-linkMonitorCollectionMode` |
 | `services.xtcp2.linkMonitor.ipPaths` | `false` | `-linkMonitorIPPaths` |
+| `services.xtcp2.linkMonitor.ipListen` | `null` | `-linkMonitorIPListen` |
 | `services.xtcp2.linkMonitor.extraArgs` | `[ ]` | further `-linkMonitor*` flags, only when enabled |
 
 - **Directory and reload.** The unit sets `StateDirectory=xtcp2` with `StateDirectoryMode=0750`, and `ExecReload=kill -USR1 $MAINPID`.
@@ -152,7 +157,7 @@ Every setting is a flag with a matching `LINK_MONITOR_*` environment variable an
 
 ## Access control
 
-The detail paths take the Prometheus listener's policy (`-listenerAuthMode` and `-listenerAdminAuthMode`, [design-listener-security-hardening.md](design-listener-security-hardening.md)): read access, like `/metrics`. pprof stays admin-only. Rebaseline over gRPC needs admin access. SIGUSR1 and `systemctl reload` need local root or the service user, as for go-link-monitor.
+The detail paths take the Prometheus listener's policy (`-listenerAuthMode` and `-listenerAdminAuthMode`, [design-listener-security-hardening.md](design-listener-security-hardening.md)): read access, like `/metrics`. The exception is `/ip` on `-linkMonitorIPListen`, which has no listener auth and accepts loopback peers only ([HTTP paths](#http-paths)). pprof stays admin-only. Rebaseline over gRPC needs admin access. SIGUSR1 and `systemctl reload` need local root or the service user, as for go-link-monitor.
 
 ## Code layout
 
@@ -162,6 +167,8 @@ The detail paths take the Prometheus listener's policy (`-listenerAuthMode` and 
 | `pkg/xtcp/linkmonitor.go` | settings, `initLinkMonitor`, `runLinkMonitor` (degrade), `LinkMonitorHandler`, `RequestLinkMonitorRebaseline` |
 | `cmd/xtcp2/prom_server.go` | `startPromServer`, `servePromHandler`, `newPromServer` |
 | `cmd/xtcp2/linkmonitor_http.go` | `linkMonitorRoutes`: the late-bound handler and SIGUSR1 target |
+| `cmd/xtcp2/ip_server.go` | the `-linkMonitorIPListen` listener: address checks, startup, rate-limited reject log |
+| `pkg/listener/loopback.go` | `ParseLoopback`, and `LoopbackOnly`, which closes non-loopback peers |
 | `cmd/xtcp2/linkmonitor_flags.go` | flags, env overrides, config builder |
 | `cmd/go-link-monitor` | uses `linkmonitorhttp`; keeps its own listener, health, supervision and admin socket |
 

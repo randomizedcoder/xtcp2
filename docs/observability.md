@@ -84,6 +84,12 @@ and `/metrics-all[/<iface>]`, plus `/ip` and `/i` with `-linkMonitorIPPaths`
 (off by default, since they expose host addresses). Each detail path has an
 in-flight limit and a 10 s timeout. `/metrics` carries only the problem summary.
 
+`-linkMonitorIPListen 127.0.0.1:9089` serves `/ip` and `/i` on a loopback
+listener of their own instead, without listener auth, so a shell on the host
+can `curl http://127.0.0.1:9089/i/a/s` without a token. It closes connections
+from any non-loopback peer, such as a container on a Docker bridge with
+`route_localnet` set ([design](design-linkmonitor-in-xtcp2.md#http-paths)).
+
 - **SIGUSR1** (`systemctl reload xtcp2` under the NixOS module) relearns the
   expected up-link count, as for go-link-monitor.
 - **`xtcp_gauges{function="linkMonitor",variable="up"}`** is 0 once the monitor

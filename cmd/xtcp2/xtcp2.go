@@ -345,6 +345,7 @@ type mainFlags struct {
 	linkMonitorMetricsAllPath     *string
 	linkMonitorIPPaths            *bool
 	linkMonitorIPMaxBytes         *uint
+	linkMonitorIPListen           *string
 
 	ipv4Ttl            *uint
 	ipv6HopLimit       *uint
@@ -1114,6 +1115,10 @@ func runMain(ctx context.Context) int {
 	}
 	if debugLevel > 10 {
 		log.Println("Prometheus http listener started on:", *f.promListen, *f.promPath)
+	}
+	if err := ipServerStarter(runCtx, &promWG, c.GetLinkMonitor()); err != nil {
+		fatalf("%v", err)
+		return 1
 	}
 
 	if err := protovalidate.Validate(c); err != nil {

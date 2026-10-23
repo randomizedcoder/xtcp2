@@ -30,7 +30,7 @@ The first tagged release. These notes compare against `32a4fed4` (2026-08-17), t
   - `-ioUring` covers netlink reads only; destination writes always use syscalls.
   - `-ioUringRecvBatch` is the number of receive buffers per socket (rounded up to a power of two), not SQEs per netlinker.
   - `-healthcheck` follows `PROM_LISTEN_NETWORK` (TCP or a Unix socket) and sends the configured listener credential.
-- No flag or environment variable was removed or renamed; 51 were added.
+- No flag or environment variable was removed or renamed; 52 were added.
 
 ### New
 
@@ -40,7 +40,7 @@ The first tagged release. These notes compare against `32a4fed4` (2026-08-17), t
 - **Unix socket listeners.** `-promListenNetwork unix` and `-grpcListenNetwork unix` serve the metrics and gRPC listeners on a socket, mode 0600 by default (`-promUnixSocketMode`, `-grpcUnixSocketMode`).
 - **Admin gRPC API** with the read/admin split above, plus runtime setters such as `SetEnvelopeFlush`.
 - **Accurate ECN**: 11 AccECN `tcp_info` columns, which were previously dropped at ingestion.
-- **New tools**: `goip`, a read-only Go `ip` with byte-for-byte output parity for the objects it covers, also served under `/ip` with `-linkMonitorIPPaths` (off by default); `ipmeta-bootstrap`; `nix run .#update-ipmeta-bootstrap-lock` to refresh the snapshot.
+- **New tools**: `goip`, a read-only Go `ip` with byte-for-byte output parity for the objects it covers, also served under `/ip` with `-linkMonitorIPPaths` (off by default), or on a loopback listener of its own, without listener auth, with `-linkMonitorIPListen 127.0.0.1:9089`; `ipmeta-bootstrap`; `nix run .#update-ipmeta-bootstrap-lock` to refresh the snapshot.
 - **RDMA**: the link monitor's RDMA collection is pure Go (netlink and umad); the cgo path is gone.
 
 ### Fixes
