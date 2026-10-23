@@ -1082,19 +1082,20 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	//   - the twenty-four `fou` rows G6-T05 added in place of its stand-in,
 	//     likewise — see TestFouRows;
 	//   - the eighteen `ila` rows G6-T06 added in place of its stand-in,
-	//     likewise — see TestIlaRows.
+	//     likewise — see TestIlaRows;
+	//   - the twenty-eight `l2tp` rows G6-T07 added in place of its
+	//     stand-in, likewise — see TestL2tpRows.
 	//
 	// The last four were the permanent set, measured divergent on the wire;
 	// TestPermanentWireDivergences records that it is empty.
 	//
-	// The two genl rows G5-T03 added and G6 has not yet replaced are
+	// The genl row G5-T03 added and G6 has not yet replaced is
 	// ungated by construction: `ip`
 	// stands in for goip on them (IPStandIn) until each family's G6 task
 	// implements it, and gating `ip` against `ip` would gate nothing about
 	// goip. TestGenlStandInRows pins them.
 	expected := []string{
 		"addr show dynamic",
-		"l2tp show tunnel",
 		"macsec show",
 	}
 
@@ -1103,10 +1104,10 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 		check       func(t *testing.T)
 	}{
 		{
-			description: "boundary: the list is three named rows, one held out and two stand-ins",
+			description: "boundary: the list is two named rows, one held out and one stand-in",
 			check: func(t *testing.T) {
-				if len(expected) != 3 {
-					t.Errorf("got %d named rows, want 3", len(expected))
+				if len(expected) != 2 {
+					t.Errorf("got %d named rows, want 2", len(expected))
 				}
 			},
 		},
@@ -3478,12 +3479,12 @@ func TestGenlStandInRows(t *testing.T) {
 		gated[name] = true
 	}
 	want := []string{
-		"l2tp show tunnel", "macsec show",
+		"macsec show",
 	}
-	// tcpmRows, srRows, ioamRows, mptcpRows, fouRows and ilaRows are
-	// G6-T01's to G6-T06's rows, the first genl ones, ahead of the
-	// stand-ins.
-	const tcpmRows, srRows, ioamRows, mptcpRows, fouRows, ilaRows = 14, 11, 20, 28, 24, 18
+	// tcpmRows, srRows, ioamRows, mptcpRows, fouRows, ilaRows and l2tpRows
+	// are G6-T01's to G6-T07's rows, the first genl ones, ahead of the
+	// stand-in.
+	const tcpmRows, srRows, ioamRows, mptcpRows, fouRows, ilaRows, l2tpRows = 14, 11, 20, 28, 24, 18, 28
 
 	cmds := Commands()
 	first := len(cmds)
@@ -3532,7 +3533,7 @@ func TestGenlStandInRows(t *testing.T) {
 						t.Errorf("%q, a %s row, follows the first genl row", c.Name, c.Protocol())
 					}
 				}
-				if n := tcpmRows + srRows + ioamRows + mptcpRows + fouRows + ilaRows + len(want); len(cmds)-first != n {
+				if n := tcpmRows + srRows + ioamRows + mptcpRows + fouRows + ilaRows + l2tpRows + len(want); len(cmds)-first != n {
 					t.Errorf("%d rows from the first genl one, want %d", len(cmds)-first, n)
 				}
 			},
@@ -4092,6 +4093,103 @@ func TestIlaRows(t *testing.T) {
 		{"positive: del on a device", "ila del loc_match 2001:db8:1:2 dev d0", "ila_del_dev", "", write},
 		{"negative: del without the device of one that has it, spelled de", "ila de loc_match 2001:db8:1:2", "ila_del_nodev_of_dev", "", write},
 		{"negative: the show of two locators to match is not in the table", "ila list", "", "", want{}},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			var got want
+			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				steps := make([]string, 0, len(c.Setup))
+				for _, s := range c.Setup {
+					steps = append(steps, "ip "+s)
+				}
+				var corpus []string
+				if r.corpus != "" {
+					corpus = srCorpusTopology(t, r.corpus)
+					if r.then != "" {
+						corpus = append(corpus, r.then)
+					}
+				}
+				topology := r.corpus != "" && slices.Equal(steps, corpus)
+				got = want{implemented: c.Implemented, write: c.Write, proto: c.Proto, floor: c.Floor, topology: topology}
+			}
+			got.gated = al.IsGated(r.command)
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+		})
+	}
+}
+
+// TestL2tpRows pins G6-T07's l2tp rows: each on its corpus row's
+// precondition (its topology file), and each gated. The -j shows of two
+// are on the captured shows' preconditions, and the other two on a write
+// row's precondition and its command.
+//
+// go test ./internal/goipparity/ -run TestL2tpRows
+func TestL2tpRows(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	type want struct {
+		implemented, write, topology, gated bool
+		proto                               string
+		floor                               int
+	}
+	read := want{implemented: true, topology: true, gated: true, proto: ProtoGenericCst, floor: 4}
+	write := read
+	write.write = true
+	refused := read
+	refused.floor = 2
+	rows := []struct {
+		description string
+		command     string
+		corpus      string // the slug whose topology Setup must be
+		then        string // a step Setup holds after it
+		expected    want
+	}{
+		{"boundary: show tunnel with none, spelled s", "l2tp s tunnel", "l2tp_tunnel_show_empty", "", read},
+		{"positive: show tunnel, two", "l2tp show tunnel", "l2tp_tunnel_show", "", read},
+		{"positive: show tunnel with an id", "l2tp show tunnel tunnel_id 1", "l2tp_tunnel_show_id", "", read},
+		{"boundary: show session with none, spelled s", "l2tp s session", "l2tp_session_show_empty", "", read},
+		{"positive: show session, two", "l2tp show session", "l2tp_session_show", "", read},
+		{"positive: show session with both ids", "l2tp show session tunnel_id 1 session_id 10",
+			"l2tp_session_show_id", "", read},
+		{"negative: a bare show, usage", "l2tp show", "l2tp_show_bare", "", refused},
+		{"negative: no local, missarg",
+			"l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 remote 192.0.2.2 udp_sport 5000 udp_dport 6000",
+			"l2tp_tunnel_add_no_local", "", refused},
+		{"negative: no peer session id, missarg", "l2tp add session tunnel_id 1 session_id 10",
+			"l2tp_session_add_no_peer", "", refused},
+		{"positive: -j show tunnel, two", "-j l2tp show tunnel", "l2tp_tunnel_show", "", read},
+		{"corner: -j, IPv6's checksums, on l2tp_tunnel_add_v6's state", "-j l2tp sho tunnel", "l2tp_tunnel_add_v6",
+			"ip " + l2tpTunV6Cst, read},
+		{"positive: -j show session, two", "-j l2tp show session", "l2tp_session_show", "", read},
+		{"corner: -j, every option, on l2tp_session_add_opts's state", "-j l2tp sho session",
+			"l2tp_session_add_opts", "ip " + l2tpSessOptsCst, read},
+		{"positive: add a UDP tunnel", l2tpTun1Cst, "l2tp_tunnel_add", "", write},
+		{"positive: with the checksum", l2tpTun1Cst + " udp_csum on", "l2tp_tunnel_add_csum", "", write},
+		{"positive: over IPv6", l2tpTunV6Cst, "l2tp_tunnel_add_v6", "", write},
+		{"positive: IP-encap", l2tpTunIPCst, "l2tp_tunnel_add_ip", "", write},
+		{"negative: a tunnel id in use",
+			"l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 local 192.0.2.1 remote 192.0.2.2 udp_sport 5001 udp_dport 6001",
+			"l2tp_tunnel_add_dup", "", write},
+		{"positive: del tunnel", "l2tp del tunnel tunnel_id 1", "l2tp_tunnel_del", "", write},
+		{"negative: del of a missing tunnel", "l2tp del tunnel tunnel_id 9", "l2tp_tunnel_del_missing", "", write},
+		{"positive: del of a tunnel with a session, spelled d", "l2tp d tunnel tunnel_id 1",
+			"l2tp_tunnel_del_sessions", "", write},
+		{"positive: add a session", l2tpSess1Cst, "l2tp_session_add", "", write},
+		{"positive: every option", l2tpSessOptsCst, "l2tp_session_add_opts", "", write},
+		{"negative: a session id in use in a UDP tunnel, accepted, spelled a",
+			"l2tp a session tunnel_id 1 session_id 10 peer_session_id 20", "l2tp_session_add_dup", "", write},
+		{"negative: in an IP tunnel, refused, spelled ad",
+			"l2tp ad session tunnel_id 1 session_id 10 peer_session_id 20", "l2tp_session_add_dup_ip", "", write},
+		{"negative: in a missing tunnel, spelled with tid",
+			"l2tp add session tid 1 session_id 10 peer_session_id 20", "l2tp_session_add_no_tunnel", "", write},
+		{"positive: del session", "l2tp del session tunnel_id 1 session_id 10", "l2tp_session_del", "", write},
+		{"negative: del of a missing session", "l2tp del session tunnel_id 1 session_id 99",
+			"l2tp_session_del_missing", "", write},
+		{"negative: the stand-in's slug is gone", "genl_l2tp_show_tunnel", "", "", want{}},
 	}
 	for _, r := range rows {
 		t.Run(r.description, func(t *testing.T) {

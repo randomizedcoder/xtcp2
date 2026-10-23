@@ -36,6 +36,10 @@ const FOUGenlVersion uint8 = 1
 // (include/uapi/linux/ila.h).
 const ILAGenlVersion uint8 = 1
 
+// L2TPGenlVersion is L2TP_GENL_VERSION, the version ip's l2tp requests
+// carry (include/uapi/linux/l2tp.h).
+const L2TPGenlVersion uint8 = 1
+
 // genlMsgHdrLenCst is sizeof(struct genlmsghdr).
 const genlMsgHdrLenCst = 4
 
@@ -58,7 +62,9 @@ var (
 // deletes, changes and flush and its limits set, `ip mptcp endpoint` and
 // `limits set` (ip/ipmptcp.c), fou's ADD and DEL, `ip fou add` and `del`
 // (ip/ipfou.c), and ila's ADD and DEL, `ip ila add` and `del`
-// (ip/ipila.c); ila's FLUSH, which ip never sends, is not. The family is
+// (ip/ipila.c); ila's FLUSH, which ip never sends, is not; and l2tp's
+// tunnel and session creates and deletes, `ip l2tp add` and `del`
+// (ip/ipl2tp.c); its MODIFYs, which ip never sends, are not. The family is
 // its controller name.
 func IsAdmittedGenlWrite(family string, cmd uint8) bool {
 	switch family {
@@ -80,6 +86,11 @@ func IsAdmittedGenlWrite(family string, cmd uint8) bool {
 		return cmd == FOUCmdAdd || cmd == FOUCmdDel
 	case ILAGenlName:
 		return cmd == ILACmdAdd || cmd == ILACmdDel
+	case L2TPGenlName:
+		switch cmd {
+		case L2TPCmdTunnelCreate, L2TPCmdTunnelDelete, L2TPCmdSessionCreate, L2TPCmdSessionDelete:
+			return true
+		}
 	}
 	return false
 }

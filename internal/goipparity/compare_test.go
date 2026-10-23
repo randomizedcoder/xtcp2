@@ -35,23 +35,27 @@ const (
 )
 
 // genlReadbackRows are the genl read rows with no corpus capture of their
-// own slug, G6-T03's to G6-T06's -j shows and ila's show of one locator
+// own slug, G6-T03's to G6-T07's -j shows and ila's show of one locator
 // to match: each is laid out on the
 // readback dump of the same command a write row's capture holds, or on the
 // capture of the same show without -j, the same requests.
 var genlReadbackRows = map[string]string{
-	"ioam_ns_show_json":        "ioam_ns_set_schema/netlink_generic_ns.pcap",
-	"ioam_sc_show_json":        "ioam_ns_set_schema/netlink_generic_sc.pcap",
-	"mptcp_endpoint_show_json": "mptcp_endpoint_show/ip.pcap",
-	"mptcp_endpoint_get_json":  "mptcp_endpoint_get/ip.pcap",
-	"mptcp_limits_show_json":   "mptcp_limits_show/ip.pcap",
-	"fou_show_json":            "fou_show/ip.pcap",
-	"fou_show_peer_json":       "fou_add_local_peer/netlink_generic_fou.pcap",
-	"fou_show_dev_json":        "fou_add_dev/netlink_generic_fou.pcap",
-	"ila_show_both":            "ila_add_same_match_dev/netlink_generic_ila.pcap",
-	"ila_show_both_json":       "ila_add_same_match_dev/netlink_generic_ila.pcap",
-	"ila_show_dev_json":        "ila_add_dev/netlink_generic_ila.pcap",
-	"ila_show_opts_json":       "ila_add_opts/netlink_generic_ila.pcap",
+	"ioam_ns_show_json":           "ioam_ns_set_schema/netlink_generic_ns.pcap",
+	"ioam_sc_show_json":           "ioam_ns_set_schema/netlink_generic_sc.pcap",
+	"mptcp_endpoint_show_json":    "mptcp_endpoint_show/ip.pcap",
+	"mptcp_endpoint_get_json":     "mptcp_endpoint_get/ip.pcap",
+	"mptcp_limits_show_json":      "mptcp_limits_show/ip.pcap",
+	"fou_show_json":               "fou_show/ip.pcap",
+	"fou_show_peer_json":          "fou_add_local_peer/netlink_generic_fou.pcap",
+	"fou_show_dev_json":           "fou_add_dev/netlink_generic_fou.pcap",
+	"ila_show_both":               "ila_add_same_match_dev/netlink_generic_ila.pcap",
+	"ila_show_both_json":          "ila_add_same_match_dev/netlink_generic_ila.pcap",
+	"ila_show_dev_json":           "ila_add_dev/netlink_generic_ila.pcap",
+	"ila_show_opts_json":          "ila_add_opts/netlink_generic_ila.pcap",
+	"l2tp_tunnel_show_json":       "l2tp_tunnel_show/ip.pcap",
+	"l2tp_tunnel_show_v6_json":    "l2tp_tunnel_add_v6/netlink_generic_tunnel.pcap",
+	"l2tp_session_show_json":      "l2tp_session_show/ip.pcap",
+	"l2tp_session_show_opts_json": "l2tp_session_add_opts/netlink_generic_session.pcap",
 }
 
 // writeGenlReadRow lays out an implemented generic netlink read row as a

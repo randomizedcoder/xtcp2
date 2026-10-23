@@ -937,12 +937,14 @@ func TestRunLinkArgs(t *testing.T) {
 			wantStderrSubstr: "not implemented",
 		},
 		{
-			// `link` is reached by "l" before "l2tp" is considered, so no
-			// argument can ever name l2tp. Asserting it here rather than only
-			// in the dispatch table keeps the claim attached to a real run.
-			description: "corner: `l2tp` is unreachable, because `link` matches its prefix first",
+			// `link` is reached by "l" before "l2tp" is considered, but
+			// "l2tp" is no prefix of "link", so it names l2tp, whose family
+			// lookup the link capture cannot answer: genl_init_handle's
+			// exit(1). Asserting it here rather than only in the dispatch
+			// table keeps the claim attached to a real run.
+			description: "corner: `l2tp` is l2tp, not link, which only its prefixes reach",
 			args:        []string{"l2tp", "show"}, wantCode: ExitUsage,
-			wantStderrSubstr: "not implemented",
+			wantStderrSubstr: "family not resolved: l2tp",
 		},
 	}
 

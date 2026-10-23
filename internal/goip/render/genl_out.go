@@ -46,6 +46,13 @@ func (o *genlOut) boolean(k, text string) {
 	o.obj = append(o.obj, "true"...)
 }
 
+// jsonBool is print_bool(PRINT_JSON, k, NULL, v): the value in the
+// object, nothing in the text.
+func (o *genlOut) jsonBool(k string, v bool) {
+	o.key(k)
+	o.obj = strconv.AppendBool(o.obj, v)
+}
+
 // null is print_null(PRINT_ANY, k, ...): the text as given, the value
 // JSON's null.
 func (o *genlOut) null(k, text string) {

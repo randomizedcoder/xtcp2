@@ -3035,17 +3035,81 @@ var commands = withArgs([]Command{
 	{Name: "ila de loc_match 2001:db8:1:2", Slug: "ila_del_nodev_of_dev", Floor: 4, Implemented: true, Write: true,
 		Proto: ProtoGenericCst, Setup: ilaDevSetup},
 
+	// G6-T07: l2tp, the C2 corpus's 24 l2tp_* rows on their preconditions
+	// (genl-write-corpus.exp), and four -j shows: two on a captured show's
+	// state, and two on a write row's, its readback. The kernel keeps its
+	// tunnels and each tunnel's sessions by id, and names a session's
+	// l2tpeth device from a per-namespace count, so a show of two is in one
+	// order, with the same names, on every side. Commands the corpus spells
+	// alike are spelled by prefix, or with tid for tunnel_id, the same
+	// bytes. A bare show and the missing arguments are refused after the
+	// lookup, so each is a read of floor 2.
+	{Name: "l2tp s tunnel", Slug: "l2tp_tunnel_show_empty", Floor: 4, Implemented: true, Proto: ProtoGenericCst},
+	{Name: "l2tp show tunnel", Slug: "l2tp_tunnel_show", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: l2tpTun2Setup},
+	{Name: "l2tp show tunnel tunnel_id 1", Slug: "l2tp_tunnel_show_id", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst, Setup: l2tpTun2Setup},
+	{Name: "l2tp s session", Slug: "l2tp_session_show_empty", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: l2tpTunSetup},
+	{Name: "l2tp show session", Slug: "l2tp_session_show", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: l2tpSess2Setup},
+	{Name: "l2tp show session tunnel_id 1 session_id 10", Slug: "l2tp_session_show_id", Floor: 4,
+		Implemented: true, Proto: ProtoGenericCst, Setup: l2tpSess2Setup},
+	{Name: "l2tp show", Slug: "l2tp_show_bare", Floor: 2, Implemented: true, Proto: ProtoGenericCst},
+	{Name: "l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 remote 192.0.2.2 udp_sport 5000 udp_dport 6000",
+		Slug: "l2tp_tunnel_add_no_local", Floor: 2, Implemented: true, Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: "l2tp add session tunnel_id 1 session_id 10", Slug: "l2tp_session_add_no_peer", Floor: 2,
+		Implemented: true, Proto: ProtoGenericCst, Setup: l2tpTunSetup},
+	{Name: "-j l2tp show tunnel", Slug: "l2tp_tunnel_show_json", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst, Setup: l2tpTun2Setup},
+	{Name: "-j l2tp sho tunnel", Slug: "l2tp_tunnel_show_v6_json", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst, Setup: l2tpTunV6Setup},
+	{Name: "-j l2tp show session", Slug: "l2tp_session_show_json", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst, Setup: l2tpSess2Setup},
+	{Name: "-j l2tp sho session", Slug: "l2tp_session_show_opts_json", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst, Setup: l2tpSessOptsSetup},
+	{Name: l2tpTun1Cst, Slug: "l2tp_tunnel_add", Floor: 4, Implemented: true, Write: true, Proto: ProtoGenericCst,
+		Setup: tcpmAddrsSetup},
+	{Name: l2tpTun1Cst + " udp_csum on", Slug: "l2tp_tunnel_add_csum", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: l2tpTunV6Cst, Slug: "l2tp_tunnel_add_v6", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: l2tpTunIPCst, Slug: "l2tp_tunnel_add_ip", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: "l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 local 192.0.2.1 remote 192.0.2.2 udp_sport 5001 udp_dport 6001",
+		Slug: "l2tp_tunnel_add_dup", Floor: 4, Implemented: true, Write: true, Proto: ProtoGenericCst,
+		Setup: l2tpTunSetup},
+	{Name: "l2tp del tunnel tunnel_id 1", Slug: "l2tp_tunnel_del", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: l2tpTunSetup},
+	{Name: "l2tp del tunnel tunnel_id 9", Slug: "l2tp_tunnel_del_missing", Floor: 4, Implemented: true,
+		Write: true, Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: "l2tp d tunnel tunnel_id 1", Slug: "l2tp_tunnel_del_sessions", Floor: 4, Implemented: true,
+		Write: true, Proto: ProtoGenericCst, Setup: l2tpSessSetup},
+	{Name: l2tpSess1Cst, Slug: "l2tp_session_add", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: l2tpTunSetup},
+	{Name: l2tpSessOptsCst, Slug: "l2tp_session_add_opts", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: l2tpTunSetup},
+	{Name: "l2tp a session tunnel_id 1 session_id 10 peer_session_id 20", Slug: "l2tp_session_add_dup", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: l2tpSessSetup},
+	{Name: "l2tp ad session tunnel_id 1 session_id 10 peer_session_id 20", Slug: "l2tp_session_add_dup_ip",
+		Floor: 4, Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: l2tpSessIPSetup},
+	{Name: "l2tp add session tid 1 session_id 10 peer_session_id 20", Slug: "l2tp_session_add_no_tunnel",
+		Floor: 4, Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: "l2tp del session tunnel_id 1 session_id 10", Slug: "l2tp_session_del", Floor: 4, Implemented: true,
+		Write: true, Proto: ProtoGenericCst, Setup: l2tpSessSetup},
+	{Name: "l2tp del session tunnel_id 1 session_id 99", Slug: "l2tp_session_del_missing", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: l2tpTunSetup},
+
 	// G5-T03: one `show` per generic netlink family, in the C2 order, with
-	// `ip` in goip's place until the family's G6 task implements it; two
-	// remain, tcp_metrics', sr's, ioam's, mptcp's, fou's and ila's rows
-	// above having replaced their own. The captures keep NETLINK_GENERIC and the comparator compares a genl
+	// `ip` in goip's place until the family's G6 task implements it; one
+	// remains, tcp_metrics', sr's, ioam's, mptcp's, fou's, ila's and
+	// l2tp's rows above having replaced their own. The captures keep NETLINK_GENERIC and the comparator compares a genl
 	// message by its family's name, so these rows exercise the harness end
 	// to end, ungated. Each is genl_init_handle's CTRL_CMD_GETFAMILY and its
 	// reply, then the dump and its DONE, or for tunsrc the get and its reply:
 	// four datagrams, as on C2's empty shows, since every family is empty in
 	// the dump topology. They come last: the driver runs nltopo::late_setup,
 	// which loads the families' modules, before the first genl row.
-	{Name: "l2tp show tunnel", Slug: "genl_l2tp_show_tunnel", Floor: 4, Proto: ProtoGenericCst, IPStandIn: true},
 	{Name: "macsec show", Slug: "genl_macsec_show", Floor: 4, Proto: ProtoGenericCst, IPStandIn: true},
 })
 
@@ -3135,6 +3199,46 @@ var ilaBothSetup = append(slices.Clone(ilaAddrsSetup), "ila add loc_match 2001:d
 
 // ilaOptsSetup is ila_add_opts's command, the state its readback shows.
 var ilaOptsSetup = []string{"ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4 csum-mode adj-transport ident-type luid"}
+
+// The l2tp commands genl-write-corpus.exp's rows and preconditions share:
+// L2TP_TUN1 and L2TP_SESS1, the IPv6 and IP-encap tunnels, and the session
+// with every option.
+const (
+	l2tpTun1Cst  = "l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 local 192.0.2.1 remote 192.0.2.2 udp_sport 5000 udp_dport 6000"
+	l2tpTunV6Cst = "l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 local 2001:db8::1 remote 2001:db8::2 " +
+		"udp_sport 5000 udp_dport 6000 udp6_csum_rx off"
+	l2tpTunIPCst    = "l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 encap ip local 192.0.2.1 remote 192.0.2.2"
+	l2tpSess1Cst    = "l2tp add session tunnel_id 1 session_id 10 peer_session_id 20"
+	l2tpSessOptsCst = "l2tp add session name l2tp9 tunnel_id 1 session_id 10 peer_session_id 20 " +
+		"cookie 0102030405060708 peer_cookie 0a0b0c0d seq both l2spec_type none"
+)
+
+// l2tpTunSetup is genl-write-corpus.exp's PRE_TUN: PRE_ADDRS and a UDP
+// tunnel.
+var l2tpTunSetup = append(slices.Clone(tcpmAddrsSetup), l2tpTun1Cst)
+
+// l2tpTun2Setup is PRE_TUN2: PRE_TUN and a second tunnel.
+var l2tpTun2Setup = append(slices.Clone(l2tpTunSetup),
+	"l2tp add tunnel tunnel_id 3 peer_tunnel_id 4 local 192.0.2.1 remote 192.0.2.2 udp_sport 5001 udp_dport 6001")
+
+// l2tpSessSetup is PRE_SESS: PRE_TUN and a session.
+var l2tpSessSetup = append(slices.Clone(l2tpTunSetup), l2tpSess1Cst)
+
+// l2tpSess2Setup is PRE_SESS2: PRE_SESS and a second session.
+var l2tpSess2Setup = append(slices.Clone(l2tpSessSetup),
+	"l2tp add session tunnel_id 1 session_id 11 peer_session_id 21")
+
+// l2tpSessIPSetup is PRE_SESS_IP: PRE_ADDRS, an IP-encap tunnel and the
+// session.
+var l2tpSessIPSetup = append(slices.Clone(tcpmAddrsSetup), l2tpTunIPCst, l2tpSess1Cst)
+
+// l2tpTunV6Setup is l2tp_tunnel_add_v6's precondition and command, the
+// state its readback shows.
+var l2tpTunV6Setup = append(slices.Clone(tcpmAddrsSetup), l2tpTunV6Cst)
+
+// l2tpSessOptsSetup is l2tp_session_add_opts's precondition and command,
+// likewise.
+var l2tpSessOptsSetup = append(slices.Clone(l2tpTunSetup), l2tpSessOptsCst)
 
 // The write rows' preconditions, as capture-link-writes.exp spells them:
 // PRE_BOND, PRE_PORT and PRE_ENSLAVED there.

@@ -164,6 +164,15 @@ func TestIsAdmittedGenlWrite(t *testing.T) {
 		{"negative: ila GET, `ila list`", ILAGenlName, ILACmdGet, false},
 		{"negative: ila FLUSH, which ip never sends", ILAGenlName, ILACmdFlush, false},
 		{"boundary: ila command 0, UNSPEC", ILAGenlName, 0, false},
+		{"positive: l2tp TUNNEL_CREATE, `l2tp add tunnel`", L2TPGenlName, L2TPCmdTunnelCreate, true},
+		{"positive: l2tp TUNNEL_DELETE, `l2tp del tunnel`", L2TPGenlName, L2TPCmdTunnelDelete, true},
+		{"positive: l2tp SESSION_CREATE, `l2tp add session`", L2TPGenlName, L2TPCmdSessionCreate, true},
+		{"positive: l2tp SESSION_DELETE, `l2tp del session`", L2TPGenlName, L2TPCmdSessionDelete, true},
+		{"negative: l2tp TUNNEL_GET, `l2tp show tunnel`", L2TPGenlName, L2TPCmdTunnelGet, false},
+		{"negative: l2tp SESSION_GET, `l2tp show session`", L2TPGenlName, L2TPCmdSessionGet, false},
+		{"negative: l2tp TUNNEL_MODIFY, which ip never sends", L2TPGenlName, L2TPCmdTunnelModify, false},
+		{"negative: l2tp SESSION_MODIFY, which ip never sends", L2TPGenlName, L2TPCmdSessionModify, false},
+		{"boundary: l2tp command 0, UNSPEC", L2TPGenlName, 0, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {

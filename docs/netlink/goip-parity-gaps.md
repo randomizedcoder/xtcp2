@@ -2922,6 +2922,47 @@ The tests (`pkg/xtcpnl`, `internal/goip`, `internal/goipparity`):
 | positive, boundary, corner: `print_ila_mapping` of the kernel's answers, nothing, the widest and zero locators, values the tables do not hold, `iid`, the longest mode | `ip`'s line and object, `TestIlaMapping` (7) |
 | positive, negative, boundary, corner: the 18 rows, and the show of two | generic, on the corpus topology, or `ila_add_opts`'s and its command for `-j ila sh`; gated; the two refusals floor 2; the show of two not in the table, `TestIlaRows` (19) |
 
+**G6-T07 delivered** (`internal/goip`, `pkg/xtcpnl`, `internal/goipparity`):
+- **The write gate.** `IsAdmittedGenlWrite` admits l2tp's `TUNNEL_CREATE`, `TUNNEL_DELETE`, `SESSION_CREATE` and `SESSION_DELETE`. The two `GET`s stay reads, and the two `MODIFY`s, which `ip` never sends, are not admitted.
+- **`goip l2tp`** (`internal/goip/obj_l2tp.go`, `render/l2tp.go`).
+  - `add` and `delete` are matched by prefix, as `do_ipl2tp` matches them, and so are `show`, `lst` and `list`. `help` is matched first, before the family lookup.
+  - Every verb runs `parse_args`, whose words are matched by `strcmp`: `tid`, `ptid`, `sid` and `psid` for the ids, and `tunnel` and `session` as flags. `help` among them is matched by prefix, and a word it does not know is usage, exit 255.
+    - Ids and ports are `get_u32` and `get_u16` base 0. The checksums are `on` or `off`, and the encapsulation `ip` or `udp`, by `strcmp`. `seq` and `l2spec_type` are matched by `strcasecmp`.
+    - A cookie is 8 or 16 characters of hex, `hex2mem`'s pairs. A name must pass `check_ifname`.
+    - `local` and `remote` are `get_addr` of `AF_UNSPEC`, exit 1 on a word it cannot read. `any` leaves the family unset, which `add` then refuses as missing.
+    - `offset` and `peer_offset` print `ip`'s "Ignoring option" message and take their value.
+  - `add` runs `do_add`'s missarg checks in its order, each exit 255. It then writes an acked `TUNNEL_CREATE` for a tunnel and `SESSION_CREATE` for a session, both in one file when asked for both.
+    - The tunnel's attributes are the ids, version 3, the encapsulation and the two addresses, each IPv6 when it is. For UDP they add the ports, the IPv4 checksum when on and an IPv6 zero-checksum flag for each direction that is off.
+    - The session's attributes are the four ids, the ethernet pseudowire and the layer 2 header's type and length. Each sequencing direction, cookie and the name follow when given.
+  - `delete` writes `SESSION_DELETE` of the tunnel and session ids when a session id was given, else `TUNNEL_DELETE` of the tunnel id.
+  - `show` dumps `SESSION_GET` for a session, else `TUNNEL_GET`. The session request carries both ids when both were given, and the tunnel request carries the tunnel id when given.
+    - Each answer is read as `get_response` reads it, over one struct that starts as the arguments' and lasts the whole dump. An answer that lacks a field keeps the value the last answer left in it.
+    - An IPv4 address overwrites four bytes of the address's data. With no address, the family is `AF_INET6` over whatever the data held.
+    - `print_tunnel`'s lines end with the ports and checksum for UDP. The IPv4 checksum is one word, and IPv6's is `enabled`, `tx`, `rx` or `disabled`; under `-j` IPv4's is one member and IPv6's two.
+    - `print_session`'s lines end with the fixed offsets, then the cookies and reorder timeout run together on one line, then the sequence numbering on its own. A plain session is therefore followed by a blank line.
+    - Under `-j` the dump is one array, closed however it ends.
+  - Exit codes are `ip`'s: 255 for usage, an unknown command or word, a missarg and an invarg; 1 for a dump that ends early and for an address `get_addr` refuses.
+- **The rows.** The C2 corpus's 24 `l2tp_*` rows replace the stand-in, each on its corpus precondition: nine reads and 15 writes.
+  - The kernel keeps its tunnels, and each tunnel's sessions, by id, and names a session's `l2tpeth` device from a per-namespace count. A show of two is therefore in one order, with the same names, on every side.
+  - Four `-j` shows join them: two tunnels and two sessions on the captured shows' preconditions, and the IPv6 tunnel and the session with every option on their write rows' states.
+  - The corpus spells some commands alike on different preconditions. Those rows run by prefix (`l2tp s`, `l2tp a`, `l2tp ad`, `l2tp d`) or with `tid` for `tunnel_id`, the same bytes.
+  - A bare `show` and the two missing arguments are refused by `ip` after the family lookup, so each is a read of floor 2.
+  - A `goip` test claimed `l2tp` could not be reached because `link` matched first. "l2tp" is not a prefix of "link", so it names l2tp, and the test now asserts that.
+
+The tests (`pkg/xtcpnl`, `internal/goip`, `internal/goipparity`):
+
+| description | expected |
+|---|---|
+| positive, negative, boundary: the write gate for l2tp's creates, deletes, `GET`s, `MODIFY`s and command 0 | the four admitted, the rest not, `TestIsAdmittedGenlWrite` (50 rows, nine new) |
+| positive, negative, boundary, corner: the 24 C2 captures replayed, the readback shows of ten, the short names in another order, base-0 ids and ports, `encap udp` said, the IPv6 checksums on an IPv4 tunnel, `strcasecmp` values, `seq send seq recv`, `offset`, `d`, a session id on `del tunnel`, `l`, `list`, `tunnel session`, a session show with one id, and `-j` shows | `ip.out`, `ip_tunnel` or `ip_session`, or `ip`'s JSON; every read exchange once, no write sent, goip's write `ip`'s bytes; `ip`'s exit status but for a kernel refusal, `TestL2tpMatchesIp` (54) |
+| positive, negative, boundary, corner: each request's attributes, both at once, every missarg in order, each refused value, the cookie and name lengths, an unknown address, an unknown word, `tun`, `h`, a missing value, `offset` with and without one, usage, `help` and `flush` | the requests' commands and bytes, the message, or `ip`'s exit status and nothing written, `TestL2tpArgs` (52) |
+| negative, boundary, corner: a refused dump with and without `-j`, a short answer after one, an answer with no address over an IPv4 one and over an IPv6 one, the IPv6 checksums read afresh, `??`, the arguments' state, a session over the last one's, and a reorder timeout past `INT_MAX` | `ip`'s lines and JSON, `[]`, exit 1, `TestL2tpShow` (12) |
+| positive, corner: each error's exit status, invarg as usage and `get_addr`'s own | 255, 1, 255, 255, 1, `TestL2tpExitCodes` (5) |
+| positive, boundary, corner: `print_tunnel` of IPv4 and IPv6, each checksum word, `-j`'s members, IP-encap, stale data, the zero state and `??` | `ip`'s lines and object, `TestL2tpTunnel` (10) |
+| positive, boundary, corner: `print_session` plain, with cookies, sequencing, a reorder timeout, no name and a negative timeout | `ip`'s lines and object, `TestL2tpSession` (6) |
+| positive, negative, boundary, corner: the 28 rows, and the stand-in's slug | generic, on the corpus topology, or a write row's and its command for the two `-j l2tp sho` rows; gated; the three refusals floor 2; the stand-in gone, `TestL2tpRows` (29) |
+| corner: `l2tp` reaches l2tp, not link | its family lookup, exit 1, `TestRunLinkArgs` (15, one changed) |
+
 ### G7 — XFRM
 
 xfrm state and policy show first, then the writes.

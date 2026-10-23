@@ -24,6 +24,17 @@ const (
 	L2TPCmdSessionModify uint8 = 7
 	L2TPCmdSessionGet    uint8 = 8
 
+	// L2TP_ENCAPTYPE_*, the values of L2TPAttrEncapType.
+	L2TPEncapUDP uint16 = 0
+	L2TPEncapIP  uint16 = 1
+
+	// L2TPPwTypeEth is L2TP_PWTYPE_ETH, the one pseudowire type ip makes.
+	L2TPPwTypeEth uint16 = 5
+
+	// L2TP_L2SPECTYPE_*, the values of L2TPAttrL2SpecType.
+	L2TPL2SpecNone    uint8 = 0
+	L2TPL2SpecDefault uint8 = 1
+
 	// L2TP_ATTR_*. OFFSET (3), DATA_SEQ (4), VLAN_ID (14), MTU (28) and
 	// MRU (29) are marked unused in the header, and neither ip nor the
 	// kernel sends them; they are left in Attributes. Type 35 is
