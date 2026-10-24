@@ -327,11 +327,13 @@ bridge and bridge_slave, with 7.2.0's `stp_mode` and `neigh_forward_grat`. Two t
 | `add_several` | `stp_state 1 priority 100 vlan_filtering 1 mcast_snooping 0` | 0 | several attributes in one request, in argument order |
 | `set_<option>` for `ageing_time`, `vlan_filtering`, `stp_mode` | `ip link set br0 type bridge <option> <value>` on an existing `br0` | 0 | the change path (`br_changelink`), with no `IFLA_INFO_KIND` change |
 | `add_abbrev` | `forward_d 400` | 0 | a `matches` keyword taking an abbreviation |
-| `add_stp_mode_abbrev` | `stp_m user` | 255 | a `strcmp` keyword refusing one |
+| `add_stp_mode_abbrev` | `stp_m user` | 1 | a `strcmp` keyword refusing one: `bridge_parse_opt` returns "unknown command" |
 | `add_group_address_bad` | `group_address 01:80:c2:00:00:01` | 2 | `br_changelink`: not a usable link-local group |
 | `add_group_fwd_mask_bad` | `group_fwd_mask 1` | 2 | a restricted bit |
 | `add_igmp_version_bad` | `mcast_igmp_version 4` | 2 | outside 2 to 3 |
-| `add_stp_mode_bad` | `stp_mode bogus` | 255 | `ip`'s name table |
+| `add_mcast_vlan_snooping_no_vlan` | `mcast_vlan_snooping 1` | 2 | needs `vlan_filtering` (so `add_mcast_vlan_snooping` sends `vlan_filtering 1` first) |
+| `set_stp_mode_busy` | `ip link set br0 type bridge stp_mode user` on a `br0` with STP on | 2 | `EBUSY`: the mode can't change while STP runs |
+| `add_stp_mode_bad` | `stp_mode bogus` | 1 | `parse_one_of`'s error, returned |
 | `add_vlan_protocol_bad` | `vlan_protocol 802.1x` | 255 | `ll_proto_a2n` |
 | `add_priority_bad` | `priority x` | 255 | `get_u16` |
 | `add_no_value` | `forward_delay` | 255 | `NEXT_ARG` |
@@ -354,8 +356,8 @@ bridge and bridge_slave, with 7.2.0's `stp_mode` and `neigh_forward_grat`. Two t
 | description (VM) | input | expected |
 |---|---|---|
 | positive: each row's status | `kinds/bridge/*/ip.rc` | the table's rc |
-| positive: each `add_<option>` reaches the device | `getlink_detail_json` | the option's value, as `ip -d -j` prints it |
-| corner: a refused row leaves no device | the row's `getlink` readback | `Device "br0" does not exist`, with no `RTM_NEWLINK` answer |
+| positive: each `add_<option>` reaches the device | `getlink_detail_json` | the option's value, as `ip -d -j` prints it: under its attribute's name (`group_addr`, `…_cnt`, `…_intvl`), `group_fwd_mask` in hex, and `mcast_hash_elasticity` at 16 whatever is sent |
+| corner: a refused add leaves no device | the row's `getlink` readback | empty text, and the pcap's answer is `NLMSG_ERROR` `-ENODEV` |
 | corner: the corpus runs after every existing row | every other pcap, against KC1-T01's run | no new shape difference |
 
 **Mutation check:** `bad_rc` narrowed, the `ip`-refused floor exemption dropped, an `add_` row dropped (the per-option row), two rows swapped.

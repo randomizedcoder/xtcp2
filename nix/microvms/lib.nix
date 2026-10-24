@@ -1358,14 +1358,15 @@ rec {
     let
       cfg = constants.architectures.${arch};
 
-      # One store directory for all ten .exp files, for the dump runner's
+      # One store directory for all eleven .exp files, for the dump runner's
       # reason: the driver sources its siblings relative to itself.
       # netlink-topology.exp is here for nltopo::topo, which the LACP
       # topology builds through so its refusals land in the same list;
       # addr-topology.exp and addr-corpus.exp are the address states and
       # rows (docs/netlink/addr-write-path.md); rtnl-write-corpus.exp,
       # genl-write-corpus.exp and xfrm-write-corpus.exp are the C1, C2 and
-      # C3 rows (docs/netlink/goip-parity-gaps.md).
+      # C3 rows (docs/netlink/goip-parity-gaps.md); kind-write-corpus.exp is
+      # the link kinds' (docs/netlink/goip-link-kinds.md).
       captureScripts =
         pkgs.runCommand "xtcp2-link-write-capture-scripts"
           {
@@ -1378,6 +1379,7 @@ rec {
             rtnlCorpus = ./scripts/rtnl-write-corpus.exp;
             genlCorpus = ./scripts/genl-write-corpus.exp;
             xfrmCorpus = ./scripts/xfrm-write-corpus.exp;
+            kindCorpus = ./scripts/kind-write-corpus.exp;
             driver = ./scripts/capture-link-writes.exp;
           }
           ''
@@ -1391,6 +1393,7 @@ rec {
             cp $rtnlCorpus $out/rtnl-write-corpus.exp
             cp $genlCorpus $out/genl-write-corpus.exp
             cp $xfrmCorpus $out/xfrm-write-corpus.exp
+            cp $kindCorpus $out/kind-write-corpus.exp
             cp $driver $out/capture-link-writes.exp
             chmod +x $out/capture-link-writes.exp
           '';

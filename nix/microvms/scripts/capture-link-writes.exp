@@ -65,7 +65,10 @@
 # scripts/genl-write-corpus.exp: each pcap keeps NETLINK_GENERIC, the
 # family lookup included, under genl/<slug>/; see genl_row below. Then the
 # XFRM rows (C3), data in scripts/xfrm-write-corpus.exp: each pcap keeps
-# NETLINK_XFRM, under xfrm/<slug>/; see xfrm_row below.
+# NETLINK_XFRM, under xfrm/<slug>/; see xfrm_row below. Then the link
+# kind rows (docs/netlink/goip-link-kinds.md), data in
+# scripts/kind-write-corpus.exp, under kinds/<kind>/<name>/; see kind_row
+# below.
 #
 # POLICY HERE, MECHANISM IN THE GUEST
 #
@@ -95,6 +98,7 @@ source [file dirname [info script]]/addr-corpus.exp
 source [file dirname [info script]]/rtnl-write-corpus.exp
 source [file dirname [info script]]/genl-write-corpus.exp
 source [file dirname [info script]]/xfrm-write-corpus.exp
+source [file dirname [info script]]/kind-write-corpus.exp
 
 if {$argc != 2} {
     puts "usage: capture-link-writes.exp <serial-port> <blob-out>"
@@ -661,6 +665,37 @@ foreach row $xfrmcorpus::rows {
     xfrm_row {*}$row
 }
 
+###############################################################################
+# kind_row - one row of kind-write-corpus.exp, under kinds/<kind>/<name>.
+#
+# As rtnl_row. The kind rows run after late setup, which loads the kind
+# modules, and after the XFRM rows, so no earlier fixture moves.
+###############################################################################
+set kind_problems {}
+
+proc kind_row {slug floor pre command readbacks rc} {
+    global NS_A kind_problems
+    if {![write_row $slug $floor $pre $command kinds]} {
+        return
+    }
+    foreach rb $readbacks {
+        capio {*}[kindcorpus::readback_args $NS_A kinds/$slug $rb]
+    }
+    lassign [nlcap dir kinds/$slug] dir_rc dir
+    lassign [vmlib::run_out "cat [string trim $dir]/ip.rc"] cat_rc got
+    if {$cat_rc != 0} {
+        set got ""
+    }
+    set problem [kindcorpus::rc_problem $slug $rc $got]
+    if {$problem ne ""} {
+        lappend kind_problems $problem
+    }
+}
+
+foreach row $kindcorpus::rows {
+    kind_row {*}$row
+}
+
 lassign [nlcap inventory] inv_rc inventory
 vmlib::log "captured [llength [split [string trim $inventory] "\n"]] files"
 
@@ -758,6 +793,14 @@ if {[llength $genl_problems] > 0} {
 if {[llength $xfrm_problems] > 0} {
     puts "NLCAP_XFRM_RC [llength $xfrm_problems]"
     foreach p $xfrm_problems {
+        puts "  $p"
+    }
+    set failed 1
+}
+
+if {[llength $kind_problems] > 0} {
+    puts "NLCAP_KIND_RC [llength $kind_problems]"
+    foreach p $kind_problems {
         puts "  $p"
     }
     set failed 1

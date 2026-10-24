@@ -66,6 +66,10 @@
 # the C3 rows: slugs, floors, readbacks, statuses, keys and the XFRM
 # protocol of every readback. TestXfrmStateCorpus pins the captured bytes.
 #
+# scripts/kind-write-corpus-test.exp does the same for kind-write-corpus.exp,
+# the link kind rows (docs/netlink/goip-link-kinds.md): slugs, one row per
+# option, floors, readbacks and statuses.
+#
 {
   pkgs,
   src,
@@ -151,6 +155,8 @@ pkgs.runCommand "xtcp2-vm-lib-exp"
     expect nix/microvms/scripts/genl-write-corpus-test.exp > genl.log 2>&1 || grc=$?
     xrc=0
     expect nix/microvms/scripts/xfrm-write-corpus-test.exp > xfrm.log 2>&1 || xrc=$?
+    krc=0
+    expect nix/microvms/scripts/kind-write-corpus-test.exp > kind.log 2>&1 || krc=$?
 
     kill "$socat_pid" 2>/dev/null || true
     wait "$socat_pid" 2>/dev/null || true
@@ -232,5 +238,16 @@ pkgs.runCommand "xtcp2-vm-lib-exp"
       exit 1
     fi
 
-    cat result.log addr.log corpus.log rtnl.log rtnlread.log genl.log xfrm.log > $out
+    grep -E '^(PASS|FAIL|===)' kind.log || true
+
+    if [ "$krc" -ne 0 ] || ! grep -q 'KINDCORPUS_TEST_PASS' kind.log; then
+      echo "" >&2
+      echo "vm-lib-exp: kind-write-corpus.exp regressed (expect exited $krc)." >&2
+      echo "            The FAIL rows above name the broken behavior. Full" >&2
+      echo "            transcript:" >&2
+      cat kind.log >&2
+      exit 1
+    fi
+
+    cat result.log addr.log corpus.log rtnl.log rtnlread.log genl.log xfrm.log kind.log > $out
   ''

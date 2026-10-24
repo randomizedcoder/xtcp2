@@ -1,0 +1,321 @@
+#!/usr/bin/env expect
+###############################################################################
+# kind-write-corpus-test.exp - table-driven test for kind-write-corpus.exp,
+# with no microVM and no console
+#
+# Usage: kind-write-corpus-test.exp
+#
+# Run by nix/checks/vm-lib-exp.nix after xfrm-write-corpus-test.exp, the
+# same way: the corpus is data, and its procs (readbacks, row,
+# readback_args, rc_problem) need no shell.
+#
+# The slugs, statuses and option keywords are written out again below as
+# literals rather than read from the corpus, so a row dropped or changed
+# there has to disagree with something that was not edited with it.
+#
+# What this does NOT cover: what the guest runs or what the kernel answers.
+# The KP phases' parser tests pin that in the committed fixtures.
+#
+# Every row has a name, a description that starts with its class
+# (positive/negative/boundary/corner) and an expected value.
+###############################################################################
+
+set here [file dirname [info script]]
+source $here/kind-write-corpus.exp
+
+set pass 0
+set fail 0
+
+# check <name> <description> <script> <expected> - the script's result, or
+# ERROR if it raised one, must equal expected.
+proc check {name description script expected} {
+    global pass fail
+    if {[catch {uplevel #0 $script} got]} {
+        set got ERROR
+    }
+    if {$got eq $expected} {
+        puts "PASS: $name - $description"
+        incr pass
+    } else {
+        puts "FAIL: $name - $description"
+        puts "      got \[$got\] want \[$expected\]"
+        incr fail
+    }
+}
+
+set R $kindcorpus::rows
+
+proc slugs {rows} {
+    set out {}
+    foreach r $rows {
+        lappend out [lindex $r 0]
+    }
+    return $out
+}
+
+proc field {slug i} {
+    return [lindex [lsearch -exact -index 0 -inline $::R $slug] $i]
+}
+
+# readback_names <slug> - the names of a row's readbacks, in order.
+proc readback_names {slug} {
+    set out {}
+    foreach rb [field $slug 4] {
+        lappend out [lindex $rb 0]
+    }
+    return $out
+}
+
+# bad_arity <rows> - the rows that are not six fields.
+proc bad_arity {rows} {
+    set out {}
+    foreach r $rows {
+        if {[llength $r] != 6} {
+            lappend out [lindex $r 0]
+        }
+    }
+    return $out
+}
+
+# dup_slugs <rows> - every slug that names more than one row.
+proc dup_slugs {rows} {
+    set seen {}
+    set out {}
+    foreach s [slugs $rows] {
+        if {[dict exists $seen $s]} {
+            lappend out $s
+        }
+        dict set seen $s 1
+    }
+    return $out
+}
+
+# refused_rows - {slug rc} for every row whose ip.rc is meant to be non-zero.
+proc refused_rows {} {
+    set out {}
+    foreach r $::R {
+        if {[lindex $r 5] != 0} {
+            lappend out [lindex $r 0] [lindex $r 5]
+        }
+    }
+    return $out
+}
+
+# bad_rc <rows> - every row whose status is not 0, 1, 2 or 255, which is all
+# ip exits with.
+proc bad_rc {rows} {
+    set out {}
+    foreach r $rows {
+        if {[lindex $r 5] ni {0 1 2 255}} {
+            lappend out [lindex $r 0]
+        }
+    }
+    return $out
+}
+
+# bad_floors <rows> - rows under their structural floor: an ip-refused row
+# (1 or 255) is 0 with no readback, an add 2, a set 4 (the name lookup),
+# and every readback 2.
+proc bad_floors {rows} {
+    set out {}
+    foreach r $rows {
+        lassign $r slug floor pre command readbacks rc
+        if {$rc in {1 255}} {
+            if {$floor != 0 || [llength $readbacks] != 0} {
+                lappend out $slug
+            }
+            continue
+        }
+        set want 2
+        if {[string match "ip link set *" $command]} {
+            set want 4
+        }
+        if {$floor < $want} {
+            lappend out $slug
+        }
+        foreach rb $readbacks {
+            if {[lindex $rb 1] < 2} {
+                lappend out $slug/[lindex $rb 0]
+            }
+        }
+    }
+    return $out
+}
+
+# quoted - every command or readback holding a single quote, which
+# write_row's quoting cannot carry.
+proc quoted {} {
+    set out {}
+    foreach r $::R {
+        lassign $r slug floor pre command readbacks
+        if {[string first ' $command] >= 0} {
+            lappend out $slug
+        }
+        foreach rb $readbacks {
+            if {[string first ' [lindex $rb 2]] >= 0} {
+                lappend out $slug/[lindex $rb 0]
+            }
+        }
+    }
+    return $out
+}
+
+# add_options - the option keyword of every bridge add_<option> row named
+# after it, in order.
+proc add_options {} {
+    set out {}
+    foreach r $::R {
+        lassign $r slug floor pre command
+        if {![regexp {^bridge/add_(.*)$} $slug -> name]} {
+            continue
+        }
+        if {[regexp "^ip link add br0 type bridge (?:vlan_filtering 1 )?$name \\S+\$" $command]} {
+            lappend out $name
+        }
+    }
+    return $out
+}
+
+###############################################################################
+# 1. the rows
+###############################################################################
+set bridge_options {
+    forward_delay hello_time max_age ageing_time stp_state priority
+    vlan_filtering vlan_protocol group_fwd_mask group_address
+    no_linklocal_learn mst_enabled fdb_max_learned vlan_default_pvid
+    vlan_stats_enabled vlan_stats_per_port mcast_router mcast_snooping
+    mcast_vlan_snooping mcast_query_use_ifaddr mcast_querier
+    mcast_hash_elasticity mcast_hash_max mcast_last_member_count
+    mcast_startup_query_count mcast_last_member_interval
+    mcast_membership_interval mcast_querier_interval mcast_query_interval
+    mcast_query_response_interval mcast_startup_query_interval
+    mcast_stats_enabled mcast_igmp_version mcast_mld_version
+    nf_call_iptables nf_call_ip6tables nf_call_arptables
+    mdb_offload_fail_notification fdb_local_vlan_0
+}
+set design_rows [list bridge/add_default]
+foreach o $bridge_options {
+    lappend design_rows bridge/add_$o
+}
+lappend design_rows {*}{
+    bridge/add_fdb_flush bridge/add_stp_mode_auto bridge/add_stp_mode_user
+    bridge/add_stp_mode_kernel bridge/add_boolopts bridge/add_several
+    bridge/set_ageing_time bridge/set_vlan_filtering bridge/set_stp_mode
+    bridge/set_stp_mode_busy bridge/add_abbrev bridge/add_stp_mode_abbrev
+    bridge/add_group_address_bad bridge/add_group_fwd_mask_bad
+    bridge/add_igmp_version_bad bridge/add_mcast_vlan_snooping_no_vlan
+    bridge/add_stp_mode_bad bridge/add_vlan_protocol_bad
+    bridge/add_priority_bad bridge/add_no_value
+}
+
+check slug_list "positive: the rows are the plan's, in run order" \
+    {slugs $R} [join $design_rows " "]
+check first_row "boundary: add_default comes first" \
+    {lindex [slugs $R] 0} bridge/add_default
+check row_count "boundary: KC2-T01's 60 bridge rows" \
+    {llength $R} 60
+check option_rows "positive: one add_ row per value-taking option but stp_mode, each once" \
+    {add_options} [join $bridge_options " "]
+check option_count "boundary: 39 of them" \
+    {llength $bridge_options} 39
+check arity "negative: every row is {slug floor pre command readbacks rc}" \
+    {bad_arity $R} {}
+check arity_five "negative: a five-field row is listed" \
+    {bad_arity [list {a 2 {} {ip link add br0 type bridge} {}}]} a
+check unique_slugs "negative: no slug names two rows" \
+    {dup_slugs $R} {}
+check unique_dup "negative: a duplicated slug is listed" \
+    {dup_slugs [list {a} {b} {a}]} a
+
+###############################################################################
+# 2. statuses
+###############################################################################
+set refused_design {
+    bridge/set_stp_mode_busy 2 bridge/add_stp_mode_abbrev 1
+    bridge/add_group_address_bad 2 bridge/add_group_fwd_mask_bad 2
+    bridge/add_igmp_version_bad 2 bridge/add_mcast_vlan_snooping_no_vlan 2
+    bridge/add_stp_mode_bad 1 bridge/add_vlan_protocol_bad 255
+    bridge/add_priority_bad 255 bridge/add_no_value 255
+}
+check refused_statuses "positive: exactly the refusal rows expect a non-zero status" \
+    {refused_rows} [join $refused_design " "]
+check rc_values "boundary: every status is 0, 1, 2 or 255" \
+    {bad_rc $R} {}
+check rc_three "negative: a status of 3 is listed" \
+    {bad_rc [list {x3 2 {} {ip link add br0 type bridge} {} 3}]} x3
+
+foreach {name description want got expected} {
+    rc_ok     "positive: the status the row wants is no problem"   0 "0\n" ""
+    rc_wrong  "negative: another status is named"                  2 0     "kinds/x/ip.rc is 0, want 2"
+    rc_none   "corner: an unreadable ip.rc is named as such"       0 ""    "kinds/x/ip.rc unreadable, want 0"
+} {
+    check $name $description [list kindcorpus::rc_problem x $want $got] $expected
+}
+
+###############################################################################
+# 3. floors, readbacks and quoting
+###############################################################################
+check floors "boundary: no row or readback is under its structural floor" \
+    {bad_floors $R} {}
+check floor_refused "boundary: an ip-refused row's floor is 0 and it has no readback" \
+    {bad_floors [list {x0 0 {} {ip link add br0 type bridge priority x} {} 255} \
+                      {x2 2 {} {ip link add br0 type bridge priority x} {} 255} \
+                      {xr 0 {} {ip link add br0 type bridge priority x} {{getlink 2 {ip link show}}} 1}]} \
+    {x2 xr}
+check floor_set "boundary: a set at 2 is listed, as it resolves the name first" \
+    {bad_floors [list {s2 2 {} {ip link set br0 type bridge ageing_time 1} {} 0}]} s2
+check floor_add "positive: an add at 2 and a set at 4 are their floors" \
+    {list [field bridge/add_default 1] [field bridge/set_ageing_time 1]} {2 4}
+check readbacks_accepted "positive: an accepted row reads back three ways" \
+    {readback_names bridge/add_default} {getlink_detail getlink_detail_json getlink}
+check readbacks_kernel_refused "corner: a kernel-refused row reads back too, to show no device" \
+    {readback_names bridge/add_group_address_bad} {getlink_detail getlink_detail_json getlink}
+check readbacks_ip_refused "negative: a row ip refuses has nothing to read back" \
+    {readback_names bridge/add_priority_bad} {}
+check readback_commands "positive: the readbacks name br0" \
+    {lmap rb [field bridge/add_default 4] {lindex $rb 2}} \
+    {{ip -d link show dev br0} {ip -d -j -p link show dev br0} {ip link show dev br0}}
+check no_single_quotes "corner: no command or readback holds a single quote" \
+    {quoted} {}
+check readback_args_shape "positive: a readback is a capio of netlink_route_<name> into ip_<name>" \
+    {kindcorpus::readback_args lacpa kinds/bridge/x {getlink 2 {ip link show dev br0}}} \
+    {lacpa kinds/bridge/x netlink_route_getlink 2 {ip link show dev br0} ip_getlink}
+check readback_args_short "negative: a two-field readback is an error" \
+    {kindcorpus::readback_args lacpa kinds/x {getlink 2}} ERROR
+
+###############################################################################
+# 4. the bridge rows' states
+###############################################################################
+check set_pre "corner: every set_ row but the busy one starts from a bare br0" \
+    {lmap s {set_ageing_time set_vlan_filtering set_stp_mode} {field bridge/$s 2}} \
+    [list {{link add br0 type bridge}} {{link add br0 type bridge}} {{link add br0 type bridge}}]
+check set_busy_pre "corner: the busy row's br0 has STP on" \
+    {field bridge/set_stp_mode_busy 2} {{link add br0 type bridge stp_state 1}}
+check add_pre "boundary: an add row has no pre step" \
+    {field bridge/add_default 2} {}
+check add_default_cmd "corner: add_default sends no option, with no trailing space" \
+    {field bridge/add_default 3} {ip link add br0 type bridge}
+check vlan_snooping_needs_filtering "corner: mcast_vlan_snooping's row turns vlan_filtering on first" \
+    {field bridge/add_mcast_vlan_snooping 3} \
+    {ip link add br0 type bridge vlan_filtering 1 mcast_vlan_snooping 1}
+check vlan_snooping_refused "negative: without vlan_filtering the kernel refuses it" \
+    {list [field bridge/add_mcast_vlan_snooping_no_vlan 3] [field bridge/add_mcast_vlan_snooping_no_vlan 5]} \
+    {{ip link add br0 type bridge mcast_vlan_snooping 1} 2}
+check abbrev_matches "corner: a matches keyword's abbreviation is accepted" \
+    {list [field bridge/add_abbrev 3] [field bridge/add_abbrev 5]} \
+    {{ip link add br0 type bridge forward_d 400} 0}
+check abbrev_strcmp "corner: a strcmp keyword's is refused by ip" \
+    {list [field bridge/add_stp_mode_abbrev 3] [field bridge/add_stp_mode_abbrev 5]} \
+    {{ip link add br0 type bridge stp_m user} 1}
+
+###############################################################################
+# summary
+###############################################################################
+puts ""
+puts "=== kind-write-corpus.exp: $pass passed, $fail failed ==="
+if {$fail > 0} {
+    puts "KINDCORPUS_TEST_FAIL"
+    exit 1
+}
+puts "KINDCORPUS_TEST_PASS"
+exit 0

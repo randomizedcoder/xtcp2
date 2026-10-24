@@ -1,0 +1,184 @@
+###############################################################################
+# kind-write-corpus.exp - link kind writes: `ip link add ... type <kind>` and
+# `ip link set ... type <kind>` (docs/netlink/goip-link-kinds.md, KC2 on)
+#
+# Sourced AFTER vm-lib.exp, netlink-topology.exp, addr-topology.exp and
+# addr-corpus.exp, by scripts/capture-link-writes.exp, which runs each row
+# into link-write/kinds/<kind>/<slug>/ AFTER late setup: the kind modules
+# load there (nltopo::late_modules). Data plus small procs, kept out of the
+# driver for rtnl-write-corpus.exp's reason: the hermetic check
+# (scripts/kind-write-corpus-test.exp) has to read it without a console.
+#
+# A ROW IS {slug floor pre command readbacks rc}, rtnl-write-corpus.exp's
+# shape, with <slug> as <kind>/<name>, so the row's directory is
+# link-write/kinds/<kind>/<name>/.
+#
+#   floor      2 for an add (the RTM_NEWLINK and its NLMSG_ERROR), 4 for a
+#              set, which resolves the device's name with an RTM_GETLINK
+#              first; 0 for a row `ip` refuses before it sends anything
+#   pre        `ip` argument lists run in the row's fresh namespace before
+#              the capture window opens
+#   command    the write, run with `sh -c`; it must hold no single quote
+#   readbacks  {name floor command} reads straight after the write: the
+#              detailed text, the detailed JSON and the plain text of the
+#              device, so the renderer has all three to match
+#   rc         0 for an accepted write, 2 for one the kernel refused, 1 or
+#              255 for one `ip` refused before netlink (a parse error do_cmd
+#              negates, or an exit(-1)); such a row has floor 0 and no
+#              readback, and its ip.err is what it records
+###############################################################################
+
+namespace eval kindcorpus {
+
+    variable rows {}
+
+    # readbacks <dev> - the three reads of <dev> every row the kernel
+    # answers takes.
+    proc readbacks {dev} {
+        return [list \
+            [list getlink_detail 2 "ip -d link show dev $dev"] \
+            [list getlink_detail_json 2 "ip -d -j -p link show dev $dev"] \
+            [list getlink 2 "ip link show dev $dev"]]
+    }
+
+    # row <kind> <name> <pre> <command> <rc> ?<dev>? - one row, with the
+    # floor and readbacks its status and verb imply.
+    proc row {kind name pre command rc {dev ""}} {
+        if {$rc in {1 255}} {
+            return [list $kind/$name 0 $pre $command {} $rc]
+        }
+        set floor 2
+        if {[string match "ip link set *" $command]} {
+            set floor 4
+        }
+        return [list $kind/$name $floor $pre $command [readbacks $dev] $rc]
+    }
+
+    ###########################################################################
+    # bridge (KC2-T01). One add per value-taking option, each with a value
+    # the kernel takes and that differs from its default, then the flag,
+    # the 7.2.0 stp_mode names, the boolopts folded into one attribute,
+    # the change path and the refusals. br_changelink and br_policy
+    # (net/bridge/br_netlink.c) argue each status.
+    #
+    # A refusal by `ip` is 1 when bridge_parse_opt returns its error (an
+    # unknown word, as a strcmp keyword's abbreviation is, or a name
+    # parse_one_of does not know) and 255 when it exits (invarg,
+    # incomplete_command).
+    #
+    # mcast_vlan_snooping needs vlan_filtering on (br_multicast_toggle_
+    # vlan_snooping), which br_changelink applies first, so its row sets
+    # both. mcast_hash_elasticity is accepted and ignored: the kernel keeps
+    # 16. The intervals are in centiseconds and above the kernel's minimums.
+    ###########################################################################
+    variable BRIDGE_OPTIONS {
+        forward_delay 400
+        hello_time 100
+        max_age 1000
+        ageing_time 15000
+        stp_state 1
+        priority 100
+        vlan_filtering 1
+        vlan_protocol 802.1ad
+        group_fwd_mask 8
+        group_address 01:80:c2:00:00:0e
+        no_linklocal_learn 1
+        mst_enabled 1
+        fdb_max_learned 100
+        vlan_default_pvid 10
+        vlan_stats_enabled 1
+        vlan_stats_per_port 1
+        mcast_router 2
+        mcast_snooping 0
+        mcast_vlan_snooping 1
+        mcast_query_use_ifaddr 1
+        mcast_querier 1
+        mcast_hash_elasticity 8
+        mcast_hash_max 1024
+        mcast_last_member_count 3
+        mcast_startup_query_count 3
+        mcast_last_member_interval 200
+        mcast_membership_interval 30000
+        mcast_querier_interval 30000
+        mcast_query_interval 15000
+        mcast_query_response_interval 500
+        mcast_startup_query_interval 1000
+        mcast_stats_enabled 1
+        mcast_igmp_version 3
+        mcast_mld_version 2
+        nf_call_iptables 1
+        nf_call_ip6tables 1
+        nf_call_arptables 1
+        mdb_offload_fail_notification 1
+        fdb_local_vlan_0 1
+    }
+
+    variable PRE_BR {{link add br0 type bridge}}
+    variable PRE_BR_STP {{link add br0 type bridge stp_state 1}}
+
+    proc bridge {name words rc {pre {}}} {
+        return [row bridge $name $pre [string trimright "ip link add br0 type bridge $words"] $rc br0]
+    }
+
+    proc bridge_set {name words rc pre} {
+        return [row bridge $name $pre "ip link set br0 type bridge $words" $rc br0]
+    }
+
+    lappend rows [bridge add_default {} 0]
+    foreach {option value} $BRIDGE_OPTIONS {
+        set words "$option $value"
+        if {$option eq "mcast_vlan_snooping"} {
+            set words "vlan_filtering 1 $words"
+        }
+        lappend rows [bridge add_$option $words 0]
+    }
+    lappend rows \
+        [bridge add_fdb_flush fdb_flush 0] \
+        [bridge add_stp_mode_auto {stp_mode auto} 0] \
+        [bridge add_stp_mode_user {stp_mode user} 0] \
+        [bridge add_stp_mode_kernel {stp_mode kernel} 0] \
+        [bridge add_boolopts {mst_enabled 1 mdb_offload_fail_notification 1 fdb_local_vlan_0 1} 0] \
+        [bridge add_several {stp_state 1 priority 100 vlan_filtering 1 mcast_snooping 0} 0] \
+        [bridge_set set_ageing_time {ageing_time 15000} 0 $PRE_BR] \
+        [bridge_set set_vlan_filtering {vlan_filtering 1} 0 $PRE_BR] \
+        [bridge_set set_stp_mode {stp_mode user} 0 $PRE_BR] \
+        [bridge_set set_stp_mode_busy {stp_mode user} 2 $PRE_BR_STP] \
+        [bridge add_abbrev {forward_d 400} 0] \
+        [bridge add_stp_mode_abbrev {stp_m user} 1] \
+        [bridge add_group_address_bad {group_address 01:80:c2:00:00:01} 2] \
+        [bridge add_group_fwd_mask_bad {group_fwd_mask 1} 2] \
+        [bridge add_igmp_version_bad {mcast_igmp_version 4} 2] \
+        [bridge add_mcast_vlan_snooping_no_vlan {mcast_vlan_snooping 1} 2] \
+        [bridge add_stp_mode_bad {stp_mode bogus} 1] \
+        [bridge add_vlan_protocol_bad {vlan_protocol 802.1x} 255] \
+        [bridge add_priority_bad {priority x} 255] \
+        [bridge add_no_value forward_delay 255]
+
+    ###########################################################################
+    # readback_args <ns> <subdir> <readback> - the xtcp2-nlcap capio argument
+    # list for one readback, which the driver hands to its capio proc.
+    ###########################################################################
+    proc readback_args {ns subdir readback} {
+        if {[llength $readback] != 3} {
+            error "kindcorpus: a readback is {name floor command}: $readback"
+        }
+        lassign $readback name floor command
+        return [list $ns $subdir netlink_route_$name $floor $command ip_$name]
+    }
+
+    ###########################################################################
+    # rc_problem <slug> <want> <got> - "" when the row's ip.rc is what the row
+    # says, else the line the driver reports. <got> is the file's content,
+    # or "" when it could not be read.
+    ###########################################################################
+    proc rc_problem {slug want got} {
+        set got [string trim $got]
+        if {$got eq $want} {
+            return ""
+        }
+        if {$got eq ""} {
+            return "kinds/$slug/ip.rc unreadable, want $want"
+        }
+        return "kinds/$slug/ip.rc is $got, want $want"
+    }
+}

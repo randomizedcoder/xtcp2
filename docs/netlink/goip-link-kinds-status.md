@@ -7,9 +7,9 @@
 - The plan is written (DOC001).
 - KC0 is done (KC0-T01): the capture drivers load the kind modules late, after every existing row, with no fallback tunnel devices in the namespaces made afterwards, and a `kinds` sidecar records what the guest kernel creates. It creates 31 of the 32 probed kinds. gtp is refused, and KC4 decides why.
 - KC1 is done (KC1-T01): 18 `ip link set dev d0 inet …` rows, 11 the kernel answers and 7 `ip` refuses before netlink, are in the rtnl corpus. They are KP0's and KG0's source.
-- KC2 is broken into tasks.
+- KC2 is broken into tasks. KC2-T01 is done: a kind corpus (`kind-write-corpus.exp`) the link-write driver runs into `link-write/kinds/`, and 60 bridge rows in it, 50 the kernel accepts, 5 it refuses and 5 `ip` refuses before netlink.
 
-**Next action:** [KC2-T01](goip-link-kinds.md#kc2-t01-the-kind-corpus-and-bridge): the kind corpus, and bridge.
+**Next action:** [KC2-T02](goip-link-kinds.md#kc2-t02-bridge_slave): bridge_slave, which closes KC2.
 
 ## Contents
 
@@ -35,7 +35,7 @@
 |---|---|---|---|---|---|
 | [KC0](goip-link-kinds.md#kc0--kind-harness) | captures | kind harness | KC0-T01 | done | V001–V005, DOC002 |
 | [KC1](goip-link-kinds.md#kc1--inet-devconf-captures) | captures | `inet` devconf | KC1-T01 | done | V006–V008, DOC003 |
-| [KC2](goip-link-kinds.md#kc2--bridge-captures) | captures | bridge | KC2-T02 | not started | |
+| [KC2](goip-link-kinds.md#kc2--bridge-captures) | captures | bridge | KC2-T02 | in progress | V009–V013 |
 | [KC3](goip-link-kinds.md#kc3--vlan-family-captures) | captures | VLAN family | | not started | |
 | [KC4](goip-link-kinds.md#kc4--udp-overlay-captures) | captures | UDP overlays | | not started | |
 | [KC5](goip-link-kinds.md#kc5--ip-tunnel-captures) | captures | IP tunnels | | not started | |
@@ -62,7 +62,7 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 |---|---|---|---|---|
 | [x] | [KC0-T01](goip-link-kinds.md#kc0-t01-late-kind-modules-no-fallback-tunnels-and-a-kind-probe) | late kind modules, fallback-tunnel sysctl, `kinds` probe | done | V001–V005 |
 | [x] | [KC1-T01](goip-link-kinds.md#kc1-t01-inet-devconf-write-rows) | `inet` devconf write rows | done | V006–V008 |
-| [ ] | [KC2-T01](goip-link-kinds.md#kc2-t01-the-kind-corpus-and-bridge) | the kind corpus, and bridge | not started | |
+| [x] | [KC2-T01](goip-link-kinds.md#kc2-t01-the-kind-corpus-and-bridge) | the kind corpus, and bridge | done | V009–V013 |
 | [ ] | [KC2-T02](goip-link-kinds.md#kc2-t02-bridge_slave) | bridge_slave | not started | |
 | [ ] | [KC3-T01…](goip-link-kinds.md#kc3--vlan-family-captures) | VLAN family captures | not started | |
 | [ ] | [KC4-T01…](goip-link-kinds.md#kc4--udp-overlay-captures) | UDP overlay captures | not started | |
@@ -97,6 +97,11 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | V007 | 2026-10-24 | KC1-T01 | mutation, scratch worktree, through `vm-lib-exp`: `bad_rc` narrowed to `{0 2}`, the `ip`-refused floor exemption dropped, `inet_rp_filter_over` at rc 0, two `inet` rows swapped | 4 of 4 killed, by `rc_values`; `floors` and `floor_255_zero`; `refused_statuses`; `slug_list` and `kc1t01_rows_last` | scratch |
 | V008 | 2026-10-24 | KC1-T01 | `nix run .#microvm-x86_64-link-write-capture -- --timeout 7200`, guest kernel 7.3.0; `IFLA_INET_CONF` decoded from each row's `getlink_detail` pcap; the run compared with V004's by `pcapcmp` | `NLCAP_DRIVER_FAIL` on `genl/mptcp_limits_set_over` alone (V004). The 18 rows hold their statuses: 11 at 0 or 2 with 4 datagrams; `inet_bad_on_off` at 1 and the other 6 at 255, with no datagram. `inet_every_param` sets all 32 ids (every id but `MC_FORWARDING`); `medium_id -1` reads back -1, `tag 0x10` 16, `arp_ignore 010` 8; `inet_repeated` reads `forwarding off`; `inet_rp_filter_over` leaves rp_filter at the namespace's 2. Against V004: 40 new pcaps (the 18 rows'), 700 the same shape, 14 differing in V004's classes (`tcp_metrics` and neighbor order, the monitor and event rows' counts) | scratch |
 | DOC003 | 2026-10-24 | KC1 close | KC2 broken into KC2-T01 and KC2-T02 with their tables; doccheck | no broken link or anchor | this commit |
+| V009 | 2026-10-24 | KC2-T01 | `nix build .#checks.x86_64-linux.vm-lib-exp` | `kind-write-corpus.exp`: 34 passed, 0 failed (the 60 rows in order, one `add_` row per value-taking option, the 0/1/2/255 statuses, the floors and readbacks, the bridge states); the other suites unchanged | this commit |
+| V010 | 2026-10-24 | KC2-T01 | mutation, scratch worktree, through `vm-lib-exp`: `bad_rc` narrowed to `{0 2}`, `row`'s refused floor made 2, `mcast_hash_max` dropped from the option list, two bridge rows swapped | 4 of 4 killed, by `rc_values`; `floors` and `floor_refused`; `option_rows`, `row_count` and `slug_list`; `slug_list` | scratch |
+| V011 | 2026-10-24 | KC2-T01 | `nix build .#checks.x86_64-linux.{nix-fmt,statix,deadnix}`, one per call | all pass (no Go changed) | this commit |
+| V012 | 2026-10-24 | KC2-T01 | `nix run .#microvm-x86_64-link-write-capture -- --timeout 7200`, guest kernel 7.3.0, first run | `NLCAP_DRIVER_FAIL` on `genl/mptcp_limits_set_over` (V004) and `NLCAP_KIND_RC 2`: `add_stp_mode_abbrev` and `add_stp_mode_bad` exit 1, not the planned 255 (see the decision log). Every other row held its status; the 39 options' values read back from each row's `-d -j` readback | scratch |
+| V013 | 2026-10-24 | KC2-T01 | the same, with the two statuses corrected; `-d -j` readbacks checked against the values sent; compared with V012 by `pcapcmp` | `NLCAP_DRIVER_FAIL` on `genl/mptcp_limits_set_over` alone; no `NLCAP_KIND_RC`. 60 kind rows: 50 at rc 0, 5 at 2, 2 at 1 and 3 at 255. All 39 options read back as sent, `group_fwd_mask` as `0x8` and `mcast_hash_elasticity` as 16 (the kernel ignores it). A refused add reads back nothing, its pcaps answering `-ENODEV`. 225 pcaps under `kinds/`: 60 `ip.pcap` and 55 rows × 3 readbacks. Against V012: 964 the same shape, 15 differing in V004's classes; the `kinds/` pcaps differ only in sequence numbers, port IDs and br0's random address | scratch |
 
 ## Decision log
 
@@ -110,4 +115,6 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 - **gtp is refused by the guest kernel** (`late/kinds`: `RTNETLINK answers: Invalid argument`). `ip` 7.2.0 always asks for `IFLA_GTP_CREATE_SOCKETS`; KC4 finds the attribute the kernel wants, or moves gtp out of scope with the reason.
 - **`genl/mptcp_limits_set_over` fails on kernel 7.3, before this plan.** Kernel `c8646664fbf1` ("mptcp: pm: in-kernel: increase all limits to 64") raised the limit from 8 to 64, so `ip mptcp limits set subflows 9` is accepted. The link-write driver at `34724ad7`, before KC0, fails on the same row, so it is not KC0's. It is fixed outside this plan, in the corpus row, its hermetic check and the goip and goipparity rows that copy the limit; until then the link-write driver's `NLCAP_DRIVER_FAIL` on that one row is expected.
 - **An `ip` refusal before netlink exits with 1 or 255.** `invarg`, `incomplete_command` and `duparg2` call `exit(-1)`, so 255; a parse error returned up the stack instead (`parse_on_off`'s) reaches `do_cmd`, which exits with the negated return, so 1. KC1-T01's plan assumed 255 for both, and its first VM run corrected `inet_bad_on_off` to 1. Every corpus now admits both, and KG0 matches the status as well as the text.
+- **bridge's `ip` refusals exit 1 where `bridge_parse_opt` returns,** as the KC1 entry above has it: an abbreviated `strcmp` keyword (`stp_m`) is an unknown word, and `parse_one_of` returns on a name it doesn't know (`stp_mode bogus`). KC2-T01's plan said 255 for both; its first run (V012) corrected them.
+- **bridge's JSON keys aren't all its keywords.** `group_address` prints as `group_addr`, the `*_count` options as `*_cnt` and the `*_interval` ones as `*_intvl`; `group_fwd_mask` prints in hex. KG1's renderer follows the readbacks, not the keyword table.
 - **The VM namespace's rp_filter is 2,** not the kernel's 0, so `inet_rp_filter_max` writes the value it reads back. The row still pins the request; `inet_several` (`rp_filter 1`) shows a change.
