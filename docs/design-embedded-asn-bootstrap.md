@@ -3,8 +3,9 @@
 ## Status
 
 The loader, startup fallback, cache rotation, and bootstrap packaging have been
-implemented. A real fleet bootstrap artifact and lock file still need to be
-supplied. See [implementation status](status-embedded-ipmeta-bootstrap.md) and
+implemented. The repository now includes the fleet bootstrap snapshot and lock
+file, plus a refresh app and snapshot checks. See
+[implementation status](status-embedded-ipmeta-bootstrap.md) and
 [ASN enrichment](ipfeed-asn-enrichment.md) for current behavior.
 
 The remainder preserves the original investigation and design options for
@@ -403,8 +404,9 @@ data to all ASN-capable images. Daemon image attrs and Docker tags append
 makes the data-bearing images easy to audit. Only daemon images get bootstrap
 variants; client-only and collector images do not need the runtime lookup file.
 
-A future `nix run .#update-ipmeta-bootstrap-lock` helper can refresh the source
-artifact and lock file as an explicit operator/developer action. The name should
+`nix run .#update-ipmeta-bootstrap-lock` refreshes the checked-in snapshot
+(`nix/ipmeta/bootstrap.lookup.parquet.zst`) and the lock file as an explicit
+developer action, reviewed as a commit. The name should
 stay `ipmeta` rather than `asn`, because the same artifact feeds both ASN and
 network-owner enrichment.
 

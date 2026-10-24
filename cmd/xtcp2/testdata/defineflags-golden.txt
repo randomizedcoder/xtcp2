@@ -42,8 +42,9 @@ linkMonitorErrorsClasses	link,rdma	comma-separated error classes that count as p
 linkMonitorErrorsExclude		anchored regexp of error series keys never counted as problems. Falls back to LINK_MONITOR_ERRORS_EXCLUDE env.
 linkMonitorErrorsWindow	3m0s	how long an error counter increase stays a problem; 0 disables. Falls back to LINK_MONITOR_ERRORS_WINDOW env.
 linkMonitorFlapWindow	3m0s	how long a link flap stays a problem; 0 disables. Falls back to LINK_MONITOR_FLAP_WINDOW env.
+linkMonitorIPListen		loopback host:port, such as 127.0.0.1:9089, serving /ip and /i on a listener of their own, without listener auth, instead of on the Prometheus listener; needs -linkMonitorIPPaths. Connections from non-loopback addresses are closed. Empty keeps one listener. Falls back to LINK_MONITOR_IP_LISTEN env.
 linkMonitorIPMaxBytes	33554432	largest /ip response body in bytes. Falls back to LINK_MONITOR_IP_MAX_BYTES env.
-linkMonitorIPPaths	false	serve the read-only `ip ... show` paths under /ip and /i on the Prometheus listener; they expose host addresses. Falls back to LINK_MONITOR_IP_PATHS env.
+linkMonitorIPPaths	false	serve the read-only `ip ... show` paths under /ip and /i on the Prometheus listener, or on -linkMonitorIPListen; they expose host addresses. Falls back to LINK_MONITOR_IP_PATHS env.
 linkMonitorMaxSpeedExceptions		comma-separated exact selectors exempt from the max-speed check. Falls back to LINK_MONITOR_MAX_SPEED_EXCEPTIONS env.
 linkMonitorMetricsAll	false	register every link monitor metric, including bulk driver, RDMA and netstat counters, instead of the alerting summary. Falls back to LINK_MONITOR_METRICS_ALL env.
 linkMonitorMetricsAllPath	/metrics-all	path serving every link monitor metric on the Prometheus listener; empty serves none. Falls back to LINK_MONITOR_METRICS_ALL_PATH env.

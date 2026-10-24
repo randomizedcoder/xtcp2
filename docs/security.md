@@ -19,6 +19,7 @@ the default TCP listeners are not restricted to loopback.
 - [Interfaces and defaults](#interfaces-and-defaults)
 - [Choosing a deployment](#choosing-a-deployment)
 - [Network reach and TTL](#network-reach-and-ttl)
+- [Optional loopback inspection listener](#optional-loopback-inspection-listener)
 - [Unix domain sockets](#unix-domain-sockets)
 - [Authentication methods](#authentication-methods)
 - [Read and admin authorization](#read-and-admin-authorization)
@@ -39,7 +40,7 @@ the deployed host.
 |---|---|---|
 | Prometheus HTTP | TCP `:9088`, summary at `/metrics` | Wildcard bind, not loopback-only; address-family reachability depends on the host |
 | gRPC | TCP `:8889` | Configuration, socket streams, monitor administration, health, and reflection share a listener |
-| IPv4 TTL / IPv6 unicast hop limit | `3` / `3` | Restricts outgoing replies on TCP listeners |
+| IPv4 TTL / IPv6 unicast hop limit | `3` / `3` | Restricts replies on the Prometheus and gRPC TCP listeners; the optional separate inspection listener uses `1` / `1` |
 | Shared/read auth | Disabled | Supplying a secret alone does not enable authentication |
 | Separate admin auth | Disabled | Without a separate admin credential, the shared credential also grants admin access |
 | HMAC clock skew | ±1 minute | Previous, current, and next UTC-minute tokens are accepted; configurable from 0 to 5 |
@@ -48,12 +49,14 @@ the deployed host.
 | Remove existing UDS at bind | Enabled | An existing socket path is removed; there is no probe to prove the other listener is dead |
 | TLS/mTLS | Not implemented in these listeners | HTTP and gRPC TCP payloads are plaintext |
 | Embedded goip HTTP paths | Disabled | `-linkMonitorIPPaths` enables read-only network inspection |
+| Separate goip HTTP listener | Disabled (empty `-linkMonitorIPListen`) | When enabled, serves only `/ip`/`/i` without bearer auth, with loopback bind and peer checks |
 
-HTTP authentication wraps the entire mux: `/metrics`, monitor category and
+HTTP authentication wraps the entire Prometheus mux: `/metrics`, monitor category and
 interface paths, `/metrics-all`, `/healthz`, `/readyz`, optional `/ip`/`/i`
 inspection, and `/debug/pprof/`. Health endpoints have no unauthenticated
 exception. gRPC policy covers unary and streaming RPCs, including health and
-reflection.
+reflection. The optional separate loopback inspection listener is an explicit
+exception to HTTP authentication, described below.
 
 Read access can disclose socket addresses, workload/topology metadata, host
 configuration, routes, and interface statistics. Admin access can change daemon
@@ -96,6 +99,32 @@ that supports the intended topology. Changing only IPv4 leaves IPv6 independent.
 For precise exposure control, bind explicitly with `-promListen` and
 `-grpcListenAddress`, and apply host/network firewall rules.
 
+## Optional loopback inspection listener
+
+With the embedded monitor and `-linkMonitorIPPaths` enabled,
+`-linkMonitorIPListen 127.0.0.1:9089` (or `LINK_MONITOR_IP_LISTEN`) moves `/ip`
+and `/i` off the Prometheus listener onto a dedicated TCP listener. It serves
+only inspection routes, **without bearer/HMAC authentication**, even when
+read/admin auth is enabled for the main interfaces. Requests to the old paths
+on the Prometheus listener no longer reach inspection handlers.
+
+Startup requires a loopback IP literal and port 1–65535; hostnames including
+`localhost`, wildcard addresses, and the option without `-linkMonitorIPPaths`
+are rejected. Accepted connections are also checked: non-loopback peers are
+closed, including neighbours that can reach a loopback bind through
+`route_localnet`. Both outgoing TTL and hop limit are fixed at 1. Rejection logs
+are rate-limited to at most once per minute and include a count; the logging
+limit is not a connection-rate limit.
+
+This makes local inspection convenient without distributing tokens, but any
+process able to connect from loopback can inspect host networking. It does not
+provide per-user authorization, and a local proxy or compromised process could
+relay that access. Leave `linkMonitorIPListen` unset when inspection should
+require the main listener's credentials; leave `linkMonitorIPPaths` disabled
+when inspection is unnecessary. Do not publish this listener through an
+unauthenticated proxy or tunnel. See the [implementation](../cmd/xtcp2/ip_server.go)
+and [loopback peer checks](../pkg/listener/loopback.go).
+
 ## Unix domain sockets
 
 Each xtcp2 listener can independently use `tcp` or `unix`:
@@ -111,7 +140,10 @@ starting the daemon. Use separate paths for HTTP and gRPC.
 
 Use `0600` for owner-only access, or `0660` with a deliberately assigned group
 for a local agent. For xtcp2, decimal `384` means `0600` and `432` means `0660`;
-use decimal for environment variables and protobuf JSON. The daemon sets the
+flags and environment variables also accept octal `0600`/`0660` (or `0o600`/
+`0o660`). Use decimal numbers in protobuf JSON. Invalid environment modes or
+values above `0777` are logged and ignored, retaining the previous setting.
+The daemon sets the
 socket mode after bind but does not create its parent or configure socket
 ownership/group. A protected parent directory also prevents other users from
 replacing the path during creation or cleanup. Plan container bind mounts and
@@ -398,6 +430,7 @@ and from a location/user that should be denied:
 | Admin credential on read methods or pprof | Success |
 | Unapproved local user connecting to a private UDS | Filesystem permission denial |
 | Remote access to a loopback/UDS backend | Backend unreachable directly |
+| Optional separate inspection listener, if enabled | Local `/ip` requests need no token; non-loopback peers are closed; main-listener inspection routes are absent |
 | HMAC token outside configured minute/skew window on a new request | Authentication failure |
 
 Use a protected header/config file or a client's secret-file option for manual
@@ -427,6 +460,7 @@ profile as an authentication issue.
 - [HTTP handler and timeouts](../cmd/xtcp2/prom_server.go), [gRPC server](../pkg/xtcp/grpc_server.go), [RPC access classes](../pkg/xtcp/grpc_access.go).
 - [gRPC API](grpc-api.md), [observability](observability.md), [read/admin design](design-admin-access.md).
 - [Nix test guide](../nix/README.md): `test-listener-security` runs focused auth/listener tests; `test-microvm-lifecycle-x86_64-uds-security` is a runnable integration package (building it alone does not boot the guest).
+- `checks.x86_64-linux.vm-xtcp2-scrape-auth` verifies authenticated scraping, health checks, and rotation; `checks.x86_64-linux.vm-xtcp2-ip-listen` verifies the separate inspection listener and non-loopback peer rejection. Fresh runners are `test-xtcp2-scrape-auth-vm` and `test-xtcp2-ip-listen-vm`.
 
 ```sh
 nix build .#test-listener-security -L

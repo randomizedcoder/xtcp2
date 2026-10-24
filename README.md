@@ -102,6 +102,8 @@ The `goip` tool and its supporting Go code implement an expanding subset of ipro
 
 Optional `/ip/...` HTTP paths expose supported read-only goip commands for remote investigation, including forms such as `/ip/addr/show/dev/eth0` and `/ip/link`. Enable them with `-linkMonitorIPPaths` in xtcp2 or `-ip.paths` in the standalone monitor. `goip-parity` checks requests and output against iproute2; coverage is evolving, so goip is not yet a complete replacement. Its implemented write verbs currently produce **dry-run request files only**, not kernel changes.
 
+xtcp2 can instead move `/ip` and `/i` to a dedicated loopback listener with `-linkMonitorIPListen 127.0.0.1:9089`. That listener deliberately has no bearer authentication and rejects non-loopback peers; see the [security tradeoffs](docs/security.md#optional-loopback-inspection-listener) before enabling it.
+
 Details: [netlink and goip overview](docs/netlink/README.md), [coverage and parity status](docs/netlink/coverage-status.md), [HTTP command paths](cmd/go-link-monitor/IP-ARGV-PATHS-DESIGN.md).
 
 ### Ethernet, ethtool, and RDMA statistics
@@ -136,7 +138,7 @@ Optional enrichers attach context directly to socket records so consumers can in
 
 `ipfeed-collector` fetches cloud/CDN/SaaS IP-range feeds, normalizes them, and writes Parquet artifacts locally or to S3. Those artifacts also carry provider, service operator, service/product, region, network border group, direction, provenance, timestamps, and confidence when supplied. These are **collector-artifact metadata**, not additional socket-record columns: the daemon's ASN lookup consumes prefix, ASN, and network owner. IPv4/IPv6 longest-prefix lookups run in-process; when locality is available, self/subnet destinations skip ASN lookup.
 
-Enrichment is opt-in. Container/LLDP/NIC/NSID support is always compiled in; ASN and locality additionally require matching [build flavors](docs/build-flavors.md). Missing runtime data is best-effort; requesting an enricher absent from the binary is a configuration error. Live ASN artifacts can refresh in the background while a failed update preserves the last good table. Startup supports current/previous lookup caches and a bootstrap artifact; `ipmeta-bootstrap` builds compact zstd-compressed lookup files. Bootstrap image packaging is implemented, but a real fleet artifact and lock file must still be supplied.
+Enrichment is opt-in. Container/LLDP/NIC/NSID support is always compiled in; ASN and locality additionally require matching [build flavors](docs/build-flavors.md). Missing runtime data is best-effort; requesting an enricher absent from the binary is a configuration error. Live ASN artifacts can refresh in the background while a failed update preserves the last good table. Startup supports current/previous lookup caches and a bootstrap artifact; `ipmeta-bootstrap` builds compact zstd-compressed lookup files. Bootstrap images include the checked-in snapshot pinned by `nix/ipmeta-bootstrap-lock.json`; `nix run .#update-ipmeta-bootstrap-lock` refreshes and stages both files for review.
 
 Details: [feed collector](cmd/ipfeed-collector/README.md), [artifact schema](cmd/ipfeed-collector/DESIGN.md#normalized-record-schema), [bootstrap/cache status](docs/status-embedded-ipmeta-bootstrap.md).
 

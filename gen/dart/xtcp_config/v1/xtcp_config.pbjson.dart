@@ -691,6 +691,7 @@ const LinkMonitorConfig$json = {
       '8': {},
       '10': 'ipMaxBytes'
     },
+    {'1': 'ip_listen', '3': 27, '4': 1, '5': 9, '8': {}, '10': 'ipListen'},
   ],
   '8': [
     {'1': '_error_classes'},
@@ -730,9 +731,10 @@ final $typed_data.Uint8List linkMonitorConfigDescriptor = $convert.base64Decode(
     'IDGIACSAFSEW1ldHJpY3NDYXRlZ29yaWVziAEBEjsKF21ldHJpY3NfaW50ZXJmYWNlX3BhdGhz'
     'GBcgASgISAJSFW1ldHJpY3NJbnRlcmZhY2VQYXRoc4gBARI3ChBtZXRyaWNzX2FsbF9wYXRoGB'
     'ggASgJQgi6SAVyAxiAAkgDUg5tZXRyaWNzQWxsUGF0aIgBARIZCghpcF9wYXRocxgZIAEoCFIH'
-    'aXBQYXRocxItCgxpcF9tYXhfYnl0ZXMYGiABKA1CC7pICCoGGICAgIAEUgppcE1heEJ5dGVzQh'
-    'AKDl9lcnJvcl9jbGFzc2VzQhUKE19tZXRyaWNzX2NhdGVnb3JpZXNCGgoYX21ldHJpY3NfaW50'
-    'ZXJmYWNlX3BhdGhzQhMKEV9tZXRyaWNzX2FsbF9wYXRo');
+    'aXBQYXRocxItCgxpcF9tYXhfYnl0ZXMYGiABKA1CC7pICCoGGICAgIAEUgppcE1heEJ5dGVzEi'
+    'QKCWlwX2xpc3RlbhgbIAEoCUIHukgEcgIYQFIIaXBMaXN0ZW5CEAoOX2Vycm9yX2NsYXNzZXNC'
+    'FQoTX21ldHJpY3NfY2F0ZWdvcmllc0IaChhfbWV0cmljc19pbnRlcmZhY2VfcGF0aHNCEwoRX2'
+    '1ldHJpY3NfYWxsX3BhdGg=');
 
 @$core.Deprecated('Use xtcpConfigDescriptor instead')
 const XtcpConfig$json = {

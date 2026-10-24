@@ -14,6 +14,9 @@
   microvms,
   linkmonitorPackages,
   containers,
+  ipmetaBootstrapArtifact,
+  # The image the Runpod fleet runs, checked to carry the real snapshot.
+  ipmetaSnapshotImage,
 }:
 
 let
@@ -25,7 +28,9 @@ let
       src
       vendoredSource
       binaries
+      ipmetaBootstrapArtifact
       ;
+    snapshotImage = ipmetaSnapshotImage;
   };
 in
 {
@@ -42,6 +47,8 @@ in
   ipmeta-bootstrap-artifact = ipmetaBootstrap.artifact;
   oci-link-monitor-env = import ./oci-link-monitor-env.nix { inherit pkgs lib containers; };
   oci-ipmeta-bootstrap-contents = ipmetaBootstrap.oci-contents;
+  ipmeta-bootstrap-snapshot = ipmetaBootstrap.snapshot;
+  oci-ipmeta-bootstrap-snapshot-contents = ipmetaBootstrap.oci-snapshot-contents;
 
   # Whole-repo race-detector test (cgo-enabled).
   go-race = import ./go-test-race.nix { inherit pkgs vendoredSource; };

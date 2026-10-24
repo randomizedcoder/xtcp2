@@ -251,7 +251,7 @@ Clients keep their existing `-auth-*` flags and `XTCP2_GRPC_AUTH_TOKEN[_FILE]` /
 | `-grpcPort` | `8889` | Port the gRPC server listens on. |
 | `-grpcListenNetwork` | `tcp` | Listener network: `tcp` or `unix` (`GRPC_LISTEN_NETWORK`). |
 | `-grpcListenAddress` | — | Full listener address. For UDS, the socket path (`GRPC_LISTEN_ADDRESS`). For TCP, overrides `-grpcPort` when set. |
-| `-grpcUnixSocketMode` | `0600` | UDS permission bits after bind (`GRPC_UNIX_SOCKET_MODE`, decimal value). |
+| `-grpcUnixSocketMode` | `0600` | UDS permission bits after bind (`GRPC_UNIX_SOCKET_MODE`: octal with a leading `0`, e.g. `0660`, or decimal; above `0777` is ignored). |
 | `-grpcUnlinkStaleUnixSocket` | `true` | Remove an existing socket at startup if it is a socket (`GRPC_UNLINK_STALE_UNIX_SOCKET`). |
 
 Example:

@@ -102,6 +102,7 @@ Run these helpers with `nix run path:.#NAME -- ARGS`. The five lint helpers and
 | `quality-report` | Print the built quality report; `nix build path:.#quality-report` retains the artifact |
 | `update-quality-report` | Refresh `docs/quality-report.md` in the checkout |
 | `update-lint-baseline` | Regenerate `docs/lint-baseline.txt`; review changes as ratchet-policy changes |
+| `update-ipmeta-bootstrap-lock` | Fetch feeds, compact the bootstrap snapshot, rewrite and stage `nix/ipmeta/bootstrap.lookup.parquet.zst` and its lock; requires network and all sources to succeed unless `IPFEED_MIN_SUCCESSFUL_SOURCES` lowers the threshold |
 | `focused-quality` | Build the four `test-focused-*` targets below; defaults to `path:.`, overridable with `XTCP2_FLAKE_REF` |
 | `check-upstream-pins` | Query upstream revisions over the network; `--strict` enables strict reporting; the offline consistency check is `checks.x86_64-linux.upstream-pins` |
 | `oci-size-report` | Measure streamed image sizes as CSV; `--default`/`--slim`, `--fat`, or `--all` |
@@ -143,7 +144,7 @@ literally to Nix.
 | `oci-xtcp2`, `oci-xtcp2-debug`, `oci-xtcp2-stripped` | Full tool-suite OCI images |
 | `oci-xtcp2-{min,kafka,nats,nsq,valkey,s3parquet}` | Slim daemon OCI images; each also has `-asn`, `-locality`, and `-enrich` variants |
 | `oci-xtcp2client`, `oci-xtcp2ctl`, `oci-ipfeed-collector`, `oci-xtcp2-tcp-stress` | Standalone client, metadata collector, and load-generator images |
-| `ipmeta-bootstrap-artifact` | Normalized lookup data from `ipmeta-bootstrap-lock.json`; a real source artifact/lock must be supplied |
+| `ipmeta-bootstrap-artifact` | Normalized lookup data from `ipmeta-bootstrap-lock.json`, which selects the checked-in `ipmeta/bootstrap.lookup.parquet.zst` snapshot |
 | `oci-xtcp2{,-debug,-stripped}-bootstrap` and `oci-xtcp2-DEST-{asn,enrich}-bootstrap` | Bootstrap-enabled images; `DEST` is one of the six slim destination flavors |
 | `xtcp-flat-record-desc` | Protobuf FileDescriptorSet for external consumers |
 | `proto-audit` | Pinned upstream netlink layout oracle executable |
@@ -182,6 +183,7 @@ file. Package names alone do not imply inclusion in `nix flake check`.
 | `test-listener-security` | Listener authentication and security tests |
 | `test-proto-deserialize-golden` | Deserialization golden test when `pkg/xtcp/deserialize` exists; otherwise records a skip |
 | `test-ipmeta-bootstrap-artifact`, `test-oci-ipmeta-bootstrap-contents` | Fixture-backed bootstrap artifact and OCI content checks |
+| `test-ipmeta-bootstrap-snapshot`, `test-oci-ipmeta-bootstrap-snapshot-contents` | Real snapshot size/lookup checks and byte-identical contents in `oci-xtcp2-s3parquet-enrich-bootstrap`; both are also registered checks |
 | `test-oci-link-monitor-env` | Monitor environment/defaults in OCI images |
 | `test-linkmonitor` and its leaves | Monitor tests, lint, replay, fuzzing, artifacts, and documentation; [full reference below](#link-monitor-verification) |
 | `test-linkmonitor-rdma-native-bench` | Native RDMA benchmark-runner gate, separate from the monitor aggregate |
@@ -216,7 +218,8 @@ Use the full path: `nix build path:.#checks.x86_64-linux.NAME -L`.
 | `self-test-flavors`, `self-test-stream-until`, `self-test-jsonl-tally`, `self-test-wait-metric` | Guest self-test script build and helper regressions |
 | `vm-linkmonitor-performance-bundle` | Performance evidence-bundle validation |
 | `test-go-race`, `test-go-flavor-*`, `test-linkmonitor` | Behavioral suites registered alongside static checks |
-| `microvm-lifecycle-x86_64`, `vm-*`, `vm-all` | Actual guest checks described next; `vm-*` here refers to the seven guest checks, not the host helpers above |
+| `test-ipmeta-bootstrap-artifact`, `test-oci-ipmeta-bootstrap-contents`, `test-ipmeta-bootstrap-snapshot`, `test-oci-ipmeta-bootstrap-snapshot-contents` | Fixture and real-snapshot bootstrap checks, also available as packages above |
+| `microvm-lifecycle-x86_64`, `vm-*`, `vm-all` | Actual guest checks described next; `vm-*` here refers to the nine guest checks, not the host helpers above |
 
 ## Nix integration testing
 
@@ -297,6 +300,8 @@ Each pair below offers a fresh runnable package and a cached check. See
 | `test-linkmonitor-rdma-vm` | `vm-linkmonitor-rdma` | Software RoCE, events, and native RDMA I/O |
 | `test-linkmonitor-performance-vm` | `vm-linkmonitor-performance` | Privileged live tests, profiles, benchmarks, and nlmon evidence |
 | `test-xtcp2-linkmonitor-vm` | `vm-xtcp2-linkmonitor` | Real xtcp2 NixOS service, baseline persistence/reload, missing-link and degradation behavior |
+| `test-xtcp2-scrape-auth-vm` | `vm-xtcp2-scrape-auth` | vmagent read-token scraping, 401/403 authorization, healthcheck, and token rotation |
+| `test-xtcp2-ip-listen-vm` | `vm-xtcp2-ip-listen` | Separate unauthenticated loopback inspection listener, route separation, and rejection of a non-loopback peer through `route_localnet` |
 
 `demo-linkmonitor-ionic-profiles` is a separate interactive/emulator scenario
 runner: `nix run path:.#demo-linkmonitor-ionic-profiles -- --out=/tmp/ionic-demo`.
@@ -598,8 +603,10 @@ cat result-vm-ionic/summary.txt
 | `vm-linkmonitor-rdma` | software RoCE (rxe) on the microVM constructor; netlink recordings in `nlrecord/` |
 | `vm-linkmonitor-performance` | root-only live tests, benchmarks, profiles and an nlmon pcap, unpacked as `linkmonitor-performance/` |
 | `vm-xtcp2-linkmonitor` | the real xtcp2 NixOS unit with the monitor on by default: paths, baseline modes, persistence across restart, `systemctl reload`, a missing link on `/metrics`, a corrupt baseline degrading, clean stop |
+| `vm-xtcp2-scrape-auth` | vmagent scraping xtcp2 with a raw read token: 401 without it, 403 on pprof, healthcheck, token rotation without a vmagent restart |
+| `vm-xtcp2-ip-listen` | `/ip` on a loopback listener of its own: no token there, gone from the Prometheus listener, bound on 127.0.0.1 only, a `route_localnet` neighbour closed |
 
-`vm-all` builds all seven. The fault run's TAP needs `/dev/net/tun`, which a
+`vm-all` builds all nine. The fault run's TAP needs `/dev/net/tun`, which a
 build sandbox has only when the builder sets `extra-sandbox-paths =
 [ "/dev/net/tun?" ]` (host `l` does); without it the check fails with
 `VM_CHECK_NO_TUN`. A failing check prints the log's last 60 lines;

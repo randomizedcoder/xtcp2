@@ -163,8 +163,10 @@ group, direction, provenance, timestamps, and confidence when available;
 these are not additional socket-record fields.
 
 `ipmeta-bootstrap` creates compact `.lookup.parquet.zst` artifacts for startup
-and cache use. Bootstrap OCI packaging is wired, but a real fleet artifact and
-`nix/ipmeta-bootstrap-lock.json` still need to be supplied; see the
+and cache use. Bootstrap OCI images carry the checked-in
+`nix/ipmeta/bootstrap.lookup.parquet.zst` snapshot selected by
+`nix/ipmeta-bootstrap-lock.json`. Run `nix run .#update-ipmeta-bootstrap-lock`
+from the repository root to refresh and stage both files for review; see the
 [implementation status](status-embedded-ipmeta-bootstrap.md). MMDB remains a
 possible future distribution format.
 

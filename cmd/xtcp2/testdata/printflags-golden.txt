@@ -94,6 +94,7 @@ compiledInEnrichers: {{compiledInEnrichers}}
 *linkMonitorMetricsAllPath: linkMonitorMetricsAllPath-v
 *linkMonitorIPPaths: true
 *linkMonitorIPMaxBytes: 150
+*linkMonitorIPListen: linkMonitorIPListen-v
 *grpcListenNetwork: grpcListenNetwork-v
 *grpcListenAddress: grpcListenAddress-v
 *grpcUnixSocketMode: 132

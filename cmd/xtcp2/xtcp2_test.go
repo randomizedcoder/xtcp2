@@ -105,6 +105,46 @@ func TestEnvUint32(t *testing.T) {
 	}
 }
 
+func TestEnvFileMode(t *testing.T) {
+	const key = "TEST_UNIX_SOCKET_MODE"
+	cases := []struct {
+		category    string
+		description string
+		set         bool
+		val         string
+		expected    uint32
+		expectedOK  bool
+	}{
+		{"positive", "a leading 0 is octal, as for -promUnixSocketMode", true, "0600", 0o600, true},
+		{"positive", "group-writable octal", true, "0660", 0o660, true},
+		{"positive", "an explicit 0o prefix is octal", true, "0o640", 0o640, true},
+		{"positive", "a bare number stays decimal, as documented before", true, "384", 0o600, true},
+		{"negative", "unset leaves the default", false, "", 0, false},
+		{"negative", "not a number", true, "rw-------", 0, false},
+		{"negative", "a negative value", true, "-1", 0, false},
+		{"negative", "an 8 is not an octal digit", true, "0680", 0, false},
+		{"negative", "decimal 600 is 0o1130, setting the sticky bit", true, "600", 0, false},
+		{"boundary", "0777 is the largest mode", true, "0777", 0o777, true},
+		{"boundary", "01000 is one past it", true, "01000", 0, false},
+		{"boundary", "0 parses; the listener then uses its 0600 default", true, "0", 0, true},
+		{"corner", "empty string", true, "", 0, false},
+		{"corner", "setuid bits are refused", true, "04755", 0, false},
+		{"corner", "surrounding space is not trimmed", true, " 0600", 0, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.description, func(t *testing.T) {
+			t.Logf("%s: %s; expected: %#o ok=%t", tc.category, tc.description, tc.expected, tc.expectedOK)
+			if tc.set {
+				t.Setenv(key, tc.val)
+			}
+			got, ok := envFileMode(key)
+			if ok != tc.expectedOK || got != tc.expected {
+				t.Fatalf("envFileMode(%q) = %#o, %t; expected %#o, %t", tc.val, got, ok, tc.expected, tc.expectedOK)
+			}
+		})
+	}
+}
+
 func TestEnvBool(t *testing.T) {
 	t.Setenv("TEST_BOOL_TRUE", "true")
 	if v, ok := envBool("TEST_BOOL_TRUE"); !ok || !v {
@@ -567,29 +607,84 @@ func TestRunHealthcheck(t *testing.T) {
 }
 
 func TestRunHealthcheckUnix(t *testing.T) {
-	sock := filepath.Join(t.TempDir(), "prom.sock")
-	ln, err := net.Listen("unix", sock)
-	if err != nil {
-		t.Fatalf("net.Listen(unix): %v", err)
+	raw := func(token string) *xtcp_config.ListenerAuth {
+		return &xtcp_config.ListenerAuth{Mode: xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_RAW_TOKEN, RawToken: token}
 	}
-	srv := &http.Server{
-		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path != "/readyz" {
-				w.WriteHeader(http.StatusNotFound)
-				return
+	hmacKey := func(key string) *xtcp_config.ListenerAuth {
+		return &xtcp_config.ListenerAuth{Mode: xtcp_config.ListenerAuthMode_LISTENER_AUTH_MODE_HMAC_UTC_MINUTE, HmacSharedKey: key}
+	}
+	tests := []struct {
+		category    string
+		description string
+		server      *xtcp_config.ListenerAuth // nil: /readyz is open
+		client      *xtcp_config.ListenerAuth // the probe's own -listenerAuth* config
+		notReady    bool
+		socket      string // "" uses the listening socket; "missing" a path nothing listens on
+		expected    int
+	}{
+		{"positive", "no auth on either side", nil, &xtcp_config.ListenerAuth{}, false, "", 0},
+		{"positive", "the probe sends the matching raw token", raw("read-token"), raw("read-token"), false, "", 0},
+		{"positive", "the probe signs with the shared HMAC key", hmacKey("shared"), hmacKey("shared"), false, "", 0},
+		{"negative", "a wrong raw token is refused", raw("read-token"), raw("other-token"), false, "", 1},
+		{"negative", "auth on the listener but none configured for the probe", raw("read-token"), &xtcp_config.ListenerAuth{}, false, "", 1},
+		{"negative", "an HMAC token signed with another key is refused", hmacKey("shared"), hmacKey("other"), false, "", 1},
+		{"negative", "an authenticated probe of a not-ready daemon still fails", raw("read-token"), raw("read-token"), true, "", 1},
+		{"boundary", "nothing listens on the socket path", nil, &xtcp_config.ListenerAuth{}, false, "missing", 1},
+		{"boundary", "an empty socket path fails before dialing", nil, &xtcp_config.ListenerAuth{}, false, "empty", 1},
+		{"corner", "a nil authenticator sends no header, so an auth-on listener refuses it", raw("read-token"), nil, false, "", 1},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			t.Logf("%s: %s; expected: rc=%d", tc.category, tc.description, tc.expected)
+			sock := filepath.Join(t.TempDir(), "prom.sock")
+			ln, err := net.Listen("unix", sock)
+			if err != nil {
+				t.Fatalf("net.Listen(unix): %v", err)
 			}
-			w.WriteHeader(http.StatusOK)
-		}),
-		ReadHeaderTimeout: time.Second,
-	}
-	go func() { _ = srv.Serve(ln) }()
-	t.Cleanup(func() { _ = srv.Close() })
+			var h http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch {
+				case r.URL.Path != "/readyz":
+					w.WriteHeader(http.StatusNotFound)
+				case tc.notReady:
+					w.WriteHeader(http.StatusServiceUnavailable)
+				default:
+					w.WriteHeader(http.StatusOK)
+				}
+			})
+			if tc.server != nil {
+				tc.server.FailureJitterMin = durationpb.New(0)
+				tc.server.FailureJitterMax = durationpb.New(0)
+				serverAuth, err := listenerauth.New(tc.server)
+				if err != nil {
+					t.Fatalf("server listenerauth.New: %v", err)
+				}
+				h = serverAuth.WrapHTTP(h)
+			}
+			srv := &http.Server{Handler: h, ReadHeaderTimeout: time.Second}
+			go func() { _ = srv.Serve(ln) }()
+			t.Cleanup(func() { _ = srv.Close() })
 
-	if rc := runHealthcheck(context.Background(), "unix", sock, nil, listenerauth.ClientAuth{}); rc != 0 {
-		t.Errorf("unix ready: rc=%d, want 0", rc)
-	}
-	if rc := runHealthcheck(context.Background(), "unix", filepath.Join(t.TempDir(), "missing.sock"), nil, listenerauth.ClientAuth{}); rc != 1 {
-		t.Errorf("unix missing: rc=%d, want 1", rc)
+			var authn *listenerauth.Authenticator
+			var clientAuth listenerauth.ClientAuth
+			if tc.client != nil {
+				authn, err = listenerauth.New(tc.client)
+				if err != nil {
+					t.Fatalf("client listenerauth.New: %v", err)
+				}
+				clientAuth = listenerauth.ClientAuth{RawToken: tc.client.GetRawToken(), HMACSharedKey: tc.client.GetHmacSharedKey()}
+			}
+			path := sock
+			switch tc.socket {
+			case "missing":
+				path = filepath.Join(t.TempDir(), "missing.sock")
+			case "empty":
+				path = ""
+				t.Setenv("PROM_LISTEN", "")
+			}
+			if rc := runHealthcheck(context.Background(), "unix", path, authn, clientAuth); rc != tc.expected {
+				t.Errorf("rc=%d, want %d", rc, tc.expected)
+			}
+		})
 	}
 }
 
@@ -979,6 +1074,7 @@ func TestPrintFlags(t *testing.T) {
 	f.linkMonitorMetricsAllPath = &s
 	f.linkMonitorIPPaths = &b
 	f.linkMonitorIPMaxBytes = &n
+	f.linkMonitorIPListen = &s
 	// Redirect stdout so the call doesn't litter test output.
 	r, w, _ := os.Pipe()
 	orig := os.Stdout
@@ -1075,6 +1171,7 @@ func TestBuildConfig(t *testing.T) {
 	lmWait, lmErrWindow, lmFlapWindow := 3*time.Second, 4*time.Minute, 5*time.Minute
 	lmClasses, lmErrExclude, lmCategories, lmAllPath := "link,drop", "^eth9/.*", "link,rdma", "/all"
 	lmIfacePaths, lmIPPaths, lmIPMax := false, true, uint(4096)
+	lmIPListen := "127.0.0.1:9089"
 	f := &mainFlags{
 		nltimeout: &nl, pollFrequency: &pf, pollTimeout: &pt, maxLoops: &ml,
 		netlinkers: &nlk, nlmsgSeq: &seq, packetSize: &psz, packetSizeMply: &psm,
@@ -1137,7 +1234,7 @@ func TestBuildConfig(t *testing.T) {
 		linkMonitorFlapWindow: &lmFlapWindow, linkMonitorErrorsClasses: &lmClasses,
 		linkMonitorErrorsExclude: &lmErrExclude, linkMonitorMetricsCategories: &lmCategories,
 		linkMonitorInterfacePaths: &lmIfacePaths, linkMonitorMetricsAllPath: &lmAllPath,
-		linkMonitorIPPaths: &lmIPPaths, linkMonitorIPMaxBytes: &lmIPMax,
+		linkMonitorIPPaths: &lmIPPaths, linkMonitorIPMaxBytes: &lmIPMax, linkMonitorIPListen: &lmIPListen,
 	}
 	des := getDeserializers(*f.deserializers)
 	c := buildConfig(f, des)
@@ -1208,6 +1305,7 @@ func TestBuildConfig(t *testing.T) {
 		{"LinkMonitor.MetricsAllPath", c.LinkMonitor.GetMetricsAllPath(), lmAllPath},
 		{"LinkMonitor.IpPaths", c.LinkMonitor.GetIpPaths(), lmIPPaths},
 		{"LinkMonitor.IpMaxBytes", c.LinkMonitor.GetIpMaxBytes(), uint32(lmIPMax)},
+		{"LinkMonitor.IpListen", c.LinkMonitor.GetIpListen(), lmIPListen},
 	}
 	for _, ck := range checks {
 		if ck.got != ck.want {
