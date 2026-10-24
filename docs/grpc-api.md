@@ -2,6 +2,8 @@
 
 xtcp2 exposes a gRPC server (default port `8889`) with three services: one to read and change daemon configuration at runtime, one to stream live TCP records, and one to inspect and administer the embedded link monitor. gRPC server reflection is enabled, so tools like the vendored `grpcurl` can introspect the API without the `.proto` files.
 
+For protection defaults, read/admin credential setup, TTL/UDS tradeoffs, and recommended deployments, see the [listener security guide](security.md). Auth is disabled by default, and the server and built-in clients do not provide native TLS.
+
 ## Table of contents
 
 - [The server](#the-server)
@@ -256,7 +258,7 @@ Example:
 
 ```sh
 xtcp2 -grpcListenNetwork unix -grpcListenAddress /run/xtcp2/grpc.sock -grpcUnixSocketMode 432
-xtcp2ctl -network unix -unixSocket /run/xtcp2/grpc.sock get
+xtcp2ctl get -network unix -unixSocket /run/xtcp2/grpc.sock
 ```
 
 `432` is decimal for `0660`; use `384` for `0600`. The socket parent directory must already exist and should be owned so only trusted local users can traverse it.

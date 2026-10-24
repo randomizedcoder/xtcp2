@@ -112,15 +112,18 @@ Consequences:
   check` runs it via the `asn`, `enrich` and `s3parquet-enrich` targets in
   `nix/tests/go-test-flavors.nix`.
 
-- `initAsnEnricher` (`enrich_asn.go`) loads `asn_db_path` at startup, gated by
-  `enrich_asn_enable`. If `asn_refresh_interval > 0` (daemon default **1h**), a
-  background goroutine calls `ReloadIfChanged` on that cadence (bound to the
-  daemon context): an unchanged file is not rebuilt, a changed one is swapped
-  in, and a **missing or bad artifact at startup is retried on every tick** —
-  the empty index is installed so a late-arriving file is picked up without a
-  restart. With the interval at 0 a failed first load leaves enrichment
-  disabled. Every failure is best-effort: log + Prometheus counter
-  (`refreshAsn/reload/{ok,unchanged,error}`), columns left empty, never fatal.
+- `initAsnEnricher` (`enrich_asn.go`), gated by `enrich_asn_enable`, tries the
+  current cache, previous cache, bootstrap artifact, then live `asn_db_path`
+  at startup. With a configured live path and `asn_refresh_interval > 0`
+  (daemon default **1h**), a background goroutine retries/refreshes that file.
+  Unchanged files are skipped; accepted updates replace the table atomically
+  and publish a compact cache, rotating current to previous. A missing live
+  artifact can arrive later without a restart. Failed updates preserve the
+  active table; if no usable artifact exists, lookups remain empty. With no
+  live path or interval 0, there is no periodic refresh. Runtime artifact
+  failures are best-effort and reported through logs/metrics. See
+  [bootstrap/cache status](status-embedded-ipmeta-bootstrap.md) for validation
+  and fallback behavior.
 - Metrics for the lookup table itself (`function="loadAsn"`, same
   `xtcp_gauges` / `xtcp_histograms` families as the rest of the daemon): gauges
   `prefixes` (entries in the trie in service), `artifactBytes` (size of the
@@ -134,6 +137,8 @@ Consequences:
   `cmd/ipfeed-collector/DESIGN.md` § Telemetry.
 - CLI flags `-enrichAsn` / `-asnDbPath` / `-asnRefreshInterval`; environment
   `ENRICH_ASN` / `ASN_DB_PATH` / `ASN_REFRESH_INTERVAL`.
+- Cache/bootstrap flags `-ipmetaCachePath` / `-ipmetaBootstrapPath`;
+  environment `IPMETA_CACHE_PATH` / `IPMETA_BOOTSTRAP_PATH`.
 - `applyEnrichment` converts the record's 16-byte destination
   (`inet_diag_msg_socket_destination`, a kernel `__be32[4]` slot) to a
   `netip.Addr` **alloc-free**, keyed on `inet_diag_msg_family` (IPv4 lives in the
@@ -146,11 +151,21 @@ Consequences:
 - `enrich_asn_enable` (bool, 240)
 - `asn_db_path` (string, 241)
 - `asn_refresh_interval` (Duration, 242; daemon default 1h; 0 = load once, never reload or retry)
+- `ipmeta_bootstrap_path` / `ipmeta_cache_path` — optional startup fallback and writable lookup-cache paths.
 
 ## Artifact format
 
-Phase 1 reuses the collector's existing **Parquet** artifact — `pkg/ipasn` reads
-only the `prefix`, `asn`, and `network_owner` columns. MMDB is noted above as a
+`pkg/ipasn` reads **Parquet** and **zstd-compressed Parquet**, consuming only
+`prefix`, `asn`, and `network_owner`. The collector's richer
+[artifact schema](../cmd/ipfeed-collector/DESIGN.md#normalized-record-schema)
+also holds provider, service operator, service/product, region, network border
+group, direction, provenance, timestamps, and confidence when available;
+these are not additional socket-record fields.
+
+`ipmeta-bootstrap` creates compact `.lookup.parquet.zst` artifacts for startup
+and cache use. Bootstrap OCI packaging is wired, but a real fleet artifact and
+`nix/ipmeta-bootstrap-lock.json` still need to be supplied; see the
+[implementation status](status-embedded-ipmeta-bootstrap.md). MMDB remains a
 possible future distribution format.
 
 ## End-to-end check (microVM)

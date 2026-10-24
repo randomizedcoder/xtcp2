@@ -67,9 +67,9 @@ For always-on profiling, xtcp2 integrates with [Pyroscope](https://pyroscope.io/
 
 | Capability | Required? | Why |
 |---|---|---|
-| `CAP_NET_ADMIN` | **fatal** | netlink `inet_diag` queries — without it xtcp2 can read no TCP data at all. |
+| `CAP_NET_ADMIN` | **fatal** | Required by xtcp2's startup policy for privileged network diagnostics. |
 | `CAP_SYS_ADMIN` | **fatal** | `setns(CLONE_NEWNET)` into per-namespace sockets — without it every namespace enter/restore fails with `EPERM`. |
-| `CAP_SYS_PTRACE` | warning | Method B **discovery** reads `/proc/<pid>/ns/net` of other processes, gated by `ptrace_may_access` (denied for non-dumpable targets even to root). Without it the `/proc` scan sees only xtcp2's own namespace — the daemon runs but discovers no container/pod netns. |
+| `CAP_SYS_PTRACE` | warning | Process-based discovery reads `/proc/<pid>/ns/net`, gated by `ptrace_may_access`. Without it protected processes may be invisible; accessible bind-mounted namespaces can still be discovered. See [namespace discovery](network-namespaces.md). |
 | `CAP_NET_RAW` | warning | raw-socket (`-dest udp:…` with `IP_HDRINCL`) writes — the daemon runs without it, but a UDP destination fails at the first packet. |
 | `CAP_SYS_RESOURCE` | warning | raising `RLIMIT_MEMLOCK` for `io_uring` ring memory — without it large `-ioUring` rings may fail to allocate. |
 
@@ -109,6 +109,7 @@ curl --unix-socket /run/xtcp2/prometheus.sock \
 
 ## See also
 
+- [Listener security](security.md) — HTTP/gRPC protection defaults, authentication, UDS, TTL, and recommended configurations.
 - [Metrics reference](metrics.md) — every series, by area, and which ones `-debugPrometheus` adds.
 - [The link monitor in xtcp2](design-linkmonitor-in-xtcp2.md) — paths, lifecycle, baseline and failure mode.
 - [Performance](performance.md) — what the profiles help you tune.

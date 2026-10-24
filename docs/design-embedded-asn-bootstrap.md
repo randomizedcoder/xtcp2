@@ -2,15 +2,16 @@
 
 ## Status
 
-Investigation / design proposal. No code change yet.
+The loader, startup fallback, cache rotation, and bootstrap packaging have been
+implemented. A real fleet bootstrap artifact and lock file still need to be
+supplied. See [implementation status](status-embedded-ipmeta-bootstrap.md) and
+[ASN enrichment](ipfeed-asn-enrichment.md) for current behavior.
 
-This document captures the cold-start and fleet-scale concerns around xtcp2's
-destination IP metadata enrichment path and lays out options for embedding
-bootstrap lookup data in Nix-built OCI images. Today that lookup yields both the
-representative ASN and the general network-owner/name metadata for a destination
-prefix. The document deliberately does **not** choose a final implementation.
-The goal is to make the tradeoffs explicit before changing the daemon, the
-artifact format, or the image matrix.
+The remainder preserves the original investigation and design options for
+cold-start and fleet-scale destination metadata enrichment. Its measurements,
+"current state," and proposed alternatives describe that investigation, not
+the final implementation. Lookup values remain representative provider ASNs
+and network-owner labels, not observed per-prefix BGP origins.
 
 ## Problem
 

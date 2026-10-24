@@ -1,5 +1,9 @@
 # Read and admin access, and link-monitor administration over gRPC
 
+For current defaults, configuration examples, and deployment tradeoffs, start
+with the [listener security guide](security.md). This document explains the
+authorization design and its relationship to monitor administration.
+
 This design covers two things that ship together:
 
 - a **read/admin split** for every xtcp2 listener, so a Prometheus scraper's
