@@ -192,6 +192,22 @@ proc set_options {} {
     return $out
 }
 
+# vlan_flags - the flag keyword of every vlan add_<flag> row named after
+# it, in order.
+proc vlan_flags {} {
+    set out {}
+    foreach r $::R {
+        lassign $r slug floor pre command
+        if {![regexp {^vlan/add_(.*)$} $slug -> name]} {
+            continue
+        }
+        if {[regexp "^ip link add link d0 name v0 type vlan id 10 $name (?:on|off)\$" $command]} {
+            lappend out $name
+        }
+    }
+    return $out
+}
+
 ###############################################################################
 # 1. the rows
 ###############################################################################
@@ -243,13 +259,26 @@ lappend design_rows {*}{
     bridge_slave/set_backup_port_missing bridge_slave/set_cost_bad
     bridge_slave/set_on_off_bad bridge_slave/set_no_value
 }
+set vlan_flags {reorder_hdr gvrp mvrp loose_binding bridge_binding}
+lappend design_rows vlan/add_default vlan/add_protocol
+foreach o $vlan_flags {
+    lappend design_rows vlan/add_$o
+}
+lappend design_rows {*}{
+    vlan/add_ingress_qos_map vlan/add_egress_qos_map vlan/add_several
+    vlan/add_id_max vlan/add_abbrev vlan/set_flags vlan/set_egress_qos_map
+    vlan/set_id vlan/add_no_id vlan/add_no_link vlan/add_id_over
+    vlan/add_protocol_unsupported vlan/add_duplicate_id vlan/add_on_loopback
+    vlan/add_on_off_bad vlan/add_unknown vlan/add_qos_no_colon
+    vlan/add_id_bad vlan/add_protocol_bad vlan/add_qos_bad vlan/add_no_value
+}
 
 check slug_list "positive: the rows are the plan's, in run order" \
     {slugs $R} [join $design_rows " "]
 check first_row "boundary: add_default comes first" \
     {lindex [slugs $R] 0} bridge/add_default
-check row_count "boundary: KC2's 60 bridge rows and 42 bridge_slave rows" \
-    {llength $R} 102
+check row_count "boundary: KC2's 60 bridge and 42 bridge_slave rows, KC3-T01's 28 vlan rows" \
+    {llength $R} 130
 check bridge_first "boundary: bridge's rows all come before bridge_slave's" \
     {lsearch -glob [slugs $R] bridge_slave/*} 60
 check option_rows "positive: one add_ row per value-taking option but stp_mode, each once" \
@@ -284,6 +313,11 @@ set refused_design {
     bridge_slave/set_backup_port_self 2 bridge_slave/set_not_enslaved 2
     bridge_slave/set_backup_port_missing 255 bridge_slave/set_cost_bad 255
     bridge_slave/set_on_off_bad 1 bridge_slave/set_no_value 255
+    vlan/add_no_id 2 vlan/add_no_link 2 vlan/add_id_over 2
+    vlan/add_protocol_unsupported 2 vlan/add_duplicate_id 2
+    vlan/add_on_loopback 2 vlan/add_on_off_bad 1 vlan/add_unknown 1
+    vlan/add_qos_no_colon 1 vlan/add_id_bad 255 vlan/add_protocol_bad 255
+    vlan/add_qos_bad 255 vlan/add_no_value 255
 }
 check refused_statuses "positive: exactly the refusal rows expect a non-zero status" \
     {refused_rows} [join $refused_design " "]
@@ -396,6 +430,39 @@ check slave_abbrev "corner: a matches keyword's abbreviation is accepted, a strc
     {0 {ip link set dev p0 type bridge_slave neigh_forward_g on} 1}
 check slave_on_off_vs_value "corner: a bad on/off exits 1, a missing value 255" \
     {list [field bridge_slave/set_on_off_bad 5] [field bridge_slave/set_no_value 5]} {1 255}
+
+###############################################################################
+# 6. the vlan rows' states
+###############################################################################
+check vlan_after_slave "positive: vlan's rows follow bridge_slave's" \
+    {lsearch -glob [slugs $R] vlan/*} 102
+check vlan_flag_rows "positive: one add_ row per flag keyword, each once" \
+    {vlan_flags} [join $vlan_flags " "]
+check vlan_flag_count "boundary: 5 of them" \
+    {llength $vlan_flags} 5
+check vlan_default "positive: add_default sends the id alone, on d0" \
+    {list [field vlan/add_default 2] [field vlan/add_default 3]} \
+    {{{link add d0 type dummy}} {ip link add link d0 name v0 type vlan id 10}}
+check vlan_id_range "boundary: 4094 is accepted, 4095 refused by the kernel" \
+    {list [field vlan/add_id_max 3] [field vlan/add_id_max 5] [field vlan/add_id_over 3] [field vlan/add_id_over 5]} \
+    {{ip link add link d0 name v0 type vlan id 4094} 0 {ip link add link d0 name v0 type vlan id 4095} 2}
+check vlan_set_id_pre "corner: set_id sends a new id to a v0 made with id 10" \
+    {list [field vlan/set_id 2] [field vlan/set_id 3] [field vlan/set_id 1]} \
+    {{{link add d0 type dummy} {link add link d0 name v0 type vlan id 10}} {ip link set v0 type vlan id 20} 4}
+check vlan_duplicate "corner: the duplicate's pre holds v0 with id 10, and its readbacks read v1" \
+    {list [lindex [field vlan/add_duplicate_id 2] end] [lindex [field vlan/add_duplicate_id 4] 0 2]} \
+    {{link add link d0 name v0 type vlan id 10} {ip -d link show dev v1}}
+check vlan_no_link "negative: the no-link row names no lower" \
+    {field vlan/add_no_link 3} {ip link add name v0 type vlan id 10}
+check vlan_no_id "negative: the no-id row sends no option" \
+    {field vlan/add_no_id 3} {ip link add link d0 name v0 type vlan}
+check vlan_loopback "corner: the loopback row stacks on lo" \
+    {field vlan/add_on_loopback 3} {ip link add link lo name v0 type vlan id 10}
+check vlan_pre_d0 "positive: every vlan row's pre makes d0 first" \
+    {lsort -unique [lmap r $R {expr {[string match vlan/* [lindex $r 0]] ? [lindex $r 2 0] : "-"}}]} \
+    {- {link add d0 type dummy}}
+check vlan_returned_vs_exit "corner: on_off and an unknown word return (1); a bad mapping exits (255)" \
+    {lmap s {add_on_off_bad add_qos_no_colon add_qos_bad} {field vlan/$s 5}} {1 1 255}
 
 ###############################################################################
 # summary

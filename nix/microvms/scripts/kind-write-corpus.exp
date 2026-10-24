@@ -248,6 +248,86 @@ namespace eval kindcorpus {
         [slave set_no_value cost 255]
 
     ###########################################################################
+    # The VLAN family (KC3): kinds stacked on a lower device. Every row's
+    # pre makes the dummy d0 they stack on; an add is `ip link add link d0
+    # name <dev> type <kind> ...`, a set `ip link set <dev> type <kind> ...`
+    # on a device its pre made.
+    ###########################################################################
+    variable PRE_D0 [list {link add d0 type dummy}]
+
+    # stacked <kind> <dev> <name> <words> <rc> ?<pre>? ?<lower>? - an add of
+    # <dev> on <lower>, after d0 and <pre>.
+    proc stacked {kind dev name words rc {pre {}} {lower d0}} {
+        variable PRE_D0
+        return [row $kind $name [concat $PRE_D0 $pre] \
+            [string trimright "ip link add link $lower name $dev type $kind $words"] $rc $dev]
+    }
+
+    # stacked_set <kind> <dev> <name> <words> <rc> <pre> - a set of <dev>,
+    # after d0 and <pre>, which makes <dev>.
+    proc stacked_set {kind dev name words rc pre} {
+        variable PRE_D0
+        return [row $kind $name [concat $PRE_D0 $pre] "ip link set $dev type $kind $words" $rc $dev]
+    }
+
+    ###########################################################################
+    # vlan (KC3-T01). The device is v0, and id is required, so every add
+    # but add_no_id sends one. vlan_validate and vlan_newlink (net/8021q/
+    # vlan_netlink.c) argue the kernel's statuses; vlan_changelink ignores
+    # the id, so set_id is accepted and changes nothing. vlan's on_off and
+    # its unknown-command error return (1); get_u16, ll_proto_a2n, a bad
+    # QoS mapping and NEXT_ARG exit (255). parse_mapping stops at a word
+    # with no colon, which is then an unknown command.
+    ###########################################################################
+    variable VLAN_FLAGS {
+        reorder_hdr off
+        gvrp on
+        mvrp on
+        loose_binding on
+        bridge_binding on
+    }
+
+    variable PRE_V0 [list {link add link d0 name v0 type vlan id 10}]
+
+    proc vlan {name words rc {pre {}} {lower d0}} {
+        return [stacked vlan v0 $name $words $rc $pre $lower]
+    }
+
+    proc vlan_set {name words rc} {
+        variable PRE_V0
+        return [stacked_set vlan v0 $name $words $rc $PRE_V0]
+    }
+
+    lappend rows \
+        [vlan add_default {id 10} 0] \
+        [vlan add_protocol {id 10 protocol 802.1ad} 0]
+    foreach {flag value} $VLAN_FLAGS {
+        lappend rows [vlan add_$flag "id 10 $flag $value" 0]
+    }
+    lappend rows \
+        [vlan add_ingress_qos_map {id 10 ingress-qos-map 1:2 3:4} 0] \
+        [vlan add_egress_qos_map {id 10 egress-qos-map 2:1 4:3} 0] \
+        [vlan add_several {id 10 protocol 802.1ad gvrp on mvrp on} 0] \
+        [vlan add_id_max {id 4094} 0] \
+        [vlan add_abbrev {i 10} 0] \
+        [vlan_set set_flags {loose_binding on} 0] \
+        [vlan_set set_egress_qos_map {egress-qos-map 1:5} 0] \
+        [vlan_set set_id {id 20} 0] \
+        [vlan add_no_id {} 2] \
+        [row vlan add_no_link $PRE_D0 {ip link add name v0 type vlan id 10} 2 v0] \
+        [vlan add_id_over {id 4095} 2] \
+        [vlan add_protocol_unsupported {id 10 protocol ip} 2] \
+        [stacked vlan v1 add_duplicate_id {id 10} 2 $PRE_V0] \
+        [vlan add_on_loopback {id 10} 2 {} lo] \
+        [vlan add_on_off_bad {id 10 gvrp maybe} 1] \
+        [vlan add_unknown {id 10 bogus} 1] \
+        [vlan add_qos_no_colon {id 10 egress-qos-map 5} 1] \
+        [vlan add_id_bad {id x} 255] \
+        [vlan add_protocol_bad {protocol 802.1x} 255] \
+        [vlan add_qos_bad {id 10 ingress-qos-map 1:x} 255] \
+        [vlan add_no_value id 255]
+
+    ###########################################################################
     # readback_args <ns> <subdir> <readback> - the xtcp2-nlcap capio argument
     # list for one readback, which the driver hands to its capio proc.
     ###########################################################################
