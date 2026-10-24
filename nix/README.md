@@ -1,13 +1,402 @@
-# Nix builds and checks
+# Nix development, builds, captures, and tests
 
 Run commands from the repository root. [flake.nix](../flake.nix) exposes the
 packages, checks, apps and development shell assembled by [default.nix](default.nix).
 Tool versions come from [versions.nix](versions.nix) and the locked flake inputs.
-See [FLAVORS.md](FLAVORS.md) for binary and container variants.
+The flake currently exports `x86_64-linux` only. See
+[build flavors](../docs/build-flavors.md) for the binary/container matrix and
+[integration testing](../docs/integration-testing.md) for guest internals.
+
+## Choose a workflow
+
+| Goal | Command from the repository root |
+|---|---|
+| Enter the pinned development environment | `nix develop` (then `xtcp2-help`) |
+| Build the complete daemon | `nix build path:.#xtcp2` |
+| Test netlink parsing | `nix build path:.#test-go-unit -L` |
+| Test goip or enrichment changes | `nix run path:.#focused-quality` |
+| Run the focused monitor gates | `nix build path:.#test-linkmonitor -L` |
+| Run cached guest checks sequentially | `nix build path:.#checks.x86_64-linux.vm-all -L -j1` |
+| Run the daemon lifecycle/parity sweep freshly | `nix run path:.#integration-all` |
+| Capture netlink dump fixtures in a guest | `nix run path:.#microvm-x86_64-netlink-dump-capture -- --out /tmp/xtcp2-dumps` |
+| Run all registered flake checks | `nix flake check path:. -L -j1` |
+| Measure monitor performance freshly | `nix run path:.#bench-linkmonitor -- --output /tmp/xtcp2-bench` |
+
+### Contents
+
+- [Target names, execution, and caching](#target-names-execution-and-caching)
+- [Development and maintenance](#development-and-maintenance)
+- [Binaries, images, and artifacts](#binaries-images-and-artifacts)
+- [Unit, flavor, and quality checks](#unit-flavor-and-quality-checks)
+- [Nix integration testing](#nix-integration-testing)
+- [Netlink and RDMA fixture collection](#netlink-and-rdma-fixture-collection)
+- [Link-monitor verification](#link-monitor-verification)
+- [Monitor performance measurements](#monitor-performance-measurements)
+- [Guest tests as checks](#guest-tests-as-checks)
+- [Module map and keeping this guide current](#module-map-and-keeping-this-guide-current)
+
+## Target names, execution, and caching
+
+Enable Nix's `nix-command` and `flakes` experimental features. Builds may fetch
+locked dependencies and substitutes; the flake advertises the microVM binary
+cache. `path:.` includes untracked files during development; `.` uses the Git
+source view, including edits to tracked files but excluding untracked files.
+If a running VM leaves a Unix socket in the checkout, `path:.` can fail with
+"unsupported type" while copying the tree. Use `.` when all required source
+files are tracked, or wait for the owning runner to clean up its runtime files.
+
+| Output | How to use it | What happens |
+|---|---|---|
+| `packages.x86_64-linux.NAME` | `nix build path:.#NAME` | Builds a binary, image, runner, or test-result artifact; default symlink is `result` |
+| `apps.x86_64-linux.NAME` | `nix run path:.#NAME -- ARGS` | Builds dependencies, then runs the app each time |
+| Runnable package | `nix run path:.#NAME -- ARGS` | Falls back to the package executable when no matching app exists, e.g. `test-linkmonitor-embedding-vm` |
+| `checks.x86_64-linux.NAME` | `nix build path:.#checks.x86_64-linux.NAME -L` | Runs the check during an uncached build; successful results are reusable |
+| `devShells.x86_64-linux.default` | `nix develop` | Enters the pinned tool environment |
+| `overlays.default` | Import into another Nix configuration | Adds `pkgs.xtcp2`, `pkgs.xtcp2-all`, and `pkgs.xtcp2-oci`; see [overlays.nix](overlays.nix) |
+
+**A build is not necessarily a test run.** `test-go-unit` executes tests while
+building; `test-microvm-lifecycle-x86_64` builds a launcher and guest closure.
+Run that launcher with `nix run`, or build the corresponding registered check
+where one exists. Likewise, building a `microvm-x86_64-*` package does not boot
+the guest, and building `test-go-bench` does not execute benchmarks.
+
+`nix flake check` runs the registered `checks`, not every package or app. It
+includes KVM guest checks, all three lint tiers, and the large upstream
+`proto-audit-netlink` dependency closure. It is broader than a focused test,
+but is not a replacement for `integration-all` or fixture capture.
+
+Use `-o result-NAME` to keep multiple outputs, `--no-link` when no symlink is
+needed, `-L` for build logs, and `nix log path:.#NAME` for a derivation's log.
+Successful checks are cached by their inputs; use the measurement/VM apps when
+you need a fresh execution. Many Go/guest artifacts use filtered Go sources,
+so documentation edits need not rebuild them.
+
+Inspect exact exported names without building targets:
+
+```sh
+nix eval --json path:.#packages.x86_64-linux --apply builtins.attrNames
+nix eval --json path:.#apps.x86_64-linux --apply builtins.attrNames
+nix eval --json path:.#checks.x86_64-linux --apply builtins.attrNames
+```
+
+There is no public `tests` flake output and no exported `formatter`. Use the
+`test-*` packages, explicit `checks` paths, or `nixfmt` from the dev shell.
+
+## Development and maintenance
+
+The shell provides Go, buf/protobuf generators, linters, audit tools, QEMU,
+Expect, and supporting utilities; it sets `CGO_ENABLED=0`. Nix race-test targets
+enable cgo where needed. [packages.nix](packages.nix) lists shell tools;
+[versions.nix](versions.nix) selects versions and hashes.
+
+Run these helpers with `nix run path:.#NAME -- ARGS`. The five lint helpers and
+`regen-protos` are also available directly inside `nix develop`.
+
+| Name | Purpose and effects |
+|---|---|
+| `lint-quick`, `lint`, `lint-comprehensive` | Run lint tiers 0, 1, and 2 against the working tree |
+| `lint-new` | Lint changes since `HEAD~1` |
+| `lint-fix` | Apply automatic lint fixes to the working tree |
+| `lint-fix-one -- LINTER` | Apply fixes from one comprehensive-tier linter |
+| `regen-protos` | Updates buf dependencies, lints/builds protos, regenerates code and schema copies; writes the checkout and needs network for module dependencies; generators are Nix-pinned local binaries |
+| `quality-report` | Print the built quality report; `nix build path:.#quality-report` retains the artifact |
+| `update-quality-report` | Refresh `docs/quality-report.md` in the checkout |
+| `update-lint-baseline` | Regenerate `docs/lint-baseline.txt`; review changes as ratchet-policy changes |
+| `update-ipmeta-bootstrap-lock` | Fetch feeds, compact the bootstrap snapshot, rewrite and stage `nix/ipmeta/bootstrap.lookup.parquet.zst` and its lock; requires network and all sources to succeed unless `IPFEED_MIN_SUCCESSFUL_SOURCES` lowers the threshold |
+| `focused-quality` | Build the four `test-focused-*` targets below; defaults to `path:.`, overridable with `XTCP2_FLAKE_REF` |
+| `check-upstream-pins` | Query upstream revisions over the network; `--strict` enables strict reporting; the offline consistency check is `checks.x86_64-linux.upstream-pins` |
+| `oci-size-report` | Measure streamed image sizes as CSV; `--default`/`--slim`, `--fat`, or `--all` |
+| `coverage-merge` | Merge host and guest coverage: `--host HOST.out --vm-dir COVDIR [--vm-dir COVDIR] --out MERGED.out` |
+
+`lint-baseline-measure` is a buildable JSON findings artifact, not a pass/fail
+gate. `buf lint` is available in the shell, but `proto-lint` is not a registered
+flake check because its module dependencies need network access.
+
+Local source overrides keep the same workflow:
+
+```sh
+nix develop --override-input giouring path:/path/to/giouring
+nix build path:.#checks.x86_64-linux.proto-audit-netlink \
+  --override-input xdp2 path:/path/to/xdp2
+nix run path:.#test-linkmonitor-ionic-vm \
+  --override-input rocm-ernic path:/path/to/rocm-ernic
+```
+
+## Binaries, images, and artifacts
+
+Use `nix build path:.#NAME` for these packages. Brace notation in tables denotes
+a family of exact names; choose one expanded name, rather than passing braces
+literally to Nix.
+
+| Package or family | Contents |
+|---|---|
+| `default`, `xtcp2`, `xtcp2-debug`, `xtcp2-stripped` | Main daemon, with all destination/enrichment code; `default` aliases `xtcp2` |
+| `xtcp2-all`, `xtcp2-all-debug`, `xtcp2-all-stripped` | Joins of the packaged command-line binaries |
+| `xtcp2-{min,kafka,nats,nsq,valkey,s3parquet}` | Destination flavors; each also has `-asn`, `-locality`, and `-enrich` variants |
+| `xtcp2-full-{none,asn,locality,enrich}` | All library destinations with the selected enrichment build tags |
+| `xtcp2-cover` | Coverage-instrumented daemon for the guest coverage runs |
+| `go-link-monitor`, `go-link-monitor-core` | Standalone monitor; the latter is an alias, both include native RDMA |
+| `xtcp2client`, `xtcp2ctl`, `xtcp2_kafka_client` | Streaming/configuration clients and Kafka record consumer |
+| `goip`, `goip-parity`, `gordma`, `rtnlmon-probe`, `ns` | Network inspection, parity, events, and namespace tools |
+| `ipfeed-collector`, `ipmeta-bootstrap`, `zstd-probe` | IP metadata production, compact bootstrap artifacts, and compression investigation |
+| `tcp_client`, `tcp_server`, `nsTest`, `discovery-bench` | Traffic, namespace churn, and discovery benchmark tools |
+| `register_schema`, `kafka_to_clickhouse`, `clickhouse_protobuflist`, `clickhouse_protobuflist_db`, `clickhouse_http_insert_protobuflist` | Schema registration and ingestion tools |
+| `oci-xtcp2`, `oci-xtcp2-debug`, `oci-xtcp2-stripped` | Full tool-suite OCI images |
+| `oci-xtcp2-{min,kafka,nats,nsq,valkey,s3parquet}` | Slim daemon OCI images; each also has `-asn`, `-locality`, and `-enrich` variants |
+| `oci-xtcp2client`, `oci-xtcp2ctl`, `oci-ipfeed-collector`, `oci-xtcp2-tcp-stress` | Standalone client, metadata collector, and load-generator images |
+| `ipmeta-bootstrap-artifact` | Normalized lookup data from `ipmeta-bootstrap-lock.json`, which selects the checked-in `ipmeta/bootstrap.lookup.parquet.zst` snapshot |
+| `oci-xtcp2{,-debug,-stripped}-bootstrap` and `oci-xtcp2-DEST-{asn,enrich}-bootstrap` | Bootstrap-enabled images; `DEST` is one of the six slim destination flavors |
+| `xtcp-flat-record-desc` | Protobuf FileDescriptorSet for external consumers |
+| `proto-audit` | Pinned upstream netlink layout oracle executable |
+
+Enrichment build tags make code available; runtime flags still enable it.
+The authoritative flavor/OCI instructions are in
+[build flavors](../docs/build-flavors.md). Image results are streaming scripts:
+
+```sh
+nix build path:.#oci-xtcp2-min -o result-image
+./result-image | docker load
+```
+
+## Unit, flavor, and quality checks
+
+### Go and artifact tests
+
+These `test-*` packages run during `nix build`, except `test-go-bench`, which
+must be executed with `nix run`. Most emit `test.log` and sometimes
+`coverage.out`; `test-go-unit` instead writes its log directly to the output
+file. Package names alone do not imply inclusion in `nix flake check`.
+
+| Target | Scope |
+|---|---|
+| `test-go-unit` | `pkg/xtcpnl/...` only, not the whole repository |
+| `test-go-race` | Whole-repository race detector; also a registered check |
+| `test-go-bench` | Fresh netlink parser benchmarks via `nix run path:.#test-go-bench` |
+| `test-focused-asn-locality` | IP lookup and local-network classification |
+| `test-focused-goip` | goip command/library and parity CLI |
+| `test-focused-gordma` | RDMA command/library and strace replay |
+| `test-focused-xtcp-enrich` | Daemon/package tests with both enrichment tags |
+| `test-pkg-{xtcp,xtcpnl,io-uring,misc}` | Individual package trees; io-uring includes race checks |
+| `test-cmd-{xtcp2,xtcp2client,xtcp2ctl}` | Individual command packages |
+| `test-tools-{quality-report,netlink-audit,iouring-audit,metrics-audit,proto-field-audit}` | Individual audit/report tools |
+| `test-go-flavor-{kafka,nats,nsq,valkey,s3parquet,asn,locality,enrich,s3parquet-enrich,all}` | Tag-aware daemon tests; all are registered checks. `all` enables all tags together, not a join of separate runs |
+| `test-listener-security` | Listener authentication and security tests |
+| `test-proto-deserialize-golden` | Deserialization golden test when `pkg/xtcp/deserialize` exists; otherwise records a skip |
+| `test-ipmeta-bootstrap-artifact`, `test-oci-ipmeta-bootstrap-contents` | Fixture-backed bootstrap artifact and OCI content checks |
+| `test-ipmeta-bootstrap-snapshot`, `test-oci-ipmeta-bootstrap-snapshot-contents` | Real snapshot size/lookup checks and byte-identical contents in `oci-xtcp2-s3parquet-enrich-bootstrap`; both are also registered checks |
+| `test-oci-link-monitor-env` | Monitor environment/defaults in OCI images |
+| `test-linkmonitor` and its leaves | Monitor tests, lint, replay, fuzzing, artifacts, and documentation; [full reference below](#link-monitor-verification) |
+| `test-linkmonitor-rdma-native-bench` | Native RDMA benchmark-runner gate, separate from the monitor aggregate |
+
+Some Go checks require working host `io_uring` and deliberately fail instead
+of skipping when rings cannot be created. See the target definitions under
+[tests/](tests/default.nix) for tag sets and environment requirements.
+
+```sh
+nix build path:.#test-focused-goip -L -o result-goip
+cat result-goip/test.log
+nix build path:.#test-go-flavor-all -L -o result-flavors
+```
+
+### Registered static and harness checks
+
+Use the full path: `nix build path:.#checks.x86_64-linux.NAME -L`.
+
+| Check name or family | Purpose |
+|---|---|
+| `gofmt`, `go-vet`, `go-sec` | Go formatting, vet, and security analysis |
+| `golangci-lint-quick`, `golangci-lint`, `golangci-lint-comprehensive` | Lint tiers 0, 1, and 2 |
+| `lint-baseline` | Finding ratchet across all three tiers |
+| `nix-fmt`, `deadnix`, `statix` | Nix formatting, unused bindings, and static policy |
+| `netlink-audit`, `iouring-audit`, `metrics-audit`, `proto-field-audit`, `kernel-citation-audit` | Repository-specific semantic audits |
+| `proto-audit-netlink` | Kernel-layout comparison through the pinned xdp2 oracle; cold builds can be substantial |
+| `upstream-pins` | Locked-source/manifest consistency without querying upstream |
+| `xtcp2-exec`, `xtcp2-schema-version` | NixOS ExecStart quoting and record-epoch/schema agreement |
+| `cli-help-smoke-NAME` | Help invocation for the registered binary matrix; enumerate exact names with `nix eval` above |
+| `capability-check-no-caps`, `capability-check-names-sys-admin` | Missing-capability rejection and diagnostics |
+| `vm-lib-exp`, `vm-check-runner`, `nlcap-wait-linkwatch` | Host-side capture/VM-runner regression checks using stand-ins, not real guests |
+| `self-test-flavors`, `self-test-stream-until`, `self-test-jsonl-tally`, `self-test-wait-metric` | Guest self-test script build and helper regressions |
+| `vm-linkmonitor-performance-bundle` | Performance evidence-bundle validation |
+| `test-go-race`, `test-go-flavor-*`, `test-linkmonitor` | Behavioral suites registered alongside static checks |
+| `test-ipmeta-bootstrap-artifact`, `test-oci-ipmeta-bootstrap-contents`, `test-ipmeta-bootstrap-snapshot`, `test-oci-ipmeta-bootstrap-snapshot-contents` | Fixture and real-snapshot bootstrap checks, also available as packages above |
+| `microvm-lifecycle-x86_64`, `vm-*`, `vm-all` | Actual guest checks described next; `vm-*` here refers to the nine guest checks, not the host helpers above |
+
+## Nix integration testing
+
+### Prerequisites and suite boundaries
+
+The microVM lifecycle/capture runners use `/dev/kvm` and fixed console ports
+12055/12056; the LACP partner additionally uses 12057/12058. Run those apps
+sequentially on one host. Guests perform privileged networking inside the VM;
+the host normally needs KVM access rather than root. Container-based pipeline
+guests may need network access for image pulls and several GiB of RAM; the
+mixed ClickHouse/Parquet guest is configured for 16 GiB. See
+[microvms/constants.nix](microvms/constants.nix) for resource/port assignments.
+
+The newer serial-console `test-*-vm` runners use the shared
+[mkVmCheck](microvms/mkVmCheck.nix) framework. Most support
+`--accel=auto|kvm|tcg`; the software-RDMA runner requires KVM. Cached guest
+checks require a builder advertising the `kvm` system feature. Ionic fault
+injection additionally needs `/dev/net/tun` in the sandbox. Missing facilities
+are failures/unverified runs, not passing skips.
+
+| Entry point | Runs | Does not cover |
+|---|---|---|
+| `checks.x86_64-linux.vm-all` | Seven registered monitor/goip guest checks; cached | Daemon lifecycle flavor sweep, captures, long soaks |
+| `checks.x86_64-linux.microvm-lifecycle-x86_64` | Base daemon lifecycle guest; cached | Other lifecycle flavors |
+| `integration-all` app | Sequential lifecycle flavor sweep plus goip parity; fresh | Monitor `vm-all`, interface-naming/ipmeta-bootstrap lifecycle cases, capture jobs, discovery/rate benchmarks |
+| `integration-all -- --soak --duration 1h` | The sweep plus each configured soak for the given duration | Other investigation variants and physical-hardware validation |
+| `nix flake check` | All registered checks, including the cached guest groups above | Unregistered lifecycle runners, capture apps, fresh performance/soak measurements |
+
+Use [VM-CHECKS-STATUS.md](VM-CHECKS-STATUS.md) for recorded execution evidence;
+building a runner or listing a target is not evidence that its guest passed.
+
+### Daemon lifecycle flavors
+
+Use `nix run path:.#test-microvm-lifecycle-x86_64-SUFFIX` to build and run one
+case; the base target omits `-SUFFIX`. These are runnable packages.
+`nix build` alone only builds their launchers. A passing run requires the
+guest's overall self-test sentinel; failure/timeouts return nonzero.
+
+| Suffix | Integration coverage | In `integration-all` |
+|---|---|---|
+| Base (no suffix) | Daemon startup, collection, namespace lifecycle, and self-tests | Yes |
+| `uds-security` | Unix listeners and access controls | Yes |
+| `s3parquet`, `s3parquet-iouring` | Parquet output into in-VM S3 storage, with optional io_uring | Yes |
+| `clickhouse-http`, `clickhouse-pipeline` | HTTP ingestion or Kafka/Redpanda-to-ClickHouse pipeline | Yes |
+| `valkey`, `nats`, `nsq` | Broker-specific delivery | Yes |
+| `tcp-sink`, `udp-sink`, `unix-sink`, `unixgram-sink` | Stream/datagram output to local guest receivers | Yes |
+| `udp-sink-iouring`, `unix-sink-iouring` | io_uring destination-send paths | Yes |
+| `coverage`, `coverage-iouring` | Instrumented daemon execution and extracted Go coverage | Yes |
+| `interface-naming` | Interface/locality and live ASN enrichment checks | No; run explicitly |
+| `ipmeta-bootstrap` | Cold bootstrap, delayed feed recovery, cache rotation, bad-update rejection | No; run explicitly |
+
+All the “Yes” rows also have `microvm-x86_64-lifecycle[-SUFFIX]` app aliases.
+There are no corresponding lifecycle app aliases for `interface-naming` or
+`ipmeta-bootstrap`; use their `test-microvm-lifecycle-*` package names.
+
+```sh
+nix run path:.#test-microvm-lifecycle-x86_64-interface-naming
+nix run path:.#test-microvm-lifecycle-x86_64-ipmeta-bootstrap
+nix run path:.#integration-all
+```
+
+Lifecycle runners print transcript paths in temporary storage. The base cached
+check preserves `summary.txt`, `serial.log`, and `qemu.log`. Coverage runners
+extract into `XTCP2_COVERDIR` (default `/tmp/xtcp2cov`); choose separate directories
+for separate runs before using `coverage-merge`.
+
+### Monitor and goip guests
+
+Each pair below offers a fresh runnable package and a cached check. See
+[guest tests as checks](#guest-tests-as-checks) for flags, evidence, and sandbox setup.
+
+| Runnable package (`nix run path:.#NAME`) | Check (`checks.x86_64-linux.NAME`) | Coverage |
+|---|---|---|
+| `test-goip-argv-paths-vm` | `vm-goip-argv-paths` | HTTP command paths versus goip/ip |
+| `test-linkmonitor-embedding-vm` | `vm-linkmonitor-embedding` | Library embedding, netlink lifecycle, and xtcp coexistence |
+| `test-linkmonitor-ionic-vm` | `vm-linkmonitor-ionic` | Emulated NIC with real ionic/ionic_rdma drivers |
+| `test-linkmonitor-ionic-faults-vm` | `vm-linkmonitor-ionic-faults` | Emulated Ethernet/RDMA faults and recovery |
+| `test-linkmonitor-rdma-vm` | `vm-linkmonitor-rdma` | Software RoCE, events, and native RDMA I/O |
+| `test-linkmonitor-performance-vm` | `vm-linkmonitor-performance` | Privileged live tests, profiles, benchmarks, and nlmon evidence |
+| `test-xtcp2-linkmonitor-vm` | `vm-xtcp2-linkmonitor` | Real xtcp2 NixOS service, baseline persistence/reload, missing-link and degradation behavior |
+| `test-xtcp2-scrape-auth-vm` | `vm-xtcp2-scrape-auth` | vmagent read-token scraping, 401/403 authorization, healthcheck, and token rotation |
+| `test-xtcp2-ip-listen-vm` | `vm-xtcp2-ip-listen` | Separate unauthenticated loopback inspection listener, route separation, and rejection of a non-loopback peer through `route_localnet` |
+
+`demo-linkmonitor-ionic-profiles` is a separate interactive/emulator scenario
+runner: `nix run path:.#demo-linkmonitor-ionic-profiles -- --out=/tmp/ionic-demo`.
+It supports `--accel=auto|kvm|tcg`, `--vcpus=N`, and scenario arguments. It is not
+one of the `vm-all` checks.
+
+### Soaks, pipeline inspection, and investigation runners
+
+The following names are `nix run path:.#NAME` apps. Duration-bounded runners
+accept `-- --duration 1h`; discovery and rate runners accept `-- --timeout SECONDS`.
+The pipeline inspection apps boot a guest for manual use and do not imply a
+self-terminating test verdict.
+
+| Name | Purpose |
+|---|---|
+| `microvm-x86_64-soak` | Sustained namespace/socket churn |
+| `microvm-x86_64-tcp-stress` | Container TCP load and resource monitoring |
+| `microvm-x86_64-clickhouse-pipeline` | Inspect a live Kafka/Redpanda-to-ClickHouse stack |
+| `microvm-x86_64-clickhouse-pipeline-parquet` | Inspect ClickHouse and S3/Parquet together |
+| `microvm-x86_64-clickhouse-pipeline-stress` | Duration-bounded end-to-end pipeline stress |
+| `microvm-x86_64-clickhouse-pipeline-rate-runner` | Finite throughput verdict grid |
+| `microvm-x86_64-s3parquet-pipeline` | Inspect Parquet uploads to in-VM Garage S3 |
+| `microvm-x86_64-s3parquet-runner` | Duration-bounded Parquet/S3 soak |
+| `microvm-x86_64-s3parquet-stress` | TCP load plus upload/storage/resource checks |
+| `microvm-x86_64-s3parquet-lowfreq` | Timer-driven flushing with sparse sockets and infrequent polls; allow about two hours |
+| `microvm-x86_64-s3parquet-stress-{nl1,nl4,nl8,iouring,cpuload,cpuload-nl1}` | Decoder-count, io_uring, and CPU-contention investigation variants |
+| `microvm-x86_64-discovery-bench` | Namespace-discovery method comparison |
+
+`integration-all --soak` adds `soak`, `tcp-stress`, `clickhouse-pipeline-stress`,
+`s3parquet-runner`, `s3parquet-stress`, `s3parquet-stress-iouring`, and
+`s3parquet-lowfreq` sequentially, each for `--duration` (default 1h). A short
+duration is a wiring smoke, especially for low-frequency timer flushing.
+
+### Raw guest packages
+
+`nix build path:.#microvm-x86_64-SUFFIX` builds a guest closure/launcher.
+These raw packages are useful for preparing images and interactive debugging;
+prefer the verdict/lifecycle apps for verification. The raw base package is
+`microvm-x86_64`. Exported suffixes are:
+
+- `coverage`, `coverage-iouring`, `soak`, `tcp-stress`, `interface-naming`, `ipmeta-bootstrap`, `capcheck-fail`.
+- `clickhouse-http`, `clickhouse-pipeline`, `clickhouse-pipeline-rate`, `clickhouse-pipeline-stress`, `clickhouse-pipeline-parquet`.
+- `s3parquet-pipeline`, `s3parquet-long`, `s3parquet-stress`, `s3parquet-lowfreq`, plus the six `s3parquet-stress-*` variants above.
+- `valkey`, `tcp-sink`, `udp-sink`, `unix-sink`, `unixgram-sink`, `nats`, `nsq`.
+- `nlmon-capture`, `netlink-dump-capture`, `goip-parity`, `link-write-capture`, `lacp-a`, `lacp-b`.
+
+An app may share a raw package name but execute a different wrapper. For
+example, building `microvm-x86_64-goip-parity` prepares the guest; running that
+name selects the parity app that drives it and checks its verdict.
+
+## Netlink and RDMA fixture collection
+
+Use the controlled guest capture paths for reproducible fixtures. They run
+privileged commands inside a disposable namespace/VM without requiring host
+root. These apps are outside `nix flake check` and can write fixture files to
+the checkout. Start with an explicit temporary output directory: default
+capture destinations can replace existing fixtures, not just append new ones.
+
+| App (`nix run path:.#NAME -- ARGS`) | Capture or verification | Output / useful arguments |
+|---|---|---|
+| `microvm-x86_64-nlmon-capture` | rtnetlink link/address/route/neighbor events | `pkg/xtcpnl/testdata/<kernel>/`; `--out DIR`, `--timeout SECONDS` |
+| `microvm-x86_64-netlink-dump-capture` | Clean RTM_GET dump corpus, matching text/JSON sidecars, optional bridge/veth mesh | `<kernel>/dumps/`; `--out DIR`, `--timeout SECONDS`, `--skip-mesh` |
+| `microvm-x86_64-link-write-capture` | Bond/LACP readbacks with a real partner in two guest namespaces | `<kernel>/link-write/`; `--out DIR`, `--timeout SECONDS` |
+| `microvm-x86_64-lacp-pair-capture` | LACP partner in a second VM over virtio-net links, including link loss/recovery | `<kernel>/link-write/lacp-pair/`; `--out DIR`, `--timeout SECONDS` |
+| `microvm-x86_64-goip-parity` | Capture ip/goip/ip transactions and compare requests/output inside the guest | `--out DIR`, `--timeout SECONDS`, `--keep-going`, `--no-allowlist`; nonzero on failed verdict |
+| `microvm-x86_64-rdma-capture` | Software-RoCE RDMA requests/replies and native collector data | `--out DIR`, `--native-out DIR`, `--timeout SECONDS`, `--dry-run` |
+| `microvm-x86_64-rdma-capture-{6_1,6_6,6_12,6_18,7_2}` | Same RDMA capture on the pinned kernel matrix | Same flags; unsuffixed app uses the latest kernel selected by nixpkgs |
+| `capture-netlink-fixtures` | Host netlink dump capture, diagnostic fallback | Requires host root; other host traffic can contaminate captures |
+| `capture-rdma-testdata` | Host RDMA capture, redaction, and manifest creation | `--dev DEV`, `--source NAME`, `--out ROOT`, `--dry-run`; live capture needs appropriate host/device privileges |
+
+```sh
+nix run path:.#microvm-x86_64-netlink-dump-capture -- --out /tmp/xtcp2-dumps
+nix run path:.#microvm-x86_64-goip-parity -- --out /tmp/xtcp2-parity --keep-going
+nix run path:.#microvm-x86_64-rdma-capture -- \
+  --out /tmp/xtcp2-rdma --native-out /tmp/xtcp2-rdma-native
+```
+
+`nlmon` does not capture `NETLINK_RDMA`; RDMA fixtures use the separate
+strace/native capture path. Buildable/runnable support tools are
+`rdma-native-capture` and `rdma-capture-manifest`; the host wrapper handles
+capture staging, redaction, and manifests. Host RDMA capture is observational
+unless trigger/management options such as `--gid-trigger` or `--umad` are used.
+Dry-run output checks tooling, not a real device.
+
+The ionic runner also captures native fixtures:
+`nix run path:.#test-linkmonitor-ionic-vm -- --capture --native-out=/tmp/ionic-native`.
+Add `--promote` only when ready to copy fixtures into the checkout. See
+[netlink fixture documentation](../docs/netlink/collection.md#regenerating-the-fixtures),
+[goip coverage](../docs/netlink/coverage-status.md), and
+[RDMA implementation status](../cmd/go-link-monitor/GO-NATIVE-RDMA-STATUS.md)
+for evidence requirements and coverage limits.
 
 ## Link-monitor verification
 
-Run all fifteen focused monitor checks with one target:
+Run the focused monitor checks with one target:
 
 ```sh
 nix build path:.#test-linkmonitor -L
@@ -71,7 +460,7 @@ benchmarks. These software checks send no real management packets.
 
 ### Monitor performance measurements
 
-`test-linkmonitor-performance` joins the run-all target as its fifteenth leaf.
+`test-linkmonitor-performance` is included in the monitor aggregate.
 It builds the `CGO_ENABLED=0` benchmark executables and checks equivalence, synthetic
 lifecycle behavior, races, benchmark probes and report validation with pinned
 tools. Build caching applies to these correctness checks and executables.
@@ -92,8 +481,10 @@ remains the cached `test-linkmonitor-performance` leaf:
 | `nix run path:.#pgo-linkmonitor -- --profile CPU.pprof --output BIN` | Build with pinned Go profile-guided optimization |
 | `nix run path:.#compare-linkmonitor-pgo -- BASE.txt PGO.txt` | Compare identical benchmark outputs with `benchstat` |
 
-Each command accepts `--output DIR`; the directory must not already exist.
-Nix caches compilation and correctness checks, but measurement results are
+The benchmark runners accept `--output DIR`; use a new directory for each run.
+Other tools have their own output contracts: PGO writes a binary, while the
+comparison tool takes two existing benchmark files. Nix caches compilation
+and correctness checks, but measurement results are
 written to the requested directory outside the store. The ten-minute soak uses
 256 ports, 64 fields, one scraper and a 15-second cadence so RSS/thread
 plateaus are measurable on the shared host. The 256-port/1,024-field case and
@@ -162,8 +553,9 @@ nix build path:.#go-link-monitor-core  # an alias of the same package
 
 It installs `bin/go-link-monitor`; `nix run path:.#go-link-monitor -- -help`
 prints the flags without opening devices or baseline files. The package retains
-its source provenance under `share/go-link-monitor`. The package does not change
-the cgo configuration of xtcp2 or add monitor OCI/service deployment. Remaining
+its source provenance under `share/go-link-monitor`. The standalone package
+does not change the cgo configuration of xtcp2. The embedded-monitor service
+and OCI behavior have separate integration targets described above. Remaining
 netclass metadata coverage and physical RDMA validation are tracked in the
 monitor STATUS.
 
@@ -175,7 +567,7 @@ libibverbs, libibumad or provider library. It requires
 accessible `/dev/kvm`; the app (not the check, whose sandbox has its own
 network namespace) also needs the standard microVM console ports free. Each
 step's sentinel must appear, and the guest's netlink recordings are kept as
-`nlrecord/` in the evidence. It is outside the thirteen-check offline
+`nlrecord/` in the evidence. It is outside the focused monitor
 aggregate. Missing KVM is unverified, not pass.
 Physical InfiniBand capability validation remains separate. Production device classification still excludes virtual links.
 
@@ -221,7 +613,7 @@ build sandbox has only when the builder sets `extra-sandbox-paths =
 `--keep-failed` keeps the tree.
 
 `nix run path:.#test-<name>-vm -- [--accel=auto|kvm|tcg] [--keep=N]` runs
-the same guest outside the sandbox (TCG too), keeps the last N runs (default
+the same guest outside the sandbox (TCG where supported), keeps the last N runs (default
 5) under `~/.cache/xtcp2-vm/<name>/` and prints only the summary, plus the
 log's tail on a failure. `test-linkmonitor-ionic-vm` adds `--capture`,
 `--promote` and `--dry-run`, which write into the checkout.
@@ -261,3 +653,35 @@ nix build path:.#test-linkmonitor \
 the monitor aggregate and those Nix policy checks. It is broader than the
 focused monitor suite, and it includes the `vm-*` guest checks, which boot
 as many guests at once as `max-jobs` allows; add `-j1` for one at a time.
+
+## Module map and keeping this guide current
+
+| Module | Responsibility |
+|---|---|
+| [../flake.nix](../flake.nix) | Inputs, supported system, public outputs, and overlay |
+| [default.nix](default.nix) | Export names, package/app/check wiring, `integration-all` membership |
+| [versions.nix](versions.nix), [packages.nix](packages.nix), [devshell.nix](devshell.nix) | Tool versions, developer tools, and shell helpers |
+| [binaries.nix](binaries.nix), [containers/default.nix](containers/default.nix) | Binary and OCI flavor generation |
+| [lib/goSource.nix](lib/goSource.nix), [lib/goModules.nix](lib/goModules.nix) | Source filtering and vendored dependency preparation |
+| [checks/default.nix](checks/default.nix) | Static audits, lint tiers, and host harness checks |
+| [tests/default.nix](tests/default.nix) | Go, flavor, package, metadata, and monitor test derivations |
+| [tests/linkmonitor.nix](tests/linkmonitor.nix), [tests/linkmonitor-rdma.nix](tests/linkmonitor-rdma.nix) | Focused monitor aggregate and native-RDMA gates |
+| [tests/linkmonitor-perf/default.nix](tests/linkmonitor-perf/default.nix) | Fresh performance measurement apps |
+| [microvms/default.nix](microvms/default.nix), [microvms/mkVm.nix](microvms/mkVm.nix), [microvms/lib.nix](microvms/lib.nix) | Guest flavors, construction, lifecycle/capture/soak runners |
+| [microvms/mkVmCheck.nix](microvms/mkVmCheck.nix) | Shared cached guest-check and fresh-runner framework |
+| [modules/xtcp2-service.nix](modules/xtcp2-service.nix) | Daemon NixOS service configuration used in guests |
+| [modules/broker-server.nix](modules/broker-server.nix), [modules/garage-bucket-bootstrap.nix](modules/garage-bucket-bootstrap.nix), [modules/pyroscope-server.nix](modules/pyroscope-server.nix) | Guest broker, S3 bootstrap, and profiling services |
+| [protos/default.nix](protos/default.nix), [quality-report/default.nix](quality-report/default.nix), [ipmeta-bootstrap/default.nix](ipmeta-bootstrap/default.nix) | Code generation, quality reporting, and bootstrap artifacts |
+
+The `modules/` files are imported by the Nix implementation; this flake does
+not export a `nixosModules` output. Consult the file's options/arguments when
+reusing one.
+
+When adding a target, update its workflow table and the relevant suite membership
+description here. Use the three `nix eval ... --apply builtins.attrNames`
+commands above to compare **actual exports**, including generated flavor names,
+with the guide. Keep build-only runners, cached checks, fresh measurements, and
+fixture-writing commands distinct. Record executed VM evidence in
+[VM-CHECKS-STATUS.md](VM-CHECKS-STATUS.md); keep detailed testing methodology in
+[integration testing](../docs/integration-testing.md) and
+[stability testing](../docs/stability-testing.md).

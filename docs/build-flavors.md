@@ -44,7 +44,7 @@ opt in. All are the `default` variant:
 
 | Destination flavor | none | `-asn` | `-locality` | `-enrich` |
 |---|---|---|---|---|
-| `xtcp2-min` (stdlib only: null, udp, unix, unixgram) | 22.1 MB | 27.3 MB | 22.4 MB | 27.6 MB |
+| `xtcp2-min` (all stdlib destinations; no library destinations) | 22.1 MB | 27.3 MB | 22.4 MB | 27.6 MB |
 | `xtcp2-kafka` | 26.1 MB | 30.8 MB | 26.5 MB | 31.1 MB |
 | `xtcp2-nats` | 23.2 MB | 28.3 MB | 23.6 MB | 28.7 MB |
 | `xtcp2-nsq` | 22.2 MB | 27.4 MB | 22.6 MB | 27.8 MB |

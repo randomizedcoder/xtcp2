@@ -1,11 +1,22 @@
 # Design: listener security hardening
 
+## Status and operator reference
+
+This is the original design, not a statement that every proposed control has
+shipped. TCP/UDS listeners, TTL/hop limits, raw/HMAC auth, failure jitter, secret
+handling, and the later read/admin split are implemented. The proposed global
+connection and accept-rate limits are not wired into the current listeners;
+their proposed CLI flags below are not available. Native TLS/mTLS is also absent.
+Use [Listener security and deployment guidance](security.md) for current defaults,
+tradeoffs, examples, and verification. The “Current state” section below records
+the starting point for this design.
+
 xtcp2 exposes two operator-facing listener surfaces:
 
 - gRPC on `-grpcPort`, serving `ConfigService`, `XTCPFlatRecordService`, reflection, and gRPC health.
 - Prometheus HTTP on `-promListen`, serving metrics, health/readiness, and `pprof`.
 
-Today both are unauthenticated TCP listeners. That is convenient for local testing, but it is too soft for production hosts where the daemon runs with powerful Linux capabilities and the gRPC API can reconfigure or restart the daemon. This design hardens those side channels by adding Unix domain socket (UDS) listeners, optional bearer-token authentication, signed minute tokens, auth-failure jitter, listener permissions, and connection/rate limits.
+At the start of this design, both were unauthenticated TCP listeners. That was convenient for local testing, but insufficient for production hosts where the daemon runs with powerful Linux capabilities and the gRPC API can reconfigure or restart the daemon. The design proposed Unix domain socket (UDS) listeners, optional bearer-token authentication, signed minute tokens, auth-failure jitter, listener permissions, and connection/rate limits. See the status above for what has shipped.
 
 ## Table of contents
 

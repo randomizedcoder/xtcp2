@@ -95,11 +95,19 @@ Precedence: **defaults < flags < env < `XTCP_CONFIG_JSON`** (`cmd/xtcp2/xtcp2.go
 | `-uplinkInterfaces` | `UPLINK_INTERFACES` (CSV) | `uplink_interfaces` | auto (default routes) |
 | `-populateNsid` | `POPULATE_NSID` | `populate_nsid` | false |
 | `-enrichAsn` | `ENRICH_ASN` | `enrich_asn_enable` | false |
-| `-asnDbPath` | `ASN_DB_PATH` | `asn_db_path` | "" (required when enabled) |
+| `-asnDbPath` | `ASN_DB_PATH` | `asn_db_path` | "" (live artifact; optional when a usable cache/bootstrap is available) |
 | `-asnRefreshInterval` | `ASN_REFRESH_INTERVAL` | `asn_refresh_interval` | 1h (0 = load once; a missing artifact is retried on this cadence) |
+| `-ipmetaBootstrapPath` | `IPMETA_BOOTSTRAP_PATH` | `ipmeta_bootstrap_path` | `/share/xtcp2/ipmeta/bootstrap.lookup.parquet.zst` |
+| `-ipmetaCachePath` | `IPMETA_CACHE_PATH` | `ipmeta_cache_path` | `/var/lib/xtcp2/ipmeta/current.lookup.parquet.zst` |
 | `-enrichLocality` | `ENRICH_LOCALITY` | `enrich_locality_enable` | false |
 | `-localityRefreshInterval` | `LOCALITY_REFRESH_INTERVAL` | `locality_refresh_interval` | 60s |
 | `-localityEvents` | `LOCALITY_EVENTS` | `locality_events_enable` | false (needs `-enrichLocality`) |
+
+ASN startup tries current cache, previous cache, bootstrap, then the live
+`asn_db_path`. A configured live path can refresh in the background; a rejected
+update preserves the active table. See [bootstrap/cache status](status-embedded-ipmeta-bootstrap.md)
+for artifact requirements and packaging status. Current ASNs are representative
+provider mappings, not per-prefix BGP origins; see [ASN enrichment](ipfeed-asn-enrichment.md).
 
 ## 4. ClickHouse
 
