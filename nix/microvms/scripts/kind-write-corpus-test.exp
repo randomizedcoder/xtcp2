@@ -176,6 +176,22 @@ proc add_options {} {
     return $out
 }
 
+# set_options - the option keyword of every bridge_slave set_<option> row
+# named after it, in order.
+proc set_options {} {
+    set out {}
+    foreach r $::R {
+        lassign $r slug floor pre command
+        if {![regexp {^bridge_slave/set_(.*)$} $slug -> name]} {
+            continue
+        }
+        if {[regexp "^ip link set dev p0 type bridge_slave (?:locked on )?$name \\S+\$" $command]} {
+            lappend out $name
+        }
+    }
+    return $out
+}
+
 ###############################################################################
 # 1. the rows
 ###############################################################################
@@ -207,17 +223,43 @@ lappend design_rows {*}{
     bridge/add_stp_mode_bad bridge/add_vlan_protocol_bad
     bridge/add_priority_bad bridge/add_no_value
 }
+set slave_options {
+    state priority cost hairpin guard root_block fastleave learning flood
+    mcast_flood bcast_flood mcast_to_unicast proxy_arp proxy_arp_wifi
+    mcast_router mcast_fast_leave neigh_suppress neigh_vlan_suppress
+    group_fwd_mask vlan_tunnel isolated locked mab backup_nhid
+}
+foreach o $slave_options {
+    lappend design_rows bridge_slave/set_$o
+}
+lappend design_rows {*}{
+    bridge_slave/set_fdb_flush bridge_slave/set_nobackup_port
+    bridge_slave/set_neigh_forward_grat bridge_slave/set_backup_port
+    bridge_slave/set_several bridge_slave/set_abbrev
+    bridge_slave/set_strcmp_abbrev bridge_slave/set_state_bad
+    bridge_slave/set_priority_over bridge_slave/set_cost_zero
+    bridge_slave/set_group_fwd_mask_bad bridge_slave/set_mab_unlocked
+    bridge_slave/set_backup_port_self bridge_slave/set_not_enslaved
+    bridge_slave/set_backup_port_missing bridge_slave/set_cost_bad
+    bridge_slave/set_on_off_bad bridge_slave/set_no_value
+}
 
 check slug_list "positive: the rows are the plan's, in run order" \
     {slugs $R} [join $design_rows " "]
 check first_row "boundary: add_default comes first" \
     {lindex [slugs $R] 0} bridge/add_default
-check row_count "boundary: KC2-T01's 60 bridge rows" \
-    {llength $R} 60
+check row_count "boundary: KC2's 60 bridge rows and 42 bridge_slave rows" \
+    {llength $R} 102
+check bridge_first "boundary: bridge's rows all come before bridge_slave's" \
+    {lsearch -glob [slugs $R] bridge_slave/*} 60
 check option_rows "positive: one add_ row per value-taking option but stp_mode, each once" \
     {add_options} [join $bridge_options " "]
 check option_count "boundary: 39 of them" \
     {llength $bridge_options} 39
+check slave_option_rows "positive: one set_ row per value-taking port option, each once, then neigh_forward_grat's and backup_port's own" \
+    {set_options} [join [concat $slave_options neigh_forward_grat backup_port] " "]
+check slave_option_count "boundary: 24 of them" \
+    {llength $slave_options} 24
 check arity "negative: every row is {slug floor pre command readbacks rc}" \
     {bad_arity $R} {}
 check arity_five "negative: a five-field row is listed" \
@@ -236,6 +278,12 @@ set refused_design {
     bridge/add_igmp_version_bad 2 bridge/add_mcast_vlan_snooping_no_vlan 2
     bridge/add_stp_mode_bad 1 bridge/add_vlan_protocol_bad 255
     bridge/add_priority_bad 255 bridge/add_no_value 255
+    bridge_slave/set_strcmp_abbrev 1 bridge_slave/set_state_bad 2
+    bridge_slave/set_priority_over 2 bridge_slave/set_cost_zero 2
+    bridge_slave/set_group_fwd_mask_bad 2 bridge_slave/set_mab_unlocked 2
+    bridge_slave/set_backup_port_self 2 bridge_slave/set_not_enslaved 2
+    bridge_slave/set_backup_port_missing 255 bridge_slave/set_cost_bad 255
+    bridge_slave/set_on_off_bad 1 bridge_slave/set_no_value 255
 }
 check refused_statuses "positive: exactly the refusal rows expect a non-zero status" \
     {refused_rows} [join $refused_design " "]
@@ -307,6 +355,47 @@ check abbrev_matches "corner: a matches keyword's abbreviation is accepted" \
 check abbrev_strcmp "corner: a strcmp keyword's is refused by ip" \
     {list [field bridge/add_stp_mode_abbrev 3] [field bridge/add_stp_mode_abbrev 5]} \
     {{ip link add br0 type bridge stp_m user} 1}
+
+###############################################################################
+# 5. the bridge_slave rows' states
+###############################################################################
+set ports {{link add br0 type bridge} {link add p0 type dummy} {link add p1 type dummy} {link set p0 master br0} {link set p1 master br0}}
+
+check slave_floor "positive: a port option is a set, at floor 4" \
+    {field bridge_slave/set_cost 1} 4
+check slave_readbacks "positive: a port row reads p0 back" \
+    {lmap rb [field bridge_slave/set_cost 4] {lindex $rb 2}} \
+    {{ip -d link show dev p0} {ip -d -j -p link show dev p0} {ip link show dev p0}}
+check slave_pre "positive: a port row starts from br0 with p0 and p1 enslaved" \
+    {field bridge_slave/set_cost 2} $ports
+check slave_state_pre "corner: state's row brings p0 up, with no IPv6 address" \
+    {lrange [field bridge_slave/set_state 2] 5 end} \
+    {{link set p0 addrgenmode none} {link set p0 up}}
+check slave_state_bad_pre "corner: the refused state needs no up port, as the range check comes first" \
+    {field bridge_slave/set_state_bad 2} $ports
+check slave_nobackup_pre "corner: nobackup_port clears a backup port set before the window" \
+    {lindex [field bridge_slave/set_nobackup_port 2] end} \
+    {link set dev p0 type bridge_slave backup_port p1}
+check slave_not_enslaved_pre "negative: the not-enslaved row's p0 has no master" \
+    {field bridge_slave/set_not_enslaved 2} {{link add p0 type dummy}}
+check slave_mab_locked "corner: mab's row locks the port first" \
+    {field bridge_slave/set_mab 3} {ip link set dev p0 type bridge_slave locked on mab on}
+check slave_mab_unlocked "negative: mab alone is refused by the kernel" \
+    {list [field bridge_slave/set_mab_unlocked 3] [field bridge_slave/set_mab_unlocked 5]} \
+    {{ip link set dev p0 type bridge_slave mab on} 2}
+check slave_backup_port "positive: backup_port names p1, which the readback prints by name" \
+    {field bridge_slave/set_backup_port 3} {ip link set dev p0 type bridge_slave backup_port p1}
+check slave_priority_bounds "boundary: priority 64 is one past the kernel's 63" \
+    {list [field bridge_slave/set_priority_over 3] [field bridge_slave/set_priority_over 5]} \
+    {{ip link set dev p0 type bridge_slave priority 64} 2}
+check slave_cost_bounds "boundary: cost 0 is one under the kernel's 1" \
+    {list [field bridge_slave/set_cost_zero 3] [field bridge_slave/set_cost_zero 5]} \
+    {{ip link set dev p0 type bridge_slave cost 0} 2}
+check slave_abbrev "corner: a matches keyword's abbreviation is accepted, a strcmp keyword's refused" \
+    {list [field bridge_slave/set_abbrev 5] [field bridge_slave/set_strcmp_abbrev 3] [field bridge_slave/set_strcmp_abbrev 5]} \
+    {0 {ip link set dev p0 type bridge_slave neigh_forward_g on} 1}
+check slave_on_off_vs_value "corner: a bad on/off exits 1, a missing value 255" \
+    {list [field bridge_slave/set_on_off_bad 5] [field bridge_slave/set_no_value 5]} {1 255}
 
 ###############################################################################
 # summary

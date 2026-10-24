@@ -7,9 +7,10 @@
 - The plan is written (DOC001).
 - KC0 is done (KC0-T01): the capture drivers load the kind modules late, after every existing row, with no fallback tunnel devices in the namespaces made afterwards, and a `kinds` sidecar records what the guest kernel creates. It creates 31 of the 32 probed kinds. gtp is refused, and KC4 decides why.
 - KC1 is done (KC1-T01): 18 `ip link set dev d0 inet …` rows, 11 the kernel answers and 7 `ip` refuses before netlink, are in the rtnl corpus. They are KP0's and KG0's source.
-- KC2 is broken into tasks. KC2-T01 is done: a kind corpus (`kind-write-corpus.exp`) the link-write driver runs into `link-write/kinds/`, and 60 bridge rows in it, 50 the kernel accepts, 5 it refuses and 5 `ip` refuses before netlink.
+- KC2 is done (KC2-T01, KC2-T02): a kind corpus (`kind-write-corpus.exp`) the link-write driver runs into `link-write/kinds/`, with 60 bridge rows and 42 bridge_slave rows, 80 the kernel accepts, 12 it refuses and 10 `ip` refuses before netlink. They are KP1's and KG1's source.
+- KC3 is broken into tasks.
 
-**Next action:** [KC2-T02](goip-link-kinds.md#kc2-t02-bridge_slave): bridge_slave, which closes KC2.
+**Next action:** [KC3-T01](goip-link-kinds.md#kc3-t01-vlan): vlan.
 
 ## Contents
 
@@ -35,8 +36,8 @@
 |---|---|---|---|---|---|
 | [KC0](goip-link-kinds.md#kc0--kind-harness) | captures | kind harness | KC0-T01 | done | V001–V005, DOC002 |
 | [KC1](goip-link-kinds.md#kc1--inet-devconf-captures) | captures | `inet` devconf | KC1-T01 | done | V006–V008, DOC003 |
-| [KC2](goip-link-kinds.md#kc2--bridge-captures) | captures | bridge | KC2-T02 | in progress | V009–V013 |
-| [KC3](goip-link-kinds.md#kc3--vlan-family-captures) | captures | VLAN family | | not started | |
+| [KC2](goip-link-kinds.md#kc2--bridge-captures) | captures | bridge | KC2-T02 | done | V009–V016, DOC004 |
+| [KC3](goip-link-kinds.md#kc3--vlan-family-captures) | captures | VLAN family | KC3-T03 | not started | |
 | [KC4](goip-link-kinds.md#kc4--udp-overlay-captures) | captures | UDP overlays | | not started | |
 | [KC5](goip-link-kinds.md#kc5--ip-tunnel-captures) | captures | IP tunnels | | not started | |
 | [KC6](goip-link-kinds.md#kc6--the-remaining-kinds-captures) | captures | the remaining kinds | | not started | |
@@ -63,8 +64,10 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | [x] | [KC0-T01](goip-link-kinds.md#kc0-t01-late-kind-modules-no-fallback-tunnels-and-a-kind-probe) | late kind modules, fallback-tunnel sysctl, `kinds` probe | done | V001–V005 |
 | [x] | [KC1-T01](goip-link-kinds.md#kc1-t01-inet-devconf-write-rows) | `inet` devconf write rows | done | V006–V008 |
 | [x] | [KC2-T01](goip-link-kinds.md#kc2-t01-the-kind-corpus-and-bridge) | the kind corpus, and bridge | done | V009–V013 |
-| [ ] | [KC2-T02](goip-link-kinds.md#kc2-t02-bridge_slave) | bridge_slave | not started | |
-| [ ] | [KC3-T01…](goip-link-kinds.md#kc3--vlan-family-captures) | VLAN family captures | not started | |
+| [x] | [KC2-T02](goip-link-kinds.md#kc2-t02-bridge_slave) | bridge_slave | done | V014–V016 |
+| [ ] | [KC3-T01](goip-link-kinds.md#kc3-t01-vlan) | vlan | not started | |
+| [ ] | [KC3-T02](goip-link-kinds.md#kc3-t02-macvlan-and-macvtap) | macvlan and macvtap | not started | |
+| [ ] | [KC3-T03](goip-link-kinds.md#kc3-t03-ipvlan-and-ipvtap) | ipvlan and ipvtap | not started | |
 | [ ] | [KC4-T01…](goip-link-kinds.md#kc4--udp-overlay-captures) | UDP overlay captures | not started | |
 | [ ] | [KC5-T01…](goip-link-kinds.md#kc5--ip-tunnel-captures) | IP tunnel captures | not started | |
 | [ ] | [KC6-T01…](goip-link-kinds.md#kc6--the-remaining-kinds-captures) | the remaining kinds' captures | not started | |
@@ -102,6 +105,10 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | V011 | 2026-10-24 | KC2-T01 | `nix build .#checks.x86_64-linux.{nix-fmt,statix,deadnix}`, one per call | all pass (no Go changed) | this commit |
 | V012 | 2026-10-24 | KC2-T01 | `nix run .#microvm-x86_64-link-write-capture -- --timeout 7200`, guest kernel 7.3.0, first run | `NLCAP_DRIVER_FAIL` on `genl/mptcp_limits_set_over` (V004) and `NLCAP_KIND_RC 2`: `add_stp_mode_abbrev` and `add_stp_mode_bad` exit 1, not the planned 255 (see the decision log). Every other row held its status; the 39 options' values read back from each row's `-d -j` readback | scratch |
 | V013 | 2026-10-24 | KC2-T01 | the same, with the two statuses corrected; `-d -j` readbacks checked against the values sent; compared with V012 by `pcapcmp` | `NLCAP_DRIVER_FAIL` on `genl/mptcp_limits_set_over` alone; no `NLCAP_KIND_RC`. 60 kind rows: 50 at rc 0, 5 at 2, 2 at 1 and 3 at 255. All 39 options read back as sent, `group_fwd_mask` as `0x8` and `mcast_hash_elasticity` as 16 (the kernel ignores it). A refused add reads back nothing, its pcaps answering `-ENODEV`. 225 pcaps under `kinds/`: 60 `ip.pcap` and 55 rows × 3 readbacks. Against V012: 964 the same shape, 15 differing in V004's classes; the `kinds/` pcaps differ only in sequence numbers, port IDs and br0's random address | scratch |
+| V014 | 2026-10-24 | KC2-T02 | `nix build .#checks.x86_64-linux.vm-lib-exp` | `kind-write-corpus.exp`: 51 passed, 0 failed (the 102 rows, one `set_` row per value-taking port option, the port states and pres); the other suites unchanged | this commit |
+| V015 | 2026-10-24 | KC2-T02 | mutation, scratch copies of the corpus and its test, through `expect`: `mab` dropped from the option list, `mab`'s row without `locked on`, `state`'s row without `p0` up, `set_on_off_bad` at 255, `set_not_enslaved` on an enslaved `p0` | 5 of 5 killed: by `slug_list`, `row_count`, `slave_option_rows` and `slave_mab_locked`; `slave_mab_locked`; `slave_state_pre`; `refused_statuses` and `slave_on_off_vs_value`; `slave_not_enslaved_pre` | scratch |
+| V016 | 2026-10-24 | KC2-T02 | `nix run .#microvm-x86_64-link-write-capture -- --timeout 7200`, guest kernel 7.3.0; `-d -j` readbacks checked against the values sent; compared with V013 by `pcapcmp` | `NLCAP_DRIVER_FAIL` on `genl/mptcp_limits_set_over` alone (V004). The 42 rows hold their planned statuses on the first run: 30 at 0, 7 at 2, 2 at 1 and 3 at 255. 25 of the 26 port options read back as sent (`group_fwd_mask` as `0x8`, `backup_port` as `p1`); `state 4` reads back `forwarding` (see the decision log). `set_backup_port_missing` has 4 datagrams, its name lookup, before `invarg`. Against V013: 153 new pcaps, all under `kinds/bridge_slave/` (42 `ip.pcap` and 37 rows × 3 readbacks); 965 the same shape, 14 differing in V004's classes, none under `kinds/` | scratch |
+| DOC004 | 2026-10-24 | KC2 close | KC3 broken into KC3-T01 (vlan), KC3-T02 (macvlan and macvtap) and KC3-T03 (ipvlan and ipvtap) with their tables, argued from `iplink_vlan.c`, `iplink_macvlan.c` and `iplink_ipvlan.c` at `v7.2.0` and each kind's kernel checks; doccheck | tasks one to one, no broken link or anchor | this commit |
 
 ## Decision log
 
@@ -117,4 +124,6 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 - **An `ip` refusal before netlink exits with 1 or 255.** `invarg`, `incomplete_command` and `duparg2` call `exit(-1)`, so 255; a parse error returned up the stack instead (`parse_on_off`'s) reaches `do_cmd`, which exits with the negated return, so 1. KC1-T01's plan assumed 255 for both, and its first VM run corrected `inet_bad_on_off` to 1. Every corpus now admits both, and KG0 matches the status as well as the text.
 - **bridge's `ip` refusals exit 1 where `bridge_parse_opt` returns,** as the KC1 entry above has it: an abbreviated `strcmp` keyword (`stp_m`) is an unknown word, and `parse_one_of` returns on a name it doesn't know (`stp_mode bogus`). KC2-T01's plan said 255 for both; its first run (V012) corrected them.
 - **bridge's JSON keys aren't all its keywords.** `group_address` prints as `group_addr`, the `*_count` options as `*_cnt` and the `*_interval` ones as `*_intvl`; `group_fwd_mask` prints in hex. KG1's renderer follows the readbacks, not the keyword table.
+- **A port's `state` reads back what the bridge makes of it.** With STP off, `br_set_port_state` sets the state sent and then runs `br_port_state_selection`, which moves an enabled port to forwarding, so `set_state`'s `state 4` reads back `forwarding`. The request pins the 4; KG1 renders what the kernel reports, as `ip` does.
+- **An `ip` refusal can still send datagrams.** `backup_port` resolves its name with an `RTM_GETLINK` before `invarg` exits, so `set_backup_port_missing` has 4 datagrams at floor 0. A floor is a minimum, and the row's evidence is its `ip.err`.
 - **The VM namespace's rp_filter is 2,** not the kernel's 0, so `inet_rp_filter_max` writes the value it reads back. The row still pins the request; `inet_several` (`rp_filter 1`) shows a change.

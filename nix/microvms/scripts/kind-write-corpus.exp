@@ -15,7 +15,8 @@
 #
 #   floor      2 for an add (the RTM_NEWLINK and its NLMSG_ERROR), 4 for a
 #              set, which resolves the device's name with an RTM_GETLINK
-#              first; 0 for a row `ip` refuses before it sends anything
+#              first; 0 for a row `ip` refuses before it writes (it may
+#              still look a name up, as bridge_slave's backup_port does)
 #   pre        `ip` argument lists run in the row's fresh namespace before
 #              the capture window opens
 #   command    the write, run with `sh -c`; it must hold no single quote
@@ -153,6 +154,98 @@ namespace eval kindcorpus {
         [bridge add_vlan_protocol_bad {vlan_protocol 802.1x} 255] \
         [bridge add_priority_bad {priority x} 255] \
         [bridge add_no_value forward_delay 255]
+
+    ###########################################################################
+    # bridge_slave (KC2-T02). Port options are set, not added: p0 and p1 are
+    # dummies enslaved to br0, and each row sets p0. One set per value-
+    # taking option but neigh_forward_grat and backup_port, which have rows
+    # of their own, each with a value that differs from the port's default,
+    # then the two flags, 7.2.0's neigh_forward_grat, the backup port, the
+    # abbreviation rules and the refusals. br_setport and br_port_policy
+    # (net/bridge/br_netlink.c) argue each status.
+    #
+    # A bad on/off value exits 1 (bridge_slave_parse_on_off's exit(1)); an
+    # unknown word, as a strcmp keyword's abbreviation is, returns and exits
+    # 1 too; invarg and incomplete_command exit 255.
+    #
+    # state needs p0 up (br_set_port_state), so its row brings p0 up, with
+    # no IPv6 address to come and go. mab needs locked on (and learning,
+    # which a port starts with), so its row sets both. backup_port names a
+    # port of the same bridge, which the readback prints by name.
+    ###########################################################################
+    variable SLAVE_OPTIONS {
+        state 4
+        priority 7
+        cost 10
+        hairpin on
+        guard on
+        root_block on
+        fastleave on
+        learning off
+        flood off
+        mcast_flood off
+        bcast_flood off
+        mcast_to_unicast on
+        proxy_arp on
+        proxy_arp_wifi on
+        mcast_router 2
+        mcast_fast_leave on
+        neigh_suppress on
+        neigh_vlan_suppress on
+        group_fwd_mask 8
+        vlan_tunnel on
+        isolated on
+        locked on
+        mab on
+        backup_nhid 5
+    }
+
+    variable PRE_PORTS [list \
+        {link add br0 type bridge} \
+        {link add p0 type dummy} \
+        {link add p1 type dummy} \
+        {link set p0 master br0} \
+        {link set p1 master br0}]
+
+    proc slave {name words rc {pre {}}} {
+        variable PRE_PORTS
+        if {$pre eq {}} {
+            set pre $PRE_PORTS
+        }
+        return [row bridge_slave $name $pre "ip link set dev p0 type bridge_slave $words" $rc p0]
+    }
+
+    foreach {option value} $SLAVE_OPTIONS {
+        set words "$option $value"
+        set pre {}
+        if {$option eq "mab"} {
+            set words "locked on $words"
+        }
+        if {$option eq "state"} {
+            set pre [concat $PRE_PORTS {{link set p0 addrgenmode none} {link set p0 up}}]
+        }
+        lappend rows [slave set_$option $words 0 $pre]
+    }
+    lappend rows \
+        [slave set_fdb_flush fdb_flush 0] \
+        [slave set_nobackup_port nobackup_port 0 \
+            [concat $PRE_PORTS {{link set dev p0 type bridge_slave backup_port p1}}]] \
+        [slave set_neigh_forward_grat {neigh_forward_grat on} 0] \
+        [slave set_backup_port {backup_port p1} 0] \
+        [slave set_several {cost 10 priority 7 learning off} 0] \
+        [slave set_abbrev {co 10} 0] \
+        [slave set_strcmp_abbrev {neigh_forward_g on} 1] \
+        [slave set_state_bad {state 5} 2] \
+        [slave set_priority_over {priority 64} 2] \
+        [slave set_cost_zero {cost 0} 2] \
+        [slave set_group_fwd_mask_bad {group_fwd_mask 2} 2] \
+        [slave set_mab_unlocked {mab on} 2] \
+        [slave set_backup_port_self {backup_port p0} 2] \
+        [slave set_not_enslaved {cost 10} 2 {{link add p0 type dummy}}] \
+        [slave set_backup_port_missing {backup_port nosuch} 255] \
+        [slave set_cost_bad {cost x} 255] \
+        [slave set_on_off_bad {learning maybe} 1] \
+        [slave set_no_value cost 255]
 
     ###########################################################################
     # readback_args <ns> <subdir> <readback> - the xtcp2-nlcap capio argument

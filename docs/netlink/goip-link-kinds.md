@@ -366,28 +366,188 @@ bridge and bridge_slave, with 7.2.0's `stp_mode` and `neigh_forward_grat`. Two t
 
 #### KC2-T02 bridge_slave
 
-Rows under `kinds/bridge_slave/`, in `kind-write-corpus.exp`, after bridge's. The pre is `br0` with a dummy `p0` enslaved (and `p1`, for `backup_port`); the command is `ip link set dev p0 type bridge_slave …`, floor 4.
+Rows under `kinds/bridge_slave/`, in `kind-write-corpus.exp`, after bridge's. The pre is `br0` with dummies `p0` and `p1` enslaved; the command is `ip link set dev p0 type bridge_slave …`, floor 4, and each readback reads `p0`.
 
 | slugs | command | rc | what it pins |
 |---|---|---|---|
-| `set_<option>`, one per value-taking option but `neigh_forward_grat` and `backup_port`, which have rows of their own (23) | `type bridge_slave <option> <value>` | 0 | each keyword's `IFLA_BRPORT_*` |
-| `set_fdb_flush`, `set_nobackup_port` | the two flags with no value | 0 | empty attributes |
+| `set_<option>`, one per value-taking option but `neigh_forward_grat` and `backup_port`, which have rows of their own (24), each with a value off the port's default | `type bridge_slave <option> <value>` | 0 | each keyword's `IFLA_BRPORT_*`. `set_state`'s pre brings `p0` up (with `addrgenmode none`), as `br_set_port_state` refuses a down port; `set_mab` sets `locked on` first |
+| `set_fdb_flush`, `set_nobackup_port` | the two flags with no value | 0 | empty `IFLA_BRPORT_FLUSH`, and `IFLA_BRPORT_BACKUP_PORT` 0 (its pre sets `backup_port p1`, so it is a change) |
 | `set_neigh_forward_grat` | `neigh_forward_grat on` | 0 | 7.2.0's option |
 | `set_backup_port` | `backup_port p1` | 0 | an ifindex the readback prints as a name (the `ll_index_to_name` hazard) |
 | `set_several` | `cost 10 priority 7 learning off` | 0 | several attributes in one request |
+| `set_abbrev` | `co 10` | 0 | `matches` takes an abbreviation |
+| `set_strcmp_abbrev` | `neigh_forward_g on` | 1 | a `strcmp` keyword's abbreviation is an unknown word, which returns |
 | `set_state_bad` | `state 5` | 2 | past `BR_STATE_BLOCKING` |
-| `set_backup_port_missing` | `backup_port nosuch` | 1 or 255, as the first run finds | `ip`'s name lookup |
+| `set_priority_over` | `priority 64` | 2 | one past `BR_MAX_PORT_PRIORITY` (63) |
+| `set_cost_zero` | `cost 0` | 2 | one under `BR_MIN_PATH_COST` |
+| `set_group_fwd_mask_bad` | `group_fwd_mask 2` | 2 | `BR_GROUPFWD_MACPAUSE` |
+| `set_mab_unlocked` | `mab on` | 2 | MAB on an unlocked port |
+| `set_backup_port_self` | `backup_port p0` | 2 | a port can't back itself up |
+| `set_not_enslaved` | `cost 10`, on a dummy with no master | 2 | the kernel's refusal of slave data on a non-port (`-EOPNOTSUPP`) |
+| `set_backup_port_missing` | `backup_port nosuch` | 255 | `ip`'s name lookup, then `invarg`; the lookup is on the wire, so the row has datagrams despite its floor of 0 |
 | `set_cost_bad` | `cost x` | 255 | `get_u32` |
-| `set_on_off_bad` | `learning maybe` | 1 or 255, as the first run finds | `parse_on_off` |
-| `set_not_enslaved` | on a dummy with no master | 2 | the kernel's refusal of slave data on a non-port |
+| `set_on_off_bad` | `learning maybe` | 1 | `bridge_slave_parse_on_off`'s `exit(1)` |
+| `set_no_value` | `cost` | 255 | `incomplete_command` |
 
-Its tests are KC2-T01's tables over these rows, with "one `set_` row per value-taking option" counting `iplink_bridge_slave.c`'s 23, and a VM row that `set_backup_port`'s `-d` readback names `p1`.
+Its tests are KC2-T01's tables over the 102 rows, plus:
+
+| description | input | expected |
+|---|---|---|
+| positive: one `set_` row per value-taking option, then `neigh_forward_grat`'s and `backup_port`'s | the `set_<option>` rows | the 24 keywords in `iplink_bridge_slave.c`'s order, then the two |
+| boundary: bridge's rows come first | the slug list | the first `bridge_slave/` row is the 61st |
+| positive: a port row's pre and readbacks | `set_cost` | br0 with p0 and p1 enslaved; three reads of `p0` |
+| corner: `state` brings the port up; its refusal doesn't need to | `set_state`, `set_state_bad` | `addrgenmode none` and `up` last; the bare pre |
+| corner: `mab` locks first; alone, it is refused | `set_mab`, `set_mab_unlocked` | `locked on mab on` at 0; `mab on` at 2 |
+| boundary: the kernel's priority and cost ranges | `set_priority_over`, `set_cost_zero` | 64 and 0, each at 2 |
+| corner: a bad on/off exits 1, a missing value 255 | `set_on_off_bad`, `set_no_value` | 1, 255 |
+| negative: the non-port | `set_not_enslaved` | a lone dummy `p0`, at 2 |
+| positive (VM): the values read back | each row's `-d -j` readback | the value sent; `backup_port` as `p1` |
+
+**Mutation check:** `mab` dropped from the option list, `mab`'s row without `locked on`, `state`'s row without `p0` up, `set_on_off_bad` at 255, `set_not_enslaved` on an enslaved `p0`.
 
 **Done when:** as KC2-T01. It closes KC2.
 
 ### KC3 — VLAN family captures
 
-vlan, macvlan, macvtap, ipvlan and ipvtap.
+vlan, macvlan, macvtap, ipvlan and ipvtap: kinds stacked on a lower device. Three tasks, one per parser file: KC3-T01 vlan, KC3-T02 macvlan and macvtap (one parser, two kinds), KC3-T03 ipvlan and ipvtap (likewise), which closes KC3.
+
+**Shared shape.** Rows go in `kind-write-corpus.exp` after bridge_slave's, under `kinds/<kind>/`. Every row's pre makes a dummy `d0`, the lower device; an add is `ip link add link d0 name <dev> type <kind> …`, a set `ip link set <dev> type <kind> …` on a device the pre made. Floors, readbacks and statuses are KC2's. Each kind's kernel checks are argued from its `validate`, `newlink` and `changelink` (`net/8021q/vlan_netlink.c`, `drivers/net/macvlan.c`, `drivers/net/ipvlan/ipvlan_main.c`), and the first VM run confirms them.
+
+**`ip` refusals in these files return,** so they exit 1, except where a value goes through `invarg` or `NEXT_ARG`, which exit 255: vlan's `on_off`, macvlan's `mode_arg`, `flag_arg`, `bc_queue_len_arg` and `bclim_arg`, and ipvlan's mode error all return -1.
+
+#### KC3-T01 vlan
+
+The device is `v0`; `id` is required, so every add but `add_no_id` sends one.
+
+| slugs | command (after `type vlan`) | rc | what it pins |
+|---|---|---|---|
+| `add_default` | `id 10` | 0 | `IFLA_VLAN_ID` alone; `reorder_hdr` reads back on, the kernel's default |
+| `add_protocol` | `id 10 protocol 802.1ad` | 0 | `IFLA_VLAN_PROTOCOL`, big-endian |
+| `add_<flag>` for `reorder_hdr off`, `gvrp on`, `mvrp on`, `loose_binding on`, `bridge_binding on` (5) | `id 10 <flag> <value>` | 0 | `IFLA_VLAN_FLAGS`'s `{flags, mask}` pair, one bit each |
+| `add_ingress_qos_map`, `add_egress_qos_map` | `id 10 ingress-qos-map 1:2 3:4`, `id 10 egress-qos-map 2:1 4:3` | 0 | the nested `IFLA_VLAN_QOS_MAPPING` lists |
+| `add_several` | `id 10 protocol 802.1ad gvrp on mvrp on` | 0 | one flags attribute for two flags |
+| `add_id_max` | `id 4094` | 0 | the highest id |
+| `add_abbrev` | `i 10` | 0 | `matches` |
+| `set_flags` | `loose_binding on`, on `v0` | 0 | the change path |
+| `set_egress_qos_map` | `egress-qos-map 1:5`, on `v0` | 0 | a mapping added by a change |
+| `set_id` | `id 20`, on `v0` (id 10) | 0 | `vlan_changelink` ignores the id: the readback still says 10 |
+| `add_no_id` | (no option) | 2 | "VLAN properties not specified" |
+| `add_no_link` | `ip link add name v0 type vlan id 10` | 2 | "link not specified" |
+| `add_id_over` | `id 4095` | 2 | `id >= VLAN_VID_MASK` |
+| `add_protocol_unsupported` | `id 10 protocol ip` | 2 | a protocol `ip` knows and the kernel refuses (`-EPROTONOSUPPORT`) |
+| `add_duplicate_id` | `v1`, `id 10`, on a `d0` that `v0` already uses with id 10 | 2 | `-EEXIST` |
+| `add_on_loopback` | `link lo` | 2 | `lo` is VLAN-challenged |
+| `add_on_off_bad` | `id 10 gvrp maybe` | 1 | vlan's `on_off`, returned |
+| `add_unknown` | `id 10 bogus` | 1 | "unknown command" |
+| `add_qos_no_colon` | `id 10 egress-qos-map 5` | 1 | `parse_mapping` stops at a word with no colon, which is then an unknown command |
+| `add_id_bad` | `id x` | 255 | `get_u16` |
+| `add_protocol_bad` | `protocol 802.1x` | 255 | `ll_proto_a2n` |
+| `add_qos_bad` | `id 10 ingress-qos-map 1:x` | 255 | `invarg` after `parse_qos_mapping` |
+| `add_no_value` | `id` | 255 | `NEXT_ARG` |
+
+**Tests**, in `kind-write-corpus-test.exp`, over the vlan rows:
+
+| description | input | expected |
+|---|---|---|
+| positive: the rows are the plan's, after bridge_slave's | the slug list | the table's slugs, in order |
+| positive: one `add_<flag>` row per flag keyword | the vlan flag rows | `reorder_hdr gvrp mvrp loose_binding bridge_binding`, each once |
+| negative: exactly the refusal rows expect a non-zero status | `refused_rows` | the table's 2s, 1s and 255s |
+| boundary: the id range | `add_id_max`, `add_id_over` | 4094 at 0, 4095 at 2 |
+| corner: `set_id` sends a new id on an existing `v0` | its pre and command | `v0` made with `id 10`; `id 20` |
+| corner: the duplicate's pre holds `v0` | `add_duplicate_id`'s pre and readback device | `v0` with id 10; the readbacks read `v1` |
+| negative: the no-link row names no lower | `add_no_link`'s command | no `link` word |
+| positive: every vlan row's pre makes `d0` | the pres | `{link add d0 type dummy}` first |
+| positive (VM): each status, and the values read back | `ip.rc`; `-d -j` readbacks | the table's rc; `id`, `protocol`, the flags and the maps as sent, `set_id`'s id 10 |
+
+**Mutation check:** a flag row dropped, `add_id_over` at 4094, `set_id`'s pre without `v0`, `add_qos_no_colon` at 255.
+
+**Done when:** as KC2-T01.
+
+#### KC3-T02 macvlan and macvtap
+
+The device is `m0`. macvlan gets the full set; macvtap, which shares `macvlan_parse_opt`, gets the rows that show it is the same parser on another kind.
+
+| slugs | command (after `type macvlan`) | rc | what it pins |
+|---|---|---|---|
+| `add_default` | (no option) | 0 | no `INFO_DATA`; the mode reads back `vepa` |
+| `add_mode_<mode>` for `private`, `vepa`, `bridge`, `passthru`, `source` (5) | `mode <mode>` | 0 | `IFLA_MACVLAN_MODE`'s five values |
+| `add_flag_nodst`, `add_nodst`, `add_flag_null` | `mode bridge flag nodst`, `mode bridge nodst`, `mode bridge flag null` | 0 | `IFLA_MACVLAN_FLAGS` both ways, and a flags attribute of 0 |
+| `add_passthru_nopromisc` | `mode passthru nopromisc` | 0 | the flag passthru alone takes |
+| `add_bcqueuelen` | `bcqueuelen 2000` | 0 | `IFLA_MACVLAN_BC_QUEUE_LEN` |
+| `add_bclim`, `add_bclim_negative` | `bclim 10`, `bclim -1` | 0 | `IFLA_MACVLAN_BC_CUTOFF`, an s32 |
+| `add_macaddr_add` | `mode source macaddr add 02:00:00:00:00:01` | 0 | `MACADDR_MODE` and one `MACADDR` |
+| `add_macaddr_set` | `mode source macaddr set 02:00:00:00:00:01 02:00:00:00:00:02` | 0 | the nested `MACADDR_DATA` list; the readback's count and list |
+| `add_abbrev` | `mo bridge` | 0 | `matches` |
+| `set_mode` | `mode private`, on a bridge-mode `m0` | 0 | the change path |
+| `set_macaddr_del`, `set_macaddr_flush` | `macaddr del 02:00:00:00:00:01`, `macaddr flush`, on a source-mode `m0` holding that address | 0 | the source list changed in place |
+| `set_bcqueuelen` | `bcqueuelen 500`, on `m0` | 0 | a shared port setting changed |
+| `set_passthru` | `mode passthru`, on a bridge-mode `m0` | 2 | passthru can't be set dynamically |
+| `add_macaddr_not_source` | `mode bridge macaddr add 02:00:00:00:00:01` | 2 | source addresses need source mode |
+| `add_macaddr_multicast` | `mode source macaddr add 01:00:5e:00:00:01` | 2 | `-EADDRNOTAVAIL` |
+| `add_second_passthru` | `m1`, `mode passthru`, on a `d0` that a passthru `m0` holds | 2 | one passthru per lower |
+| `add_on_loopback` | `link lo` | 2 | not an Ethernet lower |
+| `add_nopromisc_not_passthru` | `mode bridge nopromisc` | 1 | `ip`'s own check |
+| `add_mode_bad`, `add_flag_bad`, `add_macaddr_op_bad`, `add_macaddr_bad`, `add_bcqueuelen_bad`, `add_bclim_bad` | `mode bogus`, `flag bogus`, `macaddr bogus`, `mode source macaddr add zz`, `bcqueuelen x`, `bclim x` | 1 | each returned error |
+| `add_bclim_abbrev` | `bcl 10` | 1 | `bclim` is `strcmp`, so this is unknown |
+| `add_no_value` | `mode` | 255 | `NEXT_ARG` |
+
+macvtap, under `kinds/macvtap/` with the device `t0`: `add_default`, `add_mode_bridge`, `add_mode_passthru`, `add_bcqueuelen` and `set_mode` at 0, `add_mode_bad` at 1.
+
+**Tests:**
+
+| description | input | expected |
+|---|---|---|
+| positive: the rows are the plan's, after vlan's | the slug list | the two tables' slugs, macvlan's then macvtap's |
+| positive: one `add_mode_` row per mode | the mode rows | the five, each once |
+| negative: exactly the refusal rows expect a non-zero status | `refused_rows` | the table's |
+| corner: the source rows' pres | `set_macaddr_del`'s pre | `m0` in source mode holding the address deleted |
+| corner: the second passthru's pre | `add_second_passthru`'s pre | a passthru `m0`; the readbacks read `m1` |
+| boundary: `bclim` takes a negative | `add_bclim_negative` | `bclim -1` at 0 |
+| corner: macvtap rows say `type macvtap` | every `kinds/macvtap/` command | `type macvtap`, the device `t0` |
+| positive (VM): each status, and the values read back | `ip.rc`; `-d -j` readbacks | the table's rc; mode, flags, `bcqueuelen`, `bclim` and the source list as sent |
+
+**Mutation check:** a mode row dropped, `add_bclim_abbrev` at 0, `set_macaddr_del`'s pre without the address, a macvtap row's kind made macvlan.
+
+**Done when:** as KC2-T01.
+
+#### KC3-T03 ipvlan and ipvtap
+
+The device is `i0`. Once any option follows `type ipvlan`, `ip` sends `IFLA_IPVLAN_FLAGS`, 0 when no flag word is given, so a `set` of the mode alone clears the flags too. With no option at all, `iplink_parse` doesn't call `parse_opt`, and no `INFO_DATA` is sent.
+
+| slugs | command (after `type ipvlan`) | rc | what it pins |
+|---|---|---|---|
+| `add_default` | (no option) | 0 | no `INFO_DATA`; the mode reads back `l3` |
+| `add_mode_<mode>` for `l2`, `l3`, `l3s` (3) | `mode <mode>` | 0 | `IFLA_IPVLAN_MODE`'s values |
+| `add_<flag>` for `private`, `vepa`, `bridge` (3) | `<flag>` | 0 | the flag bits, `bridge` as 0 |
+| `add_mode_and_flag` | `mode l2 vepa` | 0 | both attributes |
+| `add_abbrev` | `mo l2` | 0 | `matches` |
+| `set_mode` | `mode l2`, on an `i0` made `private` | 0 | the change path; the readback shows `private` cleared |
+| `set_flag` | `vepa`, on `i0` | 0 | a flag changed |
+| `add_no_link` | `ip link add name i0 type ipvlan` | 2 | no lower |
+| `add_on_loopback` | `link lo` | 2 | not an Ethernet lower |
+| `add_on_busy_lower` | on a `d0` a macvlan `m0` holds | 2 | `-EBUSY`, the lower's rx handler taken |
+| `add_two_flags` | `private vepa` | 1 | the second flag word is unknown once one is given |
+| `add_mode_bad` | `mode l4` | 1 | the mode error, returned |
+| `add_unknown` | `bogus` | 1 | "unknown option" |
+| `add_no_value` | `mode` | 255 | `NEXT_ARG` |
+
+ipvtap, under `kinds/ipvtap/` with the device `j0`: `add_default`, `add_mode_l2` and `set_mode` at 0, `add_mode_bad` at 1.
+
+**Tests:**
+
+| description | input | expected |
+|---|---|---|
+| positive: the rows are the plan's, after macvtap's | the slug list | the two tables' slugs |
+| positive: one `add_mode_` row per mode and one `add_` row per flag | those rows | `l2 l3 l3s`; `private vepa bridge` |
+| negative: exactly the refusal rows expect a non-zero status | `refused_rows` | the table's |
+| corner: two flag words is `ip`'s refusal, not the kernel's | `add_two_flags` | rc 1, floor 0, no readback |
+| corner: the busy lower's pre | `add_on_busy_lower`'s pre | `d0` with a macvlan `m0` |
+| corner: `set_mode` starts from a private `i0` | its pre | `i0` made with `private` |
+| positive (VM): each status, and the values read back | `ip.rc`; `-d -j` readbacks | the table's rc; mode and flags as sent, `set_mode`'s flags cleared |
+
+**Mutation check:** a flag row dropped, `add_two_flags` at 2, `add_on_busy_lower`'s pre without `m0`, an ipvtap row's kind made ipvlan.
+
+**Done when:** as KC2-T01. It closes KC3.
 
 ### KC4 — UDP overlay captures
 
