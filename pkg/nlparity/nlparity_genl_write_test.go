@@ -44,6 +44,9 @@ func TestIsWrite(t *testing.T) {
 	genl := func(name string, cmd uint8) Msg {
 		return Msg{Proto: unix.NETLINK_GENERIC, Genl: name, Hdr: xtcpnl.NlMsgHdr{Type: 31}, Body: []byte{cmd, 1, 0, 0}}
 	}
+	xfrm := func(typ uint16) Msg {
+		return Msg{Proto: unix.NETLINK_XFRM, Hdr: xtcpnl.NlMsgHdr{Type: typ, Flags: unix.NLM_F_REQUEST}}
+	}
 	tests := []struct {
 		description string
 		m           Msg
@@ -60,6 +63,12 @@ func TestIsWrite(t *testing.T) {
 			Msg{Proto: unix.NETLINK_GENERIC, Genl: xtcpnl.TCPMetricsGenlName, Hdr: xtcpnl.NlMsgHdr{Type: 31}, Body: []byte{2, 1, 0}}, false},
 		{"corner: NLMSG_ERROR on generic netlink",
 			Msg{Proto: unix.NETLINK_GENERIC, Hdr: xtcpnl.NlMsgHdr{Type: unix.NLMSG_ERROR}, Body: []byte{2, 1, 0, 0}}, false},
+		{"positive: an XFRM DELSA", xfrm(xtcpnl.XfrmMsgDelSA), true},
+		{"positive: an XFRM FLUSHSA", xfrm(xtcpnl.XfrmMsgFlushSA), true},
+		{"positive: an XFRM ALLOCSPI", xfrm(xtcpnl.XfrmMsgAllocSPI), true},
+		{"negative: an XFRM GETSA", xfrm(xtcpnl.XfrmMsgGetSA), false},
+		{"negative: an XFRM NEWPOLICY, not yet admitted", xfrm(xtcpnl.XfrmMsgNewPolicy), false},
+		{"corner: UPDSA, RTM_GETROUTE's number, is a write on XFRM", xfrm(xtcpnl.XfrmMsgUpdSA), true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {

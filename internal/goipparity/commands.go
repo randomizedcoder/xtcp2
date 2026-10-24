@@ -3219,6 +3219,53 @@ var commands = withArgs([]Command{
 	{Name: "xfrm state c", Slug: "xfrm_state_count_empty", Floor: 2, Implemented: true, Proto: ProtoXfrmCst},
 	{Name: "-s xfrm state count", Slug: "xfrm_state_count_stats", Floor: 2, Implemented: true,
 		Proto: ProtoXfrmCst, Setup: xfrmTwoSetup},
+
+	// G7-T02: the XFRM state writes, the C3 corpus's 17 other state_* rows
+	// but allocspi's: goip writes its ALLOCSPI and has no larval SA to
+	// print, where ip prints the kernel's answer. add_no_algo and
+	// allocspi_min_gt_max, refused before a request, capture nothing to
+	// compare (Floor 0), and TestXfrmStateWritesMatchIp checks them.
+	// Commands the corpus spells alike run as a, u, d and delall, the same
+	// bytes. deleteall's two DELSAs go in one datagram, without NLM_F_ACK,
+	// between its dumps; with none to delete, it is a read.
+	{Name: xfrmSA1Cst, Slug: "xfrm_state_add", Floor: 2, Implemented: true, Write: true, Proto: ProtoXfrmCst},
+	{Name: xfrmSA2Cst, Slug: "xfrm_state_add_v6_tunnel", Floor: 2, Implemented: true, Write: true,
+		Proto: ProtoXfrmCst},
+	{Name: "xfrm state add src 192.0.2.1 dst 192.0.2.3 proto esp spi 0x102 reqid 3 mode transport aead " +
+		`"rfc4106(gcm(aes))" 0x3333333333333333333333333333333333333333 128`, Slug: "xfrm_state_add_aead", Floor: 2,
+		Implemented: true, Write: true, Proto: ProtoXfrmCst},
+	{Name: "xfrm state add src 192.0.2.1 dst 192.0.2.4 proto esp spi 0x103 mode transport enc aes " + xfrmEncKeyCst,
+		Slug: "xfrm_state_add_enc_only", Floor: 2, Implemented: true, Write: true, Proto: ProtoXfrmCst},
+	{Name: "xfrm state a " + xfrmSA1IDCst + " reqid 1 mode transport auth sha256 " + xfrmAuthKeyCst + " enc aes " +
+		xfrmEncKeyCst, Slug: "xfrm_state_add_dup", Floor: 2, Implemented: true, Write: true, Proto: ProtoXfrmCst,
+		Setup: xfrmSA1Setup},
+	{Name: "xfrm state add " + xfrmSA1IDCst + " mode transport enc nosuchalg " + xfrmEncKeyCst,
+		Slug: "xfrm_state_add_unknown_alg", Floor: 2, Implemented: true, Write: true, Proto: ProtoXfrmCst},
+	{Name: "xfrm state add " + xfrmSA1IDCst + " mode transport enc aes 0x222222222222222222222222222222",
+		Slug: "xfrm_state_add_short_key", Floor: 2, Implemented: true, Write: true, Proto: ProtoXfrmCst},
+	{Name: "xfrm state update " + xfrmSA1IDCst + " reqid 1" + xfrmAlgosCst + " limit time-hard 3600",
+		Slug: "xfrm_state_update", Floor: 2, Implemented: true, Write: true, Proto: ProtoXfrmCst,
+		Setup: xfrmSA1Setup},
+	{Name: "xfrm state update src 192.0.2.1 dst 192.0.2.2 proto esp spi 0x200" + xfrmAlgosCst,
+		Slug: "xfrm_state_update_larval", Floor: 2, Implemented: true, Write: true, Proto: ProtoXfrmCst,
+		Setup: []string{xfrmAllocspiCst}},
+	{Name: "xfrm state u " + xfrmSA1IDCst + " reqid 1" + xfrmAlgosCst, Slug: "xfrm_state_update_missing",
+		Floor: 2, Implemented: true, Write: true, Proto: ProtoXfrmCst},
+	{Name: "xfrm state delete " + xfrmSA1IDCst, Slug: "xfrm_state_delete", Floor: 2, Implemented: true,
+		Write: true, Proto: ProtoXfrmCst, Setup: xfrmSA1Setup},
+	{Name: "xfrm state d " + xfrmSA1IDCst, Slug: "xfrm_state_delete_missing", Floor: 2, Implemented: true,
+		Write: true, Proto: ProtoXfrmCst},
+	{Name: "xfrm state deleteall", Slug: "xfrm_state_deleteall", Floor: 5, Implemented: true, Write: true,
+		Writes: 2, Proto: ProtoXfrmCst, Setup: xfrmTwoSetup},
+	{Name: "xfrm state delall", Slug: "xfrm_state_deleteall_empty", Floor: 2, Implemented: true,
+		Proto: ProtoXfrmCst},
+	{Name: "xfrm state flush", Slug: "xfrm_state_flush", Floor: 2, Implemented: true, Write: true, Writes: 1,
+		Proto: ProtoXfrmCst, Setup: xfrmTwoSetup},
+	{Name: "xfrm state flush proto ah", Slug: "xfrm_state_flush_proto_ah", Floor: 2, Implemented: true,
+		Write: true, Writes: 1, Proto: ProtoXfrmCst, Setup: xfrmTwoSetup},
+	{Name: "xfrm state allocspi src 192.0.2.1 dst 192.0.2.2 proto esp min 0x100 max 0x100",
+		Slug: "xfrm_state_allocspi_taken", Floor: 2, Implemented: true, Write: true, Proto: ProtoXfrmCst,
+		Setup: xfrmSA1Setup},
 })
 
 // tcpmAddrsSetup is genl-write-corpus.exp's PRE_ADDRS: d0, up, with an IPv4
@@ -3403,6 +3450,11 @@ const (
 		" enc aes " + xfrmEncKeyCst
 	xfrmSA2Cst = "xfrm state add src 2001:db8::1 dst 2001:db8::2 proto esp spi 0x101 reqid 2 mode tunnel " +
 		"auth-trunc sha256 " + xfrmAuthKeyCst + " 128 enc aes " + xfrmEncKeyCst
+	// xfrmAlgosCst is SA 1's mode and algorithms, which its updates send
+	// again.
+	xfrmAlgosCst = " mode transport auth sha256 " + xfrmAuthKeyCst + " enc aes " + xfrmEncKeyCst
+	// xfrmAllocspiCst is the corpus's ALLOCSPI: one larval SA, SPI 0x200.
+	xfrmAllocspiCst = "xfrm state allocspi src 192.0.2.1 dst 192.0.2.2 proto esp min 0x200 max 0x200"
 )
 
 // xfrmSA1Setup is xfrm-write-corpus.exp's PRE_SA1, and xfrmTwoSetup its

@@ -1101,7 +1101,9 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	//   - the thirty-nine `macsec` rows G6-T08 added in place of the last
 	//     stand-in, likewise — see TestMacsecRows;
 	//   - the nine `xfrm state` rows G7-T01 added, the first NETLINK_XFRM
-	//     ones, likewise — see TestXfrmStateRows.
+	//     ones, likewise — see TestXfrmStateRows;
+	//   - the seventeen `xfrm state` write rows G7-T02 added, likewise —
+	//     see TestXfrmStateRows.
 	//
 	// The last four were the permanent set, measured divergent on the wire;
 	// TestPermanentWireDivergences records that it is empty.
@@ -3498,8 +3500,9 @@ func TestGenlStandInRows(t *testing.T) {
 	// and macsecRows are G6-T01's to G6-T08's rows, every genl one.
 	const tcpmRows, srRows, ioamRows, mptcpRows, fouRows, ilaRows, l2tpRows, macsecRows = 14, 11, 20, 28, 24,
 		18, 28, 39
-	// xfrmStateRows are G7-T01's XFRM rows, after them.
-	const xfrmStateRows = 9
+	// xfrmStateRows are G7-T01's XFRM rows, after them, and
+	// xfrmStateWriteRows G7-T02's.
+	const xfrmStateRows, xfrmStateWriteRows = 9, 17
 
 	cmds := Commands()
 	first := len(cmds)
@@ -3542,7 +3545,7 @@ func TestGenlStandInRows(t *testing.T) {
 					}
 				}
 				if n := tcpmRows + srRows + ioamRows + mptcpRows + fouRows + ilaRows + l2tpRows + macsecRows +
-					xfrmStateRows; len(cmds)-first != n {
+					xfrmStateRows + xfrmStateWriteRows; len(cmds)-first != n {
 					t.Errorf("%d rows from the first genl one, want %d", len(cmds)-first, n)
 				}
 			},
@@ -4346,9 +4349,11 @@ func TestMacsecRows(t *testing.T) {
 	}
 }
 
-// TestXfrmStateRows pins G7-T01's XFRM rows: each NETLINK_XFRM, on its C3
-// corpus row's precondition (its topology file, none for the three with
-// none), its slug the corpus row's with xfrm_ ahead of it, and gated.
+// TestXfrmStateRows pins G7-T01's and G7-T02's XFRM rows: each
+// NETLINK_XFRM, on its C3 corpus row's precondition (its topology file, none
+// for the rows with none), its slug the corpus row's with xfrm_ ahead of it,
+// a write or a read as its capture holds one or not, and gated. The rows
+// the corpus has and the matrix does not are not.
 //
 // go test ./internal/goipparity/ -run TestXfrmStateRows
 func TestXfrmStateRows(t *testing.T) {
@@ -4363,6 +4368,11 @@ func TestXfrmStateRows(t *testing.T) {
 	}
 	read := func(slug string) want {
 		return want{implemented: true, topology: true, gated: true, proto: ProtoXfrmCst, slug: slug, floor: 2}
+	}
+	write := func(slug string) want {
+		w := read(slug)
+		w.write = true
+		return w
 	}
 	rows := []struct {
 		description string
@@ -4380,7 +4390,42 @@ func TestXfrmStateRows(t *testing.T) {
 		{"positive: count", "xfrm state count", "state_count", read("xfrm_state_count")},
 		{"boundary: count with none, spelled c", "xfrm state c", "state_count_empty", read("xfrm_state_count_empty")},
 		{"positive: -s count", "-s xfrm state count", "state_count_stats", read("xfrm_state_count_stats")},
-		{"negative: a write is G7-T02's, not a row", "xfrm state add " + xfrmSA1IDCst, "", want{}},
+		{"positive: add, SA 1", xfrmSA1Cst, "state_add", write("xfrm_state_add")},
+		{"positive: add, SA 2", xfrmSA2Cst, "state_add_v6_tunnel", write("xfrm_state_add_v6_tunnel")},
+		{"positive: add, aead, its name quoted for the shell", "xfrm state add src 192.0.2.1 dst 192.0.2.3 " +
+			"proto esp spi 0x102 reqid 3 mode transport aead \"rfc4106(gcm(aes))\" " +
+			"0x3333333333333333333333333333333333333333 128", "state_add_aead", write("xfrm_state_add_aead")},
+		{"positive: add, enc alone", "xfrm state add src 192.0.2.1 dst 192.0.2.4 proto esp spi 0x103 " +
+			"mode transport enc aes " + xfrmEncKeyCst, "state_add_enc_only", write("xfrm_state_add_enc_only")},
+		{"negative: add of SA 1 over itself, spelled a", "xfrm state a " + xfrmSA1IDCst + " reqid 1" + xfrmAlgosCst,
+			"state_add_dup", write("xfrm_state_add_dup")},
+		{"negative: an unknown algorithm", "xfrm state add " + xfrmSA1IDCst + " mode transport enc nosuchalg " +
+			xfrmEncKeyCst, "state_add_unknown_alg", write("xfrm_state_add_unknown_alg")},
+		{"negative: a short key", "xfrm state add " + xfrmSA1IDCst + " mode transport enc aes " +
+			"0x222222222222222222222222222222", "state_add_short_key", write("xfrm_state_add_short_key")},
+		{"positive: update", "xfrm state update " + xfrmSA1IDCst + " reqid 1" + xfrmAlgosCst + " limit time-hard 3600",
+			"state_update", write("xfrm_state_update")},
+		{"positive: update of the larval SA allocspi made", "xfrm state update src 192.0.2.1 dst 192.0.2.2 " +
+			"proto esp spi 0x200" + xfrmAlgosCst, "state_update_larval", write("xfrm_state_update_larval")},
+		{"negative: update of a missing SA, spelled u", "xfrm state u " + xfrmSA1IDCst + " reqid 1" + xfrmAlgosCst,
+			"state_update_missing", write("xfrm_state_update_missing")},
+		{"positive: delete", "xfrm state delete " + xfrmSA1IDCst, "state_delete", write("xfrm_state_delete")},
+		{"negative: delete of a missing SA, spelled d", "xfrm state d " + xfrmSA1IDCst, "state_delete_missing",
+			write("xfrm_state_delete_missing")},
+		{"positive: deleteall, two DELSAs", "xfrm state deleteall", "state_deleteall",
+			want{implemented: true, write: true, topology: true, gated: true, proto: ProtoXfrmCst,
+				slug: "xfrm_state_deleteall", floor: 5}},
+		{"boundary: deleteall with none, spelled delall, a read", "xfrm state delall", "state_deleteall_empty",
+			read("xfrm_state_deleteall_empty")},
+		{"positive: flush", "xfrm state flush", "state_flush", write("xfrm_state_flush")},
+		{"positive: flush proto ah", "xfrm state flush proto ah", "state_flush_proto_ah",
+			write("xfrm_state_flush_proto_ah")},
+		{"negative: allocspi of a taken range", "xfrm state allocspi src 192.0.2.1 dst 192.0.2.2 proto esp " +
+			"min 0x100 max 0x100", "state_allocspi_taken", write("xfrm_state_allocspi_taken")},
+		{"negative: allocspi, whose larval SA goip cannot print, is no row", "xfrm state allocspi src 192.0.2.1 " +
+			"dst 192.0.2.2 proto esp min 0x200 max 0x200", "", want{}},
+		{"boundary: add_no_algo, refused before a request, is no row", "xfrm state add " + xfrmSA1IDCst +
+			" mode transport", "", want{}},
 	}
 	for _, r := range rows {
 		t.Run(r.description, func(t *testing.T) {

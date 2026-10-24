@@ -21,8 +21,8 @@ import (
 // goip runs the state reads, each on its own NETLINK_XFRM socket as ip's
 // do: list, a GETSA dump each answer of which is printed, filtered on
 // goip's side as ip's is; get, one GETSA; and count, one GETSADINFO. The
-// state writes are G7-T02's, the policies G7-T03's and G7-T04's, and the
-// monitor G7-T05's.
+// state writes are xfrm_state_write.go's. The policies are G7-T03's and
+// G7-T04's, and the monitor G7-T05's.
 
 const (
 	xfrmHelpCst    = "help"
@@ -120,7 +120,17 @@ func runXfrm(c *runCtx, args []string) error {
 // xfrmStateWrites are do_xfrm_state's write verbs, matched by prefix in
 // its order ahead of list, get, flush and count; delete is ahead of
 // deleteall, so `d` is delete.
-var xfrmStateWrites = []string{"add", "update", "allocspi", fouDeleteCst, "deleteall", "delall"}
+var xfrmStateWrites = []struct {
+	verb string
+	run  func(*runCtx, []string) error
+}{
+	{xfrmAddCst, func(c *runCtx, a []string) error { return xfrmStateModify(c, xtcpnl.XfrmMsgNewSA, a) }},
+	{xfrmUpdateCst, func(c *runCtx, a []string) error { return xfrmStateModify(c, xtcpnl.XfrmMsgUpdSA, a) }},
+	{xfrmAllocspiCst, xfrmStateAllocspi},
+	{fouDeleteCst, xfrmStateDelete},
+	{xfrmDeleteallCst, xfrmStateDeleteall},
+	{"delall", xfrmStateDeleteall},
+}
 
 // xfrmState is do_xfrm_state.
 func xfrmState(c *runCtx, args []string) error {
@@ -129,8 +139,8 @@ func xfrmState(c *runCtx, args []string) error {
 	}
 	verb, rest := args[0], args[1:]
 	for _, w := range xfrmStateWrites {
-		if matchesPrefix(verb, w) {
-			return fmt.Errorf("xfrm state %s, G7-T02: %w", w, ErrNotImplemented)
+		if matchesPrefix(verb, w.verb) {
+			return w.run(c, rest)
 		}
 	}
 	switch {
@@ -138,8 +148,8 @@ func xfrmState(c *runCtx, args []string) error {
 		return xfrmStateList(c, rest)
 	case matchesPrefix(verb, "get"):
 		return xfrmStateGet(c, rest)
-	case matchesPrefix(verb, "flush"):
-		return fmt.Errorf("xfrm state flush, G7-T02: %w", ErrNotImplemented)
+	case matchesPrefix(verb, xfrmFlushCst):
+		return xfrmStateFlush(c, rest)
 	case matchesPrefix(verb, "count"):
 		return xfrmStateCount(c)
 	case matchesPrefix(verb, xfrmHelpCst):
@@ -512,11 +522,12 @@ func xfrmStatePrint(c *runCtx, f *xfrmFilter, nokeys bool, m xfrmMsg) error {
 	return err
 }
 
-// xfrmStateGet is xfrm_state_get_or_delete's get: mark, or one ID, which
-// needs a protocol, then one GETSA of struct xfrm_usersa_id, its source as
-// XFRMA_SRCADDR and the mark, when both its halves are set, as XFRMA_MARK;
-// AF_INET when no address gave a family. The answer is printed unfiltered.
-func xfrmStateGet(c *runCtx, args []string) error {
+// xfrmStateIDRequest is xfrm_state_get_or_delete's loop and request: mark,
+// or one ID, which needs a protocol, then struct xfrm_usersa_id, its source
+// as XFRMA_SRCADDR and the mark, when both its halves are set, as
+// XFRMA_MARK; AF_INET when no address gave a family. get sends it as a
+// GETSA, delete as a DELSA with NLM_F_ACK.
+func xfrmStateIDRequest(c *runCtx, args []string) (hdr, attrs []byte, err error) {
 	family := uint16(c.family)
 	var id xfrmID
 	var f xfrmFilter
@@ -528,41 +539,51 @@ func xfrmStateGet(c *runCtx, args []string) error {
 	for ; a.i < len(a.args); a.i++ {
 		if a.cur() == xfrmMarkCst {
 			if err := xfrmParseMark(a, &mark); err != nil {
-				return err
+				return nil, nil, err
 			}
 			continue
 		}
 		if idSeen != "" {
-			return xfrmUsage(invargErr("unknown", a.cur()))
+			return nil, nil, xfrmUsage(invargErr("unknown", a.cur()))
 		}
 		idSeen = a.cur()
 		id = xfrmID{}
 		if err := xfrmIDParse(c, a, &id, &family, &f, false); err != nil {
-			return err
+			return nil, nil, err
 		}
 		if err := b.PutBytes(xtcpnl.XfrmAttrSrcAddr, id.saddr[:]); err != nil {
-			return err
+			return nil, nil, err
 		}
 	}
 	if mark[0]&mark[1] != 0 {
 		v := binary.LittleEndian.AppendUint32(nil, mark[0])
 		if err := b.PutBytes(xtcpnl.XfrmAttrMark, binary.LittleEndian.AppendUint32(v, mark[1])); err != nil {
-			return err
+			return nil, nil, err
 		}
+	}
+	if family == unix.AF_UNSPEC {
+		family = unix.AF_INET
+	}
+	hdr = make([]byte, xtcpnl.XfrmUsersaIDSizeCst)
+	copy(hdr, id.daddr[:])
+	binary.BigEndian.PutUint32(hdr[16:], id.spi)
+	binary.LittleEndian.PutUint16(hdr[20:], family)
+	hdr[22] = id.proto
+	return hdr, b.Bytes(), nil
+}
+
+// xfrmStateGet is xfrm_state_get_or_delete's get: the GETSA, its answer
+// printed unfiltered.
+func xfrmStateGet(c *runCtx, args []string) error {
+	hdr, attrs, err := xfrmStateIDRequest(c, args)
+	if err != nil {
+		return err
 	}
 	xs, err := xfrmSource(c)
 	if err != nil {
 		return err
 	}
-	if family == unix.AF_UNSPEC {
-		family = unix.AF_INET
-	}
-	hdr := make([]byte, xtcpnl.XfrmUsersaIDSizeCst)
-	copy(hdr, id.daddr[:])
-	binary.BigEndian.PutUint32(hdr[16:], id.spi)
-	binary.LittleEndian.PutUint16(hdr[20:], family)
-	hdr[22] = id.proto
-	req, err := xtcpnl.BuildXfrmRequest(xtcpnl.XfrmMsgGetSA, 0, c.nextSeq(), hdr, b.Bytes())
+	req, err := xtcpnl.BuildXfrmRequest(xtcpnl.XfrmMsgGetSA, 0, c.nextSeq(), hdr, attrs)
 	if err != nil {
 		return err
 	}
@@ -577,6 +598,20 @@ func xfrmStateGet(c *runCtx, args []string) error {
 		return fmt.Errorf("%w: An error :-): %w", ErrXfrmRefused, err)
 	}
 	return nil
+}
+
+// xfrmStateDelete is xfrm_state_get_or_delete's delete: the DELSA, with
+// NLM_F_ACK, to GOIP_WRITE_OUT.
+func xfrmStateDelete(c *runCtx, args []string) error {
+	hdr, attrs, err := xfrmStateIDRequest(c, args)
+	if err != nil {
+		return err
+	}
+	req, err := xtcpnl.BuildXfrmWriteRequest(xtcpnl.XfrmMsgDelSA, unix.NLM_F_ACK, c.nextSeq(), hdr, attrs)
+	if err != nil {
+		return err
+	}
+	return writeAddrOut(req)
 }
 
 // xfrmParseMark is xfrm_parse_mark: the value, get_u32 base 0, then mask

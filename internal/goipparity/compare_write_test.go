@@ -94,9 +94,18 @@ const (
 	ilaSlugPrefixCst    = "ila_"
 	l2tpSlugPrefixCst   = "l2tp_"
 	macsecSlugPrefixCst = "macsec_"
-	// genlProtoCst is NETLINK_GENERIC.
+	// xfrmDeleteallSlugCst is G7-T02's deleteall row, whose DELSAs ask for
+	// no ack, and xfrmFlushSlugCst and xfrmFlushAhSlugCst its flush rows,
+	// one acked FLUSHSA each.
+	xfrmDeleteallSlugCst = "xfrm_state_deleteall"
+	xfrmFlushSlugCst     = "xfrm_state_flush"
+	xfrmFlushAhSlugCst   = "xfrm_state_flush_proto_ah"
+	// genlProtoCst is NETLINK_GENERIC, and xfrmProtoCst NETLINK_XFRM.
 	genlProtoCst = 16
-	tdAddrSave   = "../../pkg/xtcpnl/testdata/7_1_4/link-write/addr-save"
+	xfrmProtoCst = 6
+	// xfrmMsgDelSACst is XFRM_MSG_DELSA.
+	xfrmMsgDelSACst = 17
+	tdAddrSave      = "../../pkg/xtcpnl/testdata/7_1_4/link-write/addr-save"
 	// tdRtnl is the C1 rtnetlink corpus, route_restore\'s among it.
 	tdRtnl           = "../../pkg/xtcpnl/testdata/7_1_4/link-write/rtnl"
 	pcapGlobalHdrCst = 24
@@ -211,6 +220,9 @@ type writeRowFiles struct {
 
 func corpusWriteRow(t *testing.T, c Command) writeRowFiles {
 	t.Helper()
+	if c.Proto == ProtoXfrmCst {
+		return corpusXfrmWriteRow(t, c)
+	}
 	dir := filepath.Join(tdLinkWrite, strings.TrimPrefix(c.Slug, linkWriteSlugPrefixCst))
 	if slug, ok := strings.CutPrefix(c.Slug, routeWriteSlugPrefixCst); ok {
 		dir = filepath.Join(tdRouteWrite, slug)
@@ -334,6 +346,63 @@ func corpusGenlWriteRow(t *testing.T, c Command) writeRowFiles {
 		rcs:   map[string]string{SideIPA: rc, SideGoip: "0", SideIPB: rc},
 		write: file,
 	}
+}
+
+// corpusXfrmWriteRow is an XFRM write row's files as a perfect run would
+// leave them, its capture the C3 corpus's, its slug without xfrm_, read as
+// NETLINK_XFRM. A write is one request and its answer, the last two
+// records, so goip's capture is ip's without them; deleteall's DELSAs ask
+// for no ack, so goip's is ip's without their datagram, its second dump
+// kept. Every stdout is empty.
+func corpusXfrmWriteRow(t *testing.T, c Command) writeRowFiles {
+	t.Helper()
+	dir := filepath.Join(tdXfrm, strings.TrimPrefix(c.Slug, xfrmSlugPrefixCst))
+	ipPcap := mustReadBytes(t, filepath.Join(dir, "ip.pcap"))
+	capture, err := nlparity.ParseCaptureFile(filepath.Join(dir, "ip.pcap"), xfrmProtoCst)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, err := nlparity.SplitWrites(nlparity.SegmentCapture(capture), c.WriteCount())
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := make([]byte, 0, len(w.Writes)*nlMsgHdrCst)
+	var seq uint32
+	for _, m := range w.Writes {
+		seq++
+		file = append(file, writeRequest(m, seq)...)
+	}
+	goip := dropLastRecords(t, ipPcap, 2)
+	if c.Slug == xfrmDeleteallSlugCst {
+		goip = dropRequestsOfType(t, ipPcap, xfrmMsgDelSACst)
+	}
+	rc := strings.TrimSpace(mustRead(t, filepath.Join(dir, "ip.rc")))
+	return writeRowFiles{
+		pcaps: map[string][]byte{SideIPA: ipPcap, SideGoip: goip, SideIPB: ipPcap},
+		rcs:   map[string]string{SideIPA: rc, SideGoip: "0", SideIPB: rc},
+		write: file,
+	}
+}
+
+// dropRequestsOfType returns a pcap without the records that open with a
+// request of type typ: an XFRM deleteall capture less its DELSA batch.
+func dropRequestsOfType(t *testing.T, b []byte, typ uint16) []byte {
+	t.Helper()
+	out := append([]byte(nil), b[:pcapGlobalHdrCst]...)
+	offs := pcapRecords(t, b)
+	for i, off := range offs {
+		end := len(b)
+		if i+1 < len(offs) {
+			end = offs[i+1]
+		}
+		msg := off + pcapRecordHdrCst + nlmonHdrCst
+		if msg+nlMsgHdrCst <= end && binary.LittleEndian.Uint16(b[msg+4:msg+6]) == typ &&
+			binary.LittleEndian.Uint16(b[msg+6:msg+8])&nlmFRequestCst != 0 {
+			continue
+		}
+		out = append(out, b[off:end]...)
+	}
+	return out
 }
 
 // dropGenlRequests returns a pcap without the records that carry a request

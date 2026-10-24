@@ -117,7 +117,8 @@ func (w WriteSplit) others() Segmentation {
 }
 
 // IsWrite reports whether m is a write the gates admit: an rtnetlink type
-// xtcpnl.IsAdmittedWriteType admits, or a generic netlink family's command
+// xtcpnl.IsAdmittedWriteType admits, an XFRM type
+// xtcpnl.IsAdmittedXfrmWrite admits, or a generic netlink family's command
 // xtcpnl.IsAdmittedGenlWrite admits by the family's name. A genl message
 // whose family the capture never named is not one, since only the name says
 // which commands write.
@@ -126,8 +127,8 @@ func IsWrite(m Msg) bool {
 	case unix.NETLINK_GENERIC:
 		return m.IsGenl() && len(m.Body) >= genlHdrLen && xtcpnl.IsAdmittedGenlWrite(m.Genl, m.Body[0])
 	case unix.NETLINK_XFRM:
-		// No XFRM write is admitted yet; NEWSA's 16 is RTM_NEWLINK's.
-		return false
+		// By XFRM's own gate: NEWSA's 16 is RTM_NEWLINK's.
+		return m.IsXfrm() && xtcpnl.IsAdmittedXfrmWrite(m.Hdr.Type)
 	}
 	return xtcpnl.IsAdmittedWriteType(m.Hdr.Type)
 }

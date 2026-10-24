@@ -3047,6 +3047,34 @@ The tests (`pkg/xtcpnl`, `pkg/nlparity`, `internal/goip`, `internal/goipparity`)
 | positive, negative, boundary: the nine rows, and a write | NETLINK_XFRM, floor 2, on the corpus topology, gated; none, `TestXfrmStateRows` (10) |
 | positive, boundary: `x` is xfrm, implemented, and `tuntap` the unimplemented example; every genl row then every XFRM row after the route rows | `TestLookupObject` (16), `TestGenlStandInRows` |
 
+**G7-T02 delivered** (`internal/goip`, `pkg/xtcpnl`, `pkg/nlparity`, `internal/goipparity`):
+- **The XFRM write gate.** `xtcpnl.IsAdmittedXfrmWrite` admits the SA writes `ip xfrm state` sends, NEWSA, UPDSA, ALLOCSPI, DELSA and FLUSHSA, by XFRM's numbers; `BuildXfrmWriteRequest` builds those alone, with their struct as the header. `nlparity.IsWrite` asks it of an XFRM message, so NEWSA, `RTM_NEWLINK`'s 16, is a write on XFRM and UPDSA, `RTM_GETROUTE`'s 26, too. The policy writes are G7-T04's.
+- **`add` and `update`** (`internal/goip/xfrm_state_write.go`), `xfrm_state_modify`: a NEWSA or UPDSA of `xfrm_usersa_info`, NLM_F_ACK.
+  - Every word by `strcmp`: `mode`, `mark`, `reqid`, `seq`, the five replay words, `flag`, `extra-flag`, `sel`, `limit`, `encap`, `coa`, `ctx`, `offload`, `output-mark`, `if_id`, `tfcpad`, `dir` and `pcpu-num`, each attribute in argument order; else an ALGO, else the ID, once.
+  - An ALGO is its type, refused when its kind was given, the name, the key, hex after `0x` with an odd count given a leading `0`, else the word's bytes, and `aead`'s ICV or `auth-trunc`'s truncation length.
+  - After the loop, `ip`'s order: the ESN and window refusals, the offload, the replay state (`XFRMA_REPLAY_ESN_VAL` with ESN or a window over 32, else `XFRMA_REPLAY_VAL` when a sequence number was given, and the window in the SA), the extra flags, the ID's check, the mark, `if_id`, `tfcpad`, the mode, algorithms and `coa` against the protocol, the output mark, the direction and the CPU.
+  - Each attribute is `addattr_l`'s, refused with its message past the 2048-byte buffer. The lifetimes' byte and packet limits are infinite unless given, and the family `AF_INET` when nothing set it.
+  - A context over `ip`'s 256-byte buffer, which `ip` overruns, is refused as not implemented.
+- **The selector** (`xfrm_selector.go`), `xfrm_selector_parse`: `src`, `dst` and `dev`, and one UPSPEC, `proto`, `sport`, `dport`, `type`, `code` and `key`. A protocol name, which `ip` reads through `getprotobyname`, and a refusal that names one through `getprotobynumber`, are not implemented: goip reads no config files. G7-T03 decides them for the policies.
+- **`allocspi`**, `xfrm_state_allocspi`: an ALLOCSPI of `xfrm_userspi_info`, without NLM_F_ACK, the range PF_KEY's unless given, IPComp's max 0xffff. `ip` prints the larval SA the kernel answers with; goip sends nothing and has none to print.
+- **`delete`** is `get`'s request as a DELSA with NLM_F_ACK, the two built by one function. **`flush`** is a FLUSHSA of its one byte, the protocol by name, `ipsec-any` among them.
+- **`deleteall`**, `xfrm_state_list_or_deleteall`: the list's words, then rounds of a GETSA dump with no attribute. `xfrm_state_keep` copies each SA the filter passes, but IPIP and IPv6 ones, into a DELSA without NLM_F_ACK: its ID, its source and its last `XFRMA_MARK`, copied with the four bytes after it, as `ip` copies `rta_len` bytes from the data. `ip` sends a round's copies in one datagram and dumps again until a round copies none. goip deletes nothing, so its next dump finds the same SAs: it skips one it copied, and its rounds end where `ip`'s do. Every round's copies go to `GOIP_WRITE_OUT`, none when there are none. A mark ending its message, which `ip` copies past, and a round past `ip`'s 8192-byte buffer are not implemented.
+- **The rows.** 17 of the C3 corpus's 20 other state rows, each on its corpus precondition, `update_larval`'s the corpus's `allocspi`. 16 are dry-run writes, `deleteall` with `Writes: 2`, and the two flushes with `Writes: 1`, as every flush row sets it; `deleteall` with no SA sends no write and is a read. Commands the corpus spells alike run as `a`, `u`, `d` and `delall`. Left out: `allocspi`, whose stdout goip cannot match, and `add_no_algo` and `allocspi_min_gt_max`, refused before a request, which would be floor-0 rows; `TestXfrmStateWritesMatchIp` checks all three.
+
+The tests (`pkg/xtcpnl`, `pkg/nlparity`, `internal/goip`, `internal/goipparity`):
+
+| description | expected |
+|---|---|
+| positive, negative, boundary, corner: the write gate's five types, the reads, the policy writes, an event and 0 | `TestIsAdmittedXfrmWrite` (12) |
+| positive, negative, boundary, corner: FLUSHSA's byte unpadded and padded before an attribute, a DELSA, a read, a policy write, a short header and `RTM_NEWLINK`'s number | the request's bytes, `ErrXfrmWrite`, `ErrBadFamilyHdr`, `TestBuildXfrmWriteRequest` (7) |
+| positive, negative, corner: XFRM's DELSA, FLUSHSA, ALLOCSPI and UPDSA writes, GETSA and NEWPOLICY not; NEWSA beside `RTM_NEWLINK` | `TestIsWrite` (14, six new), `TestXfrmMsg` (6, one changed) |
+| positive, negative, boundary, corner: the 20 C3 write captures replayed, and `a`, `u`, `sa d`, `delall`, `f` and `al` with words reordered | every read exchange replayed and no write; the writes the capture's, seq aside; `ip.out` but allocspi's; no stderr; exit 0, or 1 for the two `ip` refuses, which write nothing, `TestXfrmStateWritesMatchIp` (26) |
+| positive, negative, boundary, corner: each word's attribute or field, the whole selector, each protocol, algorithm and range refusal, the window's, key's and 2048-byte buffer's bounds, odd and bare-`0x` keys, words left for the loop, `coa` in the selector's family, selector protocols and a long context | the write's bytes or none, the message, `ip`'s exit status, `TestXfrmStateWritesArgs` (71) |
+| positive, negative, boundary, corner: deleteall over a source that deletes nothing: two SAs, a filter, `nokeys`, a mark, none, a dump error, a short SA, a second ID, IPIP, another type, a mark ending its message | the dumps, the DELSAs without NLM_F_ACK, their bytes, "Delete-all terminated", "Not a state", `TestXfrmStateDeleteall` (11) |
+| negative: `d` and `flush` with no `GOIP_WRITE_OUT` | `ErrWriteNotApplied`, exit 1, `TestXfrmStateArgs` (50, two changed) |
+| positive, negative, boundary: the 17 rows, `allocspi` and `add_no_algo` | NETLINK_XFRM, a write or `delall`'s read, floor 2, `deleteall`'s 5, on the corpus topology, gated; none, `TestXfrmStateRows` (28) |
+| positive: the Writes rule over `deleteall` and the flushes, every row's clean corpus run, the row count | `TestCommandTable`, `TestCompareWriteRow`, `TestRender`, `TestGenlStandInRows` |
+
 ## See also
 
 - [goip-parity-gaps-status.md](goip-parity-gaps-status.md): the progress against this plan: phase states, task checklist, verification ledger and decision log.

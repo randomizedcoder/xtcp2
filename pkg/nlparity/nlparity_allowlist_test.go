@@ -914,6 +914,24 @@ func TestAllowlistCommitted(t *testing.T) {
 		"xfrm state count",
 		"xfrm state c",
 		"-s xfrm state count",
+		// G7-T02's 17 `xfrm state` write rows.
+		"xfrm state add src 192.0.2.1 dst 192.0.2.2 proto esp spi 0x100 reqid 1 mode transport auth sha256 0x1111111111111111111111111111111111111111111111111111111111111111 enc aes 0x22222222222222222222222222222222",
+		"xfrm state add src 2001:db8::1 dst 2001:db8::2 proto esp spi 0x101 reqid 2 mode tunnel auth-trunc sha256 0x1111111111111111111111111111111111111111111111111111111111111111 128 enc aes 0x22222222222222222222222222222222",
+		"xfrm state add src 192.0.2.1 dst 192.0.2.3 proto esp spi 0x102 reqid 3 mode transport aead \"rfc4106(gcm(aes))\" 0x3333333333333333333333333333333333333333 128",
+		"xfrm state add src 192.0.2.1 dst 192.0.2.4 proto esp spi 0x103 mode transport enc aes 0x22222222222222222222222222222222",
+		"xfrm state a src 192.0.2.1 dst 192.0.2.2 proto esp spi 0x100 reqid 1 mode transport auth sha256 0x1111111111111111111111111111111111111111111111111111111111111111 enc aes 0x22222222222222222222222222222222",
+		"xfrm state add src 192.0.2.1 dst 192.0.2.2 proto esp spi 0x100 mode transport enc nosuchalg 0x22222222222222222222222222222222",
+		"xfrm state add src 192.0.2.1 dst 192.0.2.2 proto esp spi 0x100 mode transport enc aes 0x222222222222222222222222222222",
+		"xfrm state update src 192.0.2.1 dst 192.0.2.2 proto esp spi 0x100 reqid 1 mode transport auth sha256 0x1111111111111111111111111111111111111111111111111111111111111111 enc aes 0x22222222222222222222222222222222 limit time-hard 3600",
+		"xfrm state update src 192.0.2.1 dst 192.0.2.2 proto esp spi 0x200 mode transport auth sha256 0x1111111111111111111111111111111111111111111111111111111111111111 enc aes 0x22222222222222222222222222222222",
+		"xfrm state u src 192.0.2.1 dst 192.0.2.2 proto esp spi 0x100 reqid 1 mode transport auth sha256 0x1111111111111111111111111111111111111111111111111111111111111111 enc aes 0x22222222222222222222222222222222",
+		"xfrm state delete src 192.0.2.1 dst 192.0.2.2 proto esp spi 0x100",
+		"xfrm state d src 192.0.2.1 dst 192.0.2.2 proto esp spi 0x100",
+		"xfrm state deleteall",
+		"xfrm state delall",
+		"xfrm state flush",
+		"xfrm state flush proto ah",
+		"xfrm state allocspi src 192.0.2.1 dst 192.0.2.2 proto esp min 0x100 max 0x100",
 	}
 
 	tests := []struct {
