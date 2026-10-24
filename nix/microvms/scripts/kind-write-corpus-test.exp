@@ -224,17 +224,36 @@ proc macvlan_modes {} {
     return $out
 }
 
-# macvtap_strays <rows> - the macvtap rows whose command is not an add
-# or a set of t0 as a macvtap.
-proc macvtap_strays {rows} {
+# strays <rows> <kind> <dev> - the <kind> rows whose command is not an
+# add or a set of <dev> as a <kind>.
+proc strays {rows kind dev} {
     set out {}
     foreach r $rows {
         lassign $r slug floor pre command
-        if {![string match macvtap/* $slug]} {
+        if {![string match $kind/* $slug]} {
             continue
         }
-        if {![regexp {^ip link (?:add link d0 name t0|set t0) type macvtap(?: |$)} $command]} {
+        if {![regexp "^ip link (?:add link d0 name $dev|set $dev) type ${kind}(?: |\$)" $command]} {
             lappend out $slug
+        }
+    }
+    return $out
+}
+
+# word_rows <kind> <dev> <prefix> - <word> for every <kind>
+# add_<prefix><word> row that adds <dev> with the option words
+# "<prefix as words><word>" alone, in order: mode_ for "mode <word>",
+# "" for "<word>".
+proc word_rows {kind dev prefix} {
+    set out {}
+    set words [string map {_ " "} $prefix]
+    foreach r $::R {
+        lassign $r slug floor pre command
+        if {![regexp "^$kind/add_${prefix}(.*)\$" $slug -> name]} {
+            continue
+        }
+        if {$command eq "ip link add link d0 name $dev type $kind $words$name"} {
+            lappend out $name
         }
     }
     return $out
@@ -324,13 +343,29 @@ lappend design_rows {*}{
     macvtap/add_default macvtap/add_mode_bridge macvtap/add_mode_passthru
     macvtap/add_bcqueuelen macvtap/set_mode macvtap/add_mode_bad
 }
+set ipvlan_modes {l2 l3 l3s}
+set ipvlan_flags {private vepa bridge}
+lappend design_rows ipvlan/add_default
+foreach m $ipvlan_modes {
+    lappend design_rows ipvlan/add_mode_$m
+}
+foreach f $ipvlan_flags {
+    lappend design_rows ipvlan/add_$f
+}
+lappend design_rows {*}{
+    ipvlan/add_mode_and_flag ipvlan/add_abbrev ipvlan/set_mode ipvlan/set_flag
+    ipvlan/add_no_link ipvlan/add_on_loopback ipvlan/add_on_busy_lower
+    ipvlan/add_two_flags ipvlan/add_mode_bad ipvlan/add_unknown
+    ipvlan/add_no_value
+    ipvtap/add_default ipvtap/add_mode_l2 ipvtap/set_mode ipvtap/add_mode_bad
+}
 
 check slug_list "positive: the rows are the plan's, in run order" \
     {slugs $R} [join $design_rows " "]
 check first_row "boundary: add_default comes first" \
     {lindex [slugs $R] 0} bridge/add_default
-check row_count "boundary: KC2's 60 bridge and 42 bridge_slave rows, KC3-T01's 28 vlan rows, KC3-T02's 34 macvlan and 6 macvtap rows" \
-    {llength $R} 170
+check row_count "boundary: KC2's 60 bridge and 42 bridge_slave rows, KC3-T01's 28 vlan rows, KC3-T02's 34 macvlan and 6 macvtap rows, KC3-T03's 18 ipvlan and 4 ipvtap rows" \
+    {llength $R} 192
 check bridge_first "boundary: bridge's rows all come before bridge_slave's" \
     {lsearch -glob [slugs $R] bridge_slave/*} 60
 check option_rows "positive: one add_ row per value-taking option but stp_mode, each once" \
@@ -377,6 +412,9 @@ set refused_design {
     macvlan/add_macaddr_bad 1 macvlan/add_bcqueuelen_bad 1
     macvlan/add_bclim_bad 1 macvlan/add_bclim_abbrev 1 macvlan/add_no_value 255
     macvtap/add_mode_bad 1
+    ipvlan/add_no_link 2 ipvlan/add_on_loopback 2 ipvlan/add_on_busy_lower 2
+    ipvlan/add_two_flags 1 ipvlan/add_mode_bad 1 ipvlan/add_unknown 1
+    ipvlan/add_no_value 255 ipvtap/add_mode_bad 1
 }
 check refused_statuses "positive: exactly the refusal rows expect a non-zero status" \
     {refused_rows} [join $refused_design " "]
@@ -553,10 +591,42 @@ check macvlan_returned_vs_exit "corner: every ip refusal returns (1) but NEXT_AR
     {lmap s {add_nopromisc_not_passthru add_mode_bad add_macaddr_bad add_no_value} {field macvlan/$s 5}} \
     {1 1 1 255}
 check macvtap_kind "corner: every macvtap row adds or sets t0 as a macvtap" \
-    {macvtap_strays $R} {}
+    {strays $R macvtap t0} {}
 check macvtap_kind_caught "negative: a macvtap row sent as macvlan is listed" \
-    {macvtap_strays [list {macvtap/x 4 {} {ip link add link d0 name t0 type macvlan} {} 0}]} \
+    {strays [list {macvtap/x 4 {} {ip link add link d0 name t0 type macvlan} {} 0}] macvtap t0} \
     macvtap/x
+
+###############################################################################
+# 8. the ipvlan and ipvtap rows' states
+###############################################################################
+check ipvlan_after_macvtap "positive: ipvlan's rows follow macvtap's, and ipvtap's ipvlan's" \
+    {list [lsearch -glob [slugs $R] ipvlan/*] [lsearch -glob [slugs $R] ipvtap/*]} {170 188}
+check ipvlan_mode_rows "positive: one add_mode_ row per mode, each once" \
+    {word_rows ipvlan i0 mode_} [join $ipvlan_modes " "]
+check ipvlan_flag_rows "positive: one add_ row per flag word, each once" \
+    {word_rows ipvlan i0 ""} [join $ipvlan_flags " "]
+check ipvlan_word_counts "boundary: 3 modes and 3 flag words" \
+    {list [llength $ipvlan_modes] [llength $ipvlan_flags]} {3 3}
+check ipvlan_default "positive: add_default sends no option, on d0" \
+    {field ipvlan/add_default 3} {ip link add link d0 name i0 type ipvlan}
+check ipvlan_two_flags "corner: two flag words is ip's refusal: rc 1, floor 0, no readback" \
+    {list [field ipvlan/add_two_flags 3] [field ipvlan/add_two_flags 5] [field ipvlan/add_two_flags 1] [field ipvlan/add_two_flags 4]} \
+    {{ip link add link d0 name i0 type ipvlan private vepa} 1 0 {}}
+check ipvlan_busy_pre "corner: the busy lower's pre makes d0, then a macvlan m0 on it" \
+    {field ipvlan/add_on_busy_lower 2} \
+    {{link add d0 type dummy} {link add link d0 name m0 type macvlan mode bridge}}
+check ipvlan_set_mode_pre "corner: set_mode sends a mode alone to an i0 made private" \
+    {list [lindex [field ipvlan/set_mode 2] end] [field ipvlan/set_mode 3]} \
+    {{link add link d0 name i0 type ipvlan private} {ip link set i0 type ipvlan mode l2}}
+check ipvlan_no_link "negative: the no-link row names no lower" \
+    {field ipvlan/add_no_link 3} {ip link add name i0 type ipvlan}
+check ipvlan_returned_vs_exit "corner: the mode error and an unknown word return (1); NEXT_ARG exits (255)" \
+    {lmap s {add_mode_bad add_unknown add_no_value} {field ipvlan/$s 5}} {1 1 255}
+check ipvtap_kind "corner: every ipvtap row adds or sets j0 as an ipvtap" \
+    {strays $R ipvtap j0} {}
+check ipvtap_kind_caught "negative: an ipvtap row sent as ipvlan is listed" \
+    {strays [list {ipvtap/x 4 {} {ip link add link d0 name j0 type ipvlan} {} 0}] ipvtap j0} \
+    ipvtap/x
 
 ###############################################################################
 # summary

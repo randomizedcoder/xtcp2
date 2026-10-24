@@ -401,6 +401,56 @@ namespace eval kindcorpus {
         [macvtap add_mode_bad {mode bogus} 1]
 
     ###########################################################################
+    # ipvlan and ipvtap (KC3-T03), one parser (ipvlan_parse_opt) for two
+    # kinds. The device is i0 (j0 for ipvtap). Once any option follows the
+    # kind, ip sends IFLA_IPVLAN_FLAGS, 0 when no flag word is given, so a
+    # set of the mode alone clears the flags; with no option, parse_opt
+    # isn't called and no INFO_DATA is sent. ipvlan_link_new (drivers/net/
+    # ipvlan/ipvlan_main.c) argues the kernel's statuses: a lower is
+    # required, it must be Ethernet, and its rx handler must be free. ip
+    # takes one flag word; a second is an unknown option, returned (1).
+    ###########################################################################
+    variable IPVLAN_MODES {l2 l3 l3s}
+    variable IPVLAN_FLAGS {private vepa bridge}
+    variable PRE_I0 [list {link add link d0 name i0 type ipvlan}]
+    variable PRE_I0_PRIVATE [list {link add link d0 name i0 type ipvlan private}]
+    variable PRE_J0 [list {link add link d0 name j0 type ipvtap}]
+
+    proc ipvlan {name words rc {pre {}} {lower d0}} {
+        return [stacked ipvlan i0 $name $words $rc $pre $lower]
+    }
+
+    lappend rows [ipvlan add_default {} 0]
+    foreach mode $IPVLAN_MODES {
+        lappend rows [ipvlan add_mode_$mode "mode $mode" 0]
+    }
+    foreach flag $IPVLAN_FLAGS {
+        lappend rows [ipvlan add_$flag $flag 0]
+    }
+    lappend rows \
+        [ipvlan add_mode_and_flag {mode l2 vepa} 0] \
+        [ipvlan add_abbrev {mo l2} 0] \
+        [stacked_set ipvlan i0 set_mode {mode l2} 0 $PRE_I0_PRIVATE] \
+        [stacked_set ipvlan i0 set_flag vepa 0 $PRE_I0] \
+        [row ipvlan add_no_link $PRE_D0 {ip link add name i0 type ipvlan} 2 i0] \
+        [ipvlan add_on_loopback {} 2 {} lo] \
+        [ipvlan add_on_busy_lower {} 2 $PRE_M0] \
+        [ipvlan add_two_flags {private vepa} 1] \
+        [ipvlan add_mode_bad {mode l4} 1] \
+        [ipvlan add_unknown bogus 1] \
+        [ipvlan add_no_value mode 255]
+
+    proc ipvtap {name words rc {pre {}}} {
+        return [stacked ipvtap j0 $name $words $rc $pre]
+    }
+
+    lappend rows \
+        [ipvtap add_default {} 0] \
+        [ipvtap add_mode_l2 {mode l2} 0] \
+        [stacked_set ipvtap j0 set_mode {mode l2} 0 $PRE_J0] \
+        [ipvtap add_mode_bad {mode l4} 1]
+
+    ###########################################################################
     # readback_args <ns> <subdir> <readback> - the xtcp2-nlcap capio argument
     # list for one readback, which the driver hands to its capio proc.
     ###########################################################################

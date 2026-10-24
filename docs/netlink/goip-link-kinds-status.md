@@ -8,9 +8,10 @@
 - KC0 is done (KC0-T01): the capture drivers load the kind modules late, after every existing row, with no fallback tunnel devices in the namespaces made afterwards, and a `kinds` sidecar records what the guest kernel creates. It creates 31 of the 32 probed kinds. gtp is refused, and KC4 decides why.
 - KC1 is done (KC1-T01): 18 `ip link set dev d0 inet …` rows, 11 the kernel answers and 7 `ip` refuses before netlink, are in the rtnl corpus. They are KP0's and KG0's source.
 - KC2 is done (KC2-T01, KC2-T02): a kind corpus (`kind-write-corpus.exp`) the link-write driver runs into `link-write/kinds/`, with 60 bridge rows and 42 bridge_slave rows, 80 the kernel accepts, 12 it refuses and 10 `ip` refuses before netlink. They are KP1's and KG1's source.
-- KC3 is in progress: KC3-T01 adds 28 vlan rows, KC3-T02 34 macvlan and 6 macvtap rows; of the 68, 40 the kernel accepts, 11 it refuses and 17 `ip` refuses before netlink.
+- KC3 is done (KC3-T01, KC3-T02, KC3-T03): 28 vlan, 34 macvlan, 6 macvtap, 18 ipvlan and 4 ipvtap rows in the kind corpus, stacked on a dummy `d0`; of the 90, 54 the kernel accepts, 14 it refuses and 22 `ip` refuses before netlink. They are KP2's and KG2's source.
+- KC4 is broken into tasks.
 
-**Next action:** [KC3-T03](goip-link-kinds.md#kc3-t03-ipvlan-and-ipvtap): ipvlan and ipvtap, which closes KC3.
+**Next action:** [KC4-T01](goip-link-kinds.md#kc4-t01-vxlan): vxlan.
 
 ## Contents
 
@@ -37,8 +38,8 @@
 | [KC0](goip-link-kinds.md#kc0--kind-harness) | captures | kind harness | KC0-T01 | done | V001–V005, DOC002 |
 | [KC1](goip-link-kinds.md#kc1--inet-devconf-captures) | captures | `inet` devconf | KC1-T01 | done | V006–V008, DOC003 |
 | [KC2](goip-link-kinds.md#kc2--bridge-captures) | captures | bridge | KC2-T02 | done | V009–V016, DOC004 |
-| [KC3](goip-link-kinds.md#kc3--vlan-family-captures) | captures | VLAN family | KC3-T03 | in progress | V017–V022 |
-| [KC4](goip-link-kinds.md#kc4--udp-overlay-captures) | captures | UDP overlays | | not started | |
+| [KC3](goip-link-kinds.md#kc3--vlan-family-captures) | captures | VLAN family | KC3-T03 | done | V017–V025, DOC005 |
+| [KC4](goip-link-kinds.md#kc4--udp-overlay-captures) | captures | UDP overlays | KC4-T04 | not started | |
 | [KC5](goip-link-kinds.md#kc5--ip-tunnel-captures) | captures | IP tunnels | | not started | |
 | [KC6](goip-link-kinds.md#kc6--the-remaining-kinds-captures) | captures | the remaining kinds | | not started | |
 | [KC7](goip-link-kinds.md#kc7--kind-completeness-gate) | captures | completeness gate | | not started | |
@@ -67,8 +68,11 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | [x] | [KC2-T02](goip-link-kinds.md#kc2-t02-bridge_slave) | bridge_slave | done | V014–V016 |
 | [x] | [KC3-T01](goip-link-kinds.md#kc3-t01-vlan) | vlan | done | V017–V019 |
 | [x] | [KC3-T02](goip-link-kinds.md#kc3-t02-macvlan-and-macvtap) | macvlan and macvtap | done | V020–V022 |
-| [ ] | [KC3-T03](goip-link-kinds.md#kc3-t03-ipvlan-and-ipvtap) | ipvlan and ipvtap | not started | |
-| [ ] | [KC4-T01…](goip-link-kinds.md#kc4--udp-overlay-captures) | UDP overlay captures | not started | |
+| [x] | [KC3-T03](goip-link-kinds.md#kc3-t03-ipvlan-and-ipvtap) | ipvlan and ipvtap | done | V023–V025, DOC005 |
+| [ ] | [KC4-T01](goip-link-kinds.md#kc4-t01-vxlan) | vxlan | not started | |
+| [ ] | [KC4-T02](goip-link-kinds.md#kc4-t02-geneve) | geneve | not started | |
+| [ ] | [KC4-T03](goip-link-kinds.md#kc4-t03-bareudp-and-amt) | bareudp and amt | not started | |
+| [ ] | [KC4-T04](goip-link-kinds.md#kc4-t04-gtp) | gtp | not started | |
 | [ ] | [KC5-T01…](goip-link-kinds.md#kc5--ip-tunnel-captures) | IP tunnel captures | not started | |
 | [ ] | [KC6-T01…](goip-link-kinds.md#kc6--the-remaining-kinds-captures) | the remaining kinds' captures | not started | |
 | [ ] | [KC7-T01…](goip-link-kinds.md#kc7--kind-completeness-gate) | completeness gate | not started | |
@@ -115,6 +119,10 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | V020 | 2026-10-24 | KC3-T02 | `nix build .#checks.x86_64-linux.vm-lib-exp` | `kind-write-corpus.exp`: 75 passed, 0 failed (the 170 rows, one `add_mode_` row per macvlan mode, the source and passthru pres, `bclim`'s negative and its `strcmp`, every macvtap row a macvtap); the other suites unchanged | this commit |
 | V021 | 2026-10-24 | KC3-T02 | mutation, scratch copies of the corpus and its test, through `expect`: a mode dropped, `add_bclim_abbrev` at 0, `set_macaddr_del`'s pre without the address, a macvtap row made a macvlan row, a macvtap row sending `type macvlan` | 5 of 5 killed: by `slug_list`, `row_count`, `macvlan_after_vlan` and `macvlan_mode_rows`; `refused_statuses` and `macvlan_bclim_strcmp`; `macvlan_source_pre`; `slug_list` and `unique_slugs`; `macvtap_kind` | scratch |
 | V022 | 2026-10-24 | KC3-T02 | `nix run .#microvm-x86_64-link-write-capture -- --timeout 7200`, guest kernel 7.3.0; `-d -j` readbacks checked against the values sent; compared with V019 by `pcapcmp` | `NLCAP_DRIVER_FAIL` on `genl/mptcp_limits_set_over` alone (V004). The 40 rows hold their planned statuses on the first run: macvlan 20 at 0, 5 at 2, 8 at 1 and 1 at 255; macvtap 5 at 0 and 1 at 1. Every mode, flag, `bcqueuelen`, `bclim` and source address reads back as sent; the default mode is `vepa`, `bclim` is printed only when set, and `macaddr set`'s two addresses read back in the reverse order. The kernel's refusals are bare errnos (`Invalid argument`, and `Cannot assign requested address` for the multicast source). Against V019: 130 new pcaps, all under `kinds/macvlan/` and `kinds/macvtap/` (40 `ip.pcap` and 30 rows × 3 readbacks); 1208 the same shape, 15 differing in V004's classes, none under `kinds/` | scratch |
+| V023 | 2026-10-24 | KC3-T03 | `nix build .#checks.x86_64-linux.vm-lib-exp` | `kind-write-corpus.exp`: 87 passed, 0 failed (the 192 rows, one `add_mode_` row per ipvlan mode and one `add_` row per flag word, the two-flag refusal, the busy lower's and `set_mode`'s pres, every ipvtap and macvtap row its own kind); the other suites unchanged | this commit |
+| V024 | 2026-10-24 | KC3-T03 | mutation, scratch copies of the corpus and its test, through `expect`: a flag dropped, `add_two_flags` at 2, `add_on_busy_lower`'s pre without `m0`, an ipvtap row sending `type ipvlan`; and V021's macvtap mutant again, against the shared `strays` | 5 of 5 killed: by `slug_list`, `row_count`, `ipvlan_after_macvtap` and `ipvlan_flag_rows`; `refused_statuses` and `ipvlan_two_flags`; `ipvlan_busy_pre`; `ipvtap_kind`; `macvtap_kind` | scratch |
+| V025 | 2026-10-24 | KC3-T03 | `nix run .#microvm-x86_64-link-write-capture -- --timeout 7200`, guest kernel 7.3.0; `-d -j` readbacks checked against the values sent; compared with V022 by `pcapcmp` | `NLCAP_DRIVER_FAIL` on `genl/mptcp_limits_set_over` alone (V004). The 22 rows hold their planned statuses on the first run: ipvlan 11 at 0, 3 at 2, 3 at 1 and 1 at 255; ipvtap 3 at 0 and 1 at 1. Every mode and flag reads back as sent; the default mode is `l3`, no flag reads back `"bridge": true`, and `set_mode` reads back with `private` cleared. The busy lower is `Device or resource busy`. Against V022: 73 new pcaps, all under `kinds/ipvlan/` and `kinds/ipvtap/` (22 `ip.pcap` and 17 rows × 3 readbacks); 1340 the same shape, 13 differing in V004's classes, none under `kinds/` | scratch |
+| DOC005 | 2026-10-24 | KC3 close | KC4 broken into KC4-T01 (vxlan), KC4-T02 (geneve), KC4-T03 (bareudp and amt) and KC4-T04 (gtp) with their tables, argued from `iplink_vxlan.c`, `iplink_geneve.c`, `iplink_bareudp.c`, `iplink_amt.c` and `iplink_gtp.c` at `v7.2.0` and each kind's kernel checks; the geneve `local` wording corrected and KC0's gtp refusal explained (decision log); doccheck | tasks one to one, no broken link or anchor | this commit |
 
 ## Decision log
 
@@ -133,3 +141,6 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 - **A port's `state` reads back what the bridge makes of it.** With STP off, `br_set_port_state` sets the state sent and then runs `br_port_state_selection`, which moves an enabled port to forwarding, so `set_state`'s `state 4` reads back `forwarding`. The request pins the 4; KG1 renders what the kernel reports, as `ip` does.
 - **An `ip` refusal can still send datagrams.** `backup_port` resolves its name with an `RTM_GETLINK` before `invarg` exits, so `set_backup_port_missing` has 4 datagrams at floor 0. A floor is a minimum, and the row's evidence is its `ip.err`.
 - **The VM namespace's rp_filter is 2,** not the kernel's 0, so `inet_rp_filter_max` writes the value it reads back. The row still pins the request; `inet_several` (`rp_filter 1`) shows a change.
+- **gtp is in scope; KC0's probe sent no option.** With nothing after `type gtp`, `iplink_parse` doesn't call `gtp_parse_opt`, no `INFO_DATA` goes out, and `gtp_validate` refuses `!data`. `role ggsn` is enough: `ip` then sends `IFLA_GTP_CREATE_SOCKETS`, and the kernel opens its own sockets. KC4-T04 has the rows; the KC0 entry above is answered.
+- **7.2.0's geneve option is `local`, not `local` and `local6`.** The plan named both; `iplink_geneve.c` has one `strcmp` keyword that sends `IFLA_GENEVE_LOCAL` or `IFLA_GENEVE_LOCAL6` by the address's family, and `local6`, like `remote6`, is only an output key. KC4-T02 has a row for each family and one for the word `local6`, which `ip` refuses.
+- **`get_addr` exits 1.** A bad or wrong-family address calls `exit(1)`, not `exit(-1)`, so an address `ip` can't parse reads like a returned error. KC4's tables use it; KC3's rows had no address.

@@ -105,7 +105,7 @@ One row per iproute2 file, at `v7.2.0`:
 **Kind options new in 7.2.0:**
 - bridge `stp_mode` (`IFLA_BR_STP_MODE`);
 - bridge_slave `neigh_forward_grat`;
-- geneve `local` and `local6`.
+- geneve `local`, one keyword that sends `IFLA_GENEVE_LOCAL` or `IFLA_GENEVE_LOCAL6` by the address's family.
 
 They are rows in K1 and K3 like any other option.
 
@@ -551,7 +551,189 @@ ipvtap, under `kinds/ipvtap/` with the device `j0`: `add_default`, `add_mode_l2`
 
 ### KC4 — UDP overlay captures
 
-vxlan, geneve (with 7.2.0's `local` and `local6`), bareudp, amt and gtp.
+vxlan, geneve (with 7.2.0's `local`), bareudp, amt and gtp: kinds with no lower device of their own, each a UDP socket in the namespace. Four tasks: KC4-T01 vxlan, KC4-T02 geneve, KC4-T03 bareudp and amt, KC4-T04 gtp, which closes KC4.
+
+**Shared shape.** Rows go in `kind-write-corpus.exp` after ipvtap's, under `kinds/<kind>/`. An add is `ip link add <dev> type <kind> …` with no lower; a row that names a lower (`dev d0`) has `link add d0 type dummy` in its pre. A set is `ip link set <dev> type <kind> …` on a device the pre made. Floors, readbacks and statuses are KC2's. Each kind's kernel checks are argued from its `validate`, `newlink` and `changelink` (`drivers/net/vxlan/vxlan_core.c`, `drivers/net/geneve.c`, `drivers/net/bareudp.c`, `drivers/net/amt.c`, `drivers/net/gtp.c`), and the first VM run confirms them.
+
+**Statuses these files add to KC3's rule:**
+- **`get_addr` exits 1, not 255.** A bad or wrong-family address calls `exit(1)` (`lib/utils.c`), so it reads like a returned error. `exit(nodev(…))` and `missarg` exit 255.
+- **The kernel validates a set as well as an add.** `rtnl_newlink` calls the kind's `validate` before it splits create from change, so a set with no option (no `INFO_DATA`) is refused like an add with none. A set that passes `validate` on a kind with no `changelink` (bareudp, amt, gtp) is `-EOPNOTSUPP`.
+- **Each kind refuses a bare `type <kind>`.** With no option `parse_opt` isn't called and no `INFO_DATA` is sent; all five `validate`s refuse `!data`. This is why KC0's gtp probe was refused.
+
+#### KC4-T01 vxlan
+
+The device is `vx0`. `ip` requires `id` (or `external`), and warns on stderr when no `dstport` is given; `ip`'s own checks pre-empt the kernel's id range, local multicast, group without `dev`, the family mismatch on add, and `vnifilter` without `external`. Rows but `add_default` send `dstport 4789`, so stderr holds only errors. "base" is `id 42 dstport 4789`.
+
+| slugs | command (after `type vxlan`) | rc | what it pins |
+|---|---|---|---|
+| `add_default` | `id 42` | 0 | `IFLA_VXLAN_ID` alone; the dstport warning; the port reads back 8472 |
+| `add_dstport`, `add_dstport_zero` | base; `id 42 dstport 0` | 0 | `PORT` big-endian; `dstport 0` sends none and silences the warning |
+| `add_id_zero`, `add_id_max` | `id 0`, `id 16777215`, with `dstport 4789` | 0 | the VNI's range ends |
+| `add_vni_abbrev` | `v 42 dstport 4789` | 0 | `vni` is `id`'s alias, through `matches` |
+| `add_remote`, `add_remote6` | base `remote 10.0.0.1`; base `remote 2001:db8::1` | 0 | `GROUP` and `GROUP6`; read back as `remote` and `remote6` |
+| `add_group`, `add_group6` | base `group 239.1.1.1 dev d0`; base `group ff05::1 dev d0` | 0 | `GROUP`/`GROUP6` and `LINK`; `link` reads back `d0` (`ll_index_to_name`) |
+| `add_local`, `add_local6_link_local` | base `local 10.0.0.1`; base `local fe80::1 dev d0` | 0 | `LOCAL` and `LOCAL6` |
+| `add_ttl`, `add_ttl_auto`, `add_ttl_inherit` | base `ttl 64`, `ttl auto`, `ttl inherit` | 0 | `TTL`, `TTL` 0, `TTL_INHERIT`; `inherit` prints no JSON `ttl` |
+| `add_tos`, `add_tos_inherit` | base `tos 10`, `tos inherit` | 0 | `TOS` parsed as hex (0x10); `inherit` is 1 |
+| `add_df_<value>` for `set`, `unset`, `inherit` (3) | base `df <value>` | 0 | `DF`'s three values |
+| `add_flowlabel` | base `remote 2001:db8::1 flowlabel 0x12345` | 0 | `LABEL` |
+| `add_ageing`, `add_ageing_none` | base `ageing 600`, `ageing none` | 0 | `AGEING`; 0 reads back 300 |
+| `add_maxaddress` | base `maxaddress 100` | 0 | `LIMIT` |
+| `add_srcport` | base `srcport 1000 2000` | 0 | `PORT_RANGE`, two values |
+| `add_<flag>` for `proxy`, `rsc`, `l2miss`, `l3miss`, `noudpcsum`, `udp6zerocsumtx`, `udp6zerocsumrx`, `remcsumtx`, `remcsumrx`, `nolearning`, `nolocalbypass`, `gbp`, `mcroute` (13) | base `<flag>` | 0 | one flag attribute each; `mcroute` doesn't read back |
+| `add_external`, `add_vnifilter`, `add_gpe` | `external`; `external vnifilter dstport 4789`; `external gpe` | 0 | `COLLECT_METADATA` with learning off; `VNIFILTER`; `GPE`, for which `ip` picks dstport 4790 |
+| `add_reserved_bits` | base `reserved_bits 0` | 0 | `RESERVED_BITS`, a `strcmp` keyword |
+| `add_no_abbrev` | base `no` | 0 | `no` matches `nolearning` first |
+| `set_changeable` | `ttl 32 tos inherit df set ageing 600 nolearning remote 10.0.0.2`, on `vx0` | 0 | the attributes `changelink` takes |
+| `set_dev` | `dev d0`, on a `vx0` made without one | 0 | the lower changed |
+| `set_id_same` | `id 42`, on `vx0` (id 42) | 0 | the VNI is refused only when it differs |
+| `add_no_option` | (no option) | 2 | no `INFO_DATA`: "Required attributes not provided" |
+| `add_duplicate_vni` | `vx1`, base, on a namespace whose `vx0` has id 42 on port 4789 | 2 | `-EEXIST` |
+| `add_link_local_no_dev`, `add_scope_mix` | `id 42 local fe80::1`; `id 42 local fe80::1 remote 2001:db8::1` | 2 | a link-local local needs a lower; the two scopes must match |
+| `add_flowlabel_v4`, `add_srcport_inverted` | `id 42 flowlabel 5`; `id 42 srcport 2000 1000` | 2 | a label is IPv6's; the range's order |
+| `add_gpe_no_external`, `add_reserved_bits_overlap` | `id 42 gpe`; `id 42 reserved_bits 0x0800000000000000` | 2 | GPE needs `external`; reserved bits can't cover used ones |
+| `set_id`, `set_dstport`, `set_proxy`, `set_family` | `id 43`; `dstport 4789`; `proxy`; `remote 2001:db8::1`, on `vx0` | 2 | the VNI, the port (even unchanged), a flag `changelink` refuses, and the family |
+| `add_no_id`, `add_group_no_dev`, `add_group_and_remote` | `dstport 4789`; `id 42 group 239.1.1.1`; `id 42 group 239.1.1.1 remote 10.0.0.1` | 1 | `ip`'s own required and exclusive options |
+| `add_external_and_id`, `add_vnifilter_no_external` | `external id 42`; `id 42 vnifilter` | 1 | likewise |
+| `add_remote_bad` | `id 42 remote nosuch` | 1 | `get_addr`'s `exit(1)` |
+| `add_strcmp_abbrev`, `add_unknown` | `id 42 localbyp`; `id 42 bogus` | 1 | `localbypass` is `strcmp`; "unknown command" |
+| `add_id_over`, `add_remote_multicast`, `add_dev_missing` | `id 16777216`; `id 42 remote 239.1.1.1`; `id 42 dev nosuch` | 255 | `invarg`, `invarg`, `exit(nodev())` |
+| `add_ttl_over`, `add_srcport_one`, `add_learning_twice`, `add_no_value` | `id 42 ttl 256`; `id 42 srcport 1000`; `id 42 learning nolearning`; `id` | 255 | `invarg`, `NEXT_ARG`, `duparg2`, `NEXT_ARG` |
+
+**Tests**, in `kind-write-corpus-test.exp`, over the vxlan rows:
+
+| description | input | expected |
+|---|---|---|
+| positive: the rows are the plan's, after ipvtap's | the slug list | the table's slugs, in order |
+| positive: one `add_` row per flag word, and one `add_df_` row per value | those rows | the 13 flags; `set unset inherit` |
+| negative: exactly the refusal rows expect a non-zero status | `refused_rows` | the table's 2s, 1s and 255s |
+| boundary: the VNI range | `add_id_max`, `add_id_over` | 16777215 at 0, 16777216 at 255 |
+| corner: only `add_default` goes without a dstport among the accepted adds | the rc-0 adds' commands | `dstport` in each but `add_default`'s and the `external` rows' |
+| corner: the rows naming `dev d0` make it first | their pres | `{link add d0 type dummy}` |
+| corner: the duplicate's pre holds `vx0`, and its readbacks read `vx1` | `add_duplicate_vni` | as stated |
+| corner: `get_addr`'s failure is 1, `invarg`'s 255 | `add_remote_bad`, `add_remote_multicast` | 1, 255 |
+| positive (VM): each status, and the values read back | `ip.rc`; `-d -j` readbacks | the table's rc; each attribute as sent, with the read-back forms above |
+
+**Mutation check:** a flag row dropped, `add_id_over` at 2, `add_group`'s pre without `d0`, `add_remote_bad` at 255.
+
+**Done when:** as KC2-T01.
+
+#### KC4-T02 geneve
+
+The device is `gn0`. On an add `ip` requires `id` and `remote` unless `external` is given, and always sends `ID`, `LABEL`, `TTL` and `TOS`; on a set it requires `id` only. 7.2.0's one new keyword is `local` (`strcmp`), which sends `IFLA_GENEVE_LOCAL` or `IFLA_GENEVE_LOCAL6` by the address's family; `local6`, like `remote6`, is an output key, not a keyword. "base" is `id 1 remote 10.0.0.1`.
+
+| slugs | command (after `type geneve`) | rc | what it pins |
+|---|---|---|---|
+| `add_default` | base | 0 | `ID`, `REMOTE`, and the zeros `ip` always sends |
+| `add_remote6` | `id 1 remote 2001:db8::1` | 0 | `REMOTE6` |
+| `add_external` | `external` | 0 | `COLLECT_METADATA` with id 0 |
+| `add_id_max`, `add_abbrev` | `id 16777215 remote 10.0.0.1`; `i 1 r 10.0.0.1` | 0 | the VNI's top; `matches` |
+| `add_local`, `add_local6` | base `local 10.0.0.2`; `id 1 remote 2001:db8::1 local 2001:db8::2` | 0 | 7.2.0's `local`, each family |
+| `add_external_local`, `add_external_local6` | `external local 192.168.0.1`; `external local 2001:db8::1` | 0 | a one-family metadata device |
+| `add_ttl`, `add_ttl_inherit` | base `ttl 64`, `ttl inherit` | 0 | `TTL`; `TTL_INHERIT` with `TTL` 0 |
+| `add_tos`, `add_df`, `add_dstport` | base `tos 10`, `df set`, `dstport 4789` | 0 | `TOS` (hex), `DF`, `PORT` |
+| `add_dstport_zero` | base `dstport 0` | 0 | no `PORT` sent; reads back 6081 |
+| `add_flowlabel` | `id 1 remote 2001:db8::1 flowlabel 0xfffff` | 0 | `LABEL`'s top |
+| `add_zero_csum6`, `add_csum_cancel` | `id 1 remote 2001:db8::1 udp6zerocsumtx udp6zerocsumrx`; base `udpcsum udp6zerocsumtx` | 0 | the checksum flags; on IPv4, `udp6zerocsumtx` clears what `udpcsum` set |
+| `add_innerprotoinherit` | base `innerprotoinherit` | 0 | `INNER_PROTO_INHERIT`; the device has no MAC |
+| `set_changeable`, `set_remote` | `id 1 ttl 5 tos 10 df set`; `id 1 remote 10.0.0.9`, on `gn0` | 0 | what `changelink` takes |
+| `set_local_same` | `id 1 local 10.0.0.2`, on a `gn0` made with it | 0 | an unchanged local is accepted |
+| `add_no_option` | (no option) | 2 | no `INFO_DATA` |
+| `add_remote6_link_local`, `add_local6_link_local`, `add_local_family_mix` | `id 1 remote fe80::1`; `id 1 remote 2001:db8::1 local fe80::2`; base `local 2001:db8::2` | 2 | the kernel's address checks |
+| `add_flowlabel_v4`, `add_external_udpcsum` | base `label 5`; `external udpcsum` | 2 | a label is IPv6's; an external device takes no tunnel option |
+| `add_duplicate`, `add_after_external` | `gn1`, base, on a namespace with that `gn0`; `gn1`, base, on one with an `external` `gn0` | 2 | `-EBUSY`; `-EPERM` |
+| `set_id`, `set_dstport`, `set_family`, `set_local_new`, `set_on_external` | `id 2`; `id 1 dstport 6081`; `id 1 remote 2001:db8::1`; `id 1 local 10.0.0.2`; `id 0` on an `external` `gn0` | 2 | each `-EOPNOTSUPP` change |
+| `add_no_id`, `add_no_remote`, `add_external_and_id`, `set_no_id` | `remote 10.0.0.1`; `id 1`; `external id 5`; `ttl 5` on `gn0` | 1 | `ip`'s required and exclusive options |
+| `add_remote_bad`, `add_local_abbrev`, `add_local6_word` | `id 1 remote bogus`; base `loc 10.0.0.2`; `id 1 remote 2001:db8::1 local6 2001:db8::2` | 1 | `get_addr`'s `exit(1)`; `local` is `strcmp`; `local6` is no keyword |
+| `add_id_over`, `add_remote_multicast`, `add_local_multicast` | `id 16777216 remote 10.0.0.1`; `id 1 remote 239.1.1.1`; base `local 224.0.0.1` | 255 | `invarg` |
+| `add_ttl_over`, `add_flowlabel_over`, `add_external_twice`, `add_no_value` | base `ttl 256`; `id 1 remote 2001:db8::1 flowlabel 0x100000`; `external noexternal`; `id` | 255 | `invarg`, `invarg`, `duparg2`, `NEXT_ARG` |
+
+**Tests:**
+
+| description | input | expected |
+|---|---|---|
+| positive: the rows are the plan's, after vxlan's | the slug list | the table's slugs, in order |
+| negative: exactly the refusal rows expect a non-zero status | `refused_rows` | the table's |
+| positive: `local` is sent for both families by one keyword | `add_local`, `add_local6` | `local 10.0.0.2`, `local 2001:db8::2` |
+| corner: `local6` and `loc` are `ip`'s refusals | `add_local6_word`, `add_local_abbrev` | rc 1, floor 0 |
+| corner: the conflict rows' pres | `add_duplicate`, `add_after_external`, `set_on_external` | `gn0` made with base, `external`, `external`; the readbacks read `gn1`, `gn1`, `gn0` |
+| boundary: the VNI range | `add_id_max`, `add_id_over` | 0, 255 |
+| positive (VM): each status, and the values read back | `ip.rc`; `-d -j` readbacks | the table's rc; `local`/`local6` as sent |
+
+**Mutation check:** `add_local6` sent as `local6`, `add_local_abbrev` at 0, `add_after_external`'s pre made with base, `add_dstport_zero` dropped.
+
+**Done when:** as KC2-T01.
+
+#### KC4-T03 bareudp and amt
+
+Two small kinds, neither with a `changelink`. bareudp (`b0`) needs `dstport` and `ethertype`, which `ip` enforces with `missarg` (255); every keyword is `matches`. amt (`a0`) needs a lower, a mode and a local address, which only the kernel enforces; every keyword is `strcmp`, and only `local` and `discovery` are checked for repeats. amt's rows put `d0` in the pre; "relay" is `mode relay dev d0 local 10.0.0.1`.
+
+| slugs | command | rc | what it pins |
+|---|---|---|---|
+| bareudp `add_default` | `dstport 6635 ethertype mpls_uc` | 0 | `PORT` and `ETHERTYPE`; `srcportmin` reads back 0 |
+| bareudp `add_ethertype_ipv4`, `add_ethertype_number` | `dstport 6635 ethertype ipv4`; `dstport 6635 ethertype 0x1234` | 0 | the alias reads back `ip`; an unnamed one reads back `[4660]` |
+| bareudp `add_srcportmin`, `add_multiproto` | `dstport 6635 ethertype ip srcportmin 1000`; `dstport 6635 ethertype mpls_uc multiproto` | 0 | `SRCPORT_MIN`; `MULTIPROTO_MODE`, a flag |
+| bareudp `add_abbrev` | `d 6635 e ip s 1 m` | 0 | `matches`, `m` being `multiproto` |
+| bareudp `add_no_option`, `add_multiproto_ipv6` | (none); `dstport 6635 ethertype ipv6 multiproto` | 2 | no `INFO_DATA`; multiproto is for `ip` and `mpls_uc` |
+| bareudp `add_port_busy` | `b1`, `dstport 6635 ethertype mpls_uc`, on a namespace whose `b0` has port 6635 | 2 | `-EBUSY` |
+| bareudp `set_same` | `dstport 6635 ethertype ip`, on `b0` | 2 | no `changelink`: `-EOPNOTSUPP` |
+| bareudp `add_unknown` | `dstport 1 ethertype ip foo` | 1 | "unknown command" |
+| bareudp `add_no_dstport`, `add_no_ethertype`, `add_ethertype_bad`, `add_dstport_twice`, `add_no_value` | `ethertype ip`; `dstport 6635`; `dstport 6635 ethertype foo`; `dstport 1 dstport 2 ethertype ip`; `dstport` | 255 | `missarg`, `missarg`, `invarg`, `duparg2`, `NEXT_ARG` |
+| amt `add_gateway`, `add_relay` | `mode gateway dev d0 local 10.0.0.1 discovery 10.0.0.2`; relay | 0 | `MODE`, `LINK`, `LOCAL_IP`, `DISCOVERY_IP`; the ports read back 2268 and `max_tunnels` 128 |
+| amt `add_ports` | `mode gateway dev d0 local 10.0.0.1 discovery 10.0.0.2 relay_port 3000 gateway_port 3001 max_tunnels 10` | 0 | the optional attributes |
+| amt `add_max_tunnels_zero`, `add_mode_twice` | relay `max_tunnels 0`; `mode gateway mode relay dev d0 local 10.0.0.1` | 0 | 0 reads back 128; a repeated mode is sent twice and the last wins |
+| amt `add_no_option`, `add_no_link`, `add_gateway_no_discovery` | (none); `mode relay local 10.0.0.1`; `mode gateway dev d0 local 10.0.0.1` | 2 | `amt_validate`'s required attributes |
+| amt `add_on_loopback`, `add_local_loopback`, `add_relay_port_zero`, `add_discovery_multicast` | `mode relay dev lo local 10.0.0.1`; `mode relay dev d0 local 127.0.0.1`; relay `relay_port 0`; `mode gateway dev d0 local 10.0.0.1 discovery 224.0.0.1` | 2 | `amt_newlink`'s checks |
+| amt `set_same` | relay, on `a0` | 2 | no `changelink`: `-EOPNOTSUPP` |
+| amt `add_abbrev`, `add_mode_bad`, `add_local_bad` | `mod relay dev d0 local 10.0.0.1`; `mode foo`; `local foo` | 1 | `strcmp`; the mode error, returned; `get_addr`'s `exit(1)` |
+| amt `add_dev_missing`, `add_local_twice`, `add_port_over`, `add_no_value` | `dev nosuch`; `local 10.0.0.1 local 10.0.0.3`; `relay_port 70000`; `mode` | 255 | `exit(nodev())`, `duparg2`, `invarg`, `NEXT_ARG` |
+
+**Tests:**
+
+| description | input | expected |
+|---|---|---|
+| positive: the rows are the plan's, after geneve's | the slug list | the table's slugs, bareudp's then amt's |
+| negative: exactly the refusal rows expect a non-zero status | `refused_rows` | the table's |
+| corner: a missing required option is `ip`'s for bareudp and the kernel's for amt | `bareudp/add_no_dstport`, `amt/add_no_link` | 255, 2 |
+| corner: the busy port's pre | `bareudp/add_port_busy` | `b0` on port 6635; the readbacks read `b1` |
+| corner: the sets are refused | `bareudp/set_same`, `amt/set_same` | 2 each, on a device the pre made |
+| corner: every amt row but `add_no_option` and `add_no_link` names a lower | the amt commands | `dev` in each |
+| positive (VM): each status, and the values read back | `ip.rc`; `-d -j` readbacks | the table's rc; the defaults above |
+
+**Mutation check:** bareudp `add_no_ethertype` at 1, amt `add_no_link` with `dev d0`, bareudp `add_port_busy`'s pre without `b0`, amt `add_abbrev` at 0.
+
+**Done when:** as KC2-T01.
+
+#### KC4-T04 gtp
+
+The device is `g0`. Once any option follows `type gtp`, `ip` sends `IFLA_GTP_CREATE_SOCKETS`, so the kernel opens its own UDP sockets (ports 3386 and 2152, any address) in the namespace; `role` is required (returned, 1), `hsize` defaults to 1024, and an unknown word is skipped silently. There is no `changelink`. KC0's probe was refused because it sent no option (see the shared shape); `role ggsn` is enough.
+
+| slugs | command (after `type gtp`) | rc | what it pins |
+|---|---|---|---|
+| `add_ggsn`, `add_sgsn` | `role ggsn`; `role sgsn` | 0 | `CREATE_SOCKETS`, `ROLE`, `PDP_HASHSIZE` 1024 |
+| `add_hsize`, `add_hsize_max`, `add_hsize_zero` | `role ggsn hsize 4096`; `hsize 131071`; `hsize 0` | 0 | `PDP_HASHSIZE`; the top below 1<<17; 0 reads back 1024 |
+| `add_restart_count` | `role ggsn restart_count 255` | 0 | `RESTART_COUNT`, a u8 |
+| `add_unknown_skipped` | `role ggsn foo` | 0 | no unknown-option error |
+| `add_no_option` | (no option) | 2 | no `INFO_DATA`: KC0's probe |
+| `add_second` | `g1`, `role sgsn`, on a namespace with `g0` | 2 | the sockets' ports are taken |
+| `set_same`, `set_no_option` | `role ggsn`; (no option), on `g0` | 2 | no `changelink`; no `INFO_DATA` |
+| `add_no_role`, `add_abbrev`, `set_no_role` | `hsize 10`; `rol ggsn`; `hsize 5` on `g0` | 1 | `role` required; `strcmp`, so `rol` is skipped and the role is missing |
+| `add_role_bad`, `add_hsize_over`, `add_restart_count_hex`, `add_role_twice`, `add_no_value` | `role foo`; `role ggsn hsize 131072`; `role ggsn restart_count 0x1`; `role ggsn role sgsn`; `role` | 255 | `invarg` ×3 (`restart_count` is base 10), `duparg2`, `NEXT_ARG` |
+
+**Tests:**
+
+| description | input | expected |
+|---|---|---|
+| positive: the rows are the plan's, after amt's | the slug list | the table's slugs |
+| negative: exactly the refusal rows expect a non-zero status | `refused_rows` | the table's |
+| boundary: the hash size's top | `add_hsize_max`, `add_hsize_over` | 131071 at 0, 131072 at 255 |
+| corner: an unknown word is accepted, an abbreviated `role` refused | `add_unknown_skipped`, `add_abbrev` | 0, 1 |
+| corner: the second device's pre | `add_second` | `g0` with `role ggsn`; the readbacks read `g1` |
+| positive (VM): each status, and the values read back | `ip.rc`; `-d -j` readbacks | the table's rc; `role`, `hsize` and `restart_count` as sent, `hsize 0` as 1024 |
+
+**Mutation check:** `add_unknown_skipped` at 1, `add_hsize_max` at 131072, `add_second`'s pre without `g0`.
+
+**Done when:** as KC2-T01. It closes KC4.
 
 ### KC5 — IP tunnel captures
 
