@@ -450,6 +450,114 @@ namespace eval kindcorpus {
         [stacked_set ipvtap j0 set_mode {mode l2} 0 $PRE_J0] \
         [ipvtap add_mode_bad {mode l4} 1]
 
+    # plain <kind> <dev> <name> <words> <rc> ?<pre>? - an add of <dev>
+    # with no lower, after <pre>. KC4's kinds are each a UDP socket in the
+    # namespace, not a device on another.
+    proc plain {kind dev name words rc {pre {}}} {
+        return [row $kind $name $pre [string trimright "ip link add $dev type $kind $words"] $rc $dev]
+    }
+
+    ###########################################################################
+    # vxlan (KC4-T01). The device is vx0. ip requires id (or external) and
+    # warns on stderr without a dstport, so rows but add_default send
+    # dstport 4789 ($VXLAN_BASE). ip's own checks pre-empt the kernel's id
+    # range, a multicast local, a group without dev, the family mismatch on
+    # an add and vnifilter without external. vxlan_validate, vxlan_nl2conf
+    # and vxlan_config_validate (drivers/net/vxlan/vxlan_core.c) argue the
+    # kernel's statuses; on a change, nl2conf refuses the VNI when it
+    # differs, the port even when it doesn't, and a flag changelink doesn't
+    # support. get_addr's failure exits 1, invarg and nodev 255.
+    ###########################################################################
+    variable VXLAN_BASE {id 42 dstport 4789}
+    variable VXLAN_FLAGS {
+        proxy rsc l2miss l3miss noudpcsum udp6zerocsumtx udp6zerocsumrx
+        remcsumtx remcsumrx nolearning nolocalbypass gbp mcroute
+    }
+    variable PRE_VX0 [list {link add vx0 type vxlan id 42 dstport 4789}]
+
+    proc vxlan {name words rc {pre {}}} {
+        return [plain vxlan vx0 $name $words $rc $pre]
+    }
+
+    # vxlan_base <name> <words> ?<pre>? - an accepted add of $VXLAN_BASE
+    # and <words>.
+    proc vxlan_base {name words {pre {}}} {
+        variable VXLAN_BASE
+        return [vxlan $name [string trimright "$VXLAN_BASE $words"] 0 $pre]
+    }
+
+    proc vxlan_set {name words rc {pre {}}} {
+        variable PRE_VX0
+        return [row vxlan $name [concat $pre $PRE_VX0] "ip link set vx0 type vxlan $words" $rc vx0]
+    }
+
+    lappend rows \
+        [vxlan add_default {id 42} 0] \
+        [vxlan_base add_dstport {}] \
+        [vxlan add_dstport_zero {id 42 dstport 0} 0] \
+        [vxlan add_id_zero {id 0 dstport 4789} 0] \
+        [vxlan add_id_max {id 16777215 dstport 4789} 0] \
+        [vxlan add_vni_abbrev {v 42 dstport 4789} 0] \
+        [vxlan_base add_remote {remote 10.0.0.1}] \
+        [vxlan_base add_remote6 {remote 2001:db8::1}] \
+        [vxlan_base add_group {group 239.1.1.1 dev d0} $PRE_D0] \
+        [vxlan_base add_group6 {group ff05::1 dev d0} $PRE_D0] \
+        [vxlan_base add_local {local 10.0.0.1}] \
+        [vxlan_base add_local6_link_local {local fe80::1 dev d0} $PRE_D0] \
+        [vxlan_base add_ttl {ttl 64}] \
+        [vxlan_base add_ttl_auto {ttl auto}] \
+        [vxlan_base add_ttl_inherit {ttl inherit}] \
+        [vxlan_base add_tos {tos 10}] \
+        [vxlan_base add_tos_inherit {tos inherit}]
+    foreach value {set unset inherit} {
+        lappend rows [vxlan_base add_df_$value "df $value"]
+    }
+    lappend rows \
+        [vxlan_base add_flowlabel {remote 2001:db8::1 flowlabel 0x12345}] \
+        [vxlan_base add_ageing {ageing 600}] \
+        [vxlan_base add_ageing_none {ageing none}] \
+        [vxlan_base add_maxaddress {maxaddress 100}] \
+        [vxlan_base add_srcport {srcport 1000 2000}]
+    foreach flag $VXLAN_FLAGS {
+        lappend rows [vxlan_base add_$flag $flag]
+    }
+    lappend rows \
+        [vxlan add_external external 0] \
+        [vxlan add_vnifilter {external vnifilter dstport 4789} 0] \
+        [vxlan add_gpe {external gpe} 0] \
+        [vxlan_base add_reserved_bits {reserved_bits 0}] \
+        [vxlan_base add_no_abbrev no] \
+        [vxlan_set set_changeable {ttl 32 tos inherit df set ageing 600 nolearning remote 10.0.0.2} 0] \
+        [vxlan_set set_dev {dev d0} 0 $PRE_D0] \
+        [vxlan_set set_id_same {id 42} 0] \
+        [vxlan add_no_option {} 2] \
+        [plain vxlan vx1 add_duplicate_vni $VXLAN_BASE 2 $PRE_VX0] \
+        [vxlan add_link_local_no_dev {id 42 local fe80::1} 2] \
+        [vxlan add_scope_mix {id 42 local fe80::1 remote 2001:db8::1} 2] \
+        [vxlan add_flowlabel_v4 {id 42 flowlabel 5} 2] \
+        [vxlan add_srcport_inverted {id 42 srcport 2000 1000} 2] \
+        [vxlan add_gpe_no_external {id 42 gpe} 2] \
+        [vxlan add_reserved_bits_overlap {id 42 reserved_bits 0x0800000000000000} 2] \
+        [vxlan_set set_id {id 43} 2] \
+        [vxlan_set set_dstport {dstport 4789} 2] \
+        [vxlan_set set_proxy proxy 2] \
+        [vxlan_set set_family {remote 2001:db8::1} 2] \
+        [vxlan add_no_id {dstport 4789} 1] \
+        [vxlan add_group_no_dev {id 42 group 239.1.1.1} 1] \
+        [vxlan add_group_and_remote {id 42 group 239.1.1.1 remote 10.0.0.1} 1] \
+        [vxlan add_external_and_id {external id 42} 1] \
+        [vxlan add_vnifilter_no_external {id 42 vnifilter} 1] \
+        [vxlan add_remote_bad {id 42 remote nosuch} 1] \
+        [vxlan add_strcmp_abbrev {id 42 localbyp} 1] \
+        [vxlan add_unknown {id 42 bogus} 1] \
+        [vxlan add_id_over {id 16777216} 255] \
+        [vxlan add_remote_multicast {id 42 remote 239.1.1.1} 255] \
+        [vxlan add_dev_missing {id 42 dev nosuch} 255] \
+        [vxlan add_ttl_over {id 42 ttl 256} 255] \
+        [vxlan add_srcport_one {id 42 srcport 1000} 255] \
+        [vxlan add_learning_twice {id 42 learning nolearning} 255] \
+        [vxlan add_no_value id 255]
+
     ###########################################################################
     # readback_args <ns> <subdir> <readback> - the xtcp2-nlcap capio argument
     # list for one readback, which the driver hands to its capio proc.

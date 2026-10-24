@@ -240,11 +240,10 @@ proc strays {rows kind dev} {
     return $out
 }
 
-# word_rows <kind> <dev> <prefix> - <word> for every <kind>
-# add_<prefix><word> row that adds <dev> with the option words
-# "<prefix as words><word>" alone, in order: mode_ for "mode <word>",
-# "" for "<word>".
-proc word_rows {kind dev prefix} {
+# word_rows <kind> <head> <prefix> - <word> for every <kind>
+# add_<prefix><word> row whose command is <head> then "<prefix as
+# words><word>", in order: mode_ for "mode <word>", "" for "<word>".
+proc word_rows {kind head prefix} {
     set out {}
     set words [string map {_ " "} $prefix]
     foreach r $::R {
@@ -252,11 +251,36 @@ proc word_rows {kind dev prefix} {
         if {![regexp "^$kind/add_${prefix}(.*)\$" $slug -> name]} {
             continue
         }
-        if {$command eq "ip link add link d0 name $dev type $kind $words$name"} {
+        if {$command eq "$head $words$name"} {
             lappend out $name
         }
     }
     return $out
+}
+
+# vxlan_no_dstport - the accepted vxlan adds that send no dstport.
+proc vxlan_no_dstport {} {
+    set out {}
+    foreach r $::R {
+        lassign $r slug floor pre command readbacks rc
+        if {[string match vxlan/add_* $slug] && $rc == 0 && ![string match *dstport* $command]} {
+            lappend out $slug
+        }
+    }
+    return $out
+}
+
+# dev_d0_pres - the distinct first pre steps of the vxlan rows that name
+# dev d0.
+proc dev_d0_pres {} {
+    set out {}
+    foreach r $::R {
+        lassign $r slug floor pre command
+        if {[string match vxlan/* $slug] && [string match {* dev d0*} $command]} {
+            lappend out [lindex $pre 0]
+        }
+    }
+    return [lsort -unique $out]
 }
 
 ###############################################################################
@@ -359,13 +383,48 @@ lappend design_rows {*}{
     ipvlan/add_no_value
     ipvtap/add_default ipvtap/add_mode_l2 ipvtap/set_mode ipvtap/add_mode_bad
 }
+set vxlan_flags {
+    proxy rsc l2miss l3miss noudpcsum udp6zerocsumtx udp6zerocsumrx
+    remcsumtx remcsumrx nolearning nolocalbypass gbp mcroute
+}
+set vxlan_df {set unset inherit}
+lappend design_rows {*}{
+    vxlan/add_default vxlan/add_dstport vxlan/add_dstport_zero vxlan/add_id_zero
+    vxlan/add_id_max vxlan/add_vni_abbrev vxlan/add_remote vxlan/add_remote6
+    vxlan/add_group vxlan/add_group6 vxlan/add_local vxlan/add_local6_link_local
+    vxlan/add_ttl vxlan/add_ttl_auto vxlan/add_ttl_inherit vxlan/add_tos
+    vxlan/add_tos_inherit
+}
+foreach v $vxlan_df {
+    lappend design_rows vxlan/add_df_$v
+}
+lappend design_rows {*}{
+    vxlan/add_flowlabel vxlan/add_ageing vxlan/add_ageing_none
+    vxlan/add_maxaddress vxlan/add_srcport
+}
+foreach f $vxlan_flags {
+    lappend design_rows vxlan/add_$f
+}
+lappend design_rows {*}{
+    vxlan/add_external vxlan/add_vnifilter vxlan/add_gpe vxlan/add_reserved_bits
+    vxlan/add_no_abbrev vxlan/set_changeable vxlan/set_dev vxlan/set_id_same
+    vxlan/add_no_option vxlan/add_duplicate_vni vxlan/add_link_local_no_dev
+    vxlan/add_scope_mix vxlan/add_flowlabel_v4 vxlan/add_srcport_inverted
+    vxlan/add_gpe_no_external vxlan/add_reserved_bits_overlap vxlan/set_id
+    vxlan/set_dstport vxlan/set_proxy vxlan/set_family vxlan/add_no_id
+    vxlan/add_group_no_dev vxlan/add_group_and_remote vxlan/add_external_and_id
+    vxlan/add_vnifilter_no_external vxlan/add_remote_bad vxlan/add_strcmp_abbrev
+    vxlan/add_unknown vxlan/add_id_over vxlan/add_remote_multicast
+    vxlan/add_dev_missing vxlan/add_ttl_over vxlan/add_srcport_one
+    vxlan/add_learning_twice vxlan/add_no_value
+}
 
 check slug_list "positive: the rows are the plan's, in run order" \
     {slugs $R} [join $design_rows " "]
 check first_row "boundary: add_default comes first" \
     {lindex [slugs $R] 0} bridge/add_default
-check row_count "boundary: KC2's 60 bridge and 42 bridge_slave rows, KC3-T01's 28 vlan rows, KC3-T02's 34 macvlan and 6 macvtap rows, KC3-T03's 18 ipvlan and 4 ipvtap rows" \
-    {llength $R} 192
+check row_count "boundary: KC2's 60 bridge and 42 bridge_slave rows, KC3-T01's 28 vlan rows, KC3-T02's 34 macvlan and 6 macvtap rows, KC3-T03's 18 ipvlan and 4 ipvtap rows, KC4-T01's 73 vxlan rows" \
+    {llength $R} 265
 check bridge_first "boundary: bridge's rows all come before bridge_slave's" \
     {lsearch -glob [slugs $R] bridge_slave/*} 60
 check option_rows "positive: one add_ row per value-taking option but stp_mode, each once" \
@@ -415,6 +474,17 @@ set refused_design {
     ipvlan/add_no_link 2 ipvlan/add_on_loopback 2 ipvlan/add_on_busy_lower 2
     ipvlan/add_two_flags 1 ipvlan/add_mode_bad 1 ipvlan/add_unknown 1
     ipvlan/add_no_value 255 ipvtap/add_mode_bad 1
+    vxlan/add_no_option 2 vxlan/add_duplicate_vni 2
+    vxlan/add_link_local_no_dev 2 vxlan/add_scope_mix 2
+    vxlan/add_flowlabel_v4 2 vxlan/add_srcport_inverted 2
+    vxlan/add_gpe_no_external 2 vxlan/add_reserved_bits_overlap 2
+    vxlan/set_id 2 vxlan/set_dstport 2 vxlan/set_proxy 2 vxlan/set_family 2
+    vxlan/add_no_id 1 vxlan/add_group_no_dev 1 vxlan/add_group_and_remote 1
+    vxlan/add_external_and_id 1 vxlan/add_vnifilter_no_external 1
+    vxlan/add_remote_bad 1 vxlan/add_strcmp_abbrev 1 vxlan/add_unknown 1
+    vxlan/add_id_over 255 vxlan/add_remote_multicast 255
+    vxlan/add_dev_missing 255 vxlan/add_ttl_over 255 vxlan/add_srcport_one 255
+    vxlan/add_learning_twice 255 vxlan/add_no_value 255
 }
 check refused_statuses "positive: exactly the refusal rows expect a non-zero status" \
     {refused_rows} [join $refused_design " "]
@@ -602,9 +672,9 @@ check macvtap_kind_caught "negative: a macvtap row sent as macvlan is listed" \
 check ipvlan_after_macvtap "positive: ipvlan's rows follow macvtap's, and ipvtap's ipvlan's" \
     {list [lsearch -glob [slugs $R] ipvlan/*] [lsearch -glob [slugs $R] ipvtap/*]} {170 188}
 check ipvlan_mode_rows "positive: one add_mode_ row per mode, each once" \
-    {word_rows ipvlan i0 mode_} [join $ipvlan_modes " "]
+    {word_rows ipvlan "ip link add link d0 name i0 type ipvlan" mode_} [join $ipvlan_modes " "]
 check ipvlan_flag_rows "positive: one add_ row per flag word, each once" \
-    {word_rows ipvlan i0 ""} [join $ipvlan_flags " "]
+    {word_rows ipvlan "ip link add link d0 name i0 type ipvlan" ""} [join $ipvlan_flags " "]
 check ipvlan_word_counts "boundary: 3 modes and 3 flag words" \
     {list [llength $ipvlan_modes] [llength $ipvlan_flags]} {3 3}
 check ipvlan_default "positive: add_default sends no option, on d0" \
@@ -627,6 +697,34 @@ check ipvtap_kind "corner: every ipvtap row adds or sets j0 as an ipvtap" \
 check ipvtap_kind_caught "negative: an ipvtap row sent as ipvlan is listed" \
     {strays [list {ipvtap/x 4 {} {ip link add link d0 name j0 type ipvlan} {} 0}] ipvtap j0} \
     ipvtap/x
+
+###############################################################################
+# 9. the vxlan rows' states
+###############################################################################
+set vxlan_head "ip link add vx0 type vxlan id 42 dstport 4789"
+check vxlan_after_ipvtap "positive: vxlan's rows follow ipvtap's" \
+    {lsearch -glob [slugs $R] vxlan/*} 192
+check vxlan_flag_rows "positive: one add_ row per flag word, each once" \
+    {word_rows vxlan $vxlan_head ""} [join $vxlan_flags " "]
+check vxlan_df_rows "positive: one add_df_ row per df value" \
+    {word_rows vxlan $vxlan_head df_} [join $vxlan_df " "]
+check vxlan_word_counts "boundary: 13 flags and 3 df values" \
+    {list [llength $vxlan_flags] [llength $vxlan_df]} {13 3}
+check vxlan_id_range "boundary: the VNI's top is accepted; one over is ip's invarg" \
+    {list [field vxlan/add_id_max 3] [field vxlan/add_id_max 5] [field vxlan/add_id_over 3] [field vxlan/add_id_over 5]} \
+    {{ip link add vx0 type vxlan id 16777215 dstport 4789} 0 {ip link add vx0 type vxlan id 16777216} 255}
+check vxlan_dstport "corner: only add_default and the external rows that don't name one send no dstport" \
+    {vxlan_no_dstport} {vxlan/add_default vxlan/add_external vxlan/add_gpe}
+check vxlan_dev_pre "corner: every row naming dev d0 makes it first" \
+    {dev_d0_pres} {{link add d0 type dummy}}
+check vxlan_duplicate "corner: the duplicate's pre holds vx0 with id 42, and its readbacks read vx1" \
+    {list [field vxlan/add_duplicate_vni 2] [field vxlan/add_duplicate_vni 3] [lindex [field vxlan/add_duplicate_vni 4] 0 2]} \
+    {{{link add vx0 type vxlan id 42 dstport 4789}} {ip link add vx1 type vxlan id 42 dstport 4789} {ip -d link show dev vx1}}
+check vxlan_set_pre "positive: every set acts on a vx0 its pre made" \
+    {lsort -unique [lmap r $R {expr {[string match vxlan/set_* [lindex $r 0]] ? [lindex $r 2 end] : "-"}}]} \
+    {- {link add vx0 type vxlan id 42 dstport 4789}}
+check vxlan_get_addr "corner: get_addr's failure exits 1, invarg's 255" \
+    {list [field vxlan/add_remote_bad 5] [field vxlan/add_remote_multicast 5]} {1 255}
 
 ###############################################################################
 # summary
