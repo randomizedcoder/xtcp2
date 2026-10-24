@@ -565,12 +565,18 @@ func xfrmPtypeName(ptype uint8) string {
 // index, the priority, the policy type when given, under -s the share, the
 // flags when set or under -s, under -s the lifetimes, then the attributes.
 func XfrmPolicyInfo(info *xtcpnl.XfrmUserpolicyInfo, a *xtcpnl.XfrmAttrs, o *XfrmOpt) string {
+	return xfrmPolicyInfo(info, a, o, "", "")
+}
+
+// xfrmPolicyInfo is xfrm_policy_info_print: title ahead of the selector,
+// and prefix ahead of the tab each line after it starts with.
+func xfrmPolicyInfo(info *xtcpnl.XfrmUserpolicyInfo, a *xtcpnl.XfrmAttrs, o *XfrmOpt, prefix, title string) string {
 	var b strings.Builder
-	o.xfrmSelector(&b, &info.Sel, uint16(o.Family), "")
+	o.xfrmSelector(&b, &info.Sel, uint16(o.Family), title)
 	if a.SecCtx != nil {
 		xfrmSecCtx(&b, a.SecCtx)
 	}
-	const buf = "\t"
+	buf := prefix + "\t"
 	b.WriteString(buf)
 	dir := info.Dir
 	if dir >= xfrmPolicyMaxCst {

@@ -329,44 +329,63 @@ func xfrmPolicyFlagParse(a *xfrmArgs, flags *uint8) error {
 	}
 }
 
-// xfrmPolicyPrint is xfrm_policy_print for a NEWPOLICY or UPDPOLICY, the
-// types a GETPOLICY answers with: another type is "Not a policy" on stderr
-// and skipped, and the monitor's DELPOLICY and POLEXPIRE are G7-T05's; a
-// body short of its struct, or a policy type short of its, refuses the
-// message; a policy the filter does not match is skipped; else "Updated "
-// for an UPDPOLICY and xfrm_policy_info_print.
+// xfrmPolicyPrint is xfrm_policy_print: a NEWPOLICY, an UPDPOLICY as
+// "Updated ", a DELPOLICY as "Deleted ", its policy the XFRMA_POLICY it
+// nests, or a POLEXPIRE as "Expired ", with "hard" and whether the hard
+// lifetime ran out; another type is "Not a policy" on stderr and skipped.
+// A body short of its struct, a policy type short of its, or a DELPOLICY
+// with no policy, is refused; a policy the filter does not match is
+// skipped, a DELPOLICY's never; else xfrm_policy_info_print.
 func xfrmPolicyPrint(c *runCtx, f *xfrmPolicyFilter, m xfrmMsg) error {
+	hdrLen, prefix := xtcpnl.XfrmUserpolicyInfoSizeCst, ""
 	switch m.typ {
-	case xtcpnl.XfrmMsgNewPolicy, xtcpnl.XfrmMsgUpdPolicy:
-	case xtcpnl.XfrmMsgDelPolicy, xtcpnl.XfrmMsgPolExpire:
-		return fmt.Errorf("xfrm policy event %d, G7-T05: %w", m.typ, ErrNotImplemented)
+	case xtcpnl.XfrmMsgNewPolicy:
+	case xtcpnl.XfrmMsgUpdPolicy:
+		prefix = "Updated "
+	case xtcpnl.XfrmMsgDelPolicy:
+		hdrLen, prefix = xtcpnl.XfrmUserpolicyIDSizeCst, monitorDeletedCst
+	case xtcpnl.XfrmMsgPolExpire:
+		hdrLen, prefix = xtcpnl.XfrmUserPolexpireSizeCst, "Expired "
 	default:
 		_, err := fmt.Fprintf(c.errOut, "Not a policy: %08x %08x %08x\n", xtcpnl.NlMsgHdrSizeCst+len(m.body),
 			m.typ, m.flags)
 		return err
 	}
-	if len(m.body) < xtcpnl.XfrmUserpolicyInfoSizeCst {
-		return fmt.Errorf("BUG: wrong nlmsg len %d", len(m.body)-xtcpnl.XfrmUserpolicyInfoSizeCst)
+	if len(m.body) < hdrLen {
+		return fmt.Errorf("BUG: wrong nlmsg len %d", len(m.body)-hdrLen)
 	}
 	p, err := xtcpnl.ParseXfrmPolicy(xtcpnl.NlMsgHdr{Type: m.typ, Flags: m.flags}, m.body)
 	if err != nil {
 		return err
 	}
+	info := p.Info
+	if p.Expire != nil {
+		info = &p.Expire.Pol
+	}
 	var ptype uint8
 	if p.Attrs.PolicyType != nil {
 		ptype = *p.Attrs.PolicyType
 	}
-	if !f.match(p.Info, ptype) {
+	if info != nil && !f.match(info, ptype) {
 		return nil
+	}
+	if _, err := io.WriteString(c.out, prefix); err != nil {
+		return err
+	}
+	if m.typ == xtcpnl.XfrmMsgDelPolicy {
+		if p.Attrs.Policy == nil {
+			return fmt.Errorf("%w: Buggy XFRM_MSG_DELPOLICY: no XFRMA_POLICY", ErrXfrmRefused)
+		}
+		info = p.Attrs.Policy
 	}
 	o := render.XfrmOpt{Stats: c.stats(), Family: c.family,
 		IndexName: func(idx int32) string { return genlIndexToName(c, idx) }}
-	if err := xfrmProtoOpt(&o, p.Info.Sel.Proto); err != nil {
+	if err := xfrmProtoOpt(&o, info.Sel.Proto); err != nil {
 		return err
 	}
-	out := render.XfrmPolicyInfo(p.Info, &p.Attrs, &o)
-	if m.typ == xtcpnl.XfrmMsgUpdPolicy {
-		out = "Updated " + out
+	out := render.XfrmPolicyInfo(info, &p.Attrs, &o)
+	if p.Expire != nil {
+		out += fmt.Sprintf("\thard %d\n", p.Expire.Hard)
 	}
 	_, err = io.WriteString(c.out, out)
 	return err

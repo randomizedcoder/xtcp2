@@ -60,9 +60,11 @@ const (
 		"OBJECTS :=  address | link | mroute | maddress | acaddress | neigh |\n" +
 		"            netconf | nexthop | nsid | prefix | route | rule | stats\n" +
 		"FILE := file FILENAME\n"
-	monitorFileCst    = "file"
-	monitorLabelCst   = "label"
-	monitorAllCst     = "all"
+	monitorFileCst  = "file"
+	monitorLabelCst = "label"
+	monitorAllCst   = "all"
+	// monitorDeletedCst is the word ip prints ahead of a deleted object.
+	monitorDeletedCst = "Deleted "
 	monitorAllNsidCst = "all-nsid"
 	monitorHelpCst    = "help"
 	// monitorBufCst is rtnl_from_file's buffer, the longest message it reads.
@@ -428,7 +430,7 @@ func refusal(h *xtcpnl.NlMsgHdr, err error) string {
 // deleted is print_bool's "Deleted " for a DEL type.
 func deleted(on bool) string {
 	if on {
-		return "Deleted "
+		return monitorDeletedCst
 	}
 	return ""
 }
@@ -702,6 +704,12 @@ func (m *monitor) nsid(msg *monitorMsg) (out, errOut string, err error) {
 // message accept_msg fails ends it with -1, so `ip` exits 1; a file it
 // cannot open is exit(-1), 255.
 func (m *monitor) fromFile(path string) error {
+	return monitorReadFile(path, m.accept)
+}
+
+// monitorReadFile is rtnl_from_file over path, each message handed to fn,
+// as fromFile describes; `ip xfrm monitor file` walks it the same way.
+func monitorReadFile(path string, fn func(monitorMsg) error) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		var errno unix.Errno
@@ -729,7 +737,7 @@ func (m *monitor) fromFile(path string) error {
 			return fmt.Errorf("%w: rtnl-from_file: truncated message", ErrMonitorFile)
 		}
 		body := data[off+xtcpnl.NlMsgHdrSizeCst : off+xtcpnl.NlMsgHdrSizeCst+l]
-		if err := m.accept(monitorMsg{hdr: h, body: body, nsid: -1}); err != nil {
+		if err := fn(monitorMsg{hdr: h, body: body, nsid: -1}); err != nil {
 			return fmt.Errorf("%w: %w", ErrMonitorFile, err)
 		}
 		off = end

@@ -22,8 +22,8 @@ import (
 // do: list, a GETSA dump each answer of which is printed, filtered on
 // goip's side as ip's is; get, one GETSA; and count, one GETSADINFO. The
 // state writes are xfrm_state_write.go's, the policy reads
-// obj_xfrm_policy.go's and its writes xfrm_policy_write.go's; the monitor
-// is G7-T05's.
+// obj_xfrm_policy.go's and its writes xfrm_policy_write.go's, and the
+// monitor obj_xfrm_monitor.go's.
 
 const (
 	xfrmHelpCst    = "help"
@@ -113,7 +113,7 @@ func runXfrm(c *runCtx, args []string) error {
 	case matchesPrefix(obj, "policy"):
 		return xfrmPolicy(c, args[1:])
 	case matchesPrefix(obj, "monitor"):
-		return fmt.Errorf("xfrm monitor, G7-T05: %w", ErrNotImplemented)
+		return xfrmMonitor(c, args[1:])
 	}
 	return fmt.Errorf("%w: %s", ErrXfrmUsage, xfrmUsageCst)
 }
@@ -498,46 +498,95 @@ func (f *xfrmFilter) match(x *xtcpnl.XfrmUsersaInfo) bool {
 	return true
 }
 
-// xfrmStatePrint is __do_xfrm_state_print for a NEWSA, the one type a
-// GETSA answers with: another type is "Not a state" on stderr and
-// skipped; a body short of its struct ends the dump; an SA the filter
-// does not match is skipped; else xfrm_state_info_print.
+// xfrmStatePrint is __do_xfrm_state_print: a NEWSA, an UPDSA as
+// "Updated ", a DELSA as "Deleted ", its SA the XFRMA_SA it nests, or an
+// EXPIRE as "Expired ", with "hard" and whether the hard lifetime ran
+// out; another type is "Not a state" on stderr and skipped. A body short
+// of its struct, or a DELSA with no SA, is refused; an SA the filter does
+// not match is skipped, a DELSA's never; else xfrm_state_info_print.
 func xfrmStatePrint(c *runCtx, f *xfrmFilter, nokeys bool, m xfrmMsg) error {
-	if m.typ != xtcpnl.XfrmMsgNewSA {
+	hdrLen, prefix := xtcpnl.XfrmUsersaInfoSizeCst, ""
+	switch m.typ {
+	case xtcpnl.XfrmMsgNewSA:
+	case xtcpnl.XfrmMsgUpdSA:
+		prefix = "Updated "
+	case xtcpnl.XfrmMsgDelSA:
+		hdrLen, prefix = xtcpnl.XfrmUsersaIDSizeCst, monitorDeletedCst
+	case xtcpnl.XfrmMsgExpire:
+		hdrLen, prefix = xtcpnl.XfrmUserExpireSizeCst, "Expired "
+	default:
 		_, err := fmt.Fprintf(c.errOut, "Not a state: %08x %08x %08x\n", xtcpnl.NlMsgHdrSizeCst+len(m.body), m.typ,
 			m.flags)
 		return err
 	}
-	if len(m.body) < xtcpnl.XfrmUsersaInfoSizeCst {
-		return fmt.Errorf("BUG: wrong nlmsg len %d", len(m.body)-xtcpnl.XfrmUsersaInfoSizeCst)
+	if len(m.body) < hdrLen {
+		return fmt.Errorf("BUG: wrong nlmsg len %d", len(m.body)-hdrLen)
 	}
-	s, err := xtcpnl.ParseXfrmState(xtcpnl.NlMsgHdr{Type: m.typ, Flags: m.flags}, m.body)
+	info, attrs, hard, err := xfrmStateParse(m)
 	if err != nil {
 		return err
 	}
-	if !f.match(s.Info) {
+	if info != nil && !f.match(info) {
 		return nil
+	}
+	if _, err := io.WriteString(c.out, prefix); err != nil {
+		return err
+	}
+	if m.typ == xtcpnl.XfrmMsgDelSA {
+		if attrs.SA == nil {
+			return fmt.Errorf("%w: Buggy XFRM_MSG_DELSA: no XFRMA_SA", ErrXfrmRefused)
+		}
+		info = attrs.SA
 	}
 	o := render.XfrmOpt{Stats: c.stats(), Nokeys: nokeys, Family: c.family,
 		IndexName: func(idx int32) string { return genlIndexToName(c, idx) }}
-	if err := xfrmProtoOpt(&o, s.Info.Sel.Proto); err != nil {
+	if err := xfrmProtoOpt(&o, info.Sel.Proto); err != nil {
 		return err
 	}
-	_, err = io.WriteString(c.out, render.XfrmStateInfo(s.Info, &s.Attrs, &o))
+	out := render.XfrmStateInfo(info, attrs, &o)
+	if m.typ == xtcpnl.XfrmMsgExpire {
+		out += fmt.Sprintf("\thard %d\n", hard)
+	}
+	_, err = io.WriteString(c.out, out)
 	return err
 }
 
-// xfrmProtoOpt sets o's strxf_proto for a selector's protocol: none, or
-// one goip names; another is not implemented.
-func xfrmProtoOpt(o *render.XfrmOpt, proto uint8) error {
-	if proto == 0 {
-		return nil
+// xfrmStateParse is the SA message's struct and attributes: a NEWSA's or
+// UPDSA's SA, a DELSA's none, its SA in XFRMA_SA, or an EXPIRE's SA and
+// hard flag.
+func xfrmStateParse(m xfrmMsg) (*xtcpnl.XfrmUsersaInfo, *xtcpnl.XfrmAttrs, uint8, error) {
+	h := xtcpnl.NlMsgHdr{Type: m.typ, Flags: m.flags}
+	if m.typ == xtcpnl.XfrmMsgExpire {
+		e, err := xtcpnl.ParseXfrmEvent(h, m.body)
+		if err != nil {
+			return nil, nil, 0, err
+		}
+		return &e.Expire.State, &e.Attrs, e.Expire.Hard, nil
 	}
-	name, err := xfrmProtoName(proto)
+	s, err := xtcpnl.ParseXfrmState(h, m.body)
 	if err != nil {
-		return fmt.Errorf("a selector's %w", err)
+		return nil, nil, 0, err
 	}
-	o.ProtoName = func(uint8) string { return name }
+	return s.Info, &s.Attrs, 0, nil
+}
+
+// xfrmProtoOpt sets o's strxf_proto for the selectors' protocols: none,
+// or ones goip names; another is not implemented.
+func xfrmProtoOpt(o *render.XfrmOpt, protos ...uint8) error {
+	names := map[uint8]string{}
+	for _, proto := range protos {
+		if proto == 0 {
+			continue
+		}
+		name, err := xfrmProtoName(proto)
+		if err != nil {
+			return fmt.Errorf("a selector's %w", err)
+		}
+		names[proto] = name
+	}
+	if len(names) != 0 {
+		o.ProtoName = func(p uint8) string { return names[p] }
+	}
 	return nil
 }
 

@@ -4124,6 +4124,19 @@ delete, a read; the four `ip` refuses before a request capture nothing
 and are left out. Two consecutive live runs passed 504 of 504, the 13
 rows clean. The matrix is 504 rows, 503 gated.
 
+### G7-T05: `goip xfrm monitor`, closing G7
+
+G7-T05 adds `goip xfrm monitor`: its words and groups, a file walked as
+`ip monitor file` walks one, or a NETLINK_XFRM socket of its own, and
+every event `xfrm_accept_msg` prints: SAs and policies added, updated,
+deleted and expired, acquires, flushes, async events, NAT-T mapping
+changes and the default policies. REPORT, which only Mobile IPv6 route
+optimization sends, is not implemented. It is checked byte for byte
+against the seven C3 monitor captures. The parity driver runs no
+monitor, so no row joins the matrix; a live run passed 504 of 504, the
+same rows as at G7-T04. G7 is done, and with it every phase of
+[goip-parity-gaps.md](goip-parity-gaps.md).
+
 ## Tier C — the `goip-parity` microVM flavor
 
 The last piece of Item 6, and the only one that needs a live machine: a third

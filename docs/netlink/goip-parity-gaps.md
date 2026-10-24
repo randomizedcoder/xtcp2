@@ -50,17 +50,18 @@ The citation style follows [route-write-path.md](route-write-path.md) and [link-
 
 ## Where coverage stands
 
-Counted from the tree on 2026-10-21, at G0's close; the row, gated and write-row counts are re-measured at G1's close (DOC013), G2's (DOC014), G3's (DOC015), G4's (DOC016), G5's (DOC017) and G6's (DOC018). [coverage-status.md](coverage-status.md#goip--ip-parity-at-a-glance) owns these numbers; if the two disagree, that file is right.
+Counted from the tree on 2026-10-21, at G0's close; the row, gated and write-row counts are re-measured at G1's close (DOC013), G2's (DOC014), G3's (DOC015), G4's (DOC016), G5's (DOC017), G6's (DOC018) and G7's (DOC019). [coverage-status.md](coverage-status.md#goip--ip-parity-at-a-glance) owns these numbers; if the two disagree, that file is right.
 
 | | count | where |
 |---|---|---|
-| matrix rows | 455 (183 at G0's close, 198 at G1's, 206 at G2's, 253 at G3's, 273 at G4's, 281 at G5's) | `internal/goipparity/commands.go` |
-| gated | 454 (160 before G0, 182 at its close, 197 at G1's, 205 at G2's, 252 at G3's, 272 at G4's and G5's) | `pkg/nlparity/goip-parity-allowlist.json`, `gated_commands` |
+| matrix rows | 504 (183 at G0's close, 198 at G1's, 206 at G2's, 253 at G3's, 273 at G4's, 281 at G5's, 455 at G6's) | `internal/goipparity/commands.go` |
+| gated | 503 (160 before G0, 182 at its close, 197 at G1's, 205 at G2's, 252 at G3's, 272 at G4's and G5's, 454 at G6's) | `pkg/nlparity/goip-parity-allowlist.json`, `gated_commands` |
 | compared but not gated | 1: `addr show dynamic` (23 before G0, 1 at G4's close, 9 at G5's with its eight genl `show` stand-ins, which G6 replaced) | `TestUngatedSurfaceIsNotVacuous`, `internal/goipparity/commands_test.go` |
-| write rows (dry run) | 247: 133 rtnetlink, 24 link, 29 route, 36 address, 8 neigh, 19 rule, 7 nexthop, 3 addrlabel, 3 ntable, 1 stats, 2 token and 1 netns, and 114 generic netlink, 6 tcp_metrics, 7 sr, 16 ioam, 19 mptcp, 16 fou, 11 ila, 15 l2tp and 24 macsec (83 before G2, 86 at its close, 130 at G3's, 133 at G4's and G5's) | `commands.go` |
-| `ip` objects with a `run` function | 24 of 31 (11 at G3's close, 16 at G4's and G5's) | `internal/goip/dispatch.go:68-102` |
+| write rows (dry run) | 275: 133 rtnetlink, 24 link, 29 route, 36 address, 8 neigh, 19 rule, 7 nexthop, 3 addrlabel, 3 ntable, 1 stats, 2 token and 1 netns, and 114 generic netlink, 6 tcp_metrics, 7 sr, 16 ioam, 19 mptcp, 16 fou, 11 ila, 15 l2tp and 24 macsec, and 28 XFRM, 16 state and 12 policy (83 before G2, 86 at its close, 130 at G3's, 133 at G4's and G5's, 247 at G6's) | `commands.go` |
+| `ip` objects with a `run` function | 25 of 31 (11 at G3's close, 16 at G4's and G5's, 24 at G6's) | `internal/goip/dispatch.go:72-106` |
 | RTM types the write gate admits | 20: `RTM_{NEW,DEL}{ROUTE,LINK,ADDR,NEIGH,RULE,NEXTHOP,ADDRLABEL,LINKPROP}`, `RTM_SETNEIGHTBL`, `RTM_SETSTATS`, `RTM_SETLINK`, `RTM_NEWNSID` (6 before G3, 18 at its close) | `IsAdmittedWriteType`, `pkg/xtcpnl/xtcpnl_rtattr_encode.go:356-371` |
 | genl commands the write gate admits | 31: tcp_metrics' 1, SEG6's 2, IOAM6's 5, mptcp_pm's 5, fou's 2, ila's 2, l2tp's 4 and macsec's 10, by family name (none before G6) | `IsAdmittedGenlWrite`, `pkg/xtcpnl/xtcpnl_genl_write.go` |
+| XFRM types the write gate admits | 11: NEWSA, UPDSA, ALLOCSPI, DELSA and FLUSHSA, and NEWPOLICY, UPDPOLICY, DELPOLICY, FLUSHPOLICY, NEWSPDINFO and SETDEFAULT, by XFRM's numbers (none before G7) | `IsAdmittedXfrmWrite`, `pkg/xtcpnl/xtcpnl_xfrm_write.go` |
 
 Writes are dry runs. goip builds the requests `ip` would send and writes them to `GOIP_WRITE_OUT`; it never sends them. The matrix compares those requests with the ones `ip` actually sent.
 
@@ -3125,6 +3126,25 @@ The tests (`internal/goip`, `pkg/xtcpnl`, `pkg/nlparity`, `internal/goipparity`)
 | positive, corner, negative: a policy type of six bytes in a dump, a FLUSHPOLICY and a policy; five bytes short | `TestParseXfrmPolicy` (40, four changed) |
 | positive, corner: get's policy type six bytes and padded; `d`, `delall`, `f`, `se`, `setd`, `u` and `a` reaching their writes | `TestXfrmPolicyArgs` (74, eight changed); `TestXfrmStateArgs` (51, one changed) |
 | positive, negative, boundary: the 13 rows and the four refused before a request | NETLINK_XFRM writes at floor 2, deleteall's at 5 with Writes 2, the flushes' Writes 1, `delall` a read, on the corpus topology, gated; none, `TestXfrmPolicyWriteRows` (17) |
+
+**G7-T05 delivered** (`internal/goip`), closing G7:
+- **`monitor`** (`internal/goip/obj_xfrm_monitor.go`), `do_xfrm_monitor`: `file` by prefix and its name, `nokeys` and `all` by `strcmp`, `all-nsid`, then `acquire`, `expire`, `SA`, `aevent`, `policy` and `report` by prefix, in that order, so `a` is `all-nsid`; `help` is the usage, and another word `unknown`, each exit 255. With no object every group, else each object's `XFRMNLGRP_*` bit. A `file` is walked as `ip monitor file` walks one (`monitorReadFile`, split out of `ip monitor`'s); else a NETLINK_XFRM socket of its own in those groups, with `NETLINK_LISTEN_ALL_NSID` under `all-nsid` (`XfrmListen`, `internal/goip/source_xfrm.go`). A replay hands over every XFRM message the kernel sent in the capture, in order: the events, and the trigger's ACKs, which print nothing.
+- **`xfrm_accept_msg`**: the timestamp under `-t`, `[nsid current]` or `[nsid N]` under `all-nsid`, then by type: an SA event through `xfrm_state_print`, keys and all whatever `nokeys` says, a policy event through `xfrm_policy_print`, an acquire, the two flushes, an async event, a mapping change and the default policies through their printers (`internal/goip/render/xfrm_monitor.go`), NLMSG_ERROR, NOOP and DONE with nothing, and any other type as `Unknown message`. A printer's refusal goes to stderr and the listen goes on, as `xfrm_accept_msg` returns 0. REPORT is not implemented.
+- **`xfrm_state_print` and `xfrm_policy_print`** gain their event types: UPDSA and UPDPOLICY as `Updated `; DELSA and DELPOLICY as `Deleted `, the SA or policy their `XFRMA_SA` or `XFRMA_POLICY` nests, a missing one `Buggy` after the word, as `ip` prints them; EXPIRE and POLEXPIRE as `Expired `, with `hard` and the flag. The list's and get's filters still apply, but never to a DEL, whose header is an ID.
+- **`xfrm_policy_info_print`'s prefix and title**, which the acquire's policy prints under: `render.XfrmPolicyInfo` is the empty pair.
+- **`strxf_proto`**, which names an async event's and a mapping change's protocol by `getprotobynumber`, is goip's protocol names; another is not implemented. **`xfrmProtoOpt`** names every selector protocol a message has, the acquire's two.
+- **No matrix rows.** The parity driver runs no monitor, as for `ip monitor`, `ip mptcp monitor` and `ip ioam monitor`.
+
+The tests (`internal/goip`, `internal/goip/render`):
+
+| description | expected |
+|---|---|
+| positive, negative, corner: the seven C3 monitor captures replayed: SAs and policies added, updated, deleted and flushed, the default policies, an acquire, an SA's and a policy's expiry, async events and a mapping change; `bogus`; `nokeys all`, `ac`, `e` and `ae` | ip's stdout, the mapping row's trigger line dropped; nothing on stderr; exit 0, or 255 and the message, `TestXfrmMonitorMatchesIp` (11) |
+| positive, negative, boundary, corner: the words' groups and refusals, a missing file and a listen error; each printer, its refusals going to stderr with the listen going on, a one-byte FLUSHSA, an acquire of its struct alone and one whose policy names another protocol, REPORT, unknown and silent types; all-nsid's headers and `-ts` | the groups and all-nsid asked for, stdout and stderr, the exit status and message, `TestXfrmMonitorArgs` (48) |
+| positive, negative, boundary, corner: a file of a FLUSHSA and the default policies, an empty one, one cut short, under all-nsid | stdout, no listen, exit 0 or 1, `TestXfrmMonitorFile` (4) |
+| positive, boundary, corner: an acquire's family fallbacks, SPI and `-s` line, the flushes, an async event's flags, a mapping change | the text, `TestXfrmMonitorText` (13) |
+| corner: a DELPOLICY in a list with no XFRMA_POLICY | `Deleted `, then `Buggy`, ending the dump, `TestXfrmPolicyArgs` (74, one changed) |
+| negative: `mon` on a source with no XFRM listen | not implemented, `TestXfrmStateArgs` (51, one changed) |
 
 ## See also
 

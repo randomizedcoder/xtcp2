@@ -313,9 +313,11 @@ type ReplaySource struct {
 	gseg  nlparity.Segmentation
 	gused map[int]bool
 	// xseg is the capture's NETLINK_XFRM exchanges, and xused the ones
-	// replayed.
+	// replayed; xmsgs are its messages, in capture order, which the
+	// monitor's listen replays.
 	xseg  nlparity.Segmentation
 	xused map[int]bool
+	xmsgs []nlparity.Msg
 }
 
 // OpenReplay reads a DLT_NETLINK pcap from disk and replays every reply in it.
@@ -340,7 +342,7 @@ func OpenReplayPortid(path string, portid uint32) (*ReplaySource, error) {
 		return nil, err
 	}
 	return &ReplaySource{cap: c, portid: portid, gseg: nlparity.SegmentCapture(g),
-		xseg: nlparity.SegmentCapture(x)}, nil
+		xseg: nlparity.SegmentCapture(x), xmsgs: x.Msgs()}, nil
 }
 
 // NewReplayFromBytes builds a replay source from pcap bytes already in memory.
@@ -357,7 +359,8 @@ func NewReplayFromBytes(data []byte) (*ReplaySource, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ReplaySource{cap: c, gseg: nlparity.SegmentCapture(g), xseg: nlparity.SegmentCapture(x)}, nil
+	return &ReplaySource{cap: c, gseg: nlparity.SegmentCapture(g), xseg: nlparity.SegmentCapture(x),
+		xmsgs: x.Msgs()}, nil
 }
 
 // Dump returns every recorded reply body of msgType, in capture order.

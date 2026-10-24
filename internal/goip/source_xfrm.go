@@ -1,7 +1,9 @@
 package goip
 
 import (
+	"errors"
 	"fmt"
+	"io"
 
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
@@ -127,4 +129,55 @@ func (s *ReplaySource) XfrmTalk(request []byte) (uint16, []byte, error) {
 		return 0, nil, nil
 	}
 	return m.Hdr.Type, xtcpnl.CopyBytes(m.Body), nil
+}
+
+// XfrmMonitorSource is the NETLINK_XFRM side `ip xfrm monitor` needs: a
+// socket of its own in the groups asked for, every message on which is
+// handed to fn until fn fails or the source ends.
+type XfrmMonitorSource interface {
+	XfrmListen(groups uint32, allNsid bool, errOut io.Writer, fn func(monitorMsg) error) error
+}
+
+// XfrmListen is do_xfrm_monitor's rtnl_open_byproto with the groups,
+// rtnl_listen_all_nsid when asked, then rtnl_listen, on a socket of its
+// own. A socket that will not open or bind, or a refused all-nsid, is
+// ErrMonitorSetup, exit 1; a receive error ends the listen, exit 2.
+func (s *NetlinkSource) XfrmListen(groups uint32, allNsid bool, errOut io.Writer, fn func(monitorMsg) error) error {
+	fd, err := unix.Socket(unix.AF_NETLINK, unix.SOCK_RAW|unix.SOCK_CLOEXEC, unix.NETLINK_XFRM)
+	if err != nil {
+		return fmt.Errorf("%w: Cannot open netlink socket: %w", ErrMonitorSetup, err)
+	}
+	err = func() error {
+		if err := unix.SetsockoptInt(fd, unix.SOL_SOCKET, unix.SO_RCVBUF, 1<<20); err != nil {
+			return fmt.Errorf("%w: SO_RCVBUF: %w", ErrMonitorSetup, err)
+		}
+		if err := unix.Bind(fd, &unix.SockaddrNetlink{Family: unix.AF_NETLINK, Groups: groups}); err != nil {
+			return fmt.Errorf("%w: Cannot bind netlink socket: %w", ErrMonitorSetup, err)
+		}
+		if allNsid {
+			if err := unix.SetsockoptInt(fd, unix.SOL_NETLINK, unix.NETLINK_LISTEN_ALL_NSID, 1); err != nil {
+				return fmt.Errorf("%w: setsockopt NETLINK_LISTEN_ALL_NSID: %w", ErrMonitorSetup, err)
+			}
+		}
+		return listenFd(fd, allNsid, errOut, fn)
+	}()
+	return errors.Join(err, unix.Close(fd))
+}
+
+// XfrmListen on a replay hands fn every XFRM message of the capture the
+// kernel sent, in capture order, whatever the groups: the events the
+// monitor got, and the ACKs of the trigger's writes, which
+// xfrm_accept_msg prints nothing for. Nothing in an event says which
+// group it came on.
+func (s *ReplaySource) XfrmListen(_ uint32, _ bool, _ io.Writer, fn func(monitorMsg) error) error {
+	for i := range s.xmsgs {
+		m := &s.xmsgs[i]
+		if m.Hdr.Flags&unix.NLM_F_REQUEST != 0 {
+			continue
+		}
+		if err := fn(monitorMsg{hdr: m.Hdr, body: m.Body, nsid: -1}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
