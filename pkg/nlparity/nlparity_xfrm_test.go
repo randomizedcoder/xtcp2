@@ -14,6 +14,8 @@ const (
 	tdXfrm             = "../../pkg/xtcpnl/testdata/7_1_4/link-write/xfrm"
 	tdXfrmList         = tdXfrm + "/state_list/ip.pcap"
 	tdXfrmListNokeys   = tdXfrm + "/state_list_nokeys/ip.pcap"
+	tdXfrmPolicyGet    = tdXfrm + "/policy_get/ip.pcap"
+	tdXfrmPolicyIndex  = tdXfrm + "/policy_get_index/ip.pcap"
 	xfrmUsersaReqidCst = 208
 )
 
@@ -149,6 +151,7 @@ func TestXfrmNormalize(t *testing.T) {
 		sa[i] = byte(i)
 	}
 	lastUsed := append(append([]byte(nil), sa...), 12, 0, byte(xtcpnl.XfrmAttrLastUsed), 0, 1, 2, 3, 4, 5, 6, 7, 8)
+	pol := sa[:xtcpnl.XfrmUserpolicyInfoSizeCst]
 	tests := []struct {
 		description string
 		typ         uint16
@@ -161,6 +164,11 @@ func TestXfrmNormalize(t *testing.T) {
 			{228, 236}}},
 		{"negative: GETSA's usersa_id is no SA", xtcpnl.XfrmMsgGetSA, sa[:24], nil},
 		{"boundary: a NEWSA short of its struct is left alone", xtcpnl.XfrmMsgNewSA, sa[:200], nil},
+		{"positive: NEWPOLICY's add_time and use_time", xtcpnl.XfrmMsgNewPolicy, pol, [][2]int{{136, 152}}},
+		{"positive: UPDPOLICY's", xtcpnl.XfrmMsgUpdPolicy, pol, [][2]int{{136, 152}}},
+		{"negative: GETPOLICY's userpolicy_id is no policy", xtcpnl.XfrmMsgGetPolicy, sa[:64], nil},
+		{"boundary: a NEWPOLICY short of its struct is left alone", xtcpnl.XfrmMsgNewPolicy, pol[:167], nil},
+		{"corner: NEWSA's offsets are not a policy's", xtcpnl.XfrmMsgNewSA, pol, nil},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
@@ -189,6 +197,15 @@ func TestXfrmNormalize(t *testing.T) {
 		}
 		if string(NormalizeMsg(a[1]).Body) != string(NormalizeMsg(b[1]).Body) {
 			t.Error("normalized, the two first SAs still differ")
+		}
+	})
+	t.Run("corner: the captures' policy 1 differs only in its clocks", func(t *testing.T) {
+		a, b := xfrmMsgs(t, tdXfrmPolicyGet), xfrmMsgs(t, tdXfrmPolicyIndex)
+		if string(a[1].Body) == string(b[1].Body) {
+			t.Fatal("the two captures' policies are the same bytes; the test proves nothing")
+		}
+		if string(NormalizeMsg(a[1]).Body) != string(NormalizeMsg(b[1]).Body) {
+			t.Error("normalized, the two policies still differ")
 		}
 	})
 }

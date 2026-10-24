@@ -240,3 +240,159 @@ func TestXfrmProtoName(t *testing.T) {
 		t.Error("ESP by strcmp is no protocol")
 	}
 }
+
+// TestXfrmPolicyInfo is xfrm_policy_info_print over decoded policies, every
+// line it can print.
+//
+// go test ./internal/goip/render/ -run TestXfrmPolicyInfo
+func TestXfrmPolicyInfo(t *testing.T) {
+	base := xtcpnl.XfrmUserpolicyInfo{Sel: xtcpnl.XfrmSelector{Saddr: xfrmA4(192, 0, 2, 1),
+		Daddr: xfrmA4(192, 0, 2, 2), PrefixlenS: 32, PrefixlenD: 32, Family: unix.AF_INET}, Dir: 1}
+	const sel = "src 192.0.2.1/32 dst 192.0.2.2/32 \n"
+	with := func(f func(p *xtcpnl.XfrmUserpolicyInfo)) xtcpnl.XfrmUserpolicyInfo {
+		p := base
+		f(&p)
+		return p
+	}
+	tmpl := xtcpnl.XfrmUserTmpl{ID: xtcpnl.XfrmID{Daddr: xfrmA4(192, 0, 2, 2), Proto: unix.IPPROTO_ESP},
+		Saddr: xfrmA4(192, 0, 2, 1), Family: unix.AF_INET, Reqid: 1}
+	inf := ^uint64(0)
+	tests := []struct {
+		description string
+		info        xtcpnl.XfrmUserpolicyInfo
+		attrs       xtcpnl.XfrmAttrs
+		stats       bool
+		family      uint8
+		expected    string
+	}{
+		{description: "positive: out, allow, no template", info: base,
+			expected: sel + "\tdir out priority 0 \n"},
+		{description: "positive: the corpus's P1, a template", info: base,
+			attrs: xtcpnl.XfrmAttrs{Tmpl: []xtcpnl.XfrmUserTmpl{tmpl}},
+			expected: sel + "\tdir out priority 0 \n\ttmpl src 192.0.2.1 dst 192.0.2.2\n" +
+				"\t\tproto esp reqid 1 mode transport\n"},
+		{description: "positive: in, block, priority 10", info: with(func(p *xtcpnl.XfrmUserpolicyInfo) {
+			p.Dir, p.Action, p.Priority = 0, 1, 10
+		}), expected: sel + "\tdir in action block priority 10 \n"},
+		{description: "positive: fwd", info: with(func(p *xtcpnl.XfrmUserpolicyInfo) { p.Dir = 2 }),
+			expected: sel + "\tdir fwd priority 0 \n"},
+		{description: "corner: a socket policy's direction, offset by XFRM_POLICY_MAX",
+			info:     with(func(p *xtcpnl.XfrmUserpolicyInfo) { p.Dir = 4 }),
+			expected: sel + "\tsocket out priority 0 \n"},
+		{description: "boundary: XFRM_POLICY_MAX itself, a socket's in",
+			info:     with(func(p *xtcpnl.XfrmUserpolicyInfo) { p.Dir = 3 }),
+			expected: sel + "\tsocket in priority 0 \n"},
+		{description: "boundary: a direction past fwd, as a number", info: with(func(p *xtcpnl.XfrmUserpolicyInfo) {
+			p.Dir = 6
+		}), expected: sel + "\tsocket 3 priority 0 \n"},
+		{description: "corner: an action ip does not know, as a number",
+			info:     with(func(p *xtcpnl.XfrmUserpolicyInfo) { p.Action = 7 }),
+			expected: sel + "\tdir out action 7 priority 0 \n"},
+		{description: "positive: ptype sub, and a ptype past it as a number", info: base,
+			attrs: xtcpnl.XfrmAttrs{PolicyType: xfrmP8(1)}, expected: sel + "\tdir out priority 0 ptype sub \n"},
+		{description: "corner: ptype 5", info: base, attrs: xtcpnl.XfrmAttrs{PolicyType: xfrmP8(5)},
+			expected: sel + "\tdir out priority 0 ptype 5 \n"},
+		{description: "positive: flags localok and icmp, then a bit past them in hex",
+			info:     with(func(p *xtcpnl.XfrmUserpolicyInfo) { p.Flags = 0x13 }),
+			expected: sel + "\tdir out priority 0 flag localok icmp 10\n"},
+		{description: "positive: a security context, after the selector", info: base,
+			attrs:    xtcpnl.XfrmAttrs{SecCtx: &xtcpnl.XfrmSecCtx{Ctx: []byte("c")}},
+			expected: sel + "\tsecurity context c \n\tdir out priority 0 \n"},
+		{description: "positive: -s, the action, index, share, flags, mask and lifetimes",
+			info: with(func(p *xtcpnl.XfrmUserpolicyInfo) {
+				p.Index, p.Share, p.Flags = 9, 1, 1
+				p.Lft = xtcpnl.XfrmLifetimeCfg{SoftByteLimit: inf, HardByteLimit: inf, SoftPacketLimit: inf,
+					HardPacketLimit: inf}
+			}), stats: true,
+			expected: "src 192.0.2.1/32 dst 192.0.2.2/32 uid 0\n\tdir out action allow index 9 priority 0 " +
+				"share session flag localok (0x00000001)\n" +
+				"\tlifetime config:\n" +
+				"\t  limit: soft (INF)(bytes), hard (INF)(bytes)\n" +
+				"\t  limit: soft (INF)(packets), hard (INF)(packets)\n" +
+				"\t  expire add: soft 0(sec), hard 0(sec)\n" +
+				"\t  expire use: soft 0(sec), hard 0(sec)\n" +
+				"\tlifetime current:\n" +
+				"\t  0(bytes), 0(packets)\n" +
+				"\t  add - use -\n"},
+		{description: "corner: a selector with no family takes preferred_family's",
+			info: with(func(p *xtcpnl.XfrmUserpolicyInfo) { p.Sel.Family = unix.AF_UNSPEC }), family: unix.AF_INET,
+			expected: sel + "\tdir out priority 0 \n"},
+		{description: "boundary: no family anywhere, rt_addr_n2a's ???",
+			info:     with(func(p *xtcpnl.XfrmUserpolicyInfo) { p.Sel.Family = unix.AF_UNSPEC }),
+			expected: "src ???/32 dst ???/32 \n\tdir out priority 0 \n"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			o := XfrmOpt{Stats: tc.stats, Family: tc.family, Zone: time.UTC}
+			if got := XfrmPolicyInfo(&tc.info, &tc.attrs, &o); got != tc.expected {
+				t.Errorf("got\n%q\nwant\n%q", got, tc.expected)
+			}
+		})
+	}
+}
+
+// TestXfrmSPDInfo is print_spdinfo: the counts, -s's socket counts, and -s
+// -s's buckets and thresholds, each when present.
+//
+// go test ./internal/goip/render/ -run TestXfrmSPDInfo
+func TestXfrmSPDInfo(t *testing.T) {
+	si := &xtcpnl.XfrmSPDInfo{In: 1, Out: 2, Fwd: 3, InS: 4, OutS: 5, FwdS: 6}
+	full := xtcpnl.XfrmInfo{SPDInfo: si, SPDHInfo: &xtcpnl.XfrmHInfo{Count: 7, MaxCount: 1048576},
+		IPv4HThresh: &xtcpnl.XfrmSPDHThresh{LBits: 32, RBits: 32},
+		IPv6HThresh: &xtcpnl.XfrmSPDHThresh{LBits: 128, RBits: 128}}
+	tests := []struct {
+		description string
+		info        xtcpnl.XfrmInfo
+		stats       int
+		expected    string
+	}{
+		{"positive: the counts", full, 0, "\t SPD IN  1 OUT 2 FWD 3\n"},
+		{"positive: -s, the socket counts", full, 1, "\t SPD IN  1 OUT 2 FWD 3 (Sock: IN 4 OUT 5 FWD 6)\n"},
+		{"positive: -s -s, the buckets and thresholds", full, 2,
+			"\t SPD IN  1 OUT 2 FWD 3 (Sock: IN 4 OUT 5 FWD 6)\n\t SPD buckets: count 7 Max 1048576\n" +
+				"\t SPD IPv4 thresholds: local 32 remote 32\n\t SPD IPv6 thresholds: local 128 remote 128\n"},
+		{"boundary: -s -s with only the IPv6 thresholds", xtcpnl.XfrmInfo{SPDInfo: si,
+			IPv6HThresh: full.IPv6HThresh}, 2,
+			"\t SPD IN  1 OUT 2 FWD 3 (Sock: IN 4 OUT 5 FWD 6)\n\t SPD IPv6 thresholds: local 128 remote 128\n"},
+		{"negative: no XFRMA_SPD_INFO, its line unended", xtcpnl.XfrmInfo{}, 0, "\t SPD"},
+		{"corner: -s -s with no XFRMA_SPD_INFO, the buckets after the bare SPD",
+			xtcpnl.XfrmInfo{SPDHInfo: full.SPDHInfo}, 2, "\t SPD\t SPD buckets: count 7 Max 1048576\n"},
+		{"corner: a count past int32 prints negative, as %d of a u32 does",
+			xtcpnl.XfrmInfo{SPDInfo: &xtcpnl.XfrmSPDInfo{In: 0xffffffff}}, 0, "\t SPD IN  -1 OUT 0 FWD 0\n"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			if got := XfrmSPDInfo(&tc.info, tc.stats); got != tc.expected {
+				t.Errorf("got %q, want %q", got, tc.expected)
+			}
+		})
+	}
+}
+
+// TestXfrmPolicyDefault is xfrm_policy_default_print: each direction's
+// action by name, and unknown past accept.
+//
+// go test ./internal/goip/render/ -run TestXfrmPolicyDefault
+func TestXfrmPolicyDefault(t *testing.T) {
+	tests := []struct {
+		description string
+		d           xtcpnl.XfrmUserpolicyDefault
+		expected    string
+	}{
+		{"positive: the kernel's default, accept everywhere", xtcpnl.XfrmUserpolicyDefault{In: 2, Fwd: 2, Out: 2},
+			"Default policies:\n in:  accept\n fwd: accept\n out: accept\n"},
+		{"positive: in and fwd blocked", xtcpnl.XfrmUserpolicyDefault{In: 1, Fwd: 1, Out: 2},
+			"Default policies:\n in:  block\n fwd: block\n out: accept\n"},
+		{"boundary: unspec", xtcpnl.XfrmUserpolicyDefault{},
+			"Default policies:\n in:  unspec\n fwd: unspec\n out: unspec\n"},
+		{"corner: past accept is unknown", xtcpnl.XfrmUserpolicyDefault{In: 3, Fwd: 255, Out: 0},
+			"Default policies:\n in:  unknown\n fwd: unknown\n out: unspec\n"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			if got := XfrmPolicyDefault(&tc.d); got != tc.expected {
+				t.Errorf("got %q, want %q", got, tc.expected)
+			}
+		})
+	}
+}

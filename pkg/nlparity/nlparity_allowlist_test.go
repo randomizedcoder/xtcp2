@@ -932,6 +932,17 @@ func TestAllowlistCommitted(t *testing.T) {
 		"xfrm state flush",
 		"xfrm state flush proto ah",
 		"xfrm state allocspi src 192.0.2.1 dst 192.0.2.2 proto esp min 0x100 max 0x100",
+		// G7-T03's ten `xfrm policy` rows.
+		"xfrm policy list",
+		"xfrm policy show",
+		"xfrm policy list dir in",
+		"xfrm policy get src 192.0.2.1/32 dst 192.0.2.2/32 dir out",
+		"xfrm policy get index 1 dir out",
+		"xfrm policy g src 192.0.2.1/32 dst 192.0.2.2/32 dir out",
+		"xfrm policy count",
+		"xfrm policy c",
+		"-s -s xfrm policy count",
+		"xfrm policy getd",
 	}
 
 	tests := []struct {

@@ -3075,6 +3075,34 @@ The tests (`pkg/xtcpnl`, `pkg/nlparity`, `internal/goip`, `internal/goipparity`)
 | positive, negative, boundary: the 17 rows, `allocspi` and `add_no_algo` | NETLINK_XFRM, a write or `delall`'s read, floor 2, `deleteall`'s 5, on the corpus topology, gated; none, `TestXfrmStateRows` (28) |
 | positive: the Writes rule over `deleteall` and the flushes, every row's clean corpus run, the row count | `TestCommandTable`, `TestCompareWriteRow`, `TestRender`, `TestGenlStandInRows` |
 
+**G7-T03 delivered** (`internal/goip`, `pkg/nlparity`, `internal/goipparity`):
+- **Protocol names** (`internal/goip/proto_names.go`). `protoByName` and `protoByNumber` are `getprotobyname` and `getprotobynumber` over the names fou's and rule's `ipproto` know, as NixOS's iana-etc spells them. The selector reads a name through it before a number; an SA's or a policy's selector prints its protocol through it, and the UPSPEC's refusals name it, `"sport" and "dport" are invalid with PROTO value "gre"`, exit 1. A name or number outside it is not implemented.
+- **`policy`** (`internal/goip/obj_xfrm_policy.go`), `do_xfrm_policy`: no verb lists, and each verb by prefix in `ip`'s order, so `s` is `show` and `d` `delete`. The writes are G7-T04's and refused as not implemented.
+- **`list`**, `xfrm_policy_list_or_deleteall`: `dir`, `index`, `ptype`, `action`, `priority`, `flag` and `nosock` by `strcmp`, else one selector, whose parse sets the filter's masks as `ip`'s global filter: each address's length, and the device, protocol and each port when given, a GRE key the dport alone. Then one GETPOLICY dump with no header, each answer printed through `xfrm_policy_filter_match`.
+- **The printer**, `xfrm_policy_print` and `xfrm_policy_info_print`: a NEWPOLICY, or an UPDPOLICY as `Updated `; another type is `Not a policy` on stderr. The selector in `preferred_family`, the security context, the direction or a socket's, the action when it blocks or under `-s`, under `-s` the index, the priority, the policy type when given, under `-s` the share, the flags when set or under `-s`, under `-s` the lifetimes, then the templates and the other attributes. DELPOLICY and POLEXPIRE are the monitor's, G7-T05's.
+- **`get`**, `xfrm_policy_get_or_delete`: `dir`, `ctx`, `index` and `ptype` once each, `mark` and `if_id`, else one selector; DIR is required, then a selector or an index, not both. A GETPOLICY of `xfrm_userpolicy_id`, `AF_INET` when nothing gave a family, then `XFRMA_POLICY_TYPE`, the mark, the context and the interface id, in `ip`'s order whatever the words'. G7-T04's `delete` will send the same request.
+- **`count`**, `xfrm_spd_getinfo`: a GETSPDINFO asking for every field, then `print_spdinfo`, `-s`'s socket counts and `-s -s`'s buckets and thresholds. **`getdefault`**: a GETDEFAULT, then each direction's default; an answer short of its padded struct is `ip`'s BUG line, exit 0.
+- **`-s -s`** (`internal/goip/goip.go`, `dispatch.go`). `Run` refuses a `-s` count above one before any object, since goip renders only `show_stats == 1`. xfrm is the object that refuses it itself (`object.wideStats`): `policy count` renders it, and every other policy verb and every state verb refuses it as not implemented.
+- **`nlparity`** zeroes a NEWPOLICY's and UPDPOLICY's clocks, as an SA's.
+- **The rows.** 10 of the C3 corpus's 12 policy reads, each on its corpus precondition, policy 1 or both. Commands the corpus spells alike run as `show`, `g`, `c` and `getd`. Left out: `get_sel_and_index` and `get_no_sel`, refused before a request, which would be floor-0 rows; `TestXfrmPolicyMatchesIp` checks both.
+
+The tests (`internal/goip`, `pkg/nlparity`, `internal/goipparity`):
+
+| description | expected |
+|---|---|
+| positive, negative, boundary, corner: the 12 C3 policy read captures replayed, and `policy`, `p s`, `lst`, `g`, `c`, `getd` and words reordered | every exchange replayed; `ip.out`; the refusals' messages; exit 0, 2 for the missing policy, 1 and 255 for the two `ip` refuses, `TestXfrmPolicyMatchesIp` (20) |
+| positive, negative, boundary, corner: each list filter over four policies, a GRE key, an ICMP type and a device; get's header and attributes; each refusal; answers skipped or refused; count's and getdefault's requests and short answers; every verb's prefix | the requests' types, flags and bytes, the policies printed, the message, `ip`'s exit status, `TestXfrmPolicyArgs` (74) |
+| positive, boundary, corner: every line `xfrm_policy_info_print` prints, the socket directions and `XFRM_POLICY_MAX`, unknown numbers, `-s` | the text, `TestXfrmPolicyInfo` (15) |
+| positive, negative, boundary, corner: the SPD counts, `-s`, `-s -s`, missing attributes | the text, `TestXfrmSPDInfo` (7) |
+| positive, boundary, corner: each default action and one past accept | the text, `TestXfrmPolicyDefault` (4) |
+| positive, negative, boundary, corner: names both ways, protocol 0, iana-etc names and aliases goip does not know | the number or name, or none, `TestProtoNames` (10) |
+| positive, corner: a selector protocol named and one goip cannot name; `policy add` G7-T04's | `TestXfrmStateArgs` (51, one new, two changed) |
+| positive, negative, corner: `sel proto tcp`, an unknown name, `sport` under `gre` named, under 200 not implemented | `TestXfrmStateWritesArgs` (73, two new, two changed) |
+| positive, negative, boundary, corner: a policy's clocks zeroed, UPDPOLICY's, a short one and GETPOLICY's id left alone; two captures' policy 1 alike once zeroed | `TestXfrmNormalize` (12, six new) |
+| positive, negative, boundary, corner: `-s -s` and `-s -s -s` through `Run` for `policy count` and `c`; `-s -s` for policy list, get and no verb, state count and link show | ip's stdout, or exit 1 and the refusal, `TestXfrmWideStats` (8) |
+| positive, negative, boundary, corner: the object that refuses `-s -s` itself, by name and prefix; another, an unknown one, none and a longer word | `TestWideStatsObject` (6) |
+| positive, negative, boundary: the 10 rows and the two refused before a request | NETLINK_XFRM reads at floor 2 on the corpus topology, gated; none, `TestXfrmPolicyRows` (12) |
+
 ## See also
 
 - [goip-parity-gaps-status.md](goip-parity-gaps-status.md): the progress against this plan: phase states, task checklist, verification ledger and decision log.

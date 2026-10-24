@@ -540,3 +540,145 @@ func XfrmSADInfo(info *xtcpnl.XfrmInfo, stats bool) string {
 	b.WriteString("\n")
 	return b.String()
 }
+
+// xfrmPolicyMaxCst is XFRM_POLICY_MAX: a direction at or past it is a
+// socket policy's, offset by it.
+const xfrmPolicyMaxCst = 3
+
+// xfrmPolicyFlags are xfrm_policy_info_print's flags, XFRM_POLICY_*.
+var xfrmPolicyFlags = []xfrmFlagName{{1, "localok"}, {2, "icmp"}}
+
+// xfrmPtypeName is strxf_ptype: main, sub, or the number.
+func xfrmPtypeName(ptype uint8) string {
+	switch ptype {
+	case 0:
+		return "main"
+	case 1:
+		return "sub"
+	}
+	return strconv.FormatUint(uint64(ptype), 10)
+}
+
+// XfrmPolicyInfo is xfrm_policy_info_print with no prefix and no title: the
+// selector in preferred_family, the security context, the direction, or a
+// socket policy's, the action when it blocks or under -s, under -s the
+// index, the priority, the policy type when given, under -s the share, the
+// flags when set or under -s, under -s the lifetimes, then the attributes.
+func XfrmPolicyInfo(info *xtcpnl.XfrmUserpolicyInfo, a *xtcpnl.XfrmAttrs, o *XfrmOpt) string {
+	var b strings.Builder
+	o.xfrmSelector(&b, &info.Sel, uint16(o.Family), "")
+	if a.SecCtx != nil {
+		xfrmSecCtx(&b, a.SecCtx)
+	}
+	const buf = "\t"
+	b.WriteString(buf)
+	dir := info.Dir
+	if dir >= xfrmPolicyMaxCst {
+		dir -= xfrmPolicyMaxCst
+		b.WriteString("socket ")
+	} else {
+		b.WriteString("dir ")
+	}
+	switch dir {
+	case 0:
+		b.WriteString("in")
+	case 1:
+		b.WriteString("out")
+	case 2:
+		b.WriteString("fwd")
+	default:
+		b.WriteString(strconv.FormatUint(uint64(dir), 10))
+	}
+	b.WriteString(" ")
+	switch info.Action {
+	case 0:
+		if o.Stats {
+			b.WriteString("action allow ")
+		}
+	case 1:
+		b.WriteString("action block ")
+	default:
+		fmt.Fprintf(&b, "action %d ", info.Action)
+	}
+	if o.Stats {
+		fmt.Fprintf(&b, "index %d ", info.Index)
+	}
+	fmt.Fprintf(&b, "priority %d ", info.Priority)
+	if a.PolicyType != nil {
+		b.WriteString("ptype " + xfrmPtypeName(*a.PolicyType) + " ")
+	}
+	if o.Stats {
+		b.WriteString("share " + xfrmShareName(info.Share) + " ")
+	}
+	if o.Stats || info.Flags != 0 {
+		b.WriteString("flag ")
+		xfrmFlags(&b, uint32(info.Flags), xfrmPolicyFlags)
+	}
+	if o.Stats {
+		b.WriteString(" (0x" + xfrmMask8(info.Flags) + ")")
+	}
+	b.WriteString("\n")
+	if o.Stats {
+		o.xfrmLifetime(&b, &info.Lft, &info.Curlft, buf)
+	}
+	o.xfrmAttrs(&b, a, info.Sel.Family, buf, false)
+	return b.String()
+}
+
+// XfrmSPDInfo is print_spdinfo: the policies in each direction and, under
+// -s, the socket policies; under -s -s the hash table's buckets and each
+// family's thresholds. With no XFRMA_SPD_INFO, "\t SPD" ends no line.
+func XfrmSPDInfo(info *xtcpnl.XfrmInfo, stats int) string {
+	var b strings.Builder
+	b.WriteString("\t SPD")
+	if si := info.SPDInfo; si != nil {
+		fmt.Fprintf(&b, " IN  %d OUT %d FWD %d", int32(si.In), int32(si.Out), int32(si.Fwd))
+		if stats > 0 {
+			fmt.Fprintf(&b, " (Sock: IN %d OUT %d FWD %d)", int32(si.InS), int32(si.OutS), int32(si.FwdS))
+		}
+		b.WriteString("\n")
+	}
+	if stats > 1 {
+		if h := info.SPDHInfo; h != nil {
+			fmt.Fprintf(&b, "\t SPD buckets: count %d Max %d\n", int32(h.Count), int32(h.MaxCount))
+		}
+		for _, th := range []struct {
+			name string
+			t    *xtcpnl.XfrmSPDHThresh
+		}{{"IPv4", info.IPv4HThresh}, {"IPv6", info.IPv6HThresh}} {
+			if th.t != nil {
+				fmt.Fprintf(&b, "\t SPD %s thresholds: local %d remote %d\n", th.name, th.t.LBits, th.t.RBits)
+			}
+		}
+	}
+	return b.String()
+}
+
+// xfrmUserpolicyUnspecCst and xfrmUserpolicyUnknownCst are
+// xfrm_policy_to_str's names for 0 and for a value past accept.
+const (
+	xfrmUserpolicyUnspecCst  = "unspec"
+	xfrmUserpolicyUnknownCst = "unknown"
+)
+
+// xfrmUserpolicyName is xfrm_policy_to_str: XFRM_USERPOLICY_*'s name.
+func xfrmUserpolicyName(p uint8) string {
+	switch p {
+	case 0:
+		return xfrmUserpolicyUnspecCst
+	case 1:
+		return "block"
+	case 2:
+		return "accept"
+	}
+	return xfrmUserpolicyUnknownCst
+}
+
+// XfrmPolicyDefault is xfrm_policy_default_print's lines: each direction's
+// default action, in, fwd and out.
+func XfrmPolicyDefault(d *xtcpnl.XfrmUserpolicyDefault) string {
+	return "Default policies:\n" +
+		" in:  " + xfrmUserpolicyName(d.In) + "\n" +
+		" fwd: " + xfrmUserpolicyName(d.Fwd) + "\n" +
+		" out: " + xfrmUserpolicyName(d.Out) + "\n"
+}

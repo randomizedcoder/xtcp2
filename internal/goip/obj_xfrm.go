@@ -21,8 +21,9 @@ import (
 // goip runs the state reads, each on its own NETLINK_XFRM socket as ip's
 // do: list, a GETSA dump each answer of which is printed, filtered on
 // goip's side as ip's is; get, one GETSA; and count, one GETSADINFO. The
-// state writes are xfrm_state_write.go's. The policies are G7-T03's and
-// G7-T04's, and the monitor G7-T05's.
+// state writes are xfrm_state_write.go's, the policy reads
+// obj_xfrm_policy.go's; the policy writes are G7-T04's, and the monitor
+// G7-T05's.
 
 const (
 	xfrmHelpCst    = "help"
@@ -110,7 +111,7 @@ func runXfrm(c *runCtx, args []string) error {
 	case matchesPrefix(obj, "state"), matchesPrefix(obj, "sa"):
 		return xfrmState(c, args[1:])
 	case matchesPrefix(obj, "policy"):
-		return fmt.Errorf("xfrm policy, G7-T03: %w", ErrNotImplemented)
+		return xfrmPolicy(c, args[1:])
 	case matchesPrefix(obj, "monitor"):
 		return fmt.Errorf("xfrm monitor, G7-T05: %w", ErrNotImplemented)
 	}
@@ -132,8 +133,13 @@ var xfrmStateWrites = []struct {
 	{"delall", xfrmStateDeleteall},
 }
 
-// xfrmState is do_xfrm_state.
+// xfrmState is do_xfrm_state. goip renders none of its show_stats > 1
+// forms (count's buckets, flush's "Flush state" line), so `-s -s` is
+// refused.
 func xfrmState(c *runCtx, args []string) error {
+	if c.showStats > 1 {
+		return fmt.Errorf("-s -s xfrm state: %w", ErrNotImplemented)
+	}
 	if len(args) == 0 {
 		return xfrmStateList(c, nil)
 	}
@@ -512,14 +518,27 @@ func xfrmStatePrint(c *runCtx, f *xfrmFilter, nokeys bool, m xfrmMsg) error {
 	if !f.match(s.Info) {
 		return nil
 	}
-	if s.Info.Sel.Proto != 0 {
-		return fmt.Errorf("an SA selector's protocol %d: ip names it through getprotobynumber, from "+
-			"/etc/protocols, and goip reads no config files: %w", s.Info.Sel.Proto, ErrNotImplemented)
-	}
 	o := render.XfrmOpt{Stats: c.stats(), Nokeys: nokeys, Family: c.family,
 		IndexName: func(idx int32) string { return genlIndexToName(c, idx) }}
+	if err := xfrmProtoOpt(&o, s.Info.Sel.Proto); err != nil {
+		return err
+	}
 	_, err = io.WriteString(c.out, render.XfrmStateInfo(s.Info, &s.Attrs, &o))
 	return err
+}
+
+// xfrmProtoOpt sets o's strxf_proto for a selector's protocol: none, or
+// one goip names; another is not implemented.
+func xfrmProtoOpt(o *render.XfrmOpt, proto uint8) error {
+	if proto == 0 {
+		return nil
+	}
+	name, err := xfrmProtoName(proto)
+	if err != nil {
+		return fmt.Errorf("a selector's %w", err)
+	}
+	o.ProtoName = func(uint8) string { return name }
+	return nil
 }
 
 // xfrmStateIDRequest is xfrm_state_get_or_delete's loop and request: mark,

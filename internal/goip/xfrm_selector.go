@@ -15,8 +15,13 @@ import (
 //
 // A protocol is read by getprotobyname, from /etc/protocols, before it is
 // read as a number, and a refusal names one by getprotobynumber. goip reads
-// no config files, so it reads `any` and numbers, and refuses a protocol
-// name, and a refusal that would name one, as not implemented.
+// no config files: it reads `any`, the names proto_names.go knows and
+// numbers, and refuses another name, and a refusal that would name a
+// protocol it does not know, as not implemented.
+//
+// The parse also sets the masks a policy list filters on, as ip's sets its
+// global filter's: each address's length, and whether the device, the
+// protocol and each port were given.
 
 // xfrmSportCst and xfrmDportCst are the UPSPEC's port words.
 const (
@@ -34,6 +39,11 @@ type xfrmSel struct {
 	prefixlenD, prefixlenS uint8
 	proto                  uint8
 	ifindex                int32
+
+	// The filter's masks: the address lengths, and the words given.
+	srcMask, dstMask           uint8
+	devSet, protoSet, sportSet bool
+	dportSet                   bool
 }
 
 // bytes is the selector's 56 bytes.
@@ -65,12 +75,12 @@ func xfrmSelectorParse(c *runCtx, a *xfrmArgs, sel *xfrmSel) error {
 		case xfrmSrcCst:
 			srcFam, err = xfrmSelAddr(c, a, &sel.saddr, &sel.prefixlenS, "src")
 			if err == nil {
-				sel.family = uint16(srcFam)
+				sel.family, sel.srcMask = uint16(srcFam), sel.prefixlenS
 			}
 		case xfrmDstCst:
 			dstFam, err = xfrmSelAddr(c, a, &sel.daddr, &sel.prefixlenD, "dst")
 			if err == nil {
-				sel.family = uint16(dstFam)
+				sel.family, sel.dstMask = uint16(dstFam), sel.prefixlenD
 			}
 		case fouDevCst:
 			err = xfrmSelDev(c, a, sel)
@@ -127,6 +137,7 @@ func xfrmSelDev(c *runCtx, a *xfrmArgs, sel *xfrmSel) error {
 	if err := a.next(); err != nil {
 		return err
 	}
+	sel.devSet = true
 	if a.cur() == "none" {
 		sel.ifindex = 0
 		return nil
@@ -196,10 +207,11 @@ func xfrmUpspecWord(a *xfrmArgs, sel *xfrmSel, u *xfrmUpspec) (bool, error) {
 		if !ok {
 			return true, xfrmUsage(invargErr("value after \""+word+"\" is invalid", v))
 		}
-		port, mask := &sel.sport, &sel.sportMask
+		port, mask, set := &sel.sport, &sel.sportMask, &sel.sportSet
 		if word == xfrmDportCst {
-			port, mask = &sel.dport, &sel.dportMask
+			port, mask, set = &sel.dport, &sel.dportMask, &sel.dportSet
 		}
+		*set = true
 		*port = n
 		if n != 0 {
 			*mask = 0xffff
@@ -211,9 +223,9 @@ func xfrmUpspecWord(a *xfrmArgs, sel *xfrmSel, u *xfrmUpspec) (bool, error) {
 			return true, xfrmUsage(invargErr("value after \""+word+"\" is invalid", v))
 		}
 		if word == linkXstatsTypeCst {
-			sel.sport, sel.sportMask = n, 0xffff
+			sel.sport, sel.sportMask, sel.sportSet = n, 0xffff, true
 		} else {
-			sel.dport, sel.dportMask = n, 0xffff
+			sel.dport, sel.dportMask, sel.dportSet = n, 0xffff, true
 		}
 	default:
 		u.key = true
@@ -223,10 +235,15 @@ func xfrmUpspecWord(a *xfrmArgs, sel *xfrmSel, u *xfrmUpspec) (bool, error) {
 }
 
 // xfrmUpspecProto is proto's value: any, else getprotobyname's, else get_u8
-// base 0.
+// base 0; a name goip does not know is not implemented.
 func xfrmUpspecProto(v string, sel *xfrmSel) error {
+	sel.protoSet = true
 	if v == "any" {
 		sel.proto = 0
+		return nil
+	}
+	if p, ok := protoByName(v); ok {
+		sel.proto = p
 		return nil
 	}
 	n, ok := getU8(v, 0)
@@ -257,13 +274,13 @@ func xfrmUpspecKey(v string, sel *xfrmSel) error {
 		uval = n
 	}
 	sel.sport, sel.dport = uint16(uval>>16), uint16(uval)
-	sel.sportMask, sel.dportMask = 0xffff, 0xffff
+	sel.sportMask, sel.dportMask, sel.dportSet = 0xffff, 0xffff, true
 	return nil
 }
 
 // xfrmUpspecCheck is the UPSPEC's protocol checks: ports for TCP, UDP,
 // SCTP, DCCP or none, type and code for ICMP, ICMPv6 or MH, a key for GRE.
-// Each refusal names the protocol through getprotobynumber.
+// Each refusal names the protocol through getprotobynumber, exit 1.
 func xfrmUpspecCheck(sel *xfrmSel, u *xfrmUpspec) error {
 	var what string
 	switch {
@@ -277,8 +294,22 @@ func xfrmUpspecCheck(sel *xfrmSel, u *xfrmUpspec) error {
 	default:
 		return nil
 	}
-	return fmt.Errorf("%s with protocol %d, which ip names through getprotobynumber, from /etc/protocols, "+
-		"and goip reads no config files: %w", what, sel.proto, ErrNotImplemented)
+	name, err := xfrmProtoName(sel.proto)
+	if err != nil {
+		return fmt.Errorf("%s with protocol %d: %w", what, sel.proto, err)
+	}
+	return fmt.Errorf("%w: %s with PROTO value %q", ErrXfrmRefused, what, name)
+}
+
+// xfrmProtoName is strxf_proto for a protocol goip knows: getprotobynumber's
+// name; one it does not know is not implemented, where ip would look it up.
+func xfrmProtoName(proto uint8) (string, error) {
+	name, ok := protoByNumber(proto)
+	if !ok {
+		return "", fmt.Errorf("protocol %d: ip names it through getprotobynumber, from /etc/protocols, and goip "+
+			"reads no config files: %w", proto, ErrNotImplemented)
+	}
+	return name, nil
 }
 
 // xfrmProtoIn reports whether p is one of ps.

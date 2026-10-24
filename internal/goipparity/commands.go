@@ -3266,6 +3266,32 @@ var commands = withArgs([]Command{
 	{Name: "xfrm state allocspi src 192.0.2.1 dst 192.0.2.2 proto esp min 0x100 max 0x100",
 		Slug: "xfrm_state_allocspi_taken", Floor: 2, Implemented: true, Write: true, Proto: ProtoXfrmCst,
 		Setup: xfrmSA1Setup},
+
+	// G7-T03: the XFRM policy reads, the C3 corpus's twelve policy_list*,
+	// policy_get*, policy_count* and policy_getdefault rows on their
+	// preconditions but the two refused before a request, get_no_sel and
+	// get_sel_and_index, which capture nothing to compare (Floor 0), and
+	// TestXfrmPolicyMatchesIp checks them. A policy's clocks are zeroed
+	// before comparison, and P1, each side's namespace's first out policy,
+	// is index 1 on every side. Commands the corpus spells alike run as
+	// show, g, c and getd, the same bytes.
+	{Name: "xfrm policy list", Slug: "xfrm_policy_list_empty", Floor: 2, Implemented: true, Proto: ProtoXfrmCst},
+	{Name: "xfrm policy show", Slug: "xfrm_policy_list", Floor: 2, Implemented: true, Proto: ProtoXfrmCst,
+		Setup: xfrmPTwoSetup},
+	{Name: "xfrm policy list dir in", Slug: "xfrm_policy_list_dir_in", Floor: 2, Implemented: true,
+		Proto: ProtoXfrmCst, Setup: xfrmPTwoSetup},
+	{Name: "xfrm policy get " + xfrmP1SelCst, Slug: "xfrm_policy_get", Floor: 2, Implemented: true,
+		Proto: ProtoXfrmCst, Setup: xfrmP1Setup},
+	{Name: "xfrm policy get index 1 dir out", Slug: "xfrm_policy_get_index", Floor: 2, Implemented: true,
+		Proto: ProtoXfrmCst, Setup: xfrmP1Setup},
+	{Name: "xfrm policy g " + xfrmP1SelCst, Slug: "xfrm_policy_get_missing", Floor: 2, Implemented: true,
+		Proto: ProtoXfrmCst},
+	{Name: "xfrm policy count", Slug: "xfrm_policy_count", Floor: 2, Implemented: true, Proto: ProtoXfrmCst,
+		Setup: xfrmPTwoSetup},
+	{Name: "xfrm policy c", Slug: "xfrm_policy_count_empty", Floor: 2, Implemented: true, Proto: ProtoXfrmCst},
+	{Name: "-s -s xfrm policy count", Slug: "xfrm_policy_count_stats", Floor: 2, Implemented: true,
+		Proto: ProtoXfrmCst, Setup: xfrmPTwoSetup},
+	{Name: "xfrm policy getd", Slug: "xfrm_policy_getdefault", Floor: 2, Implemented: true, Proto: ProtoXfrmCst},
 })
 
 // tcpmAddrsSetup is genl-write-corpus.exp's PRE_ADDRS: d0, up, with an IPv4
@@ -3462,6 +3488,25 @@ const (
 var (
 	xfrmSA1Setup = []string{xfrmSA1Cst}
 	xfrmTwoSetup = []string{xfrmSA1Cst, xfrmSA2Cst}
+)
+
+// The policies xfrm-write-corpus.exp's rows and preconditions share:
+// policy 1, out from 192.0.2.1 to 192.0.2.2 requiring SA 1's ESP in
+// transport mode, reqid 1, and policy 2, IPv6 TCP to port 443 inbound,
+// blocked, at priority 10.
+const (
+	xfrmP1SelCst  = "src 192.0.2.1/32 dst 192.0.2.2/32 dir out"
+	xfrmP1TmplCst = "tmpl src 192.0.2.1 dst 192.0.2.2 proto esp reqid 1 mode transport"
+	xfrmP1Cst     = "xfrm policy add " + xfrmP1SelCst + " " + xfrmP1TmplCst
+	xfrmP2Cst     = "xfrm policy add src 2001:db8::1/128 dst 2001:db8::2/128 proto tcp dport 443 dir in " +
+		"priority 10 action block"
+)
+
+// xfrmP1Setup is xfrm-write-corpus.exp's PRE_P1, and xfrmPTwoSetup its
+// PRE_PTWO.
+var (
+	xfrmP1Setup   = []string{xfrmP1Cst}
+	xfrmPTwoSetup = []string{xfrmP1Cst, xfrmP2Cst}
 )
 
 // The write rows' preconditions, as capture-link-writes.exp spells them:

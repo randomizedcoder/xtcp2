@@ -28,6 +28,10 @@ type object struct {
 	// outputModes is set for the objects that read -brief and -oneline. Run
 	// refuses both for every other object.
 	outputModes bool
+	// wideStats marks an object that refuses show_stats > 1 itself, verb by
+	// verb, because it renders `-s -s` where ip does: Run's refusal of every
+	// count above one skips it.
+	wideStats bool
 	// alias marks a second spelling of another row's object (the British
 	// spelling of neighbor, ntbl), so lists of objects can name each one once.
 	alias bool
@@ -98,7 +102,7 @@ var objects = []object{
 	{name: "ioam", run: runIoam, noShow: true},
 	{name: "stats", run: runStats},
 	{name: "monitor", run: runMonitor, noShow: true},
-	{name: "xfrm", run: runXfrm, noShow: true},
+	{name: "xfrm", run: runXfrm, noShow: true, wideStats: true},
 }
 
 // matchesPrefix reimplements iproute2's matches() (lib/utils.c:909-919) as a
@@ -196,6 +200,16 @@ func lookupObject(arg string) (object, error) {
 		}
 	}
 	return object{}, fmt.Errorf("%q: %w", arg, ErrUnknownObject)
+}
+
+// wideStatsObject reports whether args name an object that refuses
+// show_stats > 1 itself (object.wideStats).
+func wideStatsObject(args []string) bool {
+	if len(args) == 0 {
+		return false
+	}
+	o, err := lookupObject(args[0])
+	return err == nil && o.wideStats
 }
 
 // runCtx is the state one goip invocation shares between dispatch and the

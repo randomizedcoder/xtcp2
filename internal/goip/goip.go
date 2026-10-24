@@ -168,7 +168,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 	args = args[i:]
 
-	if c.showStats > 1 {
+	if c.showStats > 1 && !wideStatsObject(args) {
 		fmt.Fprintf(stderr,
 			"goip: `-s -s` selects the wider statistics render, which is not implemented "+
 				"(show_stats = %d); use a single -s.\n", c.showStats)

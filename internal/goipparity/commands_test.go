@@ -3500,9 +3500,9 @@ func TestGenlStandInRows(t *testing.T) {
 	// and macsecRows are G6-T01's to G6-T08's rows, every genl one.
 	const tcpmRows, srRows, ioamRows, mptcpRows, fouRows, ilaRows, l2tpRows, macsecRows = 14, 11, 20, 28, 24,
 		18, 28, 39
-	// xfrmStateRows are G7-T01's XFRM rows, after them, and
-	// xfrmStateWriteRows G7-T02's.
-	const xfrmStateRows, xfrmStateWriteRows = 9, 17
+	// xfrmStateRows are G7-T01's XFRM rows, after them, xfrmStateWriteRows
+	// G7-T02's and xfrmPolicyRows G7-T03's.
+	const xfrmStateRows, xfrmStateWriteRows, xfrmPolicyRows = 9, 17, 10
 
 	cmds := Commands()
 	first := len(cmds)
@@ -3545,7 +3545,7 @@ func TestGenlStandInRows(t *testing.T) {
 					}
 				}
 				if n := tcpmRows + srRows + ioamRows + mptcpRows + fouRows + ilaRows + l2tpRows + macsecRows +
-					xfrmStateRows + xfrmStateWriteRows; len(cmds)-first != n {
+					xfrmStateRows + xfrmStateWriteRows + xfrmPolicyRows; len(cmds)-first != n {
 					t.Errorf("%d rows from the first genl one, want %d", len(cmds)-first, n)
 				}
 			},
@@ -4441,6 +4441,71 @@ func TestXfrmStateRows(t *testing.T) {
 				}
 				got = want{implemented: c.Implemented, write: c.Write, proto: c.Proto, slug: c.Slug, floor: c.Floor,
 					topology: slices.Equal(steps, corpus)}
+			}
+			got.gated = al.IsGated(r.command)
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+		})
+	}
+}
+
+// TestXfrmPolicyRows checks G7-T03's rows: the C3 corpus's ten policy reads
+// that send a request, each a NETLINK_XFRM read at floor 2 on the corpus's
+// precondition, gated; and the two refused before one, which are no rows.
+//
+// go test ./internal/goipparity/ -run TestXfrmPolicyRows
+func TestXfrmPolicyRows(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	type want struct {
+		implemented, topology, gated bool
+		proto, slug                  string
+		floor                        int
+	}
+	read := func(slug string) want {
+		return want{implemented: true, topology: true, gated: true, proto: ProtoXfrmCst, slug: slug, floor: 2}
+	}
+	rows := []struct {
+		description string
+		command     string
+		corpus      string
+		expected    want
+	}{
+		{"boundary: list with none", "xfrm policy list", "policy_list_empty", read("xfrm_policy_list_empty")},
+		{"positive: list, two policies, spelled show", "xfrm policy show", "policy_list", read("xfrm_policy_list")},
+		{"positive: list dir in", "xfrm policy list dir in", "policy_list_dir_in", read("xfrm_policy_list_dir_in")},
+		{"positive: get by selector", "xfrm policy get " + xfrmP1SelCst, "policy_get", read("xfrm_policy_get")},
+		{"positive: get by index", "xfrm policy get index 1 dir out", "policy_get_index",
+			read("xfrm_policy_get_index")},
+		{"negative: get of a missing policy, spelled g", "xfrm policy g " + xfrmP1SelCst, "policy_get_missing",
+			read("xfrm_policy_get_missing")},
+		{"positive: count", "xfrm policy count", "policy_count", read("xfrm_policy_count")},
+		{"boundary: count with none, spelled c", "xfrm policy c", "policy_count_empty",
+			read("xfrm_policy_count_empty")},
+		{"positive: -s -s count", "-s -s xfrm policy count", "policy_count_stats", read("xfrm_policy_count_stats")},
+		{"positive: getdefault, spelled getd", "xfrm policy getd", "policy_getdefault",
+			read("xfrm_policy_getdefault")},
+		{"negative: a selector and an index, refused before a request, is no row",
+			"xfrm policy get " + xfrmP1SelCst + " index 1", "", want{}},
+		{"boundary: dir alone, refused before a request, is no row", "xfrm policy get dir out", "", want{}},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			var got want
+			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				steps := make([]string, 0, len(c.Setup))
+				for _, s := range c.Setup {
+					steps = append(steps, "ip "+s)
+				}
+				corpus := []string{}
+				if _, err := os.Stat(filepath.Join(tdXfrm, r.corpus, "topology")); err == nil {
+					corpus = corpusTopology(t, tdXfrm, r.corpus)
+				}
+				got = want{implemented: c.Implemented, proto: c.Proto, slug: c.Slug, floor: c.Floor,
+					topology: !c.Write && slices.Equal(steps, corpus)}
 			}
 			got.gated = al.IsGated(r.command)
 			if got != r.expected {

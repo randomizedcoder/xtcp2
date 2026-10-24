@@ -20,14 +20,20 @@ type xfrmRun struct {
 	err            error
 }
 
-// xfrmRunArgs runs `goip xfrm ARGS` over src.
+// xfrmRunArgs runs `goip xfrm ARGS` over src, with one -s when stats.
 func xfrmRunArgs(src Source, family uint8, stats bool, args string) xfrmRun {
+	n := 0
+	if stats {
+		n = 1
+	}
+	return xfrmRunCount(src, family, n, args)
+}
+
+// xfrmRunCount runs `goip xfrm ARGS` over src, with stats -s's.
+func xfrmRunCount(src Source, family uint8, stats int, args string) xfrmRun {
 	var stdout, stderr bytes.Buffer
 	c := newRunCtx(nil, &stdout, &stderr)
-	c.src, c.family = src, family
-	if stats {
-		c.showStats = 1
-	}
+	c.src, c.family, c.showStats = src, family, stats
 	err := runXfrm(c, strings.Fields(args))
 	return xfrmRun{stdout: stdout.String(), stderr: stderr.String(), err: err}
 }
@@ -160,7 +166,9 @@ func TestXfrmStateArgs(t *testing.T) {
 	short := xfrmMsg{typ: xtcpnl.XfrmMsgNewSA, body: make([]byte, 100)}
 	other := xfrmMsg{typ: xtcpnl.XfrmMsgNewPolicy, flags: unix.NLM_F_MULTI, body: make([]byte, 8)}
 	withProto := append([]byte(nil), sas[1].body...)
-	withProto[44] = unix.IPPROTO_TCP
+	withProto[44] = 200
+	withTCP := append([]byte(nil), sas[1].body...)
+	withTCP[44] = unix.IPPROTO_TCP
 	tests := []struct {
 		description string
 		args        string
@@ -199,9 +207,11 @@ func TestXfrmStateArgs(t *testing.T) {
 			text: "Not a state: 00000018 00000013 00000002"},
 		{description: "negative: an SA short of its struct ends the dump, exit 1", args: "state list",
 			dump: []xfrmMsg{sas[0], short}, reqs: filter0, printed: "2", exit: ExitUsage, text: "wrong nlmsg len"},
-		{description: "negative: a selector with a protocol is not rendered", args: "state list",
+		{description: "corner: a selector with a protocol goip cannot name is not rendered", args: "state list",
 			dump: []xfrmMsg{{typ: xtcpnl.XfrmMsgNewSA, body: withProto}}, reqs: filter0, exit: ExitUsage,
 			text: "getprotobynumber"},
+		{description: "positive: a selector with a protocol goip names", args: "state list",
+			dump: []xfrmMsg{{typ: xtcpnl.XfrmMsgNewSA, body: withTCP}}, reqs: filter0, printed: "1"},
 		{description: "negative: an unknown word, read twice as the id", args: "state list bogus", exit: ExitMinusOne,
 			reqs: "-", text: `"bogus" is wrong: unknown`},
 		{description: "negative: a second id", args: "state list src 192.0.2.1 nokeys dst 192.0.2.2",
@@ -273,7 +283,7 @@ func TestXfrmStateArgs(t *testing.T) {
 			reqs: "-", text: "GOIP_WRITE_OUT"},
 		{description: "negative: flush, a write, which needs GOIP_WRITE_OUT", args: "state flush", exit: ExitUsage,
 			reqs: "-", text: "GOIP_WRITE_OUT"},
-		{description: "negative: policy, G7-T03's", args: "policy list", exit: ExitUsage, reqs: "-",
+		{description: "negative: policy add, G7-T04's", args: "policy add", exit: ExitUsage, reqs: "-",
 			text: "not implemented"},
 		{description: "negative: monitor, G7-T05's", args: "mon", exit: ExitUsage, reqs: "-", text: "not implemented"},
 		{description: "negative: no object is usage", args: "", exit: ExitMinusOne, reqs: "-",

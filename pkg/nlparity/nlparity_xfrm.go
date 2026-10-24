@@ -15,9 +15,13 @@ import (
 // xfrmCurlftTimesOffCst is add_time in an xfrm_usersa_info, its curlft's
 // third u64, with use_time after it: the SA's clocks, set when each side's
 // setup added it, whose seconds two runs need not share.
+//
+// xfrmPolicyTimesOffCst is the same pair in an xfrm_userpolicy_info, after
+// its selector, lft and curlft's bytes and packets: the policy's clocks.
 const (
 	xfrmCurlftTimesOffCst = 176
 	xfrmCurlftTimesLenCst = 16
+	xfrmPolicyTimesOffCst = 136
 )
 
 // IsXfrm reports whether m is an XFRM message, as opposed to one of the
@@ -38,14 +42,19 @@ func xfrmRequestRole(m Msg) string {
 	return roleGetCst
 }
 
-// normalizeXfrm zeroes an SA's clocks in place: an SA message's
-// add_time and use_time, and XFRMA_LASTUSED's value, the time it was last
-// used. Its byte and packet counts, limits, statistics and every other
-// field stay compared.
+// normalizeXfrm zeroes an SA's and a policy's clocks in place: an SA or
+// policy message's add_time and use_time, and XFRMA_LASTUSED's value, the
+// time it was last used. Their byte and packet counts, limits, statistics
+// and every other field stay compared.
 func normalizeXfrm(m Msg, body []byte) {
-	if m.Hdr.Type == xtcpnl.XfrmMsgNewSA || m.Hdr.Type == xtcpnl.XfrmMsgUpdSA {
+	switch m.Hdr.Type {
+	case xtcpnl.XfrmMsgNewSA, xtcpnl.XfrmMsgUpdSA:
 		if len(body) >= xtcpnl.XfrmUsersaInfoSizeCst {
 			zeroRange(body, xfrmCurlftTimesOffCst, xfrmCurlftTimesLenCst)
+		}
+	case xtcpnl.XfrmMsgNewPolicy, xtcpnl.XfrmMsgUpdPolicy:
+		if len(body) >= xtcpnl.XfrmUserpolicyInfoSizeCst {
+			zeroRange(body, xfrmPolicyTimesOffCst, xfrmCurlftTimesLenCst)
 		}
 	}
 	_, attrs, _ := decodeBody(xtcpnl.XfrmFamilyHdrLen(m.Hdr.Type, m.Hdr.Flags), body)
