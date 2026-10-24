@@ -9,13 +9,16 @@ import (
 )
 
 // linkMonitorRoutes serves the embedded link monitor's detail paths on the
-// prom listener. The listener starts before the daemon and outlives it, so
-// the daemon attaches its routes once it has built the monitor; until then,
-// and without a monitor, every path is 404.
+// prom listener, and the /ip paths on their own listener when ip_listen is
+// set. The listeners start before the daemon and outlive it, so the daemon
+// attaches its routes once it has built the monitor; until then, and without
+// a monitor, every path is 404.
 type linkMonitorRoutes struct {
 	// promPath is the core metrics path, set before the listener starts.
 	promPath string
 	handler  atomic.Pointer[http.Handler]
+	// ip serves the /ip listener; nil unless ip_listen is set.
+	ip atomic.Pointer[http.Handler]
 	// daemon is the running daemon, for SIGUSR1.
 	daemon atomic.Pointer[xtcp.XTCP]
 }
@@ -23,8 +26,20 @@ type linkMonitorRoutes struct {
 var linkMonitorHTTP linkMonitorRoutes
 
 func (l *linkMonitorRoutes) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if h := l.handler.Load(); h != nil {
-		(*h).ServeHTTP(w, r)
+	serveAttached(&l.handler, w, r)
+}
+
+// ipRoutes is the /ip listener's handler.
+func (l *linkMonitorRoutes) ipRoutes() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		serveAttached(&l.ip, w, r)
+	})
+}
+
+// serveAttached serves r with the attached handler, or 404 without one.
+func serveAttached(h *atomic.Pointer[http.Handler], w http.ResponseWriter, r *http.Request) {
+	if p := h.Load(); p != nil {
+		(*p).ServeHTTP(w, r)
 		return
 	}
 	http.NotFound(w, r)
@@ -37,12 +52,20 @@ func (l *linkMonitorRoutes) attach(x *xtcp.XTCP) (func(), error) {
 	if err != nil {
 		return nil, err
 	}
+	ip, err := x.LinkMonitorIPHandler()
+	if err != nil {
+		return nil, err
+	}
 	if h != nil {
 		l.handler.Store(&h)
+	}
+	if ip != nil {
+		l.ip.Store(&ip)
 	}
 	l.daemon.Store(x)
 	return func() {
 		l.handler.Store(nil)
+		l.ip.Store(nil)
 		l.daemon.Store(nil)
 	}, nil
 }

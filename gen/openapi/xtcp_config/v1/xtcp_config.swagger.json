@@ -253,7 +253,7 @@
           "type": "string"
         }
       },
-      "additionalProperties": {}
+      "additionalProperties": true
     },
     "rpcStatus": {
       "type": "object",
@@ -404,6 +404,10 @@
           "type": "integer",
           "format": "int64",
           "description": "Largest /ip response body in bytes. 0 is the default, 32 MiB."
+        },
+        "ipListen": {
+          "type": "string",
+          "description": "A loopback host:port serving /ip and /i on a listener of their own,\nwithout listener auth, instead of on the Prometheus listener. Empty\nkeeps them on the Prometheus listener. Needs ip_paths; the host must be\na loopback IP literal, and connections from any other source address\nare closed."
         }
       },
       "description": "Embedded physical link monitor (pkg/linkmonitor), the same one the\nstandalone go-link-monitor runs. Unset durations and empty strings take the\nlibrary defaults (see linkmonitor.DefaultConfig); xtcp2 supplies its own\nbaseline_file default. An embedded and a standalone monitor must not share a\nbaseline file: the second fails to take the lock and xtcp2 exits."

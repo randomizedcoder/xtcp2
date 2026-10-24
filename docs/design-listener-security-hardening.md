@@ -285,9 +285,11 @@ The embedded link monitor's paths ([design](design-linkmonitor-in-xtcp2.md)) sha
 |---|---|---|---|
 | `<promPath>/<category>`, `<promPath>/<category>/<iface>` | read | 4 per category, 4 for interfaces | on |
 | `/metrics-all`, `/metrics-all/<iface>` | read | 2, 4 for interfaces | on |
-| `/ip/…`, `/i/…` | read | — | **off**: they expose host addresses (`-linkMonitorIPPaths`) |
+| `/ip/…`, `/i/…` | read | 2 | **off**: they expose host addresses (`-linkMonitorIPPaths`) |
 
 Each link monitor request has a 10 s timeout, and a full slot set answers 503 at once, so a burst of detail scrapes can't pile up behind a slow collector. Startup rejects a layout in which a link monitor path would shadow `promPath`, `/healthz`, `/readyz` or `/debug/pprof/`.
+
+`-linkMonitorIPListen` is the one listener without listener auth. It moves `/ip` and `/i` to a loopback `host:port` that serves nothing else, on the reasoning that anyone who can connect from loopback can run `ip` themselves. Two checks keep it loopback: startup refuses an address whose host is not a loopback IP literal, and the listener closes connections whose peer is not a loopback address. The second matters where `route_localnet=1` lets an L2 neighbour reach 127.0.0.0/8 (the CVE-2020-8558 class; Docker sets it on its bridges with the userland proxy off). TTL and hop limit are 1.
 
 ### Raw token mode
 
