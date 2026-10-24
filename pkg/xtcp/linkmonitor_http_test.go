@@ -279,6 +279,114 @@ func TestLinkMonitorHandler(t *testing.T) {
 	}
 }
 
+// TestLinkMonitorIPHandler covers where the /ip and /i paths are served: on
+// the Prometheus listener by default, on their own listener with ip_listen,
+// and nowhere with ip_paths off.
+func TestLinkMonitorIPHandler(t *testing.T) {
+	type request struct {
+		path string
+		code int
+	}
+	const loopback = "127.0.0.1:9089"
+	tests := []struct {
+		category, description, expected string
+		config                          *xtcp_config.LinkMonitorConfig
+		disabled, down                  bool
+		promPath                        string
+		prom, ip                        []request // nil ip: no /ip handler
+	}{
+		{
+			category: "positive", description: "ip_listen moves /ip and /i off the Prometheus listener",
+			expected: "404 on the Prometheus listener, 200 on the /ip listener",
+			config:   &xtcp_config.LinkMonitorConfig{CollectionMode: "poll", IpPaths: true, IpListen: loopback},
+			prom:     []request{{"/ip/link", http.StatusNotFound}, {"/i/l", http.StatusNotFound}, {"/metrics/link", http.StatusOK}},
+			ip:       []request{{"/ip/link", http.StatusOK}, {"/i/l", http.StatusOK}},
+		},
+		{
+			category: "positive", description: "without ip_listen the Prometheus listener keeps them",
+			expected: "200 on the Prometheus listener, no /ip handler",
+			config:   &xtcp_config.LinkMonitorConfig{CollectionMode: "poll", IpPaths: true},
+			prom:     []request{{"/ip/link", http.StatusOK}, {"/i/l", http.StatusOK}},
+		},
+		{
+			category: "negative", description: "ip_listen without ip_paths serves /ip nowhere",
+			expected: "404 on the Prometheus listener, no /ip handler",
+			config:   &xtcp_config.LinkMonitorConfig{CollectionMode: "poll", IpListen: loopback},
+			prom:     []request{{"/ip/link", http.StatusNotFound}},
+		},
+		{
+			category: "negative", description: "a disabled monitor has no /ip handler",
+			expected: "nil handlers",
+			config:   &xtcp_config.LinkMonitorConfig{IpPaths: true, IpListen: loopback}, disabled: true,
+		},
+		{
+			category: "boundary", description: "the /ip listener serves only /ip and /i",
+			expected: "404 for the detail and health paths there",
+			config:   &xtcp_config.LinkMonitorConfig{CollectionMode: "poll", IpPaths: true, IpListen: loopback},
+			ip:       []request{{"/metrics/link", http.StatusNotFound}, {"/metrics-all", http.StatusNotFound}, {"/readyz", http.StatusNotFound}, {"/", http.StatusNotFound}},
+		},
+		{
+			category: "corner", description: "with ip_listen, promPath /ip no longer collides",
+			expected: "no error; the categories serve under /ip/ on the Prometheus listener",
+			config:   &xtcp_config.LinkMonitorConfig{CollectionMode: "poll", IpPaths: true, IpListen: loopback}, promPath: "/ip",
+			prom: []request{{"/ip/link", http.StatusOK}},
+			ip:   []request{{"/ip/link", http.StatusOK}},
+		},
+		{
+			category: "corner", description: "a failed monitor answers 503 on the /ip listener too",
+			expected: "503",
+			config:   &xtcp_config.LinkMonitorConfig{CollectionMode: "poll", IpPaths: true, IpListen: loopback}, down: true,
+			ip: []request{{"/ip/link", http.StatusServiceUnavailable}},
+		},
+	}
+	serve := func(t *testing.T, name string, h http.Handler, requests []request) {
+		t.Helper()
+		for _, r := range requests {
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, r.path, nil))
+			if rec.Code != r.code {
+				t.Errorf("%s: GET %s = %d, want %d", name, r.path, rec.Code, r.code)
+			}
+		}
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expected)
+			c := tc.config
+			c.Enable, c.BaselineFile = !tc.disabled, t.TempDir()+"/baseline.json"
+			x := &XTCP{registry: prometheus.NewRegistry(), config: &xtcp_config.XtcpConfig{LinkMonitor: c}}
+			x.fatalf = t.Fatalf
+			x.initLinkMonitor()
+			x.linkMonitorDown.Store(tc.down)
+			promPath := tc.promPath
+			if promPath == "" {
+				promPath = "/metrics"
+			}
+			prom, err := x.LinkMonitorHandler(promPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ip, err := x.LinkMonitorIPHandler()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.disabled {
+				if prom != nil || ip != nil {
+					t.Fatal("handlers without a monitor")
+				}
+				return
+			}
+			serve(t, "prometheus listener", prom, tc.prom)
+			if (ip != nil) != (tc.ip != nil) {
+				t.Fatalf("/ip handler present = %t, want %t", ip != nil, tc.ip != nil)
+			}
+			if ip != nil {
+				serve(t, "/ip listener", ip, tc.ip)
+			}
+		})
+	}
+}
+
 // TestLinkMonitorPromMetrics checks what initLinkMonitor adds to promPath
 // beside the summary: the collection mode and, on demand, the refresh
 // outcomes.

@@ -149,11 +149,16 @@ image attr and Docker tag, for example `oci-xtcp2-kafka-asn-bootstrap` and
 /share/xtcp2/ipmeta/bootstrap.lookup.parquet.zst
 ```
 
-That artifact is built from `nix/ipmeta-bootstrap-lock.json` when present. The lock can point at a
-checked-in file under `nix/` or at an immutable/fixed-hash remote URL such as a GitHub release asset.
-`nix/ipmeta-bootstrap-lock.example.json` shows the local-file shape; the build error includes both
-local and remote examples when the real lock is missing. The measured images above contain code
-support only, because this repo does not yet carry or pin a real fleet bootstrap artifact.
+That artifact is built from `nix/ipmeta-bootstrap-lock.json`, which points at the checked-in snapshot
+`nix/ipmeta/bootstrap.lookup.parquet.zst` (~0.7 MB, ~430k prefixes from the 19 feeds in
+`cmd/ipfeed-collector/sources/`). The lock can instead point at an immutable/fixed-hash remote URL such as
+a GitHub release asset; the build error shows both shapes when the lock is missing. Refresh the snapshot
+with `nix run .#update-ipmeta-bootstrap-lock` from the repo root: it fetches every feed (all must
+succeed unless `IPFEED_MIN_SUCCESSFUL_SOURCES` says otherwise), compacts the result, rewrites both files and
+stages them for review. `checks.test-ipmeta-bootstrap-snapshot` loads the snapshot and looks up a few
+long-standing provider addresses, and `checks.test-oci-ipmeta-bootstrap-snapshot-contents` checks
+`oci-xtcp2-s3parquet-enrich-bootstrap` carries it byte for byte. The measured images above predate the
+snapshot, so a `-bootstrap` image is about 0.7 MB larger than its table row.
 
 Images are built with `pkgs.dockerTools.streamLayeredImage`: `./result` is a script that streams a docker-loadable tarball on stdout.
 
@@ -185,7 +190,7 @@ docker run --rm xtcp2ctl:latest -help
 - **Kafka producer**: `xtcp2-kafka` / `oci-xtcp2-kafka` — the slim image is 29.2 MiB without gated enrichers, by omitting the nats, nsq, redis and s3/parquet clients.
 - **Debugging / profiling**: `xtcp2-debug` — keeps the symbol table and DWARF so `delve` and `go tool pprof` work directly.
 - **Smallest image**: a slim per-flavor image at enrichment `none` — `oci-xtcp2-min` at 25.3 MiB is the current image floor.
-- **ASN / locality enrichment**: append `-asn`, `-locality` or `-enrich` to any destination flavor (`xtcp2-s3parquet-enrich`, `oci-xtcp2-kafka-asn`, ...). Cost is in the table above. For cold-start bootstrap data, use a matching `-bootstrap` OCI attr after adding `nix/ipmeta-bootstrap-lock.json`; otherwise mount the IP metadata artifact at runtime or run `oci-ipfeed-collector` as a sidecar. See [ipfeed-asn-enrichment.md](ipfeed-asn-enrichment.md).
+- **ASN / locality enrichment**: append `-asn`, `-locality` or `-enrich` to any destination flavor (`xtcp2-s3parquet-enrich`, `oci-xtcp2-kafka-asn`, ...). Cost is in the table above. For cold-start bootstrap data, use a matching `-bootstrap` OCI attr, which carries the checked-in snapshot; otherwise mount the IP metadata artifact at runtime or run `oci-ipfeed-collector` as a sidecar. See [ipfeed-asn-enrichment.md](ipfeed-asn-enrichment.md).
 
 ## Custom destination and enrichment combinations
 

@@ -345,6 +345,7 @@ type mainFlags struct {
 	linkMonitorMetricsAllPath     *string
 	linkMonitorIPPaths            *bool
 	linkMonitorIPMaxBytes         *uint
+	linkMonitorIPListen           *string
 
 	ipv4Ttl            *uint
 	ipv6HopLimit       *uint
@@ -1115,6 +1116,10 @@ func runMain(ctx context.Context) int {
 	if debugLevel > 10 {
 		log.Println("Prometheus http listener started on:", *f.promListen, *f.promPath)
 	}
+	if err := ipServerStarter(runCtx, &promWG, c.GetLinkMonitor()); err != nil {
+		fatalf("%v", err)
+		return 1
+	}
 
 	if err := protovalidate.Validate(c); err != nil {
 		fatalf("config validation failed: %v", err)
@@ -1322,7 +1327,7 @@ func runHealthcheck(ctx context.Context, promNetwork, promListen string, authn *
 		return 1
 	}
 	if parsed == xtcp_config.ListenerNetwork_LISTENER_NETWORK_UNIX {
-		return runUnixHealthcheck(ctx, addr)
+		return runUnixHealthcheck(ctx, addr, authn, clientAuth)
 	}
 	_, port, err := net.SplitHostPort(addr)
 	if err != nil || port == "" {
@@ -1353,7 +1358,10 @@ func runHealthcheck(ctx context.Context, promNetwork, promListen string, authn *
 	return 1
 }
 
-func runUnixHealthcheck(ctx context.Context, socketPath string) int {
+// runUnixHealthcheck is runHealthcheck over a Unix socket. It sends the same
+// credential as the TCP probe, so -listenerAuthMode on a socket listener
+// doesn't fail the container HEALTHCHECK with 401.
+func runUnixHealthcheck(ctx context.Context, socketPath string, authn *listenerauth.Authenticator, clientAuth listenerauth.ClientAuth) int {
 	if socketPath == "" {
 		log.Printf("healthcheck: unix socket path is empty")
 		return 1
@@ -1364,6 +1372,9 @@ func runUnixHealthcheck(ctx context.Context, socketPath string) int {
 	if err != nil {
 		log.Printf("healthcheck: new unix request: %v", err)
 		return 1
+	}
+	if authn != nil {
+		listenerauth.HTTPRequestWithClientAuth(req, clientAuth, time.Now())
 	}
 	client := &http.Client{
 		Timeout: 3 * time.Second,
@@ -1601,6 +1612,28 @@ func envUint32(key string) (uint32, bool) {
 	// previously wrapped to a huge unsigned via Atoi + uint32(i).
 	u, err := strconv.ParseUint(v, base10, 32)
 	if err != nil {
+		return 0, false
+	}
+	return uint32(u), true
+}
+
+// maxUnixSocketMode is the largest permission-bits value a socket mode may
+// take, matching the unix_socket_mode lte 511 rule in xtcp_config.proto.
+const maxUnixSocketMode = 0o777
+
+// envFileMode parses a Unix socket mode the way flag.Uint parses
+// -promUnixSocketMode: base prefixes apply, so "0600" and "0o600" are octal
+// and "384" is decimal. envUint32 read "0600" as decimal 600 (0o1130). A
+// value that doesn't parse, or sets bits above 0777, returns (0, false) and
+// is logged, so the listener keeps its 0600 default rather than opening up.
+func envFileMode(key string) (uint32, bool) {
+	v, ok := os.LookupEnv(key)
+	if !ok {
+		return 0, false
+	}
+	u, err := strconv.ParseUint(v, 0, 32)
+	if err != nil || u > maxUnixSocketMode {
+		log.Printf("%s=%q ignored: want permission bits 0..0777, e.g. 0600 or 0660", key, v)
 		return 0, false
 	}
 	return uint32(u), true
@@ -2000,7 +2033,7 @@ func envOverrideListeners(c *xtcp_config.XtcpConfig, debugLevel uint) {
 		ep.Address = v
 		logEnv("GRPC_LISTEN_ADDRESS", fmt.Sprintf("c.GrpcListener.Address:%s", v), debugLevel)
 	}
-	if v, ok := envUint32("GRPC_UNIX_SOCKET_MODE"); ok {
+	if v, ok := envFileMode("GRPC_UNIX_SOCKET_MODE"); ok {
 		ep := ensureGrpcListener(c)
 		ep.UnixSocketMode = v
 		logEnv("GRPC_UNIX_SOCKET_MODE", fmt.Sprintf("c.GrpcListener.UnixSocketMode:%#o", v), debugLevel)
@@ -2023,7 +2056,7 @@ func envOverrideListeners(c *xtcp_config.XtcpConfig, debugLevel uint) {
 		c.PrometheusListener.Address = v
 		logEnv("PROM_LISTEN", fmt.Sprintf("c.PrometheusListener.Address:%s", v), debugLevel)
 	}
-	if v, ok := envUint32("PROM_UNIX_SOCKET_MODE"); ok {
+	if v, ok := envFileMode("PROM_UNIX_SOCKET_MODE"); ok {
 		ep := ensurePrometheusListener(c)
 		ep.UnixSocketMode = v
 		logEnv("PROM_UNIX_SOCKET_MODE", fmt.Sprintf("c.PrometheusListener.UnixSocketMode:%#o", v), debugLevel)

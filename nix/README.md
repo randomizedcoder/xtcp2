@@ -211,8 +211,10 @@ cat result-vm-ionic/summary.txt
 | `vm-linkmonitor-rdma` | software RoCE (rxe) on the microVM constructor; netlink recordings in `nlrecord/` |
 | `vm-linkmonitor-performance` | root-only live tests, benchmarks, profiles and an nlmon pcap, unpacked as `linkmonitor-performance/` |
 | `vm-xtcp2-linkmonitor` | the real xtcp2 NixOS unit with the monitor on by default: paths, baseline modes, persistence across restart, `systemctl reload`, a missing link on `/metrics`, a corrupt baseline degrading, clean stop |
+| `vm-xtcp2-scrape-auth` | vmagent scraping xtcp2 with a raw read token: 401 without it, 403 on pprof, healthcheck, token rotation without a vmagent restart |
+| `vm-xtcp2-ip-listen` | `/ip` on a loopback listener of its own: no token there, gone from the Prometheus listener, bound on 127.0.0.1 only, a `route_localnet` neighbour closed |
 
-`vm-all` builds all seven. The fault run's TAP needs `/dev/net/tun`, which a
+`vm-all` builds all nine. The fault run's TAP needs `/dev/net/tun`, which a
 build sandbox has only when the builder sets `extra-sandbox-paths =
 [ "/dev/net/tun?" ]` (host `l` does); without it the check fails with
 `VM_CHECK_NO_TUN`. A failing check prints the log's last 60 lines;
