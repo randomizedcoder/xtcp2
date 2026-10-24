@@ -295,7 +295,7 @@ func Segment(msgs []Msg) Segmentation {
 			closeTxn(slot, TxnClosedByDone)
 		case m.Hdr.Type == uint16(unix.NLMSG_ERROR):
 			closeTxn(slot, TxnClosedByError)
-		case !m.IsMulti():
+		case !m.IsMulti() && !awaitsAck(s.Txns[slot].Request):
 			// A reply with NLM_F_MULTI clear is the whole answer. Closing here
 			// is what lets a single-get transaction be complete without the
 			// NLMSG_DONE that never comes.
@@ -304,6 +304,17 @@ func Segment(msgs []Msg) Segmentation {
 	}
 
 	return s
+}
+
+// awaitsAck reports whether the kernel ends req's answer with an ACK after
+// its reply: a non-dump request carrying NLM_F_ACK, for which
+// netlink_rcv_skb sends the NLMSG_ERROR of errno 0 once the doit handler has
+// unicast its reply. `ip -4 netconf show dev X` is one, a point get read with
+// rtnl_talk. Such a transaction stays open past its single reply and closes
+// on the ACK, which would otherwise be an orphan.
+func awaitsAck(req Msg) bool {
+	f := req.Hdr.Flags
+	return f&uint16(unix.NLM_F_ACK) != 0 && f&uint16(unix.NLM_F_DUMP) == 0
 }
 
 // SegmentCapture is Segment over a parsed capture, which is the only thing a

@@ -47,11 +47,11 @@ type linkWriteVerb struct {
 // (ip/iplink.c:1515-1529). Order matters because every test is matches():
 // `s` is `set`, tried before `show`, and `d` is `delete`.
 var linkWriteVerbs = []linkWriteVerb{
-	{name: "add", msgType: unix.RTM_NEWLINK, flags: unix.NLM_F_CREATE | unix.NLM_F_EXCL},
-	{name: "set", msgType: unix.RTM_NEWLINK},
-	{name: "change", msgType: unix.RTM_NEWLINK},
-	{name: "replace", msgType: unix.RTM_NEWLINK, flags: unix.NLM_F_CREATE | unix.NLM_F_REPLACE},
-	{name: "delete", msgType: unix.RTM_DELLINK},
+	{name: addrVerbAddCst, msgType: unix.RTM_NEWLINK, flags: unix.NLM_F_CREATE | unix.NLM_F_EXCL},
+	{name: setVerbCst, msgType: unix.RTM_NEWLINK},
+	{name: addrVerbChangeCst, msgType: unix.RTM_NEWLINK},
+	{name: addrVerbReplaceCst, msgType: unix.RTM_NEWLINK, flags: unix.NLM_F_CREATE | unix.NLM_F_REPLACE},
+	{name: addrVerbDeleteCst, msgType: unix.RTM_DELLINK},
 }
 
 func lookupLinkWriteVerb(arg string) *linkWriteVerb {
@@ -84,6 +84,13 @@ const (
 	linkArmType
 	linkArmAlias
 	linkArmUnsupported // a keyword `ip` knows and goip does not implement
+)
+
+// onKeywordCst and offKeywordCst are the two words of every on/off
+// argument: link set's flags, the bond options and stats set's suites.
+const (
+	onKeywordCst  = "on"
+	offKeywordCst = "off"
 )
 
 // linkKeyword is one test in iplink_parse's chain.
@@ -360,9 +367,9 @@ func (st *linkParseState) value(kw *linkKeyword, v string) error {
 	case linkArmFlag:
 		st.out.ifChange |= kw.flag
 		switch v {
-		case "on":
+		case onKeywordCst:
 			st.setFlag(kw.flag, kw.onSets)
-		case "off":
+		case offKeywordCst:
 			st.setFlag(kw.flag, !kw.onSets)
 		default:
 			return fmt.Errorf("%w: Error: argument of %q must be \"on\" or \"off\", not %q",

@@ -1088,25 +1088,29 @@ rec {
     let
       cfg = constants.architectures.${arch};
 
-      # All three .exp files in one store directory, because the driver locates
-      # its library and its topology with
+      # All four .exp files in one store directory, because the driver locates
+      # its library, its topology and its read rows with
       # `source [file dirname [info script]]/...`. Copying them individually
-      # into the store would put them in three different directories and those
+      # into the store would put them in different directories and those
       # sources would fail.
       #
       # netlink-topology.exp is shared with the goip-parity driver so both
       # capture off one topology definition; see its header.
+      # rtnl-read-corpus.exp is the C1-T03 reads
+      # (docs/netlink/goip-parity-gaps.md).
       captureScripts =
         pkgs.runCommand "xtcp2-netlink-capture-scripts"
           {
             vmLib = ./scripts/vm-lib.exp;
             topology = ./scripts/netlink-topology.exp;
+            readCorpus = ./scripts/rtnl-read-corpus.exp;
             driver = ./scripts/capture-netlink-dumps.exp;
           }
           ''
             mkdir -p $out
             cp $vmLib $out/vm-lib.exp
             cp $topology $out/netlink-topology.exp
+            cp $readCorpus $out/rtnl-read-corpus.exp
             cp $driver $out/capture-netlink-dumps.exp
             chmod +x $out/capture-netlink-dumps.exp
           '';
@@ -1354,12 +1358,14 @@ rec {
     let
       cfg = constants.architectures.${arch};
 
-      # One store directory for all seven .exp files, for the dump runner's
+      # One store directory for all ten .exp files, for the dump runner's
       # reason: the driver sources its siblings relative to itself.
       # netlink-topology.exp is here for nltopo::topo, which the LACP
       # topology builds through so its refusals land in the same list;
       # addr-topology.exp and addr-corpus.exp are the address states and
-      # rows (docs/netlink/addr-write-path.md).
+      # rows (docs/netlink/addr-write-path.md); rtnl-write-corpus.exp,
+      # genl-write-corpus.exp and xfrm-write-corpus.exp are the C1, C2 and
+      # C3 rows (docs/netlink/goip-parity-gaps.md).
       captureScripts =
         pkgs.runCommand "xtcp2-link-write-capture-scripts"
           {
@@ -1369,6 +1375,9 @@ rec {
             readback = ./scripts/link-write-readback.exp;
             addrTopology = ./scripts/addr-topology.exp;
             addrCorpus = ./scripts/addr-corpus.exp;
+            rtnlCorpus = ./scripts/rtnl-write-corpus.exp;
+            genlCorpus = ./scripts/genl-write-corpus.exp;
+            xfrmCorpus = ./scripts/xfrm-write-corpus.exp;
             driver = ./scripts/capture-link-writes.exp;
           }
           ''
@@ -1379,6 +1388,9 @@ rec {
             cp $readback $out/link-write-readback.exp
             cp $addrTopology $out/addr-topology.exp
             cp $addrCorpus $out/addr-corpus.exp
+            cp $rtnlCorpus $out/rtnl-write-corpus.exp
+            cp $genlCorpus $out/genl-write-corpus.exp
+            cp $xfrmCorpus $out/xfrm-write-corpus.exp
             cp $driver $out/capture-link-writes.exp
             chmod +x $out/capture-link-writes.exp
           '';
@@ -2092,10 +2104,11 @@ rec {
     {
       arch,
       vm,
-      # The restore rows' input: a directory of <slug>.save files. The guest
-      # mounts the host store, so the driver copies them from this path into
-      # the capture directory, where the rows' `< <slug>.save` resolves.
-      addrSave,
+      # The restore and showdump rows' input: a directory of <slug>.save
+      # files. The guest mounts the host store, so the driver copies them
+      # from this path into the capture directory, where the rows'
+      # `< <slug>.save` resolves.
+      saveBlobs,
     }:
     let
       cfg = constants.architectures.${arch};
@@ -2226,7 +2239,7 @@ rec {
         rc=0
         timeout "$TIMEOUT_SEC" \
           expect ${parityScripts}/goip-parity.exp \
-            "$SERIAL_PORT" "$BLOB" --addr-save ${addrSave} \
+            "$SERIAL_PORT" "$BLOB" --save-blobs ${saveBlobs} \
             ''${KEEP_GOING[@]+"''${KEEP_GOING[@]}"} \
             ''${NO_ALLOWLIST[@]+"''${NO_ALLOWLIST[@]}"} 2>&1 \
           | tee "$LOG" || rc=$?

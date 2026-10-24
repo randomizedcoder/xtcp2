@@ -837,7 +837,7 @@ func TestBuildRequest(t *testing.T) {
 			// exists to catch: an rtgenmsg where a 12-byte struct belongs
 			// leaves the kernel reading frh.flags and the first rta_len out
 			// of whatever follows. The unmodeled-passthrough property has not
-			// gone untested; the RTM_GETNSID row below carries it.
+			// gone untested; the RTM_GETQDISC row below carries it.
 			description: "corner: RTM_GETRULE is modeled now, so a 4-byte rtgenmsg is ErrBadFamilyHdr",
 			msgType:     uint16(unix.RTM_GETRULE),
 			flags:       uint16(unix.NLM_F_DUMP),
@@ -866,6 +866,26 @@ func TestBuildRequest(t *testing.T) {
 			attrs:       mustAttrs(t, 8, func(a *AttrBuilder) error { return a.PutU32(3, 7) }),
 			want: nlmsg(uint16(unix.RTM_GETNSID), uint16(unix.NLM_F_REQUEST), testSeq,
 				concat([]byte{unix.AF_UNSPEC, 0, 0, 0}, rtattr(3, le32(7)))),
+		},
+		{
+			// G4-T04 modeled the rtgenmsg, so the RTM_GETNSID row above is
+			// checked now, and an eight-byte header is refused.
+			description: "negative: RTM_GETNSID is modeled now, so an 8-byte header is ErrBadFamilyHdr",
+			msgType:     uint16(unix.RTM_GETNSID),
+			seq:         testSeq,
+			familyHdr:   make([]byte, 8),
+			wantErr:     ErrBadFamilyHdr,
+		},
+		{
+			// The unmodeled passthrough: tcmsg has no decoder here, so
+			// FamilyHdrLen is -1 and its 20-byte header is not checked.
+			description: "corner: RTM_GETQDISC is unmodeled, so its header passes unchecked",
+			msgType:     uint16(unix.RTM_GETQDISC),
+			flags:       uint16(unix.NLM_F_DUMP),
+			seq:         testSeq,
+			familyHdr:   make([]byte, 20),
+			want: nlmsg(uint16(unix.RTM_GETQDISC), uint16(unix.NLM_F_REQUEST|unix.NLM_F_DUMP), testSeq,
+				make([]byte, 20)),
 		},
 	}
 
@@ -1003,8 +1023,20 @@ func TestFamilyHdrLen(t *testing.T) {
 		{"positive: RTM_NEWNETCONF is struct netconfmsg, 4", uint16(unix.RTM_NEWNETCONF), NetconfMsgSizeCst},
 		{"positive: RTM_DELNETCONF is struct netconfmsg, 4", uint16(unix.RTM_DELNETCONF), NetconfMsgSizeCst},
 
+		{"positive: RTM_GETNEXTHOP is struct nhmsg, 8", uint16(unix.RTM_GETNEXTHOP), NhMsgSizeCst},
+		{"positive: RTM_GETNEXTHOPBUCKET is struct nhmsg, 8", uint16(unix.RTM_GETNEXTHOPBUCKET), NhMsgSizeCst},
+		{"positive: RTM_NEWNEXTHOPBUCKET is struct nhmsg, 8", uint16(unix.RTM_NEWNEXTHOPBUCKET), NhMsgSizeCst},
+		{"positive: RTM_DELNEXTHOPBUCKET is struct nhmsg, 8", uint16(unix.RTM_DELNEXTHOPBUCKET), NhMsgSizeCst},
+
 		{"positive: RTM_GETSTATS is struct if_stats_msg, 12", uint16(unix.RTM_GETSTATS), IfStatsMsgSizeCst},
 		{"positive: RTM_NEWSTATS is struct if_stats_msg, 12", uint16(unix.RTM_NEWSTATS), IfStatsMsgSizeCst},
+		{"positive: RTM_SETSTATS, ip stats set's write, is struct if_stats_msg, 12", uint16(unix.RTM_SETSTATS), IfStatsMsgSizeCst},
+		{"positive: RTM_SETNEIGHTBL, ip ntable change's write, is struct ndtmsg, 4", uint16(unix.RTM_SETNEIGHTBL), NdtMsgSizeCst},
+		{"positive: RTM_NEWLINKPROP is struct ifinfomsg, 16", uint16(unix.RTM_NEWLINKPROP), IfInfomsgSizeCst},
+		{"positive: RTM_DELLINKPROP is struct ifinfomsg, 16", uint16(unix.RTM_DELLINKPROP), IfInfomsgSizeCst},
+		{"positive: RTM_GETNSID is struct rtgenmsg, padded to 4", uint16(unix.RTM_GETNSID), RtGenMsgSizeCst},
+		{"positive: RTM_NEWNSID, ip netns set's write, is struct rtgenmsg, 4", uint16(unix.RTM_NEWNSID), RtGenMsgSizeCst},
+		{"positive: RTM_DELNSID is struct rtgenmsg, 4", uint16(unix.RTM_DELNSID), RtGenMsgSizeCst},
 
 		// 0 and -1 are different answers: a zero-length family header is a real
 		// thing in netlink and must not be confused with "no idea".
@@ -1013,7 +1045,7 @@ func TestFamilyHdrLen(t *testing.T) {
 		{"boundary: NLMSG_ERROR has no family header, 0", uint16(unix.NLMSG_ERROR), 0},
 
 		{"negative: RTM_GETQDISC is not modeled, -1", uint16(unix.RTM_GETQDISC), -1},
-		{"negative: RTM_GETNSID is not modeled, -1", uint16(unix.RTM_GETNSID), -1},
+		{"negative: RTM_GETTFILTER is not modeled, -1", uint16(unix.RTM_GETTFILTER), -1},
 		{"negative: message type 0 is not modeled, -1", 0, -1},
 		{"corner: 0xffff is not modeled, -1", 0xffff, -1},
 	}

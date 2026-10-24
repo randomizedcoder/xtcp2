@@ -21,7 +21,7 @@ If you are looking for the daemon as a whole, start at the
 | [Address write path](addr-write-path.md) | The third write design, completing `ip address`: the show selectors (`to`, `scope`, flag filters, `label`, `master`/`vrf`/`nomaster`, `type`, `proto`, …), `-br` and `-o`, the four unread `IFA_*` attributes, and dry-run `addr add/change/replace/delete`, `flush`, `save`, `showdump` and `restore` to byte-parity with iproute2 — with the per-row address topologies (secondary, peer, label, lifetimes, tentative, dadfailed, stable-privacy) that give each a captured fixture. Every phase has landed ([status](addr-write-path-status.md)): the selectors, `-br`/`-o`, the writes, `flush` and `restore` are gated `goip-parity` rows, except `addr show dynamic`, whose lifetime ticks; `save` and `showdump` are checked offline against `ip`'s bytes, `showdump` because it sends no netlink. |
 | [Address write path — implementation plan](addr-write-path-plan.md) | The address design's phases as 25 gated tasks (`A0-T01` … `A9-T03`): dependencies, files to deliver, the design test table each task owns, and the exact command that closes it. |
 | [Address write path — status](addr-write-path-status.md) | The tracker for that plan: phase and task states, the four Phase 0 measurements, which task amends each flipped statement, and the verification ledger. |
-| [goip parity: remaining gaps](goip-parity-gaps.md) | What full `ip` coverage still needs: the 20 objects goip does not run, the missing verbs on the 11 it does, the generic netlink and XFRM families, and the 23 ungated rows. For each netlink message type `ip` uses, a measured count of nlmon pcaps, table-driven parse tests and parse benchmarks. The plan to close the gaps runs in three tiers: complete the capture corpus, then the parsers, then goip and the matrix. |
+| [goip parity: remaining gaps](goip-parity-gaps.md) | What full `ip` coverage still needs: the 20 objects goip does not run, the missing verbs on the 11 it does, the generic netlink and XFRM families, and the 23 ungated rows, 22 of which G0 has gated. For each netlink message type `ip` uses, a measured count of nlmon pcaps, table-driven parse tests and parse benchmarks. The plan to close the gaps runs in three tiers: complete the capture corpus, then the parsers, then goip and the matrix. |
 | [goip parity gaps — status](goip-parity-gaps-status.md) | The tracker for that plan: the next action, the state of each phase from C0 to G7, the task checklist, the verification ledger and the decision log. A phase is closed, and the assessment re-measured, in its last task PR. |
 | [Upstream bug: bond partner state width](upstream/iproute2-bond-partner-state-width.md) | An iproute2 bug found while designing the link write path: `ip` reads the u16 `IFLA_BOND_SLAVE_AD_PARTNER_OPER_PORT_STATE` as a u8, so big-endian hosts always print `0 <>`. |
 
@@ -37,13 +37,15 @@ each sent** and the **text each printed**. It is the strongest evidence in the
 tree that `pkg/xtcpnl` decodes what the kernel actually said, because the
 reference is iproute2 itself rather than our reading of iproute2.
 
-183 commands are compared, 83 of them dry-run link, route and address
-writes, flushes and restores, and 160 are gated. The counts, what "gated" costs to earn, and the scope boundaries are
+507 commands are compared, 275 of them dry-run link, link property, route,
+address, neighbor, rule, nexthop, address label, neighbor table, statistics,
+token, nsid, tcp_metrics, sr, ioam, mptcp, fou, ila, l2tp, macsec, XFRM state and XFRM policy writes, flushes and restores, and 506 are gated. The counts, what "gated" costs to earn, and the scope boundaries are
 in [parity at a glance](coverage-status.md#goip--ip-parity-at-a-glance). The
 comparator is `pkg/nlparity` (protocol level) and `internal/goipparity`
 (command level); the accepted-divergence list is
-`pkg/nlparity/goip-parity-allowlist.json`, currently seven entries, all version
-skew against the pinned `ip`, and its header comment is the doctrine for adding
+`pkg/nlparity/goip-parity-allowlist.json`, currently twelve entries, seven version
+skew against the pinned `ip` and five the `ip netns` rows' `NETNSA_FD`, a
+descriptor number no two processes share, and its header comment is the doctrine for adding
 to it.
 
 ```bash
@@ -62,12 +64,22 @@ rather than delete it. Link-write Phase 4 landed the gate: the read path stays
 `RTM_GET*`-only and test-enforced through `BuildRequest`, and a separate
 `BuildWriteRequest` admits exactly `RTM_NEWROUTE`, `RTM_DELROUTE`,
 `RTM_NEWLINK`, `RTM_DELLINK`, and, since the address design's Phase 4,
-`RTM_NEWADDR` and `RTM_DELADDR`. Requests built there are written to a file for
+`RTM_NEWADDR` and `RTM_DELADDR`, and, since
+[goip-parity-gaps.md](goip-parity-gaps.md)'s G3-T01, `RTM_NEWNEIGH` and
+`RTM_DELNEIGH`, and, since its G3-T02, `RTM_NEWRULE` and `RTM_DELRULE`, and,
+since its G3-T03, `RTM_NEWNEXTHOP` and `RTM_DELNEXTHOP`, and, since its G3-T04,
+`RTM_NEWADDRLABEL` and `RTM_DELADDRLABEL`, and, since its G3-T05,
+`RTM_SETNEIGHTBL` and `RTM_SETSTATS`, and, since its G3-T06,
+`RTM_NEWLINKPROP` and `RTM_DELLINKPROP`. Requests built there are written to a file for
 comparison and never sent; no automated path applies a write to a live kernel.
 Both dry runs have since landed on that gate: `goip link
 add|set|change|replace|delete` and `goip route
 add|change|replace|prepend|append|test|delete` build `ip`'s request
-byte for byte and write it to `GOIP_WRITE_OUT`, and refuse with
+byte for byte and write it to `GOIP_WRITE_OUT`, as `goip neigh
+add|change|replace|delete|flush`, `goip rule add|delete|flush|restore`,
+`goip nexthop add|replace|delete|flush`, `goip addrlabel add|delete|flush`,
+`goip ntable change`, `goip stats set` and `goip link property add|del`
+now do too, and refuse with
 `ErrWriteNotApplied` when the hook is unset.
 
 This is what makes a twenty-family surface finite, and it is the main reason

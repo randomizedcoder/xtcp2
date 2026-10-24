@@ -150,7 +150,7 @@ func TestParseNeighShowNud(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			got, err := parseNeighShowArgs(tc.args)
+			got, err := parseNeighShowArgs(showVerbCst, tc.args)
 			if tc.expectedErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.expectedErr) {
 					t.Fatalf("err = %v, expected to contain %q", err, tc.expectedErr)

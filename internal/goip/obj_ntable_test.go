@@ -250,16 +250,16 @@ func TestRunNTableArgs(t *testing.T) {
 			wantStdoutPrefix: firstLine,
 		},
 		{
-			description:      "negative: the write verb `change` is refused, goip being read-only",
+			description:      "negative: `change` with no arguments is ip's missing-NAME refusal",
 			args:             []string{"ntable", "change"},
 			wantCode:         ExitUsage,
-			wantStderrSubstr: "not implemented",
+			wantStderrSubstr: `argument "NAME" is required`,
 		},
 		{
-			description:      "negative: `chg` is refused, the abbreviation of change",
+			description:      "negative: `chg`, change's other spelling, is the same refusal",
 			args:             []string{"ntable", "chg"},
 			wantCode:         ExitUsage,
-			wantStderrSubstr: "not implemented",
+			wantStderrSubstr: `argument "NAME" is required`,
 		},
 		{
 			description:      "negative: `help` is refused",

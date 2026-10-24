@@ -11,10 +11,29 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// addrLabelShowVerbs are the three spellings do_ipaddrlabel accepts for the
+// listing (ip/ipaddrlabel.c, in its order): list, lst, show. The order matches
+// rule's, and like rule the abbreviations fall out of it (l -> list, s -> show,
+// ls -> lst).
+var addrLabelShowVerbs = []string{listVerbCst, lstVerbCst, showVerbCst}
+
+// runAddrLabel is do_ipaddrlabel: the listing, then add, delete, flush and
+// help, each by matches() in that order.
 func runAddrLabel(c *runCtx, args []string) error {
-	args, err := showArgs("addrlabel", addrLabelVerbs, args)
-	if err != nil {
-		return err
+	if len(args) > 0 {
+		verb := args[0]
+		switch {
+		case matchesAny(verb, addrLabelShowVerbs):
+		case matchesPrefix(verb, addrLabelAddVerbCst):
+			return addrLabelModify(c, unix.RTM_NEWADDRLABEL, args[1:])
+		case matchesPrefix(verb, addrLabelDelVerbCst):
+			return addrLabelModify(c, unix.RTM_DELADDRLABEL, args[1:])
+		case matchesPrefix(verb, addrLabelFlushVerbCst):
+			return addrLabelFlush(c, args[1:])
+		default:
+			return fmt.Errorf("addrlabel %q: %w", verb, ErrNotImplemented)
+		}
+		args = args[1:]
 	}
 	// A bare `ip addrlabel` is a list (ip/ipaddrlabel.c:do_ipaddrlabel argc<1).
 	if err := parseAddrLabelShowArgs(args); err != nil {
@@ -45,13 +64,8 @@ func parseAddrLabelShowArgs(args []string) error {
 // the claim is asserted by a parity row instead. The substitution is here, not in
 // req.AddrLabelShowDump, because this is where `ip` does it.
 func addrLabelShow(c *runCtx) error {
-	family := c.family
-	if family == unix.AF_UNSPEC {
-		family = unix.AF_INET6
-	}
-
 	svc := service.New(c.src, c.nextSeq)
-	rows, err := svc.AddrLabels(family)
+	rows, err := svc.AddrLabels(addrLabelFamily(c))
 	if err != nil {
 		return err
 	}

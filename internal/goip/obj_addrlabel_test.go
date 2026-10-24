@@ -226,22 +226,28 @@ func TestRunAddrLabelArgs(t *testing.T) {
 			wantStdoutPrefix: firstLine,
 		},
 		{
-			// "sa" is not a prefix of show, list or lst, so it resolves to nothing
-			// goip implements — iproute2 would give it to `save`, which goip lacks.
+			// "sa" is not a prefix of any do_ipaddrlabel verb, so `ip` refuses
+			// it as an unknown command too.
 			description:      "negative: `addrlabel sa` is not show and is refused",
 			args:             []string{"addrlabel", "sa"},
 			wantCode:         ExitUsage,
 			wantStderrSubstr: "not implemented",
 		},
 		{
-			description:      "negative: the write verb `add` is refused, goip being read-only",
+			description:      "negative: `add` with no arguments is ip's missing-prefix refusal",
 			args:             []string{"addrlabel", "add"},
 			wantCode:         ExitUsage,
-			wantStderrSubstr: "not implemented",
+			wantStderrSubstr: `"prefix" argument is required`,
 		},
 		{
-			description:      "negative: `addrlabel flush` is refused, the destructive half of the same function",
+			description:      "negative: `flush` copies the labels, then needs GOIP_WRITE_OUT",
 			args:             []string{"addrlabel", "flush"},
+			wantCode:         ExitUsage,
+			wantStderrSubstr: "never applies a write",
+		},
+		{
+			description:      "negative: `help` is not implemented",
+			args:             []string{"addrlabel", "help"},
 			wantCode:         ExitUsage,
 			wantStderrSubstr: "not implemented",
 		},

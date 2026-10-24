@@ -539,10 +539,11 @@ func TestRouteViewOfText(t *testing.T) {
 		{
 			// print_route puts proto and scope inside `if (!(rtm_flags &
 			// RTM_F_CLONED))` (ip/iproute.c:905-919), so a cloned route prints
-			// neither even when both are non-default. goip's routeFilter drops
-			// cloned routes before they get here — as `ip` does — so this row
-			// covers the guard for a caller that renders one directly.
-			description: "corner: RTM_F_CLONED suppresses both the proto and scope tokens",
+			// neither even when both are non-default. It prints print_cache_flags'
+			// bare `cache ` line instead, on IPv4 (:970-972), which is how
+			// `route get`'s reply renders; `route show` never gets here, because
+			// routeFilter drops cloned routes as `ip` does.
+			description: "corner: RTM_F_CLONED suppresses both the proto and scope tokens, and adds the cache line",
 			in: xtcpnl.RouteInfo{
 				Family: unix.AF_INET, DstLen: 32, Table: unix.RT_TABLE_MAIN,
 				Scope: unix.RT_SCOPE_LINK, Type: unix.RTN_UNICAST,
@@ -550,7 +551,104 @@ func TestRouteViewOfText(t *testing.T) {
 				Dst: v4(198, 18, 4, 1), Oif: 3,
 			},
 			filter: filterMain,
+			want:   "198.18.4.1 dev goip0 \n    cache \n",
+		},
+		{
+			// print_route's mark token (ip/iproute.c:948-961) switches base at
+			// 16: `mark %u ` below it, `mark 0x%llx ` from it.
+			description: "boundary: mark 15 prints in decimal",
+			in: xtcpnl.RouteInfo{
+				Family: unix.AF_INET, DstLen: 32, Table: unix.RT_TABLE_MAIN,
+				Type: unix.RTN_UNICAST, Protocol: unix.RTPROT_BOOT, Dst: v4(198, 18, 4, 1), Oif: 3, Mark: 15,
+			},
+			filter: filterMain,
+			want:   "198.18.4.1 dev goip0 mark 15 \n",
+		},
+		{
+			description: "boundary: mark 16 prints in hex",
+			in: xtcpnl.RouteInfo{
+				Family: unix.AF_INET, DstLen: 32, Table: unix.RT_TABLE_MAIN,
+				Type: unix.RTN_UNICAST, Protocol: unix.RTPROT_BOOT, Dst: v4(198, 18, 4, 1), Oif: 3, Mark: 16,
+			},
+			filter: filterMain,
+			want:   "198.18.4.1 dev goip0 mark 0x10 \n",
+		},
+		{
+			description: "negative: mark 0 prints no mark token",
+			in: xtcpnl.RouteInfo{
+				Family: unix.AF_INET, DstLen: 32, Table: unix.RT_TABLE_MAIN,
+				Type: unix.RTN_UNICAST, Protocol: unix.RTPROT_BOOT, Dst: v4(198, 18, 4, 1), Oif: 3,
+			},
+			filter: filterMain,
 			want:   "198.18.4.1 dev goip0 \n",
+		},
+		{
+			// RTA_UID prints on presence (:966-968), so uid 0 prints and
+			// a route with no RTA_UID prints none (the row above).
+			description: "positive: a present RTA_UID 0 prints `uid 0`",
+			in: xtcpnl.RouteInfo{
+				Family: unix.AF_INET, DstLen: 32, Table: unix.RT_TABLE_MAIN,
+				Type: unix.RTN_UNICAST, Protocol: unix.RTPROT_BOOT, Dst: v4(198, 18, 4, 1), Oif: 3, HasUID: true,
+			},
+			filter: filterMain,
+			want:   "198.18.4.1 dev goip0 uid 0 \n",
+		},
+		{
+			// The route_get_notify capture: the kernel echoes RTM_F_NOTIFY
+			// in the low half and sets RTCF_NOTIFY in the high half, and
+			// print_cache_flags names only the high half.
+			description: "positive: RTCF_NOTIFY on a cloned route prints `cache <notify> ` after uid",
+			in: xtcpnl.RouteInfo{
+				Family: unix.AF_INET, DstLen: 32, Table: unix.RT_TABLE_MAIN,
+				Type: unix.RTN_UNICAST, Flags: unix.RTM_F_CLONED | unix.RTM_F_NOTIFY | 0x10000,
+				Dst: v4(198, 18, 4, 1), Oif: 3, HasUID: true,
+			},
+			filter: filterMain,
+			want:   "198.18.4.1 dev goip0 notify uid 0 \n    cache <notify> \n",
+		},
+		{
+			description: "positive: two names join with a comma in PRTFL order, local before notify",
+			in: xtcpnl.RouteInfo{
+				Family: unix.AF_INET, DstLen: 32, Table: unix.RT_TABLE_MAIN,
+				Type: unix.RTN_UNICAST, Flags: unix.RTM_F_CLONED | 0x80000000 | 0x10000,
+				Dst: v4(198, 18, 4, 1), Oif: 3,
+			},
+			filter: filterMain,
+			want:   "198.18.4.1 dev goip0 \n    cache <local,notify> \n",
+		},
+		{
+			// 0x100000 has no RTCF_* name, so it is printed after the names
+			// as `%x>`, with no trailing space.
+			description: "corner: an unnamed bit prints as hex after the names, closing with no space",
+			in: xtcpnl.RouteInfo{
+				Family: unix.AF_INET, DstLen: 32, Table: unix.RT_TABLE_MAIN,
+				Type: unix.RTN_UNICAST, Flags: unix.RTM_F_CLONED | 0x10000 | 0x100000,
+				Dst: v4(198, 18, 4, 1), Oif: 3,
+			},
+			filter: filterMain,
+			want:   "198.18.4.1 dev goip0 \n    cache <notify,100000>\n",
+		},
+		{
+			description: "corner: an unnamed bit alone prints as `<%x>`",
+			in: xtcpnl.RouteInfo{
+				Family: unix.AF_INET, DstLen: 32, Table: unix.RT_TABLE_MAIN,
+				Type: unix.RTN_UNICAST, Flags: unix.RTM_F_CLONED | 0x2000000,
+				Dst: v4(198, 18, 4, 1), Oif: 3,
+			},
+			filter: filterMain,
+			want:   "198.18.4.1 dev goip0 \n    cache <2000000>\n",
+		},
+		{
+			// The cache line is inside `if (r->rtm_family == AF_INET)`
+			// (:970-972): a cloned IPv6 route prints none.
+			description: "negative: a cloned IPv6 route prints no cache line",
+			in: xtcpnl.RouteInfo{
+				Family: unix.AF_INET6, DstLen: 128, Table: unix.RT_TABLE_MAIN,
+				Type: unix.RTN_UNICAST, Flags: unix.RTM_F_CLONED | 0x10000,
+				Dst: v6(t, "2001:db8::5"), Oif: 3,
+			},
+			filter: filterMain,
+			want:   "2001:db8::5 dev goip0 \n",
 		},
 		{
 			// family_name returns the literal "???" for a family it does not
@@ -1283,7 +1381,7 @@ func TestRouteViewOfTextDetails(t *testing.T) {
 				Dst: v4(198, 18, 0, 0), Oif: 3,
 			},
 			filter: filterMainDetails,
-			want:   "unicast 198.18.0.0/24 dev goip0 \n",
+			want:   "unicast 198.18.0.0/24 dev goip0 \n    cache \n",
 		},
 	}
 
@@ -1381,6 +1479,62 @@ func TestRouteViewJSON(t *testing.T) {
 			filter:      filterMain,
 			wantSubstrs: []string{`"flags":[]`},
 			absentKeys:  []string{`"flags":null`},
+		},
+		{
+			// print_route's key order after flags: mark, uid, then
+			// print_cache_flags' "cache" array (ip/iproute.c:948-972).
+			description: "positive: route_get_notify's reply keys flags, uid 0 and the cache array in ip's order",
+			in: xtcpnl.RouteInfo{
+				Family: unix.AF_INET, DstLen: 32, Table: unix.RT_TABLE_MAIN,
+				Type: unix.RTN_UNICAST, Flags: unix.RTM_F_CLONED | unix.RTM_F_NOTIFY | 0x10000,
+				Dst: v4(192, 0, 2, 5), Oif: 3, HasUID: true,
+			},
+			filter:      filterMain,
+			wantSubstrs: []string{`"flags":["notify"],"uid":0,"cache":["notify"]`},
+		},
+		{
+			description: "boundary: a cloned route with no RTCF_* bit has an empty cache array, not none",
+			in: xtcpnl.RouteInfo{
+				Family: unix.AF_INET, DstLen: 32, Table: unix.RT_TABLE_MAIN,
+				Type: unix.RTN_UNICAST, Flags: unix.RTM_F_CLONED,
+				Dst: v4(192, 0, 2, 5), Oif: 3,
+			},
+			filter:      filterMain,
+			wantSubstrs: []string{`"cache":[]`},
+		},
+		{
+			// print_uint in JSON has no base switch; the text's hex at 16
+			// does not reach the document.
+			description: "boundary: mark 16 is a JSON number",
+			in: xtcpnl.RouteInfo{
+				Family: unix.AF_INET, DstLen: 32, Table: unix.RT_TABLE_MAIN,
+				Type: unix.RTN_UNICAST, Protocol: unix.RTPROT_BOOT,
+				Dst: v4(192, 0, 2, 5), Oif: 3, Mark: 16,
+			},
+			filter:      filterMain,
+			wantSubstrs: []string{`"flags":[],"mark":16}`},
+		},
+		{
+			description: "negative: a route show reply has no mark, uid or cache key",
+			in: xtcpnl.RouteInfo{
+				Family: unix.AF_INET, DstLen: 32, Table: unix.RT_TABLE_MAIN,
+				Type: unix.RTN_UNICAST, Protocol: unix.RTPROT_BOOT,
+				Dst: v4(192, 0, 2, 5), Oif: 3,
+			},
+			filter:     filterMain,
+			absentKeys: []string{`"mark"`, `"uid"`, `"cache"`},
+		},
+		{
+			// print_hex writes a "flags" key inside the array, which is not
+			// JSON; the view keeps the names (applyRouteCacheFlags).
+			description: "corner: an unnamed cache bit is dropped from the JSON array",
+			in: xtcpnl.RouteInfo{
+				Family: unix.AF_INET, DstLen: 32, Table: unix.RT_TABLE_MAIN,
+				Type: unix.RTN_UNICAST, Flags: unix.RTM_F_CLONED | 0x10000 | 0x100000,
+				Dst: v4(192, 0, 2, 5), Oif: 3,
+			},
+			filter:      filterMain,
+			wantSubstrs: []string{`"cache":["notify"]`},
 		},
 		{
 			// `dst` carries no omitempty either, so a default route emits

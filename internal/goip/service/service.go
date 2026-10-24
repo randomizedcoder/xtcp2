@@ -347,10 +347,10 @@ func (s *Service) AddressMsgs(family uint8, ifindex uint32) ([][]byte, error) {
 	return src.DumpMsgs(req.AddrShowDump(family, ifindex, s.nextSeq()), uint16(unix.RTM_NEWADDR))
 }
 
-// AddressRestoreLinks is ll_init_map's link dump before `ip addr restore`'s
-// first write. The replies are read and dropped: ll_remember_index fills an
-// index cache restore never reads.
-func (s *Service) AddressRestoreLinks() error {
+// RestoreLinks is ll_init_map's link dump before `ip addr restore`'s or `ip
+// route restore`'s first write. The replies are read and dropped:
+// ll_remember_index fills an index cache restore never reads.
+func (s *Service) RestoreLinks() error {
 	r, err := req.AddrRestoreLinkDump(s.nextSeq())
 	if err != nil {
 		return fmt.Errorf("goip: build address restore link dump request: %w", err)
@@ -410,6 +410,72 @@ func (s *Service) Routes(family, protocol uint8, table, oif uint32) ([]model.Rou
 	// the opposite requirement, so this path leaves the order alone — the same
 	// policy AddressSnapshot follows, and for the same reason.
 	return out, nil
+}
+
+// RouteBodies is Routes undecoded: `ip route flush` copies each reply it
+// matches whole into its RTM_DELROUTE (ip/iproute.c:803-818), so it needs
+// every byte the kernel sent. Each round sends the request Routes does.
+func (s *Service) RouteBodies(family, protocol uint8, table, oif uint32) ([][]byte, error) {
+	r, err := req.RouteShowDump(family, protocol, table, oif, s.nextSeq())
+	if err != nil {
+		return nil, err
+	}
+	return s.src.Dump(r, uint16(unix.RTM_NEWROUTE))
+}
+
+// RouteMsgs is Routes with each reply whole, header included, undecoded:
+// `ip route save` writes the replies its filter keeps verbatim
+// (ip/iproute.c:1675-1697). The request is Routes'. A source without
+// DumpMsgs is refused before anything is sent.
+func (s *Service) RouteMsgs(family, protocol uint8, table, oif uint32) ([][]byte, error) {
+	src, ok := s.src.(MsgDumpSource)
+	if !ok {
+		return nil, ErrNoMsgDump
+	}
+	r, err := req.RouteShowDump(family, protocol, table, oif, s.nextSeq())
+	if err != nil {
+		return nil, err
+	}
+	return src.DumpMsgs(r, uint16(unix.RTM_NEWROUTE))
+}
+
+// singleGet sends a single-get request and returns its one reply body of
+// replyType, named replyName in its error. A kernel refusal is the talk's error. A dump-only replay source
+// cannot run a get, so it replays the recorded replies of replyType, of which
+// a single-get capture holds one, and answers with the first.
+func (s *Service) singleGet(r []byte, replyType uint16, replyName string) ([]byte, error) {
+	if talk, ok := s.src.(TalkSource); ok {
+		return talk.Talk(r, replyType)
+	}
+	bodies, err := s.src.Dump(r, replyType)
+	if err != nil {
+		return nil, err
+	}
+	if len(bodies) == 0 {
+		return nil, fmt.Errorf("goip: no %s reply in the capture", replyName)
+	}
+	return bodies[0], nil
+}
+
+// RouteGet performs the RTM_GETROUTE single get behind `ip route get` and
+// decodes its one RTM_NEWROUTE reply. A kernel refusal, `Network is
+// unreachable`, comes back as the talk's error.
+//
+// A dump-only replay source answers through singleGet's fallback.
+func (s *Service) RouteGet(g xtcpnl.RouteGet) (model.Route, error) {
+	r, err := req.RouteGet(g, s.nextSeq())
+	if err != nil {
+		return model.Route{}, fmt.Errorf("goip: build route get request: %w", err)
+	}
+	body, err := s.singleGet(r, uint16(unix.RTM_NEWROUTE), "RTM_NEWROUTE")
+	if err != nil {
+		return model.Route{}, err
+	}
+	ri, err := xtcpnl.ParseNewRoute(body)
+	if err != nil {
+		return model.Route{}, fmt.Errorf("goip: decode RTM_NEWROUTE: %w", err)
+	}
+	return model.Route(ri), nil
 }
 
 // NexthopByID performs the RTM_GETNEXTHOP single-get `ip -d route show` sends
@@ -479,6 +545,42 @@ func (s *Service) Nexthops(family uint8) ([]model.Nexthop, error) {
 	return out, nil
 }
 
+// NexthopBuckets is the RTM_GETNEXTHOPBUCKET dump behind `ip nexthop bucket
+// show`, in the kernel's walk order. family is preferred_family.
+func (s *Service) NexthopBuckets(family uint8, f xtcpnl.NexthopBucketDumpFilter) ([]model.NexthopBucket, error) {
+	r, err := req.NexthopBucketDump(family, f, s.nextSeq())
+	if err != nil {
+		return nil, fmt.Errorf("goip: build nexthop bucket dump request: %w", err)
+	}
+	v, err := decode(s, r, uint16(unix.RTM_NEWNEXTHOPBUCKET), "RTM_NEWNEXTHOPBUCKET", xtcpnl.ParseNexthopBucket)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.NexthopBucket, len(v))
+	for i := range v {
+		out[i] = model.NexthopBucket(v[i])
+	}
+	return out, nil
+}
+
+// NexthopBucketGet performs `ip nexthop bucket get`'s RTM_GETNEXTHOPBUCKET
+// single get and decodes the one RTM_NEWNEXTHOPBUCKET it answers with.
+func (s *Service) NexthopBucketGet(family uint8, id uint32, index uint16) (model.NexthopBucket, error) {
+	r, err := req.NexthopBucketGet(family, id, index, s.nextSeq())
+	if err != nil {
+		return model.NexthopBucket{}, fmt.Errorf("goip: build nexthop bucket get request: %w", err)
+	}
+	body, err := s.singleGet(r, uint16(unix.RTM_NEWNEXTHOPBUCKET), "RTM_NEWNEXTHOPBUCKET")
+	if err != nil {
+		return model.NexthopBucket{}, err
+	}
+	nb, err := xtcpnl.ParseNexthopBucket(body)
+	if err != nil {
+		return model.NexthopBucket{}, fmt.Errorf("goip: decode RTM_NEWNEXTHOPBUCKET: %w", err)
+	}
+	return model.NexthopBucket(nb), nil
+}
+
 // NexthopsFiltered is the wire-filtered RTM_GETNEXTHOP dump behind
 // `ip nexthop show { dev | master | vrf | groups | fdb }`: the kernel narrows the
 // set by the filter attrs, and the replies are decoded in dump order exactly as
@@ -526,6 +628,36 @@ func (s *Service) Neighbors(family, ndmFlags uint8, ifindex uint32) ([]model.Nei
 	return out, nil
 }
 
+// NeighborBodies is Neighbors with the replies undecoded and in the
+// kernel's order: `ip neigh flush` copies each reply it keeps whole into an
+// RTM_DELNEIGH (ip/ipneigh.c:369-382). The request is Neighbors'.
+func (s *Service) NeighborBodies(family, ndmFlags uint8, ifindex uint32) ([][]byte, error) {
+	r, err := req.NeighShowDump(family, ndmFlags, ifindex, s.nextSeq())
+	if err != nil {
+		return nil, fmt.Errorf("goip: build neighbor dump request: %w", err)
+	}
+	return s.src.Dump(r, uint16(unix.RTM_NEWNEIGH))
+}
+
+// NeighGet performs `ip neigh get`'s RTM_GETNEIGH single get and decodes the
+// one RTM_NEWNEIGH it answers with. A kernel refusal (ENOENT for an entry it
+// does not hold) is the talk's error.
+func (s *Service) NeighGet(g xtcpnl.NeighGet) (model.Neighbor, error) {
+	r, err := req.NeighGet(g, s.nextSeq())
+	if err != nil {
+		return model.Neighbor{}, fmt.Errorf("goip: build neighbor get request: %w", err)
+	}
+	body, err := s.singleGet(r, uint16(unix.RTM_NEWNEIGH), "RTM_NEWNEIGH")
+	if err != nil {
+		return model.Neighbor{}, err
+	}
+	n, err := xtcpnl.ParseNeigh(body)
+	if err != nil {
+		return model.Neighbor{}, fmt.Errorf("goip: decode RTM_NEWNEIGH: %w", err)
+	}
+	return model.Neighbor(n), nil
+}
+
 // NeighborLinks is ll_init_map's link dump (ip/ipneigh.c:597), which every
 // `ip neigh show` sends before the neighbor dump whether or not a device was
 // named.
@@ -549,6 +681,33 @@ func (s *Service) NeighborLinks() ([]model.Link, error) {
 		links[i] = model.Link(ls[i])
 	}
 	return links, nil
+}
+
+// AddrLabelMsgs sends `ip addrlabel show`'s dump and returns each
+// RTM_NEWADDRLABEL reply whole: `ip addrlabel flush` sends each back as an
+// RTM_DELADDRLABEL.
+func (s *Service) AddrLabelMsgs(family uint8) ([][]byte, error) {
+	src, ok := s.src.(MsgDumpSource)
+	if !ok {
+		return nil, ErrNoMsgDump
+	}
+	return src.DumpMsgs(req.AddrLabelShowDump(family, s.nextSeq()), uint16(unix.RTM_NEWADDRLABEL))
+}
+
+// RuleMsgs sends `ip rule show`'s dump and returns each RTM_NEWRULE reply
+// whole, its header as the kernel sent it: `ip rule save` writes them to its
+// file, and `ip rule flush` sends each back as an RTM_DELRULE that keeps the
+// reply's seq and port id.
+func (s *Service) RuleMsgs(family uint8) ([][]byte, error) {
+	src, ok := s.src.(MsgDumpSource)
+	if !ok {
+		return nil, ErrNoMsgDump
+	}
+	r, err := req.RuleShowDump(family, s.nextSeq())
+	if err != nil {
+		return nil, fmt.Errorf("goip: build rule dump request: %w", err)
+	}
+	return src.DumpMsgs(r, uint16(unix.RTM_NEWRULE))
 }
 
 // Rules is `ip rule show`'s single dump.
@@ -589,6 +748,68 @@ func (s *Service) AddrLabels(family uint8) ([]model.AddrLabel, error) {
 	out := make([]model.AddrLabel, len(v))
 	for i := range v {
 		out[i] = model.AddrLabel(v[i])
+	}
+	return out, nil
+}
+
+// LinkTokens runs `ip token list`'s AF_INET6 link dump (req.TokenShowDump).
+func (s *Service) LinkTokens() ([]model.LinkToken, error) {
+	v, err := decode(s, req.TokenShowDump(s.nextSeq()), uint16(unix.RTM_NEWLINK), "RTM_NEWLINK", xtcpnl.ParseLinkToken)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.LinkToken, len(v))
+	for i := range v {
+		out[i] = model.LinkToken(v[i])
+	}
+	return out, nil
+}
+
+// NsidByFD is netns_id_from_name's RTM_GETNSID for one namespace file's
+// descriptor: its one RTM_NEWNSID reply, or the kernel's refusal.
+func (s *Service) NsidByFD(fd uint32) (model.Nsid, error) {
+	r, err := req.NsidByFD(fd, s.nextSeq())
+	if err != nil {
+		return model.Nsid{}, fmt.Errorf("goip: build nsid request: %w", err)
+	}
+	return s.nsidGet(r)
+}
+
+// NsidGet is `ip netns list-id nsid N`'s RTM_GETNSID: its one RTM_NEWNSID
+// reply, or the kernel's refusal.
+func (s *Service) NsidGet(nsid, target int32, hasTarget bool) (model.Nsid, error) {
+	r, err := req.NsidGet(nsid, target, hasTarget, s.nextSeq())
+	if err != nil {
+		return model.Nsid{}, fmt.Errorf("goip: build nsid request: %w", err)
+	}
+	return s.nsidGet(r)
+}
+
+func (s *Service) nsidGet(r []byte) (model.Nsid, error) {
+	body, err := s.singleGet(r, uint16(unix.RTM_NEWNSID), "RTM_NEWNSID")
+	if err != nil {
+		return model.Nsid{}, err
+	}
+	ni, err := xtcpnl.ParseNsid(body)
+	if err != nil {
+		return model.Nsid{}, fmt.Errorf("goip: decode RTM_NEWNSID: %w", err)
+	}
+	return model.Nsid(ni), nil
+}
+
+// Nsids is `ip netns list-id`'s RTM_GETNSID dump, in the kernel's order.
+func (s *Service) Nsids(target int32, hasTarget bool) ([]model.Nsid, error) {
+	r, err := req.NsidDump(target, hasTarget, s.nextSeq())
+	if err != nil {
+		return nil, fmt.Errorf("goip: build nsid dump: %w", err)
+	}
+	v, err := decode(s, r, uint16(unix.RTM_NEWNSID), "RTM_NEWNSID", xtcpnl.ParseNsid)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.Nsid, len(v))
+	for i := range v {
+		out[i] = model.Nsid(v[i])
 	}
 	return out, nil
 }
@@ -738,26 +959,6 @@ func (s *Service) NetconfByIndex(family uint8, ifindex int32) (model.Netconf, er
 	return model.Netconf{}, fmt.Errorf("goip: no netconf record for ifindex %d in the capture", ifindex)
 }
 
-// StatsLinks is the link dump ipstats triggers lazily to resolve ifindex to name
-// (ip/ipstats.c:761), the NetconfLinks twin. It is split out so obj_stats can Fill
-// the index cache between the link dump and the stats dump — how a stats record's
-// ifindex resolves to a name, and a `dev NAME` selector to an ifindex.
-func (s *Service) StatsLinks() ([]model.Link, error) {
-	r, err := req.StatsShowLinkDump(s.nextSeq())
-	if err != nil {
-		return nil, fmt.Errorf("goip: build stats link dump request: %w", err)
-	}
-	ls, err := decode(s, r, uint16(unix.RTM_NEWLINK), "RTM_NEWLINK", xtcpnl.ParseNewLink)
-	if err != nil {
-		return nil, err
-	}
-	links := make([]model.Link, len(ls))
-	for i := range ls {
-		links[i] = model.Link(ls[i])
-	}
-	return links, nil
-}
-
 // IfStats is `ip stats show group link`'s dump. Unlike Netconfs it is a plain
 // single dump: stats has no EOPNOTSUPP family fallback (the request is always
 // PF_UNSPEC and the kernel answers every interface). It does no sorting — wire
@@ -787,6 +988,12 @@ func (s *Service) IfStatsXstats() ([]model.IfStats, error) {
 // (filter_mask 0x4); ParseNewStats puts its bodies in IfStats.Slave.
 func (s *Service) IfStatsXstatsSlave() ([]model.IfStats, error) {
 	return s.ifStatsDump(req.StatsShowXstatsSlaveDump(s.nextSeq()))
+}
+
+// IfStatsAfSpec is `ip link afstats`'s dump (filter_mask 0x10);
+// ParseNewStats lists each record's IFLA_STATS_AF_SPEC members.
+func (s *Service) IfStatsAfSpec() ([]model.IfStats, error) {
+	return s.ifStatsDump(req.LinkAfstatsDump(s.nextSeq()))
 }
 
 // ifStatsDump sends one RTM_GETSTATS dump request and decodes the replies.

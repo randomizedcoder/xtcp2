@@ -1,0 +1,1 @@
+ok    [lacpa] ip addrlabel add prefix 2001:db8::/32 label 99

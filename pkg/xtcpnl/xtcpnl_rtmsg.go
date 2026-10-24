@@ -112,6 +112,9 @@ type RouteInfo struct {
 	HasMultipath bool   // RTA_MULTIPATH present (ECMP nexthop list; gateways live inside it)
 	HasVia       bool   // RTA_VIA present (gateway of a different address family)
 	NhID         uint32 // RTA_NH_ID (nexthop object id; 0 = none)
+	Mark         uint32 // RTA_MARK, the fwmark a `route get … mark` looked up with; `ip` prints it only when non-zero
+	UID          uint32 // RTA_UID, the uid a route lookup was made for
+	HasUID       bool   // RTA_UID present — `ip` prints `uid 0` on presence, as with HasPriority
 
 	// Multipath is the decoded RTA_MULTIPATH nexthop list, nil when absent.
 	// An ECMP route's gateways exist ONLY here — see xtcpnl_rtnexthop.go for
@@ -133,6 +136,13 @@ type RouteInfo struct {
 	// carries the attribute with all 32 bytes zero, and no IPv4 route carries
 	// it at all — see xtcpnl_rta_cacheinfo.go for why the kernel does that.
 	CacheInfo *RtaCacheinfo
+
+	// MfcStats is the decoded RTA_MFC_STATS payload of a multicast route,
+	// nil when absent; Expires is RTA_EXPIRES, its idle time in USER_HZ
+	// ticks, when HasExpires. See xtcpnl_rta_mfc_stats.go.
+	MfcStats   *RtaMfcStats
+	Expires    uint64
+	HasExpires bool
 }
 
 // ParseNewRoute decodes an RTM_NEWROUTE message body (the bytes after the
@@ -244,9 +254,24 @@ func setRouteAttr(ri *RouteInfo, atype uint16, val []byte) error {
 	case uint16(unix.RTA_MULTIPATH), uint16(unix.RTA_VIA),
 		uint16(unix.RTA_METRICS), uint16(unix.RTA_CACHEINFO):
 		return parseRouteNestedAttr(ri, atype, val)
+	case uint16(unix.RTA_MFC_STATS), uint16(unix.RTA_EXPIRES):
+		return setRouteMcastAttr(ri, atype, val)
 	case RtaNhID:
 		if len(val) >= 4 {
 			ri.NhID = binary.LittleEndian.Uint32(val[0:4])
+		}
+	case uint16(unix.RTA_MARK):
+		if len(val) >= 4 {
+			ri.Mark = binary.LittleEndian.Uint32(val[0:4])
+		}
+	case uint16(unix.RTA_UID):
+		// Only a route get's reply carries it. rt_fill_info writes it from
+		// the lookup's flow key (net/ipv4/route.c:3076), and a dump has no
+		// lookup. An output lookup's uid is the caller's, so root's get says
+		// uid 0; an input lookup (`iif`) has INVALID_UID and none (:3355-3358).
+		if len(val) >= 4 {
+			ri.UID = binary.LittleEndian.Uint32(val[0:4])
+			ri.HasUID = true
 		}
 	}
 	return nil

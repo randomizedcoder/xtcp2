@@ -1,0 +1,7 @@
+acquire proto esp 
+  sel src 192.0.2.1/32 dst 192.0.2.2/32 proto udp sport 37132 dport 9 dev d0 
+  policy src 192.0.2.1/32 dst 192.0.2.2/32 
+    	dir out priority 0 
+    	tmpl src 192.0.2.1 dst 192.0.2.2
+    		proto esp reqid 1 mode transport
+

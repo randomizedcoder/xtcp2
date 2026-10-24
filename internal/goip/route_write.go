@@ -43,14 +43,14 @@ type routeWriteVerb struct {
 // (ip/iproute.c:2423-2444). None of them starts with 'l' or 's', so `l` and
 // `s` still reach the show path; `a` is add, `c` change, `d` delete.
 var routeWriteVerbs = []routeWriteVerb{
-	{name: "add", msgType: unix.RTM_NEWROUTE, flags: unix.NLM_F_CREATE | unix.NLM_F_EXCL},
-	{name: "change", msgType: unix.RTM_NEWROUTE, flags: unix.NLM_F_REPLACE},
-	{name: chgVerbCst, exact: true, msgType: unix.RTM_NEWROUTE, flags: unix.NLM_F_REPLACE},
-	{name: "replace", msgType: unix.RTM_NEWROUTE, flags: unix.NLM_F_CREATE | unix.NLM_F_REPLACE},
+	{name: addrVerbAddCst, msgType: unix.RTM_NEWROUTE, flags: unix.NLM_F_CREATE | unix.NLM_F_EXCL},
+	{name: addrVerbChangeCst, msgType: unix.RTM_NEWROUTE, flags: unix.NLM_F_REPLACE},
+	{name: addrVerbChgCst, exact: true, msgType: unix.RTM_NEWROUTE, flags: unix.NLM_F_REPLACE},
+	{name: addrVerbReplaceCst, msgType: unix.RTM_NEWROUTE, flags: unix.NLM_F_CREATE | unix.NLM_F_REPLACE},
 	{name: "prepend", msgType: unix.RTM_NEWROUTE, flags: unix.NLM_F_CREATE},
 	{name: "append", msgType: unix.RTM_NEWROUTE, flags: unix.NLM_F_CREATE | unix.NLM_F_APPEND},
 	{name: "test", msgType: unix.RTM_NEWROUTE, flags: unix.NLM_F_EXCL},
-	{name: "delete", msgType: unix.RTM_DELROUTE},
+	{name: addrVerbDeleteCst, msgType: unix.RTM_DELROUTE},
 }
 
 func lookupRouteWriteVerb(arg string) *routeWriteVerb {
@@ -119,9 +119,9 @@ var routeParseKeywords = []routeKeyword{
 	{keyword: "src", arm: routeArmSrc},
 	{keyword: "as", arm: routeArmUnsupported},
 	{keyword: "via", arm: routeArmVia},
-	{keyword: "from", arm: routeArmFrom},
-	{keyword: "tos", arm: routeArmUnsupported},
-	{keyword: "dsfield", prefix: true, arm: routeArmUnsupported},
+	{keyword: fromKeywordCst, arm: routeArmFrom},
+	{keyword: tosKeywordCst, arm: routeArmUnsupported},
+	{keyword: dsfieldKeywordCst, prefix: true, arm: routeArmUnsupported},
 	{keyword: "expires", arm: routeArmUnsupported},
 	{keyword: routeMetricKeywordCst, prefix: true, arm: routeArmPriority},
 	{keyword: routePriorityKeywordCst, prefix: true, arm: routeArmPriority},
@@ -150,7 +150,7 @@ var routeParseKeywords = []routeKeyword{
 	{keyword: "table", prefix: true, arm: routeArmTable},
 	{keyword: vrfKeywordCst, prefix: true, arm: routeArmUnsupported},
 	{keyword: devKeywordCst, arm: routeArmDev},
-	{keyword: "oif", arm: routeArmDev},
+	{keyword: oifKeywordCst, arm: routeArmDev},
 	{keyword: "pref", prefix: true, arm: routeArmUnsupported},
 	{keyword: "encap", arm: routeArmUnsupported},
 	{keyword: "ttl-propagate", arm: routeArmUnsupported},

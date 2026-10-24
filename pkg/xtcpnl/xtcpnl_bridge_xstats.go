@@ -8,9 +8,10 @@ import (
 // `ip stats show group xstats` requests (filter_mask 0x2). The group nests one
 // LINK_XSTATS_TYPE_BRIDGE whose sub-attributes carry per-VLAN bridge_vlan_xstats
 // (BRIDGE_XSTATS_VLAN, repeated) and a br_mcast_stats (BRIDGE_XSTATS_MCAST).
-// goip grounds those two bodies; the bridge stp body and the bond type are
-// refused (see ParseNewStats / internal/goip/obj_stats.go), and only these two
-// structs are decoded. x/sys has none of these enums or structs, so they are
+// A port's IFLA_STATS_LINK_XSTATS_SLAVE nest carries the same type with a
+// bridge_stp_xstats (BRIDGE_XSTATS_STP), which `ip link xstats type
+// bridge_slave` prints and `ip stats show` does not ground (see ParseNewStats
+// and internal/goip/obj_stats.go). x/sys has none of these enums or structs, so they are
 // declared here, the ifstatsmsg/netconfmsg precedent.
 
 const (
@@ -20,7 +21,7 @@ const (
 	LinkXstatsTypeBond   = 2
 
 	// BridgeXstats* are the sub-attributes inside LINK_XSTATS_TYPE_BRIDGE
-	// (if_bridge.h:786-794). STP and PAD are not grounded.
+	// (if_bridge.h:786-794). PAD is skipped.
 	BridgeXstatsVlan  = 1
 	BridgeXstatsMcast = 2
 	BridgeXstatsPad   = 3
@@ -39,7 +40,34 @@ const (
 	// (if_bridge.h:803-822). The trailing mcast_bytes/mcast_packets pairs are
 	// decoded for a faithful transcription but never rendered.
 	BrMcastStatsSizeCst = 240
+
+	// BrStpXstatsSizeCst is sizeof(struct bridge_stp_xstats), six u64s
+	// (if_bridge.h:472-479).
+	BrStpXstatsSizeCst = 48
 )
+
+// BridgeStpXstats mirrors the kernel's struct bridge_stp_xstats, a bridge
+// port's STP counters, in struct order.
+type BridgeStpXstats struct {
+	TransitionBlk uint64
+	TransitionFwd uint64
+	RxBpdu        uint64
+	TxBpdu        uint64
+	RxTcn         uint64
+	TxTcn         uint64
+}
+
+// DeserializeBridgeStpXstats decodes a bridge_stp_xstats payload under the
+// tolerant length rule DeserializeBrMcastStats uses.
+func DeserializeBridgeStpXstats(data []byte, s *BridgeStpXstats) (n int, err error) {
+	*s = BridgeStpXstats{}
+	fields := []*uint64{
+		&s.TransitionBlk, &s.TransitionFwd,
+		&s.RxBpdu, &s.TxBpdu,
+		&s.RxTcn, &s.TxTcn,
+	}
+	return decodeU64Fields(data, fields, BrStpXstatsSizeCst)
+}
 
 // BridgeVlanXstats mirrors the kernel's struct bridge_vlan_xstats, one per VLAN.
 // The u32 pad after flags is not kept.

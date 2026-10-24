@@ -1,0 +1,351 @@
+###############################################################################
+# rtnl-write-corpus.exp - rtnetlink writes the corpus had no capture of
+# (docs/netlink/goip-parity-gaps.md, C1)
+#
+# Sourced AFTER vm-lib.exp, netlink-topology.exp, addr-topology.exp and
+# addr-corpus.exp, by scripts/capture-link-writes.exp, which runs each row
+# into link-write/rtnl/<slug>/. Data plus small procs, kept out of the driver
+# for the reason addr-corpus.exp is: the hermetic check
+# (scripts/rtnl-write-corpus-test.exp) has to read it without a console.
+#
+# A ROW IS {slug floor pre command readbacks rc}.
+#
+#   slug       the fixture directory, link-write/rtnl/<slug>/
+#   floor      a structural minimum of datagrams: 2 for the write and its
+#              NLMSG_ERROR (an ACK or a refusal), 2 more for every name `ip`
+#              resolves first with an RTM_GETLINK of its own, and 2 more for
+#              a link dump `ip` takes first (`ip ntable`'s ll_init_map) or a
+#              dump the command runs after (netns_set's list-id). The
+#              monitored event rows are two thirds of the datagrams the
+#              first run measured, as addr_monitor's floor is: the canary,
+#              the trigger's requests and answers, and the notifications
+#              (C1-T01's 21 and 30, C1-T04's 28, 54 and 54).
+#              prefix_event is two thirds of 17, the count with one canary
+#              cycle: C2-T01's run measured it twice, after 18, two thirds
+#              of a run whose canary went round twice, had come in short.
+#              prefix_no_monitor is 4 for each of at least two
+#              `ip -6 route show dev r0`. rule_add_selectors is 2 for each
+#              of its 14 adds, and nexthop_bucket_show 3: the request and a
+#              bucket dump that takes more than one datagram
+#   pre       steps run in the row's fresh namespace before the capture
+#              window opens (addrcorpus::pre_step: an `ip` argument list, or
+#              `sysctl KEY VALUE`)
+#   command    the write, run with `sh -c` from the row's directory
+#              (xtcp2-nlcap write); write_row wraps it in single quotes, so
+#              it must contain none
+#   readbacks  {name floor command} reads, each one capio in the same
+#              namespace straight after the write, as netlink_route_<name>.pcap
+#              and ip_<name>
+#   rc         the exit status `ip.rc` must hold: 0 for an accepted write, 2
+#              for one the kernel refused (rtnl_talk's error, ip/ip.c's exit)
+#
+# THE TWO NETNS ROWS KEEP THEIR PEER INSIDE THE WINDOW
+#
+# xtcp2-nlcap write runs the command under `ip netns exec`, which gives it a
+# mount namespace that is a slave of the root's. `ip netns add` there makes a
+# bind mount only that mount namespace sees, so the peer cannot be made by a
+# pre step and named by the write, and a separate readback (a new `ip netns
+# exec`) would not see it either. Each netns row therefore adds, uses and
+# deletes its own peer in one command, and netns_set's readback, `ip netns
+# list-id`, is inside that command and inside its pcap. The delete also
+# removes /run/netns/<peer>, a plain file that the root would otherwise keep.
+###############################################################################
+
+namespace eval rtnlcorpus {
+
+    # d0, a dummy that is up: ifindex 3 in every row (lo 1, nlmon0 2).
+    variable PRE_D0 {{link add d0 type dummy} {link set d0 up}}
+
+    # c0, the up dummy xtcp2-nl-ipmon joins its canary group on.
+    variable PRE_CANARY {{link add c0 type dummy} {link set c0 up}}
+
+    # The anycast row's state, as in addr_monitor: forwarding on `default`
+    # first so d0 inherits it and the address joins the subnet-router anycast
+    # 2001:db8:1::, and d0 with no kernel link-local of its own.
+    variable PRE_ANYCAST [concat \
+        {{sysctl net.ipv6.conf.default.forwarding 1}} \
+        $PRE_CANARY \
+        {{link add d0 type dummy} {link set d0 addrgenmode none}}]
+
+    # C1-T02's states. d0 with an IPv4 address, for gateways and route gets.
+    variable PRE_D0_ADDR [concat $PRE_D0 {{addr add 192.0.2.1/24 dev d0}}]
+
+    # d0 as a veth that is up: a neighbor table entry or a token needs a
+    # device that does neighbor discovery, which a dummy (IFF_NOARP) does not.
+    variable PRE_VETH {{link add d0 type veth peer name d1} {link set d1 up} {link set d0 up}}
+    variable PRE_NEIGH [concat $PRE_VETH \
+        {{neigh add 192.0.2.2 lladdr 02:00:00:00:00:02 dev d0 nud permanent}}]
+
+    # Two stale entries: ip neigh flush skips PERMANENT and NOARP ones.
+    variable PRE_NEIGH_STALE [concat $PRE_VETH {
+        {neigh add 192.0.2.4 lladdr 02:00:00:00:00:04 dev d0 nud stale}
+        {neigh add 192.0.2.5 lladdr 02:00:00:00:00:05 dev d0 nud stale}
+    }]
+
+    variable PRE_RULES {
+        {rule add pref 100 from 192.0.2.0/24 table 100}
+        {rule add pref 101 fwmark 7 table 101}
+    }
+
+    # Nexthops 1 and 2 through d0, and a resilient group of them with 1024
+    # buckets: enough bucket messages that their dump takes more than one
+    # datagram.
+    variable PRE_NH [concat $PRE_D0_ADDR {
+        {nexthop add id 1 via 192.0.2.2 dev d0}
+        {nexthop add id 2 via 192.0.2.3 dev d0}
+    }]
+    variable PRE_NH_RES [concat $PRE_NH {{nexthop add id 20 group 1/2 type resilient buckets 1024}}]
+
+    # A connected route and a gateway route in table 100.
+    variable PRE_ROUTES [concat $PRE_D0_ADDR {
+        {route add 203.0.113.0/24 dev d0 table 100}
+        {route add 198.51.100.0/24 via 192.0.2.2 table 100}
+    }]
+
+    # Table 100 made and emptied: the table outlives its last route, so a
+    # flush of it dumps nothing. A table never made is ENOENT instead.
+    variable PRE_TABLE_EMPTY [concat $PRE_D0_ADDR {
+        {route add 203.0.113.0/24 dev d0 table 100}
+        {route del 203.0.113.0/24 dev d0 table 100}
+    }]
+
+    # An input-route lookup: forwarding on, d1 the input device.
+    variable PRE_IIF [concat {{sysctl net.ipv4.conf.all.forwarding 1}} $PRE_D0_ADDR {
+        {link add d1 type dummy}
+        {link set d1 up}
+        {addr add 198.51.100.1/24 dev d1}
+    }]
+
+    # Every rule selector ip 7.1 has, one rule each, in one command.
+    variable RULE_SELECTORS [join {
+        "ip rule add pref 101 from 192.0.2.0/24 table 100"
+        "ip rule add pref 102 to 198.51.100.0/24 table 100"
+        "ip rule add pref 103 tos 0x10 table 100"
+        "ip rule add pref 104 dscp 10 table 100"
+        "ip rule add pref 105 fwmark 0x7/0xff table 100"
+        "ip rule add pref 106 iif d9 table 100"
+        "ip rule add pref 107 oif d9 table 100"
+        "ip rule add pref 108 uidrange 1000-2000 table 100"
+        "ip rule add pref 109 ipproto tcp sport 1000-2000 dport 80 table 100"
+        "ip rule add pref 110 not from 203.0.113.0/24 goto 112"
+        "ip rule add pref 111 table main suppress_prefixlength 0"
+        "ip rule add pref 112 protocol static table 100"
+        "ip rule add pref 113 l3mdev"
+        "ip -6 rule add pref 114 flowlabel 0x12345 table 100"
+    } " && "]
+
+    # ipmon <groups> <trigger> <until-EREs> ?<opts>? - an xtcp2-nl-ipmon
+    # command line for an event row, with <opts> (`-t`) ahead of `monitor`.
+    # Every monitor also takes maddress, because the canary that proves the
+    # monitor is subscribed is a multicast join on c0, except `all`, which
+    # has it already: `ip monitor all maddress` would be maddress alone,
+    # since any object named replaces all (ip/ipmonitor.c, do_ipmonitor).
+    proc ipmon {groups trigger until {opts ""}} {
+        set args [string trim "$opts monitor $groups"]
+        if {$groups ne "all"} {
+            append args " maddress"
+        }
+        set cmd "xtcp2-nl-ipmon c0 \"$args\" \"$trigger\""
+        foreach re $until {
+            append cmd " \"$re\""
+        }
+        return $cmd
+    }
+
+    variable rows [list \
+        [list rule_del 2 {{rule add pref 100 from 192.0.2.0/24 table 100}} \
+            "ip rule del pref 100" \
+            {{getrule 2 {ip rule show}}} 0] \
+        [list rule_del_missing 2 {} "ip rule del pref 4242" {} 2] \
+        [list addrlabel_del 2 {{addrlabel add prefix 2001:db8::/32 label 99}} \
+            "ip addrlabel del prefix 2001:db8::/32 label 99" \
+            {{getaddrlabel 2 {ip addrlabel list}}} 0] \
+        [list nexthop_del 2 {{nexthop add id 1 blackhole}} "ip nexthop del id 1" \
+            {{getnexthop 2 {ip nexthop show}}} 0] \
+        [list ntable_change 4 $PRE_D0 "ip ntable change name arp_cache dev d0 queue 64" \
+            {{getneightbl 2 {ip ntable show name arp_cache dev d0}}} 0] \
+        [list ntable_change_missing 4 {} "ip ntable change name nosuch_cache queue 64" {} 2] \
+        [list ntable_change_thresh_netns 4 {} "ip ntable change name arp_cache thresh1 64" {} 2] \
+        [list stats_set_l3 4 $PRE_D0 "ip stats set dev d0 l3_stats on" \
+            {{getstats 4 {ip stats show dev d0 group offload subgroup l3_stats}}} 0] \
+        [list netns_set 4 {} \
+            "ip netns add c1set && ip netns set c1set 7 && ip netns list-id; ip netns del c1set" \
+            {} 0] \
+        [list nsid_del_event 14 $PRE_CANARY \
+            [ipmon nsid "ip netns add c1del && ip netns set c1del 7 && ip netns del c1del" \
+                {{^nsid 7 } {^Deleted nsid 7 }}] \
+            {} 0] \
+        [list anycast_del_event 20 $PRE_ANYCAST \
+            [ipmon acaddress \
+                "ip link set d0 up; ip -6 addr add 2001:db8:1::1/64 dev d0 nodad; ip -6 addr del 2001:db8:1::1/64 dev d0" \
+                {{any 2001:db8:1:: } {Deleted .*any 2001:db8:1:: }}] \
+            {} 0] \
+    ]
+
+    ###########################################################################
+    # C1-T02 - the verbs goip lacks on objects it already runs, appended
+    # after C1-T01's rows so those keep their order.
+    ###########################################################################
+    variable GETNEIGH {{getneigh 2 {ip neigh show dev d0}}}
+    variable GETRULE {{getrule 2 {ip rule show}}}
+    variable GETNH {{getnexthop 2 {ip nexthop show}}}
+    variable GETROUTE100 {{getroute 2 {ip route show table 100}}}
+
+    lappend rows \
+        [list neigh_add 4 $PRE_VETH \
+            "ip neigh add 192.0.2.2 lladdr 02:00:00:00:00:02 dev d0 nud permanent" $GETNEIGH 0] \
+        [list neigh_add_existing 4 $PRE_NEIGH \
+            "ip neigh add 192.0.2.2 lladdr 02:00:00:00:00:02 dev d0 nud permanent" {} 2] \
+        [list neigh_change 4 $PRE_NEIGH \
+            "ip neigh change 192.0.2.2 lladdr 02:00:00:00:00:03 dev d0 nud reachable" $GETNEIGH 0] \
+        [list neigh_change_missing 4 $PRE_VETH \
+            "ip neigh change 192.0.2.9 lladdr 02:00:00:00:00:09 dev d0" {} 2] \
+        [list neigh_replace 4 $PRE_VETH \
+            "ip neigh replace 192.0.2.3 lladdr 02:00:00:00:00:03 dev d0 nud stale" $GETNEIGH 0] \
+        [list neigh_del 4 $PRE_NEIGH "ip neigh del 192.0.2.2 dev d0" $GETNEIGH 0] \
+        [list neigh_flush 4 $PRE_NEIGH_STALE "ip neigh flush dev d0" $GETNEIGH 0] \
+        [list neigh_flush_empty 4 $PRE_VETH "ip neigh flush dev d0" {} 0] \
+        [list neigh_get 4 $PRE_NEIGH "ip neigh get 192.0.2.2 dev d0" {} 0] \
+        [list neigh_get_missing 4 $PRE_VETH "ip neigh get 192.0.2.9 dev d0" {} 2] \
+        [list rule_add_selectors 28 {} $RULE_SELECTORS \
+            [concat $GETRULE {{getrule6 2 {ip -6 rule show}}}] 0] \
+        [list rule_add_existing 2 {{rule add pref 100 from 192.0.2.0/24 table 100}} \
+            "ip rule add pref 100 from 192.0.2.0/24 table 100" {} 2] \
+        [list rule_flush 2 $PRE_RULES "ip rule flush" $GETRULE 0] \
+        [list rule_save 2 $PRE_RULES "ip rule save > ip.save" {} 0] \
+        [list rule_restore 2 {} "cp ../rule_save/ip.save . && ip rule restore < ip.save" $GETRULE 0] \
+        [list nexthop_add_single 4 $PRE_D0_ADDR "ip nexthop add id 1 via 192.0.2.2 dev d0" $GETNH 0] \
+        [list nexthop_add_group 2 $PRE_NH "ip nexthop add id 10 group 1,3/2" $GETNH 0] \
+        [list nexthop_add_resilient 2 $PRE_NH \
+            "ip nexthop add id 20 group 1/2 type resilient buckets 1024" $GETNH 0] \
+        [list nexthop_add_existing 2 {{nexthop add id 1 blackhole}} "ip nexthop add id 1 blackhole" {} 2] \
+        [list nexthop_replace 4 $PRE_NH "ip nexthop replace id 1 via 192.0.2.4 dev d0" $GETNH 0] \
+        [list nexthop_flush 2 $PRE_NH_RES "ip nexthop flush" $GETNH 0] \
+        [list nexthop_flush_empty 2 {} "ip nexthop flush" {} 0] \
+        [list nexthop_get 2 $PRE_NH "ip nexthop get id 1" {} 0] \
+        [list nexthop_get_missing 2 {} "ip nexthop get id 9" {} 2] \
+        [list nexthop_bucket_show 3 $PRE_NH_RES "ip nexthop bucket show id 20" {} 0] \
+        [list nexthop_bucket_get 2 $PRE_NH_RES "ip nexthop bucket get id 20 index 0" {} 0] \
+        [list addrlabel_add 2 {} "ip addrlabel add prefix 2001:db8::/32 label 99" \
+            {{getaddrlabel 2 {ip addrlabel list}}} 0] \
+        [list addrlabel_flush 2 {{addrlabel add prefix 2001:db8::/32 label 99}} "ip addrlabel flush" \
+            {{getaddrlabel 2 {ip addrlabel list}}} 0] \
+        [list link_altname_add 4 $PRE_D0 "ip link property add dev d0 altname d0alt" \
+            {{getlink 2 {ip link show dev d0}}} 0] \
+        [list link_altname_del 4 [concat $PRE_D0 {{link property add dev d0 altname d0alt}}] \
+            "ip link property del dev d0 altname d0alt" {{getlink 2 {ip link show dev d0}}} 0] \
+        [list link_altname_taken 4 $PRE_D0 "ip link property add dev d0 altname lo" {} 2] \
+        [list token_set 4 $PRE_VETH "ip token set ::1:2:3:4/64 dev d0" \
+            {{gettoken 2 {ip token get dev d0}}} 0] \
+        [list token_set_noarp 4 $PRE_D0 "ip token set ::1:2:3:4/64 dev d0" {} 2] \
+        [list route_get 2 $PRE_D0_ADDR "ip route get 192.0.2.5" {} 0] \
+        [list route_get_fibmatch 2 $PRE_D0_ADDR "ip route get fibmatch 192.0.2.5" {} 0] \
+        [list route_get_notify 2 $PRE_D0_ADDR "ip route get 192.0.2.5 notify" {} 0] \
+        [list route_get_v6 2 [concat $PRE_D0 {{-6 addr add 2001:db8::1/64 dev d0 nodad}}] \
+            "ip -6 route get 2001:db8::5" {} 0] \
+        [list route_get_from_iif 4 $PRE_IIF "ip route get 192.0.2.5 from 198.51.100.2 iif d1" {} 0] \
+        [list route_get_unreachable 2 {} "ip route get 203.0.113.1" {} 2] \
+        [list route_flush 2 $PRE_ROUTES "ip route flush table 100" $GETROUTE100 0] \
+        [list route_flush_empty 2 $PRE_TABLE_EMPTY "ip route flush table 100" {} 0] \
+        [list route_flush_no_table 2 {} "ip route flush table 100" {} 2] \
+        [list route_save 2 $PRE_ROUTES "ip route save table 100 > ip.save" {} 0] \
+        [list route_restore 2 $PRE_D0_ADDR "cp ../route_save/ip.save . && ip route restore < ip.save" \
+            $GETROUTE100 0]
+
+    ###########################################################################
+    # C1-T04 - events through `ip monitor`, appended after C1-T02's rows.
+    #
+    # The kernel sends RTM_NEWPREFIX only when it takes a prefix option from
+    # a received router advertisement, so xtcp2-nl-ra sends one out of r0p
+    # to r0, the two ends of a veth in the row's namespace. Neither end makes
+    # a link-local of its own (addrgenmode none), so no random EUI-64
+    # address reaches the monitor; r0p's is fe80::2, added without DAD so it
+    # can be the source at once. r0 takes the RA with accept_ra 2, since in
+    # the monitor_all rows it forwards, and accept_ra_from_local, since
+    # fe80::2 is an address of the same namespace.
+    ###########################################################################
+    variable PRE_RA {
+        {link add r0 type veth peer name r0p}
+        {link set r0 addrgenmode none}
+        {link set r0p addrgenmode none}
+        {sysctl net.ipv6.conf.r0.accept_ra 2}
+        {sysctl net.ipv6.conf.r0.accept_ra_from_local 1}
+        {link set r0p up}
+        {link set r0 up}
+        {-6 addr add fe80::2/64 dev r0p nodad}
+    }
+    variable RA_SEND "xtcp2-nl-ra r0p fe80::2 2001:db8:5::/64"
+
+    # prefix_no_monitor waits until r0 has the RA's on-link route, so an
+    # RTM_NEWPREFIX, had anything been subscribed, would be inside its
+    # window; the last test is the command's status.
+    variable RA_ROUTE "ip -6 route show dev r0 | grep -q 2001:db8:5::"
+    variable RA_WAIT "for i in 1 2 3 4 5 6 7 8 9 10; do $RA_ROUTE && break; sleep 0.2; done; $RA_ROUTE"
+
+    # monitor_all's state: the anycast row's, with r0 and r0p beside it.
+    variable PRE_ALL [concat $PRE_ANYCAST $PRE_RA]
+
+    # One trigger for each event group `ip monitor all` prints and the
+    # corpus had no notification of: ACADDR (the anycast join, as in
+    # anycast_del_event), NETCONF, RULE, NEXTHOP, STATS, NSID and PREFIX.
+    # MCADDR is the canary.
+    variable TRIGGER_ALL [join [list \
+        "ip link set d0 up" \
+        "ip -6 addr add 2001:db8:1::1/64 dev d0 nodad" \
+        "echo 1 > /proc/sys/net/ipv4/conf/d0/forwarding" \
+        "ip rule add pref 100 from 192.0.2.0/24 table 100" \
+        "ip nexthop add id 1 blackhole" \
+        "ip stats set dev d0 l3_stats on" \
+        "ip netns add c4p && ip netns set c4p 9 && ip netns del c4p" \
+        $RA_SEND] "; "]
+
+    # What `ip monitor all` prints for each, after its [LABEL] banner. The
+    # netconf family prints as `inet`, and the stats message as the device
+    # and, on the next line, its l3_stats state.
+    variable UNTIL_ALL {
+        {any 2001:db8:1:: }
+        {inet d0 forwarding on}
+        {100:.*from 192.0.2.0/24 lookup 100}
+        {id 1 blackhole}
+        {l3_stats on used}
+        {nsid 9 }
+        {Deleted nsid 9 }
+        {prefix 2001:db8:5::/64}
+    }
+
+    lappend rows \
+        [list prefix_event 11 [concat $PRE_CANARY $PRE_RA] \
+            [ipmon prefix $RA_SEND {{prefix 2001:db8:5::/64}}] {} 0] \
+        [list prefix_no_monitor 8 $PRE_RA "$RA_SEND && $RA_WAIT" \
+            {{getroute6 4 {ip -6 route show dev r0}}} 0] \
+        [list monitor_all 36 $PRE_ALL [ipmon all $TRIGGER_ALL $UNTIL_ALL] {} 0] \
+        [list monitor_all_timestamp 36 $PRE_ALL [ipmon all $TRIGGER_ALL $UNTIL_ALL -t] {} 0]
+
+    ###########################################################################
+    # readback_args <ns> <subdir> <readback> - the xtcp2-nlcap capio argument
+    # list for one readback, which the driver hands to its capio proc.
+    ###########################################################################
+    proc readback_args {ns subdir readback} {
+        if {[llength $readback] != 3} {
+            error "rtnlcorpus: a readback is {name floor command}: $readback"
+        }
+        lassign $readback name floor command
+        return [list $ns $subdir netlink_route_$name $floor $command ip_$name]
+    }
+
+    ###########################################################################
+    # rc_problem <slug> <want> <got> - "" when the row's ip.rc is what the row
+    # says, else the line the driver reports. <got> is the file's content,
+    # or "" when it could not be read.
+    ###########################################################################
+    proc rc_problem {slug want got} {
+        set got [string trim $got]
+        if {$got eq $want} {
+            return ""
+        }
+        if {$got eq ""} {
+            return "rtnl/$slug/ip.rc unreadable, want $want"
+        }
+        return "rtnl/$slug/ip.rc is $got, want $want"
+    }
+}

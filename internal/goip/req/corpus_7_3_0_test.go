@@ -17,10 +17,8 @@ const td730 = "../../../pkg/xtcpnl/testdata/7_3_0/dumps/"
 // the rest of this package as 7.1.0 against 7_1_4; this is where the default
 // mask, 0x109, meets a capture that recorded it rather than a constant.
 //
-// StatsShowLinkDump has no row: `ip stats show` opens with an RTM_GETSTATS
-// dump and then gets each link by index, while goip sends a link dump. That is
-// the ungated stats_show divergence the parity run reports, in both corpora,
-// and not something the 7.2.0 move changed.
+// `ip stats show` has no row: it opens with an RTM_GETSTATS dump and then
+// gets each link by index, which goip does too, with LinkShowByIndex.
 //
 // go test ./internal/goip/req/ -run TestTierALLRequests730
 func TestTierALLRequests730(t *testing.T) {

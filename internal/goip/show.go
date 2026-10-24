@@ -59,13 +59,13 @@ type ShowRequest struct {
 // path goip implements, by its canonical name in the objects table. It is
 // derived from that table rather than spelled out again, so the two cannot
 // drift. Aliases (the British spelling of neighbor, ntbl) are left out so
-// each object has one spelling.
+// each object has one spelling, and so is monitor, which never ends.
 var showObjects = implementedObjects()
 
 func implementedObjects() []string {
 	names := make([]string, 0, len(objects))
 	for _, o := range objects {
-		if o.run != nil && o.aliasOf == "" {
+		if o.served() && o.aliasOf == "" {
 			names = append(names, o.name)
 		}
 	}
@@ -106,8 +106,19 @@ func (r ShowRequest) Argv() []string {
 	if r.Oneline {
 		argv = append(argv, "-o")
 	}
-	argv = append(argv, r.Object, showVerbCst)
+	argv = append(argv, r.Object, showVerbOf(r.Object))
 	return append(argv, r.Selectors...)
+}
+
+// showVerbOf is the verb Show runs for the object named name: its
+// showVerb, or show.
+func showVerbOf(name string) string {
+	for i := range objects {
+		if objects[i].name == name && objects[i].showVerb != "" {
+			return objects[i].showVerb
+		}
+	}
+	return showVerbCst
 }
 
 // Show runs r against src and writes what `ip` would print to out.
@@ -147,7 +158,7 @@ func Show(src Source, r ShowRequest, out io.Writer) error {
 		return fmt.Errorf("%w: %s", ErrInvalidArgument, msg)
 	}
 
-	args := append([]string{showVerbCst}, r.Selectors...)
+	args := append([]string{showVerbOf(r.Object)}, r.Selectors...)
 	if err := obj.run(c, args); err != nil {
 		if errors.Is(err, unix.ENODEV) && !errors.Is(err, ErrNoSuchDevice) {
 			return noSuchDevice(err)
@@ -159,7 +170,7 @@ func Show(src Source, r ShowRequest, out io.Writer) error {
 
 // newRunCtx is the part of a runCtx that Run and Show build identically. The
 // source, family and options are the caller's. Show has no stdin, so passes
-// nil, which only `addr showdump` reads and refuses.
+// nil, which the showdump and restore verbs read and refuse.
 func newRunCtx(stdin io.Reader, stdout, stderr io.Writer) *runCtx {
 	return &runCtx{
 		in:     stdin,

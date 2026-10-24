@@ -122,6 +122,17 @@ const (
 	tdGuestGetNeigh = tdGuest + "/netlink_route_getneigh.pcap"
 	tdGuestLinkDev  = tdGuest + "/netlink_route_getlink_dev.pcap"
 
+	// The C1-T02 resilient-group captures: `ip nexthop bucket show id 20`
+	// and `ip nexthop bucket get id 20 index 0`.
+	tdNhBucketShow = "../xtcpnl/testdata/7_1_4/link-write/rtnl/nexthop_bucket_show/ip.pcap"
+	tdNhBucketGet  = "../xtcpnl/testdata/7_1_4/link-write/rtnl/nexthop_bucket_get/ip.pcap"
+
+	// `ip netns list-id` on the reads corpus's six /run/netns files, and
+	// `ip netns set c1set 7 && ip netns list-id`, the C1-T02 write: the
+	// G4-T04 NETNSA_FD entries' captures.
+	tdGuestGetNsid = tdGuest + "/reads/netlink_route_getnsid_list.pcap"
+	tdNetnsSet     = "../xtcpnl/testdata/7_1_4/link-write/rtnl/netns_set/ip.pcap"
+
 	// `ip neigh show dev NAME`. Its txn 0 is byte-identical to
 	// tdGuestGetNeigh's, which is the property its allowlist entry rests on
 	// and the reason it still needs a file of its own: the whole difference
@@ -140,6 +151,11 @@ const (
 	// are disjoint from tdGuestGetNeigh's rather than a subset — the
 	// opposite of what tdGuestGetNeighDev's eight bytes do.
 	tdGuestGetNeighProxy = tdGuest + "/netlink_route_getneigh_proxy.pcap"
+
+	// `ip -4 netconf show dev goip0`: ll_name_to_index's get by name, the
+	// ll_init_map link dump, then the point get, a non-dump RTM_GETNETCONF
+	// with NLM_F_ACK, answered by one RTM_NEWNETCONF and then the ACK.
+	tdGuestNetconfDev4 = tdGuest + "/netlink_route_getnetconf_dev4.pcap"
 )
 
 // TestSegment is the attribution table.
@@ -544,6 +560,63 @@ func TestSegment(t *testing.T) {
 					t.Errorf("captured RTM_NEWADDR requests = %d, want 1", writes)
 				}
 			},
+		},
+		{
+			// A point get carrying NLM_F_ACK is answered twice: the doit
+			// handler unicasts its reply, then netlink_rcv_skb sends the ACK.
+			// The reply has NLM_F_MULTI clear, but it is not the whole answer;
+			// the transaction closes on the ACK, which before G0-T03 was an
+			// orphan on both sides of `-4 netconf show dev`.
+			description: "positive: an ACKed point get closes on its ACK, not its reply, so the ACK is no orphan",
+			filename:    tdGuestNetconfDev4,
+			sidecar:     "12 msgs; get by name, link dump (5 links), RTM_GETNETCONF flags 0x5 then RTM_NEWNETCONF then NLMSG_ERROR 0",
+			wantTxns:    3,
+			wantClean:   true,
+			wantStates:  []TxnState{TxnClosedBySingleReply, TxnClosedByDone, TxnClosedByError},
+			wantReplies: []int{1, 6, 2},
+		},
+		{
+			// The ACK is what closes it, so a capture without one leaves the
+			// transaction open — the kernel always sends it, so its absence
+			// is a truncated capture, which Clean must refuse.
+			description: "boundary: an ACKed point get whose ACK is missing stays open",
+			stream: []Msg{
+				segMsg(uint16(unix.RTM_GETNETCONF), uint16(unix.NLM_F_REQUEST|unix.NLM_F_ACK), 7, 0),
+				segReplySingle(uint16(unix.RTM_NEWNETCONF), 7, 42),
+			},
+			wantTxns:    1,
+			wantClean:   false,
+			wantStates:  []TxnState{TxnOpen},
+			wantReplies: []int{1},
+		},
+		{
+			// Without NLM_F_ACK the reply is the whole answer, as before, so a
+			// stray NLMSG_ERROR after it is still an orphan.
+			description: "negative: a point get without NLM_F_ACK closes on its reply, and an error after it is an orphan",
+			stream: []Msg{
+				segMsg(uint16(unix.RTM_GETNETCONF), uint16(unix.NLM_F_REQUEST), 7, 0),
+				segReplySingle(uint16(unix.RTM_NEWNETCONF), 7, 42),
+				segReplySingle(uint16(unix.NLMSG_ERROR), 7, 42),
+			},
+			wantTxns:    1,
+			wantOrphans: 1,
+			wantClean:   false,
+			wantStates:  []TxnState{TxnClosedBySingleReply},
+			wantReplies: []int{1},
+		},
+		{
+			// A dump with NLM_F_ACK ends on NLMSG_DONE as any dump does: the
+			// rule is for non-dump requests only.
+			description: "corner: a dump carrying NLM_F_ACK still closes on NLMSG_DONE",
+			stream: []Msg{
+				segMsg(uint16(unix.RTM_GETNETCONF), uint16(unix.NLM_F_REQUEST|unix.NLM_F_ACK|unix.NLM_F_DUMP), 7, 0),
+				segReplyMulti(uint16(unix.RTM_NEWNETCONF), 7, 42),
+				segReplySingle(uint16(unix.NLMSG_DONE), 7, 42),
+			},
+			wantTxns:    1,
+			wantClean:   true,
+			wantStates:  []TxnState{TxnClosedByDone},
+			wantReplies: []int{2},
 		},
 		{
 			// The ambiguity case, which exists in no committed capture: it

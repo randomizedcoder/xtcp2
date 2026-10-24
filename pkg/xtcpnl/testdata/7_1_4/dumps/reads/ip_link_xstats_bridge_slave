@@ -1,0 +1,20 @@
+v2              
+                    IGMP queries:
+                      RX: v1 0 v2 0 v3 0
+                      TX: v1 0 v2 0 v3 0
+                    IGMP reports:
+                      RX: v1 0 v2 0 v3 0
+                      TX: v1 0 v2 0 v3 0
+                    IGMP leaves: RX: 0 TX: 0
+                    IGMP parse errors: 0
+                    MLD queries:
+                      RX: v1 0 v2 0
+                      TX: v1 0 v2 0
+                    MLD reports:
+                      RX: v1 0 v2 0
+                      TX: v1 0 v2 0
+                    MLD leaves: RX: 0 TX: 0
+                    MLD parse errors: 0
+                    STP BPDU:  RX: 0 TX: 0
+                    STP TCN:   RX: 0 TX: 0
+                    STP Transitions: Blocked: 0 Forwarding: 0

@@ -38,20 +38,21 @@ import (
 // so they are absent rather than wrong. None of them appears on any route in
 // the two committed topologies:
 //
-//   - RTA_MARK, RTA_UID, RTA_FLOW (`realms`), RTA_TTL_PROPAGATE — not decoded
-//     into xtcpnl.RouteInfo. RTA_CACHEINFO used to be on this list and is not
+//   - RTA_FLOW (`realms`) and RTA_TTL_PROPAGATE — not decoded into
+//     xtcpnl.RouteInfo. RTA_MARK and RTA_UID left this list with `route get`,
+//     the one command whose reply carries them. RTA_CACHEINFO used to be on
+//     this list and is not
 //     any more; see applyRouteCacheinfo, and note that the claim it carried —
 //     "none of them appears on any route in the two committed topologies" —
 //     was true of the ATTRIBUTE's non-zero members and false of the attribute
 //     itself, which every IPv6 route in the corpus carries.
 //   - RTA_NEWDST (`as to`) and RTA_ENCAP, which are the MPLS and lightweight-
 //     tunnel surfaces; RTA_ENCAP alone is a second parser.
-//   - `nh_info`, which print_route emits only under `-d`, and the RTM_F_CLONED
-//     surfaces: print_cache_flags' `cache <...>` line and print_rta_multipath's
-//     `Oifs: ` form for a cloned multicast route. goip rejects `route show
-//     cache`, so nothing it can be asked reaches a cloned route — and
-//     routeFilter below drops one if the kernel sends it anyway, which is what
-//     `ip` does too.
+//   - `nh_info`, which print_route emits only under `-d`, and
+//     print_rta_multipath's `Oifs: ` form for a cloned multicast route. goip
+//     rejects `route show cache`, and routeFilter drops a cloned route a dump
+//     sends anyway, which is what `ip` does too. `route get` is the one command
+//     that renders a cloned route, and its `cache` line is applyRouteCacheFlags.
 //
 // # Config files are not read, per the package's standing divergence
 //
@@ -127,13 +128,22 @@ func routeProtoName(proto uint8) string {
 // an addrgenmode rename.
 const routeTypeUnspecNameCst = "none"
 
+// localNameCst is the word three of iproute2's tables share: RTN_LOCAL's
+// type name, RT_TABLE_LOCAL's table name and RTCF_LOCAL's cache flag.
+const localNameCst = "local"
+
+// unresolvedCst is the word print_rt_flags prints for RTNH_F_UNRESOLVED,
+// print_mroute for an entry with no iif or no route yet, and print_rule for
+// a goto whose target is missing.
+const unresolvedCst = "unresolved"
+
 // routeTypeNames is rtnl_rtntype_n2a's switch (ip/rtm_map.c:19-54), indexed by
 // RTN_*. It is a slice rather than a map because the RTN_* values are dense,
 // 0 through RTN_XRESOLVE.
 var routeTypeNames = [...]string{
 	unix.RTN_UNSPEC:      routeTypeUnspecNameCst,
 	unix.RTN_UNICAST:     "unicast",
-	unix.RTN_LOCAL:       "local",
+	unix.RTN_LOCAL:       localNameCst,
 	unix.RTN_BROADCAST:   "broadcast",
 	unix.RTN_ANYCAST:     "anycast",
 	unix.RTN_MULTICAST:   "multicast",
@@ -164,7 +174,7 @@ func routeTypeName(typ uint8) string {
 var routeTableNames = map[uint32]string{
 	unix.RT_TABLE_DEFAULT: "default",
 	unix.RT_TABLE_MAIN:    "main",
-	unix.RT_TABLE_LOCAL:   "local",
+	unix.RT_TABLE_LOCAL:   localNameCst,
 }
 
 // routeTableName is rtnl_rttable_n2a (lib/rt_names.c:537-550), fallback `%u`.
@@ -199,7 +209,7 @@ var rtFlagNames = []struct {
 	{unix.RTNH_F_TRAP, "trap"},
 	{unix.RTM_F_NOTIFY, "notify"},
 	{unix.RTNH_F_LINKDOWN, "linkdown"},
-	{unix.RTNH_F_UNRESOLVED, "unresolved"},
+	{unix.RTNH_F_UNRESOLVED, unresolvedCst},
 	{unix.RTM_F_OFFLOAD, "rt_offload"},
 	{unix.RTM_F_TRAP, "rt_trap"},
 	{unix.RTM_F_OFFLOAD_FAILED, "rt_offload_failed"},
@@ -669,6 +679,23 @@ type RouteView struct {
 	// Flags is never nil; see RtFlagTokens.
 	Flags []string `json:"flags"`
 
+	// Mark is RTA_MARK, printed only when non-zero (ip/iproute.c:948-961). Its
+	// text form changes base at 16, `mark %u ` below and `mark 0x%llx ` from
+	// there, while the JSON form is always the number.
+	Mark uint32 `json:"mark,omitempty"`
+
+	// UID is RTA_UID, printed on presence like Metric, so root's lookup prints
+	// `uid 0` (:966-968).
+	UID *uint32 `json:"uid,omitempty"`
+
+	// Cache is print_cache_flags' output for a cloned IPv4 route
+	// (:453-498, called at :971-972): the names of the RTCF_* bits above
+	// rtm_flags' low 16. A pointer because a cloned route with none of them
+	// set still prints, as `"cache":[]` and as a bare `cache ` line; cacheText
+	// is that text, from its leading newline on.
+	Cache     *[]string `json:"cache,omitempty"`
+	cacheText string
+
 	// The RTA_CACHEINFO tokens, in print_rta_cacheinfo's emission order
 	// (ip/iproute.c:500-532). Each is a pointer because every one of the
 	// seven is suppressed at zero — `if (ci->rta_expires != 0)` and so on —
@@ -815,6 +842,16 @@ func RouteViewOf(ri xtcpnl.RouteInfo, tab NameTab, f RouteShowFilter) RouteView 
 		metric := ri.Priority
 		v.Metric = &metric
 	}
+	v.Mark = ri.Mark
+	if ri.HasUID {
+		uid := ri.UID
+		v.UID = &uid
+	}
+	// The raw rtm_family, as for the cacheinfo below: only the AF_INET arm
+	// calls print_cache_flags (:970-972), so a cloned IPv6 route has no line.
+	if ri.Family == unix.AF_INET && ri.Flags&unix.RTM_F_CLONED != 0 {
+		applyRouteCacheFlags(&v, ri.Flags)
+	}
 	// ri.Family, deliberately, not the `family` local: print_route's cacheinfo
 	// guard tests the RAW rtm_family (:970, :976), while `family` above is
 	// getRealFamily's, which folds RTNL_FAMILY_IPMR/IP6MR onto AF_INET/AF_INET6.
@@ -898,6 +935,76 @@ func applyRouteCacheinfo(v *RouteView, rtmFamily uint8, ci *xtcpnl.RtaCacheinfo,
 		tsage := ci.Tsage
 		v.Tsage = &tsage
 	}
+}
+
+// rtcfNames is print_cache_flags' PRTFL list (ip/iproute.c:477-490), in its
+// order: the RTCF_* bits of include/uapi/linux/in_route.h, which
+// golang.org/x/sys/unix does not export. 0x100000 and 0x2000000 have no name
+// there and so none here.
+var rtcfNames = []struct {
+	bit  uint32
+	name string
+}{
+	{0x80000000, localNameCst}, // RTCF_LOCAL
+	{0x40000000, "reject"},     // RTCF_REJECT
+	{0x20000000, "mc"},         // RTCF_MULTICAST
+	{0x10000000, "brd"},        // RTCF_BROADCAST
+	{0x08000000, "dst-nat"},    // RTCF_DNAT
+	{0x00800000, "src-nat"},    // RTCF_SNAT
+	{0x00400000, "masq"},       // RTCF_MASQ
+	{0x00020000, "dst-direct"}, // RTCF_DIRECTDST
+	{0x04000000, "src-direct"}, // RTCF_DIRECTSRC
+	{0x00040000, "redirected"}, // RTCF_REDIRECTED
+	{0x01000000, "redirect"},   // RTCF_DOREDIRECT
+	{0x00200000, "fastroute"},  // RTCF_FAST
+	{0x00010000, "notify"},     // RTCF_NOTIFY
+	{0x00080000, "proxy"},      // RTCF_TPROXY
+}
+
+// markHexFromCst is where print_route's `mark` token switches from decimal to
+// hex (ip/iproute.c:954).
+const markHexFromCst = 16
+
+// rtcfMaskCst is print_cache_flags' `flags &= ~0xFFFF`: the low half of
+// rtm_flags is RTM_F_* and RTNH_F_*, which print_rt_flags has already printed.
+const rtcfMaskCst uint32 = 0xFFFF0000
+
+// applyRouteCacheFlags is print_cache_flags (ip/iproute.c:453-498).
+//
+// The text has two shapes worth reading twice. Each name is followed by ","
+// while bits remain and by "> " after the last, so `<notify> ` ends in a
+// space. A bit with no name is printed after the names as `%x>`, with no
+// space, so `<notify,100000>` does not. With no bit set the line is the bare
+// `cache ` and no brackets.
+//
+// The unnamed bits are text only. In JSON, print_hex writes a "flags" key
+// inside the "cache" array, which is not valid JSON, so the view keeps the
+// names and drops the rest rather than reproduce it.
+func applyRouteCacheFlags(v *RouteView, rtmFlags uint32) {
+	flags := rtmFlags & rtcfMaskCst
+	names := []string{}
+	var b strings.Builder
+	b.WriteString("\n    cache ")
+	if flags != 0 {
+		b.WriteByte('<')
+	}
+	for _, f := range rtcfNames {
+		if flags&f.bit == 0 {
+			continue
+		}
+		flags &^= f.bit
+		names = append(names, f.name)
+		sep := "> "
+		if flags != 0 {
+			sep = ","
+		}
+		b.WriteString(f.name + sep)
+	}
+	if flags != 0 {
+		fmt.Fprintf(&b, "%x>", flags)
+	}
+	v.Cache = &names
+	v.cacheText = b.String()
 }
 
 // routePrefixWildcard is the token print_route emits for a destination with no
@@ -1028,6 +1135,15 @@ func (v RouteView) Text() string {
 	for _, f := range v.Flags {
 		fmt.Fprintf(&b, "%s ", f)
 	}
+	if v.Mark >= markHexFromCst {
+		fmt.Fprintf(&b, "mark 0x%x ", v.Mark)
+	} else if v.Mark != 0 {
+		fmt.Fprintf(&b, "mark %d ", v.Mark)
+	}
+	if v.UID != nil {
+		fmt.Fprintf(&b, "uid %d ", *v.UID)
+	}
+	b.WriteString(v.cacheText)
 	// print_rta_cacheinfo's seven tokens, in its own order. Note `ts` alone
 	// carries NO trailing space in its format string — `"ts 0x%llx"` against
 	// `"tsage %usec "` (ip/iproute.c:530-534) — so the two run together as

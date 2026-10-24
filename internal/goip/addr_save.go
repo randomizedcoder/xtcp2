@@ -35,7 +35,7 @@ const (
 	// in host order.
 	addrDumpMagicCst = 0x47361222
 	// addrDumpMagicLenCst is the magic's size, the bytes read before the
-	// first record.
+	// first record. route_dump_magic is a __u32 too.
 	addrDumpMagicLenCst = 4
 	// addrDumpBufCst is rtnl_from_file's `char buf[16384]`
 	// (lib/libnetlink.c:1326): no record may be longer.
@@ -43,6 +43,26 @@ const (
 	// ifaddrmsgLenCst is sizeof(struct ifaddrmsg).
 	ifaddrmsgLenCst = 8
 )
+
+// dumpFileFormat is what tells one object's dump file from another's: the
+// magic, the object the terminal refusal names, and the errors the two kinds
+// of refusal wrap, which carry `ip`'s exit codes. The address verbs exit -1
+// for both (255); the route verbs return -1 for a terminal or a bad magic and
+// -2 when rtnl_from_file fails, which do_cmd negates to 1 and 2.
+type dumpFileFormat struct {
+	magic  uint32
+	object string
+	// badFile is a terminal or a magic mismatch.
+	badFile error
+	// badRecord is a malformed or truncated record, or one the handler
+	// refuses.
+	badRecord error
+}
+
+// addrDumpFormat is `ip address save`'s file.
+var addrDumpFormat = dumpFileFormat{
+	magic: addrDumpMagicCst, object: addressObjectCst, badFile: ErrDumpFile, badRecord: ErrDumpFile,
+}
 
 // addrSave is ipaddr_list_flush_or_save's save arm (ip/ipaddress.c:2263-2280).
 //
@@ -102,37 +122,39 @@ func addrShowdump(c *runCtx, _ []string) error {
 	case c.oneline:
 		return fmt.Errorf("-o address showdump: %w", ErrNotImplemented)
 	}
-	if err := checkDumpMagic(c, "showdump"); err != nil {
+	if err := checkDumpMagic(c, addrDumpFormat, "showdump"); err != nil {
 		return err
 	}
-	return readDumpRecords(c, addrDumpMagicLenCst, func(h xtcpnl.NlMsgHdr, body []byte) error {
+	return readDumpRecords(c, addrDumpFormat, func(h xtcpnl.NlMsgHdr, body []byte) error {
 		return showDumpRecord(c.out, h.Type, body)
 	})
 }
 
-// checkDumpMagic is ipadd_dump_check_magic (ip/ipaddress.c:1803-1818), which
+// checkDumpMagic is ipadd_dump_check_magic (ip/ipaddress.c:1803-1818), or
+// route_dump_check_magic (ip/iproute.c:2342-2359) for a route file, which
 // showdump and restore both run first: the terminal refusal, then the magic.
-func checkDumpMagic(c *runCtx, verb string) error {
+func checkDumpMagic(c *runCtx, f dumpFileFormat, verb string) error {
 	if c.in == nil {
-		return fmt.Errorf("address %s without stdin: %w", verb, ErrNotImplemented)
+		return fmt.Errorf("%s %s without stdin: %w", f.object, verb, ErrNotImplemented)
 	}
 	if isTerminal(c.in) {
-		return fmt.Errorf("%w: Can't restore address dump from a terminal", ErrDumpFile)
+		return fmt.Errorf("%w: Can't restore %s dump from a terminal", f.badFile, f.object)
 	}
 	// fread(&magic, 4, 1) counts whole elements, and glibc copies a short
 	// read's bytes into magic all the same.
 	var magic [addrDumpMagicLenCst]byte
 	n, rerr := io.ReadFull(c.in, magic[:])
-	if got := binary.NativeEndian.Uint32(magic[:]); got != addrDumpMagicCst || rerr != nil {
-		return fmt.Errorf("%w: Magic mismatch (%d elems, %x magic)", ErrDumpFile, n/len(magic), got)
+	if got := binary.NativeEndian.Uint32(magic[:]); got != f.magic || rerr != nil {
+		return fmt.Errorf("%w: Magic mismatch (%d elems, %x magic)", f.badFile, n/len(magic), got)
 	}
 	return nil
 }
 
-// readDumpRecords is rtnl_from_file's loop, handing each whole record to
-// onRecord as the handler gets it. pos is the bytes already read, which the
-// malformed message reports as ftell does.
-func readDumpRecords(c *runCtx, pos int, onRecord func(h xtcpnl.NlMsgHdr, body []byte) error) error {
+// readDumpRecords is rtnl_from_file's loop after the magic, handing each
+// whole record to onRecord as the handler gets it. pos counts the bytes read,
+// the magic's included, which the malformed message reports as ftell does.
+func readDumpRecords(c *runCtx, f dumpFileFormat, onRecord func(h xtcpnl.NlMsgHdr, body []byte) error) error {
+	pos := addrDumpMagicLenCst
 	var hdr [xtcpnl.NlMsgHdrSizeCst]byte
 	for {
 		n, err := io.ReadFull(c.in, hdr[:])
@@ -141,7 +163,7 @@ func readDumpRecords(c *runCtx, pos int, onRecord func(h xtcpnl.NlMsgHdr, body [
 			return nil
 		}
 		if err != nil {
-			return dumpReadError(err)
+			return dumpReadError(err, f.badRecord)
 		}
 		var h xtcpnl.NlMsgHdr
 		if _, err := xtcpnl.DeserializeNlMsgHdr(hdr[:], &h); err != nil {
@@ -152,13 +174,13 @@ func readDumpRecords(c *runCtx, pos int, onRecord func(h xtcpnl.NlMsgHdr, body [
 		length := cInt32(h.Len)
 		l := length - xtcpnl.NlMsgHdrSizeCst
 		if l < 0 || h.Len > addrDumpBufCst {
-			return fmt.Errorf("%w: !!!malformed message: len=%d @%d", ErrDumpFile, length, pos)
+			return fmt.Errorf("%w: !!!malformed message: len=%d @%d", f.badRecord, length, pos)
 		}
 		body := make([]byte, nlmsgAlign(int(l)))
 		n, err = io.ReadFull(c.in, body)
 		pos += n
 		if err != nil {
-			return dumpReadError(err)
+			return dumpReadError(err, f.badRecord)
 		}
 		if err := onRecord(h, body[:l]); err != nil {
 			return err
@@ -192,12 +214,12 @@ func showDumpRecord(w io.Writer, msgType uint16, body []byte) error {
 }
 
 // dumpReadError is rtnl_from_file's short read: truncation at EOF, else the
-// read error perror reports.
-func dumpReadError(err error) error {
+// read error perror reports. kind is the format's badRecord.
+func dumpReadError(err, kind error) error {
 	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
-		return fmt.Errorf("%w: rtnl-from_file: truncated message", ErrDumpFile)
+		return fmt.Errorf("%w: rtnl-from_file: truncated message", kind)
 	}
-	return fmt.Errorf("%w: rtnl_from_file: fread: %w", ErrDumpFile, err)
+	return fmt.Errorf("%w: rtnl_from_file: fread: %w", kind, err)
 }
 
 // cInt32 is a uint32 as C's %d prints it.

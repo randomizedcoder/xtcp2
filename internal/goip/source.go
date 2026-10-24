@@ -62,10 +62,20 @@ func wholeMsg(h xtcpnl.NlMsgHdr, body []byte) []byte {
 	return b
 }
 
-// NetlinkSource is the live implementation: a bound NETLINK_ROUTE socket.
+// NetlinkSource is the live implementation: a bound NETLINK_ROUTE socket, and
+// the NETLINK_GENERIC one a genl object opens on first use (source_genl.go).
 type NetlinkSource struct {
 	fd int
 	sa *unix.SockaddrNetlink
+	// gfd is the genl socket, valid when gopen is set.
+	gfd   int
+	gopen bool
+	// xfd is the NETLINK_XFRM socket, valid when xopen is set.
+	xfd   int
+	xopen bool
+	// rcvTimeout is OpenNetlinkTimeout's, which the genl socket gets too
+	// when it opens; zero is none.
+	rcvTimeout time.Duration
 }
 
 // OpenNetlink opens and binds a NETLINK_ROUTE socket.
@@ -82,14 +92,18 @@ type NetlinkSource struct {
 //     BuildDumpAddrRequestIndex's ifa_index in the *header* is honored at
 //     all. Without it that filter is silently dropped and the reply set is
 //     wrong while every request byte still matches.
+//   - NETLINK_EXT_ACK, which `ip` enables at lib/libnetlink.c:222. A refusal
+//     then carries the kernel's NLMSGERR_ATTR_MSG and NLM_F_ACK_TLVS in its
+//     own header, so without it goip's NLMSG_ERROR differs from ip's in
+//     header.flags (`neigh get` of a missing entry: ip 0x0200, goip 0).
 //   - SO_RCVBUF at 1 MiB, matching `ip`. The default is much smaller, and a
 //     dump on a host with many links or routes then arrives in more datagrams
 //     than `ip` would see — a difference in reply framing that is not a
 //     difference in what was asked.
 //
-// Strict checking degrades rather than refuses: a kernel predating
-// NETLINK_GET_STRICT_CHK (pre-4.20) answers ENOPROTOOPT, and that one errno is
-// ignored. Nothing else is. In particular SO_RCVBUF cannot fail on a socket
+// Both netlink options degrade rather than refuse: a kernel predating
+// NETLINK_GET_STRICT_CHK (pre-4.20) or NETLINK_EXT_ACK (pre-4.12) answers
+// ENOPROTOOPT, and that one errno is ignored. Nothing else is. In particular SO_RCVBUF cannot fail on a socket
 // this function just created — Linux *clamps* the request to net.core.rmem_max
 // rather than rejecting it (net/core/sock.c, SO_RCVBUF) — so an error there is
 // a bad fd, which is a bug here and not a property of the host. Reporting it is
@@ -138,48 +152,71 @@ func openNetlink(rcvTimeout time.Duration) (*NetlinkSource, error) {
 	}
 
 	// See the doc comment: ENOPROTOOPT means the running kernel has no strict
-	// checking, which is a degraded run, not a failed one.
+	// checking or extended ack, which is a degraded run, not a failed one.
 	if err := unix.SetsockoptInt(fd, unix.SOL_NETLINK, unix.NETLINK_GET_STRICT_CHK, 1); err != nil &&
 		!errors.Is(err, unix.ENOPROTOOPT) {
 		return nil, abandon(fmt.Errorf("goip: netlink strict check: %w", err))
 	}
+	if err := unix.SetsockoptInt(fd, unix.SOL_NETLINK, unix.NETLINK_EXT_ACK, 1); err != nil &&
+		!errors.Is(err, unix.ENOPROTOOPT) {
+		return nil, abandon(fmt.Errorf("goip: netlink extended ack: %w", err))
+	}
 	if err := unix.SetsockoptInt(fd, unix.SOL_SOCKET, unix.SO_RCVBUF, 1<<20); err != nil {
 		return nil, abandon(fmt.Errorf("goip: netlink SO_RCVBUF: %w", err))
 	}
-	if rcvTimeout > 0 {
-		tv := unix.NsecToTimeval(rcvTimeout.Nanoseconds())
-		// Sub-microsecond durations truncate to a zero timeval, which the
-		// kernel reads as "block forever" — the opposite of what was asked.
-		if tv.Sec == 0 && tv.Usec == 0 {
-			tv.Usec = 1
-		}
-		if err := unix.SetsockoptTimeval(fd, unix.SOL_SOCKET, unix.SO_RCVTIMEO, &tv); err != nil {
-			return nil, abandon(fmt.Errorf("goip: netlink SO_RCVTIMEO: %w", err))
-		}
+	if err := setRcvTimeout(fd, rcvTimeout); err != nil {
+		return nil, abandon(fmt.Errorf("goip: netlink %w", err))
 	}
 
 	sa := &unix.SockaddrNetlink{Family: unix.AF_NETLINK}
 	if err := unix.Bind(fd, sa); err != nil {
 		return nil, abandon(fmt.Errorf("goip: netlink bind: %w", err))
 	}
-	return &NetlinkSource{fd: fd, sa: &unix.SockaddrNetlink{Family: unix.AF_NETLINK}}, nil
+	return &NetlinkSource{fd: fd, sa: &unix.SockaddrNetlink{Family: unix.AF_NETLINK}, rcvTimeout: rcvTimeout}, nil
 }
 
-// Close releases the socket.
-func (s *NetlinkSource) Close() error {
-	if s.fd < 0 {
+// setRcvTimeout sets SO_RCVTIMEO to d, or nothing for zero.
+func setRcvTimeout(fd int, d time.Duration) error {
+	if d <= 0 {
 		return nil
+	}
+	tv := unix.NsecToTimeval(d.Nanoseconds())
+	// Sub-microsecond durations truncate to a zero timeval, which the
+	// kernel reads as "block forever" — the opposite of what was asked.
+	if tv.Sec == 0 && tv.Usec == 0 {
+		tv.Usec = 1
+	}
+	if err := unix.SetsockoptTimeval(fd, unix.SOL_SOCKET, unix.SO_RCVTIMEO, &tv); err != nil {
+		return fmt.Errorf("SO_RCVTIMEO: %w", err)
+	}
+	return nil
+}
+
+// Close releases the sockets.
+func (s *NetlinkSource) Close() error {
+	var gerr error
+	if s.gopen {
+		gerr = unix.Close(s.gfd)
+		s.gopen = false
+	}
+	if s.xopen {
+		gerr = errors.Join(gerr, unix.Close(s.xfd))
+		s.xopen = false
+	}
+	if s.fd < 0 {
+		return gerr
 	}
 	err := unix.Close(s.fd)
 	s.fd = -1
-	return err
+	return errors.Join(err, gerr)
 }
 
-// Dump sends the request and collects every reply body of msgType.
+// Dump sends the request and collects every reply body of msgType. A dump
+// the kernel ends with an errno in its NLMSG_DONE fails, as `ip`'s does.
 func (s *NetlinkSource) Dump(request []byte, msgType uint16) ([][]byte, error) {
 	var out [][]byte
-	err := xtcpnl.DumpRtnetlink(s.fd, request, s.sa, func(mt uint16, body []byte) error {
-		if mt != msgType {
+	err := xtcpnl.DumpRtnetlinkMsgsDoneErr(s.fd, request, s.sa, func(h xtcpnl.NlMsgHdr, body []byte) error {
+		if h.Type != msgType {
 			return nil
 		}
 		out = append(out, xtcpnl.CopyBytes(body))
@@ -194,7 +231,7 @@ func (s *NetlinkSource) Dump(request []byte, msgType uint16) ([][]byte, error) {
 // DumpMsgs sends the request and collects every reply of msgType whole.
 func (s *NetlinkSource) DumpMsgs(request []byte, msgType uint16) ([][]byte, error) {
 	var out [][]byte
-	err := xtcpnl.DumpRtnetlinkMsgs(s.fd, request, s.sa, func(h xtcpnl.NlMsgHdr, body []byte) error {
+	err := xtcpnl.DumpRtnetlinkMsgsDoneErr(s.fd, request, s.sa, func(h xtcpnl.NlMsgHdr, body []byte) error {
 		if h.Type != msgType {
 			return nil
 		}
@@ -266,9 +303,21 @@ func (s *NetlinkSource) Talk(request []byte, msgType uint16) ([]byte, error) {
 //
 // Portid 0 means "every reply", which is right for a clean single-tool
 // capture and wrong for this one.
+//
+// The capture's NETLINK_GENERIC records are read too, segmented into the
+// exchanges a genl object replays by request (source_genl.go).
 type ReplaySource struct {
 	cap    nlparity.Capture
 	portid uint32
+	// gseg is the capture's genl exchanges, and gused the ones replayed.
+	gseg  nlparity.Segmentation
+	gused map[int]bool
+	// xseg is the capture's NETLINK_XFRM exchanges, and xused the ones
+	// replayed; xmsgs are its messages, in capture order, which the
+	// monitor's listen replays.
+	xseg  nlparity.Segmentation
+	xused map[int]bool
+	xmsgs []nlparity.Msg
 }
 
 // OpenReplay reads a DLT_NETLINK pcap from disk and replays every reply in it.
@@ -284,7 +333,16 @@ func OpenReplayPortid(path string, portid uint32) (*ReplaySource, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ReplaySource{cap: c, portid: portid}, nil
+	g, err := nlparity.ParseCaptureFile(path, unix.NETLINK_GENERIC)
+	if err != nil {
+		return nil, err
+	}
+	x, err := nlparity.ParseCaptureFile(path, unix.NETLINK_XFRM)
+	if err != nil {
+		return nil, err
+	}
+	return &ReplaySource{cap: c, portid: portid, gseg: nlparity.SegmentCapture(g),
+		xseg: nlparity.SegmentCapture(x), xmsgs: x.Msgs()}, nil
 }
 
 // NewReplayFromBytes builds a replay source from pcap bytes already in memory.
@@ -293,7 +351,16 @@ func NewReplayFromBytes(data []byte) (*ReplaySource, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ReplaySource{cap: c}, nil
+	g, err := nlparity.ParseCapture(data, unix.NETLINK_GENERIC)
+	if err != nil {
+		return nil, err
+	}
+	x, err := nlparity.ParseCapture(data, unix.NETLINK_XFRM)
+	if err != nil {
+		return nil, err
+	}
+	return &ReplaySource{cap: c, gseg: nlparity.SegmentCapture(g), xseg: nlparity.SegmentCapture(x),
+		xmsgs: x.Msgs()}, nil
 }
 
 // Dump returns every recorded reply body of msgType, in capture order.
@@ -337,10 +404,30 @@ func (s *ReplaySource) Dump(request []byte, msgType uint16) ([][]byte, error) {
 		}
 		out = append(out, xtcpnl.CopyBytes(m.Body))
 	}
+	if err := s.doneErr(); err != nil {
+		return nil, err
+	}
 	if len(out) == 0 && !s.recordedRequest(request) {
 		return nil, fmt.Errorf("%w: type %d", ErrNoReplay, msgType)
 	}
 	return out, nil
+}
+
+// doneErr is the live source's NLMSG_DONE rule over the capture: a recorded
+// DONE carrying an errno, for this portid, fails the dump with it.
+func (s *ReplaySource) doneErr() error {
+	for _, m := range s.cap.Msgs() {
+		if m.IsRequest() || m.Hdr.Type != unix.NLMSG_DONE {
+			continue
+		}
+		if s.portid != 0 && m.Hdr.Pid != s.portid {
+			continue
+		}
+		if err := xtcpnl.DoneErr(m.Body); err != nil {
+			return fmt.Errorf("goip: dump: %w", err)
+		}
+	}
+	return nil
 }
 
 // DumpMsgs is Dump with each reply whole, its recorded header included, by
@@ -355,6 +442,9 @@ func (s *ReplaySource) DumpMsgs(request []byte, msgType uint16) ([][]byte, error
 			continue
 		}
 		out = append(out, wholeMsg(m.Hdr, m.Body))
+	}
+	if err := s.doneErr(); err != nil {
+		return nil, err
 	}
 	if len(out) == 0 && !s.recordedRequest(request) {
 		return nil, fmt.Errorf("%w: type %d", ErrNoReplay, msgType)
@@ -423,4 +513,13 @@ func nowFromEnv() time.Time {
 		return t
 	}
 	return time.Now()
+}
+
+// nowFuncFromEnv is the clock a monitor stamps each message with: GOIP_NOW's
+// instant when it parses, for a replay, else the wall clock, read per message.
+func nowFuncFromEnv() func() time.Time {
+	if t, err := time.Parse(time.RFC3339, os.Getenv("GOIP_NOW")); err == nil {
+		return func() time.Time { return t }
+	}
+	return time.Now
 }

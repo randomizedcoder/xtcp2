@@ -220,11 +220,15 @@ func TestParseNewStatsXstats(t *testing.T) {
 			},
 		},
 		{
-			description: "negative: a bridge stp body is ungrounded",
+			description: "positive: a bridge stp body decodes in struct order and is not ungrounded",
 			body:        bridgeXstatsBody(5, rtattr(BridgeXstatsStp, seqU64(6))),
 			check: func(t *testing.T, si IfStatsInfo) {
-				if !si.HasUngroundedXstatsBody {
-					t.Errorf("HasUngroundedXstatsBody = false, want true")
+				want := BridgeStpXstats{TransitionBlk: 1, TransitionFwd: 2, RxBpdu: 3, TxBpdu: 4, RxTcn: 5, TxTcn: 6}
+				if !si.HasBridgeStp || si.BridgeStp != want {
+					t.Errorf("stp = %v %+v, want true %+v", si.HasBridgeStp, si.BridgeStp, want)
+				}
+				if si.HasUngroundedXstatsBody {
+					t.Errorf("HasUngroundedXstatsBody = true, want false")
 				}
 			},
 		},
@@ -310,11 +314,11 @@ func TestParseNewStatsXstats(t *testing.T) {
 			},
 		},
 		{
-			description: "negative: a bridge stp body under xstats_slave is ungrounded on Slave",
+			description: "positive: a bridge stp body under xstats_slave decodes on Slave alone",
 			body:        cat(ifsmHdr(0, 5, StatsFilterXstatsSlave), rtattr(uint16(unix.IFLA_STATS_LINK_XSTATS_SLAVE), rtattr(LinkXstatsTypeBridge, rtattr(BridgeXstatsStp, seqU64(6))))),
 			check: func(t *testing.T, si IfStatsInfo) {
-				if !si.Slave.HasUngroundedXstatsBody || si.HasUngroundedXstatsBody {
-					t.Errorf("slave/master ungrounded = %v/%v, want true/false", si.Slave.HasUngroundedXstatsBody, si.HasUngroundedXstatsBody)
+				if !si.Slave.HasBridgeStp || si.Slave.BridgeStp.TxTcn != 6 || si.HasBridgeStp {
+					t.Errorf("slave/master stp = %v %+v/%v, want true tx_tcn 6/false", si.Slave.HasBridgeStp, si.Slave.BridgeStp, si.HasBridgeStp)
 				}
 			},
 		},

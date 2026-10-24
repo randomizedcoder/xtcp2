@@ -684,6 +684,22 @@ func TestIndex(t *testing.T) {
 			},
 		},
 		{
+			name: "index_command_argv", category: "positive",
+			description: "an entry's command is Show's argv; corner: netns's verb is list-id",
+			expected: func() string {
+				commands := map[string]string{}
+				for _, e := range doc.Objects {
+					commands[strings.TrimPrefix(e.Path, Prefix+"/")] = e.Command
+				}
+				for path, want := range map[string]string{"addr": "ip -j address show", "netns": "ip -j netns list-id"} {
+					if commands[path] != want {
+						return fmt.Sprintf("%s command %q, want %q", path, commands[path], want)
+					}
+				}
+				return ""
+			},
+		},
+		{
 			name: "index_rules", category: "positive",
 			description: "both forms' rules and every example are in the index",
 			expected: func() string {

@@ -1,0 +1,26 @@
+[ADDR]3: c0    inet mcast 224.0.0.250 scope global 
+       valid_lft forever preferred_lft forever
+[ADDR]3: c0    inet 224.0.0.250/32 scope global autojoin c0
+       valid_lft forever preferred_lft forever
+[ROUTE]local 224.0.0.250 dev c0 table local proto kernel scope host src 224.0.0.250 
+[LINK]4: d0: <BROADCAST,NOARP,UP,LOWER_UP> mtu 1500 qdisc noqueue state UNKNOWN group default 
+    link/ether 0a:75:bf:fe:a1:bb brd ff:ff:ff:ff:ff:ff
+[ADDR]4: d0    inet mcast 224.0.0.1 scope global 
+       valid_lft forever preferred_lft forever
+[ROUTE]multicast ff00::/8 dev d0 table local proto kernel metric 256 pref medium
+[ROUTE]2001:db8:1::/64 dev d0 proto kernel metric 256 pref medium
+[ADDR]4: d0    inet6 2001:db8:1::1/64 scope global nodad 
+       valid_lft forever preferred_lft forever
+[ROUTE]local 2001:db8:1::1 dev d0 table local proto kernel metric 0 pref medium
+[ROUTE]anycast 2001:db8:1:: dev d0 table local proto kernel metric 0 pref medium
+[ADDR]4: d0    inet6 any 2001:db8:1:: scope global 
+       valid_lft forever preferred_lft forever
+[NETCONF]inet d0 forwarding on 
+[RULE]100:	from 192.0.2.0/24 lookup 100
+[NEXTHOP]id 1 blackhole 
+[STATS]4: d0:
+    l3_stats on used off
+[NSID]nsid 9 (iproute2 netns name: c4p)
+[NSID]Deleted nsid 9 (iproute2 netns name: c4p)
+[ROUTE]2001:db8:5::/64 dev r0 proto kernel metric 256 expires 600sec pref medium
+[PREFIX]prefix 2001:db8:5::/64dev r0 valid 600 preferred 300 

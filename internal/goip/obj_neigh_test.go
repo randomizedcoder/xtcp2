@@ -703,12 +703,12 @@ func TestRunNeighArgs(t *testing.T) {
 			wantStderrSubstr: "not implemented",
 		},
 		{
-			// A write verb must stay unreachable: goip is read-only, and `add`
-			// reaching a handler at all would be the wrong kind of bug.
-			description:      "negative: the write verb `add` is refused",
+			// `add` reaches ipneigh_modify since G3-T01, which refuses an
+			// empty argument list before anything is sent.
+			description:      "negative: the write verb `add` with no arguments is refused",
 			args:             []string{"neigh", "add"},
 			wantCode:         ExitUsage,
-			wantStderrSubstr: "not implemented",
+			wantStderrSubstr: "Device and destination are required arguments",
 		},
 		{
 			// The selector, replayed against the BARE command's capture. That

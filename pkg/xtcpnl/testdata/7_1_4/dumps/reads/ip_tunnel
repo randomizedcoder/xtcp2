@@ -1,0 +1,4 @@
+tunl0: any/ip remote any local any ttl inherit nopmtudisc
+sit0: ipv6/ip remote any local any ttl 64 nopmtudisc
+gre0: gre/ip remote any local any ttl inherit nopmtudisc
+gre9: gre/ip remote 192.0.2.9 local 192.0.2.1 ttl inherit

@@ -134,7 +134,7 @@ func cloneMsgs(msgs []Msg) []Msg {
 // that omits it gets IFLA_STATS and IFLA_STATS64 appended by the kernel and
 // diverges by the most volatile attribute in the protocol.
 func dropAttrs(m Msg) Msg {
-	hdrLen := FamilyHdrLen(m.Hdr.Type)
+	hdrLen := FamilyHdrLen(m.Proto, m.Hdr.Type)
 	if hdrLen < 0 || hdrLen > len(m.Body) {
 		return m
 	}
@@ -169,6 +169,25 @@ func mustSetAttrU32(m Msg, bare uint16, v uint32) Msg {
 		panic("diff row mutation: attribute not present or too short to set")
 	}
 	return m
+}
+
+// nhBucketIdleVal returns the NHA_RES_BUCKET_IDLE_TIME payload of a bucket
+// message, one nest down, aliasing the body so a caller can edit it in place.
+// nil when the message does not carry one.
+func nhBucketIdleVal(m Msg) []byte {
+	_, attrs, _ := DecodeAttrs(m.Hdr.Type, m.Body)
+	for _, a := range attrs {
+		if a.BareType() != xtcpnl.NhaResBucket {
+			continue
+		}
+		inner, _ := SubAttrs(a.Val)
+		for _, in := range inner {
+			if in.BareType() == xtcpnl.NhaResBucketIdleTime && len(in.Val) >= 8 {
+				return in.Val
+			}
+		}
+	}
+	return nil
 }
 
 // inet6CacheinfoVal returns the IFLA_INET6_CACHEINFO payload of a message,
@@ -310,6 +329,41 @@ func TestDiff(t *testing.T) {
 			},
 			wantFindings:        []string{},
 			wantAllowSuppressed: []string{"L2|value|" + extMaskDumpLocus},
+		},
+		{
+			// G1-T03's finding. Until FamilyHdrLen modeled the bucket messages,
+			// DecodeAttrs left a bucket request's whole body as the remainder
+			// and diffRequest compared only its length, so a goip asking for
+			// group 21 rather than 20 compared clean. It must be a value
+			// divergence at NHA_ID. nlparity_names.go names no nexthop type, so
+			// the locus is the numeric form: RTM_GETNEXTHOPBUCKET is 118 and
+			// NHA_ID is 1.
+			description: "positive: a bucket dump asking for another group is a value divergence at NHA_ID",
+			command:     "nexthop bucket show id 20",
+			filename:    tdNhBucketShow,
+			mutate: func(s Segmentation) Segmentation {
+				s.Txns[0].Request = mustSetAttrU32(s.Txns[0].Request, uint16(unix.NHA_ID), 21)
+				return s
+			},
+			wantFindings: []string{"L2|value|request:type(118):attr(1):dump"},
+		},
+		{
+			// The reply half: with the nhmsg modeled, a bucket reply's
+			// attributes are decoded and paired, so a moved idle time inside
+			// NHA_RES_BUCKET is a value divergence the control must cancel.
+			// RTM_NEWNEXTHOPBUCKET is 116 and NHA_RES_BUCKET is 13, a nest.
+			description: "positive: a bucket reply whose idle time moved is a value divergence at NHA_RES_BUCKET",
+			command:     "nexthop bucket get id 20 index 0",
+			filename:    tdNhBucketGet,
+			mutate: func(s Segmentation) Segmentation {
+				for i := range s.Txns[0].Replies {
+					if v := nhBucketIdleVal(s.Txns[0].Replies[i]); v != nil {
+						v[0]++
+					}
+				}
+				return s
+			},
+			wantFindings: []string{"L3|value|reply:type(116):attr(13)+NESTED"},
 		},
 		{
 			// The control triple's mechanism. D_control is built by making the
@@ -1597,6 +1651,9 @@ func TestRequestRole(t *testing.T) {
 // sends, so the entries are gone, and each row asserts the other half: the
 // differ still derives the locus, and nothing suppresses a mask divergence
 // there any more, so a goip that went back to 7.1.0's mask would be reported.
+// The NETNSA_FD rows (entry) are the opposite case: ip's descriptor numbers
+// are not goip's by design, so their entries stay, and each row asserts the
+// entry is present and suppresses the divergence.
 //
 // The construction here is the real one: take the capture the locus is about,
 // mutate the attribute it names, and assert the divergence comes out at exactly
@@ -1619,6 +1676,12 @@ func TestCommittedAllowlistLociAreDerivable(t *testing.T) {
 		// row cannot pass against a capture that does not hold it.
 		txn      int
 		wantMask uint32
+		// attr is the attribute the locus names, IFLA_EXT_MASK when 0.
+		attr uint16
+		// entry marks a locus the committed allowlist must hold an entry
+		// for and suppress: a divergence goip has by design (another
+		// process's descriptor), where the mask rows assert theirs is gone.
+		entry bool
 	}{
 		{
 			// MEASURED: 0x01, not 0x09. 7.1.0's ll_init_map calls
@@ -1675,12 +1738,42 @@ func TestCommittedAllowlistLociAreDerivable(t *testing.T) {
 			txn:         0,
 			wantMask:    0x09,
 		},
+		// G4-T04's NETNSA_FD entries: netns_map_init's first by-descriptor
+		// RTM_GETNSID, ip's fd 6, on each list-id command, and netns set's
+		// RTM_NEWNSID, ip's fd 5. One capture serves the four list-id
+		// commands, every one of which sends the same map requests first.
+		{
+			description: "positive: the list-id NETNSA_FD locus is derivable, ip's fd 6",
+			command:     "netns list-id", locus: "request:type(90):attr(3):get",
+			filename: tdGuestGetNsid, wantMask: 6, attr: unix.NETNSA_FD, entry: true,
+		},
+		{
+			description: "positive: the same on -j, which reaches no request byte",
+			command:     "-j netns list-id", locus: "request:type(90):attr(3):get",
+			filename: tdGuestGetNsid, wantMask: 6, attr: unix.NETNSA_FD, entry: true,
+		},
+		{
+			description: "positive: the same on the get by nsid, whose map requests come first",
+			command:     "netns list-id nsid 2", locus: "request:type(90):attr(3):get",
+			filename: tdGuestGetNsid, wantMask: 6, attr: unix.NETNSA_FD, entry: true,
+		},
+		{
+			description: "positive: the same on the get with a target",
+			command:     "netns list-id nsid 1 target-nsid 2", locus: "request:type(90):attr(3):get",
+			filename: tdGuestGetNsid, wantMask: 6, attr: unix.NETNSA_FD, entry: true,
+		},
+		{
+			description: "positive: the netns set NETNSA_FD locus is derivable on the write role, ip's fd 5",
+			command:     "netns set c1set 7", locus: "request:type(88):attr(3):write",
+			filename: tdNetnsSet, wantMask: 5, attr: unix.NETNSA_FD, entry: true,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			if _, ok := al.Lookup(tc.command, tc.locus); ok {
-				t.Fatalf("the committed allowlist has a %q entry at %q again", tc.command, tc.locus)
+			if _, ok := al.Lookup(tc.command, tc.locus); ok != tc.entry {
+				t.Fatalf("the committed allowlist's %q entry at %q: present %v, want %v",
+					tc.command, tc.locus, ok, tc.entry)
 			}
 
 			c, err := ParseRouteCaptureFile(tc.filename)
@@ -1694,25 +1787,29 @@ func TestCommittedAllowlistLociAreDerivable(t *testing.T) {
 
 			// The pinned value, read out of the capture rather than asserted
 			// from the reason's prose.
+			attr := tc.attr
+			if attr == 0 {
+				attr = uint16(unix.IFLA_EXT_MASK)
+			}
 			_, attrs, _ := DecodeAttrs(ref.Txns[tc.txn].Request.Hdr.Type, ref.Txns[tc.txn].Request.Body)
 			var mask []byte
 			for _, a := range attrs {
-				if a.BareType() == uint16(unix.IFLA_EXT_MASK) {
+				if a.BareType() == attr {
 					mask = a.Val
 				}
 			}
 			if len(mask) != 4 {
-				t.Fatalf("transaction %d's request carries no 4-byte IFLA_EXT_MASK", tc.txn)
+				t.Fatalf("transaction %d's request carries no 4-byte attribute %d", tc.txn, attr)
 			}
 			if got := le32(mask); got != tc.wantMask {
-				t.Fatalf("captured IFLA_EXT_MASK = 0x%02x, want 0x%02x — the 7.1.0 capture "+
-					"does not hold what this row says it does", got, tc.wantMask)
+				t.Fatalf("captured attribute %d = 0x%02x, want 0x%02x — the capture "+
+					"does not hold what this row says it does", attr, got, tc.wantMask)
 			}
 
-			// Now the divergence: de91e928's NAME_ONLY bit.
+			// Now the divergence: de91e928's NAME_ONLY bit on the mask, or
+			// another process's descriptor.
 			sub := cloneSegmentation(ref)
-			sub.Txns[tc.txn].Request = mustSetAttrU32(sub.Txns[tc.txn].Request,
-				uint16(unix.IFLA_EXT_MASK), tc.wantMask|0x100)
+			sub.Txns[tc.txn].Request = mustSetAttrU32(sub.Txns[tc.txn].Request, attr, tc.wantMask|0x100)
 
 			found := false
 			for _, d := range Diff(tc.command, ref, sub) {
@@ -1721,11 +1818,12 @@ func TestCommittedAllowlistLociAreDerivable(t *testing.T) {
 				}
 				found = true
 				if d.Class != DivergenceValue {
-					t.Errorf("divergence at %q has class %s, want %s — a version-skew entry "+
+					t.Errorf("divergence at %q has class %s, want %s — an entry "+
 						"can only ever suppress a value", tc.locus, d.Class, DivergenceValue)
 				}
-				if al.Suppresses(tc.command, tc.locus, d.Class) {
-					t.Errorf("the committed allowlist suppresses a mask divergence goip no longer has")
+				if al.Suppresses(tc.command, tc.locus, d.Class) != tc.entry {
+					t.Errorf("the committed allowlist suppresses the divergence: %v, want %v",
+						!tc.entry, tc.entry)
 				}
 			}
 			if !found {

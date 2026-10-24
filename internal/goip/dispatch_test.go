@@ -120,7 +120,7 @@ func TestLookupObject(t *testing.T) {
 		},
 		{
 			description: "positive: \"net\" is netns, not netconf",
-			arg:         "net", wantName: "netns", wantErr: ErrNotImplemented,
+			arg:         "net", wantName: "netns",
 		},
 		{
 			// "netc" outruns netns ("net" is not a prefix of "netc"), so it is the
@@ -139,8 +139,14 @@ func TestLookupObject(t *testing.T) {
 			// from a typo.** The harness drives both tools with the same argv,
 			// so it has to tell "goip has not got there yet" from "that is not
 			// a command".
-			description: "boundary: \"xfrm\" is recognized and reports ErrNotImplemented",
-			arg:         "xfrm", wantName: "xfrm", wantErr: ErrNotImplemented,
+			description: "boundary: \"tuntap\" is recognized and reports ErrNotImplemented",
+			arg:         "tuntap", wantName: "tuntap", wantErr: ErrNotImplemented,
+		},
+		{
+			// G7-T01 gave xfrm its run; its policy and monitor are still
+			// refused inside it.
+			description: "positive: \"x\" is xfrm, which is implemented",
+			arg:         "x", wantName: "xfrm",
 		},
 		{
 			// "s" is sr (first "s" entry in cmds[]), but "st" outruns it and is the
@@ -149,8 +155,10 @@ func TestLookupObject(t *testing.T) {
 			arg:         "st", wantName: "stats",
 		},
 		{
-			description: "boundary: \"mon\" is monitor, recognized and unimplemented",
-			arg:         "mon", wantName: "monitor", wantErr: ErrNotImplemented,
+			// "m" is maddress; monitor comes before mroute, so "mo" and
+			// "mon" reach it, and it is implemented.
+			description: "boundary: \"mon\" is monitor, which is implemented",
+			arg:         "mon", wantName: "monitor",
 		},
 		{
 			description: "negative: \"z\" matches no object",

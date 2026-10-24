@@ -19,9 +19,10 @@ proc nlcap {args} {
     return [vmlib::run_out "xtcp2-nlcap [join $args { }]"]
 }
 
-proc capio {ns subdir name floor command sout} {
+# <proto> is the netlink protocol the pcap keeps (xtcp2-nlcap --proto).
+proc capio {ns subdir name floor command sout {proto route}} {
     global short_caps
-    lassign [nlcap capio $ns $subdir $name $floor "'$command'" $sout] rc out
+    lassign [nlcap capio --proto $proto $ns $subdir $name $floor "'$command'" $sout] rc out
     if {$rc != 0} {
         lappend short_caps "$subdir/$name"
         vmlib::log "MISSED FLOOR $subdir/$name: $out"

@@ -1,0 +1,20 @@
+ok    [nlcapr] ip link add v0 type veth peer name v0p
+ok    [nlcapr] ip link add v1 type veth peer name v1p
+ok    [nlcapr] ip link set v0p up
+ok    [nlcapr] ip link set v1p up
+ok    [nlcapr] ip link set v0 up
+ok    [nlcapr] ip link set v1 up
+ok    [nlcapr] ip addr add 192.0.2.1/24 dev v0
+ok    [nlcapr] ip addr add 198.51.100.1/24 dev v1
+ok    [nlcapr] ip link add br0 type bridge
+ok    [nlcapr] ip link add v2 type veth peer name v2p
+ok    [nlcapr] ip link set v2 master br0
+ok    [nlcapr] ip link set br0 up
+ok    [nlcapr] ip link set v2 up
+ok    [nlcapr] ip token set ::1:2:3:4/64 dev v0
+ok    [nlcapr] ip tuntap add dev tap0 mode tap
+ok    [nlcapr] ip tunnel add gre9 mode gre local 192.0.2.1 remote 192.0.2.9
+ok    [nlcapr] ip netns set nlcaprp1 1
+ok    [nlcapr] ip netns set nlcaprp2 2
+note  ip tunnel show: the pcap is the link dump only; the per-tunnel parameters come from SIOCGETTUNNEL ioctls, which nlmon does not see
+ok    [nlcapr] smcrouted: mroute from v0 source 192.0.2.10 group 239.1.1.1 to v1

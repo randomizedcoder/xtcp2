@@ -10,16 +10,47 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// ruleShowVerbs are the three spellings do_iprule accepts for the listing
+// (ip/iprule.c:1240-1243), in its order, which is what decides the
+// abbreviations:
+//
+//	l    -> list, because no earlier verb starts with 'l'
+//	s    -> show, because "save" comes after the list group
+//	sa   -> save, which is NOT show, since "sa" is not a prefix of "show"
+//	ls   -> lst, the only verb "ls" matches
+//
+// Note the order differs from do_iproute's: rule tests "lst" SECOND and
+// "show" third, where route tests "show" second. Neither order changes what
+// any of these four abbreviations resolves to, which is worth knowing because
+// it means transcribing the wrong order would not be caught by testing them.
+var ruleShowVerbs = []string{listVerbCst, lstVerbCst, showVerbCst}
+
+// runRule is do_iprule (ip/iprule.c:1236-1260): the verbs by matches(), in
+// its order, so `s` is show, `sa` save, `d` delete and `f` flush.
 func runRule(c *runCtx, args []string) error {
-	args, err := showArgs("rule", ruleVerbs, args)
-	if err != nil {
-		return err
-	}
 	// A bare `ip rule` is a list (ip/iprule.c:1238-1239), like `ip route`.
-	if err := parseRuleShowArgs(args); err != nil {
-		return err
+	if len(args) == 0 {
+		return ruleShow(c)
 	}
-	return ruleShow(c)
+	verb, rest := args[0], args[1:]
+	switch {
+	case matchesAny(verb, ruleShowVerbs):
+		if err := parseRuleShowArgs(rest); err != nil {
+			return err
+		}
+		return ruleShow(c)
+	case matchesPrefix(verb, routeSaveVerbCst):
+		return ruleSave(c, rest)
+	case matchesPrefix(verb, routeRestoreVerbCst):
+		return ruleRestore(c, rest)
+	case matchesPrefix(verb, ruleAddVerbCst):
+		return ruleModify(c, unix.RTM_NEWRULE, rest)
+	case matchesPrefix(verb, ruleDeleteVerbCst):
+		return ruleModify(c, unix.RTM_DELRULE, rest)
+	case matchesPrefix(verb, routeFlushVerbCst):
+		return ruleFlush(c, rest)
+	}
+	return fmt.Errorf("rule %q: %w", verb, ErrNotImplemented)
 }
 
 // parseRuleShowArgs rejects every selector, and unlike the other objects it

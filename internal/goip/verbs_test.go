@@ -35,6 +35,52 @@ var iproute2Verbs = map[string][]string{
 	"addrlabel": {"list", "lst", "show", "add", "delete", "flush", "help"},
 	// ip/ipvrf.c:633-647
 	"vrf": {"identify", "pids", "exec", "show", "lst", "list", "help"},
+	// The objects below are transcribed from iproute2 7.2.0, whose dispatch
+	// of each is 7.1.0's.
+	// ip/ipl2tp.c:824-844
+	"l2tp": {"help", "add", "delete", "show", "lst", "list"},
+	// ip/ipfou.c:329-350
+	"fou": {"help", "add", "delete", "show"},
+	// ip/ipila.c:288-311
+	"ila": {"help", "add", "delete", "show", "lst", "list"},
+	// ip/ipmacsec.c:1188-1214
+	"macsec": {"help", "show", "add", "set", "delete", "offload"},
+	// ip/tcp_metrics.c:52-59 and :521-537
+	"tcp_metrics": {"list", "lst", "show", "delete", "remove", "flush", "help"},
+	// ip/iptoken.c:180-202
+	"token": {"list", "lst", "show", "set", "add", "delete", "get", "help"},
+	// ip/ipmroute.c:314-326
+	"mroute": {"list", "show", "lst", "help"},
+	// ip/iprule.c:1262-1283, do_multirule, is do_iprule's chain.
+	"mrule": {"list", "lst", "show", "save", "restore", "add", "delete", "flush", "help"},
+	// ip/ipnetns.c:990-1044
+	"netns": {"list", "show", "lst", "list-id", "help", "add", "set", "delete", "identify", "pids", "exec", "monitor", "attach"},
+	// ip/ipseg6.c:205-249
+	"sr": {"help", "hmac", "tunsrc"},
+	// ip/ipmptcp.c:621-680
+	"mptcp": {"help", "endpoint", "limits", "monitor"},
+	// ip/ipioam6.c:269-408
+	"ioam": {"help=", "namespace=", "schema=", "monitor="},
+	// ip/ipmonitor.c's do_ipmonitor reads object words, not verbs.
+	"monitor": {},
+	// ip/ipxfrm.c:1554-1574
+	"xfrm": {"state", "sa", "policy", "monitor", "help"},
+}
+
+// listingVerbs are the show-kind verbs of the objects whose listing is not
+// show, list and lst: stats compares with strcmp and has show alone, fou and
+// macsec test show alone, netns serves list-id (its show, list and lst list
+// names goip does not read), and the rest have no listing at the top level.
+var listingVerbs = map[string][]string{
+	"stats":   {showVerbCst},
+	"fou":     {showVerbCst},
+	"macsec":  {showVerbCst},
+	"netns":   {netnsListIDVerbCst},
+	"sr":      nil,
+	"mptcp":   nil,
+	"ioam":    nil,
+	"monitor": nil,
+	"xfrm":    nil,
 }
 
 // objectVerbs is the chain the object table holds for name.
@@ -201,7 +247,7 @@ func TestVerbChains(t *testing.T) {
 
 	t.Run("positive/every_chain_lists", func(t *testing.T) {
 		// Each implemented object has show, list and lst, and only those
-		// are verbShow.
+		// are verbShow, but for listingVerbs' objects.
 		for _, o := range objects {
 			if o.run == nil {
 				continue
@@ -214,8 +260,8 @@ func TestVerbChains(t *testing.T) {
 			}
 			slices.Sort(shows)
 			want := []string{listVerbCst, lstVerbCst, showVerbCst}
-			if o.name == "stats" {
-				want = []string{showVerbCst}
+			if w, ok := listingVerbs[o.name]; ok {
+				want = w
 			}
 			if !slices.Equal(shows, want) {
 				t.Errorf("%s show verbs %q, want %q", o.name, shows, want)

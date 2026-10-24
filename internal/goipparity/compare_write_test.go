@@ -29,16 +29,115 @@ const (
 	// addrRestoreSlugPrefixCst names a restore row, whose corpus slug is
 	// restore_ and the rest, under tdAddrSave.
 	addrRestoreSlugPrefixCst = "addr_restore_"
-	tdAddrSave               = "../../pkg/xtcpnl/testdata/7_1_4/link-write/addr-save"
-	pcapGlobalHdrCst         = 24
-	pcapRecordHdrCst         = 16
+	// routeRestoreSlugCst is G2-T02's one route restore row.
+	routeRestoreSlugCst = "route_restore"
+	// routeFlushSlugCst and routeFlushStatsSlugCst are G2-T03's flush write
+	// rows, both on route_flush's capture.
+	routeFlushSlugCst      = "route_flush"
+	routeFlushStatsSlugCst = "route_flush_stats"
+	// neighWriteSlugPrefixCst names G3-T01's neigh write rows, each on the
+	// capture of its own slug under tdRtnl; neighFlushSlugCst and
+	// neighFlushStatsSlugCst are its flush write rows, both on neigh_flush.
+	neighWriteSlugPrefixCst = "neigh_"
+	neighFlushSlugCst       = "neigh_flush"
+	neighFlushStatsSlugCst  = "neigh_flush_stats"
+	// ruleWriteSlugPrefixCst names G3-T02's rule write rows, each on the
+	// capture of its own slug under tdRtnl but the selector adds, which
+	// share ruleSelectorsSlugCst's; ruleFlushSlugCst and ruleRestoreSlugCst
+	// are its flush and restore rows.
+	ruleWriteSlugPrefixCst = "rule_"
+	ruleSelectorsSlugCst   = "rule_add_selectors"
+	ruleFlushSlugCst       = "rule_flush"
+	ruleRestoreSlugCst     = "rule_restore"
+	// nexthopWriteSlugPrefixCst names G3-T03's nexthop write rows, each on
+	// the capture of its own slug under tdRtnl; nexthopFlushSlugCst is its
+	// flush write row, on a single-nexthops cut of nexthop_flush's.
+	nexthopWriteSlugPrefixCst = "nexthop_"
+	nexthopFlushSlugCst       = "nexthop_flush"
+	// addrLabelWriteSlugPrefixCst names G3-T04's addrlabel write rows, each
+	// on the capture of its own slug under tdRtnl; addrLabelFlushSlugCst is
+	// its flush write row.
+	addrLabelWriteSlugPrefixCst = "addrlabel_"
+	addrLabelFlushSlugCst       = "addrlabel_flush"
+	// ntableWriteSlugPrefixCst and statsSetSlugPrefixCst name G3-T05's
+	// ntable and stats write rows, each on the capture of its own slug under
+	// tdRtnl.
+	ntableWriteSlugPrefixCst = "ntable_change"
+	statsSetSlugPrefixCst    = "stats_set_"
+	// linkAltnameSlugPrefixCst names G3-T06's link property rows, each on
+	// the capture of its own slug under tdRtnl.
+	linkAltnameSlugPrefixCst = "link_altname_"
+	// tokenWriteSlugPrefixCst names G4-T03's token write rows, each on the
+	// capture of its own slug under tdRtnl.
+	tokenWriteSlugPrefixCst = "token_set"
+	// netnsSetSlugCst is G4-T04's netns set row, on the head of its
+	// capture under tdRtnl.
+	netnsSetSlugCst = "netns_set"
+	// tcpmSlugPrefixCst names G6-T01's tcp_metrics rows, each on the
+	// capture of its own slug under tdGenl; tcpmFlushPrefixSlugCst and
+	// tcpmFlushV6SlugCst are its flush rows that dump, and
+	// tcpmFlushAllSlugCst its flush of all, one acked DEL.
+	tcpmSlugPrefixCst      = "tcpm_"
+	tcpmFlushAllSlugCst    = "tcpm_flush_all"
+	tcpmFlushPrefixSlugCst = "tcpm_flush_prefix"
+	tcpmFlushV6SlugCst     = "tcpm_flush_v6"
+	// srSlugPrefixCst names G6-T02's sr rows, likewise each on its own
+	// slug's capture under tdGenl.
+	srSlugPrefixCst = "sr_"
+	// ioamSlugPrefixCst names G6-T03's ioam rows, likewise, and
+	// mptcpSlugPrefixCst G6-T04's mptcp rows, fouSlugPrefixCst G6-T05's
+	// fou rows, ilaSlugPrefixCst G6-T06's ila rows, l2tpSlugPrefixCst
+	// G6-T07's l2tp rows and macsecSlugPrefixCst G6-T08's macsec rows.
+	ioamSlugPrefixCst   = "ioam_"
+	mptcpSlugPrefixCst  = "mptcp_"
+	fouSlugPrefixCst    = "fou_"
+	ilaSlugPrefixCst    = "ila_"
+	l2tpSlugPrefixCst   = "l2tp_"
+	macsecSlugPrefixCst = "macsec_"
+	// xfrmDeleteallSlugCst is G7-T02's deleteall row, whose DELSAs ask for
+	// no ack, and xfrmFlushSlugCst and xfrmFlushAhSlugCst its flush rows,
+	// one acked FLUSHSA each.
+	xfrmDeleteallSlugCst = "xfrm_state_deleteall"
+	xfrmFlushSlugCst     = "xfrm_state_flush"
+	xfrmFlushAhSlugCst   = "xfrm_state_flush_proto_ah"
+	// xfrmPolicyDeleteallSlugCst is G7-T04's deleteall row, whose
+	// DELPOLICYs ask for no ack, and xfrmPolicyFlushSlugCst and
+	// xfrmPolicyFlushEmptySlugCst its flush rows, one acked FLUSHPOLICY each.
+	xfrmPolicyDeleteallSlugCst  = "xfrm_policy_deleteall"
+	xfrmPolicyFlushSlugCst      = "xfrm_policy_flush"
+	xfrmPolicyFlushEmptySlugCst = "xfrm_policy_flush_empty"
+	// genlProtoCst is NETLINK_GENERIC, and xfrmProtoCst NETLINK_XFRM.
+	genlProtoCst = 16
+	xfrmProtoCst = 6
+	// xfrmMsgDelSACst is XFRM_MSG_DELSA, and xfrmMsgDelPolicyCst
+	// XFRM_MSG_DELPOLICY.
+	xfrmMsgDelSACst     = 17
+	xfrmMsgDelPolicyCst = 20
+	tdAddrSave          = "../../pkg/xtcpnl/testdata/7_1_4/link-write/addr-save"
+	// tdRtnl is the C1 rtnetlink corpus, route_restore\'s among it.
+	tdRtnl           = "../../pkg/xtcpnl/testdata/7_1_4/link-write/rtnl"
+	pcapGlobalHdrCst = 24
+	pcapRecordHdrCst = 16
 	// nlmonHdrCst is the cooked header LINKTYPE_NETLINK puts before each
 	// datagram.
 	nlmonHdrCst = 16
 	// rtmNewAddrCst, rtmDelAddrCst and nlmFRequestCst are RTM_NEWADDR,
 	// RTM_DELADDR and NLM_F_REQUEST.
 	rtmNewAddrCst  = 20
+	rtmNewRouteCst = 24
+	rtmDelRouteCst = 25
 	rtmDelAddrCst  = 21
+	rtmDelNeighCst = 29
+	rtmNewRuleCst  = 32
+	rtmDelRuleCst  = 33
+	// rtmNewNexthopCst and rtmDelNexthopCst are RTM_NEWNEXTHOP and
+	// RTM_DELNEXTHOP.
+	rtmNewNexthopCst = 104
+	rtmDelNexthopCst = 105
+	// rtmDelAddrLabelCst is RTM_DELADDRLABEL.
+	rtmDelAddrLabelCst = 73
+	// rtmGetNsidCst is RTM_GETNSID.
+	rtmGetNsidCst  = 90
 	nlmFRequestCst = 0x1
 	// nlMsgHdrCst is sizeof(struct nlmsghdr). Spelled here because this
 	// package may not import pkg/xtcpnl (TestParityCannotOpenASocket).
@@ -75,7 +174,7 @@ func pcapRecords(t *testing.T, b []byte) []int {
 }
 
 // dropDelRecords returns a pcap without the records that carry RTM_DELADDR
-// requests: a flush capture less its DEL batch, which is what goip sends
+// or RTM_DELROUTE requests: a flush capture less its DEL batch, which is what goip sends
 // while it writes the batch to GOIP_WRITE_OUT.
 func dropDelRecords(t *testing.T, b []byte) []byte {
 	t.Helper()
@@ -87,7 +186,11 @@ func dropDelRecords(t *testing.T, b []byte) []byte {
 			end = offs[i+1]
 		}
 		msg := off + pcapRecordHdrCst + nlmonHdrCst
-		if msg+8 <= end && binary.LittleEndian.Uint16(b[msg+4:msg+6]) == rtmDelAddrCst &&
+		typ := uint16(0)
+		if msg+8 <= end {
+			typ = binary.LittleEndian.Uint16(b[msg+4 : msg+6])
+		}
+		if (typ == rtmDelAddrCst || typ == rtmDelRouteCst || typ == rtmDelNeighCst) &&
 			binary.LittleEndian.Uint16(b[msg+6:msg+8])&nlmFRequestCst != 0 {
 			continue
 		}
@@ -125,6 +228,9 @@ type writeRowFiles struct {
 
 func corpusWriteRow(t *testing.T, c Command) writeRowFiles {
 	t.Helper()
+	if c.Proto == ProtoXfrmCst {
+		return corpusXfrmWriteRow(t, c)
+	}
 	dir := filepath.Join(tdLinkWrite, strings.TrimPrefix(c.Slug, linkWriteSlugPrefixCst))
 	if slug, ok := strings.CutPrefix(c.Slug, routeWriteSlugPrefixCst); ok {
 		dir = filepath.Join(tdRouteWrite, slug)
@@ -136,7 +242,64 @@ func corpusWriteRow(t *testing.T, c Command) writeRowFiles {
 		return corpusFlushRow(t, c, filepath.Join(tdAddrFlush, "flush_"+slug))
 	}
 	if slug, ok := strings.CutPrefix(c.Slug, addrRestoreSlugPrefixCst); ok {
-		return corpusRestoreRow(t, c, filepath.Join(tdAddrSave, "restore_"+slug))
+		return corpusRestoreRow(t, c, filepath.Join(tdAddrSave, "restore_"+slug), rtmNewAddrCst)
+	}
+	if c.Slug == routeFlushSlugCst || c.Slug == routeFlushStatsSlugCst {
+		return corpusFlushRow(t, c, filepath.Join(tdRtnl, "route_flush"))
+	}
+	if c.Slug == routeRestoreSlugCst {
+		return corpusRestoreRow(t, c, filepath.Join(tdRtnl, "route_restore"), rtmNewRouteCst)
+	}
+	if c.Slug == neighFlushSlugCst || c.Slug == neighFlushStatsSlugCst {
+		return corpusFlushRow(t, c, filepath.Join(tdRtnl, neighFlushSlugCst))
+	}
+	if strings.HasPrefix(c.Slug, neighWriteSlugPrefixCst) {
+		dir = filepath.Join(tdRtnl, c.Slug)
+	}
+	if c.Slug == ruleFlushSlugCst {
+		// Each DEL is acked, so goip's capture is ip's cut at the first.
+		f := corpusFlushRow(t, c, filepath.Join(tdRtnl, ruleFlushSlugCst))
+		f.pcaps[SideGoip] = keepBeforeRequest(t, f.pcaps[SideIPA], rtmDelRuleCst)
+		return f
+	}
+	if c.Slug == ruleRestoreSlugCst {
+		return corpusRestoreRow(t, c, filepath.Join(tdRtnl, ruleRestoreSlugCst), rtmNewRuleCst)
+	}
+	if i, ok := ruleSelectorIndex[c.Slug]; ok {
+		return corpusRuleSelectorRow(t, i)
+	}
+	if strings.HasPrefix(c.Slug, ruleWriteSlugPrefixCst) {
+		dir = filepath.Join(tdRtnl, c.Slug)
+	}
+	if c.Slug == nexthopFlushSlugCst {
+		f := corpusFlushRow(t, c, nexthopSinglesFlushDir(t))
+		f.pcaps[SideGoip] = keepBeforeRequest(t, f.pcaps[SideIPA], rtmDelNexthopCst)
+		return f
+	}
+	if strings.HasPrefix(c.Slug, nexthopWriteSlugPrefixCst) {
+		dir = filepath.Join(tdRtnl, c.Slug)
+	}
+	if c.Slug == addrLabelFlushSlugCst {
+		// Each copy is acked, so goip's capture is ip's cut at the first.
+		f := corpusFlushRow(t, c, filepath.Join(tdRtnl, addrLabelFlushSlugCst))
+		f.pcaps[SideGoip] = keepBeforeRequest(t, f.pcaps[SideIPA], rtmDelAddrLabelCst)
+		return f
+	}
+	if c.Slug == netnsSetSlugCst {
+		return corpusNetnsSetRow(t)
+	}
+	if strings.HasPrefix(c.Slug, tcpmSlugPrefixCst) || strings.HasPrefix(c.Slug, srSlugPrefixCst) ||
+		strings.HasPrefix(c.Slug, ioamSlugPrefixCst) || strings.HasPrefix(c.Slug, mptcpSlugPrefixCst) ||
+		strings.HasPrefix(c.Slug, fouSlugPrefixCst) || strings.HasPrefix(c.Slug, ilaSlugPrefixCst) ||
+		strings.HasPrefix(c.Slug, l2tpSlugPrefixCst) || strings.HasPrefix(c.Slug, macsecSlugPrefixCst) {
+		return corpusGenlWriteRow(t, c)
+	}
+	if strings.HasPrefix(c.Slug, addrLabelWriteSlugPrefixCst) ||
+		strings.HasPrefix(c.Slug, ntableWriteSlugPrefixCst) ||
+		strings.HasPrefix(c.Slug, statsSetSlugPrefixCst) ||
+		strings.HasPrefix(c.Slug, linkAltnameSlugPrefixCst) ||
+		strings.HasPrefix(c.Slug, tokenWriteSlugPrefixCst) {
+		dir = filepath.Join(tdRtnl, c.Slug)
 	}
 	ipPcap := mustReadBytes(t, filepath.Join(dir, "ip.pcap"))
 	rc := strings.TrimSpace(mustRead(t, filepath.Join(dir, "ip.rc")))
@@ -154,6 +317,227 @@ func corpusWriteRow(t *testing.T, c Command) writeRowFiles {
 		pcaps: map[string][]byte{SideIPA: ipPcap, SideGoip: dropLastRecords(t, ipPcap, 2), SideIPB: ipPcap},
 		rcs:   map[string]string{SideIPA: rc, SideGoip: "0", SideIPB: rc},
 		write: writeRequest(w.Writes[0], 1),
+	}
+}
+
+// corpusGenlWriteRow is a genl write row's files as a perfect run would
+// leave them, its capture read as NETLINK_GENERIC. A tcp_metrics delete or
+// flush of all, and an sr set, is one acked write, the last two records, so
+// goip's capture is ip's without them. A prefix flush's DELs ask for no
+// ack, so goip's is ip's without the DELs' records, its second dump kept.
+// Every stdout is empty.
+func corpusGenlWriteRow(t *testing.T, c Command) writeRowFiles {
+	t.Helper()
+	dir := filepath.Join(tdGenl, c.Slug)
+	ipPcap := mustReadBytes(t, filepath.Join(dir, "ip.pcap"))
+	capture, err := nlparity.ParseCaptureFile(filepath.Join(dir, "ip.pcap"), genlProtoCst)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, err := nlparity.SplitWrites(nlparity.SegmentCapture(capture), c.WriteCount())
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := make([]byte, 0, len(w.Writes)*nlMsgHdrCst)
+	var seq uint32
+	for _, m := range w.Writes {
+		seq++
+		file = append(file, writeRequest(m, seq)...)
+	}
+	goip := dropLastRecords(t, ipPcap, 2)
+	if c.Slug == tcpmFlushPrefixSlugCst || c.Slug == tcpmFlushV6SlugCst {
+		goip = dropGenlRequests(t, ipPcap, w.Writes[0].Hdr.Type, w.Writes[0].Body[0])
+	}
+	rc := strings.TrimSpace(mustRead(t, filepath.Join(dir, "ip.rc")))
+	return writeRowFiles{
+		pcaps: map[string][]byte{SideIPA: ipPcap, SideGoip: goip, SideIPB: ipPcap},
+		rcs:   map[string]string{SideIPA: rc, SideGoip: "0", SideIPB: rc},
+		write: file,
+	}
+}
+
+// corpusXfrmWriteRow is an XFRM write row's files as a perfect run would
+// leave them, its capture the C3 corpus's, its slug without xfrm_, read as
+// NETLINK_XFRM. A write is one request and its answer, the last two
+// records, so goip's capture is ip's without them; deleteall's DELSAs ask
+// for no ack, so goip's is ip's without their datagram, its second dump
+// kept. Every stdout is empty.
+func corpusXfrmWriteRow(t *testing.T, c Command) writeRowFiles {
+	t.Helper()
+	dir := filepath.Join(tdXfrm, strings.TrimPrefix(c.Slug, xfrmSlugPrefixCst))
+	ipPcap := mustReadBytes(t, filepath.Join(dir, "ip.pcap"))
+	capture, err := nlparity.ParseCaptureFile(filepath.Join(dir, "ip.pcap"), xfrmProtoCst)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, err := nlparity.SplitWrites(nlparity.SegmentCapture(capture), c.WriteCount())
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := make([]byte, 0, len(w.Writes)*nlMsgHdrCst)
+	var seq uint32
+	for _, m := range w.Writes {
+		seq++
+		file = append(file, writeRequest(m, seq)...)
+	}
+	goip := dropLastRecords(t, ipPcap, 2)
+	switch c.Slug {
+	case xfrmDeleteallSlugCst:
+		goip = dropRequestsOfType(t, ipPcap, xfrmMsgDelSACst)
+	case xfrmPolicyDeleteallSlugCst:
+		goip = dropRequestsOfType(t, ipPcap, xfrmMsgDelPolicyCst)
+	}
+	rc := strings.TrimSpace(mustRead(t, filepath.Join(dir, "ip.rc")))
+	return writeRowFiles{
+		pcaps: map[string][]byte{SideIPA: ipPcap, SideGoip: goip, SideIPB: ipPcap},
+		rcs:   map[string]string{SideIPA: rc, SideGoip: "0", SideIPB: rc},
+		write: file,
+	}
+}
+
+// dropRequestsOfType returns a pcap without the records that open with a
+// request of type typ: an XFRM deleteall capture less its DELSA or
+// DELPOLICY batch.
+func dropRequestsOfType(t *testing.T, b []byte, typ uint16) []byte {
+	t.Helper()
+	out := append([]byte(nil), b[:pcapGlobalHdrCst]...)
+	offs := pcapRecords(t, b)
+	for i, off := range offs {
+		end := len(b)
+		if i+1 < len(offs) {
+			end = offs[i+1]
+		}
+		msg := off + pcapRecordHdrCst + nlmonHdrCst
+		if msg+nlMsgHdrCst <= end && binary.LittleEndian.Uint16(b[msg+4:msg+6]) == typ &&
+			binary.LittleEndian.Uint16(b[msg+6:msg+8])&nlmFRequestCst != 0 {
+			continue
+		}
+		out = append(out, b[off:end]...)
+	}
+	return out
+}
+
+// dropGenlRequests returns a pcap without the records that carry a request
+// of the generic netlink family typ and command cmd: a tcp_metrics flush
+// capture less its DEL batch.
+func dropGenlRequests(t *testing.T, b []byte, typ uint16, cmd byte) []byte {
+	t.Helper()
+	out := append([]byte(nil), b[:pcapGlobalHdrCst]...)
+	offs := pcapRecords(t, b)
+	for i, off := range offs {
+		end := len(b)
+		if i+1 < len(offs) {
+			end = offs[i+1]
+		}
+		msg := off + pcapRecordHdrCst + nlmonHdrCst
+		if msg+nlMsgHdrCst < end && binary.LittleEndian.Uint16(b[msg+4:msg+6]) == typ &&
+			binary.LittleEndian.Uint16(b[msg+6:msg+8])&nlmFRequestCst != 0 && b[msg+nlMsgHdrCst] == cmd {
+			continue
+		}
+		out = append(out, b[off:end]...)
+	}
+	return out
+}
+
+// corpusNetnsSetRow is netns_set's files as a perfect run would leave them.
+// The capture ran `ip netns set c1set 7 && ip netns list-id`, so ip's side
+// is its head, the RTM_NEWNSID and its ack, cut at list-id's first
+// RTM_GETNSID; goip's side sends nothing, and its file is the RTM_NEWNSID.
+// ip.out is list-id's, so every stdout is empty.
+func corpusNetnsSetRow(t *testing.T) writeRowFiles {
+	t.Helper()
+	dir := filepath.Join(tdRtnl, netnsSetSlugCst)
+	ipPcap := keepBeforeRequest(t, mustReadBytes(t, filepath.Join(dir, "ip.pcap")), rtmGetNsidCst)
+	path := filepath.Join(t.TempDir(), "ip.pcap")
+	if err := os.WriteFile(path, ipPcap, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	capture, err := nlparity.ParseRouteCaptureFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, err := nlparity.SplitWrites(nlparity.SegmentCapture(capture), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rc := strings.TrimSpace(mustRead(t, filepath.Join(dir, "ip.rc")))
+	return writeRowFiles{
+		pcaps: map[string][]byte{SideIPA: ipPcap, SideGoip: dropLastRecords(t, ipPcap, 2), SideIPB: ipPcap},
+		rcs:   map[string]string{SideIPA: rc, SideGoip: "0", SideIPB: rc},
+		write: writeRequest(w.Writes[0], 1),
+	}
+}
+
+// nexthopSinglesFlushDir is nexthop_flush's capture as the matrix row,
+// which flushes the two single nexthops alone, leaves it: the groups dump's
+// reply less resilient group 20 (its DONE alone), and without group 20's DEL
+// and ack, so the two DELs after the full dump are the one run of writes. ip
+// then prints "Flushed 2 nexthops".
+func nexthopSinglesFlushDir(t *testing.T) string {
+	t.Helper()
+	src := filepath.Join(tdRtnl, nexthopFlushSlugCst)
+	all := mustReadBytes(t, filepath.Join(src, "ip.pcap"))
+	offs := append(pcapRecords(t, all), len(all))
+	if len(offs) != 11 {
+		t.Fatalf("%s holds %d records, want 10", nexthopFlushSlugCst, len(offs)-1)
+	}
+	out := append([]byte(nil), all[:offs[1]]...)
+	// Record 2 is [NEWNEXTHOP group 20, DONE]: keep its headers and the DONE.
+	rec := append([]byte(nil), all[offs[1]:offs[2]]...)
+	msg := pcapRecordHdrCst + nlmonHdrCst
+	if binary.LittleEndian.Uint16(rec[msg+4:msg+6]) != rtmNewNexthopCst {
+		t.Fatalf("%s record 2 does not open with RTM_NEWNEXTHOP", nexthopFlushSlugCst)
+	}
+	n := binary.LittleEndian.Uint32(rec[msg : msg+4])
+	for _, at := range []int{8, 12} { // incl_len and orig_len
+		binary.LittleEndian.PutUint32(rec[at:at+4], binary.LittleEndian.Uint32(rec[at:at+4])-n)
+	}
+	rec = append(rec[:msg], rec[msg+int(n):]...)
+	out = append(append(out, rec...), all[offs[4]:]...)
+	dir := t.TempDir()
+	for name, b := range map[string][]byte{
+		"ip.pcap": out, "ip.rc": mustReadBytes(t, filepath.Join(src, "ip.rc")), "ip.out": []byte("Flushed 2 nexthops\n"),
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), b, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return dir
+}
+
+// ruleSelectorIndex is each selector add row's place in rule_add_selectors,
+// whose fourteen adds ran in this order, each a write and its ack.
+var ruleSelectorIndex = map[string]int{
+	"rule_add_from": 0, "rule_add_to": 1, "rule_add_tos": 2, "rule_add_dscp": 3, "rule_add_fwmark": 4,
+	"rule_add_iif": 5, "rule_add_oif": 6, "rule_add_uidrange": 7, "rule_add_ports": 8, "rule_add_goto": 9,
+	"rule_add_suppress": 10, "rule_add_protocol": 11, "rule_add_l3mdev": 12, "rule_add_flowlabel": 13,
+}
+
+// corpusRuleSelectorRow is one selector add's files as a perfect run would
+// leave them: ip's capture is rule_add_selectors' records 2i and 2i+1, the
+// add and its ack, goip's is empty, and its file is the add.
+func corpusRuleSelectorRow(t *testing.T, i int) writeRowFiles {
+	t.Helper()
+	dir := filepath.Join(tdRtnl, ruleSelectorsSlugCst)
+	all := mustReadBytes(t, filepath.Join(dir, "ip.pcap"))
+	offs := append(pcapRecords(t, all), len(all))
+	if len(offs) != 2*len(ruleSelectorIndex)+1 {
+		t.Fatalf("%s holds %d records, want %d", ruleSelectorsSlugCst, len(offs)-1, 2*len(ruleSelectorIndex))
+	}
+	ipPcap := append(append([]byte(nil), all[:pcapGlobalHdrCst]...), all[offs[2*i]:offs[2*i+2]]...)
+	capture, err := nlparity.ParseRouteCaptureFile(filepath.Join(dir, "ip.pcap"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, err := nlparity.SplitWrites(nlparity.SegmentCapture(capture), len(ruleSelectorIndex))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rc := strings.TrimSpace(mustRead(t, filepath.Join(dir, "ip.rc")))
+	return writeRowFiles{
+		pcaps: map[string][]byte{SideIPA: ipPcap, SideGoip: dropLastRecords(t, ipPcap, 2), SideIPB: ipPcap},
+		rcs:   map[string]string{SideIPA: rc, SideGoip: "0", SideIPB: rc},
+		write: writeRequest(w.Writes[i], 1),
 	}
 }
 
@@ -189,13 +573,13 @@ func corpusFlushRow(t *testing.T, c Command, dir string) writeRowFiles {
 }
 
 // corpusRestoreRow is a restore row's files as a perfect run would leave
-// them: goip's capture is ip's link dump alone, and its file is ip's writes,
-// each at the next seq. ip's stdout is empty; its stderr, the kernel's EEXIST
-// answers, is not compared.
-func corpusRestoreRow(t *testing.T, c Command, dir string) writeRowFiles {
+// them: goip's capture is ip's link dump alone, and its file is ip's writes
+// of type typ, each at the next seq. ip's stdout is empty; its stderr, the
+// kernel's EEXIST answers, is not compared.
+func corpusRestoreRow(t *testing.T, c Command, dir string, typ uint16) writeRowFiles {
 	t.Helper()
 	f := corpusFlushRow(t, c, dir)
-	f.pcaps[SideGoip] = keepBeforeRequest(t, f.pcaps[SideIPA], rtmNewAddrCst)
+	f.pcaps[SideGoip] = keepBeforeRequest(t, f.pcaps[SideIPA], typ)
 	return f
 }
 

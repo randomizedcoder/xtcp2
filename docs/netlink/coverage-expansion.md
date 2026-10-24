@@ -513,7 +513,7 @@ see coverage-status.md's
 echoes the *originating* port and sequence into notifications it emits on behalf
 of a userspace change, so a pid/seq filter silently drops exactly the events an
 operator caused. The full reasoning, with real captured values, is already
-written at `xtcpnl_rtnetlink_events.go:82-115` — read it rather than
+written at `xtcpnl_rtnetlink_events.go:90-123` — read it rather than
 re-deriving it.
 
 ## Integration testing: two layers

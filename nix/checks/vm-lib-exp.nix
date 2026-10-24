@@ -47,11 +47,33 @@
 # not cover what the guest runs or what the kernel answers;
 # TestAddrCaptureCorpusComplete pins that in the committed fixtures.
 #
+# scripts/rtnl-write-corpus-test.exp does the same for rtnl-write-corpus.exp,
+# the C1 rows (docs/netlink/goip-parity-gaps.md): slugs, readbacks, floors,
+# expected statuses and the event rows' monitor lines. TestRtnlWriteCorpus
+# pins the captured bytes.
+#
+# scripts/rtnl-read-corpus-test.exp does the same for rtnl-read-corpus.exp,
+# the C1-T03 reads: names, floors, the namespace's build steps and the
+# multicast route. TestRtnlReadCorpus pins the captured bytes.
+#
+# scripts/genl-write-corpus-test.exp does the same for genl-write-corpus.exp,
+# the C2 rows: slugs, floors, readbacks, statuses, the `tcp`, `hmac` and
+# IOAM trace pre steps, the monitor rows' commands and the generic protocol
+# of every readback. TestGenlTcpMetricsCorpus, TestGenlSeg6Corpus and
+# TestGenlIoam6Corpus pin the captured bytes.
+#
+# scripts/xfrm-write-corpus-test.exp does the same for xfrm-write-corpus.exp,
+# the C3 rows: slugs, floors, readbacks, statuses, keys and the XFRM
+# protocol of every readback. TestXfrmStateCorpus pins the captured bytes.
+#
 {
   pkgs,
   src,
 }:
 
+let
+  nlcap = import ../microvms/netlink-capture.nix { inherit pkgs; };
+in
 pkgs.runCommand "xtcp2-vm-lib-exp"
   {
     nativeBuildInputs = with pkgs; [
@@ -60,7 +82,13 @@ pkgs.runCommand "xtcp2-vm-lib-exp"
       expect
       gnugrep
       socat
-      (import ../microvms/netlink-capture.nix { inherit pkgs; })
+      nlcap
+      nlcap.xfrmmon
+      nlcap.espinudp
+      nlcap.ra
+      nlcap.tcp
+      nlcap.ioam
+      nlcap.mptcp
     ];
     inherit src;
   }
@@ -115,6 +143,14 @@ pkgs.runCommand "xtcp2-vm-lib-exp"
     expect nix/microvms/scripts/addr-topology-test.exp "$PORT" > addr.log 2>&1 || arc=$?
     crc=0
     expect nix/microvms/scripts/addr-corpus-test.exp > corpus.log 2>&1 || crc=$?
+    rrc=0
+    expect nix/microvms/scripts/rtnl-write-corpus-test.exp > rtnl.log 2>&1 || rrc=$?
+    rdrc=0
+    expect nix/microvms/scripts/rtnl-read-corpus-test.exp > rtnlread.log 2>&1 || rdrc=$?
+    grc=0
+    expect nix/microvms/scripts/genl-write-corpus-test.exp > genl.log 2>&1 || grc=$?
+    xrc=0
+    expect nix/microvms/scripts/xfrm-write-corpus-test.exp > xfrm.log 2>&1 || xrc=$?
 
     kill "$socat_pid" 2>/dev/null || true
     wait "$socat_pid" 2>/dev/null || true
@@ -152,5 +188,49 @@ pkgs.runCommand "xtcp2-vm-lib-exp"
       exit 1
     fi
 
-    cat result.log addr.log corpus.log > $out
+    grep -E '^(PASS|FAIL|===)' rtnl.log || true
+
+    if [ "$rrc" -ne 0 ] || ! grep -q 'RTNLCORPUS_TEST_PASS' rtnl.log; then
+      echo "" >&2
+      echo "vm-lib-exp: rtnl-write-corpus.exp regressed (expect exited $rrc)." >&2
+      echo "            The FAIL rows above name the broken behavior. Full" >&2
+      echo "            transcript:" >&2
+      cat rtnl.log >&2
+      exit 1
+    fi
+
+    grep -E '^(PASS|FAIL|===)' rtnlread.log || true
+
+    if [ "$rdrc" -ne 0 ] || ! grep -q 'RTNLREAD_TEST_PASS' rtnlread.log; then
+      echo "" >&2
+      echo "vm-lib-exp: rtnl-read-corpus.exp regressed (expect exited $rdrc)." >&2
+      echo "            The FAIL rows above name the broken behavior. Full" >&2
+      echo "            transcript:" >&2
+      cat rtnlread.log >&2
+      exit 1
+    fi
+
+    grep -E '^(PASS|FAIL|===)' genl.log || true
+
+    if [ "$grc" -ne 0 ] || ! grep -q 'GENLCORPUS_TEST_PASS' genl.log; then
+      echo "" >&2
+      echo "vm-lib-exp: genl-write-corpus.exp regressed (expect exited $grc)." >&2
+      echo "            The FAIL rows above name the broken behavior. Full" >&2
+      echo "            transcript:" >&2
+      cat genl.log >&2
+      exit 1
+    fi
+
+    grep -E '^(PASS|FAIL|===)' xfrm.log || true
+
+    if [ "$xrc" -ne 0 ] || ! grep -q 'XFRMCORPUS_TEST_PASS' xfrm.log; then
+      echo "" >&2
+      echo "vm-lib-exp: xfrm-write-corpus.exp regressed (expect exited $xrc)." >&2
+      echo "            The FAIL rows above name the broken behavior. Full" >&2
+      echo "            transcript:" >&2
+      cat xfrm.log >&2
+      exit 1
+    fi
+
+    cat result.log addr.log corpus.log rtnl.log rtnlread.log genl.log xfrm.log > $out
   ''

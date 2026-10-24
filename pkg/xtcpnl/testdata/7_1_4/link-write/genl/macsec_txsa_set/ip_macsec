@@ -1,0 +1,5 @@
+4: macsec0: protect on validate strict sc off sa off encrypt off send_sci on end_station off scb off replay off 
+    cipher suite: GCM-AES-128, using ICV length 16
+    TXSC: 0102030405060001 on SA 0
+        0: PN 50, state off, key 01000000000000000000000000000000
+    offload: off 

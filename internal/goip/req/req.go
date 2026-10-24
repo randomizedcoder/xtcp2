@@ -387,6 +387,15 @@ func RouteShowDump(family, protocol uint8, table, oif, seq uint32) ([]byte, erro
 	return xtcpnl.BuildDumpRouteRequestFilterProto(family, protocol, table, oif, seq)
 }
 
+// RouteGet is the RTM_GETROUTE single get behind `ip route get`
+// (iproute_get, ip/iproute.c:2043). Unlike RouteShowDump, `iif` IS on this
+// request, as RTA_IIF: a get asks the kernel to run an input lookup, where a
+// dump only filters what it prints. xtcpnl.BuildGetRouteRequest has the
+// captured forms.
+func RouteGet(g xtcpnl.RouteGet, seq uint32) ([]byte, error) {
+	return xtcpnl.BuildGetRouteRequest(g, seq)
+}
+
 // NeighShowDump delegates to the verified ndmsg dump builder, carrying the two
 // filters goip can reach: NDA_IFINDEX, for `ip neigh show dev NAME`, and
 // ndm_flags, for `ip neigh show proxy`.
@@ -434,6 +443,12 @@ func RouteShowDump(family, protocol uint8, table, oif, seq uint32) ([]byte, erro
 // answer where `ip` sent a request the capture records.
 func NeighShowDump(family, ndmFlags uint8, ifindex, seq uint32) ([]byte, error) {
 	return xtcpnl.BuildDumpNeighRequestFilter(family, ndmFlags, ifindex, seq)
+}
+
+// NeighGet delegates to the RTM_GETNEIGH single-get builder `ip neigh get`
+// sends (ipneigh_get).
+func NeighGet(g xtcpnl.NeighGet, seq uint32) ([]byte, error) {
+	return xtcpnl.BuildGetNeighRequest(g, seq)
 }
 
 // AddrRestoreLinkDump is ll_init_map's link dump, which `ip addr restore`
@@ -579,6 +594,14 @@ func NeighTblShowLinkDump(seq uint32) ([]byte, error) {
 	return xtcpnl.BuildDumpLinkRequestExt(unix.AF_UNSPEC, ExtMaskLLInitMap(), seq)
 }
 
+// TokenShowDump is `ip token list`'s dump, rtnl_linkdump_req(&rth,
+// AF_INET6) (ip/iptoken.c:104): rtnl_linkdump_req_filter_fn adds
+// IFLA_EXT_MASK only for AF_UNSPEC and AF_PACKET, so this is a bare 32-byte
+// ifinfomsg of family AF_INET6.
+func TokenShowDump(seq uint32) []byte {
+	return xtcpnl.BuildDumpLinkRequestFamily(unix.AF_INET6, seq)
+}
+
 // NetconfShowDump is `ip netconf show`'s dump, rtnl_netconfdump_req
 // (lib/libnetlink.c:500-515): a netconfmsg with only ncm_family set, no
 // attributes and no family substitution (ipnetconf passes preferred_family
@@ -629,11 +652,13 @@ func StatsShowXstatsSlaveDump(seq uint32) []byte {
 	return xtcpnl.BuildDumpStatsRequest(unix.AF_UNSPEC, 0, xtcpnl.StatsFilterXstatsSlave, seq)
 }
 
-// StatsShowLinkDump is the link dump ipstats triggers lazily via ll_index_to_name
-// (ip/ipstats.c:761) to turn an ifindex into a name. goip issues it up front, the
-// netconf idiom; it is byte-identical to NetconfShowLinkDump.
-func StatsShowLinkDump(seq uint32) ([]byte, error) {
-	return xtcpnl.BuildDumpLinkRequestExt(unix.AF_UNSPEC, ExtMaskLLInitMap(), seq)
+// LinkAfstatsDump is `ip link afstats`'s dump: rtnl_statsdump_req_filter with
+// filter_mask StatsFilterAfSpec (0x10) and nothing else (ip/iplink.c:1670,
+// :1707). `ip link xstats type bridge` and `type bridge_slave` send exactly
+// StatsShowXstatsDump's and StatsShowXstatsSlaveDump's bytes
+// (iplink_ifla_xstats, ip/iplink_xstats.c:61-67).
+func LinkAfstatsDump(seq uint32) []byte {
+	return xtcpnl.BuildDumpStatsRequest(unix.AF_UNSPEC, 0, xtcpnl.StatsFilterAfSpec, seq)
 }
 
 // StatsGetByIndex is the non-dump RTM_GETSTATS point get `ip stats show group link
@@ -672,10 +697,39 @@ func NexthopDump(family uint8, seq uint32) ([]byte, error) {
 	return xtcpnl.BuildDumpNexthopRequest(family, seq), nil
 }
 
+// NexthopBucketDump is `ip nexthop bucket show`'s RTM_GETNEXTHOPBUCKET dump,
+// nh_dump_bucket_filter's attributes appended. family is preferred_family.
+func NexthopBucketDump(family uint8, f xtcpnl.NexthopBucketDumpFilter, seq uint32) ([]byte, error) {
+	return xtcpnl.BuildDumpNexthopBucketRequest(family, f, seq)
+}
+
+// NexthopBucketGet is `ip nexthop bucket get`'s RTM_GETNEXTHOPBUCKET single
+// get for one bucket of one resilient group.
+func NexthopBucketGet(family uint8, id uint32, index uint16, seq uint32) ([]byte, error) {
+	return xtcpnl.BuildGetNexthopBucketRequest(family, id, index, seq)
+}
+
 // NexthopDumpFiltered is the wire-filtered RTM_GETNEXTHOP dump behind
 // `ip nexthop show { dev | master | vrf | groups | fdb }` — the same multipart
 // dump with nh_dump_filter's attrs appended. An empty filter is byte-identical to
 // NexthopDump. `protocol` is not here: it is a client-side filter over the reply.
 func NexthopDumpFiltered(family uint8, f xtcpnl.NexthopDumpFilter, seq uint32) ([]byte, error) {
 	return xtcpnl.BuildGetNexthopDumpRequest(family, f, seq)
+}
+
+// NsidByFD is netns_id_from_name's RTM_GETNSID (lib/namespace.c), one per
+// /run/netns entry in netns_map_init: NETNSA_FD alone, NLM_F_REQUEST alone.
+func NsidByFD(fd, seq uint32) ([]byte, error) {
+	return xtcpnl.BuildGetNsidByFDRequest(fd, seq)
+}
+
+// NsidGet is `ip netns list-id nsid N [target-nsid T]`'s RTM_GETNSID
+// (get_netnsid_from_netnsid, ip/ipnetns.c).
+func NsidGet(nsid, target int32, hasTarget bool, seq uint32) ([]byte, error) {
+	return xtcpnl.BuildGetNsidRequest(nsid, target, hasTarget, seq)
+}
+
+// NsidDump is `ip netns list-id [target-nsid T]`'s RTM_GETNSID dump.
+func NsidDump(target int32, hasTarget bool, seq uint32) ([]byte, error) {
+	return xtcpnl.BuildDumpNsidRequest(target, hasTarget, seq)
 }

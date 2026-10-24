@@ -9,9 +9,10 @@ import (
 
 // ErrRefusedOption is an option a read-only caller never serves: one that
 // would enter another namespace (-netns), read a file (-batch), force a
-// batch on (-force), size the socket (-rcvbuf), drive flush (-loops) or
-// print the usage (-help). Run implements -loops and -help; ResolveShow
-// refuses all six.
+// batch on (-force), size the socket (-rcvbuf), drive flush (-loops),
+// print the usage (-help) or stamp a monitor's lines (-timestamp,
+// -tshort). Run implements -loops, -help and the two stamps; ResolveShow
+// refuses all eight.
 var ErrRefusedOption = errors.New("option refused on a read-only path")
 
 // The display options' full spellings, which the chain, Resolved.Options and
@@ -35,6 +36,9 @@ type options struct {
 	help        bool
 	showStats   int
 	showDetails int
+	// timestamp and timestampShort count -timestamp and -tshort, which
+	// the monitors read.
+	timestamp, timestampShort int
 	// flushLoops is -loops N when haveFlushLoops is set.
 	flushLoops     int64
 	haveFlushLoops bool
@@ -114,8 +118,11 @@ var ipOptions = []ipOption{
 	{name: optDetailsCst, set: func(o *options, _ string) { o.showDetails++ }},
 	{name: "-resolve"},
 	{name: optOnelineCst, set: func(o *options, _ string) { o.oneline = true }},
-	{name: "-timestamp"},
-	{name: "-tshort"},
+	// -timestamp and -tshort (ip/ip.c:239-245) shape a monitor's lines;
+	// no object has a monitor a read-only caller serves, so ResolveShow
+	// refuses both. -tshort sets both counts, as ip's does.
+	{name: "-timestamp", refused: true, set: func(o *options, _ string) { o.timestamp++ }},
+	{name: "-tshort", refused: true, set: func(o *options, _ string) { o.timestamp++; o.timestampShort++ }},
 	{name: "-Version"},
 	{name: "-force", refused: true},
 	{name: "-batch", arg: "batch file", refused: true},

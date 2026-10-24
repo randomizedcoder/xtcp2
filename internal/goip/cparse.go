@@ -131,6 +131,12 @@ func getU32(arg string, base int) (uint32, bool) {
 	return uint32(v), ok
 }
 
+// getU64 is get_u64: strtoull, the whole argument, ULLONG_MAX with ERANGE
+// refused. With no maximum below it, "-1" is all ones, as strtoull wraps it.
+func getU64(arg string, base int) (uint64, bool) {
+	return cGetUnsigned(arg, base, math.MaxUint64)
+}
+
 // getLong is get_long: strtol, the whole argument, no ERANGE.
 func getLong(arg string, base int) (int64, bool) {
 	if arg == "" {

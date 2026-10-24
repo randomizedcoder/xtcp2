@@ -34,6 +34,54 @@ const (
 	tdEvents = "../../pkg/xtcpnl/testdata/7_1_4/netlink_route_events_link.pcap"
 )
 
+// genlReadbackRows are the genl read rows with no corpus capture of their
+// own slug, G6-T03's to G6-T08's -j shows, macsec's -s shows and ila's
+// show of one locator to match: each is laid out on the
+// readback dump of the same command a write row's capture holds, or on the
+// capture of the same show without -j, the same requests.
+var genlReadbackRows = map[string]string{
+	"ioam_ns_show_json":           "ioam_ns_set_schema/netlink_generic_ns.pcap",
+	"ioam_sc_show_json":           "ioam_ns_set_schema/netlink_generic_sc.pcap",
+	"mptcp_endpoint_show_json":    "mptcp_endpoint_show/ip.pcap",
+	"mptcp_endpoint_get_json":     "mptcp_endpoint_get/ip.pcap",
+	"mptcp_limits_show_json":      "mptcp_limits_show/ip.pcap",
+	"fou_show_json":               "fou_show/ip.pcap",
+	"fou_show_peer_json":          "fou_add_local_peer/netlink_generic_fou.pcap",
+	"fou_show_dev_json":           "fou_add_dev/netlink_generic_fou.pcap",
+	"ila_show_both":               "ila_add_same_match_dev/netlink_generic_ila.pcap",
+	"ila_show_both_json":          "ila_add_same_match_dev/netlink_generic_ila.pcap",
+	"ila_show_dev_json":           "ila_add_dev/netlink_generic_ila.pcap",
+	"ila_show_opts_json":          "ila_add_opts/netlink_generic_ila.pcap",
+	"l2tp_tunnel_show_json":       "l2tp_tunnel_show/ip.pcap",
+	"l2tp_tunnel_show_v6_json":    "l2tp_tunnel_add_v6/netlink_generic_tunnel.pcap",
+	"l2tp_session_show_json":      "l2tp_session_show/ip.pcap",
+	"l2tp_session_show_opts_json": "l2tp_session_add_opts/netlink_generic_session.pcap",
+	"macsec_show_json":            "macsec_show/ip.pcap",
+	"macsec_show_txsa_json":       "macsec_txsa_add/netlink_generic_macsec.pcap",
+	"macsec_show_rxsa_json":       "macsec_rxsa_add/netlink_generic_macsec.pcap",
+	"macsec_show_xpn_json":        "macsec_xpn_txsa_add/netlink_generic_macsec.pcap",
+	"macsec_show_stats":           "macsec_show/ip.pcap",
+	"macsec_show_rxsa_stats":      "macsec_rxsa_add/netlink_generic_macsec.pcap",
+	"macsec_show_txsa_stats_json": "macsec_txsa_add/netlink_generic_macsec.pcap",
+}
+
+// writeGenlReadRow lays out an implemented generic netlink or XFRM read
+// row as a perfect run would: every side its slug's corpus capture and
+// ip.out, or its readback and the same text. An XFRM row's capture is the
+// C3 corpus's, its slug without xfrm_.
+func writeGenlReadRow(t *testing.T, dir string, c Command) {
+	t.Helper()
+	if rb, ok := genlReadbackRows[c.Slug]; ok {
+		writeTriple(t, dir, c, sameAll(filepath.Join(tdGenl, rb)), sameAll(""))
+		return
+	}
+	src := filepath.Join(tdGenl, c.Slug)
+	if c.Proto == ProtoXfrmCst {
+		src = filepath.Join(tdXfrm, strings.TrimPrefix(c.Slug, xfrmSlugPrefixCst))
+	}
+	writeTriple(t, dir, c, sameAll(filepath.Join(src, "ip.pcap")), sameAll(mustRead(t, filepath.Join(src, "ip.out"))))
+}
+
 // writeTriple lays out one command's six files in dir. A side whose pcap or
 // text is the empty string is not written at all, which is how the MISSING
 // rows are built.
@@ -165,6 +213,27 @@ func testAllowlist(t *testing.T) *nlparity.Allowlist {
 }
 
 // go test ./internal/goipparity/ -run TestCompareDir
+// The C2 empty shows of two genl families, run in the dump topology.
+const (
+	tdGenl = "../../pkg/xtcpnl/testdata/7_1_4/link-write/genl"
+	// tdXfrm is the C3 XFRM corpus, and xfrmSlugPrefixCst what an XFRM
+	// row's slug adds ahead of its corpus row's.
+	tdXfrm            = "../../pkg/xtcpnl/testdata/7_1_4/link-write/xfrm"
+	xfrmSlugPrefixCst = "xfrm_"
+	tdGenlFouShow     = tdGenl + "/fou_show_empty/ip.pcap"
+	tdGenlMacsecShow  = tdGenl + "/macsec_show_empty/ip.pcap"
+)
+
+// lookupCmd is Lookup, failing the test on a name the table lacks.
+func lookupCmd(t *testing.T, name string) Command {
+	t.Helper()
+	c, err := Lookup(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
+
 func TestCompareDir(t *testing.T) {
 	al := testAllowlist(t)
 	linkOut := mustRead(t, tdGuestLinkOut)
@@ -193,6 +262,29 @@ func TestCompareDir(t *testing.T) {
 				writeTriple(t, dir, linkShow, sameAll(tdGuestLink), sameAll(linkOut))
 			},
 			want: map[string]Status{"link show": StatusPass},
+		},
+		{
+			description: "positive: an ip stand-in genl row over three copies of a C2 capture is a clean pass",
+			setup: func(t *testing.T, dir string) {
+				writeTriple(t, dir, lookupCmd(t, "macsec show"), sameAll(tdGenlMacsecShow), sameAll(""))
+			},
+			want: map[string]Status{"macsec show": StatusPass},
+		},
+		{
+			// fou's empty show in macsec's goip slot: another family at the same
+			// position, a presence finding, on an ungated row.
+			description: "negative: an ip stand-in genl row whose goip side asked another family warns",
+			setup: func(t *testing.T, dir string) {
+				writeTriple(t, dir, lookupCmd(t, "macsec show"), map[string]string{
+					SideIPA: tdGenlMacsecShow, SideGoip: tdGenlFouShow, SideIPB: tdGenlMacsecShow,
+				}, sameAll(""))
+			},
+			want: map[string]Status{"macsec show": StatusWarn},
+		},
+		{
+			description: "corner: an ip stand-in genl row with no captures is MISSING, not SKIP",
+			setup:       func(*testing.T, string) {},
+			want:        map[string]Status{"macsec show": StatusMissing},
 		},
 		{
 			description: "positive: two commands both clean in one directory",
@@ -370,11 +462,12 @@ func TestCompareDir(t *testing.T) {
 				if _, named := tt.want[name]; named {
 					continue
 				}
+				compared := r.Command.Implemented || r.Command.IPStandIn
 				switch {
-				case !r.Command.Implemented && r.Status != StatusSkip:
+				case !compared && r.Status != StatusSkip:
 					t.Errorf("%q is unimplemented but status = %s (err=%v)",
 						name, r.Status, r.Err)
-				case r.Command.Implemented &&
+				case compared &&
 					r.Status != StatusMissing && r.Status != StatusPass:
 					t.Errorf("%q status = %s, expected MISSING or PASS (err=%v)",
 						name, r.Status, r.Err)
@@ -717,11 +810,19 @@ func TestRender(t *testing.T) {
 			description: "positive: every implemented command clean reports all three sentinels green",
 			setup: func(t *testing.T, dir string) {
 				for _, c := range Commands() {
+					if c.IPStandIn {
+						writeTriple(t, dir, c, sameAll(tdGenlFouShow), sameAll(""))
+						continue
+					}
 					if !c.Implemented {
 						continue
 					}
 					if c.Write {
 						writeCleanWriteRow(t, dir, c)
+						continue
+					}
+					if c.Proto != "" {
+						writeGenlReadRow(t, dir, c)
 						continue
 					}
 					src, out := tdGuestAddr, addrOut
@@ -781,6 +882,10 @@ func TestRender(t *testing.T) {
 					switch {
 					case c.Write:
 						writeCleanWriteRow(t, dir, c)
+					case c.IPStandIn:
+						writeTriple(t, dir, c, sameAll(tdGenlFouShow), sameAll(""))
+					case c.Implemented && c.Proto != "":
+						writeGenlReadRow(t, dir, c)
 					case c.Implemented && c.Name != "link show" && c.Name != "addr show":
 						writeTriple(t, dir, c, sameAll(tdGuestAddr), sameAll(addrOut))
 					}
@@ -966,6 +1071,44 @@ func TestRenderNilAllowlist(t *testing.T) {
 				}
 			}
 			t.Fatal("no result for `link show`")
+		})
+	}
+}
+
+// TestCompareOneProtocol is a row's protocol deciding how its captures are
+// read: macsec's empty show, three copies, read as each.
+//
+// go test ./internal/goipparity/ -run TestCompareOneProtocol
+func TestCompareOneProtocol(t *testing.T) {
+	macsec := lookupCmd(t, "macsec show")
+	asProto := func(p string) Command {
+		c := macsec
+		c.Proto = p
+		return c
+	}
+	tests := []struct {
+		description string
+		c           Command
+		want        Status
+		wantErr     string
+	}{
+		{description: "positive: read as generic, ip against ip compares clean", c: macsec, want: StatusPass},
+		{description: "negative: read as route, the genl captures hold nothing to compare", c: asProto(""), want: StatusFail},
+		{description: "negative: a protocol the comparator cannot name", c: asProto("bogus"), want: StatusFail,
+			wantErr: `unknown protocol "bogus"`},
+		{description: "corner: read as xfrm, a protocol it can name but the capture does not hold", c: asProto("xfrm"), want: StatusFail},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			dir := t.TempDir()
+			writeTriple(t, dir, tc.c, sameAll(tdGenlMacsecShow), sameAll(""))
+			r := compareOne(dir, tc.c, nil)
+			if r.Status != tc.want {
+				t.Errorf("status = %s, want %s (err=%v)", r.Status, tc.want, r.Err)
+			}
+			if tc.wantErr != "" && (r.Err == nil || !strings.Contains(r.Err.Error(), tc.wantErr)) {
+				t.Errorf("err = %v, want %q in it", r.Err, tc.wantErr)
+			}
 		})
 	}
 }

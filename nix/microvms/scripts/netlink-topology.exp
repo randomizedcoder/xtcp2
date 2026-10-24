@@ -490,7 +490,8 @@ namespace eval nltopo {
     # rows create; macsec is the macsec family. xfrm_user is NETLINK_XFRM
     # itself, and esp4, esp6, authenc, cbc, gcm, seqiv and echainiv are what an
     # ESP state with cbc(aes)+hmac(sha256) or rfc4106(gcm(aes)) needs; hmac and
-    # sha256 are built into the guest kernel. modprobe pulls in the rest
+    # sha256 are built into the guest kernel. crypto_null is the ESP state with
+    # no keys that the MAPPING row decrypts. modprobe pulls in the rest
     # (l2tp_core, xfrm_algo, ctr). The tunnel modules are not here: the dump
     # driver loads them before its tunnel set, which is the one place they
     # are wanted.
@@ -499,7 +500,7 @@ namespace eval nltopo {
         fou ila
         l2tp_core l2tp_netlink l2tp_eth l2tp_ip l2tp_ip6
         macsec
-        xfrm_user esp4 esp6 authenc cbc gcm seqiv echainiv
+        xfrm_user esp4 esp6 authenc cbc gcm seqiv echainiv crypto_null
     }
 
     ###########################################################################

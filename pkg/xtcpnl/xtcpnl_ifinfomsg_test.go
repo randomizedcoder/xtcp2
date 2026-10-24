@@ -47,6 +47,8 @@ type linkScalars struct {
 	Master         int32
 	LinkNetnsID    int32
 	HasLinkNetnsID bool
+	Event          uint32
+	HasEvent       bool
 
 	// Promiscuity is IFLA_PROMISCUITY, which is NOT part of the scalar group.
 	Promiscuity U32Attr
@@ -63,6 +65,7 @@ func scalarsOf(li LinkInfo) linkScalars {
 		Link: li.Link, HasLink: li.HasLink,
 		Master:      li.Master,
 		LinkNetnsID: li.LinkNetnsID, HasLinkNetnsID: li.HasLinkNetnsID,
+		Event: li.Event, HasEvent: li.HasEvent,
 		Promiscuity: li.Detail.Promiscuity,
 	}
 }
@@ -183,6 +186,18 @@ func TestSetLinkScalarAttr(t *testing.T) {
 			description: "corner: IFLA_LINK_NETNSID of 0xFFFFFFFF decodes as int32 -1, which iproute2 renders `link-netnsid unknown`, not 4294967295 (constructed)",
 			body:        concat(hdr, rtattr(unix.IFLA_LINK_NETNSID, le32(0xFFFFFFFF))),
 			want:        linkScalars{LinkNetnsID: -1, HasLinkNetnsID: true},
+		},
+		{
+			// IFLA_EVENT_NOTIFY_PEERS is 4. Constructed: no captured
+			// notification carries an event.
+			description: "positive: IFLA_EVENT sets Event and HasEvent (constructed)",
+			body:        concat(hdr, rtattr(unix.IFLA_EVENT, le32(4))),
+			want:        linkScalars{Event: 4, HasEvent: true},
+		},
+		{
+			description: "negative: a 3-byte IFLA_EVENT is suppressed, HasEvent false (constructed)",
+			body:        concat(hdr, rtattr(unix.IFLA_EVENT, []byte{4, 0, 0})),
+			want:        linkScalars{},
 		},
 		{
 			// Mode 0 is IF_LINK_MODE_DEFAULT and every captured link reports

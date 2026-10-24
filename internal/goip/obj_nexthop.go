@@ -35,9 +35,10 @@ type nexthopName struct {
 // runNexthop is do_ipnh restricted to the listing path (ip/ipnexthop.c:1437).
 //
 // Bare `ip nexthop` is ipnh_list_flush(0, NULL, IPNH_LIST) — the same dump as
-// `show` with no filter (:1439-1440) — so an empty verb is the listing, not an
-// error. The add/replace/delete/get/flush verbs are write or single-get paths
-// goip does not implement and are refused.
+// `show` with no filter (:1453-1454) — so an empty verb is the listing, not an
+// error. add, replace and delete are nexthopModify, matched first as do_ipnh
+// matches them; `get` and `bucket` are nexthopGet and runNexthopBucket, and
+// `flush` between them is nexthopFlush.
 //
 // `id N` is a point GET (:1227), handled before the dump selectors. The rest of
 // the SELECTOR grammar (dev/master/vrf/groups/fdb and the client-side protocol
@@ -45,9 +46,26 @@ type nexthopName struct {
 // per-selector captures; an unknown selector is refused rather than answered
 // with an unfiltered dump.
 func runNexthop(c *runCtx, args []string) error {
-	args, err := showArgs("nexthop", nexthopVerbs, args)
-	if err != nil {
-		return err
+	if len(args) > 0 {
+		v, ok := resolveVerb(nexthopVerbs, args[0])
+		if !ok {
+			return fmt.Errorf("nexthop %q: %w", args[0], ErrNotImplemented)
+		}
+		if v.kind != verbShow {
+			if w := lookupNexthopWriteVerb(v.name); w != nil {
+				return nexthopModify(c, w, args[1:])
+			}
+			switch v.name {
+			case nexthopGetVerbCst:
+				return nexthopGet(c, args[1:])
+			case routeFlushVerbCst:
+				return nexthopFlush(c, args[1:])
+			case nexthopBucketVerbCst:
+				return runNexthopBucket(c, args[1:])
+			}
+			return fmt.Errorf("nexthop %q: %w", v.name, ErrNotImplemented)
+		}
+		args = args[1:]
 	}
 	if len(args) > 0 && args[0] == "id" {
 		if len(args) < 2 {
@@ -92,8 +110,8 @@ func parseNexthopShowArgs(args []string) (nexthopSelectors, error) {
 	for i := 0; i < len(args); i++ {
 		var err error
 		switch {
-		case matchesPrefix(args[i], "dev"):
-			err = addName(&i, "dev")
+		case matchesPrefix(args[i], devKeywordCst):
+			err = addName(&i, devKeywordCst)
 		case matchesPrefix(args[i], "groups"):
 			sel.groups = true
 		case matchesPrefix(args[i], "master"):
@@ -185,7 +203,7 @@ func nexthopShow(c *runCtx, sel nexthopSelectors) error {
 		if err != nil {
 			return err
 		}
-		if n.keyword == "dev" {
+		if n.keyword == devKeywordCst {
 			filter.OIF = idx
 		} else {
 			filter.Master = idx

@@ -1,0 +1,2 @@
+ok    [lacpa] ip rule add pref 100 from 192.0.2.0/24 table 100
+ok    [lacpa] ip rule add pref 101 fwmark 7 table 101

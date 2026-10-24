@@ -674,6 +674,219 @@ foreach {description cmd want_rc want_re} [list \
     ccheck $description $cmd $want_rc $want_re
 }
 
+# mroute-start / mroute-stop (C1-T03). The sandbox has no namespace to run
+# smcrouted in, so only the refusals before anything starts can run here;
+# the daemon itself needs the VM.
+foreach {description cmd want_rc want_re} [list \
+    "negative: mroute-start with no configuration line is a usage error" \
+        "xtcp2-nlcap mroute-start nlcapr reads" 2 {NLCAP_ERR usage: mroute-start} \
+    "negative: mroute-start with no arguments is a usage error" \
+        "xtcp2-nlcap mroute-start" 2 {NLCAP_ERR usage: mroute-start} \
+    "negative: a configuration line naming no group is refused before smcrouted starts" \
+        "xtcp2-nlcap mroute-start nlcapr r1 'mroute from v0 to v1'" 2 {NLCAP_ERR mroute-start: no group in} \
+    "corner: and the refusal wrote no topology line" \
+        "test ! -e $out_dir/r1/topology" 0 {} \
+    "negative: mroute-stop with no namespace is a usage error" \
+        "xtcp2-nlcap mroute-stop" 2 {NLCAP_ERR usage: mroute-stop} \
+    "negative: mroute-stop of a namespace with no daemon is refused" \
+        "xtcp2-nlcap mroute-stop xtcp2_no_such_ns" 2 {NLCAP_ERR mroute-stop: no daemon for xtcp2_no_such_ns} \
+] {
+    ccheck $description $cmd $want_rc $want_re
+}
+
+# xtcp2-nl-ra (C1-T04). The sandbox cannot send a raw ICMPv6 packet, so the
+# message is checked through `-`, which prints it, and a real send is only
+# shown to fail as a send rather than as an argument.
+set ra_64 8600000040000000000000000000000003044080000002580000012c0000000020010db8000500000000000000000000
+foreach {description cmd want_rc want_re} [list \
+    "positive: the RA is RFC 4861's: hop limit 64, router lifetime 0, one on-link prefix option, valid 600, preferred 300" \
+        "xtcp2-nl-ra - fe80::2 2001:db8:5::/64" 0 "^$ra_64\$" \
+    "boundary: a /48 changes only the option's prefix length" \
+        "xtcp2-nl-ra - fe80::2 2001:db8:5::/48" 0 {^8600000040000000000000000000000003043080} \
+    "negative: no arguments is a usage error" \
+        "xtcp2-nl-ra" 2 {xtcp2-nl-ra: usage:} \
+    "negative: an IPv4 prefix is refused" \
+        "xtcp2-nl-ra - fe80::2 192.0.2.0/24" 2 {xtcp2-nl-ra: .*192.0.2.0} \
+    "negative: a prefix with host bits set is refused" \
+        "xtcp2-nl-ra - fe80::2 2001:db8:5::1/64" 2 {has host bits set} \
+    "negative: a source that is not link-local is refused, since ndisc drops such an RA" \
+        "xtcp2-nl-ra - 2001:db8::2 2001:db8:5::/64" 2 {not a link-local source: 2001:db8::2} \
+    "negative: an unknown device is refused before any socket is opened" \
+        "xtcp2-nl-ra xtcp2nodev fe80::2 2001:db8:5::/64" 2 {no such device: xtcp2nodev} \
+    "corner: a well-formed send the sandbox cannot make is rc 1, a send failure" \
+        "xtcp2-nl-ra lo fe80::2 2001:db8:5::/64" 1 {xtcp2-nl-ra: send:} \
+] {
+    ccheck $description $cmd $want_rc $want_re
+}
+
+# xtcp2-nl-tcp and `xtcp2-nlcap tcp` (C2-T01). The sandbox has a loopback, so
+# a whole connection runs here; that it leaves a tcp_metrics entry is the
+# VM's to show (TestGenlTcpMetricsCorpus).
+foreach {description cmd want_rc want_re} [list \
+    "positive: one IPv4 connection, opened and closed" \
+        "xtcp2-nl-tcp 127.0.0.1 127.0.0.1" 0 {^tcp 127.0.0.1 -> 127.0.0.1:7171 closed$} \
+    "positive: one IPv6 connection, the server in brackets" \
+        "xtcp2-nl-tcp ::1 ::1 7172" 0 {^tcp ::1 -> \[::1\]:7172 closed$} \
+    "negative: no arguments is a usage error" \
+        "xtcp2-nl-tcp" 2 {xtcp2-nl-tcp: usage:} \
+    "negative: two families are refused" \
+        "xtcp2-nl-tcp 127.0.0.1 ::1" 2 {different families} \
+    "negative: an address that is not one is refused" \
+        "xtcp2-nl-tcp 127.0.0.1 x" 2 {xtcp2-nl-tcp: .*'x'} \
+    "boundary: port 0 is refused" \
+        "xtcp2-nl-tcp 127.0.0.1 127.0.0.1 0" 2 {port out of range: 0} \
+    "corner: a client address the host does not have is rc 1, a socket error" \
+        "xtcp2-nl-tcp 127.0.0.1 192.0.2.9" 1 {xtcp2-nl-tcp: .*} \
+    "positive: xtcp2-nlcap tcp in the root namespace" \
+        "xtcp2-nlcap tcp - tcp 127.0.0.1 127.0.0.1" 0 {^NLCAP_TCP_OK 127.0.0.1 127.0.0.1$} \
+    "negative: a connection that fails is NLCAP_TCP_FAIL, rc 1" \
+        "xtcp2-nlcap tcp - tcp 127.0.0.1 192.0.2.9" 1 {^NLCAP_TCP_FAIL 127.0.0.1 192.0.2.9$} \
+    "negative: xtcp2-nlcap tcp without a client is a usage error" \
+        "xtcp2-nlcap tcp - tcp 127.0.0.1" 2 {NLCAP_ERR usage: tcp} \
+] {
+    ccheck $description $cmd $want_rc $want_re
+}
+# tcp_topology - the topology lines the two xtcp2-nlcap tcp rows wrote.
+proc tcp_topology {} {
+    set f [open $::out_dir/tcp/topology]
+    set lines [split [string trim [read $f]] "\n"]
+    close $f
+    return [lmap l $lines {regsub {: .*} $l ""}]
+}
+tcheck "corner: each connection is a topology line, the failure with its client and server" \
+    {tcp_topology} {{ok    [-] tcp 127.0.0.1 -> 127.0.0.1:7171 closed} {FAIL  [-] tcp 192.0.2.9 -> 127.0.0.1}}
+
+# `xtcp2-nlcap hmac` (C2-T02). The sandbox has no CAP_NET_ADMIN, so the set is
+# refused; that it is refused by the kernel shows getpass took the secret
+# from stdin, with no terminal to wait on.
+foreach {description cmd want_rc want_re} [list \
+    "corner: the set gets past getpass and the kernel refuses it, rc 1" \
+        "xtcp2-nlcap hmac - hmac 1 sha256 s3cret" 1 {^NLCAP_HMAC_FAIL 1 sha256$} \
+    "negative: an hmac step without a secret is a usage error" \
+        "xtcp2-nlcap hmac - hmac 1 sha256" 2 {NLCAP_ERR usage: hmac} \
+] {
+    ccheck $description $cmd $want_rc $want_re
+}
+proc hmac_topology {} {
+    set f [open $::out_dir/hmac/topology]
+    set t [string trim [read $f]]
+    close $f
+    return $t
+}
+tcheck "corner: the topology line holds getpass's prompt on stderr and the kernel's answer" \
+    {regexp {^FAIL  \[-\] sr hmac set 1 sha256: Enter secret for HMAC key ID \(blank to delete\): RTNETLINK answers: } [hmac_topology]} 1
+
+# xtcp2-nl-ioam (C2-T03). The sandbox has no CAP_NET_RAW, so the hop-by-hop
+# header is checked through `-`, which prints it, and a real send is only
+# shown to fail at the socket option rather than as an argument.
+set ioam_123 0002010031120000007b0802800000000000000000000000
+foreach {description cmd want_rc want_re} [list \
+    "positive: the header is PadN, then an IOAM pre-allocated trace for namespace 123: nodelen 1, room for 2 nodes, type bit 0" \
+        "xtcp2-nl-ioam - 123" 0 "^$ioam_123\$" \
+    "boundary: namespace 0xffff, the largest, changes only its two bytes" \
+        "xtcp2-nl-ioam - 0xffff" 0 {^0002010031120000ffff0802800000000000000000000000$} \
+    "negative: no arguments is a usage error" \
+        "xtcp2-nl-ioam" 2 {xtcp2-nl-ioam: usage:} \
+    "boundary: namespace 65536 is one past the largest" \
+        "xtcp2-nl-ioam - 65536" 2 {namespace out of range: 65536} \
+    "negative: an IPv4 destination is refused" \
+        "xtcp2-nl-ioam 127.0.0.1 123" 2 {xtcp2-nl-ioam: .*127.0.0.1} \
+    "boundary: 0 tries is refused" \
+        "xtcp2-nl-ioam ::1 123 0" 2 {tries must be at least 1: 0} \
+    "corner: a well-formed send the sandbox cannot make is rc 1, at the socket option" \
+        "xtcp2-nl-ioam ::1 123 1" 1 {xtcp2-nl-ioam: send: .*Operation not permitted} \
+] {
+    ccheck $description $cmd $want_rc $want_re
+}
+
+# xtcp2-nl-mptcp (C2-T04). Its connections and monitor need the guest's
+# MPTCP, so the sandbox checks the argument errors, each refused before a
+# socket is opened.
+foreach {description cmd want_rc want_re} [list \
+    "negative: no arguments is a usage error" \
+        "xtcp2-nl-mptcp" 2 {xtcp2-nl-mptcp: usage:} \
+    "negative: an unknown mode is a usage error" \
+        "xtcp2-nl-mptcp listen 127.0.0.1" 2 {xtcp2-nl-mptcp: usage:} \
+    "negative: conn with no server is a usage error" \
+        "xtcp2-nl-mptcp conn" 2 {xtcp2-nl-mptcp: usage:} \
+    "corner: conn with a fourth argument is a usage error" \
+        "xtcp2-nl-mptcp conn 127.0.0.1 1 2" 2 {xtcp2-nl-mptcp: usage:} \
+    "negative: conn to something not an address" \
+        "xtcp2-nl-mptcp conn 192.0.2" 2 {xtcp2-nl-mptcp: .*192.0.2} \
+    "boundary: -1 extra subflows is one below the least" \
+        "xtcp2-nl-mptcp conn 127.0.0.1 -1" 2 {extra subflows must be at least 0: -1} \
+    "negative: monitor with nothing to wait for is a usage error" \
+        "xtcp2-nl-mptcp monitor true" 2 {xtcp2-nl-mptcp: usage:} \
+    "negative: monitor with an RE that does not compile" \
+        {xtcp2-nl-mptcp monitor true "("} 2 {xtcp2-nl-mptcp: bad RE: } \
+] {
+    ccheck $description $cmd $want_rc $want_re
+}
+
+# xtcp2-nl-xfrmmon (C3-T02). The sandbox may have no NETLINK_XFRM, so the
+# monitor is `ip xfrm monitor bogus`, which prints its refusal and exits,
+# and NLCAP_PROC_NETLINK stands in for /proc/net/netlink: with an XFRM (6)
+# socket in a group, an XFRM socket in none, or only route and generic
+# sockets in groups.
+proc write_proc_netlink {path rows} {
+    set f [open $path w]
+    puts $f "sk               Eth Pid        Groups   Rmem     Wmem     Dump  Locks    Drops    Inode"
+    foreach r $rows {
+        lassign $r eth groups
+        puts $f [format "ffff888100000000 %-3d 1234       %s 0        0        0     2        0        4242" $eth $groups]
+    }
+    close $f
+}
+set pn_sub [file normalize proc_netlink_sub]
+set pn_none [file normalize proc_netlink_none]
+set pn_route [file normalize proc_netlink_route]
+write_proc_netlink $pn_sub {{0 00000001} {6 00000010}}
+write_proc_netlink $pn_none {{0 00000001} {6 00000000}}
+write_proc_netlink $pn_route {{0 ffffffff} {16 00000001}}
+foreach {description cmd want_rc want_re} [list \
+    "positive: a subscribed XFRM socket, a trigger that succeeds and a line that appears" \
+        "NLCAP_PROC_NETLINK=$pn_sub xtcp2-nl-xfrmmon \"xfrm monitor bogus\" true \"is unknown\"" 0 {Argument "bogus" is unknown} \
+    "negative: no until-ERE is a usage error" \
+        "xtcp2-nl-xfrmmon \"xfrm monitor\" true" 2 {^usage: xtcp2-nl-xfrmmon <ip-args>} \
+    "negative: an XFRM socket in no group is not subscribed" \
+        "NLCAP_PROC_NETLINK=$pn_none xtcp2-nl-xfrmmon \"xfrm monitor bogus\" true \"is unknown\"" 1 {the monitor never subscribed} \
+    "corner: route and generic sockets in groups are not an XFRM subscriber" \
+        "NLCAP_PROC_NETLINK=$pn_route xtcp2-nl-xfrmmon \"xfrm monitor bogus\" true \"is unknown\"" 1 {the monitor never subscribed} \
+    "negative: a trigger that fails is rc 1, with the monitor's output still printed" \
+        "NLCAP_PROC_NETLINK=$pn_sub xtcp2-nl-xfrmmon \"xfrm monitor bogus\" false \"is unknown\"" 1 {Argument "bogus" is unknown} \
+    "boundary: an until-ERE that never matches times out as rc 1, naming it" \
+        "NLCAP_PROC_NETLINK=$pn_sub xtcp2-nl-xfrmmon \"xfrm monitor bogus\" true \"Flushed state\"" 1 {no match for Flushed state} \
+    "corner: the trigger runs under bash, so /dev/udp works" \
+        "NLCAP_PROC_NETLINK=$pn_sub xtcp2-nl-xfrmmon \"xfrm monitor bogus\" \"echo x >/dev/udp/127.0.0.1/9\" \"is unknown\"" 0 {Argument "bogus" is unknown} \
+] {
+    ccheck $description $cmd $want_rc $want_re
+}
+
+# xtcp2-nl-espinudp (C3-T02). Its send needs the guest's addresses and
+# ESPINUDP, so the sandbox checks the packet through `-`, which prints it,
+# and the argument errors; a send from an address the sandbox does not have
+# fails at a socket call.
+foreach {description cmd want_rc want_re} [list \
+    "positive: SPI, sequence 1, ten bytes of payload, pad length 0 and next header 59, 20 bytes in all" \
+        "xtcp2-nl-espinudp - 4501 192.0.2.2 4500 0x300" 0 {^000003000000000100000000000000000000003b$} \
+    "boundary: SPI 256, the least that is not reserved, changes only its four bytes" \
+        "xtcp2-nl-espinudp - 4501 192.0.2.2 4500 256" 0 {^000001000000000100000000000000000000003b$} \
+    "boundary: SPI 255 is reserved" \
+        "xtcp2-nl-espinudp - 4501 192.0.2.2 4500 255" 2 {spi out of range: 255} \
+    "negative: no arguments is a usage error" \
+        "xtcp2-nl-espinudp" 2 {xtcp2-nl-espinudp: usage:} \
+    "negative: an IPv6 destination is refused" \
+        "xtcp2-nl-espinudp - 4501 2001:db8::2 4500 0x300" 2 {xtcp2-nl-espinudp: .*2001:db8::2} \
+    "boundary: port 0 is refused" \
+        "xtcp2-nl-espinudp - 0 192.0.2.2 4500 0x300" 2 {sport out of range: 0} \
+    "boundary: port 65536 is one past the largest" \
+        "xtcp2-nl-espinudp - 4501 192.0.2.2 65536 0x300" 2 {dport out of range: 65536} \
+    "corner: a send from an address the host does not have is rc 1, at a socket call, with the packet printed first" \
+        "xtcp2-nl-espinudp 192.0.2.1 4501 127.0.0.1 4500 0x300" 1 {(?n)^00000300.*\n.*xtcp2-nl-espinudp: } \
+] {
+    ccheck $description $cmd $want_rc $want_re
+}
+
 # late_setup against the recorder: the modules call reaches the real helper,
 # where it fails as above; the sysctl and note are recorded.
 set ::calls {}

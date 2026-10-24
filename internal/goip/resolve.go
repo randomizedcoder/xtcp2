@@ -125,7 +125,7 @@ func ResolveShow(tokens []string) (ShowRequest, Resolved, error) {
 	if err != nil {
 		return ShowRequest{}, Resolved{}, err
 	}
-	res := Resolved{Object: obj.name, Verb: showVerbCst, Selectors: rest[1:]}
+	res := Resolved{Object: obj.name, Verb: showVerbOf(obj.canonical()), Selectors: rest[1:]}
 	if len(rest) > 1 {
 		v, ok := resolveVerb(obj.verbs, rest[1])
 		switch {
@@ -155,10 +155,12 @@ func ResolveShow(tokens []string) (ShowRequest, Resolved, error) {
 }
 
 // resolveObject is lookupObject, naming an object goip does not implement
-// as the command `ip` would run: "ip maddress show".
+// as the command `ip` would run: "ip maddress show". An object Show does
+// not serve (noShow: a monitor, or one whose listing goip leaves to the
+// command line) is refused the same way.
 func resolveObject(tok string) (object, error) {
 	obj, err := lookupObject(tok)
-	if errors.Is(err, ErrNotImplemented) {
+	if errors.Is(err, ErrNotImplemented) || (err == nil && !obj.served()) {
 		return obj, fmt.Errorf("ip %s %s: %w", obj.name, showVerbCst, ErrNotImplemented)
 	}
 	return obj, err
@@ -198,7 +200,7 @@ func (r ShowRequest) Resolved() Resolved {
 	if r.Details {
 		o.showDetails = 1
 	}
-	return Resolved{Options: canonicalOptions(&o), Object: r.Object, Verb: showVerbCst, Selectors: r.Selectors}
+	return Resolved{Options: canonicalOptions(&o), Object: r.Object, Verb: showVerbOf(r.Object), Selectors: r.Selectors}
 }
 
 // resolveOptionError turns parseOptions' error into ResolveShow's: a
@@ -246,7 +248,7 @@ var shortest = sync.OnceValue(func() map[string]string {
 	m := make(map[string]string)
 	for i := range objects {
 		o := &objects[i]
-		if o.run == nil {
+		if !o.served() {
 			continue
 		}
 		m[o.name] = shortestPrefix(o.name, false, func(p string) bool { return objectIndex(p) == i })
@@ -264,7 +266,7 @@ var shortest = sync.OnceValue(func() map[string]string {
 	return m
 })
 
-// Shortest returns the shortest spelling of every object goip implements,
+// Shortest returns the shortest spelling of every object Show serves,
 // keyed by name, and of every show verb of the canonical objects, keyed
 // "object verb": the shortest prefix whose first match is that keyword
 // (address: a, link show: sh). The map is a copy.

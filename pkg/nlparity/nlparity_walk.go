@@ -15,6 +15,15 @@ type Msg struct {
 	Hdr    xtcpnl.NlMsgHdr
 	Body   []byte // nlmsg_len - 16 bytes; the family header plus attributes
 	Offset int    // byte offset of the nlmsghdr within the datagram
+	// Proto is the NETLINK_* protocol of the datagram the message came from.
+	// Zero is NETLINK_ROUTE, so a message built without it is an rtnetlink
+	// one, as every message was before generic netlink was compared.
+	Proto uint16
+	// Genl is the name of the generic netlink family whose id nlmsg_type
+	// holds, as the capture's controller replies named it, and empty for
+	// anything else or for an id the capture never resolved. See
+	// resolveGenl.
+	Genl string
 }
 
 // IsRequest reports whether NLM_F_REQUEST is set.
@@ -130,6 +139,7 @@ func WalkDatagram(family uint16, data []byte) (Datagram, error) {
 			Hdr:    h,
 			Body:   data[off+xtcpnl.NlMsgHdrSizeCst : off+msgLen],
 			Offset: off,
+			Proto:  family,
 		})
 
 		adv := msgLen + xtcpnl.FourByteAlignPadding(msgLen)

@@ -1,0 +1,1 @@
+ok    [lacpa] ip xfrm state allocspi src 192.0.2.1 dst 192.0.2.2 proto esp min 0x200 max 0x200

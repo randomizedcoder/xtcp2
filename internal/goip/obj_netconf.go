@@ -44,13 +44,27 @@ func parseNetconfShowArgs(args []string) (string, error) {
 	return dev, nil
 }
 
-// netconfShow sends the requests `ip netconf show` sends — ll_init_map's link
-// dump (ip/ipnetconf.c:186) then the netconf transaction — and renders the
-// replies. iproute2's :188 branch chooses the form: an explicit family AND a dev
+// netconfShow sends the requests `ip netconf show` sends — for a dev,
+// ll_name_to_index's RTM_GETLINK by name on the still-empty cache
+// (ip/ipnetconf.c:175), then ll_init_map's link dump (:186), then the netconf
+// transaction — and renders the replies. iproute2's :188 branch chooses the form: an explicit family AND a dev
 // is a point GET; a bare dev is a dump filtered to the ifindex client-side; a bare
 // show dumps every family (AF_UNSPEC) and drops none.
 func netconfShow(c *runCtx, dev string) error {
 	svc := service.New(c.src, c.nextSeq)
+
+	var devIdx int32
+	if dev != "" {
+		// ll_name_to_index, with 0 the "device does not exist" answer
+		// (ip/ipnetconf.c:175-181) whatever the get failed on. Resolved before
+		// ll_init_map, as iproute2 does, so it is a get by name and not a
+		// lookup in the dump.
+		resolved, lerr := svc.LinkByName(dev)
+		if lerr != nil {
+			return noSuchDevice(fmt.Errorf("netconf show: cannot find device %q: %w", dev, ErrNotImplemented))
+		}
+		devIdx = resolved.Index
+	}
 
 	links, err := svc.NetconfLinks()
 	if err != nil {
@@ -61,16 +75,6 @@ func netconfShow(c *runCtx, dev string) error {
 		decoded[i] = xtcpnl.LinkInfo(links[i])
 	}
 	c.lltab.Fill(decoded)
-
-	var devIdx int32
-	if dev != "" {
-		// ll_name_to_index, with 0 the "device does not exist" answer
-		// (ip/ipnetconf.c:175-181). Resolved before the branch, as iproute2 does.
-		devIdx = c.lltab.NameToIndex(dev)
-		if devIdx == 0 {
-			return noSuchDevice(fmt.Errorf("netconf show: cannot find device %q: %w", dev, ErrNotImplemented))
-		}
-	}
 
 	// ip/ipnetconf.c:188 picks the point get only when both an ifindex and an
 	// explicit family are set; everything else is the dump path (with a

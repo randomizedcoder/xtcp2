@@ -23,9 +23,10 @@ import (
 // each error the kernel attaches and ignores EEXIST, and with the kernel
 // answering nothing else its rc is 0, as goip's is.
 
-// ErrDumpTerminated is ll_init_map's link dump failing: `ip` prints "Dump
+// ErrDumpTerminated is ll_init_map's link dump failing ahead of a restore's
+// first write, the address one's or the route one's: `ip` prints "Dump
 // terminated" and exits 1.
-var ErrDumpTerminated = errors.New("address restore")
+var ErrDumpTerminated = errors.New("restore")
 
 // restoreFlagsCst is what restore_handler ORs into each saved message's flags.
 const restoreFlagsCst = unix.NLM_F_REQUEST | unix.NLM_F_CREATE | unix.NLM_F_ACK
@@ -39,13 +40,13 @@ const restoreFlagsCst = unix.NLM_F_REQUEST | unix.NLM_F_CREATE | unix.NLM_F_ACK
 // rtnl_from_file refuses partway still writes the messages before it, which
 // `ip` has sent, and then fails.
 func addrRestore(c *runCtx, _ []string) error {
-	if err := checkDumpMagic(c, "restore"); err != nil {
+	if err := checkDumpMagic(c, addrDumpFormat, "restore"); err != nil {
 		return err
 	}
 	svc := service.New(c.src, c.nextSeq)
 	var out []byte
 	first := true
-	err := readDumpRecords(c, addrDumpMagicLenCst, func(h xtcpnl.NlMsgHdr, body []byte) error {
+	err := readDumpRecords(c, addrDumpFormat, func(h xtcpnl.NlMsgHdr, body []byte) error {
 		msg, err := restoreRecord(c, svc, h, body, first)
 		if err != nil {
 			return err
@@ -83,7 +84,7 @@ func restoreRecord(c *runCtx, svc *service.Service, h xtcpnl.NlMsgHdr, body []by
 		if path, ok := os.LookupEnv(writeOutEnvCst); !ok || path == "" {
 			return nil, ErrWriteNotApplied
 		}
-		if err := svc.AddressRestoreLinks(); err != nil {
+		if err := svc.RestoreLinks(); err != nil {
 			return nil, fmt.Errorf("%w: Dump terminated: %w", ErrDumpTerminated, err)
 		}
 	}

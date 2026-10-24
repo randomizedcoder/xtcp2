@@ -1,0 +1,545 @@
+###############################################################################
+# genl-write-corpus.exp - generic netlink reads and writes the corpus had no
+# capture of (docs/netlink/goip-parity-gaps.md, C2)
+#
+# Sourced AFTER vm-lib.exp, netlink-topology.exp, addr-topology.exp and
+# addr-corpus.exp, by scripts/capture-link-writes.exp, which runs each row
+# into link-write/genl/<slug>/ with `--proto generic`. Data plus small procs,
+# as rtnl-write-corpus.exp is, so the hermetic check
+# (scripts/genl-write-corpus-test.exp) can read it without a console.
+#
+# A ROW IS {slug floor pre command readbacks rc}, as in rtnl-write-corpus.exp.
+#
+#   slug       the fixture directory, link-write/genl/<slug>/
+#   floor      a structural minimum of datagrams: 2 for the family lookup
+#              every `ip` genl command starts with (CTRL_CMD_GETFAMILY and
+#              its NEWFAMILY, which each pcap keeps, since the family id is
+#              assigned at boot and only that answer names it), then 2 for
+#              the command and its answer: a GET and its reply or refusal, a
+#              DEL and its ACK, or a dump and its NLMSG_DONE. A flush that
+#              is not `flush all` is a dump, a DEL for each match and a
+#              second dump, so 6
+#   pre        steps run in the row's fresh namespace before the capture
+#              window opens: pre_step below
+#   command    run with `sh -c` from the row's directory (xtcp2-nlcap
+#              write); it must contain no single quote
+#   readbacks  {name floor command} reads, each one capio in the same
+#              namespace straight after the command, as
+#              netlink_generic_<name>.pcap and ip_<name>
+#   rc         the exit status `ip.rc` must hold: 0, or the status `ip`
+#              exits with when the kernel refuses the request, which ip/ip.c
+#              takes from the command's negated return: 2 for tcp_metrics,
+#              mptcp, fou, ila, l2tp and macsec (ip/tcp_metrics.c,
+#              ip/ipmptcp.c, ip/ipfou.c, ip/ipila.c, ip/ipl2tp.c and
+#              ip/ipmacsec.c return -2), 1 for an sr or ioam write
+#              (ip/ipseg6.c and ip/ipioam6.c return -1); or 255, where `ip`
+#              refuses its arguments itself (invarg, missarg or usage) after
+#              the family lookup and sends nothing more; ip/ipfou.c's,
+#              ip/ipila.c's and ip/ipmacsec.c's own refusals after the lookup
+#              are 1 (an unknown dev, show with an argument, an SA's missing
+#              key or packet number, a key on a set)
+#
+# TCP_METRICS (C2-T01)
+#
+# The kernel makes a tcp_metrics entry when a connection with an RTT sample
+# closes (tcp_update_metrics), keyed by its destination and source. A `tcp`
+# pre step runs one connection inside the namespace with xtcp2-nl-tcp, so
+# each address pair leaves two entries, one per end: 192.0.2.1 from
+# 192.0.2.2 and 192.0.2.2 from 192.0.2.1, and the same for 2001:db8::1 and
+# ::2.
+#
+# `src` comes before `address` in the two src rows. ip/tcp_metrics.c's
+# argument loop steps past each address and its value twice, once in the
+# body and once in the for, so the word after an address is skipped and
+# `address A src B` reads B as a second address: "either "address" is
+# duplicate", rc 255, before any netlink. `src B address A` skips `address`
+# and reads A as the address, which is what the request then carries.
+###############################################################################
+
+namespace eval genlcorpus {
+
+    # d0, a dummy that is up, with an IPv4 and an IPv6 pair on it: the
+    # namespace's lo carries the traffic, and the entries are keyed by these.
+    variable PRE_ADDRS {
+        {link add d0 type dummy}
+        {link set d0 up}
+        {addr add 192.0.2.1/24 dev d0}
+        {addr add 192.0.2.2/24 dev d0}
+        {-6 addr add 2001:db8::1/64 dev d0 nodad}
+        {-6 addr add 2001:db8::2/64 dev d0 nodad}
+    }
+
+    # The same with a connection over each pair: four entries.
+    variable PRE_TCPM [concat $PRE_ADDRS {
+        {tcp 192.0.2.1 192.0.2.2}
+        {tcp 2001:db8::1 2001:db8::2}
+    }]
+
+    # The table after a write.
+    variable TCPM_SHOW {{tcpm 4 {ip tcp_metrics show}}}
+
+    variable rows [list \
+        [list tcpm_show 4 $PRE_TCPM "ip tcp_metrics show" {} 0] \
+        [list tcpm_show_empty 4 $PRE_ADDRS "ip tcp_metrics show" {} 0] \
+        [list tcpm_show_v6 4 $PRE_TCPM "ip -6 tcp_metrics show" {} 0] \
+        [list tcpm_get 4 $PRE_TCPM "ip tcp_metrics show address 192.0.2.1" {} 0] \
+        [list tcpm_get_src 4 $PRE_TCPM "ip tcp_metrics show src 192.0.2.2 address 192.0.2.1" {} 0] \
+        [list tcpm_get_v6 4 $PRE_TCPM "ip tcp_metrics show address 2001:db8::1" {} 0] \
+        [list tcpm_get_missing 4 $PRE_TCPM "ip tcp_metrics show address 192.0.2.9" {} 2] \
+        [list tcpm_delete 4 $PRE_TCPM "ip tcp_metrics delete address 192.0.2.1" $TCPM_SHOW 0] \
+        [list tcpm_delete_src 4 $PRE_TCPM \
+            "ip tcp_metrics delete src 192.0.2.2 address 192.0.2.1" $TCPM_SHOW 0] \
+        [list tcpm_delete_missing 4 $PRE_TCPM "ip tcp_metrics delete address 192.0.2.9" {} 2] \
+        [list tcpm_flush_all 4 $PRE_TCPM "ip tcp_metrics flush all" $TCPM_SHOW 0] \
+        [list tcpm_flush_prefix 6 $PRE_TCPM "ip tcp_metrics flush 192.0.2.0/24" $TCPM_SHOW 0] \
+        [list tcpm_flush_v6 6 $PRE_TCPM "ip -6 tcp_metrics flush" $TCPM_SHOW 0] \
+        [list tcpm_flush_empty 4 $PRE_ADDRS "ip tcp_metrics flush 192.0.2.0/24" {} 0] \
+    ]
+
+    ###########################################################################
+    # C2-T02 - sr, the SEG6 family: the HMAC keys and the tunnel source,
+    # both per namespace.
+    #
+    # `ip sr hmac set` reads its secret through getpass(3), so each set row
+    # pipes it in under `setsid -w`, which leaves `ip` no controlling
+    # terminal for getpass to read instead (see cmd_hmac in
+    # nix/microvms/netlink-capture.nix). A blank secret deletes the key. A
+    # refused set exits 1, not 2: seg6_do_cmd returns -1 for a write and -2
+    # only for a get.
+    ###########################################################################
+    variable PRE_HMAC1 {{hmac 1 sha256 s3cret}}
+    variable PRE_HMAC2 {{hmac 1 sha256 s3cret} {hmac 2 sha1 0ther}}
+    variable HMAC_SHOW {{hmac 4 {ip sr hmac show}}}
+
+    # hmac_set <keyid> <algo> <secret> - the command that sets one key, or
+    # deletes it when <secret> is "".
+    proc hmac_set {keyid algo secret} {
+        return "[string trim "echo $secret"] | setsid -w ip sr hmac set $keyid $algo"
+    }
+
+    # 65 characters, one more than SEG6_HMAC_SECRET_LEN, which the kernel
+    # refuses; and 64, which it takes but `ip sr hmac show` prints only 63
+    # of, with a warning on stderr.
+    variable LONG_SECRET [string repeat x 65]
+    variable MAX_SECRET [string repeat y 64]
+
+    lappend rows \
+        [list sr_hmac_show_empty 4 {} "ip sr hmac show" {} 0] \
+        [list sr_hmac_set 4 {} [hmac_set 1 sha256 s3cret] $HMAC_SHOW 0] \
+        [list sr_hmac_set_sha1 4 {} [hmac_set 2 sha1 0ther] $HMAC_SHOW 0] \
+        [list sr_hmac_replace 4 $PRE_HMAC1 [hmac_set 1 sha1 n3w] $HMAC_SHOW 0] \
+        [list sr_hmac_delete 4 $PRE_HMAC2 [hmac_set 1 sha256 ""] $HMAC_SHOW 0] \
+        [list sr_hmac_delete_missing 4 {} [hmac_set 9 sha256 ""] {} 1] \
+        [list sr_hmac_set_long 4 {} [hmac_set 3 sha256 $LONG_SECRET] {} 1] \
+        [list sr_hmac_show 4 $PRE_HMAC2 "ip sr hmac show" {} 0] \
+        [list sr_hmac_show_64 4 [list [list hmac 4 sha256 $MAX_SECRET]] "ip sr hmac show" {} 0] \
+        [list sr_tunsrc_show 4 {} "ip sr tunsrc show" {} 0] \
+        [list sr_tunsrc_set 4 {} "ip sr tunsrc set 2001:db8::1" {{tunsrc 4 {ip sr tunsrc show}}} 0]
+
+    ###########################################################################
+    # C2-T03 - ioam, the IOAM6 family: namespaces, schemas and the binding
+    # between them, all per namespace, made with plain `ip` pre steps.
+    #
+    # The kernel keeps a namespace's data and wide data as all ones when
+    # none is given, and leaves an all-ones value out of the dump, so data
+    # 0xffffffff given explicitly reads back as no data. It pads a schema's
+    # data to a multiple of 4 bytes with zeros. `ip` parses data in any base
+    # and wide data in hex only. A refused write exits 1, as sr's do:
+    # ioam6_do_cmd returns -1.
+    #
+    # The only IOAM6 event, TRACE, is sent when a packet with an IOAM trace
+    # option arrives for a known namespace on a device with ioam6_enabled.
+    # The monitor rows run `ip ioam monitor` inside xtcp2-nl-ioam, which
+    # sends such packets to ::1 until the monitor prints, so their floor is
+    # the family lookup and one event; a row where the kernel stays silent,
+    # for an unknown namespace or with ioam6_enabled off, is the lookup
+    # alone, and the helper exits 1.
+    ###########################################################################
+    variable PRE_NS1 {{ioam namespace add 1}}
+    variable PRE_SC1 {{ioam schema add 1 abcd}}
+    variable PRE_NS1_SC1 {{ioam namespace add 1} {ioam schema add 1 abcd}}
+    variable PRE_BOUND {{ioam namespace add 1} {ioam schema add 1 abcd} {ioam namespace set 1 schema 1}}
+    variable NS_SHOW {{ns 4 {ip ioam namespace show}}}
+    variable SC_SHOW {{sc 4 {ip ioam schema show}}}
+    variable BOTH_SHOW {{ns 4 {ip ioam namespace show}} {sc 4 {ip ioam schema show}}}
+    variable PRE_TRACE {{ioam namespace add 123} {sysctl net.ipv6.conf.lo.ioam6_enabled 1}}
+
+    lappend rows \
+        [list ioam_ns_show_empty 4 {} "ip ioam namespace show" {} 0] \
+        [list ioam_ns_add 4 {} "ip ioam namespace add 1" $NS_SHOW 0] \
+        [list ioam_ns_add_data 4 {} "ip ioam namespace add 2 data 42 wide 2a" $NS_SHOW 0] \
+        [list ioam_ns_add_unavailable 4 {} \
+            "ip ioam namespace add 3 data 0xffffffff wide ffffffffffffffff" $NS_SHOW 0] \
+        [list ioam_ns_add_dup 4 $PRE_NS1 "ip ioam namespace add 1" {} 1] \
+        [list ioam_ns_del 4 $PRE_NS1 "ip ioam namespace del 1" $NS_SHOW 0] \
+        [list ioam_ns_del_missing 4 {} "ip ioam namespace del 9" {} 1] \
+        [list ioam_sc_show_empty 4 {} "ip ioam schema show" {} 0] \
+        [list ioam_sc_add 4 {} "ip ioam schema add 1 abcd" $SC_SHOW 0] \
+        [list ioam_sc_add_pad 4 {} "ip ioam schema add 2 abcde" $SC_SHOW 0] \
+        [list ioam_sc_add_dup 4 $PRE_SC1 "ip ioam schema add 1 wxyz" {} 1] \
+        [list ioam_sc_del 4 $PRE_SC1 "ip ioam schema del 1" $SC_SHOW 0] \
+        [list ioam_sc_del_missing 4 {} "ip ioam schema del 9" {} 1] \
+        [list ioam_ns_set_schema 4 $PRE_NS1_SC1 "ip ioam namespace set 1 schema 1" $BOTH_SHOW 0] \
+        [list ioam_ns_set_none 4 $PRE_BOUND "ip ioam namespace set 1 schema none" $BOTH_SHOW 0] \
+        [list ioam_ns_set_missing 4 $PRE_NS1 "ip ioam namespace set 1 schema 9" {} 1] \
+        [list ioam_sc_del_bound 4 $PRE_BOUND "ip ioam schema del 1" $NS_SHOW 0] \
+        [list ioam_ns_del_bound 4 $PRE_BOUND "ip ioam namespace del 1" $SC_SHOW 0] \
+        [list ioam_monitor_trace 3 $PRE_TRACE "xtcp2-nl-ioam ::1 123" {} 0] \
+        [list ioam_monitor_unknown_ns 2 $PRE_TRACE "xtcp2-nl-ioam ::1 99 5" {} 1] \
+        [list ioam_monitor_disabled 2 {{ioam namespace add 123}} "xtcp2-nl-ioam ::1 123 5" {} 1]
+
+    ###########################################################################
+    # C2-T04 - mptcp, the mptcp_pm family: the in-kernel path manager's
+    # endpoints and limits, both per namespace, made with plain `ip` pre
+    # steps over PRE_ADDRS's d0.
+    #
+    # The kernel refuses an endpoint whose address is already one (EEXIST)
+    # or whose id is taken (EBUSY), a get, change or delete of an id it
+    # doesn't have, and a limit over MPTCP_PM_SUBFLOWS_MAX, 8 in 7.1 (64
+    # from 7.2), each EINVAL; `ip` exits 2. A port without `signal` is
+    # refused by `ip` itself, after the family lookup (255). A delete of id
+    # 0 must name the address, and changes no endpoint: id 0 is each
+    # connection's first address, which the kernel only drops from
+    # connections.
+    #
+    # The two monitor rows run `ip mptcp monitor` inside xtcp2-nl-mptcp,
+    # whose canary listener's LISTENER_CREATED and LISTENER_CLOSED start
+    # each pcap's events. The listener row adds a signal endpoint with a
+    # port, for which the kernel opens a listener (LISTENER_CREATED), and
+    # deletes it (LISTENER_CLOSED); its floor is the monitor's lookup, the
+    # canary's 2, the two ip commands' lookup and ACK, 4 each, and the 2
+    # events. The connection row makes one MPTCP connection with one extra
+    # subflow from the subflow endpoint, both ends in the namespace, so
+    # every event comes twice except the listener's and the subflow's; its
+    # floor is the lookup, the canary's 2, the listener's 2, CREATED,
+    # ESTABLISHED and CLOSED twice, and one SF_ESTABLISHED.
+    ###########################################################################
+    variable PRE_EP1 [concat $PRE_ADDRS {{mptcp endpoint add 192.0.2.1 id 1 subflow}}]
+    variable PRE_EP1_BACKUP [concat $PRE_ADDRS {{mptcp endpoint add 192.0.2.1 id 1 subflow backup}}]
+    variable PRE_EP2 [concat $PRE_EP1 {{mptcp endpoint add 2001:db8::1 id 2 dev d0 signal}}]
+    variable PRE_CONN [concat $PRE_ADDRS {
+        {mptcp limits set subflows 1}
+        {mptcp endpoint add 192.0.2.2 id 1 dev d0 subflow}
+    }]
+    variable EP_SHOW {{endpoint 4 {ip mptcp endpoint show}}}
+    variable LIM_SHOW {{limits 4 {ip mptcp limits show}}}
+    variable MON_LISTENER {xtcp2-nl-mptcp monitor "ip mptcp endpoint add 192.0.2.1 id 1 port 10100 signal && ip mptcp endpoint delete id 1" "LISTENER_CREATED. saddr4=192.0.2.1 sport=10100" "LISTENER_CLOSED. saddr4=192.0.2.1 sport=10100"}
+    variable MON_CONN {xtcp2-nl-mptcp monitor "xtcp2-nl-mptcp conn 192.0.2.1 1" "(?s) CREATED. token.* CREATED. token" "(?s) ESTABLISHED. token.* ESTABLISHED. token" "SF_ESTABLISHED. token" "(?s) CLOSED. token.* CLOSED. token" "LISTENER_CLOSED. saddr4=192.0.2.1 "}
+
+    lappend rows \
+        [list mptcp_endpoint_show_empty 4 {} "ip mptcp endpoint show" {} 0] \
+        [list mptcp_endpoint_add 4 $PRE_ADDRS "ip mptcp endpoint add 192.0.2.1 id 1 subflow" $EP_SHOW 0] \
+        [list mptcp_endpoint_add_v6_dev 4 $PRE_ADDRS "ip mptcp endpoint add 2001:db8::1 dev d0 signal backup" $EP_SHOW 0] \
+        [list mptcp_endpoint_add_port 4 $PRE_ADDRS "ip mptcp endpoint add 192.0.2.2 port 10100 signal" $EP_SHOW 0] \
+        [list mptcp_endpoint_add_fullmesh 4 $PRE_ADDRS "ip mptcp endpoint add 192.0.2.2 subflow fullmesh" $EP_SHOW 0] \
+        [list mptcp_endpoint_add_dup 4 $PRE_EP1 "ip mptcp endpoint add 192.0.2.1 subflow" {} 2] \
+        [list mptcp_endpoint_add_id_busy 4 $PRE_EP1 "ip mptcp endpoint add 192.0.2.2 id 1 subflow" {} 2] \
+        [list mptcp_endpoint_add_port_subflow 2 $PRE_ADDRS "ip mptcp endpoint add 192.0.2.2 port 10100 subflow" {} 255] \
+        [list mptcp_endpoint_show 4 $PRE_EP2 "ip mptcp endpoint show" {} 0] \
+        [list mptcp_endpoint_get 4 $PRE_EP2 "ip mptcp endpoint show id 2" {} 0] \
+        [list mptcp_endpoint_get_missing 4 $PRE_ADDRS "ip mptcp endpoint show id 9" {} 2] \
+        [list mptcp_endpoint_change 4 $PRE_EP1 "ip mptcp endpoint change id 1 backup" $EP_SHOW 0] \
+        [list mptcp_endpoint_change_addr 4 $PRE_EP1 "ip mptcp endpoint change 192.0.2.1 fullmesh" $EP_SHOW 0] \
+        [list mptcp_endpoint_change_nobackup 4 $PRE_EP1_BACKUP "ip mptcp endpoint change id 1 nobackup" $EP_SHOW 0] \
+        [list mptcp_endpoint_change_missing 4 $PRE_ADDRS "ip mptcp endpoint change id 9 backup" {} 2] \
+        [list mptcp_endpoint_delete 4 $PRE_EP2 "ip mptcp endpoint delete id 1" $EP_SHOW 0] \
+        [list mptcp_endpoint_delete_missing 4 $PRE_ADDRS "ip mptcp endpoint delete id 9" {} 2] \
+        [list mptcp_endpoint_delete_id0 4 $PRE_EP1 "ip mptcp endpoint delete id 0 192.0.2.1" $EP_SHOW 0] \
+        [list mptcp_endpoint_flush 4 $PRE_EP2 "ip mptcp endpoint flush" $EP_SHOW 0] \
+        [list mptcp_limits_show 4 {} "ip mptcp limits show" {} 0] \
+        [list mptcp_limits_set 4 {} "ip mptcp limits set subflows 4 add_addr_accepted 3" $LIM_SHOW 0] \
+        [list mptcp_limits_set_one 4 {} "ip mptcp limits set add_addr_accepted 2" $LIM_SHOW 0] \
+        [list mptcp_limits_set_none 4 {} "ip mptcp limits set" $LIM_SHOW 0] \
+        [list mptcp_limits_set_max 4 {} "ip mptcp limits set subflows 8 add_addr_accepted 8" $LIM_SHOW 0] \
+        [list mptcp_limits_set_over 4 {} "ip mptcp limits set subflows 9" {} 2] \
+        [list mptcp_monitor_listener 14 $PRE_ADDRS $MON_LISTENER {} 0] \
+        [list mptcp_monitor_conn 13 $PRE_CONN $MON_CONN {} 0]
+
+    ###########################################################################
+    # C2-T05 - fou, the FOU family: the namespace's foo-over-UDP receive
+    # ports, each one a UDP socket the kernel binds (and connects, given a
+    # peer), made with plain `ip fou` pre steps. The family lives in the
+    # fou module, which late setup loads.
+    #
+    # The kernel refuses a port that is already bound in the same family
+    # (EADDRINUSE, from the bind), a dev without a local address, a delete
+    # that matches no port on family, port, peer port, dev and addresses,
+    # and an add with no encapsulation type, each EINVAL but the first; `ip`
+    # exits 2. ip/ipfou.c ignores fou_parse_opt's -1, so an add with no port
+    # or no type prints its complaint and still sends an ADD, which carries
+    # no attribute, since the complaint comes before the first one is
+    # added. `ip` refuses port 0 itself (invarg, 255), and an unknown dev
+    # and `show` with an argument (1: it exits 1 on the first, and do_show
+    # returns -1 on the second), each after the family lookup and with
+    # nothing more sent.
+    ###########################################################################
+    variable PRE_FOU {{fou add port 5555 ipproto 4}}
+    variable PRE_FOU_PEER [concat $PRE_ADDRS {
+        {fou add port 5555 ipproto 4 local 192.0.2.1 peer 192.0.2.2 peer_port 5556}
+    }]
+    variable PRE_FOU2 {{fou add port 5555 ipproto 4} {fou add port 5556 gue -6}}
+    variable FOU_SHOW {{fou 4 {ip fou show}}}
+
+    lappend rows \
+        [list fou_show_empty 4 {} "ip fou show" {} 0] \
+        [list fou_add 4 {} "ip fou add port 5555 ipproto 4" $FOU_SHOW 0] \
+        [list fou_add_gue 4 {} "ip fou add port 5555 gue" $FOU_SHOW 0] \
+        [list fou_add_v6 4 {} "ip fou add port 5555 gue -6" $FOU_SHOW 0] \
+        [list fou_add_local_peer 4 $PRE_ADDRS \
+            "ip fou add port 5555 ipproto 4 local 192.0.2.1 peer 192.0.2.2 peer_port 5556" $FOU_SHOW 0] \
+        [list fou_add_v6_local_peer 4 $PRE_ADDRS \
+            "ip fou add port 5555 gue -6 local 2001:db8::1 peer 2001:db8::2 peer_port 5556" $FOU_SHOW 0] \
+        [list fou_add_dev 4 $PRE_ADDRS "ip fou add port 5555 ipproto 4 local 192.0.2.1 dev d0" $FOU_SHOW 0] \
+        [list fou_add_dev_no_local 4 $PRE_ADDRS "ip fou add port 5555 ipproto 4 dev d0" {} 2] \
+        [list fou_add_dup 4 $PRE_FOU "ip fou add port 5555 gue" {} 2] \
+        [list fou_add_same_port_v6 4 $PRE_FOU "ip fou add port 5555 gue -6" $FOU_SHOW 0] \
+        [list fou_add_no_port 4 {} "ip fou add ipproto 4" {} 2] \
+        [list fou_add_no_type 4 {} "ip fou add port 5555" {} 2] \
+        [list fou_add_port_zero 2 {} "ip fou add port 0 gue" {} 255] \
+        [list fou_add_unknown_dev 2 $PRE_ADDRS "ip fou add port 5555 gue local 192.0.2.1 dev nosuch" {} 1] \
+        [list fou_del 4 $PRE_FOU "ip fou del port 5555" $FOU_SHOW 0] \
+        [list fou_del_missing 4 {} "ip fou del port 5555" {} 2] \
+        [list fou_del_wrong_family 4 $PRE_FOU "ip fou del port 5555 -6" {} 2] \
+        [list fou_del_local_peer 4 $PRE_FOU_PEER \
+            "ip fou del port 5555 local 192.0.2.1 peer 192.0.2.2 peer_port 5556" $FOU_SHOW 0] \
+        [list fou_del_partial 4 $PRE_FOU_PEER "ip fou del port 5555" {} 2] \
+        [list fou_show 4 $PRE_FOU2 "ip fou show" {} 0] \
+        [list fou_show_args 2 {} "ip fou show port 5555" {} 1]
+
+    ###########################################################################
+    # C2-T06 - ila, the ILA family: the namespace's identifier-locator
+    # mappings, made with plain `ip ila` pre steps. The family lives in the
+    # ila module, which late setup loads.
+    #
+    # The kernel keys a mapping on its locator to match and its dev, so the
+    # same loc_match with a dev is a second mapping, and refuses only an
+    # add of a key it already has (EEXIST; `ip` exits 2). A delete is
+    # always ACKed, whether or not it matched: ila_xlat_nl_cmd_del_mapping
+    # drops ila_del_mapping's -ENOENT. ip/ipila.c ignores ila_parse_opt's
+    # -1, as ip/ipfou.c does, so an add with no locator prints its
+    # complaint and still sends an ADD with no attribute, which the kernel
+    # takes as a mapping of locator 0 to locator 0. `ip` refuses an
+    # unknown word itself (usage, 255) and `show` with an argument
+    # (do_list returns -1, so 1), each after the family lookup and with
+    # nothing more sent.
+    ###########################################################################
+    variable ILA_MAP {ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4}
+    variable PRE_ILA [list $ILA_MAP]
+    variable PRE_ILA_ADDRS [concat $PRE_ADDRS [list $ILA_MAP]]
+    variable PRE_ILA_DEV [concat $PRE_ADDRS [list "$ILA_MAP dev d0"]]
+    variable PRE_ILA_BOTH [concat $PRE_ADDRS [list $ILA_MAP "$ILA_MAP dev d0"]]
+    variable PRE_ILA2 [list $ILA_MAP {ila add loc_match 2001:db8:5:6 loc 2001:db8:7:8 csum-mode neutral-map}]
+    variable ILA_SHOW {{ila 4 {ip ila show}}}
+
+    lappend rows \
+        [list ila_show_empty 4 {} "ip ila show" {} 0] \
+        [list ila_add 4 {} "ip $ILA_MAP" $ILA_SHOW 0] \
+        [list ila_add_dev 4 $PRE_ADDRS "ip $ILA_MAP dev d0" $ILA_SHOW 0] \
+        [list ila_add_opts 4 {} "ip $ILA_MAP csum-mode adj-transport ident-type luid" $ILA_SHOW 0] \
+        [list ila_add_auto 4 {} "ip $ILA_MAP csum-mode neutral-map-auto ident-type use-format" $ILA_SHOW 0] \
+        [list ila_add_dup 4 $PRE_ILA "ip $ILA_MAP" {} 2] \
+        [list ila_add_same_match_dev 4 $PRE_ILA_ADDRS "ip $ILA_MAP dev d0" $ILA_SHOW 0] \
+        [list ila_add_no_loc 4 {} "ip ila add loc_match 2001:db8:1:2" $ILA_SHOW 0] \
+        [list ila_add_unknown_word 2 {} "ip ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4 bogus" {} 255] \
+        [list ila_del 4 $PRE_ILA "ip ila del loc_match 2001:db8:1:2" $ILA_SHOW 0] \
+        [list ila_del_missing 4 {} "ip ila del loc_match 2001:db8:1:2" $ILA_SHOW 0] \
+        [list ila_del_dev 4 $PRE_ILA_BOTH "ip ila del loc_match 2001:db8:1:2 dev d0" $ILA_SHOW 0] \
+        [list ila_del_nodev_of_dev 4 $PRE_ILA_DEV "ip ila del loc_match 2001:db8:1:2" $ILA_SHOW 0] \
+        [list ila_show 4 $PRE_ILA2 "ip ila show" {} 0] \
+        [list ila_show_args 2 {} "ip ila show 2001:db8:1:2" {} 1]
+
+    ###########################################################################
+    # C2-T07 - l2tp, the l2tp family: L2TPv3 tunnels and their ethernet
+    # sessions, made with plain `ip l2tp` pre steps over PRE_ADDRS's d0.
+    # The family is in l2tp_netlink; a UDP tunnel's socket is made by the
+    # kernel, bound to local and udp_sport and connected to remote and
+    # udp_dport; an IP-encap tunnel needs l2tp_ip, and a session l2tp_eth,
+    # which makes its l2tpeth device. Late setup loads all of them.
+    #
+    # The kernel refuses a tunnel id it already has (EEXIST), and a delete
+    # of a missing tunnel or session, or a session in a missing tunnel
+    # (ENODEV); `ip` exits 2. A session id already in use is refused
+    # (EEXIST) only when the existing session is in an IP-encap tunnel:
+    # l2tp_session_register puts a UDP tunnel's duplicate on a collision
+    # list and accepts it, even in the same tunnel.
+    # `ip` refuses a missing argument itself (missarg) and a bare `show`
+    # (usage), 255, each after the family lookup with nothing more sent.
+    # `show` with ids is still a dump: ip/ipl2tp.c always asks for one, and
+    # puts the ids in the request, which the kernel's dumps do not read.
+    ###########################################################################
+    variable L2TP_TUN1 {l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 local 192.0.2.1 remote 192.0.2.2 udp_sport 5000 udp_dport 6000}
+    variable L2TP_TUN2 {l2tp add tunnel tunnel_id 3 peer_tunnel_id 4 local 192.0.2.1 remote 192.0.2.2 udp_sport 5001 udp_dport 6001}
+    variable L2TP_SESS1 {l2tp add session tunnel_id 1 session_id 10 peer_session_id 20}
+    variable L2TP_SESS2 {l2tp add session tunnel_id 1 session_id 11 peer_session_id 21}
+    variable PRE_TUN [concat $PRE_ADDRS [list $L2TP_TUN1]]
+    variable PRE_TUN2 [concat $PRE_ADDRS [list $L2TP_TUN1 $L2TP_TUN2]]
+    variable PRE_SESS [concat $PRE_TUN [list $L2TP_SESS1]]
+    variable PRE_SESS2 [concat $PRE_SESS [list $L2TP_SESS2]]
+    variable PRE_SESS_IP [concat $PRE_ADDRS [list \
+        {l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 encap ip local 192.0.2.1 remote 192.0.2.2} $L2TP_SESS1]]
+    variable TUN_SHOW {{tunnel 4 {ip l2tp show tunnel}}}
+    variable SESS_SHOW {{session 4 {ip l2tp show session}}}
+
+    lappend rows \
+        [list l2tp_tunnel_show_empty 4 {} "ip l2tp show tunnel" {} 0] \
+        [list l2tp_tunnel_add 4 $PRE_ADDRS "ip $L2TP_TUN1" $TUN_SHOW 0] \
+        [list l2tp_tunnel_add_csum 4 $PRE_ADDRS "ip $L2TP_TUN1 udp_csum on" $TUN_SHOW 0] \
+        [list l2tp_tunnel_add_v6 4 $PRE_ADDRS \
+            "ip l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 local 2001:db8::1 remote 2001:db8::2 udp_sport 5000 udp_dport 6000 udp6_csum_rx off" $TUN_SHOW 0] \
+        [list l2tp_tunnel_add_ip 4 $PRE_ADDRS \
+            "ip l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 encap ip local 192.0.2.1 remote 192.0.2.2" $TUN_SHOW 0] \
+        [list l2tp_tunnel_add_dup 4 $PRE_TUN \
+            "ip l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 local 192.0.2.1 remote 192.0.2.2 udp_sport 5001 udp_dport 6001" {} 2] \
+        [list l2tp_tunnel_add_no_local 2 $PRE_ADDRS \
+            "ip l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 remote 192.0.2.2 udp_sport 5000 udp_dport 6000" {} 255] \
+        [list l2tp_tunnel_show 4 $PRE_TUN2 "ip l2tp show tunnel" {} 0] \
+        [list l2tp_tunnel_show_id 4 $PRE_TUN2 "ip l2tp show tunnel tunnel_id 1" {} 0] \
+        [list l2tp_tunnel_del 4 $PRE_TUN "ip l2tp del tunnel tunnel_id 1" $TUN_SHOW 0] \
+        [list l2tp_tunnel_del_missing 4 $PRE_ADDRS "ip l2tp del tunnel tunnel_id 9" {} 2] \
+        [list l2tp_tunnel_del_sessions 4 $PRE_SESS "ip l2tp del tunnel tunnel_id 1" $SESS_SHOW 0] \
+        [list l2tp_session_show_empty 4 $PRE_TUN "ip l2tp show session" {} 0] \
+        [list l2tp_session_add 4 $PRE_TUN "ip $L2TP_SESS1" $SESS_SHOW 0] \
+        [list l2tp_session_add_opts 4 $PRE_TUN \
+            "ip l2tp add session name l2tp9 tunnel_id 1 session_id 10 peer_session_id 20 cookie 0102030405060708 peer_cookie 0a0b0c0d seq both l2spec_type none" $SESS_SHOW 0] \
+        [list l2tp_session_add_dup 4 $PRE_SESS "ip $L2TP_SESS1" $SESS_SHOW 0] \
+        [list l2tp_session_add_dup_ip 4 $PRE_SESS_IP "ip $L2TP_SESS1" {} 2] \
+        [list l2tp_session_add_no_tunnel 4 $PRE_ADDRS "ip $L2TP_SESS1" {} 2] \
+        [list l2tp_session_add_no_peer 2 $PRE_TUN "ip l2tp add session tunnel_id 1 session_id 10" {} 255] \
+        [list l2tp_session_show 4 $PRE_SESS2 "ip l2tp show session" {} 0] \
+        [list l2tp_session_show_id 4 $PRE_SESS2 "ip l2tp show session tunnel_id 1 session_id 10" {} 0] \
+        [list l2tp_session_del 4 $PRE_SESS "ip l2tp del session tunnel_id 1 session_id 10" $SESS_SHOW 0] \
+        [list l2tp_session_del_missing 4 $PRE_TUN "ip l2tp del session tunnel_id 1 session_id 99" {} 2] \
+        [list l2tp_show_bare 2 {} "ip l2tp show" {} 255]
+
+    ###########################################################################
+    # C2-T08 - macsec, the macsec family: a SecY's transmit SAs and its
+    # receive channels and their SAs, made with plain `ip macsec` pre steps
+    # on macsec0, an `ip link` macsec device over PRE_ADDRS's d0. The SecY's
+    # SCI is given (0102030405060001), not taken from d0's random address,
+    # so no byte depends on the run. The family is in the macsec module,
+    # which late setup loads. Keys are 128-bit (gcm-aes-128, the default).
+    #
+    # The kernel refuses an SA number already in use and a delete of an
+    # active SA (EBUSY), a receive channel it already has (EEXIST), a
+    # missing SA or channel, or a device that is not macsec (ENODEV), a key
+    # or packet number of the wrong length (EINVAL), and offload to a device
+    # that cannot (EOPNOTSUPP); `ip` exits 2. `ip` refuses an add with no
+    # key or no packet number, a set with a key, and an unknown device
+    # itself (1), and an SA number over 3 (invarg, 255), each after the
+    # family lookup with nothing more sent. `show DEV` is still a dump of
+    # every SecY; ip/ipmacsec.c keeps the one it asked for.
+    ###########################################################################
+    variable MACSEC_LINK {link add link d0 macsec0 type macsec sci 0102030405060001}
+    variable MACSEC_TXSA {macsec add macsec0 tx sa 0 pn 1 on key 01000000000000000000000000000000 81818181818181818181818181818181}
+    variable MACSEC_RXSC {macsec add macsec0 rx sci 0a0b0c0d0e0f0001 on}
+    variable MACSEC_RXSA {macsec add macsec0 rx sci 0a0b0c0d0e0f0001 sa 0 pn 1 on key 02000000000000000000000000000000 82828282828282828282828282828282}
+    variable PRE_MACSEC [concat $PRE_ADDRS [list $MACSEC_LINK]]
+    variable PRE_MACSEC2 [concat $PRE_MACSEC [list {link add link d0 macsec1 type macsec sci 0102030405060002}]]
+    variable PRE_MACSEC_XPN [concat $PRE_ADDRS [list {link add link d0 macsec0 type macsec sci 0102030405060001 cipher gcm-aes-xpn-128}]]
+    variable PRE_TXSA [concat $PRE_MACSEC [list $MACSEC_TXSA]]
+    variable PRE_TXSA_OFF [concat $PRE_MACSEC [list {macsec add macsec0 tx sa 0 pn 1 off key 01000000000000000000000000000000 81818181818181818181818181818181}]]
+    variable PRE_RXSC [concat $PRE_MACSEC [list $MACSEC_RXSC]]
+    variable PRE_RXSA [concat $PRE_RXSC [list $MACSEC_RXSA]]
+    variable PRE_RXSA_OFF [concat $PRE_RXSC [list {macsec add macsec0 rx sci 0a0b0c0d0e0f0001 sa 0 pn 1 off key 02000000000000000000000000000000 82828282828282828282828282828282}]]
+    variable MACSEC_SHOW {{macsec 4 {ip macsec show}}}
+
+    lappend rows \
+        [list macsec_show_empty 4 {} "ip macsec show" {} 0] \
+        [list macsec_show 4 $PRE_MACSEC2 "ip macsec show" {} 0] \
+        [list macsec_show_dev 4 $PRE_MACSEC2 "ip macsec show macsec1" {} 0] \
+        [list macsec_show_unknown_dev 2 {} "ip macsec show nodev0" {} 1] \
+        [list macsec_txsa_add 4 $PRE_MACSEC "ip $MACSEC_TXSA" $MACSEC_SHOW 0] \
+        [list macsec_txsa_add_off 4 $PRE_MACSEC "ip macsec add macsec0 tx sa 3 pn 100 off key 01000000000000000000000000000000 81818181818181818181818181818181" $MACSEC_SHOW 0] \
+        [list macsec_txsa_add_dup 4 $PRE_TXSA "ip $MACSEC_TXSA" {} 2] \
+        [list macsec_txsa_add_no_key 2 $PRE_MACSEC "ip macsec add macsec0 tx sa 1 pn 1" {} 1] \
+        [list macsec_txsa_add_no_pn 2 $PRE_MACSEC "ip macsec add macsec0 tx sa 1 key 01000000000000000000000000000000 81818181818181818181818181818181" {} 1] \
+        [list macsec_txsa_add_long_key 4 $PRE_MACSEC "ip macsec add macsec0 tx sa 1 pn 1 key 01000000000000000000000000000000 8181818181818181818181818181818181818181818181818181818181818181" {} 2] \
+        [list macsec_txsa_add_an4 2 $PRE_MACSEC "ip macsec add macsec0 tx sa 4 pn 1 key 01000000000000000000000000000000 81818181818181818181818181818181" {} 255] \
+        [list macsec_txsa_add_not_macsec 4 $PRE_ADDRS "ip macsec add d0 tx sa 0 pn 1 key 01000000000000000000000000000000 81818181818181818181818181818181" {} 2] \
+        [list macsec_txsa_set 4 $PRE_TXSA "ip macsec set macsec0 tx sa 0 pn 50 off" $MACSEC_SHOW 0] \
+        [list macsec_txsa_set_key 2 $PRE_TXSA "ip macsec set macsec0 tx sa 0 key 01000000000000000000000000000000 81818181818181818181818181818181" {} 1] \
+        [list macsec_txsa_del_active 4 $PRE_TXSA "ip macsec del macsec0 tx sa 0" {} 2] \
+        [list macsec_txsa_del 4 $PRE_TXSA_OFF "ip macsec del macsec0 tx sa 0" $MACSEC_SHOW 0] \
+        [list macsec_txsa_del_missing 4 $PRE_MACSEC "ip macsec del macsec0 tx sa 2" {} 2] \
+        [list macsec_rxsc_add 4 $PRE_MACSEC "ip $MACSEC_RXSC" $MACSEC_SHOW 0] \
+        [list macsec_rxsc_add_port 4 $PRE_MACSEC "ip macsec add macsec0 rx port 1 address 02:00:00:00:00:01" $MACSEC_SHOW 0] \
+        [list macsec_rxsc_add_dup 4 $PRE_RXSC "ip $MACSEC_RXSC" {} 2] \
+        [list macsec_rxsc_set 4 $PRE_RXSC "ip macsec set macsec0 rx sci 0a0b0c0d0e0f0001 off" $MACSEC_SHOW 0] \
+        [list macsec_rxsc_del 4 $PRE_RXSC "ip macsec del macsec0 rx sci 0a0b0c0d0e0f0001" $MACSEC_SHOW 0] \
+        [list macsec_rxsc_del_missing 4 $PRE_MACSEC "ip macsec del macsec0 rx sci 0a0b0c0d0e0f0001" {} 2] \
+        [list macsec_rxsa_add 4 $PRE_RXSC "ip $MACSEC_RXSA" $MACSEC_SHOW 0] \
+        [list macsec_rxsa_add_no_sc 4 $PRE_MACSEC "ip $MACSEC_RXSA" {} 2] \
+        [list macsec_rxsa_set 4 $PRE_RXSA "ip macsec set macsec0 rx sci 0a0b0c0d0e0f0001 sa 0 pn 60 off" $MACSEC_SHOW 0] \
+        [list macsec_rxsa_del_active 4 $PRE_RXSA "ip macsec del macsec0 rx sci 0a0b0c0d0e0f0001 sa 0" {} 2] \
+        [list macsec_rxsa_del 4 $PRE_RXSA_OFF "ip macsec del macsec0 rx sci 0a0b0c0d0e0f0001 sa 0" $MACSEC_SHOW 0] \
+        [list macsec_xpn_txsa_add 4 $PRE_MACSEC_XPN "ip macsec add macsec0 tx sa 0 xpn 1 salt 0102030405060708090a0b0c ssci 1 on key 01000000000000000000000000000000 81818181818181818181818181818181" $MACSEC_SHOW 0] \
+        [list macsec_xpn_txsa_pn32 4 $PRE_MACSEC_XPN "ip macsec add macsec0 tx sa 0 pn 1 salt 0102030405060708090a0b0c ssci 1 key 01000000000000000000000000000000 81818181818181818181818181818181" {} 2] \
+        [list macsec_offload_off 4 $PRE_MACSEC "ip macsec offload macsec0 off" $MACSEC_SHOW 0] \
+        [list macsec_offload_mac 4 $PRE_MACSEC "ip macsec offload macsec0 mac" {} 2]
+
+    ###########################################################################
+    # pre_step <ns> <subdir> <step> - 1 if the step was taken, else 0.
+    #
+    # `tcp SERVER CLIENT` is one connection (xtcp2-nlcap tcp), and
+    # `hmac KEYID ALGO SECRET` one SRv6 HMAC key (xtcp2-nlcap hmac); a
+    # refused one joins nltopo's refusals, so it fails the run as a refused
+    # `ip` step does. Anything else is an address-corpus step
+    # (addrcorpus::pre_step).
+    ###########################################################################
+    proc pre_step {ns subdir step} {
+        switch -- [lindex $step 0] {
+            tcp {
+                if {[llength $step] != 3} {
+                    error "genlcorpus: a tcp step is {tcp SERVER CLIENT}: $step"
+                }
+                lassign [lrange $step 1 2] server client
+                set cmd "xtcp2-nlcap tcp $ns $subdir $server $client"
+                set refusal "xtcp2-nl-tcp -n $ns $server $client"
+            }
+            hmac {
+                if {[llength $step] != 4} {
+                    error "genlcorpus: an hmac step is {hmac KEYID ALGO SECRET}: $step"
+                }
+                lassign [lrange $step 1 3] keyid algo secret
+                set cmd "xtcp2-nlcap hmac $ns $subdir $keyid $algo $secret"
+                set refusal "ip -n $ns sr hmac set $keyid $algo"
+            }
+            default {
+                return [addrcorpus::pre_step $ns $subdir $step]
+            }
+        }
+        lassign [vmlib::run_out $cmd] rc out
+        if {$rc == 0} {
+            return 1
+        }
+        lappend nltopo::refused $refusal
+        vmlib::log "genl corpus: step refused: $refusal"
+        return 0
+    }
+
+    ###########################################################################
+    # readback_args <ns> <subdir> <readback> - the capio argument list for one
+    # readback, ending with the protocol its pcap keeps.
+    ###########################################################################
+    proc readback_args {ns subdir readback} {
+        if {[llength $readback] != 3} {
+            error "genlcorpus: a readback is {name floor command}: $readback"
+        }
+        lassign $readback name floor command
+        return [list $ns $subdir netlink_generic_$name $floor $command ip_$name generic]
+    }
+
+    ###########################################################################
+    # rc_problem <slug> <want> <got> - as rtnlcorpus::rc_problem, under genl/.
+    ###########################################################################
+    proc rc_problem {slug want got} {
+        set got [string trim $got]
+        if {$got eq $want} {
+            return ""
+        }
+        if {$got eq ""} {
+            return "genl/$slug/ip.rc unreadable, want $want"
+        }
+        return "genl/$slug/ip.rc is $got, want $want"
+    }
+}

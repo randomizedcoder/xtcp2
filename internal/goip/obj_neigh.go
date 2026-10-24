@@ -61,7 +61,8 @@ type neighSelectors struct {
 	StateGiven bool
 }
 
-// parseNeighShowArgs walks the selectors after the verb.
+// parseNeighShowArgs walks the selectors after the verb, show's or flush's,
+// which share do_show_or_flush's loop; verb names the command in its errors.
 //
 // # Two keywords, both compared the strict way, and they disagree about repeats
 //
@@ -104,13 +105,13 @@ type neighSelectors struct {
 // the bare `to PREFIX` else-arm — are rejected rather than ignored, the policy
 // every other object in goip follows: answering a filtered query with an
 // unfiltered dump is a wrong answer, not a missing feature.
-func parseNeighShowArgs(args []string) (neighSelectors, error) {
+func parseNeighShowArgs(verb string, args []string) (neighSelectors, error) {
 	sel := neighSelectors{State: neighShowStateMaskCst}
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case nudKeywordCst:
 			if i+1 >= len(args) {
-				return sel, fmt.Errorf("%w: neigh show: argument %q is missing its value", ErrInvalidArgument, args[i])
+				return sel, fmt.Errorf("%w: neigh %s: argument %q is missing its value", ErrInvalidArgument, verb, args[i])
 			}
 			i++
 			if !sel.StateGiven {
@@ -119,7 +120,7 @@ func parseNeighShowArgs(args []string) (neighSelectors, error) {
 			state, ok := nudStateA2n(args[i])
 			if !ok {
 				if args[i] != nudAllCst {
-					return sel, fmt.Errorf("%w: neigh show: argument %q is wrong: nud state is bad", ErrInvalidArgument, args[i])
+					return sel, fmt.Errorf("%w: neigh %s: argument %q is wrong: nud state is bad", ErrInvalidArgument, verb, args[i])
 				}
 				state = ^uint32(0)
 			}
@@ -143,26 +144,43 @@ func parseNeighShowArgs(args []string) (neighSelectors, error) {
 			// and duparg prints `Duplicate "dev": "..." is the second
 			// value.` — which neither goip code matches.
 			if i+1 >= len(args) {
-				return sel, fmt.Errorf("%w: neigh show: argument %q is missing its value", ErrInvalidArgument, args[i])
+				return sel, fmt.Errorf("%w: neigh %s: argument %q is missing its value", ErrInvalidArgument, verb, args[i])
 			}
 			if sel.DevSet {
-				return sel, fmt.Errorf("%w: neigh show: duplicate %q argument", ErrInvalidArgument, devKeywordCst)
+				return sel, fmt.Errorf("%w: neigh %s: duplicate %q argument", ErrInvalidArgument, verb, devKeywordCst)
 			}
 			i++
 			sel.Dev, sel.DevSet = args[i], true
 		default:
-			return sel, fmt.Errorf("neigh show %q: %w", args[i], ErrNotImplemented)
+			return sel, fmt.Errorf("neigh %s %q: %w", verb, args[i], ErrNotImplemented)
 		}
 	}
 	return sel, nil
 }
 
 func runNeigh(c *runCtx, args []string) error {
-	args, err := showArgs("neigh", neighVerbs, args)
-	if err != nil {
-		return err
+	// do_ipneigh's order (ip/ipneigh.c:747-765): the write verbs, get, the
+	// listing, then flush.
+	if len(args) > 0 {
+		v, ok := resolveVerb(neighVerbs, args[0])
+		if !ok {
+			return fmt.Errorf("neigh %q: %w", args[0], ErrNotImplemented)
+		}
+		if v.kind != verbShow {
+			if w := lookupNeighWriteVerb(v.name); w != nil {
+				return neighModify(c, w, args[1:])
+			}
+			switch v.name {
+			case neighGetVerbCst:
+				return neighGet(c, args[1:])
+			case routeFlushVerbCst:
+				return neighFlush(c, args[1:])
+			}
+			return fmt.Errorf("neigh %q: %w", v.name, ErrNotImplemented)
+		}
+		args = args[1:]
 	}
-	sel, err := parseNeighShowArgs(args)
+	sel, err := parseNeighShowArgs(showVerbCst, args)
 	if err != nil {
 		return err
 	}
@@ -305,7 +323,7 @@ func nudStateA2n(arg string) (uint32, bool) {
 		return unix.NUD_REACHABLE, true
 	case arg == "noarp":
 		return unix.NUD_NOARP, true
-	case arg == "none":
+	case arg == noneKeywordCst:
 		return unix.NUD_NONE, true
 	case arg == "stale":
 		return unix.NUD_STALE, true

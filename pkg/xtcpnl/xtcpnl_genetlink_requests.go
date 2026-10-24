@@ -11,6 +11,14 @@ import (
 // ID is fixed by UAPI; the returned family and multicast IDs are dynamic.
 // No ACK is requested: transaction completion requires the family reply.
 func BuildGetFamilyRequest(name string, seq uint32) ([]byte, error) {
+	return BuildGetFamilyRequestVersion(name, 2, seq)
+}
+
+// BuildGetFamilyRequestVersion is BuildGetFamilyRequest with the genlmsghdr
+// version given. iproute2's genl_resolve_family sends version 0
+// (GENL_REQUEST's _ver, lib/libgenl.c:52), and the controller does not read it,
+// so a parity caller passes 0 and everything else keeps 2.
+func BuildGetFamilyRequestVersion(name string, version uint8, seq uint32) ([]byte, error) {
 	// GENL_NAMSIZ includes the terminator.
 	if name == "" || len(name) >= 16 || strings.ContainsRune(name, 0) {
 		return nil, ErrGenericNetlink
@@ -20,7 +28,23 @@ func BuildGetFamilyRequest(name string, seq uint32) ([]byte, error) {
 	if err := a.PutString(2, name); err != nil {
 		return nil, err
 	}
-	return buildGenericGet(GenlControllerID, 3, 2, seq, a.Bytes()), nil
+	return buildGenericGet(GenlControllerID, 3, version, seq, a.Bytes()), nil
+}
+
+// BuildGetFamilyByIDRequest builds genl_add_mcast_grp's CTRL_CMD_GETFAMILY
+// (lib/libgenl.c): version 0, the family by CTRL_ATTR_FAMILY_ID, whose
+// answer names the family's multicast groups. id must be a family's, above
+// the controller's.
+func BuildGetFamilyByIDRequest(id uint16, seq uint32) ([]byte, error) {
+	if id <= GenlControllerID {
+		return nil, ErrGenericNetlink
+	}
+	var raw [8]byte
+	a := NewAttrBuilder(raw[:])
+	if err := a.PutU16(1, id); err != nil {
+		return nil, err
+	}
+	return buildGenericGet(GenlControllerID, 3, 0, seq, a.Bytes()), nil
 }
 
 // BuildGetEthtoolRequest builds a read-only, single-device GET. family must be

@@ -2,7 +2,7 @@
 
 ## goip ↔ `ip` parity at a glance
 
-Counted from the tree on 2026-10-18. Every number has a file behind it, named
+Counted from the tree on 2026-10-21. Every number has a file behind it, named
 in the last column; **if this table and the file disagree, the file is right
 and this table is stale.** That has happened before in this document — see the
 "no route command is in `gated_commands`" line that outlived its own truth by
@@ -10,45 +10,49 @@ several steps, further down under [Remaining](#remaining).
 
 | | count | counted from |
 |---|---|---|
-| commands in the comparison matrix | **183** | `internal/goipparity/commands.go` — 100 read rows (31 of them `addr show` state, selector and output-mode rows with a `Setup`), the 21 link write rows, the 26 route write rows, the 27 address write rows, the 7 address flush rows and the 2 address restore rows |
-| of those, `Implemented: true` | **183** | same file — no row is `SKIP` any more, which is why the comparator's unimplemented branch is exercised by a synthetic command |
-| of those, in `gated_commands` | **160** | `pkg/nlparity/goip-parity-allowlist.json` |
-| allowlisted divergences | **0** | same file, `entries` |
+| commands in the comparison matrix | **507** | `internal/goipparity/commands.go` — 232 read rows, the 3 `nexthop show` dev, master and vrf selector rows of the iproute2 7.2.0 move among them, 8 of them G6-T01's `tcp_metrics` reads, each with a `Setup`, 4 G6-T02's `sr` reads, 4 G6-T03's `ioam` shows, 9 G6-T04's `mptcp` reads, 8 G6-T05's `fou` reads, 7 G6-T06's `ila` reads, 13 G6-T07's `l2tp` reads, 15 G6-T08's `macsec` reads, 9 G7-T01's `xfrm state` reads, G7-T02's `xfrm state delall` with no SA to delete, 10 G7-T03's `xfrm policy` reads and G7-T04's `xfrm policy delall` with no policy to delete, NETLINK_XFRM, (31 of them `addr show` state, selector and output-mode rows with a `Setup`, and 6 `route get`, 2 `neigh get`, 4 `nexthop get` and `nexthop bucket`, 3 `link xstats` and `link afstats`, 6 `mroute show`, 3 `token`, 4 `netns list-id`, 3 `route save` and `route showdump`, 1 `route flush`, 1 `neigh flush`, 1 `rule save` and 1 `nexthop flush` rows with one; the missing-table `route flush` row has none), the 21 link write rows, the 26 route write rows, the 27 address write rows, the 7 address flush rows, the 2 address restore rows, the route restore row, the 2 route flush write rows, the 6 neigh write rows, the 2 neigh flush write rows, the 17 rule write rows, the rule flush write row, the rule restore row, the 6 nexthop write rows, the nexthop flush write row, the 2 addrlabel write rows, the addrlabel flush write row, the 3 ntable write rows, the stats write row, the 3 link property write rows, the 2 token write rows, the netns set write row, the 6 `tcp_metrics` delete and flush write rows, the 7 `sr` set write rows, the 16 `ioam` namespace and schema write rows, the 19 `mptcp` endpoint and limits write rows, the 16 `fou` add and del write rows, the 11 `ila` add and del write rows, the 15 `l2tp` tunnel and session add and del write rows and the 24 `macsec` SA, receive channel and offload write rows, generic netlink, the 16 `xfrm state` add, update, delete, deleteall, flush and allocspi write rows and the 12 `xfrm policy` add, update, delete, deleteall, flush, set and setdefault write rows, NETLINK_XFRM |
+| of those, `Implemented: true` | **507** | same file — every row: none is `SKIP` and, since G6-T08, none is an `ip` stand-in (`IPStandIn`), which is why the comparator's unimplemented branch and the stand-in's rendering are exercised by synthetic commands |
+| of those, in `gated_commands` | **506** | `pkg/nlparity/goip-parity-allowlist.json` |
+| allowlisted divergences | **5** | same file, `entries` |
 | of those, `kind=version-skew` | **0** | the pin is `ip` 7.2.0 and goip follows it; the seven 7.1.0 entries were retired on 2026-10-21 (see [iproute2 7.2.0](#iproute2-720-the-pin-moves-and-goip-moves-with-it)) |
-| of those, `kind=accepted-divergence` | **0** | nothing is *allowlisted* as a permanent divergence — the eight intentional wire divergences below **cannot** be, because a transaction-count divergence is unsuppressible (`nlparity_allowlist.go:143`) |
+| of those, `kind=accepted-divergence` | **5** | the five `ip netns` rows' `NETNSA_FD`, the descriptor each process opened the namespace file as, a slot in its own table (G4-T04). Nothing else is: the nine wire divergences runs 8 and 9 measured **could not** be, because a transaction-count divergence is unsuppressible (`nlparity_allowlist.go:143`), and G0 retired every one by changing goip to send `ip`'s requests |
 
-**Twenty-three** matrix rows sit outside `gated_commands`, in
-six groups that are out for unrelated reasons. Fourteen are a queue, each
-awaiting its own measured-clean live run; the other **eight** — the bulk stats
-and netconf-dev rows — are **not** a queue but a closed, permanent, intentional wire
-divergence (see [Runs 8 & 9](#runs-8-and-9-ntable-netconf-and-vrf-gate-stats-and-netconf-dev-diverge)).
-The last is **`addr show dynamic`**, which prints a finite `valid_lft` that
-counts down between `ip_a` and `goip`, so it can never gate (see
+**One** matrix row sits outside `gated_commands`, **`addr show
+dynamic`**, which prints a finite `valid_lft` that counts down between `ip_a`
+and `goip`, so it can never gate (see
 [The `addr show` state and selector rows](#the-addr-show-state-and-selector-rows)).
+G5-T03's eight genl `show` stand-ins, compared `ip` against `ip`, sat there
+with it until G6 gave goip each family (see
+[G5-T03](#g5-t03-genl-rows-in-the-parity-harness)); G6-T08 replaced the
+last. It keeps `GOIP_PARITY_UNGATED_CLEAN` reading a row.
 
-**Twelve are new and not yet gated**: six family and table selectors and six
-`-j` forms, added together with the JSON facet extractor they depend on. They
-have two back-to-back clean live runs behind them — runs 6 and 7, both 41 of 41
-with `stdout=0` — which is the evidence the bar asks for and not the decision
-it gates. Gating them is a separate branch cut from the updated `main`. See
-[The twelve rows added for `-j` and the family selectors](#the-twelve-rows-added-for--j-and-the-family-selectors).
+The twenty-two that were out with it at the start of
+[goip-parity-gaps.md](goip-parity-gaps.md)'s G0 all gated there:
 
-**Two are `-s` forms held out on purpose**: **`-s addr show`** and
-**`-s neigh show`**. The `-s` sweep's other three — `-s -6 addr show`,
-`-s route show`, `-s rule show` — measured `control: nl=0 stdout=0` on five
-runs across two sessions and
-[gated on runs 4 and 5](#runs-4-and-5-three--s-forms-gate-and-a-refactor-gets-checked).
+- **Twelve family, table and `-j` rows**, the queue the JSON facet work added
+  (see [The twelve rows added for `-j` and the family
+  selectors](#the-twelve-rows-added-for--j-and-the-family-selectors)), on
+  [G0-T01](#g0-t01-the-twelve-queued-read-rows-gate)'s two runs.
+- **The six stats dump rows**, once goip named each record with `ip`'s get by
+  index, on [G0-T02](#g0-t02-the-six-stats-dump-rows-gate)'s.
+- **The two `-s` forms held out on purpose**, `-s addr show` and `-s neigh
+  show`, and **the two netconf-dev rows**, once goip sent `ip`'s get by name
+  and the segmenter closed an ACKed point get on its ACK, on
+  [G0-T03](#g0-t03-the-last-four-rows-gate)'s.
 
-The two `-s` forms that remain out are unresolved in **opposite** directions, which is why
-neither is simply next in a queue. `-s addr show` is noisy *with variance* —
-`nl` of 2, 2, **6**, then 2, 2 — so it clears
-[`-s link show`'s bar](#-s-link-show-gates-on-runs-that-disagree) rather than
-the identical-runs one, and gating it is a defensible separate decision.
-`-s neigh show` is **stable** at `nl=2` on all five runs, and for a noisy row
-stable is the *weaker* evidence: five runs reading 2 cannot separate
-"`D_control` absorbed the delta" from "there was no delta to absorb". Its
-`nl=2` is not even `-s`'s doing — plain `neigh show` measures 2 from
-`ll_init_map`'s link dump — so it is waiting for a run where the count moves.
+The six `route get` rows G1-T01 added gated on their first two runs, and
+the two `neigh get` rows G1-T02 and the four `nexthop` rows G1-T03 added on
+theirs; see [G1-T01](#g1-t01-the-six-route-get-rows-gate),
+[G1-T02](#g1-t02-the-two-neigh-get-rows-gate) and
+[G1-T03](#g1-t03-the-four-nexthop-get-and-bucket-rows-gate).
+
+The eight stats and netconf-dev rows were the permanent set, measured divergent
+on the wire by
+[runs 8 and 9](#runs-8-and-9-ntable-netconf-and-vrf-gate-stats-and-netconf-dev-diverge),
+which the paragraphs below describe as they were measured. "Permanent" turned
+out to mean no run and no allowlist entry could gate them; a change to goip
+could. G0-T03's runs were the first with every row `GOIP_PARITY_PASS` and
+`GOIP_PARITY_OVERALL_PASS`.
 
 **Two nexthop rows are now gated**: `nexthop show` and `-j nexthop show`, added
 together with the nexthop JSON renderer and the `group`-array facet mapping they
@@ -91,9 +95,9 @@ type-64 NEIGHTBL stats, kernel counters `D_control` absorbs; its count moving
 (`-s ntable show` nl=5 then 4, `-j ntable show` nl=4 then 6) is the
 disagreeing-runs evidence a noisy row wants.
 
-**Netconf gated two of its four rows, and the split is the point**: `netconf
-show` and `-j netconf show` are gated; `netconf show dev` and `-4 netconf show
-dev` stay ungated because
+**Netconf gated two of its four rows on runs 8 and 9, and the split was the
+point**: `netconf show` and `-j netconf show` gated; `netconf show dev` and `-4
+netconf show dev` stayed ungated, until G0-T03, because
 [runs 8 and 9](#runs-8-and-9-ntable-netconf-and-vrf-gate-stats-and-netconf-dev-diverge)
 found the `dev` forms **divergent on the wire**. All four were added together
 with the `netconfmsg` decoder and the netconf render view, and all four are
@@ -110,11 +114,14 @@ already issues — identical stdout, one fewer transaction. `-4 netconf show dev
 is the first attribute-carrying point get in the matrix (with a family AND an
 ifindex, `do_show` sends a non-dump `RTM_GETNETCONF` with a `NETCONFA_IFINDEX`
 attribute through `rtnl_talk`, `ip/ipnetconf.c:188-198`) and additionally trips
-hygiene orphans, so it is a FAIL rather than a WARN. Both `dev` rows stay ungated
-**permanently and by design**: the transaction-count gap is unsuppressible
+hygiene orphans, so it is a FAIL rather than a WARN. Both `dev` rows stayed
+ungated: the transaction-count gap is unsuppressible
 (`nlparity_allowlist.go:143`), and so are the `-4` hygiene orphans.
+[G0-T03](#g0-t03-the-last-four-rows-gate) closed both. goip sends the get by
+name, and the orphans were the ACK that follows the point get's reply, which the
+segmenter now attaches to the transaction; both rows gated.
 
-**Three stats-link rows stay ungated, measured divergent**: `stats show group
+**Three stats-link rows were measured divergent, and gated on G0-T02**: `stats show group
 link`, `-s stats show group link` and `-j stats show group link` (`stats show
 group link dev` was the fourth until it gated; see
 [the bond xstats point gets](#the-bond-xstats-point-gets-and-stats-show-group-link-dev)), added together with the `if_stats_msg` decoder and the
@@ -132,10 +139,11 @@ names each returned ifindex lazily with one `RTM_GETLINK`-by-index
 (`ip/ipstats.c:761`, `ll_index_to_name`), so it reads `ip=6` on a five-interface
 host and is topology-dependent. (`ip`'s per-`dev` point get is the first in the
 matrix that is `NLM_F_REQUEST` alone, no ACK.) All four read `GOIP_PARITY_WARN`
-on both runs, and the three bulk forms stay ungated **permanently and by design**: the gap is class
+on both runs, and the three bulk forms stayed ungated: the gap is class
 `DivergenceTransactionCount`, which the allowlist cannot suppress
-(`nlparity_allowlist.go:143`), so no run and no entry clears it — and `goip`'s
-up-front resolution is the deliberate, more-efficient idiom, not a defect.
+(`nlparity_allowlist.go:143`), so no run and no entry clears it. A change to
+goip did: [G0-T02](#g0-t02-the-six-stats-dump-rows-gate) replaced the up-front
+dump with `ip`'s get per record, and they gated.
 
 **Three are stats' xstats rows**: `stats show group xstats`, `-s stats show group
 xstats` and `-j stats show group xstats`, added together with the nested
@@ -158,8 +166,10 @@ above, all three read `GOIP_PARITY_WARN` on
 [runs 8 and 9](#runs-8-and-9-ntable-netconf-and-vrf-gate-stats-and-netconf-dev-diverge)
 for the same reason: both sides issue `RTM_GETSTATS` (`txns: ip=6 goip=2`), and
 the divergence is `ip`'s lazy per-ifindex name resolution against `goip`'s single
-up-front dump. They stay ungated **permanently and by design** — a
-transaction-count divergence the allowlist cannot suppress.
+up-front dump. They stayed ungated — a transaction-count divergence the
+allowlist cannot suppress — until
+[G0-T02](#g0-t02-the-six-stats-dump-rows-gate) sent `ip`'s requests and they
+gated.
 
 **Two are vrf's first matrix rows**: `vrf show` and `-j vrf show`, the eleventh
 grounded object. The request is the first in the corpus that **filters a link
@@ -241,9 +251,10 @@ These are the boundaries of the exercise, not a backlog:
   [Write path: address writes as a dry run](#write-path-address-writes-as-a-dry-run)).
   `goip address save` and `showdump` send only dumps, or nothing, and print
   a dump file.
-- **Eleven objects.** `address`, `route`, `rule`, `neigh`/`neighbour`, `link`,
-  `nexthop`, `addrlabel`, `ntable`/`ntbl`, `netconf`, `stats` and `vrf` have a
-  `run` function; the other twenty rows of
+- **Sixteen objects.** `address`, `route`, `rule`, `neigh`/`neighbour`, `link`,
+  `nexthop`, `addrlabel`, `ntable`/`ntbl`, `netconf`, `stats`, `vrf`, `mroute`,
+  `mrule`, `token`, `netns` and `monitor` have a
+  `run` function; the other fifteen rows of
   `internal/goip`'s copy of iproute2's `cmds[]` are present with no `run`
   **on purpose**. Matching is
   unanchored-prefix and first-match-wins, so deleting the unimplemented rows
@@ -455,9 +466,9 @@ the fact that the levels are independent and that things do sit between them.
    sent and the text printed.
 
 Each is strictly stronger than the one above it, and the interesting entries
-are the ones that stop partway. The rtnetlink **event** types are decoded and
-never rendered, because the daemon's link monitor consumes them and `goip` has
-no `monitor` verb. `RTM_NEWRULE` is decoded for dumps but is not even an event.
+are the ones that stop partway. The rtnetlink **event** types are decoded, and
+since G4-T06 rendered by `goip monitor`, but never compared live: the parity
+driver runs no monitor. `RTM_NEWRULE` and `RTM_DELRULE` became events in G4-T05.
 
 ### rtnetlink: ten body layouts, and they are the ten goip needs
 
@@ -516,8 +527,13 @@ that file only in a comment about what a solicited reply carries.
 
 Three of the five are `tc`/`bridge` territory and are outside the exercise
 entirely rather than pending. The other two (`prefixmsg`, `nduseroptmsg`) are
-reachable only through `ip monitor`, the one object class goip does not
-implement — both are event-only layouts with no `show` path. **No read-only object
+reachable only through `ip monitor`, which goip implements since G4-T06 —
+both are event-only layouts with no `show` path. `goip monitor` prints
+`prefixmsg` as `print_prefix` does. `ip monitor` joins no
+`RTNLGRP_ND_USEROPT`, so neither tool is sent `RTM_NEWNDUSEROPT`, and
+`accept_msg` has no arm for it. `prefixmsg` has
+captured bytes since C1-T04 of [goip-parity-gaps.md](goip-parity-gaps.md#c1-t04-events-through-ip-monitor)
+(`link-write/rtnl/prefix_event/`); its decoder is P1 there. **No read-only object
 needs a new body-layout decoder**: `vrf`, the eleventh object, landed after `stats`
 by *reusing* the `ifinfomsg` decoder (`ip vrf show` is a filtered link dump), which
 confirms rather than reopens the point — the decoder backlog is closed even as the
@@ -569,7 +585,7 @@ pointer-sorted in ipstats and so pinned from the golden rather than source. goip
 grounds the `link` group, and the xstats and `xstats_slave` groups' vlan, mcast
 and bond 802.3ad bodies (the bond body and the slave group since link-write
 Phase 3) with the empty stp header. The other ungrounded leaves of ipstats's
-descriptor tree (the bridge stp body, offload, afstats mpls) and `stats set` are
+descriptor tree (the bridge stp body, offload, afstats mpls) and, until G3-T05, `stats set` are
 refused with `ErrNotImplemented` and a rationale — the strict-parity boundary,
 applied down to the sub-attribute (`HasUngroundedXstatsBody`) — and a reply
 carrying any group besides the one requested is refused rather than
@@ -637,18 +653,20 @@ below it.
 
 ### The event layer: decoded, never rendered
 
-`IsRtnetlinkEventType` (`xtcpnl_rtnetlink_events.go:121-131`) classifies
-**eight** types — `RTM_{NEW,DEL}{LINK,ADDR,ROUTE,NEIGH}`. A dump reply and a
+`IsRtnetlinkEventType` (`xtcpnl_rtnetlink_events.go:129-140`) classifies
+**ten** types — `RTM_{NEW,DEL}{LINK,ADDR,ROUTE,NEIGH,RULE}`. A dump reply and a
 notification carry the identical body, so the event layer adds only the
 add-versus-delete distinction that a dump never needs.
 
-**`RTM_NEWRULE` and `RTM_DELRULE` are not in that set**, so the rule family is
-decoded for dumps and invisible to the monitor. That is a real asymmetry and
-not a deliberate boundary; it is listed under [Remaining](#remaining) rather
-than under what is out of scope.
+**`RTM_NEWRULE` and `RTM_DELRULE` joined that set in G4-T05**, decoded by
+`ParseRule` into a `RuleEvent`; until then the rule family was decoded for
+dumps and invisible to the monitor. The corpus holds one rule notification,
+`monitor_all`'s `ip rule add` (`TestRuleEventsRealFixture`); `RTM_DELRULE` is
+covered by a constructed row, its body the same `fib_rule_hdr` layout.
 
-None of the eight is rendered or compared, because `goip` has no `monitor`
-verb and the matrix drives `show` commands only.
+Since G4-T06 `goip monitor` renders all of them, checked against the seven
+captured monitor runs; none is compared live, because the matrix drives no
+monitor.
 
 ### sock_diag / inet_diag, which is a different surface and is complete
 
@@ -716,7 +734,7 @@ declines.
 
 The user-facing refusal happens earlier and elsewhere: `goip` returns
 `ErrNotImplemented` from object dispatch, before a socket is opened, for the
-twenty-one objects with no `run`. So the uncovered layouts above are a
+fifteen rows of the object table with no `run`. So the uncovered layouts above are a
 backlog rather than a hazard, and the two halves of that — a walker that
 tolerates the unknown and a dispatcher that refuses it up front — are
 independent and should stay that way.
@@ -914,7 +932,7 @@ none, so the captured `_dev` flag word is `0x0001`, unlike netconf's `0x0005`.
 Scope is deliberately one leaf: only the `link` group is grounded (every parity
 command spells `group link`, `filter_mask 0x1`, which keeps the reply link-only
 even on the mesh bridge); the other twelve leaves of ipstats's descriptor tree
-and `stats set` are refused with a rationale, and a reply carrying a group beyond
+and, until G3-T05, `stats set` are refused with a rationale, and a reply carrying a group beyond
 link is refused rather than under-rendered. `TestStatsShowMatchesCapturedSidecars`
 diffs `goip` against the committed `ip_stats`/`ip_stats_dev` sidecars byte-for-byte,
 the `ip_stats_s` extended sidecar on layout (counters normalized), and
@@ -1022,7 +1040,7 @@ is `ip -t monitor all label` (`:1757`).
 | 4 tc telemetry | `sch_netem` or `sch_htb` — **add** | n/a (dump-only) | `tc` (in `iproute2`) ✅ | no |
 | 5 genetlink: ethtool | kernel config — **verify** | n/a (dump-only) | `ethtool` — **add** | no |
 | 5 genetlink: devlink, netdev | kernel config — **verify** | n/a (dump-only) | `devlink` (in `iproute2`) ✅ | no |
-| 6 xfrm | `xfrm_user` — **add** | `ip xfrm monitor` — **add** | `iproute2` ✅ | no |
+| 6 xfrm | `xfrm_user` and the ESP modules, loaded late by the link-write capture ([C0-T02](goip-parity-gaps.md#c0-t02-late-modules-sysctls-and-an-event-subscriber)) ✅ | `ip xfrm monitor` under `xtcp2-nl-xfrmmon` ([C3-T02](goip-parity-gaps.md#c3-t02-xfrm-policy-and-monitor)) ✅ | `iproute2` ✅ | **yes**, in the link-write capture (`link-write/xfrm/`), not this flavor |
 | 6 conntrack | `nf_conntrack_netlink` — **add** | `conntrack -E` — **add** | `conntrack-tools` — **add** | no |
 | 6 ipset | `ip_set` — **add** | n/a (dump-only) | `ipset` — **add** | no |
 | 6 proc_event | `CONFIG_PROC_EVENTS` — **verify** | needs a `PROC_CN_MCAST_LISTEN` subscriber — **add** | — | no |
@@ -1069,7 +1087,7 @@ delivers them.
 
 | Component | File | Notes |
 |---|---|---|
-| Event parsing | `pkg/xtcpnl/xtcpnl_rtnetlink_events.go` (211) | `EventAction`, four event types, `ParseRtnetlinkEvent`, `IsRtnetlinkNotification`. Its own header comment records that these parsers **have no live feed** — that is Phase 1's job. |
+| Event parsing | `pkg/xtcpnl/xtcpnl_rtnetlink_events.go` (256) | `EventAction`, five event types, `ParseRtnetlinkEvent`, `IsRtnetlinkNotification`. Its own header comment records that these parsers **have no live feed** — that is Phase 1's job. |
 | `ndmsg` decoder | `pkg/xtcpnl/xtcpnl_ndmsg.go` (229) | `DeserializeNdMsg` + `ParseNeigh`. This is the template every new family's struct decoder copies. It shipped with a `DeserializeNdMsgReflection` twin, since moved to `_test.go` — see Phase 0a below. |
 | pcap reader extension | `pkg/xtcpnl/xtcpnl_pcap.go` (+149) | Per-record netlink family access, which is what makes the Phase 0 "split per family in Go, not in tcpdump" decision cheap. |
 | Real event fixtures | `pkg/xtcpnl/testdata/7_1_4/` | 5 pcaps + 6 `ip -d` sidecars + `uname`, captured off an `nlmon` device in a microVM. The directory has since grown a `dumps/` subtree from a *second*, unrelated flavor — see the note below the table. |
@@ -3160,7 +3178,8 @@ flip, and the ungated surface is twenty-two rows.
 The six bulk stats rows stay permanent. goip still resolves names there with
 one link dump ahead of the stats dump, where ip dumps first and gets each
 ifindex after. Reordering goip to match (`resolveIndexName`,
-`internal/goip/obj_route.go:511`) is the follow-up that would retire them.
+`internal/goip/obj_route.go:521`) is the follow-up that would retire them, and
+G0-T02 below did it.
 
 ### The route write rows gate
 
@@ -3420,6 +3439,705 @@ against its topology, its floor, gated or not, no allowlist entries, the
 label's quotes, and that the table's `addr_show_sel_*` rows are exactly
 these. The `earned`/`gated_commands` pair pins the flip, and the ungated
 surface is twenty-three rows, `dynamic` the newest.
+
+### G0-T01: the twelve queued read rows gate
+
+[goip-parity-gaps.md](goip-parity-gaps.md#g0--the-matrix-quick-wins)'s
+G0-T01 gates the twelve family, table and `-j` rows the JSON facet work added
+ungated (runs 6 and 7 above). Two fresh runs of `nix run
+.#microvm-x86_64-goip-parity -- --timeout 4500`, back to back from a scratch
+worktree, printed 175 `GOIP_PARITY_PASS` of 183, with 7 WARN and 1 FAIL, on
+both. All twelve passed with no findings and the same `txns` on both runs.
+
+| rows | `txns` | control, run 1 then run 2 |
+|---|---|---|
+| `-0 addr show`, `-j link show`, `-j rule show` | ip=1 goip=1 | `nl=0` |
+| `-j -s link show` | ip=1 goip=1 | `nl=2` |
+| `route show table main`, `-4 route show`, `-j addr show`, `-j route show` | ip=2 goip=2 | `nl=0` |
+| `-6 neigh show`, `-j neigh show` | ip=2 goip=2 | `nl=2` |
+| `-4 neigh show` | ip=2 goip=2 | `nl=2`, then `nl=6` |
+| `route show table local` | ip=3 goip=3 | `nl=0` |
+
+The `nl=2` rows are ifindex 2's `IFLA_STATS` and `IFLA_STATS64` moving between
+`ip_a` and `ip_b`, which `D_control` subtracts. On the second run `-4 neigh
+show` also read ifindex 3's counters and its `IFLA_INET6_STATS` and
+`IFLA_INET6_ICMP6STATS` moving, the same class, so the row passed on runs that
+disagree, as `-s link show` gated. Both runs `OVERALL_FAIL` for the
+pre-existing reason (`-4 netconf show dev`, `HYGIENE_FAIL 2`);
+`UNGATED_DIVERGENCES` stays 7 and `CONTROL_NOISY` read 174 and 169. All twelve
+gate with no allowlist entry. `TestQueuedReadRowsGated` and the
+`earned`/`gated_commands` pair in `pkg/nlparity` pin the flip, and the ungated
+surface is eleven rows: the two held-out `-s` forms, the eight permanent stats
+and netconf-dev rows, and `addr show dynamic`.
+
+### G0-T02: the six stats dump rows gate
+
+[goip-parity-gaps.md](goip-parity-gaps.md#g0--the-matrix-quick-wins)'s
+G0-T02 retires six of the eight permanent rows: `stats show group link` and
+`stats show group xstats`, each plain, `-s` and `-j`. Runs 8 and 9 read them
+`ip=6 goip=2`. `ip stats` never calls `ll_init_map`; it sends the
+`RTM_GETSTATS` dump, then `ll_index_to_name` sends one `RTM_GETLINK` get per
+record (`ip/ipstats.c:761`). goip sent one link dump ahead of the stats dump.
+It now sends the stats dump and then calls `resolveIndexName`
+(`internal/goip/obj_route.go:521`) for each record, so a cached ifindex sends
+nothing more. `TestStatsDumpRequestsMatchIpBytes` compares goip's requests
+byte for byte with `ip`'s in the committed pcaps: 6 requests on the base, mesh
+and xstats topologies and 15 on the tunnel one.
+
+Two fresh runs of `nix run .#microvm-x86_64-goip-parity -- --timeout 4500`,
+back to back from a scratch worktree, printed 181 `GOIP_PARITY_PASS` of 183,
+with 1 WARN and 1 FAIL, on both, identical row for row with identical `txns`.
+All six passed with no findings and `txns` 6/6 on both runs. The three
+link-group rows read `control: nl=1` on both, an `IFLA_STATS_LINK_64` in the
+stats dump's replies, which `D_control` subtracts; the three xstats rows read
+`nl=0`. The FAIL is the pre-existing `-4 netconf show dev` (`HYGIENE_FAIL 2`)
+and the WARN is `netconf show dev`, so `UNGATED_DIVERGENCES` is 1;
+`CONTROL_NOISY` read 177 and 169. All six gate with no allowlist entry.
+`TestStatsDumpRowsGated`, `TestPermanentWireDivergences` and the
+`earned`/`gated_commands` pair pin the flip. The permanent set is the two
+netconf-dev rows, and the ungated surface is five rows: the two held-out `-s`
+forms, those two, and `addr show dynamic`.
+
+### G0-T03: the last four rows gate
+
+[goip-parity-gaps.md](goip-parity-gaps.md#g0--the-matrix-quick-wins)'s
+G0-T03 decides the four rows G0-T02 left that could gate, and gates all four.
+
+- **`-s addr show` and `-s neigh show`** gate on G0-T01's bar. Every run since
+  the `-s` sweep passed both with no findings and `txns` 2/2. `-s neigh show`
+  was waiting for a run where its control count moved; `-4 neigh show` sends
+  the same link and neighbor dumps, read `nl=2` and then `nl=6` on G0-T01's
+  runs, and passed both, so `D_control` absorbing a moved count on that wire
+  shape is measured.
+- **`netconf show dev`** read `ip=3 goip=2` because `ip` resolves the name with
+  `ll_name_to_index`'s `RTM_GETLINK` by name, on a still-empty cache, before
+  the `ll_init_map` link dump (`ip/ipnetconf.c:175`, `:186`). goip now sends
+  that get; `TestNetconfDevRequestsMatchIpBytes` compares its three requests
+  byte for byte with `ip`'s in the committed pcaps, on all three topologies.
+- **`-4 netconf show dev`** needed the same get, and was the one FAIL besides:
+  `HYGIENE_FAIL 2`, one orphan on each side. Its point get carries `NLM_F_ACK`,
+  so the kernel sends the `RTM_NEWNETCONF` reply and then the ACK. The
+  segmenter closed the transaction on the reply, which has `NLM_F_MULTI`
+  clear, and the ACK found nothing open. `awaitsAck`
+  (`pkg/nlparity/nlparity_segment.go`) now keeps a non-dump request with
+  `NLM_F_ACK` open until its ACK. The ACK's body echoes the request's header,
+  so `NormalizeMsg` zeroes the echoed seq and pid, as `Canonical` does on the
+  request.
+
+Two fresh runs of `nix run .#microvm-x86_64-goip-parity -- --timeout 4500`,
+back to back from a scratch worktree, printed 183 `GOIP_PARITY_PASS` of 183
+on both, with `GOIP_PARITY_HYGIENE_PASS`, `GOIP_PARITY_UNGATED_CLEAN` and
+`GOIP_PARITY_OVERALL_PASS`. They are the first runs of this harness to end
+`OVERALL_PASS`. Their verdicts and `txns` were identical row for row. The
+netconf-dev rows read `txns` 3/3 and `control: nl=2`, the link dump's counters;
+the `-s` rows read 2/2 and `nl=2`. None had a finding. `CONTROL_NOISY` read 165
+and 174. All four gate with no allowlist entry. `TestNetconfDevAndSweepRowsGated`
+and the `earned`/`gated_commands` pair pin the flip, and
+`TestPermanentWireDivergences` now records that the permanent set is empty.
+The ungated surface is one row, `addr show dynamic`, which passed on both runs
+only because `D_control` caught its countdown; it stays out by design.
+
+### G1-T01: the six `route get` rows gate
+
+[goip-parity-gaps.md](goip-parity-gaps.md#g1--read-verbs-on-running-objects)'s
+G1-T01 adds `goip route get` (`internal/goip/route_get.go`) and six rows, one
+per C1-T02 capture, each with its corpus row's precondition as `Setup`: the
+plain get, `fibmatch`, `notify`, `-6`, `from 198.51.100.2 iif d1` and the
+unreachable `route get 203.0.113.1`. The from/iif get is an input lookup and
+needs `net.ipv4.conf.all.forwarding` on, so `goip-parity.exp` gained a
+`sysctl KEY VALUE` Setup step (`setup_step`), run through `xtcp2-nlcap
+sysctl` as the corpus's `pre_step` runs it.
+
+Two fresh runs of `nix run .#microvm-x86_64-goip-parity -- --timeout 4500`,
+back to back from a scratch worktree with the six rows ungated, printed 189
+`GOIP_PARITY_PASS` of 189 on both, with `GOIP_PARITY_HYGIENE_PASS`,
+`GOIP_PARITY_UNGATED_CLEAN` and `GOIP_PARITY_OVERALL_PASS`. The six read `txns`
+2/2, the get and the `RTM_GETLINK` by index that names the reply's device;
+3/3 for from/iif, whose get by name for `d1` comes first; and 1/1 for the
+unreachable get, whose `ENETUNREACH` both sides exit 2 on. None had a finding.
+The from/iif reply's `RTA_CACHEINFO` carries `rta_clntref`, the cached input
+route's reference count, which differed between `ip_a` and `ip_b` as well, so
+`D_control` suppresses it. All six gate with no allowlist entry, and
+`TestRouteGetRowsGated` and the `earned`/`gated_commands` pair pin them.
+
+### G1-T02: the two `neigh get` rows gate
+
+G1-T02 adds `goip neigh get` (`internal/goip/neigh_get.go`) and two rows,
+one per C1-T02 capture: `neigh get 192.0.2.2 dev d0` on a veth holding a
+permanent entry, and `neigh get 192.0.2.9 dev d0` on one holding none. A
+veth, because a dummy is `IFF_NOARP` and holds no neighbor entry. Each sends
+the get by name for `d0` and the `RTM_GETNEIGH` get; the lookup caches `d0`,
+so `print_neigh` sends nothing more.
+
+The first run passed 190 of 191 and warned on the missing-entry row: `ip`'s
+`ENOENT` reply set `NLM_F_ACK_TLVS` and carried the kernel's "Neighbour entry
+not found", and goip's did neither, because goip's socket never asked for
+extended acks. It is the first gated row whose refusal carries an extack
+message. `OpenNetlink` now sets `NETLINK_EXT_ACK`, as `rtnl_open` does
+(`lib/libnetlink.c:222`). The two counted runs, after that change, printed 191
+`GOIP_PARITY_PASS` of 191 on both, with `GOIP_PARITY_HYGIENE_PASS`,
+`GOIP_PARITY_UNGATED_CLEAN` and `GOIP_PARITY_OVERALL_PASS`, identical row for
+row; `CONTROL_NOISY` 168 then 167. Both rows read `txns` 2/2 with no finding;
+the only control-suppressed value is `d0`'s `IFLA_INET6_FLAGS`, which moved
+between `ip_a` and `ip_b` as well. Both gate with no allowlist entry, and
+`TestNeighGetRowsGated` and the `earned`/`gated_commands` pair pin them.
+
+### G1-T03: the four `nexthop` get and bucket rows gate
+
+G1-T03 adds `goip nexthop get` and `goip nexthop bucket` (`show` and `get`,
+`internal/goip/nexthop_get.go`) and four rows, one per C1-T02 capture:
+`nexthop get id 1` and the missing `nexthop get id 9` on a dummy holding
+nexthops 1 and 2, then `nexthop bucket show id 20` and `nexthop bucket get
+id 20 index 0` with resilient group 20 of 1024 buckets added. `nexthop get`
+is the single get `nexthop show id` already sent, then `d0` by index for the
+`dev` token; the bucket rows name no device, so each is its one request.
+
+A first run passed 195 of 195 with no control noise on the bucket rows,
+which was the clue to a comparator gap: `FamilyHdrLen` did not model
+`RTM_*NEXTHOPBUCKET`, so a bucket request was compared by body length alone
+and a reply's attributes not at all. With `struct nhmsg`'s 8 modeled for the
+three bucket types, two back-to-back runs passed 195 of 195, identical row
+for row, ending `GOIP_PARITY_OVERALL_PASS`. The get rows are `txns` 2/2 and
+1/1 with no control noise; the bucket rows are 1/1 each, and each bucket's
+idle time, which counts up between `ip_a`, goip and `ip_b`, is a value
+divergence the control cancels, 1024 on the dump and 1 on the get. All four
+gate with no allowlist entry, and `TestNexthopGetRowsGated` and the
+`earned`/`gated_commands` pair pin them.
+
+### G1-T04: the two `link xstats` rows and `link afstats` gate
+
+G1-T04 adds `goip link xstats` and `goip link afstats`
+(`internal/goip/link_xstats.go`) and three rows, one per C1-T03 read: `link
+xstats type bridge`, `link xstats type bridge_slave` and `link afstats`, each
+on the reads namespace's bridge, br0 with its port v2, whose veth peer stays
+down so nothing moves the counters. Each sends the `RTM_GETSTATS` dump for
+its group; the xstats rows then name the one device they print, br0 or v2,
+with `ll_index_to_name`'s `RTM_GETLINK` get, as `stats show` names its
+records. With no MPLS, every afstats nest is empty and nothing prints.
+
+Two back-to-back runs passed 198 of 198, identical row for row, ending
+`GOIP_PARITY_OVERALL_PASS`. The xstats rows are `txns` 2/2 and afstats 1/1;
+`type bridge_slave` and afstats have no control noise, and `type bridge` has
+one value divergence on both runs, br0's `IFLA_BR_GC_TIMER` counting up in
+the name lookup's `IFLA_LINKINFO`, which the control cancels. All three gate
+with no allowlist entry, and `TestLinkXstatsRowsGated` and the
+`earned`/`gated_commands` pair pin them. This closes G1: 198 rows, 197 gated.
+
+### G2-T01: `route save` and the two `route showdump` rows gate
+
+G2-T01 adds `goip route save` and `goip route showdump`
+(`internal/goip/route_save.go`) and three rows on `route_save`'s C1-T02
+precondition, d0 at ifindex 3 with table 100's two routes: `route save table
+100`, `route showdump < route_save.save` and `-d route showdump <
+route_save.save`. save sends `route show table 100`'s dump and writes the
+magic and the replies whole, so its stdout is a binary file; the comparator
+now recognizes a route or address dump file by its magic and compares it
+record by record, seq and pid left out, under `stdout:dumprecords`
+(`internal/goipparity/stdout_dump.go`), a presence locus no entry can
+suppress. The showdump rows read `route_save`'s committed `ip.save`, which
+the runner carries in beside the address restore rows' files, and send
+`print_route`'s one `RTM_GETLINK` get for d0. `xtcp2-nlcap` now runs a read
+row in the capture directory, so the relative `<` resolves.
+
+Two back-to-back runs passed 201 of 201, identical row for row, ending
+`GOIP_PARITY_OVERALL_PASS`. save is `txns` 1/1 and wrote 116 bytes on every
+side, the magic and two records, which `stdout:dumprecords` found equal;
+each showdump row is 1/1, d0's get, with the same two lines, or with `-d`'s
+type, `proto boot` and scope, on all three sides. None has control noise,
+all three gate with no allowlist entry, and `TestRouteSaveRows` and the
+`earned`/`gated_commands` pair pin them: 201 rows, 200 gated.
+
+### G2-T02: the `route restore` row gates
+
+G2-T02 adds `goip route restore` (`internal/goip/route_restore.go`) and one
+write row, `route restore < route_save.save`, on `route_restore`'s C1-T02
+precondition: d0 up at ifindex 3 with its address and nothing in table 100.
+`ip` sends `ll_init_map`'s link dump, then the file's two routes in
+`restore_handler`'s pass order, the device route before the gateway route
+though the file holds them the other way round, each `0x427` with the saving
+process's pid. goip sends the link dump and writes the two to
+`GOIP_WRITE_OUT`, which the comparator matches against `ip_a`'s writes as it
+does the address restore rows' (`Writes: 2`).
+
+Two back-to-back runs passed 202 of 202, identical row for row, ending
+`GOIP_PARITY_OVERALL_PASS`. The row is `txns` 3/3, the link dump and the two
+writes, which matched `ip_a`'s; its control noise, `nl=4` on both runs, is the
+link dump's `IFLA_INET6_CACHEINFO` timestamps and d0's MAC, which differ
+between the sides' own namespaces, as for the address restore rows. It gates
+with no allowlist entry, and `TestRouteRestoreRow` and the
+`earned`/`gated_commands` pair pin it: 202 rows, 201 gated.
+
+### G2-T03: the four `route flush` rows gate, closing G2
+
+G2-T03 adds `goip route flush` (`internal/goip/route_flush.go`) and four
+rows, one per C1-T02 flush capture and a `-s` form. `route flush table 100`
+and `-s route flush table 100` are write rows on `route_flush`'s
+precondition: `ip` dumps table 100, sends its two routes back as unacked
+`RTM_DELROUTE` copies in one datagram and dumps again to find nothing, and
+goip sends both dumps and writes the two copies, skipping in its second
+round what it copied in its first. `route flush tab 100`, on a table made
+and emptied, and `route flush t 100`, in a namespace of its own with no
+table 100, delete nothing: `ip` sends the dump alone, so they are read rows,
+and goip needs no `GOIP_WRITE_OUT`. The missing table's dump ends with
+ENOENT in its `NLMSG_DONE`, which goip now reports as `ip` does, `Flush
+terminated` and exit 2, through xtcpnl's opt-in `DumpRtnetlinkMsgsDoneErr`.
+
+Two back-to-back runs passed 206 of 206, identical row for row, ending
+`GOIP_PARITY_OVERALL_PASS`. The write rows are `txns` 4/4, their two copies
+matching `ip_a`'s and `-s`'s round text equal; the read rows are 1/1, the
+missing table's DONE carrying ENOENT on every side. None has control noise.
+An earlier run, with the missing-table row on the shared topology, failed:
+that topology has three routes in table 100, which `ip_a` deleted. All four
+gate with no allowlist entry, and `TestRouteFlushRows` and the
+`earned`/`gated_commands` pair pin them. This closes G2: 206 rows, 205
+gated.
+
+### G3-T01: the nine `neigh` write and flush rows gate
+
+G3-T01 adds `goip neigh add`, `change`, `replace` and `delete`
+(`internal/goip/neigh_write.go`) and `goip neigh flush`
+(`internal/goip/neigh_flush.go`), and nine rows, one per C1-T01 and C1-T02
+neigh capture and a `-s` form. The six write rows send `ll_init_map`'s
+link dump and one request, which goip writes to `GOIP_WRITE_OUT`: an add,
+an add of an entry the kernel already holds, a change, a change of a
+missing entry, a replace and a delete. `neigh flush dev d0` and its `-s`
+form are write rows of two `RTM_DELNEIGH` copies between the link dump and
+two neighbor dumps; `neigh f dev d0`, on the bare veth, deletes nothing,
+so `ip` sends the dumps alone and it is a read row.
+
+Every row's Setup pins the veths' MACs and sets `addrgenmode none`, so
+no side's neighbor dump holds the solicited-node entries a link-local
+brings. The flush rows' second stale entry is IPv6 where the capture's is
+IPv4: the kernel salts its neighbor hash per namespace, and the first run,
+on two IPv4 entries, had goip's dump and so its two copies in the other
+order to `ip_a`'s, a key-order finding no allowlist entry may suppress.
+One entry per family dumps ARP table first on every side.
+
+Two back-to-back runs then passed 215 of 215, identical row for row,
+ending `GOIP_PARITY_OVERALL_PASS`. The write rows are `txns` 2/2, the
+flush rows 5/5 with `-s`'s round text equal, the empty flush 2/2; the link
+dump's IPv6 cache info is the only control noise. All nine gate with no
+allowlist entry, and `TestNeighWriteRows` and the
+`earned`/`gated_commands` pair pin them: 215 rows, 214 gated.
+
+### G3-T02: the twenty `rule` write, flush, save and restore rows gate
+
+G3-T02 adds `goip rule add` and `delete` (`internal/goip/rule_write.go`)
+and `goip rule flush`, `save` and `restore` (`internal/goip/rule_save.go`),
+and twenty rows, one per C1-T01 and C1-T02 rule capture. Unlike the neigh
+and route writes, `iprule_modify` sends no link dump: `iif` and `oif` go
+by name, so each add and delete is one request, which goip writes to
+`GOIP_WRITE_OUT`. Fourteen add rows each carry one selector or action
+(`from`, `to`, `tos`, `dscp`, `fwmark`, `iif`, `oif`, `uidrange`, the
+ports, `goto`, `suppress_prefixlength`, `protocol`, `l3mdev` and `-6`'s
+`flowlabel`); an add of a held rule, a delete and a delete of a missing
+one make seventeen write rows.
+
+`rule flush` is one dump and an `RTM_DELRULE` copy of each reply that
+carries `FRA_PRIORITY`, flagged `NLM_F_REQUEST|NLM_F_ACK` and keeping the
+dump's seq; the kernel leaves the attribute off the priority-0 local rule,
+so that one stays. Its Setup adds two rules to the default three, so it is
+a write row of four copies. `rule save` of the same rules is a read row
+whose stdout the dump-file comparator checks record by record, and the
+runner carries its file in for `rule restore`, a write row of the link
+dump and five `RTM_NEWRULE` requests.
+
+Two back-to-back runs passed 235 of 235, identical row for row, ending
+`GOIP_PARITY_OVERALL_PASS`. All twenty gate with no allowlist entry, and
+`TestRuleWriteRows` and the `earned`/`gated_commands` pair pin them: 235
+rows, 234 gated.
+
+### G3-T03: the eight `nexthop` write and flush rows gate
+
+G3-T03 adds `goip nexthop add`, `replace`, `delete` and `flush`
+(`internal/goip/nexthop_write.go`) and eight rows, on the C1-T01 and C1-T02
+nexthop captures. `ipnh_modify` sends no link dump, but `dev` is
+`ll_name_to_index`, so a nexthop with a device is a by-name `RTM_GETLINK`
+and then the write. A single nexthop and a replace are those two (floor 4);
+an mpath group, a resilient group with its nested `NHA_RES_GROUP`, an add
+of a held id and a delete are the write alone (floor 2).
+
+`nexthop flush` is a dump of the groups, then a dump of everything, each
+reply's id deleted in an acked `RTM_DELNEXTHOP` with an `AF_UNSPEC` header,
+groups first so no member goes under one. The C1 capture held a resilient
+group, deleted between the two dumps; a write row's writes must be one run,
+so the matrix row flushes the two single nexthops alone: two dumps, then two
+deletes (floor 6). goip writes its deletes after both dumps and skips an id
+it has already copied. The flush of an empty table, `Nothing to flush`, is
+a read row.
+
+Two back-to-back runs passed 243 of 243, identical row for row, ending
+`GOIP_PARITY_OVERALL_PASS`. All eight gate with no allowlist entry, and
+`TestNexthopWriteRows` and the `earned`/`gated_commands` pair pin them: 243
+rows, 242 gated.
+
+### G3-T04: the three `addrlabel` write and flush rows gate
+
+G3-T04 adds `goip addrlabel add`, `delete` and `flush`
+(`internal/goip/addrlabel_write.go`) and three rows, on the C1-T01 and
+C1-T02 addrlabel captures. `ipaddrlabel_modify` names no device in them, so
+the add and the del are each one request, `IFAL_LABEL` then `IFAL_ADDRESS`
+under an `AF_INET6` header (floor 2).
+
+`addrlabel flush` is the listing's dump, then each reply carrying
+`IFAL_ADDRESS` sent back whole as an acked `RTM_DELADDRLABEL`, from a socket
+of its own. The kernel's ten default labels carry the attribute, so the row,
+whose Setup adds one label, is a write row of eleven copies (floor 4); goip
+sends the dump and writes the eleven.
+
+Two back-to-back runs passed 246 of 246, identical row for row, ending
+`GOIP_PARITY_OVERALL_PASS`. All three gate with no allowlist entry, and
+`TestAddrLabelWriteRows` and the `earned`/`gated_commands` pair pin them:
+246 rows, 245 gated.
+
+### G3-T05: the four `ntable change` and `stats set` rows gate
+
+G3-T05 adds `goip ntable change` (`internal/goip/ntable_write.go`) and
+`goip stats set` (`internal/goip/stats_set.go`) and four rows, on the C1-T02
+captures. `ip ntable` dumps the links before it reads the verb, so each
+`ntable change` row is the link dump, then one `RTM_SETNEIGHTBL` and its ack
+(floor 4): a device's queue length, a table the kernel lacks, and a
+threshold outside the initial namespace, the last two refused with ENOENT.
+`stats set` resolves `dev` with a by-name `RTM_GETLINK`, then writes one
+`RTM_SETSTATS` (floor 4). The write gate admits the two types, and
+`FamilyHdrLen` now models `RTM_SETSTATS`, so the comparator reads the stats
+write's attributes rather than its length alone.
+
+Two back-to-back runs passed 250 of 250, identical row for row, ending
+`GOIP_PARITY_OVERALL_PASS`. All four gate with no allowlist entry, and
+`TestNTableStatsWriteRows` and the `earned`/`gated_commands` pair pin them:
+250 rows, 249 gated.
+
+### G3-T06: the three `link property` rows gate
+
+G3-T06 adds `goip link property add` and `del`
+(`internal/goip/link_property.go`) and three rows, on the C1-T02 captures,
+closing G3. `iplink_prop_mod` builds its `IFLA_PROP_LIST` nest of
+`IFLA_ALT_IFNAME`s first and resolves `dev` after, so each row is the by-name
+`RTM_GETLINK`, then one `RTM_NEWLINKPROP` or `RTM_DELLINKPROP` and its ack
+(floor 4): an add, a del of the altname the row's Setup added, and an add of
+`lo`, a name another link holds, which the kernel refuses with EEXIST. The
+write gate admits the two types, and `FamilyHdrLen` models them as
+`struct ifinfomsg`, so the comparator reads the nest rather than its length
+alone.
+
+Two consecutive clean runs passed 253 of 253, identical row for row, ending
+`GOIP_PARITY_OVERALL_PASS`. All three gate with no allowlist entry, and
+`TestLinkPropertyWriteRows` and the `earned`/`gated_commands` pair pin them:
+253 rows, 252 gated.
+
+### G4-T01: the six `mroute show` rows gate
+
+G4-T01 adds `goip mroute show` (`internal/goip/obj_mroute.go`) and six read
+rows, on `mrouteSetup`: the reads namespace's veths and addresses, then a
+`smcroute` step, which runs smcrouted in the row's namespace holding the
+(192.0.2.10,239.1.1.1) entry the C1-T03 capture holds. Each row is
+`ll_init_map`'s link dump, then one `RTM_GETROUTE` dump of
+`RTNL_FAMILY_IPMR` with `RTA_TABLE` 253, or of `RTNL_FAMILY_IP6MR` under
+`-6`, which finds nothing (floor 4): `mroute show`, `-6 mroute show`,
+`mroute show iif v0`, `mroute show table all` (no `RTA_TABLE`, and the
+`Table: default` token), `-s mroute show` and `-j mroute show`. The `-s`
+line's `Age` ticks between captures, and no stdout facet reads it.
+
+Two consecutive clean runs passed 259 of 259, identical row for row, ending
+`GOIP_PARITY_OVERALL_PASS`. All six gate with no allowlist entry, and
+`TestMrouteRows` and the `earned`/`gated_commands` pair pin them: 259 rows,
+258 gated.
+
+### G4-T02: the four `mrule show` rows gate
+
+G4-T02 adds `goip mrule show` (`internal/goip/obj_mrule.go`), which is
+`rule show` with `do_multirule`'s family, and four read rows with no Setup,
+since every namespace holds ipmr's and ip6mr's default rules. Each row is one
+`RTM_GETRULE` dump of `RTNL_FAMILY_IPMR`, or of `RTNL_FAMILY_IP6MR` under
+`-6`, and its `NLMSG_DONE` (floor 2): `mrule show`, `-6 mrule show`,
+`-d mrule show` (`proto kernel`) and `-j mrule show`.
+
+Two consecutive clean runs passed 263 of 263, identical row for row, ending
+`GOIP_PARITY_OVERALL_PASS`. All four gate with no allowlist entry, and
+`TestMruleRows` and the `earned`/`gated_commands` pair pin them: 263 rows,
+262 gated.
+
+### G4-T03: the five `token` rows gate
+
+G4-T03 adds `goip token` (`internal/goip/obj_token.go`), three read rows and
+two write rows. Every one is `ll_init_map`'s link dump first. The reads, on
+`tokenSetup`, the reads namespace's veths with v0's `::1:2:3:4`, then dump
+`AF_INET6` links (floor 4): `token show`, `token get dev v0` and
+`-j token show`. The writes are one `RTM_SETLINK` carrying
+`IFLA_AF_SPEC { AF_INET6 { IFLA_INET6_TOKEN } }` and its ack (floor 4):
+`token set ::1:2:3:4/64 dev d0` on a veth, and
+`token add ::1:2:3:4/64 dev d0` on a NOARP dummy, which the kernel refuses
+with EINVAL on both `ip` sides.
+
+Two consecutive clean runs passed 268 of 268, identical row for row, ending
+`GOIP_PARITY_OVERALL_PASS`. All five gate with no allowlist entry, and
+`TestTokenRows` and the `earned`/`gated_commands` pair pin them: 268 rows,
+267 gated.
+
+### G4-T04: the five `netns` rows gate
+
+G4-T04 adds `goip netns list-id` and `netns set`
+(`internal/goip/obj_netns.go`), four read rows and one write row. The reads,
+on `netnsSetup`, peers `nlcaprp1` and `nlcaprp2` holding nsids 1 and 2, are
+`netns_map_init`'s `RTM_GETNSID` by `NETNSA_FD` for each file under
+`/run/netns`, then the dump or the get (floor 4): `netns list-id`,
+`-j netns list-id`, `netns list-id nsid 2` and
+`netns list-id nsid 1 target-nsid 2`. The write is one `RTM_NEWNSID`,
+`NETNSA_FD` then `NETNSA_NSID`, and its ack (floor 2): `netns set c1set 7`.
+
+Two consecutive clean runs passed 273 of 273, identical row for row, ending
+`GOIP_PARITY_OVERALL_PASS`. `NETNSA_FD` is the descriptor's number in each
+process's own table, so each row has an accepted-divergence entry for it;
+`set`'s fired, `ip` 5 against goip 6, and the four `list-id` entries did not,
+both sides opening each file as 6. `TestNetnsRows` and the
+`earned`/`gated_commands` pair pin them: 273 rows, 272 gated.
+
+### G4-T06: `goip monitor`, with no matrix row
+
+G4-T06 adds `goip monitor` (`internal/goip/obj_monitor.go`), which subscribes
+to `do_ipmonitor`'s groups on a socket of its own and prints each notification
+as `accept_msg` does. It has no matrix row: the parity driver runs no monitor,
+since a notification inside a read-only capture window is a hygiene failure.
+`TestMonitorMatchesIp` replays the seven monitor captures through `Run`,
+byte for byte, and a live comparison against iproute2-7.1.0 matched on all 41
+argument sets tried. The matrix is unchanged: 273 rows, 272 gated.
+
+### G5-T01: `pkg/nlparity` compares generic netlink by family name
+
+G5-T01 teaches the comparator `NETLINK_GENERIC`
+(`pkg/nlparity/nlparity_genl.go`). A capture's `CTRL_CMD_NEWFAMILY` replies
+name each family id, and a genl message is compared as
+`GENL(<family>).cmd(<n>)` with a four-byte `genlmsghdr`, so two captures from
+boots that gave a family different ids compare clean. `TestGenlCorpus` checks
+all 165 C2 rows that way. No matrix row reads a genl capture yet; G5-T03 adds
+them.
+
+### G5-T02: goip's generic netlink transport
+
+G5-T02 gives goip a `NETLINK_GENERIC` socket, opened on first use, and
+`genl_resolve_family`'s lookup: one version-0 `CTRL_CMD_GETFAMILY` per family,
+cached for the run (`internal/goip/source_genl.go`). Every GETFAMILY by name
+in the C2 `ip.pcap`s is goip's request byte for byte, and a replay answers a
+genl request from the recorded exchange with the same bytes. No goip object
+uses it yet; G6 adds them.
+
+### G5-T03: genl rows in the parity harness
+
+G5-T03 gives a matrix row a protocol and adds eight genl rows, one `show` per
+family in the C2 order. goip implements none of them yet, so `ip` runs in
+goip's slot and each row is compared `ip` against `ip`, ungated
+(`Command.IPStandIn`). The driver captures them with `--proto generic`, and on
+reaching the first one it loads the C0-T02 modules and sets
+`net.mptcp.enabled`. Every route row comes before it, so no route row reads a
+kernel with the modules loaded. `token_set`'s veths now take `addrgenmode
+none`, because its link dump had raced DAD and the router solicitation.
+With the fix, two consecutive live runs passed 281 of 281, identical row for row: the eight stand-ins clean, late setup's 17 modules loaded with no problem reported, and every route row passing as before. The matrix is 281 rows, 272 gated. G6 replaces each stand-in
+with goip's object.
+
+### G6-T01: `goip tcp_metrics`, the first genl object
+
+G6-T01 adds the genl write path and `goip tcp_metrics`. A genl write is
+admitted by its family's name and command, since the family's id is the
+boot's. A `GOIP_WRITE_OUT` file of genl requests is labeled with the family
+names goip's capture resolved, then compared as the captures are.
+`goip tcp_metrics` shows, gets, deletes and flushes as `ip` 7.1.0 does,
+checked byte for byte against the 14 C2 captures.
+
+The comparator handles two properties of the entries:
+- **Measured values.** Each side opens its own connections, so an entry's
+  age, its SYN drop stamp and its RTTs are zeroed before comparison.
+- **Order.** A dump's order is a per-namespace hash, so its replies and a
+  flush's DELs are paired by address and source.
+
+The stand-in is replaced by the corpus's 14 `tcpm_*` rows, each on its
+precondition. A new `tcp` Setup step opens the connections. Two consecutive live runs passed
+294 of 294, the 14 rows clean. The
+matrix is 294 rows, 286 gated.
+
+### G6-T02: `goip sr`
+
+G6-T02 adds `goip sr`, SEG6's HMAC keys and tunnel source. `hmac set` and
+`tunsrc set` are admitted genl writes. `hmac set` reads its secret as
+glibc's `getpass` does: from the terminal with echo off, or, with no
+terminal, from stdin. It is checked byte for byte against the 11 C2
+captures.
+
+The secret is not in the argv, so a matrix row can carry a stdin line. The
+table prints it as a tenth field, and the driver pipes it to each side
+under `setsid -w`, as the corpus did.
+
+The stand-in is replaced by the corpus's 11 `sr_*` rows, each on its
+precondition. A new `hmac` Setup step makes the keys a row starts from.
+Two consecutive live runs passed
+304 of 304, the 11 rows clean. The matrix is 304 rows, 297 gated.
+
+### G6-T03: `goip ioam`
+
+G6-T03 adds `goip ioam`, IOAM6's namespaces, schemas and trace events.
+The namespace and schema adds, deletes and binding are admitted genl
+writes. The shows print `ip`'s lines and JSON, and the monitor joins the
+`ioam6_events` group on the genl socket and prints each TRACE event. It
+is checked byte for byte against the 21 C2 captures.
+
+The stand-in is replaced by the corpus's 18 `ioam_*` rows that are not
+the monitor's, each on its precondition, and two `-j` shows of one bound
+namespace and its schema. The driver runs no monitor, so the monitor's
+three rows are replayed and not in the matrix. Two consecutive live runs passed
+323 of 323, the 20 rows clean. The matrix is 323 rows, 317 gated.
+
+### G6-T04: `goip mptcp`
+
+G6-T04 adds `goip mptcp`, the in-kernel path manager's endpoints, limits
+and events. The endpoint adds, changes, deletes and flush and the limits
+set are admitted genl writes. The shows run `ll_init_map`'s link dump
+where `ip` does and print `ip`'s lines and JSON, and the monitor joins
+the `mptcp_pm_events` group and prints each event, closing its `-j`
+array and exiting 0 on SIGINT and SIGTERM. It is checked byte for byte
+against the 27 C2 captures.
+
+The stand-in is replaced by the corpus's 25 `mptcp_*` rows that are not
+the monitor's, each on its precondition, and three `-j` shows. The
+driver runs no monitor, so the monitor's two rows are replayed and not
+in the matrix. Two consecutive live runs passed 350 of 350, the 28 rows
+clean. The matrix is 350 rows, 345 gated.
+
+### G6-T05: `goip fou`
+
+G6-T05 adds `goip fou`, the namespace's foo-over-UDP receive ports. The
+adds and deletes are admitted genl writes, and a check `fou_parse_opt`
+fails still writes its command with no attribute, as `ip` sends it. The
+show prints `ip`'s lines and JSON, its device named by `ll_link_get`. It
+is checked byte for byte against the 21 C2 captures.
+
+The stand-in is replaced by the corpus's 21 `fou_*` rows, each on its
+precondition, and three `-j` shows. The commands the corpus spells alike
+on different preconditions run by prefix, the same bytes. Two
+consecutive live runs passed 373 of 373, the 24 rows clean. The matrix
+is 373 rows, 369 gated.
+
+### G6-T06: `goip ila`
+
+G6-T06 adds `goip ila`, the namespace's identifier-locator mappings. The
+adds and deletes are admitted genl writes, and a value `ila_parse_opt`
+refuses still writes its command with no attribute, as `ip` sends it.
+The show prints `ip`'s padded lines and JSON. It is checked byte for
+byte against the 15 C2 captures.
+
+The stand-in is replaced by the corpus's 14 `ila_*` rows but its show of
+two locators to match, whose order the kernel's per-namespace rhashtable
+seed decides, by a show of one locator to match with two mappings, and
+by three `-j` shows. Two consecutive live runs passed 390 of 390, the 18
+rows clean. The matrix is 390 rows, 387 gated.
+
+### G6-T07: `goip l2tp`
+
+G6-T07 adds `goip l2tp`, the namespace's L2TPv3 tunnels and sessions.
+The tunnel and session adds and deletes are admitted genl writes, and an
+add of both writes the two in one file. The shows print `ip`'s lines and
+JSON over `get_response`'s one struct, which keeps what an answer does
+not carry from the answer before it. It is checked byte for byte against
+the 24 C2 captures.
+
+The stand-in is replaced by the corpus's 24 `l2tp_*` rows and four `-j`
+shows. The kernel keeps tunnels and sessions by id and names a session's
+device from a per-namespace count, so a show of two is in one order on
+every side. Two consecutive live runs passed 417 of 417, the 28 rows
+clean. The matrix is 417 rows, 415 gated.
+
+### G6-T08: `goip macsec`
+
+G6-T08 adds `goip macsec`, the namespace's MACsec SecYs: their transmit
+SAs, receive channels and receive SAs, and their offload type. The SA,
+channel and offload adds, sets and deletes are admitted genl writes. The
+show prints `ip`'s lines and JSON, and under `-s` its counters, with
+`print_attrs`' `sc` and `sa` read from the SecY's encoding SA as `ip`
+reads them. It is checked byte for byte against the 32 C2 captures.
+
+The last stand-in is replaced by the corpus's 32 `macsec_*` rows, four
+`-j` shows and three `-s` shows. A show is a dump of every SecY in
+ifindex order, and the SecYs are down, so their counters stay zero on
+every side. Two consecutive live runs passed 455 of 455, the 39 rows
+clean. The matrix is 455 rows, 454 gated, and G6 is closed: no stand-in
+remains.
+
+### G7-T01: `goip xfrm state` reads
+
+G7-T01 adds the first NETLINK_XFRM object, `goip xfrm state`'s list, get
+and count. goip opens an XFRM socket and replays XFRM captures, and the
+comparator reads an XFRM message by its protocol before its type, whose
+numbers rtnetlink's share: each type's header, none for a dump, and an
+SA's clocks zeroed, since each side's setup adds the SA at its own
+second. It is checked byte for byte against the nine C3 captures.
+
+The nine state read rows join the matrix, after the genl rows. Two
+consecutive live runs passed 464 of 464, the nine rows clean. The matrix
+is 464 rows, 463 gated.
+
+### G7-T02: `goip xfrm state` writes
+
+G7-T02 adds `goip xfrm state`'s writes, `add`, `update`, `allocspi`,
+`delete`, `deleteall` and `flush`, as dry runs: each request `ip` would
+send goes to `GOIP_WRITE_OUT`, through an XFRM write gate that admits
+the five SA write types by XFRM's own numbers, not rtnetlink's.
+`deleteall` sends its dumps and copies each SA once, so goip's rounds
+end where `ip`'s do though nothing is deleted. It is checked byte for
+byte against the 20 C3 write captures.
+
+17 of those rows join the matrix: 16 writes, among them the duplicates,
+the missing and the ones the kernel refuses, and `deleteall` with no SA,
+a read. `allocspi`'s own row is left out, since `ip` prints the larval
+SA the kernel answers with and goip, sending nothing, has none; so are
+the two rows `ip` refuses before a request, which capture nothing. Two
+consecutive live runs passed 481 of 481, the 17 rows clean. The matrix
+is 481 rows, 480 gated.
+
+### G7-T03: `goip xfrm policy` reads
+
+G7-T03 adds `goip xfrm policy`'s reads: `list`, with every filter `ip`
+applies on its own side, `get` by selector or index, `count` and
+`getdefault`. A selector's upper protocol is now named both ways from
+goip's built-in subset of `/etc/protocols`, as fou's and rule's are, so
+policy 2's `proto tcp` prints; a protocol outside it is refused as not
+implemented. A policy's clocks are zeroed before comparison, as an SA's
+are. It is checked byte for byte against the 12 C3 policy read captures.
+
+10 of those rows join the matrix, all reads, the missing policy's get
+among them; the two rows `ip` refuses before a request capture nothing
+and are left out. Two consecutive live runs passed 491 of 491, the 10
+rows clean. The matrix is 491 rows, 490 gated.
+
+### G7-T04: `goip xfrm policy` writes
+
+G7-T04 adds `goip xfrm policy`'s writes: `add` and `update`, with
+templates, limits, marks, contexts and the offload; `delete` by
+selector or index; `deleteall` over the list's filter; `flush`; `set`'s
+hash thresholds; and `setdefault`. Each writes `ip`'s request to
+`GOIP_WRITE_OUT` and sends none; `deleteall` sends its dumps and copies
+each policy as `ip` does. The XFRM write gate now admits the six policy
+write types. `XFRMA_POLICY_TYPE` is now six bytes, `struct
+xfrm_userpolicy_type`'s size, where `pkg/xtcpnl` had four: no capture
+holds one, the test kernel being built without sub-policies, and the
+kernel refuses a shorter one. It is checked byte for byte against the 17
+C3 policy write captures.
+
+13 of those rows join the matrix, 12 writes and `deleteall` with none to
+delete, a read; the four `ip` refuses before a request capture nothing
+and are left out. Two consecutive live runs passed 504 of 504, the 13
+rows clean. The matrix is 504 rows, 503 gated.
+
+### G7-T05: `goip xfrm monitor`, closing G7
+
+G7-T05 adds `goip xfrm monitor`: its words and groups, a file walked as
+`ip monitor file` walks one, or a NETLINK_XFRM socket of its own, and
+every event `xfrm_accept_msg` prints: SAs and policies added, updated,
+deleted and expired, acquires, flushes, async events, NAT-T mapping
+changes and the default policies. REPORT, which only Mobile IPv6 route
+optimization sends, is not implemented. It is checked byte for byte
+against the seven C3 monitor captures. The parity driver runs no
+monitor, so no row joins the matrix; a live run passed 504 of 504, the
+same rows as at G7-T04. G7 is done, and with it every phase of
+[goip-parity-gaps.md](goip-parity-gaps.md).
 
 ## Tier C — the `goip-parity` microVM flavor
 
@@ -6862,12 +7580,11 @@ Two items fell out of the message-type census above. One has landed; one is open
   [the attribute table](#attributes-inside-the-five-no-unknown-attribute-holes)
   for the one framing difference from the rule floor (presence count, not
   decoder-arm count) and why.
-- **`RTM_NEWRULE` and `RTM_DELRULE` are not event types.**
-  `IsRtnetlinkEventType` covers link, addr, route and neigh; rule is decoded
-  for dumps and invisible to the monitor. The body is already parsed by
-  `ParseRule`, so this is a classification gap rather than a decoder one, and
-  it should be sized before it is assumed cheap — the event layer has its own
-  fixtures and the rule family would need its own capture trigger.
+- **`RTM_NEWRULE` and `RTM_DELRULE` as event types** — **done** in
+  G4-T05. `IsRtnetlinkEventType` covers rule as well as link, addr, route and
+  neigh, and `ParseRtnetlinkEvent` decodes a `RuleEvent` with `ParseRule`. The
+  capture trigger was C1-T04's `monitor_all`, whose `ip rule add` is the one
+  rule notification in the corpus.
 
 ## Phase exit criteria
 
@@ -7357,7 +8074,7 @@ K=~/Downloads/linux/include/uapi/linux
 grep -nP '^func Parse[A-Za-z]+' $(ls pkg/xtcpnl/*.go | grep -v _test)
 grep -oP 'RTM_[A-Z0-9_]+' pkg/xtcpnl/xtcpnl_rtnetlink_requests.go | sort | uniq -c
 
-# the eight event types, and the absence of RTM_*RULE among them
+# the ten event types, RTM_*RULE among them
 sed -n '/func IsRtnetlinkEventType/,/^}/p' pkg/xtcpnl/xtcpnl_rtnetlink_events.go
 
 # matrix rows per object — must sum to the row count in the table at the top

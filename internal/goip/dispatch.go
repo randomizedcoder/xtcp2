@@ -35,7 +35,24 @@ type object struct {
 	// `tcpmetrics`, `tap`), or "" for a canonical row. Lists of objects name
 	// each one once by leaving the aliases out.
 	aliasOf string
+	// wideStats marks an object that refuses show_stats > 1 itself, verb by
+	// verb, because it renders `-s -s` where ip does: Run's refusal of every
+	// count above one skips it.
+	wideStats bool
+	// showVerb is the verb Show runs, where it is not show: netns's show
+	// is a directory listing, and list-id its netlink read.
+	showVerb string
+	// noShow marks an object with no read that ends: monitor prints until
+	// it is killed, so Show, and the HTTP paths over it, leave it out.
+	noShow bool
 }
+
+// The object names other tables spell too: the monitor's object words.
+const (
+	objRouteCst   = "route"
+	objLinkCst    = "link"
+	objNexthopCst = "nexthop"
+)
 
 // objects is the object table in iproute2's order, which is load-bearing.
 //
@@ -57,39 +74,39 @@ type object struct {
 //
 // Order transcribed from ip/ip.c's cmds[].
 var objects = []object{
-	{name: "address", run: runAddress, outputModes: true, verbs: addressVerbs},
+	{name: addressObjectCst, run: runAddress, outputModes: true, verbs: addressVerbs},
 	{name: "addrlabel", run: runAddrLabel, verbs: addrLabelVerbs},
 	{name: "maddress"},
-	{name: "route", run: runRoute, verbs: routeVerbs},
+	{name: objRouteCst, run: runRoute, verbs: routeVerbs},
 	{name: "rule", run: runRule, verbs: ruleVerbs},
 	{name: "neighbor", run: runNeigh, verbs: neighVerbs},
 	{name: "neighbour", run: runNeigh, verbs: neighVerbs, aliasOf: "neighbor"},
 	{name: "ntable", run: runNTable, verbs: ntableVerbs},
 	{name: "ntbl", run: runNTable, verbs: ntableVerbs, aliasOf: "ntable"},
-	{name: "link", run: runLink, verbs: linkVerbs},
-	{name: "l2tp"},
-	{name: "fou"},
-	{name: "ila"},
-	{name: "macsec"},
+	{name: objLinkCst, run: runLink, verbs: linkVerbs},
+	{name: "l2tp", run: runL2tp, verbs: l2tpVerbs, noShow: true},
+	{name: "fou", run: runFou, verbs: fouVerbs, noShow: true},
+	{name: "ila", run: runIla, verbs: ilaVerbs, noShow: true},
+	{name: "macsec", run: runMacsec, verbs: macsecVerbs, noShow: true},
 	{name: "tunnel"},
 	{name: "tunl6"},
-	{name: "tcp_metrics"},
-	{name: "tcpmetrics", aliasOf: "tcp_metrics"},
-	{name: "token"},
+	{name: "tcp_metrics", run: runTCPMetrics, verbs: tcpMetricsVerbs},
+	{name: "tcpmetrics", run: runTCPMetrics, verbs: tcpMetricsVerbs, aliasOf: "tcp_metrics"},
+	{name: "token", run: runToken, verbs: tokenVerbs},
 	{name: "tuntap"},
 	{name: "tap", aliasOf: "tuntap"},
-	{name: "mroute"},
-	{name: "mrule"},
-	{name: "netns"},
+	{name: "mroute", run: runMroute, verbs: mrouteVerbs},
+	{name: "mrule", run: runMrule, verbs: ruleVerbs},
+	{name: "netns", run: runNetns, verbs: netnsVerbs, showVerb: netnsListIDVerbCst},
 	{name: "netconf", run: runNetconf, verbs: netconfVerbs},
 	{name: vrfKeywordCst, run: runVrf, verbs: vrfVerbs},
-	{name: "sr"},
-	{name: "nexthop", run: runNexthop, verbs: nexthopVerbs},
-	{name: "mptcp"},
-	{name: "ioam"},
+	{name: "sr", run: runSr, verbs: srVerbs, noShow: true},
+	{name: objNexthopCst, run: runNexthop, verbs: nexthopVerbs},
+	{name: "mptcp", run: runMptcp, verbs: mptcpVerbs, noShow: true},
+	{name: "ioam", run: runIoam, verbs: ioamVerbs, noShow: true},
 	{name: "stats", run: runStats, verbs: statsVerbs},
-	{name: "monitor"},
-	{name: "xfrm"},
+	{name: monitorVerbCst, run: runMonitor, noShow: true},
+	{name: "xfrm", run: runXfrm, verbs: xfrmVerbs, noShow: true, wideStats: true},
 }
 
 // matchesPrefix reimplements iproute2's matches() (lib/utils.c:909-919) as a
@@ -125,6 +142,18 @@ func matchesPrefix(arg, pattern string) bool {
 	return pattern[:len(arg)] == arg
 }
 
+// matchesAny reports whether arg matches any of patterns by matchesPrefix:
+// an object's own words, where iproute2 tests several with matches() and
+// treats them alike.
+func matchesAny(arg string, patterns []string) bool {
+	for _, p := range patterns {
+		if matchesPrefix(arg, p) {
+			return true
+		}
+	}
+	return false
+}
+
 // devKeywordCst is the `dev NAME` selector keyword, which every object that
 // takes one spells identically.
 //
@@ -136,6 +165,29 @@ func matchesPrefix(arg, pattern string) bool {
 // abbreviate and `ip route show d lo` is an error, not a shorter spelling.
 // Using this constant with == is therefore the faithful comparison.
 const devKeywordCst = "dev"
+
+// Words more than one object's parser or verb chain spells. Each is the
+// same keyword wherever it appears, so it is one constant, not literals.
+const (
+	setVerbCst        = "set"
+	monitorVerbCst    = "monitor"
+	execVerbCst       = "exec"
+	identifyVerbCst   = "identify"
+	pidsVerbCst       = "pids"
+	noneKeywordCst    = "none"
+	fromKeywordCst    = "from"
+	iifKeywordCst     = "iif"
+	tosKeywordCst     = "tos"
+	dsfieldKeywordCst = "dsfield"
+)
+
+// addressObjectCst is the address object's name, which its dump file's
+// terminal refusal names too.
+const addressObjectCst = "address"
+
+// oifKeywordCst is `oif`, the synonym route show, route get and the route
+// writes accept for `dev`.
+const oifKeywordCst = "oif"
 
 // The verbs every list-capable object accepts for its show path. Each object's
 // table keeps its own upstream order (its matches() chain), so only the words
@@ -165,6 +217,12 @@ func lookupObject(arg string) (object, error) {
 	return o, nil
 }
 
+// served reports whether Show and the resolver serve o: implemented, and
+// with a listing that ends.
+func (o *object) served() bool {
+	return o.run != nil && !o.noShow
+}
+
 // canonical is the name of the row o aliases, or o's own.
 func (o *object) canonical() string {
 	if o.aliasOf != "" {
@@ -173,12 +231,22 @@ func (o *object) canonical() string {
 	return o.name
 }
 
+// wideStatsObject reports whether args name an object that refuses
+// show_stats > 1 itself (object.wideStats).
+func wideStatsObject(args []string) bool {
+	if len(args) == 0 {
+		return false
+	}
+	o, err := lookupObject(args[0])
+	return err == nil && o.wideStats
+}
+
 // runCtx is the state one goip invocation shares between dispatch and the
 // object handlers.
 type runCtx struct {
 	src   Source
 	lltab *LLTab
-	// in is stdin, which only `addr showdump` reads.
+	// in is stdin, which only the showdump and restore verbs read.
 	in     io.Reader
 	out    io.Writer
 	errOut io.Writer
@@ -201,6 +269,9 @@ type runCtx struct {
 	// reads them; Run refuses them for every other object.
 	brief   bool
 	oneline bool
+	// genlIDs is the generic netlink family ids resolved so far, by name:
+	// genl_init_handle asks once per family per run. See genlFamily.
+	genlIDs map[string]uint16
 	// seq is the sequence number to put on the next request. iproute2 seeds it
 	// from time(NULL) and increments per request; goip starts at 1 and
 	// increments, because the parity comparator zeroes nlmsg_seq before
@@ -214,6 +285,11 @@ type runCtx struct {
 	// config block) reads, so a replay can reproduce a captured date. Set once
 	// in Run from GOIP_NOW (a test seam, like GOIP_REPLAY) or time.Now.
 	now time.Time
+	// timestamp and timestampShort count -timestamp and -tshort, which
+	// raises both (ip/ip.c:241-245). Only the monitor's print_headers
+	// reads them; every other object ignores them, as `ip`'s does.
+	timestamp      int
+	timestampShort int
 }
 
 // linkExtMask is the IFLA_EXT_MASK an `ip link show` dump carries under this

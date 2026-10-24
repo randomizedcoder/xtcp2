@@ -42,7 +42,18 @@
 # unimplemented gets NO goip capture at all. That is not a shortcut - the
 # comparator treats a goip capture for an unimplemented command as a FAIL,
 # on the grounds that the table and the driver disagreeing about what goip can
-# run is a defect in one of them.
+# run is a defect in one of them. The one exception is impl=ip, a generic
+# netlink family goip does not implement yet: `ip` runs in goip's place, so
+# the row is captured and compared ip against ip, ungated.
+#
+# GENERIC NETLINK ROWS COME LAST
+#
+# A row's proto is what its captures keep (xtcp2-nlcap --proto). The genl
+# rows' families live in modules (fou, ila, l2tp, macsec), and a module is
+# kernel-wide: loading one before a route row could change what that row
+# reads. So the table puts them after every route row, and the driver runs
+# nltopo::late_setup, which loads the modules and sets net.mptcp.enabled,
+# when it reaches the first of them.
 #
 # NO `ip monitor`, DELIBERATELY
 #
@@ -65,7 +76,7 @@
 source [file dirname [info script]]/vm-lib.exp
 source [file dirname [info script]]/netlink-topology.exp
 
-set usage "usage: goip-parity.exp <serial-port> <blob-out> --addr-save <dir> \[--keep-going\] \[--no-allowlist\]"
+set usage "usage: goip-parity.exp <serial-port> <blob-out> --save-blobs <dir> \[--keep-going\] \[--no-allowlist\]"
 if {$argc < 2} {
     puts $usage
     exit 2
@@ -74,22 +85,23 @@ set port     [lindex $argv 0]
 set blob_out [lindex $argv 1]
 set keep_going   0
 set no_allowlist 0
-# The restore rows' <slug>.save files, a store path the guest can read. It is
-# required: a run without it would fail both restore rows on a missing file,
-# which reads as a goip divergence rather than as the runner's mistake.
-set addr_save    ""
+# The restore and showdump rows' <slug>.save files, a store path the guest
+# can read. It is required: a run without it would fail those rows on a
+# missing file, which reads as a goip divergence rather than as the runner's
+# mistake.
+set save_blobs   ""
 set rest [lrange $argv 2 end]
 while {[llength $rest] > 0} {
     set rest [lassign $rest a]
     switch -- $a {
         --keep-going   { set keep_going 1 }
         --no-allowlist { set no_allowlist 1 }
-        --addr-save {
+        --save-blobs {
             if {[llength $rest] == 0} {
                 puts $usage
                 exit 2
             }
-            set rest [lassign $rest addr_save]
+            set rest [lassign $rest save_blobs]
         }
         default {
             puts "unknown argument: $a"
@@ -97,7 +109,7 @@ while {[llength $rest] > 0} {
         }
     }
 }
-if {$addr_save eq ""} {
+if {$save_blobs eq ""} {
     puts $usage
     exit 2
 }
@@ -126,18 +138,19 @@ proc nlcap {args} {
     return [vmlib::run_out "xtcp2-nlcap [join $args { }]"]
 }
 
-# capio <name> <floor> <command> <stdout-name> ?ns? - one side of one triple.
+# capio <name> <floor> <command> <stdout-name> ?ns? ?proto? - one side of one
+# triple.
 #
 # <ns> is the shared dump topology unless a row with a Setup names the
-# namespace it built. Returns 1 on success. A miss is recorded and reported at the end; the
+# namespace it built. <proto> is the netlink protocol the capture keeps. Returns 1 on success. A miss is recorded and reported at the end; the
 # comparator will separately report the command as MISSING, because it checks
 # for all six files of a triple before reading any of them.
-proc capio {name floor command sout {ns ""}} {
+proc capio {name floor command sout {ns ""} {proto route}} {
     global short_caps NS SUBDIR
     if {$ns eq ""} {
         set ns $NS
     }
-    lassign [nlcap capio $ns $SUBDIR $name $floor "'$command'" $sout] rc out
+    lassign [nlcap capio --proto $proto $ns $SUBDIR $name $floor "'$command'" $sout] rc out
     if {$rc != 0} {
         lappend short_caps "$SUBDIR/$name"
         vmlib::log "MISSED FLOOR $SUBDIR/$name: $out"
@@ -152,9 +165,12 @@ proc capio {name floor command sout {ns ""}} {
 #
 # `goip-parity commands` prints one tab-separated row per command:
 #
-#     slug  floor  implemented  needs-dev  write  setup  args  name
+#     slug  floor  implemented  needs-dev  write  proto  setup  stdin  args  name
 #
-# setup is `-` or a row's precondition steps joined with ';'. It, args
+# implemented is yes, no, or ip for a row `ip` runs in goip's place. proto is
+# route, generic or xfrm. setup is `-` or a row's precondition steps joined
+# with ';'. stdin is `-`, or `>` and the line a write row's sides read on
+# stdin. Setup, args
 # and name hold spaces, which is why the split is on tabs. Parsed with
 # `split ... \t` rather than a regexp so a name with two consecutive spaces
 # cannot be silently reflowed.
@@ -176,7 +192,7 @@ proc read_command_table {} {
             continue
         }
         set f [split $line "\t"]
-        if {[llength $f] != 8} {
+        if {[llength $f] != 10} {
             vmlib::log "FATAL: unparseable table row ([llength $f] fields): $line"
             puts "GOIP_PARITY_DRIVER_FAIL"
             exit 3
@@ -206,10 +222,10 @@ proc read_command_table {} {
 
 proc capture_triple {row dev} {
     global skipped
-    lassign $row slug floor impl needs_dev write setup args name
+    lassign $row slug floor impl needs_dev write proto setup stdin args name
 
     if {$write eq "yes" && $impl eq "yes"} {
-        capture_write_triple $slug $floor $setup $args
+        capture_write_triple $slug $floor $setup $args $proto $stdin
         return
     }
 
@@ -222,12 +238,16 @@ proc capture_triple {row dev} {
     # argv, which is the property that makes the comparison mean anything -
     # internal/goip's matchesPrefix exists so that goip parses it the way
     # iproute2 does rather than merely accepting it.
+    set subject goip
+    if {$impl eq "ip"} {
+        set subject ip
+    }
     set plan [list \
         ip_a "ip $argv_str" \
-        goip "goip $argv_str" \
+        goip "$subject $argv_str" \
         ip_b "ip $argv_str"]
 
-    if {$impl ne "yes"} {
+    if {$impl ni {yes ip}} {
         # No goip capture, on purpose: the comparator FAILS a command that is
         # marked unimplemented but has one, because that means the table and
         # this driver disagree. Capturing only the ip sides would be worse than
@@ -251,7 +271,7 @@ proc capture_triple {row dev} {
 
     set ok 1
     foreach {side cmd} $plan {
-        if {![capio "$slug.$side" $floor $cmd "$slug.$side.out" $ns]} {
+        if {![capio "$slug.$side" $floor $cmd "$slug.$side.out" $ns $proto]} {
             set ok 0
         }
     }
@@ -261,9 +281,74 @@ proc capture_triple {row dev} {
 }
 
 ###############################################################################
+# setup_step <ns> <step> - one Setup step; 0 when it applied.
+#
+# A step is an `ip` argument list for nltopo::topo, or `sysctl KEY VALUE`,
+# which xtcp2-nlcap writes under /proc/sys in the namespace (the corpus's
+# pre_step form in addr-corpus.exp; `route get … iif` needs forwarding on),
+# or `smcroute CONF-LINE`, which xtcp2-nlcap mroute-start runs as smcrouted's
+# whole configuration and holds in the namespace, its (S,G) entry listed,
+# until the namespace's next ns-add or ns-del (`ip mroute show`), or
+# `peer NAME [ID]`, a namespace made from the root (deleted first, so each
+# side meets a new one, as rtnl-read-corpus.exp's peer step) and, given ID,
+# that nsid in the row's namespace (`ip netns list-id`, `ip netns set`), or
+# `tcp SERVER CLIENT`, one connection in the namespace through xtcp2-nlcap
+# tcp, which leaves a tcp_metrics entry at each end (genl-write-corpus.exp's
+# tcp pre step), or `hmac KEYID ALGO SECRET`, an SR HMAC key set through
+# xtcp2-nlcap hmac (its hmac pre step).
+###############################################################################
+
+proc setup_step {ns step} {
+    global SUBDIR
+    if {[lindex $step 0] eq "sysctl"} {
+        if {[llength $step] != 3} {
+            vmlib::log "setup: a sysctl step is {sysctl KEY VALUE}: $step"
+            return 1
+        }
+        lassign [vmlib::run_out "xtcp2-nlcap sysctl $ns $SUBDIR [lindex $step 1] [lindex $step 2]"] rc out
+        return $rc
+    }
+    if {[lindex $step 0] eq "peer"} {
+        if {[llength $step] ni {2 3}} {
+            vmlib::log "setup: a peer step is {peer NAME ?ID?}: $step"
+            return 1
+        }
+        set name [lindex $step 1]
+        # No peer by that name yet is the usual case, not a failure.
+        vmlib::run_out "ip netns del $name"
+        lassign [vmlib::run_out "ip netns add $name"] rc out
+        if {$rc != 0 || [llength $step] == 2} {
+            return $rc
+        }
+        return [nltopo::topo $ns $SUBDIR netns set $name [lindex $step 2]]
+    }
+    if {[lindex $step 0] eq "tcp"} {
+        if {[llength $step] != 3} {
+            vmlib::log "setup: a tcp step is {tcp SERVER CLIENT}: $step"
+            return 1
+        }
+        lassign [vmlib::run_out "xtcp2-nlcap tcp $ns $SUBDIR [lindex $step 1] [lindex $step 2]"] rc out
+        return $rc
+    }
+    if {[lindex $step 0] eq "hmac"} {
+        if {[llength $step] != 4} {
+            vmlib::log "setup: an hmac step is {hmac KEYID ALGO SECRET}: $step"
+            return 1
+        }
+        lassign [vmlib::run_out "xtcp2-nlcap hmac $ns $SUBDIR [lindex $step 1] [lindex $step 2] [lindex $step 3]"] rc out
+        return $rc
+    }
+    if {[lindex $step 0] eq "smcroute"} {
+        lassign [vmlib::run_out "xtcp2-nlcap mroute-start $ns $SUBDIR '[lrange $step 1 end]'"] rc out
+        return $rc
+    }
+    return [nltopo::topo $ns $SUBDIR {*}$step]
+}
+
+###############################################################################
 # setup_read_ns <slug> <setup> - a read row's own namespace.
 #
-# goipw, recreated and prepared with the row's Setup, through nltopo::topo
+# goipw, recreated and prepared with the row's Setup, through setup_step
 # and outside any capture window. Returns the namespace, or "" when a step
 # was refused, in which case the whole row is skipped and the comparator
 # reports it MISSING.
@@ -273,7 +358,7 @@ proc setup_read_ns {slug setup} {
     global NSW SUBDIR write_skipped
     vmlib::must "xtcp2-nlcap ns-add $NSW"
     foreach step [split $setup ";"] {
-        if {[nltopo::topo $NSW $SUBDIR {*}$step] != 0} {
+        if {[setup_step $NSW $step] != 0} {
             lappend write_skipped $slug
             return ""
         }
@@ -312,32 +397,43 @@ proc settle_links {ns} {
 # make the same devices in the same order, so each side sees the same
 # ifindexes. They are in the request bytes (ifi_index, IFLA_MASTER).
 #
-# Setup runs through nltopo::topo, outside the capture window, and
+# Setup runs through setup_step, outside the capture window, and
 # settle_links waits for its links' operstate before the capture. A refused
 # step skips that side, which the comparator then reports as MISSING.
 #
 # goip sends the lookups and writes its request to GOIP_WRITE_OUT, which is
 # <slug>.goip.write beside the captures. Its floor is two lower than ip's: no
 # write request, no NLMSG_ERROR. Every side is a `write` capture (one attempt,
-# exit status kept), since the comparator reads all three .rc files.
+# exit status kept), since the comparator reads all three .rc files. <proto>
+# is the protocol the captures keep, generic for a genl family's writes.
+# <stdin> is the table's stdin field: `-`, or `>` and a line each side reads.
 ###############################################################################
 
-proc capture_write_triple {slug floor setup argv_str} {
+proc capture_write_triple {slug floor setup argv_str {proto route} {stdin -}} {
     global NSW SUBDIR short_caps write_skipped capture_dir
     set steps {}
     if {$setup ne "-"} {
         set steps [split $setup ";"]
     }
+    # A row with a stdin line pipes it to each side with no terminal, as
+    # genl-write-corpus.exp's hmac_set did, so getpass reads stdin.
+    # GOIP_WRITE_OUT goes after the pipe, on the command it is for.
+    set pipe ""
+    set nosess ""
+    if {$stdin ne "-"} {
+        set pipe "echo [string range $stdin 1 end] | "
+        set nosess "setsid -w "
+    }
     set plan [list \
-        ip_a "ip $argv_str" $floor \
-        goip "GOIP_WRITE_OUT=$capture_dir/$slug.goip.write goip $argv_str" [expr {$floor - 2}] \
-        ip_b "ip $argv_str" $floor]
+        ip_a "${pipe}${nosess}ip $argv_str" $floor \
+        goip "${pipe}GOIP_WRITE_OUT=$capture_dir/$slug.goip.write ${nosess}goip $argv_str" [expr {$floor - 2}] \
+        ip_b "${pipe}${nosess}ip $argv_str" $floor]
 
     foreach {side cmd side_floor} $plan {
         vmlib::must "xtcp2-nlcap ns-add $NSW"
         set refused 0
         foreach step $steps {
-            if {[nltopo::topo $NSW $SUBDIR {*}$step] != 0} {
+            if {[setup_step $NSW $step] != 0} {
                 set refused 1
                 break
             }
@@ -347,7 +443,7 @@ proc capture_write_triple {slug floor setup argv_str} {
             continue
         }
         settle_links $NSW
-        lassign [nlcap write $NSW $SUBDIR "$slug.$side" $side_floor "'$cmd'"] rc out
+        lassign [nlcap write --proto $proto $NSW $SUBDIR "$slug.$side" $side_floor "'$cmd'"] rc out
         if {$rc != 0} {
             lappend short_caps "$SUBDIR/$slug.$side"
             vmlib::log "MISSED FLOOR $SUBDIR/$slug.$side: $out"
@@ -413,15 +509,26 @@ if {$dir_rc != 0 || $capture_dir eq ""} {
     exit 3
 }
 
-# The restore rows read `< <slug>.save` from the capture directory, where a
-# write row's command runs. Copied once, before any row, from the store path
-# the runner passed; they then ship in the blob beside the captures.
-vmlib::must "cp $addr_save/restore_fresh.save $addr_save/restore_existing.save $capture_dir/"
+# The restore and showdump rows read `< <slug>.save` from the capture
+# directory, where every row's command runs. Copied once, before any row,
+# from the store path the runner passed; they then ship in the blob beside
+# the captures.
+vmlib::must "cp $save_blobs/restore_fresh.save $save_blobs/restore_existing.save $save_blobs/route_save.save $save_blobs/rule_save.save $capture_dir/"
 
 set table [read_command_table]
 vmlib::log "=== capturing [llength $table] commands x 3 sides ==="
 
+# late_setup's problems, reported at the end; see GENERIC NETLINK ROWS COME
+# LAST in the header.
+set late_done     0
+set late_problems {}
+
 foreach row $table {
+    if {!$late_done && [lindex $row 5] ne "route"} {
+        vmlib::log "=== late setup (late/), before the first [lindex $row 5] row ==="
+        set late_problems [nltopo::late_setup late]
+        set late_done 1
+    }
     capture_triple $row $DUMMY
     if {[llength $short_caps] > 0 && !$keep_going} {
         vmlib::log "stopping after a missed floor; pass --keep-going to continue"
@@ -509,6 +616,15 @@ if {[llength $refused] > 0} {
     }
     puts "  Any command whose parity depends on those objects is comparing a"
     puts "  smaller topology than intended. Not a failure by itself."
+}
+
+if {[llength $late_problems] > 0} {
+    puts "GOIP_PARITY_LATE_SETUP_PROBLEMS [llength $late_problems]"
+    foreach p $late_problems {
+        puts "  $p"
+    }
+    puts "  The rows after late setup read a kernel without what it could not"
+    puts "  load; a family it could not load is MISSING or divergent above."
 }
 
 if {[llength $skipped] > 0} {

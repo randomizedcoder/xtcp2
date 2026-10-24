@@ -570,6 +570,396 @@ func TestAllowlistCommitted(t *testing.T) {
 		"-o addr show",
 		"-br -j addr show",
 		"-o -6 addr show",
+		// G0-T01's twelve family, table and `-j` read rows, queued since the
+		// JSON facet work, gated on two runs with GOIP_PARITY_PASS on both and
+		// the same txns and zero findings each time; control moved only on
+		// `-4 neigh show`, ifindex 3's counters, which D_control subtracts.
+		"-0 addr show",
+		"route show table main",
+		"route show table local",
+		"-4 route show",
+		"-4 neigh show",
+		"-6 neigh show",
+		"-j addr show",
+		"-j link show",
+		"-j route show",
+		"-j neigh show",
+		"-j rule show",
+		"-j -s link show",
+		// G0-T02's six stats dump rows, once goip named each record with
+		// ll_index_to_name's get by index in place of an up-front link dump:
+		// txns ip=6 goip=6 and GOIP_PARITY_PASS with zero findings on two
+		// runs. Until then they were the six stats rows of the permanent set.
+		"stats show group link",
+		"-s stats show group link",
+		"-j stats show group link",
+		"stats show group xstats",
+		"-s stats show group xstats",
+		"-j stats show group xstats",
+		// G0-T03's four. The two `-s` forms held out since the `-s` sweep
+		// gate on G0-T01's bar: every run since has passed them with zero
+		// findings and txns 2/2, and `-4 neigh show`, the same link and
+		// neighbor dumps, showed D_control absorbing a moved count. The two
+		// netconf-dev rows gate once goip sent ll_name_to_index's get by
+		// name and the segmenter closed an ACKed point get on its ACK:
+		// txns 3/3, no finding and no hygiene orphan on two runs.
+		"-s addr show",
+		"-s neigh show",
+		"netconf show dev",
+		"-4 netconf show dev",
+		// G1-T01's six `route get` rows, new with goip's route get: txns
+		// 2/2 (3/3 from/iif, 1/1 unreachable) and GOIP_PARITY_PASS with zero
+		// findings on their first two runs.
+		"route get 192.0.2.5",
+		"route get fibmatch 192.0.2.5",
+		"route get 192.0.2.5 notify",
+		"-6 route get 2001:db8::5",
+		"route get 192.0.2.5 from 198.51.100.2 iif d1",
+		"route get 203.0.113.1",
+		// G1-T02's two `neigh get` rows: txns 2/2 and GOIP_PARITY_PASS with
+		// zero findings on their first two runs.
+		"neigh get 192.0.2.2 dev d0",
+		"neigh get 192.0.2.9 dev d0",
+		// G1-T03's two `nexthop get` and two `nexthop bucket` rows, likewise.
+		"nexthop get id 1",
+		"nexthop get id 9",
+		"nexthop bucket show id 20",
+		"nexthop bucket get id 20 index 0",
+		// G1-T04's two `link xstats` rows and `link afstats`, likewise.
+		"link xstats type bridge",
+		"link xstats type bridge_slave",
+		"link afstats",
+		// G2-T01's `route save` row and its two `route showdump` rows.
+		"route save table 100",
+		"route showdump < route_save.save",
+		"-d route showdump < route_save.save",
+		// G2-T02's `route restore` row.
+		"route restore < route_save.save",
+		// G2-T03's four `route flush` rows.
+		"route flush table 100",
+		"-s route flush table 100",
+		"route flush tab 100",
+		"route flush t 100",
+		// G3-T01's nine `neigh` write and flush rows.
+		"neigh add 192.0.2.2 lladdr 02:00:00:00:00:02 dev d0 nud permanent",
+		"neigh a 192.0.2.2 lladdr 02:00:00:00:00:02 dev d0 nud permanent",
+		"neigh change 192.0.2.2 lladdr 02:00:00:00:00:03 dev d0 nud reachable",
+		"neigh change 192.0.2.9 lladdr 02:00:00:00:00:09 dev d0",
+		"neigh replace 192.0.2.3 lladdr 02:00:00:00:00:03 dev d0 nud stale",
+		"neigh del 192.0.2.2 dev d0",
+		"neigh flush dev d0",
+		"-s neigh flush dev d0",
+		"neigh f dev d0",
+		// G3-T02's twenty `rule` write, flush, save and restore rows.
+		"rule add pref 101 from 192.0.2.0/24 table 100",
+		"rule add pref 102 to 198.51.100.0/24 table 100",
+		"rule add pref 103 tos 0x10 table 100",
+		"rule add pref 104 dscp 10 table 100",
+		"rule add pref 105 fwmark 0x7/0xff table 100",
+		"rule add pref 106 iif d9 table 100",
+		"rule add pref 107 oif d9 table 100",
+		"rule add pref 108 uidrange 1000-2000 table 100",
+		"rule add pref 109 ipproto tcp sport 1000-2000 dport 80 table 100",
+		"rule add pref 110 not from 203.0.113.0/24 goto 112",
+		"rule add pref 111 table main suppress_prefixlength 0",
+		"rule add pref 112 protocol static table 100",
+		"rule add pref 113 l3mdev",
+		"-6 rule add pref 114 flowlabel 0x12345 table 100",
+		"rule add pref 100 from 192.0.2.0/24 table 100",
+		"rule del pref 100",
+		"rule del pref 4242",
+		"rule flush",
+		"rule save",
+		"rule restore < rule_save.save",
+		// G3-T03's eight `nexthop` write and flush rows.
+		"nexthop add id 1 via 192.0.2.2 dev d0",
+		"nexthop add id 10 group 1,3/2",
+		"nexthop add id 20 group 1/2 type resilient buckets 1024",
+		"nexthop add id 1 blackhole",
+		"nexthop replace id 1 via 192.0.2.4 dev d0",
+		"nexthop del id 1",
+		"nexthop flush",
+		"nexthop f",
+		// G3-T04's three `addrlabel` write and flush rows.
+		"addrlabel add prefix 2001:db8::/32 label 99",
+		"addrlabel del prefix 2001:db8::/32 label 99",
+		"addrlabel flush",
+		// G3-T05's three `ntable change` rows and its `stats set` row.
+		"ntable change name arp_cache dev d0 queue 64",
+		"ntable change name nosuch_cache queue 64",
+		"ntable change name arp_cache thresh1 64",
+		"stats set dev d0 l3_stats on",
+		// G3-T06's three `link property` rows.
+		"link property add dev d0 altname d0alt",
+		"link property del dev d0 altname d0alt",
+		"link property add dev d0 altname lo",
+		// G4-T01's six `mroute show` rows.
+		"mroute show",
+		"-6 mroute show",
+		"mroute show iif v0",
+		"mroute show table all",
+		"-s mroute show",
+		"-j mroute show",
+		// G4-T02's four `mrule show` rows.
+		"mrule show",
+		"-6 mrule show",
+		"-d mrule show",
+		"-j mrule show",
+		// G4-T03's five `token` rows.
+		"token show",
+		"token get dev v0",
+		"-j token show",
+		"token set ::1:2:3:4/64 dev d0",
+		"token add ::1:2:3:4/64 dev d0",
+		// G4-T04's five `netns` rows.
+		"netns list-id",
+		"-j netns list-id",
+		"netns list-id nsid 2",
+		"netns list-id nsid 1 target-nsid 2",
+		"netns set c1set 7",
+		// G6-T01's fourteen `tcp_metrics` rows, the first genl object's.
+		"tcp_metrics show",
+		"tcp_metrics list",
+		"-6 tcp_metrics show",
+		"tcp_metrics show address 192.0.2.1",
+		"tcp_metrics show src 192.0.2.2 address 192.0.2.1",
+		"tcp_metrics show address 2001:db8::1",
+		"tcp_metrics show address 192.0.2.9",
+		"tcp_metrics delete address 192.0.2.1",
+		"tcp_metrics delete src 192.0.2.2 address 192.0.2.1",
+		"tcp_metrics delete address 192.0.2.9",
+		"tcp_metrics flush all",
+		"tcp_metrics flush 192.0.2.0/24",
+		"-6 tcp_metrics flush",
+		"tcp_metrics flush address 192.0.2.0/24",
+		// G6-T02's eleven `sr` rows.
+		"sr hmac s",
+		"sr hmac show",
+		"sr hm show",
+		"sr tunsrc show",
+		"sr hmac set 1 sha256",
+		"sr hmac set 2 sha1",
+		"sr hmac set 1 sha1",
+		"sr hmac se 1 sha256",
+		"sr hmac set 9 sha256",
+		"sr hmac set 3 sha256",
+		"sr tunsrc set 2001:db8::1",
+		// G6-T03's twenty `ioam` rows.
+		"ioam namespace show",
+		"ioam schema show",
+		"-j ioam namespace show",
+		"-j ioam schema show",
+		"ioam namespace add 1",
+		"ioam namespace add 2 data 42 wide 2a",
+		"ioam namespace add 3 data 0xffffffff wide ffffffffffffffff",
+		"ioam namespace add 0x1",
+		"ioam namespace del 1",
+		"ioam namespace del 9",
+		"ioam schema add 1 abcd",
+		"ioam schema add 2 abcde",
+		"ioam schema add 1 wxyz",
+		"ioam schema del 1",
+		"ioam schema del 9",
+		"ioam namespace set 1 schema 1",
+		"ioam namespace set 1 schema none",
+		"ioam namespace set 1 schema 9",
+		"ioam schema del 0x1",
+		"ioam namespace del 01",
+		// G6-T04's twenty-eight `mptcp` rows.
+		"mptcp endpoint s",
+		"mptcp endpoint show",
+		"mptcp endpoint show id 2",
+		"mptcp endpoint show id 9",
+		"mptcp limits show",
+		"mptcp endpoint add 192.0.2.2 port 10100 subflow",
+		"-j mptcp endpoint show",
+		"-j mptcp endpoint show id 2",
+		"-j mptcp limits show",
+		"mptcp endpoint add 192.0.2.1 id 1 subflow",
+		"mptcp endpoint add 2001:db8::1 dev d0 signal backup",
+		"mptcp endpoint add 192.0.2.2 port 10100 signal",
+		"mptcp endpoint add 192.0.2.2 subflow fullmesh",
+		"mptcp endpoint add 192.0.2.1 subflow",
+		"mptcp endpoint add 192.0.2.2 id 1 subflow",
+		"mptcp endpoint change id 1 backup",
+		"mptcp endpoint change 192.0.2.1 fullmesh",
+		"mptcp endpoint change id 1 nobackup",
+		"mptcp endpoint change id 9 backup",
+		"mptcp endpoint delete id 1",
+		"mptcp endpoint delete id 9",
+		"mptcp endpoint delete id 0 192.0.2.1",
+		"mptcp endpoint flush",
+		"mptcp limits set subflows 4 add_addr_accepted 3",
+		"mptcp limits set add_addr_accepted 2",
+		"mptcp limits set",
+		"mptcp limits set subflows 8 add_addr_accepted 8",
+		"mptcp limits set subflows 9",
+		// G6-T05's twenty-four `fou` rows.
+		"fou s",
+		"fou show",
+		"fou show port 5555",
+		"fou add port 0 gue",
+		"fou add port 5555 gue local 192.0.2.1 dev nosuch",
+		"-j fou show",
+		"-j fou sho",
+		"-j fou sh",
+		"fou add port 5555 ipproto 4",
+		"fou add port 5555 gue",
+		"fou add port 5555 gue -6",
+		"fou add port 5555 ipproto 4 local 192.0.2.1 peer 192.0.2.2 peer_port 5556",
+		"fou add port 5555 gue -6 local 2001:db8::1 peer 2001:db8::2 peer_port 5556",
+		"fou add port 5555 ipproto 4 local 192.0.2.1 dev d0",
+		"fou add port 5555 ipproto 4 dev d0",
+		"fou a port 5555 gue",
+		"fou a port 5555 gue -6",
+		"fou add ipproto 4",
+		"fou add port 5555",
+		"fou del port 5555",
+		"fou d port 5555",
+		"fou del port 5555 -6",
+		"fou del port 5555 local 192.0.2.1 peer 192.0.2.2 peer_port 5556",
+		"fou de port 5555",
+		// G6-T06's eighteen `ila` rows.
+		"ila s",
+		"ila show",
+		"ila show 2001:db8:1:2",
+		"ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4 bogus",
+		"-j ila show",
+		"-j ila sho",
+		"-j ila sh",
+		"ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4",
+		"ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4 dev d0",
+		"ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4 csum-mode adj-transport ident-type luid",
+		"ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4 csum-mode neutral-map-auto ident-type use-format",
+		"ila a loc_match 2001:db8:1:2 loc 2001:db8:3:4",
+		"ila a loc_match 2001:db8:1:2 loc 2001:db8:3:4 dev d0",
+		"ila add loc_match 2001:db8:1:2",
+		"ila del loc_match 2001:db8:1:2",
+		"ila d loc_match 2001:db8:1:2",
+		"ila del loc_match 2001:db8:1:2 dev d0",
+		"ila de loc_match 2001:db8:1:2",
+		// G6-T07's twenty-eight `l2tp` rows.
+		"l2tp s tunnel",
+		"l2tp show tunnel",
+		"l2tp show tunnel tunnel_id 1",
+		"l2tp s session",
+		"l2tp show session",
+		"l2tp show session tunnel_id 1 session_id 10",
+		"l2tp show",
+		"l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 remote 192.0.2.2 udp_sport 5000 udp_dport 6000",
+		"l2tp add session tunnel_id 1 session_id 10",
+		"-j l2tp show tunnel",
+		"-j l2tp sho tunnel",
+		"-j l2tp show session",
+		"-j l2tp sho session",
+		"l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 local 192.0.2.1 remote 192.0.2.2 udp_sport 5000 udp_dport 6000",
+		"l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 local 192.0.2.1 remote 192.0.2.2 udp_sport 5000 udp_dport 6000 udp_csum on",
+		"l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 local 2001:db8::1 remote 2001:db8::2 udp_sport 5000 udp_dport 6000 udp6_csum_rx off",
+		"l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 encap ip local 192.0.2.1 remote 192.0.2.2",
+		"l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 local 192.0.2.1 remote 192.0.2.2 udp_sport 5001 udp_dport 6001",
+		"l2tp del tunnel tunnel_id 1",
+		"l2tp del tunnel tunnel_id 9",
+		"l2tp d tunnel tunnel_id 1",
+		"l2tp add session tunnel_id 1 session_id 10 peer_session_id 20",
+		"l2tp add session name l2tp9 tunnel_id 1 session_id 10 peer_session_id 20 cookie 0102030405060708 peer_cookie 0a0b0c0d seq both l2spec_type none",
+		"l2tp a session tunnel_id 1 session_id 10 peer_session_id 20",
+		"l2tp ad session tunnel_id 1 session_id 10 peer_session_id 20",
+		"l2tp add session tid 1 session_id 10 peer_session_id 20",
+		"l2tp del session tunnel_id 1 session_id 10",
+		"l2tp del session tunnel_id 1 session_id 99",
+		// G6-T08's thirty-nine `macsec` rows.
+		"macsec show",
+		"macsec s",
+		"macsec show macsec1",
+		"macsec show nodev0",
+		"macsec add macsec0 tx sa 1 pn 1",
+		"macsec add macsec0 tx sa 1 key 01000000000000000000000000000000 81818181818181818181818181818181",
+		"macsec add macsec0 tx sa 4 pn 1 key 01000000000000000000000000000000 81818181818181818181818181818181",
+		"macsec set macsec0 tx sa 0 key 01000000000000000000000000000000 81818181818181818181818181818181",
+		"-j macsec show",
+		"-j macsec sho",
+		"-j macsec sh",
+		"-j macsec show macsec0",
+		"-s macsec show",
+		"-s macsec sho",
+		"-s -j macsec show",
+		"macsec add macsec0 tx sa 0 pn 1 on key 01000000000000000000000000000000 81818181818181818181818181818181",
+		"macsec add macsec0 tx sa 3 pn 100 off key 01000000000000000000000000000000 81818181818181818181818181818181",
+		"macsec a macsec0 tx sa 0 pn 1 on key 01000000000000000000000000000000 81818181818181818181818181818181",
+		"macsec add macsec0 tx sa 1 pn 1 key 01000000000000000000000000000000 8181818181818181818181818181818181818181818181818181818181818181",
+		"macsec add d0 tx sa 0 pn 1 key 01000000000000000000000000000000 81818181818181818181818181818181",
+		"macsec set macsec0 tx sa 0 pn 50 off",
+		"macsec d macsec0 tx sa 0",
+		"macsec del macsec0 tx sa 0",
+		"macsec del macsec0 tx sa 2",
+		"macsec add macsec0 rx sci 0a0b0c0d0e0f0001 on",
+		"macsec add macsec0 rx port 1 address 02:00:00:00:00:01",
+		"macsec a macsec0 rx sci 0a0b0c0d0e0f0001 on",
+		"macsec set macsec0 rx sci 0a0b0c0d0e0f0001 off",
+		"macsec del macsec0 rx sci 0a0b0c0d0e0f0001",
+		"macsec d macsec0 rx sci 0a0b0c0d0e0f0001",
+		"macsec add macsec0 rx sci 0a0b0c0d0e0f0001 sa 0 pn 1 on key 02000000000000000000000000000000 82828282828282828282828282828282",
+		"macsec a macsec0 rx sci 0a0b0c0d0e0f0001 sa 0 pn 1 on key 02000000000000000000000000000000 82828282828282828282828282828282",
+		"macsec set macsec0 rx sci 0a0b0c0d0e0f0001 sa 0 pn 60 off",
+		"macsec d macsec0 rx sci 0a0b0c0d0e0f0001 sa 0",
+		"macsec del macsec0 rx sci 0a0b0c0d0e0f0001 sa 0",
+		"macsec add macsec0 tx sa 0 xpn 1 salt 0102030405060708090a0b0c ssci 1 on key 01000000000000000000000000000000 81818181818181818181818181818181",
+		"macsec add macsec0 tx sa 0 pn 1 salt 0102030405060708090a0b0c ssci 1 key 01000000000000000000000000000000 81818181818181818181818181818181",
+		"macsec offload macsec0 off",
+		"macsec offload macsec0 mac",
+		// G7-T01's nine `xfrm state` rows.
+		"xfrm state list",
+		"xfrm state show",
+		"xfrm state list dst 192.0.2.2",
+		"xfrm state list nokeys",
+		"xfrm state get src 192.0.2.1 dst 192.0.2.2 proto esp spi 0x100",
+		"xfrm state g src 192.0.2.1 dst 192.0.2.2 proto esp spi 0x100",
+		"xfrm state count",
+		"xfrm state c",
+		"-s xfrm state count",
+		// G7-T02's 17 `xfrm state` write rows.
+		"xfrm state add src 192.0.2.1 dst 192.0.2.2 proto esp spi 0x100 reqid 1 mode transport auth sha256 0x1111111111111111111111111111111111111111111111111111111111111111 enc aes 0x22222222222222222222222222222222",
+		"xfrm state add src 2001:db8::1 dst 2001:db8::2 proto esp spi 0x101 reqid 2 mode tunnel auth-trunc sha256 0x1111111111111111111111111111111111111111111111111111111111111111 128 enc aes 0x22222222222222222222222222222222",
+		"xfrm state add src 192.0.2.1 dst 192.0.2.3 proto esp spi 0x102 reqid 3 mode transport aead \"rfc4106(gcm(aes))\" 0x3333333333333333333333333333333333333333 128",
+		"xfrm state add src 192.0.2.1 dst 192.0.2.4 proto esp spi 0x103 mode transport enc aes 0x22222222222222222222222222222222",
+		"xfrm state a src 192.0.2.1 dst 192.0.2.2 proto esp spi 0x100 reqid 1 mode transport auth sha256 0x1111111111111111111111111111111111111111111111111111111111111111 enc aes 0x22222222222222222222222222222222",
+		"xfrm state add src 192.0.2.1 dst 192.0.2.2 proto esp spi 0x100 mode transport enc nosuchalg 0x22222222222222222222222222222222",
+		"xfrm state add src 192.0.2.1 dst 192.0.2.2 proto esp spi 0x100 mode transport enc aes 0x222222222222222222222222222222",
+		"xfrm state update src 192.0.2.1 dst 192.0.2.2 proto esp spi 0x100 reqid 1 mode transport auth sha256 0x1111111111111111111111111111111111111111111111111111111111111111 enc aes 0x22222222222222222222222222222222 limit time-hard 3600",
+		"xfrm state update src 192.0.2.1 dst 192.0.2.2 proto esp spi 0x200 mode transport auth sha256 0x1111111111111111111111111111111111111111111111111111111111111111 enc aes 0x22222222222222222222222222222222",
+		"xfrm state u src 192.0.2.1 dst 192.0.2.2 proto esp spi 0x100 reqid 1 mode transport auth sha256 0x1111111111111111111111111111111111111111111111111111111111111111 enc aes 0x22222222222222222222222222222222",
+		"xfrm state delete src 192.0.2.1 dst 192.0.2.2 proto esp spi 0x100",
+		"xfrm state d src 192.0.2.1 dst 192.0.2.2 proto esp spi 0x100",
+		"xfrm state deleteall",
+		"xfrm state delall",
+		"xfrm state flush",
+		"xfrm state flush proto ah",
+		"xfrm state allocspi src 192.0.2.1 dst 192.0.2.2 proto esp min 0x100 max 0x100",
+		// G7-T03's ten `xfrm policy` rows.
+		"xfrm policy list",
+		"xfrm policy show",
+		"xfrm policy list dir in",
+		"xfrm policy get src 192.0.2.1/32 dst 192.0.2.2/32 dir out",
+		"xfrm policy get index 1 dir out",
+		"xfrm policy g src 192.0.2.1/32 dst 192.0.2.2/32 dir out",
+		"xfrm policy count",
+		"xfrm policy c",
+		"-s -s xfrm policy count",
+		"xfrm policy getd",
+		// G7-T04's 13 `xfrm policy` write rows.
+		"xfrm policy add src 192.0.2.1/32 dst 192.0.2.2/32 dir out tmpl src 192.0.2.1 dst 192.0.2.2 proto esp reqid 1 mode transport",
+		"xfrm policy add src 2001:db8::1/128 dst 2001:db8::2/128 proto tcp dport 443 dir in priority 10 action block",
+		"xfrm policy a src 192.0.2.1/32 dst 192.0.2.2/32 dir out tmpl src 192.0.2.1 dst 192.0.2.2 proto esp reqid 1 mode transport",
+		"xfrm policy update src 192.0.2.1/32 dst 192.0.2.2/32 dir out priority 5 tmpl src 192.0.2.1 dst 192.0.2.2 proto esp reqid 1 mode transport",
+		"xfrm policy update src 192.0.2.1/32 dst 192.0.2.2/32 dir out tmpl src 192.0.2.1 dst 192.0.2.2 proto esp reqid 1 mode transport",
+		"xfrm policy delete src 192.0.2.1/32 dst 192.0.2.2/32 dir out",
+		"xfrm policy d src 192.0.2.1/32 dst 192.0.2.2/32 dir out",
+		"xfrm policy deleteall",
+		"xfrm policy delall",
+		"xfrm policy flush",
+		"xfrm policy f",
+		"xfrm policy set hthresh4 24 16 hthresh6 64 48",
+		"xfrm policy setdefault in block fwd block out accept",
 	}
 
 	tests := []struct {
@@ -577,14 +967,21 @@ func TestAllowlistCommitted(t *testing.T) {
 		check       func(t *testing.T, a *Allowlist)
 	}{
 		{
-			// It loaded above, so every validation rule holds on it. Empty is
-			// the measured state since goip follows the 7.2.0 pin: the next
-			// entry is a decision, and this row makes it one a test notices.
-			description: "positive: the committed file loads with no entries",
+			// It loaded above, so every validation rule holds on it. Five is
+			// the measured state since goip follows the 7.2.0 pin: the netns
+			// rows' NETNSA_FD, accepted divergences (G4-T04), and no
+			// version skew. The next entry is a decision, and this row makes
+			// it one a test notices.
+			description: "positive: the committed file loads with the five netns entries alone",
 			check: func(t *testing.T, a *Allowlist) {
-				if len(a.Entries) != 0 {
-					t.Fatalf("%d entries, want 0; the first is %q at %q",
-						len(a.Entries), a.Entries[0].Command, a.Entries[0].Locus)
+				if len(a.Entries) != 5 {
+					t.Fatalf("%d entries, want 5", len(a.Entries))
+				}
+				for i := range a.Entries {
+					if a.Entries[i].Kind != KindAcceptedDivergence || !strings.HasPrefix(a.Entries[i].Command, "netns ") &&
+						!strings.HasPrefix(a.Entries[i].Command, "-j netns ") {
+						t.Errorf("entry %d is %q at %q, kind %s", i, a.Entries[i].Command, a.Entries[i].Locus, a.Entries[i].Kind)
+					}
 				}
 			},
 		},
@@ -757,53 +1154,29 @@ func TestAllowlistCommitted(t *testing.T) {
 			// while some command is outside. It has been vacuous twice - once
 			// when nine commands were the whole table, once when the
 			// twenty-fourth was gated - and both intervals ended the same
-			// way, by a new command being compared ungated first. The `-s`
-			// sweep's five ended the second such interval; three of them
-			// have since gated.
+			// way, by a new command being compared ungated first.
 			//
-			// These two are no longer the whole ungated surface. The matrix
-			// has grown to forty-one rows and twenty-seven are gated, so
-			// fourteen can warn: these two plus the twelve family, table and
-			// `-j` rows added with the JSON facet work, which stay ungated
-			// until a live run measures them.
-			// internal/goipparity's TestUngatedSurfaceIsNotVacuous pins that
-			// set of fourteen by name. What this row still owns is the
-			// narrower claim: these two SPECIFICALLY stay out, for the
-			// reasons below, so a branch gating the twelve cannot sweep
-			// these up with them.
-			//
-			// Naming them rather than asserting a bare count is deliberate.
-			// A count passes if the two held out are a DIFFERENT two, which
-			// is the mistake worth catching. The reason each is out is no
-			// longer "not yet measured" - all five have five runs behind
-			// them now - but that its noise is UNRESOLVED, and the two are
-			// unresolved in opposite directions. `-s addr show` is noisy
-			// with variance, 2/2/6 then 2/2, which is `-s link show`'s shape
-			// and clears that bar rather than the identical-runs one; it is
-			// a defensible gate on a separate decision, not on this one.
-			// `-s neigh show` is stable at nl=2 across all five, and stable
-			// is the WEAKER result for a noisy row, because five runs
-			// reading 2 cannot separate "D_control absorbed the delta" from
-			// "there was no delta to absorb" - the distinction `-s link
-			// show` needed three disagreeing runs to establish. Its nl=2 is
-			// not even `-s`'s doing: plain neigh show measures 2 from
-			// ll_init_map's link dump. So it waits for a run where the count
-			// moves. Both are recorded in goip-parity-allowlist.json's
-			// _comment; gating either on this row's bar would retire a
-			// question rather than answer it.
-			description: "negative: the two -s sweep commands whose noise is unresolved are deliberately NOT gated, so they stay among the rows UNGATED_CLEAN reads",
+			// Until G0-T03 this row held out the two `-s` sweep commands
+			// whose noise was unresolved. They gated there, with the two
+			// netconf-dev rows, which leaves one command ungated: `addr show
+			// dynamic`, whose finite valid_lft counts down between ip_a and
+			// goip, so it can never gate (addr-write-path.md, "Gating").
+			// That is the ungated surface now, and the reason it is out is
+			// a property of the command, not of a run, so no clean run can
+			// sweep it in. internal/goipparity's TestUngatedSurfaceIsNotVacuous
+			// pins the set by name.
+			description: "negative: addr show dynamic, whose valid_lft counts down, is deliberately NOT gated, so UNGATED_CLEAN still reads a row",
 			check: func(t *testing.T, a *Allowlist) {
 				heldOut := []string{
-					"-s addr show",
-					"-s neigh show",
+					"addr show dynamic",
 				}
 				for _, c := range heldOut {
 					if a.IsGated(c) {
-						t.Fatalf("gated_commands includes %q, which no measured "+
-							"run has earned; it is held out so its predicted "+
-							"behavior gets measured rather than assumed, and "+
-							"gating it also shrinks the ungated surface that "+
-							"GOIP_PARITY_UNGATED_CLEAN reads", c)
+						t.Fatalf("gated_commands includes %q, which prints a "+
+							"finite lifetime that counts down between ip_a and "+
+							"goip, so no run can earn it; gating it also empties "+
+							"the ungated surface that GOIP_PARITY_UNGATED_CLEAN "+
+							"reads", c)
 					}
 				}
 			},

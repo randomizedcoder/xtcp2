@@ -181,7 +181,7 @@ func parseAddrShowArgs(args []string, family uint8, lk addrLookups) (addrFilter,
 			continue
 		}
 		// The device arm: `dev NAME`, help by matches(), or a bare name.
-		if arg == "dev" {
+		if arg == devKeywordCst {
 			if i+1 >= len(args) {
 				return addrFilter{}, incompleteErr()
 			}
@@ -191,7 +191,7 @@ func parseAddrShowArgs(args []string, family uint8, lk addrLookups) (addrFilter,
 			return addrFilter{}, addrHelpErr()
 		}
 		if haveDev {
-			return addrFilter{}, duparg2Err("dev", arg)
+			return addrFilter{}, duparg2Err(devKeywordCst, arg)
 		}
 		dev, haveDev = arg, true
 	}

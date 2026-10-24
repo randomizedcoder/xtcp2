@@ -1,0 +1,4 @@
+	 SPD IN  0 OUT 0 FWD 0 (Sock: IN 0 OUT 0 FWD 0)
+	 SPD buckets: count 7 Max 1048576
+	 SPD IPv4 thresholds: local 24 remote 16
+	 SPD IPv6 thresholds: local 64 remote 48

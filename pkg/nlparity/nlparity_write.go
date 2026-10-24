@@ -3,6 +3,7 @@ package nlparity
 import (
 	"errors"
 	"fmt"
+	"sort"
 
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
 	"golang.org/x/sys/unix"
@@ -74,7 +75,7 @@ type WriteSplit struct {
 func SplitWrites(s Segmentation, n int) (WriteSplit, error) {
 	first, last := -1, -1
 	for i := range s.Txns {
-		if !xtcpnl.IsAdmittedWriteType(s.Txns[i].Request.Hdr.Type) {
+		if !IsWrite(s.Txns[i].Request) {
 			continue
 		}
 		if first >= 0 && last != i-1 {
@@ -115,10 +116,36 @@ func (w WriteSplit) others() Segmentation {
 	return s
 }
 
-// ParseWriteRequests reads a GOIP_WRITE_OUT file: one or more netlink
-// requests back to back, each of an admitted write type, each starting on a
-// four-byte boundary as in a datagram. The last one ends the file.
+// IsWrite reports whether m is a write the gates admit: an rtnetlink type
+// xtcpnl.IsAdmittedWriteType admits, an XFRM type
+// xtcpnl.IsAdmittedXfrmWrite admits, or a generic netlink family's command
+// xtcpnl.IsAdmittedGenlWrite admits by the family's name. A genl message
+// whose family the capture never named is not one, since only the name says
+// which commands write.
+func IsWrite(m Msg) bool {
+	switch m.Proto {
+	case unix.NETLINK_GENERIC:
+		return m.IsGenl() && len(m.Body) >= genlHdrLen && xtcpnl.IsAdmittedGenlWrite(m.Genl, m.Body[0])
+	case unix.NETLINK_XFRM:
+		// By XFRM's own gate: NEWSA's 16 is RTM_NEWLINK's.
+		return m.IsXfrm() && xtcpnl.IsAdmittedXfrmWrite(m.Hdr.Type)
+	}
+	return xtcpnl.IsAdmittedWriteType(m.Hdr.Type)
+}
+
+// ParseWriteRequests reads an rtnetlink GOIP_WRITE_OUT file: one or more
+// netlink requests back to back, each of an admitted write type, each
+// starting on a four-byte boundary as in a datagram. The last one ends the
+// file.
 func ParseWriteRequests(b []byte) ([]Msg, error) {
+	return ParseWriteRequestsProto(b, unix.NETLINK_ROUTE, nil)
+}
+
+// ParseWriteRequestsProto is ParseWriteRequests for a protocol's file. A
+// generic netlink request is labeled with the family families names its id,
+// the map of the capture goip resolved the family in (Capture.GenlFamilies),
+// and must then be a write IsWrite admits.
+func ParseWriteRequestsProto(b []byte, proto uint16, families map[uint16]string) ([]Msg, error) {
 	if len(b) == 0 {
 		return nil, fmt.Errorf("%w: empty", ErrBadWriteFile)
 	}
@@ -133,8 +160,11 @@ func ParseWriteRequests(b []byte) ([]Msg, error) {
 			return nil, fmt.Errorf("%w: message %d: nlmsg_len %d with %d bytes left",
 				ErrBadWriteFile, len(out), h.Len, len(rest))
 		}
-		m := Msg{Hdr: h, Body: rest[xtcpnl.NlMsgHdrSizeCst:h.Len], Offset: off}
-		if !m.IsRequest() || !xtcpnl.IsAdmittedWriteType(h.Type) {
+		m := Msg{Hdr: h, Body: rest[xtcpnl.NlMsgHdrSizeCst:h.Len], Offset: off, Proto: proto}
+		if m.IsGenl() {
+			m.Genl = families[h.Type]
+		}
+		if !m.IsRequest() || !IsWrite(m) {
 			return nil, fmt.Errorf("%w: message %d: %s flags 0x%04x",
 				ErrBadWriteFile, len(out), MsgTypeName(h.Type), h.Flags)
 		}
@@ -185,9 +215,38 @@ func DiffWrites(command string, ref WriteSplit, sub Segmentation, subWrites []Ms
 			Ref: fmt.Sprintf("%d", len(ref.Writes)), Sub: fmt.Sprintf("%d", len(subWrites)),
 		})
 	}
-	for i := range min(len(ref.Writes), len(subWrites)) {
+	refWrites, subWrites := byObjectKey(ref.Writes), byObjectKey(subWrites)
+	for i := range min(len(refWrites), len(subWrites)) {
 		out = append(out, diffRequest(command, before+i,
-			NormalizeMsg(ref.Writes[i]), NormalizeMsg(subWrites[i]))...)
+			NormalizeMsg(refWrites[i]), NormalizeMsg(subWrites[i]))...)
+	}
+	return out
+}
+
+// byObjectKey orders a batch of writes by genlObjectKey when every one has
+// a family's key, and leaves any other batch in send order. A tcp_metrics
+// flush deletes in its dump's order, which is a per-namespace hash's, so ip's
+// batch and goip's name the same entries in different orders; sorted, they
+// pair entry by entry, and a missing or extra one still shows as a pair that
+// differs. A batch is returned unsorted rather than partly sorted, so an
+// rtnetlink flush keeps the order its comparison has always checked.
+func byObjectKey(ws []Msg) []Msg {
+	keys := make([]string, len(ws))
+	for i := range ws {
+		k, ok := genlObjectKey(ws[i])
+		if !ok {
+			return ws
+		}
+		keys[i] = k
+	}
+	idx := make([]int, len(ws))
+	for i := range idx {
+		idx[i] = i
+	}
+	sort.SliceStable(idx, func(a, b int) bool { return keys[idx[a]] < keys[idx[b]] })
+	out := make([]Msg, len(ws))
+	for i, j := range idx {
+		out[i] = ws[j]
 	}
 	return out
 }
@@ -254,7 +313,7 @@ func withoutUnackedWrites(s Segmentation) Segmentation {
 	out := s
 	out.Txns = make([]Txn, 0, len(s.Txns))
 	for _, t := range s.Txns {
-		if xtcpnl.IsAdmittedWriteType(t.Request.Hdr.Type) && len(t.Replies) == 0 &&
+		if IsWrite(t.Request) && len(t.Replies) == 0 &&
 			t.Request.Hdr.Flags&uint16(unix.NLM_F_ACK) == 0 {
 			continue
 		}
@@ -271,7 +330,7 @@ var ErrGoipSentWrite = errors.New("nlparity: goip sent a write request")
 // sentWrite reports whether any transaction's request is a write.
 func sentWrite(s Segmentation) bool {
 	for i := range s.Txns {
-		if xtcpnl.IsAdmittedWriteType(s.Txns[i].Request.Hdr.Type) {
+		if IsWrite(s.Txns[i].Request) {
 			return true
 		}
 	}

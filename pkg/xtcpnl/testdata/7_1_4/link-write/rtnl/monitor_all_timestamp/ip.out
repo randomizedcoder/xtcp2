@@ -1,0 +1,45 @@
+Timestamp: Mon Oct 19 23:49:45 2026 506966 usec
+[ADDR]3: c0    inet mcast 224.0.0.250 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Mon Oct 19 23:49:45 2026 507163 usec
+[ADDR]3: c0    inet 224.0.0.250/32 scope global autojoin c0
+       valid_lft forever preferred_lft forever
+Timestamp: Mon Oct 19 23:49:45 2026 507322 usec
+[ROUTE]local 224.0.0.250 dev c0 table local proto kernel scope host src 224.0.0.250 
+Timestamp: Mon Oct 19 23:49:45 2026 589238 usec
+[LINK]4: d0: <BROADCAST,NOARP,UP,LOWER_UP> mtu 1500 qdisc noqueue state UNKNOWN group default 
+    link/ether ba:68:86:dc:bd:0f brd ff:ff:ff:ff:ff:ff
+Timestamp: Mon Oct 19 23:49:45 2026 590607 usec
+[ADDR]4: d0    inet mcast 224.0.0.1 scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Mon Oct 19 23:49:45 2026 590625 usec
+[ROUTE]multicast ff00::/8 dev d0 table local proto kernel metric 256 pref medium
+Timestamp: Mon Oct 19 23:49:45 2026 604819 usec
+[ROUTE]2001:db8:1::/64 dev d0 proto kernel metric 256 pref medium
+Timestamp: Mon Oct 19 23:49:45 2026 604849 usec
+[ADDR]4: d0    inet6 2001:db8:1::1/64 scope global nodad 
+       valid_lft forever preferred_lft forever
+Timestamp: Mon Oct 19 23:49:45 2026 604855 usec
+[ROUTE]local 2001:db8:1::1 dev d0 table local proto kernel metric 0 pref medium
+Timestamp: Mon Oct 19 23:49:45 2026 604861 usec
+[ROUTE]anycast 2001:db8:1:: dev d0 table local proto kernel metric 0 pref medium
+Timestamp: Mon Oct 19 23:49:45 2026 604865 usec
+[ADDR]4: d0    inet6 any 2001:db8:1:: scope global 
+       valid_lft forever preferred_lft forever
+Timestamp: Mon Oct 19 23:49:45 2026 605601 usec
+[NETCONF]inet d0 forwarding on 
+Timestamp: Mon Oct 19 23:49:45 2026 621991 usec
+[RULE]100:	from 192.0.2.0/24 lookup 100
+Timestamp: Mon Oct 19 23:49:45 2026 636443 usec
+[NEXTHOP]id 1 blackhole 
+Timestamp: Mon Oct 19 23:49:45 2026 650894 usec
+[STATS]4: d0:
+    l3_stats on used off
+Timestamp: Mon Oct 19 23:49:45 2026 679705 usec
+[NSID]nsid 9 (iproute2 netns name: c4p)
+Timestamp: Mon Oct 19 23:49:45 2026 693986 usec
+[NSID]Deleted nsid 9 (iproute2 netns name: c4p)
+Timestamp: Mon Oct 19 23:49:45 2026 968242 usec
+[ROUTE]2001:db8:5::/64 dev r0 proto kernel metric 256 expires 600sec pref medium
+Timestamp: Mon Oct 19 23:49:45 2026 968275 usec
+[PREFIX]prefix 2001:db8:5::/64dev r0 valid 600 preferred 300 

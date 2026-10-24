@@ -54,10 +54,13 @@ func TestIsRtnetlinkEventType(t *testing.T) {
 		{"positive: RTM_DELROUTE", uint16(unix.RTM_DELROUTE), true},
 		{"positive: RTM_NEWNEIGH", uint16(unix.RTM_NEWNEIGH), true},
 		{"positive: RTM_DELNEIGH", uint16(unix.RTM_DELNEIGH), true},
+		{"positive: RTM_NEWRULE", uint16(unix.RTM_NEWRULE), true},
+		{"positive: RTM_DELRULE", uint16(unix.RTM_DELRULE), true},
 
 		{"negative: RTM_GETLINK is a request, not an event", uint16(unix.RTM_GETLINK), false},
 		{"negative: RTM_GETROUTE is a request, not an event", uint16(unix.RTM_GETROUTE), false},
-		{"negative: RTM_NEWRULE is out of scope", uint16(unix.RTM_NEWRULE), false},
+		{"negative: RTM_GETRULE is a request, not an event", uint16(unix.RTM_GETRULE), false},
+		{"negative: RTM_NEWNSID is out of scope", uint16(unix.RTM_NEWNSID), false},
 		{"negative: RTM_NEWQDISC is out of scope", uint16(unix.RTM_NEWQDISC), false},
 		{"negative: NLMSG_ERROR is a control message", uint16(unix.NLMSG_ERROR), false},
 		{"negative: NLMSG_DONE is a control message", uint16(unix.NLMSG_DONE), false},
@@ -556,9 +559,38 @@ func TestParseRtnetlinkEvent(t *testing.T) {
 			body:        nil,
 			wantErr:     ErrNotAnEvent,
 		},
+		// ---- rule ------------------------------------------------------------
 		{
-			description: "negative: RTM_NEWRULE is out of scope -> ErrNotAnEvent",
+			description: "positive: RTM_NEWRULE, from 192.0.2.0/24 lookup 100 at priority 100",
 			msgType:     uint16(unix.RTM_NEWRULE),
+			body: concat(
+				fibRuleHdr(unix.AF_INET, 0, 24, 0, 100, unix.FR_ACT_TO_TBL, 0),
+				rtattr(unix.FRA_TABLE, le32(100)),
+				rtattr(unix.FRA_PRIORITY, le32(100)),
+				rtattr(unix.FRA_SRC, []byte{192, 0, 2, 0}),
+			),
+			want: RuleEvent{Action: EventActionAdd, Rule: RuleInfo{
+				Family: unix.AF_INET, SrcLen: 24, Action: unix.FR_ACT_TO_TBL, RawTable: 100,
+				Priority: 100, HasPriority: true, Src: []byte{192, 0, 2, 0}, Table: 100,
+			}},
+		},
+		{
+			description: "positive: RTM_DELRULE is the same body with the del action",
+			msgType:     uint16(unix.RTM_DELRULE),
+			body:        concat(fibRuleHdr(unix.AF_INET6, 0, 0, 0, 0, unix.FR_ACT_BLACKHOLE, 0)),
+			want: RuleEvent{Action: EventActionDel, Rule: RuleInfo{
+				Family: unix.AF_INET6, Action: unix.FR_ACT_BLACKHOLE,
+			}},
+		},
+		{
+			description: "negative: an RTM_NEWRULE shorter than fib_rule_hdr is ParseRule's error",
+			msgType:     uint16(unix.RTM_NEWRULE),
+			body:        make([]byte, FibRuleHdrSizeCst-1),
+			wantErr:     ErrFibRuleHdrSmall,
+		},
+		{
+			description: "negative: RTM_NEWQDISC is out of scope -> ErrNotAnEvent",
+			msgType:     uint16(unix.RTM_NEWQDISC),
 			body:        make([]byte, RtMsgSizeCst),
 			wantErr:     ErrNotAnEvent,
 		},

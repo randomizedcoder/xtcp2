@@ -190,15 +190,64 @@ var (
 	statsVerbs = []verb{
 		{name: helpVerbCst, kind: verbOther, exact: true},
 		{name: showVerbCst, kind: verbShow, exact: true},
-		{name: "set", kind: verbWrite, exact: true},
+		{name: setVerbCst, kind: verbWrite, exact: true},
 	}
 	// addrLabelVerbs is do_ipaddrlabel (ip/ipaddrlabel.c:248-258).
 	addrLabelVerbs = chain(listLstShow, []verb{addVerb, deleteVerb, flushVerb, helpVerb})
 	// vrfVerbs is do_ipvrf (ip/ipvrf.c:633-647). identify and pids read
 	// /proc and exec runs a command; none is a netlink query.
 	vrfVerbs = chain(
-		[]verb{{name: "identify", kind: verbOther}, {name: "pids", kind: verbOther}, {name: "exec", kind: verbWrite}},
+		[]verb{{name: identifyVerbCst, kind: verbOther}, {name: pidsVerbCst, kind: verbOther}, {name: execVerbCst, kind: verbWrite}},
 		showLstList,
 		[]verb{helpVerb},
 	)
+)
+
+// The chains of the objects with a do_* of their own and no write table,
+// transcribed from iproute2 7.2.0, whose dispatch of these objects is
+// 7.1.0's. A word that opens a second level (xfrm's state, mptcp's
+// endpoint) is verbOther: no listing is served below it.
+var (
+	setVerb     = verb{name: setVerbCst, kind: verbWrite}
+	monitorVerb = verb{name: monitorVerbCst, kind: verbOther}
+	// l2tpVerbs is do_ipl2tp (ip/ipl2tp.c:824-844).
+	l2tpVerbs = chain([]verb{helpVerb, addVerb, deleteVerb}, showLstList)
+	// fouVerbs is do_ipfou (ip/ipfou.c:329-350): show alone lists.
+	fouVerbs = []verb{helpVerb, addVerb, deleteVerb, {name: showVerbCst, kind: verbShow}}
+	// ilaVerbs is do_ipila (ip/ipila.c:288-311).
+	ilaVerbs = chain([]verb{helpVerb, addVerb, deleteVerb}, showLstList)
+	// macsecVerbs is do_ipmacsec (ip/ipmacsec.c:1188-1214): show alone
+	// lists.
+	macsecVerbs = []verb{helpVerb, {name: showVerbCst, kind: verbShow}, addVerb, setVerb, deleteVerb,
+		{name: "offload", kind: verbWrite}}
+	// tcpMetricsVerbs is do_tcp_metrics's cmds[] (ip/tcp_metrics.c:52-59),
+	// then help.
+	tcpMetricsVerbs = chain(listLstShow, []verb{deleteVerb, {name: "remove", kind: verbWrite}, flushVerb, helpVerb})
+	// tokenVerbs is do_iptoken (ip/iptoken.c:180-202).
+	tokenVerbs = chain(listLstShow, []verb{setVerb, addVerb, deleteVerb, getVerb, helpVerb})
+	// mrouteVerbs is do_multiroute (ip/ipmroute.c:314-326).
+	mrouteVerbs = chain(listShowLst, []verb{helpVerb})
+	// netnsVerbs is do_netns (ip/ipnetns.c:990-1044). Its listing is the
+	// names under NETNS_RUN_DIR, which goip does not read, so list, show and
+	// lst are verbOther and list-id, the nsid dump, is the one served.
+	netnsVerbs = []verb{
+		{name: listVerbCst, kind: verbOther}, {name: showVerbCst, kind: verbOther}, {name: lstVerbCst, kind: verbOther},
+		{name: netnsListIDVerbCst, kind: verbShow}, helpVerb, addVerb, setVerb, deleteVerb,
+		{name: identifyVerbCst, kind: verbOther}, {name: pidsVerbCst, kind: verbOther}, {name: execVerbCst, kind: verbWrite},
+		monitorVerb, {name: "attach", kind: verbWrite},
+	}
+	// srVerbs is do_seg6 (ip/ipseg6.c:205-249).
+	srVerbs = []verb{helpVerb, {name: "hmac", kind: verbOther}, {name: "tunsrc", kind: verbOther}}
+	// mptcpVerbs is do_mptcp (ip/ipmptcp.c:621-680).
+	mptcpVerbs = []verb{helpVerb, {name: "endpoint", kind: verbOther}, {name: "limits", kind: verbOther}, monitorVerb}
+	// ioamVerbs is do_ioam6 (ip/ipioam6.c:269-408): strcmp throughout.
+	ioamVerbs = []verb{
+		{name: helpVerbCst, kind: verbOther, exact: true}, {name: "namespace", kind: verbOther, exact: true},
+		{name: "schema", kind: verbOther, exact: true}, {name: monitorVerb.name, kind: verbOther, exact: true},
+	}
+	// xfrmVerbs is do_xfrm (ip/ipxfrm.c:1554-1574).
+	xfrmVerbs = []verb{
+		{name: "state", kind: verbOther}, {name: "sa", kind: verbOther}, {name: "policy", kind: verbOther},
+		monitorVerb, helpVerb,
+	}
 )

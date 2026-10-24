@@ -337,12 +337,34 @@ func BuildRequest(msgType, flags uint16, seq uint32, familyHdr, attrs []byte) ([
 // RTM_SETLINK is left out: iproute2 sends RTM_NEWLINK for `ip link set`
 // (do_iplink, ip/iplink.c), so it has no parity target. The address pair is
 // what do_ipaddr sends: RTM_NEWADDR for add, change and replace, and
-// RTM_DELADDR for delete (ip/ipaddress.c:2679-2687).
+// RTM_DELADDR for delete (ip/ipaddress.c:2679-2687). The neighbor pair is
+// do_ipneigh's: RTM_NEWNEIGH for add, change and replace, RTM_DELNEIGH for
+// delete and for flush's copies (ip/ipneigh.c:747-755, :378). The rule pair is
+// do_iprule's: RTM_NEWRULE for add and restore, RTM_DELRULE for delete and for
+// flush's copies (ip/iprule.c:1246-1253, :618-620). The nexthop pair is
+// do_ipnh's: RTM_NEWNEXTHOP for add and replace, RTM_DELNEXTHOP for delete and
+// for flush's deletes (ip/ipnexthop.c:1456-1463, :140-160). The addrlabel pair
+// is do_ipaddrlabel's: RTM_NEWADDRLABEL for add, RTM_DELADDRLABEL for delete
+// and for flush's copies (ip/ipaddrlabel.c:252-255, :204). RTM_SETNEIGHTBL
+// is `ip ntable change` (ip/ipntable.c:690) and RTM_SETSTATS is `ip stats set`
+// (ip/ipstats.c:1247), each a lone set with no NEW or DEL beside it. The
+// link property pair is iplink_prop's: RTM_NEWLINKPROP for add and
+// RTM_DELLINKPROP for del (ip/iplink.c:1785-1788). RTM_SETLINK is `ip token
+// set` and `del` (ip/iptoken.c:173), the only `ip` command that sends it.
+// RTM_NEWNSID is `ip netns set` (set_netns_id_from_name, lib/namespace.c),
+// with no DEL beside it: a namespace's nsid goes when the namespace does.
 func IsAdmittedWriteType(msgType uint16) bool {
 	switch msgType {
 	case uint16(unix.RTM_NEWROUTE), uint16(unix.RTM_DELROUTE),
 		uint16(unix.RTM_NEWLINK), uint16(unix.RTM_DELLINK),
-		uint16(unix.RTM_NEWADDR), uint16(unix.RTM_DELADDR):
+		uint16(unix.RTM_NEWADDR), uint16(unix.RTM_DELADDR),
+		uint16(unix.RTM_NEWNEIGH), uint16(unix.RTM_DELNEIGH),
+		uint16(unix.RTM_NEWRULE), uint16(unix.RTM_DELRULE),
+		uint16(unix.RTM_NEWNEXTHOP), uint16(unix.RTM_DELNEXTHOP),
+		uint16(unix.RTM_NEWADDRLABEL), uint16(unix.RTM_DELADDRLABEL),
+		uint16(unix.RTM_SETNEIGHTBL), uint16(unix.RTM_SETSTATS),
+		uint16(unix.RTM_NEWLINKPROP), uint16(unix.RTM_DELLINKPROP),
+		uint16(unix.RTM_SETLINK), uint16(unix.RTM_NEWNSID):
 		return true
 	}
 	return false
@@ -403,6 +425,11 @@ func FamilyHdrLen(msgType uint16) int {
 	case uint16(unix.RTM_GETLINK), uint16(unix.RTM_NEWLINK),
 		uint16(unix.RTM_DELLINK), uint16(unix.RTM_SETLINK):
 		return IfInfomsgSizeCst // struct ifinfomsg, 16
+	case uint16(unix.RTM_NEWLINKPROP), uint16(unix.RTM_DELLINKPROP):
+		// struct ifinfomsg too (rtnl_newlinkprop, net/core/rtnetlink.c), with
+		// no GET member. Unmodeled, pkg/nlparity compared a link property
+		// request by length alone.
+		return IfInfomsgSizeCst
 	case uint16(unix.RTM_GETADDR), uint16(unix.RTM_NEWADDR), uint16(unix.RTM_DELADDR):
 		return IfAddrmsgSizeCst // struct ifaddrmsg, 8
 	case uint16(unix.RTM_GETROUTE), uint16(unix.RTM_NEWROUTE), uint16(unix.RTM_DELROUTE):
@@ -417,6 +444,13 @@ func FamilyHdrLen(msgType uint16) int {
 		return FibRuleHdrSizeCst
 	case uint16(unix.RTM_GETNEXTHOP), uint16(unix.RTM_NEWNEXTHOP), uint16(unix.RTM_DELNEXTHOP):
 		return NhMsgSizeCst // struct nhmsg, 8
+	case uint16(unix.RTM_GETNEXTHOPBUCKET), uint16(unix.RTM_NEWNEXTHOPBUCKET),
+		uint16(unix.RTM_DELNEXTHOPBUCKET):
+		// The bucket messages carry struct nhmsg too (nh_fill_res_bucket,
+		// net/ipv4/nexthop.c). Unmodeled, pkg/nlparity compared a bucket
+		// request's body by length alone and decoded none of a reply's
+		// attributes.
+		return NhMsgSizeCst
 	case uint16(unix.RTM_GETADDRLABEL), uint16(unix.RTM_NEWADDRLABEL),
 		uint16(unix.RTM_DELADDRLABEL):
 		return IfAddrlblmsgSizeCst // struct ifaddrlblmsg, 12
@@ -429,10 +463,16 @@ func FamilyHdrLen(msgType uint16) int {
 		// which is why only the msgType case arm, not a length check, tells the
 		// two apart (the ndmsg/rtmsg/fib_rule_hdr note above).
 		return NetconfMsgSizeCst
-	case uint16(unix.RTM_GETSTATS), uint16(unix.RTM_NEWSTATS):
+	case uint16(unix.RTM_GETSTATS), uint16(unix.RTM_NEWSTATS), uint16(unix.RTM_SETSTATS):
 		// struct if_stats_msg, 12. RTM_GETSTATS has no DEL member (the group
-		// note above), so only the GET and NEW arms exist.
+		// note above); RTM_SETSTATS is `ip stats set`'s write
+		// (ip/ipstats.c ipstats_set_do), with the same header.
 		return IfStatsMsgSizeCst
+	case uint16(unix.RTM_GETNSID), uint16(unix.RTM_NEWNSID), uint16(unix.RTM_DELNSID):
+		// struct rtgenmsg, its one byte padded to 4 (RtGenMsgSizeCst).
+		// Unmodeled, pkg/nlparity compared an nsid request by length alone,
+		// so a NETNSA_NSID of 8 against ip's 7 compared clean.
+		return RtGenMsgSizeCst
 	case uint16(unix.NLMSG_DONE), uint16(unix.NLMSG_NOOP), uint16(unix.NLMSG_ERROR):
 		return 0
 	default:

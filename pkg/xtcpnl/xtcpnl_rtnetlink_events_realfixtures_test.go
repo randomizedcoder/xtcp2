@@ -2,7 +2,10 @@ package xtcpnl
 
 import (
 	"bytes"
+	"fmt"
+	"net/netip"
 	"os"
+	"strings"
 	"testing"
 
 	"golang.org/x/sys/unix"
@@ -683,5 +686,73 @@ func assertMatches(t *testing.T, got, wantMin int) {
 	}
 	if got < wantMin {
 		t.Errorf("matched %d events, want at least %d", got, wantMin)
+	}
+}
+
+// TestRuleEventsRealFixture walks captures for RTM_NEWRULE and RTM_DELRULE
+// notifications, the ones IsRtnetlinkNotification accepts: monitor_all's
+// `ip rule add from 192.0.2.0/24 table 100 pref 100`, printed as
+// `[RULE]100:	from 192.0.2.0/24 lookup 100`, must decode to that rule, and
+// the rule dumps and writes must yield none, their replies being NLM_F_MULTI
+// and their requests NLM_F_REQUEST.
+//
+// go test ./pkg/xtcpnl/ -run TestRuleEventsRealFixture
+func TestRuleEventsRealFixture(t *testing.T) {
+	tests := []struct {
+		description string
+		path        string
+		expected    string
+	}{
+		{"positive: monitor_all's rule add, the request and its notification",
+			tdRtnlWrite_7_1_4 + "/monitor_all/ip.pcap", "2: add v4 from 192.0.2.0/24 lookup 100 pref 100"},
+		{"positive: monitor_all_timestamp's, the same rule",
+			tdRtnlWrite_7_1_4 + "/monitor_all_timestamp/ip.pcap", "2: add v4 from 192.0.2.0/24 lookup 100 pref 100"},
+		{"negative: the rule dump's replies are multipart, not events",
+			tdDumps_7_1_4 + "/netlink_route_getrule.pcap", "21: "},
+		{"negative: rule del's RTM_DELRULE is a request, not an event",
+			tdRtnlWrite_7_1_4 + "/rule_del/ip.pcap", "1: "},
+		{"corner: the bulk event capture holds every other family and no rule",
+			tdEventsBulk_7_1_4, "0: "},
+	}
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			// rules counts every rule-type message, so a negative row cannot
+			// pass on a capture with none.
+			var rules int
+			var got []string
+			for _, m := range pcapNlMsgs(t, tc.path) {
+				if m.proto != unix.NETLINK_ROUTE {
+					continue
+				}
+				if m.h.Type == unix.RTM_NEWRULE || m.h.Type == unix.RTM_DELRULE {
+					rules++
+				}
+				if !IsRtnetlinkNotification(m.h) {
+					continue
+				}
+				ev, err := ParseRtnetlinkEvent(m.h.Type, m.body)
+				if err != nil {
+					t.Fatalf("nlmsg_type %d: %v", m.h.Type, err)
+				}
+				re, ok := ev.(RuleEvent)
+				if !ok {
+					continue
+				}
+				r := re.Rule
+				fam := "v6"
+				if r.Family == unix.AF_INET {
+					fam = "v4"
+				}
+				a, ok := netip.AddrFromSlice(r.Src)
+				if !ok {
+					t.Fatalf("FRA_SRC % x", r.Src)
+				}
+				src := netip.PrefixFrom(a, int(r.SrcLen))
+				got = append(got, fmt.Sprintf("%s %s from %s lookup %d pref %d", re.Action, fam, src, r.Table, r.Priority))
+			}
+			if s := fmt.Sprintf("%d: %s", rules, strings.Join(got, "; ")); s != tc.expected {
+				t.Errorf("got %q, want %q", s, tc.expected)
+			}
+		})
 	}
 }

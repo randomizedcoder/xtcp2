@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"os"
 	"testing"
 
@@ -55,6 +56,34 @@ func ifStatsBodies(t *testing.T, path string) [][]byte {
 // ifsmHdr builds the 12-byte if_stats_msg header the test bodies share.
 func ifsmHdr(family uint8, ifindex, filterMask uint32) []byte {
 	return cat([]byte{family, 0, 0, 0}, le32(ifindex), le32(filterMask))
+}
+
+// hwSL3 is one IFLA_OFFLOAD_XSTATS_L3_STATS nest with its REQUEST and USED
+// bytes.
+func hwSL3(request, used uint8) []byte {
+	return rtattr(unix.IFLA_OFFLOAD_XSTATS_L3_STATS, cat(
+		rtattr(unix.IFLA_OFFLOAD_XSTATS_HW_S_INFO_REQUEST, []byte{request}),
+		rtattr(unix.IFLA_OFFLOAD_XSTATS_HW_S_INFO_USED, []byte{used})))
+}
+
+// offloadHwSInfo is the offload group holding one HW_S_INFO nest of inner.
+func offloadHwSInfo(inner []byte) []byte {
+	return rtattr(uint16(unix.IFLA_STATS_LINK_OFFLOAD_XSTATS), rtattr(unix.IFLA_OFFLOAD_XSTATS_HW_S_INFO, inner))
+}
+
+// wantHwSInfo checks a record's decoded HW_S_INFO against one line.
+func wantHwSInfo(expected string) func(t *testing.T, si IfStatsInfo) {
+	return func(t *testing.T, si IfStatsInfo) {
+		h := si.HwSInfo
+		got := fmt.Sprintf("hw=%t l3=%t req=%d/%t used=%d/%t malformed=%t", si.HasHwSInfo, h.HasL3,
+			h.L3Request, h.HasL3Request, h.L3Used, h.HasL3Used, si.HwSInfoMalformed)
+		if got != expected {
+			t.Errorf("got %s, want %s", got, expected)
+		}
+		if si.HasHwSInfo && !si.HasUnsupportedGroup {
+			t.Error("the offload group must still set HasUnsupportedGroup")
+		}
+	}
 }
 
 // link64Payload builds a full rtnl_link_stats64 payload with rx_bytes/tx_bytes
@@ -185,6 +214,49 @@ func TestParseNewStats(t *testing.T) {
 					t.Errorf("flags = link64 %v/unsup %v, want true/true", si.HasLink64, si.HasUnsupportedGroup)
 				}
 			},
+		},
+		{
+			description: "positive: HW_S_INFO's L3_STATS, request on and used off, is decoded",
+			body:        cat(ifsmHdr(unix.AF_UNSPEC, 4, 0), offloadHwSInfo(hwSL3(1, 0))),
+			check:       wantHwSInfo("hw=true l3=true req=1/true used=0/true malformed=false"),
+		},
+		{
+			description: "corner: a second L3_STATS replaces the first, as parse_rtattr's table does",
+			body:        cat(ifsmHdr(unix.AF_UNSPEC, 4, 0), offloadHwSInfo(cat(hwSL3(1, 1), hwSL3(0, 0)))),
+			check:       wantHwSInfo("hw=true l3=true req=0/true used=0/true malformed=false"),
+		},
+		{
+			description: "boundary: HW_S_INFO with no L3_STATS is the nest alone",
+			body: cat(ifsmHdr(unix.AF_UNSPEC, 4, 0),
+				rtattr(uint16(unix.IFLA_STATS_LINK_OFFLOAD_XSTATS), rtattr(unix.IFLA_OFFLOAD_XSTATS_HW_S_INFO, nil))),
+			check: wantHwSInfo("hw=true l3=false req=0/false used=0/false malformed=false"),
+		},
+		{
+			description: "boundary: an empty REQUEST is absent, a USED byte still read",
+			body: cat(ifsmHdr(unix.AF_UNSPEC, 4, 0), offloadHwSInfo(rtattr(unix.IFLA_OFFLOAD_XSTATS_L3_STATS,
+				cat(rtattr(unix.IFLA_OFFLOAD_XSTATS_HW_S_INFO_REQUEST, nil),
+					rtattr(unix.IFLA_OFFLOAD_XSTATS_HW_S_INFO_USED, []byte{1}))))),
+			check: wantHwSInfo("hw=true l3=true req=0/false used=1/true malformed=false"),
+		},
+		{
+			description: "negative: CPU_HIT alone is no HW_S_INFO",
+			body: cat(ifsmHdr(unix.AF_UNSPEC, 4, 0),
+				rtattr(uint16(unix.IFLA_STATS_LINK_OFFLOAD_XSTATS), rtattr(unix.IFLA_OFFLOAD_XSTATS_CPU_HIT, make([]byte, 8)))),
+			check: wantHwSInfo("hw=false l3=false req=0/false used=0/false malformed=false"),
+		},
+		{
+			description: "corner: an overrunning attribute inside L3_STATS keeps the request before it",
+			body: cat(ifsmHdr(unix.AF_UNSPEC, 4, 0), offloadHwSInfo(rtattr(unix.IFLA_OFFLOAD_XSTATS_L3_STATS,
+				cat(rtattr(unix.IFLA_OFFLOAD_XSTATS_HW_S_INFO_REQUEST, []byte{1}),
+					rtattrOverrunning(unix.IFLA_OFFLOAD_XSTATS_HW_S_INFO_USED, 40))))),
+			check: wantHwSInfo("hw=true l3=true req=1/true used=0/false malformed=true"),
+		},
+		{
+			description: "corner: an overrunning HW_S_INFO sibling is malformed, the nest before it kept",
+			body: cat(ifsmHdr(unix.AF_UNSPEC, 4, 0), rtattr(uint16(unix.IFLA_STATS_LINK_OFFLOAD_XSTATS),
+				cat(rtattr(unix.IFLA_OFFLOAD_XSTATS_HW_S_INFO, hwSL3(0, 1)),
+					rtattrOverrunning(unix.IFLA_OFFLOAD_XSTATS_CPU_HIT, 40)))),
+			check: wantHwSInfo("hw=true l3=true req=0/true used=1/true malformed=true"),
 		},
 		{
 			description: "corner: IFLA_STATS_AF_SPEC(5) alone sets only HasUnsupportedGroup",

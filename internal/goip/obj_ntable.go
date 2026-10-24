@@ -10,10 +10,22 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// ntableShowVerbs are the spellings do_ipntable accepts for the listing, in its
+// order (ip/ipntable.c:693-695): show, lst, list. All three call ipntable_show,
+// so the order is immaterial to the result; the abbreviations fall out of it (s
+// -> show, l/li -> list, ls -> lst). change and chg, matched ahead of them,
+// are ntableChange; help is not implemented.
+var ntableShowVerbs = []string{showVerbCst, lstVerbCst, listVerbCst}
+
 func runNTable(c *runCtx, args []string) error {
-	args, err := showArgs("ntable", ntableVerbs, args)
-	if err != nil {
-		return err
+	if len(args) > 0 {
+		if matchesPrefix(args[0], ntableChangeVerbCst) || matchesPrefix(args[0], ntableChgVerbCst) {
+			return ntableChange(c, args[1:])
+		}
+		if !matchesAny(args[0], ntableShowVerbs) {
+			return fmt.Errorf("ntable %q: %w", args[0], ErrNotImplemented)
+		}
+		args = args[1:]
 	}
 	// A bare `ip ntable` is a list (ip/ipntable.c:699-700, argc<1).
 	if err := parseNTableShowArgs(args); err != nil {

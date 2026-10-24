@@ -374,6 +374,11 @@ type LinkInfo struct {
 	HasTxQLen bool   // IFLA_TXQLEN present (the value may be 0)
 	Group     uint32 // IFLA_GROUP; only meaningful with HasGroup
 	HasGroup  bool   // IFLA_GROUP present (the value may be 0)
+	// Event is IFLA_EVENT, which the kernel puts only in a notification and
+	// only when the event is not IFLA_EVENT_NONE (rtnl_fill_ifinfo), so a
+	// dump never carries it. `ip monitor` prints it (print_link_event).
+	Event    uint32
+	HasEvent bool
 
 	// AltNames are the IFLA_ALT_IFNAME entries inside IFLA_PROP_LIST, in wire
 	// order — `ip`'s "altname" continuation lines. nil when the link has none,
@@ -716,7 +721,7 @@ func setLinkAttr(li *LinkInfo, raw *linkStatsRaw, atype uint16, val []byte) {
 		uint16(unix.IFLA_MTU), uint16(unix.IFLA_TXQLEN),
 		uint16(unix.IFLA_LINKMODE), uint16(unix.IFLA_GROUP),
 		uint16(unix.IFLA_LINK), uint16(unix.IFLA_MASTER),
-		uint16(unix.IFLA_LINK_NETNSID):
+		uint16(unix.IFLA_LINK_NETNSID), uint16(unix.IFLA_EVENT):
 		setLinkScalarAttr(li, atype, val)
 
 	case uint16(unix.IFLA_ADDRESS):
@@ -802,6 +807,11 @@ func setLinkScalarAttr(li *LinkInfo, atype uint16, val []byte) {
 		if len(val) >= 4 {
 			li.TxQLen = binary.LittleEndian.Uint32(val[0:4])
 			li.HasTxQLen = true
+		}
+	case uint16(unix.IFLA_EVENT):
+		if len(val) >= 4 {
+			li.Event = binary.LittleEndian.Uint32(val[0:4])
+			li.HasEvent = true
 		}
 	case uint16(unix.IFLA_LINKMODE):
 		if len(val) >= 1 {

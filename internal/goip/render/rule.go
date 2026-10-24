@@ -652,7 +652,7 @@ func appendRuleActionKV(kvs []ruleKV, v RuleView) []ruleKV {
 	case v.Goto != nil:
 		kvs = append(kvs, ruleKV{key: "goto", val: v.Goto})
 		if v.Unresolved {
-			kvs = append(kvs, ruleKV{key: "unresolved", null: true})
+			kvs = append(kvs, ruleKV{key: unresolvedCst, null: true})
 		}
 	case v.Nop:
 		kvs = append(kvs, ruleKV{key: "nop", null: true})

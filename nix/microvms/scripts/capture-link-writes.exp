@@ -56,6 +56,17 @@
 # produce is dropped with a note in its topology file, and the refusals
 # while building it do not count against the run.
 #
+# Then the RTNL rows (goip-parity-gaps.md C1), data in
+# scripts/rtnl-write-corpus.exp: the rule, addrlabel, nexthop, ntable, stats,
+# netns and anycast writes the corpus had no DEL or SET capture of, each
+# under rtnl/<slug>/ with its readbacks; see rtnl_row below.
+#
+# Last, after late setup, the generic netlink rows (C2), data in
+# scripts/genl-write-corpus.exp: each pcap keeps NETLINK_GENERIC, the
+# family lookup included, under genl/<slug>/; see genl_row below. Then the
+# XFRM rows (C3), data in scripts/xfrm-write-corpus.exp: each pcap keeps
+# NETLINK_XFRM, under xfrm/<slug>/; see xfrm_row below.
+#
 # POLICY HERE, MECHANISM IN THE GUEST
 #
 # As for the dump driver: which states exist, what each waits for and what
@@ -81,6 +92,9 @@ source [file dirname [info script]]/link-write-topology.exp
 source [file dirname [info script]]/link-write-readback.exp
 source [file dirname [info script]]/addr-topology.exp
 source [file dirname [info script]]/addr-corpus.exp
+source [file dirname [info script]]/rtnl-write-corpus.exp
+source [file dirname [info script]]/genl-write-corpus.exp
+source [file dirname [info script]]/xfrm-write-corpus.exp
 
 if {$argc != 2} {
     puts "usage: capture-link-writes.exp <serial-port> <blob-out>"
@@ -126,14 +140,15 @@ set lacp_timeouts {}
 set write_skipped {}
 
 # <proto> is the netlink protocol the row's ip.pcap keeps: route, generic or
-# xfrm (xtcp2-nlcap --proto).
-proc write_row {slug floor pre command {dir write} {proto route}} {
+# xfrm (xtcp2-nlcap --proto). <pre_step> runs each pre step, as
+# addrcorpus::pre_step does, and says whether it was taken.
+proc write_row {slug floor pre command {dir write} {proto route} {pre_step addrcorpus::pre_step}} {
     global NS_A short_caps write_skipped
     set subdir $dir/$slug
     vmlib::log "=== write $slug ==="
     vmlib::must "xtcp2-nlcap ns-add $NS_A"
     foreach step $pre {
-        if {![addrcorpus::pre_step $NS_A $subdir $step]} {
+        if {![$pre_step $NS_A $subdir $step]} {
             lappend write_skipped $slug
             return 0
         }
@@ -545,9 +560,106 @@ foreach row $addrcorpus::save_rows {
     }
 }
 
+###############################################################################
+# rtnl_row - one row of rtnl-write-corpus.exp, under rtnl/<slug>.
+#
+# write_row, then each readback as a capio in the namespace the write left,
+# then the row's ip.rc against the status the row expects. A refused write
+# is a fixture too (its NLMSG_ERROR is what it is kept for), so a row whose
+# status is not the expected one is reported rather than discarded.
+###############################################################################
+set rtnl_problems {}
+
+proc rtnl_row {slug floor pre command readbacks rc} {
+    global NS_A rtnl_problems
+    if {![write_row $slug $floor $pre $command rtnl]} {
+        return
+    }
+    foreach rb $readbacks {
+        capio {*}[rtnlcorpus::readback_args $NS_A rtnl/$slug $rb]
+    }
+    lassign [nlcap dir rtnl/$slug] dir_rc dir
+    lassign [vmlib::run_out "cat [string trim $dir]/ip.rc"] cat_rc got
+    if {$cat_rc != 0} {
+        set got ""
+    }
+    set problem [rtnlcorpus::rc_problem $slug $rc $got]
+    if {$problem ne ""} {
+        lappend rtnl_problems $problem
+    }
+}
+
+foreach row $rtnlcorpus::rows {
+    rtnl_row {*}$row
+}
+
 # After every row above; see nltopo::late_setup.
 vmlib::log "=== late setup (late/) ==="
 set late_problems [nltopo::late_setup late]
+
+###############################################################################
+# genl_row - one row of genl-write-corpus.exp, under genl/<slug>.
+#
+# As rtnl_row, with every pcap keeping NETLINK_GENERIC (--proto generic) and
+# the corpus's own pre steps, which add the `tcp` connection. The genl rows
+# run after late setup, which loads the modules their families live in.
+###############################################################################
+set genl_problems {}
+
+proc genl_row {slug floor pre command readbacks rc} {
+    global NS_A genl_problems
+    if {![write_row $slug $floor $pre $command genl generic genlcorpus::pre_step]} {
+        return
+    }
+    foreach rb $readbacks {
+        capio {*}[genlcorpus::readback_args $NS_A genl/$slug $rb]
+    }
+    lassign [nlcap dir genl/$slug] dir_rc dir
+    lassign [vmlib::run_out "cat [string trim $dir]/ip.rc"] cat_rc got
+    if {$cat_rc != 0} {
+        set got ""
+    }
+    set problem [genlcorpus::rc_problem $slug $rc $got]
+    if {$problem ne ""} {
+        lappend genl_problems $problem
+    }
+}
+
+foreach row $genlcorpus::rows {
+    genl_row {*}$row
+}
+
+###############################################################################
+# xfrm_row - one row of xfrm-write-corpus.exp, under xfrm/<slug>.
+#
+# As genl_row, with every pcap keeping NETLINK_XFRM (--proto xfrm) and
+# plain `ip` pre steps. The XFRM rows run after late setup, which loads
+# xfrm_user and the ESP modules.
+###############################################################################
+set xfrm_problems {}
+
+proc xfrm_row {slug floor pre command readbacks rc} {
+    global NS_A xfrm_problems
+    if {![write_row $slug $floor $pre $command xfrm xfrm]} {
+        return
+    }
+    foreach rb $readbacks {
+        capio {*}[xfrmcorpus::readback_args $NS_A xfrm/$slug $rb]
+    }
+    lassign [nlcap dir xfrm/$slug] dir_rc dir
+    lassign [vmlib::run_out "cat [string trim $dir]/ip.rc"] cat_rc got
+    if {$cat_rc != 0} {
+        set got ""
+    }
+    set problem [xfrmcorpus::rc_problem $slug $rc $got]
+    if {$problem ne ""} {
+        lappend xfrm_problems $problem
+    }
+}
+
+foreach row $xfrmcorpus::rows {
+    xfrm_row {*}$row
+}
 
 lassign [nlcap inventory] inv_rc inventory
 vmlib::log "captured [llength [split [string trim $inventory] "\n"]] files"
@@ -625,6 +737,30 @@ if {[llength [addrtopo::dropped_states]] > 0} {
     foreach s [addrtopo::dropped_states] {
         puts "  $s"
     }
+}
+
+if {[llength $rtnl_problems] > 0} {
+    puts "NLCAP_RTNL_RC [llength $rtnl_problems]"
+    foreach p $rtnl_problems {
+        puts "  $p"
+    }
+    set failed 1
+}
+
+if {[llength $genl_problems] > 0} {
+    puts "NLCAP_GENL_RC [llength $genl_problems]"
+    foreach p $genl_problems {
+        puts "  $p"
+    }
+    set failed 1
+}
+
+if {[llength $xfrm_problems] > 0} {
+    puts "NLCAP_XFRM_RC [llength $xfrm_problems]"
+    foreach p $xfrm_problems {
+        puts "  $p"
+    }
+    set failed 1
 }
 
 if {[llength $late_problems] > 0} {

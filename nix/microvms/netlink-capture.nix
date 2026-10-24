@@ -9,7 +9,9 @@
 # partner in a second VM (Tier 2 of the same document).
 #
 # This exports ONE thing: `xtcp2-nlcap`, a helper installed on the guest's
-# PATH (with `xtcp2-nl-mcdump` and `xtcp2-nl-ipmon`, below, on its own PATH)
+# PATH (with `xtcp2-nl-mcdump`, `xtcp2-nl-ipmon`, `xtcp2-nl-xfrmmon`,
+# `xtcp2-nl-espinudp`, `xtcp2-nl-ra`, `xtcp2-nl-tcp`, `xtcp2-nl-ioam` and
+# `xtcp2-nl-mptcp`, below, on its own PATH)
 # and invoked one subcommand at a time by a host driver
 # (nix/microvms/scripts/capture-netlink-dumps.exp, goip-parity.exp,
 # capture-link-writes.exp and capture-lacp-pair.exp) over the serial console.
@@ -303,12 +305,647 @@ let
       exit "$rc"
     '';
   };
+
+  # xtcp2-nl-xfrmmon <ip-args> <trigger> <until-ERE>...
+  #
+  # `ip <ip-args>` (an `xfrm monitor ...`) in the background while
+  # <trigger> runs, for the XFRM event rows (C3-T02;
+  # docs/netlink/goip-parity-gaps.md), as xtcp2-nl-ipmon is for
+  # `ip monitor`.
+  #
+  # Unlike rtnetlink's address groups, every XFRMNLGRP_* group is below 32,
+  # so subscribed can be read off /proc/net/netlink, no canary needed: ready
+  # is a NETLINK_XFRM (6) socket with a nonzero Groups column. The kernel's
+  # own XFRM socket has none, and a row's namespace is fresh, so the only
+  # subscriber is the monitor. NLCAP_PROC_NETLINK points the read at a file
+  # for the hermetic check.
+  #
+  # Then <trigger> runs with `bash -c` (bash, for /dev/udp), and the monitor
+  # is stopped with SIGTERM once its output matches every <until-ERE>, each
+  # within 10 s. stdout is the monitor's output; a monitor that never
+  # subscribes, a failed trigger or a timeout is reported on stderr and
+  # exits 1; a usage error exits 2.
+  xfrmmon = pkgs.writeShellApplication {
+    name = "xtcp2-nl-xfrmmon";
+    runtimeInputs = with pkgs; [
+      bash
+      coreutils
+      gawk
+      gnugrep
+      iproute2
+    ];
+    text = ''
+      [ $# -ge 3 ] || {
+        echo "usage: xtcp2-nl-xfrmmon <ip-args> <trigger> <until-ERE>..." >&2
+        exit 2
+      }
+      read -ra ip_args <<<"$1"
+      trigger=$2
+      shift 2
+      proc=''${NLCAP_PROC_NETLINK:-/proc/net/netlink}
+
+      out=$(mktemp)
+      trap 'rm -f "$out"' EXIT
+      ip "''${ip_args[@]}" >"$out" 2>&1 &
+      mpid=$!
+
+      # wait_match <ERE> <tenths>: poll the monitor's output.
+      wait_match() {
+        local i
+        for ((i = 0; i < $2 * 2; i++)); do
+          grep -Eq -- "$1" "$out" && return 0
+          sleep 0.05
+        done
+        return 1
+      }
+
+      ready=0
+      for _ in $(seq 1 100); do
+        if awk '$2 == 6 && $4 != "00000000" { found = 1 } END { exit !found }' "$proc"; then
+          ready=1
+          break
+        fi
+        kill -0 "$mpid" 2>/dev/null || break
+        sleep 0.05
+      done
+
+      rc=0
+      if [ "$ready" -ne 1 ]; then
+        echo "xtcp2-nl-xfrmmon: the monitor never subscribed" >&2
+        rc=1
+      else
+        bash -c "$trigger" || rc=1
+        for re in "$@"; do
+          if ! wait_match "$re" 100; then
+            echo "xtcp2-nl-xfrmmon: no match for $re" >&2
+            rc=1
+          fi
+        done
+      fi
+
+      kill -TERM "$mpid" 2>/dev/null || true
+      wait "$mpid" 2>/dev/null || true
+      cat "$out"
+      exit "$rc"
+    '';
+  };
+
+  # xtcp2-nl-espinudp <src|-> <sport> <dst> <dport> <spi>
+  #
+  # One ESP-in-UDP datagram from <src>:<sport> to <dst>:<dport>, for the
+  # XFRM MAPPING row (C3-T02; docs/netlink/goip-parity-gaps.md). The kernel
+  # sends XFRM_MSG_MAPPING when an inbound ESP-in-UDP packet for an SA with
+  # a UDP encap decrypts and its outer source address or port is not the
+  # SA's (esp_input_done2, net/ipv4/esp4.c). <dport> is opened first as an
+  # ESPINUDP socket (UDP_ENCAP), without which the datagram is only a UDP
+  # port unreachable, then the ESP is sent from a socket bound to <sport>.
+  #
+  # The SA uses ecb(cipher_null) with no auth, so the packet needs no keys:
+  # the SPI, sequence 1, ten bytes of payload, no padding, pad length 0 and
+  # next header 59 (none). Its twelve bytes after the header are a whole
+  # number of ESP's 4-byte blocks, and longer than the 2-byte trailer, which
+  # esp_remove_trailer requires. The ten bytes make the ESP 20, an IPv4
+  # header's length: __xfrm4_udp_encap_rcv (net/ipv4/xfrm4_input.c) tests
+  # `skb->len < iphlen + len` while skb->data is still the UDP header, so it
+  # drops ESP shorter than that before any lookup. A 12-byte ESP was measured
+  # dropped there (a kfree_skb trace in the guest) and never reached the SA.
+  #
+  # Prints the ESP in hex; with <src> `-`, sends nothing. A bad argument
+  # exits 2; a refused socket call, 1.
+  espinudp = pkgs.writers.writePython3Bin "xtcp2-nl-espinudp" { } ''
+    import ipaddress
+    import socket
+    import struct
+    import sys
+    import time
+
+    UDP_ENCAP = 100
+    UDP_ENCAP_ESPINUDP = 2
+    NEXTHDR_NONE = 59
+
+
+    def esp(spi):
+        return (struct.pack("!II", spi, 1) + bytes(10)
+                + struct.pack("!BB", 0, NEXTHDR_NONE))
+
+
+    def fail(rc, msg):
+        print("xtcp2-nl-espinudp: " + msg, file=sys.stderr)
+        sys.exit(rc)
+
+
+    def main():
+        if len(sys.argv) != 6:
+            fail(2, "usage: xtcp2-nl-espinudp <src|-> <sport> <dst> "
+                 "<dport> <spi>")
+        try:
+            src = None
+            if sys.argv[1] != "-":
+                src = ipaddress.IPv4Address(sys.argv[1])
+            sport = int(sys.argv[2])
+            dst = ipaddress.IPv4Address(sys.argv[3])
+            dport = int(sys.argv[4])
+            spi = int(sys.argv[5], 0)
+        except ValueError as e:
+            fail(2, str(e))
+        for name, port in (("sport", sport), ("dport", dport)):
+            if not 0 < port < 65536:
+                fail(2, "%s out of range: %d" % (name, port))
+        # 0 is the non-ESP marker and 1-255 are reserved (RFC 4303).
+        if not 256 <= spi < 1 << 32:
+            fail(2, "spi out of range: %d" % spi)
+        pkt = esp(spi)
+        print(pkt.hex())
+        if src is None:
+            return
+        try:
+            r = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            r.setsockopt(socket.IPPROTO_UDP, UDP_ENCAP, UDP_ENCAP_ESPINUDP)
+            r.bind((str(dst), dport))
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.bind((str(src), sport))
+            s.sendto(pkt, (str(dst), dport))
+            # The encap socket stays open while the kernel takes the
+            # datagram in.
+            time.sleep(0.5)
+        except OSError as e:
+            fail(1, str(e))
+
+
+    main()
+  '';
+
+  # xtcp2-nl-ra <dev|-> <src-link-local> <prefix/len>
+  #
+  # One router advertisement, for the prefix event rows (C1-T04;
+  # docs/netlink/goip-parity-gaps.md). The kernel sends RTM_NEWPREFIX only
+  # when it takes a prefix information option from a received RA
+  # (addrconf_prefix_rcv, net/ipv6/addrconf.c), and nothing in iproute2
+  # sends one. The RA goes to ff02::1 out of <dev> from <src>, with hop
+  # limit 255 as ndisc requires, a router lifetime of 0 so the receiver
+  # adds no default route, and one option: <prefix>, on-link, not
+  # autonomous, so no address with a random interface id is made from it.
+  # The kernel fills in the ICMPv6 checksum. Multicast loop is off: <dev>
+  # would otherwise take its own RA, and send a second RTM_NEWPREFIX.
+  #
+  # The receiver is the other end of a veth in the same namespace, so it
+  # needs accept_ra_from_local: the kernel drops an RA whose source is one
+  # of its own addresses otherwise. A <dev> of `-` prints the message in hex
+  # and sends nothing. A bad argument exits 2; a send the kernel refuses, 1.
+  ra = pkgs.writers.writePython3Bin "xtcp2-nl-ra" { } ''
+    import ipaddress
+    import socket
+    import struct
+    import sys
+
+    ND_ROUTER_ADVERT = 134
+    ND_OPT_PREFIX_INFORMATION = 3
+    PIO_ONLINK = 0x80
+    CUR_HOP_LIMIT = 64
+    VALID = 600
+    PREFERRED = 300
+    ALL_NODES = "ff02::1"
+
+
+    def advert(prefix):
+        head = struct.pack("!BBHBBHII", ND_ROUTER_ADVERT, 0, 0,
+                           CUR_HOP_LIMIT, 0, 0, 0, 0)
+        pio = struct.pack("!BBBBIII", ND_OPT_PREFIX_INFORMATION, 4,
+                          prefix.prefixlen, PIO_ONLINK, VALID, PREFERRED, 0)
+        return head + pio + prefix.network_address.packed
+
+
+    def fail(rc, msg):
+        print("xtcp2-nl-ra: " + msg, file=sys.stderr)
+        sys.exit(rc)
+
+
+    def main():
+        if len(sys.argv) != 4:
+            fail(2, "usage: xtcp2-nl-ra <dev|-> <src-link-local> <prefix/len>")
+        dev, src, arg = sys.argv[1:]
+        try:
+            prefix = ipaddress.IPv6Network(arg)
+            source = ipaddress.IPv6Address(src)
+        except ValueError as e:
+            fail(2, str(e))
+        if not source.is_link_local:
+            fail(2, "not a link-local source: " + src)
+        msg = advert(prefix)
+        if dev == "-":
+            print(msg.hex())
+            return
+        try:
+            ifindex = socket.if_nametoindex(dev)
+        except OSError:
+            fail(2, "no such device: " + dev)
+        try:
+            s = socket.socket(socket.AF_INET6, socket.SOCK_RAW,
+                              socket.IPPROTO_ICMPV6)
+            s.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_MULTICAST_HOPS, 255)
+            s.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_MULTICAST_IF, ifindex)
+            s.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_MULTICAST_LOOP, 0)
+            s.bind((src, 0, 0, ifindex))
+            s.sendto(msg, (ALL_NODES, 0, 0, ifindex))
+        except OSError as e:
+            fail(1, "send: " + str(e))
+
+
+    main()
+  '';
+
+  # xtcp2-nl-tcp <server-addr> <client-addr> [port]
+  #
+  # One TCP connection from <client-addr> to <server-addr>, both local, for
+  # the tcp_metrics rows (C2-T01; docs/netlink/goip-parity-gaps.md). The
+  # kernel saves a metrics entry when a connection with an RTT sample
+  # closes (tcp_update_metrics, net/ipv4/tcp_metrics.c): the client's when
+  # it enters TIME_WAIT, the server's when its LAST_ACK is answered. One
+  # byte goes each way, the client shuts down first, and the helper then
+  # waits, reading /proc/net/tcp*, until no socket on the port is left in
+  # LAST_ACK, so both entries exist when it returns. It makes no netlink
+  # call, so a row may run it inside its capture window.
+  #
+  # Prints `tcp <client> -> <server>:<port> closed`, an IPv6 server in
+  # brackets. A bad argument exits
+  # 2; a socket error, or a LAST_ACK that does not clear in 2 s, 1.
+  tcp = pkgs.writers.writePython3Bin "xtcp2-nl-tcp" { } ''
+    import ipaddress
+    import socket
+    import sys
+    import time
+
+    LAST_ACK = "09"
+
+
+    def fail(rc, msg):
+        print("xtcp2-nl-tcp: " + msg, file=sys.stderr)
+        sys.exit(rc)
+
+
+    def last_ack(port):
+        want = ":%04X" % port
+        for name in ("/proc/net/tcp", "/proc/net/tcp6"):
+            try:
+                with open(name) as f:
+                    lines = f.readlines()[1:]
+            except OSError:
+                continue
+            for line in lines:
+                cols = line.split()
+                if cols[1].endswith(want) and cols[3] == LAST_ACK:
+                    return True
+        return False
+
+
+    def main():
+        if len(sys.argv) not in (3, 4):
+            fail(2, "usage: xtcp2-nl-tcp <server-addr> <client-addr> [port]")
+        try:
+            server = ipaddress.ip_address(sys.argv[1])
+            client = ipaddress.ip_address(sys.argv[2])
+            port = int(sys.argv[3]) if len(sys.argv) == 4 else 7171
+        except ValueError as e:
+            fail(2, str(e))
+        if server.version != client.version:
+            fail(2, "the two addresses are of different families")
+        if not 0 < port < 65536:
+            fail(2, "port out of range: %d" % port)
+        fam = socket.AF_INET if server.version == 4 else socket.AF_INET6
+        try:
+            lsn = socket.socket(fam, socket.SOCK_STREAM)
+            lsn.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            lsn.bind((str(server), port))
+            lsn.listen(1)
+            cli = socket.socket(fam, socket.SOCK_STREAM)
+            cli.bind((str(client), 0))
+            cli.connect((str(server), port))
+            srv, _ = lsn.accept()
+            cli.sendall(b"x")
+            srv.recv(1)
+            srv.sendall(b"y")
+            cli.recv(1)
+            cli.shutdown(socket.SHUT_WR)
+            srv.recv(1)
+            srv.close()
+            cli.recv(1)
+            cli.close()
+            lsn.close()
+        except OSError as e:
+            fail(1, str(e))
+        deadline = time.monotonic() + 2
+        while last_ack(port):
+            if time.monotonic() > deadline:
+                fail(1, "LAST_ACK on port %d did not clear" % port)
+            time.sleep(0.01)
+        dst = ("[%s]" if server.version == 6 else "%s") % server
+        print("tcp %s -> %s:%d closed" % (client, dst, port))
+
+
+    main()
+  '';
+
+  # xtcp2-nl-ioam <dst|-> <ioam-namespace> [tries]
+  #
+  # `ip ioam monitor` while a traced packet arrives, for the IOAM6 event row
+  # (C2-T03; docs/netlink/goip-parity-gaps.md). The kernel sends
+  # IOAM6_EVENT_TRACE when it takes an IPv6 packet whose hop-by-hop header
+  # holds an IOAM pre-allocated trace option for a namespace it knows, on a
+  # device with ioam6_enabled (ipv6_hop_ioam, net/ipv6/exthdrs.c), and only
+  # while something is subscribed. The header is two bytes of PadN, so the
+  # option starts 4n-aligned as the kernel requires, then the option: trace
+  # type bit 0 (hop limit and node id, one 4-byte word a node), room for
+  # two nodes. It goes on a UDP datagram to <dst> port 9, set with
+  # IPV6_HOPOPTS, which needs CAP_NET_RAW.
+  #
+  # The monitor runs line-buffered; a datagram is sent every 0.2 s until it
+  # prints a line, or <tries> (25) have gone. Prints the monitor's lines. A
+  # <dst> of `-` prints the header in hex and sends nothing. A bad argument
+  # exits 2; a refused socket option or send, or no event, 1.
+  ioam = pkgs.writers.writePython3Bin "xtcp2-nl-ioam" { } ''
+    import ipaddress
+    import select
+    import socket
+    import struct
+    import subprocess
+    import sys
+
+    IPV6_HOPOPTS = 54
+    IPV6_TLV_PADN = 1
+    IPV6_TLV_IOAM = 49
+    IOAM6_TYPE_PREALLOC = 0
+    TRACE_TYPE = 0x80000000
+    NODELEN = 1
+    REMLEN = 2
+
+
+    def hopopts(ns):
+        trace = struct.pack("!HBBI", ns, NODELEN << 3, REMLEN, TRACE_TYPE)
+        trace += bytes(REMLEN * 4)
+        opt = struct.pack("!BBBB", IPV6_TLV_IOAM, 2 + len(trace), 0,
+                          IOAM6_TYPE_PREALLOC) + trace
+        body = struct.pack("!BB", IPV6_TLV_PADN, 0) + opt
+        return struct.pack("!BB", 0, (2 + len(body)) // 8 - 1) + body
+
+
+    def fail(rc, msg):
+        print("xtcp2-nl-ioam: " + msg, file=sys.stderr)
+        sys.exit(rc)
+
+
+    def main():
+        if len(sys.argv) not in (3, 4):
+            fail(2, "usage: xtcp2-nl-ioam <dst|-> <ioam-namespace> [tries]")
+        try:
+            ns = int(sys.argv[2], 0)
+            tries = int(sys.argv[3]) if len(sys.argv) == 4 else 25
+            dst = None
+            if sys.argv[1] != "-":
+                dst = ipaddress.IPv6Address(sys.argv[1])
+        except ValueError as e:
+            fail(2, str(e))
+        if not 0 <= ns < 65536:
+            fail(2, "namespace out of range: %d" % ns)
+        if tries < 1:
+            fail(2, "tries must be at least 1: %d" % tries)
+        hdr = hopopts(ns)
+        if dst is None:
+            print(hdr.hex())
+            return
+        try:
+            s = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
+            s.setsockopt(socket.IPPROTO_IPV6, IPV6_HOPOPTS, hdr)
+        except OSError as e:
+            fail(1, "send: " + str(e))
+        mon = subprocess.Popen(["stdbuf", "-oL", "ip", "ioam", "monitor"],
+                               stdout=subprocess.PIPE, text=True)
+        lines = []
+        try:
+            for _ in range(tries):
+                s.sendto(b"x", (str(dst), 9))
+                ready, _, _ = select.select([mon.stdout], [], [], 0.2)
+                if ready:
+                    lines.append(mon.stdout.readline())
+                    break
+        except OSError as e:
+            fail(1, "send: " + str(e))
+        finally:
+            mon.terminate()
+            mon.wait()
+        if not lines or not lines[0]:
+            fail(1, "no trace event after %d datagrams" % tries)
+        sys.stdout.write("".join(lines))
+
+
+    main()
+  '';
+
+  # xtcp2-nl-mptcp conn <server> [extra-subflows]
+  # xtcp2-nl-mptcp monitor <trigger> <until-RE>...
+  #
+  # MPTCP connections and `ip mptcp monitor`, for the mptcp_pm event rows
+  # (C2-T04; docs/netlink/goip-parity-gaps.md).
+  #
+  # conn: one MPTCP connection inside the namespace, from the kernel's
+  # choice of source to <server> on an ephemeral port, a byte each way so
+  # the connection is fully established, then held until the client has
+  # <extra-subflows> (0) subflows beyond the first (MPTCP_INFO's
+  # mptcpi_subflows), which the in-kernel path manager opens from the
+  # namespace's subflow endpoints, then closed. Prints what it made.
+  #
+  # monitor: `ip mptcp monitor` while <trigger> runs with `sh -c`, as
+  # xtcp2-nl-ipmon is for `ip monitor`. Subscribed can't be read from
+  # outside, so a canary MPTCP listener on 127.0.0.1 is opened and closed
+  # until the monitor prints its LISTENER_CREATED (the kernel builds an
+  # event only while something listens), then its LISTENER_CLOSED is
+  # awaited, so the output starts with exactly that pair. Then the trigger
+  # runs, and the monitor is stopped once its output matches every
+  # <until-RE> (Python syntax, searched across the whole output so far, so
+  # `(?s)A.*A` waits for two), each within 10 s. Prints the monitor's
+  # lines.
+  #
+  # A bad argument exits 2; a failed socket call, trigger or wait, 1.
+  mptcp = pkgs.writers.writePython3Bin "xtcp2-nl-mptcp" { } ''
+    import ipaddress
+    import os
+    import re
+    import select
+    import socket
+    import subprocess
+    import sys
+    import time
+
+    IPPROTO_MPTCP = 262
+    SOL_MPTCP = 284
+    MPTCP_INFO = 1
+    CANARY = "127.0.0.1"
+
+
+    def fail(rc, msg):
+        print("xtcp2-nl-mptcp: " + msg, file=sys.stderr)
+        sys.exit(rc)
+
+
+    def usage():
+        fail(2, "usage: xtcp2-nl-mptcp conn <server> [extra-subflows]"
+             " | monitor <trigger> <until-RE>...")
+
+
+    def mptcp_socket(addr):
+        fam = socket.AF_INET6 if addr.version == 6 else socket.AF_INET
+        return socket.socket(fam, socket.SOCK_STREAM, IPPROTO_MPTCP)
+
+
+    def extra_subflows(s):
+        return s.getsockopt(SOL_MPTCP, MPTCP_INFO, 8)[0]
+
+
+    def conn(server, want):
+        try:
+            lsn = mptcp_socket(server)
+            lsn.bind((str(server), 0))
+            lsn.listen(1)
+            port = lsn.getsockname()[1]
+            cli = mptcp_socket(server)
+            cli.connect((str(server), port))
+            srv, _ = lsn.accept()
+            cli.sendall(b"x")
+            srv.recv(1)
+            srv.sendall(b"y")
+            cli.recv(1)
+            deadline = time.monotonic() + 3
+            got = extra_subflows(cli)
+            while got < want:
+                if time.monotonic() > deadline:
+                    fail(1, "%d of %d extra subflows after 3 s" % (got, want))
+                time.sleep(0.01)
+                got = extra_subflows(cli)
+            cli.close()
+            srv.close()
+            lsn.close()
+        except OSError as e:
+            fail(1, str(e))
+        dst = ("[%s]" if server.version == 6 else "%s") % server
+        print("mptcp -> %s:%d closed, %d extra subflows" % (dst, port, got))
+
+
+    class Monitor:
+        def __init__(self):
+            self.proc = subprocess.Popen(["ip", "mptcp", "monitor"],
+                                         stdout=subprocess.PIPE)
+            self.lines = []
+            self.part = b""
+
+        def wait(self, rx, secs):
+            deadline = time.monotonic() + secs
+            while True:
+                if rx.search("".join(self.lines)):
+                    return True
+                left = deadline - time.monotonic()
+                if left <= 0:
+                    return False
+                fd = self.proc.stdout.fileno()
+                ready, _, _ = select.select([fd], [], [], left)
+                if not ready:
+                    return False
+                data = os.read(fd, 4096)
+                if not data:
+                    return False
+                *done, self.part = (self.part + data).split(b"\n")
+                self.lines += [d.decode() + "\n" for d in done]
+
+        def stop(self):
+            self.proc.terminate()
+            self.proc.wait()
+            return "".join(self.lines)
+
+
+    def canary(mon):
+        addr = ipaddress.ip_address(CANARY)
+        for _ in range(10):
+            lsn = mptcp_socket(addr)
+            lsn.bind((CANARY, 0))
+            lsn.listen(1)
+            port = lsn.getsockname()[1]
+            lsn.close()
+            ev = r"\[ *%%s\] saddr4=%s sport=%d$" % (re.escape(CANARY), port)
+            if mon.wait(re.compile(ev % "LISTENER_CREATED", re.M), 1):
+                return mon.wait(re.compile(ev % "LISTENER_CLOSED", re.M), 10)
+        return False
+
+
+    def monitor(trigger, until):
+        try:
+            res = [re.compile(r) for r in until]
+        except re.error as e:
+            fail(2, "bad RE: " + str(e))
+        mon = Monitor()
+        rc = 0
+        try:
+            if not canary(mon):
+                print("xtcp2-nl-mptcp: the monitor never printed the canary",
+                      file=sys.stderr)
+                rc = 1
+            else:
+                if subprocess.run(["sh", "-c", trigger]).returncode != 0:
+                    rc = 1
+                for rx in res:
+                    if not mon.wait(rx, 10):
+                        print("xtcp2-nl-mptcp: no match for " + rx.pattern,
+                              file=sys.stderr)
+                        rc = 1
+        except OSError as e:
+            print("xtcp2-nl-mptcp: " + str(e), file=sys.stderr)
+            rc = 1
+        sys.stdout.write(mon.stop())
+        sys.exit(rc)
+
+
+    def main():
+        if len(sys.argv) < 3:
+            usage()
+        if sys.argv[1] == "conn" and len(sys.argv) in (3, 4):
+            try:
+                server = ipaddress.ip_address(sys.argv[2])
+                want = int(sys.argv[3]) if len(sys.argv) == 4 else 0
+            except ValueError as e:
+                fail(2, str(e))
+            if want < 0:
+                fail(2, "extra subflows must be at least 0: %d" % want)
+            conn(server, want)
+        elif sys.argv[1] == "monitor" and len(sys.argv) >= 4:
+            monitor(sys.argv[2], sys.argv[3:])
+        else:
+            usage()
+
+
+    main()
+  '';
 in
 pkgs.writeShellApplication {
   name = "xtcp2-nlcap";
+  # For nix/checks/vm-lib-exp.nix, which runs xtcp2-nl-xfrmmon's,
+  # xtcp2-nl-espinudp's, xtcp2-nl-ra's, xtcp2-nl-tcp's, xtcp2-nl-ioam's and
+  # xtcp2-nl-mptcp's hermetic rows.
+  passthru = {
+    inherit
+      xfrmmon
+      espinudp
+      ra
+      tcp
+      ioam
+      mptcp
+      ;
+  };
   runtimeInputs = with pkgs; [
     mcdump
     ipmon
+    xfrmmon
+    espinudp
+    ra
+    tcp
+    ioam
+    mptcp
     coreutils
     gawk
     gnugrep
@@ -317,6 +954,7 @@ pkgs.writeShellApplication {
     iproute2
     kmod
     rdma-core
+    smcroute
     strace
     tcpdump
     util-linux
@@ -467,6 +1105,7 @@ pkgs.writeShellApplication {
       modprobe veth 2>/dev/null || true
       modprobe bridge 2>/dev/null || true
 
+      stop_held_mroute "$ns"
       ip netns del "$ns" 2>/dev/null || true
       ip netns add "$ns" || die "cannot create netns $ns"
       ip -n "$ns" link set lo up || die "cannot bring up lo in $ns"
@@ -475,9 +1114,20 @@ pkgs.writeShellApplication {
       echo "NLCAP_NS_OK $ns"
     }
 
+    # stop_held_mroute <ns> - end a daemon mroute-start left in <ns>, which
+    # would otherwise outlive the namespace's name and hold it open: a
+    # goip-parity read row's `smcroute` Setup step starts one in the row's
+    # namespace, and the next row's ns-add recreates that namespace.
+    stop_held_mroute() {
+      if [ -e "$MHOLD/$1.hold" ]; then
+        cmd_mroute_stop "$1" >/dev/null
+      fi
+    }
+
     # ns-del <ns>
     cmd_ns_del() {
       local ns=$1
+      stop_held_mroute "$ns"
       ip netns del "$ns" 2>/dev/null || true
       echo "NLCAP_NS_DELETED $ns"
     }
@@ -669,13 +1319,17 @@ pkgs.writeShellApplication {
         # the file would read as a rendered object that the other side lacks.
         #
         # A write keeps both, in separate files, and its status: see cmd_write.
+        #
+        # Every mode runs in $dir, so a command's relative path names a file
+        # beside its captures: a restore row's or a showdump row's
+        # `< <slug>.save`.
         rc=0
         if [ "$mode" = write ]; then
           ( cd "$dir" && ip netns exec "$ns" sh -c "$command" ) >"$outnew" 2>"$errnew" || rc=$?
         elif [ "$sout" = "-" ]; then
-          ip netns exec "$ns" sh -c "$command" >/dev/null 2>&1 || true
+          ( cd "$dir" && ip netns exec "$ns" sh -c "$command" ) >/dev/null 2>&1 || true
         else
-          ip netns exec "$ns" sh -c "$command" >"$outnew" 2>/dev/null || true
+          ( cd "$dir" && ip netns exec "$ns" sh -c "$command" ) >"$outnew" 2>/dev/null || true
         fi
 
         # Close the window on evidence, not on elapsed time. The sentinel is
@@ -1043,6 +1697,57 @@ pkgs.writeShellApplication {
       return 1
     }
 
+    # tcp <ns> <subdir> <server-addr> <client-addr>
+    #
+    # One TCP connection inside <ns> (xtcp2-nl-tcp, above), so the namespace
+    # has tcp_metrics entries for a row to read or delete, recorded in
+    # $OUT/<subdir>/topology in topo's format. A pre step: it makes no
+    # netlink call, but its place is before the capture window, so the
+    # row's stdout holds only `ip`'s. `-` is the root namespace.
+    cmd_tcp() {
+      [ $# -eq 4 ] || die "usage: tcp <ns> <subdir> <server-addr> <client-addr>"
+      local ns=$1 subdir=$2 server=$3 client=$4 out
+      mkdir -p "$OUT/$subdir"
+      local run=(ip netns exec "$ns")
+      if [ "$ns" = "-" ]; then
+        run=()
+      fi
+      if out=$("''${run[@]}" xtcp2-nl-tcp "$server" "$client" 2>&1); then
+        printf 'ok    [%s] %s\n' "$ns" "$out" >>"$OUT/$subdir/topology"
+        echo "NLCAP_TCP_OK $server $client"
+        return 0
+      fi
+      printf 'FAIL  [%s] tcp %s -> %s: %s\n' "$ns" "$client" "$server" "$out" >>"$OUT/$subdir/topology"
+      echo "NLCAP_TCP_FAIL $server $client"
+      return 1
+    }
+
+    # hmac <ns> <subdir> <keyid> <algo> <secret>
+    #
+    # Set one SRv6 HMAC key in <ns>, recorded in $OUT/<subdir>/topology in
+    # topo's format; a pre step, as tcp is. `ip sr hmac set` reads the secret
+    # with getpass(3), which reads /dev/tty when there is a controlling
+    # terminal, and in the guest that is the console the driver types into.
+    # setsid gives `ip` no terminal, so getpass reads the secret from stdin.
+    # `-` is the root namespace.
+    cmd_hmac() {
+      [ $# -eq 5 ] || die "usage: hmac <ns> <subdir> <keyid> <algo> <secret>"
+      local ns=$1 subdir=$2 keyid=$3 algo=$4 secret=$5 out
+      mkdir -p "$OUT/$subdir"
+      local ipns=()
+      if [ "$ns" != "-" ]; then
+        ipns=(-n "$ns")
+      fi
+      if out=$(printf '%s\n' "$secret" | setsid -w ip "''${ipns[@]}" sr hmac set "$keyid" "$algo" 2>&1); then
+        printf 'ok    [%s] sr hmac set %s %s\n' "$ns" "$keyid" "$algo" >>"$OUT/$subdir/topology"
+        echo "NLCAP_HMAC_OK $keyid $algo"
+        return 0
+      fi
+      printf 'FAIL  [%s] sr hmac set %s %s: %s\n' "$ns" "$keyid" "$algo" "$out" >>"$OUT/$subdir/topology"
+      echo "NLCAP_HMAC_FAIL $keyid $algo"
+      return 1
+    }
+
     # modules <subdir> <module>...
     #
     # Load each module in turn and record what was loaded in
@@ -1400,6 +2105,59 @@ pkgs.writeShellApplication {
       echo "NLCAP_RDMA_HOLD_STOPPED"
     }
 
+    # mroute-start <ns> <subdir> <conf-line>
+    #
+    # A multicast route in <ns> for `ip mroute show` to read (C1-T03,
+    # docs/netlink/goip-parity-gaps.md). The kernel keeps an (S,G) entry only
+    # while the socket that added it (MRT_INIT) stays open, so smcrouted runs
+    # in <ns> until mroute-stop, with <conf-line> as its whole configuration,
+    # for example `mroute from v0 source 192.0.2.10 group 239.1.1.1 to v1`.
+    # Waits until `ip mroute show` lists the group, so no capture races the
+    # daemon's startup; that wait is outside every capture window. One daemon
+    # per namespace; its files are under $MHOLD, apart from rdma-hold's.
+    MHOLD=/tmp/nlcap-mroute
+    cmd_mroute_start() {
+      [ $# -eq 3 ] || die "usage: mroute-start <ns> <subdir> <conf-line>"
+      local ns=$1 subdir=$2 line=$3 group deadline
+      group=$(printf '%s\n' "$line" | sed -n 's/.* group \([0-9.]*\).*/\1/p')
+      [ -n "$group" ] || die "mroute-start: no group in: $line"
+      mkdir -p "$MHOLD" "$OUT/$subdir"
+      printf '%s\n' "$line" >"$MHOLD/$ns.conf"
+      setsid ip netns exec "$ns" smcrouted -n -l info -f "$MHOLD/$ns.conf" \
+        -u "$MHOLD/$ns.sock" -P "$MHOLD/$ns.daemon.pid" \
+        >"$MHOLD/$ns.log" 2>&1 </dev/null &
+      echo "$!" >"$MHOLD/$ns.hold"
+      deadline=$(( $(date +%s) + 10 ))
+      while [ "$(date +%s)" -lt "$deadline" ]; do
+        if ip -n "$ns" mroute show 2>/dev/null | grep -q "$group"; then
+          printf 'ok    [%s] smcrouted: %s\n' "$ns" "$line" >>"$OUT/$subdir/topology"
+          echo "NLCAP_MROUTE_OK $ns $group"
+          return 0
+        fi
+        sleep 0.1
+      done
+      printf 'FAIL  [%s] smcrouted: %s\n' "$ns" "$line" >>"$OUT/$subdir/topology"
+      echo "NLCAP_MROUTE_FAIL $ns $group"
+      sed 's/^/smcrouted: /' "$MHOLD/$ns.log"
+      return 1
+    }
+
+    # mroute-stop <ns> - stop mroute-start's daemon; its routes go with it.
+    cmd_mroute_stop() {
+      [ $# -eq 1 ] || die "usage: mroute-stop <ns>"
+      local ns=$1 pid deadline
+      [ -e "$MHOLD/$ns.hold" ] || die "mroute-stop: no daemon for $ns"
+      pid=$(cat "$MHOLD/$ns.hold")
+      kill -TERM -- "-$pid" 2>/dev/null || true
+      deadline=$(( $(date +%s) + 5 ))
+      while kill -0 "$pid" 2>/dev/null && [ "$(date +%s)" -lt "$deadline" ]; do
+        sleep 0.05
+      done
+      kill -KILL -- "-$pid" 2>/dev/null || true
+      rm -f -- "$MHOLD/$ns.hold" "$MHOLD/$ns.conf" "$MHOLD/$ns.sock" "$MHOLD/$ns.daemon.pid"
+      echo "NLCAP_MROUTE_STOPPED $ns"
+    }
+
     # rdma-user-cqn <subdir> <row>
     #
     # The number of the first user-owned CQ in a captured `rdma res show cq`
@@ -1480,7 +2238,7 @@ pkgs.writeShellApplication {
     }
 
     if [ $# -lt 1 ]; then
-      die "usage: xtcp2-nlcap <ns-add|ns-del|topo|cap|capio|write|side|wait-lacp|wait-sysfs|wait-linkwatch|wait-addr-flag|sysctl|modules|note|wait-churn|strace|strace-monitor|wait-rdma-port|rdma-hold|rdma-hold-wait|rdma-hold-stop|rdma-user-cqn|dir|inventory|pack|tcpdump-drops|filter> [--proto route|generic|xfrm] ..."
+      die "usage: xtcp2-nlcap <ns-add|ns-del|topo|cap|capio|write|side|wait-lacp|wait-sysfs|wait-linkwatch|wait-addr-flag|sysctl|tcp|hmac|modules|note|wait-churn|strace|strace-monitor|wait-rdma-port|rdma-hold|rdma-hold-wait|rdma-hold-stop|rdma-user-cqn|mroute-start|mroute-stop|dir|inventory|pack|tcpdump-drops|filter> [--proto route|generic|xfrm] ..."
     fi
 
     sub=$1
@@ -1510,6 +2268,8 @@ pkgs.writeShellApplication {
       wait-linkwatch) cmd_wait_linkwatch "$@" ;;
       wait-addr-flag) cmd_wait_addr_flag "$@" ;;
       sysctl)    cmd_sysctl "$@" ;;
+      tcp)       cmd_tcp "$@" ;;
+      hmac)      cmd_hmac "$@" ;;
       modules)   cmd_modules "$@" ;;
       note)      cmd_note "$@" ;;
       wait-churn) cmd_wait_churn "$@" ;;
@@ -1520,6 +2280,8 @@ pkgs.writeShellApplication {
       rdma-hold-wait) cmd_rdma_hold_wait "$@" ;;
       rdma-hold-stop) cmd_rdma_hold_stop "$@" ;;
       rdma-user-cqn) cmd_rdma_user_cqn "$@" ;;
+      mroute-start) cmd_mroute_start "$@" ;;
+      mroute-stop) cmd_mroute_stop "$@" ;;
       dir)       cmd_dir "$@" ;;
       inventory) cmd_inventory "$@" ;;
       pack)      cmd_pack "$@" ;;

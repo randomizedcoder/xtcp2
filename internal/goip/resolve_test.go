@@ -372,8 +372,8 @@ func TestShortest(t *testing.T) {
 
 	t.Run("positive/covers_every_object", func(t *testing.T) {
 		for _, o := range objects {
-			if _, ok := got[o.name]; ok != (o.run != nil) {
-				t.Errorf("%s: in Shortest %v, implemented %v", o.name, ok, o.run != nil)
+			if _, ok := got[o.name]; ok != o.served() {
+				t.Errorf("%s: in Shortest %v, served %v", o.name, ok, o.served())
 			}
 		}
 	})
@@ -416,7 +416,7 @@ func TestResolvePrefixProperty(t *testing.T) {
 				}
 				_, res, err := ResolveShow([]string{p})
 				switch {
-				case want.run == nil:
+				case !want.served():
 					if !errors.Is(err, ErrNotImplemented) || !strings.Contains(err.Error(), want.name) {
 						t.Errorf("%q: err %v, want ErrNotImplemented naming %s", p, err, want.name)
 					}
@@ -429,6 +429,9 @@ func TestResolvePrefixProperty(t *testing.T) {
 	t.Run("corner/verbs", func(t *testing.T) {
 		checked := 0
 		for _, o := range objects {
+			if !o.served() {
+				continue
+			}
 			for _, v := range o.verbs {
 				for n := 1; n <= len(v.name); n++ {
 					p := v.name[:n]

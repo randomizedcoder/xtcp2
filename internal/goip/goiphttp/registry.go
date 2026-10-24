@@ -127,6 +127,22 @@ var objects = []*object{
 	{path: "ntable",
 		params: []param{pFamily, pStats}},
 	{path: "addrlabel", object: "addrlabel"},
+	{path: "mroute",
+		params: []param{{name: "table", kind: kindTable}, {name: "iif", kind: kindName}, pFamily, pStats}},
+	{path: "mrule",
+		params: []param{pFamily}},
+	{path: "token", devPath: true,
+		params: []param{pDev}},
+	// tcpmetrics, ip's alias for tcp_metrics, since a path is one
+	// lower-case word: the kernel's TCP metrics cache, a generic netlink
+	// dump. Its address and src prefixes have no parameter kind yet, so
+	// only the family narrows it.
+	{path: "tcpmetrics", object: "tcp_metrics",
+		params: []param{pFamily}},
+	// netns is `ip netns list-id`, the namespaces' nsids; netns_list_id
+	// reads its two keys by strcmp, in either order.
+	{path: "netns",
+		params: []param{{name: "target-nsid", kind: kindUint32}, {name: "nsid", kind: kindUint32}}},
 	{path: statsWord, object: statsWord, devPath: true,
 		params: []param{
 			pDev,

@@ -1,0 +1,5 @@
+ok    [lacpa] sysctl net.ipv6.conf.default.forwarding=1
+ok    [lacpa] ip link add c0 type dummy
+ok    [lacpa] ip link set c0 up
+ok    [lacpa] ip link add d0 type dummy
+ok    [lacpa] ip link set d0 addrgenmode none

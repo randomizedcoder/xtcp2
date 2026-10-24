@@ -13,10 +13,10 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// The RTM_GETSTATS captures. Each dump pcap holds the ll_init_map link dump
-// ahead of the stats transaction (do_ipstats resolves names via a link dump), so
-// a single GOIP_REPLAY serves both: StatsLinks reads the RTM_NEWLINK replies to
-// fill the index cache, then the stats path reads the RTM_NEWSTATS replies. The
+// The RTM_GETSTATS captures. Each dump pcap holds the stats dump, then one
+// RTM_GETLINK get per ifindex, ll_index_to_name's (ip/ipstats.c:761), so a
+// single GOIP_REPLAY serves both: the stats path reads the RTM_NEWSTATS replies,
+// then each record's name resolves from the RTM_NEWLINK replies. The
 // _dev pcap holds the point-get reply; under replay (no Talk) IfStatsByIndex
 // dumps it and filters to the ifindex, the netconf/nexthop precedent. The -s and
 // -j sidecars replay the plain dump pcap — the flag is render-only, identical
@@ -465,10 +465,10 @@ func TestRunStatsArgs(t *testing.T) {
 			wantStderrSubstr: "inside leaf group link",
 		},
 		{
-			description:      "negative: the write verb `set` is refused",
+			description:      "negative: `set` with no arguments is ip's missing-dev refusal",
 			args:             []string{"stats", "set"},
 			wantCode:         ExitUsage,
-			wantStderrSubstr: "not implemented",
+			wantStderrSubstr: `"dev" argument is required`,
 		},
 		{
 			description:      "negative: `stats help` is refused, goip being read-only",

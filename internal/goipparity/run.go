@@ -74,8 +74,9 @@ func runCommands(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "commands takes no arguments, got %v\n", fs.Args())
 		return ExitUsage
 	}
-	for _, c := range Commands() {
-		fmt.Fprintln(stdout, c.String())
+	cmds := Commands()
+	for i := range cmds {
+		fmt.Fprintln(stdout, cmds[i].String())
 	}
 	return ExitOK
 }

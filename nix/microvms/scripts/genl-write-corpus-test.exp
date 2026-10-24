@@ -1,0 +1,660 @@
+#!/usr/bin/env expect
+###############################################################################
+# genl-write-corpus-test.exp - table-driven test for genl-write-corpus.exp,
+# with no microVM and no console
+#
+# Usage: genl-write-corpus-test.exp
+#
+# Run by nix/checks/vm-lib-exp.nix after rtnl-read-corpus-test.exp, the same
+# way: the corpus is data, and its procs (pre_step, readback_args,
+# rc_problem) are driven through a recorder that replaces vmlib::run_out,
+# so no shell is needed.
+#
+# The slugs, floors, readbacks and statuses are written out again below as
+# literals rather than read from the corpus, so a row dropped or changed
+# there has to disagree with something that was not edited with it.
+#
+# What this does NOT cover: what the guest runs or what the kernel answers.
+# TestGenlTcpMetricsCorpus, TestGenlSeg6Corpus, TestGenlIoam6Corpus,
+# TestGenlMptcpCorpus, TestGenlFouCorpus, TestGenlIlaCorpus,
+# TestGenlL2tpCorpus and TestGenlMacsecCorpus in pkg/xtcpnl pin that in the
+# committed fixtures.
+#
+# Every row has a name, a description that starts with its class
+# (positive/negative/boundary/corner) and an expected value.
+###############################################################################
+
+set here [file dirname [info script]]
+source $here/vm-lib.exp
+source $here/netlink-topology.exp
+source $here/addr-topology.exp
+source $here/addr-corpus.exp
+source $here/genl-write-corpus.exp
+
+vmlib::init
+
+set pass 0
+set fail 0
+
+###############################################################################
+# The recorder, as in rtnl-write-corpus-test.exp.
+###############################################################################
+set ::calls {}
+set ::refuse ""
+proc vmlib::run_out {cmd {cmd_timeout ""} {quiet 0}} {
+    lappend ::calls $cmd
+    if {$::refuse ne "" && [regexp -- $::refuse $cmd]} {
+        return [list 1 "REFUSED"]
+    }
+    return [list 0 "ok"]
+}
+
+# check <name> <description> <script> <expected> - the script's result, or
+# ERROR if it raised one, must equal expected.
+proc check {name description script expected} {
+    global pass fail
+    if {[catch {uplevel #0 $script} got]} {
+        set got ERROR
+    }
+    if {$got eq $expected} {
+        puts "PASS: $name - $description"
+        incr pass
+    } else {
+        puts "FAIL: $name - $description"
+        puts "      got \[$got\] want \[$expected\]"
+        incr fail
+    }
+}
+
+set R $genlcorpus::rows
+
+# column <i> - field <i> of every row, in order.
+proc column {i} {
+    set out {}
+    foreach r $::R {
+        lappend out [lindex $r $i]
+    }
+    return $out
+}
+
+proc field {slug i} {
+    return [lindex [lsearch -exact -index 0 -inline $::R $slug] $i]
+}
+
+# readback_names <slug> - the names of a row's readbacks, in order.
+proc readback_names {slug} {
+    set out {}
+    foreach rb [field $slug 4] {
+        lappend out [lindex $rb 0]
+    }
+    return $out
+}
+
+###############################################################################
+# 1. the rows
+###############################################################################
+set design_rows {
+    tcpm_show tcpm_show_empty tcpm_show_v6 tcpm_get tcpm_get_src tcpm_get_v6
+    tcpm_get_missing tcpm_delete tcpm_delete_src tcpm_delete_missing
+    tcpm_flush_all tcpm_flush_prefix tcpm_flush_v6 tcpm_flush_empty
+    sr_hmac_show_empty sr_hmac_set sr_hmac_set_sha1 sr_hmac_replace
+    sr_hmac_delete sr_hmac_delete_missing sr_hmac_set_long sr_hmac_show
+    sr_hmac_show_64 sr_tunsrc_show sr_tunsrc_set
+    ioam_ns_show_empty ioam_ns_add ioam_ns_add_data ioam_ns_add_unavailable
+    ioam_ns_add_dup ioam_ns_del ioam_ns_del_missing ioam_sc_show_empty
+    ioam_sc_add ioam_sc_add_pad ioam_sc_add_dup ioam_sc_del
+    ioam_sc_del_missing ioam_ns_set_schema ioam_ns_set_none
+    ioam_ns_set_missing ioam_sc_del_bound ioam_ns_del_bound
+    ioam_monitor_trace ioam_monitor_unknown_ns ioam_monitor_disabled
+    mptcp_endpoint_show_empty mptcp_endpoint_add mptcp_endpoint_add_v6_dev
+    mptcp_endpoint_add_port mptcp_endpoint_add_fullmesh mptcp_endpoint_add_dup
+    mptcp_endpoint_add_id_busy mptcp_endpoint_add_port_subflow
+    mptcp_endpoint_show mptcp_endpoint_get mptcp_endpoint_get_missing
+    mptcp_endpoint_change mptcp_endpoint_change_addr
+    mptcp_endpoint_change_nobackup mptcp_endpoint_change_missing
+    mptcp_endpoint_delete mptcp_endpoint_delete_missing
+    mptcp_endpoint_delete_id0 mptcp_endpoint_flush mptcp_limits_show
+    mptcp_limits_set mptcp_limits_set_one mptcp_limits_set_none
+    mptcp_limits_set_max mptcp_limits_set_over mptcp_monitor_listener
+    mptcp_monitor_conn
+    fou_show_empty fou_add fou_add_gue fou_add_v6 fou_add_local_peer
+    fou_add_v6_local_peer fou_add_dev fou_add_dev_no_local fou_add_dup
+    fou_add_same_port_v6 fou_add_no_port fou_add_no_type fou_add_port_zero
+    fou_add_unknown_dev fou_del fou_del_missing fou_del_wrong_family
+    fou_del_local_peer fou_del_partial fou_show fou_show_args
+    ila_show_empty ila_add ila_add_dev ila_add_opts ila_add_auto ila_add_dup
+    ila_add_same_match_dev ila_add_no_loc ila_add_unknown_word ila_del
+    ila_del_missing ila_del_dev ila_del_nodev_of_dev ila_show ila_show_args
+    l2tp_tunnel_show_empty l2tp_tunnel_add l2tp_tunnel_add_csum
+    l2tp_tunnel_add_v6 l2tp_tunnel_add_ip l2tp_tunnel_add_dup
+    l2tp_tunnel_add_no_local l2tp_tunnel_show l2tp_tunnel_show_id
+    l2tp_tunnel_del l2tp_tunnel_del_missing l2tp_tunnel_del_sessions
+    l2tp_session_show_empty l2tp_session_add l2tp_session_add_opts
+    l2tp_session_add_dup l2tp_session_add_dup_ip l2tp_session_add_no_tunnel
+    l2tp_session_add_no_peer
+    l2tp_session_show l2tp_session_show_id l2tp_session_del
+    l2tp_session_del_missing l2tp_show_bare
+    macsec_show_empty macsec_show macsec_show_dev macsec_show_unknown_dev
+    macsec_txsa_add macsec_txsa_add_off macsec_txsa_add_dup
+    macsec_txsa_add_no_key macsec_txsa_add_no_pn macsec_txsa_add_long_key
+    macsec_txsa_add_an4 macsec_txsa_add_not_macsec macsec_txsa_set
+    macsec_txsa_set_key macsec_txsa_del_active macsec_txsa_del
+    macsec_txsa_del_missing macsec_rxsc_add macsec_rxsc_add_port
+    macsec_rxsc_add_dup macsec_rxsc_set macsec_rxsc_del
+    macsec_rxsc_del_missing macsec_rxsa_add macsec_rxsa_add_no_sc
+    macsec_rxsa_set macsec_rxsa_del_active macsec_rxsa_del
+    macsec_xpn_txsa_add macsec_xpn_txsa_pn32 macsec_offload_off
+    macsec_offload_mac
+}
+
+proc bad_arity {} {
+    set out {}
+    foreach r $::R {
+        if {[llength $r] != 6} {
+            lappend out [lindex $r 0]
+        }
+    }
+    return $out
+}
+
+proc dup_slugs {} {
+    set seen {}
+    set out {}
+    foreach s [column 0] {
+        if {$s in $seen} {
+            lappend out $s
+        }
+        lappend seen $s
+    }
+    return $out
+}
+
+# refused_rows - {slug rc} for every row whose ip.rc is meant to be non-zero.
+proc refused_rows {} {
+    set out {}
+    foreach r $::R {
+        if {[lindex $r 5] != 0} {
+            lappend out [lindex $r 0] [lindex $r 5]
+        }
+    }
+    return $out
+}
+
+# wrong_object - the rows whose command is not their family's `ip` object:
+# `ip [-6] tcp_metrics` for tcpm_, `ip sr` for sr_, which an hmac set
+# runs under setsid with its secret piped in, `ip ioam` for ioam_, or
+# xtcp2-nl-ioam, which runs `ip ioam monitor`, `ip mptcp` for mptcp_,
+# or xtcp2-nl-mptcp monitor, which runs `ip mptcp monitor`, `ip fou` for
+# fou_, `ip ila` for ila_, `ip l2tp` for l2tp_ and `ip macsec` for macsec_.
+proc wrong_object {} {
+    set out {}
+    foreach r $::R {
+        set re [dict get {tcpm {^ip (-6 )?tcp_metrics } sr {^(echo( \S+)? \| setsid -w )?ip sr } ioam {^(ip ioam|xtcp2-nl-ioam) } mptcp {^(ip mptcp|xtcp2-nl-mptcp monitor) } fou {^ip fou } ila {^ip ila } l2tp {^ip l2tp } macsec {^ip macsec }} \
+            [lindex [split [lindex $r 0] _] 0]]
+        if {![regexp $re [lindex $r 3]]} {
+            lappend out [lindex $r 0]
+        }
+    }
+    return $out
+}
+
+# quoted - the rows whose command holds the single quote write_row wraps it in.
+proc quoted {} {
+    set out {}
+    foreach r $::R {
+        if {[string first ' [lindex $r 3]] >= 0} {
+            lappend out [lindex $r 0]
+        }
+    }
+    return $out
+}
+
+check slug_list "positive: the rows are the plan's, in run order" \
+    {column 0} [join $design_rows " "]
+check arity "negative: every row is {slug floor pre command readbacks rc}" \
+    {bad_arity} {}
+check unique_slugs "negative: no slug names two rows" \
+    {dup_slugs} {}
+check refused_statuses "positive: the missing tcp_metrics entry and the refused mptcp, fou, ila and l2tp requests (an l2tp session id is refused only beside an IP-encap tunnel's) and every macsec request the kernel refuses are rc 2; the refused hmac sets and ioam writes, fou's unknown dev, fou's and ila's show with an argument, and macsec's unknown dev, SAs without a key or packet number and set with a key, rc 1; a port without signal, fou's port 0, ila's unknown word, l2tp's missing arguments and bare show, and macsec's SA number 4, 255" \
+    {refused_rows} {tcpm_get_missing 2 tcpm_delete_missing 2 sr_hmac_delete_missing 1 sr_hmac_set_long 1 ioam_ns_add_dup 1 ioam_ns_del_missing 1 ioam_sc_add_dup 1 ioam_sc_del_missing 1 ioam_ns_set_missing 1 ioam_monitor_unknown_ns 1 ioam_monitor_disabled 1 mptcp_endpoint_add_dup 2 mptcp_endpoint_add_id_busy 2 mptcp_endpoint_add_port_subflow 255 mptcp_endpoint_get_missing 2 mptcp_endpoint_change_missing 2 mptcp_endpoint_delete_missing 2 mptcp_limits_set_over 2 fou_add_dev_no_local 2 fou_add_dup 2 fou_add_no_port 2 fou_add_no_type 2 fou_add_port_zero 255 fou_add_unknown_dev 1 fou_del_missing 2 fou_del_wrong_family 2 fou_del_partial 2 fou_show_args 1 ila_add_dup 2 ila_add_unknown_word 255 ila_show_args 1 l2tp_tunnel_add_dup 2 l2tp_tunnel_add_no_local 255 l2tp_tunnel_del_missing 2 l2tp_session_add_dup_ip 2 l2tp_session_add_no_tunnel 2 l2tp_session_add_no_peer 255 l2tp_session_del_missing 2 l2tp_show_bare 255 macsec_show_unknown_dev 1 macsec_txsa_add_dup 2 macsec_txsa_add_no_key 1 macsec_txsa_add_no_pn 1 macsec_txsa_add_long_key 2 macsec_txsa_add_an4 255 macsec_txsa_add_not_macsec 2 macsec_txsa_set_key 1 macsec_txsa_del_active 2 macsec_txsa_del_missing 2 macsec_rxsc_add_dup 2 macsec_rxsc_del_missing 2 macsec_rxsa_add_no_sc 2 macsec_rxsa_del_active 2 macsec_xpn_txsa_pn32 2 macsec_offload_mac 2}
+check row_count "boundary: C2-T01's 14 rows, C2-T02's 11, C2-T03's 21, C2-T04's 27, C2-T05's 21, C2-T06's 15, C2-T07's 24 and C2-T08's 32" \
+    {llength $R} 165
+check c2t01_rows_first "corner: C2-T02's rows come after C2-T01's, which keep their order" \
+    {lindex [column 0] 13} tcpm_flush_empty
+check c2t02_rows_next "corner: C2-T03's rows come after C2-T02's" \
+    {lindex [column 0] 24} sr_tunsrc_set
+check c2t03_rows_next "corner: C2-T04's rows come after C2-T03's" \
+    {lindex [column 0] 45} ioam_monitor_disabled
+check c2t04_rows_next "corner: C2-T05's rows come after C2-T04's" \
+    {lindex [column 0] 72} mptcp_monitor_conn
+check c2t05_rows_next "corner: C2-T06's rows come after C2-T05's" \
+    {lindex [column 0] 93} fou_show_args
+check c2t06_rows_next "corner: C2-T07's rows come after C2-T06's" \
+    {lindex [column 0] 108} ila_show_args
+check c2t07_rows_next "corner: C2-T08's rows come after C2-T07's" \
+    {lindex [column 0] 132} l2tp_show_bare
+check right_object "negative: every command is its family's ip object" \
+    {wrong_object} {}
+check no_quotes "corner: no command holds a single quote" \
+    {quoted} {}
+check src_first "corner: src comes before address, since ip skips the word after an address" \
+    {lmap slug {tcpm_get_src tcpm_delete_src} {regexp { src 192\.0\.2\.2 address 192\.0\.2\.1$} [field $slug 3]}} {1 1}
+
+###############################################################################
+# 2. floors: the family lookup's 2 and the command's 2, and a flush that
+# dumps, deletes and dumps again 6
+###############################################################################
+check floors "positive: every floor, in run order" \
+    {column 1} {4 4 4 4 4 4 4 4 4 4 4 6 6 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 3 2 2 4 4 4 4 4 4 4 2 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 14 13 4 4 4 4 4 4 4 4 4 4 4 4 2 2 4 4 4 4 4 4 2 4 4 4 4 4 4 4 4 2 4 4 4 4 4 2 4 4 4 4 4 4 2 4 4 4 4 4 4 4 4 4 4 4 2 4 4 4 4 2 4 4 4 2 4 4 4 2 2 4 2 4 4 2 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4}
+check floor_flush_all "corner: flush all is one DEL with no address, so 4" \
+    {field tcpm_flush_all 1} 4
+check floor_flush_empty "boundary: a flush that matches nothing stops after its dump" \
+    {field tcpm_flush_empty 1} 4
+
+###############################################################################
+# 3. preconditions
+###############################################################################
+proc pre_name {slug} {
+    set pre [field $slug 2]
+    if {$pre eq $genlcorpus::PRE_TCPM} {
+        return tcpm
+    }
+    if {$pre eq $genlcorpus::PRE_ADDRS} {
+        return addrs
+    }
+    return other
+}
+foreach {name description slug expected} {
+    pre_show        "positive: show runs over the four entries"            tcpm_show        tcpm
+    pre_show_empty  "boundary: show_empty has the addresses, no connection" tcpm_show_empty  addrs
+    pre_flush_empty "boundary: and so does flush_empty"                    tcpm_flush_empty addrs
+    pre_missing     "negative: a missing entry is missing from a full table" tcpm_get_missing tcpm
+} {
+    check $name $description [list pre_name $slug] $expected
+}
+check pre_tcp_steps "positive: one connection per family, after the addresses" \
+    {lrange $genlcorpus::PRE_TCPM end-1 end} {{tcp 192.0.2.1 192.0.2.2} {tcp 2001:db8::1 2001:db8::2}}
+check pre_tcpm_extends "corner: PRE_TCPM is PRE_ADDRS and the two connections" \
+    {expr {[lrange $genlcorpus::PRE_TCPM 0 end-2] eq [lrange $genlcorpus::PRE_ADDRS 0 end]}} 1
+check pre_nodad "corner: the IPv6 addresses skip DAD, so a connection can use them at once" \
+    {llength [lsearch -all -glob $genlcorpus::PRE_ADDRS {-6 addr add * nodad}]} 2
+foreach {name description slug expected} {
+    pre_hmac_replace "positive: replace starts from key 1"            sr_hmac_replace        {{hmac 1 sha256 s3cret}}
+    pre_hmac_delete  "positive: delete starts from keys 1 and 2"      sr_hmac_delete         {{hmac 1 sha256 s3cret} {hmac 2 sha1 0ther}}
+    pre_hmac_show    "positive: and so does the show of two keys"     sr_hmac_show           {{hmac 1 sha256 s3cret} {hmac 2 sha1 0ther}}
+    pre_hmac_missing "negative: deleting key 9 starts from no key"    sr_hmac_delete_missing {}
+    pre_tunsrc       "boundary: tunsrc show reads the namespace's default" sr_tunsrc_show    {}
+} {
+    check $name $description [list lrange [field $slug 2] 0 end] $expected
+}
+
+foreach {name description slug expected} {
+    pre_ns_dup      "negative: the duplicate namespace add starts from namespace 1" ioam_ns_add_dup     {{ioam namespace add 1}}
+    pre_sc_dup      "negative: and the duplicate schema add from schema 1"         ioam_sc_add_dup     {{ioam schema add 1 abcd}}
+    pre_ns_del_miss "negative: deleting namespace 9 starts from none"              ioam_ns_del_missing {}
+    pre_set         "positive: set starts from namespace 1 and schema 1, unbound"  ioam_ns_set_schema  {{ioam namespace add 1} {ioam schema add 1 abcd}}
+    pre_set_missing "negative: set to a missing schema starts from namespace 1"   ioam_ns_set_missing {{ioam namespace add 1}}
+    pre_trace       "positive: a trace needs namespace 123 and ioam6_enabled on lo" ioam_monitor_trace {{ioam namespace add 123} {sysctl net.ipv6.conf.lo.ioam6_enabled 1}}
+    pre_unknown_ns  "negative: the unknown-namespace row has the same state"  ioam_monitor_unknown_ns {{ioam namespace add 123} {sysctl net.ipv6.conf.lo.ioam6_enabled 1}}
+    pre_disabled    "negative: the disabled row has the namespace and no sysctl" ioam_monitor_disabled {{ioam namespace add 123}}
+} {
+    check $name $description [list lrange [field $slug 2] 0 end] $expected
+}
+foreach {name description slug expected} {
+    pre_ep_show_empty "boundary: an empty endpoint show starts from nothing"   mptcp_endpoint_show_empty {}
+    pre_ep_dup        "negative: the duplicate add starts from endpoint 1"     mptcp_endpoint_add_dup    {mptcp endpoint add 192.0.2.1 id 1 subflow}
+    pre_ep_busy       "negative: and so does the add of a taken id"            mptcp_endpoint_add_id_busy {mptcp endpoint add 192.0.2.1 id 1 subflow}
+    pre_ep_show       "positive: show starts from endpoints 1 and 2"           mptcp_endpoint_show       {mptcp endpoint add 2001:db8::1 id 2 dev d0 signal}
+    pre_ep_nobackup   "positive: nobackup starts from a backup endpoint"       mptcp_endpoint_change_nobackup {mptcp endpoint add 192.0.2.1 id 1 subflow backup}
+    pre_ep_missing    "negative: a missing id is missing from the addresses alone" mptcp_endpoint_delete_missing {-6 addr add 2001:db8::2/64 dev d0 nodad}
+    pre_conn          "positive: the connection row has a subflow endpoint, after one extra subflow is allowed" mptcp_monitor_conn {mptcp endpoint add 192.0.2.2 id 1 dev d0 subflow}
+} {
+    check $name $description [list lindex [field $slug 2] end] $expected
+}
+check pre_conn_limit "positive: the extra subflow is allowed before the endpoint is added" \
+    {lindex [field mptcp_monitor_conn 2] end-1} {mptcp limits set subflows 1}
+foreach {name description slug expected} {
+    pre_fou_dup      "negative: the duplicate add starts from port 5555"         fou_add_dup          {{fou add port 5555 ipproto 4}}
+    pre_fou_same_v6  "corner: and so does the IPv6 add of the same port"         fou_add_same_port_v6 {{fou add port 5555 ipproto 4}}
+    pre_fou_del      "positive: delete starts from port 5555"                    fou_del              {{fou add port 5555 ipproto 4}}
+    pre_fou_del_miss "negative: deleting a port starts from none"                fou_del_missing      {}
+    pre_fou_wrong_af "negative: the IPv6 delete starts from the IPv4 port"       fou_del_wrong_family {{fou add port 5555 ipproto 4}}
+    pre_fou_show     "positive: show starts from an IPv4 port and an IPv6 one"   fou_show             {{fou add port 5555 ipproto 4} {fou add port 5556 gue -6}}
+    pre_fou_empty    "boundary: an empty show starts from nothing"               fou_show_empty       {}
+} {
+    check $name $description [list lrange [field $slug 2] 0 end] $expected
+}
+foreach {name description slug} {
+    pre_fou_peer_del  "positive: the peer delete starts from a port with a local address and a peer" fou_del_local_peer
+    pre_fou_partial   "corner: and so does the delete that names the port alone"                     fou_del_partial
+} {
+    check $name $description [list lindex [field $slug 2] end] {fou add port 5555 ipproto 4 local 192.0.2.1 peer 192.0.2.2 peer_port 5556}
+}
+check pre_fou_addrs "corner: every fou row that names an address or d0 starts from PRE_ADDRS" \
+    {lmap slug {fou_add_local_peer fou_add_v6_local_peer fou_add_dev fou_add_dev_no_local fou_add_unknown_dev fou_del_local_peer fou_del_partial} {expr {[lrange [field $slug 2] 0 5] eq [lrange $genlcorpus::PRE_ADDRS 0 end]}}} {1 1 1 1 1 1 1}
+foreach {name description slug expected} {
+    pre_ila_dup      "negative: the duplicate add starts from the mapping"       ila_add_dup      {{ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4}}
+    pre_ila_del      "positive: delete starts from the mapping"                  ila_del          {{ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4}}
+    pre_ila_del_miss "corner: deleting a mapping that is not there starts from none" ila_del_missing {}
+    pre_ila_show     "positive: show starts from two mappings"                   ila_show         {{ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4} {ila add loc_match 2001:db8:5:6 loc 2001:db8:7:8 csum-mode neutral-map}}
+    pre_ila_empty    "boundary: an empty show starts from nothing"               ila_show_empty   {}
+} {
+    check $name $description [list lrange [field $slug 2] 0 end] $expected
+}
+foreach {name description slug expected} {
+    pre_ila_same     "corner: the dev add of a taken loc_match starts from the mapping without a dev" ila_add_same_match_dev {{ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4}}
+    pre_ila_del_dev  "positive: the dev delete starts from both mappings"   ila_del_dev          {{ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4} {ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4 dev d0}}
+    pre_ila_nodev    "corner: the no-dev delete starts from the dev mapping alone" ila_del_nodev_of_dev {{ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4 dev d0}}
+} {
+    check $name $description [list lrange [field $slug 2] 6 end] $expected
+}
+check pre_ila_addrs "corner: every ila row with a dev starts from PRE_ADDRS" \
+    {lmap slug {ila_add_dev ila_add_same_match_dev ila_del_dev ila_del_nodev_of_dev} {expr {[lrange [field $slug 2] 0 5] eq [lrange $genlcorpus::PRE_ADDRS 0 end]}}} {1 1 1 1}
+foreach {name description slug expected} {
+    pre_l2tp_dup        "negative: the duplicate tunnel starts from tunnel 1"               l2tp_tunnel_add_dup      {{l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 local 192.0.2.1 remote 192.0.2.2 udp_sport 5000 udp_dport 6000}}
+    pre_l2tp_show       "positive: tunnel show starts from tunnels 1 and 3"                  l2tp_tunnel_show         {{l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 local 192.0.2.1 remote 192.0.2.2 udp_sport 5000 udp_dport 6000} {l2tp add tunnel tunnel_id 3 peer_tunnel_id 4 local 192.0.2.1 remote 192.0.2.2 udp_sport 5001 udp_dport 6001}}
+    pre_l2tp_show_id    "corner: and so does the show of one id"                            l2tp_tunnel_show_id      {{l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 local 192.0.2.1 remote 192.0.2.2 udp_sport 5000 udp_dport 6000} {l2tp add tunnel tunnel_id 3 peer_tunnel_id 4 local 192.0.2.1 remote 192.0.2.2 udp_sport 5001 udp_dport 6001}}
+    pre_l2tp_del_miss   "negative: deleting tunnel 9 starts from no tunnel"                  l2tp_tunnel_del_missing  {}
+    pre_l2tp_del_sess   "corner: deleting a tunnel with a session starts from session 10"    l2tp_tunnel_del_sessions {{l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 local 192.0.2.1 remote 192.0.2.2 udp_sport 5000 udp_dport 6000} {l2tp add session tunnel_id 1 session_id 10 peer_session_id 20}}
+    pre_l2tp_sess_add   "positive: a session add starts from tunnel 1"                       l2tp_session_add         {{l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 local 192.0.2.1 remote 192.0.2.2 udp_sport 5000 udp_dport 6000}}
+    pre_l2tp_dup_udp    "corner: the duplicate session in a UDP tunnel starts from session 10" l2tp_session_add_dup {{l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 local 192.0.2.1 remote 192.0.2.2 udp_sport 5000 udp_dport 6000} {l2tp add session tunnel_id 1 session_id 10 peer_session_id 20}}
+    pre_l2tp_dup_ip     "negative: the duplicate session in an IP-encap tunnel starts from session 10 there" l2tp_session_add_dup_ip {{l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 encap ip local 192.0.2.1 remote 192.0.2.2} {l2tp add session tunnel_id 1 session_id 10 peer_session_id 20}}
+    pre_l2tp_no_tunnel  "negative: a session in a missing tunnel starts from the addresses alone" l2tp_session_add_no_tunnel {}
+    pre_l2tp_sess_show  "positive: session show starts from sessions 10 and 11 in tunnel 1"  l2tp_session_show        {{l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 local 192.0.2.1 remote 192.0.2.2 udp_sport 5000 udp_dport 6000} {l2tp add session tunnel_id 1 session_id 10 peer_session_id 20} {l2tp add session tunnel_id 1 session_id 11 peer_session_id 21}}
+    pre_l2tp_sess_miss  "negative: deleting session 99 starts from tunnel 1 alone"           l2tp_session_del_missing {{l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 local 192.0.2.1 remote 192.0.2.2 udp_sport 5000 udp_dport 6000}}
+} {
+    check $name $description [list lrange [field $slug 2] 6 end] $expected
+}
+check pre_l2tp_addrs "corner: every l2tp row with a pre step starts from PRE_ADDRS" \
+    {lsort -unique [lmap r $R {if {![string match l2tp_* [lindex $r 0]] || [lindex $r 2] eq {}} continue; expr {[lrange [lindex $r 2] 0 5] eq [lrange $genlcorpus::PRE_ADDRS 0 end]}}]} 1
+foreach {name description slug expected} {
+    pre_macsec_show     "positive: show starts from macsec0 and macsec1" macsec_show {{link add link d0 macsec0 type macsec sci 0102030405060001} {link add link d0 macsec1 type macsec sci 0102030405060002}}
+    pre_macsec_tx_dup   "negative: the duplicate tx SA starts from tx SA 0" macsec_txsa_add_dup {{link add link d0 macsec0 type macsec sci 0102030405060001} {macsec add macsec0 tx sa 0 pn 1 on key 01000000000000000000000000000000 81818181818181818181818181818181}}
+    pre_macsec_tx_busy  "negative: deleting the active tx SA starts from it, on" macsec_txsa_del_active {{link add link d0 macsec0 type macsec sci 0102030405060001} {macsec add macsec0 tx sa 0 pn 1 on key 01000000000000000000000000000000 81818181818181818181818181818181}}
+    pre_macsec_tx_del   "positive: the tx SA delete starts from tx SA 0, off" macsec_txsa_del {{link add link d0 macsec0 type macsec sci 0102030405060001} {macsec add macsec0 tx sa 0 pn 1 off key 01000000000000000000000000000000 81818181818181818181818181818181}}
+    pre_macsec_rx_dup   "negative: the duplicate rx channel starts from it" macsec_rxsc_add_dup {{link add link d0 macsec0 type macsec sci 0102030405060001} {macsec add macsec0 rx sci 0a0b0c0d0e0f0001 on}}
+    pre_macsec_rx_noch  "negative: an rx SA with no channel starts from macsec0 alone" macsec_rxsa_add_no_sc {{link add link d0 macsec0 type macsec sci 0102030405060001}}
+    pre_macsec_rx_busy  "negative: deleting the active rx SA starts from it, on" macsec_rxsa_del_active {{link add link d0 macsec0 type macsec sci 0102030405060001} {macsec add macsec0 rx sci 0a0b0c0d0e0f0001 on} {macsec add macsec0 rx sci 0a0b0c0d0e0f0001 sa 0 pn 1 on key 02000000000000000000000000000000 82828282828282828282828282828282}}
+    pre_macsec_rx_del   "positive: the rx SA delete starts from rx SA 0, off" macsec_rxsa_del {{link add link d0 macsec0 type macsec sci 0102030405060001} {macsec add macsec0 rx sci 0a0b0c0d0e0f0001 on} {macsec add macsec0 rx sci 0a0b0c0d0e0f0001 sa 0 pn 1 off key 02000000000000000000000000000000 82828282828282828282828282828282}}
+    pre_macsec_xpn      "positive: the XPN rows start from an XPN SecY" macsec_xpn_txsa_add {{link add link d0 macsec0 type macsec sci 0102030405060001 cipher gcm-aes-xpn-128}}
+    pre_macsec_not      "negative: the not-macsec row starts from the addresses alone" macsec_txsa_add_not_macsec {}
+} {
+    check $name $description [list lrange [field $slug 2] 6 end] $expected
+}
+check pre_macsec_addrs "corner: every macsec row with a pre step starts from PRE_ADDRS" \
+    {lsort -unique [lmap r $R {if {![string match macsec_* [lindex $r 0]] || [lindex $r 2] eq {}} continue; expr {[lrange [lindex $r 2] 0 5] eq [lrange $genlcorpus::PRE_ADDRS 0 end]}}]} 1
+check pre_mptcp_addrs "corner: every mptcp row with a pre step starts from PRE_ADDRS" \
+    {lsort -unique [lmap r $R {if {![string match mptcp_* [lindex $r 0]] || [lindex $r 2] eq {}} continue; expr {[lrange [lindex $r 2] 0 5] eq [lrange $genlcorpus::PRE_ADDRS 0 end]}}]} 1
+foreach {name description slug} {
+    pre_bound_none  "positive: unbinding starts from the bound pair"           ioam_ns_set_none
+    pre_bound_sc    "corner: so does deleting a bound schema"                  ioam_sc_del_bound
+    pre_bound_ns    "corner: and deleting a bound namespace"                   ioam_ns_del_bound
+} {
+    check $name $description [list lindex [field $slug 2] end] {ioam namespace set 1 schema 1}
+}
+
+###############################################################################
+# 3a. the hmac set commands
+###############################################################################
+foreach {name description args expected} {
+    hmac_set_cmd    "positive: the secret is piped to ip under setsid"  {1 sha256 s3cret} {echo s3cret | setsid -w ip sr hmac set 1 sha256}
+    hmac_delete_cmd "boundary: a blank secret is a bare echo, which deletes" {1 sha256 ""}   {echo | setsid -w ip sr hmac set 1 sha256}
+} {
+    check $name $description [list genlcorpus::hmac_set {*}$args] $expected
+}
+check hmac_long "boundary: the long secret is one past SEG6_HMAC_SECRET_LEN (64)" \
+    {string length $genlcorpus::LONG_SECRET} 65
+check hmac_max "boundary: show_64's key is exactly SEG6_HMAC_SECRET_LEN, one past what ip prints" \
+    {lmap step [field sr_hmac_show_64 2] {list [lrange $step 0 2] [string length [lindex $step 3]]}} {{{hmac 4 sha256} 64}}
+check ioam_unavailable "corner: the unavailable row gives data and wide data as all ones" \
+    {regexp { data 0xffffffff wide ffffffffffffffff$} [field ioam_ns_add_unavailable 3]} 1
+check ioam_wide_hex "corner: wide data is hex, so 2a is data's 42" \
+    {regexp { data 42 wide 2a$} [field ioam_ns_add_data 3]} 1
+check ioam_pad "boundary: the padded schema's data is 5 bytes, one past a multiple of 4" \
+    {string length [lindex [field ioam_sc_add_pad 3] end]} 5
+check floor_trace "boundary: a trace row is the family lookup and one event" \
+    {field ioam_monitor_trace 1} 3
+check floor_silent "boundary: a silent row is the lookup alone" \
+    {lmap slug {ioam_monitor_unknown_ns ioam_monitor_disabled} {field $slug 1}} {2 2}
+check monitor_cmds "positive: every monitor row sends to ::1 through xtcp2-nl-ioam, the silent ones 5 times" \
+    {lmap slug {ioam_monitor_trace ioam_monitor_unknown_ns ioam_monitor_disabled} {field $slug 3}} \
+    {{xtcp2-nl-ioam ::1 123} {xtcp2-nl-ioam ::1 99 5} {xtcp2-nl-ioam ::1 123 5}}
+check floor_port_subflow "boundary: a port without signal is the family lookup alone, ip refusing it before any request" \
+    {field mptcp_endpoint_add_port_subflow 1} 2
+check floor_mptcp_monitors "positive: the listener row's 14 and the connection row's 13" \
+    {lmap slug {mptcp_monitor_listener mptcp_monitor_conn} {field $slug 1}} {14 13}
+check mptcp_limit_max "boundary: the max row is at MPTCP_PM_SUBFLOWS_MAX (8 in 7.1), the over row one past it" \
+    {lmap slug {mptcp_limits_set_max mptcp_limits_set_over} {lindex [field $slug 3] 5}} {8 9}
+check mptcp_id0 "corner: a delete of id 0 names the address, as ip requires" \
+    {regexp { delete id 0 192\.0\.2\.1$} [field mptcp_endpoint_delete_id0 3]} 1
+check mptcp_listener_cmd "positive: the listener row adds and deletes a signal endpoint with a port, and waits for both listener events" \
+    {field mptcp_monitor_listener 3} \
+    {xtcp2-nl-mptcp monitor "ip mptcp endpoint add 192.0.2.1 id 1 port 10100 signal && ip mptcp endpoint delete id 1" "LISTENER_CREATED. saddr4=192.0.2.1 sport=10100" "LISTENER_CLOSED. saddr4=192.0.2.1 sport=10100"}
+check mptcp_conn_waits "positive: the connection row waits for both ends' CREATED, ESTABLISHED and CLOSED, the subflow and the listener's close" \
+    {lrange [field mptcp_monitor_conn 3] 3 end} \
+    {{(?s) CREATED. token.* CREATED. token} {(?s) ESTABLISHED. token.* ESTABLISHED. token} {SF_ESTABLISHED. token} {(?s) CLOSED. token.* CLOSED. token} {LISTENER_CLOSED. saddr4=192.0.2.1 }}
+check mptcp_conn_trigger "positive: one connection, held for one extra subflow" \
+    {lindex [field mptcp_monitor_conn 3] 2} {xtcp2-nl-mptcp conn 192.0.2.1 1}
+check floor_fou_ip_refusals "boundary: port 0, an unknown dev and show with an argument are the family lookup alone, ip refusing them before any request" \
+    {lmap slug {fou_add_port_zero fou_add_unknown_dev fou_show_args} {field $slug 1}} {2 2 2}
+check fou_port_zero "boundary: the zero row's port is 0, one under the least ip takes" \
+    {regexp { port 0 } [field fou_add_port_zero 3]} 1
+check fou_no_port "corner: the no-port row names a type and no port" \
+    {list [regexp { port } [field fou_add_no_port 3]] [regexp { ipproto 4$} [field fou_add_no_port 3]]} {0 1}
+check fou_no_type "corner: the no-type row names a port and neither ipproto nor gue" \
+    {regexp {ipproto|gue} [field fou_add_no_type 3]} 0
+check fou_dev_no_local "negative: the dev-only row names a dev and no local address" \
+    {list [regexp { dev d0$} [field fou_add_dev_no_local 3]] [regexp { local } [field fou_add_dev_no_local 3]]} {1 0}
+check fou_v6_flag "positive: every IPv6 fou command and pre step says -6 inside the fou arguments" \
+    {lmap slug {fou_add_v6 fou_add_v6_local_peer fou_add_same_port_v6 fou_del_wrong_family} {regexp {^ip fou (add|del) port 5555 (gue )?-6} [field $slug 3]}} {1 1 1 1}
+check fou_peer_pair "positive: the peer rows give peer and peer_port together, as ip requires" \
+    {lmap slug {fou_add_local_peer fou_add_v6_local_peer fou_del_local_peer} {regexp { peer \S+ peer_port 5556$} [field $slug 3]}} {1 1 1}
+check floor_ila_ip_refusals "boundary: an unknown word and show with an argument are the family lookup alone" \
+    {lmap slug {ila_add_unknown_word ila_show_args} {field $slug 1}} {2 2}
+check ila_map "positive: the mapping every ila row is built on, locator 2001:db8:1:2 to 2001:db8:3:4" \
+    {set genlcorpus::ILA_MAP} {ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4}
+check ila_no_loc "corner: the no-locator row names a loc_match and no loc" \
+    {list [regexp { loc_match 2001:db8:1:2$} [field ila_add_no_loc 3]] [regexp { loc } [field ila_add_no_loc 3]]} {1 0}
+check ila_unknown_word "negative: the unknown-word row is a whole mapping and one word ip does not know" \
+    {lindex [field ila_add_unknown_word 3] end} bogus
+check ila_opts "positive: the options rows name both options, the auto row with the kernel's default ident-type" \
+    {lmap slug {ila_add_opts ila_add_auto} {lrange [field $slug 3] end-3 end}} {{csum-mode adj-transport ident-type luid} {csum-mode neutral-map-auto ident-type use-format}}
+check ila_del_keys "corner: the dev delete names d0, the no-dev delete of a dev mapping does not" \
+    {lmap slug {ila_del_dev ila_del_nodev_of_dev} {regexp { dev d0$} [field $slug 3]}} {1 0}
+check floor_l2tp_ip_refusals "boundary: the missing local, the missing peer_session_id and the bare show are the family lookup alone" \
+    {lmap slug {l2tp_tunnel_add_no_local l2tp_session_add_no_peer l2tp_show_bare} {field $slug 1}} {2 2 2}
+check l2tp_tun1 "positive: tunnel 1, which most l2tp rows are built on, is UDP from 192.0.2.1:5000 to 192.0.2.2:6000" \
+    {set genlcorpus::L2TP_TUN1} {l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 local 192.0.2.1 remote 192.0.2.2 udp_sport 5000 udp_dport 6000}
+check l2tp_tun2_ports "corner: tunnel 3 has its own ports, so its socket binds beside tunnel 1's" \
+    {lrange $genlcorpus::L2TP_TUN2 end-3 end} {udp_sport 5001 udp_dport 6001}
+check l2tp_dup_ports "negative: the duplicate tunnel reuses id 1 on other ports, so the refusal is the id's, not the bind's" \
+    {list [lindex [field l2tp_tunnel_add_dup 3] 5] [lrange [field l2tp_tunnel_add_dup 3] end-3 end]} {1 {udp_sport 5001 udp_dport 6001}}
+check l2tp_no_local "negative: the no-local row names remote and no local" \
+    {list [regexp { remote } [field l2tp_tunnel_add_no_local 3]] [regexp { local } [field l2tp_tunnel_add_no_local 3]]} {1 0}
+check l2tp_no_peer "negative: the no-peer session names its ids and no peer_session_id" \
+    {regexp {peer_session_id} [field l2tp_session_add_no_peer 3]} 0
+check l2tp_show_ids "corner: the show-with-ids rows name the ids they ask for" \
+    {lmap slug {l2tp_tunnel_show_id l2tp_session_show_id} {lrange [field $slug 3] 4 end}} {{tunnel_id 1} {tunnel_id 1 session_id 10}}
+check l2tp_opts "positive: the options session names an interface, both cookies (8 and 4 bytes), seq both and no L2-specific header" \
+    {lmap w {name cookie peer_cookie seq l2spec_type} {set c [field l2tp_session_add_opts 3]; lindex $c [expr {[lsearch -exact $c $w] + 1}]}} {l2tp9 0102030405060708 0a0b0c0d both none}
+check l2tp_v6_csum "corner: the IPv6 tunnel turns off rx checksums only" \
+    {regexp { udp6_csum_rx off$} [field l2tp_tunnel_add_v6 3]} 1
+check floor_macsec_ip_refusals "boundary: the unknown dev, the SAs without a key or packet number, SA number 4 and the set with a key are the family lookup alone" \
+    {lmap slug {macsec_show_unknown_dev macsec_txsa_add_no_key macsec_txsa_add_no_pn macsec_txsa_add_an4 macsec_txsa_set_key} {field $slug 1}} {2 2 2 2 2}
+check macsec_link_sci "positive: macsec0's SCI is given, so no byte depends on d0's random address" \
+    {set genlcorpus::MACSEC_LINK} {link add link d0 macsec0 type macsec sci 0102030405060001}
+check macsec_keys "positive: the shared SAs are on, with packet number 1, a 16-byte key id and a 128-bit key" \
+    {lmap v {MACSEC_TXSA MACSEC_RXSA} {set c [set genlcorpus::$v]; list [lindex $c end-3] [lindex $c end-4] [string length [lindex $c end-1]] [string length [lindex $c end]]}} {{on 1 32 32} {on 1 32 32}}
+check macsec_long_key "negative: the long key is 256 bits, on a 128-bit SecY" \
+    {string length [lindex [field macsec_txsa_add_long_key 3] end]} 64
+check macsec_an4 "negative: SA number 4 is one over the last" \
+    {lindex [field macsec_txsa_add_an4 3] 6} 4
+check macsec_no_key_pn "negative: the no-key row names a packet number and no key, the no-pn row a key and no packet number" \
+    {lmap slug {macsec_txsa_add_no_key macsec_txsa_add_no_pn} {list [regexp { pn } [field $slug 3]] [regexp { key } [field $slug 3]]}} {{1 0} {0 1}}
+check macsec_xpn_words "corner: the XPN add gives xpn, salt and ssci; the refused one pn, which ip sends as 4 bytes" \
+    {lmap slug {macsec_xpn_txsa_add macsec_xpn_txsa_pn32} {lrange [field $slug 3] 7 8}} {{xpn 1} {pn 1}}
+check macsec_port_sci "corner: the port row makes its SCI from an address and port 1" \
+    {lrange [field macsec_rxsc_add_port 3] 5 end} {port 1 address 02:00:00:00:00:01}
+check hmac_rows_use_set "corner: every hmac write row runs through hmac_set" \
+    {lmap slug {sr_hmac_set sr_hmac_set_sha1 sr_hmac_replace sr_hmac_delete sr_hmac_delete_missing sr_hmac_set_long} {
+        regexp {^echo( \S+)? \| setsid -w ip sr hmac set [0-9]+ sha(1|256)$} [field $slug 3]}} {1 1 1 1 1 1}
+
+###############################################################################
+# 4. readbacks
+###############################################################################
+foreach {name description slug expected} {
+    rb_delete       "positive: delete reads the table back"           tcpm_delete         tcpm
+    rb_delete_src   "positive: and so does delete with src"           tcpm_delete_src     tcpm
+    rb_flush_all    "positive: flush all reads the table back"        tcpm_flush_all      tcpm
+    rb_flush_prefix "positive: so does the prefix flush"              tcpm_flush_prefix   tcpm
+    rb_flush_v6     "positive: and the IPv6 one"                      tcpm_flush_v6       tcpm
+    rb_show         "corner: a read is its own readback"              tcpm_show           {}
+    rb_get          "corner: and so is a get"                         tcpm_get            {}
+    rb_missing      "negative: a refused delete has nothing to read back" tcpm_delete_missing {}
+    rb_flush_empty  "negative: nor a flush with nothing to flush"     tcpm_flush_empty    {}
+    rb_hmac_set     "positive: an hmac set reads the keys back"       sr_hmac_set         hmac
+    rb_hmac_replace "positive: and so does a replace"                 sr_hmac_replace     hmac
+    rb_hmac_delete  "positive: and a delete"                          sr_hmac_delete      hmac
+    rb_hmac_long    "negative: a refused set has nothing to read back" sr_hmac_set_long   {}
+    rb_tunsrc_set   "positive: tunsrc set reads the source back"      sr_tunsrc_set       tunsrc
+    rb_tunsrc_show  "corner: a get is its own readback"               sr_tunsrc_show      {}
+    rb_ns_add       "positive: a namespace add reads the namespaces back" ioam_ns_add      ns
+    rb_ns_del       "positive: and so does a namespace delete"        ioam_ns_del         ns
+    rb_sc_add       "positive: a schema add reads the schemas back"   ioam_sc_add         sc
+    rb_sc_del       "positive: and so does a schema delete"           ioam_sc_del         sc
+    rb_set          "positive: a set reads back both sides"           ioam_ns_set_schema  {ns sc}
+    rb_set_none     "positive: and so does an unbind"                 ioam_ns_set_none    {ns sc}
+    rb_sc_del_bound "corner: deleting a bound schema reads the namespace back" ioam_sc_del_bound ns
+    rb_ns_del_bound "corner: deleting a bound namespace reads the schema back" ioam_ns_del_bound sc
+    rb_ns_dup       "negative: a refused add has nothing to read back" ioam_ns_add_dup    {}
+    rb_ep_add       "positive: an endpoint add reads the endpoints back" mptcp_endpoint_add endpoint
+    rb_ep_change    "positive: and so does a change"                  mptcp_endpoint_change endpoint
+    rb_ep_delete    "positive: and a delete"                          mptcp_endpoint_delete endpoint
+    rb_ep_id0       "corner: and a delete of id 0, which changes none" mptcp_endpoint_delete_id0 endpoint
+    rb_ep_flush     "positive: and a flush"                           mptcp_endpoint_flush endpoint
+    rb_ep_get       "corner: a get is its own readback"               mptcp_endpoint_get  {}
+    rb_lim_set      "positive: a limits set reads the limits back"    mptcp_limits_set    limits
+    rb_lim_none     "corner: and so does a set of nothing"            mptcp_limits_set_none limits
+    rb_lim_over     "negative: a refused limit has nothing to read back" mptcp_limits_set_over {}
+    rb_port_subflow "negative: nor does a port ip refuses"            mptcp_endpoint_add_port_subflow {}
+    rb_fou_add      "positive: a fou add reads the ports back"        fou_add             fou
+    rb_fou_same_v6  "corner: and so does the IPv6 add of a taken IPv4 port" fou_add_same_port_v6 fou
+    rb_fou_del      "positive: and a delete"                          fou_del             fou
+    rb_fou_del_peer "positive: and a delete with a peer"              fou_del_local_peer  fou
+    rb_fou_show     "corner: a dump is its own readback"              fou_show            {}
+    rb_fou_dup      "negative: a refused add has nothing to read back" fou_add_dup        {}
+    rb_fou_partial  "negative: nor has a refused delete"              fou_del_partial     {}
+    rb_ila_add      "positive: an ila add reads the mappings back"    ila_add             ila
+    rb_ila_no_loc   "corner: and so does the add with no locator, which the kernel takes" ila_add_no_loc ila
+    rb_ila_del      "positive: and a delete"                          ila_del             ila
+    rb_ila_del_miss "corner: and a delete that matches nothing, which the kernel ACKs" ila_del_missing ila
+    rb_ila_nodev    "corner: and one that misses on the dev"          ila_del_nodev_of_dev ila
+    rb_ila_show     "corner: a dump is its own readback"              ila_show            {}
+    rb_ila_dup      "negative: a refused add has nothing to read back" ila_add_dup        {}
+    rb_l2tp_tun_add "positive: a tunnel add reads the tunnels back"   l2tp_tunnel_add     tunnel
+    rb_l2tp_tun_del "positive: and so does a tunnel delete"           l2tp_tunnel_del     tunnel
+    rb_l2tp_tun_ses "corner: a tunnel delete with a session reads the sessions back" l2tp_tunnel_del_sessions session
+    rb_l2tp_ses_add "positive: a session add reads the sessions back" l2tp_session_add    session
+    rb_l2tp_ses_del "positive: and so does a session delete"          l2tp_session_del    session
+    rb_l2tp_dup_udp "corner: a duplicate session the kernel takes reads the sessions back" l2tp_session_add_dup session
+    rb_l2tp_dup_ip  "negative: a refused session has nothing to read back" l2tp_session_add_dup_ip {}
+    rb_l2tp_show    "corner: a dump is its own readback"              l2tp_session_show   {}
+    rb_l2tp_dup     "negative: a refused tunnel has nothing to read back" l2tp_tunnel_add_dup {}
+    rb_macsec_tx    "positive: a tx SA add reads the SecYs back"     macsec_txsa_add     macsec
+    rb_macsec_txset "positive: and so does a tx SA set"               macsec_txsa_set     macsec
+    rb_macsec_txdel "positive: and a tx SA delete"                    macsec_txsa_del     macsec
+    rb_macsec_rxsc  "positive: an rx channel add reads the SecYs back" macsec_rxsc_add    macsec
+    rb_macsec_rxdel "positive: and so does an rx channel delete"     macsec_rxsc_del     macsec
+    rb_macsec_rxsa  "positive: and an rx SA add"                      macsec_rxsa_add     macsec
+    rb_macsec_xpn   "positive: and an XPN tx SA add"                  macsec_xpn_txsa_add macsec
+    rb_macsec_off   "corner: an offload that changes nothing reads the SecYs back" macsec_offload_off macsec
+    rb_macsec_show  "corner: a dump is its own readback"              macsec_show         {}
+    rb_macsec_busy  "negative: a refused delete has nothing to read back" macsec_txsa_del_active {}
+} {
+    check $name $description [list readback_names $slug] $expected
+}
+check rb_args "positive: a readback's capio arguments keep NETLINK_GENERIC" \
+    {genlcorpus::readback_args lacpa genl/tcpm_delete [lindex [field tcpm_delete 4] 0]} \
+    {lacpa genl/tcpm_delete netlink_generic_tcpm 4 {ip tcp_metrics show} ip_tcpm generic}
+check rb_args_short "negative: a readback without a command raises" \
+    {genlcorpus::readback_args lacpa genl/x {tcpm 4}} ERROR
+
+###############################################################################
+# 5. pre steps through genlcorpus::pre_step
+###############################################################################
+proc run_all_pre {} {
+    set raised 0
+    set refused 0
+    foreach r $::R {
+        foreach step [lindex $r 2] {
+            if {[catch {genlcorpus::pre_step lacpa genl/[lindex $r 0] $step} ok]} {
+                incr raised
+            } elseif {!$ok} {
+                incr refused
+            }
+        }
+    }
+    return [list $raised $refused]
+}
+
+set ::refuse ""
+nltopo::reset
+check pre_steps_dispatch "positive: every pre step is well-formed and accepted" \
+    {run_all_pre} {0 0}
+set ::calls {}
+check pre_tcp_call "positive: a tcp step is one xtcp2-nlcap tcp in the row's namespace" \
+    {genlcorpus::pre_step lacpa genl/x {tcp 192.0.2.1 192.0.2.2}; set ::calls} \
+    {{xtcp2-nlcap tcp lacpa genl/x 192.0.2.1 192.0.2.2}}
+set ::calls {}
+check pre_ip_call "positive: any other step is an ip step, through addrcorpus::pre_step" \
+    {genlcorpus::pre_step lacpa genl/x {link add d0 type dummy}; regexp {^xtcp2-nlcap topo lacpa genl/x link add d0 type dummy} [lindex $::calls 0]} 1
+set ::refuse {^xtcp2-nlcap tcp }
+nltopo::reset
+check pre_tcp_refused "negative: a refused connection is a refused step" \
+    {list [genlcorpus::pre_step lacpa genl/x {tcp 192.0.2.1 192.0.2.2}] [nltopo::refused_steps]} \
+    {0 {{xtcp2-nl-tcp -n lacpa 192.0.2.1 192.0.2.2}}}
+set ::refuse ""
+nltopo::reset
+check pre_tcp_short "negative: a tcp step without a client raises" \
+    {genlcorpus::pre_step lacpa genl/x {tcp 192.0.2.1}} ERROR
+check pre_tcp_long "boundary: and so does one with a port beside it" \
+    {genlcorpus::pre_step lacpa genl/x {tcp 192.0.2.1 192.0.2.2 7171}} ERROR
+set ::calls {}
+check pre_hmac_call "positive: an hmac step is one xtcp2-nlcap hmac in the row's namespace" \
+    {genlcorpus::pre_step lacpa genl/x {hmac 1 sha256 s3cret}; set ::calls} \
+    {{xtcp2-nlcap hmac lacpa genl/x 1 sha256 s3cret}}
+set ::refuse {^xtcp2-nlcap hmac }
+nltopo::reset
+check pre_hmac_refused "negative: a refused hmac set is a refused step" \
+    {list [genlcorpus::pre_step lacpa genl/x {hmac 1 sha256 s3cret}] [nltopo::refused_steps]} \
+    {0 {{ip -n lacpa sr hmac set 1 sha256}}}
+set ::refuse ""
+nltopo::reset
+check pre_hmac_short "negative: an hmac step without a secret raises" \
+    {genlcorpus::pre_step lacpa genl/x {hmac 1 sha256}} ERROR
+
+###############################################################################
+# 6. rc_problem
+###############################################################################
+foreach {name description want got expected} {
+    rc_ok           "positive: the expected status is no problem"       0 "0\n" ""
+    rc_refused_ok   "positive: an expected refusal is no problem"       2 "2"   ""
+    rc_unexpected   "negative: a get that should be refused"            2 "0"  "genl/x/ip.rc is 0, want 2"
+    rc_failed       "negative: a refusal where an answer was expected"  0 "2"   "genl/x/ip.rc is 2, want 0"
+    rc_unreadable   "boundary: an empty file is unreadable"             0 ""    "genl/x/ip.rc unreadable, want 0"
+    rc_whitespace   "corner: surrounding whitespace is ignored"         0 " 0 " ""
+} {
+    check $name $description [list genlcorpus::rc_problem x $want $got] $expected
+}
+
+###############################################################################
+# summary
+###############################################################################
+puts ""
+puts "=== genl-write-corpus.exp: $pass passed, $fail failed ==="
+if {$fail > 0} {
+    puts "GENLCORPUS_TEST_FAIL"
+    exit 1
+}
+puts "GENLCORPUS_TEST_PASS"
+exit 0

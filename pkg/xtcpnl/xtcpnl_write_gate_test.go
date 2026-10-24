@@ -17,14 +17,35 @@ import (
 // an encoder and a parity target behind it. The address pair is the one
 // exception in timing: its parity target is the captured link-write/addr
 // corpus, and the plan admits it one task ahead of its encoder
-// (addr-write-path-plan.md, A4-T01 then A5-T01), so nothing builds one yet.
+// (addr-write-path-plan.md, A4-T01 then A5-T01). The neighbor pair joined
+// with goip's neigh writes and flush (G3-T01), the rule pair with its writes,
+// flush and restore (G3-T02), the nexthop pair with its writes and flush
+// (G3-T03), the addrlabel pair with its writes and flush (G3-T04), and
+// RTM_SETNEIGHTBL and RTM_SETSTATS with ntable change and stats set (G3-T05),
+// the link property pair with link property add and del (G3-T06), and
+// RTM_SETLINK with token set and del (G4-T03), and RTM_NEWNSID with netns
+// set (G4-T04); `link set` still sends RTM_NEWLINK.
 var admittedWriteTypes = map[uint16]bool{
-	uint16(unix.RTM_NEWROUTE): true,
-	uint16(unix.RTM_DELROUTE): true,
-	uint16(unix.RTM_NEWLINK):  true,
-	uint16(unix.RTM_DELLINK):  true,
-	uint16(unix.RTM_NEWADDR):  true,
-	uint16(unix.RTM_DELADDR):  true,
+	uint16(unix.RTM_NEWROUTE):     true,
+	uint16(unix.RTM_DELROUTE):     true,
+	uint16(unix.RTM_NEWLINK):      true,
+	uint16(unix.RTM_DELLINK):      true,
+	uint16(unix.RTM_NEWADDR):      true,
+	uint16(unix.RTM_DELADDR):      true,
+	uint16(unix.RTM_NEWNEIGH):     true,
+	uint16(unix.RTM_DELNEIGH):     true,
+	uint16(unix.RTM_NEWRULE):      true,
+	uint16(unix.RTM_DELRULE):      true,
+	uint16(unix.RTM_NEWNEXTHOP):   true,
+	uint16(unix.RTM_DELNEXTHOP):   true,
+	uint16(unix.RTM_NEWADDRLABEL): true,
+	uint16(unix.RTM_DELADDRLABEL): true,
+	uint16(unix.RTM_SETNEIGHTBL):  true,
+	uint16(unix.RTM_SETSTATS):     true,
+	uint16(unix.RTM_NEWLINKPROP):  true,
+	uint16(unix.RTM_DELLINKPROP):  true,
+	uint16(unix.RTM_SETLINK):      true,
+	uint16(unix.RTM_NEWNSID):      true,
 }
 
 // TestBuildWriteRequestAdmitsOnlyListedWrites walks every named rtnetlink type
@@ -46,8 +67,6 @@ func TestBuildWriteRequestAdmitsOnlyListedWrites(t *testing.T) {
 		switch {
 		case admittedWriteTypes[w.msgType]:
 			tests = append(tests, row{"positive: " + w.name + " is admitted", w.msgType, nil})
-		case w.msgType == uint16(unix.RTM_SETLINK):
-			tests = append(tests, row{"negative: RTM_SETLINK is refused, iproute2 sends RTM_NEWLINK for `link set`", w.msgType, ErrNotAnAdmittedWrite})
 		default:
 			tests = append(tests, row{"negative: " + w.name + " is not in the set", w.msgType, ErrNotAnAdmittedWrite})
 		}

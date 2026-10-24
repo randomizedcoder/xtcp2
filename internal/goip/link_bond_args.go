@@ -240,9 +240,9 @@ func readBondValue(args []string, i int, kw *bondKeyword, s *xtcpnl.BondSetting,
 		s.Value = idx
 	case bondArgOnOff:
 		switch v {
-		case "off":
+		case offKeywordCst:
 			s.Value = 0
-		case "on":
+		case onKeywordCst:
 			s.Value = 1
 		default:
 			return i, fmt.Errorf("%w: argument of %q must be \"on\" or \"off\", not %q", ErrInvalidArgument, kw.keyword, v)

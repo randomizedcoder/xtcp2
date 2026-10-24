@@ -3,6 +3,7 @@ package goiphttp
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/randomizedcoder/xtcp2/internal/goip"
 )
@@ -73,7 +74,7 @@ func indexDocument() ([]byte, error) {
 	for _, o := range objects {
 		e := indexEntry{
 			Path:    Prefix + "/" + o.path,
-			Command: "ip -j " + o.object + " show",
+			Command: "ip " + strings.Join(goip.ShowRequest{Object: o.object, JSON: true}.Argv(), " "),
 			Params:  []string{formatParam},
 		}
 		if o.devPath {

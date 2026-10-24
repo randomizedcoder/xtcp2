@@ -1,0 +1,3 @@
+3: d0: <BROADCAST,NOARP,UP,LOWER_UP> mtu 1500 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/ether 9e:38:1c:72:8b:e8 brd ff:ff:ff:ff:ff:ff
+    altname d0alt

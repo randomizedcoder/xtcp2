@@ -103,7 +103,7 @@ type Command struct {
 	// M <= N datagrams (addr-write-path.md, "Multi-write rows"). A flush
 	// row must set it, even to 1, and so must a restore row, whose N writes
 	// follow its link dump; TestCommandTable refuses one that does not. It stays out of String: only the host-side comparator reads
-	// it, and the guest's row format is fixed at eight fields.
+	// it, and the guest's row format is fixed at ten fields.
 	Writes int
 
 	// Setup is a row's precondition: `ip` argument lists, run in order
@@ -116,6 +116,44 @@ type Command struct {
 	// MAC, an ifindex) the same on every side. Without Setup, a read row
 	// reads the shared dump topology.
 	Setup []string
+
+	// Proto is the netlink protocol the row's captures keep, as
+	// xtcp2-nlcap's --proto names it: empty for route, NETLINK_ROUTE, or
+	// generic. The driver passes it to the capture and the comparator reads
+	// the captures as it (nlparity.ProtocolByName).
+	Proto string
+
+	// Stdin is the line a write row's three sides read on stdin, nil for
+	// none: `ip sr hmac set` reads its secret with getpass, which with no
+	// terminal reads stdin, so the driver runs each side as `echo LINE |
+	// setsid -w ...`. An empty line is the blank secret, the delete. Letters
+	// and digits only, since the driver passes it through the shell
+	// unquoted.
+	Stdin *string
+
+	// IPStandIn runs `ip` in goip's place, for a generic netlink family goip
+	// does not implement yet: the row is captured and compared, `ip` against
+	// `ip`, so the harness is exercised end to end before the family's G6
+	// task implements it and clears this. Such a row is not Implemented,
+	// and it is never gated.
+	IPStandIn bool
+}
+
+// ProtoGenericCst is Proto for a generic netlink row.
+const ProtoGenericCst = "generic"
+
+// ProtoXfrmCst is Proto for a NETLINK_XFRM row.
+const ProtoXfrmCst = "xfrm"
+
+// protoRouteCst is the protocol an empty Proto means.
+const protoRouteCst = "route"
+
+// Protocol is the row's protocol name, route when Proto is empty.
+func (c Command) Protocol() string {
+	if c.Proto == "" {
+		return protoRouteCst
+	}
+	return c.Proto
 }
 
 // Sides are the three captures of the control triple, in capture order.
@@ -387,6 +425,10 @@ var commands = withArgs([]Command{
 		// over-read, because it measures nl=2 WITHOUT `-s`: a non-AF_UNSPEC
 		// family sends no mask at all, so RTEXT_FILTER_SKIP_STATS is absent
 		// and the counters arrive unbidden.
+		//
+		// Gated on G0-T03: noisy with variance clears `-s link show`'s bar,
+		// and every run since the sweep passed it with zero findings and
+		// txns 2/2.
 		Floor: 4, Implemented: true,
 	},
 	{
@@ -882,6 +924,111 @@ var commands = withArgs([]Command{
 		// selected and everywhere on the lines it did not.
 		Floor: 4, Implemented: true,
 	},
+	// G1-T01: `route get` (iproute_get), the C1-T02 rows of
+	// rtnl-write-corpus.exp with their preconditions. A read: the single get
+	// changes nothing, so the three sides share one namespace. Each is the
+	// get and its reply, then the GETLINK by index that names the reply's
+	// device (4); from/iif resolves d1 by name first (6); the unreachable
+	// get is the request and its NLMSG_ERROR, exit 2 and no stdout (2).
+	{
+		Name: "route get 192.0.2.5", Slug: "route_get",
+		// A cloned reply: `uid 0` and the bare `cache ` line.
+		Setup: routeGetSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "route get fibmatch 192.0.2.5", Slug: "route_get_fibmatch",
+		// RTM_F_FIB_MATCH: the matched FIB entry, 192.0.2.0/24, not a clone.
+		Setup: routeGetSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "route get 192.0.2.5 notify", Slug: "route_get_notify",
+		// RTM_F_NOTIFY echoed as `notify`, RTCF_NOTIFY as `cache <notify> `.
+		Setup: routeGetSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-6 route get 2001:db8::5", Slug: "route_get_v6",
+		// No RTM_F_LOOKUP_TABLE on IPv6, and no cache line.
+		Setup: routeGetSetupV6, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "route get 192.0.2.5 from 198.51.100.2 iif d1", Slug: "route_get_from_iif",
+		// An input lookup, which needs forwarding: d1 by name, the get with
+		// RTA_SRC and RTA_IIF, then d0 by index. No uid on an input lookup.
+		Setup: routeGetSetupIif, Floor: 6, Implemented: true,
+	},
+	{
+		Name: "route get 203.0.113.1", Slug: "route_get_unreachable",
+		// No route: ENETUNREACH, exit 2.
+		Setup: routeGetSetup, Floor: 2, Implemented: true,
+	},
+	// G1-T02: `neigh get` (ipneigh_get), the C1-T02 rows. Each is the get by
+	// name for d0 and the RTM_GETNEIGH get, a request and a reply each (4);
+	// the lookup caches d0, so print_neigh sends nothing more.
+	{
+		Name: "neigh get 192.0.2.2 dev d0", Slug: "neigh_get",
+		// A permanent entry on a veth, which does neighbor discovery.
+		Setup: neighGetSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "neigh get 192.0.2.9 dev d0", Slug: "neigh_get_missing",
+		// No entry: ENOENT, exit 2.
+		Setup: neighGetSetupVeth, Floor: 4, Implemented: true,
+	},
+	// G3-T01: `neigh add`, `change`, `replace` and `del` (ipneigh_modify)
+	// and `neigh flush` (do_show_or_flush), the C1-T02 neigh write rows.
+	// Each write is ll_init_map's link dump, then the request and its ack;
+	// goip sends the dump and writes the request. Floor is 4, as for route
+	// restore, so goip's side, at Floor-2, is the dump. Their namespaces pin
+	// the veths' MACs and set addrgenmode none, so no link-local, and no
+	// multicast entry its MLD would add, varies between the sides. The two
+	// adds are one command; the second Name abbreviates `add`, which the
+	// bytes do not show, since each Name is one row.
+	{
+		Name: "neigh add 192.0.2.2 lladdr 02:00:00:00:00:02 dev d0 nud permanent", Slug: "neigh_add",
+		Floor: 4, Implemented: true, Write: true, Setup: neighWriteSetupVeth,
+	},
+	{
+		Name: "neigh a 192.0.2.2 lladdr 02:00:00:00:00:02 dev d0 nud permanent", Slug: "neigh_add_existing",
+		// EEXIST.
+		Floor: 4, Implemented: true, Write: true, Setup: neighWriteSetup,
+	},
+	{
+		Name: "neigh change 192.0.2.2 lladdr 02:00:00:00:00:03 dev d0 nud reachable", Slug: "neigh_change",
+		Floor: 4, Implemented: true, Write: true, Setup: neighWriteSetup,
+	},
+	{
+		Name: "neigh change 192.0.2.9 lladdr 02:00:00:00:00:09 dev d0", Slug: "neigh_change_missing",
+		// REPLACE without CREATE: ENOENT.
+		Floor: 4, Implemented: true, Write: true, Setup: neighWriteSetupVeth,
+	},
+	{
+		Name: "neigh replace 192.0.2.3 lladdr 02:00:00:00:00:03 dev d0 nud stale", Slug: "neigh_replace",
+		Floor: 4, Implemented: true, Write: true, Setup: neighWriteSetupVeth,
+	},
+	{
+		Name: "neigh del 192.0.2.2 dev d0", Slug: "neigh_del",
+		Floor: 4, Implemented: true, Write: true, Setup: neighWriteSetup,
+	},
+	// The flush: the link dump, the neighbor dump, the two RTM_DELNEIGH
+	// copies of the stale entries in one datagram, unacked, and the dump
+	// again; goip writes the copies, its second dump skipping what it
+	// copied. ip sends at least eight datagrams and goip at least seven;
+	// Floor 6 keeps goip's side at 4. The empty flush deletes nothing, so ip
+	// sends the two dumps alone and goip needs no GOIP_WRITE_OUT: a read
+	// row, its Name abbreviating `flush`.
+	{
+		Name: "neigh flush dev d0", Slug: "neigh_flush",
+		Floor: 6, Implemented: true, Write: true, Writes: 2, Setup: neighFlushSetup,
+	},
+	{
+		Name: "-s neigh flush dev d0", Slug: "neigh_flush_stats",
+		// The round text and the closing line, compared as stdout.
+		Floor: 6, Implemented: true, Write: true, Writes: 2, Setup: neighFlushSetup,
+	},
+	{
+		Name: "neigh f dev d0", Slug: "neigh_flush_empty",
+		Floor: 4, Implemented: true, Setup: neighWriteSetupVeth,
+	},
 	{
 		Name: "neigh show", Slug: "neigh_show",
 		Floor: 4, Implemented: true,
@@ -980,6 +1127,11 @@ var commands = withArgs([]Command{
 		// measures nl=2 as well, from ll_init_map's link dump, whose mask is
 		// RTEXT_FILTER_VF with or without `-s`. The pair of rows is what
 		// says so; this row alone would have read as `-s` adding noise.
+		//
+		// Gated on G0-T03, on G0-T01's bar: every run since the sweep passed
+		// it with zero findings and txns 2/2, and `-4 neigh show`, the same
+		// two dumps, read nl=2 then nl=6 on G0-T01's runs and passed both,
+		// which is the moved count this row was waiting for.
 		Floor: 4, Implemented: true,
 	},
 	{
@@ -1195,6 +1347,105 @@ var commands = withArgs([]Command{
 		// claim holds live, on the cheapest row in the table.
 		Floor: 2, Implemented: true,
 	},
+	// G3-T02: `rule add` and `rule del` (iprule_modify), `rule flush`, `rule
+	// save` and `rule restore` (iprule_list_flush_or_save, iprule_restore),
+	// the C1 rule rows. A rule write resolves nothing first: a device goes
+	// by name, so ip sends the write and its ack (2) and goip sends nothing,
+	// writing the request. The fourteen selector adds were one capture,
+	// rule_add_selectors; each is a row of its own here, in a namespace of
+	// its own, so `goto 112` names a rule that is not there, which the kernel
+	// accepts.
+	{
+		Name: "rule add pref 101 from 192.0.2.0/24 table 100", Slug: "rule_add_from",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "rule add pref 102 to 198.51.100.0/24 table 100", Slug: "rule_add_to",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "rule add pref 103 tos 0x10 table 100", Slug: "rule_add_tos",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "rule add pref 104 dscp 10 table 100", Slug: "rule_add_dscp",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "rule add pref 105 fwmark 0x7/0xff table 100", Slug: "rule_add_fwmark",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "rule add pref 106 iif d9 table 100", Slug: "rule_add_iif",
+		// d9 does not exist, and need not: the name is what is sent.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "rule add pref 107 oif d9 table 100", Slug: "rule_add_oif",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "rule add pref 108 uidrange 1000-2000 table 100", Slug: "rule_add_uidrange",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "rule add pref 109 ipproto tcp sport 1000-2000 dport 80 table 100", Slug: "rule_add_ports",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "rule add pref 110 not from 203.0.113.0/24 goto 112", Slug: "rule_add_goto",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "rule add pref 111 table main suppress_prefixlength 0", Slug: "rule_add_suppress",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "rule add pref 112 protocol static table 100", Slug: "rule_add_protocol",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "rule add pref 113 l3mdev", Slug: "rule_add_l3mdev",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "-6 rule add pref 114 flowlabel 0x12345 table 100", Slug: "rule_add_flowlabel",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "rule add pref 100 from 192.0.2.0/24 table 100", Slug: "rule_add_existing",
+		// EEXIST, exit 2.
+		Floor: 2, Implemented: true, Write: true, Setup: ruleExistingSetup,
+	},
+	{
+		Name: "rule del pref 100", Slug: "rule_del",
+		Floor: 2, Implemented: true, Write: true, Setup: ruleExistingSetup,
+	},
+	{
+		Name: "rule del pref 4242", Slug: "rule_del_missing",
+		// ENOENT, exit 2.
+		Floor: 2, Implemented: true, Write: true,
+	},
+	// The flush: the rule dump, its five replies and DONE in one datagram,
+	// then an RTM_DELRULE copy of each reply carrying FRA_PRIORITY, each
+	// sent alone and acked, which is every rule but the local one: ip sends
+	// ten datagrams, goip the dump's two. save is the dump with the replies
+	// written whole after the magic, compared record by record
+	// (stdout_dump.go). restore reads rule_save's committed ip.save, which
+	// the runner carries in: ll_init_map's link dump, then the five rules,
+	// each acked; goip sends the dump and writes the five.
+	{
+		Name: "rule flush", Slug: "rule_flush",
+		Floor: 4, Implemented: true, Write: true, Writes: 4, Setup: ruleFlushSetup,
+	},
+	{
+		Name: "rule save", Slug: "rule_save",
+		Floor: 2, Implemented: true, Setup: ruleFlushSetup,
+	},
+	{
+		Name: "rule restore < rule_save.save", Slug: "rule_restore",
+		Floor: 4, Implemented: true, Write: true, Writes: 5,
+	},
 
 	{
 		Name: "nexthop show", Slug: "nexthop_show",
@@ -1211,6 +1462,78 @@ var commands = withArgs([]Command{
 		// txns 3/3 — `ip` opens three sockets and goip reuses one, but the
 		// transaction count matches, which is what the gate reads.
 		Floor: 4, Implemented: true,
+	},
+	// G1-T03: `nexthop get` (ipnh_get_id) and `nexthop bucket` (ipnh_bucket_list,
+	// ipnh_bucket_get_id), the C1-T02 rows.
+	{
+		Name: "nexthop get id 1", Slug: "nexthop_get",
+		// The RTM_GETNEXTHOP get, then d0 by index for its `dev` token (4).
+		Setup: nexthopGetSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "nexthop get id 9", Slug: "nexthop_get_missing",
+		// No such id: ENOENT, exit 2 (2).
+		Setup: nexthopGetSetup, Floor: 2, Implemented: true,
+	},
+	{
+		Name: "nexthop bucket show id 20", Slug: "nexthop_bucket_show",
+		// The 1024 buckets of a resilient group in one dump; ip's capture held
+		// five datagrams, and the floor leaves the kernel's packing room.
+		// Each bucket's NHA_RES_BUCKET_IDLE_TIME counts up between the three
+		// sides, a reply value the control cancels.
+		Setup: nexthopBucketSetup, Floor: 3, Implemented: true,
+	},
+	{
+		Name: "nexthop bucket get id 20 index 0", Slug: "nexthop_bucket_get",
+		// One bucket's single get and its reply (2).
+		Setup: nexthopBucketSetup, Floor: 2, Implemented: true,
+	},
+	// G3-T03: `nexthop add`, `replace` and `del` (ipnh_modify) and `nexthop
+	// flush` (ipnh_flush), the C1 nexthop rows. `dev` is ll_name_to_index,
+	// whose by-name RTM_GETLINK goes ahead of the write: ip sends the get,
+	// its reply, the write and its ack (4), goip the get and its reply. A row
+	// with no device sends the write alone (2).
+	{
+		Name: "nexthop add id 1 via 192.0.2.2 dev d0", Slug: "nexthop_add_single",
+		Floor: 4, Implemented: true, Write: true, Setup: nexthopD0Setup,
+	},
+	{
+		Name: "nexthop add id 10 group 1,3/2", Slug: "nexthop_add_group",
+		Floor: 2, Implemented: true, Write: true, Setup: nexthopGetSetup,
+	},
+	{
+		Name: "nexthop add id 20 group 1/2 type resilient buckets 1024", Slug: "nexthop_add_resilient",
+		Floor: 2, Implemented: true, Write: true, Setup: nexthopGetSetup,
+	},
+	{
+		Name: "nexthop add id 1 blackhole", Slug: "nexthop_add_existing",
+		// EEXIST, exit 2.
+		Floor: 2, Implemented: true, Write: true, Setup: nexthopBlackholeSetup,
+	},
+	{
+		Name: "nexthop replace id 1 via 192.0.2.4 dev d0", Slug: "nexthop_replace",
+		Floor: 4, Implemented: true, Write: true, Setup: nexthopGetSetup,
+	},
+	{
+		Name: "nexthop del id 1", Slug: "nexthop_del",
+		Floor: 2, Implemented: true, Write: true, Setup: nexthopBlackholeSetup,
+	},
+	// The flush: the groups dump, then the full dump, each reply's id deleted
+	// from a second socket and acked. nexthop_flush's capture held resilient
+	// group 20 as well, deleted between the two dumps, but a write row's
+	// writes must be one run (nlparity.SplitWrites), so this row flushes the
+	// two single nexthops alone: two empty-handed groups replies, then two
+	// deletes after the full dump. goip sends the two dumps (4) and writes
+	// the deletes. TestNexthopFlushMatchesIp holds goip to the group capture.
+	// `nexthop f`, in a namespace with no nexthop, deletes nothing: a read
+	// row of the two dumps, `Nothing to flush`.
+	{
+		Name: "nexthop flush", Slug: "nexthop_flush",
+		Floor: 6, Implemented: true, Write: true, Writes: 2, Setup: nexthopGetSetup,
+	},
+	{
+		Name: "nexthop f", Slug: "nexthop_flush_empty",
+		Floor: 4, Implemented: true, Setup: []string{"link set lo up"},
 	},
 	{
 		Name: "nexthop show dev goip0", Slug: "nexthop_show_dev",
@@ -1279,6 +1602,23 @@ var commands = withArgs([]Command{
 		// txns 1/1 on both.
 		Floor: 2, Implemented: true,
 	},
+	// G3-T04's addrlabel writes. ipaddrlabel_modify names no device here, so
+	// each is the write and its ack alone.
+	{
+		Name: "addrlabel add prefix 2001:db8::/32 label 99", Slug: "addrlabel_add",
+		Floor: 2, Implemented: true, Write: true,
+	},
+	{
+		Name: "addrlabel del prefix 2001:db8::/32 label 99", Slug: "addrlabel_del",
+		Floor: 2, Implemented: true, Write: true, Setup: addrLabelSetup,
+	},
+	// The flush: the listing's dump, then an acked RTM_DELADDRLABEL copy of
+	// each reply from a socket of its own, the kernel's ten default labels
+	// among them, eleven in all. goip sends the dump and writes the eleven.
+	{
+		Name: "addrlabel flush", Slug: "addrlabel_flush",
+		Floor: 4, Implemented: true, Write: true, Writes: 11, Setup: addrLabelSetup,
+	},
 
 	{
 		Name: "ntable show", Slug: "ntable_show",
@@ -1312,6 +1652,24 @@ var commands = withArgs([]Command{
 		// injected clock; a live gate must normalize or ignore the two tokens.
 		Floor: 4, Implemented: true,
 	},
+	// G3-T05's ntable writes. ipntable_modify calls ll_init_map
+	// (ip/ipntable.c) whether or not a dev is named, so each is the link dump,
+	// then the RTM_SETNEIGHTBL and its ack.
+	{
+		Name: "ntable change name arp_cache dev d0 queue 64", Slug: "ntable_change",
+		Floor: 4, Implemented: true, Write: true, Setup: d0UpSetup,
+	},
+	{
+		Name: "ntable change name nosuch_cache queue 64", Slug: "ntable_change_missing",
+		// No such table: ENOENT, exit 2.
+		Floor: 4, Implemented: true, Write: true,
+	},
+	{
+		Name: "ntable change name arp_cache thresh1 64", Slug: "ntable_change_thresh_netns",
+		// The thresholds are init_net's alone, so outside it neightbl_set
+		// (net/core/neighbour.c) refuses them: ENOENT, exit 2.
+		Floor: 4, Implemented: true, Write: true,
+	},
 
 	{
 		Name: "netconf show", Slug: "netconf_show",
@@ -1326,20 +1684,21 @@ var commands = withArgs([]Command{
 		// internal/goip's TestNetconfShowMatchesCapturedSidecars diffs goip
 		// byte-for-byte against the committed ip_netconf sidecar across three
 		// topologies. Gated on runs 8 and 9: GOIP_PARITY_PASS, stdout=0, txns 2/2
-		// on both. The `dev` forms below are NOT gated — see their rows.
+		// on both. The `dev` forms below gated later, on G0-T03 — see their rows.
 		Floor: 4, Implemented: true,
 	},
 	{
 		Name: "netconf show dev", Slug: "netconf_show_dev",
 		NeedsDev: true,
-		// Four: the ll_init_map link dump then the AF_UNSPEC netconf dump, which
+		// Four: ll_name_to_index's RTM_GETLINK by name on the still-empty cache,
+		// then the ll_init_map link dump, then the AF_UNSPEC netconf dump, which
 		// print_netconf filters to the named ifindex client-side
-		// (ip/ipnetconf.c:78-79) — the dev name resolves from the link dump's own
-		// replies, so the selector costs no extra transaction. Byte-grounded
-		// offline against the ip_netconf_dev sidecar. Runs 8 and 9 read ip=3
-		// goip=2: `ip` issues a redundant per-name RTM_GETLINK (ll_name_to_index on
-		// an empty cache) before its ll_init_map dump; goip resolves from its own
-		// dump. PERMANENT, ungated by design (txn-count class, unsuppressible).
+		// (ip/ipnetconf.c:78-79). Byte-grounded offline against the
+		// ip_netconf_dev sidecar, and request for request by internal/goip's
+		// TestNetconfDevRequestsMatchIpBytes. Runs 8 and 9 read ip=3 goip=2,
+		// when goip resolved the name from its own dump, and the row sat in the
+		// permanent set; G0-T03 sent the get by name, its two runs read 3/3,
+		// and it gated.
 		Floor: 4, Implemented: true,
 	},
 	{
@@ -1351,9 +1710,13 @@ var commands = withArgs([]Command{
 		// rtnl_talk (NLM_F_REQUEST|ACK, no NLM_F_DUMP), the first
 		// attribute-carrying point get here. Still a link dump first, so the floor
 		// is the ntable shape. Byte-grounded offline against the ip_netconf_dev4
-		// sidecar. Runs 8 and 9: ip=3 goip=2 (the same redundant per-name
-		// RTM_GETLINK as `netconf show dev`) AND two hygiene orphans, so this row
-		// is the one FAIL not a WARN — both causes unsuppressible, PERMANENT.
+		// sidecar. Runs 8 and 9: ip=3 goip=2 (the get by name `netconf show
+		// dev` lacked too) AND two hygiene orphans, so this row was the one FAIL
+		// not a WARN. The orphans were the kernel's ACK, which follows the point
+		// get's reply because the request carries NLM_F_ACK; the segmenter
+		// closed the transaction on the reply. G0-T03 closed an ACKed point get
+		// on its ACK (pkg/nlparity's awaitsAck) and sent the get by name; its
+		// two runs read 3/3 with no orphan, and it gated.
 		Floor: 4, Implemented: true,
 	},
 
@@ -1383,7 +1746,8 @@ var commands = withArgs([]Command{
 	// own measured runs, not on the argument that it ought to be quiet. They
 	// go in ungated, which also makes GOIP_PARITY_UNGATED_CLEAN count twelve
 	// rows instead of two — the check was one gating decision away from its
-	// third vacuity.
+	// third vacuity. They gated on G0-T01's two runs, which
+	// TestQueuedReadRowsGated pins.
 	//
 	// # The facet work these rows depend on
 	//
@@ -1591,20 +1955,19 @@ var commands = withArgs([]Command{
 	// a shape goip refuses). The first 12-byte filter_mask-carrying request here.
 	{
 		Name: "stats show group link", Slug: "stats_show",
-		// goip resolves names with one up-front bulk RTM_GETLINK dump, then the
-		// RTM_GETSTATS dump (type 94) — two requests, two NLMSG_DONEs. `ip stats`
-		// uniquely does NOT call ll_init_map: it issues the RTM_GETSTATS dump first,
-		// then names each returned ifindex lazily with one RTM_GETLINK-by-index
-		// (ip/ipstats.c:761 ll_index_to_name), so its count is 1 + N interfaces
-		// (6 on a 5-iface host) and topology-dependent.
+		// `ip stats` uniquely does NOT call ll_init_map: it issues the
+		// RTM_GETSTATS dump (type 94) first, then names each returned ifindex
+		// lazily with one RTM_GETLINK-by-index (ip/ipstats.c:761
+		// ll_index_to_name), so its count is 1 + N interfaces (6 on a 5-iface
+		// host) and topology-dependent. goip does the same, request for request
+		// (internal/goip's TestStatsDumpRequestsMatchIpBytes).
 		//
 		// internal/goip's TestStatsShowMatchesCapturedSidecars diffs goip
 		// byte-for-byte against the committed ip_stats sidecar across three
-		// topologies; stdout matches. Runs 8 and 9 read ip=6 goip=2 — a
-		// name-resolution difference, not a message-type one: BOTH sides issue
-		// RTM_GETSTATS. PERMANENT and ungated by design — the gap is class
-		// DivergenceTransactionCount, which the allowlist cannot suppress
-		// (nlparity_allowlist.go:143). See coverage-status.md.
+		// topologies; stdout matches. Runs 8 and 9 read ip=6 goip=2, when goip
+		// named the records with one up-front link dump, and the row sat in the
+		// permanent set; G0-T02's two runs read 6/6 and it gated. See
+		// coverage-status.md.
 		Floor: 4, Implemented: true,
 	},
 	{
@@ -1637,8 +2000,7 @@ var commands = withArgs([]Command{
 		// are not grounded, so goip refuses `-j -s` rather than emit a short object.
 		//
 		// Offline-grounded by internal/goip's jsonEquivalent row against the
-		// ip_stats_json sidecar; ungated — runs 8 and 9 read the same
-		// name-resolution divergence as its text twin, permanent by design.
+		// ip_stats_json sidecar; gated with its text twin on G0-T02's two runs.
 		Floor: 4, Implemented: true,
 	},
 
@@ -1651,11 +2013,11 @@ var commands = withArgs([]Command{
 	// The dev rows are the bond ones below, which bring their own bond.
 	{
 		Name: "stats show group xstats", Slug: "stats_show_xstats",
-		// Four, the stats shape: goip's up-front bulk link dump resolves names
-		// before the RTM_GETSTATS xstats dump. Grounded against the committed
-		// ip_stats_xstats sidecar across three topologies; ungated — runs 8 and 9
-		// read ip=6 goip=2, the same name-resolution divergence as the link group
-		// above (permanent by design; both sides issue RTM_GETSTATS).
+		// Four, the stats shape: the RTM_GETSTATS xstats dump, then one
+		// RTM_GETLINK get per record, as the link group above. Grounded against
+		// the committed ip_stats_xstats sidecar across three topologies. Runs 8
+		// and 9 read ip=6 goip=2, the up-front link dump goip sent then;
+		// G0-T02's two runs read 6/6 and it gated.
 		Floor: 4, Implemented: true,
 	},
 	{
@@ -1669,9 +2031,15 @@ var commands = withArgs([]Command{
 		Name: "-j stats show group xstats", Slug: "stats_show_xstats_json",
 		// The flat `-j` array, one object per leaf per device; `-j` does not reach
 		// the wire, so the request is byte-identical to the text twin. Grounded
-		// against ip_stats_xstats_json; ungated — runs 8 and 9 read the same
-		// name-resolution divergence as its text twin, permanent by design.
+		// against ip_stats_xstats_json; gated with its text twin on G0-T02's
+		// two runs.
 		Floor: 4, Implemented: true,
+	},
+	// G3-T05's stats write: the by-name RTM_GETLINK that resolves d0, then
+	// the RTM_SETSTATS and its ack.
+	{
+		Name: "stats set dev d0 l3_stats on", Slug: "stats_set_l3",
+		Floor: 4, Implemented: true, Write: true, Setup: d0UpSetup,
 	},
 	{
 		Name: "stats show dev bond0 group xstats", Slug: "stats_show_xstats_dev_bond",
@@ -1721,6 +2089,229 @@ var commands = withArgs([]Command{
 		// one carrying the counters. `-j` does not reach the wire, so the
 		// request is the text twin's.
 		Floor: 4, Implemented: true,
+	},
+
+	// `ip link xstats` and `ip link afstats` (G1-T04): the same RTM_GETSTATS
+	// dump as `stats show group xstats`, `xstats_slave` and an AF_SPEC group,
+	// sent by iplink_ifla_xstats and iplink_afstats, against the C1-T03 reads.
+	// linkXstatsSetup is the reads namespace's bridge: br0 and its port v2,
+	// whose peer stays down so nothing moves the counters.
+	{
+		Name: "link xstats type bridge", Slug: "link_xstats_bridge",
+		// The master-group dump, then br0 named by one RTM_GETLINK get, the
+		// only record carrying the bridge type (4).
+		Setup: linkXstatsSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "link xstats type bridge_slave", Slug: "link_xstats_bridge_slave",
+		// The port-group dump, then v2 named the same way; v2's stanza adds
+		// the stp block (4).
+		Setup: linkXstatsSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "link afstats", Slug: "link_afstats",
+		// The AF_SPEC dump alone: with no MPLS every nest is empty, nothing
+		// prints and nothing is named (2).
+		Setup: linkXstatsSetup, Floor: 2, Implemented: true,
+	},
+	// G3-T06's link property writes. iplink_prop_mod resolves `dev` after
+	// its loop, so each is the by-name RTM_GETLINK, then the
+	// RTM_NEWLINKPROP or RTM_DELLINKPROP and its ack.
+	{
+		Name: "link property add dev d0 altname d0alt", Slug: "link_altname_add",
+		Floor: 4, Implemented: true, Write: true, Setup: d0UpSetup,
+	},
+	{
+		Name: "link property del dev d0 altname d0alt", Slug: "link_altname_del",
+		Floor: 4, Implemented: true, Write: true, Setup: linkAltnameSetup,
+	},
+	{
+		Name: "link property add dev d0 altname lo", Slug: "link_altname_taken",
+		// lo holds the name: EEXIST, exit 2.
+		Floor: 4, Implemented: true, Write: true, Setup: d0UpSetup,
+	},
+
+	// G4-T01: `ip mroute show` (ip/ipmroute.c:232-325) on mrouteSetup, the
+	// reads namespace's veths and smcrouted's one (S,G) entry. Each row is
+	// ll_init_map's link dump, then the RTM_GETROUTE dump of
+	// RTNL_FAMILY_IPMR, which carries RTA_TABLE 253 unless `table all`, or of
+	// RTNL_FAMILY_IP6MR under -6, which carries none and finds nothing (4).
+	// iif, the table and -s, -j filter or print client-side and reach no
+	// request. The -s line's Age ticks; no stdout facet reads it.
+	{
+		Name: "mroute show", Slug: "mroute_show",
+		Setup: mrouteSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-6 mroute show", Slug: "mroute_show_v6",
+		Setup: mrouteSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "mroute show iif v0", Slug: "mroute_show_iif",
+		Setup: mrouteSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "mroute show table all", Slug: "mroute_show_table_all",
+		Setup: mrouteSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-s mroute show", Slug: "mroute_show_stats",
+		Setup: mrouteSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-j mroute show", Slug: "mroute_show_json",
+		Setup: mrouteSetup, Floor: 4, Implemented: true,
+	},
+
+	// G4-T02: `ip mrule show`, do_multirule (ip/iprule.c:1262-1283), which
+	// is `ip rule show` with preferred_family swapped for
+	// RTNL_FAMILY_IPMR, or RTNL_FAMILY_IP6MR under -6. One RTM_GETRULE dump
+	// and its NLMSG_DONE (2); every namespace holds ipmr's and ip6mr's
+	// default rule, so no Setup. -d and -j reach no request byte.
+	{
+		Name: "mrule show", Slug: "mrule_show",
+		Floor: 2, Implemented: true,
+	},
+	{
+		Name: "-6 mrule show", Slug: "mrule_show_v6",
+		Floor: 2, Implemented: true,
+	},
+	{
+		Name: "-d mrule show", Slug: "mrule_show_details",
+		Floor: 2, Implemented: true,
+	},
+	{
+		Name: "-j mrule show", Slug: "mrule_show_json",
+		Floor: 2, Implemented: true,
+	},
+
+	// G4-T03: `ip token` (ip/iptoken.c). Every row is ll_init_map's link
+	// dump first. The reads, on tokenSetup, then dump AF_INET6 links and
+	// print v0's ::1:2:3:4 and v1's ::, skipping lo (4). The writes, on a
+	// veth or, refused with EINVAL, on a NOARP dummy, are one RTM_SETLINK
+	// carrying IFLA_AF_SPEC { AF_INET6 { IFLA_INET6_TOKEN } } and its ack,
+	// each on the C1-T02 capture of its slug; `token del`, which has none,
+	// is left to the unit tests.
+	{
+		Name: "token show", Slug: "token_show",
+		Setup: tokenSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "token get dev v0", Slug: "token_get_dev",
+		Setup: tokenSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-j token show", Slug: "token_show_json",
+		Setup: tokenSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "token set ::1:2:3:4/64 dev d0", Slug: "token_set",
+		Floor: 4, Implemented: true, Write: true, Setup: tokenVethSetup,
+	},
+	{
+		Name: "token add ::1:2:3:4/64 dev d0", Slug: "token_set_noarp",
+		// A dummy is IFF_NOARP: EINVAL, exit 2.
+		Floor: 4, Implemented: true, Write: true, Setup: d0UpSetup,
+	},
+
+	// G4-T04: `ip netns list-id` and `ip netns set` (ip/ipnetns.c). list-id
+	// is netns_map_init's RTM_GETNSID for each file under /run/netns, by a
+	// descriptor of it, then the get by nsid or the dump; on netnsSetup,
+	// whose peers nlcaprp1 and nlcaprp2 hold nsids 1 and 2 in the row's
+	// namespace, the names, two files at least, set the floor at 4. The
+	// descriptor is each process's own, so NETNSA_FD is an accepted value
+	// divergence. set is one RTM_NEWNSID, FD then NSID, and its ack, on the
+	// C1-T02 capture of its slug, its peer fresh for each side.
+	{
+		Name: "netns list-id", Slug: "netns_list_id",
+		Setup: netnsSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "-j netns list-id", Slug: "netns_list_id_json",
+		Setup: netnsSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "netns list-id nsid 2", Slug: "netns_list_id_nsid",
+		Setup: netnsSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "netns list-id nsid 1 target-nsid 2", Slug: "netns_list_id_target",
+		// nlcaprp2's nsid for nlcaprp1, unassigned, and nlcaprp1's in the
+		// row's namespace, the current nsid, that names it.
+		Setup: netnsSetup, Floor: 4, Implemented: true,
+	},
+	{
+		Name: "netns set c1set 7", Slug: "netns_set",
+		Floor: 2, Implemented: true, Write: true, Setup: []string{"peer c1set"},
+	},
+
+	// G2-T01: `route save` and `route showdump` (ip/iproute.c:1673-1716,
+	// :2390-2405), on route_save's C1-T02 precondition: d0, ifindex 3, and
+	// table 100's two routes. save is `route show table 100`'s dump with
+	// the replies written whole after the magic; its stdout is that file,
+	// which the comparator recognizes and compares record by record
+	// (stdout_dump.go). showdump reads route_save's committed ip.save,
+	// which the runner carries in and the driver copies beside the captures,
+	// and prints it, naming d0 by one RTM_GETLINK get (2). It reads no
+	// route, but the get needs ifindex 3 to be d0, as it was in the capture.
+	{
+		Name: "route save table 100", Slug: "route_save",
+		// The dump and its reply, the two routes and the DONE (2).
+		Setup: routeSaveSetup, Floor: 2, Implemented: true,
+	},
+	{
+		Name: "route showdump < route_save.save", Slug: "route_showdump",
+		Setup: routeSaveSetup, Floor: 2, Implemented: true,
+	},
+	{
+		Name: "-d route showdump < route_save.save", Slug: "route_showdump_details",
+		// The type, `proto boot` and the scope on both lines; the routes
+		// carry no nhid, so -d sends nothing more.
+		Setup: routeSaveSetup, Floor: 2, Implemented: true,
+	},
+	// G2-T02: `route restore` (iproute_restore), the C1-T02 route_restore
+	// row: route_save's file restored on PRE_D0_ADDR, d0 up at ifindex 3
+	// with no route in table 100. ip sends ll_init_map's link dump, then the
+	// device route and the gateway route, in restore_handler's pass order
+	// and not the file's, each answered; goip sends the link dump and writes
+	// the two. Floor is 4, as for the address restore rows, because goip's
+	// side gets Floor-2 and sends only the dump.
+	{
+		Name: "route restore < route_save.save", Slug: "route_restore",
+		Floor: 4, Implemented: true, Write: true, Writes: 2, Setup: routeGetSetup,
+	},
+	// G2-T03: `route flush` (iproute_flush), the C1-T02 rows route_flush,
+	// route_flush_empty and route_flush_no_table. The first is a write row:
+	// ip dumps table 100, sends the two RTM_DELROUTE copies in one datagram,
+	// unacked, and dumps again to find nothing; goip sends both dumps and
+	// writes the copies, its second dump skipping what it copied. ip's six
+	// datagrams set the floor at 5, and goip's side, which sends no batch,
+	// gets 3. The other two delete nothing, so ip sends the dump alone and
+	// goip needs no GOIP_WRITE_OUT: they are read rows. Their Names
+	// abbreviate `table`, which the bytes do not show, since each Name is
+	// one row. Neither may run on the shared topology, whose table 100 holds
+	// routes `ip_a` would really delete (measured on G2-T03's first run).
+	{
+		Name: "route flush table 100", Slug: "route_flush",
+		Floor: 5, Implemented: true, Write: true, Writes: 2, Setup: routeSaveSetup,
+	},
+	{
+		Name: "-s route flush table 100", Slug: "route_flush_stats",
+		// The round text and the closing line, compared as stdout.
+		Floor: 5, Implemented: true, Write: true, Writes: 2, Setup: routeSaveSetup,
+	},
+	{
+		Name: "route flush tab 100", Slug: "route_flush_empty",
+		// Table 100 added to and emptied: the dump and its DONE (2).
+		Floor: 2, Implemented: true, Setup: routeFlushEmptySetup,
+	},
+	{
+		Name: "route flush t 100", Slug: "route_flush_no_table",
+		// A namespace of its own with no table 100: the dump answered ENOENT
+		// in its DONE, Flush terminated, exit 2 (2). The capture had no
+		// precondition; the one step makes the row a Setup row, built in its
+		// own namespace, and touches no route table but local.
+		Floor: 2, Implemented: true, Setup: routeFlushNoTableSetup,
 	},
 
 	// The vrf block — `ip vrf show`, the eleventh read-only object. The request
@@ -2199,7 +2790,791 @@ var commands = withArgs([]Command{
 		// save_all's addresses are all in place: every write is EEXIST.
 		Floor: 4, Implemented: true, Write: true, Writes: 8, Setup: addrRestoreExistingSetup,
 	},
+
+	// G6-T01: tcp_metrics, the C2 corpus's 14 tcpm_* rows on its
+	// preconditions (genl-write-corpus.exp). The connections' entries carry
+	// each side's own RTTs and ages, which nlparity normalizes, and a dump's
+	// order is its namespace's hash, so the replies and a flush's DELs are
+	// paired by address and source. delete, and flush of all or of an exact
+	// address, send one DEL; a prefix flush sends a dump, a batch of DELs
+	// and a second dump. A flush that finds nothing writes nothing, so
+	// tcpm_flush_empty is a read row. Two rows' corpus commands are another
+	// row's, so they are spelled with ip's other keyword: `list` for show,
+	// `address` before the prefix, the same bytes.
+	{Name: "tcp_metrics show", Slug: "tcpm_show", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: tcpmSetup},
+	{Name: "tcp_metrics list", Slug: "tcpm_show_empty", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: tcpmAddrsSetup},
+	{Name: "-6 tcp_metrics show", Slug: "tcpm_show_v6", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: tcpmSetup},
+	{Name: "tcp_metrics show address 192.0.2.1", Slug: "tcpm_get", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst, Setup: tcpmSetup},
+	{Name: "tcp_metrics show src 192.0.2.2 address 192.0.2.1", Slug: "tcpm_get_src", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst, Setup: tcpmSetup},
+	{Name: "tcp_metrics show address 2001:db8::1", Slug: "tcpm_get_v6", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst, Setup: tcpmSetup},
+	{Name: "tcp_metrics show address 192.0.2.9", Slug: "tcpm_get_missing", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst, Setup: tcpmSetup},
+	{Name: "tcp_metrics delete address 192.0.2.1", Slug: "tcpm_delete", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: tcpmSetup},
+	{Name: "tcp_metrics delete src 192.0.2.2 address 192.0.2.1", Slug: "tcpm_delete_src", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: tcpmSetup},
+	{Name: "tcp_metrics delete address 192.0.2.9", Slug: "tcpm_delete_missing", Floor: 4, Implemented: true,
+		Write: true, Proto: ProtoGenericCst, Setup: tcpmSetup},
+	{Name: "tcp_metrics flush all", Slug: "tcpm_flush_all", Floor: 4, Implemented: true, Write: true, Writes: 1,
+		Proto: ProtoGenericCst, Setup: tcpmSetup},
+	{Name: "tcp_metrics flush 192.0.2.0/24", Slug: "tcpm_flush_prefix", Floor: 6, Implemented: true, Write: true,
+		Writes: 2, Proto: ProtoGenericCst, Setup: tcpmSetup},
+	{Name: "-6 tcp_metrics flush", Slug: "tcpm_flush_v6", Floor: 6, Implemented: true, Write: true, Writes: 2,
+		Proto: ProtoGenericCst, Setup: tcpmSetup},
+	{Name: "tcp_metrics flush address 192.0.2.0/24", Slug: "tcpm_flush_empty", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+
+	// G6-T02: sr, the C2 corpus's 11 sr_* rows on its preconditions
+	// (genl-write-corpus.exp). The keys a row starts from are made by an
+	// `hmac KEYID ALGO SECRET` step, and a set reads its secret on stdin, as
+	// the corpus's did, so a delete is a blank line. The reads with no
+	// precondition read the dump topology, which has no key and no tunnel
+	// source. Three rows' corpus commands are another row's, so they are
+	// spelled with ip's abbreviations, the same bytes: `s` and `hm` for the
+	// shows of no key and of the 64-byte secret, `se` for the delete.
+	{Name: "sr hmac s", Slug: "sr_hmac_show_empty", Floor: 4, Implemented: true, Proto: ProtoGenericCst},
+	{Name: "sr hmac show", Slug: "sr_hmac_show", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: srHmacTwoSetup},
+	{Name: "sr hm show", Slug: "sr_hmac_show_64", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: []string{"hmac 4 sha256 " + strings.Repeat("y", 64)}},
+	{Name: "sr tunsrc show", Slug: "sr_tunsrc_show", Floor: 4, Implemented: true, Proto: ProtoGenericCst},
+	{Name: "sr hmac set 1 sha256", Slug: "sr_hmac_set", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Stdin: stdinLine("s3cret")},
+	{Name: "sr hmac set 2 sha1", Slug: "sr_hmac_set_sha1", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Stdin: stdinLine("0ther")},
+	{Name: "sr hmac set 1 sha1", Slug: "sr_hmac_replace", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: srHmacTwoSetup[:1], Stdin: stdinLine("n3w")},
+	{Name: "sr hmac se 1 sha256", Slug: "sr_hmac_delete", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: srHmacTwoSetup, Stdin: stdinLine("")},
+	{Name: "sr hmac set 9 sha256", Slug: "sr_hmac_delete_missing", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Stdin: stdinLine("")},
+	{Name: "sr hmac set 3 sha256", Slug: "sr_hmac_set_long", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Stdin: stdinLine(strings.Repeat("x", 65))},
+	{Name: "sr tunsrc set 2001:db8::1", Slug: "sr_tunsrc_set", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst},
+
+	// G6-T03: ioam, the C2 corpus's 18 ioam_* rows that are not the
+	// monitor's, on its preconditions (genl-write-corpus.exp), and two -j
+	// shows of one bound namespace with data and wide data and its schema.
+	// Every keyword is strcmp's, so the three rows whose corpus command is
+	// another row's spell the id another way, base 0, the same bytes: 0x1
+	// for the duplicate add and the bound schema's del, 01 for the bound
+	// namespace's del. The kernel walks its namespaces and schemas in an
+	// rhashtable seeded per namespace, so a show of more than one could
+	// differ in order between the two sides; each -j show has one. The
+	// monitor's three rows are not here: the driver runs no monitor.
+	{Name: "ioam namespace show", Slug: "ioam_ns_show_empty", Floor: 4, Implemented: true, Proto: ProtoGenericCst},
+	{Name: "ioam schema show", Slug: "ioam_sc_show_empty", Floor: 4, Implemented: true, Proto: ProtoGenericCst},
+	{Name: "-j ioam namespace show", Slug: "ioam_ns_show_json", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: ioamJSONSetup},
+	{Name: "-j ioam schema show", Slug: "ioam_sc_show_json", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: ioamJSONSetup},
+	{Name: "ioam namespace add 1", Slug: "ioam_ns_add", Floor: 4, Implemented: true, Write: true, Proto: ProtoGenericCst},
+	{Name: "ioam namespace add 2 data 42 wide 2a", Slug: "ioam_ns_add_data", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst},
+	{Name: "ioam namespace add 3 data 0xffffffff wide ffffffffffffffff", Slug: "ioam_ns_add_unavailable", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst},
+	{Name: "ioam namespace add 0x1", Slug: "ioam_ns_add_dup", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: ioamNs1Setup},
+	{Name: "ioam namespace del 1", Slug: "ioam_ns_del", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: ioamNs1Setup},
+	{Name: "ioam namespace del 9", Slug: "ioam_ns_del_missing", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst},
+	{Name: "ioam schema add 1 abcd", Slug: "ioam_sc_add", Floor: 4, Implemented: true, Write: true, Proto: ProtoGenericCst},
+	{Name: "ioam schema add 2 abcde", Slug: "ioam_sc_add_pad", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst},
+	{Name: "ioam schema add 1 wxyz", Slug: "ioam_sc_add_dup", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: ioamBoundSetup[1:2]},
+	{Name: "ioam schema del 1", Slug: "ioam_sc_del", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: ioamBoundSetup[1:2]},
+	{Name: "ioam schema del 9", Slug: "ioam_sc_del_missing", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst},
+	{Name: "ioam namespace set 1 schema 1", Slug: "ioam_ns_set_schema", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: ioamBoundSetup[:2]},
+	{Name: "ioam namespace set 1 schema none", Slug: "ioam_ns_set_none", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: ioamBoundSetup},
+	{Name: "ioam namespace set 1 schema 9", Slug: "ioam_ns_set_missing", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: ioamNs1Setup},
+	{Name: "ioam schema del 0x1", Slug: "ioam_sc_del_bound", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: ioamBoundSetup},
+	{Name: "ioam namespace del 01", Slug: "ioam_ns_del_bound", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: ioamBoundSetup},
+
+	// G6-T04: mptcp, the C2 corpus's 25 mptcp_* rows that are not the
+	// monitor's, on its preconditions (genl-write-corpus.exp), and three -j
+	// shows on the captured ones'. The empty show's corpus command is the
+	// populated one's, so it is spelled `s`, the same bytes. A port without
+	// signal is refused after the lookup, so its row is a read of floor 2
+	// that exits 255 on every side. The kernel keeps its endpoints in a
+	// list in the order they were added, so a show of two is in one order
+	// on every side. The monitor's two rows are not here: the driver runs
+	// no monitor.
+	{Name: "mptcp endpoint s", Slug: "mptcp_endpoint_show_empty", Floor: 4, Implemented: true, Proto: ProtoGenericCst},
+	{Name: "mptcp endpoint show", Slug: "mptcp_endpoint_show", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: mptcpEp2Setup},
+	{Name: "mptcp endpoint show id 2", Slug: "mptcp_endpoint_get", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: mptcpEp2Setup},
+	{Name: "mptcp endpoint show id 9", Slug: "mptcp_endpoint_get_missing", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: "mptcp limits show", Slug: "mptcp_limits_show", Floor: 4, Implemented: true, Proto: ProtoGenericCst},
+	{Name: "mptcp endpoint add 192.0.2.2 port 10100 subflow", Slug: "mptcp_endpoint_add_port_subflow", Floor: 2,
+		Implemented: true, Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: "-j mptcp endpoint show", Slug: "mptcp_endpoint_show_json", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst, Setup: mptcpEp2Setup},
+	{Name: "-j mptcp endpoint show id 2", Slug: "mptcp_endpoint_get_json", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst, Setup: mptcpEp2Setup},
+	{Name: "-j mptcp limits show", Slug: "mptcp_limits_show_json", Floor: 4, Implemented: true, Proto: ProtoGenericCst},
+	{Name: "mptcp endpoint add 192.0.2.1 id 1 subflow", Slug: "mptcp_endpoint_add", Floor: 4, Implemented: true,
+		Write: true, Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: "mptcp endpoint add 2001:db8::1 dev d0 signal backup", Slug: "mptcp_endpoint_add_v6_dev", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: "mptcp endpoint add 192.0.2.2 port 10100 signal", Slug: "mptcp_endpoint_add_port", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: "mptcp endpoint add 192.0.2.2 subflow fullmesh", Slug: "mptcp_endpoint_add_fullmesh", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: "mptcp endpoint add 192.0.2.1 subflow", Slug: "mptcp_endpoint_add_dup", Floor: 4, Implemented: true,
+		Write: true, Proto: ProtoGenericCst, Setup: mptcpEp1Setup},
+	{Name: "mptcp endpoint add 192.0.2.2 id 1 subflow", Slug: "mptcp_endpoint_add_id_busy", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: mptcpEp1Setup},
+	{Name: "mptcp endpoint change id 1 backup", Slug: "mptcp_endpoint_change", Floor: 4, Implemented: true,
+		Write: true, Proto: ProtoGenericCst, Setup: mptcpEp1Setup},
+	{Name: "mptcp endpoint change 192.0.2.1 fullmesh", Slug: "mptcp_endpoint_change_addr", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: mptcpEp1Setup},
+	{Name: "mptcp endpoint change id 1 nobackup", Slug: "mptcp_endpoint_change_nobackup", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: mptcpEp1BackupSetup},
+	{Name: "mptcp endpoint change id 9 backup", Slug: "mptcp_endpoint_change_missing", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: "mptcp endpoint delete id 1", Slug: "mptcp_endpoint_delete", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: mptcpEp2Setup},
+	{Name: "mptcp endpoint delete id 9", Slug: "mptcp_endpoint_delete_missing", Floor: 4, Implemented: true,
+		Write: true, Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: "mptcp endpoint delete id 0 192.0.2.1", Slug: "mptcp_endpoint_delete_id0", Floor: 4, Implemented: true,
+		Write: true, Proto: ProtoGenericCst, Setup: mptcpEp1Setup},
+	{Name: "mptcp endpoint flush", Slug: "mptcp_endpoint_flush", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: mptcpEp2Setup},
+	{Name: "mptcp limits set subflows 4 add_addr_accepted 3", Slug: "mptcp_limits_set", Floor: 4, Implemented: true,
+		Write: true, Proto: ProtoGenericCst},
+	{Name: "mptcp limits set add_addr_accepted 2", Slug: "mptcp_limits_set_one", Floor: 4, Implemented: true,
+		Write: true, Proto: ProtoGenericCst},
+	{Name: "mptcp limits set", Slug: "mptcp_limits_set_none", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst},
+	{Name: "mptcp limits set subflows 8 add_addr_accepted 8", Slug: "mptcp_limits_set_max", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst},
+	{Name: "mptcp limits set subflows 9", Slug: "mptcp_limits_set_over", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst},
+
+	// G6-T05: fou, the C2 corpus's 21 fou_* rows on their preconditions
+	// (genl-write-corpus.exp), and three -j shows: two on a captured one's
+	// state, and one on fou_add_dev's, its readback, whose device prints by
+	// name. The corpus spells several commands alike on different
+	// preconditions; a row's name is its command, so those are spelled by
+	// prefix here, the same bytes. Port 0, an unknown device and show with
+	// an argument are refused after the lookup, so each is a read of floor
+	// 2. The kernel keeps its ports in a list, the newest first, so a show
+	// of two is in one order on every side.
+	{Name: "fou s", Slug: "fou_show_empty", Floor: 4, Implemented: true, Proto: ProtoGenericCst},
+	{Name: "fou show", Slug: "fou_show", Floor: 4, Implemented: true, Proto: ProtoGenericCst, Setup: fou2Setup},
+	{Name: "fou show port 5555", Slug: "fou_show_args", Floor: 2, Implemented: true, Proto: ProtoGenericCst},
+	{Name: "fou add port 0 gue", Slug: "fou_add_port_zero", Floor: 2, Implemented: true, Proto: ProtoGenericCst},
+	{Name: "fou add port 5555 gue local 192.0.2.1 dev nosuch", Slug: "fou_add_unknown_dev", Floor: 2,
+		Implemented: true, Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: "-j fou show", Slug: "fou_show_json", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: fou2Setup},
+	{Name: "-j fou sho", Slug: "fou_show_peer_json", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: fouPeerSetup},
+	{Name: "-j fou sh", Slug: "fou_show_dev_json", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: fouDevSetup},
+	{Name: "fou add port 5555 ipproto 4", Slug: "fou_add", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst},
+	{Name: "fou add port 5555 gue", Slug: "fou_add_gue", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst},
+	{Name: "fou add port 5555 gue -6", Slug: "fou_add_v6", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst},
+	{Name: "fou add port 5555 ipproto 4 local 192.0.2.1 peer 192.0.2.2 peer_port 5556", Slug: "fou_add_local_peer",
+		Floor: 4, Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: "fou add port 5555 gue -6 local 2001:db8::1 peer 2001:db8::2 peer_port 5556",
+		Slug: "fou_add_v6_local_peer", Floor: 4, Implemented: true, Write: true, Proto: ProtoGenericCst,
+		Setup: tcpmAddrsSetup},
+	{Name: "fou add port 5555 ipproto 4 local 192.0.2.1 dev d0", Slug: "fou_add_dev", Floor: 4, Implemented: true,
+		Write: true, Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: "fou add port 5555 ipproto 4 dev d0", Slug: "fou_add_dev_no_local", Floor: 4, Implemented: true,
+		Write: true, Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: "fou a port 5555 gue", Slug: "fou_add_dup", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: fou1Setup},
+	{Name: "fou a port 5555 gue -6", Slug: "fou_add_same_port_v6", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: fou1Setup},
+	{Name: "fou add ipproto 4", Slug: "fou_add_no_port", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst},
+	{Name: "fou add port 5555", Slug: "fou_add_no_type", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst},
+	{Name: "fou del port 5555", Slug: "fou_del", Floor: 4, Implemented: true, Write: true, Proto: ProtoGenericCst,
+		Setup: fou1Setup},
+	{Name: "fou d port 5555", Slug: "fou_del_missing", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst},
+	{Name: "fou del port 5555 -6", Slug: "fou_del_wrong_family", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: fou1Setup},
+	{Name: "fou del port 5555 local 192.0.2.1 peer 192.0.2.2 peer_port 5556", Slug: "fou_del_local_peer", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: fouPeerSetup},
+	{Name: "fou de port 5555", Slug: "fou_del_partial", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: fouPeerSetup},
+
+	// G6-T06: ila, the C2 corpus's 15 ila_* rows but its show of two, on
+	// their preconditions (genl-write-corpus.exp), a show of one locator
+	// to match with two mappings, and three -j shows. The kernel keeps
+	// its mappings in an rhashtable seeded per namespace, so a show of two
+	// locators to match can differ in order between the sides; one
+	// locator's mappings are a list in the kernel's order, the device's
+	// first, so that show is in one order on every side. The show of two
+	// is replayed. Commands the corpus spells alike are spelled by prefix,
+	// the same bytes. An unknown word and show with an argument are
+	// refused after the lookup, so each is a read of floor 2.
+	{Name: "ila s", Slug: "ila_show_empty", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst},
+	{Name: "ila show", Slug: "ila_show_both", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst, Setup: ilaBothSetup},
+	{Name: "ila show 2001:db8:1:2", Slug: "ila_show_args", Floor: 2, Implemented: true,
+		Proto: ProtoGenericCst},
+	{Name: "ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4 bogus", Slug: "ila_add_unknown_word", Floor: 2, Implemented: true,
+		Proto: ProtoGenericCst},
+	{Name: "-j ila show", Slug: "ila_show_both_json", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst, Setup: ilaBothSetup},
+	{Name: "-j ila sho", Slug: "ila_show_dev_json", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst, Setup: ilaDevSetup},
+	{Name: "-j ila sh", Slug: "ila_show_opts_json", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst, Setup: ilaOptsSetup},
+	{Name: "ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4", Slug: "ila_add", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst},
+	{Name: "ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4 dev d0", Slug: "ila_add_dev", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: "ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4 csum-mode adj-transport ident-type luid", Slug: "ila_add_opts", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst},
+	{Name: "ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4 csum-mode neutral-map-auto ident-type use-format", Slug: "ila_add_auto", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst},
+	{Name: "ila a loc_match 2001:db8:1:2 loc 2001:db8:3:4", Slug: "ila_add_dup", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: ila1Setup},
+	{Name: "ila a loc_match 2001:db8:1:2 loc 2001:db8:3:4 dev d0", Slug: "ila_add_same_match_dev", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: ilaAddrsSetup},
+	{Name: "ila add loc_match 2001:db8:1:2", Slug: "ila_add_no_loc", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst},
+	{Name: "ila del loc_match 2001:db8:1:2", Slug: "ila_del", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: ila1Setup},
+	{Name: "ila d loc_match 2001:db8:1:2", Slug: "ila_del_missing", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst},
+	{Name: "ila del loc_match 2001:db8:1:2 dev d0", Slug: "ila_del_dev", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: ilaBothSetup},
+	{Name: "ila de loc_match 2001:db8:1:2", Slug: "ila_del_nodev_of_dev", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: ilaDevSetup},
+
+	// G6-T07: l2tp, the C2 corpus's 24 l2tp_* rows on their preconditions
+	// (genl-write-corpus.exp), and four -j shows: two on a captured show's
+	// state, and two on a write row's, its readback. The kernel keeps its
+	// tunnels and each tunnel's sessions by id, and names a session's
+	// l2tpeth device from a per-namespace count, so a show of two is in one
+	// order, with the same names, on every side. Commands the corpus spells
+	// alike are spelled by prefix, or with tid for tunnel_id, the same
+	// bytes. A bare show and the missing arguments are refused after the
+	// lookup, so each is a read of floor 2.
+	{Name: "l2tp s tunnel", Slug: "l2tp_tunnel_show_empty", Floor: 4, Implemented: true, Proto: ProtoGenericCst},
+	{Name: "l2tp show tunnel", Slug: "l2tp_tunnel_show", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: l2tpTun2Setup},
+	{Name: "l2tp show tunnel tunnel_id 1", Slug: "l2tp_tunnel_show_id", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst, Setup: l2tpTun2Setup},
+	{Name: "l2tp s session", Slug: "l2tp_session_show_empty", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: l2tpTunSetup},
+	{Name: "l2tp show session", Slug: "l2tp_session_show", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: l2tpSess2Setup},
+	{Name: "l2tp show session tunnel_id 1 session_id 10", Slug: "l2tp_session_show_id", Floor: 4,
+		Implemented: true, Proto: ProtoGenericCst, Setup: l2tpSess2Setup},
+	{Name: "l2tp show", Slug: "l2tp_show_bare", Floor: 2, Implemented: true, Proto: ProtoGenericCst},
+	{Name: "l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 remote 192.0.2.2 udp_sport 5000 udp_dport 6000",
+		Slug: "l2tp_tunnel_add_no_local", Floor: 2, Implemented: true, Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: "l2tp add session tunnel_id 1 session_id 10", Slug: "l2tp_session_add_no_peer", Floor: 2,
+		Implemented: true, Proto: ProtoGenericCst, Setup: l2tpTunSetup},
+	{Name: "-j l2tp show tunnel", Slug: "l2tp_tunnel_show_json", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst, Setup: l2tpTun2Setup},
+	{Name: "-j l2tp sho tunnel", Slug: "l2tp_tunnel_show_v6_json", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst, Setup: l2tpTunV6Setup},
+	{Name: "-j l2tp show session", Slug: "l2tp_session_show_json", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst, Setup: l2tpSess2Setup},
+	{Name: "-j l2tp sho session", Slug: "l2tp_session_show_opts_json", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst, Setup: l2tpSessOptsSetup},
+	{Name: l2tpTun1Cst, Slug: "l2tp_tunnel_add", Floor: 4, Implemented: true, Write: true, Proto: ProtoGenericCst,
+		Setup: tcpmAddrsSetup},
+	{Name: l2tpTun1Cst + " udp_csum on", Slug: "l2tp_tunnel_add_csum", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: l2tpTunV6Cst, Slug: "l2tp_tunnel_add_v6", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: l2tpTunIPCst, Slug: "l2tp_tunnel_add_ip", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: "l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 local 192.0.2.1 remote 192.0.2.2 udp_sport 5001 udp_dport 6001",
+		Slug: "l2tp_tunnel_add_dup", Floor: 4, Implemented: true, Write: true, Proto: ProtoGenericCst,
+		Setup: l2tpTunSetup},
+	{Name: "l2tp del tunnel tunnel_id 1", Slug: "l2tp_tunnel_del", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: l2tpTunSetup},
+	{Name: "l2tp del tunnel tunnel_id 9", Slug: "l2tp_tunnel_del_missing", Floor: 4, Implemented: true,
+		Write: true, Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: "l2tp d tunnel tunnel_id 1", Slug: "l2tp_tunnel_del_sessions", Floor: 4, Implemented: true,
+		Write: true, Proto: ProtoGenericCst, Setup: l2tpSessSetup},
+	{Name: l2tpSess1Cst, Slug: "l2tp_session_add", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: l2tpTunSetup},
+	{Name: l2tpSessOptsCst, Slug: "l2tp_session_add_opts", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: l2tpTunSetup},
+	{Name: "l2tp a session tunnel_id 1 session_id 10 peer_session_id 20", Slug: "l2tp_session_add_dup", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: l2tpSessSetup},
+	{Name: "l2tp ad session tunnel_id 1 session_id 10 peer_session_id 20", Slug: "l2tp_session_add_dup_ip",
+		Floor: 4, Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: l2tpSessIPSetup},
+	{Name: "l2tp add session tid 1 session_id 10 peer_session_id 20", Slug: "l2tp_session_add_no_tunnel",
+		Floor: 4, Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: "l2tp del session tunnel_id 1 session_id 10", Slug: "l2tp_session_del", Floor: 4, Implemented: true,
+		Write: true, Proto: ProtoGenericCst, Setup: l2tpSessSetup},
+	{Name: "l2tp del session tunnel_id 1 session_id 99", Slug: "l2tp_session_del_missing", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: l2tpTunSetup},
+
+	// G6-T08: macsec, the C2 corpus's 32 macsec_* rows on their
+	// preconditions (genl-write-corpus.exp), four -j shows and three -s
+	// shows, each on a captured show's state or a write row's, its
+	// readback. A show is always a dump of every SecY, in ifindex order,
+	// which `show DEV` filters, and the SecYs are made down, so their
+	// counters stay zero. Commands the corpus spells alike are spelled by
+	// prefix. A missing device and the SAs ip refuses itself are refused
+	// after the lookup, so each is a read of floor 2. These rows replace
+	// the last of G5-T03's stand-ins, one `show` per generic netlink family
+	// with `ip` in goip's place, ungated; none remains. They come last: the
+	// driver runs nltopo::late_setup, which loads the families' modules,
+	// before the first genl row.
+	{Name: "macsec show", Slug: "macsec_show_empty", Floor: 4, Implemented: true, Proto: ProtoGenericCst},
+	{Name: "macsec s", Slug: "macsec_show", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: macsec2Setup},
+	{Name: "macsec show macsec1", Slug: "macsec_show_dev", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: macsec2Setup},
+	{Name: "macsec show nodev0", Slug: "macsec_show_unknown_dev", Floor: 2, Implemented: true,
+		Proto: ProtoGenericCst},
+	{Name: "macsec add macsec0 tx sa 1 pn 1", Slug: "macsec_txsa_add_no_key", Floor: 2, Implemented: true,
+		Proto: ProtoGenericCst, Setup: macsecSetup},
+	{Name: "macsec add macsec0 tx sa 1 " + macsecKey1Cst, Slug: "macsec_txsa_add_no_pn", Floor: 2,
+		Implemented: true, Proto: ProtoGenericCst, Setup: macsecSetup},
+	{Name: "macsec add macsec0 tx sa 4 pn 1 " + macsecKey1Cst, Slug: "macsec_txsa_add_an4", Floor: 2,
+		Implemented: true, Proto: ProtoGenericCst, Setup: macsecSetup},
+	{Name: "macsec set macsec0 tx sa 0 " + macsecKey1Cst, Slug: "macsec_txsa_set_key", Floor: 2,
+		Implemented: true, Proto: ProtoGenericCst, Setup: macsecTxsaSetup},
+	{Name: "-j macsec show", Slug: "macsec_show_json", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: macsec2Setup},
+	{Name: "-j macsec sho", Slug: "macsec_show_txsa_json", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: macsecTxsaSetup},
+	{Name: "-j macsec sh", Slug: "macsec_show_rxsa_json", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: macsecRxsaSetup},
+	{Name: "-j macsec show macsec0", Slug: "macsec_show_xpn_json", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst, Setup: macsecXpnTxsaSetup},
+	{Name: "-s macsec show", Slug: "macsec_show_stats", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: macsec2Setup},
+	{Name: "-s macsec sho", Slug: "macsec_show_rxsa_stats", Floor: 4, Implemented: true, Proto: ProtoGenericCst,
+		Setup: macsecRxsaSetup},
+	{Name: "-s -j macsec show", Slug: "macsec_show_txsa_stats_json", Floor: 4, Implemented: true,
+		Proto: ProtoGenericCst, Setup: macsecTxsaSetup},
+	{Name: macsecTxsaCst, Slug: "macsec_txsa_add", Floor: 4, Implemented: true, Write: true, Proto: ProtoGenericCst,
+		Setup: macsecSetup},
+	{Name: "macsec add macsec0 tx sa 3 pn 100 off " + macsecKey1Cst, Slug: "macsec_txsa_add_off", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: macsecSetup},
+	{Name: "macsec a macsec0 tx sa 0 pn 1 on " + macsecKey1Cst, Slug: "macsec_txsa_add_dup", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: macsecTxsaSetup},
+	{Name: "macsec add macsec0 tx sa 1 pn 1 key 01000000000000000000000000000000 " +
+		"8181818181818181818181818181818181818181818181818181818181818181", Slug: "macsec_txsa_add_long_key",
+		Floor: 4, Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: macsecSetup},
+	{Name: "macsec add d0 tx sa 0 pn 1 " + macsecKey1Cst, Slug: "macsec_txsa_add_not_macsec", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: tcpmAddrsSetup},
+	{Name: "macsec set macsec0 tx sa 0 pn 50 off", Slug: "macsec_txsa_set", Floor: 4, Implemented: true,
+		Write: true, Proto: ProtoGenericCst, Setup: macsecTxsaSetup},
+	{Name: "macsec d macsec0 tx sa 0", Slug: "macsec_txsa_del_active", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: macsecTxsaSetup},
+	{Name: "macsec del macsec0 tx sa 0", Slug: "macsec_txsa_del", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: macsecTxsaOffSetup},
+	{Name: "macsec del macsec0 tx sa 2", Slug: "macsec_txsa_del_missing", Floor: 4, Implemented: true,
+		Write: true, Proto: ProtoGenericCst, Setup: macsecSetup},
+	{Name: macsecRxscCst, Slug: "macsec_rxsc_add", Floor: 4, Implemented: true, Write: true, Proto: ProtoGenericCst,
+		Setup: macsecSetup},
+	{Name: "macsec add macsec0 rx port 1 address 02:00:00:00:00:01", Slug: "macsec_rxsc_add_port", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: macsecSetup},
+	{Name: "macsec a macsec0 rx sci " + macsecSciCst + " on", Slug: "macsec_rxsc_add_dup", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: macsecRxscSetup},
+	{Name: "macsec set macsec0 rx sci " + macsecSciCst + " off", Slug: "macsec_rxsc_set", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: macsecRxscSetup},
+	{Name: "macsec del macsec0 rx sci " + macsecSciCst, Slug: "macsec_rxsc_del", Floor: 4, Implemented: true,
+		Write: true, Proto: ProtoGenericCst, Setup: macsecRxscSetup},
+	{Name: "macsec d macsec0 rx sci " + macsecSciCst, Slug: "macsec_rxsc_del_missing", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: macsecSetup},
+	{Name: macsecRxsaCst, Slug: "macsec_rxsa_add", Floor: 4, Implemented: true, Write: true, Proto: ProtoGenericCst,
+		Setup: macsecRxscSetup},
+	{Name: "macsec a macsec0 rx sci " + macsecSciCst + " sa 0 pn 1 on " + macsecKey2Cst, Slug: "macsec_rxsa_add_no_sc",
+		Floor: 4, Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: macsecSetup},
+	{Name: "macsec set macsec0 rx sci " + macsecSciCst + " sa 0 pn 60 off", Slug: "macsec_rxsa_set", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: macsecRxsaSetup},
+	{Name: "macsec d macsec0 rx sci " + macsecSciCst + " sa 0", Slug: "macsec_rxsa_del_active", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: macsecRxsaSetup},
+	{Name: "macsec del macsec0 rx sci " + macsecSciCst + " sa 0", Slug: "macsec_rxsa_del", Floor: 4,
+		Implemented: true, Write: true, Proto: ProtoGenericCst, Setup: macsecRxsaOffSetup},
+	{Name: macsecXpnTxsaCst, Slug: "macsec_xpn_txsa_add", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: macsecXpnSetup},
+	{Name: "macsec add macsec0 tx sa 0 pn 1 salt 0102030405060708090a0b0c ssci 1 " + macsecKey1Cst,
+		Slug: "macsec_xpn_txsa_pn32", Floor: 4, Implemented: true, Write: true, Proto: ProtoGenericCst,
+		Setup: macsecXpnSetup},
+	{Name: "macsec offload macsec0 off", Slug: "macsec_offload_off", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: macsecSetup},
+	{Name: "macsec offload macsec0 mac", Slug: "macsec_offload_mac", Floor: 4, Implemented: true, Write: true,
+		Proto: ProtoGenericCst, Setup: macsecSetup},
+
+	// G7-T01: the XFRM state reads, the C3 corpus's nine state_list*,
+	// state_get* and state_count* rows on their preconditions
+	// (xfrm-write-corpus.exp), each slug the corpus's with xfrm_ ahead of
+	// it. The kernel lists its SAs newest first, the order they were added,
+	// and an SA's clocks are zeroed before comparison, so its two SAs come
+	// back in one order on every side. Commands the corpus spells alike run
+	// as show, g and c, the same bytes. They follow the genl rows, after
+	// late setup has loaded xfrm_user.
+	{Name: "xfrm state list", Slug: "xfrm_state_list_empty", Floor: 2, Implemented: true, Proto: ProtoXfrmCst},
+	{Name: "xfrm state show", Slug: "xfrm_state_list", Floor: 2, Implemented: true, Proto: ProtoXfrmCst,
+		Setup: xfrmTwoSetup},
+	{Name: "xfrm state list dst 192.0.2.2", Slug: "xfrm_state_list_dst", Floor: 2, Implemented: true,
+		Proto: ProtoXfrmCst, Setup: xfrmTwoSetup},
+	{Name: "xfrm state list nokeys", Slug: "xfrm_state_list_nokeys", Floor: 2, Implemented: true,
+		Proto: ProtoXfrmCst, Setup: xfrmTwoSetup},
+	{Name: "xfrm state get " + xfrmSA1IDCst, Slug: "xfrm_state_get", Floor: 2, Implemented: true,
+		Proto: ProtoXfrmCst, Setup: xfrmSA1Setup},
+	{Name: "xfrm state g " + xfrmSA1IDCst, Slug: "xfrm_state_get_missing", Floor: 2, Implemented: true,
+		Proto: ProtoXfrmCst},
+	{Name: "xfrm state count", Slug: "xfrm_state_count", Floor: 2, Implemented: true, Proto: ProtoXfrmCst,
+		Setup: xfrmTwoSetup},
+	{Name: "xfrm state c", Slug: "xfrm_state_count_empty", Floor: 2, Implemented: true, Proto: ProtoXfrmCst},
+	{Name: "-s xfrm state count", Slug: "xfrm_state_count_stats", Floor: 2, Implemented: true,
+		Proto: ProtoXfrmCst, Setup: xfrmTwoSetup},
+
+	// G7-T02: the XFRM state writes, the C3 corpus's 17 other state_* rows
+	// but allocspi's: goip writes its ALLOCSPI and has no larval SA to
+	// print, where ip prints the kernel's answer. add_no_algo and
+	// allocspi_min_gt_max, refused before a request, capture nothing to
+	// compare (Floor 0), and TestXfrmStateWritesMatchIp checks them.
+	// Commands the corpus spells alike run as a, u, d and delall, the same
+	// bytes. deleteall's two DELSAs go in one datagram, without NLM_F_ACK,
+	// between its dumps; with none to delete, it is a read.
+	{Name: xfrmSA1Cst, Slug: "xfrm_state_add", Floor: 2, Implemented: true, Write: true, Proto: ProtoXfrmCst},
+	{Name: xfrmSA2Cst, Slug: "xfrm_state_add_v6_tunnel", Floor: 2, Implemented: true, Write: true,
+		Proto: ProtoXfrmCst},
+	{Name: "xfrm state add src 192.0.2.1 dst 192.0.2.3 proto esp spi 0x102 reqid 3 mode transport aead " +
+		`"rfc4106(gcm(aes))" 0x3333333333333333333333333333333333333333 128`, Slug: "xfrm_state_add_aead", Floor: 2,
+		Implemented: true, Write: true, Proto: ProtoXfrmCst},
+	{Name: "xfrm state add src 192.0.2.1 dst 192.0.2.4 proto esp spi 0x103 mode transport enc aes " + xfrmEncKeyCst,
+		Slug: "xfrm_state_add_enc_only", Floor: 2, Implemented: true, Write: true, Proto: ProtoXfrmCst},
+	{Name: "xfrm state a " + xfrmSA1IDCst + " reqid 1 mode transport auth sha256 " + xfrmAuthKeyCst + " enc aes " +
+		xfrmEncKeyCst, Slug: "xfrm_state_add_dup", Floor: 2, Implemented: true, Write: true, Proto: ProtoXfrmCst,
+		Setup: xfrmSA1Setup},
+	{Name: "xfrm state add " + xfrmSA1IDCst + " mode transport enc nosuchalg " + xfrmEncKeyCst,
+		Slug: "xfrm_state_add_unknown_alg", Floor: 2, Implemented: true, Write: true, Proto: ProtoXfrmCst},
+	{Name: "xfrm state add " + xfrmSA1IDCst + " mode transport enc aes 0x222222222222222222222222222222",
+		Slug: "xfrm_state_add_short_key", Floor: 2, Implemented: true, Write: true, Proto: ProtoXfrmCst},
+	{Name: "xfrm state update " + xfrmSA1IDCst + " reqid 1" + xfrmAlgosCst + " limit time-hard 3600",
+		Slug: "xfrm_state_update", Floor: 2, Implemented: true, Write: true, Proto: ProtoXfrmCst,
+		Setup: xfrmSA1Setup},
+	{Name: "xfrm state update src 192.0.2.1 dst 192.0.2.2 proto esp spi 0x200" + xfrmAlgosCst,
+		Slug: "xfrm_state_update_larval", Floor: 2, Implemented: true, Write: true, Proto: ProtoXfrmCst,
+		Setup: []string{xfrmAllocspiCst}},
+	{Name: "xfrm state u " + xfrmSA1IDCst + " reqid 1" + xfrmAlgosCst, Slug: "xfrm_state_update_missing",
+		Floor: 2, Implemented: true, Write: true, Proto: ProtoXfrmCst},
+	{Name: "xfrm state delete " + xfrmSA1IDCst, Slug: "xfrm_state_delete", Floor: 2, Implemented: true,
+		Write: true, Proto: ProtoXfrmCst, Setup: xfrmSA1Setup},
+	{Name: "xfrm state d " + xfrmSA1IDCst, Slug: "xfrm_state_delete_missing", Floor: 2, Implemented: true,
+		Write: true, Proto: ProtoXfrmCst},
+	{Name: "xfrm state deleteall", Slug: "xfrm_state_deleteall", Floor: 5, Implemented: true, Write: true,
+		Writes: 2, Proto: ProtoXfrmCst, Setup: xfrmTwoSetup},
+	{Name: "xfrm state delall", Slug: "xfrm_state_deleteall_empty", Floor: 2, Implemented: true,
+		Proto: ProtoXfrmCst},
+	{Name: "xfrm state flush", Slug: "xfrm_state_flush", Floor: 2, Implemented: true, Write: true, Writes: 1,
+		Proto: ProtoXfrmCst, Setup: xfrmTwoSetup},
+	{Name: "xfrm state flush proto ah", Slug: "xfrm_state_flush_proto_ah", Floor: 2, Implemented: true,
+		Write: true, Writes: 1, Proto: ProtoXfrmCst, Setup: xfrmTwoSetup},
+	{Name: "xfrm state allocspi src 192.0.2.1 dst 192.0.2.2 proto esp min 0x100 max 0x100",
+		Slug: "xfrm_state_allocspi_taken", Floor: 2, Implemented: true, Write: true, Proto: ProtoXfrmCst,
+		Setup: xfrmSA1Setup},
+
+	// G7-T03: the XFRM policy reads, the C3 corpus's twelve policy_list*,
+	// policy_get*, policy_count* and policy_getdefault rows on their
+	// preconditions but the two refused before a request, get_no_sel and
+	// get_sel_and_index, which capture nothing to compare (Floor 0), and
+	// TestXfrmPolicyMatchesIp checks them. A policy's clocks are zeroed
+	// before comparison, and P1, each side's namespace's first out policy,
+	// is index 1 on every side. Commands the corpus spells alike run as
+	// show, g, c and getd, the same bytes.
+	{Name: "xfrm policy list", Slug: "xfrm_policy_list_empty", Floor: 2, Implemented: true, Proto: ProtoXfrmCst},
+	{Name: "xfrm policy show", Slug: "xfrm_policy_list", Floor: 2, Implemented: true, Proto: ProtoXfrmCst,
+		Setup: xfrmPTwoSetup},
+	{Name: "xfrm policy list dir in", Slug: "xfrm_policy_list_dir_in", Floor: 2, Implemented: true,
+		Proto: ProtoXfrmCst, Setup: xfrmPTwoSetup},
+	{Name: "xfrm policy get " + xfrmP1SelCst, Slug: "xfrm_policy_get", Floor: 2, Implemented: true,
+		Proto: ProtoXfrmCst, Setup: xfrmP1Setup},
+	{Name: "xfrm policy get index 1 dir out", Slug: "xfrm_policy_get_index", Floor: 2, Implemented: true,
+		Proto: ProtoXfrmCst, Setup: xfrmP1Setup},
+	{Name: "xfrm policy g " + xfrmP1SelCst, Slug: "xfrm_policy_get_missing", Floor: 2, Implemented: true,
+		Proto: ProtoXfrmCst},
+	{Name: "xfrm policy count", Slug: "xfrm_policy_count", Floor: 2, Implemented: true, Proto: ProtoXfrmCst,
+		Setup: xfrmPTwoSetup},
+	{Name: "xfrm policy c", Slug: "xfrm_policy_count_empty", Floor: 2, Implemented: true, Proto: ProtoXfrmCst},
+	{Name: "-s -s xfrm policy count", Slug: "xfrm_policy_count_stats", Floor: 2, Implemented: true,
+		Proto: ProtoXfrmCst, Setup: xfrmPTwoSetup},
+	{Name: "xfrm policy getd", Slug: "xfrm_policy_getdefault", Floor: 2, Implemented: true, Proto: ProtoXfrmCst},
+
+	// G7-T04: the XFRM policy writes, the C3 corpus's 17 other policy_*
+	// rows but the four refused before a request, add_no_dir, add_bad_dir,
+	// set_hthresh_bad and setdefault_bad, which capture nothing to compare
+	// (Floor 0), and TestXfrmPolicyWritesMatchIp checks them. Commands the
+	// corpus spells alike run as a, d, delall and f, the same bytes.
+	// deleteall's two DELPOLICYs go in one datagram, without NLM_F_ACK,
+	// between its dumps; with none to delete, it is a read. setdefault and
+	// set change only the namespace each side writes in.
+	{Name: xfrmP1Cst, Slug: "xfrm_policy_add", Floor: 2, Implemented: true, Write: true, Proto: ProtoXfrmCst},
+	{Name: xfrmP2Cst, Slug: "xfrm_policy_add_v6_block", Floor: 2, Implemented: true, Write: true,
+		Proto: ProtoXfrmCst},
+	{Name: "xfrm policy a " + xfrmP1SelCst + " " + xfrmP1TmplCst, Slug: "xfrm_policy_add_dup", Floor: 2,
+		Implemented: true, Write: true, Proto: ProtoXfrmCst, Setup: xfrmP1Setup},
+	{Name: "xfrm policy update " + xfrmP1SelCst + " priority 5 " + xfrmP1TmplCst, Slug: "xfrm_policy_update",
+		Floor: 2, Implemented: true, Write: true, Proto: ProtoXfrmCst, Setup: xfrmP1Setup},
+	{Name: "xfrm policy update " + xfrmP1SelCst + " " + xfrmP1TmplCst, Slug: "xfrm_policy_update_new", Floor: 2,
+		Implemented: true, Write: true, Proto: ProtoXfrmCst},
+	{Name: "xfrm policy delete " + xfrmP1SelCst, Slug: "xfrm_policy_delete", Floor: 2, Implemented: true,
+		Write: true, Proto: ProtoXfrmCst, Setup: xfrmP1Setup},
+	{Name: "xfrm policy d " + xfrmP1SelCst, Slug: "xfrm_policy_delete_missing", Floor: 2, Implemented: true,
+		Write: true, Proto: ProtoXfrmCst},
+	{Name: "xfrm policy deleteall", Slug: "xfrm_policy_deleteall", Floor: 5, Implemented: true, Write: true,
+		Writes: 2, Proto: ProtoXfrmCst, Setup: xfrmPTwoSetup},
+	{Name: "xfrm policy delall", Slug: "xfrm_policy_deleteall_empty", Floor: 2, Implemented: true,
+		Proto: ProtoXfrmCst},
+	{Name: "xfrm policy flush", Slug: "xfrm_policy_flush", Floor: 2, Implemented: true, Write: true, Writes: 1,
+		Proto: ProtoXfrmCst, Setup: xfrmPTwoSetup},
+	{Name: "xfrm policy f", Slug: "xfrm_policy_flush_empty", Floor: 2, Implemented: true, Write: true, Writes: 1,
+		Proto: ProtoXfrmCst},
+	{Name: "xfrm policy set hthresh4 24 16 hthresh6 64 48", Slug: "xfrm_policy_set_hthresh", Floor: 2,
+		Implemented: true, Write: true, Proto: ProtoXfrmCst},
+	{Name: "xfrm policy setdefault in block fwd block out accept", Slug: "xfrm_policy_setdefault", Floor: 2,
+		Implemented: true, Write: true, Proto: ProtoXfrmCst},
 })
+
+// tcpmAddrsSetup is genl-write-corpus.exp's PRE_ADDRS: d0, up, with an IPv4
+// and an IPv6 pair on it, whose traffic the namespace's lo carries.
+var tcpmAddrsSetup = []string{
+	"link add d0 type dummy",
+	"link set d0 up",
+	"addr add 192.0.2.1/24 dev d0",
+	"addr add 192.0.2.2/24 dev d0",
+	"-6 addr add 2001:db8::1/64 dev d0 nodad",
+	"-6 addr add 2001:db8::2/64 dev d0 nodad",
+}
+
+// tcpmSetup is PRE_TCPM: PRE_ADDRS and a connection over each pair, through
+// setup_step's `tcp SERVER CLIENT` form, which leaves four entries, one per
+// end of each.
+var tcpmSetup = append(slices.Clone(tcpmAddrsSetup),
+	"tcp 192.0.2.1 192.0.2.2",
+	"tcp 2001:db8::1 2001:db8::2",
+)
+
+// srHmacTwoSetup is genl-write-corpus.exp's PRE_HMAC2: key 1, sha256, and
+// key 2, sha1, through setup_step's `hmac KEYID ALGO SECRET` form; its
+// first step is PRE_HMAC1.
+var srHmacTwoSetup = []string{
+	"hmac 1 sha256 s3cret",
+	"hmac 2 sha1 0ther",
+}
+
+// ioamNs1Setup is genl-write-corpus.exp's PRE_NS1: namespace 1.
+var ioamNs1Setup = []string{"ioam namespace add 1"}
+
+// ioamBoundSetup is PRE_BOUND: namespace 1, schema 1 with four bytes of
+// data, and the one bound to the other. Its first two steps are
+// PRE_NS1_SC1, and its second PRE_SC1.
+var ioamBoundSetup = []string{
+	"ioam namespace add 1",
+	"ioam schema add 1 abcd",
+	"ioam namespace set 1 schema 1",
+}
+
+// ioamJSONSetup is the -j shows' one namespace, with data and wide data,
+// bound to its one schema.
+var ioamJSONSetup = []string{
+	"ioam namespace add 2 data 42 wide 2a",
+	"ioam schema add 1 abcd",
+	"ioam namespace set 2 schema 1",
+}
+
+// mptcpEp1Setup is genl-write-corpus.exp's PRE_EP1: PRE_ADDRS and a
+// subflow endpoint, id 1.
+var mptcpEp1Setup = append(slices.Clone(tcpmAddrsSetup), "mptcp endpoint add 192.0.2.1 id 1 subflow")
+
+// mptcpEp1BackupSetup is PRE_EP1_BACKUP: the same endpoint, backup.
+var mptcpEp1BackupSetup = append(slices.Clone(tcpmAddrsSetup), "mptcp endpoint add 192.0.2.1 id 1 subflow backup")
+
+// mptcpEp2Setup is PRE_EP2: PRE_EP1 and a signal endpoint on d0, id 2.
+var mptcpEp2Setup = append(slices.Clone(mptcpEp1Setup), "mptcp endpoint add 2001:db8::1 id 2 dev d0 signal")
+
+// fou1Setup is genl-write-corpus.exp's PRE_FOU: one direct port.
+var fou1Setup = []string{"fou add port 5555 ipproto 4"}
+
+// fou2Setup is PRE_FOU2: that port and a gue one over IPv6.
+var fou2Setup = []string{"fou add port 5555 ipproto 4", "fou add port 5556 gue -6"}
+
+// fouPeerSetup is PRE_FOU_PEER: PRE_ADDRS and a port with both addresses.
+var fouPeerSetup = append(slices.Clone(tcpmAddrsSetup),
+	"fou add port 5555 ipproto 4 local 192.0.2.1 peer 192.0.2.2 peer_port 5556")
+
+// fouDevSetup is fou_add_dev's precondition and command, the state its
+// readback shows: PRE_ADDRS and a port bound to d0.
+var fouDevSetup = append(slices.Clone(tcpmAddrsSetup), "fou add port 5555 ipproto 4 local 192.0.2.1 dev d0")
+
+// ila1Setup is genl-write-corpus.exp's PRE_ILA: one mapping.
+var ila1Setup = []string{"ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4"}
+
+// ilaAddrsSetup is PRE_ILA_ADDRS: PRE_ADDRS and that mapping.
+var ilaAddrsSetup = append(slices.Clone(tcpmAddrsSetup), "ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4")
+
+// ilaDevSetup is PRE_ILA_DEV: PRE_ADDRS and the mapping on d0.
+var ilaDevSetup = append(slices.Clone(tcpmAddrsSetup), "ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4 dev d0")
+
+// ilaBothSetup is PRE_ILA_BOTH: PRE_ADDRS and the mapping, without and
+// with d0, one locator to match.
+var ilaBothSetup = append(slices.Clone(ilaAddrsSetup), "ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4 dev d0")
+
+// ilaOptsSetup is ila_add_opts's command, the state its readback shows.
+var ilaOptsSetup = []string{"ila add loc_match 2001:db8:1:2 loc 2001:db8:3:4 csum-mode adj-transport ident-type luid"}
+
+// The l2tp commands genl-write-corpus.exp's rows and preconditions share:
+// L2TP_TUN1 and L2TP_SESS1, the IPv6 and IP-encap tunnels, and the session
+// with every option.
+const (
+	l2tpTun1Cst  = "l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 local 192.0.2.1 remote 192.0.2.2 udp_sport 5000 udp_dport 6000"
+	l2tpTunV6Cst = "l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 local 2001:db8::1 remote 2001:db8::2 " +
+		"udp_sport 5000 udp_dport 6000 udp6_csum_rx off"
+	l2tpTunIPCst    = "l2tp add tunnel tunnel_id 1 peer_tunnel_id 2 encap ip local 192.0.2.1 remote 192.0.2.2"
+	l2tpSess1Cst    = "l2tp add session tunnel_id 1 session_id 10 peer_session_id 20"
+	l2tpSessOptsCst = "l2tp add session name l2tp9 tunnel_id 1 session_id 10 peer_session_id 20 " +
+		"cookie 0102030405060708 peer_cookie 0a0b0c0d seq both l2spec_type none"
+)
+
+// l2tpTunSetup is genl-write-corpus.exp's PRE_TUN: PRE_ADDRS and a UDP
+// tunnel.
+var l2tpTunSetup = append(slices.Clone(tcpmAddrsSetup), l2tpTun1Cst)
+
+// l2tpTun2Setup is PRE_TUN2: PRE_TUN and a second tunnel.
+var l2tpTun2Setup = append(slices.Clone(l2tpTunSetup),
+	"l2tp add tunnel tunnel_id 3 peer_tunnel_id 4 local 192.0.2.1 remote 192.0.2.2 udp_sport 5001 udp_dport 6001")
+
+// l2tpSessSetup is PRE_SESS: PRE_TUN and a session.
+var l2tpSessSetup = append(slices.Clone(l2tpTunSetup), l2tpSess1Cst)
+
+// l2tpSess2Setup is PRE_SESS2: PRE_SESS and a second session.
+var l2tpSess2Setup = append(slices.Clone(l2tpSessSetup),
+	"l2tp add session tunnel_id 1 session_id 11 peer_session_id 21")
+
+// l2tpSessIPSetup is PRE_SESS_IP: PRE_ADDRS, an IP-encap tunnel and the
+// session.
+var l2tpSessIPSetup = append(slices.Clone(tcpmAddrsSetup), l2tpTunIPCst, l2tpSess1Cst)
+
+// l2tpTunV6Setup is l2tp_tunnel_add_v6's precondition and command, the
+// state its readback shows.
+var l2tpTunV6Setup = append(slices.Clone(tcpmAddrsSetup), l2tpTunV6Cst)
+
+// l2tpSessOptsSetup is l2tp_session_add_opts's precondition and command,
+// likewise.
+var l2tpSessOptsSetup = append(slices.Clone(l2tpTunSetup), l2tpSessOptsCst)
+
+// The macsec commands genl-write-corpus.exp's rows and preconditions
+// share: MACSEC_LINK, the two keys, the receive channel's SCI,
+// MACSEC_TXSA, MACSEC_RXSC, MACSEC_RXSA and the XPN SA.
+const (
+	macsecLinkCst    = "link add link d0 macsec0 type macsec sci 0102030405060001"
+	macsecKey1Cst    = "key 01000000000000000000000000000000 81818181818181818181818181818181"
+	macsecKey2Cst    = "key 02000000000000000000000000000000 82828282828282828282828282828282"
+	macsecSciCst     = "0a0b0c0d0e0f0001"
+	macsecTxsaCst    = "macsec add macsec0 tx sa 0 pn 1 on " + macsecKey1Cst
+	macsecRxscCst    = "macsec add macsec0 rx sci " + macsecSciCst + " on"
+	macsecRxsaCst    = "macsec add macsec0 rx sci " + macsecSciCst + " sa 0 pn 1 on " + macsecKey2Cst
+	macsecXpnTxsaCst = "macsec add macsec0 tx sa 0 xpn 1 salt 0102030405060708090a0b0c ssci 1 on " + macsecKey1Cst
+)
+
+// macsecSetup is genl-write-corpus.exp's PRE_MACSEC: PRE_ADDRS and
+// macsec0 over d0.
+var macsecSetup = append(slices.Clone(tcpmAddrsSetup), macsecLinkCst)
+
+// macsec2Setup is PRE_MACSEC2: PRE_MACSEC and macsec1.
+var macsec2Setup = append(slices.Clone(macsecSetup), "link add link d0 macsec1 type macsec sci 0102030405060002")
+
+// macsecXpnSetup is PRE_MACSEC_XPN: PRE_ADDRS and an XPN macsec0.
+var macsecXpnSetup = append(slices.Clone(tcpmAddrsSetup), macsecLinkCst+" cipher gcm-aes-xpn-128")
+
+// macsecTxsaSetup is PRE_TXSA: PRE_MACSEC and an active transmit SA.
+var macsecTxsaSetup = append(slices.Clone(macsecSetup), macsecTxsaCst)
+
+// macsecTxsaOffSetup is PRE_TXSA_OFF: PRE_MACSEC and the SA inactive.
+var macsecTxsaOffSetup = append(slices.Clone(macsecSetup), "macsec add macsec0 tx sa 0 pn 1 off "+macsecKey1Cst)
+
+// macsecRxscSetup is PRE_RXSC: PRE_MACSEC and a receive channel.
+var macsecRxscSetup = append(slices.Clone(macsecSetup), macsecRxscCst)
+
+// macsecRxsaSetup is PRE_RXSA: PRE_RXSC and an active receive SA.
+var macsecRxsaSetup = append(slices.Clone(macsecRxscSetup), macsecRxsaCst)
+
+// macsecRxsaOffSetup is PRE_RXSA_OFF: PRE_RXSC and the SA inactive.
+var macsecRxsaOffSetup = append(slices.Clone(macsecRxscSetup),
+	"macsec add macsec0 rx sci "+macsecSciCst+" sa 0 pn 1 off "+macsecKey2Cst)
+
+// macsecXpnTxsaSetup is macsec_xpn_txsa_add's precondition and command,
+// the state its readback shows.
+var macsecXpnTxsaSetup = append(slices.Clone(macsecXpnSetup), macsecXpnTxsaCst)
+
+// The XFRM SAs xfrm-write-corpus.exp's rows and preconditions share: SA
+// 1's id, SA 1, ESP in transport mode with hmac(sha256) and cbc(aes), and
+// SA 2, IPv6 ESP in tunnel mode with a truncated hmac(sha256).
+const (
+	xfrmAuthKeyCst = "0x1111111111111111111111111111111111111111111111111111111111111111"
+	xfrmEncKeyCst  = "0x22222222222222222222222222222222"
+	xfrmSA1IDCst   = "src 192.0.2.1 dst 192.0.2.2 proto esp spi 0x100"
+	xfrmSA1Cst     = "xfrm state add " + xfrmSA1IDCst + " reqid 1 mode transport auth sha256 " + xfrmAuthKeyCst +
+		" enc aes " + xfrmEncKeyCst
+	xfrmSA2Cst = "xfrm state add src 2001:db8::1 dst 2001:db8::2 proto esp spi 0x101 reqid 2 mode tunnel " +
+		"auth-trunc sha256 " + xfrmAuthKeyCst + " 128 enc aes " + xfrmEncKeyCst
+	// xfrmAlgosCst is SA 1's mode and algorithms, which its updates send
+	// again.
+	xfrmAlgosCst = " mode transport auth sha256 " + xfrmAuthKeyCst + " enc aes " + xfrmEncKeyCst
+	// xfrmAllocspiCst is the corpus's ALLOCSPI: one larval SA, SPI 0x200.
+	xfrmAllocspiCst = "xfrm state allocspi src 192.0.2.1 dst 192.0.2.2 proto esp min 0x200 max 0x200"
+)
+
+// xfrmSA1Setup is xfrm-write-corpus.exp's PRE_SA1, and xfrmTwoSetup its
+// PRE_TWO.
+var (
+	xfrmSA1Setup = []string{xfrmSA1Cst}
+	xfrmTwoSetup = []string{xfrmSA1Cst, xfrmSA2Cst}
+)
+
+// The policies xfrm-write-corpus.exp's rows and preconditions share:
+// policy 1, out from 192.0.2.1 to 192.0.2.2 requiring SA 1's ESP in
+// transport mode, reqid 1, and policy 2, IPv6 TCP to port 443 inbound,
+// blocked, at priority 10.
+const (
+	xfrmP1SelCst  = "src 192.0.2.1/32 dst 192.0.2.2/32 dir out"
+	xfrmP1TmplCst = "tmpl src 192.0.2.1 dst 192.0.2.2 proto esp reqid 1 mode transport"
+	xfrmP1Cst     = "xfrm policy add " + xfrmP1SelCst + " " + xfrmP1TmplCst
+	xfrmP2Cst     = "xfrm policy add src 2001:db8::1/128 dst 2001:db8::2/128 proto tcp dport 443 dir in " +
+		"priority 10 action block"
+)
+
+// xfrmP1Setup is xfrm-write-corpus.exp's PRE_P1, and xfrmPTwoSetup its
+// PRE_PTWO.
+var (
+	xfrmP1Setup   = []string{xfrmP1Cst}
+	xfrmPTwoSetup = []string{xfrmP1Cst, xfrmP2Cst}
+)
 
 // The write rows' preconditions, as capture-link-writes.exp spells them:
 // PRE_BOND, PRE_PORT and PRE_ENSLAVED there.
@@ -2220,6 +3595,149 @@ var (
 	routeWriteSetupDev6    = []string{"link add d0 type dummy", "link set d0 up", "addr add 192.0.2.1/24 dev d0", "-6 addr add 2001:db8::1/64 nodad dev d0"}
 	routeWriteSetupRoute   = []string{"link add d0 type dummy", "link set d0 up", "addr add 192.0.2.1/24 dev d0", "route add 198.51.100.0/24 dev d0"}
 	routeWriteSetupV6Route = []string{"link add d0 type dummy", "link set d0 up", "addr add 192.0.2.1/24 dev d0", "-6 addr add 2001:db8::1/64 nodad dev d0", "-6 route add 2001:db8:1::/64 dev d0"}
+)
+
+// The neigh write rows' preconditions: PRE_VETH, PRE_NEIGH and
+// PRE_NEIGH_STALE in rtnl-write-corpus.exp, with the veths' MACs pinned and
+// addrgenmode none, so d0 has no link-local and joins no solicited-node
+// group: the neighbor dumps hold the setup's entries alone on every side.
+var (
+	neighWriteSetupVeth = []string{
+		"link add d0 address 02:00:00:00:d0:00 type veth peer name d1 address 02:00:00:00:d1:00",
+		"link set d0 addrgenmode none", "link set d1 addrgenmode none", "link set d1 up", "link set d0 up",
+	}
+	neighWriteSetup = append(append([]string{}, neighWriteSetupVeth...),
+		"neigh add 192.0.2.2 lladdr 02:00:00:00:00:02 dev d0 nud permanent")
+	neighFlushSetup = append(append([]string{}, neighWriteSetupVeth...),
+		"neigh add 192.0.2.4 lladdr 02:00:00:00:00:04 dev d0 nud stale",
+		neighFlushSecondEntry)
+)
+
+// neighFlushSecondEntry is the flush rows' second stale entry, an IPv6 one
+// where the capture's is 192.0.2.5. The kernel hashes neighbor entries with
+// a per-namespace salt, so two IPv4 entries dump in an order each namespace
+// picks for itself, and the first live run had goip's copies in the other
+// order to ip_a's; key order is unsuppressible. An AF_UNSPEC dump walks the
+// ARP table before the ND table, so one entry of each family dumps in one
+// order on every side.
+const neighFlushSecondEntry = "neigh add 2001:db8::5 lladdr 02:00:00:00:00:05 dev d0 nud stale"
+
+// The `neigh get` rows' preconditions: PRE_VETH and PRE_NEIGH in
+// rtnl-write-corpus.exp. A dummy is IFF_NOARP and holds no neighbor entry.
+var (
+	neighGetSetupVeth = []string{"link add d0 type veth peer name d1", "link set d1 up", "link set d0 up"}
+	neighGetSetup     = []string{
+		"link add d0 type veth peer name d1", "link set d1 up", "link set d0 up",
+		"neigh add 192.0.2.2 lladdr 02:00:00:00:00:02 dev d0 nud permanent",
+	}
+)
+
+// The nexthop rows' preconditions: PRE_NH and PRE_NH_RES in
+// rtnl-write-corpus.exp, and the two below.
+var (
+	nexthopGetSetup = []string{
+		"link add d0 type dummy", "link set d0 up", "addr add 192.0.2.1/24 dev d0",
+		"nexthop add id 1 via 192.0.2.2 dev d0", "nexthop add id 2 via 192.0.2.3 dev d0",
+	}
+	nexthopBucketSetup = append(append([]string{}, nexthopGetSetup...),
+		"nexthop add id 20 group 1/2 type resilient buckets 1024")
+	// nexthopD0Setup is PRE_D0_ADDR, nexthop_add_single's, and
+	// nexthopBlackholeSetup nexthop_add_existing's and nexthop_del's one step.
+	nexthopD0Setup        = nexthopGetSetup[:3:3]
+	nexthopBlackholeSetup = []string{"nexthop add id 1 blackhole"}
+	// addrLabelSetup is addrlabel_del's and addrlabel_flush's one step.
+	addrLabelSetup = []string{"addrlabel add prefix 2001:db8::/32 label 99"}
+	// d0UpSetup is PRE_D0, the two steps of ntable_change, stats_set_l3,
+	// link_altname_add and link_altname_taken; linkAltnameSetup adds
+	// link_altname_del's altname.
+	d0UpSetup        = []string{"link add d0 type dummy", "link set d0 up"}
+	linkAltnameSetup = append(append([]string{}, d0UpSetup...), "link property add dev d0 altname d0alt")
+)
+
+// The `link xstats` and `link afstats` rows' precondition: the bridge of
+// rtnl-read-corpus.exp's build list.
+var linkXstatsSetup = []string{
+	"link add br0 type bridge", "link add v2 type veth peer name v2p",
+	"link set v2 master br0", "link set br0 up", "link set v2 up",
+}
+
+// mrouteSetup is the `ip mroute show` rows' precondition: the veths and
+// addresses of rtnl-read-corpus.exp's build list, then MROUTE_CONF, which
+// setup_step's `smcroute` form hands to xtcp2-nlcap mroute-start.
+// addrgenmode none leaves the veths no link-local: one finishing DAD inside
+// a capture window is an RTM_NEWADDR, and smcrouted answers it with a link
+// dump of its own, both in that side's capture. settle_links, which waits
+// out linkwatch, put the -6, iif, table all and -j rows' ip_a there.
+var mrouteSetup = []string{
+	"link add v0 type veth peer name v0p", "link add v1 type veth peer name v1p",
+	"link set v0 addrgenmode none", "link set v0p addrgenmode none",
+	"link set v1 addrgenmode none", "link set v1p addrgenmode none",
+	"link set v0p up", "link set v1p up", "link set v0 up", "link set v1 up",
+	"addr add 192.0.2.1/24 dev v0", "addr add 198.51.100.1/24 dev v1",
+	"smcroute mroute from v0 source 192.0.2.10 group 239.1.1.1 to v1",
+}
+
+// The `ip token` rows' preconditions: the reads veths with v0's token, as
+// rtnl-read-corpus.exp's build list sets it; and rtnl-write-corpus.exp's
+// PRE_VETH, a veth d0 whose peer is up, with addrgenmode none on both, as
+// neighWriteSetupVeth has. ip token set dumps the links before it writes,
+// and a link-local address would race the dump: DAD, MLD and the router
+// solicitation once d0 is ready change its counters and IF_RS_SENT, which
+// one side saw and the other did not.
+var (
+	tokenSetup = []string{
+		"link add v0 type veth peer name v0p", "link add v1 type veth peer name v1p",
+		"link set v0p up", "link set v1p up", "link set v0 up", "link set v1 up",
+		"token set ::1:2:3:4/64 dev v0",
+	}
+	tokenVethSetup = []string{
+		"link add d0 type veth peer name d1",
+		"link set d0 addrgenmode none", "link set d1 addrgenmode none", "link set d1 up", "link set d0 up",
+	}
+)
+
+// netnsSetup is the netns reads' precondition, rtnl-read-corpus.exp's two
+// peers: nlcaprp1 and nlcaprp2, made from the root, nsids 1 and 2 in the
+// row's namespace.
+var netnsSetup = []string{"peer nlcaprp1 1", "peer nlcaprp2 2"}
+
+// The rule rows' preconditions: rule_add_existing's and rule_del's one rule,
+// and PRE_RULES in rtnl-write-corpus.exp, rule_flush's and rule_save's.
+var (
+	ruleExistingSetup = []string{"rule add pref 100 from 192.0.2.0/24 table 100"}
+	ruleFlushSetup    = append(append([]string{}, ruleExistingSetup...), "rule add pref 101 fwmark 7 table 101")
+)
+
+// routeSaveSetup is PRE_ROUTES in rtnl-write-corpus.exp, route_save's
+// topology step for step.
+var routeSaveSetup = []string{
+	"link add d0 type dummy", "link set d0 up", "addr add 192.0.2.1/24 dev d0",
+	"route add 203.0.113.0/24 dev d0 table 100", "route add 198.51.100.0/24 via 192.0.2.2 table 100",
+}
+
+// routeFlushEmptySetup is PRE_TABLE_EMPTY in rtnl-write-corpus.exp,
+// route_flush_empty's topology step for step: table 100 made and emptied.
+var routeFlushEmptySetup = []string{
+	"link add d0 type dummy", "link set d0 up", "addr add 192.0.2.1/24 dev d0",
+	"route add 203.0.113.0/24 dev d0 table 100", "route del 203.0.113.0/24 dev d0 table 100",
+}
+
+// routeFlushNoTableSetup is route_flush_no_table's namespace: the capture
+// had no precondition, and a Setup is what gives a read row a namespace of
+// its own.
+var routeFlushNoTableSetup = []string{"link set lo up"}
+
+// The `route get` rows' preconditions: PRE_D0_ADDR, its v6 sibling, and
+// PRE_IIF in rtnl-write-corpus.exp. The sysctl step is setup_step's in
+// goip-parity.exp.
+var (
+	routeGetSetup    = routeWriteSetupDev
+	routeGetSetupV6  = []string{"link add d0 type dummy", "link set d0 up", "-6 addr add 2001:db8::1/64 dev d0 nodad"}
+	routeGetSetupIif = []string{
+		"sysctl net.ipv4.conf.all.forwarding 1",
+		"link add d0 type dummy", "link set d0 up", "addr add 192.0.2.1/24 dev d0",
+		"link add d1 type dummy", "link set d1 up", "addr add 198.51.100.1/24 dev d1",
+	}
 )
 
 // The address write rows' preconditions: PRE_ADDR_DEV and PRE_ADDR_V4 in
@@ -2409,9 +3927,9 @@ var ErrUnknownCommand = fmt.Errorf("goipparity: no such command")
 // allowlist key, and an allowlist matched by prefix would be an allowlist
 // whose entries silently widen.
 func Lookup(name string) (Command, error) {
-	for _, c := range commands {
-		if c.Name == name {
-			return c, nil
+	for i := range commands {
+		if commands[i].Name == name {
+			return commands[i], nil
 		}
 	}
 	return Command{}, fmt.Errorf("%q: %w", name, ErrUnknownCommand)
@@ -2458,15 +3976,22 @@ func (c Command) RCName(side string) string {
 	return c.Slug + "." + side + ".rc"
 }
 
+// ipStandInCst is String's impl field for an IPStandIn row.
+const ipStandInCst = "ip"
+
 // noSetupCst is String's Setup field for a row with no precondition, since an
 // empty field between two tabs is easy to misread in a transcript.
 const noSetupCst = "-"
 
 // String renders one table row for `goip-parity commands`, tab-separated so a
-// shell can read it with `read -r slug floor impl dev write setup args name`.
+// shell can read it with `read -r slug floor impl dev write proto setup args
+// name`.
 //
-// setup is noSetupCst or the Setup steps joined with ';'. It is the one
-// field before args that holds spaces, which a tab split does not mind.
+// impl is yes, no, or ip for an IPStandIn row, whose goip side runs `ip`.
+// proto is Protocol(). setup is noSetupCst or the Setup steps joined with
+// ';'. It is the one field before args that holds spaces, which a tab split
+// does not mind. stdin is noSetupCst for no Stdin, or '>' and the line, so
+// the blank line is '>' alone.
 //
 // Tab-separated rather than JSON because the consumer is an expect script
 // driving a serial console, where a parser is a liability and `IFS=$'\t'` is
@@ -2477,17 +4002,33 @@ func (c Command) String() string {
 	if len(c.Setup) != 0 {
 		setup = strings.Join(c.Setup, ";")
 	}
+	impl := yesNo(c.Implemented)
+	if c.IPStandIn {
+		impl = ipStandInCst
+	}
+	stdin := noSetupCst
+	if c.Stdin != nil {
+		stdin = stdinMarkCst + *c.Stdin
+	}
 	return strings.Join([]string{
 		c.Slug,
 		fmt.Sprint(c.Floor),
-		yesNo(c.Implemented),
+		impl,
 		yesNo(c.NeedsDev),
 		yesNo(c.Write),
+		c.Protocol(),
 		setup,
+		stdin,
 		strings.Join(c.Args, " "),
 		c.Name,
 	}, "\t")
 }
+
+// stdinMarkCst begins String()'s stdin field when the row has a Stdin.
+const stdinMarkCst = ">"
+
+// stdinLine is a Stdin.
+func stdinLine(line string) *string { return &line }
 
 // yesNo is a String() flag field.
 func yesNo(b bool) string {
@@ -2501,8 +4042,8 @@ func yesNo(b bool) string {
 // test and any future consumer agree on it.
 func slugsSorted() []string {
 	out := make([]string, 0, len(commands))
-	for _, c := range commands {
-		out = append(out, c.Slug)
+	for i := range commands {
+		out = append(out, commands[i].Slug)
 	}
 	sort.Strings(out)
 	return out

@@ -18,6 +18,9 @@ const (
 	// a command that returned 1: `addr flush` running out of rounds
 	// (ip/ip.c:131, ip/ipaddress.c:2012-2014).
 	ExitMinusOne = 255
+	// ExitMinusTwo is do_cmd's -(2), for a command that returned 2:
+	// mptcp_monitor's listen ending in error (ip/ipmptcp.c).
+	ExitMinusTwo = 254
 )
 
 const usage = `Usage: goip [ OPTIONS ] OBJECT { COMMAND | help }
@@ -43,7 +46,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	return run(args, os.Stdin, stdout, stderr)
 }
 
-// run is Run with stdin a parameter, which `addr showdump` reads.
+// run is Run with stdin a parameter, which the showdump and restore verbs
+// read.
 func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	c := newRunCtx(stdin, stdout, stderr)
 
@@ -70,8 +74,9 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	c.json, c.brief, c.oneline = o.json, o.brief, o.oneline
 	c.showStats, c.showDetails = o.showStats, o.showDetails
 	c.flushLoops, c.haveFlushLoops = o.flushLoops, o.haveFlushLoops
+	c.timestamp, c.timestampShort = o.timestamp, o.timestampShort
 
-	if msg := statsCountMsg(c.showStats); msg != "" {
+	if msg := statsCountMsg(c.showStats); msg != "" && !wideStatsObject(args) {
 		fmt.Fprintf(stderr, "goip: %s\n", msg)
 		return ExitUsage
 	}
@@ -126,14 +131,55 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 // 1 for an argument it refuses before sending (do_cmd negates
 // iplink_modify's -1), 2 for a kernel refusal (its -2), and 255 for a flush
 // that ran out of rounds (ipaddr_flush's 1, negated) or a dump file showdump
-// refuses (its exit(-1)). A save whose dump failed exits 1.
+// refuses (its exit(-1)), as for mrule's family refusal. A save whose dump failed exits 1, and so does a
+// neigh flush whose dump failed. The monitor exits 255 for an argument or a
+// file it refuses, 1 for a subscription refused or a file whose walk fails,
+// and 2 for a listen that ends in error. tcp_metrics exits 255 for what
+// tcp_metrics.c ends with exit(-1), 1 for a dump it refuses or a family
+// genl_init_handle cannot resolve, and 2 for a kernel refusal. sr exits 255
+// for what ipseg6.c ends with exit(-1), 1 for a dump or a reply it cannot
+// finish or parse, and 2 for a refused tunsrc show. ioam exits 255 for
+// what ipioam6.c ends with exit(-1), and 1 for a dump it cannot finish or a
+// monitor that cannot subscribe or whose listen ends. mptcp exits 255 for
+// what ipmptcp.c ends with exit(-1) and for a monitor that cannot
+// subscribe, 254 for a monitor whose listen ends in error, 1 for an answer
+// it refuses, and 2 for a dump it cannot finish or a kernel refusal. fou
+// exits 255 for what ipfou.c ends with exit(-1) and for a dump it cannot
+// finish, and 1 for a device it refuses or a show given arguments. ila
+// exits 255 for what ipila.c ends with exit(-1) and for a dump it cannot
+// finish, and 1 for a show given arguments. l2tp exits 255 for what
+// ipl2tp.c ends with exit(-1), and 1 for a dump it cannot finish. macsec
+// exits 255 for what ipmacsec.c ends with exit(-1), and 1 for a device
+// ll_name_to_index does not find, an SA check_sa_args refuses and a dump
+// it cannot finish. xfrm exits 255 for what ip/xfrm*.c ends with exit(-1),
+// 1 for an SPI the protocol cannot take, an answer it cannot print and a
+// dump it cannot finish, and 2 for a kernel refusal.
 func exitCodeOf(err error) int {
 	switch {
-	case errors.Is(err, ErrFlushIncomplete), errors.Is(err, ErrDumpFile):
+	case errors.Is(err, ErrFlushIncomplete), errors.Is(err, ErrDumpFile), errors.Is(err, ErrRuleDumpTerminated),
+		errors.Is(err, ErrAddrLabelFlushTerminated), errors.Is(err, ErrMruleFamily), errors.Is(err, ErrMonitorAbort),
+		errors.Is(err, ErrTCPMetricsUsage), errors.Is(err, ErrSrUsage), errors.Is(err, ErrIoamUsage),
+		errors.Is(err, ErrMptcpUsage), errors.Is(err, ErrMptcpSubscribe), errors.Is(err, ErrFouUsage),
+		errors.Is(err, ErrFouDumpTerminated), errors.Is(err, ErrIlaUsage), errors.Is(err, ErrIlaDumpTerminated),
+		errors.Is(err, ErrL2tpUsage), errors.Is(err, ErrMacsecUsage), errors.Is(err, ErrXfrmUsage):
 		return ExitMinusOne
+	case errors.Is(err, ErrMptcpListen):
+		return ExitMinusTwo
+	case errors.Is(err, ErrMptcpDumpTerminated):
+		// Ahead of ErrMptcpReply, which a refused answer in a dump wraps.
+		return ExitFailure
+	case errors.Is(err, ErrMonitorSetup), errors.Is(err, ErrMonitorFile):
+		return ExitUsage
 	case errors.Is(err, ErrNotImplemented), errors.Is(err, ErrInvalidArgument),
 		errors.Is(err, ErrWriteNotApplied), errors.Is(err, ErrSaveTerminated),
-		errors.Is(err, ErrDumpTerminated):
+		errors.Is(err, ErrDumpTerminated), errors.Is(err, ErrNeighFlushTerminated),
+		errors.Is(err, ErrTCPMetricsDumpTerminated), errors.Is(err, ErrGenlResolve),
+		errors.Is(err, ErrSrReply), errors.Is(err, ErrSrDumpTerminated),
+		errors.Is(err, ErrIoamDumpTerminated), errors.Is(err, ErrIoamMonitor),
+		errors.Is(err, ErrMptcpReply), errors.Is(err, ErrFouRefused), errors.Is(err, ErrIlaShowArgs),
+		errors.Is(err, ErrL2tpDumpTerminated), errors.Is(err, ErrMacsecRefused),
+		errors.Is(err, ErrMacsecDumpTerminated), errors.Is(err, ErrXfrmRefused),
+		errors.Is(err, ErrXfrmDumpTerminated):
 		return ExitUsage
 	}
 	return ExitFailure

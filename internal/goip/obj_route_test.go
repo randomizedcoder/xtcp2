@@ -1114,31 +1114,53 @@ func TestRunRouteArgs(t *testing.T) {
 			wantStdoutPrefix: firstLine,
 		},
 		{
-			// "sa" is not a prefix of "show", so matches() sends it to save —
-			// which goip does not implement. Accepting it as a show would make
-			// goip answer a question `ip` would answer differently.
-			description:      "negative: `route sa` is save, not show, and is refused",
+			// "sa" is not a prefix of "show", so matches() sends it to save
+			// (route_save.go), whose file opens with route_dump_magic.
+			// Accepting it as a show would make goip answer a question `ip`
+			// would answer differently.
+			description:      "positive: `route sa` is save, not show",
 			pcap:             routeDumpPcap,
 			args:             []string{"route", "sa"},
-			wantCode:         ExitUsage,
-			wantStderrSubstr: "not implemented",
+			wantCode:         ExitOK,
+			wantStdoutPrefix: "\x24\x12\x31\x45",
 		},
 		{
-			// flush is a dump and then one delete per route; goip has no
-			// such loop, and the add-through-delete verbs it does have stop
-			// before the kernel anyway (route_write.go).
-			description:      "negative: `flush` is refused",
+			// "showd" is not a prefix of "show" either. Run's stdin is
+			// empty, which `ip route showdump < /dev/null` refuses alike.
+			description:      "corner: `route showd` is showdump, not show",
+			pcap:             routeDumpPcap,
+			args:             []string{"route", "showd"},
+			wantCode:         ExitUsage,
+			wantStderrSubstr: "Magic mismatch (0 elems, 0 magic)",
+		},
+		{
+			// `res` is restore (route_restore.go); `r` and `re` are
+			// replace, a write verb earlier in the chain. Run's empty stdin
+			// is a magic mismatch, as in ip.
+			description:      "corner: `route res` is restore",
+			pcap:             routeDumpPcap,
+			args:             []string{"route", "res"},
+			wantCode:         ExitUsage,
+			wantStderrSubstr: "Magic mismatch (0 elems, 0 magic)",
+		},
+		{
+			// flush (route_flush.go) needs a selector, and refuses none
+			// before anything is sent, as ip does.
+			description:      "negative: `flush` with no arguments is ip's refusal",
 			pcap:             routeDumpPcap,
 			args:             []string{"route", "flush"},
 			wantCode:         ExitUsage,
-			wantStderrSubstr: "not implemented",
+			wantStderrSubstr: "\"ip route flush\" requires arguments",
 		},
 		{
-			description:      "negative: `get` is refused",
+			// `get` is implemented (route_get.go); with no destination it
+			// stops in its argument loop, before a request, as iproute_get's
+			// `need at least a destination address` does (ip/iproute.c:2193).
+			description:      "negative: `get` with no destination is refused before a request",
 			pcap:             routeDumpPcap,
-			args:             []string{"route", "get", "192.0.2.1"},
+			args:             []string{"route", "get"},
 			wantCode:         ExitUsage,
-			wantStderrSubstr: "not implemented",
+			wantStderrSubstr: "need at least a destination address",
 		},
 		{
 			// A dev-less add needs no lookup, so it reaches the hook with

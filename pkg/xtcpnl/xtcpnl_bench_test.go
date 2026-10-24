@@ -375,7 +375,7 @@ func DeserializeRTAttrBoth(b *testing.B, fn func(data []byte, rta *RTAttr) (n in
 
 var resultAddr AddrInfo
 
-// BenchmarkParseNewAddr decodes one real RTM_NEWADDR reply body.
+// BenchmarkParseNewAddr decodes real RTM_NEWADDR reply bodies.
 // ParseNewAddr runs in the daemon's event path, so A1-T01 measured it before
 // and after adding IFA_RT_PRIORITY, IFA_ANYCAST, IFA_MULTICAST and IFA_MC_USERS
 // (docs/netlink/addr-write-path-status.md has the numbers).
@@ -383,24 +383,25 @@ var resultAddr AddrInfo
 //   - no_metric is goip0 from the guest dump: local, address, broadcast,
 //     label, flags and cacheinfo, but no IFA_RT_PRIORITY.
 //   - metric is d0 from the v4_metric readback state, which carries it.
+//   - smallest, typical and largest are P0's picks from the whole corpus
+//     (benchRecords), decoded through parseBenchCases like the other P0
+//     benchmarks.
 func BenchmarkParseNewAddr(b *testing.B) {
-	for _, bc := range []struct {
-		name  string
-		path  string
-		index uint32
-	}{
-		{name: "no_metric", path: tdDumpGetAddrV4_7_1_4, index: 3},
-		{name: "metric", path: tdLinkWrite_7_1_4 + "/addr-show/v4_metric/netlink_route_getaddr.pcap", index: 3},
-	} {
-		body := addrReplyBody(b, bc.path, unix.AF_INET, bc.index)
-		b.Run(bc.name, func(b *testing.B) {
+	c := parseBenchCaseNamed(b, "ParseNewAddr")
+	picks := benchRecords(b, c.kind)
+	recs := make([]benchRecord, 0, 2+len(picks))
+	recs = append(recs,
+		benchRecord{name: "no_metric", body: addrReplyBody(b, tdDumpGetAddrV4_7_1_4, unix.AF_INET, 3)},
+		benchRecord{name: "metric", body: addrReplyBody(b, tdLinkWrite_7_1_4+"/addr-show/v4_metric/netlink_route_getaddr.pcap", unix.AF_INET, 3)},
+	)
+	recs = append(recs, picks...)
+	for _, r := range recs {
+		b.Run(r.name, func(b *testing.B) {
 			b.ReportAllocs()
 			for b.Loop() {
-				ai, err := ParseNewAddr(body)
-				if err != nil {
+				if err := c.parse(r.h, r.body); err != nil {
 					b.Fatal(err)
 				}
-				resultAddr = ai
 			}
 		})
 	}

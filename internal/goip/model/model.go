@@ -20,6 +20,11 @@ type Neighbor xtcpnl.NeighInfo
 // fetches one by id per route, never a list to order.
 type Nexthop xtcpnl.NexthopInfo
 
+// NexthopBucket is one bucket of a resilient nexthop group
+// (RTM_NEWNEXTHOPBUCKET). It has no Sort companion: `ip nexthop bucket show`
+// prints the kernel's walk, bucket index order.
+type NexthopBucket xtcpnl.NexthopBucketInfo
+
 // Rule is a routing policy database entry. It has no SortRules companion, and
 // that absence is deliberate rather than pending.
 //
@@ -30,6 +35,13 @@ type Nexthop xtcpnl.NexthopInfo
 // with it or invent an order `ip` does not use. SortNeighbors exists because
 // the neighbor hash has no such property and its order varies across boots.
 type Rule xtcpnl.RuleInfo
+
+// Nsid is one RTM_NEWNSID reply, `ip netns list-id`'s line.
+type Nsid xtcpnl.NsidInfo
+
+// LinkToken is one reply of `ip token`'s AF_INET6 link dump, what
+// print_token reads. Dump order is the kernel's, which `ip` prints as-is.
+type LinkToken xtcpnl.LinkToken
 
 // AddrLabel is one entry of the IPv6 address-label policy table
 // (RTM_NEWADDRLABEL). It has no Sort companion: the kernel dumps the per-netns

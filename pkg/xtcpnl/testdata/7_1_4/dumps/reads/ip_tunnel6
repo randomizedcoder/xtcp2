@@ -1,0 +1,2 @@
+ip6tnl0: ipv6/ipv6 remote :: local :: encaplimit 0 hoplimit inherit tclass 0x00 flowlabel 0x00000 (flowinfo 0x00000000)
+ip6gre0: gre/ipv6 remote :: local :: encaplimit 0 hoplimit inherit tclass 0x00 flowlabel 0x00000 (flowinfo 0x00000000)
