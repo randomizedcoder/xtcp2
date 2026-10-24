@@ -492,15 +492,66 @@ namespace eval nltopo {
     # ESP state with cbc(aes)+hmac(sha256) or rfc4106(gcm(aes)) needs; hmac and
     # sha256 are built into the guest kernel. crypto_null is the ESP state with
     # no keys that the MAPPING row decrypts. modprobe pulls in the rest
-    # (l2tp_core, xfrm_algo, ctr). The tunnel modules are not here: the dump
-    # driver loads them before its tunnel set, which is the one place they
-    # are wanted.
+    # (l2tp_core, xfrm_algo, ctr).
+    #
+    # The rest are the link kinds' modules (goip-link-kinds.md, KC0-T01),
+    # last, so a kind the kernel lacks stops nothing the genl and XFRM rows
+    # need. The tunnel modules among them (ip_gre, ip6_gre, ipip, sit,
+    # ip6_tunnel, ip_vti, ip6_vti) create a fallback device in every
+    # namespace made after they load unless fb_tunnels_only_for_init_net is
+    # 2, which late_setup sets first. The dump driver's tunnel set loads
+    # five of them itself, earlier, because it wants those devices.
     ###########################################################################
     variable late_modules {
         fou ila
         l2tp_core l2tp_netlink l2tp_eth l2tp_ip l2tp_ip6
         macsec
         xfrm_user esp4 esp6 authenc cbc gcm seqiv echainiv crypto_null
+        8021q macvlan macvtap ipvlan ipvtap
+        vxlan geneve bareudp amt gtp
+        ip_gre ip6_gre ipip sit ip6_tunnel ip_vti ip6_vti xfrm_interface
+        hsr ifb vcan vxcan batman_adv team
+    }
+
+    ###########################################################################
+    # kinds - every link kind goip-link-kinds.md has in scope that `ip link
+    # add` creates, for late_setup's `xtcp2-nlcap kinds` probe. The slave
+    # kinds (bridge_slave, team_slave) are not created, so they are not here.
+    ###########################################################################
+    variable kinds {
+        bridge
+        vlan macvlan macvtap ipvlan ipvtap
+        vxlan geneve bareudp amt gtp
+        gre gretap erspan ip6gre ip6gretap ip6erspan ipip sit ip6tnl vti vti6 xfrm
+        hsr netkit vrf vxcan batadv ifb nlmon vcan team
+    }
+
+    # The namespace late_setup reads for fallback devices.
+    variable FRESH_NS nlcapfb
+
+    ###########################################################################
+    # link_names <out> - the device names in `ip -o link show` output, in
+    # order, with any @<lower> suffix dropped.
+    #
+    # fallback_problem <names> - "" when a namespace made after the late load
+    # holds only what `xtcp2-nlcap ns-add` makes, lo and the nlmon0 capture
+    # device, and otherwise the problem naming what it holds.
+    ###########################################################################
+    proc link_names {out} {
+        set names {}
+        foreach line [split $out "\n"] {
+            if {[regexp {^\d+: ([^:@ ]+)} $line -> name]} {
+                lappend names $name
+            }
+        }
+        return $names
+    }
+
+    proc fallback_problem {names} {
+        if {$names eq {lo nlmon0}} {
+            return ""
+        }
+        return "fallback: a new namespace holds {$names}, not {lo nlmon0}"
     }
 
     ###########################################################################
@@ -521,7 +572,13 @@ namespace eval nltopo {
     ###########################################################################
     proc late_setup {subdir} {
         variable late_modules
+        variable kinds
+        variable FRESH_NS
         set problems {}
+        lassign [vmlib::run_out "xtcp2-nlcap sysctl - $subdir net.core.fb_tunnels_only_for_init_net 2"] rc out
+        if {$rc != 0} {
+            lappend problems "sysctl net.core.fb_tunnels_only_for_init_net=2: [string trim $out]"
+        }
         lassign [vmlib::run_out "xtcp2-nlcap modules $subdir [join $late_modules { }]"] rc out
         vmlib::log [string trim $out]
         if {$rc != 0} {
@@ -530,6 +587,23 @@ namespace eval nltopo {
         lassign [vmlib::run_out "xtcp2-nlcap sysctl - $subdir net.mptcp.enabled 1"] rc out
         if {$rc != 0} {
             lappend problems "sysctl net.mptcp.enabled=1: [string trim $out]"
+        }
+        # A namespace made now must hold only what ns-add makes: the
+        # evidence that the sysctl kept the tunnel modules' fallback devices
+        # out of every namespace the rows after this one build.
+        vmlib::run "xtcp2-nlcap ns-add $FRESH_NS"
+        lassign [vmlib::run_out "ip -n $FRESH_NS -o link show"] rc out
+        set problem [fallback_problem [link_names $out]]
+        if {$problem ne ""} {
+            lappend problems $problem
+        } else {
+            vmlib::run "xtcp2-nlcap note $subdir 'no fallback devices in a new namespace'"
+        }
+        vmlib::run "xtcp2-nlcap ns-del $FRESH_NS"
+        lassign [vmlib::run_out "xtcp2-nlcap kinds $subdir [join $kinds { }]"] rc out
+        vmlib::log [string trim $out]
+        if {$rc != 0} {
+            lappend problems "kinds: [string trim $out]"
         }
         if {[vmlib::run "test -e /proc/net/ip_mr_vif -a -e /proc/net/ip6_mr_vif"] != 0} {
             lappend problems "mroute: /proc/net/ip_mr_vif or ip6_mr_vif missing"

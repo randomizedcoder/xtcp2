@@ -33,7 +33,7 @@
 
 These are the trees [goip-parity-gaps.md](goip-parity-gaps.md#reference-sources) uses, and they are read-only in the same way. Two things differ:
 - **The `ip` pin is 7.2.0** (`nix/upstream-pins.json`). Read it with `git -C ~/Downloads/iproute2 show v7.2.0:ip/<file>`. Line numbers here are from `v7.2.0`. The checkout is a few commits past the tag (`v7.2.0-34`), so the tag, not the working tree, is the source of truth.
-- **Kernel line numbers** are from the local 7.3.0-rc6 tree, as before. The guest kernel is `linuxPackages_latest` (`nix/microvms/mkVm.nix`).
+- **Kernel line numbers** are from the local 7.3.0-rc6 tree, as before. The guest kernel is `linuxPackages_latest` (`nix/microvms/mkVm.nix`), 7.3.0 at KC0.
 
 ## Where goip stands
 
@@ -194,8 +194,8 @@ As in [goip-parity-gaps.md](goip-parity-gaps.md#closing-a-phase). In the commit 
 - **The dump driver's tunnel set is unchanged.** It loads ipip, ip_gre, sit, ip6_tunnel and ip6_gre itself before `late_setup`, because the fallback devices are half that set's coverage, and its reads namespace needs them for `ip tunnel show`. Those namespaces exist before the sysctl is set, and the dump driver captures nothing after `late_setup`.
 
 **A kind probe.** A new `xtcp2-nlcap kinds <subdir> <kind>…` subcommand (`nix/microvms/netlink-capture.nix`). For each kind, in argument order, it:
-- makes a scratch namespace;
-- runs `ip link add k0 type <kind>`, with the lower or peer device the kind needs (a dummy lower for vlan, macvlan, macvtap, ipvlan, ipvtap and hsr; `peer name k1` for vxcan and netkit);
+- makes a scratch namespace holding three dummies, `kl`, `ka` and `kb`, as lower devices;
+- runs `ip link add` for `k0` with the fewest options the kernel accepts (`kind_args`): `kl` as the lower for vlan, macvlan, macvtap, ipvlan, ipvtap and amt; `ka` and `kb` as hsr's slaves; a nonzero `remote` for the tunnels (`ipgre_tap_validate` refuses a zero one); `seq key 1 erspan_ver 1` for the ERSPAN kinds (`erspan_validate`); a table for vrf; a remote for geneve; a port and an ethertype for bareudp. vxcan and netkit name their own peer;
 - runs `ip link del k0`, then deletes the namespace;
 - appends `<kind> ok` or `<kind> refused <ip's stderr>` to `<subdir>/kinds`.
 
@@ -205,23 +205,29 @@ It is never fatal: a refused kind is evidence, not a failure. `late_setup` calls
 
 | description | input | expected |
 |---|---|---|
-| negative: no kind named | `xtcp2-nlcap kinds sub` | rc 2, `NLCAP_ERR usage: kinds` |
-| negative: no subdir | `xtcp2-nlcap kinds` | rc 2, `NLCAP_ERR usage: kinds` |
-| negative: a kind that isn't a plain word | `xtcp2-nlcap kinds sub 'a b'` | rc 2, `NLCAP_ERR kinds: bad kind name` |
-| boundary: one kind, refused in the sandbox | `xtcp2-nlcap kinds sub xtcp2nosuchkind` | rc 0; the sidecar is exactly one line, `xtcp2nosuchkind refused …` |
-| corner: a refused kind doesn't stop the next | `xtcp2-nlcap kinds sub xtcp2nosuchkind dummy` | rc 0; two sidecar lines, in argument order |
-| positive: `late_setup` sets the sysctl before it loads a module | the recorder's call list | `sysctl - late net.core.fb_tunnels_only_for_init_net 2` comes before `modules late …` |
-| positive: `late_setup` probes every in-scope kind | the recorder's call list | one `kinds late …` call naming every K1 to K5 kind |
-| corner: the late modules now include the tunnel modules, and every name is a module name | `nltopo::late_modules` | ip_gre, ip6_tunnel and batman_adv present; no name has a hyphen |
+| negative: no kind named | `xtcp2-nlcap kinds k1` | rc 2, `NLCAP_ERR usage: kinds` |
+| negative: no arguments at all | `xtcp2-nlcap kinds` | rc 2, `NLCAP_ERR usage: kinds` |
+| negative: a name that is no kind name | `xtcp2-nlcap kinds k2 dummy Bad-Kind` | rc 2, `NLCAP_ERR kinds: bad kind name: Bad-Kind`, before any probe; no sidecar |
+| boundary: one kind, refused in the sandbox | `xtcp2-nlcap kinds k3 xtcp2nosuchkind` | rc 0, `NLCAP_KINDS_OK k3/kinds n=1`; the sidecar is exactly one line, `xtcp2nosuchkind refused …` |
+| corner: a refused kind doesn't stop the next | `xtcp2-nlcap kinds k4 xtcp2nosuchkind dummy` | rc 0; two sidecar lines, in argument order |
+| positive: `late_setup` sets the sysctl before it loads a module | the recorder's trace | `sysctl - late net.core.fb_tunnels_only_for_init_net 2` comes before `modules late …` |
+| negative: a refused fallback sysctl | the recorder refusing it | the first problem is `sysctl net.core.fb_tunnels_only_for_init_net=2: REFUSED` |
+| positive: a fresh namespace holding `lo` and `nlmon0` | the read answered with those two | no `fallback:` problem, and the `no fallback devices in a new namespace` note |
+| negative: a fallback device in the fresh namespace | the read answered with `gre0@NONE` as well | `fallback: a new namespace holds {lo nlmon0 gre0}, not {lo nlmon0}`, and no note |
+| corner: the fresh namespace is deleted after it is read | the recorder's trace | the read comes before `ns-del nlcapfb` |
+| boundary: `link_names` drops the `@<lower>` suffix | `3: gre0@NONE: …` and `4: erspan0@NONE: …` | `gre0 erspan0` |
+| corner: an empty read, as when the namespace wasn't made | `""` | a `fallback:` problem naming `{}` |
+| boundary: `lo` alone | `{lo}` | a problem, since `ns-add` makes `nlmon0` |
+| positive: `late_setup` probes every in-scope kind | the recorder's calls | one `kinds late …` call naming the 32 creatable kinds; no slave kind |
+| corner: the module list | `nltopo::late_modules` | ip_gre, ip6_tunnel and batman_adv present, every kind module after every genl and XFRM module, no name with a dash |
 
-The existing "corner: late_setup loads the l2tp, macsec and xfrm modules and no tunnel module" row asserts the opposite of the last row. It is replaced, and the replacement says why: the sysctl is what made the tunnel modules safe to load late.
+The fresh namespace is made with `xtcp2-nlcap ns-add`, which adds the `nlmon0` capture device, so `lo nlmon0` is what every row's namespace starts with. The existing "corner: late_setup loads the l2tp, macsec and xfrm modules and no tunnel module" row asserted the opposite of the last row, and is replaced by it.
 
 | description (VM) | input | expected |
 |---|---|---|
-| positive: every in-scope kind is created | `link-write/late/kinds` and `dumps/late/kinds` | every kind `ok`, or `refused` with a decision-log entry |
-| positive: no fallback devices in a namespace made after `late_setup` | `ip -n <new ns> -o link show` | `lo` only |
-| corner: the genl and XFRM fixtures don't move | every `link-write/genl/` and `link-write/xfrm/` pcap | records identical to `main`'s (the C0-T01 nlwalk comparison) |
-| corner: the dump corpus doesn't move | every `dumps/` pcap, the tunnel set included | records identical to `main`'s |
+| positive: every in-scope kind is created | `late/kinds` from both drivers | every kind `ok`, or `refused` with a decision-log entry |
+| positive: no fallback devices in a namespace made after `late_setup` | `late/topology` | the `no fallback devices in a new namespace` note, and no `NLCAP_LATE_FAILED` |
+| corner: the fixtures captured before `late_setup` don't move | every pcap, against the committed corpus, by record count, protocol, `(type, len)` sequence and masked bytes (V005's and V013's method) | the same as `main`'s run of the same comparison |
 
 **Mutation check** (scratch worktree, through `vm-lib-exp`; each mutant must be killed by a named row):
 - the sysctl call dropped;
@@ -233,7 +239,67 @@ The existing "corner: late_setup loads the l2tp, macsec and xfrm modules and no 
 
 ### KC1 — `inet` devconf captures
 
-Rows in `rtnl-write-corpus.exp`: an on/off param, a numeric param, a hex value, several params in one `inet`, a bad value, an unknown param and a missing value. The readbacks are `ip netconf show dev` and `ip -d link show`. Tasks and tables are written at KC0's close.
+One task. Its rows are the source KP0's decoder and KG0's parser are tested against: every request shape `iplink_parse_inet` builds, the kernel's range checks on them, and every way `ip` refuses the words before it sends anything.
+
+#### KC1-T01 `inet` devconf write rows
+
+**Rows.** A block appended to `rtnlcorpus::rows` (`nix/microvms/scripts/rtnl-write-corpus.exp`), after C1-T04's rows, so it runs after every existing rtnl row and before `late_setup`. Every row's pre is `PRE_D0`, so the device is d0 at ifindex 3.
+- **Readbacks,** on every row the kernel answers: `{getnetconf 4 {ip netconf show dev d0}}` and `{getlink_detail 2 {ip -d link show dev d0}}`. `ip netconf` prints only forwarding, rp_filter, mc_forwarding, proxy_neigh and ignore_routes_with_linkdown, but the `RTM_NEWLINK` answer to the second carries the whole `IFLA_INET_CONF` array, so every param's value is in a pcap.
+- **The write's floor** is 4: d0's name lookup and the `RTM_NEWLINK` with its ACK or refusal.
+- **A row `ip` refuses before netlink** has floor 0, no readbacks and rc 255 (`invarg`, `incomplete_command`, `duparg2` and a failed `parse_on_off` all exit with -1). Its `ip.err` is the evidence: KG0 matches those texts. `rc_values` and `bad_floors` in the hermetic check learn this third kind of row.
+
+| slug | command (`ip link set dev d0 …`) | rc | what it pins |
+|---|---|---|---|
+| `inet_forwarding_on` | `inet forwarding on` | 0 | one on/off param |
+| `inet_rp_filter_max` | `inet rp_filter 2` | 0 | a numeric param at the top of the kernel's range |
+| `inet_rp_filter_over` | `inet rp_filter 3` | 2 | `inet_devconf_policy`'s range, one past it (`EINVAL`) |
+| `inet_tag_hex` | `inet tag 0x10` | 0 | base 0: hex |
+| `inet_arp_ignore_octal` | `inet arp_ignore 010` | 0 | base 0: a leading 0 is octal, so 8, the top of `ARP_IGNORE`'s range |
+| `inet_medium_id_neg1` | `inet medium_id -1` | 0 | the one signed param (`NLA_POLICY_MIN(NLA_S32, -1)`), sent as `0xffffffff` |
+| `inet_medium_id_neg2` | `inet medium_id -2` | 2 | one under its minimum |
+| `inet_several` | `inet forwarding on proxy_arp on rp_filter 1 arp_ignore 2` | 0 | several params in one nest, in argument order |
+| `inet_every_param` | all 32 params, on/off ones `on`, numeric ones in range | 0 | every keyword and its devconf id |
+| `inet_repeated` | `inet forwarding on forwarding off` | 0 | both attributes sent; the kernel applies the last |
+| `inet_then_mtu` | `inet forwarding on mtu 1400` | 0 | the push-back: `mtu` returns to `iplink_parse`, and one request carries `IFLA_MTU` and `IFLA_AF_SPEC` |
+| `inet_then_garbage` | `inet forwarding on bogus` | 255 | the pushed-back word reaches `iplink_parse` as a second device name (`duparg2`) |
+| `inet_bad_on_off` | `inet forwarding maybe` | 255 | `parse_on_off`'s error |
+| `inet_bad_number` | `inet rp_filter x` | 255 | `Invalid "rp_filter" value` |
+| `inet_no_param` | `inet` | 255 | `incomplete_command`: nothing after `inet` |
+| `inet_unknown_param` | `inet bogus on` | 255 | `incomplete_command`: the first word is no param |
+| `inet_abbreviated` | `inet forw on` | 255 | `strcmp`, not `matches`: no abbreviation |
+| `inet_no_value` | `inet forwarding` | 255 | `incomplete_command` from `NEXT_ARG` |
+
+**Tests.** Hermetic rows in `nix/microvms/scripts/rtnl-write-corpus-test.exp`, run by `checks.vm-lib-exp`:
+
+| description | input | expected |
+|---|---|---|
+| positive: the rows are the plan's, in run order | `slugs $R` | C1's 59 slugs, then the 18 above in the table's order |
+| boundary: the row count | `llength $R` | 77 |
+| corner: KC1-T01's rows come after C1-T04's | `lindex [slugs $R] 59` | `inet_forwarding_on` |
+| positive: exactly the refusal rows expect a non-zero status | `refused_rows` | C1's 13 at 2, `inet_rp_filter_over` and `inet_medium_id_neg2` at 2, the 8 `ip`-refused rows at 255 |
+| boundary: every status is 0, 2 or 255 | `bad_rc` | `{}` |
+| negative: a status of 1 | `bad_rc` over a row with rc 1 | that row's slug |
+| boundary: a 255 row's floor is 0 and it has no readback | `bad_floors` | `{}`; a 255 row with floor 2, or with a readback, is listed |
+| boundary: a `dev d0` row the kernel answers still counts the name lookup | `bad_floors` over `inet_forwarding_on` with floor 2 | `inet_forwarding_on` |
+| positive: every kernel-answered `inet` row reads back netconf and the detailed link | `readback_names inet_<slug>` | `getnetconf getlink_detail` |
+| corner: no `inet` command holds a single quote | `quoted` | `{}` |
+
+| description (VM) | input | expected |
+|---|---|---|
+| positive: each row's status | `rtnl/inet_*/ip.rc` | the table's rc, with no `rtnl_problems` line |
+| positive: the accepted rows reach the device | `getlink_detail` of `inet_every_param` | each of the 32 devconf ids holds the value sent |
+| corner: the last of a repeated param wins | `getnetconf` of `inet_repeated` | `forwarding off` |
+| corner: a refused row changes nothing | `getlink_detail` of `inet_rp_filter_over` | rp_filter as before the row (the namespace default) |
+| negative: `ip` refuses without a datagram | `rtnl/inet_bad_*/ip.pcap` and the other 255 rows | no `RTM_NEWLINK`; `ip.err` holds the text named in the table |
+| corner: the rows before move nothing | every other pcap against V004's run, as V004 compares | the same shape apart from the reorderings V004 lists |
+
+**Mutation check** (scratch worktree, through `vm-lib-exp`; each mutant killed by a named row):
+- `bad_rc` back to `{0 2}`;
+- the 255 exemption in `bad_floors` dropped;
+- `inet_rp_filter_over` given rc 0;
+- two `inet` rows swapped.
+
+**Done when:** the hermetic rows pass in `vm-lib-exp`; nix-fmt, statix and deadnix pass; `microvm-x86_64-link-write-capture` captures the 18 rows with the statuses above, and its only failure is `genl/mptcp_limits_set_over` (see the [decision log](goip-link-kinds-status.md#decision-log)); the VM rows hold.
 
 ### KC2 — Bridge captures
 

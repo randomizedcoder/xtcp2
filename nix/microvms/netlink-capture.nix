@@ -1789,6 +1789,85 @@ pkgs.writeShellApplication {
       echo "NLCAP_MOD_OK $subdir/modules n=$#"
     }
 
+    # kinds <subdir> <kind>...
+    #
+    # Probe whether the kernel creates each link kind, and record the answer
+    # in $OUT/<subdir>/kinds, one `<kind> ok` or `<kind> refused <stderr>`
+    # line each, in argument order (docs/netlink/goip-link-kinds.md,
+    # KC0-T01). The sidecar is the evidence for which kinds are in scope.
+    #
+    # Each kind gets a scratch namespace of its own, holding the lower
+    # devices some kinds need (kl, and ka/kb for hsr's two slaves), in which
+    # `ip link add k0 type <kind>` runs with the fewest options the kernel
+    # accepts (kind_args), then `ip link del k0`. A refusal is evidence, not
+    # a failure: the call fails only on a usage error or a bad name.
+    cmd_kinds() {
+      [ $# -ge 2 ] || die "usage: kinds <subdir> <kind>..."
+      local subdir=$1 kind out lines=""
+      shift
+      for kind in "$@"; do
+        case "$kind" in "" | *[!a-z0-9_]*) die "kinds: bad kind name: $kind" ;; esac
+      done
+      for kind in "$@"; do
+        if out=$(kind_probe "$kind" 2>&1); then
+          lines+="$kind ok"$'\n'
+        else
+          lines+="$kind refused ''${out//$'\n'/ }"$'\n'
+        fi
+      done
+      mkdir -p "$OUT/$subdir"
+      printf '%s' "$lines" >"$OUT/$subdir/kinds"
+      echo "NLCAP_KINDS_OK $subdir/kinds n=$#"
+    }
+
+    # kind_args <kind> - what follows `ip link add` for one probe: the
+    # options without which the kernel refuses the kind. A tunnel's remote
+    # must be nonzero for the tap kinds (ipgre_tap_validate), and ERSPAN
+    # needs sequence numbers and a key (erspan_validate); hsr needs both
+    # slaves, vrf a table, geneve a remote, bareudp a port and an ethertype,
+    # and amt a lower, a local address and, as a gateway, a discovery one.
+    kind_args() {
+      local v4=(local 192.0.2.1 remote 192.0.2.2) v6=(local 2001:db8::1 remote 2001:db8::2)
+      local erspan=(seq key 1 erspan_ver 1 erspan 1)
+      case "$1" in
+        vlan) echo link kl name k0 type vlan id 10 ;;
+        macvlan | macvtap | ipvlan | ipvtap) echo link kl name k0 type "$1" ;;
+        vxlan) echo k0 type vxlan id 1 dstport 4789 ;;
+        geneve) echo k0 type geneve id 1 remote 192.0.2.2 ;;
+        bareudp) echo k0 type bareudp dstport 6635 ethertype ipv4 ;;
+        amt) echo k0 type amt mode gateway local 192.0.2.1 discovery 192.0.2.2 dev kl ;;
+        gre | gretap | ipip | sit | vti) echo k0 type "$1" "''${v4[@]}" ;;
+        erspan) echo k0 type erspan "''${v4[@]}" "''${erspan[@]}" ;;
+        ip6gre | ip6gretap | ip6tnl | vti6) echo k0 type "$1" "''${v6[@]}" ;;
+        ip6erspan) echo k0 type ip6erspan "''${v6[@]}" "''${erspan[@]}" ;;
+        xfrm) echo k0 type xfrm if_id 1 ;;
+        hsr) echo k0 type hsr slave1 ka slave2 kb ;;
+        vrf) echo k0 type vrf table 10 ;;
+        *) echo k0 type "$1" ;;
+      esac
+    }
+
+    # kind_probe <kind> - one probe in a fresh scratch namespace, which is
+    # deleted whatever the outcome. Prints the failing step's stderr.
+    kind_probe() {
+      local ns=nlcapkinds rc=0 lower args
+      ip netns del "$ns" >/dev/null 2>&1 || true
+      ip netns add "$ns" || return 1
+      for lower in kl ka kb; do
+        ip -n "$ns" link add "$lower" type dummy || rc=1
+      done
+      if [ "$rc" -eq 0 ]; then
+        read -r -a args <<<"$(kind_args "$1")"
+        if ip -n "$ns" link add "''${args[@]}"; then
+          ip -n "$ns" link del k0 || rc=1
+        else
+          rc=1
+        fi
+      fi
+      ip netns del "$ns" >/dev/null 2>&1 || true
+      return "$rc"
+    }
+
     # note <subdir> <text...>
     #
     # One free-text line in $OUT/<subdir>/topology. The driver writes one when
@@ -2238,7 +2317,7 @@ pkgs.writeShellApplication {
     }
 
     if [ $# -lt 1 ]; then
-      die "usage: xtcp2-nlcap <ns-add|ns-del|topo|cap|capio|write|side|wait-lacp|wait-sysfs|wait-linkwatch|wait-addr-flag|sysctl|tcp|hmac|modules|note|wait-churn|strace|strace-monitor|wait-rdma-port|rdma-hold|rdma-hold-wait|rdma-hold-stop|rdma-user-cqn|mroute-start|mroute-stop|dir|inventory|pack|tcpdump-drops|filter> [--proto route|generic|xfrm] ..."
+      die "usage: xtcp2-nlcap <ns-add|ns-del|topo|cap|capio|write|side|wait-lacp|wait-sysfs|wait-linkwatch|wait-addr-flag|sysctl|tcp|hmac|modules|kinds|note|wait-churn|strace|strace-monitor|wait-rdma-port|rdma-hold|rdma-hold-wait|rdma-hold-stop|rdma-user-cqn|mroute-start|mroute-stop|dir|inventory|pack|tcpdump-drops|filter> [--proto route|generic|xfrm] ..."
     fi
 
     sub=$1
@@ -2271,6 +2350,7 @@ pkgs.writeShellApplication {
       tcp)       cmd_tcp "$@" ;;
       hmac)      cmd_hmac "$@" ;;
       modules)   cmd_modules "$@" ;;
+      kinds)     cmd_kinds "$@" ;;
       note)      cmd_note "$@" ;;
       wait-churn) cmd_wait_churn "$@" ;;
       strace)    cmd_strace "$@" ;;

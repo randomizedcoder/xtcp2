@@ -64,25 +64,34 @@ set out_dir $env(NLCAP_OUT)
 # The recorder. ::refuse is a regexp over the command line; a match answers
 # rc 1, as the guest does for a step its kernel will not take. ::fake_wait
 # decides whether wait-addr-flag is answered here (with ::wait_rc) or sent to
-# the real helper.
+# the real helper. ::fake_links is what late_setup's read of a fresh
+# namespace (`ip -n nlcapfb -o link show`) answers. ::trace is every
+# command, answered here or not, in order.
 ###############################################################################
 rename vmlib::run_out vmlib::real_run_out
 set ::calls {}
+set ::trace {}
 set ::refuse ""
 set ::fake_wait 1
 set ::wait_rc 0
+set ::fake_links ""
 
 proc vmlib::run_out {cmd {cmd_timeout ""} {quiet 0}} {
+    lappend ::trace $cmd
     set waitcmd [string match "xtcp2-nlcap wait-addr-flag *" $cmd]
-    set topocmd [regexp {^xtcp2-nlcap (topo|ns-add|ns-del|sysctl|note) } $cmd]
-    if {$waitcmd || $topocmd} {
+    set topocmd [regexp {^xtcp2-nlcap (topo|ns-add|ns-del|sysctl|note|kinds) } $cmd]
+    set linkscmd [string match "ip -n nlcapfb *" $cmd]
+    if {$waitcmd || $topocmd || $linkscmd} {
         lappend ::calls [list $cmd $cmd_timeout]
     }
-    if {!$topocmd && !($waitcmd && $::fake_wait)} {
+    if {!$topocmd && !$linkscmd && !($waitcmd && $::fake_wait)} {
         return [::vmlib::real_run_out $cmd $cmd_timeout $quiet]
     }
     if {$::refuse ne "" && [regexp -- $::refuse $cmd]} {
         return [list 1 "REFUSED"]
+    }
+    if {$linkscmd} {
+        return [list 0 $::fake_links]
     }
     if {$waitcmd} {
         return [list $::wait_rc "faked wait"]
@@ -674,6 +683,33 @@ foreach {description cmd want_rc want_re} [list \
     ccheck $description $cmd $want_rc $want_re
 }
 
+###############################################################################
+# kinds: the link-kind probe (goip-link-kinds.md, KC0-T01). The sandbox can
+# make no namespace, so every kind is refused here; what runs is the argument
+# handling, the never-fatal refusal and the sidecar's format and order. A
+# kind the kernel creates is a VM row.
+###############################################################################
+foreach {description cmd want_rc want_re} [list \
+    "negative: no kind named is a usage error" \
+        "xtcp2-nlcap kinds k1" 2 {NLCAP_ERR usage: kinds} \
+    "negative: no arguments at all is a usage error" \
+        "xtcp2-nlcap kinds" 2 {NLCAP_ERR usage: kinds} \
+    "negative: a name that is no kind name is refused before any probe" \
+        "xtcp2-nlcap kinds k2 dummy Bad-Kind" 2 {^(?!.*NLCAP_KINDS_OK).*NLCAP_ERR kinds: bad kind name: Bad-Kind} \
+    "corner: and the refusal wrote no sidecar" \
+        "test ! -e $out_dir/k2/kinds" 0 {} \
+    "boundary: one kind the kernel refuses is rc 0, not a failure" \
+        "xtcp2-nlcap kinds k3 xtcp2nosuchkind" 0 {NLCAP_KINDS_OK k3/kinds n=1} \
+    "boundary: and its sidecar is exactly one refused line" \
+        "cat $out_dir/k3/kinds" 0 {^xtcp2nosuchkind refused [^\n]+$} \
+    "corner: a refused kind does not stop the next one" \
+        "xtcp2-nlcap kinds k4 xtcp2nosuchkind dummy" 0 {NLCAP_KINDS_OK k4/kinds n=2} \
+    "corner: and the sidecar keeps argument order, one line each" \
+        "cat $out_dir/k4/kinds" 0 {^xtcp2nosuchkind refused [^\n]+\ndummy (ok|refused [^\n]+)$} \
+] {
+    ccheck $description $cmd $want_rc $want_re
+}
+
 # mroute-start / mroute-stop (C1-T03). The sandbox has no namespace to run
 # smcrouted in, so only the refusals before anything starts can run here;
 # the daemon itself needs the VM.
@@ -888,16 +924,59 @@ foreach {description cmd want_rc want_re} [list \
 }
 
 # late_setup against the recorder: the modules call reaches the real helper,
-# where it fails as above; the sysctl and note are recorded.
+# where it fails as above; the sysctls, notes, the fresh namespace's read and
+# the kinds probe are recorded.
+set fresh_ok "1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN\n2: nlmon0: <NOARP,UP,LOWER_UP> mtu 3776 qdisc noqueue state UNKNOWN"
 set ::calls {}
+set ::trace {}
+set ::fake_links $fresh_ok
 set late [nltopo::late_setup late]
+set called [lmap c $::calls {lindex $c 0}]
 tcheck "negative: late_setup reports the failed module load" \
     {regexp {^modules: NLCAP_MOD_FAIL fou$} [lindex $late 0]} 1
 tcheck "positive: late_setup asks for mptcp in the root namespace" \
-    {expr {[lsearch -exact [lmap c $::calls {lindex $c 0}] "xtcp2-nlcap sysctl - late net.mptcp.enabled 1"] >= 0}} 1
-tcheck "corner: late_setup loads the l2tp, macsec and xfrm modules and no tunnel module" \
-    {expr {[lsearch $nltopo::late_modules l2tp_netlink] >= 0 && [lsearch $nltopo::late_modules macsec] >= 0
-        && [lsearch $nltopo::late_modules xfrm_user] >= 0 && [lsearch $nltopo::late_modules ip6_tunnel] < 0}} 1
+    {expr {[lsearch -exact $called "xtcp2-nlcap sysctl - late net.mptcp.enabled 1"] >= 0}} 1
+tcheck "positive: late_setup sets fb_tunnels_only_for_init_net to 2 before it loads a module" \
+    {expr {[lsearch -exact $::trace "xtcp2-nlcap sysctl - late net.core.fb_tunnels_only_for_init_net 2"] >= 0
+        && [lsearch -exact $::trace "xtcp2-nlcap sysctl - late net.core.fb_tunnels_only_for_init_net 2"]
+            < [lsearch -glob $::trace "xtcp2-nlcap modules late *"]}} 1
+tcheck "positive: a fresh namespace holding lo and nlmon0 is no problem, and is noted" \
+    {expr {[lsearch -glob $late fallback:*] < 0
+        && [lsearch -exact $called "xtcp2-nlcap note late 'no fallback devices in a new namespace'"] >= 0}} 1
+tcheck "positive: late_setup probes every in-scope kind, in one call" \
+    {expr {[lsearch -exact $called "xtcp2-nlcap kinds late [join $nltopo::kinds { }]"] >= 0
+        && [llength $nltopo::kinds] == 32 && [lsearch $nltopo::kinds netkit] >= 0
+        && [lsearch $nltopo::kinds ip6erspan] >= 0 && [lsearch $nltopo::kinds bridge_slave] < 0}} 1
+tcheck "corner: the fresh namespace is deleted after it is read" \
+    {expr {[lsearch -exact $::trace "ip -n nlcapfb -o link show"]
+        < [lsearch -exact $::trace "xtcp2-nlcap ns-del nlcapfb"]}} 1
+
+set ::calls {}
+set ::fake_links "$fresh_ok\n3: gre0@NONE: <NOARP> mtu 1476 qdisc noop state DOWN"
+set late [nltopo::late_setup late]
+tcheck "negative: a fallback device in the fresh namespace is a problem naming it" \
+    {lsearch -inline -glob $late fallback:*} {fallback: a new namespace holds {lo nlmon0 gre0}, not {lo nlmon0}}
+tcheck "corner: and nothing notes the namespace as clean" \
+    {lsearch -glob [lmap c $::calls {lindex $c 0}] "*no fallback devices*"} -1
+
+set ::fake_links $fresh_ok
+set ::refuse {fb_tunnels_only_for_init_net}
+set late [nltopo::late_setup late]
+set ::refuse ""
+tcheck "negative: a refused fallback sysctl is the first problem" \
+    {lindex $late 0} {sysctl net.core.fb_tunnels_only_for_init_net=2: REFUSED}
+
+tcheck "boundary: link_names drops the @<lower> suffix" \
+    {nltopo::link_names "3: gre0@NONE: <NOARP> mtu 1476\n4: erspan0@NONE: <BROADCAST>"} {gre0 erspan0}
+tcheck "corner: an empty read, as when the namespace was not made, is a problem" \
+    {nltopo::fallback_problem [nltopo::link_names ""]} {fallback: a new namespace holds {}, not {lo nlmon0}}
+tcheck "boundary: lo alone is a problem too, since ns-add makes nlmon0" \
+    {expr {[nltopo::fallback_problem {lo}] ne ""}} 1
+tcheck "corner: the late modules include the tunnel modules, after every genl and XFRM module, and no name has a dash" \
+    {expr {[lsearch $nltopo::late_modules ip_gre] >= 0 && [lsearch $nltopo::late_modules ip6_tunnel] >= 0
+        && [lsearch $nltopo::late_modules batman_adv] >= 0
+        && [lsearch $nltopo::late_modules crypto_null] < [lsearch $nltopo::late_modules 8021q]
+        && [lsearch -glob $nltopo::late_modules *-*] < 0}} 1
 
 ###############################################################################
 # summary
