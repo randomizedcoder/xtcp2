@@ -246,7 +246,7 @@ One task. Its rows are the source KP0's decoder and KG0's parser are tested agai
 **Rows.** A block appended to `rtnlcorpus::rows` (`nix/microvms/scripts/rtnl-write-corpus.exp`), after C1-T04's rows, so it runs after every existing rtnl row and before `late_setup`. Every row's pre is `PRE_D0`, so the device is d0 at ifindex 3.
 - **Readbacks,** on every row the kernel answers: `{getnetconf 4 {ip netconf show dev d0}}` and `{getlink_detail 2 {ip -d link show dev d0}}`. `ip netconf` prints only forwarding, rp_filter, mc_forwarding, proxy_neigh and ignore_routes_with_linkdown, but the `RTM_NEWLINK` answer to the second carries the whole `IFLA_INET_CONF` array, so every param's value is in a pcap.
 - **The write's floor** is 4: d0's name lookup and the `RTM_NEWLINK` with its ACK or refusal.
-- **A row `ip` refuses before netlink** has floor 0, no readbacks and rc 255 (`invarg`, `incomplete_command`, `duparg2` and a failed `parse_on_off` all exit with -1). Its `ip.err` is the evidence: KG0 matches those texts. `rc_values` and `bad_floors` in the hermetic check learn this third kind of row.
+- **A row `ip` refuses before netlink** has floor 0 and no readbacks. Its status is 255 when `ip` calls `exit(-1)` (`invarg`, `incomplete_command`, `duparg2`), and 1 when the parse error is returned instead: `do_cmd` (`ip/ip.c:131`) exits with the negated return, and a failed `parse_on_off` returns -1 up the stack. The first VM run found the 1; the plan had assumed 255. Its `ip.err` is the evidence: KG0 matches those texts and statuses. `rc_values` and `bad_floors` in the hermetic check learn this third kind of row.
 
 | slug | command (`ip link set dev d0 …`) | rc | what it pins |
 |---|---|---|---|
@@ -262,7 +262,7 @@ One task. Its rows are the source KP0's decoder and KG0's parser are tested agai
 | `inet_repeated` | `inet forwarding on forwarding off` | 0 | both attributes sent; the kernel applies the last |
 | `inet_then_mtu` | `inet forwarding on mtu 1400` | 0 | the push-back: `mtu` returns to `iplink_parse`, and one request carries `IFLA_MTU` and `IFLA_AF_SPEC` |
 | `inet_then_garbage` | `inet forwarding on bogus` | 255 | the pushed-back word reaches `iplink_parse` as a second device name (`duparg2`) |
-| `inet_bad_on_off` | `inet forwarding maybe` | 255 | `parse_on_off`'s error |
+| `inet_bad_on_off` | `inet forwarding maybe` | 1 | `parse_on_off`'s error, returned rather than exited on |
 | `inet_bad_number` | `inet rp_filter x` | 255 | `Invalid "rp_filter" value` |
 | `inet_no_param` | `inet` | 255 | `incomplete_command`: nothing after `inet` |
 | `inet_unknown_param` | `inet bogus on` | 255 | `incomplete_command`: the first word is no param |
@@ -276,10 +276,10 @@ One task. Its rows are the source KP0's decoder and KG0's parser are tested agai
 | positive: the rows are the plan's, in run order | `slugs $R` | C1's 59 slugs, then the 18 above in the table's order |
 | boundary: the row count | `llength $R` | 77 |
 | corner: KC1-T01's rows come after C1-T04's | `lindex [slugs $R] 59` | `inet_forwarding_on` |
-| positive: exactly the refusal rows expect a non-zero status | `refused_rows` | C1's 13 at 2, `inet_rp_filter_over` and `inet_medium_id_neg2` at 2, the 8 `ip`-refused rows at 255 |
-| boundary: every status is 0, 2 or 255 | `bad_rc` | `{}` |
-| negative: a status of 1 | `bad_rc` over a row with rc 1 | that row's slug |
-| boundary: a 255 row's floor is 0 and it has no readback | `bad_floors` | `{}`; a 255 row with floor 2, or with a readback, is listed |
+| positive: exactly the refusal rows expect a non-zero status | `refused_rows` | C1's 13 at 2, `inet_rp_filter_over` and `inet_medium_id_neg2` at 2, `inet_bad_on_off` at 1, the other 6 `ip`-refused rows at 255 |
+| boundary: every status is 0, 1, 2 or 255 | `bad_rc $R` | `{}` |
+| negative: a status of 3 | `bad_rc` over a row with rc 3 | that row's slug |
+| boundary: an `ip`-refused row's floor is 0 and it has no readback | `bad_floors` | `{}`; a 255 or 1 row with floor 2, or with a readback, is listed |
 | boundary: a `dev d0` row the kernel answers still counts the name lookup | `bad_floors` over `inet_forwarding_on` with floor 2 | `inet_forwarding_on` |
 | positive: every kernel-answered `inet` row reads back netconf and the detailed link | `readback_names inet_<slug>` | `getnetconf getlink_detail` |
 | corner: no `inet` command holds a single quote | `quoted` | `{}` |
@@ -290,12 +290,12 @@ One task. Its rows are the source KP0's decoder and KG0's parser are tested agai
 | positive: the accepted rows reach the device | `getlink_detail` of `inet_every_param` | each of the 32 devconf ids holds the value sent |
 | corner: the last of a repeated param wins | `getnetconf` of `inet_repeated` | `forwarding off` |
 | corner: a refused row changes nothing | `getlink_detail` of `inet_rp_filter_over` | rp_filter as before the row (the namespace default) |
-| negative: `ip` refuses without a datagram | `rtnl/inet_bad_*/ip.pcap` and the other 255 rows | no `RTM_NEWLINK`; `ip.err` holds the text named in the table |
+| negative: `ip` refuses without a datagram | the 7 `ip`-refused rows' `ip.pcap` | no datagram; `ip.err` holds the text named in the table |
 | corner: the rows before move nothing | every other pcap against V004's run, as V004 compares | the same shape apart from the reorderings V004 lists |
 
 **Mutation check** (scratch worktree, through `vm-lib-exp`; each mutant killed by a named row):
 - `bad_rc` back to `{0 2}`;
-- the 255 exemption in `bad_floors` dropped;
+- the `ip`-refused exemption in `bad_floors` dropped;
 - `inet_rp_filter_over` given rc 0;
 - two `inet` rows swapped.
 
@@ -303,7 +303,85 @@ One task. Its rows are the source KP0's decoder and KG0's parser are tested agai
 
 ### KC2 — Bridge captures
 
-bridge and bridge_slave, with 7.2.0's `stp_mode` and `neigh_forward_grat`. bridge has 50 attributes and a 332-line `print_opt`, so this phase may take more than one task.
+bridge and bridge_slave, with 7.2.0's `stp_mode` and `neigh_forward_grat`. Two tasks: KC2-T01 builds the kind corpus every later KC phase adds rows to, with bridge as its first kind; KC2-T02 adds bridge_slave.
+
+**Keyword matching differs inside one file.** `iplink_bridge.c` matches most of its 41 keywords with `matches` (so `forward_d` is `forward_delay`) and a few with `strcmp` (`stp_mode`, `mst_enabled`, `mdb_offload_fail_notification`, `fdb_local_vlan_0` among them). KP1's option table records which, and KC2-T01 has a row for each kind of match.
+
+#### KC2-T01 The kind corpus, and bridge
+
+**The corpus.** A new `nix/microvms/scripts/kind-write-corpus.exp`, data plus small procs like `rtnl-write-corpus.exp`, sourced by `capture-link-writes.exp`. Its rows run **after `late_setup`**, as the genl rows do, because the kind modules load there.
+- **A row** is `{slug floor pre command readbacks rc}`, `rtnlcorpus`'s shape, captured into `link-write/kinds/<kind>/<slug>/` by a `kind_row` proc in the driver (`rtnl_row`'s body, with the subdir).
+- **Readbacks**, on every row the kernel answers: `{getlink_detail 2 {ip -d link show dev <dev>}}`, `{getlink_detail_json 2 {ip -d -j -p link show dev <dev>}}` and `{getlink 2 {ip link show dev <dev>}}`.
+- **Statuses** are KC1-T01's: 0, 2, or 1 or 255 for a row `ip` refuses before netlink (floor 0, no readback).
+- **The hermetic check** is a new `nix/microvms/scripts/kind-write-corpus-test.exp`, added to `checks.vm-lib-exp`.
+
+**Bridge rows**, under `kinds/bridge/`. The device is `br0`. A row's expected status is the kernel's answer as argued from `br_changelink` and `br_policy` (`net/bridge/br_netlink.c`); the first VM run confirms each one, and any it contradicts is corrected in the plan with the reason, as KC1-T01's rc 1 was.
+
+| slugs | command | rc | what it pins |
+|---|---|---|---|
+| `add_default` | `ip link add br0 type bridge` | 0 | no `INFO_DATA` sent; the readback is every attribute's default |
+| `add_<option>`, one per value-taking option but `stp_mode` (39) | `ip link add br0 type bridge <option> <value>`, a value the kernel accepts and that differs from the default | 0 | each keyword's attribute, width and encoding |
+| `add_fdb_flush` | `… type bridge fdb_flush` | 0 | the one flag with no value (`IFLA_BR_FDB_FLUSH`, empty) |
+| `add_stp_mode_<mode>` | `stp_mode auto`, `user`, `kernel` | 0 | 7.2.0's `IFLA_BR_STP_MODE`, each name |
+| `add_boolopts` | `mst_enabled 1 mdb_offload_fail_notification 1 fdb_local_vlan_0 1` | 0 | the three boolopts folded into one `IFLA_BR_MULTI_BOOLOPT` |
+| `add_several` | `stp_state 1 priority 100 vlan_filtering 1 mcast_snooping 0` | 0 | several attributes in one request, in argument order |
+| `set_<option>` for `ageing_time`, `vlan_filtering`, `stp_mode` | `ip link set br0 type bridge <option> <value>` on an existing `br0` | 0 | the change path (`br_changelink`), with no `IFLA_INFO_KIND` change |
+| `add_abbrev` | `forward_d 400` | 0 | a `matches` keyword taking an abbreviation |
+| `add_stp_mode_abbrev` | `stp_m user` | 255 | a `strcmp` keyword refusing one |
+| `add_group_address_bad` | `group_address 01:80:c2:00:00:01` | 2 | `br_changelink`: not a usable link-local group |
+| `add_group_fwd_mask_bad` | `group_fwd_mask 1` | 2 | a restricted bit |
+| `add_igmp_version_bad` | `mcast_igmp_version 4` | 2 | outside 2 to 3 |
+| `add_stp_mode_bad` | `stp_mode bogus` | 255 | `ip`'s name table |
+| `add_vlan_protocol_bad` | `vlan_protocol 802.1x` | 255 | `ll_proto_a2n` |
+| `add_priority_bad` | `priority x` | 255 | `get_u16` |
+| `add_no_value` | `forward_delay` | 255 | `NEXT_ARG` |
+
+**Tests.** Hermetic rows in `kind-write-corpus-test.exp`:
+
+| description | input | expected |
+|---|---|---|
+| positive: the rows are the plan's, in run order | `slugs $R` | the table's slugs, `add_default` first |
+| positive: one `add_` row per value-taking option | the bridge option keywords in the rows | the 39 keywords `iplink_bridge.c` parses with a value, `stp_mode` aside, each once |
+| negative: every row is `{slug floor pre command readbacks rc}` | a five-field row | listed |
+| negative: no slug names two rows | a duplicated slug | listed |
+| boundary: every status is 0, 1, 2 or 255 | `bad_rc` | `{}`; a row at 3 is listed |
+| boundary: an `ip`-refused row's floor is 0 and it has no readback | `bad_floors` | `{}`; one with floor 2 or a readback is listed |
+| boundary: a kernel-answered row's floor is 2 for an add, 4 for a set (the name lookup) | `bad_floors` | `{}`; a set at 2 is listed |
+| positive: every kernel-answered row reads back three ways | `readback_names` | `getlink_detail getlink_detail_json getlink` |
+| corner: no command holds a single quote | `quoted` | `{}` |
+| corner: every `set_` row's pre makes `br0` | `field <slug> 2` | `{link add br0 type bridge}` |
+
+| description (VM) | input | expected |
+|---|---|---|
+| positive: each row's status | `kinds/bridge/*/ip.rc` | the table's rc |
+| positive: each `add_<option>` reaches the device | `getlink_detail_json` | the option's value, as `ip -d -j` prints it |
+| corner: a refused row leaves no device | the row's `getlink` readback | `Device "br0" does not exist`, with no `RTM_NEWLINK` answer |
+| corner: the corpus runs after every existing row | every other pcap, against KC1-T01's run | no new shape difference |
+
+**Mutation check:** `bad_rc` narrowed, the `ip`-refused floor exemption dropped, an `add_` row dropped (the per-option row), two rows swapped.
+
+**Done when:** `vm-lib-exp`, nix-fmt, statix and deadnix pass; `microvm-x86_64-link-write-capture` captures every row with its status, and its only failure is `genl/mptcp_limits_set_over`.
+
+#### KC2-T02 bridge_slave
+
+Rows under `kinds/bridge_slave/`, in `kind-write-corpus.exp`, after bridge's. The pre is `br0` with a dummy `p0` enslaved (and `p1`, for `backup_port`); the command is `ip link set dev p0 type bridge_slave …`, floor 4.
+
+| slugs | command | rc | what it pins |
+|---|---|---|---|
+| `set_<option>`, one per value-taking option but `neigh_forward_grat` and `backup_port`, which have rows of their own (23) | `type bridge_slave <option> <value>` | 0 | each keyword's `IFLA_BRPORT_*` |
+| `set_fdb_flush`, `set_nobackup_port` | the two flags with no value | 0 | empty attributes |
+| `set_neigh_forward_grat` | `neigh_forward_grat on` | 0 | 7.2.0's option |
+| `set_backup_port` | `backup_port p1` | 0 | an ifindex the readback prints as a name (the `ll_index_to_name` hazard) |
+| `set_several` | `cost 10 priority 7 learning off` | 0 | several attributes in one request |
+| `set_state_bad` | `state 5` | 2 | past `BR_STATE_BLOCKING` |
+| `set_backup_port_missing` | `backup_port nosuch` | 1 or 255, as the first run finds | `ip`'s name lookup |
+| `set_cost_bad` | `cost x` | 255 | `get_u32` |
+| `set_on_off_bad` | `learning maybe` | 1 or 255, as the first run finds | `parse_on_off` |
+| `set_not_enslaved` | on a dummy with no master | 2 | the kernel's refusal of slave data on a non-port |
+
+Its tests are KC2-T01's tables over these rows, with "one `set_` row per value-taking option" counting `iplink_bridge_slave.c`'s 23, and a VM row that `set_backup_port`'s `-d` readback names `p1`.
+
+**Done when:** as KC2-T01. It closes KC2.
 
 ### KC3 — VLAN family captures
 

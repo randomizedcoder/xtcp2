@@ -37,7 +37,12 @@
 #              namespace straight after the write, as netlink_route_<name>.pcap
 #              and ip_<name>
 #   rc         the exit status `ip.rc` must hold: 0 for an accepted write, 2
-#              for one the kernel refused (rtnl_talk's error, ip/ip.c's exit)
+#              for one the kernel refused (rtnl_talk's error, ip/ip.c's exit),
+#              1 or 255 for one `ip` refuses before it sends anything: 255
+#              from an exit(-1) (invarg, incomplete_command, duparg2), 1
+#              from a parse error returned up to do_cmd, which exits with
+#              -(the command's -1). Such a row's floor is 0 and it has no
+#              readback; its ip.err is what it records
 #
 # THE TWO NETNS ROWS KEEP THEIR PEER INSIDE THE WINDOW
 #
@@ -320,6 +325,64 @@ namespace eval rtnlcorpus {
             {{getroute6 4 {ip -6 route show dev r0}}} 0] \
         [list monitor_all 36 $PRE_ALL [ipmon all $TRIGGER_ALL $UNTIL_ALL] {} 0] \
         [list monitor_all_timestamp 36 $PRE_ALL [ipmon all $TRIGGER_ALL $UNTIL_ALL -t] {} 0]
+
+    # KC1-T01 (docs/netlink/goip-link-kinds.md): iproute2 7.2.0's
+    # `ip link set dev X inet <param> <value>...`, IFLA_AF_SPEC > AF_INET >
+    # IFLA_INET_CONF, one u32 per IPV4_DEVCONF_*. The kernel checks each
+    # value against inet_devconf_policy (net/ipv4/devinet.c), so
+    # rp_filter 3 and medium_id -2 are its refusals. The netconf readback
+    # prints five params; the RTM_NEWLINK answer to the detailed link
+    # readback carries all of them.
+    variable INET_RB {
+        {getnetconf 4 {ip netconf show dev d0}}
+        {getlink_detail 2 {ip -d link show dev d0}}
+    }
+    variable INET_EVERY [join {
+        forwarding on proxy_arp on accept_redirects on secure_redirects on
+        send_redirects on shared_media on rp_filter 1 accept_source_route on
+        bootp_relay on log_martians on tag 7 arp_filter on medium_id 1
+        disable_xfrm on disable_policy on force_igmp_version 2
+        arp_announce 1 arp_ignore 1 promote_secondaries on arp_accept 1
+        arp_notify on accept_local on src_vmark on proxy_arp_pvlan on
+        route_localnet on bc_forwarding on
+        igmpv2_unsolicited_report_interval 1000
+        igmpv3_unsolicited_report_interval 1000
+        ignore_routes_with_linkdown on drop_unicast_in_l2_multicast on
+        drop_gratuitous_arp on arp_evict_nocarrier on
+    }]
+
+    # inet_row <slug> <words> <rc> - a row setting d0's devconf. The kernel
+    # answers a 0 or 2 row, so it has the write's floor (d0's lookup and the
+    # RTM_NEWLINK) and the readbacks; `ip` refuses a 1 or 255 row first.
+    proc inet_row {slug words rc} {
+        variable PRE_D0
+        variable INET_RB
+        set command [string trimright "ip link set dev d0 inet $words"]
+        if {$rc in {1 255}} {
+            return [list $slug 0 $PRE_D0 $command {} $rc]
+        }
+        return [list $slug 4 $PRE_D0 $command $INET_RB $rc]
+    }
+
+    lappend rows \
+        [inet_row inet_forwarding_on {forwarding on} 0] \
+        [inet_row inet_rp_filter_max {rp_filter 2} 0] \
+        [inet_row inet_rp_filter_over {rp_filter 3} 2] \
+        [inet_row inet_tag_hex {tag 0x10} 0] \
+        [inet_row inet_arp_ignore_octal {arp_ignore 010} 0] \
+        [inet_row inet_medium_id_neg1 {medium_id -1} 0] \
+        [inet_row inet_medium_id_neg2 {medium_id -2} 2] \
+        [inet_row inet_several {forwarding on proxy_arp on rp_filter 1 arp_ignore 2} 0] \
+        [inet_row inet_every_param $INET_EVERY 0] \
+        [inet_row inet_repeated {forwarding on forwarding off} 0] \
+        [inet_row inet_then_mtu {forwarding on mtu 1400} 0] \
+        [inet_row inet_then_garbage {forwarding on bogus} 255] \
+        [inet_row inet_bad_on_off {forwarding maybe} 1] \
+        [inet_row inet_bad_number {rp_filter x} 255] \
+        [inet_row inet_no_param {} 255] \
+        [inet_row inet_unknown_param {bogus on} 255] \
+        [inet_row inet_abbreviated {forw on} 255] \
+        [inet_row inet_no_value forwarding 255]
 
     ###########################################################################
     # readback_args <ns> <subdir> <readback> - the xtcp2-nlcap capio argument

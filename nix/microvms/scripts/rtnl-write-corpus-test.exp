@@ -105,6 +105,11 @@ set design_rows {
     route_get_unreachable route_flush route_flush_empty route_flush_no_table
     route_save route_restore
     prefix_event prefix_no_monitor monitor_all monitor_all_timestamp
+    inet_forwarding_on inet_rp_filter_max inet_rp_filter_over inet_tag_hex
+    inet_arp_ignore_octal inet_medium_id_neg1 inet_medium_id_neg2
+    inet_several inet_every_param inet_repeated inet_then_mtu
+    inet_then_garbage inet_bad_on_off inet_bad_number inet_no_param
+    inet_unknown_param inet_abbreviated inet_no_value
 }
 
 proc bad_arity {} {
@@ -140,11 +145,13 @@ proc refused_rows {} {
     return $out
 }
 
-# Every row whose status is not 0 or 2, which is all ip exits with.
-proc bad_rc {} {
+# Every row whose status is not 0, 1, 2 or 255, which is all ip exits with:
+# 2 from rtnl_talk's error, 1 from a parse error do_cmd negates, 255 from an
+# exit(-1) before netlink.
+proc bad_rc {rows} {
     set out {}
-    foreach r $::R {
-        if {[lindex $r 5] ni {0 2}} {
+    foreach r $rows {
+        if {[lindex $r 5] ni {0 1 2 255}} {
             lappend out [lindex $r 0]
         }
     }
@@ -163,17 +170,24 @@ set refused_design {
     rule_add_existing 2 nexthop_add_existing 2 nexthop_get_missing 2
     link_altname_taken 2 token_set_noarp 2 route_get_unreachable 2
     route_flush_no_table 2
+    inet_rp_filter_over 2 inet_medium_id_neg2 2 inet_then_garbage 255
+    inet_bad_on_off 1 inet_bad_number 255 inet_no_param 255
+    inet_unknown_param 255 inet_abbreviated 255 inet_no_value 255
 }
-check refused_statuses "positive: exactly the refusal rows expect rc 2" \
+check refused_statuses "positive: exactly the refusal rows expect a non-zero status" \
     {refused_rows} [join $refused_design " "]
-check row_count "boundary: C1-T01's 11 rows, C1-T02's 44 and C1-T04's 4" \
-    {llength $R} 59
+check row_count "boundary: C1-T01's 11 rows, C1-T02's 44, C1-T04's 4 and KC1-T01's 18" \
+    {llength $R} 77
 check c1t01_rows_first "corner: C1-T02's rows come after C1-T01's, which keep their order" \
     {lindex [slugs $R] 10} anycast_del_event
 check c1t02_rows_next "corner: C1-T04's rows come after C1-T02's" \
     {lindex [slugs $R] 54} route_restore
-check rc_values "boundary: every status is 0 or 2" \
-    {bad_rc} {}
+check kc1t01_rows_last "corner: KC1-T01's rows come after C1-T04's" \
+    {lindex [slugs $R] 59} inet_forwarding_on
+check rc_values "boundary: every status is 0, 1, 2 or 255" \
+    {bad_rc $R} {}
+check rc_three "negative: a status of 3 is no status ip exits with" \
+    {bad_rc [list {x3 4 {} {ip link set dev d0 inet forwarding on} {} 3}]} x3
 
 ###############################################################################
 # 2. readbacks
@@ -208,6 +222,10 @@ foreach {name description slug expected} {
     rb_prefix_event   "corner: the prefix event row's readback is the monitor's stdout" prefix_event {}
     rb_no_monitor     "positive: with no monitor, r0's routes are read back for the RA's" prefix_no_monitor getroute6
     rb_monitor_all    "corner: and monitor_all's is its stdout"                  monitor_all    {}
+    rb_inet_on        "positive: an inet row reads netconf and the detailed link back" inet_forwarding_on {getnetconf getlink_detail}
+    rb_inet_every     "positive: so does the row setting every param"            inet_every_param {getnetconf getlink_detail}
+    rb_inet_refused   "corner: a kernel-refused inet row reads back the unchanged state" inet_rp_filter_over {getnetconf getlink_detail}
+    rb_inet_ip_refused "negative: a row ip refuses has nothing to read back"     inet_bad_number {}
 } {
     check $name $description [list readback_names $slug] $expected
 }
@@ -231,10 +249,16 @@ check readback_args_long "negative: a four-field readback is an error" \
 # the command names d0 outside a monitor trigger (the RTM_GETLINK by name
 # first) or is an `ip ntable` (its link dump first), and every readback 2 or
 # more.
-proc bad_floors {} {
+proc bad_floors {rows} {
     set out {}
-    foreach r $::R {
-        lassign $r slug floor pre command readbacks
+    foreach r $rows {
+        lassign $r slug floor pre command readbacks rc
+        if {$rc in {1 255}} {
+            if {$floor != 0 || [llength $readbacks] != 0} {
+                lappend out $slug
+            }
+            continue
+        }
         set want 2
         if {![string match xtcp2-nl-ipmon* $command] && [string match "*dev d0*" $command]} {
             set want 4
@@ -285,7 +309,16 @@ proc bad_names {} {
 }
 
 check floors "boundary: no row or readback is under its structural floor" \
-    {bad_floors} {}
+    {bad_floors $R} {}
+check floor_255_zero "boundary: an ip-refused row's floor is 0 and it has no readback" \
+    {bad_floors [list {x0 0 {} {ip link set dev d0 inet} {} 255} \
+                      {x2 2 {} {ip link set dev d0 inet} {} 255} \
+                      {xr 0 {} {ip link set dev d0 inet} {{getlink 2 {ip link show}}} 255} \
+                      {x1 2 {} {ip link set dev d0 inet forwarding maybe} {} 1}]} {x2 xr x1}
+check floor_inet_dev "boundary: an inet row the kernel answers still counts d0's lookup" \
+    {bad_floors [list {inet_forwarding_on 2 {} {ip link set dev d0 inet forwarding on} {} 0}]} inet_forwarding_on
+check inet_floors "positive: the kernel-answered inet rows' floor is 4, the ip-refused ones' 0" \
+    {lmap slug {inet_forwarding_on inet_rp_filter_over inet_bad_on_off} {field $slug 1}} {4 4 0}
 check floor_dev_rows "boundary: the two d0 writes count the name lookup" \
     {list [field ntable_change 1] [field stats_set_l3 1]} {4 4}
 check floor_ntable_rows "boundary: every ntable row counts the link dump ip takes first" \
@@ -312,6 +345,31 @@ check readback_names_safe "corner: every readback name is lower case, digits and
 ###############################################################################
 # 3a. C1-T02's states
 ###############################################################################
+###############################################################################
+# 3b. KC1-T01's inet rows
+###############################################################################
+# inet_params <slug> - the param names of an inet row's words, in order.
+proc inet_params {slug} {
+    set words [lrange [field $slug 3] 6 end]
+    set out {}
+    foreach {param value} $words {
+        lappend out $param
+    }
+    return $out
+}
+
+check inet_every_count "positive: inet_every_param names each of ip 7.2.0's 32 params once" \
+    {list [llength [inet_params inet_every_param]] [llength [lsort -unique [inet_params inet_every_param]]]} {32 32}
+check inet_every_first_last "boundary: in iplink_parse_inet's order, forwarding first and arp_evict_nocarrier last" \
+    {lmap i {0 end} {lindex [inet_params inet_every_param] $i}} {forwarding arp_evict_nocarrier}
+check inet_no_param_cmd "corner: inet_no_param ends at inet, with no trailing space" \
+    {field inet_no_param 3} {ip link set dev d0 inet}
+check inet_no_value_cmd "corner: inet_no_value names a param and no value" \
+    {field inet_no_value 3} {ip link set dev d0 inet forwarding}
+check inet_pre "positive: every inet row starts from d0, up" \
+    {lsort -unique [lmap slug [lsearch -all -inline [slugs $R] inet_*] {field $slug 2}]} \
+    [list $rtnlcorpus::PRE_D0]
+
 check restore_copies_rule_save "positive: rule_restore restores rule_save's blob" \
     {field rule_restore 3} {cp ../rule_save/ip.save . && ip rule restore < ip.save}
 check restore_copies_route_save "positive: route_restore restores route_save's blob" \

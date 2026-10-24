@@ -6,9 +6,10 @@
 - The design and the task plan are in [goip-link-kinds.md](goip-link-kinds.md). This document tracks progress against them.
 - The plan is written (DOC001).
 - KC0 is done (KC0-T01): the capture drivers load the kind modules late, after every existing row, with no fallback tunnel devices in the namespaces made afterwards, and a `kinds` sidecar records what the guest kernel creates. It creates 31 of the 32 probed kinds. gtp is refused, and KC4 decides why.
-- KC1 is broken into tasks.
+- KC1 is done (KC1-T01): 18 `ip link set dev d0 inet …` rows, 11 the kernel answers and 7 `ip` refuses before netlink, are in the rtnl corpus. They are KP0's and KG0's source.
+- KC2 is broken into tasks.
 
-**Next action:** [KC1-T01](goip-link-kinds.md#kc1-t01-inet-devconf-write-rows): the `ip link set dev d0 inet …` rows in `rtnl-write-corpus.exp`.
+**Next action:** [KC2-T01](goip-link-kinds.md#kc2-t01-the-kind-corpus-and-bridge): the kind corpus, and bridge.
 
 ## Contents
 
@@ -33,8 +34,8 @@
 | Phase | Tier | Work | Closed by | State | Evidence |
 |---|---|---|---|---|---|
 | [KC0](goip-link-kinds.md#kc0--kind-harness) | captures | kind harness | KC0-T01 | done | V001–V005, DOC002 |
-| [KC1](goip-link-kinds.md#kc1--inet-devconf-captures) | captures | `inet` devconf | KC1-T01 | not started | |
-| [KC2](goip-link-kinds.md#kc2--bridge-captures) | captures | bridge | | not started | |
+| [KC1](goip-link-kinds.md#kc1--inet-devconf-captures) | captures | `inet` devconf | KC1-T01 | done | V006–V008, DOC003 |
+| [KC2](goip-link-kinds.md#kc2--bridge-captures) | captures | bridge | KC2-T02 | not started | |
 | [KC3](goip-link-kinds.md#kc3--vlan-family-captures) | captures | VLAN family | | not started | |
 | [KC4](goip-link-kinds.md#kc4--udp-overlay-captures) | captures | UDP overlays | | not started | |
 | [KC5](goip-link-kinds.md#kc5--ip-tunnel-captures) | captures | IP tunnels | | not started | |
@@ -60,8 +61,9 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | Done | Task | Work | State | Evidence |
 |---|---|---|---|---|
 | [x] | [KC0-T01](goip-link-kinds.md#kc0-t01-late-kind-modules-no-fallback-tunnels-and-a-kind-probe) | late kind modules, fallback-tunnel sysctl, `kinds` probe | done | V001–V005 |
-| [ ] | [KC1-T01](goip-link-kinds.md#kc1-t01-inet-devconf-write-rows) | `inet` devconf write rows | not started | |
-| [ ] | [KC2-T01…](goip-link-kinds.md#kc2--bridge-captures) | bridge captures | not started | |
+| [x] | [KC1-T01](goip-link-kinds.md#kc1-t01-inet-devconf-write-rows) | `inet` devconf write rows | done | V006–V008 |
+| [ ] | [KC2-T01](goip-link-kinds.md#kc2-t01-the-kind-corpus-and-bridge) | the kind corpus, and bridge | not started | |
+| [ ] | [KC2-T02](goip-link-kinds.md#kc2-t02-bridge_slave) | bridge_slave | not started | |
 | [ ] | [KC3-T01…](goip-link-kinds.md#kc3--vlan-family-captures) | VLAN family captures | not started | |
 | [ ] | [KC4-T01…](goip-link-kinds.md#kc4--udp-overlay-captures) | UDP overlay captures | not started | |
 | [ ] | [KC5-T01…](goip-link-kinds.md#kc5--ip-tunnel-captures) | IP tunnel captures | not started | |
@@ -91,6 +93,10 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | V004 | 2026-10-24 | KC0-T01 | `nix run .#microvm-x86_64-link-write-capture`, guest kernel 7.3.0, `ip` 7.2.0; then the same driver at `34724ad7` (before this task), and the two compared with `pcapcmp` (record count, `(type, len)` sequence, masked bytes) | `NLCAP_DRIVER_FAIL` in both runs, on one row each: `genl/mptcp_limits_set_over` rc 0, want 2 (see the decision log). `late/kinds`: 31 kinds `ok`, gtp `refused RTNETLINK answers: Invalid argument`. `late/topology`: the sysctl `ok`, `no fallback devices in a new namespace`. Against the baseline: 701 pcaps the same shape, 13 differing: 7 reordered (`tcp_metrics` and neighbor dumps, which follow kernel hash order) and 6 monitor rows, whose datagram counts follow the canary's timing; none missing or new | scratch |
 | V005 | 2026-10-24 | KC0-T01 | `nix run .#microvm-x86_64-netlink-dump-capture -- --timeout 7200`, compared with the committed `testdata/7_3_0/dumps` (`ae7b8bcb`, the same kernel and `ip`) | `NLCAP_DRIVER_PASS`. `late/kinds` and `late/topology` as in V004. 115 pcaps the same shape, 5 neighbor dumps reordered, 12 `reads/` pcaps with no 7.3.0 counterpart committed; the reads namespace still holds `tunl0`, `gre0`, `gretap0`, `erspan0`, `sit0`, `ip6tnl0` and `ip6gre0` | scratch |
 | DOC002 | 2026-10-24 | KC0 close | KC1 broken into KC1-T01 with its tables; doccheck (task IDs one to one, links and anchors) | no broken link or anchor | this commit |
+| V006 | 2026-10-24 | KC1-T01 | `nix build .#checks.x86_64-linux.vm-lib-exp` | `rtnl-write-corpus.exp`: 101 passed, 0 failed (the 18 rows, the 0/1/2/255 statuses, the `ip`-refused floors); the other suites unchanged | this commit |
+| V007 | 2026-10-24 | KC1-T01 | mutation, scratch worktree, through `vm-lib-exp`: `bad_rc` narrowed to `{0 2}`, the `ip`-refused floor exemption dropped, `inet_rp_filter_over` at rc 0, two `inet` rows swapped | 4 of 4 killed, by `rc_values`; `floors` and `floor_255_zero`; `refused_statuses`; `slug_list` and `kc1t01_rows_last` | scratch |
+| V008 | 2026-10-24 | KC1-T01 | `nix run .#microvm-x86_64-link-write-capture -- --timeout 7200`, guest kernel 7.3.0; `IFLA_INET_CONF` decoded from each row's `getlink_detail` pcap; the run compared with V004's by `pcapcmp` | `NLCAP_DRIVER_FAIL` on `genl/mptcp_limits_set_over` alone (V004). The 18 rows hold their statuses: 11 at 0 or 2 with 4 datagrams; `inet_bad_on_off` at 1 and the other 6 at 255, with no datagram. `inet_every_param` sets all 32 ids (every id but `MC_FORWARDING`); `medium_id -1` reads back -1, `tag 0x10` 16, `arp_ignore 010` 8; `inet_repeated` reads `forwarding off`; `inet_rp_filter_over` leaves rp_filter at the namespace's 2. Against V004: 40 new pcaps (the 18 rows'), 700 the same shape, 14 differing in V004's classes (`tcp_metrics` and neighbor order, the monitor and event rows' counts) | scratch |
+| DOC003 | 2026-10-24 | KC1 close | KC2 broken into KC2-T01 and KC2-T02 with their tables; doccheck | no broken link or anchor | this commit |
 
 ## Decision log
 
@@ -103,3 +109,5 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 - **The guest kernel is 7.3.0** (`linuxPackages_latest`). The 7.3.0 dump corpus (`testdata/7_3_0/dumps`) is the reference for the dump driver's comparisons; the link-write driver is compared with a run of the code before the task, since its committed blobs are older.
 - **gtp is refused by the guest kernel** (`late/kinds`: `RTNETLINK answers: Invalid argument`). `ip` 7.2.0 always asks for `IFLA_GTP_CREATE_SOCKETS`; KC4 finds the attribute the kernel wants, or moves gtp out of scope with the reason.
 - **`genl/mptcp_limits_set_over` fails on kernel 7.3, before this plan.** Kernel `c8646664fbf1` ("mptcp: pm: in-kernel: increase all limits to 64") raised the limit from 8 to 64, so `ip mptcp limits set subflows 9` is accepted. The link-write driver at `34724ad7`, before KC0, fails on the same row, so it is not KC0's. It is fixed outside this plan, in the corpus row, its hermetic check and the goip and goipparity rows that copy the limit; until then the link-write driver's `NLCAP_DRIVER_FAIL` on that one row is expected.
+- **An `ip` refusal before netlink exits with 1 or 255.** `invarg`, `incomplete_command` and `duparg2` call `exit(-1)`, so 255; a parse error returned up the stack instead (`parse_on_off`'s) reaches `do_cmd`, which exits with the negated return, so 1. KC1-T01's plan assumed 255 for both, and its first VM run corrected `inet_bad_on_off` to 1. Every corpus now admits both, and KG0 matches the status as well as the text.
+- **The VM namespace's rp_filter is 2,** not the kernel's 0, so `inet_rp_filter_max` writes the value it reads back. The row still pins the request; `inet_several` (`rp_filter 1`) shows a change.
