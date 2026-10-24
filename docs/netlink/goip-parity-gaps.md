@@ -34,7 +34,7 @@ Both upstream trees are checked out locally and are the ground truth for every c
 
 | source | where | version | how to cite |
 |---|---|---|---|
-| iproute2 | `~/Downloads/iproute2` | The checkout is `v7.2.0-31-ge11870d5`, but the **pinned** `ip` is **7.1.0** (`nix/upstream-pins.json`, checked by `nix/checks/upstream-pins.nix`), and each capture records it in an `ip_version` sidecar. Tag `v7.1.0` exists locally. | Read the pinned code with `git -C ~/Downloads/iproute2 show v7.1.0:ip/<file>`. Cite it as `` `ip/iproute.c:2042` ``. Line numbers in this document are from `v7.1.0` unless they are marked *(7.2)*. |
+| iproute2 | `~/Downloads/iproute2` | The checkout is `v7.2.0-31-ge11870d5`, but the **pinned** `ip` is **7.1.0** (`nix/upstream-pins.json`, checked by `nix/checks/upstream-pins.nix`), and each capture records it in an `ip_version` sidecar. Tag `v7.1.0` exists locally. `main` moved the pin to 7.2.0 after G7 ([DOC020](goip-parity-gaps-status.md#verification-ledger)); this plan was written and captured against 7.1.0. | Read the pinned code with `git -C ~/Downloads/iproute2 show v7.1.0:ip/<file>`. Cite it as `` `ip/iproute.c:2042` ``. Line numbers in this document are from `v7.1.0` unless they are marked *(7.2)*. |
 | Linux kernel | `~/Downloads/linux` | The tree is 7.3.0-rc6. The committed corpus kernel is 7.1.4 (`pkg/xtcpnl/testdata/7_1_4/`, whose `uname` sidecar reads `7.1.4`). | Cite a function plus `file:line`, e.g. `` `net/ipv4/tcp_metrics.c` `tcp_metrics_nl_cmd_get` ``. Kernel line numbers here are from the local 7.3.0-rc6 tree. Expect drift against 7.1.4, and confirm a line before relying on it in code. |
 
 The two trees answer different questions:
@@ -109,7 +109,7 @@ G4 delivered all six: goip runs `mroute`, `mrule`, `token`, `netns list-id` and 
 | monitor | Every NEW/DEL notification, across the multicast groups at `ip/ipmonitor.c:267-367` | `ip/ipmonitor.c:194` | each subsystem's notifier | The 10 decoded event types (`IsRtnetlinkEventType`, `RTM_NEWRULE`/`RTM_DELRULE` among them since G4-T05) were not rendered; `goip monitor` renders every type `accept_msg` prints since G4-T06 |
 | prefix (in monitor) | `RTM_NEWPREFIX` (`prefixmsg`) | `ip/ipprefix.c:33` | `net/ipv6/addrconf.c` | Emitted only when a router advertisement is received |
 
-**maddress depends on the version.** At the pin, `ip maddress show` reads `/proc/net/{dev_mcast,igmp,igmp6}` (`ip/ipmaddr.c:95-179`), and add/del are ioctls, so it is class F at 7.1.0. The 7.2 checkout dumps `RTM_GETMULTICAST` instead *(7.2: `ip/ipmaddr.c:276`)*, so maddress moves to this class at the next pin bump.
+**maddress depends on the version.** At the pin, `ip maddress show` reads `/proc/net/{dev_mcast,igmp,igmp6}` (`ip/ipmaddr.c:95-179`), and add/del are ioctls, so it is class F at 7.1.0. It is still class F at the 7.2.0 pin: `RTM_GETMULTICAST` reached `ip/ipmaddr.c` in `b8cdda55`, after the tag (`v7.2.0-34`), so maddress moves to this class at the pin bump after 7.2.0. This plan first said the 7.2 release made the move; the checkout was past the tag ([goip-link-kinds.md](goip-link-kinds.md#what-720-adds)).
 
 ### D. Generic-netlink objects goip does not run
 
@@ -144,7 +144,7 @@ These surfaces have no netlink message to capture, so they are out of scope for 
 |---|---|
 | `tunnel`/`tunl6` parameters and add/change/del/prl/6rd | ioctls `SIOC{GET,ADD,CHG,DEL}TUNNEL`, `SIOC{ADD,DEL}PRL`, `SIOC{ADD,DEL}6RD` (`ip/tunnel.c:63`) |
 | `tuntap` add/del, and its flags, owner and group | `/dev/net/tun` plus `TUNSETIFF` and related ioctls (`ip/iptuntap.c:62`), and sysfs |
-| `maddress` at 7.1.0 | `/proc` reads and `SIOCADDMULTI`/`SIOCDELMULTI` |
+| `maddress` at 7.1.0 and 7.2.0 | `/proc` reads and `SIOCADDMULTI`/`SIOCDELMULTI` |
 | `netns add/del/exec` | `unshare`, bind mount, `setns` |
 | `vrf exec/identify/pids` | cgroup2 plus `bpf(BPF_PROG_LOAD)` (`ip/ipvrf.c:55`, `:288`) |
 | `route flush cache` | a write to `/proc/sys/net/ipv4/route/flush` (`ip/iproute.c:1649`) |
@@ -3149,6 +3149,7 @@ The tests (`internal/goip`, `internal/goip/render`):
 ## See also
 
 - [goip-parity-gaps-status.md](goip-parity-gaps-status.md): the progress against this plan: phase states, task checklist, verification ledger and decision log.
+- [goip-link-kinds.md](goip-link-kinds.md): the plan after this one, for the link kinds this inventory didn't count and 7.2.0's `link set inet`.
 - [coverage-status.md](coverage-status.md): the live parity numbers, and the history of every gating run.
 - [addr-write-path-plan.md](addr-write-path-plan.md) and [addr-write-path-status.md](addr-write-path-status.md): the task and ledger conventions this document reuses.
 - [route-write-path.md](route-write-path.md) and [link-write-path.md](link-write-path.md): the two earlier write designs.

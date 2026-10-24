@@ -1288,7 +1288,8 @@ transactions in order. Highlights:
   are not netlink, so they have no parity target.
 - **Other link kinds' `INFO_DATA`** (`bridge`, `vlan`, `macvlan`, `vxlan`, …).
   Each is its own attribute space; once the shared-option-table pattern is proven
-  on bond, each becomes a small follow-up.
+  on bond, each becomes a small follow-up. Those follow-ups are planned in
+  [goip-link-kinds.md](goip-link-kinds.md).
 - **`ip link set … vf …`, `xdp`, `netns`, `link-netnsid`.** Each needs its own
   fixtures and none bears on bonding.
 - **ethtool.** The pinned `~/Downloads/ethtool` is the legacy ioctl tool
