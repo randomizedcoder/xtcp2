@@ -327,6 +327,79 @@ namespace eval kindcorpus {
         [vlan add_qos_bad {id 10 ingress-qos-map 1:x} 255] \
         [vlan add_no_value id 255]
 
+
+    ###########################################################################
+    # macvlan and macvtap (KC3-T02), one parser (macvlan_parse_opt) for two
+    # kinds. The device is m0 (t0 for macvtap). macvlan_validate,
+    # macvlan_common_newlink and macvlan_changelink (drivers/net/macvlan.c)
+    # argue the kernel's statuses: one passthru per lower, passthru not
+    # set or cleared by a change, source addresses only in source mode.
+    # Every ip refusal here returns (1) but NEXT_ARG's (255); nopromisc
+    # outside passthru is ip's own check, and bclim is strcmp, so `bcl` is
+    # an unknown word.
+    ###########################################################################
+    variable MACVLAN_MODES {private vepa bridge passthru source}
+    variable MAC1 02:00:00:00:00:01
+    variable MAC2 02:00:00:00:00:02
+    variable PRE_M0 [list {link add link d0 name m0 type macvlan mode bridge}]
+    variable PRE_M0_SOURCE [list "link add link d0 name m0 type macvlan mode source macaddr add $MAC1"]
+    variable PRE_M0_PASSTHRU [list {link add link d0 name m0 type macvlan mode passthru}]
+    variable PRE_T0 [list {link add link d0 name t0 type macvtap mode bridge}]
+
+    proc macvlan {name words rc {pre {}} {lower d0}} {
+        return [stacked macvlan m0 $name $words $rc $pre $lower]
+    }
+
+    proc macvlan_set {name words rc pre} {
+        return [stacked_set macvlan m0 $name $words $rc $pre]
+    }
+
+    lappend rows [macvlan add_default {} 0]
+    foreach mode $MACVLAN_MODES {
+        lappend rows [macvlan add_mode_$mode "mode $mode" 0]
+    }
+    lappend rows \
+        [macvlan add_flag_nodst {mode bridge flag nodst} 0] \
+        [macvlan add_nodst {mode bridge nodst} 0] \
+        [macvlan add_flag_null {mode bridge flag null} 0] \
+        [macvlan add_passthru_nopromisc {mode passthru nopromisc} 0] \
+        [macvlan add_bcqueuelen {bcqueuelen 2000} 0] \
+        [macvlan add_bclim {bclim 10} 0] \
+        [macvlan add_bclim_negative {bclim -1} 0] \
+        [macvlan add_macaddr_add "mode source macaddr add $MAC1" 0] \
+        [macvlan add_macaddr_set "mode source macaddr set $MAC1 $MAC2" 0] \
+        [macvlan add_abbrev {mo bridge} 0] \
+        [macvlan_set set_mode {mode private} 0 $PRE_M0] \
+        [macvlan_set set_macaddr_del "macaddr del $MAC1" 0 $PRE_M0_SOURCE] \
+        [macvlan_set set_macaddr_flush {macaddr flush} 0 $PRE_M0_SOURCE] \
+        [macvlan_set set_bcqueuelen {bcqueuelen 500} 0 $PRE_M0] \
+        [macvlan_set set_passthru {mode passthru} 2 $PRE_M0] \
+        [macvlan add_macaddr_not_source "mode bridge macaddr add $MAC1" 2] \
+        [macvlan add_macaddr_multicast {mode source macaddr add 01:00:5e:00:00:01} 2] \
+        [stacked macvlan m1 add_second_passthru {mode passthru} 2 $PRE_M0_PASSTHRU] \
+        [macvlan add_on_loopback {} 2 {} lo] \
+        [macvlan add_nopromisc_not_passthru {mode bridge nopromisc} 1] \
+        [macvlan add_mode_bad {mode bogus} 1] \
+        [macvlan add_flag_bad {flag bogus} 1] \
+        [macvlan add_macaddr_op_bad {macaddr bogus} 1] \
+        [macvlan add_macaddr_bad {mode source macaddr add zz} 1] \
+        [macvlan add_bcqueuelen_bad {bcqueuelen x} 1] \
+        [macvlan add_bclim_bad {bclim x} 1] \
+        [macvlan add_bclim_abbrev {bcl 10} 1] \
+        [macvlan add_no_value mode 255]
+
+    proc macvtap {name words rc {pre {}}} {
+        return [stacked macvtap t0 $name $words $rc $pre]
+    }
+
+    lappend rows \
+        [macvtap add_default {} 0] \
+        [macvtap add_mode_bridge {mode bridge} 0] \
+        [macvtap add_mode_passthru {mode passthru} 0] \
+        [macvtap add_bcqueuelen {bcqueuelen 2000} 0] \
+        [stacked_set macvtap t0 set_mode {mode private} 0 $PRE_T0] \
+        [macvtap add_mode_bad {mode bogus} 1]
+
     ###########################################################################
     # readback_args <ns> <subdir> <readback> - the xtcp2-nlcap capio argument
     # list for one readback, which the driver hands to its capio proc.

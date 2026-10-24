@@ -208,6 +208,38 @@ proc vlan_flags {} {
     return $out
 }
 
+# macvlan_modes - the mode of every macvlan add_mode_<mode> row named
+# after it, in order.
+proc macvlan_modes {} {
+    set out {}
+    foreach r $::R {
+        lassign $r slug floor pre command
+        if {![regexp {^macvlan/add_mode_(.*)$} $slug -> name]} {
+            continue
+        }
+        if {$command eq "ip link add link d0 name m0 type macvlan mode $name"} {
+            lappend out $name
+        }
+    }
+    return $out
+}
+
+# macvtap_strays <rows> - the macvtap rows whose command is not an add
+# or a set of t0 as a macvtap.
+proc macvtap_strays {rows} {
+    set out {}
+    foreach r $rows {
+        lassign $r slug floor pre command
+        if {![string match macvtap/* $slug]} {
+            continue
+        }
+        if {![regexp {^ip link (?:add link d0 name t0|set t0) type macvtap(?: |$)} $command]} {
+            lappend out $slug
+        }
+    }
+    return $out
+}
+
 ###############################################################################
 # 1. the rows
 ###############################################################################
@@ -272,13 +304,33 @@ lappend design_rows {*}{
     vlan/add_on_off_bad vlan/add_unknown vlan/add_qos_no_colon
     vlan/add_id_bad vlan/add_protocol_bad vlan/add_qos_bad vlan/add_no_value
 }
+set macvlan_modes {private vepa bridge passthru source}
+lappend design_rows macvlan/add_default
+foreach m $macvlan_modes {
+    lappend design_rows macvlan/add_mode_$m
+}
+lappend design_rows {*}{
+    macvlan/add_flag_nodst macvlan/add_nodst macvlan/add_flag_null
+    macvlan/add_passthru_nopromisc macvlan/add_bcqueuelen macvlan/add_bclim
+    macvlan/add_bclim_negative macvlan/add_macaddr_add macvlan/add_macaddr_set
+    macvlan/add_abbrev macvlan/set_mode macvlan/set_macaddr_del
+    macvlan/set_macaddr_flush macvlan/set_bcqueuelen macvlan/set_passthru
+    macvlan/add_macaddr_not_source macvlan/add_macaddr_multicast
+    macvlan/add_second_passthru macvlan/add_on_loopback
+    macvlan/add_nopromisc_not_passthru macvlan/add_mode_bad macvlan/add_flag_bad
+    macvlan/add_macaddr_op_bad macvlan/add_macaddr_bad
+    macvlan/add_bcqueuelen_bad macvlan/add_bclim_bad macvlan/add_bclim_abbrev
+    macvlan/add_no_value
+    macvtap/add_default macvtap/add_mode_bridge macvtap/add_mode_passthru
+    macvtap/add_bcqueuelen macvtap/set_mode macvtap/add_mode_bad
+}
 
 check slug_list "positive: the rows are the plan's, in run order" \
     {slugs $R} [join $design_rows " "]
 check first_row "boundary: add_default comes first" \
     {lindex [slugs $R] 0} bridge/add_default
-check row_count "boundary: KC2's 60 bridge and 42 bridge_slave rows, KC3-T01's 28 vlan rows" \
-    {llength $R} 130
+check row_count "boundary: KC2's 60 bridge and 42 bridge_slave rows, KC3-T01's 28 vlan rows, KC3-T02's 34 macvlan and 6 macvtap rows" \
+    {llength $R} 170
 check bridge_first "boundary: bridge's rows all come before bridge_slave's" \
     {lsearch -glob [slugs $R] bridge_slave/*} 60
 check option_rows "positive: one add_ row per value-taking option but stp_mode, each once" \
@@ -318,6 +370,13 @@ set refused_design {
     vlan/add_on_loopback 2 vlan/add_on_off_bad 1 vlan/add_unknown 1
     vlan/add_qos_no_colon 1 vlan/add_id_bad 255 vlan/add_protocol_bad 255
     vlan/add_qos_bad 255 vlan/add_no_value 255
+    macvlan/set_passthru 2 macvlan/add_macaddr_not_source 2
+    macvlan/add_macaddr_multicast 2 macvlan/add_second_passthru 2
+    macvlan/add_on_loopback 2 macvlan/add_nopromisc_not_passthru 1
+    macvlan/add_mode_bad 1 macvlan/add_flag_bad 1 macvlan/add_macaddr_op_bad 1
+    macvlan/add_macaddr_bad 1 macvlan/add_bcqueuelen_bad 1
+    macvlan/add_bclim_bad 1 macvlan/add_bclim_abbrev 1 macvlan/add_no_value 255
+    macvtap/add_mode_bad 1
 }
 check refused_statuses "positive: exactly the refusal rows expect a non-zero status" \
     {refused_rows} [join $refused_design " "]
@@ -463,6 +522,41 @@ check vlan_pre_d0 "positive: every vlan row's pre makes d0 first" \
     {- {link add d0 type dummy}}
 check vlan_returned_vs_exit "corner: on_off and an unknown word return (1); a bad mapping exits (255)" \
     {lmap s {add_on_off_bad add_qos_no_colon add_qos_bad} {field vlan/$s 5}} {1 1 255}
+
+###############################################################################
+# 7. the macvlan and macvtap rows' states
+###############################################################################
+check macvlan_after_vlan "positive: macvlan's rows follow vlan's, and macvtap's macvlan's" \
+    {list [lsearch -glob [slugs $R] macvlan/*] [lsearch -glob [slugs $R] macvtap/*]} {130 164}
+check macvlan_mode_rows "positive: one add_mode_ row per mode, each once" \
+    {macvlan_modes} [join $macvlan_modes " "]
+check macvlan_mode_count "boundary: 5 of them" \
+    {llength $macvlan_modes} 5
+check macvlan_default "positive: add_default sends no option, on d0" \
+    {field macvlan/add_default 3} {ip link add link d0 name m0 type macvlan}
+check macvlan_source_pre "corner: set_macaddr_del's pre makes m0 in source mode, holding the address deleted" \
+    {list [lindex [field macvlan/set_macaddr_del 2] end] [field macvlan/set_macaddr_del 3]} \
+    {{link add link d0 name m0 type macvlan mode source macaddr add 02:00:00:00:00:01} {ip link set m0 type macvlan macaddr del 02:00:00:00:00:01}}
+check macvlan_second_passthru "corner: the second passthru's pre holds a passthru m0, and its readbacks read m1" \
+    {list [lindex [field macvlan/add_second_passthru 2] end] [lindex [field macvlan/add_second_passthru 4] 0 2]} \
+    {{link add link d0 name m0 type macvlan mode passthru} {ip -d link show dev m1}}
+check macvlan_set_passthru "negative: set_passthru changes a bridge-mode m0 to passthru" \
+    {list [lindex [field macvlan/set_passthru 2] end] [field macvlan/set_passthru 3] [field macvlan/set_passthru 5]} \
+    {{link add link d0 name m0 type macvlan mode bridge} {ip link set m0 type macvlan mode passthru} 2}
+check macvlan_bclim_negative "boundary: bclim takes a negative" \
+    {list [field macvlan/add_bclim_negative 3] [field macvlan/add_bclim_negative 5]} \
+    {{ip link add link d0 name m0 type macvlan bclim -1} 0}
+check macvlan_bclim_strcmp "corner: bclim is strcmp, so bcl is an unknown word (1)" \
+    {list [field macvlan/add_bclim_abbrev 3] [field macvlan/add_bclim_abbrev 5]} \
+    {{ip link add link d0 name m0 type macvlan bcl 10} 1}
+check macvlan_returned_vs_exit "corner: every ip refusal returns (1) but NEXT_ARG's (255)" \
+    {lmap s {add_nopromisc_not_passthru add_mode_bad add_macaddr_bad add_no_value} {field macvlan/$s 5}} \
+    {1 1 1 255}
+check macvtap_kind "corner: every macvtap row adds or sets t0 as a macvtap" \
+    {macvtap_strays $R} {}
+check macvtap_kind_caught "negative: a macvtap row sent as macvlan is listed" \
+    {macvtap_strays [list {macvtap/x 4 {} {ip link add link d0 name t0 type macvlan} {} 0}]} \
+    macvtap/x
 
 ###############################################################################
 # summary
