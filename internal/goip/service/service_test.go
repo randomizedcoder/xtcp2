@@ -783,7 +783,7 @@ func TestRoutes(t *testing.T) {
 				bodies: map[uint16][][]byte{uint16(unix.RTM_NEWROUTE): tc.bodies},
 				err:    tc.srcErr,
 			}
-			routes, err := newService(f).Routes(unix.AF_UNSPEC, unix.RT_TABLE_UNSPEC, 0)
+			routes, err := newService(f).Routes(unix.AF_UNSPEC, 0, unix.RT_TABLE_UNSPEC, 0)
 			if tc.wantErr {
 				if err == nil {
 					t.Fatalf("Routes = %#v, want error", routes)

@@ -20,7 +20,7 @@ func cmdDev(r *rd) error {
 			"       %s dev add DEVNAME type TYPE parent PARENT_DEVNAME",
 			"       %s dev delete DEVNAME",
 			"       %s dev set [DEV] name DEVNAME",
-			"       %s dev set [DEV] netns NSNAME",
+			"       %s dev set [DEV] netns { NSNAME | PID }",
 			"       %s dev set [DEV] adaptive-moderation [on|off]")},
 	}, "dev command")
 }

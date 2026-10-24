@@ -14,7 +14,21 @@
 
 let
   cfg = config.services.xtcp2;
+  lm = cfg.linkMonitor;
   xtcp2Exec = import ../lib/xtcp2-exec-start.nix { inherit pkgs lib; };
+  # The link monitor flags come before extraArgs, so an -linkMonitor* flag in
+  # extraArgs still wins: the Go flag package keeps the last value.
+  linkMonitorArgs = [
+    "-linkMonitor=${lib.boolToString lm.enable}"
+  ]
+  ++ lib.optionals lm.enable (
+    [
+      "-linkMonitorBaselineFile=${lm.baselineFile}"
+      "-linkMonitorCollectionMode=${lm.collectionMode}"
+      "-linkMonitorIPPaths=${lib.boolToString lm.ipPaths}"
+    ]
+    ++ lm.extraArgs
+  );
 in
 {
   options.services.xtcp2 = {
@@ -55,6 +69,67 @@ in
       '';
     };
 
+    linkMonitor = {
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = ''
+          Run the embedded link monitor: the expected-up-link baseline,
+          per-interface and RDMA checks, the problem summary on /metrics, the
+          detail paths (/metrics/<category>, /metrics-all) and
+          LinkMonitorService. `systemctl reload xtcp2` (SIGUSR1) relearns the
+          baseline.
+        '';
+      };
+
+      baselineFile = lib.mkOption {
+        type = lib.types.str;
+        default = "/var/lib/xtcp2/link-monitor-baseline.json";
+        description = ''
+          Baseline file recording how many links should be up, so the count
+          survives restarts and reboots. The default is under the unit's
+          StateDirectory (/var/lib/xtcp2, mode 0750); it must differ from any
+          standalone go-link-monitor's baseline file.
+        '';
+      };
+
+      collectionMode = lib.mkOption {
+        type = lib.types.enum [
+          "on-demand"
+          "poll"
+        ];
+        default = "on-demand";
+        description = ''
+          on-demand polls errors and state each minute and settings every five,
+          and collects the rest when a detail path is scraped; poll collects
+          everything each stats interval.
+        '';
+      };
+
+      ipPaths = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          Serve the read-only `ip … show` paths under /ip and /i on the
+          Prometheus listener. They expose host addresses, so they are off by
+          default.
+        '';
+      };
+
+      extraArgs = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [ ];
+        example = [
+          "-linkMonitorMetricsCategories=link,rdma"
+          "-linkMonitorErrorsClasses=link,rdma,drop"
+        ];
+        description = ''
+          Further -linkMonitor* flags, passed only when the monitor is enabled.
+          Run `xtcp2 -help` for the full set.
+        '';
+      };
+    };
+
     capabilities = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [
@@ -90,11 +165,22 @@ in
       serviceConfig = {
         Type = "simple";
         RuntimeDirectory = "xtcp2";
+        # /var/lib/xtcp2 holds the link monitor baseline. The daemon creates
+        # it 0750 when missing; systemd creating it first keeps the mode and
+        # owner right for a non-root User too.
+        StateDirectory = "xtcp2";
+        StateDirectoryMode = "0750";
         # NOTE: xtcp2 does not yet implement `-config <path>`. Drive it via
         # `extraArgs` (CLI flags) instead. configFile is kept in the option
         # surface for forward-compatibility — when the daemon learns to
         # parse a JSON config, flip this back to `-config ${cfg.configFile}`.
-        ExecStart = xtcp2Exec.mkExecStart cfg.package cfg.extraArgs;
+        ExecStart = xtcp2Exec.mkExecStart cfg.package (linkMonitorArgs ++ cfg.extraArgs);
+        # `systemctl reload xtcp2` asks the link monitor to relearn the
+        # expected up-link count, as SIGUSR1 does for go-link-monitor.
+        ExecReload = "${pkgs.coreutils}/bin/kill -USR1 $MAINPID";
+        # TODO(linkmonitor-in-xtcp2): ProtectSystem=strict with
+        # ReadWritePaths=/var/lib/xtcp2 once the VM checks cover every
+        # path xtcp2 writes (-capturePath, unix sockets, dest files).
         Restart = "on-failure";
         RestartSec = "2s";
         User = cfg.user;

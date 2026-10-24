@@ -1,0 +1,1 @@
+unicast 2001:db8:ff::/64 dev br0 proto kernel scope global metric 256 linkdown pref medium

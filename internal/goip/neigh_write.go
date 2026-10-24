@@ -86,7 +86,7 @@ func nudStateA2N(arg string) (uint16, bool) {
 		return unix.NUD_REACHABLE, true
 	case arg == "noarp":
 		return unix.NUD_NOARP, true
-	case arg == "none":
+	case arg == noneKeywordCst:
 		return unix.NUD_NONE, true
 	case arg == "stale":
 		return unix.NUD_STALE, true

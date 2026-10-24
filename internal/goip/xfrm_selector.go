@@ -138,7 +138,7 @@ func xfrmSelDev(c *runCtx, a *xfrmArgs, sel *xfrmSel) error {
 		return err
 	}
 	sel.devSet = true
-	if a.cur() == "none" {
+	if a.cur() == noneKeywordCst {
 		sel.ifindex = 0
 		return nil
 	}

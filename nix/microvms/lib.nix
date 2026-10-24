@@ -476,7 +476,7 @@ rec {
   # mkClickPipeStressRunner. Same serial-tap + disk-guard + leak-check shape,
   # but it parses the XTCP2_S3PARQUET_HOURLY sentinel (files/bytes/rows/disk
   # from xtcp2's own upload counters, which are monotonic and so unaffected by
-  # the 1h retention cleanup) and asserts on uploads + the MinIO disk instead
+  # the 1h retention cleanup) and asserts on uploads + the Garage disk instead
   # of ClickHouse rows.
   mkS3ParquetStressRunner =
     {
@@ -530,7 +530,7 @@ rec {
               echo "usage: $0 [--duration <Nh|Nm|Ns>] [--keep-alive]"
               echo "  --duration   how long to run before the summary (default 1h)"
               echo "  --keep-alive don't power off after the summary — leave the VM"
-              echo "               up so you can inspect MinIO ('mc ls local/xtcp2-records')"
+              echo "               up so you can inspect the bucket ('garage bucket info xtcp2-records')"
               echo "               via the serial console. Ctrl-C to terminate."
               exit 0 ;;
             *) echo "unknown arg: $1" >&2; exit 1 ;;
@@ -645,7 +645,7 @@ rec {
           'BEGIN { if (a + d > 0) printf "%.2f", 100 * d / (a + d); else print "n/a" }')
         cpu_stress=$(grep -am1 'XTCP2_CPU_STRESS_START' "$LOG" 2>/dev/null | grep -oE 'workers=[0-9]+ load=[0-9]+' || true)
         disk_last=$(printf '%s' "$last_line" | grep -oE 'disk=[0-9]+' | cut -d= -f2 || true)
-        # Peak MinIO disk across the whole run (not just the last sample) — a
+        # Peak Garage disk across the whole run (not just the last sample) — a
         # saturation event can recover after the retention sweep yet still have
         # stalled uploads earlier, so assert on the max.
         disk_peak=$(grep -oE 'disk=[0-9]+' "$LOG" 2>/dev/null | cut -d= -f2 | sort -n | tail -1 || true)
@@ -663,7 +663,7 @@ rec {
         echo "  post-flush drops / appends:    ''${drops_last:-0} / ''${appends_last:-0} (''${drop_pct}% dropped)"
         echo "  cpu stress:                    ''${cpu_stress:-off}"
         echo "  bytes uploaded (last sample):  $bytes_last"
-        echo "  minio disk % (last / peak):    $disk_last / $disk_peak"
+        echo "  S3 disk % (last / peak):       $disk_last / $disk_peak"
         echo "  xtcp2 restarts:                $restarts"
         echo "  panics in transcript:          $panics"
 
@@ -682,18 +682,18 @@ rec {
 
         rc=0
         [ "$spawned" -lt 1 ] && { echo "FAIL: no stress containers spawned"; rc=1; }
-        [ "$files_last" -lt 1 ] && { echo "FAIL: 0 parquet files uploaded — nothing reached MinIO"; rc=1; }
+        [ "$files_last" -lt 1 ] && { echo "FAIL: 0 parquet files uploaded — nothing reached Garage"; rc=1; }
         [ "$files_last" -le "$files_first" ] && { echo "FAIL: parquet uploads did not advance ($files_first -> $files_last files) — uploads stalled"; rc=1; }
         [ "$restarts" -ne 0 ] && { echo "FAIL: $restarts xtcp2 restart(s) — daemon did not stay up"; rc=1; }
-        # Disk saturation on /var/lib/minio back-pressures uploads and stalls
+        # Disk saturation on /var/lib/s3 back-pressures uploads and stalls
         # the producer. FAIL hard at >=95%; WARN early at >=85%.
-        [ "$disk_peak" -ge 95 ] && { echo "FAIL: minio disk hit ''${disk_peak}% — /var/lib/minio saturated, uploads back-pressured (grow the volume or shorten the retention window)"; rc=1; }
-        [ "$disk_peak" -ge 85 ] && [ "$disk_peak" -lt 95 ] && echo "WARN: minio disk peaked at ''${disk_peak}% — approaching saturation; a longer soak may stall"
+        [ "$disk_peak" -ge 95 ] && { echo "FAIL: S3 disk hit ''${disk_peak}% — /var/lib/s3 saturated, uploads back-pressured (grow the volume or shorten the retention window)"; rc=1; }
+        [ "$disk_peak" -ge 85 ] && [ "$disk_peak" -lt 95 ] && echo "WARN: S3 disk peaked at ''${disk_peak}% — approaching saturation; a longer soak may stall"
         [ "$panics" -ne 0 ] && { echo "FAIL: $panics panic(s) in transcript"; rc=1; }
         [ "''${drops_last:-0}" -ne 0 ] && { echo "FAIL: ''${drops_last} record(s) dropped after the poll-end flush (''${drop_pct}%) — see docs/investigations/envelope-post-flush-drop.md"; rc=1; }
 
         if [ "$rc" -eq 0 ]; then
-          echo "PASS: xtcp2 uploaded $files_last parquet files ($rows_last rows) to MinIO over ''${DURATION_SEC}s under $spawned stress containers, 0 restarts, 0 panics"
+          echo "PASS: xtcp2 uploaded $files_last parquet files ($rows_last rows) to Garage over ''${DURATION_SEC}s under $spawned stress containers, 0 restarts, 0 panics"
         fi
         echo ""
         echo "Full transcript kept at: $LOG"
@@ -703,7 +703,7 @@ rec {
           echo "================================================"
           echo " --keep-alive: VM is still running."
           echo "   Serial console: nc 127.0.0.1 $SERIAL_PORT"
-          echo "   MinIO API on the host: http://127.0.0.1:9000 (mc alias set …)"
+          echo "   Garage S3 API on the host: http://127.0.0.1:9000 (rclone, aws s3)"
           echo "   Pyroscope UI on the host: http://127.0.0.1:14040"
           echo "   Ctrl-C this runner to power the VM off."
           echo "================================================"
@@ -868,7 +868,8 @@ rec {
   # This is a runner (app), not a check, and it has to be: a nix check's
   # $TMPDIR is private, its source is a read-only store copy, and its result is
   # binary-cached — you would get a stale pcap and no way to write the real one
-  # into pkg/xtcpnl/testdata/. It also needs /dev/kvm, which the sandbox lacks.
+  # into pkg/xtcpnl/testdata/. (/dev/kvm alone would not stop it: a check that
+  # declares requiredSystemFeatures = [ "kvm" ] gets it, as the vm-* checks do.)
   mkNlmonCaptureRunner =
     {
       arch,
@@ -2807,7 +2808,7 @@ rec {
         echo "==> boot OK at $(date -u +%FT%TZ)"
 
         # QEMU usermode hostfwd in this microvm setup doesn't actually
-        # route host:9000 to the in-VM MinIO (port appears LISTEN on the
+        # route host:9000 to the in-VM Garage (port appears LISTEN on the
         # host but connects time out). We instead read all file counts
         # off the in-VM monitor's serial sentinels — the systemd unit
         # emits XTCP2_S3PARQUET_HOURLY every S3PARQUET_REPORT_INTERVAL

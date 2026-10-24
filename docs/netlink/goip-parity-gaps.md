@@ -50,15 +50,15 @@ The citation style follows [route-write-path.md](route-write-path.md) and [link-
 
 ## Where coverage stands
 
-Counted from the tree on 2026-10-21, at G0's close; the row, gated and write-row counts are re-measured at G1's close (DOC013), G2's (DOC014), G3's (DOC015), G4's (DOC016), G5's (DOC017), G6's (DOC018) and G7's (DOC019). [coverage-status.md](coverage-status.md#goip--ip-parity-at-a-glance) owns these numbers; if the two disagree, that file is right.
+Counted from the tree on 2026-10-21, at G0's close; the row, gated and write-row counts are re-measured at G1's close (DOC013), G2's (DOC014), G3's (DOC015), G4's (DOC016), G5's (DOC017), G6's (DOC018) and G7's (DOC019), and again after `main` was merged (DOC020). [coverage-status.md](coverage-status.md#goip--ip-parity-at-a-glance) owns these numbers; if the two disagree, that file is right.
 
 | | count | where |
 |---|---|---|
-| matrix rows | 504 (183 at G0's close, 198 at G1's, 206 at G2's, 253 at G3's, 273 at G4's, 281 at G5's, 455 at G6's) | `internal/goipparity/commands.go` |
-| gated | 503 (160 before G0, 182 at its close, 197 at G1's, 205 at G2's, 252 at G3's, 272 at G4's and G5's, 454 at G6's) | `pkg/nlparity/goip-parity-allowlist.json`, `gated_commands` |
+| matrix rows | 507 (183 at G0's close, 198 at G1's, 206 at G2's, 253 at G3's, 273 at G4's, 281 at G5's, 455 at G6's, 504 at G7's; `main`'s three `nexthop show` selector rows joined at the merge, DOC020) | `internal/goipparity/commands.go` |
+| gated | 506 (160 before G0, 182 at its close, 197 at G1's, 205 at G2's, 252 at G3's, 272 at G4's and G5's, 454 at G6's, 503 at G7's) | `pkg/nlparity/goip-parity-allowlist.json`, `gated_commands` |
 | compared but not gated | 1: `addr show dynamic` (23 before G0, 1 at G4's close, 9 at G5's with its eight genl `show` stand-ins, which G6 replaced) | `TestUngatedSurfaceIsNotVacuous`, `internal/goipparity/commands_test.go` |
 | write rows (dry run) | 275: 133 rtnetlink, 24 link, 29 route, 36 address, 8 neigh, 19 rule, 7 nexthop, 3 addrlabel, 3 ntable, 1 stats, 2 token and 1 netns, and 114 generic netlink, 6 tcp_metrics, 7 sr, 16 ioam, 19 mptcp, 16 fou, 11 ila, 15 l2tp and 24 macsec, and 28 XFRM, 16 state and 12 policy (83 before G2, 86 at its close, 130 at G3's, 133 at G4's and G5's, 247 at G6's) | `commands.go` |
-| `ip` objects with a `run` function | 25 of 31 (11 at G3's close, 16 at G4's and G5's, 24 at G6's) | `internal/goip/dispatch.go:72-106` |
+| `ip` objects with a `run` function | 25 of 31 (11 at G3's close, 16 at G4's and G5's, 24 at G6's) | `internal/goip/dispatch.go:76-110` |
 | RTM types the write gate admits | 20: `RTM_{NEW,DEL}{ROUTE,LINK,ADDR,NEIGH,RULE,NEXTHOP,ADDRLABEL,LINKPROP}`, `RTM_SETNEIGHTBL`, `RTM_SETSTATS`, `RTM_SETLINK`, `RTM_NEWNSID` (6 before G3, 18 at its close) | `IsAdmittedWriteType`, `pkg/xtcpnl/xtcpnl_rtattr_encode.go:356-371` |
 | genl commands the write gate admits | 31: tcp_metrics' 1, SEG6's 2, IOAM6's 5, mptcp_pm's 5, fou's 2, ila's 2, l2tp's 4 and macsec's 10, by family name (none before G6) | `IsAdmittedGenlWrite`, `pkg/xtcpnl/xtcpnl_genl_write.go` |
 | XFRM types the write gate admits | 11: NEWSA, UPDSA, ALLOCSPI, DELSA and FLUSHSA, and NEWPOLICY, UPDPOLICY, DELPOLICY, FLUSHPOLICY, NEWSPDINFO and SETDEFAULT, by XFRM's numbers (none before G7) | `IsAdmittedXfrmWrite`, `pkg/xtcpnl/xtcpnl_xfrm_write.go` |

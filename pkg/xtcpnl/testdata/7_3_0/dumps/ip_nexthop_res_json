@@ -1,0 +1,16 @@
+[ {
+        "id": 20,
+        "group": [ {
+                "id": 1
+            },{
+                "id": 2
+            } ],
+        "type": "resilient",
+        "resilient_args": {
+            "buckets": 8,
+            "idle_timer": 120,
+            "unbalanced_timer": 0,
+            "unbalanced_time": 0
+        },
+        "flags": [ ]
+    } ]

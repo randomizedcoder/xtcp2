@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/randomizedcoder/xtcp2/internal/goip/model"
 	"github.com/randomizedcoder/xtcp2/internal/goip/render"
 	"github.com/randomizedcoder/xtcp2/internal/goip/service"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
@@ -22,22 +23,97 @@ func runLink(c *runCtx, args []string) error {
 	if len(args) == 0 {
 		return linkShow(c, nil)
 	}
-	verb := args[0]
-	if v := lookupLinkWriteVerb(verb); v != nil {
-		return linkWrite(c, v, args[1:])
+	v, ok := resolveVerb(linkVerbs, args[0])
+	if !ok {
+		return fmt.Errorf("link %q: %w", args[0], ErrNotImplemented)
 	}
-	switch {
-	case matchesPrefix(verb, showVerbCst), matchesPrefix(verb, lstVerbCst), matchesPrefix(verb, listVerbCst):
+	if v.kind == verbShow {
 		return linkShow(c, args[1:])
-	case matchesPrefix(verb, linkXstatsVerbCst):
-		return linkXstats(c, args[1:])
-	case matchesPrefix(verb, linkAfstatsVerbCst):
-		return linkAfstats(c, args[1:])
-	case matchesPrefix(verb, linkPropertyVerbCst):
-		return linkProperty(c, args[1:])
-	default:
-		return fmt.Errorf("link %q: %w", verb, ErrNotImplemented)
 	}
+	switch v.name {
+	case linkXstatsVerbCst:
+		return linkXstats(c, args[1:])
+	case linkAfstatsVerbCst:
+		return linkAfstats(c, args[1:])
+	case linkPropertyVerbCst:
+		return linkProperty(c, args[1:])
+	}
+	if w := lookupLinkWriteVerb(v.name); w != nil {
+		return linkWrite(c, w, args[1:])
+	}
+	return fmt.Errorf("link %q: %w", v.name, ErrNotImplemented)
+}
+
+// linkTypeKeywordCst is `type`. Link show compares it with strcmp
+// (ip/ipaddress.c:2232), so there it does not abbreviate; the write and route
+// keyword tables say per row whether it does.
+const linkTypeKeywordCst = "type"
+
+// linkShowSelectors is what goip's link show takes from the keyword loop of
+// ipaddr_list_flush_or_save, which `ip link show` shares with `ip address
+// show` (ipaddr_list_link, ip/ipaddress.c:2420-2425): the device and the
+// kind. filter holds the kind in addrFilter's kind and slaveKind fields, so
+// the `_slave` split and the match are address show's.
+type linkShowSelectors struct {
+	dev     string
+	haveDev bool
+	filter  addrFilter
+}
+
+// kindFiltered is print_linkinfo's two kind tests (ip/ipaddress.c:1020-1024).
+func (s *linkShowSelectors) kindFiltered(li *xtcpnl.LinkInfo) bool {
+	f := &s.filter
+	return f.haveKind && !linkKindMatches(li, f.kind, false) ||
+		f.haveSlaveKind && !linkKindMatches(li, f.slaveKind, true)
+}
+
+// parseLinkShowArgs walks the selectors after `show` in the loop's order
+// (ip/ipaddress.c:2170-2253), for the two arms goip's link show implements.
+//
+//   - `type T` is strcmp and NEXT_ARG, with no duparg: a second `type`
+//     overwrites the first, except that a `_slave` word sets
+//     filter.slave_kind and leaves filter.kind alone, so `type veth type
+//     bond_slave` keeps both (addrFilterType has the suffix arithmetic).
+//   - The final arm is `[dev] NAME`: `dev` by strcmp and NEXT_ARG, `help` by
+//     matches(), and anything else is the device. A second device is
+//     duparg2.
+//
+// Every other keyword of the loop, and every get_filter flag name, is
+// rejected rather than ignored: they are ip's filters, not device names.
+// The device is not looked up here; linkShowDev's first get is that lookup.
+func parseLinkShowArgs(args []string) (linkShowSelectors, error) {
+	var s linkShowSelectors
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == linkTypeKeywordCst {
+			if i+1 >= len(args) {
+				return s, incompleteErr()
+			}
+			i++
+			if err := addrFilterType(&s.filter, args[i], addrLookups{}); err != nil {
+				return s, err
+			}
+			continue
+		}
+		var probe addrFilter
+		if lookupAddrShowKeyword(arg) != nil || probe.getFilter(arg) {
+			return s, fmt.Errorf("link show %q: %w", arg, ErrNotImplemented)
+		}
+		if arg == devKeywordCst {
+			if i+1 >= len(args) {
+				return s, incompleteErr()
+			}
+			i++
+			arg = args[i]
+		} else if matchesPrefix(arg, routeHelpKeywordCst) {
+			return s, fmt.Errorf("link show %q: %w", arg, ErrNotImplemented)
+		}
+		if s.haveDev {
+			return s, duparg2Err(devKeywordCst, arg)
+		}
+		s.dev, s.haveDev = arg, true
+	}
+	return s, nil
 }
 
 // linkShow runs the dump and renders it.
@@ -58,23 +134,42 @@ func runLink(c *runCtx, args []string) error {
 // sends no dump, so its cache holds one link and it takes the side-get path on
 // purpose — `ip` takes it there too, and for the same reason.
 //
-// `dev X` uses the two-single-get path in linkShowDev. Other filtering
-// arguments (`up`, `group G`, `master M`) are not implemented and are rejected
-// rather than ignored.
+// `dev X` and a bare `X` use the two-single-get path in linkShowDev. Other
+// filtering arguments (`up`, `group G`, `master M`) are not implemented and
+// are rejected rather than ignored; see parseLinkShowArgs.
+//
+// # `type`: on the wire, then again on every reply
+//
+// With a kind, the dump carries it (req.LinkShowDumpKind), and a kernel
+// that knows the kind returns only its links. One that does not (the
+// kind's module is not loaded) returns every link, and print_linkinfo's
+// kind test drops the rest, so the kind is tested again here. A slave kind
+// is never sent; it is only that test.
+//
+// A dropped link still costs `ip -j` an object: the print loop opens and
+// closes one around print_linkinfo whatever it returns (ip/ipaddress.c:
+// 2336-2347), so each dropped link is a `{}`, and text prints nothing.
+//
+// A kernel-filtered dump leaves the cache without the links it skipped, so
+// a printed link's IFLA_LINK or master may need print_linkinfo's side-get,
+// sent in print order (resolveLinkRefs). A full dump caches every index and
+// sends none.
 func linkShow(c *runCtx, args []string) error {
-	// devKeywordCst with ==, not matchesPrefix: ip/ipaddress.c:2241 compares
-	// this keyword with strcmp, so `dev` is the one selector keyword that does
-	// NOT abbreviate. See devKeywordCst, which records why. This site was the
-	// only one of the four still using a prefix match, which made `ip link
-	// show d lo` succeed here and fail in `ip`.
-	if len(args) == 2 && args[0] == devKeywordCst {
-		return linkShowDev(c, args[1])
+	sel, err := parseLinkShowArgs(args)
+	if err != nil {
+		return err
 	}
-	if len(args) > 0 {
-		return fmt.Errorf("link show %q: %w", args[0], ErrNotImplemented)
+	if sel.haveDev {
+		return linkShowDev(c, sel.dev, &sel)
 	}
 
-	resources, err := service.New(c.src, c.nextSeq).Links(c.linkExtMask())
+	svc := service.New(c.src, c.nextSeq)
+	var resources []model.Link
+	if sel.filter.haveKind {
+		resources, err = svc.LinksKind(c.linkExtMask(), sel.filter.kind)
+	} else {
+		resources, err = svc.Links(c.linkExtMask())
+	}
 	if err != nil {
 		return err
 	}
@@ -84,6 +179,10 @@ func linkShow(c *runCtx, args []string) error {
 	}
 	c.lltab.Fill(links)
 
+	if sel.filter.haveKind || sel.filter.haveSlaveKind {
+		return linkShowKind(c, svc, &sel, links)
+	}
+
 	if err := checkDetailSupported(c, links); err != nil {
 		return err
 	}
@@ -92,14 +191,7 @@ func linkShow(c *runCtx, args []string) error {
 	// of either loop would copy the whole resource once per link for nothing.
 	views := make([]render.LinkView, 0, len(links))
 	for i := range links {
-		v := render.LinkViewOf(links[i], c.lltab)
-		if c.showStats > 0 {
-			v = v.WithStats(links[i])
-		}
-		if c.detailed() {
-			v = v.WithDetail(links[i], true, c.lltab)
-		}
-		views = append(views, v)
+		views = append(views, linkView(c, links[i]))
 	}
 
 	if c.json {
@@ -109,6 +201,58 @@ func linkShow(c *runCtx, args []string) error {
 	for i := range views {
 		if _, werr := fmt.Fprint(c.out, views[i].Text()); werr != nil {
 			return werr
+		}
+	}
+	return nil
+}
+
+// linkShowKind renders a `type` dump: the kind test on every reply, a `{}`
+// for each dropped link under -j, and the side-gets of the printed ones.
+func linkShowKind(c *runCtx, svc *service.Service, sel *linkShowSelectors, links []xtcpnl.LinkInfo) error {
+	kept := make([]xtcpnl.LinkInfo, 0, len(links))
+	for i := range links {
+		if !sel.kindFiltered(&links[i]) {
+			kept = append(kept, links[i])
+		}
+	}
+	if err := checkDetailSupported(c, kept); err != nil {
+		return err
+	}
+	out := make([]any, 0, len(links))
+	for i := range links {
+		if sel.kindFiltered(&links[i]) {
+			out = append(out, struct{}{})
+			continue
+		}
+		resolveLinkRefs(c, svc, links[i])
+		out = append(out, linkView(c, links[i]))
+	}
+	return writeLinkShow(c, out)
+}
+
+// linkView is one printed link: the stanza, then -s, then -d.
+func linkView(c *runCtx, li xtcpnl.LinkInfo) render.LinkView {
+	v := render.LinkViewOf(li, c.lltab)
+	if c.showStats > 0 {
+		v = v.WithStats(li)
+	}
+	if c.detailed() {
+		v = v.WithDetail(li, true, c.lltab)
+	}
+	return v
+}
+
+// writeLinkShow writes a filtered link show: a JSON array whose dropped
+// links are `{}`, or the printed stanzas as text.
+func writeLinkShow(c *runCtx, out []any) error {
+	if c.json {
+		return json.NewEncoder(c.out).Encode(out)
+	}
+	for i := range out {
+		if v, ok := out[i].(render.LinkView); ok {
+			if _, err := fmt.Fprint(c.out, v.Text()); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -147,7 +291,12 @@ func linkShow(c *runCtx, args []string) error {
 // memory and send nothing, hiding precisely the side-gets the harness is built
 // to observe. Here only the link that was asked for is cached, which is all
 // `ip` has at print time too.
-func linkShowDev(c *runCtx, name string) error {
+//
+// `type` adds nothing to either request: iplink_get sends no filter
+// (ip/iplink.c:1193-1211). print_linkinfo still applies it, before it
+// prints or resolves anything, so a link of another kind prints nothing,
+// `[{}]` under -j, and sends no side-get.
+func linkShowDev(c *runCtx, name string, sel *linkShowSelectors) error {
 	svc := service.New(c.src, c.nextSeq)
 
 	// First get: ll_name_to_index. Nothing is rendered from this reply — it is
@@ -167,19 +316,16 @@ func linkShowDev(c *runCtx, name string) error {
 	}
 	link := xtcpnl.LinkInfo(shown)
 	c.lltab.Fill([]xtcpnl.LinkInfo{link})
+	if sel.kindFiltered(&link) {
+		return writeLinkShow(c, []any{struct{}{}})
+	}
 	resolveLinkRefs(c, svc, link)
 
 	if err := checkDetailSupported(c, []xtcpnl.LinkInfo{link}); err != nil {
 		return err
 	}
 
-	view := render.LinkViewOf(link, c.lltab)
-	if c.showStats > 0 {
-		view = view.WithStats(link)
-	}
-	if c.detailed() {
-		view = view.WithDetail(link, true, c.lltab)
-	}
+	view := linkView(c, link)
 	if c.json {
 		return json.NewEncoder(c.out).Encode([]render.LinkView{view})
 	}

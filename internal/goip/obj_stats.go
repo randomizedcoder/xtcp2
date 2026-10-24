@@ -23,7 +23,6 @@ const (
 	statsGroupXstatsSlaveCst = render.XstatsSlaveGroupCst
 	subgroupKeywordCst       = "subgroup"
 	suiteKeywordCst          = "suite"
-	statsShowVerbCst         = "show"
 )
 
 // runStats is do_ipstats (ip/ipstats.c:1315-1339): `show`, and `set`, which
@@ -36,7 +35,7 @@ func runStats(c *runCtx, args []string) error {
 		return statsSet(c, args[1:])
 	}
 	if len(args) > 0 {
-		if args[0] != statsShowVerbCst {
+		if args[0] != showVerbCst {
 			return fmt.Errorf("stats %q: %w", args[0], ErrNotImplemented)
 		}
 		args = args[1:]

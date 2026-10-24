@@ -22,7 +22,8 @@
       useKvm = true;
       mem = 1024;
       # memVector is used by the "vector" flavor of the microvm. Vector
-      # (~120 MB RSS) plus MinIO (~80 MB) plus the Arrow/parquet working set
+      # (~120 MB RSS) plus the in-VM S3 server (~80 MB, measured with MinIO
+      # before the switch to Garage) plus the Arrow/parquet working set
       # require headroom above the 1 GiB baseline.
       #
       # Avoid exactly 2048 — microvm.nix #171: QEMU hangs at boot when memory
@@ -53,7 +54,7 @@
       # (mixed flavor). Adds to memClickPipe's footprint:
       #   * a SECOND xtcp2 instance (~500 MiB; tracks the same ns set
       #     as the primary independently)
-      #   * MinIO server + bucket data (~300 MiB for the 2h soak's
+      #   * Garage server + bucket data (~300 MiB for the 2h soak's
       #     8 k×60 KiB working set; grows with time)
       # Iterations:
       #   * 6144 MiB / 3500m CH:  222 OOMs / 2 h
@@ -85,10 +86,11 @@
       # more likely.
       memClickPipeStress = 8192;
       # memS3ParquetStress is used by sink="s3parquet-stress": the parquet→S3
-      # upload path (xtcp2 → in-VM MinIO) under the SAME tcp-stress load as
+      # upload path (xtcp2 → in-VM Garage) under the SAME tcp-stress load as
       # clickhouse-pipeline-stress (20 × 250 sockets), but WITHOUT ClickHouse /
       # Redpanda / JVM. Footprint = dockerd + 20 load containers (~1.5 GiB) +
-      # MinIO server (~300 MiB, its data lives on a dedicated disk, not RAM) +
+      # the S3 server (~300 MiB, measured with MinIO before the switch to
+      # Garage; its data lives on a dedicated disk, not RAM) +
       # xtcp2 with 64 MiB parquet write buffers (~300 MiB) + kernel/page cache.
       # 6144 MiB leaves clear headroom for a 24h run; bump if xtcp2 or the load
       # containers OOM.

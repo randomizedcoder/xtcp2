@@ -66,7 +66,7 @@ func routeSave(c *runCtx, args []string) error {
 	if _, werr := c.out.Write(magic[:]); werr != nil {
 		return fmt.Errorf("%w: Can't write magic to dump file: %w", ErrInvalidArgument, werr)
 	}
-	sel, err := parseRouteShowArgs(args)
+	sel, err := parseRouteShowArgs(args, c.family)
 	if err != nil {
 		return err
 	}
@@ -75,7 +75,7 @@ func routeSave(c *runCtx, args []string) error {
 	if err != nil {
 		return err
 	}
-	msgs, err := svc.RouteMsgs(dumpFamily, sel.Table, oif)
+	msgs, err := svc.RouteMsgs(dumpFamily, sel.Protocol, sel.Table, oif)
 	if err != nil && !mainTableAbsent(err, sel.Table) {
 		return fmt.Errorf("goip: Dump terminated: %w", err)
 	}
@@ -87,7 +87,7 @@ func routeSave(c *runCtx, args []string) error {
 		}
 		routes[i] = model.Route(ri)
 	}
-	keep := routeKeep(routes, c.family, sel.Table, oif)
+	keep := routeKeep(routes, c.family, sel.Table, oif, &sel)
 	for i, m := range msgs {
 		if !keep[i] {
 			continue
@@ -122,8 +122,9 @@ func routeShowdump(c *runCtx, _ []string) error {
 		return err
 	})
 	svc := service.New(c.src, c.nextSeq)
-	routes = routeFilter(routes, c.family, unix.RT_TABLE_UNSPEC, 0)
-	if err := renderRoutes(c, svc, routes, unix.RT_TABLE_UNSPEC, 0); err != nil {
+	var all routeSelectors
+	routes = routeFilter(routes, c.family, unix.RT_TABLE_UNSPEC, 0, &all)
+	if err := renderRoutes(c, svc, routes, &all, 0); err != nil {
 		return err
 	}
 	return readErr

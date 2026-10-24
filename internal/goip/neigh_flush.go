@@ -80,6 +80,12 @@ func runNeighFlush(c *runCtx, args []string) (neighFlushResult, error) {
 	if err != nil {
 		return r, err
 	}
+	// flush's filter.state starts at ~(NUD_PERMANENT|NUD_NOARP) (:516-519),
+	// not show's mask, and neighFlushKeeps is that default alone; no capture
+	// shows a flush narrowed by nud.
+	if sel.StateGiven {
+		return r, fmt.Errorf("neigh flush %s: %w", nudKeywordCst, ErrNotImplemented)
+	}
 
 	svc := service.New(c.src, c.nextSeq)
 	links, err := svc.NeighborLinks()

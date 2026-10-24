@@ -17,6 +17,20 @@ import (
 // comparison and the reason for its strictness stay together.
 const proxyKeywordCst = "proxy"
 
+// nudKeywordCst is `ip neigh show nud STATE`'s keyword, strcmp at
+// ip/ipneigh.c:553 like `dev` and `proxy`, so `nu` is not it.
+const nudKeywordCst = "nud"
+
+// nudAllCst is the one state word nud_state_a2n does not know: do_show_or_flush
+// tests for it with strcmp only after nud_state_a2n has failed (:561-562, :564).
+const nudAllCst = "all"
+
+// nudNoneSentinelCst is the bit `nud none` (or `nud 0`) adds to filter.state
+// (:568-570). NUD_NONE is 0, which an or cannot record, so iproute2 borrows the
+// first bit above ndm_state's 8 NUD bits; print_neigh's fourth clause reads it
+// back (:338).
+const nudNoneSentinelCst uint32 = 0x100
+
 // neighSelectors is the subset of do_show_or_flush's filter struct that goip
 // can set (ip/ipneigh.c:506-594).
 type neighSelectors struct {
@@ -34,6 +48,17 @@ type neighSelectors struct {
 	// initializes the field to 0 and writes it unconditionally (:490), so
 	// "unset" and "zero" are the same request byte.
 	NdmFlags uint8
+
+	// State is filter.state: neighShowStateMaskCst (:523) until the first
+	// `nud`, which zeroes it (:557-560) before or-ing its own state in, so
+	// every later `nud` adds to the first rather than to the default. A uint32
+	// because `all` or-s in ~0 (:564), and filter.state is an int whose high
+	// bits print_neigh's tests then see; only the low 9 bits are ever read.
+	State uint32
+
+	// StateGiven is do_show_or_flush's local state_given (:509): whether a
+	// `nud` has replaced the default yet.
+	StateGiven bool
 }
 
 // parseNeighShowArgs walks the selectors after the verb, show's or flush's,
@@ -61,14 +86,48 @@ type neighSelectors struct {
 // `proxy dev eth0` sets both; see neighShow for why that is not two filters
 // over one set.
 //
-// The remaining selectors — master, vrf, nomaster, unused, nud, protocol, and
+// # `nud`, the third strict keyword, and the only one that accumulates
+//
+// `nud STATE` (:553-570) is strcmp too, and NEXT_ARG takes its value, so a
+// trailing `nud` is refused as a trailing `dev` is. Its first occurrence
+// zeroes the default mask and every occurrence ors one state in, so `nud stale
+// nud failed` is both and `nud stale` alone drops the PERMANENT rows the
+// default shows. The value goes through nud_state_a2n (:61-88): three words abbreviate
+// (permanent, reachable and failed are matches()), six are exact, and a
+// number is get_unsigned base 0 that must be a single NUD bit or 0, below
+// 0x100. `all` is accepted only after that fails, and ors in ~0. A state of
+// 0 (`none`, `0`, `0x0`) becomes nudNoneSentinelCst (:568-569). Anything else
+// is invarg — `Error: argument "X" is wrong: nud state is bad` and exit 255 —
+// which goip wraps in ErrInvalidArgument (ExitUsage, an HTTP 400), as it
+// does a bad `dev`.
+//
+// The remaining selectors — master, vrf, nomaster, unused, protocol, and
 // the bare `to PREFIX` else-arm — are rejected rather than ignored, the policy
 // every other object in goip follows: answering a filtered query with an
 // unfiltered dump is a wrong answer, not a missing feature.
 func parseNeighShowArgs(verb string, args []string) (neighSelectors, error) {
-	var sel neighSelectors
+	sel := neighSelectors{State: neighShowStateMaskCst}
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
+		case nudKeywordCst:
+			if i+1 >= len(args) {
+				return sel, fmt.Errorf("%w: neigh %s: argument %q is missing its value", ErrInvalidArgument, verb, args[i])
+			}
+			i++
+			if !sel.StateGiven {
+				sel.StateGiven, sel.State = true, 0
+			}
+			state, ok := nudStateA2n(args[i])
+			if !ok {
+				if args[i] != nudAllCst {
+					return sel, fmt.Errorf("%w: neigh %s: argument %q is wrong: nud state is bad", ErrInvalidArgument, verb, args[i])
+				}
+				state = ^uint32(0)
+			}
+			if state == 0 {
+				state = nudNoneSentinelCst
+			}
+			sel.State |= state
 		case proxyKeywordCst:
 			// No NEXT_ARG and no duparg at :571-572, so there is nothing to
 			// check: a repeat assigns the same bit again. Written as an
@@ -78,18 +137,17 @@ func parseNeighShowArgs(verb string, args []string) (neighSelectors, error) {
 			// with anything.
 			sel.NdmFlags = unix.NTF_PROXY
 		case devKeywordCst:
-			// The two errors below are plain, with no sentinel, and so map
-			// to ExitFailure rather than ExitUsage (goip.go:140-146). That
-			// is the correct half of the distinction: goip implements `dev`,
-			// so a malformed `dev` is a bad command line, not a missing
-			// feature. `ip` exits nonzero on both as well — NEXT_ARG() prints
-			// "Command line is not complete" and duparg prints
-			// `Duplicate "dev": "..." is the second value.`
+			// The two errors below wrap ErrInvalidArgument, as route's bad
+			// `table` and `proto` do, so goiphttp answers them with a 400
+			// rather than a 500 and the CLI exits ExitUsage. `ip` exits 255
+			// on both — NEXT_ARG() prints "Command line is not complete"
+			// and duparg prints `Duplicate "dev": "..." is the second
+			// value.` — which neither goip code matches.
 			if i+1 >= len(args) {
-				return sel, fmt.Errorf("neigh %s: argument %q is missing its value", verb, args[i])
+				return sel, fmt.Errorf("%w: neigh %s: argument %q is missing its value", ErrInvalidArgument, verb, args[i])
 			}
 			if sel.DevSet {
-				return sel, fmt.Errorf("neigh %s: duplicate %q argument", verb, devKeywordCst)
+				return sel, fmt.Errorf("%w: neigh %s: duplicate %q argument", ErrInvalidArgument, verb, devKeywordCst)
 			}
 			i++
 			sel.Dev, sel.DevSet = args[i], true
@@ -100,31 +158,25 @@ func parseNeighShowArgs(verb string, args []string) (neighSelectors, error) {
 	return sel, nil
 }
 
-// neighShowVerbs are the three spellings ip/ipneigh.c:758-760 accepts for the
-// listing, each through matches() and so each abbreviable.
-//
-// `lst` is the one that is easy to miss, because it is not a prefix of
-// anything else and reads like a typo. It is a real alias, unique to the neigh
-// object — ipaddress.c and iproute.c have "show"/"list"/"lst" too, but goip's
-// other objects reach them by different paths. Spelling the set as a slice
-// rather than a chain of conditions keeps the next alias a one-line change.
-var neighShowVerbs = []string{showVerbCst, listVerbCst, lstVerbCst}
-
 func runNeigh(c *runCtx, args []string) error {
 	// do_ipneigh's order (ip/ipneigh.c:747-765): the write verbs, get, the
 	// listing, then flush.
 	if len(args) > 0 {
-		if verb := lookupNeighWriteVerb(args[0]); verb != nil {
-			return neighModify(c, verb, args[1:])
+		v, ok := resolveVerb(neighVerbs, args[0])
+		if !ok {
+			return fmt.Errorf("neigh %q: %w", args[0], ErrNotImplemented)
 		}
-		if matchesPrefix(args[0], neighGetVerbCst) {
-			return neighGet(c, args[1:])
-		}
-		if !matchesAny(args[0], neighShowVerbs) {
-			if matchesPrefix(args[0], routeFlushVerbCst) {
+		if v.kind != verbShow {
+			if w := lookupNeighWriteVerb(v.name); w != nil {
+				return neighModify(c, w, args[1:])
+			}
+			switch v.name {
+			case neighGetVerbCst:
+				return neighGet(c, args[1:])
+			case routeFlushVerbCst:
 				return neighFlush(c, args[1:])
 			}
-			return fmt.Errorf("neigh %q: %w", args[0], ErrNotImplemented)
+			return fmt.Errorf("neigh %q: %w", v.name, ErrNotImplemented)
 		}
 		args = args[1:]
 	}
@@ -171,8 +223,10 @@ func runNeigh(c *runCtx, args []string) error {
 //
 // filter.state is `0xFF & ~NUD_NOARP` for show (:523), which is why the
 // multicast neighbor-cache rows never appear. It is a default rather than a
-// constant — `nud STATE` replaces it — so the skip lives here with the other
-// filtering rather than in the renderer.
+// constant — `nud STATE` replaces it, and adds nothing to either request,
+// because ipneigh_dump_filter writes only ndm_flags, NDA_IFINDEX and
+// NDA_MASTER (:485-503) — so the skip lives here with the other filtering
+// rather than in the renderer or the kernel.
 //
 // The test at :335-339 is not simply that test, though. It skips a reply when
 // the state misses the mask AND the entry is neither NTF_PROXY nor
@@ -234,7 +288,7 @@ func neighShow(c *runCtx, sel neighSelectors) error {
 	views := make([]render.NeighView, 0, len(neighbors))
 	for i := range neighbors {
 		n := xtcpnl.NeighInfo(neighbors[i])
-		if neighStateFiltered(n) {
+		if neighStateFiltered(n, sel.State) {
 			continue
 		}
 		if index != 0 && uint32(n.Ifindex) != index {
@@ -253,12 +307,43 @@ func neighShow(c *runCtx, sel neighSelectors) error {
 	return nil
 }
 
-// neighShowStateMaskCst is filter.state for `show`, set at ip/ipneigh.c:523 as
-// `~0 & ~NUD_NOARP`. It is a constant in goip because `nud STATE` — the only
-// thing that replaces it (:553-570) — is not implemented; see
-// neighStateFiltered for the one clause of iproute2's test that assumption
-// removes.
-const neighShowStateMaskCst = 0xFF &^ uint16(unix.NUD_NOARP)
+// neighShowStateMaskCst is filter.state's default for `show`, set at
+// ip/ipneigh.c:523 as `0xFF & ~NUD_NOARP`. The first `nud STATE` replaces it
+// (:557-560); see parseNeighShowArgs.
+const neighShowStateMaskCst = 0xFF &^ uint32(unix.NUD_NOARP)
+
+// nudStateA2n is nud_state_a2n (ip/ipneigh.c:61-88), returning false where it
+// returns -1. The order matters for the three matches() words: `p` is
+// permanent, tested before the exact `probe`, and `f` is failed.
+func nudStateA2n(arg string) (uint32, bool) {
+	switch {
+	case matchesPrefix(arg, "permanent"):
+		return unix.NUD_PERMANENT, true
+	case matchesPrefix(arg, "reachable"):
+		return unix.NUD_REACHABLE, true
+	case arg == "noarp":
+		return unix.NUD_NOARP, true
+	case arg == noneKeywordCst:
+		return unix.NUD_NONE, true
+	case arg == "stale":
+		return unix.NUD_STALE, true
+	case arg == "incomplete":
+		return unix.NUD_INCOMPLETE, true
+	case arg == "delay":
+		return unix.NUD_DELAY, true
+	case arg == "probe":
+		return unix.NUD_PROBE, true
+	case matchesPrefix(arg, "failed"):
+		return unix.NUD_FAILED, true
+	}
+	// get_unsigned base 0, then `*state >= 0x100 || (*state&((*state)-1))`:
+	// one NUD bit, or 0.
+	v, ok := getU32(arg, 0)
+	if !ok || v >= nudNoneSentinelCst || v&(v-1) != 0 {
+		return 0, false
+	}
+	return v, true
+}
 
 // neighStateFiltered is print_neigh's state test (ip/ipneigh.c:335-339),
 // reporting whether a reply is dropped before rendering.
@@ -277,15 +362,16 @@ const neighShowStateMaskCst = 0xFF &^ uint16(unix.NUD_NOARP)
 // nicety — pneigh entries carry ndm_state 0, so `ip neigh show proxy` would
 // print an empty dump without the NTF_PROXY clause.
 //
-// The fourth clause is absent here, and deliberately. 0x100 is the sentinel
-// `nud none` assigns when nud_state_a2n yields 0 (:568-569); it is the only
-// way that bit enters filter.state, and goip does not implement `nud`. At the
-// fixed neighShowStateMaskCst the clause is therefore constant true and
-// contributes nothing. Reinstate it in the same commit that adds `nud`, or
-// `ip neigh show nud none` will print state-0 entries goip drops.
-func neighStateFiltered(n xtcpnl.NeighInfo) bool {
-	if neighShowStateMaskCst&n.State != 0 {
+// The fourth clause is the `nud none` escape. nudNoneSentinelCst is the bit
+// `nud none` (or `all`) puts in filter.state (:568-570), and a state-0 entry
+// survives exactly when it is set, so `nud none` lists the entries with no
+// state and the default mask, which lacks the bit, drops them.
+func neighStateFiltered(n xtcpnl.NeighInfo, state uint32) bool {
+	if state&uint32(n.State) != 0 {
 		return false
 	}
-	return n.Flags&(unix.NTF_PROXY|unix.NTF_EXT_LEARNED) == 0
+	if n.Flags&(unix.NTF_PROXY|unix.NTF_EXT_LEARNED) != 0 {
+		return false
+	}
+	return n.State != 0 || state&nudNoneSentinelCst == 0
 }

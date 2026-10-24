@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"sync"
@@ -411,38 +413,67 @@ func TestLinkMonitorService(t *testing.T) {
 	}
 }
 
-// TestRunLinkMonitorBaselineLocked covers the shared-baseline case: another
-// monitor (here, a held flock on the sibling lock file) owns the baseline, so
-// the daemon fails with the lock error instead of running without link metrics.
-func TestRunLinkMonitorBaselineLocked(t *testing.T) {
-	path := t.TempDir() + "/baseline.json"
-	lock, err := os.OpenFile(path+".lock", os.O_CREATE|os.O_RDWR, 0o600)
-	if err != nil {
-		t.Fatal(err)
+// TestRunLinkMonitorDegrades covers a monitor that cannot run: another
+// monitor holds the baseline lock, or the baseline file is corrupt. xtcp2
+// runs on without it: no fatal, the up gauge is 0, the failure is counted
+// and the detail paths answer 503. The baseline file is left as it was.
+func TestRunLinkMonitorDegrades(t *testing.T) {
+	locked := func(t *testing.T) string {
+		path := t.TempDir() + "/baseline.json"
+		lock, err := os.OpenFile(path+".lock", os.O_CREATE|os.O_RDWR, 0o600)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = lock.Close() })
+		if err := unix.Flock(int(lock.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
+			t.Fatal(err)
+		}
+		return path
 	}
-	t.Cleanup(func() { _ = lock.Close() })
-	if err := unix.Flock(int(lock.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
-		t.Fatal(err)
+	withContent := func(content string) func(*testing.T) string {
+		return func(t *testing.T) string {
+			path := t.TempDir() + "/baseline.json"
+			if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			return path
+		}
 	}
+	// One byte over the 64 KiB baseline limit, valid JSON otherwise.
+	oversized := `{"version":1,"expected_up_links":2,"recorded_at":"2026-10-21T00:00:00Z"}`
+	oversized += strings.Repeat(" ", 64<<10+1-len(oversized))
 	tests := []struct {
 		category, description, expected string
+		baseline                        func(*testing.T) string
 		canceled                        bool
-		wantFatal                       string
+		wantDown                        bool
 	}{
-		{"negative", "a baseline locked by another monitor is fatal while the daemon runs", "fatal naming the lock", false, "baseline already locked"},
-		{"corner", "the same failure after daemon shutdown is only logged", "no fatal", true, ""},
+		{"negative", "a baseline locked by another monitor stops only the monitor", "down, no fatal, 503", locked, false, true},
+		{"negative", "a corrupt baseline stops only the monitor", "down, no fatal, file unchanged", withContent("{bad"), false, true},
+		{"boundary", "a baseline one byte over 64 KiB is corrupt", "down, no fatal, file unchanged", withContent(oversized), false, true},
+		{"corner", "the same failure after daemon shutdown is only logged", "not down, no fatal", locked, true, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
 			t.Logf("%s: %s; expected: %s", tc.category, tc.description, tc.expected)
+			path := tc.baseline(t)
+			before, _ := os.ReadFile(path)
 			var fatal string
-			x := &XTCP{registry: prometheus.NewRegistry(), config: &xtcp_config.XtcpConfig{
-				LinkMonitor: &xtcp_config.LinkMonitorConfig{Enable: true, BaselineFile: path},
+			registry := prometheus.NewRegistry()
+			x := &XTCP{registry: registry, config: &xtcp_config.XtcpConfig{
+				LinkMonitor: &xtcp_config.LinkMonitorConfig{Enable: true, BaselineFile: path, CollectionMode: "poll"},
 			}}
 			x.fatalf = func(format string, args ...any) { fatal = fmt.Sprintf(format, args...) }
+			var promWG sync.WaitGroup
+			promWG.Add(1)
+			x.InitPromethus(&promWG)
 			x.initLinkMonitor()
 			if x.linkMonitor == nil {
 				t.Fatalf("monitor not built: %s", fatal)
+			}
+			handler, err := x.LinkMonitorHandler("/metrics")
+			if err != nil {
+				t.Fatal(err)
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
@@ -453,17 +484,61 @@ func TestRunLinkMonitorBaselineLocked(t *testing.T) {
 			wg.Add(1)
 			x.runLinkMonitor(ctx, &wg)
 			wg.Wait()
-			if tc.wantFatal == "" {
-				if fatal != "" {
-					t.Fatalf("unexpected fatal: %s", fatal)
-				}
-				return
+			if fatal != "" {
+				t.Fatalf("unexpected fatal: %s", fatal)
 			}
-			if !strings.Contains(fatal, "link monitor stopped") || !strings.Contains(fatal, tc.wantFatal) {
-				t.Fatalf("fatal = %q, want %q", fatal, tc.wantFatal)
+			if got := x.linkMonitorDown.Load(); got != tc.wantDown {
+				t.Fatalf("down = %t, want %t", got, tc.wantDown)
+			}
+			if got := gaugeValue(t, registry, "xtcp_gauges", "linkMonitor", "up"); got != 0 {
+				t.Errorf("up gauge = %v after Run returned, want 0", got)
+			}
+			wantFailed := 0.0
+			if tc.wantDown {
+				wantFailed = 1
+			}
+			if got := max(gaugeValue(t, registry, "xtcp_counts", "linkMonitor", "failed"), 0); got != wantFailed {
+				t.Errorf("failed counter = %v, want %v", got, wantFailed)
+			}
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics/link", nil))
+			if wantCode := map[bool]int{true: http.StatusServiceUnavailable, false: http.StatusOK}[tc.wantDown]; rec.Code != wantCode {
+				t.Errorf("GET /metrics/link = %d, want %d", rec.Code, wantCode)
+			}
+			if after, _ := os.ReadFile(path); string(after) != string(before) {
+				t.Error("baseline file changed")
 			}
 		})
 	}
+}
+
+// gaugeValue is the xtcp gauge or counter series {function, variable} in r;
+// -1 when absent.
+func gaugeValue(t *testing.T, r prometheus.Gatherer, family, function, variable string) float64 {
+	t.Helper()
+	families, err := r.Gather()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range families {
+		if f.GetName() != family {
+			continue
+		}
+		for _, m := range f.GetMetric() {
+			labels := map[string]string{}
+			for _, l := range m.GetLabel() {
+				labels[l.GetName()] = l.GetValue()
+			}
+			if labels["function"] != function || labels["variable"] != variable {
+				continue
+			}
+			if m.GetGauge() != nil {
+				return m.GetGauge().GetValue()
+			}
+			return m.GetCounter().GetValue()
+		}
+	}
+	return -1
 }
 
 // netstatSuccess is the host netstat collector's last success in the

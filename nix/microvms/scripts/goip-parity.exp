@@ -363,7 +363,27 @@ proc setup_read_ns {slug setup} {
             return ""
         }
     }
+    settle_links $NSW
     return $NSW
+}
+
+###############################################################################
+# settle_links <ns> - wait until linkwatch has caught up with Setup
+#
+# A link Setup brings up, or whose carrier it changes, reports IFF_RUNNING
+# from its operstate, which linkwatch updates up to a second later. A veth
+# brought up with its peer down reads RUNNING until then, and not after. A
+# side captured inside that second then differs from one captured outside it,
+# in a reply's ifi_flags and nothing else: the bond write rows failed that way
+# on the 7.3 kernel, 2 or 3 of four per run, a different set each time.
+# Waiting on the state, as wait-lacp does for the bond's, makes every side
+# read the settled one. A timeout is logged, not fatal: the capture still
+# runs, and a link that never settles shows up in the comparison.
+###############################################################################
+
+proc settle_links {ns} {
+    lassign [vmlib::run_out "xtcp2-nlcap wait-linkwatch $ns 5" 35] rc out
+    vmlib::log [string trim $out]
 }
 
 ###############################################################################
@@ -377,8 +397,9 @@ proc setup_read_ns {slug setup} {
 # make the same devices in the same order, so each side sees the same
 # ifindexes. They are in the request bytes (ifi_index, IFLA_MASTER).
 #
-# Setup runs through setup_step, outside the capture window. A refused step
-# skips that side, which the comparator then reports as MISSING.
+# Setup runs through setup_step, outside the capture window, and
+# settle_links waits for its links' operstate before the capture. A refused
+# step skips that side, which the comparator then reports as MISSING.
 #
 # goip sends the lookups and writes its request to GOIP_WRITE_OUT, which is
 # <slug>.goip.write beside the captures. Its floor is two lower than ip's: no
@@ -421,6 +442,7 @@ proc capture_write_triple {slug floor setup argv_str {proto route} {stdin -}} {
             lappend write_skipped "$slug.$side"
             continue
         }
+        settle_links $NSW
         lassign [nlcap write --proto $proto $NSW $SUBDIR "$slug.$side" $side_floor "'$cmd'"] rc out
         if {$rc != 0} {
             lappend short_caps "$SUBDIR/$slug.$side"

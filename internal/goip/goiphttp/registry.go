@@ -34,6 +34,14 @@ const ifNameMax = 15
 // keywords; nothing longer is a valid value.
 const tokenMax = 32
 
+// Words the registry uses more than once: object names that are also
+// paths or parameter names, and the address family `link`.
+const (
+	linkWord  = "link"
+	vrfWord   = "vrf"
+	statsWord = "stats"
+)
+
 type paramKind uint8
 
 const (
@@ -85,14 +93,14 @@ type object struct {
 var (
 	pDev     = param{name: "dev", kind: kindName}
 	pFamily  = param{name: "family", kind: kindFamily}
-	pStats   = param{name: "stats", kind: kindStats}
+	pStats   = param{name: statsWord, kind: kindStats}
 	pDetails = param{name: "details", kind: kindDetails}
 )
 
 // objects is the registry. Paths use the short spelling an operator types
 // (addr, neigh); the goip object is the canonical name.
 var objects = []*object{
-	{path: "link", devPath: true,
+	{path: linkWord, object: linkWord, devPath: true,
 		params: []param{pDev, pStats, pDetails}},
 	{path: "addr", object: "address", devPath: true,
 		params: []param{pDev, {name: "family", kind: kindFamily, familyLink: true}, pStats, pDetails}},
@@ -108,17 +116,17 @@ var objects = []*object{
 			pDev,
 			{name: "groups", kind: kindFlag},
 			{name: "master", kind: kindName},
-			{name: "vrf", kind: kindName},
+			{name: vrfWord, kind: kindName},
 			{name: "protocol", kind: kindUint8},
 			{name: "fdb", kind: kindFlag},
 			pFamily,
 		}},
-	{path: "vrf"},
-	{path: "netconf", devPath: true,
+	{path: vrfWord, object: vrfWord},
+	{path: "netconf", object: "netconf", devPath: true,
 		params: []param{pDev, pFamily}},
 	{path: "ntable",
 		params: []param{pFamily, pStats}},
-	{path: "addrlabel"},
+	{path: "addrlabel", object: "addrlabel"},
 	{path: "mroute",
 		params: []param{{name: "table", kind: kindTable}, {name: "iif", kind: kindName}, pFamily, pStats}},
 	{path: "mrule",
@@ -135,7 +143,7 @@ var objects = []*object{
 	// reads its two keys by strcmp, in either order.
 	{path: "netns",
 		params: []param{{name: "target-nsid", kind: kindUint32}, {name: "nsid", kind: kindUint32}}},
-	{path: "stats", devPath: true,
+	{path: statsWord, object: statsWord, devPath: true,
 		params: []param{
 			pDev,
 			{name: "group", kind: kindToken},
@@ -147,11 +155,16 @@ var objects = []*object{
 // formatParam is accepted on every path, including the index.
 const formatParam = "format"
 
+// byObject indexes objects by goip's canonical name, which is what an
+// abbreviated object resolves to; built at init.
+var byObject = make(map[string]*object, len(objects))
+
 func init() {
 	for _, o := range objects {
 		if o.object == "" {
 			o.object = o.path
 		}
+		byObject[o.object] = o
 		o.byName = make(map[string]*param, len(o.params))
 		for i := range o.params {
 			o.byName[o.params[i].name] = &o.params[i]
@@ -281,7 +294,7 @@ func (p *param) apply(s *goip.ShowRequest, v string) error {
 			s.Family = unix.AF_INET
 		case v == "inet6":
 			s.Family = unix.AF_INET6
-		case v == "link" && p.familyLink:
+		case v == linkWord && p.familyLink:
 			s.Family = unix.AF_PACKET
 		case p.familyLink:
 			return paramErr("family %q: want inet, inet6 or link", v)
@@ -292,7 +305,7 @@ func (p *param) apply(s *goip.ShowRequest, v string) error {
 		if !truthy(v) {
 			return paramErr("stats=%q: want 1 or true", v)
 		}
-		s.Stats = true
+		s.Stats = 1
 	case kindDetails:
 		if !truthy(v) {
 			return paramErr("details=%q: want 1 or true", v)

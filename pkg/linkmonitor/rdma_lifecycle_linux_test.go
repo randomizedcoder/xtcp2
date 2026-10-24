@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/model"
+	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor/internal/rdmaevents"
 )
 
 type rdmaStateFuncs struct {
@@ -33,6 +34,12 @@ func TestRDMAEnabledLifecycle(t *testing.T) {
 			inventory, _, _ := rdmaFixture(t, rdmaNativeLayer)
 			s.rdma = true
 			s.inventory = func(context.Context) (inventoryBackend, error) { return inventory, nil }
+			// Without this, the session subscribes to the host's real RDMA netlink,
+			// and on a host with RDMA devices it reconciles and turns collection
+			// healthy, so the unhealthy state awaited below is only a brief window.
+			s.rdmaEventSource = func(context.Context, rdmaEventSet) (rdmaevents.Source, error) {
+				return nil, rdmaevents.ErrUnavailable
+			}
 			closed := make(chan struct{})
 			wanted := errors.New("RDMA resource failure")
 			s.rdmaSource = func(context.Context) (rdmaStateSource, error) {

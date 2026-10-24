@@ -64,6 +64,22 @@ func (s *Service) Links(extMask uint32) ([]model.Link, error) {
 	if err != nil {
 		return nil, fmt.Errorf("goip: build link dump request: %w", err)
 	}
+	return s.links(r)
+}
+
+// LinksKind is Links for `ip link show type KIND`: the same dump carrying
+// the kind (req.LinkShowDumpKind). A kernel that knows the kind returns only
+// its links; one that does not returns them all. Either way the caller
+// filters the replies again, as print_linkinfo does.
+func (s *Service) LinksKind(extMask uint32, kind string) ([]model.Link, error) {
+	r, err := req.LinkShowDumpKind(extMask, kind, s.nextSeq())
+	if err != nil {
+		return nil, fmt.Errorf("goip: build link dump request: %w", err)
+	}
+	return s.links(r)
+}
+
+func (s *Service) links(r []byte) ([]model.Link, error) {
 	v, err := decode(s, r, uint16(unix.RTM_NEWLINK), "RTM_NEWLINK", xtcpnl.ParseNewLink)
 	if err != nil {
 		return nil, err
@@ -365,10 +381,11 @@ func (s *Service) AddrLinkGet(family uint8, index int32, extMask uint32) (model.
 
 // Routes performs the RTM_GETROUTE dump behind `ip route show`, with
 // iproute_dump_filter's two optional attributes applied: table (RT_TABLE_UNSPEC
-// for none) and oif (0 for none). req.RouteShowDump has the derivation,
-// including why `iif` is deliberately absent from this signature.
-func (s *Service) Routes(family uint8, table, oif uint32) ([]model.Route, error) {
-	r, err := req.RouteShowDump(family, table, oif, s.nextSeq())
+// for none) and oif (0 for none), and its rtm_protocol (0 for none).
+// req.RouteShowDump has the derivation, including why `iif` is deliberately
+// absent from this signature.
+func (s *Service) Routes(family, protocol uint8, table, oif uint32) ([]model.Route, error) {
+	r, err := req.RouteShowDump(family, protocol, table, oif, s.nextSeq())
 	if err != nil {
 		return nil, err
 	}
@@ -398,8 +415,8 @@ func (s *Service) Routes(family uint8, table, oif uint32) ([]model.Route, error)
 // RouteBodies is Routes undecoded: `ip route flush` copies each reply it
 // matches whole into its RTM_DELROUTE (ip/iproute.c:803-818), so it needs
 // every byte the kernel sent. Each round sends the request Routes does.
-func (s *Service) RouteBodies(family uint8, table, oif uint32) ([][]byte, error) {
-	r, err := req.RouteShowDump(family, table, oif, s.nextSeq())
+func (s *Service) RouteBodies(family, protocol uint8, table, oif uint32) ([][]byte, error) {
+	r, err := req.RouteShowDump(family, protocol, table, oif, s.nextSeq())
 	if err != nil {
 		return nil, err
 	}
@@ -410,12 +427,12 @@ func (s *Service) RouteBodies(family uint8, table, oif uint32) ([][]byte, error)
 // `ip route save` writes the replies its filter keeps verbatim
 // (ip/iproute.c:1675-1697). The request is Routes'. A source without
 // DumpMsgs is refused before anything is sent.
-func (s *Service) RouteMsgs(family uint8, table, oif uint32) ([][]byte, error) {
+func (s *Service) RouteMsgs(family, protocol uint8, table, oif uint32) ([][]byte, error) {
 	src, ok := s.src.(MsgDumpSource)
 	if !ok {
 		return nil, ErrNoMsgDump
 	}
-	r, err := req.RouteShowDump(family, table, oif, s.nextSeq())
+	r, err := req.RouteShowDump(family, protocol, table, oif, s.nextSeq())
 	if err != nil {
 		return nil, err
 	}
@@ -562,26 +579,6 @@ func (s *Service) NexthopBucketGet(family uint8, id uint32, index uint16) (model
 		return model.NexthopBucket{}, fmt.Errorf("goip: decode RTM_NEWNEXTHOPBUCKET: %w", err)
 	}
 	return model.NexthopBucket(nb), nil
-}
-
-// NexthopShowLinks is ll_init_map's link dump before a filtered `ip nexthop show
-// { dev | master | vrf }`. It is the nexthop-path twin of NeighborLinks: the same
-// ll_init_map request, split out so a `dev`/`master`/`vrf` name is resolved from
-// its replies between the link dump and the filtered nexthop dump.
-func (s *Service) NexthopShowLinks() ([]model.Link, error) {
-	r, err := req.NexthopShowLinkDump(s.nextSeq())
-	if err != nil {
-		return nil, fmt.Errorf("goip: build nexthop link dump request: %w", err)
-	}
-	ls, err := decode(s, r, uint16(unix.RTM_NEWLINK), "RTM_NEWLINK", xtcpnl.ParseNewLink)
-	if err != nil {
-		return nil, err
-	}
-	links := make([]model.Link, len(ls))
-	for i := range ls {
-		links[i] = model.Link(ls[i])
-	}
-	return links, nil
 }
 
 // NexthopsFiltered is the wire-filtered RTM_GETNEXTHOP dump behind

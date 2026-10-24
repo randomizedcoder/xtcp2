@@ -16,14 +16,31 @@
 let
   versions = import ./versions.nix { inherit pkgs; };
 
+  # The tree less the files no Go build reads (lib/goSource.nix), and its
+  # vendored copy. The binaries, go-link-monitor and the guest test
+  # artifacts use it, so a docs- or Nix-only change leaves them, and the
+  # vm-* checks that boot them, cached. Repo-wide checks keep `src`.
+  goSrc = import ./lib/goSource.nix { inherit lib src; };
+  goSource = {
+    src = goSrc;
+    inherit
+      (import ./lib/goModules.nix {
+        inherit pkgs giouring;
+        src = goSrc;
+        vendorHash = versions.goVendorHash;
+      })
+      vendoredSource
+      ;
+  };
+
   # Per-binary derivations + xtcp2-all join + default = xtcp2.
   binaries = import ./binaries.nix {
     inherit
       pkgs
       lib
-      src
       giouring
       ;
+    src = goSrc;
   };
 
   # Vendored source (used by every check that needs Go deps inside the sandbox).
@@ -38,12 +55,8 @@ let
   inherit (goMods) vendoredSource;
 
   linkmonitorPackages = import ./lib/linkmonitor-packages.nix {
-    inherit
-      pkgs
-      lib
-      src
-      vendoredSource
-      ;
+    inherit pkgs lib;
+    inherit (goSource) src vendoredSource;
   };
 
   # OCI image(s) — three variants in lockstep with the Go build variants.
@@ -130,6 +143,7 @@ let
       lib
       src
       vendoredSource
+      goSource
       binaries
       microvms
       linkmonitorPackages
@@ -152,6 +166,53 @@ let
     inherit pkgs src;
     artifact = tests.test-linkmonitor-performance;
   };
+
+  # Guest tests that report through the serial console, each built around
+  # microvms/mkVmCheck.nix's runner: checks.vm-<name>, run in the build
+  # sandbox with KVM and cached by its inputs, and the app test-<name>-vm,
+  # the same run with its evidence under ~/.cache/xtcp2-vm.
+  vmTests =
+    let
+      ionic =
+        faults:
+        import ./microvms/linkmonitor-ionic.nix {
+          inherit pkgs lib nixpkgs;
+          artifact = tests.test-linkmonitor-rdma-build;
+          monitor = linkmonitorPackages.go-link-monitor;
+          ernicModule = rocmErnic.nixosModules.ernic-guest;
+          ernicRun = rocmErnic.packages.${pkgs.stdenv.hostPlatform.system}.ernic-run;
+          inherit rdmaCaptureManifest faults;
+        };
+    in
+    {
+      goip-argv-paths = import ./tests/goip-argv-paths.nix {
+        inherit pkgs lib nixpkgs;
+        monitor = linkmonitorPackages.go-link-monitor;
+        inherit (binaries) goip;
+      };
+      linkmonitor-embedding = import ./microvms/linkmonitor-embedding.nix {
+        inherit pkgs lib nixpkgs;
+        artifact = tests.test-linkmonitor-embedding;
+      };
+      linkmonitor-ionic = ionic false;
+      linkmonitor-ionic-faults = ionic true;
+      linkmonitor-rdma = import ./microvms/linkmonitor-rdma.nix {
+        inherit
+          pkgs
+          lib
+          microvm
+          nixpkgs
+          binaries
+          ;
+        artifact = tests.test-linkmonitor-rdma-build;
+      };
+      linkmonitor-performance = linkmonitorPerformanceVm;
+      xtcp2-linkmonitor = import ./tests/xtcp2-linkmonitor.nix {
+        inherit pkgs lib nixpkgs;
+        inherit (binaries) xtcp2;
+      };
+    };
+  vmChecks = lib.mapAttrs' (name: t: lib.nameValuePair "vm-${name}" t.vmCheck.check) vmTests;
 
   # Dev shell
   devshell = import ./devshell.nix { inherit pkgs; };
@@ -193,7 +254,10 @@ let
   # the capture script the rxe and ionic guests and `l` run, the redaction
   # and manifest tool, and the host app `nix run .#capture-rdma-testdata`.
   rdmaNativeCapture = import ./tests/rdma-native-capture.nix { inherit pkgs; };
-  rdmaCaptureManifest = import ./tests/rdma-capture-manifest.nix { inherit pkgs vendoredSource; };
+  rdmaCaptureManifest = import ./tests/rdma-capture-manifest.nix {
+    inherit pkgs;
+    inherit (goSource) vendoredSource;
+  };
   captureRdmaTestdata = import ./capture-rdma-testdata.nix {
     inherit pkgs rdmaNativeCapture rdmaCaptureManifest;
     umadTests = tests.test-linkmonitor-rdma-build;
@@ -847,38 +911,15 @@ in
     }
     // linkmonitorPerformance.packages
     // {
-      test-linkmonitor-embedding-vm = import ./microvms/linkmonitor-embedding.nix {
-        inherit pkgs lib nixpkgs;
-        artifact = tests.test-linkmonitor-embedding;
-      };
+      # IA4-T01 of cmd/go-link-monitor/IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md:
+      # `nix run .#test-goip-argv-paths-vm`, which needs /dev/kvm or TCG.
+      test-goip-argv-paths-vm = vmTests.goip-argv-paths;
+      test-linkmonitor-embedding-vm = vmTests.linkmonitor-embedding;
       test-linkmonitor-performance-vm = linkmonitorPerformanceVm;
-      test-linkmonitor-rdma-vm = import ./microvms/linkmonitor-rdma.nix {
-        inherit
-          pkgs
-          lib
-          microvm
-          nixpkgs
-          binaries
-          ;
-        artifact = tests.test-linkmonitor-rdma-build;
-      };
-      test-linkmonitor-ionic-vm = import ./microvms/linkmonitor-ionic.nix {
-        inherit pkgs lib nixpkgs;
-        artifact = tests.test-linkmonitor-rdma-build;
-        monitor = linkmonitorPackages.go-link-monitor;
-        ernicModule = rocmErnic.nixosModules.ernic-guest;
-        ernicRun = rocmErnic.packages.${pkgs.stdenv.hostPlatform.system}.ernic-run;
-        inherit rdmaCaptureManifest;
-      };
-      test-linkmonitor-ionic-faults-vm = import ./microvms/linkmonitor-ionic.nix {
-        inherit pkgs lib nixpkgs;
-        artifact = tests.test-linkmonitor-rdma-build;
-        monitor = linkmonitorPackages.go-link-monitor;
-        ernicModule = rocmErnic.nixosModules.ernic-guest;
-        ernicRun = rocmErnic.packages.${pkgs.stdenv.hostPlatform.system}.ernic-run;
-        inherit rdmaCaptureManifest;
-        faults = true;
-      };
+      test-linkmonitor-rdma-vm = vmTests.linkmonitor-rdma;
+      test-linkmonitor-ionic-vm = vmTests.linkmonitor-ionic;
+      test-linkmonitor-ionic-faults-vm = vmTests.linkmonitor-ionic-faults;
+      test-xtcp2-linkmonitor-vm = vmTests.xtcp2-linkmonitor;
       demo-linkmonitor-ionic-profiles = import ./microvms/linkmonitor-ionic-demo.nix {
         inherit pkgs lib nixpkgs;
         monitor = linkmonitorPackages.go-link-monitor;
@@ -1013,6 +1054,12 @@ in
       # Microvm lifecycle per arch shows up alongside the rest of the checks.
       microvm-lifecycle-x86_64 = microvms.checks.x86_64;
 
+      # Every guest test above that runs unattended (vmTests), and vm-all,
+      # which builds them all. The fault run needs /dev/net/tun in the
+      # sandbox (extra-sandbox-paths); without it, it fails with
+      # VM_CHECK_NO_TUN. See linkmonitor-ionic.nix.
+      vm-all = pkgs.linkFarm "vm-all" (lib.mapAttrsToList (name: path: { inherit name path; }) vmChecks);
+
       # Race-detector + per-flavor builds. These run as part of
       # `nix flake check` so a flavor-tag regression (e.g. dest_kafka
       # stops compiling because of a new import cycle) or a fresh
@@ -1020,6 +1067,10 @@ in
       # NOT here — quality-report already runs the all-default-tags
       # case, so per-package would be duplicate work.
       test-go-race = tests.go-race;
+    }
+    // vmChecks
+    // {
+      vm-linkmonitor-performance-bundle = vmTests.linkmonitor-performance.bundleTest;
     }
     # The focused monitor aggregate includes pure/race suites, its unchanged
     # comprehensive lint policy, replay, bounded fuzzing and document checks.
@@ -1060,9 +1111,9 @@ in
       program = "${microvms.lifecycle.x86_64.fullTest}/bin/xtcp2-lifecycle-full-test-x86_64";
     };
     # Privileged link-monitor benchmark/live-netlink VM. The guest captures an
-    # nlmon pcap and returns pprof plus test evidence; it is deliberately a
-    # runner rather than a flake check because it needs /dev/kvm and writes
-    # operator-selected evidence outside the Nix store.
+    # nlmon pcap and returns pprof plus test evidence. This app is for a fresh
+    # measurement; checks.vm-linkmonitor-performance runs the same guest as a
+    # cached check.
     test-linkmonitor-performance-vm = {
       type = "app";
       program = "${linkmonitorPerformanceVm}/bin/test-linkmonitor-performance-vm";
@@ -1184,10 +1235,10 @@ in
       program = "${microvms.clickPipeRate.x86_64.runner}/bin/xtcp2-clickpipe-rate-runner-x86_64";
     };
 
-    # Mixed: clickpipe stack (redpanda + clickhouse) plus MinIO and a
+    # Mixed: clickpipe stack (redpanda + clickhouse) plus Garage and a
     # second xtcp2 instance writing parquet. ClickHouse can then query
     # both the kafka path (xtcp.xtcp_flat_records) and the parquet
-    # path (via s3() table function against MinIO at 127.0.0.1:9000).
+    # path (via s3() table function against Garage at 127.0.0.1:9000).
     # Same boot model as clickhouse-pipeline — `nix run` boots the VM
     # directly; no host-side runner.
     microvm-x86_64-clickhouse-pipeline-parquet = {
@@ -1195,11 +1246,11 @@ in
       program = "${microvms.vmsClickPipeParquet.x86_64}/bin/microvm-run";
     };
 
-    # s3parquet flavor: xtcp2 produces Parquet directly into MinIO via the
+    # s3parquet flavor: xtcp2 produces Parquet directly into Garage via the
     # in-VM minio-go client. No Vector. After boot, query the bucket from
-    # the host with `mc ls --json local/xtcp2-records --recursive` (or
-    # `duckdb` against s3://xtcp2-records/**/*.parquet) on the forwarded
-    # MinIO endpoint at http://127.0.0.1:9000.
+    # the host with `rclone lsf -R` (or `duckdb` against
+    # s3://xtcp2-records/**/*.parquet) on the forwarded S3 endpoint at
+    # http://127.0.0.1:9000.
     microvm-x86_64-s3parquet-pipeline = {
       type = "app";
       program = "${microvms.vmsS3Parquet.x86_64}/bin/microvm-run";
@@ -1215,20 +1266,20 @@ in
       program = "${microvms.s3parquetLong.x86_64.runner}/bin/xtcp2-s3parquet-runner-x86_64";
     };
 
-    # Parquet→S3 upload stress soak: the s3parquet-long harness (in-VM MinIO +
+    # Parquet→S3 upload stress soak: the s3parquet-long harness (in-VM Garage +
     # xtcp2 writing parquet) PLUS the tcp-stress load containers (20 × 250
     # sockets) and a ~1h object-retention cleanup. Duration-bounded runner taps
     # the serial console, prints an upload/disk heartbeat, and asserts uploads
-    # kept advancing, the MinIO disk stayed healthy, and RSS/threads stayed
+    # kept advancing, the Garage disk stayed healthy, and RSS/threads stayed
     # bounded, with no restarts/panics. Default 1h; pass `--duration 24h` for
-    # the production soak or `--keep-alive` to inspect MinIO by hand. Analog of
+    # the production soak or `--keep-alive` to inspect Garage by hand. Analog of
     # `microvm-x86_64-clickhouse-pipeline-stress`. Not in `nix flake check`.
     microvm-x86_64-s3parquet-stress = {
       type = "app";
       program = "${microvms.s3ParquetStress.x86_64.runner}/bin/xtcp2-s3parquet-stress-runner-x86_64";
     };
 
-    # Parquet→S3 LOW-activity verification: same MinIO + container harness as
+    # Parquet→S3 LOW-activity verification: same Garage + container harness as
     # -s3parquet-stress, but xtcp2 polls once an hour with only 2 sockets per
     # container, so the 63 MiB byte cap is never reached and parquet files
     # finalize purely on the staleness TIMER. Confirms the bucket still fills

@@ -1,0 +1,70 @@
+1: lo: group xstats subgroup bond suite 802.3ad
+1: lo: group xstats subgroup bridge suite vlan
+1: lo: group xstats subgroup bridge suite mcast
+1: lo: group xstats subgroup bridge suite stp
+
+2: tunl0: group xstats subgroup bond suite 802.3ad
+2: tunl0: group xstats subgroup bridge suite vlan
+2: tunl0: group xstats subgroup bridge suite mcast
+2: tunl0: group xstats subgroup bridge suite stp
+
+3: nlmon0: group xstats subgroup bond suite 802.3ad
+3: nlmon0: group xstats subgroup bridge suite vlan
+3: nlmon0: group xstats subgroup bridge suite mcast
+3: nlmon0: group xstats subgroup bridge suite stp
+
+4: ipip1: group xstats subgroup bond suite 802.3ad
+4: ipip1: group xstats subgroup bridge suite vlan
+4: ipip1: group xstats subgroup bridge suite mcast
+4: ipip1: group xstats subgroup bridge suite stp
+
+5: sit0: group xstats subgroup bond suite 802.3ad
+5: sit0: group xstats subgroup bridge suite vlan
+5: sit0: group xstats subgroup bridge suite mcast
+5: sit0: group xstats subgroup bridge suite stp
+
+6: sit1: group xstats subgroup bond suite 802.3ad
+6: sit1: group xstats subgroup bridge suite vlan
+6: sit1: group xstats subgroup bridge suite mcast
+6: sit1: group xstats subgroup bridge suite stp
+
+7: gre0: group xstats subgroup bond suite 802.3ad
+7: gre0: group xstats subgroup bridge suite vlan
+7: gre0: group xstats subgroup bridge suite mcast
+7: gre0: group xstats subgroup bridge suite stp
+
+8: gretap0: group xstats subgroup bond suite 802.3ad
+8: gretap0: group xstats subgroup bridge suite vlan
+8: gretap0: group xstats subgroup bridge suite mcast
+8: gretap0: group xstats subgroup bridge suite stp
+
+9: erspan0: group xstats subgroup bond suite 802.3ad
+9: erspan0: group xstats subgroup bridge suite vlan
+9: erspan0: group xstats subgroup bridge suite mcast
+9: erspan0: group xstats subgroup bridge suite stp
+
+10: gre1: group xstats subgroup bond suite 802.3ad
+10: gre1: group xstats subgroup bridge suite vlan
+10: gre1: group xstats subgroup bridge suite mcast
+10: gre1: group xstats subgroup bridge suite stp
+
+11: ip6tnl0: group xstats subgroup bond suite 802.3ad
+11: ip6tnl0: group xstats subgroup bridge suite vlan
+11: ip6tnl0: group xstats subgroup bridge suite mcast
+11: ip6tnl0: group xstats subgroup bridge suite stp
+
+12: ip6tnl1: group xstats subgroup bond suite 802.3ad
+12: ip6tnl1: group xstats subgroup bridge suite vlan
+12: ip6tnl1: group xstats subgroup bridge suite mcast
+12: ip6tnl1: group xstats subgroup bridge suite stp
+
+13: ip6gre0: group xstats subgroup bond suite 802.3ad
+13: ip6gre0: group xstats subgroup bridge suite vlan
+13: ip6gre0: group xstats subgroup bridge suite mcast
+13: ip6gre0: group xstats subgroup bridge suite stp
+
+14: ip6gre1: group xstats subgroup bond suite 802.3ad
+14: ip6gre1: group xstats subgroup bridge suite vlan
+14: ip6gre1: group xstats subgroup bridge suite mcast
+14: ip6gre1: group xstats subgroup bridge suite stp
+

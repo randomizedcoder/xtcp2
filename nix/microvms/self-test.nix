@@ -80,7 +80,7 @@
 #                                              xtcp2 still starts + still produces
 #   XTCP2_SELF_TEST_S3PARQUET_FILES_{PASS,FAIL}       (s3parquet only)
 #                                              ≥1 .parquet object lands in
-#                                              the MinIO bucket within 90s
+#                                              the Garage bucket within 90s
 #   XTCP2_SELF_TEST_S3PARQUET_ROWS_{PASS,FAIL}        (s3parquet only)
 #                                              duckdb decodes the file and
 #                                              returns ≥1 row
@@ -147,7 +147,7 @@
   # destHTTP POST-success counter advanced.
   runClickhouseHttpCheck ? false,
   # When true (clickhouse-pipeline-parquet flavor only), the self-test
-  # also queries the in-VM MinIO via ClickHouse's s3() table function
+  # also queries the in-VM Garage via ClickHouse's s3() table function
   # and asserts count() > 0 against the parquet objects xtcp2 wrote.
   # Validates the "operator queries parquet from inside ClickHouse"
   # deployment shape side-by-side with the kafka path.
@@ -167,7 +167,7 @@
   runEnrichCheck ? false,
   clickhousePassword ? "xtcp",
   # When true (set on the s3parquet flavor), adds Check 13 (≥1 .parquet
-  # object lands in the MinIO bucket within 90 s) and Check 14 (duckdb
+  # object lands in the Garage bucket within 90 s) and Check 14 (duckdb
   # can read the file back and the row count is non-zero). The
   # rationale is the same as the ClickHouse checks: a misconfigured
   # encoder or sanitization can land syntactically-valid uploads that
@@ -176,7 +176,7 @@
   s3Endpoint ? "http://127.0.0.1:9000",
   s3Bucket ? "xtcp2-records",
   s3AccessKey ? "xtcp2test",
-  s3SecretKey ? "xtcp2testsecret",
+  s3SecretKey ? "xtcp2testsecretkey",
   # When true (set on the valkey flavor), adds a check that records the daemon
   # PUBLISHed to the in-VM Valkey channel were actually consumed back by the
   # pre-subscribed valkey-subscriber (broker-server.nix logs them to
@@ -310,9 +310,9 @@ pkgs.writeShellApplication {
     gnutar
     gzip
     docker # only used by Check 11/12 (clickhouse-pipeline); harmless otherwise
-    minio-client # mc — only used by Check 13/14 (s3parquet); harmless otherwise
+    rclone # S3 client — only used by Check 13/14 (s3parquet); harmless otherwise
     duckdb # used by Check 14 to decode the Parquet file
-    jq # used by Check 19 to edit the config JSON for the reconfigure soft restart
+    jq # checks 17-19: save/restore the poll cadence, edit the config for the reconfigure
   ];
   text = ''
     set +e   # never exit early — we want all checks to run
@@ -1554,18 +1554,25 @@ pkgs.writeShellApplication {
     if [ "$check16" -ne 0 ]; then overall_ok=0; fi
 
     ${lib.optionalString runS3ParquetCheck ''
-      # ─── Check 13: s3parquet object landed in MinIO ──────────────────
+      # ─── Check 13: s3parquet object landed in Garage ─────────────────
       # Same model as Check 11 — the daemon could be producing bytes
       # that look right at the Kafka/proto layer but fail at the S3
       # upload (auth, bucket permissions, network). Catch silently.
       echo "--- check 13: s3parquet — at least one .parquet object ---"
-      export MC_CONFIG_DIR=/tmp/self-test-mc
-      mkdir -p "$MC_CONFIG_DIR"
-      mc alias set local ${s3Endpoint} ${s3AccessKey} ${s3SecretKey} >/dev/null 2>&1 || true
+      # An rclone remote defined in the environment: no config file, and
+      # "Other" because rclone has no Garage provider.
+      export RCLONE_CONFIG=/dev/null
+      export RCLONE_CONFIG_S3_TYPE=s3
+      export RCLONE_CONFIG_S3_PROVIDER=Other
+      export RCLONE_CONFIG_S3_ENDPOINT=${s3Endpoint}
+      export RCLONE_CONFIG_S3_REGION=us-east-1
+      export RCLONE_CONFIG_S3_FORCE_PATH_STYLE=true
+      export RCLONE_CONFIG_S3_ACCESS_KEY_ID=${s3AccessKey}
+      export RCLONE_CONFIG_S3_SECRET_ACCESS_KEY=${s3SecretKey}
       check13=1
       parquet_key=""
       for _ in $(seq 1 "$(scaled 90)"); do
-        parquet_key=$(mc find local/${s3Bucket} --name '*.parquet' 2>/dev/null | head -n1)
+        parquet_key=$(rclone lsf -R --files-only --include '*.parquet' s3:${s3Bucket} 2>/dev/null | head -n1)
         if [ -n "$parquet_key" ]; then
           break
         fi
@@ -1586,7 +1593,7 @@ pkgs.writeShellApplication {
       echo "--- check 14: s3parquet — duckdb decodes the parquet file ---"
       check14=1
       if [ -n "$parquet_key" ]; then
-        mc cp "$parquet_key" /tmp/xtcp2-s3p.parquet >/dev/null 2>&1
+        rclone copyto "s3:${s3Bucket}/$parquet_key" /tmp/xtcp2-s3p.parquet >/dev/null 2>&1
         if [ ! -s /tmp/xtcp2-s3p.parquet ]; then
           echo "XTCP2_SELF_TEST_S3PARQUET_ROWS_FAIL  (downloaded file empty: $parquet_key)"
         else
@@ -1887,14 +1894,14 @@ pkgs.writeShellApplication {
     ''}
 
     ${lib.optionalString runClickhouseParquetCheck ''
-      # ─── Check 15: ClickHouse can SELECT from MinIO parquet via s3() ──
+      # ─── Check 15: ClickHouse can SELECT from Garage parquet via s3() ─
       # The mixed flavor runs a second xtcp2 instance with -dest s3parquet
-      # writing to in-VM MinIO. ClickHouse reaches the host (where MinIO
+      # writing to in-VM Garage. ClickHouse reaches the host (where Garage
       # listens) via the host.docker.internal alias added to its
       # /etc/hosts. Wait up to 90s for the secondary xtcp2 to accumulate
       # enough rows to hit the 4 MiB flush threshold and write the first
       # parquet object.
-      echo "--- check 15: ClickHouse s3() reads MinIO parquet ---"
+      echo "--- check 15: ClickHouse s3() reads Garage parquet ---"
       check15=1
       parquetRows=0
       for _ in $(seq 1 "$(scaled 45)"); do
@@ -1902,7 +1909,7 @@ pkgs.writeShellApplication {
         # the clickhouse container. Glob ** matches the Hive-style
         # host=…/date=…/hour=… partitioning xtcp2's parquet writer uses.
         parquetRows=$(docker exec clickhouse clickhouse-client --password ${clickhousePassword} \
-          -q "SELECT count() FROM s3('http://host.docker.internal:9000/xtcp2-records/**/*.parquet', 'xtcp2test', 'xtcp2testsecret', 'Parquet')" 2>/dev/null | tr -d '\r\n' || echo 0)
+          -q "SELECT count() FROM s3('http://host.docker.internal:9000/xtcp2-records/**/*.parquet', '${s3AccessKey}', '${s3SecretKey}', 'Parquet')" 2>/dev/null | tr -d '\r\n' || echo 0)
         if [ "''${parquetRows:-0}" -gt 0 ] 2>/dev/null; then
           break
         fi
@@ -2164,7 +2171,10 @@ pkgs.writeShellApplication {
     #   18 CTL_TRIGGER — with the ticker parked at 1h, trigger-poll + poll-burst
     #                    are the ONLY thing that can advance the Poller
     #                    pollRequestCh counter, so a clean delta proves the
-    #                    on-demand polls really ran.
+    #                    on-demand polls really ran. It then restores the
+    #                    cadence check 17 parked: check 19's reconfigure copies
+    #                    the live config, so without the restore the daemon
+    #                    would poll hourly for the rest of a soak flavor.
     #   19 CTL_RESTART — reconfigure (soft restart via syscall.Exec) with a new
     #                    tag: MainPID is unchanged (in-place re-exec, NOT a
     #                    systemd restart), `get` reflects the new tag, and freshly
@@ -2178,7 +2188,12 @@ pkgs.writeShellApplication {
 
     echo "--- check 17: xtcp2ctl set-poll-frequency (hot change, no restart) ---"
     check17=1
+    orig_freq="" orig_timeout=""
     if command -v xtcp2ctl >/dev/null 2>&1; then
+      # The configured cadence, for check 18 to restore.
+      orig_cfg=$(xtcp2ctl get "''${CTL[@]}" 2>/dev/null)
+      orig_freq=$(printf '%s' "$orig_cfg" | jq -r '.pollFrequency // empty' 2>/dev/null)
+      orig_timeout=$(printf '%s' "$orig_cfg" | jq -r '.pollTimeout // empty' 2>/dev/null)
       before_reset=$(metric_value "xtcp_counts" 'function="Poller"' 'variable="ticker.Reset"')
       # Park the ticker at 1h with a 1s timeout: the long frequency isolates
       # check 18, and the small timeout lets the burst there use a 2s interval
@@ -2211,13 +2226,21 @@ pkgs.writeShellApplication {
       sleep 10  # 4 polls × 2s spacing + slack
       after_poll=$(metric_value "xtcp_counts" 'function="Poller"' 'variable="pollRequestCh"')
       delta=$((after_poll - before_poll))
+      # Unpark the ticker: back to the cadence saved before check 17.
+      restored=0
+      if [ -n "$orig_freq" ] && [ -n "$orig_timeout" ] \
+         && xtcp2ctl set-poll-frequency -frequency "$orig_freq" -timeout "$orig_timeout" "''${CTL[@]}" >/tmp/ctl-restore.log 2>&1 \
+         && [ "$(xtcp2ctl get "''${CTL[@]}" 2>/dev/null | jq -r '.pollFrequency' 2>/dev/null)" = "$orig_freq" ]; then
+        restored=1
+      fi
       # Ticker parked at 1h, so 1 (trigger) + 4 (burst) = 5 on-demand pokes are
       # the only possible source. Require >=4 (tolerate one timing slip).
-      if [ "$delta" -ge 4 ]; then
-        echo "XTCP2_SELF_TEST_CTL_TRIGGER_PASS  (pollRequestCh +$delta from trigger+burst, ticker parked)"
+      if [ "$delta" -ge 4 ] && [ "$restored" -eq 1 ]; then
+        echo "XTCP2_SELF_TEST_CTL_TRIGGER_PASS  (pollRequestCh +$delta from trigger+burst, ticker parked; cadence restored to $orig_freq/$orig_timeout)"
         check18=0
       else
-        echo "XTCP2_SELF_TEST_CTL_TRIGGER_FAIL  (pollRequestCh +$delta, expected >=4)"
+        echo "XTCP2_SELF_TEST_CTL_TRIGGER_FAIL  (pollRequestCh +$delta, expected >=4; cadence restored=$restored to '$orig_freq'/'$orig_timeout')"
+        head -n 3 /tmp/ctl-restore.log 2>/dev/null || true
       fi
     else
       echo "XTCP2_SELF_TEST_CTL_TRIGGER_FAIL  (xtcp2ctl not on PATH)"

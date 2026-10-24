@@ -193,9 +193,10 @@ type adminEndpoint struct {
 	name   string
 }
 
-// newAdminEndpoint builds the gRPC server for ep. Metrics for the service go
-// to reg, which the caller serves on the full exposition.
-func newAdminEndpoint(ep listener.Endpoint, policy *listenerauth.Policy, m linkmonitorgrpc.Monitor,
+// newAdminEndpoint builds the gRPC server for ep. A TCP listener gets the hop
+// limits. Metrics for the service go to reg, which the caller serves on the
+// full exposition.
+func newAdminEndpoint(ep listener.Endpoint, hops hopLimits, policy *listenerauth.Policy, m linkmonitorgrpc.Monitor,
 	logger *slog.Logger, reg prometheus.Registerer,
 ) (*adminEndpoint, error) {
 	svc, err := linkmonitorgrpc.NewServer(m, linkmonitorgrpc.WithLogger(logger), linkmonitorgrpc.WithRegisterer(reg))
@@ -217,7 +218,9 @@ func newAdminEndpoint(ep listener.Endpoint, policy *listenerauth.Policy, m linkm
 	healthpb.RegisterHealthServer(s, health)
 	reflection.Register(s)
 	return &adminEndpoint{
-		listen: func(ctx context.Context) (net.Listener, error) { return listener.Listen(ctx, ep, 0, 0) },
+		listen: func(ctx context.Context) (net.Listener, error) {
+			return listener.Listen(ctx, ep, uint32(hops.ipv4TTL), uint32(hops.ipv6HopLimit))
+		},
 		server: s,
 		name:   ep.Network + ":" + ep.Address,
 	}, nil

@@ -5,12 +5,15 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math"
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/randomizedcoder/xtcp2/internal/goip/goiphttp"
+	"github.com/randomizedcoder/xtcp2/pkg/ipsockopt"
 	"github.com/randomizedcoder/xtcp2/pkg/linkmonitor"
 	monitorprom "github.com/randomizedcoder/xtcp2/pkg/linkmonitor/prometheus"
 )
@@ -35,6 +38,8 @@ const (
 	waitEnvironment        = "GO_LINK_MONITOR_ON_DEMAND_WAIT"
 	ipPathsEnvironment     = "GO_LINK_MONITOR_IP_PATHS"
 	ipMaxBytesEnvironment  = "GO_LINK_MONITOR_IP_MAX_BYTES"
+	ipv4TTLEnvironment     = "GO_LINK_MONITOR_IPV4_TTL"
+	ipv6HopsEnvironment    = "GO_LINK_MONITOR_IPV6_HOP_LIMIT"
 
 	metricsPath        = "/metrics"
 	defaultAllPath     = "/metrics-all"
@@ -45,6 +50,11 @@ const (
 	// summaryCore serves the core pattern selection, for migration.
 	summaryProblems = "problems"
 	summaryCore     = "core"
+
+	// defaultHopLimit is the outgoing IPv4 TTL and IPv6 hop limit on every
+	// TCP listener. Replies to a scraper more than two routers away are
+	// dropped, so an unexpectedly internet-exposed host leaks little.
+	defaultHopLimit = 3
 )
 
 type commandOptions struct {
@@ -52,6 +62,7 @@ type commandOptions struct {
 	address  string
 	exposure exposureOptions
 	admin    adminOptions
+	hops     hopLimits
 	version  bool
 	// statsIgnored is an explicit -stats-interval on demand, which uses
 	// the watch intervals instead.
@@ -104,6 +115,7 @@ func parseOptions(args []string, output io.Writer, getenv func(string) string) (
 	flags.StringVar(&ttl, "on-demand.ttl", ttl, "On demand: a detail scrape reuses data collected this recently (0 always collects); overrides "+ttlEnvironment)
 	flags.StringVar(&wait, "on-demand.wait", wait, "On demand: longest a detail scrape waits for collection before serving what it has; overrides "+waitEnvironment)
 	adminFallbacks := defineAdminFlags(flags, &opts.admin)
+	defineHopFlags(flags, &opts.hops)
 	backend := string(opts.monitor.IOBackend)
 	flags.StringVar(&backend, "io-backend", backend, "Socket backend: poller or io_uring (requires available implementation)")
 	flags.BoolVar(&opts.version, "version", false, "Print build identity and exit")
@@ -139,6 +151,9 @@ func parseOptions(args []string, output io.Writer, getenv func(string) string) (
 	}
 	opts.exposure.categories = splitList(categories)
 	if err := opts.exposure.applyEnvironment(getenv, explicit); err != nil {
+		return opts, err
+	}
+	if err := opts.hops.applyEnvironment(getenv, explicit); err != nil {
 		return opts, err
 	}
 	opts.monitor.ErrorClasses = splitList(errorClasses)
@@ -185,7 +200,7 @@ func defineExposureFlags(flags *flag.FlagSet, o *exposureOptions, categories *st
 	flags.BoolVar(&o.interfacePaths, "metrics.interface-paths", true,
 		"Serve one interface of each category path and of the all-metrics path on PATH/INTERFACE; overrides "+interfacePathsEnviron)
 	flags.BoolVar(&o.ipPaths, "ip.paths", false,
-		"Serve read-only `ip -j OBJECT show` output on "+goiphttp.Prefix+"/OBJECT (link, addr, route, neigh, ...); exposes addresses, routes and neighbors, so pair it with read auth or a loopback -metrics-addr; overrides "+ipPathsEnvironment)
+		"Serve read-only `ip … show` on "+goiphttp.Prefix+" and "+goiphttp.ShortPrefix+": command lines as paths ("+goiphttp.Prefix+"/addr/show/dev/eth0, "+goiphttp.ShortPrefix+"/a/s) and the JSON query form ("+goiphttp.Prefix+"/OBJECT); exposes addresses, routes and neighbors, so pair it with read auth or a loopback -metrics-addr; overrides "+ipPathsEnvironment)
 	flags.IntVar(&o.ipMaxBytes, "ip.max-bytes", goiphttp.DefaultMaxBytes,
 		"Largest "+goiphttp.Prefix+" response body in bytes (positive); overrides "+ipMaxBytesEnvironment)
 	return []envFallback{
@@ -226,6 +241,51 @@ func (o *exposureOptions) applyEnvironment(getenv func(string) string, explicit 
 	return nil
 }
 
+// hopLimits are the IP_TTL and IPV6_UNICAST_HOPS values set on every TCP
+// listener, as xtcp2's -ipv4Ttl and -ipv6HopLimit do. Zero keeps the kernel
+// default.
+type hopLimits struct {
+	ipv4TTL, ipv6HopLimit uint
+}
+
+func defineHopFlags(flags *flag.FlagSet, h *hopLimits) {
+	flags.UintVar(&h.ipv4TTL, "ipv4-ttl", defaultHopLimit,
+		"Outgoing IPv4 TTL on every TCP listener, 0-255 (0 is the kernel default); a low value keeps replies from traveling far if the host is internet-exposed; overrides "+ipv4TTLEnvironment)
+	flags.UintVar(&h.ipv6HopLimit, "ipv6-hop-limit", defaultHopLimit,
+		"Outgoing IPv6 unicast hop limit on every TCP listener, 0-255 (0 is the kernel default); overrides "+ipv6HopsEnvironment)
+}
+
+// applyEnvironment applies the hop limit variables, then checks the range.
+// As for the other fallbacks, an explicit flag wins and an empty variable
+// is ignored.
+func (h *hopLimits) applyEnvironment(getenv func(string) string, explicit map[string]bool) error {
+	for _, limit := range [...]struct {
+		flag, environment string
+		target            *uint
+	}{
+		{"ipv4-ttl", ipv4TTLEnvironment, &h.ipv4TTL},
+		{"ipv6-hop-limit", ipv6HopsEnvironment, &h.ipv6HopLimit},
+	} {
+		if value := getenv(limit.environment); !explicit[limit.flag] && value != "" {
+			n, err := strconv.ParseUint(value, 10, 0)
+			if err != nil {
+				return fmt.Errorf("%s: %w", limit.environment, err)
+			}
+			*limit.target = uint(n)
+		}
+		if *limit.target > math.MaxUint8 {
+			return fmt.Errorf("%s %d must be 0-255", limit.flag, *limit.target)
+		}
+	}
+	return nil
+}
+
+// control returns the net.ListenConfig.Control hook that sets the limits; nil
+// when both are zero.
+func (h hopLimits) control() func(network, address string, c syscall.RawConn) error {
+	return ipsockopt.Control(uint32(h.ipv4TTL), uint32(h.ipv6HopLimit))
+}
+
 // splitList splits a comma-separated list; an empty string is an empty list.
 func splitList(value string) []string {
 	if value == "" {
@@ -254,9 +314,11 @@ func (o exposureOptions) validate(address string) error {
 		if o.ipMaxBytes <= 0 {
 			return fmt.Errorf("ip.max-bytes %d must be positive", o.ipMaxBytes)
 		}
-		// The /ip paths live on the main listener only.
-		if o.shared(address) && (o.allPath == goiphttp.Prefix || strings.HasPrefix(o.allPath, goiphttp.Prefix+"/")) {
-			return fmt.Errorf("metrics-all-path %q collides with the %s paths on the same listener", o.allPath, goiphttp.Prefix)
+		// The /ip and /i paths live on the main listener only.
+		for _, root := range []string{goiphttp.Prefix, goiphttp.ShortPrefix} {
+			if o.shared(address) && (o.allPath == root || strings.HasPrefix(o.allPath, root+"/")) {
+				return fmt.Errorf("metrics-all-path %q collides with the %s paths on the same listener", o.allPath, root)
+			}
 		}
 	}
 	if o.allPath != "" && strings.HasPrefix(o.allPath, categoryPathPrefix) && slices.Contains(o.categories, strings.TrimPrefix(o.allPath, categoryPathPrefix)) {

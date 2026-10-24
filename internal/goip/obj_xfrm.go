@@ -112,7 +112,7 @@ func runXfrm(c *runCtx, args []string) error {
 		return xfrmState(c, args[1:])
 	case matchesPrefix(obj, "policy"):
 		return xfrmPolicy(c, args[1:])
-	case matchesPrefix(obj, "monitor"):
+	case matchesPrefix(obj, monitorVerbCst):
 		return xfrmMonitor(c, args[1:])
 	}
 	return fmt.Errorf("%w: %s", ErrXfrmUsage, xfrmUsageCst)

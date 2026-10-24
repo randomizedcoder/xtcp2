@@ -56,6 +56,29 @@ func TestEnvOverrideLinkMonitor(t *testing.T) {
 			},
 		},
 		{
+			category: "positive", description: "the problem and path variables override the flags",
+			expected: "windows, classes, exclude, categories, interface paths, all path, ip paths and max bytes replaced",
+			env: map[string]string{
+				"LINK_MONITOR_ON_DEMAND_WAIT": "2s", "LINK_MONITOR_ERRORS_WINDOW": "10m", "LINK_MONITOR_FLAP_WINDOW": "1h",
+				"LINK_MONITOR_ERRORS_CLASSES": "drop", "LINK_MONITOR_ERRORS_EXCLUDE": "^eth9/.*",
+				"LINK_MONITOR_METRICS_CATEGORIES": "link", "LINK_MONITOR_METRICS_INTERFACE_PATHS": "false",
+				"LINK_MONITOR_METRICS_ALL_PATH": "/all", "LINK_MONITOR_IP_PATHS": "true", "LINK_MONITOR_IP_MAX_BYTES": "4096",
+			},
+			start: flagValue(),
+			check: func(m *xtcp_config.LinkMonitorConfig) bool {
+				return m.GetOnDemandWait().AsDuration() == 2*time.Second && m.GetErrorWindow().AsDuration() == 10*time.Minute &&
+					m.GetFlapWindow().AsDuration() == time.Hour && m.GetErrorClasses() == "drop" && m.GetErrorExclude() == "^eth9/.*" &&
+					m.GetMetricsCategories() == "link" && m.MetricsInterfacePaths != nil && !m.GetMetricsInterfacePaths() &&
+					m.GetMetricsAllPath() == "/all" && m.GetIpPaths() && m.GetIpMaxBytes() == 4096
+			},
+		},
+		{
+			category: "negative", description: "LINK_MONITOR=false turns off the default-on monitor",
+			expected: "Enable false", env: map[string]string{"LINK_MONITOR": "false"},
+			start: &xtcp_config.XtcpConfig{LinkMonitor: &xtcp_config.LinkMonitorConfig{Enable: true}},
+			check: func(m *xtcp_config.LinkMonitorConfig) bool { return !m.GetEnable() },
+		},
+		{
 			category: "negative", description: "unparsable bool and duration values leave the flag values",
 			expected: "unchanged", env: map[string]string{"LINK_MONITOR": "maybe", "LINK_MONITOR_RESYNC": "soon"},
 			start: flagValue(),
@@ -70,6 +93,22 @@ func TestEnvOverrideLinkMonitor(t *testing.T) {
 			check: func(m *xtcp_config.LinkMonitorConfig) bool { return m.GetMaxSpeedExceptions() == nil },
 		},
 		{
+			category: "boundary", description: "set but empty optional variables mean none, not the default",
+			expected: "error classes, categories and all path present and empty",
+			env:      map[string]string{"LINK_MONITOR_ERRORS_CLASSES": "", "LINK_MONITOR_METRICS_CATEGORIES": "", "LINK_MONITOR_METRICS_ALL_PATH": ""},
+			start:    flagValue(),
+			check: func(m *xtcp_config.LinkMonitorConfig) bool {
+				return m.ErrorClasses != nil && m.GetErrorClasses() == "" && m.MetricsCategories != nil &&
+					m.GetMetricsCategories() == "" && m.MetricsAllPath != nil && m.GetMetricsAllPath() == ""
+			},
+		},
+		{
+			category: "boundary", description: "an IP max bytes over uint32 is ignored",
+			expected: "flag value kept", env: map[string]string{"LINK_MONITOR_IP_MAX_BYTES": "4294967296"},
+			start: &xtcp_config.XtcpConfig{LinkMonitor: &xtcp_config.LinkMonitorConfig{IpMaxBytes: 7}},
+			check: func(m *xtcp_config.LinkMonitorConfig) bool { return m.GetIpMaxBytes() == 7 },
+		},
+		{
 			category: "corner", description: "a config without link_monitor gains one",
 			expected: "block created and enabled", env: map[string]string{"LINK_MONITOR": "true"},
 			start: &xtcp_config.XtcpConfig{},
@@ -79,7 +118,8 @@ func TestEnvOverrideLinkMonitor(t *testing.T) {
 			category: "corner", description: "no variables leave the flag values untouched",
 			expected: "unchanged", start: flagValue(),
 			check: func(m *xtcp_config.LinkMonitorConfig) bool {
-				return m.GetBaselineFile() == "/flag.json" && !m.GetEnable() && m.GetSettle() == nil
+				return m.GetBaselineFile() == "/flag.json" && !m.GetEnable() && m.GetSettle() == nil &&
+					m.ErrorClasses == nil && m.MetricsAllPath == nil && !m.GetIpPaths()
 			},
 		},
 	}

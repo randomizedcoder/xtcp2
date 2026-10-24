@@ -307,6 +307,11 @@ const (
 	tdDumpUname_7_1_4     = tdDumps_7_1_4 + "/uname"
 	tdDumpIPVersion_7_1_4 = tdDumps_7_1_4 + "/ip_version"
 
+	// The same driver at the iproute2 7.2.0 pin, on the 7.3.0 kernel that
+	// came with it: the corpus goip's 7.2.0 defaults replay against.
+	tdDumps_7_3_0         = tdBase + "/7_3_0/dumps"
+	tdDumpIPVersion_7_3_0 = tdDumps_7_3_0 + "/ip_version"
+
 	// The mesh half of the same capture run: a bridge with a veth member whose
 	// peer is left down. It is the only source in the repo of IFLA_MASTER,
 	// IFLA_LINK between a real pair, IFLA_INFO_KIND of bridge/veth, `M-DOWN`

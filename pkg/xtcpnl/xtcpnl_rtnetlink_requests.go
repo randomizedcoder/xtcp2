@@ -36,23 +36,21 @@ package xtcpnl
 // pkg/nlparity as DatagramLen/TailBytes and reported informationally, never
 // gated. See docs/netlink/coverage-expansion.md.
 //
-// # One known iproute2 version skew, on the ll_link_get paths only
+// # The index-cache paths send a different mask from the show dumps
 //
-// The captured IFLA_EXT_MASK is 0x09, RTEXT_FILTER_VF|RTEXT_FILTER_SKIP_STATS,
-// and that is what every released iproute2 sends. But the reading fork already
-// carries commit de91e928 "ll_map: add RTEXT_FILTER_NAME_ONLY to ll_link_get()
-// and ll_init_map()" (2026-05-20, in no tag), which makes the mask 0x109 on
-// exactly two paths: the single-get in ll_link_get (lib/ll_map.c:277) and the
-// up-front link dump in ll_init_map (lib/ll_map.c:398) that `ip neigh show`
-// and `ip route show` issue to populate the index cache.
+// `ip link show` and `ip addr show` dumps send IFLA_EXT_MASK 0x09,
+// RTEXT_FILTER_VF|RTEXT_FILTER_SKIP_STATS (iplink_filter_req). iproute2's index
+// cache sends its own: since commit de91e928 "ll_map: add
+// RTEXT_FILTER_NAME_ONLY to ll_link_get() and ll_init_map()", first released in
+// 7.2.0, both the single-get in ll_link_get (lib/ll_map.c:276-277) and the
+// up-front link dump in ll_init_map (:395-398) send 0x109, VF|SKIP_STATS|
+// RtextFilterNameOnly. 7.1.0 sent 0x09 and 0x01 respectively, and the
+// fixtures captured with it under testdata/7_1_4 still show those.
 //
-// RTEXT_FILTER_NAME_ONLY = (1 << 8) is itself newer than the host kernel:
-// linux/include/uapi/linux/rtnetlink.h stops at RTEXT_FILTER_MST (1 << 7), so
-// the bit exists only in iproute2's bundled copy of the header and this kernel
-// ignores it. Hence the mask is a CALLER argument on every builder here, and
-// the parity allowlist needs a version-skew entry citing de91e928 rather than
-// a constant baked into the wire layer. The `ip link show` and `ip addr show`
-// dump path is unaffected — iplink_filter_req still computes 0x09.
+// RTEXT_FILTER_NAME_ONLY first appears in the Linux 7.2 UAPI headers, so an
+// older kernel ignores the bit and answers in full; 7.2 and later reply with
+// the ifinfomsg header, the name and the altnames. Hence the mask is a CALLER argument on
+// every builder here rather than a constant baked into the wire layer.
 
 import (
 	"encoding/binary"
@@ -397,8 +395,20 @@ func BuildDumpAddrRequestIndex(family uint8, ifindex, seq uint32) []byte {
 // (AF_INET, 254, 0) and the all-tables command is (AF_UNSPEC, 0, 0).
 // `ip route show dev NAME` is (AF_INET, 254, idx), 44 bytes.
 func BuildDumpRouteRequestFilter(family uint8, table, oif, seq uint32) ([]byte, error) {
+	return BuildDumpRouteRequestFilterProto(family, 0, table, oif, seq)
+}
+
+// BuildDumpRouteRequestFilterProto is BuildDumpRouteRequestFilter with
+// rtm_protocol, the one rtmsg byte iproute_dump_filter writes besides the
+// family: `rtm->rtm_protocol = filter.protocol` (ip/iproute.c:1721), set by
+// `ip route show proto PROTO` (:1880-1891). It is written unconditionally,
+// so `proto all` and no `proto` at all both send 0, and the kernel reads a
+// nonzero value as a dump-side filter (ip_valid_fib_dump_req's
+// filter->protocol). The attributes are unchanged.
+func BuildDumpRouteRequestFilterProto(family, protocol uint8, table, oif, seq uint32) ([]byte, error) {
 	hdr := make([]byte, RtMsgSizeCst)
-	hdr[0] = family // rtm_family
+	hdr[0] = family   // rtm_family
+	hdr[5] = protocol // rtm_protocol
 
 	var attrs []byte
 	if table != uint32(unix.RT_TABLE_UNSPEC) || oif != 0 {

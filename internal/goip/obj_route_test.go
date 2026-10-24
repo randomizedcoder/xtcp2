@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -562,6 +563,10 @@ type routeReplay struct {
 	dumps int
 	gets  []int32
 
+	// dumpRequests are the dump requests as sent, copied, so a row can
+	// assert the rtmsg bytes a selector writes (`proto` sets rtm_protocol).
+	dumpRequests [][]byte
+
 	// shapes is the same sequence with the selector fields kept, which is
 	// what `route show dev NAME` needs: its FIRST get carries an
 	// IFLA_IFNAME and an ifi_index of 0, so the gets slice alone cannot tell
@@ -585,6 +590,7 @@ func newRouteReplay(t *testing.T, path string) *routeReplay {
 
 func (s *routeReplay) Dump(request []byte, msgType uint16) ([][]byte, error) {
 	s.dumps++
+	s.dumpRequests = append(s.dumpRequests, slices.Clone(request))
 	return s.inner.Dump(request, msgType)
 }
 
@@ -775,6 +781,126 @@ func TestRouteShowTransactionShape(t *testing.T) {
 			}
 			if tc.wantStdout != "" && got != tc.wantStdout {
 				t.Errorf("stdout = %q\nwant     %q", got, tc.wantStdout)
+			}
+		})
+	}
+}
+
+// TestRouteShowProto pins `route show proto PROTO` against the captures: which
+// routes survive filter_nlmsg's protocol test (ip/iproute.c:212), that the
+// proto token is suppressed for them (:908-909), and the dump request's
+// rtm_protocol (iproute_dump_filter, :1721). The replay answers the
+// unfiltered dump, so the output is the client-side re-check alone.
+//
+// go test ./internal/goip/ -run TestRouteShowProto
+func TestRouteShowProto(t *testing.T) {
+	tests := []struct {
+		description string
+		pcap        string
+		args        []string
+		// request is the dump request goip must send, as (family, protocol,
+		// table); the sequence number is not compared.
+		reqFamily, reqProto uint8
+		reqTable            uint32
+		expected            string
+	}{
+		{
+			description: "positive: proto kernel keeps the one kernel route and drops its token",
+			pcap:        routeDumpPcap,
+			args:        []string{"show", "proto", "kernel"},
+			reqFamily:   unix.AF_INET, reqProto: unix.RTPROT_KERNEL, reqTable: unix.RT_TABLE_MAIN,
+			expected: "192.0.2.0/24 dev goip0 scope link src 192.0.2.1 \n",
+		},
+		{
+			description: "positive: proto boot keeps the rest, whose token was hidden anyway",
+			pcap:        routeDumpPcap,
+			args:        []string{"show", "proto", "boot"},
+			reqFamily:   unix.AF_INET, reqProto: unix.RTPROT_BOOT, reqTable: unix.RT_TABLE_MAIN,
+			expected: "198.18.0.0/24 via 192.0.2.10 dev goip0 \n" +
+				"198.18.1.0/24 via 192.0.2.10 dev goip0 mtu 1400 advmss 1300 \n" +
+				"198.18.2.0/24 via inet6 2001:db8::2 dev goip0 \n" +
+				"198.18.3.0/24 nhid 1 via 192.0.2.10 dev goip0 \n" +
+				"198.51.100.0/24 dev goip0 scope link \n" +
+				"203.0.113.0/24 \n" +
+				"\tnexthop via 192.0.2.10 dev goip0 weight 1 \n" +
+				"\tnexthop via 192.0.2.11 dev goip0 weight 3 \n",
+		},
+		{
+			description: "negative: proto bgp matches no captured route and prints nothing",
+			pcap:        routeDumpPcap,
+			args:        []string{"show", "proto", "bgp"},
+			reqFamily:   unix.AF_INET, reqProto: unix.RTPROT_BGP, reqTable: unix.RT_TABLE_MAIN,
+			expected: "",
+		},
+		{
+			// rtm_protocol 0 and no mask: the bare command's request and
+			// output, the kernel route's token included.
+			description: "boundary: proto all is the bare command",
+			pcap:        routeDumpPcap,
+			args:        []string{"show", "proto", "all"},
+			reqFamily:   unix.AF_INET, reqTable: unix.RT_TABLE_MAIN,
+			expected: "192.0.2.0/24 dev goip0 proto kernel scope link src 192.0.2.1 \n" +
+				"198.18.0.0/24 via 192.0.2.10 dev goip0 \n" +
+				"198.18.1.0/24 via 192.0.2.10 dev goip0 mtu 1400 advmss 1300 \n" +
+				"198.18.2.0/24 via inet6 2001:db8::2 dev goip0 \n" +
+				"198.18.3.0/24 nhid 1 via 192.0.2.10 dev goip0 \n" +
+				"198.51.100.0/24 dev goip0 scope link \n" +
+				"203.0.113.0/24 \n" +
+				"\tnexthop via 192.0.2.10 dev goip0 weight 1 \n" +
+				"\tnexthop via 192.0.2.11 dev goip0 weight 3 \n",
+		},
+		{
+			// The design example's shape: table all with proto. The family
+			// stays AF_UNSPEC (the promotion keys on the table alone), the
+			// protocol test runs after the table block, and the table token
+			// still prints for non-main routes.
+			description: "corner: table all proto kernel spans tables and families",
+			pcap:        routeDumpAllPcap,
+			args:        []string{"show", "table", "all", "proto", "kernel"},
+			reqFamily:   unix.AF_UNSPEC, reqProto: unix.RTPROT_KERNEL, reqTable: unix.RT_TABLE_UNSPEC,
+			expected: "198.18.11.0/24 dev goipv table 100 scope link src 198.18.11.1 \n" +
+				"local 198.18.11.1 dev goipv table 100 scope host src 198.18.11.1 \n" +
+				"broadcast 198.18.11.255 dev goipv table 100 scope link src 198.18.11.1 \n" +
+				"192.0.2.0/24 dev goip0 scope link src 192.0.2.1 \n" +
+				"local 127.0.0.0/8 dev lo table local scope host src 127.0.0.1 \n" +
+				"local 127.0.0.1 dev lo table local scope host src 127.0.0.1 \n" +
+				"broadcast 127.255.255.255 dev lo table local scope link src 127.0.0.1 \n" +
+				"local 192.0.2.1 dev goip0 table local scope host src 192.0.2.1 \n" +
+				"broadcast 192.0.2.255 dev goip0 table local scope link src 192.0.2.1 \n" +
+				"local fe80::9027:3fff:fe4d:54d4 dev goipv table 100 metric 0 pref medium\n" +
+				"fe80::/64 dev goipv table 100 metric 256 pref medium\n" +
+				"multicast ff00::/8 dev goipv table 100 metric 256 pref medium\n" +
+				"2001:db8::/64 dev goip0 metric 256 pref medium\n" +
+				"fe80::/64 dev goip0 metric 256 pref medium\n" +
+				"local ::1 dev lo table local metric 0 pref medium\n" +
+				"local 2001:db8::1 dev goip0 table local metric 0 pref medium\n" +
+				"local 2001:db8::9 dev goip0 table local metric 0 pref medium\n" +
+				"local fe80::4a4:15ff:fe8d:1ee0 dev goip0 table local metric 0 pref medium\n" +
+				"multicast ff00::/8 dev goip0 table local metric 256 pref medium\n",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.description, func(t *testing.T) {
+			src := newRouteReplay(t, tc.pcap)
+			got, err := runRouteWith(t, src, unix.AF_UNSPEC, tc.args)
+			if err != nil {
+				t.Fatalf("runRoute(%q): %v", tc.args, err)
+			}
+			if got != tc.expected {
+				t.Errorf("stdout = %q\nwant     %q", got, tc.expected)
+			}
+			if len(src.dumpRequests) != 1 {
+				t.Fatalf("dumps = %d, want 1", len(src.dumpRequests))
+			}
+			want, err := xtcpnl.BuildDumpRouteRequestFilterProto(tc.reqFamily, tc.reqProto, tc.reqTable, 0, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			req := src.dumpRequests[0]
+			// Everything but nlmsg_seq (bytes 8-11) and nlmsg_pid (12-15).
+			if len(req) != len(want) || !bytes.Equal(req[:8], want[:8]) || !bytes.Equal(req[16:], want[16:]) {
+				t.Errorf("dump request = %x\nwant           %x", req, want)
 			}
 		})
 	}
@@ -1098,11 +1224,46 @@ func TestRunRouteArgs(t *testing.T) {
 			wantStderrSubstr: "nosuchdev0",
 		},
 		{
-			description:      "negative: `route show proto kernel` is refused, not ignored",
+			// The proto token is suppressed for the filtered protocol
+			// (ip/iproute.c:908-909, `filter.protocolmask != -1`), so the
+			// one kernel route prints without it.
+			description:      "positive: `route show proto kernel` lists the kernel route without its proto token",
 			pcap:             routeDumpPcap,
 			args:             []string{"route", "show", "proto", "kernel"},
+			wantCode:         ExitOK,
+			wantStdoutPrefix: "192.0.2.0/24 dev goip0 scope link src 192.0.2.1 \n",
+		},
+		{
+			// -d unsuppresses `proto boot` everywhere else, but not under
+			// the mask: the mask is outside the show_details arm (:908-909).
+			description:      "corner: -d does not bring the filtered proto token back",
+			pcap:             routeDumpPcap,
+			args:             []string{"-d", "route", "show", "proto", "kernel"},
+			wantCode:         ExitOK,
+			wantStdoutPrefix: "unicast 192.0.2.0/24 dev goip0 scope link src 192.0.2.1 \n",
+		},
+		{
+			// PRINT_ANY: the JSON key goes with the text token.
+			description:      "corner: -j omits the protocol key under the mask",
+			pcap:             routeDumpPcap,
+			args:             []string{"-j", "route", "show", "proto", "kernel"},
+			wantCode:         ExitOK,
+			wantStdoutPrefix: `[{"dst":"192.0.2.0/24","dev":"goip0","scope":"link","prefsrc":"192.0.2.1","flags":[]}]`,
+		},
+		{
+			// invarg, ErrInvalidArgument, the exit `table wombat` has.
+			description:      "negative: an unknown protocol name is ip's invalid \"protocol\"",
+			pcap:             routeDumpPcap,
+			args:             []string{"route", "show", "proto", "wombat"},
 			wantCode:         ExitUsage,
-			wantStderrSubstr: "not implemented",
+			wantStderrSubstr: `argument "wombat" is wrong: invalid "protocol"`,
+		},
+		{
+			description:      "negative: `route show proto` with no value is a usage error",
+			pcap:             routeDumpPcap,
+			args:             []string{"route", "show", "proto"},
+			wantCode:         ExitUsage,
+			wantStderrSubstr: "argument expected",
 		},
 		{
 			// A selector with no verb is an error in `ip` too: do_iproute
@@ -1123,13 +1284,14 @@ func TestRunRouteArgs(t *testing.T) {
 			wantStderrSubstr: "argument expected",
 		},
 		{
-			// Options precede the object in iproute2, so this is a selector
-			// named "-4", not a family option.
+			// Options precede the object in iproute2, so "-4" reaches the
+			// chain's else-arm as a destination, and get_prefix refuses it
+			// with ip's own words.
 			description:      "corner: an option after the object is not an option",
 			pcap:             routeDumpPcap,
 			args:             []string{"route", "show", "-4"},
 			wantCode:         ExitUsage,
-			wantStderrSubstr: "not implemented",
+			wantStderrSubstr: `any valid prefix is expected rather than "-4"`,
 		},
 	}
 
@@ -1160,8 +1322,10 @@ func TestParseRouteShowArgs(t *testing.T) {
 	tests := []struct {
 		description string
 		args        []string
-		want        routeSelectors
-		wantErr     bool
+		// family is -4/-6's preferred_family, AF_UNSPEC when zero.
+		family  uint8
+		want    routeSelectors
+		wantErr bool
 		// wantErrIs, when set, is the sentinel errors.Is must find. Asserting
 		// only that "an error happened" would let a refused keyword and a
 		// malformed id collapse into one another, and they are different
@@ -1275,6 +1439,14 @@ func TestParseRouteShowArgs(t *testing.T) {
 			wantErrIs:   strconv.ErrRange,
 		},
 		{
+			// The same error is also ip's invarg, so a caller mapping errors
+			// to statuses (goiphttp) sees a 400, not a failed read.
+			description: "negative: a bad table id is ErrInvalidArgument as well as strconv's",
+			args:        []string{"table", "wombat"},
+			wantErr:     true,
+			wantErrIs:   ErrInvalidArgument,
+		},
+		{
 			description: "negative: an unimplemented selector is refused rather than skipped",
 			args:        []string{"via", "192.0.2.254"},
 			wantErr:     true,
@@ -1329,10 +1501,12 @@ func TestParseRouteShowArgs(t *testing.T) {
 			wantErrIs:   ErrNotImplemented,
 		},
 		{
-			description: "negative: `oif` does not abbreviate either",
+			// `o` matches no keyword (`oif` is strcmp), so the else-arm
+			// reads it as a destination and get_prefix refuses it.
+			description: "negative: `oif` does not abbreviate either; `o` is a bad prefix",
 			args:        []string{"o", "goip0"},
 			wantErr:     true,
-			wantErrIs:   ErrNotImplemented,
+			wantErrIs:   ErrInvalidArgument,
 		},
 		{
 			// NEXT_ARG() with nothing left.
@@ -1369,11 +1543,221 @@ func TestParseRouteShowArgs(t *testing.T) {
 			args:        []string{"dev", ""},
 			want:        routeSelectors{Table: unix.RT_TABLE_MAIN, Dev: "", DevSet: true},
 		},
+		{
+			// The chain's else-arm: a bare prefix is `exact`, both filters.
+			description: "positive: a bare prefix sets root and match",
+			args:        []string{"10.0.0.0/8"},
+			want:        routeSelectors{Table: unix.RT_TABLE_MAIN, Root: v4Dst(10, 0, 8, true), Match: v4Dst(10, 0, 8, true)},
+		},
+		{
+			description: "positive: `to` and `exact` are optional words before it",
+			args:        []string{"to", "exact", "0.0.0.0/0"},
+			want:        routeSelectors{Table: unix.RT_TABLE_MAIN, Root: v4Dst(0, 0, 0, true), Match: v4Dst(0, 0, 0, true)},
+		},
+		{
+			description: "positive: `root` sets filter.rdst only",
+			args:        []string{"root", "10.0.0.0/8"},
+			want:        routeSelectors{Table: unix.RT_TABLE_MAIN, Root: v4Dst(10, 0, 8, true)},
+		},
+		{
+			// `m` is metric's, earlier in the chain; `ma` reaches match.
+			description: "positive: `ma` abbreviates match, which sets filter.mdst only",
+			args:        []string{"ma", "10.1.0.0/16"},
+			want:        routeSelectors{Table: unix.RT_TABLE_MAIN, Match: v4Dst(10, 1, 16, true)},
+		},
+		{
+			description: "positive: an IPv6 prefix",
+			args:        []string{"2001:db8::/32"},
+			want: routeSelectors{Table: unix.RT_TABLE_MAIN,
+				Root: v6Dst(0x20, 0x01, 0x0d, 0xb8, 32), Match: v6Dst(0x20, 0x01, 0x0d, 0xb8, 32)},
+		},
+		{
+			// get_prefix_1 with no slash: the family's width, unspecified.
+			description: "boundary: an address without a length is a /32",
+			args:        []string{"0.0.0.0"},
+			want:        routeSelectors{Table: unix.RT_TABLE_MAIN, Root: v4Dst(0, 0, 32, false), Match: v4Dst(0, 0, 32, false)},
+		},
+		{
+			description: "boundary: a dotted netmask is get_netmask's length",
+			args:        []string{"10.0.0.0/255.0.0.0"},
+			want:        routeSelectors{Table: unix.RT_TABLE_MAIN, Root: v4Dst(10, 0, 8, true), Match: v4Dst(10, 0, 8, true)},
+		},
+		{
+			description: "boundary: get_addr_ipv4 reads a short address, 10 is 10.0.0.0",
+			args:        []string{"10/8"},
+			want:        routeSelectors{Table: unix.RT_TABLE_MAIN, Root: v4Dst(10, 0, 8, true), Match: v4Dst(10, 0, 8, true)},
+		},
+		{
+			// __get_addr_1 marks default PREFIXLEN_SPECIFIED with the dump
+			// family, none without -4/-6.
+			description: "corner: `default` without a family is specified, length 0",
+			args:        []string{"default"},
+			want: routeSelectors{Table: unix.RT_TABLE_MAIN,
+				Root: dstPrefix{Specified: true}, Match: dstPrefix{Specified: true}},
+		},
+		{
+			description: "corner: `all` without a family filters nothing",
+			args:        []string{"all"},
+			want:        routeSelectors{Table: unix.RT_TABLE_MAIN},
+		},
+		{
+			description: "corner: `all` under -4 has the family and length 0",
+			args:        []string{"all"},
+			family:      unix.AF_INET,
+			want: routeSelectors{Table: unix.RT_TABLE_MAIN,
+				Root: dstPrefix{Family: unix.AF_INET}, Match: dstPrefix{Family: unix.AF_INET}},
+		},
+		{
+			description: "corner: `root` then `match` leaves both, each its own",
+			args:        []string{"root", "10/8", "match", "10.1/16"},
+			want:        routeSelectors{Table: unix.RT_TABLE_MAIN, Root: v4Dst(10, 0, 8, true), Match: v4Dst(10, 1, 16, true)},
+		},
+		{
+			description: "corner: a prefix and a device together",
+			args:        []string{"10/8", "dev", "goip0"},
+			want: routeSelectors{Table: unix.RT_TABLE_MAIN, Dev: "goip0", DevSet: true,
+				Root: v4Dst(10, 0, 8, true), Match: v4Dst(10, 0, 8, true)},
+		},
+		{
+			description: "negative: `m` is metric, refused by name rather than read as a prefix",
+			args:        []string{"m", "10/8"},
+			wantErr:     true,
+			wantErrIs:   ErrNotImplemented,
+		},
+		{
+			description: "negative: `r` is realms, not root",
+			args:        []string{"r", "10/8"},
+			wantErr:     true,
+			wantErrIs:   ErrNotImplemented,
+		},
+		{
+			description: "negative: `from` is a source selector goip does not implement",
+			args:        []string{"from", "10/8"},
+			wantErr:     true,
+			wantErrIs:   ErrNotImplemented,
+		},
+		{
+			description: "negative: `to` with nothing after it is a usage error",
+			args:        []string{"to"},
+			wantErr:     true,
+			wantErrIs:   ErrNotImplemented,
+		},
+		{
+			description: "negative: a length past the family's width",
+			args:        []string{"10.0.0.0/33"},
+			wantErr:     true,
+			wantErrIs:   ErrInvalidArgument,
+		},
+		{
+			description: "negative: `default` takes no length",
+			args:        []string{"default/0"},
+			wantErr:     true,
+			wantErrIs:   ErrInvalidArgument,
+		},
+		{
+			description: "negative: an IPv4 prefix under -6",
+			args:        []string{"10.0.0.0/8"},
+			family:      unix.AF_INET6,
+			wantErr:     true,
+			wantErrIs:   ErrInvalidArgument,
+		},
+		{
+			// rtnl_rtprot_a2n's built-in table (lib/rt_names.c:128-151).
+			description: "positive: `proto bgp` is 186 with the mask set",
+			args:        []string{"proto", "bgp"},
+			want:        routeSelectors{Table: unix.RT_TABLE_MAIN, Protocol: unix.RTPROT_BGP, ProtoMask: true},
+		},
+		{
+			// matches() at ip/iproute.c:1880 comes before scope, metric,
+			// priority and preference in the chain.
+			description: "positive: `p` abbreviates protocol, ahead of priority and preference",
+			args:        []string{"p", "kernel"},
+			want:        routeSelectors{Table: unix.RT_TABLE_MAIN, Protocol: unix.RTPROT_KERNEL, ProtoMask: true},
+		},
+		{
+			description: "positive: the full spelling `protocol static`",
+			args:        []string{"protocol", "static"},
+			want:        routeSelectors{Table: unix.RT_TABLE_MAIN, Protocol: unix.RTPROT_STATIC, ProtoMask: true},
+		},
+		{
+			// From the shipped rt_protos file, not the built-in table; goip
+			// knows it as `ip route add proto ovn` does (route_write.go).
+			description: "positive: `proto ovn` resolves through the shipped rt_protos names",
+			args:        []string{"proto", "ovn"},
+			want:        routeSelectors{Table: unix.RT_TABLE_MAIN, Protocol: 84, ProtoMask: true},
+		},
+		{
+			// strtoul base 0 (lib/rt_names.c:296).
+			description: "positive: a hex number is strtoul base 0",
+			args:        []string{"proto", "0x10"},
+			want:        routeSelectors{Table: unix.RT_TABLE_MAIN, Protocol: unix.RTPROT_DHCP, ProtoMask: true},
+		},
+		{
+			// `all` is tried only after rtnl_rtprot_a2n fails (:1886-1889):
+			// protocol 0 and mask 0, which filters nothing.
+			description: "positive: `proto all` filters nothing",
+			args:        []string{"proto", "all"},
+			want:        routeSelectors{Table: unix.RT_TABLE_MAIN},
+		},
+		{
+			// The arm assigns both fields every time, so `all` after a
+			// protocol undoes it: last-wins, as for table and dev.
+			description: "corner: `proto bgp proto all` is last-wins and filters nothing",
+			args:        []string{"proto", "bgp", "proto", "all"},
+			want:        routeSelectors{Table: unix.RT_TABLE_MAIN},
+		},
+		{
+			// `unspec` is a name for 0 and so a real filter: the mask is
+			// set and only protocol-0 routes survive. Not the same as all.
+			description: "boundary: `proto 0` (unspec) is a filter, unlike `all`",
+			args:        []string{"proto", "0"},
+			want:        routeSelectors{Table: unix.RT_TABLE_MAIN, ProtoMask: true},
+		},
+		{
+			description: "boundary: `proto 255` is the largest protocol",
+			args:        []string{"proto", "255"},
+			want:        routeSelectors{Table: unix.RT_TABLE_MAIN, Protocol: 255, ProtoMask: true},
+		},
+		{
+			description: "negative: `proto 256` is past rtnl_rtprot_a2n's 255",
+			args:        []string{"proto", "256"},
+			wantErr:     true,
+			wantErrIs:   ErrInvalidArgument,
+		},
+		{
+			// strcmp: names do not abbreviate and are case-sensitive.
+			description: "negative: `proto BGP` is not a name",
+			args:        []string{"proto", "BGP"},
+			wantErr:     true,
+			wantErrIs:   ErrInvalidArgument,
+		},
+		{
+			description: "negative: `proto bg` does not abbreviate the name",
+			args:        []string{"proto", "bg"},
+			wantErr:     true,
+			wantErrIs:   ErrInvalidArgument,
+		},
+		{
+			description: "negative: `proto` with no value",
+			args:        []string{"proto"},
+			wantErr:     true,
+			wantErrIs:   ErrNotImplemented,
+		},
+		{
+			// One loop with no exclusion, so proto composes with the rest.
+			description: "corner: proto with table, dev and a prefix sets all four",
+			args:        []string{"table", "all", "proto", "kernel", "dev", "goip0", "10.0.0.0/8"},
+			want: routeSelectors{
+				Table: unix.RT_TABLE_UNSPEC, Protocol: unix.RTPROT_KERNEL, ProtoMask: true,
+				Dev: "goip0", DevSet: true,
+				Root: v4Dst(10, 0, 8, true), Match: v4Dst(10, 0, 8, true),
+			},
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			got, err := parseRouteShowArgs(tc.args)
+			got, err := parseRouteShowArgs(tc.args, tc.family)
 			if tc.wantErr {
 				if err == nil {
 					t.Fatalf("parseRouteShowArgs(%q) = %+v, want an error", tc.args, got)
@@ -1389,6 +1773,85 @@ func TestParseRouteShowArgs(t *testing.T) {
 			}
 			if got != tc.want {
 				t.Errorf("parseRouteShowArgs(%q) = %+v, want %+v", tc.args, got, tc.want)
+			}
+		})
+	}
+}
+
+// v4Dst is a parsed IPv4 destination selector a.b.0.0/bits.
+func v4Dst(a, b byte, bits int, specified bool) dstPrefix {
+	return dstPrefix{Family: unix.AF_INET, Data: [16]byte{a, b}, Bitlen: bits, Specified: specified}
+}
+
+// v6Dst is a parsed IPv6 destination selector a:b::/bits, specified.
+func v6Dst(a, b, c, d byte, bits int) dstPrefix {
+	return dstPrefix{Family: unix.AF_INET6, Data: [16]byte{a, b, c, d}, Bitlen: bits, Specified: true}
+}
+
+// TestRouteMatchesDst is filter_nlmsg's rdst and mdst arms over a small
+// table, each selector parsed as `ip route show` parses it.
+//
+// go test ./internal/goip/ -run TestRouteMatchesDst
+func TestRouteMatchesDst(t *testing.T) {
+	routes := map[string]model.Route{
+		"v4default":  {Family: unix.AF_INET, DstLen: 0},
+		"10/8":       {Family: unix.AF_INET, DstLen: 8, Dst: []byte{10, 0, 0, 0}},
+		"10.1/16":    {Family: unix.AF_INET, DstLen: 16, Dst: []byte{10, 1, 0, 0}},
+		"192.0.2/24": {Family: unix.AF_INET, DstLen: 24, Dst: []byte{192, 0, 2, 0}},
+		"v6default":  {Family: unix.AF_INET6, DstLen: 0},
+		"2001:db8/32": {Family: unix.AF_INET6, DstLen: 32,
+			Dst: []byte{0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}},
+	}
+	tests := []struct {
+		name        string
+		category    string
+		description string
+		args        []string
+		family      uint8
+		expected    []string
+	}{
+		{name: "exact_default_v4", category: "positive", description: "0.0.0.0/0 is only the IPv4 default route",
+			args: []string{"0.0.0.0/0"}, expected: []string{"v4default"}},
+		{name: "exact_prefix", category: "positive", description: "10.0.0.0/8 is only that route",
+			args: []string{"10.0.0.0/8"}, expected: []string{"10/8"}},
+		{name: "root", category: "positive", description: "root 10/8 is the routes inside it, itself included",
+			args: []string{"root", "10/8"}, expected: []string{"10/8", "10.1/16"}},
+		{name: "match", category: "positive", description: "match 10.1.2.3 is every route containing it",
+			args: []string{"match", "10.1.2.3"}, expected: []string{"10.1/16", "10/8", "v4default"}},
+		{name: "exact_v6", category: "positive", description: "an IPv6 prefix",
+			args: []string{"2001:db8::/32"}, expected: []string{"2001:db8/32"}},
+		{name: "host_no_route", category: "boundary", description: "0.0.0.0 is a /32 no route equals",
+			args: []string{"0.0.0.0"}, expected: nil},
+		{name: "root_zero", category: "boundary", description: "root 0/0 is every IPv4 route",
+			args: []string{"root", "0/0"}, expected: []string{"10.1/16", "10/8", "192.0.2/24", "v4default"}},
+		{name: "default_any_family", category: "corner", description: "default without -4/-6 is both default routes",
+			args: []string{"default"}, expected: []string{"v4default", "v6default"}},
+		{name: "all_no_family", category: "corner", description: "all without a family filters nothing",
+			args: []string{"all"}, expected: []string{"10.1/16", "10/8", "192.0.2/24", "2001:db8/32", "v4default", "v6default"}},
+		{name: "all_v4", category: "corner", description: "all under -4 is filter_nlmsg's length-0 match: the IPv4 default",
+			args: []string{"all"}, family: unix.AF_INET, expected: []string{"v4default"}},
+		{name: "no_match", category: "negative", description: "a prefix no route has",
+			args: []string{"172.16.0.0/12"}, expected: nil},
+		{name: "family_mismatch", category: "negative", description: "an IPv6 root keeps no IPv4 route",
+			args: []string{"root", "::/0"}, expected: []string{"2001:db8/32", "v6default"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.category+"/"+tt.name, func(t *testing.T) {
+			sel, err := parseRouteShowArgs(tt.args, tt.family)
+			if err != nil {
+				t.Fatalf("parseRouteShowArgs(%q): %v", tt.args, err)
+			}
+			var got []string
+			for name, r := range routes {
+				if routeMatchesDst(&r, &sel.Root, &sel.Match) {
+					got = append(got, name)
+				}
+			}
+			slices.Sort(got)
+			want := slices.Clone(tt.expected)
+			slices.Sort(want)
+			if !slices.Equal(got, want) {
+				t.Errorf("%s: kept %q, want %q", tt.description, got, want)
 			}
 		})
 	}
@@ -1624,7 +2087,7 @@ func TestRouteFilter(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {
-			got := routeFilter(tc.in, tc.preferredFamily, tc.table, tc.oif)
+			got := routeFilter(tc.in, tc.preferredFamily, tc.table, tc.oif, &routeSelectors{})
 			if len(got) != tc.wantLen {
 				t.Errorf("routeFilter() kept %d routes, want %d", len(got), tc.wantLen)
 			}

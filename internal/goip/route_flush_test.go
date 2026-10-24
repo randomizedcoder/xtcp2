@@ -104,7 +104,7 @@ func TestRouteFlush(t *testing.T) {
 		{description: "negative: -s -s, which prints each route, is not implemented",
 			slug: "route_flush", stats: 2, args: "flush table 100", expected: result{rc: 1, stderrs: "not implemented"}},
 		{description: "negative: a selector goip lacks is refused before any request",
-			slug: "route_flush", args: "flush proto kernel", expected: result{rc: 1, stderrs: "not implemented"}},
+			slug: "route_flush", args: "flush scope host", expected: result{rc: 1, stderrs: "not implemented"}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {

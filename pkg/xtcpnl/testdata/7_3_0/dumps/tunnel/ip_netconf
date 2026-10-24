@@ -1,0 +1,30 @@
+inet lo forwarding off rp_filter loose mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet tunl0 forwarding off rp_filter loose mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet nlmon0 forwarding off rp_filter loose mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet ipip1 forwarding off rp_filter loose mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet sit0 forwarding off rp_filter loose mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet sit1 forwarding off rp_filter loose mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet gre0 forwarding off rp_filter loose mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet gretap0 forwarding off rp_filter loose mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet erspan0 forwarding off rp_filter loose mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet gre1 forwarding off rp_filter loose mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet ip6tnl0 forwarding off rp_filter loose mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet ip6tnl1 forwarding off rp_filter loose mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet ip6gre0 forwarding off rp_filter loose mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet ip6gre1 forwarding off rp_filter loose mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet all forwarding off rp_filter off mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet default forwarding off rp_filter loose mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet6 lo forwarding off mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet6 nlmon0 forwarding off mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet6 ipip1 forwarding off mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet6 sit0 forwarding off mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet6 sit1 forwarding off mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet6 gretap0 forwarding off mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet6 erspan0 forwarding off mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet6 gre1 forwarding off mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet6 ip6tnl0 forwarding off mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet6 ip6tnl1 forwarding off mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet6 ip6gre0 forwarding off mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet6 ip6gre1 forwarding off mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet6 all forwarding off mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 
+inet6 default forwarding off mc_forwarding off proxy_neigh off ignore_routes_with_linkdown off 

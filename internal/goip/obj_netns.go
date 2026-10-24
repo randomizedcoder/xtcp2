@@ -50,7 +50,7 @@ var (
 	// list.
 	netnsListVerbs = []string{listVerbCst, showVerbCst, lstVerbCst}
 	// netnsOtherVerbs are the verbs after set, none of them netlink.
-	netnsOtherVerbs = []string{"delete", "identify", "pids", "exec", "monitor", "attach"}
+	netnsOtherVerbs = []string{"delete", identifyVerbCst, pidsVerbCst, execVerbCst, monitorVerbCst, "attach"}
 )
 
 // runNetns is do_netns, its verbs matched with matches() in its order.

@@ -6,9 +6,10 @@
 #
 # WHY THIS CAN BE A CHECK WHEN THE CAPTURE RUNNERS CANNOT
 #
-# Every microVM target in this repo is a runner rather than a check, because a
-# check derivation has no /dev/kvm, no network and no write access to the
-# working tree. None of that applies here. vm-lib.exp's whole job is to turn a
+# The capture runners stay runners rather than checks because they write
+# their results into the working tree, which a check cannot. (A check can
+# have /dev/kvm: the vm-* checks and microvm-lifecycle declare
+# requiredSystemFeatures = [ "kvm" ].) None of that applies here. vm-lib.exp's whole job is to turn a
 # byte stream carrying an interactive shell session into {exit status, output},
 # and the guest side of that stream is a bash on a pty — which is equally
 # available from a local `socat ... EXEC:bash,pty`. The sandbox's loopback

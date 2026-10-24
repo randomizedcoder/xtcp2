@@ -1516,6 +1516,85 @@ pkgs.writeShellApplication {
       return 1
     }
 
+    # wait-linkwatch <ns> <timeout-sec>
+    #
+    # Poll every admin-up link in <ns> until its operstate agrees with its
+    # carrier, or the deadline passes. That is the moment linkwatch has run:
+    # a reply's IFF_RUNNING is `operstate is UP or UNKNOWN` and IFF_LOWER_UP
+    # is the carrier (dev_get_flags), but the operstate follows a carrier
+    # change, or a fresh link coming up, only when linkwatch fires, up to a
+    # second later. Until then a veth that came up with its peer down has no
+    # carrier and operstate UNKNOWN, so it reports RUNNING; afterwards
+    # operstate is DOWN and it does not. A capture taken across that edge
+    # reads whichever side the race landed on.
+    #
+    # A link counts as settled when (operstate is up or unknown) == carrier.
+    # A down link is skipped: its carrier is not readable. Read from sysfs
+    # for wait-lacp's reasons, no netlink traffic and no dependence on the
+    # decoder under test. Always polls at least once, so a timeout of 0 is
+    # "has it settled now".
+    #
+    # NLCAP_SYS_CLASS_NET replaces /sys/class/net for
+    # nix/checks/nlcap-wait-linkwatch.nix, which builds a fake tree. <ns> `-`
+    # is the root namespace, as for wait-addr-flag; that is the only way the
+    # check can use it.
+    cmd_wait_linkwatch() {
+      [ $# -eq 2 ] || die "usage: wait-linkwatch <ns> <timeout-sec>"
+      local ns=$1 timeout=$2
+      case "$timeout" in "" | *[!0-9]*) die "wait-linkwatch: timeout not a number: $2" ;; esac
+      # Milliseconds, not `date +%s`: a whole-second deadline lets a
+      # timeout of 1 end after a few milliseconds when it starts late in a
+      # second.
+      local start deadline pending
+      start=$(( $(date +%s%N) / 1000000 ))
+      deadline=$(( start + timeout * 1000 ))
+      while :; do
+        pending="$(linkwatch_pending "$ns")"
+        if [ -z "$pending" ]; then
+          echo "NLCAP_LINKWATCH_OK $ns elapsed=$(( ( $(date +%s%N) / 1000000 - start ) / 1000 ))s"
+          return 0
+        fi
+        if [ $(( $(date +%s%N) / 1000000 )) -ge "$deadline" ]; then
+          break
+        fi
+        # 100 ms: linkwatch runs at most once a second for a non-urgent
+        # event, so this sees it within a tenth of that.
+        sleep 0.1
+      done
+      echo "NLCAP_LINKWATCH_TIMEOUT $ns unsettled:$pending after ''${timeout}s"
+      return 1
+    }
+
+    # linkwatch_pending <ns> - the admin-up links in <ns> whose operstate does
+    # not yet agree with their carrier, each as ` name(carrier=C,operstate=S)`.
+    # Empty when every link has settled. `ip netns exec` remounts /sys for
+    # <ns>, so the paths resolve there. A link that vanishes mid-scan, or
+    # whose carrier is unreadable, is skipped rather than counted.
+    linkwatch_pending() {
+      local ns=$1 dev flags carrier oper running
+      local dir=''${NLCAP_SYS_CLASS_NET:-/sys/class/net}
+      local run=(ip netns exec "$ns")
+      if [ "$ns" = "-" ]; then
+        run=()
+      fi
+      local -a devs
+      mapfile -t devs < <("''${run[@]}" ls "$dir")
+      for dev in "''${devs[@]}"; do
+        flags="$("''${run[@]}" cat "$dir/$dev/flags" 2>/dev/null)" || continue
+        case "$flags" in 0x[0-9a-fA-F]*) ;; *) continue ;; esac
+        [ $(( flags & 1 )) -eq 1 ] || continue
+        carrier="$("''${run[@]}" cat "$dir/$dev/carrier" 2>/dev/null)" || continue
+        oper="$("''${run[@]}" cat "$dir/$dev/operstate" 2>/dev/null)" || continue
+        case "$oper" in
+          up | unknown) running=1 ;;
+          *) running=0 ;;
+        esac
+        if [ "$running" != "$carrier" ]; then
+          printf ' %s(carrier=%s,operstate=%s)' "$dev" "$carrier" "$oper"
+        fi
+      done
+    }
+
     # wait-addr-flag <ns> <dev> <addr32|*> <mask> <want> <timeout-sec>
     #
     # Poll /proc/net/if_inet6 in <ns> until a line for <dev> - and for
@@ -2159,7 +2238,7 @@ pkgs.writeShellApplication {
     }
 
     if [ $# -lt 1 ]; then
-      die "usage: xtcp2-nlcap <ns-add|ns-del|topo|cap|capio|write|side|wait-lacp|wait-sysfs|wait-addr-flag|sysctl|tcp|hmac|modules|note|wait-churn|strace|strace-monitor|wait-rdma-port|rdma-hold|rdma-hold-wait|rdma-hold-stop|rdma-user-cqn|mroute-start|mroute-stop|dir|inventory|pack|tcpdump-drops|filter> [--proto route|generic|xfrm] ..."
+      die "usage: xtcp2-nlcap <ns-add|ns-del|topo|cap|capio|write|side|wait-lacp|wait-sysfs|wait-linkwatch|wait-addr-flag|sysctl|tcp|hmac|modules|note|wait-churn|strace|strace-monitor|wait-rdma-port|rdma-hold|rdma-hold-wait|rdma-hold-stop|rdma-user-cqn|mroute-start|mroute-stop|dir|inventory|pack|tcpdump-drops|filter> [--proto route|generic|xfrm] ..."
     fi
 
     sub=$1
@@ -2186,6 +2265,7 @@ pkgs.writeShellApplication {
       side)      cmd_side "$@" ;;
       wait-lacp) cmd_wait_lacp "$@" ;;
       wait-sysfs) cmd_wait_sysfs "$@" ;;
+      wait-linkwatch) cmd_wait_linkwatch "$@" ;;
       wait-addr-flag) cmd_wait_addr_flag "$@" ;;
       sysctl)    cmd_sysctl "$@" ;;
       tcp)       cmd_tcp "$@" ;;

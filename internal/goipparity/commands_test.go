@@ -1108,6 +1108,20 @@ func TestUngatedSurfaceIsNotVacuous(t *testing.T) {
 	// The last four were the permanent set, measured divergent on the wire;
 	// TestPermanentWireDivergences records that it is empty.
 	//
+	// The twenty-seven address write rows left this list on the two runs
+	// after A7-T01 — see TestAddrWriteRowsGated.
+	//
+	// A3-T03's four output-mode rows never joined it: they gated on the two
+	// runs taken before the branch merged — see TestAddrOutputModeRowsGated.
+	//
+	// A8-T03's seven address flush rows never joined it either, for the same
+	// reason — see TestAddrFlushRowsGated.
+	//
+	// Nor did A9-T03's two address restore rows — see TestAddrRestoreRowsGated.
+	//
+	// Nor did the three nexthop selector rows added at the iproute2 7.2.0
+	// move — see TestNexthopSelectorRowsGated.
+	//
 	// The genl rows G5-T03 added, ungated by construction because `ip`
 	// stood in for goip on them (IPStandIn), are all replaced;
 	// TestGenlStandInRows pins that none remains. That leaves the one row
@@ -1351,6 +1365,50 @@ func TestPermanentWireDivergences(t *testing.T) {
 			})
 		}
 	})
+}
+
+// TestNexthopSelectorRowsGated pins the three nexthop selector rows added at
+// the iproute2 7.2.0 move. 7.2.0 resolves `dev`, `master` and `vrf` names
+// with ll_link_get, and goip follows (fb47f92b). Two live runs back to back
+// both read GOIP_PARITY_PASS, stdout=0, control nl=0, and txns 2/2, 3/3 and
+// 4/4, so the rows gate with no allowlist entry and never joined the
+// ungated queue.
+//
+// go test ./internal/goipparity/ -run TestNexthopSelectorRowsGated
+func TestNexthopSelectorRowsGated(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	rows := []struct {
+		category, description, command string
+		expected                       bool // want IsGated
+	}{
+		{"positive", "dev resolves goip0 with ll_link_get by name, then the NHA_OIF dump", "nexthop show dev goip0", true},
+		{"positive", "master resolves goipvrf the same way, then the NHA_MASTER dump", "nexthop show master goipvrf", true},
+		{"boundary", "vrf adds name_is_vrf's get, one transaction over master, and still gates", "nexthop show vrf goipvrf", true},
+		{"negative", "a selector the matrix has no row for is not gated", "nexthop show dev goip1", false},
+		{"corner", "the selector's object word alone is the bare dump's row, gated since runs 10 and 11", "nexthop show", true},
+	}
+	for _, r := range rows {
+		t.Run(r.command, func(t *testing.T) {
+			t.Logf("%s: %s; expected: IsGated = %v", r.category, r.description, r.expected)
+			if got := al.IsGated(r.command); got != r.expected {
+				t.Errorf("IsGated(%q) = %v, want %v", r.command, got, r.expected)
+			}
+			if !r.expected {
+				return
+			}
+			c, lookupErr := Lookup(r.command)
+			if lookupErr != nil {
+				t.Fatalf("Lookup(%q): %v", r.command, lookupErr)
+			}
+			if !c.Implemented || c.Write || c.NeedsDev || c.Floor != 4 {
+				t.Errorf("%q: Implemented=%v Write=%v NeedsDev=%v Floor=%d, want an implemented read row, device in the argv, floor 4",
+					r.command, c.Implemented, c.Write, c.NeedsDev, c.Floor)
+			}
+		})
+	}
 }
 
 // TestNexthopAddrlabelGated pins the five-row flip runs 10 and 11 recorded — the
@@ -2625,7 +2683,7 @@ func TestNeighGetRowsGated(t *testing.T) {
 	}{
 		{"positive: a permanent entry, printed with its device", "neigh get 192.0.2.2 dev d0", gated},
 		{"negative: a missing entry, ENOENT and exit 2, gates the same", "neigh get 192.0.2.9 dev d0", gated},
-		{"boundary: the dump the get sits beside stays gated, with no Setup and its one version-skew entry", "neigh show", want{implemented: true, gated: true, floor: 4, entries: 1}},
+		{"boundary: the dump the get sits beside stays gated, with no Setup and, since the 7.2.0 pin, no entry", "neigh show", want{implemented: true, gated: true, floor: 4}},
 		{"corner: a neigh get form not in the matrix is neither", "neigh get proxy 192.0.2.2", want{}},
 	}
 	for _, r := range rows {
@@ -3240,7 +3298,14 @@ func TestMrouteRows(t *testing.T) {
 	}
 	_, conf, _ := strings.Cut(string(b), "] smcrouted: ")
 	conf, _, _ = strings.Cut(conf, "\n")
-	topo := slices.Concat(topologySteps(t, reads, "reads")[:8], []string{"smcroute " + conf})
+	// The corpus's veths and addresses, with addrgenmode none on each veth
+	// end after the two link adds: a live run's capture hygiene, which the
+	// corpus, captured with no smcrouted-side window to keep clean, lacks.
+	steps := topologySteps(t, reads, "reads")[:8]
+	topo := slices.Concat(steps[:2], []string{
+		"link set v0 addrgenmode none", "link set v0p addrgenmode none",
+		"link set v1 addrgenmode none", "link set v1p addrgenmode none",
+	}, steps[2:], []string{"smcroute " + conf})
 	type want struct {
 		implemented, topology, write, gated bool
 		floor, entries                      int

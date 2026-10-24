@@ -1,0 +1,16 @@
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 state UNKNOWN 
+    link/loopback 00:00:00:00:00:00
+    inet6 ::1/128 scope host proto kernel_lo 
+       valid_lft forever preferred_lft forever
+3: goip0: <BROADCAST,NOARP,UP,LOWER_UP> mtu 1500 state UNKNOWN 
+    link/ether 5e:9c:8f:0b:ce:ae
+    inet6 2001:db8::9/64 scope global nodad mngtmpaddr noprefixroute 
+       valid_lft forever preferred_lft forever
+    inet6 2001:db8::1/64 scope global nodad 
+       valid_lft forever preferred_lft forever
+    inet6 fe80::5c9c:8fff:fe0b:ceae/64 scope link proto kernel_ll 
+       valid_lft forever preferred_lft forever
+5: goipv: <BROADCAST,NOARP,UP,LOWER_UP> mtu 1500 state UNKNOWN 
+    link/ether 86:da:71:5c:b3:da
+    inet6 fe80::84da:71ff:fe5c:b3da/64 scope link proto kernel_ll 
+       valid_lft forever preferred_lft forever

@@ -24,11 +24,11 @@ is [METRICS.md](METRICS.md); behaviour is in [DESIGN.md](DESIGN.md).
 | Per-interface paths | `PATH/<interface>` serves one interface of any detail path | [Prometheus paths](#prometheus-paths) |
 | Ethernet and RDMA | Netdev, ethtool, driver and PHY statistics, RDMA/InfiniBand port state, counters and events | [METRICS.md](METRICS.md) |
 | Collection modes | On demand (default, low idle cost) or poll | [Collection modes](#collection-modes) |
-| `ip … show` over HTTP | Opt-in `/ip/link`, `/ip/addr`, `/ip/route` and every other read-only `ip` object, as `ip -j` JSON or `ip` text, instead of ssh | [IP-PATHS-DESIGN.md](IP-PATHS-DESIGN.md) |
+| `ip … show` over HTTP | Opt-in: any read-only `ip` command line as a path (`/ip/addr/show/dev/eth0`, `/i/a/s`), plus the JSON query form (`/ip/link`), instead of ssh | [IP-ARGV-PATHS-DESIGN.md](IP-ARGV-PATHS-DESIGN.md), [IP-PATHS-DESIGN.md](IP-PATHS-DESIGN.md) |
 | Access control | Read credential on every metrics and `/ip` path; separate admin credential | [Other Prometheus features](#other-prometheus-features) |
 | Admin API and CLI | gRPC `LinkMonitorService` and `go-link-monitor ctl` for status, interfaces, collectors, rebaseline and resync | [Operations](#operations) |
 | Bounded cost | Per-path concurrency limits, 10s scrape timeout, filters compiled once at startup | [Other Prometheus features](#other-prometheus-features) |
-| Embedding | The same monitor inside xtcp2 (`xtcp2 -linkMonitor`) | [Operations](#operations) |
+| Embedding | The same monitor and paths inside xtcp2, on by default | [Operations](#operations) |
 | Read-only | Observes only; never changes network configuration | — |
 
 ## Quick start
@@ -42,6 +42,7 @@ curl -s :9101/metrics/link           # link detail
 # optional: ip show over HTTP
 sudo ./result/bin/go-link-monitor -ip.paths
 curl -s :9101/ip/link | jq -r '.[] | "\(.ifname) \(.mtu)"'
+curl -s :9101/i/-br/a                # ip -br a
 ```
 
 `go-link-monitor -h` lists every flag; each newer flag also has a
@@ -51,6 +52,12 @@ curl -s :9101/ip/link | jq -r '.[] | "\(.ifname) \(.mtu)"'
 
 All paths are on `-metrics-addr` (default `:9101`) unless
 `-metrics-all-addr` moves the detail paths to their own listener.
+
+Every TCP listener sends with an IPv4 TTL and IPv6 hop limit of 3
+(`-ipv4-ttl`, `-ipv6-hop-limit`), as xtcp2's `-ipv4Ttl` does. Replies to a
+scraper more than two routers away are dropped, so an unexpectedly
+internet-exposed host leaks little. Raise them for a distant Prometheus, or
+set 0 for the kernel default.
 
 | Path | Serves | Suggested scrape |
 |---|---|---|
@@ -66,7 +73,8 @@ All paths are on `-metrics-addr` (default `:9101`) unless
 | `PATH/<interface>` | One interface of any category path except netstat, or of `/metrics-all`, for example `/metrics/driver/enp1s0` or `/metrics-all/rdma:mlx5_0:1`; unknown names return 404 | Drill-down from an alert |
 | `/healthz` | 200 while the process is running | Liveness probe |
 | `/readyz` | 200 once the monitor is ready | Readiness probe |
-| `/ip/OBJECT` | With `-ip.paths`: read-only `ip -j OBJECT show` (link, addr, route, neigh, rule, nexthop, vrf, netconf, ntable, addrlabel, stats), `?format=text` for `ip`'s text; see [IP-PATHS-DESIGN.md](IP-PATHS-DESIGN.md) | `curl` instead of ssh + `ip` |
+| `/ip/OPTIONS…/OBJECT/VERB/ARGS…` | With `-ip.paths`: any read-only `ip` command line, one token per segment, abbreviated as `ip` abbreviates it (`/ip/addr/show/dev/eth0`, `/i/a/s`); text unless `-j`; see [IP-ARGV-PATHS-DESIGN.md](IP-ARGV-PATHS-DESIGN.md) | `curl` instead of ssh + `ip` |
+| `/ip/OBJECT` | With `-ip.paths`: read-only `ip -j OBJECT show` (link, addr, route, neigh, rule, nexthop, vrf, netconf, ntable, addrlabel, stats), `?format=text` for `ip`'s text; see [IP-PATHS-DESIGN.md](IP-PATHS-DESIGN.md) | `curl` instead of ssh + `ip -j` |
 
 `build_info` and `collection_healthy` are on every metrics path; every other
 family is on exactly one category path and on `/metrics-all`. On a host with
@@ -162,11 +170,15 @@ and `-flap-window` at least `-watch.interval`.
 - **Path selection.** `-metrics.categories` chooses the category paths,
   `-metrics-all-path=` disables `/metrics-all`, and
   `-metrics.interface-paths=false` disables the per-interface paths.
-- **`ip … show` over HTTP.** `-ip.paths` serves the host's `ip -j link`,
-  `addr`, `route` and every other read-only `ip` object on `/ip/OBJECT`, so
+- **`ip … show` over HTTP.** `-ip.paths` serves any read-only `ip` command
+  line as a path: replace each space with `/`, so `ip -br a` is
+  `curl -s :9101/i/-br/a` and `ip addr show dev eth0` is
+  `/ip/addr/show/dev/eth0`. A bare object is the JSON query form, so
   `curl -s :9101/ip/link | jq -r '.[] | "\(.ifname) \(.mtu)"'` replaces
-  ssh. Off by default, since it exposes addresses and routes; read auth
-  covers it. See [IP-PATHS-DESIGN.md](IP-PATHS-DESIGN.md).
+  ssh. `/ip` lists the rule, the shortest spellings and examples. Off by
+  default, since it exposes addresses and routes; read auth covers it. See
+  [IP-ARGV-PATHS-DESIGN.md](IP-ARGV-PATHS-DESIGN.md) and
+  [IP-PATHS-DESIGN.md](IP-PATHS-DESIGN.md).
 - **Environment fallbacks.** Each newer flag has a `GO_LINK_MONITOR_*`
   environment variable; an explicit flag, even an empty one, wins.
 
@@ -191,10 +203,13 @@ Alert and dashboard PromQL is in
   ([GO-NATIVE-RDMA-DESIGN.md](GO-NATIVE-RDMA-DESIGN.md#backend-selection)).
 - **InfiniBand capabilities.** PortInfo is queried through the umad device
   directly, so `rdma_capabilities` is reported on native InfiniBand.
-- **Inside xtcp2.** `xtcp2 -linkMonitor` embeds the same monitor and
-  registers its summary on xtcp2's Prometheus listener, or every family with
-  `-linkMonitorMetricsAll`; the OCI images run it on demand. The embedded
-  monitor gets RDMA events from netlink too.
+- **Inside xtcp2.** xtcp2 runs the same monitor by default, on demand, with
+  its baseline in `/var/lib/xtcp2`. Its Prometheus listener serves this
+  exporter's paths: the summary on `/metrics`, `/metrics/<category>[/<iface>]`,
+  `/metrics-all[/<iface>]`, and `/ip` with `-linkMonitorIPPaths`. SIGUSR1
+  rebaselines there too. `-linkMonitor=false` turns it off. The embedded
+  monitor gets RDMA events from netlink too
+  ([design](../../docs/design-linkmonitor-in-xtcp2.md)).
 
 Run `go-link-monitor -h` for every flag.
 
@@ -205,6 +220,7 @@ Run `go-link-monitor -h` for every flag.
 | [METRICS.md](METRICS.md) | Every metric family, its labels, source and node_exporter mapping, and alert examples |
 | [METRICS-PATHS-DESIGN.md](METRICS-PATHS-DESIGN.md) | The summary and category paths |
 | [IP-PATHS-DESIGN.md](IP-PATHS-DESIGN.md) | The `/ip` paths: `ip … show` over HTTP, parameters, status codes, security and jq recipes |
+| [IP-ARGV-PATHS-DESIGN.md](IP-ARGV-PATHS-DESIGN.md) | `ip` command lines as paths (`/ip/addr/show/dev/eth0`, `/i/a/s`): the rule, abbreviations, prefixes and the goip gaps |
 | [DESIGN.md](DESIGN.md) | Baseline, link predicates, checks, exceptions and persistence |
 | [DETAILED-DESIGN.md](DETAILED-DESIGN.md) | Library structure, snapshots and concurrency |
 | [NODE-EXPORTER-PERFORMANCE.md](NODE-EXPORTER-PERFORMANCE.md) | Cost against node_exporter, and poll against on-demand |

@@ -35,7 +35,7 @@ Three complementary layers, all driven from the Nix flake (see
      under the container-stress load, for a long combined soak (see
      [Combined stress soak](#combined-stress-soak-clickhouse-pipeline-stress)).
    - `s3parquet-stress` — the same container-stress load driving the Parquet→S3
-     upload path (xtcp2 → in-VM MinIO), with ~1 h object retention (see
+     upload path (xtcp2 → in-VM Garage S3), with ~1 h object retention (see
      [Parquet→S3 stress soak](#parquets3-stress-soak-s3parquet-stress)).
    - `soak` — continuous `ip netns add/del` churn (~200 namespaces) plus a
      persistent TCP socket population — the leak/thread shake-out.
@@ -201,24 +201,24 @@ Two readings that are easy to get wrong on this flavor:
 ### Parquet→S3 stress soak (`s3parquet-stress`)
 
 The S3-upload analog of the combined ClickHouse soak, built by crossing the
-existing `s3parquet-long` flavor (xtcp2 → Parquet → in-VM MinIO, upload monitor,
+existing `s3parquet-long` flavor (xtcp2 → Parquet → in-VM S3, upload monitor,
 Pyroscope) with the `clickhouse-pipeline-stress` load + disk-guard + leak-check.
 
-**What it exercises.** One microVM boots MinIO (S3-compatible, on a dedicated
-ext4 disk) and then the same 20 docker containers × 250 sockets. xtcp2 discovers
+**What it exercises.** One microVM boots Garage (S3-compatible, on a dedicated
+ext4 disk; MinIO until nixpkgs dropped it) and then the same 20 docker containers × 250 sockets. xtcp2 discovers
 each container netns, reads `inet_diag`, and writes **Parquet** — accumulating
 rows until the ~64 MiB (uncompressed-estimate) threshold, then finalizing a file
-and uploading it to MinIO via the S3 API (minio-go). MinIO has no TTL of its own,
+and uploading it to Garage via the S3 API (minio-go). Garage has no TTL of its own,
 so a **retention job deletes objects older than ~1 h** every 10 min — the direct
 analog of the ClickHouse-stress table TTL — keeping the bucket at steady state.
 
 **How it works (harness).** The in-VM monitor scrapes xtcp2's own Prometheus
-counters (`destS3Parquet/upload`,`uploadBytes`,`uploadRows`) rather than `mc find`
-(too slow under load) and emits `XTCP2_S3PARQUET_HOURLY files=… bytes=… rows=…
-disk=…` every 30 s; `disk=` is the MinIO data disk. The host runner
+counters (`destS3Parquet/upload`,`uploadBytes`,`uploadRows`) rather than listing
+the bucket (too slow under load) and emits `XTCP2_S3PARQUET_HOURLY files=… bytes=… rows=…
+disk=…` every 30 s; `disk=` is the S3 data disk (`/var/lib/s3`). The host runner
 (`mkS3ParquetStressRunner`) taps the serial console, prints an upload/disk
 heartbeat, and asserts: containers spawned, **uploads advanced** (the monotonic
-`files` counter, unaffected by retention), MinIO disk peak `< 95 %` (WARN ≥ 85 %),
+`files` counter, unaffected by retention), S3 disk peak `< 95 %` (WARN ≥ 85 %),
 0 restarts/panics, and a bounded RSS/thread trend.
 
 **6 h run.** PASS — 81 files / 5.27 M rows / ~305 MB uploaded (linear ~14 files/h,
@@ -236,7 +236,9 @@ its config dir when `$HOME` is unset, and `getent` was on neither the script's
 `runtimeInputs` nor the unit's inherited PATH, so *every* `mc` call aborted.
 Fixed by setting `HOME`/`MC_CONFIG_DIR` (mc then skips
 `getent`) and addressing MinIO via `MC_HOST`; verified in-VM that deletions fire
-once objects age past the window. **Lesson (recurring in this campaign): a green
+once objects age past the window. (The retention job now uses `rclone delete
+--min-age` against Garage, with rclone's per-object log counted and its stderr kept
+in the output, so the same failure would show as `err=[…]`.) **Lesson (recurring in this campaign): a green
 soak can hide a broken safety mechanism — never let a subprocess's stderr go to
 `/dev/null`, and assert the mechanism actually did something.**
 

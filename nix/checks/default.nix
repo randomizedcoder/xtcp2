@@ -64,6 +64,9 @@ in
   # The self-test's stream_until (nix/microvms/self-test-stream-until.nix),
   # driven against sh stand-ins for a streaming xtcp2client.
   self-test-stream-until = import ./self-test-stream-until.nix { inherit pkgs; };
+  # mkVmCheck's runner and app (nix/microvms/mkVmCheck.nix), driven against
+  # shell stand-ins for a guest: exit codes, sentinels, escapes, timeouts.
+  vm-check-runner = import ./vm-check-runner.nix { inherit pkgs lib; };
   # The self-test's jsonl_tally (nix/microvms/self-test-jsonl-tally.nix), the
   # one-pass jsonl validator behind checks 5d and 5f.
   self-test-jsonl-tally = import ./self-test-jsonl-tally.nix { inherit pkgs; };
@@ -74,6 +77,9 @@ in
   # The self-test's wait_metric_ge (nix/microvms/self-test-wait-metric.nix),
   # the wall-clock counter wait behind the netns checks 8, 9, 10 and 16.
   self-test-wait-metric = import ./self-test-wait-metric.nix { inherit pkgs; };
+  # xtcp2-nlcap wait-linkwatch (nix/microvms/netlink-capture.nix), the
+  # settle wait goip-parity.exp runs after each Setup, on a fake sysfs.
+  nlcap-wait-linkwatch = import ./nlcap-wait-linkwatch.nix { inherit pkgs; };
   # proto-lint: NOT in the default check set. `buf lint` reaches out to
   # buf.build for module deps (protovalidate, googleapis), which the hermetic
   # Nix sandbox blocks. Run `buf lint` directly from `nix develop`, where buf

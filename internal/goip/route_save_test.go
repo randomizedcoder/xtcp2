@@ -90,7 +90,7 @@ func TestRouteSave(t *testing.T) {
 		{"positive: -4 is the family the dump asked for anyway", unix.AF_INET, false, "save table 100", 0, string(ipSave), true},
 		{"corner: -6 drops the AF_INET replies, leaving the magic", unix.AF_INET6, false, "save table 100", 0, magic, false},
 		{"boundary: table 200 drops both replies, leaving the magic", 0, false, "save table 200", 0, magic, false},
-		{"negative: a refused selector comes after the magic, as in ip", 0, false, "save proto kernel", 1, magic, false},
+		{"negative: a refused selector comes after the magic, as in ip", 0, false, "save scope host", 1, magic, false},
 		{"negative: -j is not implemented, and nothing is written", 0, true, "save table 100", 1, "", false},
 	}
 	for _, tc := range tests {

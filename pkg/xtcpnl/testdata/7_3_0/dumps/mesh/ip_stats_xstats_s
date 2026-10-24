@@ -1,0 +1,46 @@
+1: lo: group xstats subgroup bond suite 802.3ad
+1: lo: group xstats subgroup bridge suite vlan
+1: lo: group xstats subgroup bridge suite mcast
+1: lo: group xstats subgroup bridge suite stp
+
+2: nlmon0: group xstats subgroup bond suite 802.3ad
+2: nlmon0: group xstats subgroup bridge suite vlan
+2: nlmon0: group xstats subgroup bridge suite mcast
+2: nlmon0: group xstats subgroup bridge suite stp
+
+3: br0: group xstats subgroup bond suite 802.3ad
+3: br0: group xstats subgroup bridge suite vlan
+                  1 PVID Egress Untagged
+                    RX: 0 bytes 0 packets
+                    TX: 0 bytes 0 packets
+
+3: br0: group xstats subgroup bridge suite mcast
+                    IGMP queries:
+                      RX: v1 0 v2 0 v3 0
+                      TX: v1 0 v2 0 v3 0
+                    IGMP reports:
+                      RX: v1 0 v2 0 v3 0
+                      TX: v1 0 v2 0 v3 0
+                    IGMP leaves: RX: 0 TX: 0
+                    IGMP parse errors: 0
+                    MLD queries:
+                      RX: v1 0 v2 0
+                      TX: v1 0 v2 0
+                    MLD reports:
+                      RX: v1 0 v2 0
+                      TX: v1 0 v2 0
+                    MLD leaves: RX: 0 TX: 0
+                    MLD parse errors: 0
+
+3: br0: group xstats subgroup bridge suite stp
+
+4: veth1: group xstats subgroup bond suite 802.3ad
+4: veth1: group xstats subgroup bridge suite vlan
+4: veth1: group xstats subgroup bridge suite mcast
+4: veth1: group xstats subgroup bridge suite stp
+
+5: veth0: group xstats subgroup bond suite 802.3ad
+5: veth0: group xstats subgroup bridge suite vlan
+5: veth0: group xstats subgroup bridge suite mcast
+5: veth0: group xstats subgroup bridge suite stp
+

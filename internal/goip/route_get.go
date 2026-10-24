@@ -59,13 +59,13 @@ type routeGetKeyword struct {
 // rt_dsfield name table), connected (a second get built from the first's
 // reply), vrf (a VRF check by name), as (MPLS), and the four flow keys.
 var routeGetKeywords = []routeGetKeyword{
-	{keyword: "tos", arm: routeGetArmUnsupported},
-	{keyword: "dsfield", prefix: true, arm: routeGetArmUnsupported},
-	{keyword: "from", prefix: true, arm: routeGetArmFrom},
-	{keyword: "iif", prefix: true, arm: routeGetArmIif},
+	{keyword: tosKeywordCst, arm: routeGetArmUnsupported},
+	{keyword: dsfieldKeywordCst, prefix: true, arm: routeGetArmUnsupported},
+	{keyword: fromKeywordCst, prefix: true, arm: routeGetArmFrom},
+	{keyword: iifKeywordCst, prefix: true, arm: routeGetArmIif},
 	{keyword: "mark", prefix: true, arm: routeGetArmMark},
 	{keyword: oifKeywordCst, prefix: true, arm: routeGetArmOif},
-	{keyword: "dev", arm: routeGetArmOif},
+	{keyword: devKeywordCst, arm: routeGetArmOif},
 	{keyword: "notify", prefix: true, arm: routeGetArmNotify},
 	{keyword: "connected", prefix: true, arm: routeGetArmUnsupported},
 	{keyword: vrfKeywordCst, prefix: true, arm: routeGetArmUnsupported},

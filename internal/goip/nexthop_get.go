@@ -69,6 +69,10 @@ func nexthopGet(c *runCtx, args []string) error {
 	return nexthopShowID(c, id)
 }
 
+// nexthopBucketShowVerbs are do_ipnh_bucket's listing words, in its order,
+// by matches().
+var nexthopBucketShowVerbs = []string{listVerbCst, showVerbCst, lstVerbCst}
+
 // runNexthopBucket is do_ipnh_bucket (ip/ipnexthop.c:1430-1449): no verb is
 // the listing, then list/show/lst and get by matches(), help is usage, and
 // anything else is unknown.
@@ -77,7 +81,7 @@ func runNexthopBucket(c *runCtx, args []string) error {
 		return nexthopBucketList(c, nil)
 	}
 	switch verb, rest := args[0], args[1:]; {
-	case matchesAny(verb, nexthopShowVerbs):
+	case matchesAny(verb, nexthopBucketShowVerbs):
 		return nexthopBucketList(c, rest)
 	case matchesPrefix(verb, nexthopGetVerbCst):
 		return nexthopBucketGet(c, rest)

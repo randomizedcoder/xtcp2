@@ -29,7 +29,8 @@ import (
 )
 
 const (
-	writeFilesPermissionsCst = 0644
+	// Raw netlink captures carry host addresses: owner read/write only.
+	writeFilesPermissionsCst = 0o600
 	forceGCModulesCst        = 1000
 	nlmsgAlignToCst          = 4
 )

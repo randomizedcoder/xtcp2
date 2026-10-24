@@ -449,6 +449,62 @@ message LinkMonitorConfig {
 			gte: { seconds: 0 }
 			lte: { seconds: 86400 }
 	}];
+
+	// On demand: longest a detail scrape waits for collection before serving
+	// what it has. Default 5s; under the 10s detail path timeout.
+	google.protobuf.Duration on_demand_wait         = 17 [
+		(buf.validate.field).duration = {
+			gt: { seconds: 0 }
+			lt: { seconds: 10 }
+	}];
+
+	// How long an error counter increase, and a link flap, stays a problem.
+	// Default 180s; 0 disables. A nonzero window is at least the poll
+	// interval of the collector it watches.
+	google.protobuf.Duration error_window           = 18 [
+		(buf.validate.field).duration = {
+			gte: { seconds: 0 }
+			lte: { seconds: 604800 }
+	}];
+	google.protobuf.Duration flap_window            = 19 [
+		(buf.validate.field).duration = {
+			gte: { seconds: 0 }
+			lte: { seconds: 604800 }
+	}];
+
+	// Comma-separated error classes that count as problems: link, rdma, drop.
+	// Unset is "link,rdma"; empty counts none.
+	optional string error_classes                   = 20 [
+		(buf.validate.field).string = {
+			max_len: 64,
+			pattern: "^((link|rdma|drop)(,(link|rdma|drop))*)?$"
+	}];
+
+	// Anchored regexp of error series keys never counted as problems.
+	string error_exclude                            = 21 [
+		(buf.validate.field).string = { max_len: 4096 }];
+
+	// Comma-separated detail categories served at <promPath>/<category>:
+	// link, traffic, ethtool, driver, rdma, netstat, collection. Unset is
+	// every category; empty serves none.
+	optional string metrics_categories              = 22 [
+		(buf.validate.field).string = { max_len: 256 }];
+
+	// Serve <promPath>/<category>/<interface> and <metrics_all_path>/<interface>.
+	// Unset is true.
+	optional bool metrics_interface_paths           = 23;
+
+	// The all-metrics path. Unset is "/metrics-all"; empty serves none.
+	optional string metrics_all_path                = 24 [
+		(buf.validate.field).string = { max_len: 256 }];
+
+	// Serve the read-only `ip … show` paths under /ip and /i. They expose
+	// host addresses, so they are off by default.
+	bool ip_paths                                   = 25;
+
+	// Largest /ip response body in bytes. 0 is the default, 32 MiB.
+	uint32 ip_max_bytes                             = 26 [
+		(buf.validate.field).uint32 = { lte: 1073741824 }];
 }
 
 // xtcp configuration

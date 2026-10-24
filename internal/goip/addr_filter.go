@@ -123,7 +123,7 @@ type addrShowKeyword struct {
 // (TestParseAddrShowArgs pins that).
 var addrShowKeywords = []addrShowKeyword{
 	{name: "to", takesValue: true, apply: addrFilterTo},
-	{name: "scope", takesValue: true, apply: addrFilterScope},
+	{name: addrScopeKeywordCst, takesValue: true, apply: addrFilterScope},
 	{name: "up", apply: func(f *addrFilter, _ string, _ addrLookups) error { f.up = true; return nil }},
 	{name: "down", apply: func(f *addrFilter, _ string, _ addrLookups) error { f.down = true; return nil }},
 	{name: "label", takesValue: true, apply: func(f *addrFilter, v string, _ addrLookups) error {
@@ -137,9 +137,9 @@ var addrShowKeywords = []addrShowKeyword{
 	}},
 	{name: "group", takesValue: true, apply: addrFilterGroup},
 	{name: "master", takesValue: true, apply: addrFilterMaster},
-	{name: "vrf", takesValue: true, apply: addrFilterVRF},
+	{name: vrfKeywordCst, takesValue: true, apply: addrFilterVRF},
 	{name: "nomaster", apply: func(f *addrFilter, _ string, _ addrLookups) error { f.master = -1; return nil }},
-	{name: "type", takesValue: true, apply: addrFilterType},
+	{name: linkTypeKeywordCst, takesValue: true, apply: addrFilterType},
 	{name: "proto", takesValue: true, apply: addrFilterProto},
 	{name: "novf", apply: func(f *addrFilter, _ string, _ addrLookups) error { f.vfinfo = false; return nil }},
 }
@@ -181,7 +181,7 @@ func parseAddrShowArgs(args []string, family uint8, lk addrLookups) (addrFilter,
 			continue
 		}
 		// The device arm: `dev NAME`, help by matches(), or a bare name.
-		if arg == "dev" {
+		if arg == devKeywordCst {
 			if i+1 >= len(args) {
 				return addrFilter{}, incompleteErr()
 			}
@@ -191,7 +191,7 @@ func parseAddrShowArgs(args []string, family uint8, lk addrLookups) (addrFilter,
 			return addrFilter{}, addrHelpErr()
 		}
 		if haveDev {
-			return addrFilter{}, duparg2Err("dev", arg)
+			return addrFilter{}, duparg2Err(devKeywordCst, arg)
 		}
 		dev, haveDev = arg, true
 	}
@@ -225,7 +225,7 @@ func addrFilterScope(f *addrFilter, v string, _ addrLookups) error {
 	f.scopemask = -1
 	scope, ok := rtnlNameA2N(routeScopeNames, v, math.MaxUint8)
 	if !ok {
-		if v != "all" {
+		if v != addrNameAllCst {
 			return invargErr(`invalid "scope"`, v)
 		}
 		scope = unix.RT_SCOPE_NOWHERE

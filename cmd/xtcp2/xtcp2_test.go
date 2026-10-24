@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	protovalidate "github.com/bufbuild/protovalidate-go"
+	"buf.build/go/protovalidate"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 
@@ -522,7 +522,7 @@ func TestAwaitSignalAndShutdown_completeBeforeTimeout(t *testing.T) {
 	}
 	done := make(chan struct{})
 	go func() {
-		awaitSignalAndShutdown(sigs, wrap, complete, 200*time.Millisecond, false)
+		awaitSignalAndShutdown(sigs, wrap, complete, 200*time.Millisecond, false, nil)
 		close(done)
 	}()
 	sigs <- syscall.SIGTERM
@@ -538,8 +538,6 @@ func TestAwaitSignalAndShutdown_completeBeforeTimeout(t *testing.T) {
 	}
 }
 
-// servePromHandler error path with an invalid address forces
-// ListenAndServe to fail; fatalf captures the message.
 func TestRunHealthcheck(t *testing.T) {
 	portOf := func(url string) string {
 		_, p, _ := net.SplitHostPort(strings.TrimPrefix(url, "http://"))
@@ -595,20 +593,6 @@ func TestRunHealthcheckUnix(t *testing.T) {
 	}
 }
 
-func TestServePromHandler_bindError(t *testing.T) {
-	prev := fatalf
-	var captured string
-	fatalf = func(format string, args ...any) {
-		captured = fmt.Sprintf(format, args...)
-	}
-	t.Cleanup(func() { fatalf = prev })
-
-	servePromHandler(http.NewServeMux(), nil, "invalid-host:-1", 0, 0)
-	if !strings.Contains(captured, "prometheus error") {
-		t.Errorf("fatalf not invoked; got %q", captured)
-	}
-}
-
 // runMain with a -v flag short-circuits before any daemon launch.
 // Reset flag.CommandLine + os.Args around the call so we don't disturb
 // global state.
@@ -620,11 +604,10 @@ func TestRunMain_version(t *testing.T) {
 
 	// Stub the prom handler starter so it doesn't bind a port.
 	prevProm := promHandlerStarter
-	promHandlerStarter = func(_ string, _ *xtcp_config.ListenerEndpoint, _ string, _, _ uint32, _, _ *xtcp_config.ListenerAuth) {
-	}
+	promHandlerStarter = func(context.Context, *sync.WaitGroup, promParams) error { return nil }
 	t.Cleanup(func() { promHandlerStarter = prevProm })
 
-	// runMain spawns a signal-handler goroutine that blocks on signal.Notify.
+	// runMain routes signals and spawns a signal-handler goroutine.
 	// The goroutine leak is fine for a test that exits quickly.
 	captureLog(t, func() {
 		if rc := runMain(t.Context()); rc != 0 {
@@ -641,8 +624,7 @@ func TestRunMain_conf(t *testing.T) {
 	t.Cleanup(func() { os.Args = prevArgs })
 
 	prevProm := promHandlerStarter
-	promHandlerStarter = func(_ string, _ *xtcp_config.ListenerEndpoint, _ string, _, _ uint32, _, _ *xtcp_config.ListenerAuth) {
-	}
+	promHandlerStarter = func(context.Context, *sync.WaitGroup, promParams) error { return nil }
 	t.Cleanup(func() { promHandlerStarter = prevProm })
 
 	captureLog(t, func() {
@@ -661,8 +643,7 @@ func TestRunMain_stubbedDaemon(t *testing.T) {
 	t.Cleanup(func() { os.Args = prevArgs })
 
 	prevProm := promHandlerStarter
-	promHandlerStarter = func(_ string, _ *xtcp_config.ListenerEndpoint, _ string, _, _ uint32, _, _ *xtcp_config.ListenerAuth) {
-	}
+	promHandlerStarter = func(context.Context, *sync.WaitGroup, promParams) error { return nil }
 	t.Cleanup(func() { promHandlerStarter = prevProm })
 
 	prevDaemon := daemonRunner
@@ -682,26 +663,13 @@ func TestRunMain_stubbedDaemon(t *testing.T) {
 	}
 }
 
-func TestInitPromHandler_smoke(t *testing.T) {
-	prevMux := http.DefaultServeMux
-	http.DefaultServeMux = http.NewServeMux()
-	t.Cleanup(func() { http.DefaultServeMux = prevMux })
-
-	prevFatalf := fatalf
-	fatalf = func(string, ...any) {} // swallow
-	t.Cleanup(func() { fatalf = prevFatalf })
-
-	initPromHandler("/metrics", nil, ":0", 0, 0, nil, nil)
-	time.Sleep(10 * time.Millisecond)
-}
-
 func TestAwaitSignalAndShutdown_timeoutPath(t *testing.T) {
 	sigs := make(chan os.Signal, 1)
 	complete := make(chan struct{}) // never signaled
 	_, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() {
-		awaitSignalAndShutdown(sigs, cancel, complete, 30*time.Millisecond, false)
+		awaitSignalAndShutdown(sigs, cancel, complete, 30*time.Millisecond, false, nil)
 		close(done)
 	}()
 	sigs <- syscall.SIGINT
@@ -1001,6 +969,16 @@ func TestPrintFlags(t *testing.T) {
 	f.linkMonitorWatchInterval = &d
 	f.linkMonitorSlowInterval = &d
 	f.linkMonitorOnDemandTTL = &d
+	f.linkMonitorOnDemandWait = &d
+	f.linkMonitorErrorsWindow = &d
+	f.linkMonitorFlapWindow = &d
+	f.linkMonitorErrorsClasses = &s
+	f.linkMonitorErrorsExclude = &s
+	f.linkMonitorMetricsCategories = &s
+	f.linkMonitorInterfacePaths = &b
+	f.linkMonitorMetricsAllPath = &s
+	f.linkMonitorIPPaths = &b
+	f.linkMonitorIPMaxBytes = &n
 	// Redirect stdout so the call doesn't litter test output.
 	r, w, _ := os.Pipe()
 	orig := os.Stdout
@@ -1094,6 +1072,9 @@ func TestBuildConfig(t *testing.T) {
 	lmCoreInclude, lmCoreExclude := "go_link_monitor_up_links", "go_link_monitor_build_info"
 	lmMode := "on-demand"
 	lmWatch, lmSlow, lmTTL := 20*time.Second, 40*time.Second, 5*time.Second
+	lmWait, lmErrWindow, lmFlapWindow := 3*time.Second, 4*time.Minute, 5*time.Minute
+	lmClasses, lmErrExclude, lmCategories, lmAllPath := "link,drop", "^eth9/.*", "link,rdma", "/all"
+	lmIfacePaths, lmIPPaths, lmIPMax := false, true, uint(4096)
 	f := &mainFlags{
 		nltimeout: &nl, pollFrequency: &pf, pollTimeout: &pt, maxLoops: &ml,
 		netlinkers: &nlk, nlmsgSeq: &seq, packetSize: &psz, packetSizeMply: &psm,
@@ -1152,6 +1133,11 @@ func TestBuildConfig(t *testing.T) {
 		linkMonitorMetricsCoreExclude: &lmCoreExclude, linkMonitorMetricsAll: &iu,
 		linkMonitorCollectionMode: &lmMode, linkMonitorWatchInterval: &lmWatch,
 		linkMonitorSlowInterval: &lmSlow, linkMonitorOnDemandTTL: &lmTTL,
+		linkMonitorOnDemandWait: &lmWait, linkMonitorErrorsWindow: &lmErrWindow,
+		linkMonitorFlapWindow: &lmFlapWindow, linkMonitorErrorsClasses: &lmClasses,
+		linkMonitorErrorsExclude: &lmErrExclude, linkMonitorMetricsCategories: &lmCategories,
+		linkMonitorInterfacePaths: &lmIfacePaths, linkMonitorMetricsAllPath: &lmAllPath,
+		linkMonitorIPPaths: &lmIPPaths, linkMonitorIPMaxBytes: &lmIPMax,
 	}
 	des := getDeserializers(*f.deserializers)
 	c := buildConfig(f, des)
@@ -1212,6 +1198,16 @@ func TestBuildConfig(t *testing.T) {
 		{"LinkMonitor.WatchInterval", c.LinkMonitor.GetWatchInterval().AsDuration(), lmWatch},
 		{"LinkMonitor.SlowInterval", c.LinkMonitor.GetSlowInterval().AsDuration(), lmSlow},
 		{"LinkMonitor.OnDemandTtl", c.LinkMonitor.GetOnDemandTtl().AsDuration(), lmTTL},
+		{"LinkMonitor.OnDemandWait", c.LinkMonitor.GetOnDemandWait().AsDuration(), lmWait},
+		{"LinkMonitor.ErrorWindow", c.LinkMonitor.GetErrorWindow().AsDuration(), lmErrWindow},
+		{"LinkMonitor.FlapWindow", c.LinkMonitor.GetFlapWindow().AsDuration(), lmFlapWindow},
+		{"LinkMonitor.ErrorClasses", c.LinkMonitor.GetErrorClasses(), lmClasses},
+		{"LinkMonitor.ErrorExclude", c.LinkMonitor.GetErrorExclude(), lmErrExclude},
+		{"LinkMonitor.MetricsCategories", c.LinkMonitor.GetMetricsCategories(), lmCategories},
+		{"LinkMonitor.MetricsInterfacePaths", c.LinkMonitor.GetMetricsInterfacePaths(), lmIfacePaths},
+		{"LinkMonitor.MetricsAllPath", c.LinkMonitor.GetMetricsAllPath(), lmAllPath},
+		{"LinkMonitor.IpPaths", c.LinkMonitor.GetIpPaths(), lmIPPaths},
+		{"LinkMonitor.IpMaxBytes", c.LinkMonitor.GetIpMaxBytes(), uint32(lmIPMax)},
 	}
 	for _, ck := range checks {
 		if ck.got != ck.want {
@@ -1641,8 +1637,7 @@ func TestRunMainRejectsPositional(t *testing.T) {
 			os.Args = tc.argv
 			t.Cleanup(func() { os.Args = prevArgs })
 			prevProm := promHandlerStarter
-			promHandlerStarter = func(_ string, _ *xtcp_config.ListenerEndpoint, _ string, _, _ uint32, _, _ *xtcp_config.ListenerAuth) {
-			}
+			promHandlerStarter = func(context.Context, *sync.WaitGroup, promParams) error { return nil }
 			t.Cleanup(func() { promHandlerStarter = prevProm })
 			captureLog(t, func() {
 				if rc := runMain(t.Context()); rc != tc.expected {

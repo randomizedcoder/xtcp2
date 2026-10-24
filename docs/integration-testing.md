@@ -40,7 +40,7 @@ The environment is structured as a small set of **flavors** built from one share
 xtcp2's automated testing spans four layers; this document covers layers 2-3.
 
 1. **Unit / race / fuzz** — pure Go, no VM (`go test ./...`). See [testing-and-quality.md](testing-and-quality.md).
-2. **microVM integration flavors** (the bulk of this doc) — boot xtcp2 under a real kernel, real namespaces, real sockets, and (for the pipeline flavors) real Redpanda / ClickHouse / MinIO. Grouped by intent:
+2. **microVM integration flavors** (the bulk of this doc) — boot xtcp2 under a real kernel, real namespaces, real sockets, and (for the pipeline flavors) real Redpanda / ClickHouse / Garage (S3). Grouped by intent:
 
    | Group | Flavors | What it exercises |
    |---|---|---|
@@ -48,10 +48,14 @@ xtcp2's automated testing spans four layers; this document covers layers 2-3.
    | **Destination lifecycle** | `-lifecycle-valkey`, `-lifecycle-nats`, `-lifecycle-nsq`, `-lifecycle-clickhouse-http`, `-lifecycle-{tcp,udp,unix,unixgram}-sink`, `-lifecycle-{udp,unix}-sink-iouring` | End-to-end destination round-trips: native in-VM broker / raw-socket receiver / direct HTTP→ClickHouse insert, each asserting the records arrived downstream |
    | **Soak & long-running** | `-soak`, `-s3parquet-runner` (s3parquet-long) | Hours-long stability (churn / sustained upload). Methodology + measured results: [stability-testing.md](stability-testing.md) |
    | **Stress (under socket load)** | `-tcp-stress`, `-clickhouse-pipeline-stress`, `-s3parquet-stress`, `-s3parquet-lowfreq` | 20 containers × 250 sockets; the `-stress` soaks run 24h |
-   | **S3 / MinIO (parquet)** | `-s3parquet-pipeline`, `-s3parquet-runner`, `-s3parquet-stress`, `-s3parquet-lowfreq`, `-clickhouse-pipeline-parquet` | xtcp2 → Parquet → in-VM MinIO, read back with duckdb / ClickHouse `s3()` |
+   | **S3 / Garage (parquet)** | `-s3parquet-pipeline`, `-s3parquet-runner`, `-s3parquet-stress`, `-s3parquet-lowfreq`, `-clickhouse-pipeline-parquet` | xtcp2 → Parquet → in-VM Garage, read back with duckdb / ClickHouse `s3()` |
    | **ClickHouse pipeline** | `-clickhouse-pipeline` (+ `-parquet`, `-stress`, `-rate`) | xtcp2 → Redpanda (Kafka) → ClickHouse ProtobufList ingest |
    | **Runtime control** | `-clickhouse-pipeline-rate` + self-test Checks 17-19 | Drives `xtcp2ctl` and asserts the daemon's live behaviour changes |
    | **Specialized** | `-discovery-bench`, `-capcheck-fail` | Namespace-discovery A/B grid; startup capability-check refusal |
+
+   The serial-console guest checks (`checks.vm-*`, [nix/README.md](../nix/README.md#guest-tests-as-checks)) sit beside these. `vm-xtcp2-linkmonitor` runs the real xtcp2 NixOS unit with the embedded link monitor on by default ([design](design-linkmonitor-in-xtcp2.md)). It checks the detail paths, the baseline file's modes in `/var/lib/xtcp2`, the count surviving a restart, `systemctl reload` rebaselining, a downed link showing on `/metrics`, a corrupt baseline degrading only the monitor, and a clean stop. Run it with `nix run path:.#test-xtcp2-linkmonitor-vm`.
+
+   Since the monitor is on by default, every lifecycle flavor also runs it, in on-demand mode. A guest without a writable `/var/lib/xtcp2` sees it degrade (`xtcp_gauges{function="linkMonitor",variable="up"} 0`), not fail.
 
 3. **Non-VM flake checks** (`nix flake check`) — lint / audit / cli-help / capability-check + per-build-tag `go test`. See [Non-VM checks](#non-vm-checks-nix-flake-check).
 4. **docker-compose local stack** — a non-hermetic, hands-on version of the ClickHouse/Redpanda pipeline for local development (`make deploy`). Documented in [operations.md](operations.md); the microVM `clickhouse-pipeline*` flavors are the hermetic, CI-friendly equivalent.
@@ -114,7 +118,7 @@ nix run .#microvm-x86_64-s3parquet-runner -- --duration 12h
 # Combined stress soaks (pipeline/sink under the tcp-stress load) — 1h default,
 # pass --duration 24h for the production soak. See the disk-wipe caveat below.
 nix run .#microvm-x86_64-clickhouse-pipeline-stress -- --duration 24h  # Kafka→ClickHouse
-nix run .#microvm-x86_64-s3parquet-stress -- --duration 24h           # Parquet→S3 (MinIO)
+nix run .#microvm-x86_64-s3parquet-stress -- --duration 24h           # Parquet→S3 (Garage)
 
 # Low-activity Parquet→S3: 1h poll + 2 sockets/container — confirms files still
 # land via the staleness timer (not the byte cap). Defaults to a 2h run.
@@ -201,13 +205,13 @@ Two exposure shapes:
 | `microvm-x86_64-lifecycle-nsq` | `nsq` | runner | 1024 | Native in-VM nsqd + an `nsq_tail` consumer; `NSQ_CONSUME` reads nsqd's per-channel `finish_count`. |
 | `microvm-x86_64-lifecycle-{tcp,udp,unix,unixgram}-sink` | `{tcp,udp,unix,unixgram}-sink` | runner | 1024 | Raw-socket dest → an in-VM `ncat`/`socat` receiver; `RAW_SOCKET` validates the records arrived + the per-scheme `Writes` counter grew. Four flavors sharing one `mkLifecycleSocketSink` factory. |
 | `test-microvm-lifecycle-x86_64-interface-naming` (package; `nix run .#test-microvm-lifecycle-x86_64-interface-naming`) | `interface-naming` | runner | 1024 | Docker-free **enrichment-content** flavor: two veth pairs + a peer netns, `tcp_client` bound with `SO_BINDTODEVICE` and unbound-via-route, xtcp2 `-enrichLocality -enrichAsn`. `IFNAME` asserts the bound (`idiag_if`-derived) and route-egress interface names on distinguishable records. `ASN` runs the **real `ipfeed-collector`** against a loopback-served synthetic `goog.json` (8.8.8.0/24 → AS15169/google, real gstatic format, no internet needed for the feed), ordered *after* xtcp2 so the daemon picks the artifact up on its `-asnRefreshInterval` tick, and asserts the record for a held TCP connection to `8.8.8.8:53` carries `enrich_socket_dest_asn=15169`, `network_owner=google`, `LOCALITY_REMOTE`. Checks 5f/5g each poll for up to 2 min (x `waitScale`), well inside the default stall watchdog. |
-| `microvm-x86_64-s3parquet-pipeline` | `s3parquet` | raw boot | 6144 | The s3parquet lifecycle VM (in-VM MinIO, xtcp2 writes Parquet), booted directly. |
+| `microvm-x86_64-s3parquet-pipeline` | `s3parquet` | raw boot | 6144 | The s3parquet lifecycle VM (in-VM Garage S3, xtcp2 writes Parquet), booted directly. |
 | `microvm-x86_64-soak` | `soak` | runner | 3072 | xtcp2 (`-dest null`) + nsTest churn + tcp_server/client + /metrics scraper. Long stability (1h default, `--duration 24h`); asserts no panic/restart, ≥10 churn events, bounded RSS/threads. |
 | `microvm-x86_64-tcp-stress` | `tcp-stress` | runner | 3072 | dockerd + 20 containers × 250 sockets, each its own netns. Asserts Method B discovered ≥ container-count namespaces, 0 panics. |
 | `microvm-x86_64-discovery-bench` | `discovery-bench` | runner | 4096 | Root VM runs the `discovery-bench` grid (dir-scan vs `/proc`-scan) vs a real kernel; PASS iff no cell errors. No xtcp2/docker. |
 | `microvm-x86_64-nlmon-capture` | `nlmon-capture` | runner | 1024 | **Fixture generator, not a test.** A deliberately netlink-silent root VM (`xtcp2.service` and the self-test are both disabled) triggers a scripted link / addr / route / neigh sequence on a veth pair, records it off an `nlmon` device, then base64s the pcap + `ip -d` sidecars out over the serial console. The runner unpacks them into `pkg/xtcpnl/testdata/<guest kernel>/` — **run it from the repo root**; `--out <dir>` overrides the destination. See [netlink-collection](netlink/collection.md#regenerating-the-fixtures). |
 | `microvm-x86_64-clickhouse-pipeline` | `clickhouse-pipeline` | raw boot | 6144 | Full xtcp2 → Redpanda → ClickHouse + Prometheus + Grafana. Self-test Checks 11-12 run; inspect via Grafana/curl. |
-| `microvm-x86_64-clickhouse-pipeline-parquet` | `clickhouse-pipeline-parquet` | raw boot | 16384 | clickpipe stack **+** in-VM MinIO + a 2nd xtcp2 writing Parquet; ClickHouse `s3()` reads it back (Check 15). |
+| `microvm-x86_64-clickhouse-pipeline-parquet` | `clickhouse-pipeline-parquet` | raw boot | 16384 | clickpipe stack **+** in-VM Garage S3 + a 2nd xtcp2 writing Parquet; ClickHouse `s3()` reads it back (Check 15). |
 | `microvm-x86_64-clickhouse-pipeline-rate-runner` | `clickhouse-pipeline-rate` | runner | 6144 | **Runtime-control rate test** — drives `xtcp2ctl` and asserts the ClickHouse ingest *rate* matches a socket-count prediction. See below. |
 | `microvm-x86_64-clickhouse-pipeline-stress` | `clickhouse-pipeline-stress` | runner | 8192 | Full pipeline **under TCP-stress load** (20 × 250) with a 1h records-table TTL — ProtobufList ingest at rate, disk/RSS guards; 24h soak. |
 | `microvm-x86_64-s3parquet-runner` | `s3parquet-long` | runner | 6144 | Parquet→S3 soak (64 MiB flush, 10s poll, Pyroscope); scrapes `XTCP2_S3PARQUET_HOURLY`, asserts files advanced + no leak. `--duration 12h`. |
@@ -261,7 +265,7 @@ In the microvms, xtcp2 runs as a NixOS systemd service (`xtcp2.service`, defined
 | minimal / soak / tcp-stress / coverage | `null` | No downstream; the point is the netlink readout (minimal also writes a `file:` dest for the `OUTPUT_CONTENT` check) |
 | clickhouse-pipeline / -stress / -rate | `kafka:localhost:19092` | Real Kafka → ClickHouse destination (rate disables poll jitter via `-pollJitterPct 0`) |
 | clickhouse-http | `http://localhost:18123/?query=INSERT+INTO+xtcp.xtcp_flat_records+FORMAT+ProtobufList&format_schema=…&password=…` | Direct HTTP→ClickHouse ProtobufList insert (no Kafka); the daemon POSTs the batch to the verbatim URL |
-| s3parquet / -long / -stress / -lowfreq | `s3parquet:http://127.0.0.1:9000` | In-VM MinIO; parquet upload path |
+| s3parquet / -long / -stress / -lowfreq | `s3parquet:http://127.0.0.1:9000` | In-VM Garage (S3 API on :9000); parquet upload path |
 | valkey / nats / nsq | `valkey:127.0.0.1:6379` / `nats:127.0.0.1:4222` / `nsq:127.0.0.1:4150` | Native in-VM broker; `-topic xtcp2-records`, `-marshal protobufList` |
 | tcp-sink / udp-sink / unix-sink / unixgram-sink | `tcp:localhost:13001` / `udp:localhost:13001` / `unix:/run/xtcp2-sink.sock` / `unixgram:/run/xtcp2-sink.sock` | Raw socket → an in-VM `ncat`/`socat` receiver |
 
@@ -487,11 +491,11 @@ The `#` column mirrors the check labels in `self-test.nix`, which are lettered (
 | 11 | `CLICKHOUSE_RECORDS` | `xtcp.xtcp_flat_records > 0` **and** `xtcp_flat_records_errors == 0` | clickhouse-pipeline* |
 | 11h | `CLICKHOUSE_HTTP` | rows **grew** in `xtcp.xtcp_flat_records` **and** `destHTTP` posts ≥1 — proving the direct HTTP ProtobufList insert path (not Kafka) | clickhouse-http |
 | 12 | `CLICKHOUSE_RECONCILE` | Prom `envelopeRows` reconciles with the ClickHouse row count (within tolerance) | clickhouse-pipeline* |
-| 13 | `S3PARQUET_FILES` | ≥1 `.parquet` object lands in MinIO within 90s | s3parquet |
+| 13 | `S3PARQUET_FILES` | ≥1 `.parquet` object lands in the Garage bucket within 90s | s3parquet |
 | 14 | `S3PARQUET_ROWS` | duckdb decodes the parquet file and returns ≥1 row | s3parquet |
 | 14b | `S3PARQUET_EVENTDATE` | the derived `event_date` column is present, every value is `YYYY-MM-DD`, and ≥1 distinct date | s3parquet |
 | 14c | `NODROP` | `Deserialize/envelopePostFlushDrop` is 0 **and** `envelopeAppend` ≥1: no record was parsed after its poll's flush ([investigation](investigations/envelope-post-flush-drop.md)). Runs before checks 17-19, since `CTL_RESTART` resets the counters | all |
-| 15 | `CLICKHOUSE_PARQUET` | ClickHouse `s3()` table function reads the MinIO parquet, `count() > 0` | clickhouse-pipeline-parquet |
+| 15 | `CLICKHOUSE_PARQUET` | ClickHouse `s3()` table function reads the Garage parquet, `count() > 0` | clickhouse-pipeline-parquet |
 | 16 | `NS_ANONYMOUS` | **the Method B audit-gap proof**: an anonymous `unshare -n` netns (no `/run/netns` bind mount) held by a live process is discovered purely via `/proc` — the exact case dir-scan/inotify was blind to | all |
 | 17 | `CTL_HOT` | `xtcp2ctl set-poll-frequency` is reflected by a later `get` + bumps the Poller `ticker.Reset` counter | all |
 | 18 | `CTL_TRIGGER` | with the ticker parked, `xtcp2ctl trigger-poll` + `poll-burst` advance the Poller `pollRequestCh` counter | all |
@@ -590,7 +594,7 @@ memSoak              = 3072;    # nsTest churn working set
 memTcpStress         = 3072;    # dockerd + 20 containers + Prometheus + Grafana
 memClickPipe         = 6144;    # redpanda + clickhouse + xtcp2 (also -rate, s3parquet*)
 memClickPipeStress   = 8192;    # pipeline + tcp-stress load containers
-memClickPipeParquet  = 16384;   # + MinIO + a 2nd xtcp2 writing parquet
+memClickPipeParquet  = 16384;   # + Garage + a 2nd xtcp2 writing parquet
 memDiscoveryBench    = 4096;    # the N×P discovery grid
 ```
 
@@ -694,7 +698,7 @@ docker run --rm -w /s -v "$PWD/proto/xtcp_flat_record/v1":/s clickhouse/clickhou
 
 Note: a *single* `Could not find a message` line right at container init (during the entrypoint's temp-server → real-server handover) can be a benign one-shot. The tell is **recurrence**: benign = once at boot; bug = every poll forever. When in doubt, check whether `rows` is growing.
 
-**A schema/DDL change doesn't take effect on re-run (or the row count is frozen at a suspiciously round, identical number across runs)** Every `clickhouse-pipeline*` flavor mounts a **persistent** 16 GiB ext4 disk at `/tmp/xtcp2-microvm-clickhouse-pipeline-docker.img` → `/var/lib/docker` (`nix/microvms/mkVm.nix`, `microvm.volumes` under `isAnyClickPipe`). That disk backs the `clickhouse_db` named volume. ClickHouse's docker entrypoint runs `/docker-entrypoint-initdb.d/*` **only when its data dir is empty**, so once `clickhouse_db` exists from a prior boot, **initdb is skipped** and your edited DDL (kafka_schema, columns, TTL, …) never runs — the old tables and old data persist across rebuilds and even ClickHouse version bumps. This once masked an entire debugging session: a plateau at exactly `64824` rows was frozen leftover data, not a live ceiling. **Fix while iterating on schema:** `rm -f /tmp/xtcp2-microvm-clickhouse-pipeline-docker.img` before re-running (it is `autoCreate`d fresh). The persistence is intentional for multi-hour soaks (survives in-VM reboots); it is only a footgun when the DDL changes. The `s3parquet-stress` flavor has the same model with its own disks — `rm -f /tmp/xtcp2-microvm-s3parquet-stress-*.img` for a clean docker image store + empty MinIO bucket before a fresh run.
+**A schema/DDL change doesn't take effect on re-run (or the row count is frozen at a suspiciously round, identical number across runs)** Every `clickhouse-pipeline*` flavor mounts a **persistent** 16 GiB ext4 disk at `/tmp/xtcp2-microvm-clickhouse-pipeline-docker.img` → `/var/lib/docker` (`nix/microvms/mkVm.nix`, `microvm.volumes` under `isAnyClickPipe`). That disk backs the `clickhouse_db` named volume. ClickHouse's docker entrypoint runs `/docker-entrypoint-initdb.d/*` **only when its data dir is empty**, so once `clickhouse_db` exists from a prior boot, **initdb is skipped** and your edited DDL (kafka_schema, columns, TTL, …) never runs — the old tables and old data persist across rebuilds and even ClickHouse version bumps. This once masked an entire debugging session: a plateau at exactly `64824` rows was frozen leftover data, not a live ceiling. **Fix while iterating on schema:** `rm -f /tmp/xtcp2-microvm-clickhouse-pipeline-docker.img` before re-running (it is `autoCreate`d fresh). The persistence is intentional for multi-hour soaks (survives in-VM reboots); it is only a footgun when the DDL changes. The `s3parquet-stress` flavor has the same model with its own disks — `rm -f /tmp/xtcp2-microvm-s3parquet-stress-*.img` for a clean docker image store + empty S3 bucket before a fresh run.
 
 **Stress containers all report `FAILED to start`, and/or `dockerd: failed to validate image signature … expected image index descriptor, got manifest.v2+json`** Almost always a **stale/corrupt docker image store on the reused persistent disk** (previous point) — a prior build's `/var/lib/docker` left half-migrated image metadata. Wipe the same disk image (`rm -f /tmp/xtcp2-microvm-clickhouse-pipeline-docker.img`) and re-run; on a fresh disk all containers start and the signature line, if it still appears, is a harmless warning (containers run regardless).
 

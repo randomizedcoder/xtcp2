@@ -170,7 +170,7 @@ func mrouteShow(c *runCtx, args []string) error {
 		}
 		iif = uint32(idx)
 	}
-	routes, err := svc.Routes(f.af, f.table, 0)
+	routes, err := svc.Routes(f.af, 0, f.table, 0)
 	if err != nil {
 		return fmt.Errorf("%w: Dump terminated: %w", ErrDumpTerminated, err)
 	}

@@ -24,8 +24,10 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -534,6 +536,33 @@ func TestRequestBuilders(t *testing.T) {
 			want: nlmsg(uint16(unix.RTM_GETROUTE), wantDumpFlags, testSeq,
 				concat(rtmsgHdr(unix.AF_INET, 0, 0, 0, 0, 0, 0, 0),
 					rtattr(uint16(unix.RTA_OIF), le32(0xfeedface)))),
+		},
+		{
+			// `ip route show proto bgp`: iproute_dump_filter writes
+			// rtm_protocol (ip/iproute.c:1721) into the rtmsg, byte 5, and
+			// the attributes are those of the bare command.
+			description: "positive: proto bgp sets rtm_protocol 186 and keeps RTA_TABLE",
+			got:         mustBuildReq(BuildDumpRouteRequestFilterProto(unix.AF_INET, unix.RTPROT_BGP, unix.RT_TABLE_MAIN, 0, testSeq)),
+			want: nlmsg(uint16(unix.RTM_GETROUTE), wantDumpFlags, testSeq,
+				concat(rtmsgHdr(unix.AF_INET, 0, 0, 0, unix.RTPROT_BGP, 0, 0, 0),
+					rtattr(uint16(unix.RTA_TABLE), le32(unix.RT_TABLE_MAIN)))),
+		},
+		{
+			// `proto all` and no proto both send filter.protocol 0, so the
+			// Proto builder at 0 must equal the plain one byte for byte.
+			description: "boundary: protocol 0 is the plain builder's request",
+			got:         mustBuildReq(BuildDumpRouteRequestFilterProto(unix.AF_UNSPEC, 0, unix.RT_TABLE_UNSPEC, 3, testSeq)),
+			want:        mustBuildReq(BuildDumpRouteRequestFilter(unix.AF_UNSPEC, unix.RT_TABLE_UNSPEC, 3, testSeq)),
+		},
+		{
+			// 255 is the largest rtnl_rtprot_a2n accepts (lib/rt_names.c:296);
+			// it composes with both attributes in their order.
+			description: "corner: protocol 255 with table and oif",
+			got:         mustBuildReq(BuildDumpRouteRequestFilterProto(unix.AF_INET6, 255, 100, 7, testSeq)),
+			want: nlmsg(uint16(unix.RTM_GETROUTE), wantDumpFlags, testSeq,
+				concat(rtmsgHdr(unix.AF_INET6, 0, 0, 0, 255, 0, 0, 0),
+					rtattr(uint16(unix.RTA_TABLE), le32(100)),
+					rtattr(uint16(unix.RTA_OIF), le32(7)))),
 		},
 		{
 			// A negative index is how the kernel spells "unset" in some replies;
@@ -1309,6 +1338,15 @@ func TestBuildDumpLinkRequestFilter(t *testing.T) {
 		typ     uint16
 		payload string
 	}
+	// show prints attributes with the payload quoted; %q on the struct
+	// itself would apply to the uint16 too.
+	show := func(as ...attr) string {
+		out := make([]string, len(as))
+		for i, a := range as {
+			out[i] = fmt.Sprintf("{%d %q}", a.typ, a.payload)
+		}
+		return strings.Join(out, " ")
+	}
 	u32 := func(v uint32) string {
 		var b [4]byte
 		binary.LittleEndian.PutUint32(b[:], v)
@@ -1389,11 +1427,11 @@ func TestBuildDumpLinkRequestFilter(t *testing.T) {
 				t.Fatalf("WalkRTAttrs: %v", err)
 			}
 			if len(attrs) != len(tc.expected) {
-				t.Fatalf("attrs = %q, want %q", attrs, tc.expected)
+				t.Fatalf("attrs = [%s], want [%s]", show(attrs...), show(tc.expected...))
 			}
 			for i := range attrs {
 				if attrs[i] != tc.expected[i] {
-					t.Errorf("attr %d = %q, want %q", i, attrs[i], tc.expected[i])
+					t.Errorf("attr %d = %s, want %s", i, show(attrs[i]), show(tc.expected[i]))
 				}
 			}
 		})

@@ -1,0 +1,351 @@
+[ {
+        "ifindex": 1,
+        "ifname": "lo",
+        "group": "xstats",
+        "subgroup": "bond",
+        "suite": "802.3ad"
+    },{
+        "ifindex": 1,
+        "ifname": "lo",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "vlan",
+        "vlans": [ ]
+    },{
+        "ifindex": 1,
+        "ifname": "lo",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "mcast"
+    },{
+        "ifindex": 1,
+        "ifname": "lo",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "stp"
+    },{
+        "ifindex": 2,
+        "ifname": "tunl0",
+        "group": "xstats",
+        "subgroup": "bond",
+        "suite": "802.3ad"
+    },{
+        "ifindex": 2,
+        "ifname": "tunl0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "vlan",
+        "vlans": [ ]
+    },{
+        "ifindex": 2,
+        "ifname": "tunl0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "mcast"
+    },{
+        "ifindex": 2,
+        "ifname": "tunl0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "stp"
+    },{
+        "ifindex": 3,
+        "ifname": "nlmon0",
+        "group": "xstats",
+        "subgroup": "bond",
+        "suite": "802.3ad"
+    },{
+        "ifindex": 3,
+        "ifname": "nlmon0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "vlan",
+        "vlans": [ ]
+    },{
+        "ifindex": 3,
+        "ifname": "nlmon0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "mcast"
+    },{
+        "ifindex": 3,
+        "ifname": "nlmon0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "stp"
+    },{
+        "ifindex": 4,
+        "ifname": "ipip1",
+        "group": "xstats",
+        "subgroup": "bond",
+        "suite": "802.3ad"
+    },{
+        "ifindex": 4,
+        "ifname": "ipip1",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "vlan",
+        "vlans": [ ]
+    },{
+        "ifindex": 4,
+        "ifname": "ipip1",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "mcast"
+    },{
+        "ifindex": 4,
+        "ifname": "ipip1",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "stp"
+    },{
+        "ifindex": 5,
+        "ifname": "sit0",
+        "group": "xstats",
+        "subgroup": "bond",
+        "suite": "802.3ad"
+    },{
+        "ifindex": 5,
+        "ifname": "sit0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "vlan",
+        "vlans": [ ]
+    },{
+        "ifindex": 5,
+        "ifname": "sit0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "mcast"
+    },{
+        "ifindex": 5,
+        "ifname": "sit0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "stp"
+    },{
+        "ifindex": 6,
+        "ifname": "sit1",
+        "group": "xstats",
+        "subgroup": "bond",
+        "suite": "802.3ad"
+    },{
+        "ifindex": 6,
+        "ifname": "sit1",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "vlan",
+        "vlans": [ ]
+    },{
+        "ifindex": 6,
+        "ifname": "sit1",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "mcast"
+    },{
+        "ifindex": 6,
+        "ifname": "sit1",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "stp"
+    },{
+        "ifindex": 7,
+        "ifname": "gre0",
+        "group": "xstats",
+        "subgroup": "bond",
+        "suite": "802.3ad"
+    },{
+        "ifindex": 7,
+        "ifname": "gre0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "vlan",
+        "vlans": [ ]
+    },{
+        "ifindex": 7,
+        "ifname": "gre0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "mcast"
+    },{
+        "ifindex": 7,
+        "ifname": "gre0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "stp"
+    },{
+        "ifindex": 8,
+        "ifname": "gretap0",
+        "group": "xstats",
+        "subgroup": "bond",
+        "suite": "802.3ad"
+    },{
+        "ifindex": 8,
+        "ifname": "gretap0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "vlan",
+        "vlans": [ ]
+    },{
+        "ifindex": 8,
+        "ifname": "gretap0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "mcast"
+    },{
+        "ifindex": 8,
+        "ifname": "gretap0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "stp"
+    },{
+        "ifindex": 9,
+        "ifname": "erspan0",
+        "group": "xstats",
+        "subgroup": "bond",
+        "suite": "802.3ad"
+    },{
+        "ifindex": 9,
+        "ifname": "erspan0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "vlan",
+        "vlans": [ ]
+    },{
+        "ifindex": 9,
+        "ifname": "erspan0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "mcast"
+    },{
+        "ifindex": 9,
+        "ifname": "erspan0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "stp"
+    },{
+        "ifindex": 10,
+        "ifname": "gre1",
+        "group": "xstats",
+        "subgroup": "bond",
+        "suite": "802.3ad"
+    },{
+        "ifindex": 10,
+        "ifname": "gre1",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "vlan",
+        "vlans": [ ]
+    },{
+        "ifindex": 10,
+        "ifname": "gre1",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "mcast"
+    },{
+        "ifindex": 10,
+        "ifname": "gre1",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "stp"
+    },{
+        "ifindex": 11,
+        "ifname": "ip6tnl0",
+        "group": "xstats",
+        "subgroup": "bond",
+        "suite": "802.3ad"
+    },{
+        "ifindex": 11,
+        "ifname": "ip6tnl0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "vlan",
+        "vlans": [ ]
+    },{
+        "ifindex": 11,
+        "ifname": "ip6tnl0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "mcast"
+    },{
+        "ifindex": 11,
+        "ifname": "ip6tnl0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "stp"
+    },{
+        "ifindex": 12,
+        "ifname": "ip6tnl1",
+        "group": "xstats",
+        "subgroup": "bond",
+        "suite": "802.3ad"
+    },{
+        "ifindex": 12,
+        "ifname": "ip6tnl1",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "vlan",
+        "vlans": [ ]
+    },{
+        "ifindex": 12,
+        "ifname": "ip6tnl1",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "mcast"
+    },{
+        "ifindex": 12,
+        "ifname": "ip6tnl1",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "stp"
+    },{
+        "ifindex": 13,
+        "ifname": "ip6gre0",
+        "group": "xstats",
+        "subgroup": "bond",
+        "suite": "802.3ad"
+    },{
+        "ifindex": 13,
+        "ifname": "ip6gre0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "vlan",
+        "vlans": [ ]
+    },{
+        "ifindex": 13,
+        "ifname": "ip6gre0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "mcast"
+    },{
+        "ifindex": 13,
+        "ifname": "ip6gre0",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "stp"
+    },{
+        "ifindex": 14,
+        "ifname": "ip6gre1",
+        "group": "xstats",
+        "subgroup": "bond",
+        "suite": "802.3ad"
+    },{
+        "ifindex": 14,
+        "ifname": "ip6gre1",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "vlan",
+        "vlans": [ ]
+    },{
+        "ifindex": 14,
+        "ifname": "ip6gre1",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "mcast"
+    },{
+        "ifindex": 14,
+        "ifname": "ip6gre1",
+        "group": "xstats",
+        "subgroup": "bridge",
+        "suite": "stp"
+    } ]

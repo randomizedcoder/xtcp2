@@ -147,6 +147,11 @@ func TestExposureValidation(t *testing.T) {
 		{"all-path /ip", "negative", "all-path /ip with ip paths", "error", exposureOptions{coreInclude: ".*", allPath: "/ip", ipPaths: true, ipMaxBytes: 1}, "collides with the /ip"},
 		{"all-path under /ip", "corner", "all-path /ip/all with ip paths", "error", exposureOptions{coreInclude: ".*", allPath: "/ip/all", ipPaths: true, ipMaxBytes: 1}, "collides with the /ip"},
 		{"all-path /ipx", "corner", "all-path /ipx with ip paths", "valid: prefix is per segment", exposureOptions{coreInclude: ".*", allPath: "/ipx", ipPaths: true, ipMaxBytes: 1}, ""},
+		{"all-path /i", "negative", "all-path /i, the short root, with ip paths", "error", exposureOptions{coreInclude: ".*", allPath: "/i", ipPaths: true, ipMaxBytes: 1}, "collides with the /i"},
+		{"all-path under /i", "negative", "all-path /i/x with ip paths", "error", exposureOptions{coreInclude: ".*", allPath: "/i/x", ipPaths: true, ipMaxBytes: 1}, "collides with the /i"},
+		{"all-path /in", "corner", "all-path /in with ip paths", "valid: /i is a whole segment", exposureOptions{coreInclude: ".*", allPath: "/in", ipPaths: true, ipMaxBytes: 1}, ""},
+		{"all-path /i separate", "boundary", "all-path /i on its own listener", "valid: /i is on the main listener only", exposureOptions{coreInclude: ".*", allPath: "/i", allAddress: ":9102", ipPaths: true, ipMaxBytes: 1}, ""},
+		{"all-path /i off", "boundary", "all-path /i, ip paths off", "valid", exposureOptions{coreInclude: ".*", allPath: "/i"}, ""},
 		{"all-path /ip separate", "corner", "all-path /ip on its own listener", "valid: /ip is on the main listener only", exposureOptions{coreInclude: ".*", allPath: "/ip", allAddress: ":9102", ipPaths: true, ipMaxBytes: 1}, ""},
 		{"all-path /ip off", "boundary", "all-path /ip, ip paths off", "valid", exposureOptions{coreInclude: ".*", allPath: "/ip"}, ""},
 		{"all-path under other category", "boundary", "all-path /metrics/linkx/all with link interface paths", "valid: prefix is per segment",
@@ -253,16 +258,16 @@ func TestEndpoints(t *testing.T) {
 			for _, e := range served {
 				l := layout{address: e.address}
 				for _, r := range e.routes {
-					l.paths = append(l.paths, r.path)
+					l.paths = append(l.paths, r.Path)
 					wantGatherer, wantLimit := prometheus.Gatherer(all), allInFlight
-					if r.path == metricsPath && e.address == address {
+					if r.Path == metricsPath && e.address == address {
 						wantGatherer, wantLimit = core, coreInFlight
 					}
-					if category, ok := strings.CutPrefix(r.path, categoryPathPrefix); ok && categories[category] != nil {
+					if category, ok := strings.CutPrefix(r.Path, categoryPathPrefix); ok && categories[category] != nil {
 						wantGatherer, wantLimit = categories[category], categoryInFlight
 					}
-					if r.gatherer != wantGatherer || r.inFlight != wantLimit {
-						t.Errorf("%s%s: wrong gatherer or limit %d", e.address, r.path, r.inFlight)
+					if r.Gatherer != wantGatherer || r.InFlight != wantLimit {
+						t.Errorf("%s%s: wrong gatherer or limit %d", e.address, r.Path, r.InFlight)
 					}
 				}
 				got = append(got, l)
@@ -392,7 +397,7 @@ func TestServeEndpoints(t *testing.T) {
 			}
 			served := []endpoint{
 				{address: "127.0.0.1:0", routes: []route{coreRoute(prometheus.NewRegistry())}},
-				{address: "127.0.0.1:0", routes: []route{{path: defaultAllPath, gatherer: prometheus.NewRegistry(), inFlight: allInFlight}}},
+				{address: "127.0.0.1:0", routes: []route{{Path: defaultAllPath, Gatherer: prometheus.NewRegistry(), InFlight: allInFlight}}},
 			}
 			err := serve(ctx, m, quietLogger(), nil, listen, served)
 			wantFailure := tc.failBind || tc.failServe
@@ -430,7 +435,7 @@ func TestServeDrainsEveryServer(t *testing.T) {
 	go func() {
 		served <- serve(serveCtx, m, quietLogger(), nil, listen, []endpoint{
 			{address: "127.0.0.1:0", routes: []route{coreRoute(slow)}},
-			{address: "127.0.0.1:0", routes: []route{{path: defaultAllPath, gatherer: slow, inFlight: allInFlight}}},
+			{address: "127.0.0.1:0", routes: []route{{Path: defaultAllPath, Gatherer: slow, InFlight: allInFlight}}},
 		})
 	}()
 	responses := make(chan error, 2)

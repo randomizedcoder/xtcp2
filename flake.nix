@@ -22,13 +22,14 @@
 # nix run path:.#siege-linkmonitor -- --url http://127.0.0.1:9088 --output /tmp/siege
 # nix run path:.#profile-linkmonitor -- --url http://127.0.0.1:9088 --output /tmp/pprof
 # PGO build/compare: nix run path:.#pgo-linkmonitor -- --profile CPU.pprof --output ./go-link-monitor-pgo
-# Privileged performance/live-netlink VM: nix run path:.#test-linkmonitor-performance-vm -- [EVIDENCE_DIR]
+# Privileged performance/live-netlink VM: nix run path:.#test-linkmonitor-performance-vm -- [DIR]
+# (also checks.vm-linkmonitor-performance, in checks.vm-all).
 # It boots a root guest, captures an nlmon pcap around live tests, and returns
 # benchmark/pprof evidence without requiring host netlink privileges.
 # Includes embedding checks/artifacts; execute the disposable integration with
 # nix run path:.#test-linkmonitor-embedding-vm -- --accel=auto (KVM or TCG).
 # Standalone: nix build path:.#go-link-monitor (#go-link-monitor-core is an alias).
-# Opt-in software RDMA guest: nix run path:.#test-linkmonitor-rdma-vm (needs KVM).
+# Software RDMA guest: checks.vm-linkmonitor-rdma, or nix run path:.#test-linkmonitor-rdma-vm (needs KVM).
 # See ./nix/README.md for individual targets, logs and Nix policy checks.
 #
 # Quick references:
@@ -151,14 +152,6 @@
       let
         pkgs = import nixpkgs {
           inherit system;
-          # MinIO ships in nixpkgs marked insecure (upstream cadence vs.
-          # nixpkgs vulnerability tracking). The Vector flavor of the
-          # microvm uses it as a local test fixture, never exposed beyond
-          # the VM. Pin the exact version we accept so accidental nixpkgs
-          # bumps fail loudly instead of silently sliding to a new CVE.
-          config.permittedInsecurePackages = [
-            "minio-2025-10-15T17-29-55Z"
-          ];
         };
         inherit (nixpkgs) lib;
 

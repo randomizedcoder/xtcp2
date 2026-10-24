@@ -10,11 +10,11 @@ several steps, further down under [Remaining](#remaining).
 
 | | count | counted from |
 |---|---|---|
-| commands in the comparison matrix | **504** | `internal/goipparity/commands.go` — 229 read rows, 8 of them G6-T01's `tcp_metrics` reads, each with a `Setup`, 4 G6-T02's `sr` reads, 4 G6-T03's `ioam` shows, 9 G6-T04's `mptcp` reads, 8 G6-T05's `fou` reads, 7 G6-T06's `ila` reads, 13 G6-T07's `l2tp` reads, 15 G6-T08's `macsec` reads, 9 G7-T01's `xfrm state` reads, G7-T02's `xfrm state delall` with no SA to delete, 10 G7-T03's `xfrm policy` reads and G7-T04's `xfrm policy delall` with no policy to delete, NETLINK_XFRM, (31 of them `addr show` state, selector and output-mode rows with a `Setup`, and 6 `route get`, 2 `neigh get`, 4 `nexthop get` and `nexthop bucket`, 3 `link xstats` and `link afstats`, 6 `mroute show`, 3 `token`, 4 `netns list-id`, 3 `route save` and `route showdump`, 1 `route flush`, 1 `neigh flush`, 1 `rule save` and 1 `nexthop flush` rows with one; the missing-table `route flush` row has none), the 21 link write rows, the 26 route write rows, the 27 address write rows, the 7 address flush rows, the 2 address restore rows, the route restore row, the 2 route flush write rows, the 6 neigh write rows, the 2 neigh flush write rows, the 17 rule write rows, the rule flush write row, the rule restore row, the 6 nexthop write rows, the nexthop flush write row, the 2 addrlabel write rows, the addrlabel flush write row, the 3 ntable write rows, the stats write row, the 3 link property write rows, the 2 token write rows, the netns set write row, the 6 `tcp_metrics` delete and flush write rows, the 7 `sr` set write rows, the 16 `ioam` namespace and schema write rows, the 19 `mptcp` endpoint and limits write rows, the 16 `fou` add and del write rows, the 11 `ila` add and del write rows, the 15 `l2tp` tunnel and session add and del write rows and the 24 `macsec` SA, receive channel and offload write rows, generic netlink, the 16 `xfrm state` add, update, delete, deleteall, flush and allocspi write rows and the 12 `xfrm policy` add, update, delete, deleteall, flush, set and setdefault write rows, NETLINK_XFRM |
-| of those, `Implemented: true` | **504** | same file — every row: none is `SKIP` and, since G6-T08, none is an `ip` stand-in (`IPStandIn`), which is why the comparator's unimplemented branch and the stand-in's rendering are exercised by synthetic commands |
-| of those, in `gated_commands` | **503** | `pkg/nlparity/goip-parity-allowlist.json` |
-| allowlisted divergences | **12** | same file, `entries` |
-| of those, `kind=version-skew` | **7** | all against the pinned `ip` 7.1.0 |
+| commands in the comparison matrix | **507** | `internal/goipparity/commands.go` — 232 read rows, the 3 `nexthop show` dev, master and vrf selector rows of the iproute2 7.2.0 move among them, 8 of them G6-T01's `tcp_metrics` reads, each with a `Setup`, 4 G6-T02's `sr` reads, 4 G6-T03's `ioam` shows, 9 G6-T04's `mptcp` reads, 8 G6-T05's `fou` reads, 7 G6-T06's `ila` reads, 13 G6-T07's `l2tp` reads, 15 G6-T08's `macsec` reads, 9 G7-T01's `xfrm state` reads, G7-T02's `xfrm state delall` with no SA to delete, 10 G7-T03's `xfrm policy` reads and G7-T04's `xfrm policy delall` with no policy to delete, NETLINK_XFRM, (31 of them `addr show` state, selector and output-mode rows with a `Setup`, and 6 `route get`, 2 `neigh get`, 4 `nexthop get` and `nexthop bucket`, 3 `link xstats` and `link afstats`, 6 `mroute show`, 3 `token`, 4 `netns list-id`, 3 `route save` and `route showdump`, 1 `route flush`, 1 `neigh flush`, 1 `rule save` and 1 `nexthop flush` rows with one; the missing-table `route flush` row has none), the 21 link write rows, the 26 route write rows, the 27 address write rows, the 7 address flush rows, the 2 address restore rows, the route restore row, the 2 route flush write rows, the 6 neigh write rows, the 2 neigh flush write rows, the 17 rule write rows, the rule flush write row, the rule restore row, the 6 nexthop write rows, the nexthop flush write row, the 2 addrlabel write rows, the addrlabel flush write row, the 3 ntable write rows, the stats write row, the 3 link property write rows, the 2 token write rows, the netns set write row, the 6 `tcp_metrics` delete and flush write rows, the 7 `sr` set write rows, the 16 `ioam` namespace and schema write rows, the 19 `mptcp` endpoint and limits write rows, the 16 `fou` add and del write rows, the 11 `ila` add and del write rows, the 15 `l2tp` tunnel and session add and del write rows and the 24 `macsec` SA, receive channel and offload write rows, generic netlink, the 16 `xfrm state` add, update, delete, deleteall, flush and allocspi write rows and the 12 `xfrm policy` add, update, delete, deleteall, flush, set and setdefault write rows, NETLINK_XFRM |
+| of those, `Implemented: true` | **507** | same file — every row: none is `SKIP` and, since G6-T08, none is an `ip` stand-in (`IPStandIn`), which is why the comparator's unimplemented branch and the stand-in's rendering are exercised by synthetic commands |
+| of those, in `gated_commands` | **506** | `pkg/nlparity/goip-parity-allowlist.json` |
+| allowlisted divergences | **5** | same file, `entries` |
+| of those, `kind=version-skew` | **0** | the pin is `ip` 7.2.0 and goip follows it; the seven 7.1.0 entries were retired on 2026-10-21 (see [iproute2 7.2.0](#iproute2-720-the-pin-moves-and-goip-moves-with-it)) |
 | of those, `kind=accepted-divergence` | **5** | the five `ip netns` rows' `NETNSA_FD`, the descriptor each process opened the namespace file as, a slot in its own table (G4-T04). Nothing else is: the nine wire divergences runs 8 and 9 measured **could not** be, because a transaction-count divergence is unsuppressible (`nlparity_allowlist.go:143`), and G0 retired every one by changing goip to send `ip`'s requests |
 
 **One** matrix row sits outside `gated_commands`, **`addr show
@@ -195,7 +195,9 @@ measured them the pristine way — `control: nl=0 stdout=0`, nothing suppressed,
 the bar `link show` set.
 
 **The rest of the nexthop read surface and VRF link-detail are implemented but
-are not matrix rows, so they do not move the counts above.** `nexthop show id N`,
+are not matrix rows, so they do not move the counts above.** (Since
+2026-10-22, `dev`, `master` and `vrf` are gated rows; see "Measured on
+2026-10-22".) `nexthop show id N`,
 the other five `nexthop show` selectors — `dev`, `master`, `vrf`, `groups`,
 `fdb` (new `fdb ` render), and the client-side `protocol N` — and `-d
 link`/`addr show` descent into a `vrf`-kind link (`IFLA_VRF_TABLE`) and its
@@ -7425,6 +7427,83 @@ absent from the link listing taken afterwards.
   is the only captured evidence that the array is ever populated: a renderer
   emitting the flag as a bare string, or as `"linkdown": true`, matches the
   clean golden key for key and fails only against this one.
+
+### iproute2 7.2.0: the pin moves, and goip moves with it
+
+On 2026-10-21 nixpkgs 02c087f3 took `ip` from 7.1.0 to 7.2.0. All seven
+allowlist entries were `version-skew` at `ip_version` 7.1.0, and goip now does
+what 7.2.0 does at each of their loci, so `entries` is empty:
+
+| commit | what 7.2.0 does | how goip follows |
+|---|---|---|
+| `de91e928` (with `7bd7f335`) | `ll_link_get` and `ll_init_map` send `IFLA_EXT_MASK` 0x109, `VF\|SKIP_STATS\|NAME_ONLY` (`lib/ll_map.c:276-277`, `:395-398`); 7.1.0 sent 0x09 and 0x01 | `req.ExtMaskLLLinkGet()` and `req.ExtMaskLLInitMap()`, with `xtcpnl.RtextFilterNameOnly` |
+| `faceb326` | `print_queuelen` prints `qlen 0`, and the `SIOCGIFTXQLEN` fallback is gone, so `-6 addr show` prints no qlen | `render.RenderQlenZero` defaults to true; goip never had the ioctl |
+
+`req.LLMapNameOnly = false` and `render.RenderQlenZero = false` reproduce
+7.1.0. Every committed corpus was captured with 7.1.0, so the goip packages
+that replay it set both in `TestMain`. `TestExtMaskLLGenerations` and
+`TestLLMapRequestsCarryMask` pin both generations' masks on the wire.
+
+`RTEXT_FILTER_NAME_ONLY` reached the kernel UAPI in Linux 7.2. A 7.2+ kernel
+answers it with the `ifinfomsg`, `IFLA_IFNAME` and `IFLA_PROP_LIST` only
+(`net/core/rtnetlink.c:2084-2091`), and without taking RTNL. Every goip
+consumer of those replies reads only the index cache's fields (name, index,
+flags, type, altnames), with one exception that was a bug: `nexthop show vrf`
+checked the VRF kind on `LinkByName`'s reply, which under NAME_ONLY has no
+`IFLA_LINKINFO`. It now sends `name_is_vrf`'s request, as the 7.1.0 capture
+records `ip` doing (`netlink_route_getnexthop_vrf.pcap` txn 0), and
+`TestNexthopShowVrfCheckIsNameIsVrf` answers it the way a 7.2 kernel would.
+
+Measured on 2026-10-22, at nixpkgs 02c087f3, whose microVM kernel is 7.3.0:
+
+- `nix run .#microvm-x86_64-netlink-dump-capture` wrote
+  `pkg/xtcpnl/testdata/7_3_0`, `ip_version` 7.2.0. Against 7_1_4, `-6 addr
+  show` lost `qlen` (the table's `faceb326` row) and `ip -d` gained the
+  7.3 kernel's bridge `stp_mode` and bridge-port `neigh_forward_grat`, which
+  goip does not render because it renders no bridge `-d` detail.
+  `TestCorpus730MatchesSidecarsAt720` replays the 69 same-invocation rows at
+  the 7.2.0 defaults, all byte-identical, and `req.TestTierALLRequests730`
+  pins the five index-cache requests' 0x109 mask against the capture.
+- Two `nix run .#microvm-x86_64-goip-parity` runs: CONTROL_NOISY fell from
+  V068's 164-169 to 30, as the `SKIP_STATS` on `neigh show`'s link dump
+  predicted. The 7 ungated WARNs and the `-4 netconf show dev` FAIL are as
+  before. New: 2-3 of the bond `link_write_*` rows fail per run, a different
+  set each time, every finding only IFF_RUNNING in a reply's `ifi_flags`, in
+  both directions; carrier timing on the 7.3 kernel, tracked in
+  TODO-SOON.md.
+
+Found on the way and fixed: `nexthop show dev|master|vrf` resolved the name
+with an `ll_init_map`-shaped link dump, but `ipnexthop.c` has no `ll_init_map`
+in either release. `ip` resolves each name with `ll_name_to_index`, which on a
+cache miss is one `ll_link_get` (txn 0 of the dev and master captures, txn 1
+of the vrf capture, after `name_is_vrf`'s full get). It does so in argv order, so `dev X master Y` sends two
+gets and filters on both, where goip used to resolve only the first name.
+goip now matches, and `TestNexthopShowNameResolutionIsLLLinkGet` pins the
+captured request bodies. Those selectors were not in the parity matrix
+(`internal/goipparity/commands.go`), which is why nothing failed.
+
+They are now. `nexthop show dev goip0`, `master goipvrf` and `vrf goipvrf`
+are matrix rows, and two more live runs gated them: all three
+GOIP_PARITY_PASS with `stdout=0`, `control: nl=0` and txns 2/2, 3/3 and 4/4
+on both runs. `master` adds the by-index get that prints goipv's `dev`, and
+`vrf` adds `name_is_vrf`'s get on top of that. The rest of both runs matched
+row for row: 174 PASS, 7 WARN, and 5 FAIL (`-4 netconf show dev` and the bond
+write flake), with CONTROL_NOISY at 30. `TestNexthopSelectorRowsGated` pins
+the flip. A third run never booted, because another VM held port 12056.
+
+The bond write flake was not carrier timing. Every finding was IFF_RUNNING in
+la1's flags in a lookup reply taken before any write. la1 is a veth up with
+its peer down; `dev_get_flags` sets IFF_RUNNING while operstate is UP or
+UNKNOWN, and linkwatch moves it from UNKNOWN to DOWN up to a second after
+Setup. Each side of a write row runs its own Setup in a fresh namespace, so
+a side captured inside that second differed from the others. The driver now
+calls `xtcp2-nlcap wait-linkwatch` after each Setup, which polls sysfs until
+every admin-up link's operstate agrees with its carrier
+(`checks.nlcap-wait-linkwatch` covers it hermetically). Three more live
+runs: all four bond write rows PASS, 178 PASS, 7 WARN and 1 FAIL
+(`-4 netconf show dev`, HYGIENE_FAIL 2), CONTROL_NOISY 25-29. Of 287 waits
+per run, 14-16 took a second and none timed out, so the fix costs about 15 s
+a run.
 
 ### Remaining
 

@@ -1,0 +1,7 @@
+[ {
+        "id": 7,
+        "gateway": "198.18.11.2",
+        "dev": "goipv",
+        "scope": "link",
+        "flags": [ ]
+    } ]

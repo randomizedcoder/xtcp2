@@ -135,7 +135,7 @@ func (w *ruleWrite) parseArg(args []string, i int) (int, error) {
 		return w.prefix(args, i)
 	case matchesPrefix(a, "preference"), matchesPrefix(a, "order"), matchesPrefix(a, "priority"):
 		return w.u32Attr(args, i, unix.FRA_PRIORITY, "preference value is invalid\n")
-	case a == ruleTosKeywordCst, matchesPrefix(a, "dsfield"):
+	case a == ruleTosKeywordCst, matchesPrefix(a, dsfieldKeywordCst):
 		return w.tosArg(args, i)
 	case a == "fwmark":
 		return w.fwmark(args, i)
@@ -152,7 +152,7 @@ func (w *ruleWrite) parseArg(args []string, i int) (int, error) {
 		return w.suppressPrefixlen(args, i)
 	case matchesPrefix(a, "suppress_ifgroup"), a == "sup_group":
 		return w.suppressIfgroup(args, i)
-	case a == devKeywordCst, a == "iif":
+	case a == devKeywordCst, a == iifKeywordCst:
 		return w.ifname(args, i, unix.FRA_IIFNAME, "\"iif\"/\"dev\" not a valid ifname")
 	case a == "oif":
 		return w.ifname(args, i, unix.FRA_OIFNAME, "\"oif\" not a valid ifname")

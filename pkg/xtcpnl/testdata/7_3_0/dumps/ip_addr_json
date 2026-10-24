@@ -1,0 +1,133 @@
+[ {
+        "ifindex": 1,
+        "ifname": "lo",
+        "flags": [ "LOOPBACK","UP","LOWER_UP" ],
+        "mtu": 65536,
+        "qdisc": "noqueue",
+        "operstate": "UNKNOWN",
+        "group": "default",
+        "txqlen": 1000,
+        "link_type": "loopback",
+        "address": "00:00:00:00:00:00",
+        "broadcast": "00:00:00:00:00:00",
+        "addr_info": [ {
+                "family": "inet",
+                "local": "127.0.0.1",
+                "prefixlen": 8,
+                "scope": "host",
+                "label": "lo",
+                "valid_life_time": 4294967295,
+                "preferred_life_time": 4294967295
+            },{
+                "family": "inet6",
+                "local": "::1",
+                "prefixlen": 128,
+                "scope": "host",
+                "protocol": "kernel_lo",
+                "valid_life_time": 4294967295,
+                "preferred_life_time": 4294967295
+            } ]
+    },{
+        "ifindex": 2,
+        "ifname": "nlmon0",
+        "flags": [ "NOARP","UP","LOWER_UP" ],
+        "mtu": 3776,
+        "qdisc": "noqueue",
+        "operstate": "UNKNOWN",
+        "group": "default",
+        "txqlen": 1000,
+        "link_type": "netlink",
+        "addr_info": [ ]
+    },{
+        "ifindex": 3,
+        "ifname": "goip0",
+        "flags": [ "BROADCAST","NOARP","UP","LOWER_UP" ],
+        "mtu": 1500,
+        "qdisc": "noqueue",
+        "operstate": "UNKNOWN",
+        "group": "default",
+        "txqlen": 1000,
+        "link_type": "ether",
+        "address": "5e:9c:8f:0b:ce:ae",
+        "broadcast": "ff:ff:ff:ff:ff:ff",
+        "altnames": [ "goip0-alt" ],
+        "addr_info": [ {
+                "family": "inet",
+                "local": "192.0.2.1",
+                "prefixlen": 24,
+                "broadcast": "192.0.2.255",
+                "scope": "global",
+                "label": "goip0",
+                "valid_life_time": 4294967295,
+                "preferred_life_time": 4294967295
+            },{
+                "family": "inet6",
+                "local": "2001:db8::9",
+                "prefixlen": 64,
+                "scope": "global",
+                "nodad": true,
+                "mngtmpaddr": true,
+                "noprefixroute": true,
+                "valid_life_time": 4294967295,
+                "preferred_life_time": 4294967295
+            },{
+                "family": "inet6",
+                "local": "2001:db8::1",
+                "prefixlen": 64,
+                "scope": "global",
+                "nodad": true,
+                "valid_life_time": 4294967295,
+                "preferred_life_time": 4294967295
+            },{
+                "family": "inet6",
+                "local": "fe80::5c9c:8fff:fe0b:ceae",
+                "prefixlen": 64,
+                "scope": "link",
+                "protocol": "kernel_ll",
+                "valid_life_time": 4294967295,
+                "preferred_life_time": 4294967295
+            } ]
+    },{
+        "ifindex": 4,
+        "ifname": "goipvrf",
+        "flags": [ "NOARP","MASTER","UP","LOWER_UP" ],
+        "mtu": 65575,
+        "qdisc": "noqueue",
+        "operstate": "UP",
+        "group": "default",
+        "txqlen": 1000,
+        "link_type": "ether",
+        "address": "4a:53:32:ed:29:e2",
+        "broadcast": "ff:ff:ff:ff:ff:ff",
+        "addr_info": [ ]
+    },{
+        "ifindex": 5,
+        "ifname": "goipv",
+        "flags": [ "BROADCAST","NOARP","UP","LOWER_UP" ],
+        "mtu": 1500,
+        "qdisc": "noqueue",
+        "master": "goipvrf",
+        "operstate": "UNKNOWN",
+        "group": "default",
+        "txqlen": 1000,
+        "link_type": "ether",
+        "address": "86:da:71:5c:b3:da",
+        "broadcast": "ff:ff:ff:ff:ff:ff",
+        "addr_info": [ {
+                "family": "inet",
+                "local": "198.18.11.1",
+                "prefixlen": 24,
+                "scope": "global",
+                "label": "goipv",
+                "valid_life_time": 4294967295,
+                "preferred_life_time": 4294967295
+            },{
+                "family": "inet6",
+                "local": "fe80::84da:71ff:fe5c:b3da",
+                "prefixlen": 64,
+                "scope": "link",
+                "protocol": "kernel_ll",
+                "valid_life_time": 4294967295,
+                "preferred_life_time": 4294967295
+            } ]
+    } ]

@@ -1449,7 +1449,7 @@ var commands = withArgs([]Command{
 
 	{
 		Name: "nexthop show", Slug: "nexthop_show",
-		// Four: the nexthop dump plus the ll_init_map link dump print_rta_ifidx
+		// Four: the nexthop dump plus the ll_link_get single-get print_rta_ifidx
 		// triggers to turn nh_oif into `dev goip0` — the floor the capture
 		// driver already uses for this command
 		// (nix/microvms/scripts/capture-netlink-dumps.exp).
@@ -1534,6 +1534,39 @@ var commands = withArgs([]Command{
 	{
 		Name: "nexthop f", Slug: "nexthop_flush_empty",
 		Floor: 4, Implemented: true, Setup: []string{"link set lo up"},
+	},
+	{
+		Name: "nexthop show dev goip0", Slug: "nexthop_show_dev",
+		// Four, the bare dump's: nh_dump_filter (ip/ipnexthop.c:70) resolves
+		// the name with ll_link_get before the NHA_OIF-filtered dump, and
+		// print_rta_ifidx renders `dev goip0` from the reply. The device is
+		// in the argv rather than NeedsDev because the clean topology the
+		// driver builds puts ids 1 and 2 on goip0 by name.
+		//
+		// Since iproute2 7.2.0 the name lookup is an ll_link_get by name
+		// with IFLA_EXT_MASK 0x109, not an ll_init_map dump; the 7_3_0
+		// corpus grounds it offline (TestCorpus730MatchesSidecarsAt720,
+		// req.TestTierALLRequests730's link_get_by_name row). Gated on two
+		// live runs at 7.2.0: PASS, stdout=0, control nl=0, txns 2/2 — the
+		// get and the dump.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "nexthop show master goipvrf", Slug: "nexthop_show_master",
+		// Four: the same ll_link_get for the master's name, then an
+		// NHA_MASTER dump that returns id 7, on the VRF-enslaved goipv,
+		// then a by-index get to print its `dev`. Gated with the dev row:
+		// txns 3/3, control nl=0 on both runs.
+		Floor: 4, Implemented: true,
+	},
+	{
+		Name: "nexthop show vrf goipvrf", Slug: "nexthop_show_vrf",
+		// Four, plus one transaction over `master`: name_is_vrf
+		// (ip/iplink_vrf.c:170) gets the link first to confirm its kind, a
+		// get that carries no NAME_ONLY, then the same ll_link_get,
+		// NHA_MASTER dump and by-index get as `master`, and the same id 7.
+		// Gated with the dev row: txns 4/4, control nl=0 on both runs.
+		Floor: 4, Implemented: true,
 	},
 
 	{
@@ -3631,8 +3664,14 @@ var linkXstatsSetup = []string{
 // mrouteSetup is the `ip mroute show` rows' precondition: the veths and
 // addresses of rtnl-read-corpus.exp's build list, then MROUTE_CONF, which
 // setup_step's `smcroute` form hands to xtcp2-nlcap mroute-start.
+// addrgenmode none leaves the veths no link-local: one finishing DAD inside
+// a capture window is an RTM_NEWADDR, and smcrouted answers it with a link
+// dump of its own, both in that side's capture. settle_links, which waits
+// out linkwatch, put the -6, iif, table all and -j rows' ip_a there.
 var mrouteSetup = []string{
 	"link add v0 type veth peer name v0p", "link add v1 type veth peer name v1p",
+	"link set v0 addrgenmode none", "link set v0p addrgenmode none",
+	"link set v1 addrgenmode none", "link set v1p addrgenmode none",
 	"link set v0p up", "link set v1p up", "link set v0 up", "link set v1 up",
 	"addr add 192.0.2.1/24 dev v0", "addr add 198.51.100.1/24 dev v1",
 	"smcroute mroute from v0 source 192.0.2.10 group 239.1.1.1 to v1",

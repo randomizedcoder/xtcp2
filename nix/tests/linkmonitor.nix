@@ -5,6 +5,7 @@
   lib,
   src,
   vendoredSource,
+  goSource,
   linkmonitorPackages,
 }:
 let
@@ -12,7 +13,9 @@ let
   rdmaNativeCapture = import ./rdma-native-capture.nix { inherit pkgs; };
   # pkg/nlconn is linkmonitor's netlink transport, moved out of
   # pkg/linkmonitor/internal so pkg/rtnlmon can share it; its gates stay here.
-  paths = "./cmd/go-link-monitor ./pkg/linkmonitor/... ./pkg/nlconn ./pkg/xtcpnl ./nix/tests/linkmonitor-smoke";
+  # internal/goip/goiphttp serves go-link-monitor's /ip paths, so its gates
+  # run here as well as in test-focused-goip.
+  paths = "./cmd/go-link-monitor ./internal/goip/goiphttp ./pkg/linkmonitor/... ./pkg/nlconn ./pkg/xtcpnl ./nix/tests/linkmonitor-smoke";
   # Fuzz targets as "<package>:<target>"; each runs for 30s in the fuzz leaf.
   fuzzTargets = [
     "./pkg/xtcpnl:FuzzParseEthtool"
@@ -22,6 +25,10 @@ let
     "./pkg/linkmonitor/internal/linuxio:FuzzRDMANotifications"
     "./pkg/linkmonitor/internal/rdmanative:FuzzTranslateRtnl"
     "./pkg/linkmonitor/internal/rdmacaps:FuzzUMADHeader"
+    # The /ip command-line paths (IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md IA3).
+    "./internal/goip/goiphttp:FuzzArgvPath"
+    "./internal/goip/goiphttp:FuzzIPHandler"
+    "./internal/goip:FuzzFnmatch"
   ];
   # go-native RDMA decoders held to the parsing rules in
   # cmd/go-link-monitor/GO-NATIVE-RDMA-DESIGN.md. Each decoder task appends
@@ -70,20 +77,23 @@ let
         }
         echo 'PASS: test-linkmonitor-${name}'
       '';
+  # The ionic guests boot test-linkmonitor-rdma-build, so the RDMA leaves
+  # build from goSource (nix/lib/goSource.nix) and stay cached across a
+  # docs- or Nix-only change.
   rdma = import ./linkmonitor-rdma.nix {
-    inherit
-      pkgs
-      src
-      vendoredSource
-      linkmonitorPackages
-      ;
+    inherit pkgs linkmonitorPackages;
+    inherit (goSource) src vendoredSource;
   };
   leaves = {
+    # From goSource too: the performance guest boots this artifact.
     test-linkmonitor-performance = import ./linkmonitor-performance.nix {
-      inherit pkgs src vendoredSource;
+      inherit pkgs;
+      inherit (goSource) src vendoredSource;
     };
+    # The embedding guest's artifact, from goSource like the RDMA leaves.
     test-linkmonitor-embedding = import ./linkmonitor-embedding.nix {
-      inherit pkgs src vendoredSource;
+      inherit pkgs;
+      inherit (goSource) src vendoredSource;
     };
     test-linkmonitor-unit = mkCheck "unit" {
       command = ''
@@ -108,7 +118,7 @@ let
     };
     test-linkmonitor-format = mkCheck "format" {
       command = ''
-        unformatted=$(gofmt -l cmd/go-link-monitor pkg/linkmonitor pkg/xtcpnl nix/tests/linkmonitor-smoke)
+        unformatted=$(gofmt -l cmd/go-link-monitor internal/goip/goiphttp pkg/linkmonitor pkg/xtcpnl nix/tests/linkmonitor-smoke)
         if [ -n "$unformatted" ]; then
           printf '%s\n' "$unformatted"
           exit 1

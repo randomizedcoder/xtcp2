@@ -80,7 +80,7 @@ func runRouteFlush(c *runCtx, args []string) (routeFlushResult, error) {
 	if c.showStats > 1 {
 		return r, fmt.Errorf("-s -s route flush: %w", ErrNotImplemented)
 	}
-	sel, err := parseRouteShowArgs(args)
+	sel, err := parseRouteShowArgs(args, c.family)
 	if err != nil {
 		return r, err
 	}
@@ -93,12 +93,12 @@ func runRouteFlush(c *runCtx, args []string) (routeFlushResult, error) {
 	copied := map[routeFlushKey]bool{}
 	var buf flushBuf
 	for round := 0; ; {
-		bodies, derr := svc.RouteBodies(dumpFamily, sel.Table, oif)
+		bodies, derr := svc.RouteBodies(dumpFamily, sel.Protocol, sel.Table, oif)
 		if derr != nil {
 			return r, fmt.Errorf("goip: Flush terminated: %w", derr)
 		}
 		r.dumps++
-		flushed, cerr := routeFlushRound(c, bodies, sel.Table, oif, copied, &buf)
+		flushed, cerr := routeFlushRound(c, bodies, &sel, oif, copied, &buf)
 		if cerr != nil {
 			return r, cerr
 		}
@@ -124,7 +124,7 @@ func runRouteFlush(c *runCtx, args []string) (routeFlushResult, error) {
 // routeFlushRound copies one dump's matching replies into buf and returns how
 // many it copied. A route copied in an earlier round is skipped: `ip`'s kernel
 // has deleted it, and goip's has not.
-func routeFlushRound(c *runCtx, bodies [][]byte, table, oif uint32, copied map[routeFlushKey]bool,
+func routeFlushRound(c *runCtx, bodies [][]byte, sel *routeSelectors, oif uint32, copied map[routeFlushKey]bool,
 	buf *flushBuf) (int, error) {
 	routes := make([]model.Route, len(bodies))
 	for i, body := range bodies {
@@ -134,7 +134,7 @@ func routeFlushRound(c *runCtx, bodies [][]byte, table, oif uint32, copied map[r
 		}
 		routes[i] = model.Route(ri)
 	}
-	keep := routeKeep(routes, c.family, table, oif)
+	keep := routeKeep(routes, c.family, sel.Table, oif, sel)
 	seen := map[routeFlushKey]bool{}
 	n := 0
 	for i, body := range bodies {

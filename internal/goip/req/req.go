@@ -65,9 +65,47 @@ const ExtMaskShow uint32 = xtcpnl.RTEXT_FILTER_VF | xtcpnl.RTEXT_FILTER_SKIP_STA
 // The same `!show_stats` toggle appears in ipaddr_link_get (:2066-2067) and
 // iplink_get (ip/iplink.c:1513-1514), so `-s` composes with `link show dev`.
 // It does NOT reach ll_link_get or ll_init_map, whose masks are hardcoded
-// (lib/ll_map.c:277, :395) — so the throwaway resolution get that `link show
-// dev` sends first stays at 0x09 even under `-s`.
+// (lib/ll_map.c:276-277, :395-398) — so the throwaway resolution get that
+// `link show dev` sends first stays at ExtMaskLLLinkGet even under `-s`.
 const ExtMaskStats uint32 = xtcpnl.RTEXT_FILTER_VF
+
+// ExtMaskLLMap is the IFLA_EXT_MASK on both of iproute2's index-cache
+// requests, the ll_link_get single-get and the ll_init_map link dump:
+// RTEXT_FILTER_VF|RTEXT_FILTER_SKIP_STATS|RTEXT_FILTER_NAME_ONLY == 0x109.
+//
+// Both are hardcoded in lib/ll_map.c (:276-277 and :395-398) and ignore `-s`.
+// Commit de91e928, first released in iproute2 7.2.0, put NAME_ONLY on both:
+// 7.1.0 sent 0x09 on the get and RTEXT_FILTER_VF alone (0x01) on the dump,
+// and the testdata/7_1_4 captures record those. A Linux 7.2 or later kernel
+// answers NAME_ONLY with the ifinfomsg header, IFLA_IFNAME and IFLA_PROP_LIST
+// (net/core/rtnetlink.c:2084-2091), which is all the cache keeps (LLTab: name,
+// altnames, flags, type).
+const ExtMaskLLMap uint32 = xtcpnl.RTEXT_FILTER_VF | xtcpnl.RTEXT_FILTER_SKIP_STATS | xtcpnl.RtextFilterNameOnly
+
+// LLMapNameOnly selects which iproute2 generation's index-cache masks to
+// reproduce. true, the default and the parity target, is 7.2.0: ExtMaskLLMap
+// on both requests. false is 7.1.0, for the fixtures captured with it under
+// testdata/7_1_4. It is render.RenderQlenZero's counterpart for the request
+// side; nothing outside tests sets it.
+var LLMapNameOnly = true
+
+// ExtMaskLLLinkGet is ll_link_get's IFLA_EXT_MASK: ExtMaskLLMap, or 7.1.0's
+// ExtMaskShow (0x09) when LLMapNameOnly is false.
+func ExtMaskLLLinkGet() uint32 {
+	if LLMapNameOnly {
+		return ExtMaskLLMap
+	}
+	return ExtMaskShow
+}
+
+// ExtMaskLLInitMap is ll_init_map's IFLA_EXT_MASK: ExtMaskLLMap, or 7.1.0's
+// RTEXT_FILTER_VF alone (0x01) when LLMapNameOnly is false.
+func ExtMaskLLInitMap() uint32 {
+	if LLMapNameOnly {
+		return ExtMaskLLMap
+	}
+	return xtcpnl.RTEXT_FILTER_VF
+}
 
 // LinkShowDump builds the request for `ip link show`.
 //
@@ -98,6 +136,17 @@ const ExtMaskStats uint32 = xtcpnl.RTEXT_FILTER_VF
 // call site instead of hidden behind a boolean.
 func LinkShowDump(extMask, seq uint32) ([]byte, error) {
 	return xtcpnl.BuildDumpLinkRequestExt(unix.AF_PACKET, extMask, seq)
+}
+
+// LinkShowDumpKind is LinkShowDump with `type KIND`: iplink_filter_req
+// (ip/ipaddress.c:2030-2060) appends IFLA_LINKINFO{IFLA_INFO_KIND = kind}
+// after the mask, with no NUL. The family stays AF_PACKET, so the filter
+// always runs, and the mask is the same as LinkShowDump's, so with no kind
+// this builds LinkShowDump's 40 bytes. iproute2 tests the pointer, so
+// `type ""` sends an empty kind; `type X_slave` sends nothing here, because
+// filter.slave_kind is applied client-side only.
+func LinkShowDumpKind(extMask uint32, kind string, seq uint32) ([]byte, error) {
+	return xtcpnl.BuildDumpLinkRequestFilter(unix.AF_PACKET, extMask, 0, kind, true, seq)
 }
 
 // VrfShowDump is `ip vrf show`'s only request, ip_link_list with the
@@ -300,7 +349,7 @@ func AddrShowLinkGet(family uint8, index int32, extMask, seq uint32) ([]byte, er
 
 // RouteShowDump applies iproute2's route-show filter policy to the verified
 // rtnetlink builder. RT_TABLE_UNSPEC means table all; oif 0 means no device
-// filter.
+// filter; protocol is filter.protocol, 0 for none and for `proto all`.
 //
 // # Two selectors, one request, and the second one has a prerequisite
 //
@@ -325,8 +374,17 @@ func AddrShowLinkGet(family uint8, index int32, extMask, seq uint32) ([]byte, er
 // `route show` and differs only in which replies survive. goip does not
 // implement it; the point of recording it here is that a future
 // implementation must NOT reach for an RTA_IIF attribute on the request.
-func RouteShowDump(family uint8, table, oif, seq uint32) ([]byte, error) {
-	return xtcpnl.BuildDumpRouteRequestFilter(family, table, oif, seq)
+//
+// # `proto` is the one selector that reaches the rtmsg
+//
+// iproute_dump_filter writes `rtm->rtm_protocol = filter.protocol`
+// unconditionally (ip/iproute.c:1721), so `route show proto bgp` is the bare
+// request with byte 5 of the rtmsg set to 186 and no attribute added, and
+// `proto all` (filter.protocol 0, :1889) sends exactly the bare bytes.
+// filter.protocol is a u32 in C, but rtnl_rtprot_a2n accepts at most 255
+// (lib/rt_names.c:296) and the field is a byte, so nothing is lost.
+func RouteShowDump(family, protocol uint8, table, oif, seq uint32) ([]byte, error) {
+	return xtcpnl.BuildDumpRouteRequestFilterProto(family, protocol, table, oif, seq)
 }
 
 // RouteGet is the RTM_GETROUTE single get behind `ip route get`
@@ -394,19 +452,17 @@ func NeighGet(g xtcpnl.NeighGet, seq uint32) ([]byte, error) {
 }
 
 // AddrRestoreLinkDump is ll_init_map's link dump, which `ip addr restore`
-// sends once, ahead of its first write (ip/ipaddress.c:1874). The iproute2
-// source tree's ll_init_map (lib/ll_map.c:395-398) asks for
-// RTEXT_FILTER_VF|SKIP_STATS|NAME_ONLY, but the `ip` the corpus was captured
-// with sends RTEXT_FILTER_VF alone (restore_fresh's first request, mask 1), so
-// it is NeighShowLinkDump's request and moves with it on an iproute2 bump.
+// sends once, ahead of its first write (ip/ipaddress.c:1874). It is
+// NeighShowLinkDump's request: ll_init_map builds one request regardless of
+// caller, with ExtMaskLLInitMap (lib/ll_map.c:395-398).
 func AddrRestoreLinkDump(seq uint32) ([]byte, error) {
-	return xtcpnl.BuildDumpLinkRequestExt(unix.AF_UNSPEC, xtcpnl.RTEXT_FILTER_VF, seq)
+	return xtcpnl.BuildDumpLinkRequestExt(unix.AF_UNSPEC, ExtMaskLLInitMap(), seq)
 }
 
-// NeighShowLinkDump is ll_init_map's link dump before a neighbor dump. Unlike
-// link/addr show it requests VF information but does not set SKIP_STATS.
+// NeighShowLinkDump is ll_init_map's link dump before a neighbor dump, with
+// ExtMaskLLInitMap rather than the show dumps' ExtMaskShow.
 func NeighShowLinkDump(seq uint32) ([]byte, error) {
-	return xtcpnl.BuildDumpLinkRequestExt(unix.AF_UNSPEC, xtcpnl.RTEXT_FILTER_VF, seq)
+	return xtcpnl.BuildDumpLinkRequestExt(unix.AF_UNSPEC, ExtMaskLLInitMap(), seq)
 }
 
 // LinkShowByIndex builds the single-get behind `ip link show dev X` once the
@@ -433,7 +489,7 @@ func NeighShowLinkDump(seq uint32) ([]byte, error) {
 // single-gets share the route dump's sequence number, and why the parity
 // comparator must never key a transaction on seq alone.
 func LinkShowByIndex(index int32, seq uint32) ([]byte, error) {
-	return xtcpnl.BuildGetLinkByIndexRequest(unix.AF_UNSPEC, index, ExtMaskShow, seq)
+	return xtcpnl.BuildGetLinkByIndexRequest(unix.AF_UNSPEC, index, ExtMaskLLLinkGet(), seq)
 }
 
 // LinkShowByName is LinkShowByIndex addressed by IFLA_IFNAME instead, which is
@@ -458,7 +514,7 @@ func LinkShowByIndex(index int32, seq uint32) ([]byte, error) {
 // to check against. Recorded rather than silently diverged: a by-name
 // single-get fixture is on the plan's Item 7 list.
 func LinkShowByName(name string, seq uint32) ([]byte, error) {
-	return xtcpnl.BuildGetLinkByNameRequest(unix.AF_UNSPEC, name, ExtMaskShow, seq)
+	return xtcpnl.BuildGetLinkByNameRequest(unix.AF_UNSPEC, name, ExtMaskLLLinkGet(), seq)
 }
 
 // LinkShowDev is the SECOND request of `ip link show dev NAME` — iplink_get,
@@ -484,15 +540,15 @@ func LinkShowByName(name string, seq uint32) ([]byte, error) {
 // `-s` exactly as the dump does. The FIRST request does not: ll_link_get
 // builds `RTEXT_FILTER_VF | RTEXT_FILTER_SKIP_STATS | RTEXT_FILTER_NAME_ONLY`
 // as a local constant (lib/ll_map.c:276-277) with no reference to show_stats
-// at all, so LinkShowByName above keeps ExtMaskShow under every option.
+// at all, so LinkShowByName above keeps ExtMaskLLLinkGet under every option.
 //
 // That asymmetry is the whole reason the parameter is here rather than on a
 // shared helper: `ip -s link show dev X` sends one request that changed and
 // one that did not, and a mask threaded through both would make the first
 // wrong in a way no output could show.
 //
-// Only the ll_link_get half is a version-skew locus. See
-// xtcpnl.BuildIplinkGetRequest.
+// Only the ll_link_get half changed between iproute2 7.1.0 and 7.2.0. See
+// ExtMaskLLMap.
 func LinkShowDev(name string, extMask, seq uint32) ([]byte, error) {
 	return xtcpnl.BuildIplinkGetRequest(unix.AF_PACKET, name, extMask, seq)
 }
@@ -533,10 +589,9 @@ func NeighTblShowDump(family uint8, seq uint32) []byte {
 
 // NeighTblShowLinkDump is ll_init_map's link dump before the ntable dump
 // (ip/ipntable.c:685). It is byte-identical to NeighShowLinkDump: ll_init_map
-// builds one request regardless of caller — AF_UNSPEC, RTEXT_FILTER_VF, no
-// SKIP_STATS.
+// builds one request regardless of caller — AF_UNSPEC, ExtMaskLLInitMap.
 func NeighTblShowLinkDump(seq uint32) ([]byte, error) {
-	return xtcpnl.BuildDumpLinkRequestExt(unix.AF_UNSPEC, xtcpnl.RTEXT_FILTER_VF, seq)
+	return xtcpnl.BuildDumpLinkRequestExt(unix.AF_UNSPEC, ExtMaskLLInitMap(), seq)
 }
 
 // TokenShowDump is `ip token list`'s dump, rtnl_linkdump_req(&rth,
@@ -561,7 +616,7 @@ func NetconfShowDump(family uint8, seq uint32) []byte {
 // the netconf transaction (ip/ipnetconf.c:186). It is byte-identical to
 // NeighTblShowLinkDump: ll_init_map builds one request regardless of caller.
 func NetconfShowLinkDump(seq uint32) ([]byte, error) {
-	return xtcpnl.BuildDumpLinkRequestExt(unix.AF_UNSPEC, xtcpnl.RTEXT_FILTER_VF, seq)
+	return xtcpnl.BuildDumpLinkRequestExt(unix.AF_UNSPEC, ExtMaskLLInitMap(), seq)
 }
 
 // NetconfGetByIndex is the non-dump RTM_GETNETCONF point get `ip -4 netconf show
@@ -640,14 +695,6 @@ func NexthopGetByID(family uint8, id, seq uint32) ([]byte, error) {
 // family is preferred_family; the bare command passes AF_UNSPEC.
 func NexthopDump(family uint8, seq uint32) ([]byte, error) {
 	return xtcpnl.BuildDumpNexthopRequest(family, seq), nil
-}
-
-// NexthopShowLinkDump is ll_init_map's link dump, which `ip nexthop show`
-// sends before a filtered dump whenever it resolves a `dev`/`master`/`vrf` name
-// (ll_name_to_index -> ll_init_map). It is byte-identical to NeighShowLinkDump:
-// ll_init_map builds one request regardless of caller.
-func NexthopShowLinkDump(seq uint32) ([]byte, error) {
-	return xtcpnl.BuildDumpLinkRequestExt(unix.AF_UNSPEC, xtcpnl.RTEXT_FILTER_VF, seq)
 }
 
 // NexthopBucketDump is `ip nexthop bucket show`'s RTM_GETNEXTHOPBUCKET dump,

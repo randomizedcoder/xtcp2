@@ -139,7 +139,7 @@ func TestProtectRoutes(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, r := range protectRoutes(singleEndpoint(":0"), plain.policy)[0].routes {
-			if r.protect != nil {
+			if r.Protect != nil {
 				t.Fatal("route wrapped without a credential")
 			}
 		}
