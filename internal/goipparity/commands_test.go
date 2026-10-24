@@ -3501,8 +3501,8 @@ func TestGenlStandInRows(t *testing.T) {
 	const tcpmRows, srRows, ioamRows, mptcpRows, fouRows, ilaRows, l2tpRows, macsecRows = 14, 11, 20, 28, 24,
 		18, 28, 39
 	// xfrmStateRows are G7-T01's XFRM rows, after them, xfrmStateWriteRows
-	// G7-T02's and xfrmPolicyRows G7-T03's.
-	const xfrmStateRows, xfrmStateWriteRows, xfrmPolicyRows = 9, 17, 10
+	// G7-T02's, xfrmPolicyRows G7-T03's and xfrmPolicyWriteRows G7-T04's.
+	const xfrmStateRows, xfrmStateWriteRows, xfrmPolicyRows, xfrmPolicyWriteRows = 9, 17, 10, 13
 
 	cmds := Commands()
 	first := len(cmds)
@@ -3545,7 +3545,7 @@ func TestGenlStandInRows(t *testing.T) {
 					}
 				}
 				if n := tcpmRows + srRows + ioamRows + mptcpRows + fouRows + ilaRows + l2tpRows + macsecRows +
-					xfrmStateRows + xfrmStateWriteRows + xfrmPolicyRows; len(cmds)-first != n {
+					xfrmStateRows + xfrmStateWriteRows + xfrmPolicyRows + xfrmPolicyWriteRows; len(cmds)-first != n {
 					t.Errorf("%d rows from the first genl one, want %d", len(cmds)-first, n)
 				}
 			},
@@ -4506,6 +4506,86 @@ func TestXfrmPolicyRows(t *testing.T) {
 				}
 				got = want{implemented: c.Implemented, proto: c.Proto, slug: c.Slug, floor: c.Floor,
 					topology: !c.Write && slices.Equal(steps, corpus)}
+			}
+			got.gated = al.IsGated(r.command)
+			if got != r.expected {
+				t.Errorf("%q: got %+v, want %+v", r.command, got, r.expected)
+			}
+		})
+	}
+}
+
+// TestXfrmPolicyWriteRows checks G7-T04's rows: the C3 corpus's 13 policy
+// writes that send a request, each a NETLINK_XFRM write at floor 2 on the
+// corpus's precondition, deleteall's at 5, and deleteall with none a read,
+// gated; and the four refused before one, which are no rows.
+//
+// go test ./internal/goipparity/ -run TestXfrmPolicyWriteRows
+func TestXfrmPolicyWriteRows(t *testing.T) {
+	al, err := nlparity.EmbeddedAllowlist()
+	if err != nil {
+		t.Fatalf("EmbeddedAllowlist: %v", err)
+	}
+	type want struct {
+		implemented, write, topology, gated bool
+		writes, floor                       int
+		slug                                string
+	}
+	write := func(slug string, writes int) want {
+		return want{implemented: true, write: true, topology: true, gated: true, writes: writes, floor: 2, slug: slug}
+	}
+	p1 := xfrmP1SelCst + " " + xfrmP1TmplCst
+	rows := []struct {
+		description string
+		command     string
+		corpus      string
+		expected    want
+	}{
+		{"positive: add, policy 1", xfrmP1Cst, "policy_add", write("xfrm_policy_add", 0)},
+		{"positive: add, policy 2", xfrmP2Cst, "policy_add_v6_block", write("xfrm_policy_add_v6_block", 0)},
+		{"negative: add of policy 1 over itself, spelled a", "xfrm policy a " + p1, "policy_add_dup",
+			write("xfrm_policy_add_dup", 0)},
+		{"positive: update, priority 5", "xfrm policy update " + xfrmP1SelCst + " priority 5 " + xfrmP1TmplCst,
+			"policy_update", write("xfrm_policy_update", 0)},
+		{"positive: update of a missing policy", "xfrm policy update " + p1, "policy_update_new",
+			write("xfrm_policy_update_new", 0)},
+		{"positive: delete", "xfrm policy delete " + xfrmP1SelCst, "policy_delete", write("xfrm_policy_delete", 0)},
+		{"negative: delete of a missing policy, spelled d", "xfrm policy d " + xfrmP1SelCst, "policy_delete_missing",
+			write("xfrm_policy_delete_missing", 0)},
+		{"positive: deleteall, two DELPOLICYs", "xfrm policy deleteall", "policy_deleteall",
+			want{implemented: true, write: true, topology: true, gated: true, writes: 2, floor: 5,
+				slug: "xfrm_policy_deleteall"}},
+		{"boundary: deleteall with none, spelled delall, a read", "xfrm policy delall", "policy_deleteall_empty",
+			want{implemented: true, topology: true, gated: true, floor: 2, slug: "xfrm_policy_deleteall_empty"}},
+		{"positive: flush", "xfrm policy flush", "policy_flush", write("xfrm_policy_flush", 1)},
+		{"boundary: flush with none, spelled f", "xfrm policy f", "policy_flush_empty",
+			write("xfrm_policy_flush_empty", 1)},
+		{"positive: set hthresh", "xfrm policy set hthresh4 24 16 hthresh6 64 48", "policy_set_hthresh",
+			write("xfrm_policy_set_hthresh", 0)},
+		{"positive: setdefault", "xfrm policy setdefault in block fwd block out accept", "policy_setdefault",
+			write("xfrm_policy_setdefault", 0)},
+		{"negative: no dir, refused before a request, is no row", "xfrm policy add src 192.0.2.1/32 " +
+			"dst 192.0.2.2/32 " + xfrmP1TmplCst, "", want{}},
+		{"negative: dir sideways, refused before a request, is no row", "xfrm policy add src 192.0.2.1/32 " +
+			"dst 192.0.2.2/32 dir sideways", "", want{}},
+		{"boundary: hthresh4 33, refused before a request, is no row", "xfrm policy set hthresh4 33 0", "", want{}},
+		{"negative: setdefault in drop, refused before a request, is no row", "xfrm policy setdefault in drop", "",
+			want{}},
+	}
+	for _, r := range rows {
+		t.Run(r.description, func(t *testing.T) {
+			var got want
+			if c, lookupErr := Lookup(r.command); lookupErr == nil {
+				steps := make([]string, 0, len(c.Setup))
+				for _, s := range c.Setup {
+					steps = append(steps, "ip "+s)
+				}
+				corpus := []string{}
+				if _, err := os.Stat(filepath.Join(tdXfrm, r.corpus, "topology")); err == nil {
+					corpus = corpusTopology(t, tdXfrm, r.corpus)
+				}
+				got = want{implemented: c.Implemented && c.Proto == ProtoXfrmCst, write: c.Write, writes: c.Writes,
+					floor: c.Floor, slug: c.Slug, topology: slices.Equal(steps, corpus)}
 			}
 			got.gated = al.IsGated(r.command)
 			if got != r.expected {

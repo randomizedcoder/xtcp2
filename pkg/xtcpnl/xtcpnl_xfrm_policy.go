@@ -23,7 +23,7 @@ const (
 	XfrmUserTmplSizeCst          = 64  // struct xfrm_user_tmpl
 	XfrmUserPolexpireSizeCst     = 176 // struct xfrm_user_polexpire, its u8 padded to 8
 	XfrmUserpolicyDefaultSizeCst = 3   // struct xfrm_userpolicy_default
-	XfrmUserpolicyTypeSizeCst    = 4   // struct xfrm_userpolicy_type
+	XfrmUserpolicyTypeSizeCst    = 6   // struct xfrm_userpolicy_type: u8, u16, u8, 2-aligned
 )
 
 // XfrmUserpolicyInfo is a struct xfrm_userpolicy_info: a policy.

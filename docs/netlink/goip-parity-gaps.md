@@ -3103,6 +3103,29 @@ The tests (`internal/goip`, `pkg/nlparity`, `internal/goipparity`):
 | positive, negative, boundary, corner: the object that refuses `-s -s` itself, by name and prefix; another, an unknown one, none and a longer word | `TestWideStatsObject` (6) |
 | positive, negative, boundary: the 10 rows and the two refused before a request | NETLINK_XFRM reads at floor 2 on the corpus topology, gated; none, `TestXfrmPolicyRows` (12) |
 
+**G7-T04 delivered** (`internal/goip`, `pkg/xtcpnl`, `pkg/nlparity`, `internal/goipparity`):
+- **The XFRM write gate** admits the policy writes `ip xfrm policy` sends: NEWPOLICY, UPDPOLICY, DELPOLICY, FLUSHPOLICY, NEWSPDINFO and SETDEFAULT, so `nlparity.IsWrite` reads each as a write.
+- **`XFRMA_POLICY_TYPE` is six bytes**, `struct xfrm_userpolicy_type`'s `u8`, `u16` and `u8` aligned to two, where `pkg/xtcpnl` had four. G7-T03's `get ptype` sent four, which the kernel's policy for the attribute refuses; no capture holds one, since the test kernel has no sub-policies. `xfrmPolicyTypeBytes` builds it for get, delete, add, update and flush.
+- **`add` and `update`** (`internal/goip/xfrm_policy_write.go`), `xfrm_policy_modify`: `dir`, `ctx` and `ptype` once each, `mark`, `index`, `action`, `priority`, `flag`, `limit`, `tmpl`, `if_id` and `offload packet dev`, else one selector, a second duparg's `unknown`; DIR is required. A template is `xfrm_tmpl_parse`'s: its ID parsed with `preferred_family` cleared and left as the template's family, `mode`, `reqid` and `level`, any algorithm; past 16, `Too many tmpls`. One NEWPOLICY or UPDPOLICY with NLM_F_ACK, `struct xfrm_userpolicy_info`, its byte and packet limits infinite, `AF_INET` when nothing gave a family, then the policy type, the templates, the mark when its mask is set, the context, the interface id and the offload.
+- **`delete`**, `xfrm_policy_get_or_delete`: get's request as a DELPOLICY with NLM_F_ACK.
+- **`deleteall`**, `xfrm_policy_list_or_deleteall`: the list's filter, then rounds of a GETPOLICY dump, each policy `xfrm_policy_keep` copies a DELPOLICY of, its selector, index and direction, the mark as `xfrm_state_keep` copies one and the interface id, without NLM_F_ACK, in one datagram, until a round copies none. A socket policy, and one past the room left in `ip`'s 8192-byte buffer, is skipped, the latter until the next round. goip skips a policy it has copied, as for SAs.
+- **`flush`**, `xfrm_policy_flush`: `ptype`, once, else `unknown`; one FLUSHPOLICY with no header. **`set`**, `xfrm_spd_setinfo`: `hthresh4` and `hthresh6`, once each, their prefix lengths `get_u8`'s and no longer than 32 or 128, each attribute in argument order; one NEWSPDINFO, its `u32` all ones. **`setdefault`**, `xfrm_spd_setdefault`: `in`, `fwd` and `out`, each `block`, `accept` or `allow`, a direction already set duparg's; one SETDEFAULT.
+- **The rows.** 13 of the C3 corpus's 17 policy writes, each on its corpus precondition: 12 writes, deleteall's two DELPOLICYs in one datagram, and `deleteall` with none to delete, a read. Commands the corpus spells alike run as `a`, `d`, `delall` and `f`. Left out: `add_no_dir`, `add_bad_dir`, `set_hthresh_bad` and `setdefault_bad`, which `ip` refuses before a request, checked by `TestXfrmPolicyWritesMatchIp`.
+
+The tests (`internal/goip`, `pkg/xtcpnl`, `pkg/nlparity`, `internal/goipparity`):
+
+| description | expected |
+|---|---|
+| positive, negative, boundary, corner: the 17 C3 policy write captures replayed, and `a`, `u`, `d`, `delall`, `f`, words reordered, `level required`, hex values and `allow` | every read exchange replayed and no write; the writes the capture's, seq aside; `ip.out`; the refusals' exit status, `TestXfrmPolicyWritesMatchIp` (25) |
+| positive, negative, boundary, corner: each word's field or attribute, the attributes in `ip`'s order, each refusal, an offload mode and a device there is none of, 16 templates and 17, the context's bound, the hash thresholds' bounds, a template's family, `-6`, `-s -s` | the write's type, NLM_F_ACK and hex, or the exit status and message and no write, `TestXfrmPolicyWritesArgs` (66) |
+| positive, negative, boundary, corner: deleteall over two policies, a filter, a mark and an interface id, `ptype sub`, 103 policies over two rounds, a dump error, a short policy, a socket policy, another type, a mark ending its message | the dumps, the DELPOLICYs without NLM_F_ACK and their hex, or the exit status and message, `TestXfrmPolicyDeleteall` (13) |
+| positive, negative, corner: the six policy writes admitted; GETPOLICY, GETSPDINFO and GETDEFAULT, POLEXPIRE, NEWSADINFO and MIGRATE not | `TestIsAdmittedXfrmWrite` (21, nine new, three replaced) |
+| positive, negative, boundary: FLUSHPOLICY with no header, SETDEFAULT unpadded, NEWSPDINFO with an attribute, GETPOLICY refused, NEWPOLICY a byte short | the request's hex or the error, `TestBuildXfrmWriteRequest` (11, four new, one replaced) |
+| positive, negative: NEWPOLICY, SETDEFAULT and FLUSHPOLICY writes, GETDEFAULT a read | `TestIsWrite` (17, three new, one replaced) |
+| positive, corner, negative: a policy type of six bytes in a dump, a FLUSHPOLICY and a policy; five bytes short | `TestParseXfrmPolicy` (40, four changed) |
+| positive, corner: get's policy type six bytes and padded; `d`, `delall`, `f`, `se`, `setd`, `u` and `a` reaching their writes | `TestXfrmPolicyArgs` (74, eight changed); `TestXfrmStateArgs` (51, one changed) |
+| positive, negative, boundary: the 13 rows and the four refused before a request | NETLINK_XFRM writes at floor 2, deleteall's at 5 with Writes 2, the flushes' Writes 1, `delall` a read, on the corpus topology, gated; none, `TestXfrmPolicyWriteRows` (17) |
+
 ## See also
 
 - [goip-parity-gaps-status.md](goip-parity-gaps-status.md): the progress against this plan: phase states, task checklist, verification ledger and decision log.

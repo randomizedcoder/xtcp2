@@ -61,6 +61,7 @@ const (
 	xfrmDeleteallCst = "deleteall"
 	xfrmFlushCst     = "flush"
 	xfrmDirCst       = "dir"
+	xfrmDirOutCst    = "out"
 	xfrmPcpuCst      = "pcpu-num"
 	xfrmSeqCst       = "seq"
 	xfrmMaskWordCst  = "mask"
@@ -763,7 +764,7 @@ func xfrmNextDir(a *xfrmArgs, dir *uint8) error {
 	switch a.cur() {
 	case "in":
 		*dir = xfrmSADirInCst
-	case "out":
+	case xfrmDirOutCst:
 		*dir = xfrmSADirOutCst
 	default:
 		return xfrmUsage(invargErr("DIR value is not \"in\" or \"out\"", a.cur()))
@@ -1125,7 +1126,7 @@ func (d *xfrmDeleteall) keep(m xfrmMsg, offset int) ([]byte, error) {
 	if _, err := r.add(xtcpnl.XfrmAttrSrcAddr, m.body[80:96]); err != nil {
 		return nil, err
 	}
-	mark, err := xfrmDeleteallMark(m.body)
+	mark, err := xfrmDeleteallMark(m.body, xtcpnl.XfrmUsersaInfoSizeCst)
 	if err != nil {
 		return nil, err
 	}
@@ -1156,19 +1157,20 @@ func (d *xfrmDeleteall) keep(m xfrmMsg, offset int) ([]byte, error) {
 }
 
 // xfrmDeleteallMark is what xfrm_state_keep copies of the SA's last
-// XFRMA_MARK: rta_len bytes from its data, the mark and the four bytes
-// after it. goip refuses a mark whose copy would read past the message,
-// where ip reads what its buffer holds there.
-func xfrmDeleteallMark(body []byte) ([]byte, error) {
+// XFRMA_MARK, and xfrm_policy_keep of the policy's: rta_len bytes from its
+// data, the mark and the four bytes after it, the attributes starting
+// after the message's struct, hdrLen bytes. goip refuses a mark whose copy
+// would read past the message, where ip reads what its buffer holds there.
+func xfrmDeleteallMark(body []byte, hdrLen int) ([]byte, error) {
 	var mark []byte
-	for off := xtcpnl.XfrmUsersaInfoSizeCst; off+4 <= len(body); {
+	for off := hdrLen; off+4 <= len(body); {
 		l := int(binary.LittleEndian.Uint16(body[off:]))
 		if l < 4 || off+l > len(body) {
 			break
 		}
 		if binary.LittleEndian.Uint16(body[off+2:]) == xtcpnl.XfrmAttrMark {
 			if off+4+l > len(body) {
-				return nil, fmt.Errorf("an SA whose XFRMA_MARK ends its message, which ip copies %d bytes past: %w",
+				return nil, fmt.Errorf("a message whose XFRMA_MARK ends it, which ip copies %d bytes past: %w",
 					l-xfrmMarkLenCst, ErrNotImplemented)
 			}
 			mark = body[off+4 : off+4+l]

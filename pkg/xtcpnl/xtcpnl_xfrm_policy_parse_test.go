@@ -236,12 +236,12 @@ func TestParseXfrmPolicy(t *testing.T) {
 		},
 		{
 			description: "corner: a GETPOLICY dump's attributes start at the body",
-			h:           NlMsgHdr{Type: XfrmMsgGetPolicy, Flags: dumpFlags}, body: rtattr(XfrmAttrPolicyType, []byte{1, 0, 0, 0}),
+			h:           NlMsgHdr{Type: XfrmMsgGetPolicy, Flags: dumpFlags}, body: rtattr(XfrmAttrPolicyType, []byte{1, 0, 0, 0, 0, 0}),
 			expected: "type=21 dump ptype=1",
 		},
 		{
 			description: "corner: a FLUSHPOLICY's attributes start at the body",
-			h:           NlMsgHdr{Type: XfrmMsgFlushPolicy}, body: cat(rtattr(XfrmAttrPolicyType, []byte{1, 0, 0, 0}), rtattr(XfrmAttrIfID, le32(9))),
+			h:           NlMsgHdr{Type: XfrmMsgFlushPolicy}, body: cat(rtattr(XfrmAttrPolicyType, []byte{1, 0, 0, 0, 0, 0}), rtattr(XfrmAttrIfID, le32(9))),
 			expected: "type=29 ptype=1 if_id=9",
 		},
 		{
@@ -261,7 +261,7 @@ func TestParseXfrmPolicy(t *testing.T) {
 		},
 		{
 			description: "corner: a policy's other attributes: its type, mark, security context and if_id",
-			h:           newpol, body: withPol(rtattr(XfrmAttrPolicyType, []byte{1, 0xaa, 0xbb, 0xcc}), rtattr(XfrmAttrMark, cat(le32(7), le32(0xff))),
+			h:           newpol, body: withPol(rtattr(XfrmAttrPolicyType, []byte{1, 0xaa, 0xbb, 0xcc, 0xdd, 0xee}), rtattr(XfrmAttrMark, cat(le32(7), le32(0xff))),
 				rtattr(XfrmAttrSecCtx, cat(le16(13), le16(1), []byte{1, 2}, le16(5), []byte("u:r:x"))), rtattr(XfrmAttrIfID, le32(3))),
 			expected: "type=19 " + polText + " ptype=1 sec_ctx=1/1/2:u:r:x mark=7/0xff if_id=3",
 		},
@@ -317,8 +317,8 @@ func TestParseXfrmPolicy(t *testing.T) {
 		},
 		{
 			description: "negative: a policy type one byte short",
-			h:           newpol, body: withPol(rtattr(XfrmAttrPolicyType, []byte{1, 0, 0})),
-			expected: "type=19 " + polText + " error: " + ErrXfrmAttr.Error() + ": 16 is 3 bytes, under 4",
+			h:           newpol, body: withPol(rtattr(XfrmAttrPolicyType, []byte{1, 0, 0, 0, 0})),
+			expected: "type=19 " + polText + " error: " + ErrXfrmAttr.Error() + ": 16 is 5 bytes, under 6",
 		},
 		{
 			description: "negative: an attribute running past the body",

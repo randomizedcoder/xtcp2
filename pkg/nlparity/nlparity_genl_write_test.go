@@ -67,7 +67,10 @@ func TestIsWrite(t *testing.T) {
 		{"positive: an XFRM FLUSHSA", xfrm(xtcpnl.XfrmMsgFlushSA), true},
 		{"positive: an XFRM ALLOCSPI", xfrm(xtcpnl.XfrmMsgAllocSPI), true},
 		{"negative: an XFRM GETSA", xfrm(xtcpnl.XfrmMsgGetSA), false},
-		{"negative: an XFRM NEWPOLICY, not yet admitted", xfrm(xtcpnl.XfrmMsgNewPolicy), false},
+		{"positive: an XFRM NEWPOLICY", xfrm(xtcpnl.XfrmMsgNewPolicy), true},
+		{"positive: an XFRM SETDEFAULT", xfrm(xtcpnl.XfrmMsgSetDefault), true},
+		{"negative: an XFRM GETDEFAULT", xfrm(xtcpnl.XfrmMsgGetDefault), false},
+		{"positive: an XFRM FLUSHPOLICY, no header", xfrm(xtcpnl.XfrmMsgFlushPolicy), true},
 		{"corner: UPDSA, RTM_GETROUTE's number, is a write on XFRM", xfrm(xtcpnl.XfrmMsgUpdSA), true},
 	}
 	for _, tc := range tests {

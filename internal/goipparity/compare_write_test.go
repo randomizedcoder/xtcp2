@@ -100,12 +100,20 @@ const (
 	xfrmDeleteallSlugCst = "xfrm_state_deleteall"
 	xfrmFlushSlugCst     = "xfrm_state_flush"
 	xfrmFlushAhSlugCst   = "xfrm_state_flush_proto_ah"
+	// xfrmPolicyDeleteallSlugCst is G7-T04's deleteall row, whose
+	// DELPOLICYs ask for no ack, and xfrmPolicyFlushSlugCst and
+	// xfrmPolicyFlushEmptySlugCst its flush rows, one acked FLUSHPOLICY each.
+	xfrmPolicyDeleteallSlugCst  = "xfrm_policy_deleteall"
+	xfrmPolicyFlushSlugCst      = "xfrm_policy_flush"
+	xfrmPolicyFlushEmptySlugCst = "xfrm_policy_flush_empty"
 	// genlProtoCst is NETLINK_GENERIC, and xfrmProtoCst NETLINK_XFRM.
 	genlProtoCst = 16
 	xfrmProtoCst = 6
-	// xfrmMsgDelSACst is XFRM_MSG_DELSA.
-	xfrmMsgDelSACst = 17
-	tdAddrSave      = "../../pkg/xtcpnl/testdata/7_1_4/link-write/addr-save"
+	// xfrmMsgDelSACst is XFRM_MSG_DELSA, and xfrmMsgDelPolicyCst
+	// XFRM_MSG_DELPOLICY.
+	xfrmMsgDelSACst     = 17
+	xfrmMsgDelPolicyCst = 20
+	tdAddrSave          = "../../pkg/xtcpnl/testdata/7_1_4/link-write/addr-save"
 	// tdRtnl is the C1 rtnetlink corpus, route_restore\'s among it.
 	tdRtnl           = "../../pkg/xtcpnl/testdata/7_1_4/link-write/rtnl"
 	pcapGlobalHdrCst = 24
@@ -373,8 +381,11 @@ func corpusXfrmWriteRow(t *testing.T, c Command) writeRowFiles {
 		file = append(file, writeRequest(m, seq)...)
 	}
 	goip := dropLastRecords(t, ipPcap, 2)
-	if c.Slug == xfrmDeleteallSlugCst {
+	switch c.Slug {
+	case xfrmDeleteallSlugCst:
 		goip = dropRequestsOfType(t, ipPcap, xfrmMsgDelSACst)
+	case xfrmPolicyDeleteallSlugCst:
+		goip = dropRequestsOfType(t, ipPcap, xfrmMsgDelPolicyCst)
 	}
 	rc := strings.TrimSpace(mustRead(t, filepath.Join(dir, "ip.rc")))
 	return writeRowFiles{
@@ -385,7 +396,8 @@ func corpusXfrmWriteRow(t *testing.T, c Command) writeRowFiles {
 }
 
 // dropRequestsOfType returns a pcap without the records that open with a
-// request of type typ: an XFRM deleteall capture less its DELSA batch.
+// request of type typ: an XFRM deleteall capture less its DELSA or
+// DELPOLICY batch.
 func dropRequestsOfType(t *testing.T, b []byte, typ uint16) []byte {
 	t.Helper()
 	out := append([]byte(nil), b[:pcapGlobalHdrCst]...)

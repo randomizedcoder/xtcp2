@@ -203,7 +203,7 @@ func xfrmPolBody(p xfrmPol) []byte {
 	binary.LittleEndian.PutUint32(b[156:], p.index)
 	b[160], b[161], b[162] = p.dir, p.action, p.flags
 	if p.ptype >= 0 {
-		b = append(b, 8, 0, byte(xtcpnl.XfrmAttrPolicyType), 0, byte(p.ptype), 0, 0, 0)
+		b = append(b, 10, 0, byte(xtcpnl.XfrmAttrPolicyType), 0, byte(p.ptype), 0, 0, 0, 0, 0, 0, 0)
 	}
 	return b
 }
@@ -361,7 +361,7 @@ func TestXfrmPolicyArgs(t *testing.T) {
 			args: "policy get index 9 dir out", talkBody: pols[0].body, reqs: "21:1:" + idxGet, printed: "0"},
 		{description: "positive: get's attributes in ip's order, not the words'", talkTyp: xtcpnl.XfrmMsgNewPolicy,
 			args: "policy get if_id 7 ctx c mark 5 mask 0xf ptype sub index 9 dir out", talkBody: pols[0].body,
-			reqs: "21:1:" + idxGet + "08001000" + "01000000" + "0c001500" + "05000000" + "0f000000" +
+			reqs: "21:1:" + idxGet + "0a001000" + "010000000000" + "0000" + "0c001500" + "05000000" + "0f000000" +
 				"0e000800" + "0a000800" + "01010200" + "6300" + "0000" + "08001f00" + "07000000",
 			printed: "0"},
 		{description: "corner: a selector's family is preferred_family's for the answer, whose selector has none",
@@ -424,20 +424,19 @@ func TestXfrmPolicyArgs(t *testing.T) {
 			text: "Usage: ip xfrm policy"},
 		{description: "negative: a verb it does not know", args: "policy bogus", exit: ExitMinusOne, reqs: "-",
 			text: `Command "bogus" is unknown, try "ip xfrm policy help"`},
-		{description: "corner: d is delete, G7-T04's", args: "policy d", exit: ExitUsage, reqs: "-",
-			text: "policy delete, G7-T04"},
-		{description: "corner: delall is deleteall", args: "policy delall", exit: ExitUsage, reqs: "-",
-			text: "policy deleteall, G7-T04"},
-		{description: "corner: f is flush", args: "policy f", exit: ExitUsage, reqs: "-",
-			text: "policy flush, G7-T04"},
-		{description: "corner: se is set, after show", args: "policy se", exit: ExitUsage, reqs: "-",
-			text: "policy set, G7-T04"},
-		{description: "corner: setd is setdefault", args: "policy setd", exit: ExitUsage, reqs: "-",
-			text: "policy setdefault, G7-T04"},
-		{description: "corner: u is update", args: "policy u", exit: ExitUsage, reqs: "-",
-			text: "policy update, G7-T04"},
-		{description: "corner: a is add", args: "policy a", exit: ExitUsage, reqs: "-",
-			text: "policy add, G7-T04"},
+		{description: "corner: d is delete, not deleteall: DIR is required, no dump", args: "policy d",
+			exit: ExitUsage, reqs: "-", text: "DIR is required"},
+		{description: "corner: delall is deleteall, one dump, none to delete", args: "policy delall", reqs: dump},
+		{description: "corner: f is flush, whose only word is ptype", args: "policy f bogus", exit: ExitMinusOne,
+			reqs: "-", text: `"bogus" is wrong: unknown`},
+		{description: "corner: se is set, after show", args: "policy se hthresh4 33", exit: ExitMinusOne, reqs: "-",
+			text: "hthresh4 LBITS value is invalid"},
+		{description: "corner: setd is setdefault", args: "policy setd bogus", exit: ExitMinusOne, reqs: "-",
+			text: "unknown direction"},
+		{description: "corner: u is update, DIR required", args: "policy u", exit: ExitUsage, reqs: "-",
+			text: "DIR is required"},
+		{description: "corner: a is add, DIR required", args: "policy a", exit: ExitUsage, reqs: "-",
+			text: "DIR is required"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.description, func(t *testing.T) {

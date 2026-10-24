@@ -3292,6 +3292,40 @@ var commands = withArgs([]Command{
 	{Name: "-s -s xfrm policy count", Slug: "xfrm_policy_count_stats", Floor: 2, Implemented: true,
 		Proto: ProtoXfrmCst, Setup: xfrmPTwoSetup},
 	{Name: "xfrm policy getd", Slug: "xfrm_policy_getdefault", Floor: 2, Implemented: true, Proto: ProtoXfrmCst},
+
+	// G7-T04: the XFRM policy writes, the C3 corpus's 17 other policy_*
+	// rows but the four refused before a request, add_no_dir, add_bad_dir,
+	// set_hthresh_bad and setdefault_bad, which capture nothing to compare
+	// (Floor 0), and TestXfrmPolicyWritesMatchIp checks them. Commands the
+	// corpus spells alike run as a, d, delall and f, the same bytes.
+	// deleteall's two DELPOLICYs go in one datagram, without NLM_F_ACK,
+	// between its dumps; with none to delete, it is a read. setdefault and
+	// set change only the namespace each side writes in.
+	{Name: xfrmP1Cst, Slug: "xfrm_policy_add", Floor: 2, Implemented: true, Write: true, Proto: ProtoXfrmCst},
+	{Name: xfrmP2Cst, Slug: "xfrm_policy_add_v6_block", Floor: 2, Implemented: true, Write: true,
+		Proto: ProtoXfrmCst},
+	{Name: "xfrm policy a " + xfrmP1SelCst + " " + xfrmP1TmplCst, Slug: "xfrm_policy_add_dup", Floor: 2,
+		Implemented: true, Write: true, Proto: ProtoXfrmCst, Setup: xfrmP1Setup},
+	{Name: "xfrm policy update " + xfrmP1SelCst + " priority 5 " + xfrmP1TmplCst, Slug: "xfrm_policy_update",
+		Floor: 2, Implemented: true, Write: true, Proto: ProtoXfrmCst, Setup: xfrmP1Setup},
+	{Name: "xfrm policy update " + xfrmP1SelCst + " " + xfrmP1TmplCst, Slug: "xfrm_policy_update_new", Floor: 2,
+		Implemented: true, Write: true, Proto: ProtoXfrmCst},
+	{Name: "xfrm policy delete " + xfrmP1SelCst, Slug: "xfrm_policy_delete", Floor: 2, Implemented: true,
+		Write: true, Proto: ProtoXfrmCst, Setup: xfrmP1Setup},
+	{Name: "xfrm policy d " + xfrmP1SelCst, Slug: "xfrm_policy_delete_missing", Floor: 2, Implemented: true,
+		Write: true, Proto: ProtoXfrmCst},
+	{Name: "xfrm policy deleteall", Slug: "xfrm_policy_deleteall", Floor: 5, Implemented: true, Write: true,
+		Writes: 2, Proto: ProtoXfrmCst, Setup: xfrmPTwoSetup},
+	{Name: "xfrm policy delall", Slug: "xfrm_policy_deleteall_empty", Floor: 2, Implemented: true,
+		Proto: ProtoXfrmCst},
+	{Name: "xfrm policy flush", Slug: "xfrm_policy_flush", Floor: 2, Implemented: true, Write: true, Writes: 1,
+		Proto: ProtoXfrmCst, Setup: xfrmPTwoSetup},
+	{Name: "xfrm policy f", Slug: "xfrm_policy_flush_empty", Floor: 2, Implemented: true, Write: true, Writes: 1,
+		Proto: ProtoXfrmCst},
+	{Name: "xfrm policy set hthresh4 24 16 hthresh6 64 48", Slug: "xfrm_policy_set_hthresh", Floor: 2,
+		Implemented: true, Write: true, Proto: ProtoXfrmCst},
+	{Name: "xfrm policy setdefault in block fwd block out accept", Slug: "xfrm_policy_setdefault", Floor: 2,
+		Implemented: true, Write: true, Proto: ProtoXfrmCst},
 })
 
 // tcpmAddrsSetup is genl-write-corpus.exp's PRE_ADDRS: d0, up, with an IPv4

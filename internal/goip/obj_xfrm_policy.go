@@ -19,7 +19,7 @@ import (
 // goip runs the reads, each on its own NETLINK_XFRM socket as ip's do:
 // list, a GETPOLICY dump each answer of which is printed, filtered on goip's
 // side as ip's is; get, one GETPOLICY; count, one GETSPDINFO; and
-// getdefault, one GETDEFAULT. The writes are G7-T04's.
+// getdefault, one GETDEFAULT. The writes are xfrm_policy_write.go's.
 
 const (
 	xfrmPtypeCst    = "ptype"
@@ -73,29 +73,22 @@ const (
 		"LEVEL := required | use"
 )
 
-// xfrmPolicyWrite is a policy write, G7-T04's.
-func xfrmPolicyWrite(verb string) func(*runCtx, []string) error {
-	return func(*runCtx, []string) error {
-		return fmt.Errorf("xfrm policy %s, G7-T04: %w", verb, ErrNotImplemented)
-	}
-}
-
 // xfrmPolicyVerbs are do_xfrm_policy's verbs, each matched by prefix in
 // its order: `d` is delete, `s` show and `g` get.
 var xfrmPolicyVerbs = []struct {
 	verbs []string
 	run   func(*runCtx, []string) error
 }{
-	{[]string{xfrmAddCst}, xfrmPolicyWrite(xfrmAddCst)},
-	{[]string{xfrmUpdateCst}, xfrmPolicyWrite(xfrmUpdateCst)},
-	{[]string{fouDeleteCst}, xfrmPolicyWrite(fouDeleteCst)},
-	{[]string{xfrmDeleteallCst, "delall"}, xfrmPolicyWrite(xfrmDeleteallCst)},
+	{[]string{xfrmAddCst}, func(c *runCtx, a []string) error { return xfrmPolicyModify(c, xtcpnl.XfrmMsgNewPolicy, a) }},
+	{[]string{xfrmUpdateCst}, func(c *runCtx, a []string) error { return xfrmPolicyModify(c, xtcpnl.XfrmMsgUpdPolicy, a) }},
+	{[]string{fouDeleteCst}, xfrmPolicyDelete},
+	{[]string{xfrmDeleteallCst, "delall"}, xfrmPolicyDeleteallRun},
 	{[]string{listVerbCst, showVerbCst, lstVerbCst}, xfrmPolicyList},
 	{[]string{nexthopGetVerbCst}, xfrmPolicyGet},
-	{[]string{xfrmFlushCst}, xfrmPolicyWrite(xfrmFlushCst)},
+	{[]string{xfrmFlushCst}, xfrmPolicyFlush},
 	{[]string{xfrmCountCst}, func(c *runCtx, _ []string) error { return xfrmPolicyCount(c) }},
-	{[]string{iftokSetVerbCst}, xfrmPolicyWrite(iftokSetVerbCst)},
-	{[]string{"setdefault"}, xfrmPolicyWrite("setdefault")},
+	{[]string{iftokSetVerbCst}, xfrmPolicySet},
+	{[]string{"setdefault"}, xfrmPolicySetDefault},
 	{[]string{"getdefault"}, func(c *runCtx, _ []string) error { return xfrmPolicyGetDefault(c) }},
 	{[]string{xfrmHelpCst}, func(*runCtx, []string) error {
 		return fmt.Errorf("%w: %s", ErrXfrmUsage, xfrmPolicyUsageCst)
@@ -104,7 +97,8 @@ var xfrmPolicyVerbs = []struct {
 
 // xfrmPolicy is do_xfrm_policy. Of its verbs only count renders
 // show_stats > 1, its buckets and thresholds, so goip refuses `-s -s` for
-// the others (flush's "Flush policy" line is G7-T04's).
+// the others, among them deleteall's round lines and flush's "Flush
+// policy", which goip does not print.
 func xfrmPolicy(c *runCtx, args []string) error {
 	if len(args) == 0 {
 		args = []string{listVerbCst}
@@ -242,13 +236,21 @@ func xfrmPolicyNextDir(a *xfrmArgs, dir *uint8) error {
 	if err := a.next(); err != nil {
 		return err
 	}
-	for i, d := range []string{"in", "out", "fwd"} {
+	for i, d := range []string{"in", xfrmDirOutCst, "fwd"} {
 		if a.cur() == d {
 			*dir = uint8(i)
 			return nil
 		}
 	}
 	return xfrmUsage(invargErr("DIR value is invalid", a.cur()))
+}
+
+// xfrmPolicyTypeBytes is struct xfrm_userpolicy_type: the type, then its
+// two reserved fields, six bytes in all.
+func xfrmPolicyTypeBytes(ptype uint8) []byte {
+	b := make([]byte, xtcpnl.XfrmUserpolicyTypeSizeCst)
+	b[0] = ptype
+	return b
 }
 
 // xfrmPolicyNextPtype is ptype's value, xfrm_policy_ptype_parse's: main or
@@ -477,7 +479,7 @@ func (q *xfrmPolicyID) request() (hdr, attrs []byte, err error) {
 	b := xtcpnl.NewAttrBuilder(raw[:])
 	var errs []error
 	if q.ptypep != "" {
-		errs = append(errs, b.PutBytes(xtcpnl.XfrmAttrPolicyType, []byte{q.ptype, 0, 0, 0}))
+		errs = append(errs, b.PutBytes(xtcpnl.XfrmAttrPolicyType, xfrmPolicyTypeBytes(q.ptype)))
 	}
 	if q.mark[0]&q.mark[1] != 0 {
 		v := binary.LittleEndian.AppendUint32(nil, q.mark[0])

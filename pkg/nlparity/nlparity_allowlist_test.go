@@ -943,6 +943,20 @@ func TestAllowlistCommitted(t *testing.T) {
 		"xfrm policy c",
 		"-s -s xfrm policy count",
 		"xfrm policy getd",
+		// G7-T04's 13 `xfrm policy` write rows.
+		"xfrm policy add src 192.0.2.1/32 dst 192.0.2.2/32 dir out tmpl src 192.0.2.1 dst 192.0.2.2 proto esp reqid 1 mode transport",
+		"xfrm policy add src 2001:db8::1/128 dst 2001:db8::2/128 proto tcp dport 443 dir in priority 10 action block",
+		"xfrm policy a src 192.0.2.1/32 dst 192.0.2.2/32 dir out tmpl src 192.0.2.1 dst 192.0.2.2 proto esp reqid 1 mode transport",
+		"xfrm policy update src 192.0.2.1/32 dst 192.0.2.2/32 dir out priority 5 tmpl src 192.0.2.1 dst 192.0.2.2 proto esp reqid 1 mode transport",
+		"xfrm policy update src 192.0.2.1/32 dst 192.0.2.2/32 dir out tmpl src 192.0.2.1 dst 192.0.2.2 proto esp reqid 1 mode transport",
+		"xfrm policy delete src 192.0.2.1/32 dst 192.0.2.2/32 dir out",
+		"xfrm policy d src 192.0.2.1/32 dst 192.0.2.2/32 dir out",
+		"xfrm policy deleteall",
+		"xfrm policy delall",
+		"xfrm policy flush",
+		"xfrm policy f",
+		"xfrm policy set hthresh4 24 16 hthresh6 64 48",
+		"xfrm policy setdefault in block fwd block out accept",
 	}
 
 	tests := []struct {

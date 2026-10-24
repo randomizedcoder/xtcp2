@@ -29,9 +29,15 @@ const (
 // returns what it wrote, nil for nothing.
 func xfrmWriteRun(t *testing.T, src Source, args string) (xfrmRun, []nlparity.Msg) {
 	t.Helper()
+	return xfrmWriteRunCtx(t, src, unix.AF_UNSPEC, 0, args)
+}
+
+// xfrmWriteRunCtx is xfrmWriteRun with preferred_family and show_stats.
+func xfrmWriteRunCtx(t *testing.T, src Source, family uint8, stats int, args string) (xfrmRun, []nlparity.Msg) {
+	t.Helper()
 	out := filepath.Join(t.TempDir(), "write")
 	t.Setenv(writeOutEnvCst, out)
-	r := xfrmRunArgs(src, unix.AF_UNSPEC, false, args)
+	r := xfrmRunCount(src, family, stats, args)
 	b, err := os.ReadFile(out)
 	if os.IsNotExist(err) {
 		return r, nil

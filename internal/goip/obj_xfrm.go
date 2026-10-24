@@ -22,8 +22,8 @@ import (
 // do: list, a GETSA dump each answer of which is printed, filtered on
 // goip's side as ip's is; get, one GETSA; and count, one GETSADINFO. The
 // state writes are xfrm_state_write.go's, the policy reads
-// obj_xfrm_policy.go's; the policy writes are G7-T04's, and the monitor
-// G7-T05's.
+// obj_xfrm_policy.go's and its writes xfrm_policy_write.go's; the monitor
+// is G7-T05's.
 
 const (
 	xfrmHelpCst    = "help"

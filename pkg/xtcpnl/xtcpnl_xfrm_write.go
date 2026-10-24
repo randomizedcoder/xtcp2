@@ -17,10 +17,15 @@ var ErrXfrmWrite = errors.New("xtcpnl: XFRM writes are built by BuildXfrmWriteRe
 // IsAdmittedXfrmWrite reports whether msgType is an XFRM write goip may
 // build: the SA writes `ip xfrm state` sends, NEWSA (`add`), UPDSA
 // (`update`), ALLOCSPI (`allocspi`), DELSA (`delete` and `deleteall`) and
-// FLUSHSA (`flush`) (ip/xfrm_state.c). The policy writes are not yet.
+// FLUSHSA (`flush`) (ip/xfrm_state.c), and the policy writes `ip xfrm
+// policy` sends, NEWPOLICY (`add`), UPDPOLICY (`update`), DELPOLICY
+// (`delete` and `deleteall`), FLUSHPOLICY (`flush`), NEWSPDINFO (`set`)
+// and SETDEFAULT (`setdefault`) (ip/xfrm_policy.c).
 func IsAdmittedXfrmWrite(msgType uint16) bool {
 	switch msgType {
-	case XfrmMsgNewSA, XfrmMsgUpdSA, XfrmMsgAllocSPI, XfrmMsgDelSA, XfrmMsgFlushSA:
+	case XfrmMsgNewSA, XfrmMsgUpdSA, XfrmMsgAllocSPI, XfrmMsgDelSA, XfrmMsgFlushSA,
+		XfrmMsgNewPolicy, XfrmMsgUpdPolicy, XfrmMsgDelPolicy, XfrmMsgFlushPolicy, XfrmMsgNewSPDInfo,
+		XfrmMsgSetDefault:
 		return true
 	}
 	return false
