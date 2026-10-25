@@ -2102,7 +2102,7 @@ Five tasks, one per KC5 task and iproute2 parser: KP4-T01 gre, gretap and erspan
 #### KP4-T02 The ip6gre, ip6gretap and ip6erspan parser
 
 **Code.** `xtcpnl_gre6.go`, on KP4-T01's `GreInfo`:
-- **`EncodeGre6InfoData(settings, cur)`:** `link_gre6.c`'s `gre_parse_opt`. `external` sends `COLLECT_METADATA` alone. Otherwise, in order: `IKEY`, `OKEY`, `IFLAGS`, `OFLAGS`, `LOCAL` and `REMOTE` when set and not `::`, `LINK` when nonzero, `TTL` (64 by default), `ENCAP_LIMIT` (4), `FLOWINFO`, `FLAGS`, `FWMARK`, `ERSPAN_VER` (1, sent for all three kinds), `ERSPAN_INDEX` or `ERSPAN_DIR` and `ERSPAN_HWID` as gre's, then the four `ENCAP_*` (`ENCAP_FLAGS` `CSUM6` by default). The `IP6_TNL_F_*` words: `encaplimit none` (0x1, the limit still sent), `tclass inherit` (0x2), `flowlabel inherit` (0x4), `dscp inherit` (0x10), `fwmark inherit` (0x20, fwmark 0), `[no]allow-localremote` (0x40). `tclass` (hex) and `flowlabel` (hex, ≤0xfffff) clear their bits in `FLOWINFO` and set them. `cur` seeds every value, `FLAGS` with its `CAP` bits and the ports swapped.
+- **`EncodeGre6InfoData(settings, cur)`:** `link_gre6.c`'s `gre_parse_opt`, on KP4-T01's `GreSetting` with four more options (`EncapLimit`, `TClass`, `FlowLabel`, and `TnlFlag` for the `IP6_TNL_F_*` words); gre's `pmtudisc`, `ignore-df` and `tos` settings are refused (`ErrKindSettingOption`), as is an IPv4 address (`ErrKindSettingRange`). `external` sends `COLLECT_METADATA` alone. Otherwise, in order: `IKEY`, `OKEY`, `IFLAGS`, `OFLAGS`, `LOCAL` and `REMOTE` when set and not `::`, `LINK` when nonzero, `TTL` (64 by default), `ENCAP_LIMIT` (4), `FLOWINFO`, `FLAGS`, `FWMARK`, `ERSPAN_VER` (1, sent for all three kinds), `ERSPAN_INDEX` or `ERSPAN_DIR` and `ERSPAN_HWID` as gre's, then the four `ENCAP_*` (`ENCAP_FLAGS` `CSUM6` by default). The `IP6_TNL_F_*` words: `encaplimit none` (0x1, the limit still sent), `tclass inherit` (0x2), `flowlabel inherit` (0x4), `dscp inherit` (0x10), `fwmark inherit` (0x20, fwmark 0), `[no]allow-localremote` (0x40). `tclass` (hex) and `flowlabel` (hex, ≤0xfffff) clear their bits in `FLOWINFO` and set them. `cur` seeds every value, `FLAGS` with its `CAP` bits and the ports swapped.
 - **The render oracle:** `link_gre6.c`'s `gre_print_opt`: `external`, `remote`, `local`, `link`, `ttl`, `ip6_tnl_f_ign_encap_limit` or `encap_limit`, `ip6_tnl_f_use_orig_tclass` or `tclass` (`0x%02x`), `ip6_tnl_f_use_orig_flowlabel` or `flowlabel` (`0x%05x`), `ip6_tnl_f_rcv_dscp_copy`, the keys and seq/csum flags, `ip6_tnl_f_allow_local_remote`, `ip6_tnl_f_use_orig_fwmark` or `fwmark`, the erspan keys, `encap`.
 - **The benchmark:** `BenchmarkParseGre6InfoData` over `ip6erspan/add_v2`'s blob.
 
@@ -2128,15 +2128,20 @@ Five tasks, one per KC5 task and iproute2 parser: KP4-T01 gre, gretap and erspan
 |---|---|---|
 | positive: each row's request | the 50 rows that sent one, sets with their prefetch | byte-identical to `ip.pcap`'s |
 | negative: a flow label past 20 bits | `flowlabel 100000` | `ErrKindSettingRange` |
+| negative: an IPv4 remote | `10.0.0.1` | `ErrKindSettingRange` |
+| negative: gre's pmtudisc | the `PMTUDisc` option | `ErrKindSettingOption` |
 | negative: a setting with no option | the zero option | `ErrKindSettingOption` |
+| boundary: no settings | none | no attributes |
 | boundary: an ip6gre sends `ERSPAN_VER` 1 | `remote 2001:db8::1` | `ERSPAN_VER` 1 before the encap |
-| corner: the prefetched sport is swapped | `ip6gre/set_encap_sport_swap` | its request, the sport byte-swapped |
+| corner: `external` drops every other word | `external hoplimit 5` | `COLLECT_METADATA` alone |
+| corner: the prefetched sport is swapped | built `cur` with sport 4660, `hoplimit 64` | `ENCAP_SPORT` `34 12` (`ip6gre/set_encap_sport_swap` is the corpus row) |
 | corner: `tclass` after `tclass inherit` clears the flag | `tclass inherit tclass 20` | `FLOWINFO` `02 00 00 00`, `FLAGS` without 0x2 |
-| corner: the prefetch's `CAP` bits go back | `ip6gre/set_changeable` | its request, `FLAGS` with the `CAP` bits |
+| corner: the prefetch's `CAP` bits go back | built `cur` with `FLAGS` 0x30000, `allow-localremote` | `FLAGS` 0x30040 (`ip6gre/set_changeable` is the corpus row) |
+| corner: `fwmark inherit` zeroes the prefetched mark | built `cur` with fwmark 7, `fwmark inherit` | `FWMARK` 0, `FLAGS` 0x20 |
 
 `TestLinkInfoGre6Kinds`: the three kinds decode `Gre`; an ip6tnl does not.
 
-**Mutation check:** the tclass shifted by 24, not 20 (`add_tops`); `ERSPAN_VER` sent only for ip6erspan (every ip6gre request); the prefetched `FLAGS` sent without the `CAP` bits (`set_changeable`).
+**Mutation check:** the tclass shifted by 24, not 20 (`add_tops`); `ERSPAN_VER` sent only with an erspan word (every ip6gre request; the encoder takes no kind, so this stands in for "only for ip6erspan"); the prefetched `FLAGS` sent without the `CAP` bits (`set_changeable`).
 
 #### KP4-T03 The ipip and sit parser
 

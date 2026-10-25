@@ -223,9 +223,18 @@ const (
 	GreOptionErspanVer
 	GreOptionErspanDir
 	GreOptionErspanHwid
+	// GreOptionEncapLimit, GreOptionTClass and GreOptionFlowLabel are the
+	// ip6 kinds' numbers, each clearing its inherit or none flag.
+	GreOptionEncapLimit
+	GreOptionTClass
+	GreOptionFlowLabel
+	// GreOptionTnlFlag sets (Value 1) or clears (0) the IP6_TNL_F_* bit in
+	// Attr, for the ip6 kinds: encaplimit none, tclass, flowlabel, dscp or
+	// fwmark inherit, and [no]allow-localremote.
+	GreOptionTnlFlag
 )
 
-// GreSetting is one option word of `type gre`, `gretap` or `erspan`. Value
+// GreSetting is one option word of a gre kind's `type`. Value
 // is the key (dotted keys read big-endian), 1 or 0 for a flag, the ifindex,
 // the ttl (0 for inherit), the tos (1 for inherit), pmtudisc or ignore-df
 // as 1 or 0, the fwmark, an encap type or port (sport 0 for auto), or an
@@ -248,6 +257,8 @@ type greEnc struct {
 	metadata                     bool
 	erspanIdx, erspanVer         uint64
 	erspanDir, erspanHwid        uint64
+	// encapLimit, flowinfo and flags are the ip6 kinds'.
+	encapLimit, flowinfo, flags uint64
 }
 
 // EncodeGreInfoData encodes the inside of IFLA_INFO_DATA for gre, gretap or
@@ -317,6 +328,9 @@ func (e *greEnc) seed(cur *GreInfo) {
 	seedU(cur.HasErspanVer, &e.erspanVer, uint64(cur.ErspanVer))
 	seedU(cur.HasErspanDir, &e.erspanDir, uint64(cur.ErspanDir))
 	seedU(cur.HasErspanHwid, &e.erspanHwid, uint64(cur.ErspanHwid))
+	seedU(cur.HasEncapLimit, &e.encapLimit, uint64(cur.EncapLimit))
+	seedU(cur.HasFlowInfo, &e.flowinfo, uint64(cur.FlowInfo))
+	seedU(cur.HasFlags, &e.flags, uint64(cur.Flags))
 	if cur.HasIgnoreDF && cur.IgnoreDF != 0 {
 		e.ignoreDF = 1
 	}
