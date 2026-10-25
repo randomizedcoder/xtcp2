@@ -1,6 +1,6 @@
 # goip ↔ `ip` link kinds: implementation status
 
-**Last updated:** 2026-10-24
+**Last updated:** 2026-10-25
 
 **Summary:**
 - The design and the task plan are in [goip-link-kinds.md](goip-link-kinds.md). This document tracks progress against them.
@@ -10,9 +10,10 @@
 - KC2 is done (KC2-T01, KC2-T02): a kind corpus (`kind-write-corpus.exp`) the link-write driver runs into `link-write/kinds/`, with 60 bridge rows and 42 bridge_slave rows, 80 the kernel accepts, 12 it refuses and 10 `ip` refuses before netlink. They are KP1's and KG1's source.
 - KC3 is done (KC3-T01, KC3-T02, KC3-T03): 28 vlan, 34 macvlan, 6 macvtap, 18 ipvlan and 4 ipvtap rows in the kind corpus, stacked on a dummy `d0`; of the 90, 54 the kernel accepts, 14 it refuses and 22 `ip` refuses before netlink. They are KP2's and KG2's source.
 - KC4 is done (KC4-T01, KC4-T02, KC4-T03, KC4-T04): KC4-T01 adds 73 vxlan rows, 46 the kernel accepts, 12 it refuses and 15 `ip` refuses before netlink; KC4-T02 adds 49 geneve rows, 22 accepted, 13 refused by the kernel and 14 by `ip`; KC4-T03 adds 16 bareudp and 20 amt rows, 11 accepted, 12 refused by the kernel and 13 by `ip`; KC4-T04 adds 19 gtp rows, 7 accepted, 4 refused by the kernel and 8 by `ip`. They are KP3's and KG3's source.
-- KC5 is in progress (planned in DOC006: five tasks, one per iproute2 parser or pair, for the twelve IP tunnel kinds): KC5-T01 adds 45 gre, 11 gretap and 25 erspan rows, 44 the kernel accepts, 16 it refuses and 21 `ip` refuses before netlink; KC5-T02 adds 36 ip6gre, 9 ip6gretap and 19 ip6erspan rows, 36 accepted, 14 refused by the kernel and 14 by `ip`; KC5-T03 adds 47 ipip and 37 sit rows, 46 accepted, 14 refused by the kernel and 24 by `ip` (`6rd-reset` has no row: it segfaults `ip`); KC5-T04 adds 49 ip6tnl rows, 29 accepted, 7 refused by the kernel and 13 by `ip`.
+- KC5 is done (KC5-T01, KC5-T02, KC5-T03, KC5-T04, KC5-T05; planned in DOC006): KC5-T01 adds 45 gre, 11 gretap and 25 erspan rows, 44 the kernel accepts, 16 it refuses and 21 `ip` refuses before netlink; KC5-T02 adds 36 ip6gre, 9 ip6gretap and 19 ip6erspan rows, 36 accepted, 14 refused by the kernel and 14 by `ip`; KC5-T03 adds 47 ipip and 37 sit rows, 46 accepted, 14 refused by the kernel and 24 by `ip` (`6rd-reset` has no row: it segfaults `ip`); KC5-T04 adds 49 ip6tnl rows, 29 accepted, 7 refused by the kernel and 13 by `ip`; KC5-T05 adds 23 vti, 12 vti6 and 23 xfrm rows, 27 accepted, 15 refused by the kernel and 16 by `ip`. They are KP4's and KG4's source.
+- KC6 is planned (DOC007): four tasks, with 181 drafted rows for hsr, netkit, vrf, vrf_slave, vxcan, batadv, ifb, nlmon, vcan, team and team_slave.
 
-**Next action:** [KC5-T05](goip-link-kinds.md#kc5-t05-vti-vti6-and-xfrm): vti, vti6 and xfrm.
+**Next action:** [KC6-T01](goip-link-kinds.md#kc6-t01-hsr): hsr.
 
 ## Contents
 
@@ -41,8 +42,8 @@
 | [KC2](goip-link-kinds.md#kc2--bridge-captures) | captures | bridge | KC2-T02 | done | V009–V016, DOC004 |
 | [KC3](goip-link-kinds.md#kc3--vlan-family-captures) | captures | VLAN family | KC3-T03 | done | V017–V025, DOC005 |
 | [KC4](goip-link-kinds.md#kc4--udp-overlay-captures) | captures | UDP overlays | KC4-T04 | done | V026–V037, DOC006 |
-| [KC5](goip-link-kinds.md#kc5--ip-tunnel-captures) | captures | IP tunnels | KC5-T05 | in progress | V038–V049 |
-| [KC6](goip-link-kinds.md#kc6--the-remaining-kinds-captures) | captures | the remaining kinds | | not started | |
+| [KC5](goip-link-kinds.md#kc5--ip-tunnel-captures) | captures | IP tunnels | KC5-T05 | done | V038–V052, DOC007 |
+| [KC6](goip-link-kinds.md#kc6--the-remaining-kinds-captures) | captures | the remaining kinds | KC6-T04 | not started | |
 | [KC7](goip-link-kinds.md#kc7--kind-completeness-gate) | captures | completeness gate | | not started | |
 | [KP0](goip-link-kinds.md#kp0--inet-devconf-codec) | parsers | `inet` devconf codec | | not started | |
 | [KP1](goip-link-kinds.md#kp1--bridge-parsers) | parsers | bridge | | not started | |
@@ -78,8 +79,11 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | [x] | [KC5-T02](goip-link-kinds.md#kc5-t02-ip6gre-ip6gretap-and-ip6erspan) | ip6gre, ip6gretap and ip6erspan | done | V041–V043 |
 | [x] | [KC5-T03](goip-link-kinds.md#kc5-t03-ipip-and-sit) | ipip and sit | done | V044–V046 |
 | [x] | [KC5-T04](goip-link-kinds.md#kc5-t04-ip6tnl) | ip6tnl | done | V047–V049 |
-| [ ] | [KC5-T05](goip-link-kinds.md#kc5-t05-vti-vti6-and-xfrm) | vti, vti6 and xfrm | not started | |
-| [ ] | [KC6-T01…](goip-link-kinds.md#kc6--the-remaining-kinds-captures) | the remaining kinds' captures | not started | |
+| [x] | [KC5-T05](goip-link-kinds.md#kc5-t05-vti-vti6-and-xfrm) | vti, vti6 and xfrm | done | V050–V052, DOC007 |
+| [ ] | [KC6-T01](goip-link-kinds.md#kc6-t01-hsr) | hsr | not started | |
+| [ ] | [KC6-T02](goip-link-kinds.md#kc6-t02-netkit) | netkit | not started | |
+| [ ] | [KC6-T03](goip-link-kinds.md#kc6-t03-vrf-vrf_slave-and-vxcan) | vrf, vrf_slave and vxcan | not started | |
+| [ ] | [KC6-T04](goip-link-kinds.md#kc6-t04-batadv-ifb-nlmon-vcan-team-and-team_slave) | batadv, ifb, nlmon, vcan, team and team_slave | not started | |
 | [ ] | [KC7-T01…](goip-link-kinds.md#kc7--kind-completeness-gate) | completeness gate | not started | |
 | [ ] | [KP0-T01…](goip-link-kinds.md#kp0--inet-devconf-codec) | `inet` devconf codec | not started | |
 | [ ] | [KP1-T01…](goip-link-kinds.md#kp1--bridge-parsers) | bridge parsers | not started | |
@@ -153,6 +157,10 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | V047 | 2026-10-25 | KC5-T04 | `nix build .#checks.x86_64-linux.vm-lib-exp` | `kind-write-corpus.exp`: 163 passed, 0 failed (the 647 rows, ip6tnl's after sit's, the mode rows, the label's and hop limit's tops, the encap words, the prefetch row's pre, a set of `mode`, the conflict pres, the second readbacks, `d0` first); the other suites unchanged | this commit |
 | V048 | 2026-10-25 | KC5-T04 | mutation, scratch copies of the corpus and its test, through `expect`: ip6tnl `add_encap_abbrev` at 1, `set_keeps_prefetch`'s pre without `hoplimit 10`, `add_flowlabel_over` at 0, `add_external_second`'s pre made with base | 4 of 4 killed: by `refused_statuses` and `ip6tnl_encap_words`; `ip6tnl_prefetch_pre`; `refused_statuses` and `ip6tnl_tops`; `ip6tnl_pres` | scratch |
 | V049 | 2026-10-25 | KC5-T04 | `nix run .#microvm-x86_64-link-write-capture -- --timeout 7200`, guest kernel 7.3.0; `-d -j` readbacks; compared with V046 by `pcapcmp` | `NLCAP_DRIVER_FAIL` on `genl/mptcp_limits_set_over` alone (V004). The 49 rows hold their planned statuses on the first run: 29 at 0, 7 at 2, 3 at 1, 10 at 255. The readbacks are the plan's: a bare add `remote any` with `ttl` 0 and `encap_limit` 0, `add_default` hoplimit 64 and encaplimit 4, `encaplimit none` as `ip6_tnl_f_ign_encap_limit`, the `inherit` words as their `ip6_tnl_f_*` flags, `hoplimit 10 ttl 20` as 20, the prefetched set keeping hoplimit 10 beside the new tclass, a set of `mode` applied (`ipip6`), `external` reading back `remote any`. `encap fou` is `Invalid argument` (fou6 isn't loaded); the other kernel refusals are `File exists` and `Invalid argument`; `ip`'s carry the usage text, `get_addr`'s message, `invarg`'s, `nodev`'s and `NEXT_ARG`'s. Against V046: 157 new pcaps, all under `kinds/ip6tnl/` (49 `ip.pcap` and 36 rows × 3 readbacks); 2710 the same shape, 13 differing in V004's classes (`tcp_metrics` and neighbor dumps, monitor and event rows), none under `kinds/` | scratch |
+| V050 | 2026-10-25 | KC5-T05 | `nix build .#checks.x86_64-linux.vm-lib-exp` | `kind-write-corpus.exp`: 178 passed, 0 failed (the 705 rows, vti's after ip6tnl's and then vti6's and xfrm's, the abbreviations, the key's and if_id's ranges, vti's point-to-point check that vti6 lacks, the lower and the key in the conflicts, what a set keeps or drops, the prefetch's failure, the bare sets, the conflict pres and readbacks, the `strcmp` words, `d0` first and its negative, `ip`'s xfrm checks); the other suites unchanged. The draft's "three `set_no_option` rows" test had no vti6 row in its table, so the table gains vti6 `set_no_option` | this commit |
+| V051 | 2026-10-25 | KC5-T05 | mutation, scratch copies of the corpus and its test, through `expect`: vti `set_remote_on_any` at 0, vti6 `add_duplicate_other_dev`'s pre without `v6`, xfrm `set_drop_dev`'s command with `dev d0`, vti `set_on_dummy` at 2 | 4 of 4 killed: by `refused_statuses` and `vti_p2p`; `vti_conflict_pres`; `vti_set_keeps`; `refused_statuses` and `vti_prefetch_fail` | scratch |
+| V052 | 2026-10-25 | KC5-T05 | `nix run .#microvm-x86_64-link-write-capture -- --timeout 7200`, guest kernel 7.3.0; `-d -j` readbacks; compared with V049 by `pcapcmp` | `NLCAP_DRIVER_FAIL` on `genl/mptcp_limits_set_over` alone (V004). The 58 rows hold their planned statuses on the first run: vti 11 at 0, 5 at 2, 3 at 1, 4 at 255; vti6 7 at 0, 2 at 2, 2 at 1, 1 at 255; xfrm 9 at 0, 8 at 2, 2 at 1, 4 at 255. The readbacks are the plan's: keys as dotted quads on both vti kinds (`255.255.255.255` for the top, `ikey 0.0.0.6 okey 0.0.0.5` when `ikey` follows `key`), `fwmark` and `if_id` in hex, `remote`/`local` `any` when unset, the prefetched sets keeping the pre's remote, vti6's remote going to and from any, and xfrm's `external` alone. The kernel's refusals are `File exists`, `Invalid argument` (vti's point-to-point change, xfrm's lower change), "if_id must be non zero." and "collect_md can't be changed."; `ip`'s carry the usage text, `get_addr`'s message, "Failed to get existing tunnel info.", xfrm's external check, `invarg`'s, `missarg`'s, `nodev`'s and `NEXT_ARG`'s. Against V049: 184 new pcaps, all under `kinds/vti/`, `kinds/vti6/` and `kinds/xfrm/` (58 `ip.pcap` and 42 rows × 3 readbacks); 2867 the same shape, 13 differing in V004's classes (`tcp_metrics` and neighbor dumps, monitor and event rows), none under `kinds/` | scratch |
+| DOC007 | 2026-10-25 | KC5 close | KC6 broken into KC6-T01 (hsr), KC6-T02 (netkit), KC6-T03 (vrf, vrf_slave and vxcan) and KC6-T04 (batadv, ifb, nlmon, vcan, team and team_slave) with their tables, argued from `iplink_hsr.c`, `iplink_netkit.c`, `iplink_vrf.c`, `iplink_vxcan.c`, `iplink_batadv.c`, `iplink_ifb.c`, `iplink_nlmon.c`, `iplink_vcan.c` and `iplink_team.c` at `v7.2.0` and each kind's kernel checks; the `nodev`, bare-set, parser-less, hsr check, netkit statics and vxcan usage findings and the batadv attribute count (decision log); doccheck | tasks one to one, no broken link or anchor | this commit |
 
 ## Decision log
 
@@ -179,3 +187,11 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 - **KC5 is five tasks, one per iproute2 parser or pair.** The drafts were argued from `link_gre.c`, `link_gre6.c`, `link_iptnl.c`, `link_ip6tnl.c`, `link_vti.c`, `link_vti6.c` and `link_xfrm.c` at `v7.2.0` and the 7.3 kernel's checks. Two findings shape every task: a bare `type <kind>` is accepted, and every parser but xfrm's fetches the device before a set and resends its current values.
 - **sit's `6rd-reset` has no row: it segfaults `ip` 7.2.0.** `link_iptnl.c:288` passes the string literal `"2002::/16"` to `get_prefix`, whose `get_prefix_1` writes a NUL over the `/` (`lib/utils.c:693-695`), so `ip` faults on read-only memory before it sends anything. KC5-T03's first VM run found it (V046). KG5 decides whether goip refuses the word or sends what it was meant to, `2002::/16` with no relay prefix; parity can't compare a crash. Nothing is sent upstream.
 - **A set on sit's wildcard exits 255 before netlink.** The kernel gives a sit made with no `INFO_DATA` `ttl 64` and no DF (`ipip6_netlink_parms`), the set's prefetch seeds both, and `link_iptnl.c` refuses `ttl` nonzero with `nopmtudisc`. ipip's wildcard has `ttl` 0, so its sets reach the kernel. KC5-T03 keeps the two 255 rows and reaches the kernel's point-to-point check through a `ttl inherit` wildcard.
+- **KC6 is four tasks:** hsr; netkit; vrf, vrf_slave and vxcan; batadv with the five kinds `ip` has no parser for. The drafts were argued from `iplink_hsr.c`, `iplink_netkit.c`, `iplink_vrf.c`, `iplink_vxcan.c`, `iplink_batadv.c`, `iplink_ifb.c`, `iplink_nlmon.c`, `iplink_vcan.c` and `iplink_team.c` at `v7.2.0` and the 7.3 kernel's checks. Three findings shape every task:
+  - `iplink.c`'s `nodev` returns rather than exits, so a set on a missing device is 1. The tunnel parsers' `exit(nodev(…))` was 255.
+  - A set of only `type K` sends no `INFO_DATA` and reaches no kind code, so it is 0 for any kind.
+  - A kind with no `parse_opt` takes no word after `type`. Each word is Garbage (1), or `usage()` (255) for a prefix of `help`.
+- **hsr's `version` and `proto` checks in `ip` 7.2.0 test `get_u8`'s return, not the value** (`iplink_hsr.c:64-66`, `:71-73`). Any u8 passes, and the kernel refuses 2 and above. KC6-T01 pins it with `add_version_2` and `add_proto_2`; KG5 decides whether goip copies the check as written. Nothing is sent upstream.
+- **netkit's rows never run under `ip -batch`.** `netkit_parse_opt` keeps its state in statics, so a second row in one batch would inherit the first's.
+- **vxcan's usage goes to stdout.** `iplink_vxcan.c`'s `print_usage` ignores its `FILE *`, so `add_unknown`'s usage is in `ip.out`, not `ip.err`.
+- **batadv has one attribute, not two.** The inventory said 2; `IFLA_BATADV_ALGO_NAME` is the only member after `UNSPEC`.

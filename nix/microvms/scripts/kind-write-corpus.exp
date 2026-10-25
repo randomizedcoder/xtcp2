@@ -1290,6 +1290,116 @@ namespace eval kindcorpus {
         [ip6tnl add_no_value remote 255]
 
     ###########################################################################
+    # vti, vti6 and xfrm (KC5-T05). The devices are vt0, v6 and xf0, never
+    # the fallback names ip_vti0 or ip6_vti0. link_vti.c and link_vti6.c
+    # prefetch the device's attributes with a GETLINK on a set and send
+    # them again with the changed words; a device without vti INFO_DATA
+    # fails that prefetch, which is ip's status 1. Neither validate checks
+    # anything, so a bare add is a remote-any tunnel. ip_tunnel_find
+    # (net/ipv4/ip_tunnel.c) ignores a vti key, and ip_tunnel_changelink
+    # refuses a change that adds or removes the remote (IFF_POINTOPOINT);
+    # vti6_locate (net/ipv6/ip6_vti.c) ignores the lower and vti6 has no
+    # point-to-point check. link_xfrm.c has no prefetch and requires if_id
+    # unless external; xfrmi_newlink and xfrmi_changelink
+    # (net/xfrm/xfrm_interface_core.c) refuse if_id 0, an if_id in use,
+    # a second external device, a collect_md change and a different lower.
+    ###########################################################################
+    variable PRE_VT0 [list {link add vt0 type vti remote 10.0.0.1}]
+    variable PRE_VT0_ANY [list {link add vt0 type vti}]
+    variable PRE_VT0_VT1 [list {link add vt0 type vti remote 10.0.0.1} \
+        {link add vt1 type vti remote 10.0.0.2}]
+    variable PRE_V6 [list {link add v6 type vti6 remote 2001:db8::1}]
+    variable PRE_V6_ANY [list {link add v6 type vti6}]
+    variable PRE_V6_V7 [list {link add v6 type vti6 remote 2001:db8::1} \
+        {link add v7 type vti6 remote 2001:db8::2}]
+    variable PRE_XF0 [list {link add xf0 type xfrm if_id 1}]
+    variable PRE_XF0_DEV [list {link add d0 type dummy} {link add xf0 type xfrm dev d0 if_id 1}]
+    variable PRE_XF0_EXTERNAL [list {link add xf0 type xfrm external}]
+    variable PRE_XF0_XF1 [list {link add xf0 type xfrm if_id 1} {link add xf1 type xfrm if_id 2}]
+
+    # tunnel_set <kind> <dev> <name> <words> <rc> <pre> - a set of <dev>,
+    # after <pre>.
+    proc tunnel_set {kind dev name words rc pre} {
+        return [row $kind $name $pre [string trimright "ip link set $dev type $kind $words"] $rc $dev]
+    }
+
+    proc vti {name words rc {pre {}}} {
+        return [plain vti vt0 $name $words $rc $pre]
+    }
+
+    proc vti6 {name words rc {pre {}}} {
+        return [plain vti6 v6 $name $words $rc $pre]
+    }
+
+    proc xfrm {name words rc {pre {}}} {
+        return [plain xfrm xf0 $name $words $rc $pre]
+    }
+
+    lappend rows \
+        [vti add_default {remote 10.0.0.1 local 10.0.0.2} 0] \
+        [vti add_no_option {} 0] \
+        [vti add_ikey_okey {remote 10.0.0.1 ikey 1.2.3.4 okey 0x10} 0] \
+        [vti add_key_max {remote 10.0.0.1 key 4294967295} 0] \
+        [vti add_key_last_wins {remote 10.0.0.1 key 5 ikey 6} 0] \
+        [vti add_dev {remote 10.0.0.1 dev d0} 0 $PRE_D0] \
+        [vti add_fwmark {remote 10.0.0.1 fwmark 0x10} 0] \
+        [vti add_abbrev {r 10.0.0.1 l 10.0.0.2 i 1 o 2 d d0} 0 $PRE_D0] \
+        [plain vti vt1 add_second_other_dev {remote 10.0.0.1 dev d0} 0 [concat $PRE_D0 $PRE_VT0]] \
+        [tunnel_set vti vt0 set_fwmark {fwmark 5} 0 $PRE_VT0] \
+        [tunnel_set vti vt0 set_no_option {} 0 $PRE_VT0] \
+        [plain vti vt1 add_duplicate_other_key {remote 10.0.0.1 key 7} 2 $PRE_VT0] \
+        [plain vti vt1 add_duplicate_any {} 2 $PRE_VT0_ANY] \
+        [tunnel_set vti vt0 set_remote_on_any {remote 10.0.0.1} 2 $PRE_VT0_ANY] \
+        [tunnel_set vti vt0 set_remote_any {remote any} 2 $PRE_VT0] \
+        [tunnel_set vti vt1 set_collide {remote 10.0.0.1} 2 $PRE_VT0_VT1] \
+        [tunnel_set vti d0 set_on_dummy {fwmark 1} 1 $PRE_D0] \
+        [vti add_fwmark_abbrev {remote 10.0.0.1 fw 5} 1] \
+        [vti add_remote_v6 {remote 2001:db8::1} 1] \
+        [vti add_key_bad {key foo} 255] \
+        [vti add_key_over {key 4294967296} 255] \
+        [vti add_dev_missing {dev nosuch} 255] \
+        [vti add_no_value remote 255]
+
+    lappend rows \
+        [vti6 add_default {remote 2001:db8::1 local 2001:db8::2} 0] \
+        [vti6 add_no_option {} 0] \
+        [vti6 add_options {remote 2001:db8::1 key 5 dev d0 fwmark 0x10} 0 $PRE_D0] \
+        [tunnel_set vti6 v6 set_fwmark {fwmark 5} 0 $PRE_V6] \
+        [tunnel_set vti6 v6 set_no_option {} 0 $PRE_V6] \
+        [tunnel_set vti6 v6 set_remote_on_any {remote 2001:db8::1} 0 $PRE_V6_ANY] \
+        [tunnel_set vti6 v6 set_remote_any {remote any} 0 $PRE_V6] \
+        [plain vti6 v7 add_duplicate_other_dev {remote 2001:db8::1 dev d0} 2 [concat $PRE_D0 $PRE_V6]] \
+        [tunnel_set vti6 v7 set_collide {remote 2001:db8::1} 2 $PRE_V6_V7] \
+        [vti6 add_fwmark_abbrev {remote 2001:db8::1 fw 5} 1] \
+        [vti6 add_remote_v4 {remote 10.0.0.1} 1] \
+        [vti6 add_no_value local 255]
+
+    lappend rows \
+        [xfrm add_default {if_id 1} 0] \
+        [xfrm add_dev {dev d0 if_id 1} 0 $PRE_D0] \
+        [xfrm add_if_id_max {if_id 0xffffffff} 0] \
+        [xfrm add_external external 0] \
+        [xfrm add_abbrev {d d0 i 5} 0 $PRE_D0] \
+        [xfrm add_if_id_twice {if_id 1 if_id 2} 0] \
+        [tunnel_set xfrm xf0 set_if_id {if_id 2} 0 $PRE_XF0] \
+        [tunnel_set xfrm xf0 set_if_id_dev {dev d0 if_id 2} 0 $PRE_XF0_DEV] \
+        [tunnel_set xfrm xf0 set_no_option {} 0 $PRE_XF0] \
+        [xfrm add_no_option {} 2] \
+        [plain xfrm xf1 add_duplicate_other_dev {dev d0 if_id 1} 2 [concat $PRE_D0 $PRE_XF0]] \
+        [plain xfrm xf1 add_second_external external 2 $PRE_XF0_EXTERNAL] \
+        [tunnel_set xfrm xf0 set_drop_dev {if_id 2} 2 $PRE_XF0_DEV] \
+        [tunnel_set xfrm xf0 set_add_dev {dev d0 if_id 1} 2 [concat $PRE_D0 $PRE_XF0]] \
+        [tunnel_set xfrm xf1 set_collide {if_id 1} 2 $PRE_XF0_XF1] \
+        [tunnel_set xfrm xf0 set_external external 2 $PRE_XF0] \
+        [tunnel_set xfrm xf0 set_on_external {if_id 5} 2 $PRE_XF0_EXTERNAL] \
+        [xfrm add_external_if_id {external if_id 1} 1] \
+        [xfrm add_external_abbrev extern 1] \
+        [xfrm add_no_if_id {dev d0} 255 $PRE_D0] \
+        [xfrm add_if_id_zero {if_id 0} 255] \
+        [xfrm add_if_id_over {if_id 0x100000000} 255] \
+        [xfrm add_no_value if_id 255]
+
+    ###########################################################################
     # readback_args <ns> <subdir> <readback> - the xtcp2-nlcap capio argument
     # list for one readback, which the driver hands to its capio proc.
     ###########################################################################

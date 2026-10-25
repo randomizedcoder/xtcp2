@@ -82,7 +82,7 @@ One row per iproute2 file, at `v7.2.0`:
 | K5 | `iplink_netkit.c` | netkit | 41 | 10 | built in (`CONFIG_NETKIT` is `bool`) | |
 | K5 | `iplink_vrf.c` | vrf, vrf_slave | 24 | 2 | vrf | |
 | K5 | `iplink_vxcan.c` | vxcan | — | peer only | vxcan | |
-| K5 | `iplink_batadv.c` | batadv | — | 2 (`IFLA_BATADV_*`) | batman_adv | |
+| K5 | `iplink_batadv.c` | batadv | — | 1 (`IFLA_BATADV_ALGO_NAME`) | batman_adv | |
 | K5 | `iplink_ifb.c`, `iplink_nlmon.c`, `iplink_vcan.c` | ifb, nlmon, vcan | — | none | ifb, nlmon, vcan | |
 | K5 | `iplink_team.c` | team, team_slave | — | none | team | |
 | done | `iplink_bond.c`, `iplink_bond_slave.c` | bond, bond_slave | 340, 88 | | bonding | 3 `ll_index_to_name` |
@@ -1128,6 +1128,7 @@ Three IPsec kinds; the devices are `vt0` (vti), `v6` (vti6) and `xf0` (xfrm), so
 | vti6 `add_no_option` | (no option) | 0 | `vti6_validate` takes no `INFO_DATA`; `remote any local any` |
 | vti6 `add_options` | `remote 2001:db8::1 key 5 dev d0 fwmark 0x10` | 0 | keys (dotted quads on vti6 too), `LINK`, `FWMARK` |
 | vti6 `set_fwmark` | `fwmark 5`, on `v6` (`remote 2001:db8::1`) | 0 | the prefetch keeps the remote |
+| vti6 `set_no_option` | (no option), on `v6` | 0 | no `INFO_DATA`, no `changelink` |
 | vti6 `set_remote_on_any`, `set_remote_any` | `remote 2001:db8::1` on a bare `v6`; `remote any` on `v6` | 0 | no point-to-point check, unlike vti |
 | vti6 `add_duplicate_other_dev` | `v7`, `remote 2001:db8::1 dev d0`, on a namespace whose `v6` has `remote 2001:db8::1` | 2 | `vti6_locate` ignores the lower: `-EEXIST` |
 | vti6 `set_collide` | `ip link set v7 type vti6 remote 2001:db8::1`, with `v6` at `::1` and `v7` at `::2` | 2 | `-EEXIST` |
@@ -1177,7 +1178,221 @@ Three IPsec kinds; the devices are `vt0` (vti), `v6` (vti6) and `xf0` (xfrm), so
 
 ### KC6 — The remaining kinds' captures
 
-hsr, netkit, vrf writes, vxcan and batadv, and the option-less ifb, nlmon, vcan, team and team_slave.
+hsr, netkit, vrf and vrf_slave, vxcan, batadv, and the option-less ifb, nlmon, vcan, team and team_slave. The KC0 probe created every one of them (`late/kinds`). Four tasks: KC6-T01 hsr (`iplink_hsr.c`); KC6-T02 netkit (`iplink_netkit.c`); KC6-T03 vrf, vrf_slave and vxcan (`iplink_vrf.c`, `iplink_vxcan.c`); KC6-T04 batadv and the five kinds `ip` has no parser for (`iplink_batadv.c`, `iplink_ifb.c`, `iplink_nlmon.c`, `iplink_vcan.c`, `iplink_team.c`), which closes KC6.
+
+**Shared shape.** Rows go in `kind-write-corpus.exp` after xfrm's, under `kinds/<kind>/`, with KC5's shape. A row whose words must come before `type` (`mtu`, `address`, `up`, `numtxqueues`, `master`) is written with `row` and its whole command. The devices are `hs0` (hsr, slaves `d0` and `d1`, interlink `d2`), `nt0` (netkit), `vr0` (vrf), `vc0` (vxcan), `bat0` (batadv), `ib0` (ifb), `nm0` (nlmon), `vn0` (vcan) and `tm0` (team); a second device is `hs1`, `nt1`, `vr1` and so on. No name starts with `if` and a digit, which `ll_name_to_index` would read as an ifindex.
+
+**What these files add to KC5's rules:**
+- **`ip` hands a kind only the words after `type`.** `iplink_parse` stops at `type K` (`ip/iplink.c:1090-1094`), and `iplink_modify` nests `INFO_DATA` (`INFO_SLAVE_DATA` for a `_slave` kind) only when the kind has a `parse_opt` and words follow (`:1457`). So a bare `type K` sends no `INFO_DATA` for any kind, and a generic word written after `type K` belongs to the kind.
+- **A kind with no `parse_opt` takes no words.** ifb, nlmon, vcan, team, team_slave and vrf_slave have only `print_help`. A word after their `type` is "Garbage instead of arguments", status 1 (`:1469-1472`), unless it is a prefix of `help`, which is `usage()`, `exit(-1)`, 255 (`:1467-1468`).
+- **`nodev` returns; it doesn't exit.** `nodev()` prints and returns -1 (`lib/utils.c:844-848`), so a set on a missing device is status 1 (`iplink.c:1374`). The tunnel parsers' `exit(nodev(…))` was 255; `iplink.c`'s is 1. `master nosuch` and `vrf nosuch` are `invarg`s, 255 (`:1059-1061`).
+- **A set of only `type K` reaches no kind code.** It sends `IFLA_INFO_KIND` alone, and `rtnl_changelink` checks the kind and `changelink` only when `INFO_DATA` is present (`net/core/rtnetlink.c:3866-3868`), so it is 0 even for a mismatched kind. With `INFO_DATA`, a kind without `changelink` (hsr, vrf, vxcan, batadv) is `-EOPNOTSUPP`.
+- **`validate` runs before the create or change split** (`rtnetlink.c:4174`), so a value `validate` refuses on a set is that refusal, not `-EOPNOTSUPP`.
+- **A name lookup costs datagrams.** `ll_name_to_index` (hsr's slaves and interlink, `master`, `vrf`, a set's device) asks with its own `RTM_GETLINK`. Floors are minimums, so the rows keep KC5's floors.
+
+#### KC6-T01 hsr
+
+`ip/iplink_hsr.c` (`hsr_parse_opt`, lines 47-106) and `net/hsr/hsr_netlink.c`. `supervision`, `version`, `proto`, `slave1` and `slave2` are `matches`, in that order, so `s` is `supervision`, `sl` is `slave1` and `v`/`p` are `version`/`proto`; `interlink` is `strcmp`, and `help` is `matches`, returning 1. The numbers are `get_u8` base 0 (`invarg`, 255, when bad or over 255), and the devices are `ll_name_to_index` (`invarg` "No such interface", 255). Nothing is sent unless named, and nothing is checked for repeats. **`ip`'s version and proto checks test `get_u8`'s return, not the value** (`:64-66`, `:71-73`): `get_u8(…) == 0 || get_u8(…) == 1` is true for any u8, so `version 2` and `proto 2` reach the kernel, which refuses them. The kernel has no `validate` and no `changelink`; `hsr_newlink` refuses with `-EINVAL` and an extack: no `INFO_DATA` or no `slave1` ("No slave devices specified"), no `slave2`, the same slave twice, an interlink equal to a slave, `proto` ≥ 2, `version` with PRP, and `version` > 1. `hsr_check_dev_ok` refuses loopback and non-Ethernet slaves. Readbacks: `slave1`, `slave2`, `interlink` when set, `supervision 01:15:4e:00:01:XX`, `sequence`, `version` (not for PRP) and `proto`. `base` is `slave1 d0 slave2 d1`, and every row's pre makes `d0` and `d1` (and `d2` for the interlink rows).
+
+| slugs | command | rc | what it pins |
+|---|---|---|---|
+| `add_default` | base | 0 | `SLAVE1`, `SLAVE2`; the kernel's supervision `…:00`, version 0, proto 0 |
+| `add_supervision`, `add_supervision_max`, `add_supervision_hex` | base `supervision 42`; base `supervision 255`; base `supervision 0xff` | 0 | `MULTICAST_SPEC`, base 0; `…:2a`, `…:ff` |
+| `add_supervision_twice` | base `supervision 1 supervision 2` | 0 | no repeat check; `…:02` |
+| `add_version_1` | base `version 1` | 0 | `VERSION` 1 |
+| `add_proto_prp` | base `proto 1` | 0 | `PROTOCOL` 1; no version reads back |
+| `add_interlink` | base `interlink d2` | 0 | `INTERLINK`; reads back `interlink d2` |
+| `add_abbrev` | `sl d0 slave2 d1 s 7 v 1 p 0` | 0 | `matches`, `sl` taken as `slave1` |
+| `add_no_option` | (no option) | 2 | no `INFO_DATA`: "No slave devices specified" |
+| `add_slave1_only`, `add_slave2_only` | `slave1 d0`; `slave2 d1` | 2 | the missing slave's extack |
+| `add_same_slaves` | `slave1 d0 slave2 d0` | 2 | one device as both slaves |
+| `add_version_2`, `add_proto_2` | base `version 2`; base `proto 2` | 2 | past `ip`'s check; the kernel's version and protocol checks |
+| `add_prp_version` | base `proto 1 version 0` | 2 | `VERSION` with PRP |
+| `add_interlink_slave` | base `interlink d0` | 2 | the interlink is a slave |
+| `add_slave_lo` | `slave1 lo slave2 d1` | 2 | `hsr_check_dev_ok`: loopback |
+| `set_option` | `supervision 5`, on `hs0` (base) | 2 | no `changelink`: `-EOPNOTSUPP` |
+| `set_no_option` | (no option), on `hs0` | 0 | `INFO_KIND` alone |
+| `add_interlink_abbrev`, `add_protocol` | base `inter d2`; base `protocol 1` | 1 | `strcmp`; a word longer than the keyword |
+| `add_unknown`, `add_help` | base `foo`; `help` | 1 | the returned errors |
+| `add_supervision_over`, `add_supervision_bad`, `add_version_over` | base `supervision 256`; base `supervision abc`; base `version 256` | 255 | `get_u8`'s failure, `invarg` |
+| `add_slave_missing`, `add_no_value` | `slave1 nosuch slave2 d1`; base `supervision` | 255 | `invarg`; `NEXT_ARG` |
+
+**Tests:**
+
+| description | input | expected |
+|---|---|---|
+| positive: the rows are the plan's, after xfrm's | the slug list | the table's slugs |
+| negative: exactly the refusal rows expect a non-zero status | `refused_rows` | the table's |
+| boundary: the supervision byte's top | `add_supervision_max`, `add_supervision_over` | 255 at 0, 256 at 255 |
+| corner: `ip`'s version and proto checks pass any u8 | `add_version_1`, `add_version_2`, `add_version_over`, `add_proto_2` | 0, 2, 255, 2 |
+| corner: a bare add is the kernel's refusal | `add_no_option` | 2, floor 2 |
+| corner: `sl` is `slave1`, `inter` isn't `interlink` | `add_abbrev`, `add_interlink_abbrev` | 0, 1 |
+| corner: every row makes `d0` and `d1` first, and the interlink rows `d2` | the pres | `{link add d0 type dummy} {link add d1 type dummy}` first; `d2` after them where named |
+| corner: hsr has no `changelink` | `set_option`, `set_no_option` | 2, 0 |
+| positive (VM): each status, and the values read back | `ip.rc`; `-d -j` readbacks | the table's rc; the slaves, the supervision address, version and proto |
+
+**Mutation check:** `add_version_2` at 255 (the u8 corner), `add_abbrev`'s pre without `d1` (the pres corner), `set_option` at 0 (the `changelink` corner).
+
+**Done when:** as KC2-T01.
+
+#### KC6-T02 netkit
+
+`ip/iplink_netkit.c` (`netkit_parse_opt`, lines 46-150) and `drivers/net/netkit.c`. Every keyword is `strcmp`. `mode l3|l2` sends `MODE` (anything else returns 1, a second `mode` is `duparg`, 255); `forward`/`blackhole` send `POLICY` before `peer` and `PEER_POLICY` after; `scrub none|default` sends `SCRUB` before `peer` and `PEER_SCRUB` after (anything else returns 1); a second `peer` is `duparg`. After `peer`, the first word that isn't one of these opens `PEER_INFO` and `iplink_parse` takes every word left, so `peer name nt1 blackhole` reads `blackhole` as a device and exits "both name and dev" (255), and `peer black` names the peer `black`. An unknown word before `peer` returns 1. 7.2.0 has no `headroom`, `tailroom` or `pairing`. The parser keeps state in statics, so its rows never run under `ip -batch`. The kernel's policy caps `MODE`, `SCRUB` and `PEER_SCRUB` at 1; the defaults are l3, forward and scrub default on both ends, with the peer named by the kernel. `netkit_new_link` refuses an address in l3 mode (`-EOPNOTSUPP`), registers the peer first (so a peer named like the device is `-EEXIST`), and ignores the peer's flags. **netkit has a `changelink`**, which changes only `POLICY` and `PEER_POLICY`: `MODE`, `SCRUB`, `PEER_SCRUB` or `PEER_INFO` is `-EACCES`, even unchanged, and so is any change made through the peer.
+
+| slugs | command | rc | what it pins |
+|---|---|---|---|
+| `add_no_option` | (no option) | 0 | no `INFO_DATA`; l3, forward, scrub default |
+| `add_peer_only` | `peer` | 0 | an empty `INFO_DATA` |
+| `add_mode_l2`, `add_mode_l3` | `mode l2`; `mode l3` | 0 | `MODE` 0 and 1 |
+| `add_blackhole`, `add_policy_twice` | `blackhole`; `forward blackhole` | 0 | `POLICY` 2; no repeat check, the last wins |
+| `add_scrub_none` | `scrub none` | 0 | `SCRUB` 0 |
+| `add_peer_blackhole`, `add_peer_scrub` | `peer blackhole`; `peer scrub none` | 0 | `PEER_POLICY`, `PEER_SCRUB` |
+| `add_peer_name`, `add_peer_bare_name`, `add_peer_word` | `peer name nt1`; `peer nt1`; `peer black` | 0 | `PEER_INFO`'s `IFNAME`; a bare word is the peer's name |
+| `add_peer_mode` | `peer mode l2` | 0 | a netkit word after `peer` stays netkit's |
+| `add_peer_up` | `peer up` | 0 | the peer's flags are ignored |
+| `add_l2_address` | `ip link add nt0 address 02:00:00:00:00:01 type netkit mode l2` | 0 | an l2 device takes an address |
+| `add_peer_samename` | `peer name nt0` | 2 | the peer registers first: `-EEXIST` |
+| `add_l3_address`, `add_l3_peer_address` | `ip link add nt0 address 02:00:00:00:00:01 type netkit`; `peer address 02:00:00:00:00:01` | 2 | l3 takes no address: `-EOPNOTSUPP` |
+| `add_mcast_address` | `ip link add nt0 address 01:00:00:00:00:01 type netkit mode l2` | 2 | `validate`: `-EADDRNOTAVAIL` |
+| `set_blackhole`, `set_peer_policy` | `blackhole`; `peer blackhole`, on `nt0` | 0 | the two changeable attributes |
+| `set_no_option`, `set_peer_only` | (no option); `peer`, on `nt0` | 0 | `INFO_KIND` alone; an empty `INFO_DATA` |
+| `set_mode`, `set_scrub`, `set_peer_name` | `mode l3`; `scrub none`; `peer name nt1`, on `nt0` | 2 | `-EACCES`, the first even unchanged |
+| `set_on_peer` | `ip link set nt1 type netkit blackhole`, `nt1` the peer | 2 | a change through the peer: `-EACCES` |
+| `add_mode_bad`, `add_mode_case`, `add_mode_abbrev`, `add_scrub_bad` | `mode l4`; `mode L2`; `mo l2`; `scrub all` | 1 | the returned errors; `strcmp` |
+| `add_unknown`, `add_help`, `add_headroom` | `foo`; `help`; `headroom 64` | 1 | unknown words, `headroom` among them |
+| `set_peer_nodev` | `peer name nosuch`, on `nt0` | 1 | `nodev` returns |
+| `add_mode_missing`, `add_mode_twice`, `add_scrub_missing` | `mode`; `mode l3 mode l2`; `scrub` | 255 | `NEXT_ARG`, `duparg` |
+| `add_peer_twice`, `add_peer_type`, `add_peer_help` | `peer peer`; `peer name nt1 type veth`; `peer help` | 255 | `duparg`; `type` again; `usage()` |
+| `add_peer_name_then_word`, `add_peer_name_long` | `peer name nt1 blackhole`; `peer name abcdefghijklmnop` | 255 | "both name and dev"; a 16-byte name |
+
+**Tests:**
+
+| description | input | expected |
+|---|---|---|
+| positive: the rows are the plan's, after hsr's | the slug list | the table's slugs |
+| negative: exactly the refusal rows expect a non-zero status | `refused_rows` | the table's |
+| boundary: the peer name's length | `add_peer_name`, `add_peer_name_long` | 0, 255 |
+| corner: `peer` splits the policy and scrub words | `add_blackhole`, `add_peer_blackhole`, `add_peer_name_then_word` | 0, 0, 255 |
+| corner: only the policies change on a set | `set_blackhole`, `set_peer_policy`, `set_mode`, `set_scrub` | 0, 0, 2, 2 |
+| corner: an address is l2's alone | `add_l2_address`, `add_l3_address` | 0, 2; the commands put `address` before `type` |
+| corner: every keyword is `strcmp` | `add_mode_abbrev`, `add_mode_case` | 1, 1 |
+| corner: `set_on_peer`'s pre makes the pair with the peer named `nt1` | its pre | `{link add nt0 type netkit peer name nt1}` |
+| positive (VM): each status, and the values read back | `ip.rc`; `-d -j` readbacks | the table's rc; mode, policy, peer policy and scrub |
+
+**Mutation check:** `set_mode` at 0 (the set corner), `add_l2_address` without `mode l2` (the address corner), `add_peer_name_then_word` at 0 (the `peer` corner).
+
+**Done when:** as KC2-T01.
+
+#### KC6-T03 vrf, vrf_slave and vxcan
+
+**vrf** (`ip/iplink_vrf.c`, `drivers/net/vrf.c`). One keyword, `table`, `matches` (so `t`), through `rtnl_rttable_a2n`: `default`, `main` and `local` by name, else `strtoul` base 0 to `0xffffffff`; a bad or missing value is 255; no repeat check; `help` or an unknown word returns 1. The kernel requires a nonzero `TABLE` (`-EINVAL`, `vrf.c:1645`, `:1650`), allows a shared table (`strict_mode` is 0), and has no `changelink`. **vrf_slave** has no parser. A device enslaved with `master vr0` or `vrf vr0` reads back `vrf_slave table N`. The kernel refuses loopback (`-EOPNOTSUPP`) and a vrf inside a vrf (`-EINVAL`), and `add … type vrf_slave` is "Unknown device type". `vrf X` checks that X is a vrf (`invarg`, 255). **vxcan** (`ip/iplink_vxcan.c`, `drivers/net/can/vxcan.c`). The first word must be `peer` (`strcmp`); anything else prints the usage to stdout and returns 1. `peer` hands the rest to `iplink_parse` inside `VXCAN_INFO_PEER`. The kernel registers the peer first (default name `vxcan0`, so a peer named like the device is `-EEXIST`), has no `validate`, `changelink` or `fill_info`, and applies the peer's flags before the pair is linked, so `peer up` should be `-ENOTCONN`. That one is read from the code, and the VM decides it.
+
+| slugs | command | rc | what it pins |
+|---|---|---|---|
+| vrf `add_table`, `add_table_max`, `add_table_hex` | `table 10`; `table 4294967295`; `table 0x10` | 0 | `TABLE` u32, base 0 |
+| vrf `add_table_main`, `add_table_twice`, `add_abbrev` | `table main`; `table 10 table 20`; `t 10` | 0 | the name; the last wins (20); `matches` |
+| vrf `add_shared_table` | `table 10`, beside `vr1` with table 10 | 0 | no strict mode |
+| vrf `add_no_option`, `add_table_zero` | (no option); `table 0` | 2 | the table is required, and nonzero |
+| vrf `add_mcast_address` | `ip link add vr0 address 01:00:00:00:00:01 type vrf table 10` | 2 | `-EADDRNOTAVAIL` |
+| vrf `set_table` | `table 20`, on `vr0` | 2 | no `changelink` |
+| vrf `set_no_option` | (no option), on `vr0` | 0 | `INFO_KIND` alone |
+| vrf `add_unknown`, `add_help` | `tbl 10`; `help` | 1 | the returned errors |
+| vrf `add_table_over`, `add_table_neg`, `add_table_bad`, `add_no_value` | `table 4294967296`; `table -1`; `table abc`; `table` | 255 | `invarg`, `NEXT_ARG` |
+| vrf_slave `set_master`, `set_vrf` | `ip link set d0 master vr0`; `ip link set d0 vrf vr0` | 0 | `d0` reads back `vrf_slave table 10` |
+| vrf_slave `set_type`, `set_nomaster` | `ip link set d0 type vrf_slave`; `ip link set d0 nomaster`, on an enslaved `d0` | 0 | `INFO_KIND` alone; released |
+| vrf_slave `set_master_lo`, `set_vrf_in_vrf` | `ip link set lo master vr0`; `ip link set vr1 master vr0` | 2 | loopback; a vrf in a vrf |
+| vrf_slave `add` | `ip link add vs0 type vrf_slave` | 2 | "Unknown device type" |
+| vrf_slave `set_type_word` | `ip link set d0 type vrf_slave table 5` | 1 | no parser: Garbage |
+| vrf_slave `set_vrf_not_vrf`, `set_master_missing` | `ip link set d0 vrf d1`; `ip link set d0 master nosuch` | 255 | `invarg` |
+| vxcan `add_no_option`, `add_peer` | (no option); `peer` | 0 | the kernel's `vxcan0` |
+| vxcan `add_peer_name`, `add_peer_bare_name` | `peer name vc1`; `peer vc1` | 0 | the peer's `IFNAME` |
+| vxcan `add_up` | `ip link add vc0 up type vxcan` | 0 | the device's own flags apply |
+| vxcan `add_peer_samename`, `add_peer_up` | `peer name vc0`; `peer up` | 2 | `-EEXIST`; `-ENOTCONN` |
+| vxcan `set_peer` | `peer name vxcan0`, on `vc0` | 2 | no `changelink` |
+| vxcan `set_no_option` | (no option), on `vc0` | 0 | `INFO_KIND` alone |
+| vxcan `add_unknown`, `add_abbrev`, `add_help` | `foo`; `pe`; `help` | 1 | `peer` first, `strcmp` |
+| vxcan `set_peer_nodev` | `peer name nosuch`, on `vc0` | 1 | `nodev` returns |
+| vxcan `add_peer_name_long`, `add_peer_name_missing`, `add_peer_type`, `add_peer_help` | `peer name abcdefghijklmnop`; `peer name`; `peer type vxcan`; `peer help` | 255 | `iplink_parse`'s exits |
+| vxcan `set_peer_bare` | `peer`, on `vc0` | 255 | "dev required" |
+
+**Tests:**
+
+| description | input | expected |
+|---|---|---|
+| positive: the rows are the plan's, after netkit's | the slug list | the table's slugs: vrf's, vrf_slave's, then vxcan's |
+| negative: exactly the refusal rows expect a non-zero status | `refused_rows` | the table's |
+| boundary: the table's range | `vrf/add_table_zero`, `vrf/add_table_max`, `vrf/add_table_over` | 2, 0, 255 |
+| corner: a kind with no `changelink` takes a bare set and refuses one with data | `vrf/set_no_option`, `vrf/set_table`, `vxcan/set_no_option`, `vxcan/set_peer` | 0, 2, 0, 2 |
+| corner: vrf_slave has no parser | `vrf_slave/set_type`, `vrf_slave/set_type_word` | 0, 1 |
+| corner: the enslave rows' pres make `vr0` and `d0` | their pres | `{link add vr0 type vrf table 10}` first |
+| corner: the readbacks read the enslaved device | `vrf_slave/set_master` | its readbacks name `d0` |
+| corner: a missing device is 1 for a set, 255 for `master` | `vxcan/set_peer_nodev`, `vrf_slave/set_master_missing` | 1, 255 |
+| positive (VM): each status, and the values read back | `ip.rc`; `-d -j` readbacks | the table's rc; `table`, `vrf_slave table 10` |
+
+**Mutation check:** `vrf/set_table` at 0 (the `changelink` corner), `vrf_slave/set_master`'s pre without `vr0` (the pres corner), `vxcan/set_peer_nodev` at 255 (the missing-device corner).
+
+**Done when:** as KC2-T01.
+
+#### KC6-T04 batadv, ifb, nlmon, vcan, team and team_slave
+
+**batadv** (`ip/iplink_batadv.c`, `net/batman-adv/mesh-interface.c`). One keyword, `ra`, `matches` (so `r`), sent verbatim as the NUL-terminated `IFLA_BATADV_ALGO_NAME`, with no check and no repeat check; `help` and an unknown word return 1. It is the kernel's only `IFLA_BATADV_*` attribute. `validate` looks the name up case-sensitively among `BATMAN_IV` and `BATMAN_V` (`-EINVAL`, no extack); the default is `BATMAN_IV`; there's no `changelink` and no `fill_info`, so nothing reads back. **ifb, nlmon, vcan, team, team_slave** have no parser. Their rows are the generic words before `type`, the refusals their drivers make, and Garbage after `type`. ifb's `validate` refuses a multicast address (`-EADDRNOTAVAIL`); nlmon's refuses any address (`-EINVAL`), and its minimum MTU is 16. vcan's `ndo_change_mtu` takes 16, 72 and 76 to 2060, and refuses a change while up (`-EBUSY`). A create's MTU is checked only against the device's min and max, which vcan leaves at 0, so `mtu 100` at create should be accepted; that one is read from the code. team enslaves without teamd: `team_port_add` refuses loopback, the team itself and a port that is up, each with an extack, and `ip link add d0 up master tm0 type dummy` brings `d0` up before it sets the master, so it is refused too. A set `mtu` on vcan and the enslave rows have no `type`, so they are written whole with `row`.
+
+| slugs | command | rc | what it pins |
+|---|---|---|---|
+| batadv `add_no_option`, `add_ra_v`, `add_ra_iv` | (no option); `ra BATMAN_V`; `ra BATMAN_IV` | 0 | no `INFO_DATA`; the attribute |
+| batadv `add_abbrev`, `add_ra_twice` | `r BATMAN_V`; `ra BATMAN_IV ra BATMAN_V` | 0 | `matches`; two attributes, the kernel keeps the last |
+| batadv `add_duplicate` | (no option), beside `bat0` | 2 | `-EEXIST` |
+| batadv `add_ra_bogus`, `add_ra_lowercase` | `ra BOGUS`; `ra batman_v` | 2 | `validate`, case-sensitive |
+| batadv `add_mtu_low` | `ip link add bat0 mtu 67 type batadv` | 2 | below Ethernet's minimum |
+| batadv `set_ra`, `set_ra_bogus` | `ra BATMAN_V`; `ra BOGUS`, on `bat0` | 2 | no `changelink`; `validate` first |
+| batadv `set_no_option` | (no option), on `bat0` | 0 | `INFO_KIND` alone |
+| batadv `add_unknown`, `add_ra_longer`, `add_help` | `foo`; `rax BATMAN_V`; `help` | 1 | the returned errors |
+| batadv `set_nodev` | `ra BATMAN_V`, on a missing `bat0` | 1 | `nodev` returns |
+| batadv `add_no_value` | `ra` | 255 | `NEXT_ARG` |
+| ifb `add_no_option`, `add_numtxqueues` | (no option); `ip link add ib0 numtxqueues 4 type ifb` | 0 | the generic word before `type` |
+| ifb `set_no_option`, `set_kind_mismatch` | (no option); `ip link set ib0 type vcan`, on `ib0` | 0 | `INFO_KIND` alone, any kind |
+| ifb `add_mcast_address` | `ip link add ib0 address 01:00:5e:00:00:01 type ifb` | 2 | `-EADDRNOTAVAIL` |
+| ifb `add_garbage`, `add_mtu_after_type`, `set_garbage` | `foo`; `mtu 1400`; `foo`, on `ib0` | 1 | Garbage, a generic word after `type` too |
+| ifb `add_help_abbrev` | `h` | 255 | `usage()` |
+| nlmon `add_no_option`, `add_mtu_min` | (no option); `ip link add nm0 mtu 16 type nlmon` | 0 | beside `nlmon0`; the minimum |
+| nlmon `add_address`, `add_mtu_below` | `ip link add nm0 address 00:11:22:33:44:55 type nlmon`; `ip link add nm0 mtu 15 type nlmon` | 2 | any address; "mtu less than device minimum" |
+| nlmon `set_no_option` | (no option), on `nm0` | 0 | `INFO_KIND` alone |
+| nlmon `add_garbage` | `foo` | 1 | Garbage |
+| vcan `add_no_option`, `add_mtu_16`, `add_mtu_100` | (no option); `ip link add vn0 mtu 16 type vcan`; `ip link add vn0 mtu 100 type vcan` | 0 | MTU 2060; CAN's; a create skips `ndo_change_mtu` |
+| vcan `set_mtu_72`, `set_mtu_76`, `set_mtu_same`, `set_up_and_mtu` | `ip link set vn0 mtu 72`; `… mtu 76`; `… mtu 2060`; `ip link set vn0 up mtu 72` | 0 | CAN FD's; CAN XL's floor; unchanged; the MTU before the flags |
+| vcan `set_no_option` | (no option), on `vn0` | 0 | `INFO_KIND` alone |
+| vcan `set_mtu_75`, `set_mtu_2061`, `set_mtu_up` | `ip link set vn0 mtu 75`; `… mtu 2061`; `… mtu 72` on an up `vn0` | 2 | `-EINVAL`, `-EINVAL`, `-EBUSY` |
+| vcan `add_garbage`, `add_mtu_after_type` | `foo`; `mtu 72` | 1 | Garbage |
+| team `add_no_option`, `set_no_option` | (no option); (no option), on `tm0` | 0 | no parser; `INFO_KIND` alone |
+| team `set_enslave`, `add_enslaved`, `set_enslave_again`, `set_nomaster` | `ip link set d0 master tm0`; `ip link add d0 master tm0 type dummy`; the first again; `ip link set d0 nomaster` | 0 | `team_port_add`; at create; the same master; released |
+| team `add_mcast_address` | `ip link add tm0 address 01:00:5e:00:00:01 type team` | 2 | `-EADDRNOTAVAIL` |
+| team `set_enslave_up`, `add_enslaved_up` | `ip link set d0 up master tm0`; `ip link add d0 up master tm0 type dummy` | 2 | up before master: "Device is up" |
+| team `set_enslave_lo`, `set_enslave_self` | `ip link set lo master tm0`; `ip link set tm0 master tm0` | 2 | the two extacks |
+| team `add_garbage` | `mode activebackup` | 1 | Garbage |
+| team `add_help`, `set_master_missing` | `help`; `ip link set d0 master nosuch` | 255 | `usage()`; `invarg` |
+| team_slave `add` | `ip link add ts0 type team_slave` | 2 | "Unknown device type" |
+| team_slave `set_no_option`, `set_unenslaved` | `ip link set d0 type team_slave`, on an enslaved `d0`; on a free `d0` | 0 | `INFO_KIND` alone |
+| team_slave `set_garbage` | `ip link set d0 type team_slave prio 1` | 1 | Garbage |
+
+**Tests:**
+
+| description | input | expected |
+|---|---|---|
+| positive: the rows are the plan's, after vxcan's | the slug list | the table's slugs, batadv's to team_slave's |
+| negative: exactly the refusal rows expect a non-zero status | `refused_rows` | the table's |
+| boundary: vcan's MTUs | `set_mtu_75`, `set_mtu_76`, `set_mtu_2061`, `set_mtu_same` | 2, 0, 2, 0 |
+| boundary: nlmon's minimum | `add_mtu_min`, `add_mtu_below` | 0, 2 |
+| corner: a kind with no parser refuses any word after `type`, or exits on `help` | `ifb/add_garbage`, `ifb/add_help_abbrev`, `team/add_help` | 1, 255, 255 |
+| corner: a generic word goes before `type` | `ifb/add_numtxqueues`, `ifb/add_mtu_after_type` | 0, 1 |
+| corner: a bare set takes any kind | `ifb/set_kind_mismatch`, `team_slave/set_unenslaved` | 0, 0 |
+| corner: batadv's name is checked by the kernel alone | `add_ra_bogus`, `set_ra_bogus`, `set_ra` | 2, 2, 2 |
+| corner: a port must be down to join a team | `set_enslave`, `set_enslave_up`, `add_enslaved_up` | 0, 2, 2 |
+| corner: the enslave rows' pres make `tm0` first, and `d0` where the command doesn't | their pres | `{link add tm0 type team}` first |
+| positive (VM): each status, and the values read back | `ip.rc`; `-d -j` readbacks | the table's rc; the MTUs, `team_slave` on an enslaved `d0` |
+
+**Mutation check:** `vcan/set_mtu_76` at 2 (the MTU boundary), `team/set_enslave_up` without `up` (the port corner), `ifb/add_help_abbrev` at 1 (the parser-less corner), `team/set_enslave`'s pre without `tm0` (the pres corner).
+
+**Done when:** as KC2-T01. It closes KC6.
 
 ### KC7 — Kind completeness gate
 
