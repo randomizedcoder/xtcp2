@@ -356,6 +356,9 @@ type LinkInfo struct {
 	Amt *AmtInfo
 	// Gtp is IFLA_INFO_DATA decoded when Kind is "gtp".
 	Gtp *GtpInfo
+	// Gre is IFLA_INFO_DATA decoded when Kind is "gre", "gretap",
+	// "erspan", "ip6gre", "ip6gretap" or "ip6erspan".
+	Gre *GreInfo
 
 	Link int32 // IFLA_LINK — peer/lower interface index
 
@@ -1036,6 +1039,10 @@ func setLinkInfoNest(li *LinkInfo, val []byte) {
 	}
 	if li.Kind == gtpKindCst {
 		li.Gtp = ParseGtpInfoData(infoData)
+	}
+	switch li.Kind {
+	case greKindCst, gretapKindCst, erspanKindCst, ip6greKindCst, ip6gretapKindCst, ip6erspanKindCst:
+		li.Gre = ParseGreInfoData(infoData)
 	}
 }
 

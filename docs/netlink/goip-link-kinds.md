@@ -2093,6 +2093,7 @@ Five tasks, one per KC5 task and iproute2 parser: KP4-T01 gre, gretap and erspan
 | corner: `noignore-df` sends 0 | `remote 10.0.0.1 noignore-df` | `IGNORE_DF` 0 after `PMTUDISC` |
 | corner: a set re-sends the prefetched port swapped | built `cur` with dport 5555, `ttl 5` | `ENCAP_DPORT` `b3 15` |
 | corner: a set on an external device | `gre/set_on_external`'s prefetch, `ttl 64` | `COLLECT_METADATA` alone |
+| corner: an index at version 2 is not sent | `remote 10.0.0.1 erspan 5 erspan_ver 2` (erspan) | `ERSPAN_VER` 2, `ERSPAN_DIR`, `ERSPAN_HWID`; no `ERSPAN_INDEX` |
 
 `TestLinkInfoGreKinds`: gre, gretap and erspan decode `Gre` (positive ×2, corner: erspan); a vti does not (negative).
 
