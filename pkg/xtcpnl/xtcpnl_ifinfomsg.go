@@ -341,6 +341,9 @@ type LinkInfo struct {
 	BridgeSlave *BridgeSlaveInfo
 	// Vlan is IFLA_INFO_DATA decoded when Kind is "vlan".
 	Vlan *VlanInfo
+	// Macvlan is IFLA_INFO_DATA decoded when Kind is "macvlan" or
+	// "macvtap", which share the attributes.
+	Macvlan *MacvlanInfo
 
 	Link int32 // IFLA_LINK — peer/lower interface index
 
@@ -1000,6 +1003,9 @@ func setLinkInfoNest(li *LinkInfo, val []byte) {
 	}
 	if li.Kind == vlanKindCst {
 		li.Vlan = ParseVlanInfoData(infoData)
+	}
+	if li.Kind == macvlanKindCst || li.Kind == macvtapKindCst {
+		li.Macvlan = ParseMacvlanInfoData(infoData)
 	}
 }
 

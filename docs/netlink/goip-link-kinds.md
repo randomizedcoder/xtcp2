@@ -1710,7 +1710,7 @@ Three tasks, one per parser file, matching KC3's: KP2-T01 vlan, KP2-T02 macvlan 
 **Code.** A new `pkg/xtcpnl/xtcpnl_macvlan.go`:
 - **`MacvlanInfo`:** `Mode` (u32: private 1, vepa 2, bridge 4, passthru 8, source 16), `Flags` (u16: nopromisc 1, nodst 2), `BcQueueLen` and `BcQueueLenUsed` (u32), `BcCutoff` (s32), `MacaddrCount` (u32), `Macaddrs` (the 6-byte `IFLA_MACVLAN_MACADDR`s under `IFLA_MACVLAN_MACADDR_DATA`, in dump order), with present bits.
 - **`ParseMacvlanInfoData`**, `LinkInfo.Macvlan`, a branch for `macvlan` and `macvtap`.
-- **`EncodeMacvlanInfoData`:** `macaddr` (its `MACADDR_MODE`, then a `MACADDR` for add and del, or a `MACADDR_DATA` nest for set), `bcqueuelen` and `bclim` in argument order; then `IFLA_MACVLAN_MODE` if a mode was given, then `IFLA_MACVLAN_FLAGS` if any flag word was (a `flag null` sends 0).
+- **`EncodeMacvlanInfoData`:** `macaddr` (its `MACADDR_MODE`: add 0, del 1, flush 2, set 3; then a `MACADDR` for add and del, or a `MACADDR_DATA` nest for set), `bcqueuelen` and `bclim` in argument order; then `IFLA_MACVLAN_MODE` if a mode was given (the last wins), then `IFLA_MACVLAN_FLAGS` if any flag word was (a `flag null` sends 0). nopromisc outside passthru is `ErrMacvlanNopromisc`, `ip`'s own refusal. The kernel never dumps `MACADDR_MODE` or a top-level `MACADDR`; the decoder skips them without listing them as unknown.
 - **The render oracle:** `macvlan_print_opt` prints nothing without a mode; `nopromisc` and `nodst` as `true` when set; `bcqueuelen`, `usedbcqueuelen` and `bclim`; and, in source mode only, `macaddr_count` and `macaddr_data`.
 - **The benchmark:** `BenchmarkParseMacvlanInfoData` over `add_macaddr_set`'s blob.
 
@@ -1728,22 +1728,36 @@ Three tasks, one per parser file, matching KC3's: KP2-T01 vlan, KP2-T02 macvlan 
 | negative: a short mode | built `IFLA_MACVLAN_MODE` of 2 bytes | mode absent, so the render prints nothing |
 | boundary: an empty nest | `[]byte{}` | nothing present |
 | boundary: both flags | built flags 0x3 | nopromisc and nodst |
-| corner: a source list outside source mode | built mode bridge with a count and data | decoded, not rendered |
-| corner: a non-address entry in the list | built `MACADDR_DATA` with a type-1 entry, then an address | the address only, as `ip` skips it |
+| corner: a source list outside source mode is decoded, not rendered | built mode bridge with a count and data | no `macaddr_count` or `macaddr_data` |
+| corner: a non-address entry in the list is skipped | built `MACADDR_DATA` with a type-1 entry, then an address | the address only, as `ip` skips it |
+| corner: an id past `IFLA_MACVLAN_BC_CUTOFF` is listed | built type 10, then a mode | `Unknown` [10], mode decoded |
 
 `TestEncodeMacvlanInfoData`:
 
 | description | input | expected |
 |---|---|---|
 | positive: each row's request | the 30 rows of both kinds that sent one | byte-identical to `ip.pcap`'s; `add_default`'s is empty |
-| negative: nopromisc outside passthru | `mode bridge nopromisc` | an error, as `ip` refuses it |
-| negative: an address of 5 bytes | `macaddr add` with 5 bytes | an error |
-| boundary: `macaddr flush` | the op alone | `MACADDR_MODE` 3, no address |
+| negative: nopromisc outside passthru | `mode bridge nopromisc` | `ErrMacvlanNopromisc` |
+| negative: an address of 5 bytes | `macaddr add` with 5 bytes | `ErrKindSettingRange` |
+| negative: a mode no kernel defines | mode 3 | `ErrKindSettingRange` |
+| negative: a setting with no option | the zero option | `ErrKindSettingOption` |
+| boundary: `macaddr flush` | the op alone | `MACADDR_MODE` 2, no address |
 | boundary: `flag null` | the flag word alone | `IFLA_MACVLAN_FLAGS` 0 |
+| boundary: the widest queue length | `bcqueuelen 4294967295` | `ff ff ff ff` |
 | corner: mode and flags go last | `nodst mode bridge bcqueuelen 5` | `BC_QUEUE_LEN`, then `MODE`, then `FLAGS` |
-| corner: `macaddr set` with no address | the op alone | `MACADDR_MODE` 2 and an empty `MACADDR_DATA` nest |
+| corner: `macaddr set` with no address | the op alone | `MACADDR_MODE` 3 and an empty `MACADDR_DATA` nest |
+| corner: the last mode wins | `mode bridge mode private` | one `MODE`, private |
 
-**Mutation check:** the passthru and source values swapped (the mode rows), mode emitted in argument order (its corner), the macvtap branch dropped (the macvtap rows).
+`TestLinkInfoMacvlanKinds`, whole answers through `ParseNewLink`:
+
+| description | input | expected |
+|---|---|---|
+| positive: a macvlan decodes Macvlan | `macvlan/add_mode_bridge`'s `-d` readback | `Macvlan` set |
+| positive: a macvtap decodes Macvlan | `macvtap/add_mode_bridge`'s | `Macvlan` set |
+| negative: a vlan does not | `vlan/add_default`'s | nil |
+| corner: an ipvlan, another lower-stacked kind, does not | `ipvlan/add_default`'s | nil |
+
+**Mutation check:** the passthru and source values swapped (the mode rows), mode emitted in argument order (its corner), the macvtap branch dropped (`TestLinkInfoMacvlanKinds`' macvtap row).
 
 #### KP2-T03 The ipvlan and ipvtap parser
 
