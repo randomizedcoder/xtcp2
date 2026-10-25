@@ -545,13 +545,41 @@ lappend design_rows {*}{
     ip6erspan/add_hwid_over ip6erspan/set_noseq ip6erspan/add_strcmp_abbrev
     ip6erspan/add_index_over ip6erspan/add_ver_three ip6erspan/add_dir_bad
 }
+lappend design_rows {*}{
+    ipip/add_default ipip/add_no_option ipip/add_mode_ipip
+    ipip/add_mode_mplsip ipip/add_mode_any ipip/add_mode_alias
+    ipip/add_local ipip/add_dev ipip/add_ttl ipip/add_ttl_inherit
+    ipip/add_tos ipip/add_tos_inherit ipip/add_nopmtudisc ipip/add_fwmark
+    ipip/add_external ipip/add_encap_fou ipip/add_encap_gue ipip/add_noencap
+    ipip/add_6rd_ignored ipip/add_remote_multicast ipip/set_changeable
+    ipip/set_dev ipip/set_mode ipip/set_encap ipip/set_nopmtudisc
+    ipip/set_no_option ipip/add_duplicate ipip/add_external_second
+    ipip/set_remote_any ipip/set_remote_on_wildcard
+    ipip/set_remote_multicast ipip/set_collide ipip/set_on_external
+    ipip/set_external ipip/add_isatap ipip/add_remote6
+    ipip/add_remote_abbrev ipip/add_encap_csum6_word ipip/add_noexternal
+    ipip/add_mode_ip6ip ipip/add_ttl_over ipip/add_ttl_nopmtudisc
+    ipip/set_nopmtudisc_ttl ipip/add_tos_over ipip/add_encap_bad
+    ipip/add_dev_missing ipip/add_no_value sit/add_default sit/add_no_option
+    sit/add_mode_ip6ip sit/add_mode_ipip sit/add_mode_mplsip
+    sit/add_mode_any sit/add_mode_alias sit/add_local_dev sit/add_ttl_tos
+    sit/add_nopmtudisc sit/add_isatap sit/add_fwmark sit/add_6rd_prefix
+    sit/add_6rd_overlong sit/add_external
+    sit/add_encap_fou sit/set_changeable sit/set_mode sit/set_isatap
+    sit/set_external_wildcard sit/set_no_option sit/add_duplicate
+    sit/add_duplicate_wildcard sit/set_remote_any sit/set_remote_on_wildcard
+    sit/set_remote_on_inherit sit/set_collide sit/set_external sit/add_6rd_prefix_v4
+    sit/add_6rd_relay_v6 sit/add_6rd_prefix_overlen sit/add_isatap_abbrev
+    sit/add_remote_bad sit/add_mode_ip6ip6 sit/add_ttl_nopmtudisc
+    sit/add_tos_bad sit/add_6rd_no_value
+}
 
 check slug_list "positive: the rows are the plan's, in run order" \
     {slugs $R} [join $design_rows " "]
 check first_row "boundary: add_default comes first" \
     {lindex [slugs $R] 0} bridge/add_default
-check row_count "boundary: KC2's 60 bridge and 42 bridge_slave rows, KC3-T01's 28 vlan rows, KC3-T02's 34 macvlan and 6 macvtap rows, KC3-T03's 18 ipvlan and 4 ipvtap rows, KC4-T01's 73 vxlan rows, KC4-T02's 49 geneve rows, KC4-T03's 16 bareudp and 20 amt rows, KC4-T04's 19 gtp rows, KC5-T01's 45 gre, 11 gretap and 25 erspan rows, KC5-T02's 36 ip6gre, 9 ip6gretap and 19 ip6erspan rows" \
-    {llength $R} 514
+check row_count "boundary: KC2's 60 bridge and 42 bridge_slave rows, KC3-T01's 28 vlan rows, KC3-T02's 34 macvlan and 6 macvtap rows, KC3-T03's 18 ipvlan and 4 ipvtap rows, KC4-T01's 73 vxlan rows, KC4-T02's 49 geneve rows, KC4-T03's 16 bareudp and 20 amt rows, KC4-T04's 19 gtp rows, KC5-T01's 45 gre, 11 gretap and 25 erspan rows, KC5-T02's 36 ip6gre, 9 ip6gretap and 19 ip6erspan rows, KC5-T03's 47 ipip and 37 sit rows" \
+    {llength $R} 598
 check bridge_first "boundary: bridge's rows all come before bridge_slave's" \
     {lsearch -glob [slugs $R] bridge_slave/*} 60
 check option_rows "positive: one add_ row per value-taking option but stp_mode, each once" \
@@ -663,6 +691,20 @@ set refused_design {
     ip6erspan/add_hwid_over 2 ip6erspan/set_noseq 2
     ip6erspan/add_strcmp_abbrev 1 ip6erspan/add_index_over 255
     ip6erspan/add_ver_three 255 ip6erspan/add_dir_bad 255
+    ipip/add_duplicate 2 ipip/add_external_second 2 ipip/set_remote_any 2
+    ipip/set_remote_on_wildcard 2 ipip/set_remote_multicast 2
+    ipip/set_collide 2 ipip/set_on_external 2 ipip/set_external 2
+    ipip/add_isatap 1 ipip/add_remote6 1 ipip/add_remote_abbrev 1
+    ipip/add_encap_csum6_word 1 ipip/add_noexternal 1 ipip/add_mode_ip6ip
+    255 ipip/add_ttl_over 255 ipip/add_ttl_nopmtudisc 255
+    ipip/set_nopmtudisc_ttl 255 ipip/add_tos_over 255 ipip/add_encap_bad 255
+    ipip/add_dev_missing 255 ipip/add_no_value 255 sit/set_external_wildcard 255
+    sit/add_duplicate 2 sit/add_duplicate_wildcard 2 sit/set_remote_any 2
+    sit/set_remote_on_wildcard 255 sit/set_remote_on_inherit 2 sit/set_collide 2 sit/set_external 2
+    sit/add_6rd_prefix_v4 1 sit/add_6rd_relay_v6 1
+    sit/add_6rd_prefix_overlen 1 sit/add_isatap_abbrev 1 sit/add_remote_bad
+    1 sit/add_mode_ip6ip6 255 sit/add_ttl_nopmtudisc 255 sit/add_tos_bad 255
+    sit/add_6rd_no_value 255
 }
 check refused_statuses "positive: exactly the refusal rows expect a non-zero status" \
     {refused_rows} [join $refused_design " "]
@@ -1032,6 +1074,50 @@ check ip6gre_d0_first "corner: the rows naming d0 make it first" \
     {{link add d0 type dummy} {link add d0 type dummy}}
 check ip6gre_sport_swap_pre "corner: the port-swap row's pre sets the source port" \
     {field ip6gre/set_encap_sport_swap 2} {{link add g6 type ip6gre remote 2001:db8::1 encap-sport 4660}}
+
+###############################################################################
+# 15. the ipip and sit rows' states
+###############################################################################
+check ipip_after_ip6erspan "positive: ipip's rows follow ip6erspan's, and sit's ipip's" \
+    {lmap k {ipip sit} {lsearch -glob [slugs $R] $k/*}} {514 561}
+check iptnl_mode_rows "positive: one accepted add_mode_ row per mode word" \
+    {lmap k {ipip sit} d {ip0 st0} {
+        set ws {}
+        foreach w [word_rows $k "ip link add $d type $k remote 10.0.0.1" mode_] {
+            if {[field $k/add_mode_$w 5] == 0} {
+                lappend ws $w
+            }
+        }
+        set ws
+    }} \
+    {{ipip mplsip any} {ip6ip ipip mplsip any}}
+check iptnl_ttl_tops "boundary: the ttl's top, and the smallest ttl nopmtudisc refuses" \
+    {lmap s {ipip/add_ttl ipip/add_ttl_over sit/add_ttl_nopmtudisc} {field $s 5}} {0 255 255}
+check iptnl_prefetch_ttl "corner: a nopmtudisc set depends on the prefetched ttl" \
+    {lmap s {set_nopmtudisc set_nopmtudisc_ttl} {list [field ipip/$s 5] [field ipip/$s 2]}} \
+    {{0 {{link add ip0 type ipip remote 10.0.0.1}}} {255 {{link add ip0 type ipip remote 10.0.0.1 ttl 64}}}}
+check sit_words "corner: isatap and mode ip6ip are sit's words" \
+    {lmap s {ipip/add_isatap ipip/add_mode_ip6ip sit/add_isatap sit/add_mode_ip6ip} {field $s 5}} {1 255 0 0}
+check sit_6rd "corner: the 6rd words are accepted wherever the prefix parses, and ip's refusal (1) where it doesn't" \
+    {lmap s {ipip/add_6rd_ignored sit/add_6rd_overlong sit/add_6rd_prefix_v4} {field $s 5}} {0 0 1}
+check iptnl_set_unapplied "corner: a set of mode or isatap is accepted" \
+    {lmap s {ipip/set_mode sit/set_mode sit/set_isatap} {field $s 5}} {0 0 0}
+check iptnl_pres "corner: the conflict and set rows' pres" \
+    {lmap s {ipip/add_duplicate sit/add_duplicate ipip/add_external_second sit/add_duplicate_wildcard ipip/set_collide sit/set_collide ipip/set_on_external ipip/set_remote_on_wildcard sit/set_remote_on_wildcard sit/set_external_wildcard} {field $s 2}} \
+    {{{link add ip0 type ipip remote 10.0.0.1}} {{link add st0 type sit remote 10.0.0.1}} {{link add ip0 type ipip external}} {{link add st0 type sit}} {{link add ip0 type ipip remote 10.0.0.1} {link add ip1 type ipip remote 10.0.0.2}} {{link add st0 type sit remote 10.0.0.1} {link add st1 type sit remote 10.0.0.2}} {{link add ip0 type ipip external}} {{link add ip0 type ipip}} {{link add st0 type sit}} {{link add st0 type sit}}}
+check iptnl_second_readbacks "corner: the conflicting adds' readbacks read ip1 or st1" \
+    {lmap s {ipip/add_duplicate ipip/add_external_second sit/add_duplicate sit/add_duplicate_wildcard} {lindex [split [lindex [lindex [field $s 4] 0] 2]] end}} \
+    {ip1 ip1 st1 st1}
+check iptnl_d0_first "corner: the rows naming d0 make it first" \
+    {lmap s {ipip/add_dev ipip/set_dev sit/add_local_dev} {lindex [field $s 2] 0}} \
+    {{link add d0 type dummy} {link add d0 type dummy} {link add d0 type dummy}}
+check sit_wildcard_prefetch "corner: a set's prefetch of sit's wildcard exits 255, and of a ttl inherit sit reaches the kernel" \
+    {lmap s {set_external_wildcard set_remote_on_wildcard set_remote_on_inherit} {list [field sit/$s 5] [field sit/$s 2]}} \
+    {{255 {{link add st0 type sit}}} {255 {{link add st0 type sit}}} {2 {{link add st0 type sit ttl inherit}}}}
+check no_6rd_reset "negative: no row sends 6rd-reset, which segfaults ip" \
+    {llength [lsearch -all -glob [lmap r $R {lindex $r 3}] *6rd-reset*]} 0
+check iptnl_exits "corner: get_addr's and get_prefix's failures are 1, invarg's 255" \
+    {lmap s {ipip/add_remote6 sit/add_6rd_prefix_v4 ipip/add_tos_over} {field $s 5}} {1 1 255}
 
 ###############################################################################
 # summary

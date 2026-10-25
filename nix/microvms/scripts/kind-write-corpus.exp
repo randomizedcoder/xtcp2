@@ -1041,6 +1041,168 @@ namespace eval kindcorpus {
         [ip6erspan_base add_ver_three {erspan_ver 3} 255] \
         [ip6erspan_base add_dir_bad {erspan_ver 2 erspan_dir up} 255]
 
+    # tunnel_set <kind> <dev> <name> <words> <rc> <pre> - a set of <dev>
+    # after <pre>. link_iptnl.c and link_ip6tnl.c fetch the device first
+    # and send what it has plus <words>. (Merge with any KC5-T01/T02 helper
+    # of the same shape.)
+    proc tunnel_set {kind dev name words rc pre} {
+        return [row $kind $name $pre [string trimright "ip link set $dev type $kind $words"] $rc $dev]
+    }
+
+    ###########################################################################
+    # ipip and sit (KC5-T03). One parser, ip/link_iptnl.c. The devices are
+    # ip0 and st0 (ip1, st1 in the conflict rows). No word is required; with
+    # none no INFO_DATA is sent and both validates accept it, so the kernel
+    # makes a wildcard tunnel with its own defaults. dev and dsfield are
+    # matches, the rest strcmp; nothing is checked for repeats. isatap and
+    # mode ip6ip are sit's; the 6rd words are parsed for both and sent for
+    # sit alone, and the guest kernel (no CONFIG_IPV6_SIT_6RD) ignores them.
+    # A set prefetches the device. ip_tunnel_changelink/ipip6_changelink
+    # refuse a point-to-point flip, a collision and (ipip) collect_md; the
+    # updates copy neither the protocol nor sit's flags. get_addr and
+    # get_prefix exit 1, invarg and nodev 255.
+    #
+    # sit's wildcard (no INFO_DATA) gets ipip6_netlink_parms' ttl 64 and no
+    # DF, so a set's prefetch of it exits 255 ("ttl != 0 and nopmtudisc are
+    # incompatible") before netlink; a sit made with ttl inherit is the
+    # wildcard a set reaches. 6rd-reset has no row: link_iptnl.c:288 hands
+    # get_prefix a string literal, which get_prefix_1 writes into, and ip
+    # segfaults.
+    ###########################################################################
+    variable IPTNL_BASE {remote 10.0.0.1}
+    variable PRE_IP0 [list {link add ip0 type ipip remote 10.0.0.1}]
+    variable PRE_IP0_WILD [list {link add ip0 type ipip}]
+    variable PRE_IP0_TTL [list {link add ip0 type ipip remote 10.0.0.1 ttl 64}]
+    variable PRE_IP0_EXTERNAL [list {link add ip0 type ipip external}]
+    variable PRE_IP0_IP1 [list {link add ip0 type ipip remote 10.0.0.1} {link add ip1 type ipip remote 10.0.0.2}]
+    variable PRE_ST0 [list {link add st0 type sit remote 10.0.0.1}]
+    variable PRE_ST0_WILD [list {link add st0 type sit}]
+    variable PRE_ST0_INHERIT [list {link add st0 type sit ttl inherit}]
+    variable PRE_ST0_ST1 [list {link add st0 type sit remote 10.0.0.1} {link add st1 type sit remote 10.0.0.2}]
+
+    proc ipip {name words rc {pre {}}} {
+        return [plain ipip ip0 $name $words $rc $pre]
+    }
+
+    # ipip_base <name> <words> <rc> ?<pre>? - an add of $IPTNL_BASE and <words>.
+    proc ipip_base {name words rc {pre {}}} {
+        variable IPTNL_BASE
+        return [ipip $name [string trimright "$IPTNL_BASE $words"] $rc $pre]
+    }
+
+    proc ipip_set {name words rc {pre {}}} {
+        variable PRE_IP0
+        if {$pre eq ""} {
+            set pre $PRE_IP0
+        }
+        return [tunnel_set ipip ip0 $name $words $rc $pre]
+    }
+
+    proc sit {name words rc {pre {}}} {
+        return [plain sit st0 $name $words $rc $pre]
+    }
+
+    proc sit_base {name words rc {pre {}}} {
+        variable IPTNL_BASE
+        return [sit $name [string trimright "$IPTNL_BASE $words"] $rc $pre]
+    }
+
+    proc sit_set {name words rc {pre {}}} {
+        variable PRE_ST0
+        if {$pre eq ""} {
+            set pre $PRE_ST0
+        }
+        return [tunnel_set sit st0 $name $words $rc $pre]
+    }
+
+    lappend rows \
+        [ipip_base add_default {} 0] \
+        [ipip add_no_option {} 0] \
+        [ipip_base add_mode_ipip {mode ipip} 0] \
+        [ipip_base add_mode_mplsip {mode mplsip} 0] \
+        [ipip_base add_mode_any {mode any} 0] \
+        [ipip_base add_mode_alias {mode ip4ip4} 0] \
+        [ipip_base add_local {local 10.0.0.2} 0] \
+        [ipip_base add_dev {dev d0} 0 $PRE_D0] \
+        [ipip_base add_ttl {ttl 255} 0] \
+        [ipip_base add_ttl_inherit {ttl inherit} 0] \
+        [ipip_base add_tos {tos 10} 0] \
+        [ipip_base add_tos_inherit {tos inherit} 0] \
+        [ipip_base add_nopmtudisc nopmtudisc 0] \
+        [ipip_base add_fwmark {fwmark 0xffffffff} 0] \
+        [ipip add_external external 0] \
+        [ipip_base add_encap_fou {encap fou encap-sport auto encap-dport 5555} 0] \
+        [ipip_base add_encap_gue {encap gue encap-sport 1000 encap-dport 6000 encap-csum encap-udp6-csum encap-remcsum} 0] \
+        [ipip_base add_noencap {encap fou encap-csum noencap noencap-csum} 0] \
+        [ipip_base add_6rd_ignored {6rd-prefix 2001:db8::/32} 0] \
+        [ipip add_remote_multicast {remote 239.1.1.1} 0] \
+        [ipip_set set_changeable {hlim 64 dsf 10 fwmark 5 local 10.0.0.2} 0] \
+        [ipip_set set_dev {d d0} 0 [concat $PRE_D0 $PRE_IP0]] \
+        [ipip_set set_mode {mode mplsip} 0] \
+        [ipip_set set_encap {encap fou encap-dport 5555} 0] \
+        [ipip_set set_nopmtudisc nopmtudisc 0] \
+        [ipip_set set_no_option {} 0] \
+        [plain ipip ip1 add_duplicate $IPTNL_BASE 2 $PRE_IP0] \
+        [plain ipip ip1 add_external_second external 2 $PRE_IP0_EXTERNAL] \
+        [ipip_set set_remote_any {remote any} 2] \
+        [ipip_set set_remote_on_wildcard {remote 10.0.0.1} 2 $PRE_IP0_WILD] \
+        [ipip_set set_remote_multicast {remote 239.1.1.1} 2] \
+        [ipip_set set_collide {remote 10.0.0.2} 2 $PRE_IP0_IP1] \
+        [ipip_set set_on_external {ttl 64} 2 $PRE_IP0_EXTERNAL] \
+        [ipip_set set_external external 2] \
+        [ipip_base add_isatap isatap 1] \
+        [ipip add_remote6 {remote 2001:db8::1} 1] \
+        [ipip add_remote_abbrev {rem 10.0.0.1} 1] \
+        [ipip_base add_encap_csum6_word {encap fou encap-csum6} 1] \
+        [ipip add_noexternal noexternal 1] \
+        [ipip_base add_mode_ip6ip {mode ip6ip} 255] \
+        [ipip_base add_ttl_over {ttl 256} 255] \
+        [ipip_base add_ttl_nopmtudisc {ttl 64 nopmtudisc} 255] \
+        [ipip_set set_nopmtudisc_ttl nopmtudisc 255 $PRE_IP0_TTL] \
+        [ipip_base add_tos_over {tos 100} 255] \
+        [ipip_base add_encap_bad {encap foo} 255] \
+        [ipip_base add_dev_missing {dev nosuch} 255] \
+        [ipip add_no_value remote 255]
+
+    lappend rows \
+        [sit_base add_default {} 0] \
+        [sit add_no_option {} 0] \
+        [sit_base add_mode_ip6ip {mode ip6ip} 0] \
+        [sit_base add_mode_ipip {mode ipip} 0] \
+        [sit_base add_mode_mplsip {mode mplsip} 0] \
+        [sit_base add_mode_any {mode any} 0] \
+        [sit_base add_mode_alias {mode ipv6/ipv4} 0] \
+        [sit_base add_local_dev {local 10.0.0.2 dev d0} 0 $PRE_D0] \
+        [sit_base add_ttl_tos {ttl 64 tos inherit} 0] \
+        [sit_base add_nopmtudisc nopmtudisc 0] \
+        [sit add_isatap isatap 0] \
+        [sit_base add_fwmark {fwmark 7} 0] \
+        [sit_base add_6rd_prefix {6rd-prefix 2001:db8::/32 6rd-relay_prefix 10.0.0.0/8} 0] \
+        [sit_base add_6rd_overlong {6rd-prefix 2001:db8::/48 6rd-relay_prefix 10.0.0.0/8} 0] \
+        [sit add_external external 0] \
+        [sit_base add_encap_fou {encap fou encap-sport 1000 encap-dport 5555} 0] \
+        [sit_set set_changeable {ttl 64 tos 10 local 10.0.0.2} 0] \
+        [sit_set set_mode {mode ipip} 0] \
+        [sit_set set_isatap isatap 0] \
+        [sit_set set_external_wildcard external 255 $PRE_ST0_WILD] \
+        [sit_set set_no_option {} 0] \
+        [plain sit st1 add_duplicate $IPTNL_BASE 2 $PRE_ST0] \
+        [plain sit st1 add_duplicate_wildcard {} 2 $PRE_ST0_WILD] \
+        [sit_set set_remote_any {remote any} 2] \
+        [sit_set set_remote_on_wildcard {remote 10.0.0.1} 255 $PRE_ST0_WILD] \
+        [sit_set set_remote_on_inherit {remote 10.0.0.1} 2 $PRE_ST0_INHERIT] \
+        [sit_set set_collide {remote 10.0.0.2} 2 $PRE_ST0_ST1] \
+        [sit_set set_external external 2] \
+        [sit_base add_6rd_prefix_v4 {6rd-prefix 10.0.0.0/8} 1] \
+        [sit_base add_6rd_relay_v6 {6rd-relay_prefix 2001:db8::/32} 1] \
+        [sit_base add_6rd_prefix_overlen {6rd-prefix 2001:db8::/129} 1] \
+        [sit_base add_isatap_abbrev isa 1] \
+        [sit add_remote_bad {remote nosuch} 1] \
+        [sit_base add_mode_ip6ip6 {mode ip6ip6} 255] \
+        [sit_base add_ttl_nopmtudisc {ttl 0x1 nopmtudisc} 255] \
+        [sit_base add_tos_bad {tos zz} 255] \
+        [sit_base add_6rd_no_value 6rd-prefix 255]
+
     ###########################################################################
     # readback_args <ns> <subdir> <readback> - the xtcp2-nlcap capio argument
     # list for one readback, which the driver hands to its capio proc.
