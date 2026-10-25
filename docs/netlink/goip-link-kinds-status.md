@@ -22,9 +22,9 @@
 - KP5 is done (KP5-T01, KP5-T02, KP5-T03, KP5-T04; planned in DOC014): `pkg/xtcpnl/xtcpnl_hsr.go` decodes hsr into `LinkInfo.Hsr`, rendering all 10 accepted rows' dumps as their `-d -j` readbacks print them, and encodes the `IFLA_INFO_DATA` of the 20 rows that sent a request byte for byte. `xtcpnl_netkit.go` does the same for netkit into `LinkInfo.Netkit` (19 accepted rows, 27 requests), its `PEER_INFO` nest shared with `EncodeVethPeer` through `putPeerNest`. `xtcpnl_vrf.go` encodes vrf's 12 requests (the 8 accepted rows' dumps and the 3 enslaved vrf_slave rows' render through the existing `vrfTableAttr`), and `xtcpnl_vxcan.go` vxcan's 9 through `putPeerNest`; no vrf_slave request carries `INFO_SLAVE_DATA`. `xtcpnl_batadv.go` encodes batadv's 12 requests; batadv has no `fill_info`, and ifb, nlmon, vcan, team and team_slave send and dump no kind data at all, which `TestKindsWithoutData` holds for all 46 of their requests.
 - The KP tier is done. KG0 is planned (DOC015): KG0-T01 puts `inet` in goip's keyword chain, with `ip`'s exit statuses, and KG0-T02 gates its 11 matrix rows.
 - KG0 is done (KG0-T01, KG0-T02; planned in DOC015): goip builds `ip link set … inet …` byte for byte as `ip` does for the 11 KC1 rows the kernel answered, and refuses the 7 `ip` refuses with `ip`'s texts and statuses. `parseLinkArgs`' `exit(-1)` refusals now exit 255 through `ErrLinkUsage`. The 11 `link_inet_*` matrix rows are gated, on a clean full run and a clean `--section link` run (V135, V136), the first rows gated with a section run. KG1 is planned (DOC016).
-- KG1 is in progress: KG1-T01 is done; goip builds `ip link add|set … type bridge …` byte for byte as `ip` does for KC2's 55 bridge rows that sent a request, and refuses the 5 `ip` refuses with `ip`'s texts and statuses.
+- KG1 is in progress: KG1-T01 and KG1-T02 are done; goip builds `ip link add|set … type bridge …` byte for byte as `ip` does for KC2's 55 bridge rows that sent a request, and `ip link set … type bridge_slave …` for its 37 bridge_slave rows, lookups included, and refuses the 10 `ip` refuses with `ip`'s texts and statuses.
 
-**Next action:** [KG1-T02](goip-link-kinds.md#kg1-t02-the-bridge_slave-words): the bridge_slave words.
+**Next action:** [KG1-T03](goip-link-kinds.md#kg1-t03-the-bridges--d-output): the bridge's `-d` output.
 
 ## Contents
 
@@ -119,7 +119,7 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | [x] | [KG0-T01](goip-link-kinds.md#kg0-t01-inet-in-goips-keyword-chain) | `inet` in goip's keyword chain | done | V129–V131 |
 | [x] | [KG0-T02](goip-link-kinds.md#kg0-t02-the-inet-matrix-rows) | the `inet` matrix rows | done | V135–V139 |
 | [x] | [KG1-T01](goip-link-kinds.md#kg1-t01-the-bridge-words) | the bridge words | done | V140–V142 |
-| [ ] | [KG1-T02](goip-link-kinds.md#kg1-t02-the-bridge_slave-words) | the bridge_slave words | not started | |
+| [x] | [KG1-T02](goip-link-kinds.md#kg1-t02-the-bridge_slave-words) | the bridge_slave words | done | V143–V145 |
 | [ ] | [KG1-T03](goip-link-kinds.md#kg1-t03-the-bridges--d-output) | the bridge's `-d` output | not started | |
 | [ ] | [KG1-T04](goip-link-kinds.md#kg1-t04-the-bridge-ports--d-output) | the bridge port's `-d` output | not started | |
 | [ ] | [KG1-T05](goip-link-kinds.md#kg1-t05-the-bridge-matrix-rows) | the bridge matrix rows | not started | |
@@ -290,6 +290,9 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | V140 | 2026-10-25 | KG1-T01 | `go test -count=1 -race ./internal/goip/ ./internal/goipparity/`, `go vet ./internal/goip/` | `TestLinkBridgeWriteMatchesIp` (55 rows), `TestLinkBridgeRefusals` (11), `TestBridgeCorpusArgv` (60), `TestBridgeParseChain` (4) and `TestParseBridgeArgs` (4) pass; vet is clean | this commit |
 | V141 | 2026-10-25 | KG1-T01 | 5 mutants, each in a scratch worktree under a 6G scope | all killed: every keyword by prefix (`add_stp_mode_abbrev`, `mst_en 1`), a boolopt as a u32 (`mst_enabled 256`), `invarg` exiting 1 (the four 255 rows), `mcast_querier` first (the chain's corner row), `ll_proto_a2n` with case (`802.1AD`) | this commit |
 | V142 | 2026-10-25 | KG1-T01 | `nix build .#checks.x86_64-linux.lint-baseline`, then `.#checks.x86_64-linux.netlink-audit` | netlink-audit passes; lint-baseline passes on the second run, after the parser walks a sub-slice (gosec G602 on `args[i]` after `i++`) and the refusal table is preallocated | this commit |
+| V143 | 2026-10-25 | KG1-T02 | `go test -count=1 -race ./internal/goip/ ./internal/goipparity/`, `go vet ./internal/goip/` | `TestLinkBridgeSlaveWriteMatchesIp` (37 rows), `TestLinkBridgeSlaveRefusals` (11), `TestBridgeSlaveCorpusArgv` (42), `TestBridgeSlaveParseChain` (8) and `TestParseBridgeSlaveArgs` (9) pass; vet is clean | this commit |
+| V144 | 2026-10-25 | KG1-T02 | 8 mutants, each in a scratch worktree under a 6G scope | 7 killed: `nobackup_port` dropped, the backup port's get skipped, `neigh_forward_grat` by prefix, on/off by prefix, the invarg texts swapped, an unknown port sent, `mcast_fast_leave` before `mcast_flood`. `cost` and `hairpin` swapped survives as an equivalent mutant: no word is a prefix of both, so their order can't matter | this commit |
+| V145 | 2026-10-25 | KG1-T02 | `nix build .#checks.x86_64-linux.lint-baseline`, then `.#checks.x86_64-linux.netlink-audit` | netlink-audit passes; lint-baseline passes on the second run, after `"state"` became a constant (goconst) | this commit |
 
 ## Decision log
 
@@ -397,3 +400,5 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 - **`kindData` and `buildLinkWrite` take `errOut`.** `parse_one_of`'s prefix warning goes to stderr and the parse goes on, so the kind parsers need the command's stderr; `linkWrite` passes `c.errOut`, the tests `io.Discard` or a buffer.
 - **goip has `ll_proto_a2n`.** `internal/goip/ll_proto.go` is `lib/ll_proto.c`'s table in its order, for `vlan_protocol` now and the vlan kind's `protocol` in KG2; names compare without case, as `proto_a2n`'s `strcasecmp` does.
 - **The bridge argv table is checked against the corpus.** The KC2 rows record no argv, so `bridgeCorpusArgv` writes each row's out from `kind-write-corpus.exp`, and `TestBridgeCorpusArgv` fails if a corpus row has no argv or an argv no row.
+- **`nobackup_port` is tried after the bridge_slave chain.** It has no `BridgeSlaveOptions` row, so `bridgeChain` can't find it; tried after the chain it picks the same words as in its place, since no keyword before it matches a prefix of it longer than `n`, and `n` is `neigh_suppress`'s. `TestBridgeSlaveParseChain`'s `no` row holds that.
+- **The bridge_slave refusals send p0's get.** `iplink_parse` resolves `dev p0` before `bridge_slave_parse_opt` runs, so each refusal row expects its capture's lookups, p0's and, for `backup_port nosuch`, nosuch's, and no write.

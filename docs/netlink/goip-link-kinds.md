@@ -2633,7 +2633,7 @@ Five tasks: KG1-T01 and KG1-T02 parse `type bridge` and `type bridge_slave` word
 
 #### KG1-T02 The bridge_slave words
 
-**Code.** `internal/goip/link_bridge_slave_args.go`: `parseBridgeSlaveArgs(args []string, resolve linkResolver) ([]xtcpnl.BridgeSlaveSetting, error)`, `bridge_slave_parse_opt`'s chain. `state` is a `get_u8` number (the names are print-only), on/off words go through `bridge_slave_parse_on_off`'s text, `backup_port` resolves through the resolver (a get) and `nobackup_port` sends 0. A `kindBridgeSlaveCst` case in `kindData` calls `xtcpnl.EncodeBridgeSlaveData`.
+**Code.** `internal/goip/link_bridge_slave_args.go`: `parseBridgeSlaveArgs(args []string, resolve linkResolver) ([]xtcpnl.BridgeSetting, error)`, `bridge_slave_parse_opt`'s chain (`nobackup_port`, which has no row, tried after it, which is the same as its place in it). `state` is a `get_u8` number (the names are print-only), on/off words go through `bridge_slave_parse_on_off`'s text, `backup_port` resolves through the resolver (a get) and `nobackup_port` sends 0. A `kindBridgeSlaveCst` case in `kindData` calls `xtcpnl.EncodeBridgeSlaveData`.
 
 `TestLinkBridgeSlaveWriteMatchesIp`, as KG1-T01's over `kinds/bridge_slave/*`:
 
@@ -2653,9 +2653,14 @@ Five tasks: KG1-T01 and KG1-T02 parse `type bridge` and `type bridge_slave` word
 | negative: each `ip`-refused row | `set_strcmp_abbrev`, `set_on_off_bad` (1); `set_backup_port_missing`, `set_cost_bad`, `set_no_value` (255) | the row's `ip.rc` and `ip.err` first line; p0's get sent, and nosuch's for `set_backup_port_missing`; no write |
 | negative: an unknown word | `bogus on` | 1, `bridge_slave: unknown option "bogus"?` |
 | boundary: a state past a u8 | `state 256` | 255, `argument "256" is wrong: state is invalid`, after p0's get |
+| negative: a state by name | `state forwarding` | 255, `state is invalid` (the names are print-only) |
 | corner: `nobackup_port` with a value after it | `nobackup_port p1` | 1, unknown option `p1` |
+| corner: an on/off value by prefix | `learning of` | 1, `must be one of "off", "on", not "of"` (`parse_on_off` is a strcmp) |
+| corner: help is not goip's | `help` | 1, not implemented |
 
-**Mutation check:** `nobackup_port` dropped (`set_nobackup_port`); the backup port's get skipped (`set_backup_port_missing`); `neigh_forward_grat` matched by prefix (`set_strcmp_abbrev`).
+`TestBridgeSlaveCorpusArgv` holds the argv table to the 42 corpus rows. `TestBridgeSlaveParseChain` holds the arms: `co` is `cost`, `neigh_forward_g` nothing, `mab` itself, `n` `neigh_suppress`, `mcast_f` `mcast_flood`, `proxy_arp_wifi` itself, `no` past the chain; 27 rows for 27 keywords, every settable row among them. `TestParseBridgeSlaveArgs` holds the values: a state by number, a hex mask, on as 1, a port by name, `nobackup_port` and `nob` as `backup_port` 0, a cost at its top, a resolver failure returned as it is and an unknown port as invarg.
+
+**Mutation check:** `nobackup_port` dropped (`set_nobackup_port`); the backup port's get skipped (`set_backup_port_missing`); `neigh_forward_grat` matched by prefix, in `xtcpnl.BridgeSlaveOptions` (`set_strcmp_abbrev`); an on/off value by prefix (`learning of`); the two invarg texts swapped (`set_cost_bad`, the state rows); an unknown port sent (`set_backup_port_missing`); `mcast_fast_leave` tried before `mcast_flood` (the chain's `mcast_f` row).
 
 **Done when:** as KG1-T01.
 

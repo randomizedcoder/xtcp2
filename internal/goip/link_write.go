@@ -615,6 +615,12 @@ func kindData(errOut io.Writer, verb *linkWriteVerb, kind string, rest []string,
 			return nil, err
 		}
 		return xtcpnl.EncodeBridgeInfoData(settings)
+	case kindBridgeSlaveCst:
+		settings, err := parseBridgeSlaveArgs(rest, resolve)
+		if err != nil {
+			return nil, err
+		}
+		return xtcpnl.EncodeBridgeSlaveData(settings)
 	case kindBondCst:
 		settings, err := parseBondArgs(rest, func(name string) (uint32, error) {
 			idx, err := resolve(name)
