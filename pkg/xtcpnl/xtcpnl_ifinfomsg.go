@@ -339,6 +339,8 @@ type LinkInfo struct {
 	// one. nil otherwise. See xtcpnl_bridge.go and xtcpnl_bridge_slave.go.
 	Bridge      *BridgeInfo
 	BridgeSlave *BridgeSlaveInfo
+	// Vlan is IFLA_INFO_DATA decoded when Kind is "vlan".
+	Vlan *VlanInfo
 
 	Link int32 // IFLA_LINK — peer/lower interface index
 
@@ -995,6 +997,9 @@ func setLinkInfoNest(li *LinkInfo, val []byte) {
 	}
 	if li.SlaveKind == bridgeKindCst {
 		li.BridgeSlave = ParseBridgeSlaveData(slaveData)
+	}
+	if li.Kind == vlanKindCst {
+		li.Vlan = ParseVlanInfoData(infoData)
 	}
 }
 

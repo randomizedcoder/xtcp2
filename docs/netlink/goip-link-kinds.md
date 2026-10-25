@@ -1663,7 +1663,8 @@ Three tasks, one per parser file, matching KC3's: KP2-T01 vlan, KP2-T02 macvlan 
 **Code.** A new `pkg/xtcpnl/xtcpnl_vlan.go`:
 - **`VlanInfo`:** `ID` (u16), `Protocol` (u16, big-endian on the wire, as the bridge's `vlan_protocol`), `Flags` and `Mask` (`struct ifla_vlan_flags`, u32 each), and `Ingress`, `Egress []VlanQosMapping` (`struct ifla_vlan_qos_mapping`, `from` and `to` u32, under `IFLA_VLAN_QOS_MAPPING` in the two nests). Present bits for each.
 - **`ParseVlanInfoData(nest []byte) *VlanInfo`**, `LinkInfo.Vlan`, and the branch.
-- **`EncodeVlanInfoData(settings []VlanSetting) ([]byte, error)`:** `protocol`, `id` and the two qos maps go in argument order (`vlan_parse_opt` adds them in its loop); the five flag words fold into one `IFLA_VLAN_FLAGS`, added after the loop only when the mask is set, so it goes last.
+- **`EncodeVlanInfoData(settings []VlanSetting) ([]byte, error)`:** `protocol`, `id` and the two qos maps go in argument order (`vlan_parse_opt` adds them in its loop); the five flag words fold into one `IFLA_VLAN_FLAGS`, added after the loop only when the mask is set, so it goes last. A qos map opens its nest before its first pair, as `vlan_parse_qos_map` does. The errors, `ErrKindSettingOption` and `ErrKindSettingRange`, are shared with KP2's later kinds.
+- **`VlanFlags`:** keyword, printed name and bit, in `vlan_print_flags`' order, which is not bit order: `MVRP` (0x8) prints before `LOOSE_BINDING` (0x4).
 - **The render oracle:** `vlan_print_opt` prints `protocol` through `ll_proto_n2a` (`802.1Q`, `802.1ad`), `id`, `flags` as the names of `Flags`' set bits (`REORDER_HDR` … `BRIDGE_BINDING`, then any leftover in hex), and `ingress_qos`/`egress_qos` as `{from, to}` lists. It prints nothing when `IFLA_VLAN_ID` is missing or short.
 - **The benchmark:** `BenchmarkParseVlanInfoData` over `add_ingress_qos_map`'s blob.
 
@@ -1675,7 +1676,8 @@ Three tasks, one per parser file, matching KC3's: KP2-T01 vlan, KP2-T02 macvlan 
 |---|---|---|
 | positive: a bare vlan's dump | `add_default`'s answer for `v0` | id 10, protocol 0x8100, flags `REORDER_HDR` |
 | positive: 802.1ad | `add_protocol` | protocol 0x88a8 |
-| positive: the qos maps | `add_ingress_qos_map`, `add_egress_qos_map` | ingress `1:2 3:4`; egress `2:1 4:3` |
+| positive: the ingress map | `add_ingress_qos_map` | ingress `1:2 3:4` |
+| positive: the egress map | `add_egress_qos_map` | egress `2:1 4:3`, no ingress |
 | positive: a change keeps the id | `set_id` | id 10, not 20 |
 | negative: a nil nest | `nil` | `nil` |
 | negative: a short id | built `IFLA_VLAN_ID` of 1 byte | id absent |
@@ -1691,14 +1693,17 @@ Three tasks, one per parser file, matching KC3's: KP2-T01 vlan, KP2-T02 macvlan 
 | description | input | expected |
 |---|---|---|
 | positive: each row's request | the 21 rows that sent one, argv from `kind-write-corpus.exp`; a row that sent one and is unlisted, or the reverse, fails | `IFLA_INFO_DATA` byte-identical to `ip.pcap`'s; `add_no_id`'s is empty |
-| negative: an id too wide | 65536 | an error |
-| negative: a setting with no option | the zero option | an error |
-| boundary: an empty qos map | `egress-qos-map` with no pairs | an empty `IFLA_VLAN_EGRESS_QOS` nest, as `ip` sends |
+| negative: an id too wide | 65536 | `ErrKindSettingRange` |
+| negative: a setting with no option | the zero option | `ErrKindSettingOption` |
+| negative: a flag with no bit | a flag setting, bit 0 | `ErrKindSettingRange` |
+| boundary: an empty qos map is an empty nest | an egress map with no pairs | a bare 4-byte `IFLA_VLAN_EGRESS_QOS` (`ip` can't send one: `egress-qos-map` alone fails `NEXT_ARG`, and a word with no colon is refused after) |
+| boundary: no settings | none | no attributes |
 | corner: flags go last | `gvrp on id 10` | `IFLA_VLAN_ID`, then `IFLA_VLAN_FLAGS` |
-| corner: two flags, one attribute | `gvrp on mvrp on` | one `IFLA_VLAN_FLAGS`, flags 0x6, mask 0x6 |
+| corner: two flags, one attribute | `gvrp on mvrp on` | one `IFLA_VLAN_FLAGS`, flags 0xa, mask 0xa (MVRP is 0x8) |
 | corner: off sets the mask, not the flag | `reorder_hdr off` | flags 0, mask 0x1 |
+| corner: a later word for a bit wins | `gvrp on gvrp off` | flags 0, mask 0x2 |
 
-**Mutation check:** protocol read little-endian (the 802.1ad rows), flags emitted in argument order (its corner and `add_several`'s request), the egress nest decoded as ingress (the qos rows).
+**Mutation check:** protocol read little-endian (the 802.1ad rows), flags emitted in argument order (its corner and `add_several`'s request), the egress nest decoded as ingress (the qos rows), the egress nest left unknown (likewise).
 
 #### KP2-T02 The macvlan and macvtap parser
 
