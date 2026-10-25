@@ -2356,11 +2356,11 @@ Four tasks, one per KC6 task: KP5-T01 hsr (`iplink_hsr.c`); KP5-T02 netkit (`ipl
 | boundary: the supervision byte's top | `supervision 255` | `MULTICAST_SPEC` 0xff |
 | corner: two supervisions send two attributes | `add_supervision_twice` | its request |
 | corner: version 2 passes `ip` | `add_version_2` | its request, `VERSION` 2 |
-| corner: the words' order is the attributes' | `add_abbrev` | `SLAVE1`, `SLAVE2`, `MULTICAST_SPEC`, `VERSION`, `PROTOCOL` |
+| corner: the words' order is the attributes' | `s 7 sl d0 p 0 v 1 slave2 d1` | `MULTICAST_SPEC`, `SLAVE1`, `PROTOCOL`, `VERSION`, `SLAVE2` |
 
-`TestLinkInfoHsrKinds`: an hsr decodes `Hsr` (positive ×2: `add_default`, `add_proto_prp`); a dummy does not; an hsr with an interlink does (corner).
+`TestLinkInfoHsrKinds`: an hsr decodes `Hsr` (positive ×2: `add_default`, `add_proto_prp`); an ifb does not; an hsr with an interlink does (corner).
 
-**Mutation check:** the version refused above 1 (`add_version_2`); the short-attribute check dropped (the short-`SLAVE1` row); the attributes sent in id order (`add_abbrev`).
+**Mutation check:** the version refused above 1 (`add_version_2`); the short-attribute check dropped (the short-`SLAVE1` row); the attributes sent in id order (the word-order row, `add_prp_version`).
 
 #### KP5-T02 The netkit parser
 

@@ -366,6 +366,8 @@ type LinkInfo struct {
 	Vti *VtiInfo
 	// Xfrm is IFLA_INFO_DATA decoded when Kind is "xfrm".
 	Xfrm *XfrmLinkInfo
+	// Hsr is IFLA_INFO_DATA decoded when Kind is "hsr".
+	Hsr *HsrInfo
 
 	Link int32 // IFLA_LINK — peer/lower interface index
 
@@ -1056,6 +1058,8 @@ func setLinkInfoNest(li *LinkInfo, val []byte) {
 		li.Vti = ParseVtiInfoData(infoData)
 	case xfrmKindCst:
 		li.Xfrm = ParseXfrmLinkInfoData(infoData)
+	case hsrKindCst:
+		li.Hsr = ParseHsrInfoData(infoData)
 	}
 }
 

@@ -19,8 +19,9 @@
 - KP2 is done (KP2-T01, KP2-T02, KP2-T03; planned in DOC011): `pkg/xtcpnl/xtcpnl_vlan.go` decodes the vlan kind into `LinkInfo.Vlan`, rendering all 15 accepted rows' dumps as their `-d -j` readbacks print them, and encodes the `IFLA_INFO_DATA` of the 21 rows that sent a request byte for byte. `xtcpnl_macvlan.go` does the same for macvlan and macvtap into `LinkInfo.Macvlan` (25 accepted rows, 30 requests), and `xtcpnl_ipvlan.go` for ipvlan and ipvtap into `LinkInfo.Ipvlan` (14 and 17). KP3 is planned (DOC012).
 - KP3 is done (KP3-T01, KP3-T02, KP3-T03, KP3-T04; planned in DOC012): `pkg/xtcpnl/xtcpnl_vxlan.go` decodes the vxlan kind into `LinkInfo.Vxlan`, rendering all 46 accepted rows' dumps as their `-d -j` readbacks print them, and encodes the `IFLA_INFO_DATA` of the 58 rows that sent a request byte for byte, adds and sets alike. `xtcpnl_geneve.go` does the same for geneve into `LinkInfo.Geneve` (22 accepted rows, 35 requests), `xtcpnl_bareudp.go` for bareudp into `LinkInfo.Bareudp` (6 and 10), `xtcpnl_amt.go` for amt into `LinkInfo.Amt` (5 and 13) and `xtcpnl_gtp.go` for gtp into `LinkInfo.Gtp` (7 and 11); they share `xtcpnl_kind_wire.go`. KP4 is planned (DOC013).
 - KP4 is done (KP4-T01, KP4-T02, KP4-T03, KP4-T04, KP4-T05; planned in DOC013): `pkg/xtcpnl/xtcpnl_gre.go` decodes the six gre kinds into `LinkInfo.Gre`, rendering all 44 accepted gre, gretap and erspan rows' dumps as their `-d -j` readbacks print them, and encodes the `IFLA_INFO_DATA` of the 60 rows that sent a request byte for byte, sets seeded from their prefetch. `xtcpnl_gre6.go` does the same for ip6gre, ip6gretap and ip6erspan (36 accepted rows, 50 requests), and `xtcpnl_iptun.go` for ipip and sit into `LinkInfo.Iptun` (46 and 60), which ip6tnl's dump also fills; `xtcpnl_ip6tnl.go` encodes ip6tnl (29 accepted rows, 36 requests). `xtcpnl_vti.go` does the same for vti and vti6 into `LinkInfo.Vti` (18 and 25), and `xtcpnl_xfrm_link.go` for xfrm into `LinkInfo.Xfrm` (9 and 17). The shared `TunnelEncap` block lives in `xtcpnl_kind_wire.go`. KP5 is planned (DOC014).
+- KP5 is in progress (KP5-T01): `pkg/xtcpnl/xtcpnl_hsr.go` decodes hsr into `LinkInfo.Hsr`, rendering all 10 accepted rows' dumps as their `-d -j` readbacks print them, and encodes the `IFLA_INFO_DATA` of the 20 rows that sent a request byte for byte.
 
-**Next action:** [KP5-T01](goip-link-kinds.md#kp5-t01-the-hsr-parser): the hsr parser.
+**Next action:** [KP5-T02](goip-link-kinds.md#kp5-t02-the-netkit-parser): the netkit parser.
 
 ## Contents
 
@@ -57,7 +58,7 @@
 | [KP2](goip-link-kinds.md#kp2--vlan-family-parsers) | parsers | VLAN family | KP2-T03 | done | V081–V089, DOC012 |
 | [KP3](goip-link-kinds.md#kp3--udp-overlay-parsers) | parsers | UDP overlays | KP3-T04 | done | V090–V101, DOC013 |
 | [KP4](goip-link-kinds.md#kp4--ip-tunnel-parsers) | parsers | IP tunnels | KP4-T05 | done | V102–V116, DOC014 |
-| [KP5](goip-link-kinds.md#kp5--the-remaining-kinds-parsers) | parsers | the remaining kinds | KP5-T04 | not started | |
+| [KP5](goip-link-kinds.md#kp5--the-remaining-kinds-parsers) | parsers | the remaining kinds | KP5-T04 | in progress | V117–V119 |
 | [KG0](goip-link-kinds.md#kg0--goip-link-set-inet) | goip | `link set inet` | | not started | |
 | [KG1](goip-link-kinds.md#kg1--goip-bridge) | goip | bridge | | not started | |
 | [KG2](goip-link-kinds.md#kg2--goip-vlan-family) | goip | VLAN family | | not started | |
@@ -108,7 +109,7 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | [x] | [KP4-T03](goip-link-kinds.md#kp4-t03-the-ipip-and-sit-parser) | the ipip and sit parser | done | V108–V110 |
 | [x] | [KP4-T04](goip-link-kinds.md#kp4-t04-the-ip6tnl-parser) | the ip6tnl parser | done | V111–V113 |
 | [x] | [KP4-T05](goip-link-kinds.md#kp4-t05-the-vti-vti6-and-xfrm-parsers) | the vti, vti6 and xfrm parsers | done | V114–V116, DOC014 |
-| [ ] | [KP5-T01](goip-link-kinds.md#kp5-t01-the-hsr-parser) | the hsr parser | not started | |
+| [x] | [KP5-T01](goip-link-kinds.md#kp5-t01-the-hsr-parser) | the hsr parser | done | V117–V119 |
 | [ ] | [KP5-T02](goip-link-kinds.md#kp5-t02-the-netkit-parser) | the netkit parser | not started | |
 | [ ] | [KP5-T03](goip-link-kinds.md#kp5-t03-the-vrf-vrf_slave-and-vxcan-parsers) | the vrf, vrf_slave and vxcan parsers | not started | |
 | [ ] | [KP5-T04](goip-link-kinds.md#kp5-t04-the-batadv-parser-and-the-kinds-with-no-parser) | the batadv parser and the kinds with no parser | not started | |
@@ -253,6 +254,9 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | V115 | 2026-10-25 | KP4-T05 | mutation, a scratch worktree, each `go test` in a `systemd-run --scope -p MemoryMax=6G -p MemorySwapMax=0` with `-timeout=180s`: the vti `LINK` seeded whole; xfrm's `IF_ID` held to after the loop; vti's `REMOTE` sent when unset or zero | 3 of 3 killed: by `corner: the prefetched link keeps its low byte`; by `corner: two if_ids send two IF_IDs` and `add_if_id_twice`'s request; by `corner: remote any drops a prefetched remote` and both `set_remote_any` requests | scratch |
 | V116 | 2026-10-25 | KP4-T05 | `nix build .#checks.x86_64-linux.lint-baseline`, then `.#checks.x86_64-linux.netlink-audit` | both pass on the first run | this commit |
 | DOC014 | 2026-10-25 | KP4 close | KP5 broken into KP5-T01 (hsr), KP5-T02 (netkit), KP5-T03 (vrf, vrf_slave and vxcan) and KP5-T04 (batadv and the kinds with no parser) with their tables, argued from `iplink_hsr.c`, `iplink_netkit.c`, `iplink_vrf.c`, `iplink_vxcan.c` and `iplink_batadv.c` at `v7.2.0`, the 7.3 kernel's `hsr_fill_info`, `netkit_fill_info` and `vrf_fillinfo`, and the KC6 rows; KP4-T05's tables match the built rows; "Where goip stands" gains the KP4 kinds; `coverage-status.md`'s `IFLA_INFO_DATA` row, false since KP1, names the kinds now decoded; doccheck | tasks one to one, no broken link or anchor | this commit |
+| V117 | 2026-10-25 | KP5-T01 | `go vet`, `go test -count=1 -race ./pkg/xtcpnl/ ./internal/goip/`, `go test -race ./pkg/linkmonitor/...`, and `go test -bench BenchmarkParseHsrInfoData -benchmem` | all pass: `TestHsrDumpMatchesReadback` (10 rows), `TestParseHsrInfoData` (7 rows), `TestEncodeHsrInfoData` (20 corpus rows and 8 built), `TestLinkInfoHsrKinds` (4 rows). The 4 `route-1` replay goldens regenerated: 8 digests change. 77 ns/op, 64 B/op, 1 alloc/op | this commit |
+| V118 | 2026-10-25 | KP5-T01 | mutation, a scratch worktree, each `go test` in a `systemd-run --scope -p MemoryMax=6G -p MemorySwapMax=0` with `-timeout=180s`: the version refused above 1; the short-attribute check dropped; the attributes sent in id order | 3 of 3 killed: by `corner: version 2 passes ip` and `add_version_2`'s request; by `negative: a short SLAVE1 hides everything`; by `add_prp_version`'s request alone at first, since the plan's `add_abbrev` words are already in id order, and, after the word-order row was rebuilt out of id order, by it too | scratch |
+| V119 | 2026-10-25 | KP5-T01 | `nix build .#checks.x86_64-linux.lint-baseline`, then `.#checks.x86_64-linux.netlink-audit` | both pass on the first run | this commit |
 
 ## Decision log
 
@@ -332,3 +336,4 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 - **An xfrm if_id of 0 is a range error.** `xfrm_parse_opt` refuses it with `invarg` inside the loop, so `EncodeXfrmLinkInfoData` returns `ErrKindSettingRange` for it; `ErrKindSettingMissing` is kept for no `if_id` at all.
 - **KP4-T05's tables match the built rows.** The plan's `vti/add_default` row said local `any`; that row names a local, so it expects 10.0.0.2 and `add_ikey_okey` carries the `any`. The parse table is two tables, one per decoder; each encode table gains `no settings`, vti's an IPv6 remote, a key past 32 bits and `remote any`, xfrm's a dev with `external`, an if_id of 0 and the link's place. The last-key-wins row is built from its words, so its bytes are named.
 - **KP5 is four tasks:** hsr; netkit; vrf, vrf_slave and vxcan; batadv with the five kinds `ip` has no parser for. No KP5 parser prefetches, so the encoders take settings alone; netkit's and vxcan's peer halves share `EncodeVethPeer`'s nest. vxcan and batadv have no `fill_info` and the parser-less kinds no `INFO_DATA`, so their tasks test that nothing is there rather than decode it.
+- **KP5-T01's word-order row is built out of id order.** `add_abbrev`'s words (`sl d0 slave2 d1 s 7 v 1 p 0`) already come in attribute-id order, so a mutant sorting the attributes by id passed it; the row is built from `s 7 sl d0 p 0 v 1 slave2 d1` instead. The `LinkInfo` negative is an ifb, since no corpus row dumps a dummy as its own device.
