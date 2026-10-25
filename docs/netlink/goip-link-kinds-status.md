@@ -13,9 +13,10 @@
 - KC5 is done (KC5-T01, KC5-T02, KC5-T03, KC5-T04, KC5-T05; planned in DOC006): KC5-T01 adds 45 gre, 11 gretap and 25 erspan rows, 44 the kernel accepts, 16 it refuses and 21 `ip` refuses before netlink; KC5-T02 adds 36 ip6gre, 9 ip6gretap and 19 ip6erspan rows, 36 accepted, 14 refused by the kernel and 14 by `ip`; KC5-T03 adds 47 ipip and 37 sit rows, 46 accepted, 14 refused by the kernel and 24 by `ip` (`6rd-reset` has no row: it segfaults `ip`); KC5-T04 adds 49 ip6tnl rows, 29 accepted, 7 refused by the kernel and 13 by `ip`; KC5-T05 adds 23 vti, 12 vti6 and 23 xfrm rows, 27 accepted, 15 refused by the kernel and 16 by `ip`. They are KP4's and KG4's source.
 - KC6 is done (KC6-T01, KC6-T02, KC6-T03, KC6-T04; planned in DOC007): KC6-T01 adds 29 hsr rows, 10 accepted, 10 refused by the kernel and 9 by `ip`; KC6-T02 adds 43 netkit rows, 19 accepted, 8 refused by the kernel and 16 by `ip`; KC6-T03 adds 18 vrf, 10 vrf_slave and 18 vxcan rows, 18 accepted, 10 refused by the kernel and 18 by `ip`; KC6-T04 adds 17 batadv, 9 ifb, 6 nlmon, 13 vcan, 14 team and 4 team_slave rows, 29 accepted, 18 refused by the kernel and 16 by `ip`. They are KP5's and KG5's source.
 - KC7 is done (KC7-T01, KC7-T02; planned in DOC008): KC7-T01 commits the 7.3.0 link-write corpus, `testdata/7_3_0/link-write`, 10558 files from one run of the runner at the 7.2.0 pin, every kind row with its status, request and readbacks. KC7-T02 is the gate, `TestLinkKindUniverse`: of the 46 kinds 7.2.0's `iplink_*.c` and `link_*.c` name, 39 are captured with an accepted row and a `-d -j` readback, and 7 are excluded with a reason.
-- The KC tier is done. KP0 is planned (DOC009).
+- The KC tier is done.
+- KP0 is done (KP0-T01; planned in DOC009): `pkg/xtcpnl/xtcpnl_inet_devconf.go` encodes the `inet` write's `IFLA_AF_SPEC` byte for byte as `ip` does for the 11 KC1 rows the kernel answered, decodes it back, and decodes the dump's 33-value devconf array. KP1 is planned (DOC010).
 
-**Next action:** [KP0-T01](goip-link-kinds.md#kp0-t01-the-inet-devconf-codec): the `inet` devconf codec.
+**Next action:** [KP1-T01](goip-link-kinds.md#kp1-t01-the-bridge-parser): the bridge parser.
 
 ## Contents
 
@@ -47,7 +48,7 @@
 | [KC5](goip-link-kinds.md#kc5--ip-tunnel-captures) | captures | IP tunnels | KC5-T05 | done | V038–V052, DOC007 |
 | [KC6](goip-link-kinds.md#kc6--the-remaining-kinds-captures) | captures | the remaining kinds | KC6-T04 | done | V053–V064, DOC008 |
 | [KC7](goip-link-kinds.md#kc7--kind-completeness-gate) | captures | completeness gate | KC7-T02 | done | V065–V071, DOC009 |
-| [KP0](goip-link-kinds.md#kp0--inet-devconf-codec) | parsers | `inet` devconf codec | | not started | |
+| [KP0](goip-link-kinds.md#kp0--inet-devconf-codec) | parsers | `inet` devconf codec | KP0-T01 | done | V072–V074, DOC010 |
 | [KP1](goip-link-kinds.md#kp1--bridge-parsers) | parsers | bridge | | not started | |
 | [KP2](goip-link-kinds.md#kp2--vlan-family-parsers) | parsers | VLAN family | | not started | |
 | [KP3](goip-link-kinds.md#kp3--udp-overlay-parsers) | parsers | UDP overlays | | not started | |
@@ -88,8 +89,9 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | [x] | [KC6-T04](goip-link-kinds.md#kc6-t04-batadv-ifb-nlmon-vcan-team-and-team_slave) | batadv, ifb, nlmon, vcan, team and team_slave | done | V062–V064, DOC008 |
 | [x] | [KC7-T01](goip-link-kinds.md#kc7-t01-the-730-link-write-corpus) | the 7.3.0 link-write corpus | done | V065–V068 |
 | [x] | [KC7-T02](goip-link-kinds.md#kc7-t02-the-gate) | the completeness gate | done | V069–V071, DOC009 |
-| [ ] | [KP0-T01](goip-link-kinds.md#kp0-t01-the-inet-devconf-codec) | the `inet` devconf codec | not started | |
-| [ ] | [KP1-T01…](goip-link-kinds.md#kp1--bridge-parsers) | bridge parsers | not started | |
+| [x] | [KP0-T01](goip-link-kinds.md#kp0-t01-the-inet-devconf-codec) | the `inet` devconf codec | done | V072–V074, DOC010 |
+| [ ] | [KP1-T01](goip-link-kinds.md#kp1-t01-the-bridge-parser) | the bridge parser | not started | |
+| [ ] | [KP1-T02](goip-link-kinds.md#kp1-t02-the-bridge_slave-parser) | the bridge_slave parser | not started | |
 | [ ] | [KP2-T01…](goip-link-kinds.md#kp2--vlan-family-parsers) | VLAN family parsers | not started | |
 | [ ] | [KP3-T01…](goip-link-kinds.md#kp3--udp-overlay-parsers) | UDP overlay parsers | not started | |
 | [ ] | [KP4-T01…](goip-link-kinds.md#kp4--ip-tunnel-parsers) | IP tunnel parsers | not started | |
@@ -185,6 +187,10 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | V070 | 2026-10-25 | KC7-T02 | mutation, a scratch worktree, each `go test` in a `systemd-run --scope -p MemoryMax=6G -p MemorySwapMax=0` with `-timeout=180s`: the stale-exclusion case dropped; the `_slave` match dropped; the `ip.rc` filter dropped | 3 of 3 killed: by `corner: an exclusion the corpus contradicts`; `positive: the committed corpus passes` (bond_slave, bridge_slave, team_slave and vrf_slave uncaptured) and the rows built on it; `boundary: refused rows alone are not` | scratch |
 | V071 | 2026-10-25 | KC7-T02 | `nix build .#checks.x86_64-linux.lint-baseline`, then `.#checks.x86_64-linux.netlink-audit` | both pass (all three lint tiers exit 0) | this commit |
 | DOC009 | 2026-10-25 | KC7 close | KP0 broken into KP0-T01 (the `inet` devconf codec) with its tables, argued from `iplink_parse_inet` at `v7.2.0`, `inet_devconf_policy`, `inet_validate_link_af` and `inet_fill_link_af`, and the KC1 rows' requests and readbacks; KC7-T02's section amended to what the gate does (46 kinds, the shared readbacks); doccheck | tasks one to one, no broken link or anchor | this commit |
+| V072 | 2026-10-25 | KP0-T01 | `go vet`, `go test -count=1 -race ./pkg/xtcpnl/`, and `go test -bench BenchmarkParseInetDevconf -benchmem` | all pass: `TestInetDevconfParams`, `TestInetDevconfEncode` (the 11 KC1 rows byte for byte and 8 built rows), `TestInetDevconfRequestParse` (the 11 rows decoded and round-tripped, and 5 built rows), `TestInetDevconfValues` (5 corpus rows and 3 built). `request` 519 ns/op, 504 B/op, 6 allocs/op; `values` 119 ns/op, 144 B/op, 1 alloc/op | this commit |
+| V073 | 2026-10-25 | KP0-T01 | mutation, a scratch worktree, each `go test` in a `systemd-run --scope -p MemoryMax=6G -p MemorySwapMax=0` with `-timeout=180s`: `NLA_F_NESTED` dropped; repeats deduplicated; id `i` read at index `i` | 3 of 3 killed: by the 11 byte-identical rows; `corner: a repeated id is kept` and `inet_repeated`'s rows; `positive: every devconf id reads back what inet_every_param sent` and three more | scratch |
+| V074 | 2026-10-25 | KP0-T01 | `nix build .#checks.x86_64-linux.lint-baseline`, then `.#checks.x86_64-linux.netlink-audit` | both pass (all three lint tiers exit 0; the first lint run found a gofmt alignment in the test, fixed) | this commit |
+| DOC010 | 2026-10-25 | KP0 close | KP1 broken into KP1-T01 (bridge) and KP1-T02 (bridge_slave) with their tables, argued from `iplink_bridge.c` and `iplink_bridge_slave.c` at `v7.2.0`, `if_link.h`'s ids and the KC2 rows' readbacks; doccheck | tasks one to one, no broken link or anchor | this commit |
 
 ## Decision log
 
@@ -223,3 +229,5 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 - **`corpusAll` skips the 7.3.0 link-write set.** The 17 corpus tests that tally every message under `testdata` count one capture of each row; the 7.3.0 set recaptures the 7.1.4 set's rows, so reading both doubles them. The kind tests read `tdLinkWrite_7_3_0` directly, and `TestCorpusAllSkipsLinkWrite730` pins the skip.
 - **7.2.0 names 46 link kinds, not 48.** The plan's count was wrong: `ip/iplink_*.c` and `ip/link_*.c` at `v7.2.0` hold 46 `link_util` ids. `macsec` (`ipmacsec.c`) and `tun` (`iptuntap.c`) are `link_util`s outside those files and outside the plan. With the 7 exclusions, 39 kinds are in scope.
 - **bond, bond_slave, dummy and veth are captured through shared readbacks.** Their `write/` rows predate `link-write-readback.exp` and have no readbacks of their own. The gate pairs each kind's accepted `write/` rows with a `-d -j` dump in the same corpus that shows a device of the kind: `lacp_converged/ip_link_n_json` for bond, bond_slave and veth, and `kinds/vrf_slave/set_master/ip_getlink_detail_json`'s `d0` for dummy.
+- **The `inet` request and dump don't share a shape.** The request's `IFLA_INET_CONF` carries `NLA_F_NESTED` and holds u32 attributes typed by devconf id; the dump's is a raw array of `IPV4_DEVCONF_MAX` u32s with no flag. KP0's codec keeps two decoders. The encoder refuses an empty list, since `ip` never sends one, and ids outside 1 to 33, but not `mc_forwarding` (2): the kernel's policy refuses that.
+- **The bridge's `vlan_protocol` is big-endian on the wire.** `ll_proto_a2n` returns the protocol byte-swapped and `addattr16` copies it, so KP1's parser reads it in network order.
