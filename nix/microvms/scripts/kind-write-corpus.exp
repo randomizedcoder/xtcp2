@@ -559,6 +559,90 @@ namespace eval kindcorpus {
         [vxlan add_no_value id 255]
 
     ###########################################################################
+    # geneve (KC4-T02). The device is gn0. On an add ip requires id and
+    # remote unless external is given, and always sends ID, LABEL, TTL and
+    # TOS; on a set it requires id alone. 7.2.0's local is one strcmp
+    # keyword that sends IFLA_GENEVE_LOCAL or LOCAL6 by the address's
+    # family; local6 is an output key, not a keyword. geneve_nl2info and
+    # geneve_configure (drivers/net/geneve.c) argue the kernel's statuses;
+    # a change of the VNI, the port, the family, a new local or anything
+    # on an external device is -EOPNOTSUPP.
+    ###########################################################################
+    variable GENEVE_BASE {id 1 remote 10.0.0.1}
+    variable PRE_GN0 [list {link add gn0 type geneve id 1 remote 10.0.0.1}]
+    variable PRE_GN0_LOCAL [list {link add gn0 type geneve id 1 remote 10.0.0.1 local 10.0.0.2}]
+    variable PRE_GN0_EXTERNAL [list {link add gn0 type geneve external}]
+
+    proc geneve {name words rc {pre {}}} {
+        return [plain geneve gn0 $name $words $rc $pre]
+    }
+
+    # geneve_base <name> <words> <rc> - an add of $GENEVE_BASE and <words>.
+    proc geneve_base {name words rc} {
+        variable GENEVE_BASE
+        return [geneve $name [string trimright "$GENEVE_BASE $words"] $rc]
+    }
+
+    proc geneve_set {name words rc {pre {}}} {
+        variable PRE_GN0
+        if {$pre eq ""} {
+            set pre $PRE_GN0
+        }
+        return [row geneve $name $pre "ip link set gn0 type geneve $words" $rc gn0]
+    }
+
+    lappend rows \
+        [geneve_base add_default {} 0] \
+        [geneve add_remote6 {id 1 remote 2001:db8::1} 0] \
+        [geneve add_external external 0] \
+        [geneve add_id_max {id 16777215 remote 10.0.0.1} 0] \
+        [geneve add_abbrev {i 1 r 10.0.0.1} 0] \
+        [geneve_base add_local {local 10.0.0.2} 0] \
+        [geneve add_local6 {id 1 remote 2001:db8::1 local 2001:db8::2} 0] \
+        [geneve add_external_local {external local 192.168.0.1} 0] \
+        [geneve add_external_local6 {external local 2001:db8::1} 0] \
+        [geneve_base add_ttl {ttl 64} 0] \
+        [geneve_base add_ttl_inherit {ttl inherit} 0] \
+        [geneve_base add_tos {tos 10} 0] \
+        [geneve_base add_df {df set} 0] \
+        [geneve_base add_dstport {dstport 4789} 0] \
+        [geneve_base add_dstport_zero {dstport 0} 0] \
+        [geneve add_flowlabel {id 1 remote 2001:db8::1 flowlabel 0xfffff} 0] \
+        [geneve add_zero_csum6 {id 1 remote 2001:db8::1 udp6zerocsumtx udp6zerocsumrx} 0] \
+        [geneve_base add_csum_cancel {udpcsum udp6zerocsumtx} 0] \
+        [geneve_base add_innerprotoinherit innerprotoinherit 0] \
+        [geneve_set set_changeable {id 1 ttl 5 tos 10 df set} 0] \
+        [geneve_set set_remote {id 1 remote 10.0.0.9} 0] \
+        [geneve_set set_local_same {id 1 local 10.0.0.2} 0 $PRE_GN0_LOCAL] \
+        [geneve add_no_option {} 2] \
+        [geneve add_remote6_link_local {id 1 remote fe80::1} 2] \
+        [geneve add_local6_link_local {id 1 remote 2001:db8::1 local fe80::2} 2] \
+        [geneve_base add_local_family_mix {local 2001:db8::2} 2] \
+        [geneve_base add_flowlabel_v4 {label 5} 2] \
+        [geneve add_external_udpcsum {external udpcsum} 2] \
+        [plain geneve gn1 add_duplicate $GENEVE_BASE 2 $PRE_GN0] \
+        [plain geneve gn1 add_after_external $GENEVE_BASE 2 $PRE_GN0_EXTERNAL] \
+        [geneve_set set_id {id 2} 2] \
+        [geneve_set set_dstport {id 1 dstport 6081} 2] \
+        [geneve_set set_family {id 1 remote 2001:db8::1} 2] \
+        [geneve_set set_local_new {id 1 local 10.0.0.2} 2] \
+        [geneve_set set_on_external {id 0} 2 $PRE_GN0_EXTERNAL] \
+        [geneve add_no_id {remote 10.0.0.1} 1] \
+        [geneve add_no_remote {id 1} 1] \
+        [geneve add_external_and_id {external id 5} 1] \
+        [geneve_set set_no_id {ttl 5} 1] \
+        [geneve add_remote_bad {id 1 remote bogus} 1] \
+        [geneve_base add_local_abbrev {loc 10.0.0.2} 1] \
+        [geneve add_local6_word {id 1 remote 2001:db8::1 local6 2001:db8::2} 1] \
+        [geneve add_id_over {id 16777216 remote 10.0.0.1} 255] \
+        [geneve add_remote_multicast {id 1 remote 239.1.1.1} 255] \
+        [geneve_base add_local_multicast {local 224.0.0.1} 255] \
+        [geneve_base add_ttl_over {ttl 256} 255] \
+        [geneve add_flowlabel_over {id 1 remote 2001:db8::1 flowlabel 0x100000} 255] \
+        [geneve add_external_twice {external noexternal} 255] \
+        [geneve add_no_value id 255]
+
+    ###########################################################################
     # readback_args <ns> <subdir> <readback> - the xtcp2-nlcap capio argument
     # list for one readback, which the driver hands to its capio proc.
     ###########################################################################

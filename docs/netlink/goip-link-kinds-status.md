@@ -9,9 +9,9 @@
 - KC1 is done (KC1-T01): 18 `ip link set dev d0 inet …` rows, 11 the kernel answers and 7 `ip` refuses before netlink, are in the rtnl corpus. They are KP0's and KG0's source.
 - KC2 is done (KC2-T01, KC2-T02): a kind corpus (`kind-write-corpus.exp`) the link-write driver runs into `link-write/kinds/`, with 60 bridge rows and 42 bridge_slave rows, 80 the kernel accepts, 12 it refuses and 10 `ip` refuses before netlink. They are KP1's and KG1's source.
 - KC3 is done (KC3-T01, KC3-T02, KC3-T03): 28 vlan, 34 macvlan, 6 macvtap, 18 ipvlan and 4 ipvtap rows in the kind corpus, stacked on a dummy `d0`; of the 90, 54 the kernel accepts, 14 it refuses and 22 `ip` refuses before netlink. They are KP2's and KG2's source.
-- KC4 is in progress: KC4-T01 adds 73 vxlan rows, 46 the kernel accepts, 12 it refuses and 15 `ip` refuses before netlink.
+- KC4 is in progress: KC4-T01 adds 73 vxlan rows, 46 the kernel accepts, 12 it refuses and 15 `ip` refuses before netlink; KC4-T02 adds 49 geneve rows, 22 accepted, 13 refused by the kernel and 14 by `ip`.
 
-**Next action:** [KC4-T02](goip-link-kinds.md#kc4-t02-geneve): geneve.
+**Next action:** [KC4-T03](goip-link-kinds.md#kc4-t03-bareudp-and-amt): bareudp and amt.
 
 ## Contents
 
@@ -39,7 +39,7 @@
 | [KC1](goip-link-kinds.md#kc1--inet-devconf-captures) | captures | `inet` devconf | KC1-T01 | done | V006–V008, DOC003 |
 | [KC2](goip-link-kinds.md#kc2--bridge-captures) | captures | bridge | KC2-T02 | done | V009–V016, DOC004 |
 | [KC3](goip-link-kinds.md#kc3--vlan-family-captures) | captures | VLAN family | KC3-T03 | done | V017–V025, DOC005 |
-| [KC4](goip-link-kinds.md#kc4--udp-overlay-captures) | captures | UDP overlays | KC4-T04 | in progress | V026–V028 |
+| [KC4](goip-link-kinds.md#kc4--udp-overlay-captures) | captures | UDP overlays | KC4-T04 | in progress | V026–V031 |
 | [KC5](goip-link-kinds.md#kc5--ip-tunnel-captures) | captures | IP tunnels | | not started | |
 | [KC6](goip-link-kinds.md#kc6--the-remaining-kinds-captures) | captures | the remaining kinds | | not started | |
 | [KC7](goip-link-kinds.md#kc7--kind-completeness-gate) | captures | completeness gate | | not started | |
@@ -70,7 +70,7 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | [x] | [KC3-T02](goip-link-kinds.md#kc3-t02-macvlan-and-macvtap) | macvlan and macvtap | done | V020–V022 |
 | [x] | [KC3-T03](goip-link-kinds.md#kc3-t03-ipvlan-and-ipvtap) | ipvlan and ipvtap | done | V023–V025, DOC005 |
 | [x] | [KC4-T01](goip-link-kinds.md#kc4-t01-vxlan) | vxlan | done | V026–V028 |
-| [ ] | [KC4-T02](goip-link-kinds.md#kc4-t02-geneve) | geneve | not started | |
+| [x] | [KC4-T02](goip-link-kinds.md#kc4-t02-geneve) | geneve | done | V029–V031 |
 | [ ] | [KC4-T03](goip-link-kinds.md#kc4-t03-bareudp-and-amt) | bareudp and amt | not started | |
 | [ ] | [KC4-T04](goip-link-kinds.md#kc4-t04-gtp) | gtp | not started | |
 | [ ] | [KC5-T01…](goip-link-kinds.md#kc5--ip-tunnel-captures) | IP tunnel captures | not started | |
@@ -126,6 +126,9 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | V026 | 2026-10-24 | KC4-T01 | `nix build .#checks.x86_64-linux.vm-lib-exp` | `kind-write-corpus.exp`: 97 passed, 0 failed (the 265 rows, one `add_` row per vxlan flag and one `add_df_` row per value, the VNI range, the rows without a dstport, `d0` before every `dev d0`, the duplicate's and the sets' pres, `get_addr`'s 1 against `invarg`'s 255); the other suites unchanged | this commit |
 | V027 | 2026-10-24 | KC4-T01 | mutation, scratch copies of the corpus and its test, through `expect`: a flag dropped, `add_id_over` at 2, `add_group`'s pre without `d0`, `add_remote_bad` at 255 | 4 of 4 killed: by `slug_list`, `row_count` and `vxlan_flag_rows`; `refused_statuses` and `vxlan_id_range`; `vxlan_dev_pre`; `refused_statuses` and `vxlan_get_addr` | scratch |
 | V028 | 2026-10-24 | KC4-T01 | `nix run .#microvm-x86_64-link-write-capture -- --timeout 7200`, guest kernel 7.3.0; `-d -j` readbacks diffed against `add_dstport`'s; compared with V025 by `pcapcmp` | `NLCAP_DRIVER_FAIL` on `genl/mptcp_limits_set_over` alone (V004). The 73 rows hold their planned statuses on the first run: 46 at 0, 12 at 2, 8 at 1 and 7 at 255. Each row's readback differs from the base in the attribute it sent and no other, but as the plan has it: no dstport reads back 8472, `gpe` 4790; `ageing none` 300; `ttl inherit` drops the `ttl` key; `tos inherit` reads `0x1`; `mcroute` reads back nothing; `gbp`, `gpe` and `remcsumrx` change `reserved_bits` too (the default is `0xf7ffffff000000ff`). The kernel's refusals carry their extack text ("Cannot change VNI", "Cannot change port", "cannot change PROXY flag", "Invalid source port range", …). Against V025: 247 new pcaps, all under `kinds/vxlan/` (73 `ip.pcap` and 58 rows × 3 readbacks); 1412 the same shape, 14 differing in V004's classes, none under `kinds/` | scratch |
+| V029 | 2026-10-24 | KC4-T02 | `nix build .#checks.x86_64-linux.vm-lib-exp` | `kind-write-corpus.exp`: 104 passed, 0 failed (the 314 rows, `local` the one address keyword with a row per family, `local6` and `loc` refused by `ip`, the conflicting rows' pres and readbacks, the VNI range, every set row carrying an `id`); the other suites unchanged | this commit |
+| V030 | 2026-10-24 | KC4-T02 | mutation, scratch copies of the corpus and its test, through `expect`: `add_local6` sent as `local6`, `add_local_abbrev` at 0, `add_after_external`'s pre made with base, `add_dstport_zero` dropped | 4 of 4 killed: by `geneve_local_one_keyword`; `refused_statuses` and `geneve_local_refused`; `geneve_conflict_pres`; `slug_list` and `row_count` | scratch |
+| V031 | 2026-10-24 | KC4-T02 | `nix run .#microvm-x86_64-link-write-capture -- --timeout 7200`, guest kernel 7.3.0; `-d -j` readbacks diffed against `add_default`'s; compared with V028 by `pcapcmp` | `NLCAP_DRIVER_FAIL` on `genl/mptcp_limits_set_over` alone (V004). The 49 rows hold their planned statuses on the first run: 22 at 0, 13 at 2, 7 at 1 and 7 at 255. Each accepted row's readback differs from the base in what it sent, with two quirks: `dstport 0` reads back 6081, because `ip` sends `IFLA_GENEVE_PORT` only when it is nonzero, and an IPv6 remote turns `udp_csum` into `udp_zero_csum6_tx`/`_rx`. `set_on_external` is refused with `EOPNOTSUPP`, and the other refused sets carry "Changing VNI, Port, endpoint IP address family, external, …". Against V028: 154 new pcaps, all under `kinds/geneve/` (49 `ip.pcap` and 35 rows × 3 readbacks); 1658 the same shape, 15 differing in V004's classes, none under `kinds/` | scratch |
 
 ## Decision log
 

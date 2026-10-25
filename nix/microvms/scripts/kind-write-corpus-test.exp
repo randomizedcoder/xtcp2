@@ -418,13 +418,31 @@ lappend design_rows {*}{
     vxlan/add_dev_missing vxlan/add_ttl_over vxlan/add_srcport_one
     vxlan/add_learning_twice vxlan/add_no_value
 }
+lappend design_rows {*}{
+    geneve/add_default geneve/add_remote6 geneve/add_external geneve/add_id_max
+    geneve/add_abbrev geneve/add_local geneve/add_local6
+    geneve/add_external_local geneve/add_external_local6 geneve/add_ttl
+    geneve/add_ttl_inherit geneve/add_tos geneve/add_df geneve/add_dstport
+    geneve/add_dstport_zero geneve/add_flowlabel geneve/add_zero_csum6
+    geneve/add_csum_cancel geneve/add_innerprotoinherit geneve/set_changeable
+    geneve/set_remote geneve/set_local_same geneve/add_no_option
+    geneve/add_remote6_link_local geneve/add_local6_link_local
+    geneve/add_local_family_mix geneve/add_flowlabel_v4
+    geneve/add_external_udpcsum geneve/add_duplicate geneve/add_after_external
+    geneve/set_id geneve/set_dstport geneve/set_family geneve/set_local_new
+    geneve/set_on_external geneve/add_no_id geneve/add_no_remote
+    geneve/add_external_and_id geneve/set_no_id geneve/add_remote_bad
+    geneve/add_local_abbrev geneve/add_local6_word geneve/add_id_over
+    geneve/add_remote_multicast geneve/add_local_multicast geneve/add_ttl_over
+    geneve/add_flowlabel_over geneve/add_external_twice geneve/add_no_value
+}
 
 check slug_list "positive: the rows are the plan's, in run order" \
     {slugs $R} [join $design_rows " "]
 check first_row "boundary: add_default comes first" \
     {lindex [slugs $R] 0} bridge/add_default
-check row_count "boundary: KC2's 60 bridge and 42 bridge_slave rows, KC3-T01's 28 vlan rows, KC3-T02's 34 macvlan and 6 macvtap rows, KC3-T03's 18 ipvlan and 4 ipvtap rows, KC4-T01's 73 vxlan rows" \
-    {llength $R} 265
+check row_count "boundary: KC2's 60 bridge and 42 bridge_slave rows, KC3-T01's 28 vlan rows, KC3-T02's 34 macvlan and 6 macvtap rows, KC3-T03's 18 ipvlan and 4 ipvtap rows, KC4-T01's 73 vxlan rows, KC4-T02's 49 geneve rows" \
+    {llength $R} 314
 check bridge_first "boundary: bridge's rows all come before bridge_slave's" \
     {lsearch -glob [slugs $R] bridge_slave/*} 60
 check option_rows "positive: one add_ row per value-taking option but stp_mode, each once" \
@@ -485,6 +503,17 @@ set refused_design {
     vxlan/add_id_over 255 vxlan/add_remote_multicast 255
     vxlan/add_dev_missing 255 vxlan/add_ttl_over 255 vxlan/add_srcport_one 255
     vxlan/add_learning_twice 255 vxlan/add_no_value 255
+    geneve/add_no_option 2 geneve/add_remote6_link_local 2
+    geneve/add_local6_link_local 2 geneve/add_local_family_mix 2
+    geneve/add_flowlabel_v4 2 geneve/add_external_udpcsum 2
+    geneve/add_duplicate 2 geneve/add_after_external 2 geneve/set_id 2
+    geneve/set_dstport 2 geneve/set_family 2 geneve/set_local_new 2
+    geneve/set_on_external 2 geneve/add_no_id 1 geneve/add_no_remote 1
+    geneve/add_external_and_id 1 geneve/set_no_id 1 geneve/add_remote_bad 1
+    geneve/add_local_abbrev 1 geneve/add_local6_word 1 geneve/add_id_over 255
+    geneve/add_remote_multicast 255 geneve/add_local_multicast 255
+    geneve/add_ttl_over 255 geneve/add_flowlabel_over 255
+    geneve/add_external_twice 255 geneve/add_no_value 255
 }
 check refused_statuses "positive: exactly the refusal rows expect a non-zero status" \
     {refused_rows} [join $refused_design " "]
@@ -725,6 +754,28 @@ check vxlan_set_pre "positive: every set acts on a vx0 its pre made" \
     {- {link add vx0 type vxlan id 42 dstport 4789}}
 check vxlan_get_addr "corner: get_addr's failure exits 1, invarg's 255" \
     {list [field vxlan/add_remote_bad 5] [field vxlan/add_remote_multicast 5]} {1 255}
+
+###############################################################################
+# 10. the geneve rows' states
+###############################################################################
+check geneve_after_vxlan "positive: geneve's rows follow vxlan's" \
+    {lsearch -glob [slugs $R] geneve/*} 265
+check geneve_local_one_keyword "positive: one keyword, local, sends either family" \
+    {lmap s {add_local add_local6} {lrange [field geneve/$s 3] end-1 end}} \
+    {{local 10.0.0.2} {local 2001:db8::2}}
+check geneve_local_refused "corner: local6 and loc are ip's refusals: rc 1, floor 0" \
+    {lmap s {add_local6_word add_local_abbrev} {list [field geneve/$s 5] [field geneve/$s 1]}} \
+    {{1 0} {1 0}}
+check geneve_conflict_pres "corner: the conflict rows' pres make gn0 with the base, external, external" \
+    {lmap s {add_duplicate add_after_external set_on_external} {lindex [field geneve/$s 2] end}} \
+    {{link add gn0 type geneve id 1 remote 10.0.0.1} {link add gn0 type geneve external} {link add gn0 type geneve external}}
+check geneve_conflict_readbacks "corner: their readbacks read gn1, gn1, gn0" \
+    {lmap s {add_duplicate add_after_external set_on_external} {lindex [field geneve/$s 4] 0 2}} \
+    {{ip -d link show dev gn1} {ip -d link show dev gn1} {ip -d link show dev gn0}}
+check geneve_id_range "boundary: the VNI's top is accepted; one over is ip's invarg" \
+    {list [field geneve/add_id_max 5] [field geneve/add_id_over 5]} {0 255}
+check geneve_set_needs_id "negative: a set without id is ip's refusal; with it the kernel's" \
+    {list [field geneve/set_no_id 5] [field geneve/set_id 5]} {1 2}
 
 ###############################################################################
 # summary
