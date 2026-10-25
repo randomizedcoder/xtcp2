@@ -307,20 +307,26 @@ const VethInfoPeer uint16 = 1
 func EncodeVethPeer(p VethPeer) ([]byte, error) {
 	var raw [linkWriteBufCst]byte
 	ab := NewAttrBuilder(raw[:])
-	m, err := ab.BeginNest(VethInfoPeer)
-	if err != nil {
-		return nil, err
-	}
-	if err := putRaw(&ab, EncodeIfInfomsg(unix.AF_UNSPEC, p.Index, p.IfFlags, p.IfChange)); err != nil {
-		return nil, err
-	}
-	for _, a := range p.Attrs {
-		if err := ab.PutBytes(a.Type, a.Payload); err != nil {
-			return nil, err
-		}
-	}
-	if err := ab.EndNest(m); err != nil {
+	if err := putPeerNest(&ab, VethInfoPeer, p); err != nil {
 		return nil, err
 	}
 	return append([]byte(nil), ab.Bytes()...), nil
+}
+
+// putPeerNest writes the peer half veth, netkit and vxcan share: a nest of
+// atype holding the peer's raw ifinfomsg and then its attributes.
+func putPeerNest(ab *AttrBuilder, atype uint16, p VethPeer) error {
+	m, err := ab.BeginNest(atype)
+	if err != nil {
+		return err
+	}
+	if err := putRaw(ab, EncodeIfInfomsg(unix.AF_UNSPEC, p.Index, p.IfFlags, p.IfChange)); err != nil {
+		return err
+	}
+	for _, a := range p.Attrs {
+		if err := ab.PutBytes(a.Type, a.Payload); err != nil {
+			return err
+		}
+	}
+	return ab.EndNest(m)
 }

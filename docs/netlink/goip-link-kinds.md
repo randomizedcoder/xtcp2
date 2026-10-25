@@ -2391,16 +2391,19 @@ Four tasks, one per KC6 task: KP5-T01 hsr (`iplink_hsr.c`); KP5-T02 netkit (`ipl
 | positive: each row's request | the 27 rows that sent one | byte-identical to `ip.pcap`'s |
 | negative: a second mode | `mode l3 mode l2` | `ErrKindSettingConflict` |
 | negative: a second peer | `peer peer` | `ErrKindSettingConflict` |
+| negative: a policy with no name | built `POLICY` 1 | `ErrKindSettingRange` |
+| negative: a peer half with no peer word | a `VethPeer` and no `peer` setting | `ErrKindSettingMissing` |
 | negative: a setting with no option | the zero option | `ErrKindSettingOption` |
-| boundary: no settings | `nil` | no bytes |
-| boundary: `peer` alone | `add_peer_only` | an empty, non-nil `INFO_DATA` |
+| boundary: no settings | `nil` | `nil` |
+| boundary: `peer` alone | `peer` | an empty, non-nil `INFO_DATA` |
 | corner: `peer` splits the policy words | `forward peer blackhole` | `POLICY` 0, then `PEER_POLICY` 2 |
-| corner: the peer's header carries its flags | `add_peer_up` | its request: `PEER_INFO`'s `ifinfomsg` with `IFF_UP` |
-| corner: a netkit word after `peer` stays netkit's | `add_peer_mode` | `MODE` 0, no `PEER_INFO` |
+| corner: the peer's header carries its flags | `peer`, the peer `IFF_UP` | `PEER_INFO`'s `ifinfomsg` with `IFF_UP` |
+| corner: `PEER_INFO` follows netkit's words | `blackhole peer name nt1` | `POLICY` 2, then `PEER_INFO` holding `IFNAME` `nt1` |
+| corner: a netkit word after `peer` stays netkit's | `peer mode l2` | `MODE` 0, no `PEER_INFO` |
 
-`TestLinkInfoNetkitKinds`: a netkit decodes `Netkit` (positive ×2: the primary and, through `set_on_peer`, the peer); a veth does not; an l2 netkit does (corner).
+`TestLinkInfoNetkitKinds`: a netkit decodes `Netkit` (positive ×2: the primary and, through `set_on_peer`, the peer); a vxcan does not (negative, `vxcan/add_peer`); an l2 netkit does (corner).
 
-**Mutation check:** a policy after `peer` sent as `POLICY` (`add_peer_blackhole`); `PEER_INFO` placed before the netkit words (`add_peer_name` and its siblings); a second `mode` accepted (the second-mode row).
+**Mutation check:** a policy after `peer` sent as `POLICY` (`add_peer_blackhole`); `PEER_INFO` placed before the netkit words (`corner: PEER_INFO follows netkit's words`); a second `mode` accepted (the second-mode row).
 
 #### KP5-T03 The vrf, vrf_slave and vxcan parsers
 

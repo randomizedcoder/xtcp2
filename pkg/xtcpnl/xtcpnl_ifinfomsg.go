@@ -368,6 +368,8 @@ type LinkInfo struct {
 	Xfrm *XfrmLinkInfo
 	// Hsr is IFLA_INFO_DATA decoded when Kind is "hsr".
 	Hsr *HsrInfo
+	// Netkit is IFLA_INFO_DATA decoded when Kind is "netkit".
+	Netkit *NetkitInfo
 
 	Link int32 // IFLA_LINK — peer/lower interface index
 
@@ -1060,6 +1062,8 @@ func setLinkInfoNest(li *LinkInfo, val []byte) {
 		li.Xfrm = ParseXfrmLinkInfoData(infoData)
 	case hsrKindCst:
 		li.Hsr = ParseHsrInfoData(infoData)
+	case netkitKindCst:
+		li.Netkit = ParseNetkitInfoData(infoData)
 	}
 }
 
