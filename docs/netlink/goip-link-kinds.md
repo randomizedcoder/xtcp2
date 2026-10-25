@@ -2600,7 +2600,7 @@ Five tasks: KG1-T01 and KG1-T02 parse `type bridge` and `type bridge_slave` word
 
 #### KG1-T01 The bridge words
 
-**Code.** `internal/goip/link_bridge_args.go`, following `link_bond_args.go`: `parseBridgeArgs(args []string) ([]xtcpnl.BridgeSetting, error)`, its chain in `bridge_parse_opt`'s order, each arm pointing at its `xtcpnl.BridgeOptions` row by id and matched by its `Match`. Values by `Wire`: unsigned through `get_u*`'s bases, `group_address` as a MAC, `vlan_protocol` through `ll_proto_a2n`, `stp_mode` by name, the five boolopts collected into one `MULTI_BOOLOPT`. A `kindBridgeCst` case in `kindData` calls `xtcpnl.EncodeBridgeInfoData`.
+**Code.** `internal/goip/link_bridge_args.go`, following `link_bond_args.go`: `parseBridgeArgs(errOut io.Writer, args []string) ([]xtcpnl.BridgeSetting, error)`, its chain in `bridge_parse_opt`'s order, each arm pointing at its `xtcpnl.BridgeOptions` row by keyword and matched by its `Match`. Values by `Wire`: unsigned through `get_u*`'s bases (a boolopt word is a `get_u8`), `group_address` as a MAC, `vlan_protocol` through `ll_proto_a2n` (`internal/goip/ll_proto.go`), `stp_mode` by name through `parse_one_of`, whose prefix warning goes to `errOut`. `xtcpnl.EncodeBridgeInfoData` collects the five boolopts into one `MULTI_BOOLOPT`. A `kindBridgeCst` case in `kindData` calls it.
 
 `TestLinkBridgeWriteMatchesIp`, replaying `kinds/bridge/*` through `newLinkReplay` with `useLLMap720`: goip sends `ip`'s lookups and writes `ip`'s request, byte for byte with seq and pid zeroed, and exits 0.
 
@@ -2613,16 +2613,21 @@ Five tasks: KG1-T01 and KG1-T02 parse `type bridge` and `type bridge_slave` word
 | corner: a `matches` keyword abbreviated | `add_abbrev` (`forward_d 400`) | `FORWARD_DELAY` |
 | corner: a set prefetches br0 | `set_ageing_time` | br0's get, then the set |
 
+`TestBridgeCorpusArgv` holds the argv table to the corpus: one argv per `kinds/bridge/` row, 60. `TestBridgeParseChain` holds the chain: every keyword finds its row, every settable row is in the chain, 41 arms, and `mcast_q` is `mcast_query_use_ifaddr`. `TestParseBridgeArgs` holds the values no capture covers: `vlan_protocol` by number and by a name in another case, a u64 interval at its top, and `stp_mode k`, which warns and goes on.
+
 `TestLinkBridgeRefusals`: status and stderr's first line (goip prints no usage, as for bond).
 
 | description | input | expected |
 |---|---|---|
 | negative: each `ip`-refused row | `add_stp_mode_abbrev`, `add_stp_mode_bad` (1); `add_no_value`, `add_priority_bad`, `add_vlan_protocol_bad` (255) | the row's `ip.rc`, its `ip.err` first line, nothing sent |
 | negative: an unknown word | `type bridge bogus 1` | 1, `bridge: unknown command "bogus"?` |
+| negative: a bad group address | `group_address zz` | 1, `"zz" is invalid lladdr` |
 | boundary: a u16 one past its range | `priority 65536` | 255, `argument "65536" is wrong: invalid priority` |
+| boundary: a boolopt word is a u8 | `mst_enabled 256` | 255, invalid `mst_enabled` |
 | corner: a `strcmp` keyword abbreviated | `mst_en 1` | 1, unknown command |
+| corner: help is not goip's | `help` | 1, not implemented |
 
-**Mutation check:** every keyword matched by prefix (`add_stp_mode_abbrev`); `MULTI_BOOLOPT` per word (`add_boolopts`); `invarg` mapped to 1 (the 255 rows).
+**Mutation check:** every keyword matched by prefix (`add_stp_mode_abbrev`, `mst_en 1`); a boolopt read as a u32 (`mst_enabled 256`); `invarg` mapped to 1 (the 255 rows); `mcast_querier` tried first (the chain's corner row); `ll_proto_a2n` with case (the name in another case). `MULTI_BOOLOPT` per word is the encoder's, which KP1 held.
 
 **Done when:** the tables pass with `go test -count=1 -race ./internal/goip/`, `go vet` passes, the mutants are killed, and lint-baseline and netlink-audit pass.
 

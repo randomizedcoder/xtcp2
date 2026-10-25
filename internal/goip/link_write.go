@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"syscall"
@@ -565,7 +566,7 @@ const (
 
 // buildLinkWrite is iplink_modify up to the send: parse, then the kind and
 // its options.
-func buildLinkWrite(verb *linkWriteVerb, family uint8, args []string, resolve linkResolver) (xtcpnl.LinkWrite, error) {
+func buildLinkWrite(errOut io.Writer, verb *linkWriteVerb, family uint8, args []string, resolve linkResolver) (xtcpnl.LinkWrite, error) {
 	p, err := parseLinkArgs(args, verb.create(), resolve)
 	if err != nil {
 		return xtcpnl.LinkWrite{}, err
@@ -595,7 +596,7 @@ func buildLinkWrite(verb *linkWriteVerb, family uint8, args []string, resolve li
 	if len(p.rest) == 0 {
 		return w, nil
 	}
-	w.Data, err = kindData(verb, p.kind, p.rest, resolve)
+	w.Data, err = kindData(errOut, verb, p.kind, p.rest, resolve)
 	if err != nil {
 		return xtcpnl.LinkWrite{}, err
 	}
@@ -604,9 +605,16 @@ func buildLinkWrite(verb *linkWriteVerb, family uint8, args []string, resolve li
 }
 
 // kindData is lu->parse_opt for the kinds goip implements, run only when
-// arguments follow the kind.
-func kindData(verb *linkWriteVerb, kind string, rest []string, resolve linkResolver) ([]byte, error) {
+// arguments follow the kind. errOut takes the warnings a parser prints and
+// goes on from.
+func kindData(errOut io.Writer, verb *linkWriteVerb, kind string, rest []string, resolve linkResolver) ([]byte, error) {
 	switch kind {
+	case kindBridgeCst:
+		settings, err := parseBridgeArgs(errOut, rest)
+		if err != nil {
+			return nil, err
+		}
+		return xtcpnl.EncodeBridgeInfoData(settings)
 	case kindBondCst:
 		settings, err := parseBondArgs(rest, func(name string) (uint32, error) {
 			idx, err := resolve(name)
@@ -666,7 +674,7 @@ func vethData(verb *linkWriteVerb, rest []string, resolve linkResolver) ([]byte,
 // GOIP_WRITE_OUT instead of the kernel.
 func linkWrite(c *runCtx, verb *linkWriteVerb, args []string) error {
 	svc := service.New(c.src, c.nextSeq)
-	w, err := buildLinkWrite(verb, c.family, args, newLinkNameResolver(svc))
+	w, err := buildLinkWrite(c.errOut, verb, c.family, args, newLinkNameResolver(svc))
 	if err != nil {
 		return err
 	}

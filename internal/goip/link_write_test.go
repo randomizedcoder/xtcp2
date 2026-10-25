@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -335,7 +336,7 @@ func TestBuildLinkWrite(t *testing.T) {
 		{description: "negative: dummy has no options", verb: "set", args: []string{"d0", "type", "dummy", "foo"},
 			expected: invalid(`Garbage instead of arguments "foo ...".`, "d0")},
 		{description: "negative: options of a kind goip does not implement", verb: "add",
-			args: []string{"br0", "type", "bridge", "stp_state", "1"}, expected: notImpl(`"bridge"`)},
+			args: []string{"vx0", "type", "vxlan", "id", "1"}, expected: notImpl(`"vxlan"`)},
 		{description: "positive: bond options", verb: "add",
 			args: []string{"bond0", "type", "bond", "mode", "802.3ad"},
 			expected: linkWriteExpected{write: withData(add(attrs(ifname("bond0")), ""), "bond",
@@ -389,7 +390,7 @@ func TestBuildLinkWrite(t *testing.T) {
 				t.Fatalf("no verb %q", tc.verb)
 			}
 			links := newFakeLinks()
-			got, err := buildLinkWrite(verb, tc.family, tc.args, links.resolve)
+			got, err := buildLinkWrite(io.Discard, verb, tc.family, tc.args, links.resolve)
 			if !slices.Equal(links.calls, tc.expected.resolved) {
 				t.Errorf("resolved %q, want %q", links.calls, tc.expected.resolved)
 			}
