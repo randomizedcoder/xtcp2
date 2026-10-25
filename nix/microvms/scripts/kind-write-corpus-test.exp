@@ -642,13 +642,30 @@ lappend design_rows {*}{
     hsr/add_supervision_bad hsr/add_version_over hsr/add_slave_missing
     hsr/add_no_value
 }
+lappend design_rows {*}{
+    netkit/add_no_option netkit/add_peer_only netkit/add_mode_l2
+    netkit/add_mode_l3 netkit/add_blackhole netkit/add_policy_twice
+    netkit/add_scrub_none netkit/add_peer_blackhole netkit/add_peer_scrub
+    netkit/add_peer_name netkit/add_peer_bare_name netkit/add_peer_word
+    netkit/add_peer_mode netkit/add_peer_up netkit/add_l2_address
+    netkit/add_peer_samename netkit/add_l3_address
+    netkit/add_l3_peer_address netkit/add_mcast_address netkit/set_blackhole
+    netkit/set_peer_policy netkit/set_no_option netkit/set_peer_only
+    netkit/set_mode netkit/set_scrub netkit/set_peer_name netkit/set_on_peer
+    netkit/add_mode_bad netkit/add_mode_case netkit/add_mode_abbrev
+    netkit/add_scrub_bad netkit/add_unknown netkit/add_help
+    netkit/add_headroom netkit/set_peer_nodev netkit/add_mode_missing
+    netkit/add_mode_twice netkit/add_scrub_missing netkit/add_peer_twice
+    netkit/add_peer_type netkit/add_peer_help netkit/add_peer_name_then_word
+    netkit/add_peer_name_long
+}
 
 check slug_list "positive: the rows are the plan's, in run order" \
     {slugs $R} [join $design_rows " "]
 check first_row "boundary: add_default comes first" \
     {lindex [slugs $R] 0} bridge/add_default
-check row_count "boundary: KC2's 60 bridge and 42 bridge_slave rows, KC3-T01's 28 vlan rows, KC3-T02's 34 macvlan and 6 macvtap rows, KC3-T03's 18 ipvlan and 4 ipvtap rows, KC4-T01's 73 vxlan rows, KC4-T02's 49 geneve rows, KC4-T03's 16 bareudp and 20 amt rows, KC4-T04's 19 gtp rows, KC5-T01's 45 gre, 11 gretap and 25 erspan rows, KC5-T02's 36 ip6gre, 9 ip6gretap and 19 ip6erspan rows, KC5-T03's 47 ipip and 37 sit rows, KC5-T04's 49 ip6tnl rows, KC5-T05's 23 vti, 12 vti6 and 23 xfrm rows, KC6-T01's 29 hsr rows" \
-    {llength $R} 734
+check row_count "boundary: KC2's 60 bridge and 42 bridge_slave rows, KC3-T01's 28 vlan rows, KC3-T02's 34 macvlan and 6 macvtap rows, KC3-T03's 18 ipvlan and 4 ipvtap rows, KC4-T01's 73 vxlan rows, KC4-T02's 49 geneve rows, KC4-T03's 16 bareudp and 20 amt rows, KC4-T04's 19 gtp rows, KC5-T01's 45 gre, 11 gretap and 25 erspan rows, KC5-T02's 36 ip6gre, 9 ip6gretap and 19 ip6erspan rows, KC5-T03's 47 ipip and 37 sit rows, KC5-T04's 49 ip6tnl rows, KC5-T05's 23 vti, 12 vti6 and 23 xfrm rows, KC6-T01's 29 hsr rows, KC6-T02's 43 netkit rows" \
+    {llength $R} 777
 check bridge_first "boundary: bridge's rows all come before bridge_slave's" \
     {lsearch -glob [slugs $R] bridge_slave/*} 60
 check option_rows "positive: one add_ row per value-taking option but stp_mode, each once" \
@@ -802,6 +819,15 @@ set refused_design {
     hsr/add_unknown 1 hsr/add_help 1 hsr/add_supervision_over 255
     hsr/add_supervision_bad 255 hsr/add_version_over 255
     hsr/add_slave_missing 255 hsr/add_no_value 255
+    netkit/add_peer_samename 2 netkit/add_l3_address 2
+    netkit/add_l3_peer_address 2 netkit/add_mcast_address 2 netkit/set_mode
+    2 netkit/set_scrub 2 netkit/set_peer_name 2 netkit/set_on_peer 2
+    netkit/add_mode_bad 1 netkit/add_mode_case 1 netkit/add_mode_abbrev 1
+    netkit/add_scrub_bad 1 netkit/add_unknown 1 netkit/add_help 1
+    netkit/add_headroom 1 netkit/set_peer_nodev 1 netkit/add_mode_missing
+    255 netkit/add_mode_twice 255 netkit/add_scrub_missing 255
+    netkit/add_peer_twice 255 netkit/add_peer_type 255 netkit/add_peer_help
+    255 netkit/add_peer_name_then_word 255 netkit/add_peer_name_long 255
 }
 check refused_statuses "positive: exactly the refusal rows expect a non-zero status" \
     {refused_rows} [join $refused_design " "]
@@ -1319,6 +1345,28 @@ check hsr_interlink_pres "corner: the interlink rows make d2 after the slaves" \
     {lmap s {add_interlink add_interlink_abbrev} {lindex [field hsr/$s 2] 2 2}} {d2 d2}
 check hsr_no_changelink "corner: hsr has no changelink" \
     {lmap s {set_option set_no_option} {field hsr/$s 5}} {2 0}
+
+###############################################################################
+# 19. the netkit rows' states
+###############################################################################
+check netkit_after_hsr "positive: netkit's rows follow hsr's" \
+    {lsearch -glob [slugs $R] netkit/*} 734
+check netkit_peer_name_len "boundary: the peer name's length" \
+    {lmap s {add_peer_name add_peer_name_long} {field netkit/$s 5}} {0 255}
+check netkit_peer_split "corner: peer splits the policy and scrub words" \
+    {lmap s {add_blackhole add_peer_blackhole add_peer_name_then_word} {field netkit/$s 5}} {0 0 255}
+check netkit_set_policies "corner: only the policies change on a set" \
+    {lmap s {set_blackhole set_peer_policy set_mode set_scrub} {field netkit/$s 5}} {0 0 2 2}
+check netkit_address "corner: an address is l2's alone, written before type" \
+    {lmap s {add_l2_address add_l3_address} {list [field netkit/$s 5] [regexp {^ip link add nt0 address \S+ type netkit} [field netkit/$s 3]] [lrange [field netkit/$s 3] 7 end]}} \
+    {{0 1 {netkit mode l2}} {2 1 netkit}}
+check netkit_strcmp "corner: every keyword is strcmp" \
+    {lmap s {add_mode_abbrev add_mode_case} {field netkit/$s 5}} {1 1}
+check netkit_peer_pres "corner: the rows naming nt1 on a set make the pair with the peer named nt1" \
+    {lmap s {set_peer_name set_on_peer} {field netkit/$s 2}} \
+    {{{link add nt0 type netkit peer name nt1}} {{link add nt0 type netkit peer name nt1}}}
+check netkit_peer_readbacks "corner: set_on_peer's readbacks read nt1" \
+    {lindex [split [lindex [lindex [field netkit/set_on_peer 4] 0] 2]] end} nt1
 
 ###############################################################################
 # summary

@@ -1463,6 +1463,78 @@ namespace eval kindcorpus {
         [hsr_base add_no_value supervision 255]
 
     ###########################################################################
+    # netkit (KC6-T02). One parser, ip/iplink_netkit.c. The device is nt0,
+    # and nt1 the peer where a row names it. Every keyword is strcmp; mode
+    # and peer are checked for repeats. forward/blackhole and scrub send the
+    # peer's attribute after peer, and the first other word after peer
+    # hands the rest to iplink_parse inside PEER_INFO, where a set looks the
+    # name up (nodev, 1). The parser keeps state in statics, so no row runs
+    # under -batch. netkit_new_link (drivers/net/netkit.c) refuses an
+    # address in l3 mode and registers the peer first; its changelink takes
+    # only the two policies, and anything else, or any change through the
+    # peer, is -EACCES.
+    ###########################################################################
+    variable PRE_NT0 [list {link add nt0 type netkit}]
+    variable PRE_NT0_NT1 [list {link add nt0 type netkit peer name nt1}]
+
+    proc netkit {name words rc {pre {}}} {
+        return [plain netkit nt0 $name $words $rc $pre]
+    }
+
+    proc netkit_set {name words rc {pre {}}} {
+        variable PRE_NT0
+        if {$pre eq ""} {
+            set pre $PRE_NT0
+        }
+        return [tunnel_set netkit nt0 $name $words $rc $pre]
+    }
+
+    lappend rows \
+        [netkit add_no_option {} 0] \
+        [netkit add_peer_only peer 0] \
+        [netkit add_mode_l2 {mode l2} 0] \
+        [netkit add_mode_l3 {mode l3} 0] \
+        [netkit add_blackhole blackhole 0] \
+        [netkit add_policy_twice {forward blackhole} 0] \
+        [netkit add_scrub_none {scrub none} 0] \
+        [netkit add_peer_blackhole {peer blackhole} 0] \
+        [netkit add_peer_scrub {peer scrub none} 0] \
+        [netkit add_peer_name {peer name nt1} 0] \
+        [netkit add_peer_bare_name {peer nt1} 0] \
+        [netkit add_peer_word {peer black} 0] \
+        [netkit add_peer_mode {peer mode l2} 0] \
+        [netkit add_peer_up {peer up} 0] \
+        [row netkit add_l2_address {} {ip link add nt0 address 02:00:00:00:00:01 type netkit mode l2} 0 nt0] \
+        [netkit add_peer_samename {peer name nt0} 2] \
+        [row netkit add_l3_address {} {ip link add nt0 address 02:00:00:00:00:01 type netkit} 2 nt0] \
+        [netkit add_l3_peer_address {peer address 02:00:00:00:00:01} 2] \
+        [row netkit add_mcast_address {} {ip link add nt0 address 01:00:00:00:00:01 type netkit mode l2} 2 nt0] \
+        [netkit_set set_blackhole blackhole 0] \
+        [netkit_set set_peer_policy {peer blackhole} 0] \
+        [netkit_set set_no_option {} 0] \
+        [netkit_set set_peer_only peer 0] \
+        [netkit_set set_mode {mode l3} 2] \
+        [netkit_set set_scrub {scrub none} 2] \
+        [netkit_set set_peer_name {peer name nt1} 2 $PRE_NT0_NT1] \
+        [tunnel_set netkit nt1 set_on_peer blackhole 2 $PRE_NT0_NT1] \
+        [netkit add_mode_bad {mode l4} 1] \
+        [netkit add_mode_case {mode L2} 1] \
+        [netkit add_mode_abbrev {mo l2} 1] \
+        [netkit add_scrub_bad {scrub all} 1] \
+        [netkit add_unknown foo 1] \
+        [netkit add_help help 1] \
+        [netkit add_headroom {headroom 64} 1] \
+        [netkit_set set_peer_nodev {peer name nosuch} 1] \
+        [netkit add_mode_missing mode 255] \
+        [netkit add_mode_twice {mode l3 mode l2} 255] \
+        [netkit add_scrub_missing scrub 255] \
+        [netkit add_peer_twice {peer peer} 255] \
+        [netkit add_peer_type {peer name nt1 type veth} 255] \
+        [netkit add_peer_help {peer help} 255] \
+        [netkit add_peer_name_then_word {peer name nt1 blackhole} 255] \
+        [netkit add_peer_name_long {peer name abcdefghijklmnop} 255]
+
+    ###########################################################################
     # readback_args <ns> <subdir> <readback> - the xtcp2-nlcap capio argument
     # list for one readback, which the driver hands to its capio proc.
     ###########################################################################

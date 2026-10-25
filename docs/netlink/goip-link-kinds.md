@@ -1237,7 +1237,7 @@ hsr, netkit, vrf and vrf_slave, vxcan, batadv, and the option-less ifb, nlmon, v
 
 #### KC6-T02 netkit
 
-`ip/iplink_netkit.c` (`netkit_parse_opt`, lines 46-150) and `drivers/net/netkit.c`. Every keyword is `strcmp`. `mode l3|l2` sends `MODE` (anything else returns 1, a second `mode` is `duparg`, 255); `forward`/`blackhole` send `POLICY` before `peer` and `PEER_POLICY` after; `scrub none|default` sends `SCRUB` before `peer` and `PEER_SCRUB` after (anything else returns 1); a second `peer` is `duparg`. After `peer`, the first word that isn't one of these opens `PEER_INFO` and `iplink_parse` takes every word left, so `peer name nt1 blackhole` reads `blackhole` as a device and exits "both name and dev" (255), and `peer black` names the peer `black`. An unknown word before `peer` returns 1. 7.2.0 has no `headroom`, `tailroom` or `pairing`. The parser keeps state in statics, so its rows never run under `ip -batch`. The kernel's policy caps `MODE`, `SCRUB` and `PEER_SCRUB` at 1; the defaults are l3, forward and scrub default on both ends, with the peer named by the kernel. `netkit_new_link` refuses an address in l3 mode (`-EOPNOTSUPP`), registers the peer first (so a peer named like the device is `-EEXIST`), and ignores the peer's flags. **netkit has a `changelink`**, which changes only `POLICY` and `PEER_POLICY`: `MODE`, `SCRUB`, `PEER_SCRUB` or `PEER_INFO` is `-EACCES`, even unchanged, and so is any change made through the peer.
+`ip/iplink_netkit.c` (`netkit_parse_opt`, lines 46-150) and `drivers/net/netkit.c`. Every keyword is `strcmp`. On a set, the words after `peer` go through `iplink_parse` without `NLM_F_CREATE`, which looks the name up (`iplink.c:1365-1376`), so a set naming the peer names one the pre made (`nt1`), and an unknown name is `nodev`'s 1. `mode l3|l2` sends `MODE` (anything else returns 1, a second `mode` is `duparg`, 255); `forward`/`blackhole` send `POLICY` before `peer` and `PEER_POLICY` after; `scrub none|default` sends `SCRUB` before `peer` and `PEER_SCRUB` after (anything else returns 1); a second `peer` is `duparg`. After `peer`, the first word that isn't one of these opens `PEER_INFO` and `iplink_parse` takes every word left, so `peer name nt1 blackhole` reads `blackhole` as a device and exits "both name and dev" (255), and `peer black` names the peer `black`. An unknown word before `peer` returns 1. 7.2.0 has no `headroom`, `tailroom` or `pairing`. The parser keeps state in statics, so its rows never run under `ip -batch`. The kernel's policy caps `MODE`, `SCRUB` and `PEER_SCRUB` at 1; the defaults are l3, forward and scrub default on both ends, with the peer named by the kernel. `netkit_new_link` refuses an address in l3 mode (`-EOPNOTSUPP`), registers the peer first (so a peer named like the device is `-EEXIST`), and ignores the peer's flags. **netkit has a `changelink`**, which changes only `POLICY` and `PEER_POLICY`: `MODE`, `SCRUB`, `PEER_SCRUB` or `PEER_INFO` is `-EACCES`, even unchanged, and so is any change made through the peer.
 
 | slugs | command | rc | what it pins |
 |---|---|---|---|
@@ -1256,7 +1256,8 @@ hsr, netkit, vrf and vrf_slave, vxcan, batadv, and the option-less ifb, nlmon, v
 | `add_mcast_address` | `ip link add nt0 address 01:00:00:00:00:01 type netkit mode l2` | 2 | `validate`: `-EADDRNOTAVAIL` |
 | `set_blackhole`, `set_peer_policy` | `blackhole`; `peer blackhole`, on `nt0` | 0 | the two changeable attributes |
 | `set_no_option`, `set_peer_only` | (no option); `peer`, on `nt0` | 0 | `INFO_KIND` alone; an empty `INFO_DATA` |
-| `set_mode`, `set_scrub`, `set_peer_name` | `mode l3`; `scrub none`; `peer name nt1`, on `nt0` | 2 | `-EACCES`, the first even unchanged |
+| `set_mode`, `set_scrub` | `mode l3`; `scrub none`, on `nt0` | 2 | `-EACCES`, the first even unchanged |
+| `set_peer_name` | `peer name nt1`, on an `nt0` whose peer is `nt1` | 2 | `PEER_INFO` on a set: `-EACCES` |
 | `set_on_peer` | `ip link set nt1 type netkit blackhole`, `nt1` the peer | 2 | a change through the peer: `-EACCES` |
 | `add_mode_bad`, `add_mode_case`, `add_mode_abbrev`, `add_scrub_bad` | `mode l4`; `mode L2`; `mo l2`; `scrub all` | 1 | the returned errors; `strcmp` |
 | `add_unknown`, `add_help`, `add_headroom` | `foo`; `help`; `headroom 64` | 1 | unknown words, `headroom` among them |
@@ -1276,7 +1277,8 @@ hsr, netkit, vrf and vrf_slave, vxcan, batadv, and the option-less ifb, nlmon, v
 | corner: only the policies change on a set | `set_blackhole`, `set_peer_policy`, `set_mode`, `set_scrub` | 0, 0, 2, 2 |
 | corner: an address is l2's alone | `add_l2_address`, `add_l3_address` | 0, 2; the commands put `address` before `type` |
 | corner: every keyword is `strcmp` | `add_mode_abbrev`, `add_mode_case` | 1, 1 |
-| corner: `set_on_peer`'s pre makes the pair with the peer named `nt1` | its pre | `{link add nt0 type netkit peer name nt1}` |
+| corner: the sets naming `nt1` make the pair with the peer named `nt1` | `set_peer_name`'s and `set_on_peer`'s pres | `{link add nt0 type netkit peer name nt1}` each |
+| corner: `set_on_peer`'s readbacks read the peer | its readbacks | `nt1` |
 | positive (VM): each status, and the values read back | `ip.rc`; `-d -j` readbacks | the table's rc; mode, policy, peer policy and scrub |
 
 **Mutation check:** `set_mode` at 0 (the set corner), `add_l2_address` without `mode l2` (the address corner), `add_peer_name_then_word` at 0 (the `peer` corner).
