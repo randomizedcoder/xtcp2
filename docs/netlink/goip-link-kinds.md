@@ -1287,7 +1287,7 @@ hsr, netkit, vrf and vrf_slave, vxcan, batadv, and the option-less ifb, nlmon, v
 
 #### KC6-T03 vrf, vrf_slave and vxcan
 
-**vrf** (`ip/iplink_vrf.c`, `drivers/net/vrf.c`). One keyword, `table`, `matches` (so `t`), through `rtnl_rttable_a2n`: `default`, `main` and `local` by name, else `strtoul` base 0 to `0xffffffff`; a bad or missing value is 255; no repeat check; `help` or an unknown word returns 1. The kernel requires a nonzero `TABLE` (`-EINVAL`, `vrf.c:1645`, `:1650`), allows a shared table (`strict_mode` is 0), and has no `changelink`. **vrf_slave** has no parser. A device enslaved with `master vr0` or `vrf vr0` reads back `vrf_slave table N`. The kernel refuses loopback (`-EOPNOTSUPP`) and a vrf inside a vrf (`-EINVAL`), and `add … type vrf_slave` is "Unknown device type". `vrf X` checks that X is a vrf (`invarg`, 255). **vxcan** (`ip/iplink_vxcan.c`, `drivers/net/can/vxcan.c`). The first word must be `peer` (`strcmp`); anything else prints the usage to stdout and returns 1. `peer` hands the rest to `iplink_parse` inside `VXCAN_INFO_PEER`. The kernel registers the peer first (default name `vxcan0`, so a peer named like the device is `-EEXIST`), has no `validate`, `changelink` or `fill_info`, and applies the peer's flags before the pair is linked, so `peer up` should be `-ENOTCONN`. That one is read from the code, and the VM decides it.
+**vrf** (`ip/iplink_vrf.c`, `drivers/net/vrf.c`). One keyword, `table`, `matches` (so `t`), through `rtnl_rttable_a2n`: `default`, `main` and `local` by name, else `strtoul` base 0 to `0xffffffff`; a bad or missing value is 255; no repeat check; `help` or an unknown word returns 1. The kernel requires a nonzero `TABLE` (`-EINVAL`, `vrf.c:1645`, `:1650`), allows a shared table (`strict_mode` is 0), and has no `changelink`. **vrf_slave** has no parser. A device enslaved with `master vr0` or `vrf vr0` reads back `vrf_slave table N`. The kernel refuses loopback (`-EOPNOTSUPP`) and a vrf inside a vrf (`-EINVAL`), and `add … type vrf_slave` is "Unknown device type". `vrf X` checks that X is a vrf (`invarg`, 255). **vxcan** (`ip/iplink_vxcan.c`, `drivers/net/can/vxcan.c`). The first word must be `peer` (`strcmp`); anything else prints the usage to stdout and returns 1. `peer` hands the rest to `iplink_parse` inside `VXCAN_INFO_PEER`. The kernel registers the peer first (default name `vxcan0`, so a peer named like the device is `-EEXIST`), has no `validate`, `changelink` or `fill_info`, and applies the peer's flags before the pair is linked, so `peer up` should be `-ENOTCONN`. That one is read from the code, and the VM decides it. As with netkit, a set's words after `peer` go through `iplink_parse` without `NLM_F_CREATE`, which looks the name up, so the set rows run on a `vc0` whose peer is `vc1` and name `vc1`.
 
 | slugs | command | rc | what it pins |
 |---|---|---|---|
@@ -1310,12 +1310,12 @@ hsr, netkit, vrf and vrf_slave, vxcan, batadv, and the option-less ifb, nlmon, v
 | vxcan `add_peer_name`, `add_peer_bare_name` | `peer name vc1`; `peer vc1` | 0 | the peer's `IFNAME` |
 | vxcan `add_up` | `ip link add vc0 up type vxcan` | 0 | the device's own flags apply |
 | vxcan `add_peer_samename`, `add_peer_up` | `peer name vc0`; `peer up` | 2 | `-EEXIST`; `-ENOTCONN` |
-| vxcan `set_peer` | `peer name vxcan0`, on `vc0` | 2 | no `changelink` |
-| vxcan `set_no_option` | (no option), on `vc0` | 0 | `INFO_KIND` alone |
+| vxcan `set_peer` | `peer name vc1`, on a `vc0` whose peer is `vc1` | 2 | no `changelink` |
+| vxcan `set_no_option` | (no option), on a `vc0` whose peer is `vc1` | 0 | `INFO_KIND` alone |
 | vxcan `add_unknown`, `add_abbrev`, `add_help` | `foo`; `pe`; `help` | 1 | `peer` first, `strcmp` |
-| vxcan `set_peer_nodev` | `peer name nosuch`, on `vc0` | 1 | `nodev` returns |
+| vxcan `set_peer_nodev` | `peer name nosuch`, on a `vc0` whose peer is `vc1` | 1 | `nodev` returns |
 | vxcan `add_peer_name_long`, `add_peer_name_missing`, `add_peer_type`, `add_peer_help` | `peer name abcdefghijklmnop`; `peer name`; `peer type vxcan`; `peer help` | 255 | `iplink_parse`'s exits |
-| vxcan `set_peer_bare` | `peer`, on `vc0` | 255 | "dev required" |
+| vxcan `set_peer_bare` | `peer`, on a `vc0` whose peer is `vc1` | 255 | "dev required" |
 
 **Tests:**
 
@@ -1329,6 +1329,7 @@ hsr, netkit, vrf and vrf_slave, vxcan, batadv, and the option-less ifb, nlmon, v
 | corner: the enslave rows' pres make `vr0` and `d0` | their pres | `{link add vr0 type vrf table 10}` first |
 | corner: the readbacks read the enslaved device | `vrf_slave/set_master` | its readbacks name `d0` |
 | corner: a missing device is 1 for a set, 255 for `master` | `vxcan/set_peer_nodev`, `vrf_slave/set_master_missing` | 1, 255 |
+| corner: the vxcan sets name the peer their pre made | the pres of `vxcan/set_peer`, `set_peer_nodev` and `set_no_option` | `{link add vc0 type vxcan peer name vc1}` each |
 | positive (VM): each status, and the values read back | `ip.rc`; `-d -j` readbacks | the table's rc; `table`, `vrf_slave table 10` |
 
 **Mutation check:** `vrf/set_table` at 0 (the `changelink` corner), `vrf_slave/set_master`'s pre without `vr0` (the pres corner), `vxcan/set_peer_nodev` at 255 (the missing-device corner).

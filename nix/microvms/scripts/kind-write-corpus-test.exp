@@ -659,13 +659,30 @@ lappend design_rows {*}{
     netkit/add_peer_type netkit/add_peer_help netkit/add_peer_name_then_word
     netkit/add_peer_name_long
 }
+lappend design_rows {*}{
+    vrf/add_table vrf/add_table_max vrf/add_table_hex vrf/add_table_main
+    vrf/add_table_twice vrf/add_abbrev vrf/add_shared_table
+    vrf/add_no_option vrf/add_table_zero vrf/add_mcast_address vrf/set_table
+    vrf/set_no_option vrf/add_unknown vrf/add_help vrf/add_table_over
+    vrf/add_table_neg vrf/add_table_bad vrf/add_no_value
+    vrf_slave/set_master vrf_slave/set_vrf vrf_slave/set_type
+    vrf_slave/set_nomaster vrf_slave/set_master_lo vrf_slave/set_vrf_in_vrf
+    vrf_slave/add vrf_slave/set_type_word vrf_slave/set_vrf_not_vrf
+    vrf_slave/set_master_missing vxcan/add_no_option vxcan/add_peer
+    vxcan/add_peer_name vxcan/add_peer_bare_name vxcan/add_up
+    vxcan/add_peer_samename vxcan/add_peer_up vxcan/set_peer
+    vxcan/set_no_option vxcan/add_unknown vxcan/add_abbrev vxcan/add_help
+    vxcan/set_peer_nodev vxcan/add_peer_name_long
+    vxcan/add_peer_name_missing vxcan/add_peer_type vxcan/add_peer_help
+    vxcan/set_peer_bare
+}
 
 check slug_list "positive: the rows are the plan's, in run order" \
     {slugs $R} [join $design_rows " "]
 check first_row "boundary: add_default comes first" \
     {lindex [slugs $R] 0} bridge/add_default
-check row_count "boundary: KC2's 60 bridge and 42 bridge_slave rows, KC3-T01's 28 vlan rows, KC3-T02's 34 macvlan and 6 macvtap rows, KC3-T03's 18 ipvlan and 4 ipvtap rows, KC4-T01's 73 vxlan rows, KC4-T02's 49 geneve rows, KC4-T03's 16 bareudp and 20 amt rows, KC4-T04's 19 gtp rows, KC5-T01's 45 gre, 11 gretap and 25 erspan rows, KC5-T02's 36 ip6gre, 9 ip6gretap and 19 ip6erspan rows, KC5-T03's 47 ipip and 37 sit rows, KC5-T04's 49 ip6tnl rows, KC5-T05's 23 vti, 12 vti6 and 23 xfrm rows, KC6-T01's 29 hsr rows, KC6-T02's 43 netkit rows" \
-    {llength $R} 777
+check row_count "boundary: KC2's 60 bridge and 42 bridge_slave rows, KC3-T01's 28 vlan rows, KC3-T02's 34 macvlan and 6 macvtap rows, KC3-T03's 18 ipvlan and 4 ipvtap rows, KC4-T01's 73 vxlan rows, KC4-T02's 49 geneve rows, KC4-T03's 16 bareudp and 20 amt rows, KC4-T04's 19 gtp rows, KC5-T01's 45 gre, 11 gretap and 25 erspan rows, KC5-T02's 36 ip6gre, 9 ip6gretap and 19 ip6erspan rows, KC5-T03's 47 ipip and 37 sit rows, KC5-T04's 49 ip6tnl rows, KC5-T05's 23 vti, 12 vti6 and 23 xfrm rows, KC6-T01's 29 hsr rows, KC6-T02's 43 netkit rows, KC6-T03's 18 vrf, 10 vrf_slave and 18 vxcan rows" \
+    {llength $R} 823
 check bridge_first "boundary: bridge's rows all come before bridge_slave's" \
     {lsearch -glob [slugs $R] bridge_slave/*} 60
 check option_rows "positive: one add_ row per value-taking option but stp_mode, each once" \
@@ -828,6 +845,16 @@ set refused_design {
     255 netkit/add_mode_twice 255 netkit/add_scrub_missing 255
     netkit/add_peer_twice 255 netkit/add_peer_type 255 netkit/add_peer_help
     255 netkit/add_peer_name_then_word 255 netkit/add_peer_name_long 255
+    vrf/add_no_option 2 vrf/add_table_zero 2 vrf/add_mcast_address 2
+    vrf/set_table 2 vrf/add_unknown 1 vrf/add_help 1 vrf/add_table_over 255
+    vrf/add_table_neg 255 vrf/add_table_bad 255 vrf/add_no_value 255
+    vrf_slave/set_master_lo 2 vrf_slave/set_vrf_in_vrf 2 vrf_slave/add 2
+    vrf_slave/set_type_word 1 vrf_slave/set_vrf_not_vrf 255
+    vrf_slave/set_master_missing 255 vxcan/add_peer_samename 2
+    vxcan/add_peer_up 2 vxcan/set_peer 2 vxcan/add_unknown 1
+    vxcan/add_abbrev 1 vxcan/add_help 1 vxcan/set_peer_nodev 1
+    vxcan/add_peer_name_long 255 vxcan/add_peer_name_missing 255
+    vxcan/add_peer_type 255 vxcan/add_peer_help 255 vxcan/set_peer_bare 255
 }
 check refused_statuses "positive: exactly the refusal rows expect a non-zero status" \
     {refused_rows} [join $refused_design " "]
@@ -1367,6 +1394,28 @@ check netkit_peer_pres "corner: the rows naming nt1 on a set make the pair with 
     {{{link add nt0 type netkit peer name nt1}} {{link add nt0 type netkit peer name nt1}}}
 check netkit_peer_readbacks "corner: set_on_peer's readbacks read nt1" \
     {lindex [split [lindex [lindex [field netkit/set_on_peer 4] 0] 2]] end} nt1
+
+###############################################################################
+# 20. the vrf, vrf_slave and vxcan rows' states
+###############################################################################
+check vrf_after_netkit "positive: vrf's rows follow netkit's, then vrf_slave's, then vxcan's" \
+    {lmap k {vrf vrf_slave vxcan} {lsearch -glob [slugs $R] $k/*}} {777 795 805}
+check vrf_table_range "boundary: the table's range" \
+    {lmap s {add_table_zero add_table_max add_table_over} {field vrf/$s 5}} {2 0 255}
+check no_changelink_sets "corner: a kind with no changelink takes a bare set and refuses one with data" \
+    {lmap s {vrf/set_no_option vrf/set_table vxcan/set_no_option vxcan/set_peer} {field $s 5}} {0 2 0 2}
+check vrf_slave_no_parser "corner: vrf_slave has no parser" \
+    {lmap s {set_type set_type_word} {field vrf_slave/$s 5}} {0 1}
+check vrf_slave_pres "corner: the enslave rows' pres make vr0 and d0" \
+    {lmap s {set_master set_vrf set_type set_nomaster} {lrange [field vrf_slave/$s 2] 0 1}} \
+    [lrepeat 4 {{link add vr0 type vrf table 10} {link add d0 type dummy}}]
+check vrf_slave_readbacks "corner: the readbacks read the enslaved device" \
+    {lindex [split [lindex [lindex [field vrf_slave/set_master 4] 0] 2]] end} d0
+check missing_device_exits "corner: a missing device is 1 for a set, 255 for master" \
+    {lmap s {vxcan/set_peer_nodev vrf_slave/set_master_missing} {field $s 5}} {1 255}
+check vxcan_peer_pres "corner: the vxcan sets name the peer their pre made" \
+    {lmap s {set_peer set_peer_nodev set_no_option} {field vxcan/$s 2}} \
+    [lrepeat 3 {{link add vc0 type vxcan peer name vc1}}]
 
 ###############################################################################
 # summary

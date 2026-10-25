@@ -1535,6 +1535,83 @@ namespace eval kindcorpus {
         [netkit add_peer_name_long {peer name abcdefghijklmnop} 255]
 
     ###########################################################################
+    # vrf, vrf_slave and vxcan (KC6-T03). ip/iplink_vrf.c has one keyword,
+    # table (matches), through rtnl_rttable_a2n; vrf_newlink
+    # (drivers/net/vrf.c) requires it nonzero, and vrf has no changelink.
+    # vrf_slave has no parser: its rows enslave d0 with master or vrf,
+    # whose names are looked up (invarg, 255). ip/iplink_vxcan.c wants peer
+    # first and hands the rest to iplink_parse, where a set looks the name
+    # up (nodev, 1). vxcan registers the peer first and has no changelink.
+    # The vrf is vr0, its second vr1, the vxcan vc0 and its peer vc1.
+    ###########################################################################
+    variable PRE_VR0 [list {link add vr0 type vrf table 10}]
+    variable PRE_VR0_D0 [list {link add vr0 type vrf table 10} {link add d0 type dummy}]
+    variable PRE_VR0_D0_SLAVE [list {link add vr0 type vrf table 10} {link add d0 type dummy} \
+        {link set d0 master vr0}]
+    variable PRE_VC0_VC1 [list {link add vc0 type vxcan peer name vc1}]
+
+    proc vrf {name words rc {pre {}}} {
+        return [plain vrf vr0 $name $words $rc $pre]
+    }
+
+    # vrf_slave <name> <command> <rc> <pre> <dev> - a whole command on <dev>.
+    proc vrf_slave {name command rc pre dev} {
+        return [row vrf_slave $name $pre $command $rc $dev]
+    }
+
+    proc vxcan {name words rc {pre {}}} {
+        return [plain vxcan vc0 $name $words $rc $pre]
+    }
+
+    lappend rows \
+        [vrf add_table {table 10} 0] \
+        [vrf add_table_max {table 4294967295} 0] \
+        [vrf add_table_hex {table 0x10} 0] \
+        [vrf add_table_main {table main} 0] \
+        [vrf add_table_twice {table 10 table 20} 0] \
+        [vrf add_abbrev {t 10} 0] \
+        [vrf add_shared_table {table 10} 0 [list {link add vr1 type vrf table 10}]] \
+        [vrf add_no_option {} 2] \
+        [vrf add_table_zero {table 0} 2] \
+        [row vrf add_mcast_address {} {ip link add vr0 address 01:00:00:00:00:01 type vrf table 10} 2 vr0] \
+        [tunnel_set vrf vr0 set_table {table 20} 2 $PRE_VR0] \
+        [tunnel_set vrf vr0 set_no_option {} 0 $PRE_VR0] \
+        [vrf add_unknown {tbl 10} 1] \
+        [vrf add_help help 1] \
+        [vrf add_table_over {table 4294967296} 255] \
+        [vrf add_table_neg {table -1} 255] \
+        [vrf add_table_bad {table abc} 255] \
+        [vrf add_no_value table 255] \
+        [vrf_slave set_master {ip link set d0 master vr0} 0 $PRE_VR0_D0 d0] \
+        [vrf_slave set_vrf {ip link set d0 vrf vr0} 0 $PRE_VR0_D0 d0] \
+        [vrf_slave set_type {ip link set d0 type vrf_slave} 0 $PRE_VR0_D0_SLAVE d0] \
+        [vrf_slave set_nomaster {ip link set d0 nomaster} 0 $PRE_VR0_D0_SLAVE d0] \
+        [vrf_slave set_master_lo {ip link set lo master vr0} 2 $PRE_VR0 lo] \
+        [vrf_slave set_vrf_in_vrf {ip link set vr1 master vr0} 2 [concat $PRE_VR0 [list {link add vr1 type vrf table 20}]] vr1] \
+        [vrf_slave add {ip link add vs0 type vrf_slave} 2 {} vs0] \
+        [vrf_slave set_type_word {ip link set d0 type vrf_slave table 5} 1 $PRE_VR0_D0_SLAVE d0] \
+        [vrf_slave set_vrf_not_vrf {ip link set d0 vrf d1} 255 [list {link add d0 type dummy} {link add d1 type dummy}] d0] \
+        [vrf_slave set_master_missing {ip link set d0 master nosuch} 255 $PRE_D0 d0] \
+        [vxcan add_no_option {} 0] \
+        [vxcan add_peer peer 0] \
+        [vxcan add_peer_name {peer name vc1} 0] \
+        [vxcan add_peer_bare_name {peer vc1} 0] \
+        [row vxcan add_up {} {ip link add vc0 up type vxcan} 0 vc0] \
+        [vxcan add_peer_samename {peer name vc0} 2] \
+        [vxcan add_peer_up {peer up} 2] \
+        [tunnel_set vxcan vc0 set_peer {peer name vc1} 2 $PRE_VC0_VC1] \
+        [tunnel_set vxcan vc0 set_no_option {} 0 $PRE_VC0_VC1] \
+        [vxcan add_unknown foo 1] \
+        [vxcan add_abbrev pe 1] \
+        [vxcan add_help help 1] \
+        [tunnel_set vxcan vc0 set_peer_nodev {peer name nosuch} 1 $PRE_VC0_VC1] \
+        [vxcan add_peer_name_long {peer name abcdefghijklmnop} 255] \
+        [vxcan add_peer_name_missing {peer name} 255] \
+        [vxcan add_peer_type {peer type vxcan} 255] \
+        [vxcan add_peer_help {peer help} 255] \
+        [tunnel_set vxcan vc0 set_peer_bare peer 255 $PRE_VC0_VC1]
+
+    ###########################################################################
     # readback_args <ns> <subdir> <readback> - the xtcp2-nlcap capio argument
     # list for one readback, which the driver hands to its capio proc.
     ###########################################################################
