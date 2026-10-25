@@ -477,13 +477,41 @@ lappend design_rows {*}{
     gtp/set_no_role gtp/add_role_bad gtp/add_hsize_over gtp/add_restart_count_hex
     gtp/add_role_twice gtp/add_no_value
 }
+lappend design_rows {*}{
+    gre/add_default gre/add_no_option gre/add_local gre/add_dev gre/add_key
+    gre/add_key_split gre/add_seq_csum gre/add_ttl_max gre/add_tos_max
+    gre/add_tos_inherit gre/add_nopmtudisc_ignore_df gre/add_fwmark
+    gre/add_encap_none gre/add_encap_fou gre/add_external
+    gre/add_external_encap gre/add_multicast gre/add_abbrev
+    gre/add_no_abbrev gre/add_second_keyed gre/set_changeable gre/set_dev
+    gre/set_no_option gre/set_on_external gre/add_ignore_df
+    gre/add_duplicate gre/add_second_external gre/set_remote_any
+    gre/set_collide gre/set_external gre/set_pmtudisc_ignore_df
+    gre/add_unknown gre/add_strcmp_abbrev gre/add_encap_csum6_word
+    gre/add_erspan_word gre/add_multicast_no_local gre/add_remote6
+    gre/add_key_dotted_bad gre/set_not_a_tunnel gre/add_key_bad
+    gre/add_ttl_over gre/add_tos_over gre/add_encap_bad gre/add_dev_missing
+    gre/add_no_value gretap/add_default gretap/add_no_option
+    gretap/add_external gretap/add_multicast gretap/add_address
+    gretap/set_remote_any gretap/add_address_multicast
+    gretap/add_second_external gretap/set_external gretap/set_on_gre
+    gretap/add_erspan_word erspan/add_default erspan/add_no_option
+    erspan/add_index erspan/add_index_max erspan/add_flags_split
+    erspan/add_key_max erspan/add_ver0 erspan/add_ver2 erspan/add_hwid_max
+    erspan/add_dir_abbrev erspan/add_dir_ver1 erspan/add_external
+    erspan/set_index erspan/set_ver0_noseq erspan/add_remote_only
+    erspan/add_csum erspan/add_key_over erspan/add_hwid_over
+    erspan/set_noseq erspan/add_strcmp_abbrev erspan/add_index_zero
+    erspan/add_index_over erspan/add_ver_over erspan/add_dir_bad
+    erspan/add_no_value
+}
 
 check slug_list "positive: the rows are the plan's, in run order" \
     {slugs $R} [join $design_rows " "]
 check first_row "boundary: add_default comes first" \
     {lindex [slugs $R] 0} bridge/add_default
-check row_count "boundary: KC2's 60 bridge and 42 bridge_slave rows, KC3-T01's 28 vlan rows, KC3-T02's 34 macvlan and 6 macvtap rows, KC3-T03's 18 ipvlan and 4 ipvtap rows, KC4-T01's 73 vxlan rows, KC4-T02's 49 geneve rows, KC4-T03's 16 bareudp and 20 amt rows, KC4-T04's 19 gtp rows" \
-    {llength $R} 369
+check row_count "boundary: KC2's 60 bridge and 42 bridge_slave rows, KC3-T01's 28 vlan rows, KC3-T02's 34 macvlan and 6 macvtap rows, KC3-T03's 18 ipvlan and 4 ipvtap rows, KC4-T01's 73 vxlan rows, KC4-T02's 49 geneve rows, KC4-T03's 16 bareudp and 20 amt rows, KC4-T04's 19 gtp rows, KC5-T01's 45 gre, 11 gretap and 25 erspan rows" \
+    {llength $R} 450
 check bridge_first "boundary: bridge's rows all come before bridge_slave's" \
     {lsearch -glob [slugs $R] bridge_slave/*} 60
 check option_rows "positive: one add_ row per value-taking option but stp_mode, each once" \
@@ -569,6 +597,20 @@ set refused_design {
     gtp/add_no_role 1 gtp/add_abbrev 1 gtp/set_no_role 1 gtp/add_role_bad 255
     gtp/add_hsize_over 255 gtp/add_restart_count_hex 255 gtp/add_role_twice 255
     gtp/add_no_value 255
+    gre/add_ignore_df 2 gre/add_duplicate 2 gre/add_second_external 2
+    gre/set_remote_any 2 gre/set_collide 2 gre/set_external 2
+    gre/set_pmtudisc_ignore_df 2 gre/add_unknown 1 gre/add_strcmp_abbrev 1
+    gre/add_encap_csum6_word 1 gre/add_erspan_word 1
+    gre/add_multicast_no_local 1 gre/add_remote6 1 gre/add_key_dotted_bad 1
+    gre/set_not_a_tunnel 1 gre/add_key_bad 255 gre/add_ttl_over 255
+    gre/add_tos_over 255 gre/add_encap_bad 255 gre/add_dev_missing 255
+    gre/add_no_value 255 gretap/add_address_multicast 2
+    gretap/add_second_external 2 gretap/set_external 2 gretap/set_on_gre 2
+    gretap/add_erspan_word 1 erspan/add_remote_only 2 erspan/add_csum 2
+    erspan/add_key_over 2 erspan/add_hwid_over 2 erspan/set_noseq 2
+    erspan/add_strcmp_abbrev 1 erspan/add_index_zero 255
+    erspan/add_index_over 255 erspan/add_ver_over 255 erspan/add_dir_bad 255
+    erspan/add_no_value 255
 }
 check refused_statuses "positive: exactly the refusal rows expect a non-zero status" \
     {refused_rows} [join $refused_design " "]
@@ -872,6 +914,39 @@ check gtp_second_readbacks "corner: its readbacks read g1" \
 check gtp_sets_on_g0 "corner: every set acts on the g0 its pre made" \
     {lmap s {set_same set_no_option set_no_role} {list [lindex [field gtp/$s 3] 3] [field gtp/$s 2]}} \
     {{g0 {{link add g0 type gtp role ggsn}}} {g0 {{link add g0 type gtp role ggsn}}} {g0 {{link add g0 type gtp role ggsn}}}}
+
+###############################################################################
+# 13. the gre, gretap and erspan rows' states
+###############################################################################
+check gre_after_gtp "positive: gre's rows follow gtp's, then gretap's, then erspan's" \
+    {lmap k {gre gretap erspan} {lsearch -glob [slugs $R] $k/*}} {369 414 425}
+check bare_type_accepted "positive: a bare type <kind> is accepted by all three, sending no word" \
+    {lmap k {gre gretap erspan} {list [field $k/add_no_option 5] [lindex [field $k/add_no_option 3] end]}} \
+    {{0 gre} {0 gretap} {0 erspan}}
+check erspan_ranges "boundary: erspan's index top is ip's, the key's and hwid's the kernel's" \
+    {lmap s {add_index_max add_index_over add_key_max add_key_over add_hwid_max add_hwid_over} {field erspan/$s 5}} \
+    {0 255 0 2 0 2}
+check gre_ttl_tos_tops "boundary: gre's ttl and tos tops are accepted, one past is ip's invarg" \
+    {lmap s {add_ttl_max add_ttl_over add_tos_max add_tos_over} {field gre/$s 5}} {0 255 0 255}
+check remote_any "corner: the remote going to any is refused on gre and accepted on gretap" \
+    {list [field gre/set_remote_any 5] [field gretap/set_remote_any 5]} {2 0}
+check prefetch_sets "corner: the prefetch shapes a set: an external gr0, a dummy d0, a keyed es0" \
+    {lmap s {gre/set_on_external gre/set_not_a_tunnel erspan/set_index} {list [field $s 5] [lindex [field $s 2] end]}} \
+    {{0 {link add gr0 type gre external}} {1 {link add d0 type dummy}} {0 {link add es0 type erspan remote 10.0.0.1 seq key 10}}}
+check conflict_pres "corner: the conflict rows' pres make the device they collide with" \
+    {lmap s {add_duplicate add_second_keyed add_second_external set_collide set_pmtudisc_ignore_df} {field gre/$s 2}} \
+    {{{link add gr0 type gre remote 10.0.0.1}} {{link add gr0 type gre remote 10.0.0.1}} {{link add gr0 type gre external}} {{link add gr0 type gre remote 10.0.0.1} {link add gr1 type gre remote 10.0.0.2}} {{link add gr0 type gre remote 10.0.0.1 nopmtudisc ignore-df}}}
+check conflict_readbacks "corner: their readbacks read the device the command names" \
+    {lmap s {add_duplicate add_second_keyed add_second_external set_collide set_pmtudisc_ignore_df} {lindex [lindex [field gre/$s 4] 0] 2}} \
+    {{ip -d link show dev gr1} {ip -d link show dev gr1} {ip -d link show dev gr1} {ip -d link show dev gr1} {ip -d link show dev gr0}}
+check gre_d0_first "corner: the rows naming d0 make it first" \
+    {lmap s {add_dev set_dev set_not_a_tunnel} {lindex [field gre/$s 2] 0}} \
+    {{link add d0 type dummy} {link add d0 type dummy} {link add d0 type dummy}}
+check key_exits "corner: get_addr32's failure is 1, tnl_parse_key's 255" \
+    {list [field gre/add_key_dotted_bad 5] [field gre/add_key_bad 5]} {1 255}
+check foreign_words "negative: the erspan words on another kind, and the help text's encap-csum6, are ip's refusals" \
+    {lmap s {gre/add_erspan_word gretap/add_erspan_word gre/add_encap_csum6_word} {list [field $s 5] [field $s 1]}} \
+    {{1 0} {1 0} {1 0}}
 
 ###############################################################################
 # summary

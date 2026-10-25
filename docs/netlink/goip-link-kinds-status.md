@@ -10,9 +10,9 @@
 - KC2 is done (KC2-T01, KC2-T02): a kind corpus (`kind-write-corpus.exp`) the link-write driver runs into `link-write/kinds/`, with 60 bridge rows and 42 bridge_slave rows, 80 the kernel accepts, 12 it refuses and 10 `ip` refuses before netlink. They are KP1's and KG1's source.
 - KC3 is done (KC3-T01, KC3-T02, KC3-T03): 28 vlan, 34 macvlan, 6 macvtap, 18 ipvlan and 4 ipvtap rows in the kind corpus, stacked on a dummy `d0`; of the 90, 54 the kernel accepts, 14 it refuses and 22 `ip` refuses before netlink. They are KP2's and KG2's source.
 - KC4 is done (KC4-T01, KC4-T02, KC4-T03, KC4-T04): KC4-T01 adds 73 vxlan rows, 46 the kernel accepts, 12 it refuses and 15 `ip` refuses before netlink; KC4-T02 adds 49 geneve rows, 22 accepted, 13 refused by the kernel and 14 by `ip`; KC4-T03 adds 16 bareudp and 20 amt rows, 11 accepted, 12 refused by the kernel and 13 by `ip`; KC4-T04 adds 19 gtp rows, 7 accepted, 4 refused by the kernel and 8 by `ip`. They are KP3's and KG3's source.
-- KC5 is planned (DOC006): five tasks, one per iproute2 parser or pair, with 335 drafted rows for the twelve IP tunnel kinds.
+- KC5 is in progress (planned in DOC006: five tasks, one per iproute2 parser or pair, for the twelve IP tunnel kinds): KC5-T01 adds 45 gre, 11 gretap and 25 erspan rows, 44 the kernel accepts, 16 it refuses and 21 `ip` refuses before netlink.
 
-**Next action:** [KC5-T01](goip-link-kinds.md#kc5-t01-gre-gretap-and-erspan): gre, gretap and erspan.
+**Next action:** [KC5-T02](goip-link-kinds.md#kc5-t02-ip6gre-ip6gretap-and-ip6erspan): ip6gre, ip6gretap and ip6erspan.
 
 ## Contents
 
@@ -41,7 +41,7 @@
 | [KC2](goip-link-kinds.md#kc2--bridge-captures) | captures | bridge | KC2-T02 | done | V009–V016, DOC004 |
 | [KC3](goip-link-kinds.md#kc3--vlan-family-captures) | captures | VLAN family | KC3-T03 | done | V017–V025, DOC005 |
 | [KC4](goip-link-kinds.md#kc4--udp-overlay-captures) | captures | UDP overlays | KC4-T04 | done | V026–V037, DOC006 |
-| [KC5](goip-link-kinds.md#kc5--ip-tunnel-captures) | captures | IP tunnels | KC5-T05 | not started | |
+| [KC5](goip-link-kinds.md#kc5--ip-tunnel-captures) | captures | IP tunnels | KC5-T05 | in progress | V038–V040 |
 | [KC6](goip-link-kinds.md#kc6--the-remaining-kinds-captures) | captures | the remaining kinds | | not started | |
 | [KC7](goip-link-kinds.md#kc7--kind-completeness-gate) | captures | completeness gate | | not started | |
 | [KP0](goip-link-kinds.md#kp0--inet-devconf-codec) | parsers | `inet` devconf codec | | not started | |
@@ -74,7 +74,7 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | [x] | [KC4-T02](goip-link-kinds.md#kc4-t02-geneve) | geneve | done | V029–V031 |
 | [x] | [KC4-T03](goip-link-kinds.md#kc4-t03-bareudp-and-amt) | bareudp and amt | done | V032–V034 |
 | [x] | [KC4-T04](goip-link-kinds.md#kc4-t04-gtp) | gtp | done | V035–V037, DOC006 |
-| [ ] | [KC5-T01](goip-link-kinds.md#kc5-t01-gre-gretap-and-erspan) | gre, gretap and erspan | not started | |
+| [x] | [KC5-T01](goip-link-kinds.md#kc5-t01-gre-gretap-and-erspan) | gre, gretap and erspan | done | V038–V040 |
 | [ ] | [KC5-T02](goip-link-kinds.md#kc5-t02-ip6gre-ip6gretap-and-ip6erspan) | ip6gre, ip6gretap and ip6erspan | not started | |
 | [ ] | [KC5-T03](goip-link-kinds.md#kc5-t03-ipip-and-sit) | ipip and sit | not started | |
 | [ ] | [KC5-T04](goip-link-kinds.md#kc5-t04-ip6tnl) | ip6tnl | not started | |
@@ -141,6 +141,9 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | V036 | 2026-10-24 | KC4-T04 | mutation, scratch copies of the corpus and its test, through `expect`: `add_unknown_skipped` at 1, `add_hsize_max` as 131072, `add_second` without its pre | 3 of 3 killed: by `refused_statuses` and `gtp_unknown_vs_abbrev`; `gtp_hsize_top`; `gtp_second_pre` | scratch |
 | V037 | 2026-10-24 | KC4-T04 | `nix run .#microvm-x86_64-link-write-capture -- --timeout 7200`, guest kernel 7.3.0; `-d -j` readbacks; compared with V034 by `pcapcmp` | `NLCAP_DRIVER_FAIL` on `genl/mptcp_limits_set_over` alone (V004). The 19 rows hold their planned statuses on the first run: 7 at 0, 4 at 2, 3 at 1 and 5 at 255. The readbacks are the plan's: `role` as sent, `hsize` 1024 by default and for `hsize 0`, 131071 at the top, `restart_count` 255, and `foo` skipped. The kernel refuses the bare add and the bare set with a plain `Invalid argument` (validate runs with no data), the second socket-owning device with `Address already in use`, and the set with `Operation not supported` (gtp has no `changelink`); `ip`'s refusals carry its role and `invarg` texts. Against V034: 52 new pcaps, all under `kinds/gtp/` (19 `ip.pcap` and 11 rows × 3 readbacks); 1921 the same shape, 11 differing in V004's classes, none under `kinds/` | scratch |
 | DOC006 | 2026-10-24 | KC4 close | KC5 broken into KC5-T01 (gre, gretap and erspan), KC5-T02 (ip6gre, ip6gretap and ip6erspan), KC5-T03 (ipip and sit), KC5-T04 (ip6tnl) and KC5-T05 (vti, vti6 and xfrm) with their tables, argued from `link_gre.c`, `link_gre6.c`, `link_iptnl.c`, `link_ip6tnl.c`, `link_vti.c`, `link_vti6.c` and `link_xfrm.c` at `v7.2.0` and each kind's kernel checks; the fou/fou6 and 6RD findings (decision log); doccheck | tasks one to one, no broken link or anchor | this commit |
+| V038 | 2026-10-24 | KC5-T01 | `nix build .#checks.x86_64-linux.vm-lib-exp` | `kind-write-corpus.exp`: 129 passed, 0 failed (the 450 rows, gre's after gtp's, a bare `type <kind>` accepted by all three, erspan's index, key and hwid ranges, gre's ttl and tos tops, the remote going to any, the prefetch's three sets, the conflict rows' pres and readbacks, `d0` first, the two key exits, the foreign words); the other suites unchanged | this commit |
+| V039 | 2026-10-24 | KC5-T01 | mutation, scratch copies of the corpus and its test, through `expect`: gretap `set_remote_any` at 2, erspan `add_index_over` at 0, gre `set_pmtudisc_ignore_df`'s pre without `ignore-df`, gre `add_key_bad` at 1 | 4 of 4 killed: by `refused_statuses` and `remote_any`; `refused_statuses` and `erspan_ranges`; `conflict_pres`; `refused_statuses` and `key_exits` | scratch |
+| V040 | 2026-10-24 | KC5-T01 | `nix run .#microvm-x86_64-link-write-capture -- --timeout 7200`, guest kernel 7.3.0; `-d -j` readbacks; compared with V037 by `pcapcmp` | `NLCAP_DRIVER_FAIL` on `genl/mptcp_limits_set_over` alone (V004). The 81 rows hold their planned statuses on the first run: gre 24 at 0, 7 at 2, 8 at 1, 6 at 255; gretap 6 at 0, 4 at 2, 1 at 1; erspan 14 at 0, 5 at 2, 1 at 1, 5 at 255. The readbacks are the plan's: keys dotted (`0.0.0.42`, `1.2.3.4`, a multicast group's own), `ttl inherit` as JSON `ttl` 0, `pmtudisc` true once any word is sent and false for a bare `type <kind>`, `encap fou` with `encap-sport auto` as `sport` 0 and the later `noencap-csum` winning, `external` reading back `remote any`, the prefetched set on an external `gr0` still `ttl` 0, gretap's remote going to any, erspan's bare add with `okey 0.0.0.0`, and `erspan_dir` ingress and `erspan_hwid` 0 when not sent. The kernel's refusals are `File exists`, `Invalid argument` (the ignore-df and erspan flag checks, gre's point-to-point change), `Cannot assign requested address`, `Operation not supported` and the collect_md extack; `ip`'s carry the usage text, "A broadcast tunnel requires a source address." and "Failed to get existing tunnel info.". Against V037: 261 new pcaps, all under `kinds/gre/`, `kinds/gretap/` and `kinds/erspan/` (81 `ip.pcap` and 60 rows × 3 readbacks); 1967 the same shape, 17 differing in V004's classes (`tcp_metrics` and neighbor dumps, monitor rows), none under `kinds/` | scratch |
 
 ## Decision log
 

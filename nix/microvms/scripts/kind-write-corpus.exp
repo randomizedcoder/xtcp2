@@ -752,6 +752,160 @@ namespace eval kindcorpus {
         [gtp add_no_value role 255]
 
     ###########################################################################
+    # gre, gretap and erspan (KC5-T01). One parser, gre_parse_opt
+    # (ip/link_gre.c), for the three kinds; devices gr0, gt0 and es0 (gre0,
+    # gretap0 and erspan0 are the fallback names, and the namespace has no
+    # fallback devices). Any word sends the full IFLA_GRE_* set, and
+    # `external` sends COLLECT_METADATA alone. On a set, ip first GETLINKs
+    # the device and prefills what the kernel reports, because
+    # ipgre_netlink_parms rebuilds the parameters from the message. Each
+    # validate accepts no INFO_DATA, so a bare `type <kind>` creates a
+    # tunnel. ipgre_tap_validate checks IFLA_ADDRESS, and erspan_validate
+    # wants exactly seq|key unless the version is 0 or `external` is given.
+    # ip_tunnel_newlink and ip_tunnel_changelink (net/ipv4/ip_tunnel.c)
+    # refuse colliding tunnels, and for gre alone, a change in the
+    # point-to-point state. rtnl_changelink calls changelink only when
+    # INFO_DATA is present. The usage text is 1, get_addr 1, invarg,
+    # tnl_parse_key, NEXT_ARG and nodev 255.
+    ###########################################################################
+    variable PRE_GR0 [list {link add gr0 type gre remote 10.0.0.1}]
+    variable PRE_GR0_EXTERNAL [list {link add gr0 type gre external}]
+    variable PRE_GR0_IGNORE_DF [list {link add gr0 type gre remote 10.0.0.1 nopmtudisc ignore-df}]
+    variable PRE_GR1 [list {link add gr0 type gre remote 10.0.0.1} {link add gr1 type gre remote 10.0.0.2}]
+    variable PRE_GT0 [list {link add gt0 type gretap remote 10.0.0.1}]
+    variable PRE_GT0_EXTERNAL [list {link add gt0 type gretap external}]
+    variable PRE_ES0 [list {link add es0 type erspan remote 10.0.0.1 seq key 10}]
+    variable ERSPAN_BASE {remote 10.0.0.1 seq key 10}
+
+    proc gre {name words rc {pre {}}} {
+        return [plain gre gr0 $name $words $rc $pre]
+    }
+
+    # gre_set <name> <words> <rc> ?<pre>? - a set of gr0, after $PRE_GR0
+    # unless <pre> is given.
+    proc gre_set {name words rc {pre {}}} {
+        variable PRE_GR0
+        if {$pre eq {}} {
+            set pre $PRE_GR0
+        }
+        return [row gre $name $pre [string trimright "ip link set gr0 type gre $words"] $rc gr0]
+    }
+
+    lappend rows \
+        [gre add_default {remote 10.0.0.1} 0] \
+        [gre add_no_option {} 0] \
+        [gre add_local {remote any local 10.0.0.2} 0] \
+        [gre add_dev {remote 10.0.0.1 dev d0} 0 $PRE_D0] \
+        [gre add_key {remote 10.0.0.1 key 42} 0] \
+        [gre add_key_split {remote 10.0.0.1 ikey 1.2.3.4 okey 5} 0] \
+        [gre add_seq_csum {remote 10.0.0.1 seq csum noocsum} 0] \
+        [gre add_ttl_max {remote 10.0.0.1 hoplimit 255} 0] \
+        [gre add_tos_max {remote 10.0.0.1 tclass ff} 0] \
+        [gre add_tos_inherit {remote 10.0.0.1 tos inherit} 0] \
+        [gre add_nopmtudisc_ignore_df {remote 10.0.0.1 nopmtudisc ignore-df} 0] \
+        [gre add_fwmark {remote 10.0.0.1 fwmark 0x10} 0] \
+        [gre add_encap_none {remote 10.0.0.1 encap none} 0] \
+        [gre add_encap_fou {remote 10.0.0.1 encap fou encap-sport auto encap-dport 5555 encap-csum noencap-csum encap-udp6-csum encap-remcsum} 0] \
+        [gre add_external external 0] \
+        [gre add_external_encap {external encap fou} 0] \
+        [gre add_multicast {remote 239.1.1.1 local 10.0.0.1} 0] \
+        [gre add_abbrev {r 10.0.0.1 l 10.0.0.2 t 64 k 5 s c} 0] \
+        [gre add_no_abbrev {remote 10.0.0.1 key 5 no} 0] \
+        [plain gre gr1 add_second_keyed {remote 10.0.0.1 key 5} 0 $PRE_GR0] \
+        [gre_set set_changeable {ttl 32 tos 10 key 5 seq csum fwmark 7 local 10.0.0.2 remote 10.0.0.2} 0] \
+        [gre_set set_dev {dev d0} 0 [concat $PRE_D0 $PRE_GR0]] \
+        [gre_set set_no_option {} 0] \
+        [gre_set set_on_external {ttl 64} 0 $PRE_GR0_EXTERNAL] \
+        [gre add_ignore_df {remote 10.0.0.1 ignore-df} 2] \
+        [plain gre gr1 add_duplicate {remote 10.0.0.1} 2 $PRE_GR0] \
+        [plain gre gr1 add_second_external external 2 $PRE_GR0_EXTERNAL] \
+        [gre_set set_remote_any {remote any} 2] \
+        [row gre set_collide $PRE_GR1 {ip link set gr1 type gre remote 10.0.0.1} 2 gr1] \
+        [gre_set set_external external 2] \
+        [gre_set set_pmtudisc_ignore_df {pmtudisc noignore-df} 2 $PRE_GR0_IGNORE_DF] \
+        [gre add_unknown {remote 10.0.0.1 noexternal} 1] \
+        [gre add_strcmp_abbrev {remote 10.0.0.1 ext} 1] \
+        [gre add_encap_csum6_word {remote 10.0.0.1 encap-csum6} 1] \
+        [gre add_erspan_word {remote 10.0.0.1 erspan_ver 1} 1] \
+        [gre add_multicast_no_local {remote 239.1.1.1} 1] \
+        [gre add_remote6 {remote 2001:db8::1} 1] \
+        [gre add_key_dotted_bad {remote 10.0.0.1 key 1.2.3.x} 1] \
+        [row gre set_not_a_tunnel $PRE_D0 {ip link set d0 type gre ttl 5} 1 d0] \
+        [gre add_key_bad {remote 10.0.0.1 key foo} 255] \
+        [gre add_ttl_over {remote 10.0.0.1 ttl 256} 255] \
+        [gre add_tos_over {remote 10.0.0.1 tos 100} 255] \
+        [gre add_encap_bad {remote 10.0.0.1 encap foo} 255] \
+        [gre add_dev_missing {remote 10.0.0.1 dev nosuch} 255] \
+        [gre add_no_value remote 255]
+
+    proc gretap {name words rc {pre {}}} {
+        return [plain gretap gt0 $name $words $rc $pre]
+    }
+
+    proc gretap_set {name words rc {pre {}}} {
+        variable PRE_GT0
+        if {$pre eq {}} {
+            set pre $PRE_GT0
+        }
+        return [row gretap $name $pre [string trimright "ip link set gt0 type gretap $words"] $rc gt0]
+    }
+
+    lappend rows \
+        [gretap add_default {remote 10.0.0.1} 0] \
+        [gretap add_no_option {} 0] \
+        [gretap add_external external 0] \
+        [gretap add_multicast {remote 239.1.1.1 local 10.0.0.1} 0] \
+        [row gretap add_address {} {ip link add gt0 address 02:00:00:00:00:01 type gretap remote 10.0.0.1} 0 gt0] \
+        [gretap_set set_remote_any {remote any} 0] \
+        [row gretap add_address_multicast {} {ip link add gt0 address 01:00:5e:00:00:01 type gretap remote 10.0.0.1} 2 gt0] \
+        [plain gretap gt1 add_second_external external 2 $PRE_GT0_EXTERNAL] \
+        [gretap_set set_external external 2] \
+        [row gretap set_on_gre $PRE_GR0 {ip link set gr0 type gretap ttl 5} 2 gr0] \
+        [gretap add_erspan_word {remote 10.0.0.1 erspan 5} 1]
+
+    proc erspan {name words rc {pre {}}} {
+        return [plain erspan es0 $name $words $rc $pre]
+    }
+
+    # erspan_base <name> <words> <rc> - an add of $ERSPAN_BASE and <words>.
+    proc erspan_base {name words rc} {
+        variable ERSPAN_BASE
+        return [erspan $name [string trimright "$ERSPAN_BASE $words"] $rc]
+    }
+
+    proc erspan_set {name words rc} {
+        variable PRE_ES0
+        return [row erspan $name $PRE_ES0 "ip link set es0 type erspan $words" $rc es0]
+    }
+
+    lappend rows \
+        [erspan_base add_default {} 0] \
+        [erspan add_no_option {} 0] \
+        [erspan_base add_index {erspan 123} 0] \
+        [erspan_base add_index_max {erspan 1048575} 0] \
+        [erspan add_flags_split {remote 10.0.0.1 iseq okey 10} 0] \
+        [erspan add_key_max {remote 10.0.0.1 seq key 1023} 0] \
+        [erspan add_ver0 {remote 10.0.0.1 erspan_ver 0 csum} 0] \
+        [erspan_base add_ver2 {erspan_ver 2 erspan_dir egress erspan_hwid 7} 0] \
+        [erspan_base add_hwid_max {erspan_ver 2 erspan_hwid 0x3f} 0] \
+        [erspan_base add_dir_abbrev {erspan_ver 2 erspan_dir e} 0] \
+        [erspan_base add_dir_ver1 {erspan_dir egress erspan_hwid 7} 0] \
+        [erspan add_external external 0] \
+        [erspan_set set_index {erspan 200} 0] \
+        [erspan_set set_ver0_noseq {erspan_ver 0 noseq} 0] \
+        [erspan add_remote_only {remote 10.0.0.1} 2] \
+        [erspan_base add_csum csum 2] \
+        [erspan add_key_over {remote 10.0.0.1 seq key 1024} 2] \
+        [erspan_base add_hwid_over {erspan_ver 2 erspan_hwid 0x40} 2] \
+        [erspan_set set_noseq noseq 2] \
+        [erspan_base add_strcmp_abbrev {erspan_v 2} 1] \
+        [erspan_base add_index_zero {erspan 0} 255] \
+        [erspan_base add_index_over {erspan 1048576} 255] \
+        [erspan_base add_ver_over {erspan_ver 3} 255] \
+        [erspan_base add_dir_bad {erspan_ver 2 erspan_dir both} 255] \
+        [erspan_base add_no_value erspan 255]
+
+    ###########################################################################
     # readback_args <ns> <subdir> <readback> - the xtcp2-nlcap capio argument
     # list for one readback, which the driver hands to its capio proc.
     ###########################################################################
