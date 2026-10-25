@@ -2201,7 +2201,9 @@ Five tasks, one per KC5 task and iproute2 parser: KP4-T01 gre, gretap and erspan
 |---|---|---|
 | positive: an ip6tnl's dump | `add_default` | proto `any`, remote, ttl 64, encap_limit 4 |
 | positive: a flow label | `add_flowlabel` | its `0x%05x` |
-| positive: the inherit flags | `add_tclass_inherit`, `add_flowlabel_inherit`, `add_fwmark_inherit` | the `ip6_tnl_f_use_orig_*` keys |
+| positive: the tclass inherit flag | `add_tclass_inherit` | `ip6_tnl_f_use_orig_tclass` true |
+| positive: the flowlabel inherit flag | `add_flowlabel_inherit` | `ip6_tnl_f_use_orig_flowlabel` true |
+| positive: the fwmark inherit flag | `add_fwmark_inherit` | `ip6_tnl_f_use_orig_fwmark` true |
 | negative: a nil nest | `nil` | `nil` |
 | negative: a 4-byte local | built | `local` `unknown` |
 | boundary: an empty nest | `[]byte{}` | `remote`/`local` `any`, ttl 0 |
@@ -2214,14 +2216,17 @@ Five tasks, one per KC5 task and iproute2 parser: KP4-T01 gre, gretap and erspan
 |---|---|---|
 | positive: each row's request | the 36 rows that sent one, sets with their prefetch | byte-identical to `ip.pcap`'s |
 | negative: a flow label past 20 bits | `flowlabel 100000` | `ErrKindSettingRange` |
+| negative: the mplsip mode | mode 137 | `ErrKindSettingRange` |
+| negative: sit's isatap | `isatap` | `ErrKindSettingOption` |
 | negative: a setting with no option | the zero option | `ErrKindSettingOption` |
-| boundary: the last `hoplimit` wins | `add_hoplimit_twice` | its request, one `TTL` |
-| corner: a set resets the encap | `set_keeps_prefetch` | its request: the endpoints kept, `ENCAP_TYPE` 0, `ENCAP_FLAGS` `CSUM6` |
-| corner: `PROTO` first, then metadata | `external` | `PROTO` 0, `COLLECT_METADATA` |
+| boundary: no settings | `nil` | no bytes |
+| boundary: the last `hoplimit` wins | `remote 2001:db8::1 hoplimit 10 ttl 20` | one `TTL` 20 |
+| corner: a set resets the encap | `tclass 0x20`, built `cur` with ttl 10 and a fou encap on port 5555 | the remote and ttl kept, `ENCAP_TYPE` 0, `ENCAP_FLAGS` `CSUM6`, ports 0 |
+| corner: `PROTO` first, then metadata | `external hoplimit 5` | `PROTO` 0, `COLLECT_METADATA`, no `TTL` |
 
 `TestLinkInfoIp6tnlKinds`: an ip6tnl decodes `Iptun` (positive ×2); a vti6 does not; an external ip6tnl does (corner).
 
-**Mutation check:** the encap seeded from `cur` (`set_keeps_prefetch`); `encaplimit none` clearing the limit (`add_encaplimit_none`); the flow label masked to 16 bits (`add_flowlabel`).
+**Mutation check:** the encap seeded from `cur` (`corner: a set resets the encap`); `encaplimit none` clearing the limit (`add_encaplimit_none`); the flow label masked to 16 bits (`add_flowlabel`).
 
 #### KP4-T05 The vti, vti6 and xfrm parsers
 

@@ -48,8 +48,8 @@ func EncodeGre6InfoData(settings []GreSetting, cur *GreInfo) ([]byte, error) {
 	if len(settings) == 0 {
 		return nil, nil
 	}
-	e := &greEnc{ttl: gre6HopLimitDefaultCst, encapLimit: gre6EncapLimitDefaultCst, erspanVer: 1}
-	e.encap.flags = TunnelEncapFlagCsum6
+	e := &greEnc{ttl: gre6HopLimitDefaultCst, erspanVer: 1}
+	e.encapLimit, e.encap.flags = gre6EncapLimitDefaultCst, TunnelEncapFlagCsum6
 	e.seed(cur)
 	for _, s := range settings {
 		if err := e.put6(s); err != nil {
@@ -84,10 +84,19 @@ func (e *greEnc) put6(s GreSetting) error {
 		return nil
 	case GreOptionErspanIndex, GreOptionErspanVer, GreOptionErspanDir, GreOptionErspanHwid:
 		return e.putErspan(s)
-	case GreOptionTTL, GreOptionEncapLimit, GreOptionTClass, GreOptionFlowLabel, GreOptionFwMark:
-		return e.putIP6Number(s)
+	case GreOptionTTL:
+		e.ttl = s.Value
+		return kindMax(s.Value, kindU8MaxCst)
+	case GreOptionEncapLimit:
+		return e.setEncapLimit(s.Value)
+	case GreOptionTClass:
+		return e.setTClass(s.Value)
+	case GreOptionFlowLabel:
+		return e.setFlowLabel(s.Value)
+	case GreOptionFwMark:
+		return e.setFwMark(s.Value)
 	case GreOptionTnlFlag:
-		return e.putTnlFlag(s)
+		return e.setTnlFlag(uint64(s.Attr), s.Value)
 	case GreOptionTOS, GreOptionPMTUDisc, GreOptionIgnoreDF:
 		return ErrKindSettingOption
 	default:
@@ -95,51 +104,75 @@ func (e *greEnc) put6(s GreSetting) error {
 	}
 }
 
-// putIP6Number takes the ip6 words that set a number; each but ttl clears
-// the flag its inherit or none form sets.
-func (e *greEnc) putIP6Number(s GreSetting) error {
-	switch s.Option {
-	case GreOptionTTL:
-		e.ttl = s.Value
-		return kindMax(s.Value, kindU8MaxCst)
-	case GreOptionEncapLimit:
-		e.encapLimit, e.flags = s.Value, e.flags&^Ip6TnlFlagIgnEncapLimit
-		return kindMax(s.Value, kindU8MaxCst)
-	case GreOptionTClass:
-		e.flowinfo = e.flowinfo&^Ip6FlowInfoTclass | s.Value<<ip6FlowInfoTclassSh&Ip6FlowInfoTclass
-		e.flags &^= Ip6TnlFlagUseOrigTclass
-		return kindMax(s.Value, kindU8MaxCst)
-	case GreOptionFlowLabel:
-		e.flowinfo = e.flowinfo&^Ip6FlowInfoFlowlabel | s.Value&Ip6FlowInfoFlowlabel
-		e.flags &^= Ip6TnlFlagUseOrigFlowlabel
-		return kindMax(s.Value, Ip6FlowInfoFlowlabel)
-	default:
-		e.fwmark, e.flags = s.Value, e.flags&^Ip6TnlFlagUseOrigFwmark
-		return kindMax(s.Value, kindU32MaxCst)
-	}
+// ip6Tnl is the state link_gre6.c and link_ip6tnl.c share: the encap
+// limit, the flow info (in host order), the IP6_TNL_F_* flags and the
+// fwmark, which the flag words' inherit and none forms tie together.
+type ip6Tnl struct {
+	encapLimit, flowinfo, flags, fwmark uint64
 }
 
-// putTnlFlag sets or clears an IP6_TNL_F_* bit. Setting tclass or flowlabel
-// inherit clears that field of FLOWINFO, and fwmark inherit zeroes FWMARK.
-func (e *greEnc) putTnlFlag(s GreSetting) error {
-	bit := uint64(s.Attr)
+// setEncapLimit takes an encaplimit number, clearing encaplimit none.
+func (p *ip6Tnl) setEncapLimit(v uint64) error {
+	p.encapLimit, p.flags = v, p.flags&^Ip6TnlFlagIgnEncapLimit
+	return kindMax(v, kindU8MaxCst)
+}
+
+// setTClass takes a tclass number, clearing tclass inherit.
+func (p *ip6Tnl) setTClass(v uint64) error {
+	p.flowinfo = p.flowinfo&^Ip6FlowInfoTclass | v<<ip6FlowInfoTclassSh&Ip6FlowInfoTclass
+	p.flags &^= Ip6TnlFlagUseOrigTclass
+	return kindMax(v, kindU8MaxCst)
+}
+
+// setFlowLabel takes a flowlabel number, clearing flowlabel inherit.
+func (p *ip6Tnl) setFlowLabel(v uint64) error {
+	p.flowinfo = p.flowinfo&^Ip6FlowInfoFlowlabel | v&Ip6FlowInfoFlowlabel
+	p.flags &^= Ip6TnlFlagUseOrigFlowlabel
+	return kindMax(v, Ip6FlowInfoFlowlabel)
+}
+
+// setFwMark takes a fwmark number, clearing fwmark inherit.
+func (p *ip6Tnl) setFwMark(v uint64) error {
+	p.fwmark, p.flags = v, p.flags&^Ip6TnlFlagUseOrigFwmark
+	return kindMax(v, kindU32MaxCst)
+}
+
+// setTnlFlag sets or clears an IP6_TNL_F_* bit. Setting tclass or
+// flowlabel inherit clears that field of the flow info, and fwmark inherit
+// zeroes the fwmark.
+func (p *ip6Tnl) setTnlFlag(bit, on uint64) error {
 	switch bit {
 	case Ip6TnlFlagIgnEncapLimit, Ip6TnlFlagRcvDscpCopy, Ip6TnlFlagAllowLocalRemote:
 	case Ip6TnlFlagUseOrigTclass:
-		e.flowinfo &^= Ip6FlowInfoTclass
+		p.flowinfo &^= Ip6FlowInfoTclass
 	case Ip6TnlFlagUseOrigFlowlabel:
-		e.flowinfo &^= Ip6FlowInfoFlowlabel
+		p.flowinfo &^= Ip6FlowInfoFlowlabel
 	case Ip6TnlFlagUseOrigFwmark:
-		e.fwmark = 0
+		p.fwmark = 0
 	default:
 		return ErrKindSettingRange
 	}
-	if s.Value == 1 {
-		e.flags |= bit
+	if on == 1 {
+		p.flags |= bit
 	} else {
-		e.flags &^= bit
+		p.flags &^= bit
 	}
-	return kindMax(s.Value, 1)
+	return kindMax(on, 1)
+}
+
+// putLimitFlowFlags sends the encap limit, the flow info (big-endian) and
+// the flags, at the consecutive ids both spaces give them.
+func (p *ip6Tnl) putLimitFlowFlags(ab *AttrBuilder, limitType, flowType, flagsType uint16) error {
+	if err := kindPutU8(ab, limitType, p.encapLimit, kindU8MaxCst); err != nil {
+		return err
+	}
+	if err := kindMax(p.flowinfo, kindU32MaxCst); err != nil {
+		return err
+	}
+	if err := ab.PutBytes(flowType, kindBE(p.flowinfo, 4)); err != nil {
+		return err
+	}
+	return kindPutU32(ab, flagsType, p.flags)
 }
 
 // finish6 sends what link_gre6.c's gre_parse_opt sends after its loop.
@@ -161,16 +194,7 @@ func (e *greEnc) finish6(ab *AttrBuilder) error {
 	if err := kindPutU8(ab, IflaGreTTL, e.ttl, kindU8MaxCst); err != nil {
 		return err
 	}
-	if err := kindPutU8(ab, IflaGreEncapLimit, e.encapLimit, kindU8MaxCst); err != nil {
-		return err
-	}
-	if err := kindMax(e.flowinfo, kindU32MaxCst); err != nil {
-		return err
-	}
-	if err := ab.PutBytes(IflaGreFlowInfo, kindBE(e.flowinfo, 4)); err != nil {
-		return err
-	}
-	if err := kindPutU32(ab, IflaGreFlags, e.flags); err != nil {
+	if err := e.putLimitFlowFlags(ab, IflaGreEncapLimit, IflaGreFlowInfo, IflaGreFlags); err != nil {
 		return err
 	}
 	if err := kindPutU32(ab, IflaGreFwMark, e.fwmark); err != nil {

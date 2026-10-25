@@ -252,13 +252,14 @@ type greEnc struct {
 	ikey, okey, iflags, oflags   uint64
 	local, remote                netip.Addr
 	pmtudisc, ignoreDF, tos, ttl uint64
-	link, fwmark                 uint64
+	link                         uint64
 	encap                        tunnelEncapEnc
 	metadata                     bool
 	erspanIdx, erspanVer         uint64
 	erspanDir, erspanHwid        uint64
-	// encapLimit, flowinfo and flags are the ip6 kinds'.
-	encapLimit, flowinfo, flags uint64
+	// ip6Tnl holds the fwmark, and the ip6 kinds' encap limit, flow info
+	// and flags.
+	ip6Tnl
 }
 
 // EncodeGreInfoData encodes the inside of IFLA_INFO_DATA for gre, gretap or

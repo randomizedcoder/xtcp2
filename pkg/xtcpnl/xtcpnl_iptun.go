@@ -51,10 +51,13 @@ const (
 	IptunProtoMPLS = 137
 )
 
+// iptunProtoAnyCst is the name both print_opts give IFLA_IPTUN_PROTO 0.
+const iptunProtoAnyCst = "any"
+
 // IptunProtoNames are iptunnel_print_opt's names; a protocol not here
 // prints no proto key.
 var IptunProtoNames = map[uint8]string{
-	IptunProtoAny: "any", IptunProtoIPIP: "ipip", IptunProtoIPv6: "ip6ip", IptunProtoMPLS: "mplsip",
+	IptunProtoAny: iptunProtoAnyCst, IptunProtoIPIP: "ipip", IptunProtoIPv6: "ip6ip", IptunProtoMPLS: "mplsip",
 }
 
 // IptunFlagSitIsatap is SIT_ISATAP, sit's one IFLA_IPTUN_FLAGS bit.
@@ -209,13 +212,23 @@ const (
 	IptunOption6rdPrefix
 	IptunOption6rdRelayPrefix
 	IptunOptionFwMark
+	// IptunOptionEncapLimit, IptunOptionTClass and IptunOptionFlowLabel
+	// are ip6tnl's numbers, each clearing its none or inherit flag.
+	IptunOptionEncapLimit
+	IptunOptionTClass
+	IptunOptionFlowLabel
+	// IptunOptionTnlFlag sets (Value 1) or clears (0) ip6tnl's IP6_TNL_F_*
+	// bit in Attr, as GreOptionTnlFlag does.
+	IptunOptionTnlFlag
 )
 
-// IptunSetting is one option word of `type ipip` or `type sit`. Value is
+// IptunSetting is one option word of `type ipip`, `sit` or `ip6tnl`. Value is
 // the protocol, 1 or 0 for a flag, the ifindex, the ttl (0 for inherit),
 // the tos (1 for inherit), pmtudisc as 1 or 0, an encap type or port
 // (sport 0 for auto), a 6rd prefix length, or the fwmark; Attr is the encap
-// flag bit; Addr is the remote, local or 6rd prefix, the zero Addr for any.
+// flag bit, or ip6tnl's IP6_TNL_F_* bit; Addr is the remote, local or 6rd
+// prefix, the zero Addr for any. ip6tnl's tclass and flowlabel are
+// IptunOptionTClass and IptunOptionFlowLabel, not IptunOptionTOS.
 // 6rd-reset has no setting: it crashes ip 7.2.0.
 type IptunSetting struct {
 	Option IptunOption
@@ -228,12 +241,15 @@ type IptunSetting struct {
 type iptunEnc struct {
 	local, remote             netip.Addr
 	pmtudisc, tos, ttl, proto uint64
-	link, fwmark, iflags      uint64
+	link, iflags              uint64
 	encap                     tunnelEncapEnc
 	metadata                  bool
 	rdPrefix, rdRelay         netip.Addr
 	rdPrefixLen, rdRelayLen   uint64
 	rdPrefixSet, rdRelaySet   bool
+	// ip6Tnl holds the fwmark, and ip6tnl's encap limit, flow info and
+	// flags.
+	ip6Tnl
 }
 
 // EncodeIptunInfoData encodes the inside of IFLA_INFO_DATA for ipip or sit
@@ -391,15 +407,8 @@ func (e *iptunEnc) finish(ab *AttrBuilder, sit bool) error {
 	if e.metadata {
 		return ab.PutBytes(IflaIptunCollectMetadata, nil)
 	}
-	for _, ep := range [2]struct {
-		atype uint16
-		a     netip.Addr
-	}{{IflaIptunLocal, e.local}, {IflaIptunRemote, e.remote}} {
-		if kindAddrSet(ep.a) {
-			if err := ab.PutBytes(ep.atype, ep.a.AsSlice()); err != nil {
-				return err
-			}
-		}
+	if err := e.putEndpoints(ab); err != nil {
+		return err
 	}
 	for _, u8 := range [3]struct {
 		atype uint16
@@ -422,6 +431,21 @@ func (e *iptunEnc) finish(ab *AttrBuilder, sit bool) error {
 		return nil
 	}
 	return e.finishSit(ab)
+}
+
+// putEndpoints sends LOCAL and REMOTE, each when set and not zero.
+func (e *iptunEnc) putEndpoints(ab *AttrBuilder) error {
+	for _, ep := range [2]struct {
+		atype uint16
+		a     netip.Addr
+	}{{IflaIptunLocal, e.local}, {IflaIptunRemote, e.remote}} {
+		if kindAddrSet(ep.a) {
+			if err := ab.PutBytes(ep.atype, ep.a.AsSlice()); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // finishSit sends sit's FLAGS and its 6rd pairs.
