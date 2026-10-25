@@ -1,0 +1,4 @@
+ok    [-] sysctl net.core.fb_tunnels_only_for_init_net=2
+ok    [-] sysctl net.mptcp.enabled=1
+note  no fallback devices in a new namespace
+note  ipmr and ip6mr present

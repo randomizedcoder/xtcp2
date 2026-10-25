@@ -1,0 +1,1 @@
+ok    [lacpa] ip link add vc0 type vxcan peer name vc1

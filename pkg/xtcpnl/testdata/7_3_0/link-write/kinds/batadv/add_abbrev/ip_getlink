@@ -1,0 +1,2 @@
+3: bat0: <BROADCAST,MULTICAST> mtu 1500 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/ether 82:44:64:11:1a:55 brd ff:ff:ff:ff:ff:ff

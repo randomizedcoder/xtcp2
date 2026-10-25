@@ -1,0 +1,1 @@
+Error: Changing VNI, Port, endpoint IP address family, external, inner_proto_inherit, gro_hint and UDP checksum attributes are not supported.

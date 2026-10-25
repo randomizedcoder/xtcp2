@@ -1,0 +1,26 @@
+Usage: ... ip6tnl	[ remote ADDR ]
+			[ local ADDR ]
+			[ encaplimit ELIM ]
+			[ hoplimit HLIM ]
+			[ tclass TCLASS ]
+			[ flowlabel FLOWLABEL ]
+			[ dscp inherit ]
+			[ [no]allow-localremote ]
+			[ dev PHYS_DEV ]
+			[ fwmark MARK ]
+			[ external ]
+			[ noencap ]
+			[ encap { fou | gue | none } ]
+			[ encap-sport PORT ]
+			[ encap-dport PORT ]
+			[ [no]encap-csum ]
+			[ [no]encap-csum6 ]
+			[ [no]encap-remcsum ]
+			[ mode { ip6ip6 | ipip6 | any } ]
+
+Where:	ADDR	  := IPV6_ADDRESS
+	ELIM	  := { none | 0..255 }(default=4)
+	HLIM	  := 0..255 (default=64)
+	TCLASS    := { 0x0..0xff | inherit }
+	FLOWLABEL := { 0x0..0xfffff | inherit }
+	MARK	  := { 0x0..0xffffffff | inherit }

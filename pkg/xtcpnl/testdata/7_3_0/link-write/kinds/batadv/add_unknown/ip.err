@@ -1,0 +1,4 @@
+batadv: unknown command "foo"?
+Usage: ... batadv [ ra ROUTING_ALG ]
+
+Where: ROUTING_ALG := { BATMAN_IV | BATMAN_V }

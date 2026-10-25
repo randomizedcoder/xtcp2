@@ -1,0 +1,1 @@
+ok    [lacpa] ip link add es6 type ip6erspan remote 2001:db8::1 key 10 seq

@@ -1,0 +1,2 @@
+ok    [lacpa] ip ioam namespace add 123
+ok    [lacpa] sysctl net.ipv6.conf.lo.ioam6_enabled=1

@@ -1,0 +1,2 @@
+ok    [lacpa] ip link add gt6 type ip6gretap remote 2001:db8::1
+ok    [lacpa] ip link add gt7 type ip6gretap remote 2001:db8::2

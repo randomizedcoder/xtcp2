@@ -1,0 +1,4 @@
+1: lo    inet 127.0.0.1/8 scope host lo\       valid_lft forever preferred_lft forever
+1: lo    inet6 ::1/128 scope host proto kernel_lo \       valid_lft forever preferred_lft forever
+3: d0    inet6 2001:db8::fbed:f0b4:1fd0:cabe/64 scope global temporary dynamic \       valid_lft 172796sec preferred_lft 86183sec
+3: d0    inet6 2001:db8::1/64 scope global mngtmpaddr \       valid_lft forever preferred_lft forever

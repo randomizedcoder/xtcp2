@@ -1,0 +1,1 @@
+ok    [lacpa] ip link add g0 type gtp role ggsn

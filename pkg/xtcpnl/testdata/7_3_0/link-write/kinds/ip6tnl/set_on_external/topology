@@ -1,0 +1,1 @@
+ok    [lacpa] ip link add t6 type ip6tnl external

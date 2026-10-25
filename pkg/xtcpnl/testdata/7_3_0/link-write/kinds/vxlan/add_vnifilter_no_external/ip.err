@@ -1,0 +1,1 @@
+vxlan: vnifilter is valid only when 'external' is set

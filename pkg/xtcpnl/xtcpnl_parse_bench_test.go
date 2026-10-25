@@ -36,12 +36,18 @@ var (
 
 // corpusAll returns every message in the DLT 253 pcaps under testdata, in
 // path order, read once per test binary. pcapng files and other link types
-// are skipped.
+// are skipped, and so is the 7.3.0 link-write set: it is a second capture of
+// the 7.1.4 set's rows (plus the kind corpus, which the kind tests read from
+// tdLinkWrite_7_3_0 directly), and the tallies the corpus tests assert count
+// one capture of each row.
 func corpusAll(tb testing.TB) []corpusMsg {
 	tb.Helper()
 	corpusOnce.Do(func() {
 		var paths []string
 		err := filepath.WalkDir(tdBase, func(path string, d fs.DirEntry, err error) error {
+			if err == nil && d.IsDir() && path == filepath.Clean(tdLinkWrite_7_3_0) {
+				return fs.SkipDir
+			}
 			if err == nil && !d.IsDir() && strings.HasSuffix(path, ".pcap") {
 				paths = append(paths, path)
 			}

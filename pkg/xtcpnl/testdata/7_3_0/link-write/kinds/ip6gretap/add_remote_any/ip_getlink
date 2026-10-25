@@ -1,0 +1,2 @@
+3: gt6@NONE: <BROADCAST,MULTICAST> mtu 1434 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/ether fe:73:dd:1b:4d:35 brd ff:ff:ff:ff:ff:ff

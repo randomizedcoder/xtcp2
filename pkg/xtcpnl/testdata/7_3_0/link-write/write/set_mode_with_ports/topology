@@ -1,0 +1,3 @@
+ok    [lacpa] ip link add bond0 type bond mode 802.3ad
+ok    [lacpa] ip link add la1 type veth peer name lb1
+ok    [lacpa] ip link set la1 master bond0

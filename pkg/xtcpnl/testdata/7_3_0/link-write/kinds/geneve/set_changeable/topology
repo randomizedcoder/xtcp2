@@ -1,0 +1,1 @@
+ok    [lacpa] ip link add gn0 type geneve id 1 remote 10.0.0.1

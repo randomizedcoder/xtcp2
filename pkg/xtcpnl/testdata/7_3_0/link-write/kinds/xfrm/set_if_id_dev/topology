@@ -1,0 +1,2 @@
+ok    [lacpa] ip link add d0 type dummy
+ok    [lacpa] ip link add xf0 type xfrm dev d0 if_id 1

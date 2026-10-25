@@ -1,0 +1,2 @@
+4: p0: <BROADCAST,NOARP> mtu 1500 qdisc noop master br0 state DOWN mode DEFAULT group default qlen 1000
+    link/ether d6:f7:90:d5:b3:56 brd ff:ff:ff:ff:ff:ff

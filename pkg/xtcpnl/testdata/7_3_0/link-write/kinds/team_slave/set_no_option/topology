@@ -1,0 +1,3 @@
+ok    [lacpa] ip link add tm0 type team
+ok    [lacpa] ip link add d0 type dummy
+ok    [lacpa] ip link set d0 master tm0

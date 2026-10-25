@@ -1,0 +1,6 @@
+ipvlan: unknown option "vepa"?
+Usage: ... ipvlan [ mode MODE ] [ FLAGS ]
+
+MODE: l3 | l3s | l2
+FLAGS: bridge | private | vepa
+(first values are the defaults if nothing is specified).

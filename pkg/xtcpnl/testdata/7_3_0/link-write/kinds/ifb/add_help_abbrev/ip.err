@@ -1,0 +1,88 @@
+Usage: ip link add [link DEV | parentdev NAME] [ name ] NAME
+		    [ txqueuelen PACKETS ]
+		    [ address LLADDR ]
+		    [ broadcast LLADDR ]
+		    [ mtu MTU ] [index IDX ]
+		    [ numtxqueues QUEUE_COUNT ]
+		    [ numrxqueues QUEUE_COUNT ]
+		    [ netns { PID | NETNSNAME | NETNSFILE } ]
+		    type TYPE [ ARGS ]
+
+	ip link delete { DEVICE | dev DEVICE | group DEVGROUP } type TYPE [ ARGS ]
+
+	ip link { set | change } { DEVICE | dev DEVICE | group DEVGROUP }
+			[ { up | down } ]
+			[ type TYPE ARGS ]
+		[ arp { on | off } ]
+		[ dynamic { on | off } ]
+		[ multicast { on | off } ]
+		[ allmulticast { on | off } ]
+		[ promisc { on | off } ]
+		[ trailers { on | off } ]
+		[ carrier { on | off } ]
+		[ txqueuelen PACKETS ]
+		[ name NEWNAME ]
+		[ address LLADDR ]
+		[ broadcast LLADDR ]
+		[ mtu MTU ]
+		[ netns { PID | NETNSNAME | NETNSFILE } ]
+		[ link-netns NAME | link-netnsid ID ]
+		[ alias NAME ]
+		[ vf NUM [ mac LLADDR ]
+			 [ vlan VLANID [ qos VLAN-QOS ] [ proto VLAN-PROTO ] ]
+			 [ rate TXRATE ]
+			 [ max_tx_rate TXRATE ]
+			 [ min_tx_rate TXRATE ]
+			 [ spoofchk { on | off} ]
+			 [ query_rss { on | off} ]
+			 [ state { auto | enable | disable} ]
+			 [ trust { on | off} ]
+			 [ node_guid EUI64 ]
+			 [ port_guid EUI64 ] ]
+		[ { xdp | xdpgeneric | xdpdrv | xdpoffload } { off |
+			  object FILE [ { section | program } NAME ] [ verbose ] |
+			  pinned FILE } ]
+		[ master DEVICE ][ vrf NAME ]
+		[ nomaster ]
+		[ addrgenmode { eui64 | none | stable_secret | random } ]
+		[ inet [ { forwarding | proxy_arp | accept_redirects |
+			   secure_redirects | send_redirects | shared_media |
+			   accept_source_route | bootp_relay | log_martians |
+			   arp_filter | disable_xfrm | disable_policy |
+			   promote_secondaries | arp_notify | accept_local |
+			   src_vmark | proxy_arp_pvlan | route_localnet |
+			   bc_forwarding | ignore_routes_with_linkdown |
+			   drop_unicast_in_l2_multicast |
+			   drop_gratuitous_arp | arp_evict_nocarrier } { on | off } ]
+		       [ rp_filter { 0 | 1 | 2 } ]
+		       [ arp_announce { 0 | 1 | 2 } ]
+		       [ arp_ignore { 0 | 1 | ... | 8 } ]
+		       [ arp_accept { 0 | 1 | 2 } ]
+		       [ force_igmp_version { 0 | 1 | 2 | 3 } ]
+		       [ tag TAG ] [ medium_id ID ]
+		       [ igmpv2_unsolicited_report_interval INTERVAL ]
+		       [ igmpv3_unsolicited_report_interval INTERVAL ] ]
+		[ protodown { on | off } ]
+		[ protodown_reason PREASON { on | off } ]
+		[ gso_max_size BYTES ] [ gso_ipv4_max_size BYTES ] [ gso_max_segs PACKETS ]
+		[ gro_max_size BYTES ] [ gro_ipv4_max_size BYTES ]
+
+	ip link show [ DEVICE | group GROUP ] [ { up | down } ] [master DEV] [vrf NAME]
+		[type TYPE] [nomaster] [ novf ]
+
+	ip link xstats type TYPE [ ARGS ]
+
+	ip link afstats [ dev DEVICE ]
+	ip link property add dev DEVICE [ altname NAME .. ]
+	ip link property del dev DEVICE [ altname NAME .. ]
+
+	ip link help [ TYPE ]
+
+TYPE := { amt | bareudp | bond | bond_slave | bridge | bridge_slave |
+          dsa | dummy | erspan | geneve | gre | gretap | gtp | hsr |
+          ifb | ip6erspan | ip6gre | ip6gretap | ip6tnl |
+          ipip | ipoib | ipvlan | ipvtap |
+          macsec | macvlan | macvtap | netdevsim |
+          netkit | nlmon | pfcp | rmnet | sit | team | team_slave |
+          vcan | veth | vlan | vrf | vti | vxcan | vxlan | wwan |
+          xfrm | virt_wifi }

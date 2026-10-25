@@ -1,0 +1,9 @@
+netkit: unknown option "foo"?
+Usage: ... netkit [ mode MODE ] [ POLICY ] [ scrub SCRUB ] [ peer [ POLICY <options> ] ]
+
+MODE: l3 | l2
+POLICY: forward | blackhole
+SCRUB: default | none
+(first values are the defaults if nothing is specified)
+
+To get <options> type 'ip link add help'.

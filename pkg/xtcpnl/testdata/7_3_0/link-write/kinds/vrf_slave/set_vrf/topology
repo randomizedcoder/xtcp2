@@ -1,0 +1,2 @@
+ok    [lacpa] ip link add vr0 type vrf table 10
+ok    [lacpa] ip link add d0 type dummy

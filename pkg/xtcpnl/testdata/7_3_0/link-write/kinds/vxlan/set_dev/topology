@@ -1,0 +1,2 @@
+ok    [lacpa] ip link add d0 type dummy
+ok    [lacpa] ip link add vx0 type vxlan id 42 dstport 4789

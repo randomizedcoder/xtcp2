@@ -1,0 +1,11 @@
+bareudp: unknown command "foo"?
+Usage: ... bareudp dstport PORT
+		ethertype PROTO
+		[ srcportmin PORT ]
+		[ [no]multiproto ]
+
+Where:	PORT  := UDP_PORT
+	PROTO := ETHERTYPE
+
+Note: ETHERTYPE can be given as number or as protocol name ("ipv4", "ipv6",
+      "mpls_uc", etc.).

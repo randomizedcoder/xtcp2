@@ -1,0 +1,2 @@
+3: gn0: <POINTOPOINT,NOARP> mtu 1500 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/none 

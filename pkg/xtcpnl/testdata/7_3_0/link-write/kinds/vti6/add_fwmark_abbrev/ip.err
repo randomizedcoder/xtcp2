@@ -1,0 +1,9 @@
+Usage: ... vti6	[ remote ADDR ]
+		[ local ADDR ]
+		[ [i|o]key KEY ]
+		[ dev PHYS_DEV ]
+		[ fwmark MARK ]
+
+Where:	ADDR := { IPV6_ADDRESS }
+	KEY  := { DOTTED_QUAD | NUMBER }
+	MARK := { 0x0..0xffffffff }

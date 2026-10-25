@@ -1,0 +1,3 @@
+3: gn0: <BROADCAST,MULTICAST> mtu 65465 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/ether 4e:92:f0:3a:f2:cd brd ff:ff:ff:ff:ff:ff promiscuity 0 allmulti 0 minmtu 68 maxmtu 65465 
+    geneve external id 0 local 192.168.0.1 ttl auto dstport 6081 udp6zerocsumrx addrgenmode eui64 numtxqueues 1 numrxqueues 1 gso_max_size 65536 gso_max_segs 65535 tso_max_size 524280 tso_max_segs 65535 gro_max_size 65536 gso_ipv4_max_size 65536 gro_ipv4_max_size 65536 

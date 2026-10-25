@@ -1,0 +1,2 @@
+2001:db8::2 age 0.389sec cwnd 10 rtt 15us rttvar 15us source 2001:db8::1
+2001:db8::1 age 0.389sec cwnd 10 rtt 37us rttvar 37us source 2001:db8::2

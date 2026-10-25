@@ -1,0 +1,3 @@
+ok    [lacpa] ip link add d0 type dummy
+ok    [lacpa] ip link set d0 up
+ok    [lacpa] ip -6 addr add 2001:db8::1/64 dev d0 nodad

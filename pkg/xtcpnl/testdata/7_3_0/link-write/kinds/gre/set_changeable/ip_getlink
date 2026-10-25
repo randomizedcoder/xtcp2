@@ -1,0 +1,2 @@
+3: gr0@NONE: <POINTOPOINT,NOARP> mtu 1464 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/gre 10.0.0.2 peer 10.0.0.2

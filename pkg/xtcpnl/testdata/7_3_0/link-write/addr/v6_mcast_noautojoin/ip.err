@@ -1,0 +1,1 @@
+Error: ipv6: Cannot assign multicast address without "IFA_F_MCAUTOJOIN" flag.

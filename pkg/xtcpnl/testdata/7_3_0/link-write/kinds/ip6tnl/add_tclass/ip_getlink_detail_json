@@ -1,0 +1,42 @@
+[ {
+        "ifindex": 3,
+        "link": null,
+        "ifname": "t6",
+        "flags": [ "NOARP" ],
+        "mtu": 1452,
+        "qdisc": "noop",
+        "operstate": "DOWN",
+        "linkmode": "DEFAULT",
+        "group": "default",
+        "txqlen": 1000,
+        "link_type": "tunnel6",
+        "address": "::",
+        "broadcast": "2001:db8::1",
+        "permaddr": "69e:be64:3b66::",
+        "promiscuity": 0,
+        "allmulti": 0,
+        "min_mtu": 68,
+        "max_mtu": 65535,
+        "linkinfo": {
+            "info_kind": "ip6tnl",
+            "info_data": {
+                "proto": "any",
+                "remote": "2001:db8::1",
+                "local": "any",
+                "ttl": 64,
+                "encap_limit": 4,
+                "tclass": "0xff",
+                "flowlabel": "0x00000"
+            }
+        },
+        "inet6_addr_gen_mode": "eui64",
+        "num_tx_queues": 1,
+        "num_rx_queues": 1,
+        "gso_max_size": 65536,
+        "gso_max_segs": 65535,
+        "tso_max_size": 65536,
+        "tso_max_segs": 65535,
+        "gro_max_size": 65536,
+        "gso_ipv4_max_size": 65536,
+        "gro_ipv4_max_size": 65536
+    } ]

@@ -1403,7 +1403,7 @@ The kind captures so far live in the scratch runs that V055, V058 and the rest c
 
 #### KC7-T01 The 7.3.0 link-write corpus
 
-One run of `nix run .#microvm-x86_64-link-write-capture -- --timeout 7200` with the default `--out`, `pkg/xtcpnl/testdata/7_3_0/link-write`, after KC6-T04. Every file it writes is committed; nothing in `7_1_4/` changes, and the tests that name `7_1_4/link-write` keep reading it. `genl/mptcp_limits_set_over` lands with the kernel's status, 0 (V004); the decision log records it. The tests that walk every pcap under `pkg/` (`TestNetlinkUniverse`, `TestAttrCoverageFloors`, `TestCaptureAttrSetIsHonest`) and the provenance tests see the new tree; whatever they report is fixed in this task, and an exclusion the corpus makes stale is removed and logged.
+One run of `nix run .#microvm-x86_64-link-write-capture -- --timeout 7200` with the default `--out`, `pkg/xtcpnl/testdata/7_3_0/link-write`, after KC6-T04. Every file it writes is committed; nothing in `7_1_4/` changes, and the tests that name `7_1_4/link-write` keep reading it. `genl/mptcp_limits_set_over` lands with the kernel's status, 0 (V004); the decision log records it. The tests that walk every pcap under `pkg/` (`TestNetlinkUniverse`, `TestAttrCoverageFloors`, `TestCaptureAttrSetIsHonest`) and the provenance tests see the new tree; whatever they report is fixed in this task, and an exclusion the corpus makes stale is removed and logged. The tests that tally every message under `testdata` through `corpusAll` (17 of them: xfrm, nsid, tcp_metrics, mptcp, seg6 and the rest) count one capture of each row, and the 7.3.0 set is a second capture of the 7.1.4 set's rows, so `corpusAll` skips `7_3_0/link-write`; the kind tests read it directly.
 
 | description | input | expected |
 |---|---|---|
@@ -1411,7 +1411,17 @@ One run of `nix run .#microvm-x86_64-link-write-capture -- --timeout 7200` with 
 | positive: the corpus's `ip` is the pin | `7_3_0/link-write/ip_version` | iproute2 7.2.0 |
 | negative: no exclusion is stale | `TestNetlinkUniverse` over the larger corpus | no "the exclusion is stale" problem |
 | boundary: the 7.1.4 corpus is untouched | `git diff --stat main -- pkg/xtcpnl/testdata/7_1_4` | empty |
-| corner: every kind row has its status and request | each `kinds/<kind>/<slug>/` | `ip.rc` and `ip.pcap`; the three readback pcaps when `ip.rc` is 0 or 2 |
+| positive: every kind row has its status, its request, and its readbacks exactly when the kernel saw it | `TestKindRowsComplete` over `7_3_0/link-write/kinds` | no problem |
+| negative: a row with no status, or no request | a row without `ip.rc`; one without `ip.pcap` | `no ip.rc`; `no ip.pcap` |
+| boundary: a kernel refusal is read back, an `ip` refusal isn't | rc 2 with the three readbacks; rc 255 with none | no problem |
+| corner: a readback missing, or one too many | rc 0 without the `-d -j` pcap; rc 1 with `netlink_route_getlink.pcap` | `rc 0 and no …`; `rc 1 and a …` |
+| corner: a status the corpus never plans | rc 3 | `ip.rc is 3` |
+| positive: `corpusAll` reads the 7.1.4 link-write set | `TestCorpusAllSkipsLinkWrite730` | messages under `7_1_4/link-write` |
+| negative: `corpusAll` doesn't read the 7.3.0 set | the same | none under `7_3_0/link-write` |
+| boundary: the 7.3.0 dump set beside it is still read | the same | messages under `7_3_0/dumps` |
+| corner: the kind corpus inside the skipped set isn't read either | the same | none under `7_3_0/link-write/kinds` |
+
+**Mutation check:** the rc 2 case moved to the no-readback side (the kernel-refusal boundary), the extra-readback case dropped (the one-too-many corner), and `corpusAll`'s skip dropped (the 17 tallies and the negative row).
 
 #### KC7-T02 The gate
 

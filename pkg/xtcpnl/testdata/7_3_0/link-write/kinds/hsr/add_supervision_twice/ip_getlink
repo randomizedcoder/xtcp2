@@ -1,0 +1,2 @@
+5: hs0: <BROADCAST,MULTICAST> mtu 1494 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/ether 4a:07:c0:41:66:f4 brd ff:ff:ff:ff:ff:ff

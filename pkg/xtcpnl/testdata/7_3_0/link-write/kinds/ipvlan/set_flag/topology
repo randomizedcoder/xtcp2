@@ -1,0 +1,2 @@
+ok    [lacpa] ip link add d0 type dummy
+ok    [lacpa] ip link add link d0 name i0 type ipvlan

@@ -1,0 +1,6 @@
+ok    [lacpb] ip link add bond0 address 02:00:00:00:0b:00 type bond mode 802.3ad lacp_rate fast miimon 100 ad_actor_system 02:00:00:00:00:0b
+ok    [lacpb] ip link set lb1 down
+ok    [lacpb] ip link set lb2 down
+ok    [lacpb] ip link set lb1 master bond0
+ok    [lacpb] ip link set lb2 master bond0
+ok    [lacpb] ip link set bond0 up

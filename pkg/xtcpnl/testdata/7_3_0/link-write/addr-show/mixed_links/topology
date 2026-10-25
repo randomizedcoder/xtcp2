@@ -1,0 +1,17 @@
+ok    [addra] ip link add d0 address 02:00:00:00:d0:00 type dummy
+ok    [addra] ip link set d0 addrgenmode none
+ok    [addra] ip link set d0 up
+ok    [addra] ip addr add 192.0.2.1/24 dev d0
+ok    [addra] ip link add d1 address 02:00:00:00:d0:01 type dummy
+ok    [addra] ip link set d1 addrgenmode none
+ok    [addra] ip addr add 198.51.100.1/24 dev d1
+ok    [addra] ip link add d2 address 02:00:00:00:d0:02 type dummy
+ok    [addra] ip link set d2 addrgenmode none
+ok    [addra] ip link set d2 up
+ok    [addra] ip link add bond0 address 02:00:00:00:c0:00 type bond
+ok    [addra] ip link set bond0 addrgenmode none
+ok    [addra] ip link add d3 address 02:00:00:00:d0:03 type dummy
+ok    [addra] ip link set d3 addrgenmode none
+ok    [addra] ip link set d3 master bond0
+ok    [addra] ip link set bond0 up
+ok    [addra] ip addr add 203.0.113.1/24 dev d3

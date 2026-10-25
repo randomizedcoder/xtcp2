@@ -1,0 +1,1 @@
+ok    [lacpa] ip link add vr1 type vrf table 10

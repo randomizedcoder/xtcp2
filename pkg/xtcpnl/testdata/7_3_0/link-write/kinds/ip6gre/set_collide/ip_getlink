@@ -1,0 +1,2 @@
+4: g7@NONE: <NOARP> mtu 1448 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/gre6 :: brd 2001:db8::2 permaddr fa0c:6bec:4e2c::

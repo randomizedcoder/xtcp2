@@ -1,0 +1,7 @@
+inet arp_cache 
+    dev d0 
+    refcnt 1 reachable 38242 base_reachable 30000 retrans 1000 
+    gc_stale 60000 delay_probe 5000 queue 64 
+    app_probes 0 ucast_probes 3 mcast_probes 3 mcast_reprobes 0 
+    anycast_delay 1000 proxy_delay 800 proxy_queue 64 locktime 1000 
+

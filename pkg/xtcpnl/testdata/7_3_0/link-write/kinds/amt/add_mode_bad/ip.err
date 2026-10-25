@@ -1,0 +1,11 @@
+Usage: ... amt
+               [ discovery IP_ADDRESS ]
+               [ mode MODE ]
+               [ local ADDR ]
+               [ dev PHYS_DEV ]
+               [ relay_port PORT ]
+               [ gateway_port PORT ]
+               [ max_tunnels NUMBER ]
+
+Where: ADDR	:= { IP_ADDRESS }
+       MODE	:= { gateway | relay }

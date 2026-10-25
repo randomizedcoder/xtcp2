@@ -1,0 +1,3 @@
+3: g6@NONE: <POINTOPOINT,NOARP> mtu 1444 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/gre6 2001:db8::2 peer 2001:db8::1 permaddr 1ee3:4487:1a8c:: promiscuity 0 allmulti 0 minmtu 0 maxmtu 0 
+    ip6gre remote 2001:db8::1 local 2001:db8::2 hoplimit 10 encaplimit 4 tclass 0x20 flowlabel 0x00000 ikey 0.0.0.5 okey 0.0.0.5 addrgenmode eui64 numtxqueues 1 numrxqueues 1 gso_max_size 65536 gso_max_segs 65535 tso_max_size 65536 tso_max_segs 65535 gro_max_size 65536 gso_ipv4_max_size 65536 gro_ipv4_max_size 65536 

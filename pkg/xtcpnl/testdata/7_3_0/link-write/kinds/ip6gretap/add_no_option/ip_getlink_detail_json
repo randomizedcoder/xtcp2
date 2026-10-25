@@ -1,0 +1,40 @@
+[ {
+        "ifindex": 3,
+        "link": null,
+        "ifname": "gt6",
+        "flags": [ "BROADCAST","MULTICAST" ],
+        "mtu": 1434,
+        "qdisc": "noop",
+        "operstate": "DOWN",
+        "linkmode": "DEFAULT",
+        "group": "default",
+        "txqlen": 1000,
+        "link_type": "ether",
+        "address": "0e:3c:4e:8c:30:e7",
+        "broadcast": "ff:ff:ff:ff:ff:ff",
+        "promiscuity": 0,
+        "allmulti": 0,
+        "min_mtu": 68,
+        "max_mtu": 0,
+        "linkinfo": {
+            "info_kind": "ip6gretap",
+            "info_data": {
+                "remote": "any",
+                "local": "any",
+                "ttl": 0,
+                "encap_limit": 0,
+                "tclass": "0x00",
+                "flowlabel": "0x00000"
+            }
+        },
+        "inet6_addr_gen_mode": "eui64",
+        "num_tx_queues": 1,
+        "num_rx_queues": 1,
+        "gso_max_size": 65536,
+        "gso_max_segs": 65535,
+        "tso_max_size": 65536,
+        "tso_max_segs": 65535,
+        "gro_max_size": 65536,
+        "gso_ipv4_max_size": 65536,
+        "gro_ipv4_max_size": 65536
+    } ]

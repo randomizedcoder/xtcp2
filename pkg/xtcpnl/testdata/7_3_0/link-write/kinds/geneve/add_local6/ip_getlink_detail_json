@@ -1,0 +1,41 @@
+[ {
+        "ifindex": 3,
+        "ifname": "gn0",
+        "flags": [ "BROADCAST","MULTICAST" ],
+        "mtu": 1500,
+        "qdisc": "noop",
+        "operstate": "DOWN",
+        "linkmode": "DEFAULT",
+        "group": "default",
+        "txqlen": 1000,
+        "link_type": "ether",
+        "address": "d6:00:c7:ec:7a:cd",
+        "broadcast": "ff:ff:ff:ff:ff:ff",
+        "promiscuity": 0,
+        "allmulti": 0,
+        "min_mtu": 68,
+        "max_mtu": 65465,
+        "linkinfo": {
+            "info_kind": "geneve",
+            "info_data": {
+                "id": 1,
+                "remote6": "2001:db8::1",
+                "local6": "2001:db8::2",
+                "ttl": 0,
+                "df": "unset",
+                "port": 6081,
+                "udp_zero_csum6_tx": false,
+                "udp_zero_csum6_rx": false
+            }
+        },
+        "inet6_addr_gen_mode": "eui64",
+        "num_tx_queues": 1,
+        "num_rx_queues": 1,
+        "gso_max_size": 65536,
+        "gso_max_segs": 65535,
+        "tso_max_size": 524280,
+        "tso_max_segs": 65535,
+        "gro_max_size": 65536,
+        "gso_ipv4_max_size": 65536,
+        "gro_ipv4_max_size": 65536
+    } ]

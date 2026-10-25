@@ -1,0 +1,2 @@
+3: t6@NONE: <NOARP> mtu 1452 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/tunnel6 :: brd 2001:db8::1 permaddr 69e:be64:3b66::

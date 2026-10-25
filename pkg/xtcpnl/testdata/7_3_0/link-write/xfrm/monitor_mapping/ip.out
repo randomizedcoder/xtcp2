@@ -1,0 +1,10 @@
+000003000000000100000000000000000000003b
+src 192.0.2.1 dst 192.0.2.2
+	proto esp spi 0x00000300 reqid 0 mode transport
+	replay-window 0 
+	enc ecb(cipher_null) 
+	encap type espinudp sport 4500 dport 4500 addr 0.0.0.0
+	anti-replay context: seq 0x0, oseq 0x0, bitmap 0x00000000
+	sel src 0.0.0.0/0 dst 0.0.0.0/0 
+Mapping change 192.0.2.1:4500 -> 192.0.2.1:4501
+	dst 192.0.2.2  reqid 0x0 protocol esp  SPI 0x300

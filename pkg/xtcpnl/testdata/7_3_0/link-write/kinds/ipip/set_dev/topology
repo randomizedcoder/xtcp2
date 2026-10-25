@@ -1,0 +1,2 @@
+ok    [lacpa] ip link add d0 type dummy
+ok    [lacpa] ip link add ip0 type ipip remote 10.0.0.1

@@ -1,0 +1,5 @@
+vxlan: destination port not specified
+Will use Linux kernel default (non-standard value)
+Use 'dstport 4789' to get the IANA assigned value
+Use 'dstport 0' to get default and quiet this message
+Error: Invalid source port range.

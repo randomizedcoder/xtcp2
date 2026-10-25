@@ -1,0 +1,2 @@
+ok    [lacpa] ip link add t6 type ip6tnl remote 2001:db8::1
+ok    [lacpa] ip link add t7 type ip6tnl remote 2001:db8::2

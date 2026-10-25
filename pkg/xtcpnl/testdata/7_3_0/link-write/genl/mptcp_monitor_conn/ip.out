@@ -1,0 +1,13 @@
+mptcp -> 192.0.2.1:36929 closed, 1 extra subflows
+[LISTENER_CREATED] saddr4=127.0.0.1 sport=40237
+[ LISTENER_CLOSED] saddr4=127.0.0.1 sport=40237
+[LISTENER_CREATED] saddr4=192.0.2.1 sport=36929
+[         CREATED] token=d76c687d remid=0 locid=0 saddr4=192.0.2.1 daddr4=192.0.2.1 sport=40414 dport=36929
+[         CREATED] token=2bd0d9a8 remid=0 locid=0 saddr4=192.0.2.1 daddr4=192.0.2.1 sport=36929 dport=40414 server_side
+[     ESTABLISHED] token=2bd0d9a8 remid=0 locid=0 saddr4=192.0.2.1 daddr4=192.0.2.1 sport=36929 dport=40414 server_side
+[     ESTABLISHED] token=d76c687d remid=0 locid=0 saddr4=192.0.2.1 daddr4=192.0.2.1 sport=40414 dport=36929
+[  SF_ESTABLISHED] token=d76c687d remid=0 locid=1 saddr4=192.0.2.2 daddr4=192.0.2.1 sport=51283 dport=36929 backup=0 ifindex=3 dev=d0
+[  SF_ESTABLISHED] token=2bd0d9a8 remid=1 locid=0 saddr4=192.0.2.1 daddr4=192.0.2.2 sport=36929 dport=51283 backup=0
+[          CLOSED] token=d76c687d
+[          CLOSED] token=2bd0d9a8
+[ LISTENER_CLOSED] saddr4=192.0.2.1 sport=36929

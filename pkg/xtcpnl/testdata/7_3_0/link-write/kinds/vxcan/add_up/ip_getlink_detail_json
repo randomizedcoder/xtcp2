@@ -1,0 +1,30 @@
+[ {
+        "ifindex": 4,
+        "link": "vxcan0",
+        "ifname": "vc0",
+        "flags": [ "NO-CARRIER","NOARP","UP","M-DOWN" ],
+        "mtu": 2060,
+        "qdisc": "noqueue",
+        "operstate": "LOWERLAYERDOWN",
+        "linkmode": "DEFAULT",
+        "group": "default",
+        "txqlen": 1000,
+        "link_type": "can",
+        "promiscuity": 0,
+        "allmulti": 0,
+        "min_mtu": 0,
+        "max_mtu": 0,
+        "linkinfo": {
+            "info_kind": "vxcan"
+        },
+        "inet6_addr_gen_mode": "eui64",
+        "num_tx_queues": 1,
+        "num_rx_queues": 1,
+        "gso_max_size": 65536,
+        "gso_max_segs": 65535,
+        "tso_max_size": 65536,
+        "tso_max_segs": 65535,
+        "gro_max_size": 65536,
+        "gso_ipv4_max_size": 65536,
+        "gro_ipv4_max_size": 65536
+    } ]

@@ -1,0 +1,41 @@
+[ {
+        "ifindex": 4,
+        "ifname": "a0",
+        "flags": [ "BROADCAST","MULTICAST" ],
+        "mtu": 1460,
+        "qdisc": "noop",
+        "operstate": "DOWN",
+        "linkmode": "DEFAULT",
+        "group": "default",
+        "txqlen": 1000,
+        "link_type": "ether",
+        "address": "96:ad:51:bd:ad:0f",
+        "broadcast": "ff:ff:ff:ff:ff:ff",
+        "promiscuity": 0,
+        "allmulti": 0,
+        "min_mtu": 108,
+        "max_mtu": 1460,
+        "netns-immutable": true,
+        "linkinfo": {
+            "info_kind": "amt",
+            "info_data": {
+                "mode": "relay",
+                "gateway_port": 2268,
+                "relay_port": 2268,
+                "local": "10.0.0.1",
+                "discovery": "0.0.0.0",
+                "link": "d0",
+                "max_tunnels": 128
+            }
+        },
+        "inet6_addr_gen_mode": "eui64",
+        "num_tx_queues": 1,
+        "num_rx_queues": 1,
+        "gso_max_size": 65536,
+        "gso_max_segs": 65535,
+        "tso_max_size": 65536,
+        "tso_max_segs": 65535,
+        "gro_max_size": 65536,
+        "gso_ipv4_max_size": 65536,
+        "gro_ipv4_max_size": 65536
+    } ]

@@ -1,0 +1,7 @@
+ok    [lacpa] ip link add d0 type dummy
+ok    [lacpa] ip link set d0 up
+ok    [lacpa] ip addr add 192.0.2.1/24 dev d0
+ok    [lacpa] ip addr add 192.0.2.2/24 dev d0
+ok    [lacpa] ip -6 addr add 2001:db8::1/64 dev d0 nodad
+ok    [lacpa] ip -6 addr add 2001:db8::2/64 dev d0 nodad
+ok    [lacpa] ip link add link d0 macsec0 type macsec sci 0102030405060001

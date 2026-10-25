@@ -1,0 +1,3 @@
+4: vr0: <NOARP,MASTER> mtu 65575 qdisc noop state DOWN mode DEFAULT group default qlen 1000
+    link/ether 32:4b:df:59:14:ac brd ff:ff:ff:ff:ff:ff promiscuity 0 allmulti 0 minmtu 1280 maxmtu 65575 netns-immutable 
+    vrf table 10 addrgenmode eui64 numtxqueues 1 numrxqueues 1 gso_max_size 65536 gso_max_segs 65535 tso_max_size 65536 tso_max_segs 65535 gro_max_size 65536 gso_ipv4_max_size 65536 gro_ipv4_max_size 65536 
