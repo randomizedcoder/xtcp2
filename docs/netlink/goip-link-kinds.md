@@ -40,12 +40,14 @@ These are the trees [goip-parity-gaps.md](goip-parity-gaps.md#reference-sources)
 | kind | decode (`pkg/xtcpnl`) | encode | goip args | `-d` render |
 |---|---|---|---|---|
 | bond, bond_slave | `xtcpnl_bond.go` | `encodeBondSettings` (`xtcpnl_link_write.go:222`) | `link_bond_args.go` | `render/link_bond.go` |
-| vrf, vrf_slave | the table id | no | no | yes |
+| vrf, vrf_slave | the table id | `EncodeVrfInfoData` (KP5) | no | yes |
 | dummy, veth | no `INFO_DATA` | no options | `link add` with no options | no `INFO_DATA` to render |
 | bridge, bridge_slave (KP1) | `xtcpnl_bridge.go`, `xtcpnl_bridge_slave.go` | `EncodeBridgeInfoData`, `EncodeBridgeSlaveData` | refused until KG1 | refused until KG1 |
 | vlan, macvlan, macvtap, ipvlan, ipvtap (KP2) | `xtcpnl_vlan.go`, `xtcpnl_macvlan.go`, `xtcpnl_ipvlan.go` | `EncodeVlanInfoData`, `EncodeMacvlanInfoData`, `EncodeIpvlanInfoData` | refused until KG2 | refused until KG2 |
 | vxlan, geneve, bareudp, amt, gtp (KP3) | `xtcpnl_vxlan.go`, `xtcpnl_geneve.go`, `xtcpnl_bareudp.go`, `xtcpnl_amt.go`, `xtcpnl_gtp.go` | `Encode<Kind>InfoData` for each | refused until KG3 | refused until KG3 |
 | gre, gretap, erspan, ip6gre, ip6gretap, ip6erspan, ipip, sit, ip6tnl, vti, vti6, xfrm (KP4) | `xtcpnl_gre.go`, `xtcpnl_iptun.go`, `xtcpnl_vti.go`, `xtcpnl_xfrm_link.go` | `EncodeGreInfoData`, `EncodeGre6InfoData`, `EncodeIptunInfoData`, `EncodeIp6tnlInfoData`, `EncodeVtiInfoData`, `EncodeXfrmLinkInfoData` | refused until KG4 | refused until KG4 |
+| hsr, netkit, vxcan, batadv (KP5) | `xtcpnl_hsr.go`, `xtcpnl_netkit.go`; vxcan and batadv send no `INFO_DATA` | `EncodeHsrInfoData`, `EncodeNetkitInfoData`, `EncodeVxcanInfoData`, `EncodeBatadvInfoData` | refused until KG5 | refused until KG5 |
+| ifb, nlmon, vcan, team, team_slave | no `INFO_DATA` (KP5-T04 tests it) | no options | `link add` with no options; a word after the type refused until KG5 | no `INFO_DATA` to render |
 | every other kind | no | no | refused | refused |
 
 The two refusals:
@@ -2461,8 +2463,8 @@ Four tasks, one per KC6 task: KP5-T01 hsr (`iplink_hsr.c`); KP5-T02 netkit (`ipl
 | negative: a setting with no option | the zero option | `ErrKindSettingOption` |
 | boundary: no settings | `nil` | no bytes |
 | boundary: an empty name | built `ra ""` | one attribute holding the NUL alone |
-| corner: two names send two attributes | `add_ra_twice` | its request |
-| corner: the case is kept | `add_ra_lowercase` | its request: `batman_v` |
+| corner: two names send two attributes, in order | `ra BATMAN_V ra BATMAN_IV` | `BATMAN_V`, then `BATMAN_IV` |
+| corner: the case is kept | `ra batman_v` | `batman_v`, as `add_ra_lowercase` sends it |
 
 `TestKindsWithoutData`:
 
@@ -2470,7 +2472,8 @@ Four tasks, one per KC6 task: KP5-T01 hsr (`iplink_hsr.c`); KP5-T02 netkit (`ipl
 |---|---|---|
 | positive: an ifb's dump decodes no kind data | `ifb/add_no_option` | every `LinkInfo` kind field nil |
 | positive: a team port's dump has a slave kind and no data | `team/set_enslave`'s `d0` | `SlaveKind` team, no slave data |
-| negative: no parser-less request carries kind data | every ifb, nlmon, vcan, team and team_slave request | no `INFO_DATA`, no `INFO_SLAVE_DATA` |
+| positive: a vcan's dump decodes no kind data | `vcan/add_mtu_16` | every `LinkInfo` kind field nil |
+| negative: no parser-less request carries kind data | every ifb, nlmon, vcan, team and team_slave row (46 subtests) | no `INFO_DATA`, no `INFO_SLAVE_DATA` |
 | boundary: a bare set of another kind | `ifb/set_kind_mismatch` | `INFO_KIND` vcan alone |
 | corner: batadv's dump has no `INFO_DATA` | `batadv/add_ra_v` | none |
 
@@ -2478,7 +2481,90 @@ Four tasks, one per KC6 task: KP5-T01 hsr (`iplink_hsr.c`); KP5-T02 netkit (`ipl
 
 ### KG0 — goip `link set inet`
 
-`inet` in goip's `iplink_parse` keyword chain (`internal/goip/link_write.go`): `strcmp` keywords, 23 on/off and 9 numeric params, base-0 values, the push-back on the first unknown word, and `ip`'s error texts.
+Two tasks: KG0-T01 puts `inet` in goip's `iplink_parse` keyword chain and replays the KC1 rows offline; KG0-T02 adds the matrix rows and gates them, which closes KG0. The codec is KP0's (`pkg/xtcpnl/xtcpnl_inet_devconf.go`), so KG0 is argument parsing, exit statuses and the matrix.
+
+**What `ip` does** (`ip/iplink.c` at `v7.2.0`):
+- **The keyword.** `strcmp(*argv, "inet")` (`:946`) sits after `mtu` and before the xdp keywords. It is `strcmp`, so `ine` falls through to the device-name arm. goip's chain (`linkParseKeywords`) has no `inet` today, so `ip link set dev d0 inet …` reads `inet` as a second device name and refuses with `duparg2`'s text: a wrong refusal, not a wrong request.
+- **The loop** (`iplink_parse_inet`, `:572-860`). It opens `IFLA_AF_SPEC`, `AF_INET` and `IFLA_INET_CONF | NLA_F_NESTED`, then, while a word follows, compares it with `strcmp` against the 32 params in `InetDevconfParams`' order:
+  - An on/off param's value goes through `parse_on_off`, which takes exactly `on` or `off`. Anything else prints `Error: argument of "<param>" must be one of "off", "on", not "<value>"` and returns the error, so `ip` exits 1.
+  - A numeric param's value goes through `get_integer` base 0 into a C `int`, sent through `addattr32`, so `-1` is `0xffffffff`. A bad value is `invarg("Invalid \"<param>\" value\n")`, exit 255.
+  - A param with no value is `NEXT_ARG`'s `incomplete_command`, exit 255.
+  - The first word that isn't a param is pushed back (`PREV_ARG`), and the loop ends. If no param was read, it's `incomplete_command`, so a bare `inet` and `inet bogus on` both exit 255.
+- **The pushed-back word** returns to `iplink_parse`'s loop as the next keyword or device name, so `inet forwarding on mtu 1400` sends `IFLA_AF_SPEC` and then `IFLA_MTU` in one request, and `inet forwarding on bogus` is `duparg2` on `bogus` (`dev d0` already named the device).
+- **No repeat check.** A param twice sends two attributes, and `inet` twice sends two `IFLA_AF_SPEC` attributes.
+
+**Exit statuses.** `ip` exits 255 on `invarg`, `duparg`, `duparg2` and `incomplete_command`, and 1 on a returned parse error. goip exits 1 on every argument error today (`exitCodeOf`'s `ErrInvalidArgument` arm). The decision log already says KG0 matches the status as well as the text. KG0-T01 adds `ErrLinkUsage`, which `exitCodeOf` maps to `ExitMinusOne`, and wraps every refusal `parseLinkArgs` returns where `ip` calls `exit(-1)`. The shared helpers (`invargErr`, `dupargErr`, `incompleteErr`) stay as they are, since most of goip's other objects use them. The kind parsers (`parseBondArgs`) keep 1 until their KG phase.
+
+#### KG0-T01 `inet` in goip's keyword chain
+
+**Code.** In `internal/goip/link_write.go`:
+- **`{keyword: "inet", arm: linkArmInet}`** goes in `linkParseKeywords` between `mtu` and `xdpgeneric`, with no prefix.
+- **`(*linkParseState).inet(args, i) (int, error)`** reads params from `args[i+1:]` against `xtcpnl.InetDevconfParams`, builds `[]xtcpnl.InetDevconfSetting`, and appends `xtcpnl.LinkAttrInetDevconf`'s attribute to `st.out.attrs` where the word fell. It returns the index of the last word it consumed, so the loop's `i++` lands on the pushed-back word.
+- **Values:** on/off is `on` 1 and `off` 0, refused with `parse_on_off`'s text above, wrapped in `ErrInvalidArgument` (exit 1). Numeric values go through `getInteger(v, 0)`, the value taken as the C `int`'s 32 bits without a narrowing conversion that gosec flags. A bad value is the `invarg` text, wrapped in `ErrLinkUsage`.
+- **`ErrLinkUsage`** in `goip.go`, with an `exitCodeOf` arm mapping it to `ExitMinusOne`, ahead of the `ErrInvalidArgument` arm. `parseLinkArgs` wraps its `exit(-1)` refusals in it: `incomplete_command`, `duparg`, `duparg2`, and the name and alias `invarg`s. The existing link tests that expect 1 for those move to 255.
+
+`TestLinkSetInetMatchesIp`, which replays `pkg/xtcpnl/testdata/7_3_0/link-write/rtnl/inet_*` through `newLinkReplay`: goip sends `ip`'s d0 lookup and writes `ip`'s request, byte for byte with seq and pid zeroed, and exits 0 with nothing printed.
+
+| description | input | expected |
+|---|---|---|
+| positive: each kernel-answered KC1 row | the 11 rows at rc 0 or 2, their argv as KC1-T01 ran them | one lookup, then the row's request |
+| positive: several params, in argument order | `inet_several` | its request: ids 1, 3, 8 and 19 in that order |
+| positive: every param | `inet_every_param` | its request: 32 attributes |
+| negative: a request the kernel refuses is built anyway | `inet_rp_filter_over` | its request; the `EINVAL` is the kernel's |
+| boundary: base 0 | `inet_tag_hex`, `inet_arp_ignore_octal` | `TAG` 16; `ARP_IGNORE` 8 |
+| boundary: the one signed param | `inet_medium_id_neg1` | `MEDIUM_ID` `0xffffffff` |
+| corner: the pushed-back word is the next keyword | `inet_then_mtu` | `IFLA_AF_SPEC`, then `IFLA_MTU` |
+| corner: a repeated param | `inet_repeated` | both attributes, 1 then 0 |
+
+`TestLinkSetInetRefusals`: goip's status and stderr for a refusal. Nothing is sent: `ip` refuses inside its loop, before the d0 lookup.
+
+| description | input (`link set dev d0 …`) | expected |
+|---|---|---|
+| negative: each `ip`-refused KC1 row | the 7 rows at rc 1 or 255 | the row's `ip.rc`, and its `ip.err` text on stderr |
+| negative: an on/off param given a number | `inet forwarding 1` | rc 1, `must be one of "off", "on", not "1"` |
+| negative: a numeric param given `on` | `inet rp_filter on` | rc 255, `Invalid "rp_filter" value` |
+| boundary: a value past a C `int` | `inet tag 2147483648` | rc 255, `Invalid "tag" value` |
+| boundary: `inet` as the last word | `inet` | rc 255, `Command line is not complete` |
+| corner: `ine` is a device name | `ine forwarding on` | rc 255, `either "dev" is duplicate, or "ine" is garbage` |
+| corner: a param word outside `inet` | `forwarding on` | rc 255, the same text for `forwarding` |
+| corner: an existing refusal moves to 255 | `mtu 1400 mtu 1500` | rc 255, `duplicate "mtu"` |
+
+`TestLinkSetInetBuilt`: requests no row captured, built with `xtcpnl.LinkAttrInetDevconf` as the expectation.
+
+| description | input (`link set dev d0 …`) | expected |
+|---|---|---|
+| positive: one numeric param | `inet arp_announce 2` | one `IFLA_AF_SPEC` holding `ARP_ANNOUNCE` 2 |
+| corner: `inet` twice | `inet forwarding on inet proxy_arp on` | two `IFLA_AF_SPEC` attributes, in order |
+| corner: a generic keyword before `inet` | `mtu 1400 inet forwarding on` | `IFLA_MTU`, then `IFLA_AF_SPEC` |
+| boundary: the highest id | `inet arp_evict_nocarrier off` | `ARP_EVICT_NOCARRIER` (33) 0 |
+
+**Mutation check:** the params matched by prefix (`inet_abbreviated`); the pushed-back word consumed (`inet_then_mtu`); values read base 10 (`inet_tag_hex`); `ErrLinkUsage` mapped to 1 (the `ip`-refused rows); `inet` given `prefix: true` (the `ine` corner).
+
+**Done when:** the tables pass with `go test -count=1 -race ./internal/goip/`, `go vet` passes, the mutants are killed, and lint-baseline and netlink-audit pass.
+
+#### KG0-T02 The `inet` matrix rows
+
+**Rows.** In `internal/goipparity/commands.go`, after the link write rows: one write row per kernel-answered KC1 row, 11 in all, in KC1-T01's order. Each is `link set dev d0 inet …` as KC1 ran it, with `Setup: linkWriteSetupDummy`, `Floor: 4` (d0's lookup, the write and its answer), and `Implemented: true, Write: true`. The `ip`-refused rows aren't matrix rows, since a write row needs goip to exit 0. `TestLinkSetInetRefusals` holds them offline, as `TestRouteWriteNodevCorpus` holds `nodev`.
+
+`TestInetMatrixRows` (in `internal/goipparity`):
+
+| description | input | expected |
+|---|---|---|
+| positive: the rows are KC1's kernel-answered rows, in order | the `link_write_inet_*` slugs | `inet_forwarding_on` … `inet_then_mtu`, 11 |
+| negative: no `ip`-refused row is a matrix row | the 7 refused slugs | absent |
+| boundary: each row's floor | `Floor` | 4 |
+| corner: every row sets up d0 alone | `Setup` | `linkWriteSetupDummy` |
+
+| description (VM) | input | expected |
+|---|---|---|
+| positive: two consecutive clean runs | `nix run .#microvm-x86_64-goip-parity -- --timeout 12000`, twice | the 11 rows `PASS` on both, and every gated row still `PASS` |
+| corner: the refused rows compare on the request | `inet_rp_filter_over`, `inet_medium_id_neg2` | `PASS`: `ip` exits 2 on both sides, goip 0 |
+
+Then the 11 rows go in `gated_commands` (`pkg/nlparity/goip-parity-allowlist.json`).
+
+**Mutation check:** a row's floor at 2 (the floor row); a refused row added (the negative row).
+
+**Done when:** the offline tables pass; the two VM runs are clean; the rows are gated; lint-baseline passes. It closes KG0.
 
 ### KG1 — goip bridge
 
