@@ -1399,7 +1399,42 @@ hsr, netkit, vrf and vrf_slave, vxcan, batadv, and the option-less ifb, nlmon, v
 
 ### KC7 — Kind completeness gate
 
-A `pkg/xtcpnl` test in the shape of C4's universe test: every in-scope kind has a write capture and a `-d` readback, and every excluded kind is listed with its reason.
+The kind captures so far live in the scratch runs that V055, V058 and the rest compared; the committed link-write corpus is 7.1.4's (`testdata/7_1_4/link-write`), older than the kind corpus and the guest kernel. So KC7 is two tasks: KC7-T01 commits a 7.3.0 link-write corpus, and KC7-T02 is the gate that reads it.
+
+#### KC7-T01 The 7.3.0 link-write corpus
+
+One run of `nix run .#microvm-x86_64-link-write-capture -- --timeout 7200` with the default `--out`, `pkg/xtcpnl/testdata/7_3_0/link-write`, after KC6-T04. Every file it writes is committed; nothing in `7_1_4/` changes, and the tests that name `7_1_4/link-write` keep reading it. `genl/mptcp_limits_set_over` lands with the kernel's status, 0 (V004); the decision log records it. The tests that walk every pcap under `pkg/` (`TestNetlinkUniverse`, `TestAttrCoverageFloors`, `TestCaptureAttrSetIsHonest`) and the provenance tests see the new tree; whatever they report is fixed in this task, and an exclusion the corpus makes stale is removed and logged.
+
+| description | input | expected |
+|---|---|---|
+| positive: the corpus was taken in the capture VM on 7.3.0 | `7_3_0/link-write/uname` | `Linux xtcp2-vm-x8664 7.3.0 …` |
+| positive: the corpus's `ip` is the pin | `7_3_0/link-write/ip_version` | iproute2 7.2.0 |
+| negative: no exclusion is stale | `TestNetlinkUniverse` over the larger corpus | no "the exclusion is stale" problem |
+| boundary: the 7.1.4 corpus is untouched | `git diff --stat main -- pkg/xtcpnl/testdata/7_1_4` | empty |
+| corner: every kind row has its status and request | each `kinds/<kind>/<slug>/` | `ip.rc` and `ip.pcap`; the three readback pcaps when `ip.rc` is 0 or 2 |
+
+#### KC7-T02 The gate
+
+`TestLinkKindUniverse` (`pkg/xtcpnl/xtcpnl_kind_universe_test.go`), in `TestNetlinkUniverse`'s shape:
+- `linkKindUniverse`: the 48 `id`s of 7.2.0's `ip/iplink_*.c` and `ip/link_*.c`, each with the file that names it;
+- `linkKindExclusions`: can, dsa, ipoib, netdevsim, rmnet, virt_wifi and wwan, each with the decision log's reason;
+- `linkKindSources`: where each kind's rows are, `kinds/<kind>/` or, for bond, bond_slave, dummy and veth, the `write/` rows that predate the kind corpus;
+- `linkKindProblems(universe, excl, seen)`, a pure function the table drives, and `linkKindWalk`, which reads the 7.3.0 corpus. A kind counts as captured when one of its rows has `ip.rc` 0, an `ip.pcap`, and a `-d -j` readback whose `linkinfo` names it (`info_kind`, or `info_slave_kind` for a `_slave` kind).
+
+| description | input | expected |
+|---|---|---|
+| positive: the committed corpus passes | `linkKindWalk` of `7_3_0/link-write` | no problem |
+| negative: an in-scope kind with no row | the walk without `netkit` | `netkit: no accepted row with a -d readback` |
+| negative: an exclusion with no reason | `can` excluded with `""` | `can: excluded with no reason` |
+| boundary: one accepted row is enough | a kind with one row at 0 and its readback | no problem |
+| boundary: refused rows alone are not | a kind whose rows are all 2 or 255 | `no accepted row` |
+| corner: an exclusion the corpus contradicts | `can` excluded and captured | `can: captured and excluded; the exclusion is stale` |
+| corner: a captured kind 7.2.0 doesn't name | `kinds/foo` | `foo: captured but not a 7.2.0 kind` |
+| corner: the readback names another kind | `kinds/vxcan` whose readback says `vrf` | `vxcan: no accepted row with a -d readback` |
+| corner: a slave kind matches its slave kind | `bridge_slave`'s readback, `info_slave_kind` `bridge` | no problem |
+| corner: a kind listed twice | `vrf` twice | `vrf: listed twice` |
+
+**Mutation check:** the stale-exclusion case dropped (the stale corner), the `_slave` match dropped (the slave corner), the `ip.rc` filter dropped (the refused boundary).
 
 ### KP0 — `inet` devconf codec
 

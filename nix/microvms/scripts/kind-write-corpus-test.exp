@@ -676,13 +676,35 @@ lappend design_rows {*}{
     vxcan/add_peer_name_missing vxcan/add_peer_type vxcan/add_peer_help
     vxcan/set_peer_bare
 }
+lappend design_rows {*}{
+    batadv/add_no_option batadv/add_ra_v batadv/add_ra_iv batadv/add_abbrev
+    batadv/add_ra_twice batadv/add_duplicate batadv/add_ra_bogus
+    batadv/add_ra_lowercase batadv/add_mtu_low batadv/set_ra
+    batadv/set_ra_bogus batadv/set_no_option batadv/add_unknown
+    batadv/add_ra_longer batadv/add_help batadv/set_nodev
+    batadv/add_no_value ifb/add_no_option ifb/add_numtxqueues
+    ifb/set_no_option ifb/set_kind_mismatch ifb/add_mcast_address
+    ifb/add_garbage ifb/add_mtu_after_type ifb/set_garbage
+    ifb/add_help_abbrev nlmon/add_no_option nlmon/add_mtu_min
+    nlmon/add_address nlmon/add_mtu_below nlmon/set_no_option
+    nlmon/add_garbage vcan/add_no_option vcan/add_mtu_16 vcan/add_mtu_100
+    vcan/set_mtu_72 vcan/set_mtu_76 vcan/set_mtu_same vcan/set_up_and_mtu
+    vcan/set_no_option vcan/set_mtu_75 vcan/set_mtu_2061 vcan/set_mtu_up
+    vcan/add_garbage vcan/add_mtu_after_type team/add_no_option
+    team/set_no_option team/set_enslave team/add_enslaved
+    team/set_enslave_again team/set_nomaster team/add_mcast_address
+    team/set_enslave_up team/add_enslaved_up team/set_enslave_lo
+    team/set_enslave_self team/add_garbage team/add_help
+    team/set_master_missing team_slave/add team_slave/set_no_option
+    team_slave/set_unenslaved team_slave/set_garbage
+}
 
 check slug_list "positive: the rows are the plan's, in run order" \
     {slugs $R} [join $design_rows " "]
 check first_row "boundary: add_default comes first" \
     {lindex [slugs $R] 0} bridge/add_default
-check row_count "boundary: KC2's 60 bridge and 42 bridge_slave rows, KC3-T01's 28 vlan rows, KC3-T02's 34 macvlan and 6 macvtap rows, KC3-T03's 18 ipvlan and 4 ipvtap rows, KC4-T01's 73 vxlan rows, KC4-T02's 49 geneve rows, KC4-T03's 16 bareudp and 20 amt rows, KC4-T04's 19 gtp rows, KC5-T01's 45 gre, 11 gretap and 25 erspan rows, KC5-T02's 36 ip6gre, 9 ip6gretap and 19 ip6erspan rows, KC5-T03's 47 ipip and 37 sit rows, KC5-T04's 49 ip6tnl rows, KC5-T05's 23 vti, 12 vti6 and 23 xfrm rows, KC6-T01's 29 hsr rows, KC6-T02's 43 netkit rows, KC6-T03's 18 vrf, 10 vrf_slave and 18 vxcan rows" \
-    {llength $R} 823
+check row_count "boundary: KC2's 60 bridge and 42 bridge_slave rows, KC3-T01's 28 vlan rows, KC3-T02's 34 macvlan and 6 macvtap rows, KC3-T03's 18 ipvlan and 4 ipvtap rows, KC4-T01's 73 vxlan rows, KC4-T02's 49 geneve rows, KC4-T03's 16 bareudp and 20 amt rows, KC4-T04's 19 gtp rows, KC5-T01's 45 gre, 11 gretap and 25 erspan rows, KC5-T02's 36 ip6gre, 9 ip6gretap and 19 ip6erspan rows, KC5-T03's 47 ipip and 37 sit rows, KC5-T04's 49 ip6tnl rows, KC5-T05's 23 vti, 12 vti6 and 23 xfrm rows, KC6-T01's 29 hsr rows, KC6-T02's 43 netkit rows, KC6-T03's 18 vrf, 10 vrf_slave and 18 vxcan rows, KC6-T04's 17 batadv, 9 ifb, 6 nlmon, 13 vcan, 14 team and 4 team_slave rows" \
+    {llength $R} 886
 check bridge_first "boundary: bridge's rows all come before bridge_slave's" \
     {lsearch -glob [slugs $R] bridge_slave/*} 60
 check option_rows "positive: one add_ row per value-taking option but stp_mode, each once" \
@@ -855,6 +877,18 @@ set refused_design {
     vxcan/add_abbrev 1 vxcan/add_help 1 vxcan/set_peer_nodev 1
     vxcan/add_peer_name_long 255 vxcan/add_peer_name_missing 255
     vxcan/add_peer_type 255 vxcan/add_peer_help 255 vxcan/set_peer_bare 255
+    batadv/add_duplicate 2 batadv/add_ra_bogus 2 batadv/add_ra_lowercase 2
+    batadv/add_mtu_low 2 batadv/set_ra 2 batadv/set_ra_bogus 2
+    batadv/add_unknown 1 batadv/add_ra_longer 1 batadv/add_help 1
+    batadv/set_nodev 1 batadv/add_no_value 255 ifb/add_mcast_address 2
+    ifb/add_garbage 1 ifb/add_mtu_after_type 1 ifb/set_garbage 1
+    ifb/add_help_abbrev 255 nlmon/add_address 2 nlmon/add_mtu_below 2
+    nlmon/add_garbage 1 vcan/set_mtu_75 2 vcan/set_mtu_2061 2
+    vcan/set_mtu_up 2 vcan/add_garbage 1 vcan/add_mtu_after_type 1
+    team/add_mcast_address 2 team/set_enslave_up 2 team/add_enslaved_up 2
+    team/set_enslave_lo 2 team/set_enslave_self 2 team/add_garbage 1
+    team/add_help 255 team/set_master_missing 255 team_slave/add 2
+    team_slave/set_garbage 1
 }
 check refused_statuses "positive: exactly the refusal rows expect a non-zero status" \
     {refused_rows} [join $refused_design " "]
@@ -1416,6 +1450,31 @@ check missing_device_exits "corner: a missing device is 1 for a set, 255 for mas
 check vxcan_peer_pres "corner: the vxcan sets name the peer their pre made" \
     {lmap s {set_peer set_peer_nodev set_no_option} {field vxcan/$s 2}} \
     [lrepeat 3 {{link add vc0 type vxcan peer name vc1}}]
+
+###############################################################################
+# 21. the batadv, ifb, nlmon, vcan, team and team_slave rows' states
+###############################################################################
+check batadv_after_vxcan "positive: batadv's rows follow vxcan's, then ifb's, nlmon's, vcan's, team's and team_slave's" \
+    {lmap k {batadv ifb nlmon vcan team team_slave} {lsearch -glob [slugs $R] $k/*}} {823 840 849 855 868 882}
+check vcan_mtus "boundary: vcan's MTUs" \
+    {lmap s {set_mtu_75 set_mtu_76 set_mtu_2061 set_mtu_same} {list [lindex [field vcan/$s 3] end] [field vcan/$s 5]}} \
+    {{75 2} {76 0} {2061 2} {2060 0}}
+check nlmon_min "boundary: nlmon's minimum" \
+    {lmap s {add_mtu_min add_mtu_below} {list [lindex [field nlmon/$s 3] 5] [field nlmon/$s 5]}} {{16 0} {15 2}}
+check parserless_words "corner: a kind with no parser refuses any word after type, or exits on help" \
+    {lmap s {ifb/add_garbage ifb/add_help_abbrev team/add_help} {field $s 5}} {1 255 255}
+check generic_before_type "corner: a generic word goes before type" \
+    {lmap s {add_numtxqueues add_mtu_after_type} {list [lsearch [field ifb/$s 3] type] [field ifb/$s 5]}} {{6 0} {4 1}}
+check bare_set_any_kind "corner: a bare set takes any kind" \
+    {lmap s {ifb/set_kind_mismatch team_slave/set_unenslaved} {field $s 5}} {0 0}
+check batadv_kernel_checks "corner: batadv's name is checked by the kernel alone" \
+    {lmap s {add_ra_bogus set_ra_bogus set_ra} {field batadv/$s 5}} {2 2 2}
+check team_port_down "corner: a port must be down to join a team" \
+    {lmap s {set_enslave set_enslave_up add_enslaved_up} {list [regexp { up } [field team/$s 3]] [field team/$s 5]}} \
+    {{0 0} {1 2} {1 2}}
+check team_pres "corner: the enslave rows' pres make tm0 first" \
+    {lmap s {team/set_enslave team/add_enslaved team/set_enslave_again team/set_nomaster team/set_enslave_up team/add_enslaved_up team/set_enslave_lo team/set_enslave_self team_slave/set_no_option team_slave/set_garbage} {lindex [field $s 2] 0}} \
+    [lrepeat 10 {link add tm0 type team}]
 
 ###############################################################################
 # summary

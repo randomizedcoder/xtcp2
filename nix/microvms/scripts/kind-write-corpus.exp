@@ -1612,6 +1612,96 @@ namespace eval kindcorpus {
         [tunnel_set vxcan vc0 set_peer_bare peer 255 $PRE_VC0_VC1]
 
     ###########################################################################
+    # batadv, ifb, nlmon, vcan, team and team_slave (KC6-T04).
+    # ip/iplink_batadv.c has one keyword, ra (matches), sent unchecked; the
+    # kernel's validate looks the name up case-sensitively, and there's no
+    # changelink. The other five have no parser, so a word after type is
+    # Garbage (1), or usage() (255) for a prefix of help, and their rows put
+    # the generic words before type. ifb refuses a multicast address,
+    # nlmon any address and an mtu under 16; vcan's ndo_change_mtu takes
+    # 16, 72 and 76 to 2060, never while up, and a create skips it. team
+    # enslaves without teamd, refusing loopback, itself and a port that is
+    # up. The devices are bat0, ib0, nm0, vn0 and tm0, with d0 the port.
+    ###########################################################################
+    variable PRE_BAT0 [list {link add bat0 type batadv}]
+    variable PRE_IB0 [list {link add ib0 type ifb}]
+    variable PRE_NM0 [list {link add nm0 type nlmon}]
+    variable PRE_VN0 [list {link add vn0 type vcan}]
+    variable PRE_TM0 [list {link add tm0 type team}]
+    variable PRE_TM0_D0 [list {link add tm0 type team} {link add d0 type dummy}]
+    variable PRE_TM0_D0_SLAVE [list {link add tm0 type team} {link add d0 type dummy} \
+        {link set d0 master tm0}]
+
+    proc batadv {name words rc {pre {}}} {
+        return [plain batadv bat0 $name $words $rc $pre]
+    }
+
+    lappend rows \
+        [batadv add_no_option {} 0] \
+        [batadv add_ra_v {ra BATMAN_V} 0] \
+        [batadv add_ra_iv {ra BATMAN_IV} 0] \
+        [batadv add_abbrev {r BATMAN_V} 0] \
+        [batadv add_ra_twice {ra BATMAN_IV ra BATMAN_V} 0] \
+        [batadv add_duplicate {} 2 $PRE_BAT0] \
+        [batadv add_ra_bogus {ra BOGUS} 2] \
+        [batadv add_ra_lowercase {ra batman_v} 2] \
+        [row batadv add_mtu_low {} {ip link add bat0 mtu 67 type batadv} 2 bat0] \
+        [tunnel_set batadv bat0 set_ra {ra BATMAN_V} 2 $PRE_BAT0] \
+        [tunnel_set batadv bat0 set_ra_bogus {ra BOGUS} 2 $PRE_BAT0] \
+        [tunnel_set batadv bat0 set_no_option {} 0 $PRE_BAT0] \
+        [batadv add_unknown foo 1] \
+        [batadv add_ra_longer {rax BATMAN_V} 1] \
+        [batadv add_help help 1] \
+        [tunnel_set batadv bat0 set_nodev {ra BATMAN_V} 1 {}] \
+        [batadv add_no_value ra 255] \
+        [plain ifb ib0 add_no_option {} 0] \
+        [row ifb add_numtxqueues {} {ip link add ib0 numtxqueues 4 type ifb} 0 ib0] \
+        [tunnel_set ifb ib0 set_no_option {} 0 $PRE_IB0] \
+        [row ifb set_kind_mismatch $PRE_IB0 {ip link set ib0 type vcan} 0 ib0] \
+        [row ifb add_mcast_address {} {ip link add ib0 address 01:00:5e:00:00:01 type ifb} 2 ib0] \
+        [plain ifb ib0 add_garbage foo 1] \
+        [plain ifb ib0 add_mtu_after_type {mtu 1400} 1] \
+        [tunnel_set ifb ib0 set_garbage foo 1 $PRE_IB0] \
+        [plain ifb ib0 add_help_abbrev h 255] \
+        [plain nlmon nm0 add_no_option {} 0] \
+        [row nlmon add_mtu_min {} {ip link add nm0 mtu 16 type nlmon} 0 nm0] \
+        [row nlmon add_address {} {ip link add nm0 address 00:11:22:33:44:55 type nlmon} 2 nm0] \
+        [row nlmon add_mtu_below {} {ip link add nm0 mtu 15 type nlmon} 2 nm0] \
+        [tunnel_set nlmon nm0 set_no_option {} 0 $PRE_NM0] \
+        [plain nlmon nm0 add_garbage foo 1] \
+        [plain vcan vn0 add_no_option {} 0] \
+        [row vcan add_mtu_16 {} {ip link add vn0 mtu 16 type vcan} 0 vn0] \
+        [row vcan add_mtu_100 {} {ip link add vn0 mtu 100 type vcan} 0 vn0] \
+        [row vcan set_mtu_72 $PRE_VN0 {ip link set vn0 mtu 72} 0 vn0] \
+        [row vcan set_mtu_76 $PRE_VN0 {ip link set vn0 mtu 76} 0 vn0] \
+        [row vcan set_mtu_same $PRE_VN0 {ip link set vn0 mtu 2060} 0 vn0] \
+        [row vcan set_up_and_mtu $PRE_VN0 {ip link set vn0 up mtu 72} 0 vn0] \
+        [tunnel_set vcan vn0 set_no_option {} 0 $PRE_VN0] \
+        [row vcan set_mtu_75 $PRE_VN0 {ip link set vn0 mtu 75} 2 vn0] \
+        [row vcan set_mtu_2061 $PRE_VN0 {ip link set vn0 mtu 2061} 2 vn0] \
+        [row vcan set_mtu_up [concat $PRE_VN0 [list {link set vn0 up}]] {ip link set vn0 mtu 72} 2 vn0] \
+        [plain vcan vn0 add_garbage foo 1] \
+        [plain vcan vn0 add_mtu_after_type {mtu 72} 1] \
+        [plain team tm0 add_no_option {} 0] \
+        [tunnel_set team tm0 set_no_option {} 0 $PRE_TM0] \
+        [row team set_enslave $PRE_TM0_D0 {ip link set d0 master tm0} 0 d0] \
+        [row team add_enslaved $PRE_TM0 {ip link add d0 master tm0 type dummy} 0 d0] \
+        [row team set_enslave_again $PRE_TM0_D0_SLAVE {ip link set d0 master tm0} 0 d0] \
+        [row team set_nomaster $PRE_TM0_D0_SLAVE {ip link set d0 nomaster} 0 d0] \
+        [row team add_mcast_address {} {ip link add tm0 address 01:00:5e:00:00:01 type team} 2 tm0] \
+        [row team set_enslave_up $PRE_TM0_D0 {ip link set d0 up master tm0} 2 d0] \
+        [row team add_enslaved_up $PRE_TM0 {ip link add d0 up master tm0 type dummy} 2 d0] \
+        [row team set_enslave_lo $PRE_TM0 {ip link set lo master tm0} 2 lo] \
+        [row team set_enslave_self $PRE_TM0 {ip link set tm0 master tm0} 2 tm0] \
+        [plain team tm0 add_garbage {mode activebackup} 1] \
+        [plain team tm0 add_help help 255] \
+        [row team set_master_missing $PRE_D0 {ip link set d0 master nosuch} 255 d0] \
+        [row team_slave add {} {ip link add ts0 type team_slave} 2 ts0] \
+        [row team_slave set_no_option $PRE_TM0_D0_SLAVE {ip link set d0 type team_slave} 0 d0] \
+        [row team_slave set_unenslaved $PRE_D0 {ip link set d0 type team_slave} 0 d0] \
+        [row team_slave set_garbage $PRE_TM0_D0_SLAVE {ip link set d0 type team_slave prio 1} 1 d0]
+
+    ###########################################################################
     # readback_args <ns> <subdir> <readback> - the xtcp2-nlcap capio argument
     # list for one readback, which the driver hands to its capio proc.
     ###########################################################################
