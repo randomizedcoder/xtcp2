@@ -15,9 +15,9 @@
 - KC7 is done (KC7-T01, KC7-T02; planned in DOC008): KC7-T01 commits the 7.3.0 link-write corpus, `testdata/7_3_0/link-write`, 10558 files from one run of the runner at the 7.2.0 pin, every kind row with its status, request and readbacks. KC7-T02 is the gate, `TestLinkKindUniverse`: of the 46 kinds 7.2.0's `iplink_*.c` and `link_*.c` name, 39 are captured with an accepted row and a `-d -j` readback, and 7 are excluded with a reason.
 - The KC tier is done.
 - KP0 is done (KP0-T01; planned in DOC009): `pkg/xtcpnl/xtcpnl_inet_devconf.go` encodes the `inet` write's `IFLA_AF_SPEC` byte for byte as `ip` does for the 11 KC1 rows the kernel answered, decodes it back, and decodes the dump's 33-value devconf array. KP1 is planned (DOC010).
-- KP1 is in progress. KP1-T01 is done: `pkg/xtcpnl/xtcpnl_bridge.go` is the bridge's 53-row option table, a decoder that renders every one of the 50 accepted rows' dumps exactly as their `-d -j` readbacks print them, and an encoder that rebuilds the `IFLA_INFO_DATA` of all 55 rows that sent a request byte for byte.
+- KP1 is done (KP1-T01, KP1-T02; planned in DOC010): `pkg/xtcpnl/xtcpnl_bridge.go` is the bridge's 53-row option table and `xtcpnl_bridge_slave.go` the port's 44-row one. Each has a decoder that renders every accepted row's dump exactly as its `-d -j` readback prints it (50 bridge rows, 30 port rows), and an encoder that rebuilds the data nest of every row that sent a request byte for byte (55 and 37). `LinkInfo` carries `Bridge` and `BridgeSlave`. KP2 is planned (DOC011).
 
-**Next action:** [KP1-T02](goip-link-kinds.md#kp1-t02-the-bridge_slave-parser): the bridge_slave parser.
+**Next action:** [KP2-T01](goip-link-kinds.md#kp2-t01-the-vlan-parser): the vlan parser.
 
 ## Contents
 
@@ -50,8 +50,8 @@
 | [KC6](goip-link-kinds.md#kc6--the-remaining-kinds-captures) | captures | the remaining kinds | KC6-T04 | done | V053–V064, DOC008 |
 | [KC7](goip-link-kinds.md#kc7--kind-completeness-gate) | captures | completeness gate | KC7-T02 | done | V065–V071, DOC009 |
 | [KP0](goip-link-kinds.md#kp0--inet-devconf-codec) | parsers | `inet` devconf codec | KP0-T01 | done | V072–V074, DOC010 |
-| [KP1](goip-link-kinds.md#kp1--bridge-parsers) | parsers | bridge | KP1-T02 | in progress | V075–V077 |
-| [KP2](goip-link-kinds.md#kp2--vlan-family-parsers) | parsers | VLAN family | | not started | |
+| [KP1](goip-link-kinds.md#kp1--bridge-parsers) | parsers | bridge | KP1-T02 | done | V075–V080, DOC011 |
+| [KP2](goip-link-kinds.md#kp2--vlan-family-parsers) | parsers | VLAN family | KP2-T03 | not started | |
 | [KP3](goip-link-kinds.md#kp3--udp-overlay-parsers) | parsers | UDP overlays | | not started | |
 | [KP4](goip-link-kinds.md#kp4--ip-tunnel-parsers) | parsers | IP tunnels | | not started | |
 | [KP5](goip-link-kinds.md#kp5--the-remaining-kinds-parsers) | parsers | the remaining kinds | | not started | |
@@ -92,8 +92,10 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | [x] | [KC7-T02](goip-link-kinds.md#kc7-t02-the-gate) | the completeness gate | done | V069–V071, DOC009 |
 | [x] | [KP0-T01](goip-link-kinds.md#kp0-t01-the-inet-devconf-codec) | the `inet` devconf codec | done | V072–V074, DOC010 |
 | [x] | [KP1-T01](goip-link-kinds.md#kp1-t01-the-bridge-parser) | the bridge parser | done | V075–V077 |
-| [ ] | [KP1-T02](goip-link-kinds.md#kp1-t02-the-bridge_slave-parser) | the bridge_slave parser | not started | |
-| [ ] | [KP2-T01…](goip-link-kinds.md#kp2--vlan-family-parsers) | VLAN family parsers | not started | |
+| [x] | [KP1-T02](goip-link-kinds.md#kp1-t02-the-bridge_slave-parser) | the bridge_slave parser | done | V078–V080, DOC011 |
+| [ ] | [KP2-T01](goip-link-kinds.md#kp2-t01-the-vlan-parser) | the vlan parser | not started | |
+| [ ] | [KP2-T02](goip-link-kinds.md#kp2-t02-the-macvlan-and-macvtap-parser) | the macvlan and macvtap parser | not started | |
+| [ ] | [KP2-T03](goip-link-kinds.md#kp2-t03-the-ipvlan-and-ipvtap-parser) | the ipvlan and ipvtap parser | not started | |
 | [ ] | [KP3-T01…](goip-link-kinds.md#kp3--udp-overlay-parsers) | UDP overlay parsers | not started | |
 | [ ] | [KP4-T01…](goip-link-kinds.md#kp4--ip-tunnel-parsers) | IP tunnel parsers | not started | |
 | [ ] | [KP5-T01…](goip-link-kinds.md#kp5--the-remaining-kinds-parsers) | the remaining kinds' parsers | not started | |
@@ -195,6 +197,10 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | V075 | 2026-10-25 | KP1-T01 | `go vet`, `go test -count=1 -race ./pkg/xtcpnl/`, `go test -race ./internal/goip/...`, `go test ./pkg/linkmonitor/... ./pkg/localnet/ ./pkg/rtnlmon/`, and `go test -bench BenchmarkParseBridgeInfoData -benchmem` | all pass: `TestBridgeDumpMatchesReadback` (50 rows), `TestParseBridgeInfoData` (12 rows), `TestEncodeBridgeInfoData` (55 corpus rows and 9 built). `pkg/linkmonitor`'s 4 `route-1` replay goldens regenerated with `-update`: 8 digests change, every value count is the same. 1717 ns/op, 1056 B/op, 5 allocs/op (4726 ns and 14 allocs with bond's map, before the array). `pkg/xtcp` doesn't link (giouring); lint type-checks it | this commit |
 | V076 | 2026-10-25 | KP1-T01 | mutation, a scratch worktree, each `go test` in a `systemd-run --scope -p MemoryMax=6G -p MemorySwapMax=0` with `-timeout=180s`: `vlan_protocol` read little-endian; the boolopt put in argument order; `stp_mode` dropped from `BridgeOptions` | 3 of 3 killed: by all 50 `TestBridgeDumpMatchesReadback` rows (and the 802.1ad row); `corner: the boolopt goes last`, `corner: a later boolopt word …` and `add_boolopts`'s request; all 50 readback rows | scratch |
 | V077 | 2026-10-25 | KP1-T01 | `nix build .#checks.x86_64-linux.lint-baseline`, then `.#checks.x86_64-linux.netlink-audit` | both pass. The first lint run found misspell's `ageing` in the keyword and `AGEING` in x/sys/unix's id, and an `exhaustive` switch in the test, all fixed without an exclusion | this commit |
+| V078 | 2026-10-25 | KP1-T02 | `go vet`, `go test -count=1 -race ./pkg/xtcpnl/ ./internal/goip/`, `go test ./pkg/linkmonitor/...`, and `go test -bench 'BenchmarkParseBridge' -benchmem` | all pass: `TestBridgeSlaveDumpMatchesReadback` (30 rows), `TestParseBridgeSlaveData` (12 rows), `TestEncodeBridgeSlaveData` (37 corpus rows and 7 built), `TestLinkInfoBridgeKinds` (4 rows), and KP1-T01's 135 bridge subtests on the shared `kindRows` harness. The 4 `route-1` replay goldens regenerated again: 8 digests change, every value count is the same. 1384 ns/op, 912 B/op, 3 allocs/op for the port; the bridge 1857 ns/op, 1056 B/op, 5 allocs/op | this commit |
+| V079 | 2026-10-25 | KP1-T02 | mutation, a scratch worktree, each `go test` in a `systemd-run --scope -p MemoryMax=6G -p MemorySwapMax=0` with `-timeout=180s`: `flood` mapped to `IFLA_BRPORT_MCAST_FLOOD`; `IflaBrportNeighForwardGrat` 44; the `setLinkInfoNest` branch keyed on `Kind` | 3 of 3 killed: by `set_flood`'s and `set_mcast_flood`'s readback rows and `positive: a port's dump`; by every readback row whose dump carries attribute 44 or 45 and `positive: the 7.2.0 attribute`; by `TestLinkInfoBridgeKinds`' port row and `TestParseNewLinkRealFixture` | scratch |
+| V080 | 2026-10-25 | KP1-T02 | `nix build .#checks.x86_64-linux.lint-baseline`, then `.#checks.x86_64-linux.netlink-audit` | both pass. The first lint run found goconst on six keywords the two option tables (and the devconf table's `proxy_arp`) share, and a staticcheck QF1002 in the test's wire switch; the keywords became constants and the switch a tagged one, with no exclusion | this commit |
+| DOC011 | 2026-10-25 | KP1 close | KP2 broken into KP2-T01 (vlan), KP2-T02 (macvlan and macvtap) and KP2-T03 (ipvlan and ipvtap) with their tables, argued from `iplink_vlan.c`, `iplink_macvlan.c` and `iplink_ipvlan.c` at `v7.2.0` and the KC3 rows' readbacks; doccheck | tasks one to one, no broken link or anchor | this commit |
 
 ## Decision log
 
@@ -238,3 +244,5 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 - **The bridge's keyword `ageing_time` is one constant.** misspell reads string literals and upper-case tokens, and the keyword must stay the kernel's spelling. `BridgeKeywordAgeingTime` assembles it from two halves and `IflaBrAgeingTime` is the enum's 4, so no lint exclusion is needed; goip reads both from `xtcpnl`.
 - **A kind's readback agreement uses the JSON readback's own pcap.** The text and JSON readbacks are two `ip` runs, and timers move between them (`gc_timer` 148.48 against 148.49). KP1-T02 and every later KP task compares a `-d -j` readback with the dump in `netlink_route_getlink_detail_json.pcap`.
 - **A new `LinkInfo` field regenerates `pkg/linkmonitor`'s replay goldens.** Their digest hashes the decoded links as JSON, so `Bridge` (and each later kind's field) changes it on every link. The value counts are the check that nothing else moved.
+- **Port attributes `ip` never prints still decode.** The kernel dumps the MRP and EHT counters and `mcast_n_groups`/`mcast_max_groups` on every port; `BridgeSlaveOptions` holds them as read-only rows with no keyword, so `Unknown` lists only ids past 45.
+- **Option keywords shared across tables are package constants.** goconst counts across `pkg/xtcpnl`, so a keyword two kinds' tables spell (bridge and bridge_slave's `priority`, `group_fwd_mask`, `mcast_router`; the port's and devconf's `proxy_arp`) is one constant rather than a lint exclusion. Later kinds reuse them.

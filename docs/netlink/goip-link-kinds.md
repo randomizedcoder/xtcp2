@@ -1585,44 +1585,200 @@ Two tasks, one per kind, each following `pkg/xtcpnl/xtcpnl_bond.go`: an option t
 
 #### KP1-T02 The bridge_slave parser
 
-**Code.** A new `pkg/xtcpnl/xtcpnl_bridge_slave.go`, in KP1-T01's shape:
-- **`BridgeSlaveOptions`:** rows in `bridge_slave_print_opt`'s order (`ip/iplink_bridge_slave.c`), covering the 36 `IFLA_BRPORT_*` attributes it prints, plus `fdb_flush`, which is write-only. `neigh_vlan_suppress`, `neigh_forward_grat`, `mab` and `backup_nhid` are `strcmp`; the rest are `matches`.
-- **The wires:** u8, u16 and u32; the flag `fdb_flush`; `bridge_id` and `root_id` as in T01; the three timers, u64 in centiseconds.
-  - The 19 on/off words go through `bridge_slave_parse_on_off`, a u8 each. `root_block` is `IFLA_BRPORT_PROTECT`, `fastleave` is `IFLA_BRPORT_FAST_LEAVE`, `mcast_fast_leave` is the same attribute again, and `flood` is `IFLA_BRPORT_UNICAST_FLOOD`.
-  - `backup_port` is a u32 ifindex, and `nobackup_port` sends 0.
-- **`IflaBrportNeighForwardGrat`** = 45. x/sys/unix v0.49 stops at `IFLA_BRPORT_BACKUP_NHID` (44).
-- **The decoder:** `BridgeSlaveInfo`, `ParseBridgeSlaveData(nest []byte) *BridgeSlaveInfo`, a `LinkInfo.BridgeSlave` field, and a `setLinkInfoNest` branch on `SlaveKind`.
-- **The encoder:** `EncodeBridgeSlaveData(settings []BridgeSetting) ([]byte, error)`.
+**Code.** A new `pkg/xtcpnl/xtcpnl_bridge_slave.go`, in KP1-T01's shape, reusing `BridgeOptionSpec`, `BridgeValue` and `putBridgeSetting`:
+- **`BridgeSlaveOptions`:** 44 rows. 36 are the `IFLA_BRPORT_*` attributes `bridge_slave_print_opt` prints, in its order (`ip/iplink_bridge_slave.c`). Then come `mcast_fast_leave` (a second keyword for `IFLA_BRPORT_FAST_LEAVE`, with no `-j` key: `fastleave` prints it), `fdb_flush` (write-only), and six read-only rows with no keyword for the attributes the kernel dumps and `ip` never prints (the MRP and EHT counters, `mcast_n_groups`, `mcast_max_groups`), so they decode rather than land in `Unknown`. `neigh_vlan_suppress`, `neigh_forward_grat`, `mab` and `backup_nhid` are `strcmp`; the rest are `matches`.
+- **The wires:** T01's u8, u16, u32, flag, `ifla_bridge_id` and timer wires, plus two new ones, both added to T01's switches:
+  - `BridgeWireOnOff`: the 19 on/off words, a u8 each through `bridge_slave_parse_on_off`, printed as a bool by `-j`. `root_block` is `IFLA_BRPORT_PROTECT`, `fastleave` and `mcast_fast_leave` are `IFLA_BRPORT_FAST_LEAVE`, and `flood` is `IFLA_BRPORT_UNICAST_FLOOD`.
+  - `BridgeWireIfindex`: `backup_port`, a u32 ifindex that `ip` prints as a name; `nobackup_port` sends 0.
+  - `BridgeOptionSpec.Hex` marks the two `group_fwd_mask`s, which print in hex.
+- **`IflaBrportNeighForwardGrat`** = 45. x/sys/unix v0.49 stops at `IFLA_BRPORT_BACKUP_NHID` (44). `BridgePortStates` are `state`'s names; past `blocking` (4), `-j` prints `state_index` instead.
+- **The decoder:** `BridgeSlaveInfo` (an array indexed by id, `BridgeID`, `RootID`, `Unknown`), `ParseBridgeSlaveData(nest []byte) *BridgeSlaveInfo`, a `LinkInfo.BridgeSlave` field, and a `setLinkInfoNest` branch on `SlaveKind`. The field moves the replay goldens' digests again, regenerated as in T01.
+- **The encoder:** `EncodeBridgeSlaveData(settings []BridgeSetting) ([]byte, error)`, settings in argument order.
 - **The benchmark:** a `BenchmarkParseBridgeSlaveData` over `set_several`'s blob.
+- **The test harness:** T01's helpers become `kindRows{kind, nest, key, opts}`, shared by both kinds: a row's request, dump, name lookups (an ifindex resolved through the readback's own answers), `-d -j` object and argument parsing.
+
+The corpus is 42 rows: 30 at rc 0, 7 the kernel refused (rc 2, a request sent), and 5 `ip` refused before sending (rc 255 or 1: `set_backup_port_missing`, `set_cost_bad`, `set_no_value`, `set_on_off_bad`, `set_strcmp_abbrev`), which have no encoder row; KG1 replays them.
+
+`TestBridgeSlaveDumpMatchesReadback`: a subtest per rc 0 row (30), the decoded dump in `netlink_route_getlink_detail_json.pcap`, rendered as `-j` prints it, equals the readback's `info_slave_data`: every key, no extra.
 
 `TestParseBridgeSlaveData`:
 
 | description | input | expected |
 |---|---|---|
-| positive: a port's dump | `set_several`'s answer for `p0` | cost 10, priority 7, learning 0, flood 1, the `-d -j` readback's values |
-| positive: every accepted row's dump agrees with its `-d -j` readback | the 30 `kinds/bridge_slave` rows at 0, each against the dump in `netlink_route_getlink_detail_json.pcap` | the decoded dump, rendered as `-j` prints it, equals the readback's `info_slave_data`: every key, no extra |
-| positive: the 7.2.0 attribute | `set_neigh_forward_grat` | neigh_forward_grat 1 |
-| positive: a backup port | `set_backup_port` | backup_port `p1`'s ifindex |
+| positive: a port's dump | `set_several`'s answer for `p0` | cost 10, priority 7, learning false, flood true, the `-d -j` readback's values |
+| positive: the 7.2.0 attribute | `set_neigh_forward_grat` | neigh_forward_grat true |
+| positive: a backup port is p1's ifindex | `set_backup_port`, no names | backup_port 5 |
+| positive: a backup port resolves to p1 | `set_backup_port`, with the readback's name lookups | backup_port `p1` |
 | negative: a nil nest | `nil` | `nil` |
+| negative: a u8 attribute of no bytes | built `IFLA_BRPORT_STATE`, empty | neither state nor state_index |
 | boundary: an empty nest | `[]byte{}` | a `BridgeSlaveInfo` with nothing present |
-| boundary: the highest id | built `IFLA_BRPORT_NEIGH_FORWARD_GRAT` 1 | neigh_forward_grat 1 |
-| corner: the port id and number | `set_several`'s `IFLA_BRPORT_ID` and `IFLA_BRPORT_NO` | 0x1c01 and 0x1 |
-| corner: an id past `IFLA_BRPORT_NEIGH_FORWARD_GRAT` | built type 46 | ignored, the rest decoded |
-| corner: a truncated nest keeps what came before the cut | `set_several`'s blob cut inside its second attribute | the first attribute present, the second absent |
+| boundary: the highest id | built `IFLA_BRPORT_NEIGH_FORWARD_GRAT` 1 | neigh_forward_grat true |
+| corner: the port id and number | `set_several`'s `IFLA_BRPORT_ID` and `IFLA_BRPORT_NO` | `0x1c01` and `0x1` |
+| corner: an id past `IFLA_BRPORT_NEIGH_FORWARD_GRAT` is listed and the rest decoded | built type 46, then `IFLA_BRPORT_GUARD` 1 | `Unknown` is [46], guard true |
+| corner: a truncated nest keeps what came before the cut | `set_several`'s first 10 bytes: state's 8, then half of priority | state disabled, priority absent |
+| corner: a state past blocking is its index | built `IFLA_BRPORT_STATE` 5 | state absent, state_index 5 |
 
 `TestEncodeBridgeSlaveData`:
 
 | description | input | expected |
 |---|---|---|
-| positive: each accepted row's request | the 30 rows' settings, from the table in [KC2-T02](#kc2-t02-bridge_slave) | `IFLA_INFO_SLAVE_DATA` byte-identical to the one in the row's `ip.pcap` |
-| positive: several in argument order | `set_several`'s `cost 10 priority 7 learning off` | `IFLA_BRPORT_COST`, `IFLA_BRPORT_PRIORITY`, `IFLA_BRPORT_LEARNING` in that order |
-| negative: a value too wide for its wire | state 256 | an error |
-| boundary: `nobackup_port` | backup_port 0 | a u32 0 |
+| positive: each row's request | the settings of the 37 rows that sent one (30 at 0, 7 the kernel refused), from SLAVE_OPTIONS in `kind-write-corpus.exp`; a row that sent one and is not listed, or the reverse, fails | `IFLA_INFO_SLAVE_DATA` byte-identical to the one in the row's `ip.pcap` |
+| positive: several in argument order | `cost 10 priority 7 learning off` | `IFLA_BRPORT_COST`, `IFLA_BRPORT_PRIORITY`, `IFLA_BRPORT_LEARNING` in that order |
+| negative: a value too wide for its wire | state 256 | `ErrBridgeSettingRange` |
+| negative: a read-only option | `port_id` | `ErrBridgeSettingWire` |
+| negative: a bridge boolopt in a port write | the bridge's `mst_enabled 1` | `ErrBridgeSettingWire` |
+| boundary: nobackup_port is backup_port 0 | backup_port 0 | a u32 0 |
+| boundary: fdb_flush is a bare header | the flag | `04 00 18 00`, no payload |
 | corner: two keywords, one attribute | `fastleave on mcast_fast_leave off` | two `IFLA_BRPORT_FAST_LEAVE` attributes, 1 then 0 |
 
-**Mutation check:** `flood` mapped to `IFLA_BRPORT_MCAST_FLOOD` (the every-row rows), `IflaBrportNeighForwardGrat` off by one (the 7.2.0 row), the `SlaveKind` branch keyed on `Kind` (the port's dump row).
+`TestLinkInfoBridgeKinds`, whole answers through `ParseNewLink`, so each branch is keyed on the right kind:
+
+| description | input | expected |
+|---|---|---|
+| positive: a port decodes BridgeSlave | `bridge_slave/set_several`'s `-d` readback | `BridgeSlave` cost 10, `Bridge` nil |
+| positive: a bridge decodes Bridge | `bridge/add_default`'s | `Bridge` forward_delay 1500, `BridgeSlave` nil |
+| negative: a dummy that is no port decodes neither | `bridge_slave/set_not_enslaved`'s | both nil |
+| corner: a vrf port's slave data is not a bridge port's | `vrf_slave/set_master`'s | both nil |
+
+**Mutation check:** `flood` mapped to `IFLA_BRPORT_MCAST_FLOOD` (the every-row rows and the port's dump), `IflaBrportNeighForwardGrat` off by one (every row whose dump carries it), the `SlaveKind` branch keyed on `Kind` (`TestLinkInfoBridgeKinds`' port row and `TestParseNewLinkRealFixture`).
 
 ### KP2 — VLAN family parsers
+
+Three tasks, one per parser file, matching KC3's: KP2-T01 vlan, KP2-T02 macvlan and macvtap (one codec, two kinds), KP2-T03 ipvlan and ipvtap (likewise), which closes KP2. The source is the KC3 rows in `tdLinkWrite_7_3_0 + "/kinds/<kind>"`, read through KP1-T02's `kindRows` harness. Readback agreement is against `netlink_route_getlink_detail_json.pcap`, as in KP1.
+
+**Shape.** These kinds have 2 to 15 attributes, an enum mode and a flags word, so each gets a typed `<Kind>Info` struct rather than a `BridgeOptionSpec` table, and an encoder over `<Kind>Setting`s in argument order. Each `iplink_*.c` adds some attributes inside its argument loop and some after it; the encoder reproduces that split, and a corner row pins it. Each kind adds a `LinkInfo` field and a `setLinkInfoNest` branch on `Kind`, regenerating the replay goldens' digests (the decision log). A macvtap or ipvtap device decodes into the same field as its sibling, since the kernel dumps the same attributes.
+
+**Counts.** A row that sent a request is one at rc 0 or rc 2; `ip`'s refusals (rc 1 and 255) send none and have no encoder row.
+
+| kind | rows | rc 0 | rc 2 | `ip` refused |
+|---|---|---|---|---|
+| vlan | 28 | 15 | 6 | 7 |
+| macvlan | 34 | 20 | 5 | 9 |
+| macvtap | 6 | 5 | 0 | 1 |
+| ipvlan | 18 | 11 | 3 | 4 |
+| ipvtap | 4 | 3 | 0 | 1 |
+
+#### KP2-T01 The vlan parser
+
+**Code.** A new `pkg/xtcpnl/xtcpnl_vlan.go`:
+- **`VlanInfo`:** `ID` (u16), `Protocol` (u16, big-endian on the wire, as the bridge's `vlan_protocol`), `Flags` and `Mask` (`struct ifla_vlan_flags`, u32 each), and `Ingress`, `Egress []VlanQosMapping` (`struct ifla_vlan_qos_mapping`, `from` and `to` u32, under `IFLA_VLAN_QOS_MAPPING` in the two nests). Present bits for each.
+- **`ParseVlanInfoData(nest []byte) *VlanInfo`**, `LinkInfo.Vlan`, and the branch.
+- **`EncodeVlanInfoData(settings []VlanSetting) ([]byte, error)`:** `protocol`, `id` and the two qos maps go in argument order (`vlan_parse_opt` adds them in its loop); the five flag words fold into one `IFLA_VLAN_FLAGS`, added after the loop only when the mask is set, so it goes last.
+- **The render oracle:** `vlan_print_opt` prints `protocol` through `ll_proto_n2a` (`802.1Q`, `802.1ad`), `id`, `flags` as the names of `Flags`' set bits (`REORDER_HDR` … `BRIDGE_BINDING`, then any leftover in hex), and `ingress_qos`/`egress_qos` as `{from, to}` lists. It prints nothing when `IFLA_VLAN_ID` is missing or short.
+- **The benchmark:** `BenchmarkParseVlanInfoData` over `add_ingress_qos_map`'s blob.
+
+`TestVlanDumpMatchesReadback`: a subtest per rc 0 row (15); the decoded dump, rendered as `-j` prints it, equals the readback's `info_data`, every key and no extra.
+
+`TestParseVlanInfoData`:
+
+| description | input | expected |
+|---|---|---|
+| positive: a bare vlan's dump | `add_default`'s answer for `v0` | id 10, protocol 0x8100, flags `REORDER_HDR` |
+| positive: 802.1ad | `add_protocol` | protocol 0x88a8 |
+| positive: the qos maps | `add_ingress_qos_map`, `add_egress_qos_map` | ingress `1:2 3:4`; egress `2:1 4:3` |
+| positive: a change keeps the id | `set_id` | id 10, not 20 |
+| negative: a nil nest | `nil` | `nil` |
+| negative: a short id | built `IFLA_VLAN_ID` of 1 byte | id absent |
+| boundary: an empty nest | `[]byte{}` | a `VlanInfo` with nothing present |
+| boundary: the highest id | `add_id_max` | id 4094 |
+| corner: protocol is big-endian | built `88 a8` | 0x88a8, not 0xa888 |
+| corner: a flag bit past `BRIDGE_BINDING` | built flags 0x21 | `REORDER_HDR`, then the leftover `20` |
+| corner: an id past `IFLA_VLAN_PROTOCOL` | built type 6, then `IFLA_VLAN_ID` | `Unknown` [6], id decoded |
+| corner: a qos nest with a short entry | built mapping of 4 bytes, then a whole one | the whole one only |
+
+`TestEncodeVlanInfoData`:
+
+| description | input | expected |
+|---|---|---|
+| positive: each row's request | the 21 rows that sent one, argv from `kind-write-corpus.exp`; a row that sent one and is unlisted, or the reverse, fails | `IFLA_INFO_DATA` byte-identical to `ip.pcap`'s; `add_no_id`'s is empty |
+| negative: an id too wide | 65536 | an error |
+| negative: a setting with no option | the zero option | an error |
+| boundary: an empty qos map | `egress-qos-map` with no pairs | an empty `IFLA_VLAN_EGRESS_QOS` nest, as `ip` sends |
+| corner: flags go last | `gvrp on id 10` | `IFLA_VLAN_ID`, then `IFLA_VLAN_FLAGS` |
+| corner: two flags, one attribute | `gvrp on mvrp on` | one `IFLA_VLAN_FLAGS`, flags 0x6, mask 0x6 |
+| corner: off sets the mask, not the flag | `reorder_hdr off` | flags 0, mask 0x1 |
+
+**Mutation check:** protocol read little-endian (the 802.1ad rows), flags emitted in argument order (its corner and `add_several`'s request), the egress nest decoded as ingress (the qos rows).
+
+#### KP2-T02 The macvlan and macvtap parser
+
+**Code.** A new `pkg/xtcpnl/xtcpnl_macvlan.go`:
+- **`MacvlanInfo`:** `Mode` (u32: private 1, vepa 2, bridge 4, passthru 8, source 16), `Flags` (u16: nopromisc 1, nodst 2), `BcQueueLen` and `BcQueueLenUsed` (u32), `BcCutoff` (s32), `MacaddrCount` (u32), `Macaddrs` (the 6-byte `IFLA_MACVLAN_MACADDR`s under `IFLA_MACVLAN_MACADDR_DATA`, in dump order), with present bits.
+- **`ParseMacvlanInfoData`**, `LinkInfo.Macvlan`, a branch for `macvlan` and `macvtap`.
+- **`EncodeMacvlanInfoData`:** `macaddr` (its `MACADDR_MODE`, then a `MACADDR` for add and del, or a `MACADDR_DATA` nest for set), `bcqueuelen` and `bclim` in argument order; then `IFLA_MACVLAN_MODE` if a mode was given, then `IFLA_MACVLAN_FLAGS` if any flag word was (a `flag null` sends 0).
+- **The render oracle:** `macvlan_print_opt` prints nothing without a mode; `nopromisc` and `nodst` as `true` when set; `bcqueuelen`, `usedbcqueuelen` and `bclim`; and, in source mode only, `macaddr_count` and `macaddr_data`.
+- **The benchmark:** `BenchmarkParseMacvlanInfoData` over `add_macaddr_set`'s blob.
+
+`TestMacvlanDumpMatchesReadback`: a subtest per rc 0 row of both kinds (25).
+
+`TestParseMacvlanInfoData`:
+
+| description | input | expected |
+|---|---|---|
+| positive: a bare macvlan's dump | `add_default` | mode vepa, bcqueuelen 1000, usedbcqueuelen 1000, no flags |
+| positive: the source list | `add_macaddr_set` | mode source, count 2, `02:…:02` then `02:…:01`, the kernel's order |
+| positive: a negative cutoff | `add_bclim_negative` | bclim -1 |
+| positive: a macvtap decodes the same | `macvtap/add_mode_passthru` | mode passthru, in `LinkInfo.Macvlan` |
+| negative: a nil nest | `nil` | `nil` |
+| negative: a short mode | built `IFLA_MACVLAN_MODE` of 2 bytes | mode absent, so the render prints nothing |
+| boundary: an empty nest | `[]byte{}` | nothing present |
+| boundary: both flags | built flags 0x3 | nopromisc and nodst |
+| corner: a source list outside source mode | built mode bridge with a count and data | decoded, not rendered |
+| corner: a non-address entry in the list | built `MACADDR_DATA` with a type-1 entry, then an address | the address only, as `ip` skips it |
+
+`TestEncodeMacvlanInfoData`:
+
+| description | input | expected |
+|---|---|---|
+| positive: each row's request | the 30 rows of both kinds that sent one | byte-identical to `ip.pcap`'s; `add_default`'s is empty |
+| negative: nopromisc outside passthru | `mode bridge nopromisc` | an error, as `ip` refuses it |
+| negative: an address of 5 bytes | `macaddr add` with 5 bytes | an error |
+| boundary: `macaddr flush` | the op alone | `MACADDR_MODE` 3, no address |
+| boundary: `flag null` | the flag word alone | `IFLA_MACVLAN_FLAGS` 0 |
+| corner: mode and flags go last | `nodst mode bridge bcqueuelen 5` | `BC_QUEUE_LEN`, then `MODE`, then `FLAGS` |
+| corner: `macaddr set` with no address | the op alone | `MACADDR_MODE` 2 and an empty `MACADDR_DATA` nest |
+
+**Mutation check:** the passthru and source values swapped (the mode rows), mode emitted in argument order (its corner), the macvtap branch dropped (the macvtap rows).
+
+#### KP2-T03 The ipvlan and ipvtap parser
+
+**Code.** A new `pkg/xtcpnl/xtcpnl_ipvlan.go`:
+- **`IpvlanInfo`:** `Mode` (u16: l2 0, l3 1, l3s 2) and `Flags` (u16: private 1, vepa 2), with present bits. `ipvlan_print_opt` reads each only at exactly 2 bytes.
+- **`ParseIpvlanInfoData`**, `LinkInfo.Ipvlan`, a branch for `ipvlan` and `ipvtap`.
+- **`EncodeIpvlanInfoData`:** `IFLA_IPVLAN_MODE` in argument order, then `IFLA_IPVLAN_FLAGS` always, 0 when no flag word was given. The empty settings list encodes to nothing, since `iplink_parse` calls no `parse_opt` without options.
+- **The render oracle:** `mode` (`l2`, `l3`, `l3s`, else `unknown`), then exactly one of `private`, `vepa` or `bridge` as `true`; private wins over vepa.
+- **The benchmark:** `BenchmarkParseIpvlanInfoData` over `add_mode_and_flag`'s blob.
+
+`TestIpvlanDumpMatchesReadback`: a subtest per rc 0 row of both kinds (14).
+
+`TestParseIpvlanInfoData`:
+
+| description | input | expected |
+|---|---|---|
+| positive: a bare ipvlan's dump | `add_default` | mode l3, bridge |
+| positive: mode and flag | `add_mode_and_flag` | mode l2, vepa |
+| positive: a change clears the flag | `set_mode` | mode l2, bridge |
+| positive: an ipvtap decodes the same | `ipvtap/add_mode_l2` | mode l2, in `LinkInfo.Ipvlan` |
+| negative: a nil nest | `nil` | `nil` |
+| negative: a mode of 4 bytes | built | mode absent: `ip` wants exactly 2 |
+| boundary: an empty nest | `[]byte{}` | nothing present |
+| boundary: the highest mode | built l3s | `l3s` |
+| corner: both flag bits | built flags 0x3 | renders `private` alone |
+| corner: an unknown mode | built 3 | renders `unknown` |
+
+`TestEncodeIpvlanInfoData`:
+
+| description | input | expected |
+|---|---|---|
+| positive: each row's request | the 17 rows of both kinds that sent one | byte-identical to `ip.pcap`'s |
+| positive: a mode alone sends flags 0 | `mode l2` | `IFLA_IPVLAN_MODE` 0, `IFLA_IPVLAN_FLAGS` 0 |
+| negative: two flag words | `private vepa` | an error, as `ip` refuses the second |
+| negative: a mode out of range | 3 | an error |
+| boundary: no settings | an empty list | no attributes |
+| corner: `bridge` is flags 0 | `bridge` | `IFLA_IPVLAN_FLAGS` 0 |
+| corner: the flags follow a later mode | `vepa mode l2` | `MODE`, then `FLAGS` 2 |
+
+**Mutation check:** `IFLA_IPVLAN_FLAGS` sent only with a flag word (`set_mode`'s request), vepa winning over private in the render (its corner), the ipvtap branch dropped (the ipvtap rows). It closes KP2.
 
 ### KP3 — UDP overlay parsers
 

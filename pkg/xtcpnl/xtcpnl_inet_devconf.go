@@ -40,7 +40,7 @@ type InetDevconfParam struct {
 // mc_forwarding (2) has no keyword; inet_devconf_policy makes it NLA_REJECT.
 var InetDevconfParams = []InetDevconfParam{
 	{ID: 1, Name: "forwarding", OnOff: true},
-	{ID: 3, Name: "proxy_arp", OnOff: true},
+	{ID: 3, Name: devconfProxyArpCst, OnOff: true},
 	{ID: 4, Name: "accept_redirects", OnOff: true},
 	{ID: 5, Name: "secure_redirects", OnOff: true},
 	{ID: 6, Name: "send_redirects", OnOff: true},

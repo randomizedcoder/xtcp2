@@ -45,6 +45,8 @@ const (
 	BridgeWireTimer                         // u64 clock_t, printed as seconds
 	BridgeWireBoolOpt                       // one bit of IFLA_BR_MULTI_BOOLOPT
 	BridgeWireQuerier                       // the IFLA_BR_MCAST_QUERIER_STATE nest
+	BridgeWireOnOff                         // a u8 printed on/off, a bool in JSON: the port's flags
+	BridgeWireIfindex                       // a u32 ifindex printed as a name: backup_port
 )
 
 // BridgeOptionSpec is one row of BridgeOptions.
@@ -63,8 +65,12 @@ type BridgeOptionSpec struct {
 	Wire BridgeWire
 	// Bit is the BR_BOOLOPT_* bit of a BridgeWireBoolOpt row.
 	Bit uint8
-	// Names maps a value to its word, indexed by value: stp_mode.
+	// Names maps a value to its word, indexed by value: stp_mode, and the
+	// port's state.
 	Names []string
+	// Hex marks a row iproute2 prints with %#llx: group_fwd_mask, and the
+	// port's id and number.
+	Hex bool
 	// Match is matches (BondMatchPrefix) or strcmp (BondMatchExact), per
 	// bridge_parse_opt. 0 on a read-only row.
 	Match    BondMatch
@@ -98,6 +104,16 @@ const (
 	bridgeIPv6LenCst                   = 16
 )
 
+// Keywords and JSON keys more than one option table spells.
+const (
+	bridgeKwPriorityCst     = "priority"
+	bridgeKwBridgeIDCst     = "bridge_id"
+	bridgeKwGroupFwdMaskCst = "group_fwd_mask"
+	bridgeKwMcastRouterCst  = "mcast_router"
+	bridgeKwLearningCst     = "learning"
+	devconfProxyArpCst      = "proxy_arp"
+)
+
 // BridgeKeywordAgeingTime and IflaBrAgeingTime are the keyword, JSON key and
 // attribute id of the bridge's FDB entry lifetime, spelled the kernel's and
 // iproute2's British way. misspell reads string literals and upper-case
@@ -122,10 +138,10 @@ var BridgeOptions = []BridgeOptionSpec{
 	{Keyword: BridgeKeywordAgeingTime, JSON: BridgeKeywordAgeingTime, ID: IflaBrAgeingTime, Wire: BridgeWireU32, Match: BondMatchPrefix},
 	{Keyword: "stp_state", JSON: "stp_state", ID: unix.IFLA_BR_STP_STATE, Wire: BridgeWireU32, Match: BondMatchPrefix},
 	{Keyword: "stp_mode", JSON: "stp_mode", ID: IflaBrStpMode, Wire: BridgeWireU32, Names: BridgeStpModes, Match: BondMatchExact},
-	{Keyword: "priority", JSON: "priority", ID: unix.IFLA_BR_PRIORITY, Wire: BridgeWireU16, Match: BondMatchPrefix},
+	{Keyword: bridgeKwPriorityCst, JSON: bridgeKwPriorityCst, ID: unix.IFLA_BR_PRIORITY, Wire: BridgeWireU16, Match: BondMatchPrefix},
 	{Keyword: "vlan_filtering", JSON: "vlan_filtering", ID: unix.IFLA_BR_VLAN_FILTERING, Wire: BridgeWireU8, Match: BondMatchPrefix},
 	{Keyword: "vlan_protocol", JSON: "vlan_protocol", ID: unix.IFLA_BR_VLAN_PROTOCOL, Wire: BridgeWireBE16, Match: BondMatchPrefix},
-	{Keyword: "bridge_id", JSON: "bridge_id", ID: unix.IFLA_BR_BRIDGE_ID, Wire: BridgeWireID, ReadOnly: true},
+	{Keyword: bridgeKwBridgeIDCst, JSON: bridgeKwBridgeIDCst, ID: unix.IFLA_BR_BRIDGE_ID, Wire: BridgeWireID, ReadOnly: true},
 	{Keyword: "designated_root", JSON: "root_id", ID: unix.IFLA_BR_ROOT_ID, Wire: BridgeWireID, ReadOnly: true},
 	{Keyword: "root_port", JSON: "root_port", ID: unix.IFLA_BR_ROOT_PORT, Wire: BridgeWireU16, ReadOnly: true},
 	{Keyword: "root_path_cost", JSON: "root_path_cost", ID: unix.IFLA_BR_ROOT_PATH_COST, Wire: BridgeWireU32, ReadOnly: true},
@@ -140,7 +156,7 @@ var BridgeOptions = []BridgeOptionSpec{
 	{Keyword: "vlan_default_pvid", JSON: "vlan_default_pvid", ID: unix.IFLA_BR_VLAN_DEFAULT_PVID, Wire: BridgeWireU16, Match: BondMatchPrefix},
 	{Keyword: "vlan_stats_enabled", JSON: "vlan_stats_enabled", ID: unix.IFLA_BR_VLAN_STATS_ENABLED, Wire: BridgeWireU8, Match: BondMatchPrefix},
 	{Keyword: "vlan_stats_per_port", JSON: "vlan_stats_per_port", ID: unix.IFLA_BR_VLAN_STATS_PER_PORT, Wire: BridgeWireU8, Match: BondMatchPrefix},
-	{Keyword: "group_fwd_mask", JSON: "group_fwd_mask", ID: unix.IFLA_BR_GROUP_FWD_MASK, Wire: BridgeWireU16, Match: BondMatchPrefix},
+	{Keyword: bridgeKwGroupFwdMaskCst, JSON: bridgeKwGroupFwdMaskCst, ID: unix.IFLA_BR_GROUP_FWD_MASK, Wire: BridgeWireU16, Hex: true, Match: BondMatchPrefix},
 	{Keyword: "group_address", JSON: "group_addr", ID: unix.IFLA_BR_GROUP_ADDR, Wire: BridgeWireMAC, Match: BondMatchPrefix},
 	{Keyword: "mcast_snooping", JSON: "mcast_snooping", ID: unix.IFLA_BR_MCAST_SNOOPING, Wire: BridgeWireU8, Match: BondMatchPrefix},
 	{Keyword: "no_linklocal_learn", JSON: "no_linklocal_learn", ID: unix.IFLA_BR_MULTI_BOOLOPT, Wire: BridgeWireBoolOpt, Bit: BrBoolOptNoLLLearn, Match: BondMatchExact},
@@ -148,7 +164,7 @@ var BridgeOptions = []BridgeOptionSpec{
 	{Keyword: "mst_enabled", JSON: "mst_enabled", ID: unix.IFLA_BR_MULTI_BOOLOPT, Wire: BridgeWireBoolOpt, Bit: BrBoolOptMstEnable, Match: BondMatchExact},
 	{Keyword: "mdb_offload_fail_notification", JSON: "mdb_offload_fail_notification", ID: unix.IFLA_BR_MULTI_BOOLOPT, Wire: BridgeWireBoolOpt, Bit: BrBoolOptMdbOffloadFailNotification, Match: BondMatchExact},
 	{Keyword: "fdb_local_vlan_0", JSON: "fdb_local_vlan_0", ID: unix.IFLA_BR_MULTI_BOOLOPT, Wire: BridgeWireBoolOpt, Bit: BrBoolOptFdbLocalVlan0, Match: BondMatchExact},
-	{Keyword: "mcast_router", JSON: "mcast_router", ID: unix.IFLA_BR_MCAST_ROUTER, Wire: BridgeWireU8, Match: BondMatchPrefix},
+	{Keyword: bridgeKwMcastRouterCst, JSON: bridgeKwMcastRouterCst, ID: unix.IFLA_BR_MCAST_ROUTER, Wire: BridgeWireU8, Match: BondMatchPrefix},
 	{Keyword: "mcast_query_use_ifaddr", JSON: "mcast_query_use_ifaddr", ID: unix.IFLA_BR_MCAST_QUERY_USE_IFADDR, Wire: BridgeWireU8, Match: BondMatchPrefix},
 	{Keyword: "mcast_querier", JSON: "mcast_querier", ID: unix.IFLA_BR_MCAST_QUERIER, Wire: BridgeWireU8, Match: BondMatchPrefix},
 	{Keyword: bridgeMcastQuerierStateCst, JSON: bridgeMcastQuerierStateCst, ID: unix.IFLA_BR_MCAST_QUERIER_STATE, Wire: BridgeWireQuerier, ReadOnly: true},
@@ -276,7 +292,7 @@ func ParseBridgeInfoData(nest []byte) *BridgeInfo {
 
 func (b *BridgeInfo) set(spec *BridgeOptionSpec, val []byte) {
 	switch spec.Wire {
-	case BridgeWireU8, BridgeWireU16, BridgeWireU32, BridgeWireU64, BridgeWireTimer, BridgeWireBE16:
+	case BridgeWireU8, BridgeWireU16, BridgeWireU32, BridgeWireU64, BridgeWireTimer, BridgeWireBE16, BridgeWireOnOff, BridgeWireIfindex:
 		if v, ok := bridgeScalar(spec.Wire, val); ok {
 			b.values[spec.ID] = BridgeValue{U: v, Present: true}
 		}
@@ -308,7 +324,7 @@ func (b *BridgeInfo) set(spec *BridgeOptionSpec, val []byte) {
 // bridgeScalar reads one integer option at its wire width.
 func bridgeScalar(w BridgeWire, val []byte) (uint64, bool) {
 	switch w {
-	case BridgeWireU8:
+	case BridgeWireU8, BridgeWireOnOff:
 		if len(val) >= 1 {
 			return uint64(val[0]), true
 		}
@@ -320,7 +336,7 @@ func bridgeScalar(w BridgeWire, val []byte) (uint64, bool) {
 		if len(val) >= 2 {
 			return uint64(binary.BigEndian.Uint16(val)), true
 		}
-	case BridgeWireU32:
+	case BridgeWireU32, BridgeWireIfindex:
 		if len(val) >= 4 {
 			return uint64(binary.LittleEndian.Uint32(val)), true
 		}
@@ -441,11 +457,11 @@ func EncodeBridgeInfoData(settings []BridgeSetting) ([]byte, error) {
 // bridgeWidth is the payload width of an integer wire, 0 for the others.
 func bridgeWidth(w BridgeWire) int {
 	switch w {
-	case BridgeWireU8:
+	case BridgeWireU8, BridgeWireOnOff:
 		return 1
 	case BridgeWireU16, BridgeWireBE16:
 		return 2
-	case BridgeWireU32:
+	case BridgeWireU32, BridgeWireIfindex:
 		return 4
 	case BridgeWireU64:
 		return bridgeU64LenCst
@@ -464,7 +480,7 @@ func putBridgeSetting(ab *AttrBuilder, s BridgeSetting) error {
 		return ab.PutBytes(id, nil)
 	case BridgeWireMAC:
 		return ab.PutBytes(id, s.Bytes)
-	case BridgeWireU8, BridgeWireU16, BridgeWireU32, BridgeWireU64, BridgeWireBE16:
+	case BridgeWireU8, BridgeWireU16, BridgeWireU32, BridgeWireU64, BridgeWireBE16, BridgeWireOnOff, BridgeWireIfindex:
 		w := bridgeWidth(s.Spec.Wire)
 		if w < bridgeU64LenCst && s.Value>>(8*w) != 0 {
 			return ErrBridgeSettingRange

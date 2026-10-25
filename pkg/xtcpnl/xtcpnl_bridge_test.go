@@ -19,14 +19,28 @@ import (
 // KP1-T01: the bridge codec against the KC2-T01 rows of the 7.3.0 kind
 // corpus (docs/netlink/goip-link-kinds.md, "KP1-T01 The bridge parser").
 
-// bridgeRow is the directory of one kinds/bridge row.
-func bridgeRow(slug string) string {
-	return tdLinkWrite_7_3_0 + "/kinds/bridge/" + slug
+// kindRows reads one kind's rows of the 7.3.0 kind corpus: its directory,
+// the data nest its options go in, and its option table.
+type kindRows struct {
+	kind string
+	nest uint16 // IFLA_INFO_DATA or IFLA_INFO_SLAVE_DATA
+	key  string // the readback's JSON object for the nest
+	opts []BridgeOptionSpec
 }
 
-// linkKindData returns the IFLA_INFO_DATA payload of an RTM_NEWLINK body,
-// and whether the nest is there at all.
-func linkKindData(t testing.TB, body []byte) ([]byte, bool) {
+var (
+	bridgeKind      = kindRows{kind: bridgeKindCst, nest: unix.IFLA_INFO_DATA, key: "info_data", opts: BridgeOptions}
+	bridgeSlaveKind = kindRows{kind: "bridge_slave", nest: unix.IFLA_INFO_SLAVE_DATA, key: "info_slave_data", opts: BridgeSlaveOptions}
+)
+
+// dir is the directory of row slug.
+func (k kindRows) dir(slug string) string {
+	return tdLinkWrite_7_3_0 + "/kinds/" + k.kind + "/" + slug
+}
+
+// data returns the kind's nest in an RTM_NEWLINK body, and whether the nest
+// is there at all.
+func (k kindRows) data(t testing.TB, body []byte) ([]byte, bool) {
 	t.Helper()
 	var data []byte
 	var has bool
@@ -35,7 +49,7 @@ func linkKindData(t testing.TB, body []byte) ([]byte, bool) {
 			return
 		}
 		walkNestTolerant(v, func(a uint16, in []byte) {
-			if a == unix.IFLA_INFO_DATA && !has {
+			if a == k.nest && !has {
 				data, has = in, true
 			}
 		})
@@ -45,89 +59,159 @@ func linkKindData(t testing.TB, body []byte) ([]byte, bool) {
 	return data, has
 }
 
-// bridgeRequestData returns the IFLA_INFO_DATA of the RTM_NEWLINK request in
-// row slug's ip.pcap; sent is false when ip sent no request.
-func bridgeRequestData(t testing.TB, slug string) (data []byte, has, sent bool) {
+// request returns the nest of the RTM_NEWLINK request in row slug's
+// ip.pcap; sent is false when ip sent no request.
+func (k kindRows) request(t testing.TB, slug string) (data []byte, has, sent bool) {
 	t.Helper()
-	for _, m := range pcapNlMsgs(t, bridgeRow(slug)+"/ip.pcap") {
+	for _, m := range pcapNlMsgs(t, k.dir(slug)+"/ip.pcap") {
 		if m.h.Type == unix.RTM_NEWLINK && m.h.Flags&unix.NLM_F_REQUEST != 0 {
-			data, has = linkKindData(t, m.body)
+			data, has = k.data(t, m.body)
 			return data, has, true
 		}
 	}
 	return nil, false, false
 }
 
-// bridgeDumpData returns the IFLA_INFO_DATA of the RTM_NEWLINK answer in
-// readback pcap of row slug, skipping the name lookup's answer, which has no
-// IFLA_LINKINFO.
-func bridgeDumpData(t testing.TB, slug, pcap string) []byte {
+// dump returns the nest of the RTM_NEWLINK answer in readback pcap of row
+// slug, skipping the answers without it: the name lookup's, and the
+// backup port's name.
+func (k kindRows) dump(t testing.TB, slug, pcap string) []byte {
 	t.Helper()
-	for _, m := range pcapNlMsgs(t, bridgeRow(slug)+"/"+pcap) {
+	for _, m := range pcapNlMsgs(t, k.dir(slug)+"/"+pcap) {
 		if m.h.Type != unix.RTM_NEWLINK || m.h.Flags&unix.NLM_F_REQUEST != 0 {
 			continue
 		}
-		if data, ok := linkKindData(t, m.body); ok {
+		if data, ok := k.data(t, m.body); ok {
 			return data
 		}
 	}
-	t.Fatalf("%s: no RTM_NEWLINK answer with IFLA_INFO_DATA in %s", slug, pcap)
+	t.Fatalf("%s: no RTM_NEWLINK answer with nest %d in %s", slug, k.nest, pcap)
 	return nil
 }
 
-// bridgeSpecNamed is the BridgeOptions row whose Keyword is kw.
-func bridgeSpecNamed(t testing.TB, kw string) *BridgeOptionSpec {
+// names maps every ifindex an RTM_NEWLINK answer in readback pcap of row
+// slug names to its IFLA_IFNAME: ll_index_to_name's lookups.
+func (k kindRows) names(t testing.TB, slug, pcap string) map[uint64]string {
 	t.Helper()
-	for i := range BridgeOptions {
-		if BridgeOptions[i].Keyword == kw {
-			return &BridgeOptions[i]
+	out := map[uint64]string{}
+	for _, m := range pcapNlMsgs(t, k.dir(slug)+"/"+pcap) {
+		if m.h.Type != unix.RTM_NEWLINK || m.h.Flags&unix.NLM_F_REQUEST != 0 {
+			continue
+		}
+		idx := uint64(binary.LittleEndian.Uint32(m.body[4:8]))
+		if err := WalkRTAttrs(m.body[IfInfomsgSizeCst:], func(atype uint16, v []byte) {
+			if atype == unix.IFLA_IFNAME {
+				out[idx] = string(bytes.TrimRight(v, "\x00"))
+			}
+		}); err != nil {
+			t.Fatal(err)
 		}
 	}
-	t.Fatalf("no bridge option %q", kw)
+	return out
+}
+
+// accepted are the rows ip and the kernel accepted.
+func (k kindRows) accepted(t testing.TB) []string {
+	t.Helper()
+	ents, err := os.ReadDir(tdLinkWrite_7_3_0 + "/kinds/" + k.kind)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out []string
+	for _, e := range ents {
+		rc, err := os.ReadFile(k.dir(e.Name()) + "/ip.rc")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.TrimSpace(string(rc)) == "0" {
+			out = append(out, e.Name())
+		}
+	}
+	return out
+}
+
+// readback is the nest's object in row slug's `ip -d -j link show`.
+func (k kindRows) readback(t testing.TB, slug string) map[string]any {
+	t.Helper()
+	raw, err := os.ReadFile(k.dir(slug) + "/ip_getlink_detail_json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var links []struct {
+		LinkInfo map[string]json.RawMessage `json:"linkinfo"`
+	}
+	if err := json.Unmarshal(raw, &links); err != nil {
+		t.Fatal(err)
+	}
+	if len(links) != 1 {
+		t.Fatalf("%s: %d links in the readback", slug, len(links))
+	}
+	var out map[string]any
+	if err := json.Unmarshal(links[0].LinkInfo[k.key], &out); err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+// spec is the table row whose Keyword is kw.
+func (k kindRows) spec(t testing.TB, kw string) *BridgeOptionSpec {
+	t.Helper()
+	for i := range k.opts {
+		if k.opts[i].Keyword == kw {
+			return &k.opts[i]
+		}
+	}
+	t.Fatalf("no %s option %q", k.kind, kw)
 	return nil
+}
+
+// args turns a row's words into settings: full keywords only, since
+// keyword matching is KG1's. Values are what ip's parsers produce; an
+// ifindex is given as its number.
+func (k kindRows) args(t testing.TB, words string) []BridgeSetting {
+	t.Helper()
+	f := strings.Fields(words)
+	var out []BridgeSetting
+	for i := 0; i < len(f); i++ {
+		s := BridgeSetting{Spec: k.spec(t, f[i])}
+		if s.Spec.Wire != BridgeWireFlag {
+			i++
+			s.Value, s.Bytes = bridgeArgValue(t, s.Spec, f[i])
+		}
+		out = append(out, s)
+	}
+	return out
+}
+
+func bridgeArgValue(t testing.TB, spec *BridgeOptionSpec, v string) (uint64, []byte) {
+	t.Helper()
+	if i := slices.Index(spec.Names, v); i >= 0 {
+		return uint64(i), nil // stp_mode's names; a port's state is a number
+	}
+	switch spec.Wire {
+	case BridgeWireOnOff:
+		return map[string]uint64{"on": 1, "off": 0}[v], nil
+	case BridgeWireBE16:
+		return map[string]uint64{bridgeProto8021Q: 0x8100, bridgeProto8021ad: 0x88a8}[v], nil
+	case BridgeWireMAC:
+		mac, err := net.ParseMAC(v)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return 0, mac
+	default:
+		n, err := strconv.ParseUint(v, 0, 64)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return n, nil
+	}
 }
 
 const (
 	bridgeProto8021Q  = "802.1Q"
 	bridgeProto8021ad = "802.1ad"
 )
-
-// bridgeArgs turns a row's words into settings: full keywords only, since
-// keyword matching is KG1's. Values are what ip's parsers produce.
-func bridgeArgs(t testing.TB, words string) []BridgeSetting {
-	t.Helper()
-	f := strings.Fields(words)
-	var out []BridgeSetting
-	for i := 0; i < len(f); i++ {
-		s := BridgeSetting{Spec: bridgeSpecNamed(t, f[i])}
-		if s.Spec.Wire == BridgeWireFlag {
-			out = append(out, s)
-			continue
-		}
-		i++
-		v := f[i]
-		switch {
-		case s.Spec.Names != nil:
-			s.Value = uint64(slices.Index(s.Spec.Names, v))
-		case s.Spec.Wire == BridgeWireBE16:
-			s.Value = map[string]uint64{bridgeProto8021Q: 0x8100, bridgeProto8021ad: 0x88a8}[v]
-		case s.Spec.Wire == BridgeWireMAC:
-			mac, err := net.ParseMAC(v)
-			if err != nil {
-				t.Fatal(err)
-			}
-			s.Bytes = mac
-		default:
-			n, err := strconv.ParseUint(v, 0, 64)
-			if err != nil {
-				t.Fatal(err)
-			}
-			s.Value = n
-		}
-		out = append(out, s)
-	}
-	return out
-}
 
 // bridgeCorpusOptions is BRIDGE_OPTIONS in kind-write-corpus.exp: each
 // row add_<option> is `ip link add br0 type bridge <option> <value>`.
@@ -237,8 +321,7 @@ func bridgeViewValue(b *BridgeInfo, s *BridgeOptionSpec) (any, bool) {
 		if id == nil {
 			return nil, false
 		}
-		a := id.Addr
-		return fmt.Sprintf("%02x%02x.%x:%x:%x:%x:%x:%x", id.Prio[0], id.Prio[1], a[0], a[1], a[2], a[3], a[4], a[5]), true
+		return bridgeIDString(id), true
 	case BridgeWireQuerier, BridgeWireFlag:
 		return nil, false
 	default:
@@ -261,54 +344,10 @@ func bridgeViewScalar(b *BridgeInfo, s *BridgeOptionSpec) (any, bool) {
 		return map[uint64]string{0x8100: bridgeProto8021Q, 0x88a8: bridgeProto8021ad}[v.U], true
 	case s.Wire == BridgeWireTimer:
 		return float64(v.U) / 100, true // USER_HZ
-	case s.ID == unix.IFLA_BR_GROUP_FWD_MASK:
-		if v.U == 0 {
-			return "0", true // C's %#llx
-		}
-		return fmt.Sprintf("%#x", v.U), true
+	case s.Hex:
+		return bridgeHex(v.U), true
 	}
 	return float64(v.U), true
-}
-
-// bridgeReadback is the info_data of row slug's `ip -d -j link show`.
-func bridgeReadback(t testing.TB, slug string) map[string]any {
-	t.Helper()
-	raw, err := os.ReadFile(bridgeRow(slug) + "/ip_getlink_detail_json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var links []struct {
-		LinkInfo struct {
-			InfoData map[string]any `json:"info_data"`
-		} `json:"linkinfo"`
-	}
-	if err := json.Unmarshal(raw, &links); err != nil {
-		t.Fatal(err)
-	}
-	if len(links) != 1 {
-		t.Fatalf("%s: %d links in the readback", slug, len(links))
-	}
-	return links[0].LinkInfo.InfoData
-}
-
-// bridgeAccepted are the kinds/bridge rows ip and the kernel accepted.
-func bridgeAccepted(t testing.TB) []string {
-	t.Helper()
-	ents, err := os.ReadDir(tdLinkWrite_7_3_0 + "/kinds/bridge")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var out []string
-	for _, e := range ents {
-		rc, err := os.ReadFile(bridgeRow(e.Name()) + "/ip.rc")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if strings.TrimSpace(string(rc)) == "0" {
-			out = append(out, e.Name())
-		}
-	}
-	return out
 }
 
 // TestBridgeDumpMatchesReadback is TestParseBridgeInfoData's every-row row,
@@ -316,14 +355,14 @@ func bridgeAccepted(t testing.TB) []string {
 // dump is the one the JSON readback printed, from its own pcap, since the
 // timers move between the text and JSON runs.
 func TestBridgeDumpMatchesReadback(t *testing.T) {
-	rows := bridgeAccepted(t)
+	rows := bridgeKind.accepted(t)
 	if len(rows) != 50 {
 		t.Fatalf("%d accepted bridge rows, want 50", len(rows))
 	}
 	for _, slug := range rows {
 		t.Run("positive: "+slug, func(t *testing.T) {
-			got := bridgeView(ParseBridgeInfoData(bridgeDumpData(t, slug, "netlink_route_getlink_detail_json.pcap")))
-			expected := bridgeReadback(t, slug)
+			got := bridgeView(ParseBridgeInfoData(bridgeKind.dump(t, slug, "netlink_route_getlink_detail_json.pcap")))
+			expected := bridgeKind.readback(t, slug)
 			if !reflect.DeepEqual(got, expected) {
 				for k := range expected {
 					if !reflect.DeepEqual(got[k], expected[k]) {
@@ -346,8 +385,8 @@ func bridgeAttr(atype uint16, payload ...byte) []byte {
 }
 
 func TestParseBridgeInfoData(t *testing.T) {
-	def := bridgeDumpData(t, "add_default", "netlink_route_getlink_detail.pcap")
-	querier := bridgeDumpData(t, "add_mcast_querier", "netlink_route_getlink_detail.pcap")
+	def := bridgeKind.dump(t, "add_default", "netlink_route_getlink_detail.pcap")
+	querier := bridgeKind.dump(t, "add_mcast_querier", "netlink_route_getlink_detail.pcap")
 	tests := []struct {
 		description string
 		nest        []byte
@@ -371,7 +410,7 @@ func TestParseBridgeInfoData(t *testing.T) {
 		},
 		{
 			description: "positive: several options",
-			nest:        bridgeDumpData(t, "add_several", "netlink_route_getlink_detail.pcap"),
+			nest:        bridgeKind.dump(t, "add_several", "netlink_route_getlink_detail.pcap"),
 			expected: map[string]any{
 				"stp_state": float64(1), "priority": float64(100), "vlan_filtering": float64(1),
 				"mcast_snooping": float64(0), "bridge_id": "0064.0:0:0:0:0:0",
@@ -379,7 +418,7 @@ func TestParseBridgeInfoData(t *testing.T) {
 		},
 		{
 			description: "positive: the boolopts",
-			nest:        bridgeDumpData(t, "add_boolopts", "netlink_route_getlink_detail.pcap"),
+			nest:        bridgeKind.dump(t, "add_boolopts", "netlink_route_getlink_detail.pcap"),
 			expected: map[string]any{
 				"mst_enabled": float64(1), "mdb_offload_fail_notification": float64(1),
 				"fdb_local_vlan_0": float64(1), "no_linklocal_learn": float64(0), "mcast_vlan_snooping": float64(0),
@@ -387,7 +426,7 @@ func TestParseBridgeInfoData(t *testing.T) {
 		},
 		{
 			description: "positive: 802.1ad",
-			nest:        bridgeDumpData(t, "add_vlan_protocol", "netlink_route_getlink_detail.pcap"),
+			nest:        bridgeKind.dump(t, "add_vlan_protocol", "netlink_route_getlink_detail.pcap"),
 			expected:    map[string]any{"vlan_protocol": bridgeProto8021ad},
 		},
 		{
@@ -482,38 +521,38 @@ func TestEncodeBridgeInfoData(t *testing.T) {
 		},
 		{
 			description: "negative: a read-only option",
-			settings:    []BridgeSetting{{Spec: bridgeSpecNamed(t, "bridge_id")}},
+			settings:    []BridgeSetting{{Spec: bridgeKind.spec(t, "bridge_id")}},
 			err:         ErrBridgeSettingWire,
 		},
 		{
 			description: "negative: a value too wide for its wire",
-			settings:    []BridgeSetting{{Spec: bridgeSpecNamed(t, "priority"), Value: 65536}},
+			settings:    []BridgeSetting{{Spec: bridgeKind.spec(t, "priority"), Value: 65536}},
 			err:         ErrBridgeSettingRange,
 		},
 		{
 			description: "boundary: fdb_flush is a bare header",
-			settings:    bridgeArgs(t, "fdb_flush"),
+			settings:    bridgeKind.args(t, "fdb_flush"),
 			expected:    []byte{4, 0, unix.IFLA_BR_FDB_FLUSH, 0},
 		},
 		{
 			description: "boundary: a u64 takes its full width",
-			settings:    []BridgeSetting{{Spec: bridgeSpecNamed(t, "mcast_query_interval"), Value: 1 << 63}},
+			settings:    []BridgeSetting{{Spec: bridgeKind.spec(t, "mcast_query_interval"), Value: 1 << 63}},
 			expected:    rtattr(unix.IFLA_BR_MCAST_QUERY_INTVL, be.AppendUint64(nil, 1<<63)),
 		},
 		{
 			description: "corner: the boolopt goes last",
-			settings:    bridgeArgs(t, "mst_enabled 1 priority 100"),
+			settings:    bridgeKind.args(t, "mst_enabled 1 priority 100"),
 			expected: append(rtattr(unix.IFLA_BR_PRIORITY, []byte{100, 0}),
 				rtattr(unix.IFLA_BR_MULTI_BOOLOPT, []byte{4, 0, 0, 0, 4, 0, 0, 0})...),
 		},
 		{
 			description: "corner: a later boolopt word clears the bit and keeps the mask",
-			settings:    bridgeArgs(t, "mst_enabled 1 mst_enabled 0"),
+			settings:    bridgeKind.args(t, "mst_enabled 1 mst_enabled 0"),
 			expected:    rtattr(unix.IFLA_BR_MULTI_BOOLOPT, []byte{0, 0, 0, 0, 4, 0, 0, 0}),
 		},
 		{
 			description: "corner: vlan_protocol in network order",
-			settings:    bridgeArgs(t, "vlan_protocol "+bridgeProto8021ad),
+			settings:    bridgeKind.args(t, "vlan_protocol "+bridgeProto8021ad),
 			expected:    rtattr(unix.IFLA_BR_VLAN_PROTOCOL, []byte{0x88, 0xa8}),
 		},
 	}
@@ -524,7 +563,7 @@ func TestEncodeBridgeInfoData(t *testing.T) {
 	}
 	sent := 0
 	for _, e := range ents {
-		data, _, ok := bridgeRequestData(t, e.Name())
+		data, _, ok := bridgeKind.request(t, e.Name())
 		w, listed := words[e.Name()]
 		if ok != listed {
 			t.Errorf("%s: sent a request %v, listed %v", e.Name(), ok, listed)
@@ -535,7 +574,7 @@ func TestEncodeBridgeInfoData(t *testing.T) {
 		sent++
 		tests = append(tests, row{
 			description: "positive: " + e.Name() + "'s request",
-			settings:    bridgeArgs(t, w),
+			settings:    bridgeKind.args(t, w),
 			expected:    append([]byte{}, data...),
 		})
 	}
@@ -556,11 +595,26 @@ func TestEncodeBridgeInfoData(t *testing.T) {
 }
 
 func BenchmarkParseBridgeInfoData(b *testing.B) {
-	nest := bridgeDumpData(b, "add_default", "netlink_route_getlink_detail.pcap")
+	nest := bridgeKind.dump(b, "add_default", "netlink_route_getlink_detail.pcap")
 	b.ReportAllocs()
 	for b.Loop() {
 		if ParseBridgeInfoData(nest) == nil {
 			b.Fatal("nil")
 		}
 	}
+}
+
+// bridgeHex is C's %#llx, which prints 0 without the 0x.
+func bridgeHex(v uint64) string {
+	if v == 0 {
+		return "0"
+	}
+	return fmt.Sprintf("%#x", v)
+}
+
+// bridgeIDString is br_dump_bridge_id: the priority's two bytes, then
+// ether_ntoa's unpadded address.
+func bridgeIDString(id *BridgeID) string {
+	a := id.Addr
+	return fmt.Sprintf("%02x%02x.%x:%x:%x:%x:%x:%x", id.Prio[0], id.Prio[1], a[0], a[1], a[2], a[3], a[4], a[5])
 }
