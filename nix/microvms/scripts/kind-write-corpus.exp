@@ -1204,6 +1204,92 @@ namespace eval kindcorpus {
         [sit_base add_6rd_no_value 6rd-prefix 255]
 
     ###########################################################################
+    # ip6tnl (KC5-T04). The device is t6 (t7 in the conflict rows). No word
+    # is required; with none ip6_tnl_netlink_parms zeroes everything. With
+    # any, ip sends hoplimit 64, encaplimit 4 and encap flags CSUM6. dev and
+    # dsfield are matches (dev first, and dscp doesn't match dsfield), the
+    # rest strcmp; tclass and flowlabel are hex; nothing is checked for
+    # repeats; a bad encaplimit is never refused and sends an uninitialized
+    # byte, so no row sends one. A set prefetches all but the encap values.
+    # fou6 isn't loaded, so encap fou is -EINVAL. ip6_tnl_changelink refuses
+    # collect_md and a collision, and copies the protocol.
+    ###########################################################################
+    variable IP6TNL_BASE {remote 2001:db8::1}
+    variable PRE_T6 [list {link add t6 type ip6tnl remote 2001:db8::1}]
+    variable PRE_T6_WILD [list {link add t6 type ip6tnl}]
+    variable PRE_T6_HOP [list {link add t6 type ip6tnl remote 2001:db8::1 hoplimit 10}]
+    variable PRE_T6_EXTERNAL [list {link add t6 type ip6tnl external}]
+    variable PRE_T6_T7 [list {link add t6 type ip6tnl remote 2001:db8::1} {link add t7 type ip6tnl remote 2001:db8::2}]
+
+    proc ip6tnl {name words rc {pre {}}} {
+        return [plain ip6tnl t6 $name $words $rc $pre]
+    }
+
+    proc ip6tnl_base {name words rc {pre {}}} {
+        variable IP6TNL_BASE
+        return [ip6tnl $name [string trimright "$IP6TNL_BASE $words"] $rc $pre]
+    }
+
+    proc ip6tnl_set {name words rc {pre {}}} {
+        variable PRE_T6
+        if {$pre eq ""} {
+            set pre $PRE_T6
+        }
+        return [tunnel_set ip6tnl t6 $name $words $rc $pre]
+    }
+
+    lappend rows \
+        [ip6tnl_base add_default {} 0] \
+        [ip6tnl add_no_option {} 0] \
+        [ip6tnl_base add_mode_ip6ip6 {mode ip6ip6} 0] \
+        [ip6tnl_base add_mode_ipip6 {mode ipip6} 0] \
+        [ip6tnl_base add_mode_any {mode any} 0] \
+        [ip6tnl_base add_mode_alias {mode ip4ip6} 0] \
+        [ip6tnl_base add_local {local 2001:db8::2} 0] \
+        [ip6tnl_base add_dev {dev d0} 0 $PRE_D0] \
+        [ip6tnl_base add_hoplimit {hoplimit 255} 0] \
+        [ip6tnl_base add_hoplimit_inherit {hoplimit inherit} 0] \
+        [ip6tnl_base add_hoplimit_twice {hoplimit 10 ttl 20} 0] \
+        [ip6tnl_base add_encaplimit {encaplimit 0} 0] \
+        [ip6tnl_base add_encaplimit_none {encaplimit none} 0] \
+        [ip6tnl_base add_tclass {tclass ff} 0] \
+        [ip6tnl_base add_tclass_inherit {tclass inherit} 0] \
+        [ip6tnl_base add_dsfield_abbrev {dsf 10} 0] \
+        [ip6tnl_base add_flowlabel {flowlabel 0xfffff} 0] \
+        [ip6tnl_base add_flowlabel_inherit {fl inherit} 0] \
+        [ip6tnl_base add_dscp_inherit {dscp inherit} 0] \
+        [ip6tnl_base add_fwmark {fwmark 0xffffffff} 0] \
+        [ip6tnl_base add_fwmark_inherit {fwmark inherit} 0] \
+        [ip6tnl_base add_allow_localremote allow-localremote 0] \
+        [ip6tnl add_external external 0] \
+        [ip6tnl_base add_noencap {noencap encap-sport 1000 encap-dport 5555 encap-csum noencap-udp6-csum encap-remcsum} 0] \
+        [ip6tnl_set set_changeable {hlim 32 encaplimit none tclass inherit flowlabel 0x12345 dscp inherit} 0] \
+        [ip6tnl_set set_mode {mode ipip6} 0] \
+        [ip6tnl_set set_remote {remote 2001:db8::2} 0] \
+        [ip6tnl_set set_keeps_prefetch {tclass 0x20} 0 $PRE_T6_HOP] \
+        [ip6tnl_set set_no_option {} 0] \
+        [ip6tnl_base add_encap_fou {encap fou encap-dport 5555} 2] \
+        [plain ip6tnl t7 add_duplicate $IP6TNL_BASE 2 $PRE_T6] \
+        [plain ip6tnl t7 add_duplicate_wildcard {} 2 $PRE_T6_WILD] \
+        [plain ip6tnl t7 add_external_second external 2 $PRE_T6_EXTERNAL] \
+        [ip6tnl_set set_collide {remote 2001:db8::2} 2 $PRE_T6_T7] \
+        [ip6tnl_set set_on_external {hoplimit 5} 2 $PRE_T6_EXTERNAL] \
+        [ip6tnl_set set_external external 2] \
+        [ip6tnl add_remote_v4 {remote 10.0.0.1} 1] \
+        [ip6tnl_base add_encaplimit_abbrev {encapl 4} 1] \
+        [ip6tnl_base add_isatap isatap 1] \
+        [ip6tnl_base add_mode_ip6ip {mode ip6ip} 255] \
+        [ip6tnl_base add_hoplimit_over {hoplimit 256} 255] \
+        [ip6tnl_base add_tclass_over {tclass 100} 255] \
+        [ip6tnl_base add_flowlabel_over {flowlabel 0x100000} 255] \
+        [ip6tnl_base add_dscp_bad {dscp 10} 255] \
+        [ip6tnl_base add_fwmark_bad {fwmark foo} 255] \
+        [ip6tnl_base add_encap_abbrev {encap 4} 255] \
+        [ip6tnl_base add_encap_sport_over {encap-sport 65536} 255] \
+        [ip6tnl_base add_dev_missing {dev nosuch} 255] \
+        [ip6tnl add_no_value remote 255]
+
+    ###########################################################################
     # readback_args <ns> <subdir> <readback> - the xtcp2-nlcap capio argument
     # list for one readback, which the driver hands to its capio proc.
     ###########################################################################
