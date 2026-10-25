@@ -1835,9 +1835,9 @@ Four tasks, one per KC4 task: KP3-T01 vxlan, KP3-T02 geneve, KP3-T03 bareudp and
 #### KP3-T01 The vxlan parser
 
 **Code.** A new `pkg/xtcpnl/xtcpnl_vxlan.go`:
-- **`VxlanInfo`:** the id; `Group`, `Local` as `netip.Addr` (from `GROUP`/`GROUP6`, `LOCAL`/`LOCAL6`); the lower's ifindex; `TTL`, `TTLInherit`, `TOS`, `DF`, `Label`, `Ageing`, `Limit`; the source port range (two big-endian u16s) and the destination port; `ReservedBits` (big-endian u64); the 14 u8 booleans of `vxlan_print_opt`'s `vxlan_opts` table plus `GBP` and `GPE`, each with a present bit.
+- **`VxlanInfo`:** the id; `Group`, `Local` as `netip.Addr` (`GROUP` or, when it is absent, `GROUP6`, as `vxlan_print_opt` reads them; likewise `LOCAL`/`LOCAL6`); the lower's ifindex; `TTL`, `TTLInherit`, `TOS`, `DF`, `Label` (host order), `Aging`, `Limit`, and the unprinted `LabelPolicy`; the source port range (two big-endian u16s) and the destination port; `ReservedBits` (big-endian u64); the 14 u8 booleans of `vxlan_print_opt`'s `vxlan_opts` table, by index; and the flags `GBP`, `GPE` and `RemcsumNopartial`. Each value has a present bit. `IFLA_VXLAN_AGEING`, `RESERVED_BITS` and `MC_ROUTE` are package constants (`IflaVxlanAgeing`, `IflaVxlanReservedBits`, `IflaVxlanMcRoute`): x/sys v0.49.0 lacks the last two, and misspell reads the first.
 - **`VxlanBoolOptions`:** the table, in print order (`external`, `vnifilter`, `learning`, `proxy`, `rsc`, `l2miss`, `l3miss`, `udp_csum`, `udp_zero_csum6_tx`, `udp_zero_csum6_rx`, `remcsum_tx`, `remcsum_rx`, `localbypass`, `mcroute`), with their ids.
-- **`EncodeVxlanInfoData(settings, set)`:** `LINK`, `TTL`/`TTL_INHERIT`, `TOS`, `DF`, `LABEL`, `AGEING`, `LIMIT`, `PORT_RANGE` (only when either end is nonzero), the u8 flags, `RESERVED_BITS`, `COLLECT_METADATA`, `GBP`, `GPE`, `VNIFILTER` and `MC_ROUTE` in argument order; then `ID` if given, the local, the group or remote, `LEARNING` (on an add always, 0 after `external` or `nolearning`; on a set only when a learning word was given), and `PORT` when nonzero (4790 for `gpe` without `dstport`).
+- **`EncodeVxlanInfoData(settings, set)`:** `LINK`, `TTL`/`TTL_INHERIT`, `TOS`, `DF`, `LABEL`, `AGEING`, `LIMIT`, `PORT_RANGE` (only when either end is nonzero), the u8 flags, `RESERVED_BITS`, `COLLECT_METADATA`, `GBP`, `GPE`, `VNIFILTER` and `MC_ROUTE` in argument order; then `ID` if given, the local, the group or remote, `LEARNING` (on an add always, 0 after `external` or `nolearning`; on a set only when a learning word was given), and `PORT` when nonzero (4790 for `gpe` without `dstport`). No settings encode to nothing, as for ipvlan. It refuses what `vxlan_parse_opt` refuses with `ErrVxlanConflict` (group and remote, a local of the other family, vnifilter without external, external with an id, no id on an add, a group without dev) and a value out of range, or an address of the wrong cast, with `ErrKindSettingRange`.
 - **The render oracle:** `vxlan_print_opt`: `group` or `remote` by whether the address is multicast, `local`, `link` by name, `port_range` as `{low, high}`, `port`, `tos` (hex, absent at 0), `ttl` (absent under `ttl_inherit`; JSON prints 0), `df` (`unset` is JSON-only), `label` (hex, absent at 0), `ageing`, `limit` (absent at 0), `reserved_bits` (hex), `gbp` and `gpe` as JSON null, and each bool option the dump carries.
 - **The benchmark:** `BenchmarkParseVxlanInfoData` over `add_group`'s blob.
 
@@ -1859,6 +1859,7 @@ Four tasks, one per KC4 task: KP3-T01 vxlan, KP3-T02 geneve, KP3-T03 bareudp and
 | corner: the port is big-endian | built `12 b5` | 4789 |
 | corner: reserved bits are big-endian | built `RESERVED_BITS` | the readback's hex, byte-swapped from the wire |
 | corner: a group of 0.0.0.0 prints nothing | built `GROUP` 0 | no `group` or `remote` key |
+| corner: `GROUP` hides `GROUP6`, whatever the order | built `GROUP6` `ff05::1`, then `GROUP` `10.0.0.1` | `remote` `10.0.0.1` alone |
 | corner: an id past the last `IFLA_VXLAN_*` | built | listed in `Unknown`, the rest decoded |
 
 `TestEncodeVxlanInfoData`:
@@ -1868,14 +1869,26 @@ Four tasks, one per KC4 task: KP3-T01 vxlan, KP3-T02 geneve, KP3-T03 bareudp and
 | positive: each row's request | the 58 rows that sent one, argv and `set` from the corpus script | byte-identical to `ip.pcap`'s |
 | negative: a VNI too wide | 1<<24 | `ErrKindSettingRange` |
 | negative: a setting with no option | the zero option | `ErrKindSettingOption` |
+| negative: external with an id | `external id 42` | `ErrVxlanConflict` |
+| negative: a group without dev | `id 42 group 239.1.1.1` | `ErrVxlanConflict` |
+| negative: a multicast remote | `id 42 remote 239.1.1.1` | `ErrKindSettingRange` |
 | boundary: `dstport 0` sends no `PORT` | `id 42 dstport 0` | `ID`, `LEARNING`, no `PORT` |
-| boundary: a zero source range sends nothing | `srcport 0 0` | no `PORT_RANGE` |
-| corner: the id goes after the loop | `ttl 5 id 42` | `TTL`, then `ID` |
+| boundary: a zero source range sends nothing | `srcport 0 0`, set | nothing |
+| corner: the id goes after the loop | `ttl 5 id 42` | `TTL`, then `ID`, then `LEARNING` 1 |
 | corner: a set sends no learning by default | `ttl 5`, set | `TTL` alone |
 | corner: `external` turns learning off | `external`, add | `COLLECT_METADATA` 1, then `LEARNING` 0 |
 | corner: `gpe` picks 4790 | `external gpe`, add | `PORT` 4790 big-endian |
 
-**Mutation check:** the port read little-endian (every readback row), `LEARNING` sent on a set (`set_changeable`'s request), the group/remote choice inverted (`add_group`, `add_remote`).
+`TestLinkInfoVxlanKinds`:
+
+| description | input | expected |
+|---|---|---|
+| positive: a vxlan decodes `Vxlan` | `add_group` | non-nil |
+| positive: an external vxlan decodes `Vxlan` | `add_external` | non-nil |
+| negative: an ipvlan does not | `ipvlan/add_default` | nil |
+| corner: a geneve, another UDP overlay, does not | `geneve/add_default` | nil |
+
+**Mutation check:** the port read little-endian (every readback row), `LEARNING` sent on a set (`set_dev`'s and the other bare `set_*` requests; `set_changeable` gives `nolearning`), the group/remote multicast check inverted in the encoder (`add_group`, `add_remote`). The parser keeps one `Group` and makes no choice; the group-or-remote key is the render's, KG3's.
 
 #### KP3-T02 The geneve parser
 
