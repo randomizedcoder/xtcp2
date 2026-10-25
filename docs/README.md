@@ -30,6 +30,14 @@ This project is a complete rewrite of the original [xtcp](https://github.com/ran
 
 Each feature has a dedicated document with its own table of contents and component breakdown.
 
+### [Reviewed TCP route treatments](tcp-controller.md)
+
+An optional controller uses ClickHouse evidence and PostgreSQL state to propose
+destination-specific TCP treatments, run human-reviewed canaries, and withdraw
+failed trials. Agents persist protobuf-text journals and reconcile owned routes;
+an independent watchdog enforces trial expiry. Route application is disabled by
+default. The controller has its own mTLS listener and operator client.
+
 ### [Netlink TCP collection](netlink/collection.md)
 Reads TCP socket state from the kernel via the `inet_diag` netlink interface. A registry of 13 attribute deserializers (`info`, `cong`, `meminfo`, `skmem`, `bbr`, `dctcp`, `vegas`, `tos`, `tc`, `shut`, `classid`, `cgroup`, `sockopt`) decodes each socket's attributes into a flat record; you choose which to decode with `-deserializers`.
 

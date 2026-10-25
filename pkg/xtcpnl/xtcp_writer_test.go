@@ -129,16 +129,14 @@ func TestDeserializeXXXXTCP(t *testing.T) {
 			},
 		},
 		{
-			// CongInfo writes only on a recognized "cub" / "bbr" / etc.
-			// prefix. Garbage 0x01 bytes fall through the switch with
-			// no observable side effect, which is the intended kernel-
-			// compatibility behavior. We only assert the parse succeeds.
+			// Names absent from our enum are retained as raw strings.
 			name:  "CongInfo",
 			min:   CongInfoSizeCst,
 			parse: DeserializeCongInfoXTCP,
 			verify: func(t *testing.T, x *xtcp_flat_record.XtcpFlatRecord) {
-				// No assertion — successful parse with unknown algorithm
-				// leaves all fields at zero, which is correct.
+				if x.InetDiagCong == "" || x.InetDiagCongEnum != xtcp_flat_record.XtcpFlatRecord_CONGESTION_ALGORITHM_UNSPECIFIED {
+					t.Error("unknown algorithm name must be retained without inventing an enum")
+				}
 			},
 		},
 		{

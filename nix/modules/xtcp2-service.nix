@@ -70,6 +70,19 @@ in
       '';
     };
 
+    treatments = {
+      enable = lib.mkEnableOption "reviewed TCP route treatments and the independent expiry watchdog";
+      configFile = lib.mkOption {
+        type = lib.types.str;
+        default = "/etc/xtcp2/controller-agent.json";
+        description = "Runtime agent JSON file; keep private keys outside the Nix store.";
+      };
+      watchdogPackage = lib.mkOption {
+        type = lib.types.package;
+        description = "Package providing bin/xtcp2-treatmentctl, required when treatments are enabled.";
+      };
+    };
+
     linkMonitor = {
       enable = lib.mkOption {
         type = lib.types.bool;
@@ -188,7 +201,11 @@ in
         # `extraArgs` (CLI flags) instead. configFile is kept in the option
         # surface for forward-compatibility — when the daemon learns to
         # parse a JSON config, flip this back to `-config ${cfg.configFile}`.
-        ExecStart = xtcp2Exec.mkExecStart cfg.package (linkMonitorArgs ++ cfg.extraArgs);
+        ExecStart = xtcp2Exec.mkExecStart cfg.package (
+          linkMonitorArgs
+          ++ lib.optionals cfg.treatments.enable [ "-treatmentConfig=${cfg.treatments.configFile}" ]
+          ++ cfg.extraArgs
+        );
         # `systemctl reload xtcp2` asks the link monitor to relearn the
         # expected up-link count, as SIGUSR1 does for go-link-monitor.
         ExecReload = "${pkgs.coreutils}/bin/kill -USR1 $MAINPID";
@@ -218,6 +235,35 @@ in
         # blocked syscalls) has headroom.
         TasksMax = 8192;
         LimitNPROC = 8192;
+      };
+    };
+
+    # Deliberately independent of xtcp2.service: daemon crashes must not leave
+    # trial routes installed past their local lease deadline.
+    systemd.services.xtcp2-treatment-watchdog = lib.mkIf cfg.treatments.enable {
+      description = "xtcp2 route treatment lease watchdog";
+      wantedBy = [ "multi-user.target" ];
+      after = [ "local-fs.target" ];
+      serviceConfig = {
+        Type = "simple";
+        User = cfg.user;
+        StateDirectory = "xtcp2";
+        StateDirectoryMode = "0750";
+        ExecStart = xtcp2Exec.escapeSystemdExecArgs [
+          "${cfg.treatments.watchdogPackage}/bin/xtcp2-treatmentctl"
+          "-mode=watchdog"
+          "-config=${cfg.treatments.configFile}"
+        ];
+        Restart = "always";
+        RestartSec = "2s";
+        AmbientCapabilities = [
+          "CAP_NET_ADMIN"
+          "CAP_SYS_PTRACE"
+        ];
+        CapabilityBoundingSet = [
+          "CAP_NET_ADMIN"
+          "CAP_SYS_PTRACE"
+        ];
       };
     };
   };

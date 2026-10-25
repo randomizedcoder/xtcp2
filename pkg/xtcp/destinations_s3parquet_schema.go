@@ -37,8 +37,16 @@ type ParquetRow struct {
 	EventDate string `parquet:"event_date,zstd"`
 
 	// ---- metadata: host identity (20s)
-	Hostname string `parquet:"hostname,zstd"`
-	Location string `parquet:"location,zstd"`
+	Hostname                    string `parquet:"hostname,zstd"`
+	Location                    string `parquet:"location,zstd"`
+	AgentId                     string `parquet:"agent_id,zstd"`
+	HostBootId                  string `parquet:"host_boot_id,zstd"`
+	CollectionId                string `parquet:"collection_id,zstd"`
+	TreatmentStateRevision      uint64 `parquet:"treatment_state_revision,snappy"`
+	TreatmentAssignmentId       string `parquet:"treatment_assignment_id,zstd"`
+	TreatmentGeneration         uint64 `parquet:"treatment_generation,snappy"`
+	TreatmentAppliedTimestampNs int64  `parquet:"treatment_applied_timestamp_ns,snappy"`
+	TreatmentAlgorithmExposed   bool   `parquet:"treatment_algorithm_exposed"`
 
 	// ---- metadata: network namespace identity (30s)
 	Netns      string `parquet:"netns,zstd"`

@@ -117,6 +117,7 @@ s3UploadMaxAttempts	10	s3parquet: max upload attempts (original + retries) befor
 tag		label applied to the protobuf
 timeout	5s	Poll timeout per name space
 topic	xtcp	Kafka or NSQ topic
+treatmentConfig		optional controller agent JSON config; route application requires enable_apply
 uplinkCount	2	number of uplink slots to populate for LLDP/NIC enrichment (hosts are typically dual-homed = 2; max 2). Falls back to UPLINK_COUNT env.
 uplinkInterfaces		comma-separated explicit uplink interface names (e.g. "eth0,eth1") overriding default-route auto-detection for -enrichLldp/-enrichNic. Falls back to UPLINK_INTERFACES env.
 v	false	show version

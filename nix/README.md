@@ -219,7 +219,7 @@ Use the full path: `nix build path:.#checks.x86_64-linux.NAME -L`.
 | `vm-linkmonitor-performance-bundle` | Performance evidence-bundle validation |
 | `test-go-race`, `test-go-flavor-*`, `test-linkmonitor` | Behavioral suites registered alongside static checks |
 | `test-ipmeta-bootstrap-artifact`, `test-oci-ipmeta-bootstrap-contents`, `test-ipmeta-bootstrap-snapshot`, `test-oci-ipmeta-bootstrap-snapshot-contents` | Fixture and real-snapshot bootstrap checks, also available as packages above |
-| `microvm-lifecycle-x86_64`, `vm-*`, `vm-all` | Actual guest checks described next; `vm-*` here refers to the nine guest checks, not the host helpers above |
+| `microvm-lifecycle-x86_64`, `vm-*`, `vm-all` | Actual guest checks described next; `vm-*` here refers to guest checks, not the host helpers above |
 
 ## Nix integration testing
 
@@ -242,9 +242,9 @@ are failures/unverified runs, not passing skips.
 
 | Entry point | Runs | Does not cover |
 |---|---|---|
-| `checks.x86_64-linux.vm-all` | Seven registered monitor/goip guest checks; cached | Daemon lifecycle flavor sweep, captures, long soaks |
+| `checks.x86_64-linux.vm-all` | Registered monitor/goip/controller guest checks; cached | Daemon lifecycle flavor sweep, captures, long soaks |
 | `checks.x86_64-linux.microvm-lifecycle-x86_64` | Base daemon lifecycle guest; cached | Other lifecycle flavors |
-| `integration-all` app | Sequential lifecycle flavor sweep plus goip parity; fresh | Monitor `vm-all`, interface-naming/ipmeta-bootstrap lifecycle cases, capture jobs, discovery/rate benchmarks |
+| `integration-all` app | Sequential lifecycle flavor sweep, TCP controller and goip parity; fresh | Monitor `vm-all`, interface-naming/ipmeta-bootstrap lifecycle cases, capture jobs, discovery/rate benchmarks |
 | `integration-all -- --soak --duration 1h` | The sweep plus each configured soak for the given duration | Other investigation variants and physical-hardware validation |
 | `nix flake check` | All registered checks, including the cached guest groups above | Unregistered lifecycle runners, capture apps, fresh performance/soak measurements |
 
@@ -302,6 +302,8 @@ Each pair below offers a fresh runnable package and a cached check. See
 | `test-xtcp2-linkmonitor-vm` | `vm-xtcp2-linkmonitor` | Real xtcp2 NixOS service, baseline persistence/reload, missing-link and degradation behavior |
 | `test-xtcp2-scrape-auth-vm` | `vm-xtcp2-scrape-auth` | vmagent read-token scraping, 401/403 authorization, healthcheck, and token rotation |
 | `test-xtcp2-ip-listen-vm` | `vm-xtcp2-ip-listen` | Separate unauthenticated loopback inspection listener, route separation, and rejection of a non-loopback peer through `route_localnet` |
+| `test-tcp-controller-vm` | `vm-tcp-controller` | Go-driven seven-guest TCP/netem test: ClickHouse evidence, reviewed canaries, holds, persistence, harmful-treatment rollback and watchdog expiry |
+| `test-tcp-controller-soak-vm` | `vm-tcp-controller-soak` (opt-in, outside `vm-all`) | Repeated RTT changes, scheduled discovery, test-operator approval, automatic rollback and cooldown; defaults to ~30m, configurable with `--cycles=2..6 --interval=3m\|4m\|5m` |
 
 `demo-linkmonitor-ionic-profiles` is a separate interactive/emulator scenario
 runner: `nix run path:.#demo-linkmonitor-ionic-profiles -- --out=/tmp/ionic-demo`.

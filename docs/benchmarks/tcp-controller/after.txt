@@ -1,0 +1,90 @@
+goos: linux
+goarch: amd64
+pkg: github.com/randomizedcoder/xtcp2/pkg/treatment
+cpu: AMD Ryzen Threadripper PRO 3945WX 12-Cores
+BenchmarkFleetEvidence/Validate/100-24         	   15618	     22979 ns/op	    3500 B/op	       3 allocs/op
+BenchmarkFleetEvidence/Validate/100-24         	   15716	     22848 ns/op	    3500 B/op	       3 allocs/op
+BenchmarkFleetEvidence/Validate/100-24         	   15710	     23008 ns/op	    3500 B/op	       3 allocs/op
+BenchmarkFleetEvidence/Safety/100-24           	   10000	     32458 ns/op	   10499 B/op	       9 allocs/op
+BenchmarkFleetEvidence/Safety/100-24           	   10000	     32123 ns/op	   10499 B/op	       9 allocs/op
+BenchmarkFleetEvidence/Safety/100-24           	    8842	     34691 ns/op	   10499 B/op	       9 allocs/op
+BenchmarkFleetEvidence/Evaluate/100-24         	    6694	     59860 ns/op	   12998 B/op	      15 allocs/op
+BenchmarkFleetEvidence/Evaluate/100-24         	    5942	     61621 ns/op	   12998 B/op	      15 allocs/op
+BenchmarkFleetEvidence/Evaluate/100-24         	    6594	     58432 ns/op	   12998 B/op	      15 allocs/op
+BenchmarkFleetEvidence/Validate/1000-24        	    1266	    274384 ns/op	   54673 B/op	       5 allocs/op
+BenchmarkFleetEvidence/Validate/1000-24        	    1401	    272011 ns/op	   54674 B/op	       5 allocs/op
+BenchmarkFleetEvidence/Validate/1000-24        	    1309	    286308 ns/op	   54676 B/op	       5 allocs/op
+BenchmarkFleetEvidence/Safety/1000-24          	    1011	    364178 ns/op	  164025 B/op	      15 allocs/op
+BenchmarkFleetEvidence/Safety/1000-24          	    1039	    357506 ns/op	  164026 B/op	      15 allocs/op
+BenchmarkFleetEvidence/Safety/1000-24          	     936	    354571 ns/op	  164032 B/op	      15 allocs/op
+BenchmarkFleetEvidence/Evaluate/1000-24        	     859	    419171 ns/op	  188634 B/op	      21 allocs/op
+BenchmarkFleetEvidence/Evaluate/1000-24        	     858	    415074 ns/op	  188635 B/op	      21 allocs/op
+BenchmarkFleetEvidence/Evaluate/1000-24        	     885	    418120 ns/op	  188635 B/op	      21 allocs/op
+BenchmarkFleetEvidence/Validate/10000-24       	     132	   2717192 ns/op	  437242 B/op	      33 allocs/op
+BenchmarkFleetEvidence/Validate/10000-24       	     133	   2698856 ns/op	  437236 B/op	      33 allocs/op
+BenchmarkFleetEvidence/Validate/10000-24       	     129	   2779841 ns/op	  437253 B/op	      33 allocs/op
+BenchmarkFleetEvidence/Safety/10000-24         	      91	   4062183 ns/op	 1311648 B/op	      99 allocs/op
+BenchmarkFleetEvidence/Safety/10000-24         	      98	   4027768 ns/op	 1311664 B/op	      99 allocs/op
+BenchmarkFleetEvidence/Safety/10000-24         	      93	   4071155 ns/op	 1311647 B/op	      99 allocs/op
+BenchmarkFleetEvidence/Evaluate/10000-24       	      80	   4641976 ns/op	 1557547 B/op	     106 allocs/op
+BenchmarkFleetEvidence/Evaluate/10000-24       	      86	   4598309 ns/op	 1557578 B/op	     106 allocs/op
+BenchmarkFleetEvidence/Evaluate/10000-24       	      86	   4536670 ns/op	 1557578 B/op	     106 allocs/op
+PASS
+ok  	github.com/randomizedcoder/xtcp2/pkg/treatment	9.859s
+goos: linux
+goarch: amd64
+pkg: github.com/randomizedcoder/xtcp2/pkg/treatment/agent
+cpu: AMD Ryzen Threadripper PRO 3945WX 12-Cores
+BenchmarkStamp/routes=1/match=true-24         	10065704	        35.36 ns/op	       0 B/op	       0 allocs/op
+BenchmarkStamp/routes=1/match=true-24         	10003551	        35.31 ns/op	       0 B/op	       0 allocs/op
+BenchmarkStamp/routes=1/match=true-24         	 9843661	        35.27 ns/op	       0 B/op	       0 allocs/op
+BenchmarkStamp/routes=1/match=false-24        	17960965	        19.45 ns/op	       0 B/op	       0 allocs/op
+BenchmarkStamp/routes=1/match=false-24        	18524896	        19.36 ns/op	       0 B/op	       0 allocs/op
+BenchmarkStamp/routes=1/match=false-24        	18477922	        19.34 ns/op	       0 B/op	       0 allocs/op
+BenchmarkStamp/routes=100/match=true-24       	10218624	        34.42 ns/op	       0 B/op	       0 allocs/op
+BenchmarkStamp/routes=100/match=true-24       	10379076	        34.12 ns/op	       0 B/op	       0 allocs/op
+BenchmarkStamp/routes=100/match=true-24       	10432940	        34.46 ns/op	       0 B/op	       0 allocs/op
+BenchmarkStamp/routes=100/match=false-24      	16772404	        21.60 ns/op	       0 B/op	       0 allocs/op
+BenchmarkStamp/routes=100/match=false-24      	16571926	        21.36 ns/op	       0 B/op	       0 allocs/op
+BenchmarkStamp/routes=100/match=false-24      	16649026	        21.53 ns/op	       0 B/op	       0 allocs/op
+BenchmarkStamp/routes=4096/match=true-24      	10058797	        36.59 ns/op	       0 B/op	       0 allocs/op
+BenchmarkStamp/routes=4096/match=true-24      	 9458271	        37.78 ns/op	       0 B/op	       0 allocs/op
+BenchmarkStamp/routes=4096/match=true-24      	 9816648	        36.13 ns/op	       0 B/op	       0 allocs/op
+BenchmarkStamp/routes=4096/match=false-24     	15207280	        23.66 ns/op	       0 B/op	       0 allocs/op
+BenchmarkStamp/routes=4096/match=false-24     	14958738	        23.85 ns/op	       0 B/op	       0 allocs/op
+BenchmarkStamp/routes=4096/match=false-24     	15022704	        24.07 ns/op	       0 B/op	       0 allocs/op
+BenchmarkPublish/1-24                         	 1435836	       250.2 ns/op	     360 B/op	       3 allocs/op
+BenchmarkPublish/1-24                         	 1423382	       252.5 ns/op	     360 B/op	       3 allocs/op
+BenchmarkPublish/1-24                         	 1395063	       257.7 ns/op	     360 B/op	       3 allocs/op
+BenchmarkPublish/100-24                       	   26905	     13185 ns/op	    9392 B/op	      12 allocs/op
+BenchmarkPublish/100-24                       	   27619	     13046 ns/op	    9392 B/op	      12 allocs/op
+BenchmarkPublish/100-24                       	   28101	     12880 ns/op	    9392 B/op	      12 allocs/op
+BenchmarkPublish/4096-24                      	     511	    687413 ns/op	  652373 B/op	      49 allocs/op
+BenchmarkPublish/4096-24                      	     523	    690086 ns/op	  652352 B/op	      49 allocs/op
+BenchmarkPublish/4096-24                      	     523	    680441 ns/op	  652352 B/op	      49 allocs/op
+PASS
+ok  	github.com/randomizedcoder/xtcp2/pkg/treatment/agent	9.879s
+goos: linux
+goarch: amd64
+pkg: github.com/randomizedcoder/xtcp2/pkg/treatment/controller
+cpu: AMD Ryzen Threadripper PRO 3945WX 12-Cores
+BenchmarkNotificationFleet/100-24         	   26011	     13993 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNotificationFleet/100-24         	   26156	     13745 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNotificationFleet/100-24         	   25989	     13681 ns/op	       0 B/op	       0 allocs/op
+BenchmarkNotificationFleet/1000-24        	    2479	    141174 ns/op	      43 B/op	       0 allocs/op
+BenchmarkNotificationFleet/1000-24        	    2698	    139311 ns/op	      40 B/op	       0 allocs/op
+BenchmarkNotificationFleet/1000-24        	    2552	    138808 ns/op	      42 B/op	       0 allocs/op
+BenchmarkNotificationFleet/10000-24       	     248	   1463026 ns/op	    3522 B/op	       0 allocs/op
+BenchmarkNotificationFleet/10000-24       	     244	   1508009 ns/op	    3579 B/op	       0 allocs/op
+BenchmarkNotificationFleet/10000-24       	     178	   2066908 ns/op	    4907 B/op	       0 allocs/op
+PASS
+ok  	github.com/randomizedcoder/xtcp2/pkg/treatment/controller	3.349s
+goos: linux
+goarch: amd64
+pkg: github.com/randomizedcoder/xtcp2/internal/goip
+cpu: AMD Ryzen Threadripper PRO 3945WX 12-Cores
+BenchmarkTreatmentPlanRoute-24    	  371434	       917.5 ns/op	     756 B/op	      10 allocs/op
+BenchmarkTreatmentPlanRoute-24    	  402067	      1501 ns/op	     756 B/op	      10 allocs/op
+BenchmarkTreatmentPlanRoute-24    	  346634	      1116 ns/op	     756 B/op	      10 allocs/op
+PASS
+ok  	github.com/randomizedcoder/xtcp2/internal/goip	1.344s

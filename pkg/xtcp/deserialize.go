@@ -226,6 +226,9 @@ func (x *XTCP) processInetDiagRecord(
 	// plus per-namespace container labels (Docker Engine API, keyed by netns
 	// inode) and opt-in nsid. All O(1) and no-op when their enricher is off.
 	x.applyEnrichment(xtcpRecord)
+	if x.treatmentStamp != nil {
+		x.treatmentStamp(xtcpRecord)
+	}
 
 	// Fallback container resolution from the socket's cgroup id (populated by
 	// DeserializeAttributes above). Only runs when the Docker index didn't

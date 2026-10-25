@@ -252,6 +252,7 @@ var (
 // short and lets the per-section helpers (printFlags, buildConfig,
 // startProfile) take a single argument instead of 30 positional ones.
 type mainFlags struct {
+	treatmentConfig     *string
 	nltimeout           *uint64
 	pollFrequency       *time.Duration
 	pollTimeout         *time.Duration
@@ -439,6 +440,7 @@ func defaultDest() string {
 // of all 92 are pinned by cmd/xtcp2/testdata/defineflags-golden.txt.
 func defineFlags() *mainFlags {
 	f := &mainFlags{}
+	f.treatmentConfig = flag.String("treatmentConfig", "", "optional controller agent JSON config; route application requires enable_apply")
 	f.nltimeout = flag.Uint64("nltimeout", nltimeoutCst, "Netlink socket timeout in milliseconds.  Zero(0) for no timeout")
 	f.pollFrequency = flag.Duration("frequency", pollFrequencyCst, "Poll frequency")
 	f.pollTimeout = flag.Duration("timeout", pollTimeoutCst, "Poll timeout per name space")
@@ -1025,7 +1027,7 @@ func runMain(ctx context.Context) int {
 	defer cancel()
 
 	complete := make(chan struct{}, signalChannelSizeCst)
-	initSignalHandler(cancel, complete, linkMonitorHTTP.rebaseline)
+	initSignalHandler(cancel, complete, linkMonitorHTTP.rebaseline, reconcileTreatments)
 
 	f := defineFlags()
 	flag.Parse()
@@ -1129,6 +1131,13 @@ func runMain(ctx context.Context) int {
 		log.Println("config validation succeeded")
 	}
 
+	stopTreatments, err := startTreatments(runCtx, f.treatmentConfig)
+	if err != nil {
+		// Controller availability/configuration must not stop socket telemetry.
+		log.Printf("treatment agent unavailable: %v", err)
+	} else {
+		defer stopTreatments()
+	}
 	daemonRunner(runCtx, cancel, c)
 	// The signal handler exits once complete is sent, so drain first.
 	cancel()
@@ -1147,6 +1156,9 @@ func runMain(ctx context.Context) int {
 // and run RunWithPoller until ctx cancels the WG.
 func runDaemonDefault(ctx context.Context, cancel context.CancelFunc, c *xtcp_config.XtcpConfig) {
 	x := xtcp.NewXTCP(ctx, cancel, c)
+	if a := activeTreatments.Load(); a != nil {
+		x.SetTreatmentStamper(a.Stamp)
+	}
 	detach, err := linkMonitorHTTP.attach(x)
 	if err != nil {
 		fatalf("link monitor http: %v", err)
@@ -1255,15 +1267,15 @@ func envWithoutKey(env []string, key string) []string {
 // goroutine, so a SIGTERM sent while flags are still being parsed takes the
 // graceful path instead of Go's default, which exits at once. (Go drops a
 // SIGUSR1 that arrives before any Notify; it never kills the process.)
-func initSignalHandler(cancel context.CancelFunc, complete <-chan struct{}, rebaseline func()) {
+func initSignalHandler(cancel context.CancelFunc, complete <-chan struct{}, rebaseline func(), reconcile ...func()) {
 	c := notifySignals()
-	go awaitSignalAndShutdown(c, cancel, complete, cancelSleepTimeCst, true, rebaseline)
+	go awaitSignalAndShutdown(c, cancel, complete, cancelSleepTimeCst, true, rebaseline, reconcile...)
 }
 
 // notifySignals routes SIGINT, SIGTERM and SIGUSR1 to the returned channel.
 func notifySignals() chan os.Signal {
 	c := make(chan os.Signal, signalChannelSizeCst)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGUSR1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM, syscall.SIGUSR1, syscall.SIGHUP)
 	return c
 }
 
@@ -1280,11 +1292,19 @@ func awaitSignalAndShutdown(
 	timeout time.Duration,
 	doExit bool,
 	rebaseline func(),
+	reconcile ...func(),
 ) {
 	// SIGUSR1 never shuts down; a nil rebaseline ignores it.
-	for sig := <-sigs; sig == syscall.SIGUSR1; sig = <-sigs {
-		if rebaseline != nil {
+	for sig := <-sigs; sig == syscall.SIGUSR1 || sig == syscall.SIGHUP; sig = <-sigs {
+		if sig == syscall.SIGUSR1 && rebaseline != nil {
 			rebaseline()
+		}
+		if sig == syscall.SIGHUP {
+			for _, fn := range reconcile {
+				if fn != nil {
+					fn()
+				}
+			}
 		}
 	}
 	log.Printf("Signal caught, closing application")

@@ -89,7 +89,7 @@ const (
 	// mainFlags field must be a registered flag and every registered flag must
 	// have a field. A flag added without a field, or a field that stops being
 	// registered, is the drift this file exists to notice.
-	mainFlagsFieldCountCst = 124
+	mainFlagsFieldCountCst = 125 // optional treatmentConfig adds the controller agent
 
 	printFlagsGoldenCst  = "testdata/printflags-golden.txt"
 	defineFlagsGoldenCst = "testdata/defineflags-golden.txt"
@@ -155,6 +155,7 @@ func populatedMainFlags() *mainFlags {
 	ms := func(v int) *time.Duration { d := time.Duration(v) * time.Millisecond; return &d }
 
 	return &mainFlags{
+		treatmentConfig:     s("/etc/xtcp2/test-treatment-config.json"),
 		nltimeout:           u64(101),
 		pollFrequency:       ms(102),
 		pollTimeout:         ms(103),

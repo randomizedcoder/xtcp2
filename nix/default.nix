@@ -187,6 +187,15 @@ let
         };
     in
     {
+      tcp-controller = import ./tests/tcp-controller {
+        inherit
+          pkgs
+          lib
+          binaries
+          nixpkgs
+          ;
+        inherit (goSource) vendoredSource;
+      };
       goip-argv-paths = import ./tests/goip-argv-paths.nix {
         inherit pkgs lib nixpkgs;
         monitor = linkmonitorPackages.go-link-monitor;
@@ -223,6 +232,17 @@ let
       };
     };
   vmChecks = lib.mapAttrs' (name: t: lib.nameValuePair "vm-${name}" t.vmCheck.check) vmTests;
+  # Longer repeated discovery/rollback run; opt in separately from vm-all.
+  tcpControllerSoak = import ./tests/tcp-controller {
+    inherit
+      pkgs
+      lib
+      binaries
+      nixpkgs
+      ;
+    inherit (goSource) vendoredSource;
+    soak = true;
+  };
 
   # Dev shell
   devshell = import ./devshell.nix { inherit pkgs; };
@@ -828,18 +848,14 @@ let
           drv = microvms.s3ParquetLowfreq.x86_64.runner;
         }
       ];
-      # Neither a lifecycle flavor nor a soak: it runs to completion in minutes
-      # like the first list, but it self-terminates on a parity verdict rather
-      # than on XTCP2_SELF_TEST_OVERALL, and there is no xtcp2 daemon in the
-      # guest to emit that sentinel. Its own list, so the lifecycle sweep's
-      # description stays true of every member of it.
-      #
-      # It belongs in `integration-all` for the same reason everything else
-      # here does: SERIAL_PORT is fixed per arch, so it cannot run concurrently
-      # with any other VM, and this is the one command that runs them one at a
-      # time. Same 0/1/2 = PASS/FAIL/TIMEOUT contract, so run_job needs no
-      # special case.
+      # Finite runners with their own verdicts, separate from lifecycle and
+      # duration-based soak runners. Keep the aggregate sequential to bound
+      # resource use and avoid the older guests' fixed serial-port conflicts.
       verdictFlavors = [
+        {
+          label = "tcp-controller";
+          drv = vmTests.tcp-controller;
+        }
         {
           label = "goip-parity";
           drv = microvms.goipParity.x86_64.runner;
@@ -870,13 +886,16 @@ let
                 "  default          the 17 lifecycle flavors; each self-terminates on its" \
                 "                   XTCP2_SELF_TEST_OVERALL sentinel (minutes each; the" \
                 "                   clickhouse-http one can take up to ~20m), then the" \
-                "                   verdict runners: goip-parity, which captures an" \
+                "                   verdict runners: tcp-controller (seven guests," \
+                "                   measured canaries and netem rollback), then" \
+                "                   goip-parity, which captures an" \
                 "                   ip/goip/ip triple per command and compares them in" \
                 "                   the guest (~5m)." \
                 "  --soak           additionally run the 7 duration-bounded runners:" \
                 "                   soak, tcp-stress, clickhouse-pipeline-stress," \
                 "                   s3parquet-long, s3parquet-stress," \
                 "                   s3parquet-stress-iouring, s3parquet-lowfreq." \
+                "                   Also runs tcp-controller-soak (~30m, fixed cycles)." \
                 "  --duration <D>   per-soak duration (default 1h). Ignored without --soak." \
                 "" \
                 "  Prints a PASS/FAIL/TIMEOUT summary; exits non-zero if any flavor failed." \
@@ -937,6 +956,7 @@ let
             [ -z "$label" ] && continue
             run_job "$label" "$bin" --duration "$DURATION"
           done < <(printf '%s\n' "$SOAK_JOBS")
+          run_job "tcp-controller-soak" "${lib.getExe tcpControllerSoak}"
         fi
 
         echo ""
@@ -992,6 +1012,8 @@ in
       # IA4-T01 of cmd/go-link-monitor/IP-ARGV-PATHS-IMPLEMENTATION-PLAN.md:
       # `nix run .#test-goip-argv-paths-vm`, which needs /dev/kvm or TCG.
       test-goip-argv-paths-vm = vmTests.goip-argv-paths;
+      test-tcp-controller-vm = vmTests.tcp-controller;
+      test-tcp-controller-soak-vm = tcpControllerSoak;
       test-linkmonitor-embedding-vm = vmTests.linkmonitor-embedding;
       test-linkmonitor-performance-vm = linkmonitorPerformanceVm;
       test-linkmonitor-rdma-vm = vmTests.linkmonitor-rdma;
@@ -1073,6 +1095,9 @@ in
       # `nix build .#test-go-unit`, etc.
       test-go-unit = tests.go-unit;
       test-go-bench = tests.go-bench;
+      test-tcp-controller-unit = tests.tcp-controller-quality.unit;
+      test-tcp-controller-race = tests.tcp-controller-quality.race;
+      bench-tcp-controller = tests.tcp-controller-quality.bench;
       test-go-race = tests.go-race;
       test-listener-security = tests.listener-security;
       test-proto-deserialize-golden = tests.proto-deserialize-golden;
@@ -1141,6 +1166,9 @@ in
       # sandbox (extra-sandbox-paths); without it, it fails with
       # VM_CHECK_NO_TUN. See linkmonitor-ionic.nix.
       vm-all = pkgs.linkFarm "vm-all" (lib.mapAttrsToList (name: path: { inherit name path; }) vmChecks);
+      vm-tcp-controller-soak = tcpControllerSoak.vmCheck.check;
+      tcp-controller-unit = tests.tcp-controller-quality.unit;
+      tcp-controller-race = tests.tcp-controller-quality.race;
 
       # Race-detector + per-flavor builds. These run as part of
       # `nix flake check` so a flavor-tag regression (e.g. dest_kafka
@@ -1171,6 +1199,14 @@ in
     // (lib.filterAttrs (n: _v: lib.hasPrefix "test-go-flavor-" n) tests);
 
   apps = {
+    test-tcp-controller-vm = {
+      type = "app";
+      program = "${vmTests.tcp-controller}/bin/test-tcp-controller-vm";
+    };
+    test-tcp-controller-soak-vm = {
+      type = "app";
+      program = "${tcpControllerSoak}/bin/test-tcp-controller-soak-vm";
+    };
     regen-protos = {
       type = "app";
       program = "${protos.regenerate}/bin/regen-protos";

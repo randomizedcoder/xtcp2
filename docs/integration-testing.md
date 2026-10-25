@@ -8,6 +8,7 @@ A comprehensive Nix-driven setup that boots xtcp2 inside QEMU microvms alongside
 - [Test surfaces at a glance](#test-surfaces-at-a-glance)
 - [Quick start](#quick-start)
 - [Architecture](#architecture)
+- [TCP controller integration](#tcp-controller-integration)
 - [Microvm flavors](#microvm-flavors)
 - [Components](#components)
   - [xtcp2 daemon](#xtcp2-daemon)
@@ -26,6 +27,109 @@ A comprehensive Nix-driven setup that boots xtcp2 inside QEMU microvms alongside
 - [Tunables](#tunables)
 - [Typical workflows](#typical-workflows)
 - [Troubleshooting](#troubleshooting)
+
+## TCP controller integration
+
+Run `nix run path:.#test-tcp-controller-vm -- --accel=auto` for a fresh
+controller test, or `nix build path:.#checks.x86_64-linux.vm-tcp-controller -L`
+for the cached KVM check. It also participates in `vm-all` and `integration-all`.
+The configuration is in `nix/tests/tcp-controller/`; the test driver is Go in
+`tools/tcp-controller-integration/`, using the generated controller gRPC client.
+
+Six agent guests run the existing `tcp_client` load generator and real xtcp2
+service. A seventh guest runs `tcp_server`, PostgreSQL, ClickHouse and the
+controller. Six hosts satisfy the production requirement for four treated hosts
+and two controls. Each agent has 32 connections to each of two destination
+addresses. `tc netem` adds 5 ms and 80 ms of outbound delay respectively;
+management traffic stays unshaped. UNIX datagram links connect the guests to a
+bridge inside the controller guest, without host networking privileges or
+external network access. Allow approximately 9 GiB for guest memory, plus QEMU
+overhead. KVM is preferred; `--accel=tcg` is available for software emulation.
+
+The Go driver verifies measured RTT separation in ClickHouse, reviewed nearby
+route application on one host (`congctl cubic`, `rto_min 5ms`, `quickack 1`,
+`initcwnd 100`, `initrwnd 100`), existing Reno versus newly exposed CUBIC sockets,
+durable prototext state across daemon/controller restarts, local and fleet holds,
+and reviewed expansion to two hosts. It then raises one treated host's delay to
+180 ms and requires automatic rollback from measured harm. Finally, it stops
+the controller and one agent, advances that isolated guest's clock past the
+unchanged one-hour trial lease, and requires the independent watchdog to remove
+the route without resurrecting it after restart/reconnection. Main routes and
+the system default congestion algorithm must remain unchanged.
+
+This is a functional safety test, not a benchmark claiming that CUBIC improves
+the synthetic workload. Observation intervals are shortened to 20 seconds using
+the existing policy configuration; production authorization and lease behavior
+are unchanged. The test exercises the direct protobuf/HTTP ingest path, not the
+Kafka pipeline or automatic candidate discovery. It does not test reboot or
+completion of a fleet-wide rollout.
+
+Evidence is retained under `~/.cache/xtcp2-vm/tcp-controller/<timestamp>/` (or
+`$XDG_CACHE_HOME`): controller and agent serial logs, RTT measurements, agent
+journals/routes/prototext state, a PostgreSQL dump and a bounded recent telemetry
+sample. Runtime-generated credentials remain inside the disposable guests.
+The unauthenticated fixture HTTP endpoint is test-only and confined to the
+isolated guest network; production controller communication uses mTLS.
+
+For repeated changes over time, run the Go-driven soak variant:
+
+```sh
+nix run path:.#test-tcp-controller-soak-vm -- --cycles=3 --interval=3m
+```
+
+The default takes roughly 30 minutes: three cycles of three RTT phases, followed
+by a cooldown check. `--cycles=2..6` and `--interval=3m|4m|5m` control the run;
+`--accel` and `--keep` work as in the short test. The optional cached check is
+`checks.x86_64-linux.vm-tcp-controller-soak`. It is excluded from `vm-all` and
+included in `integration-all -- --soak` as a fixed-cycle run; the aggregate's
+`--duration` applies to its other soak runners.
+
+Each cycle sends the six agents to a fresh destination and changes its netem
+delay from 180 ms to 5 ms and back to 180 ms. High RTT must produce no nearby
+candidate. Low RTT must cause the **controller's scheduled discovery** to propose
+a new experiment with the same five nearby route settings. The test verifies
+that discovery has applied no routes,
+then acts as an authenticated test operator to approve the first canary. It
+checks all five installed kernel metrics and actual CUBIC socket exposure,
+and rejects any unapproved expansion. When
+RTT rises again, an active trial must roll back automatically based on measured
+harm; the driver never requests a rollback. The aggressive profile can also
+cross a safety guard during the low-RTT phase. Such an early withdrawal is
+accepted only with valid harmful evidence, observed canary exposure and verified
+route removal. It is recorded separately as `low_rtt_safety_rollback`, and the
+test continues to require that the route stays withdrawn. At least one cycle
+must exercise an injected-latency rollback with high RTT on the canary; early
+withdrawals cannot substitute for that coverage. The summary reports both counts.
+
+This variant uses a one-minute discovery interval and lookback, leaving the
+production defaults (30 minutes and one hour), review requirements, rollout
+timing and 24-hour destination cooldown intact. Its discovery template explicitly
+sets `maximum_rtt_increase=1.0` (100%): the production 10% guard allows only about
+0.5 ms at this fixture's low RTT and can trigger before netem changes. The wider
+test tolerance still requires automatic rollback for the 5 ms to 180 ms jump.
+Production templates keep the 10% default unless explicitly configured otherwise.
+The retransmission guard remains unchanged at 0.005 (0.5 percentage points).
+Fresh destinations allow each
+cycle to discover a new candidate without bypassing that cooldown. The final
+phase revisits the first destination at low RTT and verifies that it stays
+withdrawn. New load connections reset TCP_INFO's lifetime minimum RTT at the
+start of discovery phases; the regression phase retains the treated sockets.
+The fixed 80 ms reference traffic continues throughout.
+
+Evidence under `~/.cache/xtcp2-vm/tcp-controller-soak/<timestamp>/artifacts/`
+includes `soak-events.jsonl` (RTT changes, proposals, explicit test approvals and
+automatic rollbacks), `soak-rtt.csv` (per-host RTT and algorithm/exposure samples
+every 15 seconds), and `soak-summary.json`. These are written during the run so
+they can be inspected while the guests are running. The controller still
+requires an operator to approve treatment application; this test does not make
+it an autonomous optimizer or demonstrate that CUBIC outperforms Reno.
+
+To view the decision timeline for a run:
+
+```sh
+jq -r '[.at, .event, .destination, (.experiment.id // "")] | @tsv' \
+  ~/.cache/xtcp2-vm/tcp-controller-soak/<timestamp>/artifacts/soak-events.jsonl
+```
 
 ## Introduction
 

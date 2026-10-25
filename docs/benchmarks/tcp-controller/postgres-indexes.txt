@@ -1,0 +1,27 @@
+=== RUN   TestPostgresExperimentQueryIndexes
+=== RUN   TestPostgresExperimentQueryIndexes/old-destination
+    postgres_indexes_test.go:207: 100005 experiments: unindexed 26.153 ms, indexed 0.023 ms (xtcp_control_experiments_destination)
+=== RUN   TestPostgresExperimentQueryIndexes/absent-destination
+    postgres_indexes_test.go:207: 100005 experiments: unindexed 24.508 ms, indexed 0.015 ms (xtcp_control_experiments_destination)
+=== RUN   TestPostgresExperimentQueryIndexes/active-budget
+    postgres_indexes_test.go:207: 100005 experiments: unindexed 9.218 ms, indexed 0.018 ms (xtcp_control_experiments_destination)
+=== RUN   TestPostgresExperimentQueryIndexes/idle-budget
+    postgres_indexes_test.go:207: 100005 experiments: unindexed 27.249 ms, indexed 0.023 ms (xtcp_control_experiments_status_location)
+=== RUN   TestPostgresExperimentQueryIndexes
+=== RUN   TestPostgresExperimentQueryIndexes/old-destination
+    postgres_indexes_test.go:207: 100005 experiments: unindexed 25.340 ms, indexed 0.022 ms (xtcp_control_experiments_destination)
+=== RUN   TestPostgresExperimentQueryIndexes/absent-destination
+    postgres_indexes_test.go:207: 100005 experiments: unindexed 23.556 ms, indexed 0.021 ms (xtcp_control_experiments_destination)
+=== RUN   TestPostgresExperimentQueryIndexes/active-budget
+    postgres_indexes_test.go:207: 100005 experiments: unindexed 9.146 ms, indexed 0.017 ms (xtcp_control_experiments_destination)
+=== RUN   TestPostgresExperimentQueryIndexes/idle-budget
+    postgres_indexes_test.go:207: 100005 experiments: unindexed 26.392 ms, indexed 0.036 ms (xtcp_control_experiments_status_location)
+=== RUN   TestPostgresExperimentQueryIndexes
+=== RUN   TestPostgresExperimentQueryIndexes/old-destination
+    postgres_indexes_test.go:207: 100005 experiments: unindexed 24.946 ms, indexed 0.024 ms (xtcp_control_experiments_destination)
+=== RUN   TestPostgresExperimentQueryIndexes/absent-destination
+    postgres_indexes_test.go:207: 100005 experiments: unindexed 23.196 ms, indexed 0.014 ms (xtcp_control_experiments_destination)
+=== RUN   TestPostgresExperimentQueryIndexes/active-budget
+    postgres_indexes_test.go:207: 100005 experiments: unindexed 9.920 ms, indexed 0.025 ms (xtcp_control_experiments_destination)
+=== RUN   TestPostgresExperimentQueryIndexes/idle-budget
+    postgres_indexes_test.go:207: 100005 experiments: unindexed 26.413 ms, indexed 0.023 ms (xtcp_control_experiments_status_location)

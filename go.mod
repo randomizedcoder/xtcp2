@@ -9,6 +9,7 @@ require (
 	github.com/grafana/pyroscope-go v1.4.3
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.32.0
 	github.com/klauspost/compress v1.20.3
+	github.com/lib/pq v1.12.3
 	github.com/minio/minio-go/v7 v7.4.1
 	github.com/nats-io/nats.go v1.54.0
 	github.com/nsqio/go-nsq v1.1.0
