@@ -1764,7 +1764,7 @@ Three tasks, one per parser file, matching KC3's: KP2-T01 vlan, KP2-T02 macvlan 
 **Code.** A new `pkg/xtcpnl/xtcpnl_ipvlan.go`:
 - **`IpvlanInfo`:** `Mode` (u16: l2 0, l3 1, l3s 2) and `Flags` (u16: private 1, vepa 2), with present bits. `ipvlan_print_opt` reads each only at exactly 2 bytes.
 - **`ParseIpvlanInfoData`**, `LinkInfo.Ipvlan`, a branch for `ipvlan` and `ipvtap`.
-- **`EncodeIpvlanInfoData`:** `IFLA_IPVLAN_MODE` in argument order, then `IFLA_IPVLAN_FLAGS` always, 0 when no flag word was given. The empty settings list encodes to nothing, since `iplink_parse` calls no `parse_opt` without options.
+- **`EncodeIpvlanInfoData`:** one `IFLA_IPVLAN_MODE` per mode word, in argument order, then `IFLA_IPVLAN_FLAGS` always, 0 when no flag word was given. The empty settings list encodes to nothing, since `iplink_parse` calls no `parse_opt` without options. A second flag word is `ErrIpvlanSecondFlag` (`ip` reports it as an unknown option).
 - **The render oracle:** `mode` (`l2`, `l3`, `l3s`, else `unknown`), then exactly one of `private`, `vepa` or `bridge` as `true`; private wins over vepa.
 - **The benchmark:** `BenchmarkParseIpvlanInfoData` over `add_mode_and_flag`'s blob.
 
@@ -1782,8 +1782,9 @@ Three tasks, one per parser file, matching KC3's: KP2-T01 vlan, KP2-T02 macvlan 
 | negative: a mode of 4 bytes | built | mode absent: `ip` wants exactly 2 |
 | boundary: an empty nest | `[]byte{}` | nothing present |
 | boundary: the highest mode | built l3s | `l3s` |
-| corner: both flag bits | built flags 0x3 | renders `private` alone |
+| corner: both flag bits render private alone | built flags 0x3 | `private` alone |
 | corner: an unknown mode | built 3 | renders `unknown` |
+| corner: an id past `IFLA_IPVLAN_FLAGS` is listed | built type 3, then flags 2 | `Unknown` [3], vepa |
 
 `TestEncodeIpvlanInfoData`:
 
@@ -1791,15 +1792,194 @@ Three tasks, one per parser file, matching KC3's: KP2-T01 vlan, KP2-T02 macvlan 
 |---|---|---|
 | positive: each row's request | the 17 rows of both kinds that sent one | byte-identical to `ip.pcap`'s |
 | positive: a mode alone sends flags 0 | `mode l2` | `IFLA_IPVLAN_MODE` 0, `IFLA_IPVLAN_FLAGS` 0 |
-| negative: two flag words | `private vepa` | an error, as `ip` refuses the second |
-| negative: a mode out of range | 3 | an error |
+| negative: two flag words | `private vepa` | `ErrIpvlanSecondFlag` |
+| negative: a mode out of range | 3 | `ErrKindSettingRange` |
+| negative: a setting with no option | the zero option | `ErrKindSettingOption` |
 | boundary: no settings | an empty list | no attributes |
 | corner: `bridge` is flags 0 | `bridge` | `IFLA_IPVLAN_FLAGS` 0 |
 | corner: the flags follow a later mode | `vepa mode l2` | `MODE`, then `FLAGS` 2 |
+| corner: each mode word is its own attribute | `mode l2 mode l3s` | `MODE` 0, `MODE` 2, then `FLAGS` 0 |
 
-**Mutation check:** `IFLA_IPVLAN_FLAGS` sent only with a flag word (`set_mode`'s request), vepa winning over private in the render (its corner), the ipvtap branch dropped (the ipvtap rows). It closes KP2.
+`TestLinkInfoIpvlanKinds`, whole answers through `ParseNewLink`:
+
+| description | input | expected |
+|---|---|---|
+| positive: an ipvlan decodes Ipvlan | `ipvlan/add_mode_l2`'s `-d` readback | `Ipvlan` set |
+| positive: an ipvtap decodes Ipvlan | `ipvtap/add_mode_l2`'s | `Ipvlan` set |
+| negative: a macvlan does not | `macvlan/add_default`'s | nil |
+| corner: a vlan, another lower-stacked kind, does not | `vlan/add_default`'s | nil |
+
+**Mutation check:** `IFLA_IPVLAN_FLAGS` sent only with a flag word (`set_mode`'s request), vepa winning over private in the render (its corner), the ipvtap branch dropped (`TestLinkInfoIpvlanKinds`' ipvtap row). It closes KP2.
 
 ### KP3 — UDP overlay parsers
+
+Four tasks, one per KC4 task: KP3-T01 vxlan, KP3-T02 geneve, KP3-T03 bareudp and amt, KP3-T04 gtp, which closes KP3. KP2's shape carries over: a typed `<Kind>Info` with present bits, a `LinkInfo` field and a `setLinkInfoNest` branch on `Kind`, the replay goldens regenerated, a `<Kind>Setting` encoder, and the `kindRows` harness against `netlink_route_getlink_detail_json.pcap`.
+
+**What these kinds add to KP2's shape:**
+- **The encoder needs the operation.** vxlan and geneve send some attributes only on an add (vxlan's `LEARNING`; geneve's `LABEL`, `TTL` and `TOS`), and gtp always sends `CREATE_SOCKETS`. Their encoders take `Encode<Kind>InfoData(settings []<Kind>Setting, set bool)`, and the corpus rows' slugs (`set_*`) say which.
+- **Several attributes go after the loop in a fixed order,** whatever the words' order: vxlan's `ID`, `LOCAL`/`LOCAL6`, `GROUP`/`GROUP6`, `LEARNING`, `PORT`; geneve's `ID`, `REMOTE`/`REMOTE6`, `LOCAL`/`LOCAL6`, `LABEL`, `TTL`, `TOS`, `PORT`, `COLLECT_METADATA`, `INNER_PROTO_INHERIT` and the checksum flags. Each task's corner rows pin the split.
+- **Big-endian fields:** the UDP ports (vxlan `PORT` and `PORT_RANGE`, geneve `PORT`, bareudp `PORT` and `ETHERTYPE`, amt's two ports), the labels (`htonl`), vxlan's `RESERVED_BITS` (a `__be64`), and every IPv4 address. `srcportmin` is host order.
+- **Name lookups:** vxlan's and amt's `LINK` print through `ll_index_to_name`, resolved from the readback's own answers as bridge_slave's `backup_port` is.
+- **Flag attributes:** vxlan's `GBP` and `GPE`, geneve's `COLLECT_METADATA` and `INNER_PROTO_INHERIT`, and bareudp's `MULTIPROTO_MODE` have no payload (gtp's `CREATE_SOCKETS` is a u8 1); vxlan's `TTL_INHERIT` is likewise empty on the request and a u8 in the dump.
+
+**Counts.**
+
+| kind | rows | rc 0 | rc 2 | `ip` refused | requests |
+|---|---|---|---|---|---|
+| vxlan | 73 | 46 | 12 | 15 | 58 |
+| geneve | 49 | 22 | 13 | 14 | 35 |
+| bareudp | 16 | 6 | 4 | 6 | 10 |
+| amt | 20 | 5 | 8 | 7 | 13 |
+| gtp | 19 | 7 | 4 | 8 | 11 |
+
+#### KP3-T01 The vxlan parser
+
+**Code.** A new `pkg/xtcpnl/xtcpnl_vxlan.go`:
+- **`VxlanInfo`:** the id; `Group`, `Local` as `netip.Addr` (from `GROUP`/`GROUP6`, `LOCAL`/`LOCAL6`); the lower's ifindex; `TTL`, `TTLInherit`, `TOS`, `DF`, `Label`, `Ageing`, `Limit`; the source port range (two big-endian u16s) and the destination port; `ReservedBits` (big-endian u64); the 14 u8 booleans of `vxlan_print_opt`'s `vxlan_opts` table plus `GBP` and `GPE`, each with a present bit.
+- **`VxlanBoolOptions`:** the table, in print order (`external`, `vnifilter`, `learning`, `proxy`, `rsc`, `l2miss`, `l3miss`, `udp_csum`, `udp_zero_csum6_tx`, `udp_zero_csum6_rx`, `remcsum_tx`, `remcsum_rx`, `localbypass`, `mcroute`), with their ids.
+- **`EncodeVxlanInfoData(settings, set)`:** `LINK`, `TTL`/`TTL_INHERIT`, `TOS`, `DF`, `LABEL`, `AGEING`, `LIMIT`, `PORT_RANGE` (only when either end is nonzero), the u8 flags, `RESERVED_BITS`, `COLLECT_METADATA`, `GBP`, `GPE`, `VNIFILTER` and `MC_ROUTE` in argument order; then `ID` if given, the local, the group or remote, `LEARNING` (on an add always, 0 after `external` or `nolearning`; on a set only when a learning word was given), and `PORT` when nonzero (4790 for `gpe` without `dstport`).
+- **The render oracle:** `vxlan_print_opt`: `group` or `remote` by whether the address is multicast, `local`, `link` by name, `port_range` as `{low, high}`, `port`, `tos` (hex, absent at 0), `ttl` (absent under `ttl_inherit`; JSON prints 0), `df` (`unset` is JSON-only), `label` (hex, absent at 0), `ageing`, `limit` (absent at 0), `reserved_bits` (hex), `gbp` and `gpe` as JSON null, and each bool option the dump carries.
+- **The benchmark:** `BenchmarkParseVxlanInfoData` over `add_group`'s blob.
+
+`TestVxlanDumpMatchesReadback`: a subtest per rc 0 row (46).
+
+`TestParseVxlanInfoData`:
+
+| description | input | expected |
+|---|---|---|
+| positive: a bare vxlan's dump | `add_default` | id 42, port 8472, ageing 300, learning, udp_csum, localbypass |
+| positive: a multicast group and its lower | `add_group`, with the readback's names | group `239.1.1.1`, link `d0` |
+| positive: an IPv6 remote | `add_remote6` | remote `2001:db8::1` |
+| positive: the source port range | `add_srcport` | low 1000, high 2000 |
+| positive: ttl inherit | `add_ttl_inherit` | no `ttl` key |
+| negative: a nil nest | `nil` | `nil` |
+| negative: a short id | built `IFLA_VXLAN_ID` of 2 bytes | id absent |
+| boundary: an empty nest | `[]byte{}` | nothing present |
+| boundary: the highest VNI | `add_id_max` | id 16777215 |
+| corner: the port is big-endian | built `12 b5` | 4789 |
+| corner: reserved bits are big-endian | built `RESERVED_BITS` | the readback's hex, byte-swapped from the wire |
+| corner: a group of 0.0.0.0 prints nothing | built `GROUP` 0 | no `group` or `remote` key |
+| corner: an id past the last `IFLA_VXLAN_*` | built | listed in `Unknown`, the rest decoded |
+
+`TestEncodeVxlanInfoData`:
+
+| description | input | expected |
+|---|---|---|
+| positive: each row's request | the 58 rows that sent one, argv and `set` from the corpus script | byte-identical to `ip.pcap`'s |
+| negative: a VNI too wide | 1<<24 | `ErrKindSettingRange` |
+| negative: a setting with no option | the zero option | `ErrKindSettingOption` |
+| boundary: `dstport 0` sends no `PORT` | `id 42 dstport 0` | `ID`, `LEARNING`, no `PORT` |
+| boundary: a zero source range sends nothing | `srcport 0 0` | no `PORT_RANGE` |
+| corner: the id goes after the loop | `ttl 5 id 42` | `TTL`, then `ID` |
+| corner: a set sends no learning by default | `ttl 5`, set | `TTL` alone |
+| corner: `external` turns learning off | `external`, add | `COLLECT_METADATA` 1, then `LEARNING` 0 |
+| corner: `gpe` picks 4790 | `external gpe`, add | `PORT` 4790 big-endian |
+
+**Mutation check:** the port read little-endian (every readback row), `LEARNING` sent on a set (`set_changeable`'s request), the group/remote choice inverted (`add_group`, `add_remote`).
+
+#### KP3-T02 The geneve parser
+
+**Code.** A new `pkg/xtcpnl/xtcpnl_geneve.go`:
+- **`GeneveInfo`:** the id; `Remote` and `Local` as `netip.Addr`; `TTL`, `TTLInherit`, `TOS`, `DF`, `Label`, the port; `CollectMetadata` and `InnerProtoInherit` (flags); the three checksum u8s; present bits.
+- **`EncodeGeneveInfoData(settings, set)`:** everything after the loop, in `geneve_parse_opt`'s order: `ID` always (0 for `external`), the remote, the local (7.2.0's `local`, `LOCAL` or `LOCAL6` by family), `LABEL`, `TTL` and `TOS` on an add or when given, `TTL_INHERIT` and `DF` when given, `PORT` when nonzero, `COLLECT_METADATA`, `INNER_PROTO_INHERIT`, then each checksum word given. A later checksum word overrides an earlier one.
+- **The render oracle:** `geneve_print_opt`: `external` as true when the flag is present, `id`, `remote`/`remote6` and `local`/`local6` by family, `ttl` (absent under `ttl_inherit`), `tos` and `label` in hex, `df`, `port`, the checksum bools (JSON always prints them), and `inner_proto_inherit`.
+- **The benchmark:** `BenchmarkParseGeneveInfoData` over `add_local6`'s blob.
+
+`TestGeneveDumpMatchesReadback`: a subtest per rc 0 row (22).
+
+`TestParseGeneveInfoData`:
+
+| description | input | expected |
+|---|---|---|
+| positive: a bare geneve's dump | `add_default` | id 1, remote `10.0.0.1`, port 6081 |
+| positive: 7.2.0's local, each family | `add_local`, `add_local6` | `local 10.0.0.2`; `local6 2001:db8::2` |
+| positive: a metadata device | `add_external` | external true, id 0 |
+| positive: the label's top | `add_flowlabel` | label `0xfffff` |
+| negative: a nil nest | `nil` | `nil` |
+| negative: a short remote | built `REMOTE` of 2 bytes | no `remote` key |
+| boundary: an empty nest | `[]byte{}` | nothing present |
+| boundary: the highest VNI | `add_id_max` | 16777215 |
+| corner: the inner-proto flag has no payload | `add_innerprotoinherit` | inner_proto_inherit true |
+| corner: IPv4 and IPv6 remotes both present | built both | `remote` wins, as `ip` checks it first |
+| corner: an id past the last `IFLA_GENEVE_*` | built | listed in `Unknown` |
+
+`TestEncodeGeneveInfoData`:
+
+| description | input | expected |
+|---|---|---|
+| positive: each row's request | the 35 rows that sent one | byte-identical to `ip.pcap`'s |
+| negative: a label past 20 bits | 0x100000 | `ErrKindSettingRange` |
+| corner: a local of the other family is sent | an IPv6 remote, an IPv4 local | `REMOTE6`, then `LOCAL`, no error: the kernel refuses it (`add_local_family_mix`) |
+| boundary: `dstport 0` | base `dstport 0` | no `PORT` |
+| corner: a set sends only what it was given | `id 1 ttl 5`, set | `ID`, `TTL` |
+| corner: an add always sends the zeros | base, add | `ID`, `REMOTE`, `LABEL` 0, `TTL` 0, `TOS` 0 |
+| corner: a later checksum word wins | `udpcsum noudpcsum` | `UDP_CSUM` 0 |
+
+**Mutation check:** `LOCAL6` sent as `LOCAL` (`add_local6`), `LABEL` sent on a set (`set_changeable`'s request), `external`'s id dropped (`add_external`'s request).
+
+#### KP3-T03 The bareudp and amt parsers
+
+**Code.** Two files, `xtcpnl_bareudp.go` and `xtcpnl_amt.go`, each small:
+- **bareudp:** `BareudpInfo` (the port, big-endian; the ethertype, big-endian; `srcportmin`, host order; `MULTIPROTO_MODE`, a flag); `EncodeBareudpInfoData` in argument order. The render prints `ethertype` through `ll_proto_n2a` (`mpls_uc`, `ip`, or the number in brackets, `[4660]`), and `multiproto` as true or false.
+- **amt:** `AmtInfo` (mode u32, `gateway` 0 or `relay` 1; the two ports, big-endian; local, remote and discovery IPv4 addresses; the lower's ifindex; `max_tunnels`); `EncodeAmtInfoData` in argument order, a repeated `mode` sent twice. The render prints the lower by name.
+- **The benchmarks:** `BenchmarkParseBareudpInfoData` and `BenchmarkParseAmtInfoData` over `add_srcportmin`'s and `add_ports`'s blobs.
+
+`TestBareudpDumpMatchesReadback` (6 rows) and `TestAmtDumpMatchesReadback` (5 rows), then:
+
+| description | input | expected |
+|---|---|---|
+| positive: a bare bareudp's dump | `bareudp/add_default` | dstport 6635, ethertype `mpls_uc`, srcportmin 0, multiproto false |
+| positive: an unnamed ethertype | `bareudp/add_ethertype_number` | `[4660]` |
+| positive: an amt gateway | `amt/add_gateway`, with names | mode `gateway`, link `d0`, local and discovery, ports 2268 |
+| positive: amt's optional attributes | `amt/add_ports` | relay_port 3000, gateway_port 3001, max_tunnels 10 |
+| negative: a nil nest, each kind | `nil` | `nil` |
+| negative: a short port | built bareudp `PORT` of 1 byte | absent |
+| boundary: an empty nest, each kind | `[]byte{}` | nothing present |
+| boundary: amt's highest mode | built mode 1 | `relay` |
+| corner: an amt mode past `relay` | built mode 2 | decoded; the render has no name (the KG task decides what `ip` prints) |
+| corner: multiproto is a flag | built `MULTIPROTO_MODE` empty | multiproto true |
+
+`TestEncodeBareudpInfoData` and `TestEncodeAmtInfoData`:
+
+| description | input | expected |
+|---|---|---|
+| positive: each row's request | bareudp's 10 and amt's 13 rows that sent one | byte-identical to `ip.pcap`'s |
+| negative: a port too wide | 70000 | `ErrKindSettingRange` |
+| negative: a setting with no option | the zero option | `ErrKindSettingOption` |
+| boundary: amt `max_tunnels 0` | relay `max_tunnels 0` | `MAX_TUNNELS` 0 sent |
+| corner: amt's repeated mode | `mode gateway mode relay` | two `MODE`s, in order |
+| corner: bareudp's ethertype is big-endian | `ethertype 0x1234` | `12 34` |
+
+**Mutation check:** bareudp's ethertype read little-endian (`add_ethertype_number`), amt's mode names swapped (`add_gateway`, `add_relay`), amt's lower printed as a number (`add_gateway`).
+
+#### KP3-T04 The gtp parser
+
+**Code.** A new `pkg/xtcpnl/xtcpnl_gtp.go`: `GtpInfo` (role u32, `ggsn` 0 or `sgsn` 1; `PDP_HASHSIZE` u32; `RESTART_COUNT` u8; the request-only `FD0`, `FD1` and `CREATE_SOCKETS` skipped without being listed), and `EncodeGtpInfoData(settings)`: `CREATE_SOCKETS` (a u8 1) first whenever there is a setting, then the words in argument order, then `PDP_HASHSIZE` 1024 when no `hsize` was given. An unknown word is the caller's to skip, as `ip` skips it. The benchmark parses `add_restart_count`'s blob.
+
+`TestGtpDumpMatchesReadback` (7 rows), then:
+
+| description | input | expected |
+|---|---|---|
+| positive: a ggsn's dump | `add_ggsn` | role `ggsn`, hsize 1024 |
+| positive: a restart count | `add_restart_count` | 255 |
+| positive: `hsize 0` | `add_hsize_zero` | 1024, the kernel's |
+| negative: a nil nest | `nil` | `nil` |
+| negative: a short role | built of 2 bytes | absent |
+| boundary: an empty nest | `[]byte{}` | nothing present |
+| boundary: the hash size's top | `add_hsize_max` | 131071 |
+| corner: a role past sgsn | built 2 | decoded, no name |
+
+`TestEncodeGtpInfoData`:
+
+| description | input | expected |
+|---|---|---|
+| positive: each row's request | the 11 rows that sent one | byte-identical to `ip.pcap`'s |
+| negative: a restart count too wide | 256 | `ErrKindSettingRange` |
+| boundary: no settings | none | no attributes |
+| corner: the default hash size follows the words | `role ggsn` | `CREATE_SOCKETS`, `ROLE`, `PDP_HASHSIZE` 1024 |
+| corner: an explicit hash size is not repeated | `role ggsn hsize 4096` | one `PDP_HASHSIZE`, 4096 |
+
+**Mutation check:** the default hash size dropped (`add_ggsn`'s request), the roles swapped (`add_sgsn`), `CREATE_SOCKETS` omitted (every request). It closes KP3.
 
 ### KP4 — IP tunnel parsers
 

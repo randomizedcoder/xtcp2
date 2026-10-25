@@ -16,9 +16,9 @@
 - The KC tier is done.
 - KP0 is done (KP0-T01; planned in DOC009): `pkg/xtcpnl/xtcpnl_inet_devconf.go` encodes the `inet` write's `IFLA_AF_SPEC` byte for byte as `ip` does for the 11 KC1 rows the kernel answered, decodes it back, and decodes the dump's 33-value devconf array. KP1 is planned (DOC010).
 - KP1 is done (KP1-T01, KP1-T02; planned in DOC010): `pkg/xtcpnl/xtcpnl_bridge.go` is the bridge's 53-row option table and `xtcpnl_bridge_slave.go` the port's 44-row one. Each has a decoder that renders every accepted row's dump exactly as its `-d -j` readback prints it (50 bridge rows, 30 port rows), and an encoder that rebuilds the data nest of every row that sent a request byte for byte (55 and 37). `LinkInfo` carries `Bridge` and `BridgeSlave`. KP2 is planned (DOC011).
-- KP2 is in progress. KP2-T01 is done: `pkg/xtcpnl/xtcpnl_vlan.go` decodes the vlan kind into `LinkInfo.Vlan`, rendering all 15 accepted rows' dumps as their `-d -j` readbacks print them, and encodes the `IFLA_INFO_DATA` of the 21 rows that sent a request byte for byte. KP2-T02 is done: `xtcpnl_macvlan.go` does the same for macvlan and macvtap into `LinkInfo.Macvlan`, 25 accepted rows and 30 requests.
+- KP2 is done (KP2-T01, KP2-T02, KP2-T03; planned in DOC011): `pkg/xtcpnl/xtcpnl_vlan.go` decodes the vlan kind into `LinkInfo.Vlan`, rendering all 15 accepted rows' dumps as their `-d -j` readbacks print them, and encodes the `IFLA_INFO_DATA` of the 21 rows that sent a request byte for byte. `xtcpnl_macvlan.go` does the same for macvlan and macvtap into `LinkInfo.Macvlan` (25 accepted rows, 30 requests), and `xtcpnl_ipvlan.go` for ipvlan and ipvtap into `LinkInfo.Ipvlan` (14 and 17). KP3 is planned (DOC012).
 
-**Next action:** [KP2-T03](goip-link-kinds.md#kp2-t03-the-ipvlan-and-ipvtap-parser): the ipvlan and ipvtap parser.
+**Next action:** [KP3-T01](goip-link-kinds.md#kp3-t01-the-vxlan-parser): the vxlan parser.
 
 ## Contents
 
@@ -52,8 +52,8 @@
 | [KC7](goip-link-kinds.md#kc7--kind-completeness-gate) | captures | completeness gate | KC7-T02 | done | V065–V071, DOC009 |
 | [KP0](goip-link-kinds.md#kp0--inet-devconf-codec) | parsers | `inet` devconf codec | KP0-T01 | done | V072–V074, DOC010 |
 | [KP1](goip-link-kinds.md#kp1--bridge-parsers) | parsers | bridge | KP1-T02 | done | V075–V080, DOC011 |
-| [KP2](goip-link-kinds.md#kp2--vlan-family-parsers) | parsers | VLAN family | KP2-T03 | in progress | V081–V086 |
-| [KP3](goip-link-kinds.md#kp3--udp-overlay-parsers) | parsers | UDP overlays | | not started | |
+| [KP2](goip-link-kinds.md#kp2--vlan-family-parsers) | parsers | VLAN family | KP2-T03 | done | V081–V089, DOC012 |
+| [KP3](goip-link-kinds.md#kp3--udp-overlay-parsers) | parsers | UDP overlays | KP3-T04 | not started | |
 | [KP4](goip-link-kinds.md#kp4--ip-tunnel-parsers) | parsers | IP tunnels | | not started | |
 | [KP5](goip-link-kinds.md#kp5--the-remaining-kinds-parsers) | parsers | the remaining kinds | | not started | |
 | [KG0](goip-link-kinds.md#kg0--goip-link-set-inet) | goip | `link set inet` | | not started | |
@@ -96,8 +96,11 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | [x] | [KP1-T02](goip-link-kinds.md#kp1-t02-the-bridge_slave-parser) | the bridge_slave parser | done | V078–V080, DOC011 |
 | [x] | [KP2-T01](goip-link-kinds.md#kp2-t01-the-vlan-parser) | the vlan parser | done | V081–V083 |
 | [x] | [KP2-T02](goip-link-kinds.md#kp2-t02-the-macvlan-and-macvtap-parser) | the macvlan and macvtap parser | done | V084–V086 |
-| [ ] | [KP2-T03](goip-link-kinds.md#kp2-t03-the-ipvlan-and-ipvtap-parser) | the ipvlan and ipvtap parser | not started | |
-| [ ] | [KP3-T01…](goip-link-kinds.md#kp3--udp-overlay-parsers) | UDP overlay parsers | not started | |
+| [x] | [KP2-T03](goip-link-kinds.md#kp2-t03-the-ipvlan-and-ipvtap-parser) | the ipvlan and ipvtap parser | done | V087–V089, DOC012 |
+| [ ] | [KP3-T01](goip-link-kinds.md#kp3-t01-the-vxlan-parser) | the vxlan parser | not started | |
+| [ ] | [KP3-T02](goip-link-kinds.md#kp3-t02-the-geneve-parser) | the geneve parser | not started | |
+| [ ] | [KP3-T03](goip-link-kinds.md#kp3-t03-the-bareudp-and-amt-parsers) | the bareudp and amt parsers | not started | |
+| [ ] | [KP3-T04](goip-link-kinds.md#kp3-t04-the-gtp-parser) | the gtp parser | not started | |
 | [ ] | [KP4-T01…](goip-link-kinds.md#kp4--ip-tunnel-parsers) | IP tunnel parsers | not started | |
 | [ ] | [KP5-T01…](goip-link-kinds.md#kp5--the-remaining-kinds-parsers) | the remaining kinds' parsers | not started | |
 | [ ] | [KG0-T01…](goip-link-kinds.md#kg0--goip-link-set-inet) | goip `link set inet` | not started | |
@@ -208,6 +211,10 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | V084 | 2026-10-25 | KP2-T02 | `go vet`, `go test -count=1 -race ./pkg/xtcpnl/ ./internal/goip/`, `go test ./pkg/linkmonitor/...`, and `go test -bench BenchmarkParseMacvlanInfoData -benchmem` | all pass: `TestMacvlanDumpMatchesReadback` (25 rows of both kinds), `TestParseMacvlanInfoData` (11 rows), `TestEncodeMacvlanInfoData` (30 corpus rows and 10 built), `TestLinkInfoMacvlanKinds` (4 rows). The 4 `route-1` replay goldens regenerated: 8 digests change, every value count is the same. 168 ns/op, 136 B/op, 3 allocs/op | this commit |
 | V085 | 2026-10-25 | KP2-T02 | mutation, a scratch worktree, each `go test` in a `systemd-run --scope -p MemoryMax=6G -p MemorySwapMax=0` with `-timeout=180s`: passthru and source swapped; the macvtap branch dropped; the mode emitted in argument order | 3 of 3 killed: by every passthru and source readback row; by `positive: a macvtap decodes Macvlan`; by `corner: mode and flags go last`, `corner: the last mode wins` and the requests with `macaddr` after `mode` | scratch |
 | V086 | 2026-10-25 | KP2-T02 | `nix build .#checks.x86_64-linux.lint-baseline`, then `.#checks.x86_64-linux.netlink-audit` | both pass. The first lint run found a `prealloc` in the test's mode list, fixed with `slices.Sorted(maps.Keys(…))` | this commit |
+| V087 | 2026-10-25 | KP2-T03 | `go vet`, `go test -count=1 -race ./pkg/xtcpnl/ ./internal/goip/`, `go test ./pkg/linkmonitor/...`, and `go test -bench BenchmarkParseIpvlanInfoData -benchmem` | all pass: `TestIpvlanDumpMatchesReadback` (14 rows of both kinds), `TestParseIpvlanInfoData` (11 rows), `TestEncodeIpvlanInfoData` (17 corpus rows and 8 built), `TestLinkInfoIpvlanKinds` (4 rows). The 4 `route-1` replay goldens regenerated: 8 digests change, every value count is the same. 29 ns/op, 32 B/op, 1 alloc/op | this commit |
+| V088 | 2026-10-25 | KP2-T03 | mutation, a scratch worktree, each `go test` in a `systemd-run --scope -p MemoryMax=6G -p MemorySwapMax=0` with `-timeout=180s`: `IFLA_IPVLAN_FLAGS` sent only with a flag word; vepa winning over private in the render; the ipvtap branch dropped | 3 of 3 killed: by `positive: a mode alone sends flags 0`, `corner: each mode word is its own attribute` and every mode-only request; by `corner: both flag bits render private alone`; by `positive: an ipvtap decodes Ipvlan`. A first attempt at the flags mutant changed only the error check, an equivalent mutant; it survived and was rerun as planned | scratch |
+| V089 | 2026-10-25 | KP2-T03 | `nix build .#checks.x86_64-linux.lint-baseline`, then `.#checks.x86_64-linux.netlink-audit` | both pass. The first lint run found ST1022 on `IpvlanModes`' comment, fixed | this commit |
+| DOC012 | 2026-10-25 | KP2 close | KP3 broken into KP3-T01 (vxlan), KP3-T02 (geneve), KP3-T03 (bareudp and amt) and KP3-T04 (gtp) with their tables, argued from `iplink_vxlan.c`, `iplink_geneve.c`, `iplink_bareudp.c`, `iplink_amt.c` and `iplink_gtp.c` at `v7.2.0` and the KC4 rows' readbacks; doccheck | tasks one to one, no broken link or anchor | this commit |
 
 ## Decision log
 
