@@ -9,9 +9,9 @@
 - KC1 is done (KC1-T01): 18 `ip link set dev d0 inet …` rows, 11 the kernel answers and 7 `ip` refuses before netlink, are in the rtnl corpus. They are KP0's and KG0's source.
 - KC2 is done (KC2-T01, KC2-T02): a kind corpus (`kind-write-corpus.exp`) the link-write driver runs into `link-write/kinds/`, with 60 bridge rows and 42 bridge_slave rows, 80 the kernel accepts, 12 it refuses and 10 `ip` refuses before netlink. They are KP1's and KG1's source.
 - KC3 is done (KC3-T01, KC3-T02, KC3-T03): 28 vlan, 34 macvlan, 6 macvtap, 18 ipvlan and 4 ipvtap rows in the kind corpus, stacked on a dummy `d0`; of the 90, 54 the kernel accepts, 14 it refuses and 22 `ip` refuses before netlink. They are KP2's and KG2's source.
-- KC4 is in progress: KC4-T01 adds 73 vxlan rows, 46 the kernel accepts, 12 it refuses and 15 `ip` refuses before netlink; KC4-T02 adds 49 geneve rows, 22 accepted, 13 refused by the kernel and 14 by `ip`.
+- KC4 is in progress: KC4-T01 adds 73 vxlan rows, 46 the kernel accepts, 12 it refuses and 15 `ip` refuses before netlink; KC4-T02 adds 49 geneve rows, 22 accepted, 13 refused by the kernel and 14 by `ip`; KC4-T03 adds 16 bareudp and 20 amt rows, 11 accepted, 12 refused by the kernel and 13 by `ip`.
 
-**Next action:** [KC4-T03](goip-link-kinds.md#kc4-t03-bareudp-and-amt): bareudp and amt.
+**Next action:** [KC4-T04](goip-link-kinds.md#kc4-t04-gtp): gtp, which closes KC4 and plans KC5.
 
 ## Contents
 
@@ -39,7 +39,7 @@
 | [KC1](goip-link-kinds.md#kc1--inet-devconf-captures) | captures | `inet` devconf | KC1-T01 | done | V006–V008, DOC003 |
 | [KC2](goip-link-kinds.md#kc2--bridge-captures) | captures | bridge | KC2-T02 | done | V009–V016, DOC004 |
 | [KC3](goip-link-kinds.md#kc3--vlan-family-captures) | captures | VLAN family | KC3-T03 | done | V017–V025, DOC005 |
-| [KC4](goip-link-kinds.md#kc4--udp-overlay-captures) | captures | UDP overlays | KC4-T04 | in progress | V026–V031 |
+| [KC4](goip-link-kinds.md#kc4--udp-overlay-captures) | captures | UDP overlays | KC4-T04 | in progress | V026–V034 |
 | [KC5](goip-link-kinds.md#kc5--ip-tunnel-captures) | captures | IP tunnels | | not started | |
 | [KC6](goip-link-kinds.md#kc6--the-remaining-kinds-captures) | captures | the remaining kinds | | not started | |
 | [KC7](goip-link-kinds.md#kc7--kind-completeness-gate) | captures | completeness gate | | not started | |
@@ -71,7 +71,7 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | [x] | [KC3-T03](goip-link-kinds.md#kc3-t03-ipvlan-and-ipvtap) | ipvlan and ipvtap | done | V023–V025, DOC005 |
 | [x] | [KC4-T01](goip-link-kinds.md#kc4-t01-vxlan) | vxlan | done | V026–V028 |
 | [x] | [KC4-T02](goip-link-kinds.md#kc4-t02-geneve) | geneve | done | V029–V031 |
-| [ ] | [KC4-T03](goip-link-kinds.md#kc4-t03-bareudp-and-amt) | bareudp and amt | not started | |
+| [x] | [KC4-T03](goip-link-kinds.md#kc4-t03-bareudp-and-amt) | bareudp and amt | done | V032–V034 |
 | [ ] | [KC4-T04](goip-link-kinds.md#kc4-t04-gtp) | gtp | not started | |
 | [ ] | [KC5-T01…](goip-link-kinds.md#kc5--ip-tunnel-captures) | IP tunnel captures | not started | |
 | [ ] | [KC6-T01…](goip-link-kinds.md#kc6--the-remaining-kinds-captures) | the remaining kinds' captures | not started | |
@@ -129,6 +129,9 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | V029 | 2026-10-24 | KC4-T02 | `nix build .#checks.x86_64-linux.vm-lib-exp` | `kind-write-corpus.exp`: 104 passed, 0 failed (the 314 rows, `local` the one address keyword with a row per family, `local6` and `loc` refused by `ip`, the conflicting rows' pres and readbacks, the VNI range, every set row carrying an `id`); the other suites unchanged | this commit |
 | V030 | 2026-10-24 | KC4-T02 | mutation, scratch copies of the corpus and its test, through `expect`: `add_local6` sent as `local6`, `add_local_abbrev` at 0, `add_after_external`'s pre made with base, `add_dstport_zero` dropped | 4 of 4 killed: by `geneve_local_one_keyword`; `refused_statuses` and `geneve_local_refused`; `geneve_conflict_pres`; `slug_list` and `row_count` | scratch |
 | V031 | 2026-10-24 | KC4-T02 | `nix run .#microvm-x86_64-link-write-capture -- --timeout 7200`, guest kernel 7.3.0; `-d -j` readbacks diffed against `add_default`'s; compared with V028 by `pcapcmp` | `NLCAP_DRIVER_FAIL` on `genl/mptcp_limits_set_over` alone (V004). The 49 rows hold their planned statuses on the first run: 22 at 0, 13 at 2, 7 at 1 and 7 at 255. Each accepted row's readback differs from the base in what it sent, with two quirks: `dstport 0` reads back 6081, because `ip` sends `IFLA_GENEVE_PORT` only when it is nonzero, and an IPv6 remote turns `udp_csum` into `udp_zero_csum6_tx`/`_rx`. `set_on_external` is refused with `EOPNOTSUPP`, and the other refused sets carry "Changing VNI, Port, endpoint IP address family, external, …". Against V028: 154 new pcaps, all under `kinds/geneve/` (49 `ip.pcap` and 35 rows × 3 readbacks); 1658 the same shape, 15 differing in V004's classes, none under `kinds/` | scratch |
+| V032 | 2026-10-24 | KC4-T03 | `nix build .#checks.x86_64-linux.vm-lib-exp` | `kind-write-corpus.exp`: 112 passed, 0 failed (the 350 rows, bareudp's missing option `ip`'s and amt's the kernel's, the busy port's pre and readbacks, the two refused sets on a device their pre made, every amt row the kernel answers but two naming a lower, `matches` against `strcmp`); the other suites unchanged | this commit |
+| V033 | 2026-10-24 | KC4-T03 | mutation, scratch copies of the corpus and its test, through `expect`: bareudp `add_no_ethertype` at 1, amt `add_no_link` with `dev d0`, bareudp `add_port_busy`'s pre without `b0`, amt `add_abbrev` at 0 | 4 of 4 killed: by `refused_statuses`; `amt_lower_excluded`; `bareudp_busy_pre`; `refused_statuses` and `keyword_matching` | scratch |
+| V034 | 2026-10-24 | KC4-T03 | `nix run .#microvm-x86_64-link-write-capture -- --timeout 7200`, guest kernel 7.3.0; `-d -j` readbacks; compared with V031 by `pcapcmp` | `NLCAP_DRIVER_FAIL` on `genl/mptcp_limits_set_over` alone (V004). The 36 rows hold their planned statuses on the first run: bareudp 6 at 0, 4 at 2, 1 at 1, 5 at 255; amt 5 at 0, 8 at 2, 3 at 1, 4 at 255. The readbacks are the plan's: `srcportmin` 0 by default, `ipv4` as `ip`, `0x1234` as `[4660]`; amt's ports 2268 and `max_tunnels` 128 (also for `max_tunnels 0`), a relay's `discovery` 0.0.0.0, and `mode gateway mode relay` as relay. The kernel's refusals carry their extack text ("Another bareudp device using the same port already exists", "Cannot set multiproto mode for this ethertype", "Link attribute is required", "Invalid stream device type", "relay port must not be 0", "discovery must be unicast", …); amt's bare add is a plain `Invalid argument`, and both sets `Operation not supported`. Against V031: 105 new pcaps, all under `kinds/bareudp/` and `kinds/amt/` (36 `ip.pcap` and 23 rows × 3 readbacks); 1814 the same shape, 13 differing in V004's classes, none under `kinds/` | scratch |
 
 ## Decision log
 

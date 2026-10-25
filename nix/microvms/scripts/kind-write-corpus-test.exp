@@ -283,6 +283,26 @@ proc dev_d0_pres {} {
     return [lsort -unique $out]
 }
 
+# amt_no_lower - the amt rows the kernel answers (0 or 2), but add_no_option
+# and add_no_link, whose command names no lower with dev.
+proc amt_no_lower {} {
+    global R
+    set out {}
+    foreach r $R {
+        lassign $r slug floor pre command readbacks rc
+        if {![string match amt/* $slug] || $rc ni {0 2}} {
+            continue
+        }
+        if {$slug in {amt/add_no_option amt/add_no_link}} {
+            continue
+        }
+        if {![regexp { dev \S+} $command]} {
+            lappend out $slug
+        }
+    }
+    return $out
+}
+
 ###############################################################################
 # 1. the rows
 ###############################################################################
@@ -436,13 +456,27 @@ lappend design_rows {*}{
     geneve/add_remote_multicast geneve/add_local_multicast geneve/add_ttl_over
     geneve/add_flowlabel_over geneve/add_external_twice geneve/add_no_value
 }
+lappend design_rows {*}{
+    bareudp/add_default bareudp/add_ethertype_ipv4 bareudp/add_ethertype_number
+    bareudp/add_srcportmin bareudp/add_multiproto bareudp/add_abbrev
+    bareudp/add_no_option bareudp/add_multiproto_ipv6 bareudp/add_port_busy
+    bareudp/set_same bareudp/add_unknown bareudp/add_no_dstport
+    bareudp/add_no_ethertype bareudp/add_ethertype_bad bareudp/add_dstport_twice
+    bareudp/add_no_value
+    amt/add_gateway amt/add_relay amt/add_ports amt/add_max_tunnels_zero
+    amt/add_mode_twice amt/add_no_option amt/add_no_link
+    amt/add_gateway_no_discovery amt/add_on_loopback amt/add_local_loopback
+    amt/add_relay_port_zero amt/add_discovery_multicast amt/set_same
+    amt/add_abbrev amt/add_mode_bad amt/add_local_bad amt/add_dev_missing
+    amt/add_local_twice amt/add_port_over amt/add_no_value
+}
 
 check slug_list "positive: the rows are the plan's, in run order" \
     {slugs $R} [join $design_rows " "]
 check first_row "boundary: add_default comes first" \
     {lindex [slugs $R] 0} bridge/add_default
-check row_count "boundary: KC2's 60 bridge and 42 bridge_slave rows, KC3-T01's 28 vlan rows, KC3-T02's 34 macvlan and 6 macvtap rows, KC3-T03's 18 ipvlan and 4 ipvtap rows, KC4-T01's 73 vxlan rows, KC4-T02's 49 geneve rows" \
-    {llength $R} 314
+check row_count "boundary: KC2's 60 bridge and 42 bridge_slave rows, KC3-T01's 28 vlan rows, KC3-T02's 34 macvlan and 6 macvtap rows, KC3-T03's 18 ipvlan and 4 ipvtap rows, KC4-T01's 73 vxlan rows, KC4-T02's 49 geneve rows, KC4-T03's 16 bareudp and 20 amt rows" \
+    {llength $R} 350
 check bridge_first "boundary: bridge's rows all come before bridge_slave's" \
     {lsearch -glob [slugs $R] bridge_slave/*} 60
 check option_rows "positive: one add_ row per value-taking option but stp_mode, each once" \
@@ -514,6 +548,16 @@ set refused_design {
     geneve/add_remote_multicast 255 geneve/add_local_multicast 255
     geneve/add_ttl_over 255 geneve/add_flowlabel_over 255
     geneve/add_external_twice 255 geneve/add_no_value 255
+    bareudp/add_no_option 2 bareudp/add_multiproto_ipv6 2
+    bareudp/add_port_busy 2 bareudp/set_same 2 bareudp/add_unknown 1
+    bareudp/add_no_dstport 255 bareudp/add_no_ethertype 255
+    bareudp/add_ethertype_bad 255 bareudp/add_dstport_twice 255
+    bareudp/add_no_value 255
+    amt/add_no_option 2 amt/add_no_link 2 amt/add_gateway_no_discovery 2
+    amt/add_on_loopback 2 amt/add_local_loopback 2 amt/add_relay_port_zero 2
+    amt/add_discovery_multicast 2 amt/set_same 2 amt/add_abbrev 1
+    amt/add_mode_bad 1 amt/add_local_bad 1 amt/add_dev_missing 255
+    amt/add_local_twice 255 amt/add_port_over 255 amt/add_no_value 255
 }
 check refused_statuses "positive: exactly the refusal rows expect a non-zero status" \
     {refused_rows} [join $refused_design " "]
@@ -776,6 +820,28 @@ check geneve_id_range "boundary: the VNI's top is accepted; one over is ip's inv
     {list [field geneve/add_id_max 5] [field geneve/add_id_over 5]} {0 255}
 check geneve_set_needs_id "negative: a set without id is ip's refusal; with it the kernel's" \
     {list [field geneve/set_no_id 5] [field geneve/set_id 5]} {1 2}
+
+###############################################################################
+# 11. the bareudp and amt rows' states
+###############################################################################
+check bareudp_after_geneve "positive: bareudp's rows follow geneve's, and amt's bareudp's" \
+    {list [lsearch -glob [slugs $R] bareudp/*] [lsearch -glob [slugs $R] amt/*]} {314 330}
+check required_option_owner "corner: a missing required option is ip's for bareudp and the kernel's for amt" \
+    {list [field bareudp/add_no_dstport 5] [field amt/add_no_link 5]} {255 2}
+check bareudp_busy_pre "corner: the busy port's pre makes b0 on port 6635" \
+    {field bareudp/add_port_busy 2} {{link add b0 type bareudp dstport 6635 ethertype ip}}
+check bareudp_busy_readbacks "corner: its readbacks read b1" \
+    {lmap rb [field bareudp/add_port_busy 4] {lindex $rb 2}} \
+    {{ip -d link show dev b1} {ip -d -j -p link show dev b1} {ip link show dev b1}}
+check no_changelink_sets "corner: the sets are refused by the kernel, on a device the pre made" \
+    {lmap s {bareudp/set_same amt/set_same} {list [field $s 5] [lindex [split [lindex [field $s 2] end]] 2]}} \
+    {{2 b0} {2 a0}}
+check amt_lower "corner: every amt row the kernel answers, but add_no_option and add_no_link, names a lower" \
+    {amt_no_lower} {}
+check amt_lower_excluded "negative: the two left out name none" \
+    {lmap s {add_no_option add_no_link} {regexp { dev } [field amt/$s 3]}} {0 0}
+check keyword_matching "positive: bareudp's keywords are matches, amt's strcmp" \
+    {list [field bareudp/add_abbrev 5] [field amt/add_abbrev 5]} {0 1}
 
 ###############################################################################
 # summary

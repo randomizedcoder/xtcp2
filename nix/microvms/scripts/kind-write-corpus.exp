@@ -643,6 +643,73 @@ namespace eval kindcorpus {
         [geneve add_no_value id 255]
 
     ###########################################################################
+    # bareudp and amt (KC4-T03), two small kinds with no changelink, so a
+    # set that passes validate is -EOPNOTSUPP. bareudp (b0) needs dstport
+    # and ethertype, which ip enforces with missarg (255); every keyword is
+    # matches. amt (a0) needs a lower, a mode and a local address, which
+    # only amt_validate enforces; every keyword is strcmp, and only local
+    # and discovery are checked for repeats, so a repeated mode is sent
+    # twice and the last wins. amt_newlink (drivers/net/amt.c) refuses a
+    # non-Ethernet lower, a loopback, zero or multicast local, a zero
+    # relay port and a multicast discovery address.
+    ###########################################################################
+    variable PRE_B0 [list {link add b0 type bareudp dstport 6635 ethertype ip}]
+
+    proc bareudp {name words rc {pre {}}} {
+        return [plain bareudp b0 $name $words $rc $pre]
+    }
+
+    lappend rows \
+        [bareudp add_default {dstport 6635 ethertype mpls_uc} 0] \
+        [bareudp add_ethertype_ipv4 {dstport 6635 ethertype ipv4} 0] \
+        [bareudp add_ethertype_number {dstport 6635 ethertype 0x1234} 0] \
+        [bareudp add_srcportmin {dstport 6635 ethertype ip srcportmin 1000} 0] \
+        [bareudp add_multiproto {dstport 6635 ethertype mpls_uc multiproto} 0] \
+        [bareudp add_abbrev {d 6635 e ip s 1 m} 0] \
+        [bareudp add_no_option {} 2] \
+        [bareudp add_multiproto_ipv6 {dstport 6635 ethertype ipv6 multiproto} 2] \
+        [plain bareudp b1 add_port_busy {dstport 6635 ethertype mpls_uc} 2 $PRE_B0] \
+        [row bareudp set_same $PRE_B0 {ip link set b0 type bareudp dstport 6635 ethertype ip} 2 b0] \
+        [bareudp add_unknown {dstport 1 ethertype ip foo} 1] \
+        [bareudp add_no_dstport {ethertype ip} 255] \
+        [bareudp add_no_ethertype {dstport 6635} 255] \
+        [bareudp add_ethertype_bad {dstport 6635 ethertype foo} 255] \
+        [bareudp add_dstport_twice {dstport 1 dstport 2 ethertype ip} 255] \
+        [bareudp add_no_value dstport 255]
+
+    variable AMT_RELAY {mode relay dev d0 local 10.0.0.1}
+    variable AMT_GATEWAY {mode gateway dev d0 local 10.0.0.1 discovery 10.0.0.2}
+
+    # amt <name> <words> <rc> - an add of a0, after d0.
+    proc amt {name words rc} {
+        variable PRE_D0
+        return [plain amt a0 $name $words $rc $PRE_D0]
+    }
+
+    lappend rows \
+        [amt add_gateway $AMT_GATEWAY 0] \
+        [amt add_relay $AMT_RELAY 0] \
+        [amt add_ports "$AMT_GATEWAY relay_port 3000 gateway_port 3001 max_tunnels 10" 0] \
+        [amt add_max_tunnels_zero "$AMT_RELAY max_tunnels 0" 0] \
+        [amt add_mode_twice {mode gateway mode relay dev d0 local 10.0.0.1} 0] \
+        [amt add_no_option {} 2] \
+        [amt add_no_link {mode relay local 10.0.0.1} 2] \
+        [amt add_gateway_no_discovery {mode gateway dev d0 local 10.0.0.1} 2] \
+        [amt add_on_loopback {mode relay dev lo local 10.0.0.1} 2] \
+        [amt add_local_loopback {mode relay dev d0 local 127.0.0.1} 2] \
+        [amt add_relay_port_zero "$AMT_RELAY relay_port 0" 2] \
+        [amt add_discovery_multicast {mode gateway dev d0 local 10.0.0.1 discovery 224.0.0.1} 2] \
+        [row amt set_same [concat $PRE_D0 [list "link add a0 type amt $AMT_RELAY"]] \
+            "ip link set a0 type amt $AMT_RELAY" 2 a0] \
+        [amt add_abbrev {mod relay dev d0 local 10.0.0.1} 1] \
+        [amt add_mode_bad {mode foo} 1] \
+        [amt add_local_bad {local foo} 1] \
+        [amt add_dev_missing {dev nosuch} 255] \
+        [amt add_local_twice {local 10.0.0.1 local 10.0.0.3} 255] \
+        [amt add_port_over {relay_port 70000} 255] \
+        [amt add_no_value mode 255]
+
+    ###########################################################################
     # readback_args <ns> <subdir> <readback> - the xtcp2-nlcap capio argument
     # list for one readback, which the driver hands to its capio proc.
     ###########################################################################

@@ -697,7 +697,8 @@ Two small kinds, neither with a `changelink`. bareudp (`b0`) needs `dstport` and
 | corner: a missing required option is `ip`'s for bareudp and the kernel's for amt | `bareudp/add_no_dstport`, `amt/add_no_link` | 255, 2 |
 | corner: the busy port's pre | `bareudp/add_port_busy` | `b0` on port 6635; the readbacks read `b1` |
 | corner: the sets are refused | `bareudp/set_same`, `amt/set_same` | 2 each, on a device the pre made |
-| corner: every amt row but `add_no_option` and `add_no_link` names a lower | the amt commands | `dev` in each |
+| corner: every amt row the kernel answers (0 or 2) but `add_no_option` and `add_no_link` names a lower; `ip`'s refusals, such as `mode foo`, stop before one is needed | the amt commands | `dev` in each |
+| negative: the two left out name none | `amt/add_no_option`, `amt/add_no_link` | no `dev` |
 | positive (VM): each status, and the values read back | `ip.rc`; `-d -j` readbacks | the table's rc; the defaults above |
 
 **Mutation check:** bareudp `add_no_ethertype` at 1, amt `add_no_link` with `dev d0`, bareudp `add_port_busy`'s pre without `b0`, amt `add_abbrev` at 0.
