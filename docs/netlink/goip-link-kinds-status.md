@@ -12,9 +12,10 @@
 - KC4 is done (KC4-T01, KC4-T02, KC4-T03, KC4-T04): KC4-T01 adds 73 vxlan rows, 46 the kernel accepts, 12 it refuses and 15 `ip` refuses before netlink; KC4-T02 adds 49 geneve rows, 22 accepted, 13 refused by the kernel and 14 by `ip`; KC4-T03 adds 16 bareudp and 20 amt rows, 11 accepted, 12 refused by the kernel and 13 by `ip`; KC4-T04 adds 19 gtp rows, 7 accepted, 4 refused by the kernel and 8 by `ip`. They are KP3's and KG3's source.
 - KC5 is done (KC5-T01, KC5-T02, KC5-T03, KC5-T04, KC5-T05; planned in DOC006): KC5-T01 adds 45 gre, 11 gretap and 25 erspan rows, 44 the kernel accepts, 16 it refuses and 21 `ip` refuses before netlink; KC5-T02 adds 36 ip6gre, 9 ip6gretap and 19 ip6erspan rows, 36 accepted, 14 refused by the kernel and 14 by `ip`; KC5-T03 adds 47 ipip and 37 sit rows, 46 accepted, 14 refused by the kernel and 24 by `ip` (`6rd-reset` has no row: it segfaults `ip`); KC5-T04 adds 49 ip6tnl rows, 29 accepted, 7 refused by the kernel and 13 by `ip`; KC5-T05 adds 23 vti, 12 vti6 and 23 xfrm rows, 27 accepted, 15 refused by the kernel and 16 by `ip`. They are KP4's and KG4's source.
 - KC6 is done (KC6-T01, KC6-T02, KC6-T03, KC6-T04; planned in DOC007): KC6-T01 adds 29 hsr rows, 10 accepted, 10 refused by the kernel and 9 by `ip`; KC6-T02 adds 43 netkit rows, 19 accepted, 8 refused by the kernel and 16 by `ip`; KC6-T03 adds 18 vrf, 10 vrf_slave and 18 vxcan rows, 18 accepted, 10 refused by the kernel and 18 by `ip`; KC6-T04 adds 17 batadv, 9 ifb, 6 nlmon, 13 vcan, 14 team and 4 team_slave rows, 29 accepted, 18 refused by the kernel and 16 by `ip`. They are KP5's and KG5's source.
-- KC7 is in progress (planned in DOC008: two tasks): KC7-T01 commits the 7.3.0 link-write corpus, `testdata/7_3_0/link-write`, 10558 files from one run of the runner at the 7.2.0 pin, every kind row with its status, request and readbacks.
+- KC7 is done (KC7-T01, KC7-T02; planned in DOC008): KC7-T01 commits the 7.3.0 link-write corpus, `testdata/7_3_0/link-write`, 10558 files from one run of the runner at the 7.2.0 pin, every kind row with its status, request and readbacks. KC7-T02 is the gate, `TestLinkKindUniverse`: of the 46 kinds 7.2.0's `iplink_*.c` and `link_*.c` name, 39 are captured with an accepted row and a `-d -j` readback, and 7 are excluded with a reason.
+- The KC tier is done. KP0 is planned (DOC009).
 
-**Next action:** [KC7-T02](goip-link-kinds.md#kc7-t02-the-gate): the completeness gate.
+**Next action:** [KP0-T01](goip-link-kinds.md#kp0-t01-the-inet-devconf-codec): the `inet` devconf codec.
 
 ## Contents
 
@@ -45,7 +46,7 @@
 | [KC4](goip-link-kinds.md#kc4--udp-overlay-captures) | captures | UDP overlays | KC4-T04 | done | V026–V037, DOC006 |
 | [KC5](goip-link-kinds.md#kc5--ip-tunnel-captures) | captures | IP tunnels | KC5-T05 | done | V038–V052, DOC007 |
 | [KC6](goip-link-kinds.md#kc6--the-remaining-kinds-captures) | captures | the remaining kinds | KC6-T04 | done | V053–V064, DOC008 |
-| [KC7](goip-link-kinds.md#kc7--kind-completeness-gate) | captures | completeness gate | KC7-T02 | in progress | V065–V068 |
+| [KC7](goip-link-kinds.md#kc7--kind-completeness-gate) | captures | completeness gate | KC7-T02 | done | V065–V071, DOC009 |
 | [KP0](goip-link-kinds.md#kp0--inet-devconf-codec) | parsers | `inet` devconf codec | | not started | |
 | [KP1](goip-link-kinds.md#kp1--bridge-parsers) | parsers | bridge | | not started | |
 | [KP2](goip-link-kinds.md#kp2--vlan-family-parsers) | parsers | VLAN family | | not started | |
@@ -86,8 +87,8 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | [x] | [KC6-T03](goip-link-kinds.md#kc6-t03-vrf-vrf_slave-and-vxcan) | vrf, vrf_slave and vxcan | done | V059–V061 |
 | [x] | [KC6-T04](goip-link-kinds.md#kc6-t04-batadv-ifb-nlmon-vcan-team-and-team_slave) | batadv, ifb, nlmon, vcan, team and team_slave | done | V062–V064, DOC008 |
 | [x] | [KC7-T01](goip-link-kinds.md#kc7-t01-the-730-link-write-corpus) | the 7.3.0 link-write corpus | done | V065–V068 |
-| [ ] | [KC7-T02](goip-link-kinds.md#kc7-t02-the-gate) | the completeness gate | not started | |
-| [ ] | [KP0-T01…](goip-link-kinds.md#kp0--inet-devconf-codec) | `inet` devconf codec | not started | |
+| [x] | [KC7-T02](goip-link-kinds.md#kc7-t02-the-gate) | the completeness gate | done | V069–V071, DOC009 |
+| [ ] | [KP0-T01](goip-link-kinds.md#kp0-t01-the-inet-devconf-codec) | the `inet` devconf codec | not started | |
 | [ ] | [KP1-T01…](goip-link-kinds.md#kp1--bridge-parsers) | bridge parsers | not started | |
 | [ ] | [KP2-T01…](goip-link-kinds.md#kp2--vlan-family-parsers) | VLAN family parsers | not started | |
 | [ ] | [KP3-T01…](goip-link-kinds.md#kp3--udp-overlay-parsers) | UDP overlay parsers | not started | |
@@ -180,6 +181,10 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | V066 | 2026-10-25 | KC7-T01 | `go vet` and `go test -count=1` over `./pkg/xtcpnl/`, `./pkg/nlparity/`, `./internal/gordma/` and `./pkg/linkmonitor/...` | all pass: `TestKindRowsComplete` (the committed corpus and 8 built rows), `TestCorpusAllSkipsLinkWrite730` (4 rows), the two new provenance rows, `TestNetlinkUniverse` with no stale exclusion. Before `corpusAll` skipped the 7.3.0 set, 17 corpus tests failed, their tallies doubled (or, for nsid, grown by the new set's share): the reason for the skip | this commit |
 | V067 | 2026-10-25 | KC7-T01 | mutation, a scratch worktree, each `go test` in a `systemd-run --scope -p MemoryMax=6G -p MemorySwapMax=0` with `-timeout=180s`: rc 2 on the no-readback side; the extra-readback case dropped | 2 of 2 killed: by `boundary: a kernel refusal is read back too`; `corner: an ip refusal that was read back`. The skip's mutant is V066's 17 failures | scratch |
 | V068 | 2026-10-25 | KC7-T01 | `nix build .#checks.x86_64-linux.lint-baseline`, then `.#checks.x86_64-linux.netlink-audit` | both pass (all three lint tiers exit 0) | this commit |
+| V069 | 2026-10-25 | KC7-T02 | `go vet` and `go test -count=1` over `./pkg/xtcpnl/` | all pass: `TestLinkKindUniverse` (the committed corpus, 39 of 46 kinds captured and 7 excluded, and 7 built rows) and `TestLinkKindCaptured` (10 built rows) | this commit |
+| V070 | 2026-10-25 | KC7-T02 | mutation, a scratch worktree, each `go test` in a `systemd-run --scope -p MemoryMax=6G -p MemorySwapMax=0` with `-timeout=180s`: the stale-exclusion case dropped; the `_slave` match dropped; the `ip.rc` filter dropped | 3 of 3 killed: by `corner: an exclusion the corpus contradicts`; `positive: the committed corpus passes` (bond_slave, bridge_slave, team_slave and vrf_slave uncaptured) and the rows built on it; `boundary: refused rows alone are not` | scratch |
+| V071 | 2026-10-25 | KC7-T02 | `nix build .#checks.x86_64-linux.lint-baseline`, then `.#checks.x86_64-linux.netlink-audit` | both pass (all three lint tiers exit 0) | this commit |
+| DOC009 | 2026-10-25 | KC7 close | KP0 broken into KP0-T01 (the `inet` devconf codec) with its tables, argued from `iplink_parse_inet` at `v7.2.0`, `inet_devconf_policy`, `inet_validate_link_af` and `inet_fill_link_af`, and the KC1 rows' requests and readbacks; KC7-T02's section amended to what the gate does (46 kinds, the shared readbacks); doccheck | tasks one to one, no broken link or anchor | this commit |
 
 ## Decision log
 
@@ -216,3 +221,5 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 - **batadv has one attribute, not two.** The inventory said 2; `IFLA_BATADV_ALGO_NAME` is the only member after `UNSPEC`.
 - **KC7 commits a 7.3.0 link-write corpus.** The kind captures lived only in the scratch runs the V### rows compared, and the committed link-write corpus is 7.1.4's, older than the kind corpus and the guest kernel. KC7-T01 commits one run's output at the runner's default, `testdata/7_3_0/link-write`, and leaves `7_1_4/` and the tests that name it alone. `genl/mptcp_limits_set_over` lands there with the kernel's 0 (V004).
 - **`corpusAll` skips the 7.3.0 link-write set.** The 17 corpus tests that tally every message under `testdata` count one capture of each row; the 7.3.0 set recaptures the 7.1.4 set's rows, so reading both doubles them. The kind tests read `tdLinkWrite_7_3_0` directly, and `TestCorpusAllSkipsLinkWrite730` pins the skip.
+- **7.2.0 names 46 link kinds, not 48.** The plan's count was wrong: `ip/iplink_*.c` and `ip/link_*.c` at `v7.2.0` hold 46 `link_util` ids. `macsec` (`ipmacsec.c`) and `tun` (`iptuntap.c`) are `link_util`s outside those files and outside the plan. With the 7 exclusions, 39 kinds are in scope.
+- **bond, bond_slave, dummy and veth are captured through shared readbacks.** Their `write/` rows predate `link-write-readback.exp` and have no readbacks of their own. The gate pairs each kind's accepted `write/` rows with a `-d -j` dump in the same corpus that shows a device of the kind: `lacp_converged/ip_link_n_json` for bond, bond_slave and veth, and `kinds/vrf_slave/set_master/ip_getlink_detail_json`'s `d0` for dummy.

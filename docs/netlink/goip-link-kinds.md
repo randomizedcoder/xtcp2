@@ -1426,29 +1426,104 @@ One run of `nix run .#microvm-x86_64-link-write-capture -- --timeout 7200` with 
 #### KC7-T02 The gate
 
 `TestLinkKindUniverse` (`pkg/xtcpnl/xtcpnl_kind_universe_test.go`), in `TestNetlinkUniverse`'s shape:
-- `linkKindUniverse`: the 48 `id`s of 7.2.0's `ip/iplink_*.c` and `ip/link_*.c`, each with the file that names it;
-- `linkKindExclusions`: can, dsa, ipoib, netdevsim, rmnet, virt_wifi and wwan, each with the decision log's reason;
-- `linkKindSources`: where each kind's rows are, `kinds/<kind>/` or, for bond, bond_slave, dummy and veth, the `write/` rows that predate the kind corpus;
-- `linkKindProblems(universe, excl, seen)`, a pure function the table drives, and `linkKindWalk`, which reads the 7.3.0 corpus. A kind counts as captured when one of its rows has `ip.rc` 0, an `ip.pcap`, and a `-d -j` readback whose `linkinfo` names it (`info_kind`, or `info_slave_kind` for a `_slave` kind).
+- `linkKindUniverse`: the 46 `id`s of 7.2.0's `ip/iplink_*.c` and `ip/link_*.c`, each with the file that names it. The plan said 48; the files name 46. `macsec` and `tun` are `link_util`s too, but in `ipmacsec.c` and `iptuntap.c`, outside the plan's scope;
+- `linkKindExclusions`: can, dsa, ipoib, netdevsim, rmnet, virt_wifi and wwan, each with the decision log's reason, so 39 kinds are in scope;
+- `linkKindSources`: where a kind's rows are when they aren't `kinds/<kind>/*`. bond, bond_slave, dummy and veth have `write/` rows that predate the kind corpus and have no readbacks of their own, so each names the corpus's `-d -j` dump that shows a device of that kind: `lacp_converged/ip_link_n_json` (the converged bond, its veth ports and their `info_slave_kind` bond) for bond, bond_slave and veth, and `kinds/vrf_slave/set_master/ip_getlink_detail_json` (the enslaved dummy `d0`) for dummy;
+- `linkKindProblems(universe, excl, seen)`, a pure function the table drives, and `linkKindWalk`, which reads the 7.3.0 corpus. A kind counts as captured when one of its rows has `ip.rc` 0, an `ip.pcap`, and a `-d -j` readback whose `linkinfo` names it (`info_kind`, or `info_slave_kind` for a `_slave` kind). The walk also tries every `kinds/<kind>` directory, so a captured kind 7.2.0 doesn't name is seen.
+
+`TestLinkKindUniverse` drives `linkKindProblems`:
 
 | description | input | expected |
 |---|---|---|
-| positive: the committed corpus passes | `linkKindWalk` of `7_3_0/link-write` | no problem |
+| positive: the committed corpus passes | `linkKindWalk` of `7_3_0/link-write` | no problem; 39 of 46 captured, 7 excluded |
 | negative: an in-scope kind with no row | the walk without `netkit` | `netkit: no accepted row with a -d readback` |
 | negative: an exclusion with no reason | `can` excluded with `""` | `can: excluded with no reason` |
-| boundary: one accepted row is enough | a kind with one row at 0 and its readback | no problem |
-| boundary: refused rows alone are not | a kind whose rows are all 2 or 255 | `no accepted row` |
+| boundary: a kind citing no source | `vrf` with no file | `vrf: cites no iproute2 source` |
 | corner: an exclusion the corpus contradicts | `can` excluded and captured | `can: captured and excluded; the exclusion is stale` |
-| corner: a captured kind 7.2.0 doesn't name | `kinds/foo` | `foo: captured but not a 7.2.0 kind` |
-| corner: the readback names another kind | `kinds/vxcan` whose readback says `vrf` | `vxcan: no accepted row with a -d readback` |
-| corner: a slave kind matches its slave kind | `bridge_slave`'s readback, `info_slave_kind` `bridge` | no problem |
+| corner: a captured kind 7.2.0 doesn't name | `foo` captured | `foo: captured but not a 7.2.0 kind` |
+| corner: an exclusion of a kind 7.2.0 doesn't name | `foo` excluded | `foo: excluded but not a 7.2.0 kind` |
 | corner: a kind listed twice | `vrf` twice | `vrf: listed twice` |
 
-**Mutation check:** the stale-exclusion case dropped (the stale corner), the `_slave` match dropped (the slave corner), the `ip.rc` filter dropped (the refused boundary).
+`TestLinkKindCaptured` drives the capture rule over built rows:
+
+| description | input | expected |
+|---|---|---|
+| positive: an accepted row whose readback names its kind | `kinds/vxcan/add` at 0, `info_kind` vxcan | captured |
+| negative: an accepted row with no readback | the same without `ip_getlink_detail_json` | not captured |
+| negative: an accepted row with no request | the same without `ip.pcap` | not captured |
+| boundary: one accepted row is enough | one row at 0 beside rows at 2 and 255 | captured |
+| boundary: refused rows alone are not | rows at 2 and 255 whose readbacks name vxcan | not captured |
+| corner: the readback names another kind | `kinds/vxcan/add` whose readback says `vrf` | not captured |
+| corner: a slave kind matches its slave kind | `bridge_slave`'s readback, `info_slave_kind` bridge | captured |
+| corner: a slave kind's master device is not its capture | `bridge_slave`'s readback, `info_kind` bridge only | not captured |
+| corner: a readback that isn't JSON | `ip`'s text output | not captured |
+| corner: a `write/` kind reads its shared readback | `write/add_veth` at 0, `lacp_converged/ip_link_n_json` naming veth | captured |
+
+**Mutation check:** the stale-exclusion case dropped (the stale corner), the `_slave` match dropped (the four slave kinds fail the positive row), the `ip.rc` filter dropped (the refused boundary).
 
 ### KP0 — `inet` devconf codec
 
-An encoder and decoder for `IFLA_AF_SPEC` → `AF_INET` → `IFLA_INET_CONF`.
+An encoder and decoder for `IFLA_AF_SPEC` → `AF_INET` → `IFLA_INET_CONF`. One task. The two directions don't share a shape, and the codec keeps them apart:
+- **The request** (`iplink_parse_inet`, `ip/iplink.c:572-860` at `v7.2.0`): `IFLA_AF_SPEC` and `AF_INET` are plain `addattr_nest`s, and `IFLA_INET_CONF` carries `NLA_F_NESTED` (type `0x8001`). Inside are u32 attributes typed by devconf id (`IPV4_DEVCONF_*`, `include/uapi/linux/ip.h`), in argument order, repeats kept: `inet_repeated` sends `forwarding` twice. The kernel parses them with `inet_devconf_policy` (`net/ipv4/devinet.c`).
+- **The dump** (`inet_fill_link_af`): `IFLA_INET_CONF` without `NLA_F_NESTED`, a raw array of `IPV4_DEVCONF_MAX` u32s, 132 bytes on 7.3.0. Entry `i` is devconf id `i + 1`. This is the 140-byte `AF_INET` entry `setAddrGenMode` skips.
+
+#### KP0-T01 The `inet` devconf codec
+
+**Code.** A new `pkg/xtcpnl/xtcpnl_inet_devconf.go`:
+- `InetDevconfParams`: the 32 params `ip` writes, in `iplink_parse_inet`'s order, each `{ID, Name, OnOff}`. Names are `ip`'s keywords (`disable_xfrm` is `IPV4_DEVCONF_NOXFRM`, `arp_filter` is `IPV4_DEVCONF_ARPFILTER`). `mc_forwarding` (2) has no keyword, and the policy makes it `NLA_REJECT`. 23 params are on/off and 9 numeric: rp_filter, tag, medium_id, force_igmp_version, arp_announce, arp_ignore, arp_accept and the two unsolicited report intervals. KG0's keyword chain reads this table.
+- `InetDevconfSetting{ID uint16; Value uint32}`. medium_id's -1 is `0xffffffff`, as `addattr32` sends it.
+- `LinkAttrInetDevconf(settings []InetDevconfSetting) (LinkAttr, error)`: the whole `IFLA_AF_SPEC` attribute, so the caller places it in `LinkWrite.Attrs` in argument order. `inet_then_mtu` sends it before `IFLA_MTU`. Errors:
+  - `ErrInetDevconfEmpty` for no settings, because `ip` never sends an empty nest: a bare `inet` is `incomplete_command`.
+  - `ErrInetDevconfID` for id 0 or above `IPV4_DEVCONF_MAX` (33). The codec doesn't refuse 2; the kernel does.
+- `ParseInetDevconfRequest(afSpec []byte) ([]InetDevconfSetting, error)`: the request direction. Settings come back in wire order. A family other than `AF_INET` is skipped. An inner attribute shorter than 4 bytes is an error, which is the kernel's `NLA_U32` check.
+- `ParseInetDevconfValues(afSpec []byte) ([]uint32, bool, error)`: the dump direction, `len/4` values. A kernel with more ids sends more, and they're kept. `false` means no `AF_INET` entry or no `IFLA_INET_CONF` in it. A length that isn't a multiple of 4 is an error.
+
+**Sources.** The KC1 rows are in `tdLinkWrite_7_3_0 + "/rtnl/inet_*"`, read directly, since `corpusAll` skips the 7.3.0 link-write set (KC7-T01). The requests: the `RTM_NEWLINK` with `NLM_F_REQUEST` in each row's `ip.pcap`. The dumps: the `RTM_NEWLINK` answer in each row's `netlink_route_getlink_detail.pcap`.
+
+`TestInetDevconfEncode`:
+
+| description | input | expected |
+|---|---|---|
+| positive: each kernel-answered KC1 row's request | the 11 rows at 0 or 2, their settings as the table in [KC1-T01](#kc1-t01-inet-devconf-write-rows) sends them | `IFLA_AF_SPEC` byte-identical to the one in the row's `ip.pcap` |
+| positive: several params, in argument order | `inet_several`'s four | ids 1, 3, 8, 19 in that order, `IFLA_INET_CONF` length 36 |
+| negative: no settings | `nil` | `ErrInetDevconfEmpty` |
+| negative: id 0 | `{0, 1}` | `ErrInetDevconfID` |
+| boundary: the highest id | `{33, 1}` (arp_evict_nocarrier) | encoded |
+| boundary: one past it | `{34, 1}` | `ErrInetDevconfID` |
+| corner: the nest flag only on the innermost | `inet_forwarding_on`'s setting | `IFLA_AF_SPEC` type 26 and `AF_INET` type 2 without `NLA_F_NESTED`; `IFLA_INET_CONF` type `0x8001` |
+| corner: a repeated id is kept | `inet_repeated`'s two settings | both attributes, `forwarding` 1 then 0 |
+| corner: medium_id -1 | `{14, 0xffffffff}` | the bytes of `inet_medium_id_neg1`'s request |
+
+`TestInetDevconfRequestParse`:
+
+| description | input | expected |
+|---|---|---|
+| positive: every KC1 request decodes to what was sent | the 11 rows' `IFLA_AF_SPEC` | each row's settings |
+| positive: round trip | `ParseInetDevconfRequest(LinkAttrInetDevconf(s).Payload)` over the encode table's settings | `s` |
+| negative: a 3-byte inner attribute | built | an error |
+| negative: a truncated nest | the first 10 bytes of `inet_several`'s `IFLA_AF_SPEC` | an error |
+| boundary: an `AF_INET` entry with an empty `IFLA_INET_CONF` | built | no settings, no error |
+| corner: only an `AF_INET6` entry | built | no settings, no error |
+| corner: `AF_INET6` before `AF_INET` | built, a setting in each | the `AF_INET` setting only |
+
+`TestInetDevconfValues`:
+
+| description | input | expected |
+|---|---|---|
+| positive: every devconf id reads back what `inet_every_param` sent | that row's `getlink_detail` answer for `d0` | 33 values; each of the 32 ids holds `INET_EVERY`'s value; id 2 (mc_forwarding) is 0 |
+| positive: the last of a repeated param wins | `inet_repeated`'s answer | id 1 is 0 |
+| negative: a refused row changes nothing | `inet_rp_filter_over`'s answer | id 8 (rp_filter) is the namespace default it had before |
+| negative: a 131-byte array | built | an error |
+| boundary: no `IFLA_AF_SPEC` | a link with none | `false`, no error |
+| boundary: an array of 34 | built | 34 values, the 34th kept |
+| corner: an `AF_INET6` entry beside it | the committed answer, which carries both | the `AF_INET` values only |
+| corner: medium_id -1 reads back as `0xffffffff` | `inet_medium_id_neg1`'s answer | id 14 is `0xffffffff` |
+
+**Benchmarks:** `BenchmarkParseInetDevconf`, with sub-benchmarks `request` (`inet_every_param`'s `IFLA_AF_SPEC`) and `values` (that row's dump entry), run with `-benchmem`; the allocations per op go in the ledger row.
+
+**Mutation check:** the `NLA_F_NESTED` bit dropped (the nest-flag corner and the byte-identical row); repeats deduplicated (the repeated corner); `ParseInetDevconfValues` reading id `i` at index `i` (the every-param row).
+
+**Done when:** the tables pass with `go test -count=1 -race ./pkg/xtcpnl/`, `go vet` passes, the mutants are killed, and lint-baseline and netlink-audit pass.
 
 ### KP1 — Bridge parsers
 
