@@ -448,12 +448,12 @@ func TestEncodeVxlanInfoData(t *testing.T) {
 		{
 			description: "negative: external with an id",
 			settings:    args("external id 42"),
-			err:         ErrVxlanConflict,
+			err:         ErrKindSettingConflict,
 		},
 		{
 			description: "negative: a group without dev",
 			settings:    args("id 42 group 239.1.1.1"),
-			err:         ErrVxlanConflict,
+			err:         ErrKindSettingConflict,
 		},
 		{
 			description: "negative: a multicast remote",

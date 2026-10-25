@@ -348,6 +348,8 @@ type LinkInfo struct {
 	Ipvlan *IpvlanInfo
 	// Vxlan is IFLA_INFO_DATA decoded when Kind is "vxlan".
 	Vxlan *VxlanInfo
+	// Geneve is IFLA_INFO_DATA decoded when Kind is "geneve".
+	Geneve *GeneveInfo
 
 	Link int32 // IFLA_LINK — peer/lower interface index
 
@@ -1016,6 +1018,9 @@ func setLinkInfoNest(li *LinkInfo, val []byte) {
 	}
 	if li.Kind == vxlanKindCst {
 		li.Vxlan = ParseVxlanInfoData(infoData)
+	}
+	if li.Kind == geneveKindCst {
+		li.Geneve = ParseGeneveInfoData(infoData)
 	}
 }
 

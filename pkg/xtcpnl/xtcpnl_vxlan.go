@@ -2,7 +2,6 @@ package xtcpnl
 
 import (
 	"encoding/binary"
-	"errors"
 	"net/netip"
 
 	"golang.org/x/sys/unix"
@@ -38,13 +37,7 @@ const (
 )
 
 const (
-	vxlanVniMaxCst      = 1<<24 - 1
-	vxlanLabelMaskCst   = 0xfffff
 	vxlanGpePortCst     = 4790
-	vxlanU8MaxCst       = 0xff
-	vxlanU16MaxCst      = 0xffff
-	vxlanU32MaxCst      = 0xffffffff
-	vxlanPortRangeCst   = 4
 	vxlanReservedLenCst = 8
 )
 
@@ -147,15 +140,15 @@ func ParseVxlanInfoData(nest []byte) *VxlanInfo {
 	walkNestTolerant(nest, func(atype uint16, val []byte) {
 		switch atype {
 		case unix.IFLA_VXLAN_GROUP:
-			v.Group = vxlanAddr4(val, v.Group)
+			v.Group = kindAddr4(val, v.Group)
 		case unix.IFLA_VXLAN_GROUP6:
-			group6 = vxlanAddr16(val, group6)
+			group6 = kindAddr16(val, group6)
 		case unix.IFLA_VXLAN_LOCAL:
-			v.Local = vxlanAddr4(val, v.Local)
+			v.Local = kindAddr4(val, v.Local)
 		case unix.IFLA_VXLAN_LOCAL6:
-			local6 = vxlanAddr16(val, local6)
+			local6 = kindAddr16(val, local6)
 		case unix.IFLA_VXLAN_PORT_RANGE:
-			if len(val) >= vxlanPortRangeCst {
+			if len(val) >= kindPortRangeLenCst {
 				v.PortLow, v.PortHigh = binary.BigEndian.Uint16(val), binary.BigEndian.Uint16(val[2:])
 				v.HasPortRange = true
 			}
@@ -194,56 +187,30 @@ func ParseVxlanInfoData(nest []byte) *VxlanInfo {
 func (v *VxlanInfo) parseScalar(atype uint16, val []byte) {
 	switch atype {
 	case unix.IFLA_VXLAN_ID:
-		vxlanU32(val, &v.ID, &v.HasID)
+		kindU32(val, &v.ID, &v.HasID)
 	case unix.IFLA_VXLAN_LINK:
-		vxlanU32(val, &v.Link, &v.HasLink)
+		kindU32(val, &v.Link, &v.HasLink)
 	case IflaVxlanAgeing:
-		vxlanU32(val, &v.Aging, &v.HasAging)
+		kindU32(val, &v.Aging, &v.HasAging)
 	case unix.IFLA_VXLAN_LIMIT:
-		vxlanU32(val, &v.Limit, &v.HasLimit)
+		kindU32(val, &v.Limit, &v.HasLimit)
 	case unix.IFLA_VXLAN_LABEL_POLICY:
-		vxlanU32(val, &v.LabelPolicy, &v.HasLabelPolicy)
+		kindU32(val, &v.LabelPolicy, &v.HasLabelPolicy)
 	case unix.IFLA_VXLAN_TTL:
-		vxlanU8(val, &v.TTL, &v.HasTTL)
+		kindU8(val, &v.TTL, &v.HasTTL)
 	case unix.IFLA_VXLAN_TTL_INHERIT:
-		vxlanU8(val, &v.TTLInherit, &v.HasTTLInherit)
+		kindU8(val, &v.TTLInherit, &v.HasTTLInherit)
 	case unix.IFLA_VXLAN_TOS:
-		vxlanU8(val, &v.TOS, &v.HasTOS)
+		kindU8(val, &v.TOS, &v.HasTOS)
 	case unix.IFLA_VXLAN_DF:
-		vxlanU8(val, &v.DF, &v.HasDF)
+		kindU8(val, &v.DF, &v.HasDF)
 	default:
 		if i := vxlanBoolIndex(atype); i >= 0 {
-			vxlanU8(val, &v.Bools[i], &v.HasBools[i])
+			kindU8(val, &v.Bools[i], &v.HasBools[i])
 			return
 		}
 		v.Unknown = append(v.Unknown, atype)
 	}
-}
-
-func vxlanU32(val []byte, dst *uint32, has *bool) {
-	if len(val) >= 4 {
-		*dst, *has = binary.LittleEndian.Uint32(val), true
-	}
-}
-
-func vxlanU8(val []byte, dst *uint8, has *bool) {
-	if len(val) >= 1 {
-		*dst, *has = val[0], true
-	}
-}
-
-func vxlanAddr4(val []byte, old netip.Addr) netip.Addr {
-	if len(val) < bridgeIPv4LenCst {
-		return old
-	}
-	return netip.AddrFrom4([4]byte(val[:bridgeIPv4LenCst]))
-}
-
-func vxlanAddr16(val []byte, old netip.Addr) netip.Addr {
-	if len(val) < bridgeIPv6LenCst {
-		return old
-	}
-	return netip.AddrFrom16([16]byte(val[:bridgeIPv6LenCst]))
 }
 
 // VxlanOption names what a VxlanSetting sets.
@@ -287,12 +254,6 @@ type VxlanSetting struct {
 	Addr   netip.Addr
 }
 
-// ErrVxlanConflict is one of vxlan_parse_opt's refusals of a combination:
-// group and remote, local and group of different families, vnifilter
-// without external, external with an id, no id on an add, or a group
-// without dev.
-var ErrVxlanConflict = errors.New("xtcpnl: vxlan options conflict")
-
 // vxlanEnc is vxlan_parse_opt's state across the words.
 type vxlanEnc struct {
 	ab            AttrBuilder
@@ -317,7 +278,10 @@ type vxlanEnc struct {
 // a set only after a learning word), and IFLA_VXLAN_PORT when nonzero, 4790
 // for gpe without a dstport. No settings encode to nothing: iplink_parse
 // calls no parse_opt when no option follows the kind. ip -4 and -6's
-// default group, sent when no address is given, is not modeled.
+// default group, sent when no address is given, is not modeled. It refuses
+// what vxlan_parse_opt refuses with ErrKindSettingConflict: group and
+// remote, a local of the other family, vnifilter without external, external
+// with an id, no id on an add, and a group without dev.
 func EncodeVxlanInfoData(settings []VxlanSetting, set bool) ([]byte, error) {
 	if len(settings) == 0 {
 		return nil, nil
@@ -340,47 +304,47 @@ func (e *vxlanEnc) put(s VxlanSetting) error {
 	switch s.Option {
 	case VxlanOptionID:
 		e.vni, e.hasID = s.Value, true
-		return vxlanMax(s.Value, vxlanVniMaxCst)
+		return kindMax(s.Value, kindVniMaxCst)
 	case VxlanOptionGroup, VxlanOptionRemote, VxlanOptionLocal:
 		return e.putAddr(s)
 	case VxlanOptionLink:
 		e.hasLink = true
-		return vxlanPutU32(&e.ab, unix.IFLA_VXLAN_LINK, s.Value)
+		return kindPutU32(&e.ab, unix.IFLA_VXLAN_LINK, s.Value)
 	case VxlanOptionTTL:
-		return vxlanPutU8(&e.ab, unix.IFLA_VXLAN_TTL, s.Value, vxlanU8MaxCst)
+		return kindPutU8(&e.ab, unix.IFLA_VXLAN_TTL, s.Value, kindU8MaxCst)
 	case VxlanOptionTTLInherit:
 		return e.ab.PutBytes(unix.IFLA_VXLAN_TTL_INHERIT, nil)
 	case VxlanOptionTOS:
-		return vxlanPutU8(&e.ab, unix.IFLA_VXLAN_TOS, s.Value, vxlanU8MaxCst)
+		return kindPutU8(&e.ab, unix.IFLA_VXLAN_TOS, s.Value, kindU8MaxCst)
 	case VxlanOptionDF:
-		return vxlanPutU8(&e.ab, unix.IFLA_VXLAN_DF, s.Value, uint64(VxlanDfInherit))
+		return kindPutU8(&e.ab, unix.IFLA_VXLAN_DF, s.Value, uint64(VxlanDfInherit))
 	case VxlanOptionLabel:
-		if s.Value&^vxlanLabelMaskCst != 0 {
+		if s.Value&^kindLabelMaskCst != 0 {
 			return ErrKindSettingRange
 		}
-		return e.ab.PutBytes(unix.IFLA_VXLAN_LABEL, vxlanBE(s.Value, 4))
+		return e.ab.PutBytes(unix.IFLA_VXLAN_LABEL, kindBE(s.Value, 4))
 	case VxlanOptionAging:
-		return vxlanPutU32(&e.ab, IflaVxlanAgeing, s.Value)
+		return kindPutU32(&e.ab, IflaVxlanAgeing, s.Value)
 	case VxlanOptionLimit:
-		return vxlanPutU32(&e.ab, unix.IFLA_VXLAN_LIMIT, s.Value)
+		return kindPutU32(&e.ab, unix.IFLA_VXLAN_LIMIT, s.Value)
 	case VxlanOptionSrcPort:
 		return e.putSrcPort(s)
 	case VxlanOptionDstPort:
 		e.dstport, e.portGiven = s.Value, true
-		return vxlanMax(s.Value, vxlanU16MaxCst)
+		return kindMax(s.Value, kindU16MaxCst)
 	case VxlanOptionLearning:
 		e.learning, e.learningGiven = s.Value, true
-		return vxlanMax(s.Value, 1)
+		return kindMax(s.Value, 1)
 	case VxlanOptionExternal:
 		e.metadata = s.Value == 1
 		if e.metadata {
 			e.learning = 0
 		}
-		return vxlanPutU8(&e.ab, unix.IFLA_VXLAN_COLLECT_METADATA, s.Value, 1)
+		return kindPutU8(&e.ab, unix.IFLA_VXLAN_COLLECT_METADATA, s.Value, 1)
 	case VxlanOptionBool:
 		return e.putBool(s)
 	case VxlanOptionReservedBits:
-		return e.ab.PutBytes(IflaVxlanReservedBits, vxlanBE(s.Value, vxlanReservedLenCst))
+		return e.ab.PutBytes(IflaVxlanReservedBits, kindBE(s.Value, vxlanReservedLenCst))
 	case VxlanOptionGBP:
 		return e.ab.PutBytes(unix.IFLA_VXLAN_GBP, nil)
 	case VxlanOptionGPE:
@@ -405,20 +369,20 @@ func (e *vxlanEnc) putAddr(s VxlanSetting) error {
 		other, dst = e.remote, &e.local
 	}
 	if dst.IsValid() || other.IsValid() && other.Is4() != a.Is4() {
-		return ErrVxlanConflict
+		return ErrKindSettingConflict
 	}
 	*dst = a
 	return nil
 }
 
 func (e *vxlanEnc) putSrcPort(s VxlanSetting) error {
-	if s.Value > vxlanU16MaxCst || s.High > vxlanU16MaxCst {
+	if s.Value > kindU16MaxCst || s.High > kindU16MaxCst {
 		return ErrKindSettingRange
 	}
 	if s.Value == 0 && s.High == 0 {
 		return nil
 	}
-	return e.ab.PutBytes(unix.IFLA_VXLAN_PORT_RANGE, append(vxlanBE(s.Value, 2), vxlanBE(s.High, 2)...))
+	return e.ab.PutBytes(unix.IFLA_VXLAN_PORT_RANGE, append(kindBE(s.Value, 2), kindBE(s.High, 2)...))
 }
 
 // putBool writes one of the u8 words other than learning and external,
@@ -431,7 +395,7 @@ func (e *vxlanEnc) putBool(s VxlanSetting) error {
 	if s.Attr == unix.IFLA_VXLAN_VNIFILTER && s.Value == 1 {
 		e.vnifilter = true
 	}
-	return vxlanPutU8(&e.ab, s.Attr, s.Value, 1)
+	return kindPutU8(&e.ab, s.Attr, s.Value, 1)
 }
 
 // finish is vxlan_parse_opt after its loop: the checks, then the
@@ -441,21 +405,21 @@ func (e *vxlanEnc) finish(set bool) error {
 	case !e.metadata && e.vnifilter, e.metadata && e.hasID,
 		!e.metadata && !e.vnifilter && !e.hasID && !set,
 		e.remote.IsMulticast() && !e.hasLink:
-		return ErrVxlanConflict
+		return ErrKindSettingConflict
 	}
 	if e.hasID {
-		if err := vxlanPutU32(&e.ab, unix.IFLA_VXLAN_ID, e.vni); err != nil {
+		if err := kindPutU32(&e.ab, unix.IFLA_VXLAN_ID, e.vni); err != nil {
 			return err
 		}
 	}
-	if err := vxlanPutAddr(&e.ab, e.local, unix.IFLA_VXLAN_LOCAL, unix.IFLA_VXLAN_LOCAL6); err != nil {
+	if err := kindPutAddr(&e.ab, e.local, unix.IFLA_VXLAN_LOCAL, unix.IFLA_VXLAN_LOCAL6); err != nil {
 		return err
 	}
-	if err := vxlanPutAddr(&e.ab, e.remote, unix.IFLA_VXLAN_GROUP, unix.IFLA_VXLAN_GROUP6); err != nil {
+	if err := kindPutAddr(&e.ab, e.remote, unix.IFLA_VXLAN_GROUP, unix.IFLA_VXLAN_GROUP6); err != nil {
 		return err
 	}
 	if !set || e.learningGiven {
-		if err := vxlanPutU8(&e.ab, unix.IFLA_VXLAN_LEARNING, e.learning, 1); err != nil {
+		if err := kindPutU8(&e.ab, unix.IFLA_VXLAN_LEARNING, e.learning, 1); err != nil {
 			return err
 		}
 	}
@@ -466,44 +430,5 @@ func (e *vxlanEnc) finish(set bool) error {
 	if port == 0 {
 		return nil
 	}
-	return e.ab.PutBytes(unix.IFLA_VXLAN_PORT, vxlanBE(port, 2))
-}
-
-func vxlanPutAddr(ab *AttrBuilder, a netip.Addr, type4, type6 uint16) error {
-	switch {
-	case !a.IsValid():
-		return nil
-	case a.Is4():
-		b := a.As4()
-		return ab.PutBytes(type4, b[:])
-	default:
-		b := a.As16()
-		return ab.PutBytes(type6, b[:])
-	}
-}
-
-func vxlanMax(v, maxV uint64) error {
-	if v > maxV {
-		return ErrKindSettingRange
-	}
-	return nil
-}
-
-func vxlanPutU8(ab *AttrBuilder, atype uint16, v, maxV uint64) error {
-	if v > maxV {
-		return ErrKindSettingRange
-	}
-	return ab.PutBytes(atype, binary.LittleEndian.AppendUint64(nil, v)[:1])
-}
-
-func vxlanPutU32(ab *AttrBuilder, atype uint16, v uint64) error {
-	if v > vxlanU32MaxCst {
-		return ErrKindSettingRange
-	}
-	return ab.PutBytes(atype, binary.LittleEndian.AppendUint64(nil, v)[:4])
-}
-
-// vxlanBE is v's low w bytes, big-endian.
-func vxlanBE(v uint64, w int) []byte {
-	return binary.BigEndian.AppendUint64(nil, v)[8-w:]
+	return e.ab.PutBytes(unix.IFLA_VXLAN_PORT, kindBE(port, 2))
 }

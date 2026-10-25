@@ -17,9 +17,9 @@
 - KP0 is done (KP0-T01; planned in DOC009): `pkg/xtcpnl/xtcpnl_inet_devconf.go` encodes the `inet` write's `IFLA_AF_SPEC` byte for byte as `ip` does for the 11 KC1 rows the kernel answered, decodes it back, and decodes the dump's 33-value devconf array. KP1 is planned (DOC010).
 - KP1 is done (KP1-T01, KP1-T02; planned in DOC010): `pkg/xtcpnl/xtcpnl_bridge.go` is the bridge's 53-row option table and `xtcpnl_bridge_slave.go` the port's 44-row one. Each has a decoder that renders every accepted row's dump exactly as its `-d -j` readback prints it (50 bridge rows, 30 port rows), and an encoder that rebuilds the data nest of every row that sent a request byte for byte (55 and 37). `LinkInfo` carries `Bridge` and `BridgeSlave`. KP2 is planned (DOC011).
 - KP2 is done (KP2-T01, KP2-T02, KP2-T03; planned in DOC011): `pkg/xtcpnl/xtcpnl_vlan.go` decodes the vlan kind into `LinkInfo.Vlan`, rendering all 15 accepted rows' dumps as their `-d -j` readbacks print them, and encodes the `IFLA_INFO_DATA` of the 21 rows that sent a request byte for byte. `xtcpnl_macvlan.go` does the same for macvlan and macvtap into `LinkInfo.Macvlan` (25 accepted rows, 30 requests), and `xtcpnl_ipvlan.go` for ipvlan and ipvtap into `LinkInfo.Ipvlan` (14 and 17). KP3 is planned (DOC012).
-- KP3 is in progress (KP3-T01): `pkg/xtcpnl/xtcpnl_vxlan.go` decodes the vxlan kind into `LinkInfo.Vxlan`, rendering all 46 accepted rows' dumps as their `-d -j` readbacks print them, and encodes the `IFLA_INFO_DATA` of the 58 rows that sent a request byte for byte, adds and sets alike.
+- KP3 is in progress (KP3-T01, KP3-T02): `pkg/xtcpnl/xtcpnl_vxlan.go` decodes the vxlan kind into `LinkInfo.Vxlan`, rendering all 46 accepted rows' dumps as their `-d -j` readbacks print them, and encodes the `IFLA_INFO_DATA` of the 58 rows that sent a request byte for byte, adds and sets alike. `xtcpnl_geneve.go` does the same for geneve into `LinkInfo.Geneve` (22 accepted rows, 35 requests); the two share `xtcpnl_kind_wire.go`.
 
-**Next action:** [KP3-T02](goip-link-kinds.md#kp3-t02-the-geneve-parser): the geneve parser.
+**Next action:** [KP3-T03](goip-link-kinds.md#kp3-t03-the-bareudp-and-amt-parsers): the bareudp and amt parsers.
 
 ## Contents
 
@@ -54,7 +54,7 @@
 | [KP0](goip-link-kinds.md#kp0--inet-devconf-codec) | parsers | `inet` devconf codec | KP0-T01 | done | V072–V074, DOC010 |
 | [KP1](goip-link-kinds.md#kp1--bridge-parsers) | parsers | bridge | KP1-T02 | done | V075–V080, DOC011 |
 | [KP2](goip-link-kinds.md#kp2--vlan-family-parsers) | parsers | VLAN family | KP2-T03 | done | V081–V089, DOC012 |
-| [KP3](goip-link-kinds.md#kp3--udp-overlay-parsers) | parsers | UDP overlays | KP3-T04 | in progress | V090–V092 |
+| [KP3](goip-link-kinds.md#kp3--udp-overlay-parsers) | parsers | UDP overlays | KP3-T04 | in progress | V090–V095 |
 | [KP4](goip-link-kinds.md#kp4--ip-tunnel-parsers) | parsers | IP tunnels | | not started | |
 | [KP5](goip-link-kinds.md#kp5--the-remaining-kinds-parsers) | parsers | the remaining kinds | | not started | |
 | [KG0](goip-link-kinds.md#kg0--goip-link-set-inet) | goip | `link set inet` | | not started | |
@@ -99,7 +99,7 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | [x] | [KP2-T02](goip-link-kinds.md#kp2-t02-the-macvlan-and-macvtap-parser) | the macvlan and macvtap parser | done | V084–V086 |
 | [x] | [KP2-T03](goip-link-kinds.md#kp2-t03-the-ipvlan-and-ipvtap-parser) | the ipvlan and ipvtap parser | done | V087–V089, DOC012 |
 | [x] | [KP3-T01](goip-link-kinds.md#kp3-t01-the-vxlan-parser) | the vxlan parser | done | V090–V092 |
-| [ ] | [KP3-T02](goip-link-kinds.md#kp3-t02-the-geneve-parser) | the geneve parser | not started | |
+| [x] | [KP3-T02](goip-link-kinds.md#kp3-t02-the-geneve-parser) | the geneve parser | done | V093–V095 |
 | [ ] | [KP3-T03](goip-link-kinds.md#kp3-t03-the-bareudp-and-amt-parsers) | the bareudp and amt parsers | not started | |
 | [ ] | [KP3-T04](goip-link-kinds.md#kp3-t04-the-gtp-parser) | the gtp parser | not started | |
 | [ ] | [KP4-T01…](goip-link-kinds.md#kp4--ip-tunnel-parsers) | IP tunnel parsers | not started | |
@@ -219,6 +219,9 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | V090 | 2026-10-25 | KP3-T01 | `go vet`, `go test -count=1 -race ./pkg/xtcpnl/ ./internal/goip/`, `go test ./pkg/linkmonitor/...`, and `go test -bench BenchmarkParseVxlanInfoData -benchmem` | all pass: `TestVxlanDumpMatchesReadback` (46 rows), `TestParseVxlanInfoData` (14 rows), `TestEncodeVxlanInfoData` (58 corpus rows and 11 built), `TestLinkInfoVxlanKinds` (4 rows). The 4 `route-1` replay goldens regenerated: 8 digests change, every value count is the same. 304 ns/op, 176 B/op, 1 alloc/op | this commit |
 | V091 | 2026-10-25 | KP3-T01 | mutation, a scratch worktree, each `go test` in a `systemd-run --scope -p MemoryMax=6G -p MemorySwapMax=0` with `-timeout=180s`: the port read little-endian; `LEARNING` sent on a set; the group/remote address check inverted | 3 of 3 killed: by every readback row; by `corner: a set sends no learning by default`, `boundary: a zero source range sends nothing` and every `set_*` request but `set_changeable`; by `negative: a group without dev`, `negative: a multicast remote` and the `add_group`, `add_group6`, `add_remote` and `add_local` requests | scratch |
 | V092 | 2026-10-25 | KP3-T01 | `nix build .#checks.x86_64-linux.lint-baseline`, then `.#checks.x86_64-linux.netlink-audit` | both pass. The first lint run found misspell on the kernel's `ageing` (the keyword, the JSON key and `IFLA_VXLAN_AGEING`); the keyword became `VxlanKeywordAgeing`, the id `IflaVxlanAgeing`, and the field `Aging`, with no exclusion | this commit |
+| V093 | 2026-10-25 | KP3-T02 | `go vet`, `go test -count=1 -race ./pkg/xtcpnl/ ./internal/goip/`, `go test ./pkg/linkmonitor/...`, and `go test -bench BenchmarkParseGeneveInfoData -benchmem` | all pass: `TestGeneveDumpMatchesReadback` (22 rows), `TestParseGeneveInfoData` (14 rows), `TestEncodeGeneveInfoData` (35 corpus rows and 10 built), `TestLinkInfoGeneveKinds` (4 rows); the vxlan tests unchanged after the helpers moved to `xtcpnl_kind_wire.go`. The 4 `route-1` replay goldens regenerated: 8 digests change, every value count is the same. 158 ns/op, 112 B/op, 1 alloc/op | this commit |
+| V094 | 2026-10-25 | KP3-T02 | mutation, a scratch worktree, each `go test` in a `systemd-run --scope -p MemoryMax=6G -p MemorySwapMax=0` with `-timeout=180s`: `LOCAL6` sent as `LOCAL`; `LABEL` sent on a set; `external`'s id dropped | 3 of 3 killed: by the `add_local6`, `add_external_local6`, `add_local6_link_local` and `add_local_family_mix` requests; by `corner: a set sends only what it was given` and every `set_*` request without a label; by the `add_external`, `add_external_local`, `add_external_local6` and `add_external_udpcsum` requests | scratch |
+| V095 | 2026-10-25 | KP3-T02 | `nix build .#checks.x86_64-linux.lint-baseline`, then `.#checks.x86_64-linux.netlink-audit` | both pass on the first run | this commit |
 
 ## Decision log
 
@@ -269,5 +272,8 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 - **vxlan's `ageing` is one constant too.** As with the bridge's `ageing_time`, `VxlanKeywordAgeing` assembles the keyword and JSON key, `IflaVxlanAgeing` is the enum's value (8), and the Go field is `Aging`.
 - **The kernel never dumps `IFLA_VXLAN_MC_ROUTE`, and dumps `VNIFILTER` only when on.** `add_mcroute` is accepted, but its readback has no `mcroute`; only `add_vnifilter`'s has `vnifilter`. The parser decodes both when sent, and the readback test compares what the dump carries.
 - **vxlan's `tos` value is hex.** `rtnl_dsfield_a2n` reads it with `strtoul(…, 16)`, so `tos 10` is 0x10, as `add_tos`'s readback prints it.
-- **The vxlan encoder refuses what `vxlan_parse_opt` refuses.** `ErrVxlanConflict` covers group and remote together, a local of the other family, vnifilter without external, external with an id, no id on an add, and a group without dev; `ErrKindSettingRange` covers a value out of range and a group, remote or local of the wrong cast. The default group `ip -4` and `-6` send when no address is given is not modeled; no row uses it.
+- **The vxlan encoder refuses what `vxlan_parse_opt` refuses.** `ErrKindSettingConflict` covers group and remote together, a local of the other family, vnifilter without external, external with an id, no id on an add, and a group without dev; `ErrKindSettingRange` covers a value out of range and a group, remote or local of the wrong cast. The default group `ip -4` and `-6` send when no address is given is not modeled; no row uses it.
 - **The plan's group/remote mutant moved to the encoder.** The parser keeps one `Group` address and makes no choice; the group-or-remote key is the render's (KG3), so the mutant inverted the encoder's multicast check instead.
+- **The plan's geneve order was wrong for two attributes.** `geneve_parse_opt` sends `TTL_INHERIT` and `DF` inside its loop, in argument order, ahead of `ID`; only the rest waits for the loop to end. `ttl inherit` also marks the ttl given, so a set with it sends `TTL` 0 after the loop. A corner row pins it.
+- **The kernel dumps geneve attributes `ip` never prints.** `geneve_fill_info` sends `PORT_RANGE` on every device and `GRO_HINT` when on; the parser decodes both, and the readback test compares only what `ip` prints.
+- **The kinds' wire helpers are shared.** The tolerant reads, range-checked writes, the 24-bit VNI and flow-label bounds, and `ErrKindSettingConflict` (vxlan's conflict error, renamed when geneve needed the same) live in `xtcpnl_kind_wire.go`.

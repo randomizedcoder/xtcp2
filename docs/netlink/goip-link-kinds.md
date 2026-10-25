@@ -1837,7 +1837,7 @@ Four tasks, one per KC4 task: KP3-T01 vxlan, KP3-T02 geneve, KP3-T03 bareudp and
 **Code.** A new `pkg/xtcpnl/xtcpnl_vxlan.go`:
 - **`VxlanInfo`:** the id; `Group`, `Local` as `netip.Addr` (`GROUP` or, when it is absent, `GROUP6`, as `vxlan_print_opt` reads them; likewise `LOCAL`/`LOCAL6`); the lower's ifindex; `TTL`, `TTLInherit`, `TOS`, `DF`, `Label` (host order), `Aging`, `Limit`, and the unprinted `LabelPolicy`; the source port range (two big-endian u16s) and the destination port; `ReservedBits` (big-endian u64); the 14 u8 booleans of `vxlan_print_opt`'s `vxlan_opts` table, by index; and the flags `GBP`, `GPE` and `RemcsumNopartial`. Each value has a present bit. `IFLA_VXLAN_AGEING`, `RESERVED_BITS` and `MC_ROUTE` are package constants (`IflaVxlanAgeing`, `IflaVxlanReservedBits`, `IflaVxlanMcRoute`): x/sys v0.49.0 lacks the last two, and misspell reads the first.
 - **`VxlanBoolOptions`:** the table, in print order (`external`, `vnifilter`, `learning`, `proxy`, `rsc`, `l2miss`, `l3miss`, `udp_csum`, `udp_zero_csum6_tx`, `udp_zero_csum6_rx`, `remcsum_tx`, `remcsum_rx`, `localbypass`, `mcroute`), with their ids.
-- **`EncodeVxlanInfoData(settings, set)`:** `LINK`, `TTL`/`TTL_INHERIT`, `TOS`, `DF`, `LABEL`, `AGEING`, `LIMIT`, `PORT_RANGE` (only when either end is nonzero), the u8 flags, `RESERVED_BITS`, `COLLECT_METADATA`, `GBP`, `GPE`, `VNIFILTER` and `MC_ROUTE` in argument order; then `ID` if given, the local, the group or remote, `LEARNING` (on an add always, 0 after `external` or `nolearning`; on a set only when a learning word was given), and `PORT` when nonzero (4790 for `gpe` without `dstport`). No settings encode to nothing, as for ipvlan. It refuses what `vxlan_parse_opt` refuses with `ErrVxlanConflict` (group and remote, a local of the other family, vnifilter without external, external with an id, no id on an add, a group without dev) and a value out of range, or an address of the wrong cast, with `ErrKindSettingRange`.
+- **`EncodeVxlanInfoData(settings, set)`:** `LINK`, `TTL`/`TTL_INHERIT`, `TOS`, `DF`, `LABEL`, `AGEING`, `LIMIT`, `PORT_RANGE` (only when either end is nonzero), the u8 flags, `RESERVED_BITS`, `COLLECT_METADATA`, `GBP`, `GPE`, `VNIFILTER` and `MC_ROUTE` in argument order; then `ID` if given, the local, the group or remote, `LEARNING` (on an add always, 0 after `external` or `nolearning`; on a set only when a learning word was given), and `PORT` when nonzero (4790 for `gpe` without `dstport`). No settings encode to nothing, as for ipvlan. It refuses what `vxlan_parse_opt` refuses with `ErrKindSettingConflict` (group and remote, a local of the other family, vnifilter without external, external with an id, no id on an add, a group without dev) and a value out of range, or an address of the wrong cast, with `ErrKindSettingRange`.
 - **The render oracle:** `vxlan_print_opt`: `group` or `remote` by whether the address is multicast, `local`, `link` by name, `port_range` as `{low, high}`, `port`, `tos` (hex, absent at 0), `ttl` (absent under `ttl_inherit`; JSON prints 0), `df` (`unset` is JSON-only), `label` (hex, absent at 0), `ageing`, `limit` (absent at 0), `reserved_bits` (hex), `gbp` and `gpe` as JSON null, and each bool option the dump carries.
 - **The benchmark:** `BenchmarkParseVxlanInfoData` over `add_group`'s blob.
 
@@ -1869,8 +1869,8 @@ Four tasks, one per KC4 task: KP3-T01 vxlan, KP3-T02 geneve, KP3-T03 bareudp and
 | positive: each row's request | the 58 rows that sent one, argv and `set` from the corpus script | byte-identical to `ip.pcap`'s |
 | negative: a VNI too wide | 1<<24 | `ErrKindSettingRange` |
 | negative: a setting with no option | the zero option | `ErrKindSettingOption` |
-| negative: external with an id | `external id 42` | `ErrVxlanConflict` |
-| negative: a group without dev | `id 42 group 239.1.1.1` | `ErrVxlanConflict` |
+| negative: external with an id | `external id 42` | `ErrKindSettingConflict` |
+| negative: a group without dev | `id 42 group 239.1.1.1` | `ErrKindSettingConflict` |
 | negative: a multicast remote | `id 42 remote 239.1.1.1` | `ErrKindSettingRange` |
 | boundary: `dstport 0` sends no `PORT` | `id 42 dstport 0` | `ID`, `LEARNING`, no `PORT` |
 | boundary: a zero source range sends nothing | `srcport 0 0`, set | nothing |
@@ -1893,8 +1893,9 @@ Four tasks, one per KC4 task: KP3-T01 vxlan, KP3-T02 geneve, KP3-T03 bareudp and
 #### KP3-T02 The geneve parser
 
 **Code.** A new `pkg/xtcpnl/xtcpnl_geneve.go`:
-- **`GeneveInfo`:** the id; `Remote` and `Local` as `netip.Addr`; `TTL`, `TTLInherit`, `TOS`, `DF`, `Label`, the port; `CollectMetadata` and `InnerProtoInherit` (flags); the three checksum u8s; present bits.
-- **`EncodeGeneveInfoData(settings, set)`:** everything after the loop, in `geneve_parse_opt`'s order: `ID` always (0 for `external`), the remote, the local (7.2.0's `local`, `LOCAL` or `LOCAL6` by family), `LABEL`, `TTL` and `TOS` on an add or when given, `TTL_INHERIT` and `DF` when given, `PORT` when nonzero, `COLLECT_METADATA`, `INNER_PROTO_INHERIT`, then each checksum word given. A later checksum word overrides an earlier one.
+- **`GeneveInfo`:** the id; `Remote` and `Local` as `netip.Addr` (`REMOTE` over `REMOTE6`, `LOCAL` over `LOCAL6`, as `geneve_print_opt` reads them); `TTL`, `TTLInherit`, `TOS`, `DF`, `Label` (host order), the port; the unprinted `PORT_RANGE` the kernel dumps on every device; `CollectMetadata`, `InnerProtoInherit` and `GroHint` (flags); the three checksum u8s; present bits. `PORT_RANGE`, `GRO_HINT`, `LOCAL` and `LOCAL6` (15 to 18) are package constants, absent from x/sys v0.49.0.
+- **`EncodeGeneveInfoData(settings, set)`:** `TTL_INHERIT` (from `ttl inherit`) and `DF` go in argument order, inside the loop. The rest goes after it, in `geneve_parse_opt`'s order: `ID` always (0 for `external`), the remote, the local (7.2.0's `local`, `LOCAL` or `LOCAL6` by family), `LABEL`, `TTL` and `TOS` on an add or when given (`ttl inherit` and `ttl auto` give `TTL` 0), `PORT` when nonzero, `COLLECT_METADATA`, `INNER_PROTO_INHERIT`, then each checksum word given. A later checksum word overrides an earlier one (`ip` refuses the pair as a duplicate first). It refuses external with an id, no id without external, and an add with no remote and no external with `ErrKindSettingConflict`.
+- **Shared with vxlan:** the tolerant reads and range-checked writes (`kindU32`, `kindPutAddr`, `kindBE` and the rest) and `ErrKindSettingConflict` live in `xtcpnl_kind_wire.go`, for KP3-T03 and KP3-T04 too.
 - **The render oracle:** `geneve_print_opt`: `external` as true when the flag is present, `id`, `remote`/`remote6` and `local`/`local6` by family, `ttl` (absent under `ttl_inherit`), `tos` and `label` in hex, `df`, `port`, the checksum bools (JSON always prints them), and `inner_proto_inherit`.
 - **The benchmark:** `BenchmarkParseGeneveInfoData` over `add_local6`'s blob.
 
@@ -1914,6 +1915,8 @@ Four tasks, one per KC4 task: KP3-T01 vxlan, KP3-T02 geneve, KP3-T03 bareudp and
 | boundary: the highest VNI | `add_id_max` | 16777215 |
 | corner: the inner-proto flag has no payload | `add_innerprotoinherit` | inner_proto_inherit true |
 | corner: IPv4 and IPv6 remotes both present | built both | `remote` wins, as `ip` checks it first |
+| corner: an IPv4 local of 0.0.0.0 still prints | built `LOCAL` 0 | `local` `0.0.0.0`: `geneve_print_opt` checks only the IPv6 local for zero |
+| corner: a multicast IPv6 remote prints nothing | built `REMOTE6` `ff05::1` | no key |
 | corner: an id past the last `IFLA_GENEVE_*` | built | listed in `Unknown` |
 
 `TestEncodeGeneveInfoData`:
@@ -1922,11 +1925,24 @@ Four tasks, one per KC4 task: KP3-T01 vxlan, KP3-T02 geneve, KP3-T03 bareudp and
 |---|---|---|
 | positive: each row's request | the 35 rows that sent one | byte-identical to `ip.pcap`'s |
 | negative: a label past 20 bits | 0x100000 | `ErrKindSettingRange` |
+| negative: a setting with no option | the zero option | `ErrKindSettingOption` |
+| negative: external with an id | `external id 5` | `ErrKindSettingConflict` |
+| negative: an add with no remote | `id 1` | `ErrKindSettingConflict` |
 | corner: a local of the other family is sent | an IPv6 remote, an IPv4 local | `REMOTE6`, then `LOCAL`, no error: the kernel refuses it (`add_local_family_mix`) |
 | boundary: `dstport 0` | base `dstport 0` | no `PORT` |
 | corner: a set sends only what it was given | `id 1 ttl 5`, set | `ID`, `TTL` |
 | corner: an add always sends the zeros | base, add | `ID`, `REMOTE`, `LABEL` 0, `TTL` 0, `TOS` 0 |
 | corner: a later checksum word wins | `udpcsum noudpcsum` | `UDP_CSUM` 0 |
+| corner: `TTL_INHERIT` and `DF` go in the words' order, before `ID` | base `ttl inherit df set` | `TTL_INHERIT` 1, `DF` 1, `ID`, `REMOTE`, `LABEL` 0, `TTL` 0, `TOS` 0 |
+
+`TestLinkInfoGeneveKinds`:
+
+| description | input | expected |
+|---|---|---|
+| positive: a geneve decodes `Geneve` | `add_default` | non-nil |
+| positive: an external geneve decodes `Geneve` | `add_external` | non-nil |
+| negative: a vxlan does not | `vxlan/add_default` | nil |
+| corner: a bareudp, another UDP overlay, does not | `bareudp/add_default` | nil |
 
 **Mutation check:** `LOCAL6` sent as `LOCAL` (`add_local6`), `LABEL` sent on a set (`set_changeable`'s request), `external`'s id dropped (`add_external`'s request).
 
