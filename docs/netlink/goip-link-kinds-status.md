@@ -17,9 +17,9 @@
 - KP0 is done (KP0-T01; planned in DOC009): `pkg/xtcpnl/xtcpnl_inet_devconf.go` encodes the `inet` write's `IFLA_AF_SPEC` byte for byte as `ip` does for the 11 KC1 rows the kernel answered, decodes it back, and decodes the dump's 33-value devconf array. KP1 is planned (DOC010).
 - KP1 is done (KP1-T01, KP1-T02; planned in DOC010): `pkg/xtcpnl/xtcpnl_bridge.go` is the bridge's 53-row option table and `xtcpnl_bridge_slave.go` the port's 44-row one. Each has a decoder that renders every accepted row's dump exactly as its `-d -j` readback prints it (50 bridge rows, 30 port rows), and an encoder that rebuilds the data nest of every row that sent a request byte for byte (55 and 37). `LinkInfo` carries `Bridge` and `BridgeSlave`. KP2 is planned (DOC011).
 - KP2 is done (KP2-T01, KP2-T02, KP2-T03; planned in DOC011): `pkg/xtcpnl/xtcpnl_vlan.go` decodes the vlan kind into `LinkInfo.Vlan`, rendering all 15 accepted rows' dumps as their `-d -j` readbacks print them, and encodes the `IFLA_INFO_DATA` of the 21 rows that sent a request byte for byte. `xtcpnl_macvlan.go` does the same for macvlan and macvtap into `LinkInfo.Macvlan` (25 accepted rows, 30 requests), and `xtcpnl_ipvlan.go` for ipvlan and ipvtap into `LinkInfo.Ipvlan` (14 and 17). KP3 is planned (DOC012).
-- KP3 is in progress (KP3-T01, KP3-T02, KP3-T03): `pkg/xtcpnl/xtcpnl_vxlan.go` decodes the vxlan kind into `LinkInfo.Vxlan`, rendering all 46 accepted rows' dumps as their `-d -j` readbacks print them, and encodes the `IFLA_INFO_DATA` of the 58 rows that sent a request byte for byte, adds and sets alike. `xtcpnl_geneve.go` does the same for geneve into `LinkInfo.Geneve` (22 accepted rows, 35 requests), `xtcpnl_bareudp.go` for bareudp into `LinkInfo.Bareudp` (6 and 10) and `xtcpnl_amt.go` for amt into `LinkInfo.Amt` (5 and 13); they share `xtcpnl_kind_wire.go`.
+- KP3 is done (KP3-T01, KP3-T02, KP3-T03, KP3-T04; planned in DOC012): `pkg/xtcpnl/xtcpnl_vxlan.go` decodes the vxlan kind into `LinkInfo.Vxlan`, rendering all 46 accepted rows' dumps as their `-d -j` readbacks print them, and encodes the `IFLA_INFO_DATA` of the 58 rows that sent a request byte for byte, adds and sets alike. `xtcpnl_geneve.go` does the same for geneve into `LinkInfo.Geneve` (22 accepted rows, 35 requests), `xtcpnl_bareudp.go` for bareudp into `LinkInfo.Bareudp` (6 and 10), `xtcpnl_amt.go` for amt into `LinkInfo.Amt` (5 and 13) and `xtcpnl_gtp.go` for gtp into `LinkInfo.Gtp` (7 and 11); they share `xtcpnl_kind_wire.go`. KP4 is planned (DOC013).
 
-**Next action:** [KP3-T04](goip-link-kinds.md#kp3-t04-the-gtp-parser): the gtp parser, which closes KP3.
+**Next action:** [KP4-T01](goip-link-kinds.md#kp4-t01-the-gre-gretap-and-erspan-parser): the gre, gretap and erspan parser.
 
 ## Contents
 
@@ -54,8 +54,8 @@
 | [KP0](goip-link-kinds.md#kp0--inet-devconf-codec) | parsers | `inet` devconf codec | KP0-T01 | done | V072–V074, DOC010 |
 | [KP1](goip-link-kinds.md#kp1--bridge-parsers) | parsers | bridge | KP1-T02 | done | V075–V080, DOC011 |
 | [KP2](goip-link-kinds.md#kp2--vlan-family-parsers) | parsers | VLAN family | KP2-T03 | done | V081–V089, DOC012 |
-| [KP3](goip-link-kinds.md#kp3--udp-overlay-parsers) | parsers | UDP overlays | KP3-T04 | in progress | V090–V098 |
-| [KP4](goip-link-kinds.md#kp4--ip-tunnel-parsers) | parsers | IP tunnels | | not started | |
+| [KP3](goip-link-kinds.md#kp3--udp-overlay-parsers) | parsers | UDP overlays | KP3-T04 | done | V090–V101, DOC013 |
+| [KP4](goip-link-kinds.md#kp4--ip-tunnel-parsers) | parsers | IP tunnels | KP4-T05 | not started | |
 | [KP5](goip-link-kinds.md#kp5--the-remaining-kinds-parsers) | parsers | the remaining kinds | | not started | |
 | [KG0](goip-link-kinds.md#kg0--goip-link-set-inet) | goip | `link set inet` | | not started | |
 | [KG1](goip-link-kinds.md#kg1--goip-bridge) | goip | bridge | | not started | |
@@ -101,8 +101,12 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | [x] | [KP3-T01](goip-link-kinds.md#kp3-t01-the-vxlan-parser) | the vxlan parser | done | V090–V092 |
 | [x] | [KP3-T02](goip-link-kinds.md#kp3-t02-the-geneve-parser) | the geneve parser | done | V093–V095 |
 | [x] | [KP3-T03](goip-link-kinds.md#kp3-t03-the-bareudp-and-amt-parsers) | the bareudp and amt parsers | done | V096–V098 |
-| [ ] | [KP3-T04](goip-link-kinds.md#kp3-t04-the-gtp-parser) | the gtp parser | not started | |
-| [ ] | [KP4-T01…](goip-link-kinds.md#kp4--ip-tunnel-parsers) | IP tunnel parsers | not started | |
+| [x] | [KP3-T04](goip-link-kinds.md#kp3-t04-the-gtp-parser) | the gtp parser | done | V099–V101, DOC013 |
+| [ ] | [KP4-T01](goip-link-kinds.md#kp4-t01-the-gre-gretap-and-erspan-parser) | the gre, gretap and erspan parser | not started | |
+| [ ] | [KP4-T02](goip-link-kinds.md#kp4-t02-the-ip6gre-ip6gretap-and-ip6erspan-parser) | the ip6gre, ip6gretap and ip6erspan parser | not started | |
+| [ ] | [KP4-T03](goip-link-kinds.md#kp4-t03-the-ipip-and-sit-parser) | the ipip and sit parser | not started | |
+| [ ] | [KP4-T04](goip-link-kinds.md#kp4-t04-the-ip6tnl-parser) | the ip6tnl parser | not started | |
+| [ ] | [KP4-T05](goip-link-kinds.md#kp4-t05-the-vti-vti6-and-xfrm-parsers) | the vti, vti6 and xfrm parsers | not started | |
 | [ ] | [KP5-T01…](goip-link-kinds.md#kp5--the-remaining-kinds-parsers) | the remaining kinds' parsers | not started | |
 | [ ] | [KG0-T01…](goip-link-kinds.md#kg0--goip-link-set-inet) | goip `link set inet` | not started | |
 | [ ] | [KG1-T01…](goip-link-kinds.md#kg1--goip-bridge) | goip bridge | not started | |
@@ -225,6 +229,10 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | V096 | 2026-10-25 | KP3-T03 | `go vet`, `go test -count=1 -race ./pkg/xtcpnl/ ./internal/goip/`, `go test -race ./pkg/linkmonitor/...`, and `go test -bench 'BenchmarkParse(Bareudp\|Amt)InfoData' -benchmem` | all pass: `TestBareudpDumpMatchesReadback` (6 rows), `TestParseBareudpInfoData` (8 rows), `TestEncodeBareudpInfoData` (10 corpus rows and 8 built), `TestAmtDumpMatchesReadback` (5 rows), `TestParseAmtInfoData` (10 rows), `TestEncodeAmtInfoData` (13 corpus rows and 8 built), `TestLinkInfoBareudpAmtKinds` (4 rows); the vxlan and geneve tests pass with `ErrKindSettingMissing`. The 4 `route-1` replay goldens regenerated: 8 digests change. bareudp 82 ns/op, 48 B/op; amt 217 ns/op, 128 B/op; 1 alloc/op each | this commit |
 | V097 | 2026-10-25 | KP3-T03 | mutation, a scratch worktree, each `go test` in a `systemd-run --scope -p MemoryMax=6G -p MemorySwapMax=0` with `-timeout=180s`: bareudp's ethertype read little-endian; amt's mode names swapped; amt's `LINK` not decoded | 3 of 3 killed: by all 6 bareudp readback rows and `TestParseBareudpInfoData`; by all 5 amt readback rows and `positive: a gateway's dump`; by all 5 amt readback rows and `corner: an unnamed lower prints as if<n>` | scratch |
 | V098 | 2026-10-25 | KP3-T03 | `nix build .#checks.x86_64-linux.lint-baseline`, then `.#checks.x86_64-linux.netlink-audit` | both pass on the first run | this commit |
+| V099 | 2026-10-25 | KP3-T04 | `go vet`, `go test -count=1 -race ./pkg/xtcpnl/ ./internal/goip/`, `go test -race ./pkg/linkmonitor/...`, and `go test -bench BenchmarkParseGtpInfoData -benchmem` | all pass: `TestGtpDumpMatchesReadback` (7 rows), `TestParseGtpInfoData` (9 rows), `TestEncodeGtpInfoData` (11 corpus rows and 8 built), `TestLinkInfoGtpKinds` (4 rows). The 4 `route-1` replay goldens regenerated: 8 digests change. 47 ns/op, 48 B/op, 1 alloc/op | this commit |
+| V100 | 2026-10-25 | KP3-T04 | mutation, a scratch worktree, each `go test` in a `systemd-run --scope -p MemoryMax=6G -p MemorySwapMax=0` with `-timeout=180s`: the plan's three (the default hash size dropped; the roles swapped; `CREATE_SOCKETS` omitted), and two more (the default hash size always sent; `RESTART_COUNT` not decoded) | 5 of 5 killed: by `add_ggsn`'s and every request without `hsize`; by all 7 readback rows; by every request; by the `hsize` requests and `corner: an explicit hash size is not repeated`; by `add_restart_count`'s readback and `positive: a restart count` | scratch |
+| V101 | 2026-10-25 | KP3-T04 | `nix build .#checks.x86_64-linux.lint-baseline`, then `.#checks.x86_64-linux.netlink-audit` | both pass; lint-baseline on the second run, after `gofmt` wrapped a long line in `xtcpnl_gtp_test.go` | this commit |
+| DOC013 | 2026-10-25 | KP3 close | KP4 broken into KP4-T01 (gre, gretap, erspan), KP4-T02 (ip6gre, ip6gretap, ip6erspan), KP4-T03 (ipip, sit), KP4-T04 (ip6tnl) and KP4-T05 (vti, vti6, xfrm) with their tables, argued from `link_gre.c`, `link_gre6.c`, `link_iptnl.c`, `link_ip6tnl.c`, `link_vti.c`, `link_vti6.c` and `link_xfrm.c` at `v7.2.0`, the 7.3 kernel's `fill_info`s and the KC5 rows; "Where goip stands" gains the KP1 to KP3 kinds; doccheck | tasks one to one, no broken link or anchor | this commit |
 
 ## Decision log
 
@@ -284,3 +292,7 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 - **A missing word has its own error.** `ErrKindSettingMissing` is a required word not given (vxlan's and geneve's id, geneve's remote on an add, bareudp's dstport and ethertype); `ErrKindSettingConflict` keeps the words that clash. vxlan's and geneve's missing-id cases moved to it, so KG3 can map each to `ip`'s own text (`missarg` against a conflict message).
 - **amt's kernel checks stay the kernel's.** A link, a mode and a local on an add, and a discovery for a gateway, are `amt_validate`'s refusals, not `ip`'s, so `EncodeAmtInfoData` sends what it's given, as `add_no_link` and `add_gateway_no_discovery` do. It refuses what `amt_parse_opt` does: a second `local` or `discovery`, a mode with no name, and a port too wide.
 - **The plan's amt lower mutant moved to the parser.** Printing the lower as a number is the KG render's; the KP3-T03 mutant drops `LINK`'s ifindex instead.
+- **gtp prints `unknown` for a role past sgsn.** The plan said the render has no name; `gtp_role_to_string` returns `unknown`. The parser also skips `LOCAL` and `LOCAL6` with the request-only `FD0`, `FD1` and `CREATE_SOCKETS`; the kernel dumps none of them.
+- **"Where goip stands" lagged.** KP1's and KP2's closes didn't add their kinds to it; KP3's close adds all three phases' rows.
+- **The tunnel encoders take the device, not a bool.** A set's request is the prefetch's values plus the words, so `Encode<Kind>InfoData` takes the decoded `cur`, nil on an add, and the tests decode it from the reply in `ip.pcap`.
+- **The prefetch's two `ip` bugs are copied, not fixed.** gre, gre6, iptnl and ip6tnl re-send an unnamed encap port byte-swapped (`ip6gre/set_encap_sport_swap`); vti and vti6 seed `LINK` with `rta_getattr_u8`, keeping only the low byte of the ifindex. The encoders match `ip` byte for byte; KG4 decides whether goip copies them too. Nothing is sent upstream.

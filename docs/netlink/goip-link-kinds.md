@@ -42,6 +42,9 @@ These are the trees [goip-parity-gaps.md](goip-parity-gaps.md#reference-sources)
 | bond, bond_slave | `xtcpnl_bond.go` | `encodeBondSettings` (`xtcpnl_link_write.go:222`) | `link_bond_args.go` | `render/link_bond.go` |
 | vrf, vrf_slave | the table id | no | no | yes |
 | dummy, veth | no `INFO_DATA` | no options | `link add` with no options | no `INFO_DATA` to render |
+| bridge, bridge_slave (KP1) | `xtcpnl_bridge.go`, `xtcpnl_bridge_slave.go` | `EncodeBridgeInfoData`, `EncodeBridgeSlaveData` | refused until KG1 | refused until KG1 |
+| vlan, macvlan, macvtap, ipvlan, ipvtap (KP2) | `xtcpnl_vlan.go`, `xtcpnl_macvlan.go`, `xtcpnl_ipvlan.go` | `EncodeVlanInfoData`, `EncodeMacvlanInfoData`, `EncodeIpvlanInfoData` | refused until KG2 | refused until KG2 |
+| vxlan, geneve, bareudp, amt, gtp (KP3) | `xtcpnl_vxlan.go`, `xtcpnl_geneve.go`, `xtcpnl_bareudp.go`, `xtcpnl_amt.go`, `xtcpnl_gtp.go` | `Encode<Kind>InfoData` for each | refused until KG3 | refused until KG3 |
 | every other kind | no | no | refused | refused |
 
 The two refusals:
@@ -1986,7 +1989,7 @@ Four tasks, one per KC4 task: KP3-T01 vxlan, KP3-T02 geneve, KP3-T03 bareudp and
 
 #### KP3-T04 The gtp parser
 
-**Code.** A new `pkg/xtcpnl/xtcpnl_gtp.go`: `GtpInfo` (role u32, `ggsn` 0 or `sgsn` 1; `PDP_HASHSIZE` u32; `RESTART_COUNT` u8; the request-only `FD0`, `FD1` and `CREATE_SOCKETS` skipped without being listed), and `EncodeGtpInfoData(settings)`: `CREATE_SOCKETS` (a u8 1) first whenever there is a setting, then the words in argument order, then `PDP_HASHSIZE` 1024 when no `hsize` was given. An unknown word is the caller's to skip, as `ip` skips it. The benchmark parses `add_restart_count`'s blob.
+**Code.** A new `pkg/xtcpnl/xtcpnl_gtp.go`: `GtpInfo` (role u32, `ggsn` 0 or `sgsn` 1; `PDP_HASHSIZE` u32; `RESTART_COUNT` u8; the request-only `FD0`, `FD1`, `CREATE_SOCKETS`, `LOCAL` and `LOCAL6` skipped without being listed), and `EncodeGtpInfoData(settings)`: `CREATE_SOCKETS` (a u8 1) first whenever there is a setting, then the words in argument order, then `PDP_HASHSIZE` 1024 when no `hsize` was given. An unknown word is the caller's to skip, as `ip` skips it. A word given twice is `ErrKindSettingConflict` and no role `ErrKindSettingMissing`, as `check_duparg` and the missing-role check refuse them. The benchmark parses `add_restart_count`'s blob.
 
 `TestGtpDumpMatchesReadback` (7 rows), then:
 
@@ -1999,7 +2002,8 @@ Four tasks, one per KC4 task: KP3-T01 vxlan, KP3-T02 geneve, KP3-T03 bareudp and
 | negative: a short role | built of 2 bytes | absent |
 | boundary: an empty nest | `[]byte{}` | nothing present |
 | boundary: the hash size's top | `add_hsize_max` | 131071 |
-| corner: a role past sgsn | built 2 | decoded, no name |
+| corner: a role past sgsn | built 2 | decoded; `gtp_role_to_string` prints `unknown` |
+| corner: the request-only attributes | built `CREATE_SOCKETS`, `FD0` and an id past the enum | the first two skipped, the third listed |
 
 `TestEncodeGtpInfoData`:
 
@@ -2008,12 +2012,248 @@ Four tasks, one per KC4 task: KP3-T01 vxlan, KP3-T02 geneve, KP3-T03 bareudp and
 | positive: each row's request | the 11 rows that sent one | byte-identical to `ip.pcap`'s |
 | negative: a restart count too wide | 256 | `ErrKindSettingRange` |
 | boundary: no settings | none | no attributes |
+| negative: no role | `hsize 10` | `ErrKindSettingMissing` |
+| negative: a repeated role | `role ggsn role sgsn` | `ErrKindSettingConflict` |
 | corner: the default hash size follows the words | `role ggsn` | `CREATE_SOCKETS`, `ROLE`, `PDP_HASHSIZE` 1024 |
 | corner: an explicit hash size is not repeated | `role ggsn hsize 4096` | one `PDP_HASHSIZE`, 4096 |
 
 **Mutation check:** the default hash size dropped (`add_ggsn`'s request), the roles swapped (`add_sgsn`), `CREATE_SOCKETS` omitted (every request). It closes KP3.
 
 ### KP4 — IP tunnel parsers
+
+Five tasks, one per KC5 task and iproute2 parser: KP4-T01 gre, gretap and erspan (`link_gre.c`); KP4-T02 ip6gre, ip6gretap and ip6erspan (`link_gre6.c`); KP4-T03 ipip and sit (`link_iptnl.c`); KP4-T04 ip6tnl (`link_ip6tnl.c`); KP4-T05 vti, vti6 and xfrm (`link_vti.c`, `link_vti6.c`, `link_xfrm.c`), which closes KP4. KP3's shape carries over: a typed `<Kind>Info` with present bits, a `LinkInfo` field and a `setLinkInfoNest` branch, the replay goldens regenerated, a `<Kind>Setting` encoder, and the `kindRows` harness.
+
+**What these kinds add to KP3's shape:**
+- **A set's request starts from the device.** Every parser here but xfrm's sends an `RTM_GETLINK` on a set and seeds its variables from the reply's `INFO_DATA` before it reads the words, then sends the full attribute set. So the encoders take the device's decoded state instead of a bool: `Encode<Kind>InfoData(settings []<Kind>Setting, cur *<Kind>Info)`, with `cur` nil on an add. The corpus has the reply: a set row's `ip.pcap` holds the prefetch's `RTM_NEWLINK` answer ahead of the request, so the tests decode it with the task's own parser and pass it in.
+- **The prefetch's port bug.** gre, gre6, iptnl and ip6tnl read `ENCAP_SPORT`/`ENCAP_DPORT` with `rta_getattr_u16` and send them back through `htons`, so on a little-endian host a port the set didn't name is re-sent byte-swapped. ip6tnl doesn't seed the encap at all and resets it. The encoders copy each behavior; `ip6gre/set_encap_sport_swap` pins the first.
+- **Two shared attribute spaces.** `IFLA_GRE_*` serves both gre files and `IFLA_IPTUN_*` serves iptnl and ip6tnl, with 4- or 16-byte addresses. One `GreInfo` and one `IptunInfo` decode each space for every kind that uses it, with `Local` and `Remote` as `netip.Addr`; each file gets its own encoder and its own render oracle in the test.
+- **The encap block** (`ENCAP_TYPE`, `ENCAP_FLAGS`, and the big-endian `ENCAP_SPORT` and `ENCAP_DPORT`) is common to gre, gre6, iptnl and ip6tnl at different ids, and `tnl_print_encap` prints it the same way: no `encap` key for type 0, a `type` of `fou`, `gue` or null. A `TunnelEncap` struct and its helpers live in `xtcpnl_kind_wire.go`, and KP4-T01 adds them.
+- **Keys print dotted.** `IKEY`/`OKEY` are big-endian u32s that `ip` prints through `inet_ntop(AF_INET)` (`0.0.0.42`), only when the matching `GRE_KEY` flag is set (gre) or the key is nonzero (vti). The `GRE_*` flags are big-endian u16 bits: `CSUM` 0x8000, `KEY` 0x2000, `SEQ` 0x1000.
+- **Endpoints always print.** `tnl_print_endpoint` prints `remote` and `local` on every device: `any` for an absent or zero address, `unknown` for the wrong length.
+- **The kernel adds bits `ip` never sent.** ip6gre's and ip6tnl's `FLAGS` carry `IP6_TNL_F_CAP_*` (0x10000 to 0x40000), which a set's prefetch sends back; erspan's dumped `OFLAGS` gains `KEY`. The decoders keep the values whole.
+
+**Counts.**
+
+| kind | rows | rc 0 | rc 2 | `ip` refused | requests |
+|---|---|---|---|---|---|
+| gre | 45 | 24 | 7 | 14 | 31 |
+| gretap | 11 | 6 | 4 | 1 | 10 |
+| erspan | 25 | 14 | 5 | 6 | 19 |
+| ip6gre | 36 | 21 | 5 | 10 | 26 |
+| ip6gretap | 9 | 6 | 3 | 0 | 9 |
+| ip6erspan | 19 | 9 | 6 | 4 | 15 |
+| ipip | 47 | 26 | 8 | 13 | 34 |
+| sit | 37 | 20 | 6 | 11 | 26 |
+| ip6tnl | 49 | 29 | 7 | 13 | 36 |
+| vti | 23 | 11 | 5 | 7 | 16 |
+| vti6 | 12 | 7 | 2 | 3 | 9 |
+| xfrm | 23 | 9 | 8 | 6 | 17 |
+
+"requests" counts the rows at rc 0 or 2; a bare `type <kind>` sends no `INFO_DATA`, and its row expects none.
+
+#### KP4-T01 The gre, gretap and erspan parser
+
+**Code.** A new `pkg/xtcpnl/xtcpnl_gre.go`, plus the `TunnelEncap` helpers in `xtcpnl_kind_wire.go`:
+- **`GreInfo`:** every `IFLA_GRE_*` (1 to 24): `Link`, `IFlags`/`OFlags` (host-order values of the big-endian bits), `IKey`/`OKey` (the wire's four bytes as a big-endian u32), `Local`/`Remote` (4 or 16 bytes), `TTL`, `TOS`, `PMTUDisc`, the IPv6-only `EncapLimit`, `FlowInfo` and `Flags`, the `TunnelEncap`, `CollectMetadata`, `IgnoreDF`, `FwMark`, and the four erspan attributes; present bits. `LinkInfo.Gre` is set for all six gre kinds.
+- **`EncodeGreInfoData(settings, cur)`:** `gre_parse_opt` for gre, gretap and erspan (an erspan flag in the call says which). A multicast remote fills a zero `IKEY`/`OKEY` with the group and sets `KEY`, and needs a local. `external` sends `COLLECT_METADATA` alone. Otherwise, in order: `IKEY`, `OKEY`, `IFLAGS`, `OFLAGS`, `LOCAL` and `REMOTE` when nonzero, `PMTUDISC` (1 by default), `IGNORE_DF` when given (`noignore-df` sends 0), `TOS`, `LINK` when nonzero, `TTL`, `FWMARK`; for erspan `ERSPAN_VER` (1 by default), then `ERSPAN_INDEX` (version 1, nonzero index) or `ERSPAN_DIR` and `ERSPAN_HWID` (version 2); then the four `ENCAP_*`. `cur` seeds every value first, ports byte-swapped, `IGNORE_DF` as `!!`, and its `COLLECT_METADATA` forces the metadata path. A repeated word overwrites. Refusals: the multicast remote without a local (`ErrKindSettingMissing`), an erspan index outside 1 to 2^20-1, a version past 2, a tos past 0xff (`ErrKindSettingRange`).
+- **The render oracle:** `gre_print_opt`: `external`; `remote`/`local` always; `link` by name; `ttl` always; `tos` as `%#llx` when nonzero; `pmtudisc` as a bool; `ignore_df` when on; `ikey`/`okey` dotted under the `KEY` flag; `iseq`, `oseq`, `icsum`, `ocsum`; `fwmark` when nonzero; `erspan_index`, `erspan_ver`, `erspan_dir` (`ingress`/`egress`), `erspan_hwid` (`%#llx`, so 0 is `"0"`); and the `encap` object.
+- **The benchmark:** `BenchmarkParseGreInfoData` over `erspan/add_ver2`'s blob.
+
+`TestGreDumpMatchesReadback`: a subtest per rc 0 row of gre, gretap and erspan (44).
+
+`TestParseGreInfoData`:
+
+| description | input | expected |
+|---|---|---|
+| positive: a gre's dump | `gre/add_default` | remote `10.0.0.1`, local `any`, ttl 0, pmtudisc true |
+| positive: split keys | `gre/add_key_split` | ikey `1.2.3.4`, okey `0.0.0.5` |
+| positive: the fou encap | `gre/add_encap_fou` | `encap` type `fou`, dport 5555, sport 0, csum false, csum6 true, remcsum true |
+| positive: erspan version 2 | `erspan/add_ver2` | erspan_ver 2, erspan_dir `egress`, erspan_hwid `0x7` |
+| negative: a nil nest | `nil` | `nil` |
+| negative: a short remote | built `REMOTE` of 2 bytes | `remote` `any` |
+| boundary: an empty nest | `[]byte{}` | `remote` and `local` `any`, ttl 0, nothing else |
+| boundary: the 20-bit index's top | `erspan/add_index_max` | 1048575 |
+| corner: erspan's dumped `OFLAGS` carries `KEY` | `erspan/add_no_option` | okey present though `ip` sent no key |
+| corner: a key without its flag doesn't print | built `IKEY` 5, `IFLAGS` 0 | no `ikey` |
+| corner: hwid 0 prints without `0x` | built `ERSPAN_HWID` 0 | `"0"` |
+| corner: an encap type with no name | built `ENCAP_TYPE` 3 | `encap` type null |
+| corner: an id past `ERSPAN_HWID` | built 25 | listed in `Unknown` |
+
+`TestEncodeGreInfoData`:
+
+| description | input | expected |
+|---|---|---|
+| positive: each row's request | the 60 gre, gretap and erspan rows that sent one, sets with their prefetch | byte-identical to `ip.pcap`'s |
+| negative: a multicast remote with no local | `remote 239.1.1.1` | `ErrKindSettingMissing` |
+| negative: an erspan index of 0 | `erspan 0` | `ErrKindSettingRange` |
+| negative: a setting with no option | the zero option | `ErrKindSettingOption` |
+| boundary: no settings | none | no attributes |
+| corner: `external` drops every other word | `external encap fou ttl 5` | `COLLECT_METADATA` alone |
+| corner: the multicast keys | `remote 239.1.1.1 local 10.0.0.1` | `IKEY` and `OKEY` `ef 01 01 01`, `KEY` in both flags |
+| corner: `noignore-df` sends 0 | `remote 10.0.0.1 noignore-df` | `IGNORE_DF` 0 after `PMTUDISC` |
+| corner: a set re-sends the prefetched port swapped | built `cur` with dport 5555, `ttl 5` | `ENCAP_DPORT` `b3 15` |
+| corner: a set on an external device | `gre/set_on_external`'s prefetch, `ttl 64` | `COLLECT_METADATA` alone |
+
+`TestLinkInfoGreKinds`: gre, gretap and erspan decode `Gre` (positive ×2, corner: erspan); a vti does not (negative).
+
+**Mutation check:** the `GRE_KEY` bit read little-endian (`add_key`); the prefetched port not swapped (the built corner row: gre has no corpus row for it); erspan's index sent at version 2 (`add_ver2`).
+
+#### KP4-T02 The ip6gre, ip6gretap and ip6erspan parser
+
+**Code.** `xtcpnl_gre6.go`, on KP4-T01's `GreInfo`:
+- **`EncodeGre6InfoData(settings, cur)`:** `link_gre6.c`'s `gre_parse_opt`. `external` sends `COLLECT_METADATA` alone. Otherwise, in order: `IKEY`, `OKEY`, `IFLAGS`, `OFLAGS`, `LOCAL` and `REMOTE` when set and not `::`, `LINK` when nonzero, `TTL` (64 by default), `ENCAP_LIMIT` (4), `FLOWINFO`, `FLAGS`, `FWMARK`, `ERSPAN_VER` (1, sent for all three kinds), `ERSPAN_INDEX` or `ERSPAN_DIR` and `ERSPAN_HWID` as gre's, then the four `ENCAP_*` (`ENCAP_FLAGS` `CSUM6` by default). The `IP6_TNL_F_*` words: `encaplimit none` (0x1, the limit still sent), `tclass inherit` (0x2), `flowlabel inherit` (0x4), `dscp inherit` (0x10), `fwmark inherit` (0x20, fwmark 0), `[no]allow-localremote` (0x40). `tclass` (hex) and `flowlabel` (hex, ≤0xfffff) clear their bits in `FLOWINFO` and set them. `cur` seeds every value, `FLAGS` with its `CAP` bits and the ports swapped.
+- **The render oracle:** `link_gre6.c`'s `gre_print_opt`: `external`, `remote`, `local`, `link`, `ttl`, `ip6_tnl_f_ign_encap_limit` or `encap_limit`, `ip6_tnl_f_use_orig_tclass` or `tclass` (`0x%02x`), `ip6_tnl_f_use_orig_flowlabel` or `flowlabel` (`0x%05x`), `ip6_tnl_f_rcv_dscp_copy`, the keys and seq/csum flags, `ip6_tnl_f_allow_local_remote`, `ip6_tnl_f_use_orig_fwmark` or `fwmark`, the erspan keys, `encap`.
+- **The benchmark:** `BenchmarkParseGre6InfoData` over `ip6erspan/add_v2`'s blob.
+
+`TestGre6DumpMatchesReadback`: a subtest per rc 0 row of the three kinds (36).
+
+`TestParseGre6InfoData`:
+
+| description | input | expected |
+|---|---|---|
+| positive: an ip6gre's dump | `ip6gre/add_default` | remote `2001:db8::1`, ttl 64, encap_limit 4, tclass `0x00`, flowlabel `0x00000` |
+| positive: the flag words | `ip6gre/add_flags` | the matching `ip6_tnl_f_*` keys true |
+| positive: ip6erspan version 2 | `ip6erspan/add_v2` | erspan_ver 2, dir and hwid |
+| negative: a nil nest | `nil` | `nil` |
+| negative: a 4-byte remote | built `REMOTE` of 4 bytes | `remote` `unknown` |
+| boundary: the tops | `ip6gre/add_tops` | the highest hoplimit, encap limit, tclass and flow label `ip` takes |
+| corner: the `CAP` bits are kept and not printed | built `FLAGS` 0x40040 | `Flags` 0x40040; only `ip6_tnl_f_allow_local_remote` |
+| corner: `encaplimit none` hides the limit | `ip6gre/add_encaplimit_none` | `ip6_tnl_f_ign_encap_limit` true, no `encap_limit` |
+| corner: a bare ip6gre reads back the kernel's zeros | `ip6gre/add_no_option` | ttl 0, encap_limit 0 |
+
+`TestEncodeGre6InfoData`:
+
+| description | input | expected |
+|---|---|---|
+| positive: each row's request | the 50 rows that sent one, sets with their prefetch | byte-identical to `ip.pcap`'s |
+| negative: a flow label past 20 bits | `flowlabel 100000` | `ErrKindSettingRange` |
+| negative: a setting with no option | the zero option | `ErrKindSettingOption` |
+| boundary: an ip6gre sends `ERSPAN_VER` 1 | `remote 2001:db8::1` | `ERSPAN_VER` 1 before the encap |
+| corner: the prefetched sport is swapped | `ip6gre/set_encap_sport_swap` | its request, the sport byte-swapped |
+| corner: `tclass` after `tclass inherit` clears the flag | `tclass inherit tclass 20` | `FLOWINFO` `02 00 00 00`, `FLAGS` without 0x2 |
+| corner: the prefetch's `CAP` bits go back | `ip6gre/set_changeable` | its request, `FLAGS` with the `CAP` bits |
+
+`TestLinkInfoGre6Kinds`: the three kinds decode `Gre`; an ip6tnl does not.
+
+**Mutation check:** the tclass shifted by 24, not 20 (`add_tops`); `ERSPAN_VER` sent only for ip6erspan (every ip6gre request); the prefetched `FLAGS` sent without the `CAP` bits (`set_changeable`).
+
+#### KP4-T03 The ipip and sit parser
+
+**Code.** A new `pkg/xtcpnl/xtcpnl_iptun.go`:
+- **`IptunInfo`:** every `IFLA_IPTUN_*` (1 to 20): `Link`, `Local`/`Remote` (4 or 16 bytes), `TTL`, `TOS`, `EncapLimit`, `FlowInfo`, `Flags` (u16 for sit's `ISATAP`, u32 for ip6tnl's), `Proto`, `PMTUDisc`, the four 6rd attributes, the `TunnelEncap`, `CollectMetadata`, `FwMark`; present bits. `LinkInfo.Iptun` is set for ipip, sit and ip6tnl.
+- **`EncodeIptunInfoData(settings, cur, sit bool)`:** `iptunnel_parse_opt`. It refuses `ttl` nonzero with `nopmtudisc`, seeded values included (`ErrKindSettingConflict`). `PROTO` goes first (0 by default for both kinds); `external` then sends `COLLECT_METADATA` alone. Otherwise: `LOCAL` and `REMOTE` when nonzero, `PMTUDISC` (1), `TOS`, `TTL`, `LINK`, `FWMARK`, the four `ENCAP_*`; for sit `FLAGS`, then `6RD_PREFIX` and `6RD_PREFIXLEN` when a prefix is set, and `6RD_RELAY_PREFIX` and `6RD_RELAY_PREFIXLEN` likewise. ipip parses the 6rd words and sends nothing for them. Mode words: `ip6ip` (41) is sit's only. `isatap` is sit's. `cur` seeds every value, sit's 6rd attributes and `ISATAP` included, the ports swapped. `6rd-reset` has no setting: it crashes `ip` 7.2.0 (decision log), and KG5 decides what goip does.
+- **The render oracle:** `iptunnel_print_opt`: `external`, `proto` (`ipip`, `ip6ip`, `mplsip`, `any`), `remote`, `local`, `link`, `ttl`, `tos` (`%#llx`, nonzero), `pmtudisc` always, `isatap`, `prefix`/`prefixlen`/`relay_prefix`/`relay_prefixlen` when the prefix length is nonzero, `fwmark`, `encap`.
+- **The benchmark:** `BenchmarkParseIptunInfoData` over `sit/add_6rd_prefix`'s blob.
+
+`TestIptunDumpMatchesReadback`: a subtest per rc 0 row of ipip and sit (46).
+
+`TestParseIptunInfoData`:
+
+| description | input | expected |
+|---|---|---|
+| positive: an ipip's dump | `ipip/add_default` | proto `ipip`, remote, pmtudisc true |
+| positive: sit's isatap | `sit/add_isatap` | isatap true |
+| positive: the mpls mode | `ipip/add_mode_mplsip` | proto `mplsip` |
+| negative: a nil nest | `nil` | `nil` |
+| negative: a short local | built `LOCAL` of 2 bytes | `local` `any` |
+| boundary: an empty nest | `[]byte{}` | `remote`/`local` `any`, ttl 0, pmtudisc false |
+| corner: a proto with no name | built `PROTO` 47 | no `proto` key |
+| corner: a 6rd prefix with no relay | built prefix 2001:db8::/32, relay 0 | prefix keys, no relay keys |
+| corner: the guest's sit has no 6rd | `sit/add_6rd_prefix` | no prefix keys: no `CONFIG_IPV6_SIT_6RD` |
+
+`TestEncodeIptunInfoData`:
+
+| description | input | expected |
+|---|---|---|
+| positive: each row's request | the 60 ipip and sit rows that sent one, sets with their prefetch | byte-identical to `ip.pcap`'s |
+| negative: `ttl` with `nopmtudisc` | `ttl 64 nopmtudisc` | `ErrKindSettingConflict` |
+| negative: `ip6ip` on ipip | the mode 41, ipip | `ErrKindSettingRange` |
+| negative: a setting with no option | the zero option | `ErrKindSettingOption` |
+| boundary: no settings | none | no attributes |
+| corner: `PROTO` before `COLLECT_METADATA` | `external` | `PROTO` 0, `COLLECT_METADATA` |
+| corner: ipip drops the 6rd words | `ipip/add_6rd_ignored` | its request, no 6rd attribute |
+| corner: a set's seeded ttl with `nopmtudisc` | `ipip/set_nopmtudisc_ttl`'s prefetch, `nopmtudisc` | `ErrKindSettingConflict`, as `ip`'s 255 |
+
+`TestLinkInfoIptunKinds`: ipip and sit decode `Iptun`; a gre does not; ip6tnl (corner) does.
+
+**Mutation check:** `PROTO` sent after `LOCAL` (every request); the `ttl`/`nopmtudisc` check skipping seeded values (`set_nopmtudisc_ttl`); `ISATAP` not seeded from `cur` (a built set on an isatap sit).
+
+#### KP4-T04 The ip6tnl parser
+
+**Code.** `xtcpnl_ip6tnl.go`, on KP4-T03's `IptunInfo`:
+- **`EncodeIp6tnlInfoData(settings, cur)`:** `ip6tunnel_parse_opt`. `PROTO` first (0, `any`, by default); `external` then sends `COLLECT_METADATA` alone. Otherwise: `LOCAL` and `REMOTE` when set, `TTL` (64), `ENCAP_LIMIT` (4), `FLOWINFO`, `FLAGS`, `LINK`, `FWMARK`, then the four `ENCAP_*`. The flag words as KP4-T02's. `cur` seeds the endpoints, ttl, encap limit, flow info, `FLAGS` with its `CAP` bits, link, proto, metadata and fwmark, but **not** the encap: a set resets it to type 0, `CSUM6`, ports 0. Mode words: `ip6ip6` 41, `ipip6` 4, `any` 0.
+- **The render oracle:** `ip6tunnel_print_opt`: `external`, `proto` (`ip6ip6`, `ipip6`, `any`), `remote`, `local`, `link`, `ttl`, the encap-limit, tclass, flowlabel, dscp, mip6, allow-local-remote and fwmark pairs as KP4-T02's, `encap`.
+- **The benchmark:** `BenchmarkParseIp6tnlInfoData` over `add_flowlabel`'s blob.
+
+`TestIp6tnlDumpMatchesReadback`: a subtest per rc 0 row (29).
+
+`TestParseIp6tnlInfoData`:
+
+| description | input | expected |
+|---|---|---|
+| positive: an ip6tnl's dump | `add_default` | proto `any`, remote, ttl 64, encap_limit 4 |
+| positive: a flow label | `add_flowlabel` | its `0x%05x` |
+| positive: the inherit flags | `add_tclass_inherit`, `add_flowlabel_inherit`, `add_fwmark_inherit` | the `ip6_tnl_f_use_orig_*` keys |
+| negative: a nil nest | `nil` | `nil` |
+| negative: a 4-byte local | built | `local` `unknown` |
+| boundary: an empty nest | `[]byte{}` | `remote`/`local` `any`, ttl 0 |
+| corner: mip6 comes only from the kernel | built `FLAGS` 0x8 | `ip6_tnl_f_mip6_dev` true |
+| corner: an ipip-in-IPv6 tunnel | `add_mode_ipip6` | proto `ipip6` |
+
+`TestEncodeIp6tnlInfoData`:
+
+| description | input | expected |
+|---|---|---|
+| positive: each row's request | the 36 rows that sent one, sets with their prefetch | byte-identical to `ip.pcap`'s |
+| negative: a flow label past 20 bits | `flowlabel 100000` | `ErrKindSettingRange` |
+| negative: a setting with no option | the zero option | `ErrKindSettingOption` |
+| boundary: the last `hoplimit` wins | `add_hoplimit_twice` | its request, one `TTL` |
+| corner: a set resets the encap | `set_keeps_prefetch` | its request: the endpoints kept, `ENCAP_TYPE` 0, `ENCAP_FLAGS` `CSUM6` |
+| corner: `PROTO` first, then metadata | `external` | `PROTO` 0, `COLLECT_METADATA` |
+
+`TestLinkInfoIp6tnlKinds`: an ip6tnl decodes `Iptun` (positive ×2); a vti6 does not; an external ip6tnl does (corner).
+
+**Mutation check:** the encap seeded from `cur` (`set_keeps_prefetch`); `encaplimit none` clearing the limit (`add_encaplimit_none`); the flow label masked to 16 bits (`add_flowlabel`).
+
+#### KP4-T05 The vti, vti6 and xfrm parsers
+
+**Code.** `xtcpnl_vti.go` and `xtcpnl_xfrm.go`:
+- **`VtiInfo`:** `Link`, `IKey`/`OKey` (big-endian), `Local`/`Remote` (4 or 16 bytes), `FwMark`. `LinkInfo.Vti` for vti and vti6.
+- **`EncodeVtiInfoData(settings, cur)`:** vti's and vti6's `parse_opt`, the same apart from the family: `IKEY`, `OKEY` always, `LOCAL` and `REMOTE` when set and nonzero, `FWMARK` always, `LINK` when nonzero. `cur` seeds the endpoints, keys and fwmark, and the link through `rta_getattr_u8`: only its low byte, so a lower at ifindex 256 is re-sent as 0, and not at all. The encoder copies it; a decision-log entry records it, and nothing goes upstream.
+- **`XfrmInfo`:** `Link`, `IfID`, `CollectMetadata`. `LinkInfo.Xfrm`.
+- **`EncodeXfrmInfoData(settings)`:** no prefetch. `IF_ID` goes inside the loop, once per `if_id` word; after it, `external` sends `COLLECT_METADATA` and refuses an earlier `if_id` or `dev` (`ErrKindSettingConflict`), and otherwise an `if_id` of 0 is `ErrKindSettingMissing` and `LINK` follows when nonzero.
+- **The render oracles:** vti and vti6: `remote`, `local`, `link`, `ikey`/`okey` dotted when nonzero, `fwmark` when nonzero. xfrm: `external` true and nothing else, or `if_id` as `%#llx`; `link` is never printed.
+- **The benchmarks:** `BenchmarkParseVtiInfoData` over `vti/add_ikey_okey`, `BenchmarkParseXfrmInfoData` over `xfrm/add_dev`.
+
+`TestVtiDumpMatchesReadback` (18 rows) and `TestXfrmDumpMatchesReadback` (9 rows), then:
+
+| description | input | expected |
+|---|---|---|
+| positive: a vti's dump | `vti/add_default` | remote, local `any` |
+| positive: split keys | `vti/add_ikey_okey` | dotted ikey and okey |
+| positive: an xfrm's dump | `xfrm/add_default` | if_id in hex |
+| negative: a nil nest, each kind | `nil` | `nil` |
+| negative: a short `IF_ID` | built of 2 bytes | no `if_id` |
+| boundary: the highest if_id | `xfrm/add_if_id_max` | `0xffffffff` |
+| corner: an external xfrm prints only `external` | `xfrm/add_external` | `external` true, no `if_id` |
+| corner: a zero key doesn't print | built `IKEY` 0 | no `ikey` |
+| corner: vti6's dump order differs | `vti6/add_options` | the same keys as vti's, decoded in either order |
+
+`TestEncodeVtiInfoData` and `TestEncodeXfrmInfoData`:
+
+| description | input | expected |
+|---|---|---|
+| positive: each row's request | vti's 16, vti6's 9 and xfrm's 17 rows that sent one | byte-identical to `ip.pcap`'s |
+| negative: xfrm `external` with an if_id | `if_id 5 external` | `ErrKindSettingConflict` |
+| negative: xfrm with no if_id | `dev d0` | `ErrKindSettingMissing` |
+| negative: a setting with no option | the zero option | `ErrKindSettingOption` |
+| boundary: the last vti key wins | `vti/add_key_last_wins` | its request |
+| corner: two `if_id`s send two `IF_ID`s | `xfrm/add_if_id_twice` | its request, both in order |
+| corner: the prefetched link keeps its low byte | built `cur` with link 258, `fwmark 1` | `LINK` 2 |
+
+`TestLinkInfoTunnelKinds`: vti and vti6 decode `Vti`, xfrm `Xfrm`; a gre decodes neither.
+
+**Mutation check:** the vti `LINK` seeded whole (the low-byte corner row); xfrm's `IF_ID` held to after the loop (`add_if_id_twice`); vti's `REMOTE` sent when zero (`add_default`'s and the `set_*` requests). It closes KP4.
 
 ### KP5 — The remaining kinds' parsers
 

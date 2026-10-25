@@ -354,6 +354,8 @@ type LinkInfo struct {
 	Bareudp *BareudpInfo
 	// Amt is IFLA_INFO_DATA decoded when Kind is "amt".
 	Amt *AmtInfo
+	// Gtp is IFLA_INFO_DATA decoded when Kind is "gtp".
+	Gtp *GtpInfo
 
 	Link int32 // IFLA_LINK — peer/lower interface index
 
@@ -1031,6 +1033,9 @@ func setLinkInfoNest(li *LinkInfo, val []byte) {
 	}
 	if li.Kind == amtKindCst {
 		li.Amt = ParseAmtInfoData(infoData)
+	}
+	if li.Kind == gtpKindCst {
+		li.Gtp = ParseGtpInfoData(infoData)
 	}
 }
 

@@ -2,12 +2,12 @@
   {
     "call": "DumpLinks",
     "values": 3,
-    "digest": "85a52b28cdd8880f"
+    "digest": "56e541750eb63a54"
   },
   {
     "call": "GetLink(1)",
     "values": 1,
-    "digest": "65401f4448b57d56"
+    "digest": "eeeda7cf1fac4af6"
   },
   {
     "call": "GetLink(4)",
