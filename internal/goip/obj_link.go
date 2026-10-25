@@ -340,11 +340,12 @@ func linkShowDev(c *runCtx, name string, sel *linkShowSelectors) error {
 //
 // print_linktype emits the kind and then, on the SAME line, the whole output
 // of that kind's print_opt (ip/ipaddress.c:230-244). Forty of those exist and
-// only vrf's and bond's are implemented here (renderableInfoData) — see the
-// header of render/link_detail.go for why that boundary is where it is. The
-// consequence is that a link with per-kind data has no partially-correct
-// render: a line reading `    bridge ` where `ip`'s reads `    bridge
-// forward_delay 200 hello_time 200 …` is not shorter, it is a different line.
+// only vrf's, bond's and bridge's are implemented here (renderableInfoData,
+// renderableSlaveInfoData) — see the header of render/link_detail.go for why
+// that boundary is where it is. The consequence is that a link with per-kind
+// data has no partially-correct render: a line reading `    ipip ` where
+// `ip`'s reads `    ipip any remote any local any …` is not shorter, it is a
+// different line.
 //
 // So this follows the `-s -s` precedent rather than the usual omitempty one.
 // An explicit error names the missing feature at the point it was asked for;
@@ -376,7 +377,7 @@ func checkDetailSupported(c *runCtx, links []xtcpnl.LinkInfo) error {
 		case li.HasInfoData && !renderableInfoData(li.Kind):
 			return fmt.Errorf("-d on %s: iproute2 renders IFLA_INFO_DATA for kind %q "+
 				"and goip does not: %w", li.Name, li.Kind, ErrNotImplemented)
-		case li.HasInfoSlaveData && !renderableInfoData(li.SlaveKind):
+		case li.HasInfoSlaveData && !renderableSlaveInfoData(li.SlaveKind):
 			return fmt.Errorf("-d on %s: iproute2 renders IFLA_INFO_SLAVE_DATA for slave kind %q "+
 				"and goip does not: %w", li.Name, li.SlaveKind, ErrNotImplemented)
 		}
@@ -385,13 +386,22 @@ func checkDetailSupported(c *runCtx, links []xtcpnl.LinkInfo) error {
 }
 
 // renderableInfoData reports whether goip reproduces the per-kind print_opt
-// output for a kind: vrf (a single table id) and bond (bond_print_opt and
-// bond_slave_print_opt, grounded on the 7_1_4 link-write fixtures). Every
-// other kind's blob stays undecoded and its -d render refused, which keeps
-// the gate kind-agnostic for everything goip has not verified against a
-// capture. The list is render's, so the gate and the renderer cannot
-// disagree about which kinds have a print_opt.
+// output for a kind: vrf (a single table id), bond (bond_print_opt,
+// grounded on the 7_1_4 link-write fixtures) and bridge (bridge_print_opt,
+// grounded on the 7_3_0 kind corpus). Every other kind's blob stays
+// undecoded and its -d render refused, which keeps the gate kind-agnostic
+// for everything goip has not verified against a capture. The list is
+// render's, so the gate and the renderer cannot disagree about which kinds
+// have a print_opt.
 func renderableInfoData(kind string) bool {
+	return kind == render.VrfKindCst || kind == render.BondKindCst || kind == render.BridgeKindCst
+}
+
+// renderableSlaveInfoData is renderableInfoData for IFLA_INFO_SLAVE_KIND,
+// which names the master's kind: vrf and bond. A bridge port's slave kind
+// is "bridge" too, and its slave_print_opt is another function, so the two
+// lists differ.
+func renderableSlaveInfoData(kind string) bool {
 	return kind == render.VrfKindCst || kind == render.BondKindCst
 }
 

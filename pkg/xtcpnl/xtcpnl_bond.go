@@ -90,6 +90,8 @@ const (
 	bondIPv4AddrLenCst                           = 4
 	bondNoNamesCst                        string = ""
 	bondNameNoneCst                              = "none"
+	// nameAllCst is "all": a bond option's value word and ETH_P_ALL's name.
+	nameAllCst = "all"
 )
 
 var (
@@ -111,9 +113,9 @@ var (
 		{Keyword: "arp_ip_target", ID: unix.IFLA_BOND_ARP_IP_TARGET, Wire: BondWireIPv4Set, Match: BondMatchPrefix},
 		{Keyword: "ns_ip6_target", ID: unix.IFLA_BOND_NS_IP6_TARGET, Wire: BondWireIPv6Set, Match: BondMatchExact},
 		{Keyword: "arp_validate", ID: unix.IFLA_BOND_ARP_VALIDATE, Wire: BondWireU32, Match: BondMatchPrefix,
-			Names: []string{bondNameNoneCst, "active", "backup", "all", "filter", "filter_active", "filter_backup"}},
+			Names: []string{bondNameNoneCst, "active", "backup", nameAllCst, "filter", "filter_active", "filter_backup"}},
 		{Keyword: "arp_all_targets", ID: unix.IFLA_BOND_ARP_ALL_TARGETS, Wire: BondWireU32, Match: BondMatchPrefix,
-			Names: []string{"any", "all"}},
+			Names: []string{"any", nameAllCst}},
 		{Keyword: "primary", ID: unix.IFLA_BOND_PRIMARY, Wire: BondWireU32, Match: BondMatchPrefix},
 		{Keyword: "primary_reselect", ID: unix.IFLA_BOND_PRIMARY_RESELECT, Wire: BondWireU8, Match: BondMatchPrefix,
 			Names: []string{"always", "better", "failure"}},

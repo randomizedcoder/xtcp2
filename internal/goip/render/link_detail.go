@@ -164,6 +164,8 @@ func kindData(li *xtcpnl.LinkInfo, names NameTab) *KindData {
 		return vrfData(li.VrfTable)
 	case BondKindCst:
 		return bondData(li.Bond, names)
+	case BridgeKindCst:
+		return bridgeData(li.Bridge)
 	}
 	return nil
 }

@@ -2666,22 +2666,38 @@ Five tasks: KG1-T01 and KG1-T02 parse `type bridge` and `type bridge_slave` word
 
 #### KG1-T03 The bridge's `-d` output
 
-**Code.** `internal/goip/render/link_bridge.go`: `bridgeData(*xtcpnl.BridgeInfo) *KindData`, walking `xtcpnl.BridgeOptions` in print order with each row's JSON key (KP1's decision: the JSON keys aren't the keywords). Timers go into `KindData` as `json.RawMessage`, since a float can't print `0.00`. `bridge_id`, `designated_root` and `group_address` get their own formatters, the querier state its nested objects. A `BridgeKindCst` case in `render.kindData`, and `bridge` in `renderableInfoData`.
+**Code.** `internal/goip/render/link_bridge.go`: `bridgeData(*xtcpnl.BridgeInfo) *KindData`, walking `xtcpnl.BridgeOptions` in print order with each row's JSON key (KP1's decision: the JSON keys aren't the keywords). Timers go into `KindData` as `json.RawMessage`, since a float can't print `0.00`. `bridge_id`, `designated_root` and `group_address` get their own formatters, the querier state its nested objects, `vlan_protocol` `xtcpnl.LLProtoN2A` (the `ll_proto` table moves to `pkg/xtcpnl/xtcpnl_ll_proto.go`, which goip's `llProtoA2N` reads too). A `BridgeKindCst` case in `render.kindData`, and `bridge` in `renderableInfoData`; the slave kinds get their own `renderableSlaveInfoData`, since a bridge port's slave kind is also `bridge` and its print_opt is KG1-T04's.
 
-`TestLinkShowDetailBridgeMatchesSidecar`, following `TestLinkShowDetailBondMatchesSidecar`: `GOIP_REPLAY` is the row's own `netlink_route_getlink_detail.pcap` (`_json.pcap` for JSON), since the timers move between the two readbacks.
+`TestLinkShowDetailBridgeMatchesSidecar`, following `TestLinkShowDetailBondMatchesSidecar`: `GOIP_REPLAY` is the row's own `netlink_route_getlink_detail.pcap` (`_json.pcap` for JSON), since the timers move between the two readbacks, and `GOIP_REPLAY_PORTID` the main socket's, since `show dev` sends two gets of one name and both replies match it.
 
 | description | input | expected |
 |---|---|---|
 | positive: each accepted row's `-d` | the 50 rc 0 rows | `ip_getlink_detail`, line for line |
 | positive: each accepted row's `-d -j` | the 50 rc 0 rows | `ip_getlink_detail_json`, entry for entry |
 | negative: a bridge without `-d` | `add_default`, `link show` | `ip_getlink`; no bridge line |
-| boundary: a timer that moved | `set_ageing_time`'s two readbacks | each matches its own pcap |
+| boundary: a timer that moved | `set_ageing_time`'s two readbacks | `gc_timer  149.24` in the text, `"gc_timer":148.49` in the JSON, each from its own pcap |
 | corner: an unpadded bridge id | `add_priority` | `bridge_id 0064.0:0:0:0:0:0` |
 | corner: the timers as raw JSON numbers | `add_default`, `-j` | `"gc_timer":0.00` |
+| corner: the querier state's two objects | `add_mcast_querier` | `mcast_querier_ipv4_addr 0.0.0.0 mcast_querier_ipv6_addr ::` |
+| corner: `group_fwd_mask` 0 | `add_default`, `-j` | `"group_fwd_mask":"0"` (`%#llx` of 0) |
 
-`TestLinkShowBridgeDetailIsGated` is replaced by these rows: `-d` no longer refuses a bridge.
+`TestBridgeDataRender` (`internal/goip/render`) holds what no readback reaches:
 
-**Mutation check:** the address padded (`add_priority`); a timer as a float (the JSON corner); an option out of print order (every row).
+| description | input | expected |
+|---|---|---|
+| positive: a u32 and a u16 | `forward_delay 1500`, `priority 100` | both, JSON numbers |
+| positive: a timer past a second | `gc_timer` 12345 | `gc_timer  123.45 `, `123.45` |
+| positive: the querier's ipv4 object | address, port, other timer | `… other_timer 255ms`, an empty ipv6 object |
+| negative: no nest | nil | `{}` |
+| boundary: a timer under a hundredth | `hello_timer` 7 | `   0.07` |
+| boundary: a nonzero mask | `group_fwd_mask` 8 | `0x8` |
+| corner: an `stp_mode` past the table | 7 | `(unknown)` |
+| corner: an unnamed `vlan_protocol` | 0x1234 | `[4660]` |
+| corner: only the boolopts in the mask | mst on, no_ll_learn off | those two |
+
+`TestSprintTime64` holds `sprint_time64`'s units, its thresholds and `%.3g`; `TestLLProtoN2A` the first name for an id listed twice and `[%d]` for an unnamed one. `TestDetailRefusedForPerKindData`'s mesh rows change: `-d link show` and `-d addr show` are refused at the first bridge port, and `-d -4 addr show`, whose only link with kind data is br0, renders.
+
+**Mutation check:** the address padded (every row); a timer as a float (the JSON corner); an option out of print order (every row); `%#x` of 0 as `0x0` (every row); the slave gate opened to `bridge` (the mesh rows); `sprint_time64`'s second threshold off by one (its boundary); the boolopt mask ignored (`TestBridgeDataRender`); the JSON key as the keyword (every `-j` row).
 
 **Done when:** as KG1-T01.
 
