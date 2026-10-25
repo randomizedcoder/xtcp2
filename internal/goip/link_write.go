@@ -1,6 +1,7 @@
 package goip
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"os"
@@ -83,6 +84,7 @@ const (
 	linkArmNomaster
 	linkArmType
 	linkArmAlias
+	linkArmInet
 	linkArmUnsupported // a keyword `ip` knows and goip does not implement
 )
 
@@ -123,6 +125,7 @@ var linkParseKeywords = []linkKeyword{
 	{keyword: "qlen", arm: linkArmTxqlen},
 	{keyword: "txqlen", prefix: true, arm: linkArmTxqlen},
 	{keyword: mtuKeywordCst, arm: linkArmMTU},
+	{keyword: inetKeywordCst, arm: linkArmInet},
 	{keyword: "xdpgeneric", arm: linkArmUnsupported},
 	{keyword: "xdpdrv", arm: linkArmUnsupported},
 	{keyword: "xdpoffload", arm: linkArmUnsupported},
@@ -207,6 +210,16 @@ func dupargErr(key, arg string) error {
 	return fmt.Errorf("%w: Error: duplicate %q: %q is the second value", ErrInvalidArgument, key, arg)
 }
 
+// ErrLinkUsage is a refusal iplink_parse ends with exit(-1), 255: invarg,
+// duparg, duparg2 and incomplete_command. Its returned refusals (a bad
+// lladdr, an on/off word, nodev) exit 1, as ErrInvalidArgument does.
+var ErrLinkUsage = errors.New("link")
+
+// linkUsage marks err as one of ErrLinkUsage's refusals.
+func linkUsage(err error) error {
+	return fmt.Errorf("%w: %w", ErrLinkUsage, err)
+}
+
 func incompleteErr() error {
 	return fmt.Errorf("%w: Command line is not complete. Try option \"help\"", ErrInvalidArgument)
 }
@@ -278,9 +291,16 @@ loop:
 		if kw.arm == linkArmUnsupported {
 			return linkParsed{}, fmt.Errorf("link keyword %q: %w", kw.keyword, ErrNotImplemented)
 		}
+		if kw.arm == linkArmInet {
+			var err error
+			if i, err = st.inet(args, i); err != nil {
+				return linkParsed{}, err
+			}
+			continue
+		}
 		// Every remaining arm is NEXT_ARG.
 		if i+1 >= len(args) {
-			return linkParsed{}, incompleteErr()
+			return linkParsed{}, linkUsage(incompleteErr())
 		}
 		i++
 		if kw.arm == linkArmType {
@@ -309,16 +329,16 @@ func (st *linkParseState) devArg(args []string, i int) (int, error) {
 	}
 	if args[i] == devKeywordCst {
 		if i+1 >= len(args) {
-			return i, incompleteErr()
+			return i, linkUsage(incompleteErr())
 		}
 		i++
 	}
 	arg := args[i]
 	if st.devSt == devExplicit {
-		return i, fmt.Errorf("%w: Error: either \"dev\" is duplicate, or %q is garbage", ErrInvalidArgument, arg)
+		return i, linkUsage(fmt.Errorf("%w: Error: either \"dev\" is duplicate, or %q is garbage", ErrInvalidArgument, arg))
 	}
 	if !checkAltIfname(arg) {
-		return i, invargErr("\"dev\" not a valid ifname", arg)
+		return i, linkUsage(invargErr("\"dev\" not a valid ifname", arg))
 	}
 	st.dev = arg
 	st.devSt = devExplicit
@@ -343,10 +363,10 @@ func (st *linkParseState) value(kw *linkKeyword, v string) error {
 	switch kw.arm {
 	case linkArmName:
 		if st.name != "" {
-			return dupargErr("name", v)
+			return linkUsage(dupargErr("name", v))
 		}
 		if !checkIfname(v) {
-			return invargErr("\"name\" not a valid ifname", v)
+			return linkUsage(invargErr("\"name\" not a valid ifname", v))
 		}
 		st.name = v
 		if st.devSt == devUnset {
@@ -381,12 +401,12 @@ func (st *linkParseState) value(kw *linkKeyword, v string) error {
 			return err
 		}
 		if idx == 0 {
-			return invargErr("Device does not exist\n", v)
+			return linkUsage(invargErr("Device does not exist\n", v))
 		}
 		st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrU32(unix.IFLA_MASTER, uint32(idx))) //nolint:gosec // an ifindex
 	case linkArmAlias:
 		if len(v) >= ifAliasSizeCst {
-			return invargErr("alias too long\n", v)
+			return linkUsage(invargErr("alias too long\n", v))
 		}
 		st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrBytes(unix.IFLA_IFALIAS, []byte(v)))
 	default:
@@ -400,15 +420,89 @@ func (st *linkParseState) value(kw *linkKeyword, v string) error {
 // in `ip`), and the C int written as four bytes.
 func (st *linkParseState) intAttr(seen *int, key string, atype uint16, v string) error {
 	if *seen != -1 {
-		return dupargErr(key, v)
+		return linkUsage(dupargErr(key, v))
 	}
 	n, ok := getInteger(v, 0)
 	if !ok {
-		return invargErr("Invalid \""+key+"\" value\n", v)
+		return linkUsage(invargErr("Invalid \""+key+"\" value\n", v))
 	}
 	*seen = n
 	st.out.attrs = append(st.out.attrs, xtcpnl.LinkAttrU32(atype, uint32(int32(n)))) //nolint:gosec // the C int, reinterpreted
 	return nil
+}
+
+// inetKeywordCst is iplink_parse's `inet`, compared with strcmp.
+const inetKeywordCst = "inet"
+
+// inet is iplink_parse_inet (ip/iplink.c:572-860, iproute2 7.2.0): the
+// devconf params after `inet`, each compared with strcmp, up to the first
+// word that is none, which PREV_ARG hands back to iplink_parse. It returns
+// the index of the last argument it consumed, and appends IFLA_AF_SPEC
+// where `inet` fell. There is no repeat check: a param twice sends two
+// attributes, and `inet` twice two IFLA_AF_SPECs.
+func (st *linkParseState) inet(args []string, i int) (int, error) {
+	var settings []xtcpnl.InetDevconfSetting
+	for i+1 < len(args) {
+		p := lookupInetParam(args[i+1])
+		if p == nil {
+			break
+		}
+		i += 2
+		if i >= len(args) {
+			return i, linkUsage(incompleteErr())
+		}
+		v, err := inetValue(p, args[i])
+		if err != nil {
+			return i, err
+		}
+		settings = append(settings, xtcpnl.InetDevconfSetting{ID: p.ID, Value: v})
+	}
+	if len(settings) == 0 {
+		return i, linkUsage(incompleteErr())
+	}
+	a, err := xtcpnl.LinkAttrInetDevconf(settings)
+	if err != nil {
+		return i, err
+	}
+	st.out.attrs = append(st.out.attrs, a)
+	return i, nil
+}
+
+// lookupInetParam is iplink_parse_inet's strcmp chain.
+func lookupInetParam(arg string) *xtcpnl.InetDevconfParam {
+	for i := range xtcpnl.InetDevconfParams {
+		if xtcpnl.InetDevconfParams[i].Name == arg {
+			return &xtcpnl.InetDevconfParams[i]
+		}
+	}
+	return nil
+}
+
+// inetValue reads a param's value: parse_on_off for an on/off param, whose
+// error is returned (exit 1), and get_integer base 0 for a numeric one,
+// whose error is invarg (exit 255). addattr32 sends the C int's 32 bits, so
+// -1 is 0xffffffff.
+func inetValue(p *xtcpnl.InetDevconfParam, v string) (uint32, error) {
+	if p.OnOff {
+		switch v {
+		case offKeywordCst:
+			return 0, nil
+		case onKeywordCst:
+			return 1, nil
+		default:
+			return 0, fmt.Errorf("%w: Error: argument of %q must be one of \"off\", \"on\", not %q",
+				ErrInvalidArgument, p.Name, v)
+		}
+	}
+	n, ok := getInteger(v, 0)
+	if !ok {
+		return 0, linkUsage(invargErr("Invalid \""+p.Name+"\" value\n", v))
+	}
+	b, err := binary.Append(nil, binary.LittleEndian, int64(n))
+	if err != nil {
+		return 0, err
+	}
+	return binary.LittleEndian.Uint32(b), nil
 }
 
 func (st *linkParseState) setFlag(flag uint32, set bool) {
@@ -434,7 +528,7 @@ func (st *linkParseState) finish() error {
 
 	if !st.create {
 		if !haveDev {
-			return fmt.Errorf("%w: Not enough information: \"dev\" argument is required", ErrInvalidArgument)
+			return linkUsage(fmt.Errorf("%w: Not enough information: \"dev\" argument is required", ErrInvalidArgument))
 		}
 		idx, err := st.resolve(st.dev)
 		if err != nil {
@@ -451,7 +545,7 @@ func (st *linkParseState) finish() error {
 	}
 
 	if !sameName {
-		return fmt.Errorf("%w: both \"name\" and \"dev\" cannot be used when creating devices", ErrInvalidArgument)
+		return linkUsage(fmt.Errorf("%w: both \"name\" and \"dev\" cannot be used when creating devices", ErrInvalidArgument))
 	}
 	// `index N` is not implemented, so ifi_index stays 0.
 	if haveDev {

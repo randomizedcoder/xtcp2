@@ -872,7 +872,7 @@ func TestRunLinkArgs(t *testing.T) {
 			// do_iplink tries `set` before `show` (ip/iplink.c:1519-1530), so
 			// `s` is a set with no device. goip used to read it as a show.
 			description: "corner: `l s` is `set`, not `show`, because set is tried first",
-			args:        []string{"l", "s"}, wantCode: ExitUsage,
+			args:        []string{"l", "s"}, wantCode: ExitMinusOne, // exit(-1), as ip
 			wantStderrSubstr: `Not enough information: "dev" argument is required`,
 		},
 		{

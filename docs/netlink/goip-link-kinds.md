@@ -54,7 +54,7 @@ The two refusals:
 - **`link add … type X <options>`:** `kindData` (`internal/goip/link_write.go:514`) returns `ErrNotImplemented` for a kind it has no case for (`:542`).
 - **`-d link show`:** `checkDetailSupported` (`internal/goip/obj_link.go:369`) refuses a device carrying `IFLA_INFO_DATA` that `renderableInfoData` (`:394`) doesn't accept, which today is everything except vrf and bond.
 
-`ip link set dev X inet …` isn't in goip's keyword table (`lookupLinkKeyword`), so goip doesn't build that request either. Its codec is in `pkg/xtcpnl` since KP0 (`xtcpnl_inet_devconf.go`: `LinkAttrInetDevconf`, `ParseInetDevconfRequest`, `ParseInetDevconfValues` and the `InetDevconfParams` table), and KG0 wires it in.
+`ip link set dev X inet …` is in goip's keyword chain since KG0-T01 (`linkParseKeywords`, `(*linkParseState).inet`), over KP0's codec (`xtcpnl_inet_devconf.go`: `LinkAttrInetDevconf`, `ParseInetDevconfRequest`, `ParseInetDevconfValues` and the `InetDevconfParams` table). Its matrix rows are KG0-T02's.
 
 ## The kind inventory
 
@@ -2507,10 +2507,11 @@ Two tasks: KG0-T01 puts `inet` in goip's `iplink_parse` keyword chain and replay
 
 | description | input | expected |
 |---|---|---|
-| positive: each kernel-answered KC1 row | the 11 rows at rc 0 or 2, their argv as KC1-T01 ran them | one lookup, then the row's request |
+| positive: one on/off param | `inet_forwarding_on` | one lookup, then its request |
 | positive: several params, in argument order | `inet_several` | its request: ids 1, 3, 8 and 19 in that order |
 | positive: every param | `inet_every_param` | its request: 32 attributes |
-| negative: a request the kernel refuses is built anyway | `inet_rp_filter_over` | its request; the `EINVAL` is the kernel's |
+| positive: a numeric param at the top of the kernel's range | `inet_rp_filter_max` | its request |
+| negative: a request the kernel refuses is built anyway | `inet_rp_filter_over`, `inet_medium_id_neg2` | their requests; the `EINVAL` is the kernel's |
 | boundary: base 0 | `inet_tag_hex`, `inet_arp_ignore_octal` | `TAG` 16; `ARP_IGNORE` 8 |
 | boundary: the one signed param | `inet_medium_id_neg1` | `MEDIUM_ID` `0xffffffff` |
 | corner: the pushed-back word is the next keyword | `inet_then_mtu` | `IFLA_AF_SPEC`, then `IFLA_MTU` |
@@ -2537,6 +2538,16 @@ Two tasks: KG0-T01 puts `inet` in goip's `iplink_parse` keyword chain and replay
 | corner: `inet` twice | `inet forwarding on inet proxy_arp on` | two `IFLA_AF_SPEC` attributes, in order |
 | corner: a generic keyword before `inet` | `mtu 1400 inet forwarding on` | `IFLA_MTU`, then `IFLA_AF_SPEC` |
 | boundary: the highest id | `inet arp_evict_nocarrier off` | `ARP_EVICT_NOCARRIER` (33) 0 |
+
+`TestErrLinkUsageExitCode`: `exitCodeOf`'s arm order.
+
+| description | input | expected |
+|---|---|---|
+| positive: a link usage refusal | `linkUsage(incompleteErr())` | 255 |
+| negative: a plain argument error | `incompleteErr()` | 1 |
+| corner: wrapped again | `errors.Join(linkUsage(…))` | 255 |
+
+The replay tests set `req.LLMapNameOnly`, since the 7.3.0 corpus's d0 lookups carry 7.2.0's `IFLA_EXT_MASK` (0x109) and `main_test.go` defaults to 7.1.0's.
 
 **Mutation check:** the params matched by prefix (`inet_abbreviated`); the pushed-back word consumed (`inet_then_mtu`); values read base 10 (`inet_tag_hex`); `ErrLinkUsage` mapped to 1 (the `ip`-refused rows); `inet` given `prefix: true` (the `ine` corner).
 

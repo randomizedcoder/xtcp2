@@ -21,8 +21,9 @@
 - KP4 is done (KP4-T01, KP4-T02, KP4-T03, KP4-T04, KP4-T05; planned in DOC013): `pkg/xtcpnl/xtcpnl_gre.go` decodes the six gre kinds into `LinkInfo.Gre`, rendering all 44 accepted gre, gretap and erspan rows' dumps as their `-d -j` readbacks print them, and encodes the `IFLA_INFO_DATA` of the 60 rows that sent a request byte for byte, sets seeded from their prefetch. `xtcpnl_gre6.go` does the same for ip6gre, ip6gretap and ip6erspan (36 accepted rows, 50 requests), and `xtcpnl_iptun.go` for ipip and sit into `LinkInfo.Iptun` (46 and 60), which ip6tnl's dump also fills; `xtcpnl_ip6tnl.go` encodes ip6tnl (29 accepted rows, 36 requests). `xtcpnl_vti.go` does the same for vti and vti6 into `LinkInfo.Vti` (18 and 25), and `xtcpnl_xfrm_link.go` for xfrm into `LinkInfo.Xfrm` (9 and 17). The shared `TunnelEncap` block lives in `xtcpnl_kind_wire.go`. KP5 is planned (DOC014).
 - KP5 is done (KP5-T01, KP5-T02, KP5-T03, KP5-T04; planned in DOC014): `pkg/xtcpnl/xtcpnl_hsr.go` decodes hsr into `LinkInfo.Hsr`, rendering all 10 accepted rows' dumps as their `-d -j` readbacks print them, and encodes the `IFLA_INFO_DATA` of the 20 rows that sent a request byte for byte. `xtcpnl_netkit.go` does the same for netkit into `LinkInfo.Netkit` (19 accepted rows, 27 requests), its `PEER_INFO` nest shared with `EncodeVethPeer` through `putPeerNest`. `xtcpnl_vrf.go` encodes vrf's 12 requests (the 8 accepted rows' dumps and the 3 enslaved vrf_slave rows' render through the existing `vrfTableAttr`), and `xtcpnl_vxcan.go` vxcan's 9 through `putPeerNest`; no vrf_slave request carries `INFO_SLAVE_DATA`. `xtcpnl_batadv.go` encodes batadv's 12 requests; batadv has no `fill_info`, and ifb, nlmon, vcan, team and team_slave send and dump no kind data at all, which `TestKindsWithoutData` holds for all 46 of their requests.
 - The KP tier is done. KG0 is planned (DOC015): KG0-T01 puts `inet` in goip's keyword chain, with `ip`'s exit statuses, and KG0-T02 gates its 11 matrix rows.
+- KG0 is in progress (KG0-T01): goip builds `ip link set … inet …` byte for byte as `ip` does for the 11 KC1 rows the kernel answered, and refuses the 7 `ip` refuses with `ip`'s texts and statuses. `parseLinkArgs`' `exit(-1)` refusals now exit 255 through `ErrLinkUsage`.
 
-**Next action:** [KG0-T01](goip-link-kinds.md#kg0-t01-inet-in-goips-keyword-chain): `inet` in goip's keyword chain.
+**Next action:** [KG0-T02](goip-link-kinds.md#kg0-t02-the-inet-matrix-rows): the `inet` matrix rows.
 
 ## Contents
 
@@ -60,7 +61,7 @@
 | [KP3](goip-link-kinds.md#kp3--udp-overlay-parsers) | parsers | UDP overlays | KP3-T04 | done | V090–V101, DOC013 |
 | [KP4](goip-link-kinds.md#kp4--ip-tunnel-parsers) | parsers | IP tunnels | KP4-T05 | done | V102–V116, DOC014 |
 | [KP5](goip-link-kinds.md#kp5--the-remaining-kinds-parsers) | parsers | the remaining kinds | KP5-T04 | done | V117–V128, DOC015 |
-| [KG0](goip-link-kinds.md#kg0--goip-link-set-inet) | goip | `link set inet` | KG0-T02 | not started | |
+| [KG0](goip-link-kinds.md#kg0--goip-link-set-inet) | goip | `link set inet` | KG0-T02 | in progress | V129–V131 |
 | [KG1](goip-link-kinds.md#kg1--goip-bridge) | goip | bridge | | not started | |
 | [KG2](goip-link-kinds.md#kg2--goip-vlan-family) | goip | VLAN family | | not started | |
 | [KG3](goip-link-kinds.md#kg3--goip-udp-overlays) | goip | UDP overlays | | not started | |
@@ -114,7 +115,7 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | [x] | [KP5-T02](goip-link-kinds.md#kp5-t02-the-netkit-parser) | the netkit parser | done | V120–V122 |
 | [x] | [KP5-T03](goip-link-kinds.md#kp5-t03-the-vrf-vrf_slave-and-vxcan-parsers) | the vrf, vrf_slave and vxcan parsers | done | V123–V125 |
 | [x] | [KP5-T04](goip-link-kinds.md#kp5-t04-the-batadv-parser-and-the-kinds-with-no-parser) | the batadv parser and the kinds with no parser | done | V126–V128, DOC015 |
-| [ ] | [KG0-T01](goip-link-kinds.md#kg0-t01-inet-in-goips-keyword-chain) | `inet` in goip's keyword chain | not started | |
+| [x] | [KG0-T01](goip-link-kinds.md#kg0-t01-inet-in-goips-keyword-chain) | `inet` in goip's keyword chain | done | V129–V131 |
 | [ ] | [KG0-T02](goip-link-kinds.md#kg0-t02-the-inet-matrix-rows) | the `inet` matrix rows | not started | |
 | [ ] | [KG1-T01…](goip-link-kinds.md#kg1--goip-bridge) | goip bridge | not started | |
 | [ ] | [KG2-T01…](goip-link-kinds.md#kg2--goip-vlan-family) | goip VLAN family | not started | |
@@ -269,6 +270,9 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | V127 | 2026-10-25 | KP5-T04 | mutation, a scratch worktree, each `go test` in a `systemd-run --scope -p MemoryMax=6G -p MemorySwapMax=0` with `-timeout=180s`: the NUL dropped from `ALGO_NAME`; only the last name sent; an ifb given a decoder that returns non-nil | 3 of 3 killed: by every row sending a name; by `corner: two names send two attributes, in order` and `add_ra_twice`'s request; by `positive: an ifb's dump decodes no kind data` | scratch |
 | V128 | 2026-10-25 | KP5-T04 | `nix build .#checks.x86_64-linux.lint-baseline`, then `.#checks.x86_64-linux.netlink-audit` | both pass on the first run | this commit |
 | DOC015 | 2026-10-25 | KP5 close | KG0 broken into KG0-T01 (`inet` in goip's keyword chain, with `ip`'s exit statuses through `ErrLinkUsage`) and KG0-T02 (the 11 matrix rows, gated) with their tables, argued from `iplink_parse_inet` and `parse_on_off` at `v7.2.0`, the KC1 rows' `ip.rc` and `ip.err`, and goip's `parseLinkArgs`, `exitCodeOf` and write-row rules; KP5-T04's tables match the built rows; "Where goip stands" gains the KP5 kinds; `coverage-status.md`'s `IFLA_INFO_DATA` row names KP5's kinds; doccheck | tasks one to one, no broken link or anchor | this commit |
+| V129 | 2026-10-25 | KG0-T01 | `go vet`, `go test -count=1 -race ./internal/goip/ ./internal/goipparity/` | all pass: `TestLinkSetInetMatchesIp` (11 rows), `TestLinkSetInetRefusals` (7 corpus rows and 7 built), `TestLinkSetInetBuilt` (4 rows), `TestErrLinkUsageExitCode` (3 rows). One existing row moved from 1 to 255: `TestRunLinkArgs`' `l s`, whose "dev" argument is required refusal is `exit(-1)` in `ip` | this commit |
+| V130 | 2026-10-25 | KG0-T01 | mutation, a scratch worktree, each `go test` in a `systemd-run --scope -p MemoryMax=6G -p MemorySwapMax=0` with `-timeout=180s`: the params matched by prefix; the pushed-back word consumed; values read base 10; `ErrLinkUsage` mapped to 1; `inet` given `prefix: true` | 5 of 5 killed: by `inet_abbreviated`; by `inet_then_mtu`, `inet_then_garbage` and the `inet` twice row; by `inet_tag_hex` and `inet_arp_ignore_octal`; by the six `ip`-refused rows at 255 and the numeric-given-`on` row; by `corner: ine is a device name` | scratch |
+| V131 | 2026-10-25 | KG0-T01 | `nix build .#checks.x86_64-linux.lint-baseline`, then `.#checks.x86_64-linux.netlink-audit` | both pass on the first run | this commit |
 
 ## Decision log
 
@@ -360,3 +364,5 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 - **KG0 is planned now, and each later KG phase when the one before it closes.** The KG phases run in group order, KG0 to KG5. KG0 is two tasks, since its matrix rows need two consecutive clean VM runs before they're gated and the parser doesn't.
 - **KG0's exit statuses follow `ip` through a link-only sentinel.** The earlier decision says KG0 matches the status as well as the text. goip exits 1 on every `ErrInvalidArgument`, and `invargErr`, `dupargErr` and `incompleteErr` are shared by most of goip's other objects, so KG0-T01 adds `ErrLinkUsage` (exit 255) and wraps only `parseLinkArgs`' `exit(-1)` refusals. The existing link refusals move from 1 to 255 with it. The bond parser keeps 1 until KG5 reaches the kind parsers' statuses.
 - **The `ip`-refused `inet` rows aren't matrix rows.** A write row needs goip to exit 0, so the 7 refusals are held offline by `TestLinkSetInetRefusals`, as `nodev` is by `TestRouteWriteNodevCorpus`. The two the kernel refuses are matrix rows, compared on the request.
+- **The `inet` replay uses 7.2.0's lookup mask.** The 7.3.0 corpus was captured with `ip` 7.2.0, whose `ll_link_get` sends `IFLA_EXT_MASK` 0x109 (`RTEXT_FILTER_NAME_ONLY`, `de91e928`). `main_test.go` sets `req.LLMapNameOnly` false for the 7.1.4 fixtures, so the KG0-T01 tests set it true for their run, as `corpus_7_3_0_test.go` does. The goip binary already defaults to 7.2.0's mask.
+- **KG0-T01's tables match the built rows.** The replay table names each of the 11 rows, `inet_medium_id_neg2` beside `inet_rp_filter_over` as a kernel refusal built anyway. `TestErrLinkUsageExitCode` is added to pin `exitCodeOf`'s arm order, since `ErrLinkUsage`'s refusals also wrap `ErrInvalidArgument`.
