@@ -361,7 +361,7 @@ func TestEncodeGeneveInfoData(t *testing.T) {
 		{
 			description: "negative: an add with no remote",
 			settings:    args("id 1"),
-			err:         ErrKindSettingConflict,
+			err:         ErrKindSettingMissing,
 		},
 		{
 			description: "boundary: dstport 0 sends no PORT",

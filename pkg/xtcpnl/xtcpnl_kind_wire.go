@@ -28,6 +28,11 @@ const (
 // say, or geneve's external with an id.
 var ErrKindSettingConflict = errors.New("xtcpnl: link kind options conflict")
 
+// ErrKindSettingMissing is a kind parser's refusal for want of a word it
+// requires: vxlan's or geneve's id, geneve's remote on an add, bareudp's
+// dstport or ethertype.
+var ErrKindSettingMissing = errors.New("xtcpnl: link kind option missing")
+
 func kindU32(val []byte, dst *uint32, has *bool) {
 	if len(val) >= 4 {
 		*dst, *has = binary.LittleEndian.Uint32(val), true

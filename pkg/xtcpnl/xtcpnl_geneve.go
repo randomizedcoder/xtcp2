@@ -202,10 +202,10 @@ var geneveCsumAttrs = [3]uint16{
 // family), LABEL, TTL and TOS on an add or when given (ttl inherit and
 // auto give TTL 0), PORT when nonzero, COLLECT_METADATA, INNER_PROTO_INHERIT,
 // and each checksum word given, the last of each winning. No settings
-// encode to nothing. It refuses what geneve_parse_opt refuses with
-// ErrKindSettingConflict: external with an id, no id without external, and no
-// remote on an add without external. A local of the other family is sent;
-// the kernel refuses it.
+// encode to nothing. It refuses what geneve_parse_opt refuses:
+// ErrKindSettingConflict for external with an id, ErrKindSettingMissing for
+// no id without external and no remote on an add without external. A local
+// of the other family is sent; the kernel refuses it.
 func EncodeGeneveInfoData(settings []GeneveSetting, set bool) ([]byte, error) {
 	if len(settings) == 0 {
 		return nil, nil
@@ -283,8 +283,10 @@ func (e *geneveEnc) putCsum(s GeneveSetting) error {
 // attributes it holds back.
 func (e *geneveEnc) finish(set bool) error {
 	switch {
-	case e.metadata && e.hasID, !e.metadata && !e.hasID, !e.metadata && !set && !e.remote.IsValid():
+	case e.metadata && e.hasID:
 		return ErrKindSettingConflict
+	case !e.metadata && !e.hasID, !e.metadata && !set && !e.remote.IsValid():
+		return ErrKindSettingMissing
 	}
 	if err := kindPutU32(&e.ab, unix.IFLA_GENEVE_ID, e.vni); err != nil {
 		return err

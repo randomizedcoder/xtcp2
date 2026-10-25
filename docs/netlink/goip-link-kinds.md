@@ -1894,8 +1894,8 @@ Four tasks, one per KC4 task: KP3-T01 vxlan, KP3-T02 geneve, KP3-T03 bareudp and
 
 **Code.** A new `pkg/xtcpnl/xtcpnl_geneve.go`:
 - **`GeneveInfo`:** the id; `Remote` and `Local` as `netip.Addr` (`REMOTE` over `REMOTE6`, `LOCAL` over `LOCAL6`, as `geneve_print_opt` reads them); `TTL`, `TTLInherit`, `TOS`, `DF`, `Label` (host order), the port; the unprinted `PORT_RANGE` the kernel dumps on every device; `CollectMetadata`, `InnerProtoInherit` and `GroHint` (flags); the three checksum u8s; present bits. `PORT_RANGE`, `GRO_HINT`, `LOCAL` and `LOCAL6` (15 to 18) are package constants, absent from x/sys v0.49.0.
-- **`EncodeGeneveInfoData(settings, set)`:** `TTL_INHERIT` (from `ttl inherit`) and `DF` go in argument order, inside the loop. The rest goes after it, in `geneve_parse_opt`'s order: `ID` always (0 for `external`), the remote, the local (7.2.0's `local`, `LOCAL` or `LOCAL6` by family), `LABEL`, `TTL` and `TOS` on an add or when given (`ttl inherit` and `ttl auto` give `TTL` 0), `PORT` when nonzero, `COLLECT_METADATA`, `INNER_PROTO_INHERIT`, then each checksum word given. A later checksum word overrides an earlier one (`ip` refuses the pair as a duplicate first). It refuses external with an id, no id without external, and an add with no remote and no external with `ErrKindSettingConflict`.
-- **Shared with vxlan:** the tolerant reads and range-checked writes (`kindU32`, `kindPutAddr`, `kindBE` and the rest) and `ErrKindSettingConflict` live in `xtcpnl_kind_wire.go`, for KP3-T03 and KP3-T04 too.
+- **`EncodeGeneveInfoData(settings, set)`:** `TTL_INHERIT` (from `ttl inherit`) and `DF` go in argument order, inside the loop. The rest goes after it, in `geneve_parse_opt`'s order: `ID` always (0 for `external`), the remote, the local (7.2.0's `local`, `LOCAL` or `LOCAL6` by family), `LABEL`, `TTL` and `TOS` on an add or when given (`ttl inherit` and `ttl auto` give `TTL` 0), `PORT` when nonzero, `COLLECT_METADATA`, `INNER_PROTO_INHERIT`, then each checksum word given. A later checksum word overrides an earlier one (`ip` refuses the pair as a duplicate first). It refuses external with an id with `ErrKindSettingConflict`, and no id without external or an add with no remote and no external with `ErrKindSettingMissing`.
+- **Shared with vxlan:** the tolerant reads and range-checked writes (`kindU32`, `kindPutAddr`, `kindBE` and the rest) and `ErrKindSettingConflict` and `ErrKindSettingMissing` live in `xtcpnl_kind_wire.go`, for KP3-T03 and KP3-T04 too.
 - **The render oracle:** `geneve_print_opt`: `external` as true when the flag is present, `id`, `remote`/`remote6` and `local`/`local6` by family, `ttl` (absent under `ttl_inherit`), `tos` and `label` in hex, `df`, `port`, the checksum bools (JSON always prints them), and `inner_proto_inherit`.
 - **The benchmark:** `BenchmarkParseGeneveInfoData` over `add_local6`'s blob.
 
@@ -1927,7 +1927,7 @@ Four tasks, one per KC4 task: KP3-T01 vxlan, KP3-T02 geneve, KP3-T03 bareudp and
 | negative: a label past 20 bits | 0x100000 | `ErrKindSettingRange` |
 | negative: a setting with no option | the zero option | `ErrKindSettingOption` |
 | negative: external with an id | `external id 5` | `ErrKindSettingConflict` |
-| negative: an add with no remote | `id 1` | `ErrKindSettingConflict` |
+| negative: an add with no remote | `id 1` | `ErrKindSettingMissing` |
 | corner: a local of the other family is sent | an IPv6 remote, an IPv4 local | `REMOTE6`, then `LOCAL`, no error: the kernel refuses it (`add_local_family_mix`) |
 | boundary: `dstport 0` | base `dstport 0` | no `PORT` |
 | corner: a set sends only what it was given | `id 1 ttl 5`, set | `ID`, `TTL` |
@@ -1949,8 +1949,8 @@ Four tasks, one per KC4 task: KP3-T01 vxlan, KP3-T02 geneve, KP3-T03 bareudp and
 #### KP3-T03 The bareudp and amt parsers
 
 **Code.** Two files, `xtcpnl_bareudp.go` and `xtcpnl_amt.go`, each small:
-- **bareudp:** `BareudpInfo` (the port, big-endian; the ethertype, big-endian; `srcportmin`, host order; `MULTIPROTO_MODE`, a flag); `EncodeBareudpInfoData` in argument order. The render prints `ethertype` through `ll_proto_n2a` (`mpls_uc`, `ip`, or the number in brackets, `[4660]`), and `multiproto` as true or false.
-- **amt:** `AmtInfo` (mode u32, `gateway` 0 or `relay` 1; the two ports, big-endian; local, remote and discovery IPv4 addresses; the lower's ifindex; `max_tunnels`); `EncodeAmtInfoData` in argument order, a repeated `mode` sent twice. The render prints the lower by name.
+- **bareudp:** `BareudpInfo` (the port, big-endian; the ethertype, big-endian; `srcportmin`, host order; `MULTIPROTO_MODE`, a flag); `EncodeBareudpInfoData`, which sends nothing in argument order: after the loop, `PORT`, `ETHERTYPE`, `SRCPORT_MIN` when given and `MULTIPROTO_MODE` when on, as `bareudp_parse_opt` does. A word given twice (`multiproto` and `nomultiproto` count as one) is `ErrKindSettingConflict`; no `dstport` or `ethertype` is `ErrKindSettingMissing`. The render prints `ethertype` through `ll_proto_n2a` (`mpls_uc`, `ip`, or the number in brackets, `[4660]`), and `multiproto` as true or false.
+- **amt:** `AmtInfo` (mode u32, `gateway` 0 or `relay` 1; the two ports, big-endian; local, remote and discovery IPv4 addresses; the lower's ifindex; `max_tunnels`); `EncodeAmtInfoData` in argument order, a repeated `mode` sent twice, a second `local` or `discovery` `ErrKindSettingConflict`. The render prints the lower by name. The IDs (1 to 8) are package constants, absent from x/sys v0.49.0.
 - **The benchmarks:** `BenchmarkParseBareudpInfoData` and `BenchmarkParseAmtInfoData` over `add_srcportmin`'s and `add_ports`'s blobs.
 
 `TestBareudpDumpMatchesReadback` (6 rows) and `TestAmtDumpMatchesReadback` (5 rows), then:
@@ -1978,8 +1978,11 @@ Four tasks, one per KC4 task: KP3-T01 vxlan, KP3-T02 geneve, KP3-T03 bareudp and
 | boundary: amt `max_tunnels 0` | relay `max_tunnels 0` | `MAX_TUNNELS` 0 sent |
 | corner: amt's repeated mode | `mode gateway mode relay` | two `MODE`s, in order |
 | corner: bareudp's ethertype is big-endian | `ethertype 0x1234` | `12 34` |
+| corner: bareudp's words' order doesn't matter | `multiproto srcportmin 1 ethertype ip dstport 6635` | `PORT`, `ETHERTYPE`, `SRCPORT_MIN`, `MULTIPROTO_MODE` |
+| negative: bareudp's missing ethertype | `dstport 6635` | `ErrKindSettingMissing` |
+| negative: amt's second local | `local 10.0.0.1 local 10.0.0.3` | `ErrKindSettingConflict` |
 
-**Mutation check:** bareudp's ethertype read little-endian (`add_ethertype_number`), amt's mode names swapped (`add_gateway`, `add_relay`), amt's lower printed as a number (`add_gateway`).
+**Mutation check:** bareudp's ethertype read little-endian (`add_ethertype_number`), amt's mode names swapped (`add_gateway`, `add_relay`), amt's lower not decoded (`add_gateway`; the plan's "printed as a number" is the KG render's, so the parser mutant drops the ifindex instead).
 
 #### KP3-T04 The gtp parser
 

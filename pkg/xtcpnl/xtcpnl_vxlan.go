@@ -279,9 +279,10 @@ type vxlanEnc struct {
 // for gpe without a dstport. No settings encode to nothing: iplink_parse
 // calls no parse_opt when no option follows the kind. ip -4 and -6's
 // default group, sent when no address is given, is not modeled. It refuses
-// what vxlan_parse_opt refuses with ErrKindSettingConflict: group and
+// what vxlan_parse_opt refuses: ErrKindSettingConflict for group and
 // remote, a local of the other family, vnifilter without external, external
-// with an id, no id on an add, and a group without dev.
+// with an id, and a group without dev; ErrKindSettingMissing for no id on an
+// add.
 func EncodeVxlanInfoData(settings []VxlanSetting, set bool) ([]byte, error) {
 	if len(settings) == 0 {
 		return nil, nil
@@ -402,10 +403,10 @@ func (e *vxlanEnc) putBool(s VxlanSetting) error {
 // attributes it holds back.
 func (e *vxlanEnc) finish(set bool) error {
 	switch {
-	case !e.metadata && e.vnifilter, e.metadata && e.hasID,
-		!e.metadata && !e.vnifilter && !e.hasID && !set,
-		e.remote.IsMulticast() && !e.hasLink:
+	case !e.metadata && e.vnifilter, e.metadata && e.hasID, e.remote.IsMulticast() && !e.hasLink:
 		return ErrKindSettingConflict
+	case !e.metadata && !e.vnifilter && !e.hasID && !set:
+		return ErrKindSettingMissing
 	}
 	if e.hasID {
 		if err := kindPutU32(&e.ab, unix.IFLA_VXLAN_ID, e.vni); err != nil {
