@@ -140,7 +140,7 @@ Bond is the template. A kind is done when each step below has landed and its mat
 6. **goip args** (KG): a `kindData` case and a `parse<Kind>Args` file, following `internal/goip/link_bond_args.go`.
 7. **Render** (KG): `<kind>Data` in `internal/goip/render`, a case in `kindData` or `slaveKindData` (`render/link_detail.go:161`, `:172`), and the kind in `renderableInfoData`.
 8. **goip tests** (KG): replay rows in `TestLinkWriteMatchesIpBytes`, and a `-d` sidecar test following `TestLinkShowDetailBondMatchesSidecar`.
-9. **Matrix** (KG): read rows (`-d link show dev X`, `-d -j …`) and the write rows, gated after two consecutive clean `goip-parity` runs.
+9. **Matrix** (KG): read rows (`-d link show dev X`, `-d -j …`) and the write rows, gated after two consecutive clean `goip-parity` runs of the row's section (`--section link`).
 
 ## Gates every task inherits
 
@@ -150,7 +150,8 @@ These are [goip-parity-gaps.md's gates](goip-parity-gaps.md#gates-every-task-inh
 - **Nix checks, one per call:** lint-baseline, netlink-audit, vm-lib-exp, nix-fmt, statix and deadnix.
 - **VMs, one at a time,** after checking that ports 12055 and 12056 are free:
   - the capture runners for KC tasks;
-  - `nix run .#microvm-x86_64-goip-parity -- --timeout 12000` for KG tasks: two consecutive clean runs before a row is gated, one regression run otherwise.
+  - `nix run .#microvm-x86_64-goip-parity -- --timeout 12000 --section link` for KG tasks: two consecutive clean runs of the row's section before a row is gated, one regression run otherwise. The section run captures only those rows (`link`'s 48 of 518 in a few minutes, against about 45 for the table).
+  - One clean full run, without `--section`, before any push or PR, since goip's code is shared across sections.
 - **Docs:** the task's checklist row and its `V###` rows land in the task's commit.
 
 ## Phases and tasks

@@ -2160,6 +2160,7 @@ rec {
         # instead of an empty one.
         KEEP_GOING=()
         NO_ALLOWLIST=()
+        SECTION=()
         while [ $# -gt 0 ]; do
           case "$1" in
             --timeout)   TIMEOUT_SEC="$2"; shift 2 ;;
@@ -2168,8 +2169,10 @@ rec {
             --out=*)     OUT_DIR="''${1#--out=}"; shift ;;
             --keep-going)   KEEP_GOING=(--keep-going); shift ;;
             --no-allowlist) NO_ALLOWLIST=(--no-allowlist); shift ;;
+            --section)   SECTION=(--section "$2"); shift 2 ;;
+            --section=*) SECTION=(--section "''${1#--section=}"); shift ;;
             -h|--help)
-              echo "usage: $0 [--timeout <sec>] [--out <dir>] [--keep-going] [--no-allowlist]"
+              echo "usage: $0 [--timeout <sec>] [--out <dir>] [--keep-going] [--no-allowlist] [--section <list>]"
               echo "  Boots the goip-parity microvm and drives it over the serial"
               echo "  console with expect: builds the dummy-only topology in a"
               echo "  throwaway netns, captures an ip/goip/ip triple per command"
@@ -2188,6 +2191,10 @@ rec {
               echo "  of suppressing it. Use it to review what the allowlist is"
               echo "  currently hiding."
               echo ""
+              echo "  --section link,addr runs only those ip objects' rows, for"
+              echo "  fast iteration on one area. The report says how many rows"
+              echo "  it left out; a run without it is the full gate."
+              echo ""
               echo "  --out saves the capture triples + the in-guest report to a"
               echo "  directory. Optional: unlike the dump-capture runner these"
               echo "  are evidence, not fixtures, so nothing is written by"
@@ -2200,6 +2207,13 @@ rec {
 
         SERIAL_PORT=${toString cfg.serialPort}
         VIRTCON_PORT=${toString cfg.virtioPort}
+        # Checked here as well as in the guest: the list is typed into a shell
+        # over the serial console, so nothing but names and commas goes in.
+        if [ ''${#SECTION[@]} -gt 0 ] && ! [[ "''${SECTION[1]}" =~ ^[a-z0-9_]+(,[a-z0-9_]+)*$ ]]; then
+          echo "bad --section: ''${SECTION[1]} (want names like link,addr)" >&2
+          exit 1
+        fi
+
         LOG=$(mktemp -t xtcp2-goip-parity-XXXX.log)
         BLOB=$(mktemp -t xtcp2-goip-parity-blob-XXXX.b64)
 
@@ -2244,7 +2258,8 @@ rec {
           expect ${parityScripts}/goip-parity.exp \
             "$SERIAL_PORT" "$BLOB" --save-blobs ${saveBlobs} \
             ''${KEEP_GOING[@]+"''${KEEP_GOING[@]}"} \
-            ''${NO_ALLOWLIST[@]+"''${NO_ALLOWLIST[@]}"} 2>&1 \
+            ''${NO_ALLOWLIST[@]+"''${NO_ALLOWLIST[@]}"} \
+            ''${SECTION[@]+"''${SECTION[@]}"} 2>&1 \
           | tee "$LOG" || rc=$?
 
         if [ "$rc" -eq 124 ]; then
@@ -2290,7 +2305,7 @@ rec {
         echo "================================================"
         # Re-printed from the transcript rather than tracked through the shell,
         # so what is summarized here is exactly what the comparator said.
-        grep -E '^GOIP_PARITY_(OVERALL|HYGIENE|CONTROL|UNGATED|NOTHING)' "$LOG" || true
+        grep -E '^GOIP_PARITY_(SECTION|OVERALL|HYGIENE|CONTROL|UNGATED|NOTHING)' "$LOG" || true
         echo ""
         echo "Driver transcript: $LOG"
         echo "Guest boot log:    $QEMU_LOG"
@@ -2318,7 +2333,11 @@ rec {
         fi
 
         echo ""
-        echo "PASS: goip netlink + stdout parity holds on this kernel"
+        if [ ''${#SECTION[@]} -gt 0 ]; then
+          echo "PASS: goip parity holds for section(s) ''${SECTION[1]} only; not the full gate"
+        else
+          echo "PASS: goip netlink + stdout parity holds on this kernel"
+        fi
         exit 0
       '';
     };
