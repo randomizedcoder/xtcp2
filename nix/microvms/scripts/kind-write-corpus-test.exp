@@ -303,6 +303,21 @@ proc amt_no_lower {} {
     return $out
 }
 
+# bare_rows <kinds> - the rows of <kinds> whose command ends at
+# "type <kind>", sending no word.
+proc bare_rows {kinds} {
+    global R
+    set out {}
+    foreach r $R {
+        lassign $r slug floor pre command readbacks rc
+        set kind [lindex [split $slug /] 0]
+        if {$kind in $kinds && [lindex $command end] eq $kind} {
+            lappend out $slug
+        }
+    }
+    return $out
+}
+
 ###############################################################################
 # 1. the rows
 ###############################################################################
@@ -505,13 +520,38 @@ lappend design_rows {*}{
     erspan/add_index_over erspan/add_ver_over erspan/add_dir_bad
     erspan/add_no_value
 }
+lappend design_rows {*}{
+    ip6gre/add_default ip6gre/add_no_option ip6gre/add_dev
+    ip6gre/add_ttl_inherit ip6gre/add_encaplimit_none ip6gre/add_tops
+    ip6gre/add_flags ip6gre/add_fwmark ip6gre/add_key ip6gre/add_ikey_okey
+    ip6gre/add_no_forms ip6gre/add_abbrev ip6gre/add_repeat
+    ip6gre/add_encap_none ip6gre/add_external ip6gre/add_erspan_ver_zero
+    ip6gre/add_second_key ip6gre/set_changeable ip6gre/set_no_option
+    ip6gre/set_external_ignored ip6gre/set_encap_sport_swap
+    ip6gre/add_duplicate ip6gre/add_external_twice ip6gre/set_collide
+    ip6gre/add_encap_fou ip6gre/add_encap_gue ip6gre/set_not_tunnel
+    ip6gre/add_remote_v4 ip6gre/add_key_dotted_bad ip6gre/add_unknown
+    ip6gre/add_strcmp_abbrev ip6gre/add_hoplimit_over
+    ip6gre/add_flowlabel_over ip6gre/add_key_bad ip6gre/add_dev_missing
+    ip6gre/add_no_value ip6gretap/add_default ip6gretap/add_no_option
+    ip6gretap/add_remote_any ip6gretap/add_beside_ip6gre
+    ip6gretap/set_changeable ip6gretap/set_collide_unchecked
+    ip6gretap/add_duplicate ip6gretap/add_external_beside_ip6gre
+    ip6gretap/set_kind_mismatch ip6erspan/add_default
+    ip6erspan/add_no_option ip6erspan/add_external ip6erspan/add_index_max
+    ip6erspan/add_v2 ip6erspan/add_hwid_v1 ip6erspan/add_key_max
+    ip6erspan/add_split_flags ip6erspan/set_v2 ip6erspan/add_no_seq
+    ip6erspan/add_csum ip6erspan/add_key_over ip6erspan/add_ver_zero
+    ip6erspan/add_hwid_over ip6erspan/set_noseq ip6erspan/add_strcmp_abbrev
+    ip6erspan/add_index_over ip6erspan/add_ver_three ip6erspan/add_dir_bad
+}
 
 check slug_list "positive: the rows are the plan's, in run order" \
     {slugs $R} [join $design_rows " "]
 check first_row "boundary: add_default comes first" \
     {lindex [slugs $R] 0} bridge/add_default
-check row_count "boundary: KC2's 60 bridge and 42 bridge_slave rows, KC3-T01's 28 vlan rows, KC3-T02's 34 macvlan and 6 macvtap rows, KC3-T03's 18 ipvlan and 4 ipvtap rows, KC4-T01's 73 vxlan rows, KC4-T02's 49 geneve rows, KC4-T03's 16 bareudp and 20 amt rows, KC4-T04's 19 gtp rows, KC5-T01's 45 gre, 11 gretap and 25 erspan rows" \
-    {llength $R} 450
+check row_count "boundary: KC2's 60 bridge and 42 bridge_slave rows, KC3-T01's 28 vlan rows, KC3-T02's 34 macvlan and 6 macvtap rows, KC3-T03's 18 ipvlan and 4 ipvtap rows, KC4-T01's 73 vxlan rows, KC4-T02's 49 geneve rows, KC4-T03's 16 bareudp and 20 amt rows, KC4-T04's 19 gtp rows, KC5-T01's 45 gre, 11 gretap and 25 erspan rows, KC5-T02's 36 ip6gre, 9 ip6gretap and 19 ip6erspan rows" \
+    {llength $R} 514
 check bridge_first "boundary: bridge's rows all come before bridge_slave's" \
     {lsearch -glob [slugs $R] bridge_slave/*} 60
 check option_rows "positive: one add_ row per value-taking option but stp_mode, each once" \
@@ -611,6 +651,18 @@ set refused_design {
     erspan/add_strcmp_abbrev 1 erspan/add_index_zero 255
     erspan/add_index_over 255 erspan/add_ver_over 255 erspan/add_dir_bad 255
     erspan/add_no_value 255
+    ip6gre/add_duplicate 2 ip6gre/add_external_twice 2 ip6gre/set_collide 2
+    ip6gre/add_encap_fou 2 ip6gre/add_encap_gue 2 ip6gre/set_not_tunnel 1
+    ip6gre/add_remote_v4 1 ip6gre/add_key_dotted_bad 1 ip6gre/add_unknown 1
+    ip6gre/add_strcmp_abbrev 1 ip6gre/add_hoplimit_over 255
+    ip6gre/add_flowlabel_over 255 ip6gre/add_key_bad 255
+    ip6gre/add_dev_missing 255 ip6gre/add_no_value 255
+    ip6gretap/add_duplicate 2 ip6gretap/add_external_beside_ip6gre 2
+    ip6gretap/set_kind_mismatch 2 ip6erspan/add_no_seq 2 ip6erspan/add_csum
+    2 ip6erspan/add_key_over 2 ip6erspan/add_ver_zero 2
+    ip6erspan/add_hwid_over 2 ip6erspan/set_noseq 2
+    ip6erspan/add_strcmp_abbrev 1 ip6erspan/add_index_over 255
+    ip6erspan/add_ver_three 255 ip6erspan/add_dir_bad 255
 }
 check refused_statuses "positive: exactly the refusal rows expect a non-zero status" \
     {refused_rows} [join $refused_design " "]
@@ -947,6 +999,39 @@ check key_exits "corner: get_addr32's failure is 1, tnl_parse_key's 255" \
 check foreign_words "negative: the erspan words on another kind, and the help text's encap-csum6, are ip's refusals" \
     {lmap s {gre/add_erspan_word gretap/add_erspan_word gre/add_encap_csum6_word} {list [field $s 5] [field $s 1]}} \
     {{1 0} {1 0} {1 0}}
+
+###############################################################################
+# 14. the ip6gre, ip6gretap and ip6erspan rows' states
+###############################################################################
+check ip6gre_after_erspan "positive: ip6gre's rows follow erspan's, then ip6gretap's, then ip6erspan's" \
+    {lmap k {ip6gre ip6gretap ip6erspan} {lsearch -glob [slugs $R] $k/*}} {450 486 495}
+check ip6gre_no_repeat_check "negative: a repeated keyword is no refusal" \
+    {field ip6gre/add_repeat 5} 0
+check ip6_tops "boundary: the tops ip and the kernel take, and the first values each refuses" \
+    {lmap s {ip6gre/add_tops ip6gre/add_hoplimit_over ip6gre/add_flowlabel_over ip6erspan/add_index_max ip6erspan/add_index_over ip6erspan/add_key_max ip6erspan/add_key_over} {field $s 5}} \
+    {0 255 255 0 255 0 2}
+check ip6_bare_rows "corner: the no-option rows are the only ones that end at type <kind>" \
+    {bare_rows {ip6gre ip6gretap ip6erspan}} \
+    {ip6gre/add_no_option ip6gre/set_no_option ip6gretap/add_no_option ip6erspan/add_no_option}
+check ip6_bare_accepted "corner: all three kinds accept one" \
+    {lmap s [bare_rows {ip6gre ip6gretap ip6erspan}] {field $s 5}} {0 0 0 0}
+check erspan_ver_zero "corner: erspan_ver 0 is accepted by ip6gre and refused by ip6erspan" \
+    {list [field ip6gre/add_erspan_ver_zero 5] [field ip6erspan/add_ver_zero 5]} {0 2}
+check ip6gre_key_exits "corner: a dotted key's failure is 1, a numeric key's 255" \
+    {list [field ip6gre/add_key_dotted_bad 5] [field ip6gre/add_key_bad 5]} {1 255}
+check ip6_collision_pres "corner: the collision rows' pres make the device they collide with" \
+    {lmap s {ip6gre/add_duplicate ip6gre/add_second_key ip6gre/add_external_twice ip6gre/set_collide ip6gretap/add_beside_ip6gre ip6gretap/set_collide_unchecked ip6gretap/add_duplicate ip6gretap/add_external_beside_ip6gre} {field $s 2}} \
+    {{{link add g6 type ip6gre remote 2001:db8::1}} {{link add g6 type ip6gre remote 2001:db8::1}} {{link add g6 type ip6gre external}} {{link add g6 type ip6gre remote 2001:db8::1} {link add g7 type ip6gre remote 2001:db8::2}} {{link add g6 type ip6gre remote 2001:db8::1}} {{link add gt6 type ip6gretap remote 2001:db8::1} {link add gt7 type ip6gretap remote 2001:db8::2}} {{link add gt6 type ip6gretap remote 2001:db8::1}} {{link add g6 type ip6gre external}}}
+check ip6_collision_readbacks "corner: their readbacks read the device the command names" \
+    {lmap s {ip6gre/add_duplicate ip6gre/add_second_key ip6gre/add_external_twice ip6gre/set_collide ip6gretap/add_beside_ip6gre ip6gretap/set_collide_unchecked ip6gretap/add_duplicate ip6gretap/add_external_beside_ip6gre} {lindex [split [lindex [lindex [field $s 4] 0] 2]] end}} \
+    {g7 g7 g7 g7 gt6 gt7 gt7 gt6}
+check ip6_set_collide "corner: the same collision on a set is refused by ip6gre and accepted by ip6gretap" \
+    {list [field ip6gre/set_collide 5] [field ip6gretap/set_collide_unchecked 5]} {2 0}
+check ip6gre_d0_first "corner: the rows naming d0 make it first" \
+    {lmap s {add_dev set_not_tunnel} {lindex [field ip6gre/$s 2] 0}} \
+    {{link add d0 type dummy} {link add d0 type dummy}}
+check ip6gre_sport_swap_pre "corner: the port-swap row's pre sets the source port" \
+    {field ip6gre/set_encap_sport_swap 2} {{link add g6 type ip6gre remote 2001:db8::1 encap-sport 4660}}
 
 ###############################################################################
 # summary

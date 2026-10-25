@@ -906,6 +906,142 @@ namespace eval kindcorpus {
         [erspan_base add_no_value erspan 255]
 
     ###########################################################################
+    # ip6gre, ip6gretap and ip6erspan (KC5-T02). One parser, gre_parse_opt
+    # in ip/link_gre6.c, serves all three: g6, gt6 and es6, never the
+    # fallback name ip6gre0. Any word makes ip send its defaults (TTL 64,
+    # ENCAP_LIMIT 4, ERSPAN_VER 1, ENCAP_FLAGS CSUM6); no word sends no
+    # INFO_DATA, which every validate here accepts, so the device gets the
+    # kernel's zeros. A set first fetches the device with RTM_GETLINK and
+    # resends everything it got back, with the encap ports byte-swapped.
+    # No keyword is checked for repeats. ip6gre_tunnel_find, _locate,
+    # ip6erspan_tap_validate and the two changelinks
+    # (net/ipv6/ip6_gre.c) decide the kernel's statuses. encap fou/gue need
+    # fou6, which late_modules doesn't load.
+    ###########################################################################
+    variable IP6GRE_BASE {remote 2001:db8::1}
+    variable PRE_G6 [list {link add g6 type ip6gre remote 2001:db8::1}]
+    variable PRE_G6_EXTERNAL [list {link add g6 type ip6gre external}]
+    variable PRE_G6_G7 [list {link add g6 type ip6gre remote 2001:db8::1} \
+        {link add g7 type ip6gre remote 2001:db8::2}]
+    variable PRE_G6_SPORT [list {link add g6 type ip6gre remote 2001:db8::1 encap-sport 4660}]
+
+    proc ip6gre {name words rc {pre {}}} {
+        return [plain ip6gre g6 $name $words $rc $pre]
+    }
+
+    # ip6gre_base <name> <words> <rc> ?<pre>? - an add of $IP6GRE_BASE and <words>.
+    proc ip6gre_base {name words rc {pre {}}} {
+        variable IP6GRE_BASE
+        return [ip6gre $name [string trimright "$IP6GRE_BASE $words"] $rc $pre]
+    }
+
+    # ip6gre_set <name> <words> <rc> ?<pre>? ?<dev>? - a set of <dev>, after
+    # <pre> ($PRE_G6 when empty).
+    proc ip6gre_set {name words rc {pre {}} {dev g6}} {
+        variable PRE_G6
+        if {$pre eq ""} {
+            set pre $PRE_G6
+        }
+        return [row ip6gre $name $pre [string trimright "ip link set $dev type ip6gre $words"] $rc $dev]
+    }
+
+    lappend rows \
+        [ip6gre_base add_default {} 0] \
+        [ip6gre add_no_option {} 0] \
+        [ip6gre_base add_dev {dev d0} 0 $PRE_D0] \
+        [ip6gre_base add_ttl_inherit {ttl inherit} 0] \
+        [ip6gre_base add_encaplimit_none {encaplimit none} 0] \
+        [ip6gre_base add_tops {hoplimit 255 tclass ff flowlabel 0xfffff} 0] \
+        [ip6gre_base add_flags {tclass inherit flowlabel inherit fwmark inherit dscp inherit allow-localremote} 0] \
+        [ip6gre_base add_fwmark {fwmark 0x10} 0] \
+        [ip6gre_base add_key {key 42 seq csum} 0] \
+        [ip6gre_base add_ikey_okey {ikey 1.2.3.4 okey 5 iseq ocsum} 0] \
+        [ip6gre_base add_no_forms {key 42 seq csum nokey noseq nocsum} 0] \
+        [ip6gre add_abbrev {r 2001:db8::1 l 2001:db8::2 h 10 tc 20 k 5} 0] \
+        [ip6gre_base add_repeat {hoplimit 10 hoplimit 20} 0] \
+        [ip6gre_base add_encap_none {encap none encap-sport 5555 encap-dport 6666 encap-csum encap-remcsum noencap-udp6-csum} 0] \
+        [ip6gre add_external external 0] \
+        [ip6gre_base add_erspan_ver_zero {erspan_ver 0} 0] \
+        [plain ip6gre g7 add_second_key {remote 2001:db8::1 key 1} 0 $PRE_G6] \
+        [ip6gre_set set_changeable {hoplimit 10 tclass 20 flowlabel 0x1 encaplimit 2 key 5 local 2001:db8::2} 0] \
+        [ip6gre_set set_no_option {} 0] \
+        [ip6gre_set set_external_ignored external 0] \
+        [ip6gre_set set_encap_sport_swap {hoplimit 10} 0 $PRE_G6_SPORT] \
+        [plain ip6gre g7 add_duplicate $IP6GRE_BASE 2 $PRE_G6] \
+        [plain ip6gre g7 add_external_twice external 2 $PRE_G6_EXTERNAL] \
+        [ip6gre_set set_collide {remote 2001:db8::1} 2 $PRE_G6_G7 g7] \
+        [ip6gre_base add_encap_fou {encap fou encap-dport 5555} 2] \
+        [ip6gre_base add_encap_gue {encap gue encap-dport 5555} 2] \
+        [row ip6gre set_not_tunnel $PRE_D0 {ip link set d0 type ip6gre hoplimit 5} 1 d0] \
+        [ip6gre add_remote_v4 {remote 10.0.0.1} 1] \
+        [ip6gre_base add_key_dotted_bad {key 1.2.3.x} 1] \
+        [ip6gre_base add_unknown bogus 1] \
+        [ip6gre_base add_strcmp_abbrev {encapl 2} 1] \
+        [ip6gre_base add_hoplimit_over {hoplimit 256} 255] \
+        [ip6gre_base add_flowlabel_over {flowlabel 0x100000} 255] \
+        [ip6gre_base add_key_bad {key foo} 255] \
+        [ip6gre_base add_dev_missing {dev nosuch} 255] \
+        [ip6gre add_no_value remote 255]
+
+    variable PRE_GT6 [list {link add gt6 type ip6gretap remote 2001:db8::1}]
+    variable PRE_GT6_GT7 [list {link add gt6 type ip6gretap remote 2001:db8::1} \
+        {link add gt7 type ip6gretap remote 2001:db8::2}]
+
+    proc ip6gretap {name words rc {pre {}}} {
+        return [plain ip6gretap gt6 $name $words $rc $pre]
+    }
+
+    lappend rows \
+        [ip6gretap add_default $IP6GRE_BASE 0] \
+        [ip6gretap add_no_option {} 0] \
+        [ip6gretap add_remote_any {remote ::} 0] \
+        [ip6gretap add_beside_ip6gre $IP6GRE_BASE 0 $PRE_G6] \
+        [row ip6gretap set_changeable $PRE_GT6 {ip link set gt6 type ip6gretap hoplimit 10 key 5} 0 gt6] \
+        [row ip6gretap set_collide_unchecked $PRE_GT6_GT7 {ip link set gt7 type ip6gretap remote 2001:db8::1} 0 gt7] \
+        [plain ip6gretap gt7 add_duplicate $IP6GRE_BASE 2 $PRE_GT6] \
+        [ip6gretap add_external_beside_ip6gre external 2 $PRE_G6_EXTERNAL] \
+        [row ip6gretap set_kind_mismatch $PRE_GT6 {ip link set gt6 type ip6gre hoplimit 5} 2 gt6]
+
+    variable ERSPAN6_BASE {remote 2001:db8::1 key 10 seq}
+    variable PRE_ES6 [list {link add es6 type ip6erspan remote 2001:db8::1 key 10 seq}]
+
+    proc ip6erspan {name words rc {pre {}}} {
+        return [plain ip6erspan es6 $name $words $rc $pre]
+    }
+
+    # ip6erspan_base <name> <words> <rc> - an add of $ERSPAN6_BASE and <words>.
+    proc ip6erspan_base {name words rc} {
+        variable ERSPAN6_BASE
+        return [ip6erspan $name [string trimright "$ERSPAN6_BASE $words"] $rc]
+    }
+
+    proc ip6erspan_set {name words rc} {
+        variable PRE_ES6
+        return [row ip6erspan $name $PRE_ES6 "ip link set es6 type ip6erspan $words" $rc es6]
+    }
+
+    lappend rows \
+        [ip6erspan_base add_default {} 0] \
+        [ip6erspan add_no_option {} 0] \
+        [ip6erspan add_external external 0] \
+        [ip6erspan_base add_index_max {erspan 1048575} 0] \
+        [ip6erspan_base add_v2 {erspan_ver 2 erspan_dir e erspan_hwid 63} 0] \
+        [ip6erspan_base add_hwid_v1 {erspan_hwid 64} 0] \
+        [ip6erspan add_key_max {remote 2001:db8::1 key 1023 seq} 0] \
+        [ip6erspan add_split_flags {remote 2001:db8::1 ikey 10 oseq} 0] \
+        [ip6erspan_set set_v2 {erspan_ver 2 erspan_dir egress erspan_hwid 63} 0] \
+        [ip6erspan add_no_seq {remote 2001:db8::1 key 10} 2] \
+        [ip6erspan_base add_csum csum 2] \
+        [ip6erspan add_key_over {remote 2001:db8::1 key 1024 seq} 2] \
+        [ip6erspan_base add_ver_zero {erspan_ver 0} 2] \
+        [ip6erspan_base add_hwid_over {erspan_ver 2 erspan_hwid 64} 2] \
+        [ip6erspan_set set_noseq noseq 2] \
+        [ip6erspan_base add_strcmp_abbrev {erspan_v 2} 1] \
+        [ip6erspan_base add_index_over {erspan 1048576} 255] \
+        [ip6erspan_base add_ver_three {erspan_ver 3} 255] \
+        [ip6erspan_base add_dir_bad {erspan_ver 2 erspan_dir up} 255]
+
+    ###########################################################################
     # readback_args <ns> <subdir> <readback> - the xtcp2-nlcap capio argument
     # list for one readback, which the driver hands to its capio proc.
     ###########################################################################
