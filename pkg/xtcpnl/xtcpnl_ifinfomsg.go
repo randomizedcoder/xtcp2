@@ -299,10 +299,11 @@ type LinkInfo struct {
 	// The contents are decoded kind by kind, never wholesale: they are the
 	// per-kind blob iproute2 hands to one of forty print_opt implementations,
 	// and each kind is admitted only with a captured fixture to ground it.
-	// Two are decoded today, vrf (VrfTable) and bond (Bond, BondSlave); every
-	// other kind's blob stays opaque. The PRESENCE is in scope because it is exactly the
-	// condition under which a -d render that stopped at the kind token would be
-	// WRONG rather than merely short — print_linktype prints the kind and then
+	// The decoded kinds each have a field below (VrfTable, Bond, Bridge, Vlan,
+	// and on through Netkit); every other kind's blob stays opaque. The
+	// PRESENCE is in scope because it is exactly the condition under which a
+	// -d render that stopped at the kind token would be WRONG rather than
+	// merely short — print_linktype prints the kind and then
 	// the whole of print_opt's output on the same line. render.LinkDetailView
 	// reads these to refuse instead of truncating.
 	//
@@ -319,12 +320,10 @@ type LinkInfo struct {
 	// SlaveKind being empty cannot tell those two apart.
 	HasLinkInfo bool
 
-	// VrfTable and VrfPortTable are the one per-kind blob goip decodes: the VRF
-	// routing table id. VrfTable is IFLA_INFO_DATA -> IFLA_VRF_TABLE when Kind is
-	// "vrf" (vrf_print_opt, ip/iplink_vrf.c:55); VrfPortTable is
-	// IFLA_INFO_SLAVE_DATA -> IFLA_VRF_PORT_TABLE when SlaveKind is "vrf"
-	// (vrf_slave_print_opt, :67). Decoded only for the vrf kind; every other
-	// kind's blob stays undecoded and its HasInfoData refuses the -d render.
+	// VrfTable and VrfPortTable are the VRF routing table id. VrfTable is
+	// IFLA_INFO_DATA -> IFLA_VRF_TABLE when Kind is "vrf" (vrf_print_opt,
+	// ip/iplink_vrf.c:55); VrfPortTable is IFLA_INFO_SLAVE_DATA ->
+	// IFLA_VRF_PORT_TABLE when SlaveKind is "vrf" (vrf_slave_print_opt, :67).
 	VrfTable     U32Attr
 	VrfPortTable U32Attr
 
@@ -978,8 +977,9 @@ func setAddrGenMode(d *LinkDetail, val []byte) {
 // This is the first production caller of WalkRTAttrsNested, closing
 // TODO-SOON.md §12. The descent is one level for every kind but the ones
 // goip decodes: IFLA_INFO_DATA is the per-kind blob `ip` hands to one of
-// forty print_opt implementations, and only vrf and bond are opened. The
-// presence of the rest is recorded — see LinkInfo.HasInfoData.
+// forty print_opt implementations, and only the kinds with a LinkInfo field
+// are opened. The presence of the rest is recorded — see
+// LinkInfo.HasInfoData.
 //
 // A walk error inside the nest is swallowed rather than failing the whole
 // message. That is the same tolerance WalkRTAttrs already applies to a short
@@ -1006,7 +1006,7 @@ func setLinkInfoNest(li *LinkInfo, val []byte) {
 			slaveData = inner
 		}
 	})
-	// Decode the one per-kind blob goip renders, once the kind is known. The
+	// Decode the per-kind blobs goip renders, once the kind is known. The
 	// kernel sends IFLA_INFO_KIND before IFLA_INFO_DATA, but this is done after
 	// the walk so it does not rely on that order.
 	if li.Kind == vrfKindCst {

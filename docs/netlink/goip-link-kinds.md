@@ -2426,20 +2426,21 @@ Four tasks, one per KC6 task: KP5-T01 hsr (`iplink_hsr.c`); KP5-T02 netkit (`ipl
 | negative: a setting with no option | the zero option | `ErrKindSettingOption` |
 | boundary: no settings | `nil` | no bytes |
 | boundary: the highest table | `table 4294967295` | `TABLE` 0xffffffff |
-| corner: two tables send two attributes | `add_table_twice` | its request |
-| corner: table 0 is sent | `add_table_zero` | its request: the kernel refuses it |
+| corner: two tables send two attributes, in order | `table 20 table 10` | `TABLE` 20, then `TABLE` 10 |
+| corner: table 0 is sent | `table 0` | `TABLE` 0: the kernel refuses it (`add_table_zero`) |
 
 `TestEncodeVxcanInfoData`:
 
 | description | input | expected |
 |---|---|---|
 | positive: each row's request | vxcan's 9 rows that sent one | byte-identical to `ip.pcap`'s |
-| negative: a peer attribute too long for the buffer | built | an error, no bytes |
-| boundary: `peer` alone | `add_peer` | one `VXCAN_INFO_PEER` holding a zero `ifinfomsg` |
-| corner: a bare word names the peer | `add_peer_bare_name` | the same bytes as `add_peer_name` |
-| corner: the peer's flags | `add_peer_up` | `IFF_UP` in the peer's `ifinfomsg` |
+| negative: a peer attribute too long for the buffer | a peer `IFLA_IFALIAS` of the buffer's size | an error, no bytes |
+| boundary: no option words | a nil peer | `nil` |
+| boundary: `peer` alone | `peer` | one `VXCAN_INFO_PEER` holding a zero `ifinfomsg` |
+| corner: a bare word names the peer | `peer vc1` | the peer's `IFNAME` `vc1`, as `add_peer_name` sends |
+| corner: the peer's flags | `peer up` | `IFF_UP` in the peer's `ifinfomsg` |
 
-`TestKindSlaveDataAbsent` (vrf_slave's half): every vrf_slave request has no `INFO_SLAVE_DATA` (negative); `set_master`'s readback decodes `VrfPortTable` 10 (positive); `set_nomaster`'s has no slave kind (corner).
+`TestKindSlaveDataAbsent` (vrf_slave's half): every vrf_slave request has no `INFO_SLAVE_DATA` (negative, a subtest per row: 10); `set_master`'s and `set_type`'s readbacks decode `VrfPortTable` 10 (positive ×2); `set_nomaster`'s has no slave kind (corner).
 
 **Mutation check:** the repeated table dropped (`add_table_twice`); vxcan's peer nest skipped for `peer` alone (`add_peer`); the peer's flags left in the outer header (`add_peer_up`, vxcan's and netkit's).
 
