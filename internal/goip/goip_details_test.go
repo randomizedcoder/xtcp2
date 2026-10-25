@@ -628,15 +628,16 @@ func TestDetailRefusedForPerKindData(t *testing.T) {
 		wantSidecarTokens []string
 	}{
 		{
-			// br0's IFLA_INFO_DATA renders since KG1-T03; its ports'
-			// IFLA_INFO_SLAVE_DATA, bridge_slave_print_opt's, waits for
-			// KG1-T04, so the refusal names the first port.
-			description: "negative: -d link show refuses the mesh topology, naming a bridge port and its slave kind",
+			// br0's IFLA_INFO_DATA renders since KG1-T03 and its ports'
+			// IFLA_INFO_SLAVE_DATA since KG1-T04. The text differs from
+			// mesh/ip_link_n in nlmon0's promiscuity (the capture's own
+			// tap), gc_timer, which moved, and stp_mode, which the 7.1 `ip`
+			// that wrote the sidecar doesn't print and 7.2.0 does; the
+			// bridge_slave lines are the sidecar's.
+			description: "positive: -d link show renders the mesh topology, the bridge and its ports",
 			args:        []string{"-d", "link", "show"},
 			pcap:        guestDumpsDir + "mesh/netlink_route_getlink.pcap",
-			wantCode:    ExitUsage,
-			wantErr:     true,
-			wantStderr:  []string{"veth0", `"bridge"`, "IFLA_INFO_SLAVE_DATA"},
+			wantCode:    ExitOK,
 			// mesh/ip_link_n is not among the unread fixtures — the link
 			// table reads it — so the tokens are asserted here without a
 			// second reader being claimed for it.
@@ -667,12 +668,10 @@ func TestDetailRefusedForPerKindData(t *testing.T) {
 		{
 			// The addr object reaches the same check, because it renders the
 			// same link stanza through the same detail view.
-			description: "negative: -d addr show refuses the mesh topology for the same reason",
+			description: "positive: -d addr show renders the mesh topology too",
 			args:        []string{"-d", "addr", "show"},
 			pcap:        guestDumpsDir + "mesh/netlink_route_getaddr.pcap",
-			wantCode:    ExitUsage,
-			wantErr:     true,
-			wantStderr:  []string{"IFLA_INFO_SLAVE_DATA"},
+			wantCode:    ExitOK,
 		},
 		{
 			// Same for the tunnel namespace's addr dump, and this is the row

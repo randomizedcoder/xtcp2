@@ -2,45 +2,53 @@ package goip
 
 import (
 	"bytes"
+	"io"
 	"os"
-	"strconv"
 	"strings"
 	"testing"
 
-	"github.com/randomizedcoder/xtcp2/pkg/nlparity"
 	"github.com/randomizedcoder/xtcp2/pkg/xtcpnl"
-	"golang.org/x/sys/unix"
 )
 
 // The bridge's `-d` output (docs/netlink/goip-link-kinds.md, "KG1-T03 The
 // bridge's -d output"), against KC2-T01's readbacks. Each readback replays
 // its own pcap, since the timers move between the text and JSON runs.
 
-// runBridgeShow runs goip over one of a row's readback pcaps. `show dev`
-// sends two gets of the same name, ll_name_to_index's on a socket of its
-// own and iplink_get's, and both replies match it, so the replay is held to
-// the main socket's portid: the last RTM_NEWLINK reply's. The first get is
-// sent for its cache entry alone, so its answer doesn't change the output.
+// runKindShow runs `ip [-d] [-j] link <args>` over a readback pcap through
+// linkReplay, which answers each get with the reply that followed it in
+// the capture: `show dev` sends two gets of the same name, ll_name_to_index's
+// and iplink_get's, and the second's reply is the one printed.
+func runKindShow(t *testing.T, path string, details, json bool, args ...string) (string, *linkReplay) {
+	t.Helper()
+	src := newLinkReplay(t, path)
+	var out bytes.Buffer
+	c := &runCtx{src: src, lltab: NewLLTab(), out: &out, errOut: io.Discard, json: json}
+	if details {
+		c.showDetails = 1
+	}
+	if err := runLink(c, args); err != nil {
+		t.Fatalf("goip link %q: %v", args, err)
+	}
+	return out.String(), src
+}
+
+// runBridgeShow is runKindShow over one of a bridge row's readbacks.
 func runBridgeShow(t *testing.T, dir, pcap string, args ...string) string {
 	t.Helper()
-	path := dir + "/" + pcap
-	c, err := nlparity.ParseRouteCaptureFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var portid uint32
-	for _, m := range c.Msgs() {
-		if !m.IsRequest() && m.Hdr.Type == unix.RTM_NEWLINK {
-			portid = m.Hdr.Pid
+	details, json := false, false
+	var rest []string
+	for _, a := range args {
+		switch a {
+		case "-d":
+			details = true
+		case "-j":
+			json = true
+		default:
+			rest = append(rest, a)
 		}
 	}
-	t.Setenv("GOIP_REPLAY", path)
-	t.Setenv("GOIP_REPLAY_PORTID", strconv.FormatUint(uint64(portid), 10))
-	var stdout, stderr bytes.Buffer
-	if code := Run(args, &stdout, &stderr); code != ExitOK {
-		t.Fatalf("Run(%q) = %d, stderr=%s", args, code, stderr.String())
-	}
-	return stdout.String()
+	out, _ := runKindShow(t, dir+"/"+pcap, details, json, rest[1:]...)
+	return out
 }
 
 func readSidecar(t *testing.T, path string) string {

@@ -2668,7 +2668,7 @@ Five tasks: KG1-T01 and KG1-T02 parse `type bridge` and `type bridge_slave` word
 
 **Code.** `internal/goip/render/link_bridge.go`: `bridgeData(*xtcpnl.BridgeInfo) *KindData`, walking `xtcpnl.BridgeOptions` in print order with each row's JSON key (KP1's decision: the JSON keys aren't the keywords). Timers go into `KindData` as `json.RawMessage`, since a float can't print `0.00`. `bridge_id`, `designated_root` and `group_address` get their own formatters, the querier state its nested objects, `vlan_protocol` `xtcpnl.LLProtoN2A` (the `ll_proto` table moves to `pkg/xtcpnl/xtcpnl_ll_proto.go`, which goip's `llProtoA2N` reads too). A `BridgeKindCst` case in `render.kindData`, and `bridge` in `renderableInfoData`; the slave kinds get their own `renderableSlaveInfoData`, since a bridge port's slave kind is also `bridge` and its print_opt is KG1-T04's.
 
-`TestLinkShowDetailBridgeMatchesSidecar`, following `TestLinkShowDetailBondMatchesSidecar`: `GOIP_REPLAY` is the row's own `netlink_route_getlink_detail.pcap` (`_json.pcap` for JSON), since the timers move between the two readbacks, and `GOIP_REPLAY_PORTID` the main socket's, since `show dev` sends two gets of one name and both replies match it.
+`TestLinkShowDetailBridgeMatchesSidecar`, following `TestLinkShowDetailBondMatchesSidecar`: each readback replays the row's own `netlink_route_getlink_detail.pcap` (`_json.pcap` for JSON), since the timers move between the two readbacks, through `runKindShow`, whose `linkReplay` answers each get with the reply that followed it, since `show dev` sends two gets of one name. (KG1-T03 first held the replay to the main socket with `GOIP_REPLAY_PORTID`; KG1-T04 replaced that with `linkReplay`, which also records the gets.)
 
 | description | input | expected |
 |---|---|---|
@@ -2703,20 +2703,38 @@ Five tasks: KG1-T01 and KG1-T02 parse `type bridge` and `type bridge_slave` word
 
 #### KG1-T04 The bridge port's `-d` output
 
-**Code.** `render/link_bridge_slave.go`: `bridgeSlaveData(*xtcpnl.BridgeSlaveInfo, NameTab) *KindData`. `slaveKindData` takes the `NameTab`, and `resolveLinkRefs` (`obj_link.go`) sends the `backup_port` get under `-d`, as it does for a bond's `active_slave`. `bridge_slave` in `checkDetailSupported`'s slave arm.
+**Code.** `render/link_bridge_slave.go`: `bridgeSlaveData(*xtcpnl.BridgeSlaveInfo, NameTab) *KindData`. `slaveKindData` takes the `NameTab`, and `resolveLinkRefs` (`obj_link.go`) sends the `backup_port` get under `-d`, as it does for a bond's `active_slave`. `bridge` in `renderableSlaveInfoData`, `checkDetailSupported`'s slave arm. `mcast_fast_leave` prints `IFLA_BRPORT_FAST_LEAVE` a second time to the terminal only, so `KindData` gets `addText`, a call with no JSON key that `MarshalJSON` skips.
 
-`TestLinkShowDetailBridgeSlaveMatchesSidecar`:
+`TestLinkShowDetailBridgeSlaveMatchesSidecar` runs `ip [-d] [-j] link show dev p0` through `runKindShow` and holds every row's gets to its capture's requests, byte for byte (`assertKindShowGets`): p0's two, br0's as its master, and p1's for a backup port.
 
 | description | input | expected |
 |---|---|---|
-| positive: each accepted row's `-d` | the 30 rc 0 rows | `ip_getlink_detail` |
-| positive: each accepted row's `-d -j` | the 30 rc 0 rows | `ip_getlink_detail_json` |
-| negative: a port without `-d` | `set_cost`, `link show` | `ip_getlink`; `master br0`, no slave line |
-| boundary: the state the kernel rewrote | `set_state` | `state forwarding` |
+| positive: each accepted row's `-d` | the 30 rc 0 rows | `ip_getlink_detail`; the capture's gets |
+| positive: each accepted row's `-d -j` | the 30 rc 0 rows | `ip_getlink_detail_json`; the capture's gets |
+| negative: a port without `-d` | `set_cost`, `link show` | `ip_getlink`; `master br0`, no `bridge_slave` |
+| boundary: the state the kernel rewrote | `set_state` | `bridge_slave state forwarding` |
 | corner: the backup port by name | `set_backup_port` | `backup_port p1`, after p1's get |
-| corner: hex ids | `set_cost`, `-j` | `"id":"0x8001"`, `"no":"0x1"`, `group_fwd_mask_str` `0x0` |
+| corner: hex ids | `set_cost`, `-j` | `"id":"0x8001"`, `"no":"0x1"`, `"group_fwd_mask":"0"`, `"group_fwd_mask_str":"0x0"` |
+| corner: `mcast_fast_leave` is text only | `set_cost`, `-j` | `"fastleave":false`, no `mcast_fast_leave` key |
+| corner: a mask's bit without a name | `set_group_fwd_mask` | `group_fwd_mask 0x8 group_fwd_mask_str 0x8` |
 
-**Mutation check:** `backup_port` by index (`set_backup_port`); the state's name table off by one (`set_state`); `group_fwd_mask_str` dropped (the hex corner).
+`TestBridgeSlaveDataRender` (`render/link_bridge_slave_test.go`), for what the corpus can't reach:
+
+| description | input | expected |
+|---|---|---|
+| positive: a named state and an on/off flag | state 3, mode 1 | `state forwarding hairpin on`; `"hairpin":true` |
+| positive: a backup port by name | backup_port 5, cached as p1 | `backup_port p1` |
+| positive: fast leave twice, the second text only | fast_leave 1 | `fastleave on mcast_fast_leave on`; `{"fastleave":true}` |
+| negative: no nest is an empty object | nil | `""`; `{}` |
+| boundary: blocking, the last named state | state 4 | `state blocking` |
+| boundary: one past it | state 5 | `state (5)`; `{"state_index":5}` |
+| corner: a mask's named and unnamed bits | mask 0x400d | `group_fwd_mask_str stp,lacp,0x8,lldp` |
+| corner: a backup port the cache lacks | backup_port 9 | `backup_port if9` |
+| corner: the attributes 7.2.0 doesn't print | MRP_RING_OPEN, MCAST_N_GROUPS | `""`; `{}` |
+
+The two mesh rows in `TestDetailRefusedForPerKindData` turn positive: `-d link show` and `-d addr show` of the mesh topology render, br0 and its ports alike.
+
+**Mutation check:** `backup_port` by index (`set_backup_port`, the render rows); the state's boundary off by one (blocking); `group_fwd_mask_str` dropped (every row); `mcast_fast_leave` with a JSON key (every `-j` row); `addText`'s calls in the JSON (every `-j` row); the `backup_port` get dropped (`set_backup_port`); a mask name on the wrong bit (the mask corner); the unkeyed attributes printed (every row).
 
 **Done when:** as KG1-T01.
 

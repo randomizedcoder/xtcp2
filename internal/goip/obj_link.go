@@ -3,6 +3,7 @@ package goip
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 
 	"github.com/randomizedcoder/xtcp2/internal/goip/model"
 	"github.com/randomizedcoder/xtcp2/internal/goip/render"
@@ -398,11 +399,11 @@ func renderableInfoData(kind string) bool {
 }
 
 // renderableSlaveInfoData is renderableInfoData for IFLA_INFO_SLAVE_KIND,
-// which names the master's kind: vrf and bond. A bridge port's slave kind
-// is "bridge" too, and its slave_print_opt is another function, so the two
-// lists differ.
+// which names the master's kind: vrf, bond and bridge, whose ports'
+// slave_print_opt is another function from the master's, grounded on the
+// same corpus.
 func renderableSlaveInfoData(kind string) bool {
-	return kind == render.VrfKindCst || kind == render.BondKindCst
+	return kind == render.VrfKindCst || kind == render.BondKindCst || kind == render.BridgeKindCst
 }
 
 // resolveLinkRefs sends the side-gets print_linkinfo issues for the two
@@ -438,6 +439,13 @@ func resolveLinkRefs(c *runCtx, svc *service.Service, li xtcpnl.LinkInfo) {
 			if v := li.Bond.Value(id); v.Present {
 				resolveIndexName(c, svc, int32(v.U)) //nolint:gosec // an ifindex: the kernel's int, sent as u32
 			}
+		}
+	}
+	// bridge_slave_print_opt's backup_port, after the master's print_opt
+	// as print_linktype runs them.
+	if c.detailed() && li.SlaveKind == render.BridgeKindCst && li.BridgeSlave != nil {
+		if v := li.BridgeSlave.Value(unix.IFLA_BRPORT_BACKUP_PORT); v.Present && v.U <= math.MaxInt32 {
+			resolveIndexName(c, svc, int32(v.U))
 		}
 	}
 }

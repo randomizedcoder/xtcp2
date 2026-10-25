@@ -171,12 +171,14 @@ func kindData(li *xtcpnl.LinkInfo, names NameTab) *KindData {
 }
 
 // slaveKindData is kindData for IFLA_INFO_SLAVE_KIND.
-func slaveKindData(li *xtcpnl.LinkInfo) *KindData {
+func slaveKindData(li *xtcpnl.LinkInfo, names NameTab) *KindData {
 	switch li.SlaveKind {
 	case VrfKindCst:
 		return vrfData(li.VrfPortTable)
 	case BondKindCst:
 		return bondSlaveData(li.BondSlave)
+	case BridgeKindCst:
+		return bridgeSlaveData(li.BridgeSlave, names)
 	}
 	return nil
 }
@@ -285,7 +287,7 @@ func (v LinkView) WithDetail(li xtcpnl.LinkInfo, linkObject bool, names NameTab)
 			kv.InfoData = kindData(&li, names)
 		}
 		if li.SlaveKind != "" {
-			kv.SlaveData = slaveKindData(&li)
+			kv.SlaveData = slaveKindData(&li, names)
 		}
 		dv.LinkInfo = kv
 	}

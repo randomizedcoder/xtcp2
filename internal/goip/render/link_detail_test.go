@@ -305,11 +305,12 @@ func TestLinkDetailJSONKeys(t *testing.T) {
 			// line (ip/ipaddress.c:219), so this is the one part of the run
 			// that IS nested — and the slave kind inside it is the unsuffixed
 			// wire value, because print_string's JSON arm writes the argument
-			// and not the format.
+			// and not the format. bridge_slave has a print_opt, so its
+			// info_slave_data object opens even with no nest to read.
 			description: "corner: linkinfo is a nested object and its slave kind carries no _slave suffix",
 			view: LinkView{IfIndex: 60, IfName: "veth179a698"}.
 				WithDetail(xtcpnl.LinkInfo{Kind: "veth", SlaveKind: "bridge"}, true, fakeNames{}),
-			wantKeys:   []string{`"linkinfo":{"info_kind":"veth","info_slave_kind":"bridge"}`},
+			wantKeys:   []string{`"linkinfo":{"info_kind":"veth","info_slave_kind":"bridge","info_slave_data":{}}`},
 			absentKeys: []string{`"bridge_slave"`},
 		},
 		{
