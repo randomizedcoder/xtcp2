@@ -111,6 +111,13 @@ func TestParseNewLinkRealFixture(t *testing.T) {
 			t.Fatalf("ParseNewLink(msg %d): %v", i, err)
 		}
 		li.Detail = LinkDetail{}
+		// The three bridges' IFLA_INFO_DATA is decoded into Bridge, which
+		// TestParseBridgeInfoData covers; the rows here ask about the
+		// generic attributes, so only its presence is checked.
+		if (li.Kind == bridgeKindCst) != (li.Bridge != nil) {
+			t.Errorf("msg %d: kind %q with Bridge %v", i, li.Kind, li.Bridge != nil)
+		}
+		li.Bridge = nil
 		links = append(links, li)
 	}
 

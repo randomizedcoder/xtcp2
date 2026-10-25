@@ -1527,12 +1527,12 @@ An encoder and decoder for `IFLA_AF_SPEC` → `AF_INET` → `IFLA_INET_CONF`. On
 
 ### KP1 — Bridge parsers
 
-Two tasks, one per kind, each following `pkg/xtcpnl/xtcpnl_bond.go`: an option table, a decoder from `setLinkInfoNest`'s blob into a `LinkInfo` field, and an encoder through `putBondSetting`'s pattern. The source is the KC2 rows in `tdLinkWrite_7_3_0 + "/kinds/bridge"` and `"/kinds/bridge_slave"`, read directly (`corpusAll` skips the set). A row's request is the `RTM_NEWLINK` in its `ip.pcap`, and its dump is the `RTM_NEWLINK` answer in `netlink_route_getlink_detail.pcap` that carries `IFLA_LINKINFO`, not the name lookup's. The `-d -j` readback beside it is the oracle for every value.
+Two tasks, one per kind, each following `pkg/xtcpnl/xtcpnl_bond.go`: an option table, a decoder from `setLinkInfoNest`'s blob into a `LinkInfo` field, and an encoder through `putBondSetting`'s pattern. The source is the KC2 rows in `tdLinkWrite_7_3_0 + "/kinds/bridge"` and `"/kinds/bridge_slave"`, read directly (`corpusAll` skips the set). A row's request is the `RTM_NEWLINK` in its `ip.pcap`, and its dump is the `RTM_NEWLINK` answer that carries `IFLA_LINKINFO`, not the name lookup's. The `-d -j` readback is the oracle for every value, compared with the dump in its own pcap, `netlink_route_getlink_detail_json.pcap`: the text and JSON readbacks are two `ip` runs, and the bridge's `gc_timer` moves between them (148.48 against 148.49 in `set_ageing_time`).
 
 #### KP1-T01 The bridge parser
 
 **Code.** A new `pkg/xtcpnl/xtcpnl_bridge.go`:
-- **`BridgeOptions`:** `BridgeOptionSpec{Keyword, ID, Wire, Match, ReadOnly}` rows in `bridge_print_opt`'s order (`ip/iplink_bridge.c` at `v7.2.0`). It covers the 47 attributes it prints, plus `fdb_flush`, which is write-only. `Match` is `matches` or `strcmp`, per `bridge_parse_opt`: `stp_mode`, `no_linklocal_learn`, `mst_enabled`, `fdb_max_learned`, `mcast_vlan_snooping`, `mdb_offload_fail_notification` and `fdb_local_vlan_0` are `strcmp`; the rest are `matches`. KG1 reads `Match`.
+- **`BridgeOptions`:** `BridgeOptionSpec{Keyword, JSON, ID, Wire, Bit, Names, Match, ReadOnly}` rows in `bridge_print_opt`'s order (`ip/iplink_bridge.c` at `v7.2.0`). It covers the 48 attributes it prints, `IFLA_BR_MULTI_BOOLOPT` as one row per bit, plus `fdb_flush`, which is write-only: 53 rows. `JSON` is the `-j` key where it differs from the keyword (`root_id`, `group_addr`, the `*_cnt` and `*_intvl` keys). `Match` reuses `BondMatch`. `Match` is `matches` or `strcmp`, per `bridge_parse_opt`: `stp_mode`, `no_linklocal_learn`, `mst_enabled`, `fdb_max_learned`, `mcast_vlan_snooping`, `mdb_offload_fail_notification` and `fdb_local_vlan_0` are `strcmp`; the rest are `matches`. KG1 reads `Match`.
 - **The wires:**
   - u8, u16, u32 and u64;
   - `vlan_protocol`, a u16 in network order: `ll_proto_a2n` returns it byte-swapped, and `addattr16` copies it, so 802.1Q is `81 00` on the wire;
@@ -1542,8 +1542,9 @@ Two tasks, one per kind, each following `pkg/xtcpnl/xtcpnl_bond.go`: an option t
   - the four timers, u64 in centiseconds;
   - `IFLA_BR_MULTI_BOOLOPT`, `struct br_boolopt_multi`, `optval` then `optmask`, u32 each, which carries `no_linklocal_learn`, `mcast_vlan_snooping`, `mst_enabled`, `mdb_offload_fail_notification` and `fdb_local_vlan_0` as bits;
   - `IFLA_BR_MCAST_QUERIER_STATE`, a read-only nest of `BRIDGE_QUERIER_*`.
-- **`IflaBrStpMode`** = 50. x/sys/unix v0.48 stops at `IFLA_BR_FDB_MAX_LEARNED` (49). `stp_mode`'s names are `auto`, `user` and `kernel`.
-- **The decoder:** `BridgeInfo` (`Value(id)`, plus `BridgeID`, `RootID`, `GroupAddr`, `BoolOpts` and `QuerierState`), `ParseBridgeInfoData(nest []byte) *BridgeInfo`, a `LinkInfo.Bridge` field, and a `setLinkInfoNest` branch.
+- **`IflaBrStpMode`** = 50. x/sys/unix v0.49 stops at `IFLA_BR_FDB_MAX_LEARNED` (49). `stp_mode`'s names are `auto`, `user` and `kernel`.
+- **The British spelling.** misspell reads string literals and upper-case tokens, so the keyword is the one constant `BridgeKeywordAgeingTime`, assembled from two halves, and the id is `IflaBrAgeingTime` = 4 rather than x/sys/unix's name. No lint exclusion is added.
+- **The decoder:** `BridgeInfo` (`Value(id)`, plus `BridgeID`, `RootID`, `GroupAddr`, `BoolOpts` and `QuerierState`), `ParseBridgeInfoData(nest []byte) *BridgeInfo`, a `LinkInfo.Bridge` field, and a `setLinkInfoNest` branch. The values are an array indexed by id, not bond's map. The new field changes the JSON digests of `pkg/linkmonitor`'s replay goldens, which are regenerated as `1ca4c9bd` did for `HasLinkInfo`.
 - **The encoder:** `EncodeBridgeInfoData(settings []BridgeSetting) ([]byte, error)`. Settings go in argument order, and `IFLA_BR_MULTI_BOOLOPT` goes last whatever its words' positions: `bridge_parse_opt` adds it after the loop, once, and only when `optmask` is set.
 - **The benchmark:** a `BenchmarkParseBridgeInfoData` over `add_default`'s blob.
 
@@ -1552,28 +1553,32 @@ Two tasks, one per kind, each following `pkg/xtcpnl/xtcpnl_bond.go`: an option t
 | description | input | expected |
 |---|---|---|
 | positive: a bare bridge's dump | `add_default`'s answer for `br0` | forward_delay 1500, hello_time 200, max_age 2000, ageing_time 30000, priority 32768, stp_mode auto, vlan_protocol 0x8100, group_address `01:80:c2:00:00:00`, mcast_hash_max 4096, every value the `-d -j` readback's |
-| positive: every accepted row's dump agrees with its `-d -j` readback | the 50 `kinds/bridge` rows at 0 | each option the readback prints, the same value |
+| positive: every accepted row's dump agrees with its `-d -j` readback (`TestBridgeDumpMatchesReadback`, a subtest per row) | the 50 `kinds/bridge` rows at 0 | the decoded dump, rendered as `-j` prints it, equals the readback's `info_data`: every key, no extra |
 | positive: several options | `add_several` | stp_state 1, priority 100, vlan_filtering 1, mcast_snooping 0; `bridge_id` priority `0064` |
 | positive: the boolopts | `add_boolopts` | `BoolOpts` with mst_enabled, mdb_offload_fail_notification and fdb_local_vlan_0 set |
 | positive: 802.1ad | `add_vlan_protocol` | vlan_protocol 0x88a8 |
-| negative: a truncated nest | the first 10 bytes of `add_default`'s blob | `nil`, as `ParseBondInfoData` does |
+| negative: a nil nest | `nil` | `nil`, as `ParseBondInfoData` does |
 | negative: a u32 attribute of 2 bytes | built `IFLA_BR_FORWARD_DELAY` | absent, not a short read |
 | boundary: an empty nest | `[]byte{}` | a `BridgeInfo` with nothing present |
 | boundary: the highest id | built `IFLA_BR_STP_MODE` 2 | stp_mode kernel |
 | corner: vlan_protocol is big-endian | built `81 00` | 0x8100, not 0x0081 |
-| corner: an id past `IFLA_BR_STP_MODE` | built type 51 | ignored, the rest decoded |
-| corner: a querier state nest | `add_mcast_querier`'s dump, or built | the IPv4 querier's address and port as the readback prints them |
+| corner: an id past `IFLA_BR_STP_MODE` | built type 51, then `IFLA_BR_STP_STATE` | `Unknown` is [51], stp_state 1 |
+| corner: a truncated nest keeps what came before the cut | the first 50 bytes of `add_default`'s blob: four 12-byte timers, then half of `forward_delay` | the timers present, forward_delay absent |
+| corner: a querier state nest | `add_mcast_querier`'s dump | addresses `0.0.0.0` and `::`, no port, as the readback prints them |
 
 `TestEncodeBridgeInfoData`:
 
 | description | input | expected |
 |---|---|---|
-| positive: each accepted row's request | the 50 rows' settings, from the table in [KC2-T01](#kc2-t01-the-kind-corpus-and-bridge) | `IFLA_INFO_DATA` byte-identical to the one in the row's `ip.pcap` |
-| positive: a bare `type bridge` | no settings | no data nest (`LinkWrite.HasData` false) |
-| negative: a setting of no known id | id 0 | an error |
-| negative: a value too wide for its wire | priority 65536 | an error |
+| positive: each row's request | the settings of the 55 rows that sent one (50 at 0, 5 the kernel refused), from the table in [KC2-T01](#kc2-t01-the-kind-corpus-and-bridge); a row that sent one and is not listed, or the reverse, fails | `IFLA_INFO_DATA` byte-identical to the one in the row's `ip.pcap`; `add_default`'s is empty, as its request has no data nest |
+| positive: a bare `type bridge` | no settings | no attributes (goip leaves `LinkWrite.HasData` false) |
+| negative: a setting with no option row | a nil `Spec` | `ErrBridgeSettingWire` |
+| negative: a read-only option | `bridge_id` | `ErrBridgeSettingWire` |
+| negative: a value too wide for its wire | priority 65536 | `ErrBridgeSettingRange` |
 | boundary: `fdb_flush` | the flag | a 4-byte attribute, no payload |
+| boundary: a u64 takes its full width | `mcast_query_interval` 2^63 | 8 bytes, no range error |
 | corner: the boolopt goes last | `mst_enabled 1 priority 100` | `IFLA_BR_PRIORITY`, then `IFLA_BR_MULTI_BOOLOPT` |
+| corner: a later boolopt word wins | `mst_enabled 1 mst_enabled 0` | optval 0, optmask 4 |
 | corner: vlan_protocol in network order | 0x88a8 | payload `88 a8` |
 
 **Mutation check:** vlan_protocol read little-endian (the 802.1ad row), the boolopt placed in argument order (its corner), `stp_mode` dropped from `BridgeOptions` (the every-row row).
@@ -1585,7 +1590,7 @@ Two tasks, one per kind, each following `pkg/xtcpnl/xtcpnl_bond.go`: an option t
 - **The wires:** u8, u16 and u32; the flag `fdb_flush`; `bridge_id` and `root_id` as in T01; the three timers, u64 in centiseconds.
   - The 19 on/off words go through `bridge_slave_parse_on_off`, a u8 each. `root_block` is `IFLA_BRPORT_PROTECT`, `fastleave` is `IFLA_BRPORT_FAST_LEAVE`, `mcast_fast_leave` is the same attribute again, and `flood` is `IFLA_BRPORT_UNICAST_FLOOD`.
   - `backup_port` is a u32 ifindex, and `nobackup_port` sends 0.
-- **`IflaBrportNeighForwardGrat`** = 45. x/sys/unix v0.48 stops at `IFLA_BRPORT_BACKUP_NHID` (44).
+- **`IflaBrportNeighForwardGrat`** = 45. x/sys/unix v0.49 stops at `IFLA_BRPORT_BACKUP_NHID` (44).
 - **The decoder:** `BridgeSlaveInfo`, `ParseBridgeSlaveData(nest []byte) *BridgeSlaveInfo`, a `LinkInfo.BridgeSlave` field, and a `setLinkInfoNest` branch on `SlaveKind`.
 - **The encoder:** `EncodeBridgeSlaveData(settings []BridgeSetting) ([]byte, error)`.
 - **The benchmark:** a `BenchmarkParseBridgeSlaveData` over `set_several`'s blob.
@@ -1595,14 +1600,15 @@ Two tasks, one per kind, each following `pkg/xtcpnl/xtcpnl_bond.go`: an option t
 | description | input | expected |
 |---|---|---|
 | positive: a port's dump | `set_several`'s answer for `p0` | cost 10, priority 7, learning 0, flood 1, the `-d -j` readback's values |
-| positive: every accepted row's dump agrees with its `-d -j` readback | the 30 `kinds/bridge_slave` rows at 0 | each option the readback prints, the same value |
+| positive: every accepted row's dump agrees with its `-d -j` readback | the 30 `kinds/bridge_slave` rows at 0, each against the dump in `netlink_route_getlink_detail_json.pcap` | the decoded dump, rendered as `-j` prints it, equals the readback's `info_slave_data`: every key, no extra |
 | positive: the 7.2.0 attribute | `set_neigh_forward_grat` | neigh_forward_grat 1 |
 | positive: a backup port | `set_backup_port` | backup_port `p1`'s ifindex |
-| negative: a truncated nest | the first 10 bytes of `set_several`'s blob | `nil` |
+| negative: a nil nest | `nil` | `nil` |
 | boundary: an empty nest | `[]byte{}` | a `BridgeSlaveInfo` with nothing present |
 | boundary: the highest id | built `IFLA_BRPORT_NEIGH_FORWARD_GRAT` 1 | neigh_forward_grat 1 |
 | corner: the port id and number | `set_several`'s `IFLA_BRPORT_ID` and `IFLA_BRPORT_NO` | 0x1c01 and 0x1 |
 | corner: an id past `IFLA_BRPORT_NEIGH_FORWARD_GRAT` | built type 46 | ignored, the rest decoded |
+| corner: a truncated nest keeps what came before the cut | `set_several`'s blob cut inside its second attribute | the first attribute present, the second absent |
 
 `TestEncodeBridgeSlaveData`:
 

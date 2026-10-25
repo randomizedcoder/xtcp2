@@ -334,6 +334,10 @@ type LinkInfo struct {
 	Bond      *BondInfo
 	BondSlave *BondSlaveInfo
 
+	// Bridge is IFLA_INFO_DATA decoded when Kind is "bridge", nil otherwise.
+	// See xtcpnl_bridge.go.
+	Bridge *BridgeInfo
+
 	Link int32 // IFLA_LINK — peer/lower interface index
 
 	// HasLink separates "IFLA_LINK absent" from "IFLA_LINK carrying 0", which
@@ -983,6 +987,9 @@ func setLinkInfoNest(li *LinkInfo, val []byte) {
 	}
 	if li.SlaveKind == bondKindCst {
 		li.BondSlave = ParseBondSlaveData(slaveData)
+	}
+	if li.Kind == bridgeKindCst {
+		li.Bridge = ParseBridgeInfoData(infoData)
 	}
 }
 
