@@ -11,6 +11,7 @@ import (
 
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_controller"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/experiment"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
@@ -178,7 +179,7 @@ func validateSoakRollback(e *pb.Experiment, injectedLatency bool) error {
 	if err := treatment.ValidatePolicy(e.Policy); err != nil {
 		return err
 	}
-	_, harmful := treatment.HealthyEvidence(e, e.LatestEvidence, e.LatestEvidence.AnalyzedAt.AsTime())
+	_, harmful := experiment.HealthyEvidence(e, e.LatestEvidence, e.LatestEvidence.AnalyzedAt.AsTime())
 	if !harmful {
 		return fmt.Errorf("rollback evidence does not cross a safety guard")
 	}

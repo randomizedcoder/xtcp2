@@ -8,6 +8,7 @@ import (
 
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_controller"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/experiment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/identity"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -32,7 +33,7 @@ func (s *Server) Analyze(ctx context.Context, r *pb.AnalyzeRequest) (*pb.Analyze
 	var n *pb.Experiment
 	e = s.Store.mutate(ctx, func(tx *sql.Tx) error {
 		var e error
-		n, e = experiment(ctx, tx, r.ExperimentId)
+		n, e = loadExperiment(ctx, tx, r.ExperimentId)
 		if e != nil {
 			return e
 		}
@@ -60,14 +61,14 @@ func (s *Server) Analyze(ctx context.Context, r *pb.AnalyzeRequest) (*pb.Analyze
 	}
 	out := &pb.AnalyzeResponse{Evidence: ev, Outcome: "baseline"}
 	if len(n.Phases) > 0 {
-		v, e := treatment.Evaluate(input, ev, s.now())
+		v, e := experiment.Evaluate(input, ev, s.now())
 		if e != nil {
 			return nil, failure(e)
 		}
 		out.Outcome = v.Outcome
 	}
 	e = s.Store.mutate(ctx, func(tx *sql.Tx) error {
-		current, e := experiment(ctx, tx, n.Id)
+		current, e := loadExperiment(ctx, tx, n.Id)
 		if e != nil {
 			return e
 		}

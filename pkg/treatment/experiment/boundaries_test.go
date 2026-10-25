@@ -1,10 +1,12 @@
-package treatment
+package experiment
 
 import (
 	"testing"
 	"time"
 
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_controller"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/internal/fixtures"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -65,7 +67,7 @@ func TestEvaluationBoundaries(t *testing.T) {
 		{"invalid-evidence", "malformed evidence fails before decision", "", true, func(_ *pb.Experiment, v *pb.Evidence) { v.Hosts[0] = nil }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			e, v := experimentFixture(now)
+			e, v := fixtures.Experiment(now, treatment.DefaultPolicy())
 			tc.change(e, v)
 			before := proto.Clone(e)
 			evidenceBefore := proto.Clone(v)
@@ -106,7 +108,7 @@ func TestSafetyGateBoundaries(t *testing.T) {
 		{"partial-harm", "missing data does not conceal observed harm", func(_ *pb.Experiment, v *pb.Evidence) { v.Hosts = v.Hosts[1:]; v.Hosts[0].RttP95Ms = 10 }, false, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			e, v := experimentFixture(now)
+			e, v := fixtures.Experiment(now, treatment.DefaultPolicy())
 			tc.change(e, v)
 			h, bad := HealthyEvidence(e, v, now)
 			if h != tc.healthy || bad != tc.harmful {
@@ -135,7 +137,7 @@ func TestAdvanceTransitions(t *testing.T) {
 		{"harm", "harm cannot be promoted", func(_ *pb.Experiment, v *pb.Evidence) { v.Hosts[0].RttP95Ms = 100 }, 0, 0, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			e, v := experimentFixture(now)
+			e, v := fixtures.Experiment(now, treatment.DefaultPolicy())
 			tc.change(e, v)
 			before := proto.Clone(e)
 			got, err := Advance(e, v, now, "reviewer", "measured benefit")
@@ -185,7 +187,7 @@ func TestDefaultRTTGuardExactBoundary(t *testing.T) {
 	} {
 		t.Run(tc.description, func(t *testing.T) {
 			now := time.Unix(1700000000, 0)
-			e, v := experimentFixture(now)
+			e, v := fixtures.Experiment(now, treatment.DefaultPolicy())
 			for _, h := range e.Baseline.Hosts {
 				h.RttP95Ms = 5
 			}

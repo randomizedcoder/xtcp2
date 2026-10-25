@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/agent"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/reconcile"
 	"google.golang.org/protobuf/encoding/prototext"
 )
 
@@ -56,7 +57,7 @@ func run() error {
 		defer t.Stop()
 		for {
 			pass, cancelPass := context.WithTimeout(ctx, 25*time.Second)
-			_, e = a.Reconciler.Run(pass, nil, true)
+			_, e = a.Reconciler.Run(pass, nil, reconcile.ModeExpiryOnly)
 			cancelPass()
 			if e != nil {
 				log.Printf("watchdog: %v", e)
@@ -70,7 +71,7 @@ func run() error {
 	default:
 		return fmt.Errorf("unknown mode %q", *mode)
 	}
-	s, e := a.Reconciler.Run(ctx, nil, false)
+	s, e := a.Reconciler.Run(ctx, nil, reconcile.ModeFull)
 	if s != nil {
 		fmt.Print(prototext.Format(s))
 	}

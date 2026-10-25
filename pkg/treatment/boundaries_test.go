@@ -77,6 +77,30 @@ func treatmentBoundaryRules() []boundaryRule {
 			expectAny:   []string{tp("pkg/treatment")},
 		},
 		{
+			// TODO(item 4): forbid google.golang.org/grpc once domain types
+			// replace the generated proto package, which bundles the stubs.
+			description: "positive: the reconcile package is host-side only: no identity, no experiment statistics",
+			root:        tp("pkg/treatment/reconcile"),
+			forbidden:   []string{tp("pkg/treatment/identity"), tp("pkg/treatment/experiment"), tp("pkg/treatment/agent"), tp("pkg/treatment/controller")},
+			forbidden3p: []string{"database/sql"},
+			expectAny:   []string{tp("pkg/treatment")},
+		},
+		{
+			// TODO(item 4): forbid google.golang.org/grpc once domain types
+			// replace the generated proto package, which bundles the stubs.
+			description: "positive: the experiment package is pure: no journal, no identity, no syscalls",
+			root:        tp("pkg/treatment/experiment"),
+			forbidden:   []string{tp("pkg/treatment/reconcile"), tp("pkg/treatment/identity"), tp("pkg/treatment/agent"), tp("pkg/treatment/controller"), tp("internal/goip")},
+			forbidden3p: []string{"database/sql", "golang.org/x/sys"},
+			expectAny:   []string{tp("pkg/treatment")},
+		},
+		{
+			description: "negative: the controller never reaches the host-side reconcile package or goip",
+			root:        tp("pkg/treatment/controller"),
+			forbidden:   []string{tp("pkg/treatment/reconcile"), tp("internal/goip")},
+			expectAny:   []string{tp("pkg/treatment/experiment")},
+		},
+		{
 			description: "corner: the controller never imports the agent (the dependency points one way)",
 			root:        tp("pkg/treatment/controller"),
 			forbidden:   []string{tp("pkg/treatment/agent"), tp("internal/goip")},

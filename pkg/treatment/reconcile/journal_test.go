@@ -1,4 +1,4 @@
-package treatment
+package reconcile
 
 import (
 	"errors"
@@ -9,6 +9,8 @@ import (
 	"time"
 
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_controller"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/internal/fixtures"
 	"golang.org/x/sys/unix"
 	"google.golang.org/protobuf/encoding/prototext"
 )
@@ -28,7 +30,7 @@ func TestJournalRejectsInvalidSnapshots(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			j := Journal{Dir: t.TempDir()}
-			d := fixture(time.Unix(1700000000, 0))
+			d := fixtures.Desired(time.Unix(1700000000, 0))
 			s := &pb.LocalState{Desired: d, Records: []*pb.ApplicationRecord{{Assignment: d.Assignments[0]}}}
 			tc.change(s)
 			raw, err := prototext.Marshal(s)
@@ -112,7 +114,7 @@ func TestJournalSizeLimit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = f.Truncate(MaxStateBytes + 1); err != nil {
+	if err = f.Truncate(treatment.MaxStateBytes + 1); err != nil {
 		t.Fatal(err)
 	}
 	if err = f.Close(); err != nil {

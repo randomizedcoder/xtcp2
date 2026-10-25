@@ -6,13 +6,13 @@ import (
 
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_controller"
 	flat "github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
-	"github.com/randomizedcoder/xtcp2/pkg/treatment"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/reconcile"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestStampDistinguishesAssignedAndActuallyExposed(t *testing.T) {
-	a := &Agent{Config: Config{AgentID: "host-1"}, namespace: 123, collectionID: "session", Reconciler: &treatment.Reconciler{BootID: "boot-1"}}
+	a := &Agent{Config: Config{AgentID: "host-1"}, namespace: 123, collectionID: "session", Reconciler: &reconcile.Reconciler{BootID: "boot-1"}}
 	s := &pb.LocalState{Desired: &pb.DesiredState{Revision: 2}, Records: []*pb.ApplicationRecord{{Status: pb.ApplyStatus_APPLY_STATUS_VERIFIED, AppliedAt: timestamppb.Now(), Assignment: &pb.Assignment{Id: "exp-1", Generation: 1, Mode: pb.AssignmentMode_ASSIGNMENT_MODE_STABLE, Treatment: &pb.Treatment{Destination: "192.0.2.1/32", Settings: &pb.TCPSettings{CongestionControl: proto.String("cubic")}}}}}}
 	a.publish(s)
 	r := &flat.XtcpFlatRecord{NetnsInode: 123, InetDiagMsgFamily: 2, InetDiagMsgSocketDestination: []byte{192, 0, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, InetDiagCong: "bbr"}

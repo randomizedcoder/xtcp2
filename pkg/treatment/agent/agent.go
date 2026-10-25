@@ -24,6 +24,7 @@ import (
 	"github.com/randomizedcoder/xtcp2/internal/goip"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/identity"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/reconcile"
 	"golang.org/x/sys/unix"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -82,7 +83,7 @@ func LoadConfig(path string) (Config, error) {
 
 type Agent struct {
 	Config       Config
-	Reconciler   *treatment.Reconciler
+	Reconciler   *reconcile.Reconciler
 	backend      *routeBackend
 	client       pb.AgentControlServiceClient
 	conn         *grpc.ClientConn
@@ -149,7 +150,7 @@ func newLocal(c Config, identity func() (string, uint64, error)) (*Agent, error)
 		return nil, e
 	}
 	a := &Agent{Config: c, backend: b, wake: make(chan struct{}, 1), namespace: namespace, collectionID: hex.EncodeToString(nonce[:])}
-	a.Reconciler = &treatment.Reconciler{Journal: treatment.Journal{Dir: c.Directory}, Backend: b, AgentID: c.AgentID, BootID: boot}
+	a.Reconciler = &reconcile.Reconciler{Journal: reconcile.Journal{Dir: c.Directory}, Backend: b, AgentID: c.AgentID, BootID: boot}
 	return a, nil
 }
 
@@ -222,7 +223,7 @@ func (a *Agent) State() *pb.LocalState {
 func (a *Agent) reconcile(ctx context.Context, d *pb.DesiredState) {
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
-	s, e := a.Reconciler.Run(ctx, d, false)
+	s, e := a.Reconciler.Run(ctx, d, reconcile.ModeFull)
 	if s != nil {
 		a.publish(s)
 	}

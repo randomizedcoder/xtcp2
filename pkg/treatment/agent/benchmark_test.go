@@ -8,13 +8,13 @@ import (
 
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_controller"
 	flat "github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
-	"github.com/randomizedcoder/xtcp2/pkg/treatment"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/reconcile"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func stampFixture(n int) (*Agent, *pb.LocalState, *flat.XtcpFlatRecord) {
-	a := &Agent{Config: Config{AgentID: "host", Location: "dc"}, namespace: 123, collectionID: "session", Reconciler: &treatment.Reconciler{BootID: "boot"}, wake: make(chan struct{}, 1)}
+	a := &Agent{Config: Config{AgentID: "host", Location: "dc"}, namespace: 123, collectionID: "session", Reconciler: &reconcile.Reconciler{BootID: "boot"}, wake: make(chan struct{}, 1)}
 	s := &pb.LocalState{Desired: &pb.DesiredState{Revision: 1}}
 	for i := range n {
 		ip := netip.AddrFrom4([4]byte{192, 0, byte(i >> 8), byte(i)})

@@ -22,8 +22,22 @@ flowchart LR
   W[Independent local lease watchdog] --> J
 ```
 
-The implementation lives in [pkg/treatment](../pkg/treatment), with a typed
-[protobuf contract](../proto/xtcp/controller/v1/controller.proto). The binaries are:
+The implementation lives under [pkg/treatment](../pkg/treatment), split by
+audience so that each binary links only the half of the contract it needs, with
+a typed [protobuf contract](../proto/xtcp/controller/v1/controller.proto):
+
+| Package | Used by | Contents |
+| --- | --- | --- |
+| `pkg/treatment` | everyone | identifiers, limits and validators: the shared contract |
+| `pkg/treatment/identity` | agent, controller, tools | SPIFFE URI identity, mTLS configuration, gRPC peer resolution |
+| `pkg/treatment/reconcile` | agent, watchdog | intent journal, reconciler, `Backend` interface, `Mode` (full or expiry-only) |
+| `pkg/treatment/experiment` | controller | evaluation statistics, cohort allocation, phase advancement |
+| `pkg/treatment/agent` | `xtcp2` | check-in loop, watch stream, capabilities, telemetry stamping |
+| `pkg/treatment/controller` | `xtcp2-controller` | gRPC services, PostgreSQL store, ClickHouse evidence, maintenance, discovery |
+
+`pkg/treatment/boundaries_test.go` enforces the layering: `xtcp2` and the agent
+never link the controller, a SQL driver or the ClickHouse client; the controller
+never links the host-side reconcile package or goip. The binaries are:
 
 | Binary | Responsibility |
 | --- | --- |

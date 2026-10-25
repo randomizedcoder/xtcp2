@@ -1,4 +1,4 @@
-package treatment
+package experiment
 
 import (
 	"errors"
@@ -7,6 +7,7 @@ import (
 	"time"
 
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_controller"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -21,7 +22,7 @@ type Evaluation struct {
 // A conservative Welch interval budgets minute-by-minute looks across all
 // planned phases. This interval is a review aid, not an automatic promotion.
 func Evaluate(e *pb.Experiment, ev *pb.Evidence, now time.Time) (Evaluation, error) {
-	if err := ValidateEvidence(ev); err != nil {
+	if err := treatment.ValidateEvidence(ev); err != nil {
 		return Evaluation{}, err
 	}
 	if len(e.Phases) == 0 {
@@ -116,7 +117,7 @@ func Evaluate(e *pb.Experiment, ev *pb.Evidence, now time.Time) (Evaluation, err
 // HealthyEvidence is the fast safety gate, independent of the minimum benefit
 // observation window. It also prevents missing hosts from renewing leases.
 func HealthyEvidence(e *pb.Experiment, v *pb.Evidence, now time.Time) (healthy, harmful bool) {
-	if ValidateEvidence(v) != nil || v.AnalyzedAt.AsTime().After(now.Add(30*time.Second)) || now.Sub(v.WindowEnd.AsTime()) > e.Policy.MaximumEvidenceAge.AsDuration() {
+	if treatment.ValidateEvidence(v) != nil || v.AnalyzedAt.AsTime().After(now.Add(30*time.Second)) || now.Sub(v.WindowEnd.AsTime()) > e.Policy.MaximumEvidenceAge.AsDuration() {
 		return false, false
 	}
 	base := make(map[string]*pb.HostEvidence, len(e.Baseline.Hosts))

@@ -1,4 +1,4 @@
-package treatment
+package reconcile
 
 import (
 	"bytes"
@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_controller"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment"
 	"golang.org/x/sys/unix"
 	"google.golang.org/protobuf/encoding/prototext"
 )
@@ -34,7 +35,7 @@ func (j Journal) WithLock(fn func(*pb.LocalState, func() error) error) error {
 	s := new(pb.LocalState)
 	f, err := os.OpenFile(filepath.Join(j.Dir, "state.textproto"), os.O_RDONLY|unix.O_NOFOLLOW, 0)
 	if err == nil {
-		b, rerr := io.ReadAll(io.LimitReader(f, MaxStateBytes+1))
+		b, rerr := io.ReadAll(io.LimitReader(f, treatment.MaxStateBytes+1))
 		cerr := f.Close()
 		if rerr != nil {
 			return rerr
@@ -42,30 +43,30 @@ func (j Journal) WithLock(fn func(*pb.LocalState, func() error) error) error {
 		if cerr != nil {
 			return cerr
 		}
-		if len(b) > MaxStateBytes {
+		if len(b) > treatment.MaxStateBytes {
 			return errors.New("journal too large")
 		}
 		if err = prototext.Unmarshal(b, s); err != nil {
 			return fmt.Errorf("invalid treatment journal: %w", err)
 		}
 		if s.Desired != nil {
-			if err = ValidateDesired(s.Desired); err != nil {
+			if err = treatment.ValidateDesired(s.Desired); err != nil {
 				return fmt.Errorf("invalid persisted desired state: %w", err)
 			}
 		}
-		if len(s.Records) > MaxAssignments*2 {
+		if len(s.Records) > treatment.MaxAssignments*2 {
 			return errors.New("too many journal records")
 		}
 		seen := map[string]bool{}
 		for _, r := range s.Records {
-			if r.Assignment == nil || !ValidID(r.Assignment.Id) {
+			if r.Assignment == nil || !treatment.ValidID(r.Assignment.Id) {
 				return errors.New("invalid journal record")
 			}
 			if seen[r.Assignment.Id] {
 				return errors.New("duplicate journal record")
 			}
 			seen[r.Assignment.Id] = true
-			if err = ValidateTreatment(r.Assignment.Treatment); err != nil {
+			if err = treatment.ValidateTreatment(r.Assignment.Treatment); err != nil {
 				return fmt.Errorf("invalid journal treatment: %w", err)
 			}
 		}
@@ -78,7 +79,7 @@ func (j Journal) WithLock(fn func(*pb.LocalState, func() error) error) error {
 		if err != nil {
 			return err
 		}
-		if len(b) > MaxStateBytes {
+		if len(b) > treatment.MaxStateBytes {
 			return errors.New("journal exceeds size limit")
 		}
 		if err = atomicFile(j.Dir, "state.textproto", b); err != nil {

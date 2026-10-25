@@ -1,4 +1,4 @@
-package treatment
+package experiment
 
 import (
 	"fmt"
@@ -6,12 +6,14 @@ import (
 	"time"
 
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_controller"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/internal/fixtures"
 	"google.golang.org/protobuf/proto"
 )
 
 func fleetFixture(n int) (*pb.Experiment, *pb.Evidence, time.Time) {
 	now := time.Unix(1700000000, 0)
-	e, v := experimentFixture(now)
+	e, v := fixtures.Experiment(now, treatment.DefaultPolicy())
 	e.CohortOrder, e.Baseline.Hosts, v.Hosts = nil, nil, nil
 	e.Phases[0].TargetHosts = uint32(n / 2)
 	for i := range n {
@@ -35,7 +37,7 @@ func BenchmarkFleetEvidence(b *testing.B) {
 			name string
 			run  func() error
 		}{
-			{"Validate", func() error { return ValidateEvidence(v) }},
+			{"Validate", func() error { return treatment.ValidateEvidence(v) }},
 			{"Safety", func() error {
 				h, bad := HealthyEvidence(e, v, now)
 				if !h || bad {

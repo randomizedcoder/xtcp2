@@ -1,4 +1,4 @@
-package treatment
+package reconcile
 
 import (
 	"bytes"
@@ -8,14 +8,46 @@ import (
 	"time"
 
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_controller"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+// Package reconcile owns the host-side half of the treatment contract: the
+// intent journal and the reconciler that drives a Backend from it. It is
+// shared by the in-daemon/standalone agent and by the independent watchdog;
+// it never speaks gRPC and never imports the controller.
+
+// Mode selects how much a reconciliation pass may do.
+type Mode uint8
+
+const (
+	// ModeFull installs, verifies, removes and toggles owned rules. Used by
+	// the agent and by the local reconcile command.
+	ModeFull Mode = iota
+	// ModeExpiryOnly may only withdraw: expired trials, suspended or retired
+	// assignments and tombstones. It cannot accept desired state, install a
+	// new treatment or clear a suspension. Used by the independent watchdog.
+	ModeExpiryOnly
+)
+
+func (m Mode) String() string {
+	switch m {
+	case ModeFull:
+		return "full"
+	case ModeExpiryOnly:
+		return "expiry-only"
+	}
+	return "unknown"
+}
 
 // Backend only accepts locally planned routes. Install must be create-exclusive
 // or an idempotent match; Remove must refuse changed/foreign routes. Enable and
 // Disable only touch the deployment's exact owned lookup rules.
 type Backend interface {
+	// BeginReconcile marks the start of one pass so a backend may drop any
+	// per-pass caches (kernel route snapshots) before Plan/Verify read them.
+	BeginReconcile()
 	Plan(context.Context, *pb.Treatment) ([]byte, error)
 	Install(context.Context, []byte) error
 	Verify(context.Context, []byte) error
@@ -40,22 +72,23 @@ func (r *Reconciler) now() time.Time {
 }
 
 // Run saves intent before touching the kernel and verifies before reporting
-// success. expiryOnly is used by the independent watchdog and cannot install a
-// new treatment or clear a suspension.
-func (r *Reconciler) Run(ctx context.Context, in *pb.DesiredState, expiryOnly bool) (*pb.LocalState, error) {
+// success. See Mode for what ModeExpiryOnly may and may not do.
+func (r *Reconciler) Run(ctx context.Context, in *pb.DesiredState, mode Mode) (*pb.LocalState, error) {
+	if mode != ModeFull && mode != ModeExpiryOnly {
+		return nil, fmt.Errorf("unknown reconcile mode %d", mode)
+	}
+	expiryOnly := mode == ModeExpiryOnly
 	var result *pb.LocalState
 	err := r.Journal.WithLock(func(s *pb.LocalState, save func() error) error {
 		defer func() { result = proto.Clone(s).(*pb.LocalState) }()
-		if b, ok := r.Backend.(interface{ BeginReconcile() }); ok {
-			b.BeginReconcile()
-		}
+		r.Backend.BeginReconcile()
 		now := r.now()
 		stamp := func() *timestamppb.Timestamp { return timestamppb.New(now) }
 		if in != nil {
 			if expiryOnly {
 				return errors.New("watchdog cannot accept desired state")
 			}
-			if err := ValidateDesired(in); err != nil {
+			if err := treatment.ValidateDesired(in); err != nil {
 				return err
 			}
 			if in.AgentId != r.AgentID {

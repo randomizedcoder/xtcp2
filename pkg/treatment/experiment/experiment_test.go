@@ -1,38 +1,20 @@
-package treatment
+package experiment
 
 import (
-	"fmt"
 	"math"
-	"strings"
 	"testing"
 	"time"
 
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_controller"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/internal/fixtures"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func experimentFixture(now time.Time) (*pb.Experiment, *pb.Evidence) {
-	b := &pb.Evidence{Id: "baseline", AnalyzedAt: timestamppb.New(now.Add(-time.Hour)), WindowStart: timestamppb.New(now.Add(-2 * time.Hour)), WindowEnd: timestamppb.New(now.Add(-time.Hour)), QueryVersion: "v1", ArtifactSha256: strings.Repeat("a", 64)}
-	e := &pb.Experiment{Id: "exp", Location: "dc1", Hypothesis: "cubic improves throughput", Treatment: fixture(now).Assignments[0].Treatment, Policy: DefaultPolicy(), Baseline: b, Status: pb.ExperimentStatus_EXPERIMENT_STATUS_RUNNING, Revision: 2, Phases: []*pb.Phase{{TargetHosts: 4, IssuedAt: timestamppb.New(now.Add(-40 * time.Minute)), ObservationStartedAt: timestamppb.New(now.Add(-35 * time.Minute))}}}
-	for i := range 16 {
-		id := fmt.Sprintf("host-%d", i)
-		e.CohortOrder = append(e.CohortOrder, id)
-		b.Hosts = append(b.Hosts, &pb.HostEvidence{AgentId: id, Sockets: 100, ExposedSockets: 100, BytesAcked: 1 << 25, GoodputBps: 1e8, RttP95Ms: 1, CollectionHealthy: true})
-	}
-	ev := proto.Clone(b).(*pb.Evidence)
-	ev.Id = "after"
-	ev.WindowStart = timestamppb.New(now.Add(-34 * time.Minute))
-	ev.WindowEnd = timestamppb.New(now.Add(-time.Second))
-	ev.AnalyzedAt = timestamppb.New(now)
-	for _, h := range ev.Hosts[:4] {
-		h.GoodputBps *= 1.3
-	}
-	return e, ev
-}
 func TestEvaluationBenefitHarmAndEvidenceGates(t *testing.T) {
 	now := time.Now()
-	e, v := experimentFixture(now)
+	e, v := fixtures.Experiment(now, treatment.DefaultPolicy())
 	for _, tc := range []struct {
 		name, want string
 		change     func(*pb.Experiment, *pb.Evidence)
@@ -81,7 +63,7 @@ func TestHealthyEvidenceSoakRTTRegression(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			now := time.Now()
-			e, v := experimentFixture(now)
+			e, v := fixtures.Experiment(now, treatment.DefaultPolicy())
 			e.Policy.MaximumRttIncrease = tc.limit
 			for _, h := range e.Baseline.Hosts {
 				h.RttP95Ms = 5.305
@@ -99,7 +81,7 @@ func TestHealthyEvidenceSoakRTTRegression(t *testing.T) {
 }
 func TestAdvancePreservesInputAndRequiresReviewableEvidence(t *testing.T) {
 	now := time.Now()
-	e, v := experimentFixture(now)
+	e, v := fixtures.Experiment(now, treatment.DefaultPolicy())
 	next, err := Advance(e, v, now, "operator", "reviewed")
 	if err != nil {
 		t.Fatal(err)

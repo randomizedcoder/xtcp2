@@ -81,7 +81,7 @@ func (s *Store) mutate(ctx context.Context, fn func(*sql.Tx) error) error {
 	return tx.Commit()
 }
 
-func experiment(ctx context.Context, tx *sql.Tx, id string) (*pb.Experiment, error) {
+func loadExperiment(ctx context.Context, tx *sql.Tx, id string) (*pb.Experiment, error) {
 	var raw []byte
 	if e := tx.QueryRowContext(ctx, "SELECT state FROM xtcp_control_experiments WHERE id=$1 FOR UPDATE", id).Scan(&raw); e != nil {
 		return nil, e

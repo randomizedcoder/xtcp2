@@ -9,6 +9,7 @@ import (
 
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_controller"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/experiment"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -45,7 +46,7 @@ func (s *Server) Maintain(ctx context.Context, source EvidenceSource) error {
 	for _, id := range ids {
 		var snapshot *pb.Experiment
 		e = s.Store.mutate(ctx, func(tx *sql.Tx) error {
-			n, e := experiment(ctx, tx, id)
+			n, e := loadExperiment(ctx, tx, id)
 			if e != nil {
 				return e
 			}
@@ -84,7 +85,7 @@ func (s *Server) Maintain(ctx context.Context, source EvidenceSource) error {
 			}
 		}
 		e = s.Store.mutate(ctx, func(tx *sql.Tx) error {
-			n, e := experiment(ctx, tx, id)
+			n, e := loadExperiment(ctx, tx, id)
 			if e != nil {
 				return e
 			}
@@ -99,7 +100,7 @@ func (s *Server) Maintain(ctx context.Context, source EvidenceSource) error {
 					if e = saveEvidence(ctx, tx, id, ev); e != nil {
 						return e
 					}
-					healthy, harmful := treatment.HealthyEvidence(n, ev, now)
+					healthy, harmful := experiment.HealthyEvidence(n, ev, now)
 					n.LatestEvidence = ev
 					n.LatestOutcome = "stable_observed"
 					if !healthy {
@@ -120,7 +121,7 @@ func (s *Server) Maintain(ctx context.Context, source EvidenceSource) error {
 				if e = saveEvidence(ctx, tx, id, ev); e != nil {
 					return e
 				}
-				v, e := treatment.Evaluate(n, ev, now)
+				v, e := experiment.Evaluate(n, ev, now)
 				if e != nil {
 					return e
 				}
@@ -128,7 +129,7 @@ func (s *Server) Maintain(ctx context.Context, source EvidenceSource) error {
 				// Keep analysis visible to reviewers without marking a phase as
 				// approved/evaluated. Only Review writes reviewer and outcome.
 				n.LatestEvidence = ev
-				if _, harmful := treatment.HealthyEvidence(n, ev, now); harmful {
+				if _, harmful := experiment.HealthyEvidence(n, ev, now); harmful {
 					outcome = "harmful"
 				}
 			}
@@ -147,7 +148,7 @@ func (s *Server) Maintain(ctx context.Context, source EvidenceSource) error {
 			} else if ev != nil && n.Status == pb.ExperimentStatus_EXPERIMENT_STATUS_RUNNING {
 				// Before the 30-minute decision window completes, fresh health
 				// evidence can renew the existing phase but cannot expand it.
-				healthy, _ := treatment.HealthyEvidence(n, ev, now)
+				healthy, _ := experiment.HealthyEvidence(n, ev, now)
 				if healthy && outcome != "stale" && outcome != "insufficient_data" {
 					if e = s.renew(ctx, tx, n, now); e != nil {
 						return e

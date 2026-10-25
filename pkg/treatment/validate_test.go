@@ -8,6 +8,7 @@ import (
 	"time"
 
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_controller"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/internal/fixtures"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -80,7 +81,7 @@ func TestTreatmentValidation(t *testing.T) {
 		}
 		cases = append(cases, validationCase[*pb.Treatment]{tc.destination, "only unicast host destinations may be treated", func(p **pb.Treatment) { (*p).Destination = tc.destination }, want})
 	}
-	checkValidation(t, func() *pb.Treatment { return fixture(time.Unix(1700000000, 0)).Assignments[0].Treatment }, ValidateTreatment, cases)
+	checkValidation(t, func() *pb.Treatment { return fixtures.Desired(time.Unix(1700000000, 0)).Assignments[0].Treatment }, ValidateTreatment, cases)
 }
 
 func TestTCPSettingsValidation(t *testing.T) {
@@ -238,7 +239,7 @@ func TestEvidenceValidation(t *testing.T) {
 			}
 		}, want})
 	}
-	checkValidation(t, func() *pb.Evidence { _, v := experimentFixture(now); return v }, ValidateEvidence, cases)
+	checkValidation(t, func() *pb.Evidence { _, v := fixtures.Experiment(now, DefaultPolicy()); return v }, ValidateEvidence, cases)
 }
 
 func TestDesiredValidation(t *testing.T) {
@@ -298,12 +299,12 @@ func TestDesiredValidation(t *testing.T) {
 			}
 		}, want})
 	}
-	checkValidation(t, func() *pb.DesiredState { return fixture(now) }, ValidateDesired, cases)
+	checkValidation(t, func() *pb.DesiredState { return fixtures.Desired(now) }, ValidateDesired, cases)
 }
 
 func TestProposalValidation(t *testing.T) {
 	now := time.Unix(1700000000, 0)
-	checkValidation(t, func() *pb.Experiment { e, _ := experimentFixture(now); return e }, ValidateProposal, []validationCase[*pb.Experiment]{
+	checkValidation(t, func() *pb.Experiment { e, _ := fixtures.Experiment(now, DefaultPolicy()); return e }, ValidateProposal, []validationCase[*pb.Experiment]{
 		{"valid", "complete proposal is reviewable", func(**pb.Experiment) {}, ""},
 		{"nil", "proposal is required", func(p **pb.Experiment) { *p = nil }, "identity"},
 		{"no-hypothesis", "proposal must state a hypothesis", func(p **pb.Experiment) { (*p).Hypothesis = "" }, "identity"},

@@ -12,6 +12,7 @@ import (
 
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_controller"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/experiment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/identity"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -326,7 +327,7 @@ func (s *Server) Review(ctx context.Context, r *pb.ReviewRequest) (out *pb.Revie
 		if yes, e := replay(ctx, tx, r.RequestId, "review", r, out); yes || e != nil {
 			return e
 		}
-		n, e := experiment(ctx, tx, r.ExperimentId)
+		n, e := loadExperiment(ctx, tx, r.ExperimentId)
 		if e != nil {
 			return e
 		}
@@ -362,7 +363,7 @@ func (s *Server) Review(ctx context.Context, r *pb.ReviewRequest) (out *pb.Revie
 					return e
 				}
 			}
-			n, e = treatment.Advance(n, r.Evidence, s.now(), actor, r.Reason)
+			n, e = experiment.Advance(n, r.Evidence, s.now(), actor, r.Reason)
 			if e != nil {
 				return e
 			}
@@ -589,7 +590,7 @@ func (s *Server) Control(ctx context.Context, r *pb.ControlRequest) (out *pb.Con
 			return e
 		}
 		if r.ExperimentId != "" {
-			n, e := experiment(ctx, tx, r.ExperimentId)
+			n, e := loadExperiment(ctx, tx, r.ExperimentId)
 			if e != nil {
 				return e
 			}
