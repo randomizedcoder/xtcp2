@@ -20,6 +20,7 @@ import (
 
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_controller"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/identity"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/protobuf/encoding/prototext"
@@ -313,7 +314,7 @@ func runController(soak bool) {
 		eventually(h+" fixture ready", 3*time.Minute, func() bool { act(h, "ready"); return true })
 		remote(h, action{Name: "setup", CA: read(pkiDir + "/ca.crt"), Certificate: read(pkiDir + "/" + h + ".crt"), Key: read(pkiDir + "/" + h + ".key")}, nil)
 	}
-	tls := must(controller.TLSConfig(pkiDir+"/operator.crt", pkiDir+"/operator.key", pkiDir+"/ca.crt", "controller", false))
+	tls := must(identity.TLSConfig(pkiDir+"/operator.crt", pkiDir+"/operator.key", pkiDir+"/ca.crt", "controller", false))
 	conn := must(grpc.NewClient("127.0.0.1:9443", grpc.WithTransportCredentials(credentials.NewTLS(tls))))
 	defer conn.Close()
 	op := pb.NewOperatorServiceClient(conn)

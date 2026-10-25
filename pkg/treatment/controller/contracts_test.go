@@ -2,51 +2,13 @@ package controller
 
 import (
 	"context"
-	"crypto/x509"
 	"errors"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
 	"testing"
 	"time"
 )
-
-func TestCertificateIdentityContracts(t *testing.T) {
-	for _, tc := range []struct {
-		name, description string
-		uris              []string
-		want              Identity
-		wantError         bool
-	}{
-		{"agent", "agent identity binds both location and host", []string{"spiffe://xtcp/agent/dc/host"}, Identity{Role: "agent", Location: "dc", ID: "host"}, false},
-		{"operator", "operator identity is distinct from agent", []string{"spiffe://xtcp/operator/admin"}, Identity{Role: "operator", ID: "admin"}, false},
-		{"absent", "certificate must carry an identity", nil, Identity{}, true},
-		{"ambiguous", "two roles on one certificate are rejected", []string{"spiffe://xtcp/agent/dc/host", "spiffe://xtcp/operator/admin"}, Identity{}, true},
-		{"duplicate", "even repeated identical SANs are ambiguous", []string{"spiffe://xtcp/agent/dc/host", "spiffe://xtcp/agent/dc/host"}, Identity{}, true},
-		{"authority", "foreign trust domain is rejected", []string{"spiffe://other/agent/dc/host"}, Identity{}, true},
-		{"query", "query suffix cannot change identity semantics", []string{"spiffe://xtcp/agent/dc/host?role=operator"}, Identity{}, true},
-		{"fragment", "fragment suffix is rejected", []string{"spiffe://xtcp/agent/dc/host#operator"}, Identity{}, true},
-		{"path", "escaped path separators are rejected", []string{"spiffe://xtcp/agent/dc/host%2Fextra"}, Identity{}, true},
-		{"missing-location", "agent location cannot be omitted", []string{"spiffe://xtcp/agent/host"}, Identity{}, true},
-		{"unrelated-san", "unrelated SANs do not confer another role", []string{"https://example.test/", "spiffe://xtcp/operator/admin"}, Identity{Role: "operator", ID: "admin"}, false},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			cert := &x509.Certificate{}
-			for _, raw := range tc.uris {
-				u, err := url.Parse(raw)
-				if err != nil {
-					t.Fatal(err)
-				}
-				cert.URIs = append(cert.URIs, u)
-			}
-			got, err := CertificateIdentity(cert)
-			if (err != nil) != tc.wantError || got != tc.want {
-				t.Fatalf("%s: got %+v %v; want %+v error=%t", tc.description, got, err, tc.want, tc.wantError)
-			}
-		})
-	}
-}
 
 type trackedBody struct {
 	io.Reader

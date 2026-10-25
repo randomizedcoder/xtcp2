@@ -1,4 +1,4 @@
-package controller
+package identity
 
 import (
 	"context"
@@ -31,11 +31,11 @@ type authProbe struct {
 }
 
 func (authProbe) CheckIn(ctx context.Context, r *pb.CheckInRequest) (*pb.CheckInResponse, error) {
-	_, e := AgentIdentity(ctx, r.AgentId)
+	_, e := Agent(ctx, r.AgentId)
 	return &pb.CheckInResponse{}, e
 }
 func (authProbe) Inspect(ctx context.Context, _ *pb.InspectRequest) (*pb.InspectResponse, error) {
-	_, e := OperatorIdentity(ctx)
+	_, e := Operator(ctx)
 	return &pb.InspectResponse{}, e
 }
 

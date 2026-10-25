@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/identity"
 	"net/http"
 	"sort"
 	"time"
@@ -17,8 +18,8 @@ func (s *Server) StatusHandler() http.Handler {
 			http.Error(w, "mTLS required", http.StatusUnauthorized)
 			return
 		}
-		id, e := CertificateIdentity(r.TLS.PeerCertificates[0])
-		if e != nil || id.Role != "operator" {
+		id, e := identity.FromCertificate(r.TLS.PeerCertificates[0])
+		if e != nil || id.Role != identity.RoleOperator {
 			http.Error(w, "operator required", http.StatusForbidden)
 			return
 		}

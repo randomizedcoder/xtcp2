@@ -15,6 +15,7 @@ import (
 
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_controller"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/identity"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/protobuf/proto"
@@ -176,15 +177,15 @@ func TestPostgresConcurrentReviewFencesReplicas(t *testing.T) {
 }
 
 func TestCertificateIdentityIsolation(t *testing.T) {
-	if _, e := AgentIdentity(testIdentity("agent/dc1/host-1"), "host-2"); e == nil {
+	if _, e := identity.Agent(testIdentity("agent/dc1/host-1"), "host-2"); e == nil {
 		t.Fatal("cross-agent identity accepted")
 	}
-	if _, e := OperatorIdentity(context.Background()); e == nil {
+	if _, e := identity.Operator(context.Background()); e == nil {
 		t.Fatal("missing TLS accepted")
 	}
 	u, _ := url.Parse("spiffe://xtcp/operator/alice")
 	v, _ := url.Parse("spiffe://xtcp/agent/dc1/host-1")
-	if _, e := CertificateIdentity(&x509.Certificate{URIs: []*url.URL{u, v}}); e == nil {
+	if _, e := identity.FromCertificate(&x509.Certificate{URIs: []*url.URL{u, v}}); e == nil {
 		t.Fatal("ambiguous role accepted")
 	}
 }

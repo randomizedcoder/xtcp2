@@ -23,7 +23,7 @@ import (
 	flat "github.com/randomizedcoder/xtcp2/gen/go/xtcp_flat_record"
 	"github.com/randomizedcoder/xtcp2/internal/goip"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
-	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/identity"
 	"golang.org/x/sys/unix"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -157,7 +157,7 @@ func newLocal(c Config, identity func() (string, uint64, error)) (*Agent, error)
 // resolution is only needed to add management destinations to the exclusions;
 // deployments should list stable management prefixes for offline reboot use.
 func New(ctx context.Context, c Config) (*Agent, error) {
-	tlsConfig, e := controller.TLSConfig(c.Certificate, c.PrivateKey, c.CA, c.ServerName, false)
+	tlsConfig, e := identity.TLSConfig(c.Certificate, c.PrivateKey, c.CA, c.ServerName, false)
 	if e != nil {
 		return nil, e
 	}
@@ -165,11 +165,11 @@ func New(ctx context.Context, c Config) (*Agent, error) {
 	if e != nil {
 		return nil, e
 	}
-	id, e := controller.CertificateIdentity(cert)
+	id, e := identity.FromCertificate(cert)
 	if e != nil {
 		return nil, e
 	}
-	if id.Role != "agent" || id.ID != c.AgentID || id.Location != c.Location {
+	if id.Role != identity.RoleAgent || id.ID != c.AgentID || id.Location != c.Location {
 		return nil, errors.New("agent config does not match certificate identity")
 	}
 	a, e := NewLocal(c)

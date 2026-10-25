@@ -19,6 +19,7 @@ import (
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_controller"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/identity"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -59,7 +60,7 @@ func run() error {
 	if dsn == "" {
 		return fmt.Errorf("PostgreSQL DSN required")
 	}
-	tlsConfig, e := controller.TLSConfig(*cert, *key, *ca, "", true)
+	tlsConfig, e := identity.TLSConfig(*cert, *key, *ca, "", true)
 	if e != nil {
 		return e
 	}

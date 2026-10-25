@@ -12,6 +12,7 @@ import (
 
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_controller"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/identity"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -60,7 +61,7 @@ func validRequest(id, reason string) error {
 }
 
 func (s *Server) CheckIn(ctx context.Context, r *pb.CheckInRequest) (*pb.CheckInResponse, error) {
-	id, e := AgentIdentity(ctx, r.GetAgentId())
+	id, e := identity.Agent(ctx, r.GetAgentId())
 	if e != nil {
 		return nil, e
 	}
@@ -174,7 +175,7 @@ func (s *Server) WatchDesiredState(r *pb.WatchDesiredStateRequest, stream grpc.S
 }
 
 func (s *Server) authorizeEnrolledAgent(ctx context.Context, want string) error {
-	id, e := AgentIdentity(ctx, want)
+	id, e := identity.Agent(ctx, want)
 	if e != nil {
 		return e
 	}
@@ -189,7 +190,7 @@ func (s *Server) authorizeEnrolledAgent(ctx context.Context, want string) error 
 }
 
 func (s *Server) Propose(ctx context.Context, r *pb.ProposeRequest) (out *pb.ProposeResponse, err error) {
-	actor, e := OperatorIdentity(ctx)
+	actor, e := identity.Operator(ctx)
 	if e != nil {
 		return nil, e
 	}
@@ -313,7 +314,7 @@ func (s *Server) propose(ctx context.Context, r *pb.ProposeRequest, actor string
 }
 
 func (s *Server) Review(ctx context.Context, r *pb.ReviewRequest) (out *pb.ReviewResponse, err error) {
-	actor, e := OperatorIdentity(ctx)
+	actor, e := identity.Operator(ctx)
 	if e != nil {
 		return nil, e
 	}
@@ -560,7 +561,7 @@ func (s *Server) assign(ctx context.Context, tx *sql.Tx, e *pb.Experiment, react
 }
 
 func (s *Server) Control(ctx context.Context, r *pb.ControlRequest) (out *pb.ControlResponse, err error) {
-	actor, e := OperatorIdentity(ctx)
+	actor, e := identity.Operator(ctx)
 	if e != nil {
 		return nil, e
 	}
@@ -694,7 +695,7 @@ func (s *Server) Control(ctx context.Context, r *pb.ControlRequest) (out *pb.Con
 }
 
 func (s *Server) Inspect(ctx context.Context, r *pb.InspectRequest) (*pb.InspectResponse, error) {
-	if _, e := OperatorIdentity(ctx); e != nil {
+	if _, e := identity.Operator(ctx); e != nil {
 		return nil, e
 	}
 	out := new(pb.InspectResponse)

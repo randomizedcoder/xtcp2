@@ -8,6 +8,7 @@ import (
 
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_controller"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/identity"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
@@ -18,7 +19,7 @@ import (
 // Warehouse work stays outside the transaction; the revision fence rejects
 // evidence computed across an intervening operator decision.
 func (s *Server) Analyze(ctx context.Context, r *pb.AnalyzeRequest) (*pb.AnalyzeResponse, error) {
-	actor, e := OperatorIdentity(ctx)
+	actor, e := identity.Operator(ctx)
 	if e != nil {
 		return nil, e
 	}

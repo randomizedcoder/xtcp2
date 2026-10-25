@@ -10,7 +10,7 @@ import (
 
 	pb "github.com/randomizedcoder/xtcp2/gen/go/xtcp_controller"
 	"github.com/randomizedcoder/xtcp2/pkg/treatment"
-	"github.com/randomizedcoder/xtcp2/pkg/treatment/controller"
+	"github.com/randomizedcoder/xtcp2/pkg/treatment/identity"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/protobuf/encoding/prototext"
@@ -32,7 +32,7 @@ func run() error {
 	method := flag.String("method", "inspect", "propose, analyze, review, control, inspect")
 	file := flag.String("file", "", "protobuf-text request file (empty InspectRequest if omitted)")
 	flag.Parse()
-	tls, e := controller.TLSConfig(*cert, *key, *ca, *name, false)
+	tls, e := identity.TLSConfig(*cert, *key, *ca, *name, false)
 	if e != nil {
 		return e
 	}
