@@ -2562,19 +2562,20 @@ The replay tests set `req.LLMapNameOnly`, since the 7.3.0 corpus's d0 lookups ca
 
 | description | input | expected |
 |---|---|---|
-| positive: the rows are KC1's kernel-answered rows, in order | the `link_write_inet_*` slugs | `inet_forwarding_on` … `inet_then_mtu`, 11 |
+| positive: the rows are KC1's kernel-answered rows, in order | the `link_inet_*` slugs | `inet_forwarding_on` … `inet_then_mtu`, 11 |
 | negative: no `ip`-refused row is a matrix row | the 7 refused slugs | absent |
 | boundary: each row's floor | `Floor` | 4 |
 | corner: every row sets up d0 alone | `Setup` | `linkWriteSetupDummy` |
+| positive: every row is gated | `nlparity.EmbeddedAllowlist().IsGated` | true for all 11 |
 
 | description (VM) | input | expected |
 |---|---|---|
-| positive: two consecutive clean runs | `nix run .#microvm-x86_64-goip-parity -- --timeout 12000`, twice | the 11 rows `PASS` on both, and every gated row still `PASS` |
+| positive: two consecutive clean runs | `nix run .#microvm-x86_64-goip-parity -- --timeout 12000` (the full table), then the same with `--section link` | the 11 rows `PASS` on both, and every gated row the run holds still `PASS` |
 | corner: the refused rows compare on the request | `inet_rp_filter_over`, `inet_medium_id_neg2` | `PASS`: `ip` exits 2 on both sides, goip 0 |
 
 Then the 11 rows go in `gated_commands` (`pkg/nlparity/goip-parity-allowlist.json`).
 
-**Mutation check:** a row's floor at 2 (the floor row); a refused row added (the negative row).
+**Mutation check:** a row's floor at 2 (the floor row); a refused row added (the negative row); a row dropped from `gated_commands` (the gated row).
 
 **Done when:** the offline tables pass; the two VM runs are clean; the rows are gated; lint-baseline passes. It closes KG0.
 

@@ -2452,6 +2452,66 @@ var commands = withArgs([]Command{
 		Name: "link del bond0", Slug: "link_write_del_bond",
 		// RTM_DELLINK by index.
 		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupEnslaved,
+	},
+	// The inet rows (goip-link-kinds.md, KG0-T02): KC1-T01's 11 rows the
+	// kernel answers, in its order, from pkg/xtcpnl/testdata/7_3_0/link-write/
+	// rtnl/inet_*. Each is the d0 lookup and the write (4). The 7 rows ip
+	// refuses before netlink are not rows, since a write row needs goip to
+	// exit 0; TestLinkSetInetRefusals holds them offline.
+	{
+		Name: "link set dev d0 inet forwarding on", Slug: "link_inet_forwarding_on",
+		// One on/off param: IFLA_AF_SPEC, AF_INET, IFLA_INET_CONF|NLA_F_NESTED.
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link set dev d0 inet rp_filter 2", Slug: "link_inet_rp_filter_max",
+		// A numeric param at the top of inet_devconf_policy's range.
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link set dev d0 inet rp_filter 3", Slug: "link_inet_rp_filter_over",
+		// One past it: refused EINVAL, compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link set dev d0 inet tag 0x10", Slug: "link_inet_tag_hex",
+		// get_integer base 0: hex.
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link set dev d0 inet arp_ignore 010", Slug: "link_inet_arp_ignore_octal",
+		// Base 0: a leading 0 is octal, so 8.
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link set dev d0 inet medium_id -1", Slug: "link_inet_medium_id_neg1",
+		// The one signed param, sent as 0xffffffff.
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link set dev d0 inet medium_id -2", Slug: "link_inet_medium_id_neg2",
+		// One under its minimum: refused EINVAL, compared on the request.
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link set dev d0 inet forwarding on proxy_arp on rp_filter 1 arp_ignore 2", Slug: "link_inet_several",
+		// Several params in one nest, in argument order.
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link set dev d0 inet forwarding on proxy_arp on accept_redirects on secure_redirects on send_redirects on shared_media on rp_filter 1 accept_source_route on bootp_relay on log_martians on tag 7 arp_filter on medium_id 1 disable_xfrm on disable_policy on force_igmp_version 2 arp_announce 1 arp_ignore 1 promote_secondaries on arp_accept 1 arp_notify on accept_local on src_vmark on proxy_arp_pvlan on route_localnet on bc_forwarding on igmpv2_unsolicited_report_interval 1000 igmpv3_unsolicited_report_interval 1000 ignore_routes_with_linkdown on drop_unicast_in_l2_multicast on drop_gratuitous_arp on arp_evict_nocarrier on", Slug: "link_inet_every_param",
+		// All 32 params, in iplink_parse_inet's order.
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link set dev d0 inet forwarding on forwarding off", Slug: "link_inet_repeated",
+		// No repeat check: both attributes.
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
+	},
+	{
+		Name: "link set dev d0 inet forwarding on mtu 1400", Slug: "link_inet_then_mtu",
+		// The push-back: IFLA_AF_SPEC, then IFLA_MTU, in one request.
+		Floor: 4, Implemented: true, Write: true, Setup: linkWriteSetupDummy,
 	}, // The route write rows (route-write-path.md phase 5): the corpus in
 	// pkg/xtcpnl/testdata/7_1_4/link-write/route/, less `nodev`, with the
 	// same preconditions and floors as capture-link-writes.exp. A dev row is

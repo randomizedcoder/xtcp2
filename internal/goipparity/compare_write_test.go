@@ -115,7 +115,9 @@ const (
 	xfrmMsgDelPolicyCst = 20
 	tdAddrSave          = "../../pkg/xtcpnl/testdata/7_1_4/link-write/addr-save"
 	// tdRtnl is the C1 rtnetlink corpus, route_restore\'s among it.
-	tdRtnl           = "../../pkg/xtcpnl/testdata/7_1_4/link-write/rtnl"
+	tdRtnl = "../../pkg/xtcpnl/testdata/7_1_4/link-write/rtnl"
+	// tdRtnl730 is the 7.3.0 rtnetlink corpus, KC1-T01's inet rows among it.
+	tdRtnl730        = "../../pkg/xtcpnl/testdata/7_3_0/link-write/rtnl"
 	pcapGlobalHdrCst = 24
 	pcapRecordHdrCst = 16
 	// nlmonHdrCst is the cooked header LINKTYPE_NETLINK puts before each
@@ -300,6 +302,9 @@ func corpusWriteRow(t *testing.T, c Command) writeRowFiles {
 		strings.HasPrefix(c.Slug, linkAltnameSlugPrefixCst) ||
 		strings.HasPrefix(c.Slug, tokenWriteSlugPrefixCst) {
 		dir = filepath.Join(tdRtnl, c.Slug)
+	}
+	if slug, ok := strings.CutPrefix(c.Slug, inetSlugPrefixCst); ok {
+		dir = filepath.Join(tdRtnl730, "inet_"+slug)
 	}
 	ipPcap := mustReadBytes(t, filepath.Join(dir, "ip.pcap"))
 	rc := strings.TrimSpace(mustRead(t, filepath.Join(dir, "ip.rc")))

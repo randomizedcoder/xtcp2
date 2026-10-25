@@ -960,6 +960,20 @@ func TestAllowlistCommitted(t *testing.T) {
 		"xfrm policy f",
 		"xfrm policy set hthresh4 24 16 hthresh6 64 48",
 		"xfrm policy setdefault in block fwd block out accept",
+		// KG0-T02's `link set … inet` rows, gated on two runs: the full
+		// table, then `--section link`, each row GOIP_PARITY_PASS both
+		// times (goip-link-kinds-status.md, V135 and V136).
+		"link set dev d0 inet forwarding on",
+		"link set dev d0 inet rp_filter 2",
+		"link set dev d0 inet rp_filter 3",
+		"link set dev d0 inet tag 0x10",
+		"link set dev d0 inet arp_ignore 010",
+		"link set dev d0 inet medium_id -1",
+		"link set dev d0 inet medium_id -2",
+		"link set dev d0 inet forwarding on proxy_arp on rp_filter 1 arp_ignore 2",
+		"link set dev d0 inet forwarding on proxy_arp on accept_redirects on secure_redirects on send_redirects on shared_media on rp_filter 1 accept_source_route on bootp_relay on log_martians on tag 7 arp_filter on medium_id 1 disable_xfrm on disable_policy on force_igmp_version 2 arp_announce 1 arp_ignore 1 promote_secondaries on arp_accept 1 arp_notify on accept_local on src_vmark on proxy_arp_pvlan on route_localnet on bc_forwarding on igmpv2_unsolicited_report_interval 1000 igmpv3_unsolicited_report_interval 1000 ignore_routes_with_linkdown on drop_unicast_in_l2_multicast on drop_gratuitous_arp on arp_evict_nocarrier on",
+		"link set dev d0 inet forwarding on forwarding off",
+		"link set dev d0 inet forwarding on mtu 1400",
 	}
 
 	tests := []struct {
