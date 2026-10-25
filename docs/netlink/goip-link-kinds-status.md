@@ -9,9 +9,10 @@
 - KC1 is done (KC1-T01): 18 `ip link set dev d0 inet …` rows, 11 the kernel answers and 7 `ip` refuses before netlink, are in the rtnl corpus. They are KP0's and KG0's source.
 - KC2 is done (KC2-T01, KC2-T02): a kind corpus (`kind-write-corpus.exp`) the link-write driver runs into `link-write/kinds/`, with 60 bridge rows and 42 bridge_slave rows, 80 the kernel accepts, 12 it refuses and 10 `ip` refuses before netlink. They are KP1's and KG1's source.
 - KC3 is done (KC3-T01, KC3-T02, KC3-T03): 28 vlan, 34 macvlan, 6 macvtap, 18 ipvlan and 4 ipvtap rows in the kind corpus, stacked on a dummy `d0`; of the 90, 54 the kernel accepts, 14 it refuses and 22 `ip` refuses before netlink. They are KP2's and KG2's source.
-- KC4 is in progress: KC4-T01 adds 73 vxlan rows, 46 the kernel accepts, 12 it refuses and 15 `ip` refuses before netlink; KC4-T02 adds 49 geneve rows, 22 accepted, 13 refused by the kernel and 14 by `ip`; KC4-T03 adds 16 bareudp and 20 amt rows, 11 accepted, 12 refused by the kernel and 13 by `ip`.
+- KC4 is done (KC4-T01, KC4-T02, KC4-T03, KC4-T04): KC4-T01 adds 73 vxlan rows, 46 the kernel accepts, 12 it refuses and 15 `ip` refuses before netlink; KC4-T02 adds 49 geneve rows, 22 accepted, 13 refused by the kernel and 14 by `ip`; KC4-T03 adds 16 bareudp and 20 amt rows, 11 accepted, 12 refused by the kernel and 13 by `ip`; KC4-T04 adds 19 gtp rows, 7 accepted, 4 refused by the kernel and 8 by `ip`. They are KP3's and KG3's source.
+- KC5 is planned (DOC006): five tasks, one per iproute2 parser or pair, with 335 drafted rows for the twelve IP tunnel kinds.
 
-**Next action:** [KC4-T04](goip-link-kinds.md#kc4-t04-gtp): gtp, which closes KC4 and plans KC5.
+**Next action:** [KC5-T01](goip-link-kinds.md#kc5-t01-gre-gretap-and-erspan): gre, gretap and erspan.
 
 ## Contents
 
@@ -39,8 +40,8 @@
 | [KC1](goip-link-kinds.md#kc1--inet-devconf-captures) | captures | `inet` devconf | KC1-T01 | done | V006–V008, DOC003 |
 | [KC2](goip-link-kinds.md#kc2--bridge-captures) | captures | bridge | KC2-T02 | done | V009–V016, DOC004 |
 | [KC3](goip-link-kinds.md#kc3--vlan-family-captures) | captures | VLAN family | KC3-T03 | done | V017–V025, DOC005 |
-| [KC4](goip-link-kinds.md#kc4--udp-overlay-captures) | captures | UDP overlays | KC4-T04 | in progress | V026–V034 |
-| [KC5](goip-link-kinds.md#kc5--ip-tunnel-captures) | captures | IP tunnels | | not started | |
+| [KC4](goip-link-kinds.md#kc4--udp-overlay-captures) | captures | UDP overlays | KC4-T04 | done | V026–V037, DOC006 |
+| [KC5](goip-link-kinds.md#kc5--ip-tunnel-captures) | captures | IP tunnels | KC5-T05 | not started | |
 | [KC6](goip-link-kinds.md#kc6--the-remaining-kinds-captures) | captures | the remaining kinds | | not started | |
 | [KC7](goip-link-kinds.md#kc7--kind-completeness-gate) | captures | completeness gate | | not started | |
 | [KP0](goip-link-kinds.md#kp0--inet-devconf-codec) | parsers | `inet` devconf codec | | not started | |
@@ -72,8 +73,12 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | [x] | [KC4-T01](goip-link-kinds.md#kc4-t01-vxlan) | vxlan | done | V026–V028 |
 | [x] | [KC4-T02](goip-link-kinds.md#kc4-t02-geneve) | geneve | done | V029–V031 |
 | [x] | [KC4-T03](goip-link-kinds.md#kc4-t03-bareudp-and-amt) | bareudp and amt | done | V032–V034 |
-| [ ] | [KC4-T04](goip-link-kinds.md#kc4-t04-gtp) | gtp | not started | |
-| [ ] | [KC5-T01…](goip-link-kinds.md#kc5--ip-tunnel-captures) | IP tunnel captures | not started | |
+| [x] | [KC4-T04](goip-link-kinds.md#kc4-t04-gtp) | gtp | done | V035–V037, DOC006 |
+| [ ] | [KC5-T01](goip-link-kinds.md#kc5-t01-gre-gretap-and-erspan) | gre, gretap and erspan | not started | |
+| [ ] | [KC5-T02](goip-link-kinds.md#kc5-t02-ip6gre-ip6gretap-and-ip6erspan) | ip6gre, ip6gretap and ip6erspan | not started | |
+| [ ] | [KC5-T03](goip-link-kinds.md#kc5-t03-ipip-and-sit) | ipip and sit | not started | |
+| [ ] | [KC5-T04](goip-link-kinds.md#kc5-t04-ip6tnl) | ip6tnl | not started | |
+| [ ] | [KC5-T05](goip-link-kinds.md#kc5-t05-vti-vti6-and-xfrm) | vti, vti6 and xfrm | not started | |
 | [ ] | [KC6-T01…](goip-link-kinds.md#kc6--the-remaining-kinds-captures) | the remaining kinds' captures | not started | |
 | [ ] | [KC7-T01…](goip-link-kinds.md#kc7--kind-completeness-gate) | completeness gate | not started | |
 | [ ] | [KP0-T01…](goip-link-kinds.md#kp0--inet-devconf-codec) | `inet` devconf codec | not started | |
@@ -132,6 +137,10 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 | V032 | 2026-10-24 | KC4-T03 | `nix build .#checks.x86_64-linux.vm-lib-exp` | `kind-write-corpus.exp`: 112 passed, 0 failed (the 350 rows, bareudp's missing option `ip`'s and amt's the kernel's, the busy port's pre and readbacks, the two refused sets on a device their pre made, every amt row the kernel answers but two naming a lower, `matches` against `strcmp`); the other suites unchanged | this commit |
 | V033 | 2026-10-24 | KC4-T03 | mutation, scratch copies of the corpus and its test, through `expect`: bareudp `add_no_ethertype` at 1, amt `add_no_link` with `dev d0`, bareudp `add_port_busy`'s pre without `b0`, amt `add_abbrev` at 0 | 4 of 4 killed: by `refused_statuses`; `amt_lower_excluded`; `bareudp_busy_pre`; `refused_statuses` and `keyword_matching` | scratch |
 | V034 | 2026-10-24 | KC4-T03 | `nix run .#microvm-x86_64-link-write-capture -- --timeout 7200`, guest kernel 7.3.0; `-d -j` readbacks; compared with V031 by `pcapcmp` | `NLCAP_DRIVER_FAIL` on `genl/mptcp_limits_set_over` alone (V004). The 36 rows hold their planned statuses on the first run: bareudp 6 at 0, 4 at 2, 1 at 1, 5 at 255; amt 5 at 0, 8 at 2, 3 at 1, 4 at 255. The readbacks are the plan's: `srcportmin` 0 by default, `ipv4` as `ip`, `0x1234` as `[4660]`; amt's ports 2268 and `max_tunnels` 128 (also for `max_tunnels 0`), a relay's `discovery` 0.0.0.0, and `mode gateway mode relay` as relay. The kernel's refusals carry their extack text ("Another bareudp device using the same port already exists", "Cannot set multiproto mode for this ethertype", "Link attribute is required", "Invalid stream device type", "relay port must not be 0", "discovery must be unicast", …); amt's bare add is a plain `Invalid argument`, and both sets `Operation not supported`. Against V031: 105 new pcaps, all under `kinds/bareudp/` and `kinds/amt/` (36 `ip.pcap` and 23 rows × 3 readbacks); 1814 the same shape, 13 differing in V004's classes, none under `kinds/` | scratch |
+| V035 | 2026-10-24 | KC4-T04 | `nix build .#checks.x86_64-linux.vm-lib-exp` | `kind-write-corpus.exp`: 118 passed, 0 failed (the 369 rows, gtp's after amt's, the hash size's top, an unknown word skipped against an abbreviated role, the second device's pre and readbacks, every set on the `g0` its pre made); the other suites unchanged | this commit |
+| V036 | 2026-10-24 | KC4-T04 | mutation, scratch copies of the corpus and its test, through `expect`: `add_unknown_skipped` at 1, `add_hsize_max` as 131072, `add_second` without its pre | 3 of 3 killed: by `refused_statuses` and `gtp_unknown_vs_abbrev`; `gtp_hsize_top`; `gtp_second_pre` | scratch |
+| V037 | 2026-10-24 | KC4-T04 | `nix run .#microvm-x86_64-link-write-capture -- --timeout 7200`, guest kernel 7.3.0; `-d -j` readbacks; compared with V034 by `pcapcmp` | `NLCAP_DRIVER_FAIL` on `genl/mptcp_limits_set_over` alone (V004). The 19 rows hold their planned statuses on the first run: 7 at 0, 4 at 2, 3 at 1 and 5 at 255. The readbacks are the plan's: `role` as sent, `hsize` 1024 by default and for `hsize 0`, 131071 at the top, `restart_count` 255, and `foo` skipped. The kernel refuses the bare add and the bare set with a plain `Invalid argument` (validate runs with no data), the second socket-owning device with `Address already in use`, and the set with `Operation not supported` (gtp has no `changelink`); `ip`'s refusals carry its role and `invarg` texts. Against V034: 52 new pcaps, all under `kinds/gtp/` (19 `ip.pcap` and 11 rows × 3 readbacks); 1921 the same shape, 11 differing in V004's classes, none under `kinds/` | scratch |
+| DOC006 | 2026-10-24 | KC4 close | KC5 broken into KC5-T01 (gre, gretap and erspan), KC5-T02 (ip6gre, ip6gretap and ip6erspan), KC5-T03 (ipip and sit), KC5-T04 (ip6tnl) and KC5-T05 (vti, vti6 and xfrm) with their tables, argued from `link_gre.c`, `link_gre6.c`, `link_iptnl.c`, `link_ip6tnl.c`, `link_vti.c`, `link_vti6.c` and `link_xfrm.c` at `v7.2.0` and each kind's kernel checks; the fou/fou6 and 6RD findings (decision log); doccheck | tasks one to one, no broken link or anchor | this commit |
 
 ## Decision log
 
@@ -153,3 +162,6 @@ Task IDs link to their sections in the plan. A phase not yet broken into tasks i
 - **gtp is in scope; KC0's probe sent no option.** With nothing after `type gtp`, `iplink_parse` doesn't call `gtp_parse_opt`, no `INFO_DATA` goes out, and `gtp_validate` refuses `!data`. `role ggsn` is enough: `ip` then sends `IFLA_GTP_CREATE_SOCKETS`, and the kernel opens its own sockets. KC4-T04 has the rows; the KC0 entry above is answered.
 - **7.2.0's geneve option is `local`, not `local` and `local6`.** The plan named both; `iplink_geneve.c` has one `strcmp` keyword that sends `IFLA_GENEVE_LOCAL` or `IFLA_GENEVE_LOCAL6` by the address's family, and `local6`, like `remote6`, is only an output key. KC4-T02 has a row for each family and one for the word `local6`, which `ip` refuses.
 - **`get_addr` exits 1.** A bad or wrong-family address calls `exit(1)`, not `exit(-1)`, so an address `ip` can't parse reads like a returned error. KC4's tables use it; KC3's rows had no address.
+- **KC5's encap rows: fou is loaded, fou6 isn't.** `late_modules` already loads `fou` for its genl family, and it registers the IPv4 FOU and GUE encap ops, so gre's, ipip's and sit's encap rows are accepted. `fou6` isn't loaded, so the ip6 kinds' `encap fou`/`gue` rows are kernel refusals (`-EINVAL`). Their requests still carry every `ENCAP_*` attribute, which is what KP and KG need; loading `fou6` would add readbacks, not request coverage.
+- **The guest kernel has no `CONFIG_IPV6_SIT_6RD`.** sit's 6rd words are sent and ignored, so its 6rd rows are accepted and read back nothing; `sit/add_6rd_overlong` (48 + 24 bits, which a 6rd kernel refuses) is the canary if the config changes.
+- **KC5 is five tasks, one per iproute2 parser or pair.** The drafts were argued from `link_gre.c`, `link_gre6.c`, `link_iptnl.c`, `link_ip6tnl.c`, `link_vti.c`, `link_vti6.c` and `link_xfrm.c` at `v7.2.0` and the 7.3 kernel's checks. Two findings shape every task: a bare `type <kind>` is accepted, and every parser but xfrm's fetches the device before a set and resends its current values.

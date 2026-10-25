@@ -730,6 +730,7 @@ The device is `g0`. Once any option follows `type gtp`, `ip` sends `IFLA_GTP_CRE
 | boundary: the hash size's top | `add_hsize_max`, `add_hsize_over` | 131071 at 0, 131072 at 255 |
 | corner: an unknown word is accepted, an abbreviated `role` refused | `add_unknown_skipped`, `add_abbrev` | 0, 1 |
 | corner: the second device's pre | `add_second` | `g0` with `role ggsn`; the readbacks read `g1` |
+| corner: every set acts on the `g0` its pre made | `set_same`, `set_no_option`, `set_no_role` | `g0` in each command, `link add g0 type gtp role ggsn` the pre |
 | positive (VM): each status, and the values read back | `ip.rc`; `-d -j` readbacks | the table's rc; `role`, `hsize` and `restart_count` as sent, `hsize 0` as 1024 |
 
 **Mutation check:** `add_unknown_skipped` at 1, `add_hsize_max` at 131072, `add_second`'s pre without `g0`.
@@ -738,7 +739,436 @@ The device is `g0`. Once any option follows `type gtp`, `ip` sends `IFLA_GTP_CRE
 
 ### KC5 — IP tunnel captures
 
-gre, gretap, erspan, ip6gre, ip6gretap, ip6erspan, ipip, sit, ip6tnl, vti, vti6 and xfrm.
+gre, gretap, erspan, ip6gre, ip6gretap, ip6erspan, ipip, sit, ip6tnl, vti, vti6 and xfrm: point-to-point and Ethernet tunnels over IPv4 and IPv6, each optionally bound to a lower with `dev`. Five tasks, one per iproute2 parser or pair: KC5-T01 gre, gretap and erspan (`link_gre.c`); KC5-T02 ip6gre, ip6gretap and ip6erspan (`link_gre6.c`); KC5-T03 ipip and sit (`link_iptnl.c`); KC5-T04 ip6tnl (`link_ip6tnl.c`); KC5-T05 vti, vti6 and xfrm (`link_vti.c`, `link_vti6.c`, `link_xfrm.c`), which closes KC5.
+
+**Shared shape.** Rows go in `kind-write-corpus.exp` after gtp's, under `kinds/<kind>/`, with KC4's shape: an add names no lower unless the row is about `dev d0`, which puts `link add d0 type dummy` in the pre, and a set acts on a device the pre made. The fallback names (`gre0`, `gretap0`, `erspan0`, `ip6gre0`, `tunl0`, `sit0`, `ip6tnl0`, `ip_vti0`, `ip6_vti0`) are never used, and KC0's `fb_tunnels_only_for_init_net=2` keeps every row's namespace free of them. Each kind's kernel checks are argued from its `validate`, `newlink` and `changelink` (`net/ipv4/ip_gre.c`, `net/ipv4/ip_tunnel.c`, `net/ipv6/ip6_gre.c`, `net/ipv4/ipip.c`, `net/ipv6/sit.c`, `net/ipv6/ip6_tunnel.c`, `net/ipv4/ip_vti.c`, `net/ipv6/ip6_vti.c`, `net/xfrm/xfrm_interface_core.c`), and the first VM run confirms them.
+
+**What these files add to KC4's rules:**
+- **A bare `type <kind>` is accepted.** Unlike KC4's kinds, no tunnel `validate` refuses `!data` (xfrm's `newlink` does, for its `if_id`). The device gets the kernel's defaults, which can differ from the ones `ip` sends once any word is given.
+- **A set fetches before it sends.** The gre, gre6, iptnl, ip6tnl, vti and vti6 parsers, on a set (no `NLM_F_CREATE`), first send an `RTM_GETLINK` for the device and prefill every attribute it reports, so a set's request carries the device's current values plus the changed words. A set on a device with no `INFO_DATA` fails in `ip` ("Failed to get existing tunnel info.", 1). xfrm has no prefetch.
+- **A bare set changes nothing.** With no words no `INFO_DATA` is sent, and `rtnl_changelink` calls `changelink` only when it is present, so the set is 0.
+- **No duplicate checks.** These parsers have no `check_duparg`; a repeated word overwrites the earlier one, so there are no `duparg` rows.
+- **fou is loaded, fou6 isn't.** `late_modules` loads `fou` for its genl family, and it registers the IPv4 FOU and GUE encap ops, so gre's, ipip's and sit's `encap fou`/`gue` rows are accepted. Nothing loads `fou6`, so on ip6gre, ip6gretap and ip6tnl `ip6_encap_hlen` finds no ops and the kernel refuses the encap (`-EINVAL`, 2); the request still carries every `ENCAP_*` attribute, which is what the parsers need.
+- **The guest has no `CONFIG_IPV6_SIT_6RD`.** sit's 6rd words are sent and ignored.
+
+#### KC5-T01 gre, gretap and erspan
+
+All three kinds use one parser in `ip/link_gre.c`, `gre_parse_opt`, and one kernel file, `net/ipv4/ip_gre.c`, on top of `net/ipv4/ip_tunnel.c`. The devices are `gr0` (gre), `gt0` (gretap) and `es0` (erspan), with `gr1`/`gt1` as the second device. `gre0`, `gretap0` and `erspan0` are the fallback names, so they are avoided; the harness's `fb_tunnels_only_for_init_net=2` means no row's namespace has a fallback device. `ip` requires no option. Once any word follows `type <kind>`, `ip` sends `IKEY`, `OKEY`, `IFLAGS`, `OFLAGS`, `PMTUDISC` (1 by default), `TOS`, `TTL`, `FWMARK` and the four `ENCAP_*`. It sends `LOCAL`/`REMOTE` only when the address is neither `any` nor 0.0.0.0, `LINK` only for `dev`, and `IGNORE_DF` only when `ignore-df` or `noignore-df` is given. erspan also always sends `ERSPAN_VER` (default 1), plus `ERSPAN_INDEX` when the version is 1 and the index is nonzero, or `ERSPAN_DIR` and `ERSPAN_HWID` when the version is 2. `external` sends `COLLECT_METADATA` **alone** and drops every other word. The parser has no `noexternal`, and the help text's `[no]encap-csum6` is not a keyword (the parser expects `encap-udp6-csum`).
+
+- **Keyword matching.** `matches` (abbreviations accepted, first match wins) covers the key, seq and csum families with their `no`/`i`/`o` forms, `[no]pmtudisc`, `remote`, `local`, `dev`, `ttl`/`hoplimit`/`hlim` and `tos`/`tclass`/`dsfield`. So `no` means `nokey`, `s` means `seq` and `c` means `csum`. `strcmp` covers `noencap`, `encap` and its values, `encap-sport`/`-dport`, `[no]encap-csum`, `[no]encap-udp6-csum`, `[no]encap-remcsum`, `external`, `[no]ignore-df`, `fwmark` and the four erspan words (`erspan`, `erspan_ver`, `erspan_dir`, `erspan_hwid`). The erspan words exist only for erspan; on gre and gretap they get the usage text, rc 1. `erspan_dir`'s value itself is parsed with `matches`.
+- **No duplicate checks.** A repeated word overwrites the earlier one.
+- **ip's own checks.** `ip` refuses a multicast `remote` with no `local` ("A broadcast tunnel requires a source address", returned, 1), and in that case fills in the keys from the group address. It checks `erspan` (1..2^20-1), `erspan_ver` (≤2), `ttl` (u8, base 0), `tos` (hex, ≤ff) and `fwmark`/`encap-*` with `invarg` (255).
+- **Set prefetch.** On a set (no `NLM_F_CREATE`), `gre_parse_opt` first sends an `RTM_GETLINK` for the device and prefills every `IFLA_GRE_*` the kernel reports, so a set sends the device's current values plus the changed words. This matters because the kernel rebuilds the parameters from the message on every change (`ipgre_netlink_parms` starts with a `memset`). It has three consequences:
+  - A set on a device with no `INFO_DATA` (`d0`) fails in `ip` ("Failed to get existing tunnel info.", 1).
+  - A set on an `external` device prefills `metadata`, so only `COLLECT_METADATA` is sent and the other words are silently dropped.
+  - `remote any` on a set really clears the remote.
+- **Kernel validate.** It runs on adds and sets.
+  - All three `validate`s accept `data == NULL`, so `add_no_option` creates a tunnel (remote and local any, ttl inherit, and `nopmtudisc`, because `ipgre_netlink_parms` returns before it sets DF).
+  - gre refuses only `GRE_VERSION`/`GRE_ROUTING` flags (which `ip` can't send) and metadata with an encap (which `ip` can't send either: `external` drops the encap).
+  - gretap adds the `IFLA_ADDRESS` check (6 bytes, a valid unicast MAC) and a nonzero-remote check. `ip` can't reach the remote check, because it never sends a zero `REMOTE`.
+  - erspan adds, unless the version is 0 or `external` is given, that the OR of `IFLAGS` and `OFLAGS` is exactly `seq|key`, and that each key fits in 10 bits.
+- **Kernel newlink and changelink.**
+  - `erspan_netlink_parms` refuses a hwid over 6 bits; `ip` can't send a bad direction or index.
+  - `ipgre_netlink_parms` refuses `pmtudisc` on a device that has `ignore-df`, checking the device's **old** `ignore_df` before it reads the new one, and refuses `ignore-df` with `pmtudisc`.
+  - `ip_tunnel_newlink` returns `-EEXIST` for a second tunnel with the same local, remote, link and key, or for a second metadata tunnel.
+  - `ipgre_changelink` refuses turning on `external` (`-EOPNOTSUPP`, with extack).
+  - `ip_tunnel_changelink` returns `-EEXIST` when the new parameters match another tunnel. For gre only (not Ethernet), it also returns `-EINVAL` when the point-to-point state would change, for example a remote going to any.
+  - `rtnl_changelink` calls `changelink` only when `INFO_DATA` is present, so a bare set is rc 0 and changes nothing. A set naming another kind is `-EOPNOTSUPP`.
+
+| slugs | command (after `type <kind>`) | rc | what it pins |
+|---|---|---|---|
+| gre `add_default` | `remote 10.0.0.1` | 0 | the always-sent set; reads back `remote 10.0.0.1 local any ttl inherit`, JSON `pmtudisc` true |
+| gre `add_no_option` | (no option) | 0 | no `INFO_DATA`; a tunnel with remote any and `nopmtudisc` |
+| gre `add_local` | `remote any local 10.0.0.2` | 0 | `LOCAL`; `any` sends no `REMOTE` |
+| gre `add_dev` | `remote 10.0.0.1 dev d0` | 0 | `LINK`; reads back `dev d0` |
+| gre `add_key`, `add_key_split` | `remote 10.0.0.1 key 42`; `remote 10.0.0.1 ikey 1.2.3.4 okey 5` | 0 | `GRE_KEY` in both flags; the keys read back dotted (`0.0.0.42`, `1.2.3.4`, `0.0.0.5`) |
+| gre `add_seq_csum` | `remote 10.0.0.1 seq csum noocsum` | 0 | reads back `iseq oseq icsum`, with the `no` form clearing `ocsum` |
+| gre `add_ttl_max`, `add_tos_max`, `add_tos_inherit` | `remote 10.0.0.1 hoplimit 255`; `tclass ff`; `tos inherit` | 0 | the aliases; `ttl 255`; `tos 0xff`; `tos inherit` (1) |
+| gre `add_nopmtudisc_ignore_df` | `remote 10.0.0.1 nopmtudisc ignore-df` | 0 | `PMTUDISC` 0, `IGNORE_DF` 1 |
+| gre `add_fwmark` | `remote 10.0.0.1 fwmark 0x10` | 0 | `FWMARK`; reads back `fwmark 0x10` |
+| gre `add_encap_none`, `add_encap_fou` | `remote 10.0.0.1 encap none`; `remote 10.0.0.1 encap fou encap-sport auto encap-dport 5555 encap-csum noencap-csum encap-udp6-csum encap-remcsum` | 0 | `ENCAP_TYPE` 0 (no encap printed); FOU with dport 5555 and the strcmp flag words, through the ops `fou` registers |
+| gre `add_external`, `add_external_encap` | `external`; `external encap fou` | 0 | `COLLECT_METADATA` alone; the encap is dropped, so validate's metadata/encap refusal is unreachable |
+| gre `add_multicast` | `remote 239.1.1.1 local 10.0.0.1` | 0 | `ip` sets both keys to the group (`ikey 239.1.1.1`) |
+| gre `add_abbrev`, `add_no_abbrev` | `r 10.0.0.1 l 10.0.0.2 t 64 k 5 s c`; `remote 10.0.0.1 key 5 no` | 0 | `matches`; `no` is `nokey`, so no key reads back |
+| gre `add_second_keyed` | `gr1`, `remote 10.0.0.1 key 5`, on a namespace whose `gr0` has `remote 10.0.0.1` | 0 | a key makes it a different tunnel |
+| gre `set_changeable` | `ttl 32 tos 10 key 5 seq csum fwmark 7 local 10.0.0.2 remote 10.0.0.2`, on `gr0` | 0 | the prefetch plus the words; a unicast remote can change |
+| gre `set_dev`, `set_no_option` | `dev d0`; (no option), on `gr0` | 0 | `LINK` changed; no `INFO_DATA`, so no `changelink` |
+| gre `set_on_external` | `ttl 64`, on an `external` `gr0` | 0 | the prefetch's metadata drops `ttl`, which still reads back inherit |
+| gre `add_ignore_df` | `remote 10.0.0.1 ignore-df` | 2 | `ignore-df` with the default `pmtudisc` |
+| gre `add_duplicate`, `add_second_external` | `gr1` `remote 10.0.0.1` over that `gr0`; `gr1` `external` over an `external` `gr0` | 2 | `-EEXIST` |
+| gre `set_remote_any`, `set_collide` | `remote any` on `gr0`; `remote 10.0.0.1` on `gr1`, over `gr0` `remote 10.0.0.1` | 2 | the point-to-point state; `-EEXIST` |
+| gre `set_external`, `set_pmtudisc_ignore_df` | `external` on `gr0`; `pmtudisc noignore-df` on a `gr0` with `nopmtudisc ignore-df` | 2 | the collect_md extack; the old `ignore_df` is checked first |
+| gre `add_unknown`, `add_strcmp_abbrev`, `add_encap_csum6_word`, `add_erspan_word` | `remote 10.0.0.1` then `noexternal`; `ext`; `encap-csum6`; `erspan_ver 1` | 1 | the usage text, returned |
+| gre `add_multicast_no_local` | `remote 239.1.1.1` | 1 | `ip`'s broadcast-tunnel check |
+| gre `add_remote6`, `add_key_dotted_bad` | `remote 2001:db8::1`; `remote 10.0.0.1 key 1.2.3.x` | 1 | `get_addr`'s and `get_addr32`'s `exit(1)` |
+| gre `set_not_a_tunnel` | `ip link set d0 type gre ttl 5` | 1 | the prefetch finds no `INFO_DATA` |
+| gre `add_key_bad`, `add_ttl_over`, `add_tos_over`, `add_encap_bad` | `remote 10.0.0.1` then `key foo`; `ttl 256`; `tos 100`; `encap foo` | 255 | `tnl_parse_key`'s `exit(-1)`; `invarg` ×3 (`tos` is hex, so 100 is 256) |
+| gre `add_dev_missing`, `add_no_value` | `remote 10.0.0.1 dev nosuch`; `remote` | 255 | `exit(nodev())`; `NEXT_ARG` |
+| gretap `add_default`, `add_no_option`, `add_external` | `remote 10.0.0.1`; (none); `external` | 0 | as gre's, on an Ethernet device with a random MAC |
+| gretap `add_multicast` | `remote 239.1.1.1 local 10.0.0.1` | 0 | group keys; no point-to-point state |
+| gretap `add_address` | `ip link add gt0 address 02:00:00:00:00:01 type gretap remote 10.0.0.1` | 0 | `IFLA_ADDRESS` passes `ipgre_tap_validate` |
+| gretap `set_remote_any` | `remote any`, on `gt0` | 0 | Ethernet skips the point-to-point check, so the remote reads back any |
+| gretap `add_address_multicast` | `ip link add gt0 address 01:00:5e:00:00:01 type gretap remote 10.0.0.1` | 2 | `-EADDRNOTAVAIL` |
+| gretap `add_second_external`, `set_external` | `gt1` `external` over an `external` `gt0`; `external` on `gt0` | 2 | `-EEXIST`; the collect_md extack |
+| gretap `set_on_gre` | `ip link set gr0 type gretap ttl 5`, on `gr0` | 2 | another kind's ops: `-EOPNOTSUPP` |
+| gretap `add_erspan_word` | `remote 10.0.0.1 erspan 5` | 1 | the erspan words are erspan's |
+| erspan `add_default` | `remote 10.0.0.1 seq key 10` | 0 | `ERSPAN_VER` 1, no index sent; reads back `erspan_index 0 erspan_ver 1`, `iseq oseq`, keys `0.0.0.10` |
+| erspan `add_no_option` | (no option) | 0 | no `INFO_DATA`: version 1 from `erspan_setup`; `fill_info` adds `okey` |
+| erspan `add_index`, `add_index_max` | base `erspan 123`; base `erspan 1048575` | 0 | `ERSPAN_INDEX`; the 20-bit top |
+| erspan `add_flags_split`, `add_key_max` | `remote 10.0.0.1 iseq okey 10`; `remote 10.0.0.1 seq key 1023` | 0 | the kernel ORs the flags; the 10-bit key's top |
+| erspan `add_ver0` | `remote 10.0.0.1 erspan_ver 0 csum` | 0 | version 0 skips the seq/key check; reads back `erspan_ver 0` |
+| erspan `add_ver2`, `add_hwid_max`, `add_dir_abbrev` | base `erspan_ver 2 erspan_dir egress erspan_hwid 7`; base `erspan_ver 2 erspan_hwid 0x3f`; base `erspan_ver 2 erspan_dir e` | 0 | `DIR`/`HWID`, no index; the 6-bit hwid's top; `matches` within `erspan_dir` |
+| erspan `add_dir_ver1`, `add_external` | base `erspan_dir egress erspan_hwid 7`; `external` | 0 | version 1 sends no dir/hwid; metadata skips the flag check |
+| erspan `set_index`, `set_ver0_noseq` | `erspan 200`; `erspan_ver 0 noseq`, on `es0` | 0 | the prefetch keeps `seq key 10`; version 0 frees the flags |
+| erspan `add_remote_only`, `add_csum`, `add_key_over` | `remote 10.0.0.1`; base `csum`; `remote 10.0.0.1 seq key 1024` | 2 | `erspan_validate`: flags not `seq|key`; key over 10 bits |
+| erspan `add_hwid_over`, `set_noseq` | base `erspan_ver 2 erspan_hwid 0x40`; `noseq` on `es0` | 2 | `erspan_netlink_parms`'s hwid mask; validate on a set |
+| erspan `add_strcmp_abbrev` | base `erspan_v 2` | 1 | the erspan words are `strcmp` |
+| erspan `add_index_zero`, `add_index_over`, `add_ver_over`, `add_dir_bad`, `add_no_value` | base `erspan 0`; base `erspan 1048576`; base `erspan_ver 3`; base `erspan_ver 2 erspan_dir both`; base `erspan` | 255 | `invarg` ×4; `NEXT_ARG` |
+
+**Tests:**
+
+| description | input | expected |
+|---|---|---|
+| positive: the rows are the plan's, after gtp's | the slug list | the table's slugs, gre's then gretap's then erspan's |
+| negative: exactly the refusal rows expect a non-zero status | `refused_rows` | the table's |
+| positive: a bare `type <kind>` is accepted by all three | `gre/add_no_option`, `gretap/add_no_option`, `erspan/add_no_option` | 0 each; no `INFO_DATA` in the command's capture |
+| boundary: erspan's index, key and hwid ranges | `add_index_max`/`add_index_over`, `add_key_max`/`add_key_over`, `add_hwid_max`/`add_hwid_over` | 0/255, 0/2, 0/2 |
+| boundary: gre's ttl and tos tops | `add_ttl_max`, `add_ttl_over`, `add_tos_max`, `add_tos_over` | 0, 255, 0, 255 |
+| corner: the remote going to any is refused on gre and accepted on gretap | `gre/set_remote_any`, `gretap/set_remote_any` | 2, 0 |
+| corner: the prefetch shapes a set | `gre/set_on_external`, `gre/set_not_a_tunnel`, `erspan/set_index` | 0 with `ttl` dropped; 1 on `d0`; 0 with `seq key 10` resent |
+| corner: the conflict rows' pres | `add_duplicate`, `add_second_keyed`, `add_second_external`, `set_collide`, `set_pmtudisc_ignore_df` | `gr0` with `remote 10.0.0.1` (×2), `external`, `gr0`+`gr1`, `nopmtudisc ignore-df`; the readbacks read `gr1`, `gr1`, `gr1`, `gr1`, `gr0` |
+| corner: the rows naming `d0` make it first | `add_dev`, `set_dev`, `set_not_a_tunnel` | `{link add d0 type dummy}` first in each pre |
+| corner: `get_addr`'s failure is 1, `tnl_parse_key`'s 255 | `add_key_dotted_bad`, `add_key_bad` | 1, 255 |
+| negative: the erspan words on another kind, and the help text's `encap-csum6`, are `ip`'s refusals | `gre/add_erspan_word`, `gretap/add_erspan_word`, `gre/add_encap_csum6_word` | 1 each, floor 0 |
+| positive (VM): each status, and the values read back | `ip.rc`; `-d -j` readbacks | the table's rc; dotted keys, `ttl inherit`, `pmtudisc`, `erspan_ver`/`erspan_index`/`erspan_dir`/`erspan_hwid` as above |
+
+**Mutation check:** `gretap/set_remote_any` at 2 (the remote-any corner row catches it); `erspan/add_index_over` at 0 (the erspan ranges boundary row); `gre/set_pmtudisc_ignore_df`'s pre without `ignore-df` (the pres row); `gre/add_key_bad` at 1 (the `get_addr`/`tnl_parse_key` row).
+
+**Done when:** as KC2-T01.
+
+#### KC5-T02 ip6gre, ip6gretap and ip6erspan
+
+One `ip` parser serves all three kinds: `gre_parse_opt` in `ip/link_gre6.c`, with one `link_util` per kind. The kernel side is `net/ipv6/ip6_gre.c`. ip6gre and ip6gretap share `ip6gre_newlink` and `ip6gre_changelink`; ip6erspan has its own newlink and changelink, built on the same common code. The devices are `g6` (ip6gre), `gt6` (ip6gretap) and `es6` (ip6erspan), with `g7` and `gt7` as second devices. None of them is the fallback name `ip6gre0`, which a row's namespace doesn't have anyway. "base" is `remote 2001:db8::1` for ip6gre and ip6gretap, and `remote 2001:db8::1 key 10 seq` for ip6erspan.
+
+`ip` requires no word on any of the three kinds. Once any word follows `type <kind>`, `ip` sends `IKEY`, `OKEY`, `IFLAGS`, `OFLAGS`, `TTL` (64), `ENCAP_LIMIT` (4), `FLOWINFO`, `FLAGS`, `FWMARK`, `ERSPAN_VER` (1) and the four `ENCAP_*` attributes, with `ENCAP_FLAGS` set to `CSUM6`. It sends `LOCAL`, `REMOTE` and `LINK` only when they are set; `::` and `any` count as unset. With `external`, `ip` sends `COLLECT_METADATA` and nothing else. With no word, `parse_opt` isn't called and no `INFO_DATA` is sent. All three `validate`s accept `data == NULL`, so `add_no_option` creates a device (rc 0). `ip6gre_netlink_parms` then zeroes everything, so the device reads back `hoplimit inherit` (JSON `ttl` 0) and `encaplimit 0`, not 64 and 4. An ip6erspan made this way has `erspan_ver` 0 and reads back no `erspan_*` key.
+
+**Keywords.** `matches` (abbreviations accepted, first match wins): `key`, `nokey`, `ikey`, `noikey`, `okey`, `nookey`, `seq`, `noseq`, `iseq`, `noiseq`, `oseq`, `nooseq`, `csum`, `nocsum`, `icsum`, `noicsum`, `ocsum`, `noocsum`, `remote`, `local`, `dev`, `ttl`/`hoplimit`/`hlim` and `tos`/`tclass`/`dsfield`. So `k` is `key`, `no` is `nokey`, `d` is `dev`, `h` is `hoplimit` and `tc` is `tclass`. Everything else is `strcmp`: `flowlabel`/`fl`, `dscp`, `noencap`, `encap`, `encap-sport`, `encap-dport`, `[no]encap-csum`, `[no]encap-udp6-csum`, `[no]encap-remcsum`, `external`, `fwmark`, `[no]allow-localremote`, `encaplimit`, `erspan`, `erspan_ver`, `erspan_dir` and `erspan_hwid`. Inside `erspan_dir`, the values `ingress` and `egress` are `matches`. Only these keywords take a "no" form; `noexternal` doesn't exist. No keyword in the file checks for repeats (no `duparg`), so a repeated word is accepted and the last one wins.
+
+**Value parsing.**
+- `tclass` is parsed as hex, so `20` is 0x20.
+- `flowlabel` is parsed as hex and must be at most 0xfffff.
+- `hoplimit`, `encaplimit`, `fwmark` and the ports take any base.
+- `tclass`, `flowlabel` and `fwmark` also accept `inherit`; `encaplimit` accepts `none`; `encap-sport` accepts `auto`.
+- A key containing a dot is parsed by `get_addr32`, whose failure is `exit(1)`. Any other key goes through `get_unsigned`, whose failure is `exit(-1)`, so 255.
+- `remote` and `local` are parsed with `AF_INET6`, so an IPv4 address is `get_addr`'s `exit(1)`.
+
+**A set fetches first.** When there is no `NLM_F_CREATE`, `gre_parse_opt` sends an `RTM_GETLINK` for the device before it parses any word, and fills its variables from every `IFLA_GRE_*` the answer carries. The capture shows that request and answer before the `RTM_NEWLINK`. A set therefore sends the device's whole configuration plus the changed words. Two side effects follow:
+- `FLAGS` carries the `IP6_TNL_F_CAP_*` bits the kernel computed.
+- `ENCAP_SPORT` and `ENCAP_DPORT` come back byte-swapped. The answer's big-endian value is read with `rta_getattr_u16` and then passed through `htons` again, so on the x86_64 guest port 4660 becomes 13330.
+
+Two more cases:
+- A set with no word fetches nothing and sends no `INFO_DATA`. `rtnl_changelink` then skips `changelink`, so the set is rc 0.
+- A set on a device whose answer has no `INFO_DATA` (a dummy) fails with "Failed to get existing tunnel info.", and `parse_opt` returns -1, so rc 1.
+
+**What the kernel checks.**
+- **ip6gre's `validate`** refuses only `GRE_VERSION` and `GRE_ROUTING`, which `ip` can't send. It accepts and ignores every `ERSPAN_*` attribute, so `erspan_ver 0` is rc 0 on ip6gre.
+- **ip6gretap's `validate`** also refuses a `REMOTE` of `::`. `ip` never sends one, because it omits an unspecified address on an add, and on a set too, since `get_addr_rta` marks a fetched `::` as unspec. So `remote ::` is rc 0 on ip6gretap.
+- **ip6erspan's `validate`** works on the union of `IFLAGS` and `OFLAGS`, which must be exactly `GRE_SEQ|GRE_KEY` unless `COLLECT_METADATA` is present. Keys must fit `ID_MASK` (0x3ff). `ERSPAN_VER`, when present, must be 1 or 2. For version 2, `hwid` must fit 6 bits (0x3f). `ip`'s own checks (an index of 1 to 0xfffff, a version of at most 2, `ingress`/`egress`) pre-empt the kernel's index and direction checks.
+- **`newlink`** refuses a second device whose local, remote, `i_key`, link and `dev->type` all match an existing one (`-EEXIST`). It also refuses a second `external` device: ip6gre and ip6gretap share one `collect_md_tun` slot, so an `external` ip6gretap is refused beside an `external` ip6gre, while ip6erspan has a slot of its own.
+- **`changelink`** returns `-EEXIST` when the new parameters belong to another device. `ip6gre_tunnel_locate` always searches with `ARPHRD_IP6GRE`, so an ip6gretap set that collides goes through (rc 0). `changelink` never copies `collect_md`, so a set of `external` is accepted but leaves the device not external, with its other parameters zeroed.
+- **A set naming another kind** is `-EOPNOTSUPP`, from `rtnl_changelink`.
+- **`encap fou` and `encap gue`** need `fou6`'s `ip6_tnl_encap_ops`. `fou6` isn't in `late_modules`, and nothing loads it on demand, so `ip6_encap_hlen` returns `-EINVAL` (rc 2). This is unlike gre, whose IPv4 ops come with `fou`.
+
+**Read-back forms.**
+- Keys print through `inet_ntop`, so `key 42` reads back `ikey 0.0.0.42 okey 0.0.0.42`.
+- `tclass` prints as `0x%02x`, `flowlabel` as `0x%05x` and `fwmark` as `%#x`.
+- `encaplimit none`, `tclass inherit`, `flowlabel inherit`, `fwmark inherit`, `dscp inherit` and `allow-localremote` are JSON booleans named `ip6_tnl_f_*`.
+- An `encap` of none isn't printed, so `ENCAP_*` values sent with it show only in the capture.
+- An ip6erspan device always reports `okey`, because `fill_info` sets `GRE_KEY` in `o_flags` for versions 1 and 2. At version 1 it reports `erspan_index`, even when the index is 0.
+
+| slugs | command | rc | what it pins |
+|---|---|---|---|
+| ip6gre `add_default` | base | 0 | `ip`'s full set of defaults; reads back `hoplimit 64 encaplimit 4 tclass 0x00 flowlabel 0x00000` and no `erspan_ver` (ip6gre ignores it) |
+| ip6gre `add_no_option` | (no option) | 0 | no `INFO_DATA`; the kernel's zeros: `remote any`, `hoplimit inherit`, `encaplimit 0` |
+| ip6gre `add_dev` | base `dev d0` | 0 | `LINK`; reads back `dev d0` |
+| ip6gre `add_ttl_inherit`, `add_encaplimit_none` | base `ttl inherit`; base `encaplimit none` | 0 | `TTL` 0 (text `hoplimit inherit`, JSON `ttl` 0); `FLAGS` 0x1 with `ENCAP_LIMIT` still 4, reads back `encaplimit none` |
+| ip6gre `add_tops` | base `hoplimit 255 tclass ff flowlabel 0xfffff` | 0 | each field's top: `TTL` 255; `FLOWINFO` 0x0fffffff; reads back `tclass 0xff flowlabel 0xfffff` |
+| ip6gre `add_flags` | base `tclass inherit flowlabel inherit fwmark inherit dscp inherit allow-localremote` | 0 | `FLAGS` 0x76, five `ip6_tnl_f_*` booleans |
+| ip6gre `add_fwmark` | base `fwmark 0x10` | 0 | `FWMARK`; reads back `fwmark 0x10` |
+| ip6gre `add_key`, `add_ikey_okey` | base `key 42 seq csum`; base `ikey 1.2.3.4 okey 5 iseq ocsum` | 0 | both directions' `KEY`, `SEQ` and `CSUM` bits; a dotted and a numeric key; `ikey 1.2.3.4 okey 0.0.0.5` |
+| ip6gre `add_no_forms` | base `key 42 seq csum nokey noseq nocsum` | 0 | the "no" forms clear what came before: flags 0, keys 0 |
+| ip6gre `add_abbrev` | `r 2001:db8::1 l 2001:db8::2 h 10 tc 20 k 5` | 0 | `matches`: `remote`, `local`, `hoplimit`, `tclass`, `key` |
+| ip6gre `add_repeat` | base `hoplimit 10 hoplimit 20` | 0 | no `duparg`; the last one wins (`hoplimit 20`) |
+| ip6gre `add_encap_none` | base `encap none encap-sport 5555 encap-dport 6666 encap-csum encap-remcsum noencap-udp6-csum` | 0 | `ENCAP_TYPE` 0, `ENCAP_FLAGS` 5, both ports; stored but not printed |
+| ip6gre `add_external` | `external` | 0 | `COLLECT_METADATA` alone; reads back `external` |
+| ip6gre `add_erspan_ver_zero` | base `erspan_ver 0` | 0 | `ERSPAN_VER` 0 sent, and ignored by ip6gre |
+| ip6gre `add_second_key` | `g7`, `remote 2001:db8::1 key 1`, on a namespace with `g6` (base) | 0 | `i_key` is part of the tunnel's identity |
+| ip6gre `set_changeable` | `hoplimit 10 tclass 20 flowlabel 0x1 encaplimit 2 key 5 local 2001:db8::2`, on `g6` | 0 | the `GETLINK` first; `remote` carried over from the fetch; each changed field reads back |
+| ip6gre `set_no_option` | (no option), on `g6` | 0 | no fetch, no `INFO_DATA`, no `changelink` |
+| ip6gre `set_external_ignored` | `external`, on `g6` | 0 | only `COLLECT_METADATA` is sent; reads back no `external`, `remote any`, `hoplimit inherit` |
+| ip6gre `set_encap_sport_swap` | `hoplimit 10`, on a `g6` made with `encap-sport 4660` | 0 | the fetched port is resent byte-swapped (13330); visible in the capture only |
+| ip6gre `add_duplicate` | `g7`, base, on a namespace with `g6` (base) | 2 | `-EEXIST` from `ip6gre_tunnel_find` |
+| ip6gre `add_external_twice` | `g7`, `external`, on a namespace with an `external` `g6` | 2 | `-EEXIST`: `collect_md_tun` is taken |
+| ip6gre `set_collide` | `remote 2001:db8::1`, on `g7` (remote `2001:db8::2`), beside `g6` (base) | 2 | `changelink`'s `-EEXIST` |
+| ip6gre `add_encap_fou`, `add_encap_gue` | base `encap fou encap-dport 5555`; base `encap gue encap-dport 5555` | 2 | no ip6 encap ops without `fou6`: `-EINVAL` |
+| ip6gre `set_not_tunnel` | `ip link set d0 type ip6gre hoplimit 5`, after `d0` | 1 | the fetch finds no `INFO_DATA`: "Failed to get existing tunnel info." |
+| ip6gre `add_remote_v4`, `add_key_dotted_bad` | `remote 10.0.0.1`; base `key 1.2.3.x` | 1 | `get_addr`'s and `get_addr32`'s `exit(1)` |
+| ip6gre `add_unknown`, `add_strcmp_abbrev` | base `bogus`; base `encapl 2` | 1 | the usage text and -1; `encaplimit` is `strcmp` |
+| ip6gre `add_hoplimit_over`, `add_flowlabel_over` | base `hoplimit 256`; base `flowlabel 0x100000` | 255 | `invarg` (`get_u8`); `invarg` (over 0xfffff) |
+| ip6gre `add_key_bad`, `add_dev_missing`, `add_no_value` | base `key foo`; base `dev nosuch`; `remote` | 255 | `tnl_parse_key`'s `exit(-1)`, `exit(nodev())`, `NEXT_ARG` |
+| ip6gretap `add_default`, `add_no_option` | base; (no option) | 0 | as ip6gre's, on an Ethernet device with a random MAC (`link/ether`) |
+| ip6gretap `add_remote_any` | `remote ::` | 0 | `::` isn't sent, so the tap's remote-any refusal is never reached; reads back `remote any` |
+| ip6gretap `add_beside_ip6gre` | `gt6`, base, on a namespace with `g6` (base) | 0 | `dev->type` is part of the identity |
+| ip6gretap `set_changeable` | `hoplimit 10 key 5`, on `gt6` | 0 | the fetch, then the change |
+| ip6gretap `set_collide_unchecked` | `remote 2001:db8::1`, on `gt7` (remote `2001:db8::2`), beside `gt6` (base) | 0 | `ip6gre_tunnel_locate` searches only `ARPHRD_IP6GRE`; two taps end up with the same parameters |
+| ip6gretap `add_duplicate` | `gt7`, base, on a namespace with `gt6` (base) | 2 | `-EEXIST` |
+| ip6gretap `add_external_beside_ip6gre` | `gt6`, `external`, on a namespace with an `external` `g6` | 2 | the shared `collect_md_tun`: `-EEXIST` |
+| ip6gretap `set_kind_mismatch` | `ip link set gt6 type ip6gre hoplimit 5`, on `gt6` | 2 | `ops != dev->rtnl_link_ops`: `-EOPNOTSUPP` |
+| ip6erspan `add_default` | base | 0 | `ERSPAN_VER` 1 with no `INDEX`; reads back `erspan_index 0 erspan_ver 1`, `iseq oseq` |
+| ip6erspan `add_no_option` | (no option) | 0 | version 0: no `erspan_*` and no `okey` in the readback |
+| ip6erspan `add_external` | `external` | 0 | `COLLECT_METADATA` skips the flag check; reads back `external`, `erspan_ver 1`, `erspan_index 0` |
+| ip6erspan `add_index_max` | base `erspan 1048575` | 0 | `ERSPAN_INDEX`'s 20-bit top |
+| ip6erspan `add_v2` | base `erspan_ver 2 erspan_dir e erspan_hwid 63` | 0 | `VER` 2, `DIR` 1 (`e` matches `egress`), `HWID`'s top 0x3f; no `INDEX` |
+| ip6erspan `add_hwid_v1` | base `erspan_hwid 64` | 0 | at version 1 the hwid isn't sent, so the kernel's 6-bit check isn't reached |
+| ip6erspan `add_key_max`, `add_split_flags` | `remote 2001:db8::1 key 1023 seq`; `remote 2001:db8::1 ikey 10 oseq` | 0 | `ID_MASK`'s top; the flag check covers both directions together; `okey 0.0.0.0` is forced into the readback |
+| ip6erspan `set_v2` | `erspan_ver 2 erspan_dir egress erspan_hwid 63`, on `es6` | 0 | the fetched key and seq flags keep `validate` satisfied; reads back version 2 |
+| ip6erspan `add_no_seq`, `add_csum` | `remote 2001:db8::1 key 10`; base `csum` | 2 | the flags must be exactly `SEQ` and `KEY` |
+| ip6erspan `add_key_over`, `add_ver_zero`, `add_hwid_over` | `remote 2001:db8::1 key 1024 seq`; base `erspan_ver 0`; base `erspan_ver 2 erspan_hwid 64` | 2 | `ID_MASK`; a version other than 1 or 2; the hwid's 6 bits |
+| ip6erspan `set_noseq` | `noseq`, on `es6` | 2 | the fetched flags minus `SEQ` fail `validate` on a set |
+| ip6erspan `add_strcmp_abbrev` | base `erspan_v 2` | 1 | `erspan_ver` is `strcmp` |
+| ip6erspan `add_index_over`, `add_ver_three`, `add_dir_bad` | base `erspan 1048576`; base `erspan_ver 3`; base `erspan_ver 2 erspan_dir up` | 255 | `invarg` ×3 |
+
+**Tests:**
+
+| description | input | expected |
+|---|---|---|
+| positive: the rows are the plan's, after erspan's | the slug list | the table's slugs, ip6gre's, then ip6gretap's, then ip6erspan's |
+| negative: exactly the refusal rows expect a non-zero status | `refused_rows` | the table's |
+| negative: no row expects a repeat refusal | `ip6gre/add_repeat` | rc 0: `link_gre6.c` checks no keyword for repeats |
+| boundary: the tops `ip` and the kernel take, and the first values each refuses | `ip6gre/add_tops`, `add_hoplimit_over`, `add_flowlabel_over`; `ip6erspan/add_index_max`, `add_index_over`, `add_key_max`, `add_key_over` | 0, 255, 255; 0, 255; 0, 2 |
+| corner: the no-option rows are the only ones that end at `type <kind>`, and all three kinds accept one | `*/add_no_option`, `ip6gre/set_no_option` | the bare command; rc 0 |
+| corner: `erspan_ver 0` is accepted by ip6gre and refused by ip6erspan | `ip6gre/add_erspan_ver_zero`, `ip6erspan/add_ver_zero` | 0, 2 |
+| corner: a dotted key's failure is 1, a numeric key's 255 | `ip6gre/add_key_dotted_bad`, `ip6gre/add_key_bad` | 1, 255 |
+| corner: the collision rows' pres, and the device their readbacks read | `ip6gre/add_duplicate`, `add_second_key`, `add_external_twice`, `set_collide`; `ip6gretap/add_beside_ip6gre`, `set_collide_unchecked`, `add_duplicate`, `add_external_beside_ip6gre` | `g6` base, base, `external`, base and `g7`; `g6` base, `gt6` base and `gt7`, `gt6` base, `g6` `external`; the readbacks read `g7`, `g7`, `g7`, `g7`, `gt6`, `gt7`, `gt7`, `gt6` |
+| corner: the same collision on a set is refused by ip6gre and accepted by ip6gretap | `ip6gre/set_collide`, `ip6gretap/set_collide_unchecked` | 2, 0 |
+| corner: the rows naming `d0` make it first | `ip6gre/add_dev`, `ip6gre/set_not_tunnel` | `{link add d0 type dummy}` |
+| corner: the port-swap row's pre sets the source port | `ip6gre/set_encap_sport_swap` | `g6` made with `encap-sport 4660` |
+| positive (VM): each status, and the values read back | `ip.rc`; `-d -j` readbacks | the table's rc; the defaults and forms above (64 and 4 when `ip` sent options, 0 and inherit when it sent none) |
+
+**Mutation check:** `ip6gre/add_repeat` at 255 (caught by the no-repeat-refusal row), `ip6erspan/add_ver_zero` at 0 (caught by the `erspan_ver 0` corner row), `ip6gre/set_collide`'s pre without `g6` (caught by the collision pres row), `ip6gre/add_key_dotted_bad` at 255 (caught by the dotted-key corner row).
+
+**Done when:** as KC2-T01.
+
+#### KC5-T03 ipip and sit
+
+One parser, two kinds: `ip/link_iptnl.c` serves both, and checks `lu->id` for sit's extras. The devices are `ip0` (ipip) and `st0` (sit), with `ip1` and `st1` as the second device in the conflict rows; none is a fallback name (`tunl0`, `sit0`), and the row's namespace has no fallback device anyway. Neither kind needs a word. With none, `parse_opt` isn't called and no `INFO_DATA` is sent, and both `validate`s accept `!data` (`net/ipv4/ipip.c:441`, `net/ipv6/sit.c:1482`). So `add_no_option` is rc 0: a wildcard tunnel (remote any, local any) with the kernel's own defaults. For ipip that is mode `ipip`, `ttl inherit`, `nopmtudisc`; for sit it is mode `ip6ip`, `ttl 64`, `nopmtudisc`. Once any word is given, `ip` always sends `PROTO` (0, read back as `any`, unless `mode` is given), `PMTUDISC` 1, `TOS`, `TTL` 0, `LINK`, `FWMARK` and the four `ENCAP_*`; for sit it also sends `FLAGS` and the 6rd prefixes, and for ipip neither. So `add_default` reads back `any … ttl inherit pmtudisc` on both kinds. `dev` and `dsfield` are `matches`. Every other keyword is `strcmp`: `mode` and its values, `remote`, `local`, `ttl`/`hoplimit`/`hlim`, `tos`/`tclass`/`tc`, `[no]pmtudisc`, `isatap` (sit only), `noencap`, `encap fou|gue|none`, `encap-sport` (`auto` or a number), `encap-dport`, `[no]encap-csum`, `[no]encap-udp6-csum`, `[no]encap-remcsum`, `external`, `6rd-prefix`, `6rd-relay_prefix`, `6rd-reset` and `fwmark`. The help text's `[no]encap-csum6` is no keyword; the parser's word is `encap-udp6-csum`. There's no `noexternal`. No keyword is checked for repeats; the last value wins. `tos` is hex (`rtnl_dsfield_a2n`), `ttl`, `fwmark` and the ports are base 0, and `ttl` nonzero with `nopmtudisc` is `ip`'s `exit(-1)`. `mode ip6ip` and `isatap` are sit's words. On ipip, `mode ip6ip` is `invarg` and `isatap` is "unknown". The 6rd words are parsed for both kinds and sent for sit alone, so on ipip they are accepted and dropped. A bad 6rd prefix is `get_prefix`'s `exit(1)`, so the status is 1, not the `invarg` written after it.
+
+**The set prefetch.** On a set (no `NLM_F_CREATE`), `parse_opt` first sends an `RTM_GETLINK` for the device and seeds every variable from the reply: local, remote, the 6rd prefixes, ttl, pmtudisc, tos, flags, link, proto, the four encap values, metadata and fwmark (`link_iptnl.c:101-182`). It then applies the words, so a set sends what the device already has plus the change. Three consequences are pinned. A `nopmtudisc` set is refused by `ip` on a device made with a ttl, and accepted on one without. `remote any` sends no `REMOTE`, so the kernel reads it as 0. Any set on an `external` device carries `COLLECT_METADATA` again.
+
+**What the kernel checks.** On an add: `-EEXIST` when a tunnel with the same local, remote and link exists, or a second `external` ipip (`ip_tunnel_newlink`, `ipip6_newlink`). Both `validate`s refuse a protocol other than ipip/mpls/any (sit: ipv6 too), but `ip` can't send one, so no row reaches them. On a set: ipip refuses `external` (`-EINVAL`). Both kinds refuse to add or drop a remote (the device's `IFF_POINTOPOINT` must agree with the new remote), and refuse a remote that collides with another tunnel (`-EEXIST`). ipip also refuses a change to a multicast remote (`IFF_BROADCAST`). Neither `ip_tunnel_update` nor `ipip6_tunnel_update` copies the protocol or sit's `i_flags`, so a set of `mode` or `isatap` is accepted and changes nothing. sit ignores `COLLECT_METADATA` (it isn't in `ipip6_policy`), so `external` makes an ordinary sit device. The guest kernel (7.3, `# CONFIG_IPV6_SIT_6RD is not set`) leaves the 6rd attributes out of the policy and ignores them. The 6rd rows are accepted, none reads back, and the over-long prefix the 6RD code would refuse is accepted: `sit/add_6rd_overlong` is the config's canary. `fou` is in `late_modules`, so `encap fou` and `encap gue` find their ops. "base" is `remote 10.0.0.1`.
+
+| slugs | command | rc | what it pins |
+|---|---|---|---|
+| ipip `add_default` | base | 0 | `PROTO` 0 and the attributes `ip` always sends; reads `any remote 10.0.0.1 … ttl inherit pmtudisc` |
+| ipip `add_no_option` | (no option) | 0 | no `INFO_DATA`: mode `ipip`, `ttl inherit`, `nopmtudisc` |
+| ipip `add_mode_<m>` for `ipip`, `mplsip`, `any` (3) | base `mode <m>` | 0 | `PROTO` 4, 137, 0 |
+| ipip `add_mode_alias` | base `mode ip4ip4` | 0 | an alias for `ipip` |
+| ipip `add_local`, `add_dev` | base `local 10.0.0.2`; base `dev d0` | 0 | `LOCAL`; `LINK`, read back `dev d0` |
+| ipip `add_ttl`, `add_ttl_inherit` | base `ttl 255`; base `ttl inherit` | 0 | `TTL`'s top; `TTL` 0 |
+| ipip `add_tos`, `add_tos_inherit` | base `tos 10`; base `tos inherit` | 0 | `TOS` 0x10 (hex); `TOS` 1, read back `tos inherit` |
+| ipip `add_nopmtudisc`, `add_fwmark` | base `nopmtudisc`; base `fwmark 0xffffffff` | 0 | `PMTUDISC` 0; `FWMARK`'s top |
+| ipip `add_external` | `external` | 0 | `PROTO` and `COLLECT_METADATA` alone; reads `external any … pmtudisc` |
+| ipip `add_encap_fou`, `add_encap_gue` | base `encap fou encap-sport auto encap-dport 5555`; base `encap gue encap-sport 1000 encap-dport 6000 encap-csum encap-udp6-csum encap-remcsum` | 0 | `ENCAP_TYPE`, ports big-endian, the three flags |
+| ipip `add_noencap` | base `encap fou encap-csum noencap noencap-csum` | 0 | the `no` forms clear; no encap reads back |
+| ipip `add_6rd_ignored` | base `6rd-prefix 2001:db8::/32` | 0 | parsed, not sent for ipip |
+| ipip `add_remote_multicast` | `remote 239.1.1.1` | 0 | `ip` and the add take a multicast remote |
+| ipip `set_changeable` | `hlim 64 dsf 10 fwmark 5 local 10.0.0.2`, on `ip0` | 0 | the `strcmp` alias and the `matches` abbreviation; the prefetched remote is kept |
+| ipip `set_dev` | `d d0`, on `ip0` | 0 | `dev` through `matches`; the link changed |
+| ipip `set_mode` | `mode mplsip`, on `ip0` | 0 | accepted, but the mode reads back `any` |
+| ipip `set_encap`, `set_nopmtudisc` | `encap fou encap-dport 5555`; `nopmtudisc`, on `ip0` | 0 | encap changed; nopmtudisc allowed when the prefetched ttl is 0 |
+| ipip `set_no_option` | (no option), on `ip0` | 0 | no `INFO_DATA`: `changelink` isn't called |
+| ipip `add_duplicate`, `add_external_second` | `ip1`, base, on a namespace with that `ip0`; `ip1`, `external`, on one with an `external` `ip0` | 2 | `-EEXIST` twice |
+| ipip `set_remote_any`, `set_remote_on_wildcard` | `remote any` on `ip0`; `remote 10.0.0.1` on a wildcard `ip0` | 2 | point-to-point must agree with the remote |
+| ipip `set_remote_multicast`, `set_collide` | `remote 239.1.1.1` on `ip0`; `remote 10.0.0.2` on `ip0` beside `ip1` (remote 10.0.0.2) | 2 | `IFF_BROADCAST` against `IFF_POINTOPOINT`; `-EEXIST` |
+| ipip `set_on_external`, `set_external` | `ttl 64` on an `external` `ip0`; `external` on `ip0` | 2 | `collect_md` can't change |
+| ipip `add_isatap`, `add_remote6` | base `isatap`; `remote 2001:db8::1` | 1 | sit's word; `get_addr`'s `exit(1)` |
+| ipip `add_remote_abbrev`, `add_encap_csum6_word`, `add_noexternal` | `rem 10.0.0.1`; base `encap fou encap-csum6`; `noexternal` | 1 | `remote` is `strcmp`; the help's word and `noexternal` are none |
+| ipip `add_mode_ip6ip`, `add_ttl_over`, `add_tos_over` | base `mode ip6ip`; base `ttl 256`; base `tos 100` | 255 | `invarg` ×3 |
+| ipip `add_ttl_nopmtudisc`, `set_nopmtudisc_ttl` | base `ttl 64 nopmtudisc`; `nopmtudisc` on an `ip0` made with `ttl 64` | 255 | the incompatibility, the second through the prefetch |
+| ipip `add_encap_bad`, `add_dev_missing`, `add_no_value` | base `encap foo`; base `dev nosuch`; `remote` | 255 | `invarg`, `exit(nodev())`, `NEXT_ARG` |
+| sit `add_default` | base | 0 | as ipip's, plus `FLAGS` 0; reads `any … ttl inherit pmtudisc` |
+| sit `add_no_option` | (no option) | 0 | mode `ip6ip`, `ttl 64`, `nopmtudisc` |
+| sit `add_mode_<m>` for `ip6ip`, `ipip`, `mplsip`, `any` (4) | base `mode <m>` | 0 | `PROTO` 41, 4, 137, 0 |
+| sit `add_mode_alias` | base `mode ipv6/ipv4` | 0 | an alias for `ip6ip` |
+| sit `add_local_dev`, `add_ttl_tos`, `add_nopmtudisc` | base `local 10.0.0.2 dev d0`; base `ttl 64 tos inherit`; base `nopmtudisc` | 0 | `LOCAL`, `LINK`; `TTL`, `TOS` 1; `PMTUDISC` 0 |
+| sit `add_isatap`, `add_fwmark` | `isatap`; base `fwmark 7` | 0 | `FLAGS` `SIT_ISATAP`, read back `isatap`; `FWMARK` |
+| sit `add_6rd_prefix`, `add_6rd_reset` | base `6rd-prefix 2001:db8::/32 6rd-relay_prefix 10.0.0.0/8`; base `6rd-reset` | 0 | the four 6rd attributes; `2002::/16`; nothing reads back |
+| sit `add_6rd_overlong` | base `6rd-prefix 2001:db8::/48 6rd-relay_prefix 10.0.0.0/8` | 0 | 48 + 24 > 64, accepted without `CONFIG_IPV6_SIT_6RD` |
+| sit `add_external` | `external` | 0 | ignored: an ordinary sit, `ttl 64 pmtudisc`, no `external` reads back |
+| sit `add_encap_fou` | base `encap fou encap-sport 1000 encap-dport 5555` | 0 | the encap attributes |
+| sit `set_changeable` | `ttl 64 tos 10 local 10.0.0.2`, on `st0` | 0 | what `ipip6_tunnel_update` takes |
+| sit `set_mode`, `set_isatap` | `mode ipip`; `isatap`, on `st0` | 0 | accepted; mode reads back `any`, no `isatap` |
+| sit `set_external_wildcard`, `set_no_option` | `external` on a wildcard `st0`; (no option) on `st0` | 0 | `ttl 64 pmtudisc` reset; no `INFO_DATA` |
+| sit `add_duplicate`, `add_duplicate_wildcard` | `st1`, base, beside that `st0`; `st1`, no option, beside a wildcard `st0` | 2 | `-EEXIST` |
+| sit `set_remote_any`, `set_remote_on_wildcard`, `set_collide` | `remote any` on `st0`; `remote 10.0.0.1` on a wildcard `st0`; `remote 10.0.0.2` on `st0` beside `st1` | 2 | point-to-point; `-EEXIST` |
+| sit `set_external` | `external`, on `st0` | 2 | sends no `REMOTE`, so point-to-point disagrees |
+| sit `add_6rd_prefix_v4`, `add_6rd_relay_v6`, `add_6rd_prefix_overlen` | base `6rd-prefix 10.0.0.0/8`; base `6rd-relay_prefix 2001:db8::/32`; base `6rd-prefix 2001:db8::/129` | 1 | `get_prefix`'s `exit(1)` |
+| sit `add_isatap_abbrev`, `add_remote_bad` | base `isa`; `remote nosuch` | 1 | `strcmp`; `get_addr`'s `exit(1)` |
+| sit `add_mode_ip6ip6`, `add_ttl_nopmtudisc`, `add_tos_bad`, `add_6rd_no_value` | base `mode ip6ip6`; base `ttl 0x1 nopmtudisc`; base `tos zz`; base `6rd-prefix` | 255 | `invarg`, `exit(-1)`, `invarg`, `NEXT_ARG` |
+
+**Tests:**
+
+| description | input | expected |
+|---|---|---|
+| positive: the rows are the plan's, after ip6erspan's | the slug list | the table's slugs, ipip's then sit's, in order |
+| positive: one `add_mode_` row per mode word | the `add_mode_` rows | `ipip mplsip any`; `ip6ip ipip mplsip any` |
+| negative: exactly the refusal rows expect a non-zero status | `refused_rows` | the table's |
+| boundary: the ttl's top, and the smallest ttl `nopmtudisc` refuses | `ipip/add_ttl`, `ipip/add_ttl_over`, `sit/add_ttl_nopmtudisc` | 0, 255, 255 |
+| corner: a `nopmtudisc` set depends on the prefetched ttl | `ipip/set_nopmtudisc`, `ipip/set_nopmtudisc_ttl` | 0 on `ip0` made with base, 255 on one made with `ttl 64` |
+| corner: `isatap` and `mode ip6ip` are sit's words | `ipip/add_isatap`, `ipip/add_mode_ip6ip`, `sit/add_isatap`, `sit/add_mode_ip6ip` | 1, 255, 0, 0 |
+| corner: the 6rd words are accepted everywhere the prefix parses, and refused by `ip` (1) where it doesn't | `ipip/add_6rd_ignored`, `sit/add_6rd_overlong`, `sit/add_6rd_prefix_v4` | 0, 0, 1 |
+| corner: a set of `mode`/`isatap` is accepted and not applied | `ipip/set_mode`, `sit/set_mode`, `sit/set_isatap` | 0 each; the readbacks keep `any` and no `isatap` |
+| corner: the conflict and set rows' pres | `add_duplicate`, `add_external_second`, `add_duplicate_wildcard`, `set_collide`, `set_on_external`, `set_remote_on_wildcard`, `set_external_wildcard`, `set_nopmtudisc_ttl` | the pres named in the table; the adds' readbacks read `ip1`/`st1` |
+| corner: the rows naming `d0` make it first | `ipip/add_dev`, `ipip/set_dev`, `sit/add_local_dev` | `{link add d0 type dummy}` first in each pre |
+| corner: `get_addr`'s and `get_prefix`'s failures are 1, `invarg`'s 255 | `ipip/add_remote6`, `sit/add_6rd_prefix_v4`, `ipip/add_tos_over` | 1, 1, 255 |
+| positive (VM): each status, and the values read back | `ip.rc`; `-d -j` readbacks | the table's rc; `add_no_option`'s kernel defaults, `tos inherit`, `isatap`, `external` on ipip only, the encap values |
+
+**Mutation check:** `sit/add_6rd_overlong` at 2 (the 6rd corner), `ipip/add_isatap` at 0 (the sit's-words corner), `ipip/set_nopmtudisc_ttl`'s pre made without `ttl 64` (the prefetch corner), `ipip/add_duplicate`'s pre without `ip0` (the pres corner).
+
+**Done when:** as KC2-T01.
+
+#### KC5-T04 ip6tnl
+
+The device is `t6`, with `t7` as the second device in the conflict rows. `ip6tnl0` is the fallback name, and no row's namespace has it. `ip/link_ip6tnl.c` requires no word. With none, `ip6_tnl_validate` accepts `!data` and `ip6_tnl_netlink_parms` zeroes everything, so `add_no_option` is rc 0 and reads back `any remote any local any hoplimit inherit encaplimit 0`. Once any word is given, `ip` always sends `PROTO` (0, `any`, unless `mode` is given), `TTL` 64, `ENCAP_LIMIT` 4, `FLOWINFO`, `FLAGS`, `LINK`, `FWMARK` and the encap four, with `ENCAP_FLAGS` defaulting to `CSUM6`. So `add_default` reads `any remote 2001:db8::1 local any hoplimit 64 encaplimit 4 tclass 0x00 flowlabel 0x00000`. `dev` and `dsfield` are `matches`. `dev` is tested first, so `d` is `dev`; `dscp` doesn't match `dsfield`, so it reaches its own branch. Everything else is `strcmp`: `mode ip6ip6|ipip6|any` with the aliases `ipv6/ipv6`, `ip/ipv6`, `ipv4/ipv6`, `ip4ip6`, `any/ipv6`; `remote`, `local`, `ttl`/`hoplimit`/`hlim`, `encaplimit`, `tos`/`tclass`/`tc`, `flowlabel`/`fl`, `dscp inherit`, `fwmark` (a number or `inherit`), `[no]allow-localremote`, the encap words as in `link_iptnl.c`, and `external`. No keyword is checked for repeats; the last value wins. `tclass` and `flowlabel` are hex (base 16), and `hoplimit` and `fwmark` base 0. `encaplimit`'s value is never refused: `get_u8(…) < -1` can't be true, and a bad value leaves `encap_limit` to an uninitialized `__u8` (`link_ip6tnl.c:196-200`). That reads back as garbage, so no row sends one. `encap` takes a type, so `encap 4` is `invarg` and `encapl 4` is "unknown".
+
+**The set prefetch.** Like `link_iptnl.c`, a set first fetches the device and seeds local, remote, hoplimit, encaplimit, flowinfo, flags, link, proto, metadata and fwmark (`link_ip6tnl.c:97-153`). It does **not** read the encap attributes, so every non-`external` set sends encap none/`CSUM6`/ports 0 and resets any encap the device had. No row can show it: no encapped ip6tnl can be made (below). A set on an `external` device carries `COLLECT_METADATA` again.
+
+**What the kernel checks.** On an add, `-EEXIST` for a second tunnel with the same local, remote and link (two wildcards included) or a second `external` one (`ip6_tnl_newlink`). The encap ops come from `fou6`, which `late_modules` doesn't load and nothing pulls in: `fou6` depends on `ip6_tunnel`, not the reverse. So `encap fou` is `ip6_encap_hlen`'s `-EINVAL`, and `encap none` passes. On a set, `ip6_tnl_changelink` refuses `external` (`-EINVAL`) and a collision with another tunnel (`-EEXIST`), and has no point-to-point check. `ip6_tnl_change` copies the protocol, unlike ipip's and sit's updates, so `set_mode` reads back the new mode. "base" is `remote 2001:db8::1`.
+
+| slugs | command (after `type ip6tnl`) | rc | what it pins |
+|---|---|---|---|
+| `add_default` | base | 0 | the attributes `ip` always sends; hoplimit 64, encaplimit 4 |
+| `add_no_option` | (no option) | 0 | no `INFO_DATA`: `hoplimit inherit encaplimit 0`, mode `any` |
+| `add_mode_<m>` for `ip6ip6`, `ipip6`, `any` (3) | base `mode <m>` | 0 | `PROTO` 41, 4, 0 |
+| `add_mode_alias` | base `mode ip4ip6` | 0 | an alias for `ipip6` |
+| `add_local`, `add_dev` | base `local 2001:db8::2`; base `dev d0` | 0 | `LOCAL`; `LINK`, read back `dev d0` |
+| `add_hoplimit`, `add_hoplimit_inherit` | base `hoplimit 255`; base `hoplimit inherit` | 0 | `TTL`'s top; 0, read back `hoplimit inherit` |
+| `add_hoplimit_twice` | base `hoplimit 10 ttl 20` | 0 | no repeat check; the alias's 20 wins |
+| `add_encaplimit`, `add_encaplimit_none` | base `encaplimit 0`; base `encaplimit none` | 0 | `ENCAP_LIMIT` 0; `IP6_TNL_F_IGN_ENCAP_LIMIT` |
+| `add_tclass`, `add_tclass_inherit`, `add_dsfield_abbrev` | base `tclass ff`; base `tclass inherit`; base `dsf 10` | 0 | `FLOWINFO`'s tclass bits (hex); `USE_ORIG_TCLASS`; `matches` |
+| `add_flowlabel`, `add_flowlabel_inherit` | base `flowlabel 0xfffff`; base `fl inherit` | 0 | the label's top; `USE_ORIG_FLOWLABEL` through `fl` |
+| `add_dscp_inherit`, `add_allow_localremote` | base `dscp inherit`; base `allow-localremote` | 0 | `RCV_DSCP_COPY`; `ALLOW_LOCAL_REMOTE` |
+| `add_fwmark`, `add_fwmark_inherit` | base `fwmark 0xffffffff`; base `fwmark inherit` | 0 | `FWMARK`'s top; `USE_ORIG_FWMARK` with mark 0 |
+| `add_external` | `external` | 0 | `PROTO` and `COLLECT_METADATA` alone |
+| `add_noencap` | base `noencap encap-sport 1000 encap-dport 5555 encap-csum noencap-udp6-csum encap-remcsum` | 0 | type none passes `ip6_encap_hlen`; nothing reads back |
+| `set_changeable` | `hlim 32 encaplimit none tclass inherit flowlabel 0x12345 dscp inherit`, on `t6` | 0 | what `ip6_tnl_change` takes |
+| `set_mode`, `set_remote` | `mode ipip6`; `remote 2001:db8::2`, on `t6` | 0 | the mode changes; no point-to-point check |
+| `set_keeps_prefetch` | `tclass 0x20`, on a `t6` made with `hoplimit 10` | 0 | the prefetch: `hoplimit 10` reads back |
+| `set_no_option` | (no option), on `t6` | 0 | no `INFO_DATA` |
+| `add_encap_fou` | base `encap fou encap-dport 5555` | 2 | no `fou6` ops: `-EINVAL` |
+| `add_duplicate`, `add_duplicate_wildcard`, `add_external_second` | `t7` base beside that `t6`; `t7` no option beside a wildcard `t6`; `t7 external` beside an `external` `t6` | 2 | `-EEXIST` ×3 |
+| `set_collide` | `remote 2001:db8::2`, on `t6` beside `t7` (remote 2001:db8::2) | 2 | `-EEXIST` |
+| `set_on_external`, `set_external` | `hoplimit 5` on an `external` `t6`; `external` on `t6` | 2 | `collect_md` can't change |
+| `add_remote_v4`, `add_encaplimit_abbrev`, `add_isatap` | `remote 10.0.0.1`; base `encapl 4`; base `isatap` | 1 | `get_addr`'s `exit(1)`; `strcmp`; sit's word |
+| `add_mode_ip6ip`, `add_hoplimit_over`, `add_tclass_over`, `add_flowlabel_over` | base `mode ip6ip`; base `hoplimit 256`; base `tclass 100`; base `flowlabel 0x100000` | 255 | `invarg` ×4 |
+| `add_dscp_bad`, `add_fwmark_bad`, `add_encap_abbrev`, `add_encap_sport_over` | base `dscp 10`; base `fwmark foo`; base `encap 4`; base `encap-sport 65536` | 255 | `invarg` ×4 |
+| `add_dev_missing`, `add_no_value` | base `dev nosuch`; `remote` | 255 | `exit(nodev())`, `NEXT_ARG` |
+
+**Tests:**
+
+| description | input | expected |
+|---|---|---|
+| positive: the rows are the plan's, after sit's | the slug list | the table's slugs, in order |
+| positive: one `add_mode_` row per mode word | the `add_mode_` rows | `ip6ip6 ipip6 any` |
+| negative: exactly the refusal rows expect a non-zero status | `refused_rows` | the table's |
+| boundary: the label's and hop limit's tops | `add_flowlabel`, `add_flowlabel_over`, `add_hoplimit`, `add_hoplimit_over` | 0, 255, 0, 255 |
+| corner: `encap` takes a type and `encaplimit` is exact | `add_encap_abbrev`, `add_encaplimit_abbrev` | 255, 1 |
+| corner: the set prefetch keeps what the words don't name | `set_keeps_prefetch` | its pre makes `t6` with `hoplimit 10`; the readback has `hoplimit 10` and `tclass 0x20` |
+| corner: unlike ipip and sit, a set of `mode` is applied | `set_mode` | 0; the readback reads `ipip6` |
+| corner: the conflict rows' pres | `add_duplicate`, `add_duplicate_wildcard`, `add_external_second`, `set_collide`, `set_on_external` | `t6` with base, no option, `external`, base beside `t7`, `external`; the adds' readbacks read `t7` |
+| corner: `add_dev`'s pre makes `d0` | `add_dev` | `{link add d0 type dummy}` |
+| positive (VM): each status, and the values read back | `ip.rc`; `-d -j` readbacks | the table's rc; the defaults above, the `inherit` flags, `tclass`/`flowlabel` as sent |
+
+**Mutation check:** `add_encap_abbrev` at 1 (the `encap` corner), `set_keeps_prefetch`'s pre made without `hoplimit 10` (the prefetch corner), `add_flowlabel_over` at 0 (the boundary row), `add_external_second`'s pre made with base (the pres corner).
+
+**Done when:** as KC2-T01.
+
+#### KC5-T05 vti, vti6 and xfrm
+
+Three IPsec kinds; the devices are `vt0` (vti), `v6` (vti6) and `xf0` (xfrm), so no row uses the fallback names `ip_vti0` or `ip6_vti0`, and a second device is `vt1`, `v7` or `xf1`. **vti and vti6** share one parser shape (`ip/link_vti.c`, `ip/link_vti6.c`): `key`, `ikey`, `okey`, `remote`, `local` and `dev` are `matches`, in that order, so `k`, `i`, `o`, `r`, `l` and `d` each pick their keyword; `fwmark` is `strcmp`. No word takes a `no` form, and nothing is required. Once any word follows `type`, `ip` always sends `IKEY`, `OKEY` and `FWMARK` (0 when not given), `LOCAL`/`REMOTE` only for a real address (`any` sends neither), and `LINK` only when nonzero. `key` sets both keys, and a later `ikey`/`okey` overrides its half. A key with a dot goes through `get_addr32` (bad: `exit(1)`), and any other key through `get_unsigned` (bad: `exit(-1)`, 255). **On a set**, both files first send a `GETLINK` for the device and prefill every value it already has (`link_vti.c:65-110`), so a set sends what the device has plus the changed words; a device without vti's `INFO_DATA`, such as a dummy, fails the prefetch: "Failed to get existing tunnel info.", status 1. Neither kernel `validate` checks anything (`return 0`), so `add_no_option` creates a tunnel with remote any and local any (status 0), and a bare `set` sends no `INFO_DATA` and reaches no `changelink` (status 0). vti's kernel side is `ip_tunnel`'s: `ip_tunnel_find` matches on local, remote, lower and type, but ignores the keys (a vti tunnel never sets `TUNNEL_KEY`, so `ip_bucket` hashes key 0 and `ip_tunnel_key_match` passes), so a second tunnel that differs only by key is `-EEXIST`; `ip_tunnel_changelink` also refuses (`-EINVAL`) a change that would add or remove the remote, because `IFF_POINTOPOINT` would flip. vti6's `vti6_locate` matches on local and remote only (a different lower doesn't separate two tunnels), and `vti6_changelink` has no point-to-point check. **xfrm** (`ip/link_xfrm.c`) has no prefetch. `dev` and `if_id` are `matches`, `external` is `strcmp`. `ip` requires `if_id` (`missarg`, 255) unless `external` is given, refuses `if_id 0` with `invarg` (255), and refuses `external` with `if_id` or `dev` (returned, 1). The kernel (`net/xfrm/xfrm_interface_core.c`) refuses a missing `if_id` ("if_id must be non zero") on add and set, an `if_id` already in use and a second `external` device (`-EEXIST`), a set that adds, removes or changes the `collect_md` flag, and a set whose lower differs from the device's (`-EINVAL`, in `xfrmi_change`). Because there's no prefetch, a set on an `xf0` made with `dev d0` must name `dev d0` again. Readbacks: vti and vti6 print `remote`/`local` (`any` when 0), `dev`, and `ikey`/`okey` as dotted quads (for vti6 too) and `fwmark` as hex, each only when nonzero; xfrm prints `if_id` as hex, or just `external`.
+
+| slugs | command | rc | what it pins |
+|---|---|---|---|
+| vti `add_default` | `remote 10.0.0.1 local 10.0.0.2` | 0 | `IKEY` 0, `OKEY` 0, `LOCAL`, `REMOTE`, `FWMARK` 0; reads back `remote 10.0.0.1 local 10.0.0.2`, no keys or fwmark; the device is `POINTOPOINT` |
+| vti `add_no_option` | (no option) | 0 | no `INFO_DATA`; `vti_tunnel_validate` takes it; `remote any local any` |
+| vti `add_ikey_okey` | `remote 10.0.0.1 ikey 1.2.3.4 okey 0x10` | 0 | the dotted and numeric key forms; `ikey 1.2.3.4 okey 0.0.0.16` |
+| vti `add_key_max` | `remote 10.0.0.1 key 4294967295` | 0 | the key's top; both keys `255.255.255.255` |
+| vti `add_key_last_wins` | `remote 10.0.0.1 key 5 ikey 6` | 0 | `key` sets both, then `ikey` overrides; `ikey 0.0.0.6 okey 0.0.0.5` |
+| vti `add_dev` | `remote 10.0.0.1 dev d0` | 0 | `LINK`; reads back `dev d0` |
+| vti `add_fwmark` | `remote 10.0.0.1 fwmark 0x10` | 0 | `FWMARK`, base 0; reads back `fwmark 0x10` |
+| vti `add_abbrev` | `r 10.0.0.1 l 10.0.0.2 i 1 o 2 d d0` | 0 | `matches` for all six |
+| vti `add_second_other_dev` | `vt1`, `remote 10.0.0.1 dev d0`, on a namespace whose `vt0` has `remote 10.0.0.1` | 0 | a different lower separates two vti tunnels |
+| vti `set_fwmark` | `fwmark 5`, on `vt0` (`remote 10.0.0.1`) | 0 | the prefetch: `REMOTE` is sent again, so `remote 10.0.0.1` reads back with `fwmark 0x5` |
+| vti `set_no_option` | (no option), on `vt0` | 0 | no `INFO_DATA`, no `changelink` |
+| vti `add_duplicate_other_key` | `vt1`, `remote 10.0.0.1 key 7`, on a namespace whose `vt0` has `remote 10.0.0.1` | 2 | the key doesn't separate vti tunnels: `-EEXIST` |
+| vti `add_duplicate_any` | `vt1`, (no option), on a namespace with a bare `vt0` | 2 | two any-to-any tunnels: `-EEXIST` |
+| vti `set_remote_on_any`, `set_remote_any` | `remote 10.0.0.1` on a bare `vt0`; `remote any` on `vt0` (`remote 10.0.0.1`) | 2 | `ip_tunnel_changelink`'s `IFF_POINTOPOINT` check, each way |
+| vti `set_collide` | `ip link set vt1 type vti remote 10.0.0.1`, with `vt0` at 10.0.0.1 and `vt1` at 10.0.0.2 | 2 | the new parameters are `vt0`'s: `-EEXIST` |
+| vti `set_on_dummy` | `ip link set d0 type vti fwmark 1`, on a dummy `d0` | 1 | the prefetch finds no `INFO_DATA`; nothing is sent |
+| vti `add_fwmark_abbrev` | `remote 10.0.0.1 fw 5` | 1 | `fwmark` is `strcmp`; help, then the returned error |
+| vti `add_remote_v6` | `remote 2001:db8::1` | 1 | `get_addr`'s `exit(1)` for the wrong family |
+| vti `add_key_bad`, `add_key_over` | `key foo`; `key 4294967296` | 255 | `tnl_parse_key`'s `exit(-1)` |
+| vti `add_dev_missing`, `add_no_value` | `dev nosuch`; `remote` | 255 | `exit(nodev())`, `NEXT_ARG` |
+| vti6 `add_default` | `remote 2001:db8::1 local 2001:db8::2` | 0 | the 16-byte `LOCAL`/`REMOTE` |
+| vti6 `add_no_option` | (no option) | 0 | `vti6_validate` takes no `INFO_DATA`; `remote any local any` |
+| vti6 `add_options` | `remote 2001:db8::1 key 5 dev d0 fwmark 0x10` | 0 | keys (dotted quads on vti6 too), `LINK`, `FWMARK` |
+| vti6 `set_fwmark` | `fwmark 5`, on `v6` (`remote 2001:db8::1`) | 0 | the prefetch keeps the remote |
+| vti6 `set_remote_on_any`, `set_remote_any` | `remote 2001:db8::1` on a bare `v6`; `remote any` on `v6` | 0 | no point-to-point check, unlike vti |
+| vti6 `add_duplicate_other_dev` | `v7`, `remote 2001:db8::1 dev d0`, on a namespace whose `v6` has `remote 2001:db8::1` | 2 | `vti6_locate` ignores the lower: `-EEXIST` |
+| vti6 `set_collide` | `ip link set v7 type vti6 remote 2001:db8::1`, with `v6` at `::1` and `v7` at `::2` | 2 | `-EEXIST` |
+| vti6 `add_fwmark_abbrev` | `remote 2001:db8::1 fw 5` | 1 | `strcmp` |
+| vti6 `add_remote_v4` | `remote 10.0.0.1` | 1 | `get_addr`'s `exit(1)` |
+| vti6 `add_no_value` | `local` | 255 | `NEXT_ARG` |
+| xfrm `add_default` | `if_id 1` | 0 | `IF_ID`; reads back `if_id 0x1` |
+| xfrm `add_dev` | `dev d0 if_id 1` | 0 | `LINK`; the link reads back `d0` |
+| xfrm `add_if_id_max` | `if_id 0xffffffff` | 0 | the top, base 0 |
+| xfrm `add_external` | `external` | 0 | `COLLECT_METADATA` alone; reads back `external`, no `if_id` |
+| xfrm `add_abbrev` | `d d0 i 5` | 0 | `matches` |
+| xfrm `add_if_id_twice` | `if_id 1 if_id 2` | 0 | two `IF_ID`s sent; the kernel keeps the last: `if_id 0x2` |
+| xfrm `set_if_id`, `set_if_id_dev` | `if_id 2` on `xf0`; `dev d0 if_id 2` on an `xf0` made with `dev d0` | 0 | the if_id changes when the lower is the same |
+| xfrm `set_no_option` | (no option), on `xf0` | 0 | no `INFO_DATA`, no `changelink` |
+| xfrm `add_no_option` | (no option) | 2 | no `INFO_DATA`: "if_id must be non zero" |
+| xfrm `add_duplicate_other_dev` | `xf1`, `dev d0 if_id 1`, on a namespace whose `xf0` has `if_id 1` | 2 | `xfrmi_locate` matches the if_id alone: `-EEXIST` |
+| xfrm `add_second_external` | `xf1`, `external`, on a namespace with an `external` `xf0` | 2 | one metadata device per namespace: `-EEXIST` |
+| xfrm `set_drop_dev`, `set_add_dev` | `if_id 2` on an `xf0` made with `dev d0`; `dev d0 if_id 1` on an `xf0` made without | 2 | no prefetch; `xfrmi_change` refuses a different lower |
+| xfrm `set_collide` | `ip link set xf1 type xfrm if_id 1`, with `xf0` at 1 and `xf1` at 2 | 2 | `-EEXIST` |
+| xfrm `set_external`, `set_on_external` | `external` on `xf0`; `if_id 5` on an `external` `xf0` | 2 | "if_id must be non zero"; "collect_md can't be changed" |
+| xfrm `add_external_if_id`, `add_external_abbrev` | `external if_id 1`; `extern` | 1 | `ip`'s exclusive options; `strcmp` |
+| xfrm `add_no_if_id`, `add_if_id_zero`, `add_if_id_over`, `add_no_value` | `dev d0`; `if_id 0`; `if_id 0x100000000`; `if_id` | 255 | `missarg`, `invarg`, `invarg`, `NEXT_ARG` |
+
+**Tests:**
+
+| description | input | expected |
+|---|---|---|
+| positive: the rows are the plan's, after ip6tnl's | the slug list | the table's slugs: vti's, then vti6's, then xfrm's |
+| negative: exactly the refusal rows expect a non-zero status | `refused_rows` | the table's |
+| positive: each keyword's abbreviation is accepted | `vti/add_abbrev`, `xfrm/add_abbrev` | 0, 0 |
+| boundary: the key's range | `vti/add_key_max`, `vti/add_key_over` | 4294967295 at 0, 4294967296 at 255 |
+| boundary: the if_id's range | `xfrm/add_if_id_zero`, `xfrm/add_if_id_max`, `xfrm/add_if_id_over` | 255, 0, 255 |
+| corner: vti refuses the point-to-point change that vti6 allows | `vti/set_remote_on_any`, `vti6/set_remote_on_any` | 2, 0 |
+| corner: a lower separates two vti tunnels but not two vti6 ones, and a key separates neither | `vti/add_second_other_dev`, `vti6/add_duplicate_other_dev`, `vti/add_duplicate_other_key` | 0, 2, 2 |
+| corner: a vti/vti6 set keeps what the device has; an xfrm set doesn't | `vti/set_fwmark`, `vti6/set_fwmark`, `xfrm/set_drop_dev` | 0, with the pre's remote read back; 0; 2 |
+| corner: the vti prefetch's failure is `ip`'s | `vti/set_on_dummy` | rc 1, floor 0; the pre makes `d0` |
+| corner: a bare set is accepted on all three | the three `set_no_option` rows | 0 each, floor 4 |
+| corner: the conflict rows' pres | `add_duplicate_*`, `add_second_*`, `set_collide` rows | the first device (and `d0` where named) first; the readbacks read `vt1`, `v7` or `xf1` |
+| corner: `fwmark` and `external` are `strcmp` | `vti/add_fwmark_abbrev`, `vti6/add_fwmark_abbrev`, `xfrm/add_external_abbrev` | 1 each |
+| corner: the rows naming `dev d0` make it first | their pres | `{link add d0 type dummy}` first |
+| negative: `ip`'s xfrm checks stop before the kernel | `xfrm/add_external_if_id`, `xfrm/add_no_if_id` | 1, 255; no readbacks |
+| positive (VM): each status, and the values read back | `ip.rc`; `-d -j` readbacks | the table's rc; keys as dotted quads, `fwmark` and `if_id` as hex, `remote`/`local` `any` when unset |
+
+**Mutation check:** `vti/set_remote_on_any` at 0 (the point-to-point corner row); `vti6/add_duplicate_other_dev`'s pre without `v6` (the conflict pres row); `xfrm/set_drop_dev`'s command with `dev d0` (the set-keeps corner row); `vti/set_on_dummy` at 2 (the prefetch-failure row).
+
+**Done when:** as KC2-T01. It closes KC5.
 
 ### KC6 — The remaining kinds' captures
 

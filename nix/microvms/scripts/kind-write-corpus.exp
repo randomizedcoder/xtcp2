@@ -710,6 +710,48 @@ namespace eval kindcorpus {
         [amt add_no_value mode 255]
 
     ###########################################################################
+    # gtp (KC4-T04), the device g0. Once any word follows type gtp, ip sends
+    # IFLA_GTP_CREATE_SOCKETS and the kernel binds its own UDP sockets on
+    # ports 3386 and 2152, so a second device in the namespace is refused.
+    # role is required (returned, 1), hsize defaults to 1024, every keyword
+    # is strcmp, and an unknown word is skipped silently. With no word, no
+    # INFO_DATA goes out and gtp_validate refuses it: KC0's probe. There is
+    # no changelink.
+    ###########################################################################
+    variable PRE_G0 [list {link add g0 type gtp role ggsn}]
+
+    proc gtp {name words rc} {
+        return [plain gtp g0 $name $words $rc]
+    }
+
+    # gtp_set <name> <words> <rc> - a set of g0, after PRE_G0.
+    proc gtp_set {name words rc} {
+        variable PRE_G0
+        return [row gtp $name $PRE_G0 [string trimright "ip link set g0 type gtp $words"] $rc g0]
+    }
+
+    lappend rows \
+        [gtp add_ggsn {role ggsn} 0] \
+        [gtp add_sgsn {role sgsn} 0] \
+        [gtp add_hsize {role ggsn hsize 4096} 0] \
+        [gtp add_hsize_max {role ggsn hsize 131071} 0] \
+        [gtp add_hsize_zero {role ggsn hsize 0} 0] \
+        [gtp add_restart_count {role ggsn restart_count 255} 0] \
+        [gtp add_unknown_skipped {role ggsn foo} 0] \
+        [gtp add_no_option {} 2] \
+        [plain gtp g1 add_second {role sgsn} 2 $PRE_G0] \
+        [gtp_set set_same {role ggsn} 2] \
+        [gtp_set set_no_option {} 2] \
+        [gtp add_no_role {hsize 10} 1] \
+        [gtp add_abbrev {rol ggsn} 1] \
+        [gtp_set set_no_role {hsize 5} 1] \
+        [gtp add_role_bad {role foo} 255] \
+        [gtp add_hsize_over {role ggsn hsize 131072} 255] \
+        [gtp add_restart_count_hex {role ggsn restart_count 0x1} 255] \
+        [gtp add_role_twice {role ggsn role sgsn} 255] \
+        [gtp add_no_value role 255]
+
+    ###########################################################################
     # readback_args <ns> <subdir> <readback> - the xtcp2-nlcap capio argument
     # list for one readback, which the driver hands to its capio proc.
     ###########################################################################
