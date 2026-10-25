@@ -362,6 +362,10 @@ type LinkInfo struct {
 	// Iptun is IFLA_INFO_DATA decoded when Kind is "ipip", "sit" or
 	// "ip6tnl".
 	Iptun *IptunInfo
+	// Vti is IFLA_INFO_DATA decoded when Kind is "vti" or "vti6".
+	Vti *VtiInfo
+	// Xfrm is IFLA_INFO_DATA decoded when Kind is "xfrm".
+	Xfrm *XfrmLinkInfo
 
 	Link int32 // IFLA_LINK — peer/lower interface index
 
@@ -1048,6 +1052,10 @@ func setLinkInfoNest(li *LinkInfo, val []byte) {
 		li.Gre = ParseGreInfoData(infoData)
 	case ipipKindCst, sitKindCst, ip6tnlKindCst:
 		li.Iptun = ParseIptunInfoData(infoData)
+	case vtiKindCst, vti6KindCst:
+		li.Vti = ParseVtiInfoData(infoData)
+	case xfrmKindCst:
+		li.Xfrm = ParseXfrmLinkInfoData(infoData)
 	}
 }
 

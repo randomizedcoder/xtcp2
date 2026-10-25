@@ -2,7 +2,7 @@
 
 ## Status
 
-**Last updated:** 2026-10-24
+**Last updated:** 2026-10-25
 
 **Summary:**
 - [goip-parity-gaps.md](goip-parity-gaps.md) is finished. C0 to G7 are on `main` (#280, `31bff973`), and the parity VM passes 507 of 507 rows against `ip` 7.2.0.
@@ -45,6 +45,7 @@ These are the trees [goip-parity-gaps.md](goip-parity-gaps.md#reference-sources)
 | bridge, bridge_slave (KP1) | `xtcpnl_bridge.go`, `xtcpnl_bridge_slave.go` | `EncodeBridgeInfoData`, `EncodeBridgeSlaveData` | refused until KG1 | refused until KG1 |
 | vlan, macvlan, macvtap, ipvlan, ipvtap (KP2) | `xtcpnl_vlan.go`, `xtcpnl_macvlan.go`, `xtcpnl_ipvlan.go` | `EncodeVlanInfoData`, `EncodeMacvlanInfoData`, `EncodeIpvlanInfoData` | refused until KG2 | refused until KG2 |
 | vxlan, geneve, bareudp, amt, gtp (KP3) | `xtcpnl_vxlan.go`, `xtcpnl_geneve.go`, `xtcpnl_bareudp.go`, `xtcpnl_amt.go`, `xtcpnl_gtp.go` | `Encode<Kind>InfoData` for each | refused until KG3 | refused until KG3 |
+| gre, gretap, erspan, ip6gre, ip6gretap, ip6erspan, ipip, sit, ip6tnl, vti, vti6, xfrm (KP4) | `xtcpnl_gre.go`, `xtcpnl_iptun.go`, `xtcpnl_vti.go`, `xtcpnl_xfrm_link.go` | `EncodeGreInfoData`, `EncodeGre6InfoData`, `EncodeIptunInfoData`, `EncodeIp6tnlInfoData`, `EncodeVtiInfoData`, `EncodeXfrmLinkInfoData` | refused until KG4 | refused until KG4 |
 | every other kind | no | no | refused | refused |
 
 The two refusals:
@@ -2230,45 +2231,246 @@ Five tasks, one per KC5 task and iproute2 parser: KP4-T01 gre, gretap and erspan
 
 #### KP4-T05 The vti, vti6 and xfrm parsers
 
-**Code.** `xtcpnl_vti.go` and `xtcpnl_xfrm.go`:
+**Code.** `xtcpnl_vti.go` and `xtcpnl_xfrm_link.go` (`xtcpnl_xfrm.go` is the NETLINK_XFRM family's, so the interface kind's names carry `Link`):
 - **`VtiInfo`:** `Link`, `IKey`/`OKey` (big-endian), `Local`/`Remote` (4 or 16 bytes), `FwMark`. `LinkInfo.Vti` for vti and vti6.
-- **`EncodeVtiInfoData(settings, cur)`:** vti's and vti6's `parse_opt`, the same apart from the family: `IKEY`, `OKEY` always, `LOCAL` and `REMOTE` when set and nonzero, `FWMARK` always, `LINK` when nonzero. `cur` seeds the endpoints, keys and fwmark, and the link through `rta_getattr_u8`: only its low byte, so a lower at ifindex 256 is re-sent as 0, and not at all. The encoder copies it; a decision-log entry records it, and nothing goes upstream.
-- **`XfrmInfo`:** `Link`, `IfID`, `CollectMetadata`. `LinkInfo.Xfrm`.
-- **`EncodeXfrmInfoData(settings)`:** no prefetch. `IF_ID` goes inside the loop, once per `if_id` word; after it, `external` sends `COLLECT_METADATA` and refuses an earlier `if_id` or `dev` (`ErrKindSettingConflict`), and otherwise an `if_id` of 0 is `ErrKindSettingMissing` and `LINK` follows when nonzero.
+- **`EncodeVtiInfoData(settings, cur, v6)`:** vti's and vti6's `parse_opt`, the same apart from the family, which `v6` names: `IKEY`, `OKEY` always, `LOCAL` and `REMOTE` when set and nonzero, `FWMARK` always, `LINK` when nonzero. `cur` seeds the endpoints, keys and fwmark, and the link through `rta_getattr_u8`: only its low byte, so a lower at ifindex 256 is re-sent as 0, and not at all. The encoder copies it; a decision-log entry records it, and nothing goes upstream. An endpoint of the other family is `ErrKindSettingRange`.
+- **`XfrmLinkInfo`:** `Link`, `IfID`, `External`. `LinkInfo.Xfrm`.
+- **`EncodeXfrmLinkInfoData(settings)`:** no prefetch. `IF_ID` goes inside the loop, once per `if_id` word, and an `if_id` of 0 is `ErrKindSettingRange`; after it, `external` sends `COLLECT_METADATA` and refuses an earlier `if_id` or `dev` (`ErrKindSettingConflict`), and otherwise no `if_id` is `ErrKindSettingMissing` and `LINK` follows when nonzero.
 - **The render oracles:** vti and vti6: `remote`, `local`, `link`, `ikey`/`okey` dotted when nonzero, `fwmark` when nonzero. xfrm: `external` true and nothing else, or `if_id` as `%#llx`; `link` is never printed.
-- **The benchmarks:** `BenchmarkParseVtiInfoData` over `vti/add_ikey_okey`, `BenchmarkParseXfrmInfoData` over `xfrm/add_dev`.
+- **The benchmarks:** `BenchmarkParseVtiInfoData` over `vti/add_ikey_okey`, `BenchmarkParseXfrmLinkInfoData` over `xfrm/add_dev`.
 
-`TestVtiDumpMatchesReadback` (18 rows) and `TestXfrmDumpMatchesReadback` (9 rows), then:
+`TestVtiDumpMatchesReadback` (18 rows) and `TestXfrmLinkDumpMatchesReadback` (9 rows), then `TestParseVtiInfoData`:
 
 | description | input | expected |
 |---|---|---|
-| positive: a vti's dump | `vti/add_default` | remote, local `any` |
-| positive: split keys | `vti/add_ikey_okey` | dotted ikey and okey |
-| positive: an xfrm's dump | `xfrm/add_default` | if_id in hex |
-| negative: a nil nest, each kind | `nil` | `nil` |
+| positive: a vti's dump | `vti/add_default` | exactly remote 10.0.0.1, local 10.0.0.2 |
+| positive: split keys | `vti/add_ikey_okey` | local `any`, ikey `1.2.3.4`, okey `0.0.0.16` |
+| negative: a nil nest | `nil` | `nil` |
+| negative: a 16-byte remote on vti | built | remote `unknown` |
+| boundary: the highest key | `vti/add_key_max` | ikey and okey `255.255.255.255` |
+| corner: a zero key doesn't print | built `IKEY` 0 | remote and local `any` alone |
+| corner: vti6's dump order differs | `vti6/add_options` | exactly vti's keys: remote, local `any`, link, ikey, okey, fwmark `0x10` |
+
+`TestParseXfrmLinkInfoData`:
+
+| description | input | expected |
+|---|---|---|
+| positive: an xfrm's dump | `xfrm/add_default` | if_id `0x1` |
+| positive: the lower is decoded but not printed | `xfrm/add_dev` | if_id `0x1` alone |
+| negative: a nil nest | `nil` | `nil` |
 | negative: a short `IF_ID` | built of 2 bytes | no `if_id` |
 | boundary: the highest if_id | `xfrm/add_if_id_max` | `0xffffffff` |
 | corner: an external xfrm prints only `external` | `xfrm/add_external` | `external` true, no `if_id` |
-| corner: a zero key doesn't print | built `IKEY` 0 | no `ikey` |
-| corner: vti6's dump order differs | `vti6/add_options` | the same keys as vti's, decoded in either order |
 
-`TestEncodeVtiInfoData` and `TestEncodeXfrmInfoData`:
+`TestEncodeVtiInfoData`:
 
 | description | input | expected |
 |---|---|---|
-| positive: each row's request | vti's 16, vti6's 9 and xfrm's 17 rows that sent one | byte-identical to `ip.pcap`'s |
-| negative: xfrm `external` with an if_id | `if_id 5 external` | `ErrKindSettingConflict` |
-| negative: xfrm with no if_id | `dev d0` | `ErrKindSettingMissing` |
+| positive: each row's request | vti's 16 and vti6's 9 rows that sent one, sets with their prefetch | byte-identical to `ip.pcap`'s |
+| negative: a vti with an IPv6 remote | built | `ErrKindSettingRange` |
+| negative: a key past 32 bits | `1 << 32` | `ErrKindSettingRange` |
 | negative: a setting with no option | the zero option | `ErrKindSettingOption` |
-| boundary: the last vti key wins | `vti/add_key_last_wins` | its request |
-| corner: two `if_id`s send two `IF_ID`s | `xfrm/add_if_id_twice` | its request, both in order |
+| boundary: no settings | `nil` | no bytes |
+| boundary: the last vti key wins | `remote 10.0.0.1 key 5 ikey 6` | `IKEY` 6, `OKEY` 5 |
 | corner: the prefetched link keeps its low byte | built `cur` with link 258, `fwmark 1` | `LINK` 2 |
+| corner: remote any drops a prefetched remote | built `cur` with a remote and fwmark 7, `remote any` | no `REMOTE`, `FWMARK` 7 |
+
+`TestEncodeXfrmLinkInfoData`:
+
+| description | input | expected |
+|---|---|---|
+| positive: each row's request | the 17 rows that sent one | byte-identical to `ip.pcap`'s |
+| negative: external with an if_id | `if_id 5 external` | `ErrKindSettingConflict` |
+| negative: external with a dev | `external dev d0` | `ErrKindSettingConflict` |
+| negative: no if_id | `dev d0` | `ErrKindSettingMissing` |
+| negative: an if_id of 0 | `if_id 0` | `ErrKindSettingRange` |
+| negative: a setting with no option | the zero option | `ErrKindSettingOption` |
+| boundary: no settings | `nil` | no bytes |
+| corner: two `if_id`s send two `IF_ID`s | `if_id 1 if_id 2` | both, in order |
+| corner: the link follows the if_id | `dev d0 if_id 3` | `IF_ID` 3, then `LINK` |
 
 `TestLinkInfoTunnelKinds`: vti and vti6 decode `Vti`, xfrm `Xfrm`; a gre decodes neither.
 
-**Mutation check:** the vti `LINK` seeded whole (the low-byte corner row); xfrm's `IF_ID` held to after the loop (`add_if_id_twice`); vti's `REMOTE` sent when zero (`add_default`'s and the `set_*` requests). It closes KP4.
+**Mutation check:** the vti `LINK` seeded whole (the low-byte corner row); xfrm's `IF_ID` held to after the loop (`add_if_id_twice`); vti's `REMOTE` sent when unset or zero (the `remote any` rows). It closes KP4.
 
 ### KP5 — The remaining kinds' parsers
+
+Four tasks, one per KC6 task: KP5-T01 hsr (`iplink_hsr.c`); KP5-T02 netkit (`iplink_netkit.c`); KP5-T03 vrf, vrf_slave and vxcan (`iplink_vrf.c`, `iplink_vxcan.c`); KP5-T04 batadv and the five kinds `ip` has no parser for (`iplink_batadv.c`, `iplink_ifb.c`, `iplink_nlmon.c`, `iplink_vcan.c`, `iplink_team.c`), which closes KP5. KP3's shape carries over: a typed `<Kind>Info` with present bits, a `LinkInfo` field and a `setLinkInfoNest` branch, the replay goldens regenerated, a `<Kind>Setting` encoder, and the `kindRows` harness.
+
+**What these kinds add to KP4's shape:**
+- **No prefetch.** None of these parsers reads the device before a set, so the encoders take only the settings, as KP3's do.
+- **Attributes in word order.** hsr, netkit's own words, vrf and batadv send each attribute as its word is read, with no repeat check, so two `supervision`s, `table`s or `ra`s send two attributes. The encoders keep the order and the repeats.
+- **A peer half.** netkit's words after `peer` (when one isn't netkit's) and every vxcan word go through `iplink_parse` into `IFLA_NETKIT_PEER_INFO` or `VXCAN_INFO_PEER`: a 16-byte `ifinfomsg` holding the peer's flags, then its attributes, as `EncodeVethPeer` builds for veth. The two encoders share it rather than copy it.
+- **Nothing to decode for most.** vxcan and batadv have no `fill_info`, team none and team_slave no `fill_slave_info`, and ifb, nlmon and vcan no `IFLA_INFO_DATA` at all; their readbacks carry only `info_kind` (and `info_slave_kind`). vrf's and vrf_slave's table is decoded already (`LinkInfo.VrfTable`, `VrfPortTable`).
+- **`ll_index_to_name` again.** hsr prints `slave1`, `slave2` and `interlink` as names, and an absent slave as JSON `null`.
+
+**Counts.**
+
+| kind | rows | rc 0 | rc 2 | `ip` refused | requests |
+|---|---|---|---|---|---|
+| hsr | 29 | 10 | 10 | 9 | 20 |
+| netkit | 43 | 19 | 8 | 16 | 27 |
+| vrf | 18 | 8 | 4 | 6 | 12 |
+| vrf_slave | 10 | 4 | 3 | 3 | 7 |
+| vxcan | 18 | 6 | 3 | 9 | 9 |
+| batadv | 17 | 6 | 6 | 5 | 12 |
+| ifb | 9 | 4 | 1 | 4 | 5 |
+| nlmon | 6 | 3 | 2 | 1 | 5 |
+| vcan | 13 | 8 | 3 | 2 | 11 |
+| team | 14 | 6 | 5 | 3 | 11 |
+| team_slave | 4 | 2 | 1 | 1 | 3 |
+
+"requests" counts the rows at rc 0 or 2; a bare `type <kind>`, and every row of a kind with no parser, sends no `INFO_DATA`, and its row expects none.
+
+#### KP5-T01 The hsr parser
+
+**Code.** `xtcpnl_hsr.go`:
+- **`HsrInfo`:** `Slave1`, `Slave2`, `Interlink` (ifindexes), `SupervisionAddr` (6 bytes), `SeqNr` (u16), `Version`, `Protocol` (u8s), each with its present bit, and the short-attribute bit `hsr_print_opt` checks. `LinkInfo.Hsr`.
+- **`EncodeHsrInfoData(settings)`:** `hsr_parse_opt`: `MULTICAST_SPEC`, `VERSION` and `PROTOCOL` as u8s, `SLAVE1`, `SLAVE2` and `INTERLINK` as u32 ifindexes, each when its word is read. `ip`'s version and proto checks test `get_u8`'s return, so any u8 passes; an ifindex of 0 (`ll_name_to_index`'s miss) or a value past its width is `ErrKindSettingRange`.
+- **The render oracle:** `hsr_print_opt`: nothing at all when `SLAVE1`, `SLAVE2` or `INTERLINK` is under 4 bytes, `SEQ_NR` under 2 or `SUPERVISION_ADDR` under 6; otherwise `slave1` and `slave2` (names, `null` when absent), `interlink` when present, `seq_nr`, `supervision_addr`, `proto` and `version`. The kernel sends no `VERSION` for PRP.
+- **The benchmark:** `BenchmarkParseHsrInfoData` over `add_interlink`'s blob.
+
+`TestHsrDumpMatchesReadback`: a subtest per rc 0 row (10).
+
+`TestParseHsrInfoData`:
+
+| description | input | expected |
+|---|---|---|
+| positive: an hsr's dump | `add_default` | slave1 `d0`, slave2 `d1`, seq_nr 64511, supervision_addr `01:15:4e:00:01:00`, proto 0, version 0 |
+| positive: a PRP device | `add_proto_prp` | proto 1, no `version` |
+| negative: a nil nest | `nil` | `nil` |
+| negative: a short `SLAVE1` hides everything | built `SLAVE1` of 2 bytes | an empty view |
+| boundary: an empty nest | `[]byte{}` | slave1 and slave2 `null` alone |
+| corner: the interlink | `add_interlink` | interlink `d2` |
+| corner: the supervision address's last byte | `add_supervision_max` | `01:15:4e:00:01:ff` |
+
+`TestEncodeHsrInfoData`:
+
+| description | input | expected |
+|---|---|---|
+| positive: each row's request | the 20 rows that sent one | byte-identical to `ip.pcap`'s |
+| negative: a slave of ifindex 0 | built | `ErrKindSettingRange` |
+| negative: a supervision byte past 255 | `supervision 256` | `ErrKindSettingRange` |
+| negative: a setting with no option | the zero option | `ErrKindSettingOption` |
+| boundary: no settings | `nil` | no bytes |
+| boundary: the supervision byte's top | `supervision 255` | `MULTICAST_SPEC` 0xff |
+| corner: two supervisions send two attributes | `add_supervision_twice` | its request |
+| corner: version 2 passes `ip` | `add_version_2` | its request, `VERSION` 2 |
+| corner: the words' order is the attributes' | `add_abbrev` | `SLAVE1`, `SLAVE2`, `MULTICAST_SPEC`, `VERSION`, `PROTOCOL` |
+
+`TestLinkInfoHsrKinds`: an hsr decodes `Hsr` (positive ×2: `add_default`, `add_proto_prp`); a dummy does not; an hsr with an interlink does (corner).
+
+**Mutation check:** the version refused above 1 (`add_version_2`); the short-attribute check dropped (the short-`SLAVE1` row); the attributes sent in id order (`add_abbrev`).
+
+#### KP5-T02 The netkit parser
+
+**Code.** `xtcpnl_netkit.go`:
+- **`NetkitInfo`:** `Primary` (u8), `Policy`, `PeerPolicy`, `Mode`, `Scrub`, `PeerScrub`, `Pairing` (u32s), `Headroom`, `Tailroom` (u16s), each with its present bit. `LinkInfo.Netkit`.
+- **`EncodeNetkitInfoData(settings, peer)`:** `netkit_parse_opt`: `MODE` (`l2` 0, `l3` 1), `POLICY` or, after `peer`, `PEER_POLICY` (`forward` 0, `blackhole` 2), `SCRUB` or `PEER_SCRUB` (`none` 0, `default` 1), each as its word is read; then, when the peer has words of its own, `PEER_INFO` holding the peer's `ifinfomsg` and attributes, shared with `EncodeVethPeer`. A second `mode` or `peer` is `ErrKindSettingConflict` (`duparg`), and a mode, policy or scrub outside its names `ErrKindSettingRange`. `peer` alone sends an empty `INFO_DATA`, which is not none.
+- **The render oracle:** `netkit_print_opt`: `mode` (`l2`, `l3`, else `UNKNOWN`), `type` (`primary` or `peer`), `policy` and `peer_policy` (`forward`, `blackhole`, else `UNKNOWN`), `scrub` and `peer_scrub` (`none`, `default`, else `UNKNOWN`), each when sent. Headroom, tailroom and pairing aren't printed.
+- **The benchmark:** `BenchmarkParseNetkitInfoData` over `add_peer_blackhole`'s blob.
+
+`TestNetkitDumpMatchesReadback`: a subtest per rc 0 row (19).
+
+`TestParseNetkitInfoData`:
+
+| description | input | expected |
+|---|---|---|
+| positive: a netkit's dump | `add_no_option` | mode `l3`, type `primary`, policy and peer_policy `forward`, scrub and peer_scrub `default` |
+| positive: the peer's policy | `add_peer_blackhole` | peer_policy `blackhole` |
+| negative: a nil nest | `nil` | `nil` |
+| negative: a policy with no name | built `POLICY` 1 | policy `UNKNOWN` |
+| boundary: an empty nest | `[]byte{}` | an empty view |
+| corner: the peer's own dump | `set_on_peer` | type `peer` |
+| corner: no scrub on a single device | built without `SCRUB` | no `scrub` key |
+
+`TestEncodeNetkitInfoData`:
+
+| description | input | expected |
+|---|---|---|
+| positive: each row's request | the 27 rows that sent one | byte-identical to `ip.pcap`'s |
+| negative: a second mode | `mode l3 mode l2` | `ErrKindSettingConflict` |
+| negative: a second peer | `peer peer` | `ErrKindSettingConflict` |
+| negative: a setting with no option | the zero option | `ErrKindSettingOption` |
+| boundary: no settings | `nil` | no bytes |
+| boundary: `peer` alone | `add_peer_only` | an empty, non-nil `INFO_DATA` |
+| corner: `peer` splits the policy words | `forward peer blackhole` | `POLICY` 0, then `PEER_POLICY` 2 |
+| corner: the peer's header carries its flags | `add_peer_up` | its request: `PEER_INFO`'s `ifinfomsg` with `IFF_UP` |
+| corner: a netkit word after `peer` stays netkit's | `add_peer_mode` | `MODE` 0, no `PEER_INFO` |
+
+`TestLinkInfoNetkitKinds`: a netkit decodes `Netkit` (positive ×2: the primary and, through `set_on_peer`, the peer); a veth does not; an l2 netkit does (corner).
+
+**Mutation check:** a policy after `peer` sent as `POLICY` (`add_peer_blackhole`); `PEER_INFO` placed before the netkit words (`add_peer_name` and its siblings); a second `mode` accepted (the second-mode row).
+
+#### KP5-T03 The vrf, vrf_slave and vxcan parsers
+
+**Code.** `xtcpnl_vrf.go` and `xtcpnl_vxcan.go`:
+- **vrf decodes as it does today:** `LinkInfo.VrfTable` and `VrfPortTable` are unchanged, and the task adds what was missing: the corpus tests and the encoder. The `LinkInfo` comments that say only vrf and bond are decoded are brought up to date.
+- **`EncodeVrfInfoData(settings)`:** `vrf_parse_opt`: one `TABLE` u32 per `table` word, in order, the name already resolved (`main` is 254); a value past 32 bits is `ErrKindSettingRange`. The kernel's nonzero check stays the kernel's (`add_table_zero` is its refusal).
+- **vrf_slave has no parser:** a test that every vrf_slave request carries no `INFO_SLAVE_DATA`, and that an enslaved device's `VrfPortTable` renders as its readback's `table`.
+- **`EncodeVxcanInfoData(peer)`:** `vxcan_parse_opt`: always one `VXCAN_INFO_PEER` holding the peer's `ifinfomsg` and attributes, `peer` alone included, through the helper `EncodeVethPeer` and `EncodeNetkitInfoData` share.
+- **The render oracles:** vrf: `table`. vrf_slave: `table` under `info_slave_data`. vxcan: nothing, since the kernel sends no `INFO_DATA`.
+- **The benchmark:** `BenchmarkParseVrfInfoData` over `vrf/add_table`'s blob, timing `vrfTableAttr`.
+
+`TestVrfDumpMatchesReadback`: a subtest per rc 0 vrf row (8) and per vrf_slave row whose readback has a slave kind (3).
+
+`TestEncodeVrfInfoData`:
+
+| description | input | expected |
+|---|---|---|
+| positive: each row's request | vrf's 12 rows that sent one | byte-identical to `ip.pcap`'s |
+| negative: a table past 32 bits | `1 << 32` | `ErrKindSettingRange` |
+| negative: a setting with no option | the zero option | `ErrKindSettingOption` |
+| boundary: no settings | `nil` | no bytes |
+| boundary: the highest table | `table 4294967295` | `TABLE` 0xffffffff |
+| corner: two tables send two attributes | `add_table_twice` | its request |
+| corner: table 0 is sent | `add_table_zero` | its request: the kernel refuses it |
+
+`TestEncodeVxcanInfoData`:
+
+| description | input | expected |
+|---|---|---|
+| positive: each row's request | vxcan's 9 rows that sent one | byte-identical to `ip.pcap`'s |
+| negative: a peer attribute too long for the buffer | built | an error, no bytes |
+| boundary: `peer` alone | `add_peer` | one `VXCAN_INFO_PEER` holding a zero `ifinfomsg` |
+| corner: a bare word names the peer | `add_peer_bare_name` | the same bytes as `add_peer_name` |
+| corner: the peer's flags | `add_peer_up` | `IFF_UP` in the peer's `ifinfomsg` |
+
+`TestKindSlaveDataAbsent` (vrf_slave's half): every vrf_slave request has no `INFO_SLAVE_DATA` (negative); `set_master`'s readback decodes `VrfPortTable` 10 (positive); `set_nomaster`'s has no slave kind (corner).
+
+**Mutation check:** the repeated table dropped (`add_table_twice`); vxcan's peer nest skipped for `peer` alone (`add_peer`); the peer's flags left in the outer header (`add_peer_up`, vxcan's and netkit's).
+
+#### KP5-T04 The batadv parser and the kinds with no parser
+
+**Code.** `xtcpnl_batadv.go`:
+- **`EncodeBatadvInfoData(settings)`:** `batadv_parse_opt`: one NUL-terminated `IFLA_BATADV_ALGO_NAME` per `ra` word, in order, unchecked. The kernel's name check stays the kernel's.
+- **No decoder:** batadv has no `fill_info`, so `LinkInfo` gains nothing, and a dump's `INFO_DATA` is never there to decode.
+- **The kinds with no parser:** ifb, nlmon, vcan, team and team_slave. A test that none of their requests carries `INFO_DATA` or `INFO_SLAVE_DATA`, that their dumps carry none, and that `ParseNewLink` leaves every kind field nil for them.
+- **The benchmark:** `BenchmarkEncodeBatadvInfoData` over `ra BATMAN_V`, since there's nothing to parse.
+
+`TestEncodeBatadvInfoData`:
+
+| description | input | expected |
+|---|---|---|
+| positive: each row's request | the 12 rows that sent one | byte-identical to `ip.pcap`'s |
+| negative: a name with a NUL | built | `ErrKindSettingRange` |
+| negative: a setting with no option | the zero option | `ErrKindSettingOption` |
+| boundary: no settings | `nil` | no bytes |
+| boundary: an empty name | built `ra ""` | one attribute holding the NUL alone |
+| corner: two names send two attributes | `add_ra_twice` | its request |
+| corner: the case is kept | `add_ra_lowercase` | its request: `batman_v` |
+
+`TestKindsWithoutData`:
+
+| description | input | expected |
+|---|---|---|
+| positive: an ifb's dump decodes no kind data | `ifb/add_no_option` | every `LinkInfo` kind field nil |
+| positive: a team port's dump has a slave kind and no data | `team/set_enslave`'s `d0` | `SlaveKind` team, no slave data |
+| negative: no parser-less request carries kind data | every ifb, nlmon, vcan, team and team_slave request | no `INFO_DATA`, no `INFO_SLAVE_DATA` |
+| boundary: a bare set of another kind | `ifb/set_kind_mismatch` | `INFO_KIND` vcan alone |
+| corner: batadv's dump has no `INFO_DATA` | `batadv/add_ra_v` | none |
+
+**Mutation check:** the NUL dropped from `ALGO_NAME` (every batadv request); the repeated name dropped (`add_ra_twice`); a parser-less kind's dump given a decoder that returns non-nil on a nil nest (the ifb row). It closes KP5.
 
 ### KG0 — goip `link set inet`
 
